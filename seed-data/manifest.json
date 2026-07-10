@@ -1,0 +1,28 @@
+{
+  "generated_at": "2026-07-10",
+  "total_locations": 7,
+  "slugs": [
+    "batah-timur",
+    "karanggondang",
+    "kemantren",
+    "tengket",
+    "ujungwatu",
+    "kedungmutih",
+    "purworejo"
+  ],
+  "summary": {
+    "PT Contoh Konstruksi Nusantara": [
+      "kedungmutih",
+      "purworejo"
+    ],
+    "PT Bahari Jaya Mandiri": [
+      "ujungwatu",
+      "karanggondang"
+    ],
+    "PT Nusantara Bahari Utama": [
+      "batah-timur",
+      "tengket",
+      "kemantren"
+    ]
+  }
+}

@@ -1,0 +1,635 @@
+// KNMP Monitor · Prisma Schema
+// See PROJECT.md section 4 for data model decisions.
+//
+// Naming: snake_case in DB, camelCase in TS via @map / @@map.
+// All tables have organization_id for future multi-tenant.
+// Append-only tables enforced via triggers (see prisma/migrations/).
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis, pgcrypto]
+}
+
+// ─────────────────────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────────────────────
+
+enum UserRole {
+  super_admin
+  program_director
+  regional_manager
+  project_manager
+  site_manager
+  exec_viewer
+}
+
+enum LocationStatus {
+  planning
+  in_progress
+  paused
+  completed
+  handed_over
+  cancelled
+}
+
+enum WeatherCode {
+  cerah
+  berawan
+  hujan_ringan
+  hujan_deras
+  angin_kencang
+  banjir
+}
+
+enum PhotoVerification {
+  pending
+  passed
+  flagged_gps
+  flagged_time
+  flagged_duplicate
+  rejected
+}
+
+enum CostCategory {
+  material
+  upah
+  alat
+  overhead
+  transport
+  lain
+}
+
+enum AlertType {
+  no_report_3d
+  no_report_7d
+  gap_gt_5pct
+  gap_gt_10pct
+  cost_over_budget
+  photo_flagged
+  weekly_plan_missing
+  unplanned_item_added
+}
+
+enum AlertSeverity {
+  info
+  warning
+  critical
+}
+
+enum OtpPurpose {
+  device_binding
+  pin_reset
+  admin_action
+}
+
+enum SuggestionSource {
+  manual         // SM input langsung
+  wa_text        // Mandor kirim WA text dengan format template
+  paper_transcribe // SM catat dari kertas mandor
+}
+
+enum ReportItemState {
+  draft_mandor   // Dari WA, belum di-review SM
+  draft_sm       // SM sedang input
+  approved       // SM approved
+  sent           // Ter-submit ke sistem
+  rejected       // SM tolak (audit trail tetap)
+}
+
+enum SyncQueueStatus {
+  pending
+  processing
+  completed
+  failed
+}
+
+// ─────────────────────────────────────────────────────────────
+// 4.1 IDENTITAS & AKSES
+// ─────────────────────────────────────────────────────────────
+
+model Organization {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  users     User[]
+  contracts Contract[]
+  locations Location[]
+
+  @@map("organizations")
+}
+
+model User {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId      String    @default("00000000-0000-0000-0000-000000000001") @map("org_id") @db.Uuid
+  phoneE164  String    @unique @map("phone_e164")
+  fullName   String    @map("full_name")
+  email      String?
+  pinHash    String    @map("pin_hash")
+  role       UserRole
+  isActive   Boolean   @default(true) @map("is_active")
+  lastLoginAt DateTime? @map("last_login_at") @db.Timestamptz
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization        Organization              @relation(fields: [orgId], references: [id])
+  devices             Device[]
+  locationAssignments UserLocationAssignment[]
+  otpCodes            OtpCode[]
+  reportsSubmitted    DailyReport[]             @relation("reportSubmitter")
+  reportsSuggested    DailyReportItem[]         @relation("itemSuggester")
+  reportsApproved     DailyReportItem[]         @relation("itemApprover")
+  weeklyPlansCreated  WeeklyPlan[]              @relation("planCreator")
+  alertsAcknowledged  Alert[]                   @relation("alertAcker")
+  auditLogs           AuditLog[]
+  syncQueueEntries    SyncQueue[]
+
+  @@index([orgId])
+  @@index([role])
+  @@map("users")
+}
+
+model Device {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  fingerprint  String    @unique
+  deviceName   String    @map("device_name")
+  userAgent    String?   @map("user_agent")
+  lastSeenAt   DateTime  @default(now()) @map("last_seen_at") @db.Timestamptz
+  lastIp       String?   @map("last_ip") @db.Inet
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@map("devices")
+}
+
+model UserLocationAssignment {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  locationId     String    @map("location_id") @db.Uuid
+  assignedAt     DateTime  @default(now()) @map("assigned_at") @db.Timestamptz
+  unassignedAt   DateTime? @map("unassigned_at") @db.Timestamptz
+
+  user     User     @relation(fields: [userId], references: [id])
+  location Location @relation(fields: [locationId], references: [id])
+
+  @@unique([userId, locationId, assignedAt])
+  @@index([locationId, unassignedAt])
+  @@map("user_location_assignments")
+}
+
+model OtpCode {
+  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String     @map("user_id") @db.Uuid
+  codeHash   String     @map("code_hash")
+  purpose    OtpPurpose
+  expiresAt  DateTime   @map("expires_at") @db.Timestamptz
+  usedAt     DateTime?  @map("used_at") @db.Timestamptz
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, usedAt, expiresAt])
+  @@map("otp_codes")
+}
+
+// ─────────────────────────────────────────────────────────────
+// 4.2 STRUKTUR PROYEK
+// ─────────────────────────────────────────────────────────────
+
+model Contract {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId          String    @default("00000000-0000-0000-0000-000000000001") @map("org_id") @db.Uuid
+  contractNumber String    @unique @map("contract_number")
+  contractorName String    @map("contractor_name")
+  contractorNpwp String?   @map("contractor_npwp")
+  contractValue  BigInt    @map("contract_value")
+  signedDate     DateTime  @map("signed_date") @db.Date
+  startDate      DateTime  @map("start_date") @db.Date
+  endDate        DateTime  @map("end_date") @db.Date
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization         @relation(fields: [orgId], references: [id])
+  location     Location?
+  amendments   ContractAmendment[]
+
+  @@index([orgId])
+  @@map("contracts")
+}
+
+/// APPEND-ONLY: koreksi = insert row baru, tidak boleh UPDATE/DELETE
+model ContractAmendment {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contractId     String   @map("contract_id") @db.Uuid
+  ccoNumber      String   @map("cco_number")
+  valueDelta     BigInt   @map("value_delta")
+  endDateDelta   Int      @map("end_date_delta") // days added/subtracted
+  effectiveDate  DateTime @map("effective_date") @db.Date
+  reason         String
+  attachmentUrl  String?  @map("attachment_url")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  contract Contract @relation(fields: [contractId], references: [id])
+
+  @@index([contractId])
+  @@map("contract_amendments")
+}
+
+model Location {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId           String         @default("00000000-0000-0000-0000-000000000001") @map("org_id") @db.Uuid
+  contractId      String         @unique @map("contract_id") @db.Uuid
+  name            String
+  slug            String         @unique
+  village         String
+  regency         String
+  province        String
+  gpsLat          Decimal        @map("gps_lat") @db.Decimal(10, 7)
+  gpsLng          Decimal        @map("gps_lng") @db.Decimal(10, 7)
+  geofenceRadiusM Int            @default(500) @map("geofence_radius_m")
+  status          LocationStatus @default(planning)
+  hpsFileUrl      String?        @map("hps_file_url")
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization       Organization             @relation(fields: [orgId], references: [id])
+  contract           Contract                 @relation(fields: [contractId], references: [id])
+  categories         RabCategory[]
+  statusHistory      LocationStatusHistory[]
+  assignments        UserLocationAssignment[]
+  scheduledMilestones ScheduledMilestone[]
+  budgetLines        BudgetLine[]
+  dailyReports       DailyReport[]
+  weeklyPlans        WeeklyPlan[]
+  weeklyReports      WeeklyReport[]
+  monthlyReports     MonthlyReport[]
+  alerts             Alert[]
+
+  @@index([province])
+  @@index([status])
+  @@index([orgId])
+  @@map("locations")
+}
+
+model RabCategory {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  locationId     String   @map("location_id") @db.Uuid
+  romanNumeral   String   @map("roman_numeral") // "I", "II", "III", ... (display only, not unique)
+  name           String
+  totalValue     BigInt   @map("total_value")
+  sortOrder      Int      @map("sort_order")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  location      Location         @relation(fields: [locationId], references: [id])
+  subcategories RabSubcategory[]
+  items         RabItem[]        @relation("directItem")
+
+  @@unique([locationId, name])
+  @@index([locationId, sortOrder])
+  @@map("rab_categories")
+}
+
+model RabSubcategory {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  categoryId     String   @map("category_id") @db.Uuid
+  code           String
+  name           String
+  totalValue     BigInt   @map("total_value")
+  sortOrder      Int      @map("sort_order")
+
+  category RabCategory @relation(fields: [categoryId], references: [id])
+  items    RabItem[]   @relation("subItem")
+
+  @@unique([categoryId, code])
+  @@map("rab_subcategories")
+}
+
+model RabItem {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  categoryId        String?  @map("category_id") @db.Uuid
+  subcategoryId     String?  @map("subcategory_id") @db.Uuid
+  parentItemId      String?  @map("parent_item_id") @db.Uuid
+  code              String   // "1", "6.1", "6.1.a"
+  name              String
+  volume            Decimal? @db.Decimal(15, 3)
+  unit              String?  // "m²", "m³", "kg", "ls", "bh"
+  unitPrice         Decimal? @map("unit_price") @db.Decimal(15, 2)
+  totalPrice        Decimal? @map("total_price") @db.Decimal(15, 2)
+  tkdnRatio         Decimal? @map("tkdn_ratio") @db.Decimal(5, 4)
+  isUnplanned       Boolean  @default(false) @map("is_unplanned")
+  createdByUserId   String?  @map("created_by_user_id") @db.Uuid
+  sortOrder         Int      @map("sort_order")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  directCategory RabCategory?      @relation("directItem", fields: [categoryId], references: [id])
+  subcategory    RabSubcategory?   @relation("subItem", fields: [subcategoryId], references: [id])
+  parent         RabItem?          @relation("itemChildren", fields: [parentItemId], references: [id])
+  children       RabItem[]         @relation("itemChildren")
+  reportItems    DailyReportItem[]
+  planItems      WeeklyPlanItem[]
+  milestones     ScheduledMilestone[]
+
+  @@index([categoryId])
+  @@index([subcategoryId])
+  @@index([parentItemId])
+  @@map("rab_items")
+}
+
+model ScheduledMilestone {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  locationId        String   @map("location_id") @db.Uuid
+  rabItemId         String?  @map("rab_item_id") @db.Uuid // NULL = location-level milestone
+  weekNumber        Int      @map("week_number")
+  targetVolume      Decimal? @map("target_volume") @db.Decimal(15, 3)
+  targetProgressPct Decimal  @map("target_progress_pct") @db.Decimal(6, 3)
+  targetValue       BigInt?  @map("target_value")
+
+  location Location @relation(fields: [locationId], references: [id])
+  rabItem  RabItem? @relation(fields: [rabItemId], references: [id])
+
+  @@unique([locationId, rabItemId, weekNumber])
+  @@index([locationId, weekNumber])
+  @@map("scheduled_milestones")
+}
+
+model BudgetLine {
+  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  locationId String       @map("location_id") @db.Uuid
+  category   CostCategory
+  allocated  BigInt
+
+  location Location @relation(fields: [locationId], references: [id])
+
+  @@unique([locationId, category])
+  @@map("budget_lines")
+}
+
+/// APPEND-ONLY: audit trail perubahan status
+model LocationStatusHistory {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  locationId      String         @map("location_id") @db.Uuid
+  fromStatus      LocationStatus? @map("from_status")
+  toStatus        LocationStatus  @map("to_status")
+  changedByUserId String         @map("changed_by_user_id") @db.Uuid
+  changedAt       DateTime       @default(now()) @map("changed_at") @db.Timestamptz
+  note            String?
+
+  location Location @relation(fields: [locationId], references: [id])
+
+  @@index([locationId, changedAt])
+  @@map("location_status_history")
+}
+
+// ─────────────────────────────────────────────────────────────
+// 4.3 PELAPORAN & BUKTI
+// ─────────────────────────────────────────────────────────────
+
+/// APPEND-ONLY: koreksi via supersedes_id
+model DailyReport {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  locationId     String    @map("location_id") @db.Uuid
+  submittedByUserId String @map("submitted_by_user_id") @db.Uuid
+  deviceId       String?   @map("device_id") @db.Uuid
+  reportDate     DateTime  @map("report_date") @db.Date
+  submittedAt    DateTime  @default(now()) @map("submitted_at") @db.Timestamptz
+  gpsLat         Decimal?  @map("gps_lat") @db.Decimal(10, 7)
+  gpsLng         Decimal?  @map("gps_lng") @db.Decimal(10, 7)
+  weather        WeatherCode?
+  teamPresent    Int?      @map("team_present")
+  notes          String?
+  supersedesId   String?   @map("supersedes_id") @db.Uuid
+  signatureHash  String    @map("signature_hash") // SHA256 dari content + timestamp + device_id
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  location    Location          @relation(fields: [locationId], references: [id])
+  submitter   User              @relation("reportSubmitter", fields: [submittedByUserId], references: [id])
+  supersedes  DailyReport?      @relation("reportRevisions", fields: [supersedesId], references: [id])
+  revisions   DailyReport[]     @relation("reportRevisions")
+  items       DailyReportItem[]
+  photos      Photo[]
+  costEntries CostEntry[]
+
+  @@index([locationId, reportDate])
+  @@index([submittedAt])
+  @@map("daily_reports")
+}
+
+model DailyReportItem {
+  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  dailyReportId      String?           @map("daily_report_id") @db.Uuid // NULL saat masih draft belum masuk report
+  rabItemId          String            @map("rab_item_id") @db.Uuid
+  volumeDone         Decimal           @map("volume_done") @db.Decimal(15, 3)
+  volumeCumulative   Decimal           @map("volume_cumulative") @db.Decimal(15, 3)
+  valueDone          BigInt            @map("value_done") // volumeDone × unit_price
+  state              ReportItemState   @default(draft_sm)
+  suggestionSource   SuggestionSource  @default(manual) @map("suggestion_source")
+  suggestedByUserId  String?           @map("suggested_by_user_id") @db.Uuid
+  suggestedAt        DateTime?         @map("suggested_at") @db.Timestamptz
+  suggestionRaw      String?           @map("suggestion_raw") // WA text asli, untuk audit
+  approvedByUserId   String?           @map("approved_by_user_id") @db.Uuid
+  approvedAt         DateTime?         @map("approved_at") @db.Timestamptz
+  rejectedReason     String?           @map("rejected_reason")
+  wasOutsidePlan     Boolean           @default(false) @map("was_outside_plan")
+  notes              String?
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz
+
+  report        DailyReport? @relation(fields: [dailyReportId], references: [id])
+  rabItem       RabItem      @relation(fields: [rabItemId], references: [id])
+  suggestedBy   User?        @relation("itemSuggester", fields: [suggestedByUserId], references: [id])
+  approvedBy    User?        @relation("itemApprover", fields: [approvedByUserId], references: [id])
+  photos        Photo[]
+
+  @@index([dailyReportId])
+  @@index([rabItemId])
+  @@index([state, approvedAt])
+  @@map("daily_report_items")
+}
+
+model Photo {
+  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  dailyReportId      String?           @map("daily_report_id") @db.Uuid
+  reportItemId       String?           @map("report_item_id") @db.Uuid
+  r2Key              String            @unique @map("r2_key")
+  thumbnailKey       String?           @map("thumbnail_key")
+  sha256             String            @unique
+  bytes              Int
+  widthPx            Int?              @map("width_px")
+  heightPx           Int?              @map("height_px")
+  exifGpsLat         Decimal?          @map("exif_gps_lat") @db.Decimal(10, 7)
+  exifGpsLng         Decimal?          @map("exif_gps_lng") @db.Decimal(10, 7)
+  exifTakenAt        DateTime?         @map("exif_taken_at") @db.Timestamptz
+  verification       PhotoVerification @default(pending)
+  verificationNote   String?           @map("verification_note")
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz
+
+  report     DailyReport?     @relation(fields: [dailyReportId], references: [id])
+  reportItem DailyReportItem? @relation(fields: [reportItemId], references: [id])
+
+  @@index([dailyReportId])
+  @@index([reportItemId])
+  @@index([verification])
+  @@map("photos")
+}
+
+model CostEntry {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  dailyReportId  String       @map("daily_report_id") @db.Uuid
+  category       CostCategory
+  amount         BigInt
+  description    String?
+  receiptPhotoId String?      @map("receipt_photo_id") @db.Uuid
+
+  report DailyReport @relation(fields: [dailyReportId], references: [id])
+
+  @@index([dailyReportId])
+  @@map("cost_entries")
+}
+
+model WeeklyPlan {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  locationId     String   @map("location_id") @db.Uuid
+  weekNumber     Int      @map("week_number")
+  weekStart      DateTime @map("week_start") @db.Date
+  weekEnd        DateTime @map("week_end") @db.Date
+  createdByUserId String  @map("created_by_user_id") @db.Uuid
+  submittedAt    DateTime? @map("submitted_at") @db.Timestamptz
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  location  Location         @relation(fields: [locationId], references: [id])
+  createdBy User             @relation("planCreator", fields: [createdByUserId], references: [id])
+  items     WeeklyPlanItem[]
+
+  @@unique([locationId, weekNumber])
+  @@index([locationId, weekStart])
+  @@map("weekly_plans")
+}
+
+model WeeklyPlanItem {
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  weeklyPlanId   String  @map("weekly_plan_id") @db.Uuid
+  rabItemId      String  @map("rab_item_id") @db.Uuid
+  targetVolume   Decimal @map("target_volume") @db.Decimal(15, 3)
+  targetValue    BigInt  @map("target_value")
+  priority       Int     @default(5) // 1-10, higher = more critical
+
+  plan    WeeklyPlan @relation(fields: [weeklyPlanId], references: [id])
+  rabItem RabItem    @relation(fields: [rabItemId], references: [id])
+
+  @@unique([weeklyPlanId, rabItemId])
+  @@map("weekly_plan_items")
+}
+
+model WeeklyReport {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  locationId        String   @map("location_id") @db.Uuid
+  weekNumber        Int      @map("week_number")
+  weekStart         DateTime @map("week_start") @db.Date
+  weekEnd           DateTime @map("week_end") @db.Date
+  progressDeltaPct  Decimal  @map("progress_delta_pct") @db.Decimal(6, 3)
+  progressCumulativePct Decimal @map("progress_cumulative_pct") @db.Decimal(6, 3)
+  costRealized      BigInt   @map("cost_realized")
+  narrative         String?
+  pdfUrl            String?  @map("pdf_url")
+  xlsxUrl           String?  @map("xlsx_url")
+  reviewedByUserId  String?  @map("reviewed_by_user_id") @db.Uuid
+  reviewedAt        DateTime? @map("reviewed_at") @db.Timestamptz
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  location Location @relation(fields: [locationId], references: [id])
+
+  @@unique([locationId, weekNumber])
+  @@map("weekly_reports")
+}
+
+model MonthlyReport {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  locationId        String   @map("location_id") @db.Uuid
+  yearMonth         String   @map("year_month") // "2026-07"
+  progressCumulativePct Decimal @map("progress_cumulative_pct") @db.Decimal(6, 3)
+  costRealized      BigInt   @map("cost_realized")
+  photoCount        Int      @map("photo_count")
+  pdfUrl            String?  @map("pdf_url")
+  xlsxUrl           String?  @map("xlsx_url")
+  approvedByUserId  String?  @map("approved_by_user_id") @db.Uuid
+  approvedAt        DateTime? @map("approved_at") @db.Timestamptz
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  location Location @relation(fields: [locationId], references: [id])
+
+  @@unique([locationId, yearMonth])
+  @@map("monthly_reports")
+}
+
+// ─────────────────────────────────────────────────────────────
+// 4.4 SISTEM & AUDIT
+// ─────────────────────────────────────────────────────────────
+
+model Alert {
+  id                 String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  locationId         String        @map("location_id") @db.Uuid
+  alertType          AlertType     @map("alert_type")
+  severity           AlertSeverity
+  message            String
+  triggeredAt        DateTime      @default(now()) @map("triggered_at") @db.Timestamptz
+  acknowledgedByUserId String?     @map("acknowledged_by_user_id") @db.Uuid
+  acknowledgedAt     DateTime?     @map("acknowledged_at") @db.Timestamptz
+  resolvedAt         DateTime?     @map("resolved_at") @db.Timestamptz
+  metadata           Json?
+
+  location       Location @relation(fields: [locationId], references: [id])
+  acknowledgedBy User?    @relation("alertAcker", fields: [acknowledgedByUserId], references: [id])
+
+  @@index([locationId, resolvedAt])
+  @@index([severity, resolvedAt])
+  @@map("alerts")
+}
+
+/// APPEND-ONLY: setiap mutation di-log di sini
+model AuditLog {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String?  @map("user_id") @db.Uuid
+  deviceId     String?  @map("device_id") @db.Uuid
+  action       String   // "user.login", "report.submit", "photo.upload", dsb
+  resourceType String   @map("resource_type")
+  resourceId   String?  @map("resource_id") @db.Uuid
+  ip           String?  @db.Inet
+  userAgent    String?  @map("user_agent")
+  payload      Json?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([action])
+  @@index([resourceType, resourceId])
+  @@map("audit_logs")
+}
+
+model SyncQueue {
+  id         String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String          @map("user_id") @db.Uuid
+  clientRef  String          @map("client_ref") // UUID dari client, untuk idempotency
+  operation  Json            // opaque; server tahu cara replay
+  status     SyncQueueStatus @default(pending)
+  errorMsg   String?         @map("error_msg")
+  receivedAt DateTime        @default(now()) @map("received_at") @db.Timestamptz
+  processedAt DateTime?      @map("processed_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, clientRef])
+  @@index([status, receivedAt])
+  @@map("sync_queue")
+}
