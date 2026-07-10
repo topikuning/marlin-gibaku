@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { isCrossLocation, LOCATION_STATUS_LABEL, LOCATION_STATUS_CLASS } from "@/lib/roles";
+import { canReport } from "@/lib/report";
 import { formatRupiah } from "@/lib/format";
 
 const dateFmt = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium" });
@@ -127,9 +128,14 @@ export default async function LokasiDetailPage({
         >
           Lihat RAB lengkap →
         </Link>
-        <span className="text-xs text-[#8a9199]">
-          Input laporan volume = tahap berikutnya (Lapor Harian).
-        </span>
+        {canReport(role) && (
+          <Link
+            href={`/lokasi/${location.slug}/lapor`}
+            className="rounded-md border border-[#3A4E63] px-4 py-2 text-sm font-semibold text-[#3A4E63] transition hover:bg-[#EFE9DB]"
+          >
+            Lapor Harian →
+          </Link>
+        )}
       </div>
     </>
   );
