@@ -120,9 +120,17 @@ export default async function LokasiDetailPage({
         </table>
       </section>
 
-      <p className="mt-4 text-xs text-[#8a9199]">
-        Detail sub-item RAB + input laporan volume = v0.2 (segera).
-      </p>
+      <div className="mt-4 flex items-center gap-4">
+        <Link
+          href={`/lokasi/${location.slug}/rab`}
+          className="rounded-md bg-[#3A4E63] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2c3d4f]"
+        >
+          Lihat RAB lengkap →
+        </Link>
+        <span className="text-xs text-[#8a9199]">
+          Input laporan volume = tahap berikutnya (Lapor Harian).
+        </span>
+      </div>
     </>
   );
 }
