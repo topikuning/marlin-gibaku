@@ -63,6 +63,7 @@ Buka **web service** (bukan Postgres) → tab **Variables** → tambah:
 | `AUTH_SECRET` | hasil `openssl rand -base64 32` | Wajib di produksi. Rahasia, jangan commit. |
 | `AUTH_URL` | `https://<domain-railway-kamu>` | Isi setelah generate domain (§6). Bisa juga di-infer (trustHost=true) tapi lebih aman diset. |
 | `FEATURE_WAHA_OTP` | `false` | OTP WA di-drop (DECISIONS 019). |
+| `SEED_ON_DEPLOY` | `true` (deploy pertama) | Bikin data awal + demo user otomatis di dalam container Railway saat deploy. **Set `false` / hapus setelah data awal masuk** (demo password lemah). |
 
 `NODE_ENV=production` diset otomatis oleh Railway — tidak perlu ditambah.
 
@@ -84,8 +85,9 @@ Isi `railway.json` yang akan dipakai Railway:
     "buildCommand": "pnpm install --frozen-lockfile && pnpm db:generate && pnpm build"
   },
   "deploy": {
-    // migrasi jalan SEBELUM versi baru serve traffic (idempotent, aman re-run)
-    "preDeployCommand": "pnpm db:migrate:deploy",
+    // scripts/release.sh: migrate deploy + (opsional) seed kalau SEED_ON_DEPLOY=true
+    // jalan SEBELUM versi baru serve traffic, di dalam container (bukan lokal)
+    "preDeployCommand": "sh scripts/release.sh",
     "startCommand": "pnpm start",
     "healthcheckPath": "/api/health",   // cek koneksi DB, 200/503
     "healthcheckTimeout": 300,
@@ -123,24 +125,24 @@ Domain → set CNAME di DNS provider.
 
 ---
 
-## 7. Seed data (sekali, opsional untuk testing)
-<!-- anchor: seed -->
+## 7. Seed data (otomatis di Railway — TANPA setup lokal)
 
+Kamu **tidak perlu** clone repo atau install apa pun di laptop. Seed jalan di dalam
+container Railway lewat `scripts/release.sh`, dikontrol env var:
 
-Deploy hanya bikin schema kosong — **belum ada user**. Untuk smoke test dengan
-demo user, seed sekali dari lokal (Railway CLI menyuntik env DB Railway):
+1. Sebelum deploy pertama, set variable `SEED_ON_DEPLOY=true` (§3).
+2. Deploy. Di fase pre-deploy, container jalankan: `migrate deploy` → lalu `db:seed`
+   (karena flag true). Hasil: 3 kontraktor, 7 lokasi, 7 demo user (`password123`).
+3. **Setelah data awal masuk, ganti `SEED_ON_DEPLOY=false`** (atau hapus) →
+   deploy berikutnya cuma migrate, tidak re-seed.
 
-```bash
-railway link            # pilih project + service
-railway run pnpm db:seed
-```
+Seed idempotent (upsert), jadi tidak menggandakan data kalau flag tak sengaja
+kebiarkan true. Tapi tetap matikan untuk produksi.
 
-Ini bikin 3 kontraktor, 7 lokasi, dan 7 demo user (password `password123`).
-
-> **PENTING**: `password123` = DEV ONLY. Untuk data produksi, **jangan** seed demo
-> user — provisioning user riil (dan ganti password) via admin panel (belum ada,
-> TODO) atau langsung insert dengan `password_hash` Argon2id. Seed demo hanya untuk
-> membuktikan flow login jalan.
+> **PENTING**: `password123` = DEV ONLY, untuk membuktikan flow login. Untuk data
+> produksi riil, jangan andalkan demo user — provisioning user beneran (via admin
+> panel, TODO) atau insert dengan `password_hash` Argon2id, dan **jangan** biarkan
+> `SEED_ON_DEPLOY=true`.
 
 ---
 
@@ -194,13 +196,14 @@ Lihat `docs/OPEN_ISSUES.md` untuk daftar lengkap.
 1. New Project → deploy from GitHub repo (marlin-gibaku)
 2. + New → Database → PostgreSQL
 3. web service → Variables:
-     DATABASE_URL = ${{Postgres.DATABASE_URL}}
-     AUTH_SECRET  = <openssl rand -base64 32>
-     AUTH_URL     = (isi setelah step 5)
+     DATABASE_URL     = ${{Postgres.DATABASE_URL}}
+     AUTH_SECRET      = <openssl rand -base64 32>
+     AUTH_URL         = (isi setelah step 5)
      FEATURE_WAHA_OTP = false
-4. Deploy → cek build + pre-deploy migrate + healthcheck hijau
+     SEED_ON_DEPLOY   = true      ← biar data awal + demo user masuk otomatis
+4. Deploy → cek build + pre-deploy (migrate + seed) + healthcheck hijau
 5. Settings → Networking → Generate Domain → set AUTH_URL → redeploy
-6. (opsional) railway run pnpm db:seed  → smoke test login
+6. Login admin / password123 → lalu set SEED_ON_DEPLOY=false + redeploy
 ```
 
 Sumber panduan (diverifikasi 2026-07): Railway docs (deploy Next.js, PostgreSQL),
