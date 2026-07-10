@@ -19,7 +19,7 @@ export function navForRole(role: UserRole): NavItem[] {
 
   if (role === "super_admin" || role === "program_director") {
     items.push({ href: "/kontrak", label: "Kontrak", ready: false });
-    items.push({ href: "/pengguna", label: "Pengguna", ready: false });
+    items.push({ href: "/pengguna", label: "Pengguna", ready: true });
   }
   if (role === "site_manager" || role === "field_supervisor") {
     items.push({ href: "/laporan", label: "Lapor Harian", ready: false });

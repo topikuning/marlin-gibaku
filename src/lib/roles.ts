@@ -21,6 +21,24 @@ export function isCrossLocation(role: UserRole): boolean {
   return CROSS_LOCATION_ROLES.includes(role);
 }
 
+/** Role yang boleh provisioning/kelola user. */
+export const USER_ADMIN_ROLES: UserRole[] = ["super_admin", "program_director"];
+
+export function canManageUsers(role: UserRole): boolean {
+  return USER_ADMIN_ROLES.includes(role);
+}
+
+/** Semua role untuk dropdown (urut dari akses tertinggi). */
+export const ALL_ROLES: UserRole[] = [
+  "super_admin",
+  "program_director",
+  "regional_manager",
+  "project_manager",
+  "site_manager",
+  "field_supervisor",
+  "exec_viewer",
+];
+
 export const LOCATION_STATUS_LABEL: Record<LocationStatus, string> = {
   planning: "Perencanaan",
   in_progress: "Berjalan",
