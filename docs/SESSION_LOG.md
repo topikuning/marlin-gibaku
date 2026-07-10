@@ -55,6 +55,31 @@ Status coding paling baru + rencana sesi berikutnya. Update setiap akhir sesi.
 
 ---
 
+## Sesi 3 (lanjutan) · 2026-07-10 — Deploy Railway + Fitur Aplikasi
+
+Setelah auth + deploy jalan (marlin.gibaku.com), user minta "lakukan semua fitur,
+bertahap". Dibangun bertahap, tiap fitur 1 PR + merge + auto-deploy:
+
+- **Deploy Railway**: seed otomatis via `scripts/release.sh` + `SEED_ON_DEPLOY`
+  (tanpa setup lokal). Badge versi build di footer.
+- **App shell**: header + navigasi role-aware (item belum ada = "segera").
+- **Lokasi**: daftar + detail (kontrak + ringkasan RAB) — role-scoped.
+- **RAB tree**: `/lokasi/[slug]/rab` — kategori→sub-item, collapsible.
+- **Pengguna**: provisioning user (admin), authz server-side.
+- **Lapor Harian**: mandor input volume → draft → SM approve/tolak → DailyReport
+  (state machine, DECISIONS 005/018). Inti produk.
+- **Dashboard**: realisasi vs rencana kurva-S + deviasi per lokasi.
+- **Kontrak & Kontraktor**: master data (create).
+
+Semua diverifikasi runtime/E2E (Playwright + Postgres) sebelum merge. Pola:
+tiap fitur di-scope role-aware + authz di level data (bukan cuma sembunyi nav).
+
+**Belum (production-hardening, prioritas sebelum go-live)**: rate limiter login
+(🔴), RLS policies (🔴), test otomatis (🔴), foto/R2, chart kurva-S visual,
+weekly plan editor, export KKP.
+
+---
+
 ## Sesi 3 · 2026-07-10 (Claude Code) — Schema Refactor + Auth Flow
 
 **Konteks**: user (Hery) jawab 5 pertanyaan klarifikasi → beberapa membalik
