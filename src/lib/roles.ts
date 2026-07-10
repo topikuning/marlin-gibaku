@@ -28,6 +28,19 @@ export function canManageUsers(role: UserRole): boolean {
   return USER_ADMIN_ROLES.includes(role);
 }
 
+/** Role yang boleh lihat dashboard progress. */
+export const DASHBOARD_ROLES: UserRole[] = [
+  "super_admin",
+  "program_director",
+  "exec_viewer",
+  "regional_manager",
+  "project_manager",
+];
+
+export function canViewDashboard(role: UserRole): boolean {
+  return DASHBOARD_ROLES.includes(role);
+}
+
 /** Semua role untuk dropdown (urut dari akses tertinggi). */
 export const ALL_ROLES: UserRole[] = [
   "super_admin",
