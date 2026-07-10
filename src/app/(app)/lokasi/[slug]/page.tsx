@@ -49,13 +49,13 @@ export default async function LokasiDetailPage({
     <>
       <Link
         href="/lokasi"
-        className="mb-4 inline-block text-sm text-[#3A4E63] hover:underline"
+        className="mb-4 inline-block text-sm text-[#0F766E] hover:underline"
       >
         ← Daftar Lokasi
       </Link>
 
       <div className="mb-1 flex items-center gap-3">
-        <h1 className="font-[Fraunces] text-3xl font-semibold text-[#1f2b38]">
+        <h1 className="text-3xl font-semibold text-[#0F172A]">
           {location.name}
         </h1>
         <span
@@ -64,13 +64,13 @@ export default async function LokasiDetailPage({
           {LOCATION_STATUS_LABEL[location.status]}
         </span>
       </div>
-      <p className="mb-8 text-sm text-[#3A4E63]">
+      <p className="mb-8 text-sm text-[#0F766E]">
         {location.village}, {location.regency} · {location.province}
       </p>
 
       <div className="grid gap-5 sm:grid-cols-2">
-        <section className="rounded-lg border border-[#EAE2D2] bg-[#FDFBF6] p-5">
-          <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#3A4E63]">
+        <section className="rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] p-5">
+          <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
             Kontrak
           </div>
           <dl className="space-y-2 text-sm">
@@ -82,23 +82,23 @@ export default async function LokasiDetailPage({
           </dl>
         </section>
 
-        <section className="rounded-lg border border-[#EAE2D2] bg-[#FDFBF6] p-5">
-          <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#3A4E63]">
+        <section className="rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] p-5">
+          <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
             Ringkasan RAB ({location.categories.length} kategori aktif)
           </div>
-          <div className="text-2xl font-[Fraunces] font-semibold text-[#1f2b38]">
+          <div className="text-2xl font-semibold text-[#0F172A]">
             {formatRupiah(grandTotal)}
           </div>
-          <p className="mt-1 text-xs text-[#8a9199]">
+          <p className="mt-1 text-xs text-[#64748B]">
             Grand total = SUM kategori aktif (DECISIONS 014).
           </p>
         </section>
       </div>
 
-      <section className="mt-6 overflow-x-auto rounded-lg border border-[#EAE2D2]">
+      <section className="mt-6 overflow-x-auto rounded-lg border border-[#E2E8F0]">
         <table className="w-full min-w-[480px] text-sm">
           <thead>
-            <tr className="border-b border-[#EAE2D2] bg-[#FDFBF6] text-left text-[11px] uppercase tracking-wide text-[#8a9199]">
+            <tr className="border-b border-[#E2E8F0] bg-[#FFFFFF] text-left text-[11px] uppercase tracking-wide text-[#64748B]">
               <th className="px-4 py-2.5 font-semibold">#</th>
               <th className="px-4 py-2.5 font-semibold">Kategori Pekerjaan</th>
               <th className="px-4 py-2.5 text-right font-semibold">Nilai</th>
@@ -108,11 +108,11 @@ export default async function LokasiDetailPage({
             {location.categories.map((cat) => (
               <tr
                 key={cat.id}
-                className="border-b border-[#F0EADD] last:border-0"
+                className="border-b border-[#EEF2F6] last:border-0"
               >
-                <td className="px-4 py-2.5 text-[#8a9199]">{cat.romanNumeral}</td>
-                <td className="px-4 py-2.5 text-[#1f2b38]">{cat.name}</td>
-                <td className="px-4 py-2.5 text-right tabular-nums text-[#1f2b38]">
+                <td className="px-4 py-2.5 text-[#64748B]">{cat.romanNumeral}</td>
+                <td className="px-4 py-2.5 text-[#0F172A]">{cat.name}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums text-[#0F172A]">
                   {formatRupiah(cat.totalValue)}
                 </td>
               </tr>
@@ -124,14 +124,14 @@ export default async function LokasiDetailPage({
       <div className="mt-4 flex items-center gap-4">
         <Link
           href={`/lokasi/${location.slug}/rab`}
-          className="rounded-md bg-[#3A4E63] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2c3d4f]"
+          className="rounded-md bg-[#0F766E] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#115E59]"
         >
           Lihat RAB lengkap →
         </Link>
         {canReport(role) && (
           <Link
             href={`/lokasi/${location.slug}/lapor`}
-            className="rounded-md border border-[#3A4E63] px-4 py-2 text-sm font-semibold text-[#3A4E63] transition hover:bg-[#EFE9DB]"
+            className="rounded-md border border-[#0F766E] px-4 py-2 text-sm font-semibold text-[#0F766E] transition hover:bg-[#F1F5F9]"
           >
             Lapor Harian →
           </Link>
@@ -144,8 +144,8 @@ export default async function LokasiDetailPage({
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between gap-4">
-      <dt className="text-[#8a9199]">{label}</dt>
-      <dd className="text-right font-medium text-[#1f2b38]">{value}</dd>
+      <dt className="text-[#64748B]">{label}</dt>
+      <dd className="text-right font-medium text-[#0F172A]">{value}</dd>
     </div>
   );
 }

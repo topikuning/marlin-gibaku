@@ -45,13 +45,13 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#3A4E63]">
+      <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
         MARLIN · Dashboard
       </div>
-      <h1 className="mb-1 font-[Fraunces] text-3xl font-semibold text-[#1f2b38]">
+      <h1 className="mb-1 text-3xl font-semibold text-[#0F172A]">
         Progress Proyek
       </h1>
-      <p className="mb-8 text-sm text-[#3A4E63]">
+      <p className="mb-8 text-sm text-[#0F766E]">
         Realisasi vs rencana (kurva-S) untuk {rows.length} lokasi.
       </p>
 
@@ -62,10 +62,10 @@ export default async function DashboardPage() {
         <Stat label="Di bawah rencana" value={`${behind} lokasi`} tone={behind > 0 ? "warn" : "ok"} />
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-[#EAE2D2]">
+      <div className="overflow-x-auto rounded-lg border border-[#E2E8F0]">
         <table className="w-full min-w-[720px] text-sm">
           <thead>
-            <tr className="border-b border-[#EAE2D2] bg-[#FDFBF6] text-left text-[11px] uppercase tracking-wide text-[#8a9199]">
+            <tr className="border-b border-[#E2E8F0] bg-[#FFFFFF] text-left text-[11px] uppercase tracking-wide text-[#64748B]">
               <th className="px-4 py-2.5 font-semibold">Lokasi</th>
               <th className="px-4 py-2.5 font-semibold">Progress (realisasi vs rencana)</th>
               <th className="px-4 py-2.5 text-right font-semibold">Realisasi</th>
@@ -76,24 +76,24 @@ export default async function DashboardPage() {
           <tbody>
             {rows.map(({ loc, progress }) => {
               const dev = progress.deviationPct;
-              const devClass = dev < -0.01 ? "text-[#C1442E]" : dev > 0.01 ? "text-[#2E7D4F]" : "text-[#8a9199]";
+              const devClass = dev < -0.01 ? "text-[#DC2626]" : dev > 0.01 ? "text-[#16A34A]" : "text-[#64748B]";
               return (
-                <tr key={loc.id} className="border-b border-[#F0EADD] last:border-0">
+                <tr key={loc.id} className="border-b border-[#EEF2F6] last:border-0">
                   <td className="px-4 py-3">
-                    <Link href={`/lokasi/${loc.slug}`} className="font-semibold text-[#3A4E63] hover:underline">
+                    <Link href={`/lokasi/${loc.slug}`} className="font-semibold text-[#0F766E] hover:underline">
                       {loc.name}
                     </Link>
-                    <div className="text-xs text-[#8a9199]">
+                    <div className="text-xs text-[#64748B]">
                       {loc.province} · minggu {progress.weekNumber}/{progress.totalWeeks}
                     </div>
                   </td>
                   <td className="px-4 py-3">
                     <ProgressBar realized={progress.realizedPct} plan={progress.planPct} />
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums font-semibold text-[#1f2b38]">
+                  <td className="px-4 py-3 text-right tabular-nums font-semibold text-[#0F172A]">
                     {pctFmt(progress.realizedPct)}
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-[#8a9199]">
+                  <td className="px-4 py-3 text-right tabular-nums text-[#64748B]">
                     {pctFmt(progress.planPct)}
                   </td>
                   <td className={`px-4 py-3 text-right tabular-nums font-semibold ${devClass}`}>
@@ -121,14 +121,14 @@ function Stat({
   sub?: string;
   tone?: "ok" | "warn";
 }) {
-  const valColor = tone === "warn" ? "text-[#C1442E]" : "text-[#1f2b38]";
+  const valColor = tone === "warn" ? "text-[#DC2626]" : "text-[#0F172A]";
   return (
-    <div className="rounded-lg border border-[#EAE2D2] bg-[#FDFBF6] p-4">
-      <div className="text-[10px] font-semibold uppercase tracking-widest text-[#3A4E63]">
+    <div className="rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] p-4">
+      <div className="text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
         {label}
       </div>
-      <div className={`mt-1 font-[Fraunces] text-2xl font-semibold ${valColor}`}>{value}</div>
-      {sub && <div className="text-xs text-[#8a9199]">{sub}</div>}
+      <div className={`mt-1 text-2xl font-semibold ${valColor}`}>{value}</div>
+      {sub && <div className="text-xs text-[#64748B]">{sub}</div>}
     </div>
   );
 }
@@ -137,11 +137,11 @@ function ProgressBar({ realized, plan }: { realized: number; plan: number }) {
   const r = Math.min(Math.max(realized, 0), 100);
   const p = Math.min(Math.max(plan, 0), 100);
   return (
-    <div className="relative h-3 w-full max-w-[260px] overflow-hidden rounded-full bg-[#EFE9DB]">
-      <div className="h-full rounded-full bg-[#3A4E63]" style={{ width: `${r}%` }} />
+    <div className="relative h-3 w-full max-w-[260px] overflow-hidden rounded-full bg-[#F1F5F9]">
+      <div className="h-full rounded-full bg-[#0F766E]" style={{ width: `${r}%` }} />
       {/* penanda target rencana */}
       <div
-        className="absolute top-0 h-full w-0.5 bg-[#C1442E]"
+        className="absolute top-0 h-full w-0.5 bg-[#DC2626]"
         style={{ left: `${p}%` }}
         title={`Rencana ${p.toFixed(1)}%`}
       />

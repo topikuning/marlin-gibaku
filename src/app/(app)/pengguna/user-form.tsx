@@ -8,8 +8,8 @@ import { ROLE_LABEL } from "@/lib/roles";
 type LocationOption = { id: string; name: string; province: string };
 
 const inputClass =
-  "w-full rounded-md border border-[#EAE2D2] bg-white px-3 py-2 text-sm outline-none focus:border-[#3A4E63] focus:ring-2 focus:ring-[#3A4E63]/15";
-const labelClass = "block text-xs font-semibold text-[#3A4E63] mb-1";
+  "w-full rounded-md border border-[#E2E8F0] bg-white px-3 py-2 text-sm outline-none focus:border-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/15";
+const labelClass = "block text-xs font-semibold text-[#0F766E] mb-1";
 
 export function UserForm({
   roles,
@@ -69,15 +69,15 @@ export function UserForm({
 
       <div>
         <div className={labelClass}>Lokasi (untuk role scoped)</div>
-        <div className="max-h-40 overflow-y-auto rounded-md border border-[#EAE2D2] bg-white p-2">
+        <div className="max-h-40 overflow-y-auto rounded-md border border-[#E2E8F0] bg-white p-2">
           {locations.length === 0 ? (
-            <p className="text-xs text-[#8a9199]">Belum ada lokasi.</p>
+            <p className="text-xs text-[#64748B]">Belum ada lokasi.</p>
           ) : (
             locations.map((loc) => (
-              <label key={loc.id} className="flex items-center gap-2 rounded px-1.5 py-1 text-sm hover:bg-[#FDFBF6]">
-                <input type="checkbox" name="locationIds" value={loc.id} className="accent-[#3A4E63]" />
-                <span className="text-[#1f2b38]">{loc.name}</span>
-                <span className="text-xs text-[#8a9199]">· {loc.province}</span>
+              <label key={loc.id} className="flex items-center gap-2 rounded px-1.5 py-1 text-sm hover:bg-[#FFFFFF]">
+                <input type="checkbox" name="locationIds" value={loc.id} className="accent-[#0F766E]" />
+                <span className="text-[#0F172A]">{loc.name}</span>
+                <span className="text-xs text-[#64748B]">· {loc.province}</span>
               </label>
             ))
           )}
@@ -85,12 +85,12 @@ export function UserForm({
       </div>
 
       {state?.error && (
-        <div role="alert" className="rounded-md border-l-4 border-[#C1442E] bg-[#FCE8E4] px-3 py-2 text-sm text-[#C1442E]">
+        <div role="alert" className="rounded-md border-l-4 border-[#DC2626] bg-[#FEE2E2] px-3 py-2 text-sm text-[#DC2626]">
           {state.error}
         </div>
       )}
       {state?.ok && (
-        <div role="status" className="rounded-md border-l-4 border-[#2E7D4F] bg-[#E4F0E8] px-3 py-2 text-sm text-[#2E7D4F]">
+        <div role="status" className="rounded-md border-l-4 border-[#16A34A] bg-[#DCFCE7] px-3 py-2 text-sm text-[#16A34A]">
           {state.ok}
         </div>
       )}
@@ -98,7 +98,7 @@ export function UserForm({
       <button
         type="submit"
         disabled={isPending}
-        className="rounded-md bg-[#3A4E63] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2c3d4f] disabled:opacity-60"
+        className="rounded-md bg-[#0F766E] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#115E59] disabled:opacity-60"
       >
         {isPending ? "Menyimpan…" : "Buat User"}
       </button>

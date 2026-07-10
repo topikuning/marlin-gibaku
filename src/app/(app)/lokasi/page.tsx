@@ -25,24 +25,24 @@ export default async function LokasiPage() {
 
   return (
     <>
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#3A4E63]">
+      <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
         MARLIN · Lokasi
       </div>
-      <h1 className="mb-1 font-[Fraunces] text-3xl font-semibold text-[#1f2b38]">
+      <h1 className="mb-1 text-3xl font-semibold text-[#0F172A]">
         Daftar Lokasi
       </h1>
-      <p className="mb-8 text-sm text-[#3A4E63]">
+      <p className="mb-8 text-sm text-[#0F766E]">
         {locations.length} lokasi{" "}
         {isCrossLocation(role) ? "di sistem" : "ditugaskan ke Anda"}.
       </p>
 
       {locations.length === 0 ? (
-        <p className="text-sm text-[#8a9199]">Belum ada lokasi.</p>
+        <p className="text-sm text-[#64748B]">Belum ada lokasi.</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-[#EAE2D2]">
+        <div className="overflow-x-auto rounded-lg border border-[#E2E8F0]">
           <table className="w-full min-w-[640px] text-sm">
             <thead>
-              <tr className="border-b border-[#EAE2D2] bg-[#FDFBF6] text-left text-[11px] uppercase tracking-wide text-[#8a9199]">
+              <tr className="border-b border-[#E2E8F0] bg-[#FFFFFF] text-left text-[11px] uppercase tracking-wide text-[#64748B]">
                 <th className="px-4 py-2.5 font-semibold">Lokasi</th>
                 <th className="px-4 py-2.5 font-semibold">Provinsi</th>
                 <th className="px-4 py-2.5 font-semibold">Kontraktor</th>
@@ -54,22 +54,22 @@ export default async function LokasiPage() {
               {locations.map((loc) => (
                 <tr
                   key={loc.id}
-                  className="border-b border-[#F0EADD] last:border-0 hover:bg-[#FDFBF6]"
+                  className="border-b border-[#EEF2F6] last:border-0 hover:bg-[#FFFFFF]"
                 >
                   <td className="px-4 py-3">
                     <Link
                       href={`/lokasi/${loc.slug}`}
-                      className="font-semibold text-[#3A4E63] hover:underline"
+                      className="font-semibold text-[#0F766E] hover:underline"
                     >
                       {loc.name}
                     </Link>
-                    <div className="text-xs text-[#8a9199]">{loc.regency}</div>
+                    <div className="text-xs text-[#64748B]">{loc.regency}</div>
                   </td>
-                  <td className="px-4 py-3 text-[#1f2b38]">{loc.province}</td>
-                  <td className="px-4 py-3 text-[#1f2b38]">
+                  <td className="px-4 py-3 text-[#0F172A]">{loc.province}</td>
+                  <td className="px-4 py-3 text-[#0F172A]">
                     {loc.contract.contractor.name}
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums text-[#1f2b38]">
+                  <td className="px-4 py-3 text-right tabular-nums text-[#0F172A]">
                     {formatRupiahShort(loc.contract.contractValue)}
                   </td>
                   <td className="px-4 py-3">

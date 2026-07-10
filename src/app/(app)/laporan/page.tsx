@@ -60,13 +60,13 @@ export default async function LaporanPage() {
 
   return (
     <>
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#3A4E63]">
+      <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
         MARLIN · Laporan
       </div>
-      <h1 className="mb-1 font-[Fraunces] text-3xl font-semibold text-[#1f2b38]">
+      <h1 className="mb-1 text-3xl font-semibold text-[#0F172A]">
         Laporan Harian
       </h1>
-      <p className="mb-8 text-sm text-[#3A4E63]">
+      <p className="mb-8 text-sm text-[#0F766E]">
         {approver
           ? "Setujui/tolak draft dari lapangan, lalu masuk laporan resmi."
           : "Pilih lokasi untuk input laporan volume harian."}
@@ -74,7 +74,7 @@ export default async function LaporanPage() {
 
       {canReport(role) && (
         <section className="mb-10">
-          <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#3A4E63]">
+          <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
             Lapor untuk lokasi
           </div>
           <div className="flex flex-wrap gap-2">
@@ -82,7 +82,7 @@ export default async function LaporanPage() {
               <Link
                 key={loc.id}
                 href={`/lokasi/${loc.slug}/lapor`}
-                className="rounded-md border border-[#EAE2D2] bg-white px-3 py-1.5 text-sm font-medium text-[#3A4E63] transition hover:bg-[#f4efe4]"
+                className="rounded-md border border-[#E2E8F0] bg-white px-3 py-1.5 text-sm font-medium text-[#0F766E] transition hover:bg-[#f1f5f9]"
               >
                 {loc.name} →
               </Link>
@@ -93,11 +93,11 @@ export default async function LaporanPage() {
 
       {approver && (
         <section>
-          <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#3A4E63]">
+          <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
             Menunggu persetujuan ({pending.length})
           </div>
           {pending.length === 0 ? (
-            <p className="text-sm text-[#8a9199]">Tidak ada draft menunggu persetujuan.</p>
+            <p className="text-sm text-[#64748B]">Tidak ada draft menunggu persetujuan.</p>
           ) : (
             <div className="space-y-2">
               {pending.map((p) => {
@@ -105,29 +105,29 @@ export default async function LaporanPage() {
                 return (
                   <div
                     key={p.id}
-                    className="rounded-lg border border-[#EAE2D2] bg-[#FDFBF6] p-4"
+                    className="rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] p-4"
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="text-sm">
-                          <span className="font-mono text-[11px] text-[#8a9199]">
+                          <span className="font-mono text-[11px] text-[#64748B]">
                             {p.rabItem.code}
                           </span>{" "}
-                          <span className="font-medium text-[#1f2b38]">
+                          <span className="font-medium text-[#0F172A]">
                             {p.rabItem.name}
                           </span>
                         </div>
-                        <div className="mt-1 text-xs text-[#8a9199]">
+                        <div className="mt-1 text-xs text-[#64748B]">
                           {loc?.name} · oleh {p.suggestedBy?.fullName ?? "?"} ·{" "}
                           <span className={`rounded-full px-1.5 py-0.5 ${REPORT_STATE_CLASS[p.state]}`}>
                             {REPORT_STATE_LABEL[p.state]}
                           </span>
                         </div>
                         {p.notes && (
-                          <div className="mt-1 text-xs text-[#3A4E63]">“{p.notes}”</div>
+                          <div className="mt-1 text-xs text-[#0F766E]">“{p.notes}”</div>
                         )}
                       </div>
-                      <div className="text-right text-sm font-semibold tabular-nums text-[#1f2b38]">
+                      <div className="text-right text-sm font-semibold tabular-nums text-[#0F172A]">
                         {volFmt.format(p.volumeDone.toNumber())} {p.rabItem.unit ?? ""}
                       </div>
                     </div>
@@ -136,7 +136,7 @@ export default async function LaporanPage() {
                       <form action={approveItem.bind(null, p.id)}>
                         <button
                           type="submit"
-                          className="rounded-md bg-[#2E7D4F] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#276b44]"
+                          className="rounded-md bg-[#16A34A] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#15803D]"
                         >
                           Setujui
                         </button>
@@ -146,11 +146,11 @@ export default async function LaporanPage() {
                           name="reason"
                           placeholder="alasan tolak…"
                           maxLength={200}
-                          className="rounded-md border border-[#EAE2D2] bg-white px-2 py-1 text-xs outline-none focus:border-[#C1442E]"
+                          className="rounded-md border border-[#E2E8F0] bg-white px-2 py-1 text-xs outline-none focus:border-[#DC2626]"
                         />
                         <button
                           type="submit"
-                          className="rounded-md border border-[#C1442E] px-3 py-1.5 text-xs font-semibold text-[#C1442E] transition hover:bg-[#FCE8E4]"
+                          className="rounded-md border border-[#DC2626] px-3 py-1.5 text-xs font-semibold text-[#DC2626] transition hover:bg-[#FEE2E2]"
                         >
                           Tolak
                         </button>

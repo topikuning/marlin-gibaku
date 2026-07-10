@@ -62,10 +62,10 @@ export const LOCATION_STATUS_LABEL: Record<LocationStatus, string> = {
 };
 
 export const LOCATION_STATUS_CLASS: Record<LocationStatus, string> = {
-  planning: "bg-[#EEF2F6] text-[#3A4E63]",
-  in_progress: "bg-[#E4F0E8] text-[#2E7D4F]",
-  paused: "bg-[#FBF0DA] text-[#946A00]",
-  completed: "bg-[#E4F0E8] text-[#2E7D4F]",
-  handed_over: "bg-[#EDE7F6] text-[#5B4B8A]",
-  cancelled: "bg-[#FCE8E4] text-[#C1442E]",
+  planning: "bg-[#EEF2F6] text-[#0F766E]",
+  in_progress: "bg-[#DCFCE7] text-[#16A34A]",
+  paused: "bg-[#FEF3C7] text-[#B45309]",
+  completed: "bg-[#DCFCE7] text-[#16A34A]",
+  handed_over: "bg-[#EDE9FE] text-[#7C3AED]",
+  cancelled: "bg-[#FEE2E2] text-[#DC2626]",
 };
