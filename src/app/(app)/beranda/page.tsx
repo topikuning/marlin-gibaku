@@ -13,17 +13,29 @@ const ROLE_LABEL: Record<UserRole, string> = {
   exec_viewer: "Exec Viewer (KKP)",
 };
 
+/** Role yang aksesnya lintas-lokasi (lihat semua), tidak lewat assignment. */
+const CROSS_LOCATION_ROLES: UserRole[] = [
+  "super_admin",
+  "program_director",
+  "exec_viewer",
+];
+
 export default async function BerandaPage() {
   const session = await auth();
   if (!session?.user) redirect("/masuk");
 
   const { id, name, role } = session.user;
+  const isCrossLocation = CROSS_LOCATION_ROLES.includes(role);
 
-  const assignments = await db.userLocationAssignment.findMany({
-    where: { userId: id, unassignedAt: null },
-    include: { location: { select: { name: true, province: true } } },
-    orderBy: { assignedAt: "asc" },
-  });
+  // Cross-location: tampilkan cakupan total. Scoped: tampilkan lokasi tertugas.
+  const totalLocations = isCrossLocation ? await db.location.count() : 0;
+  const assignments = isCrossLocation
+    ? []
+    : await db.userLocationAssignment.findMany({
+        where: { userId: id, unassignedAt: null },
+        include: { location: { select: { name: true, province: true } } },
+        orderBy: { assignedAt: "asc" },
+      });
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-12">
@@ -38,32 +50,44 @@ export default async function BerandaPage() {
         <span className="font-semibold">{ROLE_LABEL[role]}</span>.
       </p>
 
-      <section className="mb-8 rounded-lg border border-[#EAE2D2] bg-[#FDFBF6] p-5">
-        <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#3A4E63]">
-          Lokasi yang ditugaskan ({assignments.length})
-        </div>
-        {assignments.length === 0 ? (
-          <p className="text-sm text-[#8a9199]">
-            Tidak ada lokasi yang ditugaskan ke akun ini (role lintas-lokasi).
+      {isCrossLocation ? (
+        <section className="mb-8 rounded-lg border border-[#EAE2D2] bg-[#FDFBF6] p-5">
+          <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#3A4E63]">
+            Cakupan akses
+          </div>
+          <p className="text-[#1f2b38]">
+            Akses <span className="font-semibold">semua lokasi</span> —{" "}
+            {totalLocations.toLocaleString("id-ID")} lokasi di sistem.
           </p>
-        ) : (
-          <ul className="space-y-1.5">
-            {assignments.map((a) => (
-              <li
-                key={a.id}
-                className="flex items-center justify-between text-sm"
-              >
-                <span className="font-medium text-[#1f2b38]">
-                  {a.location.name}
-                </span>
-                <span className="text-xs text-[#8a9199]">
-                  {a.location.province}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+        </section>
+      ) : (
+        <section className="mb-8 rounded-lg border border-[#EAE2D2] bg-[#FDFBF6] p-5">
+          <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#3A4E63]">
+            Lokasi yang ditugaskan ({assignments.length})
+          </div>
+          {assignments.length === 0 ? (
+            <p className="text-sm text-[#8a9199]">
+              Belum ada lokasi yang ditugaskan. Hubungi admin untuk penugasan.
+            </p>
+          ) : (
+            <ul className="space-y-1.5">
+              {assignments.map((a) => (
+                <li
+                  key={a.id}
+                  className="flex items-center justify-between text-sm"
+                >
+                  <span className="font-medium text-[#1f2b38]">
+                    {a.location.name}
+                  </span>
+                  <span className="text-xs text-[#8a9199]">
+                    {a.location.province}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       <form
         action={async () => {
