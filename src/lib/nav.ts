@@ -26,12 +26,13 @@ export function navForRole(role: UserRole): NavItem[] {
     items.push({ href: "/laporan", label: "Lapor Harian", ready: true });
   }
   if (
+    role === "super_admin" ||
     role === "program_director" ||
     role === "exec_viewer" ||
     role === "regional_manager" ||
     role === "project_manager"
   ) {
-    items.push({ href: "/dashboard", label: "Dashboard", ready: false });
+    items.push({ href: "/dashboard", label: "Dashboard", ready: true });
   }
 
   return items;
