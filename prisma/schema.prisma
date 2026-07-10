@@ -13,7 +13,9 @@ generator client {
 datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
-  extensions = [postgis, pgcrypto]
+  // postgis dihapus: tidak ada kolom geometry/geography. GPS disimpan sebagai
+  // Decimal, geofence sebagai radius Int. Lihat DECISIONS 020.
+  extensions = [pgcrypto]
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -26,6 +28,7 @@ enum UserRole {
   regional_manager
   project_manager
   site_manager
+  field_supervisor // Mandor. Login sendiri, bisa di beberapa lokasi. Lihat DECISIONS 018.
   exec_viewer
 }
 
@@ -120,9 +123,10 @@ model Organization {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  users     User[]
-  contracts Contract[]
-  locations Location[]
+  users       User[]
+  contractors Contractor[]
+  contracts   Contract[]
+  locations   Location[]
 
   @@map("organizations")
 }
@@ -130,10 +134,13 @@ model Organization {
 model User {
   id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   orgId      String    @default("00000000-0000-0000-0000-000000000001") @map("org_id") @db.Uuid
-  phoneE164  String    @unique @map("phone_e164")
+  // Login identifier: username ATAU email (salah satu wajib, enforced di app + CHECK).
+  // phone_e164 sekarang data kontak, bukan kredensial. Lihat DECISIONS 019.
+  username   String?   @unique
+  email      String?   @unique
+  phoneE164  String?   @unique @map("phone_e164")
   fullName   String    @map("full_name")
-  email      String?
-  pinHash    String    @map("pin_hash")
+  passwordHash String  @map("password_hash")
   role       UserRole
   isActive   Boolean   @default(true) @map("is_active")
   lastLoginAt DateTime? @map("last_login_at") @db.Timestamptz
@@ -208,12 +215,27 @@ model OtpCode {
 // 4.2 STRUKTUR PROYEK
 // ─────────────────────────────────────────────────────────────
 
+model Contractor {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String   @default("00000000-0000-0000-0000-000000000001") @map("org_id") @db.Uuid
+  name      String
+  npwp      String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [orgId], references: [id])
+  contracts    Contract[]
+
+  @@unique([orgId, name])
+  @@index([orgId])
+  @@map("contractors")
+}
+
 model Contract {
   id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   orgId          String    @default("00000000-0000-0000-0000-000000000001") @map("org_id") @db.Uuid
+  contractorId   String    @map("contractor_id") @db.Uuid
   contractNumber String    @unique @map("contract_number")
-  contractorName String    @map("contractor_name")
-  contractorNpwp String?   @map("contractor_npwp")
   contractValue  BigInt    @map("contract_value")
   signedDate     DateTime  @map("signed_date") @db.Date
   startDate      DateTime  @map("start_date") @db.Date
@@ -221,11 +243,14 @@ model Contract {
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
-  organization Organization         @relation(fields: [orgId], references: [id])
-  location     Location?
+  organization Organization        @relation(fields: [orgId], references: [id])
+  contractor   Contractor          @relation(fields: [contractorId], references: [id])
+  // 1 kontrak (SPK) bisa mencakup >1 lokasi. Lihat DECISIONS 016.
+  locations    Location[]
   amendments   ContractAmendment[]
 
   @@index([orgId])
+  @@index([contractorId])
   @@map("contracts")
 }
 
@@ -250,7 +275,8 @@ model ContractAmendment {
 model Location {
   id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   orgId           String         @default("00000000-0000-0000-0000-000000000001") @map("org_id") @db.Uuid
-  contractId      String         @unique @map("contract_id") @db.Uuid
+  // Bukan @unique lagi: 1 kontrak bisa punya banyak lokasi (1:N). Lihat DECISIONS 016.
+  contractId      String         @map("contract_id") @db.Uuid
   name            String
   slug            String         @unique
   village         String
@@ -280,6 +306,7 @@ model Location {
   @@index([province])
   @@index([status])
   @@index([orgId])
+  @@index([contractId])
   @@map("locations")
 }
 
@@ -335,7 +362,9 @@ model RabItem {
 
   directCategory RabCategory?      @relation("directItem", fields: [categoryId], references: [id])
   subcategory    RabSubcategory?   @relation("subItem", fields: [subcategoryId], references: [id])
-  parent         RabItem?          @relation("itemChildren", fields: [parentItemId], references: [id])
+  // Cascade: hapus item induk = hapus anak. Kalau SetNull (default), anak yang
+  // parent-nya via parentItemId saja akan jadi orphan & langgar CHECK dual-parent.
+  parent         RabItem?          @relation("itemChildren", fields: [parentItemId], references: [id], onDelete: Cascade)
   children       RabItem[]         @relation("itemChildren")
   reportItems    DailyReportItem[]
   planItems      WeeklyPlanItem[]

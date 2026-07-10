@@ -262,3 +262,145 @@ coding.
 - `docs/OPEN_ISSUES.md` — bug + technical debt
 
 Setiap sesi baru harus baca semua 4 sebelum coding.
+
+---
+
+## 016 · 2026-07-10 · Contract 1:N Location (OVERRIDE 011)
+
+**Konteks**: keputusan 011 asumsi 1 SPK = 1 lokasi (tentatif, belum divalidasi).
+User (Hery) konfirmasi eksplisit: **1 kontrak bisa mencakup beberapa lokasi**.
+
+**Keputusan**: Contract 1:N Location. Implementasi **FK di sisi Location**
+(`locations.contract_id`, buang `@unique`), **bukan** `contract_locations`
+join table. Join table hanya perlu kalau N:N (1 lokasi milik banyak kontrak) —
+itu tidak terjadi. FK 1:N lebih sederhana + cukup.
+
+**Alternatif direject**:
+- Pertahankan 1:1 (011) — user override
+- `contract_locations` join table — over-engineering untuk 1:N, cuma perlu kalau N:N
+
+**Konsekuensi**: `Contract.contractValue` + tanggal = level kontrak (shared antar
+lokasi di bawahnya). Grand total realisasi tetap per-lokasi dari RAB (014).
+Data seed sekarang masih de-facto 1:1 (tiap file HPS punya `contract_number`
+sendiri) — schema mendukung 1:N, data ikut kalau ada SPK gabungan riil.
+
+**Bisa di-revisit**: kalau ternyata ada lokasi di bawah >1 kontrak → baru join table.
+
+---
+
+## 017 · 2026-07-10 · Contractor tabel terpisah (OVERRIDE OPEN_ISSUES)
+
+**Konteks**: `contracts.contractor_name` sebagai string. 1 kontraktor pegang
+banyak kontrak (mis. PT Nusantara Bahari Utama = 3 lokasi). String = duplikasi +
+tidak bisa referensi konsisten.
+
+**Keputusan**: tabel `contractors` (id, org_id, name, npwp). `contracts.contractor_id`
+FK. Contractor 1:N Contract 1:N Location.
+
+**Alternatif direject**: string di contracts — duplikasi, tidak bisa 1 kontraktor N kontrak.
+
+**Konsekuensi**: seed extract distinct contractor dari `meta.contractor`. Unique
+`(org_id, name)`.
+
+---
+
+## 018 · 2026-07-10 · Mandor jadi role login + multi-lokasi (OVERRIDE 007 & 013)
+
+**Konteks**: keputusan 007 & 013 menetapkan mandor = **bukan role login** (cuma
+nomor HP, draft via WA, SM approve). Alasan waktu itu: 400+ user gaptek = beban
+training/support tidak masuk akal. User (Hery) override: **mandor harus login**,
+karena mandor juga di lapangan dan **bisa di beberapa lokasi**.
+
+**Keputusan**: `field_supervisor` masuk `UserRole` enum sebagai role login.
+Multi-lokasi didukung lewat `user_location_assignments` yang **sudah N:N** — mandor
+tinggal dapat banyak assignment (tidak perlu schema change untuk itu).
+
+**Alternatif direject**: mandor tanpa login (007) — user override eksplisit.
+
+**Konsekuensi & risiko (dicatat, bukan diabaikan)**: membalik alasan inti 007.
+Beban training/support day-1 (rollout 83 lokasi) naik signifikan karena populasi
+user gaptek bertambah dari ~SM+admin ke +mandor. Flow WA-draft (`ReportItemState.
+draft_mandor`, `SuggestionSource.wa_text`) tetap ada tapi jadi opsional/sekunder.
+**Belum diputuskan** (v0.2): apakah mandor submit langsung, atau tetap SM yang
+approve item dari mandor. Perlu klarifikasi sebelum bangun SM/mandor core flow.
+
+**Bisa di-revisit**: kalau beban support terbukti tidak sustainable di lapangan.
+
+---
+
+## 019 · 2026-07-10 · Auth = username/email + password (OVERRIDE 003 & PROJECT §8)
+
+**Konteks**: keputusan 003 + PROJECT §8 = phone + PIN + device binding + OTP WA
+(WAHA). User (Hery) override: **pakai username/email + password**, **tanpa** OTP
+WA/email dan **tanpa** device-binding untuk sekarang. Prioritas: simpel dulu.
+
+**Keputusan**:
+- Login identifier: `username` ATAU `email` (keduanya `@unique` nullable, minimal
+  satu wajib — enforced via CHECK `users_login_identifier_present`).
+- `pin_hash` → `password_hash`. Hashing tetap Argon2id (`@node-rs/argon2` default).
+- `phone_e164` jadi nullable (data kontak, bukan kredensial).
+- Auth.js v5 Credentials provider, session **JWT** (lihat 021).
+- Tabel `devices` + `otp_codes` **dibiarkan dormant** (tidak dihapus) untuk
+  kemungkinan re-enable device-binding/OTP nanti.
+
+**Alternatif direject**: phone+PIN+OTP+device (003) — user override, terlalu banyak
+friction untuk fase sekarang.
+
+**Konsekuensi**: keamanan lebih longgar (tidak ada 2FA/device binding). Rate limit
+login + enforce ganti password first-login masih TODO (OPEN_ISSUES).
+
+**Bisa di-revisit**: sebelum go-live produksi, pertimbangkan re-enable OTP/device
+binding untuk role sensitif (admin/exec).
+
+---
+
+## 020 · 2026-07-10 · Drop extension postgis
+
+**Konteks**: schema deklarasi `extensions = [postgis, pgcrypto]`. Inspeksi: tidak
+ada satupun kolom geometry/geography. GPS = `Decimal(10,7)`, geofence = radius `Int`.
+postgis juga tidak terinstall di environment dev standar.
+
+**Keputusan**: buang `postgis` dari datasource extensions. Keep `pgcrypto`
+(untuk `gen_random_uuid()`).
+
+**Alternatif direject**: pertahankan postgis "untuk jaga-jaga" — dead weight +
+gagal migrate di env tanpa postgis.
+
+**Konsekuensi**: kalau nanti butuh query spatial (radius search di DB), tambah
+lagi + migrasi kolom geometry. Sekarang geofence check dilakukan di app layer.
+
+---
+
+## 021 · 2026-07-10 · Session JWT + per-role expiry (resolve OPEN_ISSUES)
+
+**Konteks**: OPEN_ISSUES buka pertanyaan JWT (stateless) vs DB session (revocable).
+Keputusan 012 sudah lock durasi per-role.
+
+**Keputusan**: **JWT** (stateless, tanpa DB adapter) untuk sekarang. Durasi per-role
+(012) di-enforce via klaim `absExp` di token: dihitung saat sign-in, dicek di `jwt`
+callback — lewat batas → return null → force sign-out. `field_supervisor` = 30 hari
+(seperti site_manager, user lapangan).
+
+**Alternatif direject**: DB session — revocable + force-logout, tapi butuh adapter +
+query tiap request. Belum worth untuk MVP.
+
+**Konsekuensi**: cookie `maxAge` global = 30 hari (durasi role terpanjang); expiry
+ketat per-role via `absExp`, bukan via cookie lifetime. Force-logout global (mis.
+setelah ganti password) belum ada — perlu DB session atau token version. Dicatat di
+OPEN_ISSUES.
+
+**Bisa di-revisit**: kalau butuh force-logout/revocation → pindah ke DB session.
+
+---
+
+## 022 · 2026-07-10 · RabItem parent-child onDelete Cascade
+
+**Konteks**: relasi self `rab_items.parent_item_id` default `onDelete: SetNull`.
+Kombinasi dengan CHECK dual-parent baru (`rab_items_parent_present`): hapus item
+induk → anak yang parent-nya cuma via `parent_item_id` jadi all-null → langgar CHECK.
+Ketahuan saat seed re-run.
+
+**Keputusan**: `onDelete: Cascade` pada relasi self. Semantik benar: sub-item tidak
+boleh hidup tanpa induknya.
+
+**Alternatif direject**: buang CHECK dual-parent — invariant-nya benar, jangan dilemahkan.

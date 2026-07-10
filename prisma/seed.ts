@@ -14,11 +14,11 @@
  *   pnpm db:seed
  */
 
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, type UserRole } from "@prisma/client";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { hash } from "@node-rs/argon2";
-import { generateScurve, DEFAULT_CONTRACT_DAYS } from "../src/lib/scurve";
+import { hashPassword } from "../src/lib/password";
+import { generateScurve } from "../src/lib/scurve";
 
 const prisma = new PrismaClient();
 
@@ -81,20 +81,15 @@ async function seedOrganization() {
   });
 }
 
-async function seedAdminUser() {
-  const pinHash = await hash("123456"); // dev only; ganti di production
-  return prisma.user.upsert({
-    where: { phoneE164: "+6281234567890" },
+/**
+ * Contractor = tabel terpisah (DECISIONS 017). 1 kontraktor bisa punya N kontrak.
+ * Nama diambil distinct dari meta.contractor tiap file seed.
+ */
+async function seedContractor(name: string) {
+  return prisma.contractor.upsert({
+    where: { orgId_name: { orgId: DEFAULT_ORG_ID, name } },
     update: {},
-    create: {
-      orgId: DEFAULT_ORG_ID,
-      phoneE164: "+6281234567890",
-      fullName: "Admin KNMP",
-      email: "admin@knmp.dev",
-      pinHash,
-      role: "super_admin",
-      isActive: true,
-    },
+    create: { orgId: DEFAULT_ORG_ID, name },
   });
 }
 
@@ -102,14 +97,15 @@ async function seedLocation(payload: LocationSeedJson) {
   const { meta } = payload;
   console.log(`  · ${meta.slug} (${meta.village}, ${meta.regency})`);
 
-  // 1. Contract
+  // 1. Contractor + Contract (1 kontrak boleh mencakup >1 lokasi — DECISIONS 016)
+  const contractor = await seedContractor(meta.contractor);
   const contract = await prisma.contract.upsert({
     where: { contractNumber: meta.contract_number },
     update: {},
     create: {
       orgId: DEFAULT_ORG_ID,
+      contractorId: contractor.id,
       contractNumber: meta.contract_number,
-      contractorName: meta.contractor,
       contractValue: BigInt(Math.round(payload.total)),
       signedDate: new Date(meta.start_date),
       startDate: new Date(meta.start_date),
@@ -175,12 +171,18 @@ async function seedLocation(payload: LocationSeedJson) {
     }
 
     // Subcategories + their items
+    // NOTE: parser HPS kadang hasilkan kode subkategori duplikat dalam 1 kategori
+    // (lihat OPEN_ISSUES). Disambiguasi di sini supaya tidak langgar @@unique.
     let subSortOrder = 0;
+    const seenSubCodes = new Map<string, number>();
     for (const sub of cat.subcategories) {
+      const seenCount = seenSubCodes.get(sub.code) ?? 0;
+      seenSubCodes.set(sub.code, seenCount + 1);
+      const uniqueCode = seenCount === 0 ? sub.code : `${sub.code}#${seenCount + 1}`;
       const subcategory = await prisma.rabSubcategory.create({
         data: {
           categoryId: category.id,
-          code: sub.code,
+          code: uniqueCode,
           name: sub.name,
           totalValue: BigInt(Math.round(sub.total_value)),
           sortOrder: subSortOrder++,
@@ -248,6 +250,71 @@ async function seedLocation(payload: LocationSeedJson) {
       },
     });
   }
+
+  return location;
+}
+
+const DEV_PASSWORD = "password123"; // DEV ONLY — enforce ganti saat first login production
+
+/**
+ * Demo user per role (DECISIONS 018 & 019).
+ * Login pakai username + password (Argon2). Mandor (field_supervisor) di-assign
+ * ke beberapa lokasi untuk membuktikan N:N user↔location.
+ */
+async function seedUsers(locationsBySlug: Map<string, string>) {
+  const passwordHash = await hashPassword(DEV_PASSWORD);
+  const loc = (slug: string) => {
+    const id = locationsBySlug.get(slug);
+    if (!id) throw new Error(`Seed user: lokasi '${slug}' tidak ditemukan`);
+    return id;
+  };
+
+  const users: Array<{
+    username: string;
+    email: string;
+    fullName: string;
+    phoneE164: string;
+    role: UserRole;
+    locations: string[];
+  }> = [
+    { username: "admin", email: "admin@marlin.dev", fullName: "Admin MARLIN", phoneE164: "+6281100000001", role: "super_admin", locations: [] },
+    { username: "direktur", email: "direktur@marlin.dev", fullName: "Program Director", phoneE164: "+6281100000002", role: "program_director", locations: [] },
+    { username: "regional-jateng", email: "regional.jateng@marlin.dev", fullName: "Regional Manager Jateng", phoneE164: "+6281100000003", role: "regional_manager", locations: ["kedungmutih", "purworejo", "karanggondang", "ujungwatu", "kemantren"] },
+    { username: "pm-nusantara", email: "pm.nusantara@marlin.dev", fullName: "PM Nusantara Bahari", phoneE164: "+6281100000004", role: "project_manager", locations: ["batah-timur", "tengket", "kemantren"] },
+    { username: "sm-kedungmutih", email: "sm.kedungmutih@marlin.dev", fullName: "Site Manager Kedung Mutih", phoneE164: "+6281100000005", role: "site_manager", locations: ["kedungmutih"] },
+    { username: "mandor-01", email: "mandor01@marlin.dev", fullName: "Mandor Suparno", phoneE164: "+6281100000006", role: "field_supervisor", locations: ["kedungmutih", "purworejo"] },
+    { username: "exec-kkp", email: "exec.kkp@marlin.dev", fullName: "Exec Viewer KKP", phoneE164: "+6281100000007", role: "exec_viewer", locations: [] },
+  ];
+
+  for (const u of users) {
+    const user = await prisma.user.upsert({
+      where: { username: u.username },
+      update: {},
+      create: {
+        orgId: DEFAULT_ORG_ID,
+        username: u.username,
+        email: u.email,
+        phoneE164: u.phoneE164,
+        fullName: u.fullName,
+        passwordHash,
+        role: u.role,
+        isActive: true,
+      },
+    });
+    for (const slug of u.locations) {
+      const locationId = loc(slug);
+      // assigned_at bagian dari unique key → cek manual biar idempotent
+      const existing = await prisma.userLocationAssignment.findFirst({
+        where: { userId: user.id, locationId, unassignedAt: null },
+      });
+      if (!existing) {
+        await prisma.userLocationAssignment.create({
+          data: { userId: user.id, locationId },
+        });
+      }
+    }
+    console.log(`  · ${u.username} (${u.role}) → ${u.locations.length} lokasi`);
+  }
 }
 
 async function seedRabItem(
@@ -291,29 +358,35 @@ async function main() {
   console.log("→ Seeding organization...");
   await seedOrganization();
 
-  console.log("→ Seeding admin user (PIN: 123456 — DEV ONLY)...");
-  await seedAdminUser();
-
   console.log("→ Seeding locations from seed-data/*.json:");
   const files = readdirSync(SEED_DIR).filter(
     (f) => f.endsWith(".json") && f !== "manifest.json"
   );
+  const locationsBySlug = new Map<string, string>();
   for (const file of files) {
     const payload = JSON.parse(
       readFileSync(join(SEED_DIR, file), "utf-8")
     ) as LocationSeedJson;
-    await seedLocation(payload);
+    const location = await seedLocation(payload);
+    locationsBySlug.set(location.slug, location.id);
   }
 
+  console.log("→ Seeding demo users (password: password123 — DEV ONLY):");
+  await seedUsers(locationsBySlug);
+
+  const contractorCount = await prisma.contractor.count();
   const locCount = await prisma.location.count();
   const rabItemCount = await prisma.rabItem.count();
   const milestoneCount = await prisma.scheduledMilestone.count();
+  const userCount = await prisma.user.count();
 
   console.log("\n✓ Seed complete");
+  console.log(`  Contractors:          ${contractorCount}`);
   console.log(`  Locations:            ${locCount}`);
   console.log(`  RAB items (all lvls): ${rabItemCount}`);
   console.log(`  Scheduled milestones: ${milestoneCount}`);
-  console.log(`\n  Login dev: +6281234567890 / PIN 123456`);
+  console.log(`  Users:                ${userCount}`);
+  console.log(`\n  Login dev: username 'admin' / password 'password123'`);
 }
 
 main()

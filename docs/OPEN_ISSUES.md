@@ -9,15 +9,15 @@ Priority: 🔴 Critical (blocking) · 🟡 Important · 🟢 Nice-to-have
 
 ## Schema & Data Model
 
-- 🔴 **Contract 1:1 vs 1:N belum divalidasi ke user**. Sekarang `contracts.locationId @unique` = 1:1. Kalau realita 1 SPK bisa punya banyak lokasi (SPK gabungan), harus refactor → `contract_locations` join table.
+- ~~🔴 **Contract 1:1 vs 1:N belum divalidasi ke user**~~. **RESOLVED** (DECISIONS 016): user konfirmasi 1:N. `locations.contract_id` tanpa `@unique` (FK, bukan join table).
 
-- 🔴 **Contractor sebagai string** di `contracts.contractorName`. Perlu tabel `contractors` terpisah supaya 1 kontraktor N kontrak. Migrasi: extract distinct nama, buat records, ganti FK.
+- ~~🔴 **Contractor sebagai string**~~. **RESOLVED** (DECISIONS 017): tabel `contractors` + `contracts.contractor_id` FK. Seed extract distinct.
 
 - 🟡 **CategoryPhase hardcoded** di `src/lib/scurve.ts`. Setiap ubah phase butuh code deploy. Buat tabel `rab_category_phase_config` (org_id, keyword, phase_start, phase_end) supaya admin bisa edit.
 
-- 🟡 **RAB item dual-parent constraint**. `categoryId` dan `subcategoryId` keduanya nullable. Butuh CHECK constraint: `(categoryId IS NOT NULL) OR (subcategoryId IS NOT NULL) OR (parentItemId IS NOT NULL)`.
+- ~~🟡 **RAB item dual-parent constraint**~~. **RESOLVED**: CHECK `rab_items_parent_present` di init migration. Plus relasi self `onDelete: Cascade` (DECISIONS 022).
 
-- 🟡 **Photo dual-parent constraint**. `dailyReportId` dan `reportItemId` keduanya nullable — bisa orphan. Butuh CHECK constraint minimal satu terisi.
+- ~~🟡 **Photo dual-parent constraint**~~. **RESOLVED**: CHECK `photos_parent_present` di init migration.
 
 - 🟢 **Province/Regency** sebagai string. Kalau butuh code KKP resmi, buat reference tables `provinces` + `regencies` dari BPS/Kemendagri.
 
@@ -27,61 +27,31 @@ Priority: 🔴 Critical (blocking) · 🟡 Important · 🟢 Nice-to-have
 
 - 🔴 **Audit log middleware belum ada**. Tabel `audit_logs` ada tapi tidak ada mekanisme populate — Prisma middleware belum diset up.
 
-- 🔴 **Append-only enforcement belum ada**. 4 tabel dengan comment `APPEND-ONLY` (daily_reports, contract_amendments, audit_logs, location_status_history) bisa di-UPDATE/DELETE oleh siapa saja yang punya DB access. Butuh:
-  ```sql
-  CREATE TRIGGER prevent_update_daily_reports
-    BEFORE UPDATE ON daily_reports
-    FOR EACH ROW EXECUTE FUNCTION raise_immutable();
-  ```
+- ~~🔴 **Append-only enforcement belum ada**~~. **RESOLVED**: fungsi `raise_immutable()` + 4 trigger `BEFORE UPDATE OR DELETE` (daily_reports, contract_amendments, audit_logs, location_status_history) di init migration. Terverifikasi memblokir UPDATE/DELETE.
 
-- 🟡 **PIN default `123456`** di seed. Aman untuk dev, harus enforce ganti PIN saat first login production.
+- 🟡 **Password default `password123`** di seed. Aman untuk dev, harus enforce ganti password saat first login production. (dulu PIN 123456)
 
-- 🟡 **Rate limiter belum ada**. Login endpoint rentan brute-force.
+- 🔴 **Rate limiter belum ada**. Login endpoint rentan brute-force. Naik ke Critical karena auth sekarang cuma password (tanpa OTP/device binding, DECISIONS 019) — brute-force jadi satu-satunya barrier.
 
-- 🟡 **Session storage strategy** — Auth.js default pakai JWT. Perlu decide: JWT (stateless, fast) atau DB session (revocable, bisa force logout).
+- ~~🟡 **Session storage strategy**~~. **RESOLVED** (DECISIONS 021): JWT stateless, durasi per-role via `absExp`.
+
+- 🟡 **Force-logout / revocation belum ada**. JWT stateless → tidak bisa force-logout (mis. setelah ganti password / user di-nonaktifkan, token lama masih valid sampai `absExp`). Butuh DB session atau token-version di `users`.
 
 ## API / Data Layer
 
-- 🔴 **BigInt serializer helper belum ada**. Semua endpoint yang return `contracts.contractValue`, `budgetLines.allocated`, dll akan throw error saat `JSON.stringify`. Butuh `src/lib/bigint.ts`:
-  ```ts
-  export function serializeBigInt<T>(obj: T): T {
-    return JSON.parse(JSON.stringify(obj, (_, v) =>
-      typeof v === 'bigint' ? v.toString() : v
-    ));
-  }
-  ```
+- ~~🔴 **BigInt serializer helper belum ada**~~. **RESOLVED**: `src/lib/bigint.ts` → `serializeBigInt()`.
 
 - 🟡 **Decimal converter helper** untuk `Prisma.Decimal` → `number` display, dan sebaliknya untuk input.
 
-- 🟡 **Zod schema** untuk semua boundary belum ada. Standar: `src/lib/schemas/*.ts` dengan validators reusable.
+- 🟡 **Zod schema** untuk semua boundary. **Sebagian**: `src/lib/schemas/auth.ts` (login) dibuat. Boundary lain (report submit, contract, dll) belum.
 
 ## Railway Deployment
 
-- 🔴 **`railway.json` config file** belum ada. Butuh:
-  ```json
-  {
-    "$schema": "https://railway.app/railway.schema.json",
-    "build": {
-      "builder": "NIXPACKS",
-      "buildCommand": "pnpm install && pnpm db:generate && pnpm build"
-    },
-    "deploy": {
-      "startCommand": "pnpm db:migrate:deploy && pnpm start",
-      "healthcheckPath": "/api/health",
-      "healthcheckTimeout": 300,
-      "restartPolicyType": "ON_FAILURE"
-    }
-  }
-  ```
+- ~~🔴 **`railway.json` config file** belum ada~~. **RESOLVED**: `railway.json` dibuat (build + start + healthcheck `/api/health`).
 
-- 🔴 **`/api/health` endpoint** belum ada. Railway health check butuh ini.
+- ~~🔴 **`/api/health` endpoint** belum ada~~. **RESOLVED**: `src/app/api/health/route.ts` (cek `SELECT 1`, 200/503).
 
-- 🔴 **Postgres extensions** (`postgis`, `pgcrypto`) perlu enable manual di Railway Postgres via:
-  ```sql
-  CREATE EXTENSION IF NOT EXISTS postgis;
-  CREATE EXTENSION IF NOT EXISTS pgcrypto;
-  ```
-  Bisa di-migrasi jadi migration file pertama.
+- ~~🔴 **Postgres extensions**~~. **RESOLVED/REVISI** (DECISIONS 020): postgis di-drop (unused), `pgcrypto` di-`CREATE EXTENSION` di init migration.
 
 - 🟡 **Redis service** belum di package.json. Butuh `ioredis` untuk BullMQ + session cache.
 
@@ -95,9 +65,9 @@ Priority: 🔴 Critical (blocking) · 🟡 Important · 🟢 Nice-to-have
 
 ## UI / Pages
 
-- 🔴 **Auth pages belum ada** — login, PIN entry, device confirmation, PIN reset flow
+- ~~🔴 **Auth pages belum ada**~~. **RESOLVED (sebagian)**: login page `/masuk` (username/email + password). Device/OTP/reset flow di-drop (DECISIONS 019). Password-reset UI masih TODO.
 
-- 🔴 **Middleware belum ada** untuk route protection based on role
+- ~~🔴 **Middleware belum ada**~~. **RESOLVED**: `src/middleware.ts` (protect route, redirect ke /masuk). Catatan: sekarang cek login saja, **belum** role-based authorization per-route (mis. /admin/* cuma super_admin) — itu TODO v0.2.
 
 - 🔴 **Master data pages** — daftar lengkap di PROJECT.md section 4 belum ada semua
 
@@ -123,10 +93,23 @@ Priority: 🔴 Critical (blocking) · 🟡 Important · 🟢 Nice-to-have
 
 - 🟢 **Runbook** untuk incident (DB down, R2 down, WAHA bot down)
 
+## Ditemukan Sesi 3 (2026-07-10, Claude Code)
+
+- 🟡 **Parser HPS hasilkan kode subkategori duplikat** dalam 1 kategori. Contoh `batah-timur.json`: kategori VIII punya `VIII.1` dua kali; kategori IX bahkan berisi subcode `XIII.1`, `XIII.2` (dobel) — jelas artefak misalignment parsing. Melanggar `@@unique([categoryId, code])`. **Workaround** di seed: disambiguasi jadi `<code>#2`. **Fix asli** harus di `scripts/generate_seed.py` (parser). Selama belum, kode subkategori di DB untuk lokasi terdampak tidak akurat 1:1 dengan HPS.
+
+- 🟢 **Session cookie maxAge global 30 hari**. Per-role expiry di-enforce via `absExp` di JWT (benar), tapi cookie lifetime tidak dipersingkat per-role. Konsekuensi minor; enforcement tetap jalan.
+
+- 🟡 **`.gitignore` hilang** dari scaffold (SESSION_LOG klaim ada, faktanya tidak). **FIXED**: dibuat.
+
+- 🟡 **ESLint belum dikonfigurasi** (deps ada, config file nol → `next lint` interaktif/gagal di CI). **FIXED**: `eslint.config.mjs` (flat config), script `lint` → `eslint .`, tambah `@eslint/eslintrc`.
+
+- 🔴 **Belum ada test otomatis satupun** (masih). Auth flow sesi ini diverifikasi manual end-to-end (curl + real Postgres), tapi belum ada Vitest/Playwright. Prioritas berikut: unit S-curve, integration login, e2e submit report.
+
 ## Untuk User (Hery) Perlu Konfirmasi
 
 - Format resmi laporan mingguan/bulanan KKP — upload sample kalau ada
-- Struktur SPK: 1 kontrak = 1 lokasi atau 1:N?
+- ~~Struktur SPK: 1 kontrak = 1 lokasi atau 1:N?~~ **Terjawab: 1:N** (DECISIONS 016)
+- Flow mandor (DECISIONS 018): mandor submit report langsung, atau tetap SM yang approve item dari mandor? (blocker v0.2 SM/mandor core flow)
 - Retention policy foto (5 tahun? 10 tahun?)
 - Backup strategy: Railway daily backup cukup, atau perlu extra offsite?
 - Monitoring stack: Sentry + Umami cukup, atau perlu Grafana Cloud?

@@ -55,7 +55,50 @@ Status coding paling baru + rencana sesi berikutnya. Update setiap akhir sesi.
 
 ---
 
-## Sesi 3 · (belum, di Claude Code) — Auth Flow + Fixes
+## Sesi 3 · 2026-07-10 (Claude Code) — Schema Refactor + Auth Flow
+
+**Konteks**: user (Hery) jawab 5 pertanyaan klarifikasi → beberapa membalik
+keputusan yang sudah di-lock. Semua override di-log di DECISIONS 016-022.
+
+**Keputusan user (override)**:
+1. Contract **1:N** Location (bukan 1:1) → DECISIONS 016
+2. Contractor jadi tabel terpisah → DECISIONS 017
+3. Mandor (`field_supervisor`) jadi **role login** + multi-lokasi → DECISIONS 018
+4. Auth = **username/email + password**, tanpa OTP/device binding → DECISIONS 019
+5. "Coding dulu" (langsung eksekusi)
+
+**Selesai (terverifikasi end-to-end di Postgres 16 ephemeral)**:
+- ✓ Schema refactor: `contractors` table, Contract 1:N Location, `field_supervisor`
+  role, `username`/`password_hash`, `phone_e164` nullable
+- ✓ **Migrasi DB pertama** (`20260710..._init`): pgcrypto (postgis di-drop, 020),
+  CHECK constraints (dual-parent RAB item + photo, login identifier), append-only
+  triggers 4 tabel — **diverifikasi memblokir UPDATE/DELETE**
+- ✓ `src/lib/bigint.ts`, `src/lib/password.ts` (Argon2id), `src/lib/schemas/auth.ts`
+- ✓ Auth.js v5: `src/auth.config.ts` (edge) + `src/auth.ts` (node) + `src/middleware.ts`
+  + route handler. Login by username **atau** email, JWT per-role expiry (021)
+- ✓ Pages: `/masuk` (login), `/beranda` (role + lokasi assignment), root redirect
+- ✓ `/api/health` + `railway.json`
+- ✓ Seed rewrite: 3 contractors, 7 lokasi, 11009 RAB items, 154 milestones, 7 demo
+  user per role (mandor 2 lokasi, regional 5, pm 3)
+- ✓ Fix scaffold gaps: `.gitignore` (hilang!), `.env.example`, ESLint flat config
+- ✓ Verifikasi: `tsc` clean, `eslint` 0 error, `pnpm build` sukses, login flow
+  (admin/mandor/email) + wrong-password reject + middleware redirect semua PASS
+
+**Bug ditemukan** (lihat OPEN_ISSUES "Ditemukan Sesi 3"):
+- Parser HPS hasilkan kode subkategori duplikat (batah-timur) — di-workaround di seed
+- RabItem self-relation harus `onDelete: Cascade` (022) — ketemu saat seed
+- Belum ada test otomatis (auth diverifikasi manual)
+
+**Login dev**: username `admin` / password `password123` (juga: `mandor-01`,
+`sm-kedungmutih`, `direktur`, `regional-jateng`, `pm-nusantara`, `exec-kkp`).
+
+**NEXT (blocker sebelum v0.2)**: user perlu putuskan flow mandor — submit langsung
+vs SM approve (DECISIONS 018). Lalu: role-based authorization per-route di middleware
+(sekarang cuma cek login), RLS policies, rate limiter login (naik Critical).
+
+---
+
+## Sesi 3 · Rencana awal (tercapai sebagian besar) — Auth Flow + Fixes
 
 **Rekomendasi urutan**:
 
