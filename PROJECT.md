@@ -298,10 +298,13 @@ Konsekuensi:
 - [ ] Home page skeleton per-role yang berbeda (sekarang semua ke /beranda) — v0.2
 
 **v0.2 · SM Core Flow** (session 3-4)
-- RAB tree view per lokasi
-- Submit report: pilih item → volume → foto (mock upload dulu)
-- Draft state management
-- Item detail modal dengan history
+- [x] App shell + navigasi role-aware (menu per role, item belum ada = "segera")
+- [x] Daftar Lokasi (role-scoped: lintas-lokasi lihat semua, scoped lihat assigned)
+- [x] Detail lokasi: kontrak + ringkasan RAB per kategori + grand total
+- [ ] RAB tree view lengkap (sub-item granular)
+- [ ] Submit report: pilih item → volume → foto (mock upload dulu)
+- [ ] Draft state management (mandor submit → SM approve — DECISIONS 018)
+- [ ] Item detail modal dengan history
 
 **v0.3 · R2 Photo Upload** (session 5)
 - Presigned URL endpoint
