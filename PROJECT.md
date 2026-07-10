@@ -32,7 +32,7 @@ pesisir di Jateng, Jatim, DIY, Jabar, Banten, Lampung, Bengkulu.
 
 ## 2. User & Peran
 
-Enam tingkat role, enforced via Postgres Row-Level Security:
+Tujuh tingkat role, enforced via Postgres Row-Level Security:
 
 | Role | Scope | Login |
 |---|---|---|
@@ -41,11 +41,14 @@ Enam tingkat role, enforced via Postgres Row-Level Security:
 | `regional_manager` | 1 provinsi (5-15 lokasi) | Web app |
 | `project_manager` | N lokasi per kontraktor (2-10) | Web app |
 | `site_manager` | 1 lokasi | Mobile PWA |
+| `field_supervisor` | N lokasi (mandor lapangan) | Mobile PWA |
 | `exec_viewer` | Dashboard read-only (untuk KKP) | Web app |
 
-**Field supervisor (mandor)** = _bukan role login_. Cuma nomor HP terdaftar.
-Draft masuk atas nama mereka via WA text (dengan format template),
-di-approve oleh Site Manager. Zero training/onboarding untuk mandor.
+**Field supervisor (mandor)** = **role login** (revisi — lihat DECISIONS 018).
+Mandor login sendiri dan bisa ditugaskan ke beberapa lokasi (via
+`user_location_assignments`, N:N). Keputusan awal (mandor tanpa login, draft via
+WA) di-override oleh user. Flow WA-draft tetap ada sebagai jalur sekunder.
+**Belum diputuskan** (v0.2): mandor submit langsung vs tetap SM yang approve.
 
 ---
 
@@ -85,9 +88,10 @@ Ringkasan grup:
 ### 4.1 Identitas & Akses (5 tabel)
 `organizations`, `users`, `devices`, `user_location_assignments`, `otp_codes`
 
-### 4.2 Struktur Proyek (7 tabel)
-`contracts`, `contract_amendments`, `locations`, `rab_categories`,
+### 4.2 Struktur Proyek (8 tabel)
+`contractors`, `contracts`, `contract_amendments`, `locations`, `rab_categories`,
 `rab_subcategories`, `rab_items`, `location_status_history`
+(`contractors` ditambah — DECISIONS 017)
 
 ### 4.3 Pelaporan & Bukti (7 tabel)
 `daily_reports`, `daily_report_items`, `photos`, `cost_entries`,
@@ -98,10 +102,11 @@ Ringkasan grup:
 
 ### 4.5 Keputusan Data Model Kritis
 
-**A. Kontrak vs Lokasi = 1:1** (bisa refactor ke 1:N nanti)
-Dari inspeksi 7 HPS Kedungmutih, Purworejo, dll — 1 file HPS = 1 lokasi.
-Assumption: 1 SPK = 1 lokasi. Kalau nanti ternyata ada SPK gabungan,
-`contracts.location_id` → `contract_locations` join table.
+**A. Kontrak vs Lokasi = 1:N** (revisi — DECISIONS 016)
+User konfirmasi: 1 SPK bisa mencakup beberapa lokasi. Implementasi FK di sisi
+Location (`locations.contract_id`, tanpa `@unique`), bukan join table (join table
+cuma perlu kalau N:N). Kontraktor = tabel `contractors` (DECISIONS 017):
+Contractor 1:N Contract 1:N Location.
 
 **B. Progress = volume-based, bukan slider %**
 Site Manager lapor **volume selesai** dalam satuan asli (m², m³, kg, bh).
@@ -230,33 +235,36 @@ kategori → refactor lookup table.
 
 ## 8. Auth Flow
 
-**Phone + PIN + device binding**, admin-provisioned.
+**Username/Email + Password**, admin-provisioned (revisi — DECISIONS 019).
+Phone+PIN+OTP+device-binding di-drop untuk fase ini (tabel `devices`/`otp_codes`
+dibiarkan dormant untuk kemungkinan re-enable).
 
-**First login** (device baru):
-1. Admin bikin user via UI: `phone_e164` + PIN awal 6 digit
-2. User buka app, input phone + PIN
-3. Server generate OTP → kirim via WAHA bot ke WA user
-4. User input OTP → device fingerprint didaftarkan
-5. Force ganti PIN
+**Login**:
+1. Admin bikin user: `username` dan/atau `email` + password awal
+2. User input username **atau** email + password
+3. Server verify Argon2id → issue session JWT (role-aware)
+4. Landing per role (`/beranda`)
 
-**Return login** (same device):
-1. Cookie kenali device
-2. Input PIN saja
-3. Rate limit 10 attempt / 15 menit
-4. Session 30 hari (sliding)
+**Implementasi** (Auth.js v5, Credentials provider):
+- `src/auth.config.ts` — config edge-safe (dipakai middleware): pages, callbacks,
+  session strategy, durasi per-role. Tanpa Prisma/Argon2 (node-only).
+- `src/auth.ts` — Credentials provider + `authorize` (Prisma lookup + Argon2 verify).
+- `src/middleware.ts` — route protection via callback `authorized`.
+- Login by identifier: `WHERE username = ? OR email = ?` (case-insensitive email).
 
-**Session duration per role** (locked):
-- `site_manager`: 30 hari (sering pakai, HP jarang dipinjam)
+**Session**: JWT stateless (DECISIONS 021). Durasi per-role (DECISIONS 012),
+di-enforce via klaim `absExp` di token:
+- `site_manager`, `field_supervisor`: 30 hari
 - `project_manager`, `regional_manager`: 7 hari
 - `super_admin`, `program_director`, `exec_viewer`: 24 jam
 
-**PIN hashing**: Argon2id (bukan bcrypt — Argon2 lebih tahan GPU attacks).
+**Password hashing**: Argon2id (`@node-rs/argon2`, default = Argon2id).
 
-**Rate limit**: pakai Redis + sliding window. Semua endpoint mutation.
-
-**Post-scaffold TODO**:
-- WA OTP via WAHA (skip dulu di scaffold, hardcode "OTP always accepted")
-- Admin panel untuk provisioning bulk user via CSV
+**Belum ada (TODO, lihat OPEN_ISSUES)**:
+- Rate limit login (brute-force protection)
+- Enforce ganti password saat first-login produksi
+- Admin panel provisioning bulk user via CSV
+- Force-logout/revocation (butuh DB session atau token version)
 
 ---
 
@@ -279,14 +287,15 @@ Konsekuensi:
 - [x] Prisma schema lengkap
 - [x] package.json + config files
 - [x] HPS parser (Python) + seed data 7 lokasi
-- [ ] Migrasi DB pertama
-- [ ] Auth setup (skeleton)
+- [x] Migrasi DB pertama (init: extensions + CHECK constraints + append-only triggers)
+- [x] Auth setup (Auth.js v5)
 
-**v0.1 · Auth + Basic Layout** (session 2)
-- Login page (phone + PIN)
-- Home page skeleton per role
-- Middleware untuk role-based routing
-- Session management
+**v0.1 · Auth + Basic Layout** ✓ (session 3, Claude Code)
+- [x] Login page (username/email + password — DECISIONS 019)
+- [x] Middleware untuk route protection (role-aware session)
+- [x] Session management (JWT, per-role expiry)
+- [x] Beranda skeleton (role + lokasi assignment)
+- [ ] Home page skeleton per-role yang berbeda (sekarang semua ke /beranda) — v0.2
 
 **v0.2 · SM Core Flow** (session 3-4)
 - RAB tree view per lokasi
@@ -338,9 +347,9 @@ Konsekuensi:
 
 - **Voice-note dari mandor**: tidak efektif di lapangan. Zero net time saved,
   bahkan negatif kalau STT + LLM salah interpret volume/item.
-- **Multi-user per lokasi (mandor login sendiri)**: 400+ user gaptek =
-  training + support beban terlalu besar. Cukup SM sebagai single point of
-  accountability, mandor via WA.
+- ~~**Multi-user per lokasi (mandor login sendiri)**~~: **DIBATALKAN** oleh user
+  (DECISIONS 018). Mandor sekarang login sendiri + bisa multi-lokasi. Risiko
+  beban training/support day-1 dicatat di DECISIONS 018.
 - **Wizard multi-step untuk submit**: single-screen dengan section jelas
   lebih baik.
 - **Progress input via slider %**: tidak sesuai kebutuhan KKP.
