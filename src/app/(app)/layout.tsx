@@ -50,6 +50,19 @@ export default async function AppLayout({
       </header>
 
       <div className="mx-auto max-w-5xl px-6 py-10">{children}</div>
+
+      <footer className="mx-auto max-w-5xl px-6 pb-8 pt-2 text-[11px] text-[#b3b0a6]">
+        MARLIN · build {buildRef()}
+      </footer>
     </div>
   );
+}
+
+/** Commit yang sedang live — biar gampang tahu versi mana yang ter-deploy. */
+function buildRef(): string {
+  const sha =
+    process.env.RAILWAY_GIT_COMMIT_SHA ??
+    process.env.GIT_COMMIT_SHA ??
+    "";
+  return sha ? sha.slice(0, 7) : "dev";
 }
