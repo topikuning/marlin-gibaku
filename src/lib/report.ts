@@ -26,11 +26,11 @@ export const REPORT_STATE_LABEL: Record<ReportItemState, string> = {
 };
 
 export const REPORT_STATE_CLASS: Record<ReportItemState, string> = {
-  draft_mandor: "bg-[#FBF0DA] text-[#946A00]",
-  draft_sm: "bg-[#FBF0DA] text-[#946A00]",
-  approved: "bg-[#E4F0E8] text-[#2E7D4F]",
-  sent: "bg-[#E4F0E8] text-[#2E7D4F]",
-  rejected: "bg-[#FCE8E4] text-[#C1442E]",
+  draft_mandor: "bg-[#FEF3C7] text-[#B45309]",
+  draft_sm: "bg-[#FEF3C7] text-[#B45309]",
+  approved: "bg-[#DCFCE7] text-[#16A34A]",
+  sent: "bg-[#DCFCE7] text-[#16A34A]",
+  rejected: "bg-[#FEE2E2] text-[#DC2626]",
 };
 
 /** State draft yang masih menunggu review SM. */

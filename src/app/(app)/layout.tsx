@@ -16,21 +16,22 @@ export default async function AppLayout({
   const items = navForRole(role);
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-[#EAE2D2] bg-[#FDFBF6]">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-3 px-6 py-3">
-          <div className="font-[Fraunces] text-lg font-semibold text-[#1f2b38]">
-            MARLIN
+    <div className="flex min-h-screen flex-col">
+      <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/85 backdrop-blur supports-[backdrop-filter]:bg-white/70">
+        <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-2.5 sm:px-6">
+          <div className="flex items-center gap-2">
+            <span className="grid h-8 w-8 place-items-center rounded-lg bg-[#0F766E] text-sm font-bold text-white">
+              M
+            </span>
+            <span className="text-[15px] font-bold tracking-tight text-slate-900">
+              MARLIN
+            </span>
           </div>
-          <div className="order-3 w-full sm:order-none sm:w-auto sm:flex-1">
-            <AppNav items={items} />
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="text-right leading-tight">
-              <div className="text-sm font-semibold text-[#1f2b38]">{name}</div>
-              <div className="text-[11px] text-[#8a9199]">
-                {ROLE_LABEL[role]}
-              </div>
+
+          <div className="ml-auto flex items-center gap-2 sm:gap-3">
+            <div className="hidden text-right leading-tight sm:block">
+              <div className="text-sm font-semibold text-slate-900">{name}</div>
+              <div className="text-[11px] text-slate-500">{ROLE_LABEL[role]}</div>
             </div>
             <form
               action={async () => {
@@ -40,18 +41,25 @@ export default async function AppLayout({
             >
               <button
                 type="submit"
-                className="rounded-md border border-[#EAE2D2] bg-white px-3 py-1.5 text-sm font-semibold text-[#3A4E63] transition hover:bg-[#f4efe4]"
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 active:scale-[0.98]"
               >
                 Keluar
               </button>
             </form>
           </div>
         </div>
+
+        {/* Nav: scroll horizontal di HP, tetap satu baris */}
+        <div className="mx-auto max-w-6xl overflow-x-auto px-4 pb-2 sm:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <AppNav items={items} />
+        </div>
       </header>
 
-      <div className="mx-auto max-w-5xl px-6 py-10">{children}</div>
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
+        {children}
+      </main>
 
-      <footer className="mx-auto max-w-5xl px-6 pb-8 pt-2 text-[11px] text-[#b3b0a6]">
+      <footer className="mx-auto w-full max-w-6xl px-4 pb-8 pt-2 text-[11px] text-slate-400 sm:px-6">
         MARLIN · build {buildRef()}
       </footer>
     </div>

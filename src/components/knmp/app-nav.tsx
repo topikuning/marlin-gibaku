@@ -8,17 +8,17 @@ export function AppNav({ items }: { items: NavItem[] }) {
   const pathname = usePathname();
 
   return (
-    <nav className="flex flex-wrap items-center gap-1">
+    <nav className="flex w-max items-center gap-1">
       {items.map((item) => {
         if (!item.ready) {
           return (
             <span
               key={item.href}
               title="Sedang dibangun"
-              className="cursor-default rounded-md px-3 py-1.5 text-sm text-[#b3b0a6]"
+              className="flex cursor-default items-center gap-1 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium text-slate-400"
             >
               {item.label}
-              <span className="ml-1 rounded bg-[#EFE9DB] px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-[#94886b]">
+              <span className="rounded bg-slate-100 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-400">
                 segera
               </span>
             </span>
@@ -30,10 +30,10 @@ export function AppNav({ items }: { items: NavItem[] }) {
           <Link
             key={item.href}
             href={item.href}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${
+            className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-semibold transition active:scale-[0.98] ${
               active
-                ? "bg-[#3A4E63] text-white"
-                : "text-[#3A4E63] hover:bg-[#EFE9DB]"
+                ? "bg-[#0F766E] text-white shadow-sm"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
             }`}
           >
             {item.label}

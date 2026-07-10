@@ -4,19 +4,19 @@ import { useActionState } from "react";
 import { createContractor, createContract } from "./actions";
 
 const inputClass =
-  "w-full rounded-md border border-[#EAE2D2] bg-white px-3 py-2 text-sm outline-none focus:border-[#3A4E63] focus:ring-2 focus:ring-[#3A4E63]/15";
-const labelClass = "block text-xs font-semibold text-[#3A4E63] mb-1";
+  "w-full rounded-md border border-[#E2E8F0] bg-white px-3 py-2 text-sm outline-none focus:border-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/15";
+const labelClass = "block text-xs font-semibold text-[#0F766E] mb-1";
 
 function Alert({ state }: { state?: { ok?: string; error?: string } }) {
   if (state?.error)
     return (
-      <div role="alert" className="rounded-md border-l-4 border-[#C1442E] bg-[#FCE8E4] px-3 py-2 text-sm text-[#C1442E]">
+      <div role="alert" className="rounded-md border-l-4 border-[#DC2626] bg-[#FEE2E2] px-3 py-2 text-sm text-[#DC2626]">
         {state.error}
       </div>
     );
   if (state?.ok)
     return (
-      <div role="status" className="rounded-md border-l-4 border-[#2E7D4F] bg-[#E4F0E8] px-3 py-2 text-sm text-[#2E7D4F]">
+      <div role="status" className="rounded-md border-l-4 border-[#16A34A] bg-[#DCFCE7] px-3 py-2 text-sm text-[#16A34A]">
         {state.ok}
       </div>
     );
@@ -38,7 +38,7 @@ export function ContractorForm() {
         </div>
       </div>
       <Alert state={state} />
-      <button type="submit" disabled={pending} className="rounded-md bg-[#3A4E63] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2c3d4f] disabled:opacity-60">
+      <button type="submit" disabled={pending} className="rounded-md bg-[#0F766E] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#115E59] disabled:opacity-60">
         {pending ? "Menyimpan…" : "Tambah Kontraktor"}
       </button>
     </form>
@@ -81,11 +81,11 @@ export function ContractForm({ contractors }: { contractors: { id: string; name:
         </div>
       </div>
       <Alert state={state} />
-      <button type="submit" disabled={pending || contractors.length === 0} className="rounded-md bg-[#3A4E63] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2c3d4f] disabled:opacity-60">
+      <button type="submit" disabled={pending || contractors.length === 0} className="rounded-md bg-[#0F766E] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#115E59] disabled:opacity-60">
         {pending ? "Menyimpan…" : "Tambah Kontrak"}
       </button>
       {contractors.length === 0 && (
-        <p className="text-xs text-[#8a9199]">Tambah kontraktor dulu sebelum bikin kontrak.</p>
+        <p className="text-xs text-[#64748B]">Tambah kontraktor dulu sebelum bikin kontrak.</p>
       )}
     </form>
   );

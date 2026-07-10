@@ -1,33 +1,48 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", system-ui, sans-serif;
-  --font-display: "Fraunces", Georgia, serif;
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 
-  /* KNMP palette */
-  --color-canvas: #f7f3ea;
-  --color-canvas-2: #fdfbf6;
-  --color-ink: #0f2942;
-  --color-ink-2: #3a4e63;
-  --color-ink-3: #6b7d91;
-  --color-line: #d8cfbe;
-  --color-line-2: #eae2d2;
-  --color-brick: #c1442e;
-  --color-brick-dark: #a0371f;
-  --color-sage: #3d7a4f;
-  --color-mustard: #c48a2e;
+  /* MARLIN — palet marine/teal + slate (modern, mobile-first) */
+  --color-canvas: #f8fafc; /* slate-50 */
+  --color-surface: #ffffff;
+  --color-ink: #0f172a; /* slate-900 */
+  --color-muted: #64748b; /* slate-500 */
+  --color-line: #e2e8f0; /* slate-200 */
+  --color-primary: #0f766e; /* teal-700 */
+  --color-primary-dark: #115e59; /* teal-800 */
 }
 
 @layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
   body {
     background: var(--color-canvas);
     color: var(--color-ink);
     font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01";
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     -webkit-tap-highlight-color: transparent;
   }
   * {
-    border-color: var(--color-line-2);
+    border-color: var(--color-line);
+  }
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.02em;
+  }
+  input,
+  select,
+  button {
+    font-family: inherit;
+  }
+  /* 16px cegah auto-zoom iOS saat fokus input */
+  input,
+  select {
+    font-size: 16px;
   }
 }

@@ -120,20 +120,20 @@ export default async function RabPage({
     const children = childrenByParent.get(item.id) ?? [];
     return (
       <div key={item.id}>
-        <div className="flex items-start gap-3 border-b border-[#F4EFE4] py-1.5 last:border-0">
+        <div className="flex items-start gap-3 border-b border-[#F1F5F9] py-1.5 last:border-0">
           <div
             className="min-w-0 flex-1"
             style={{ paddingLeft: `${depth * 18}px` }}
           >
-            <span className="mr-2 font-mono text-[11px] text-[#8a9199]">
+            <span className="mr-2 font-mono text-[11px] text-[#64748B]">
               {item.code}
             </span>
-            <span className="text-[#1f2b38]">{item.name}</span>
+            <span className="text-[#0F172A]">{item.name}</span>
           </div>
-          <div className="w-28 shrink-0 text-right text-xs text-[#3A4E63]">
+          <div className="w-28 shrink-0 text-right text-xs text-[#0F766E]">
             {fmtVolume(item)}
           </div>
-          <div className="w-32 shrink-0 text-right text-xs tabular-nums text-[#1f2b38]">
+          <div className="w-32 shrink-0 text-right text-xs tabular-nums text-[#0F172A]">
             {fmtHarga(item.totalPrice)}
           </div>
         </div>
@@ -146,14 +146,14 @@ export default async function RabPage({
     <>
       <Link
         href={`/lokasi/${slug}`}
-        className="mb-4 inline-block text-sm text-[#3A4E63] hover:underline"
+        className="mb-4 inline-block text-sm text-[#0F766E] hover:underline"
       >
         ← Detail Lokasi
       </Link>
-      <h1 className="mb-1 font-[Fraunces] text-3xl font-semibold text-[#1f2b38]">
+      <h1 className="mb-1 text-3xl font-semibold text-[#0F172A]">
         RAB — {location.name}
       </h1>
-      <p className="mb-8 text-sm text-[#3A4E63]">
+      <p className="mb-8 text-sm text-[#0F766E]">
         {categories.length} kategori · rincian item sampai sub-item. Klik
         kategori untuk buka/tutup.
       </p>
@@ -165,14 +165,14 @@ export default async function RabPage({
             <details
               key={cat.id}
               open
-              className="overflow-hidden rounded-lg border border-[#EAE2D2]"
+              className="overflow-hidden rounded-lg border border-[#E2E8F0]"
             >
-              <summary className="flex cursor-pointer items-center justify-between gap-3 bg-[#FDFBF6] px-4 py-2.5">
-                <span className="font-semibold text-[#1f2b38]">
-                  <span className="mr-2 text-[#8a9199]">{cat.romanNumeral}</span>
+              <summary className="flex cursor-pointer items-center justify-between gap-3 bg-[#FFFFFF] px-4 py-2.5">
+                <span className="font-semibold text-[#0F172A]">
+                  <span className="mr-2 text-[#64748B]">{cat.romanNumeral}</span>
                   {cat.name}
                 </span>
-                <span className="shrink-0 text-sm tabular-nums text-[#3A4E63]">
+                <span className="shrink-0 text-sm tabular-nums text-[#0F766E]">
                   {formatRupiah(cat.totalValue)}
                 </span>
               </summary>
@@ -184,14 +184,14 @@ export default async function RabPage({
                   const subItems = itemsBySubcategory.get(sub.id) ?? [];
                   return (
                     <div key={sub.id} className="mt-2">
-                      <div className="flex items-center justify-between gap-3 border-b border-[#EAE2D2] py-1.5">
-                        <span className="text-sm font-semibold text-[#3A4E63]">
-                          <span className="mr-2 font-mono text-[11px] text-[#8a9199]">
+                      <div className="flex items-center justify-between gap-3 border-b border-[#E2E8F0] py-1.5">
+                        <span className="text-sm font-semibold text-[#0F766E]">
+                          <span className="mr-2 font-mono text-[11px] text-[#64748B]">
                             {sub.code}
                           </span>
                           {sub.name}
                         </span>
-                        <span className="shrink-0 text-xs tabular-nums text-[#8a9199]">
+                        <span className="shrink-0 text-xs tabular-nums text-[#64748B]">
                           {formatRupiah(sub.totalValue)}
                         </span>
                       </div>

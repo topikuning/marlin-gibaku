@@ -14,7 +14,7 @@ export function LoginForm() {
       <div>
         <label
           htmlFor="identifier"
-          className="block text-sm font-semibold text-[#3A4E63] mb-1.5"
+          className="block text-sm font-semibold text-[#0F766E] mb-1.5"
         >
           Username atau Email
         </label>
@@ -25,7 +25,7 @@ export function LoginForm() {
           autoComplete="username"
           required
           autoFocus
-          className="w-full rounded-md border border-[#EAE2D2] bg-white px-3 py-2.5 text-[15px] outline-none focus:border-[#3A4E63] focus:ring-2 focus:ring-[#3A4E63]/15"
+          className="w-full rounded-md border border-[#E2E8F0] bg-white px-3 py-2.5 text-[15px] outline-none focus:border-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/15"
           placeholder="mis. admin"
         />
       </div>
@@ -33,7 +33,7 @@ export function LoginForm() {
       <div>
         <label
           htmlFor="password"
-          className="block text-sm font-semibold text-[#3A4E63] mb-1.5"
+          className="block text-sm font-semibold text-[#0F766E] mb-1.5"
         >
           Password
         </label>
@@ -43,7 +43,7 @@ export function LoginForm() {
           type="password"
           autoComplete="current-password"
           required
-          className="w-full rounded-md border border-[#EAE2D2] bg-white px-3 py-2.5 text-[15px] outline-none focus:border-[#3A4E63] focus:ring-2 focus:ring-[#3A4E63]/15"
+          className="w-full rounded-md border border-[#E2E8F0] bg-white px-3 py-2.5 text-[15px] outline-none focus:border-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/15"
           placeholder="••••••••"
         />
       </div>
@@ -51,7 +51,7 @@ export function LoginForm() {
       {errorMessage && (
         <div
           role="alert"
-          className="rounded-md border-l-4 border-[#C1442E] bg-[#FCE8E4] px-3 py-2 text-sm text-[#C1442E]"
+          className="rounded-md border-l-4 border-[#DC2626] bg-[#FEE2E2] px-3 py-2 text-sm text-[#DC2626]"
         >
           {errorMessage}
         </div>
@@ -60,7 +60,7 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={isPending}
-        className="w-full rounded-md bg-[#3A4E63] px-4 py-2.5 text-[15px] font-semibold text-white transition hover:bg-[#2c3d4f] disabled:opacity-60"
+        className="w-full rounded-md bg-[#0F766E] px-4 py-2.5 text-[15px] font-semibold text-white transition hover:bg-[#115E59] disabled:opacity-60"
       >
         {isPending ? "Memproses…" : "Masuk"}
       </button>

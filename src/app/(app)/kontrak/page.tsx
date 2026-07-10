@@ -28,32 +28,32 @@ export default async function KontrakPage() {
 
   return (
     <>
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#3A4E63]">
+      <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
         MARLIN · Kontrak
       </div>
-      <h1 className="mb-1 font-[Fraunces] text-3xl font-semibold text-[#1f2b38]">
+      <h1 className="mb-1 text-3xl font-semibold text-[#0F172A]">
         Kontrak & Kontraktor
       </h1>
-      <p className="mb-8 text-sm text-[#3A4E63]">
+      <p className="mb-8 text-sm text-[#0F766E]">
         1 kontraktor bisa punya banyak kontrak; 1 kontrak bisa mencakup banyak
         lokasi (DECISIONS 016–017).
       </p>
 
       {/* ── Kontraktor ── */}
-      <section className="mb-6 rounded-lg border border-[#EAE2D2] bg-[#FDFBF6] p-5">
-        <div className="mb-4 text-[10px] font-semibold uppercase tracking-widest text-[#3A4E63]">
+      <section className="mb-6 rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] p-5">
+        <div className="mb-4 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
           Tambah kontraktor
         </div>
         <ContractorForm />
       </section>
 
-      <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#3A4E63]">
+      <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
         Kontraktor ({contractors.length})
       </div>
-      <div className="mb-10 overflow-x-auto rounded-lg border border-[#EAE2D2]">
+      <div className="mb-10 overflow-x-auto rounded-lg border border-[#E2E8F0]">
         <table className="w-full min-w-[480px] text-sm">
           <thead>
-            <tr className="border-b border-[#EAE2D2] bg-[#FDFBF6] text-left text-[11px] uppercase tracking-wide text-[#8a9199]">
+            <tr className="border-b border-[#E2E8F0] bg-[#FFFFFF] text-left text-[11px] uppercase tracking-wide text-[#64748B]">
               <th className="px-4 py-2.5 font-semibold">Nama</th>
               <th className="px-4 py-2.5 font-semibold">NPWP</th>
               <th className="px-4 py-2.5 text-center font-semibold">Kontrak</th>
@@ -61,10 +61,10 @@ export default async function KontrakPage() {
           </thead>
           <tbody>
             {contractors.map((c) => (
-              <tr key={c.id} className="border-b border-[#F0EADD] last:border-0">
-                <td className="px-4 py-2.5 font-medium text-[#1f2b38]">{c.name}</td>
-                <td className="px-4 py-2.5 text-[#8a9199]">{c.npwp ?? "—"}</td>
-                <td className="px-4 py-2.5 text-center tabular-nums text-[#1f2b38]">{c._count.contracts}</td>
+              <tr key={c.id} className="border-b border-[#EEF2F6] last:border-0">
+                <td className="px-4 py-2.5 font-medium text-[#0F172A]">{c.name}</td>
+                <td className="px-4 py-2.5 text-[#64748B]">{c.npwp ?? "—"}</td>
+                <td className="px-4 py-2.5 text-center tabular-nums text-[#0F172A]">{c._count.contracts}</td>
               </tr>
             ))}
           </tbody>
@@ -72,20 +72,20 @@ export default async function KontrakPage() {
       </div>
 
       {/* ── Kontrak ── */}
-      <section className="mb-6 rounded-lg border border-[#EAE2D2] bg-[#FDFBF6] p-5">
-        <div className="mb-4 text-[10px] font-semibold uppercase tracking-widest text-[#3A4E63]">
+      <section className="mb-6 rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] p-5">
+        <div className="mb-4 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
           Tambah kontrak
         </div>
         <ContractForm contractors={contractors.map((c) => ({ id: c.id, name: c.name }))} />
       </section>
 
-      <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#3A4E63]">
+      <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
         Kontrak ({contracts.length})
       </div>
-      <div className="overflow-x-auto rounded-lg border border-[#EAE2D2]">
+      <div className="overflow-x-auto rounded-lg border border-[#E2E8F0]">
         <table className="w-full min-w-[720px] text-sm">
           <thead>
-            <tr className="border-b border-[#EAE2D2] bg-[#FDFBF6] text-left text-[11px] uppercase tracking-wide text-[#8a9199]">
+            <tr className="border-b border-[#E2E8F0] bg-[#FFFFFF] text-left text-[11px] uppercase tracking-wide text-[#64748B]">
               <th className="px-4 py-2.5 font-semibold">Nomor SPK</th>
               <th className="px-4 py-2.5 font-semibold">Kontraktor</th>
               <th className="px-4 py-2.5 text-right font-semibold">Nilai</th>
@@ -95,14 +95,14 @@ export default async function KontrakPage() {
           </thead>
           <tbody>
             {contracts.map((k) => (
-              <tr key={k.id} className="border-b border-[#F0EADD] last:border-0">
-                <td className="px-4 py-2.5 font-mono text-[12px] text-[#1f2b38]">{k.contractNumber}</td>
-                <td className="px-4 py-2.5 text-[#1f2b38]">{k.contractor.name}</td>
-                <td className="px-4 py-2.5 text-right tabular-nums text-[#1f2b38]">{formatRupiah(k.contractValue)}</td>
-                <td className="px-4 py-2.5 text-xs text-[#8a9199]">
+              <tr key={k.id} className="border-b border-[#EEF2F6] last:border-0">
+                <td className="px-4 py-2.5 font-mono text-[12px] text-[#0F172A]">{k.contractNumber}</td>
+                <td className="px-4 py-2.5 text-[#0F172A]">{k.contractor.name}</td>
+                <td className="px-4 py-2.5 text-right tabular-nums text-[#0F172A]">{formatRupiah(k.contractValue)}</td>
+                <td className="px-4 py-2.5 text-xs text-[#64748B]">
                   {dateFmt.format(k.startDate)} – {dateFmt.format(k.endDate)}
                 </td>
-                <td className="px-4 py-2.5 text-center tabular-nums text-[#1f2b38]">{k._count.locations}</td>
+                <td className="px-4 py-2.5 text-center tabular-nums text-[#0F172A]">{k._count.locations}</td>
               </tr>
             ))}
           </tbody>
