@@ -297,14 +297,20 @@ Konsekuensi:
 - [x] Beranda skeleton (role + lokasi assignment)
 - [ ] Home page skeleton per-role yang berbeda (sekarang semua ke /beranda) — v0.2
 
-**v0.2 · SM Core Flow** (session 3-4)
+**v0.2 · SM Core Flow** ✓ (session 3, Claude Code)
 - [x] App shell + navigasi role-aware (menu per role, item belum ada = "segera")
 - [x] Daftar Lokasi (role-scoped: lintas-lokasi lihat semua, scoped lihat assigned)
 - [x] Detail lokasi: kontrak + ringkasan RAB per kategori + grand total
-- [ ] RAB tree view lengkap (sub-item granular)
-- [ ] Submit report: pilih item → volume → foto (mock upload dulu)
-- [ ] Draft state management (mandor submit → SM approve — DECISIONS 018)
-- [ ] Item detail modal dengan history
+- [x] RAB tree view lengkap (kategori → subkategori → item → sub-item)
+- [x] Lapor Harian: pilih item → volume → draft (foto = v0.3)
+- [x] Draft state machine (mandor submit → SM approve/tolak — DECISIONS 018)
+- [ ] Item detail modal dengan history (nice-to-have)
+- [x] **Pengguna**: provisioning user (admin bikin user, assign lokasi, aktif/nonaktif)
+- [x] **Kontrak & Kontraktor**: master data CRUD (create)
+
+**v0.4 · PM/Exec Dashboard** — sebagian ✓ (session 3)
+- [x] Dashboard progress: realisasi vs rencana (kurva-S) + deviasi per lokasi
+- [ ] Chart kurva-S visual (Recharts), weekly plan editor, alerts feed
 
 **v0.3 · R2 Photo Upload** (session 5)
 - Presigned URL endpoint
