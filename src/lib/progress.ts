@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { getReportableItems } from "@/lib/rab";
+import { getActiveLineages } from "@/lib/rab";
 
 export type LocationProgress = {
   grandTotal: bigint;
@@ -24,26 +24,28 @@ export async function getLocationProgress(
   locationId: string,
   startDate: Date
 ): Promise<LocationProgress> {
-  const [catAgg, milestones, reportable] = await Promise.all([
-    db.rabCategory.aggregate({
-      where: { locationId },
-      _sum: { totalValue: true },
+  const [activeRev, milestones, lineages] = await Promise.all([
+    db.rabRevision.findFirst({
+      where: { locationId, status: "active" },
+      orderBy: { revisionNo: "desc" },
+      select: { totalValue: true },
     }),
     db.scheduledMilestone.findMany({
       where: { locationId, rabItemId: null },
       orderBy: { weekNumber: "asc" },
       select: { weekNumber: true, targetProgressPct: true },
     }),
-    getReportableItems(locationId),
+    getActiveLineages(locationId),
   ]);
 
-  const grandTotal = catAgg._sum.totalValue ?? 0n;
+  const grandTotal = activeRev?.totalValue ?? 0n;
 
-  const itemIds = reportable.map((i) => i.id);
+  // Realisasi by lineage → laporan yang di-approve tetap terhitung meski
+  // item-nya sudah pindah revisi (carry-over adendum). DECISIONS 023.
   const valAgg =
-    itemIds.length > 0
+    lineages.length > 0
       ? await db.dailyReportItem.aggregate({
-          where: { rabItemId: { in: itemIds }, state: "sent" },
+          where: { state: "sent", rabItem: { lineageId: { in: lineages } } },
           _sum: { valueDone: true },
         })
       : { _sum: { valueDone: 0n } };
