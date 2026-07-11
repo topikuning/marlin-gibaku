@@ -144,7 +144,19 @@ async function seedLocation(payload: LocationSeedJson) {
   await prisma.rabSubcategory.deleteMany({
     where: { category: { locationId: location.id } },
   });
+  await prisma.rabRevision.deleteMany({ where: { locationId: location.id } });
   await prisma.rabCategory.deleteMany({ where: { locationId: location.id } });
+
+  // 3b. Revisi RAB awal (initial_hps, active) — DECISIONS 023 Model A
+  const revision = await prisma.rabRevision.create({
+    data: {
+      locationId: location.id,
+      revisionNo: 1,
+      source: "initial_hps",
+      status: "active",
+      totalValue: BigInt(Math.round(payload.total)),
+    },
+  });
 
   // 4. RAB categories + subcategories + items
   let catSortOrder = 0;
@@ -154,6 +166,7 @@ async function seedLocation(payload: LocationSeedJson) {
     const category = await prisma.rabCategory.create({
       data: {
         locationId: location.id,
+        revisionId: revision.id,
         romanNumeral: cat.roman,
         name: cat.name,
         totalValue: BigInt(Math.round(cat.total_value)),

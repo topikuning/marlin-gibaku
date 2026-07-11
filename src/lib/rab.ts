@@ -3,19 +3,30 @@ import { db } from "@/lib/db";
 
 export type ReportableItem = {
   id: string;
+  lineageId: string;
   code: string;
   name: string;
   unit: string;
   unitPrice: Prisma.Decimal | null;
 };
 
+/** Revisi RAB aktif untuk sebuah lokasi (DECISIONS 023). Null kalau belum ada. */
+export async function getActiveRevisionId(locationId: string): Promise<string | null> {
+  const rev = await db.rabRevision.findFirst({
+    where: { locationId, status: "active" },
+    orderBy: { revisionNo: "desc" },
+    select: { id: true },
+  });
+  return rev?.id ?? null;
+}
+
 /**
- * Semua item RAB milik satu lokasi (termasuk sub-item bertingkat via
- * parentItemId), diambil iteratif per level.
+ * Semua item RAB dari REVISI AKTIF satu lokasi (termasuk sub-item bertingkat),
+ * diambil iteratif per level.
  */
 async function getAllLocationItems(locationId: string) {
   const cats = await db.rabCategory.findMany({
-    where: { locationId },
+    where: { locationId, revision: { status: "active" } },
     select: { id: true, subcategories: { select: { id: true } } },
   });
   const catIds = cats.map((c) => c.id);
@@ -23,6 +34,7 @@ async function getAllLocationItems(locationId: string) {
 
   const select = {
     id: true,
+    lineageId: true,
     code: true,
     name: true,
     unit: true,
@@ -32,6 +44,7 @@ async function getAllLocationItems(locationId: string) {
 
   const acc: {
     id: string;
+    lineageId: string;
     code: string;
     name: string;
     unit: string | null;
@@ -105,9 +118,16 @@ export async function getReportableItems(
     .filter((i) => i.unit != null && i.volume != null)
     .map((i) => ({
       id: i.id,
+      lineageId: i.lineageId,
       code: i.code,
       name: i.name,
       unit: i.unit as string,
       unitPrice: i.unitPrice,
     }));
+}
+
+/** Semua lineageId item revisi aktif — untuk rollup realisasi lintas revisi. */
+export async function getActiveLineages(locationId: string): Promise<string[]> {
+  const items = await getAllLocationItems(locationId);
+  return [...new Set(items.map((i) => i.lineageId))];
 }

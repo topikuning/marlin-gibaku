@@ -23,6 +23,7 @@ export default async function LokasiDetailPage({
     include: {
       contract: { include: { contractor: true } },
       categories: {
+        where: { revision: { status: "active" } },
         orderBy: { sortOrder: "asc" },
         select: { id: true, romanNumeral: true, name: true, totalValue: true },
       },

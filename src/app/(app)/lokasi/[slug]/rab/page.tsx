@@ -51,7 +51,7 @@ export default async function RabPage({
   }
 
   const categories = await db.rabCategory.findMany({
-    where: { locationId: location.id },
+    where: { locationId: location.id, revision: { status: "active" } },
     orderBy: { sortOrder: "asc" },
     include: {
       subcategories: { orderBy: { sortOrder: "asc" } },

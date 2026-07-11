@@ -112,6 +112,18 @@ enum SyncQueueStatus {
   failed
 }
 
+// Revisi RAB (DECISIONS 023 — Model A snapshot). initial_hps = HPS awal,
+// adendum = revisi karena CCO.
+enum RabRevisionSource {
+  initial_hps
+  adendum
+}
+
+enum RabRevisionStatus {
+  active
+  superseded
+}
+
 // Tahapan siklus Pengadaan Barang/Jasa (PBJ) pemerintah — untuk arsip dokumen.
 enum DocumentStage {
   pemilihan     // tender: undangan, penjelasan, evaluasi, klarifikasi, negosiasi
@@ -202,6 +214,7 @@ model User {
   auditLogs           AuditLog[]
   syncQueueEntries    SyncQueue[]
   documentsUploaded   Document[]
+  rabRevisionsCreated RabRevision[]
 
   @@index([orgId])
   @@index([role])
@@ -311,8 +324,9 @@ model ContractAmendment {
   attachmentUrl  String?  @map("attachment_url")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  contract  Contract   @relation(fields: [contractId], references: [id])
-  documents Document[]
+  contract     Contract      @relation(fields: [contractId], references: [id])
+  documents    Document[]
+  rabRevisions RabRevision[]
 
   @@index([contractId])
   @@map("contract_amendments")
@@ -339,6 +353,7 @@ model Location {
   organization       Organization             @relation(fields: [orgId], references: [id])
   contract           Contract                 @relation(fields: [contractId], references: [id])
   categories         RabCategory[]
+  rabRevisions       RabRevision[]
   statusHistory      LocationStatusHistory[]
   assignments        UserLocationAssignment[]
   scheduledMilestones ScheduledMilestone[]
@@ -357,9 +372,36 @@ model Location {
   @@map("locations")
 }
 
+/// Revisi RAB per lokasi (snapshot). RAB "aktif" = revisi ber-status active.
+model RabRevision {
+  id              String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  locationId      String            @map("location_id") @db.Uuid
+  revisionNo      Int               @map("revision_no")
+  source          RabRevisionSource
+  amendmentId     String?           @map("amendment_id") @db.Uuid // kalau dari CCO
+  effectiveDate   DateTime?         @map("effective_date") @db.Date
+  note            String?
+  status          RabRevisionStatus @default(active)
+  totalValue      BigInt            @map("total_value")
+  hpsFileDocId    String?           @map("hps_file_doc_id") @db.Uuid // dokumen HPS sumber
+  createdByUserId String?           @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  supersededAt    DateTime?         @map("superseded_at") @db.Timestamptz
+
+  location   Location           @relation(fields: [locationId], references: [id])
+  amendment  ContractAmendment? @relation(fields: [amendmentId], references: [id])
+  createdBy  User?              @relation(fields: [createdByUserId], references: [id])
+  categories RabCategory[]
+
+  @@unique([locationId, revisionNo])
+  @@index([locationId, status])
+  @@map("rab_revisions")
+}
+
 model RabCategory {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   locationId     String   @map("location_id") @db.Uuid
+  revisionId     String?  @map("revision_id") @db.Uuid
   romanNumeral   String   @map("roman_numeral") // "I", "II", "III", ... (display only, not unique)
   name           String
   totalValue     BigInt   @map("total_value")
@@ -367,11 +409,13 @@ model RabCategory {
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   location      Location         @relation(fields: [locationId], references: [id])
+  revision      RabRevision?     @relation(fields: [revisionId], references: [id])
   subcategories RabSubcategory[]
   items         RabItem[]        @relation("directItem")
 
-  @@unique([locationId, name])
+  @@unique([revisionId, name])
   @@index([locationId, sortOrder])
+  @@index([revisionId, sortOrder])
   @@map("rab_categories")
 }
 
@@ -395,6 +439,9 @@ model RabItem {
   categoryId        String?  @map("category_id") @db.Uuid
   subcategoryId     String?  @map("subcategory_id") @db.Uuid
   parentItemId      String?  @map("parent_item_id") @db.Uuid
+  // Identitas item lintas revisi (carry-over realisasi). Item hasil clone
+  // adendum mewarisi lineage item asalnya (dicocokkan by kode). DECISIONS 023.
+  lineageId         String   @default(dbgenerated("gen_random_uuid()")) @map("lineage_id") @db.Uuid
   code              String   // "1", "6.1", "6.1.a"
   name              String
   volume            Decimal? @db.Decimal(15, 3)
@@ -420,6 +467,7 @@ model RabItem {
   @@index([categoryId])
   @@index([subcategoryId])
   @@index([parentItemId])
+  @@index([lineageId])
   @@map("rab_items")
 }
 
