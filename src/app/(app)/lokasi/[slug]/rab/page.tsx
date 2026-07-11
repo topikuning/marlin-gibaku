@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import type { Prisma } from "@prisma/client";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { isCrossLocation } from "@/lib/roles";
+import { isCrossLocation, canManageUsers } from "@/lib/roles";
 import { formatRupiah } from "@/lib/format";
 
 type RabItem = {
@@ -150,9 +150,19 @@ export default async function RabPage({
       >
         ← Detail Lokasi
       </Link>
-      <h1 className="mb-1 text-3xl font-semibold text-[#0F172A]">
-        RAB — {location.name}
-      </h1>
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-3xl font-semibold text-[#0F172A]">
+          RAB — {location.name}
+        </h1>
+        {canManageUsers(role) && (
+          <Link
+            href={`/lokasi/${slug}/rab/import`}
+            className="rounded-md border border-[#0F766E] px-3 py-1.5 text-sm font-semibold text-[#0F766E] transition hover:bg-[#F1F5F9]"
+          >
+            Import / Adendum RAB
+          </Link>
+        )}
+      </div>
       <p className="mb-8 text-sm text-[#0F766E]">
         {categories.length} kategori · rincian item sampai sub-item. Klik
         kategori untuk buka/tutup.
