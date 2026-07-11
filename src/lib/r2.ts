@@ -53,6 +53,15 @@ export async function r2Put(
   );
 }
 
+/** Ambil objek dari R2 sebagai Buffer (server-side). */
+export async function r2GetBuffer(key: string): Promise<Buffer> {
+  const res = await r2Client().send(
+    new GetObjectCommand({ Bucket: R2_BUCKET, Key: key })
+  );
+  const bytes = await res.Body!.transformToByteArray();
+  return Buffer.from(bytes);
+}
+
 /** Presigned URL untuk download (privat, berlaku singkat). */
 export function r2PresignGet(key: string, expiresIn = 300): Promise<string> {
   return getSignedUrl(

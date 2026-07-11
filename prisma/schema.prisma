@@ -120,6 +120,7 @@ enum RabRevisionSource {
 }
 
 enum RabRevisionStatus {
+  draft // sedang di-import, belum aktif (tidak terlihat sampai di-commit)
   active
   superseded
 }
