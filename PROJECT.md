@@ -97,8 +97,10 @@ Ringkasan grup:
 `daily_reports`, `daily_report_items`, `photos`, `cost_entries`,
 `weekly_plans`, `weekly_plan_items`, `weekly_reports`, `monthly_reports`
 
-### 4.4 Sistem & Audit (3 tabel)
-`alerts`, `audit_logs`, `sync_queue`
+### 4.4 Sistem & Audit (4 tabel)
+`alerts`, `audit_logs`, `sync_queue`, `documents`
+(`documents` = arsip dokumen digital per lokasi/kontrak, ber-stage PBJ, file di
+R2 — DECISIONS 024)
 
 ### 4.5 Keputusan Data Model Kritis
 

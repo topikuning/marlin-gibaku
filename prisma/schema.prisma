@@ -112,6 +112,48 @@ enum SyncQueueStatus {
   failed
 }
 
+// Tahapan siklus Pengadaan Barang/Jasa (PBJ) pemerintah — untuk arsip dokumen.
+enum DocumentStage {
+  pemilihan     // tender: undangan, penjelasan, evaluasi, klarifikasi, negosiasi
+  penunjukan    // penetapan pemenang, sanggah, SPPBJ
+  kontrak       // surat perjanjian, jaminan
+  mulai_kerja   // SPMK, serah terima lapangan, PCM, MC-0
+  pelaksanaan   // laporan, MC berkala, surat kendala, surat peringatan
+  adendum       // CCO / adendum kontrak
+  serah_terima  // PHO/BAST-1, FHO/BAST-2
+  pembayaran    // BA pembayaran, invoice, faktur pajak
+  lainnya
+}
+
+enum DocumentType {
+  undangan
+  ba_penjelasan            // aanwijzing
+  penawaran
+  ba_evaluasi
+  ba_klarifikasi
+  ba_negosiasi
+  penetapan_pemenang
+  sanggah
+  sppbj
+  kontrak
+  jaminan
+  spmk
+  ba_serah_terima_lapangan
+  pcm                      // Pre-Construction Meeting
+  mc0                      // Mutual Check 0%
+  laporan
+  mc_berkala               // MC bulanan / opname termin
+  adendum
+  surat_kendala
+  surat_peringatan
+  bast_pho                 // serah terima pertama
+  bast_fho                 // serah terima akhir
+  ba_pembayaran
+  invoice
+  faktur_pajak
+  lainnya
+}
+
 // ─────────────────────────────────────────────────────────────
 // 4.1 IDENTITAS & AKSES
 // ─────────────────────────────────────────────────────────────
@@ -127,6 +169,7 @@ model Organization {
   contractors Contractor[]
   contracts   Contract[]
   locations   Location[]
+  documents   Document[]
 
   @@map("organizations")
 }
@@ -158,6 +201,7 @@ model User {
   alertsAcknowledged  Alert[]                   @relation("alertAcker")
   auditLogs           AuditLog[]
   syncQueueEntries    SyncQueue[]
+  documentsUploaded   Document[]
 
   @@index([orgId])
   @@index([role])
@@ -248,6 +292,7 @@ model Contract {
   // 1 kontrak (SPK) bisa mencakup >1 lokasi. Lihat DECISIONS 016.
   locations    Location[]
   amendments   ContractAmendment[]
+  documents    Document[]
 
   @@index([orgId])
   @@index([contractorId])
@@ -266,7 +311,8 @@ model ContractAmendment {
   attachmentUrl  String?  @map("attachment_url")
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  contract Contract @relation(fields: [contractId], references: [id])
+  contract  Contract   @relation(fields: [contractId], references: [id])
+  documents Document[]
 
   @@index([contractId])
   @@map("contract_amendments")
@@ -302,6 +348,7 @@ model Location {
   weeklyReports      WeeklyReport[]
   monthlyReports     MonthlyReport[]
   alerts             Alert[]
+  documents          Document[]
 
   @@index([province])
   @@index([status])
@@ -661,4 +708,39 @@ model SyncQueue {
   @@unique([userId, clientRef])
   @@index([status, receivedAt])
   @@map("sync_queue")
+}
+
+/// Arsip dokumen digital per lokasi/kontrak, mengikuti tahapan PBJ.
+/// File tersimpan di R2 (r2_key); metadata di sini. Append-only (koreksi = row baru).
+model Document {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId            String        @default("00000000-0000-0000-0000-000000000001") @map("org_id") @db.Uuid
+  locationId       String?       @map("location_id") @db.Uuid
+  contractId       String?       @map("contract_id") @db.Uuid
+  amendmentId      String?       @map("amendment_id") @db.Uuid
+  stage            DocumentStage
+  type             DocumentType
+  title            String
+  docNumber        String?       @map("doc_number") // nomor surat
+  docDate          DateTime?     @map("doc_date") @db.Date
+  description      String?
+  r2Key            String        @unique @map("r2_key")
+  fileName         String        @map("file_name")
+  mimeType         String        @map("mime_type")
+  bytes            Int
+  sha256           String?
+  uploadedByUserId String        @map("uploaded_by_user_id") @db.Uuid
+  uploadedAt       DateTime      @default(now()) @map("uploaded_at") @db.Timestamptz
+  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz
+
+  organization Organization       @relation(fields: [orgId], references: [id])
+  location     Location?          @relation(fields: [locationId], references: [id])
+  contract     Contract?          @relation(fields: [contractId], references: [id])
+  amendment    ContractAmendment? @relation(fields: [amendmentId], references: [id])
+  uploadedBy   User               @relation(fields: [uploadedByUserId], references: [id])
+
+  @@index([locationId, stage])
+  @@index([contractId])
+  @@index([orgId, uploadedAt])
+  @@map("documents")
 }

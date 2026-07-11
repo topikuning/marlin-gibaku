@@ -404,3 +404,46 @@ Ketahuan saat seed re-run.
 boleh hidup tanpa induknya.
 
 **Alternatif direject**: buang CHECK dual-parent — invariant-nya benar, jangan dilemahkan.
+
+---
+
+## 023 · 2026-07-11 · RAB revisioning = snapshot per revisi (Model A)
+
+**Konteks**: RAB bisa berubah via adendum/CCO. History RAB lama WAJIB tetap ada
+(audit KKP), dan realisasi yang sudah masuk tidak boleh berubah retroaktif.
+
+**Keputusan**: **Model A — snapshot per revisi** (dipilih user atas opsi change-log).
+Tabel `rab_revisions` (contractId, revisionNo, sourceType initial_hps|adendum,
+amendmentId→CCO, effectiveDate, status active|superseded). Kategori/subkategori/item
+dapat `revisionId`. Adendum = clone pohon aktif → revisi baru → revisi lama
+`superseded` (tak pernah dihapus). `lineageId` untuk kontinuitas item lintas revisi
+(supaya volume realisasi nyambung). Adendum durasi → regenerate kurva-S (milestones
+juga versioned).
+
+**Status**: DIPUTUSKAN, **belum dibangun** — menunggu 2-3 sample HPS (format mirip
+tapi tak identik antar lokasi) untuk bikin importer toleran.
+
+**Alternatif direject**: change-log ringan (B) — user pilih A untuk audit yang bersih.
+
+---
+
+## 024 · 2026-07-11 · Arsip dokumen mengikuti siklus PBJ + storage R2
+
+**Konteks**: tiap lokasi butuh arsip digital dokumen resmi (surat, BA, pengajuan)
+mengikuti tahapan Pengadaan Barang/Jasa pemerintah (Perpres 16/2018 jo 12/2021).
+
+**Keputusan**: tabel `documents` (append-only) dengan `stage` (enum: pemilihan,
+penunjukan, kontrak, mulai_kerja, pelaksanaan, adendum, serah_terima, pembayaran,
+lainnya) + `type` granular (undangan, SPPBJ, SPMK, MC0, BAST, faktur_pajak, dst).
+File di **Cloudflare R2** (`r2_key`), metadata di Postgres. Upload lewat server
+action (≤15MB), download via presigned GET (privat, authz per lokasi). Halaman
+"Arsip Dokumen" per lokasi + indikator kelengkapan per tahap.
+
+R2 di-wire di `src/lib/r2.ts` (S3-compatible, forcePathStyle, presigned URL).
+Prasyarat bersama untuk foto laporan (v0.3) + lampiran adendum.
+
+**Alternatif direject**: flat file dump tanpa stage — tidak cocok untuk audit/
+kelengkapan administrasi KKP. Presigned direct-upload dari browser — ditunda
+(server-side upload cukup untuk dokumen; presigned untuk foto/berkas besar nanti).
+
+**Taksonomi jenis dokumen** bisa di-revisit kalau istilah resmi KKP berbeda.

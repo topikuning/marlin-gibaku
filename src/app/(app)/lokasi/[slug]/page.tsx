@@ -128,6 +128,12 @@ export default async function LokasiDetailPage({
         >
           Lihat RAB lengkap →
         </Link>
+        <Link
+          href={`/lokasi/${location.slug}/dokumen`}
+          className="rounded-md border border-[#0F766E] px-4 py-2 text-sm font-semibold text-[#0F766E] transition hover:bg-[#F1F5F9]"
+        >
+          Arsip Dokumen →
+        </Link>
         {canReport(role) && (
           <Link
             href={`/lokasi/${location.slug}/lapor`}

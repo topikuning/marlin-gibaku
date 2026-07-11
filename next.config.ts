@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   experimental: {
     serverActions: {
-      bodySizeLimit: "10mb", // untuk photo upload metadata
+      bodySizeLimit: "16mb", // upload dokumen (file lewat server action)
     },
   },
   images: {
