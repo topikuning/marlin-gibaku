@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { canReport } from "@/lib/report";
 import { hasLocationAccess } from "@/lib/access";
 import { getReportableItems } from "@/lib/rab";
+import { savePhotosForReportItem } from "@/lib/photos";
 import { submitDraftItemSchema } from "@/lib/schemas/report";
 
 type ActionState = { ok?: string; error?: string };
@@ -49,7 +50,7 @@ export async function submitDraftItem(
   const unitPrice = item.unitPrice?.toNumber() ?? 0;
   const valueDone = BigInt(Math.round(volumeDone * unitPrice));
 
-  await db.dailyReportItem.create({
+  const draftItem = await db.dailyReportItem.create({
     data: {
       dailyReportId: null,
       rabItemId,
@@ -64,9 +65,27 @@ export async function submitDraftItem(
     },
   });
 
+  // Foto bukti (opsional). Kegagalan foto tidak membatalkan draft yang sudah tersimpan.
+  const photoFiles = formData
+    .getAll("photos")
+    .filter((f): f is File => f instanceof File && f.size > 0);
+  let photoNote = "";
+  if (photoFiles.length > 0) {
+    try {
+      const { saved, skipped } = await savePhotosForReportItem(
+        draftItem.id,
+        photoFiles
+      );
+      if (saved > 0) photoNote += ` + ${saved} foto`;
+      if (skipped > 0) photoNote += ` (${skipped} foto dilewati)`;
+    } catch {
+      photoNote = " (foto gagal diunggah, draft tetap tersimpan)";
+    }
+  }
+
   revalidatePath(`/lokasi/${slug}/lapor`);
   revalidatePath("/laporan");
   return {
-    ok: `Laporan ${item.code} (${volumeDone} ${item.unit}) tersimpan sebagai draft.`,
+    ok: `Laporan ${item.code} (${volumeDone} ${item.unit}) tersimpan sebagai draft${photoNote}.`,
   };
 }

@@ -11,6 +11,7 @@ import {
   REPORT_STATE_CLASS,
 } from "@/lib/report";
 import { getReportableItems } from "@/lib/rab";
+import { presignKeys } from "@/lib/photos";
 import { approveItem, rejectItem } from "./actions";
 
 const volFmt = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 });
@@ -54,9 +55,14 @@ export default async function LaporanPage() {
         include: {
           rabItem: { select: { code: true, name: true, unit: true } },
           suggestedBy: { select: { fullName: true } },
+          photos: { select: { id: true, r2Key: true }, orderBy: { createdAt: "asc" } },
         },
       })
     : [];
+
+  const photoUrls = await presignKeys(
+    pending.flatMap((p) => p.photos.map((ph) => ph.r2Key))
+  );
 
   return (
     <>
@@ -125,6 +131,30 @@ export default async function LaporanPage() {
                         </div>
                         {p.notes && (
                           <div className="mt-1 text-xs text-[#0F766E]">“{p.notes}”</div>
+                        )}
+                        {p.photos.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {p.photos.map((ph) => {
+                              const url = photoUrls.get(ph.r2Key);
+                              return url ? (
+                                <a key={ph.id} href={url} target="_blank" rel="noreferrer">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={url}
+                                    alt="Foto bukti"
+                                    className="h-14 w-14 rounded-md border border-[#E2E8F0] object-cover"
+                                  />
+                                </a>
+                              ) : (
+                                <span
+                                  key={ph.id}
+                                  className="flex h-14 w-14 items-center justify-center rounded-md border border-[#E2E8F0] bg-[#F1F5F9] text-[10px] text-[#64748B]"
+                                >
+                                  foto
+                                </span>
+                              );
+                            })}
+                          </div>
                         )}
                       </div>
                       <div className="text-right text-sm font-semibold tabular-nums text-[#0F172A]">

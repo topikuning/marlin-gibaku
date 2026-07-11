@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { canReport, REPORT_STATE_LABEL, REPORT_STATE_CLASS } from "@/lib/report";
 import { hasLocationAccess } from "@/lib/access";
 import { getReportableItems } from "@/lib/rab";
+import { presignKeys } from "@/lib/photos";
 import { LaporForm } from "./lapor-form";
 
 const volFmt = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 });
@@ -35,8 +36,15 @@ export default async function LaporPage({
     where: { suggestedByUserId: userId, rabItemId: { in: itemIds } },
     orderBy: { createdAt: "desc" },
     take: 15,
-    include: { rabItem: { select: { code: true, name: true, unit: true } } },
+    include: {
+      rabItem: { select: { code: true, name: true, unit: true } },
+      photos: { select: { id: true, r2Key: true }, orderBy: { createdAt: "asc" } },
+    },
   });
+
+  const photoUrls = await presignKeys(
+    myDrafts.flatMap((d) => d.photos.map((p) => p.r2Key))
+  );
 
   return (
     <>
@@ -79,6 +87,30 @@ export default async function LaporPage({
                   <td className="px-4 py-2.5">
                     <span className="font-mono text-[11px] text-[#64748B]">{d.rabItem.code}</span>{" "}
                     <span className="text-[#0F172A]">{d.rabItem.name}</span>
+                    {d.photos.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        {d.photos.map((p) => {
+                          const url = photoUrls.get(p.r2Key);
+                          return url ? (
+                            <a key={p.id} href={url} target="_blank" rel="noreferrer">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={url}
+                                alt="Foto bukti"
+                                className="h-12 w-12 rounded-md border border-[#E2E8F0] object-cover"
+                              />
+                            </a>
+                          ) : (
+                            <span
+                              key={p.id}
+                              className="flex h-12 w-12 items-center justify-center rounded-md border border-[#E2E8F0] bg-[#F1F5F9] text-[10px] text-[#64748B]"
+                            >
+                              foto
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-2.5 text-right tabular-nums text-[#0F172A]">
                     {volFmt.format(d.volumeDone.toNumber())} {d.rabItem.unit ?? ""}
