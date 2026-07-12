@@ -682,3 +682,24 @@ grid untuk Pengadaan (masih tabel dgn dropdown inline) & RAB tree.
 dengan pesan sisa; badge satuan m³ tampil.
 
 **Belum**: izinkan over-volume via adendum/CCO eksplisit (sekarang hard block).
+
+---
+
+## 034 · 2026-07-12 · Halaman Laporan: detail approval + section "Sudah disetujui" + admin lihat semua
+
+**Konteks**: SM protes — tak bisa lihat laporan yang sudah disetujui, dan proses
+approval minim (cuma tombol setuju + alasan tolak, tanpa detail). Admin juga harus
+bisa lihat semua laporan.
+
+**Keputusan** (`/laporan`):
+1. Kartu pending diperkaya: **Dilaporkan / Kumulatif (X / rencana, %) / Sisa** per
+   satuan, pelapor + tanggal-waktu, catatan, foto besar (72px). Bukan cuma tombol.
+2. Section baru **"Sudah disetujui"** (state `sent`, 30 terbaru): item, volume,
+   pelapor, penyetuju, waktu, foto — sebelumnya tak ada sama sekali.
+3. **Admin lihat semua**: super_admin/PD = approver + cross-location → otomatis
+   melihat pending + approved di semua lokasi. SM/PM/regional = scoped ke lokasinya.
+
+**Terverifikasi**: Playwright sbg `sm-kedungmutih` — pending menampilkan
+210/700 m² (30%), sisa 490 m²; section "Sudah disetujui" menampilkan item + penyetuju.
+
+**Belum**: filter/pagination di daftar approved (baru take 30), section rejected.
