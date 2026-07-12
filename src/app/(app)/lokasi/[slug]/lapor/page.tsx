@@ -60,9 +60,13 @@ export default async function LaporPage({
         <LaporForm locationId={location.id} slug={slug} items={items} />
       </section>
 
-      <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
+      <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
         Laporan Anda ({myDrafts.length})
       </div>
+      <p className="mb-3 text-xs text-[#64748B]">
+        Semua laporan yang Anda kirim tampil di sini beserta fotonya. Site Manager
+        menyetujuinya di menu <span className="font-semibold">Laporan</span>.
+      </p>
       {myDrafts.length === 0 ? (
         <p className="text-sm text-[#64748B]">Belum ada laporan.</p>
       ) : (
@@ -87,7 +91,7 @@ export default async function LaporPage({
                 <div className="mt-1.5 text-xs text-[#DC2626]">Ditolak: {d.rejectedReason}</div>
               )}
               {d.photos.length > 0 && (
-                <div className="mt-2.5 flex flex-wrap gap-1.5">
+                <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
                   {d.photos.map((p) => {
                     const url = photoUrls.get(p.r2Key);
                     return url ? (
@@ -95,7 +99,15 @@ export default async function LaporPage({
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={url} alt="Foto bukti" className="h-14 w-14 rounded-lg border border-[#E2E8F0] object-cover" />
                       </a>
-                    ) : null;
+                    ) : (
+                      <span
+                        key={p.id}
+                        className="flex h-14 w-14 items-center justify-center rounded-lg border border-dashed border-[#E2E8F0] bg-[#F8FAFC] text-center text-[9px] text-[#94A3B8]"
+                        title="Foto tersimpan, tapi penyimpanan (R2) belum aktif untuk menampilkannya"
+                      >
+                        📷 tersimpan
+                      </span>
+                    );
                   })}
                 </div>
               )}

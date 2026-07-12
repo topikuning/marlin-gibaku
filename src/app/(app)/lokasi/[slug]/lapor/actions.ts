@@ -47,6 +47,18 @@ export async function submitDraftItem(
   });
   const priorSent = prior._sum.volumeDone?.toNumber() ?? 0;
   const cumulative = priorSent + volumeDone;
+
+  // Blokir kalau kumulatif melampaui volume rencana item (toleransi kecil untuk
+  // pembulatan). Realisasi tidak boleh > 100% dari item RAB.
+  const planned = item.volume ?? null;
+  if (planned != null && cumulative > planned + 1e-6) {
+    const remaining = Math.max(0, planned - priorSent);
+    return {
+      error:
+        `Volume melebihi rencana. Item "${item.code}" rencana ${planned} ${item.unit}, ` +
+        `sudah dilaporkan ${priorSent} ${item.unit}, sisa ${remaining.toFixed(3).replace(/\.?0+$/, "")} ${item.unit}.`,
+    };
+  }
   const unitPrice = item.unitPrice?.toNumber() ?? 0;
   const valueDone = BigInt(Math.round(volumeDone * unitPrice));
 

@@ -7,6 +7,7 @@ export type ReportableItem = {
   code: string;
   name: string;
   unit: string;
+  volume: number | null; // volume rencana (untuk validasi & tampilan sisa)
   unitPrice: Prisma.Decimal | null;
 };
 
@@ -122,6 +123,7 @@ export async function getReportableItems(
       code: i.code,
       name: i.name,
       unit: i.unit as string,
+      volume: i.volume != null ? i.volume.toNumber() : null,
       unitPrice: i.unitPrice,
     }));
 }

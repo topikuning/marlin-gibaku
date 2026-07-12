@@ -61,8 +61,16 @@ export function LaporForm({
           <div className="flex items-center justify-between gap-3 rounded-xl border border-[#0F766E] bg-[#F0FDFA] px-4 py-3">
             <div className="min-w-0">
               <div className="truncate text-sm font-semibold text-[#0F172A]">{picked.name}</div>
-              <div className="text-xs text-[#0F766E]">
-                {picked.code} · satuan {picked.unit}
+              <div className="mt-0.5 text-xs text-[#0F766E]">
+                {picked.code}
+                {picked.volume != null && (
+                  <>
+                    {" · "}rencana{" "}
+                    <span className="font-semibold">
+                      {picked.volume} {picked.unit}
+                    </span>
+                  </>
+                )}
               </div>
             </div>
             <button
@@ -113,19 +121,29 @@ export function LaporForm({
       {/* 2. Volume */}
       <div>
         <label htmlFor="volumeDone" className="mb-1.5 block text-sm font-semibold text-[#0F172A]">
-          2 · Volume selesai {picked?.unit ? `(${picked.unit})` : ""}
+          2 · Volume selesai
         </label>
-        <input
-          id="volumeDone"
-          name="volumeDone"
-          type="number"
-          inputMode="decimal"
-          step="0.001"
-          min="0"
-          required
-          placeholder="mis. 3.2"
-          className="w-full rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-2xl font-semibold tabular-nums outline-none focus:border-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/15"
-        />
+        <div className="relative">
+          <input
+            id="volumeDone"
+            name="volumeDone"
+            type="number"
+            inputMode="decimal"
+            step="0.001"
+            min="0"
+            required
+            placeholder="mis. 3.2"
+            className="w-full rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 pr-20 text-2xl font-semibold tabular-nums outline-none focus:border-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/15"
+          />
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-lg bg-[#F0FDFA] px-2.5 py-1 text-sm font-bold text-[#0F766E]">
+            {picked?.unit ?? "satuan"}
+          </span>
+        </div>
+        {picked?.volume != null && (
+          <p className="mt-1 text-xs text-[#64748B]">
+            Maksimal {picked.volume} {picked.unit} (volume rencana item ini).
+          </p>
+        )}
       </div>
 
       {/* 3. Foto */}
