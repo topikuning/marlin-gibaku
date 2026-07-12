@@ -52,8 +52,9 @@ bukan dari ingatan. Legenda:
 
 ## 6. Laporan & Persetujuan
 - ✅ SM setujui / tolak draft (dengan alasan)
-- ✅ **Detail approval**: dilaporkan / kumulatif (vs rencana, %) / sisa + pelapor + tanggal + catatan + foto
-- ✅ Section **"Sudah disetujui"** (riwayat sent + penyetuju + waktu)
+- ✅ **Detail approval** ringkas di kartu: dilaporkan / kumulatif (vs rencana, %) / sisa
+- ✅ **Halaman detail laporan** (`/laporan/[id]`): klik kartu → detail penuh (volume/kumulatif/sisa, pelapor + penyetuju + waktu, semua foto besar, tombol setuju/tolak)
+- ✅ Section **"Sudah disetujui"** (riwayat sent + penyetuju + waktu), tiap item bisa diklik ke detail
 - ☑️ Admin (cross-location) lihat **semua** laporan
 
 ## 7. Foto

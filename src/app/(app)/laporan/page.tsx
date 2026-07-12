@@ -186,7 +186,9 @@ export default async function LaporanPage() {
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="text-xs font-semibold text-[#0F766E]">{meta?.locName ?? ""}</div>
-                        <div className="text-sm font-semibold text-[#0F172A]">{p.rabItem.name}</div>
+                        <Link href={`/laporan/${p.id}`} className="text-sm font-semibold text-[#0F172A] hover:text-[#0F766E] hover:underline">
+                          {p.rabItem.name}
+                        </Link>
                         <div className="mt-0.5 text-xs text-[#64748B]">
                           <span className="font-mono">{p.rabItem.code}</span> · oleh{" "}
                           {p.suggestedBy?.fullName ?? "?"} · {dtFmt.format(p.createdAt)}
@@ -269,13 +271,18 @@ export default async function LaporanPage() {
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="text-xs font-semibold text-[#0F766E]">{meta?.locName ?? ""}</div>
-                      <div className="text-sm font-semibold text-[#0F172A]">{a.rabItem.name}</div>
+                      <Link href={`/laporan/${a.id}`} className="text-sm font-semibold text-[#0F172A] hover:text-[#0F766E] hover:underline">
+                        {a.rabItem.name}
+                      </Link>
                       <div className="mt-0.5 text-xs text-[#64748B]">
                         <span className="font-mono">{a.rabItem.code}</span> · lapor:{" "}
                         {a.suggestedBy?.fullName ?? "?"}
                         {a.approvedBy ? ` · setuju: ${a.approvedBy.fullName}` : ""}
                         {a.approvedAt ? ` · ${dtFmt.format(a.approvedAt)}` : ""}
                       </div>
+                      <Link href={`/laporan/${a.id}`} className="mt-1 inline-block text-xs font-semibold text-[#0F766E] hover:underline">
+                        Lihat detail →
+                      </Link>
                     </div>
                     <div className="shrink-0 text-right">
                       <div className="text-sm font-bold tabular-nums text-[#0F172A]">
