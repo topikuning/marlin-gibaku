@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { isCrossLocation, LOCATION_STATUS_LABEL, LOCATION_STATUS_CLASS } from "@/lib/roles";
 import { canReport } from "@/lib/report";
 import { formatRupiah } from "@/lib/format";
+import { getScurveSeries } from "@/lib/scurve-data";
+import { ScurveChart } from "@/components/knmp/scurve-chart";
 
 const dateFmt = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium" });
 
@@ -45,6 +47,7 @@ export default async function LokasiDetailPage({
   );
 
   const c = location.contract;
+  const scurve = await getScurveSeries(location.id, c.startDate);
 
   return (
     <>
@@ -95,6 +98,13 @@ export default async function LokasiDetailPage({
           </p>
         </section>
       </div>
+
+      <section className="mt-6 rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] p-5">
+        <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
+          Kurva-S — rencana vs realisasi
+        </div>
+        <ScurveChart series={scurve} />
+      </section>
 
       <section className="mt-6 overflow-x-auto rounded-lg border border-[#E2E8F0]">
         <table className="w-full min-w-[480px] text-sm">
