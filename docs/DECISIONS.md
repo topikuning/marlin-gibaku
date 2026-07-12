@@ -473,3 +473,28 @@ server-side (pakai foto asli langsung), galeri per lokasi. Menyusul.
 
 **Alternatif direject**: API route `/api/photos/[id]` + reverse-authz via recursive
 CTE rab_item→lokasi — lebih berat, tak perlu karena halaman sudah scoped.
+
+---
+
+## 026 · 2026-07-12 · Beranda = overview (Dashboard digabung), grandTotal dari kategori aktif
+
+**Konteks**: user protes "konyol ada Beranda ada Dashboard" — dua halaman overview
+membingungkan. Plus Dashboard tampil "Rp 0 / deviasi −100%" di semua lokasi karena
+`getLocationProgress` membaca `rabRevision.totalValue` (bisa basi/0), bukan sumber
+kebenaran.
+
+**Keputusan**:
+1. **Hapus menu Dashboard terpisah.** Beranda jadi satu-satunya landing: untuk role
+   ber-dashboard (super_admin, PD, exec, RM, PM) menampilkan ringkasan progress +
+   tabel kurva-S per lokasi; untuk SM/Mandor menampilkan lokasi + tombol Lapor
+   Harian. `/dashboard` redirect ke `/beranda` (link lama tetap hidup).
+2. **grandTotal = SUM `rabCategory.totalValue` kategori aktif** (sesuai DECISIONS
+   014), konsisten dengan halaman detail lokasi. Tidak lagi pakai
+   `rabRevision.totalValue` yang denormalized & rawan basi.
+
+**Catatan**: kalau di produksi Total Nilai masih Rp 0 setelah ini, berarti DB prod
+belum ter-seed data RAB terbaru → jalankan seed (`SEED_ON_DEPLOY=true` saat deploy).
+
+**Alternatif direject**: pertahankan dua halaman tapi bedakan isinya — user eksplisit
+mau satu. Sinkronkan `rabRevision.totalValue` tiap tulis — tetap dobel sumber
+kebenaran; lebih baik hitung dari kategori.
