@@ -34,7 +34,7 @@ export function LaporForm({
     const q = query.trim().toLowerCase();
     if (!q) return [];
     return items
-      .filter((it) => `${it.code} ${it.name}`.toLowerCase().includes(q))
+      .filter((it) => `${it.code} ${it.name} ${it.category}`.toLowerCase().includes(q))
       .slice(0, 25);
   }, [query, items]);
 
@@ -60,8 +60,11 @@ export function LaporForm({
         {picked ? (
           <div className="flex items-center justify-between gap-3 rounded-xl border border-[#0F766E] bg-[#F0FDFA] px-4 py-3">
             <div className="min-w-0">
+              {picked.category && (
+                <div className="truncate text-[11px] font-medium text-[#0F766E]">{picked.category}</div>
+              )}
               <div className="truncate text-sm font-semibold text-[#0F172A]">{picked.name}</div>
-              <div className="mt-0.5 text-xs text-[#0F766E]">
+              <div className="mt-0.5 text-xs text-[#64748B]">
                 {picked.code}
                 {picked.volume != null && (
                   <>
@@ -105,9 +108,13 @@ export function LaporForm({
                       }}
                       className="block w-full border-b border-[#F1F5F9] px-4 py-3 text-left last:border-0 active:bg-[#F0FDFA]"
                     >
+                      {it.category && (
+                        <div className="truncate text-[11px] font-medium text-[#0F766E]">{it.category}</div>
+                      )}
                       <div className="text-sm font-medium text-[#0F172A]">{it.name}</div>
                       <div className="text-xs text-[#64748B]">
                         {it.code} · {it.unit}
+                        {it.volume != null ? ` · rencana ${it.volume} ${it.unit}` : ""}
                       </div>
                     </button>
                   ))
