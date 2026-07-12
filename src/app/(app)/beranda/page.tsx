@@ -9,36 +9,39 @@ import { formatRupiahShort } from "@/lib/format";
 
 const pctFmt = (n: number) => `${n.toFixed(1)}%`;
 
-/** Lokasi yang bisa diakses user (cross-role: semua; selain itu: yang ditugaskan). */
-async function accessibleLocations(userId: string, cross: boolean) {
+type LocRow = {
+  id: string;
+  slug: string;
+  name: string;
+  province: string;
+  contract: { startDate: Date; contractValue: bigint };
+};
+
+async function accessibleLocations(userId: string, cross: boolean): Promise<LocRow[]> {
+  const sel = {
+    id: true,
+    slug: true,
+    name: true,
+    province: true,
+    contract: { select: { startDate: true, contractValue: true } },
+  };
   if (cross) {
-    return db.location.findMany({
-      orderBy: [{ province: "asc" }, { name: "asc" }],
-      select: {
-        id: true,
-        slug: true,
-        name: true,
-        province: true,
-        contract: { select: { startDate: true } },
-      },
-    });
+    return db.location.findMany({ orderBy: [{ province: "asc" }, { name: "asc" }], select: sel });
   }
   const rows = await db.userLocationAssignment.findMany({
     where: { userId, unassignedAt: null },
-    include: {
-      location: {
-        select: {
-          id: true,
-          slug: true,
-          name: true,
-          province: true,
-          contract: { select: { startDate: true } },
-        },
-      },
-    },
+    include: { location: { select: sel } },
     orderBy: { assignedAt: "asc" },
   });
   return rows.map((r) => r.location);
+}
+
+/** Status proyek ala command-center (warna hanya untuk status). */
+function statusOf(planPct: number, deviationPct: number): { key: string; label: string; dot: string; pill: string } {
+  if (planPct <= 0.01) return { key: "abu", label: "Belum Mulai", dot: "#94A3B8", pill: "bg-slate-100 text-slate-500" };
+  if (deviationPct >= -1) return { key: "hijau", label: "Sesuai", dot: "#16A34A", pill: "bg-[#DCFCE7] text-[#15803D]" };
+  if (deviationPct >= -10) return { key: "kuning", label: "Perhatian", dot: "#D97706", pill: "bg-[#FEF3C7] text-[#B45309]" };
+  return { key: "merah", label: "Kritis", dot: "#DC2626", pill: "bg-[#FEE2E2] text-[#DC2626]" };
 }
 
 export default async function BerandaPage() {
@@ -49,117 +52,142 @@ export default async function BerandaPage() {
   const cross = isCrossLocation(role);
   const locations = await accessibleLocations(id, cross);
 
-  return (
-    <>
-      <h1 className="mb-1 text-3xl font-semibold text-[#0F172A]">Halo, {name}.</h1>
-      <p className="mb-8 text-sm text-[#0F766E]">
-        Masuk sebagai <span className="font-semibold">{ROLE_LABEL[role]}</span> ·{" "}
-        {cross
-          ? `akses semua lokasi (${locations.length})`
-          : `${locations.length} lokasi ditugaskan`}
-      </p>
-
-      {canViewDashboard(role) ? (
-        <DashboardOverview locations={locations} />
-      ) : (
+  if (!canViewDashboard(role)) {
+    return (
+      <>
+        <h1 className="mb-1 text-2xl font-bold text-slate-900">Halo, {name}.</h1>
+        <p className="mb-6 text-sm text-slate-500">
+          Masuk sebagai <span className="font-medium text-slate-700">{ROLE_LABEL[role]}</span> · {locations.length} lokasi ditugaskan
+        </p>
         <ReporterHome locations={locations} canLapor={canReport(role)} />
-      )}
-    </>
-  );
+      </>
+    );
+  }
+
+  return <CommandCenter locations={locations} />;
 }
 
-/* ---------- Overview (menggantikan menu Dashboard terpisah) ---------- */
+/* ---------- Command Center (dashboard roles) ---------- */
 
-async function DashboardOverview({
-  locations,
-}: {
-  locations: {
-    id: string;
-    slug: string;
-    name: string;
-    province: string;
-    contract: { startDate: Date };
-  }[];
-}) {
+async function CommandCenter({ locations }: { locations: LocRow[] }) {
   const rows = await Promise.all(
     locations.map(async (loc) => ({
       loc,
       progress: await getLocationProgress(loc.id, loc.contract.startDate),
+      status: null as ReturnType<typeof statusOf> | null,
     }))
   );
+  for (const r of rows) r.status = statusOf(r.progress.planPct, r.progress.deviationPct);
 
+  const totalContract = rows.reduce((s, r) => s + r.loc.contract.contractValue, 0n);
   const totalGrand = rows.reduce((s, r) => s + r.progress.grandTotal, 0n);
   const totalRealized = rows.reduce((s, r) => s + r.progress.realizedValue, 0n);
-  const avgRealizedPct =
-    totalGrand > 0n ? (Number(totalRealized) / Number(totalGrand)) * 100 : 0;
-  const behind = rows.filter((r) => r.progress.deviationPct < -0.01).length;
+  const avgRealizedPct = totalGrand > 0n ? (Number(totalRealized) / Number(totalGrand)) * 100 : 0;
+  const avgPlanPct =
+    rows.length > 0 ? rows.reduce((s, r) => s + r.progress.planPct, 0) / rows.length : 0;
+  const dist = { hijau: 0, kuning: 0, merah: 0, abu: 0 } as Record<string, number>;
+  for (const r of rows) dist[r.status!.key]++;
+  const bermasalah = dist.kuning + dist.merah;
 
   return (
     <>
-      <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
-        Progress proyek — realisasi vs rencana (kurva-S)
-      </div>
-      <div className="mb-8 grid gap-4 sm:grid-cols-4">
-        <Stat label="Lokasi" value={rows.length.toLocaleString("id-ID")} />
-        <Stat label="Total nilai" value={formatRupiahShort(totalGrand)} />
-        <Stat label="Realisasi" value={formatRupiahShort(totalRealized)} sub={pctFmt(avgRealizedPct)} />
-        <Stat label="Di bawah rencana" value={`${behind} lokasi`} tone={behind > 0 ? "warn" : "ok"} />
+      <div className="mb-6">
+        <h1 className="text-xl font-bold text-slate-900">Portfolio Command Center</h1>
+        <p className="text-sm text-slate-500">Ringkasan kinerja seluruh proyek</p>
       </div>
 
-      {rows.length === 0 ? (
-        <p className="text-sm text-[#64748B]">Belum ada lokasi.</p>
-      ) : (
-        <div className="overflow-x-auto rounded-lg border border-[#E2E8F0]">
-          <table className="w-full min-w-[720px] text-sm">
-            <thead>
-              <tr className="border-b border-[#E2E8F0] bg-[#FFFFFF] text-left text-[11px] uppercase tracking-wide text-[#64748B]">
-                <th className="px-4 py-2.5 font-semibold">Lokasi</th>
-                <th className="px-4 py-2.5 font-semibold">Progress (realisasi vs rencana)</th>
-                <th className="px-4 py-2.5 text-right font-semibold">Realisasi</th>
-                <th className="px-4 py-2.5 text-right font-semibold">Rencana</th>
-                <th className="px-4 py-2.5 text-right font-semibold">Deviasi</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(({ loc, progress }) => {
-                const dev = progress.deviationPct;
-                const devClass =
-                  dev < -0.01 ? "text-[#DC2626]" : dev > 0.01 ? "text-[#16A34A]" : "text-[#64748B]";
-                return (
-                  <tr key={loc.id} className="border-b border-[#EEF2F6] last:border-0">
-                    <td className="px-4 py-3">
-                      <Link href={`/lokasi/${loc.slug}`} className="font-semibold text-[#0F766E] hover:underline">
-                        {loc.name}
-                      </Link>
-                      <div className="text-xs text-[#64748B]">
-                        {loc.province} · minggu {progress.weekNumber}/{progress.totalWeeks}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      <ProgressBar realized={progress.realizedPct} plan={progress.planPct} />
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums font-semibold text-[#0F172A]">
-                      {pctFmt(progress.realizedPct)}
-                    </td>
-                    <td className="px-4 py-3 text-right tabular-nums text-[#64748B]">
-                      {pctFmt(progress.planPct)}
-                    </td>
-                    <td className={`px-4 py-3 text-right tabular-nums font-semibold ${devClass}`}>
-                      {dev >= 0 ? "+" : ""}
-                      {dev.toFixed(1)}%
-                    </td>
+      {/* KPI row */}
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-6">
+        <Kpi label="Total Lokasi" value={rows.length.toLocaleString("id-ID")} sub={`${dist.hijau + dist.kuning + dist.merah} berjalan · ${dist.abu} belum`} />
+        <Kpi label="Nilai Kontrak" value={formatRupiahShort(totalContract)} />
+        <Kpi label="Nilai RAB (HPS)" value={formatRupiahShort(totalGrand)} />
+        <Kpi label="Realisasi Fisik" value={pctFmt(avgRealizedPct)} sub={`Rencana ${pctFmt(avgPlanPct)}`} accent />
+        <Kpi label="Nilai Terpasang" value={formatRupiahShort(totalRealized)} />
+        <Kpi label="Proyek Bermasalah" value={bermasalah.toLocaleString("id-ID")} sub={`${dist.merah} kritis · ${dist.kuning} perhatian`} status={bermasalah > 0 ? "warn" : "ok"} />
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        {/* Kinerja proyek */}
+        <section className="lg:col-span-2">
+          <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Kinerja Proyek</div>
+          {rows.length === 0 ? (
+            <p className="text-sm text-slate-500">Belum ada lokasi.</p>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+              <table className="w-full min-w-[680px] text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 text-left text-[11px] uppercase tracking-wide text-slate-500">
+                    <th className="px-4 py-2.5 font-medium">Proyek</th>
+                    <th className="px-4 py-2.5 font-medium">Progress</th>
+                    <th className="px-4 py-2.5 text-right font-medium">Realisasi</th>
+                    <th className="px-4 py-2.5 text-right font-medium">Rencana</th>
+                    <th className="px-4 py-2.5 text-right font-medium">Deviasi</th>
+                    <th className="px-4 py-2.5 font-medium">Status</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+                </thead>
+                <tbody>
+                  {rows.map(({ loc, progress, status }) => {
+                    const dev = progress.deviationPct;
+                    const devClass = dev < -1 ? "text-[#DC2626]" : dev >= -1 ? "text-[#15803D]" : "text-slate-500";
+                    return (
+                      <tr key={loc.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                        <td className="px-4 py-3">
+                          <Link href={`/lokasi/${loc.slug}`} className="font-medium text-slate-900 hover:text-[#0F766E]">
+                            {loc.name}
+                          </Link>
+                          <div className="text-xs text-slate-500">
+                            {loc.province} · minggu {progress.weekNumber}/{progress.totalWeeks}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3"><ProgressBar realized={progress.realizedPct} plan={progress.planPct} /></td>
+                        <td className="px-4 py-3 text-right font-medium tabular-nums text-slate-900">{pctFmt(progress.realizedPct)}</td>
+                        <td className="px-4 py-3 text-right tabular-nums text-slate-500">{pctFmt(progress.planPct)}</td>
+                        <td className={`px-4 py-3 text-right font-medium tabular-nums ${devClass}`}>{dev >= 0 ? "+" : ""}{dev.toFixed(1)}%</td>
+                        <td className="px-4 py-3">
+                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${status!.pill}`}>{status!.label}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        {/* Distribusi status */}
+        <section>
+          <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Distribusi Status</div>
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="mb-3 text-3xl font-bold tabular-nums text-slate-900">
+              {rows.length}<span className="ml-1 text-sm font-medium text-slate-400">total</span>
+            </div>
+            <ul className="space-y-2 text-sm">
+              <DistRow color="#16A34A" label="Sesuai" n={dist.hijau} total={rows.length} />
+              <DistRow color="#D97706" label="Perhatian" n={dist.kuning} total={rows.length} />
+              <DistRow color="#DC2626" label="Kritis" n={dist.merah} total={rows.length} />
+              <DistRow color="#94A3B8" label="Belum Mulai" n={dist.abu} total={rows.length} />
+            </ul>
+          </div>
+        </section>
+      </div>
     </>
   );
 }
 
-/* ---------- Home untuk Site Manager / Mandor ---------- */
+function DistRow({ color, label, n, total }: { color: string; label: string; n: number; total: number }) {
+  const pct = total > 0 ? (n / total) * 100 : 0;
+  return (
+    <li className="flex items-center gap-3">
+      <span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />
+      <span className="flex-1 text-slate-600">{label}</span>
+      <span className="font-medium tabular-nums text-slate-900">{n}</span>
+      <span className="w-12 text-right text-xs tabular-nums text-slate-400">{pct.toFixed(0)}%</span>
+    </li>
+  );
+}
+
+/* ---------- Reporter home ---------- */
 
 function ReporterHome({
   locations,
@@ -170,26 +198,17 @@ function ReporterHome({
 }) {
   return (
     <>
-      <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
-        Lokasi Anda
-      </div>
+      <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Lokasi Anda</div>
       {locations.length === 0 ? (
-        <p className="text-sm text-[#64748B]">
-          Belum ada lokasi yang ditugaskan. Hubungi admin untuk penugasan.
-        </p>
+        <p className="text-sm text-slate-500">Belum ada lokasi yang ditugaskan. Hubungi admin.</p>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {locations.map((loc) => (
-            <div key={loc.id} className="rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] p-4">
-              <Link href={`/lokasi/${loc.slug}`} className="font-semibold text-[#0F172A] hover:underline">
-                {loc.name}
-              </Link>
-              <div className="mb-3 text-xs text-[#64748B]">{loc.province}</div>
+            <div key={loc.id} className="rounded-lg border border-slate-200 bg-white p-4">
+              <Link href={`/lokasi/${loc.slug}`} className="font-medium text-slate-900 hover:text-[#0F766E]">{loc.name}</Link>
+              <div className="mb-3 text-xs text-slate-500">{loc.province}</div>
               {canLapor && (
-                <Link
-                  href={`/lokasi/${loc.slug}/lapor`}
-                  className="inline-block rounded-md bg-[#0F766E] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#115E59]"
-                >
+                <Link href={`/lokasi/${loc.slug}/lapor`} className="inline-block rounded-md bg-[#0F766E] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#115E59]">
                   Lapor harian + foto →
                 </Link>
               )}
@@ -203,25 +222,13 @@ function ReporterHome({
 
 /* ---------- primitives ---------- */
 
-function Stat({
-  label,
-  value,
-  sub,
-  tone,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  tone?: "ok" | "warn";
-}) {
-  const valColor = tone === "warn" ? "text-[#DC2626]" : "text-[#0F172A]";
+function Kpi({ label, value, sub, accent, status }: { label: string; value: string; sub?: string; accent?: boolean; status?: "ok" | "warn" }) {
+  const valColor = status === "warn" ? "text-[#DC2626]" : accent ? "text-[#0F766E]" : "text-slate-900";
   return (
-    <div className="rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] p-4">
-      <div className="text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
-        {label}
-      </div>
-      <div className={`mt-1 text-2xl font-semibold ${valColor}`}>{value}</div>
-      {sub && <div className="text-xs text-[#64748B]">{sub}</div>}
+    <div className="rounded-lg border border-slate-200 bg-white p-4">
+      <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">{label}</div>
+      <div className={`mt-1.5 text-2xl font-bold tabular-nums ${valColor}`}>{value}</div>
+      {sub && <div className="mt-0.5 text-[11px] tabular-nums text-slate-400">{sub}</div>}
     </div>
   );
 }
@@ -230,13 +237,9 @@ function ProgressBar({ realized, plan }: { realized: number; plan: number }) {
   const r = Math.min(Math.max(realized, 0), 100);
   const p = Math.min(Math.max(plan, 0), 100);
   return (
-    <div className="relative h-3 w-full max-w-[260px] overflow-hidden rounded-full bg-[#F1F5F9]">
+    <div className="relative h-2 w-full max-w-[220px] overflow-hidden rounded-full bg-slate-100">
       <div className="h-full rounded-full bg-[#0F766E]" style={{ width: `${r}%` }} />
-      <div
-        className="absolute top-0 h-full w-0.5 bg-[#DC2626]"
-        style={{ left: `${p}%` }}
-        title={`Rencana ${p.toFixed(1)}%`}
-      />
+      <div className="absolute top-0 h-full w-0.5 bg-[#DC2626]" style={{ left: `${p}%` }} title={`Rencana ${p.toFixed(1)}%`} />
     </div>
   );
 }
