@@ -9,6 +9,7 @@ export type ReportableItem = {
   unit: string;
   volume: number | null; // volume rencana (untuk validasi & tampilan sisa)
   unitPrice: Prisma.Decimal | null;
+  category: string; // "I. PEKERJAAN ... › Sub" — disambiguasi nama sama
 };
 
 /** Revisi RAB aktif untuk sebuah lokasi (DECISIONS 023). Null kalau belum ada. */
@@ -25,13 +26,42 @@ export async function getActiveRevisionId(locationId: string): Promise<string | 
  * Semua item RAB dari REVISI AKTIF satu lokasi (termasuk sub-item bertingkat),
  * diambil iteratif per level.
  */
-async function getAllLocationItems(locationId: string) {
+type RawItem = {
+  id: string;
+  lineageId: string;
+  code: string;
+  name: string;
+  unit: string | null;
+  volume: Prisma.Decimal | null;
+  unitPrice: Prisma.Decimal | null;
+  categoryId: string | null;
+  subcategoryId: string | null;
+  parentItemId: string | null;
+};
+
+async function getAllLocationItems(
+  locationId: string
+): Promise<(RawItem & { category: string })[]> {
   const cats = await db.rabCategory.findMany({
     where: { locationId, revision: { status: "active" } },
-    select: { id: true, subcategories: { select: { id: true } } },
+    select: {
+      id: true,
+      name: true,
+      romanNumeral: true,
+      subcategories: { select: { id: true, name: true } },
+    },
   });
   const catIds = cats.map((c) => c.id);
   const subIds = cats.flatMap((c) => c.subcategories.map((s) => s.id));
+
+  // Label kategori/sub untuk disambiguasi item bernama sama.
+  const labelByCat = new Map<string, string>();
+  const labelBySub = new Map<string, string>();
+  for (const c of cats) {
+    const catLabel = `${c.romanNumeral}. ${c.name}`;
+    labelByCat.set(c.id, catLabel);
+    for (const s of c.subcategories) labelBySub.set(s.id, `${catLabel} › ${s.name}`);
+  }
 
   const select = {
     id: true,
@@ -41,18 +71,12 @@ async function getAllLocationItems(locationId: string) {
     unit: true,
     volume: true,
     unitPrice: true,
+    categoryId: true,
+    subcategoryId: true,
+    parentItemId: true,
   } as const;
 
-  const acc: {
-    id: string;
-    lineageId: string;
-    code: string;
-    name: string;
-    unit: string | null;
-    volume: Prisma.Decimal | null;
-    unitPrice: Prisma.Decimal | null;
-  }[] = [];
-
+  const acc: RawItem[] = [];
   let frontier = await db.rabItem.findMany({
     where: { OR: [{ categoryId: { in: catIds } }, { subcategoryId: { in: subIds } }] },
     orderBy: { sortOrder: "asc" },
@@ -68,7 +92,20 @@ async function getAllLocationItems(locationId: string) {
     });
     acc.push(...frontier);
   }
-  return acc;
+
+  // Resolve label kategori per item (parents diproses lebih dulu oleh BFS).
+  const labelByItem = new Map<string, string>();
+  return acc.map((it) => {
+    const label = it.categoryId
+      ? labelByCat.get(it.categoryId) ?? ""
+      : it.subcategoryId
+        ? labelBySub.get(it.subcategoryId) ?? ""
+        : it.parentItemId
+          ? labelByItem.get(it.parentItemId) ?? ""
+          : "";
+    labelByItem.set(it.id, label);
+    return { ...it, category: label };
+  });
 }
 
 /**
@@ -125,6 +162,7 @@ export async function getReportableItems(
       unit: i.unit as string,
       volume: i.volume != null ? i.volume.toNumber() : null,
       unitPrice: i.unitPrice,
+      category: i.category,
     }));
 }
 
