@@ -618,3 +618,24 @@ Kontrak 1, SPMK 5), dropdown tahap tersimpan.
 
 **Alternatif direject**: tabel `procurements` terpisah (app Cloudflare) — user mau
 satu sumber (per lokasi).
+
+---
+
+## 031 · 2026-07-12 · Lapor Harian mobile-first (redesign untuk mandor)
+
+**Konteks**: tampilan lapor harian lama pakai `<select>` native berisi 1000+ item
+RAB — tidak bisa dipakai mandor di HP. User minta mobile-first modern.
+
+**Keputusan**: form Lapor Harian dirombak jadi stepped + touch-friendly:
+1. **Pilih pekerjaan** = search box + daftar hasil (tap pilih), bukan select 1000
+   item. Item terpilih tampil sebagai kartu + tombol "Ganti".
+2. **Volume** = input besar, satuan di label.
+3. **Foto** = tombol kamera besar (capture) + preview thumbnail (objectURL).
+4. Catatan opsional; tombol simpan **sticky**, disabled sampai item dipilih.
+5. Riwayat laporan jadi **kartu** (bukan tabel) dengan status pill + thumbnail foto.
+Form reset otomatis setelah sukses.
+
+**Terverifikasi**: Playwright viewport 390px sbg `mandor-01` — search "beton" filter
+benar, pilih item → kartu + volume(m²) + kamera + simpan; riwayat kartu.
+
+**Belum**: offline/queue (mandor sinyal lemah), kompresi foto client-side.
