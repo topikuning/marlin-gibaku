@@ -563,3 +563,30 @@ auditable, cepat, konsisten.
 
 **Alternatif direject**: klasifikasi 1.700 item/lokasi via LLM saat runtime —
 lambat, mahal, non-deterministik; AI dipakai sekali (analisis 7 RAB → aturan).
+
+---
+
+## 029 · 2026-07-12 · Peta lokasi (Leaflet) — klik titik → progress + fase + foto
+
+**Konteks**: user punya app Cloudflare "Area Manager" (Leaflet + D1) yang lokasinya
+menempel di peta; ingin pola itu di MARLIN — klik titik lokasi → laporan tiap fase
++ foto. Juga minta rombak total UI/UX + grid open-source (menyusul, bertahap).
+
+**Keputusan (fase 1 — Peta)**:
+- Pakai **Leaflet + react-leaflet 5** (open-source, kompatibel React 19), basemap
+  CARTO light (sama seperti app Cloudflare-nya). Komponen peta client-only
+  (`dynamic ssr:false`) karena Leaflet butuh `window`.
+- Menu **Peta** baru. Titik = `Location.gpsLat/gpsLng`, warna per status.
+- Klik titik → `GET /api/peta/[id]` (authz per lokasi) → panel: progress
+  (realisasi vs rencana + deviasi), **fase minggu ini** (dari saran mingguan
+  DECISIONS 028), **foto terbaru** (presigned), link ke detail.
+- Scoped role hanya lihat lokasi yang ditugaskan.
+
+**Terverifikasi**: server lokal + Playwright — 7 titik render, klik "Tengket"
+memunculkan panel progress + chip fase (Atap, Dinding, Struktur, Sarana luar) +
+tombol detail. (Tile CDN tak termuat di sandbox tanpa internet; di Railway normal.)
+
+**Roadmap lanjutan (belum, permintaan user)**: rombak total UI/UX modern, data
+grid open-source LTS (TanStack Table/AG Grid Community) ganti tabel kaku, tampilan
+mobile mandor untuk lapor harian, layer Area Manager + org chart, tracker Pengadaan
+tahapan PBJ (dari app Cloudflare). Dikerjakan bertahap per PR.
