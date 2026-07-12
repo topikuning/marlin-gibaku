@@ -530,3 +530,36 @@ import time-schedule kontraktor mentah (sekarang input manual per minggu).
 **Alternatif direject**: input jadwal kontraktor penuh (paling akurat, tapi berat
 untuk user lapangan) — dipilih hybrid. Mutasi `scheduled_milestones` langsung —
 tak punya histori antar adendum; tabel ber-versi lebih bersih.
+
+---
+
+## 028 · 2026-07-12 · Pembobotan PER ITEM + jadwal dependensi + saran mingguan
+
+**Konteks**: user mau kurva-S dari pembobotan tiap item (bukan level kategori) +
+saran "apa yang dikerjakan tiap minggu" berbasis dependensi konstruksi riil.
+
+**Keputusan** (`src/lib/scheduling.ts`):
+1. **Bobot per item** = `total_price` item ÷ grand total (leaf saja, bukan header
+   agregat — cegah dobel).
+2. **Klasifikasi trade** tiap item via kata kunci nama item (fallback nama
+   kategori) → 11 trade: persiapan, tanah, pondasi, struktur, dinding, atap, mep,
+   finishing, sarana_luar, landscape, lainnya. Taksonomi & kata kunci diturunkan
+   dari analisis **7 RAB KNMP nyata (~11.800 item)**; cakupan ≈97%.
+3. **Jadwal dependensi**: tiap trade punya jendela `[start,end]` fraksi durasi yang
+   urutannya mencerminkan precedence riil (persiapan→tanah→pondasi→struktur→
+   dinding/atap→MEP→finishing; sarana luar paralel; landscape terakhir). Distribusi
+   dalam jendela pakai smoothstep.
+4. **Output**: kurva-S kumulatif (dipakai `createAutoPlan` & seed) + **saran
+   pekerjaan per minggu** (trade dominan tiap minggu) di halaman Atur Kurva-S.
+
+**Terverifikasi (DB lokal, kedungmutih)**: 1.283 item leaf, klasifikasi 96,6%,
+kurva monotonik 3%→100%, urutan mingguan benar (persiapan→…→landscape).
+
+**Belum (roadmap "scheduling saran di kemudian hari")**: precedence antar-bangunan
+eksplisit (CPM penuh), durasi item dari sumber daya/kurva historis, saran adaptif
+berdasarkan realisasi aktual (mis. "telat di struktur → geser finishing"), dan
+klasifikasi item 'lainnya' pakai LLM. Sekarang deterministik (rule-based) supaya
+auditable, cepat, konsisten.
+
+**Alternatif direject**: klasifikasi 1.700 item/lokasi via LLM saat runtime —
+lambat, mahal, non-deterministik; AI dipakai sekali (analisis 7 RAB → aturan).

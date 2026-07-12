@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { canManageUsers } from "@/lib/roles";
-import { getActivePlan, getPlanHistory } from "@/lib/scurve-plan";
+import { getActivePlan, getPlanHistory, getWeeklySuggestions } from "@/lib/scurve-plan";
 import { getScurveSeries } from "@/lib/scurve-data";
 import { ScurveChart } from "@/components/knmp/scurve-chart";
 import { EditForm } from "./edit-form";
@@ -37,10 +37,11 @@ export default async function KurvaSPage({
   });
   if (!location) notFound();
 
-  const [plan, history, series] = await Promise.all([
+  const [plan, history, series, suggestions] = await Promise.all([
     getActivePlan(location.id),
     getPlanHistory(location.id),
     getScurveSeries(location.id, location.contract.startDate),
+    getWeeklySuggestions(location.id),
   ]);
 
   return (
@@ -91,6 +92,34 @@ export default async function KurvaSPage({
           </p>
         </section>
       )}
+
+      <section className="mb-8 rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] p-5">
+        <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
+          Saran pekerjaan per minggu
+        </div>
+        <p className="mb-4 text-xs text-slate-500">
+          Dari pembobotan nilai tiap item + urutan dependensi konstruksi. Cakupan
+          klasifikasi otomatis {suggestions.classifiedPct.toFixed(0)}% nilai.
+        </p>
+        {suggestions.weekly.length === 0 ? (
+          <p className="text-sm text-slate-400">Belum bisa dihitung (RAB/aktif belum ada).</p>
+        ) : (
+          <div className="space-y-1.5">
+            {suggestions.weekly.map((w) => (
+              <div key={w.week} className="flex flex-wrap items-start gap-2 border-b border-slate-50 py-1.5 last:border-0">
+                <span className="w-16 shrink-0 text-xs font-semibold text-slate-500">Minggu {w.week}</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {w.trades.map((t) => (
+                    <span key={t.key} className="rounded-full bg-[#F0FDFA] px-2 py-0.5 text-[11px] text-[#0F766E]">
+                      {t.label} · {t.pct.toFixed(1)}%
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
         Riwayat plan ({history.length})

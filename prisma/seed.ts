@@ -19,6 +19,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { hashPassword } from "../src/lib/password";
 import { generateScurve } from "../src/lib/scurve";
+import { scheduleItems, type WorkItem } from "../src/lib/scheduling";
 
 const prisma = new PrismaClient();
 
@@ -302,6 +303,24 @@ async function seedLocation(payload: LocationSeedJson) {
   }
 
   // 7. Plan kurva-S ber-versi (DECISIONS 027) — plan awal auto, aktif.
+  // Kurva dihitung dari pembobotan PER ITEM + jadwal dependensi (DECISIONS 028).
+  const workItems: WorkItem[] = [];
+  const collectLeaves = (item: RabItemJson, categoryName: string) => {
+    const children = item.children ?? [];
+    if (children.length === 0) {
+      const v = item.total_price ?? 0;
+      if (v > 0) workItems.push({ name: item.name, categoryName, value: v });
+    } else {
+      for (const ch of children) collectLeaves(ch, categoryName);
+    }
+  };
+  for (const cat of payload.categories) {
+    for (const it of cat.direct_items) collectLeaves(it, cat.name);
+    for (const sub of cat.subcategories)
+      for (const it of sub.items) collectLeaves(it, cat.name);
+  }
+  const itemSchedule = scheduleItems(workItems, scurve.totalWeeks);
+
   await prisma.scurvePlan.deleteMany({ where: { locationId: location.id } });
   const scurvePlan = await prisma.scurvePlan.create({
     data: {
@@ -314,7 +333,7 @@ async function seedLocation(payload: LocationSeedJson) {
     },
   });
   await prisma.scurveMilestone.createMany({
-    data: scurve.cumulativePct.map((pct, w) => ({
+    data: itemSchedule.cumulativePct.map((pct, w) => ({
       planId: scurvePlan.id,
       weekNumber: w + 1,
       targetProgressPct: pct,
