@@ -1,7 +1,13 @@
 import type { UserRole, ReportItemState } from "@prisma/client";
 
-/** Role yang boleh input laporan (draft). */
-export const REPORTER_ROLES: UserRole[] = ["site_manager", "field_supervisor"];
+/** Role yang boleh input laporan (draft). Admin (super_admin/PD) juga bisa —
+ * "admin handle semua" — mereka cross-location jadi boleh lapor lokasi manapun. */
+export const REPORTER_ROLES: UserRole[] = [
+  "site_manager",
+  "field_supervisor",
+  "super_admin",
+  "program_director",
+];
 
 /** Role yang boleh approve/reject draft laporan (DECISIONS 018: SM accountable). */
 export const APPROVER_ROLES: UserRole[] = [

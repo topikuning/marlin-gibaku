@@ -132,7 +132,44 @@ async function seedLocation(payload: LocationSeedJson) {
     },
   });
 
-  // 3. Delete existing RAB tree for this location (clean re-seed)
+  // 3. Delete existing RAB tree for this location (clean re-seed).
+  // Hapus dulu data laporan yang menunjuk rab_items lokasi ini, kalau tidak
+  // rabItem.deleteMany kena FK (daily_report_items.rab_item_id) dan seluruh
+  // release gagal (set -e). Aman kalau belum ada laporan (no-op).
+  const rabItemIds = (
+    await prisma.rabItem.findMany({
+      where: {
+        OR: [
+          { directCategory: { locationId: location.id } },
+          { subcategory: { category: { locationId: location.id } } },
+        ],
+      },
+      select: { id: true },
+    })
+  ).map((r) => r.id);
+  if (rabItemIds.length > 0) {
+    const reportItems = await prisma.dailyReportItem.findMany({
+      where: { rabItemId: { in: rabItemIds } },
+      select: { id: true, dailyReportId: true },
+    });
+    const reportItemIds = reportItems.map((r) => r.id);
+    const reportIds = [
+      ...new Set(reportItems.map((r) => r.dailyReportId).filter((x): x is string => !!x)),
+    ];
+    await prisma.photo.deleteMany({
+      where: {
+        OR: [
+          { reportItemId: { in: reportItemIds } },
+          ...(reportIds.length ? [{ dailyReportId: { in: reportIds } }] : []),
+        ],
+      },
+    });
+    await prisma.dailyReportItem.deleteMany({ where: { id: { in: reportItemIds } } });
+    if (reportIds.length) {
+      await prisma.costEntry.deleteMany({ where: { dailyReportId: { in: reportIds } } });
+      await prisma.dailyReport.deleteMany({ where: { id: { in: reportIds } } });
+    }
+  }
   await prisma.rabItem.deleteMany({
     where: {
       OR: [
