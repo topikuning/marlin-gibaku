@@ -14,6 +14,7 @@ export type NavItem = {
 export function navForRole(role: UserRole): NavItem[] {
   const items: NavItem[] = [
     { href: "/beranda", label: "Beranda", ready: true },
+    { href: "/peta", label: "Peta", ready: true },
     { href: "/lokasi", label: "Lokasi", ready: true },
   ];
 
