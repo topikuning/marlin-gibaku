@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { isCrossLocation, LOCATION_STATUS_LABEL, LOCATION_STATUS_CLASS } from "@/lib/roles";
+import { isCrossLocation, canManageUsers, LOCATION_STATUS_LABEL, LOCATION_STATUS_CLASS } from "@/lib/roles";
 import { canReport } from "@/lib/report";
 import { formatRupiah } from "@/lib/format";
 import { getScurveSeries } from "@/lib/scurve-data";
@@ -100,8 +100,18 @@ export default async function LokasiDetailPage({
       </div>
 
       <section className="mt-6 rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] p-5">
-        <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
-          Kurva-S — rencana vs realisasi
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
+            Kurva-S — rencana vs realisasi
+          </div>
+          {canManageUsers(role) && (
+            <Link
+              href={`/lokasi/${location.slug}/kurva-s`}
+              className="text-xs font-semibold text-[#0F766E] hover:underline"
+            >
+              Atur kurva-S →
+            </Link>
+          )}
         </div>
         <ScurveChart series={scurve} />
       </section>

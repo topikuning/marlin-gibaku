@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { getActiveLineages } from "@/lib/rab";
+import { getPlannedSeries } from "@/lib/scurve-plan";
 
 export type ScurveSeries = {
   weeks: number[]; // 1..N
@@ -20,12 +21,8 @@ export async function getScurveSeries(
   locationId: string,
   startDate: Date
 ): Promise<ScurveSeries> {
-  const [milestones, catAgg, lineages] = await Promise.all([
-    db.scheduledMilestone.findMany({
-      where: { locationId, rabItemId: null },
-      orderBy: { weekNumber: "asc" },
-      select: { weekNumber: true, targetProgressPct: true },
-    }),
+  const [planned, catAgg, lineages] = await Promise.all([
+    getPlannedSeries(locationId), // rencana dari plan kurva-S aktif (DECISIONS 027)
     db.rabCategory.aggregate({
       where: { locationId, revision: { status: "active" } },
       _sum: { totalValue: true },
@@ -34,9 +31,9 @@ export async function getScurveSeries(
   ]);
 
   const grandTotal = catAgg._sum.totalValue ?? 0n;
-  const totalWeeks = milestones.length;
-  const weeks = milestones.map((m) => m.weekNumber);
-  const plannedPct = milestones.map((m) => m.targetProgressPct.toNumber());
+  const totalWeeks = planned.plannedPct.length;
+  const weeks = planned.weeks;
+  const plannedPct = planned.plannedPct;
 
   const currentWeek = Math.min(
     Math.max(Math.floor((Date.now() - startDate.getTime()) / WEEK_MS) + 1, 1),
