@@ -590,3 +590,31 @@ tombol detail. (Tile CDN tak termuat di sandbox tanpa internet; di Railway norma
 grid open-source LTS (TanStack Table/AG Grid Community) ganti tabel kaku, tampilan
 mobile mandor untuk lapor harian, layer Area Manager + org chart, tracker Pengadaan
 tahapan PBJ (dari app Cloudflare). Dikerjakan bertahap per PR.
+
+---
+
+## 030 · 2026-07-12 · Pengadaan = status per lokasi + tampilan eksekutif; Area Manager = scoped
+
+**Konteks**: user memutuskan pengadaan **tak butuh tabel terpisah** — cukup
+**status per lokasi** yang di-set, lalu diagregasi untuk eksekutif. Area Manager
+cukup role scoped yang hanya lihat area-nya.
+
+**Keputusan**:
+1. Enum `ProcurementStage` (belum_diundang→diundang→negosiasi→sppbj→kontrak→
+   survey→pcm→spmk) + kolom `Location.procurementStage` (default belum_diundang).
+2. Halaman **/pengadaan** (role ber-dashboard, scoped): KPI (total lokasi, HPS =
+   SUM RAB aktif, kontrak, selisih), funnel per tahap, tabel per lokasi dengan
+   dropdown tahap (admin set inline → server action `setStage`, authz per lokasi).
+   Sekaligus input status + tampilan eksekutif.
+3. **Area Manager = `regional_manager`** (relabel). Sudah scoped: role
+   non-cross-location hanya lihat lokasi yang ditugaskan — berlaku di Beranda,
+   Peta, Lokasi, Pengadaan.
+4. Seed set semua lokasi ke `spmk`.
+
+**Terverifikasi**: server lokal + Playwright — funnel & KPI benar (Negosiasi 1,
+Kontrak 1, SPMK 5), dropdown tahap tersimpan.
+
+**Belum**: org chart visual Area Manager — menyusul di fase design-system.
+
+**Alternatif direject**: tabel `procurements` terpisah (app Cloudflare) — user mau
+satu sumber (per lokasi).

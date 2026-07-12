@@ -23,6 +23,15 @@ export function navForRole(role: UserRole): NavItem[] {
     items.push({ href: "/kontrak", label: "Kontrak", ready: true });
     items.push({ href: "/pengguna", label: "Pengguna", ready: true });
   }
+  if (
+    role === "super_admin" ||
+    role === "program_director" ||
+    role === "exec_viewer" ||
+    role === "regional_manager" ||
+    role === "project_manager"
+  ) {
+    items.push({ href: "/pengadaan", label: "Pengadaan", ready: true });
+  }
   if (role === "site_manager" || role === "field_supervisor") {
     items.push({ href: "/laporan", label: "Lapor Harian", ready: true });
   }
