@@ -660,3 +660,25 @@ di komponen client.
 
 **Belum**: pagination/virtualization (belum perlu, data kecil), column resize,
 grid untuk Pengadaan (masih tabel dgn dropdown inline) & RAB tree.
+
+---
+
+## 033 · 2026-07-12 · Lapor harian: satuan jelas + blokir volume > rencana + visibilitas laporan/foto
+
+**Konteks**: user lapor 3 hal: (1) satuan kurang jelas, (2) qty rencana 3 tapi input
+4 lolos (tak ada validasi), (3) bingung di mana lihat laporan & foto tersimpan.
+
+**Keputusan**:
+1. `ReportableItem` kini bawa `volume` (rencana). Form tampilkan **satuan** sebagai
+   badge di input volume + "rencana X unit" di kartu item + hint "Maksimal X unit".
+2. **Blokir server-side**: kalau kumulatif (`priorSent + volumeDone`) > volume
+   rencana item → tolak dengan pesan sisa. Realisasi tak boleh > 100% item RAB.
+3. Halaman lapor kasih penjelas: "Laporan Anda" = tempat semua laporan+foto tampil;
+   SM approve di menu Laporan. Foto yang tak bisa di-presign (R2 belum aktif) tampil
+   placeholder "tersimpan" (bukan hilang diam-diam).
++ Shell: brand header refresh (glow dot + subtitle "Monitoring KNMP").
+
+**Terverifikasi**: Playwright — input 999999 pada item rencana 0.14 m³ diblokir
+dengan pesan sisa; badge satuan m³ tampil.
+
+**Belum**: izinkan over-volume via adendum/CCO eksplisit (sekarang hard block).

@@ -19,13 +19,17 @@ export default async function AppLayout({
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/85 backdrop-blur supports-[backdrop-filter]:bg-white/70">
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-2.5 sm:px-6">
-          <div className="flex items-center gap-2">
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-[#0F766E] text-sm font-bold text-white">
+          <div className="flex items-center gap-2.5">
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-[#0F766E] to-[#115E59] text-sm font-bold text-white shadow-sm">
               M
             </span>
-            <span className="text-[15px] font-bold tracking-tight text-slate-900">
-              MARLIN
-            </span>
+            <div className="leading-tight">
+              <div className="flex items-center gap-1.5 text-[15px] font-bold tracking-tight text-slate-900">
+                MARLIN
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.15)]" />
+              </div>
+              <div className="text-[10px] font-medium text-slate-500">Monitoring KNMP</div>
+            </div>
           </div>
 
           <div className="ml-auto flex items-center gap-2 sm:gap-3">
