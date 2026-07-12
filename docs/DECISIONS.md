@@ -703,3 +703,37 @@ bisa lihat semua laporan.
 210/700 m² (30%), sisa 490 m²; section "Sudah disetujui" menampilkan item + penyetuju.
 
 **Belum**: filter/pagination di daftar approved (baru take 30), section rejected.
+
+---
+
+## 035 · 2026-07-12 · Design system enterprise + shell sidebar (Command Center)
+
+**Konteks**: user beri referensi dashboard "Portfolio Command Center" + spesifikasi
+gaya: enterprise modern (bukan startup penuh animasi), latar putih/abu sangat muda,
+satu warna merek, hijau/kuning/merah hanya untuk status, font Inter/Geist/IBM Plex,
+tabular numerals, sudut kartu 6–10px, tanpa gradient/glass/bayangan berlebihan,
+padat tapi lapang, terang default.
+
+**Keputusan (langkah 1)**:
+1. **Shell sidebar kiri** (desktop): logo + "Command Center" + `SideNav` (ikon garis
+   inline, tanpa lib), warna aktif = brand teal 10% + teks teal. Top bar: user +
+   keluar. Mobile: sidebar disembunyikan, nav horizontal (`AppNav`) di header.
+2. **Token enterprise**: kartu `rounded-lg` (8px), border slate-200, tanpa
+   gradient/glass/backdrop-blur (logo & header solid), shadow minimal, angka
+   `tabular-nums`, label uppercase slate-500. Satu warna merek = teal `#0F766E`;
+   hijau/kuning/merah khusus status.
+3. **Beranda = Portfolio Command Center**: KPI row (Total Lokasi, Nilai Kontrak,
+   Nilai RAB, Realisasi Fisik, Nilai Terpasang, Proyek Bermasalah) + tabel Kinerja
+   Proyek (status pill Sesuai/Perhatian/Kritis/Belum Mulai) + Distribusi Status.
+
+**Terverifikasi**: Playwright desktop 1440px sbg admin — sidebar+KPI+tabel+distribusi
+tampil sesuai gaya referensi.
+
+**Belum (roadmap, bertahap)**: modul Keuangan (serapan, kas 30 hari, nilai selesai
+belum ditagih, budget cap), Progress detail (forecast, milestone, penyebab deviasi,
+recovery plan), Risiko & Kendala, Organisasi/org-chart, Laporan (export KKP),
+tenaga kerja di lapor harian, dark mode. Restyle halaman lain ke token baru menyusul.
+
+**Catatan teknis**: saat verifikasi, `pnpm build` yang jalan bersamaan dengan
+`next start` lama sempat merusak `.next` (halaman tak ber-CSS). Solusi: kill server
+lama → `rm -rf .next` → build → start bersih. Bukan bug kode.
