@@ -24,11 +24,12 @@ export async function getLocationProgress(
   locationId: string,
   startDate: Date
 ): Promise<LocationProgress> {
-  const [activeRev, milestones, lineages] = await Promise.all([
-    db.rabRevision.findFirst({
-      where: { locationId, status: "active" },
-      orderBy: { revisionNo: "desc" },
-      select: { totalValue: true },
+  const [catAgg, milestones, lineages] = await Promise.all([
+    // grandTotal = SUM kategori aktif (DECISIONS 014), bukan revision.totalValue
+    // yang bisa basi/0 — konsisten dengan halaman detail & ringkasan RAB.
+    db.rabCategory.aggregate({
+      where: { locationId, revision: { status: "active" } },
+      _sum: { totalValue: true },
     }),
     db.scheduledMilestone.findMany({
       where: { locationId, rabItemId: null },
@@ -38,7 +39,7 @@ export async function getLocationProgress(
     getActiveLineages(locationId),
   ]);
 
-  const grandTotal = activeRev?.totalValue ?? 0n;
+  const grandTotal = catAgg._sum.totalValue ?? 0n;
 
   // Realisasi by lineage → laporan yang di-approve tetap terhitung meski
   // item-nya sudah pindah revisi (carry-over adendum). DECISIONS 023.

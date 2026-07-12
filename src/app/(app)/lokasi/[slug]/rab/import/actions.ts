@@ -141,7 +141,7 @@ export async function commitImport(
     revalidatePath(`/lokasi/${slug}/rab`);
     revalidatePath(`/lokasi/${slug}`);
     revalidatePath(`/lokasi/${slug}/rab/import`);
-    revalidatePath("/dashboard");
+    revalidatePath("/beranda");
     return { ok: `Revisi RAB #${revisionNo} (${source}) berhasil disimpan.` };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Gagal menyimpan revisi." };

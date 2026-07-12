@@ -25,15 +25,8 @@ export function navForRole(role: UserRole): NavItem[] {
   if (role === "site_manager" || role === "field_supervisor") {
     items.push({ href: "/laporan", label: "Lapor Harian", ready: true });
   }
-  if (
-    role === "super_admin" ||
-    role === "program_director" ||
-    role === "exec_viewer" ||
-    role === "regional_manager" ||
-    role === "project_manager"
-  ) {
-    items.push({ href: "/dashboard", label: "Dashboard", ready: true });
-  }
+  // Dashboard tidak lagi menu terpisah — overprogress-nya ada di Beranda
+  // (DECISIONS 026). Ringkasan kurva-S tampil otomatis untuk role yang berhak.
 
   return items;
 }
