@@ -28,6 +28,7 @@
     "@prisma/client": "^6.1.0",
     "@react-pdf/renderer": "^4.1.6",
     "@tanstack/react-query": "^5.62.7",
+    "@tanstack/react-table": "^8.21.3",
     "@types/leaflet": "^1.9.21",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
