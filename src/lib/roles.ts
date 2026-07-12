@@ -3,7 +3,7 @@ import type { UserRole, LocationStatus } from "@prisma/client";
 export const ROLE_LABEL: Record<UserRole, string> = {
   super_admin: "Super Admin",
   program_director: "Program Director",
-  regional_manager: "Regional Manager",
+  regional_manager: "Area Manager",
   project_manager: "Project Manager",
   site_manager: "Site Manager",
   field_supervisor: "Mandor (Field Supervisor)",

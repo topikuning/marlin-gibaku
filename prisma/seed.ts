@@ -117,7 +117,7 @@ async function seedLocation(payload: LocationSeedJson) {
   // 2. Location
   const location = await prisma.location.upsert({
     where: { slug: meta.slug },
-    update: {},
+    update: { procurementStage: "spmk" },
     create: {
       orgId: DEFAULT_ORG_ID,
       contractId: contract.id,
@@ -130,6 +130,7 @@ async function seedLocation(payload: LocationSeedJson) {
       gpsLng: meta.gps_lng,
       geofenceRadiusM: 500,
       status: "in_progress",
+      procurementStage: "spmk", // sudah SPMK (konstruksi jalan)
     },
   });
 

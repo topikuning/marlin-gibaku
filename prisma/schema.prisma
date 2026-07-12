@@ -41,6 +41,19 @@ enum LocationStatus {
   cancelled
 }
 
+// Tahap pengadaan (PBJ) per lokasi — di-set per lokasi, diagregasi utk eksekutif.
+// DECISIONS 030. Urutan = funnel pengadaan (dari app Area Manager Cloudflare).
+enum ProcurementStage {
+  belum_diundang
+  diundang
+  negosiasi
+  sppbj
+  kontrak
+  survey
+  pcm
+  spmk
+}
+
 enum WeatherCode {
   cerah
   berawan
@@ -355,6 +368,7 @@ model Location {
   gpsLng          Decimal        @map("gps_lng") @db.Decimal(10, 7)
   geofenceRadiusM Int            @default(500) @map("geofence_radius_m")
   status          LocationStatus @default(planning)
+  procurementStage ProcurementStage @default(belum_diundang) @map("procurement_stage")
   hpsFileUrl      String?        @map("hps_file_url")
   createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz
