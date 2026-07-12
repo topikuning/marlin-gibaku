@@ -301,6 +301,26 @@ async function seedLocation(payload: LocationSeedJson) {
     });
   }
 
+  // 7. Plan kurva-S ber-versi (DECISIONS 027) — plan awal auto, aktif.
+  await prisma.scurvePlan.deleteMany({ where: { locationId: location.id } });
+  const scurvePlan = await prisma.scurvePlan.create({
+    data: {
+      locationId: location.id,
+      planNo: 1,
+      source: "auto",
+      status: "active",
+      basedOnRevisionId: revision.id,
+      contractDays,
+    },
+  });
+  await prisma.scurveMilestone.createMany({
+    data: scurve.cumulativePct.map((pct, w) => ({
+      planId: scurvePlan.id,
+      weekNumber: w + 1,
+      targetProgressPct: pct,
+    })),
+  });
+
   return location;
 }
 

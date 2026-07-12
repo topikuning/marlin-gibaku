@@ -9,6 +9,7 @@ import { getActiveRevisionId } from "@/lib/rab";
 import { r2Put, r2GetBuffer, isR2Configured } from "@/lib/r2";
 import { parseHpsBuffer } from "@/lib/hps-parser";
 import { createRevisionFromParsed } from "@/lib/rab-import";
+import { createAutoPlan } from "@/lib/scurve-plan";
 
 const XLSX_MIME = [
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -138,9 +139,23 @@ export async function commitImport(
       createdByUserId: userId,
       hpsFileDocId: doc.id,
     });
+
+    // Regenerate kurva-S mengikuti RAB/durasi baru; plan lama jadi histori
+    // (DECISIONS 027). Adendum → source 'adendum', RAB awal → 'auto'.
+    try {
+      await createAutoPlan(locationId, {
+        source: isAdendum ? "adendum" : "auto",
+        createdByUserId: userId,
+        note: isAdendum ? `Regenerate otomatis (revisi #${revisionNo})` : null,
+      });
+    } catch {
+      /* revisi RAB sudah tersimpan; kegagalan plan tidak membatalkannya */
+    }
+
     revalidatePath(`/lokasi/${slug}/rab`);
     revalidatePath(`/lokasi/${slug}`);
     revalidatePath(`/lokasi/${slug}/rab/import`);
+    revalidatePath(`/lokasi/${slug}/kurva-s`);
     revalidatePath("/beranda");
     return { ok: `Revisi RAB #${revisionNo} (${source}) berhasil disimpan.` };
   } catch (e) {

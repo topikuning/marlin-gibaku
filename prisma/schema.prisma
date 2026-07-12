@@ -125,6 +125,13 @@ enum RabRevisionStatus {
   superseded
 }
 
+// Sumber kurva-S rencana (DECISIONS 027).
+enum ScurvePlanSource {
+  auto    // di-generate rumus dari RAB + durasi kontrak
+  adendum // regenerate karena revisi RAB/durasi (adendum)
+  manual  // diedit manual oleh admin
+}
+
 // Tahapan siklus Pengadaan Barang/Jasa (PBJ) pemerintah — untuk arsip dokumen.
 enum DocumentStage {
   pemilihan     // tender: undangan, penjelasan, evaluasi, klarifikasi, negosiasi
@@ -216,6 +223,7 @@ model User {
   syncQueueEntries    SyncQueue[]
   documentsUploaded   Document[]
   rabRevisionsCreated RabRevision[]
+  scurvePlansCreated  ScurvePlan[]              @relation("scurvePlanCreator")
 
   @@index([orgId])
   @@index([role])
@@ -358,6 +366,7 @@ model Location {
   statusHistory      LocationStatusHistory[]
   assignments        UserLocationAssignment[]
   scheduledMilestones ScheduledMilestone[]
+  scurvePlans        ScurvePlan[]
   budgetLines        BudgetLine[]
   dailyReports       DailyReport[]
   weeklyPlans        WeeklyPlan[]
@@ -487,6 +496,42 @@ model ScheduledMilestone {
   @@unique([locationId, rabItemId, weekNumber])
   @@index([locationId, weekNumber])
   @@map("scheduled_milestones")
+}
+
+// Kurva-S rencana ber-versi (DECISIONS 027). Auto-generate sebagai titik awal,
+// bisa diedit; adendum → plan baru (active), plan lama superseded (histori).
+model ScurvePlan {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  locationId        String            @map("location_id") @db.Uuid
+  planNo            Int               @map("plan_no")
+  source            ScurvePlanSource
+  status            RabRevisionStatus @default(active)
+  basedOnRevisionId String?           @map("based_on_revision_id") @db.Uuid // revisi RAB dasar
+  contractDays      Int               @map("contract_days")
+  note              String?
+  createdByUserId   String?           @map("created_by_user_id") @db.Uuid
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  supersededAt      DateTime?         @map("superseded_at") @db.Timestamptz
+
+  location   Location          @relation(fields: [locationId], references: [id])
+  createdBy  User?             @relation("scurvePlanCreator", fields: [createdByUserId], references: [id])
+  milestones ScurveMilestone[]
+
+  @@unique([locationId, planNo])
+  @@index([locationId, status])
+  @@map("scurve_plans")
+}
+
+model ScurveMilestone {
+  id                String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  planId            String  @map("plan_id") @db.Uuid
+  weekNumber        Int     @map("week_number")
+  targetProgressPct Decimal @map("target_progress_pct") @db.Decimal(6, 3)
+
+  plan ScurvePlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, weekNumber])
+  @@map("scurve_milestones")
 }
 
 model BudgetLine {

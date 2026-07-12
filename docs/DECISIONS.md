@@ -498,3 +498,35 @@ belum ter-seed data RAB terbaru → jalankan seed (`SEED_ON_DEPLOY=true` saat de
 **Alternatif direject**: pertahankan dua halaman tapi bedakan isinya — user eksplisit
 mau satu. Sinkronkan `rabRevision.totalValue` tiap tulis — tetap dobel sumber
 kebenaran; lebih baik hitung dari kategori.
+
+---
+
+## 027 · 2026-07-12 · Kurva-S rencana ber-versi: auto-generate + editable, regenerate saat adendum
+
+**Konteks**: kurva-S rencana sebelumnya cuma hasil rumus (`generateScurve`) yang
+ditanam saat seed — tidak ada UI atur, bukan jadwal resmi kontraktor, dan tidak
+ikut berubah saat adendum. User (Hery) memilih: **auto-generate sebagai titik awal
+tapi bisa diedit**, dan **adendum → regenerate + simpan histori**.
+
+**Keputusan**:
+1. Tabel baru `scurve_plans` (planNo, source: auto|adendum|manual, status:
+   active|superseded, basedOnRevisionId, contractDays) + `scurve_milestones`
+   (weekNumber, targetProgressPct). Satu plan aktif per lokasi; sisanya arsip.
+2. **Seed** membuat plan #1 (auto, active) dari `generateScurve`.
+3. **Import/adendum RAB** memanggil `createAutoPlan` → plan baru active, plan lama
+   superseded (histori tetap). Sumber `adendum` untuk revisi, `auto` untuk RAB awal.
+4. **Halaman Atur Kurva-S** (`/lokasi/[slug]/kurva-s`, admin): edit target % per
+   minggu (validasi kumulatif tak turun) → plan jadi `manual`; tombol "Generate
+   ulang dari rumus". Preview chart + riwayat plan.
+5. `progress.ts` & `scurve-data.ts` baca `getPlannedSeries` (plan aktif), fallback
+   ke `scheduled_milestones` lama biar data lama tetap tampil.
+
+**Terverifikasi lokal**: seed→plan#1 auto; createAutoPlan(adendum)→plan#2 active +
+plan#1 superseded; updatePlanMilestones→source manual, nilai berubah.
+
+**Belum**: milestone per-item (masih location-level), diff visual antar versi plan,
+import time-schedule kontraktor mentah (sekarang input manual per minggu).
+
+**Alternatif direject**: input jadwal kontraktor penuh (paling akurat, tapi berat
+untuk user lapangan) — dipilih hybrid. Mutasi `scheduled_milestones` langsung —
+tak punya histori antar adendum; tabel ber-versi lebih bersih.
