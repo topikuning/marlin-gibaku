@@ -639,3 +639,24 @@ Form reset otomatis setelah sukses.
 benar, pilih item → kartu + volume(m²) + kamera + simpan; riwayat kartu.
 
 **Belum**: offline/queue (mandor sinyal lemah), kompresi foto client-side.
+
+---
+
+## 032 · 2026-07-12 · Data grid open-source (TanStack Table) ganti tabel kaku
+
+**Konteks**: user minta tabel diganti data grid modern, open-source, versi terkini.
+
+**Keputusan**: pakai **TanStack Table v8** (`@tanstack/react-table`, MIT, React 19).
+Headless → di-styling sesuai MARLIN (bukan tabel bawaan). Komponen reusable
+`src/components/knmp/data-grid.tsx`: sort per kolom (klik header), global search,
+sticky header, hover row, empty state, alignment via `column.meta.align`.
+
+Diterapkan ke: **Pengguna** (`users-grid`), **Kontrak & Kontraktor**
+(`kontrak-grids`). Data di-serialize ke row polos di server (BigInt→number,
+tanggal→string + ms utk sort); cell renderer + server action (mis. aktif/nonaktif)
+di komponen client.
+
+**Terverifikasi**: Playwright — sort "Role ▲" & search "mandor" memfilter benar.
+
+**Belum**: pagination/virtualization (belum perlu, data kecil), column resize,
+grid untuk Pengadaan (masih tabel dgn dropdown inline) & RAB tree.
