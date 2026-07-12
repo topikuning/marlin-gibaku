@@ -67,6 +67,24 @@ export function LaporForm({
         </div>
       </div>
 
+      <div>
+        <label htmlFor="photos" className={labelClass}>
+          Foto bukti (opsional)
+        </label>
+        <input
+          id="photos"
+          name="photos"
+          type="file"
+          accept="image/*"
+          capture="environment"
+          multiple
+          className="w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-[#0F766E] file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white"
+        />
+        <p className="mt-1 text-xs text-[#64748B]">
+          Ambil langsung dari kamera atau pilih dari galeri. Maks 6 foto, 8&nbsp;MB/foto.
+        </p>
+      </div>
+
       {state?.error && (
         <div role="alert" className="rounded-md border-l-4 border-[#DC2626] bg-[#FEE2E2] px-3 py-2 text-sm text-[#DC2626]">
           {state.error}

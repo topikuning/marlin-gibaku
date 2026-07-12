@@ -447,3 +447,29 @@ kelengkapan administrasi KKP. Presigned direct-upload dari browser — ditunda
 (server-side upload cukup untuk dokumen; presigned untuk foto/berkas besar nanti).
 
 **Taksonomi jenis dokumen** bisa di-revisit kalau istilah resmi KKP berbeda.
+
+---
+
+## 025 · 2026-07-11 · Foto bukti menempel ke item laporan (draft), tampil ke approver
+
+**Konteks**: SM/mandor perlu lampirkan foto bukti saat lapor harian; approver (SM)
+perlu lihat foto sebelum menyetujui. Model `Photo` sudah ada di schema (r2Key/sha256
+unik), R2 sudah wired dari fitur dokumen.
+
+**Keputusan**: foto diunggah bareng draft lewat server action `submitDraftItem`
+(input `<input type=file accept=image/* capture=environment multiple>`), disimpan ke
+R2 di `report-photos/<reportItemId>/…`, dan dibuat row `Photo` dengan
+`reportItemId`. Dedup byte-identik via `sha256`. Kegagalan upload foto **tidak**
+membatalkan draft yang sudah tersimpan (foto opsional). Thumbnail ditampilkan di
+daftar draft SM (`/lokasi/[slug]/lapor`) dan di antrian persetujuan (`/laporan`).
+
+**Serving**: presigned GET di-generate langsung di server component halaman yang
+sudah otorisasi lokasinya (bukan lewat API route seperti dokumen) — halaman sudah
+memfilter per akses lokasi, jadi tak perlu reverse-authz foto → lokasi. URL
+berumur pendek (5 menit), di-render fresh tiap load.
+
+**Belum**: verifikasi EXIF/GPS (`PhotoVerification` masih `pending`), thumbnail
+server-side (pakai foto asli langsung), galeri per lokasi. Menyusul.
+
+**Alternatif direject**: API route `/api/photos/[id]` + reverse-authz via recursive
+CTE rab_item→lokasi — lebih berat, tak perlu karena halaman sudah scoped.
