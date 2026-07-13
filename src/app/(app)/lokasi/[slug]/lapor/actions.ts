@@ -89,10 +89,28 @@ export async function submitDraftItem(
     .filter((f): f is File => f instanceof File && f.size > 0);
   let photoNote = "";
   if (photoFiles.length > 0) {
+    // Tag foto (di-cap ke gambar): koordinat & waktu dari klien, label lokasi dari master.
+    const latRaw = Number(formData.get("photoLat"));
+    const lngRaw = Number(formData.get("photoLng"));
+    const takenRaw = String(formData.get("photoTakenAt") ?? "");
+    const takenAt = takenRaw && !Number.isNaN(Date.parse(takenRaw)) ? new Date(takenRaw) : null;
+    const loc = await db.location.findUnique({
+      where: { id: locationId },
+      select: { name: true, village: true, regency: true, province: true },
+    });
+    const locationLabel = loc
+      ? [loc.name, loc.regency, loc.province].filter(Boolean).join(", ")
+      : null;
     try {
       const { saved, skipped } = await savePhotosForReportItem(
         draftItem.id,
-        photoFiles
+        photoFiles,
+        {
+          lat: Number.isFinite(latRaw) && latRaw !== 0 ? latRaw : null,
+          lng: Number.isFinite(lngRaw) && lngRaw !== 0 ? lngRaw : null,
+          takenAt,
+          locationLabel,
+        }
       );
       if (saved > 0) photoNote += ` + ${saved} foto`;
       if (skipped > 0) photoNote += ` (${skipped} foto dilewati)`;

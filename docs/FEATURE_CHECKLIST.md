@@ -161,6 +161,34 @@ LAPORAN HARIAN, MC-0, CCO, time schedule):
 
 Detail spec & keputusan: `docs/DECISIONS.md` #037.
 
+## Update 2026-07-13 (c) — QC batch terbaru
+
+Cara cek per item (login `admin`/`password123`):
+
+- ✅ **Palet warna KNMP navy** + aksen merah brand mark — cek login & seluruh app
+- ✅ **Reset penuh "mulai dari nol"** (Diagnostik → Zona Berbahaya, ketik `RESET SEMUA`):
+  hapus SEMUA data contoh, sisakan akun login. Untuk mulai data real.
+- ✅ **Laporan Harian KKP menonjol** di menu **Laporan** (SM/admin) — link per lokasi
+- ✅ **Cetak Laporan Harian = FORMAT LAPORAN HARIAN KKP** (form bergaris A4): header
+  Pengawas/Kontraktor, tenaga 14 keahlian, material, peralatan, cuaca per jam,
+  rencana/realisasi, TTD — tombol **Cetak/PDF** di `/lokasi/[slug]/harian/[date]`
+- ✅ **Foto di-cap (stamp) gaya Timemark** SEBELUM simpan: waktu + tanggal + nama
+  lokasi + koordinat GPS + watermark MARLIN dibakar ke gambar. Koordinat dari GPS
+  HP saat ambil foto (izinkan lokasi). Cek: Lapor Harian → ambil foto → simpan
+- ✅ **Foto: thumbnail kecil + lightbox in-page** (bukan tab baru) + tag EXIF
+- ✅ **Menu "Pengadaan" → "Paket"** (`/paket`): daur hidup paket. **Prospek** (tender)
+  → "Prospek baru" → isi HPS + desa → tahap → **"Jadikan Kontrak"** (buat kontrak
+  nilai final + lokasi otomatis). Cek: Paket → Prospek baru
+- ✅ **Sidebar sticky** — menu tetap terlihat saat scroll
+- ✅ **Rebranding**: MARLIN = Monitoring, Analysis, Reporting & Learning for
+  Infrastructure Network (login, sidebar, judul)
+
+**Catatan verifikasi**: cetak Laporan Harian & alur foto di browser tak bisa
+di-screenshot sesi ini (server sandbox berhenti nerima koneksi); logika stamp foto
+diverifikasi terpisah (render sharp langsung ✓). Cek visual final di deploy.
+
+Keputusan detail: `docs/DECISIONS.md` #037–#040.
+
 ---
 
 **Masih belum** (jujur): export laporan KKP (PDF/Excel), laporan mingguan/bulanan,

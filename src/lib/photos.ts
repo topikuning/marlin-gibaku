@@ -42,6 +42,78 @@ function readExif(buffer: Buffer): { takenAt: Date | null; lat: number | null; l
   }
 }
 
+function esc(s: string): string {
+  return s.replace(/[<>&'"]/g, (c) =>
+    ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" })[c] as string
+  );
+}
+
+const TZ = "Asia/Jakarta";
+
+/** Data untuk cap foto (dibakar ke gambar sebelum simpan). */
+export type PhotoStamp = {
+  takenAt: Date;
+  lat: number | null;
+  lng: number | null;
+  locationLabel: string | null;
+};
+
+function fmtCoord(lat: number | null, lng: number | null): string | null {
+  if (lat == null || lng == null) return null;
+  const la = `${Math.abs(lat).toFixed(6)}°${lat >= 0 ? "N" : "S"}`;
+  const lo = `${Math.abs(lng).toFixed(6)}°${lng >= 0 ? "E" : "W"}`;
+  return `${la}, ${lo}`;
+}
+
+/** Bangun overlay SVG (gaya Timemark) seukuran gambar. */
+function stampSvg(w: number, h: number, s: PhotoStamp): string {
+  const time = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: TZ }).format(s.takenAt);
+  const date = new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short", year: "numeric", timeZone: TZ }).format(s.takenAt);
+  const day = new Intl.DateTimeFormat("id-ID", { weekday: "short", timeZone: TZ }).format(s.takenAt);
+  const coord = fmtCoord(s.lat, s.lng);
+  const loc = s.locationLabel?.trim() || null;
+
+  const band = Math.round(Math.min(h * 0.28, Math.max(140, w * 0.22)));
+  const y0 = h - band;
+  const pad = Math.round(w * 0.03);
+  const fsTime = Math.round(band * 0.34);
+  const fsText = Math.round(band * 0.135);
+  const barX = pad + Math.round(fsTime * 3.05);
+  const infoX = barX + Math.round(w * 0.022);
+
+  const lines: string[] = [];
+  lines.push(`<rect x="0" y="${y0}" width="${w}" height="${band}" fill="url(#mg)"/>`);
+  lines.push(`<text x="${pad}" y="${y0 + Math.round(band * 0.45)}" font-family="sans-serif" font-weight="700" font-size="${fsTime}" fill="#ffffff">${time}</text>`);
+  lines.push(`<rect x="${barX}" y="${y0 + Math.round(band * 0.14)}" width="${Math.max(3, Math.round(w * 0.006))}" height="${Math.round(band * 0.34)}" fill="#f59e0b"/>`);
+  lines.push(`<text x="${infoX}" y="${y0 + Math.round(band * 0.28)}" font-family="sans-serif" font-weight="600" font-size="${fsText}" fill="#ffffff">${esc(date)}</text>`);
+  lines.push(`<text x="${infoX}" y="${y0 + Math.round(band * 0.45)}" font-family="sans-serif" font-size="${fsText}" fill="#e2e8f0">${esc(day)}</text>`);
+  if (loc)
+    lines.push(`<text x="${pad}" y="${y0 + Math.round(band * 0.70)}" font-family="sans-serif" font-weight="600" font-size="${Math.round(fsText * 1.02)}" fill="#ffffff">${esc(loc.slice(0, 60))}</text>`);
+  if (coord)
+    lines.push(`<text x="${pad}" y="${y0 + Math.round(band * 0.90)}" font-family="sans-serif" font-size="${fsText}" fill="#ffffff">Koordinat: ${esc(coord)}</text>`);
+  lines.push(`<text x="${w - pad}" y="${y0 + Math.round(band * 0.90)}" text-anchor="end" font-family="sans-serif" font-weight="700" font-size="${fsText}" fill="#f59e0b">MARLIN</text>`);
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><defs><linearGradient id="mg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000000" stop-opacity="0"/><stop offset="1" stop-color="#000000" stop-opacity="0.62"/></linearGradient></defs>${lines.join("")}</svg>`;
+}
+
+/** Bakar cap ke gambar. Kalau gagal, kembalikan buffer asli. */
+async function burnStamp(buffer: Buffer, s: PhotoStamp): Promise<Buffer> {
+  try {
+    const img = sharp(buffer, { failOn: "none" }).rotate();
+    const meta = await img.metadata();
+    const w = meta.width ?? 0;
+    const h = meta.height ?? 0;
+    if (!w || !h) return buffer;
+    const svg = stampSvg(w, h, s);
+    return await img
+      .composite([{ input: Buffer.from(svg), top: 0, left: 0 }])
+      .jpeg({ quality: 85 })
+      .toBuffer();
+  } catch {
+    return buffer;
+  }
+}
+
 /** Buat thumbnail webp kecil + baca dimensi & EXIF. Kembalikan thumb buffer + meta. */
 async function processImage(
   buffer: Buffer
@@ -92,7 +164,8 @@ export type SavePhotosResult = { saved: number; skipped: number };
  */
 export async function savePhotosForReportItem(
   reportItemId: string,
-  files: File[]
+  files: File[],
+  stampBase?: { lat?: number | null; lng?: number | null; takenAt?: Date | null; locationLabel?: string | null }
 ): Promise<SavePhotosResult> {
   if (!isR2Configured())
     throw new Error("Penyimpanan (R2) belum dikonfigurasi.");
@@ -105,10 +178,9 @@ export async function savePhotosForReportItem(
       skipped++;
       continue;
     }
-    const buffer = Buffer.from(await file.arrayBuffer());
-    const sha256 = createHash("sha256").update(buffer).digest("hex");
-
-    // Dedup: foto yang byte-nya persis sama tidak diunggah/dicatat dua kali.
+    const original = Buffer.from(await file.arrayBuffer());
+    // Dedup pakai sha256 sumber asli (cap sama foto = tetap dianggap sama).
+    const sha256 = createHash("sha256").update(original).digest("hex");
     const existing = await db.photo.findUnique({
       where: { sha256 },
       select: { id: true },
@@ -118,12 +190,25 @@ export async function savePhotosForReportItem(
       continue;
     }
 
-    const ext = file.name.match(EXT_RE)?.[0]?.toLowerCase() ?? ".jpg";
-    const base = `report-photos/${reportItemId}/${sha256.slice(0, 16)}`;
-    const key = `${base}${ext}`;
+    // Sumber tag: klien (geolokasi + waktu ambil) → EXIF → fallback.
+    const exif = readExif(original);
+    const lat = stampBase?.lat ?? exif.lat;
+    const lng = stampBase?.lng ?? exif.lng;
+    const takenAt = stampBase?.takenAt ?? exif.takenAt ?? new Date();
 
-    const { thumb, meta } = await processImage(buffer);
-    await r2Put(key, buffer, file.type || "image/jpeg");
+    // Bakar cap (waktu, lokasi, koordinat) ke gambar SEBELUM simpan.
+    const stamped = await burnStamp(original, {
+      takenAt,
+      lat,
+      lng,
+      locationLabel: stampBase?.locationLabel ?? null,
+    });
+
+    const base = `report-photos/${reportItemId}/${sha256.slice(0, 16)}`;
+    const key = `${base}.jpg`;
+    const { thumb, meta } = await processImage(stamped);
+
+    await r2Put(key, stamped, "image/jpeg");
     let thumbnailKey: string | null = null;
     if (thumb) {
       thumbnailKey = `${base}.thumb.webp`;
@@ -140,12 +225,12 @@ export async function savePhotosForReportItem(
         r2Key: key,
         thumbnailKey,
         sha256,
-        bytes: buffer.length,
+        bytes: stamped.length,
         widthPx: meta.width,
         heightPx: meta.height,
-        exifTakenAt: meta.takenAt,
-        exifGpsLat: meta.lat != null ? meta.lat.toFixed(7) : null,
-        exifGpsLng: meta.lng != null ? meta.lng.toFixed(7) : null,
+        exifTakenAt: takenAt,
+        exifGpsLat: lat != null ? lat.toFixed(7) : null,
+        exifGpsLng: lng != null ? lng.toFixed(7) : null,
         verification: "pending",
       },
     });
