@@ -88,12 +88,17 @@ export default async function PengadaanPage() {
             <div className="text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
               Prospek / tender berjalan ({prospekList.length})
             </div>
-            <Link
-              href="/paket/prospek/baru"
-              className="rounded-md bg-[#1e3a8a] px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-[#172554]"
-            >
-              + Prospek baru
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link href="/kontrak" className="text-sm font-medium text-[#1e3a8a] hover:underline">
+                Master kontraktor & kontrak
+              </Link>
+              <Link
+                href="/paket/prospek/baru"
+                className="rounded-md bg-[#1e3a8a] px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-[#172554]"
+              >
+                + Prospek baru
+              </Link>
+            </div>
           </div>
           {prospekList.length === 0 ? (
             <p className="text-sm text-[#64748B]">

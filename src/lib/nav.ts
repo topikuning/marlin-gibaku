@@ -23,11 +23,18 @@ const REPORTER: UserRole[] = ["site_manager", "field_supervisor"];
  */
 export function navForRole(role: UserRole): NavItem[] {
   const has = (rs: UserRole[]) => rs.includes(role);
+  // Urut sesuai alur bisnis: pantau → paket/pengadaan → lokasi → lapor → keuangan → kelola.
   const items: NavItem[] = [
     { href: "/beranda", label: "Beranda", ready: true },
     { href: "/peta", label: "Peta", ready: true },
-    { href: "/lokasi", label: "Lokasi", ready: true },
   ];
+
+  // Paket (pengadaan → kontrak → adendum). Sudah termasuk master kontrak/kontraktor.
+  if (has(DASHBOARD)) {
+    items.push({ href: "/paket", label: "Paket", ready: true });
+  }
+
+  items.push({ href: "/lokasi", label: "Lokasi", ready: true });
 
   // Laporan / Lapor Harian — pelapor & penyetuju
   if (has(REPORTER) || has(ADMIN)) {
@@ -38,15 +45,12 @@ export function navForRole(role: UserRole): NavItem[] {
     });
   }
 
-  // Pantauan eksekutif
   if (has(DASHBOARD)) {
-    items.push({ href: "/paket", label: "Paket", ready: true });
     items.push({ href: "/keuangan", label: "Keuangan", ready: true });
   }
 
-  // Master data (admin)
+  // Kelola (admin)
   if (has(ADMIN)) {
-    items.push({ href: "/kontrak", label: "Kontrak", ready: true });
     items.push({ href: "/pengguna", label: "Pengguna", ready: true });
   }
 
