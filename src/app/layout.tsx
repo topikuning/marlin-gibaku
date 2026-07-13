@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "MARLIN — Monitoring KNMP",
-  description: "Monitoring & pelaporan proyek Kampung Nelayan Merah Putih",
+  title: "MARLIN — Monitoring, Analysis, Reporting & Learning for Infrastructure Network",
+  description:
+    "MARLIN — Monitoring, Analysis, Reporting & Learning for Infrastructure Network. Pemantauan proyek Kampung Nelayan Merah Putih (KNMP).",
 };
 
 export default function RootLayout({

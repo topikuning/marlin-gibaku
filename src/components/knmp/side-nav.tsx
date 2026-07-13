@@ -42,7 +42,7 @@ function Icon({ label }: { label: string }) {
         <path d="M9 8h6M9 12h6M9 16h4" />
       </>
     ),
-    Pengadaan: (
+    Paket: (
       <>
         <path d="M6 6h15l-1.5 8H8z" />
         <circle cx="9" cy="19" r="1.4" />

@@ -12,11 +12,11 @@ export default async function ProspekBaruPage() {
 
   return (
     <>
-      <Link href="/pengadaan" className="mb-4 inline-block text-sm text-[#1e3a8a] hover:underline">
-        ← Pengadaan
+      <Link href="/paket" className="mb-4 inline-block text-sm text-[#1e3a8a] hover:underline">
+        ← Paket
       </Link>
       <PageHeader
-        eyebrow="Pengadaan"
+        eyebrow="Paket"
         title="Prospek Baru (Calon Kontrak)"
         subtitle="Mulai lacak paket sejak tahap tender. Isi HPS & desa target; saat menang, konversi jadi kontrak dengan nilai final."
       />

@@ -11,7 +11,7 @@ import {
   PROSPEK_STAGE_CLASS,
 } from "@/lib/prospek";
 import { PageHeader } from "@/components/knmp/page-header";
-import { PengadaanGrid } from "./pengadaan-grid";
+import { PengadaanGrid } from "./paket-grid";
 
 export default async function PengadaanPage() {
   const session = await auth();
@@ -62,9 +62,9 @@ export default async function PengadaanPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Pengadaan"
-        title="Pengadaan (PBJ)"
-        subtitle="Alur pengadaan tiap paket: dari prospek/tender → kontrak → pelaksanaan. Tahap per lokasi & ringkasan eksekutif di bawah."
+        eyebrow="Paket"
+        title="Paket Pekerjaan"
+        subtitle="Daur hidup tiap paket: prospek/tender → kontrak → pelaksanaan → serah terima. Tahap per lokasi & ringkasan eksekutif di bawah."
       />
 
       {/* Prospek / tender berjalan */}
@@ -75,7 +75,7 @@ export default async function PengadaanPage() {
               Prospek / tender berjalan ({prospekList.length})
             </div>
             <Link
-              href="/pengadaan/prospek/baru"
+              href="/paket/prospek/baru"
               className="rounded-md bg-[#1e3a8a] px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-[#172554]"
             >
               + Prospek baru
@@ -90,7 +90,7 @@ export default async function PengadaanPage() {
               {prospekList.map((p) => (
                 <Link
                   key={p.id}
-                  href={`/pengadaan/prospek/${p.id}`}
+                  href={`/paket/prospek/${p.id}`}
                   className="rounded-xl border border-slate-200 bg-white p-4 transition hover:border-[#1e3a8a]"
                 >
                   <div className="flex items-start justify-between gap-2">

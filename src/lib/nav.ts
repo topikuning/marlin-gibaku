@@ -40,7 +40,7 @@ export function navForRole(role: UserRole): NavItem[] {
 
   // Pantauan eksekutif
   if (has(DASHBOARD)) {
-    items.push({ href: "/pengadaan", label: "Pengadaan", ready: true });
+    items.push({ href: "/paket", label: "Paket", ready: true });
     items.push({ href: "/keuangan", label: "Keuangan", ready: true });
   }
 

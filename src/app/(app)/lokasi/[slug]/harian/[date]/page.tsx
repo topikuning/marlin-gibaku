@@ -10,7 +10,6 @@ import { PageHeader } from "@/components/knmp/page-header";
 import {
   WORKER_ROLE_ORDER,
   WORKER_ROLE_LABEL,
-  WEATHER_LABEL,
   parseLogDate,
 } from "@/lib/daily-log";
 import type { WorkerRole } from "@prisma/client";
@@ -86,11 +85,34 @@ export default async function LaporanHarianKkpPage({
 
   const canEdit = canApprove(role);
 
+  // Data header format KKP
+  const hari = new Intl.DateTimeFormat("id-ID", { weekday: "long", timeZone: "Asia/Jakarta" }).format(logDate);
+  const startDate = location.contract?.startDate ?? null;
+  const weekNo = startDate
+    ? Math.max(1, Math.floor((logDate.getTime() - startDate.getTime()) / (7 * 86_400_000)) + 1)
+    : null;
+  const tahunAnggaran = startDate?.getFullYear() ?? logDate.getUTCFullYear();
+  const HOURS = ["07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21"];
+  const WEATHER_CAT: Partial<Record<NonNullable<typeof log>["weather"] & string, "Cerah" | "Mendung" | "Hujan">> = {
+    cerah: "Cerah",
+    berawan: "Mendung",
+    hujan_ringan: "Hujan",
+    hujan_deras: "Hujan",
+    angin_kencang: "Hujan",
+    banjir: "Hujan",
+  };
+  const activeWeather = log?.weather ? WEATHER_CAT[log.weather] : null;
+
   return (
     <>
       <style>{`@media print {
+        @page { size: A4; margin: 12mm; }
         .no-print { display: none !important; }
-        .print-card { border: none !important; box-shadow: none !important; }
+        .print-card {
+          border: none !important; box-shadow: none !important;
+          max-width: none !important; margin: 0 !important; padding: 0 !important;
+          -webkit-print-color-adjust: exact; print-color-adjust: exact;
+        }
         body { background: #fff !important; }
       }`}</style>
 
@@ -121,139 +143,223 @@ export default async function LaporanHarianKkpPage({
       </div>
 
       {/* ── KKP-format card (print-friendly) ── */}
-      <section className="print-card rounded-xl border border-slate-200 bg-white p-6">
-        <div className="mb-4 text-center">
-          <div className="text-base font-bold uppercase text-slate-900">Laporan Harian</div>
-          <div className="text-sm text-slate-600">
-            Pembangunan Kampung Nelayan Merah Putih (KNMP)
+      {/* ── FORMAT LAPORAN HARIAN KKP (persis, siap cetak A4) ── */}
+      <section className="print-card mx-auto max-w-[900px] rounded-xl border border-slate-300 bg-white p-5 text-[11px] leading-tight text-slate-900">
+        {/* Header: judul + 2 kolom TTD */}
+        <div className="grid grid-cols-4 border border-slate-500">
+          <div className="col-span-2 flex flex-col justify-center border-r border-slate-500 px-3 py-2">
+            <div className="text-sm font-bold uppercase tracking-wide">Laporan Harian</div>
+            <div className="text-[10px] text-slate-500">Pembangunan Kampung Nelayan Merah Putih (KNMP)</div>
+          </div>
+          <div className="flex items-center justify-center border-r border-slate-500 px-2 py-3 text-center text-[10px] font-semibold uppercase text-slate-600">
+            Konsultan Pengawas
+          </div>
+          <div className="flex items-center justify-center px-2 py-3 text-center text-[10px] font-semibold uppercase text-slate-600">
+            Kontraktor Pelaksana
           </div>
         </div>
-        <div className="mb-5 grid grid-cols-1 gap-x-8 gap-y-1 text-sm sm:grid-cols-2">
-          <Field k="Pekerjaan" v="Konstruksi KNMP" />
-          <Field k="Hari / Tanggal" v={jkDate.format(logDate)} />
-          <Field k="Lokasi" v={`${location.name}, ${location.regency}, ${location.province}`} />
-          <Field k="Tahun Anggaran" v={String(location.contract?.startDate?.getFullYear() ?? "-")} />
-          <Field k="Cuaca" v={log?.weather ? WEATHER_LABEL[log.weather] : "—"} />
-          <Field
-            k="Jam Kerja"
-            v={log?.workStart || log?.workEnd ? `${log?.workStart ?? "…"} – ${log?.workEnd ?? "…"}` : "—"}
-          />
-        </div>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* Tenaga kerja */}
+        {/* Info paket */}
+        <table className="w-full border-x border-b border-slate-500">
+          <tbody>
+            <tr>
+              <Cell w>Minggu Ke</Cell>
+              <Cell>{weekNo ?? "…"}</Cell>
+              <Cell w>Pekerjaan</Cell>
+              <Cell>Konstruksi KNMP</Cell>
+            </tr>
+            <tr>
+              <Cell w>Hari</Cell>
+              <Cell>{hari}</Cell>
+              <Cell w>Lokasi</Cell>
+              <Cell>{`${location.name}, ${location.regency}, ${location.province}`}</Cell>
+            </tr>
+            <tr>
+              <Cell w>Tanggal</Cell>
+              <Cell>{jkDate.format(logDate)}</Cell>
+              <Cell w>Th. Anggaran</Cell>
+              <Cell>{tahunAnggaran}</Cell>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* Tenaga kerja + material/peralatan */}
+        <div className="grid grid-cols-2">
+          {/* TENAGA KERJA */}
+          <table className="w-full border-x border-b border-slate-500">
+            <thead>
+              <tr>
+                <Cell head w>No</Cell>
+                <Cell head>Tenaga Kerja (Keahlian)</Cell>
+                <Cell head w>Jmh</Cell>
+              </tr>
+            </thead>
+            <tbody>
+              {WORKER_ROLE_ORDER.map((r, i) => (
+                <tr key={r}>
+                  <Cell center>{i + 1}</Cell>
+                  <Cell>{WORKER_ROLE_LABEL[r]}</Cell>
+                  <Cell center>{workerMap[r] ?? 0}</Cell>
+                </tr>
+              ))}
+              <tr className="font-semibold">
+                <Cell center colSpan={2} right>Jumlah</Cell>
+                <Cell center>{totalWorkers}</Cell>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* MATERIAL + PERALATAN */}
           <div>
-            <SectionTitle>Tenaga Kerja</SectionTitle>
-            <table className="w-full text-sm">
-              <tbody>
-                {WORKER_ROLE_ORDER.filter((r) => (workerMap[r] ?? 0) > 0).map((r) => (
-                  <tr key={r} className="border-b border-slate-100">
-                    <td className="py-1 text-slate-700">{WORKER_ROLE_LABEL[r]}</td>
-                    <td className="py-1 text-right tabular-nums text-slate-900">{workerMap[r]} org</td>
-                  </tr>
-                ))}
-                {totalWorkers === 0 && (
-                  <tr>
-                    <td className="py-1 text-slate-400">Belum diisi</td>
-                  </tr>
-                )}
-                {totalWorkers > 0 && (
-                  <tr className="font-semibold">
-                    <td className="py-1 text-slate-900">Jumlah</td>
-                    <td className="py-1 text-right tabular-nums text-slate-900">{totalWorkers} org</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Material + peralatan */}
-          <div className="space-y-4">
-            <div>
-              <SectionTitle>Rekap Pemasukan Bahan / Material</SectionTitle>
-              {(log?.materials ?? []).length ? (
-                <table className="w-full text-sm">
-                  <tbody>
-                    {log!.materials.map((m) => (
-                      <tr key={m.id} className="border-b border-slate-100">
-                        <td className="py-1 text-slate-700">{m.name}</td>
-                        <td className="py-1 text-right tabular-nums text-slate-900">
-                          {m.qtyReceived != null ? volFmt.format(m.qtyReceived.toNumber()) : ""} {m.unit ?? ""}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <div className="text-sm text-slate-400">Belum diisi</div>
-              )}
-            </div>
-            <div>
-              <SectionTitle>Peralatan</SectionTitle>
-              {(log?.equipment ?? []).length ? (
-                <table className="w-full text-sm">
-                  <tbody>
-                    {log!.equipment.map((e) => (
-                      <tr key={e.id} className="border-b border-slate-100">
-                        <td className="py-1 text-slate-700">{e.name}</td>
-                        <td className="py-1 text-right tabular-nums text-slate-900">{e.count}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <div className="text-sm text-slate-400">Belum diisi</div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Realisasi pekerjaan (dari laporan hari itu) */}
-        <div className="mt-6">
-          <SectionTitle>Realisasi Pekerjaan (dari laporan lapangan)</SectionTitle>
-          {dayItems.length ? (
-            <table className="w-full text-sm">
+            <table className="w-full border-r border-b border-slate-500">
               <thead>
-                <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
-                  <th className="py-1 font-medium">Uraian</th>
-                  <th className="py-1 text-right font-medium">Volume</th>
+                <tr>
+                  <Cell head w>No</Cell>
+                  <Cell head>Rekap Pemasukan Bahan / Material</Cell>
+                  <Cell head w>Sat</Cell>
+                  <Cell head w>Diterima</Cell>
                 </tr>
               </thead>
               <tbody>
-                {dayItems.map((it, i) => {
-                  const meta = itemMeta.get(it.rabItemId);
-                  return (
-                    <tr key={i} className="border-b border-slate-100">
-                      <td className="py-1 text-slate-700">{meta?.name ?? it.rabItemId}</td>
-                      <td className="py-1 text-right tabular-nums text-slate-900">
-                        {volFmt.format(it.volumeDone.toNumber())} {meta?.unit ?? ""}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {(log?.materials ?? []).map((m, i) => (
+                  <tr key={m.id}>
+                    <Cell center>{i + 1}</Cell>
+                    <Cell>{m.name}</Cell>
+                    <Cell center>{m.unit ?? ""}</Cell>
+                    <Cell center>{m.qtyReceived != null ? volFmt.format(m.qtyReceived.toNumber()) : ""}</Cell>
+                  </tr>
+                ))}
+                {Array.from({ length: Math.max(0, 4 - (log?.materials?.length ?? 0)) }).map((_, i) => (
+                  <tr key={`me${i}`}>
+                    <Cell center>{(log?.materials?.length ?? 0) + i + 1}</Cell>
+                    <Cell>&nbsp;</Cell>
+                    <Cell></Cell>
+                    <Cell></Cell>
+                  </tr>
+                ))}
               </tbody>
             </table>
-          ) : (
-            <div className="text-sm text-slate-400">Tidak ada realisasi tercatat pada tanggal ini.</div>
-          )}
+            <table className="w-full border-r border-b border-slate-500">
+              <thead>
+                <tr>
+                  <Cell head w>No</Cell>
+                  <Cell head colSpan={3}>Peralatan</Cell>
+                </tr>
+              </thead>
+              <tbody>
+                {(log?.equipment ?? []).map((e, i) => (
+                  <tr key={e.id}>
+                    <Cell center>{i + 1}</Cell>
+                    <Cell colSpan={3}>
+                      {e.name}
+                      {e.count > 1 ? ` (${e.count})` : ""}
+                    </Cell>
+                  </tr>
+                ))}
+                {Array.from({ length: Math.max(0, 3 - (log?.equipment?.length ?? 0)) }).map((_, i) => (
+                  <tr key={`ee${i}`}>
+                    <Cell center>{(log?.equipment?.length ?? 0) + i + 1}</Cell>
+                    <Cell colSpan={3}>&nbsp;</Cell>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
-        {log?.notes && (
-          <div className="mt-6">
-            <SectionTitle>Catatan Lapangan</SectionTitle>
-            <p className="text-sm text-slate-700">{log.notes}</p>
-          </div>
-        )}
+        {/* Kondisi cuaca per jam */}
+        <table className="w-full border-x border-b border-slate-500 text-center">
+          <thead>
+            <tr>
+              <Cell head>Kondisi / Jam</Cell>
+              {HOURS.map((h) => (
+                <Cell head center key={h}>{h}</Cell>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {(["Cerah", "Mendung", "Hujan"] as const).map((cat) => (
+              <tr key={cat}>
+                <Cell>{cat}</Cell>
+                {HOURS.map((h) => (
+                  <Cell center key={h}>{activeWeather === cat ? "✓" : ""}</Cell>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <table className="w-full border-x border-b border-slate-500">
+          <tbody>
+            <tr>
+              <Cell w>Jam Kerja</Cell>
+              <Cell>
+                mulai {log?.workStart ?? "……"} — selesai {log?.workEnd ?? "……"}
+              </Cell>
+            </tr>
+          </tbody>
+        </table>
+
+        {/* Rencana vs realisasi pekerjaan */}
+        <div className="grid grid-cols-2">
+          <table className="w-full border-x border-b border-slate-500">
+            <thead>
+              <tr>
+                <Cell head>Rencana Pekerjaan</Cell>
+              </tr>
+            </thead>
+            <tbody>
+              {log?.notes ? (
+                <tr>
+                  <Cell>{log.notes}</Cell>
+                </tr>
+              ) : (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i}>
+                    <Cell>
+                      {i + 1}.&nbsp;
+                    </Cell>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+          <table className="w-full border-r border-b border-slate-500">
+            <thead>
+              <tr>
+                <Cell head>Realisasi Pekerjaan (dari laporan lapangan)</Cell>
+              </tr>
+            </thead>
+            <tbody>
+              {dayItems.length ? (
+                dayItems.map((it, i) => {
+                  const meta = itemMeta.get(it.rabItemId);
+                  return (
+                    <tr key={i}>
+                      <Cell>
+                        {i + 1}. {meta?.name ?? it.rabItemId} —{" "}
+                        {volFmt.format(it.volumeDone.toNumber())} {meta?.unit ?? ""}
+                      </Cell>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <Cell>Tidak ada realisasi tercatat pada tanggal ini.</Cell>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
 
         {/* Tanda tangan */}
-        <div className="mt-10 grid grid-cols-2 gap-8 text-center text-sm">
-          <div>
-            <div className="text-slate-600">Konsultan Pengawas</div>
-            <div className="mt-16 border-t border-slate-300 pt-1 text-slate-500">( …………………… )</div>
+        <div className="grid grid-cols-2 border-x border-b border-slate-500">
+          <div className="border-r border-slate-500 px-3 py-2 text-center">
+            <div className="text-[10px] font-semibold uppercase text-slate-600">Konsultan Pengawas</div>
+            <div className="mt-12 border-t border-slate-400 pt-1 text-slate-500">( …………………… )</div>
           </div>
-          <div>
-            <div className="text-slate-600">Kontraktor Pelaksana</div>
-            <div className="mt-16 border-t border-slate-300 pt-1 text-slate-500">( …………………… )</div>
+          <div className="px-3 py-2 text-center">
+            <div className="text-[10px] font-semibold uppercase text-slate-600">Kontraktor Pelaksana</div>
+            <div className="mt-12 border-t border-slate-400 pt-1 text-slate-500">( …………………… )</div>
           </div>
         </div>
       </section>
@@ -299,21 +405,35 @@ export default async function LaporanHarianKkpPage({
   );
 }
 
-function Field({ k, v }: { k: string; v: string }) {
+/** Sel tabel bergaris untuk form KKP (cetak A4). */
+function Cell({
+  children,
+  head,
+  w,
+  center,
+  right,
+  colSpan,
+}: {
+  children?: React.ReactNode;
+  head?: boolean;
+  w?: boolean;
+  center?: boolean;
+  right?: boolean;
+  colSpan?: number;
+}) {
+  const Tag = head ? "th" : "td";
   return (
-    <div className="flex gap-2">
-      <span className="w-32 shrink-0 text-slate-500">{k}</span>
-      <span className="text-slate-500">:</span>
-      <span className="font-medium text-slate-900">{v}</span>
-    </div>
-  );
-}
-
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+    <Tag
+      colSpan={colSpan}
+      className={[
+        "border border-slate-500 px-1.5 py-0.5 align-top",
+        head ? "bg-slate-50 text-[10px] font-semibold uppercase text-slate-600" : "",
+        w ? "w-px whitespace-nowrap" : "",
+        center ? "text-center" : right ? "text-right" : "text-left",
+      ].join(" ")}
+    >
       {children}
-    </div>
+    </Tag>
   );
 }
 

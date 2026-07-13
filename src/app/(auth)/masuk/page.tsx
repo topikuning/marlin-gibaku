@@ -20,8 +20,11 @@ export default async function MasukPage() {
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
             Masuk ke MARLIN
           </h1>
-          <p className="mt-1.5 text-sm text-slate-500">
-            Monitoring proyek Kampung Nelayan Merah Putih
+          <p className="mt-1.5 text-sm font-medium text-slate-600">
+            Monitoring, Analysis, Reporting &amp; Learning for Infrastructure Network
+          </p>
+          <p className="mt-1 text-xs text-slate-400">
+            Proyek Kampung Nelayan Merah Putih (KNMP)
           </p>
         </div>
 
