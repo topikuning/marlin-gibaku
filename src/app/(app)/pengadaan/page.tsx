@@ -1,19 +1,11 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { canViewDashboard, isCrossLocation } from "@/lib/roles";
-import { formatRupiahShort, formatRupiah } from "@/lib/format";
-import {
-  getProcRows,
-  rollup,
-  canSetStage,
-  PROC_STAGES,
-  STAGE_LABEL,
-  STAGE_COLOR,
-} from "@/lib/procurement";
+import { formatRupiahShort } from "@/lib/format";
+import { getProcRows, rollup, canSetStage } from "@/lib/procurement";
 import { PageHeader } from "@/components/knmp/page-header";
-import { StageSelect } from "./stage-select";
+import { PengadaanGrid } from "./pengadaan-grid";
 
 export default async function PengadaanPage() {
   const session = await auth();
@@ -43,7 +35,6 @@ export default async function PengadaanPage() {
   const rows = await getProcRows(locations);
   const r = rollup(rows);
   const canEdit = canSetStage(role);
-  const stageOpts = PROC_STAGES.map((s) => ({ value: s, label: STAGE_LABEL[s] }));
 
   return (
     <>
@@ -83,46 +74,20 @@ export default async function PengadaanPage() {
       </div>
 
       {/* Per lokasi */}
-      <div className="overflow-x-auto rounded-lg border border-[#E2E8F0]">
-        <table className="w-full min-w-[720px] text-sm">
-          <thead>
-            <tr className="border-b border-[#E2E8F0] bg-white text-left text-[11px] uppercase tracking-wide text-[#64748B]">
-              <th className="px-4 py-2.5 font-semibold">Lokasi</th>
-              <th className="px-4 py-2.5 font-semibold">Kontraktor</th>
-              <th className="px-4 py-2.5 text-right font-semibold">HPS</th>
-              <th className="px-4 py-2.5 text-right font-semibold">Kontrak</th>
-              <th className="px-4 py-2.5 font-semibold">Tahap</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id} className="border-b border-[#EEF2F6] last:border-0">
-                <td className="px-4 py-2.5">
-                  <Link href={`/lokasi/${row.slug}`} className="font-semibold text-[#0F766E] hover:underline">
-                    {row.name}
-                  </Link>
-                  <div className="text-xs text-[#64748B]">{row.regency} · {row.province}</div>
-                </td>
-                <td className="px-4 py-2.5 text-[#0F172A]">{row.contractor}</td>
-                <td className="px-4 py-2.5 text-right tabular-nums text-[#64748B]">{formatRupiah(row.hps)}</td>
-                <td className="px-4 py-2.5 text-right tabular-nums text-[#0F172A]">{formatRupiah(row.kontrak)}</td>
-                <td className="px-4 py-2.5">
-                  {canEdit ? (
-                    <StageSelect locationId={row.id} stage={row.stage} stages={stageOpts} />
-                  ) : (
-                    <span
-                      className="inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold text-white"
-                      style={{ background: STAGE_COLOR[row.stage] }}
-                    >
-                      {STAGE_LABEL[row.stage]}
-                    </span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <PengadaanGrid
+        canEdit={canEdit}
+        rows={rows.map((row) => ({
+          id: row.id,
+          slug: row.slug,
+          name: row.name,
+          regency: row.regency,
+          province: row.province,
+          contractor: row.contractor,
+          hpsNum: Number(row.hps),
+          kontrakNum: Number(row.kontrak),
+          stage: row.stage,
+        }))}
+      />
     </>
   );
 }

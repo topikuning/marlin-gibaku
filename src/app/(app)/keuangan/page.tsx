@@ -1,13 +1,12 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { canViewDashboard, canManageUsers, isCrossLocation } from "@/lib/roles";
 import { formatRupiahShort } from "@/lib/format";
 import { getFinanceRows, financeRollup } from "@/lib/finance";
-import { MoneyCell } from "./money-cell";
+import { PageHeader } from "@/components/knmp/page-header";
+import { KeuanganGrid } from "./keuangan-grid";
 
-const grp = new Intl.NumberFormat("id-ID");
 const short = (b: bigint) => formatRupiahShort(b);
 
 export default async function KeuanganPage() {
@@ -43,10 +42,11 @@ export default async function KeuanganPage() {
 
   return (
     <>
-      <div className="mb-6">
-        <h1 className="text-xl font-bold text-slate-900">Keuangan</h1>
-        <p className="text-sm text-slate-500">Serapan, penagihan, pengeluaran vs budget, dan kebutuhan dana.</p>
-      </div>
+      <PageHeader
+        eyebrow="Keuangan"
+        title="Keuangan"
+        subtitle="Serapan, penagihan, pengeluaran vs budget, dan kebutuhan dana."
+      />
 
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
         <Kpi label="Nilai Kontrak" value={short(r.contract)} />
@@ -59,45 +59,24 @@ export default async function KeuanganPage() {
 
       <div className="mb-2 flex items-center justify-between">
         <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Per Lokasi</div>
-        {canEdit && <div className="text-[11px] text-slate-400">Sel kuning bisa diedit (klik → ketik → keluar sel)</div>}
+        {canEdit && <div className="text-[11px] text-slate-400">Kolom Ditagih/Dibayar/Pengeluaran/Pagu bisa diedit (klik → ketik → keluar sel)</div>}
       </div>
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-        <table className="w-full min-w-[980px] text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 text-left text-[11px] uppercase tracking-wide text-slate-500">
-              <th className="px-3 py-2.5 font-medium">Lokasi</th>
-              <th className="px-3 py-2.5 text-right font-medium">Kontrak</th>
-              <th className="px-3 py-2.5 text-right font-medium">Terpasang</th>
-              <th className="px-3 py-2.5 text-right font-medium">Ditagih</th>
-              <th className="px-3 py-2.5 text-right font-medium">Dibayar</th>
-              <th className="px-3 py-2.5 text-right font-medium">Belum Ditagih</th>
-              <th className="px-3 py-2.5 text-right font-medium">Pengeluaran</th>
-              <th className="px-3 py-2.5 text-right font-medium">Pagu</th>
-              <th className="px-3 py-2.5 text-right font-medium">Keb. 30hr</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => {
-              const over = row.budgetCap > 0n && row.spent > row.budgetCap;
-              return (
-                <tr key={row.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                  <td className="px-3 py-2">
-                    <Link href={`/lokasi/${row.slug}`} className="font-medium text-slate-900 hover:text-[#0F766E]">{row.name}</Link>
-                  </td>
-                  <td className="px-3 py-2 text-right tabular-nums text-slate-600">{grp.format(Number(row.contract))}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-slate-900">{grp.format(Number(row.terpasang))}</td>
-                  <td className="px-3 py-2">{canEdit ? <MoneyCell locationId={row.id} field="invoicedValue" value={Number(row.invoiced)} /> : <div className="text-right tabular-nums">{grp.format(Number(row.invoiced))}</div>}</td>
-                  <td className="px-3 py-2">{canEdit ? <MoneyCell locationId={row.id} field="paidValue" value={Number(row.paid)} /> : <div className="text-right tabular-nums">{grp.format(Number(row.paid))}</div>}</td>
-                  <td className="px-3 py-2 text-right tabular-nums font-medium text-slate-900">{grp.format(Number(row.belumDitagih))}</td>
-                  <td className="px-3 py-2">{canEdit ? <MoneyCell locationId={row.id} field="spentValue" value={Number(row.spent)} /> : <div className="text-right tabular-nums">{grp.format(Number(row.spent))}</div>}</td>
-                  <td className={`px-3 py-2 ${over ? "bg-[#FEF2F2]" : ""}`}>{canEdit ? <MoneyCell locationId={row.id} field="budgetCap" value={Number(row.budgetCap)} /> : <div className="text-right tabular-nums">{grp.format(Number(row.budgetCap))}</div>}</td>
-                  <td className="px-3 py-2 text-right tabular-nums text-slate-600">{grp.format(Number(row.need30d))}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <KeuanganGrid
+        canEdit={canEdit}
+        rows={rows.map((row) => ({
+          id: row.id,
+          slug: row.slug,
+          name: row.name,
+          contract: Number(row.contract),
+          terpasang: Number(row.terpasang),
+          invoiced: Number(row.invoiced),
+          paid: Number(row.paid),
+          belumDitagih: Number(row.belumDitagih),
+          spent: Number(row.spent),
+          budgetCap: Number(row.budgetCap),
+          need30d: Number(row.need30d),
+        }))}
+      />
       <p className="mt-2 text-xs text-slate-400">
         Terpasang, Belum Ditagih & Keb. 30hr dihitung otomatis. Ditagih/Dibayar/Pengeluaran/Pagu input manual.
       </p>
