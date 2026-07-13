@@ -861,3 +861,86 @@ model Document {
   @@index([orgId, uploadedAt])
   @@map("documents")
 }
+
+// ─────────────────────────────────────────────────────────────
+// 4.x LAPORAN HARIAN FORMAT KKP (enrichment level SM)
+// Mandor input ringkas (volume + foto). SM lengkapi detail format KKP
+// (tenaga per keahlian, material masuk, peralatan, cuaca) per lokasi+tanggal.
+// Export digabung dengan item laporan hari itu. Lihat DECISIONS 038.
+// ─────────────────────────────────────────────────────────────
+
+enum WorkerRole {
+  site_manager
+  pelaksana
+  mandor
+  kepala_tukang
+  tukang_bongkar
+  tukang_batu
+  tukang_besi
+  tukang_kayu
+  tukang_pipa
+  tukang_listrik
+  tukang_cat
+  tenaga
+  logistik
+  operator
+}
+
+model DailyLog {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  locationId      String       @map("location_id") @db.Uuid
+  logDate         DateTime     @map("log_date") @db.Date
+  weather         WeatherCode?
+  workStart       String?      @map("work_start") // jam mulai kerja, mis "07:00"
+  workEnd         String?      @map("work_end")
+  notes           String?
+  createdByUserId String?      @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  workers   DailyLogWorker[]
+  materials DailyLogMaterial[]
+  equipment DailyLogEquipment[]
+
+  @@unique([locationId, logDate])
+  @@index([locationId, logDate])
+  @@map("daily_logs")
+}
+
+model DailyLogWorker {
+  id    String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  logId String     @map("log_id") @db.Uuid
+  role  WorkerRole
+  count Int        @default(0)
+
+  log DailyLog @relation(fields: [logId], references: [id], onDelete: Cascade)
+
+  @@unique([logId, role])
+  @@index([logId])
+  @@map("daily_log_workers")
+}
+
+model DailyLogMaterial {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  logId       String   @map("log_id") @db.Uuid
+  name        String
+  unit        String?
+  qtyReceived Decimal? @map("qty_received") @db.Decimal(15, 3)
+
+  log DailyLog @relation(fields: [logId], references: [id], onDelete: Cascade)
+
+  @@index([logId])
+  @@map("daily_log_materials")
+}
+
+model DailyLogEquipment {
+  id    String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  logId String @map("log_id") @db.Uuid
+  name  String
+  count Int    @default(1)
+
+  log DailyLog @relation(fields: [logId], references: [id], onDelete: Cascade)
+
+  @@index([logId])
+  @@map("daily_log_equipment")
+}

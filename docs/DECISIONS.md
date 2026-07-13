@@ -794,3 +794,29 @@ by `type`. Additive, nol regresi. Milestone tanpa docType = pantau manual.
 
 **Alasan urutan**: tracker administrasi = risiko nol + tulang punggung kepatuhan.
 Enhanced daily butuh keputusan UX gaptek dulu (jangan bebani mandor).
+
+---
+
+## 038 · 2026-07-13 · Laporan Harian format KKP — "mandor simpel, SM lengkapi"
+
+**Konteks**: FORMAT LAPORAN HARIAN resmi KKP jauh lebih kaya dari input mandor
+(tenaga per keahlian 14 peran, material masuk, peralatan, cuaca, jam kerja,
+rencana vs realisasi). Bertabrakan dengan pakem "mandor sederhana saja, ringan".
+
+**Keputusan user**: **mandor tetap ringan** (volume + foto + jumlah tenaga total);
+detail KKP di-*enrich* di level **Site Manager** + sebagian **otomatis**; export
+format KKP di-*generate*. (User pilih opsi ini eksplisit.)
+
+**Implementasi**:
+- Model `DailyLog` (unik per `location + logDate`) + `DailyLogWorker` (14 peran),
+  `DailyLogMaterial`, `DailyLogEquipment`. Cuaca + jam kerja + catatan di header.
+  Terpisah dari alur item-centric `DailyReportItem` (yang tetap `dailyReportId=null`).
+- Halaman `/lokasi/[slug]/harian/[date]`: kartu format KKP (print-friendly) +
+  editor SM (gated `canApprove`). Realisasi pekerjaan **auto-join** dari
+  `DailyReportItem` state approved/sent yang createdAt-nya jatuh di tanggal itu
+  (zona Asia/Jakarta). Tombol Cetak/PDF (window.print + `@media print`).
+- Index `/lokasi/[slug]/harian?d=` redirect ke tanggal (default hari ini WIB).
+
+**Belum**: cuaca per jam (KKP punya kolom 07:00–21:00; sekarang 1 cuaca dominan),
+export xlsx asli, TTD digital. Rencana pekerjaan (vs realisasi) belum dipisah —
+sekarang realisasi dari lapangan + catatan bebas.
