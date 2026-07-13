@@ -49,16 +49,26 @@ export default async function LokasiDetailPage({
   const c = location.contract;
   const scurve = await getScurveSeries(location.id, c.startDate);
   const canManage = canManageUsers(role);
+  const deviationNotes = await db.deviationNote.findMany({
+    where: { locationId: location.id },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+  });
 
-  async function saveDeviation(formData: FormData) {
+  async function addDeviation(formData: FormData) {
     "use server";
     const s = await auth();
     if (!s?.user || !canManageUsers(s.user.role)) return;
-    await db.location.update({
-      where: { id: location!.id },
+    const cause = String(formData.get("cause") ?? "").trim();
+    if (!cause) return;
+    const weekRaw = Number(formData.get("weekNo"));
+    await db.deviationNote.create({
       data: {
-        deviationCause: String(formData.get("deviationCause") ?? "").trim() || null,
-        recoveryPlan: String(formData.get("recoveryPlan") ?? "").trim() || null,
+        locationId: location!.id,
+        cause,
+        recovery: String(formData.get("recovery") ?? "").trim() || null,
+        weekNo: Number.isFinite(weekRaw) && weekRaw > 0 ? Math.trunc(weekRaw) : null,
+        createdByUserId: s.user.id,
       },
     });
     revalidatePath(`/lokasi/${slug}`);
@@ -110,44 +120,73 @@ export default async function LokasiDetailPage({
         <ScurveChart series={scurve} />
       </section>
 
-      {/* Manajemen deviasi & recovery */}
+      {/* Catatan deviasi & pemulihan — log per waktu */}
       <section className="mt-6 rounded-lg border border-[#E2E8F0] bg-white p-5">
         <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
-          Penyebab deviasi & rencana pemulihan
+          Catatan deviasi & pemulihan (riwayat)
         </div>
-        {canManage ? (
-          <form action={saveDeviation} className="space-y-3">
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-600">Penyebab deviasi</label>
-              <textarea
-                name="deviationCause"
-                rows={2}
-                defaultValue={location.deviationCause ?? ""}
-                placeholder="mis. keterlambatan material, cuaca, pembebasan lahan"
-                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#1e3a8a]"
-              />
+
+        {canManage && (
+          <form action={addDeviation} className="mb-5 space-y-3 rounded-lg border border-slate-100 bg-slate-50/60 p-4">
+            <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-600">Penyebab deviasi</label>
+                <textarea
+                  name="cause"
+                  rows={2}
+                  required
+                  placeholder="mis. keterlambatan material, cuaca, pembebasan lahan"
+                  className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#1e3a8a]"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-semibold text-slate-600">Minggu ke</label>
+                <input
+                  name="weekNo"
+                  type="number"
+                  min={1}
+                  placeholder="—"
+                  className="w-20 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#1e3a8a]"
+                />
+              </div>
             </div>
             <div>
               <label className="mb-1 block text-xs font-semibold text-slate-600">Rencana pemulihan (recovery)</label>
               <textarea
-                name="recoveryPlan"
+                name="recovery"
                 rows={2}
-                defaultValue={location.recoveryPlan ?? ""}
-                placeholder="mis. tambah 2 grup kerja, kerja lembur, percepat pengadaan"
+                placeholder="mis. tambah 2 grup kerja, lembur, percepat pengadaan"
                 className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#1e3a8a]"
               />
             </div>
             <button type="submit" className="rounded-md bg-[#1e3a8a] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#172554]">
-              Simpan
+              Tambah catatan
             </button>
           </form>
-        ) : location.deviationCause || location.recoveryPlan ? (
-          <dl className="space-y-2 text-sm">
-            {location.deviationCause && <div><dt className="text-xs font-semibold text-slate-500">Penyebab deviasi</dt><dd className="text-slate-900">{location.deviationCause}</dd></div>}
-            {location.recoveryPlan && <div><dt className="text-xs font-semibold text-slate-500">Rencana pemulihan</dt><dd className="text-slate-900">{location.recoveryPlan}</dd></div>}
-          </dl>
+        )}
+
+        {deviationNotes.length === 0 ? (
+          <p className="text-sm text-slate-400">Belum ada catatan deviasi.</p>
         ) : (
-          <p className="text-sm text-slate-400">Belum diisi.</p>
+          <ol className="relative space-y-4 border-l border-slate-200 pl-5">
+            {deviationNotes.map((n) => (
+              <li key={n.id} className="relative">
+                <span className="absolute -left-[23px] top-1 h-3 w-3 rounded-full bg-amber-500" />
+                <div className="flex items-baseline gap-2 text-xs text-slate-500">
+                  <span>{dateFmt.format(n.createdAt)}</span>
+                  {n.weekNo != null && <span className="rounded-full bg-slate-100 px-1.5 py-0.5">Minggu {n.weekNo}</span>}
+                </div>
+                <div className="mt-1 text-sm text-slate-900">
+                  <span className="font-medium text-slate-500">Deviasi:</span> {n.cause}
+                </div>
+                {n.recovery && (
+                  <div className="text-sm text-slate-700">
+                    <span className="font-medium text-slate-500">Pemulihan:</span> {n.recovery}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ol>
         )}
       </section>
 

@@ -906,3 +906,9 @@ Halaman anak dibersihkan (buang back-link & judul lokasi ganda). `LokasiTabs`
 (usePathname, highlight aktif). Harian: buang preview form di layar (aneh — cetak
 sudah generate PDF di /cetak), jadi input-first (editor) + tombol Cetak/PDF.
 Belum: history deviasi/recovery (mingguan), laporan mingguan/bulanan — slice next.
+
+## 044 · 2026-07-13 · Catatan deviasi & pemulihan jadi LOG (riwayat), bukan 1 field
+User: deviasi bisa mingguan, mana history-nya? Model `DeviationNote` (locationId,
+weekNo?, cause, recovery, createdBy, createdAt) append-only. Ringkasan lokasi:
+form tambah catatan (admin) + timeline riwayat (newest first, tag Minggu N).
+Field lama Location.deviationCause/recoveryPlan ditinggalkan (tak dipakai UI lagi).
