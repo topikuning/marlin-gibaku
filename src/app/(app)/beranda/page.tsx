@@ -5,7 +5,10 @@ import { db } from "@/lib/db";
 import { isCrossLocation, canViewDashboard, ROLE_LABEL } from "@/lib/roles";
 import { canReport } from "@/lib/report";
 import { getLocationProgress } from "@/lib/progress";
+import { getPortfolioExtras, forecast } from "@/lib/dashboard";
 import { formatRupiahShort } from "@/lib/format";
+
+const dtFmt = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 const pctFmt = (n: number) => `${n.toFixed(1)}%`;
 
@@ -79,6 +82,8 @@ async function CommandCenter({ locations }: { locations: LocRow[] }) {
   );
   for (const r of rows) r.status = statusOf(r.progress.planPct, r.progress.deviationPct);
 
+  const extras = await getPortfolioExtras(locations.map((l) => ({ id: l.id, name: l.name })));
+
   const totalContract = rows.reduce((s, r) => s + r.loc.contract.contractValue, 0n);
   const totalGrand = rows.reduce((s, r) => s + r.progress.grandTotal, 0n);
   const totalRealized = rows.reduce((s, r) => s + r.progress.realizedValue, 0n);
@@ -129,6 +134,7 @@ async function CommandCenter({ locations }: { locations: LocRow[] }) {
                   {rows.map(({ loc, progress, status }) => {
                     const dev = progress.deviationPct;
                     const devClass = dev < -1 ? "text-[#DC2626]" : dev >= -1 ? "text-[#15803D]" : "text-slate-500";
+                    const fc = forecast(progress.realizedPct, progress.weekNumber, progress.totalWeeks);
                     return (
                       <tr key={loc.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
                         <td className="px-4 py-3">
@@ -137,6 +143,9 @@ async function CommandCenter({ locations }: { locations: LocRow[] }) {
                           </Link>
                           <div className="text-xs text-slate-500">
                             {loc.province} · minggu {progress.weekNumber}/{progress.totalWeeks}
+                          </div>
+                          <div className={`text-[11px] ${fc.delayWeeks && fc.delayWeeks > 0 ? "text-[#DC2626]" : "text-slate-400"}`}>
+                            Forecast: {fc.label}
                           </div>
                         </td>
                         <td className="px-4 py-3"><ProgressBar realized={progress.realizedPct} plan={progress.planPct} /></td>
@@ -155,24 +164,67 @@ async function CommandCenter({ locations }: { locations: LocRow[] }) {
           )}
         </section>
 
-        {/* Distribusi status */}
-        <section>
-          <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Distribusi Status</div>
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
-            <div className="mb-3 text-3xl font-bold tabular-nums text-slate-900">
-              {rows.length}<span className="ml-1 text-sm font-medium text-slate-400">total</span>
+        {/* Right column */}
+        <section className="space-y-6">
+          <div>
+            <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Perlu Tindakan</div>
+            <div className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
+              <ActionRow label="Persetujuan tertunda" n={extras.pendingCount} href="/laporan" tone={extras.pendingCount > 0 ? "warn" : "ok"} />
+              <ActionRow label="Proyek kritis" n={dist.merah} tone={dist.merah > 0 ? "bad" : "ok"} />
+              <ActionRow label="Proyek perhatian" n={dist.kuning} tone={dist.kuning > 0 ? "warn" : "ok"} />
+              <ActionRow label="Belum mulai" n={dist.abu} tone="muted" />
             </div>
-            <ul className="space-y-2 text-sm">
-              <DistRow color="#16A34A" label="Sesuai" n={dist.hijau} total={rows.length} />
-              <DistRow color="#D97706" label="Perhatian" n={dist.kuning} total={rows.length} />
-              <DistRow color="#DC2626" label="Kritis" n={dist.merah} total={rows.length} />
-              <DistRow color="#94A3B8" label="Belum Mulai" n={dist.abu} total={rows.length} />
-            </ul>
+          </div>
+
+          <div>
+            <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Distribusi Status</div>
+            <div className="rounded-lg border border-slate-200 bg-white p-4">
+              <div className="mb-3 text-3xl font-bold tabular-nums text-slate-900">
+                {rows.length}<span className="ml-1 text-sm font-medium text-slate-400">total</span>
+              </div>
+              <ul className="space-y-2 text-sm">
+                <DistRow color="#16A34A" label="Sesuai" n={dist.hijau} total={rows.length} />
+                <DistRow color="#D97706" label="Perhatian" n={dist.kuning} total={rows.length} />
+                <DistRow color="#DC2626" label="Kritis" n={dist.merah} total={rows.length} />
+                <DistRow color="#94A3B8" label="Belum Mulai" n={dist.abu} total={rows.length} />
+              </ul>
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Aktivitas Terakhir</div>
+            <div className="rounded-lg border border-slate-200 bg-white">
+              {extras.recent.length === 0 ? (
+                <p className="px-4 py-3 text-sm text-slate-400">Belum ada aktivitas.</p>
+              ) : (
+                extras.recent.map((a) => (
+                  <div key={a.id} className="border-b border-slate-100 px-4 py-2.5 last:border-0">
+                    <div className="text-sm text-slate-900">
+                      <span className="font-medium">{a.by}</span> · {a.volume} {a.unit}
+                    </div>
+                    <div className="truncate text-xs text-slate-500">{a.itemName}</div>
+                    <div className="text-[11px] text-slate-400">{a.locationName} · {dtFmt.format(a.at)}</div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </section>
       </div>
     </>
   );
+}
+
+function ActionRow({ label, n, href, tone }: { label: string; n: number; href?: string; tone: "ok" | "warn" | "bad" | "muted" }) {
+  const badge =
+    tone === "bad" ? "bg-[#FEE2E2] text-[#DC2626]" : tone === "warn" ? "bg-[#FEF3C7] text-[#B45309]" : tone === "ok" ? "bg-[#DCFCE7] text-[#15803D]" : "bg-slate-100 text-slate-500";
+  const inner = (
+    <div className="flex items-center justify-between px-4 py-3">
+      <span className="text-sm text-slate-700">{label}</span>
+      <span className={`min-w-[28px] rounded-full px-2 py-0.5 text-center text-xs font-semibold tabular-nums ${badge}`}>{n}</span>
+    </div>
+  );
+  return href ? <Link href={href} className="block hover:bg-slate-50">{inner}</Link> : inner;
 }
 
 function DistRow({ color, label, n, total }: { color: string; label: string; n: number; total: number }) {
