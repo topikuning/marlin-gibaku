@@ -848,3 +848,34 @@ Plus klarifikasi: "kosongkan data" = hapus data **contoh/tes** biar mulai dari 0
 
 **Belum**: verifikasi EXIF/GPS otomatis (geofence), thumbnail untuk foto lama
 (baru berlaku untuk upload baru), reverse-geocode koordinat→nama tempat.
+
+---
+
+## 040 · 2026-07-13 · Pengadaan = alur proyek: entitas Prospek → Kontrak
+
+**Konteks (user)**: "pengadaan itu alur administrasi tiap proyek yang mau dipantau
+progresnya". Buat calon kontrak → dijalankan → berkontrak (HPS pokja/PPK → nilai
+final) → adendum. Atur alur UI/UX dari awal.
+
+**Keputusan user**: (1) unit = paket, tapi dokumen diproses bersama sekaligus untuk
+beberapa desa; (2) **Prospek entitas terpisah** (bukan Contract status draft).
+
+**Implementasi (slice 1)**:
+- `Prospek` (+ `ProspekLokasi`): paket tender sebelum tanda tangan — `hpsValue`,
+  `stage` (identifikasi→undangan→penawaran→negosiasi→penetapan / jadi_kontrak /
+  batal), desa target (draft, belum jadi Location). `Contract` + `hpsValue` +
+  `prospekId`. Migrasi `20260713040000_prospek`.
+- `/pengadaan/prospek/baru` (form + desa dinamis), `/pengadaan/prospek/[id]`
+  (pipeline tahap + konversi). `convertToContract`: upsert Contractor + buat
+  Contract (nilai final, bawa HPS) + Location per desa (slug unik, stage=kontrak)
+  + tandai prospek jadi_kontrak. Terverifikasi E2E.
+- `/pengadaan` tampilkan Prospek berjalan + tombol "Prospek baru", di atas
+  funnel/grid per-lokasi lama (belum dibongkar).
+
+**Belum (slice berikut)**: Alur Administrasi 45-milestone pindah ke level paket +
+sub-baris per-desa; timeline adendum (CCO tambah/kurang → nilai baru); funnel
+gabungan prospek+kontrak; hapus menu status per-lokasi lama kalau sudah tergantikan.
+
+## UI · 2026-07-13 · Sidebar desktop sticky (fixed saat scroll)
+Sidebar `lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto` — menu tetap terlihat
+saat konten discroll.

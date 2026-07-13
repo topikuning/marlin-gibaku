@@ -316,6 +316,8 @@ model Contract {
   contractorId   String    @map("contractor_id") @db.Uuid
   contractNumber String    @unique @map("contract_number")
   contractValue  BigInt    @map("contract_value")
+  hpsValue       BigInt?   @map("hps_value") // nilai HPS awal (dari prospek/pokja)
+  prospekId      String?   @map("prospek_id") @db.Uuid // asal prospek (kalau dari tender)
   signedDate     DateTime  @map("signed_date") @db.Date
   startDate      DateTime  @map("start_date") @db.Date
   endDate        DateTime  @map("end_date") @db.Date
@@ -943,4 +945,58 @@ model DailyLogEquipment {
 
   @@index([logId])
   @@map("daily_log_equipment")
+}
+
+// ─────────────────────────────────────────────────────────────
+// PENGADAAN — Prospek (tender/calon kontrak) → Kontrak. DECISIONS 040.
+// Prospek = paket sebelum tanda tangan (punya HPS dari pokja/PPK + desa target).
+// Saat menang → dikonversi jadi Kontrak (nilai final) + Lokasi real.
+// ─────────────────────────────────────────────────────────────
+
+enum ProspekStage {
+  identifikasi   // baru diidentifikasi, belum diundang
+  undangan       // undangan penyedia
+  penawaran      // penyedia memasukkan penawaran
+  negosiasi      // klarifikasi & negosiasi harga
+  penetapan      // penetapan pemenang / SPPBJ
+  jadi_kontrak   // sudah dikonversi jadi kontrak (terminal)
+  batal          // gagal / batal (terminal)
+}
+
+model Prospek {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId           String       @default("00000000-0000-0000-0000-000000000001") @map("org_id") @db.Uuid
+  name            String       // nama paket
+  packageNumber   String?      @map("package_number")
+  hpsValue        BigInt       @default(0) @map("hps_value") // nilai HPS (pokja/PPK)
+  stage           ProspekStage @default(identifikasi)
+  province        String?
+  contractorName  String?      @map("contractor_name") // calon penyedia
+  note            String?
+  contractId      String?      @map("contract_id") @db.Uuid // terisi saat jadi kontrak
+  createdByUserId String?      @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  lokasi ProspekLokasi[]
+
+  @@index([orgId, stage])
+  @@map("prospek")
+}
+
+model ProspekLokasi {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  prospekId         String   @map("prospek_id") @db.Uuid
+  name              String
+  village           String
+  regency           String
+  province          String
+  gpsLat            Decimal? @map("gps_lat") @db.Decimal(10, 7)
+  gpsLng            Decimal? @map("gps_lng") @db.Decimal(10, 7)
+  createdLocationId String?  @map("created_location_id") @db.Uuid
+
+  prospek Prospek @relation(fields: [prospekId], references: [id], onDelete: Cascade)
+
+  @@index([prospekId])
+  @@map("prospek_lokasi")
 }

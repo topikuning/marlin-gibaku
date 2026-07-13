@@ -1,9 +1,15 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { canViewDashboard, isCrossLocation } from "@/lib/roles";
 import { formatRupiahShort } from "@/lib/format";
 import { getProcRows, rollup, canSetStage } from "@/lib/procurement";
+import {
+  canManageProspek,
+  PROSPEK_STAGE_LABEL,
+  PROSPEK_STAGE_CLASS,
+} from "@/lib/prospek";
 import { PageHeader } from "@/components/knmp/page-header";
 import { PengadaanGrid } from "./pengadaan-grid";
 
@@ -35,14 +41,73 @@ export default async function PengadaanPage() {
   const rows = await getProcRows(locations);
   const r = rollup(rows);
   const canEdit = canSetStage(role);
+  const canProspek = canManageProspek(role);
+
+  // Prospek (tender) yang belum jadi kontrak — bagian dari alur pengadaan.
+  const prospekList = canProspek
+    ? await db.prospek.findMany({
+        where: { stage: { notIn: ["jadi_kontrak", "batal"] } },
+        orderBy: { updatedAt: "desc" },
+        select: {
+          id: true,
+          name: true,
+          province: true,
+          hpsValue: true,
+          stage: true,
+          _count: { select: { lokasi: true } },
+        },
+      })
+    : [];
 
   return (
     <>
       <PageHeader
         eyebrow="Pengadaan"
         title="Pengadaan (PBJ)"
-        subtitle="Tahap pengadaan di-set per lokasi; ringkasan di bawah untuk pandangan eksekutif."
+        subtitle="Alur pengadaan tiap paket: dari prospek/tender → kontrak → pelaksanaan. Tahap per lokasi & ringkasan eksekutif di bawah."
       />
+
+      {/* Prospek / tender berjalan */}
+      {canProspek && (
+        <section className="mb-8">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
+              Prospek / tender berjalan ({prospekList.length})
+            </div>
+            <Link
+              href="/pengadaan/prospek/baru"
+              className="rounded-md bg-[#1e3a8a] px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-[#172554]"
+            >
+              + Prospek baru
+            </Link>
+          </div>
+          {prospekList.length === 0 ? (
+            <p className="text-sm text-[#64748B]">
+              Belum ada prospek berjalan. Mulai lacak paket sejak tahap tender dengan “Prospek baru”.
+            </p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {prospekList.map((p) => (
+                <Link
+                  key={p.id}
+                  href={`/pengadaan/prospek/${p.id}`}
+                  className="rounded-xl border border-slate-200 bg-white p-4 transition hover:border-[#1e3a8a]"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="text-sm font-semibold text-slate-900">{p.name}</div>
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${PROSPEK_STAGE_CLASS[p.stage]}`}>
+                      {PROSPEK_STAGE_LABEL[p.stage]}
+                    </span>
+                  </div>
+                  <div className="mt-2 text-xs text-slate-500">
+                    {p.province ?? "—"} · {p._count.lokasi} lokasi · HPS {formatRupiahShort(p.hpsValue)}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* KPI */}
       <div className="mb-6 grid gap-4 sm:grid-cols-4">
