@@ -7,6 +7,7 @@ import { canReport } from "@/lib/report";
 import { getLocationProgress } from "@/lib/progress";
 import { getPortfolioExtras, forecast } from "@/lib/dashboard";
 import { formatRupiahShort } from "@/lib/format";
+import { KinerjaGrid } from "./kinerja-grid";
 
 const dtFmt = new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
@@ -115,53 +116,26 @@ async function CommandCenter({ locations }: { locations: LocRow[] }) {
         {/* Kinerja proyek */}
         <section className="lg:col-span-2">
           <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Kinerja Proyek</div>
-          {rows.length === 0 ? (
-            <p className="text-sm text-slate-500">Belum ada lokasi.</p>
-          ) : (
-            <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-              <table className="w-full min-w-[680px] text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 text-left text-[11px] uppercase tracking-wide text-slate-500">
-                    <th className="px-4 py-2.5 font-medium">Proyek</th>
-                    <th className="px-4 py-2.5 font-medium">Progress</th>
-                    <th className="px-4 py-2.5 text-right font-medium">Realisasi</th>
-                    <th className="px-4 py-2.5 text-right font-medium">Rencana</th>
-                    <th className="px-4 py-2.5 text-right font-medium">Deviasi</th>
-                    <th className="px-4 py-2.5 font-medium">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map(({ loc, progress, status }) => {
-                    const dev = progress.deviationPct;
-                    const devClass = dev < -1 ? "text-[#DC2626]" : dev >= -1 ? "text-[#15803D]" : "text-slate-500";
-                    const fc = forecast(progress.realizedPct, progress.weekNumber, progress.totalWeeks);
-                    return (
-                      <tr key={loc.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                        <td className="px-4 py-3">
-                          <Link href={`/lokasi/${loc.slug}`} className="font-medium text-slate-900 hover:text-[#0F766E]">
-                            {loc.name}
-                          </Link>
-                          <div className="text-xs text-slate-500">
-                            {loc.province} · minggu {progress.weekNumber}/{progress.totalWeeks}
-                          </div>
-                          <div className={`text-[11px] ${fc.delayWeeks && fc.delayWeeks > 0 ? "text-[#DC2626]" : "text-slate-400"}`}>
-                            Forecast: {fc.label}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3"><ProgressBar realized={progress.realizedPct} plan={progress.planPct} /></td>
-                        <td className="px-4 py-3 text-right font-medium tabular-nums text-slate-900">{pctFmt(progress.realizedPct)}</td>
-                        <td className="px-4 py-3 text-right tabular-nums text-slate-500">{pctFmt(progress.planPct)}</td>
-                        <td className={`px-4 py-3 text-right font-medium tabular-nums ${devClass}`}>{dev >= 0 ? "+" : ""}{dev.toFixed(1)}%</td>
-                        <td className="px-4 py-3">
-                          <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${status!.pill}`}>{status!.label}</span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <KinerjaGrid
+            rows={rows.map(({ loc, progress, status }) => {
+              const fc = forecast(progress.realizedPct, progress.weekNumber, progress.totalWeeks);
+              return {
+                id: loc.id,
+                slug: loc.slug,
+                name: loc.name,
+                province: loc.province,
+                weekNumber: progress.weekNumber,
+                totalWeeks: progress.totalWeeks,
+                realizedPct: progress.realizedPct,
+                planPct: progress.planPct,
+                deviationPct: progress.deviationPct,
+                statusLabel: status!.label,
+                statusPill: status!.pill,
+                forecastLabel: fc.label,
+                forecastLate: !!fc.delayWeeks && fc.delayWeeks > 0,
+              };
+            })}
+          />
         </section>
 
         {/* Right column */}
@@ -285,13 +259,3 @@ function Kpi({ label, value, sub, accent, status }: { label: string; value: stri
   );
 }
 
-function ProgressBar({ realized, plan }: { realized: number; plan: number }) {
-  const r = Math.min(Math.max(realized, 0), 100);
-  const p = Math.min(Math.max(plan, 0), 100);
-  return (
-    <div className="relative h-2 w-full max-w-[220px] overflow-hidden rounded-full bg-slate-100">
-      <div className="h-full rounded-full bg-[#0F766E]" style={{ width: `${r}%` }} />
-      <div className="absolute top-0 h-full w-0.5 bg-[#DC2626]" style={{ left: `${p}%` }} title={`Rencana ${p.toFixed(1)}%`} />
-    </div>
-  );
-}

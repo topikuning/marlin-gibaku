@@ -1,4 +1,3 @@
-import { db } from "@/lib/db";
 import { getLocationProgress } from "@/lib/progress";
 import { getPlannedSeries } from "@/lib/scurve-plan";
 

@@ -34,6 +34,16 @@ export function DataGrid<T>({
     state: { sorting, globalFilter },
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
+    // Cari di SEMUA field baris (termasuk yang tak jadi kolom sendiri, mis. provinsi).
+    globalFilterFn: (row, _columnId, filterValue) => {
+      const q = String(filterValue).toLowerCase().trim();
+      if (!q) return true;
+      const hay = Object.values(row.original as Record<string, unknown>)
+        .map((v) => (v == null ? "" : String(v)))
+        .join(" ")
+        .toLowerCase();
+      return q.split(/\s+/).every((t) => hay.includes(t));
+    },
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
