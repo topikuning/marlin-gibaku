@@ -42,8 +42,8 @@ export default async function AppLayout({
           </span>
           <div className="leading-tight">
             <div className="text-[15px] font-bold tracking-tight text-slate-900">MARLIN</div>
-            <div className="text-[10px] font-medium uppercase tracking-widest text-slate-400">
-              Command Center
+            <div className="text-[9px] font-medium uppercase tracking-wide text-slate-400">
+              Monitoring · Analysis · Reporting · Learning
             </div>
           </div>
         </div>
