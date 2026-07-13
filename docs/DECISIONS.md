@@ -929,3 +929,10 @@ Prospek detail: ProspekEdit (ubah nama/HPS/dll), Alur Administrasi 45-milestone
 tampil di depan (auto ✓ dari dokumen prospek), ProspekDocUpload (unggah dokumen
 tender), daftar dokumen. Saat convertToContract, dokumen prospek di-link ke kontrak.
 Actions: updateProspek, uploadProspekDocument.
+
+## 047 · 2026-07-13 · Peta di-optimalkan (ala area-manager Cloudflare)
+User: peta banyak frame/area terbuang; perlu search highlight + filter area manager.
+Redesign peta-map: dua-pane — panel kiri (cari lokasi/kabupaten, filter Area=provinsi
++ status, daftar lokasi) + peta full-height (calc(100vh-130px)). Klik lokasi (list
+atau titik) → flyTo + marker di-highlight (ring navy, radius besar) + panel detail.
+Buang PageHeader besar di halaman peta (hemat ruang).
