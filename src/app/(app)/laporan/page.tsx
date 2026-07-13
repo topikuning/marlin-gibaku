@@ -12,6 +12,7 @@ import {
 } from "@/lib/report";
 import { getReportableItems } from "@/lib/rab";
 import { presignKeys } from "@/lib/photos";
+import { PageHeader } from "@/components/knmp/page-header";
 import { approveItem, rejectItem } from "./actions";
 
 const volFmt = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 });
@@ -134,15 +135,15 @@ export default async function LaporanPage() {
 
   return (
     <>
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
-        MARLIN · Laporan
-      </div>
-      <h1 className="mb-1 text-3xl font-semibold text-[#0F172A]">Laporan Harian</h1>
-      <p className="mb-8 text-sm text-[#0F766E]">
-        {approver
-          ? "Periksa detail tiap laporan, setujui/tolak, dan lihat yang sudah disetujui."
-          : "Pilih lokasi untuk input laporan volume harian."}
-      </p>
+      <PageHeader
+        eyebrow="Laporan"
+        title="Laporan Harian"
+        subtitle={
+          approver
+            ? "Periksa detail tiap laporan, setujui/tolak, dan lihat yang sudah disetujui."
+            : "Pilih lokasi untuk input laporan volume harian."
+        }
+      />
 
       {canReport(role) && (
         <section className="mb-10">

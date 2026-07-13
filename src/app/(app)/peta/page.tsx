@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { isCrossLocation } from "@/lib/roles";
 import { getPetaMarkers } from "@/lib/peta";
+import { PageHeader } from "@/components/knmp/page-header";
 import { PetaClient } from "./peta-client";
 
 export default async function PetaPage() {
@@ -35,14 +36,11 @@ export default async function PetaPage() {
 
   return (
     <>
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
-        MARLIN · Peta
-      </div>
-      <h1 className="mb-1 text-3xl font-semibold text-[#0F172A]">Peta Lokasi</h1>
-      <p className="mb-6 text-sm text-[#0F766E]">
-        {markers.length} lokasi berkoordinat. Klik titik untuk lihat progress,
-        fase minggu ini, dan foto terbaru.
-      </p>
+      <PageHeader
+        eyebrow="Peta"
+        title="Peta Lokasi"
+        subtitle={`${markers.length} lokasi berkoordinat. Klik titik untuk lihat progress, fase minggu ini, dan foto terbaru.`}
+      />
       {markers.length === 0 ? (
         <p className="text-sm text-slate-400">Belum ada lokasi dengan koordinat GPS.</p>
       ) : (

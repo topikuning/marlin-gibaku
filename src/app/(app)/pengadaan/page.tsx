@@ -12,6 +12,7 @@ import {
   STAGE_LABEL,
   STAGE_COLOR,
 } from "@/lib/procurement";
+import { PageHeader } from "@/components/knmp/page-header";
 import { StageSelect } from "./stage-select";
 
 export default async function PengadaanPage() {
@@ -46,13 +47,11 @@ export default async function PengadaanPage() {
 
   return (
     <>
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
-        MARLIN · Pengadaan
-      </div>
-      <h1 className="mb-1 text-3xl font-semibold text-[#0F172A]">Pengadaan (PBJ)</h1>
-      <p className="mb-6 text-sm text-[#0F766E]">
-        Tahap pengadaan di-set per lokasi; ringkasan di bawah untuk pandangan eksekutif.
-      </p>
+      <PageHeader
+        eyebrow="Pengadaan"
+        title="Pengadaan (PBJ)"
+        subtitle="Tahap pengadaan di-set per lokasi; ringkasan di bawah untuk pandangan eksekutif."
+      />
 
       {/* KPI */}
       <div className="mb-6 grid gap-4 sm:grid-cols-4">

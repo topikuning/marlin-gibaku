@@ -5,6 +5,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { isCrossLocation, LOCATION_STATUS_LABEL, LOCATION_STATUS_CLASS } from "@/lib/roles";
 import { formatRupiahShort } from "@/lib/format";
+import { PageHeader } from "@/components/knmp/page-header";
 
 export default async function LokasiPage() {
   const session = await auth();
@@ -25,16 +26,11 @@ export default async function LokasiPage() {
 
   return (
     <>
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
-        MARLIN · Lokasi
-      </div>
-      <h1 className="mb-1 text-3xl font-semibold text-[#0F172A]">
-        Daftar Lokasi
-      </h1>
-      <p className="mb-8 text-sm text-[#0F766E]">
-        {locations.length} lokasi{" "}
-        {isCrossLocation(role) ? "di sistem" : "ditugaskan ke Anda"}.
-      </p>
+      <PageHeader
+        eyebrow="Lokasi"
+        title="Daftar Lokasi"
+        subtitle={`${locations.length} lokasi ${isCrossLocation(role) ? "di sistem" : "ditugaskan ke Anda"}.`}
+      />
 
       {locations.length === 0 ? (
         <p className="text-sm text-[#64748B]">Belum ada lokasi.</p>
