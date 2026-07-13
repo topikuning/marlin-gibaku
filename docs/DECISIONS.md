@@ -952,3 +952,10 @@ User: harga RAB/HPS belum termasuk PPN 11%; nilai kontrak yg tak sesuai RAB haru
 warning. Import tetap ambil nilai asli (pre-PPN, benar). Detail lokasi Ringkasan RAB
 tampilkan: nilai RAB (pre-PPN) + PPN 11% + Nilai RAB+PPN. Banner warning kalau
 |nilai kontrak − (RAB+PPN)| > 0.1% (mis. kontrak = RAB tanpa PPN → flag selisih).
+
+## 050 · 2026-07-13 · Kunci anti-input-ganda per item laporan
+User: 1 item bisa diinput 2x (masing2 50 dari rencana 50), dua-duanya di-approve →
+volume ganda 100. Fix best-practice: item TIDAK boleh punya >1 laporan belum tuntas.
+`submitDraftItem` blokir kalau ada draft state draft_mandor/draft_sm/approved untuk
+item itu ("selesaikan dulu setujui/tolak"). Kumulatif juga hitung sent+approved
+(bukan sent saja). Cegah realisasi > 100% & double count.
