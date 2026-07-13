@@ -32,7 +32,7 @@ export function AppNav({ items }: { items: NavItem[] }) {
             href={item.href}
             className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-semibold transition active:scale-[0.98] ${
               active
-                ? "bg-[#0F766E] text-white shadow-sm"
+                ? "bg-[#1e3a8a] text-white shadow-sm"
                 : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
             }`}
           >

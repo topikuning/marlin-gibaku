@@ -12,7 +12,7 @@ export function DiagnostikClient() {
         <button
           type="submit"
           disabled={pending}
-          className="rounded-lg bg-[#0F766E] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#115E59] disabled:opacity-60"
+          className="rounded-lg bg-[#1e3a8a] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#172554] disabled:opacity-60"
         >
           {pending ? "Menguji koneksi…" : "Jalankan tes koneksi R2"}
         </button>

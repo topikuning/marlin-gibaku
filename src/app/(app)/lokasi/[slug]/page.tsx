@@ -69,7 +69,7 @@ export default async function LokasiDetailPage({
     <>
       <Link
         href="/lokasi"
-        className="mb-4 inline-block text-sm text-[#0F766E] hover:underline"
+        className="mb-4 inline-block text-sm text-[#1e3a8a] hover:underline"
       >
         ← Daftar Lokasi
       </Link>
@@ -84,13 +84,13 @@ export default async function LokasiDetailPage({
           {LOCATION_STATUS_LABEL[location.status]}
         </span>
       </div>
-      <p className="mb-8 text-sm text-[#0F766E]">
+      <p className="mb-8 text-sm text-[#1e3a8a]">
         {location.village}, {location.regency} · {location.province}
       </p>
 
       <div className="grid gap-5 sm:grid-cols-2">
         <section className="rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] p-5">
-          <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
+          <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
             Kontrak
           </div>
           <dl className="space-y-2 text-sm">
@@ -103,7 +103,7 @@ export default async function LokasiDetailPage({
         </section>
 
         <section className="rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] p-5">
-          <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
+          <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
             Ringkasan RAB ({location.categories.length} kategori aktif)
           </div>
           <div className="text-2xl font-semibold text-[#0F172A]">
@@ -117,13 +117,13 @@ export default async function LokasiDetailPage({
 
       <section className="mt-6 rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] p-5">
         <div className="mb-3 flex items-center justify-between gap-2">
-          <div className="text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
             Kurva-S — rencana vs realisasi
           </div>
           {canManageUsers(role) && (
             <Link
               href={`/lokasi/${location.slug}/kurva-s`}
-              className="text-xs font-semibold text-[#0F766E] hover:underline"
+              className="text-xs font-semibold text-[#1e3a8a] hover:underline"
             >
               Atur kurva-S →
             </Link>
@@ -134,7 +134,7 @@ export default async function LokasiDetailPage({
 
       {/* Manajemen deviasi & recovery */}
       <section className="mt-6 rounded-lg border border-[#E2E8F0] bg-white p-5">
-        <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
+        <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
           Penyebab deviasi & rencana pemulihan
         </div>
         {canManage ? (
@@ -146,7 +146,7 @@ export default async function LokasiDetailPage({
                 rows={2}
                 defaultValue={location.deviationCause ?? ""}
                 placeholder="mis. keterlambatan material, cuaca, pembebasan lahan"
-                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#0F766E]"
+                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#1e3a8a]"
               />
             </div>
             <div>
@@ -156,10 +156,10 @@ export default async function LokasiDetailPage({
                 rows={2}
                 defaultValue={location.recoveryPlan ?? ""}
                 placeholder="mis. tambah 2 grup kerja, kerja lembur, percepat pengadaan"
-                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#0F766E]"
+                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#1e3a8a]"
               />
             </div>
-            <button type="submit" className="rounded-md bg-[#0F766E] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#115E59]">
+            <button type="submit" className="rounded-md bg-[#1e3a8a] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#172554]">
               Simpan
             </button>
           </form>
@@ -202,20 +202,26 @@ export default async function LokasiDetailPage({
       <div className="mt-4 flex items-center gap-4">
         <Link
           href={`/lokasi/${location.slug}/rab`}
-          className="rounded-md bg-[#0F766E] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#115E59]"
+          className="rounded-md bg-[#1e3a8a] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#172554]"
         >
           Lihat RAB lengkap →
         </Link>
         <Link
           href={`/lokasi/${location.slug}/dokumen`}
-          className="rounded-md border border-[#0F766E] px-4 py-2 text-sm font-semibold text-[#0F766E] transition hover:bg-[#F1F5F9]"
+          className="rounded-md border border-[#1e3a8a] px-4 py-2 text-sm font-semibold text-[#1e3a8a] transition hover:bg-[#F1F5F9]"
         >
           Arsip Dokumen →
+        </Link>
+        <Link
+          href={`/lokasi/${location.slug}/administrasi`}
+          className="rounded-md border border-[#1e3a8a] px-4 py-2 text-sm font-semibold text-[#1e3a8a] transition hover:bg-[#F1F5F9]"
+        >
+          Alur Administrasi →
         </Link>
         {canReport(role) && (
           <Link
             href={`/lokasi/${location.slug}/lapor`}
-            className="rounded-md border border-[#0F766E] px-4 py-2 text-sm font-semibold text-[#0F766E] transition hover:bg-[#F1F5F9]"
+            className="rounded-md border border-[#1e3a8a] px-4 py-2 text-sm font-semibold text-[#1e3a8a] transition hover:bg-[#F1F5F9]"
           >
             Lapor Harian →
           </Link>

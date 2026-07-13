@@ -58,7 +58,7 @@ export default async function PengadaanPage() {
       </div>
 
       {/* Funnel */}
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
+      <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
         Progres per tahap
       </div>
       <div className="mb-6 flex flex-wrap gap-2">
@@ -95,7 +95,7 @@ export default async function PengadaanPage() {
 function Kpi({ label, value, sub, hi }: { label: string; value: string; sub?: string; hi?: boolean }) {
   return (
     <div className="rounded-lg border border-[#E2E8F0] bg-white p-4">
-      <div className="text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">{label}</div>
+      <div className="text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">{label}</div>
       <div className={`mt-1 text-xl font-bold ${hi ? "text-[#16A34A]" : "text-[#0F172A]"}`}>{value}</div>
       {sub && <div className="text-xs text-[#64748B]">{sub}</div>}
     </div>

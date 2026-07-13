@@ -6,7 +6,7 @@ import { savePlan, regeneratePlan } from "./actions";
 type Milestone = { weekNumber: number; targetProgressPct: number };
 
 const inputClass =
-  "w-24 rounded-md border border-[#E2E8F0] bg-white px-2 py-1 text-right text-sm tabular-nums outline-none focus:border-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/15";
+  "w-24 rounded-md border border-[#E2E8F0] bg-white px-2 py-1 text-right text-sm tabular-nums outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/15";
 
 export function EditForm({
   planId,
@@ -34,7 +34,7 @@ export function EditForm({
           <button
             type="submit"
             disabled={regenerating}
-            className="rounded-md border border-[#0F766E] px-3 py-1.5 text-sm font-semibold text-[#0F766E] transition hover:bg-[#F1F5F9] disabled:opacity-60"
+            className="rounded-md border border-[#1e3a8a] px-3 py-1.5 text-sm font-semibold text-[#1e3a8a] transition hover:bg-[#F1F5F9] disabled:opacity-60"
           >
             {regenerating ? "Menggenerate…" : "↻ Generate ulang dari rumus"}
           </button>
@@ -90,7 +90,7 @@ export function EditForm({
         <button
           type="submit"
           disabled={saving}
-          className="rounded-md bg-[#0F766E] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#115E59] disabled:opacity-60"
+          className="rounded-md bg-[#1e3a8a] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#172554] disabled:opacity-60"
         >
           {saving ? "Menyimpan…" : "Simpan kurva-S"}
         </button>

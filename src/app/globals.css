@@ -4,14 +4,16 @@
   --font-sans: "Inter", system-ui, -apple-system, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 
-  /* MARLIN — palet marine/teal + slate (modern, mobile-first) */
+  /* MARLIN — palet KNMP: navy (merek) + slate. Merah/putih hanya aksen merek.
+     Hijau/kuning/merah DICADANGKAN untuk status, bukan warna merek. */
   --color-canvas: #f8fafc; /* slate-50 */
   --color-surface: #ffffff;
   --color-ink: #0f172a; /* slate-900 */
   --color-muted: #64748b; /* slate-500 */
   --color-line: #e2e8f0; /* slate-200 */
-  --color-primary: #0f766e; /* teal-700 */
-  --color-primary-dark: #115e59; /* teal-800 */
+  --color-primary: #1e3a8a; /* navy KNMP (blue-900) */
+  --color-primary-dark: #172554; /* navy tua (blue-950) */
+  --color-brand-accent: #d21f2a; /* merah "Merah Putih" — HANYA aksen merek */
 }
 
 @layer base {

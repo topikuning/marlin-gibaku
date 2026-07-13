@@ -39,7 +39,7 @@ export default async function PenggunaPage() {
       />
 
       <section className="mb-10 rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] p-5">
-        <div className="mb-4 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
+        <div className="mb-4 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
           Tambah user baru
         </div>
         <UserForm roles={ALL_ROLES} locations={locations} />

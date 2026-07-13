@@ -24,7 +24,7 @@ export function UsersGrid({ rows }: { rows: UserRow[] }) {
         cell: (c) => <span className="font-mono text-[13px] text-[#0F172A]">{c.getValue<string>()}</span>,
       },
       { accessorKey: "fullName", header: "Nama", cell: (c) => <span className="text-[#0F172A]">{c.getValue<string>()}</span> },
-      { accessorKey: "roleLabel", header: "Role", cell: (c) => <span className="text-[#0F766E]">{c.getValue<string>()}</span> },
+      { accessorKey: "roleLabel", header: "Role", cell: (c) => <span className="text-[#1e3a8a]">{c.getValue<string>()}</span> },
       {
         accessorKey: "locations",
         header: "Lokasi",
@@ -56,7 +56,7 @@ export function UsersGrid({ rows }: { rows: UserRow[] }) {
             <form action={setUserActive.bind(null, u.id, !u.isActive)}>
               <button
                 type="submit"
-                className="rounded border border-[#E2E8F0] bg-white px-2.5 py-1 text-xs font-semibold text-[#0F766E] transition hover:bg-[#f1f5f9]"
+                className="rounded border border-[#E2E8F0] bg-white px-2.5 py-1 text-xs font-semibold text-[#1e3a8a] transition hover:bg-[#f1f5f9]"
               >
                 {u.isActive ? "Nonaktifkan" : "Aktifkan"}
               </button>

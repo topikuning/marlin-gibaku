@@ -4,8 +4,8 @@ import { useActionState } from "react";
 import { createContractor, createContract } from "./actions";
 
 const inputClass =
-  "w-full rounded-md border border-[#E2E8F0] bg-white px-3 py-2 text-sm outline-none focus:border-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/15";
-const labelClass = "block text-xs font-semibold text-[#0F766E] mb-1";
+  "w-full rounded-md border border-[#E2E8F0] bg-white px-3 py-2 text-sm outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/15";
+const labelClass = "block text-xs font-semibold text-[#1e3a8a] mb-1";
 
 function Alert({ state }: { state?: { ok?: string; error?: string } }) {
   if (state?.error)
@@ -38,7 +38,7 @@ export function ContractorForm() {
         </div>
       </div>
       <Alert state={state} />
-      <button type="submit" disabled={pending} className="rounded-md bg-[#0F766E] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#115E59] disabled:opacity-60">
+      <button type="submit" disabled={pending} className="rounded-md bg-[#1e3a8a] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#172554] disabled:opacity-60">
         {pending ? "Menyimpan…" : "Tambah Kontraktor"}
       </button>
     </form>
@@ -81,7 +81,7 @@ export function ContractForm({ contractors }: { contractors: { id: string; name:
         </div>
       </div>
       <Alert state={state} />
-      <button type="submit" disabled={pending || contractors.length === 0} className="rounded-md bg-[#0F766E] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#115E59] disabled:opacity-60">
+      <button type="submit" disabled={pending || contractors.length === 0} className="rounded-md bg-[#1e3a8a] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#172554] disabled:opacity-60">
         {pending ? "Menyimpan…" : "Tambah Kontrak"}
       </button>
       {contractors.length === 0 && (

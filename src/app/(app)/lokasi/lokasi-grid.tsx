@@ -27,7 +27,7 @@ export function LokasiGrid({ rows }: { rows: LokasiRow[] }) {
         header: "Lokasi",
         cell: (c) => (
           <div>
-            <Link href={`/lokasi/${c.row.original.slug}`} className="font-medium text-slate-900 hover:text-[#0F766E]">
+            <Link href={`/lokasi/${c.row.original.slug}`} className="font-medium text-slate-900 hover:text-[#1e3a8a]">
               {c.getValue<string>()}
             </Link>
             <div className="text-xs text-slate-500">{c.row.original.regency}</div>

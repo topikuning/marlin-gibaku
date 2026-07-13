@@ -36,7 +36,7 @@ export function MoneyCell({
           e.target.value = digits ? grp.format(Number(digits)) : "";
           formRef.current?.requestSubmit();
         }}
-        className="w-28 rounded-md border border-slate-200 bg-white px-2 py-1 text-right text-xs tabular-nums outline-none focus:border-[#0F766E] disabled:opacity-60"
+        className="w-28 rounded-md border border-slate-200 bg-white px-2 py-1 text-right text-xs tabular-nums outline-none focus:border-[#1e3a8a] disabled:opacity-60"
       />
     </form>
   );

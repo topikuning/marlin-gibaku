@@ -83,23 +83,26 @@ export function ScurveChart({ series }: { series: ScurveSeries }) {
         />
         {/* kurva realisasi */}
         {actualPts && (
-          <polyline points={actualPts} fill="none" stroke="#0F766E" strokeWidth={2.5} />
+          <polyline points={actualPts} fill="none" stroke="#1e3a8a" strokeWidth={2.5} />
         )}
         {actualIdx.map((i) => (
-          <circle key={i} cx={xFor(i)} cy={yFor(actualPct[i] as number)} r={2.5} fill="#0F766E" />
+          <circle key={i} cx={xFor(i)} cy={yFor(actualPct[i] as number)} r={2.5} fill="#1e3a8a" />
         ))}
 
-        {/* label minggu */}
-        {weekTicks.map((i) => (
-          <text key={i} x={xFor(i)} y={H - 8} textAnchor="middle" fontSize={10} fill="#94A3B8">
-            mgg {i + 1}
-          </text>
-        ))}
+        {/* label minggu — anchor tepi supaya label pertama/terakhir tidak keklip */}
+        {weekTicks.map((i) => {
+          const anchor = i === 0 ? "start" : i === n - 1 ? "end" : "middle";
+          return (
+            <text key={i} x={xFor(i)} y={H - 8} textAnchor={anchor} fontSize={10} fill="#94A3B8">
+              mgg {i + 1}
+            </text>
+          );
+        })}
       </svg>
 
       <div className="mt-2 flex flex-wrap items-center gap-4 text-xs">
         <span className="flex items-center gap-1.5">
-          <span className="inline-block h-0.5 w-5 bg-[#0F766E]" /> Realisasi ({lastActual.toFixed(1)}%)
+          <span className="inline-block h-0.5 w-5 bg-[#1e3a8a]" /> Realisasi ({lastActual.toFixed(1)}%)
         </span>
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-0.5 w-5 border-t-2 border-dashed border-[#94A3B8]" /> Rencana ({lastPlanned.toFixed(1)}%)

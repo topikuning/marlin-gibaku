@@ -5,7 +5,7 @@ import { previewImport, commitImport } from "./actions";
 import { formatRupiah } from "@/lib/format";
 
 const inputClass =
-  "w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/15";
+  "w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/15";
 
 export function ImportForm({ locationId, slug }: { locationId: string; slug: string }) {
   const [pv, previewAction, previewing] = useActionState(previewImport, undefined);
@@ -27,7 +27,7 @@ export function ImportForm({ locationId, slug }: { locationId: string; slug: str
       {/* Step 1: upload + preview */}
       <form action={previewAction} className="space-y-3">
         <input type="hidden" name="locationId" value={locationId} />
-        <label className="block text-xs font-semibold text-[#0F766E]">
+        <label className="block text-xs font-semibold text-[#1e3a8a]">
           File HPS (.xlsx) — sheet ‘RAB’ akan dibaca
         </label>
         <input
@@ -35,7 +35,7 @@ export function ImportForm({ locationId, slug }: { locationId: string; slug: str
           type="file"
           required
           accept=".xlsx,.xls"
-          className="w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-[#0F766E] file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white"
+          className="w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-[#1e3a8a] file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white"
         />
         {pv?.error && (
           <div role="alert" className="rounded-md border-l-4 border-[#DC2626] bg-[#FEE2E2] px-3 py-2 text-sm text-[#DC2626]">
@@ -45,7 +45,7 @@ export function ImportForm({ locationId, slug }: { locationId: string; slug: str
         <button
           type="submit"
           disabled={previewing}
-          className="rounded-md border border-[#0F766E] px-4 py-2 text-sm font-semibold text-[#0F766E] transition hover:bg-[#F1F5F9] disabled:opacity-60"
+          className="rounded-md border border-[#1e3a8a] px-4 py-2 text-sm font-semibold text-[#1e3a8a] transition hover:bg-[#F1F5F9] disabled:opacity-60"
         >
           {previewing ? "Membaca…" : "Baca & Preview"}
         </button>
@@ -109,7 +109,7 @@ export function ImportForm({ locationId, slug }: { locationId: string; slug: str
             <input type="hidden" name="mimeType" value={pv.preview.mimeType} />
             <input type="hidden" name="bytes" value={pv.preview.bytes} />
             <div className="flex-1">
-              <label className="mb-1 block text-xs font-semibold text-[#0F766E]">
+              <label className="mb-1 block text-xs font-semibold text-[#1e3a8a]">
                 Catatan revisi (opsional)
               </label>
               <input name="note" className={inputClass} placeholder="mis. CCO-01: tambah volume revetment" />
@@ -117,7 +117,7 @@ export function ImportForm({ locationId, slug }: { locationId: string; slug: str
             <button
               type="submit"
               disabled={committing}
-              className="rounded-md bg-[#0F766E] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#115E59] disabled:opacity-60"
+              className="rounded-md bg-[#1e3a8a] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#172554] disabled:opacity-60"
             >
               {committing ? "Menyimpan…" : "Konfirmasi & Simpan Revisi"}
             </button>

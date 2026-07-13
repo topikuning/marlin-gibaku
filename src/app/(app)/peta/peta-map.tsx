@@ -10,7 +10,7 @@ const STATUS_COLOR: Record<string, string> = {
   planning: "#64748B",
   in_progress: "#16A34A",
   paused: "#B45309",
-  completed: "#0F766E",
+  completed: "#1e3a8a",
   handed_over: "#7C3AED",
   cancelled: "#DC2626",
 };
@@ -116,7 +116,7 @@ export function PetaMap({ markers }: { markers: PetaMarker[] }) {
               </div>
               <div className="relative mb-1 h-2.5 w-full overflow-hidden rounded-full bg-[#F1F5F9]">
                 <div
-                  className="h-full rounded-full bg-[#0F766E]"
+                  className="h-full rounded-full bg-[#1e3a8a]"
                   style={{ width: `${Math.min(Math.max(snap.realizedPct, 0), 100)}%` }}
                 />
                 <div
@@ -134,12 +134,12 @@ export function PetaMap({ markers }: { markers: PetaMarker[] }) {
 
               {snap.phase.length > 0 && (
                 <>
-                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
+                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
                     Fase minggu ini
                   </div>
                   <div className="mb-3 flex flex-wrap gap-1.5">
                     {snap.phase.map((t) => (
-                      <span key={t.key} className="rounded-full bg-[#F0FDFA] px-2 py-0.5 text-[11px] text-[#0F766E]">
+                      <span key={t.key} className="rounded-full bg-[#eff6ff] px-2 py-0.5 text-[11px] text-[#1e3a8a]">
                         {t.label} · {t.pct.toFixed(1)}%
                       </span>
                     ))}
@@ -147,7 +147,7 @@ export function PetaMap({ markers }: { markers: PetaMarker[] }) {
                 </>
               )}
 
-              <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
+              <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
                 Foto terbaru
               </div>
               {snap.photos.length === 0 ? (
@@ -171,7 +171,7 @@ export function PetaMap({ markers }: { markers: PetaMarker[] }) {
 
               <Link
                 href={`/lokasi/${snap.slug}`}
-                className="inline-block rounded-md bg-[#0F766E] px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-[#115E59]"
+                className="inline-block rounded-md bg-[#1e3a8a] px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-[#172554]"
               >
                 Buka detail lokasi →
               </Link>

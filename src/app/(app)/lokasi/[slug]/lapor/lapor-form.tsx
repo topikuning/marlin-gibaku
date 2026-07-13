@@ -58,10 +58,10 @@ export function LaporForm({
           1 · Pekerjaan
         </label>
         {picked ? (
-          <div className="flex items-center justify-between gap-3 rounded-xl border border-[#0F766E] bg-[#F0FDFA] px-4 py-3">
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-[#1e3a8a] bg-[#eff6ff] px-4 py-3">
             <div className="min-w-0">
               {picked.category && (
-                <div className="truncate text-[11px] font-medium text-[#0F766E]">{picked.category}</div>
+                <div className="truncate text-[11px] font-medium text-[#1e3a8a]">{picked.category}</div>
               )}
               <div className="truncate text-sm font-semibold text-[#0F172A]">{picked.name}</div>
               <div className="mt-0.5 text-xs text-[#64748B]">
@@ -91,7 +91,7 @@ export function LaporForm({
               onChange={(e) => setQuery(e.target.value)}
               inputMode="search"
               placeholder="Ketik nama / kode pekerjaan…"
-              className="w-full rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-base outline-none focus:border-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/15"
+              className="w-full rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-base outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/15"
             />
             {query && (
               <div className="mt-2 max-h-64 overflow-y-auto rounded-xl border border-[#E2E8F0] bg-white">
@@ -106,10 +106,10 @@ export function LaporForm({
                         setPicked(it);
                         setQuery("");
                       }}
-                      className="block w-full border-b border-[#F1F5F9] px-4 py-3 text-left last:border-0 active:bg-[#F0FDFA]"
+                      className="block w-full border-b border-[#F1F5F9] px-4 py-3 text-left last:border-0 active:bg-[#eff6ff]"
                     >
                       {it.category && (
-                        <div className="truncate text-[11px] font-medium text-[#0F766E]">{it.category}</div>
+                        <div className="truncate text-[11px] font-medium text-[#1e3a8a]">{it.category}</div>
                       )}
                       <div className="text-sm font-medium text-[#0F172A]">{it.name}</div>
                       <div className="text-xs text-[#64748B]">
@@ -140,9 +140,9 @@ export function LaporForm({
             min="0"
             required
             placeholder="mis. 3.2"
-            className="w-full rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 pr-20 text-2xl font-semibold tabular-nums outline-none focus:border-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/15"
+            className="w-full rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 pr-20 text-2xl font-semibold tabular-nums outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/15"
           />
-          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-lg bg-[#F0FDFA] px-2.5 py-1 text-sm font-bold text-[#0F766E]">
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-lg bg-[#eff6ff] px-2.5 py-1 text-sm font-bold text-[#1e3a8a]">
             {picked?.unit ?? "satuan"}
           </span>
         </div>
@@ -170,7 +170,7 @@ export function LaporForm({
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#0F766E]/40 bg-[#F0FDFA] px-4 py-4 text-sm font-semibold text-[#0F766E] active:bg-[#DCFCE7]"
+          className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#1e3a8a]/40 bg-[#eff6ff] px-4 py-4 text-sm font-semibold text-[#1e3a8a] active:bg-[#DCFCE7]"
         >
           📷 {previews.length > 0 ? `${previews.length} foto dipilih — ketuk untuk ubah` : "Ambil / pilih foto"}
         </button>
@@ -197,7 +197,7 @@ export function LaporForm({
             inputMode="numeric"
             min="0"
             placeholder="mis. 8"
-            className="w-full rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-base tabular-nums outline-none focus:border-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/15"
+            className="w-full rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-base tabular-nums outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/15"
           />
         </div>
         <div>
@@ -209,7 +209,7 @@ export function LaporForm({
             name="notes"
             maxLength={500}
             placeholder="mis. cor kolom L2 utara"
-            className="w-full rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-base outline-none focus:border-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/15"
+            className="w-full rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-base outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/15"
           />
         </div>
       </div>
@@ -223,7 +223,7 @@ export function LaporForm({
           name="constraintNote"
           maxLength={500}
           placeholder="mis. hujan, material telat, alat rusak"
-          className="w-full rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-base outline-none focus:border-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/15"
+          className="w-full rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-base outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/15"
         />
       </div>
 
@@ -243,7 +243,7 @@ export function LaporForm({
         <button
           type="submit"
           disabled={isPending || !picked}
-          className="w-full rounded-xl bg-[#0F766E] px-4 py-4 text-base font-bold text-white shadow-lg transition active:bg-[#115E59] disabled:opacity-50"
+          className="w-full rounded-xl bg-[#1e3a8a] px-4 py-4 text-base font-bold text-white shadow-lg transition active:bg-[#172554] disabled:opacity-50"
         >
           {isPending ? "Menyimpan…" : "Simpan laporan"}
         </button>

@@ -37,13 +37,13 @@ export default async function KontrakPage() {
 
       {/* ── Kontraktor ── */}
       <section className="mb-6 rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] p-5">
-        <div className="mb-4 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
+        <div className="mb-4 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
           Tambah kontraktor
         </div>
         <ContractorForm />
       </section>
 
-      <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
+      <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
         Kontraktor ({contractors.length})
       </div>
       <div className="mb-10">
@@ -59,13 +59,13 @@ export default async function KontrakPage() {
 
       {/* ── Kontrak ── */}
       <section className="mb-6 rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] p-5">
-        <div className="mb-4 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
+        <div className="mb-4 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
           Tambah kontrak
         </div>
         <ContractForm contractors={contractors.map((c) => ({ id: c.id, name: c.name }))} />
       </section>
 
-      <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
+      <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
         Kontrak ({contracts.length})
       </div>
       <ContractsGrid

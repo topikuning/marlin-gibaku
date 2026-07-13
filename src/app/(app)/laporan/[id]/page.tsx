@@ -57,12 +57,12 @@ export default async function LaporanDetailPage({
 
   return (
     <>
-      <Link href="/laporan" className="mb-4 inline-block text-sm text-[#0F766E] hover:underline">
+      <Link href="/laporan" className="mb-4 inline-block text-sm text-[#1e3a8a] hover:underline">
         ← Laporan
       </Link>
 
       <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-        <div className="text-xs font-semibold text-[#0F766E]">
+        <div className="text-xs font-semibold text-[#1e3a8a]">
           {location ? `${location.name} · ${location.regency}, ${location.province}` : ""}
         </div>
         <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${REPORT_STATE_CLASS[item.state]}`}>
@@ -110,7 +110,7 @@ export default async function LaporanDetailPage({
       </section>
 
       {/* Foto */}
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
+      <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
         Foto bukti ({item.photos.length})
       </div>
       {item.photos.length === 0 ? (

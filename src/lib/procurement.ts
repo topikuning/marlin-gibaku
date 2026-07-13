@@ -31,7 +31,7 @@ export const STAGE_COLOR: Record<ProcurementStage, string> = {
   sppbj: "#8B5CF6",
   kontrak: "#3B82F6",
   survey: "#0EA5E9",
-  pcm: "#14B8A6",
+  pcm: "#3b82f6",
   spmk: "#22C55E",
 };
 

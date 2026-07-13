@@ -53,7 +53,7 @@ export default async function DokumenPage({
 
   return (
     <>
-      <Link href={`/lokasi/${slug}`} className="mb-4 inline-block text-sm text-[#0F766E] hover:underline">
+      <Link href={`/lokasi/${slug}`} className="mb-4 inline-block text-sm text-[#1e3a8a] hover:underline">
         ← Detail Lokasi
       </Link>
       <h1 className="mb-1 text-3xl font-semibold text-slate-900">
@@ -83,7 +83,7 @@ export default async function DokumenPage({
 
       {canManage && (
         <section className="mb-10 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
+          <div className="mb-4 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
             Unggah dokumen
           </div>
           <UploadForm locationId={location.id} slug={slug} />
@@ -117,7 +117,7 @@ export default async function DokumenPage({
                       href={`/api/documents/${doc.id}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="shrink-0 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#0F766E] transition hover:bg-slate-50"
+                      className="shrink-0 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#1e3a8a] transition hover:bg-slate-50"
                     >
                       Unduh
                     </a>

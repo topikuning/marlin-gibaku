@@ -7,40 +7,53 @@ export type NavItem = {
   ready: boolean;
 };
 
+const DASHBOARD: UserRole[] = [
+  "super_admin",
+  "program_director",
+  "exec_viewer",
+  "regional_manager",
+  "project_manager",
+];
+const ADMIN: UserRole[] = ["super_admin", "program_director"];
+const REPORTER: UserRole[] = ["site_manager", "field_supervisor"];
+
 /**
- * Menu per role. Item `ready: false` = fitur roadmap yang belum ada (v0.2+),
- * ditampilkan jujur sebagai "segera" biar navigasi tidak punya link mati.
+ * Menu per role, URUT sesuai alur pemakaian (login → pantau → kelola).
+ * Diagnostik selalu paling bawah (alat sistem, jarang dipakai).
  */
 export function navForRole(role: UserRole): NavItem[] {
+  const has = (rs: UserRole[]) => rs.includes(role);
   const items: NavItem[] = [
     { href: "/beranda", label: "Beranda", ready: true },
     { href: "/peta", label: "Peta", ready: true },
     { href: "/lokasi", label: "Lokasi", ready: true },
   ];
 
-  if (role === "super_admin" || role === "program_director") {
-    items.push({ href: "/laporan", label: "Laporan", ready: true });
+  // Laporan / Lapor Harian — pelapor & penyetuju
+  if (has(REPORTER) || has(ADMIN)) {
+    items.push({
+      href: "/laporan",
+      label: has(REPORTER) ? "Lapor Harian" : "Laporan",
+      ready: true,
+    });
+  }
+
+  // Pantauan eksekutif
+  if (has(DASHBOARD)) {
+    items.push({ href: "/pengadaan", label: "Pengadaan", ready: true });
+    items.push({ href: "/keuangan", label: "Keuangan", ready: true });
+  }
+
+  // Master data (admin)
+  if (has(ADMIN)) {
     items.push({ href: "/kontrak", label: "Kontrak", ready: true });
     items.push({ href: "/pengguna", label: "Pengguna", ready: true });
   }
+
+  // Alat sistem — paling bawah
   if (role === "super_admin") {
     items.push({ href: "/diagnostik", label: "Diagnostik", ready: true });
   }
-  if (
-    role === "super_admin" ||
-    role === "program_director" ||
-    role === "exec_viewer" ||
-    role === "regional_manager" ||
-    role === "project_manager"
-  ) {
-    items.push({ href: "/keuangan", label: "Keuangan", ready: true });
-    items.push({ href: "/pengadaan", label: "Pengadaan", ready: true });
-  }
-  if (role === "site_manager" || role === "field_supervisor") {
-    items.push({ href: "/laporan", label: "Lapor Harian", ready: true });
-  }
-  // Dashboard tidak lagi menu terpisah — overprogress-nya ada di Beranda
-  // (DECISIONS 026). Ringkasan kurva-S tampil otomatis untuk role yang berhak.
 
   return items;
 }

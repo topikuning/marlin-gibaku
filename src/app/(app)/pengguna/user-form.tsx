@@ -8,8 +8,8 @@ import { ROLE_LABEL } from "@/lib/roles";
 type LocationOption = { id: string; name: string; province: string };
 
 const inputClass =
-  "w-full rounded-md border border-[#E2E8F0] bg-white px-3 py-2 text-sm outline-none focus:border-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/15";
-const labelClass = "block text-xs font-semibold text-[#0F766E] mb-1";
+  "w-full rounded-md border border-[#E2E8F0] bg-white px-3 py-2 text-sm outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/15";
+const labelClass = "block text-xs font-semibold text-[#1e3a8a] mb-1";
 
 export function UserForm({
   roles,
@@ -75,7 +75,7 @@ export function UserForm({
           ) : (
             locations.map((loc) => (
               <label key={loc.id} className="flex items-center gap-2 rounded px-1.5 py-1 text-sm hover:bg-[#FFFFFF]">
-                <input type="checkbox" name="locationIds" value={loc.id} className="accent-[#0F766E]" />
+                <input type="checkbox" name="locationIds" value={loc.id} className="accent-[#1e3a8a]" />
                 <span className="text-[#0F172A]">{loc.name}</span>
                 <span className="text-xs text-[#64748B]">· {loc.province}</span>
               </label>
@@ -98,7 +98,7 @@ export function UserForm({
       <button
         type="submit"
         disabled={isPending}
-        className="rounded-md bg-[#0F766E] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#115E59] disabled:opacity-60"
+        className="rounded-md bg-[#1e3a8a] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#172554] disabled:opacity-60"
       >
         {isPending ? "Menyimpan…" : "Buat User"}
       </button>

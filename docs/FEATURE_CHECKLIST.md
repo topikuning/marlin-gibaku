@@ -125,3 +125,46 @@ bukan dari ingatan. Legenda:
 `exec-kkp` (Exec KKP). Lihat checklist per role: Beranda → Peta → Lokasi (RAB,
 Kurva-S, Dokumen) → Lapor Harian (mandor) → Laporan (SM setujui) → Pengadaan →
 Kontrak → Pengguna.
+
+---
+
+## Update 2026-07-13 — recheck untuk QC
+
+Ditambahkan & terverifikasi (build/typecheck + Playwright) sejak versi awal checklist:
+
+- ✅ **Command center widgets**: Forecast penyelesaian per proyek, Perlu Tindakan (persetujuan tertunda), Aktivitas Terakhir
+- ✅ **Halaman detail laporan** (`/laporan/[id]`) — klik kartu → detail penuh + foto besar + aksi
+- ✅ **Tenaga kerja + kendala** di lapor harian; tampil di detail
+- ✅ **Penyebab deviasi + recovery plan** per lokasi (editor admin di detail lokasi)
+- ✅ **Modul Keuangan** (`/keuangan`): serapan, selesai belum ditagih, pengeluaran vs pagu, kebutuhan dana 30 hari (input manual + derivasi)
+- ✅ **Pencarian item lapor mandor** menampilkan kategori/sub (disambiguasi nama sama)
+- ✅ **Semua tabel = DataGrid** (Lokasi, Beranda Kinerja Proyek, Pengadaan, Keuangan, Pengguna, Kontrak) — sortable + global search (semua field) + sticky
+- ✅ **Diagnostik R2** (`/diagnostik`) — tes koneksi Cloudflare round-trip
+- ✅ **Reset Data operasional** (Diagnostik, super_admin): hapus laporan+foto+biaya, master & kurva-S TETAP
+- ✅ **Shell enterprise**: sidebar kiri + ikon, PageHeader konsisten, kartu 8px, tabular numerals, tanpa gradient/glass
+- ✅ **Nav diurut ulang** (alur login→pantau→kelola), Diagnostik paling bawah
+- ✅ **Fix kurva-S**: label minggu terakhir tak lagi keklip ("mgg 22")
+
+## Update 2026-07-13 (b) — akomodasi format resmi KKP/DJPT
+
+Berdasar paket dokumen kementerian (Alur Administrasi, template BA/Surat, FORMAT
+LAPORAN HARIAN, MC-0, CCO, time schedule):
+
+- ✅ **Tracker Alur Administrasi KNMP** (`/lokasi/[slug]/administrasi`): checklist
+  45 milestone (8 fase) + PIC per item, status ✓ auto-deteksi dari Arsip Dokumen
+- ⬜ Enhanced Lapor Harian format KKP (tenaga per keahlian, material, alat, cuaca) — *butuh keputusan UX mandor*
+- ⬜ Export KKP: cover harian/mingguan/bulanan + FORMAT DOKUMENTASI (foto + bobot%)
+- ⬜ MC-0 / CCO view + export (tambah/kurang dari RAB revisi)
+- ⬜ Generator template Berita Acara / Surat (docx)
+
+Detail spec & keputusan: `docs/DECISIONS.md` #037.
+
+---
+
+**Masih belum** (jujur): export laporan KKP (PDF/Excel), laporan mingguan/bulanan,
+org-chart Area Manager, dark mode, WA/WAHA, PWA/offline, hardening 🔴 (RLS,
+rate-limiter, test otomatis), integrasi keuangan otomatis (masih manual), restyle
+komponen dalam RAB-tree/Dokumen ke token baru.
+
+**Di mana cek**: file ini (`docs/FEATURE_CHECKLIST.md`) di GitHub repo, atau lewat
+Beranda (Command Center) untuk lihat fitur berjalan langsung.

@@ -758,3 +758,39 @@ uang editable (admin, format on blur). Menu Keuangan.
 
 **Belum**: integrasi termin kontrak otomatis, histori pembayaran, proyeksi kas
 multi-periode. Sekarang snapshot manual.
+
+---
+
+## 037 · 2026-07-13 · Akomodasi format resmi KKP/DJPT (paket dokumen kementerian)
+
+**Konteks**: user kasih paket dokumen resmi kementerian (Alur Administrasi KNMP
+2025, template Berita Acara/Surat, FORMAT LAPORAN HARIAN/MINGGUAN/BULANAN, MC-0,
+CCO, time schedule, FORMAT DOKUMENTASI). Minta MARLIN "pelajari dan akomodir".
+
+**Analisa spec**:
+- **Alur Administrasi** = 40+ milestone dokumen per paket (RAB HPS → DED → RKS →
+  SMKK → SPPBJ → Pakta → Jaminan → Kontrak → Serah Terima Lokasi → SPMK → PCM →
+  MC-0 → CCO/Adendum → Termin/BAP → SCM → PHO/FHO), tiap milestone punya PIC
+  (PPK/Kontraktor/Pengawas/Koperasi).
+- **FORMAT LAPORAN HARIAN** KKP jauh lebih kaya: tenaga kerja per keahlian (14
+  peran), rekap material masuk, peralatan, cuaca per jam, rencana vs realisasi,
+  TTD Pengawas + Kontraktor.
+- **MC-0/CCO** = tabel RAB + kolom pekerjaan tambah/kurang → nilai kontrak revisi
+  (memetakan ke RAB revisioning + adendum yang sudah ada).
+- **time schedule MC.0** = kurva-S KKP (sudah ada, tinggal samakan layout export).
+
+**Keputusan (slice 1, dibangun sekarang)**: **Tracker Alur Administrasi** per
+lokasi (`/lokasi/[slug]/administrasi`) — checklist 45 item (8 fase) dari
+`src/lib/kkp-admin-flow.ts`, PIC per item, status ✓ auto-deteksi dari `Document`
+by `type`. Additive, nol regresi. Milestone tanpa docType = pantau manual.
+
+**Roadmap (slice berikut, belum)**:
+1. Enhanced Lapor Harian format KKP — tenaga per keahlian, material, alat, cuaca.
+   *Keputusan tertunda*: input mandor WAJIB tetap sederhana (pakem user) → detail
+   KKP di-*generate*/di-enrich di level SM/Pengawas, bukan diisi mandor manual.
+2. Export KKP: Cover harian/mingguan/bulanan + FORMAT DOKUMENTASI (foto + bobot%).
+3. MC-0/CCO view + export dari RAB revisi (tambah/kurang).
+4. Generator template Berita Acara/Surat (docx fill).
+
+**Alasan urutan**: tracker administrasi = risiko nol + tulang punggung kepatuhan.
+Enhanced daily butuh keputusan UX gaptek dulu (jangan bebani mandor).

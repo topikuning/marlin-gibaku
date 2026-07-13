@@ -62,7 +62,7 @@ export const LOCATION_STATUS_LABEL: Record<LocationStatus, string> = {
 };
 
 export const LOCATION_STATUS_CLASS: Record<LocationStatus, string> = {
-  planning: "bg-[#EEF2F6] text-[#0F766E]",
+  planning: "bg-[#EEF2F6] text-[#1e3a8a]",
   in_progress: "bg-[#DCFCE7] text-[#16A34A]",
   paused: "bg-[#FEF3C7] text-[#B45309]",
   completed: "bg-[#DCFCE7] text-[#16A34A]",

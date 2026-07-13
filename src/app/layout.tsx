@@ -24,7 +24,7 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
           rel="stylesheet"
         />
-        <meta name="theme-color" content="#0f766e" />
+        <meta name="theme-color" content="#1e3a8a" />
         <meta
           name="viewport"
           content="width=device-width, initial-scale=1, viewport-fit=cover"

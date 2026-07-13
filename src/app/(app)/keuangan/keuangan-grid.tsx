@@ -50,7 +50,7 @@ export function KeuanganGrid({ rows, canEdit }: { rows: FinGridRow[]; canEdit: b
       {
         accessorKey: "name",
         header: "Lokasi",
-        cell: (c) => <Link href={`/lokasi/${c.row.original.slug}`} className="font-medium text-slate-900 hover:text-[#0F766E]">{c.getValue<string>()}</Link>,
+        cell: (c) => <Link href={`/lokasi/${c.row.original.slug}`} className="font-medium text-slate-900 hover:text-[#1e3a8a]">{c.getValue<string>()}</Link>,
       },
       num("contract", "Kontrak"),
       num("terpasang", "Terpasang", true),

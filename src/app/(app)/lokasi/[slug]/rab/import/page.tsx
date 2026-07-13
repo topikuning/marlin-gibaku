@@ -42,7 +42,7 @@ export default async function ImportRabPage({
 
   return (
     <>
-      <Link href={`/lokasi/${slug}/rab`} className="mb-4 inline-block text-sm text-[#0F766E] hover:underline">
+      <Link href={`/lokasi/${slug}/rab`} className="mb-4 inline-block text-sm text-[#1e3a8a] hover:underline">
         ← RAB
       </Link>
       <h1 className="mb-1 text-3xl font-semibold text-slate-900">Import RAB — {location.name}</h1>
@@ -55,7 +55,7 @@ export default async function ImportRabPage({
         <ImportForm locationId={location.id} slug={slug} />
       </section>
 
-      <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
+      <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
         Riwayat revisi ({revisions.length})
       </div>
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
