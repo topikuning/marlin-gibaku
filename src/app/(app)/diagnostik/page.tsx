@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { canManageUsers } from "@/lib/roles";
 import { PageHeader } from "@/components/knmp/page-header";
 import { DiagnostikClient } from "./diagnostik-client";
+import { ResetData } from "./reset-data";
 
 export default async function DiagnostikPage() {
   const session = await auth();
@@ -24,6 +25,11 @@ export default async function DiagnostikPage() {
           tampil, lalu menghapusnya. Tidak menyisakan file.
         </p>
         <DiagnostikClient />
+      </section>
+
+      <section className="mt-6 rounded-2xl border border-[#DC2626]/30 bg-[#FEF2F2] p-5">
+        <div className="mb-3 text-sm font-semibold text-[#DC2626]">Zona Berbahaya — Kosongkan Data</div>
+        <ResetData />
       </section>
     </>
   );
