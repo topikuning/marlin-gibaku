@@ -1000,3 +1000,20 @@ model ProspekLokasi {
   @@index([prospekId])
   @@map("prospek_lokasi")
 }
+
+// ─────────────────────────────────────────────────────────────
+// Catatan deviasi & pemulihan — LOG per waktu (bukan 1 field overwrite).
+// DECISIONS 044. Deviasi bisa dicatat mingguan; history tersimpan.
+// ─────────────────────────────────────────────────────────────
+model DeviationNote {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  locationId      String   @map("location_id") @db.Uuid
+  weekNo          Int?     @map("week_no")
+  cause           String
+  recovery        String?
+  createdByUserId String?  @map("created_by_user_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([locationId, createdAt])
+  @@map("deviation_notes")
+}
