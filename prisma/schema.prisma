@@ -835,6 +835,7 @@ model Document {
   id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   orgId            String        @default("00000000-0000-0000-0000-000000000001") @map("org_id") @db.Uuid
   locationId       String?       @map("location_id") @db.Uuid
+  prospekId        String?       @map("prospek_id") @db.Uuid
   contractId       String?       @map("contract_id") @db.Uuid
   amendmentId      String?       @map("amendment_id") @db.Uuid
   stage            DocumentStage

@@ -921,3 +921,11 @@ periode), realisasi item periode, catatan kendala periode. Komponen
 workspace lokasi (selector jenis+nomor) + halaman cetak bersih
 `/cetak/periodik/[slug]/[kind]/[n]`. Tak butuh tabel WeeklyReport/MonthlyReport —
 di-generate dari sumber. AutoPrint dishare `components/knmp/auto-print`.
+
+## 046 · 2026-07-13 · Prospek jadi workspace administrasi SEJAK tender
+User: dokumen (undangan, penawaran/RAB-HPS, dst) harus bisa diinput sejak prospek,
+bukan nunggu jadi kontrak; nama paket editable. Document + `prospek_id` (migrasi).
+Prospek detail: ProspekEdit (ubah nama/HPS/dll), Alur Administrasi 45-milestone
+tampil di depan (auto ✓ dari dokumen prospek), ProspekDocUpload (unggah dokumen
+tender), daftar dokumen. Saat convertToContract, dokumen prospek di-link ke kontrak.
+Actions: updateProspek, uploadProspekDocument.
