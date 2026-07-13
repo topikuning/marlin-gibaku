@@ -946,3 +946,9 @@ User: tahap jangan dipilih manual — sistem baca dari dokumen yang terupload.
 - HPS bisa diisi saat unggah dokumen aanwijzing/penawaran (field hpsValue di form).
 - paket detail: `deriveDocStage` → "Tahap saat ini (dari dokumen)" (min kontrak).
 `updateProspekStage` manual dihapus dari UI; ganti `cancelProspek`.
+
+## 049 · 2026-07-13 · RAB pre-PPN + warning nilai kontrak ≠ RAB
+User: harga RAB/HPS belum termasuk PPN 11%; nilai kontrak yg tak sesuai RAB harus
+warning. Import tetap ambil nilai asli (pre-PPN, benar). Detail lokasi Ringkasan RAB
+tampilkan: nilai RAB (pre-PPN) + PPN 11% + Nilai RAB+PPN. Banner warning kalau
+|nilai kontrak − (RAB+PPN)| > 0.1% (mis. kontrak = RAB tanpa PPN → flag selisih).
