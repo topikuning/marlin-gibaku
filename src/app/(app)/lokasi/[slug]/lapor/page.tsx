@@ -5,7 +5,8 @@ import { db } from "@/lib/db";
 import { canReport, REPORT_STATE_LABEL, REPORT_STATE_CLASS } from "@/lib/report";
 import { hasLocationAccess } from "@/lib/access";
 import { getReportableItems } from "@/lib/rab";
-import { presignKeys } from "@/lib/photos";
+import { buildPhotoViews, type PhotoView } from "@/lib/photos";
+import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import { LaporForm } from "./lapor-form";
 
 const volFmt = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 });
@@ -38,13 +39,15 @@ export default async function LaporPage({
     take: 15,
     include: {
       rabItem: { select: { code: true, name: true, unit: true } },
-      photos: { select: { id: true, r2Key: true }, orderBy: { createdAt: "asc" } },
+      photos: {
+        select: { id: true, r2Key: true, thumbnailKey: true, exifTakenAt: true, exifGpsLat: true, exifGpsLng: true },
+        orderBy: { createdAt: "asc" },
+      },
     },
   });
 
-  const photoUrls = await presignKeys(
-    myDrafts.flatMap((d) => d.photos.map((p) => p.r2Key))
-  );
+  const allViews = await buildPhotoViews(myDrafts.flatMap((d) => d.photos));
+  const viewById = new Map(allViews.map((v) => [v.id, v]));
 
   return (
     <>
@@ -90,27 +93,21 @@ export default async function LaporPage({
               {d.rejectedReason && (
                 <div className="mt-1.5 text-xs text-[#DC2626]">Ditolak: {d.rejectedReason}</div>
               )}
-              {d.photos.length > 0 && (
-                <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                  {d.photos.map((p) => {
-                    const url = photoUrls.get(p.r2Key);
-                    return url ? (
-                      <a key={p.id} href={url} target="_blank" rel="noreferrer">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={url} alt="Foto bukti" className="h-14 w-14 rounded-lg border border-[#E2E8F0] object-cover" />
-                      </a>
-                    ) : (
-                      <span
-                        key={p.id}
-                        className="flex h-14 w-14 items-center justify-center rounded-lg border border-dashed border-[#E2E8F0] bg-[#F8FAFC] text-center text-[9px] text-[#94A3B8]"
-                        title="Foto tersimpan, tapi penyimpanan (R2) belum aktif untuk menampilkannya"
-                      >
-                        📷 tersimpan
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
+              {d.photos.length > 0 &&
+                (() => {
+                  const views = d.photos
+                    .map((p) => viewById.get(p.id))
+                    .filter(Boolean) as PhotoView[];
+                  return views.some((v) => v.thumbUrl) ? (
+                    <div className="mt-2.5">
+                      <PhotoGallery photos={views} thumbClass="h-14 w-14" />
+                    </div>
+                  ) : (
+                    <div className="mt-2.5 text-[10px] text-[#94A3B8]">
+                      📷 {d.photos.length} foto tersimpan (R2 belum aktif)
+                    </div>
+                  );
+                })()}
             </div>
           ))}
         </div>

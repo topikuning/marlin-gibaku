@@ -5,6 +5,7 @@ import Link from "next/link";
 import { MapContainer, TileLayer, CircleMarker, Tooltip } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import type { PetaMarker, LocationSnapshot } from "@/lib/peta";
+import { PhotoGallery } from "@/components/knmp/photo-gallery";
 
 const STATUS_COLOR: Record<string, string> = {
   planning: "#64748B",
@@ -150,23 +151,12 @@ export function PetaMap({ markers }: { markers: PetaMarker[] }) {
               <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
                 Foto terbaru
               </div>
-              {snap.photos.length === 0 ? (
-                <p className="mb-3 text-xs text-slate-400">Belum ada foto laporan.</p>
-              ) : (
-                <div className="mb-3 grid grid-cols-3 gap-1.5">
-                  {snap.photos.map((p) =>
-                    p.url ? (
-                      <a key={p.id} href={p.url} target="_blank" rel="noreferrer">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={p.url}
-                          alt="Foto"
-                          className="h-16 w-full rounded-md border border-[#E2E8F0] object-cover"
-                        />
-                      </a>
-                    ) : null
-                  )}
+              {snap.photos.some((p) => p.thumbUrl) ? (
+                <div className="mb-3">
+                  <PhotoGallery photos={snap.photos} thumbClass="h-16 w-16" />
                 </div>
+              ) : (
+                <p className="mb-3 text-xs text-slate-400">Belum ada foto laporan.</p>
               )}
 
               <Link

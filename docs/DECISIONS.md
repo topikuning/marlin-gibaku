@@ -820,3 +820,31 @@ format KKP di-*generate*. (User pilih opsi ini eksplisit.)
 **Belum**: cuaca per jam (KKP punya kolom 07:00–21:00; sekarang 1 cuaca dominan),
 export xlsx asli, TTD digital. Rencana pekerjaan (vs realisasi) belum dipisah —
 sekarang realisasi dari lapangan + catatan bebas.
+
+---
+
+## 039 · 2026-07-13 · Foto: thumbnail + lightbox + EXIF; Reset penuh "mulai dari nol"
+
+**Konteks (feedback user)**: (1) foto diklik buka tab baru — tak nyaman; (2)
+thumbnail muat gambar ukuran real — berat; (3) minta tag foto (tanggal, koordinat).
+Plus klarifikasi: "kosongkan data" = hapus data **contoh/tes** biar mulai dari 0.
+
+**Keputusan foto**:
+- Saat upload: `sharp` bikin thumbnail webp ≤480px (disimpan `thumbnailKey`),
+  `exifreader` baca `DateTimeOriginal` + GPS → `exifTakenAt`/`exifGpsLat/Lng`,
+  simpan dimensi. (dep baru: `sharp`, `exifreader` sudah ada.)
+- Komponen `PhotoGallery` (client): grid thumbnail kecil (ringan) + **lightbox
+  in-page** (bukan tab baru), navigasi ←/→/Esc, tag EXIF (tanggal + koordinat +
+  link Google Maps). Dipakai di: detail laporan, daftar laporan, lapor harian, peta.
+- Helper `buildPhotoViews()` presign thumb+full sekaligus. Foto lama tanpa
+  thumbnail fallback ke full.
+
+**Keputusan reset**: dua mode di Diagnostik (super_admin):
+- **Reset penuh — mulai dari nol** (konfirmasi `RESET SEMUA`): TRUNCATE CASCADE
+  semua tabel isi; TETAP hanya `users` + `organizations`. Cara perhitungan
+  kurva-S/jadwal = kode → otomatis tetap. Untuk mulai input data real.
+- **Kosongkan operasional** (lama, `KOSONGKAN`): hapus laporan/foto/biaya saja,
+  master tetap.
+
+**Belum**: verifikasi EXIF/GPS otomatis (geofence), thumbnail untuk foto lama
+(baru berlaku untuk upload baru), reverse-geocode koordinat→nama tempat.

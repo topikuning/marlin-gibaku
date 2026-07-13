@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { getLocationProgress } from "@/lib/progress";
 import { getWeeklySuggestions } from "@/lib/scurve-plan";
 import { getActiveLineages } from "@/lib/rab";
-import { presignKeys } from "@/lib/photos";
+import { buildPhotoViews, type PhotoView } from "@/lib/photos";
 
 export type PetaMarker = {
   id: string;
@@ -30,7 +30,7 @@ export type LocationSnapshot = {
   weekNumber: number;
   totalWeeks: number;
   phase: { key: string; label: string; pct: number }[];
-  photos: { id: string; url: string | null }[];
+  photos: PhotoView[];
 };
 
 /** Titik lokasi untuk peta (yang punya koordinat). */
@@ -87,10 +87,10 @@ export async function getLocationSnapshot(locationId: string): Promise<LocationS
         where: { reportItem: { rabItem: { lineageId: { in: lineages } } } },
         orderBy: { createdAt: "desc" },
         take: 6,
-        select: { id: true, r2Key: true },
+        select: { id: true, r2Key: true, thumbnailKey: true, exifTakenAt: true, exifGpsLat: true, exifGpsLng: true },
       })
     : [];
-  const urls = await presignKeys(photoRows.map((p) => p.r2Key));
+  const photoViews = await buildPhotoViews(photoRows);
 
   return {
     name: loc.name,
@@ -107,6 +107,6 @@ export async function getLocationSnapshot(locationId: string): Promise<LocationS
     weekNumber: progress.weekNumber,
     totalWeeks: progress.totalWeeks,
     phase,
-    photos: photoRows.map((p) => ({ id: p.id, url: urls.get(p.r2Key) ?? null })),
+    photos: photoViews,
   };
 }
