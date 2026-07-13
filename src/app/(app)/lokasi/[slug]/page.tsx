@@ -45,8 +45,16 @@ export default async function LokasiDetailPage({
     (sum, c) => sum + c.totalValue,
     0n
   );
+  // Harga RAB dari HPS = SEBELUM PPN. Nilai riil = + PPN 11%.
+  const PPN_PCT = 11n;
+  const ppnAmount = (grandTotal * PPN_PCT) / 100n;
+  const grandWithPPN = grandTotal + ppnAmount;
 
   const c = location.contract;
+  // Warning kalau nilai kontrak tidak sesuai RAB (+PPN). Toleransi 0.1%.
+  const diffKontrak = c.contractValue - grandWithPPN;
+  const absDiff = diffKontrak < 0n ? -diffKontrak : diffKontrak;
+  const kontrakMismatch = grandWithPPN > 0n && absDiff > grandWithPPN / 1000n;
   const scurve = await getScurveSeries(location.id, c.startDate);
   const canManage = canManageUsers(role);
   const deviationNotes = await db.deviationNote.findMany({
@@ -94,14 +102,34 @@ export default async function LokasiDetailPage({
           <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
             Ringkasan RAB ({location.categories.length} kategori aktif)
           </div>
-          <div className="text-2xl font-semibold text-[#0F172A]">
-            {formatRupiah(grandTotal)}
-          </div>
-          <p className="mt-1 text-xs text-[#64748B]">
-            Grand total = SUM kategori aktif (DECISIONS 014).
+          <dl className="space-y-1.5 text-sm">
+            <div className="flex justify-between gap-4">
+              <dt className="text-[#64748B]">Nilai RAB (sebelum PPN)</dt>
+              <dd className="tabular-nums text-[#0F172A]">{formatRupiah(grandTotal)}</dd>
+            </div>
+            <div className="flex justify-between gap-4">
+              <dt className="text-[#64748B]">PPN 11%</dt>
+              <dd className="tabular-nums text-[#0F172A]">{formatRupiah(ppnAmount)}</dd>
+            </div>
+            <div className="flex justify-between gap-4 border-t border-slate-100 pt-1.5 font-semibold">
+              <dt className="text-[#0F172A]">Nilai RAB + PPN</dt>
+              <dd className="tabular-nums text-[#0F172A]">{formatRupiah(grandWithPPN)}</dd>
+            </div>
+          </dl>
+          <p className="mt-2 text-xs text-[#64748B]">
+            Harga RAB dari HPS belum termasuk PPN; nilai riil = + PPN 11%.
           </p>
         </section>
       </div>
+
+      {/* Warning: nilai kontrak ≠ RAB (+PPN) */}
+      {kontrakMismatch && (
+        <div className="mt-4 rounded-lg border-l-4 border-amber-500 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          ⚠ <b>Nilai kontrak tidak sama dengan RAB + PPN.</b> Kontrak {formatRupiah(c.contractValue)} vs
+          RAB+PPN {formatRupiah(grandWithPPN)} — selisih {formatRupiah(diffKontrak < 0n ? -diffKontrak : diffKontrak)}
+          {diffKontrak < 0n ? " (kontrak lebih rendah)" : " (kontrak lebih tinggi)"}. Periksa RAB/kontrak.
+        </div>
+      )}
 
       <section className="mt-6 rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] p-5">
         <div className="mb-3 flex items-center justify-between gap-2">
