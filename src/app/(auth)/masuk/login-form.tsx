@@ -14,7 +14,7 @@ export function LoginForm() {
       <div>
         <label
           htmlFor="identifier"
-          className="block text-sm font-semibold text-[#0F766E] mb-1.5"
+          className="block text-sm font-semibold text-[#1e3a8a] mb-1.5"
         >
           Username atau Email
         </label>
@@ -25,7 +25,7 @@ export function LoginForm() {
           autoComplete="username"
           required
           autoFocus
-          className="w-full rounded-md border border-[#E2E8F0] bg-white px-3 py-2.5 text-[15px] outline-none focus:border-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/15"
+          className="w-full rounded-md border border-[#E2E8F0] bg-white px-3 py-2.5 text-[15px] outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/15"
           placeholder="mis. admin"
         />
       </div>
@@ -33,7 +33,7 @@ export function LoginForm() {
       <div>
         <label
           htmlFor="password"
-          className="block text-sm font-semibold text-[#0F766E] mb-1.5"
+          className="block text-sm font-semibold text-[#1e3a8a] mb-1.5"
         >
           Password
         </label>
@@ -43,7 +43,7 @@ export function LoginForm() {
           type="password"
           autoComplete="current-password"
           required
-          className="w-full rounded-md border border-[#E2E8F0] bg-white px-3 py-2.5 text-[15px] outline-none focus:border-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/15"
+          className="w-full rounded-md border border-[#E2E8F0] bg-white px-3 py-2.5 text-[15px] outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/15"
           placeholder="••••••••"
         />
       </div>
@@ -60,7 +60,7 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={isPending}
-        className="w-full rounded-md bg-[#0F766E] px-4 py-2.5 text-[15px] font-semibold text-white transition hover:bg-[#115E59] disabled:opacity-60"
+        className="w-full rounded-md bg-[#1e3a8a] px-4 py-2.5 text-[15px] font-semibold text-white transition hover:bg-[#172554] disabled:opacity-60"
       >
         {isPending ? "Memproses…" : "Masuk"}
       </button>

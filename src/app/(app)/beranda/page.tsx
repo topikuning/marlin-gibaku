@@ -231,10 +231,10 @@ function ReporterHome({
         <div className="grid gap-3 sm:grid-cols-2">
           {locations.map((loc) => (
             <div key={loc.id} className="rounded-lg border border-slate-200 bg-white p-4">
-              <Link href={`/lokasi/${loc.slug}`} className="font-medium text-slate-900 hover:text-[#0F766E]">{loc.name}</Link>
+              <Link href={`/lokasi/${loc.slug}`} className="font-medium text-slate-900 hover:text-[#1e3a8a]">{loc.name}</Link>
               <div className="mb-3 text-xs text-slate-500">{loc.province}</div>
               {canLapor && (
-                <Link href={`/lokasi/${loc.slug}/lapor`} className="inline-block rounded-md bg-[#0F766E] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#115E59]">
+                <Link href={`/lokasi/${loc.slug}/lapor`} className="inline-block rounded-md bg-[#1e3a8a] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#172554]">
                   Lapor harian + foto →
                 </Link>
               )}
@@ -249,7 +249,7 @@ function ReporterHome({
 /* ---------- primitives ---------- */
 
 function Kpi({ label, value, sub, accent, status }: { label: string; value: string; sub?: string; accent?: boolean; status?: "ok" | "warn" }) {
-  const valColor = status === "warn" ? "text-[#DC2626]" : accent ? "text-[#0F766E]" : "text-slate-900";
+  const valColor = status === "warn" ? "text-[#DC2626]" : accent ? "text-[#1e3a8a]" : "text-slate-900";
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4">
       <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">{label}</div>

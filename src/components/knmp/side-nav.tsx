@@ -86,11 +86,11 @@ export function SideNav({ items }: { items: NavItem[] }) {
             href={item.href}
             className={`flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition ${
               active
-                ? "bg-[#0F766E]/10 text-[#0F766E]"
+                ? "bg-[#1e3a8a]/10 text-[#1e3a8a]"
                 : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
             }`}
           >
-            <span className={active ? "text-[#0F766E]" : "text-slate-400"}>
+            <span className={active ? "text-[#1e3a8a]" : "text-slate-400"}>
               <Icon label={item.label} />
             </span>
             {item.label}

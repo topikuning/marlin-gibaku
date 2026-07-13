@@ -147,7 +147,7 @@ export default async function LaporanPage() {
 
       {canReport(role) && (
         <section className="mb-10">
-          <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
+          <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
             Lapor untuk lokasi
           </div>
           <div className="flex flex-wrap gap-2">
@@ -155,7 +155,7 @@ export default async function LaporanPage() {
               <Link
                 key={loc.id}
                 href={`/lokasi/${loc.slug}/lapor`}
-                className="rounded-md border border-[#E2E8F0] bg-white px-3 py-1.5 text-sm font-medium text-[#0F766E] transition hover:bg-[#f1f5f9]"
+                className="rounded-md border border-[#E2E8F0] bg-white px-3 py-1.5 text-sm font-medium text-[#1e3a8a] transition hover:bg-[#f1f5f9]"
               >
                 {loc.name} →
               </Link>
@@ -166,7 +166,7 @@ export default async function LaporanPage() {
 
       {approver && (
         <section className="mb-10">
-          <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
+          <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
             Menunggu persetujuan ({pending.length})
           </div>
           {pending.length === 0 ? (
@@ -186,8 +186,8 @@ export default async function LaporanPage() {
                   <div key={p.id} className="rounded-xl border border-[#E2E8F0] bg-white p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="text-xs font-semibold text-[#0F766E]">{meta?.locName ?? ""}</div>
-                        <Link href={`/laporan/${p.id}`} className="text-sm font-semibold text-[#0F172A] hover:text-[#0F766E] hover:underline">
+                        <div className="text-xs font-semibold text-[#1e3a8a]">{meta?.locName ?? ""}</div>
+                        <Link href={`/laporan/${p.id}`} className="text-sm font-semibold text-[#0F172A] hover:text-[#1e3a8a] hover:underline">
                           {p.rabItem.name}
                         </Link>
                         <div className="mt-0.5 text-xs text-[#64748B]">
@@ -220,7 +220,7 @@ export default async function LaporanPage() {
                       </div>
                     </div>
 
-                    {p.notes && <div className="mt-2 text-xs text-[#0F766E]">Catatan: “{p.notes}”</div>}
+                    {p.notes && <div className="mt-2 text-xs text-[#1e3a8a]">Catatan: “{p.notes}”</div>}
                     <PhotoStrip photos={p.photos} urls={photoUrls} />
 
                     <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#F1F5F9] pt-3">
@@ -257,7 +257,7 @@ export default async function LaporanPage() {
 
       {/* Sudah disetujui — sebelumnya tidak ada */}
       <section>
-        <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
+        <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
           Sudah disetujui ({approved.length})
         </div>
         {approved.length === 0 ? (
@@ -271,8 +271,8 @@ export default async function LaporanPage() {
                 <div key={a.id} className="rounded-xl border border-[#E2E8F0] bg-white p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="text-xs font-semibold text-[#0F766E]">{meta?.locName ?? ""}</div>
-                      <Link href={`/laporan/${a.id}`} className="text-sm font-semibold text-[#0F172A] hover:text-[#0F766E] hover:underline">
+                      <div className="text-xs font-semibold text-[#1e3a8a]">{meta?.locName ?? ""}</div>
+                      <Link href={`/laporan/${a.id}`} className="text-sm font-semibold text-[#0F172A] hover:text-[#1e3a8a] hover:underline">
                         {a.rabItem.name}
                       </Link>
                       <div className="mt-0.5 text-xs text-[#64748B]">
@@ -281,7 +281,7 @@ export default async function LaporanPage() {
                         {a.approvedBy ? ` · setuju: ${a.approvedBy.fullName}` : ""}
                         {a.approvedAt ? ` · ${dtFmt.format(a.approvedAt)}` : ""}
                       </div>
-                      <Link href={`/laporan/${a.id}`} className="mt-1 inline-block text-xs font-semibold text-[#0F766E] hover:underline">
+                      <Link href={`/laporan/${a.id}`} className="mt-1 inline-block text-xs font-semibold text-[#1e3a8a] hover:underline">
                         Lihat detail →
                       </Link>
                     </div>
@@ -294,7 +294,7 @@ export default async function LaporanPage() {
                       </span>
                     </div>
                   </div>
-                  {a.notes && <div className="mt-1.5 text-xs text-[#0F766E]">Catatan: “{a.notes}”</div>}
+                  {a.notes && <div className="mt-1.5 text-xs text-[#1e3a8a]">Catatan: “{a.notes}”</div>}
                   <PhotoStrip photos={a.photos} urls={photoUrls} />
                 </div>
               );

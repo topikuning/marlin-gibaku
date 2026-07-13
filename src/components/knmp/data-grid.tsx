@@ -58,7 +58,7 @@ export function DataGrid<T>({
         value={globalFilter}
         onChange={(e) => setGlobalFilter(e.target.value)}
         placeholder={searchPlaceholder}
-        className="mb-3 w-full max-w-xs rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm outline-none focus:border-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/15"
+        className="mb-3 w-full max-w-xs rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/15"
       />
       <div className="max-h-[70vh] overflow-auto rounded-xl border border-[#E2E8F0]">
         <table className="w-full text-sm">
@@ -72,12 +72,12 @@ export function DataGrid<T>({
                   return (
                     <th
                       key={h.id}
-                      className={`whitespace-nowrap px-4 py-2.5 font-semibold ${alignClass(align)} ${sortable ? "cursor-pointer select-none hover:text-[#0F766E]" : ""}`}
+                      className={`whitespace-nowrap px-4 py-2.5 font-semibold ${alignClass(align)} ${sortable ? "cursor-pointer select-none hover:text-[#1e3a8a]" : ""}`}
                       onClick={sortable ? h.column.getToggleSortingHandler() : undefined}
                     >
                       {flexRender(h.column.columnDef.header, h.getContext())}
                       {sortable && (
-                        <span className="ml-1 text-[#0F766E]">
+                        <span className="ml-1 text-[#1e3a8a]">
                           {dir === "asc" ? "▲" : dir === "desc" ? "▼" : ""}
                         </span>
                       )}

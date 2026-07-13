@@ -6,8 +6,8 @@ import { uploadDocument } from "./actions";
 import { STAGE_ORDER, STAGE_LABEL, TYPE_LABEL, TYPES_BY_STAGE } from "@/lib/documents";
 
 const inputClass =
-  "w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/15";
-const labelClass = "block text-xs font-semibold text-[#0F766E] mb-1";
+  "w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/15";
+const labelClass = "block text-xs font-semibold text-[#1e3a8a] mb-1";
 
 export function UploadForm({ locationId, slug }: { locationId: string; slug: string }) {
   const [state, formAction, pending] = useActionState(uploadDocument, undefined);
@@ -64,7 +64,7 @@ export function UploadForm({ locationId, slug }: { locationId: string; slug: str
             type="file"
             required
             accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx"
-            className="w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-[#0F766E] file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white"
+            className="w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-[#1e3a8a] file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white"
           />
         </div>
       </div>
@@ -83,7 +83,7 @@ export function UploadForm({ locationId, slug }: { locationId: string; slug: str
       <button
         type="submit"
         disabled={pending}
-        className="rounded-md bg-[#0F766E] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#115E59] disabled:opacity-60"
+        className="rounded-md bg-[#1e3a8a] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#172554] disabled:opacity-60"
       >
         {pending ? "Mengunggah…" : "Unggah Dokumen"}
       </button>

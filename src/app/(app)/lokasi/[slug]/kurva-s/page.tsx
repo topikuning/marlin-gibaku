@@ -46,17 +46,17 @@ export default async function KurvaSPage({
 
   return (
     <>
-      <Link href={`/lokasi/${slug}`} className="mb-4 inline-block text-sm text-[#0F766E] hover:underline">
+      <Link href={`/lokasi/${slug}`} className="mb-4 inline-block text-sm text-[#1e3a8a] hover:underline">
         ← Detail Lokasi
       </Link>
       <h1 className="mb-1 text-3xl font-semibold text-[#0F172A]">Atur Kurva-S — {location.name}</h1>
-      <p className="mb-6 text-sm text-[#0F766E]">
+      <p className="mb-6 text-sm text-[#1e3a8a]">
         Rencana di-generate otomatis dari RAB + durasi kontrak, dan bisa kamu edit.
         Saat adendum, kurva-S dibuat ulang dan versi lama diarsipkan.
       </p>
 
       <section className="mb-6 rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] p-5">
-        <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
+        <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
           Preview kurva-S aktif
         </div>
         <ScurveChart series={series} />
@@ -66,7 +66,7 @@ export default async function KurvaSPage({
         <section className="mb-8 rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] p-5">
           <div className="mb-4 flex flex-wrap items-center gap-2">
             <span className="text-sm font-bold text-slate-900">Plan #{plan.planNo}</span>
-            <span className="rounded-full bg-[#EEF2F6] px-2 py-0.5 text-[11px] font-medium text-[#0F766E]">
+            <span className="rounded-full bg-[#EEF2F6] px-2 py-0.5 text-[11px] font-medium text-[#1e3a8a]">
               {SOURCE_LABEL[plan.source] ?? plan.source}
             </span>
             <span className="text-xs text-slate-500">
@@ -94,7 +94,7 @@ export default async function KurvaSPage({
       )}
 
       <section className="mb-8 rounded-xl border border-[#E2E8F0] bg-[#FFFFFF] p-5">
-        <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
+        <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
           Saran pekerjaan per minggu
         </div>
         <p className="mb-4 text-xs text-slate-500">
@@ -110,7 +110,7 @@ export default async function KurvaSPage({
                 <span className="w-16 shrink-0 text-xs font-semibold text-slate-500">Minggu {w.week}</span>
                 <div className="flex flex-wrap gap-1.5">
                   {w.trades.map((t) => (
-                    <span key={t.key} className="rounded-full bg-[#F0FDFA] px-2 py-0.5 text-[11px] text-[#0F766E]">
+                    <span key={t.key} className="rounded-full bg-[#eff6ff] px-2 py-0.5 text-[11px] text-[#1e3a8a]">
                       {t.label} · {t.pct.toFixed(1)}%
                     </span>
                   ))}
@@ -121,7 +121,7 @@ export default async function KurvaSPage({
         )}
       </section>
 
-      <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
+      <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
         Riwayat plan ({history.length})
       </div>
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">

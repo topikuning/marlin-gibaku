@@ -48,11 +48,11 @@ export default async function LaporPage({
 
   return (
     <>
-      <Link href={`/lokasi/${slug}`} className="mb-3 inline-block text-sm text-[#0F766E] hover:underline">
+      <Link href={`/lokasi/${slug}`} className="mb-3 inline-block text-sm text-[#1e3a8a] hover:underline">
         ← {location.name}
       </Link>
       <h1 className="mb-1 text-2xl font-bold text-[#0F172A] sm:text-3xl">Lapor Harian</h1>
-      <p className="mb-6 text-sm text-[#0F766E]">
+      <p className="mb-6 text-sm text-[#1e3a8a]">
         Isi volume + foto pekerjaan yang selesai. Menunggu persetujuan Site Manager.
       </p>
 
@@ -60,7 +60,7 @@ export default async function LaporPage({
         <LaporForm locationId={location.id} slug={slug} items={items} />
       </section>
 
-      <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
+      <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
         Laporan Anda ({myDrafts.length})
       </div>
       <p className="mb-3 text-xs text-[#64748B]">

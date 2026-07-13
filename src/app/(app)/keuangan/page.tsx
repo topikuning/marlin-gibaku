@@ -85,7 +85,7 @@ export default async function KeuanganPage() {
 }
 
 function Kpi({ label, value, sub, accent, status }: { label: string; value: string; sub?: string; accent?: boolean; status?: "warn" }) {
-  const c = status === "warn" ? "text-[#DC2626]" : accent ? "text-[#0F766E]" : "text-slate-900";
+  const c = status === "warn" ? "text-[#DC2626]" : accent ? "text-[#1e3a8a]" : "text-slate-900";
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-4">
       <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">{label}</div>

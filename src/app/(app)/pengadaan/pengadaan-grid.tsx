@@ -31,7 +31,7 @@ export function PengadaanGrid({ rows, canEdit }: { rows: ProcGridRow[]; canEdit:
         header: "Lokasi",
         cell: (c) => (
           <div>
-            <Link href={`/lokasi/${c.row.original.slug}`} className="font-medium text-slate-900 hover:text-[#0F766E]">{c.getValue<string>()}</Link>
+            <Link href={`/lokasi/${c.row.original.slug}`} className="font-medium text-slate-900 hover:text-[#1e3a8a]">{c.getValue<string>()}</Link>
             <div className="text-xs text-slate-500">{c.row.original.regency} · {c.row.original.province}</div>
           </div>
         ),

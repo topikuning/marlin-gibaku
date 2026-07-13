@@ -28,7 +28,7 @@ function Bar({ realized, plan }: { realized: number; plan: number }) {
   const p = Math.min(Math.max(plan, 0), 100);
   return (
     <div className="relative h-2 w-full max-w-[200px] overflow-hidden rounded-full bg-slate-100">
-      <div className="h-full rounded-full bg-[#0F766E]" style={{ width: `${r}%` }} />
+      <div className="h-full rounded-full bg-[#1e3a8a]" style={{ width: `${r}%` }} />
       <div className="absolute top-0 h-full w-0.5 bg-[#DC2626]" style={{ left: `${p}%` }} title={`Rencana ${p.toFixed(1)}%`} />
     </div>
   );
@@ -44,7 +44,7 @@ export function KinerjaGrid({ rows }: { rows: KinerjaRow[] }) {
           const row = c.row.original;
           return (
             <div>
-              <Link href={`/lokasi/${row.slug}`} className="font-medium text-slate-900 hover:text-[#0F766E]">{row.name}</Link>
+              <Link href={`/lokasi/${row.slug}`} className="font-medium text-slate-900 hover:text-[#1e3a8a]">{row.name}</Link>
               <div className="text-xs text-slate-500">{row.province} · minggu {row.weekNumber}/{row.totalWeeks}</div>
               <div className={`text-[11px] ${row.forecastLate ? "text-[#DC2626]" : "text-slate-400"}`}>Forecast: {row.forecastLabel}</div>
             </div>

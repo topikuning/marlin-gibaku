@@ -130,7 +130,7 @@ export default async function RabPage({
             </span>
             <span className="text-[#0F172A]">{item.name}</span>
           </div>
-          <div className="w-28 shrink-0 text-right text-xs text-[#0F766E]">
+          <div className="w-28 shrink-0 text-right text-xs text-[#1e3a8a]">
             {fmtVolume(item)}
           </div>
           <div className="w-32 shrink-0 text-right text-xs tabular-nums text-[#0F172A]">
@@ -146,7 +146,7 @@ export default async function RabPage({
     <>
       <Link
         href={`/lokasi/${slug}`}
-        className="mb-4 inline-block text-sm text-[#0F766E] hover:underline"
+        className="mb-4 inline-block text-sm text-[#1e3a8a] hover:underline"
       >
         ← Detail Lokasi
       </Link>
@@ -157,13 +157,13 @@ export default async function RabPage({
         {canManageUsers(role) && (
           <Link
             href={`/lokasi/${slug}/rab/import`}
-            className="rounded-md border border-[#0F766E] px-3 py-1.5 text-sm font-semibold text-[#0F766E] transition hover:bg-[#F1F5F9]"
+            className="rounded-md border border-[#1e3a8a] px-3 py-1.5 text-sm font-semibold text-[#1e3a8a] transition hover:bg-[#F1F5F9]"
           >
             Import / Adendum RAB
           </Link>
         )}
       </div>
-      <p className="mb-8 text-sm text-[#0F766E]">
+      <p className="mb-8 text-sm text-[#1e3a8a]">
         {categories.length} kategori · rincian item sampai sub-item. Klik
         kategori untuk buka/tutup.
       </p>
@@ -182,7 +182,7 @@ export default async function RabPage({
                   <span className="mr-2 text-[#64748B]">{cat.romanNumeral}</span>
                   {cat.name}
                 </span>
-                <span className="shrink-0 text-sm tabular-nums text-[#0F766E]">
+                <span className="shrink-0 text-sm tabular-nums text-[#1e3a8a]">
                   {formatRupiah(cat.totalValue)}
                 </span>
               </summary>
@@ -195,7 +195,7 @@ export default async function RabPage({
                   return (
                     <div key={sub.id} className="mt-2">
                       <div className="flex items-center justify-between gap-3 border-b border-[#E2E8F0] py-1.5">
-                        <span className="text-sm font-semibold text-[#0F766E]">
+                        <span className="text-sm font-semibold text-[#1e3a8a]">
                           <span className="mr-2 font-mono text-[11px] text-[#64748B]">
                             {sub.code}
                           </span>

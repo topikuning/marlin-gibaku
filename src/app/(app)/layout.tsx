@@ -37,7 +37,7 @@ export default async function AppLayout({
       {/* Sidebar (desktop) */}
       <aside className="hidden w-60 shrink-0 flex-col border-r border-slate-200 bg-white lg:flex">
         <div className="flex items-center gap-2.5 px-5 py-4">
-          <span className="grid h-8 w-8 place-items-center rounded-md bg-[#0F766E] text-sm font-bold text-white">
+          <span className="grid h-8 w-8 place-items-center rounded-md border-b-2 border-[#d21f2a] bg-[#1e3a8a] text-sm font-bold text-white">
             M
           </span>
           <div className="leading-tight">
@@ -61,7 +61,7 @@ export default async function AppLayout({
           <div className="flex items-center gap-3 px-4 py-2.5 sm:px-6">
             {/* brand on mobile */}
             <div className="flex items-center gap-2 lg:hidden">
-              <span className="grid h-8 w-8 place-items-center rounded-md bg-[#0F766E] text-sm font-bold text-white">
+              <span className="grid h-8 w-8 place-items-center rounded-md border-b-2 border-[#d21f2a] bg-[#1e3a8a] text-sm font-bold text-white">
                 M
               </span>
               <span className="text-[15px] font-bold tracking-tight text-slate-900">MARLIN</span>
