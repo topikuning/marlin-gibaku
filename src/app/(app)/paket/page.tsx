@@ -59,6 +59,20 @@ export default async function PengadaanPage() {
       })
     : [];
 
+  // Paket/kontrak berjalan (sudah tanda tangan).
+  const contracts = await db.contract.findMany({
+    orderBy: { signedDate: "desc" },
+    select: {
+      id: true,
+      contractNumber: true,
+      contractValue: true,
+      hpsValue: true,
+      contractor: { select: { name: true } },
+      amendments: { select: { valueDelta: true } },
+      _count: { select: { locations: true } },
+    },
+  });
+
   return (
     <>
       <PageHeader
@@ -106,6 +120,35 @@ export default async function PengadaanPage() {
               ))}
             </div>
           )}
+        </section>
+      )}
+
+      {/* Paket / kontrak berjalan */}
+      {contracts.length > 0 && (
+        <section className="mb-8">
+          <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
+            Paket / kontrak berjalan ({contracts.length})
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {contracts.map((c) => {
+              const delta = c.amendments.reduce((s, a) => s + a.valueDelta, 0n);
+              const berjalan = c.contractValue + delta;
+              return (
+                <Link
+                  key={c.id}
+                  href={`/paket/${c.id}`}
+                  className="rounded-xl border border-slate-200 bg-white p-4 transition hover:border-[#1e3a8a]"
+                >
+                  <div className="text-sm font-semibold text-slate-900">{c.contractNumber}</div>
+                  <div className="mt-0.5 text-xs text-slate-500">{c.contractor.name}</div>
+                  <div className="mt-2 text-xs text-slate-500">
+                    {c._count.locations} lokasi · nilai {formatRupiahShort(berjalan)}
+                    {delta !== 0n && <span className="text-amber-600"> (+adendum)</span>}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
         </section>
       )}
 

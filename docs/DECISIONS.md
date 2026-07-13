@@ -879,3 +879,11 @@ gabungan prospek+kontrak; hapus menu status per-lokasi lama kalau sudah terganti
 ## UI · 2026-07-13 · Sidebar desktop sticky (fixed saat scroll)
 Sidebar `lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto` — menu tetap terlihat
 saat konten discroll.
+
+## 041 · 2026-07-13 · Halaman detail Paket + timeline adendum
+`/paket/[id]`: nilai HPS vs kontrak vs berjalan (kontrak + Σ valueDelta adendum),
+riwayat/timeline adendum (ContractAmendment: CCO, ±nilai, ±hari, alasan) + form
+Tambah Adendum (admin, append-only). Daftar lokasi paket + kelengkapan admin
+(auto dari Document level kontrak/lokasi). `/paket` tambah section "Paket/kontrak
+berjalan" → klik ke detail. Cap foto stamp (DECISIONS lanjut). Verifikasi: build/
+typecheck/lint ✓; runtime E2E terblokir (sandbox pg+server down sesi ini).
