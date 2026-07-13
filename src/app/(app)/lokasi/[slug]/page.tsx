@@ -218,6 +218,12 @@ export default async function LokasiDetailPage({
         >
           Alur Administrasi →
         </Link>
+        <Link
+          href={`/lokasi/${location.slug}/harian`}
+          className="rounded-md border border-[#1e3a8a] px-4 py-2 text-sm font-semibold text-[#1e3a8a] transition hover:bg-[#F1F5F9]"
+        >
+          Laporan Harian KKP →
+        </Link>
         {canReport(role) && (
           <Link
             href={`/lokasi/${location.slug}/lapor`}

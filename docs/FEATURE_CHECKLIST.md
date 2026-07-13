@@ -152,7 +152,9 @@ LAPORAN HARIAN, MC-0, CCO, time schedule):
 
 - ✅ **Tracker Alur Administrasi KNMP** (`/lokasi/[slug]/administrasi`): checklist
   45 milestone (8 fase) + PIC per item, status ✓ auto-deteksi dari Arsip Dokumen
-- ⬜ Enhanced Lapor Harian format KKP (tenaga per keahlian, material, alat, cuaca) — *butuh keputusan UX mandor*
+- ✅ **Laporan Harian format KKP** (`/lokasi/[slug]/harian/[date]`): mandor ringkas,
+  SM lengkapi tenaga per keahlian (14 peran) + material + peralatan + cuaca + jam;
+  realisasi auto-join dari laporan lapangan; kartu print-friendly (Cetak/PDF) — DECISIONS 038
 - ⬜ Export KKP: cover harian/mingguan/bulanan + FORMAT DOKUMENTASI (foto + bobot%)
 - ⬜ MC-0 / CCO view + export (tambah/kurang dari RAB revisi)
 - ⬜ Generator template Berita Acara / Surat (docx)

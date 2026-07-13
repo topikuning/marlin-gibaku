@@ -5,7 +5,8 @@ import { db } from "@/lib/db";
 import { canApprove, PENDING_STATES, REPORT_STATE_LABEL, REPORT_STATE_CLASS } from "@/lib/report";
 import { hasLocationAccess } from "@/lib/access";
 import { getRabItemLocationId } from "@/lib/rab";
-import { presignKeys } from "@/lib/photos";
+import { buildPhotoViews } from "@/lib/photos";
+import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import { approveItem, rejectItem } from "../actions";
 
 const volFmt = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 });
@@ -27,7 +28,17 @@ export default async function LaporanDetailPage({
       rabItem: { select: { code: true, name: true, unit: true, volume: true } },
       suggestedBy: { select: { fullName: true } },
       approvedBy: { select: { fullName: true } },
-      photos: { select: { id: true, r2Key: true }, orderBy: { createdAt: "asc" } },
+      photos: {
+        select: {
+          id: true,
+          r2Key: true,
+          thumbnailKey: true,
+          exifTakenAt: true,
+          exifGpsLat: true,
+          exifGpsLng: true,
+        },
+        orderBy: { createdAt: "asc" },
+      },
       report: { select: { reportDate: true } },
     },
   });
@@ -44,7 +55,7 @@ export default async function LaporanDetailPage({
     canApprove(role) && locationId != null && (await hasLocationAccess(userId, role, locationId));
   if (!isReporter && !approverAccess) notFound();
 
-  const photoUrls = await presignKeys(item.photos.map((p) => p.r2Key));
+  const photoViews = await buildPhotoViews(item.photos);
 
   const unit = item.rabItem.unit ?? "";
   const done = item.volumeDone.toNumber();
@@ -115,22 +126,12 @@ export default async function LaporanDetailPage({
       </div>
       {item.photos.length === 0 ? (
         <p className="mb-6 text-sm text-[#64748B]">Tidak ada foto pada laporan ini.</p>
-      ) : (
-        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {item.photos.map((p) => {
-            const url = photoUrls.get(p.r2Key);
-            return url ? (
-              <a key={p.id} href={url} target="_blank" rel="noreferrer" className="block">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={url} alt="Foto bukti" className="h-48 w-full rounded-xl border border-[#E2E8F0] object-cover" />
-              </a>
-            ) : (
-              <div key={p.id} className="flex h-48 w-full items-center justify-center rounded-xl border border-dashed border-[#E2E8F0] bg-[#F8FAFC] text-sm text-[#94A3B8]">
-                📷 tersimpan (R2 belum aktif)
-              </div>
-            );
-          })}
+      ) : photoViews.some((v) => v.thumbUrl) ? (
+        <div className="mb-6">
+          <PhotoGallery photos={photoViews} thumbClass="h-40 w-40" />
         </div>
+      ) : (
+        <p className="mb-6 text-sm text-[#94A3B8]">📷 {item.photos.length} foto tersimpan (R2 belum aktif)</p>
       )}
 
       {/* Aksi (kalau masih pending & user approver) */}

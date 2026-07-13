@@ -794,3 +794,57 @@ by `type`. Additive, nol regresi. Milestone tanpa docType = pantau manual.
 
 **Alasan urutan**: tracker administrasi = risiko nol + tulang punggung kepatuhan.
 Enhanced daily butuh keputusan UX gaptek dulu (jangan bebani mandor).
+
+---
+
+## 038 · 2026-07-13 · Laporan Harian format KKP — "mandor simpel, SM lengkapi"
+
+**Konteks**: FORMAT LAPORAN HARIAN resmi KKP jauh lebih kaya dari input mandor
+(tenaga per keahlian 14 peran, material masuk, peralatan, cuaca, jam kerja,
+rencana vs realisasi). Bertabrakan dengan pakem "mandor sederhana saja, ringan".
+
+**Keputusan user**: **mandor tetap ringan** (volume + foto + jumlah tenaga total);
+detail KKP di-*enrich* di level **Site Manager** + sebagian **otomatis**; export
+format KKP di-*generate*. (User pilih opsi ini eksplisit.)
+
+**Implementasi**:
+- Model `DailyLog` (unik per `location + logDate`) + `DailyLogWorker` (14 peran),
+  `DailyLogMaterial`, `DailyLogEquipment`. Cuaca + jam kerja + catatan di header.
+  Terpisah dari alur item-centric `DailyReportItem` (yang tetap `dailyReportId=null`).
+- Halaman `/lokasi/[slug]/harian/[date]`: kartu format KKP (print-friendly) +
+  editor SM (gated `canApprove`). Realisasi pekerjaan **auto-join** dari
+  `DailyReportItem` state approved/sent yang createdAt-nya jatuh di tanggal itu
+  (zona Asia/Jakarta). Tombol Cetak/PDF (window.print + `@media print`).
+- Index `/lokasi/[slug]/harian?d=` redirect ke tanggal (default hari ini WIB).
+
+**Belum**: cuaca per jam (KKP punya kolom 07:00–21:00; sekarang 1 cuaca dominan),
+export xlsx asli, TTD digital. Rencana pekerjaan (vs realisasi) belum dipisah —
+sekarang realisasi dari lapangan + catatan bebas.
+
+---
+
+## 039 · 2026-07-13 · Foto: thumbnail + lightbox + EXIF; Reset penuh "mulai dari nol"
+
+**Konteks (feedback user)**: (1) foto diklik buka tab baru — tak nyaman; (2)
+thumbnail muat gambar ukuran real — berat; (3) minta tag foto (tanggal, koordinat).
+Plus klarifikasi: "kosongkan data" = hapus data **contoh/tes** biar mulai dari 0.
+
+**Keputusan foto**:
+- Saat upload: `sharp` bikin thumbnail webp ≤480px (disimpan `thumbnailKey`),
+  `exifreader` baca `DateTimeOriginal` + GPS → `exifTakenAt`/`exifGpsLat/Lng`,
+  simpan dimensi. (dep baru: `sharp`, `exifreader` sudah ada.)
+- Komponen `PhotoGallery` (client): grid thumbnail kecil (ringan) + **lightbox
+  in-page** (bukan tab baru), navigasi ←/→/Esc, tag EXIF (tanggal + koordinat +
+  link Google Maps). Dipakai di: detail laporan, daftar laporan, lapor harian, peta.
+- Helper `buildPhotoViews()` presign thumb+full sekaligus. Foto lama tanpa
+  thumbnail fallback ke full.
+
+**Keputusan reset**: dua mode di Diagnostik (super_admin):
+- **Reset penuh — mulai dari nol** (konfirmasi `RESET SEMUA`): TRUNCATE CASCADE
+  semua tabel isi; TETAP hanya `users` + `organizations`. Cara perhitungan
+  kurva-S/jadwal = kode → otomatis tetap. Untuk mulai input data real.
+- **Kosongkan operasional** (lama, `KOSONGKAN`): hapus laporan/foto/biaya saja,
+  master tetap.
+
+**Belum**: verifikasi EXIF/GPS otomatis (geofence), thumbnail untuk foto lama
+(baru berlaku untuk upload baru), reverse-geocode koordinat→nama tempat.

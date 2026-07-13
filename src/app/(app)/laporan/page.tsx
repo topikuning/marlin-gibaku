@@ -11,7 +11,8 @@ import {
   REPORT_STATE_CLASS,
 } from "@/lib/report";
 import { getReportableItems } from "@/lib/rab";
-import { presignKeys } from "@/lib/photos";
+import { buildPhotoViews, type PhotoView } from "@/lib/photos";
+import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import { PageHeader } from "@/components/knmp/page-header";
 import { approveItem, rejectItem } from "./actions";
 
@@ -22,31 +23,21 @@ type ItemMeta = { code: string; name: string; unit: string; planned: number | nu
 
 function PhotoStrip({
   photos,
-  urls,
+  viewById,
 }: {
-  photos: { id: string; r2Key: string }[];
-  urls: Map<string, string>;
+  photos: { id: string }[];
+  viewById: Map<string, PhotoView>;
 }) {
   if (photos.length === 0) return null;
+  const views = photos.map((ph) => viewById.get(ph.id)).filter(Boolean) as PhotoView[];
+  if (!views.some((v) => v.thumbUrl)) {
+    return (
+      <div className="mt-2.5 text-[11px] text-[#94A3B8]">📷 {photos.length} foto tersimpan (R2 belum aktif)</div>
+    );
+  }
   return (
-    <div className="mt-2.5 flex flex-wrap gap-1.5">
-      {photos.map((ph) => {
-        const url = urls.get(ph.r2Key);
-        return url ? (
-          <a key={ph.id} href={url} target="_blank" rel="noreferrer">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={url} alt="Foto bukti" className="h-20 w-20 rounded-lg border border-[#E2E8F0] object-cover" />
-          </a>
-        ) : (
-          <span
-            key={ph.id}
-            title="Foto tersimpan; R2 belum aktif untuk menampilkan"
-            className="flex h-20 w-20 items-center justify-center rounded-lg border border-dashed border-[#E2E8F0] bg-[#F8FAFC] text-center text-[10px] text-[#94A3B8]"
-          >
-            📷 tersimpan
-          </span>
-        );
-      })}
+    <div className="mt-2.5">
+      <PhotoGallery photos={views} thumbClass="h-20 w-20" />
     </div>
   );
 }
@@ -108,7 +99,10 @@ export default async function LaporanPage() {
         include: {
           rabItem: { select: { code: true, name: true, unit: true } },
           suggestedBy: { select: { fullName: true } },
-          photos: { select: { id: true, r2Key: true }, orderBy: { createdAt: "asc" } },
+          photos: {
+            select: { id: true, r2Key: true, thumbnailKey: true, exifTakenAt: true, exifGpsLat: true, exifGpsLng: true },
+            orderBy: { createdAt: "asc" },
+          },
         },
       })
     : [];
@@ -123,15 +117,19 @@ export default async function LaporanPage() {
           rabItem: { select: { code: true, name: true, unit: true } },
           suggestedBy: { select: { fullName: true } },
           approvedBy: { select: { fullName: true } },
-          photos: { select: { id: true, r2Key: true }, orderBy: { createdAt: "asc" } },
+          photos: {
+            select: { id: true, r2Key: true, thumbnailKey: true, exifTakenAt: true, exifGpsLat: true, exifGpsLng: true },
+            orderBy: { createdAt: "asc" },
+          },
         },
       })
     : [];
 
-  const photoUrls = await presignKeys([
-    ...pending.flatMap((p) => p.photos.map((ph) => ph.r2Key)),
-    ...approved.flatMap((p) => p.photos.map((ph) => ph.r2Key)),
+  const allViews = await buildPhotoViews([
+    ...pending.flatMap((p) => p.photos),
+    ...approved.flatMap((p) => p.photos),
   ]);
+  const viewById = new Map(allViews.map((v) => [v.id, v]));
 
   return (
     <>
@@ -221,7 +219,7 @@ export default async function LaporanPage() {
                     </div>
 
                     {p.notes && <div className="mt-2 text-xs text-[#1e3a8a]">Catatan: “{p.notes}”</div>}
-                    <PhotoStrip photos={p.photos} urls={photoUrls} />
+                    <PhotoStrip photos={p.photos} viewById={viewById} />
 
                     <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#F1F5F9] pt-3">
                       <form action={approveItem.bind(null, p.id)}>
@@ -295,7 +293,7 @@ export default async function LaporanPage() {
                     </div>
                   </div>
                   {a.notes && <div className="mt-1.5 text-xs text-[#1e3a8a]">Catatan: “{a.notes}”</div>}
-                  <PhotoStrip photos={a.photos} urls={photoUrls} />
+                  <PhotoStrip photos={a.photos} viewById={viewById} />
                 </div>
               );
             })}
