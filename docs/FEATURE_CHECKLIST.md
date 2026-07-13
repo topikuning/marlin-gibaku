@@ -145,6 +145,22 @@ Ditambahkan & terverifikasi (build/typecheck + Playwright) sejak versi awal chec
 - ✅ **Nav diurut ulang** (alur login→pantau→kelola), Diagnostik paling bawah
 - ✅ **Fix kurva-S**: label minggu terakhir tak lagi keklip ("mgg 22")
 
+## Update 2026-07-13 (b) — akomodasi format resmi KKP/DJPT
+
+Berdasar paket dokumen kementerian (Alur Administrasi, template BA/Surat, FORMAT
+LAPORAN HARIAN, MC-0, CCO, time schedule):
+
+- ✅ **Tracker Alur Administrasi KNMP** (`/lokasi/[slug]/administrasi`): checklist
+  45 milestone (8 fase) + PIC per item, status ✓ auto-deteksi dari Arsip Dokumen
+- ⬜ Enhanced Lapor Harian format KKP (tenaga per keahlian, material, alat, cuaca) — *butuh keputusan UX mandor*
+- ⬜ Export KKP: cover harian/mingguan/bulanan + FORMAT DOKUMENTASI (foto + bobot%)
+- ⬜ MC-0 / CCO view + export (tambah/kurang dari RAB revisi)
+- ⬜ Generator template Berita Acara / Surat (docx)
+
+Detail spec & keputusan: `docs/DECISIONS.md` #037.
+
+---
+
 **Masih belum** (jujur): export laporan KKP (PDF/Excel), laporan mingguan/bulanan,
 org-chart Area Manager, dark mode, WA/WAHA, PWA/offline, hardening 🔴 (RLS,
 rate-limiter, test otomatis), integrasi keuangan otomatis (masih manual), restyle
