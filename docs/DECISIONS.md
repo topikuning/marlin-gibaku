@@ -887,3 +887,12 @@ Tambah Adendum (admin, append-only). Daftar lokasi paket + kelengkapan admin
 (auto dari Document level kontrak/lokasi). `/paket` tambah section "Paket/kontrak
 berjalan" → klik ke detail. Cap foto stamp (DECISIONS lanjut). Verifikasi: build/
 typecheck/lint ✓; runtime E2E terblokir (sandbox pg+server down sesi ini).
+
+## 042 · 2026-07-13 · Cetak halaman bersih (tanpa shell) + rapikan menu
+Masalah: cetak Laporan Harian ikut mem-print sidebar/nav app (shell (app)/layout).
+Solusi: komponen bersama `KkpDailyReport` + fetcher `getDailyReportView`; halaman
+cetak KHUSUS di luar grup (app) → `/cetak/harian/[slug]/[date]` (root layout saja,
+tanpa shell) + auto window.print. Tombol "Cetak/PDF" buka tab baru ke sana.
+Menu: buang "Kontrak" dari nav (redundan dgn Paket; master tetap diakses via link
+di Paket), urut ulang alur bisnis: Beranda·Peta·Paket·Lokasi·Lapor·Keuangan·
+Pengguna·Diagnostik.
