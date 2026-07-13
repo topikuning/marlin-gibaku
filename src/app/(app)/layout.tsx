@@ -34,8 +34,8 @@ export default async function AppLayout({
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] lg:flex">
-      {/* Sidebar (desktop) */}
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-slate-200 bg-white lg:flex">
+      {/* Sidebar (desktop) — fixed saat scroll */}
+      <aside className="hidden w-60 shrink-0 flex-col border-r border-slate-200 bg-white lg:sticky lg:top-0 lg:flex lg:h-screen lg:overflow-y-auto">
         <div className="flex items-center gap-2.5 px-5 py-4">
           <span className="grid h-8 w-8 place-items-center rounded-md border-b-2 border-[#d21f2a] bg-[#1e3a8a] text-sm font-bold text-white">
             M
