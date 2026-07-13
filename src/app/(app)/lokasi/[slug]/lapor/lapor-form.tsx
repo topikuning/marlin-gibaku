@@ -17,6 +17,8 @@ export function LaporForm({
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<ReportableItem | null>(null);
   const [previews, setPreviews] = useState<string[]>([]);
+  const [geo, setGeo] = useState<{ lat: number; lng: number } | null>(null);
+  const [takenAt, setTakenAt] = useState<string>("");
   const fileRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -26,6 +28,8 @@ export function LaporForm({
       setPicked(null);
       setQuery("");
       setPreviews([]);
+      setGeo(null);
+      setTakenAt("");
       formRef.current?.reset();
     }
   }, [state?.ok]);
@@ -40,10 +44,22 @@ export function LaporForm({
 
   function onFiles() {
     const files = fileRef.current?.files;
-    if (!files) return setPreviews([]);
+    if (!files || files.length === 0) {
+      setPreviews([]);
+      return;
+    }
     const urls: string[] = [];
     for (let i = 0; i < Math.min(files.length, 6); i++) urls.push(URL.createObjectURL(files[i]));
     setPreviews(urls);
+    // Cap foto: rekam waktu ambil + koordinat GPS (untuk di-cap ke gambar).
+    setTakenAt(new Date().toISOString());
+    if (typeof navigator !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => setGeo({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        () => setGeo(null),
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+      );
+    }
   }
 
   return (
@@ -51,6 +67,9 @@ export function LaporForm({
       <input type="hidden" name="locationId" value={locationId} />
       <input type="hidden" name="slug" value={slug} />
       <input type="hidden" name="rabItemId" value={picked?.id ?? ""} />
+      <input type="hidden" name="photoLat" value={geo?.lat ?? ""} />
+      <input type="hidden" name="photoLng" value={geo?.lng ?? ""} />
+      <input type="hidden" name="photoTakenAt" value={takenAt} />
 
       {/* 1. Pilih item pekerjaan */}
       <div>
@@ -175,12 +194,19 @@ export function LaporForm({
           📷 {previews.length > 0 ? `${previews.length} foto dipilih — ketuk untuk ubah` : "Ambil / pilih foto"}
         </button>
         {previews.length > 0 && (
-          <div className="mt-2 grid grid-cols-4 gap-1.5">
-            {previews.map((u, i) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img key={i} src={u} alt="" className="h-16 w-full rounded-lg border border-[#E2E8F0] object-cover" />
-            ))}
-          </div>
+          <>
+            <div className="mt-2 grid grid-cols-4 gap-1.5">
+              {previews.map((u, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={i} src={u} alt="" className="h-16 w-full rounded-lg border border-[#E2E8F0] object-cover" />
+              ))}
+            </div>
+            <p className="mt-1.5 text-[11px] text-[#64748B]">
+              {geo
+                ? `📍 Lokasi tercatat (${geo.lat.toFixed(5)}, ${geo.lng.toFixed(5)}) — waktu, lokasi & koordinat akan dicap ke foto.`
+                : "📍 Mengambil koordinat GPS… izinkan akses lokasi agar foto dicap koordinat."}
+            </p>
+          </>
         )}
       </div>
 
