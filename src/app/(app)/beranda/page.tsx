@@ -103,7 +103,7 @@ async function CommandCenter({ locations }: { locations: LocRow[] }) {
       </div>
 
       {/* KPI row */}
-      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-6">
+      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Kpi label="Total Lokasi" value={rows.length.toLocaleString("id-ID")} sub={`${dist.hijau + dist.kuning + dist.merah} berjalan · ${dist.abu} belum`} />
         <Kpi label="Nilai Kontrak" value={formatRupiahShort(totalContract)} />
         <Kpi label="Nilai RAB (HPS)" value={formatRupiahShort(totalGrand)} />
