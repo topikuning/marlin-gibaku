@@ -936,3 +936,13 @@ Redesign peta-map: dua-pane — panel kiri (cari lokasi/kabupaten, filter Area=p
 + status, daftar lokasi) + peta full-height (calc(100vh-130px)). Klik lokasi (list
 atau titik) → flyTo + marker di-highlight (ring navy, radius besar) + panel detail.
 Buang PageHeader besar di halaman peta (hemat ruang).
+
+## 048 · 2026-07-13 · Tahap pengadaan OTOMATIS dari dokumen (bukan manual)
+User: tahap jangan dipilih manual — sistem baca dari dokumen yang terupload.
+- prospek: `deriveStageFromDocs` (undangan/ba_penjelasan→undangan, penawaran→
+  penawaran, ba_negosiasi→negosiasi, sppbj/penetapan→penetapan). `uploadProspekDocument`
+  recompute + update stage otomatis; tahap jadi stepper read-only + Batalkan.
+- urutan prospek: UNGGAH dokumen dulu, baru PROGRES alur administrasi.
+- HPS bisa diisi saat unggah dokumen aanwijzing/penawaran (field hpsValue di form).
+- paket detail: `deriveDocStage` → "Tahap saat ini (dari dokumen)" (min kontrak).
+`updateProspekStage` manual dihapus dari UI; ganti `cancelProspek`.

@@ -1,4 +1,34 @@
-import type { ProspekStage, UserRole } from "@prisma/client";
+import type { DocumentType, ProspekStage, UserRole } from "@prisma/client";
+
+/**
+ * Tahap prospek DITENTUKAN OTOMATIS dari dokumen yang sudah diunggah — bukan
+ * dipilih manual. Sistem baca tipe dokumen → tahap terjauh yang tercapai.
+ */
+const STAGE_MARKERS: { stage: ProspekStage; types: DocumentType[] }[] = [
+  { stage: "penetapan", types: ["penetapan_pemenang", "sppbj"] },
+  { stage: "negosiasi", types: ["ba_negosiasi", "ba_klarifikasi"] },
+  { stage: "penawaran", types: ["penawaran"] },
+  { stage: "undangan", types: ["undangan", "ba_penjelasan"] },
+];
+
+export function deriveStageFromDocs(types: DocumentType[]): ProspekStage {
+  const set = new Set(types);
+  for (const m of STAGE_MARKERS) {
+    if (m.types.some((t) => set.has(t))) return m.stage;
+  }
+  return "identifikasi";
+}
+
+/** Tipe dokumen yang menandai satu tahap tercapai (untuk indikator stepper). */
+export const STAGE_DOC_HINT: Record<ProspekStage, string> = {
+  identifikasi: "—",
+  undangan: "Undangan / BA Penjelasan (aanwijzing)",
+  penawaran: "Dokumen Penawaran",
+  negosiasi: "BA Negosiasi / Klarifikasi",
+  penetapan: "SPPBJ / Penetapan Pemenang",
+  jadi_kontrak: "Kontrak",
+  batal: "—",
+};
 
 /** Tahap prospek (tender) — urut pipeline. */
 export const PROSPEK_STAGE_ORDER: ProspekStage[] = [

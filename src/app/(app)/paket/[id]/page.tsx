@@ -6,6 +6,7 @@ import { canViewDashboard } from "@/lib/roles";
 import { formatRupiah } from "@/lib/format";
 import { canManageProspek } from "@/lib/prospek";
 import { KKP_ADMIN_FLOW, FLOW_TOTAL, type FlowItem } from "@/lib/kkp-admin-flow";
+import { deriveDocStage, STAGE_ORDER, STAGE_LABEL } from "@/lib/documents";
 import { LOCATION_STATUS_LABEL, LOCATION_STATUS_CLASS } from "@/lib/roles";
 import { PageHeader } from "@/components/knmp/page-header";
 import { AdendumForm } from "./adendum-form";
@@ -50,12 +51,15 @@ export default async function PaketDetailPage({
     where: {
       OR: [{ contractId: contract.id }, locIds.length ? { locationId: { in: locIds } } : { id: "" }],
     },
-    select: { type: true },
+    select: { type: true, stage: true },
   });
   const presentTypes = new Set(docs.map((d) => d.type));
   const isDone = (it: FlowItem) => !!it.docType && presentTypes.has(it.docType);
   const doneTotal = KKP_ADMIN_FLOW.reduce((n, p) => n + p.items.filter(isDone).length, 0);
   const adminPct = Math.round((doneTotal / FLOW_TOTAL) * 100);
+  // Tahap SAAT INI dibaca dari dokumen terjauh (bukan manual). Min. "kontrak" krn sudah ada kontrak.
+  const docStage = deriveDocStage(docs.map((d) => d.stage));
+  const currentStage = docStage && STAGE_ORDER.indexOf(docStage) > STAGE_ORDER.indexOf("kontrak") ? docStage : "kontrak";
 
   return (
     <>
@@ -67,6 +71,14 @@ export default async function PaketDetailPage({
         title={contract.contractNumber}
         subtitle={`${contract.contractor.name} · ${contract.locations.length} lokasi`}
       />
+
+      {/* Tahap saat ini — dibaca dari dokumen */}
+      <div className="mb-4 flex items-center gap-2 text-sm">
+        <span className="text-slate-500">Tahap saat ini (dari dokumen):</span>
+        <span className="rounded-full bg-[#eff6ff] px-3 py-1 text-xs font-semibold text-[#1e3a8a]">
+          {STAGE_LABEL[currentStage]}
+        </span>
+      </div>
 
       {/* Nilai */}
       <div className="mb-6 grid gap-4 sm:grid-cols-4">
