@@ -19,9 +19,18 @@ const WEATHER_CAT: Partial<Record<WeatherCode, "Cerah" | "Mendung" | "Hujan">> =
   banjir: "Hujan",
 };
 
+export type ActivityProgress = {
+  name: string;
+  unit: string;
+  planVolume: number | null;
+  doneVolume: number;
+  pct: number | null;
+};
+
 export type DailyReportView = {
   locationName: string;
   data: KkpDailyData;
+  activities: ActivityProgress[];
   editor: {
     weather: WeatherCode | null;
     workStart: string | null;
@@ -77,6 +86,28 @@ export async function getDailyReportView(
       ).filter((it) => jkDay.format(it.createdAt) === date)
     : [];
 
+  // Progres kumulatif per kegiatan (semua item 'sent') — untuk lihat yg belum diprogres.
+  const sentAgg = rabIds.length
+    ? await db.dailyReportItem.groupBy({
+        by: ["rabItemId"],
+        where: { rabItemId: { in: rabIds }, state: "sent" },
+        _sum: { volumeDone: true },
+      })
+    : [];
+  const doneByItem = new Map<string, number>();
+  for (const s of sentAgg) doneByItem.set(s.rabItemId, s._sum.volumeDone?.toNumber() ?? 0);
+  const activities: ActivityProgress[] = reportable.map((r) => {
+    const plan = r.volume;
+    const done = doneByItem.get(r.id) ?? 0;
+    return {
+      name: r.name,
+      unit: r.unit,
+      planVolume: plan,
+      doneVolume: done,
+      pct: plan && plan > 0 ? (done / plan) * 100 : null,
+    };
+  });
+
   const workerMap: Record<string, number> = {};
   for (const w of log?.workers ?? []) workerMap[w.role] = w.count;
   const totalWorkers = (log?.workers ?? []).reduce((n, w) => n + w.count, 0);
@@ -114,6 +145,7 @@ export async function getDailyReportView(
   return {
     locationName: location.name,
     data,
+    activities,
     editor: {
       weather: log?.weather ?? null,
       workStart: log?.workStart ?? null,
