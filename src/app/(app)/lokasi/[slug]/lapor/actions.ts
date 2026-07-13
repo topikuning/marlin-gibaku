@@ -45,8 +45,23 @@ export async function submitDraftItem(
   const item = reportable.find((i) => i.id === rabItemId);
   if (!item) return { error: "Item tidak valid untuk lokasi ini." };
 
+  // KUNCI ANTI-GANDA: item ini tidak boleh punya laporan yang belum tuntas
+  // (menunggu persetujuan / sudah di-approve belum ter-submit). Cegah double input.
+  const openDraft = await db.dailyReportItem.findFirst({
+    where: { rabItemId, state: { in: ["draft_mandor", "draft_sm", "approved"] } },
+    select: { id: true },
+  });
+  if (openDraft) {
+    return {
+      error:
+        `Item "${item.code}" masih punya laporan yang belum tuntas (menunggu persetujuan/proses). ` +
+        `Setujui atau tolak dulu laporan itu sebelum lapor lagi — untuk cegah volume ganda.`,
+    };
+  }
+
+  // Kumulatif hitung yang sudah komit (sent) + approved (belum ter-submit).
   const prior = await db.dailyReportItem.aggregate({
-    where: { rabItemId, state: "sent" },
+    where: { rabItemId, state: { in: ["sent", "approved"] } },
     _sum: { volumeDone: true },
   });
   const priorSent = prior._sum.volumeDone?.toNumber() ?? 0;
