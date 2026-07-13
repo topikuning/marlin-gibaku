@@ -912,3 +912,12 @@ User: deviasi bisa mingguan, mana history-nya? Model `DeviationNote` (locationId
 weekNo?, cause, recovery, createdBy, createdAt) append-only. Ringkasan lokasi:
 form tambah catatan (admin) + timeline riwayat (newest first, tag Minggu N).
 Field lama Location.deviationCause/recoveryPlan ditinggalkan (tak dipakai UI lagi).
+
+## 045 · 2026-07-13 · Laporan Mingguan & Bulanan (generate on-the-fly, format KKP)
+`getPeriodReport(slug, kind, n)` agregasi periode dari data harian + kurva-S +
+deviasi: rentang tanggal, progres kumulatif (rencana/realisasi/deviasi di titik
+periode), realisasi item periode, catatan kendala periode. Komponen
+`KkpPeriodReport` (cover KKP + ringkasan + TTD). Tab "Mingguan/Bulanan" di
+workspace lokasi (selector jenis+nomor) + halaman cetak bersih
+`/cetak/periodik/[slug]/[kind]/[n]`. Tak butuh tabel WeeklyReport/MonthlyReport —
+di-generate dari sumber. AutoPrint dishare `components/knmp/auto-print`.

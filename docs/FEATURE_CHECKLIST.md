@@ -155,7 +155,8 @@ LAPORAN HARIAN, MC-0, CCO, time schedule):
 - ✅ **Laporan Harian format KKP** (`/lokasi/[slug]/harian/[date]`): mandor ringkas,
   SM lengkapi tenaga per keahlian (14 peran) + material + peralatan + cuaca + jam;
   realisasi auto-join dari laporan lapangan; kartu print-friendly (Cetak/PDF) — DECISIONS 038
-- ⬜ Export KKP: cover harian/mingguan/bulanan + FORMAT DOKUMENTASI (foto + bobot%)
+- ✅ Laporan Mingguan & Bulanan (cover KKP + ringkasan progres + realisasi + kendala + cetak PDF)
+- ⬜ FORMAT DOKUMENTASI (foto + bobot%)
 - ⬜ MC-0 / CCO view + export (tambah/kurang dari RAB revisi)
 - ⬜ Generator template Berita Acara / Surat (docx)
 
