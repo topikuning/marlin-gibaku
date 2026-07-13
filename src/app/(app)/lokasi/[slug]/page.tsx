@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { isCrossLocation, canManageUsers, LOCATION_STATUS_LABEL, LOCATION_STATUS_CLASS } from "@/lib/roles";
@@ -48,6 +49,21 @@ export default async function LokasiDetailPage({
 
   const c = location.contract;
   const scurve = await getScurveSeries(location.id, c.startDate);
+  const canManage = canManageUsers(role);
+
+  async function saveDeviation(formData: FormData) {
+    "use server";
+    const s = await auth();
+    if (!s?.user || !canManageUsers(s.user.role)) return;
+    await db.location.update({
+      where: { id: location!.id },
+      data: {
+        deviationCause: String(formData.get("deviationCause") ?? "").trim() || null,
+        recoveryPlan: String(formData.get("recoveryPlan") ?? "").trim() || null,
+      },
+    });
+    revalidatePath(`/lokasi/${slug}`);
+  }
 
   return (
     <>
@@ -114,6 +130,47 @@ export default async function LokasiDetailPage({
           )}
         </div>
         <ScurveChart series={scurve} />
+      </section>
+
+      {/* Manajemen deviasi & recovery */}
+      <section className="mt-6 rounded-lg border border-[#E2E8F0] bg-white p-5">
+        <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
+          Penyebab deviasi & rencana pemulihan
+        </div>
+        {canManage ? (
+          <form action={saveDeviation} className="space-y-3">
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-600">Penyebab deviasi</label>
+              <textarea
+                name="deviationCause"
+                rows={2}
+                defaultValue={location.deviationCause ?? ""}
+                placeholder="mis. keterlambatan material, cuaca, pembebasan lahan"
+                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#0F766E]"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-semibold text-slate-600">Rencana pemulihan (recovery)</label>
+              <textarea
+                name="recoveryPlan"
+                rows={2}
+                defaultValue={location.recoveryPlan ?? ""}
+                placeholder="mis. tambah 2 grup kerja, kerja lembur, percepat pengadaan"
+                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#0F766E]"
+              />
+            </div>
+            <button type="submit" className="rounded-md bg-[#0F766E] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#115E59]">
+              Simpan
+            </button>
+          </form>
+        ) : location.deviationCause || location.recoveryPlan ? (
+          <dl className="space-y-2 text-sm">
+            {location.deviationCause && <div><dt className="text-xs font-semibold text-slate-500">Penyebab deviasi</dt><dd className="text-slate-900">{location.deviationCause}</dd></div>}
+            {location.recoveryPlan && <div><dt className="text-xs font-semibold text-slate-500">Rencana pemulihan</dt><dd className="text-slate-900">{location.recoveryPlan}</dd></div>}
+          </dl>
+        ) : (
+          <p className="text-sm text-slate-400">Belum diisi.</p>
+        )}
       </section>
 
       <section className="mt-6 overflow-x-auto rounded-lg border border-[#E2E8F0]">

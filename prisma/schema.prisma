@@ -369,6 +369,8 @@ model Location {
   geofenceRadiusM Int            @default(500) @map("geofence_radius_m")
   status          LocationStatus @default(planning)
   procurementStage ProcurementStage @default(belum_diundang) @map("procurement_stage")
+  deviationCause  String?        @map("deviation_cause") // penyebab deviasi (manajemen progress)
+  recoveryPlan    String?        @map("recovery_plan")   // rencana pemulihan
   hpsFileUrl      String?        @map("hps_file_url")
   createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz
@@ -627,6 +629,8 @@ model DailyReportItem {
   rejectedReason     String?           @map("rejected_reason")
   wasOutsidePlan     Boolean           @default(false) @map("was_outside_plan")
   notes              String?
+  workerCount        Int?              @map("worker_count") // jumlah tenaga kerja hari itu
+  constraintNote     String?           @map("constraint_note") // kendala di lapangan
   createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz
 
   report        DailyReport? @relation(fields: [dailyReportId], references: [id])

@@ -36,6 +36,10 @@ export async function submitDraftItem(
   }
   const { rabItemId, volumeDone, notes } = parsed.data;
 
+  const workerRaw = Number(formData.get("workerCount"));
+  const workerCount = Number.isFinite(workerRaw) && workerRaw > 0 ? Math.floor(workerRaw) : null;
+  const constraintNote = String(formData.get("constraintNote") ?? "").trim() || null;
+
   // Item harus benar-benar milik lokasi ini (cegah lapor item lokasi lain).
   const reportable = await getReportableItems(locationId);
   const item = reportable.find((i) => i.id === rabItemId);
@@ -74,6 +78,8 @@ export async function submitDraftItem(
       suggestedByUserId: userId,
       suggestedAt: new Date(),
       notes: notes || null,
+      workerCount,
+      constraintNote,
     },
   });
 

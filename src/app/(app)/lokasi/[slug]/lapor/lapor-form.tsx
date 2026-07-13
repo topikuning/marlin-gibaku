@@ -184,16 +184,45 @@ export function LaporForm({
         )}
       </div>
 
-      {/* Catatan opsional */}
+      {/* Tenaga kerja + catatan */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label htmlFor="workerCount" className="mb-1.5 block text-sm font-semibold text-[#0F172A]">
+            Jumlah pekerja <span className="font-normal text-[#94A3B8]">(opsional)</span>
+          </label>
+          <input
+            id="workerCount"
+            name="workerCount"
+            type="number"
+            inputMode="numeric"
+            min="0"
+            placeholder="mis. 8"
+            className="w-full rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-base tabular-nums outline-none focus:border-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/15"
+          />
+        </div>
+        <div>
+          <label htmlFor="notes" className="mb-1.5 block text-sm font-semibold text-[#0F172A]">
+            Catatan <span className="font-normal text-[#94A3B8]">(opsional)</span>
+          </label>
+          <input
+            id="notes"
+            name="notes"
+            maxLength={500}
+            placeholder="mis. cor kolom L2 utara"
+            className="w-full rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-base outline-none focus:border-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/15"
+          />
+        </div>
+      </div>
+
       <div>
-        <label htmlFor="notes" className="mb-1.5 block text-sm font-semibold text-[#0F172A]">
-          Catatan <span className="font-normal text-[#94A3B8]">(opsional)</span>
+        <label htmlFor="constraintNote" className="mb-1.5 block text-sm font-semibold text-[#0F172A]">
+          Kendala di lapangan <span className="font-normal text-[#94A3B8]">(opsional)</span>
         </label>
         <input
-          id="notes"
-          name="notes"
+          id="constraintNote"
+          name="constraintNote"
           maxLength={500}
-          placeholder="mis. cor kolom L2 utara"
+          placeholder="mis. hujan, material telat, alat rusak"
           className="w-full rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-base outline-none focus:border-[#0F766E] focus:ring-2 focus:ring-[#0F766E]/15"
         />
       </div>

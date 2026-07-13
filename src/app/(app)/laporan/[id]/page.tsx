@@ -89,6 +89,7 @@ export default async function LaporanDetailPage({
           <Row label="Waktu lapor" value={dtFmt.format(item.createdAt)} />
           <Row label="Disetujui oleh" value={item.approvedBy?.fullName ?? (isPending ? "— (menunggu)" : "—")} />
           <Row label="Waktu setuju" value={item.approvedAt ? dtFmt.format(item.approvedAt) : "—"} />
+          {item.workerCount != null && <Row label="Jumlah pekerja" value={`${item.workerCount} orang`} />}
           {item.report?.reportDate && (
             <Row label="Masuk laporan tanggal" value={new Intl.DateTimeFormat("id-ID", { dateStyle: "full" }).format(item.report.reportDate)} />
           )}
@@ -98,6 +99,12 @@ export default async function LaporanDetailPage({
           <div className="mt-4 rounded-lg bg-[#F8FAFC] px-4 py-3 text-sm text-[#0F172A]">
             <span className="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">Catatan lapangan</span>
             <div className="mt-1">“{item.notes}”</div>
+          </div>
+        )}
+        {item.constraintNote && (
+          <div className="mt-3 rounded-lg border-l-4 border-[#B45309] bg-[#FEF3C7] px-4 py-3 text-sm text-[#B45309]">
+            <span className="text-xs font-semibold uppercase tracking-wide">Kendala</span>
+            <div className="mt-1">{item.constraintNote}</div>
           </div>
         )}
       </section>
