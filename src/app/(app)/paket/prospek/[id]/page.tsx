@@ -39,8 +39,8 @@ export default async function ProspekDetailPage({
 
   return (
     <>
-      <Link href="/pengadaan" className="mb-4 inline-block text-sm text-[#1e3a8a] hover:underline">
-        ← Pengadaan
+      <Link href="/paket" className="mb-4 inline-block text-sm text-[#1e3a8a] hover:underline">
+        ← Paket
       </Link>
       <PageHeader
         eyebrow="Prospek / Calon Kontrak"
@@ -65,7 +65,7 @@ export default async function ProspekDetailPage({
       {/* Pipeline tahap */}
       {!isKontrak && (
         <section className="mb-6 rounded-xl border border-slate-200 bg-white p-5">
-          <div className="mb-3 text-sm font-semibold text-slate-900">Tahap pengadaan</div>
+          <div className="mb-3 text-sm font-semibold text-slate-900">Tahap tender</div>
           <div className="flex flex-wrap gap-2">
             {PROSPEK_ACTIVE_STAGES.map((s) => {
               const active = prospek.stage === s;

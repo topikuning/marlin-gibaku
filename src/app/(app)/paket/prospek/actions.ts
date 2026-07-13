@@ -76,8 +76,8 @@ export async function createProspek(_prev: Result | undefined, formData: FormDat
     select: { id: true },
   });
 
-  revalidatePath("/pengadaan");
-  redirect(`/pengadaan/prospek/${created.id}`);
+  revalidatePath("/paket");
+  redirect(`/paket/prospek/${created.id}`);
 }
 
 export async function updateProspekStage(prospekId: string, stage: string): Promise<void> {
@@ -87,8 +87,8 @@ export async function updateProspekStage(prospekId: string, stage: string): Prom
   const p = await db.prospek.findUnique({ where: { id: prospekId }, select: { stage: true } });
   if (!p || p.stage === "jadi_kontrak") return; // terkunci setelah jadi kontrak
   await db.prospek.update({ where: { id: prospekId }, data: { stage: stage as ProspekStage } });
-  revalidatePath(`/pengadaan/prospek/${prospekId}`);
-  revalidatePath("/pengadaan");
+  revalidatePath(`/paket/prospek/${prospekId}`);
+  revalidatePath("/paket");
 }
 
 /** Konversi prospek → Kontrak + Lokasi real. Terminal: prospek jadi_kontrak. */
@@ -178,7 +178,7 @@ export async function convertToContract(_prev: Result | undefined, formData: For
     });
   });
 
-  revalidatePath("/pengadaan");
+  revalidatePath("/paket");
   revalidatePath("/lokasi");
   return { ok: "Prospek berhasil jadi kontrak. Lokasi sudah dibuat — lanjut import RAB/HPS per lokasi." };
 }

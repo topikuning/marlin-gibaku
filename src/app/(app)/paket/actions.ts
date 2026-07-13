@@ -24,6 +24,6 @@ export async function setStage(
     return { error: "Tidak punya akses ke lokasi ini." };
 
   await db.location.update({ where: { id: locationId }, data: { procurementStage: stage } });
-  revalidatePath("/pengadaan");
+  revalidatePath("/paket");
   return { ok: "Tahap diperbarui." };
 }
