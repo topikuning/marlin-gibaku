@@ -737,3 +737,24 @@ tenaga kerja di lapor harian, dark mode. Restyle halaman lain ke token baru meny
 **Catatan teknis**: saat verifikasi, `pnpm build` yang jalan bersamaan dengan
 `next start` lama sempat merusak `.next` (halaman tak ber-CSS). Solusi: kill server
 lama → `rm -rf .next` → build → start bersih. Bukan bug kode.
+
+---
+
+## 036 · 2026-07-13 · Modul Keuangan — input manual per lokasi + derivasi
+
+**Konteks**: user minta modul keuangan (serapan, nilai selesai belum ditagih,
+pengeluaran vs budget cap, kebutuhan dana 30 hari). Sumber data belum ada sistem
+penagihan/pembayaran → diputuskan **input manual per lokasi** (tanpa tanya, sesuai
+"kerjakan semua").
+
+**Keputusan**: kolom `Location`: `invoicedValue`, `paidValue`, `spentValue`,
+`budgetCap` (BigInt, default 0, input manual admin). Derivasi:
+- Nilai Terpasang = realisasi (SUM value_done sent) — dari progress.
+- Selesai belum ditagih = terpasang − invoiced.
+- Serapan = paid ÷ kontrak.
+- Kebutuhan 30 hari = nilai fisik rencana 4 minggu ke depan (dari kurva-S plan).
+Halaman **/keuangan** (role dashboard, scoped): KPI + tabel per lokasi dgn sel
+uang editable (admin, format on blur). Menu Keuangan.
+
+**Belum**: integrasi termin kontrak otomatis, histori pembayaran, proyeksi kas
+multi-periode. Sekarang snapshot manual.

@@ -371,6 +371,11 @@ model Location {
   procurementStage ProcurementStage @default(belum_diundang) @map("procurement_stage")
   deviationCause  String?        @map("deviation_cause") // penyebab deviasi (manajemen progress)
   recoveryPlan    String?        @map("recovery_plan")   // rencana pemulihan
+  // Keuangan (input manual per lokasi) — DECISIONS 036
+  invoicedValue   BigInt         @default(0) @map("invoiced_value")  // nilai sudah ditagih
+  paidValue       BigInt         @default(0) @map("paid_value")      // nilai sudah dibayar
+  spentValue      BigInt         @default(0) @map("spent_value")     // pengeluaran aktual
+  budgetCap       BigInt         @default(0) @map("budget_cap")      // pagu/budget cap
   hpsFileUrl      String?        @map("hps_file_url")
   createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz
