@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { canManageUsers } from "@/lib/roles";
+import { PageHeader } from "@/components/knmp/page-header";
 import { ContractorForm, ContractForm } from "./kontrak-forms";
 import { ContractorsGrid, ContractsGrid } from "./kontrak-grids";
 
@@ -28,16 +29,11 @@ export default async function KontrakPage() {
 
   return (
     <>
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
-        MARLIN · Kontrak
-      </div>
-      <h1 className="mb-1 text-3xl font-semibold text-[#0F172A]">
-        Kontrak & Kontraktor
-      </h1>
-      <p className="mb-8 text-sm text-[#0F766E]">
-        1 kontraktor bisa punya banyak kontrak; 1 kontrak bisa mencakup banyak
-        lokasi (DECISIONS 016–017).
-      </p>
+      <PageHeader
+        eyebrow="Kontrak"
+        title="Kontrak & Kontraktor"
+        subtitle="1 kontraktor bisa punya banyak kontrak; 1 kontrak bisa mencakup banyak lokasi."
+      />
 
       {/* ── Kontraktor ── */}
       <section className="mb-6 rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] p-5">

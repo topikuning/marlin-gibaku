@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { canManageUsers, ROLE_LABEL, ALL_ROLES } from "@/lib/roles";
+import { PageHeader } from "@/components/knmp/page-header";
 import { UserForm } from "./user-form";
 import { UsersGrid } from "./users-grid";
 
@@ -31,15 +32,11 @@ export default async function PenggunaPage() {
 
   return (
     <>
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
-        MARLIN · Pengguna
-      </div>
-      <h1 className="mb-1 text-3xl font-semibold text-[#0F172A]">
-        Kelola Pengguna
-      </h1>
-      <p className="mb-8 text-sm text-[#0F766E]">
-        {users.length} user terdaftar. Buat akun untuk SM, mandor, PM, dll.
-      </p>
+      <PageHeader
+        eyebrow="Pengguna"
+        title="Kelola Pengguna"
+        subtitle={`${users.length} user terdaftar. Buat akun untuk SM, mandor, PM, dll.`}
+      />
 
       <section className="mb-10 rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] p-5">
         <div className="mb-4 text-[10px] font-semibold uppercase tracking-widest text-[#0F766E]">
