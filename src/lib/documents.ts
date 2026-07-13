@@ -25,6 +25,20 @@ export const STAGE_ORDER: DocumentStage[] = [
   "lainnya",
 ];
 
+/**
+ * Tahap paket SAAT INI = tahap dokumen terjauh yang sudah diunggah (dibaca dari
+ * dokumen, bukan di-set manual). "lainnya" diabaikan. Null kalau belum ada dokumen.
+ */
+export function deriveDocStage(stages: DocumentStage[]): DocumentStage | null {
+  const rank = (s: DocumentStage) => STAGE_ORDER.indexOf(s);
+  let best: DocumentStage | null = null;
+  for (const s of stages) {
+    if (s === "lainnya") continue;
+    if (best === null || rank(s) > rank(best)) best = s;
+  }
+  return best;
+}
+
 export const STAGE_LABEL: Record<DocumentStage, string> = {
   pemilihan: "Pemilihan / Tender",
   penunjukan: "Penunjukan (SPPBJ)",

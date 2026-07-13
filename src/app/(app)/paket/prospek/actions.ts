@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { canManageProspek, slugify } from "@/lib/prospek";
+import { canManageProspek, slugify, deriveStageFromDocs } from "@/lib/prospek";
 import { uploadDocumentSchema, isTypeValidForStage, validateFile } from "@/lib/schemas/document";
 import { r2Put, isR2Configured } from "@/lib/r2";
 import type { DocumentStage, DocumentType, ProspekStage } from "@prisma/client";
@@ -98,8 +98,33 @@ export async function uploadProspekDocument(_prev: Result | undefined, formData:
       uploadedByUserId: session.user.id,
     },
   });
+
+  // Tahap ditentukan OTOMATIS dari dokumen yang ada.
+  const allDocs = await db.document.findMany({ where: { prospekId }, select: { type: true } });
+  const derived = deriveStageFromDocs(allDocs.map((x) => x.type));
+  const prospekData: { stage: typeof derived; hpsValue?: bigint } = { stage: derived };
+  // HPS bisa diisi saat aanwijzing/penawaran (dari form upload).
+  const hpsRaw = String(formData.get("hpsValue") ?? "").replace(/[^0-9]/g, "");
+  if (hpsRaw) prospekData.hpsValue = BigInt(hpsRaw);
+  const cur = await db.prospek.findUnique({ where: { id: prospekId }, select: { stage: true } });
+  if (cur && cur.stage !== "jadi_kontrak" && cur.stage !== "batal") {
+    await db.prospek.update({ where: { id: prospekId }, data: prospekData });
+  }
+
   revalidatePath(`/paket/prospek/${prospekId}`);
-  return { ok: `Dokumen "${d.title}" tersimpan.` };
+  revalidatePath("/paket");
+  return { ok: `Dokumen "${d.title}" tersimpan. Tahap diperbarui otomatis.` };
+}
+
+/** Batalkan prospek (satu-satunya perubahan tahap manual). */
+export async function cancelProspek(prospekId: string): Promise<void> {
+  const session = await auth();
+  if (!session?.user || !canManageProspek(session.user.role)) return;
+  const p = await db.prospek.findUnique({ where: { id: prospekId }, select: { stage: true } });
+  if (!p || p.stage === "jadi_kontrak") return;
+  await db.prospek.update({ where: { id: prospekId }, data: { stage: "batal" } });
+  revalidatePath(`/paket/prospek/${prospekId}`);
+  revalidatePath("/paket");
 }
 
 const STAGES: ProspekStage[] = [

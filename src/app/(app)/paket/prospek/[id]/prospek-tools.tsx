@@ -75,6 +75,10 @@ export function ProspekDocUpload({ prospekId }: { prospekId: string }) {
         <div><label className={lbl}>Nomor surat</label><input name="docNumber" className={inp} /></div>
         <div><label className={lbl}>Tanggal dokumen</label><input name="docDate" type="date" className={inp} /></div>
         <div className="sm:col-span-2">
+          <label className={lbl}>Nilai HPS (Rp) — isi saat aanwijzing/penawaran</label>
+          <input name="hpsValue" inputMode="numeric" className={inp} placeholder="kosongkan kalau bukan tahap HPS" />
+        </div>
+        <div className="sm:col-span-2">
           <label className={lbl}>File * (PDF/gambar/Word/Excel, maks 15 MB)</label>
           <input name="file" type="file" required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx"
             className="w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-[#1e3a8a] file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white" />

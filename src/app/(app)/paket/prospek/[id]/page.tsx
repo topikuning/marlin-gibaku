@@ -8,11 +8,12 @@ import {
   PROSPEK_ACTIVE_STAGES,
   PROSPEK_STAGE_LABEL,
   PROSPEK_STAGE_CLASS,
+  STAGE_DOC_HINT,
 } from "@/lib/prospek";
 import { KKP_ADMIN_FLOW, FLOW_TOTAL, PIC_LABEL, type FlowItem } from "@/lib/kkp-admin-flow";
 import { TYPE_LABEL } from "@/lib/documents";
 import { PageHeader } from "@/components/knmp/page-header";
-import { updateProspekStage } from "../actions";
+import { cancelProspek } from "../actions";
 import { ConvertForm } from "./convert-form";
 import { ProspekEdit, ProspekDocUpload } from "./prospek-tools";
 
@@ -94,37 +95,33 @@ export default async function ProspekDetailPage({
         </Card>
       </div>
 
-      {/* Pipeline tahap */}
+      {/* Tahap tender — OTOMATIS dari dokumen (bukan pilihan manual) */}
       {!isKontrak && (
         <section className="mb-6 rounded-xl border border-slate-200 bg-white p-5">
-          <div className="mb-3 text-sm font-semibold text-slate-900">Tahap tender</div>
-          <div className="flex flex-wrap gap-2">
-            {PROSPEK_ACTIVE_STAGES.map((s) => {
-              const active = prospek.stage === s;
-              return (
-                <form key={s} action={updateProspekStage.bind(null, prospek.id, s)}>
-                  <button
-                    type="submit"
-                    className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
-                      active
-                        ? "bg-[#1e3a8a] text-white"
-                        : "border border-slate-200 text-slate-600 hover:bg-slate-50"
-                    }`}
-                  >
-                    {PROSPEK_STAGE_LABEL[s]}
-                  </button>
-                </form>
-              );
-            })}
-            <form action={updateProspekStage.bind(null, prospek.id, "batal")}>
-              <button
-                type="submit"
-                className="rounded-full border border-red-200 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50"
-              >
-                Batalkan
-              </button>
+          <div className="mb-1 flex items-center justify-between">
+            <div className="text-sm font-semibold text-slate-900">Tahap tender (otomatis dari dokumen)</div>
+            <form action={cancelProspek.bind(null, prospek.id)}>
+              <button type="submit" className="text-xs font-medium text-red-600 hover:underline">Batalkan prospek</button>
             </form>
           </div>
+          <p className="mb-3 text-xs text-slate-500">
+            Tahap naik sendiri saat dokumen penanda diunggah — {STAGE_DOC_HINT[prospek.stage]}.
+          </p>
+          <ol className="flex flex-wrap items-center gap-1.5">
+            {PROSPEK_ACTIVE_STAGES.map((s, i) => {
+              const reachedIdx = PROSPEK_ACTIVE_STAGES.indexOf(prospek.stage);
+              const done = reachedIdx >= i;
+              const current = prospek.stage === s;
+              return (
+                <li key={s} className="flex items-center gap-1.5">
+                  <span className={`rounded-full px-3 py-1 text-sm font-medium ${current ? "bg-[#1e3a8a] text-white" : done ? "bg-[#eff6ff] text-[#1e3a8a]" : "bg-slate-100 text-slate-400"}`}>
+                    {PROSPEK_STAGE_LABEL[s]}
+                  </span>
+                  {i < PROSPEK_ACTIVE_STAGES.length - 1 && <span className="text-slate-300">→</span>}
+                </li>
+              );
+            })}
+          </ol>
         </section>
       )}
 
@@ -156,21 +153,28 @@ export default async function ProspekDetailPage({
         )}
       </section>
 
-      {/* Alur administrasi & dokumen — SEJAK tender */}
+      {/* 1) UPLOAD DULU — dokumen menaikkan tahap otomatis */}
+      {!isKontrak && (
+        <section className="mb-6 rounded-xl border border-slate-200 bg-white p-5">
+          <div className="mb-1 text-sm font-semibold text-slate-900">Unggah dokumen (sejak tender)</div>
+          <p className="mb-4 text-xs text-slate-500">
+            Undangan, BA Penjelasan/aanwijzing (isi HPS di sini), penawaran, negosiasi, SPPBJ.
+            Tahap & progres di bawah naik <b>otomatis</b> dari dokumen ini.
+          </p>
+          <ProspekDocUpload prospekId={prospek.id} />
+        </section>
+      )}
+
+      {/* 2) PROGRES ALUR ADMINISTRASI (hasil dari dokumen) */}
       <section className="mb-6 rounded-xl border border-slate-200 bg-white p-5">
         <div className="mb-1 flex items-baseline justify-between">
-          <div className="text-sm font-semibold text-slate-900">Alur administrasi & dokumen (sejak tender)</div>
+          <div className="text-sm font-semibold text-slate-900">Progres alur administrasi</div>
           <div className="text-xs tabular-nums text-slate-500">{doneTotal}/{FLOW_TOTAL} · {adminPct}%</div>
         </div>
         <div className="mb-4 h-2 w-full overflow-hidden rounded-full bg-slate-100">
           <div className="h-full rounded-full bg-[#1e3a8a]" style={{ width: `${adminPct}%` }} />
         </div>
-        <p className="mb-4 text-xs text-slate-500">
-          Dokumen bisa diunggah sejak tahap tender — undangan, penawaran (RAB/HPS), negosiasi, dst.
-          Status ✓ otomatis dari dokumen yang diunggah.
-        </p>
 
-        {/* Checklist milestone (fase awal aktif) */}
         <div className="mb-5 space-y-4">
           {KKP_ADMIN_FLOW.slice(0, 5).map((phase) => (
             <div key={phase.key}>
@@ -193,14 +197,6 @@ export default async function ProspekDetailPage({
           ))}
         </div>
 
-        {!isKontrak && (
-          <div className="mb-5 rounded-lg border border-slate-100 bg-slate-50/60 p-4">
-            <div className="mb-3 text-sm font-semibold text-slate-900">Unggah dokumen</div>
-            <ProspekDocUpload prospekId={prospek.id} />
-          </div>
-        )}
-
-        {/* Daftar dokumen terunggah */}
         <div>
           <div className="mb-2 text-sm font-semibold text-slate-900">Dokumen terunggah ({docs.length})</div>
           {docs.length === 0 ? (
