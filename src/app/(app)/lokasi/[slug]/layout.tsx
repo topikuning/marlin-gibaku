@@ -33,6 +33,7 @@ export default async function LokasiLayout({
   ];
   if (canReport(role)) tabs.push({ href: `${base}/lapor`, label: "Lapor Harian" });
   if (canApprove(role)) tabs.push({ href: `${base}/harian`, label: "Laporan Harian KKP" });
+  tabs.push({ href: `${base}/periodik`, label: "Mingguan/Bulanan" });
   tabs.push({ href: `${base}/dokumen`, label: "Dokumen" });
   tabs.push({ href: `${base}/administrasi`, label: "Administrasi" });
 
