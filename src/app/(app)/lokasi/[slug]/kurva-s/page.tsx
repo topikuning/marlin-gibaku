@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
@@ -46,9 +45,6 @@ export default async function KurvaSPage({
 
   return (
     <>
-      <Link href={`/lokasi/${slug}`} className="mb-4 inline-block text-sm text-[#1e3a8a] hover:underline">
-        ← Detail Lokasi
-      </Link>
       <h1 className="mb-1 text-3xl font-semibold text-[#0F172A]">Atur Kurva-S — {location.name}</h1>
       <p className="mb-6 text-sm text-[#1e3a8a]">
         Rencana di-generate otomatis dari RAB + durasi kontrak, dan bisa kamu edit.

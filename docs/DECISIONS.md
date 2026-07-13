@@ -896,3 +896,13 @@ tanpa shell) + auto window.print. Tombol "Cetak/PDF" buka tab baru ke sana.
 Menu: buang "Kontrak" dari nav (redundan dgn Paket; master tetap diakses via link
 di Paket), urut ulang alur bisnis: Beranda·Peta·Paket·Lokasi·Lapor·Keuangan·
 Pengguna·Diagnostik.
+
+## 043 · 2026-07-13 · Lokasi jadi workspace ber-tab (IA) + harian input-first
+Masalah (user): fitur lokasi (RAB, Dokumen, Administrasi, dll) terkubur sbg tombol
+di BAWAH detail → kebanyakan klik, alur tak jelas. Solusi: `layout.tsx` untuk
+`/lokasi/[slug]` render header lokasi + **tab bar** (Ringkasan·RAB·Kurva-S·Lapor·
+Laporan Harian KKP·Dokumen·Administrasi) yang selalu tampil → 1 klik antar fitur.
+Halaman anak dibersihkan (buang back-link & judul lokasi ganda). `LokasiTabs`
+(usePathname, highlight aktif). Harian: buang preview form di layar (aneh — cetak
+sudah generate PDF di /cetak), jadi input-first (editor) + tombol Cetak/PDF.
+Belum: history deviasi/recovery (mingguan), laporan mingguan/bulanan — slice next.

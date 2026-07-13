@@ -3,8 +3,6 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { canApprove } from "@/lib/report";
 import { getDailyReportView } from "@/lib/daily-report-view";
-import { KkpDailyReport } from "@/components/knmp/kkp-daily-report";
-import { PageHeader } from "@/components/knmp/page-header";
 import { DailyLogEditor } from "./editor";
 
 export default async function LaporanHarianKkpPage({
@@ -24,19 +22,13 @@ export default async function LaporanHarianKkpPage({
 
   return (
     <>
-      <Link href={`/lokasi/${slug}`} className="mb-4 inline-block text-sm text-[#1e3a8a] hover:underline">
-        ← Detail Lokasi
-      </Link>
-      <PageHeader
-        eyebrow="Laporan Harian KKP"
-        title={`Laporan Harian — ${view.locationName}`}
-        subtitle="Format resmi KKP. Mandor input ringkas; Site Manager melengkapi tenaga per keahlian, material, peralatan, dan cuaca di sini."
-      />
-
-      {/* Navigasi tanggal + cetak */}
-      <div className="mb-5 flex flex-wrap items-center gap-2">
+      {/* Toolbar: judul section + tanggal + cetak */}
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        <div>
+          <div className="text-sm font-semibold text-slate-900">Laporan Harian (format KKP)</div>
+          <div className="text-xs text-slate-500">Isi datanya di bawah; klik Cetak untuk PDF resmi.</div>
+        </div>
         <form className="flex items-center gap-2" action={`/lokasi/${slug}/harian`}>
-          <label className="text-sm text-slate-500">Tanggal:</label>
           <input
             type="date"
             name="d"
@@ -56,22 +48,14 @@ export default async function LaporanHarianKkpPage({
         </Link>
       </div>
 
-      {/* Preview form KKP */}
-      <section className="overflow-x-auto rounded-xl border border-slate-200 bg-white p-5">
-        <KkpDailyReport d={view.data} />
-      </section>
-
-      {/* Editor SM */}
+      {/* Input (utama) */}
       {canEdit ? (
-        <section className="mt-8 rounded-xl border border-slate-200 bg-white p-6">
-          <h2 className="mb-4 text-sm font-semibold text-slate-900">
-            Lengkapi Laporan Harian (Site Manager)
-          </h2>
+        <section className="rounded-xl border border-slate-200 bg-white p-6">
           <DailyLogEditor slug={slug} date={date} initial={view.editor} />
         </section>
       ) : (
-        <p className="mt-6 text-sm text-slate-500">
-          Detail dilengkapi oleh Site Manager. Klik “Cetak / PDF” untuk mengunduh laporan.
+        <p className="text-sm text-slate-500">
+          Detail dilengkapi oleh Site Manager. Klik “Cetak / PDF” untuk laporan resmi.
         </p>
       )}
     </>

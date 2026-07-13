@@ -47,12 +47,6 @@ export default async function AdministrasiPage({
 
   return (
     <>
-      <Link
-        href={`/lokasi/${slug}`}
-        className="mb-4 inline-block text-sm text-[#1e3a8a] hover:underline"
-      >
-        ← Detail Lokasi
-      </Link>
       <PageHeader
         eyebrow="Administrasi KNMP"
         title={`Alur Administrasi — ${location.name}`}
