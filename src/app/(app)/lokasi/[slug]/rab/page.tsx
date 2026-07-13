@@ -144,12 +144,6 @@ export default async function RabPage({
 
   return (
     <>
-      <Link
-        href={`/lokasi/${slug}`}
-        className="mb-4 inline-block text-sm text-[#1e3a8a] hover:underline"
-      >
-        ← Detail Lokasi
-      </Link>
       <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-3xl font-semibold text-[#0F172A]">
           RAB — {location.name}

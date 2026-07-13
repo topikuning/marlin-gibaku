@@ -3,8 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { isCrossLocation, canManageUsers, LOCATION_STATUS_LABEL, LOCATION_STATUS_CLASS } from "@/lib/roles";
-import { canReport } from "@/lib/report";
+import { isCrossLocation, canManageUsers } from "@/lib/roles";
 import { formatRupiah } from "@/lib/format";
 import { getScurveSeries } from "@/lib/scurve-data";
 import { ScurveChart } from "@/components/knmp/scurve-chart";
@@ -67,27 +66,6 @@ export default async function LokasiDetailPage({
 
   return (
     <>
-      <Link
-        href="/lokasi"
-        className="mb-4 inline-block text-sm text-[#1e3a8a] hover:underline"
-      >
-        ← Daftar Lokasi
-      </Link>
-
-      <div className="mb-1 flex items-center gap-3">
-        <h1 className="text-3xl font-semibold text-[#0F172A]">
-          {location.name}
-        </h1>
-        <span
-          className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${LOCATION_STATUS_CLASS[location.status]}`}
-        >
-          {LOCATION_STATUS_LABEL[location.status]}
-        </span>
-      </div>
-      <p className="mb-8 text-sm text-[#1e3a8a]">
-        {location.village}, {location.regency} · {location.province}
-      </p>
-
       <div className="grid gap-5 sm:grid-cols-2">
         <section className="rounded-lg border border-[#E2E8F0] bg-[#FFFFFF] p-5">
           <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
@@ -199,40 +177,6 @@ export default async function LokasiDetailPage({
         </table>
       </section>
 
-      <div className="mt-4 flex items-center gap-4">
-        <Link
-          href={`/lokasi/${location.slug}/rab`}
-          className="rounded-md bg-[#1e3a8a] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#172554]"
-        >
-          Lihat RAB lengkap →
-        </Link>
-        <Link
-          href={`/lokasi/${location.slug}/dokumen`}
-          className="rounded-md border border-[#1e3a8a] px-4 py-2 text-sm font-semibold text-[#1e3a8a] transition hover:bg-[#F1F5F9]"
-        >
-          Arsip Dokumen →
-        </Link>
-        <Link
-          href={`/lokasi/${location.slug}/administrasi`}
-          className="rounded-md border border-[#1e3a8a] px-4 py-2 text-sm font-semibold text-[#1e3a8a] transition hover:bg-[#F1F5F9]"
-        >
-          Alur Administrasi →
-        </Link>
-        <Link
-          href={`/lokasi/${location.slug}/harian`}
-          className="rounded-md border border-[#1e3a8a] px-4 py-2 text-sm font-semibold text-[#1e3a8a] transition hover:bg-[#F1F5F9]"
-        >
-          Laporan Harian KKP →
-        </Link>
-        {canReport(role) && (
-          <Link
-            href={`/lokasi/${location.slug}/lapor`}
-            className="rounded-md border border-[#1e3a8a] px-4 py-2 text-sm font-semibold text-[#1e3a8a] transition hover:bg-[#F1F5F9]"
-          >
-            Lapor Harian →
-          </Link>
-        )}
-      </div>
     </>
   );
 }

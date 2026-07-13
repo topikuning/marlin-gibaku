@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
@@ -53,9 +52,6 @@ export default async function DokumenPage({
 
   return (
     <>
-      <Link href={`/lokasi/${slug}`} className="mb-4 inline-block text-sm text-[#1e3a8a] hover:underline">
-        ← Detail Lokasi
-      </Link>
       <h1 className="mb-1 text-3xl font-semibold text-slate-900">
         Arsip Dokumen — {location.name}
       </h1>
