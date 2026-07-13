@@ -165,6 +165,29 @@ export default async function LaporanPage() {
       {approver && (
         <section className="mb-10">
           <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
+            Laporan Harian KKP — lengkapi format resmi
+          </div>
+          <p className="mb-3 text-sm text-[#64748B]">
+            Isi tenaga per keahlian, material, peralatan, cuaca (format resmi KKP),
+            lalu cetak/PDF. Klik lokasi untuk buka hari ini.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {locations.map((loc) => (
+              <Link
+                key={loc.id}
+                href={`/lokasi/${loc.slug}/harian`}
+                className="rounded-md border border-[#1e3a8a] bg-[#eff6ff] px-3 py-1.5 text-sm font-semibold text-[#1e3a8a] transition hover:bg-[#dbeafe]"
+              >
+                📋 {loc.name} →
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {approver && (
+        <section className="mb-10">
+          <div className="mb-3 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
             Menunggu persetujuan ({pending.length})
           </div>
           {pending.length === 0 ? (
