@@ -21,9 +21,8 @@ export default async function LaporanHarianKkpPage({
   if (view === "notfound" || view === "forbidden") notFound();
 
   const canEdit = canApprove(role);
-  const belum = view.activities.filter((a) => a.doneVolume <= 0).length;
-  const selesai = view.activities.filter((a) => a.pct != null && a.pct >= 99.5).length;
-  const jalan = view.activities.length - belum - selesai;
+  const dilaporkan = view.activities.filter((a) => a.doneVolume > 0);
+  const selesai = dilaporkan.filter((a) => a.pct != null && a.pct >= 99.5).length;
 
   return (
     <>
@@ -64,51 +63,52 @@ export default async function LaporanHarianKkpPage({
         </p>
       )}
 
-      {/* Progres per kegiatan — biar jelas mana yang belum diprogres */}
+      {/* Kegiatan yang SUDAH dilaporkan (bukan semua RAB) */}
       <section className="mt-8 rounded-xl border border-slate-200 bg-white p-5">
         <div className="mb-1 flex items-baseline justify-between">
-          <div className="text-sm font-semibold text-slate-900">Progres per Kegiatan</div>
-          <div className="text-xs text-slate-500">
-            {belum} belum · {jalan} berjalan · {selesai} selesai
-          </div>
+          <div className="text-sm font-semibold text-slate-900">Kegiatan yang Sudah Dilaporkan</div>
+          <div className="text-xs text-slate-500">{dilaporkan.length} kegiatan · {selesai} selesai</div>
         </div>
         <p className="mb-3 text-xs text-slate-500">
-          Realisasi kumulatif tiap kegiatan (RAB). Yang belum diprogres ditandai merah.
+          Hanya kegiatan yang sudah ada input laporan. Kalau kosong berarti belum ada yang dilaporkan.
         </p>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[520px] text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
-                <th className="py-1.5 pr-2 font-medium">Kegiatan</th>
-                <th className="py-1.5 px-2 text-right font-medium">Rencana</th>
-                <th className="py-1.5 px-2 text-right font-medium">Realisasi</th>
-                <th className="py-1.5 pl-2 text-right font-medium">%</th>
-              </tr>
-            </thead>
-            <tbody>
-              {view.activities.map((a, i) => {
-                const done = a.doneVolume > 0;
-                const full = a.pct != null && a.pct >= 99.5;
-                return (
-                  <tr key={i} className={`border-b border-slate-100 ${!done ? "bg-[#FEF2F2]" : ""}`}>
-                    <td className="py-1.5 pr-2">
-                      <span className={!done ? "text-[#DC2626]" : "text-slate-800"}>{a.name}</span>
-                    </td>
-                    <td className="py-1.5 px-2 text-right tabular-nums text-slate-500">
-                      {a.planVolume != null ? volFmt.format(a.planVolume) : "—"} {a.unit}
-                    </td>
-                    <td className="py-1.5 px-2 text-right tabular-nums text-slate-900">
-                      {volFmt.format(a.doneVolume)} {a.unit}
-                    </td>
-                    <td className={`py-1.5 pl-2 text-right tabular-nums font-medium ${!done ? "text-[#DC2626]" : full ? "text-[#15803D]" : "text-amber-600"}`}>
-                      {a.pct != null ? `${a.pct.toFixed(0)}%` : "—"}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        {dilaporkan.length === 0 ? (
+          <p className="rounded-lg bg-slate-50 px-4 py-6 text-center text-sm text-slate-400">
+            Belum ada kegiatan yang dilaporkan pada lokasi ini.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[520px] text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
+                  <th className="py-1.5 pr-2 font-medium">Kegiatan</th>
+                  <th className="py-1.5 px-2 text-right font-medium">Rencana</th>
+                  <th className="py-1.5 px-2 text-right font-medium">Realisasi</th>
+                  <th className="py-1.5 pl-2 text-right font-medium">%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dilaporkan.map((a, i) => {
+                  const full = a.pct != null && a.pct >= 99.5;
+                  return (
+                    <tr key={i} className="border-b border-slate-100">
+                      <td className="py-1.5 pr-2 text-slate-800">{a.name}</td>
+                      <td className="py-1.5 px-2 text-right tabular-nums text-slate-500">
+                        {a.planVolume != null ? volFmt.format(a.planVolume) : "—"} {a.unit}
+                      </td>
+                      <td className="py-1.5 px-2 text-right tabular-nums text-slate-900">
+                        {volFmt.format(a.doneVolume)} {a.unit}
+                      </td>
+                      <td className={`py-1.5 pl-2 text-right tabular-nums font-medium ${full ? "text-[#15803D]" : "text-amber-600"}`}>
+                        {a.pct != null ? `${a.pct.toFixed(0)}%` : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
     </>
   );
