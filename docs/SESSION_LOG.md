@@ -177,3 +177,29 @@ import HPS via UI.
 - Kalau ragu, tanya. Kalau salah, akui.
 - Jangan asumsi format KKP resmi — tanya kalau butuh template
 - Test setiap fitur end-to-end sebelum move on
+
+---
+
+## Sesi 4 · 2026-07-14 · REBUILD TOTAL (Claude Code)
+
+Master prompt rebuild dieksekusi. Lihat DECISIONS 051 + docs/rebuild/* (13 artefak).
+Ringkas:
+- Audit menyeluruh (route/komponen, schema/logic, infra/docs) → CURRENT_STATE_AUDIT.
+- Stack: Next 16 / React 19.2 / Prisma 7 (+adapter-pg) / Tailwind 4 stable / Zod 4 /
+  TS 5.9 / Node 24 LTS / pnpm 11 / AG Grid Community 36; pinned exact; next-auth beta
+  + tanstack + react-pdf + recharts + leaflet + react-hook-form dihapus.
+- Schema baru (baseline migration + trigger append-only), DB dev reset, seed baru
+  (7 lokasi riil ~14k RabNode, paket multi-lokasi, laporan 5 status, keuangan demo).
+- Auth custom session-DB + capability authz; audit log ditulis tiap mutasi;
+  rate limit login; wajib ganti password first-login.
+- App dibangun ulang per slice: Command Center exception-first; workspace Paket;
+  workspace Lokasi (RAB/baseline/progress/issue); laporan harian TERPADU +
+  /hari-ini mobile + cetak KKP; keuangan transaksional + approval; Document Center +
+  milestone kepatuhan + laporan periodik + export xlsx; pengguna; sistem (diagnostik
+  R2, audit trail, reset dev guarded); progress portfolio.
+- Deploy: Dockerfile multi-stage non-root + railway.json DOCKERFILE + CI GitHub
+  Actions (license/security audit → typecheck → lint → unit → integration → build →
+  docker → e2e).
+- Dihapus: docs/RAILWAY.md, docs/DEPLOY_RAILWAY.md (→ README + DEPLOYMENT_ARCHITECTURE),
+  docs/FEATURE_CHECKLIST.md (→ TRACEABILITY_MATRIX).
+- Ditunda sadar: peta, PWA penuh, PR/PO granular, WA intake (OPEN_ISSUES).
