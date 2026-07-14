@@ -3,10 +3,9 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
-import type { ProcurementStage } from "@prisma/client";
+import type { DocumentStage } from "@prisma/client";
 import { DataGrid } from "@/components/knmp/data-grid";
-import { STAGE_LABEL, STAGE_COLOR, PROC_STAGES } from "@/lib/procurement";
-import { StageSelect } from "./stage-select";
+import { STAGE_LABEL, STAGE_COLOR } from "@/lib/documents";
 
 const rupiah = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 });
 
@@ -19,11 +18,10 @@ export type ProcGridRow = {
   contractor: string;
   hpsNum: number;
   kontrakNum: number;
-  stage: ProcurementStage;
+  stage: DocumentStage;
 };
 
-export function PengadaanGrid({ rows, canEdit }: { rows: ProcGridRow[]; canEdit: boolean }) {
-  const stageOpts = PROC_STAGES.map((s) => ({ value: s, label: STAGE_LABEL[s] }));
+export function PengadaanGrid({ rows }: { rows: ProcGridRow[] }) {
   const columns = useMemo<ColumnDef<ProcGridRow, unknown>[]>(
     () => [
       {
@@ -41,18 +39,16 @@ export function PengadaanGrid({ rows, canEdit }: { rows: ProcGridRow[]; canEdit:
       { accessorKey: "kontrakNum", header: "Kontrak", meta: { align: "right" }, cell: (c) => <span className="tabular-nums text-slate-900">{rupiah.format(c.getValue<number>())}</span> },
       {
         accessorKey: "stage",
-        header: "Tahap",
+        header: "Tahap (dari dokumen)",
         cell: (c) => {
-          const s = c.getValue<ProcurementStage>();
-          return canEdit ? (
-            <StageSelect locationId={c.row.original.id} stage={s} stages={stageOpts} />
-          ) : (
+          const s = c.getValue<DocumentStage>();
+          return (
             <span className="inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold text-white" style={{ background: STAGE_COLOR[s] }}>{STAGE_LABEL[s]}</span>
           );
         },
       },
     ],
-    [canEdit] // eslint-disable-line react-hooks/exhaustive-deps
+    []
   );
   return <DataGrid columns={columns} data={rows} searchPlaceholder="Cari lokasi / kontraktor…" empty="Belum ada lokasi." />;
 }

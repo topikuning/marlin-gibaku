@@ -4,7 +4,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { canViewDashboard, isCrossLocation } from "@/lib/roles";
 import { formatRupiahShort } from "@/lib/format";
-import { getProcRows, rollup, canSetStage } from "@/lib/procurement";
+import { getProcRows, rollup } from "@/lib/procurement";
 import {
   canManageProspek,
   PROSPEK_STAGE_LABEL,
@@ -25,7 +25,7 @@ export default async function PengadaanPage() {
     name: true,
     regency: true,
     province: true,
-    procurementStage: true,
+    contractId: true,
     contract: { select: { contractValue: true, contractor: { select: { name: true } } } },
   };
   const locations = isCrossLocation(role)
@@ -40,7 +40,6 @@ export default async function PengadaanPage() {
 
   const rows = await getProcRows(locations);
   const r = rollup(rows);
-  const canEdit = canSetStage(role);
   const canProspek = canManageProspek(role);
 
   // Prospek (tender) yang belum jadi kontrak — bagian dari alur pengadaan.
@@ -171,9 +170,12 @@ export default async function PengadaanPage() {
       </div>
 
       {/* Funnel */}
-      <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
+      <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-[#1e3a8a]">
         Progres per tahap
       </div>
+      <p className="mb-3 text-xs text-[#64748B]">
+        Tahap dibaca otomatis dari dokumen terunggah (SPMK, MC-0, BAST, dst.) — bukan dipilih manual.
+      </p>
       <div className="mb-6 flex flex-wrap gap-2">
         {r.byStage.map((s) => (
           <span
@@ -188,7 +190,6 @@ export default async function PengadaanPage() {
 
       {/* Per lokasi */}
       <PengadaanGrid
-        canEdit={canEdit}
         rows={rows.map((row) => ({
           id: row.id,
           slug: row.slug,

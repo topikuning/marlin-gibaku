@@ -39,6 +39,32 @@ export function deriveDocStage(stages: DocumentStage[]): DocumentStage | null {
   return best;
 }
 
+/**
+ * Tahap efektif = maksimum antara tahap turunan dokumen dan tahap dasar (floor).
+ * Dipakai untuk lokasi yang PASTI sudah kontrak → minimal "kontrak" walau dokumen
+ * belum lengkap terunggah.
+ */
+export function floorStage(
+  derived: DocumentStage | null,
+  floor: DocumentStage
+): DocumentStage {
+  if (derived === null) return floor;
+  return STAGE_ORDER.indexOf(derived) >= STAGE_ORDER.indexOf(floor) ? derived : floor;
+}
+
+/** Warna badge per tahap dokumen (untuk funnel & grid). */
+export const STAGE_COLOR: Record<DocumentStage, string> = {
+  pemilihan: "#CBD5E1",
+  penunjukan: "#94A3B8",
+  kontrak: "#3B82F6",
+  mulai_kerja: "#0EA5E9",
+  pelaksanaan: "#F59E0B",
+  adendum: "#8B5CF6",
+  serah_terima: "#22C55E",
+  pembayaran: "#15803D",
+  lainnya: "#E2E8F0",
+};
+
 export const STAGE_LABEL: Record<DocumentStage, string> = {
   pemilihan: "Pemilihan / Tender",
   penunjukan: "Penunjukan (SPPBJ)",
