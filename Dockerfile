@@ -50,7 +50,7 @@ COPY --from=builder --chown=marlin:marlin /app/public ./public
 COPY --from=builder --chown=marlin:marlin /app/assets ./assets
 # Schema + migrations + config untuk migrate deploy
 COPY --from=builder --chown=marlin:marlin /app/prisma ./prisma
-COPY --from=builder --chown=marlin:marlin /app/prisma.config.ts ./prisma.config.ts
+COPY --from=builder --chown=marlin:marlin /app/prisma.config.js ./prisma.config.js
 
 USER marlin
 EXPOSE 3000
