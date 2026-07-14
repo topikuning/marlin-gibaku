@@ -2,158 +2,105 @@
 
 Instruksi untuk Claude Code saat bekerja di repo ini.
 
-**Baca file ini dulu**, lalu baca:
-1. [`PROJECT.md`](./PROJECT.md) — keputusan design/arsitektur (single source of truth)
-2. [`docs/OPEN_ISSUES.md`](./docs/OPEN_ISSUES.md) — bug + TODO yang HARUS dibetulkan sebelum fitur baru
-3. [`docs/DECISIONS.md`](./docs/DECISIONS.md) — decision log append-only
+**Baca file ini dulu**, lalu:
+1. [`PROJECT.md`](./PROJECT.md) — arsitektur & keputusan design (single source of truth)
+2. [`docs/OPEN_ISSUES.md`](./docs/OPEN_ISSUES.md) — bug + TODO sebelum fitur baru
+3. [`docs/DECISIONS.md`](./docs/DECISIONS.md) — decision log append-only (051 = rebuild total)
+4. [`docs/rebuild/`](./docs/rebuild/) — artefak rebuild 2026-07-14 (domain model, permission matrix, IA, dst.)
 
 ---
 
 ## Konteks Cepat
 
-- **Sistem**: Monitoring proyek Kampung Nelayan Merah Putih (KNMP)
-- **Skala**: 83 lokasi di 7 provinsi
-- **User utama**: Site Manager (SM) di lapangan, umumnya gaptek
-- **Tujuan**: satu input harian → generate laporan internal + KKP sekaligus
-- **State sekarang**: v0 scaffold (foundation only). Semua fitur harus dibangun.
+- **Sistem**: MARLIN — pengendalian proyek Kampung Nelayan Merah Putih (KNMP)
+- **Skala**: 83 lokasi, 7 provinsi; arsitektur menargetkan 200+
+- **User utama**: Site Manager & Mandor lapangan (umumnya gaptek) + manajemen
+- **Alur inti**: Paket (prospek→tender→kontrak→pelaksanaan→serah terima) → Lokasi →
+  RAB (revisi + lineage) → Baseline kurva-S → Laporan Harian terpadu
+  (draft→dikirim→perlu_koreksi→disetujui→final) → Progress → Keuangan transaksional →
+  Laporan KKP
+- **State**: hasil rebuild total 2026-07-14 (DECISIONS 051). Belum production.
 
-## Prinsip yang WAJIB dipatuhi
+## Prinsip WAJIB
 
-1. **Bahasa Indonesia untuk UI text, English untuk kode identifier**
-2. **PROJECT.md adalah single source of truth**. Kalau ada konflik antara kode dan PROJECT.md, kode yang salah — betulkan. Kalau kamu ingin ubah keputusan yang sudah di PROJECT.md, tanya user dulu, lalu append di `docs/DECISIONS.md`.
-3. **Setiap keputusan design baru** → append ke `docs/DECISIONS.md` dengan tanggal, alasan, alternatif yang di-reject
-4. **Setiap fitur baru** → update PROJECT.md section yang relevan
-5. **Setiap bug baru ditemukan** → tambah ke `docs/OPEN_ISSUES.md`
+1. **Bahasa Indonesia untuk UI text, English untuk identifier kode** (enum status domain = Indonesia).
+2. **PROJECT.md single source of truth** — konflik kode vs PROJECT.md ⇒ kode salah.
+   Ubah keputusan ⇒ tanya user ⇒ append `docs/DECISIONS.md`.
+3. **Setiap mutasi server action**: `requireCapability()` (+ `requireLocationAccess`
+   bila menyangkut lokasi) + `audit()`. Frontend hanya menyembunyikan menu.
+4. **Angka agregat selalu derived** — jangan pernah bikin kolom agregat yang diedit manual.
+5. **Status hanya berubah lewat mesin transisi** `src/lib/lifecycle.ts` + tulis histori.
+6. Bug baru → `docs/OPEN_ISSUES.md`; keputusan baru → `docs/DECISIONS.md`.
 
-## Working Style
-
-- **User (Hery) prefer**: kritis, precise, evidence-aware. Tidak suka disanjung. Kalau salah, akui dengan singkat.
-- **Weakness paling penting duluan** — surface it before answering.
-- **Fragments OK**. Drop filler. Jangan bertele-tele.
-- **Kalau ragu, tanya** — bukan asumsi. Tapi hindari pertanyaan trivial atau prematur.
-- **Kalau user mengeluh soal pertanyaan** ("konyol", "premature"), turuti — jangan defensif.
-
-## Commands yang sering dipakai
+## Commands
 
 ```bash
-# Development
-pnpm dev                    # dev server
-pnpm typecheck             # WAJIB sebelum commit
+pnpm dev                 # dev server
+pnpm typecheck           # WAJIB sebelum commit
 pnpm lint
+pnpm vitest run tests/unit
+DATABASE_URL=postgresql://marlin:marlin@localhost:5432/marlin_test APP_ENV=test \
+  pnpm vitest run tests/integration    # butuh migrate deploy dulu ke DB test
+pnpm build               # prisma generate + next build (standalone)
+pnpm test:e2e            # Playwright (butuh server + seed)
 
-# Database
-pnpm db:generate           # regenerate Prisma Client setelah edit schema
-pnpm db:migrate            # dev migration
-pnpm db:studio             # GUI untuk inspect data
-pnpm db:seed               # re-seed dari seed-data/*.json
+pnpm db:generate         # regenerate Prisma Client (Prisma 7 → src/generated/prisma)
+pnpm db:migrate          # migration dev
+pnpm db:seed             # seed dev (idempotent; password semua user: marlin123)
+pnpm db:reset            # guarded (tolak production / DB non-dev)
 
-# Re-parse HPS baru
-python scripts/generate_seed.py
-
-# Deploy
-pnpm build                 # local build test
-pnpm db:migrate:deploy     # production migration
+docker build --no-cache -t marlin:test .   # verifikasi deploy
 ```
 
-## Struktur Repo
+## Stack (pinned exact — lihat docs/rebuild/TECHNOLOGY_AUDIT.md)
+
+Node 24 LTS · pnpm 11 (corepack) · Next 16 App Router · React 19 · TS 5.9 ·
+Prisma 7 + @prisma/adapter-pg (client di `src/generated/prisma`) · PostgreSQL 16+ ·
+Tailwind 4 · Zod 4 · AG Grid Community 36 (DILARANG Enterprise) · auth custom
+session-DB (BUKAN next-auth) · R2 via aws-sdk · sharp · exceljs.
+Deploy: Railway + Dockerfile (DILARANG Nixpacks/Railpack).
+
+## Struktur
 
 ```
 src/
-├── app/
-│   ├── (auth)/            # login, register
-│   ├── (app)/             # main app after auth
-│   │   ├── beranda/       # SM home
-│   │   ├── laporan/       # SM submit report
-│   │   └── ...
-│   ├── (admin)/           # super_admin only
-│   │   ├── users/
-│   │   ├── locations/
-│   │   ├── contracts/
-│   │   └── ...
-│   ├── api/               # API routes
-│   └── layout.tsx
-├── lib/
-│   ├── db.ts              # Prisma singleton
-│   ├── auth.ts            # Auth.js config (BELUM ADA)
-│   ├── r2.ts              # R2 client (BELUM ADA)
-│   ├── scurve.ts          # S-curve algorithm
-│   └── bigint.ts          # BigInt serializer (BELUM ADA)
-├── components/
-│   ├── ui/                # shadcn-style base primitives
-│   └── knmp/              # domain components
-└── styles/
+├── app/(auth)/masuk, ganti-password
+├── app/(app)/           # semua butuh sesi: / (command center), paket/, lokasi/,
+│                        # hari-ini/, progress/, keuangan/, dokumen/, laporan/,
+│                        # pengguna/, sistem/
+├── app/cetak/           # print A4 tanpa shell
+├── app/api/health, ready, documents/[id]
+├── lib/                 # db, env (validasi+normalisasi R2), authz (capability),
+│   ├── auth/            # session (DB, revocable), password, actions, page-guard
+│   ├── rab/             # parsed, hps-parser, flatten, import
+│   ├── scurve/          # generate (formula terverifikasi — JANGAN ubah tanpa test paritas)
+│   ├── daily-report/    # actions + queries workflow laporan
+│   ├── finance/         # calc (SATU-satunya tempat formula agregat) + actions
+│   ├── milestones/      # template 45 item KKP + actions
+│   ├── progress.ts      # SATU calculation layer progress
+│   └── lifecycle.ts     # mesin transisi status + label + tone
+├── components/ui/       # primitives (token-based, tanpa hex)
+├── components/shell/    # AppShell, nav (filter by capability)
+├── components/grid/     # MarlinGrid (AG Grid Community wrapper)
+└── components/knmp/     # domain: scurve-chart, kkp-*-report, photo-gallery
 ```
 
 ## Aturan Coding
 
-### TypeScript
-- **Strict mode enabled**. Jangan skip type errors.
-- **Zod schema** untuk semua input/output boundary (API + forms).
-- **Prisma types** langsung dipakai; tidak perlu wrapping berlebih.
-
-### Server / Client Components
-- Default **Server Component**. `"use client"` cuma kalau perlu (state, event handler).
-- **Server Actions** untuk mutation. API routes cuma untuk external integration.
-
-### Money (Rupiah)
-- Storage: `BigInt` (integer, tidak float — floating point tidak akurat untuk uang)
-- Display: format dengan `Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' })`
-- Serialization API: convert BigInt ke string (JSON.stringify tidak support BigInt native)
-
-### Volume (Prisma Decimal)
-- Storage: `Decimal(15, 3)` — 3 desimal cukup untuk m³, kg, dll
-- TypeScript: `Prisma.Decimal` → convert ke `number` cuma saat display
-
-### Datetime
-- Storage: `Timestamptz` (Postgres time with timezone)
-- App logic: pakai `date-fns` dengan tz `Asia/Jakarta`
-- Never pakai `new Date()` untuk business logic tanpa timezone explicit
-
-### Naming
-- DB: `snake_case` (via Prisma `@map` / `@@map`)
-- TypeScript: `camelCase` untuk properties, `PascalCase` untuk types
-- Files: `kebab-case.ts`
-- URLs: `/kebab-case`
-- Bahasa Indonesia untuk UI text (label, button, message)
-
-## Alur Development Standar (untuk fitur baru)
-
-1. **Cek PROJECT.md** — fitur ini sudah didecide belum? Ada konsen apa?
-2. **Cek OPEN_ISSUES.md** — ada bug pre-existing yang harus dibetulkan dulu?
-3. **Draft plan** — kasih user summary singkat: apa yang akan dibangun, di mana, model change apa
-4. **Tunggu user OK** — jangan langsung code kalau tidak jelas
-5. **Update schema** (kalau perlu) → `pnpm db:generate` → `pnpm db:migrate`
-6. **Build feature** — server component dulu, tambah interactivity secukupnya
-7. **Test** — minimum `pnpm typecheck` + `pnpm lint`
-8. **Update docs** — PROJECT.md kalau ada design keputusan baru, DECISIONS.md kalau override
-9. **Commit** — Conventional Commits
+- Uang: `BigInt` rupiah; serialisasi ke client via `bigintToString`. PPN dari
+  `Contract.ppnPercent` (RAB pre-PPN, kontrak incl-PPN) — jangan hardcode.
+- Volume: `Decimal(15,3)`. Datetime: `Timestamptz`; logika harian pakai
+  `jakartaDateKey/jakartaToday` (Asia/Jakarta); kolom tanggal kerja = `@db.Date`.
+- Server Component default; `"use client"` seperlunya; mutasi via Server Action
+  (FormData + zod + `useActionState` + `Banner`).
+- Tabel data → `MarlinGrid`; KPI/ringkasan → `KpiCard`; status → `StatusPill`
+  dgn label/tone dari `lifecycle.ts`.
+- DB snake_case via `@map`; file kebab-case; URL kebab-case Indonesia.
 
 ## Kalau Ragu
 
-- **Data model change** → tanya user, jangan asumsi
-- **Auth/security** → tanya, ini high-stakes
-- **KKP format** → tanya user, dia yang tahu spec resmi
-- **UX gaptek user** → tanya, dia yang tahu realita lapangan
-- **Bahasa Indonesia phrasing** → user reviewer, kalau ragu tanya
-
-## Kalau Break
-
-- **Jangan panic delete** — commit + branch dulu
-- **Prisma migration break** → `prisma migrate resolve` atau rollback via git + re-migrate
-- **RLS lock user out** → temporary disable via `ALTER TABLE ... DISABLE ROW LEVEL SECURITY` sebagai admin, betulkan policy, re-enable
-
-## Yang Sedang Dikerjakan (State per 10 Jul 2026)
-
-Lihat [`docs/SESSION_LOG.md`](./docs/SESSION_LOG.md) untuk status paling baru.
-
-Ringkasan cepat:
-- ✓ v0 scaffold (schema + seed + placeholder page)
-- **NEXT**: v0.1 auth flow (login page, session, middleware) — mulai dari sini
-- After: v0.2 SM core flow (RAB tree, submit report)
-- Then: R2 upload, PM dashboard, exec dashboard, exports, deploy
-
-## Kontak
-
-- User: Hery (program director, PT [nama])
-- Repo: [diisi]
-- Deploy target: Railway
+- Data model / KKP format / UX lapangan / phrasing Indonesia → tanya user (Hery —
+  kritis, tidak suka basa-basi, weakness duluan).
+- Auth/permission → high-stakes, tanya.
+- Jangan menghidupkan kembali pola pra-rebuild (lihat DECISIONS 051 utk daftar
+  yang sengaja dibuang).

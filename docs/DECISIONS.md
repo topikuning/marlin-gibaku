@@ -959,3 +959,38 @@ volume ganda 100. Fix best-practice: item TIDAK boleh punya >1 laporan belum tun
 `submitDraftItem` blokir kalau ada draft state draft_mandor/draft_sm/approved untuk
 item itu ("selesaikan dulu setujui/tolak"). Kumulatif juga hitung sent+approved
 (bukan sent saja). Cegah realisasi > 100% & double count.
+
+## 051 · 2026-07-14 · REBUILD TOTAL — arsitektur, schema, stack (menggantikan banyak keputusan lama)
+User meminta rebuild total MARLIN (master prompt). Keputusan payung — detail di docs/rebuild/*:
+- Lifecycle dikonsolidasi: ProspekStage + ProcurementStage + DocumentStage → SATU
+  `PackageStage` (prospek→tender→penetapan→kontrak→pelaksanaan→serah_terima→selesai|batal)
+  + `LocationStatus` fisik (persiapan→berjalan⇄terhenti→selesai→pho→pemeliharaan→fho).
+  Stage disimpan + histori append-only; dokumen = bukti, TIDAK memindah stage otomatis
+  (meng-override 048 untuk transisi stage; auto-derive tetap dipakai utk SARAN milestone).
+- Laporan harian disatukan: DailyReport (uniq lokasi+tanggal) + item volume + tenaga/
+  material/alat/cuaca (menggantikan DailyReport/DailyReportItem/DailyLog terpisah).
+  Workflow draft→dikirim→perlu_koreksi→disetujui→final; koreksi mengedit report yang sama;
+  reportDate = tanggal kerja (fix bug tanggal-approve); anti-double kini constraint DB
+  (uniq report+lineage; meng-upgrade 050 dari app-level ke DB-level).
+- RAB: RabCategory/RabSubcategory/RabItem triple-parent → `RabNode` satu tabel
+  (kind kategori|sub|grup|item) + `lineageKey` path stabil (ganti lineageId uuid).
+  Semantik revisi snapshot + carry-over (023) dipertahankan.
+- Keuangan snapshot manual (036) DIHAPUS → transaction-based: BudgetLine, Commitment,
+  Expense, Invoice+PaymentOut, OwnerBilling+Disbursement; agregat selalu derived.
+- Auth: next-auth v5 beta DIBUANG (beta permanen) → session DB custom (argon2id,
+  revocable, tokenVersion, rate limit login, mustChangePassword). Authorization
+  capability-based (PERMISSION_MATRIX.md) — `canManageUsers` tidak lagi jadi gate
+  keuangan/kontrak/RAB (meng-override pemakaian lama).
+- Stack: Next 16.2.10, React 19.2.7, Prisma 7.8.0 + adapter-pg, Tailwind 4.3.2 stable,
+  Zod 4, TS 5.9.3 (TS7 ditahan), Node 24 LTS, pnpm 11, AG Grid Community 36 (grid utama),
+  semua dependency pinned exact + license audit CI. ESLint ditahan di 9.39.5
+  (eslint-config-next belum kompatibel ESLint 10).
+- Deploy: Dockerfile multi-stage (node:24-bookworm-slim, non-root, tini, standalone)
+  menggantikan Nixpacks; CI GitHub Actions lengkap.
+- Model dihapus: Prospek/ProspekLokasi (→Package), Device, OtpCode, SyncQueue,
+  ScheduledMilestone, WeeklyReport, MonthlyReport, DailyLog*, CostEntry, DeviationNote
+  (→Issue/RecoveryAction), kolom keuangan snapshot Location.
+- Migration dev lama dihapus → baseline migration baru; DB dev di-reset; seed baru
+  deterministik dgn angka diturunkan dari Σ leaf RAB (total kategori JSON lama korup).
+- Ditunda sadar (dicatat di REBUILD_PLAN/laporan akhir): peta Leaflet, PWA offline penuh
+  (localStorage draft + idempotency dulu), PR/PO/receiving granular, WA-text intake.

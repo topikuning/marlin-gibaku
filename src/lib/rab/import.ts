@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { audit } from "@/lib/audit";
 import { flattenParsedRab, grandTotal } from "@/lib/rab/flatten";
 import type { ParsedRab } from "@/lib/rab/parsed";
 import { DEFAULT_CONTRACT_DAYS, scheduleItems } from "@/lib/scurve/generate";
@@ -123,6 +124,15 @@ export async function createRevisionFromParsed(
     for (const b of batch) pending.splice(pending.indexOf(b), 1);
   }
 
+  await audit(opts.userId, "rab.revision_create", "rab_revision", revision.id, {
+    locationId,
+    revisionNo,
+    source: opts.source,
+    nodeCount: nodes.length,
+    totalValue,
+    carriedItemLineages,
+  });
+
   return {
     revisionId: revision.id,
     revisionNo,
@@ -134,8 +144,8 @@ export async function createRevisionFromParsed(
 }
 
 /** Aktivasi atomik: revisi aktif lama → digantikan (+supersededAt), draft → aktif. */
-export async function activateRevision(revisionId: string) {
-  return db.$transaction(async (tx) => {
+export async function activateRevision(revisionId: string, userId: string) {
+  const activated = await db.$transaction(async (tx) => {
     const rev = await tx.rabRevision.findUniqueOrThrow({
       where: { id: revisionId },
       select: { id: true, locationId: true, status: true, revisionNo: true },
@@ -152,10 +162,15 @@ export async function activateRevision(revisionId: string) {
       data: { status: "aktif" },
     });
   });
+  await audit(userId, "rab.revision_activate", "rab_revision", activated.id, {
+    locationId: activated.locationId,
+    revisionNo: activated.revisionNo,
+  });
+  return activated;
 }
 
 /** Hapus draft + seluruh node-nya (cascade FK). Hanya draft yang boleh dibuang. */
-export async function discardDraft(revisionId: string) {
+export async function discardDraft(revisionId: string, userId: string) {
   const rev = await db.rabRevision.findUniqueOrThrow({
     where: { id: revisionId },
     select: { id: true, status: true, revisionNo: true, locationId: true },
@@ -164,6 +179,10 @@ export async function discardDraft(revisionId: string) {
     throw new Error(`Revisi #${rev.revisionNo} bukan draft — tidak boleh dihapus.`);
   }
   await db.rabRevision.delete({ where: { id: rev.id } });
+  await audit(userId, "rab.revision_discard", "rab_revision", rev.id, {
+    locationId: rev.locationId,
+    revisionNo: rev.revisionNo,
+  });
   return rev;
 }
 
@@ -230,7 +249,7 @@ export async function regenerateBaseline(locationId: string, opts: RegenerateBas
   const contractDays = await contractDaysFor(locationId);
   const weekly = scheduleItems(items, contractDays);
 
-  return db.$transaction(async (tx) => {
+  const baseline = await db.$transaction(async (tx) => {
     await tx.baseline.updateMany({
       where: { locationId, status: "aktif" },
       data: { status: "digantikan", supersededAt: new Date() },
@@ -260,4 +279,13 @@ export async function regenerateBaseline(locationId: string, opts: RegenerateBas
     });
     return baseline;
   });
+  await audit(opts.userId, "baseline.regenerate", "baseline", baseline.id, {
+    locationId,
+    baselineNo: baseline.baselineNo,
+    source: opts.source,
+    rabRevisionId: revisionId,
+    contractDays,
+    weeks: weekly.length,
+  });
+  return baseline;
 }

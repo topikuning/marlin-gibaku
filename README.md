@@ -1,120 +1,72 @@
-# KNMP Monitor
+# MARLIN
 
-Sistem monitoring & pelaporan proyek Kampung Nelayan Merah Putih (KNMP)
-untuk 83 lokasi di 7 provinsi.
+Sistem pengendalian proyek **Kampung Nelayan Merah Putih (KNMP)** — 83 lokasi,
+7 provinsi. Satu alur dari prospek/tender sampai FHO: paket → kontrak → lokasi →
+RAB & baseline → pelaksanaan harian → verifikasi → progress → keuangan →
+laporan KKP → serah terima.
 
-**⚠ Dokumentasi keputusan design/arsitektur ada di [`PROJECT.md`](./PROJECT.md).
-Baca dulu sebelum coding.**
-
----
+> Hasil rebuild total 2026-07-14 — lihat `docs/rebuild/` untuk audit, domain model,
+> permission matrix, dan rencana. Status: pra-production.
 
 ## Stack
 
-- Next.js 15 (App Router) + React 19 + TypeScript strict
-- PostgreSQL 17 + Prisma 6
-- Auth.js v5 (phone + PIN + device binding)
-- Cloudflare R2 (photo storage)
-- Redis 7 (session cache + BullMQ)
-- Tailwind CSS 4
-- Deploy: Railway
-
-## Prerequisites
-
-- Node.js 22 LTS
-- pnpm 9+
-- PostgreSQL 17 (lokal atau Railway)
-- Python 3.10+ (untuk regenerate seed dari HPS baru)
-
-## Setup
-
-```bash
-# 1. Install
-pnpm install
-
-# 2. Copy env
-cp .env.example .env.local
-# Isi DATABASE_URL minimal untuk dev
-
-# 3. Migrate DB
-pnpm db:migrate
-
-# 4. Seed 7 lokasi dari HPS
-pnpm db:seed
-
-# 5. Jalankan dev
-pnpm dev
-```
-
-Buka [http://localhost:3000](http://localhost:3000) — kalau muncul angka
-lokasi/users/RAB items, foundation siap.
-
-**Login dev**: `+6281234567890` / PIN `123456` (jangan pakai di production).
-
-## Struktur Project
-
-```
-knmp-monitor/
-├── PROJECT.md              ← keputusan design/arsitektur (single source of truth)
-├── prisma/
-│   ├── schema.prisma       ← 21+ tabel
-│   └── seed.ts             ← load 7 lokasi HPS
-├── src/
-│   ├── app/                ← Next.js App Router
-│   ├── lib/
-│   │   ├── db.ts           ← Prisma client
-│   │   └── scurve.ts       ← S-curve auto-generator
-│   └── components/         ← UI components
-├── scripts/
-│   ├── parse_hps.py        ← HPS Excel → JSON parser
-│   ├── generate_seed.py    ← batch parse 7 HPS
-│   └── scurve.py           ← S-curve algorithm (Python reference)
-└── seed-data/              ← JSON hasil parse HPS (7 lokasi)
-```
-
-## Regenerate Seed dari HPS Baru
-
-Kalau ada HPS lokasi baru:
-
-```bash
-# 1. Taruh HPS di /path/to/hps/
-# 2. Edit scripts/generate_seed.py → tambah entry di LOCATIONS_META
-# 3. Jalan parser:
-python scripts/generate_seed.py
-
-# 4. Re-seed DB
-pnpm db:seed
-```
-
-## Commands
-
-| Command | Fungsi |
+| Layer | Teknologi |
 |---|---|
-| `pnpm dev` | Development server |
-| `pnpm build` | Production build |
-| `pnpm start` | Production server |
-| `pnpm typecheck` | TypeScript check |
-| `pnpm lint` | ESLint |
-| `pnpm db:migrate` | Migrate DB (dev) |
-| `pnpm db:migrate:deploy` | Migrate DB (prod) |
-| `pnpm db:seed` | Load seed data |
-| `pnpm db:studio` | Prisma Studio (GUI) |
-| `pnpm db:reset` | Reset + re-seed (DESTRUCTIVE) |
-| `pnpm test` | Unit tests (Vitest) |
-| `pnpm test:e2e` | E2E tests (Playwright) |
+| Runtime | Node.js 24 LTS · pnpm 11 (Corepack) |
+| Web | Next.js 16 (App Router, standalone) · React 19 · TypeScript 5.9 |
+| Data | PostgreSQL 16+ · Prisma 7 (+`@prisma/adapter-pg`) |
+| UI | Tailwind CSS 4 (design tokens) · AG Grid Community 36 · lucide-react |
+| Auth | Custom: session DB revocable, argon2id, capability-based authorization |
+| File | Cloudflare R2 (S3 API) · sharp (kompresi+stamp foto) |
+| Validasi | Zod 4 di semua boundary |
+| Test | Vitest 4 (unit+integration) · Playwright (E2E) |
+| Deploy | Railway via **Dockerfile** (multi-stage, non-root, tini) |
 
-## Roadmap
+Semua dependency open-source, dipin exact, diaudit lisensi & keamanan di CI.
 
-Lihat [`PROJECT.md` section 10](./PROJECT.md#10-roadmap-coding).
+## Menjalankan lokal
 
-Current state: **v0 · Scaffold (this)**.
+```bash
+corepack enable                      # pnpm 11 dari packageManager
+pnpm install --frozen-lockfile
+cp .env.example .env                 # isi DATABASE_URL + SESSION_SECRET (R2 opsional)
+pnpm db:migrate                      # apply migrations
+pnpm db:seed                         # data demo (7 lokasi riil, ~14k item RAB)
+pnpm dev                             # http://localhost:3000
+```
 
-## Contributing
+Login dev (password semua: `marlin123`): `admin` (super admin), `hery` (direktur),
+`am-jateng`, `pm-01`, `sm-01`, `sm-02` (wajib ganti password), `mandor-01`, `kkp-viewer`.
 
-- Bahasa Indonesia untuk UI, English untuk kode
-- Conventional Commits
-- Feature branches: `feature/{scope}`
-- Semua keputusan arsitektur → append ke `PROJECT.md`
+## Verifikasi
 
-## License
+```bash
+pnpm typecheck && pnpm lint
+pnpm vitest run tests/unit
+DATABASE_URL=postgresql://marlin:marlin@localhost:5432/marlin_test APP_ENV=test \
+  pnpm prisma migrate deploy && \
+DATABASE_URL=postgresql://marlin:marlin@localhost:5432/marlin_test APP_ENV=test \
+  pnpm vitest run tests/integration
+pnpm build && pnpm test:e2e
+docker build --no-cache -t marlin:test .
+```
 
-Proprietary. Untuk keperluan internal PT [nama] × Program KNMP KKP RI.
+CI (GitHub Actions): license audit → security audit → typecheck → lint → unit →
+integration (Postgres service) → build → docker build → E2E.
+
+## Deploy (Railway)
+
+Builder **DOCKERFILE** (`railway.json`), pre-deploy `prisma migrate deploy`,
+healthcheck `/api/health` (proses+DB; R2 sengaja bukan hard-dependency —
+diagnostik R2 di `/api/ready` dan menu Sistem). Env wajib: `DATABASE_URL`,
+`SESSION_SECRET`, `APP_ENV=production`; R2: `R2_ENDPOINT` (endpoint S3
+`<accountid>.r2.cloudflarestorage.com`, bukan r2.dev), `R2_BUCKET`,
+`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`.
+
+## Dokumentasi
+
+- `PROJECT.md` — arsitektur & keputusan (source of truth)
+- `docs/DECISIONS.md` — log keputusan append-only
+- `docs/OPEN_ISSUES.md` — hutang teknis terbuka
+- `docs/rebuild/` — artefak rebuild (audit, domain model, permission, test plan, dst.)
+- `docs/DEPENDENCY_POLICY.md` — kebijakan dependency & lisensi
