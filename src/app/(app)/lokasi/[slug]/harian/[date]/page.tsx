@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Camera, ClipboardList, History, Printer, TriangleAlert } from "lucide-react";
 import { Badge, Banner, Card, CardBody, CardHeader, PageHeader, StatusPill } from "@/components/ui";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
+import { isR2Configured } from "@/lib/r2";
 import { requireUser, hasLocationAccess } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
 import { REPORT_STATUS_LABEL, REPORT_STATUS_TONE } from "@/lib/lifecycle";
@@ -89,6 +90,7 @@ export default async function HarianWorkspacePage({
           nodes={await getLeafNodeOptions(data.location.id)}
           items={report?.items ?? []}
           correctionReason={status === "perlu_koreksi" ? report?.lastCorrectionReason ?? null : null}
+          photoEnabled={isR2Configured()}
         />
       ) : null}
 

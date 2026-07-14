@@ -46,6 +46,7 @@ export function ReportEditor({
   nodes,
   items,
   correctionReason,
+  photoEnabled,
 }: {
   locationId: string;
   slug: string;
@@ -54,6 +55,7 @@ export function ReportEditor({
   nodes: LeafNodeOption[];
   items: WorkspaceItem[];
   correctionReason: string | null;
+  photoEnabled: boolean;
 }) {
   return (
     <div className="space-y-4">
@@ -64,7 +66,7 @@ export function ReportEditor({
           description={correctionReason}
         />
       ) : null}
-      <ItemForm locationId={locationId} slug={slug} dateKey={dateKey} nodes={nodes} />
+      <ItemForm locationId={locationId} slug={slug} dateKey={dateKey} nodes={nodes} photoEnabled={photoEnabled} />
       <ItemList reportId={reportId} items={items} />
       {reportId && items.length > 0 ? <SubmitPanel reportId={reportId} slug={slug} dateKey={dateKey} /> : null}
     </div>
@@ -78,11 +80,13 @@ function ItemForm({
   slug,
   dateKey,
   nodes,
+  photoEnabled,
 }: {
   locationId: string;
   slug: string;
   dateKey: string;
   nodes: LeafNodeOption[];
+  photoEnabled: boolean;
 }) {
   const [state, formAction, pending] = useActionState<DailyActionState, FormData>(saveItemAction, undefined);
   const [query, setQuery] = useState("");
@@ -178,9 +182,8 @@ function ItemForm({
     >
       <h2 className="text-sm font-semibold text-ink">Tambah / ubah progres pekerjaan</h2>
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
-      {state?.success ? (
-        <Banner tone="success" title={state.success} description={state.warning} />
-      ) : null}
+      {state?.success ? <Banner tone="success" title={state.success} /> : null}
+      {state?.warning ? <Banner tone="warning" title="Foto tidak tersimpan" description={state.warning} /> : null}
 
       <input type="hidden" name="locationId" value={locationId} />
       <input type="hidden" name="dateKey" value={dateKey} />
@@ -294,25 +297,34 @@ function ItemForm({
       {/* 3 · Foto */}
       <div>
         <Label htmlFor="dr-photos">3 · Foto bukti (opsional)</Label>
-        <input
-          ref={fileRef}
-          id="dr-photos"
-          name="photos"
-          type="file"
-          accept="image/*"
-          capture="environment"
-          multiple
-          onChange={onFiles}
-          className="hidden"
-        />
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-primary/40 bg-primary-50 px-4 py-4 text-sm font-semibold text-primary active:bg-primary-100"
-        >
-          <Camera aria-hidden className="size-4" />
-          {previews.length > 0 ? `${previews.length} foto dipilih — ketuk untuk ubah` : "Ambil / pilih foto"}
-        </button>
+        {!photoEnabled ? (
+          <p className="rounded-lg border border-warning bg-warning-soft px-3 py-2 text-sm text-ink">
+            Penyimpanan foto (Cloudflare R2) belum diaktifkan — unggah foto sementara tidak tersedia.
+            Volume tetap bisa disimpan. Hubungi admin untuk mengaktifkan (menu Sistem → tes R2).
+          </p>
+        ) : (
+          <>
+            <input
+              ref={fileRef}
+              id="dr-photos"
+              name="photos"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              multiple
+              onChange={onFiles}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-primary/40 bg-primary-50 px-4 py-4 text-sm font-semibold text-primary active:bg-primary-100"
+            >
+              <Camera aria-hidden className="size-4" />
+              {previews.length > 0 ? `${previews.length} foto dipilih — ketuk untuk ubah` : "Ambil / pilih foto"}
+            </button>
+          </>
+        )}
         {previews.length > 0 ? (
           <>
             <div className="mt-2 grid grid-cols-4 gap-1.5">
