@@ -1,36 +1,31 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import localFont from "next/font/local";
 import "./globals.css";
 
+const inter = localFont({
+  src: "./fonts/inter-var-latin.woff2",
+  display: "swap",
+  variable: "--font-sans",
+  weight: "100 900",
+});
+
 export const metadata: Metadata = {
-  title: "MARLIN — Monitoring, Analysis, Reporting & Learning for Infrastructure Network",
-  description:
-    "MARLIN — Monitoring, Analysis, Reporting & Learning for Infrastructure Network. Pemantauan proyek Kampung Nelayan Merah Putih (KNMP).",
+  title: {
+    default: "MARLIN — Pengendalian Proyek KNMP",
+    template: "%s · MARLIN",
+  },
+  description: "Sistem pengendalian proyek Kampung Nelayan Merah Putih",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export const viewport: Viewport = {
+  themeColor: "#1E3A8A",
+  width: "device-width",
+  initialScale: 1,
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="id">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin=""
-        />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
-          rel="stylesheet"
-        />
-        <meta name="theme-color" content="#1e3a8a" />
-        <meta
-          name="viewport"
-          content="width=device-width, initial-scale=1, viewport-fit=cover"
-        />
-      </head>
+    <html lang="id" className={inter.variable}>
       <body>{children}</body>
     </html>
   );

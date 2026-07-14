@@ -1,68 +1,47 @@
 "use client";
 
 import { useActionState } from "react";
-import { authenticate } from "./actions";
+import { login, type LoginState } from "@/lib/auth/actions";
 
 export function LoginForm() {
-  const [errorMessage, formAction, isPending] = useActionState(
-    authenticate,
-    undefined
-  );
-
+  const [state, action, pending] = useActionState<LoginState, FormData>(login, undefined);
   return (
-    <form action={formAction} className="space-y-5">
-      <div>
-        <label
-          htmlFor="identifier"
-          className="block text-sm font-semibold text-[#1e3a8a] mb-1.5"
-        >
-          Username atau Email
-        </label>
-        <input
-          id="identifier"
-          name="identifier"
-          type="text"
-          autoComplete="username"
-          required
-          autoFocus
-          className="w-full rounded-md border border-[#E2E8F0] bg-white px-3 py-2.5 text-[15px] outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/15"
-          placeholder="mis. admin"
-        />
-      </div>
-
-      <div>
-        <label
-          htmlFor="password"
-          className="block text-sm font-semibold text-[#1e3a8a] mb-1.5"
-        >
-          Password
-        </label>
-        <input
-          id="password"
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-          className="w-full rounded-md border border-[#E2E8F0] bg-white px-3 py-2.5 text-[15px] outline-none focus:border-[#1e3a8a] focus:ring-2 focus:ring-[#1e3a8a]/15"
-          placeholder="••••••••"
-        />
-      </div>
-
-      {errorMessage && (
-        <div
-          role="alert"
-          className="rounded-md border-l-4 border-[#DC2626] bg-[#FEE2E2] px-3 py-2 text-sm text-[#DC2626]"
-        >
-          {errorMessage}
+    <form
+      action={action}
+      className="rounded-lg border border-border bg-surface p-6 shadow-sm"
+    >
+      {state?.error ? (
+        <div role="alert" className="mb-4 rounded-md border-l-4 border-danger bg-red-50 px-3 py-2 text-sm text-red-800">
+          {state.error}
         </div>
-      )}
-
+      ) : null}
+      <label htmlFor="identifier" className="block text-sm font-medium text-ink">
+        Username atau email
+      </label>
+      <input
+        id="identifier"
+        name="identifier"
+        autoComplete="username"
+        required
+        className="mt-1 mb-4 w-full rounded-md border border-border px-3 py-2 focus-visible:outline-2 focus-visible:outline-primary"
+      />
+      <label htmlFor="password" className="block text-sm font-medium text-ink">
+        Password
+      </label>
+      <input
+        id="password"
+        name="password"
+        type="password"
+        autoComplete="current-password"
+        required
+        className="mt-1 mb-6 w-full rounded-md border border-border px-3 py-2 focus-visible:outline-2 focus-visible:outline-primary"
+      />
       <button
         type="submit"
-        disabled={isPending}
-        className="w-full rounded-md bg-[#1e3a8a] px-4 py-2.5 text-[15px] font-semibold text-white transition hover:bg-[#172554] disabled:opacity-60"
+        disabled={pending}
+        className="w-full rounded-md bg-primary px-4 py-2.5 font-medium text-white hover:bg-primary-800 disabled:opacity-60"
       >
-        {isPending ? "Memproses…" : "Masuk"}
+        {pending ? "Memeriksa…" : "Masuk"}
       </button>
     </form>
   );

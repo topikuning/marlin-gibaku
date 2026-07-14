@@ -1,14 +1,14 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
-    "builder": "NIXPACKS",
-    "buildCommand": "pnpm install --frozen-lockfile && pnpm db:generate && pnpm build"
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile"
   },
   "deploy": {
-    "preDeployCommand": "sh scripts/release.sh",
-    "startCommand": "pnpm start",
+    "preDeployCommand": "prisma migrate deploy",
     "healthcheckPath": "/api/health",
     "healthcheckTimeout": 300,
-    "restartPolicyType": "ON_FAILURE"
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 5
   }
 }

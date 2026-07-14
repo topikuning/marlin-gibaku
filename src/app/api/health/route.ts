@@ -3,27 +3,15 @@ import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
-/**
- * Health check untuk Railway (railway.json → healthcheckPath).
- * Cek koneksi DB dengan query murah. 200 = sehat, 503 = DB down.
- */
+/** Liveness + DB. Dipakai healthcheck Railway. R2 sengaja BUKAN dependency di sini. */
 export async function GET() {
   try {
     await db.$queryRaw`SELECT 1`;
-    return NextResponse.json({
-      status: "ok",
-      db: "up",
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
+    return NextResponse.json({ status: "ok", db: "up", timestamp: new Date().toISOString() });
+  } catch (err) {
     return NextResponse.json(
-      {
-        status: "error",
-        db: "down",
-        message: error instanceof Error ? error.message : String(error),
-        timestamp: new Date().toISOString(),
-      },
-      { status: 503 }
+      { status: "error", db: "down", message: err instanceof Error ? err.message : "unknown", timestamp: new Date().toISOString() },
+      { status: 503 },
     );
   }
 }

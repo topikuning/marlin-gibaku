@@ -1,8 +1,21 @@
+import "server-only";
 import { db } from "@/lib/db";
-import { getActiveLineages } from "@/lib/rab";
-import { getPlannedSeries } from "@/lib/scurve-plan";
+import { pct } from "@/lib/money";
+
+/**
+ * Calculation layer progress — SATU sumber untuk dashboard, workspace, laporan, export.
+ * Formula dipertahankan dari implementasi lama yang terverifikasi (docs/rebuild/DATA_MODEL_AUDIT.md):
+ *   grandTotal   = Σ amount node kind "kategori" pada revisi aktif
+ *   realized     = Σ valueDone item laporan status ≥ dikirim (dikirim/disetujui/final), by lineageKey revisi aktif
+ *   deviationPct = realizedPct − planPct
+ */
+
+export const COUNTED_REPORT_STATUSES = ["dikirim", "disetujui", "final"] as const;
+
+const WEEK_MS = 7 * 24 * 3600 * 1000;
 
 export type LocationProgress = {
+  locationId: string;
   grandTotal: bigint;
   realizedValue: bigint;
   realizedPct: number;
@@ -10,62 +23,127 @@ export type LocationProgress = {
   deviationPct: number;
   weekNumber: number;
   totalWeeks: number;
+  activeRevisionId: string | null;
+  activeBaselineId: string | null;
 };
 
-function pct(part: bigint, whole: bigint): number {
-  if (whole <= 0n) return 0;
-  return (Number(part) / Number(whole)) * 100;
+/** Nomor minggu berjalan sejak startDate, clamp [1, totalWeeks]. */
+export function currentWeekNumber(startDate: Date, totalWeeks: number, now = new Date()): number {
+  const wk = Math.floor((now.getTime() - startDate.getTime()) / WEEK_MS) + 1;
+  return Math.max(1, Math.min(wk, Math.max(totalWeeks, 1)));
 }
 
-/**
- * Progress satu lokasi: realisasi (SUM value_done item 'sent') vs rencana
- * (target kurva-S minggu berjalan). grandTotal = SUM kategori aktif (DECISIONS 014).
- */
-export async function getLocationProgress(
-  locationId: string,
-  startDate: Date
-): Promise<LocationProgress> {
-  const [catAgg, planned, lineages] = await Promise.all([
-    // grandTotal = SUM kategori aktif (DECISIONS 014), bukan revision.totalValue
-    // yang bisa basi/0 — konsisten dengan halaman detail & ringkasan RAB.
-    db.rabCategory.aggregate({
-      where: { locationId, revision: { status: "active" } },
-      _sum: { totalValue: true },
+/** Plan % kumulatif pada minggu tertentu dari deret baseline (clamp minggu terakhir). */
+export function planPctAtWeek(points: number[], weekNumber: number): number {
+  if (points.length === 0) return 0;
+  const idx = Math.max(0, Math.min(weekNumber - 1, points.length - 1));
+  return points[idx];
+}
+
+/** Progress banyak lokasi sekaligus (batched, bukan per-lokasi N+1). */
+export async function getLocationsProgress(locationIds: string[]): Promise<Map<string, LocationProgress>> {
+  const result = new Map<string, LocationProgress>();
+  if (locationIds.length === 0) return result;
+
+  const [revisions, baselines, contracts] = await Promise.all([
+    db.rabRevision.findMany({
+      where: { locationId: { in: locationIds }, status: "aktif" },
+      select: { id: true, locationId: true },
     }),
-    getPlannedSeries(locationId), // rencana dari plan kurva-S aktif (DECISIONS 027)
-    getActiveLineages(locationId),
+    db.baseline.findMany({
+      where: { locationId: { in: locationIds }, status: "aktif" },
+      select: { id: true, locationId: true, contractDays: true, points: { select: { weekNumber: true, plannedPct: true }, orderBy: { weekNumber: "asc" } } },
+    }),
+    db.contract.findMany({
+      where: { package: { locations: { some: { id: { in: locationIds } } } } },
+      select: { startDate: true, package: { select: { locations: { select: { id: true } } } } },
+    }),
   ]);
 
-  const grandTotal = catAgg._sum.totalValue ?? 0n;
+  const revByLoc = new Map(revisions.map((r) => [r.locationId, r.id]));
+  const baseByLoc = new Map(baselines.map((b) => [b.locationId, b]));
+  const startByLoc = new Map<string, Date>();
+  for (const c of contracts) {
+    for (const l of c.package.locations) startByLoc.set(l.id, c.startDate);
+  }
 
-  // Realisasi by lineage → laporan yang di-approve tetap terhitung meski
-  // item-nya sudah pindah revisi (carry-over adendum). DECISIONS 023.
-  const valAgg =
-    lineages.length > 0
-      ? await db.dailyReportItem.aggregate({
-          where: { state: "sent", rabItem: { lineageId: { in: lineages } } },
-          _sum: { valueDone: true },
-        })
-      : { _sum: { valueDone: 0n } };
-  const realizedValue = valAgg._sum.valueDone ?? 0n;
+  const revIds = revisions.map((r) => r.id);
+  // grandTotal per revisi aktif = Σ amount kategori
+  const catSums = revIds.length
+    ? await db.rabNode.groupBy({
+        by: ["revisionId"],
+        where: { revisionId: { in: revIds }, kind: "kategori" },
+        _sum: { amount: true },
+      })
+    : [];
+  const totalByRev = new Map(catSums.map((c) => [c.revisionId, c._sum.amount ?? 0n]));
 
-  const plan = planned.plannedPct;
-  const totalWeeks = plan.length;
-  const msSinceStart = Date.now() - startDate.getTime();
-  const weeksElapsed = Math.floor(msSinceStart / (7 * 24 * 3600 * 1000)) + 1;
-  const weekNumber = Math.min(Math.max(weeksElapsed, 1), Math.max(totalWeeks, 1));
-  const planPct =
-    totalWeeks === 0 ? 0 : (plan[weekNumber - 1] ?? plan[totalWeeks - 1]);
+  // realized per lokasi: Σ valueDone item laporan counted, hanya lineage yang ada di revisi aktif
+  const realizedPerLoc = await db.$queryRaw<{ location_id: string; realized: bigint }[]>`
+    SELECT dr.location_id, COALESCE(SUM(dri.value_done), 0)::bigint AS realized
+    FROM daily_report_items dri
+    JOIN daily_reports dr ON dr.id = dri.report_id
+    JOIN rab_nodes rn ON rn.lineage_key = dri.lineage_key
+    JOIN rab_revisions rr ON rr.id = rn.revision_id
+      AND rr.location_id = dr.location_id AND rr.status = 'aktif'
+    WHERE dr.location_id = ANY(${locationIds}::uuid[])
+      AND dr.status IN ('dikirim','disetujui','final')
+      AND rn.kind = 'item'
+    GROUP BY dr.location_id
+  `;
+  const realizedByLoc = new Map(realizedPerLoc.map((r) => [r.location_id, BigInt(r.realized)]));
 
-  const realizedPct = pct(realizedValue, grandTotal);
+  for (const locId of locationIds) {
+    const revId = revByLoc.get(locId) ?? null;
+    const baseline = baseByLoc.get(locId);
+    const grandTotal = revId ? (totalByRev.get(revId) ?? 0n) : 0n;
+    const realizedValue = realizedByLoc.get(locId) ?? 0n;
+    const points = baseline?.points.map((p) => Number(p.plannedPct)) ?? [];
+    const totalWeeks = points.length || Math.ceil((baseline?.contractDays ?? 0) / 7);
+    const start = startByLoc.get(locId);
+    const weekNumber = start ? currentWeekNumber(start, totalWeeks) : 1;
+    const planPct = planPctAtWeek(points, weekNumber);
+    const realizedPct = pct(realizedValue, grandTotal);
+    result.set(locId, {
+      locationId: locId,
+      grandTotal,
+      realizedValue,
+      realizedPct,
+      planPct,
+      deviationPct: realizedPct - planPct,
+      weekNumber,
+      totalWeeks,
+      activeRevisionId: revId,
+      activeBaselineId: baseline?.id ?? null,
+    });
+  }
+  return result;
+}
 
-  return {
-    grandTotal,
-    realizedValue,
-    realizedPct,
-    planPct,
-    deviationPct: realizedPct - planPct,
-    weekNumber,
-    totalWeeks,
-  };
+export async function getLocationProgress(locationId: string): Promise<LocationProgress> {
+  const map = await getLocationsProgress([locationId]);
+  return (
+    map.get(locationId) ?? {
+      locationId,
+      grandTotal: 0n,
+      realizedValue: 0n,
+      realizedPct: 0,
+      planPct: 0,
+      deviationPct: 0,
+      weekNumber: 1,
+      totalWeeks: 0,
+      activeRevisionId: null,
+      activeBaselineId: null,
+    }
+  );
+}
+
+/** Kumulatif volume per lineageKey utk satu lokasi (dipakai guard & tampilan input harian). */
+export async function cumulativeVolumeByLineage(locationId: string): Promise<Map<string, number>> {
+  const rows = await db.dailyReportItem.groupBy({
+    by: ["lineageKey"],
+    where: { report: { locationId, status: { in: [...COUNTED_REPORT_STATUSES] } } },
+    _sum: { volumeDone: true },
+  });
+  return new Map(rows.map((r) => [r.lineageKey, Number(r._sum.volumeDone ?? 0)]));
 }

@@ -1,14 +1,6 @@
-import { dirname } from "node:path";
-import { fileURLToPath } from "node:url";
-import { FlatCompat } from "@eslint/eslintrc";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({ baseDirectory: __dirname });
+import next from "eslint-config-next";
 
 const eslintConfig = [
-  ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
     ignores: [
       "node_modules/**",
@@ -16,8 +8,12 @@ const eslintConfig = [
       "next-env.d.ts",
       "src/generated/**",
       "prisma/migrations/**",
+      "artifacts/**",
+      "playwright-report/**",
+      "test-results/**",
     ],
   },
+  ...next,
 ];
 
 export default eslintConfig;

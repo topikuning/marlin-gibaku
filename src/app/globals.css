@@ -1,50 +1,120 @@
 @import "tailwindcss";
 
+/*
+ * MARLIN design tokens — single source of truth untuk warna/radius/font.
+ * Komponen TIDAK boleh pakai hex hardcoded; pakai kelas Tailwind yang
+ * dipetakan ke token di bawah (bg-primary, text-ink, border-border, dst).
+ */
 @theme {
-  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  /* Font: Inter kalau tersedia di sistem, fallback system-ui. Tanpa webfont. */
+  --font-sans:
+    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
 
-  /* MARLIN — palet KNMP: navy (merek) + slate. Merah/putih hanya aksen merek.
-     Hijau/kuning/merah DICADANGKAN untuk status, bukan warna merek. */
-  --color-canvas: #f8fafc; /* slate-50 */
+  /* Primary: navy #1E3A8A (skala biru berujung navy) */
+  --color-primary-50: #eff6ff;
+  --color-primary-100: #dbeafe;
+  --color-primary-200: #bfdbfe;
+  --color-primary-300: #93c5fd;
+  --color-primary-400: #60a5fa;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+  --color-primary-700: #1d4ed8;
+  --color-primary-800: #1e40af;
+  --color-primary-900: #1e3a8a;
+  --color-primary: #1e3a8a;
+
+  /* Merah brand — HANYA aksen brand / critical */
+  --color-brand-red: #d21f2a;
+
+  /* Status */
+  --color-success: #16a34a;
+  --color-success-soft: #f0fdf4;
+  --color-success-border: #bbf7d0;
+  --color-warning: #d97706;
+  --color-warning-soft: #fffbeb;
+  --color-warning-border: #fde68a;
+  --color-danger: #dc2626;
+  --color-danger-soft: #fef2f2;
+  --color-danger-border: #fecaca;
+  --color-info: #1d4ed8;
+  --color-info-soft: #eff6ff;
+  --color-info-border: #bfdbfe;
+
+  /* Permukaan & teks */
   --color-surface: #ffffff;
-  --color-ink: #0f172a; /* slate-900 */
-  --color-muted: #64748b; /* slate-500 */
-  --color-line: #e2e8f0; /* slate-200 */
-  --color-primary: #1e3a8a; /* navy KNMP (blue-900) */
-  --color-primary-dark: #172554; /* navy tua (blue-950) */
-  --color-brand-accent: #d21f2a; /* merah "Merah Putih" — HANYA aksen merek */
+  --color-surface-muted: #f8fafc; /* slate-50 */
+  --color-surface-inset: #f1f5f9; /* slate-100 */
+  --color-border: #e2e8f0; /* slate-200 */
+  --color-border-strong: #cbd5e1; /* slate-300 */
+  --color-ink: #0f172a; /* teks utama */
+  --color-ink-muted: #64748b; /* teks sekunder */
+  --color-ink-faint: #94a3b8; /* placeholder/eyebrow */
+
+  /* Radius 6–10px */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
 }
 
 @layer base {
   html {
-    -webkit-text-size-adjust: 100%;
-  }
-  body {
-    background: var(--color-canvas);
-    color: var(--color-ink);
     font-family: var(--font-sans);
-    font-feature-settings: "cv11", "ss01";
+  }
+
+  body {
+    background-color: var(--color-surface-muted);
+    color: var(--color-ink);
+    font-size: 14px;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    -webkit-tap-highlight-color: transparent;
   }
-  * {
-    border-color: var(--color-line);
+
+  /* Cegah auto-zoom iOS saat fokus ke input di layar kecil */
+  @media (max-width: 640px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
   }
-  h1,
-  h2,
-  h3 {
-    letter-spacing: -0.02em;
+
+  /* Focus ring jelas untuk a11y — keyboard user harus selalu tahu posisi */
+  :focus-visible {
+    outline: 2px solid var(--color-primary-600);
+    outline-offset: 2px;
+    border-radius: 2px;
   }
-  input,
-  select,
-  button {
-    font-family: inherit;
+
+  ::placeholder {
+    color: var(--color-ink-faint);
   }
-  /* 16px cegah auto-zoom iOS saat fokus input */
-  input,
-  select {
-    font-size: 16px;
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@utility no-print {
+  @media print {
+    display: none !important;
+  }
+}
+
+@media print {
+  body {
+    background-color: var(--color-surface);
+  }
+}
+
+/* Hormati preferensi reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

@@ -47,7 +47,7 @@ Kebijakan: versi stable/LTS terbaru, open-source, pinned exact. Lihat `docs/DEPE
 |---|---|---|---|---|---|
 | vitest | ^2.1.8 (tanpa config, 0 test) | 4.1.10 | 4.1.10 | MIT | UPGRADE + config + test nyata |
 | @playwright/test | ^1.49.1 (tanpa config) | 1.61.1 | 1.61.1 | Apache-2.0 | UPGRADE + config + E2E kritis (Chromium pre-installed `/opt/pw-browsers`) |
-| eslint | ^9.17.0 | 10.7.0 | 10.7.0 | MIT | UPGRADE (peer `eslint-config-next` `>=9` OK) |
+| eslint | ^9.17.0 | 10.7.0 | **9.39.5** | MIT | UPGRADE ke 9.x terbaru; ESLint 10 DITAHAN — eslint-plugin-react (dependency eslint-config-next 16) belum kompatibel dgn ESLint 10; dievaluasi ulang saat Next merilis dukungan |
 | eslint-config-next | ^15.1.3 | 16.2.10 | 16.2.10 | MIT | UPGRADE |
 | @types/node | ^22 | 26.x | 24.x (ikut runtime Node 24) | MIT | pin ke major runtime |
 | @types/react, @types/react-dom | ^19.0.2 | latest 19.x | pin exact | MIT | UPGRADE |
