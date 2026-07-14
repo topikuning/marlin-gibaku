@@ -49,12 +49,17 @@ ENV HOME=/home/marlin
 
 # Standalone output: server + node_modules minimal yang dibutuhkan runtime
 COPY --from=builder --chown=marlin:marlin /app/.next/standalone ./
+# Binari native sharp (@img/sharp-linux-x64) tidak ikut ter-trace standalone (pnpm)
+# → pasang eksplisit agar pemrosesan foto (kompresi+cap) berfungsi di container.
+RUN npm install --no-save --no-audit --no-fund sharp@0.35.3 && npm cache clean --force && chown -R marlin:marlin /app/node_modules
 COPY --from=builder --chown=marlin:marlin /app/.next/static ./.next/static
 COPY --from=builder --chown=marlin:marlin /app/public ./public
 COPY --from=builder --chown=marlin:marlin /app/assets ./assets
 # Schema + migrations + config untuk migrate deploy
 COPY --from=builder --chown=marlin:marlin /app/prisma ./prisma
 COPY --from=builder --chown=marlin:marlin /app/prisma.config.js ./prisma.config.js
+# Data demo untuk BOOTSTRAP_DEMO_DATA=true (deployment uji coba)
+COPY --from=builder --chown=marlin:marlin /app/seed-data ./seed-data
 
 USER marlin
 EXPOSE 3000

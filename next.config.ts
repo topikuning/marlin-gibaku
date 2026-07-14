@@ -10,9 +10,9 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "16mb", // upload dokumen/foto lewat server action
     },
   },
-  // Sertakan font bundel di server bundle (untuk cap foto via sharp).
+  // Sertakan font bundel (cap foto via sharp) + seed-data (bootstrap data demo).
   outputFileTracingIncludes: {
-    "/**": ["./assets/fonts/**"],
+    "/**": ["./assets/fonts/**", "./seed-data/**"],
   },
 };
 

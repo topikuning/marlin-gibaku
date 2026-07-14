@@ -67,7 +67,13 @@ atau reset di production.
    - **Setelah berhasil login, HAPUS** `BOOTSTRAP_ADMIN_PASSWORD` (& `_USERNAME`)
      dari Variables lalu redeploy — supaya tidak tertinggal sebagai konfigurasi.
    Alternatif (dari mesin dev): script di §7.
-5. Login → menu **Sistem** → jalankan **tes R2** (round-trip PUT/GET/presign/DELETE
+5. (Opsional — deployment UJI COBA) Muat **data contoh** (7 lokasi riil, ~14k item
+   RAB, laporan demo, keuangan demo): tambah env `BOOTSTRAP_DEMO_DATA=true` →
+   redeploy → log `[bootstrap] data demo termuat`. User demo (sm-01, mandor-01,
+   dst.) berpassword `marlin123`. Idempotent (aman diulang), TIDAK menimpa data
+   yang ada. **Hapus env-nya setelah termuat**, dan jangan pakai bila sudah ada
+   data operasional sungguhan.
+6. Login → menu **Sistem** → jalankan **tes R2** (round-trip PUT/GET/presign/DELETE
    dengan diagnosis error terklasifikasi: DNS/TLS/kredensial/bucket/permission).
 
 ## 6. Custom domain (opsional)
@@ -118,5 +124,6 @@ await db.\$disconnect();
 | Pre-deploy gagal `Cannot find module 'prisma/config'` | prisma.config harus .js polos tanpa import paket `prisma` (CLI global di container) — sudah diperbaiki |
 | Pre-deploy gagal ~3 dtk TANPA log | preDeployCommand di-exec TANPA shell oleh Railway — tidak boleh mengandung `cd`/`&&`/pipe; harus satu perintah polos (`prisma migrate deploy`) |
 | `prisma migrate deploy` gagal di pre-deploy | migrasi konflik — cek log deploy; jangan pernah reset di production |
+| `/hari-ini` atau halaman lain 500 `sharp module` | binari native sharp tidak ter-trace — sudah diperbaiki (lazy-load + npm install sharp di runner); pakai commit terbaru |
 | Upload foto/dokumen error "belum dikonfigurasi" | Env R2 kosong — isi 4 variabel R2 lalu redeploy |
 | Tes R2 gagal di menu Sistem | Baca step yang merah: DNS = endpoint salah; Signature = secret salah; NoSuchBucket = nama bucket; AccessDenied = permission token |

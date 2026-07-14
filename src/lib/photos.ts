@@ -1,7 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import sharp from "sharp";
 import ExifReader from "exifreader";
 import { db } from "@/lib/db";
 import { isR2Configured, r2Put, r2PresignGet } from "@/lib/r2";
@@ -45,6 +44,21 @@ export function isAllowedImage(mime: string, name: string): boolean {
 }
 
 export class PhotoError extends Error {}
+
+/**
+ * sharp dimuat LAZY hanya saat memproses unggahan. Import top-level membuat
+ * SEMUA halaman yang menyentuh modul foto ikut crash (500) bila binari native
+ * @img/sharp-* tidak tersedia di runtime — cukup unggahan yang gagal dgn pesan jelas.
+ */
+async function loadSharp(): Promise<typeof import("sharp")["default"]> {
+  try {
+    const mod = await import("sharp");
+    return mod.default;
+  } catch (err) {
+    console.error("[photos] sharp tidak tersedia:", err);
+    throw new PhotoError("Pemrosesan gambar tidak tersedia di server ini — hubungi admin");
+  }
+}
 
 const TZ = "Asia/Jakarta";
 
@@ -154,6 +168,8 @@ export async function savePhotoForItem(input: SavePhotoInput) {
   const lat = input.stamp?.lat ?? exif.lat;
   const lng = input.stamp?.lng ?? exif.lng;
   const takenAt = input.stamp?.takenAt ?? exif.takenAt ?? new Date();
+
+  const sharp = await loadSharp();
 
   // rotate (EXIF orientation) + resize maks 1920 → ukuran final, lalu cap dibakar.
   let main: Buffer;
