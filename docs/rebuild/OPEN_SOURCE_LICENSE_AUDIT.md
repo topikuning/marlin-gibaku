@@ -20,6 +20,7 @@ Snapshot lengkap: `artifacts/rebuild/licenses/licenses.json` (dari `pnpm license
 | lucide-react | 1.24.0 | ISC |
 | @node-rs/argon2 | 2.0.2 | MIT |
 | clsx / tailwind-merge | 2.1.1 / 3.6.0 | MIT |
+| leaflet | 1.9.4 | BSD-2-Clause |
 
 Dev: tailwindcss (MIT), typescript (Apache-2.0), eslint (MIT), vitest (MIT), @playwright/test (Apache-2.0), tsx (MIT) — semua allowlist.
 
@@ -29,6 +30,13 @@ Dev: tailwindcss (MIT), typescript (Apache-2.0), eslint (MIT), vitest (MIT), @pl
 2. **buffers@0.1.1 — metadata "Unknown".** Transitive exceljs → unzipper → chainsaw. Paket lama tanpa field `license` di package.json; source README menyatakan MIT-style. Risiko rendah, hanya dev-time parsing xlsx. Diterima dengan catatan; dievaluasi ulang bila exceljs diganti.
 3. **jszip — (MIT OR GPL-3.0-or-later).** Dual license, kita pilih MIT. Diterima.
 4. **pako — (MIT AND Zlib)**, **chainsaw/traverse — MIT/X11.** Zlib & notasi X11 masuk allowlist/alias. Diterima.
+
+## Ditolak oleh gate lisensi (bukti kebijakan bekerja)
+
+- **react-leaflet 5.0.0 (+@react-leaflet/core) — Hippocratic-2.1.** Tertangkap CI
+  saat port peta: lisensi dengan pembatasan penggunaan etis, bukan open-source
+  (melanggar freedom 0), di luar allowlist. Diganti implementasi leaflet murni
+  (BSD-2-Clause) tanpa wrapper — fungsi identik.
 
 ## Kebijakan
 

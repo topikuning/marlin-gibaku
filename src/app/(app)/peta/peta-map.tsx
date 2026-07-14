@@ -1,32 +1,26 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
-import { CircleMarker, MapContainer, TileLayer, Tooltip, useMap } from "react-leaflet";
+import { useEffect, useMemo, useRef } from "react";
+import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { LocationStatus } from "@/generated/prisma/enums";
 import type { PetaMarker } from "@/lib/peta";
 import { statusColorToken } from "./status-color";
 
 /**
- * Peta Leaflet (client-only — di-load via next/dynamic ssr:false dari peta-client).
- * Marker lingkaran berwarna per status; yang dipilih diberi ring lebih besar.
+ * Peta Leaflet MURNI tanpa react-leaflet (client-only — di-load via next/dynamic
+ * ssr:false dari peta-client). react-leaflet dibuang: lisensinya Hippocratic-2.1
+ * (pembatasan penggunaan — di luar allowlist open-source kebijakan repo);
+ * leaflet sendiri BSD-2-Clause. Marker lingkaran berwarna per status; yang
+ * dipilih diberi ring lebih besar + flyTo.
  */
 
 // Titik tengah default kira-kira pesisir utara Jawa (mayoritas lokasi KNMP).
 const DEFAULT_CENTER: [number, number] = [-6.9, 111.5];
 
-function FlyTo({ target }: { target: [number, number] | null }) {
-  const map = useMap();
-  useEffect(() => {
-    if (target) map.flyTo(target, 12, { duration: 0.8 });
-  }, [target, map]);
-  return null;
-}
-
 /**
  * Leaflet menulis warna sebagai atribut SVG — tidak paham `var()`, jadi token
- * di-resolve sekali ke nilai literal via getComputedStyle (aman: file ini
- * hanya dirender di client).
+ * di-resolve sekali ke nilai literal via getComputedStyle (aman: client-only).
  */
 const MAP_TOKENS = [
   "--color-ink-faint",
@@ -56,45 +50,66 @@ export interface PetaMapProps {
 
 export function PetaMap({ markers, selectedId, onSelect }: PetaMapProps) {
   const tokenColor = useTokenColor();
-  const statusColor = (status: LocationStatus) => tokenColor(statusColorToken(status));
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const layerRef = useRef<L.LayerGroup | null>(null);
+  const onSelectRef = useRef(onSelect);
+  useEffect(() => {
+    onSelectRef.current = onSelect;
+  }, [onSelect]);
 
-  const selected = markers.find((m) => m.id === selectedId) ?? null;
-  const flyTarget: [number, number] | null = selected ? [selected.lat, selected.lng] : null;
-  const center: [number, number] =
-    markers.length > 0 ? [markers[0].lat, markers[0].lng] : DEFAULT_CENTER;
+  // Inisialisasi peta sekali; view awal dari marker pertama bila ada.
+  useEffect(() => {
+    if (!containerRef.current || mapRef.current) return;
+    const first = markers[0];
+    const center: [number, number] = first ? [first.lat, first.lng] : DEFAULT_CENTER;
+    const map = L.map(containerRef.current, { scrollWheelZoom: true }).setView(center, 7);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
+    layerRef.current = L.layerGroup().addTo(map);
+    mapRef.current = map;
+    return () => {
+      map.remove();
+      mapRef.current = null;
+      layerRef.current = null;
+    };
+    // markers hanya untuk view awal — pembaruan berikutnya lewat effect marker.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  return (
-    <MapContainer center={center} zoom={7} scrollWheelZoom style={{ height: "100%", width: "100%" }}>
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-      <FlyTo target={flyTarget} />
-      {markers.map((m) => {
-        const active = selectedId === m.id;
-        return (
-          <CircleMarker
-            key={m.id}
-            center={[m.lat, m.lng]}
-            radius={active ? 11 : 7}
-            pathOptions={{
-              color: active ? tokenColor("--color-primary") : tokenColor("--color-surface"),
-              weight: active ? 3 : 1.2,
-              fillColor: statusColor(m.status),
-              fillOpacity: 0.92,
-            }}
-            eventHandlers={{ click: () => onSelect(m.id) }}
-          >
-            <Tooltip direction="top" offset={[0, -6]}>
-              <span className="text-xs font-semibold">{m.name}</span>
-              <br />
-              <span className="text-[11px]">
-                {m.regency} · {m.province}
-              </span>
-            </Tooltip>
-          </CircleMarker>
-        );
-      })}
-    </MapContainer>
-  );
+  // Gambar ulang marker saat data/seleksi berubah.
+  useEffect(() => {
+    const layer = layerRef.current;
+    if (!layer) return;
+    layer.clearLayers();
+    const statusColor = (status: LocationStatus) => tokenColor(statusColorToken(status));
+    for (const m of markers) {
+      const active = selectedId === m.id;
+      const marker = L.circleMarker([m.lat, m.lng], {
+        radius: active ? 11 : 7,
+        color: active ? tokenColor("--color-primary") : tokenColor("--color-surface"),
+        weight: active ? 3 : 1.2,
+        fillColor: statusColor(m.status),
+        fillOpacity: 0.92,
+      });
+      marker.bindTooltip(
+        `<span style="font-size:12px;font-weight:600">${m.name}</span><br/><span style="font-size:11px">${m.regency} · ${m.province}</span>`,
+        { direction: "top", offset: L.point(0, -6) },
+      );
+      marker.on("click", () => onSelectRef.current(m.id));
+      marker.addTo(layer);
+    }
+  }, [markers, selectedId, tokenColor]);
+
+  // Terbang ke lokasi terpilih.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !selectedId) return;
+    const m = markers.find((x) => x.id === selectedId);
+    if (m) map.flyTo([m.lat, m.lng], 12, { duration: 0.8 });
+  }, [selectedId, markers]);
+
+  return <div ref={containerRef} className="h-full w-full" />;
 }
