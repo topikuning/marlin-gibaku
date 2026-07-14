@@ -65,6 +65,7 @@ diagnostik R2 di `/api/ready` dan menu Sistem). Env wajib: `DATABASE_URL`,
 
 ## Dokumentasi
 
+- **`docs/DEPLOY_RAILWAY.md` — panduan deploy Railway langkah demi langkah**
 - `PROJECT.md` — arsitektur & keputusan (source of truth)
 - `docs/DECISIONS.md` — log keputusan append-only
 - `docs/OPEN_ISSUES.md` — hutang teknis terbuka
