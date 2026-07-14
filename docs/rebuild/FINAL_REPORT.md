@@ -41,7 +41,7 @@ Dockerfile multi-stage (node:24.18.0-bookworm-slim, corepack+pnpm frozen, standa
 
 1. **Data seed kategori korup** dari parser python lama (roman ganda, kategori hilang) — angka konsisten via Σ leaf, tapi pembagian kategori menunggu HPS xlsx asli utk re-import (OPEN_ISSUES 🔴).
 2. **Docker build belum terverifikasi di sandbox ini** (egress gateway menolak CDN registry) — diverifikasi via CI; jangan deploy sebelum job docker hijau.
-3. **Ditunda sadar**: peta Leaflet; PWA offline penuh (sekarang draft lokal + submit idempoten); PR/PO/receiving granular; intake WA; cash-forecast UI (formula sudah ada).
+3. **Ditunda sadar**: PWA offline penuh (sekarang draft lokal + submit idempoten); PR/PO/receiving granular; intake WA; cash-forecast UI (formula sudah ada).
 4. RLS belum ada (authorization application-layer, teruji); rate limit baru di login; CSP headers belum.
 5. E2E belum menutup semua alur §36 (prospek→kontrak, import RAB, keuangan via UI — logika terverifikasi di integration/manual; E2E UI lanjutan = pekerjaan berikut).
 6. exceljs maintenance lambat (alternatif dievaluasi bila jadi masalah).

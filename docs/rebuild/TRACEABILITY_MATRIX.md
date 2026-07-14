@@ -30,5 +30,5 @@ Status: `✅ selesai` / `🔶 sebagian` / `⏳ direncanakan` / `⏸ ditunda (dic
 | R24 | Mobile Hari Ini + draft offline + idempotent sync | Prompt §23 | draft lokal + idempotency key | lib/daily-report | /hari-ini | daily_report.create | E2E-3 | 🔶 (draft lokal + idempoten; SW/installable ditunda) |
 | R25 | PHO/pemeliharaan/FHO | Prompt §16.10 | LocationStatus + AdminMilestone | lib/milestone | workspace | location.manage | — | 🔶 (status PHO/pemeliharaan/FHO + milestone ada; alur defect list dasar via Issue) |
 | R26 | Exception-first Command Center, KPI klik-tembus | Prompt §19 | derived | lib/dashboard | / | portfolio.view | visual | ✅ |
-| R27 | Peta lokasi | fitur lama | — | — | — | — | — | ⏸ |
+| R27 | Peta lokasi | fitur lama | Location (gps) | lib/peta | /peta (leaflet murni BSD) | location.view | visual + Playwright | ✅ |
 | R28 | PWA installable + service worker penuh | Prompt §23 | — | — | — | — | — | ⏸ (draft lokal + idempotensi dulu) |
