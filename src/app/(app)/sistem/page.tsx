@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { PageHeader, Card, CardHeader, CardBody, StatusPill } from "@/components/ui";
-import { requireCapability } from "@/lib/auth/session";
+import { requireUser } from "@/lib/auth/session";
+import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { env } from "@/lib/env";
 import { isR2Configured } from "@/lib/r2";
 import { db } from "@/lib/db";
@@ -11,7 +12,8 @@ export const metadata: Metadata = { title: "Sistem" };
 export const dynamic = "force-dynamic";
 
 export default async function SistemPage() {
-  await requireCapability("system.manage");
+  const user = await requireUser();
+  requireCapabilityPage(user.role, "system.manage");
   const [auditLogs, sessionCount] = await Promise.all([
     db.auditLog.findMany({
       orderBy: { createdAt: "desc" },

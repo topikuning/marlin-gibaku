@@ -410,7 +410,14 @@ async function main() {
       },
     });
     for (const node of workNodes.slice(0, itemCount)) {
-      const vol = Math.max(0.5, Number(node.volume) * 0.02);
+      // Patuh guard bisnis: kumulatif tidak boleh melebihi volume RAB.
+      const prior = await db.dailyReportItem.aggregate({
+        where: { lineageKey: node.lineageKey, report: { locationId: kdm.id } },
+        _sum: { volumeDone: true },
+      });
+      const remaining = Number(node.volume) - Number(prior._sum.volumeDone ?? 0);
+      const vol = Math.min(remaining, Math.max(0.5, Number(node.volume) * 0.02));
+      if (vol <= 0) continue;
       await db.dailyReportItem.create({
         data: {
           reportId: report.id,

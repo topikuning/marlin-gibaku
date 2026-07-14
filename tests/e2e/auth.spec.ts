@@ -10,6 +10,9 @@ async function login(page: Page, username: string, password = "marlin123") {
   await page.getByLabel("Username atau email").fill(username);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Masuk" }).click();
+  // Tunggu redirect action selesai (cookie sesi terpasang) sebelum navigasi berikutnya —
+  // kecuali skenario gagal login yang tetap di /masuk.
+  await page.waitForURL((url) => !url.pathname.startsWith("/masuk"), { timeout: 10_000 }).catch(() => {});
 }
 
 test.describe("autentikasi", () => {
@@ -20,7 +23,7 @@ test.describe("autentikasi", () => {
 
   test("password salah ditolak dengan pesan", async ({ page }) => {
     await login(page, "admin", "password-salah");
-    await expect(page.getByRole("alert")).toContainText("salah");
+    await expect(page.getByRole("alert").filter({ hasText: "salah" })).toBeVisible();
   });
 
   test("login admin → Command Center", async ({ page }) => {
@@ -49,21 +52,21 @@ test.describe("otorisasi per peran", () => {
   test("mandor tidak melihat menu Pengguna/Keuangan dan ditolak akses halaman", async ({ page }) => {
     await login(page, "mandor-01");
     await expect(page).toHaveURL("/");
-    await expect(page.getByRole("link", { name: "Pengguna" })).toHaveCount(0);
+    await expect(page.locator("nav").getByRole("link", { name: "Pengguna" })).toHaveCount(0);
     await page.goto("/pengguna");
-    await expect(page.getByText(/tidak ditemukan|not found|404/i).first()).toBeVisible();
+    await expect(page.getByText(/404|not found/i).first()).toBeVisible();
   });
 
   test("exec viewer bisa lihat progress tapi tidak ada menu Sistem", async ({ page }) => {
     await login(page, "kkp-viewer");
     await page.goto("/progress");
-    await expect(page.getByText("Progress Portfolio")).toBeVisible();
-    await expect(page.getByRole("link", { name: "Sistem" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Progress Portfolio" })).toBeVisible();
+    await expect(page.locator("nav").getByRole("link", { name: "Sistem" })).toHaveCount(0);
   });
 
   test("program director bisa buka Pengguna", async ({ page }) => {
     await login(page, "hery");
     await page.goto("/pengguna");
-    await expect(page.getByText("Daftar pengguna")).toBeVisible();
+    await expect(page.getByText("Daftar pengguna").first()).toBeVisible();
   });
 });

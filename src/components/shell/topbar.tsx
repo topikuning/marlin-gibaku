@@ -39,6 +39,7 @@ export function Topbar({ user, logoutAction, children }: TopbarProps) {
         <form action={logoutAction}>
           <button
             type="submit"
+            aria-label="Keluar"
             className="flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[13px] font-medium text-ink-muted hover:bg-surface-muted hover:text-ink"
           >
             <LogOut aria-hidden className="size-4" />

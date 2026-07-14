@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { PageHeader, Card, CardHeader, CardBody } from "@/components/ui";
-import { requireCapability } from "@/lib/auth/session";
+import { requireUser } from "@/lib/auth/session";
+import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
 import { UserForm, UsersTable } from "./pengguna-client";
 
@@ -8,7 +9,8 @@ export const metadata: Metadata = { title: "Pengguna" };
 export const dynamic = "force-dynamic";
 
 export default async function PenggunaPage() {
-  await requireCapability("user.manage");
+  const user = await requireUser();
+  requireCapabilityPage(user.role, "user.manage");
   const [users, locations] = await Promise.all([
     db.user.findMany({
       orderBy: [{ role: "asc" }, { fullName: "asc" }],
