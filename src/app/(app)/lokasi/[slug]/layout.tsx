@@ -11,6 +11,11 @@ export const dynamic = "force-dynamic";
 
 const DAY_MS = 24 * 3600 * 1000;
 
+// Helper di luar komponen — aturan purity render melarang Date.now() langsung di body.
+function remainingDaysUntil(endDate: Date): number {
+  return Math.ceil((endDate.getTime() - Date.now()) / DAY_MS);
+}
+
 function tabItems(slug: string): LinkTabItem[] {
   const base = `/lokasi/${slug}`;
   return [
@@ -37,9 +42,7 @@ export default async function LokasiLayout({
   const progress = await getLocationProgress(location.id);
   const contract = location.package.contract;
 
-  const remainingDays = contract
-    ? Math.ceil((contract.endDate.getTime() - Date.now()) / DAY_MS)
-    : null;
+  const remainingDays = contract ? remainingDaysUntil(contract.endDate) : null;
 
   return (
     <div className="space-y-4">

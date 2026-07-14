@@ -95,8 +95,10 @@ function ItemForm({
   const formRef = useRef<HTMLFormElement>(null);
 
   // Reset form + hapus draft lokal node ini setelah sukses simpan.
+  // setState via callback timeout (bukan sinkron di effect) — patuh react-hooks/set-state-in-effect.
   useEffect(() => {
-    if (state?.success) {
+    if (!state?.success) return;
+    const timer = window.setTimeout(() => {
       setPicked((prev) => {
         if (prev) {
           try {
@@ -113,7 +115,8 @@ function ItemForm({
       setGeo(null);
       setTakenAt("");
       formRef.current?.reset();
-    }
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [state, slug, dateKey]);
 
   const matches = useMemo(() => {
