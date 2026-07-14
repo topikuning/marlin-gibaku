@@ -30,7 +30,6 @@ Priority: 🔴 Critical (blocking production) · 🟡 Important · 🟢 Nice-to-
 
 ## Fitur ditunda sadar (lihat docs/rebuild/REBUILD_PLAN.md)
 
-- 🟡 **Peta lokasi** (Leaflet) — fitur lama berfungsi, belum diport ke rebuild.
 - 🟡 **PWA offline penuh** — sekarang: draft lokal (localStorage) + submit idempotent;
   belum ada service worker/manifest installable/background sync.
 - 🟢 PR/PO/receiving granular (kini direpresentasikan Commitment+Expense).
