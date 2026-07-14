@@ -105,7 +105,8 @@ await db.\$disconnect();
 |---|---|
 | Container gagal start, log `EnvError` | `SESSION_SECRET` < 32 char / `R2_ENDPOINT` salah format (r2.dev, protokol ganda, ada path) |
 | Healthcheck merah, `db: down` | `DATABASE_URL` salah / Postgres belum siap — cek referensi variabel |
-| Pre-deploy gagal `Cannot find module 'prisma/config'` | prisma.config.ts tidak boleh import dari paket `prisma` (CLI global di container) — sudah diperbaiki; pastikan memakai commit terbaru |
+| Pre-deploy gagal `Cannot find module 'prisma/config'` | prisma.config harus .js polos tanpa import paket `prisma` (CLI global di container) — sudah diperbaiki |
+| Pre-deploy gagal ~3 dtk TANPA log | preDeployCommand di-exec TANPA shell oleh Railway — tidak boleh mengandung `cd`/`&&`/pipe; harus satu perintah polos (`prisma migrate deploy`) |
 | `prisma migrate deploy` gagal di pre-deploy | migrasi konflik — cek log deploy; jangan pernah reset di production |
 | Upload foto/dokumen error "belum dikonfigurasi" | Env R2 kosong — isi 4 variabel R2 lalu redeploy |
 | Tes R2 gagal di menu Sistem | Baca step yang merah: DNS = endpoint salah; Signature = secret salah; NoSuchBucket = nama bucket; AccessDenied = permission token |

@@ -37,11 +37,15 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends tini ca-certificates openssl && \
     rm -rf /var/lib/apt/lists/*
 
-# Prisma CLI global (pinned) untuk preDeploy `prisma migrate deploy` di Railway
+# Prisma CLI global (pinned) untuk preDeploy `prisma migrate deploy` di Railway.
+# Telemetri/update-check dimatikan: pre-deploy tidak boleh bergantung network keluar.
 RUN npm install -g prisma@7.8.0 && npm cache clean --force
+ENV PRISMA_HIDE_UPDATE_MESSAGE=1
+ENV CHECKPOINT_DISABLE=1
 
-# Non-root user
-RUN groupadd --gid 1001 marlin && useradd --uid 1001 --gid marlin --shell /usr/sbin/nologin marlin
+# Non-root user (dengan home dir — cache/config CLI butuh $HOME yang valid)
+RUN groupadd --gid 1001 marlin && useradd --uid 1001 --gid marlin --create-home --shell /usr/sbin/nologin marlin
+ENV HOME=/home/marlin
 
 # Standalone output: server + node_modules minimal yang dibutuhkan runtime
 COPY --from=builder --chown=marlin:marlin /app/.next/standalone ./
