@@ -17,6 +17,10 @@ const nextConfig: NextConfig = {
   },
   poweredByHeader: false,
   compress: true,
+  // Sertakan font bundel di server bundle (untuk cap foto via sharp/librsvg).
+  outputFileTracingIncludes: {
+    "/**": ["./assets/fonts/**"],
+  },
 };
 
 export default nextConfig;

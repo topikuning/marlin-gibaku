@@ -1,8 +1,25 @@
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import sharp from "sharp";
 import ExifReader from "exifreader";
 import { db } from "@/lib/db";
 import { r2Put, r2PresignGet, isR2Configured } from "@/lib/r2";
+
+/**
+ * Arahkan fontconfig ke font yang DIBUNDEL bersama repo, sebelum sharp/librsvg
+ * merender teks. Tanpa ini, host tanpa font (mis. Railway) merender teks SVG
+ * jadi KOSONG → cap foto tampak "tidak ada". Dijalankan sekali saat modul dimuat.
+ */
+function ensureBundledFonts(): void {
+  if (process.env.FONTCONFIG_FILE) return;
+  const conf = path.join(process.cwd(), "assets", "fonts", "fonts.conf");
+  if (existsSync(conf)) {
+    process.env.FONTCONFIG_FILE = conf;
+    process.env.FONTCONFIG_PATH = path.dirname(conf);
+  }
+}
+ensureBundledFonts();
 
 /** Ukuran sisi terpanjang thumbnail (px). Kecil = ringan di-load. */
 const THUMB_MAX = 480;
