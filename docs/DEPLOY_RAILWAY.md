@@ -56,8 +56,17 @@ atau reset di production.
 2. Tunggu healthcheck hijau — `GET /api/health` harus `{"status":"ok","db":"up"}`
    (timeout 300 dtk, restart ON_FAILURE max 5; semua dari `railway.json`).
 3. Cek `GET /api/ready` → `r2Configured: true` bila R2 diisi.
-4. Buat user pertama: production TIDAK di-seed otomatis (seed = data demo dev
-   dan menolak `APP_ENV=production` by design). Buat admin lewat script di §7.
+4. Buat admin pertama (database production kosong — seed demo menolak production).
+   **Cara termudah (lewat env var, tanpa mesin dev):**
+   - Service app → **Variables** → tambah `BOOTSTRAP_ADMIN_PASSWORD` = password awal
+     (min 8 karakter; opsional `BOOTSTRAP_ADMIN_USERNAME`, default `admin`).
+   - **Redeploy**. Saat start, aplikasi otomatis membuat admin (log deploy:
+     `[bootstrap] admin 'admin' berhasil dibuat`). Aman: hanya membuat bila belum
+     ada, tidak pernah menimpa user/password yang sudah ada.
+   - Login `admin` + password tadi → dipaksa ganti password.
+   - **Setelah berhasil login, HAPUS** `BOOTSTRAP_ADMIN_PASSWORD` (& `_USERNAME`)
+     dari Variables lalu redeploy — supaya tidak tertinggal sebagai konfigurasi.
+   Alternatif (dari mesin dev): script di §7.
 5. Login → menu **Sistem** → jalankan **tes R2** (round-trip PUT/GET/presign/DELETE
    dengan diagnosis error terklasifikasi: DNS/TLS/kredensial/bucket/permission).
 
@@ -67,9 +76,10 @@ Service → Settings → **Networking** → tambahkan domain (mis. `marlin.gibak
 → pasang CNAME sesuai instruksi Railway. Cookie sesi `secure` otomatis aktif
 karena `APP_ENV=production`.
 
-## 7. Membuat admin pertama di production
+## 7. Membuat admin pertama — alternatif via mesin dev
 
-Dari mesin dev (sekali saja, lalu tutup akses):
+(Cara utama = env var bootstrap di §5.4. Alternatif ini kalau Anda punya akses
+langsung ke Postgres production dari mesin dev.) Sekali saja, lalu tutup akses:
 
 ```bash
 DATABASE_URL="<url postgres production>" APP_ENV=production pnpm tsx -e "
