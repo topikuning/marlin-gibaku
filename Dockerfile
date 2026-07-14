@@ -49,9 +49,17 @@ ENV HOME=/home/marlin
 
 # Standalone output: server + node_modules minimal yang dibutuhkan runtime
 COPY --from=builder --chown=marlin:marlin /app/.next/standalone ./
-# Binari native sharp (@img/sharp-linux-x64) tidak ikut ter-trace standalone (pnpm)
-# → pasang eksplisit agar pemrosesan foto (kompresi+cap) berfungsi di container.
-RUN npm install --no-save --no-audit --no-fund sharp@0.35.3 && npm cache clean --force && chown -R marlin:marlin /app/node_modules
+# Binari native sharp (@img/sharp-linux-x64) tidak ikut ter-trace standalone (pnpm).
+# npm TIDAK bisa install langsung di node_modules hasil standalone (arborist crash
+# pada struktur pnpm) → pasang di direktori terpisah lalu symlink menggantikan
+# entri sharp yang rusak. Diverifikasi: require('sharp') gagal sebelum, OK sesudah.
+RUN mkdir -p /opt/sharp && cd /opt/sharp && npm init -y >/dev/null \
+ && npm install --no-audit --no-fund sharp@0.35.3 \
+ && npm cache clean --force \
+ && rm -rf /app/node_modules/sharp /app/node_modules/@img \
+ && ln -s /opt/sharp/node_modules/sharp /app/node_modules/sharp \
+ && ln -s /opt/sharp/node_modules/@img /app/node_modules/@img \
+ && chown -R marlin:marlin /opt/sharp
 COPY --from=builder --chown=marlin:marlin /app/.next/static ./.next/static
 COPY --from=builder --chown=marlin:marlin /app/public ./public
 COPY --from=builder --chown=marlin:marlin /app/assets ./assets
