@@ -109,9 +109,15 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
 
     const location = await db.location.findUnique({
       where: { id: d.locationId },
-      select: { slug: true, name: true },
+      select: {
+        slug: true,
+        name: true,
+        // Nama perusahaan utk cap foto (lokasi → paket → organisasi).
+        package: { select: { organization: { select: { name: true } } } },
+      },
     });
     if (!location) return { error: "Lokasi tidak ditemukan" };
+    const companyName = location.package?.organization?.name ?? null;
 
     const report = await getOrCreateDraft(d.locationId, d.dateKey, user.id);
     const item = await upsertItem(
@@ -145,6 +151,8 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
             lng: d.photoLng ?? null,
             takenAt,
             locationLabel: location.name,
+            companyName,
+            reporterName: user.fullName,
           },
         });
       } catch (err) {

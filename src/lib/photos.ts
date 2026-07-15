@@ -112,6 +112,10 @@ export type PhotoStamp = {
   lat: number | null;
   lng: number | null;
   locationLabel: string | null;
+  /** Nama perusahaan (header cap). */
+  companyName?: string | null;
+  /** Nama pelapor (user yang mengunggah). */
+  reporterName?: string | null;
 };
 
 function fmtCoord(lat: number | null, lng: number | null): string | null {
@@ -128,30 +132,48 @@ function stampSvg(w: number, h: number, s: PhotoStamp): string {
   const day = new Intl.DateTimeFormat("id-ID", { weekday: "short", timeZone: TZ }).format(s.takenAt);
   const coord = fmtCoord(s.lat, s.lng);
   const loc = s.locationLabel?.trim() || null;
+  const company = s.companyName?.trim() || null;
+  const reporter = s.reporterName?.trim() || null;
 
-  const band = Math.round(Math.min(h * 0.28, Math.max(140, w * 0.22)));
+  // Band lebih tinggi utk menampung header perusahaan + baris pelapor.
+  const band = Math.round(Math.min(h * 0.36, Math.max(200, w * 0.32)));
   const y0 = h - band;
   const pad = Math.round(w * 0.03);
-  const fsTime = Math.round(band * 0.34);
-  const fsText = Math.round(band * 0.135);
-  const barX = pad + Math.round(fsTime * 3.05);
+  const fsTime = Math.round(band * 0.2);
+  const fsText = Math.round(band * 0.098);
+  const fsSmall = Math.round(band * 0.082);
+  const fsCompany = Math.round(band * 0.105);
+  // Baris waktu diletakkan di bawah header perusahaan.
+  const timeY = y0 + Math.round(band * 0.5);
+  const barX = pad + Math.round(fsTime * 3.5);
   const infoX = barX + Math.round(w * 0.022);
 
   // Hanya 2 berat font dibenamkan (400 & 700); pakai 700 untuk penekanan.
   const ff = STAMP_FAMILY;
   const lines: string[] = [];
   lines.push(`<rect x="0" y="${y0}" width="${w}" height="${band}" fill="url(#mg)"/>`);
-  lines.push(`<text x="${pad}" y="${y0 + Math.round(band * 0.45)}" font-family="${ff}" font-weight="700" font-size="${fsTime}" fill="#ffffff">${time}</text>`);
-  lines.push(`<rect x="${barX}" y="${y0 + Math.round(band * 0.14)}" width="${Math.max(3, Math.round(w * 0.006))}" height="${Math.round(band * 0.34)}" fill="#f59e0b"/>`);
-  lines.push(`<text x="${infoX}" y="${y0 + Math.round(band * 0.28)}" font-family="${ff}" font-weight="700" font-size="${fsText}" fill="#ffffff">${esc(date)}</text>`);
-  lines.push(`<text x="${infoX}" y="${y0 + Math.round(band * 0.45)}" font-family="${ff}" font-weight="400" font-size="${fsText}" fill="#e2e8f0">${esc(day)}</text>`);
+  // Header: nama perusahaan + aksen oranye + MARLIN di kanan.
+  if (company) {
+    lines.push(`<rect x="${pad}" y="${y0 + Math.round(band * 0.075)}" width="${Math.max(4, Math.round(w * 0.007))}" height="${Math.round(band * 0.11)}" fill="#f59e0b"/>`);
+    lines.push(`<text x="${pad + Math.round(w * 0.018)}" y="${y0 + Math.round(band * 0.17)}" font-family="${ff}" font-weight="700" font-size="${fsCompany}" fill="#ffffff">${esc(company.slice(0, 46))}</text>`);
+  }
+  lines.push(`<text x="${w - pad}" y="${y0 + Math.round(band * 0.17)}" text-anchor="end" font-family="${ff}" font-weight="700" font-size="${fsCompany}" fill="#f59e0b">MARLIN</text>`);
+  lines.push(`<line x1="${pad}" y1="${y0 + Math.round(band * 0.225)}" x2="${w - pad}" y2="${y0 + Math.round(band * 0.225)}" stroke="#ffffff" stroke-opacity="0.25" stroke-width="1.5"/>`);
+  // Waktu besar + bar + tanggal/hari.
+  lines.push(`<text x="${pad}" y="${timeY}" font-family="${ff}" font-weight="700" font-size="${fsTime}" fill="#ffffff">${time}</text>`);
+  lines.push(`<rect x="${barX}" y="${y0 + Math.round(band * 0.32)}" width="${Math.max(3, Math.round(w * 0.006))}" height="${Math.round(band * 0.2)}" fill="#f59e0b"/>`);
+  lines.push(`<text x="${infoX}" y="${y0 + Math.round(band * 0.42)}" font-family="${ff}" font-weight="700" font-size="${fsText}" fill="#ffffff">${esc(date)}</text>`);
+  lines.push(`<text x="${infoX}" y="${y0 + Math.round(band * 0.51)}" font-family="${ff}" font-weight="400" font-size="${fsText}" fill="#e2e8f0">${esc(day)}</text>`);
+  // Lokasi + koordinat.
   if (loc)
-    lines.push(`<text x="${pad}" y="${y0 + Math.round(band * 0.70)}" font-family="${ff}" font-weight="700" font-size="${Math.round(fsText * 1.02)}" fill="#ffffff">${esc(loc.slice(0, 60))}</text>`);
+    lines.push(`<text x="${pad}" y="${y0 + Math.round(band * 0.66)}" font-family="${ff}" font-weight="700" font-size="${Math.round(fsText * 1.02)}" fill="#ffffff">${esc(loc.slice(0, 60))}</text>`);
   if (coord)
-    lines.push(`<text x="${pad}" y="${y0 + Math.round(band * 0.90)}" font-family="${ff}" font-weight="400" font-size="${fsText}" fill="#ffffff">Koordinat: ${esc(coord)}</text>`);
-  lines.push(`<text x="${w - pad}" y="${y0 + Math.round(band * 0.90)}" text-anchor="end" font-family="${ff}" font-weight="700" font-size="${fsText}" fill="#f59e0b">MARLIN</text>`);
+    lines.push(`<text x="${pad}" y="${y0 + Math.round(band * 0.78)}" font-family="${ff}" font-weight="400" font-size="${fsSmall}" fill="#ffffff">Koordinat: ${esc(coord)}</text>`);
+  // Pelapor.
+  if (reporter)
+    lines.push(`<text x="${pad}" y="${y0 + Math.round(band * 0.92)}" font-family="${ff}" font-weight="400" font-size="${fsSmall}" fill="#e2e8f0">Dilaporkan oleh: <tspan font-weight="700" fill="#ffffff">${esc(reporter.slice(0, 40))}</tspan></text>`);
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><defs>${FONT_FACE_CSS}<linearGradient id="mg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000000" stop-opacity="0"/><stop offset="1" stop-color="#000000" stop-opacity="0.62"/></linearGradient></defs>${lines.join("")}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><defs>${FONT_FACE_CSS}<linearGradient id="mg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000000" stop-opacity="0"/><stop offset="1" stop-color="#000000" stop-opacity="0.68"/></linearGradient></defs>${lines.join("")}</svg>`;
 }
 
 export type SavePhotoInput = {
@@ -162,7 +184,14 @@ export type SavePhotoInput = {
   locationSlug: string;
   dateKey: string;
   /** Sumber cap dari klien (geolokasi + waktu ambil); fallback EXIF → now. */
-  stamp?: { lat?: number | null; lng?: number | null; takenAt?: Date | null; locationLabel?: string | null };
+  stamp?: {
+    lat?: number | null;
+    lng?: number | null;
+    takenAt?: Date | null;
+    locationLabel?: string | null;
+    companyName?: string | null;
+    reporterName?: string | null;
+  };
 };
 
 /**
@@ -194,7 +223,14 @@ export async function savePhotoForItem(input: SavePhotoInput) {
   // saat sharp bermasalah, sekaligus tetap memakai cap bila sharp sehat.
   const processed = await processWithSharpOrOriginal(
     original,
-    { takenAt, lat, lng, locationLabel: input.stamp?.locationLabel ?? null },
+    {
+      takenAt,
+      lat,
+      lng,
+      locationLabel: input.stamp?.locationLabel ?? null,
+      companyName: input.stamp?.companyName ?? null,
+      reporterName: input.stamp?.reporterName ?? null,
+    },
     file,
   );
 
@@ -372,6 +408,8 @@ export async function sharpSelfTest(): Promise<{ ok: boolean; detail: string; sa
       lat: -6.19762,
       lng: 106.817,
       locationLabel: "Contoh Lokasi, Demak",
+      companyName: "PT Contoh Perusahaan",
+      reporterName: "Budi Santoso",
     });
     const out = await sharp(base)
       .composite([{ input: Buffer.from(svg), top: 0, left: 0 }])
