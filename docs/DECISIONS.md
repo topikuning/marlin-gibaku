@@ -994,3 +994,29 @@ User meminta rebuild total MARLIN (master prompt). Keputusan payung — detail d
   deterministik dgn angka diturunkan dari Σ leaf RAB (total kategori JSON lama korup).
 - Ditunda sadar (dicatat di REBUILD_PLAN/laporan akhir): peta Leaflet, PWA offline penuh
   (localStorage draft + idempotency dulu), PR/PO/receiving granular, WA-text intake.
+
+## 052 · 2026-07-15 · Kurva-S evaluasi kontinu (mulai 0, bentuk-S) + saran rencana mingguan otomatis
+
+Menindaklanjuti keputusan Hery: algoritma kurva-S lama (akumulasi delta smoothstep
+per minggu, mulai dari minggu-1 tiap jendela) menghasilkan kurva yang **tidak mulai
+dari 0** (minggu-1 sudah ~3%), kurang rapi, dan bentuk-S lemah.
+
+**Perubahan (mengganti bagian "formula terverifikasi JANGAN diubah" di 051 untuk
+scurve — dengan test properti, bukan paritas nilai):**
+- `scheduleItems`/`generateScurve` kini **evaluasi KONTINU**: kumulatif(t) =
+  Σ bobot_i × smoothstep((t − start_i)/(end_i − start_i)), dievaluasi pada
+  t = minggu/totalWeeks untuk minggu 1..n. Dijamin: t=0 → 0 (kurva mulai dari 0),
+  t=1 → 100, monotonik, bentuk-S alami (awal landai, tengah curam, akhir landai).
+  Bobot = amount/grand (cost-weighted); jendela = trade (urutan dependensi lapangan,
+  tak berubah). Storage tetap minggu 1..n; chart meng-anchor titik minggu-0 = 0%.
+- Test paritas lama (panjang, monotonik, akhir 100) tetap hijau + properti baru
+  (mulai landai < porsi linear, laju tengah > awal/akhir).
+
+**Fitur baru — saran rencana mingguan otomatis (`lib/plan/suggest*.ts`):**
+- Dari fraksi rencana per-trade vs realisasi nyata: target minggu ini = kenaikan
+  rencana minggu ini + tertinggal (rencana s/d minggu lalu − realisasi), clamp ke
+  sisa volume. Bila deviasi negatif → saran otomatis **mengejar ketertinggalan**;
+  bila tepat jadwal → beban normal. Diurutkan dampak rupiah (bobot ekstra utk kejar),
+  prioritas 1..9. Tetap bisa diedit/dibuat manual (tombol "Terapkan" mengisi rencana).
+- Inti murni `suggest-core.ts` (uji unit), lapisan DB `suggest.ts`, aksi
+  `getWeeklySuggestions`/`applyWeeklySuggestions` (capability weekly_plan.manage + audit).

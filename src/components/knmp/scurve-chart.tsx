@@ -31,21 +31,26 @@ export function ScurveChart({
   const plotH = H - padT - padB;
   const n = totalWeeks;
 
-  const xFor = (i: number) => (n === 1 ? padL + plotW / 2 : padL + (i / (n - 1)) * plotW);
+  // Sumbu-X = akhir minggu 0..n; indeks 0 = MULAI proyek (0%), indeks k = akhir
+  // minggu k. Anchor 0% di awal supaya kurva mulai dari 0 (bukan "agak naik").
+  const plan = [0, ...planPct];
+  const actual: (number | null)[] = [0, ...actualPct];
+
+  const xFor = (i: number) => padL + (i / n) * plotW;
   const yFor = (pct: number) => padT + (1 - Math.min(Math.max(pct, 0), 100) / 100) * plotH;
 
-  const planPts = planPct.map((p, i) => `${xFor(i)},${yFor(p)}`).join(" ");
-  const actualIdx = actualPct
+  const planPts = plan.map((p, i) => `${xFor(i)},${yFor(p)}`).join(" ");
+  const actualIdx = actual
     .map((p, i) => (p == null ? null : i))
     .filter((i): i is number => i != null);
-  const actualPts = actualIdx.map((i) => `${xFor(i)},${yFor(actualPct[i] as number)}`).join(" ");
+  const actualPts = actualIdx.map((i) => `${xFor(i)},${yFor(actual[i] as number)}`).join(" ");
 
   const gridY = [0, 25, 50, 75, 100];
-  const lastActual = actualIdx.length ? (actualPct[actualIdx[actualIdx.length - 1]] as number) : 0;
+  const lastActual = actualIdx.length ? (actual[actualIdx[actualIdx.length - 1]] as number) : 0;
   const lastPlan = planPct[currentWeek - 1] ?? planPct[planPct.length - 1] ?? 0;
 
-  // Label minggu: awal, tengah, akhir (hindari berdempet).
-  const weekTicks = [...new Set([0, Math.floor((n - 1) / 2), n - 1])];
+  // Label minggu: mulai (0), tengah, akhir.
+  const weekTicks = [...new Set([0, Math.round(n / 2), n])];
 
   return (
     <div>
@@ -68,11 +73,11 @@ export function ScurveChart({
           );
         })}
 
-        {/* penanda minggu berjalan */}
+        {/* penanda minggu berjalan (akhir minggu berjalan = indeks currentWeek) */}
         <line
-          x1={xFor(currentWeek - 1)}
+          x1={xFor(currentWeek)}
           y1={padT}
-          x2={xFor(currentWeek - 1)}
+          x2={xFor(currentWeek)}
           y2={padT + plotH}
           stroke="var(--color-border-strong)"
           strokeWidth={1}
@@ -97,10 +102,10 @@ export function ScurveChart({
 
         {/* label minggu — anchor tepi supaya label pertama/terakhir tidak keklip */}
         {weekTicks.map((i) => {
-          const anchor = i === 0 ? "start" : i === n - 1 ? "end" : "middle";
+          const anchor = i === 0 ? "start" : i === n ? "end" : "middle";
           return (
             <text key={i} x={xFor(i)} y={H - 8} textAnchor={anchor} fontSize={10} fill="var(--color-ink-faint)">
-              mgg {i + 1}
+              {i === 0 ? "mulai" : `mgg ${i}`}
             </text>
           );
         })}

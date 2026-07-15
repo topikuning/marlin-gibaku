@@ -100,4 +100,19 @@ describe("scheduleItems", () => {
     const zero = scheduleItems([{ name: "x", categoryName: "y", amount: 0n }], 70);
     expect(zero).toEqual(new Array(10).fill(0));
   });
+
+  it("mulai landai: kumulatif minggu-1 < porsi linear (bentuk-S, bukan garis)", () => {
+    const n = curve.length; // 22
+    const linearWeek1 = 100 / n; // ~4.5%
+    expect(curve[0]).toBeLessThan(linearWeek1);
+    expect(curve[0]).toBeGreaterThan(0); // ada progres kecil, bukan 0 mati
+  });
+
+  it("bentuk-S: laju tengah > laju awal & laju akhir", () => {
+    const n = curve.length;
+    const rate = (i: number) => curve[i] - (i > 0 ? curve[i - 1] : 0);
+    const mid = Math.floor(n / 2);
+    expect(rate(mid)).toBeGreaterThan(rate(0)); // tengah lebih curam dari awal
+    expect(rate(mid)).toBeGreaterThan(rate(n - 1)); // tengah lebih curam dari akhir
+  });
 });

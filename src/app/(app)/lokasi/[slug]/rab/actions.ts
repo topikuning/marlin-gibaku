@@ -6,8 +6,13 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { requireCapability, requireLocationAccess, ForbiddenError } from "@/lib/auth/session";
 import { activateRevision, discardDraft, regenerateBaseline } from "@/lib/rab/import";
+import { suggestWeeklyPlan, type WeeklySuggestionResult } from "@/lib/plan/suggest";
 
 export type RabActionState = { error?: string; success?: string } | undefined;
+
+export type SuggestState =
+  | { error?: string; result?: WeeklySuggestionResult }
+  | undefined;
 
 function fail(err: unknown): RabActionState {
   if (err instanceof ForbiddenError) return { error: err.message };
@@ -159,6 +164,101 @@ export async function addWeeklyPlanItem(_prev: RabActionState, formData: FormDat
     revalidatePath(`/lokasi/${location.slug}/rab`);
     revalidatePath(`/lokasi/${location.slug}`);
     return { success: `${node.code} ${node.name} masuk rencana minggu ${d.weekNumber}.` };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+const suggestSchema = z.object({
+  locationId: z.uuid(),
+  weekNumber: z.coerce.number().int().min(1).max(520),
+});
+
+/** Hitung saran rencana mingguan otomatis (tanpa menyimpan) — utk pratinjau. */
+export async function getWeeklySuggestions(_prev: SuggestState, formData: FormData): Promise<SuggestState> {
+  const parsed = suggestSchema.safeParse({
+    locationId: formData.get("locationId"),
+    weekNumber: formData.get("weekNumber"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  try {
+    const user = await requireCapability("weekly_plan.manage");
+    await requireLocationAccess(user, parsed.data.locationId);
+    const result = await suggestWeeklyPlan(parsed.data.locationId, parsed.data.weekNumber);
+    if (!result) return { error: "Belum ada revisi RAB aktif — impor RAB dulu." };
+    if (result.suggestions.length === 0) {
+      return { error: "Tidak ada pekerjaan yang perlu disarankan untuk minggu ini (semua sesuai/selesai)." };
+    }
+    return { result };
+  } catch (err) {
+    const e = fail(err);
+    return { error: e?.error };
+  }
+}
+
+/**
+ * Terapkan saran otomatis → upsert WeeklyPlanItem utk minggu itu. Saran
+ * DIHITUNG ULANG di server (tidak percaya payload klien). Item yang sudah ada
+ * di rencana minggu itu di-update targetnya; sisanya dibuat.
+ */
+export async function applyWeeklySuggestions(_prev: RabActionState, formData: FormData): Promise<RabActionState> {
+  const parsed = suggestSchema.safeParse({
+    locationId: formData.get("locationId"),
+    weekNumber: formData.get("weekNumber"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { locationId, weekNumber } = parsed.data;
+  try {
+    const user = await requireCapability("weekly_plan.manage");
+    await requireLocationAccess(user, locationId);
+
+    const location = await db.location.findUniqueOrThrow({
+      where: { id: locationId },
+      select: { slug: true, package: { select: { contract: { select: { startDate: true } } } } },
+    });
+    const startDate = location.package.contract?.startDate;
+    if (!startDate) return { error: "Paket belum punya kontrak — periode minggu tidak bisa dihitung." };
+
+    const result = await suggestWeeklyPlan(locationId, weekNumber);
+    if (!result || result.suggestions.length === 0) {
+      return { error: "Tidak ada saran untuk diterapkan." };
+    }
+
+    const weekStart = new Date(startDate.getTime() + (weekNumber - 1) * 7 * DAY_MS);
+    const weekEnd = new Date(weekStart.getTime() + 6 * DAY_MS);
+    const plan = await db.weeklyPlan.upsert({
+      where: { locationId_weekNumber: { locationId, weekNumber } },
+      update: {},
+      create: { locationId, weekNumber, weekStart, weekEnd, createdById: user.id },
+    });
+
+    for (const s of result.suggestions) {
+      await db.weeklyPlanItem.upsert({
+        where: { weeklyPlanId_rabNodeId: { weeklyPlanId: plan.id, rabNodeId: s.rabNodeId } },
+        update: { targetVolume: s.targetVolume, priority: s.priority, note: s.reason },
+        create: {
+          weeklyPlanId: plan.id,
+          rabNodeId: s.rabNodeId,
+          targetVolume: s.targetVolume,
+          priority: s.priority,
+          note: s.reason,
+        },
+      });
+    }
+    await audit(user.id, "weekly_plan.apply_suggestions", "weekly_plan", plan.id, {
+      locationId,
+      weekNumber,
+      count: result.suggestions.length,
+      behind: result.behind,
+      deviationPct: result.deviationPct,
+    });
+    revalidatePath(`/lokasi/${location.slug}/rab`);
+    revalidatePath(`/lokasi/${location.slug}`);
+    return {
+      success: `${result.suggestions.length} pekerjaan disarankan masuk rencana minggu ${weekNumber}${
+        result.behind ? ` (mengejar deviasi ${result.deviationPct}%)` : ""
+      }. Silakan sesuaikan bila perlu.`,
+    };
   } catch (err) {
     return fail(err);
   }

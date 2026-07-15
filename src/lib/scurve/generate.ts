@@ -1,10 +1,12 @@
 /**
- * Kurva-S rencana — port PERSIS dari kode lama (b6e77af):
- *   - src/lib/scurve.ts     → generateScurve (fase per kategori)
- *   - src/lib/scheduling.ts → scheduleItems (pembobotan per item + trade)
- * Formula, konstanta, dan tabel keyword TIDAK diubah; hanya bentuk input
- * (bigint amount, karena storage baru RabNode.amount = BigInt) dan output
- * disederhanakan ke weekly cumulative pct.
+ * Kurva-S rencana. Tabel fase kategori + trade (urutan dependensi lapangan) +
+ * keyword klasifikasi dipertahankan dari kode lama (b6e77af).
+ *
+ * DECISIONS 052: pembentukan kurva diganti dari akumulasi delta smoothstep
+ * per-minggu → EVALUASI KONTINU kumulatif pada t = minggu/totalWeeks. Efek:
+ * kurva mulai dari 0 (bukan "agak naik" di minggu-1), berakhir 100, monotonik,
+ * dan bentuk-S lebih rapi. Bobot tetap cost-weighted (amount/grand); jendela
+ * waktu tetap dari trade/kategori. Lihat cumulativeFromSegments.
  */
 
 export const DEFAULT_CONTRACT_DAYS = 150;
@@ -64,50 +66,54 @@ export function smoothstep(t: number): number {
 }
 
 /**
- * Kurva-S per kategori: map nama kategori → jendela fase, distribusi smoothstep.
- * Return: weekly cumulative pct (running sum dibulatkan 2 desimal, clamp 100).
+ * Kumulatif rencana dari kumpulan (bobot%, jendela [start,end] fraksi durasi),
+ * DIEVALUASI KONTINU pada t = minggu/totalWeeks utk minggu 1..totalWeeks.
+ *
+ * Setiap segmen naik smoothstep 0→bobot di dalam jendelanya (0 di start, penuh
+ * di end). Kumulatif total = Σ segmen. Sifat yang DIJAMIN:
+ *   - pada t=0 (awal proyek) = 0  → kurva mulai dari 0 (bukan "agak naik").
+ *   - pada t=1 (akhir)       = Σ bobot = 100.
+ *   - monotonik naik + bentuk-S alami (start landai, tengah curam, akhir landai).
+ * Return: pct kumulatif akhir-minggu utk minggu 1..totalWeeks (panjang totalWeeks).
+ */
+function cumulativeFromSegments(
+  segments: { weightPct: number; start: number; end: number }[],
+  totalWeeks: number,
+): number[] {
+  const out: number[] = [];
+  for (let week = 1; week <= totalWeeks; week++) {
+    const t = week / totalWeeks;
+    let acc = 0;
+    for (const seg of segments) {
+      const span = Math.max(1e-9, seg.end - seg.start);
+      acc += seg.weightPct * smoothstep((t - seg.start) / span);
+    }
+    out.push(Math.min(100, Math.round(acc * 100) / 100));
+  }
+  return out;
+}
+
+/**
+ * Kurva-S per kategori: map nama kategori → jendela fase, evaluasi kontinu.
+ * Return: weekly cumulative pct (minggu 1..totalWeeks).
  */
 export function generateScurve(
   categories: { name: string; totalValue: bigint }[],
   contractDays: number = DEFAULT_CONTRACT_DAYS,
 ): number[] {
-  const totalWeeks = Math.ceil(contractDays / 7);
+  const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
   const grandTotal = categories
     .filter((c) => c.totalValue > 0n)
     .reduce((sum, c) => sum + Number(c.totalValue), 0);
+  if (grandTotal <= 0) return new Array(totalWeeks).fill(0);
 
-  const weeklyDelta: number[] = new Array(totalWeeks).fill(0);
-
-  if (grandTotal > 0) {
-    for (const cat of categories) {
-      if (cat.totalValue <= 0n) continue;
-
-      const [phaseStartPct, phaseEndPct] = getCategoryPhase(cat.name);
-      const weekStart = Math.floor(phaseStartPct * totalWeeks);
-      const weekEnd = Math.max(weekStart + 1, Math.floor(phaseEndPct * totalWeeks));
-      const duration = weekEnd - weekStart;
-      const catWeightPct = (Number(cat.totalValue) / grandTotal) * 100;
-
-      let prev = 0;
-      for (let w = 0; w < duration; w++) {
-        const now = smoothstep((w + 1) / duration);
-        const delta = now - prev;
-        prev = now;
-        const wk = weekStart + w;
-        if (wk >= 0 && wk < totalWeeks) {
-          weeklyDelta[wk] += delta * catWeightPct;
-        }
-      }
-    }
-  }
-
-  const cumulative: number[] = [];
-  let running = 0;
-  for (const w of weeklyDelta) {
-    running += w;
-    cumulative.push(Math.min(100, Math.round(running * 100) / 100));
-  }
-  return cumulative;
+  const segments = categories
+    .filter((c) => c.totalValue > 0n)
+    .map((c) => {
+      const [start, end] = getCategoryPhase(c.name);
+      return { weightPct: (Number(c.totalValue) / grandTotal) * 100, start, end };
+    });
+  return cumulativeFromSegments(segments, totalWeeks);
 }
 
 // ── Penjadwalan per item berbasis "trade" (jenis pekerjaan) ─────────────────
@@ -177,8 +183,10 @@ export function classifyTrade(itemName: string, categoryName: string): TradeKey 
 }
 
 /**
- * Jadwalkan item leaf → kurva-S kumulatif mingguan (%).
- * Bobot per item = amount ÷ grand total; jendela waktu dari trade item.
+ * Jadwalkan item leaf → kurva-S kumulatif mingguan (%), minggu 1..totalWeeks.
+ * Bobot per item = amount ÷ grand total; jendela waktu (fraksi durasi) dari
+ * trade item (urutan dependensi lapangan). Evaluasi kontinu → mulai 0, akhir 100,
+ * bentuk-S rapi (lihat cumulativeFromSegments).
  */
 export function scheduleItems(
   items: { name: string; categoryName: string; amount: bigint }[],
@@ -186,34 +194,24 @@ export function scheduleItems(
 ): number[] {
   const n = Math.max(1, Math.ceil(contractDays / 7));
   const grand = items.reduce((s, it) => s + (it.amount > 0n ? Number(it.amount) : 0), 0);
-  const weeklyDelta: number[] = new Array(n).fill(0);
-
   if (grand <= 0) return new Array(n).fill(0);
 
-  for (const it of items) {
-    if (!(it.amount > 0n)) continue;
-    const trade = classifyTrade(it.name, it.categoryName);
-    const def = TRADE_BY_KEY.get(trade)!;
-    const ws = Math.floor(def.start * n);
-    const we = Math.max(ws + 1, Math.floor(def.end * n));
-    const dur = we - ws;
-    const weightPct = (Number(it.amount) / grand) * 100;
+  const segments = items
+    .filter((it) => it.amount > 0n)
+    .map((it) => {
+      const def = TRADE_BY_KEY.get(classifyTrade(it.name, it.categoryName))!;
+      return { weightPct: (Number(it.amount) / grand) * 100, start: def.start, end: def.end };
+    });
+  return cumulativeFromSegments(segments, n);
+}
 
-    let prev = 0;
-    for (let i = 0; i < dur; i++) {
-      const now = smoothstep((i + 1) / dur);
-      const delta = (now - prev) * weightPct;
-      prev = now;
-      const wk = ws + i;
-      if (wk >= 0 && wk < n) weeklyDelta[wk] += delta;
-    }
-  }
-
-  const cumulativePct: number[] = [];
-  let running = 0;
-  for (const d of weeklyDelta) {
-    running += d;
-    cumulativePct.push(Math.min(100, Math.round(running * 100) / 100));
-  }
-  return cumulativePct;
+/**
+ * Fraksi rencana selesai (0..1) untuk SATU trade pada akhir minggu tertentu.
+ * Dipakai saran rencana mingguan: berapa yang seharusnya sudah selesai per item.
+ */
+export function tradePlannedFraction(trade: TradeKey, weekNumber: number, totalWeeks: number): number {
+  const def = TRADE_BY_KEY.get(trade)!;
+  const t = Math.max(0, Math.min(1, weekNumber / Math.max(1, totalWeeks)));
+  const span = Math.max(1e-9, def.end - def.start);
+  return smoothstep((t - def.start) / span);
 }

@@ -3,8 +3,15 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useActionState, useMemo, useState } from "react";
 import { Banner, Button, HelpText, Input, Label, Select, Textarea } from "@/components/ui";
-import { formatNumber, formatPct } from "@/lib/format";
-import { addWeeklyPlanItem, removeWeeklyPlanItem, type RabActionState } from "./actions";
+import { formatNumber, formatPct, formatRupiah } from "@/lib/format";
+import {
+  addWeeklyPlanItem,
+  applyWeeklySuggestions,
+  getWeeklySuggestions,
+  removeWeeklyPlanItem,
+  type RabActionState,
+  type SuggestState,
+} from "./actions";
 
 export type PlanItemRow = {
   id: string;
@@ -128,6 +135,108 @@ function AddItemForm({
   );
 }
 
+function SuggestPanel({ locationId, weekNumber }: { locationId: string; weekNumber: number }) {
+  const [sugState, suggest, suggesting] = useActionState<SuggestState, FormData>(
+    getWeeklySuggestions,
+    undefined,
+  );
+  const [applyState, apply, applying] = useActionState<RabActionState, FormData>(
+    applyWeeklySuggestions,
+    undefined,
+  );
+  const result = sugState?.result;
+
+  return (
+    <div className="space-y-3 rounded-md border border-primary/30 bg-primary-50 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold text-ink">Saran otomatis minggu {weekNumber}</p>
+          <p className="text-xs text-ink-muted">
+            Berdasar urutan pekerjaan lapangan + realisasi. Bila tertinggal, saran mengejar deviasi.
+          </p>
+        </div>
+        <form action={suggest}>
+          <input type="hidden" name="locationId" value={locationId} />
+          <input type="hidden" name="weekNumber" value={weekNumber} />
+          <Button type="submit" variant="secondary" size="sm" loading={suggesting}>
+            {result ? "Muat ulang saran" : "Sarankan otomatis"}
+          </Button>
+        </form>
+      </div>
+
+      {sugState?.error ? <Banner tone="info" title={sugState.error} /> : null}
+      {applyState?.error ? <Banner tone="error" title={applyState.error} /> : null}
+      {applyState?.success ? <Banner tone="success" title={applyState.success} /> : null}
+
+      {result ? (
+        <>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+            <span className="text-ink-muted">
+              Rencana s/d minggu berjalan: <span className="font-semibold text-ink">{formatPct(result.planPct)}</span>
+            </span>
+            <span className="text-ink-muted">
+              Realisasi: <span className="font-semibold text-ink">{formatPct(result.actualPct)}</span>
+            </span>
+            <span className={result.behind ? "font-semibold text-danger" : "font-semibold text-success"}>
+              Deviasi {result.deviationPct > 0 ? "+" : ""}
+              {formatPct(result.deviationPct)} {result.behind ? "(tertinggal)" : "(aman)"}
+            </span>
+          </div>
+
+          <div className="overflow-x-auto rounded border border-border bg-surface">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs uppercase text-ink-muted">
+                  <th className="py-1.5 pr-3 pl-2">Uraian</th>
+                  <th className="py-1.5 pr-3">Trade</th>
+                  <th className="py-1.5 pr-3 text-right">Sisa</th>
+                  <th className="py-1.5 pr-3 text-right">Target mgg ini</th>
+                  <th className="py-1.5 pr-3 text-right">Nilai</th>
+                  <th className="py-1.5 pr-3">Prioritas</th>
+                  <th className="py-1.5 pr-3">Alasan</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {result.suggestions.map((s) => (
+                  <tr key={s.rabNodeId}>
+                    <td className="max-w-64 truncate py-1.5 pr-3 pl-2" title={s.name}>
+                      <span className="text-xs text-ink-muted">{s.code}</span> {s.name}
+                    </td>
+                    <td className="py-1.5 pr-3 text-xs text-ink-muted">{s.tradeLabel}</td>
+                    <td className="tabular py-1.5 pr-3 text-right text-ink-muted">
+                      {formatNumber(s.remainingVolume)} {s.unit ?? ""}
+                    </td>
+                    <td className="tabular py-1.5 pr-3 text-right font-semibold">
+                      {formatNumber(s.targetVolume)} {s.unit ?? ""}
+                      {s.catchUpVolume > 0 ? (
+                        <span className="ml-1 text-[11px] text-danger">
+                          (+{formatNumber(s.catchUpVolume)} kejar)
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="tabular py-1.5 pr-3 text-right text-ink-muted">{formatRupiah(s.valueTarget)}</td>
+                    <td className="tabular py-1.5 pr-3">{s.priority}</td>
+                    <td className="py-1.5 pr-3 text-xs text-ink-muted">{s.reason}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <form action={apply}>
+            <input type="hidden" name="locationId" value={locationId} />
+            <input type="hidden" name="weekNumber" value={weekNumber} />
+            <Button type="submit" loading={applying}>
+              Terapkan {result.suggestions.length} saran ke rencana minggu {weekNumber}
+            </Button>
+            <HelpText>Item dimasukkan ke rencana; kamu tetap bisa mengubah target, PIC, atau menghapusnya.</HelpText>
+          </form>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 export function WeeklyPlanSection({
   locationId,
   weekNumber,
@@ -174,7 +283,10 @@ export function WeeklyPlanSection({
       </div>
 
       {canManage ? (
-        <AddItemForm locationId={locationId} weekNumber={weekNumber} options={options} />
+        <>
+          <SuggestPanel locationId={locationId} weekNumber={weekNumber} />
+          <AddItemForm locationId={locationId} weekNumber={weekNumber} options={options} />
+        </>
       ) : null}
 
       {items.length === 0 ? (

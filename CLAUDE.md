@@ -73,7 +73,7 @@ src/
 ├── lib/                 # db, env (validasi+normalisasi R2), authz (capability),
 │   ├── auth/            # session (DB, revocable), password, actions, page-guard
 │   ├── rab/             # parsed, hps-parser, flatten, import
-│   ├── scurve/          # generate (formula terverifikasi — JANGAN ubah tanpa test paritas)
+│   ├── scurve/          # generate (kurva-S evaluasi kontinu, DECISIONS 052 — jaga properti: mulai 0, akhir 100, monoton, bentuk-S)
 │   ├── daily-report/    # actions + queries workflow laporan
 │   ├── finance/         # calc (SATU-satunya tempat formula agregat) + actions
 │   ├── milestones/      # template 45 item KKP + actions
