@@ -36,12 +36,17 @@ function ensureBundledFonts(): void {
     const conf = path.join(os.tmpdir(), "marlin-fonts.conf");
     // Hanya daftarkan dir font bundel (absolut) + cachedir writable. TIDAK scan
     // /usr/share/fonts (sumber hang & lambat). sans-serif → DejaVu Sans bundel.
+    // Daftarkan font bundel (absolut) LEBIH DULU + dir font sistem (mis. paket
+    // fonts-dejavu-core yang dipasang di Docker) sebagai cadangan. cachedir
+    // absolut & writable. Terverifikasi TIDAK menggantung (~16–71ms).
     writeFileSync(
       conf,
       `<?xml version="1.0"?>
 <!DOCTYPE fontconfig SYSTEM "fonts.dtd">
 <fontconfig>
   <dir>${fontsDir}</dir>
+  <dir>/usr/share/fonts</dir>
+  <dir>/usr/local/share/fonts</dir>
   <cachedir>${cacheDir}</cachedir>
   <alias><family>sans-serif</family><prefer><family>DejaVu Sans</family></prefer></alias>
 </fontconfig>
@@ -57,9 +62,10 @@ function ensureBundledFonts(): void {
 }
 ensureBundledFonts();
 
-/** Sisi terpanjang gambar utama & thumbnail (px). */
+/** Sisi terpanjang gambar utama & thumbnail (px). Thumbnail tampil ≤64px di grid
+ * (retina ≈128px) → 256px sudah lebih dari cukup & hemat resource. */
 const MAIN_MAX = 1920;
-const THUMB_MAX = 480;
+const THUMB_MAX = 256;
 
 /** Batas ukuran & jumlah foto per unggahan (SM di lapangan, sinyal terbatas). */
 export const MAX_PHOTO_BYTES = 8 * 1024 * 1024; // 8 MB / foto
@@ -280,6 +286,11 @@ async function processWithSharpOrOriginal(
     return { main: original, thumb: null, contentType, ext, width: null, height: null };
   }
 
+  // TAHAP 1 — resize + orientasi (TIDAK butuh font). Wajib: hemat storage &
+  // bandwidth (jangan pernah simpan foto kamera mentah 3–8 MB).
+  let resizedData: Buffer;
+  let width: number | null;
+  let height: number | null;
   try {
     const resized = await withTimeout(
       sharp(original, { failOn: "none" })
@@ -289,36 +300,51 @@ async function processWithSharpOrOriginal(
       SHARP_TIMEOUT_MS,
       "resize",
     );
-    const width = resized.info.width ?? null;
-    const height = resized.info.height ?? null;
-    let pipeline = sharp(resized.data, { failOn: "none" });
-    if (width && height) {
-      const svg = stampSvg(width, height, stamp);
-      pipeline = pipeline.composite([{ input: Buffer.from(svg), top: 0, left: 0 }]);
-    }
-    // Composite teks (librsvg+fontconfig) = titik paling rawan menggantung.
-    // Timeout → fallback simpan-asli, JANGAN biarkan unggahan stuck selamanya.
-    const main = await withTimeout(pipeline.webp({ quality: 80 }).toBuffer(), SHARP_TIMEOUT_MS, "cap");
-
-    let thumb: Buffer | null = null;
-    try {
-      thumb = await withTimeout(
-        sharp(main, { failOn: "none" })
-          .resize(THUMB_MAX, THUMB_MAX, { fit: "inside", withoutEnlargement: true })
-          .webp({ quality: 70 })
-          .toBuffer(),
-        SHARP_TIMEOUT_MS,
-        "thumb",
-      );
-    } catch {
-      thumb = null; // thumbnail opsional; grid fallback ke gambar utama
-    }
-    return { main, thumb, contentType: "image/webp", ext: "webp", width, height };
+    resizedData = resized.data;
+    width = resized.info.width ?? null;
+    height = resized.info.height ?? null;
   } catch (err) {
-    console.error("[photos] sharp gagal/timeout memproses — simpan gambar asli tanpa cap:", err);
+    console.error("[photos] sharp gagal resize — simpan gambar asli:", err);
     const { contentType, ext } = mimeExt(file?.type ?? "", file?.name ?? "");
     return { main: original, thumb: null, contentType, ext, width: null, height: null };
   }
+
+  // TAHAP 2 — cap Timemark (BUTUH font: librsvg+fontconfig, titik paling rawan
+  // menggantung). Best-effort: bila gagal/timeout, pakai gambar hasil resize
+  // TANPA cap. Foto tetap terproses & kecil; cap boleh menyusul bila font sehat.
+  let main: Buffer;
+  try {
+    if (!width || !height) throw new Error("dimensi tidak diketahui");
+    const svg = stampSvg(width, height, stamp);
+    main = await withTimeout(
+      sharp(resizedData, { failOn: "none" })
+        .composite([{ input: Buffer.from(svg), top: 0, left: 0 }])
+        .webp({ quality: 80 })
+        .toBuffer(),
+      SHARP_TIMEOUT_MS,
+      "cap",
+    );
+  } catch (err) {
+    console.error("[photos] cap gagal/timeout — simpan hasil resize tanpa cap:", err);
+    main = await sharp(resizedData, { failOn: "none" }).webp({ quality: 80 }).toBuffer();
+  }
+
+  // TAHAP 3 — thumbnail kecil (TIDAK butuh font). Selalu dibuat supaya grid tak
+  // pernah memuat gambar penuh (hemat resource).
+  let thumb: Buffer | null = null;
+  try {
+    thumb = await withTimeout(
+      sharp(main, { failOn: "none" })
+        .resize(THUMB_MAX, THUMB_MAX, { fit: "inside", withoutEnlargement: true })
+        .webp({ quality: 68 })
+        .toBuffer(),
+      SHARP_TIMEOUT_MS,
+      "thumb",
+    );
+  } catch {
+    thumb = null; // thumbnail opsional; grid fallback ke gambar utama
+  }
+  return { main, thumb, contentType: "image/webp", ext: "webp", width, height };
 }
 
 /** Batas waktu proses sharp per tahap; lewat batas → fallback simpan-asli. */
