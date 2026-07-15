@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import ExifReader from "exifreader";
 import { db } from "@/lib/db";
@@ -16,14 +17,42 @@ import { isR2Configured, r2Put, r2PresignGet } from "@/lib/r2";
 /**
  * Arahkan fontconfig ke font yang DIBUNDEL bersama repo, sebelum sharp/librsvg
  * merender teks. Tanpa ini, host tanpa font (mis. Railway) merender teks SVG
- * jadi KOSONG → cap foto tampak "tidak ada". Dijalankan sekali saat modul dimuat.
+ * jadi KOSONG → cap foto tampak "tidak ada".
+ *
+ * PENTING: config fontconfig DITULIS SAAT RUNTIME dengan path ABSOLUT +
+ * cachedir yang PASTI writable. Config statik lama (dir relatif "." + cachedir
+ * relatif + scan /usr/share/fonts) membuat librsvg MENGGANTUNG selamanya saat
+ * merender teks → unggahan foto stuck & tak pernah sampai ke bucket. Config
+ * runtime ini render teks dalam ~16ms (terverifikasi). Dijalankan sekali saat
+ * modul dimuat.
  */
 function ensureBundledFonts(): void {
   if (process.env.FONTCONFIG_FILE) return;
-  const conf = path.join(process.cwd(), "assets", "fonts", "fonts.conf");
-  if (existsSync(conf)) {
+  const fontsDir = path.join(process.cwd(), "assets", "fonts");
+  if (!existsSync(path.join(fontsDir, "DejaVuSans.ttf"))) return;
+  try {
+    const cacheDir = path.join(os.tmpdir(), "marlin-fontcache");
+    mkdirSync(cacheDir, { recursive: true });
+    const conf = path.join(os.tmpdir(), "marlin-fonts.conf");
+    // Hanya daftarkan dir font bundel (absolut) + cachedir writable. TIDAK scan
+    // /usr/share/fonts (sumber hang & lambat). sans-serif → DejaVu Sans bundel.
+    writeFileSync(
+      conf,
+      `<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <dir>${fontsDir}</dir>
+  <cachedir>${cacheDir}</cachedir>
+  <alias><family>sans-serif</family><prefer><family>DejaVu Sans</family></prefer></alias>
+</fontconfig>
+`,
+    );
     process.env.FONTCONFIG_FILE = conf;
-    process.env.FONTCONFIG_PATH = path.dirname(conf);
+    process.env.FONTCONFIG_PATH = fontsDir;
+  } catch (err) {
+    // Gagal menyiapkan config → biarkan fontconfig sistem. Cap mungkin kosong,
+    // tapi pipeline TIDAK boleh gagal karena ini.
+    console.error("[photos] gagal menyiapkan fontconfig bundel:", err);
   }
 }
 ensureBundledFonts();
@@ -169,52 +198,25 @@ export async function savePhotoForItem(input: SavePhotoInput) {
   const lng = input.stamp?.lng ?? exif.lng;
   const takenAt = input.stamp?.takenAt ?? exif.takenAt ?? new Date();
 
-  const sharp = await loadSharp();
-
-  // rotate (EXIF orientation) + resize maks 1920 → ukuran final, lalu cap dibakar.
-  let main: Buffer;
-  let width: number | null = null;
-  let height: number | null = null;
-  try {
-    const resized = await sharp(original, { failOn: "none" })
-      .rotate()
-      .resize(MAIN_MAX, MAIN_MAX, { fit: "inside", withoutEnlargement: true })
-      .toBuffer({ resolveWithObject: true });
-    width = resized.info.width ?? null;
-    height = resized.info.height ?? null;
-    let pipeline = sharp(resized.data, { failOn: "none" });
-    if (width && height) {
-      const svg = stampSvg(width, height, {
-        takenAt,
-        lat,
-        lng,
-        locationLabel: input.stamp?.locationLabel ?? null,
-      });
-      pipeline = pipeline.composite([{ input: Buffer.from(svg), top: 0, left: 0 }]);
-    }
-    main = await pipeline.webp({ quality: 80 }).toBuffer();
-  } catch {
-    throw new PhotoError("Foto tidak bisa diproses — file rusak atau bukan gambar");
-  }
-
-  let thumb: Buffer | null = null;
-  try {
-    thumb = await sharp(main, { failOn: "none" })
-      .resize(THUMB_MAX, THUMB_MAX, { fit: "inside", withoutEnlargement: true })
-      .webp({ quality: 70 })
-      .toBuffer();
-  } catch {
-    thumb = null; // thumbnail opsional; grid fallback ke gambar utama
-  }
+  // Pipeline ideal: sharp resize + cap (Timemark) + webp. Bila sharp TIDAK
+  // tersedia/gagal di runtime (mis. binari native tak termuat di host), JANGAN
+  // menggagalkan unggahan — simpan gambar ASLI apa adanya supaya foto tetap
+  // masuk bucket & tampil (tanpa cap). Ini mencegah "foto hilang, bucket kosong"
+  // saat sharp bermasalah, sekaligus tetap memakai cap bila sharp sehat.
+  const processed = await processWithSharpOrOriginal(
+    original,
+    { takenAt, lat, lng, locationLabel: input.stamp?.locationLabel ?? null },
+    file,
+  );
 
   const uuid = randomUUID();
-  const key = `photos/${input.locationSlug}/${input.dateKey}/${uuid}.webp`;
-  await r2Put(key, main, "image/webp");
+  const key = `photos/${input.locationSlug}/${input.dateKey}/${uuid}.${processed.ext}`;
+  await r2Put(key, processed.main, processed.contentType);
   let thumbnailKey: string | null = null;
-  if (thumb) {
+  if (processed.thumb) {
     thumbnailKey = `photos/${input.locationSlug}/${input.dateKey}/${uuid}.thumb.webp`;
     try {
-      await r2Put(thumbnailKey, thumb, "image/webp");
+      await r2Put(thumbnailKey, processed.thumb, "image/webp");
     } catch {
       thumbnailKey = null;
     }
@@ -227,9 +229,9 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       r2Key: key,
       thumbnailKey,
       sha256,
-      bytes: main.length,
-      widthPx: width,
-      heightPx: height,
+      bytes: processed.main.length,
+      widthPx: processed.width,
+      heightPx: processed.height,
       exifTakenAt: takenAt,
       exifGpsLat: lat != null ? lat.toFixed(7) : null,
       exifGpsLng: lng != null ? lng.toFixed(7) : null,
@@ -237,6 +239,122 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       uploadedById: input.userId,
     },
   });
+}
+
+type ProcessedPhoto = {
+  main: Buffer;
+  thumb: Buffer | null;
+  contentType: string;
+  ext: string;
+  width: number | null;
+  height: number | null;
+};
+
+/** MIME → ekstensi berkas untuk fallback simpan-asli. */
+function mimeExt(mime: string, name: string): { contentType: string; ext: string } {
+  const m = mime.toLowerCase();
+  if (m === "image/jpeg" || /\.jpe?g$/i.test(name)) return { contentType: "image/jpeg", ext: "jpg" };
+  if (m === "image/png" || /\.png$/i.test(name)) return { contentType: "image/png", ext: "png" };
+  if (m === "image/webp" || /\.webp$/i.test(name)) return { contentType: "image/webp", ext: "webp" };
+  if (m === "image/heic" || m === "image/heif" || /\.hei[cf]$/i.test(name))
+    return { contentType: m || "image/heic", ext: "heic" };
+  return { contentType: mime || "application/octet-stream", ext: "img" };
+}
+
+/**
+ * Proses gambar dgn sharp (resize + cap + webp). Bila sharp tak tersedia atau
+ * memprosesnya gagal, kembalikan gambar ASLI (contentType sesuai sumber) supaya
+ * unggahan tetap berhasil — cap dilewati, foto tetap tersimpan & tampil.
+ */
+async function processWithSharpOrOriginal(
+  original: Buffer,
+  stamp: PhotoStamp,
+  file?: File,
+): Promise<ProcessedPhoto> {
+  let sharp: Awaited<ReturnType<typeof loadSharp>>;
+  try {
+    sharp = await loadSharp();
+  } catch (err) {
+    console.error("[photos] sharp tak tersedia — simpan gambar asli tanpa cap:", err);
+    const { contentType, ext } = mimeExt(file?.type ?? "", file?.name ?? "");
+    return { main: original, thumb: null, contentType, ext, width: null, height: null };
+  }
+
+  try {
+    const resized = await withTimeout(
+      sharp(original, { failOn: "none" })
+        .rotate()
+        .resize(MAIN_MAX, MAIN_MAX, { fit: "inside", withoutEnlargement: true })
+        .toBuffer({ resolveWithObject: true }),
+      SHARP_TIMEOUT_MS,
+      "resize",
+    );
+    const width = resized.info.width ?? null;
+    const height = resized.info.height ?? null;
+    let pipeline = sharp(resized.data, { failOn: "none" });
+    if (width && height) {
+      const svg = stampSvg(width, height, stamp);
+      pipeline = pipeline.composite([{ input: Buffer.from(svg), top: 0, left: 0 }]);
+    }
+    // Composite teks (librsvg+fontconfig) = titik paling rawan menggantung.
+    // Timeout → fallback simpan-asli, JANGAN biarkan unggahan stuck selamanya.
+    const main = await withTimeout(pipeline.webp({ quality: 80 }).toBuffer(), SHARP_TIMEOUT_MS, "cap");
+
+    let thumb: Buffer | null = null;
+    try {
+      thumb = await withTimeout(
+        sharp(main, { failOn: "none" })
+          .resize(THUMB_MAX, THUMB_MAX, { fit: "inside", withoutEnlargement: true })
+          .webp({ quality: 70 })
+          .toBuffer(),
+        SHARP_TIMEOUT_MS,
+        "thumb",
+      );
+    } catch {
+      thumb = null; // thumbnail opsional; grid fallback ke gambar utama
+    }
+    return { main, thumb, contentType: "image/webp", ext: "webp", width, height };
+  } catch (err) {
+    console.error("[photos] sharp gagal/timeout memproses — simpan gambar asli tanpa cap:", err);
+    const { contentType, ext } = mimeExt(file?.type ?? "", file?.name ?? "");
+    return { main: original, thumb: null, contentType, ext, width: null, height: null };
+  }
+}
+
+/** Batas waktu proses sharp per tahap; lewat batas → fallback simpan-asli. */
+const SHARP_TIMEOUT_MS = 15_000;
+
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`sharp ${label} timeout ${ms}ms`)), ms).unref?.(),
+    ),
+  ]);
+}
+
+/**
+ * Diagnostik: verifikasi sharp benar-benar bisa memproses gambar di runtime ini
+ * (bukan sekadar ter-import) — buat gambar kecil, resize, cap SVG, encode webp.
+ * Dipakai di menu Sistem supaya jelas apakah cap foto akan berjalan di host.
+ */
+export async function sharpSelfTest(): Promise<{ ok: boolean; detail: string }> {
+  try {
+    const sharp = await loadSharp();
+    const base = await sharp({
+      create: { width: 320, height: 240, channels: 3, background: { r: 30, g: 58, b: 138 } },
+    })
+      .png()
+      .toBuffer();
+    const svg = stampSvg(320, 240, { takenAt: new Date(0), lat: -6.9, lng: 110.4, locationLabel: "Uji" });
+    const out = await sharp(base)
+      .composite([{ input: Buffer.from(svg), top: 0, left: 0 }])
+      .webp({ quality: 80 })
+      .toBuffer();
+    return { ok: out.length > 0, detail: `webp ${out.length} bytes (resize + cap OK)` };
+  } catch (err) {
+    return { ok: false, detail: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 /** Data foto siap-tampil (thumbnail kecil + full + tag EXIF). */

@@ -32,9 +32,11 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
 
-# tini = PID 1 (signal handling SIGTERM), ca-certificates + openssl utk TLS (R2/Postgres)
+# tini = PID 1 (signal handling SIGTERM), ca-certificates + openssl utk TLS (R2/Postgres).
+# fontconfig + fonts-dejavu-core = cadangan agar cap teks foto (sharp/librsvg) tetap
+# ter-render walau config font runtime gagal (aplikasi tetap membawa font sendiri).
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends tini ca-certificates openssl && \
+    apt-get install -y --no-install-recommends tini ca-certificates openssl fontconfig fonts-dejavu-core && \
     rm -rf /var/lib/apt/lists/*
 
 # Prisma CLI global (pinned) untuk preDeploy `prisma migrate deploy` di Railway.

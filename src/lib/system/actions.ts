@@ -6,13 +6,22 @@ import { env } from "@/lib/env";
 import { audit } from "@/lib/audit";
 import { requireCapability } from "@/lib/auth/session";
 import { r2SelfTest, type R2SelfTestStep } from "@/lib/r2";
+import { sharpSelfTest } from "@/lib/photos";
 
 export type R2TestState = { ok: boolean; steps: R2SelfTestStep[] } | undefined;
 
 export async function runR2Test(): Promise<R2TestState> {
   const actor = await requireCapability("system.manage");
-  const result = await r2SelfTest();
-  await audit(actor.id, "system.r2_test", "system", null, { ok: result.ok });
+  // Uji R2 (round-trip) + sharp (pemrosesan gambar) sekaligus: keduanya syarat
+  // foto lapangan tersimpan. sharp diuji terpisah supaya jelas bila justru
+  // pemrosesan gambar yang gagal (bukan R2) — penyebab umum "foto tak muncul".
+  const [r2, sharp] = await Promise.all([r2SelfTest(), sharpSelfTest()]);
+  const steps: R2SelfTestStep[] = [
+    ...r2.steps,
+    { step: "SHARP", ok: sharp.ok, detail: sharp.detail },
+  ];
+  const result = { ok: r2.ok && sharp.ok, steps };
+  await audit(actor.id, "system.r2_test", "system", null, { ok: result.ok, sharp: sharp.ok });
   return result;
 }
 
