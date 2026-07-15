@@ -369,18 +369,24 @@ export async function getPeriodReport(
     weeklyValue[wk - 1] += Number(r.valueDone);
     if (dateKey(r.report.reportDate) <= eKey) valueSdPeriode += Number(r.valueDone);
   }
-  const actualSeries: (number | null)[] = [];
-  let cum = 0;
-  for (let w = 1; w <= seriesLen; w++) {
-    cum += weeklyValue[w - 1];
-    actualSeries.push(w <= currentWeek ? (cum / grandTotal) * 100 : null);
-  }
 
-  // Rencana vs realisasi s/d akhir periode (indeks minggu periode — formula lama).
+  // Minggu akhir periode yang diminta (mingguan = n; bulanan = minggu berisi periodeEnd).
   const weekIndex =
     kind === "mingguan"
       ? n
       : Math.min(seriesLen, Math.max(1, Math.floor((periodeEnd.getTime() - startDate.getTime()) / (7 * DAY)) + 1));
+  // Realisasi & deviasi kurva-S HANYA terisi s/d akhir periode yang diminta (dan tak
+  // melampaui minggu berjalan). Laporan "Minggu ke-n" adalah snapshot s/d minggu n —
+  // bukan s/d hari ini — jadi kolom minggu > n tidak diisi realisasi/deviasi.
+  const cutoffWeek = Math.min(currentWeek, Math.max(1, weekIndex));
+
+  const actualSeries: (number | null)[] = [];
+  let cum = 0;
+  for (let w = 1; w <= seriesLen; w++) {
+    cum += weeklyValue[w - 1];
+    actualSeries.push(w <= cutoffWeek ? (cum / grandTotal) * 100 : null);
+  }
+
   const planIdx = Math.min(Math.max(planSeries.length, 1), Math.max(1, weekIndex)) - 1;
   const planPct = planSeries[planIdx] ?? 0;
   const actualPct = (valueSdPeriode / grandTotal) * 100;
@@ -469,7 +475,7 @@ export async function getPeriodReport(
     planPct,
     actualPct,
     deviationPct: actualPct - planPct,
-    scurve: { planPct: planSeries, actualPct: actualSeries, currentWeek },
+    scurve: { planPct: planSeries, actualPct: actualSeries, currentWeek: cutoffWeek },
     tenaga: [...tenagaMap.entries()].map(([role, count]) => ({
       role,
       label: WORKER_ROLE_LABEL[role],
