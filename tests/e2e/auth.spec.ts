@@ -8,7 +8,10 @@ import { test, expect, type Page } from "@playwright/test";
 async function login(page: Page, username: string, password = "marlin123") {
   await page.goto("/masuk");
   await page.getByLabel("Username atau email").fill(username);
-  await page.getByLabel("Password").fill(password);
+  // Target input via role textbox: field password kini bersanding dgn tombol
+  // show/hide (aria-label "Tampilkan password") → getByLabel("Password")
+  // bentrok 2 elemen. Role "textbox" hanya cocok ke input, bukan tombol.
+  await page.getByRole("textbox", { name: "Password", exact: true }).fill(password);
   await page.getByRole("button", { name: "Masuk" }).click();
   // Tunggu redirect action selesai (cookie sesi terpasang) sebelum navigasi berikutnya —
   // kecuali skenario gagal login yang tetap di /masuk.
