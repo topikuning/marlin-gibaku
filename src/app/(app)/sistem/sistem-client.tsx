@@ -2,7 +2,62 @@
 
 import { useActionState, useTransition, useState } from "react";
 import { Banner, Button, Input, Label, StatusPill } from "@/components/ui";
-import { runR2Test, resetOperationalData, type R2TestState, type ResetState } from "@/lib/system/actions";
+import {
+  runR2Test,
+  resetOperationalData,
+  saveBranding,
+  type R2TestState,
+  type ResetState,
+  type BrandingState,
+} from "@/lib/system/actions";
+
+export function BrandingPanel({
+  initial,
+  defaults,
+}: {
+  initial: { appName: string; tagline: string; projectContext: string };
+  defaults: { appName: string; tagline: string; projectContext: string };
+}) {
+  const [state, action, pending] = useActionState<BrandingState, FormData>(saveBranding, undefined);
+  const v = state?.values ?? initial;
+  return (
+    <form action={action} className="space-y-3">
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      {state?.success ? <Banner tone="success" title={state.success} /> : null}
+      <p className="text-sm text-ink-muted">
+        Identitas produk dipakai di halaman masuk & seluruh aplikasi. Konteks proyek bersifat tambahan —
+        ubah bila dipakai untuk proyek lain. Kosongkan untuk memakai nilai bawaan.
+      </p>
+      <div>
+        <Label htmlFor="brand-app">Nama aplikasi</Label>
+        <Input id="brand-app" name="appName" defaultValue={v.appName} maxLength={60} placeholder={defaults.appName} />
+      </div>
+      <div>
+        <Label htmlFor="brand-tagline">Tagline (kepanjangan)</Label>
+        <Input
+          id="brand-tagline"
+          name="tagline"
+          defaultValue={v.tagline}
+          maxLength={160}
+          placeholder={defaults.tagline}
+        />
+      </div>
+      <div>
+        <Label htmlFor="brand-project">Konteks proyek (tambahan)</Label>
+        <Input
+          id="brand-project"
+          name="projectContext"
+          defaultValue={v.projectContext}
+          maxLength={160}
+          placeholder={defaults.projectContext}
+        />
+      </div>
+      <Button type="submit" loading={pending}>
+        Simpan branding
+      </Button>
+    </form>
+  );
+}
 
 export function R2TestPanel({ configured }: { configured: boolean }) {
   const [result, setResult] = useState<R2TestState>(undefined);

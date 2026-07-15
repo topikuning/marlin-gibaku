@@ -6,7 +6,8 @@ import { env } from "@/lib/env";
 import { isR2Configured } from "@/lib/r2";
 import { db } from "@/lib/db";
 import { formatTanggalWaktu } from "@/lib/format";
-import { R2TestPanel, ResetPanel } from "./sistem-client";
+import { getBranding, BRAND_DEFAULTS } from "@/lib/branding";
+import { R2TestPanel, ResetPanel, BrandingPanel } from "./sistem-client";
 
 export const metadata: Metadata = { title: "Sistem" };
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ export const dynamic = "force-dynamic";
 export default async function SistemPage() {
   const user = await requireUser();
   requireCapabilityPage(user.role, "system.manage");
-  const [auditLogs, sessionCount] = await Promise.all([
+  const [auditLogs, sessionCount, branding] = await Promise.all([
     db.auditLog.findMany({
       orderBy: { createdAt: "desc" },
       take: 100,
@@ -28,6 +29,7 @@ export default async function SistemPage() {
       },
     }),
     db.session.count({ where: { revokedAt: null, expiresAt: { gt: new Date() } } }),
+    getBranding(),
   ]);
 
   return (
@@ -56,12 +58,19 @@ export default async function SistemPage() {
         </Card>
 
         <Card>
-          <CardHeader title="Diagnostik R2" subtitle="Round-trip: konfigurasi → PUT → GET → presign → DELETE" />
+          <CardHeader title="Diagnostik R2 & foto" subtitle="Round-trip R2 (PUT→GET→presign→DELETE) + tes pemrosesan gambar (SHARP)" />
           <CardBody>
             <R2TestPanel configured={isR2Configured()} />
           </CardBody>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader title="Branding" subtitle="Identitas produk (global) + konteks proyek (tambahan)" />
+        <CardBody>
+          <BrandingPanel initial={branding} defaults={BRAND_DEFAULTS} />
+        </CardBody>
+      </Card>
 
       <Card>
         <CardHeader title="Audit trail" subtitle="100 mutasi terakhir (append-only)" />

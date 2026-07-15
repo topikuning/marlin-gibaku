@@ -1,10 +1,12 @@
 import type { ReactNode } from "react";
+import type { Branding } from "@/lib/branding";
 import { BottomNav } from "./bottom-nav";
 import type { NavItem } from "./nav-config";
 import { Sidebar } from "./sidebar";
 import { Topbar, type TopbarUser } from "./topbar";
 
 export interface AppShellProps {
+  brand: Branding;
   user: TopbarUser;
   /** Nav SUDAH difilter capability (pakai filterNav(role)) — shell tidak tahu authz. */
   nav: NavItem[];
@@ -22,6 +24,7 @@ export interface AppShellProps {
  * sidebar desktop + topbar + konten fluid + bottom-nav mobile.
  */
 export function AppShell({
+  brand,
   user,
   nav,
   mobileNav,
@@ -31,9 +34,9 @@ export function AppShell({
 }: AppShellProps) {
   return (
     <div className="min-h-dvh">
-      <Sidebar nav={nav} />
+      <Sidebar brand={brand} nav={nav} />
       <div className="lg:pl-60">
-        <Topbar user={user} logoutAction={logoutAction}>
+        <Topbar brand={brand} user={user} logoutAction={logoutAction}>
           {topbarContent}
         </Topbar>
         <main className="mx-auto w-full max-w-[1600px] px-4 py-5 pb-20 lg:px-6 lg:pb-8">
