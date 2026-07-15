@@ -119,6 +119,12 @@ export default async function HarianWorkspacePage({
                         <div className="font-medium text-ink">{it.name}</div>
                         <div className="text-xs text-ink-muted">{it.code}</div>
                         {it.notes ? <div className="text-xs text-ink-faint">“{it.notes}”</div> : null}
+                        {/* Foto bukti per item — reviewer bisa verifikasi tiap pekerjaan. */}
+                        {it.photos.length > 0 ? (
+                          <div className="mt-1.5">
+                            <PhotoGallery photos={it.photos} thumbClass="h-14 w-14" />
+                          </div>
+                        ) : null}
                       </td>
                       <td className="py-2 pr-3 text-right tabular whitespace-nowrap">
                         {formatNumber(it.volumeDone)} {it.unit ?? ""}
