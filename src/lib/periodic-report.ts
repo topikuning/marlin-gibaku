@@ -69,6 +69,8 @@ export type PeriodHeader = {
   contractValue: bigint;
   masaPelaksanaanHari: number;
   tahunAnggaran: number;
+  /** Tanggal mulai kontrak — utk kolom kurva-S dikelompokkan per bulan. */
+  contractStart: Date;
   periodeStart: Date;
   periodeEnd: Date;
 };
@@ -458,6 +460,7 @@ export async function getPeriodReport(
       contractValue: contract.contractValue,
       masaPelaksanaanHari,
       tahunAnggaran: startDate.getUTCFullYear(),
+      contractStart: startDate,
       periodeStart,
       periodeEnd,
     },

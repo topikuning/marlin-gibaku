@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
-import { AutoPrint } from "@/components/print/auto-print";
+import { PrintToolbar } from "@/components/print/print-toolbar";
+import { ScurveKkpSheet } from "@/components/knmp/scurve-kkp-sheet";
 import { KkpPeriodReport } from "@/components/knmp/kkp-period-report";
 import { requireUser, requireLocationAccess } from "@/lib/auth/session";
 import { db } from "@/lib/db";
@@ -27,9 +28,20 @@ export default async function CetakPeriodikPage({
   if (!report) notFound();
 
   return (
-    <main className="mx-auto max-w-[1100px] bg-white p-6 print:p-0">
-      <AutoPrint />
-      <KkpPeriodReport r={report} />
-    </main>
+    <>
+      <PrintToolbar backHref={`/lokasi/${slug}/laporan-lokasi`} />
+      {/* Landscape utk halaman Kurva-S; tetap A4 potrait utk tabel detail. */}
+      <style>{`@media print { @page { size: A4 landscape; margin: 8mm; } }`}</style>
+      <main className="bg-white">
+        {/* Hal-1: KURVA S (landscape) */}
+        <section className="mx-auto w-full max-w-[1400px] break-after-page p-6 print:p-0">
+          <ScurveKkpSheet r={report} />
+        </section>
+        {/* Hal-2+: tabel detail item */}
+        <section className="mx-auto w-full max-w-[1100px] p-6 print:p-0">
+          <KkpPeriodReport r={report} />
+        </section>
+      </main>
+    </>
   );
 }

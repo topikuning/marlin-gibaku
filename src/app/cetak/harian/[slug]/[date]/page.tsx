@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { AutoPrint } from "@/components/print/auto-print";
+import { PrintToolbar } from "@/components/print/print-toolbar";
 import { KkpDailyReport } from "@/components/knmp/kkp-daily-report";
 import { requireUser, requireLocationAccess } from "@/lib/auth/session";
 import { db } from "@/lib/db";
@@ -25,14 +25,16 @@ export default async function CetakHarianPage({
   if (!data) notFound();
 
   return (
-    <main className="mx-auto max-w-[900px] bg-white p-6 print:p-0">
-      <AutoPrint />
+    <>
+      <PrintToolbar backHref={`/lokasi/${slug}/laporan-lokasi`} />
+      <main className="mx-auto max-w-[900px] bg-white p-6 print:p-0">
       {!data.isFinal && (
         <p className="no-print mb-3 rounded-md border border-warning bg-warning-soft px-3 py-2 text-sm">
           Pratinjau — laporan belum difinalisasi (data live, bukan snapshot).
         </p>
       )}
       <KkpDailyReport d={data} />
-    </main>
+      </main>
+    </>
   );
 }

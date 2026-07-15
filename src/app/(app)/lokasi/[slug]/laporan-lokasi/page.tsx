@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { FileText } from "lucide-react";
 import { Card, CardBody, CardHeader, EmptyState } from "@/components/ui";
 import { KkpPeriodReport } from "@/components/knmp/kkp-period-report";
+import { ScurveKkpSheet } from "@/components/knmp/scurve-kkp-sheet";
 import { PeriodFilter } from "./period-filter";
 import { requireUser, requireLocationAccess } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
@@ -63,8 +64,15 @@ export default async function LaporanLokasiPage({
                   description="Pilih jenis laporan dan periode di atas, lalu klik Tampilkan untuk membuat laporan."
                 />
               ) : report ? (
-                <div className="overflow-x-auto rounded-md border border-border bg-white p-4">
-                  <KkpPeriodReport r={report} />
+                <div className="space-y-4">
+                  {/* Hal-1: KURVA S (grafik) */}
+                  <div className="overflow-x-auto rounded-md border border-border bg-white p-4">
+                    <ScurveKkpSheet r={report} />
+                  </div>
+                  {/* Hal-2+: tabel detail item */}
+                  <div className="overflow-x-auto rounded-md border border-border bg-white p-4">
+                    <KkpPeriodReport r={report} />
+                  </div>
                 </div>
               ) : (
                 <EmptyState icon={FileText} title="Periode tidak valid" description="Periode di luar rentang kontrak." />

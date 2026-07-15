@@ -215,3 +215,15 @@ export function tradePlannedFraction(trade: TradeKey, weekNumber: number, totalW
   const span = Math.max(1e-9, def.end - def.start);
   return smoothstep((t - def.start) / span);
 }
+
+/**
+ * Fraksi rencana selesai (0..1) untuk SATU KATEGORI (jendela fase kategori) pada
+ * akhir minggu tertentu. Dipakai sheet Kurva-S KKP untuk sebar bobot kategori
+ * per minggu (increment = bobot × [frac(w) − frac(w−1)]).
+ */
+export function categoryPlannedFraction(name: string, weekNumber: number, totalWeeks: number): number {
+  const [start, end] = getCategoryPhase(name);
+  const t = Math.max(0, Math.min(1, weekNumber / Math.max(1, totalWeeks)));
+  const span = Math.max(1e-9, end - start);
+  return smoothstep((t - start) / span);
+}
