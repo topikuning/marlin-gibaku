@@ -51,17 +51,23 @@ ENV HOME=/home/marlin
 
 # Standalone output: server + node_modules minimal yang dibutuhkan runtime
 COPY --from=builder --chown=marlin:marlin /app/.next/standalone ./
-# Binari native sharp (@img/sharp-linux-x64) tidak ikut ter-trace standalone (pnpm).
-# npm TIDAK bisa install langsung di node_modules hasil standalone (arborist crash
-# pada struktur pnpm) → pasang di direktori terpisah lalu symlink menggantikan
-# entri sharp yang rusak. Diverifikasi: require('sharp') gagal sebelum, OK sesudah.
+# Binari native sharp (@img/sharp-linux-x64 + libvips) tidak ikut ter-trace
+# standalone (pnpm). npm TIDAK bisa install langsung di node_modules hasil
+# standalone (arborist crash pada struktur pnpm) → pasang bersih di /opt/sharp,
+# symlink ke /app/node_modules, DAN set NODE_PATH sbg cadangan resolusi.
+# --os/--cpu/--libc memaksa binari glibc x64 (sesuai base bookworm) ikut terpasang.
+# Verifikasi saat BUILD: require('sharp') harus sukses (gagal → build gagal, bukan
+# baru ketahuan di runtime).
 RUN mkdir -p /opt/sharp && cd /opt/sharp && npm init -y >/dev/null \
- && npm install --no-audit --no-fund sharp@0.35.3 \
+ && npm install --no-audit --no-fund --include=optional sharp@0.35.3 \
  && npm cache clean --force \
  && rm -rf /app/node_modules/sharp /app/node_modules/@img \
  && ln -s /opt/sharp/node_modules/sharp /app/node_modules/sharp \
  && ln -s /opt/sharp/node_modules/@img /app/node_modules/@img \
- && chown -R marlin:marlin /opt/sharp
+ && chown -R marlin:marlin /opt/sharp \
+ && node -e "const s=require('/opt/sharp/node_modules/sharp'); s({create:{width:8,height:8,channels:3,background:'#000'}}).png().toBuffer().then(()=>console.log('sharp OK di build'))"
+# Resolusi cadangan: import('sharp') mengikuti NODE_PATH walau symlink bermasalah.
+ENV NODE_PATH=/opt/sharp/node_modules
 COPY --from=builder --chown=marlin:marlin /app/.next/static ./.next/static
 COPY --from=builder --chown=marlin:marlin /app/public ./public
 COPY --from=builder --chown=marlin:marlin /app/assets ./assets

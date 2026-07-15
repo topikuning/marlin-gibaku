@@ -390,8 +390,17 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
  * langsung apakah cap ter-render di host itu. Dipakai di menu Sistem.
  */
 export async function sharpSelfTest(): Promise<{ ok: boolean; detail: string; sampleDataUri?: string }> {
+  // Muat sharp langsung (bukan lewat loadSharp) supaya ERROR ASLI muncul di
+  // diagnostik — mis. "Cannot find module '@img/sharp-linux-x64'" → jelas apakah
+  // masalahnya binari native sharp, bukan sekadar "tidak tersedia".
+  let sharp: typeof import("sharp")["default"];
   try {
-    const sharp = await loadSharp();
+    sharp = (await import("sharp")).default;
+  } catch (err) {
+    const msg = err instanceof Error ? (err.stack ?? err.message) : String(err);
+    return { ok: false, detail: `sharp gagal dimuat: ${msg}`.slice(0, 600) };
+  }
+  try {
     const W = 640;
     const H = 480;
     const base = await sharp({
