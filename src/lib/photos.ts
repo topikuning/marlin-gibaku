@@ -1,10 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import ExifReader from "exifreader";
 import { db } from "@/lib/db";
 import { isR2Configured, r2Put, r2PresignGet } from "@/lib/r2";
+import { STAMP_FONT_REGULAR_B64, STAMP_FONT_BOLD_B64 } from "@/lib/stamp-font";
 
 /**
  * Pipeline foto lapangan (port dari modul lama, arsitektur baru):
@@ -129,26 +130,20 @@ function esc(s: string): string {
  * Font DIBENAMKAN langsung ke SVG (base64 @font-face) — librsvg TIDAK perlu
  * fontconfig/font sistem untuk menemukan glyph, jadi cap teks PASTI ter-render
  * di host mana pun (terverifikasi: render mulus walau fontconfig sengaja dirusak).
- * Dibaca sekali saat modul dimuat. Bila TTF tak ada, fallback ke "sans-serif"
- * (butuh font sistem) — tapi normalnya font ikut dibundel.
+ *
+ * Base64 font di-IMPOR sebagai KONSTANTA (src/lib/stamp-font.ts, subset Latin +
+ * simbol ~50KB) — BUKAN dibaca dari filesystem saat runtime. Jadi cap tidak
+ * bergantung pada cwd/berkas yang harus ikut ter-copy di container (dugaan
+ * penyebab cap hilang di Railway: path assets/fonts tak ketemu → fallback
+ * "sans-serif" yang kosong tanpa font sistem).
  */
-function loadFontBase64(file: string): string | null {
-  try {
-    const p = path.join(process.cwd(), "assets", "fonts", file);
-    return existsSync(p) ? readFileSync(p).toString("base64") : null;
-  } catch {
-    return null;
-  }
-}
-const FONT_REGULAR_B64 = loadFontBase64("DejaVuSans.ttf");
-const FONT_BOLD_B64 = loadFontBase64("DejaVuSans-Bold.ttf");
-const EMBED_FONTS = Boolean(FONT_REGULAR_B64 && FONT_BOLD_B64);
+const EMBED_FONTS = Boolean(STAMP_FONT_REGULAR_B64 && STAMP_FONT_BOLD_B64);
 /** Keluarga font yang dipakai teks stamp: "MB" (embedded) atau fallback sistem. */
 const STAMP_FAMILY = EMBED_FONTS ? "MB" : "sans-serif";
 const FONT_FACE_CSS = EMBED_FONTS
   ? `<style>` +
-    `@font-face{font-family:'MB';font-weight:400;src:url(data:font/ttf;base64,${FONT_REGULAR_B64}) format('truetype');}` +
-    `@font-face{font-family:'MB';font-weight:700;src:url(data:font/ttf;base64,${FONT_BOLD_B64}) format('truetype');}` +
+    `@font-face{font-family:'MB';font-weight:400;src:url(data:font/ttf;base64,${STAMP_FONT_REGULAR_B64}) format('truetype');}` +
+    `@font-face{font-family:'MB';font-weight:700;src:url(data:font/ttf;base64,${STAMP_FONT_BOLD_B64}) format('truetype');}` +
     `</style>`
   : "";
 
@@ -390,23 +385,36 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 
 /**
  * Diagnostik: verifikasi sharp benar-benar bisa memproses gambar di runtime ini
- * (bukan sekadar ter-import) — buat gambar kecil, resize, cap SVG, encode webp.
- * Dipakai di menu Sistem supaya jelas apakah cap foto akan berjalan di host.
+ * (bukan sekadar ter-import) — buat gambar, resize, cap SVG (font DIBENAMKAN),
+ * encode webp, DAN kembalikan pratinjau (data URI) supaya admin bisa MELIHAT
+ * langsung apakah cap ter-render di host itu. Dipakai di menu Sistem.
  */
-export async function sharpSelfTest(): Promise<{ ok: boolean; detail: string }> {
+export async function sharpSelfTest(): Promise<{ ok: boolean; detail: string; sampleDataUri?: string }> {
   try {
     const sharp = await loadSharp();
+    const W = 640;
+    const H = 480;
     const base = await sharp({
-      create: { width: 320, height: 240, channels: 3, background: { r: 30, g: 58, b: 138 } },
+      create: { width: W, height: H, channels: 3, background: { r: 90, g: 105, b: 120 } },
     })
       .png()
       .toBuffer();
-    const svg = stampSvg(320, 240, { takenAt: new Date(0), lat: -6.9, lng: 110.4, locationLabel: "Uji" });
+    const svg = stampSvg(W, H, {
+      takenAt: new Date("2026-07-15T07:56:00+07:00"),
+      lat: -6.19762,
+      lng: 106.817,
+      locationLabel: "Contoh Lokasi, Demak",
+    });
     const out = await sharp(base)
       .composite([{ input: Buffer.from(svg), top: 0, left: 0 }])
       .webp({ quality: 80 })
       .toBuffer();
-    return { ok: out.length > 0, detail: `webp ${out.length} bytes (resize + cap OK)` };
+    const fontMode = EMBED_FONTS ? "font dibenamkan" : "font sistem (embed gagal!)";
+    return {
+      ok: out.length > 0,
+      detail: `webp ${out.length} bytes · resize + cap OK · ${fontMode}`,
+      sampleDataUri: `data:image/webp;base64,${out.toString("base64")}`,
+    };
   } catch (err) {
     return { ok: false, detail: err instanceof Error ? err.message : String(err) };
   }

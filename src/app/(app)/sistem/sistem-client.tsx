@@ -88,6 +88,20 @@ export function R2TestPanel({ configured }: { configured: boolean }) {
           ))}
         </ul>
       )}
+      {result?.stampSampleDataUri && (
+        <div className="space-y-1">
+          <p className="text-xs text-ink-muted">
+            Pratinjau cap foto (dirender di server ini) — teks harus terbaca. Bila kosong/tanpa teks, cap
+            bermasalah di host ini.
+          </p>
+          {/* eslint-disable-next-line @next/next/no-img-element -- data URI hasil render server, bukan asset Next */}
+          <img
+            src={result.stampSampleDataUri}
+            alt="Pratinjau cap foto"
+            className="w-full max-w-md rounded-lg border border-border"
+          />
+        </div>
+      )}
     </div>
   );
 }
