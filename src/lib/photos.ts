@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import ExifReader from "exifreader";
@@ -125,6 +125,33 @@ function esc(s: string): string {
   );
 }
 
+/**
+ * Font DIBENAMKAN langsung ke SVG (base64 @font-face) — librsvg TIDAK perlu
+ * fontconfig/font sistem untuk menemukan glyph, jadi cap teks PASTI ter-render
+ * di host mana pun (terverifikasi: render mulus walau fontconfig sengaja dirusak).
+ * Dibaca sekali saat modul dimuat. Bila TTF tak ada, fallback ke "sans-serif"
+ * (butuh font sistem) — tapi normalnya font ikut dibundel.
+ */
+function loadFontBase64(file: string): string | null {
+  try {
+    const p = path.join(process.cwd(), "assets", "fonts", file);
+    return existsSync(p) ? readFileSync(p).toString("base64") : null;
+  } catch {
+    return null;
+  }
+}
+const FONT_REGULAR_B64 = loadFontBase64("DejaVuSans.ttf");
+const FONT_BOLD_B64 = loadFontBase64("DejaVuSans-Bold.ttf");
+const EMBED_FONTS = Boolean(FONT_REGULAR_B64 && FONT_BOLD_B64);
+/** Keluarga font yang dipakai teks stamp: "MB" (embedded) atau fallback sistem. */
+const STAMP_FAMILY = EMBED_FONTS ? "MB" : "sans-serif";
+const FONT_FACE_CSS = EMBED_FONTS
+  ? `<style>` +
+    `@font-face{font-family:'MB';font-weight:400;src:url(data:font/ttf;base64,${FONT_REGULAR_B64}) format('truetype');}` +
+    `@font-face{font-family:'MB';font-weight:700;src:url(data:font/ttf;base64,${FONT_BOLD_B64}) format('truetype');}` +
+    `</style>`
+  : "";
+
 /** Data untuk cap foto (dibakar ke gambar sebelum simpan). */
 export type PhotoStamp = {
   takenAt: Date;
@@ -156,19 +183,21 @@ function stampSvg(w: number, h: number, s: PhotoStamp): string {
   const barX = pad + Math.round(fsTime * 3.05);
   const infoX = barX + Math.round(w * 0.022);
 
+  // Hanya 2 berat font dibenamkan (400 & 700); pakai 700 untuk penekanan.
+  const ff = STAMP_FAMILY;
   const lines: string[] = [];
   lines.push(`<rect x="0" y="${y0}" width="${w}" height="${band}" fill="url(#mg)"/>`);
-  lines.push(`<text x="${pad}" y="${y0 + Math.round(band * 0.45)}" font-family="sans-serif" font-weight="700" font-size="${fsTime}" fill="#ffffff">${time}</text>`);
+  lines.push(`<text x="${pad}" y="${y0 + Math.round(band * 0.45)}" font-family="${ff}" font-weight="700" font-size="${fsTime}" fill="#ffffff">${time}</text>`);
   lines.push(`<rect x="${barX}" y="${y0 + Math.round(band * 0.14)}" width="${Math.max(3, Math.round(w * 0.006))}" height="${Math.round(band * 0.34)}" fill="#f59e0b"/>`);
-  lines.push(`<text x="${infoX}" y="${y0 + Math.round(band * 0.28)}" font-family="sans-serif" font-weight="600" font-size="${fsText}" fill="#ffffff">${esc(date)}</text>`);
-  lines.push(`<text x="${infoX}" y="${y0 + Math.round(band * 0.45)}" font-family="sans-serif" font-size="${fsText}" fill="#e2e8f0">${esc(day)}</text>`);
+  lines.push(`<text x="${infoX}" y="${y0 + Math.round(band * 0.28)}" font-family="${ff}" font-weight="700" font-size="${fsText}" fill="#ffffff">${esc(date)}</text>`);
+  lines.push(`<text x="${infoX}" y="${y0 + Math.round(band * 0.45)}" font-family="${ff}" font-weight="400" font-size="${fsText}" fill="#e2e8f0">${esc(day)}</text>`);
   if (loc)
-    lines.push(`<text x="${pad}" y="${y0 + Math.round(band * 0.70)}" font-family="sans-serif" font-weight="600" font-size="${Math.round(fsText * 1.02)}" fill="#ffffff">${esc(loc.slice(0, 60))}</text>`);
+    lines.push(`<text x="${pad}" y="${y0 + Math.round(band * 0.70)}" font-family="${ff}" font-weight="700" font-size="${Math.round(fsText * 1.02)}" fill="#ffffff">${esc(loc.slice(0, 60))}</text>`);
   if (coord)
-    lines.push(`<text x="${pad}" y="${y0 + Math.round(band * 0.90)}" font-family="sans-serif" font-size="${fsText}" fill="#ffffff">Koordinat: ${esc(coord)}</text>`);
-  lines.push(`<text x="${w - pad}" y="${y0 + Math.round(band * 0.90)}" text-anchor="end" font-family="sans-serif" font-weight="700" font-size="${fsText}" fill="#f59e0b">MARLIN</text>`);
+    lines.push(`<text x="${pad}" y="${y0 + Math.round(band * 0.90)}" font-family="${ff}" font-weight="400" font-size="${fsText}" fill="#ffffff">Koordinat: ${esc(coord)}</text>`);
+  lines.push(`<text x="${w - pad}" y="${y0 + Math.round(band * 0.90)}" text-anchor="end" font-family="${ff}" font-weight="700" font-size="${fsText}" fill="#f59e0b">MARLIN</text>`);
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><defs><linearGradient id="mg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000000" stop-opacity="0"/><stop offset="1" stop-color="#000000" stop-opacity="0.62"/></linearGradient></defs>${lines.join("")}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><defs>${FONT_FACE_CSS}<linearGradient id="mg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000000" stop-opacity="0"/><stop offset="1" stop-color="#000000" stop-opacity="0.62"/></linearGradient></defs>${lines.join("")}</svg>`;
 }
 
 export type SavePhotoInput = {
