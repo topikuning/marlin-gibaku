@@ -50,55 +50,11 @@ export function KkpPeriodReport({ r }: { r: PeriodReport }) {
         <KV k={`${periodeLabel} ke`} v={`${r.n} dari ${r.maxN}`} />
       </div>
 
-      {/* ── 1. Resume kemajuan (kurva-S) ── */}
-      <SectionTitle>1. Resume Kemajuan Pekerjaan (Kurva-S)</SectionTitle>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-[260px_1fr]">
-        <div className="border border-slate-400">
-          <Stat label="Rencana s/d periode" value={p2(r.planPct)} />
-          <Stat label="Realisasi s/d periode" value={p2(r.actualPct)} border />
-          <Stat
-            label="Deviasi"
-            value={`${dev >= 0 ? "+" : ""}${p2(dev)}`}
-            tone={dev < -5 ? "bad" : dev < 0 ? "warn" : "ok"}
-            border
-          />
-        </div>
-        <ScurveTable
-          planPct={r.scurve.planPct}
-          actualPct={r.scurve.actualPct}
-          currentWeek={r.scurve.currentWeek}
-        />
-      </div>
+      {/* Resume kurva-S & rekap kelompok ada di HALAMAN KURVA-S (hal. 1) —
+          tidak diulang di sini agar tidak redundan. Halaman ini fokus rincian item. */}
 
-      {/* Resume per kelompok pekerjaan */}
-      <table className="mt-2 w-full border-collapse text-[10px]">
-        <thead>
-          <tr className="bg-slate-100 text-left">
-            <Th w="40px">No.</Th>
-            <Th align="left">Uraian Kelompok Pekerjaan</Th>
-            <Th align="right" w="90px">Bobot (%)</Th>
-            <Th align="right" w="110px">Realisasi s/d (%)</Th>
-          </tr>
-        </thead>
-        <tbody>
-          {r.categories.map((c, i) => (
-            <tr key={i} className="border-b border-slate-200">
-              <Td>{c.code || i + 1}</Td>
-              <Td>{c.name}</Td>
-              <Td align="right">{p2(c.subtotalBobot)}</Td>
-              <Td align="right">{p2(c.subtotalBobotSd)}</Td>
-            </tr>
-          ))}
-          <tr className="bg-slate-50 font-bold">
-            <Td colSpan={2}>JUMLAH</Td>
-            <Td align="right">{p2(r.categories.reduce((s, c) => s + c.subtotalBobot, 0))}</Td>
-            <Td align="right">{p2(r.totals.bobotSd)}</Td>
-          </tr>
-        </tbody>
-      </table>
-
-      {/* ── 2. Rincian capaian per item ── */}
-      <SectionTitle>2. Rincian Capaian per Item Pekerjaan</SectionTitle>
+      {/* ── 1. Rincian capaian per item ── */}
+      <SectionTitle>1. Rincian Capaian per Item Pekerjaan</SectionTitle>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[940px] border-collapse text-[9.5px]">
           <thead>
@@ -145,7 +101,7 @@ export function KkpPeriodReport({ r }: { r: PeriodReport }) {
       </div>
 
       {/* ── 3. Sumber daya periode ── */}
-      <SectionTitle>3. Tenaga Kerja, Material &amp; Peralatan (Agregat Periode)</SectionTitle>
+      <SectionTitle>2. Tenaga Kerja, Material &amp; Peralatan (Agregat Periode)</SectionTitle>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <ResourceTable
           title="Tenaga Kerja"
@@ -169,7 +125,7 @@ export function KkpPeriodReport({ r }: { r: PeriodReport }) {
       </div>
 
       {/* ── 4. Kendala ── */}
-      <SectionTitle>4. Kendala Lapangan</SectionTitle>
+      <SectionTitle>3. Kendala Lapangan</SectionTitle>
       {r.kendala.length === 0 ? (
         <p className="text-[10px] text-slate-400">Tidak ada kendala tercatat pada periode ini.</p>
       ) : (

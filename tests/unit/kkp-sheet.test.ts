@@ -3,11 +3,12 @@ import { buildKurvaSheet } from "@/lib/scurve/kkp-sheet";
 
 describe("buildKurvaSheet", () => {
   const categories = [
-    { code: "I", name: "PEKERJAAN PERSIAPAN", bobot: 10 },
-    { code: "II", name: "PEKERJAAN PONDASI", bobot: 40 },
-    { code: "III", name: "PEKERJAAN BANGUNAN BALAI NELAYAN", bobot: 30 },
-    { code: "IV", name: "PEKERJAAN LANDSKAPING", bobot: 20 },
+    { code: "I", name: "PEKERJAAN PERSIAPAN", items: [{ name: "Pembersihan lahan", bobot: 10 }] },
+    { code: "II", name: "PEKERJAAN PONDASI", items: [{ name: "Pondasi batu kali", bobot: 40 }] },
+    { code: "III", name: "PEKERJAAN BANGUNAN BALAI NELAYAN", items: [{ name: "Beton kolom", bobot: 30 }] },
+    { code: "IV", name: "PEKERJAAN LANDSKAPING", items: [{ name: "Penanaman pohon", bobot: 20 }] },
   ];
+  const bobotOf = (i: number) => categories[i].items.reduce((s, it) => s + it.bobot, 0);
   const contractStart = new Date(Date.UTC(2026, 2, 1)); // 1 Mar 2026
   const sheet = buildKurvaSheet({
     categories,
@@ -27,7 +28,7 @@ describe("buildKurvaSheet", () => {
   it("increment mingguan tiap kategori menjumlah ke bobotnya", () => {
     sheet.categories.forEach((c, idx) => {
       const sum = c.weekly.reduce((s, v) => s + v, 0);
-      expect(sum).toBeCloseTo(categories[idx].bobot, 1);
+      expect(sum).toBeCloseTo(bobotOf(idx), 1);
     });
   });
 
