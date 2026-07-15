@@ -138,11 +138,29 @@ export async function getLocationProgress(locationId: string): Promise<LocationP
   );
 }
 
-/** Kumulatif volume per lineageKey utk satu lokasi (dipakai guard & tampilan input harian). */
-export async function cumulativeVolumeByLineage(locationId: string): Promise<Map<string, number>> {
+/**
+ * Kumulatif volume per lineageKey utk satu lokasi (laporan status counted).
+ *
+ * Tanpa `upToDate` → kumulatif TOTAL lintas semua tanggal: dipakai guard anti-lebih
+ * (total realisasi tak boleh > volume RAB) dan sisa volume di form input.
+ *
+ * Dengan `upToDate` → kumulatif "s/d tanggal itu" (reportDate ≤ upToDate): dipakai
+ * tampilan/cetak KKP per hari, supaya laporan tanggal lama TIDAK ikut menghitung
+ * realisasi hari sesudahnya (mis. laporan 12 Juli tak boleh terhitung volume 13 Juli).
+ */
+export async function cumulativeVolumeByLineage(
+  locationId: string,
+  upToDate?: Date,
+): Promise<Map<string, number>> {
   const rows = await db.dailyReportItem.groupBy({
     by: ["lineageKey"],
-    where: { report: { locationId, status: { in: [...COUNTED_REPORT_STATUSES] } } },
+    where: {
+      report: {
+        locationId,
+        status: { in: [...COUNTED_REPORT_STATUSES] },
+        ...(upToDate ? { reportDate: { lte: upToDate } } : {}),
+      },
+    },
     _sum: { volumeDone: true },
   });
   return new Map(rows.map((r) => [r.lineageKey, Number(r._sum.volumeDone ?? 0)]));

@@ -203,8 +203,11 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
 
   if (!report) return { location, dateKey, report: null, recentDays };
 
+  // Kumulatif "s/d tanggal laporan ini" — laporan tanggal sesudahnya TIDAK ikut
+  // dihitung, supaya angka kumulatif hari ini tidak tampak menghitung volume
+  // dari laporan hari berikutnya (mis. 12 Juli tak boleh menyerap 13 Juli).
   const [cumulative, photoViews] = await Promise.all([
-    cumulativeVolumeByLineage(location.id),
+    cumulativeVolumeByLineage(location.id, reportDate),
     buildPhotoViews(report.photos),
   ]);
   const photoByItem = new Map<string, PhotoView[]>();
@@ -473,7 +476,7 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
     return snapshotToKkp(report.finalSnapshot as unknown as FinalSnapshot);
   }
 
-  const cumulative = await cumulativeVolumeByLineage(location.id);
+  const cumulative = await cumulativeVolumeByLineage(location.id, reportDate);
   const counted = report ? ["dikirim", "disetujui", "final"].includes(report.status) : false;
   const startDate = location.package.contract?.startDate ?? null;
   const weekNo = startDate

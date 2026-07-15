@@ -67,7 +67,7 @@ export function ReportEditor({
         />
       ) : null}
       <ItemForm locationId={locationId} slug={slug} dateKey={dateKey} nodes={nodes} photoEnabled={photoEnabled} />
-      <ItemList reportId={reportId} items={items} />
+      <ItemList reportId={reportId} slug={slug} dateKey={dateKey} items={items} />
       {reportId && items.length > 0 ? <SubmitPanel reportId={reportId} slug={slug} dateKey={dateKey} /> : null}
     </div>
   );
@@ -360,8 +360,31 @@ function ItemForm({
 
 // ─────────────────────────────────────────────────────────────
 
-function ItemRow({ reportId, item }: { reportId: string | null; item: WorkspaceItem }) {
+function ItemRow({
+  reportId,
+  slug,
+  dateKey,
+  item,
+}: {
+  reportId: string | null;
+  slug: string;
+  dateKey: string;
+  item: WorkspaceItem;
+}) {
   const [state, formAction, pending] = useActionState<DailyActionState, FormData>(removeItemAction, undefined);
+
+  // Setelah item dihapus: buang draft lokal volume untuk node ini supaya saat
+  // pekerjaan yang sama dipilih ulang di form, kolom volume TIDAK terisi angka
+  // lama (mencegah kesan volume terakumulasi setelah hapus + input ulang).
+  useEffect(() => {
+    if (!state?.success) return;
+    try {
+      window.localStorage.removeItem(draftKey(slug, dateKey, item.rabNodeId));
+    } catch {
+      /* localStorage bisa nonaktif — abaikan */
+    }
+  }, [state, slug, dateKey, item.rabNodeId]);
+
   return (
     <li className="space-y-2 px-4 py-3">
       <div className="flex items-start justify-between gap-3">
@@ -393,7 +416,17 @@ function ItemRow({ reportId, item }: { reportId: string | null; item: WorkspaceI
   );
 }
 
-function ItemList({ reportId, items }: { reportId: string | null; items: WorkspaceItem[] }) {
+function ItemList({
+  reportId,
+  slug,
+  dateKey,
+  items,
+}: {
+  reportId: string | null;
+  slug: string;
+  dateKey: string;
+  items: WorkspaceItem[];
+}) {
   if (items.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-border bg-surface px-4 py-6 text-center text-sm text-ink-muted">
@@ -408,7 +441,7 @@ function ItemList({ reportId, items }: { reportId: string | null; items: Workspa
       </div>
       <ul className="divide-y divide-border">
         {items.map((it) => (
-          <ItemRow key={it.id} reportId={reportId} item={it} />
+          <ItemRow key={it.id} reportId={reportId} slug={slug} dateKey={dateKey} item={it} />
         ))}
       </ul>
     </div>

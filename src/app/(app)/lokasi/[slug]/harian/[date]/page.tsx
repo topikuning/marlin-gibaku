@@ -145,9 +145,15 @@ export default async function HarianWorkspacePage({
       {/* Verifikasi (dikirim) */}
       {report && status === "dikirim" && canReview ? <ReviewActions reportId={report.id} /> : null}
 
-      {/* Pelengkap KKP */}
+      {/* Pelengkap KKP.
+          key = tanda-tangan isi pelengkap: setEnrichment membuat ulang baris dgn
+          id baru tiap simpan, jadi key berubah → form remount & menampilkan data
+          tersimpan yang terbaru (memperbaiki desync state klien setelah aksi). */}
       {report && enrichable ? (
-        <EnrichmentForm report={report} />
+        <EnrichmentForm
+          key={[report.weather, report.workStart, report.workEnd, ...report.materials.map((m) => m.id), ...report.equipment.map((e) => e.id)].join("|")}
+          report={report}
+        />
       ) : report && (report.weather || report.workers.length || report.materials.length || report.equipment.length || report.workStart) ? (
         <Card>
           <CardHeader title="Pelengkap laporan KKP" />

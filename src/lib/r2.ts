@@ -76,9 +76,11 @@ export async function r2SelfTest(): Promise<{ ok: boolean; steps: R2SelfTestStep
       return false;
     }
   };
+  // PUT & DELETE tidak mengembalikan body — beri detail eksplisit supaya
+  // "berhasil" tampak jelas (bukan baris hijau kosong yang terbaca "tak ada respon").
   const putOk = await run("PUT", async () => {
     await r2Put(key, payload, "text/plain");
-    return undefined;
+    return `${payload.length} bytes terunggah`;
   });
   if (!putOk) return { ok: false, steps };
   await run("GET", async () => {
@@ -92,7 +94,7 @@ export async function r2SelfTest(): Promise<{ ok: boolean; steps: R2SelfTestStep
   });
   await run("DELETE", async () => {
     await r2Delete(key);
-    return undefined;
+    return "objek uji terhapus";
   });
   return { ok: steps.every((s) => s.ok), steps };
 }
