@@ -1,7 +1,4 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import ExifReader from "exifreader";
 import { db } from "@/lib/db";
 import { isR2Configured, r2Put, r2PresignGet } from "@/lib/r2";
@@ -15,53 +12,15 @@ import { STAMP_FONT_REGULAR_B64, STAMP_FONT_BOLD_B64 } from "@/lib/stamp-font";
  * Key R2: photos/{locationSlug}/{dateKey}/{uuid}.webp (+ .thumb.webp).
  */
 
-/**
- * Arahkan fontconfig ke font yang DIBUNDEL bersama repo, sebelum sharp/librsvg
- * merender teks. Tanpa ini, host tanpa font (mis. Railway) merender teks SVG
- * jadi KOSONG → cap foto tampak "tidak ada".
- *
- * PENTING: config fontconfig DITULIS SAAT RUNTIME dengan path ABSOLUT +
- * cachedir yang PASTI writable. Config statik lama (dir relatif "." + cachedir
- * relatif + scan /usr/share/fonts) membuat librsvg MENGGANTUNG selamanya saat
- * merender teks → unggahan foto stuck & tak pernah sampai ke bucket. Config
- * runtime ini render teks dalam ~16ms (terverifikasi). Dijalankan sekali saat
- * modul dimuat.
+/*
+ * CATATAN fontconfig (jangan diulang): dulu ada ensureBundledFonts() yang
+ * menulis config fontconfig custom saat runtime. TERBUKTI justru MERUSAK
+ * @font-face data-URI di SVG cap — pango gagal mencocokkan font embedded dan
+ * jatuh ke serif default (direproduksi: SVG sama + sharp sama, hanya beda
+ * FONTCONFIG_FILE → hasil serif). Font cap kini DIBENAMKAN base64 ke SVG
+ * (lihat FONT_FACE_CSS) dan bekerja dengan fontconfig default MAUPUN rusak —
+ * jadi JANGAN pernah menyetel FONTCONFIG_FILE/FONTCONFIG_PATH dari kode ini.
  */
-function ensureBundledFonts(): void {
-  if (process.env.FONTCONFIG_FILE) return;
-  const fontsDir = path.join(process.cwd(), "assets", "fonts");
-  if (!existsSync(path.join(fontsDir, "DejaVuSans.ttf"))) return;
-  try {
-    const cacheDir = path.join(os.tmpdir(), "marlin-fontcache");
-    mkdirSync(cacheDir, { recursive: true });
-    const conf = path.join(os.tmpdir(), "marlin-fonts.conf");
-    // Hanya daftarkan dir font bundel (absolut) + cachedir writable. TIDAK scan
-    // /usr/share/fonts (sumber hang & lambat). sans-serif → DejaVu Sans bundel.
-    // Daftarkan font bundel (absolut) LEBIH DULU + dir font sistem (mis. paket
-    // fonts-dejavu-core yang dipasang di Docker) sebagai cadangan. cachedir
-    // absolut & writable. Terverifikasi TIDAK menggantung (~16–71ms).
-    writeFileSync(
-      conf,
-      `<?xml version="1.0"?>
-<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
-<fontconfig>
-  <dir>${fontsDir}</dir>
-  <dir>/usr/share/fonts</dir>
-  <dir>/usr/local/share/fonts</dir>
-  <cachedir>${cacheDir}</cachedir>
-  <alias><family>sans-serif</family><prefer><family>DejaVu Sans</family></prefer></alias>
-</fontconfig>
-`,
-    );
-    process.env.FONTCONFIG_FILE = conf;
-    process.env.FONTCONFIG_PATH = fontsDir;
-  } catch (err) {
-    // Gagal menyiapkan config → biarkan fontconfig sistem. Cap mungkin kosong,
-    // tapi pipeline TIDAK boleh gagal karena ini.
-    console.error("[photos] gagal menyiapkan fontconfig bundel:", err);
-  }
-}
-ensureBundledFonts();
 
 /** Sisi terpanjang gambar utama & thumbnail (px). Thumbnail tampil ≤64px di grid
  * (retina ≈128px) → 256px sudah lebih dari cukup & hemat resource. */
