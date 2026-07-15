@@ -15,15 +15,17 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
 }
 
+// State jelas per varian (audit UI #8): default → hover (warna beda) → active
+// (ditekan) → disabled. `transition-colors` di base membuat perpindahan halus.
 const VARIANT_CLASS: Record<ButtonVariant, string> = {
   primary:
-    "bg-primary text-white hover:bg-primary-800 disabled:bg-primary/60 border border-transparent",
+    "bg-primary text-white hover:bg-primary-800 active:bg-primary-900 disabled:bg-primary/60 border border-transparent",
   secondary:
-    "bg-surface text-ink border border-border hover:bg-surface-muted disabled:text-ink-faint",
+    "bg-surface text-ink border border-border hover:bg-surface-muted hover:border-border-strong active:bg-surface-inset disabled:text-ink-faint disabled:bg-surface",
   danger:
-    "bg-danger text-white hover:bg-danger/90 disabled:bg-danger/60 border border-transparent",
+    "bg-danger text-white hover:bg-danger/90 active:bg-danger/80 disabled:bg-danger/60 border border-transparent",
   ghost:
-    "bg-transparent text-ink-muted hover:bg-surface-inset hover:text-ink border border-transparent",
+    "bg-transparent text-ink-muted hover:bg-surface-inset hover:text-ink active:bg-surface-muted border border-transparent",
 };
 
 const SIZE_CLASS: Record<ButtonSize, string> = {

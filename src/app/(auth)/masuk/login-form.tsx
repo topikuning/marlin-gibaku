@@ -1,45 +1,71 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import { Banner, FieldError, Input, Label, PasswordInput } from "@/components/ui";
 import { login, type LoginState } from "@/lib/auth/actions";
+
+type FieldErrors = { identifier?: string; password?: string };
 
 export function LoginForm() {
   const [state, action, pending] = useActionState<LoginState, FormData>(login, undefined);
+  const [errors, setErrors] = useState<FieldErrors>({});
+
+  // Tangkap validasi native (required kosong) → tampilkan highlight merah +
+  // pesan sendiri, BUKAN bubble bawaan browser (audit UI #1).
+  const onInvalid = (name: keyof FieldErrors) => (e: React.FormEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    setErrors((prev) => ({ ...prev, [name]: "Bagian ini wajib diisi." }));
+  };
+  const clear = (name: keyof FieldErrors) => () =>
+    setErrors((prev) => (prev[name] ? { ...prev, [name]: undefined } : prev));
+
   return (
-    <form
-      action={action}
-      className="rounded-lg border border-border bg-surface p-6 shadow-sm"
-    >
+    <form action={action} className="rounded-lg border border-border bg-surface p-6 shadow-sm">
+      {/* Error server (username/password salah) — konsisten dgn desain Banner (audit #2) */}
       {state?.error ? (
-        <div role="alert" className="mb-4 rounded-md border-l-4 border-danger bg-red-50 px-3 py-2 text-sm text-red-800">
-          {state.error}
-        </div>
+        <Banner tone="error" title="Gagal masuk" description={state.error} className="mb-4" />
       ) : null}
-      <label htmlFor="identifier" className="block text-sm font-medium text-ink">
+
+      <Label htmlFor="identifier" required>
         Username atau email
-      </label>
-      <input
+      </Label>
+      <Input
         id="identifier"
         name="identifier"
         autoComplete="username"
         required
-        className="mt-1 mb-4 w-full rounded-md border border-border px-3 py-2 focus-visible:outline-2 focus-visible:outline-primary"
+        invalid={!!errors.identifier}
+        aria-describedby={errors.identifier ? "identifier-err" : undefined}
+        onInvalid={onInvalid("identifier")}
+        onInput={clear("identifier")}
+        className="mb-1"
       />
-      <label htmlFor="password" className="block text-sm font-medium text-ink">
+      <FieldError id="identifier-err" className="mb-3">
+        {errors.identifier}
+      </FieldError>
+
+      <Label htmlFor="password" required>
         Password
-      </label>
-      <input
+      </Label>
+      <PasswordInput
         id="password"
         name="password"
-        type="password"
         autoComplete="current-password"
         required
-        className="mt-1 mb-6 w-full rounded-md border border-border px-3 py-2 focus-visible:outline-2 focus-visible:outline-primary"
+        invalid={!!errors.password}
+        aria-describedby={errors.password ? "password-err" : undefined}
+        onInvalid={onInvalid("password")}
+        onInput={clear("password")}
+        className="mb-1"
       />
+      <FieldError id="password-err" className="mb-4">
+        {errors.password}
+      </FieldError>
+
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-md bg-primary px-4 py-2.5 font-medium text-white hover:bg-primary-800 disabled:opacity-60"
+        className="w-full rounded-md bg-primary px-4 py-2.5 font-medium text-white transition-colors hover:bg-primary-800 active:bg-primary-900 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {pending ? "Memeriksa…" : "Masuk"}
       </button>

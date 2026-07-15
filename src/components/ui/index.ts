@@ -15,6 +15,7 @@ export {
   type SelectProps,
   type TextareaProps,
 } from "./field";
+export { PasswordInput, type PasswordInputProps } from "./password-input";
 export { EmptyState, type EmptyStateProps } from "./empty-state";
 export {
   PageHeader,
