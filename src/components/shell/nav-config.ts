@@ -69,14 +69,17 @@ const FIELD_ROLES: ReadonlySet<UserRole> = new Set([
   "field_supervisor",
 ]);
 
-/** Navigasi bawah mobile — maksimal 5 item, sudah difilter capability. */
+/**
+ * Pintasan navigasi bawah mobile — maksimal 4 item; BottomNav menambahkan
+ * tombol "Menu" (drawer nav lengkap) sehingga menu lain tetap terjangkau.
+ */
 export function MOBILE_NAV(role: UserRole): NavItem[] {
   const items: NavItem[] = FIELD_ROLES.has(role)
     ? [
         { label: "Hari Ini", href: "/hari-ini", icon: "sun", capability: "daily_report.create" },
         { label: "Proyek", href: "/lokasi", icon: "mapPin", capability: "location.view" },
         { label: "Laporan", href: "/laporan", icon: "fileText", capability: "report.export" },
-        { label: "Lainnya", href: "/", icon: "home" },
+        { label: "Beranda", href: "/", icon: "home" },
       ]
     : [
         { label: "Beranda", href: "/", icon: "home" },
@@ -84,5 +87,5 @@ export function MOBILE_NAV(role: UserRole): NavItem[] {
         { label: "Lokasi", href: "/lokasi", icon: "mapPin", capability: "location.view" },
         { label: "Progress", href: "/progress", icon: "trendingUp", capability: "progress.view" },
       ];
-  return items.filter((item) => allowed(role, item)).slice(0, 5);
+  return items.filter((item) => allowed(role, item)).slice(0, 4);
 }

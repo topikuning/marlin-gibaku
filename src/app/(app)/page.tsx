@@ -190,9 +190,10 @@ export default async function CommandCenterPage() {
       </section>
 
       {/* ── Ringkasan portfolio ── */}
+      {/* min-w-0: cegah min-content baris (truncate/nowrap) melebarkan track grid di mobile */}
       <section className="grid gap-4 lg:grid-cols-2">
         {can(user.role, "package.view") && (
-          <Card>
+          <Card className="min-w-0">
             <CardHeader
               title="Paket terbaru"
               action={
@@ -209,7 +210,7 @@ export default async function CommandCenterPage() {
                   {activePackages.slice(0, 6).map((p) => (
                     <li key={p.id}>
                       <Link href={`/paket/${p.id}`} className="flex items-center justify-between gap-2 py-2 hover:bg-surface-muted">
-                        <span className="truncate text-sm">{p.name}</span>
+                        <span className="min-w-0 flex-1 truncate text-sm">{p.name}</span>
                         <StatusPill tone={PACKAGE_STAGE_TONE[p.stage]} label={PACKAGE_STAGE_LABEL[p.stage]} />
                       </Link>
                     </li>
@@ -219,7 +220,7 @@ export default async function CommandCenterPage() {
             </CardBody>
           </Card>
         )}
-        <Card>
+        <Card className="min-w-0">
           <CardHeader
             title="Kinerja lokasi"
             action={
@@ -242,7 +243,7 @@ export default async function CommandCenterPage() {
                   return (
                     <li key={l.id}>
                       <Link href={`/lokasi/${l.slug}`} className="flex items-center justify-between gap-2 py-2 hover:bg-surface-muted">
-                        <span className="truncate text-sm">
+                        <span className="min-w-0 flex-1 truncate text-sm">
                           {l.name}
                           <span className="ml-2 text-ink-muted">{l.province}</span>
                         </span>

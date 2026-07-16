@@ -43,7 +43,7 @@ export function AppShell({
           {children}
         </main>
       </div>
-      <BottomNav nav={mobileNav ?? nav.slice(0, 4)} />
+      <BottomNav nav={mobileNav ?? nav.slice(0, 4)} fullNav={nav} />
     </div>
   );
 }

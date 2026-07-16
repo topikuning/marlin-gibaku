@@ -33,12 +33,14 @@ export default async function CetakPeriodikPage({
       {/* Landscape utk halaman Kurva-S; tetap A4 potrait utk tabel detail. */}
       <style>{`@media print { @page { size: A4 landscape; margin: 8mm; } }`}</style>
       <main className="bg-white">
+        {/* Dokumen fixed-layout: di layar sempit di-scroll horizontal per section
+            (overflow-x-auto), print tetap utuh (print:overflow-visible). */}
         {/* Hal-1: KURVA S (landscape) */}
-        <section className="mx-auto w-full max-w-[1400px] break-after-page p-6 print:p-0">
+        <section className="mx-auto w-full max-w-[1400px] break-after-page overflow-x-auto p-6 print:overflow-visible print:p-0">
           <ScurveKkpSheet r={report} />
         </section>
         {/* Hal-2+: tabel detail item */}
-        <section className="mx-auto w-full max-w-[1100px] p-6 print:p-0">
+        <section className="mx-auto w-full max-w-[1100px] overflow-x-auto p-6 print:overflow-visible print:p-0">
           <KkpPeriodReport r={report} />
         </section>
       </main>

@@ -37,6 +37,10 @@ export function ScurveKkpSheet({ r }: { r: PeriodReport }) {
   const WCOL = N > 26 ? 30 : N > 18 ? 38 : 46; // kolom minggu menyempit bila periode panjang
   const plotW = N * WCOL;
   const plotH = M * ROW_H;
+  // Lebar intrinsik dokumen (format cetak fixed-layout) — caller membungkus
+  // dengan overflow-x-auto sehingga di layar sempit dokumen di-scroll, bukan
+  // melebarkan halaman.
+  const docW = LEFT + plotW + W_KET;
   const title = `KURVA S ${r.kind === "mingguan" ? "MINGGU" : "BULAN"} KE - ${r.n}`;
 
   // Titik kurva (x = akhir minggu w, y = 1 − kumulatif/100). Anchor minggu-0 = 0%.
@@ -49,7 +53,7 @@ export function ScurveKkpSheet({ r }: { r: PeriodReport }) {
   const hdr = r.header;
 
   return (
-    <div className="mx-auto w-full text-[8.5px] leading-tight text-black">
+    <div className="mx-auto text-[8.5px] leading-tight text-black" style={{ width: docW }}>
       {/* Judul */}
       <div className="text-center">
         <div className="text-[13px] font-bold underline">{title}</div>
@@ -98,7 +102,7 @@ export function ScurveKkpSheet({ r }: { r: PeriodReport }) {
       </div>
 
       {/* Tabel + overlay kurva */}
-      <div className="relative mt-2 overflow-x-auto">
+      <div className="relative mt-2">
         <table className="border-collapse border border-black" style={{ tableLayout: "fixed", width: LEFT + plotW + W_KET }}>
           <colgroup>
             <col style={{ width: W_NO }} />

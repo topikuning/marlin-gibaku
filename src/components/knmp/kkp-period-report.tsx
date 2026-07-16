@@ -28,7 +28,7 @@ export function KkpPeriodReport({ r }: { r: PeriodReport }) {
   const h = r.header;
 
   return (
-    <div className="mx-auto max-w-[1050px] bg-white p-2 text-[11px] text-slate-900">
+    <div className="mx-auto min-w-[900px] max-w-[1050px] bg-white p-2 text-[11px] text-slate-900">
       {/* ── Kop ── */}
       <div className="border-b-2 border-slate-800 pb-2 text-center">
         <div className="text-base font-bold tracking-wide uppercase">{judul}</div>

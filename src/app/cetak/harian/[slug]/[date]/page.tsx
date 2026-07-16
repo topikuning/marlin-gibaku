@@ -33,7 +33,12 @@ export default async function CetakHarianPage({
           Pratinjau — laporan belum difinalisasi (data live, bukan snapshot).
         </p>
       )}
-      <KkpDailyReport d={data} />
+      {/* Form bergaris fixed-layout: scroll horizontal di layar sempit. */}
+      <div className="overflow-x-auto print:overflow-visible">
+        <div className="min-w-[720px]">
+          <KkpDailyReport d={data} />
+        </div>
+      </div>
       </main>
     </>
   );
