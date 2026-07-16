@@ -144,9 +144,9 @@ export function KkpPeriodReport({ r }: { r: PeriodReport }) {
 
       {/* ── TTD ── */}
       <div className="mt-8 grid grid-cols-3 gap-4 text-center text-[10px]">
-        <Sign title="Mengetahui" role="Pejabat Pembuat Komitmen" />
-        <Sign title="Diperiksa" role="Konsultan Pengawas" />
-        <Sign title="Dibuat Oleh" role="Penyedia Jasa" />
+        <Sign title="Mengetahui" role="Pejabat Pembuat Komitmen" name={h.ppkName} sub={h.ppkNip ? `NIP. ${h.ppkNip}` : null} />
+        <Sign title="Diperiksa" role="Konsultan Pengawas" name={h.supervisorName} sub={h.supervisorFirm} />
+        <Sign title="Dibuat Oleh" role={`Penyedia Jasa — ${h.vendorName}`} name={h.contractorSignerName} sub={h.contractorSignerTitle} />
       </div>
     </div>
   );
@@ -369,12 +369,25 @@ function Stat({
   );
 }
 
-function Sign({ title, role }: { title: string; role: string }) {
+function Sign({
+  title,
+  role,
+  name,
+  sub,
+}: {
+  title: string;
+  role: string;
+  name?: string | null;
+  sub?: string | null;
+}) {
   return (
     <div>
       <div className="text-[9px] text-slate-500 uppercase">{title}</div>
       <div className="font-semibold">{role}</div>
-      <div className="mt-12 border-t border-slate-400 pt-1 text-slate-500">( …………………………… )</div>
+      <div className="mt-12 border-t border-slate-400 pt-1 font-semibold text-ink">
+        {name ? `( ${name} )` : <span className="font-normal text-slate-500">( …………………………… )</span>}
+      </div>
+      {sub ? <div className="text-[9px] text-slate-500">{sub}</div> : null}
     </div>
   );
 }

@@ -109,6 +109,12 @@ export const getPackageWorkspace = cache(async (id: string) => {
           signedDate: true,
           startDate: true,
           endDate: true,
+          ppkName: true,
+          ppkNip: true,
+          supervisorName: true,
+          supervisorFirm: true,
+          contractorSignerName: true,
+          contractorSignerTitle: true,
           vendor: { select: { id: true, name: true } },
           amendments: {
             orderBy: { effectiveDate: "asc" },

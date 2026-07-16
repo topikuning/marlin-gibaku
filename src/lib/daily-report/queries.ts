@@ -457,10 +457,30 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
       name: true,
       regency: true,
       province: true,
-      package: { select: { contract: { select: { startDate: true } } } },
+      package: {
+        select: {
+          contract: {
+            select: {
+              startDate: true,
+              supervisorName: true,
+              supervisorFirm: true,
+              contractorSignerName: true,
+              contractorSignerTitle: true,
+            },
+          },
+        },
+      },
     },
   });
   if (!location) return null;
+
+  const contract = location.package.contract;
+  const signatories = {
+    supervisorName: contract?.supervisorName ?? null,
+    supervisorSub: contract?.supervisorFirm ?? null,
+    contractorName: contract?.contractorSignerName ?? null,
+    contractorSub: contract?.contractorSignerTitle ?? null,
+  };
 
   const report = await db.dailyReport.findUnique({
     where: { locationId_reportDate: { locationId: location.id, reportDate } },
@@ -473,7 +493,7 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
   });
 
   if (report?.status === "final" && report.finalSnapshot) {
-    return snapshotToKkp(report.finalSnapshot as unknown as FinalSnapshot);
+    return { ...snapshotToKkp(report.finalSnapshot as unknown as FinalSnapshot), ...signatories };
   }
 
   const cumulative = await cumulativeVolumeByLineage(location.id, reportDate);
@@ -524,5 +544,6 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
       };
     }),
     isFinal: report?.status === "final",
+    ...signatories,
   };
 }

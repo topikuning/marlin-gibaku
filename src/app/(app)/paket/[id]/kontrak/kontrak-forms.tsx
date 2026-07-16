@@ -13,12 +13,54 @@ import {
 import {
   addAmendment,
   convertToContract,
+  updateContractSignatories,
   type PackageActionState,
 } from "@/lib/package/actions";
 
 type VendorOption = { id: string; name: string };
 
 const NEW_VENDOR = "__baru__";
+
+export type Signatories = {
+  ppkName: string | null;
+  ppkNip: string | null;
+  supervisorName: string | null;
+  supervisorFirm: string | null;
+  contractorSignerName: string | null;
+  contractorSignerTitle: string | null;
+};
+
+/** Field penanda tangan KKP (dipakai form konversi & form edit). Semua opsional. */
+function SignatoryFields({ v }: { v?: Signatories }) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      <div>
+        <Label htmlFor="sg-ppk">Nama PPK</Label>
+        <Input id="sg-ppk" name="ppkName" defaultValue={v?.ppkName ?? ""} placeholder="mis. Ir. Budi Santoso" />
+      </div>
+      <div>
+        <Label htmlFor="sg-ppk-nip">NIP PPK</Label>
+        <Input id="sg-ppk-nip" name="ppkNip" defaultValue={v?.ppkNip ?? ""} placeholder="mis. 19700101 ..." />
+      </div>
+      <div>
+        <Label htmlFor="sg-sup">Nama Konsultan Pengawas</Label>
+        <Input id="sg-sup" name="supervisorName" defaultValue={v?.supervisorName ?? ""} placeholder="mis. Agus Prasetyo" />
+      </div>
+      <div>
+        <Label htmlFor="sg-sup-firm">Konsultan / Instansi Pengawas</Label>
+        <Input id="sg-sup-firm" name="supervisorFirm" defaultValue={v?.supervisorFirm ?? ""} placeholder="mis. CV Konsultan Nusantara" />
+      </div>
+      <div>
+        <Label htmlFor="sg-ctr">Nama Penanda Tangan Penyedia</Label>
+        <Input id="sg-ctr" name="contractorSignerName" defaultValue={v?.contractorSignerName ?? ""} placeholder="mis. Andi Wijaya" />
+      </div>
+      <div>
+        <Label htmlFor="sg-ctr-title">Jabatan Penyedia</Label>
+        <Input id="sg-ctr-title" name="contractorSignerTitle" defaultValue={v?.contractorSignerTitle ?? ""} placeholder="mis. Direktur" />
+      </div>
+    </div>
+  );
+}
 
 /** Form konversi paket → kontrak. Vendor: pilih existing atau nama baru. */
 export function ConvertContractForm({
@@ -150,6 +192,15 @@ export function ConvertContractForm({
         </div>
       </div>
 
+      <fieldset className="rounded-lg border border-border p-4">
+        <legend className="px-1 text-sm font-medium text-ink">Penanda tangan dokumen KKP (opsional)</legend>
+        <p className="mb-3 text-xs text-ink-muted">
+          Nama yang tercetak di blok tanda tangan laporan (kurva-S, mingguan, bulanan, harian). Bisa
+          diubah kapan saja bila ada pergantian personel.
+        </p>
+        <SignatoryFields />
+      </fieldset>
+
       <HelpText>
         Konversi menaikkan stage Penetapan → Kontrak dan mengaktifkan semua lokasi target. Aksi
         aman diulang — kontrak tidak akan terduplikasi.
@@ -157,6 +208,35 @@ export function ConvertContractForm({
 
       <Button type="submit" loading={pending}>
         Konversi ke Kontrak
+      </Button>
+    </form>
+  );
+}
+
+/** Form edit penanda tangan kontrak (pergantian personel setelah kontrak berjalan). */
+export function SignatoriesForm({
+  contractId,
+  value,
+}: {
+  contractId: string;
+  value: Signatories;
+}) {
+  const [state, action, pending] = useActionState<PackageActionState, FormData>(
+    updateContractSignatories,
+    undefined,
+  );
+
+  return (
+    <form action={action} className="space-y-4">
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      {state?.success ? <Banner tone="success" title={state.success} /> : null}
+      <input type="hidden" name="contractId" value={contractId} />
+      <SignatoryFields v={value} />
+      <p className="text-xs text-ink-muted">
+        Kosongkan field untuk menghapus nama dari blok tanda tangan.
+      </p>
+      <Button type="submit" loading={pending}>
+        Simpan penanda tangan
       </Button>
     </form>
   );

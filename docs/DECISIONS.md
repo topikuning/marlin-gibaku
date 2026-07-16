@@ -1020,3 +1020,19 @@ scurve — dengan test properti, bukan paritas nilai):**
   prioritas 1..9. Tetap bisa diedit/dibuat manual (tombol "Terapkan" mengisi rencana).
 - Inti murni `suggest-core.ts` (uji unit), lapisan DB `suggest.ts`, aksi
   `getWeeklySuggestions`/`applyWeeklySuggestions` (capability weekly_plan.manage + audit).
+
+## 053 · 2026-07-16 · Penanda tangan dokumen KKP di kontrak + realisasi kurva-S per periode
+
+- **Penanda tangan** (PPK, Konsultan Pengawas, Penyedia/Pelaksana) disimpan di
+  `Contract` (satu kontrak → N lokasi, penanda tangan sama). 6 kolom opsional:
+  `ppkName`/`ppkNip`, `supervisorName`/`supervisorFirm`,
+  `contractorSignerName`/`contractorSignerTitle`. Diisi saat konversi kontrak
+  **dan** bisa diubah kapan saja lewat form di tab Kontrak (pergantian personel) —
+  aksi `updateContractSignatories` (capability `contract.manage` + audit).
+  Dirender di blok TTD laporan kurva-S (hal-1), mingguan/bulanan (hal-2), dan
+  harian. Kosong → baris titik-titik seperti sebelumnya.
+- **Realisasi kurva-S per periode**: laporan "Minggu ke-n" adalah snapshot s/d
+  minggu n. Seri realisasi/deviasi hal-1 dibatasi `cutoffWeek = min(minggu
+  berjalan, minggu akhir periode)` — bukan lagi selalu s/d hari ini. Baris Rencana
+  tetap penuh (garis target). Sebelumnya kolom realisasi/deviasi ikut terisi sampai
+  minggu berjalan walau membuka laporan minggu-1.

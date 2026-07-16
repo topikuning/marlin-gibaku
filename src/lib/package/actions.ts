@@ -395,6 +395,12 @@ const convertSchema = z
     endDate: z.string().min(1, "Tanggal selesai wajib diisi"),
     advancePercent: percentSchema,
     retentionPercent: percentSchema,
+    ppkName: z.string().trim().max(150).optional(),
+    ppkNip: z.string().trim().max(60).optional(),
+    supervisorName: z.string().trim().max(150).optional(),
+    supervisorFirm: z.string().trim().max(200).optional(),
+    contractorSignerName: z.string().trim().max(150).optional(),
+    contractorSignerTitle: z.string().trim().max(120).optional(),
   })
   .refine((d) => d.vendorId || d.vendorName, {
     message: "Pilih vendor atau isi nama vendor baru.",
@@ -417,6 +423,12 @@ export async function convertToContract(
     endDate: formData.get("endDate"),
     advancePercent: formData.get("advancePercent"),
     retentionPercent: formData.get("retentionPercent"),
+    ppkName: optionalText(formData.get("ppkName"), 150) ?? undefined,
+    ppkNip: optionalText(formData.get("ppkNip"), 60) ?? undefined,
+    supervisorName: optionalText(formData.get("supervisorName"), 150) ?? undefined,
+    supervisorFirm: optionalText(formData.get("supervisorFirm"), 200) ?? undefined,
+    contractorSignerName: optionalText(formData.get("contractorSignerName"), 150) ?? undefined,
+    contractorSignerTitle: optionalText(formData.get("contractorSignerTitle"), 120) ?? undefined,
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
@@ -495,6 +507,12 @@ export async function convertToContract(
         signedDate,
         startDate,
         endDate,
+        ppkName: d.ppkName ?? null,
+        ppkNip: d.ppkNip ?? null,
+        supervisorName: d.supervisorName ?? null,
+        supervisorFirm: d.supervisorFirm ?? null,
+        contractorSignerName: d.contractorSignerName ?? null,
+        contractorSignerTitle: d.contractorSignerTitle ?? null,
       },
       select: { id: true },
     });
@@ -549,6 +567,66 @@ export async function convertToContract(
   return {
     success: `Kontrak ${d.contractNumber} tercatat. ${result.locationCount} lokasi diaktifkan — lanjut import RAB per lokasi.`,
   };
+}
+
+/* ------------------------------------------------------------------ */
+/* Penanda tangan kontrak (bisa diubah kapan saja — pergantian personel) */
+/* ------------------------------------------------------------------ */
+
+const signatoriesSchema = z.object({
+  contractId: z.uuid("ID kontrak tidak valid"),
+  ppkName: z.string().trim().max(150).optional(),
+  ppkNip: z.string().trim().max(60).optional(),
+  supervisorName: z.string().trim().max(150).optional(),
+  supervisorFirm: z.string().trim().max(200).optional(),
+  contractorSignerName: z.string().trim().max(150).optional(),
+  contractorSignerTitle: z.string().trim().max(120).optional(),
+});
+
+/** Perbarui nama penanda tangan dokumen KKP (PPK / pengawas / penyedia). */
+export async function updateContractSignatories(
+  _prev: PackageActionState,
+  formData: FormData,
+): Promise<PackageActionState> {
+  const actor = await requireCapability("contract.manage");
+  const parsed = signatoriesSchema.safeParse({
+    contractId: formData.get("contractId"),
+    ppkName: optionalText(formData.get("ppkName"), 150) ?? undefined,
+    ppkNip: optionalText(formData.get("ppkNip"), 60) ?? undefined,
+    supervisorName: optionalText(formData.get("supervisorName"), 150) ?? undefined,
+    supervisorFirm: optionalText(formData.get("supervisorFirm"), 200) ?? undefined,
+    contractorSignerName: optionalText(formData.get("contractorSignerName"), 150) ?? undefined,
+    contractorSignerTitle: optionalText(formData.get("contractorSignerTitle"), 120) ?? undefined,
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const d = parsed.data;
+
+  const contract = await db.contract.findUnique({
+    where: { id: d.contractId },
+    select: { id: true, packageId: true },
+  });
+  if (!contract) return { error: "Kontrak tidak ditemukan." };
+
+  await db.contract.update({
+    where: { id: d.contractId },
+    data: {
+      ppkName: d.ppkName ?? null,
+      ppkNip: d.ppkNip ?? null,
+      supervisorName: d.supervisorName ?? null,
+      supervisorFirm: d.supervisorFirm ?? null,
+      contractorSignerName: d.contractorSignerName ?? null,
+      contractorSignerTitle: d.contractorSignerTitle ?? null,
+    },
+  });
+
+  await audit(actor.id, "contract.signatories", "package", contract.packageId, {
+    contractId: contract.id,
+    ppkName: d.ppkName ?? null,
+    supervisorName: d.supervisorName ?? null,
+    contractorSignerName: d.contractorSignerName ?? null,
+  });
+  revalidatePath(`/paket/${contract.packageId}`, "layout");
+  return { success: "Penanda tangan kontrak diperbarui." };
 }
 
 /* ------------------------------------------------------------------ */

@@ -14,7 +14,7 @@ import {
   runningEndDate,
 } from "@/lib/package/queries";
 import { StartPelaksanaanButton } from "../stage-actions";
-import { AmendmentForm, ConvertContractForm } from "./kontrak-forms";
+import { AmendmentForm, ConvertContractForm, SignatoriesForm } from "./kontrak-forms";
 
 export const metadata: Metadata = { title: "Kontrak & Adendum" };
 export const dynamic = "force-dynamic";
@@ -172,6 +172,46 @@ export default async function KontrakPage({
           </Card>
         ) : null}
       </div>
+
+      <Card>
+        <CardHeader
+          title="Penanda tangan dokumen KKP"
+          subtitle="Nama tercetak di blok tanda tangan laporan — bisa diganti bila ada pergantian personel."
+        />
+        <CardBody>
+          {canContract ? (
+            <SignatoriesForm
+              contractId={contract.id}
+              value={{
+                ppkName: contract.ppkName,
+                ppkNip: contract.ppkNip,
+                supervisorName: contract.supervisorName,
+                supervisorFirm: contract.supervisorFirm,
+                contractorSignerName: contract.contractorSignerName,
+                contractorSignerTitle: contract.contractorSignerTitle,
+              }}
+            />
+          ) : (
+            <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
+              <div>
+                <dt className="text-ink-muted">PPK</dt>
+                <dd className="font-medium text-ink">{contract.ppkName || "—"}</dd>
+                {contract.ppkNip ? <dd className="text-xs text-ink-muted">NIP. {contract.ppkNip}</dd> : null}
+              </div>
+              <div>
+                <dt className="text-ink-muted">Konsultan Pengawas</dt>
+                <dd className="font-medium text-ink">{contract.supervisorName || "—"}</dd>
+                {contract.supervisorFirm ? <dd className="text-xs text-ink-muted">{contract.supervisorFirm}</dd> : null}
+              </div>
+              <div>
+                <dt className="text-ink-muted">Penyedia / Pelaksana</dt>
+                <dd className="font-medium text-ink">{contract.contractorSignerName || "—"}</dd>
+                {contract.contractorSignerTitle ? <dd className="text-xs text-ink-muted">{contract.contractorSignerTitle}</dd> : null}
+              </div>
+            </dl>
+          )}
+        </CardBody>
+      </Card>
 
       <Card>
         <CardHeader

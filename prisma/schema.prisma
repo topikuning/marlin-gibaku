@@ -406,6 +406,14 @@ model Contract {
   startDate       DateTime @map("start_date") @db.Date
   endDate         DateTime @map("end_date") @db.Date
   paymentTerms    String?  @map("payment_terms")
+  // Penanda tangan dokumen KKP (opsional, bisa diganti kapan saja bila ada
+  // pergantian personel). PPK = pihak KKP; Pengawas = konsultan; Penyedia = pelaksana.
+  ppkName               String? @map("ppk_name")
+  ppkNip                String? @map("ppk_nip")
+  supervisorName        String? @map("supervisor_name")
+  supervisorFirm        String? @map("supervisor_firm")
+  contractorSignerName  String? @map("contractor_signer_name")
+  contractorSignerTitle String? @map("contractor_signer_title")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
 

@@ -166,6 +166,12 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
         signedDate: new Date(dateOnly(first.meta.start_date).getTime() - 7 * DAY),
         startDate: dateOnly(first.meta.start_date),
         endDate: dateOnly(first.meta.end_date),
+        ppkName: "Ir. Bagus Setiawan, M.T.",
+        ppkNip: "19750812 200212 1 003",
+        supervisorName: "Dedi Kurniawan, S.T.",
+        supervisorFirm: "CV Konsultan Bahari Nusantara",
+        contractorSignerName: "Hendra Gunawan",
+        contractorSignerTitle: "Direktur Utama",
       },
     });
 

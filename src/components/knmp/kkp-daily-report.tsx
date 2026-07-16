@@ -43,6 +43,11 @@ export type KkpDailyData = {
   items: KkpDailyItem[];
   /** false = pratinjau dari data live (belum dibekukan finalSnapshot). */
   isFinal: boolean;
+  /** Penanda tangan (dari kontrak, current — null = baris kosong). */
+  supervisorName?: string | null;
+  supervisorSub?: string | null;
+  contractorName?: string | null;
+  contractorSub?: string | null;
 };
 
 export function KkpDailyReport({ d }: { d: KkpDailyData }) {
@@ -262,11 +267,17 @@ export function KkpDailyReport({ d }: { d: KkpDailyData }) {
       <div className="grid grid-cols-2 border-x border-b border-slate-500">
         <div className="border-r border-slate-500 px-3 py-2 text-center">
           <div className="text-[10px] font-semibold text-slate-600 uppercase">Konsultan Pengawas</div>
-          <div className="mt-12 border-t border-slate-400 pt-1 text-slate-500">( …………………… )</div>
+          <div className="mt-12 border-t border-slate-400 pt-1 font-semibold text-slate-900">
+            {d.supervisorName ? `( ${d.supervisorName} )` : <span className="font-normal text-slate-500">( …………………… )</span>}
+          </div>
+          {d.supervisorSub ? <div className="text-[9px] text-slate-500">{d.supervisorSub}</div> : null}
         </div>
         <div className="px-3 py-2 text-center">
           <div className="text-[10px] font-semibold text-slate-600 uppercase">Kontraktor Pelaksana</div>
-          <div className="mt-12 border-t border-slate-400 pt-1 text-slate-500">( …………………… )</div>
+          <div className="mt-12 border-t border-slate-400 pt-1 font-semibold text-slate-900">
+            {d.contractorName ? `( ${d.contractorName} )` : <span className="font-normal text-slate-500">( …………………… )</span>}
+          </div>
+          {d.contractorSub ? <div className="text-[9px] text-slate-500">{d.contractorSub}</div> : null}
         </div>
       </div>
     </div>

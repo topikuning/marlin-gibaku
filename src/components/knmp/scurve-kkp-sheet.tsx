@@ -198,22 +198,47 @@ export function ScurveKkpSheet({ r }: { r: PeriodReport }) {
 
       {/* Tanda tangan */}
       <div className="mt-6 flex justify-between px-8 text-center text-[8.5px]">
-        <div>
-          <div className="font-semibold">MENGETAHUI :</div>
-          <div className="font-semibold">PEJABAT PEMBUAT KOMITMEN</div>
-          <div className="mt-10">( ................................ )</div>
-        </div>
-        <div>
-          <div className="font-semibold">DIPERIKSA :</div>
-          <div className="font-semibold">KONSULTAN PENGAWAS</div>
-          <div className="mt-10">( ................................ )</div>
-        </div>
-        <div>
-          <div className="font-semibold">DIBUAT OLEH :</div>
-          <div className="font-semibold">PENYEDIA JASA — {hdr.vendorName}</div>
-          <div className="mt-10">( ................................ )</div>
-        </div>
+        <SignBlock
+          title="MENGETAHUI :"
+          role="PEJABAT PEMBUAT KOMITMEN"
+          name={hdr.ppkName}
+          sub={hdr.ppkNip ? `NIP. ${hdr.ppkNip}` : null}
+        />
+        <SignBlock
+          title="DIPERIKSA :"
+          role="KONSULTAN PENGAWAS"
+          name={hdr.supervisorName}
+          sub={hdr.supervisorFirm}
+        />
+        <SignBlock
+          title="DIBUAT OLEH :"
+          role={`PENYEDIA JASA — ${hdr.vendorName}`}
+          name={hdr.contractorSignerName}
+          sub={hdr.contractorSignerTitle}
+        />
       </div>
+    </div>
+  );
+}
+
+/** Blok tanda tangan: judul, peran, nama (dlm kurung), baris sub (NIP/instansi/jabatan). */
+function SignBlock({
+  title,
+  role,
+  name,
+  sub,
+}: {
+  title: string;
+  role: string;
+  name: string | null;
+  sub: string | null;
+}) {
+  return (
+    <div>
+      <div className="font-semibold">{title}</div>
+      <div className="font-semibold">{role}</div>
+      <div className="mt-10 font-semibold underline">{name ? `( ${name} )` : "( ................................ )"}</div>
+      {sub ? <div>{sub}</div> : null}
     </div>
   );
 }

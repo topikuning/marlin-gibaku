@@ -73,6 +73,13 @@ export type PeriodHeader = {
   contractStart: Date;
   periodeStart: Date;
   periodeEnd: Date;
+  /** Penanda tangan dokumen KKP (null = blok TTD dikosongkan). */
+  ppkName: string | null;
+  ppkNip: string | null;
+  supervisorName: string | null;
+  supervisorFirm: string | null;
+  contractorSignerName: string | null;
+  contractorSignerTitle: string | null;
 };
 
 export type PeriodReport = {
@@ -200,6 +207,12 @@ export async function getPeriodReport(
               contractValue: true,
               startDate: true,
               endDate: true,
+              ppkName: true,
+              ppkNip: true,
+              supervisorName: true,
+              supervisorFirm: true,
+              contractorSignerName: true,
+              contractorSignerTitle: true,
               vendor: { select: { name: true } },
             },
           },
@@ -469,6 +482,12 @@ export async function getPeriodReport(
       contractStart: startDate,
       periodeStart,
       periodeEnd,
+      ppkName: contract.ppkName,
+      ppkNip: contract.ppkNip,
+      supervisorName: contract.supervisorName,
+      supervisorFirm: contract.supervisorFirm,
+      contractorSignerName: contract.contractorSignerName,
+      contractorSignerTitle: contract.contractorSignerTitle,
     },
     categories,
     totals: { bobotLalu: totalBobotLalu, bobotIni: totalBobotIni, bobotSd: totalBobotSd },
