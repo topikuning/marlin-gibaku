@@ -392,7 +392,12 @@ const convertSchema = z
     ),
     signedDate: z.string().min(1, "Tanggal tanda tangan wajib diisi"),
     startDate: z.string().min(1, "Tanggal mulai wajib diisi"),
-    endDate: z.string().min(1, "Tanggal selesai wajib diisi"),
+    // endDate & durationDays: isi SALAH SATU (yang lain diturunkan). Divalidasi di handler.
+    endDate: z.string().optional(),
+    durationDays: z.preprocess(
+      (v) => (v === "" || v == null ? undefined : Number(v)),
+      z.number().int("Jumlah hari harus bilangan bulat").min(1, "Jumlah hari minimal 1").max(3650, "Jumlah hari maksimal 3650").optional(),
+    ),
     advancePercent: percentSchema,
     retentionPercent: percentSchema,
     ppkName: z.string().trim().max(150).optional(),
@@ -421,6 +426,7 @@ export async function convertToContract(
     signedDate: formData.get("signedDate"),
     startDate: formData.get("startDate"),
     endDate: formData.get("endDate"),
+    durationDays: formData.get("durationDays"),
     advancePercent: formData.get("advancePercent"),
     retentionPercent: formData.get("retentionPercent"),
     ppkName: optionalText(formData.get("ppkName"), 150) ?? undefined,
@@ -439,8 +445,17 @@ export async function convertToContract(
   }
   const signedDate = parseDateKey(d.signedDate);
   const startDate = parseDateKey(d.startDate);
-  const endDate = parseDateKey(d.endDate);
-  if (!signedDate || !startDate || !endDate) return { error: "Format tanggal tidak valid." };
+  if (!signedDate || !startDate) return { error: "Format tanggal tidak valid." };
+  // endDate diturunkan dari jumlah hari bila diisi (masaHari = endDate − startDate),
+  // atau langsung dari input tanggal selesai. Salah satu wajib ada.
+  const DAY_MS = 86_400_000;
+  let endDate: Date | null = null;
+  if (d.durationDays != null) {
+    endDate = new Date(startDate.getTime() + d.durationDays * DAY_MS);
+  } else if (d.endDate) {
+    endDate = parseDateKey(d.endDate);
+  }
+  if (!endDate) return { error: "Isi salah satu: jumlah hari (masa pelaksanaan) atau tanggal selesai." };
   if (endDate < startDate) return { error: "Tanggal selesai harus setelah tanggal mulai." };
 
   const result = await db.$transaction(async (tx) => {
