@@ -34,6 +34,7 @@ export const CAPABILITIES = [
   "compliance.manage",
   "report.export",
   "user.manage",
+  "user.create",
   "system.manage",
   "audit.view",
 ] as const;
@@ -82,6 +83,7 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
     "document.verify",
     "compliance.manage",
     "report.export",
+    "user.create", // bikin Site Manager & Mandor di bawahnya
   ]),
   site_manager: new Set<Capability>([
     ...VIEW_ALL,
@@ -94,6 +96,7 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
     "finance.input",
     "document.upload",
     "report.export",
+    "user.create", // bikin Mandor di bawahnya
   ]),
   field_supervisor: new Set<Capability>([...VIEW_ALL, "daily_report.create"]),
   exec_viewer: new Set<Capability>([
@@ -131,3 +134,26 @@ export const ROLE_LABEL: Record<UserRole, string> = {
 };
 
 export const ALL_ROLES = Object.keys(ROLE_LABEL) as UserRole[];
+
+/**
+ * Pembuatan user BERJENJANG: siapa boleh membuat akun peran apa.
+ * PM boleh bikin Site Manager & Mandor; Site Manager boleh bikin Mandor.
+ * Peran manajemen penuh (super_admin/program_director) boleh membuat semua.
+ * Selalu dicatat createdById agar tahu pembuatnya.
+ */
+const ROLE_CREATE_MATRIX: Partial<Record<UserRole, UserRole[]>> = {
+  super_admin: ALL_ROLES,
+  program_director: ALL_ROLES.filter((r) => r !== "super_admin"),
+  project_manager: ["site_manager", "field_supervisor"],
+  site_manager: ["field_supervisor"],
+};
+
+/** Daftar peran yang boleh dibuat oleh `role` (kosong = tidak boleh membuat user). */
+export function creatableRoles(role: UserRole): UserRole[] {
+  return ROLE_CREATE_MATRIX[role] ?? [];
+}
+
+/** Apakah `actorRole` boleh membuat akun ber-peran `targetRole`. */
+export function canCreateRole(actorRole: UserRole, targetRole: UserRole): boolean {
+  return creatableRoles(actorRole).includes(targetRole);
+}

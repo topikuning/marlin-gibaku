@@ -1064,3 +1064,16 @@ scurve — dengan test properti, bukan paritas nilai):**
 - Contoh RAB_Nyamplung: dgn kolom negosiasi + fix kategori-tanpa-judul (054/ini),
   semua 10 kategori cocok persis dgn rekap HARGA NEGOSIASI (≤2 rupiah, pembulatan
   per-item). Grand total 2.381.955.611 (nego) vs 2.499.158.269 (HPS).
+
+## 056 · 2026-07-17 · Pembuatan user berjenjang + flag pembuat (createdById)
+
+- Capability baru `user.create` (beda dari `user.manage` yang penuh). PM & Site
+  Manager mendapatnya. Hierarki `creatableRoles`: PM → Site Manager + Mandor;
+  Site Manager → Mandor; peran manajemen penuh → semua. Divalidasi server
+  (`canCreateRole`), bukan hanya UI.
+- `User.createdById` (self-relation, nullable) mencatat pembuat tiap akun —
+  ditampilkan "Dibuat oleh" di daftar. Akun seed/awal = null.
+- Pembuat terbatas (bukan user.manage) di halaman Pengguna: hanya melihat akun
+  yang IA buat (read-only, tanpa aksi kelola), form peran dibatasi
+  `creatableRoles`, dan penugasan lokasi dibatasi lokasi yang IA akses.
+- Menu "Pengguna" kini muncul utk pemilik `user.create` (bukan hanya user.manage).

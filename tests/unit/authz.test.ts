@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { CAPABILITIES, can, isCrossLocation, ROLE_CAPABILITIES } from "@/lib/authz";
+import {
+  CAPABILITIES,
+  can,
+  canCreateRole,
+  creatableRoles,
+  isCrossLocation,
+  ROLE_CAPABILITIES,
+} from "@/lib/authz";
 
 describe("authz capability matrix", () => {
   it("super_admin punya SEMUA capability", () => {
@@ -47,5 +54,33 @@ describe("authz capability matrix", () => {
     expect(isCrossLocation("exec_viewer")).toBe(true);
     expect(isCrossLocation("site_manager")).toBe(false);
     expect(isCrossLocation("project_manager")).toBe(false);
+  });
+});
+
+describe("pembuatan user berjenjang (creatableRoles / canCreateRole)", () => {
+  it("PM boleh bikin Site Manager & Mandor, bukan PM/atasan", () => {
+    expect(creatableRoles("project_manager")).toEqual(["site_manager", "field_supervisor"]);
+    expect(canCreateRole("project_manager", "site_manager")).toBe(true);
+    expect(canCreateRole("project_manager", "field_supervisor")).toBe(true);
+    expect(canCreateRole("project_manager", "project_manager")).toBe(false);
+    expect(canCreateRole("project_manager", "super_admin")).toBe(false);
+  });
+
+  it("Site Manager hanya boleh bikin Mandor", () => {
+    expect(creatableRoles("site_manager")).toEqual(["field_supervisor"]);
+    expect(canCreateRole("site_manager", "field_supervisor")).toBe(true);
+    expect(canCreateRole("site_manager", "site_manager")).toBe(false);
+  });
+
+  it("Mandor & exec tidak boleh bikin user", () => {
+    expect(creatableRoles("field_supervisor")).toEqual([]);
+    expect(creatableRoles("exec_viewer")).toEqual([]);
+    expect(canCreateRole("field_supervisor", "field_supervisor")).toBe(false);
+  });
+
+  it("PM & Site Manager punya capability user.create", () => {
+    expect(can("project_manager", "user.create")).toBe(true);
+    expect(can("site_manager", "user.create")).toBe(true);
+    expect(can("field_supervisor", "user.create")).toBe(false);
   });
 });

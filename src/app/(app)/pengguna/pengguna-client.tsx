@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { Banner, Button, Input, Label, Select, StatusPill } from "@/components/ui";
-import { ROLE_LABEL, ALL_ROLES } from "@/lib/authz";
+import { ROLE_LABEL } from "@/lib/authz";
 import { formatTanggalWaktu } from "@/lib/format";
 import {
   createUser,
@@ -23,10 +23,11 @@ type UserRow = {
   isActive: boolean;
   mustChangePassword: boolean;
   lastLoginAt: string | null;
+  createdByName: string | null;
   assignments: { id: string; name: string }[];
 };
 
-export function UserForm({ locations }: { locations: LocationOption[] }) {
+export function UserForm({ locations, roles }: { locations: LocationOption[]; roles: UserRole[] }) {
   const [state, action, pending] = useActionState<UserActionState, FormData>(createUser, undefined);
   return (
     <form action={action} className="space-y-3">
@@ -46,8 +47,8 @@ export function UserForm({ locations }: { locations: LocationOption[] }) {
       </div>
       <div>
         <Label htmlFor="u-role" required>Peran</Label>
-        <Select id="u-role" name="role" required defaultValue="site_manager">
-          {ALL_ROLES.map((r) => (
+        <Select id="u-role" name="role" required defaultValue={roles[0]}>
+          {roles.map((r) => (
             <option key={r} value={r}>{ROLE_LABEL[r]}</option>
           ))}
         </Select>
@@ -118,8 +119,19 @@ function ResetPassword({ userId, onClose }: { userId: string; onClose: () => voi
   );
 }
 
-export function UsersTable({ users, locations }: { users: UserRow[]; locations: LocationOption[] }) {
+export function UsersTable({
+  users,
+  locations,
+  canManage,
+}: {
+  users: UserRow[];
+  locations: LocationOption[];
+  canManage: boolean;
+}) {
   const [open, setOpen] = useState<{ id: string; panel: "assign" | "reset" } | null>(null);
+  if (users.length === 0) {
+    return <p className="text-sm text-ink-muted">Belum ada pengguna.</p>;
+  }
   return (
     <div className="divide-y divide-border">
       {users.map((u) => (
@@ -138,39 +150,42 @@ export function UsersTable({ users, locations }: { users: UserRow[]; locations: 
                     ? `Lokasi: ${u.assignments.map((a) => a.name).join(", ")}`
                     : "Tanpa penugasan"}
                 </span>
+                <span>Dibuat oleh: {u.createdByName ?? "—"}</span>
                 {u.lastLoginAt && <span>Login terakhir {formatTanggalWaktu(new Date(u.lastLoginAt))}</span>}
               </div>
             </div>
-            <div className="flex gap-1.5">
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => setOpen(open?.id === u.id && open.panel === "assign" ? null : { id: u.id, panel: "assign" })}
-              >
-                Penugasan
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => setOpen(open?.id === u.id && open.panel === "reset" ? null : { id: u.id, panel: "reset" })}
-              >
-                Reset password
-              </Button>
-              <form
-                action={async () => {
-                  await setUserActive(u.id, !u.isActive);
-                }}
-              >
-                <Button size="sm" variant={u.isActive ? "danger" : "primary"} type="submit">
-                  {u.isActive ? "Nonaktifkan" : "Aktifkan"}
+            {canManage && (
+              <div className="flex gap-1.5">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setOpen(open?.id === u.id && open.panel === "assign" ? null : { id: u.id, panel: "assign" })}
+                >
+                  Penugasan
                 </Button>
-              </form>
-            </div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setOpen(open?.id === u.id && open.panel === "reset" ? null : { id: u.id, panel: "reset" })}
+                >
+                  Reset password
+                </Button>
+                <form
+                  action={async () => {
+                    await setUserActive(u.id, !u.isActive);
+                  }}
+                >
+                  <Button size="sm" variant={u.isActive ? "danger" : "primary"} type="submit">
+                    {u.isActive ? "Nonaktifkan" : "Aktifkan"}
+                  </Button>
+                </form>
+              </div>
+            )}
           </div>
-          {open?.id === u.id && open.panel === "assign" && (
+          {canManage && open?.id === u.id && open.panel === "assign" && (
             <AssignmentEditor user={u} locations={locations} onClose={() => setOpen(null)} />
           )}
-          {open?.id === u.id && open.panel === "reset" && (
+          {canManage && open?.id === u.id && open.panel === "reset" && (
             <ResetPassword userId={u.id} onClose={() => setOpen(null)} />
           )}
         </div>

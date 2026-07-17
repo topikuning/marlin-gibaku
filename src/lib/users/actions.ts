@@ -5,8 +5,14 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { hashPassword } from "@/lib/auth/password";
-import { requireCapability, revokeAllSessions, ForbiddenError } from "@/lib/auth/session";
-import { ALL_ROLES } from "@/lib/authz";
+import {
+  requireCapability,
+  revokeAllSessions,
+  accessibleLocationIds,
+  ForbiddenError,
+} from "@/lib/auth/session";
+import { ALL_ROLES, ROLE_LABEL, can, canCreateRole } from "@/lib/authz";
+import type { UserRole } from "@/generated/prisma/enums";
 
 const createUserSchema = z.object({
   username: z
@@ -25,7 +31,9 @@ const createUserSchema = z.object({
 export type UserActionState = { error?: string; success?: string } | undefined;
 
 export async function createUser(_prev: UserActionState, formData: FormData): Promise<UserActionState> {
-  const actor = await requireCapability("user.manage");
+  // Pembuatan user berjenjang (PM → SM/Mandor, SM → Mandor). Peran manajemen
+  // penuh (user.manage) juga punya user.create.
+  const actor = await requireCapability("user.create");
   const parsed = createUserSchema.safeParse({
     username: formData.get("username"),
     fullName: formData.get("fullName"),
@@ -36,6 +44,23 @@ export async function createUser(_prev: UserActionState, formData: FormData): Pr
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
+
+  // Hanya boleh membuat peran di bawahnya (server-side, bukan sekadar UI).
+  const targetRole = d.role as UserRole;
+  if (!canCreateRole(actor.role, targetRole)) {
+    return { error: `Anda tidak berwenang membuat akun peran ${ROLE_LABEL[targetRole]}.` };
+  }
+
+  // Pembuat terbatas (bukan user.manage): hanya boleh menugaskan lokasi yang
+  // dia akses sendiri. Peran manajemen penuh boleh lokasi mana pun.
+  let locationIds = d.locationIds ?? [];
+  if (!can(actor.role, "user.manage")) {
+    const own = await accessibleLocationIds(actor); // null = akses semua
+    if (own !== null) {
+      const allowed = new Set(own);
+      locationIds = locationIds.filter((id) => allowed.has(id));
+    }
+  }
 
   const exists = await db.user.findFirst({
     where: { OR: [{ username: d.username }, ...(d.email ? [{ email: d.email.toLowerCase() }] : [])] },
@@ -48,20 +73,21 @@ export async function createUser(_prev: UserActionState, formData: FormData): Pr
       username: d.username,
       email: d.email ? d.email.toLowerCase() : null,
       fullName: d.fullName,
-      role: d.role as never,
+      role: targetRole,
       passwordHash: await hashPassword(d.password),
       mustChangePassword: true,
+      createdById: actor.id,
     },
   });
-  if (d.locationIds?.length) {
+  if (locationIds.length) {
     await db.locationAssignment.createMany({
-      data: d.locationIds.map((locationId) => ({ userId: user.id, locationId })),
+      data: locationIds.map((locationId) => ({ userId: user.id, locationId })),
       skipDuplicates: true,
     });
   }
-  await audit(actor.id, "user.create", "user", user.id, { role: d.role, locations: d.locationIds?.length ?? 0 });
+  await audit(actor.id, "user.create", "user", user.id, { role: targetRole, locations: locationIds.length });
   revalidatePath("/pengguna");
-  return { success: `Pengguna ${d.username} dibuat. Password harus diganti saat login pertama.` };
+  return { success: `Pengguna ${d.username} (${ROLE_LABEL[targetRole]}) dibuat. Password harus diganti saat login pertama.` };
 }
 
 export async function setUserActive(userId: string, isActive: boolean): Promise<void> {

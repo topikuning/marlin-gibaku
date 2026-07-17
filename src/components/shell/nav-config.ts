@@ -52,7 +52,7 @@ export const MAIN_NAV: NavItem[] = [
   { label: "Keuangan", href: "/keuangan", icon: "wallet", capability: "finance.view" },
   { label: "Dokumen", href: "/dokumen", icon: "folderOpen", capability: "document.view" },
   { label: "Laporan", href: "/laporan", icon: "fileText", capability: "report.export" },
-  { label: "Pengguna", href: "/pengguna", icon: "users", capability: "user.manage" },
+  { label: "Pengguna", href: "/pengguna", icon: "users", capability: "user.create" },
   { label: "Sistem", href: "/sistem", icon: "settings", capability: "system.manage" },
 ];
 
