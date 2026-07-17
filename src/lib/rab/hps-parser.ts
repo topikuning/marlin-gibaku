@@ -20,8 +20,10 @@ import type {
  * Tambahan vs lama: duplikat kode subkategori dalam satu kategori → `kode#2`
  * (dulu dilakukan di rab-import; sekarang di parser agar lineage unik).
  *
- * Kolom RAB: A=kode, B=nama, E=volume, F=satuan, G=harga satuan,
- * H=jumlah harga, I=nilai TKDN.
+ * Kolom nilai DIDETEKSI dari baris header (detectColumns) — bukan hardcode —
+ * karena RAB KKP bervariasi. Bila ada kolom "HARGA NEGOSIASI" (+ "JUMLAH HARGA"),
+ * itu yang dipakai sebagai NILAI KONTRAK (bukan HPS). Layout klasik (tanpa
+ * negosiasi): A=kode, B=nama, E=volume, F=satuan, G=harga satuan, H=jumlah, I=TKDN.
  */
 
 const ROMAN = /^(X{0,3})(IX|IV|V?I{0,3})$/; // I..XXXIX
@@ -70,6 +72,57 @@ export function isSummaryRow(name: string): boolean {
   return /^(jumlah|sub\s*total|total|grand\s*total|rekapitulasi)\b/i.test(name);
 }
 
+/** Peta kolom nilai (1-indexed) hasil deteksi header. */
+export type ColMap = { vol: number; unit: number; price: number; amount: number; tkdn: number };
+
+/**
+ * Deteksi kolom dari baris header. RAB KKP bervariasi: sebagian hanya HPS
+ * (harga satuan/jumlah), sebagian punya blok HARGA NEGOSIASI (hasil klarifikasi)
+ * SETELAH kolom HPS. Nilai KONTRAK = harga negosiasi bila ada — itu yang dipakai
+ * (bukan HPS), sesuai dokumen kontrol lapangan. Fallback ke posisi klasik
+ * (G=harga, H=jumlah, I=TKDN) bila header tak terbaca (mis. fixture uji).
+ */
+export function detectColumns(ws: ExcelJS.Worksheet): { col: ColMap; usedNego: boolean } {
+  const classic: ColMap = { vol: 5, unit: 6, price: 7, amount: 8, tkdn: 9 };
+  let headerRow: ExcelJS.Row | null = null;
+  for (let rn = 1; rn <= 20; rn++) {
+    const row = ws.getRow(rn);
+    let hasVol = false;
+    let hasJml = false;
+    for (let c = 1; c <= 20; c++) {
+      const l = str(cellVal(row, c)).toUpperCase();
+      if (/^VOL/.test(l)) hasVol = true;
+      if (/JUMLAH/.test(l)) hasJml = true;
+    }
+    if (hasVol && hasJml) {
+      headerRow = row;
+      break;
+    }
+  }
+  if (!headerRow) return { col: classic, usedNego: false };
+  const label = (c: number) => str(cellVal(headerRow!, c)).toUpperCase();
+  const findCol = (re: RegExp, from = 1, to = 20): number | null => {
+    for (let c = from; c <= to; c++) if (re.test(label(c))) return c;
+    return null;
+  };
+  const vol = findCol(/^VOL/) ?? classic.vol;
+  const unit = findCol(/^SAT/) ?? classic.unit;
+  const tkdn = findCol(/TKDN/) ?? classic.tkdn;
+  const nego = findCol(/NEGO/); // "HARGA NEGOISASI"/"NEGOSIASI" (harga satuan nego)
+  let price: number;
+  let amount: number;
+  let usedNego = false;
+  if (nego != null) {
+    price = nego;
+    amount = findCol(/JUMLAH/, nego + 1) ?? nego + 1; // "JUMLAH HARGA" sesudah nego
+    usedNego = true;
+  } else {
+    price = findCol(/HARGA\s*SATUAN|NILAI\s*HPS|^HARGA/) ?? classic.price;
+    amount = findCol(/JUMLAH/) ?? classic.amount;
+  }
+  return { col: { vol, unit, price, amount, tkdn }, usedNego };
+}
+
 export function sumLeaves(items: ParsedRabItem[]): number {
   let t = 0;
   for (const it of items) {
@@ -98,6 +151,13 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): {
   const ws = wb.getWorksheet("RAB") ?? wb.worksheets.find((w) => /rab/i.test(w.name));
   if (!ws) throw new Error('Sheet "RAB" tidak ditemukan di file HPS.');
 
+  // Nilai kontrak = kolom HARGA NEGOSIASI bila ada; kalau tidak, kolom JUMLAH (HPS).
+  const { col, usedNego } = detectColumns(ws);
+  if (usedNego)
+    warnings.push(
+      "File punya kolom HARGA NEGOSIASI — nilai kontrak diambil dari kolom itu (bukan HPS).",
+    );
+
   let project = "";
   let locationRaw = "";
   let year: number | null = null;
@@ -115,15 +175,15 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): {
     row: ExcelJS.Row,
     parentCode: string | null,
   ): ParsedRabItem => {
-    const volume = num(cellVal(row, 5));
+    const volume = num(cellVal(row, col.vol));
     return {
       code,
       name,
       volume,
-      unit: volume != null ? str(cellVal(row, 6)) || null : null,
-      unit_price: num(cellVal(row, 7)),
-      total_price: num(cellVal(row, 8)),
-      tkdn_ratio: num(cellVal(row, 9)),
+      unit: volume != null ? str(cellVal(row, col.unit)) || null : null,
+      unit_price: num(cellVal(row, col.price)),
+      total_price: num(cellVal(row, col.amount)),
+      tkdn_ratio: num(cellVal(row, col.tkdn)),
       parent_code: parentCode,
       children: [],
     };

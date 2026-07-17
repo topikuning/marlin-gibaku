@@ -1052,3 +1052,15 @@ scurve — dengan test properti, bukan paritas nilai):**
   Backfill migrasi: `durationDays = end_date − start_date` utk kontrak lama.
 - **Lokasi + kecamatan**: `Location.district` (opsional) ditambah di form input
   lokasi & tampil di alamat laporan KKP (`village, Kec. district, regency`).
+
+## 055 · 2026-07-17 · Nilai RAB = HARGA NEGOSIASI (bukan HPS) via deteksi header
+
+- RAB KKP sering punya DUA blok harga: HPS (NILAI HPS/JUMLAH) lalu HARGA
+  NEGOSIASI (HARGA NEGOISASI/JUMLAH HARGA) hasil klarifikasi. **Nilai kontrak =
+  harga negosiasi** — itu yang dipakai parser bila ada (fallback HPS bila tidak).
+- Parser kini **mendeteksi kolom dari baris header** (`detectColumns`), bukan
+  hardcode posisi, karena layout bervariasi antar file. Sebelumnya selalu baca
+  kolom JUMLAH (HPS) → rekap lebih tinggi dari kontrol negosiasi lapangan.
+- Contoh RAB_Nyamplung: dgn kolom negosiasi + fix kategori-tanpa-judul (054/ini),
+  semua 10 kategori cocok persis dgn rekap HARGA NEGOSIASI (≤2 rupiah, pembulatan
+  per-item). Grand total 2.381.955.611 (nego) vs 2.499.158.269 (HPS).

@@ -129,6 +129,29 @@ describe("kategori tanpa judul (mis. RAB_Nyamplung VIII) — infer dari sub-kode
   });
 });
 
+describe("nilai kontrak = HARGA NEGOSIASI bila ada (bukan HPS)", () => {
+  it("baris header dgn kolom negosiasi → total pakai kolom JUMLAH HARGA (nego)", async () => {
+    const { parsed, warnings } = await parseHpsBuffer(
+      await xlsxFromRows([
+        // A=NO B=JENIS C D E=VOL F=SAT G=NILAI HPS H=JUMLAH I=HRG NEGO J=JUMLAH HRG K=TKDN
+        ["NO", "JENIS PEKERJAAN", null, null, "VOL", "SAT", "NILAI HPS", "JUMLAH", "HARGA NEGOISASI", "JUMLAH HARGA", "NILAI TKDN"],
+        ["I", "PEKERJAAN PERSIAPAN", null, null, null, null, null, null, null, null, null],
+        ["1", "Item A", null, null, 2, "m", 1000, 2000, 800, 1600, 0.9],
+      ]),
+    );
+    const it = parsed.categories[0].direct_items[0];
+    expect(it.unit_price).toBe(800); // harga satuan nego, bukan 1000 (HPS)
+    expect(it.total_price).toBe(1600); // JUMLAH HARGA nego, bukan 2000 (HPS)
+    expect(parsed.categories[0].total_value).toBe(1600);
+    expect(warnings.some((w) => /NEGOSIASI/i.test(w))).toBe(true);
+  });
+
+  it("tanpa header (fixture) → fallback kolom klasik G/H/I", () => {
+    // fixture in-memory teratas tak punya baris header → total = kolom H (klasik)
+    expect(parsed.categories[0].direct_items[0].total_price).toBe(500000);
+  });
+});
+
 describe("kategori total 0 tidak masuk DB (flatten)", () => {
   it("kategori bernilai 0 di-skip; kategori bernilai tetap masuk", async () => {
     const { parsed } = await parseHpsBuffer(
