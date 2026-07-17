@@ -61,6 +61,7 @@ export type PeriodCategory = {
 export type PeriodHeader = {
   locationName: string;
   village: string;
+  district: string | null;
   regency: string;
   province: string;
   packageName: string;
@@ -160,8 +161,10 @@ export async function getPeriodBounds(locationId: string): Promise<PeriodBounds 
     select: { id: true, package: { select: { contract: { select: { startDate: true, endDate: true } } } } },
   });
   const contract = location?.package.contract;
-  if (!contract) return null;
-  const { startDate, endDate } = contract;
+  // Butuh SPMK (startDate) & endDate — jadwal periodik baru aktif setelah SPMK terbit.
+  if (!contract || !contract.startDate || !contract.endDate) return null;
+  const startDate = contract.startDate;
+  const endDate = contract.endDate;
   const totalWeeks = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime() + DAY) / (7 * DAY)));
   const totalMonths = Math.max(
     1,
@@ -196,6 +199,7 @@ export async function getPeriodReport(
       id: true,
       name: true,
       village: true,
+      district: true,
       regency: true,
       province: true,
       package: {
@@ -205,6 +209,7 @@ export async function getPeriodReport(
             select: {
               contractNumber: true,
               contractValue: true,
+              durationDays: true,
               startDate: true,
               endDate: true,
               ppkName: true,
@@ -457,10 +462,7 @@ export async function getPeriodReport(
     return k >= sKey && k <= eKey;
   });
 
-  const masaPelaksanaanHari = Math.max(
-    1,
-    Math.round((contract.endDate.getTime() - startDate.getTime()) / DAY),
-  );
+  const masaPelaksanaanHari = Math.max(1, contract.durationDays);
 
   return {
     kind,
@@ -471,6 +473,7 @@ export async function getPeriodReport(
     header: {
       locationName: location.name,
       village: location.village,
+      district: location.district,
       regency: location.regency,
       province: location.province,
       packageName: location.package.name,

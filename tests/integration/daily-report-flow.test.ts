@@ -49,6 +49,7 @@ beforeAll(async () => {
       contractNumber: `SPK-${suffix}`,
       contractValue: 111_000_000n,
       signedDate: new Date("2026-05-25"),
+      durationDays: 153,
       startDate: new Date("2026-06-01"),
       endDate: new Date("2026-11-01"),
     },

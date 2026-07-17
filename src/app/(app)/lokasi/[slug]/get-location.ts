@@ -32,6 +32,7 @@ function findLocation(slug: string) {
               contractNumber: true,
               contractValue: true,
               ppnPercent: true,
+              durationDays: true,
               startDate: true,
               endDate: true,
               vendor: { select: { name: true } },

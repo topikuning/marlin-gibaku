@@ -43,7 +43,7 @@ export default async function LokasiLayout({
   const progress = await getLocationProgress(location.id);
   const contract = location.package.contract;
 
-  const remainingDays = contract ? remainingDaysUntil(contract.endDate) : null;
+  const remainingDays = contract?.endDate ? remainingDaysUntil(contract.endDate) : null;
 
   return (
     <div className="space-y-4">
@@ -81,10 +81,12 @@ export default async function LokasiLayout({
             {contract ? <span className="ml-1 text-[11px] font-normal text-ink-faint">inkl. PPN</span> : null}
           </StatCell>
           <StatCell label="Periode kontrak">
-            {contract ? (
+            {contract?.startDate && contract.endDate ? (
               <span className="tabular text-[13px]">
                 {formatTanggal(contract.startDate)} – {formatTanggal(contract.endDate)}
               </span>
+            ) : contract ? (
+              <span className="text-[13px] text-ink-faint">{contract.durationDays} hari — menunggu SPMK</span>
             ) : (
               <span className="text-ink-faint">Belum ada</span>
             )}

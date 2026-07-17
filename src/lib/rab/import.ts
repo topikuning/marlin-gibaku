@@ -186,15 +186,13 @@ export async function discardDraft(revisionId: string, userId: string) {
   return rev;
 }
 
-/** Durasi kontrak (hari) dari kontrak paket lokasi; fallback 150. */
+/** Masa pelaksanaan (hari) dari kontrak paket lokasi; fallback 150. */
 export async function contractDaysFor(locationId: string): Promise<number> {
   const loc = await db.location.findUnique({
     where: { id: locationId },
-    select: { package: { select: { contract: { select: { startDate: true, endDate: true } } } } },
+    select: { package: { select: { contract: { select: { durationDays: true } } } } },
   });
-  const c = loc?.package.contract;
-  if (!c) return DEFAULT_CONTRACT_DAYS;
-  const days = Math.round((c.endDate.getTime() - c.startDate.getTime()) / DAY_MS);
+  const days = loc?.package.contract?.durationDays ?? 0;
   return days > 0 ? days : DEFAULT_CONTRACT_DAYS;
 }
 

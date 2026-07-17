@@ -137,18 +137,32 @@ export default async function KontrakPage({
                 </dd>
               </div>
               <div>
-                <dt className="text-ink-muted">Tanda tangan</dt>
+                <dt className="text-ink-muted">Tanda tangan kontrak</dt>
                 <dd className="font-medium text-ink">{formatTanggal(contract.signedDate)}</dd>
               </div>
               <div>
-                <dt className="text-ink-muted">Periode</dt>
+                <dt className="text-ink-muted">Masa pelaksanaan</dt>
+                <dd className="font-medium text-ink">{contract.durationDays} hari kalender</dd>
+              </div>
+              <div>
+                <dt className="text-ink-muted">Mulai (SPMK)</dt>
                 <dd className="font-medium text-ink">
-                  {formatTanggal(contract.startDate)} — {formatTanggal(contract.endDate)}
+                  {contract.startDate ? (
+                    formatTanggal(contract.startDate)
+                  ) : (
+                    <span className="text-ink-muted italic">Belum terbit</span>
+                  )}
                 </dd>
               </div>
               <div>
-                <dt className="text-ink-muted">Selesai berjalan (+adendum)</dt>
-                <dd className="font-medium text-ink">{formatTanggal(endRunning)}</dd>
+                <dt className="text-ink-muted">Selesai {endRunning ? "(+adendum)" : ""}</dt>
+                <dd className="font-medium text-ink">
+                  {endRunning ? (
+                    formatTanggal(endRunning)
+                  ) : (
+                    <span className="text-ink-muted italic">Menunggu SPMK</span>
+                  )}
+                </dd>
               </div>
             </dl>
 

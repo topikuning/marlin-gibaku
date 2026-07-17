@@ -20,22 +20,6 @@ import {
 type VendorOption = { id: string; name: string };
 
 const NEW_VENDOR = "__baru__";
-const DAY_MS = 86_400_000;
-
-/** "YYYY-MM-DD" + n hari → "YYYY-MM-DD" (UTC, hindari geser zona waktu). */
-function addDays(dateStr: string, days: number): string {
-  const t = Date.parse(`${dateStr}T00:00:00Z`);
-  if (Number.isNaN(t) || !Number.isFinite(days)) return "";
-  return new Date(t + days * DAY_MS).toISOString().slice(0, 10);
-}
-/** Selisih hari antara dua "YYYY-MM-DD" (end − start). "" bila tak valid/negatif. */
-function diffDays(startStr: string, endStr: string): string {
-  const a = Date.parse(`${startStr}T00:00:00Z`);
-  const b = Date.parse(`${endStr}T00:00:00Z`);
-  if (Number.isNaN(a) || Number.isNaN(b)) return "";
-  const d = Math.round((b - a) / DAY_MS);
-  return d >= 0 ? String(d) : "";
-}
 
 export type Signatories = {
   ppkName: string | null;
@@ -96,24 +80,6 @@ export function ConvertContractForm({
     vendors.length > 0 ? vendors[0].id : NEW_VENDOR,
   );
   const newVendor = vendorChoice === NEW_VENDOR;
-
-  // Tanggal mulai ⟷ jumlah hari ⟷ tanggal selesai (isi salah satu, sinkron 2 arah).
-  const [startDate, setStartDate] = useState("");
-  const [durationDays, setDurationDays] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const onStart = (v: string) => {
-    setStartDate(v);
-    if (durationDays) setEndDate(addDays(v, Number(durationDays)));
-    else if (endDate) setDurationDays(diffDays(v, endDate));
-  };
-  const onDays = (v: string) => {
-    setDurationDays(v);
-    if (startDate && v) setEndDate(addDays(startDate, Number(v)));
-  };
-  const onEnd = (v: string) => {
-    setEndDate(v);
-    if (startDate && v) setDurationDays(diffDays(startDate, v));
-  };
 
   return (
     <form action={action} className="space-y-4">
@@ -208,25 +174,14 @@ export function ConvertContractForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <Label htmlFor="cv-signed" required>
-            Tanggal tanda tangan
+            Tanggal tanda tangan kontrak
           </Label>
           <Input id="cv-signed" name="signedDate" type="date" required />
         </div>
         <div>
-          <Label htmlFor="cv-start" required>
-            Tanggal mulai
+          <Label htmlFor="cv-days" required>
+            Masa pelaksanaan (hari kalender)
           </Label>
-          <Input
-            id="cv-start"
-            name="startDate"
-            type="date"
-            required
-            value={startDate}
-            onChange={(e) => onStart(e.target.value)}
-          />
-        </div>
-        <div>
-          <Label htmlFor="cv-days">Masa pelaksanaan (hari kalender)</Label>
           <Input
             id="cv-days"
             name="durationDays"
@@ -234,25 +189,15 @@ export function ConvertContractForm({
             min={1}
             max={3650}
             inputMode="numeric"
-            placeholder="mis. 149"
-            value={durationDays}
-            onChange={(e) => onDays(e.target.value)}
-          />
-        </div>
-        <div>
-          <Label htmlFor="cv-end">Tanggal selesai</Label>
-          <Input
-            id="cv-end"
-            name="endDate"
-            type="date"
-            value={endDate}
-            onChange={(e) => onEnd(e.target.value)}
+            placeholder="mis. 150"
+            required
           />
         </div>
       </div>
       <HelpText>
-        Isi <b>salah satu</b>: jumlah hari <i>atau</i> tanggal selesai — begitu tanggal mulai terisi,
-        yang satunya dihitung otomatis (masa pelaksanaan = tanggal selesai − tanggal mulai).
+        Kontrak belum menetapkan tanggal mulai — pekerjaan baru berjalan saat <b>SPMK</b> terbit.
+        Tanggal mulai &amp; selesai diisi nanti di langkah <b>Mulai Pelaksanaan</b> (selesai = SPMK +
+        masa pelaksanaan).
       </HelpText>
 
       <fieldset className="rounded-lg border border-border p-4">

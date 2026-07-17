@@ -62,7 +62,7 @@ export async function getLocationsProgress(locationIds: string[]): Promise<Map<s
 
   const revByLoc = new Map(revisions.map((r) => [r.locationId, r.id]));
   const baseByLoc = new Map(baselines.map((b) => [b.locationId, b]));
-  const startByLoc = new Map<string, Date>();
+  const startByLoc = new Map<string, Date | null>();
   for (const c of contracts) {
     for (const l of c.package.locations) startByLoc.set(l.id, c.startDate);
   }

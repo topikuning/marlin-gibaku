@@ -42,18 +42,24 @@ export function AddLocationForm({
           <Input id="lk-village" name="village" required />
         </div>
         <div>
+          <Label htmlFor="lk-district">Kecamatan</Label>
+          <Input id="lk-district" name="district" placeholder="mis. Wedung" />
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
           <Label htmlFor="lk-regency" required>
             Kabupaten/Kota
           </Label>
           <Input id="lk-regency" name="regency" required />
         </div>
-      </div>
-
-      <div>
-        <Label htmlFor="lk-province" required>
-          Provinsi
-        </Label>
-        <Input id="lk-province" name="province" required defaultValue={defaultProvince} />
+        <div>
+          <Label htmlFor="lk-province" required>
+            Provinsi
+          </Label>
+          <Input id="lk-province" name="province" required defaultValue={defaultProvince} />
+        </div>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

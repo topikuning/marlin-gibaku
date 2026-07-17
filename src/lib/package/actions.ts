@@ -259,6 +259,7 @@ const addLocationSchema = z.object({
   packageId: z.uuid("ID paket tidak valid"),
   name: z.string().trim().min(3, "Nama lokasi minimal 3 karakter").max(150),
   village: z.string().trim().min(2, "Desa/kelurahan wajib diisi").max(100),
+  district: z.string().trim().max(100).optional(),
   regency: z.string().trim().min(2, "Kabupaten/kota wajib diisi").max(100),
   province: z.string().trim().min(2, "Provinsi wajib diisi").max(100),
   gpsLat: z.preprocess(
@@ -280,6 +281,7 @@ export async function addTargetLocation(
     packageId: formData.get("packageId"),
     name: formData.get("name"),
     village: formData.get("village"),
+    district: optionalText(formData.get("district"), 100) ?? undefined,
     regency: formData.get("regency"),
     province: formData.get("province"),
     gpsLat: formData.get("gpsLat"),
@@ -316,6 +318,7 @@ export async function addTargetLocation(
         name: d.name,
         slug,
         village: d.village,
+        district: d.district ?? null,
         regency: d.regency,
         province: d.province,
         gpsLat: d.gpsLat ?? null,
@@ -391,12 +394,15 @@ const convertSchema = z
       z.number().min(0, "PPN minimal 0").max(100, "PPN maksimal 100"),
     ),
     signedDate: z.string().min(1, "Tanggal tanda tangan wajib diisi"),
-    startDate: z.string().min(1, "Tanggal mulai wajib diisi"),
-    // endDate & durationDays: isi SALAH SATU (yang lain diturunkan). Divalidasi di handler.
-    endDate: z.string().optional(),
+    // Kontrak hanya menyimpan masa pelaksanaan (hari kalender). Tanggal mulai
+    // (SPMK) diisi belakangan saat Mulai Pelaksanaan.
     durationDays: z.preprocess(
       (v) => (v === "" || v == null ? undefined : Number(v)),
-      z.number().int("Jumlah hari harus bilangan bulat").min(1, "Jumlah hari minimal 1").max(3650, "Jumlah hari maksimal 3650").optional(),
+      z
+        .number({ message: "Masa pelaksanaan (hari) wajib diisi" })
+        .int("Jumlah hari harus bilangan bulat")
+        .min(1, "Masa pelaksanaan minimal 1 hari")
+        .max(3650, "Masa pelaksanaan maksimal 3650 hari"),
     ),
     advancePercent: percentSchema,
     retentionPercent: percentSchema,
@@ -424,8 +430,6 @@ export async function convertToContract(
     contractNumber: formData.get("contractNumber"),
     ppnPercent: formData.get("ppnPercent"),
     signedDate: formData.get("signedDate"),
-    startDate: formData.get("startDate"),
-    endDate: formData.get("endDate"),
     durationDays: formData.get("durationDays"),
     advancePercent: formData.get("advancePercent"),
     retentionPercent: formData.get("retentionPercent"),
@@ -444,19 +448,9 @@ export async function convertToContract(
     return { error: "Nilai kontrak wajib diisi dan lebih dari 0." };
   }
   const signedDate = parseDateKey(d.signedDate);
-  const startDate = parseDateKey(d.startDate);
-  if (!signedDate || !startDate) return { error: "Format tanggal tidak valid." };
-  // endDate diturunkan dari jumlah hari bila diisi (masaHari = endDate − startDate),
-  // atau langsung dari input tanggal selesai. Salah satu wajib ada.
-  const DAY_MS = 86_400_000;
-  let endDate: Date | null = null;
-  if (d.durationDays != null) {
-    endDate = new Date(startDate.getTime() + d.durationDays * DAY_MS);
-  } else if (d.endDate) {
-    endDate = parseDateKey(d.endDate);
-  }
-  if (!endDate) return { error: "Isi salah satu: jumlah hari (masa pelaksanaan) atau tanggal selesai." };
-  if (endDate < startDate) return { error: "Tanggal selesai harus setelah tanggal mulai." };
+  if (!signedDate) return { error: "Format tanggal tidak valid." };
+  // startDate (SPMK) & endDate belum ada saat kontrak dibuat — diisi saat Mulai
+  // Pelaksanaan. Kontrak hanya menyimpan durationDays (masa pelaksanaan).
 
   const result = await db.$transaction(async (tx) => {
     const pkg = await tx.package.findUnique({
@@ -520,8 +514,9 @@ export async function convertToContract(
         advancePercent: d.advancePercent ?? null,
         retentionPercent: d.retentionPercent ?? null,
         signedDate,
-        startDate,
-        endDate,
+        durationDays: d.durationDays,
+        startDate: null,
+        endDate: null,
         ppkName: d.ppkName ?? null,
         ppkNip: d.ppkNip ?? null,
         supervisorName: d.supervisorName ?? null,
@@ -648,17 +643,22 @@ export async function updateContractSignatories(
 /* Mulai pelaksanaan                                                   */
 /* ------------------------------------------------------------------ */
 
-export async function startPelaksanaan(packageId: string): Promise<PackageActionState> {
+export async function startPelaksanaan(
+  packageId: string,
+  spmkDateStr: string,
+): Promise<PackageActionState> {
   const actor = await requireCapability("contract.manage");
   const id = z.uuid().safeParse(packageId);
   if (!id.success) return { error: "ID paket tidak valid." };
+  const spmkDate = parseDateKey(spmkDateStr);
+  if (!spmkDate) return { error: "Tanggal SPMK wajib diisi." };
 
   const result = await db.$transaction(async (tx) => {
     const pkg = await tx.package.findUnique({
       where: { id: id.data },
       select: {
         stage: true,
-        contract: { select: { id: true } },
+        contract: { select: { id: true, durationDays: true } },
         locations: { select: { id: true, status: true } },
       },
     });
@@ -669,6 +669,14 @@ export async function startPelaksanaan(packageId: string): Promise<PackageAction
         error: `Transisi ${PACKAGE_STAGE_LABEL[pkg.stage]} → Pelaksanaan tidak diizinkan.`,
       };
     }
+
+    // SPMK menetapkan tanggal mulai; tanggal selesai = SPMK + masa pelaksanaan.
+    const DAY_MS = 86_400_000;
+    const endDate = new Date(spmkDate.getTime() + pkg.contract.durationDays * DAY_MS);
+    await tx.contract.update({
+      where: { id: pkg.contract.id },
+      data: { startDate: spmkDate, endDate },
+    });
 
     await tx.package.update({ where: { id: id.data }, data: { stage: "pelaksanaan" } });
     await tx.packageStageHistory.create({
@@ -703,10 +711,11 @@ export async function startPelaksanaan(packageId: string): Promise<PackageAction
 
   await audit(actor.id, "package.start_pelaksanaan", "package", id.data, {
     locationsStarted: result.started,
+    spmkDate: spmkDateStr,
   });
   revalidatePath("/paket");
   revalidatePath(`/paket/${id.data}`, "layout");
-  return { success: `Pelaksanaan dimulai — ${result.started} lokasi berstatus Berjalan.` };
+  return { success: `Pelaksanaan dimulai (SPMK ${spmkDateStr}) — ${result.started} lokasi berstatus Berjalan.` };
 }
 
 /* ------------------------------------------------------------------ */

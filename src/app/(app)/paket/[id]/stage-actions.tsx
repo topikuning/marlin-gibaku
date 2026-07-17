@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Banner, Button, Label, Textarea, type ButtonVariant } from "@/components/ui";
+import { Banner, Button, Input, Label, Textarea, type ButtonVariant } from "@/components/ui";
 import {
   advanceStage,
   startPelaksanaan,
@@ -44,16 +44,28 @@ export function AdvanceStageButton({
   );
 }
 
-/** Tombol kontrak → pelaksanaan (sekaligus set lokasi Berjalan). */
+/**
+ * Kontrak → pelaksanaan (sekaligus set lokasi Berjalan). Menetapkan tanggal
+ * SPMK sebagai tanggal mulai; tanggal selesai dihitung = SPMK + masa pelaksanaan.
+ */
 export function StartPelaksanaanButton({ packageId }: { packageId: string }) {
   const [state, action, pending] = useActionState<PackageActionState, FormData>(
-    async () => startPelaksanaan(packageId),
+    async (_prev, formData) => startPelaksanaan(packageId, String(formData.get("spmkDate") ?? "")),
     undefined,
   );
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <StateBanners state={state} />
-      <form action={action}>
+      <form action={action} className="space-y-3">
+        <div>
+          <Label htmlFor="sp-spmk" required>
+            Tanggal SPMK (mulai kerja)
+          </Label>
+          <Input id="sp-spmk" name="spmkDate" type="date" required className="max-w-xs" />
+          <p className="mt-1 text-xs text-ink-muted">
+            Tanggal selesai kontrak akan dihitung otomatis = SPMK + masa pelaksanaan.
+          </p>
+        </div>
         <Button type="submit" loading={pending}>
           Mulai Pelaksanaan
         </Button>

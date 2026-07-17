@@ -16,8 +16,12 @@ export function runningContractValue(
   return amendments.reduce((sum, a) => sum + a.valueDelta, contractValue);
 }
 
-/** Tanggal selesai berjalan = endDate + Σ endDateDelta (hari). */
-export function runningEndDate(endDate: Date, amendments: { endDateDelta: number }[]): Date {
+/** Tanggal selesai berjalan = endDate + Σ endDateDelta (hari). null bila SPMK belum terbit. */
+export function runningEndDate(
+  endDate: Date | null,
+  amendments: { endDateDelta: number }[],
+): Date | null {
+  if (!endDate) return null;
   const days = amendments.reduce((sum, a) => sum + a.endDateDelta, 0);
   return new Date(endDate.getTime() + days * 86_400_000);
 }
@@ -107,6 +111,7 @@ export const getPackageWorkspace = cache(async (id: string) => {
           advancePercent: true,
           retentionPercent: true,
           signedDate: true,
+          durationDays: true,
           startDate: true,
           endDate: true,
           ppkName: true,

@@ -403,8 +403,12 @@ model Contract {
   advancePercent  Decimal? @map("advance_percent") @db.Decimal(5, 2)
   retentionPercent Decimal? @map("retention_percent") @db.Decimal(5, 2)
   signedDate      DateTime @map("signed_date") @db.Date
-  startDate       DateTime @map("start_date") @db.Date
-  endDate         DateTime @map("end_date") @db.Date
+  // Masa pelaksanaan (hari kalender) = tulang punggung jadwal. Tanggal mulai
+  // (SPMK) & selesai baru terisi saat SPMK terbit — sebelum itu null (jadwal
+  // relatif dari durationDays; kalender belum terpetakan).
+  durationDays    Int      @default(150) @map("duration_days")
+  startDate       DateTime? @map("start_date") @db.Date
+  endDate         DateTime? @map("end_date") @db.Date
   paymentTerms    String?  @map("payment_terms")
   // Penanda tangan dokumen KKP (opsional, bisa diganti kapan saja bila ada
   // pergantian personel). PPK = pihak KKP; Pengawas = konsultan; Penyedia = pelaksana.
@@ -453,6 +457,7 @@ model Location {
   name      String
   slug      String         @unique
   village   String
+  district  String?        // kecamatan (opsional)
   regency   String
   province  String
   gpsLat    Decimal?       @map("gps_lat") @db.Decimal(10, 7)

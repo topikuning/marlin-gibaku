@@ -1036,3 +1036,19 @@ scurve — dengan test properti, bukan paritas nilai):**
   berjalan, minggu akhir periode)` — bukan lagi selalu s/d hari ini. Baris Rencana
   tetap penuh (garis target). Sebelumnya kolom realisasi/deviasi ikut terisi sampai
   minggu berjalan walau membuka laporan minggu-1.
+
+## 054 · 2026-07-17 · Kontrak simpan masa pelaksanaan (hari); tanggal mulai dari SPMK; lokasi + kecamatan
+
+- **Kontrak tidak lagi memaksa tanggal mulai/selesai.** Pekerjaan mulai saat
+  **SPMK**, bukan saat tanda tangan kontrak. `Contract` kini menyimpan
+  `durationDays` (masa pelaksanaan hari kalender, wajib) sebagai tulang punggung
+  jadwal; `startDate`/`endDate` **nullable** — baru terisi saat SPMK.
+- **Tanggal SPMK diinput di langkah "Mulai Pelaksanaan"** (kontrak → pelaksanaan):
+  `startDate = SPMK`, `endDate = SPMK + durationDays`. Sebelum SPMK: jadwal
+  bentuk kurva-S tetap bisa dari `durationDays` (relatif), tapi pemetaan kalender
+  ("minggu berjalan") & laporan periodik belum aktif ("menunggu SPMK").
+- `contractDaysFor` & `masaPelaksanaanHari` kini dari `durationDays` (bukan
+  end−start). `getPeriodBounds` mengembalikan null bila SPMK belum terbit.
+  Backfill migrasi: `durationDays = end_date − start_date` utk kontrak lama.
+- **Lokasi + kecamatan**: `Location.district` (opsional) ditambah di form input
+  lokasi & tampil di alamat laporan KKP (`village, Kec. district, regency`).

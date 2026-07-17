@@ -164,6 +164,11 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
         contractValue,
         ppnPercent: 11,
         signedDate: new Date(dateOnly(first.meta.start_date).getTime() - 7 * DAY),
+        // Demo: lokasi sudah pelaksanaan → SPMK sudah terbit (start/end terisi).
+        durationDays: Math.max(
+          1,
+          Math.round((dateOnly(first.meta.end_date).getTime() - dateOnly(first.meta.start_date).getTime()) / DAY),
+        ),
         startDate: dateOnly(first.meta.start_date),
         endDate: dateOnly(first.meta.end_date),
         ppkName: "Ir. Bagus Setiawan, M.T.",

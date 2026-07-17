@@ -42,7 +42,7 @@ export function KkpPeriodReport({ r }: { r: PeriodReport }) {
       <div className="mt-3 grid grid-cols-1 gap-x-8 gap-y-0.5 sm:grid-cols-2">
         <KV k="Paket Pekerjaan" v={h.packageName} />
         <KV k="Masa Pelaksanaan" v={`${h.masaPelaksanaanHari} Hari Kalender`} />
-        <KV k="Lokasi" v={`${h.locationName} — ${h.village}, ${h.regency}, ${h.province}`} />
+        <KV k="Lokasi" v={`${h.locationName} — ${h.village}${h.district ? `, Kec. ${h.district}` : ""}, ${h.regency}, ${h.province}`} />
         <KV k="Nilai Kontrak" v={rupiahFmt.format(Number(h.contractValue))} />
         <KV k="Nomor Kontrak" v={h.contractNumber} />
         <KV k="Kontraktor Pelaksana" v={h.vendorName} />
