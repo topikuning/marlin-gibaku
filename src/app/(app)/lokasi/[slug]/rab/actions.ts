@@ -69,6 +69,40 @@ export async function discardDraftAction(_prev: RabActionState, formData: FormDa
   }
 }
 
+/**
+ * Hitung ulang kurva-S (baseline) dari revisi RAB aktif — versi baru (append-only,
+ * baseline lama jadi "digantikan"). Dipakai bila jadwal perlu disegarkan tanpa
+ * mengganti RAB. Realisasi tetap tersambung by lineage.
+ */
+export async function recalcBaselineAction(_prev: RabActionState, formData: FormData): Promise<RabActionState> {
+  const parsed = z.uuid().safeParse(formData.get("locationId"));
+  if (!parsed.success) return { error: "Lokasi tidak valid." };
+  try {
+    const user = await requireCapability("baseline.manage");
+    await requireLocationAccess(user, parsed.data);
+    const loc = await db.location.findUniqueOrThrow({
+      where: { id: parsed.data },
+      select: { slug: true },
+    });
+    const active = await db.rabRevision.findFirst({
+      where: { locationId: parsed.data, status: "aktif" },
+      select: { id: true },
+    });
+    if (!active) return { error: "Belum ada revisi RAB aktif — import RAB dulu." };
+    const baseline = await regenerateBaseline(parsed.data, {
+      source: "auto",
+      rabRevisionId: active.id,
+      note: "Hitung ulang kurva-S manual",
+      userId: user.id,
+    });
+    revalidateRab(loc.slug);
+    revalidatePath(`/lokasi/${loc.slug}/progress`);
+    return { success: `Kurva-S dihitung ulang — baseline #${baseline.baselineNo} aktif.` };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
 // ── Rencana mingguan ────────────────────────────────────────────────────────
 
 const DAY_MS = 24 * 3600 * 1000;

@@ -11,6 +11,7 @@ import { formatNumber, formatPct, formatRupiahShort, formatTanggal } from "@/lib
 import type { BaselineSource, RevisionStatus } from "@/generated/prisma/enums";
 import { requireLocationPage } from "../get-location";
 import { IssuesPanel, type IssueData } from "./issues-client";
+import { RecalcBaselineButton } from "./recalc-baseline";
 
 export const metadata: Metadata = { title: "Progress Lokasi" };
 export const dynamic = "force-dynamic";
@@ -38,6 +39,7 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
   const { user, location } = await requireLocationPage(slug);
   requireCapabilityPage(user.role, "progress.view");
   const canManageIssues = can(user.role, "issue.manage");
+  const canManageBaseline = can(user.role, "baseline.manage");
 
   const [series, realizedVol, issues, baselines] = await Promise.all([
     getScurveSeries(location.id),
@@ -149,7 +151,11 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
     <div className="space-y-4">
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <CardHeader title="Kurva-S" subtitle="Baseline aktif vs realisasi mingguan" />
+          <CardHeader
+            title="Kurva-S"
+            subtitle="Baseline aktif vs realisasi mingguan"
+            action={canManageBaseline ? <RecalcBaselineButton locationId={location.id} /> : undefined}
+          />
           <CardBody>
             <ScurveChart series={series} />
           </CardBody>
