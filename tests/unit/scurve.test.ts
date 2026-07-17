@@ -65,6 +65,25 @@ describe("classifyTrade", () => {
     expect(classifyTrade("Pekerjaan lain-lain", "PEKERJAAN ATAP DAN PLAFOND")).toBe("atap");
     expect(classifyTrade("Dokumentasi", "")).toBe("lainnya");
   });
+
+  it("kalibrasi korpus RAB NTB — item yang dulu 'lainnya'", () => {
+    // listrik/plumbing → mep
+    expect(classifyTrade("Pekerjaan Pemasangan MCB 2 Ampere", "")).toBe("mep");
+    expect(classifyTrade("Biaya Pasang Baru Daya 33 KVA", "PEKERJAAN PERSIAPAN")).toBe("mep");
+    expect(classifyTrade("Pasang Downlight Ø 5 Inch+ LED 9 watt", "")).toBe("mep");
+    expect(classifyTrade("Pekerjaan Pemasangan Closet Duduk", "")).toBe("mep");
+    expect(classifyTrade("Pekerjaan Pasang Kran Air Ø ½ Inch", "")).toBe("mep");
+    expect(classifyTrade("Pengadaan Tiang PJU 7 meter", "")).toBe("mep");
+    // alat berat & K3 → persiapan
+    expect(classifyTrade("Excavator", "PEKERJAAN PERSIAPAN")).toBe("persiapan");
+    expect(classifyTrade("Concrete Mixer Pump", "PEKERJAAN PERSIAPAN")).toBe("persiapan");
+    expect(classifyTrade("Peralatan P3K (Kotak P3K, Tandu)", "")).toBe("persiapan");
+    // reinforcement/anchor → struktur
+    expect(classifyTrade("Pekerjaan Gelar Wiremesh M8-150", "")).toBe("struktur");
+    expect(classifyTrade("Pekerjaan Pemasangan Dynabolt M8 x 100 mm", "")).toBe("struktur");
+    // hindari salah tebak: ACIAN tetap dinding (bukan 'AC'→mep)
+    expect(classifyTrade("Pekerjaan Acian dinding", "")).toBe("dinding");
+  });
 });
 
 describe("scheduleItems", () => {
