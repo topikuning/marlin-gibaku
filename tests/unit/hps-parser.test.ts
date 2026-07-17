@@ -1,6 +1,14 @@
 import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
 import { classifyRow, isSummaryRow, parseHpsBuffer } from "@/lib/rab/hps-parser";
+import { flattenParsedRab } from "@/lib/rab/flatten";
+
+async function xlsxFromRows(rows: (string | number | null)[][]): Promise<Buffer> {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet("RAB");
+  for (const r of rows) ws.addRow(r);
+  return Buffer.from((await wb.xlsx.writeBuffer()) as ArrayBuffer);
+}
 
 /**
  * Fixture xlsx dibuat in-memory via exceljs (round-trip writeBuffer → parse).
@@ -99,6 +107,45 @@ describe("helper classifyRow / isSummaryRow", () => {
     expect(isSummaryRow("Sub Total")).toBe(true);
     expect(isSummaryRow("TOTAL KESELURUHAN")).toBe(true);
     expect(isSummaryRow("Papan Nama Proyek")).toBe(false);
+  });
+});
+
+describe("kategori tanpa judul (mis. RAB_Nyamplung VIII) — infer dari sub-kode", () => {
+  it("sub-kode VIII.x setelah kategori VII → kategori VIII terpisah, VII tak menyerap", async () => {
+    const { parsed, warnings } = await parseHpsBuffer(
+      await xlsxFromRows([
+        ["VII", "PEKERJAAN KIOS", null, null, null, null, null, null, null],
+        ["VII.1", "Pekerjaan Struktural", null, null, null, null, null, null, null],
+        ["1", "Item VII", null, null, 1, "ls", 100, 100, 1],
+        // Kategori VIII TANPA baris judul — hanya lewat sub-kode:
+        ["VIII.3", "Pekerjaan Deep Well", null, null, null, null, null, null, null],
+        ["1", "Item VIII", null, null, 1, "ls", 900, 900, 1],
+      ]),
+    );
+    expect(parsed.categories.map((c) => c.roman)).toEqual(["VII", "VIII"]);
+    expect(Math.round(parsed.categories[0].total_value)).toBe(100); // VII tidak menyerap VIII
+    expect(Math.round(parsed.categories[1].total_value)).toBe(900);
+    expect(warnings.some((w) => /VIII.*judul/i.test(w))).toBe(true);
+  });
+});
+
+describe("kategori total 0 tidak masuk DB (flatten)", () => {
+  it("kategori bernilai 0 di-skip; kategori bernilai tetap masuk", async () => {
+    const { parsed } = await parseHpsBuffer(
+      await xlsxFromRows([
+        ["I", "PEKERJAAN PERSIAPAN", null, null, null, null, null, null, null],
+        ["1", "Item nyata", null, null, 1, "ls", 500000, 500000, 1],
+        ["II", "PEKERJAAN BANGUNAN SENTRA KULINER", null, null, null, null, null, null, null],
+        ["II.1", "Pekerjaan Kosong", null, null, null, null, null, null, null],
+        ["1", "Item tanpa nilai", null, null, null, null, null, null, null],
+      ]),
+    );
+    // Parser tetap melihat 2 kategori (I bernilai, II = 0)…
+    expect(parsed.categories.map((c) => c.roman)).toEqual(["I", "II"]);
+    expect(parsed.categories[1].total_value).toBe(0);
+    // …tapi flatten (yang dipakai import DB) hanya emit kategori bernilai.
+    const cats = flattenParsedRab(parsed).filter((n) => n.kind === "kategori");
+    expect(cats.map((c) => c.code)).toEqual(["I"]);
   });
 });
 

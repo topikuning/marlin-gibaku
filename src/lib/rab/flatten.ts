@@ -52,7 +52,8 @@ export function flattenParsedRab(parsed: ParsedRab): FlatNode[] {
   };
 
   // Kembalikan amount node yang baru ditambahkan (untuk rollup ke atas).
-  const walkItem = (it: ParsedRabItem, parentKey: string): bigint => {
+  // `sink` = buffer kategori berjalan (di-commit ke `out` hanya bila kategori bernilai).
+  const walkItem = (it: ParsedRabItem, parentKey: string, sink: FlatNode[]): bigint => {
     const { code, key } = dedup(parentKey, it.code);
     const isGrup = it.children.length > 0;
     const node: FlatNode = {
@@ -67,10 +68,10 @@ export function flattenParsedRab(parsed: ParsedRab): FlatNode[] {
       parentLineageKey: parentKey,
       sortOrder: sort++,
     };
-    out.push(node);
+    sink.push(node);
     if (isGrup) {
       let childSum = 0n;
-      for (const ch of it.children) childSum += walkItem(ch, key);
+      for (const ch of it.children) childSum += walkItem(ch, key, sink);
       // Semantik sumLeaves lama: kalau semua anak nihil, pakai total_price sendiri.
       node.amount = childSum > 0n ? childSum : BigInt(Math.round(it.total_price ?? 0));
     } else {
@@ -81,6 +82,7 @@ export function flattenParsedRab(parsed: ParsedRab): FlatNode[] {
 
   for (const cat of parsed.categories) {
     const { code: catCode, key: catKey } = dedup(null, cat.roman);
+    const catBuf: FlatNode[] = [];
     const catNode: FlatNode = {
       kind: "kategori",
       code: catCode,
@@ -93,12 +95,12 @@ export function flattenParsedRab(parsed: ParsedRab): FlatNode[] {
       parentLineageKey: null,
       sortOrder: sort++,
     };
-    out.push(catNode);
+    catBuf.push(catNode);
 
     let catSum = 0n;
 
     // direct_items dulu (urutan dokumen: item langsung sebelum subkategori)
-    for (const it of cat.direct_items) catSum += walkItem(it, catKey);
+    for (const it of cat.direct_items) catSum += walkItem(it, catKey, catBuf);
 
     for (const s of cat.subcategories) {
       const { code: subCode, key: subKey } = dedup(catKey, s.code);
@@ -114,14 +116,18 @@ export function flattenParsedRab(parsed: ParsedRab): FlatNode[] {
         parentLineageKey: catKey,
         sortOrder: sort++,
       };
-      out.push(subNode);
+      catBuf.push(subNode);
       let subSum = 0n;
-      for (const it of s.items) subSum += walkItem(it, subKey);
+      for (const it of s.items) subSum += walkItem(it, subKey, catBuf);
       subNode.amount = subSum;
       catSum += subSum;
     }
 
     catNode.amount = catSum;
+
+    // Kategori bernilai 0 (template kosong: mis. SENTRA KULINER, BALAI NELAYAN)
+    // TIDAK dimasukkan ke DB — tak ada pekerjaan di dalamnya.
+    if (catSum > 0n) out.push(...catBuf);
   }
 
   return out;

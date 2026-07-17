@@ -145,6 +145,35 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): {
     itemL2 = null;
   };
 
+  /** Prefix roman dari kode sub ("VIII.3.1" → "VIII"), atau null bila bukan roman. */
+  const romanPrefixOf = (code: string): string | null => {
+    const first = code.split(".")[0];
+    return isRoman(first) ? first : null;
+  };
+  /**
+   * Beberapa RAB (mis. RAB_Nyamplung) punya kategori TANPA baris judul —
+   * hanya muncul lewat sub-kode (VIII.1, VIII.3). Tanpa deteksi ini, sub-kode
+   * itu nyangkut ke kategori sebelumnya & menggelembungkan totalnya. Bila prefix
+   * roman sub ≠ kategori berjalan, buka kategori baru (judul placeholder + warning).
+   */
+  const openInferredCategory = (roman: string): void => {
+    cat = {
+      roman,
+      name: `PEKERJAAN (kategori ${roman} — judul tidak ada di file)`,
+      total_value: 0,
+      subcategories: [],
+      direct_items: [],
+    };
+    categories.push(cat);
+    sub = null;
+    itemL1 = null;
+    itemL2 = null;
+    subSeen = new Map();
+    warnings.push(
+      `Kategori ${roman} tidak punya baris judul di file — dibuat otomatis dari sub-kode ${roman}.x agar totalnya tidak tergabung ke kategori sebelumnya. Mohon lengkapi judul kategori ${roman}.`,
+    );
+  };
+
   ws.eachRow((row) => {
     const code = str(cellVal(row, 1));
     const name = nameOf(row);
@@ -174,6 +203,8 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): {
 
     // Subkategori (roman.num, nama diawali "Pekerjaan")
     if (SUBCODE.test(code) && /^Pekerjaan/i.test(name)) {
+      const rp = romanPrefixOf(code);
+      if (rp && cat && rp !== cat.roman) openInferredCategory(rp);
       pushSub(code, name);
       return;
     }
@@ -212,6 +243,8 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): {
 
     // Pola lain (mis. subkategori tanpa prefix "Pekerjaan") — coba tebak
     if (SUBCODE.test(code)) {
+      const rp = romanPrefixOf(code);
+      if (rp && cat && rp !== cat.roman) openInferredCategory(rp);
       pushSub(code, name);
     }
   });
