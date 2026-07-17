@@ -1,31 +1,75 @@
 "use client";
 
-import { useActionState } from "react";
+import { useState, useTransition } from "react";
 import { Banner, Button, HelpText, Input, Label, Textarea } from "@/components/ui";
 import { formatRupiah } from "@/lib/format";
 import { importHps, type ImportState } from "./actions";
 
 /**
- * Form impor 2 langkah dalam SATU form multipart:
- * langkah 1 pilih file → "Pratinjau" (tanpa simpan); langkah 2 form dikirim
- * ulang berikut file + hidden confirm=1 → simpan & aktifkan.
+ * Impor RAB 2 langkah tanpa perlu unggah ulang: file disimpan di STATE klien,
+ * jadi "Simpan" memakai file yang sama dgn pratinjau. Memilih file baru otomatis
+ * mereset ke mode Pratinjau (isi bisa berubah — jangan langsung simpan).
  */
 export function ImportForm({ locationId }: { locationId: string }) {
-  const [state, action, pending] = useActionState<ImportState, FormData>(importHps, undefined);
+  const [file, setFile] = useState<File | null>(null);
+  const [note, setNote] = useState("");
+  const [inputKey, setInputKey] = useState(0);
+  const [state, setState] = useState<ImportState>(undefined);
+  const [pending, startTransition] = useTransition();
   const preview = state?.preview;
 
+  function run(confirm: boolean) {
+    if (!file) {
+      setState({ error: "Pilih file HPS/RAB (.xlsx) dulu." });
+      return;
+    }
+    const fd = new FormData();
+    fd.set("locationId", locationId);
+    fd.set("file", file);
+    fd.set("note", note);
+    if (confirm && preview) {
+      fd.set("confirm", "1");
+      fd.set("previewSha", preview.sha256);
+    }
+    startTransition(async () => {
+      const res = await importHps(undefined, fd);
+      setState(res);
+      // Sukses simpan → bersihkan agar tidak tersimpan dobel.
+      if (res?.success) {
+        setFile(null);
+        setNote("");
+        setInputKey((k) => k + 1);
+      }
+    });
+  }
+
+  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setFile(e.target.files?.[0] ?? null);
+    // File baru → buang pratinjau lama; tombol kembali jadi "Pratinjau".
+    setState(undefined);
+  }
+
   return (
-    <form action={action} className="space-y-4">
+    <div className="space-y-4">
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
       {preview?.notice ? <Banner tone="warning" title={preview.notice} /> : null}
 
-      <input type="hidden" name="locationId" value={locationId} />
-
       <div>
         <Label htmlFor="hps-file" required>File HPS / RAB (.xlsx)</Label>
-        <Input id="hps-file" name="file" type="file" accept=".xlsx,.xls" required className="h-auto py-1.5" />
-        <HelpText>Sheet &quot;RAB&quot; dibaca otomatis. Maksimal 15 MB.</HelpText>
+        <Input
+          key={inputKey}
+          id="hps-file"
+          name="file"
+          type="file"
+          accept=".xlsx,.xls"
+          onChange={onFileChange}
+          className="h-auto py-1.5"
+        />
+        <HelpText>
+          Sheet &quot;RAB&quot; dibaca otomatis. Maksimal 15 MB.
+          {file ? <span className="font-medium text-ink"> · dipilih: {file.name}</span> : null}
+        </HelpText>
       </div>
 
       {preview ? (
@@ -100,25 +144,35 @@ export function ImportForm({ locationId }: { locationId: string }) {
 
           <div>
             <Label htmlFor="hps-note">Catatan revisi (opsional)</Label>
-            <Textarea id="hps-note" name="note" rows={2} maxLength={500} placeholder="mis. Adendum CCO-01, perubahan volume revetment" />
+            <Textarea
+              id="hps-note"
+              name="note"
+              rows={2}
+              maxLength={500}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="mis. Adendum CCO-01, perubahan volume revetment"
+            />
           </div>
-
-          {/* Langkah 2: kirim ulang file yang sama + confirm. sha256 dicek server. */}
-          <input type="hidden" name="confirm" value="1" />
-          <input type="hidden" name="previewSha" value={preview.sha256} />
         </div>
       ) : null}
 
-      <div className="flex items-center gap-2">
-        <Button type="submit" loading={pending}>
-          {preview ? "Simpan & aktifkan revisi" : "Pratinjau"}
-        </Button>
+      <div className="flex flex-wrap items-center gap-2">
         {preview ? (
-          <HelpText className="mt-0">
-            Ganti file? Pilih file baru lalu klik simpan — sistem otomatis menampilkan pratinjau ulang.
-          </HelpText>
-        ) : null}
+          <>
+            <Button type="button" loading={pending} onClick={() => run(true)}>
+              Simpan &amp; aktifkan revisi
+            </Button>
+            <Button type="button" variant="secondary" loading={pending} onClick={() => run(false)}>
+              Pratinjau ulang
+            </Button>
+          </>
+        ) : (
+          <Button type="button" loading={pending} disabled={!file} onClick={() => run(false)}>
+            Pratinjau
+          </Button>
+        )}
       </div>
-    </form>
+    </div>
   );
 }
