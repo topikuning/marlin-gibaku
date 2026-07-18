@@ -9,202 +9,207 @@
   "5704ec56-RAB_KNMP_PENYANGGA_DESA_SUGIAN_NTB.xlsx",
   "54a20407-07_HPS_BosoleTulungagungJawa_Timur_Penyangga.xlsx",
   "8ad93474-07_HPS_JunganyarBangkalanJawa_Timur_DOP_Penyangga.xlsx",
-  "bb82bb97-07_HPS_KedungrejoBanyuwangiJawa_Timur_PenyanggaCS.xlsx"
+  "bb82bb97-07_HPS_KedungrejoBanyuwangiJawa_Timur_PenyanggaCS.xlsx",
+  "112881a0-07_HPS_TegalsariKota_TegalJawa_Tengah_PenyanggaCS.xlsx",
+  "c5f6232a-07_HPS_UjungwatuJeparaJawa_Tengah_Penyangga.xlsx",
+  "4f5de1fa-07_HPS_KemantrenLamonganJawa_Timur_HUBR1.xlsx",
+  "fc4625ed-07_HPS_Batah_TimurBangkalanJawa_Timur_Penyangga.xlsx",
+  "7d2cd513-07_HPS_TengketBangkalanJawa_Timur_HUB.xlsx"
  ],
  "items": {
   "BUAT BEDENG PEKERJA DAN GUDANG": {
-   "count": 10,
-   "value": 713082540,
+   "count": 15,
+   "value": 1106780286,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "PEKERJAAN SEWA RUMAH UNTUK DIREKSI KEETZ": {
-   "count": 10,
-   "value": 150000000,
+   "count": 15,
+   "value": 212500000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "PAPAN NAMA PROYEK": {
-   "count": 10,
-   "value": 17331769,
+   "count": 15,
+   "value": 26263528,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "LISTRIK KERJA": {
-   "count": 10,
-   "value": 60000000,
+   "count": 15,
+   "value": 85000000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "PEKERJAAN PAGAR SEMENTARA": {
-   "count": 10,
-   "value": 440692869,
+   "count": 15,
+   "value": 716177647,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "PEMBUATAN MANUAL, PROSEDUR, INSTRUKSI KERJA, IJIN KERJA DAN FORMULIR": {
-   "count": 10,
-   "value": 20000000,
+   "count": 15,
+   "value": 30000000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "PEMBUATAN KARTU IDENTITAS PEKERJA (KIP)": {
-   "count": 10,
-   "value": 3500000,
+   "count": 15,
+   "value": 5670000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "INDUKSI K3 (SAFETY INDUCTION) ; KHUSUS UNTUK PEKERJA BARU": {
-   "count": 10,
-   "value": 3750000,
+   "count": 15,
+   "value": 6075000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "PENGARAHAN K3 (SAFETY BRIEFING) :": {
-   "count": 10,
-   "value": 1650000,
+   "count": 15,
+   "value": 3975000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "PEMBATAS AREA (RESTRICTED AREA)": {
-   "count": 10,
-   "value": 1170000,
+   "count": 15,
+   "value": 1755000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "TOPI PELINDUNG (SAFETY HELMET)": {
-   "count": 10,
-   "value": 37500000,
+   "count": 15,
+   "value": 60750000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "PELINDUNG PERNAPASAN DAN MULUT (MASKER)": {
-   "count": 10,
-   "value": 2500000,
+   "count": 15,
+   "value": 4050000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "SARUNG TANGAN (SAFETY GLOVES)": {
-   "count": 10,
-   "value": 2500000,
+   "count": 15,
+   "value": 4050000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "SEPATU KESELAMATAN (RUBBER SAFETY SHOES AND TOE CAP)": {
-   "count": 10,
-   "value": 72500000,
+   "count": 15,
+   "value": 117450000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "ROMPI KESELAMATAN ( SAFETY VEST)": {
-   "count": 10,
-   "value": 12500000,
+   "count": 15,
+   "value": 20250000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "BPJS KETENAGAKERJAAN DAN KESEHATAN KERJA ; (BERDASARKAN KEPMENAKER NOM": {
-   "count": 10,
-   "value": 200000000,
+   "count": 15,
+   "value": 300000000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "PETUGAS K3": {
-   "count": 10,
-   "value": 420000000,
+   "count": 15,
+   "value": 595000000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "PERALATAN P3K (KOTAK P3K, TANDU, TABUNG OKSIGEN, OBAT LUKA, PERBAN, DL": {
-   "count": 10,
-   "value": 55000000,
+   "count": 15,
+   "value": 82500000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "RAMBU PETUNJUK": {
-   "count": 10,
-   "value": 3750000,
+   "count": 15,
+   "value": 5625000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "RAMBU LARANGAN": {
-   "count": 10,
-   "value": 1500000,
+   "count": 15,
+   "value": 2250000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "RAMBU PERINGATAN": {
-   "count": 10,
-   "value": 3750000,
+   "count": 15,
+   "value": 5625000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "RAMBU KEWAJIBAN": {
-   "count": 10,
-   "value": 3750000,
+   "count": 15,
+   "value": 5625000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "ALAT PEMADAM API RINGAN (APAR) ; 3 KG": {
-   "count": 10,
-   "value": 14300000,
+   "count": 15,
+   "value": 21450000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "BENDERA K3": {
-   "count": 10,
-   "value": 816000,
+   "count": 15,
+   "value": 1224000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "JALUR EVAKUASI (ESCAPE ROUTE)": {
-   "count": 10,
-   "value": 15000000,
-   "cat": "PEKERJAAN PERSIAPAN"
-  },
-  "LAMPU DARURAT (EMERGENCY LAMP)": {
-   "count": 10,
-   "value": 1400000,
-   "cat": "PEKERJAAN PERSIAPAN"
-  },
-  "PELAPORAN K3 DAN PROGRAM INSPEKSI": {
-   "count": 10,
-   "value": 25000000,
-   "cat": "PEKERJAAN PERSIAPAN"
-  },
-  "PEKERJAAN PEMBERSIHAN LOKASI DARI POHON DAN RUMPUT (LAND CLEARING)": {
-   "count": 10,
-   "value": 44858548,
-   "cat": "PEKERJAAN PERSIAPAN"
-  },
-  "PEKERJAAN STAKE OUT POSISI TRASE SALURAN/INFRASTRUKTUR": {
-   "count": 10,
-   "value": 22847476,
-   "cat": "PEKERJAAN PERSIAPAN"
-  },
-  "PEKERJAAN SONDIR TERMASUK PELAPORAN TERMASUK MOBILISASI ALAT DAN PERSO": {
-   "count": 10,
-   "value": 380983500,
-   "cat": "PEKERJAAN PERSIAPAN"
-  },
-  "BULLDOZER": {
-   "count": 9,
-   "value": 67500000,
-   "cat": "PEKERJAAN PERSIAPAN"
-  },
-  "ROLLER VIBRATOR 12 TON": {
-   "count": 9,
-   "value": 67500000,
-   "cat": "PEKERJAAN PERSIAPAN"
-  },
-  "EXCAVATOR": {
-   "count": 10,
-   "value": 75000000,
-   "cat": "PEKERJAAN PERSIAPAN"
-  },
-  "CONCRETE MIXER 0,35 M³": {
-   "count": 10,
-   "value": 50000000,
-   "cat": "PEKERJAAN PERSIAPAN"
-  },
-  "CONCRETE MIXER PUMP": {
-   "count": 10,
-   "value": 100000000,
-   "cat": "PEKERJAAN PERSIAPAN"
-  },
-  "STAMPER": {
-   "count": 9,
-   "value": 13500000,
-   "cat": "PEKERJAAN PERSIAPAN"
-  },
-  "MESIN LAS": {
-   "count": 10,
+   "count": 15,
    "value": 22500000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
+  "LAMPU DARURAT (EMERGENCY LAMP)": {
+   "count": 15,
+   "value": 2100000,
+   "cat": "PEKERJAAN PERSIAPAN"
+  },
+  "PELAPORAN K3 DAN PROGRAM INSPEKSI": {
+   "count": 15,
+   "value": 37500000,
+   "cat": "PEKERJAAN PERSIAPAN"
+  },
+  "PEKERJAAN PEMBERSIHAN LOKASI DARI POHON DAN RUMPUT (LAND CLEARING)": {
+   "count": 15,
+   "value": 156554142,
+   "cat": "PEKERJAAN PERSIAPAN"
+  },
+  "PEKERJAAN STAKE OUT POSISI TRASE SALURAN/INFRASTRUKTUR": {
+   "count": 15,
+   "value": 79279852,
+   "cat": "PEKERJAAN PERSIAPAN"
+  },
+  "PEKERJAAN SONDIR TERMASUK PELAPORAN TERMASUK MOBILISASI ALAT DAN PERSO": {
+   "count": 15,
+   "value": 571475250,
+   "cat": "PEKERJAAN PERSIAPAN"
+  },
+  "BULLDOZER": {
+   "count": 14,
+   "value": 120000000,
+   "cat": "PEKERJAAN PERSIAPAN"
+  },
+  "ROLLER VIBRATOR 12 TON": {
+   "count": 14,
+   "value": 105000000,
+   "cat": "PEKERJAAN PERSIAPAN"
+  },
+  "EXCAVATOR": {
+   "count": 15,
+   "value": 112500000,
+   "cat": "PEKERJAAN PERSIAPAN"
+  },
+  "CONCRETE MIXER 0,35 M³": {
+   "count": 15,
+   "value": 85000000,
+   "cat": "PEKERJAAN PERSIAPAN"
+  },
+  "CONCRETE MIXER PUMP": {
+   "count": 15,
+   "value": 150000000,
+   "cat": "PEKERJAAN PERSIAPAN"
+  },
+  "STAMPER": {
+   "count": 14,
+   "value": 23000000,
+   "cat": "PEKERJAAN PERSIAPAN"
+  },
+  "MESIN LAS": {
+   "count": 15,
+   "value": 36750000,
+   "cat": "PEKERJAAN PERSIAPAN"
+  },
   "PENDAFTARAN NIDI + SLO DAYA 23 KVA": {
-   "count": 10,
-   "value": 26000000,
+   "count": 15,
+   "value": 39000000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "BIAYA PASANG BARU DAYA 23 KVA": {
-   "count": 10,
-   "value": 235000000,
+   "count": 15,
+   "value": 352500000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "PENDAFTARAN NIDI + SLO DAYA 33 KVA": {
@@ -223,38 +228,38 @@
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "PEKERJAAN GALIAN TANAH S/D 1 M": {
-   "count": 145,
-   "value": 143751800,
+   "count": 220,
+   "value": 221917932,
    "cat": "PEKERJAAN REVETMENT"
   },
   "PEKERJAAN BATU KOSONG (AANSTAMPING)": {
-   "count": 10,
-   "value": 166322189,
+   "count": 12,
+   "value": 223240759,
    "cat": "PEKERJAAN REVETMENT"
   },
   "PEKERJAAN BATU BELAH 1 : 2": {
-   "count": 10,
-   "value": 767554911,
+   "count": 15,
+   "value": 1332921204,
    "cat": "PEKERJAAN REVETMENT"
   },
   "PEKERJAAN BEKESTING TANGGA": {
-   "count": 20,
-   "value": 70301228,
+   "count": 30,
+   "value": 122858095,
    "cat": "PEKERJAAN REVETMENT"
   },
   "PEMBESIAN BESI BETON D13-150 MM SECARA SEMI MEKANIS": {
-   "count": 30,
-   "value": 212723191,
+   "count": 45,
+   "value": 312941977,
    "cat": "PEKERJAAN REVETMENT"
   },
   "PEMBESIAN BESI BETON D10-100 MM": {
-   "count": 17,
-   "value": 49804796,
+   "count": 22,
+   "value": 51511103,
    "cat": "PEKERJAAN REVETMENT"
   },
   "PEKERJAAN BETON SEMI MEKANIS SETARA FC = 25": {
-   "count": 371,
-   "value": 3893930453,
+   "count": 541,
+   "value": 5840043890,
    "cat": "PEKERJAAN REVETMENT"
   },
   "PEMBESIAN BESI BETON D13 MM SECARA SEMI MEKANIS": {
@@ -268,53 +273,53 @@
    "cat": "PEKERJAAN REVETMENT"
   },
   "PEKERJAAN ACIAN": {
-   "count": 244,
-   "value": 425176101,
+   "count": 371,
+   "value": 651515523,
    "cat": "PEKERJAAN REVETMENT"
   },
   "PEKERJAAN SKONENGAN": {
-   "count": 30,
-   "value": 283720260,
+   "count": 45,
+   "value": 458956707,
    "cat": "PEKERJAAN REVETMENT"
   },
   "PEKERJAAN KAYU BEKESTING SLOOF": {
-   "count": 288,
-   "value": 1200371711,
+   "count": 438,
+   "value": 1959109871,
    "cat": "PEKERJAAN REVETMENT"
   },
   "PEKERJAAN CERUCUK KAYU DOLKEN Ø 6 - 8 CM": {
-   "count": 133,
-   "value": 1140602103,
+   "count": 203,
+   "value": 2091405197,
    "cat": "PEKERJAAN REVETMENT"
   },
   "PEKERJAAN KAYU BEKESTING PONDASI": {
-   "count": 30,
-   "value": 94532211,
+   "count": 45,
+   "value": 179102862,
    "cat": "PEKERJAAN REVETMENT"
   },
   "PEKERJAAN GALIAN TANAH SAMPAI DENGAN 1 M": {
-   "count": 68,
-   "value": 73206063,
+   "count": 103,
+   "value": 122263388,
    "cat": "PEKERJAAN REVETMENT"
   },
   "PEKERJAAN PEMBESIAN BESI BETON D 13 MM - 150": {
-   "count": 40,
-   "value": 1064190983,
+   "count": 60,
+   "value": 1660330248,
    "cat": "PEKERJAAN REVETMENT"
   },
   "PEKERJAAN PEMBESIAN BESI BETON D 10 MM - 150": {
-   "count": 29,
-   "value": 320834334,
+   "count": 44,
+   "value": 465904815,
    "cat": "PEKERJAAN REVETMENT"
   },
   "PEKERJAAN PEMADATAN BETON DENGAN VIBRATOR": {
-   "count": 287,
-   "value": 98958566,
+   "count": 412,
+   "value": 161932248,
    "cat": "PEKERJAAN REVETMENT"
   },
   "PEKERJAAN BEKESTING DINDING 5 KALI PAKAI (2 SISI)": {
-   "count": 20,
-   "value": 493160599,
+   "count": 30,
+   "value": 942951861,
    "cat": "PEKERJAAN REVETMENT"
   },
   "PEK. PEMBESIAN BESI BETON D 13 MM - 150 (VERTIKAL)": {
@@ -323,8 +328,8 @@
    "cat": "PEKERJAAN REVETMENT"
   },
   "PEK. PEMBESIAN BESI BETON D 10 MM - 200 (HORISONTAL)": {
-   "count": 20,
-   "value": 204333130,
+   "count": 30,
+   "value": 276547524,
    "cat": "PEKERJAAN REVETMENT"
   },
   "JUMLAHPEK. :": {
@@ -333,33 +338,33 @@
    "cat": "PEKERJAAN REVETMENT"
   },
   "PEKERJAAN PERANCAH UNTUK JALAN KERJA TAMBATAN PERAHU (BADAN KONTRUKSI ": {
-   "count": 9,
-   "value": 616878440,
+   "count": 14,
+   "value": 941416258,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEKERJAAN BONGKARAN PERANCAH": {
-   "count": 17,
-   "value": 170000000,
+   "count": 22,
+   "value": 220000000,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEKERJAAN BEKESTING PONDASI": {
-   "count": 26,
-   "value": 392716109,
+   "count": 36,
+   "value": 540857103,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEMBESIAN BESI BETON D10 MM": {
-   "count": 22,
-   "value": 167068701,
+   "count": 27,
+   "value": 170578569,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEKERJAAN PANCANG KAYU DOLKEN": {
-   "count": 17,
-   "value": 1056050400,
+   "count": 22,
+   "value": 1481047116,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEKERJAAN BEKESTING KOLOM": {
-   "count": 194,
-   "value": 1250477555,
+   "count": 289,
+   "value": 1763031524,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEMBESIAN BESI BETON 8 D 10 MM TERMASUK STEK": {
@@ -368,43 +373,43 @@
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEMBESIAN BESI BETON Ø 8 MM - 150": {
-   "count": 26,
-   "value": 93215460,
+   "count": 36,
+   "value": 114835269,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEKERJAAN DEMOBILISASI KOLOM DAN TAPAK PRECAST TERMASUK PASANG PENYOKO": {
-   "count": 26,
-   "value": 287067665,
+   "count": 36,
+   "value": 386140426,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEKERJAAN BEKESTING BALOK": {
-   "count": 317,
-   "value": 1953321891,
+   "count": 467,
+   "value": 2812154610,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEMBESIAN BESI BETON 8 D 10 MM": {
-   "count": 64,
-   "value": 501529764,
+   "count": 69,
+   "value": 503557881,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEMBESIAN BESI BETON Ø 8 MM - 100/150": {
-   "count": 167,
-   "value": 442040961,
+   "count": 242,
+   "value": 580206599,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEKERJAAN LANGSIR COR": {
-   "count": 170,
-   "value": 618331320,
+   "count": 245,
+   "value": 867853565,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEKERJAAN BEKESTING LANTAI": {
-   "count": 86,
-   "value": 1302781271,
+   "count": 126,
+   "value": 1868940055,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEMBESIAN BESI BETON D 10 MM - 200": {
-   "count": 17,
-   "value": 348235899,
+   "count": 22,
+   "value": 448116525,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEMBESIAN BESI BETON Ø 6 MM - 100": {
@@ -413,13 +418,13 @@
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "CAT UMPAK TIANG LAMPU": {
-   "count": 10,
-   "value": 6573163,
+   "count": 15,
+   "value": 8987541,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEMBESIAN BESI BETON D 25 MM SECARA SEMI MEKANIS": {
-   "count": 9,
-   "value": 1272368,
+   "count": 14,
+   "value": 1761951,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEMBESIAN BESI BETON 5 D 10 MM": {
@@ -428,28 +433,28 @@
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEMBESIAN BESI BETON Ø 8 MM - 100": {
-   "count": 33,
-   "value": 97770390,
+   "count": 53,
+   "value": 132423918,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "CAT BOLLARD": {
-   "count": 9,
-   "value": 2464042,
+   "count": 14,
+   "value": 3415358,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEMBESIAN BESI BETON 4 D 10 MM": {
-   "count": 34,
-   "value": 99115251,
+   "count": 54,
+   "value": 142167475,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEKERJAAN CAT LUAR KANSTIN (SEALER+WEATHER SHIELD) EX. JOTUN": {
-   "count": 26,
-   "value": 51601729,
+   "count": 36,
+   "value": 68577817,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEKERJAAN PERANCAH UNTUK JALAN KERJA TANGGA PENDARATAN": {
-   "count": 9,
-   "value": 190963359,
+   "count": 14,
+   "value": 296029560,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEMBESIAN BESI BETON D 10 MM": {
@@ -458,203 +463,203 @@
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "CERUCUK DOLKEN": {
-   "count": 9,
-   "value": 81329273,
+   "count": 14,
+   "value": 131328885,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEMBESIAN BESI BETON D 10 - 200 MM": {
-   "count": 9,
-   "value": 46058864,
+   "count": 14,
+   "value": 63339373,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEKERJAAN KAYU BEKESTING LANTAI": {
-   "count": 62,
-   "value": 290847054,
+   "count": 97,
+   "value": 533466069,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEKERJAAN PEMBESIAN BESI BETON D10 - 200": {
-   "count": 9,
-   "value": 95624569,
+   "count": 14,
+   "value": 131501291,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEKERJAAN KAYU BEKESTING TANGGA": {
-   "count": 9,
-   "value": 47934285,
+   "count": 14,
+   "value": 75668137,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEKERJAAN PEMBESIAN BESI BETON D10 - 100": {
-   "count": 9,
-   "value": 176418838,
+   "count": 14,
+   "value": 242608205,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEKERJAAN BOUWPLANK DAN UITZET": {
-   "count": 172,
-   "value": 765609090,
+   "count": 262,
+   "value": 1215649201,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN URUGAN PASIR T = 7 CM": {
-   "count": 157,
-   "value": 51094530,
+   "count": 242,
+   "value": 87985272,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN LANTAI KERJA T = 3 CM": {
-   "count": 128,
-   "value": 103000842,
+   "count": 198,
+   "value": 158549141,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN BEKESTING PASANGAN BATAKO": {
-   "count": 121,
-   "value": 217332989,
+   "count": 191,
+   "value": 330193295,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN PEMBESIAN BESI BETON D10 MM - 150": {
-   "count": 28,
-   "value": 28320322,
+   "count": 43,
+   "value": 41125686,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN BETON SEMI MEKANIS SETARA FC = 20": {
-   "count": 641,
-   "value": 1477598693,
+   "count": 1002,
+   "value": 2372042471,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN GALIAN TANAH KERAS S.D 1 M": {
-   "count": 29,
-   "value": 31123595,
+   "count": 44,
+   "value": 51037049,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN PANCANG CERUCUK DOLKEN": {
-   "count": 52,
-   "value": 1246690167,
+   "count": 82,
+   "value": 2027934128,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN URUGAN PASIR URUG T = 7 CM": {
-   "count": 77,
-   "value": 71610714,
+   "count": 117,
+   "value": 116396045,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN PONDASI BATU BELAH 1 : 5": {
-   "count": 85,
-   "value": 1900434534,
+   "count": 130,
+   "value": 3067946159,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN ANGKUR SLOOF KE PONDASI BATU KALI": {
-   "count": 143,
-   "value": 211232971,
+   "count": 218,
+   "value": 283851354,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN PEMBESIAN BESI BETON 5 D 10 MM": {
-   "count": 245,
-   "value": 394638226,
+   "count": 372,
+   "value": 533356780,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN PEMBESIAN BESI BETON Ø 8 MM - 100/150": {
-   "count": 327,
-   "value": 324458200,
+   "count": 496,
+   "value": 438065617,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN URUGAN TANAH URUG": {
-   "count": 159,
-   "value": 352442882,
+   "count": 239,
+   "value": 496073213,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN PEMADATAN TANAH URUG": {
-   "count": 177,
-   "value": 91148515,
+   "count": 272,
+   "value": 135955257,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN URUGAN PASIR T = 5 CM": {
-   "count": 164,
-   "value": 118100077,
+   "count": 249,
+   "value": 191798117,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN RABAT BETON T = 7 CM": {
-   "count": 108,
-   "value": 150468740,
+   "count": 163,
+   "value": 240907652,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN KAYU BEKESTING KOLOM": {
-   "count": 238,
-   "value": 892966682,
+   "count": 363,
+   "value": 1380363748,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN PEMBESIAN BESI BETON 8 D 10 MM": {
-   "count": 95,
-   "value": 195258370,
+   "count": 145,
+   "value": 262875086,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN PEMBESIAN BESI BETON Ø 8 MM - 150": {
-   "count": 135,
-   "value": 128415159,
+   "count": 205,
+   "value": 162206539,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN KAYU BEKESTING BALOK": {
-   "count": 199,
-   "value": 617972515,
+   "count": 315,
+   "value": 1002223744,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN PEMBESIAN BESI BETON 4 D 10": {
-   "count": 73,
-   "value": 77274389,
+   "count": 115,
+   "value": 107625155,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN PEMBESIAN BESI BETON Ø 8 - 100/150": {
-   "count": 226,
-   "value": 289643482,
+   "count": 341,
+   "value": 388273635,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN BETON SITE MIX SETARA FC = 20": {
-   "count": 513,
-   "value": 1346227014,
+   "count": 773,
+   "value": 2040409728,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN PEMBESIAN BESI BETON 4 D 10 MM": {
-   "count": 164,
-   "value": 86607817,
+   "count": 256,
+   "value": 119344430,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN ACIAN BETON": {
-   "count": 60,
-   "value": 205659599,
+   "count": 90,
+   "value": 322010029,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN DINDING SOPI-SOPI GRC": {
-   "count": 90,
-   "value": 50277092,
+   "count": 135,
+   "value": 81687986,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN GALIAN TANAH": {
-   "count": 124,
-   "value": 10397414,
+   "count": 189,
+   "value": 15859039,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN PONDASI ROLAAG BATA": {
-   "count": 107,
-   "value": 137453179,
+   "count": 162,
+   "value": 212102718,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN URUGAN TANAH": {
-   "count": 60,
-   "value": 10509427,
+   "count": 90,
+   "value": 16075839,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN URUGAN PASIR T = 3 CM": {
-   "count": 97,
-   "value": 38522144,
+   "count": 147,
+   "value": 61956516,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN PLESTERAN DINDING SAMPING TRAP": {
-   "count": 69,
-   "value": 11343388,
+   "count": 104,
+   "value": 18019923,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN PEMASANGAN ATAP PELANA RANGKA ATAP BAJA RINGAN (CANAI DINGIN": {
-   "count": 40,
-   "value": 392421463,
+   "count": 60,
+   "value": 888727209,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN PEMASANGAN RENG BAJA RINGAN R32 T = 0,45 MM (AZ 100)": {
-   "count": 50,
-   "value": 158982455,
+   "count": 75,
+   "value": 246192040,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN PEMASANGAN ATAP SPANDEK BERPASIR T = 0,30": {
@@ -663,8 +668,8 @@
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN PEMASANGAN NOK SPANDEK BERPASIR": {
-   "count": 50,
-   "value": 117914676,
+   "count": 75,
+   "value": 169909123,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN PLAFOND GRC T = 6 MM,TERMASUK RANGKA BESI HOLLOW GALVANIS 40": {
@@ -673,48 +678,48 @@
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN DINDING GRC MOTIF LOKAL FINISHING CAT TERMASUK DUDUKAN BESI ": {
-   "count": 70,
-   "value": 424060009,
+   "count": 105,
+   "value": 638143462,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN CAT DINDING LUAR (SEALER+EXTREME JOTUN)": {
-   "count": 40,
-   "value": 339064945,
+   "count": 60,
+   "value": 470302805,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN PENGECATAN PLAFOND": {
-   "count": 70,
-   "value": 202006803,
+   "count": 105,
+   "value": 306173570,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN LISTPLANK GRC L = 30 CM, T = 8 MM": {
-   "count": 110,
-   "value": 567313812,
+   "count": 165,
+   "value": 832230160,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PENGECATAN LISTPLANK GRC (WHEATERSHIELD)": {
-   "count": 60,
-   "value": 50900998,
+   "count": 90,
+   "value": 69099859,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEK. LOGO KKP PLATE GALVANIS FINISH CAT DUCO DIA.40 CM": {
-   "count": 70,
-   "value": 149799489,
+   "count": 105,
+   "value": 224862855,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN HURUF TIMBUL PLATE GALVANIS FINISH CAT DUCO, SHELTER PENDARA": {
-   "count": 10,
-   "value": 21010500,
+   "count": 15,
+   "value": 31515750,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN INSTALASI PENERANGAN NYM 2 X 1 ½ MM²": {
-   "count": 60,
-   "value": 144978717,
+   "count": 90,
+   "value": 228322004,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "INSTALASI STOP KONTAK, KABEL NYM 2 X 2 ½ MM²": {
-   "count": 30,
-   "value": 37265876,
+   "count": 45,
+   "value": 61437388,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PASANG SAKLAR TUNGGAL": {
@@ -723,98 +728,98 @@
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PASANG STOP KONTAK": {
-   "count": 20,
-   "value": 2816522,
+   "count": 30,
+   "value": 4633172,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN PASANG LAMPU DOWNLIGHT 5 INCH LED 9 WATT": {
-   "count": 10,
-   "value": 8685893,
+   "count": 15,
+   "value": 16592374,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN BOX PANEL LISTRIK (MCB) 4 GROUP": {
-   "count": 60,
-   "value": 51246942,
+   "count": 90,
+   "value": 76342134,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN GALIAN TANAH BIASA SEDALAM 1-2 M": {
-   "count": 9,
-   "value": 135620473,
+   "count": 14,
+   "value": 214288504,
    "cat": "PEKERJAAN PONDASI GUDANG BEKU PORTABLE"
   },
   "PEKERJAAN AANSTAMPING/ BATU KOSONG": {
-   "count": 18,
-   "value": 153689448,
+   "count": 28,
+   "value": 269636300,
    "cat": "PEKERJAAN PONDASI GUDANG BEKU PORTABLE"
   },
   "PEKERJAAN URUGAN TANAH KEMBALI": {
-   "count": 48,
-   "value": 73187123,
+   "count": 78,
+   "value": 122007335,
    "cat": "PEKERJAAN PONDASI GUDANG BEKU PORTABLE"
   },
   "PEKERJAAN PLESTERAN": {
-   "count": 140,
-   "value": 549360474,
+   "count": 217,
+   "value": 841571580,
    "cat": "PEKERJAAN PONDASI GUDANG BEKU PORTABLE"
   },
   "PEKERJAAN GALIAN TANAH BIASA SEDALAM 1 M": {
-   "count": 9,
-   "value": 1750786,
+   "count": 14,
+   "value": 2759799,
    "cat": "PEKERJAAN PONDASI GUDANG BEKU PORTABLE"
   },
   "PEKERJAAN PEMBESIAN BESI BETON TULANGAN UTAMA": {
-   "count": 27,
-   "value": 130771163,
+   "count": 42,
+   "value": 197331363,
    "cat": "PEKERJAAN PONDASI GUDANG BEKU PORTABLE"
   },
   "PEKERJAAN PEMBESIAN BESI BETON SENGKANG": {
-   "count": 27,
-   "value": 64751833,
+   "count": 42,
+   "value": 92463901,
    "cat": "PEKERJAAN PONDASI GUDANG BEKU PORTABLE"
   },
   "PEKERJAAN URUGAN PASIR": {
-   "count": 28,
-   "value": 53425257,
+   "count": 43,
+   "value": 89701829,
    "cat": "PEKERJAAN PONDASI GUDANG BEKU PORTABLE"
   },
   "PEKERJAAN LANTAI KERJA": {
-   "count": 18,
-   "value": 102076781,
+   "count": 28,
+   "value": 162648166,
    "cat": "PEKERJAAN PONDASI GUDANG BEKU PORTABLE"
   },
   "PEKERJAAN PEMBESIAN PLAT LANTAI BESI BETON D10 - 150": {
-   "count": 19,
-   "value": 382353576,
+   "count": 29,
+   "value": 517975716,
    "cat": "PEKERJAAN PONDASI GUDANG BEKU PORTABLE"
   },
   "PEKERJAAN ROOLAG BATA": {
-   "count": 20,
-   "value": 12881836,
+   "count": 30,
+   "value": 19262131,
    "cat": "PEKERJAAN PONDASI GUDANG BEKU PORTABLE"
   },
   "PEKERJAAN SCREEDING LANTAI BETON": {
-   "count": 50,
-   "value": 109086534,
+   "count": 75,
+   "value": 165869329,
    "cat": "PEKERJAAN PONDASI GUDANG BEKU PORTABLE"
   },
   "PEKERJAAN GALIAN TANAH KERAS SEDALAM 1 M": {
-   "count": 9,
-   "value": 28987928,
+   "count": 14,
+   "value": 48448929,
    "cat": "PEKERJAAN (kategori IV — judul tidak ada di file)"
   },
   "PEKERJAAN PEMBESIAN BESI LANTAI": {
-   "count": 9,
-   "value": 183665380,
+   "count": 14,
+   "value": 248244114,
    "cat": "PEKERJAAN (kategori IV — judul tidak ada di file)"
   },
   "PEKERJAAN GALIAN TANAH SEDALAM 1 S/D 2 M": {
-   "count": 10,
-   "value": 18521776,
+   "count": 15,
+   "value": 28179857,
    "cat": "PEKERJAAN (kategori IV — judul tidak ada di file)"
   },
   "PEKERJAAN LANTAI KERJA T = 5 CM": {
-   "count": 189,
-   "value": 659697445,
+   "count": 294,
+   "value": 1194450783,
    "cat": "PEKERJAAN (kategori IV — judul tidak ada di file)"
   },
   "PEMBESIAN BESI BETON Ø 6 MM - 150": {
@@ -823,738 +828,738 @@
    "cat": "PEKERJAAN (kategori IV — judul tidak ada di file)"
   },
   "PEKERJAAN BEKESTING DINDING": {
-   "count": 10,
-   "value": 79484982,
+   "count": 15,
+   "value": 120846138,
    "cat": "PEKERJAAN (kategori IV — judul tidak ada di file)"
   },
   "PEKERJAAN PEMBESIAN BESI BETON D10 - 150": {
-   "count": 58,
-   "value": 55309660,
+   "count": 88,
+   "value": 74262399,
    "cat": "PEKERJAAN (kategori IV — judul tidak ada di file)"
   },
   "PEKERJAAN PEMBESIAN BESI BETON Ø 6 MM - 150": {
-   "count": 36,
-   "value": 4848037,
+   "count": 61,
+   "value": 7301545,
    "cat": "PEKERJAAN (kategori IV — judul tidak ada di file)"
   },
   "PEKERJAAN PEMBESIAN BESI BETON Ø 8 MM (KUPINGAN)": {
-   "count": 10,
-   "value": 57119,
+   "count": 15,
+   "value": 76096,
    "cat": "PEKERJAAN (kategori IV — judul tidak ada di file)"
   },
   "PEKERJAAN WATERPROOFING COATING EX.NO DROP ANTI PANAS": {
-   "count": 10,
-   "value": 39588455,
+   "count": 15,
+   "value": 59609178,
    "cat": "PEKERJAAN (kategori IV — judul tidak ada di file)"
   },
   "PEKERJAAN PVC WATERSTOP LEBAR 200 MM": {
-   "count": 10,
-   "value": 27624063,
+   "count": 15,
+   "value": 41537663,
    "cat": "PEKERJAAN (kategori IV — judul tidak ada di file)"
   },
   "PEKERJAAN POMPA DORONG MARINE GRADE": {
-   "count": 10,
-   "value": 106095803,
+   "count": 15,
+   "value": 158305189,
    "cat": "PEKERJAAN (kategori IV — judul tidak ada di file)"
   },
   "PEKERJAAN PEMASANGAN PIPA HDPE Ø 2 INCH": {
-   "count": 10,
-   "value": 17735695,
+   "count": 15,
+   "value": 26491591,
    "cat": "PEKERJAAN (kategori IV — judul tidak ada di file)"
   },
   "PEKERJAAN URUGAN MAKADAM T = 20 CM": {
-   "count": 10,
-   "value": 146436389,
+   "count": 15,
+   "value": 237128208,
    "cat": "PEKERJAAN AREA PARKIR"
   },
   "PEKERJAAN PEMADATAN MAKADAM": {
-   "count": 10,
-   "value": 13282500,
+   "count": 15,
+   "value": 19999904,
    "cat": "PEKERJAAN AREA PARKIR"
   },
   "PEKERJAAN URUGAN SIRTU T = 10 CM": {
-   "count": 17,
-   "value": 121946279,
+   "count": 27,
+   "value": 276000351,
    "cat": "PEKERJAAN AREA PARKIR"
   },
   "PEKERJAAN PEMADATAN SIRTU": {
-   "count": 30,
-   "value": 30057523,
+   "count": 45,
+   "value": 55214412,
    "cat": "PEKERJAAN AREA PARKIR"
   },
   "PEKERJAAN LANTAI PAVING": {
-   "count": 9,
-   "value": 215724639,
+   "count": 12,
+   "value": 310912607,
    "cat": "PEKERJAAN AREA PARKIR"
   },
   "PEKERJAAN KANSTIN 15.25.40": {
-   "count": 10,
-   "value": 86235192,
+   "count": 15,
+   "value": 128404635,
    "cat": "PEKERJAAN AREA PARKIR"
   },
   "PEKERJAAN PEMBESIAN BESI BETON Ø 6 - 100/150": {
-   "count": 10,
-   "value": 11207342,
+   "count": 15,
+   "value": 14930696,
    "cat": "PEKERJAAN BANGUNAN SHELTER COOL BOX"
   },
   "PEKERJAAN PEMADARAN TANAH URUG": {
-   "count": 20,
-   "value": 7097290,
+   "count": 30,
+   "value": 10645935,
    "cat": "PEKERJAAN BANGUNAN SHELTER COOL BOX"
   },
   "PEKERJAAN PEMBESIAN BESI BETON 6 D 10 MM": {
-   "count": 60,
-   "value": 79627417,
+   "count": 90,
+   "value": 106081603,
    "cat": "PEKERJAAN BANGUNAN SHELTER COOL BOX"
   },
   "PEKERJAAN PEMBESIAN BESI BETON Ø 6 MM - 100/150": {
-   "count": 140,
-   "value": 51232153,
+   "count": 210,
+   "value": 68252732,
    "cat": "PEKERJAAN BANGUNAN SHELTER COOL BOX"
   },
   "PEKERJAAN PASANGAN DINDING BATA MERAH 1 : 5": {
-   "count": 50,
-   "value": 243230785,
+   "count": 77,
+   "value": 364768760,
    "cat": "PEKERJAAN BANGUNAN SHELTER COOL BOX"
   },
   "PEKERJAAN PEMASANGAN 1 M2 ATAP PELANA RANGKA ATAP BAJA RINGAN (CANAI D": {
-   "count": 80,
-   "value": 1787938256,
+   "count": 120,
+   "value": 3830113123,
    "cat": "PEKERJAAN BANGUNAN SHELTER COOL BOX"
   },
   "PEKERJAAN PEMASANGAN 1 M' RENG BAJA RINGAN R32 T = 0,45 MM (AZ 100)": {
-   "count": 80,
-   "value": 321285584,
+   "count": 120,
+   "value": 487463854,
    "cat": "PEKERJAAN BANGUNAN SHELTER COOL BOX"
   },
   "PEKERJAAN PEMASANGAN 1 M2 ATAP SPANDEK BERPASIR": {
-   "count": 80,
-   "value": 1185040334,
+   "count": 120,
+   "value": 1846447785,
    "cat": "PEKERJAAN BANGUNAN SHELTER COOL BOX"
   },
   "PEKERJAAN PEMASANGAN 1 M’ NOK SPANDEK BERPASIR": {
-   "count": 40,
-   "value": 72340880,
+   "count": 60,
+   "value": 102528799,
    "cat": "PEKERJAAN BANGUNAN SHELTER COOL BOX"
   },
   "PEKERJAAN PLAFOND GRC T = 6 MM,TERMASUK RANGKA BESI HOLLOW 40/40 MODUL": {
-   "count": 50,
-   "value": 934774981,
+   "count": 75,
+   "value": 1444713016,
    "cat": "PEKERJAAN BANGUNAN SHELTER COOL BOX"
   },
   "PEKERJAAN PAGAR BRC GALVANIS BRC P = 2,4, T = 120 CM, Ø 7 MM TMSK ASES": {
-   "count": 10,
-   "value": 169637743,
+   "count": 15,
+   "value": 254460538,
    "cat": "PEKERJAAN BANGUNAN SHELTER COOL BOX"
   },
   "PEKERJAAN HURUF TIMBUL PLATE GALVANIS FINISH CAT DUCO, SHELTER COOL BO": {
-   "count": 10,
-   "value": 11005500,
+   "count": 15,
+   "value": 16508250,
    "cat": "PEKERJAAN BANGUNAN SHELTER COOL BOX"
   },
   "INSTALASI PENERANGAN, KABEL NYY 2 X 1 ½ MM²": {
-   "count": 40,
-   "value": 74100235,
+   "count": 60,
+   "value": 113978078,
    "cat": "PEKERJAAN BANGUNAN SHELTER COOL BOX"
   },
   "PASANG SAKLAR DOUBLE": {
-   "count": 10,
-   "value": 491349,
+   "count": 15,
+   "value": 741259,
    "cat": "PEKERJAAN BANGUNAN SHELTER COOL BOX"
   },
   "PASANG DOWNLIGHT Ø 5 INCH+ LED 9 WATT": {
-   "count": 60,
-   "value": 134631346,
+   "count": 90,
+   "value": 202487389,
    "cat": "PEKERJAAN BANGUNAN SHELTER COOL BOX"
   },
   "PEKERJAAN PONDASI BATU BELAH": {
-   "count": 28,
-   "value": 306348501,
+   "count": 43,
+   "value": 493793611,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN GALIAN TANAH (ROOLAG TERAS)": {
-   "count": 9,
-   "value": 73108,
+   "count": 14,
+   "value": 115241,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN PONDASI ROLAAG BATA (TERAS)": {
-   "count": 9,
-   "value": 3881052,
+   "count": 14,
+   "value": 5963633,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN LANTAI KERJA = 5 CM": {
-   "count": 9,
-   "value": 9395721,
+   "count": 14,
+   "value": 14885002,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN PASANGAN DINDING BATA MERAH": {
-   "count": 10,
-   "value": 96903317,
+   "count": 15,
+   "value": 144898943,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN SKONENGAN (OPENING KUSEN)": {
-   "count": 20,
-   "value": 34557400,
+   "count": 30,
+   "value": 53037083,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN PINTU ROOLING DOOR ALUMINIUM 200 X 250 M², T = 0,6 MM KOMPLI": {
-   "count": 20,
-   "value": 72127438,
+   "count": 30,
+   "value": 119984188,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN KUSEN PINTU UPVC P-03": {
-   "count": 24,
-   "value": 186330849,
+   "count": 29,
+   "value": 246127129,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN KUSEN ALUMINIUM 4 INCH": {
-   "count": 70,
-   "value": 280390854,
+   "count": 105,
+   "value": 420218905,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PASANG KACA ES T = 5 MM": {
-   "count": 40,
-   "value": 12241105,
+   "count": 60,
+   "value": 19103822,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PAS. LANTAI KERAMIK 40X40 CM POLISHED": {
-   "count": 20,
-   "value": 122980266,
+   "count": 30,
+   "value": 185740976,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PAS. LANTAI KERAMIK 40X40 CM MATTE": {
-   "count": 20,
-   "value": 33380358,
+   "count": 30,
+   "value": 50415408,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PAS. DINDING KERAMIK 20X20 CM POLISHED": {
-   "count": 30,
-   "value": 229541105,
+   "count": 45,
+   "value": 341533052,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN PEMASANGAN ATAP SPANDEK BERPASIR": {
-   "count": 40,
-   "value": 547243182,
+   "count": 60,
+   "value": 852676425,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN PAS. PLAFOND GYPSUM T = 9 MM + RANGKA PLAFOND BESI HOLLOW": {
-   "count": 31,
-   "value": 293997026,
+   "count": 36,
+   "value": 319968613,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "~ PEKERJAAN GALIAN TANAH": {
-   "count": 9,
-   "value": 12418,
+   "count": 14,
+   "value": 19576,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "~ PEKERJAAN BEKESTING KOLOM": {
-   "count": 10,
-   "value": 1132521,
+   "count": 15,
+   "value": 1722154,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "~ PEKERJAAN BETON SITE MIX SETARA FC = 20": {
-   "count": 29,
-   "value": 9730808,
+   "count": 44,
+   "value": 14895113,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "~ PEKERJAAN DYNABOLT Ø 10 MM": {
-   "count": 10,
-   "value": 878400,
+   "count": 15,
+   "value": 1278400,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN RANGKA ATAP KANOPI BESI HOLLOW 40/60, MODUL 85/80, TERMASUK ": {
-   "count": 10,
-   "value": 37711078,
+   "count": 15,
+   "value": 56849145,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN PEMASANGAN ATAP SPANDEK": {
-   "count": 10,
-   "value": 12280686,
+   "count": 15,
+   "value": 19134913,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN CAT DINDING LUAR": {
-   "count": 30,
-   "value": 335842464,
+   "count": 45,
+   "value": 452104693,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN CAT PLAFOND": {
-   "count": 40,
-   "value": 137041159,
+   "count": 60,
+   "value": 204529830,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN LOGO KKP PLATE GALVANIS FINISH CAT DUCO": {
-   "count": 20,
-   "value": 42799854,
+   "count": 30,
+   "value": 64246530,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN HURUF TIMBUL PLATE GALVANIS FINISH CAT DUCO, KIOS PERBEKALAN": {
-   "count": 10,
-   "value": 22540000,
+   "count": 15,
+   "value": 33810000,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN INSTALASI AIR BERSIH PIPA PVC Ø ½ INCH": {
-   "count": 40,
-   "value": 11353264,
+   "count": 60,
+   "value": 17387239,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN INSTALASI AIR BERSIH PIPA PVC Ø 1 INCH": {
-   "count": 40,
-   "value": 36501675,
+   "count": 60,
+   "value": 55413957,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN INSTALASI AIR BUANGAN PIPA PVC Ø 3 INCH": {
-   "count": 40,
-   "value": 148489143,
+   "count": 60,
+   "value": 224951474,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN INSTALASI AIR BUANGAN PIPA PVC Ø 4 INCH": {
-   "count": 30,
-   "value": 58303298,
+   "count": 45,
+   "value": 89323495,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN PEMASANGAN CLOSET DUDUK": {
-   "count": 20,
-   "value": 117106114,
+   "count": 30,
+   "value": 164564971,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN PEMASANGAN JET WASHER": {
-   "count": 20,
-   "value": 6123101,
+   "count": 30,
+   "value": 9258332,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN PEMASANGAN KRAN AIR": {
-   "count": 20,
-   "value": 3920966,
+   "count": 30,
+   "value": 6194732,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN PEMASANGAN FLOOR DRAIN": {
-   "count": 30,
-   "value": 17025136,
+   "count": 45,
+   "value": 25588850,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN POMPA DORONG": {
-   "count": 23,
-   "value": 32760222,
+   "count": 38,
+   "value": 60636117,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PENGADAAN BARANG": {
-   "count": 30,
-   "value": 60705000,
+   "count": 45,
+   "value": 100502100,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PENGIRIMAN": {
-   "count": 30,
-   "value": 15750000,
+   "count": 45,
+   "value": 24000000,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "~ GALIAN TANAH": {
-   "count": 28,
-   "value": 8886535,
+   "count": 43,
+   "value": 13855190,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "~ PEKERJAAN BEKESTING PASANGAN BATAKO": {
-   "count": 38,
-   "value": 20750917,
+   "count": 58,
+   "value": 30494370,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "~ PEMBESIAN BESI D 13 - 150": {
-   "count": 28,
-   "value": 11683542,
+   "count": 43,
+   "value": 15856420,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "~ PEKERJAAN BETON SEMI MEKANIS SETARA FC = 20": {
-   "count": 49,
-   "value": 29393416,
+   "count": 74,
+   "value": 43913116,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "~ PEKERJAAN KAYU BEKESTING KOLOM": {
-   "count": 30,
-   "value": 26847879,
+   "count": 45,
+   "value": 39712584,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "~ PEKERJAAN PEMBESIAN BESI BETON 8 D 13": {
-   "count": 30,
-   "value": 23324029,
+   "count": 45,
+   "value": 30835204,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "~ PEKERJAAN PEMBESIAN BESI BETON Ø 8 - 100/150": {
-   "count": 30,
-   "value": 7636262,
+   "count": 45,
+   "value": 9972605,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "~ PEKERJAAN ANGKUR D13": {
-   "count": 30,
-   "value": 10962876,
+   "count": 45,
+   "value": 14701512,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN PENGADAAN DAN PEMASANGAN TANGKI TOREN KAP.600 LITER EX.PENGU": {
-   "count": 17,
-   "value": 53935240,
+   "count": 24,
+   "value": 76702655,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN GALIAN TANAH S/D 2 M": {
-   "count": 18,
-   "value": 7966565,
+   "count": 28,
+   "value": 12487971,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN PASIR URUG T = 10 CM": {
-   "count": 18,
-   "value": 1350036,
+   "count": 28,
+   "value": 2263777,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN PENGADAAN DAN SETTING BIO-TECH 1 M³": {
-   "count": 20,
-   "value": 125263750,
+   "count": 30,
+   "value": 187895625,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN SAKLAR GANDA": {
-   "count": 10,
-   "value": 491349,
+   "count": 15,
+   "value": 741259,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN SAKLAR TUNGGAL": {
-   "count": 50,
-   "value": 5546839,
+   "count": 75,
+   "value": 8383781,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN STOP KONTAK": {
-   "count": 70,
-   "value": 13613195,
+   "count": 105,
+   "value": 20524753,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PASANG KIPAS ANGIN PLAFOND": {
-   "count": 10,
-   "value": 11845569,
+   "count": 15,
+   "value": 17785962,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN PASIR URUG T = 7 CM": {
-   "count": 19,
-   "value": 9728080,
+   "count": 29,
+   "value": 16058003,
    "cat": "PEKERJAAN BANGUNAN BENGKEL NELAYAN"
   },
   "PEKERJAAN PEMBESIAN BESI BETON Ø 6 - 150": {
-   "count": 20,
-   "value": 2529079,
+   "count": 30,
+   "value": 3369301,
    "cat": "PEKERJAAN BANGUNAN BENGKEL NELAYAN"
   },
   "PEKERJAAN PEMBESIAN BESI BETON Ø 6 M - 150": {
-   "count": 10,
-   "value": 5915990,
+   "count": 15,
+   "value": 7881428,
    "cat": "PEKERJAAN BANGUNAN BENGKEL NELAYAN"
   },
   "PEKERJAAN URUGAN TANAH PENINGGIAN ELEVASI": {
-   "count": 10,
-   "value": 2563915,
+   "count": 15,
+   "value": 3767936,
    "cat": "PEKERJAAN BANGUNAN BENGKEL NELAYAN"
   },
   "PEKERJAAN PEMADATAN TANAH BY STAMPER": {
-   "count": 10,
-   "value": 398480,
+   "count": 15,
+   "value": 597720,
    "cat": "PEKERJAAN BANGUNAN BENGKEL NELAYAN"
   },
   "PEKERJAAN PEMBESIAN WIREMESH M8-150, 2 LAPIS": {
-   "count": 10,
-   "value": 38163012,
+   "count": 15,
+   "value": 49065658,
    "cat": "PEKERJAAN BANGUNAN BENGKEL NELAYAN"
   },
   "PEKERJAAN FLOORHARDENER": {
-   "count": 10,
-   "value": 13673335,
+   "count": 15,
+   "value": 20717613,
    "cat": "PEKERJAAN BANGUNAN BENGKEL NELAYAN"
   },
   "PASANGAN DINDING BATA MERAH": {
-   "count": 30,
-   "value": 364845814,
+   "count": 45,
+   "value": 545551732,
    "cat": "PEKERJAAN BANGUNAN BENGKEL NELAYAN"
   },
   "PLESTERAN": {
-   "count": 40,
-   "value": 236565726,
+   "count": 60,
+   "value": 359705245,
    "cat": "PEKERJAAN BANGUNAN BENGKEL NELAYAN"
   },
   "ACIAN FINISH": {
-   "count": 40,
-   "value": 191813684,
+   "count": 60,
+   "value": 289478216,
    "cat": "PEKERJAAN BANGUNAN BENGKEL NELAYAN"
   },
   "PEKERJAAN DINDING ROSTER 20X20 CM": {
-   "count": 20,
-   "value": 7576750,
+   "count": 30,
+   "value": 12283212,
    "cat": "PEKERJAAN BANGUNAN BENGKEL NELAYAN"
   },
   "PEKERJAAN PINTU ROOLING DOOR ALUMINIUM 240 X 235 M², T = 0,6 MM KOMPLI": {
-   "count": 10,
-   "value": 40679873,
+   "count": 15,
+   "value": 67671080,
    "cat": "PEKERJAAN BANGUNAN BENGKEL NELAYAN"
   },
   "PEKERJAAN HURUF TIMBUL PLATE GALVANIS FINISH CAT DUCO, BENGKEL NELAYAN": {
-   "count": 10,
-   "value": 22540000,
+   "count": 15,
+   "value": 33810000,
    "cat": "PEKERJAAN BANGUNAN BENGKEL NELAYAN"
   },
   "INSTALASI STOP KONTAK, KABEL NYY 2 X 2 ½ MM²": {
-   "count": 30,
-   "value": 46582345,
+   "count": 45,
+   "value": 72060247,
    "cat": "PEKERJAAN BANGUNAN BENGKEL NELAYAN"
   },
   "PEKERJAAN SAKLAR DOBEL": {
-   "count": 40,
-   "value": 1835155,
+   "count": 60,
+   "value": 2769674,
    "cat": "PEKERJAAN BANGUNAN BENGKEL NELAYAN"
   },
   "PASANG DOWNLIGHT Ø 4 INCH+ LED 9 WATT": {
-   "count": 10,
-   "value": 15200314,
+   "count": 15,
+   "value": 22861480,
    "cat": "PEKERJAAN BANGUNAN BENGKEL NELAYAN"
   },
   "PASANG KIPAS ANGIN PLAFOND 52 INCH EX.SOVE/SETARA": {
-   "count": 10,
-   "value": 11845569,
+   "count": 15,
+   "value": 17785962,
    "cat": "PEKERJAAN BANGUNAN BENGKEL NELAYAN"
   },
   "PEKERJAAN BETON SITE MIX 1:2:3 SETARA FC = 20": {
-   "count": 100,
-   "value": 224809200,
+   "count": 150,
+   "value": 336650123,
    "cat": "PEKERJAAN BANGUNAN KANTOR PENGELOLA"
   },
   "PEKERJAAN LANTAI RABAT BETON T = 7 CM": {
-   "count": 28,
-   "value": 71075625,
+   "count": 43,
+   "value": 111283487,
    "cat": "PEKERJAAN BANGUNAN KANTOR PENGELOLA"
   },
   "PEKERJAAN WATERPROOFING COATING EX.NODROP ANTI PANAS": {
-   "count": 30,
-   "value": 18130701,
+   "count": 45,
+   "value": 27299782,
    "cat": "PEKERJAAN BANGUNAN KANTOR PENGELOLA"
   },
   "PEK. DAUN PINTU MULTIPLEX 2X18MM + RANGKA KAYU, LAPIS HPL (ENGINEERING": {
-   "count": 10,
-   "value": 24136385,
+   "count": 15,
+   "value": 36132748,
    "cat": "PEKERJAAN BANGUNAN KANTOR PENGELOLA"
   },
   "PASANG ENGSEL PINTU 4 INCH": {
-   "count": 10,
-   "value": 1707205,
+   "count": 15,
+   "value": 2575188,
    "cat": "PEKERJAAN BANGUNAN KANTOR PENGELOLA"
   },
   "PASANG DOOR CLOSER": {
-   "count": 10,
-   "value": 4722190,
+   "count": 15,
+   "value": 7115225,
    "cat": "PEKERJAAN BANGUNAN KANTOR PENGELOLA"
   },
   "PASANG HANDEL + KUNCI SWING": {
-   "count": 10,
-   "value": 8221040,
+   "count": 15,
+   "value": 12369911,
    "cat": "PEKERJAAN BANGUNAN KANTOR PENGELOLA"
   },
   "PEKERJAAN DAUN JENDELA ALUMINIUM TANPA KACA": {
-   "count": 20,
-   "value": 79931106,
+   "count": 30,
+   "value": 120551432,
    "cat": "PEKERJAAN BANGUNAN KANTOR PENGELOLA"
   },
   "PASANG KACA POLOS T = 5 MM": {
-   "count": 20,
-   "value": 29381380,
+   "count": 30,
+   "value": 45287507,
    "cat": "PEKERJAAN BANGUNAN KANTOR PENGELOLA"
   },
   "PASANG ENGSEL JENDELA 3 INCH": {
-   "count": 20,
-   "value": 21051055,
+   "count": 30,
+   "value": 31717249,
    "cat": "PEKERJAAN BANGUNAN KANTOR PENGELOLA"
   },
   "CASEMENT": {
-   "count": 20,
-   "value": 59621519,
+   "count": 30,
+   "value": 89648553,
    "cat": "PEKERJAAN BANGUNAN KANTOR PENGELOLA"
   },
   "RAMBUNCIS": {
-   "count": 20,
-   "value": 8359298,
+   "count": 30,
+   "value": 12683170,
    "cat": "PEKERJAAN BANGUNAN KANTOR PENGELOLA"
   },
   "CAT DINDING (INTERIOR)": {
-   "count": 10,
-   "value": 91062546,
+   "count": 15,
+   "value": 145336302,
    "cat": "PEKERJAAN BANGUNAN KANTOR PENGELOLA"
   },
   "CAT DINDING (EXTERIOR)": {
-   "count": 10,
-   "value": 19955882,
+   "count": 15,
+   "value": 29812343,
    "cat": "PEKERJAAN BANGUNAN KANTOR PENGELOLA"
   },
   "PEKERJAAN CAT LISTPLANK GRC": {
-   "count": 10,
-   "value": 8698951,
+   "count": 15,
+   "value": 11710361,
    "cat": "PEKERJAAN BANGUNAN KANTOR PENGELOLA"
   },
   "PEKERJAAN PEMASANGAN ATAP JURAI/LIMASAN RANGKA ATAP BAJA RINGAN (CANAI": {
-   "count": 10,
-   "value": 153321473,
+   "count": 15,
+   "value": 235948320,
    "cat": "PEKERJAAN BANGUNAN KANTOR PENGELOLA"
   },
   "PEKERJAAN LOGO KKP PLATE GALVANIS FINISH CAT DUCO DIA.40 CM": {
-   "count": 20,
-   "value": 42799854,
+   "count": 30,
+   "value": 64246530,
    "cat": "PEKERJAAN BANGUNAN KANTOR PENGELOLA"
   },
   "PEKERJAAN HURUF TIMBUL PLATE GALVANIS FINISH CAT DUCO, KANTOR PENGELOL": {
-   "count": 10,
-   "value": 24150000,
+   "count": 15,
+   "value": 36225000,
    "cat": "PEKERJAAN BANGUNAN KANTOR PENGELOLA"
   },
   "PEKERJAAN INSTALASI PENERANGAN, KABEL NYY 2 X 1 ½ MM²": {
-   "count": 20,
-   "value": 116175588,
+   "count": 30,
+   "value": 178803052,
    "cat": "PEKERJAAN BANGUNAN KANTOR PENGELOLA"
   },
   "PEKERJAAN INSTALASI STOP KONTAK, KABEL NYY 2 X 2 ½ MM²": {
-   "count": 30,
-   "value": 74689882,
+   "count": 45,
+   "value": 114143734,
    "cat": "PEKERJAAN BANGUNAN KANTOR PENGELOLA"
   },
   "PEKERJAAN INSTALASI TV": {
-   "count": 10,
-   "value": 5771474,
+   "count": 15,
+   "value": 7911778,
    "cat": "PEKERJAAN BANGUNAN KANTOR PENGELOLA"
   },
   "PEKERJAAN STOP KONTAK AC": {
-   "count": 10,
-   "value": 745668,
+   "count": 15,
+   "value": 1123738,
    "cat": "PEKERJAAN BANGUNAN KANTOR PENGELOLA"
   },
   "PEKERJAAN STOP KONTAK ANTENA": {
-   "count": 10,
-   "value": 1028838,
+   "count": 15,
+   "value": 1548493,
    "cat": "PEKERJAAN BANGUNAN KANTOR PENGELOLA"
   },
   "PEKERJAAN AC SPLIT 3/4 PK - STD": {
-   "count": 10,
-   "value": 54262278,
+   "count": 15,
+   "value": 81515319,
    "cat": "PEKERJAAN BANGUNAN KANTOR PENGELOLA"
   },
   "PEKERJAAN BOX PANEL LISTRIK (MCB) 8 GROUP": {
-   "count": 30,
-   "value": 50654004,
+   "count": 45,
+   "value": 76023954,
    "cat": "PEKERJAAN BANGUNAN KANTOR PENGELOLA"
   },
   "PEKERJAAN GALIAN TANAH KERAS S/D 1 M": {
-   "count": 34,
-   "value": 24054175,
+   "count": 59,
+   "value": 38538023,
    "cat": "PEKERJAAN BANGUNAN TOILET UMUM"
   },
   "PEKERJAAN PASANGAN BATU KALI/BELAH": {
-   "count": 19,
-   "value": 182034005,
+   "count": 29,
+   "value": 301168424,
    "cat": "PEKERJAAN BANGUNAN TOILET UMUM"
   },
   "PEKERJAAN KAYU BEKESTING": {
-   "count": 16,
-   "value": 62970782,
+   "count": 21,
+   "value": 95200092,
    "cat": "PEKERJAAN BANGUNAN TOILET UMUM"
   },
   "PEKERJAAN DINDING BATA MERAH": {
-   "count": 10,
-   "value": 192556193,
+   "count": 15,
+   "value": 287928106,
    "cat": "PEKERJAAN BANGUNAN TOILET UMUM"
   },
   "PEKERJAAN DINDING ROSTER": {
-   "count": 10,
-   "value": 41672135,
+   "count": 15,
+   "value": 67557680,
    "cat": "PEKERJAAN BANGUNAN TOILET UMUM"
   },
   "PEKERJAAN SKONENGAN (OPENING)": {
-   "count": 10,
-   "value": 63661805,
+   "count": 15,
+   "value": 97705161,
    "cat": "PEKERJAAN BANGUNAN TOILET UMUM"
   },
   "PEKERJAAN DINDING KERAMIK 20X40 CM": {
-   "count": 10,
-   "value": 85427656,
+   "count": 15,
+   "value": 127107379,
    "cat": "PEKERJAAN BANGUNAN TOILET UMUM"
   },
   "PAS. KERAMIK 40X40 CM UNPOLISHED": {
-   "count": 10,
-   "value": 75294039,
+   "count": 15,
+   "value": 113718964,
    "cat": "PEKERJAAN BANGUNAN TOILET UMUM"
   },
   "PEKERJAAN PENGECATAN DINDING WATERSHIELD": {
-   "count": 10,
-   "value": 186980086,
+   "count": 15,
+   "value": 251709011,
    "cat": "PEKERJAAN BANGUNAN TOILET UMUM"
   },
   "PEKERJAAN PENGECATAN LISTPLANK ATAP": {
-   "count": 20,
-   "value": 19714780,
+   "count": 30,
+   "value": 26539660,
    "cat": "PEKERJAAN BANGUNAN TOILET UMUM"
   },
   "PEKERJAAN HURUF TIMBUL PLATE GALVANIS FINISH CAT DUCO, TOILET UMUM UK.": {
-   "count": 10,
-   "value": 16100000,
+   "count": 15,
+   "value": 24150000,
    "cat": "PEKERJAAN BANGUNAN TOILET UMUM"
   },
   "PEKERJAAN PASANG CLOSET JONGKOK": {
-   "count": 10,
-   "value": 34736574,
+   "count": 15,
+   "value": 51856925,
    "cat": "PEKERJAAN BANGUNAN TOILET UMUM"
   },
   "PEKERJAAN PASANG KRAN AIR Ø ½ INCH": {
-   "count": 20,
-   "value": 18297852,
+   "count": 30,
+   "value": 28908760,
    "cat": "PEKERJAAN BANGUNAN TOILET UMUM"
   },
   "PEKERJAAN POMPA DORONG 450 WATT": {
-   "count": 10,
-   "value": 13891124,
+   "count": 15,
+   "value": 23657000,
    "cat": "PEKERJAAN BANGUNAN TOILET UMUM"
   },
   "PEKERJAAN PENGADAAN DAN SETTING TANGKI AIR 1000 LITER": {
-   "count": 10,
-   "value": 55757219,
+   "count": 15,
+   "value": 83692865,
    "cat": "PEKERJAAN BANGUNAN TOILET UMUM"
   },
   "PEKERJAAN PENGADAAN DAN SETTING SEPTIKTANK BIO TECH 2 M³": {
-   "count": 10,
-   "value": 89326250,
+   "count": 15,
+   "value": 133989375,
    "cat": "PEKERJAAN BANGUNAN TOILET UMUM"
   },
   "PEKERJAAN INSTALASI STOP KONTAK NYM 2 X 2 ½ MM²": {
-   "count": 30,
-   "value": 101906880,
+   "count": 45,
+   "value": 156852890,
    "cat": "PEKERJAAN BANGUNAN TOILET UMUM"
   },
   "INSTALASI SAKLAR DOUBLE": {
-   "count": 10,
-   "value": 982704,
+   "count": 15,
+   "value": 1482525,
    "cat": "PEKERJAAN BANGUNAN TOILET UMUM"
   },
   "INSTALASI SAKLAR SINGLE": {
-   "count": 10,
-   "value": 1805530,
+   "count": 15,
+   "value": 2729471,
    "cat": "PEKERJAAN BANGUNAN TOILET UMUM"
   },
   "STOP KONTAK": {
-   "count": 10,
-   "value": 1877681,
+   "count": 15,
+   "value": 2830999,
    "cat": "PEKERJAAN BANGUNAN TOILET UMUM"
   },
   "PEKERJAAN TEE PIPA GALVANIS Ø 2 INCH": {
-   "count": 10,
-   "value": 6150147,
+   "count": 15,
+   "value": 10843082,
    "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
   },
   "PEKERJAAN FLANGE GATE VALVE GALVANIS Ø 2 INCH": {
-   "count": 10,
-   "value": 81144545,
+   "count": 15,
+   "value": 141355551,
    "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
   },
   "PEKERJAAN SAMBUNGAN PIPA, SOCK Ø 2 INCH, PIPA GALVANIS DAN PIPA HDPE": {
-   "count": 10,
-   "value": 8686718,
+   "count": 15,
+   "value": 14092481,
    "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
   },
   "PEKERJAAN SAMBUNGAN PIPA, SOCK Ø 2 INCH, PIPA PVC DAN PIPA HDPE": {
-   "count": 10,
-   "value": 8470686,
+   "count": 15,
+   "value": 13745521,
    "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
   },
   "TANGKI PENAMPUNGAN KE SHELTER PENDARATAN IKAN - PABRIK ES": {
@@ -1568,18 +1573,18 @@
    "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
   },
   "PEKERJAAN INSTALASI AIR BERSIH PIPA PVC AW Ø ½ INCH": {
-   "count": 24,
-   "value": 2659404,
+   "count": 44,
+   "value": 5037639,
    "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
   },
   "PEKERJAAN KRAN AIR Ø ½ INCH": {
-   "count": 24,
-   "value": 3201684,
+   "count": 44,
+   "value": 6243010,
    "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
   },
   "PEKERJAAN PENYELIDIKAN GEOLISTRIK": {
-   "count": 10,
-   "value": 224336343,
+   "count": 15,
+   "value": 290057932,
    "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
   },
   "PEKERJAAN PENGEBORAN BOR DALAM Ø 2 INCH UNTUK SAMPLE PEKERJAAN GEOLIST": {
@@ -1588,23 +1593,23 @@
    "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
   },
   "PENGEBORAN LUBANG AWAL Ø 6 INCH TERMASUK MOBILISASI ALAT DAN PERSONIL": {
-   "count": 10,
-   "value": 312371590,
+   "count": 15,
+   "value": 468557385,
    "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
   },
   "PEKERJAAN SETTING PIPA GALVANIS Ø 6 INCH, T = 3 MM": {
-   "count": 10,
-   "value": 1827020620,
+   "count": 15,
+   "value": 2512106606,
    "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
   },
   "PEKERJAAN PENGELASAN SAMBUNGAN PIPA": {
-   "count": 10,
-   "value": 2035558,
+   "count": 15,
+   "value": 3414412,
    "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
   },
   "PIPA GALVANIS PERFOATED SCREEN Ø 3 INCH, T = 2 MM": {
-   "count": 10,
-   "value": 70819542,
+   "count": 15,
+   "value": 85286968,
    "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
   },
   "DESKRIPSI CONTOH CUTTING BOR (PEMERIAN LITOLOGI)": {
@@ -1623,8 +1628,8 @@
    "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
   },
   "PENGISIAN GRAVEL PACK": {
-   "count": 10,
-   "value": 14917924,
+   "count": 15,
+   "value": 19928861,
    "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
   },
   "PEKERJAAN UJI POMPA DAN PENGUJIAN SAMPEL": {
@@ -1633,23 +1638,23 @@
    "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
   },
   "PEKERJAAN SEMEN GROUTING BAG (ATAS DINDING SUMUR)": {
-   "count": 10,
-   "value": 7613655,
+   "count": 15,
+   "value": 9997162,
    "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
   },
   "~ PEKERJAAN PEMBESIAN WIREMSEH M8-150": {
-   "count": 10,
-   "value": 3116647,
+   "count": 15,
+   "value": 4007029,
    "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
   },
   "PEKERJAAN PASANGAN BATA MERAH": {
-   "count": 20,
-   "value": 281150463,
+   "count": 30,
+   "value": 418281850,
    "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
   },
   "PEKERJAAN TUTUP RUMAH POMPA, PLAT BORDES T = 2,3 MM RANGKA SIKU BESI 5": {
-   "count": 10,
-   "value": 28455135,
+   "count": 15,
+   "value": 45269187,
    "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
   },
   "JUMLAHPENGEBORAN :": {
@@ -1658,28 +1663,28 @@
    "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
   },
   "PEKERJAAN PEMASANGAN POMPA AIR SUBMERSIBLE DEEPWELL WELL SP 9-10 EX.GR": {
-   "count": 10,
-   "value": 676424090,
+   "count": 15,
+   "value": 1008897535,
    "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
   },
   "PEKERJAAN PEMASANGAN PANEL KONTROL POMPA 3 PHASE": {
-   "count": 10,
-   "value": 50711216,
+   "count": 15,
+   "value": 76143541,
    "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
   },
   "PEKERJAAN TARIK KABEL POMPA NYYHY 3 X 1 ½ MM²": {
-   "count": 10,
-   "value": 20587160,
+   "count": 15,
+   "value": 30880740,
    "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
   },
   "PEKERJAAN TARIK KABEL ELEKTRODA NYYHY 3 X 2 ½ MM²": {
-   "count": 10,
-   "value": 35329630,
+   "count": 15,
+   "value": 52994445,
    "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
   },
   "PEKERJAAN PEMASANGAN ELEKTRODA - WATER LEVEL SWITCH CONTROL (VERTICAL ": {
-   "count": 10,
-   "value": 41330292,
+   "count": 15,
+   "value": 61718333,
    "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
   },
   "PEKERJAAN PIPA ISAP/HANTAR - GALVANIS MED. A = 2 INCH SNI": {
@@ -1688,28 +1693,28 @@
    "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
   },
   "PEKERJAAN URUGAN PASIR URUG T = 5 CM": {
-   "count": 16,
-   "value": 2174946,
+   "count": 31,
+   "value": 4067155,
    "cat": "PEKERJAAN (kategori VII — judul tidak ada di file)"
   },
   "PEKERJAAN PEMBESIAN BESI BETON D 10 - 150": {
-   "count": 20,
-   "value": 58785315,
+   "count": 30,
+   "value": 77404115,
    "cat": "PEKERJAAN (kategori VII — judul tidak ada di file)"
   },
   "PEKERJAAN PEMBESIAN BESI BETON 8 D 10": {
-   "count": 9,
-   "value": 7119123,
+   "count": 14,
+   "value": 9417399,
    "cat": "PEKERJAAN (kategori VII — judul tidak ada di file)"
   },
   "PEKERJAAN PEMBESIAN BESI BETON Ø 8 - 150": {
-   "count": 39,
-   "value": 18393508,
+   "count": 59,
+   "value": 24461005,
    "cat": "PEKERJAAN (kategori VII — judul tidak ada di file)"
   },
   "PEKERJAAN PENGADAAN DAN PEMASANGAN TIANG PJU 7 METER (OKTAGONAL SINGLE": {
-   "count": 10,
-   "value": 456395228,
+   "count": 15,
+   "value": 610466171,
    "cat": "PEKERJAAN (kategori VII — judul tidak ada di file)"
   },
   "JUMLAHPENERANGAN TIANG T=7M :": {
@@ -1718,223 +1723,223 @@
    "cat": "PEKERJAAN (kategori VII — judul tidak ada di file)"
   },
   "PEKERJAAN PENGADAAN DAN PEMASANGAN PANEL DISTRIBUSI": {
-   "count": 10,
-   "value": 27462077,
+   "count": 15,
+   "value": 41255825,
    "cat": "PEKERJAAN (kategori VII — judul tidak ada di file)"
   },
   "PEKERJAAN PENGADAAN DAN PEMASANGAN PANEL KONTROLER": {
-   "count": 10,
-   "value": 15760827,
+   "count": 15,
+   "value": 23703950,
    "cat": "PEKERJAAN (kategori VII — judul tidak ada di file)"
   },
   "PEKERJAAN INSTALASI PENERANGAN JALAN, KABEL NYY 4 X 2 ½ MM²": {
-   "count": 10,
-   "value": 75895149,
+   "count": 15,
+   "value": 129180013,
    "cat": "PEKERJAAN (kategori VII — judul tidak ada di file)"
   },
   "PEKERJAAN TARIK KABEL NYY 2 X 4 (SUPREME)": {
-   "count": 10,
-   "value": 361154316,
+   "count": 15,
+   "value": 876671802,
    "cat": "PEKERJAAN (kategori VII — judul tidak ada di file)"
   },
   "PEKERJAAN TARIK KABEL DISTRIBUSI NYY 4 X 6 (SUPREME)": {
-   "count": 10,
-   "value": 28233662,
+   "count": 15,
+   "value": 47152563,
    "cat": "PEKERJAAN (kategori VII — judul tidak ada di file)"
   },
   "PEKERJAAN SPARING PIPA PVC LISTRIK 3/4 D": {
-   "count": 10,
-   "value": 153213335,
+   "count": 15,
+   "value": 340335199,
    "cat": "PEKERJAAN (kategori VII — judul tidak ada di file)"
   },
   "PEKERJAAN GALIAN TANAH (TANAM KABEL)": {
-   "count": 10,
-   "value": 9446615,
+   "count": 15,
+   "value": 18609546,
    "cat": "PEKERJAAN (kategori VII — judul tidak ada di file)"
   },
   "PEKERJAAN PEMASANGAN MCB 2 AMPERE": {
-   "count": 10,
-   "value": 207585000,
+   "count": 15,
+   "value": 311377500,
    "cat": "PEKERJAAN (kategori VII — judul tidak ada di file)"
   },
   "PEKERJAAN GROUNDING": {
-   "count": 10,
-   "value": 16820249,
+   "count": 15,
+   "value": 25282292,
    "cat": "PEKERJAAN (kategori VII — judul tidak ada di file)"
   },
   "PEKERJAAN PEMASANGAN 5/8\" ROD COUPLING": {
-   "count": 10,
-   "value": 17490090,
+   "count": 15,
+   "value": 26261096,
    "cat": "PEKERJAAN (kategori VII — judul tidak ada di file)"
   },
   "PEKERJAAN PONDASI BATU KALI": {
-   "count": 10,
-   "value": 95338405,
+   "count": 15,
+   "value": 149706135,
    "cat": "PEKERJAAN TEMPAT PEMBUANGAN SAMPAH"
   },
   "PEKERJAAN ACIAN LANTAI": {
-   "count": 10,
-   "value": 12636553,
+   "count": 15,
+   "value": 19070626,
    "cat": "PEKERJAAN TEMPAT PEMBUANGAN SAMPAH"
   },
   "PEKERJAAN PEMBESIAN BESI BETON 4 D 13 MM": {
-   "count": 30,
-   "value": 61536730,
+   "count": 45,
+   "value": 82243035,
    "cat": "PEKERJAAN TEMPAT PEMBUANGAN SAMPAH"
   },
   "PEKERJAAN PEMBESIAN BESI BETON Ø 8 MM -100/150": {
-   "count": 10,
-   "value": 3756186,
+   "count": 15,
+   "value": 5004082,
    "cat": "PEKERJAAN TEMPAT PEMBUANGAN SAMPAH"
   },
   "PASANGAN DINDING BATA MERAH 1 : 5": {
-   "count": 10,
-   "value": 42228826,
+   "count": 15,
+   "value": 63144509,
    "cat": "PEKERJAAN TEMPAT PEMBUANGAN SAMPAH"
   },
   "PEKERJAAN SKONENGAN (BAN-BANAN)": {
-   "count": 10,
-   "value": 71489080,
+   "count": 15,
+   "value": 109718094,
    "cat": "PEKERJAAN TEMPAT PEMBUANGAN SAMPAH"
   },
   "PEKERJAAN PEMASANGAN DYNABOLT M8 X 100 MM SS 304": {
-   "count": 60,
-   "value": 119963163,
+   "count": 90,
+   "value": 178365733,
    "cat": "PEKERJAAN TEMPAT PEMBUANGAN SAMPAH"
   },
   "PEKERJAAN TALANG AIR GALVALUM": {
-   "count": 10,
-   "value": 15558624,
+   "count": 15,
+   "value": 24021414,
    "cat": "PEKERJAAN TEMPAT PEMBUANGAN SAMPAH"
   },
   "PEKERJAAN 1 M² PEMASANGAN PENUTUP ACP (ALUMINIUM COMPOSITE PANEL) OUTD": {
-   "count": 10,
-   "value": 165416684,
+   "count": 15,
+   "value": 248289106,
    "cat": "PEKERJAAN TEMPAT PEMBUANGAN SAMPAH"
   },
   "PEKERJAAN HURUF TIMBUL PLATE GALVANIS FINISH CAT DUCO, TEMPAT PEMBUANG": {
-   "count": 10,
-   "value": 117110891,
+   "count": 15,
+   "value": 176406983,
    "cat": "PEKERJAAN TEMPAT PEMBUANGAN SAMPAH"
   },
   "PEKERJAAN PENGECATAN DINDING DALAM": {
-   "count": 10,
-   "value": 10753319,
+   "count": 15,
+   "value": 16064519,
    "cat": "PEKERJAAN TEMPAT PEMBUANGAN SAMPAH"
   },
   "PEKERJAAN PEMBESIAN BESI BETON D 8 - 150": {
-   "count": 10,
-   "value": 7136755,
+   "count": 15,
+   "value": 9507760,
    "cat": "PEKERJAAN BANGUNAN GENSET"
   },
   "PEKERJAAN PEMBESIAN WIREMESH M8-150 (2 LAPIS)": {
-   "count": 27,
-   "value": 215732717,
+   "count": 42,
+   "value": 283283698,
    "cat": "PEKERJAAN BANGUNAN GENSET"
   },
   "PEKERJAAN DINDING BATA RAMP": {
-   "count": 18,
-   "value": 2260807,
+   "count": 28,
+   "value": 3473960,
    "cat": "PEKERJAAN BANGUNAN GENSET"
   },
   "PEKERJAAN PEMBESIAN WIREMESH M8-150 (1 LAPIS)": {
-   "count": 9,
-   "value": 10373159,
+   "count": 14,
+   "value": 13621239,
    "cat": "PEKERJAAN BANGUNAN GENSET"
   },
   "PEKERJAAN PENGECATAN LISTPLANK": {
-   "count": 10,
-   "value": 10204499,
+   "count": 15,
+   "value": 13737100,
    "cat": "PEKERJAAN BANGUNAN GENSET"
   },
   "PEKERJAAN PINTU DOBEL BESI 214X217 CM": {
-   "count": 10,
-   "value": 81286236,
+   "count": 15,
+   "value": 120068907,
    "cat": "PEKERJAAN BANGUNAN GENSET"
   },
   "PEKERJAAN JENDELA JALUSI ALUMINIUM": {
-   "count": 10,
-   "value": 20161613,
+   "count": 15,
+   "value": 30274450,
    "cat": "PEKERJAAN BANGUNAN GENSET"
   },
   "PEKERJAAN PENGECATAN DINDING TEKSTUR": {
-   "count": 10,
-   "value": 106059758,
+   "count": 15,
+   "value": 169271930,
    "cat": "PEKERJAAN BANGUNAN GENSET"
   },
   "PEKERJAAN HURUF TIMBUL PLATE GALVANIS FINISH CAT DUCO, RUMAH GENSET UK": {
-   "count": 10,
-   "value": 17710000,
+   "count": 15,
+   "value": 26565000,
    "cat": "PEKERJAAN BANGUNAN GENSET"
   },
   "PEKERJAAN SAKLAR DOUBLE": {
-   "count": 20,
-   "value": 1965402,
+   "count": 30,
+   "value": 2965042,
    "cat": "PEKERJAAN BANGUNAN GENSET"
   },
   "PEKERJAAN PANEL BOX 3 PHASE 380V, 50 HZ": {
-   "count": 30,
-   "value": 126000000,
+   "count": 45,
+   "value": 189000000,
    "cat": "PEKERJAAN BANGUNAN GENSET"
   },
   "PEKERJAAN PENGUKURAN SALURAN": {
-   "count": 10,
-   "value": 4561466,
+   "count": 15,
+   "value": 7587482,
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "PEKERJAAN GALIAN TANAH SALURAN SAMPAI DENGAN 1 M": {
-   "count": 30,
-   "value": 129570278,
+   "count": 45,
+   "value": 249920920,
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "PEK. PEMADATAN TANAH GALIAN SALURAN DENGAN STAMPER": {
-   "count": 10,
-   "value": 33173045,
+   "count": 15,
+   "value": 55169308,
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "PEKERJAAN SALURAN BATU BELAH 50/40": {
-   "count": 10,
-   "value": 379074479,
+   "count": 15,
+   "value": 669638365,
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "PEKERJAAN RABAT BETON LANTAI SALURAN KAWASAN T = 5 CM": {
-   "count": 10,
-   "value": 39235982,
+   "count": 15,
+   "value": 67678011,
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "PEKERJAAN INSTALASI DRAINASE PIPA PVC Ø 4 INCH": {
-   "count": 10,
-   "value": 159736754,
+   "count": 15,
+   "value": 276782579,
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "PEKERJAAN PLESTERAN DINDING SALURAN": {
-   "count": 10,
-   "value": 25836144,
+   "count": 15,
+   "value": 68114966,
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "PEKERJAAN ACIAN FINISH": {
-   "count": 20,
-   "value": 115221002,
+   "count": 30,
+   "value": 196539547,
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "PEKERJAAN TUTUP BAK KONTROL (STEEL GRATTING) 120X120 CM": {
-   "count": 10,
-   "value": 95062500,
+   "count": 15,
+   "value": 153562500,
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "PEKERJAAN RABAT BETON LANTAI SALURAN BANGUNAN T = 5 CM": {
-   "count": 10,
-   "value": 29134471,
+   "count": 15,
+   "value": 44187182,
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "PEKERJAAN PENGUKURAN DAN PEMATOKAN JALAN": {
-   "count": 10,
-   "value": 3886538,
+   "count": 15,
+   "value": 8614263,
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "PEKERJAAN PEMADATAN TANAH EXISTING": {
-   "count": 10,
-   "value": 73364120,
+   "count": 15,
+   "value": 107603749,
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "PEKERJAAN URUGAN MAKADAM T = 40 CM": {
@@ -1953,58 +1958,58 @@
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "PEKERJAAN PEMBESIAN WIREMESH M8-150": {
-   "count": 10,
-   "value": 327685085,
+   "count": 15,
+   "value": 629018464,
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "~ PEKERJAAN TUL. POKOK BESI BETON 4 D 8 MM": {
-   "count": 10,
-   "value": 30129003,
+   "count": 15,
+   "value": 53176053,
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "~ PEKERJAAN DOWEL BESI BETON D 8 MM - 300": {
-   "count": 10,
-   "value": 12692071,
+   "count": 15,
+   "value": 29833167,
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "PEKERJAAN DOWEL BESI BETON D 13 MM - 300": {
-   "count": 10,
-   "value": 19596072,
+   "count": 15,
+   "value": 56871880,
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "PEKERJAAN PIPA PVC AW Ø 3/4\"": {
-   "count": 10,
-   "value": 26702712,
+   "count": 15,
+   "value": 73070576,
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "PEKERJAAN BETON SITE MIX MUTU F'C = 20 MPA DENGAN CONCRETE MIXER PUMP": {
-   "count": 10,
-   "value": 703891007,
+   "count": 15,
+   "value": 1655583494,
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "PEKERJAAN GALIAN TANAH KANSTIN": {
-   "count": 10,
-   "value": 2976125,
+   "count": 15,
+   "value": 3760002,
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "PEKERJAAN KANSTIN 15X25X40 CM": {
-   "count": 10,
-   "value": 172604479,
+   "count": 15,
+   "value": 257030907,
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "PEKERJAAN URUGAN TANAH MENDATANGKAN T = 12 CM": {
-   "count": 10,
-   "value": 78751395,
+   "count": 15,
+   "value": 95186718,
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "PEKERJAAN PEMADATAN URUGAN PASIR": {
-   "count": 10,
-   "value": 2059675,
+   "count": 15,
+   "value": 3684567,
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "PEKERJAAN PAVING BLOK T = 6 CM": {
-   "count": 10,
-   "value": 137991493,
+   "count": 15,
+   "value": 253331411,
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "PEKERJAAN PONDASI DUDUKAN CANSTEEN": {
@@ -2013,8 +2018,8 @@
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "PEKERJAAN PENANAMAN RUMPUT GAJAH MINI": {
-   "count": 10,
-   "value": 276580404,
+   "count": 15,
+   "value": 391134660,
    "cat": "PEKERJAAN LANDSKAPING KAWASAN"
   },
   "PENANAMAN POHON SEDANG TABEBUYA (TABEBUIA SP.), DIAMETER 3-5 CM, TINGG": {
@@ -2023,333 +2028,333 @@
    "cat": "PEKERJAAN LANDSKAPING KAWASAN"
   },
   "PEKERJAAN URUGAN TANAH MENDATANGKAN": {
-   "count": 10,
-   "value": 1333999249,
+   "count": 15,
+   "value": 3098350635,
    "cat": "PEKERJAAN LEVELLING LAHAN"
   },
   "PEK. PEMADATAN TANAH URUG DENGAN ALAT BERAT TIAP 20 CM": {
-   "count": 10,
-   "value": 602327413,
+   "count": 15,
+   "value": 1599793764,
    "cat": "PEKERJAAN LEVELLING LAHAN"
   },
   "PEKERJAAN PEMBESIAN BESI BETON D13 - 150": {
-   "count": 30,
-   "value": 222185857,
+   "count": 45,
+   "value": 297957156,
    "cat": "PEKERJAAN (kategori XXII — judul tidak ada di file)"
   },
   "PEKERJAAN PONDASI BATU KALI 1 : 5": {
-   "count": 10,
-   "value": 616882815,
+   "count": 15,
+   "value": 968666745,
    "cat": "PEKERJAAN (kategori XXII — judul tidak ada di file)"
   },
   "PEMBESIAN BESI BETON 5 D 13 MM": {
-   "count": 50,
-   "value": 536643478,
+   "count": 75,
+   "value": 717650274,
    "cat": "PEKERJAAN (kategori XXII — judul tidak ada di file)"
   },
   "PEMBESIAN BESI BETON 4 D 13 MM": {
-   "count": 40,
-   "value": 132332755,
+   "count": 60,
+   "value": 177461750,
    "cat": "PEKERJAAN (kategori XXII — judul tidak ada di file)"
   },
   "PEKERJAAN PEMBESIAN BESI BETON 8 D 13 MM": {
-   "count": 50,
-   "value": 278807695,
+   "count": 75,
+   "value": 373888546,
    "cat": "PEKERJAAN (kategori XXII — judul tidak ada di file)"
   },
   "PEMBESIAN BESI BETON 8 D 13 MM": {
-   "count": 10,
-   "value": 174757564,
+   "count": 15,
+   "value": 234354550,
    "cat": "PEKERJAAN (kategori XXII — judul tidak ada di file)"
   },
   "PEMBESIAN BESI BETON Ø 8 MM - 200": {
-   "count": 10,
-   "value": 13488464,
+   "count": 15,
+   "value": 17969661,
    "cat": "PEKERJAAN (kategori XXII — judul tidak ada di file)"
   },
   "PEKERJAAN DINDING BATA MERAH 1 : 5": {
-   "count": 10,
-   "value": 276782519,
+   "count": 15,
+   "value": 413871221,
    "cat": "PEKERJAAN (kategori XXII — judul tidak ada di file)"
   },
   "PEKEJAAN PLESTERAN": {
-   "count": 10,
-   "value": 204452646,
+   "count": 15,
+   "value": 310876349,
    "cat": "PEKERJAAN (kategori XXII — judul tidak ada di file)"
   },
   "PEKEJAAN ACIAN": {
-   "count": 10,
-   "value": 164429001,
+   "count": 15,
+   "value": 248150250,
    "cat": "PEKERJAAN (kategori XXII — judul tidak ada di file)"
   },
   "PEKERJAAN DINDING BATU ALAM": {
-   "count": 10,
-   "value": 34056914,
+   "count": 15,
+   "value": 48760532,
    "cat": "PEKERJAAN (kategori XXII — judul tidak ada di file)"
   },
   "PEKERJAAN DINDING BATA TERAKOTA": {
-   "count": 10,
-   "value": 7731982,
+   "count": 15,
+   "value": 11646871,
    "cat": "PEKERJAAN (kategori XXII — judul tidak ada di file)"
   },
   "PEKERJAAN LANTAI KERAMIK 40X40 CM MATTE": {
-   "count": 30,
-   "value": 619720159,
+   "count": 45,
+   "value": 935982903,
    "cat": "PEKERJAAN (kategori XXII — judul tidak ada di file)"
   },
   "PEKERJAAN PLAFOND GRC T = 6 MM, TERMASUK RANGKA BESI HOLLOW 40/40 MODU": {
-   "count": 10,
-   "value": 636246759,
+   "count": 15,
+   "value": 983467582,
    "cat": "PEKERJAAN (kategori XXII — judul tidak ada di file)"
   },
   "PEKERJAAN CAT DINDING LUAR WEATHERSHIELD": {
-   "count": 10,
-   "value": 281131074,
+   "count": 15,
+   "value": 378453267,
    "cat": "PEKERJAAN (kategori XXII — judul tidak ada di file)"
   },
   "PEKERJAAN CAT LISTPLANK ATAP": {
-   "count": 10,
-   "value": 21249889,
+   "count": 15,
+   "value": 28606193,
    "cat": "PEKERJAAN (kategori XXII — judul tidak ada di file)"
   },
   "PEKERJAAN LISTPLANK GRC ATAP": {
-   "count": 10,
-   "value": 117067344,
+   "count": 15,
+   "value": 170854461,
    "cat": "PEKERJAAN (kategori XXII — judul tidak ada di file)"
   },
   "PEKERJAAN URUGAN SIRTU": {
-   "count": 30,
-   "value": 53519147,
+   "count": 45,
+   "value": 89540495,
    "cat": "PEKERJAAN (kategori XXII — judul tidak ada di file)"
   },
   "PEKERJAAN LANTAI RABAT BETON T = 5 CM": {
-   "count": 10,
-   "value": 1031600,
+   "count": 15,
+   "value": 1572415,
    "cat": "PEKERJAAN (kategori XXII — judul tidak ada di file)"
   },
   "PEKERJAAN PEMASANGAN 1 M’ NOK/BUBUNG SPANDEK BERPASIR": {
-   "count": 10,
-   "value": 33293779,
+   "count": 15,
+   "value": 47187306,
    "cat": "PEKERJAAN (kategori XXII — judul tidak ada di file)"
   },
   "PEKERJAAN HURUF TIMBUL PLATE GALVANIS FINISH CAT DUCO, SENTRA KULINER ": {
-   "count": 10,
-   "value": 20930000,
+   "count": 15,
+   "value": 31395000,
    "cat": "PEKERJAAN (kategori XXII — judul tidak ada di file)"
   },
   "PEKERJAAN HURUF TIMBUL PLATE GALVANIS FINISH CAT DUCO, KOPI BAHARI UK.": {
-   "count": 10,
-   "value": 16100000,
+   "count": 15,
+   "value": 24150000,
    "cat": "PEKERJAAN (kategori XXII — judul tidak ada di file)"
   },
   "PEKERJAAN INSTALASI AIR BUANGAN PIPA PVC Ø 2 INCH": {
-   "count": 10,
-   "value": 26790944,
+   "count": 15,
+   "value": 39661757,
    "cat": "PEKERJAAN (kategori XXII — judul tidak ada di file)"
   },
   "PEKERJAAN DOWNLIGHT 6 INCH + LAMPU SL 18 WATT LED": {
-   "count": 10,
-   "value": 19463353,
+   "count": 15,
+   "value": 29256039,
    "cat": "PEKERJAAN (kategori XXII — judul tidak ada di file)"
   },
   "PEKERJAAN PASANG LAMPU RM 2XLED 18 WATT": {
-   "count": 10,
-   "value": 24574325,
+   "count": 15,
+   "value": 36967129,
    "cat": "PEKERJAAN (kategori XXII — judul tidak ada di file)"
   },
   "PAKERJAAN STOP KONTAK": {
-   "count": 10,
-   "value": 8449568,
+   "count": 15,
+   "value": 12739500,
    "cat": "PEKERJAAN (kategori XXII — judul tidak ada di file)"
   },
   "PEKERJAAN PASANG EXHAUST FAN": {
-   "count": 10,
-   "value": 47703610,
+   "count": 15,
+   "value": 71555415,
    "cat": "PEKERJAAN (kategori XXII — judul tidak ada di file)"
   },
   "PEKERJAAN PEMBESIAN BESI BETON 5 D 13 MM": {
-   "count": 50,
-   "value": 268557998,
+   "count": 75,
+   "value": 360143429,
    "cat": "PEKERJAAN BANGUNAN SHELTER PERBAIKAN ALAT TANGKAP"
   },
   "PEKERJAAN PEMBESIAN BESI BETON 4 D 13": {
-   "count": 20,
-   "value": 39897060,
+   "count": 30,
+   "value": 53503023,
    "cat": "PEKERJAAN BANGUNAN SHELTER PERBAIKAN ALAT TANGKAP"
   },
   "PEKERJAAN PEMASANGAN 1 M’ NOK/BUMBUNG SPANDEK BERPASIR": {
-   "count": 20,
-   "value": 44140197,
+   "count": 30,
+   "value": 62559946,
    "cat": "PEKERJAAN BANGUNAN SHELTER PERBAIKAN ALAT TANGKAP"
   },
   "PEKERJAAN HURUF TIMBUL PLATE GALVANIS FINISH CAT DUCO, SHELTER PEERBAI": {
-   "count": 10,
-   "value": 43470000,
+   "count": 15,
+   "value": 65205000,
    "cat": "PEKERJAAN BANGUNAN SHELTER PERBAIKAN ALAT TANGKAP"
   },
   "PASANG LAMPU RM TKI 2 X LED 18 WATT": {
-   "count": 20,
-   "value": 40957205,
+   "count": 30,
+   "value": 61611878,
    "cat": "PEKERJAAN BANGUNAN SHELTER PERBAIKAN ALAT TANGKAP"
   },
   "PEKERJAAN GALIAN TANAH SEDALAM 1 M": {
-   "count": 29,
-   "value": 71481538,
+   "count": 44,
+   "value": 109817219,
    "cat": "PEKERJAAN BANGUNAN BALAI NELAYAN"
   },
   "PEKERJAAN PEMBESIAN BESI BETON 6 D 13 MM": {
-   "count": 10,
-   "value": 24477244,
+   "count": 15,
+   "value": 32824638,
    "cat": "PEKERJAAN BANGUNAN BALAI NELAYAN"
   },
   "PEKERJAAN LANTAI RABAT BETON T = 6 CM": {
-   "count": 10,
-   "value": 3026035,
+   "count": 15,
+   "value": 4612428,
    "cat": "PEKERJAAN BANGUNAN BALAI NELAYAN"
   },
   "PEKERJAAN LANTAI KERAMIK 40X40 CM POLISHED": {
-   "count": 10,
-   "value": 240940932,
+   "count": 15,
+   "value": 363900689,
    "cat": "PEKERJAAN BANGUNAN BALAI NELAYAN"
   },
   "PEKERJAAN PLAFOND GRC TMSK RANGKA MODUL 60X60 CM": {
-   "count": 10,
-   "value": 254498705,
+   "count": 15,
+   "value": 393387034,
    "cat": "PEKERJAAN BANGUNAN BALAI NELAYAN"
   },
   "PEKERJAAN HURUF TIMBUL PLATE GALVANIS FINISH CAT DUCO, BALAI NELAYAN U": {
-   "count": 10,
-   "value": 19320000,
+   "count": 15,
+   "value": 28980000,
    "cat": "PEKERJAAN BANGUNAN BALAI NELAYAN"
   },
   "PEKERJAAN RAILING": {
-   "count": 10,
-   "value": 78507311,
+   "count": 15,
+   "value": 117038190,
    "cat": "PEKERJAAN BANGUNAN BALAI NELAYAN"
   },
   "PEKERJAAN BEKESTING PONDASI PASANGAN BATAKO": {
-   "count": 10,
-   "value": 16805892,
+   "count": 15,
+   "value": 24379749,
    "cat": "PEKERJAAN BANGUNAN PEMASARAN IKAN"
   },
   "PEMBESIAN BESI BETON D 10 MM - 150": {
-   "count": 10,
-   "value": 85697370,
+   "count": 15,
+   "value": 114168142,
    "cat": "PEKERJAAN BANGUNAN PEMASARAN IKAN"
   },
   "PEKERJAAN STEK BESI D 13 - 500": {
-   "count": 10,
-   "value": 13932987,
+   "count": 15,
+   "value": 18439914,
    "cat": "PEKERJAAN BANGUNAN PEMASARAN IKAN"
   },
   "PEKERJAAN GELAR WIREMESH M8-150": {
-   "count": 20,
-   "value": 254221322,
+   "count": 30,
+   "value": 326848849,
    "cat": "PEKERJAAN BANGUNAN PEMASARAN IKAN"
   },
   "PEKERJAAN BETON SITE SETARA FC = 20": {
-   "count": 60,
-   "value": 664991542,
+   "count": 90,
+   "value": 995819938,
    "cat": "PEKERJAAN BANGUNAN PEMASARAN IKAN"
   },
   "PEMBESIAN BESI BETON 8 D13 MM": {
-   "count": 30,
-   "value": 229148192,
+   "count": 45,
+   "value": 307293831,
    "cat": "PEKERJAAN BANGUNAN PEMASARAN IKAN"
   },
   "PEMBESIAN BESI BETON 4 D13 MM": {
-   "count": 10,
-   "value": 10878154,
+   "count": 15,
+   "value": 14587895,
    "cat": "PEKERJAAN BANGUNAN PEMASARAN IKAN"
   },
   "PEKERJAAN ROLAAG BATA": {
-   "count": 10,
-   "value": 15385625,
+   "count": 15,
+   "value": 23006033,
    "cat": "PEKERJAAN BANGUNAN PEMASARAN IKAN"
   },
   "PEKERJAAN URUGAN TANAH DIPADATKAN": {
-   "count": 10,
-   "value": 12837780,
+   "count": 15,
+   "value": 19256670,
    "cat": "PEKERJAAN BANGUNAN PEMASARAN IKAN"
   },
   "PEKERJAAN PLESTERAN (SAMPING ROLAAG)": {
-   "count": 10,
-   "value": 1988873,
+   "count": 15,
+   "value": 3024143,
    "cat": "PEKERJAAN BANGUNAN PEMASARAN IKAN"
   },
   "PEKERJAAN KAYU BEKESTING RAMP": {
-   "count": 10,
-   "value": 45763486,
+   "count": 15,
+   "value": 69946958,
    "cat": "PEKERJAAN BANGUNAN PEMASARAN IKAN"
   },
   "PEKERJAAN LANTAI FLOORHARDENER": {
-   "count": 10,
-   "value": 75231832,
+   "count": 15,
+   "value": 113990044,
    "cat": "PEKERJAAN BANGUNAN PEMASARAN IKAN"
   },
   "PEKERJAAN PASANG TUTUP SALURAN PVC": {
-   "count": 10,
-   "value": 68487460,
+   "count": 15,
+   "value": 102731190,
    "cat": "PEKERJAAN BANGUNAN PEMASARAN IKAN"
   },
   "PEKERJAAN SETTING BESI SIKU 70.70.7 MM": {
-   "count": 10,
-   "value": 96959234,
+   "count": 15,
+   "value": 146787750,
    "cat": "PEKERJAAN BANGUNAN PEMASARAN IKAN"
   },
   "PEKERJAAN CAT BESI": {
-   "count": 10,
-   "value": 4245240,
+   "count": 15,
+   "value": 5714861,
    "cat": "PEKERJAAN BANGUNAN PEMASARAN IKAN"
   },
   "PEKERJAAN PENGECATAN DINDING LUAR": {
-   "count": 10,
-   "value": 21832665,
+   "count": 15,
+   "value": 29390714,
    "cat": "PEKERJAAN BANGUNAN PEMASARAN IKAN"
   },
   "PEKERJAAN HURUF TIMBUL PLATE GALVANIS FINISH CAT DUCO, PEMASARAN IKAN ": {
-   "count": 10,
-   "value": 20930000,
+   "count": 15,
+   "value": 31395000,
    "cat": "PEKERJAAN BANGUNAN PEMASARAN IKAN"
   },
   "PEKERJAAN PASANG LAMPU TKI 2XLED 18 WATT, TERMASUKM PENGGANTUNG": {
-   "count": 10,
-   "value": 24574325,
+   "count": 15,
+   "value": 36967129,
    "cat": "PEKERJAAN BANGUNAN PEMASARAN IKAN"
   },
   "PEKERJAAN URUGAN MAKADAM T = 25 CM": {
-   "count": 9,
-   "value": 17240634,
+   "count": 14,
+   "value": 28990432,
    "cat": "PEKERJAAN BANGUNAN DOCKING KAPAL"
   },
   "PEKERJAAN PEMADATAN MAKAM DENGAN STAMPER": {
-   "count": 9,
-   "value": 1598877,
+   "count": 14,
+   "value": 2487142,
    "cat": "PEKERJAAN BANGUNAN DOCKING KAPAL"
   },
   "PEKERJAAN URUGAN SIRTU T = 15 CM DIPADATKAN DENGAN TAMPER": {
-   "count": 9,
-   "value": 6174790,
+   "count": 14,
+   "value": 10734514,
    "cat": "PEKERJAAN BANGUNAN DOCKING KAPAL"
   },
   "PEKERJAAN FLOOR HARDENER": {
-   "count": 10,
-   "value": 66885398,
+   "count": 15,
+   "value": 101343664,
    "cat": "PEKERJAAN BANGUNAN DOCKING KAPAL"
   },
   "PENGECATAN LISTPLANK GRC": {
-   "count": 10,
-   "value": 13465369,
+   "count": 15,
+   "value": 18126821,
    "cat": "PEKERJAAN BANGUNAN DOCKING KAPAL"
   },
   "PEKERJAAN HURUF TIMBUL PLATE GALVANIS FINISH CAT DUCO, DOCKING KAPAL U": {
-   "count": 10,
-   "value": 19320000,
+   "count": 15,
+   "value": 28980000,
    "cat": "PEKERJAAN BANGUNAN DOCKING KAPAL"
   },
   "PEKERJAAN PEMASANGAN ATAP SPANDEK BERPASIR T = 0,45": {
-   "count": 4,
-   "value": 35459007,
+   "count": 9,
+   "value": 117472430,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "JUMLAHPENERANGAN TIANG T=7M DAN T=4 M :": {
@@ -2363,248 +2368,248 @@
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "PEKERJAAN GALIAN TANAH KERAS SAMPAI DENGAN 2 M": {
-   "count": 3,
-   "value": 3449240,
+   "count": 8,
+   "value": 9188886,
    "cat": "PEKERJAAN BANGUNAN IPAL BIOTECH"
   },
   "PEKERJAAN BUANG TANAH BEKAS GALIAN": {
-   "count": 3,
-   "value": 1012592,
+   "count": 8,
+   "value": 2695701,
    "cat": "PEKERJAAN BANGUNAN IPAL BIOTECH"
   },
   "PEKERJAAN PEMBESIAN BESI BETON D13 - 150 MELINTANG": {
-   "count": 3,
-   "value": 4078803,
+   "count": 8,
+   "value": 9643362,
    "cat": "PEKERJAAN BANGUNAN IPAL BIOTECH"
   },
   "PEKERJAAN PEMBESIAN BESI BETON D10 - 150 MEMANJANG": {
-   "count": 3,
-   "value": 1827804,
+   "count": 8,
+   "value": 4284474,
    "cat": "PEKERJAAN BANGUNAN IPAL BIOTECH"
   },
   "PEKERJAAN DINDING PASANGAN BATA 1 : 5": {
-   "count": 3,
-   "value": 8735255,
+   "count": 8,
+   "value": 24910648,
    "cat": "PEKERJAAN BANGUNAN IPAL BIOTECH"
   },
   "PEKERJAAN PENGADAAN DAN PEMASANGAN IPAL BIOTECH 2 M³": {
-   "count": 4,
-   "value": 107058305,
+   "count": 9,
+   "value": 240918266,
    "cat": "PEKERJAAN BANGUNAN IPAL BIOTECH"
   },
   "PEKERJAAN URUGAN PASIR URUG": {
-   "count": 3,
-   "value": 7748426,
+   "count": 8,
+   "value": 21705589,
    "cat": "PEKERJAAN BANGUNAN IPAL BIOTECH"
   },
   "PENDAFTARAN NIDI + SLO DAYA 13 KVA": {
-   "count": 2,
-   "value": 1600800,
+   "count": 4,
+   "value": 3201600,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "BIAYA PASANG BARU DAYA 13 KVA": {
-   "count": 2,
-   "value": 31700000,
+   "count": 4,
+   "value": 63400000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "PEKERJAAN PANEL DISTRIBUSI KAWASAN, LVMDP/PDTR 15KVA, TERMASUK PENGIRI": {
-   "count": 2,
-   "value": 46000000,
+   "count": 4,
+   "value": 92000000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "PEKERJAAN PENGADAAN TEMPAT SAMPAH PORTABLE 1100 L EX. KRISBOW + PENGIR": {
-   "count": 3,
-   "value": 23344563,
+   "count": 8,
+   "value": 93378252,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "PEMBESIAN BESI BETON Ø 10-150 MM": {
-   "count": 3,
-   "value": 16950551,
+   "count": 8,
+   "value": 45320472,
    "cat": "PEKERJAAN REVETMENT"
   },
   "PEMBESIAN BESI BETON D13-100 MM SECARA SEMI MEKANIS": {
-   "count": 3,
-   "value": 4715942,
+   "count": 8,
+   "value": 12599344,
    "cat": "PEKERJAAN REVETMENT"
   },
   "PEMBESIAN BESI BETON Ø10-150 MM": {
-   "count": 3,
-   "value": 2865720,
+   "count": 8,
+   "value": 7662040,
    "cat": "PEKERJAAN REVETMENT"
   },
   "PEK. PEMBESIAN BESI BETON D 13 MM - 200 (VERTIKAL)": {
-   "count": 6,
-   "value": 109391670,
+   "count": 16,
+   "value": 413186225,
    "cat": "PEKERJAAN REVETMENT"
   },
   "PEMBESIAN BESI BETON D 13 MM SECARA SEMI MEKANIS": {
-   "count": 14,
-   "value": 303907837,
+   "count": 24,
+   "value": 493121714,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEMBESIAN BESI BETON 5 D 13 MM TERMASUK STEK SECARA SEMI MEKANIS": {
-   "count": 14,
-   "value": 273930040,
+   "count": 24,
+   "value": 435940896,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEMBESIAN BESI BETON 5 D 13 MM SECARA SEMI MEKANIS": {
-   "count": 46,
-   "value": 455668937,
+   "count": 81,
+   "value": 789342114,
    "cat": "PEKERJAAN TAMBATAN PERAHU"
   },
   "PEKERJAAN PLAFOND GRC T = 6 MM,TERMASUK RANGKA BESI HOLLOW GALVALUM 40": {
-   "count": 12,
-   "value": 162126767,
+   "count": 32,
+   "value": 456964387,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PASANG SAKLAR DOBEL": {
-   "count": 3,
-   "value": 148776,
+   "count": 8,
+   "value": 398686,
    "cat": "PEKERJAAN BANGUNAN SHELTER PENDARATAN IKAN"
   },
   "PEKERJAAN KUSEN PINTU UPVC P-03, TERMASUK KUSEN, DAUN PINTU, HADLE (1 ": {
-   "count": 6,
-   "value": 21518316,
+   "count": 16,
+   "value": 57396082,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN PENGADAAN DAN PEMASANGAN TANGKI TOREN KAP.2000 LITER EX.PENG": {
-   "count": 3,
-   "value": 20166518,
+   "count": 6,
+   "value": 40327206,
    "cat": "PEKERJAAN BANGUNAN KIOS PERBEKALAN"
   },
   "PEKERJAAN PEMBESIAN BESI BETON D16 - 150": {
-   "count": 3,
-   "value": 10841009,
+   "count": 8,
+   "value": 28963374,
    "cat": "PEKERJAAN PLUMBING DISTRIBUSI AIR BERSIH DAN SUMUR BOR"
   },
   "PEKERJAAN PEMBESIAN BESI BETON TIES D13 - 400": {
-   "count": 3,
-   "value": 665623,
+   "count": 8,
+   "value": 1778312,
    "cat": "PEKERJAAN PLUMBING DISTRIBUSI AIR BERSIH DAN SUMUR BOR"
   },
   "PEKERJAAN PENGECORAN DENGAN CONCRETE VIBRATOR": {
-   "count": 21,
-   "value": 1544869,
+   "count": 58,
+   "value": 4121260,
    "cat": "PEKERJAAN PLUMBING DISTRIBUSI AIR BERSIH DAN SUMUR BOR"
   },
   "PEKERJAAN PEMBESIAN BESI BETON 5 D 13": {
-   "count": 3,
-   "value": 5131956,
+   "count": 8,
+   "value": 13710788,
    "cat": "PEKERJAAN PLUMBING DISTRIBUSI AIR BERSIH DAN SUMUR BOR"
   },
   "PEKERJAAN PEMBESIAN BESI BETON Ø 8 - 100/200": {
-   "count": 12,
-   "value": 7935766,
+   "count": 34,
+   "value": 22297354,
    "cat": "PEKERJAAN PLUMBING DISTRIBUSI AIR BERSIH DAN SUMUR BOR"
   },
   "PEKERJAAN PEMBESIAN BESI BETON 12 D13": {
-   "count": 3,
-   "value": 15645478,
+   "count": 8,
+   "value": 41799234,
    "cat": "PEKERJAAN PLUMBING DISTRIBUSI AIR BERSIH DAN SUMUR BOR"
   },
   "PEKERJAAN PEMBESIAN BESI BETON TIES D 10 - 200": {
-   "count": 9,
-   "value": 8341107,
+   "count": 26,
+   "value": 23631413,
    "cat": "PEKERJAAN PLUMBING DISTRIBUSI AIR BERSIH DAN SUMUR BOR"
   },
   "PEKERJAAN PEMBESIAN BESI BETON D10 - 100/200": {
-   "count": 3,
-   "value": 2690923,
+   "count": 8,
+   "value": 7194687,
    "cat": "PEKERJAAN PLUMBING DISTRIBUSI AIR BERSIH DAN SUMUR BOR"
   },
   "PEKERJAAN PERANCAH/SCAFOLDING": {
-   "count": 3,
-   "value": 24939705,
+   "count": 8,
+   "value": 66608490,
    "cat": "PEKERJAAN PLUMBING DISTRIBUSI AIR BERSIH DAN SUMUR BOR"
   },
   "PEKERJAAN PEMBESIAN BESI BETON 6 D 13": {
-   "count": 3,
-   "value": 9487130,
+   "count": 10,
+   "value": 28915562,
    "cat": "PEKERJAAN PLUMBING DISTRIBUSI AIR BERSIH DAN SUMUR BOR"
   },
   "PEKERJAAN PEMBESIAN BESI BETON 5 D 10": {
-   "count": 3,
-   "value": 1164996,
+   "count": 8,
+   "value": 3114835,
    "cat": "PEKERJAAN PLUMBING DISTRIBUSI AIR BERSIH DAN SUMUR BOR"
   },
   "PEKERJAAN PEMBESIAN BESI BETON 10 D 10": {
-   "count": 3,
-   "value": 3407590,
+   "count": 8,
+   "value": 9110829,
    "cat": "PEKERJAAN PLUMBING DISTRIBUSI AIR BERSIH DAN SUMUR BOR"
   },
   "PEKERJAAN PEMBESIAN BESI WIREMESH M8-150, 2 LAPIS": {
-   "count": 3,
-   "value": 20082580,
+   "count": 8,
+   "value": 41887875,
    "cat": "PEKERJAAN PLUMBING DISTRIBUSI AIR BERSIH DAN SUMUR BOR"
   },
   "SHELTER PENDARATAN IKAN - PABRIK ES - KIOS PERBEKALAN": {
-   "count": 2,
-   "value": 19187890,
+   "count": 4,
+   "value": 37545947,
    "cat": "PEKERJAAN PLUMBING DISTRIBUSI AIR BERSIH DAN SUMUR BOR"
   },
   "PEKERJAAN TANGGA MONYET (MAINTANANCE), PIPA GALVANIS Ø 2 INCH + Ø 1 ½ ": {
-   "count": 3,
-   "value": 3552953,
+   "count": 8,
+   "value": 9546267,
    "cat": "PEKERJAAN PLUMBING DISTRIBUSI AIR BERSIH DAN SUMUR BOR"
   },
   "PEKERJAAN PIPA ISAP/HANTAR - PVC AW = 2 INCH SNI": {
-   "count": 3,
-   "value": 27952953,
+   "count": 8,
+   "value": 75668864,
    "cat": "PEKERJAAN PLUMBING DISTRIBUSI AIR BERSIH DAN SUMUR BOR"
   },
   "PEKERJAAN PENGADAAN DAN PEMASANGAN TIANG PJU 4 METER (OKTAGONAL DOUBLE": {
-   "count": 3,
-   "value": 230192279,
+   "count": 7,
+   "value": 531286032,
    "cat": "PEKERJAAN PENERANGAN KAWASAN"
   },
   "PEKERJAAN PENGIRIMAN TIANG LAMPU": {
-   "count": 3,
-   "value": 30748126,
+   "count": 8,
+   "value": 73528127,
    "cat": "PEKERJAAN PENERANGAN KAWASAN"
   },
   "~PEKERJAAN GALIAN TANAH": {
-   "count": 3,
-   "value": 41393,
+   "count": 8,
+   "value": 109569,
    "cat": "PEKERJAAN TEMPAT PEMBUANGAN SAMPAH"
   },
   "~PEKERJAAN ROOLAG BATA": {
-   "count": 3,
-   "value": 1664169,
+   "count": 8,
+   "value": 5168837,
    "cat": "PEKERJAAN TEMPAT PEMBUANGAN SAMPAH"
   },
   "PEKERJAAN URUGAN MAKADAM T = 30 CM DIPADATKAN": {
-   "count": 3,
-   "value": 254942912,
+   "count": 8,
+   "value": 1004728035,
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "PEKERJAAN JOINT SEALER ASPAL": {
-   "count": 3,
-   "value": 1104000,
+   "count": 8,
+   "value": 2944000,
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "PEKERJAAN PEMASANGAN PLASTIK COR": {
-   "count": 3,
-   "value": 11155920,
+   "count": 8,
+   "value": 38996280,
    "cat": "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN"
   },
   "PENANAMAN 1 BUAH POHON SEDANG MANGGA (MANGIFERA INDICA), DIAMETER 6-8 ": {
-   "count": 3,
-   "value": 25564922,
+   "count": 8,
+   "value": 68194939,
    "cat": "PEKERJAAN LANDSKAPING KAWASAN"
   },
   "PENANAMAN 1 BUAH POHON SEDANG ALPUKAT (PERSEA AMERICANA), DIAMETER 6-8": {
-   "count": 3,
-   "value": 20131172,
+   "count": 8,
+   "value": 53704939,
    "cat": "PEKERJAAN LANDSKAPING KAWASAN"
   },
   "PENANAMAN 1 BUAH POHON SEDANG RAMBUTAN (NEPHELIUM LAPPACEUM), DIAMETER": {
-   "count": 3,
-   "value": 22848047,
+   "count": 8,
+   "value": 60949939,
    "cat": "PEKERJAAN LANDSKAPING KAWASAN"
   },
   "PENANAMAN 1 BUAH POHON SEDANG LENGKENG (DIMOCARPUS LONGAN), DIAMETER 6": {
-   "count": 3,
-   "value": 23753672,
+   "count": 8,
+   "value": 63364939,
    "cat": "PEKERJAAN LANDSKAPING KAWASAN"
   },
   "PEKERJAAN PERANCAH UNTUK JALAN KERJA SHELTER PENDARATAN IKAN (BADAN KO": {
@@ -2623,8 +2628,8 @@
    "cat": "PEKERJAAN PONDASI PABRIK ES PORTABLE"
   },
   "PEKERJAAN LANTAI PAVING BLOCK T = 6 CM": {
-   "count": 1,
-   "value": 30815055,
+   "count": 3,
+   "value": 97557640,
    "cat": "PEKERJAAN AREA PARKIR"
   },
   "PEKERJAAN PERANCAH UNTUK JALAN KERJA KANTOR PENGELOLA (BADAN KONTRUKSI": {
@@ -2678,34 +2683,74 @@
    "cat": "PEKERJAAN JALAN LINGKUNGAN (DECK ON PILE)"
   },
   "PENDAFTARAN NIDI + SLO DAYA 41,5 KVA": {
-   "count": 1,
-   "value": 4800000,
+   "count": 4,
+   "value": 19200000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "BIAYA PASANG BARU DAYA 41,5 KVA": {
-   "count": 1,
-   "value": 41500000,
+   "count": 4,
+   "value": 166000000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "PENDAFTARAN NIDI + SLO DAYA 17 KVA": {
-   "count": 1,
-   "value": 1029250,
+   "count": 2,
+   "value": 2058500,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "BIAYA PASANG BARU DAYA 17 KVA": {
-   "count": 1,
-   "value": 15850000,
+   "count": 2,
+   "value": 31700000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "PEKERJAAN PANEL DISTRIBUSI KAWASAN, LVMDP/PDTR 20 KVA, TERMASUK PENGIR": {
-   "count": 1,
-   "value": 23000000,
+   "count": 2,
+   "value": 43700000,
    "cat": "PEKERJAAN PERSIAPAN"
   },
   "SHELTER PENDARATAN IKAN - PABRIK ES - GD. BEKU - KIOS PERBEKALAN": {
-   "count": 1,
-   "value": 18254065,
+   "count": 2,
+   "value": 36610252,
    "cat": "PEKERJAAN PLUMBING DISTRIBUSI AIR BERSIH DAN SUMUR BOR"
+  },
+  "PEKERJAAN PENGADAAN DAN PEMASANGAN TIANG PJU 7 METER (OKTAGONAL DOBEL ": {
+   "count": 3,
+   "value": 61866449,
+   "cat": "PEKERJAAN PENERANGAN KAWASAN"
+  },
+  "PENDAFTARAN NIDI + SLO DAYA 21 KVA": {
+   "count": 2,
+   "value": 2967000,
+   "cat": "PEKERJAAN PERSIAPAN"
+  },
+  "BIAYA PASANG BARU DAYA 21 KVA": {
+   "count": 2,
+   "value": 32000000,
+   "cat": "PEKERJAAN PERSIAPAN"
+  },
+  "PEKERJAAN PANEL DISTRIBUSI KAWASAN, LVMDP/PDTR 25KVA, TERMASUK PENGIRI": {
+   "count": 2,
+   "value": 50600000,
+   "cat": "PEKERJAAN PERSIAPAN"
+  },
+  "PEKERJAAN PENGIRIMAN BAHAN (ON SITE) DAN TENAGA PERAKITAN": {
+   "count": 2,
+   "value": 34542934,
+   "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
+  },
+  "PEKERJAAN PENGADAAN DAN SETTING TANGKI AIR FRP 18.000 LITER (INLET, OU": {
+   "count": 2,
+   "value": 109190574,
+   "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
+  },
+  "SHELTER PENDARATAN IKAN - PABRIK ES - GD. BEKU": {
+   "count": 2,
+   "value": 15694316,
+   "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
+  },
+  "BANGUNAN KANTOR - KIOS PERBEKALAN": {
+   "count": 2,
+   "value": 34746602,
+   "cat": "PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR"
   }
  }
 }
