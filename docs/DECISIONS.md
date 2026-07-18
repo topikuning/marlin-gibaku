@@ -1077,3 +1077,32 @@ scurve — dengan test properti, bukan paritas nilai):**
   yang IA buat (read-only, tanpa aksi kelola), form peran dibatasi
   `creatableRoles`, dan penugasan lokasi dibatasi lokasi yang IA akses.
 - Menu "Pengguna" kini muncul utk pemilik `user.create` (bukan hanya user.manage).
+
+## 057 · 2026-07-18 · Algoritma penjadwalan kurva-S per-lokasi (cost-based duration + presedensi CPM)
+
+- **Masalah**: jendela waktu tiap trade dulu TETAP (di-tebak pakar, sama untuk
+  semua lokasi). Bobot biaya sudah per-lokasi (amount/grand), tapi *penjadwalan*
+  (kapan tiap trade mulai/selesai) tidak menyesuaikan komposisi lokasi.
+- **Keputusan**: jendela `[start,end]` tiap trade dihitung PER-LOKASI dari
+  komposisi bobotnya sendiri (`computeTradeWindows` di `src/lib/scurve/generate.ts`),
+  deterministik (BUKAN panggil AI saat runtime). Dua prinsip, hasil riset
+  penjadwalan konstruksi + korpus 15 RAB KNMP (docs/rab-analysis):
+  1. **Presedensi (CPM)** — tiap trade punya band `[bandStart,bandEnd]` = amplop
+     paling awal boleh mulai … paling akhir boleh selesai. Mengunci urutan
+     lapangan (persiapan→tanah→pondasi→struktur→dinding/atap→MEP→finishing→
+     landscape) dengan tumpang-tindih realistis (start-to-start lag).
+  2. **Durasi berbasis biaya** (*cost-based / cost-loaded duration*) — trade yang
+     menyerap porsi biaya lebih besar menempati rentang waktu lebih panjang.
+     `dur = minDur + (bandWidth−minDur)·min(1, share/0.32)`. Referensi: CMU
+     PMbook Construction Planning; praktik kurva-S RAB ID (bobot=biaya/total,
+     sebar sepanjang durasi item).
+  3. **Anchor** posisi dalam band: front (persiapan/tanah/pondasi), tail
+     (finishing/landscape), center (struktur/dinding/atap/mep/sarana_luar).
+- **Efek**: lokasi struktur-berat → jendela struktur melebar (kurva curam di
+  tengah); lokasi MEP/finishing-berat → kurva mundur (back-loaded). Finishing =
+  ekor panjang alami (minDur 0.30) supaya tak ada jeda datar setelah struktur.
+- **Konsistensi**: jendela yang sama dipakai baseline (`scheduleItems`), saran
+  rencana mingguan (`suggest-core` — bobot trade dari Σ volume×harga), dan sheet
+  KKP (`kkp-sheet` — bobot trade dari Σ bobot item). Sifat DECISIONS 052 dijaga:
+  mulai 0, akhir 100, monoton, bentuk-S. `TYPICAL_TRADE_MIX` (share korpus)
+  jadi jendela default bila konteks bobot lokasi belum ada.

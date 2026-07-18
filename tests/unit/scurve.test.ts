@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   classifyTrade,
+  computeTradeWindows,
   DEFAULT_CONTRACT_DAYS,
   generateScurve,
   scheduleItems,
   smoothstep,
+  TRADE_BANDS,
+  TYPICAL_TRADE_MIX,
 } from "@/lib/scurve/generate";
 
 describe("smoothstep", () => {
@@ -83,6 +86,65 @@ describe("classifyTrade", () => {
     expect(classifyTrade("Pekerjaan Pemasangan Dynabolt M8 x 100 mm", "")).toBe("struktur");
     // hindari salah tebak: ACIAN tetap dinding (bukan 'AC'→mep)
     expect(classifyTrade("Pekerjaan Acian dinding", "")).toBe("dinding");
+  });
+});
+
+describe("computeTradeWindows (algoritma jadwal per-lokasi)", () => {
+  const bandOf = (k: string) => TRADE_BANDS.find((b) => b.key === k)!;
+
+  it("jendela selalu di dalam band presedensi [bandStart,bandEnd]", () => {
+    const w = computeTradeWindows(TYPICAL_TRADE_MIX);
+    for (const b of TRADE_BANDS) {
+      expect(w[b.key].start).toBeGreaterThanOrEqual(b.bandStart - 1e-9);
+      expect(w[b.key].end).toBeLessThanOrEqual(b.bandEnd + 1e-9);
+      expect(w[b.key].end).toBeGreaterThan(w[b.key].start);
+    }
+  });
+
+  it("presedensi lapangan: persiapan mulai sebelum struktur mulai sebelum finishing", () => {
+    const w = computeTradeWindows(TYPICAL_TRADE_MIX);
+    expect(w.persiapan.start).toBeLessThan(w.struktur.start);
+    expect(w.struktur.start).toBeLessThan(w.finishing.start);
+    expect(w.finishing.end).toBeGreaterThanOrEqual(w.struktur.end);
+  });
+
+  it("anchor: persiapan mulai di awal band (front), landscape selesai di akhir (tail)", () => {
+    const w = computeTradeWindows(TYPICAL_TRADE_MIX);
+    expect(w.persiapan.start).toBeCloseTo(bandOf("persiapan").bandStart, 6);
+    expect(w.landscape.end).toBeCloseTo(bandOf("landscape").bandEnd, 6);
+  });
+
+  it("cost-based duration: trade lebih berat → jendela lebih lebar (dalam band sama)", () => {
+    const ringan = computeTradeWindows({ struktur: 0.05, mep: 0.95 });
+    const berat = computeTradeWindows({ struktur: 0.95, mep: 0.05 });
+    const durStrukturBerat = berat.struktur.end - berat.struktur.start;
+    const durStrukturRingan = ringan.struktur.end - ringan.struktur.start;
+    expect(durStrukturBerat).toBeGreaterThan(durStrukturRingan);
+    // mep sebaliknya
+    expect(ringan.mep.end - ringan.mep.start).toBeGreaterThan(berat.mep.end - berat.mep.start);
+  });
+
+  it("adaptif per-lokasi: lokasi struktur-berat → kurva lebih curam di tengah drpd lokasi rata", () => {
+    const strukturBerat = scheduleItems(
+      [
+        { name: "Beton K-250", categoryName: "STRUKTUR", amount: 800_000_000n },
+        { name: "Pasang keramik", categoryName: "FINISHING", amount: 100_000_000n },
+        { name: "Pembersihan lahan", categoryName: "PERSIAPAN", amount: 100_000_000n },
+      ],
+      150,
+    );
+    // Kurva valid & monoton, puncak laju ada di paruh tengah (struktur dominan).
+    const mid = Math.floor(strukturBerat.length / 2);
+    const rate = (i: number) => strukturBerat[i] - (i > 0 ? strukturBerat[i - 1] : 0);
+    expect(rate(mid)).toBeGreaterThan(rate(0));
+    expect(strukturBerat[strukturBerat.length - 1]).toBeCloseTo(100, 1);
+  });
+
+  it("bobot kosong → tetap kembalikan jendela valid (fallback share 0 = minDur)", () => {
+    const w = computeTradeWindows({});
+    for (const b of TRADE_BANDS) {
+      expect(w[b.key].end - w[b.key].start).toBeCloseTo(b.minDur, 6);
+    }
   });
 });
 

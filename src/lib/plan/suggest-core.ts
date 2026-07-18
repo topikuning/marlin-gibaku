@@ -1,4 +1,11 @@
-import { classifyTrade, tradeLabel, tradePlannedFraction, type TradeKey } from "@/lib/scurve/generate";
+import {
+  classifyTrade,
+  computeTradeWindows,
+  tradeLabel,
+  tradePlannedFraction,
+  type TradeKey,
+  type TradeWindow,
+} from "@/lib/scurve/generate";
 
 /**
  * Inti MURNI (tanpa DB / server-only) untuk saran rencana mingguan — bisa diuji
@@ -53,9 +60,16 @@ export type LeafInput = {
 };
 
 /** Estimasi berapa minggu sebuah item tertinggal (utk alasan yang informatif). */
-function overdueWeeks(trade: TradeKey, volume: number, realized: number, weekNumber: number, totalWeeks: number): number {
+function overdueWeeks(
+  trade: TradeKey,
+  volume: number,
+  realized: number,
+  weekNumber: number,
+  totalWeeks: number,
+  windows: Record<TradeKey, TradeWindow>,
+): number {
   for (let k = 0; k < weekNumber; k++) {
-    const planned = tradePlannedFraction(trade, k, totalWeeks) * volume;
+    const planned = tradePlannedFraction(trade, k, totalWeeks, windows) * volume;
     if (planned > realized + EPS) return weekNumber - 1 - k;
   }
   return 0;
@@ -78,11 +92,23 @@ export function computeSuggestions(
 ): WeeklySuggestion[] {
   const raw: (WeeklySuggestion & { rankScore: number })[] = [];
 
+  // Jendela jadwal PER-LOKASI (konsisten dgn baseline scheduleItems): bobot
+  // trade = Σ volume×harga per trade dari seluruh leaf lokasi ini.
+  const windows = computeTradeWindows(
+    leaves.reduce<Partial<Record<TradeKey, number>>>((acc, it) => {
+      if (it.volume > 0 && it.unitPrice > 0) {
+        const t = classifyTrade(it.name, it.categoryName);
+        acc[t] = (acc[t] ?? 0) + it.volume * it.unitPrice;
+      }
+      return acc;
+    }, {}),
+  );
+
   for (const it of leaves) {
     if (!(it.volume > 0)) continue;
     const trade = classifyTrade(it.name, it.categoryName);
-    const fracNow = tradePlannedFraction(trade, weekNumber, totalWeeks);
-    const fracPrev = tradePlannedFraction(trade, weekNumber - 1, totalWeeks);
+    const fracNow = tradePlannedFraction(trade, weekNumber, totalWeeks, windows);
+    const fracPrev = tradePlannedFraction(trade, weekNumber - 1, totalWeeks, windows);
 
     const realized = realizedByLineage.get(it.lineageKey) ?? 0;
     const remaining = Math.max(0, it.volume - realized);
@@ -102,7 +128,7 @@ export function computeSuggestions(
 
     let reason: string;
     if (shortfall > EPS) {
-      const wk = overdueWeeks(trade, it.volume, realized, weekNumber, totalWeeks);
+      const wk = overdueWeeks(trade, it.volume, realized, weekNumber, totalWeeks, windows);
       reason = wk > 0 ? `Tertinggal ~${wk} mgg — kejar` : "Tertinggal — kejar";
     } else if (fracPrev <= EPS && fracNow > EPS) {
       reason = "Mulai minggu ini";

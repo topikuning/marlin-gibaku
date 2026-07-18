@@ -1,4 +1,4 @@
-import { classifyTrade, tradePlannedFraction } from "./generate";
+import { classifyTrade, computeTradeWindows, tradePlannedFraction, type TradeKey } from "./generate";
 
 /**
  * Data untuk sheet "KURVA S" resmi KKP (halaman-1 laporan periodik): tabel bobot
@@ -55,6 +55,19 @@ export function buildKurvaSheet(input: {
     else monthGroups.push({ label, span: 1 });
   }
 
+  // Jendela jadwal PER-LOKASI (konsisten dgn baseline scheduleItems): bobot
+  // trade = Σ bobot item per trade dari seluruh kategori.
+  const weightByTrade = input.categories.reduce<Partial<Record<TradeKey, number>>>((acc, c) => {
+    for (const it of c.items) {
+      if (it.bobot > 0) {
+        const t = classifyTrade(it.name, c.name);
+        acc[t] = (acc[t] ?? 0) + it.bobot;
+      }
+    }
+    return acc;
+  }, {});
+  const windows = computeTradeWindows(weightByTrade);
+
   // Increment bobot per kategori per minggu = Σ item (trade item) — konsisten
   // dgn baseline. Pra-hitung fraksi trade per minggu (cache) agar efisien.
   const fracCache = new Map<string, number[]>();
@@ -62,7 +75,7 @@ export function buildKurvaSheet(input: {
     const trade = classifyTrade(name, catName);
     let arr = fracCache.get(trade);
     if (!arr) {
-      arr = [0, ...weeks.map((w) => tradePlannedFraction(trade, w, n))]; // index 0 = minggu 0
+      arr = [0, ...weeks.map((w) => tradePlannedFraction(trade, w, n, windows))]; // index 0 = minggu 0
       fracCache.set(trade, arr);
     }
     return arr;
