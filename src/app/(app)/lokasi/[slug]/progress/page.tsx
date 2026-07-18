@@ -12,6 +12,7 @@ import type { BaselineSource, RevisionStatus } from "@/generated/prisma/enums";
 import { requireLocationPage } from "../get-location";
 import { IssuesPanel, type IssueData } from "./issues-client";
 import { RecalcBaselineButton } from "./recalc-baseline";
+import { BaselineEditor } from "./baseline-editor";
 
 export const metadata: Metadata = { title: "Progress Lokasi" };
 export const dynamic = "force-dynamic";
@@ -85,6 +86,8 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
       },
     }),
   ]);
+
+  const activeBaseline = baselines.find((b) => b.status === "aktif");
 
   // ── Item tertinggal: realisasi kumulatif < target proporsional plan ──────
   // Sederhana & jelas: target volume item minggu ini = volume RAB × plan% —
@@ -208,6 +211,22 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
           </CardBody>
         </Card>
       </div>
+
+      {canManageBaseline && activeBaseline && activeBaseline.points.length > 0 ? (
+        <Card>
+          <CardHeader
+            title="Sesuaikan kurva-S manual"
+            subtitle="Kurva-S dibuat otomatis dari bobot & jadwal RAB. Di sini bisa dikoreksi manual per minggu — mis. menyesuaikan realita lapangan atau kesepakatan pengawas. Simpan = baseline baru (histori lama tetap ada)."
+          />
+          <CardBody>
+            <BaselineEditor
+              locationId={location.id}
+              baselineId={activeBaseline.id}
+              initial={activeBaseline.points.map((p) => Number(p.plannedPct))}
+            />
+          </CardBody>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader

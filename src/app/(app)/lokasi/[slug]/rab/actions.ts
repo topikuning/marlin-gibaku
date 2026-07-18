@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { requireCapability, requireLocationAccess, ForbiddenError } from "@/lib/auth/session";
 import { activateRevision, discardDraft, regenerateBaseline } from "@/lib/rab/import";
+import { updateBaselinePoints, validateBaselinePoints } from "@/lib/baseline";
 import { suggestWeeklyPlan, type WeeklySuggestionResult } from "@/lib/plan/suggest";
 
 export type RabActionState = { error?: string; success?: string } | undefined;
@@ -98,6 +99,58 @@ export async function recalcBaselineAction(_prev: RabActionState, formData: Form
     revalidateRab(loc.slug);
     revalidatePath(`/lokasi/${loc.slug}/progress`);
     return { success: `Kurva-S dihitung ulang — baseline #${baseline.baselineNo} aktif.` };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+const saveManualBaselineSchema = z.object({
+  baselineId: z.uuid(),
+  locationId: z.uuid(),
+  points: z
+    .array(z.number())
+    .min(1, "Deret rencana kosong.")
+    .max(520, "Terlalu banyak minggu."),
+});
+
+/**
+ * Simpan kurva-S hasil edit manual → baseline BARU source "manual" (append-only,
+ * baseline lama digantikan). Server memvalidasi ulang deret (monoton, 0..100,
+ * akhir 100) — tidak percaya klien.
+ */
+export async function saveManualBaselineAction(_prev: RabActionState, formData: FormData): Promise<RabActionState> {
+  let pointsRaw: unknown;
+  try {
+    pointsRaw = JSON.parse(String(formData.get("points") ?? "[]"));
+  } catch {
+    return { error: "Data kurva tidak valid." };
+  }
+  const parsed = saveManualBaselineSchema.safeParse({
+    baselineId: formData.get("baselineId"),
+    locationId: formData.get("locationId"),
+    points: pointsRaw,
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { baselineId, locationId, points } = parsed.data;
+
+  // Validasi bentuk kurva sebelum menyentuh DB (pesan lebih informatif).
+  const invalid = validateBaselinePoints(points);
+  if (invalid) return { error: invalid };
+
+  try {
+    const user = await requireCapability("baseline.manage");
+    await requireLocationAccess(user, locationId);
+    // Baseline acuan harus milik lokasi ini (cegah lintas-lokasi).
+    const ref = await db.baseline.findUniqueOrThrow({
+      where: { id: baselineId },
+      select: { locationId: true, location: { select: { slug: true } } },
+    });
+    if (ref.locationId !== locationId) return { error: "Baseline bukan milik lokasi ini." };
+
+    const baseline = await updateBaselinePoints(baselineId, points, user.id);
+    revalidateRab(ref.location.slug);
+    revalidatePath(`/lokasi/${ref.location.slug}/progress`);
+    return { success: `Kurva-S manual disimpan — baseline #${baseline.baselineNo} aktif.` };
   } catch (err) {
     return fail(err);
   }

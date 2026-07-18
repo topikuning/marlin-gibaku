@@ -31,10 +31,13 @@ export function ScurveChart({
   const plotH = H - padT - padB;
   const n = totalWeeks;
 
+  // Ada data realisasi? (pratinjau editor kirim semua null → sembunyikan.)
+  const hasActual = actualPct.some((v) => v != null);
+
   // Sumbu-X = akhir minggu 0..n; indeks 0 = MULAI proyek (0%), indeks k = akhir
   // minggu k. Anchor 0% di awal supaya kurva mulai dari 0 (bukan "agak naik").
   const plan = [0, ...planPct];
-  const actual: (number | null)[] = [0, ...actualPct];
+  const actual: (number | null)[] = [hasActual ? 0 : null, ...actualPct];
 
   const xFor = (i: number) => padL + (i / n) * plotW;
   const yFor = (pct: number) => padT + (1 - Math.min(Math.max(pct, 0), 100) / 100) * plotH;
@@ -74,15 +77,17 @@ export function ScurveChart({
         })}
 
         {/* penanda minggu berjalan (akhir minggu berjalan = indeks currentWeek) */}
-        <line
-          x1={xFor(currentWeek)}
-          y1={padT}
-          x2={xFor(currentWeek)}
-          y2={padT + plotH}
-          stroke="var(--color-border-strong)"
-          strokeWidth={1}
-          strokeDasharray="3 3"
-        />
+        {hasActual && (
+          <line
+            x1={xFor(currentWeek)}
+            y1={padT}
+            x2={xFor(currentWeek)}
+            y2={padT + plotH}
+            stroke="var(--color-border-strong)"
+            strokeWidth={1}
+            strokeDasharray="3 3"
+          />
+        )}
 
         {/* kurva rencana */}
         <polyline
@@ -112,17 +117,21 @@ export function ScurveChart({
       </svg>
 
       <div className="mt-2 flex flex-wrap items-center gap-4 text-xs">
-        <span className="flex items-center gap-1.5 text-ink">
-          <span aria-hidden className="inline-block h-0.5 w-5 bg-primary" /> Realisasi (
-          {lastActual.toFixed(1)}%)
-        </span>
+        {hasActual && (
+          <span className="flex items-center gap-1.5 text-ink">
+            <span aria-hidden className="inline-block h-0.5 w-5 bg-primary" /> Realisasi (
+            {lastActual.toFixed(1)}%)
+          </span>
+        )}
         <span className="flex items-center gap-1.5 text-ink">
           <span aria-hidden className="inline-block h-0.5 w-5 border-t-2 border-dashed border-ink-faint" /> Rencana (
           {lastPlan.toFixed(1)}%)
         </span>
-        <span className="text-ink-muted">
-          Minggu {currentWeek}/{totalWeeks}
-        </span>
+        {hasActual && (
+          <span className="text-ink-muted">
+            Minggu {currentWeek}/{totalWeeks}
+          </span>
+        )}
       </div>
     </div>
   );
