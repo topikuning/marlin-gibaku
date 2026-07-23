@@ -1135,3 +1135,18 @@ scurve — dengan test properti, bukan paritas nilai):**
   galeri foto; draft punya aksi tambah-foto/finalkan/hapus.
 - Melengkapi (bukan menduplikasi) Document Center & milestone KKP; integrasi ke
   keduanya bisa menyusul.
+
+## 059 · 2026-07-23 · Patch keamanan: next 16.2.10→16.2.11 + override sharp/fast-uri
+
+- CI gate `pnpm audit --prod --audit-level high` mulai gagal karena advisory
+  BARU dipublikasikan (bukan akibat perubahan kode) — repo-wide, bukan spesifik
+  fitur.
+- **next 16.2.10 → 16.2.11** (patch dalam minor sama): menutup 6 advisory high
+  (middleware bypass, DoS Server Actions, SSRF rewrites, dst.). Tetap Next 16
+  pinned-exact, hanya patch keamanan.
+- **overrides transitif** di `pnpm-workspace.yaml` (pnpm 11 tak lagi baca
+  `pnpm.overrides` di package.json): `sharp: 0.35.3` (dedupe salinan next→sharp
+  ke versi patched libvips, sama dgn dep langsung) & `fast-uri: >=3.1.4` (patch
+  host-confusion, transitif Prisma).
+- Hasil: `pnpm audit --prod --high` bersih (sisa 4 moderate < gate). typecheck /
+  lint / unit 80 / build produksi hijau. Tanpa perubahan perilaku aplikasi.
