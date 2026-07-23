@@ -265,12 +265,39 @@ model Organization {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
-  users     User[]
-  packages  Package[]
-  vendors   Vendor[]
-  documents Document[]
+  users            User[]
+  packages         Package[]
+  vendors          Vendor[]
+  documents        Document[]
+  masterLocations  MasterLocation[]
 
   @@map("organizations")
+}
+
+/// Katalog lokasi "tertanam di awal" — BELUM terikat paket/kontrak. Sumber data
+/// awal (impor lokasi_awal.xlsx). Dipakai menu bypass admin untuk membuat proyek
+/// langsung ke tahap Kontrak: satu master → satu Location riil (assignedLocation).
+/// Perusahaan (candidateVendor) hanya hint teks — TIDAK dihubungkan relasional
+/// ke lokasi; master perusahaan tetap tabel Vendor.
+model MasterLocation {
+  id                 String   @id @default(uuid()) @db.Uuid
+  orgId              String   @map("org_id") @db.Uuid
+  province           String
+  regency            String
+  district           String?
+  village            String
+  latitude           Decimal? @db.Decimal(10, 7)
+  longitude          Decimal? @db.Decimal(10, 7)
+  candidateVendor    String?  @map("candidate_vendor")
+  assignedLocationId String?  @unique @map("assigned_location_id") @db.Uuid
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  organization     Organization @relation(fields: [orgId], references: [id])
+  assignedLocation Location?    @relation(fields: [assignedLocationId], references: [id])
+
+  @@unique([orgId, province, regency, district, village])
+  @@index([orgId])
+  @@map("master_locations")
 }
 
 model User {
@@ -366,6 +393,8 @@ model Package {
   province      String?
   candidateVendorName String? @map("candidate_vendor_name")
   note          String?
+  // Dibuat via jalur cepat admin (bypass proses pra-kontrak); dokumen menyusul.
+  isBypass      Boolean      @default(false) @map("is_bypass")
   cancelReason  String?      @map("cancel_reason")
   createdById   String?      @map("created_by_id") @db.Uuid
   createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz
@@ -505,6 +534,7 @@ model Location {
   documents     Document[]
   milestones    AdminMilestone[]
   alerts        Alert[]
+  masterLocation MasterLocation?
 
   @@index([packageId])
   @@index([province])

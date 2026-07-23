@@ -7,6 +7,7 @@ import type { ParsedRab } from "@/lib/rab/parsed";
 import { scheduleItems } from "@/lib/scurve/generate";
 import { ADMIN_MILESTONE_TEMPLATE } from "@/lib/milestones/template";
 import { withPpn, valueDone as calcValueDone } from "@/lib/money";
+import { seedMasterLocations } from "@/lib/seed/master-location";
 
 /** Folder seed-data: repo root (dev) atau /app (container standalone). */
 function seedDataDir(): string {
@@ -64,6 +65,9 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
     update: {},
     create: { name: "PT Gibaku Bangun Persada", slug: "gibaku" },
   });
+
+  // Master data awal (katalog lokasi + vendor) dari impor lokasi_awal.xlsx.
+  await seedMasterLocations(db, org.id);
 
   // ── Users (password dev: marlin123) ─────────────────────────
   const password = await hashPassword("marlin123");
