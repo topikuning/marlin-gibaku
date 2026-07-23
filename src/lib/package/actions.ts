@@ -580,6 +580,214 @@ export async function convertToContract(
 }
 
 /* ------------------------------------------------------------------ */
+/* BYPASS admin: buat proyek langsung ke tahap Kontrak (SA & PD)         */
+/* Lewati proses pra-kontrak (prospek→tender→penetapan). Dokumen menyusul.*/
+/* Lokasi diambil dari katalog MasterLocation (impor awal).              */
+/* ------------------------------------------------------------------ */
+
+const directProjectSchema = z
+  .object({
+    name: z.string().trim().min(3, "Nama paket minimal 3 karakter").max(200),
+    packageNumber: z.string().trim().max(100).optional(),
+    province: z.string().trim().max(100).optional(),
+    vendorId: z.uuid().optional(),
+    vendorName: z.string().trim().min(3, "Nama vendor minimal 3 karakter").max(200).optional(),
+    contractNumber: z.string().trim().min(3, "Nomor kontrak wajib diisi").max(150),
+    ppnPercent: z.preprocess(
+      (v) => (v === "" || v == null ? 11 : Number(v)),
+      z.number().min(0, "PPN minimal 0").max(100, "PPN maksimal 100"),
+    ),
+    signedDate: z.string().min(1, "Tanggal tanda tangan kontrak wajib diisi"),
+    durationDays: z.preprocess(
+      (v) => (v === "" || v == null ? undefined : Number(v)),
+      z
+        .number({ message: "Masa pelaksanaan (hari) wajib diisi" })
+        .int("Jumlah hari harus bilangan bulat")
+        .min(1, "Masa pelaksanaan minimal 1 hari")
+        .max(3650, "Masa pelaksanaan maksimal 3650 hari"),
+    ),
+    masterLocationIds: z.array(z.uuid()).min(1, "Pilih minimal satu lokasi dari katalog."),
+  })
+  .refine((d) => d.vendorId || d.vendorName, {
+    message: "Pilih vendor dari master atau isi nama vendor baru.",
+  });
+
+/**
+ * Bypass: buat Paket langsung di tahap Kontrak + Contract + Location riil dari
+ * katalog MasterLocation terpilih (ditandai terpakai). Ditandai isBypass=true
+ * (dokumen pengadaan menyusul). Histori stage null→kontrak + audit. Semua dalam
+ * satu transaksi.
+ */
+export async function createDirectProject(
+  _prev: PackageActionState,
+  formData: FormData,
+): Promise<PackageActionState> {
+  const actor = await requireCapability("package.bypass");
+  const parsed = directProjectSchema.safeParse({
+    name: formData.get("name"),
+    packageNumber: optionalText(formData.get("packageNumber"), 100) ?? undefined,
+    province: optionalText(formData.get("province"), 100) ?? undefined,
+    vendorId: optionalText(formData.get("vendorId"), 100) ?? undefined,
+    vendorName: optionalText(formData.get("vendorName")) ?? undefined,
+    contractNumber: formData.get("contractNumber"),
+    ppnPercent: formData.get("ppnPercent"),
+    signedDate: formData.get("signedDate"),
+    durationDays: formData.get("durationDays"),
+    masterLocationIds: formData.getAll("masterLocationIds").map(String),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const d = parsed.data;
+
+  const contractValue = parseRupiah(formData.get("contractValue"));
+  if (contractValue === null || contractValue <= 0n) {
+    return { error: "Nilai kontrak wajib diisi dan lebih dari 0." };
+  }
+  const signedDate = parseDateKey(d.signedDate);
+  if (!signedDate) return { error: "Format tanggal tidak valid." };
+
+  const result = await db.$transaction(async (tx) => {
+    // Lokasi katalog: milik org, belum terpakai.
+    const masters = await tx.masterLocation.findMany({
+      where: { id: { in: d.masterLocationIds }, orgId: actor.orgId },
+      select: {
+        id: true,
+        province: true,
+        regency: true,
+        district: true,
+        village: true,
+        latitude: true,
+        longitude: true,
+        assignedLocationId: true,
+      },
+    });
+    if (masters.length !== d.masterLocationIds.length) {
+      return { error: "Sebagian lokasi tidak ditemukan di katalog." as string };
+    }
+    const used = masters.filter((m) => m.assignedLocationId);
+    if (used.length > 0) {
+      return { error: `${used.length} lokasi sudah dipakai proyek lain — segarkan halaman.` };
+    }
+
+    // Nomor kontrak unik.
+    const dupe = await tx.contract.findUnique({
+      where: { contractNumber: d.contractNumber },
+      select: { id: true },
+    });
+    if (dupe) return { error: "Nomor kontrak sudah dipakai kontrak lain." };
+
+    // Vendor: existing atau upsert nama baru.
+    let vendorId = d.vendorId ?? null;
+    if (vendorId) {
+      const v = await tx.vendor.findFirst({
+        where: { id: vendorId, orgId: actor.orgId },
+        select: { id: true },
+      });
+      if (!v) return { error: "Vendor tidak ditemukan." };
+    } else {
+      const v = await tx.vendor.upsert({
+        where: { orgId_name: { orgId: actor.orgId, name: d.vendorName! } },
+        update: {},
+        create: { orgId: actor.orgId, name: d.vendorName! },
+        select: { id: true },
+      });
+      vendorId = v.id;
+    }
+
+    // Paket langsung di tahap kontrak (bypass) + histori.
+    const pkg = await tx.package.create({
+      data: {
+        orgId: actor.orgId,
+        name: d.name,
+        packageNumber: d.packageNumber ?? null,
+        hpsValue: contractValue, // tak ada HPS pra-kontrak; pakai nilai kontrak
+        province: d.province ?? masters[0]?.province ?? null,
+        stage: "kontrak",
+        isBypass: true,
+        note: "Dibuat via jalur cepat admin (bypass) — dokumen pengadaan menyusul.",
+        createdById: actor.id,
+      },
+      select: { id: true },
+    });
+    await tx.packageStageHistory.create({
+      data: {
+        packageId: pkg.id,
+        fromStage: null,
+        toStage: "kontrak",
+        changedById: actor.id,
+        note: `Jalur cepat (bypass) — kontrak ${d.contractNumber}`,
+      },
+    });
+
+    await tx.contract.create({
+      data: {
+        packageId: pkg.id,
+        vendorId,
+        contractNumber: d.contractNumber,
+        contractValue,
+        ppnPercent: d.ppnPercent,
+        signedDate,
+        durationDays: d.durationDays,
+        startDate: null,
+        endDate: null,
+      },
+    });
+
+    // Instansiasi lokasi dari katalog (slug unik, aktif, histori persiapan).
+    const takenSlugs = new Set<string>();
+    for (const m of masters) {
+      const name = `KNMP ${m.village}`;
+      const base = slugify(`${name}-${m.regency}`);
+      let slug = base;
+      for (let n = 2; takenSlugs.has(slug) || (await tx.location.findUnique({ where: { slug }, select: { id: true } })); n += 1) {
+        slug = `${base}-${n}`;
+      }
+      takenSlugs.add(slug);
+      const loc = await tx.location.create({
+        data: {
+          packageId: pkg.id,
+          name,
+          slug,
+          village: m.village,
+          district: m.district,
+          regency: m.regency,
+          province: m.province,
+          gpsLat: m.latitude,
+          gpsLng: m.longitude,
+          status: "persiapan",
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      await tx.masterLocation.update({
+        where: { id: m.id },
+        data: { assignedLocationId: loc.id },
+      });
+      await tx.locationStatusHistory.create({
+        data: {
+          locationId: loc.id,
+          fromStatus: null,
+          toStatus: "persiapan",
+          changedById: actor.id,
+          note: `Jalur cepat — kontrak ${d.contractNumber}`,
+        },
+      });
+    }
+
+    return { packageId: pkg.id, locationCount: masters.length };
+  });
+
+  if ("error" in result) return { error: result.error };
+
+  await audit(actor.id, "package.bypass_create", "package", result.packageId, {
+    contractNumber: d.contractNumber,
+    contractValue,
+    locationCount: result.locationCount,
+  });
+  revalidatePath("/paket");
+  redirect(`/paket/${result.packageId}`);
+}
+
+/* ------------------------------------------------------------------ */
 /* Penanda tangan kontrak (bisa diubah kapan saja — pergantian personel) */
 /* ------------------------------------------------------------------ */
 

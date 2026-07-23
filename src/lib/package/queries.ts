@@ -99,6 +99,7 @@ export const getPackageWorkspace = cache(async (id: string) => {
       hpsValue: true,
       candidateVendorName: true,
       note: true,
+      isBypass: true,
       cancelReason: true,
       createdAt: true,
       updatedAt: true,

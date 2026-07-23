@@ -63,6 +63,9 @@ export default async function PaketWorkspaceLayout({
               tone={PACKAGE_STAGE_TONE[pkg.stage]}
               label={PACKAGE_STAGE_LABEL[pkg.stage]}
             />
+            {pkg.isBypass ? (
+              <StatusPill tone="warning" label="Bypass — dokumen menyusul" />
+            ) : null}
             <span>
               HPS <span className="tabular font-medium text-ink">{formatRupiah(pkg.hpsValue)}</span>
             </span>

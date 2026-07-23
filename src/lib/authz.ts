@@ -11,6 +11,7 @@ export const CAPABILITIES = [
   "package.view",
   "package.create",
   "package.edit",
+  "package.bypass",
   "prospect.manage",
   "contract.manage",
   "amendment.manage",

@@ -61,14 +61,24 @@ export default async function PaketPage({
         title="Paket"
         description="Funnel paket pekerjaan: prospek → tender → penetapan → kontrak → pelaksanaan."
         actions={
-          can(user.role, "package.create") ? (
-            <Link
-              href="/paket/baru"
-              className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-white hover:bg-primary-800"
-            >
-              Paket Baru
-            </Link>
-          ) : undefined
+          <div className="flex flex-wrap gap-2">
+            {can(user.role, "package.bypass") ? (
+              <Link
+                href="/paket/bypass"
+                className="inline-flex h-9 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-muted"
+              >
+                Buat Cepat (Bypass)
+              </Link>
+            ) : null}
+            {can(user.role, "package.create") ? (
+              <Link
+                href="/paket/baru"
+                className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-white hover:bg-primary-800"
+              >
+                Paket Baru
+              </Link>
+            ) : null}
+          </div>
         }
       />
 

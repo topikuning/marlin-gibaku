@@ -1150,3 +1150,25 @@ scurve — dengan test properti, bukan paritas nilai):**
   host-confusion, transitif Prisma).
 - Hasil: `pnpm audit --prod --high` bersih (sisa 4 moderate < gate). typecheck /
   lint / unit 80 / build produksi hijau. Tanpa perubahan perilaku aplikasi.
+
+## 060 · 2026-07-23 · Master lokasi awal (impor xlsx) + jalur cepat admin (bypass) buat proyek
+
+- **Master data awal** (dari `lokasi_awal.xlsx`): tabel `MasterLocation` — katalog
+  lokasi BELUM terikat paket (prov/kab/kec/desa + lat/lng + hint `candidateVendor`).
+  Karena `Location` wajib punya paket, katalog dipisah; lokasi riil dibuat saat
+  dipetakan ke paket. 14 perusahaan unik → master `Vendor` (TANPA FK ke lokasi;
+  calon penyedia hanya hint teks). Data di-embed `src/lib/seed/lokasi-awal.data.ts`
+  (73 baris), di-seed idempotent via `seedMasterLocations` di `runDemoSeed`.
+- **Bypass (jalur cepat admin)**: capability `package.bypass` (hanya Super Admin
+  & Program Director). `createDirectProject` membuat Paket langsung di tahap
+  **kontrak** (`isBypass=true`) + Contract + Location riil dari `MasterLocation`
+  terpilih (ditandai `assignedLocationId`), lewati proses pra-kontrak
+  (prospek→tender→penetapan). Histori stage null→kontrak + `audit`. Semua dalam
+  satu transaksi (mesin transisi tetap dihormati untuk lanjutan; bypass hanya
+  titik-masuk). Dokumen pengadaan menyusul; **mulai kerja tetap lewat SPMK**.
+- Field wajib: nama paket, vendor (master/baru), nomor kontrak, nilai, PPN
+  (default 11), tgl TTD, masa pelaksanaan (hari), ≥1 lokasi katalog. Paket
+  bertanda **"Bypass — dokumen menyusul"** di header + note + audit
+  (`package.bypass_create`).
+- UI: menu `/paket/bypass` (tombol "Buat Cepat (Bypass)" di header /paket, hanya
+  pemilik `package.bypass`) — pilih lokasi dari katalog (filter + grup provinsi).
