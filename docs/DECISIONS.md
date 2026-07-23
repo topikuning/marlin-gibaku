@@ -1230,3 +1230,12 @@ scurve — dengan test properti, bukan paritas nilai):**
   (Super Admin)" di halaman kontrak.
 - Alasan: setelah refactor SPMK (054) tak ada jalur memperbaiki kontrak yang sudah
   diset (SPMK sekali pakai, durasi tak bisa diedit) — ini menutup celah itu.
+
+## 064 · 2026-07-23 · Ganti judul kategori RAB (perbaiki kategori tanpa judul)
+
+- Beberapa file RAB punya kategori TANPA baris judul → parser membuat placeholder
+  "PEKERJAAN (kategori … — judul tidak ada di file)" + warning "mohon lengkapi".
+  Selama ini tak ada cara mengisinya. Ditambah edit inline judul kategori di tab
+  RAB (ikon pensil), gate `rab.manage` + `requireLocationAccess` + audit
+  (`rab.rename_category`). Hanya metadata nama (kind=kategori) — tak menyentuh
+  nilai/lineage → baseline tak berubah.

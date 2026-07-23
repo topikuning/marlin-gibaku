@@ -1,9 +1,10 @@
 "use client";
 
-import { ChevronDown, ChevronRight } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Check, ChevronDown, ChevronRight, Pencil, X } from "lucide-react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { cn } from "@/lib/cn";
 import { formatNumber, formatPct, formatRupiah } from "@/lib/format";
+import { renameRabCategoryAction } from "./actions";
 
 /** Node RAB tersalin ke client — BigInt/Decimal SUDAH diserialisasi di server. */
 export type RabNodeRow = {
@@ -45,12 +46,80 @@ function buildIndex(nodes: RabNodeRow[]): TreeIndex {
   return { childrenOf, parentOf };
 }
 
+/** Judul kategori dengan edit inline (pensil) — perbaiki kategori tanpa judul. */
+function CategoryNameCell({ node }: { node: RabNodeRow }) {
+  const [editing, setEditing] = useState(false);
+  const [error, setError] = useState<string | undefined>();
+  const [pending, startTransition] = useTransition();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function save() {
+    const name = inputRef.current?.value.trim() ?? "";
+    if (name.length < 2) {
+      setError("Judul minimal 2 karakter.");
+      return;
+    }
+    const fd = new FormData();
+    fd.set("nodeId", node.id);
+    fd.set("name", name);
+    startTransition(async () => {
+      const res = await renameRabCategoryAction(undefined, fd);
+      if (res?.error) setError(res.error);
+      else {
+        setError(undefined);
+        setEditing(false);
+      }
+    });
+  }
+
+  if (!editing) {
+    return (
+      <span className="inline-flex flex-wrap items-center gap-1.5">
+        {node.name}
+        <button
+          type="button"
+          onClick={() => { setError(undefined); setEditing(true); }}
+          aria-label="Ganti judul kategori"
+          title="Ganti judul kategori"
+          className="shrink-0 text-ink-faint hover:text-primary"
+        >
+          <Pencil aria-hidden className="size-3.5" />
+        </button>
+        {error ? <span className="text-[12px] font-normal text-danger">{error}</span> : null}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1">
+      <input
+        ref={inputRef}
+        defaultValue={node.name}
+        autoFocus
+        maxLength={200}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); save(); }
+          else if (e.key === "Escape") setEditing(false);
+        }}
+        className="h-7 w-72 max-w-full rounded border border-border bg-surface px-2 text-sm font-normal"
+      />
+      <button type="button" onClick={save} disabled={pending} aria-label="Simpan judul" className="text-success hover:opacity-80 disabled:opacity-40">
+        <Check aria-hidden className="size-4" />
+      </button>
+      <button type="button" onClick={() => setEditing(false)} aria-label="Batal" className="text-ink-muted hover:text-ink">
+        <X aria-hidden className="size-4" />
+      </button>
+      {error ? <span className="text-[12px] font-normal text-danger">{error}</span> : null}
+    </span>
+  );
+}
+
 export function RabTree({
   nodes,
   grandTotal,
   ppnPercent,
   ppnValue,
   totalWithPpn,
+  canEdit = false,
 }: {
   nodes: RabNodeRow[];
   /** Σ kategori (pra-PPN), rupiah string. */
@@ -58,6 +127,8 @@ export function RabTree({
   ppnPercent: number;
   ppnValue: string;
   totalWithPpn: string;
+  /** Pemilik rab.manage → boleh ganti judul kategori. */
+  canEdit?: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
@@ -189,7 +260,11 @@ export function RabTree({
                         ) : (
                           <span aria-hidden className="w-4 shrink-0" />
                         )}
-                        <span className={cn(node.kind === "item" && "font-normal")}>{node.name}</span>
+                        {canEdit && node.kind === "kategori" ? (
+                          <CategoryNameCell node={node} />
+                        ) : (
+                          <span className={cn(node.kind === "item" && "font-normal")}>{node.name}</span>
+                        )}
                       </div>
                     </td>
                     <td className="tabular px-2 py-1.5 text-right align-top">

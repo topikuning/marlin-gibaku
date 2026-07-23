@@ -194,6 +194,7 @@ export default async function RabPage({
             ppnPercent={ppnPercent}
             ppnValue={ppnValue.toString()}
             totalWithPpn={totalWithPpn.toString()}
+            canEdit={canManage}
           />
         </CardBody>
       </Card>

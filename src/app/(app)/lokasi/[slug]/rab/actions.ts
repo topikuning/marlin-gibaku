@@ -26,6 +26,37 @@ function revalidateRab(slug: string): void {
   revalidatePath("/lokasi");
 }
 
+/**
+ * Ganti judul KATEGORI RAB — mis. memperbaiki kategori yang di file tak punya
+ * baris judul (placeholder "PEKERJAAN (kategori … judul tidak ada di file)").
+ * Hanya metadata nama; tak menyentuh nilai/lineage → baseline tak berubah.
+ */
+export async function renameRabCategoryAction(_prev: RabActionState, formData: FormData): Promise<RabActionState> {
+  const parsedId = z.uuid().safeParse(formData.get("nodeId"));
+  if (!parsedId.success) return { error: "Node RAB tidak valid." };
+  const name = String(formData.get("name") ?? "").trim();
+  if (name.length < 2) return { error: "Judul minimal 2 karakter." };
+  try {
+    const user = await requireCapability("rab.manage");
+    const node = await db.rabNode.findUniqueOrThrow({
+      where: { id: parsedId.data },
+      select: {
+        id: true,
+        kind: true,
+        revision: { select: { locationId: true, location: { select: { slug: true } } } },
+      },
+    });
+    if (node.kind !== "kategori") return { error: "Hanya judul kategori yang bisa diganti di sini." };
+    await requireLocationAccess(user, node.revision.locationId);
+    await db.rabNode.update({ where: { id: node.id }, data: { name: name.slice(0, 200) } });
+    await audit(user.id, "rab.rename_category", "rab_node", node.id, { name: name.slice(0, 200) });
+    revalidateRab(node.revision.location.slug);
+    return { success: "Judul kategori diperbarui." };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
 /** Aktifkan revisi draft → revisi aktif lama digantikan + baseline di-regenerate. */
 export async function activateDraftAction(_prev: RabActionState, formData: FormData): Promise<RabActionState> {
   const parsed = z.uuid().safeParse(formData.get("revisionId"));
