@@ -1199,3 +1199,17 @@ scurve — dengan test properti, bukan paritas nilai):**
   `src/lib/master-location/queries.ts` (jadi direktori).
 - Seed dev tetap memuat katalog otomatis (embedded); impor idempotent → aman
   dijalankan ulang di dev maupun production.
+
+## 062 · 2026-07-23 · Manajemen & gabung master perusahaan (vendor)
+
+- Impor `upsert` vendor by nama PERSIS → ejaan beda ("CV Permata" vs "CV. Permata")
+  jadi duplikat. Dibuat alat pembersih di `/paket/vendor` (gate `contract.manage`
+  = SA+PD).
+- `listVendorsWithUsage` + `duplicateGroups` (deteksi via `normalizeVendorName`:
+  buang prefix CV/PT/UD/… & non-alfanumerik) menandai kemungkinan duplikat.
+- `mergeVendorsAction(from→to)`: alihkan SEMUA kontrak & komitmen dari `from`
+  ke `to`, lalu hapus `from` (satu transaksi, konfirmasi, audit `vendor.merge`).
+  `deleteVendorAction`: hapus hanya bila 0 kontrak & 0 komitmen. `candidateVendor`
+  (master lokasi) & `candidateVendorName` (paket) berupa teks — tak terpengaruh.
+- UI: KPI (total/duplikat/grup) + tabel vendor (jumlah kontrak/komitmen) +
+  "Gabung ke…" per baris + Hapus (hanya tak terpakai). Tautan header /paket.

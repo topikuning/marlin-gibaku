@@ -62,6 +62,14 @@ export default async function PaketPage({
         description="Funnel paket pekerjaan: prospek → tender → penetapan → kontrak → pelaksanaan."
         actions={
           <div className="flex flex-wrap gap-2">
+            {can(user.role, "contract.manage") ? (
+              <Link
+                href="/paket/vendor"
+                className="inline-flex h-9 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-muted"
+              >
+                Master Perusahaan
+              </Link>
+            ) : null}
             {can(user.role, "package.bypass") ? (
               <>
                 <Link
