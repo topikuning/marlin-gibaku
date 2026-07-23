@@ -1,9 +1,11 @@
 # Override transitif utk menutup advisory keamanan (CI: pnpm audit --prod --high):
 #   sharp   — dedupe salinan next→sharp ke versi patched (libvips) yg sama dgn dep langsung
 #   fast-uri — patch host-confusion (transitif Prisma), >=3.1.4
+#   postcss — patch arbitrary file read via sourceMappingURL (transitif Next), >=8.5.12
 overrides:
   sharp: 0.35.3
   fast-uri: '>=3.1.4'
+  postcss: '>=8.5.12'
 allowBuilds:
   '@prisma/engines': true
   '@node-rs/argon2': true
