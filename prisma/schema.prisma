@@ -118,6 +118,23 @@ enum PhotoVerification {
   rejected
 }
 
+/// Jenis kegiatan lapangan non-pekerjaan (dokumentasi, bukan progres volume)
+enum FieldActivityType {
+  rapat_pcm // Rapat Persiapan Pelaksanaan (PCM)
+  pengukuran_uitzet // Pengukuran / uitzet / setting out
+  mc0 // Mutual Check awal (MC-0)
+  sosialisasi // Sosialisasi ke masyarakat/pihak terkait
+  mobilisasi // Mobilisasi alat/material/personel
+  dokumentasi_0 // Dokumentasi kondisi awal (0%)
+  lainnya
+}
+
+/// Alur ringkas kegiatan lapangan: draft → final (dokumentasi, tanpa approval)
+enum FieldActivityStatus {
+  draft
+  final
+}
+
 enum IssueSeverity {
   rendah
   sedang
@@ -479,6 +496,7 @@ model Location {
   baselines     Baseline[]
   weeklyPlans   WeeklyPlan[]
   dailyReports  DailyReport[]
+  fieldActivities FieldActivity[]
   issues        Issue[]
   budgetLines   BudgetLine[]
   commitments   Commitment[]
@@ -693,6 +711,35 @@ model DailyReportStatusHistory {
   @@map("daily_report_status_history")
 }
 
+/// Kegiatan lapangan NON-PEKERJAAN (dokumentasi foto) — mis. rapat PCM,
+/// pengukuran/uitzet/MC-0, sosialisasi, mobilisasi, dokumentasi kondisi 0%.
+/// Terpisah dari DailyReport (yang mengukur progres volume RAB): tak butuh
+/// SPMK/minggu, boleh banyak per hari, alur ringkas draft → final.
+model FieldActivity {
+  id            String              @id @default(uuid()) @db.Uuid
+  locationId    String              @map("location_id") @db.Uuid
+  activityDate  DateTime            @map("activity_date") @db.Date
+  type          FieldActivityType
+  title         String
+  notes         String?
+  participants  String?             @map("participants")
+  gpsLat        Decimal?            @map("gps_lat") @db.Decimal(10, 7)
+  gpsLng        Decimal?            @map("gps_lng") @db.Decimal(10, 7)
+  status        FieldActivityStatus @default(draft)
+  createdById   String              @map("created_by_id") @db.Uuid
+  finalizedById String?             @map("finalized_by_id") @db.Uuid
+  finalizedAt   DateTime?           @map("finalized_at") @db.Timestamptz
+  createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime            @updatedAt @map("updated_at") @db.Timestamptz
+
+  location Location @relation(fields: [locationId], references: [id])
+  photos   Photo[]
+
+  @@index([locationId, activityDate])
+  @@index([locationId, status])
+  @@map("field_activities")
+}
+
 model DailyReportItem {
   id          String   @id @default(uuid()) @db.Uuid
   reportId    String   @map("report_id") @db.Uuid
@@ -755,6 +802,7 @@ model Photo {
   id           String            @id @default(uuid()) @db.Uuid
   reportId     String?           @map("report_id") @db.Uuid
   reportItemId String?           @map("report_item_id") @db.Uuid
+  activityId   String?           @map("activity_id") @db.Uuid
   r2Key        String            @unique @map("r2_key")
   thumbnailKey String?           @map("thumbnail_key")
   sha256       String            @unique
@@ -770,9 +818,11 @@ model Photo {
 
   report     DailyReport?     @relation(fields: [reportId], references: [id])
   reportItem DailyReportItem? @relation(fields: [reportItemId], references: [id])
+  activity   FieldActivity?   @relation(fields: [activityId], references: [id])
 
   @@index([reportId])
   @@index([reportItemId])
+  @@index([activityId])
   @@map("photos")
 }
 

@@ -177,8 +177,10 @@ function stampSvg(w: number, h: number, s: PhotoStamp): string {
 }
 
 export type SavePhotoInput = {
-  reportId: string;
+  /** Salah satu wajib diisi: reportId (laporan harian) ATAU activityId (kegiatan lapangan). */
+  reportId?: string | null;
   reportItemId?: string | null;
+  activityId?: string | null;
   file: File;
   userId: string;
   locationSlug: string;
@@ -249,8 +251,9 @@ export async function savePhotoForItem(input: SavePhotoInput) {
 
   return db.photo.create({
     data: {
-      reportId: input.reportId,
+      reportId: input.reportId ?? null,
       reportItemId: input.reportItemId ?? null,
+      activityId: input.activityId ?? null,
       r2Key: key,
       thumbnailKey,
       sha256,

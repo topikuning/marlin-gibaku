@@ -24,6 +24,7 @@ function tabItems(slug: string): LinkTabItem[] {
     { label: "Rencana & RAB", href: `${base}/rab` },
     // Tab milik slice lain — link saja, halamannya dibangun terpisah.
     { label: "Pelaksanaan Harian", href: `${base}/harian` },
+    { label: "Kegiatan Lapangan", href: `${base}/kegiatan` },
     { label: "Progress", href: `${base}/progress` },
     { label: "Keuangan", href: `${base}/keuangan` },
     { label: "Dokumen & Kepatuhan", href: `${base}/dokumen` },

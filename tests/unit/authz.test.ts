@@ -15,13 +15,14 @@ describe("authz capability matrix", () => {
     }
   });
 
-  it("field_supervisor hanya daily_report.create + view", () => {
+  it("field_supervisor hanya view + daily_report.create + field_activity.manage", () => {
     const expected = new Set([
       "location.view",
       "rab.view",
       "progress.view",
       "document.view",
       "daily_report.create",
+      "field_activity.manage",
     ]);
     for (const cap of CAPABILITIES) {
       expect(can("field_supervisor", cap), cap).toBe(expected.has(cap));

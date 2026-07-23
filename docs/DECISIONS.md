@@ -1106,3 +1106,32 @@ scurve — dengan test properti, bukan paritas nilai):**
   KKP (`kkp-sheet` — bobot trade dari Σ bobot item). Sifat DECISIONS 052 dijaga:
   mulai 0, akhir 100, monoton, bentuk-S. `TYPICAL_TRADE_MIX` (share korpus)
   jadi jendela default bila konteks bobot lokasi belum ada.
+
+## 058 · 2026-07-23 · Kegiatan & Dokumentasi Lapangan (non-pekerjaan) — entitas terpisah
+
+- **Kebutuhan**: dokumentasi FOTO kegiatan non-pekerjaan antara kontrak → SPMK →
+  awal fisik (rapat PCM, pengukuran/uitzet, MC-0, sosialisasi, mobilisasi, foto
+  kondisi 0%). Bukan progres volume RAB, sering terjadi SEBELUM SPMK, dan bisa
+  banyak per hari.
+- **Keputusan (Opsi B)**: entitas baru ringan `FieldActivity` (kegiatan lapangan)
+  + `Photo.activityId` (nullable) supaya reuse pipeline foto (cap GPS/waktu +
+  verifikasi + dedup sha256) yang selama ini hanya menempel ke laporan harian.
+  - Alternatif ditolak: (A) numpang `DailyReport` — mengotori model progres
+    volume (pola yang dihindari DECISIONS 051) & terbentur uniq(lokasi,tanggal);
+    (C) hanya Document Center/Milestone — foto jadi file satu-per-satu tanpa
+    cap/verifikasi, UX berat utk mandor.
+- **Model**: `FieldActivity(locationId, activityDate @db.Date, type, title,
+  notes?, participants?, gps?, status, createdById, finalizedBy/At)`. Enum
+  `FieldActivityType` (rapat_pcm/pengukuran_uitzet/mc0/sosialisasi/mobilisasi/
+  dokumentasi_0/lainnya) & `FieldActivityStatus` (draft/final).
+- **Workflow RINGKAS** `draft → final` (dokumentasi, bukan angka yg perlu
+  verifikasi berjenjang). Final = arsip: tak bisa tambah/hapus foto/hapus
+  kegiatan. Bebas dari SPMK/minggu.
+- **Authz**: capability `field_activity.manage` (Mandor, Site Manager, PM, Area
+  Manager + peran manajemen penuh). View mengikuti `location.view`. Setiap mutasi
+  `requireCapability` + `requireLocationAccess` + `audit`.
+- **UI**: tab "Kegiatan Lapangan" di workspace lokasi (mobile-first) — form catat
+  (jenis, tanggal, judul, catatan, peserta, foto capture) + daftar kartu dgn
+  galeri foto; draft punya aksi tambah-foto/finalkan/hapus.
+- Melengkapi (bukan menduplikasi) Document Center & milestone KKP; integrasi ke
+  keduanya bisa menyusul.
