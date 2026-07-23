@@ -316,6 +316,50 @@ export function scheduleItems(
   return cumulativeFromSegments(segments, n);
 }
 
+// ── Kurva-S dari jadwal per pekerjaan (editor manual) ───────────────────────
+
+export type CategoryScheduleRow = {
+  /** Bobot pekerjaan % (nilai ÷ grand total × 100) — derived dari RAB, terkunci. */
+  weightPct: number;
+  /** Minggu mulai (1-based, inklusif). */
+  startWeek: number;
+  /** Minggu selesai (1-based, inklusif, ≥ startWeek). */
+  endWeek: number;
+};
+
+/**
+ * Kurva-S dari jadwal per pekerjaan — FORMAT STANDAR kurva-S sipil (barchart):
+ * bobot tiap pekerjaan dibagi RATA per minggu di dalam jendela
+ * [startWeek..endWeek], lalu diakumulasi vertikal per minggu → kumulatif.
+ * (Praktik lapangan Indonesia: "bobot ÷ durasi" per periode; kurva-S agregat
+ * mendapatkan bentuk S dari tumpang-tindih antar pekerjaan, bukan dari
+ * distribusi per aktivitas.)
+ *
+ * Sifat: mulai 0 (sebelum minggu-1), akhir = Σ bobot (=100 bila lengkap),
+ * monotonik naik. Jendela di luar rentang di-clamp ke [1..totalWeeks].
+ */
+export function curveFromCategorySchedule(
+  rows: CategoryScheduleRow[],
+  totalWeeks: number,
+): number[] {
+  const n = Math.max(1, Math.floor(totalWeeks));
+  const weekly = new Array<number>(n).fill(0);
+  for (const r of rows) {
+    if (!(r.weightPct > 0)) continue;
+    const s = Math.max(1, Math.min(n, Math.floor(r.startWeek)));
+    const e = Math.max(s, Math.min(n, Math.floor(r.endWeek)));
+    const perWeek = r.weightPct / (e - s + 1);
+    for (let w = s; w <= e; w++) weekly[w - 1] += perWeek;
+  }
+  const out: number[] = [];
+  let acc = 0;
+  for (let w = 0; w < n; w++) {
+    acc += weekly[w];
+    out.push(Math.min(100, Math.round(acc * 100) / 100));
+  }
+  return out;
+}
+
 /**
  * Fraksi rencana selesai (0..1) untuk SATU trade pada akhir minggu tertentu.
  * Dipakai saran rencana mingguan: berapa yang seharusnya sudah selesai per item.

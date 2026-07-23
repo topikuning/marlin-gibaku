@@ -6,7 +6,12 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { requireCapability, requireLocationAccess, ForbiddenError } from "@/lib/auth/session";
 import { activateRevision, discardDraft, regenerateBaseline } from "@/lib/rab/import";
-import { updateBaselinePoints, validateBaselinePoints } from "@/lib/baseline";
+import {
+  restoreBaseline,
+  saveCategorySchedule,
+  updateBaselinePoints,
+  validateBaselinePoints,
+} from "@/lib/baseline";
 import { suggestWeeklyPlan, type WeeklySuggestionResult } from "@/lib/plan/suggest";
 
 export type RabActionState = { error?: string; success?: string } | undefined;
@@ -189,6 +194,85 @@ export async function saveManualBaselineAction(_prev: RabActionState, formData: 
     revalidateRab(ref.location.slug);
     revalidatePath(`/lokasi/${ref.location.slug}/progress`);
     return { success: `Kurva-S manual disimpan — baseline #${baseline.baselineNo} aktif.` };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+const scheduleRowSchema = z.object({
+  lineageKey: z.string().min(1).max(200),
+  startWeek: z.number().int().min(1).max(520),
+  endWeek: z.number().int().min(1).max(520),
+});
+
+const saveScheduleSchema = z.object({
+  locationId: z.uuid(),
+  rows: z.array(scheduleRowSchema).min(1, "Jadwal kosong.").max(200, "Terlalu banyak kategori."),
+});
+
+/**
+ * Simpan jadwal per pekerjaan (kategori) → baseline baru. Klien hanya mengirim
+ * jendela minggu; bobot dihitung ulang server dari RAB aktif.
+ */
+export async function saveCategoryScheduleAction(
+  _prev: RabActionState,
+  formData: FormData,
+): Promise<RabActionState> {
+  let rowsRaw: unknown;
+  try {
+    rowsRaw = JSON.parse(String(formData.get("rows") ?? "[]"));
+  } catch {
+    return { error: "Data jadwal tidak valid." };
+  }
+  const parsed = saveScheduleSchema.safeParse({
+    locationId: formData.get("locationId"),
+    rows: rowsRaw,
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { locationId, rows } = parsed.data;
+
+  try {
+    const user = await requireCapability("baseline.manage");
+    await requireLocationAccess(user, locationId);
+    const loc = await db.location.findUniqueOrThrow({
+      where: { id: locationId },
+      select: { slug: true },
+    });
+    const result = await saveCategorySchedule(locationId, rows, user.id);
+    revalidateRab(loc.slug);
+    revalidatePath(`/lokasi/${loc.slug}/progress`);
+    if (result.unchanged) {
+      return { success: `Tidak ada perubahan — jadwal identik dengan baseline #${result.baselineNo} yang aktif.` };
+    }
+    return {
+      success: `Jadwal tersimpan — baseline #${result.baselineNo} aktif. Versi sebelumnya ada di Riwayat baseline.`,
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Pulihkan baseline lama → versi baru aktif (append-only, riwayat utuh). */
+export async function restoreBaselineAction(
+  _prev: RabActionState,
+  formData: FormData,
+): Promise<RabActionState> {
+  const parsed = z.uuid().safeParse(formData.get("baselineId"));
+  if (!parsed.success) return { error: "Baseline tidak valid." };
+  try {
+    const user = await requireCapability("baseline.manage");
+    const ref = await db.baseline.findUniqueOrThrow({
+      where: { id: parsed.data },
+      select: { locationId: true, location: { select: { slug: true } } },
+    });
+    await requireLocationAccess(user, ref.locationId);
+    const result = await restoreBaseline(parsed.data, user.id);
+    revalidateRab(ref.location.slug);
+    revalidatePath(`/lokasi/${ref.location.slug}/progress`);
+    if (result.unchanged) {
+      return { success: `Baseline #${result.baselineNo} sudah aktif — tidak ada yang dipulihkan.` };
+    }
+    return { success: `Dipulihkan — baseline #${result.baselineNo} aktif (salinan dari versi lama, riwayat tetap utuh).` };
   } catch (err) {
     return fail(err);
   }

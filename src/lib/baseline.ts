@@ -2,6 +2,13 @@ import "server-only";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { COUNTED_REPORT_STATUSES, currentWeekNumber } from "@/lib/progress";
+import { contractDaysFor } from "@/lib/rab/import";
+import {
+  classifyTrade,
+  computeTradeWindows,
+  curveFromCategorySchedule,
+  tradeWeights,
+} from "@/lib/scurve/generate";
 
 /**
  * Layer baseline (kurva-S rencana ber-versi) + deret rencana vs realisasi.
@@ -97,6 +104,299 @@ export async function updateBaselinePoints(baselineId: string, points: number[],
     weeks: points.length,
   });
   return baseline;
+}
+
+// ── Jadwal per pekerjaan (kategori RAB) → baseline ──────────────────────────
+
+export type CategoryScheduleView = {
+  lineageKey: string;
+  name: string;
+  weightPct: number;
+  startWeek: number;
+  endWeek: number;
+};
+
+export type CategoryScheduleData = {
+  totalWeeks: number;
+  /** "tersimpan" = dari jadwal baseline aktif; "otomatis" = derivasi trade windows. */
+  origin: "tersimpan" | "otomatis";
+  rows: CategoryScheduleView[];
+};
+
+/** Kategori RAB aktif (amount > 0) + bobot % derived. */
+async function activeCategoriesWithWeights(locationId: string) {
+  const revision = await db.rabRevision.findFirst({
+    where: { locationId, status: "aktif" },
+    select: { id: true },
+  });
+  if (!revision) return null;
+  const nodes = await db.rabNode.findMany({
+    where: { revisionId: revision.id, kind: { in: ["kategori", "item"] } },
+    select: { kind: true, name: true, amount: true, lineageKey: true },
+    orderBy: { sortOrder: "asc" },
+  });
+  const categories = nodes.filter((n) => n.kind === "kategori" && n.amount > 0n);
+  const grand = categories.reduce((s, c) => s + Number(c.amount), 0);
+  if (grand <= 0) return null;
+  const items = nodes.filter((n) => n.kind === "item" && n.amount > 0n);
+  return { revisionId: revision.id, categories, items, grand };
+}
+
+/**
+ * Jadwal per kategori untuk editor. Prioritas: jadwal TERSIMPAN pada baseline
+ * aktif (bila revisi RAB-nya masih sama & jumlah minggu cocok) — supaya edit
+ * lanjutan membuka jadwal terakhir, bukan mulai dari nol. Fallback: derivasi
+ * otomatis dari trade windows item per kategori (envelope, cost-based).
+ */
+export async function deriveCategorySchedule(locationId: string): Promise<CategoryScheduleData | null> {
+  const base = await activeCategoriesWithWeights(locationId);
+  if (!base) return null;
+  const contractDays = await contractDaysFor(locationId);
+  const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
+
+  const weightFor = (catAmount: bigint) => (Number(catAmount) / base.grand) * 100;
+
+  // Jadwal tersimpan dari baseline aktif (revisi sama + minggu masih muat).
+  const active = await db.baseline.findFirst({
+    where: { locationId, status: "aktif" },
+    select: {
+      rabRevisionId: true,
+      scheduleItems: { select: { lineageKey: true, startWeek: true, endWeek: true } },
+    },
+  });
+  if (active && active.rabRevisionId === base.revisionId && active.scheduleItems.length > 0) {
+    const byKey = new Map(active.scheduleItems.map((s) => [s.lineageKey, s]));
+    const allWithin = active.scheduleItems.every((s) => s.endWeek <= totalWeeks);
+    if (allWithin && base.categories.every((c) => byKey.has(c.lineageKey))) {
+      return {
+        totalWeeks,
+        origin: "tersimpan",
+        rows: base.categories.map((c) => {
+          const s = byKey.get(c.lineageKey)!;
+          return {
+            lineageKey: c.lineageKey,
+            name: c.name,
+            weightPct: Math.round(weightFor(c.amount) * 1000) / 1000,
+            startWeek: s.startWeek,
+            endWeek: s.endWeek,
+          };
+        }),
+      };
+    }
+  }
+
+  // Derivasi otomatis: jendela kategori = envelope jendela trade item-itemnya.
+  const windows = computeTradeWindows(tradeWeights(
+    base.items.map((it) => ({ name: it.name, categoryName: "", amount: it.amount })),
+  ));
+  const catKeys = base.categories
+    .map((c) => c.lineageKey)
+    .sort((a, b) => b.length - a.length);
+  const categoryKeyFor = (lineageKey: string): string | null =>
+    catKeys.find((k) => lineageKey === k || lineageKey.startsWith(`${k}#`)) ?? null;
+
+  const envelope = new Map<string, { start: number; end: number }>();
+  for (const it of base.items) {
+    const catKey = categoryKeyFor(it.lineageKey);
+    if (!catKey) continue;
+    const w = windows[classifyTrade(it.name, "")];
+    const cur = envelope.get(catKey);
+    envelope.set(catKey, {
+      start: cur ? Math.min(cur.start, w.start) : w.start,
+      end: cur ? Math.max(cur.end, w.end) : w.end,
+    });
+  }
+
+  return {
+    totalWeeks,
+    origin: "otomatis",
+    rows: base.categories.map((c) => {
+      const env = envelope.get(c.lineageKey) ?? { start: 0.25, end: 0.8 };
+      const startWeek = Math.max(1, Math.min(totalWeeks, Math.floor(env.start * totalWeeks) + 1));
+      const endWeek = Math.max(startWeek, Math.min(totalWeeks, Math.ceil(env.end * totalWeeks)));
+      return {
+        lineageKey: c.lineageKey,
+        name: c.name,
+        weightPct: Math.round(weightFor(c.amount) * 1000) / 1000,
+        startWeek,
+        endWeek,
+      };
+    }),
+  };
+}
+
+/**
+ * Simpan jadwal per kategori → baseline BARU source "manual" + scheduleItems.
+ * Bobot DIHITUNG ULANG dari RAB aktif (klien hanya mengirim jendela minggu —
+ * bobot tidak pernah dipercaya dari luar). Idempotent: jadwal & titik identik
+ * dengan baseline aktif ⇒ tidak dibuat versi baru.
+ */
+export async function saveCategorySchedule(
+  locationId: string,
+  input: { lineageKey: string; startWeek: number; endWeek: number }[],
+  userId: string,
+) {
+  const base = await activeCategoriesWithWeights(locationId);
+  if (!base) throw new Error("Belum ada revisi RAB aktif — impor RAB dulu.");
+  const contractDays = await contractDaysFor(locationId);
+  const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
+
+  const byKey = new Map(input.map((r) => [r.lineageKey, r]));
+  const rows = base.categories.map((c) => {
+    const r = byKey.get(c.lineageKey);
+    if (!r) throw new Error(`Jadwal untuk kategori "${c.name}" tidak lengkap — muat ulang halaman.`);
+    const startWeek = Math.floor(r.startWeek);
+    const endWeek = Math.floor(r.endWeek);
+    if (!Number.isFinite(startWeek) || !Number.isFinite(endWeek)) {
+      throw new Error(`Minggu kategori "${c.name}" tidak valid.`);
+    }
+    if (startWeek < 1 || endWeek > totalWeeks || startWeek > endWeek) {
+      throw new Error(
+        `Kategori "${c.name}": minggu ${startWeek}–${endWeek} di luar rentang 1–${totalWeeks} atau terbalik.`,
+      );
+    }
+    return {
+      lineageKey: c.lineageKey,
+      name: c.name,
+      weightPct: (Number(c.amount) / base.grand) * 100,
+      startWeek,
+      endWeek,
+    };
+  });
+
+  const weekly = curveFromCategorySchedule(rows, totalWeeks);
+  const invalid = validateBaselinePoints(weekly);
+  if (invalid) throw new Error(invalid);
+
+  // Idempotent: identik dengan baseline aktif (jadwal & titik) → no-op.
+  const active = await db.baseline.findFirst({
+    where: { locationId, status: "aktif" },
+    include: {
+      points: { orderBy: { weekNumber: "asc" }, select: { plannedPct: true } },
+      scheduleItems: { select: { lineageKey: true, startWeek: true, endWeek: true } },
+    },
+  });
+  if (
+    active &&
+    active.rabRevisionId === base.revisionId &&
+    active.points.length === weekly.length &&
+    active.points.every((p, i) => Math.abs(Number(p.plannedPct) - weekly[i]) < 0.005) &&
+    active.scheduleItems.length === rows.length &&
+    rows.every((r) => {
+      const s = active.scheduleItems.find((x) => x.lineageKey === r.lineageKey);
+      return s && s.startWeek === r.startWeek && s.endWeek === r.endWeek;
+    })
+  ) {
+    return { baselineNo: active.baselineNo, unchanged: true as const };
+  }
+
+  const baseline = await db.$transaction(async (tx) => {
+    await tx.baseline.updateMany({
+      where: { locationId, status: "aktif" },
+      data: { status: "digantikan", supersededAt: new Date() },
+    });
+    const last = await tx.baseline.aggregate({
+      where: { locationId },
+      _max: { baselineNo: true },
+    });
+    const created = await tx.baseline.create({
+      data: {
+        locationId,
+        baselineNo: (last._max.baselineNo ?? 0) + 1,
+        source: "manual",
+        status: "aktif",
+        rabRevisionId: base.revisionId,
+        contractDays,
+        note: "Jadwal per pekerjaan (kategori) — editor manual",
+        createdById: userId,
+      },
+    });
+    await tx.baselinePoint.createMany({
+      data: weekly.map((p, i) => ({ baselineId: created.id, weekNumber: i + 1, plannedPct: p })),
+    });
+    await tx.baselineScheduleItem.createMany({
+      data: rows.map((r) => ({
+        baselineId: created.id,
+        lineageKey: r.lineageKey,
+        name: r.name,
+        weightPct: Math.round(r.weightPct * 1000) / 1000,
+        startWeek: r.startWeek,
+        endWeek: r.endWeek,
+      })),
+    });
+    return created;
+  });
+  await audit(userId, "baseline.schedule", "baseline", baseline.id, {
+    locationId,
+    baselineNo: baseline.baselineNo,
+    categories: rows.length,
+    weeks: weekly.length,
+  });
+  return { baselineNo: baseline.baselineNo, unchanged: false as const };
+}
+
+/**
+ * Pulihkan baseline lama: SALIN titik (+ jadwal bila ada) menjadi versi BARU
+ * yang aktif — append-only, riwayat tetap linear & utuh (versi lama tidak
+ * diubah statusnya menjadi aktif kembali).
+ */
+export async function restoreBaseline(baselineId: string, userId: string) {
+  const src = await db.baseline.findUniqueOrThrow({
+    where: { id: baselineId },
+    include: {
+      points: { orderBy: { weekNumber: "asc" }, select: { weekNumber: true, plannedPct: true } },
+      scheduleItems: {
+        select: { lineageKey: true, name: true, weightPct: true, startWeek: true, endWeek: true },
+      },
+    },
+  });
+  if (src.status === "aktif") {
+    return { baselineNo: src.baselineNo, locationId: src.locationId, unchanged: true as const };
+  }
+  if (src.points.length === 0) throw new Error("Baseline sumber tidak punya titik rencana.");
+
+  const baseline = await db.$transaction(async (tx) => {
+    await tx.baseline.updateMany({
+      where: { locationId: src.locationId, status: "aktif" },
+      data: { status: "digantikan", supersededAt: new Date() },
+    });
+    const last = await tx.baseline.aggregate({
+      where: { locationId: src.locationId },
+      _max: { baselineNo: true },
+    });
+    const created = await tx.baseline.create({
+      data: {
+        locationId: src.locationId,
+        baselineNo: (last._max.baselineNo ?? 0) + 1,
+        source: "manual",
+        status: "aktif",
+        rabRevisionId: src.rabRevisionId,
+        contractDays: src.contractDays,
+        note: `Pulihkan dari baseline #${src.baselineNo}`,
+        createdById: userId,
+      },
+    });
+    await tx.baselinePoint.createMany({
+      data: src.points.map((p) => ({
+        baselineId: created.id,
+        weekNumber: p.weekNumber,
+        plannedPct: p.plannedPct,
+      })),
+    });
+    if (src.scheduleItems.length > 0) {
+      await tx.baselineScheduleItem.createMany({
+        data: src.scheduleItems.map((s) => ({ ...s, baselineId: created.id })),
+      });
+    }
+    return created;
+  });
+  await audit(userId, "baseline.restore", "baseline", baseline.id, {
+    locationId: src.locationId,
+    fromBaselineId: baselineId,
+    fromBaselineNo: src.baselineNo,
+    baselineNo: baseline.baselineNo,
+  });
+  return { baselineNo: baseline.baselineNo, locationId: src.locationId, unchanged: false as const };
 }
 
 export type ScurveSeries = {

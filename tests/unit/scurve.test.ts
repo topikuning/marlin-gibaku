@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyTrade,
   computeTradeWindows,
+  curveFromCategorySchedule,
   DEFAULT_CONTRACT_DAYS,
   generateScurve,
   scheduleItems,
@@ -195,5 +196,56 @@ describe("scheduleItems", () => {
     const mid = Math.floor(n / 2);
     expect(rate(mid)).toBeGreaterThan(rate(0)); // tengah lebih curam dari awal
     expect(rate(mid)).toBeGreaterThan(rate(n - 1)); // tengah lebih curam dari akhir
+  });
+});
+
+describe("curveFromCategorySchedule (jadwal per pekerjaan, distribusi rata)", () => {
+  it("satu pekerjaan penuh durasi → linear, akhir 100", () => {
+    const c = curveFromCategorySchedule([{ weightPct: 100, startWeek: 1, endWeek: 10 }], 10);
+    expect(c).toHaveLength(10);
+    expect(c[0]).toBeCloseTo(10, 5);
+    expect(c[4]).toBeCloseTo(50, 5);
+    expect(c[9]).toBeCloseTo(100, 5);
+  });
+
+  it("bobot dibagi rata dalam jendela; di luar jendela nol", () => {
+    const c = curveFromCategorySchedule([{ weightPct: 60, startWeek: 3, endWeek: 5 }], 6);
+    expect(c[0]).toBe(0); // sebelum mulai
+    expect(c[1]).toBe(0);
+    expect(c[2]).toBeCloseTo(20, 5); // 60/3 per minggu
+    expect(c[3]).toBeCloseTo(40, 5);
+    expect(c[4]).toBeCloseTo(60, 5);
+    expect(c[5]).toBeCloseTo(60, 5); // setelah selesai: datar
+  });
+
+  it("beberapa pekerjaan tumpang-tindih → monotonik, akhir = Σ bobot", () => {
+    const rows = [
+      { weightPct: 30, startWeek: 1, endWeek: 4 },
+      { weightPct: 50, startWeek: 3, endWeek: 8 },
+      { weightPct: 20, startWeek: 7, endWeek: 10 },
+    ];
+    const c = curveFromCategorySchedule(rows, 10);
+    for (let i = 1; i < c.length; i++) expect(c[i]).toBeGreaterThanOrEqual(c[i - 1]);
+    expect(Math.abs(c[9] - 100)).toBeLessThanOrEqual(0.5);
+  });
+
+  it("jendela di luar rentang di-clamp; start > end dirapikan", () => {
+    const c = curveFromCategorySchedule([{ weightPct: 100, startWeek: -3, endWeek: 99 }], 5);
+    expect(c[4]).toBeCloseTo(100, 5);
+    const d = curveFromCategorySchedule([{ weightPct: 100, startWeek: 4, endWeek: 2 }], 5);
+    expect(d[3]).toBeCloseTo(100, 5); // jatuh di minggu 4 saja
+    expect(d[2]).toBe(0);
+  });
+
+  it("bobot 0/negatif diabaikan", () => {
+    const c = curveFromCategorySchedule(
+      [
+        { weightPct: 0, startWeek: 1, endWeek: 5 },
+        { weightPct: -5, startWeek: 1, endWeek: 5 },
+        { weightPct: 100, startWeek: 1, endWeek: 5 },
+      ],
+      5,
+    );
+    expect(c[4]).toBeCloseTo(100, 5);
   });
 });

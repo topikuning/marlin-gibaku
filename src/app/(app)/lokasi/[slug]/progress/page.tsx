@@ -1,18 +1,20 @@
 import type { Metadata } from "next";
-import { Card, CardBody, CardHeader, StatusPill, type BadgeTone } from "@/components/ui";
+import { Card, CardBody, CardHeader, type BadgeTone } from "@/components/ui";
 import { DeltaBadge } from "@/components/ui/stat-delta";
 import { ScurveChart } from "@/components/knmp/scurve-chart";
 import { db } from "@/lib/db";
 import { can } from "@/lib/authz";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { cumulativeVolumeByLineage } from "@/lib/progress";
-import { getScurveSeries } from "@/lib/baseline";
+import { deriveCategorySchedule, getScurveSeries } from "@/lib/baseline";
 import { formatNumber, formatPct, formatRupiahShort, formatTanggal } from "@/lib/format";
 import type { BaselineSource, RevisionStatus } from "@/generated/prisma/enums";
 import { requireLocationPage } from "../get-location";
 import { IssuesPanel, type IssueData } from "./issues-client";
 import { RecalcBaselineButton } from "./recalc-baseline";
 import { BaselineEditor } from "./baseline-editor";
+import { ScheduleEditor } from "./schedule-editor";
+import { BaselineHistory, type BaselineHistoryRow } from "./baseline-history";
 
 export const metadata: Metadata = { title: "Progress Lokasi" };
 export const dynamic = "force-dynamic";
@@ -88,6 +90,20 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
   ]);
 
   const activeBaseline = baselines.find((b) => b.status === "aktif");
+  const schedule = canManageBaseline ? await deriveCategorySchedule(location.id) : null;
+
+  const historyRows: BaselineHistoryRow[] = baselines.map((b) => ({
+    id: b.id,
+    baselineNo: b.baselineNo,
+    sourceLabel: BASELINE_SOURCE_LABEL[b.source],
+    statusLabel: BASELINE_STATUS_LABEL[b.status],
+    statusTone: BASELINE_STATUS_TONE[b.status],
+    isActive: b.status === "aktif",
+    contractDays: b.contractDays,
+    note: b.note,
+    createdAtLabel: formatTanggal(b.createdAt),
+    points: b.points.map((p) => Number(p.plannedPct)),
+  }));
 
   // ── Item tertinggal: realisasi kumulatif < target proporsional plan ──────
   // Sederhana & jelas: target volume item minggu ini = volume RAB × plan% —
@@ -212,11 +228,28 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
         </Card>
       </div>
 
+      {canManageBaseline && schedule ? (
+        <Card>
+          <CardHeader
+            title="Jadwal per pekerjaan (kurva-S)"
+            subtitle="Format standar kurva-S: bobot tiap pekerjaan mengikuti nilai RAB (terkunci), atur minggu mulai–selesai per pekerjaan. Bobot dibagi rata per minggu dalam jendelanya → akumulasi mingguan membentuk kurva. Simpan = baseline baru (versi lama tetap di riwayat)."
+          />
+          <CardBody>
+            <ScheduleEditor
+              locationId={location.id}
+              totalWeeks={schedule.totalWeeks}
+              origin={schedule.origin}
+              initial={schedule.rows}
+            />
+          </CardBody>
+        </Card>
+      ) : null}
+
       {canManageBaseline && activeBaseline && activeBaseline.points.length > 0 ? (
         <Card>
           <CardHeader
-            title="Sesuaikan kurva-S manual"
-            subtitle="Kurva-S dibuat otomatis dari bobot & jadwal RAB. Di sini bisa dikoreksi manual per minggu — mis. menyesuaikan realita lapangan atau kesepakatan pengawas. Simpan = baseline baru (histori lama tetap ada)."
+            title="Penyesuaian halus %-mingguan"
+            subtitle="Untuk koreksi kecil pada deret %-kumulatif per minggu (mis. menyamakan dengan angka pengawas). Untuk mengatur urutan pekerjaan, pakai kartu Jadwal per pekerjaan di atas. Simpan = baseline baru."
           />
           <CardBody>
             <BaselineEditor
@@ -290,71 +323,10 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
       <Card>
         <CardHeader
           title="Riwayat baseline"
-          subtitle="Baseline tidak pernah diedit in place — setiap perubahan membuat versi baru."
+          subtitle="Baseline tidak pernah diedit in place — setiap perubahan membuat versi baru. Centang beberapa versi untuk membandingkan kurvanya; versi lama bisa dipulihkan (dibuat sebagai salinan baru)."
         />
         <CardBody>
-          {baselines.length === 0 ? (
-            <p className="text-sm text-ink-muted">Belum ada baseline.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-left text-xs uppercase text-ink-muted">
-                    <th className="py-2 pr-3">Versi</th>
-                    <th className="py-2 pr-3">Sumber</th>
-                    <th className="py-2 pr-3">Status</th>
-                    <th className="py-2 pr-3 text-right">Durasi</th>
-                    <th className="py-2 pr-3">Tanggal</th>
-                    <th className="py-2 pr-3">Catatan</th>
-                    <th className="py-2">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {baselines.map((b) => (
-                    <tr key={b.id} className="align-top">
-                      <td className="tabular py-2 pr-3">#{b.baselineNo}</td>
-                      <td className="py-2 pr-3">{BASELINE_SOURCE_LABEL[b.source]}</td>
-                      <td className="py-2 pr-3">
-                        <StatusPill tone={BASELINE_STATUS_TONE[b.status]} label={BASELINE_STATUS_LABEL[b.status]} />
-                      </td>
-                      <td className="tabular py-2 pr-3 text-right">
-                        {b.contractDays} hari ({b.points.length} mgg)
-                      </td>
-                      <td className="tabular py-2 pr-3">{formatTanggal(b.createdAt)}</td>
-                      <td className="max-w-60 truncate py-2 pr-3 text-ink-muted" title={b.note ?? undefined}>
-                        {b.note ?? "—"}
-                      </td>
-                      <td className="py-2">
-                        <details>
-                          <summary className="cursor-pointer text-[13px] text-primary hover:underline">
-                            Lihat
-                          </summary>
-                          <div className="mt-1 max-h-48 overflow-y-auto rounded-md border border-border bg-surface-muted p-2">
-                            <table className="w-full text-xs">
-                              <thead>
-                                <tr className="text-left text-ink-muted">
-                                  <th className="py-0.5 pr-2">Mgg</th>
-                                  <th className="py-0.5 text-right">Rencana kumulatif</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {b.points.map((p) => (
-                                  <tr key={p.weekNumber}>
-                                    <td className="tabular py-0.5 pr-2">{p.weekNumber}</td>
-                                    <td className="tabular py-0.5 text-right">{formatPct(Number(p.plannedPct))}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </details>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <BaselineHistory baselines={historyRows} canManage={canManageBaseline} />
         </CardBody>
       </Card>
     </div>

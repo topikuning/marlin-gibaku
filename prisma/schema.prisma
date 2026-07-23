@@ -632,13 +632,33 @@ model Baseline {
   createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz
   supersededAt  DateTime?      @map("superseded_at") @db.Timestamptz
 
-  location    Location       @relation(fields: [locationId], references: [id])
-  rabRevision RabRevision?   @relation(fields: [rabRevisionId], references: [id])
-  points      BaselinePoint[]
+  location      Location               @relation(fields: [locationId], references: [id])
+  rabRevision   RabRevision?           @relation(fields: [rabRevisionId], references: [id])
+  points        BaselinePoint[]
+  scheduleItems BaselineScheduleItem[]
 
   @@unique([locationId, baselineNo])
   @@index([locationId, status])
   @@map("baselines")
+}
+
+/// Jadwal per pekerjaan (kategori RAB) yang MENGHASILKAN baseline — format
+/// standar kurva-S sipil: bobot (dari RAB, derived) × jendela minggu; bobot
+/// dibagi rata per minggu dalam jendela (barchart → akumulasi → kurva S).
+/// Disimpan agar jadwal bisa dibuka & disesuaikan lagi, bukan cuma outputnya.
+model BaselineScheduleItem {
+  id         String  @id @default(uuid()) @db.Uuid
+  baselineId String  @map("baseline_id") @db.Uuid
+  lineageKey String  @map("lineage_key")
+  name       String
+  weightPct  Decimal @map("weight_pct") @db.Decimal(6, 3)
+  startWeek  Int     @map("start_week")
+  endWeek    Int     @map("end_week")
+
+  baseline Baseline @relation(fields: [baselineId], references: [id], onDelete: Cascade)
+
+  @@unique([baselineId, lineageKey])
+  @@map("baseline_schedule_items")
 }
 
 model BaselinePoint {

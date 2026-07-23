@@ -1315,3 +1315,27 @@ scurve — dengan test properti, bukan paritas nilai):**
   editor jadwal per kategori (bobot tetap dari RAB — prinsip derived; yang
   diatur manual jendela minggu mulai–selesai per kategori) → kurva dihitung
   otomatis. Menunggu keputusan user.
+
+## 069 · 2026-07-23 · Editor jadwal per pekerjaan (kurva-S standar sipil) + pulihkan/banding riwayat baseline
+
+- **Riset** (STEKOM, Lab MRK Unand, praktik kurva-S RAB Indonesia): format standar
+  = tabel pekerjaan × bobot (nilai ÷ total, DERIVED) × jendela waktu (barchart);
+  bobot dibagi terhadap durasi per periode (umumnya rata per minggu), akumulasi
+  vertikal per minggu → kumulatif → kurva S. Bentuk S muncul dari tumpang-tindih
+  antar pekerjaan, bukan distribusi per aktivitas.
+- **Editor jadwal per pekerjaan** (kartu baru di Progress, utama di atas editor
+  %-mingguan): baris = kategori RAB aktif, bobot % TERKUNCI (ubah bobot = revisi
+  RAB/adendum — prinsip derived), input minggu mulai–selesai + bar gantt mini +
+  pratinjau kurva langsung. `curveFromCategorySchedule` (pure, unit-tested):
+  distribusi rata dalam jendela, clamp, monotonik, akhir 100.
+- **Jadwal tersimpan**: model `BaselineScheduleItem` (baselineId, lineageKey,
+  name, weightPct, startWeek, endWeek) — jadwal yang menghasilkan baseline ikut
+  disimpan agar bisa dibuka & disesuaikan lagi (bukan cuma output). Jadwal awal
+  bila belum ada: derivasi otomatis envelope trade-windows item per kategori.
+- `saveCategorySchedule`: bobot dihitung ulang server dari RAB aktif (jendela
+  saja yang dipercaya dari klien), validasi rentang, idempotent (identik ⇒ tanpa
+  versi baru), audit `baseline.schedule`.
+- **Riwayat baseline**: kartu jadi interaktif — centang versi (maks 4) → overlay
+  kurva multi-garis satu grafik; tombol **Pulihkan** (konfirmasi 2 langkah) =
+  salin versi lama menjadi versi BARU aktif (append-only, riwayat tetap linear;
+  status versi lama tidak diubah), audit `baseline.restore`.
