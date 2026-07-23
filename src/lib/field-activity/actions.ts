@@ -26,7 +26,12 @@ async function locationForStamp(locationId: string) {
     select: {
       slug: true,
       name: true,
-      package: { select: { organization: { select: { name: true } } } },
+      package: {
+        select: {
+          organization: { select: { name: true } },
+          contract: { select: { vendor: { select: { name: true } } } },
+        },
+      },
     },
   });
 }
@@ -144,7 +149,8 @@ export async function createActivityAction(
       userId: user.id,
       reporterName: user.fullName,
       location,
-      companyName: location.package?.organization?.name ?? null,
+      companyName:
+        location.package?.contract?.vendor?.name ?? location.package?.organization?.name ?? null,
       dateKey: d.activityDate,
       lat: d.gpsLat ?? null,
       lng: d.gpsLng ?? null,
@@ -174,7 +180,18 @@ async function activityCtx(activityId: string) {
       status: true,
       locationId: true,
       activityDate: true,
-      location: { select: { slug: true, name: true, package: { select: { organization: { select: { name: true } } } } } },
+      location: {
+        select: {
+          slug: true,
+          name: true,
+          package: {
+            select: {
+              organization: { select: { name: true } },
+              contract: { select: { vendor: { select: { name: true } } } },
+            },
+          },
+        },
+      },
     },
   });
 }
@@ -202,7 +219,8 @@ export async function addActivityPhotosAction(
       userId: user.id,
       reporterName: user.fullName,
       location: ctx.location,
-      companyName: ctx.location.package?.organization?.name ?? null,
+      companyName:
+        ctx.location.package?.contract?.vendor?.name ?? ctx.location.package?.organization?.name ?? null,
       dateKey,
       lat: null,
       lng: null,

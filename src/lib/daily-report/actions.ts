@@ -112,12 +112,19 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
       select: {
         slug: true,
         name: true,
-        // Nama perusahaan utk cap foto (lokasi → paket → organisasi).
-        package: { select: { organization: { select: { name: true } } } },
+        // Nama perusahaan utk cap foto = pelaksana sesuai KONTRAK (vendor);
+        // fallback ke organisasi bila kontrak belum ada.
+        package: {
+          select: {
+            organization: { select: { name: true } },
+            contract: { select: { vendor: { select: { name: true } } } },
+          },
+        },
       },
     });
     if (!location) return { error: "Lokasi tidak ditemukan" };
-    const companyName = location.package?.organization?.name ?? null;
+    const companyName =
+      location.package?.contract?.vendor?.name ?? location.package?.organization?.name ?? null;
 
     const report = await getOrCreateDraft(d.locationId, d.dateKey, user.id);
     const item = await upsertItem(
