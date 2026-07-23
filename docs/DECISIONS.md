@@ -1277,3 +1277,23 @@ scurve — dengan test properti, bukan paritas nilai):**
   + audit `package.revert`. Gate `prospect.manage` (sama seperti menaikkan).
 - UI: tombol "Mundurkan ke <tahap>" di kartu "Langkah berikutnya" bila ada target
   mundur. Test unit `tests/unit/lifecycle.test.ts` menjaga invarian arah & satu-langkah.
+
+## 067 · 2026-07-23 · Lampiran dokumen kegiatan lapangan (ringkas, di luar Document Center)
+
+- Kebutuhan: kegiatan lapangan sering perlu lampiran non-foto (notulen, undangan,
+  berita acara, daftar hadir). Sebelumnya hanya foto.
+- **Pilihan desain**: model ringkas `FieldActivityAttachment` sejajar `Photo`
+  (menempel ke kegiatan) — BUKAN `Document` formal. Alasan: kegiatan sengaja
+  ringkas & informal (058); memaksa taksonomi phase+type KKP + milestone
+  auto-link + dedup-per-org (Document Center) tidak cocok untuk dokumentasi harian.
+- Model: `field_activity_attachments` (r2Key unik, fileName, mimeType, bytes,
+  sha256, uploadedById). Terima MIME sama dgn Document Center (PDF/DOCX/XLSX/
+  JPG/PNG/WebP), maks 15 MB, dedup **per-kegiatan** (bukan per-org).
+- Actions: `addActivityAttachmentsAction` (draft-only, best-effort per berkas),
+  `removeActivityAttachmentAction` (draft-only, hapus DB + objek R2), audit
+  `field_activity.attachment_add`. `deleteActivityAction` kini juga bersihkan R2
+  lampiran (bukan cuma foto). Reopen (final→draft) mengizinkan koreksi lampiran.
+- Unduh: route `/api/kegiatan/lampiran/[id]` — auth + `hasLocationAccess` → presign
+  R2 120 dtk (pola sama seperti `/api/documents/[id]`).
+- UI: tombol "Tambah dokumen" di aksi draft + daftar lampiran (unduh + hapus saat
+  draft) di kartu kegiatan. Foto & dokumen resmi (Document Center) tidak berubah.

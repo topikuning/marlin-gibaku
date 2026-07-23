@@ -12,7 +12,12 @@ import {
 } from "@/lib/field-activity/labels";
 import { removeActivityPhotoAction } from "@/lib/field-activity/actions";
 import { requireLocationPage } from "../get-location";
-import { CreateActivityForm, DraftActions, ReopenActivityButton } from "./kegiatan-forms";
+import {
+  ActivityAttachments,
+  CreateActivityForm,
+  DraftActions,
+  ReopenActivityButton,
+} from "./kegiatan-forms";
 
 export const metadata: Metadata = { title: "Kegiatan & Dokumentasi Lapangan" };
 export const dynamic = "force-dynamic";
@@ -30,7 +35,7 @@ export default async function KegiatanLapanganPage({ params }: { params: Promise
       <Card>
         <CardHeader
           title="Kegiatan & Dokumentasi Lapangan"
-          subtitle="Catatan kegiatan NON-pekerjaan beserta foto — mis. rapat persiapan (PCM), pengukuran/uitzet, MC-0, sosialisasi, mobilisasi, dokumentasi kondisi 0%. Terpisah dari laporan progres harian."
+          subtitle="Catatan kegiatan NON-pekerjaan beserta foto & dokumen pendukung (notulen, undangan, berita acara, dsb.) — mis. rapat persiapan (PCM), pengukuran/uitzet, MC-0, sosialisasi, mobilisasi, dokumentasi kondisi 0%. Terpisah dari laporan progres harian."
         />
         {canManage ? (
           <CardBody>
@@ -90,6 +95,13 @@ export default async function KegiatanLapanganPage({ params }: { params: Promise
                 ) : (
                   <p className="mt-3 text-[12px] text-ink-faint">Belum ada foto.</p>
                 )}
+
+                {a.attachments.length > 0 ? (
+                  <ActivityAttachments
+                    attachments={a.attachments}
+                    canDelete={canManage && a.status === "draft"}
+                  />
+                ) : null}
 
                 {canManage && a.status === "draft" ? <DraftActions activityId={a.id} /> : null}
                 {canManage && a.status === "final" ? <ReopenActivityButton activityId={a.id} /> : null}

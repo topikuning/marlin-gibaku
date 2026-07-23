@@ -765,12 +765,33 @@ model FieldActivity {
   createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime            @updatedAt @map("updated_at") @db.Timestamptz
 
-  location Location @relation(fields: [locationId], references: [id])
-  photos   Photo[]
+  location    Location                   @relation(fields: [locationId], references: [id])
+  photos      Photo[]
+  attachments FieldActivityAttachment[]
 
   @@index([locationId, activityDate])
   @@index([locationId, status])
   @@map("field_activities")
+}
+
+/// Lampiran non-foto kegiatan lapangan (PDF/Word/Excel/gambar) — ringkas,
+/// menempel langsung ke kegiatan; TIDAK masuk Document Center formal (tanpa
+/// taksonomi phase/type). File di R2, metadata di sini.
+model FieldActivityAttachment {
+  id           String   @id @default(uuid()) @db.Uuid
+  activityId   String   @map("activity_id") @db.Uuid
+  r2Key        String   @unique @map("r2_key")
+  fileName     String   @map("file_name")
+  mimeType     String   @map("mime_type")
+  bytes        Int
+  sha256       String
+  uploadedById String?  @map("uploaded_by_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  activity FieldActivity @relation(fields: [activityId], references: [id])
+
+  @@index([activityId])
+  @@map("field_activity_attachments")
 }
 
 model DailyReportItem {

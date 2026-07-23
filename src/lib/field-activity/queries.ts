@@ -3,6 +3,13 @@ import { db } from "@/lib/db";
 import { buildPhotoViews, type PhotoView } from "@/lib/photos";
 import type { FieldActivityStatus, FieldActivityType } from "@/generated/prisma/enums";
 
+export type FieldActivityAttachmentView = {
+  id: string;
+  fileName: string;
+  mimeType: string;
+  bytes: number;
+};
+
 export type FieldActivityView = {
   id: string;
   activityDate: string; // ISO date (yyyy-mm-dd)
@@ -13,6 +20,7 @@ export type FieldActivityView = {
   status: FieldActivityStatus;
   createdByName: string | null;
   photos: PhotoView[];
+  attachments: FieldActivityAttachmentView[];
 };
 
 /** Daftar kegiatan lapangan sebuah lokasi (terbaru dulu) + foto terpresign. */
@@ -40,6 +48,10 @@ export async function listFieldActivities(locationId: string): Promise<FieldActi
           exifGpsLng: true,
         },
       },
+      attachments: {
+        orderBy: { createdAt: "asc" },
+        select: { id: true, fileName: true, mimeType: true, bytes: true },
+      },
     },
   });
 
@@ -66,5 +78,6 @@ export async function listFieldActivities(locationId: string): Promise<FieldActi
     status: r.status,
     createdByName: nameById.get(r.createdById) ?? null,
     photos: r.photos.map((p) => byId.get(p.id)).filter((v): v is PhotoView => v != null),
+    attachments: r.attachments,
   }));
 }

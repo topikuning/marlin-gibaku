@@ -1,12 +1,15 @@
 "use server";
 
+import { createHash, randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { ForbiddenError, requireCapability, requireLocationAccess } from "@/lib/auth/session";
 import { MAX_PHOTOS_PER_UPLOAD, PhotoError, savePhotoForItem } from "@/lib/photos";
-import { isR2Configured, r2Delete } from "@/lib/r2";
+import { isR2Configured, r2Delete, r2Put } from "@/lib/r2";
+import { ALLOWED_UPLOAD_MIMES, MAX_UPLOAD_BYTES } from "@/lib/documents-meta";
+import { jakartaDateKey } from "@/lib/format";
 
 /** Hapus objek R2 (best-effort — orphan diabaikan bila gagal). */
 async function deleteR2Keys(keys: (string | null | undefined)[]): Promise<void> {
@@ -283,12 +286,19 @@ export async function deleteActivityAction(
     await requireLocationAccess(user, ctx.locationId);
     if (ctx.status === "final") return { error: "Kegiatan final tidak bisa dihapus — buka kembali dulu bila perlu koreksi." };
 
-    const photos = await db.photo.findMany({ where: { activityId: ctx.id }, select: { r2Key: true, thumbnailKey: true } });
+    const [photos, attachments] = await Promise.all([
+      db.photo.findMany({ where: { activityId: ctx.id }, select: { r2Key: true, thumbnailKey: true } }),
+      db.fieldActivityAttachment.findMany({ where: { activityId: ctx.id }, select: { r2Key: true } }),
+    ]);
     await db.$transaction([
       db.photo.deleteMany({ where: { activityId: ctx.id } }),
+      db.fieldActivityAttachment.deleteMany({ where: { activityId: ctx.id } }),
       db.fieldActivity.delete({ where: { id: ctx.id } }),
     ]);
-    await deleteR2Keys(photos.flatMap((p) => [p.r2Key, p.thumbnailKey]));
+    await deleteR2Keys([
+      ...photos.flatMap((p) => [p.r2Key, p.thumbnailKey]),
+      ...attachments.map((a) => a.r2Key),
+    ]);
     await audit(user.id, "field_activity.delete", "field_activity", ctx.id, { locationId: ctx.locationId });
     revalidate(ctx.location.slug);
     return { success: "Kegiatan dihapus." };
@@ -323,6 +333,127 @@ export async function removeActivityPhotoAction(
     await deleteR2Keys([photo.r2Key, photo.thumbnailKey]);
     revalidate(photo.activity.location.slug);
     return { success: "Foto dihapus." };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Lampiran dokumen (non-foto): PDF/Word/Excel/gambar                   */
+/* Ringkas — menempel ke kegiatan, TIDAK masuk Document Center formal.  */
+/* ------------------------------------------------------------------ */
+
+const MAX_ATTACHMENTS_PER_UPLOAD = 6;
+
+/** Nama file aman untuk key R2 (whitelist karakter, pertahankan ekstensi). */
+function sanitizeFileName(name: string): string {
+  const cleaned = name
+    .normalize("NFKD")
+    .replace(/[^\w.-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^[-.]+/, "");
+  return (cleaned || "berkas").slice(-80);
+}
+
+/** Tambah lampiran dokumen ke kegiatan draft (best-effort per berkas). */
+export async function addActivityAttachmentsAction(
+  _prev: FieldActivityState,
+  formData: FormData,
+): Promise<FieldActivityState> {
+  const idParse = z.uuid().safeParse(formData.get("activityId"));
+  if (!idParse.success) return { error: "Kegiatan tidak valid." };
+  try {
+    const user = await requireCapability("field_activity.manage");
+    const ctx = await activityCtx(idParse.data);
+    if (!ctx) return { error: "Kegiatan tidak ditemukan." };
+    await requireLocationAccess(user, ctx.locationId);
+    if (ctx.status !== "draft") return { error: "Kegiatan sudah final — tidak bisa ditambah lampiran." };
+    if (!isR2Configured()) {
+      return { error: "Penyimpanan file (R2) belum dikonfigurasi — unggah lampiran dinonaktifkan." };
+    }
+
+    const files = formData.getAll("attachments").filter((f): f is File => f instanceof File && f.size > 0);
+    if (!files.length) return { error: "Tidak ada dokumen untuk diunggah." };
+
+    const errors: string[] = [];
+    let saved = 0;
+    const yyyy = jakartaDateKey(new Date()).slice(0, 4);
+    for (const file of files.slice(0, MAX_ATTACHMENTS_PER_UPLOAD)) {
+      if (file.size > MAX_UPLOAD_BYTES) {
+        errors.push(`${file.name}: ukuran ${(file.size / 1024 / 1024).toFixed(1)} MB melebihi 15 MB`);
+        continue;
+      }
+      if (!ALLOWED_UPLOAD_MIMES[file.type]) {
+        errors.push(`${file.name}: jenis file tidak didukung (${file.type || "tidak dikenal"})`);
+        continue;
+      }
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const sha256 = createHash("sha256").update(buffer).digest("hex");
+      // Dedup per kegiatan (bukan per org — lampiran boleh sama antar kegiatan).
+      const dupe = await db.fieldActivityAttachment.findFirst({
+        where: { activityId: ctx.id, sha256 },
+        select: { fileName: true },
+      });
+      if (dupe) {
+        errors.push(`${file.name}: identik dengan "${dupe.fileName}" yang sudah ada`);
+        continue;
+      }
+      const r2Key = `activity-attachments/${yyyy}/${randomUUID()}-${sanitizeFileName(file.name)}`;
+      await r2Put(r2Key, buffer, file.type);
+      await db.fieldActivityAttachment.create({
+        data: {
+          activityId: ctx.id,
+          r2Key,
+          fileName: file.name.slice(0, 200),
+          mimeType: file.type,
+          bytes: file.size,
+          sha256,
+          uploadedById: user.id,
+        },
+      });
+      saved++;
+    }
+
+    await audit(user.id, "field_activity.attachment_add", "field_activity", ctx.id, {
+      locationId: ctx.locationId,
+      saved,
+    });
+    revalidate(ctx.location.slug);
+    if (saved === 0) return { error: errors.join("; ") || "Tidak ada lampiran tersimpan." };
+    return {
+      success: `${saved} lampiran ditambahkan.`,
+      warning: errors.length ? `Sebagian gagal: ${errors.join("; ")}` : undefined,
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Hapus satu lampiran dari kegiatan draft (DB + objek R2). */
+export async function removeActivityAttachmentAction(
+  _prev: FieldActivityState,
+  formData: FormData,
+): Promise<FieldActivityState> {
+  const idParse = z.uuid().safeParse(formData.get("attachmentId"));
+  if (!idParse.success) return { error: "Lampiran tidak valid." };
+  try {
+    const user = await requireCapability("field_activity.manage");
+    const att = await db.fieldActivityAttachment.findUnique({
+      where: { id: idParse.data },
+      select: {
+        id: true,
+        r2Key: true,
+        activity: { select: { status: true, locationId: true, location: { select: { slug: true } } } },
+      },
+    });
+    if (!att?.activity) return { error: "Lampiran tidak ditemukan." };
+    await requireLocationAccess(user, att.activity.locationId);
+    if (att.activity.status === "final") return { error: "Kegiatan sudah final — buka kembali dulu untuk menghapus lampiran." };
+
+    await db.fieldActivityAttachment.delete({ where: { id: att.id } });
+    await deleteR2Keys([att.r2Key]);
+    revalidate(att.activity.location.slug);
+    return { success: "Lampiran dihapus." };
   } catch (err) {
     return fail(err);
   }

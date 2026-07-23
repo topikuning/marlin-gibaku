@@ -1,14 +1,17 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
-import { Camera, CheckCircle2, RotateCcw, Trash2, Plus } from "lucide-react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { Camera, CheckCircle2, Download, Paperclip, RotateCcw, Trash2, Plus } from "lucide-react";
 import { Banner, Button, Input, Label, Select, Textarea } from "@/components/ui";
 import { FIELD_ACTIVITY_TYPES, FIELD_ACTIVITY_TYPE_LABEL } from "@/lib/field-activity/labels";
+import type { FieldActivityAttachmentView } from "@/lib/field-activity/queries";
 import {
+  addActivityAttachmentsAction,
   addActivityPhotosAction,
   createActivityAction,
   deleteActivityAction,
   finalizeActivityAction,
+  removeActivityAttachmentAction,
   reopenActivityAction,
   type FieldActivityState,
 } from "@/lib/field-activity/actions";
@@ -118,14 +121,120 @@ export function CreateActivityForm({ locationId, todayKey }: { locationId: strin
   );
 }
 
-/** Tombol aksi untuk kegiatan draft: tambah foto · finalkan · hapus. */
+/** Tombol aksi untuk kegiatan draft: tambah foto · tambah dokumen · finalkan · hapus. */
 export function DraftActions({ activityId }: { activityId: string }) {
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
       <AddPhotoForm activityId={activityId} />
+      <AddAttachmentForm activityId={activityId} />
       <FinalizeButton activityId={activityId} />
       <DeleteButton activityId={activityId} />
     </div>
+  );
+}
+
+const ATTACHMENT_ACCEPT =
+  ".pdf,.docx,.xlsx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/*";
+
+/** Unggah lampiran dokumen (PDF/Word/Excel/gambar) ke kegiatan draft. */
+function AddAttachmentForm({ activityId }: { activityId: string }) {
+  const [state, action, pending] = useActionState<FieldActivityState, FormData>(
+    addActivityAttachmentsAction,
+    undefined,
+  );
+  const formRef = useRef<HTMLFormElement>(null);
+  return (
+    <form ref={formRef} action={action} className="inline-flex items-center gap-1">
+      <input type="hidden" name="activityId" value={activityId} />
+      <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1.5 text-[13px] font-medium text-ink hover:bg-surface-muted">
+        <Paperclip aria-hidden className="size-3.5" />
+        {pending ? "Mengunggah…" : "Tambah dokumen"}
+        <input
+          type="file"
+          name="attachments"
+          accept={ATTACHMENT_ACCEPT}
+          multiple
+          className="sr-only"
+          onChange={(e) => {
+            if (e.target.files && e.target.files.length) formRef.current?.requestSubmit();
+          }}
+        />
+      </label>
+      {state?.error ? <span className="text-[12px] text-danger">{state.error}</span> : null}
+      {state?.warning ? <span className="text-[12px] text-warning">{state.warning}</span> : null}
+    </form>
+  );
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/** Daftar lampiran dokumen kegiatan (unduh) + hapus per item saat draft. */
+export function ActivityAttachments({
+  attachments,
+  canDelete = false,
+}: {
+  attachments: FieldActivityAttachmentView[];
+  canDelete?: boolean;
+}) {
+  const [pending, startTransition] = useTransition();
+  if (attachments.length === 0) return null;
+
+  const del = (attachmentId: string) => {
+    if (typeof window !== "undefined" && !window.confirm("Hapus lampiran ini? Tidak bisa dibatalkan.")) return;
+    const fd = new FormData();
+    fd.set("attachmentId", attachmentId);
+    startTransition(async () => {
+      await removeActivityAttachmentAction(undefined, fd);
+    });
+  };
+
+  return (
+    <ul className="mt-2 space-y-1.5">
+      {attachments.map((a) => (
+        <li
+          key={a.id}
+          className="flex items-center gap-2 rounded-md border border-border bg-surface px-2.5 py-1.5 text-[13px]"
+        >
+          <Paperclip aria-hidden className="size-3.5 shrink-0 text-ink-muted" />
+          <a
+            href={`/api/kegiatan/lampiran/${a.id}`}
+            target="_blank"
+            rel="noreferrer"
+            className="min-w-0 flex-1 truncate text-primary hover:underline"
+            title={a.fileName}
+          >
+            {a.fileName}
+          </a>
+          <span className="shrink-0 text-[12px] text-ink-faint tabular">{formatBytes(a.bytes)}</span>
+          <a
+            href={`/api/kegiatan/lampiran/${a.id}`}
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Unduh lampiran"
+            title="Unduh"
+            className="shrink-0 rounded p-1 text-ink-muted hover:bg-surface-muted hover:text-ink"
+          >
+            <Download aria-hidden className="size-3.5" />
+          </a>
+          {canDelete ? (
+            <button
+              type="button"
+              onClick={() => del(a.id)}
+              disabled={pending}
+              aria-label="Hapus lampiran"
+              title="Hapus lampiran"
+              className="shrink-0 rounded p-1 text-danger hover:bg-danger-soft disabled:opacity-50"
+            >
+              <Trash2 aria-hidden className="size-3.5" />
+            </button>
+          ) : null}
+        </li>
+      ))}
+    </ul>
   );
 }
 
