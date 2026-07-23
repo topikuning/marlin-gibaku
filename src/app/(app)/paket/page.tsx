@@ -63,12 +63,20 @@ export default async function PaketPage({
         actions={
           <div className="flex flex-wrap gap-2">
             {can(user.role, "package.bypass") ? (
-              <Link
-                href="/paket/bypass"
-                className="inline-flex h-9 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-muted"
-              >
-                Buat Cepat (Bypass)
-              </Link>
+              <>
+                <Link
+                  href="/paket/katalog"
+                  className="inline-flex h-9 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-muted"
+                >
+                  Katalog Lokasi
+                </Link>
+                <Link
+                  href="/paket/bypass"
+                  className="inline-flex h-9 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-muted"
+                >
+                  Buat Cepat (Bypass)
+                </Link>
+              </>
             ) : null}
             {can(user.role, "package.create") ? (
               <Link

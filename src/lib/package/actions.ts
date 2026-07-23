@@ -12,7 +12,7 @@ import {
   PACKAGE_STAGE_LABEL,
 } from "@/lib/lifecycle";
 import { parseDateKey } from "@/lib/format";
-import { existingLocationKeys, locationKey } from "@/lib/master-location";
+import { existingLocationKeys, locationKey } from "@/lib/master-location/queries";
 import type { PackageStage } from "@/generated/prisma/enums";
 
 /**

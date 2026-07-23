@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Card, CardBody, CardHeader, PageHeader } from "@/components/ui";
 import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
-import { getAvailableCatalog } from "@/lib/master-location";
+import { getAvailableCatalog } from "@/lib/master-location/queries";
 import { BypassForm, type MasterLocationOption, type VendorOption } from "./bypass-form";
 
 export const metadata: Metadata = { title: "Buat Proyek Cepat (Bypass)" };
@@ -38,6 +39,14 @@ export default async function BypassPage() {
         breadcrumb={[{ label: "Paket", href: "/paket" }, { label: "Buat Cepat (Bypass)" }]}
         title="Buat Proyek Cepat (Bypass)"
         description="Jalur khusus admin: buat proyek langsung di tahap Kontrak tanpa proses pra-kontrak (prospek → tender → penetapan). Dokumen pengadaan bisa dilengkapi sambil berjalan. Mulai pekerjaan tetap lewat SPMK."
+        actions={
+          <Link
+            href="/paket/katalog"
+            className="inline-flex h-9 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-muted"
+          >
+            Katalog & Impor
+          </Link>
+        }
       />
       <Card>
         <CardHeader

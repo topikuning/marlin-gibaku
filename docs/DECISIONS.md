@@ -1179,3 +1179,23 @@ scurve — dengan test properti, bukan paritas nilai):**
     (prov|kab|kec|desa) sudah ada sebagai Location riil; `createDirectProject`
     juga menolak master yang bentrok saat instansiasi (jaring pengaman). Katalog
     tampil dgn catatan "N lokasi disembunyikan karena sudah ada".
+
+## 061 · 2026-07-23 · Impor batch katalog lokasi (xlsx) — jalur produksi & lanjutan
+
+- Menjawab kebutuhan "master lokasi awal masuk production": dibuat **jalur impor
+  batch** (bukan hanya seed dev) supaya admin bisa memuat katalog di production
+  dan batch lokasi berikutnya lewat UI.
+- `parseMasterLocationXlsx` (`src/lib/master-location/import.ts`): deteksi baris
+  header + kolom by keyword (Provinsi/Kabupaten/Kecamatan/Desa/Latitude/Longitude/
+  Calon Penyedia) — toleran urutan & kapitalisasi. Wajib min: provinsi, kabupaten,
+  desa.
+- Actions (`master-location/actions.ts`, gate `package.bypass`): `previewMasterImportAction`
+  (parse + ringkasan tanpa tulis DB: baru/diperbarui/sudah-ada-riil/vendor baru) &
+  `commitMasterImportAction` (upsert MasterLocation idempotent + ingest Vendor unik
+  + audit `master_location.import`). Dedupe per kunci alami dalam file.
+- UI `/paket/katalog` (SA+PD): KPI (total/tersedia/terpakai/sudah-ada) + form impor
+  (pratinjau → simpan, File ditahan di klien) + tabel isi katalog. Ditaut dari
+  header /paket & halaman bypass. Modul `src/lib/master-location.ts` dipindah ke
+  `src/lib/master-location/queries.ts` (jadi direktori).
+- Seed dev tetap memuat katalog otomatis (embedded); impor idempotent → aman
+  dijalankan ulang di dev maupun production.
