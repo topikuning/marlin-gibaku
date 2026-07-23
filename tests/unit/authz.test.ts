@@ -29,11 +29,19 @@ describe("authz capability matrix", () => {
     }
   });
 
-  it("program_director TIDAK punya system.manage, sisanya punya", () => {
+  it("program_director TIDAK punya system.manage & contract.edit, sisanya punya", () => {
     expect(can("program_director", "system.manage")).toBe(false);
+    expect(can("program_director", "contract.edit")).toBe(false); // koreksi kontrak khusus super_admin
     for (const cap of CAPABILITIES) {
-      if (cap === "system.manage") continue;
+      if (cap === "system.manage" || cap === "contract.edit") continue;
       expect(can("program_director", cap), cap).toBe(true);
+    }
+  });
+
+  it("contract.edit hanya super_admin", () => {
+    expect(can("super_admin", "contract.edit")).toBe(true);
+    for (const role of ["program_director", "regional_manager", "project_manager", "site_manager", "field_supervisor", "exec_viewer"] as const) {
+      expect(can(role, "contract.edit"), role).toBe(false);
     }
   });
 

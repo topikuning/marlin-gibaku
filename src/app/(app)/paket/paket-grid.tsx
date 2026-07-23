@@ -40,12 +40,14 @@ export function PaketGrid({ rows }: { rows: PaketRow[] }) {
         field: "name",
         headerName: "Nama Paket",
         flex: 1,
-        minWidth: 240,
+        minWidth: 220,
+        tooltipField: "name",
         cellRenderer: (p: ICellRendererParams<GridRow>) =>
           p.data ? (
             <Link
               href={`/paket/${p.data.id}`}
-              className="font-medium text-primary hover:underline"
+              title={p.data.name}
+              className="block truncate font-medium text-primary hover:underline"
               onClick={(e) => e.stopPropagation()}
             >
               {p.data.name}

@@ -78,13 +78,18 @@ export function BypassForm({
         <legend className="text-sm font-semibold text-ink">1 · Data paket</legend>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <Label htmlFor="bp-name" required>Nama paket</Label>
-            <Input id="bp-name" name="name" required minLength={3} maxLength={200} placeholder="mis. KNMP Jawa Tengah — Paket 1" />
+            <Label htmlFor="bp-name" required>Nama paket (pendek)</Label>
+            <Input id="bp-name" name="name" required minLength={3} maxLength={200} placeholder="mis. KNMP Muncar — Kedungrejo" />
           </div>
           <div>
             <Label htmlFor="bp-number">Nomor paket (opsional)</Label>
             <Input id="bp-number" name="packageNumber" maxLength={100} />
           </div>
+        </div>
+        <div>
+          <Label htmlFor="bp-worktitle">Nama pekerjaan resmi (untuk dokumen, opsional)</Label>
+          <Input id="bp-worktitle" name="workTitle" maxLength={300} placeholder="mis. Pekerjaan Konstruksi Pembangunan Kampung Nelayan Merah Putih di …" />
+          <HelpText>Judul panjang sesuai kontrak. Daftar/tabel tetap pakai nama pendek di atas.</HelpText>
         </div>
         <div>
           <Label htmlFor="bp-prov">Provinsi paket (opsional)</Label>

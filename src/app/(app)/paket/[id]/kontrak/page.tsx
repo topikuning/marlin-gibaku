@@ -14,7 +14,7 @@ import {
   runningEndDate,
 } from "@/lib/package/queries";
 import { StartPelaksanaanButton } from "../stage-actions";
-import { AmendmentForm, ConvertContractForm, SignatoriesForm } from "./kontrak-forms";
+import { AmendmentForm, ConvertContractForm, EditContractForm, SignatoriesForm } from "./kontrak-forms";
 
 export const metadata: Metadata = { title: "Kontrak & Adendum" };
 export const dynamic = "force-dynamic";
@@ -34,6 +34,7 @@ export default async function KontrakPage({
   const contract = pkg.contract;
   const canContract = can(user.role, "contract.manage");
   const canAmend = can(user.role, "amendment.manage");
+  const canEditContract = can(user.role, "contract.edit");
 
   /* ---------- Belum ada kontrak ---------- */
   if (!contract) {
@@ -186,6 +187,30 @@ export default async function KontrakPage({
           </Card>
         ) : null}
       </div>
+
+      {canEditContract ? (
+        <Card>
+          <CardHeader
+            title="Koreksi kontrak (Super Admin)"
+            subtitle="Betulkan data kontrak termasuk WAKTU. Jika masa pelaksanaan / SPMK diubah, kurva-S semua lokasi dihitung ulang otomatis. Berbeda dari adendum (perubahan resmi)."
+          />
+          <CardBody>
+            <EditContractForm
+              packageId={pkg.id}
+              initial={{
+                packageName: pkg.name,
+                workTitle: contract.workTitle ?? "",
+                contractNumber: contract.contractNumber,
+                contractValue: String(contract.contractValue),
+                ppnPercent: Number(contract.ppnPercent),
+                signedDate: contract.signedDate.toISOString().slice(0, 10),
+                durationDays: contract.durationDays,
+                startDate: contract.startDate ? contract.startDate.toISOString().slice(0, 10) : "",
+              }}
+            />
+          </CardBody>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader

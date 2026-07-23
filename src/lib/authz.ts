@@ -14,6 +14,7 @@ export const CAPABILITIES = [
   "package.bypass",
   "prospect.manage",
   "contract.manage",
+  "contract.edit", // koreksi kontrak (super_admin saja) — beda dari adendum
   "amendment.manage",
   "location.view",
   "location.manage",
@@ -53,7 +54,8 @@ const VIEW_ALL: Capability[] = [
 export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
   super_admin: new Set<Capability>(CAPABILITIES),
   program_director: new Set<Capability>(
-    CAPABILITIES.filter((c) => c !== "system.manage"),
+    // contract.edit = koreksi data kontrak, khusus super_admin.
+    CAPABILITIES.filter((c) => c !== "system.manage" && c !== "contract.edit"),
   ),
   regional_manager: new Set<Capability>([
     ...VIEW_ALL,

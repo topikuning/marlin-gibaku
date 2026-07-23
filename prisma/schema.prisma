@@ -449,6 +449,9 @@ model Contract {
   packageId       String   @unique @map("package_id") @db.Uuid
   vendorId        String   @map("vendor_id") @db.Uuid
   contractNumber  String   @unique @map("contract_number")
+  // Nama pekerjaan RESMI (judul kontrak, biasanya panjang) — untuk dokumen/cetak.
+  // Terpisah dari Package.name (label pendek untuk daftar/tampilan).
+  workTitle       String?  @map("work_title")
   contractValue   BigInt   @map("contract_value")
   ppnPercent      Decimal  @default(11) @map("ppn_percent") @db.Decimal(5, 2)
   advancePercent  Decimal? @map("advance_percent") @db.Decimal(5, 2)

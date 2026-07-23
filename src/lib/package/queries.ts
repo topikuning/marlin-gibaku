@@ -107,6 +107,7 @@ export const getPackageWorkspace = cache(async (id: string) => {
         select: {
           id: true,
           contractNumber: true,
+          workTitle: true,
           contractValue: true,
           ppnPercent: true,
           advancePercent: true,

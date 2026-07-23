@@ -12,6 +12,7 @@ import {
   PACKAGE_STAGE_LABEL,
 } from "@/lib/lifecycle";
 import { parseDateKey } from "@/lib/format";
+import { regenerateBaseline } from "@/lib/rab/import";
 import { existingLocationKeys, locationKey } from "@/lib/master-location/queries";
 import type { PackageStage } from "@/generated/prisma/enums";
 
@@ -389,6 +390,7 @@ const convertSchema = z
     packageId: z.uuid("ID paket tidak valid"),
     vendorId: z.uuid().optional(),
     vendorName: z.string().trim().min(3, "Nama vendor minimal 3 karakter").max(200).optional(),
+    workTitle: z.string().trim().max(300).optional(),
     contractNumber: z.string().trim().min(3, "Nomor kontrak wajib diisi").max(150),
     ppnPercent: z.preprocess(
       (v) => (v === "" || v == null ? 11 : Number(v)),
@@ -428,6 +430,7 @@ export async function convertToContract(
     packageId: formData.get("packageId"),
     vendorId: vendorIdRaw ?? undefined,
     vendorName: optionalText(formData.get("vendorName")) ?? undefined,
+    workTitle: optionalText(formData.get("workTitle"), 300) ?? undefined,
     contractNumber: formData.get("contractNumber"),
     ppnPercent: formData.get("ppnPercent"),
     signedDate: formData.get("signedDate"),
@@ -510,6 +513,7 @@ export async function convertToContract(
         packageId: pkg.id,
         vendorId,
         contractNumber: d.contractNumber,
+        workTitle: d.workTitle ?? null,
         contractValue,
         ppnPercent: d.ppnPercent,
         advancePercent: d.advancePercent ?? null,
@@ -590,6 +594,7 @@ const directProjectSchema = z
   .object({
     name: z.string().trim().min(3, "Nama paket minimal 3 karakter").max(200),
     packageNumber: z.string().trim().max(100).optional(),
+    workTitle: z.string().trim().max(300).optional(),
     province: z.string().trim().max(100).optional(),
     vendorId: z.uuid().optional(),
     vendorName: z.string().trim().min(3, "Nama vendor minimal 3 karakter").max(200).optional(),
@@ -627,6 +632,7 @@ export async function createDirectProject(
   const parsed = directProjectSchema.safeParse({
     name: formData.get("name"),
     packageNumber: optionalText(formData.get("packageNumber"), 100) ?? undefined,
+    workTitle: optionalText(formData.get("workTitle"), 300) ?? undefined,
     province: optionalText(formData.get("province"), 100) ?? undefined,
     vendorId: optionalText(formData.get("vendorId"), 100) ?? undefined,
     vendorName: optionalText(formData.get("vendorName")) ?? undefined,
@@ -735,6 +741,7 @@ export async function createDirectProject(
         packageId: pkg.id,
         vendorId,
         contractNumber: d.contractNumber,
+        workTitle: d.workTitle ?? null,
         contractValue,
         ppnPercent: d.ppnPercent,
         signedDate,
@@ -797,6 +804,132 @@ export async function createDirectProject(
   });
   revalidatePath("/paket");
   redirect(`/paket/${result.packageId}`);
+}
+
+/* ------------------------------------------------------------------ */
+/* KOREKSI KONTRAK (super_admin) — betulkan data termasuk WAKTU.        */
+/* Beda dari adendum (perubahan resmi). Bila waktu berubah → kurva-S    */
+/* di-regenerate otomatis per lokasi.                                   */
+/* ------------------------------------------------------------------ */
+
+const DAY_MS = 86_400_000;
+
+const editContractSchema = z.object({
+  packageId: z.uuid("ID paket tidak valid"),
+  packageName: z.string().trim().min(3, "Nama paket minimal 3 karakter").max(200),
+  workTitle: z.string().trim().max(300).optional(),
+  contractNumber: z.string().trim().min(3, "Nomor kontrak wajib diisi").max(150),
+  ppnPercent: z.preprocess(
+    (v) => (v === "" || v == null ? 11 : Number(v)),
+    z.number().min(0, "PPN minimal 0").max(100, "PPN maksimal 100"),
+  ),
+  signedDate: z.string().min(1, "Tanggal TTD wajib diisi"),
+  durationDays: z.preprocess(
+    (v) => (v === "" || v == null ? undefined : Number(v)),
+    z.number({ message: "Masa pelaksanaan wajib diisi" }).int().min(1).max(3650),
+  ),
+  // SPMK / tanggal mulai. Kosong = SPMK belum terbit (startDate null).
+  startDate: z.string().optional(),
+});
+
+export async function editContractAction(
+  _prev: PackageActionState,
+  formData: FormData,
+): Promise<PackageActionState> {
+  const actor = await requireCapability("contract.edit");
+  const parsed = editContractSchema.safeParse({
+    packageId: formData.get("packageId"),
+    packageName: formData.get("packageName"),
+    workTitle: optionalText(formData.get("workTitle"), 300) ?? undefined,
+    contractNumber: formData.get("contractNumber"),
+    ppnPercent: formData.get("ppnPercent"),
+    signedDate: formData.get("signedDate"),
+    durationDays: formData.get("durationDays"),
+    startDate: optionalText(formData.get("startDate"), 20) ?? undefined,
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const d = parsed.data;
+
+  const contractValue = parseRupiah(formData.get("contractValue"));
+  if (contractValue === null || contractValue <= 0n) return { error: "Nilai kontrak wajib > 0." };
+  const signedDate = parseDateKey(d.signedDate);
+  if (!signedDate) return { error: "Format tanggal TTD tidak valid." };
+  const startDate = d.startDate ? parseDateKey(d.startDate) : null;
+  if (d.startDate && !startDate) return { error: "Format tanggal SPMK tidak valid." };
+  const endDate = startDate ? new Date(startDate.getTime() + d.durationDays * DAY_MS) : null;
+
+  const pkg = await db.package.findUnique({
+    where: { id: d.packageId },
+    select: {
+      id: true,
+      contract: { select: { id: true, durationDays: true, startDate: true } },
+      locations: { select: { id: true } },
+    },
+  });
+  if (!pkg?.contract) return { error: "Paket belum berkontrak." };
+
+  // Nomor kontrak unik (kecuali dirinya sendiri).
+  const dupe = await db.contract.findFirst({
+    where: { contractNumber: d.contractNumber, id: { not: pkg.contract.id } },
+    select: { id: true },
+  });
+  if (dupe) return { error: "Nomor kontrak sudah dipakai kontrak lain." };
+
+  const prevStart = pkg.contract.startDate ? pkg.contract.startDate.toISOString().slice(0, 10) : null;
+  const newStart = startDate ? startDate.toISOString().slice(0, 10) : null;
+  const timeChanged = pkg.contract.durationDays !== d.durationDays || prevStart !== newStart;
+
+  await db.$transaction(async (tx) => {
+    await tx.package.update({ where: { id: pkg.id }, data: { name: d.packageName } });
+    await tx.contract.update({
+      where: { id: pkg.contract!.id },
+      data: {
+        contractNumber: d.contractNumber,
+        workTitle: d.workTitle ?? null,
+        contractValue,
+        ppnPercent: d.ppnPercent,
+        signedDate,
+        durationDays: d.durationDays,
+        startDate,
+        endDate,
+      },
+    });
+  });
+
+  // Bila waktu berubah → kurva-S/baseline ikut berubah (jumlah minggu & peta
+  // tanggal). Regenerate per lokasi yang punya RAB aktif; lewati yang belum.
+  let recomputed = 0;
+  if (timeChanged) {
+    for (const loc of pkg.locations) {
+      try {
+        await regenerateBaseline(loc.id, {
+          source: "auto",
+          note: "Koreksi kontrak (waktu) — hitung ulang kurva-S",
+          userId: actor.id,
+        });
+        recomputed++;
+      } catch {
+        /* lokasi tanpa RAB aktif → lewati */
+      }
+    }
+  }
+
+  await audit(actor.id, "contract.edit", "package", pkg.id, {
+    contractId: pkg.contract.id,
+    contractNumber: d.contractNumber,
+    contractValue,
+    durationDays: d.durationDays,
+    startDate: newStart,
+    timeChanged,
+    baselinesRecomputed: recomputed,
+  });
+  revalidatePath("/paket");
+  revalidatePath(`/paket/${pkg.id}`, "layout");
+  return {
+    success: timeChanged
+      ? `Kontrak dikoreksi. Waktu berubah → ${recomputed} kurva-S lokasi dihitung ulang.`
+      : "Kontrak dikoreksi.",
+  };
 }
 
 /* ------------------------------------------------------------------ */

@@ -13,6 +13,7 @@ import {
 import {
   addAmendment,
   convertToContract,
+  editContractAction,
   updateContractSignatories,
   type PackageActionState,
 } from "@/lib/package/actions";
@@ -20,6 +21,91 @@ import {
 type VendorOption = { id: string; name: string };
 
 const NEW_VENDOR = "__baru__";
+
+export type ContractEditInitial = {
+  packageName: string;
+  workTitle: string;
+  contractNumber: string;
+  contractValue: string;
+  ppnPercent: number;
+  signedDate: string; // yyyy-mm-dd
+  durationDays: number;
+  startDate: string; // yyyy-mm-dd or ""
+};
+
+/**
+ * Koreksi kontrak (khusus super_admin) — betulkan SEMUA field termasuk waktu.
+ * Bila masa pelaksanaan / SPMK berubah, kurva-S di-hitung ulang otomatis di
+ * server. Beda dari adendum (perubahan resmi).
+ */
+export function EditContractForm({
+  packageId,
+  initial,
+}: {
+  packageId: string;
+  initial: ContractEditInitial;
+}) {
+  const [state, action, pending] = useActionState<PackageActionState, FormData>(
+    editContractAction,
+    undefined,
+  );
+
+  function confirmEdit(e: React.FormEvent) {
+    const msg =
+      "Simpan koreksi kontrak? Jika masa pelaksanaan / tanggal SPMK berubah, kurva-S semua lokasi akan dihitung ulang.";
+    if (typeof window !== "undefined" && !window.confirm(msg)) e.preventDefault();
+  }
+
+  return (
+    <form action={action} onSubmit={confirmEdit} className="space-y-4">
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      {state?.success ? <Banner tone="success" title={state.success} /> : null}
+      <input type="hidden" name="packageId" value={packageId} />
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label htmlFor="ec-name" required>Nama paket (pendek)</Label>
+          <Input id="ec-name" name="packageName" required minLength={3} maxLength={200} defaultValue={initial.packageName} />
+        </div>
+        <div>
+          <Label htmlFor="ec-number" required>Nomor kontrak</Label>
+          <Input id="ec-number" name="contractNumber" required minLength={3} maxLength={150} defaultValue={initial.contractNumber} />
+        </div>
+      </div>
+
+      <div>
+        <Label htmlFor="ec-worktitle">Nama pekerjaan resmi (untuk dokumen)</Label>
+        <Input id="ec-worktitle" name="workTitle" maxLength={300} defaultValue={initial.workTitle} placeholder="Judul panjang sesuai kontrak" />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label htmlFor="ec-value" required>Nilai kontrak (Rp, inkl. PPN)</Label>
+          <Input id="ec-value" name="contractValue" required inputMode="numeric" defaultValue={initial.contractValue} />
+        </div>
+        <div>
+          <Label htmlFor="ec-ppn">PPN (%)</Label>
+          <Input id="ec-ppn" name="ppnPercent" type="number" step="0.01" min={0} max={100} defaultValue={initial.ppnPercent} />
+        </div>
+        <div>
+          <Label htmlFor="ec-signed" required>Tanggal TTD kontrak</Label>
+          <Input id="ec-signed" name="signedDate" type="date" required defaultValue={initial.signedDate} />
+        </div>
+        <div>
+          <Label htmlFor="ec-dur" required>Masa pelaksanaan (hari)</Label>
+          <Input id="ec-dur" name="durationDays" type="number" min={1} max={3650} required defaultValue={initial.durationDays} />
+        </div>
+        <div>
+          <Label htmlFor="ec-start">Tanggal mulai (SPMK)</Label>
+          <Input id="ec-start" name="startDate" type="date" defaultValue={initial.startDate} />
+          <HelpText>Kosongkan bila SPMK belum terbit. Selesai dihitung otomatis = SPMK + masa pelaksanaan.</HelpText>
+        </div>
+      </div>
+
+      <Button type="submit" loading={pending}>Simpan koreksi</Button>
+    </form>
+  );
+}
 
 export type Signatories = {
   ppkName: string | null;
@@ -121,6 +207,12 @@ export function ConvertContractForm({
             />
           </div>
         ) : null}
+      </div>
+
+      <div>
+        <Label htmlFor="cv-worktitle">Nama pekerjaan resmi (untuk dokumen, opsional)</Label>
+        <Input id="cv-worktitle" name="workTitle" maxLength={300} placeholder="mis. Pekerjaan Konstruksi Pembangunan Kampung Nelayan Merah Putih di …" />
+        <HelpText>Judul panjang sesuai kontrak; nama paket tetap dipakai di daftar.</HelpText>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

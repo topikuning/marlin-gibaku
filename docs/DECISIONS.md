@@ -1213,3 +1213,20 @@ scurve — dengan test properti, bukan paritas nilai):**
   (master lokasi) & `candidateVendorName` (paket) berupa teks — tak terpengaruh.
 - UI: KPI (total/duplikat/grup) + tabel vendor (jumlah kontrak/komitmen) +
   "Gabung ke…" per baris + Hapus (hanya tak terpakai). Tautan header /paket.
+
+## 063 · 2026-07-23 · Nama paket vs judul kontrak (workTitle) + koreksi kontrak super-admin
+
+- **Pisah nama**: `Package.name` = label PENDEK (daftar/tampilan); judul resmi
+  panjang disimpan `Contract.workTitle` (untuk dokumen). Form Bypass & konversi
+  kontrak menambah field "Nama pekerjaan resmi (opsional)". Header paket
+  menampilkan "Pekerjaan: …" bila ada. Tabel paket: nama di-truncate + tooltip.
+- **Koreksi kontrak (super_admin)**: capability `contract.edit` (HANYA super_admin;
+  program_director dikecualikan). `editContractAction` membetulkan SEMUA field —
+  nama paket, workTitle, nomor (uniq), nilai, PPN, tgl TTD, `durationDays`,
+  `startDate`(SPMK) → `endDate` otomatis. **Berbeda dari adendum** (perubahan resmi
+  append-only); ini alat koreksi data.
+- **Auto-recompute**: bila `durationDays`/`startDate` berubah → `regenerateBaseline`
+  per lokasi. Realisasi tetap nyambung by lineage. UI: kartu "Koreksi kontrak
+  (Super Admin)" di halaman kontrak.
+- Alasan: setelah refactor SPMK (054) tak ada jalur memperbaiki kontrak yang sudah
+  diset (SPMK sekali pakai, durasi tak bisa diedit) — ini menutup celah itu.

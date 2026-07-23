@@ -66,6 +66,11 @@ export default async function PaketWorkspaceLayout({
             {pkg.isBypass ? (
               <StatusPill tone="warning" label="Bypass — dokumen menyusul" />
             ) : null}
+            {contract?.workTitle ? (
+              <span className="w-full text-[13px] text-ink-muted">
+                Pekerjaan: <span className="text-ink">{contract.workTitle}</span>
+              </span>
+            ) : null}
             <span>
               HPS <span className="tabular font-medium text-ink">{formatRupiah(pkg.hpsValue)}</span>
             </span>
