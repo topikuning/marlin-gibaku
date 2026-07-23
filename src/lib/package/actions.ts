@@ -9,9 +9,11 @@ import { requireCapability } from "@/lib/auth/session";
 import {
   canTransitionPackage,
   canTransitionLocation,
+  revertTargetFor,
   PACKAGE_STAGE_LABEL,
 } from "@/lib/lifecycle";
 import { parseDateKey } from "@/lib/format";
+import { getLocationsProgress } from "@/lib/progress";
 import { regenerateBaseline } from "@/lib/rab/import";
 import { existingLocationKeys, locationKey } from "@/lib/master-location/queries";
 import type { PackageStage } from "@/generated/prisma/enums";
@@ -72,6 +74,23 @@ function isPackageStage(v: unknown): v is PackageStage {
 }
 
 const PRA_KONTRAK: PackageStage[] = ["prospek", "tender", "penetapan"];
+
+/** Ambang "100%" — sejalan dgn formatPct (1 desimal); 99.95 tampil "100.0%". */
+const SERAH_TERIMA_MIN_PCT = 99.95;
+
+/** Progress agregat paket (rata-rata tertimbang grandTotal RAB aktif per lokasi). */
+async function aggregateProgressPct(locationIds: string[]): Promise<number> {
+  if (locationIds.length === 0) return 0;
+  const progress = await getLocationsProgress(locationIds);
+  let totalRab = 0;
+  let weighted = 0;
+  for (const p of progress.values()) {
+    const w = Number(p.grandTotal);
+    totalRab += w;
+    weighted += p.realizedPct * w;
+  }
+  return totalRab > 0 ? weighted / totalRab : 0;
+}
 
 /* ------------------------------------------------------------------ */
 /* Paket: create / update                                              */
@@ -210,6 +229,25 @@ export async function advanceStage(
     return { error: "Pembatalan wajib disertai alasan." };
   }
 
+  // Guard serah terima: progress fisik harus 100% (tidak mungkin serah terima
+  // pekerjaan yang belum tuntas). Dihitung dari realisasi RAB aktif semua lokasi.
+  if (toStage === "serah_terima") {
+    const pre = await db.package.findUnique({
+      where: { id: id.data },
+      select: { locations: { select: { id: true } } },
+    });
+    if (!pre) return { error: "Paket tidak ditemukan." };
+    const pct = await aggregateProgressPct(pre.locations.map((l) => l.id));
+    if (pct < SERAH_TERIMA_MIN_PCT) {
+      return {
+        error: `Progress paket baru ${pct.toLocaleString("id-ID", {
+          minimumFractionDigits: 1,
+          maximumFractionDigits: 1,
+        })}% — serah terima hanya bisa saat pekerjaan 100%. Selesaikan/verifikasi laporan lokasi dulu.`,
+      };
+    }
+  }
+
   const result = await db.$transaction(async (tx) => {
     const pkg = await tx.package.findUnique({
       where: { id: id.data },
@@ -251,6 +289,57 @@ export async function advanceStage(
         ? "Paket dibatalkan."
         : `Stage paket menjadi ${PACKAGE_STAGE_LABEL[toStage]}.`,
   };
+}
+
+/**
+ * Mundurkan stage paket satu langkah untuk KOREKSI salah-klik (mis. tak sengaja
+ * "Tandai Serah Terima"). Hanya langkah aman tanpa efek samping destruktif
+ * (lihat revertTargetFor). Alasan WAJIB → tercatat di histori + audit.
+ */
+export async function revertStage(
+  packageId: string,
+  reason: string,
+): Promise<PackageActionState> {
+  const actor = await requireCapability("prospect.manage");
+  const id = z.uuid().safeParse(packageId);
+  if (!id.success) return { error: "ID paket tidak valid." };
+  const note = String(reason ?? "").trim();
+  if (note.length < 5) return { error: "Alasan mundur wajib diisi (min 5 karakter)." };
+
+  const result = await db.$transaction(async (tx) => {
+    const pkg = await tx.package.findUnique({
+      where: { id: id.data },
+      select: { stage: true },
+    });
+    if (!pkg) return { error: "Paket tidak ditemukan." as string };
+    const target = revertTargetFor(pkg.stage);
+    if (!target) {
+      return {
+        error: `Tahap ${PACKAGE_STAGE_LABEL[pkg.stage]} tidak bisa dimundurkan otomatis. Untuk koreksi tahap berkontrak, gunakan Koreksi Kontrak atau Batalkan Paket.`,
+      };
+    }
+    await tx.package.update({ where: { id: id.data }, data: { stage: target } });
+    await tx.packageStageHistory.create({
+      data: {
+        packageId: id.data,
+        fromStage: pkg.stage,
+        toStage: target,
+        changedById: actor.id,
+        note: `Mundur (koreksi): ${note}`,
+      },
+    });
+    return { fromStage: pkg.stage, target };
+  });
+  if ("error" in result) return { error: result.error };
+
+  await audit(actor.id, "package.revert", "package", id.data, {
+    fromStage: result.fromStage,
+    toStage: result.target,
+    note,
+  });
+  revalidatePath("/paket");
+  revalidatePath(`/paket/${id.data}`, "layout");
+  return { success: `Stage dimundurkan ke ${PACKAGE_STAGE_LABEL[result.target]}.` };
 }
 
 /* ------------------------------------------------------------------ */

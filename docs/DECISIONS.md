@@ -1255,3 +1255,25 @@ scurve — dengan test properti, bukan paritas nilai):**
   hapus baris DB → orphan). `PhotoGallery` dapat prop `canDelete`/`deleteAction`
   (tombol hapus per thumbnail, `window.confirm`), dipakai halaman kegiatan.
 - Foto laporan harian (DailyReport) TIDAK termasuk — hanya kegiatan lapangan.
+
+## 066 · 2026-07-23 · Transisi stage paket: konfirmasi wajib, guard serah terima 100%, mundur (koreksi)
+
+- **Masalah**: tombol transisi stage (mis. "Tandai Serah Terima") jalan hanya
+  dengan SATU klik — mudah salah pencet, dan tak ada jalan mundur (mesin transisi
+  satu arah). Serah terima juga bisa dilakukan walau progress belum 100%.
+- **Konfirmasi 2 langkah**: `AdvanceStageButton` kini klik → panel konfirmasi
+  ("Yakin ubah tahap ke …?" + tombol Ya/Batal). Prop `warn` menampilkan peringatan
+  mencolok pada langkah konfirmasi.
+- **Guard serah terima**: `advanceStage(...,"serah_terima")` menolak bila progress
+  agregat < 99.95% (= "100.0%" pada formatPct 1 desimal). Progress dihitung dari
+  realisasi RAB aktif semua lokasi (`aggregateProgressPct`). UI juga memberi warn
+  pra-konfirmasi bila belum 100%.
+- **Mundur (koreksi)**: `revertStage(packageId, reason)` mundur SATU langkah aman
+  via `revertTargetFor` — hanya {tender→prospek, penetapan→tender,
+  serah_terima→pelaksanaan, selesai→serah_terima}. Batas berkontrak
+  (kontrak↔penetapan, pelaksanaan↔kontrak) DIKECUALIKAN karena menyangkut
+  Contract/SPMK/status lokasi — koreksinya lewat Koreksi Kontrak (063) / Batalkan.
+  Alasan wajib (≥5 char), tercatat di `PackageStageHistory` (note "Mundur (koreksi):")
+  + audit `package.revert`. Gate `prospect.manage` (sama seperti menaikkan).
+- UI: tombol "Mundurkan ke <tahap>" di kartu "Langkah berikutnya" bila ada target
+  mundur. Test unit `tests/unit/lifecycle.test.ts` menjaga invarian arah & satu-langkah.

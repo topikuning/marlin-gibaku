@@ -30,6 +30,24 @@ const PACKAGE_TRANSITIONS: Record<PackageStage, PackageStage[]> = {
   batal: [],
 };
 
+/**
+ * Mundur (koreksi salah-klik) — HANYA langkah yang tak punya efek samping
+ * destruktif. Kontrak↔penetapan & pelaksanaan↔kontrak sengaja DIKECUALIKAN
+ * (menyangkut Contract, tanggal SPMK, dan status lokasi berjalan — perbaikannya
+ * lewat Koreksi Kontrak / Batalkan, bukan mundur satu klik).
+ */
+const PACKAGE_REVERT: Partial<Record<PackageStage, PackageStage>> = {
+  tender: "prospek",
+  penetapan: "tender",
+  serah_terima: "pelaksanaan",
+  selesai: "serah_terima",
+};
+
+/** Stage sebelumnya yang aman untuk dimundurkan, atau null bila tak boleh. */
+export function revertTargetFor(stage: PackageStage): PackageStage | null {
+  return PACKAGE_REVERT[stage] ?? null;
+}
+
 const LOCATION_TRANSITIONS: Record<LocationStatus, LocationStatus[]> = {
   persiapan: ["berjalan", "batal"],
   berjalan: ["terhenti", "selesai", "batal"],

@@ -10,6 +10,7 @@ import {
   PACKAGE_STAGE_LABEL,
   PACKAGE_STAGE_ORDER,
   PACKAGE_STAGE_TONE,
+  revertTargetFor,
 } from "@/lib/lifecycle";
 import { formatPct, formatRupiahShort, formatTanggalWaktu } from "@/lib/format";
 import { getLocationsProgress } from "@/lib/progress";
@@ -21,6 +22,7 @@ import {
 import type { PackageStage } from "@/generated/prisma/enums";
 import {
   AdvanceStageButton,
+  RevertStageButton,
   StartPelaksanaanButton,
 } from "./stage-actions";
 
@@ -143,13 +145,18 @@ export default async function RingkasanPaketPage({
         };
       case "pelaksanaan":
         return {
-          hint: "Pelaksanaan berjalan — pantau progress lokasi. Tandai Serah Terima saat pekerjaan fisik selesai.",
+          hint: "Pelaksanaan berjalan — pantau progress lokasi. Tandai Serah Terima saat pekerjaan fisik selesai (100%).",
           action: canProspect ? (
             <AdvanceStageButton
               packageId={pkg.id}
               toStage="serah_terima"
               label="Tandai Serah Terima"
               variant="secondary"
+              warn={
+                aggregatePct < 99.95
+                  ? `Progress agregat baru ${formatPct(aggregatePct)}. Serah terima hanya diizinkan saat 100% — tindakan ini akan ditolak sampai pekerjaan tuntas.`
+                  : undefined
+              }
             />
           ) : null,
         };
@@ -171,6 +178,9 @@ export default async function RingkasanPaketPage({
         return { hint: `Paket dibatalkan. ${pkg.cancelReason ?? ""}`.trim(), action: null };
     }
   })();
+
+  // Tahap sebelumnya yang aman untuk dimundurkan (koreksi salah-klik), bila ada.
+  const revertTo = revertTargetFor(pkg.stage);
 
   return (
     <div className="space-y-6">
@@ -209,6 +219,18 @@ export default async function RingkasanPaketPage({
         <CardBody className="space-y-3">
           <p className="text-sm text-ink-muted">{nextAction.hint}</p>
           {nextAction.action}
+          {canProspect && revertTo ? (
+            <div className="border-t border-border pt-3">
+              <p className="mb-2 text-xs text-ink-muted">
+                Salah menaikkan tahap? Mundurkan untuk koreksi (tercatat di histori).
+              </p>
+              <RevertStageButton
+                packageId={pkg.id}
+                fromLabel={PACKAGE_STAGE_LABEL[pkg.stage]}
+                toLabel={PACKAGE_STAGE_LABEL[revertTo]}
+              />
+            </div>
+          ) : null}
         </CardBody>
       </Card>
 
