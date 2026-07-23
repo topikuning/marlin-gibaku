@@ -76,7 +76,7 @@ export function smoothstep(t: number): number {
  *   - monotonik naik + bentuk-S alami (start landai, tengah curam, akhir landai).
  * Return: pct kumulatif akhir-minggu utk minggu 1..totalWeeks (panjang totalWeeks).
  */
-function cumulativeFromSegments(
+export function cumulativeFromSegments(
   segments: { weightPct: number; start: number; end: number }[],
   totalWeeks: number,
 ): number[] {
