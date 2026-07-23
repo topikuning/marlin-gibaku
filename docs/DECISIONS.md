@@ -1297,3 +1297,21 @@ scurve — dengan test properti, bukan paritas nilai):**
   R2 120 dtk (pola sama seperti `/api/documents/[id]`).
 - UI: tombol "Tambah dokumen" di aksi draft + daftar lampiran (unduh + hapus saat
   draft) di kartu kegiatan. Foto & dokumen resmi (Document Center) tidak berubah.
+
+## 068 · 2026-07-23 · Hitung ulang kurva-S: idempotent + konfirmasi (bukan spam versi)
+
+- Temuan user: "Hitung ulang" ditekan berulang membuat baseline baru terus walau
+  hasilnya identik, dan langsung aktif sekali klik tanpa konfirmasi.
+- `regenerateBaseline` kini IDEMPOTENT: hasil hitung dibandingkan dgn baseline
+  aktif (revisi RAB, contractDays, seluruh titik ±0.005) — identik ⇒ kembalikan
+  baseline aktif dgn flag `unchanged`, TANPA versi baru & tanpa audit palsu.
+  Berlaku juga utk pemanggil lain (aktivasi revisi, koreksi kontrak, impor).
+- `RecalcBaselineButton` dua langkah (klik → panel konfirmasi) + teks jelas
+  bahwa edit manual pada baseline aktif akan ditimpa dan versi lama tersimpan
+  di "Riwayat baseline" (kartu paling bawah halaman Progress — sudah ada sejak
+  awal, pesan sukses kini menunjuk ke sana).
+- Catatan asesmen (belum dibangun): editor manual saat ini mengedit %-kumulatif
+  mingguan (output), bukan penjadwalan per pekerjaan (input). Usulan lanjutan =
+  editor jadwal per kategori (bobot tetap dari RAB — prinsip derived; yang
+  diatur manual jendela minggu mulai–selesai per kategori) → kurva dihitung
+  otomatis. Menunggu keputusan user.

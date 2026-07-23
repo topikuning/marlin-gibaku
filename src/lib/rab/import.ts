@@ -247,6 +247,24 @@ export async function regenerateBaseline(locationId: string, opts: RegenerateBas
   const contractDays = await contractDaysFor(locationId);
   const weekly = scheduleItems(items, contractDays);
 
+  // IDEMPOTENT: bila hasil hitung identik dengan baseline aktif (revisi, durasi,
+  // dan seluruh titik sama), JANGAN buat versi baru — menekan "Hitung ulang"
+  // berulang tanpa ada perubahan tidak boleh menumpuk riwayat.
+  const active = await db.baseline.findFirst({
+    where: { locationId, status: "aktif" },
+    include: { points: { orderBy: { weekNumber: "asc" }, select: { plannedPct: true } } },
+  });
+  if (
+    active &&
+    active.rabRevisionId === revisionId &&
+    active.contractDays === contractDays &&
+    active.points.length === weekly.length &&
+    active.points.every((p, i) => Math.abs(Number(p.plannedPct) - weekly[i]) < 0.005)
+  ) {
+    const { points: _points, ...rest } = active;
+    return { ...rest, unchanged: true as const };
+  }
+
   const baseline = await db.$transaction(async (tx) => {
     await tx.baseline.updateMany({
       where: { locationId, status: "aktif" },
@@ -285,5 +303,5 @@ export async function regenerateBaseline(locationId: string, opts: RegenerateBas
     contractDays,
     weeks: weekly.length,
   });
-  return baseline;
+  return { ...baseline, unchanged: false as const };
 }

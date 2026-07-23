@@ -129,7 +129,14 @@ export async function recalcBaselineAction(_prev: RabActionState, formData: Form
     });
     revalidateRab(loc.slug);
     revalidatePath(`/lokasi/${loc.slug}/progress`);
-    return { success: `Kurva-S dihitung ulang — baseline #${baseline.baselineNo} aktif.` };
+    if (baseline.unchanged) {
+      return {
+        success: `Tidak ada perubahan — hasil hitung identik dengan baseline #${baseline.baselineNo} yang aktif, versi baru tidak dibuat.`,
+      };
+    }
+    return {
+      success: `Kurva-S dihitung ulang — baseline #${baseline.baselineNo} aktif. Versi sebelumnya tersimpan di kartu "Riwayat baseline" di bawah.`,
+    };
   } catch (err) {
     return fail(err);
   }
