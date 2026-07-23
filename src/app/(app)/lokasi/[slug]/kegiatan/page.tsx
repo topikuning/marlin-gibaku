@@ -10,8 +10,9 @@ import {
   FIELD_ACTIVITY_STATUS_TONE,
   FIELD_ACTIVITY_TYPE_LABEL,
 } from "@/lib/field-activity/labels";
+import { removeActivityPhotoAction } from "@/lib/field-activity/actions";
 import { requireLocationPage } from "../get-location";
-import { CreateActivityForm, DraftActions } from "./kegiatan-forms";
+import { CreateActivityForm, DraftActions, ReopenActivityButton } from "./kegiatan-forms";
 
 export const metadata: Metadata = { title: "Kegiatan & Dokumentasi Lapangan" };
 export const dynamic = "force-dynamic";
@@ -79,13 +80,19 @@ export default async function KegiatanLapanganPage({ params }: { params: Promise
 
                 {a.photos.length > 0 ? (
                   <div className="mt-3">
-                    <PhotoGallery photos={a.photos} thumbClass="h-20 w-20" />
+                    <PhotoGallery
+                      photos={a.photos}
+                      thumbClass="h-20 w-20"
+                      canDelete={canManage && a.status === "draft"}
+                      deleteAction={removeActivityPhotoAction}
+                    />
                   </div>
                 ) : (
                   <p className="mt-3 text-[12px] text-ink-faint">Belum ada foto.</p>
                 )}
 
                 {canManage && a.status === "draft" ? <DraftActions activityId={a.id} /> : null}
+                {canManage && a.status === "final" ? <ReopenActivityButton activityId={a.id} /> : null}
               </CardBody>
             </Card>
           ))}

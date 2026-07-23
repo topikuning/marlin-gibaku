@@ -6,6 +6,15 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { ForbiddenError, requireCapability, requireLocationAccess } from "@/lib/auth/session";
 import { MAX_PHOTOS_PER_UPLOAD, PhotoError, savePhotoForItem } from "@/lib/photos";
+import { isR2Configured, r2Delete } from "@/lib/r2";
+
+/** Hapus objek R2 (best-effort — orphan diabaikan bila gagal). */
+async function deleteR2Keys(keys: (string | null | undefined)[]): Promise<void> {
+  if (!isR2Configured()) return;
+  await Promise.all(
+    keys.filter((k): k is string => !!k).map((k) => r2Delete(k).catch(() => {})),
+  );
+}
 
 export type FieldActivityState = { error?: string; success?: string; warning?: string } | undefined;
 
@@ -272,12 +281,14 @@ export async function deleteActivityAction(
     const ctx = await activityCtx(idParse.data);
     if (!ctx) return { error: "Kegiatan tidak ditemukan." };
     await requireLocationAccess(user, ctx.locationId);
-    if (ctx.status === "final") return { error: "Kegiatan final tidak bisa dihapus (arsip dokumentasi)." };
+    if (ctx.status === "final") return { error: "Kegiatan final tidak bisa dihapus — buka kembali dulu bila perlu koreksi." };
 
+    const photos = await db.photo.findMany({ where: { activityId: ctx.id }, select: { r2Key: true, thumbnailKey: true } });
     await db.$transaction([
       db.photo.deleteMany({ where: { activityId: ctx.id } }),
       db.fieldActivity.delete({ where: { id: ctx.id } }),
     ]);
+    await deleteR2Keys(photos.flatMap((p) => [p.r2Key, p.thumbnailKey]));
     await audit(user.id, "field_activity.delete", "field_activity", ctx.id, { locationId: ctx.locationId });
     revalidate(ctx.location.slug);
     return { success: "Kegiatan dihapus." };
@@ -286,7 +297,7 @@ export async function deleteActivityAction(
   }
 }
 
-/** Hapus satu foto dari kegiatan draft. */
+/** Hapus satu foto dari kegiatan draft (DB + objek R2). */
 export async function removeActivityPhotoAction(
   _prev: FieldActivityState,
   formData: FormData,
@@ -297,15 +308,47 @@ export async function removeActivityPhotoAction(
     const user = await requireCapability("field_activity.manage");
     const photo = await db.photo.findUnique({
       where: { id: idParse.data },
-      select: { id: true, activity: { select: { id: true, status: true, locationId: true, location: { select: { slug: true } } } } },
+      select: {
+        id: true,
+        r2Key: true,
+        thumbnailKey: true,
+        activity: { select: { id: true, status: true, locationId: true, location: { select: { slug: true } } } },
+      },
     });
     if (!photo?.activity) return { error: "Foto kegiatan tidak ditemukan." };
     await requireLocationAccess(user, photo.activity.locationId);
-    if (photo.activity.status === "final") return { error: "Kegiatan sudah final — foto tidak bisa dihapus." };
+    if (photo.activity.status === "final") return { error: "Kegiatan sudah final — buka kembali dulu untuk menghapus foto." };
 
     await db.photo.delete({ where: { id: photo.id } });
+    await deleteR2Keys([photo.r2Key, photo.thumbnailKey]);
     revalidate(photo.activity.location.slug);
     return { success: "Foto dihapus." };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Buka kembali kegiatan final → draft (untuk koreksi foto/isi), gate + audit. */
+export async function reopenActivityAction(
+  _prev: FieldActivityState,
+  formData: FormData,
+): Promise<FieldActivityState> {
+  const idParse = z.uuid().safeParse(formData.get("activityId"));
+  if (!idParse.success) return { error: "Kegiatan tidak valid." };
+  try {
+    const user = await requireCapability("field_activity.manage");
+    const ctx = await activityCtx(idParse.data);
+    if (!ctx) return { error: "Kegiatan tidak ditemukan." };
+    await requireLocationAccess(user, ctx.locationId);
+    if (ctx.status !== "final") return { error: "Hanya kegiatan final yang perlu dibuka kembali." };
+
+    await db.fieldActivity.update({
+      where: { id: ctx.id },
+      data: { status: "draft", finalizedById: null, finalizedAt: null },
+    });
+    await audit(user.id, "field_activity.reopen", "field_activity", ctx.id, { locationId: ctx.locationId });
+    revalidate(ctx.location.slug);
+    return { success: "Kegiatan dibuka kembali (draft) — bisa dikoreksi lalu difinalkan lagi." };
   } catch (err) {
     return fail(err);
   }

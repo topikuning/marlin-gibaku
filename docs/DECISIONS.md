@@ -1239,3 +1239,19 @@ scurve — dengan test properti, bukan paritas nilai):**
   RAB (ikon pensil), gate `rab.manage` + `requireLocationAccess` + audit
   (`rab.rename_category`). Hanya metadata nama (kind=kategori) — tak menyentuh
   nilai/lineage → baseline tak berubah.
+
+## 065 · 2026-07-23 · Hapus foto kegiatan lapangan + buka kembali (final→draft)
+
+- Kebutuhan: menghapus foto yang terlanjur diunggah (mis. cap perusahaan salah
+  sebelum fix 063). Kegiatan **draft** kini bisa hapus foto per item; **final**
+  dikunci dulu (buka kembali).
+- `removeActivityPhotoAction(photoId)`: gate `field_activity.manage` +
+  `requireLocationAccess`, hanya bila kegiatan masih `draft`, hapus baris `Photo`
+  lalu objek R2 (`r2Key`+`thumbnailKey`, best-effort via `deleteR2Keys`).
+- `reopenActivityAction`: `final → draft` (gate `field_activity.manage`, audit
+  `field_activity.reopen`) → alur koreksi: Buka kembali → hapus foto salah →
+  tambah foto (cap benar) → Finalkan lagi.
+- `deleteActivityAction` sekaligus bersihkan objek R2 semua fotonya (dulu hanya
+  hapus baris DB → orphan). `PhotoGallery` dapat prop `canDelete`/`deleteAction`
+  (tombol hapus per thumbnail, `window.confirm`), dipakai halaman kegiatan.
+- Foto laporan harian (DailyReport) TIDAK termasuk — hanya kegiatan lapangan.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { Camera, CheckCircle2, Trash2, Plus } from "lucide-react";
+import { Camera, CheckCircle2, RotateCcw, Trash2, Plus } from "lucide-react";
 import { Banner, Button, Input, Label, Select, Textarea } from "@/components/ui";
 import { FIELD_ACTIVITY_TYPES, FIELD_ACTIVITY_TYPE_LABEL } from "@/lib/field-activity/labels";
 import {
@@ -9,6 +9,7 @@ import {
   createActivityAction,
   deleteActivityAction,
   finalizeActivityAction,
+  reopenActivityAction,
   type FieldActivityState,
 } from "@/lib/field-activity/actions";
 
@@ -190,5 +191,25 @@ function DeleteButton({ activityId }: { activityId: string }) {
       <Button type="button" size="sm" variant="ghost" onClick={() => setConfirm(false)}>Batal</Button>
       {state?.error ? <span className="text-[12px] text-danger">{state.error}</span> : null}
     </form>
+  );
+}
+
+/**
+ * Buka kembali kegiatan yang sudah final → draft, agar bisa dikoreksi
+ * (mis. hapus foto salah lalu unggah ulang dengan cap perusahaan yang benar).
+ */
+export function ReopenActivityButton({ activityId }: { activityId: string }) {
+  const [state, action, pending] = useActionState<FieldActivityState, FormData>(reopenActivityAction, undefined);
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+      <form action={action} className="inline-flex items-center gap-1">
+        <input type="hidden" name="activityId" value={activityId} />
+        <Button type="submit" size="sm" variant="ghost" loading={pending}>
+          <RotateCcw aria-hidden className="size-3.5" />
+          Buka kembali untuk koreksi
+        </Button>
+        {state?.error ? <span className="text-[12px] text-danger">{state.error}</span> : null}
+      </form>
+    </div>
   );
 }

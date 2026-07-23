@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { MapPin } from "lucide-react";
+import { useCallback, useEffect, useState, useTransition } from "react";
+import { MapPin, Trash2 } from "lucide-react";
 import type { PhotoView } from "@/lib/photos";
+
+type PhotoDeleteAction = (prev: undefined, fd: FormData) => Promise<{ error?: string } | undefined>;
 
 const takenFmt = new Intl.DateTimeFormat("id-ID", {
   dateStyle: "medium",
@@ -18,11 +20,28 @@ const takenFmt = new Intl.DateTimeFormat("id-ID", {
 export function PhotoGallery({
   photos,
   thumbClass = "h-20 w-20",
+  canDelete = false,
+  deleteAction,
 }: {
   photos: PhotoView[];
   thumbClass?: string;
+  /** Tampilkan tombol hapus per foto (butuh deleteAction). */
+  canDelete?: boolean;
+  deleteAction?: PhotoDeleteAction;
 }) {
   const [open, setOpen] = useState<number | null>(null);
+  const [pending, startTransition] = useTransition();
+  const removable = canDelete && !!deleteAction;
+
+  const del = (photoId: string) => {
+    if (typeof window !== "undefined" && !window.confirm("Hapus foto ini? Tidak bisa dibatalkan.")) return;
+    const fd = new FormData();
+    fd.set("photoId", photoId);
+    startTransition(async () => {
+      await deleteAction?.(undefined, fd);
+      setOpen(null);
+    });
+  };
 
   const shown = photos.filter((p) => p.thumbUrl);
   const close = useCallback(() => setOpen(null), []);
@@ -50,26 +69,39 @@ export function PhotoGallery({
     <>
       <div className="flex flex-wrap gap-2">
         {shown.map((p, i) => (
-          <button
-            key={p.id}
-            type="button"
-            onClick={() => setOpen(i)}
-            className={`group relative overflow-hidden rounded-md border border-border ${thumbClass}`}
-            aria-label="Buka foto"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element -- presigned URL R2 sementara, bukan asset Next */}
-            <img
-              src={p.thumbUrl}
-              alt=""
-              loading="lazy"
-              className="h-full w-full object-cover transition group-hover:scale-105"
-            />
+          <div key={p.id} className={`group relative overflow-hidden rounded-md border border-border ${thumbClass}`}>
+            <button
+              type="button"
+              onClick={() => setOpen(i)}
+              className="block h-full w-full"
+              aria-label="Buka foto"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- presigned URL R2 sementara, bukan asset Next */}
+              <img
+                src={p.thumbUrl}
+                alt=""
+                loading="lazy"
+                className="h-full w-full object-cover transition group-hover:scale-105"
+              />
+            </button>
             {p.lat != null && (
-              <span className="absolute right-0 bottom-0 grid place-items-center rounded-tl bg-primary/85 p-0.5">
+              <span className="pointer-events-none absolute right-0 bottom-0 grid place-items-center rounded-tl bg-primary/85 p-0.5">
                 <MapPin aria-hidden className="size-3 text-white" />
               </span>
             )}
-          </button>
+            {removable && (
+              <button
+                type="button"
+                onClick={() => del(p.id)}
+                disabled={pending}
+                aria-label="Hapus foto"
+                title="Hapus foto"
+                className="absolute top-0.5 right-0.5 grid place-items-center rounded bg-danger/90 p-1 text-white hover:bg-danger disabled:opacity-50"
+              >
+                <Trash2 aria-hidden className="size-3.5" />
+              </button>
+            )}
+          </div>
         ))}
       </div>
 
