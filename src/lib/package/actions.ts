@@ -12,6 +12,7 @@ import {
   PACKAGE_STAGE_LABEL,
 } from "@/lib/lifecycle";
 import { parseDateKey } from "@/lib/format";
+import { existingLocationKeys, locationKey } from "@/lib/master-location";
 import type { PackageStage } from "@/generated/prisma/enums";
 
 /**
@@ -666,6 +667,17 @@ export async function createDirectProject(
     const used = masters.filter((m) => m.assignedLocationId);
     if (used.length > 0) {
       return { error: `${used.length} lokasi sudah dipakai proyek lain — segarkan halaman.` };
+    }
+
+    // Mitigasi lokasi GANDA: tolak master yang kunci alaminya (prov|kab|kec|desa)
+    // sudah ada sebagai Location riil (mis. dibuat lewat alur normal di prod).
+    const existingKeys = await existingLocationKeys(actor.orgId);
+    const clash = masters.filter((m) => existingKeys.has(locationKey(m)));
+    if (clash.length > 0) {
+      const list = clash.map((m) => `${m.village} (${m.regency})`).join(", ");
+      return {
+        error: `Lokasi berikut sudah ada di sistem — tidak dibuat ganda: ${list}. Hapus dari pilihan, atau gunakan lokasi yang sudah ada.`,
+      };
     }
 
     // Nomor kontrak unik.

@@ -1172,3 +1172,10 @@ scurve — dengan test properti, bukan paritas nilai):**
   (`package.bypass_create`).
 - UI: menu `/paket/bypass` (tombol "Buat Cepat (Bypass)" di header /paket, hanya
   pemilik `package.bypass`) — pilih lokasi dari katalog (filter + grup provinsi).
+
+  - **Mitigasi lokasi ganda (production)**: katalog master bisa memuat lokasi yang
+    sudah ada sebagai Location riil (mis. dibuat lewat alur normal). `getAvailableCatalog`
+    (`src/lib/master-location.ts`) menyembunyikan master yang kunci alaminya
+    (prov|kab|kec|desa) sudah ada sebagai Location riil; `createDirectProject`
+    juga menolak master yang bentrok saat instansiasi (jaring pengaman). Katalog
+    tampil dgn catatan "N lokasi disembunyikan karena sudah ada".

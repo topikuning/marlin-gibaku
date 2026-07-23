@@ -3,6 +3,7 @@ import { Card, CardBody, CardHeader, PageHeader } from "@/components/ui";
 import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
+import { getAvailableCatalog } from "@/lib/master-location";
 import { BypassForm, type MasterLocationOption, type VendorOption } from "./bypass-form";
 
 export const metadata: Metadata = { title: "Buat Proyek Cepat (Bypass)" };
@@ -12,19 +13,8 @@ export default async function BypassPage() {
   const user = await requireUser();
   requireCapabilityPage(user.role, "package.bypass");
 
-  const [masters, vendors] = await Promise.all([
-    db.masterLocation.findMany({
-      where: { orgId: user.orgId, assignedLocationId: null },
-      orderBy: [{ province: "asc" }, { regency: "asc" }, { village: "asc" }],
-      select: {
-        id: true,
-        province: true,
-        regency: true,
-        district: true,
-        village: true,
-        candidateVendor: true,
-      },
-    }),
+  const [{ available, hiddenExistingCount }, vendors] = await Promise.all([
+    getAvailableCatalog(user.orgId),
     db.vendor.findMany({
       where: { orgId: user.orgId },
       orderBy: { name: "asc" },
@@ -32,7 +22,7 @@ export default async function BypassPage() {
     }),
   ]);
 
-  const masterOptions: MasterLocationOption[] = masters.map((m) => ({
+  const masterOptions: MasterLocationOption[] = available.map((m) => ({
     id: m.id,
     province: m.province,
     regency: m.regency,
@@ -55,7 +45,11 @@ export default async function BypassPage() {
           subtitle="Pilih lokasi dari katalog master, tentukan vendor & data kontrak. Paket ditandai “bypass”."
         />
         <CardBody>
-          <BypassForm masters={masterOptions} vendors={vendorOptions} />
+          <BypassForm
+            masters={masterOptions}
+            vendors={vendorOptions}
+            hiddenExistingCount={hiddenExistingCount}
+          />
         </CardBody>
       </Card>
     </div>

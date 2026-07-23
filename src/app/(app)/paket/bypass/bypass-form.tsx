@@ -14,7 +14,15 @@ export type MasterLocationOption = {
 };
 export type VendorOption = { id: string; name: string };
 
-export function BypassForm({ masters, vendors }: { masters: MasterLocationOption[]; vendors: VendorOption[] }) {
+export function BypassForm({
+  masters,
+  vendors,
+  hiddenExistingCount = 0,
+}: {
+  masters: MasterLocationOption[];
+  vendors: VendorOption[];
+  hiddenExistingCount?: number;
+}) {
   const [state, action, pending] = useActionState<PackageActionState, FormData>(createDirectProject, undefined);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState("");
@@ -56,8 +64,12 @@ export function BypassForm({ masters, vendors }: { masters: MasterLocationOption
       {masters.length === 0 ? (
         <Banner
           tone="warning"
-          title="Katalog lokasi kosong"
-          description="Belum ada lokasi master yang tersedia (semua sudah terpakai atau belum di-seed)."
+          title="Tidak ada lokasi katalog yang tersedia"
+          description={
+            hiddenExistingCount > 0
+              ? `${hiddenExistingCount} lokasi katalog sudah ada sebagai lokasi di sistem, sisanya sudah terpakai. Tidak ada yang bisa dibuat lewat jalur cepat.`
+              : "Belum ada lokasi master (semua sudah terpakai atau belum di-seed)."
+          }
         />
       ) : null}
 
@@ -137,6 +149,12 @@ export function BypassForm({ masters, vendors }: { masters: MasterLocationOption
           3 · Lokasi dari katalog{" "}
           <span className="font-normal text-ink-muted">({selected.size} dipilih)</span>
         </legend>
+        {hiddenExistingCount > 0 ? (
+          <HelpText>
+            {hiddenExistingCount} lokasi katalog disembunyikan karena sudah ada sebagai lokasi di sistem
+            (mitigasi lokasi ganda).
+          </HelpText>
+        ) : null}
         {masters.length > 0 ? (
           <>
             <Input
