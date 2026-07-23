@@ -42,9 +42,10 @@ export default async function LokasiRingkasanPage({
   const { user, location } = await requireLocationPage(slug);
   const contract = location.package.contract;
 
-  const [progress, series] = await Promise.all([
+  const [progress, series, packageLocationCount] = await Promise.all([
     getLocationProgress(location.id),
     getScurveSeries(location.id),
+    db.location.count({ where: { packageId: location.package.id } }),
   ]);
 
   const [weeklyPlan, openIssues, lastReport, statusHistory] = await Promise.all([
@@ -85,8 +86,12 @@ export default async function LokasiRingkasanPage({
 
   const ppnPercent = contract ? Number(contract.ppnPercent) : 11;
   const rabWithPpn = withPpn(progress.grandTotal, ppnPercent);
+  // Nilai kontrak bersifat PAKET (bisa mencakup banyak lokasi). Perbandingan
+  // kontrak vs RAB+PPN hanya sahih bila paket = 1 lokasi. Untuk paket multi-
+  // lokasi, rekonsiliasi dilakukan di level paket (halaman paket), bukan per-lokasi.
+  const singleLocationPackage = packageLocationCount <= 1;
   const mismatch =
-    contract && progress.grandTotal > 0n
+    singleLocationPackage && contract && progress.grandTotal > 0n
       ? contractMismatch(contract.contractValue, progress.grandTotal, ppnPercent)
       : false;
 
@@ -110,7 +115,13 @@ export default async function LokasiRingkasanPage({
         <KpiCard
           label="RAB + PPN"
           value={formatRupiahShort(rabWithPpn)}
-          sub={contract ? `kontrak ${formatRupiahShort(contract.contractValue)}` : "belum ada kontrak"}
+          sub={
+            !contract
+              ? "belum ada kontrak"
+              : singleLocationPackage
+                ? `kontrak ${formatRupiahShort(contract.contractValue)}`
+                : `paket ${packageLocationCount} lokasi`
+          }
           tone={mismatch ? "warning" : "default"}
         />
         <KpiCard
