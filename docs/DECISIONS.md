@@ -1418,3 +1418,22 @@ scurve — dengan test properti, bukan paritas nilai):**
   (`TYPES_BY_PHASE`), lokasi paket opsional. `uploadDocumentAction` kini juga
   revalidate `/paket/[id]/dokumen`. Tab lokasi sudah punya QuickUploadForm inline
   sejak awal. Document Center tetap ada untuk kelola lintas-paket.
+
+## 075 · 2026-07-24 · Pembulatan RAB ke rupiah via apportionment (cocok Excel)
+
+- Temuan user: total RAB pra-PPN di app (mis. 8.542.625.857) meleset ~7 rupiah dari
+  Excel (8.542.625.850,38); beberapa lokasi bisa selisih ratusan rupiah. Lapangan
+  ikut angka Excel.
+- Akar: `flatten.ts` membulatkan TIAP baris `BigInt(Math.round(...))` lalu menjumlah
+  (Σ round). Excel menjumlah nilai penuh lalu membulatkan sekali (round Σ). Beda
+  urutan pembulatan → akumulasi (di file uji 822 baris berdesimal → +6,62 rupiah).
+- Perbaikan: pembulatan TOP-DOWN via **apportionment (largest remainder / Hamilton)**.
+  `apportion(exacts, target)`: tiap sibling dapat floor(eksak); sisa (target−Σfloor)
+  rupiah dibagi +1 ke pecahan desimal terbesar (tie-break: urutan asli, sort stabil
+  → deterministik/idempotent). Grand total = `round(Σ eksak)` = Excel; dibagikan
+  turun kategori→sub→item→anak sehingga **anak selalu menjumlah tepat ke induk**
+  (agregat konsisten, aturan 4 tetap). Uang tetap BigInt rupiah (tanpa sen).
+- Verifikasi file user: grandTotal app kini 8.542.625.850 = round(Excel), invariant
+  anak=induk lolos (kecuali grup-fallback anak-nol, perilaku lama). Unit test baru
+  di `flatten.test.ts` (apportion + fixture desimal); 115 unit test hijau.
+- Tidak ada perubahan skema/migrasi. Re-import RAB memakai pembulatan baru otomatis.

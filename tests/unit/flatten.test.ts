@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { flattenParsedRab, grandTotal, type FlatNode } from "@/lib/rab/flatten";
+import { apportion, flattenParsedRab, grandTotal, type FlatNode } from "@/lib/rab/flatten";
 import type { ParsedRab, ParsedRabItem } from "@/lib/rab/parsed";
 import kedungmutihJson from "../../seed-data/kedungmutih.json";
 
@@ -117,6 +117,72 @@ describe("flattenParsedRab (fixture kecil)", () => {
     // kategori I duluan, lalu isinya, baru kategori II
     expect(byKey.get("I")!.sortOrder).toBeLessThan(byKey.get("I#1")!.sortOrder);
     expect(byKey.get("I#6#6.a")!.sortOrder).toBeLessThan(byKey.get("II")!.sortOrder);
+  });
+});
+
+describe("apportion (largest remainder)", () => {
+  it("Σ hasil == target (pembulatan sekali di induk, bukan per baris)", () => {
+    const exacts = [1642035.39, 114803.1, 31447561.5, 1413817.39, 81058.67];
+    const target = BigInt(Math.round(exacts.reduce((a, b) => a + b, 0)));
+    const alloc = apportion(exacts, target);
+    expect(alloc.reduce((a, b) => a + b, 0n)).toBe(target);
+    // tiap alokasi ∈ [floor, ceil] eksaknya
+    alloc.forEach((a, i) => {
+      expect(a).toBeGreaterThanOrEqual(BigInt(Math.floor(exacts[i])));
+      expect(a).toBeLessThanOrEqual(BigInt(Math.ceil(exacts[i])));
+    });
+  });
+
+  it("+1 rupiah jatuh ke pecahan desimal terbesar", () => {
+    // Σ = 3.0 → target 3; floor = [0,0,0]; 3 rupiah dibagi ke SEMUA (semua .x)
+    expect(apportion([0.9, 0.7, 0.4], 2n)).toEqual([1n, 1n, 0n]);
+    expect(apportion([10.9, 20.1, 30.5], 62n)).toEqual([11n, 20n, 31n]);
+  });
+
+  it("target integer & list kosong aman", () => {
+    expect(apportion([100, 200, 300], 600n)).toEqual([100n, 200n, 300n]);
+    expect(apportion([], 0n)).toEqual([]);
+  });
+
+  it("deterministik: pecahan sama → +1 ke indeks awal (sort stabil)", () => {
+    // floor [1,2,3]=6, target 8 → +1 ke 2 pertama (semua rem .5, urutan asli)
+    expect(apportion([1.5, 2.5, 3.5], 8n)).toEqual([2n, 3n, 3n]);
+  });
+});
+
+describe("flattenParsedRab (nilai desimal — cocok Excel)", () => {
+  const decFixture: ParsedRab = {
+    meta: fixture.meta,
+    project: "DEC",
+    year: 2026,
+    total: 0,
+    categories: [
+      {
+        roman: "I",
+        name: "PEKERJAAN A",
+        total_value: 0,
+        subcategories: [],
+        direct_items: [
+          item({ code: "1", name: "x", volume: 1, unit: "ls", unit_price: 850.38, total_price: 850.38 }),
+          item({ code: "2", name: "y", volume: 1, unit: "ls", unit_price: 561.5, total_price: 561.5 }),
+          item({ code: "3", name: "z", volume: 1, unit: "ls", unit_price: 100.39, total_price: 100.39 }),
+        ],
+      },
+    ],
+  };
+  const nodes = flattenParsedRab(decFixture);
+  const byKey = new Map(nodes.map((n) => [n.lineageKey, n]));
+
+  it("grandTotal = round(Σ eksak), bukan Σ round(baris)", () => {
+    // Σ eksak = 1512.27 → 1512. Σ round(baris) = 850+562+100 = 1512 (kebetulan sama di sini),
+    // yang penting anak menjumlah tepat ke kategori.
+    const exact = 850.38 + 561.5 + 100.39;
+    expect(grandTotal(nodes)).toBe(BigInt(Math.round(exact)));
+  });
+
+  it("anak menjumlah tepat ke kategori (tak ada selisih menggelembung)", () => {
+    const kids = ["I#1", "I#2", "I#3"].map((k) => byKey.get(k)!.amount);
+    expect(kids.reduce((a, b) => a + b, 0n)).toBe(byKey.get("I")!.amount);
   });
 });
 
