@@ -1407,3 +1407,14 @@ scurve — dengan test properti, bukan paritas nilai):**
 - **Vendor**: form Paket Baru "Kandidat vendor" kini `<input list>` + `<datalist>`
   nama vendor (dari listVendors) → bisa pilih perusahaan terimpor ATAU ketik baru.
   Konversi kontrak sudah punya dropdown vendor (existing/baru) — tak berubah.
+
+## 074 · 2026-07-24 · Unggah dokumen langsung dari dalam paket (hapus round-trip)
+
+- Keluhan user: unggah dokumen paket harus keluar ke Document Center → pilih paket
+  lagi → upload. UX konyol.
+- Tab **Dokumen paket** kini punya form unggah inline (`PackageDocUploadForm`,
+  CollapsibleCard, default terbuka bila kosong): `packageId` sudah terisi otomatis,
+  Fase + Jenis dokumen tetap taksonomi resmi, Jenis menyesuaikan Fase
+  (`TYPES_BY_PHASE`), lokasi paket opsional. `uploadDocumentAction` kini juga
+  revalidate `/paket/[id]/dokumen`. Tab lokasi sudah punya QuickUploadForm inline
+  sejak awal. Document Center tetap ada untuk kelola lintas-paket.

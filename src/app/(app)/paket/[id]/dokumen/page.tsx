@@ -2,13 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FolderOpen } from "lucide-react";
-import { Card, CardBody, CardHeader, EmptyState, StatusPill } from "@/components/ui";
+import { Card, CardBody, CardHeader, CollapsibleCard, EmptyState, StatusPill } from "@/components/ui";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
+import { can } from "@/lib/authz";
 import { formatTanggal } from "@/lib/format";
 import { getPackageWorkspace } from "@/lib/package/queries";
 import type { AdminPhase } from "@/generated/prisma/enums";
+import { PackageDocUploadForm } from "./upload-form";
 
 export const metadata: Metadata = { title: "Dokumen Paket" };
 export const dynamic = "force-dynamic";
@@ -59,6 +61,7 @@ export default async function DokumenPaketPage({
 
   const pkg = await getPackageWorkspace(id);
   if (!pkg) notFound();
+  const canUpload = can(user.role, "document.upload");
 
   const documents = await db.document.findMany({
     where: { packageId: pkg.id },
@@ -84,13 +87,26 @@ export default async function DokumenPaketPage({
 
   return (
     <div className="space-y-6">
+      {canUpload ? (
+        <CollapsibleCard
+          title="Unggah dokumen ke paket ini"
+          subtitle="Langsung dari sini — paket sudah terisi otomatis, tak perlu ke Document Center. Fase & jenis dokumen pakai kategori resmi."
+          defaultOpen={documents.length === 0}
+        >
+          <PackageDocUploadForm
+            packageId={pkg.id}
+            locations={pkg.locations.map((l) => ({ id: l.id, name: l.name }))}
+          />
+        </CollapsibleCard>
+      ) : null}
+
       <Card>
         <CardHeader
           title="Dokumen paket"
-          subtitle={`${documents.length} dokumen — ringkasan read-only per fase`}
+          subtitle={`${documents.length} dokumen — per fase`}
           action={
             <Link href="/dokumen" className="text-[13px] font-medium text-primary hover:underline">
-              Kelola & unggah di Document Center
+              Buka Document Center
             </Link>
           }
         />
@@ -99,14 +115,10 @@ export default async function DokumenPaketPage({
             <EmptyState
               icon={FolderOpen}
               title="Belum ada dokumen paket"
-              description="Unggah dokumen administrasi (undangan, BA, SPPBJ, kontrak, dst.) lewat Document Center."
-              action={
-                <Link
-                  href="/dokumen"
-                  className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-white hover:bg-primary-800"
-                >
-                  Buka Document Center
-                </Link>
+              description={
+                canUpload
+                  ? "Gunakan formulir “Unggah dokumen ke paket ini” di atas — undangan, BA, SPPBJ, kontrak, dst."
+                  : "Belum ada dokumen administrasi untuk paket ini."
               }
             />
           ) : (

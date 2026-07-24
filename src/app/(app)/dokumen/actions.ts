@@ -82,6 +82,7 @@ export async function uploadDocumentAction(
     );
     revalidatePath("/dokumen");
     if (d.locationSlug) revalidatePath(`/lokasi/${d.locationSlug}/dokumen`);
+    if (d.packageId) revalidatePath(`/paket/${d.packageId}/dokumen`);
     return {
       success: doc.milestoneId
         ? `Dokumen "${doc.title}" diunggah & tertaut ke milestone administrasi.`
