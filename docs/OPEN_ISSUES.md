@@ -36,6 +36,14 @@ Priority: 🔴 Critical (blocking production) · 🟡 Important · 🟢 Nice-to-
 - 🟢 Intake WA-text mandor (model lama SuggestionSource tidak dibawa).
 - 🟢 Cash forecast otomatis dari baseline (fungsi `cashRequirement` ada; UI input
   forecast biaya belum).
+- 🔵 **FUTURE — parse PDF undangan/penunjukan → buat prospek otomatis.** Surat KKP
+  (mis. "Undangan Penunjukan Langsung") teks-asli memuat: nama paket, HPS total +
+  rincian per-desa (= lokasi), vendor, provinsi, nomor/tanggal surat, target TTD
+  kontrak. Alur: upload PDF → ekstrak teks → PRATINJAU (editable, kabupaten per-desa
+  WAJIB dikoreksi manusia karena surat tak mengikat desa↔kab) → buat prospek + lokasi
+  target. Rekomendasi: parser deterministik (regex, tanpa AI runtime — privasi dokumen
+  pemerintah); LLM opsional bila format bervariasi. Belum tersedia kolom HPS per-lokasi.
+  Tak mencakup PDF hasil scan (perlu OCR). Ditunda atas permintaan user (2026-07-24).
 
 ## Teknis
 
