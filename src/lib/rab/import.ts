@@ -3,8 +3,7 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { flattenParsedRab, grandTotal } from "@/lib/rab/flatten";
 import type { ParsedRab } from "@/lib/rab/parsed";
-import { DEFAULT_CONTRACT_DAYS } from "@/lib/scurve/generate";
-import { scheduleBySequence } from "@/lib/scurve/sequencing";
+import { autoCategorySchedule, curveFromCategorySchedule, DEFAULT_CONTRACT_DAYS } from "@/lib/scurve/generate";
 import type { BaselineSource, RabRevisionSource } from "@/generated/prisma/enums";
 
 /**
@@ -227,43 +226,40 @@ export async function regenerateBaseline(locationId: string, opts: RegenerateBas
     orderBy: { sortOrder: "asc" },
   });
 
-  // categoryName = nama node kategori pemilik segmen pertama lineageKey.
-  // Kode kategori duplikat bisa mengandung "#" (mis. "I#2"), jadi cocokkan
-  // by prefix terpanjang, bukan split("#")[0] mentah.
-  const catKeys = nodes
-    .filter((n) => n.kind === "kategori")
-    .map((n) => ({ key: n.lineageKey, name: n.name }))
-    .sort((a, b) => b.key.length - a.key.length);
-  const categoryNameFor = (lineageKey: string): string =>
-    catKeys.find((c) => lineageKey === c.key || lineageKey.startsWith(`${c.key}#`))?.name ?? "";
-
-  const items = nodes
-    .filter((n) => n.kind === "item" && n.amount > 0n)
-    .map((n) => ({
-      name: n.name,
-      categoryName: categoryNameFor(n.lineageKey),
-      amount: n.amount,
-    }));
-
   const contractDays = await contractDaysFor(locationId);
-  // Penjadwalan berurut per-unit (tahapan real lapangan) — sequencing.ts.
-  const weekly = scheduleBySequence(items, contractDays);
+  const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
+
+  // Jadwal per-KATEGORI dari presedensi (DECISIONS 079) = sumber tunggal.
+  // Disimpan sebagai BaselineScheduleItem; kurva agregat diturunkan dari situ
+  // (curveFromCategorySchedule) → grafik, tabel KKP, deviasi semua konsisten.
+  const categories = nodes
+    .filter((n) => n.kind === "kategori")
+    .map((n) => ({ lineageKey: n.lineageKey, name: n.name, amount: n.amount }));
+  const schedule = autoCategorySchedule(categories, totalWeeks);
+  const weekly = curveFromCategorySchedule(
+    schedule.map((s) => ({ weightPct: s.weightPct, startWeek: s.startWeek, endWeek: s.endWeek })),
+    totalWeeks,
+  );
 
   // IDEMPOTENT: bila hasil hitung identik dengan baseline aktif (revisi, durasi,
   // dan seluruh titik sama), JANGAN buat versi baru — menekan "Hitung ulang"
   // berulang tanpa ada perubahan tidak boleh menumpuk riwayat.
   const active = await db.baseline.findFirst({
     where: { locationId, status: "aktif" },
-    include: { points: { orderBy: { weekNumber: "asc" }, select: { plannedPct: true } } },
+    include: {
+      points: { orderBy: { weekNumber: "asc" }, select: { plannedPct: true } },
+      _count: { select: { scheduleItems: true } },
+    },
   });
   if (
     active &&
     active.rabRevisionId === revisionId &&
     active.contractDays === contractDays &&
+    active._count.scheduleItems === schedule.length &&
     active.points.length === weekly.length &&
     active.points.every((p, i) => Math.abs(Number(p.plannedPct) - weekly[i]) < 0.005)
   ) {
-    const { points: _points, ...rest } = active;
+    const { points: _points, _count: _c, ...rest } = active;
     return { ...rest, unchanged: true as const };
   }
 
@@ -295,6 +291,18 @@ export async function regenerateBaseline(locationId: string, opts: RegenerateBas
         plannedPct: pctVal,
       })),
     });
+    if (schedule.length > 0) {
+      await tx.baselineScheduleItem.createMany({
+        data: schedule.map((s) => ({
+          baselineId: baseline.id,
+          lineageKey: s.lineageKey,
+          name: s.name,
+          weightPct: Math.round(s.weightPct * 1000) / 1000,
+          startWeek: s.startWeek,
+          endWeek: s.endWeek,
+        })),
+      });
+    }
     return baseline;
   });
   await audit(opts.userId, "baseline.regenerate", "baseline", baseline.id, {

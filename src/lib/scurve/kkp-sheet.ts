@@ -1,14 +1,13 @@
-import { classifyStage, detectWorkType, stagePlannedFraction } from "./sequencing";
-
 /**
  * Data untuk sheet "KURVA S" resmi KKP (halaman-1 laporan periodik): tabel bobot
  * kategori × minggu (increment per minggu) + baris prestasi + garis kurva-S.
  * MURNI (tanpa DB) — bisa diuji & dipakai di server component.
  *
- * PENTING: distribusi per minggu dihitung PER ITEM lewat penjadwalan BERURUT
- * per-unit (sequencing.ts: tipe pekerjaan unit → tahap item) lalu dijumlahkan ke
- * kategori — SAMA dgn model baseline (scheduleBySequence). Jadi kumulatif rencana
- * di sheet KKP IDENTIK dgn baseline/kurva-S yang dipakai progress & deviasi.
+ * PENTING (DECISIONS 079): distribusi per minggu = JADWAL TERSIMPAN per kategori
+ * (BaselineScheduleItem: bobot + jendela minggu), disebar rata dalam jendelanya —
+ * SAMA dgn kurva baseline (curveFromCategorySchedule). Jadi kumulatif rencana di
+ * tabel KKP IDENTIK dgn grafik & deviasi, dan IKUT saat kurva-S disesuaikan manual.
+ * (Dulu tabel ini menghitung ulang dari model auto → tak sinkron dgn edit manual.)
  */
 
 const MONTHS_ID = [
@@ -34,8 +33,8 @@ export type KurvaSheet = {
 };
 
 export function buildKurvaSheet(input: {
-  /** Kategori beserta item-nya (nama + bobot) — distribusi per item (trade). */
-  categories: { code: string; name: string; items: { name: string; bobot: number }[] }[];
+  /** Jadwal per kategori (BaselineScheduleItem): bobot + jendela minggu. */
+  categories: { code: string; name: string; weightPct: number; startWeek: number; endWeek: number }[];
   totalWeeks: number;
   contractStart: Date;
   /** Kumulatif realisasi % per minggu (null utk minggu > minggu berjalan). */
@@ -55,43 +54,27 @@ export function buildKurvaSheet(input: {
     else monthGroups.push({ label, span: 1 });
   }
 
-  // Tipe pekerjaan per UNIT (kategori) — konsisten dgn scheduleBySequence.
-  const typeByCat = new Map(
-    input.categories.map((c) => [c.name, detectWorkType(c.name, c.items.map((it) => it.name))]),
-  );
-
-  // Increment bobot per kategori per minggu = Σ item (tahap item) — identik dgn
-  // baseline. Pra-hitung fraksi tahap per minggu (cache per workType|stage).
-  const fracCache = new Map<string, number[]>();
-  const stageFrac = (workType: ReturnType<typeof detectWorkType>, name: string, catName: string): number[] => {
-    const stage = classifyStage(workType, name, catName);
-    const cacheKey = `${workType}|${stage}`;
-    let arr = fracCache.get(cacheKey);
-    if (!arr) {
-      arr = [0, ...weeks.map((w) => stagePlannedFraction(workType, stage, w, n))]; // index 0 = minggu 0
-      fracCache.set(cacheKey, arr);
-    }
-    return arr;
-  };
+  // Increment bobot per kategori per minggu = bobot ÷ durasi, disebar RATA dalam
+  // jendela [startWeek..endWeek] (format standar barchart sipil). Jumlah agregat
+  // = kurva baseline (curveFromCategorySchedule) → sinkron dgn grafik & deviasi.
   const categories: KurvaSheetCategory[] = input.categories.map((c) => {
-    const workType = typeByCat.get(c.name)!;
     const weekly = new Array<number>(n).fill(0);
-    let bobot = 0;
-    for (const it of c.items) {
-      bobot += it.bobot;
-      const frac = stageFrac(workType, it.name, c.name);
-      for (let i = 0; i < n; i++) weekly[i] += it.bobot * Math.max(0, frac[i + 1] - frac[i]);
-    }
-    return { code: c.code, name: c.name, bobot, weekly };
+    const s = Math.max(1, Math.min(n, Math.floor(c.startWeek)));
+    const e = Math.max(s, Math.min(n, Math.floor(c.endWeek)));
+    const perWeek = c.weightPct / (e - s + 1);
+    for (let w = s; w <= e; w++) weekly[w - 1] += perWeek;
+    return { code: c.code, name: c.name, bobot: c.weightPct, weekly };
   });
 
   // Baris prestasi.
   const rencanaPerWeek = weeks.map((_, i) => categories.reduce((s, c) => s + c.weekly[i], 0));
+  // Kumulatif dibulatkan 2 desimal — IDENTIK dgn curveFromCategorySchedule (kurva
+  // baseline) & format KKP. Jadi tabel, grafik, dan deviasi memakai angka sama.
   const kumulatifRencana: number[] = [];
   let run = 0;
   for (const r of rencanaPerWeek) {
     run += r;
-    kumulatifRencana.push(run);
+    kumulatifRencana.push(Math.min(100, Math.round(run * 100) / 100));
   }
   const kumulatifRealisasi = weeks.map((_, i) => input.actualCum[i] ?? null);
   const realisasiPerWeek = weeks.map((_, i) => {

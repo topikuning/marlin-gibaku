@@ -3,8 +3,7 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { COUNTED_REPORT_STATUSES, currentWeekNumber } from "@/lib/progress";
 import { contractDaysFor } from "@/lib/rab/import";
-import { curveFromCategorySchedule } from "@/lib/scurve/generate";
-import { placeItems, type SeqItem } from "@/lib/scurve/sequencing";
+import { autoCategorySchedule, curveFromCategorySchedule } from "@/lib/scurve/generate";
 
 /**
  * Layer baseline (kurva-S rencana ber-versi) + deret rencana vs realisasi.
@@ -181,47 +180,26 @@ export async function deriveCategorySchedule(locationId: string): Promise<Catego
     }
   }
 
-  // Derivasi otomatis: jendela kategori = envelope jendela TAHAP item-itemnya
-  // (mesin sequencing per-unit — konsisten dgn kurva auto scheduleBySequence).
-  const catKeys = base.categories
-    .map((c) => ({ key: c.lineageKey, name: c.name }))
-    .sort((a, b) => b.key.length - a.key.length);
-  const categoryFor = (lineageKey: string): { key: string; name: string } | null =>
-    catKeys.find((c) => lineageKey === c.key || lineageKey.startsWith(`${c.key}#`)) ?? null;
-
-  const seqItems: SeqItem[] = [];
-  const keyByName = new Map<string, string>(); // categoryName → lineageKey (envelope index)
-  for (const it of base.items) {
-    const cat = categoryFor(it.lineageKey);
-    if (!cat) continue;
-    keyByName.set(cat.name, cat.key);
-    seqItems.push({ name: it.name, categoryName: cat.name, amount: it.amount });
-  }
-  const placements = placeItems(seqItems);
-  const envelope = new Map<string, { start: number; end: number }>();
-  for (const p of placements) {
-    const catKey = keyByName.get(p.categoryName);
-    if (!catKey) continue;
-    const cur = envelope.get(catKey);
-    envelope.set(catKey, {
-      start: cur ? Math.min(cur.start, p.start) : p.start,
-      end: cur ? Math.max(cur.end, p.end) : p.end,
-    });
-  }
+  // Derivasi otomatis: jendela presedensi per KATEGORI (DECISIONS 079) —
+  // konsisten dgn regenerateBaseline (autoCategorySchedule). Bukan lagi envelope
+  // tahap per-item (yang menaruh galian penerangan di minggu awal).
+  const auto = autoCategorySchedule(
+    base.categories.map((c) => ({ lineageKey: c.lineageKey, name: c.name, amount: c.amount })),
+    totalWeeks,
+  );
+  const autoByKey = new Map(auto.map((a) => [a.lineageKey, a]));
 
   return {
     totalWeeks,
     origin: "otomatis",
     rows: base.categories.map((c) => {
-      const env = envelope.get(c.lineageKey) ?? { start: 0.25, end: 0.8 };
-      const startWeek = Math.max(1, Math.min(totalWeeks, Math.floor(env.start * totalWeeks) + 1));
-      const endWeek = Math.max(startWeek, Math.min(totalWeeks, Math.ceil(env.end * totalWeeks)));
+      const a = autoByKey.get(c.lineageKey);
       return {
         lineageKey: c.lineageKey,
         name: c.name,
         weightPct: Math.round(weightFor(c.amount) * 1000) / 1000,
-        startWeek,
-        endWeek,
+        startWeek: a?.startWeek ?? 1,
+        endWeek: a?.endWeek ?? totalWeeks,
       };
     }),
   };

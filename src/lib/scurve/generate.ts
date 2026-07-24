@@ -11,43 +11,55 @@
 
 export const DEFAULT_CONTRACT_DAYS = 150;
 
-// Category name keyword → [phase_start_pct, phase_end_pct]
-// First match wins. Urutan konstruksi standar KNMP.
+// Category name keyword → [start_pct, end_pct] jendela presedensi (fraksi durasi).
+// First match wins → keyword SPESIFIK sebelum yang umum.
+//
+// KALIBRASI (DECISIONS 079): jendela dikalibrasi dari JADWAL SIPIL NYATA KNMP
+// (TS Tambakagung, Banggi, Karangmangu) — presedensi antar-KATEGORI, bukan tahap
+// absolut per-item. Pola inti: persiapan/tanah AWAL → revetment/penahan →
+// bangunan TENGAH → jalan → penerangan/genset/IPAL AKHIR → landskap PALING AKHIR.
+// Ini yang membuat "penerangan kawasan" muncul di ujung (bukan minggu-1), sesuai
+// realita: site & jalan harus jadi dulu.
 export const CATEGORY_PHASE: ReadonlyArray<readonly [string, number, number]> = [
-  ["PERSIAPAN", 0.0, 0.18],
+  ["PERSIAPAN", 0.0, 0.28],
   ["LEVELLING", 0.05, 0.28],
-  ["REVETMENT", 0.1, 0.55],
-  ["DINDING PENAHAN", 0.15, 0.6],
-  ["TAMBATAN", 0.15, 0.6],
-  ["DOCKING", 0.2, 0.75],
-  ["PONDASI", 0.15, 0.5],
-  ["SHELTER PENDARATAN", 0.22, 0.78],
-  ["GUDANG BEKU", 0.25, 0.8],
-  ["PABRIK ES", 0.3, 0.82],
-  ["COOL BOX", 0.3, 0.82],
-  ["BENGKEL", 0.3, 0.85],
-  ["BALAI NELAYAN", 0.35, 0.85],
-  ["KIOS PERBEKALAN", 0.35, 0.85],
-  ["SENTRA KULINER", 0.35, 0.85],
-  ["PEMASARAN IKAN", 0.35, 0.85],
-  ["KANTOR PENGELOLA", 0.35, 0.88],
-  ["SHELTER", 0.3, 0.85],
-  ["AREA PARKIR", 0.45, 0.85],
-  ["JALAN", 0.4, 0.9],
-  ["SALURAN", 0.4, 0.9],
-  ["PLUMBING", 0.45, 0.92],
-  ["IPAL", 0.5, 0.9],
-  ["TPS", 0.55, 0.92],
-  ["GENSET", 0.6, 0.92],
-  ["PENERANGAN", 0.55, 0.95],
-  ["PAGAR", 0.35, 0.9],
-  ["GERBANG", 0.55, 0.95],
-  ["GAPURA", 0.75, 1.0],
-  ["POS JAGA", 0.7, 0.95],
-  ["TOILET", 0.6, 0.95],
-  ["MUSHOLLA", 0.65, 0.95],
-  ["GAZEBO", 0.7, 0.95],
-  ["LANDSKAPING", 0.72, 1.0],
+  ["REVETMENT", 0.12, 0.42],
+  ["DINDING PENAHAN", 0.2, 0.48],
+  ["TAMBATAN", 0.2, 0.58],
+  ["DOCKING", 0.7, 0.95],
+  ["PONDASI", 0.32, 0.55],
+  ["SHELTER PENDARATAN", 0.32, 0.6],
+  ["GUDANG BEKU", 0.38, 0.64],
+  ["PABRIK ES", 0.38, 0.62],
+  ["COOL BOX", 0.45, 0.68],
+  ["BENGKEL", 0.45, 0.7],
+  ["BALAI NELAYAN", 0.45, 0.72],
+  ["KIOS PERBEKALAN", 0.45, 0.7],
+  ["SENTRA KULINER", 0.45, 0.72],
+  ["PEMASARAN IKAN", 0.45, 0.72],
+  ["KANTOR PENGELOLA", 0.5, 0.72],
+  ["TANGKI AIR", 0.52, 0.75],
+  ["TANDON", 0.52, 0.75],
+  ["SHELTER", 0.35, 0.65],
+  ["AREA PARKIR", 0.45, 0.68],
+  ["SUMUR BOR", 0.45, 0.72],
+  ["PLUMBING", 0.52, 0.78],
+  ["JALAN", 0.55, 0.9],
+  ["SALURAN", 0.55, 0.9],
+  ["IPAL", 0.78, 0.95],
+  ["TPS", 0.78, 0.95],
+  ["GENSET", 0.72, 0.92],
+  ["PENERANGAN", 0.72, 1.0],
+  ["PAGAR", 0.55, 0.9],
+  ["GAPURA", 0.8, 1.0],
+  ["GERBANG", 0.8, 1.0],
+  ["POS JAGA", 0.65, 0.92],
+  ["TOILET", 0.55, 0.88],
+  ["MUSHOLLA", 0.6, 0.9],
+  ["GAZEBO", 0.75, 0.98],
+  ["LANDSKAP", 0.82, 1.0],
+  ["LANDSCAP", 0.82, 1.0],
+  ["LANSEKAP", 0.82, 1.0],
 ];
 
 export function getCategoryPhase(name: string): [number, number] {
@@ -55,7 +67,44 @@ export function getCategoryPhase(name: string): [number, number] {
   for (const [kw, start, end] of CATEGORY_PHASE) {
     if (upper.includes(kw)) return [start, end];
   }
-  return [0.25, 0.8]; // default phase
+  return [0.35, 0.75]; // default: pekerjaan tengah
+}
+
+/** Baris jadwal per kategori (bobot + jendela minggu) — sumber tunggal baseline. */
+export type CategorySchedule = {
+  lineageKey: string;
+  name: string;
+  weightPct: number;
+  startWeek: number;
+  endWeek: number;
+};
+
+/**
+ * Jadwal per-KATEGORI otomatis dari presedensi (getCategoryPhase) — bukan tahap
+ * absolut per-item. Bobot kategori = amount ÷ grand × 100; jendela [start,end]
+ * dari tabel presedensi dikonversi ke minggu. Ini yang disimpan sebagai
+ * BaselineScheduleItem (sumber tunggal: grafik, tabel KKP, deviasi ikut). DECISIONS 079.
+ */
+export function autoCategorySchedule(
+  categories: { lineageKey: string; name: string; amount: bigint }[],
+  totalWeeks: number,
+): CategorySchedule[] {
+  const n = Math.max(1, Math.floor(totalWeeks));
+  const positive = categories.filter((c) => c.amount > 0n);
+  const grand = positive.reduce((s, c) => s + Number(c.amount), 0);
+  if (grand <= 0) return [];
+  return positive.map((c) => {
+    const [sf, ef] = getCategoryPhase(c.name);
+    const startWeek = Math.max(1, Math.min(n, Math.floor(sf * n) + 1));
+    const endWeek = Math.max(startWeek, Math.min(n, Math.ceil(ef * n)));
+    return {
+      lineageKey: c.lineageKey,
+      name: c.name,
+      weightPct: (Number(c.amount) / grand) * 100,
+      startWeek,
+      endWeek,
+    };
+  });
 }
 
 /** Cubic smoothstep 3t² − 2t³ untuk bentuk S. */

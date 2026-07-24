@@ -4,7 +4,7 @@ import type { PrismaClient } from "@/generated/prisma/client";
 import { hashPassword } from "@/lib/auth/password";
 import { flattenParsedRab, grandTotal, type FlatNode } from "@/lib/rab/flatten";
 import type { ParsedRab } from "@/lib/rab/parsed";
-import { scheduleBySequence } from "@/lib/scurve/sequencing";
+import { autoCategorySchedule, curveFromCategorySchedule } from "@/lib/scurve/generate";
 import { LOKASI_MILESTONES, PAKET_MILESTONES, type AdminMilestone } from "@/lib/milestones/template";
 import { withPpn, valueDone as calcValueDone } from "@/lib/money";
 import { seedMasterLocations } from "@/lib/seed/master-location";
@@ -263,16 +263,16 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
       });
       if (!hasBaseline) {
         const contractDays = Math.round((dateOnly(m.end_date).getTime() - dateOnly(m.start_date).getTime()) / DAY);
-        // leaf items utk penjadwalan per-trade; nama kategori = segmen pertama lineage
-        const catByRoman = new Map(nodes.filter((n) => n.kind === "kategori").map((n) => [n.lineageKey, n.name]));
-        const items = nodes
-          .filter((n) => n.kind === "item" && n.amount > 0n)
-          .map((n) => ({
-            name: n.name,
-            categoryName: catByRoman.get(n.lineageKey.split("#")[0]) ?? "",
-            amount: n.amount,
-          }));
-        const weekly = scheduleBySequence(items, contractDays);
+        const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
+        // Jadwal per-KATEGORI dari presedensi (DECISIONS 079) = sumber tunggal.
+        const catNodes = nodes
+          .filter((n) => n.kind === "kategori")
+          .map((n) => ({ lineageKey: n.lineageKey, name: n.name, amount: n.amount }));
+        const schedule = autoCategorySchedule(catNodes, totalWeeks);
+        const weekly = curveFromCategorySchedule(
+          schedule.map((s) => ({ weightPct: s.weightPct, startWeek: s.startWeek, endWeek: s.endWeek })),
+          totalWeeks,
+        );
         const baseline = await db.baseline.create({
           data: {
             locationId: location.id,
@@ -287,6 +287,18 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
         await db.baselinePoint.createMany({
           data: weekly.map((pctVal, i) => ({ baselineId: baseline.id, weekNumber: i + 1, plannedPct: pctVal })),
         });
+        if (schedule.length > 0) {
+          await db.baselineScheduleItem.createMany({
+            data: schedule.map((s) => ({
+              baselineId: baseline.id,
+              lineageKey: s.lineageKey,
+              name: s.name,
+              weightPct: Math.round(s.weightPct * 1000) / 1000,
+              startWeek: s.startWeek,
+              endWeek: s.endWeek,
+            })),
+          });
+        }
       }
 
       // Budget internal per kategori biaya (sekali)

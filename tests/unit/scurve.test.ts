@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyTrade,
   computeTradeWindows,
+  autoCategorySchedule,
   curveFromCategorySchedule,
   DEFAULT_CONTRACT_DAYS,
   generateScurve,
@@ -247,5 +248,44 @@ describe("curveFromCategorySchedule (jadwal per pekerjaan, distribusi rata)", ()
       5,
     );
     expect(c[4]).toBeCloseTo(100, 5);
+  });
+});
+
+describe("autoCategorySchedule (presedensi kategori — DECISIONS 079)", () => {
+  const cats = [
+    { lineageKey: "I", name: "PEKERJAAN PERSIAPAN", amount: 100n },
+    { lineageKey: "II", name: "PEKERJAAN PONDASI BANGUNAN", amount: 300n },
+    { lineageKey: "III", name: "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN", amount: 200n },
+    { lineageKey: "IV", name: "PEKERJAAN PENERANGAN KAWASAN", amount: 250n },
+    { lineageKey: "V", name: "PEKERJAAN LANDSKAPING KAWASAN", amount: 50n },
+  ];
+  const sched = autoCategorySchedule(cats, 20);
+  const byKey = new Map(sched.map((s) => [s.lineageKey, s]));
+
+  it("bobot = amount ÷ grand × 100, jumlah ~100", () => {
+    expect(sched.reduce((s, r) => s + r.weightPct, 0)).toBeCloseTo(100, 6);
+  });
+
+  it("presedensi: persiapan AWAL, penerangan & landskap AKHIR", () => {
+    const persiapan = byKey.get("I")!;
+    const penerangan = byKey.get("IV")!;
+    const landskap = byKey.get("V")!;
+    const jalan = byKey.get("III")!;
+    expect(persiapan.startWeek).toBe(1);
+    // penerangan tak boleh mulai sebelum jalan mulai
+    expect(penerangan.startWeek).toBeGreaterThanOrEqual(jalan.startWeek);
+    // penerangan & landskap selesai di ujung proyek
+    expect(penerangan.endWeek).toBe(20);
+    expect(landskap.endWeek).toBe(20);
+    // penerangan mulai jauh setelah persiapan selesai (bukan minggu-1)
+    expect(penerangan.startWeek).toBeGreaterThan(12);
+  });
+
+  it("jendela valid (1 ≤ start ≤ end ≤ totalWeeks)", () => {
+    for (const s of sched) {
+      expect(s.startWeek).toBeGreaterThanOrEqual(1);
+      expect(s.endWeek).toBeGreaterThanOrEqual(s.startWeek);
+      expect(s.endWeek).toBeLessThanOrEqual(20);
+    }
   });
 });

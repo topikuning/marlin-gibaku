@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { autoCategorySchedule } from "@/lib/scurve/generate";
 import { COUNTED_REPORT_STATUSES, currentWeekNumber } from "@/lib/progress";
 import { jakartaDateKey } from "@/lib/format";
 import type {
@@ -99,6 +100,8 @@ export type PeriodReport = {
   actualPct: number;
   deviationPct: number;
   scurve: { planPct: number[]; actualPct: (number | null)[]; currentWeek: number };
+  /** Jadwal per kategori untuk tabel KKP (bobot + jendela minggu) — sumber tunggal. */
+  kurvaSchedule: { code: string; name: string; weightPct: number; startWeek: number; endWeek: number }[];
   tenaga: { role: WorkerRole; label: string; count: number }[];
   material: { name: string; unit: string | null; qty: number }[];
   alat: { name: string; count: number }[];
@@ -374,9 +377,37 @@ export async function getPeriodReport(
   // Kurva-S: rencana dari baseline aktif; realisasi kumulatif per minggu dari valueDone.
   const baseline = await db.baseline.findFirst({
     where: { locationId, status: "aktif" },
-    select: { points: { select: { weekNumber: true, plannedPct: true }, orderBy: { weekNumber: "asc" } } },
+    select: {
+      points: { select: { weekNumber: true, plannedPct: true }, orderBy: { weekNumber: "asc" } },
+      scheduleItems: { select: { lineageKey: true, name: true, weightPct: true, startWeek: true, endWeek: true } },
+    },
   });
   const planSeries = baseline?.points.map((p) => Number(p.plannedPct)) ?? [];
+
+  // Jadwal per-kategori untuk tabel KKP — dari baseline TERSIMPAN (ikut edit
+  // manual); fallback auto (presedensi kategori) bila baseline lama tak simpan.
+  // DECISIONS 079: sumber tunggal → tabel KKP sinkron dgn grafik & deviasi.
+  const codeByKey = new Map(kategoriNodes.map((nd) => [nd.lineageKey, nd.code ?? ""]));
+  const storedSchedule = baseline?.scheduleItems ?? [];
+  const kurvaSchedule =
+    storedSchedule.length > 0
+      ? storedSchedule.map((s) => ({
+          code: codeByKey.get(s.lineageKey) ?? "",
+          name: s.name,
+          weightPct: Number(s.weightPct),
+          startWeek: s.startWeek,
+          endWeek: s.endWeek,
+        }))
+      : autoCategorySchedule(
+          kategoriNodes.map((nd) => ({ lineageKey: nd.lineageKey, name: nd.name, amount: nd.amount })),
+          totalWeeks,
+        ).map((s) => ({
+          code: codeByKey.get(s.lineageKey) ?? "",
+          name: s.name,
+          weightPct: s.weightPct,
+          startWeek: s.startWeek,
+          endWeek: s.endWeek,
+        }));
   const seriesLen = Math.max(planSeries.length, totalWeeks);
   const today = new Date(`${jakartaDateKey(new Date())}T00:00:00.000Z`);
   const currentWeek = currentWeekNumber(startDate, seriesLen, today);
@@ -505,6 +536,7 @@ export async function getPeriodReport(
     actualPct,
     deviationPct: actualPct - planPct,
     scurve: { planPct: planSeries, actualPct: actualSeries, currentWeek: cutoffWeek },
+    kurvaSchedule,
     tenaga: [...tenagaMap.entries()].map(([role, count]) => ({
       role,
       label: WORKER_ROLE_LABEL[role],

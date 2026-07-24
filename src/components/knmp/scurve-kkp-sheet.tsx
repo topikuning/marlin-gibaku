@@ -22,11 +22,7 @@ const pct = (v: number | null, d = 2) => (v == null ? "" : `${v.toLocaleString("
 
 export function ScurveKkpSheet({ r }: { r: PeriodReport }) {
   const sheet = buildKurvaSheet({
-    categories: r.categories.map((c) => ({
-      code: c.code,
-      name: c.name,
-      items: c.rows.map((row) => ({ name: row.name, bobot: row.bobot })),
-    })),
+    categories: r.kurvaSchedule,
     totalWeeks: r.totalWeeks,
     contractStart: r.header.contractStart,
     actualCum: r.scurve.actualPct,

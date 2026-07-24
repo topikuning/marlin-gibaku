@@ -1519,3 +1519,37 @@ scurve — dengan test properti, bukan paritas nilai):**
 - Lanjutan (OPEN_ISSUES): (a) serah terima PARSIAL per pekerjaan selesai (mis. revetmen
   100%); (b) auto-flag termin bisa ditagih berdasar progres agregat kontrak + retensi 5%.
 - Verifikasi: typecheck ✓ lint ✓ 123 unit test ✓ (test scope baru).
+
+## 079 · 2026-07-24 · Baseline = jadwal presedensi per-KATEGORI (sumber tunggal) — cocok jadwal sipil
+
+- Temuan user (dari 3 jadwal Time Schedule sipil nyata KNMP: Tambakagung, Banggi,
+  Karangmangu): (1) "penerangan kawasan" muncul dari minggu-1 padahal harus di
+  AKHIR (site/jalan belum jadi); (2) saat kurva-S disesuaikan MANUAL, tabel laporan
+  mingguan (Rencana Prestasi & Kumulatif Rencana) TIDAK ikut berubah.
+- Akar bersama: tak ada SUMBER TUNGGAL rencana per-kategori. Mesin per-item
+  (DECISIONS 070/077) menjadwalkan tahap internal (galian→pasang→finish) pada waktu
+  ABSOLUT → mengabaikan presedensi antar-KATEGORI (galian penerangan jatuh di 8–40%).
+  Dan `buildKurvaSheet` menghitung ulang dari model auto, bukan baca baseline
+  tersimpan → tabel KKP tak sinkron dgn edit manual.
+- Bukti kuantitatif jadwal sipil: penerangan 74–100%, jalan 55–90%, landskap 82–100%,
+  genset/docking/IPAL 70–95%, persiapan/levelling 0–28%.
+- Perbaikan (unifikasi):
+  - `CATEGORY_PHASE` dikalibrasi ULANG ke jendela presedensi per-kategori dari jadwal
+    sipil nyata (persiapan awal → bangunan tengah → jalan → penerangan/genset/IPAL
+    akhir → landskap paling akhir).
+  - `autoCategorySchedule(categories, weeks)` (generate.ts): jadwal per-kategori
+    (bobot RAB + jendela presedensi) = **sumber tunggal**.
+  - `regenerateBaseline` simpan `BaselineScheduleItem` + kurva agregat dari
+    `curveFromCategorySchedule` (bukan lagi scheduleBySequence per-item).
+  - `buildKurvaSheet` (tabel KKP) BACA jadwal tersimpan per-kategori (sebar rata dalam
+    jendela), kumulatif dibulatkan 2 desimal = IDENTIK kurva baseline.
+  - `getPeriodReport` sediakan `kurvaSchedule` (tersimpan bila ada; fallback auto).
+  - `deriveCategorySchedule` (editor) auto-branch pakai jendela presedensi (bukan
+    envelope tahap per-item). Edit manual → BaselineScheduleItem → grafik, tabel KKP,
+    deviasi SEMUA ikut.
+- Verifikasi RAB nyata: genset/jalan/docking/landskap di ujung; kurva S (6/42/93),
+  monoton, 100; kumulatif KKP == kurva baseline (uji). typecheck/lint ✓, 128 unit test.
+- Kalibrasi awal dari 3 jadwal; disempurnakan per-lokasi lewat editor manual (yang
+  KINI benar-benar propagate ke semua). Baseline LAMA perlu "Hitung ulang" agar
+  menyimpan scheduleItems & mengikuti jendela baru. `scheduleBySequence`/envelope
+  (077) tak lagi dipakai baseline.
