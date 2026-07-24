@@ -1367,3 +1367,17 @@ scurve — dengan test properti, bukan paritas nilai):**
   low-risk); kategori = unit (bila satu kategori campur banyak bangunan, presisi
   turun); presedensi-template per-unit, BUKAN CPM antar-item eksplisit. Semua bisa
   diperbaiki bertahap (tabel + uji).
+
+## 071 · 2026-07-24 · Header laporan: nama resmi + nilai per-lokasi; editor kurva-S collapsible
+
+- **Nama pekerjaan** di laporan (KKP sheet, laporan periodik, export xlsx) memakai
+  `Contract.workTitle` (nama resmi panjang), fallback `Package.name` — bukan nama
+  pendek. (`packageName` di PeriodHeader kini = workTitle ?? name.)
+- **Nilai** di header laporan diganti dari NILAI KONTRAK SELURUH PAKET →
+  **"Nilai Fisik Lokasi"** = Σ RAB aktif lokasi itu (`PeriodHeader.locationValue`).
+  Nilai kontrak paket multi-lokasi membingungkan pada laporan satu lokasi.
+  Semua 3 tampilan (scurve-kkp-sheet, kkp-period-report, xlsx) diperbaiki.
+  Laporan harian tak menampilkan nilai paket (aman).
+- **UI**: primitive `CollapsibleCard` (native <details>, tanpa JS klien). Editor
+  "Jadwal per pekerjaan" & "Penyesuaian halus %-mingguan" di halaman Progress kini
+  terlipat default (klik header untuk buka) — mengurangi ruang terpakai.

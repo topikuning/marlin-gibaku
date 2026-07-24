@@ -67,7 +67,10 @@ export type PeriodHeader = {
   packageName: string;
   contractNumber: string;
   vendorName: string;
+  /** Nilai kontrak paket (seluruh lokasi) — dipakai bila perlu konteks paket. */
   contractValue: bigint;
+  /** Nilai fisik LOKASI ini (Σ RAB aktif) — dipakai di header laporan per-lokasi. */
+  locationValue: bigint;
   masaPelaksanaanHari: number;
   tahunAnggaran: number;
   /** Tanggal mulai kontrak — utk kolom kurva-S dikelompokkan per bulan. */
@@ -209,6 +212,7 @@ export async function getPeriodReport(
             select: {
               contractNumber: true,
               contractValue: true,
+              workTitle: true,
               durationDays: true,
               startDate: true,
               endDate: true,
@@ -476,10 +480,13 @@ export async function getPeriodReport(
       district: location.district,
       regency: location.regency,
       province: location.province,
-      packageName: location.package.name,
+      // Nama resmi pekerjaan (workTitle) untuk dokumen; fallback nama pendek paket.
+      packageName: contract.workTitle?.trim() || location.package.name,
       contractNumber: contract.contractNumber,
       vendorName: contract.vendor.name,
       contractValue: contract.contractValue,
+      // Nilai fisik lokasi ini = Σ RAB aktif (bukan nilai kontrak seluruh paket).
+      locationValue: BigInt(Math.round(grandTotal)),
       masaPelaksanaanHari,
       tahunAnggaran: startDate.getUTCFullYear(),
       contractStart: startDate,

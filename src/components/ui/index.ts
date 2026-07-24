@@ -1,5 +1,5 @@
 export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from "./button";
-export { Card, CardBody, CardHeader } from "./card";
+export { Card, CardBody, CardHeader, CollapsibleCard } from "./card";
 export { KpiCard, type KpiCardProps, type KpiTone } from "./kpi";
 export { Badge, StatusPill, type BadgeProps, type BadgeTone } from "./badge";
 export { Banner, type BannerProps, type BannerTone } from "./banner";

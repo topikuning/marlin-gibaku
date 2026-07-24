@@ -63,7 +63,7 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
   kv("Lokasi", `${h.locationName} — ${h.village}, ${h.regency}, ${h.province}`);
   kv("Nomor Kontrak", h.contractNumber);
   kv("Kontraktor Pelaksana", h.vendorName);
-  kv("Nilai Kontrak", `Rp ${new Intl.NumberFormat("id-ID").format(Number(h.contractValue))}`);
+  kv("Nilai Fisik Lokasi", `Rp ${new Intl.NumberFormat("id-ID").format(Number(h.locationValue))}`);
   kv("Masa Pelaksanaan", `${h.masaPelaksanaanHari} Hari Kalender`);
   kv("Tahun Anggaran", h.tahunAnggaran);
   kv("Rencana s/d periode (%)", Number(r.planPct.toFixed(2)));

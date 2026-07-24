@@ -69,7 +69,7 @@ export function ScurveKkpSheet({ r }: { r: PeriodReport }) {
             {[
               ["Paket Pekerjaan", `: ${hdr.packageName}`],
               ["Lokasi", `: ${hdr.village}${hdr.district ? `, Kec. ${hdr.district}` : ""}, ${hdr.regency}`],
-              ["Nilai Kontrak Fisik", `: ${formatRupiah(hdr.contractValue)}`],
+              ["Nilai Fisik Lokasi", `: ${formatRupiah(hdr.locationValue)}`],
               ["Nomor dan Tanggal Kontrak", `: ${hdr.contractNumber || "-"}`],
             ].map(([k, v]) => (
               <tr key={k}>

@@ -43,7 +43,7 @@ export function KkpPeriodReport({ r }: { r: PeriodReport }) {
         <KV k="Paket Pekerjaan" v={h.packageName} />
         <KV k="Masa Pelaksanaan" v={`${h.masaPelaksanaanHari} Hari Kalender`} />
         <KV k="Lokasi" v={`${h.locationName} — ${h.village}${h.district ? `, Kec. ${h.district}` : ""}, ${h.regency}, ${h.province}`} />
-        <KV k="Nilai Kontrak" v={rupiahFmt.format(Number(h.contractValue))} />
+        <KV k="Nilai Fisik Lokasi" v={rupiahFmt.format(Number(h.locationValue))} />
         <KV k="Nomor Kontrak" v={h.contractNumber} />
         <KV k="Kontraktor Pelaksana" v={h.vendorName} />
         <KV k="Tahun Anggaran" v={String(h.tahunAnggaran)} />

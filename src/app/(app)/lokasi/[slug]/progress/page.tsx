@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Card, CardBody, CardHeader, type BadgeTone } from "@/components/ui";
+import { Card, CardBody, CardHeader, CollapsibleCard, type BadgeTone } from "@/components/ui";
 import { DeltaBadge } from "@/components/ui/stat-delta";
 import { ScurveChart } from "@/components/knmp/scurve-chart";
 import { db } from "@/lib/db";
@@ -229,36 +229,30 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
       </div>
 
       {canManageBaseline && schedule ? (
-        <Card>
-          <CardHeader
-            title="Jadwal per pekerjaan (kurva-S)"
-            subtitle="Format standar kurva-S: bobot tiap pekerjaan mengikuti nilai RAB (terkunci), atur minggu mulai–selesai per pekerjaan. Bobot dibagi rata per minggu dalam jendelanya → akumulasi mingguan membentuk kurva. Simpan = baseline baru (versi lama tetap di riwayat)."
+        <CollapsibleCard
+          title="Jadwal per pekerjaan (kurva-S)"
+          subtitle="Atur minggu mulai–selesai tiap pekerjaan (bobot mengikuti RAB). Klik untuk membuka."
+        >
+          <ScheduleEditor
+            locationId={location.id}
+            totalWeeks={schedule.totalWeeks}
+            origin={schedule.origin}
+            initial={schedule.rows}
           />
-          <CardBody>
-            <ScheduleEditor
-              locationId={location.id}
-              totalWeeks={schedule.totalWeeks}
-              origin={schedule.origin}
-              initial={schedule.rows}
-            />
-          </CardBody>
-        </Card>
+        </CollapsibleCard>
       ) : null}
 
       {canManageBaseline && activeBaseline && activeBaseline.points.length > 0 ? (
-        <Card>
-          <CardHeader
-            title="Penyesuaian halus %-mingguan"
-            subtitle="Untuk koreksi kecil pada deret %-kumulatif per minggu (mis. menyamakan dengan angka pengawas). Untuk mengatur urutan pekerjaan, pakai kartu Jadwal per pekerjaan di atas. Simpan = baseline baru."
+        <CollapsibleCard
+          title="Penyesuaian halus %-mingguan"
+          subtitle="Koreksi kecil deret %-kumulatif per minggu (mis. menyamakan dengan angka pengawas). Klik untuk membuka."
+        >
+          <BaselineEditor
+            locationId={location.id}
+            baselineId={activeBaseline.id}
+            initial={activeBaseline.points.map((p) => Number(p.plannedPct))}
           />
-          <CardBody>
-            <BaselineEditor
-              locationId={location.id}
-              baselineId={activeBaseline.id}
-              initial={activeBaseline.points.map((p) => Number(p.plannedPct))}
-            />
-          </CardBody>
-        </Card>
+        </CollapsibleCard>
       ) : null}
 
       <Card>
