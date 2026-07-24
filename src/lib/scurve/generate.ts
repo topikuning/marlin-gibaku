@@ -14,12 +14,22 @@ export const DEFAULT_CONTRACT_DAYS = 150;
 // Category name keyword → [start_pct, end_pct] jendela presedensi (fraksi durasi).
 // First match wins → keyword SPESIFIK sebelum yang umum.
 //
-// KALIBRASI (DECISIONS 079): jendela dikalibrasi dari JADWAL SIPIL NYATA KNMP
-// (TS Tambakagung, Banggi, Karangmangu) — presedensi antar-KATEGORI, bukan tahap
-// absolut per-item. Pola inti: persiapan/tanah AWAL → revetment/penahan →
-// bangunan TENGAH → jalan → penerangan/genset/IPAL AKHIR → landskap PALING AKHIR.
-// Ini yang membuat "penerangan kawasan" muncul di ujung (bukan minggu-1), sesuai
-// realita: site & jalan harus jadi dulu.
+// KALIBRASI (DECISIONS 079, disinkronkan DECISIONS 080): jendela presedensi
+// antar-KATEGORI (bukan tahap absolut per-item). Pola inti: persiapan/tanah AWAL
+// → revetment/penahan → bangunan TENGAH → jalan → penerangan/genset/IPAL AKHIR →
+// landskap PALING AKHIR. "Penerangan kawasan" di ujung (bukan minggu-1): site &
+// jalan harus jadi dulu.
+//
+// SUMBER (divalidasi 2026-07, bukan hanya 3 jadwal sipil KNMP):
+//   - Metode kurva-S (bobot=biaya/total; batang=durasi; akumulasi %/waktu) =
+//     praktik baku Indonesia, dipakai Kementerian PUPR. Ini persis model
+//     BaselineScheduleItem → curveFromCategorySchedule.
+//   - Sekuens site-development internasional: clearing/rough grading → utilitas
+//     bawah tanah → finish grading → paving → LANDSCAPING & LIGHTING (site
+//     amenities) terakhir. Sekuens gedung ID: persiapan → pondasi → struktur →
+//     arsitektur/finishing → MEP.
+// Angka % jendela = kalibrasi dari jadwal nyata (tak ada standar tertulis yang
+// memberi persentase pasti); disempurnakan per-lokasi lewat editor manual.
 export const CATEGORY_PHASE: ReadonlyArray<readonly [string, number, number]> = [
   ["PERSIAPAN", 0.0, 0.28],
   ["LEVELLING", 0.05, 0.28],

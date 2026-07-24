@@ -1553,3 +1553,23 @@ scurve — dengan test properti, bukan paritas nilai):**
   KINI benar-benar propagate ke semua). Baseline LAMA perlu "Hitung ulang" agar
   menyimpan scheduleItems & mengikuti jendela baru. `scheduleBySequence`/envelope
   (077) tak lagi dipakai baseline.
+
+## 080 · 2026-07-24 · Validasi kalibrasi kurva-S ke sumber kredibel + re-test
+
+- Koreksi proses (jujur): kalibrasi kurva-S (070/077/079) semula HANYA dari file
+  yang diunggah + pengetahuan model — belum divalidasi ke sumber online kredibel.
+  Atas permintaan user, dilakukan riset real-time (Indonesia + internasional).
+- Hasil riset MENGONFIRMASI arsitektur & urutan:
+  - Metode kurva-S ID (bobot=biaya/total; batang=durasi; akumulasi %/waktu; dipakai
+    Kementerian PUPR) = PERSIS model BaselineScheduleItem → curveFromCategorySchedule.
+  - Sekuens site-development internasional: clearing/rough grading → utilitas bawah
+    tanah → finish grading → paving → LANDSCAPING & LIGHTING terakhir (site amenities).
+    Sekuens gedung ID: persiapan → pondasi → struktur → arsitektur/finishing → MEP.
+  - → Presedensi kalibrasi (persiapan awal; penerangan/genset/IPAL/landskap akhir)
+    selaras. Provenance sumber ditandai di komentar CATEGORY_PHASE (generate.ts).
+- Batas jujur: tak ada standar tertulis yang memberi PERSENTASE jendela pasti —
+  angka % tetap kalibrasi dari jadwal nyata, disempurnakan per-lokasi via editor manual.
+- Re-test menyeluruh: typecheck/lint ✓, 128 unit test ✓, dan 8 RAB KNMP nyata LULUS
+  invarian tervalidasi (persiapan awal; penerangan/genset/landskap/IPAL di akhir;
+  kurva S landai–curam–landai, monoton, berakhir 100). Kurva agregat konsisten
+  6–8 / 38–43 / 88–93 pada 20/50/80% waktu.
