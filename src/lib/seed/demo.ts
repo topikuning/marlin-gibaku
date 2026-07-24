@@ -4,7 +4,7 @@ import type { PrismaClient } from "@/generated/prisma/client";
 import { hashPassword } from "@/lib/auth/password";
 import { flattenParsedRab, grandTotal, type FlatNode } from "@/lib/rab/flatten";
 import type { ParsedRab } from "@/lib/rab/parsed";
-import { scheduleItems } from "@/lib/scurve/generate";
+import { scheduleBySequence } from "@/lib/scurve/sequencing";
 import { ADMIN_MILESTONE_TEMPLATE } from "@/lib/milestones/template";
 import { withPpn, valueDone as calcValueDone } from "@/lib/money";
 import { seedMasterLocations } from "@/lib/seed/master-location";
@@ -272,7 +272,7 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
             categoryName: catByRoman.get(n.lineageKey.split("#")[0]) ?? "",
             amount: n.amount,
           }));
-        const weekly = scheduleItems(items, contractDays);
+        const weekly = scheduleBySequence(items, contractDays);
         const baseline = await db.baseline.create({
           data: {
             locationId: location.id,

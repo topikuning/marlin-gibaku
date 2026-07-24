@@ -3,12 +3,8 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { COUNTED_REPORT_STATUSES, currentWeekNumber } from "@/lib/progress";
 import { contractDaysFor } from "@/lib/rab/import";
-import {
-  classifyTrade,
-  computeTradeWindows,
-  curveFromCategorySchedule,
-  tradeWeights,
-} from "@/lib/scurve/generate";
+import { curveFromCategorySchedule } from "@/lib/scurve/generate";
+import { placeItems, type SeqItem } from "@/lib/scurve/sequencing";
 
 /**
  * Layer baseline (kurva-S rencana ber-versi) + deret rencana vs realisasi.
@@ -185,25 +181,31 @@ export async function deriveCategorySchedule(locationId: string): Promise<Catego
     }
   }
 
-  // Derivasi otomatis: jendela kategori = envelope jendela trade item-itemnya.
-  const windows = computeTradeWindows(tradeWeights(
-    base.items.map((it) => ({ name: it.name, categoryName: "", amount: it.amount })),
-  ));
+  // Derivasi otomatis: jendela kategori = envelope jendela TAHAP item-itemnya
+  // (mesin sequencing per-unit — konsisten dgn kurva auto scheduleBySequence).
   const catKeys = base.categories
-    .map((c) => c.lineageKey)
-    .sort((a, b) => b.length - a.length);
-  const categoryKeyFor = (lineageKey: string): string | null =>
-    catKeys.find((k) => lineageKey === k || lineageKey.startsWith(`${k}#`)) ?? null;
+    .map((c) => ({ key: c.lineageKey, name: c.name }))
+    .sort((a, b) => b.key.length - a.key.length);
+  const categoryFor = (lineageKey: string): { key: string; name: string } | null =>
+    catKeys.find((c) => lineageKey === c.key || lineageKey.startsWith(`${c.key}#`)) ?? null;
 
-  const envelope = new Map<string, { start: number; end: number }>();
+  const seqItems: SeqItem[] = [];
+  const keyByName = new Map<string, string>(); // categoryName → lineageKey (envelope index)
   for (const it of base.items) {
-    const catKey = categoryKeyFor(it.lineageKey);
+    const cat = categoryFor(it.lineageKey);
+    if (!cat) continue;
+    keyByName.set(cat.name, cat.key);
+    seqItems.push({ name: it.name, categoryName: cat.name, amount: it.amount });
+  }
+  const placements = placeItems(seqItems);
+  const envelope = new Map<string, { start: number; end: number }>();
+  for (const p of placements) {
+    const catKey = keyByName.get(p.categoryName);
     if (!catKey) continue;
-    const w = windows[classifyTrade(it.name, "")];
     const cur = envelope.get(catKey);
     envelope.set(catKey, {
-      start: cur ? Math.min(cur.start, w.start) : w.start,
-      end: cur ? Math.max(cur.end, w.end) : w.end,
+      start: cur ? Math.min(cur.start, p.start) : p.start,
+      end: cur ? Math.max(cur.end, p.end) : p.end,
     });
   }
 

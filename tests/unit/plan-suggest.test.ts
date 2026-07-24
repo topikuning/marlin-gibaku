@@ -69,11 +69,52 @@ describe("computeSuggestions", () => {
   });
 
   it("prioritas 1 = dampak rupiah terbesar", () => {
-    const big = leaf({ rabNodeId: "big", lineageKey: "I#2", volume: 1000, unitPrice: 5000, name: "Beton besar", categoryName: "STRUKTUR" });
+    const big = leaf({ rabNodeId: "big", lineageKey: "I#2", volume: 1000, unitPrice: 5000, name: "Beton besar kolom", categoryName: "PEKERJAAN BANGUNAN KIOS" });
     const small = leaf({ rabNodeId: "small", lineageKey: "I#3", volume: 10, unitPrice: 100 });
     const res = computeSuggestions([small, big], new Map(), 8, 22);
     expect(res[0].priority).toBeLessThanOrEqual(res[res.length - 1].priority);
     expect(res[0].valueTarget).toBeGreaterThanOrEqual(res[res.length - 1].valueTarget);
+  });
+});
+
+// ── GERBANG PRASYARAT per-unit (contoh rumah genset) ─────────────────────────
+describe("gerbang prasyarat: dinding tak disarankan sebelum pondasi unit ini ≥ 80%", () => {
+  const pondasi = {
+    rabNodeId: "g1",
+    code: "1",
+    name: "PEKERJAAN PONDASI FOOTPLAT BETON",
+    unit: "m3",
+    categoryName: "PEKERJAAN BANGUNAN GENSET",
+    volume: 50,
+    unitPrice: 1000,
+    lineageKey: "G#1",
+  };
+  const dinding = {
+    rabNodeId: "g2",
+    code: "2",
+    name: "PEKERJAAN PASANGAN DINDING BATA MERAH",
+    unit: "m2",
+    categoryName: "PEKERJAAN BANGUNAN GENSET",
+    volume: 80,
+    unitPrice: 1000,
+    lineageKey: "G#2",
+  };
+
+  it("pondasi belum jalan (0%) → dinding DIBLOKIR, pondasi tetap muncul", () => {
+    const res = computeSuggestions([pondasi, dinding], new Map(), 12, 20);
+    const names = res.map((s) => s.name);
+    expect(names.some((n) => n.includes("DINDING"))).toBe(false); // diblokir prasyarat
+    expect(names.some((n) => n.includes("PONDASI"))).toBe(true); // prasyarat sendiri muncul
+  });
+
+  it("pondasi selesai (100%) → dinding BOLEH disarankan", () => {
+    const res = computeSuggestions([pondasi, dinding], new Map([["G#1", 50]]), 12, 20);
+    expect(res.some((s) => s.name.includes("DINDING"))).toBe(true);
+  });
+
+  it("pondasi baru 50% (< gerbang 80%) → dinding masih diblokir", () => {
+    const res = computeSuggestions([pondasi, dinding], new Map([["G#1", 25]]), 12, 20);
+    expect(res.some((s) => s.name.includes("DINDING"))).toBe(false);
   });
 });
 

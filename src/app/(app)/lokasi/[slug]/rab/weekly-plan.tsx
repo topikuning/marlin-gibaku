@@ -202,7 +202,7 @@ function SuggestPanel({ locationId, weekNumber }: { locationId: string; weekNumb
                     <td className="max-w-64 truncate py-1.5 pr-3 pl-2" title={s.name}>
                       <span className="text-xs text-ink-muted">{s.code}</span> {s.name}
                     </td>
-                    <td className="py-1.5 pr-3 text-xs text-ink-muted">{s.tradeLabel}</td>
+                    <td className="py-1.5 pr-3 text-xs text-ink-muted">{s.stageLabel}</td>
                     <td className="tabular py-1.5 pr-3 text-right text-ink-muted">
                       {formatNumber(s.remainingVolume)} {s.unit ?? ""}
                     </td>

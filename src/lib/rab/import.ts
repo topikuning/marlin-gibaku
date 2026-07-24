@@ -3,7 +3,8 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { flattenParsedRab, grandTotal } from "@/lib/rab/flatten";
 import type { ParsedRab } from "@/lib/rab/parsed";
-import { DEFAULT_CONTRACT_DAYS, scheduleItems } from "@/lib/scurve/generate";
+import { DEFAULT_CONTRACT_DAYS } from "@/lib/scurve/generate";
+import { scheduleBySequence } from "@/lib/scurve/sequencing";
 import type { BaselineSource, RabRevisionSource } from "@/generated/prisma/enums";
 
 /**
@@ -245,7 +246,8 @@ export async function regenerateBaseline(locationId: string, opts: RegenerateBas
     }));
 
   const contractDays = await contractDaysFor(locationId);
-  const weekly = scheduleItems(items, contractDays);
+  // Penjadwalan berurut per-unit (tahapan real lapangan) — sequencing.ts.
+  const weekly = scheduleBySequence(items, contractDays);
 
   // IDEMPOTENT: bila hasil hitung identik dengan baseline aktif (revisi, durasi,
   // dan seluruh titik sama), JANGAN buat versi baru — menekan "Hitung ulang"

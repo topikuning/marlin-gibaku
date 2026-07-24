@@ -1,14 +1,14 @@
-import { classifyTrade, computeTradeWindows, tradePlannedFraction, type TradeKey } from "./generate";
+import { classifyStage, detectWorkType, stagePlannedFraction } from "./sequencing";
 
 /**
  * Data untuk sheet "KURVA S" resmi KKP (halaman-1 laporan periodik): tabel bobot
  * kategori × minggu (increment per minggu) + baris prestasi + garis kurva-S.
  * MURNI (tanpa DB) — bisa diuji & dipakai di server component.
  *
- * PENTING: distribusi per minggu dihitung PER ITEM (trade/urutan lapangan) lalu
- * dijumlahkan ke kategori — SAMA dgn model baseline (scheduleItems, DECISIONS
- * 052). Jadi kumulatif rencana di sini IDENTIK dgn baseline/kurva-S yang dipakai
- * progress & deviasi di seluruh app (dulu sempat beda karena pakai fase kategori).
+ * PENTING: distribusi per minggu dihitung PER ITEM lewat penjadwalan BERURUT
+ * per-unit (sequencing.ts: tipe pekerjaan unit → tahap item) lalu dijumlahkan ke
+ * kategori — SAMA dgn model baseline (scheduleBySequence). Jadi kumulatif rencana
+ * di sheet KKP IDENTIK dgn baseline/kurva-S yang dipakai progress & deviasi.
  */
 
 const MONTHS_ID = [
@@ -55,37 +55,31 @@ export function buildKurvaSheet(input: {
     else monthGroups.push({ label, span: 1 });
   }
 
-  // Jendela jadwal PER-LOKASI (konsisten dgn baseline scheduleItems): bobot
-  // trade = Σ bobot item per trade dari seluruh kategori.
-  const weightByTrade = input.categories.reduce<Partial<Record<TradeKey, number>>>((acc, c) => {
-    for (const it of c.items) {
-      if (it.bobot > 0) {
-        const t = classifyTrade(it.name, c.name);
-        acc[t] = (acc[t] ?? 0) + it.bobot;
-      }
-    }
-    return acc;
-  }, {});
-  const windows = computeTradeWindows(weightByTrade);
+  // Tipe pekerjaan per UNIT (kategori) — konsisten dgn scheduleBySequence.
+  const typeByCat = new Map(
+    input.categories.map((c) => [c.name, detectWorkType(c.name, c.items.map((it) => it.name))]),
+  );
 
-  // Increment bobot per kategori per minggu = Σ item (trade item) — konsisten
-  // dgn baseline. Pra-hitung fraksi trade per minggu (cache) agar efisien.
+  // Increment bobot per kategori per minggu = Σ item (tahap item) — identik dgn
+  // baseline. Pra-hitung fraksi tahap per minggu (cache per workType|stage).
   const fracCache = new Map<string, number[]>();
-  const tradeFrac = (name: string, catName: string): number[] => {
-    const trade = classifyTrade(name, catName);
-    let arr = fracCache.get(trade);
+  const stageFrac = (workType: ReturnType<typeof detectWorkType>, name: string, catName: string): number[] => {
+    const stage = classifyStage(workType, name, catName);
+    const cacheKey = `${workType}|${stage}`;
+    let arr = fracCache.get(cacheKey);
     if (!arr) {
-      arr = [0, ...weeks.map((w) => tradePlannedFraction(trade, w, n, windows))]; // index 0 = minggu 0
-      fracCache.set(trade, arr);
+      arr = [0, ...weeks.map((w) => stagePlannedFraction(workType, stage, w, n))]; // index 0 = minggu 0
+      fracCache.set(cacheKey, arr);
     }
     return arr;
   };
   const categories: KurvaSheetCategory[] = input.categories.map((c) => {
+    const workType = typeByCat.get(c.name)!;
     const weekly = new Array<number>(n).fill(0);
     let bobot = 0;
     for (const it of c.items) {
       bobot += it.bobot;
-      const frac = tradeFrac(it.name, c.name);
+      const frac = stageFrac(workType, it.name, c.name);
       for (let i = 0; i < n; i++) weekly[i] += it.bobot * Math.max(0, frac[i + 1] - frac[i]);
     }
     return { code: c.code, name: c.name, bobot, weekly };

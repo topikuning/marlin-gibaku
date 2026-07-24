@@ -1339,3 +1339,31 @@ scurve — dengan test properti, bukan paritas nilai):**
   kurva multi-garis satu grafik; tombol **Pulihkan** (konfirmasi 2 langkah) =
   salin versi lama menjadi versi BARU aktif (append-only, riwayat tetap linear;
   status versi lama tidak diubah), audit `baseline.restore`.
+
+## 070 · 2026-07-24 · Penjadwalan konstruksi per-unit menggantikan trade-global (kurva + rekomendasi)
+
+- **Masalah** (dari user, contoh rumah genset): penjadwalan lama mengelompokkan
+  item per-trade GLOBAL selokasi → urutan antar-tahap DALAM satu bangunan tak
+  terjamin (dinding bisa "mulai" sebelum pondasi unitnya karena meminjam jendela
+  pondasi global bangunan lain). MEP juga tak dipisah (pasang kabel = pasang lampu).
+- **Mesin baru** `src/lib/scurve/sequencing.ts` (Slice A): WBS per-unit (kategori
+  RAB = bangunan/ruas) → deteksi tipe (gedung/jalan/marine/utilitas/lansekap/umum)
+  → tiap item ke TAHAP ber-presedensi. MEP dipecah rough-in (kabel/konduit/
+  instalasi tanam, dini) vs finish (lampu/armatur/sanitair, setelah cat).
+  Pondasi<struktur<dinding; jalan: perkerasan setelah lapis pondasi, marka akhir.
+  Deterministik + pure. Diuji terhadap korpus 15 RAB nyata (547 item): cakupan
+  by-value ~83%, invarian hard-edge per-unit terpenuhi.
+- **Slice B** — disambungkan:
+  - `regenerateBaseline` & demo seed pakai `scheduleBySequence` (bukan scheduleItems).
+  - `suggest-core` (rekomendasi mingguan) pakai tahap per-unit + **GERBANG
+    PRASYARAT**: tahap penerus tak disarankan bila prasyarat KERAS di unit yang
+    sama < 80% (mis. dinding rumah genset ditahan sampai pondasinya ≥80%).
+  - `kkp-sheet` (kurva-S resmi KKP) & `deriveCategorySchedule` (editor manual)
+    ikut memakai mesin baru → semua tampilan kurva konsisten satu sumban.
+- Fungsi trade lama (scheduleItems/classifyTrade/computeTradeWindows/
+  tradePlannedFraction) DITINGGALKAN app tapi disimpan+diuji (generate.ts) untuk
+  generateScurve/categoryPlannedFraction lain; bisa dibersihkan kelak.
+- **Batas jujur**: klasifikasi kata kunci (~17% jatuh ke "lainnya" jendela tengah
+  low-risk); kategori = unit (bila satu kategori campur banyak bangunan, presisi
+  turun); presedensi-template per-unit, BUKAN CPM antar-item eksplisit. Semua bisa
+  diperbaiki bertahap (tabel + uji).
