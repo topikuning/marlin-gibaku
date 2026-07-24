@@ -1,3 +1,5 @@
+import { categoryWeeklyIncrements } from "./generate";
+
 /**
  * Data untuk sheet "KURVA S" resmi KKP (halaman-1 laporan periodik): tabel bobot
  * kategori × minggu (increment per minggu) + baris prestasi + garis kurva-S.
@@ -54,17 +56,15 @@ export function buildKurvaSheet(input: {
     else monthGroups.push({ label, span: 1 });
   }
 
-  // Increment bobot per kategori per minggu = bobot ÷ durasi, disebar RATA dalam
-  // jendela [startWeek..endWeek] (format standar barchart sipil). Jumlah agregat
-  // = kurva baseline (curveFromCategorySchedule) → sinkron dgn grafik & deviasi.
-  const categories: KurvaSheetCategory[] = input.categories.map((c) => {
-    const weekly = new Array<number>(n).fill(0);
-    const s = Math.max(1, Math.min(n, Math.floor(c.startWeek)));
-    const e = Math.max(s, Math.min(n, Math.floor(c.endWeek)));
-    const perWeek = c.weightPct / (e - s + 1);
-    for (let w = s; w <= e; w++) weekly[w - 1] += perWeek;
-    return { code: c.code, name: c.name, bobot: c.weightPct, weekly };
-  });
+  // Increment bobot per kategori per minggu = distribusi LONCENG dalam jendela
+  // (categoryWeeklyIncrements — bukan rata; DECISIONS 081). Jumlah agregat =
+  // kurva baseline (curveFromCategorySchedule) → sinkron dgn grafik & deviasi.
+  const categories: KurvaSheetCategory[] = input.categories.map((c) => ({
+    code: c.code,
+    name: c.name,
+    bobot: c.weightPct,
+    weekly: categoryWeeklyIncrements(c.weightPct, c.startWeek, c.endWeek, n),
+  }));
 
   // Baris prestasi.
   const rencanaPerWeek = weeks.map((_, i) => categories.reduce((s, c) => s + c.weekly[i], 0));

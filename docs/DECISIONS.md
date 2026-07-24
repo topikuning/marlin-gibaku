@@ -1573,3 +1573,23 @@ scurve — dengan test properti, bukan paritas nilai):**
   invarian tervalidasi (persiapan awal; penerangan/genset/landskap/IPAL di akhir;
   kurva S landai–curam–landai, monoton, berakhir 100). Kurva agregat konsisten
   6–8 / 38–43 / 88–93 pada 20/50/80% waktu.
+
+## 081 · 2026-07-24 · Distribusi bobot per pekerjaan = LONCENG, bukan rata per minggu
+
+- Temuan user: "bobot ÷ durasi rata" tidak masuk akal — revetmen 5%/5 minggu jadi
+  rata 1%/minggu. Pekerjaan nyata naik–puncak–turun, bukan flat.
+- Cek data nyata (TS Tambakagung): 9 dari 10 kategori BERVARIASI per minggu
+  (mis. PERSIAPAN [2897824], PONDASI [796], JALAN [2449830]) — hanya 1 (2 minggu)
+  yang ~rata. Membenarkan keluhan.
+- Cek sumber kredibel (2026-07): pengeluaran/produksi per periode sebuah aktivitas
+  jarang linear — mengikuti BELL (rendah–tinggi–rendah) peaking di tengah aktivitas,
+  terakumulasi jadi S. (Frontline Advisory, GReAT/CPM cash-flow S-curve.)
+- Perbaikan: `categoryWeeklyIncrements(bobot, start, end, weeks)` — sebar bobot
+  LONCENG dalam jendela: increment mgg-k = bobot × Δsmoothstep(k/durasi). Tiap
+  pekerjaan jadi mini-kurva-S; agregat pekerjaan bertahap = kurva-S. Dipakai SATU
+  tempat oleh `curveFromCategorySchedule` (grafik/baseline) & `buildKurvaSheet`
+  (tabel KKP) → tetap sinkron.
+- Contoh: revetmen 5%/5mgg → 0,52 / 1,24 / 1,48 / 1,24 / 0,52 (Σ=5) — bukan rata 1%.
+- Verifikasi: typecheck/lint ✓, 128 unit test ✓ (uji lonceng + Σ=bobot + simetris),
+  6 RAB nyata → kurva agregat tetap S valid (monoton, berakhir 100, 6–9/38–42/89–94).
+  Baseline lama perlu "Hitung ulang" agar ikut distribusi lonceng.

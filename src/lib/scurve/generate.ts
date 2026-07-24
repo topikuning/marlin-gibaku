@@ -387,12 +387,42 @@ export type CategoryScheduleRow = {
 };
 
 /**
- * Kurva-S dari jadwal per pekerjaan — FORMAT STANDAR kurva-S sipil (barchart):
- * bobot tiap pekerjaan dibagi RATA per minggu di dalam jendela
- * [startWeek..endWeek], lalu diakumulasi vertikal per minggu → kumulatif.
- * (Praktik lapangan Indonesia: "bobot ÷ durasi" per periode; kurva-S agregat
- * mendapatkan bentuk S dari tumpang-tindih antar pekerjaan, bukan dari
- * distribusi per aktivitas.)
+ * Sebar bobot SATU pekerjaan ke minggu-minggu dalam jendela [startWeek..endWeek]
+ * dengan pola LONCENG (rendah–tinggi–rendah), BUKAN rata. DECISIONS 081.
+ *
+ * Kaidah (divalidasi 2026-07): pengeluaran/produksi per periode sebuah aktivitas
+ * jarang linear — mengikuti bell peaking di tengah aktivitas, terakumulasi jadi S.
+ * "Rata 1%/minggu" tidak realistis; jadwal sipil nyata KNMP pun bervariasi
+ * (ramp-up → puncak → taper). Increment mingguan = bobot × Δ smoothstep(k/durasi)
+ * → tiap pekerjaan adalah mini-kurva-S; jumlah pekerjaan yang bertahap = kurva-S
+ * agregat. Return array panjang totalWeeks (0 di luar jendela); Σ = bobot.
+ */
+export function categoryWeeklyIncrements(
+  weightPct: number,
+  startWeek: number,
+  endWeek: number,
+  totalWeeks: number,
+): number[] {
+  const n = Math.max(1, Math.floor(totalWeeks));
+  const out = new Array<number>(n).fill(0);
+  if (!(weightPct > 0)) return out;
+  const s = Math.max(1, Math.min(n, Math.floor(startWeek)));
+  const e = Math.max(s, Math.min(n, Math.floor(endWeek)));
+  const d = e - s + 1;
+  let prev = 0;
+  for (let k = 1; k <= d; k++) {
+    const cum = smoothstep(k / d); // kumulatif aktivitas: S 0→1 sepanjang jendela
+    out[s - 1 + (k - 1)] = weightPct * (cum - prev);
+    prev = cum;
+  }
+  return out;
+}
+
+/**
+ * Kurva-S dari jadwal per pekerjaan (barchart sipil): tiap pekerjaan disebar
+ * LONCENG dalam jendelanya (categoryWeeklyIncrements), lalu dijumlah vertikal &
+ * diakumulasi → kumulatif. Kurva-S agregat lahir dari tumpang-tindih pekerjaan
+ * yang bertahap PLUS lonceng tiap pekerjaan. DECISIONS 081.
  *
  * Sifat: mulai 0 (sebelum minggu-1), akhir = Σ bobot (=100 bila lengkap),
  * monotonik naik. Jendela di luar rentang di-clamp ke [1..totalWeeks].
@@ -404,11 +434,8 @@ export function curveFromCategorySchedule(
   const n = Math.max(1, Math.floor(totalWeeks));
   const weekly = new Array<number>(n).fill(0);
   for (const r of rows) {
-    if (!(r.weightPct > 0)) continue;
-    const s = Math.max(1, Math.min(n, Math.floor(r.startWeek)));
-    const e = Math.max(s, Math.min(n, Math.floor(r.endWeek)));
-    const perWeek = r.weightPct / (e - s + 1);
-    for (let w = s; w <= e; w++) weekly[w - 1] += perWeek;
+    const inc = categoryWeeklyIncrements(r.weightPct, r.startWeek, r.endWeek, n);
+    for (let i = 0; i < n; i++) weekly[i] += inc[i];
   }
   const out: number[] = [];
   let acc = 0;

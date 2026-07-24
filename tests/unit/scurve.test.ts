@@ -200,22 +200,27 @@ describe("scheduleItems", () => {
   });
 });
 
-describe("curveFromCategorySchedule (jadwal per pekerjaan, distribusi rata)", () => {
-  it("satu pekerjaan penuh durasi → linear, akhir 100", () => {
+describe("curveFromCategorySchedule (jadwal per pekerjaan, distribusi LONCENG — DECISIONS 081)", () => {
+  it("satu pekerjaan penuh durasi → bell: landai-curam-landai, tengah ~50, akhir 100", () => {
     const c = curveFromCategorySchedule([{ weightPct: 100, startWeek: 1, endWeek: 10 }], 10);
     expect(c).toHaveLength(10);
-    expect(c[0]).toBeCloseTo(10, 5);
-    expect(c[4]).toBeCloseTo(50, 5);
+    expect(c[0]).toBeLessThan(10); // minggu-1 < porsi rata (landai, bukan linear)
+    expect(c[4]).toBeCloseTo(50, 0); // tengah ~50 (bell simetris)
     expect(c[9]).toBeCloseTo(100, 5);
+    for (let i = 1; i < c.length; i++) expect(c[i]).toBeGreaterThanOrEqual(c[i - 1]);
   });
 
-  it("bobot dibagi rata dalam jendela; di luar jendela nol", () => {
+  it("bobot disebar LONCENG dalam jendela (bukan rata); di luar jendela nol; Σ=bobot", () => {
     const c = curveFromCategorySchedule([{ weightPct: 60, startWeek: 3, endWeek: 5 }], 6);
     expect(c[0]).toBe(0); // sebelum mulai
     expect(c[1]).toBe(0);
-    expect(c[2]).toBeCloseTo(20, 5); // 60/3 per minggu
-    expect(c[3]).toBeCloseTo(40, 5);
-    expect(c[4]).toBeCloseTo(60, 5);
+    const w3 = c[2] - c[1]; // increment mgg3
+    const w4 = c[3] - c[2]; // increment mgg4 (puncak)
+    const w5 = c[4] - c[3]; // increment mgg5
+    expect(w4).toBeGreaterThan(w3); // naik ke puncak
+    expect(w4).toBeGreaterThan(w5); // lalu turun → lonceng
+    expect(w3).toBeCloseTo(w5, 5); // simetris
+    expect(c[4]).toBeCloseTo(60, 5); // selesai = bobot penuh
     expect(c[5]).toBeCloseTo(60, 5); // setelah selesai: datar
   });
 
