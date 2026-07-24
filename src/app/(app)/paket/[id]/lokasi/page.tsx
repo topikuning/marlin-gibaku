@@ -14,7 +14,8 @@ import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
 import { LOCATION_STATUS_LABEL, LOCATION_STATUS_TONE } from "@/lib/lifecycle";
 import { getPackageWorkspace } from "@/lib/package/queries";
-import { AddLocationForm, RemoveLocationButton } from "./lokasi-forms";
+import { getAvailableCatalog } from "@/lib/master-location/queries";
+import { AddLocationForm, CatalogLocationPicker, RemoveLocationButton } from "./lokasi-forms";
 
 export const metadata: Metadata = { title: "Lokasi Paket" };
 export const dynamic = "force-dynamic";
@@ -33,6 +34,7 @@ export default async function LokasiPaketPage({
 
   const canProspect = can(user.role, "prospect.manage");
   const praKontrak = !pkg.contract && ["prospek", "tender", "penetapan"].includes(pkg.stage);
+  const catalog = praKontrak && canProspect ? (await getAvailableCatalog(user.orgId)).available : [];
 
   return (
     <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
@@ -94,10 +96,23 @@ export default async function LokasiPaketPage({
         <Card className="self-start">
           <CardHeader
             title="Tambah lokasi target"
-            subtitle="Lokasi dibuat nonaktif (status Persiapan) dan aktif otomatis saat konversi kontrak."
+            subtitle="Pilih dari katalog master (impor) atau isi manual. Lokasi dibuat nonaktif (Persiapan) dan aktif otomatis saat konversi kontrak."
           />
-          <CardBody>
-            <AddLocationForm packageId={pkg.id} defaultProvince={pkg.province ?? ""} />
+          <CardBody className="space-y-4">
+            {catalog.length > 0 ? (
+              <div>
+                <p className="mb-2 text-[13px] font-medium text-ink">Dari katalog master</p>
+                <CatalogLocationPicker packageId={pkg.id} catalog={catalog} />
+              </div>
+            ) : null}
+            <details {...(catalog.length === 0 ? { open: true } : {})} className="group">
+              <summary className="cursor-pointer text-[13px] font-medium text-primary hover:underline">
+                {catalog.length > 0 ? "Atau isi manual" : "Isi manual"}
+              </summary>
+              <div className="mt-3">
+                <AddLocationForm packageId={pkg.id} defaultProvince={pkg.province ?? ""} />
+              </div>
+            </details>
           </CardBody>
         </Card>
       ) : (

@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import { Banner, Button, HelpText, Input, Label, Textarea } from "@/components/ui";
 import { createPackage, type PackageActionState } from "@/lib/package/actions";
 
-export function PaketBaruForm() {
+export function PaketBaruForm({ vendorNames = [] }: { vendorNames?: string[] }) {
   const [state, action, pending] = useActionState<PackageActionState, FormData>(
     createPackage,
     undefined,
@@ -48,7 +48,21 @@ export function PaketBaruForm() {
 
       <div>
         <Label htmlFor="pb-vendor">Kandidat vendor</Label>
-        <Input id="pb-vendor" name="candidateVendorName" placeholder="Opsional — nama kandidat" />
+        <Input
+          id="pb-vendor"
+          name="candidateVendorName"
+          list="pb-vendor-list"
+          placeholder="Opsional — pilih dari master atau ketik baru"
+          autoComplete="off"
+        />
+        {vendorNames.length > 0 ? (
+          <datalist id="pb-vendor-list">
+            {vendorNames.map((n) => (
+              <option key={n} value={n} />
+            ))}
+          </datalist>
+        ) : null}
+        <HelpText>Perusahaan yang sudah diimpor akan muncul sebagai saran; boleh juga ketik nama baru.</HelpText>
       </div>
 
       <div>

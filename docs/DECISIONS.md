@@ -1394,3 +1394,16 @@ scurve — dengan test properti, bukan paritas nilai):**
   - StatusPill: teralokasi penuh (±1%) / ada selisih / belum semua lokasi ber-RAB.
   - Rincian per lokasi (details): RAB pra-PPN + % thd nilai dasar; tandai lokasi
     tanpa RAB. Menutup celah verifikasi alokasi kontrak↔RAB.
+
+## 073 · 2026-07-24 · Alur normal: pilih vendor & lokasi dari master impor (bukan hanya manual)
+
+- Keluhan user: di proses normal, perusahaan/lokasi yang sudah DIIMPOR tak bisa
+  dipilih — hanya bisa ketik manual. Harusnya bisa tambah baru ATAU pilih yang ada.
+- **Lokasi (pra-kontrak)**: `addTargetLocationsFromCatalog(packageId, masterIds[])`
+  — buat lokasi target dari katalog MasterLocation (belum terpakai, tolak yang
+  bentrok kunci alami), tandai master terpakai, prefill kandidat vendor paket bila
+  seragam. UI: `CatalogLocationPicker` (cari + centang) di tab Lokasi, di atas form
+  manual (manual jadi `<details>` "Atau isi manual"). Reuse getAvailableCatalog.
+- **Vendor**: form Paket Baru "Kandidat vendor" kini `<input list>` + `<datalist>`
+  nama vendor (dari listVendors) → bisa pilih perusahaan terimpor ATAU ketik baru.
+  Konversi kontrak sudah punya dropdown vendor (existing/baru) — tak berubah.

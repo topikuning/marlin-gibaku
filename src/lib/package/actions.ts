@@ -432,6 +432,97 @@ export async function addTargetLocation(
   return { success: `Lokasi target "${d.name}" ditambahkan.` };
 }
 
+/**
+ * Tambah lokasi target dari KATALOG master (impor). Alur normal (pra-kontrak) —
+ * setara bypass tapi lokasi dibuat NONAKTIF (target), aktif saat konversi kontrak.
+ * Menandai master terpakai + prefill kandidat vendor paket bila belum ada.
+ */
+export async function addTargetLocationsFromCatalog(
+  packageId: string,
+  masterLocationIds: string[],
+): Promise<PackageActionState> {
+  const actor = await requireCapability("prospect.manage");
+  const pid = z.uuid().safeParse(packageId);
+  if (!pid.success) return { error: "ID paket tidak valid." };
+  const ids = z.array(z.uuid()).min(1, "Pilih minimal satu lokasi dari katalog.").safeParse(masterLocationIds);
+  if (!ids.success) return { error: ids.error.issues[0].message };
+
+  const result = await db.$transaction(async (tx) => {
+    const pkg = await tx.package.findUnique({
+      where: { id: pid.data },
+      select: { orgId: true, stage: true, candidateVendorName: true, contract: { select: { id: true } } },
+    });
+    if (!pkg) return { error: "Paket tidak ditemukan." as string };
+    if (pkg.orgId !== actor.orgId) return { error: "Paket bukan milik organisasi Anda." };
+    if (pkg.contract || !PRA_KONTRAK.includes(pkg.stage)) {
+      return { error: "Lokasi target hanya bisa ditambah sebelum paket berkontrak." };
+    }
+
+    const masters = await tx.masterLocation.findMany({
+      where: { id: { in: ids.data }, orgId: actor.orgId },
+      select: {
+        id: true, province: true, regency: true, district: true, village: true,
+        latitude: true, longitude: true, candidateVendor: true, assignedLocationId: true,
+      },
+    });
+    if (masters.length !== ids.data.length) return { error: "Sebagian lokasi tak ditemukan di katalog." };
+    const used = masters.filter((m) => m.assignedLocationId);
+    if (used.length > 0) return { error: `${used.length} lokasi sudah dipakai proyek lain — segarkan halaman.` };
+
+    // Tolak yang kunci alaminya sudah ada sebagai Location riil (cegah ganda).
+    const existingKeys = await existingLocationKeys(actor.orgId);
+    const clash = masters.filter((m) => existingKeys.has(locationKey(m)));
+    if (clash.length > 0) {
+      return { error: `Sudah ada di sistem: ${clash.map((m) => `${m.village} (${m.regency})`).join(", ")}.` };
+    }
+
+    const takenSlugs = new Set<string>();
+    for (const m of masters) {
+      const name = `KNMP ${m.village}`;
+      const base = slugify(`${name}-${m.regency}`);
+      let slug = base;
+      for (let n = 2; takenSlugs.has(slug) || (await tx.location.findUnique({ where: { slug }, select: { id: true } })); n += 1) {
+        slug = `${base}-${n}`;
+      }
+      takenSlugs.add(slug);
+      const loc = await tx.location.create({
+        data: {
+          packageId: pid.data,
+          name,
+          slug,
+          village: m.village,
+          district: m.district,
+          regency: m.regency,
+          province: m.province,
+          gpsLat: m.latitude,
+          gpsLng: m.longitude,
+          status: "persiapan",
+          isActive: false,
+        },
+        select: { id: true },
+      });
+      await tx.masterLocation.update({ where: { id: m.id }, data: { assignedLocationId: loc.id } });
+    }
+
+    // Prefill kandidat vendor paket dari katalog bila belum diisi & seragam.
+    if (!pkg.candidateVendorName?.trim()) {
+      const vendors = [...new Set(masters.map((m) => m.candidateVendor?.trim()).filter((v): v is string => !!v))];
+      if (vendors.length === 1) {
+        await tx.package.update({ where: { id: pid.data }, data: { candidateVendorName: vendors[0] } });
+      }
+    }
+    return { count: masters.length };
+  });
+  if ("error" in result) return { error: result.error };
+
+  await audit(actor.id, "package.location_add_catalog", "package", pid.data, {
+    count: result.count,
+    masterLocationIds: ids.data,
+  });
+  revalidatePath(`/paket/${pid.data}`, "layout");
+  return { success: `${result.count} lokasi target ditambahkan dari katalog.` };
+}
+
 /** Hapus lokasi target: hanya bila belum aktif dan belum punya RAB. */
 export async function removeTargetLocation(locationId: string): Promise<PackageActionState> {
   const actor = await requireCapability("prospect.manage");
