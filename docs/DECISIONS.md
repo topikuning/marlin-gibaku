@@ -1381,3 +1381,16 @@ scurve — dengan test properti, bukan paritas nilai):**
 - **UI**: primitive `CollapsibleCard` (native <details>, tanpa JS klien). Editor
   "Jadwal per pekerjaan" & "Penyesuaian halus %-mingguan" di halaman Progress kini
   terlipat default (klik header untuk buka) — mengurangi ruang terpakai.
+
+## 072 · 2026-07-24 · Rekonsiliasi nilai kontrak (input) vs Σ RAB semua lokasi (halaman paket)
+
+- Pertanyaan user: "Nilai kontrak berjalan" di ringkasan paket = INPUT (nilai
+  kontrak + adendum), BUKAN jumlah lokasi. Sebelumnya tak ada tempat memverifikasi
+  selisih input vs total RAB lokasi.
+- Kartu baru "Rekonsiliasi" di halaman paket (bila berkontrak):
+  - Kontrak berjalan (incl PPN) = input; Nilai dasar pra-PPN = kontrak ÷ (1+PPN);
+    Σ RAB semua lokasi (pra-PPN, dari getLocationsProgress grandTotal); Selisih.
+  - Banding pada basis PRA-PPN (kontrak incl-PPN vs RAB pra-PPN — konvensi uang).
+  - StatusPill: teralokasi penuh (±1%) / ada selisih / belum semua lokasi ber-RAB.
+  - Rincian per lokasi (details): RAB pra-PPN + % thd nilai dasar; tandai lokasi
+    tanpa RAB. Menutup celah verifikasi alokasi kontrak↔RAB.

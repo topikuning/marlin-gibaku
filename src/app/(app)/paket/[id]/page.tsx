@@ -12,7 +12,7 @@ import {
   PACKAGE_STAGE_TONE,
   revertTargetFor,
 } from "@/lib/lifecycle";
-import { formatPct, formatRupiahShort, formatTanggalWaktu } from "@/lib/format";
+import { formatPct, formatRupiah, formatRupiahShort, formatTanggalWaktu } from "@/lib/format";
 import { getLocationsProgress } from "@/lib/progress";
 import {
   getPackageWorkspace,
@@ -102,6 +102,25 @@ export default async function RingkasanPaketPage({
   const running = pkg.contract
     ? runningContractValue(pkg.contract.contractValue, pkg.contract.amendments)
     : null;
+
+  // Rekonsiliasi: nilai kontrak (INPUT, incl PPN) vs Σ RAB semua lokasi (pra-PPN).
+  // Kontrak incl-PPN, RAB pra-PPN (konvensi uang) → banding pada basis pra-PPN.
+  const recon = (() => {
+    if (!pkg.contract || running == null) return null;
+    const ppn = Number(pkg.contract.ppnPercent);
+    const runningNum = Number(running);
+    const basePraPpn = ppn > 0 ? runningNum / (1 + ppn / 100) : runningNum;
+    const rabSum = Number(totalRab);
+    const selisih = basePraPpn - rabSum;
+    const rows = pkg.locations
+      .map((l) => ({ name: l.name, rab: Number(progressMap.get(l.id)?.grandTotal ?? 0n) }))
+      .sort((a, b) => b.rab - a.rab);
+    const withRab = rows.filter((r) => r.rab > 0).length;
+    const alokasiPct = basePraPpn > 0 ? (rabSum / basePraPpn) * 100 : 0;
+    const semuaBerRab = withRab === rows.length && rows.length > 0;
+    const cocok = semuaBerRab && Math.abs(selisih) <= basePraPpn * 0.01;
+    return { ppn, running: runningNum, basePraPpn, rabSum, selisih, rows, withRab, alokasiPct, semuaBerRab, cocok };
+  })();
 
   const canProspect = can(user.role, "prospect.manage");
   const canContract = can(user.role, "contract.manage");
@@ -213,6 +232,91 @@ export default async function RingkasanPaketPage({
           sub="tertimbang RAB aktif"
         />
       </section>
+
+      {recon ? (
+        <Card>
+          <CardHeader
+            title="Rekonsiliasi: nilai kontrak (input) vs RAB semua lokasi"
+            subtitle="“Nilai kontrak berjalan” di atas adalah INPUT kamu (nilai kontrak + adendum), termasuk PPN — bukan jumlah lokasi. Di sini dibandingkan dengan jumlah RAB semua lokasi (pra-PPN) untuk verifikasi alokasi."
+          />
+          <CardBody className="space-y-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div>
+                <div className="text-[12px] text-ink-muted">Kontrak berjalan (incl PPN {recon.ppn}%)</div>
+                <div className="text-sm font-semibold text-ink tabular">{formatRupiah(running!)}</div>
+                <div className="text-[11px] text-ink-faint">input kamu</div>
+              </div>
+              <div>
+                <div className="text-[12px] text-ink-muted">Nilai dasar (pra-PPN)</div>
+                <div className="text-sm font-semibold text-ink tabular">{formatRupiah(BigInt(Math.round(recon.basePraPpn)))}</div>
+                <div className="text-[11px] text-ink-faint">kontrak ÷ (1+PPN)</div>
+              </div>
+              <div>
+                <div className="text-[12px] text-ink-muted">Σ RAB semua lokasi</div>
+                <div className="text-sm font-semibold text-ink tabular">{formatRupiah(BigInt(Math.round(recon.rabSum)))}</div>
+                <div className="text-[11px] text-ink-faint">pra-PPN, RAB aktif</div>
+              </div>
+              <div>
+                <div className="text-[12px] text-ink-muted">Selisih (dasar − RAB)</div>
+                <div className="text-sm font-semibold tabular text-ink">{formatRupiah(BigInt(Math.round(recon.selisih)))}</div>
+                <div className="text-[11px] text-ink-faint">idealnya ~0</div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusPill
+                tone={recon.cocok ? "success" : recon.semuaBerRab ? "warning" : "info"}
+                label={
+                  recon.cocok
+                    ? "Teralokasi penuh (±1%)"
+                    : recon.semuaBerRab
+                      ? "Ada selisih — periksa nilai kontrak / RAB / PPN"
+                      : "Belum semua lokasi ber-RAB — selisih wajar"
+                }
+              />
+              <span className="text-[13px] text-ink-muted">
+                {recon.withRab}/{recon.rows.length} lokasi ber-RAB · alokasi {formatPct(recon.alokasiPct)} dari nilai dasar
+              </span>
+            </div>
+
+            <details>
+              <summary className="cursor-pointer text-[13px] font-medium text-primary hover:underline">
+                Rincian per lokasi
+              </summary>
+              <div className="mt-2 overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left text-xs uppercase text-ink-muted">
+                      <th className="py-1.5 pr-3">Lokasi</th>
+                      <th className="py-1.5 pr-3 text-right">RAB (pra-PPN)</th>
+                      <th className="py-1.5 text-right">% thd nilai dasar</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {recon.rows.map((r) => (
+                      <tr key={r.name}>
+                        <td className="py-1.5 pr-3">{r.name}</td>
+                        <td className="tabular py-1.5 pr-3 text-right">
+                          {r.rab > 0 ? formatRupiah(BigInt(Math.round(r.rab))) : <span className="text-ink-faint">belum ada RAB</span>}
+                        </td>
+                        <td className="tabular py-1.5 text-right text-ink-muted">
+                          {recon.basePraPpn > 0 ? formatPct((r.rab / recon.basePraPpn) * 100) : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+
+            <p className="text-xs text-ink-muted">
+              Kontrak dicatat termasuk PPN, RAB pra-PPN — perbandingan pada basis pra-PPN.
+              Selisih besar biasanya karena belum semua lokasi impor RAB, atau nilai kontrak
+              input belum sesuai total RAB (perbaiki via Koreksi Kontrak / revisi RAB).
+            </p>
+          </CardBody>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader title="Langkah berikutnya" />
