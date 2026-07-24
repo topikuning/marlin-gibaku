@@ -15,7 +15,7 @@ import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
 import { canTransitionPackage } from "@/lib/lifecycle";
 import { formatTanggal } from "@/lib/format";
-import { getPackageWorkspace } from "@/lib/package/queries";
+import { getPackageWorkspace, listVendors } from "@/lib/package/queries";
 import type { MilestoneStatus } from "@/generated/prisma/enums";
 import { AdvanceStageButton, CancelPackageForm } from "../stage-actions";
 import { TenderForm } from "./tender-form";
@@ -66,6 +66,7 @@ export default async function TenderPage({
 
   const praKontrak = !pkg.contract && ["prospek", "tender", "penetapan"].includes(pkg.stage);
   const canEdit = can(user.role, "package.edit");
+  const vendorNames = canEdit && praKontrak ? (await listVendors()).map((v) => v.name) : [];
   const canProspect = can(user.role, "prospect.manage");
   const cancellable = canTransitionPackage(pkg.stage, "batal");
 
@@ -85,6 +86,7 @@ export default async function TenderPage({
             {praKontrak && canEdit ? (
               <TenderForm
                 packageId={pkg.id}
+                vendorNames={vendorNames}
                 defaults={{
                   name: pkg.name,
                   packageNumber: pkg.packageNumber ?? "",

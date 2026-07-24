@@ -17,9 +17,11 @@ export type TenderFormDefaults = {
 export function TenderForm({
   packageId,
   defaults,
+  vendorNames = [],
 }: {
   packageId: string;
   defaults: TenderFormDefaults;
+  vendorNames?: string[];
 }) {
   const [state, action, pending] = useActionState<PackageActionState, FormData>(
     updatePackage,
@@ -70,8 +72,18 @@ export function TenderForm({
           id="tf-vendor"
           name="candidateVendorName"
           defaultValue={defaults.candidateVendorName}
-          placeholder="Nama kandidat pemenang"
+          list="tf-vendor-list"
+          autoComplete="off"
+          placeholder="Pilih dari master atau ketik nama pemenang"
         />
+        {vendorNames.length > 0 ? (
+          <datalist id="tf-vendor-list">
+            {vendorNames.map((n) => (
+              <option key={n} value={n} />
+            ))}
+          </datalist>
+        ) : null}
+        <HelpText>Perusahaan terimpor muncul sebagai saran; boleh juga ketik baru.</HelpText>
       </div>
 
       <div>
