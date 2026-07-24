@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  betaCdf,
   classifyTrade,
   computeTradeWindows,
-  constructionScurveWeekly,
   curveFromCategorySchedule,
   DEFAULT_CONTRACT_DAYS,
   generateScurve,
@@ -249,67 +247,5 @@ describe("curveFromCategorySchedule (jadwal per pekerjaan, distribusi rata)", ()
       5,
     );
     expect(c[4]).toBeCloseTo(100, 5);
-  });
-});
-
-describe("betaCdf (CDF Beta ter-regularisasi)", () => {
-  it("nilai batas & titik yang diketahui", () => {
-    expect(betaCdf(0, 2, 2)).toBe(0);
-    expect(betaCdf(1, 2, 2)).toBe(1);
-    expect(betaCdf(0.5, 2, 2)).toBeCloseTo(0.5, 4);
-    // Beta(2,2) = smoothstep: 10/50/90 pada 0.2/0.5/0.8
-    expect(betaCdf(0.2, 2, 2)).toBeCloseTo(0.104, 3);
-    expect(betaCdf(0.8, 2, 2)).toBeCloseTo(0.896, 3);
-    // Beta(1,1) = uniform: I_x = x
-    expect(betaCdf(0.3, 1, 1)).toBeCloseTo(0.3, 4);
-    expect(betaCdf(0.7, 1, 1)).toBeCloseTo(0.7, 4);
-  });
-  it("monoton naik", () => {
-    let prev = -1;
-    for (let x = 0; x <= 1.0001; x += 0.05) {
-      const v = betaCdf(Math.min(1, x), 2.1, 1.9);
-      expect(v).toBeGreaterThanOrEqual(prev);
-      prev = v;
-    }
-  });
-});
-
-describe("constructionScurveWeekly (kurva-S proyek)", () => {
-  const c = constructionScurveWeekly(0.5, 20);
-
-  it("mulai ~0, akhir 100, monoton", () => {
-    expect(c[0]).toBeLessThan(5);
-    expect(c[19]).toBeCloseTo(100, 1);
-    for (let i = 1; i < c.length; i++) expect(c[i]).toBeGreaterThanOrEqual(c[i - 1]);
-  });
-
-  it("BERBENTUK S: tengah lebih curam daripada ujung (bukan diagonal)", () => {
-    const d = c.map((v, i) => v - (i > 0 ? c[i - 1] : 0)); // laju mingguan
-    const awal = d[1]; // laju minggu awal
-    const tengah = d[10]; // laju sekitar puncak
-    const akhir = d[18]; // laju menjelang selesai
-    expect(tengah).toBeGreaterThan(awal * 1.8); // puncak jauh lebih curam dari awal
-    expect(tengah).toBeGreaterThan(akhir * 1.8); // dan dari akhir → lonceng, bukan datar
-  });
-
-  it("simetris pada μ=0.5 ≈ 10/50/90 (patokan konstruksi)", () => {
-    expect(c[3]).toBeLessThan(15); // ~20% waktu → ~10%
-    expect(c[9]).toBeGreaterThan(45);
-    expect(c[9]).toBeLessThan(55); // ~50% waktu → ~50%
-    expect(c[15]).toBeGreaterThan(85); // ~80% waktu → ~90%
-  });
-
-  it("μ menggeser puncak: berat depan (μ<0.5) lebih cepat di paruh awal", () => {
-    const depan = constructionScurveWeekly(0.43, 20);
-    const belakang = constructionScurveWeekly(0.57, 20);
-    expect(depan[9]).toBeGreaterThan(belakang[9]); // di tengah, front-heavy unggul
-  });
-
-  it("clamp μ ekstrem tetap ber-S (α,β>1)", () => {
-    const ekstrem = constructionScurveWeekly(0.1, 20); // di-clamp ke 0.42
-    for (let i = 1; i < ekstrem.length; i++)
-      expect(ekstrem[i]).toBeGreaterThanOrEqual(ekstrem[i - 1]);
-    expect(ekstrem[0]).toBeLessThan(5);
-    expect(ekstrem[19]).toBeCloseTo(100, 1);
   });
 });

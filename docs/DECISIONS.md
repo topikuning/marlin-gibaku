@@ -1462,3 +1462,31 @@ scurve — dengan test properti, bukan paritas nilai):**
   (S ✓). Laporan periodik & chart workspace baca BaselinePoint tersimpan → sama.
 - Baseline lama di DB perlu **"Hitung ulang"** per lokasi (atau import ulang RAB)
   agar mengikuti S baru. Unit test baru: betaCdf + properti S (123 test hijau).
+
+## 077 · 2026-07-24 · Kurva-S = cost-loaded schedule × envelope ramp (menyempurnakan 076)
+
+- Lanjutan tajam dari user: "apakah sudah mempertimbangkan urutan/metode kerja?"
+  → mekanisme Beta μ-saja (076) hanya mencerminkan sequencing lewat 1 skalar
+  (μ), dan diuji ternyata μ nyaris konstan (0,46–0,48) lintas RAB → kurva
+  hampir seragam, tak variatif. User minta BEST PRACTICE yang tak menyalahi
+  ketentuan & sesuai realita lapangan.
+- Temuan jujur (terbukti): variance sebaran biaya-waktu RAB KNMP ≈ 0,07 (dekat
+  seragam 0,083). Jadi cost-loaded MURNI untuk pekerjaan tersebar-merata memang
+  ~linear — S kuat BUKAN dari sebaran biaya.
+- Kaidah: bentuk S sesungguhnya lahir dari RAMP SUMBER DAYA (mobilisasi kru naik
+  bertahap → puncak → demobilisasi/closeout/testing turun) — penjelasan baku
+  PMBOK. Itu realita lapangan, bukan kosmetik.
+- Mekanisme final (ganti 076): `scheduleBySequence` =
+  **cost-loaded schedule × envelope ramp**:
+  1. placeItems → jendela urutan-nyata (presedensi lapangan) tiap item;
+  2. sebar bobot ÷ durasi per minggu → histogram biaya (mencerminkan metode/
+     urutan & komposisi RAB lokasi ini);
+  3. modulasi `resourceRamp` (MOBILIZATION=0.2, DEMOBILIZATION=0.2, RAMP_FLOOR=0.3),
+     normalisasi Σ=100, akumulasi.
+- Hasil kode asli lintas RAB nyata: 20/50/80% waktu ≈ 12–18 / 47–49 / 90 (S sejati,
+  dekat patokan 10/50/90), dan VARIATIF antar komposisi. Blok Beta (076) dihapus;
+  `betaCdf`/`constructionScurveWeekly` dibuang (superseded). placeItems/
+  stagePlannedFraction tetap dipakai rekomendasi mingguan (urutan) — tak diubah.
+- Editor kurva-S manual (curveFromCategorySchedule) tak berubah. Baseline lama di
+  DB perlu "Hitung ulang" per lokasi. 117 unit test hijau; assertion bentuk-S
+  ditambah di sequencing.test.ts.

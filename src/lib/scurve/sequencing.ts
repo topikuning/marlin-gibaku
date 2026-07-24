@@ -31,7 +31,7 @@
  * Semua deterministik & pure (tak sentuh DB) → bisa diuji terhadap korpus RAB.
  */
 
-import { constructionScurveWeekly } from "./generate";
+import { smoothstep } from "./generate";
 
 export type WorkType = "gedung" | "jalan" | "marine" | "utilitas" | "lansekap" | "umum";
 
@@ -340,40 +340,69 @@ export function placeItems(items: SeqItem[]): ItemPlacement[] {
   });
 }
 
-/**
- * Titik-berat waktu (0..1) penjadwalan: rata-rata tertimbang-bobot dari titik
- * tengah jendela tiap item. Menentukan letak PUNCAK kurva-S (berat di depan →
- * puncak lebih awal). Dari sini sekuens/komposisi memiringkan S, bukan
- * menentukan bentuknya (bentuk S dijamin oleh model Beta).
- */
-export function timeCenterOfGravity(placements: ItemPlacement[]): number {
-  let wSum = 0;
-  let acc = 0;
-  for (const p of placements) {
-    wSum += p.weightPct;
-    acc += p.weightPct * ((p.start + p.end) / 2);
-  }
-  return wSum > 0 ? acc / wSum : 0.5;
+// ── Envelope ramp sumber daya (mobilisasi → puncak → closeout) ───────────────
+// KAIDAH KONSTRUKSI (best-practice): kurva-S = COST-LOADED SCHEDULE — bobot tiap
+// pekerjaan (dari RAB) disebar sepanjang durasinya di jendela urutan-nyata
+// (placeItems, presedensi lapangan) → histogram biaya mingguan → diakumulasi.
+// Itu mencerminkan metode/urutan & RAB apa adanya.
+//
+// Tapi cost-loaded murni untuk pekerjaan yang tersebar merata menghasilkan laju
+// ~konstan (garis lurus). Bentuk S SESUNGGUHNYA lahir dari realita lapangan:
+// KRU/SUMBER DAYA naik bertahap di awal (mobilisasi) dan turun di akhir
+// (demobilisasi/closeout/testing) — ini penjelasan baku PMBOK kenapa progres
+// membentuk S. Maka laju biaya dimodulasi envelope ramp lalu dinormalisasi.
+// Hasil: kurva mengikuti komposisi/urutan lokasi (variatif) DAN selalu ber-S.
+// DECISIONS 077.
+const MOBILIZATION = 0.2; // fraksi durasi untuk kru naik dari floor → penuh
+const DEMOBILIZATION = 0.2; // fraksi durasi untuk kru turun penuh → floor
+const RAMP_FLOOR = 0.3; // intensitas awal/akhir relatif thd puncak (kru belum/berkurang)
+
+/** Faktor intensitas sumber daya (0..1) pada fraksi waktu t. */
+function resourceRamp(t: number): number {
+  const up = t < MOBILIZATION ? RAMP_FLOOR + (1 - RAMP_FLOOR) * smoothstep(t / MOBILIZATION) : 1;
+  const down =
+    t > 1 - DEMOBILIZATION
+      ? RAMP_FLOOR + (1 - RAMP_FLOOR) * smoothstep((1 - t) / DEMOBILIZATION)
+      : 1;
+  return Math.min(up, down);
 }
 
 /**
- * Kurva-S rencana mingguan tingkat proyek dari penjadwalan per-unit.
+ * Kurva-S rencana mingguan (%) — COST-LOADED SCHEDULE × envelope ramp sumber daya.
  *
- * KAIDAH KONSTRUKSI: progres kumulatif = integral dari kecepatan kerja yang
- * naik→puncak→turun → bentuk S (landai–curam–landai). Bukan laju konstan (garis
- * lurus). Sekuens per-unit (placeItems) menentukan LETAK titik berat waktu
- * (μ = puncak), lalu kurva dibentuk sebagai CDF Beta(α,β) — model baku kurva-S
- * perencanaan. Mulai ~0, akhir 100, monoton, ber-S. DECISIONS 076.
+ * 1. placeItems → jendela urutan-nyata tiap item (presedensi lapangan).
+ * 2. Sebar bobot item (÷durasi) per minggu → histogram biaya (mencerminkan
+ *    metode/urutan & komposisi RAB lokasi ini).
+ * 3. Modulasi dgn resourceRamp (mobilisasi–closeout), normalisasi Σ=100, akumulasi.
  *
- * (placeItems/stagePlannedFraction tetap dipakai rekomendasi mingguan per-unit:
- * urutan pekerjaan mana dikerjakan minggu ke berapa — itu bagian yang benar dan
- * tak diubah.)
+ * Sifat: mulai ~0, akhir 100, monoton, ber-S (landai–curam–landai). Variatif
+ * antar lokasi sesuai komposisinya. placeItems/stagePlannedFraction TETAP dipakai
+ * rekomendasi mingguan (urutan pekerjaan) — tak diubah. DECISIONS 077.
  */
 export function scheduleBySequence(items: SeqItem[], contractDays: number): number[] {
   const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
   const placements = placeItems(items);
   if (placements.length === 0) return new Array(totalWeeks).fill(0);
-  return constructionScurveWeekly(timeCenterOfGravity(placements), totalWeeks);
+
+  // (2) histogram biaya mingguan (bobot ÷ durasi, disebar seragam dalam jendela)
+  const velocity = new Array(totalWeeks).fill(0);
+  for (const p of placements) {
+    const s = Math.max(0, Math.min(totalWeeks - 1, Math.floor(p.start * totalWeeks)));
+    const e = Math.max(s, Math.min(totalWeeks - 1, Math.ceil(p.end * totalWeeks) - 1));
+    const perWeek = p.weightPct / (e - s + 1);
+    for (let w = s; w <= e; w++) velocity[w] += perWeek;
+  }
+
+  // (3) modulasi envelope + normalisasi + akumulasi
+  const modulated = velocity.map((v, i) => v * resourceRamp((i + 0.5) / totalWeeks));
+  const sum = modulated.reduce((a, b) => a + b, 0) || 1;
+  const out: number[] = [];
+  let acc = 0;
+  for (let w = 0; w < totalWeeks; w++) {
+    acc += (modulated[w] / sum) * 100;
+    out.push(Math.min(100, Math.round(acc * 100) / 100));
+  }
+  return out;
 }
 
 /** Urutan tahap di dalam tipe (untuk uji presedensi & rekomendasi). */

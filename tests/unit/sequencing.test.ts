@@ -138,6 +138,18 @@ describe("kurva dari penjadwalan berurut", () => {
     for (let i = 1; i < curve.length; i++) expect(curve[i]).toBeGreaterThanOrEqual(curve[i - 1]);
   });
 
+  it("BERBENTUK S bukan diagonal: paruh awal di bawah garis lurus, tengah paling curam", () => {
+    const n = curve.length;
+    // Cost-loaded × ramp mobilisasi/closeout → progres awal < garis lurus (landai).
+    const seperempat = curve[Math.round(n * 0.25) - 1];
+    expect(seperempat).toBeLessThan(25); // di 25% waktu, < 25% (S sehat)
+    // Laju (delta) tengah > laju awal dan > laju akhir → lonceng, bukan datar.
+    const rate = (i: number) => curve[i] - (i > 0 ? curve[i - 1] : 0);
+    const mid = Math.floor(n / 2);
+    expect(rate(mid)).toBeGreaterThan(rate(1) * 1.4);
+    expect(rate(mid)).toBeGreaterThan(rate(n - 2) * 1.4);
+  });
+
   it("stageOrder mengembalikan urutan tahap tipe", () => {
     expect(stageOrder("gedung")[0]).toBe("persiapan");
     expect(stageOrder("jalan").at(-1)).toBe("marka");
