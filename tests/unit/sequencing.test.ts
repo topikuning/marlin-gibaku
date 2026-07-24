@@ -180,8 +180,10 @@ describe("korpus RAB nyata: cakupan klasifikasi & tanpa error", () => {
     console.log(
       `[korpus] cakupan by-count=${(covByCount * 100).toFixed(1)}% by-value=${(covByValue * 100).toFixed(1)}% tahap-terpakai=${stageHits.size}`,
     );
-    expect(covByCount).toBeGreaterThan(0.7);
-    expect(covByValue).toBeGreaterThan(0.75);
+    // Sisa ~1% adalah baris artefak (subtotal "JUMLAH…", label daftar bangunan),
+    // bukan pekerjaan terjadwal — parser RAB app mengecualikannya.
+    expect(covByCount).toBeGreaterThan(0.95);
+    expect(covByValue).toBeGreaterThan(0.95);
   });
 
   it("tahap kunci gedung benar-benar terpakai pada data nyata", () => {
