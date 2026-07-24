@@ -17,6 +17,7 @@ export {
 } from "./field";
 export { PasswordInput, type PasswordInputProps } from "./password-input";
 export { EmptyState, type EmptyStateProps } from "./empty-state";
+export { FileInput } from "./file-input";
 export {
   PageHeader,
   type BreadcrumbItem,

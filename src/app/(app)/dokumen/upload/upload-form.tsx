@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { Banner, Button, Input, Label, Select, Textarea } from "@/components/ui";
+import { Banner, Button, FileInput, Input, Label, Select, Textarea } from "@/components/ui";
 import { uploadDocumentAction, type UploadActionState } from "@/app/(app)/dokumen/actions";
 import { ALL_DOC_TYPES, ALL_PHASES, PHASE_LABEL, TYPE_LABEL } from "@/lib/documents-meta";
 
@@ -73,13 +73,11 @@ export function UploadForm({
       </div>
       <div className="sm:col-span-2">
         <Label htmlFor="d-file" required>File (PDF/JPG/PNG/WEBP/XLSX/DOCX, maks 15MB)</Label>
-        <input
+        <FileInput
           id="d-file"
           name="file"
-          type="file"
           required
           accept=".pdf,.jpg,.jpeg,.png,.webp,.xlsx,.docx"
-          className="mt-1 block w-full text-sm"
         />
       </div>
       <div>

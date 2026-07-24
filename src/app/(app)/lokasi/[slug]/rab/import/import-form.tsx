@@ -44,7 +44,17 @@ export function ImportForm({ locationId }: { locationId: string }) {
   }
 
   function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setFile(e.target.files?.[0] ?? null);
+    const picked = e.target.files?.[0] ?? null;
+    // Cek ukuran DI KLIEN: file yang melewati bodySizeLimit server action akan
+    // ditolak framework sebelum kode kita jalan → halaman crash. Tolak di sini.
+    const MAX_MB = 15;
+    if (picked && picked.size > MAX_MB * 1024 * 1024) {
+      setFile(null);
+      setInputKey((k) => k + 1); // reset input supaya tak terkirim
+      setState({ error: `File ${(picked.size / 1024 / 1024).toFixed(1)} MB melebihi batas ${MAX_MB} MB.` });
+      return;
+    }
+    setFile(picked);
     // File baru → buang pratinjau lama; tombol kembali jadi "Pratinjau".
     setState(undefined);
   }

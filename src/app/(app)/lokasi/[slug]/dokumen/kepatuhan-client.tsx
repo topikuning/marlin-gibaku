@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Banner, Button, Input, Label, Select, StatusPill, Textarea } from "@/components/ui";
+import { Banner, Button, FileInput, Input, Label, Select, StatusPill, Textarea } from "@/components/ui";
 import {
   updateMilestoneAction,
   verifyMilestoneAction,
@@ -214,7 +214,7 @@ export function QuickUploadForm({
       </div>
       <div className="sm:col-span-2">
         <Label htmlFor="up-file" required>File (PDF/JPG/PNG/XLSX/DOCX, maks 15MB)</Label>
-        <input id="up-file" name="file" type="file" required accept=".pdf,.jpg,.jpeg,.png,.webp,.xlsx,.docx" className="mt-1 block w-full text-sm" />
+        <FileInput id="up-file" name="file" required accept=".pdf,.jpg,.jpeg,.png,.webp,.xlsx,.docx" />
       </div>
       <div className="flex items-end">
         <Button type="submit" loading={pending}>Unggah</Button>
