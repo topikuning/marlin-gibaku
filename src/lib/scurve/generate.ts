@@ -116,6 +116,99 @@ export function generateScurve(
   return cumulativeFromSegments(segments, totalWeeks);
 }
 
+// ── Kurva-S tingkat proyek (Beta-PERT) ──────────────────────────────────────
+// KAIDAH UMUM KONSTRUKSI (bukan spesifik KKP): kurva progres kumulatif berbentuk
+// S karena ia integral dari kurva KECEPATAN kerja, yang selalu naik→puncak→turun
+// (mobilisasi lambat → produksi puncak → closeout/testing lambat). Integral dari
+// histogram sumber daya berbentuk lonceng = sigmoid. Laju KONSTAN → garis lurus
+// (diagonal) = keliru: berarti kru penuh sejak hari-1 s.d. hari terakhir.
+//
+// Model: CDF distribusi Beta(α,β) di [0,1] — bentuk baku kurva-S perencanaan
+// (Beta-PERT). Beta(2,2) memberi 10/50/90 pada 20/50/80% waktu (persis smoothstep
+// 3t²−2t³). Komposisi RAB (berat depan/belakang) hanya MENGGESER puncak lewat α,β;
+// sifat S (landai–curam–landai) selalu terjaga. DECISIONS 076.
+
+/** ln Γ(x) — aproksimasi Lanczos (Numerical Recipes). */
+function gammaln(x: number): number {
+  const c = [
+    76.18009172947146, -86.50532032941677, 24.01409824083091, -1.231739572450155,
+    0.1208650973866179e-2, -0.5395239384953e-5,
+  ];
+  let y = x;
+  let t = x + 5.5;
+  t -= (x + 0.5) * Math.log(t);
+  let s = 1.000000000190015;
+  for (let j = 0; j < 6; j++) s += c[j] / ++y;
+  return -t + Math.log((2.5066282746310005 * s) / x);
+}
+
+/** Continued fraction untuk incomplete beta (Numerical Recipes betacf). */
+function betacf(a: number, b: number, x: number): number {
+  const FPMIN = 1e-30;
+  const qab = a + b;
+  const qap = a + 1;
+  const qam = a - 1;
+  let c = 1;
+  let d = 1 - (qab * x) / qap;
+  if (Math.abs(d) < FPMIN) d = FPMIN;
+  d = 1 / d;
+  let h = d;
+  for (let m = 1; m <= 200; m++) {
+    const m2 = 2 * m;
+    let aa = (m * (b - m) * x) / ((qam + m2) * (a + m2));
+    d = 1 + aa * d;
+    if (Math.abs(d) < FPMIN) d = FPMIN;
+    c = 1 + aa / c;
+    if (Math.abs(c) < FPMIN) c = FPMIN;
+    d = 1 / d;
+    h *= d * c;
+    aa = (-(a + m) * (qab + m) * x) / ((a + m2) * (qap + m2));
+    d = 1 + aa * d;
+    if (Math.abs(d) < FPMIN) d = FPMIN;
+    c = 1 + aa / c;
+    if (Math.abs(c) < FPMIN) c = FPMIN;
+    d = 1 / d;
+    const del = d * c;
+    h *= del;
+    if (Math.abs(del - 1) < 3e-9) break;
+  }
+  return h;
+}
+
+/** CDF Beta(a,b) ter-regularisasi I_x(a,b) — 0 di x=0, 1 di x=1, monoton. */
+export function betaCdf(x: number, a: number, b: number): number {
+  if (x <= 0) return 0;
+  if (x >= 1) return 1;
+  const bt = Math.exp(
+    gammaln(a + b) - gammaln(a) - gammaln(b) + a * Math.log(x) + b * Math.log(1 - x),
+  );
+  return x < (a + 1) / (a + b + 2) ? (bt * betacf(a, b, x)) / a : 1 - (bt * betacf(b, a, 1 - x)) / b;
+}
+
+/** "Ketajaman" S = α+β. ~4.2 → S moderat mirip Beta(2,2) (10/50/90). */
+export const SCURVE_STEEPNESS = 4.2;
+
+/**
+ * Kurva-S kumulatif mingguan (%) tingkat proyek dari "titik berat waktu"
+ * pekerjaan (center of gravity 0..1). μ menggeser puncak: <0.5 = berat di depan
+ * (puncak lebih awal), >0.5 = berat di belakang. Di-clamp [0.42,0.58] agar α,β>1
+ * → dijamin ber-bentuk S (bukan pernah cekung/cembung tunggal). Mulai ~0, akhir
+ * 100, monoton, landai–curam–landai.
+ */
+export function constructionScurveWeekly(
+  centerOfGravity: number,
+  totalWeeks: number,
+  steepness: number = SCURVE_STEEPNESS,
+): number[] {
+  const n = Math.max(1, Math.floor(totalWeeks));
+  const mu = Math.max(0.42, Math.min(0.58, Number.isFinite(centerOfGravity) ? centerOfGravity : 0.5));
+  const a = mu * steepness;
+  const b = (1 - mu) * steepness;
+  const out: number[] = [];
+  for (let w = 1; w <= n; w++) out.push(Math.min(100, Math.round(betaCdf(w / n, a, b) * 10000) / 100));
+  return out;
+}
+
 // ── Penjadwalan per item berbasis "trade" (jenis pekerjaan) ─────────────────
 // Urutan = dependensi riil lapangan (CPM sequencing): persiapan → tanah →
 // pondasi → struktur → dinding/atap → MEP → finishing → sarana luar → landscape.

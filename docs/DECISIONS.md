@@ -1437,3 +1437,28 @@ scurve — dengan test properti, bukan paritas nilai):**
   anak=induk lolos (kecuali grup-fallback anak-nol, perilaku lama). Unit test baru
   di `flatten.test.ts` (apportion + fixture desimal); 115 unit test hijau.
 - Tidak ada perubahan skema/migrasi. Re-import RAB memakai pembulatan baru otomatis.
+
+## 076 · 2026-07-24 · Kurva-S baseline = S sejati (Beta-PERT), bukan diagonal
+
+- Temuan user (tajam, benar): kurva-S auto dari mesin sequencing (070) cenderung
+  **diagonal/lurus**, bukan berbentuk S. Diminta koreksi berdasar KAIDAH UMUM
+  konstruksi (bukan spesifik KKP), termasuk mengoreksi pendapatku sendiri.
+- Diagnosis (terbukti lintas 6 RAB nyata): `scheduleBySequence` menjumlahkan
+  banyak jendela tahap sempit yang menutupi garis waktu merata → laju agregat
+  ~konstan → garis lurus. Rata-rata plan pada 20/50/80% waktu ≈ 27/56/96 (lama,
+  front-loaded) & 21/53/88 (sequencing) — keduanya jauh dari S ideal ~10/50/90.
+- KAIDAH: progres kumulatif = integral kecepatan kerja (naik→puncak→turun:
+  mobilisasi→produksi→closeout). Integral histogram lonceng = sigmoid. Laju
+  konstan → diagonal = keliru (berarti kru penuh sejak hari-1 s.d. akhir).
+- Koreksi: baseline auto kini **kurva-S tingkat proyek** = CDF Beta(α,β)
+  (model baku Beta-PERT). `betaCdf` + `constructionScurveWeekly(μ, weeks)` di
+  generate.ts. μ = titik-berat waktu (`timeCenterOfGravity` dari placeItems) →
+  komposisi RAB hanya MENGGESER puncak; bentuk S (landai–curam–landai) dijamin
+  (α,β>1 via clamp μ∈[0.42,0.58], steepness 4.2 ≈ Beta(2,2)=10/50/90).
+- Sequencing per-unit (placeItems/stagePlannedFraction) TETAP dipakai rekomendasi
+  mingguan (urutan pekerjaan) — itu bagian yang benar, tak diubah. Yang diganti
+  hanya bentuk kurva agregat.
+- Hasil kode asli lintas RAB nyata: 20/50/80% waktu ≈ 11–14 / 53–58 / 91–93
+  (S ✓). Laporan periodik & chart workspace baca BaselinePoint tersimpan → sama.
+- Baseline lama di DB perlu **"Hitung ulang"** per lokasi (atau import ulang RAB)
+  agar mengikuti S baru. Unit test baru: betaCdf + properti S (123 test hijau).

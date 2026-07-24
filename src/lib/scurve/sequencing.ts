@@ -31,7 +31,7 @@
  * Semua deterministik & pure (tak sentuh DB) → bisa diuji terhadap korpus RAB.
  */
 
-import { cumulativeFromSegments } from "./generate";
+import { constructionScurveWeekly } from "./generate";
 
 export type WorkType = "gedung" | "jalan" | "marine" | "utilitas" | "lansekap" | "umum";
 
@@ -341,18 +341,39 @@ export function placeItems(items: SeqItem[]): ItemPlacement[] {
 }
 
 /**
- * Kurva-S kumulatif mingguan dari penjadwalan berurut per-unit. Tiap item
- * disebar smoothstep dalam jendela tahapnya (konsisten dgn mesin lama), lalu
- * dijumlah. Mulai 0, akhir 100, monoton, bentuk-S.
+ * Titik-berat waktu (0..1) penjadwalan: rata-rata tertimbang-bobot dari titik
+ * tengah jendela tiap item. Menentukan letak PUNCAK kurva-S (berat di depan →
+ * puncak lebih awal). Dari sini sekuens/komposisi memiringkan S, bukan
+ * menentukan bentuknya (bentuk S dijamin oleh model Beta).
+ */
+export function timeCenterOfGravity(placements: ItemPlacement[]): number {
+  let wSum = 0;
+  let acc = 0;
+  for (const p of placements) {
+    wSum += p.weightPct;
+    acc += p.weightPct * ((p.start + p.end) / 2);
+  }
+  return wSum > 0 ? acc / wSum : 0.5;
+}
+
+/**
+ * Kurva-S rencana mingguan tingkat proyek dari penjadwalan per-unit.
+ *
+ * KAIDAH KONSTRUKSI: progres kumulatif = integral dari kecepatan kerja yang
+ * naik→puncak→turun → bentuk S (landai–curam–landai). Bukan laju konstan (garis
+ * lurus). Sekuens per-unit (placeItems) menentukan LETAK titik berat waktu
+ * (μ = puncak), lalu kurva dibentuk sebagai CDF Beta(α,β) — model baku kurva-S
+ * perencanaan. Mulai ~0, akhir 100, monoton, ber-S. DECISIONS 076.
+ *
+ * (placeItems/stagePlannedFraction tetap dipakai rekomendasi mingguan per-unit:
+ * urutan pekerjaan mana dikerjakan minggu ke berapa — itu bagian yang benar dan
+ * tak diubah.)
  */
 export function scheduleBySequence(items: SeqItem[], contractDays: number): number[] {
   const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
   const placements = placeItems(items);
   if (placements.length === 0) return new Array(totalWeeks).fill(0);
-  return cumulativeFromSegments(
-    placements.map((p) => ({ weightPct: p.weightPct, start: p.start, end: p.end })),
-    totalWeeks,
-  );
+  return constructionScurveWeekly(timeCenterOfGravity(placements), totalWeeks);
 }
 
 /** Urutan tahap di dalam tipe (untuk uji presedensi & rekomendasi). */
