@@ -37,12 +37,14 @@ type MilestoneRow = {
 };
 
 function MilestoneEditForm({
-  slug,
+  slug = "",
+  packageId = "",
   item,
   picOptions,
   onClose,
 }: {
-  slug: string;
+  slug?: string;
+  packageId?: string;
   item: MilestoneRow;
   picOptions: { id: string; fullName: string }[];
   onClose: () => void;
@@ -54,6 +56,7 @@ function MilestoneEditForm({
       {state?.success ? <div className="sm:col-span-2"><Banner tone="success" title={state.success} /></div> : null}
       <input type="hidden" name="milestoneId" value={item.id} />
       <input type="hidden" name="slug" value={slug} />
+      <input type="hidden" name="packageId" value={packageId} />
       <div>
         <Label htmlFor={`st-${item.id}`}>Status</Label>
         <Select id={`st-${item.id}`} name="status" defaultValue={item.status}>
@@ -87,12 +90,21 @@ function MilestoneEditForm({
   );
 }
 
-function VerifyButton({ slug, milestoneId }: { slug: string; milestoneId: string }) {
+function VerifyButton({
+  slug = "",
+  packageId = "",
+  milestoneId,
+}: {
+  slug?: string;
+  packageId?: string;
+  milestoneId: string;
+}) {
   const [state, action, pending] = useActionState<MilestoneActionState, FormData>(verifyMilestoneAction, undefined);
   return (
     <form action={action} className="inline">
       <input type="hidden" name="milestoneId" value={milestoneId} />
       <input type="hidden" name="slug" value={slug} />
+      <input type="hidden" name="packageId" value={packageId} />
       {state?.error ? <span className="mr-2 text-xs text-danger">{state.error}</span> : null}
       <Button size="sm" variant="secondary" type="submit" loading={pending}>
         Verifikasi & Selesai
@@ -102,13 +114,15 @@ function VerifyButton({ slug, milestoneId }: { slug: string; milestoneId: string
 }
 
 export function MilestonePanel({
-  slug,
+  slug = "",
+  packageId = "",
   items,
   picOptions,
   canManage,
   canVerify,
 }: {
-  slug: string;
+  slug?: string;
+  packageId?: string;
   items: MilestoneRow[];
   picOptions: { id: string; fullName: string }[];
   canManage: boolean;
@@ -138,7 +152,7 @@ export function MilestonePanel({
             </div>
             <div className="flex shrink-0 gap-1.5">
               {canVerify && m.requiresVerification && m.status !== "selesai" && m.documents.length > 0 && (
-                <VerifyButton slug={slug} milestoneId={m.id} />
+                <VerifyButton slug={slug} packageId={packageId} milestoneId={m.id} />
               )}
               {canManage && (
                 <Button size="sm" variant="ghost" onClick={() => setOpenId(openId === m.id ? null : m.id)}>
@@ -148,7 +162,7 @@ export function MilestonePanel({
             </div>
           </div>
           {openId === m.id && canManage && (
-            <MilestoneEditForm slug={slug} item={m} picOptions={picOptions} onClose={() => setOpenId(null)} />
+            <MilestoneEditForm slug={slug} packageId={packageId} item={m} picOptions={picOptions} onClose={() => setOpenId(null)} />
           )}
         </li>
       ))}

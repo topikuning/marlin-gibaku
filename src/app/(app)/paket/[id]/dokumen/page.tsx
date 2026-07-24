@@ -2,14 +2,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FolderOpen } from "lucide-react";
-import { Card, CardBody, CardHeader, CollapsibleCard, EmptyState, StatusPill } from "@/components/ui";
+import { Card, CardBody, CardHeader, CollapsibleCard, EmptyState, ProgressBar, StatusPill } from "@/components/ui";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
 import { formatTanggal } from "@/lib/format";
 import { getPackageWorkspace } from "@/lib/package/queries";
+import { ensureMilestones } from "@/lib/milestones/actions";
+import { milestoneBoard, MILESTONE_STATUS_LABEL, MILESTONE_STATUS_TONE } from "@/lib/milestones/queries";
 import type { AdminPhase } from "@/generated/prisma/enums";
+import { MilestonePanel } from "@/app/(app)/lokasi/[slug]/dokumen/kepatuhan-client";
 import { PackageDocUploadForm } from "./upload-form";
 
 export const metadata: Metadata = { title: "Dokumen Paket" };
@@ -62,6 +65,25 @@ export default async function DokumenPaketPage({
   const pkg = await getPackageWorkspace(id);
   if (!pkg) notFound();
   const canUpload = can(user.role, "document.upload");
+  const canManage = can(user.role, "compliance.manage");
+  const canVerify = can(user.role, "document.verify");
+
+  // Papan milestone administrasi INDUK (satu untuk paket — locationId null).
+  await ensureMilestones(pkg.id);
+  const [indukBoard, picOptions] = await Promise.all([
+    milestoneBoard({ packageId: pkg.id }),
+    db.user.findMany({
+      where: {
+        isActive: true,
+        OR: [
+          { role: { in: ["super_admin", "program_director", "regional_manager", "project_manager"] } },
+          { assignments: { some: { location: { packageId: pkg.id }, unassignedAt: null } } },
+        ],
+      },
+      select: { id: true, fullName: true },
+      orderBy: { fullName: "asc" },
+    }),
+  ]);
 
   const documents = await db.document.findMany({
     where: { packageId: pkg.id },
@@ -87,6 +109,44 @@ export default async function DokumenPaketPage({
 
   return (
     <div className="space-y-6">
+      <Card>
+        <CardHeader
+          title="Kepatuhan administrasi induk (paket)"
+          subtitle={`${indukBoard.done}/${indukBoard.total} selesai · ${indukBoard.late} terlambat — berlaku untuk seluruh lokasi. Status otomatis dari dokumen yang diunggah.`}
+        />
+        <CardBody className="space-y-5">
+          <ProgressBar value={indukBoard.completenessPct} tone={indukBoard.late > 0 ? "warning" : "success"} />
+          {indukBoard.phases.map((phase) => (
+            <section key={phase.phase}>
+              <h3 className="mb-2 flex items-center justify-between text-sm font-semibold text-ink">
+                {phase.label}
+                <span className="text-xs font-normal text-ink-muted">{phase.done}/{phase.total}</span>
+              </h3>
+              <MilestonePanel
+                packageId={pkg.id}
+                items={phase.items.map((m) => ({
+                  id: m.id,
+                  name: m.name,
+                  status: m.status,
+                  statusLabel: m.isLate ? "Terlambat" : MILESTONE_STATUS_LABEL[m.status],
+                  statusTone: m.isLate ? ("danger" as const) : MILESTONE_STATUS_TONE[m.status],
+                  requiresVerification: m.requiresVerification,
+                  verified: m.verifiedById !== null,
+                  picUserId: m.picUserId,
+                  picName: m.picName,
+                  dueDate: m.dueDate ? m.dueDate.toISOString().slice(0, 10) : null,
+                  note: m.note,
+                  documents: m.documents.map((d) => ({ id: d.id, title: d.title })),
+                }))}
+                picOptions={picOptions}
+                canManage={canManage}
+                canVerify={canVerify}
+              />
+            </section>
+          ))}
+        </CardBody>
+      </Card>
+
       {canUpload ? (
         <CollapsibleCard
           title="Unggah dokumen ke paket ini"

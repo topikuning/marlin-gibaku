@@ -59,7 +59,8 @@ export default async function TenderPage({
   if (!pkg) notFound();
 
   const milestones = await db.adminMilestone.findMany({
-    where: { packageId: pkg.id, phase: { in: ["pemilihan", "penunjukan"] } },
+    // Milestone INDUK (pemilihan/penunjukan selalu scope paket → locationId null).
+    where: { packageId: pkg.id, locationId: null, phase: { in: ["pemilihan", "penunjukan"] } },
     orderBy: [{ phase: "asc" }, { sortOrder: "asc" }],
     select: { id: true, name: true, phase: true, status: true, dueDate: true, note: true },
   });

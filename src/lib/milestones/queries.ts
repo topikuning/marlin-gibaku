@@ -71,8 +71,9 @@ export type MilestoneBoard = {
 const DONE_STATUSES: MilestoneStatus[] = ["selesai", "tidak_berlaku"];
 
 /**
- * Papan milestone. Beri locationId untuk papan per lokasi;
- * atau packageId untuk seluruh milestone paket.
+ * Papan milestone. Beri locationId untuk papan milestone LOKASI (per lokasi);
+ * atau packageId untuk milestone INDUK paket (locationId null — SPPBJ, kontrak,
+ * termin, PHO/FHO, dst.). Scope dipisah sejak DECISIONS 078.
  */
 export async function milestoneBoard(params: {
   packageId?: string;
@@ -82,7 +83,9 @@ export async function milestoneBoard(params: {
     throw new Error("milestoneBoard butuh packageId atau locationId");
   }
   const rows = await db.adminMilestone.findMany({
-    where: params.locationId ? { locationId: params.locationId } : { packageId: params.packageId },
+    where: params.locationId
+      ? { locationId: params.locationId }
+      : { packageId: params.packageId, locationId: null },
     orderBy: { sortOrder: "asc" },
     select: {
       id: true,

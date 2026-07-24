@@ -1,6 +1,7 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FolderOpen } from "lucide-react";
-import { Card, CardBody, CardHeader, EmptyState, ProgressBar, StatusPill } from "@/components/ui";
+import { Card, CardBody, CardHeader, CollapsibleCard, EmptyState, ProgressBar, StatusPill } from "@/components/ui";
 import { requireUser, requireLocationAccess } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
@@ -24,8 +25,9 @@ export default async function DokumenKepatuhanPage({ params }: { params: Promise
   await requireLocationAccess(user, location.id);
 
   await ensureMilestones(location.packageId, location.id);
-  const [board, documents, picOptions] = await Promise.all([
+  const [board, indukBoard, documents, picOptions] = await Promise.all([
     milestoneBoard({ locationId: location.id }),
+    milestoneBoard({ packageId: location.packageId }),
     listDocuments({ orgId: user.orgId, locationId: location.id, scopedLocationIds: null }),
     db.user.findMany({
       where: {
@@ -46,9 +48,44 @@ export default async function DokumenKepatuhanPage({ params }: { params: Promise
 
   return (
     <div className="space-y-6">
+      <CollapsibleCard
+        title="Administrasi induk (paket)"
+        subtitle={`${indukBoard.done}/${indukBoard.total} selesai — SPPBJ, kontrak, jaminan, SPMK, termin, PHO/FHO. Dikelola di paket; status ikut induk.`}
+        defaultOpen={false}
+      >
+        <div className="space-y-4">
+          <ProgressBar value={indukBoard.completenessPct} tone={indukBoard.late > 0 ? "warning" : "success"} />
+          {indukBoard.phases.map((phase) => (
+            <section key={phase.phase}>
+              <h3 className="mb-1.5 flex items-center justify-between text-sm font-semibold text-ink">
+                {phase.label}
+                <span className="text-xs font-normal text-ink-muted">{phase.done}/{phase.total}</span>
+              </h3>
+              <ul className="divide-y divide-border rounded-md border border-border">
+                {phase.items.map((m) => (
+                  <li key={m.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 text-sm">
+                    <span className="min-w-0 text-ink">{m.name}</span>
+                    <StatusPill
+                      tone={m.isLate ? "danger" : MILESTONE_STATUS_TONE[m.status]}
+                      label={m.isLate ? "Terlambat" : MILESTONE_STATUS_LABEL[m.status]}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+          <Link
+            href={`/paket/${location.packageId}/dokumen`}
+            className="inline-block text-[13px] font-medium text-primary hover:underline"
+          >
+            Kelola administrasi induk di paket →
+          </Link>
+        </div>
+      </CollapsibleCard>
+
       <Card>
         <CardHeader
-          title="Kepatuhan administrasi KKP"
+          title="Kepatuhan lokasi — MC-0 & serah terima lokasi"
           subtitle={`${board.done}/${board.total} selesai · ${board.late} terlambat`}
         />
         <CardBody className="space-y-5">

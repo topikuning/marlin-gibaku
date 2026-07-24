@@ -5,7 +5,7 @@ import { hashPassword } from "@/lib/auth/password";
 import { flattenParsedRab, grandTotal, type FlatNode } from "@/lib/rab/flatten";
 import type { ParsedRab } from "@/lib/rab/parsed";
 import { scheduleBySequence } from "@/lib/scurve/sequencing";
-import { ADMIN_MILESTONE_TEMPLATE } from "@/lib/milestones/template";
+import { LOKASI_MILESTONES, PAKET_MILESTONES, type AdminMilestone } from "@/lib/milestones/template";
 import { withPpn, valueDone as calcValueDone } from "@/lib/money";
 import { seedMasterLocations } from "@/lib/seed/master-location";
 
@@ -308,24 +308,29 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
         }
       }
 
-      // Milestone administrasi dari template (sekali per lokasi)
-      const hasMilestones = await db.adminMilestone.count({ where: { packageId: pkg.id, locationId: location.id } });
-      if (hasMilestones === 0) {
-        const doneUntil = 20; // sebagian besar administrasi awal selesai
-        await db.adminMilestone.createMany({
-          data: ADMIN_MILESTONE_TEMPLATE.map((t, i) => ({
-            packageId: pkg!.id,
-            locationId: location.id,
-            templateKey: t.key,
-            name: t.name,
-            phase: t.phase,
-            sortOrder: t.sortOrder,
-            requiresVerification: t.requiresVerification,
-            status: i < doneUntil ? ("selesai" as const) : i < doneUntil + 3 ? ("berjalan" as const) : ("belum_dimulai" as const),
-            completedAt: i < doneUntil ? new Date(dateOnly(m.start_date).getTime() + i * 2 * DAY) : null,
-            verifiedById: i < doneUntil && t.requiresVerification ? adminId : null,
-          })),
-        });
+      // Milestone administrasi: INDUK (paket, sekali) + LOKASI (per lokasi). DECISIONS 078.
+      const doneUntil = 20; // sebagian besar administrasi awal selesai (by sortOrder)
+      const statusFor = (so: number): "selesai" | "berjalan" | "belum_dimulai" =>
+        so <= doneUntil ? "selesai" : so <= doneUntil + 3 ? "berjalan" : "belum_dimulai";
+      const rowFor = (t: AdminMilestone, locId: string | null) => ({
+        packageId: pkg!.id,
+        locationId: locId,
+        templateKey: t.key,
+        name: t.name,
+        phase: t.phase,
+        sortOrder: t.sortOrder,
+        requiresVerification: t.requiresVerification,
+        status: statusFor(t.sortOrder),
+        completedAt: t.sortOrder <= doneUntil ? new Date(dateOnly(m.start_date).getTime() + t.sortOrder * 2 * DAY) : null,
+        verifiedById: t.sortOrder <= doneUntil && t.requiresVerification ? adminId : null,
+      });
+      const hasInduk = await db.adminMilestone.count({ where: { packageId: pkg.id, locationId: null } });
+      if (hasInduk === 0) {
+        await db.adminMilestone.createMany({ data: PAKET_MILESTONES.map((t) => rowFor(t, null)) });
+      }
+      const hasLok = await db.adminMilestone.count({ where: { packageId: pkg.id, locationId: location.id } });
+      if (hasLok === 0) {
+        await db.adminMilestone.createMany({ data: LOKASI_MILESTONES.map((t) => rowFor(t, location.id)) });
       }
     }
   }

@@ -1490,3 +1490,32 @@ scurve — dengan test properti, bukan paritas nilai):**
 - Editor kurva-S manual (curveFromCategorySchedule) tak berubah. Baseline lama di
   DB perlu "Hitung ulang" per lokasi. 117 unit test hijau; assertion bentuk-S
   ditambah di sequencing.test.ts.
+
+## 078 · 2026-07-24 · Milestone administrasi: scope induk vs lokasi + sync dari dokumen
+
+- Temuan user (tajam, benar): tracking kepatuhan per-LOKASI, padahal dalam konteks
+  banyak lokasi, dokumen induk (SPPBJ, kontrak, jaminan pelaksanaan, SPMK, keabsahan)
+  ikut INDUK — dan statusnya cuma flag manual, tak sync walau dokumennya sudah diunggah.
+- Akar (satu, bukan dua): `ensureMilestones` mematerialisasi SEMUA 45 milestone
+  per-lokasi. Tak ada milestone induk (`locationId null`). Sync docType→milestone
+  sebenarnya sudah ada (documents.ts) tapi jadi tercecer: unggah dokumen induk hanya
+  menandai SATU salinan lokasi (urut pertama), sisanya tetap "belum" → tampak tak sync.
+- Perbaikan:
+  - Template: `scope: "paket" | "lokasi"`. INDUK = mayoritas (SPPBJ, kontrak, jaminan,
+    SPMK, PCM [acara berbarengan], adendum, termin, SCM, PHO/FHO). LOKASI = hanya
+    serah terima lokasi & MC-0 (9 item; tiap desa diukur & disesuaikan sendiri).
+  - `ensureMilestones`: induk sekali (locationId null), lokasi per lokasi.
+  - Sync `documents.ts`: dokumen induk → milestone induk (satu); dokumen lokasi →
+    milestone lokasi itu (OR per scope). Status DITURUNKAN dari dokumen, bukan flag.
+  - `milestoneBoard({packageId})` = induk (locationId null); `{locationId}` = lokasi.
+  - UI: halaman PAKET/dokumen = papan administrasi induk (editable). Halaman
+    LOKASI/dokumen = papan lokasi (editable) + rujukan induk read-only (status ikut induk).
+  - Aksi update/verify milestone kini terima `packageId` (revalidate paket) selain slug.
+  - Self-heal: `consolidateLegacyPaketMilestones` menggabung salinan per-lokasi warisan
+    ke induk (pindahkan dokumen, ambil status paling maju, hapus salinan) — idempoten,
+    otomatis saat load; tak perlu migrasi manual.
+- Domain (konfirmasi user): MC-0 per lokasi; PCM induk (berbarengan); PHO/FHO atas
+  semua lokasi (induk); termin 20/25/30/25 @ progres total 25/50/80% & 100% + retensi 5%.
+- Lanjutan (OPEN_ISSUES): (a) serah terima PARSIAL per pekerjaan selesai (mis. revetmen
+  100%); (b) auto-flag termin bisa ditagih berdasar progres agregat kontrak + retensi 5%.
+- Verifikasi: typecheck ✓ lint ✓ 123 unit test ✓ (test scope baru).

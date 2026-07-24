@@ -155,15 +155,20 @@ export async function uploadDocument(input: UploadDocumentInput, userId: string)
     if (!ms || ms.package.orgId !== user.orgId) throw new DocumentError("Milestone tidak ditemukan");
     milestone = ms;
   } else if (packageId) {
-    const matchingKeys = ADMIN_MILESTONE_TEMPLATE.filter((t) => t.docTypes.includes(input.type)).map((t) => t.key);
-    if (matchingKeys.length > 0) {
+    // Sync otomatis berbasis scope: dokumen tipe X → milestone yang docTypes-nya
+    // memuat X. Milestone INDUK (scope paket) dicari di locationId null; milestone
+    // LOKASI dicari di locationId dokumen. Ini memastikan dokumen induk (jaminan,
+    // SPMK, kontrak) menandai SATU milestone induk, bukan tercecer per lokasi.
+    const matching = ADMIN_MILESTONE_TEMPLATE.filter((t) => t.docTypes.includes(input.type));
+    const paketKeys = matching.filter((t) => t.scope === "paket").map((t) => t.key);
+    const lokasiKeys = matching.filter((t) => t.scope === "lokasi").map((t) => t.key);
+    const or: Prisma.AdminMilestoneWhereInput[] = [];
+    if (paketKeys.length > 0) or.push({ locationId: null, templateKey: { in: paketKeys } });
+    if (lokasiKeys.length > 0 && input.locationId)
+      or.push({ locationId: input.locationId, templateKey: { in: lokasiKeys } });
+    if (or.length > 0) {
       milestone = await db.adminMilestone.findFirst({
-        where: {
-          packageId,
-          ...(input.locationId ? { locationId: input.locationId } : {}),
-          templateKey: { in: matchingKeys },
-          status: { notIn: ["selesai", "tidak_berlaku"] },
-        },
+        where: { packageId, status: { notIn: ["selesai", "tidak_berlaku"] }, OR: or },
         orderBy: { sortOrder: "asc" },
         select: { id: true, status: true, requiresVerification: true, note: true, name: true },
       });

@@ -55,3 +55,15 @@ Priority: 🔴 Critical (blocking production) · 🟡 Important · 🟢 Nice-to-
   (pengecualian terdokumentasi di OPEN_SOURCE_LICENSE_AUDIT.md).
 - 🟢 Foto stamp memakai font DejaVu bundel; verifikasi otomatis foto (flag GPS/waktu)
   belum dievaluasi rutin (dedup sha256 jalan).
+
+## FUTURE · Serah terima parsial (PHO parsial per pekerjaan) — DECISIONS 078
+Kontrak KNMP membolehkan PHO PARSIAL atas pekerjaan yang sudah 100% (mis. revetmen)
+sebelum PHO final atas seluruh lokasi. Saat ini milestone PHO/FHO = induk tunggal.
+Perlu: model serah terima parsial (per pekerjaan/kategori/lokasi selesai) + BA-nya,
+tanpa mengganggu PHO/FHO final.
+
+## FUTURE · Auto-flag termin berdasar progres agregat — DECISIONS 078
+Termin 20/25/30/25 ditagih saat progres TOTAL kontrak mencapai 25/50/80/100%, dengan
+retensi pemeliharaan 5% (bisa diganti jaminan pemeliharaan). Perlu: modul keuangan
+otomatis menandai "termin-N siap ditagih" saat progres agregat lewat ambang, +
+perhitungan retensi & opsi jaminan pemeliharaan. Milestone pembayaran sudah scope induk.
