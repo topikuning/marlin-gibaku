@@ -197,7 +197,7 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
                 href: `/lokasi/${l.slug}`,
                 rank: i + 1,
                 label: l.name,
-                value: `${l.deviationPct.toFixed(1)} pp`,
+                value: formatPct(l.deviationPct),
                 danger: true,
               }))}
             />
