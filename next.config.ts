@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["sharp"],
   experimental: {
     serverActions: {
-      bodySizeLimit: "16mb", // upload dokumen/foto lewat server action
+      bodySizeLimit: "30mb", // upload dokumen/foto lewat server action (file maks 25MB + overhead multipart)
     },
   },
   // Sertakan font bundel (cap foto via sharp) + seed-data (bootstrap data demo).
