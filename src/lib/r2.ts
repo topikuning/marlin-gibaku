@@ -51,6 +51,20 @@ export async function r2PresignGet(key: string, expiresIn = 300): Promise<string
   return getSignedUrl(r2(), new GetObjectCommand({ Bucket: env.r2!.bucket, Key: key }), { expiresIn });
 }
 
+/**
+ * URL PUT presigned — browser meng-upload biner LANGSUNG ke R2 (bukan lewat
+ * origin aplikasi/Cloudflare). `ContentType` ikut ditandatangani → request PUT
+ * WAJIB mengirim header Content-Type yang sama. Butuh CORS bucket R2 (izinkan
+ * PUT dari origin app).
+ */
+export async function r2PresignPut(key: string, contentType: string, expiresIn = 300): Promise<string> {
+  return getSignedUrl(
+    r2(),
+    new PutObjectCommand({ Bucket: env.r2!.bucket, Key: key, ContentType: contentType }),
+    { expiresIn },
+  );
+}
+
 export async function r2Delete(key: string): Promise<void> {
   await r2().send(new DeleteObjectCommand({ Bucket: env.r2!.bucket, Key: key }));
 }
