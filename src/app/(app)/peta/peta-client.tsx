@@ -13,7 +13,7 @@ import {
   REPORT_STATUS_TONE,
 } from "@/lib/lifecycle";
 import { formatPct, formatRupiahShort, formatTanggal } from "@/lib/format";
-import { Input, Select, StatusPill } from "@/components/ui";
+import { Input, Combobox, StatusPill } from "@/components/ui";
 import { DeltaBadge } from "@/components/ui/stat-delta";
 import { statusColorCss } from "./status-color";
 
@@ -83,9 +83,9 @@ export function PetaClient({ markers }: { markers: PetaMarker[] }) {
             aria-label="Cari lokasi"
           />
           <div className="flex gap-2">
-            <Select
+            <Combobox
               value={province}
-              onChange={(e) => setProvince(e.target.value)}
+              onChange={(value) => setProvince(value)}
               aria-label="Filter provinsi"
               className="h-8 min-w-0 flex-1 px-2 text-xs"
             >
@@ -95,10 +95,10 @@ export function PetaClient({ markers }: { markers: PetaMarker[] }) {
                   {p}
                 </option>
               ))}
-            </Select>
-            <Select
+            </Combobox>
+            <Combobox
               value={status}
-              onChange={(e) => setStatus(e.target.value)}
+              onChange={(value) => setStatus(value)}
               aria-label="Filter status"
               className="h-8 min-w-0 flex-1 px-2 text-xs"
             >
@@ -108,7 +108,7 @@ export function PetaClient({ markers }: { markers: PetaMarker[] }) {
                   {LOCATION_STATUS_LABEL[s]}
                 </option>
               ))}
-            </Select>
+            </Combobox>
           </div>
           <div className="text-[11px] text-ink-faint">
             {filtered.length} dari {markers.length} lokasi

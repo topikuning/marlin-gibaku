@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
-import { Banner, Button, HelpText, Input, Label, Select } from "@/components/ui";
+import { Banner, Button, HelpText, Input, Label, Combobox } from "@/components/ui";
 import { createDirectProject, type PackageActionState } from "@/lib/package/actions";
 
 export type MasterLocationOption = {
@@ -104,12 +104,12 @@ export function BypassForm({
           <Label htmlFor="bp-vendor" required>Vendor / penyedia</Label>
           {!newVendor ? (
             <>
-              <Select id="bp-vendor" name="vendorId" defaultValue="" required={!newVendor}>
+              <Combobox id="bp-vendor" name="vendorId" defaultValue="" required={!newVendor}>
                 <option value="" disabled>— pilih dari master —</option>
                 {vendors.map((v) => (
                   <option key={v.id} value={v.id}>{v.name}</option>
                 ))}
-              </Select>
+              </Combobox>
               <button type="button" className="mt-1 text-[13px] text-primary hover:underline" onClick={() => setNewVendor(true)}>
                 + vendor baru (tidak ada di daftar)
               </button>

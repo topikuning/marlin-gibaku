@@ -2,7 +2,7 @@
 
 import { useActionState, useMemo, useState } from "react";
 import { GitMerge, Trash2, AlertTriangle } from "lucide-react";
-import { Banner, Button, Select } from "@/components/ui";
+import { Banner, Button, Combobox } from "@/components/ui";
 import {
   deleteVendorAction,
   mergeVendorsAction,
@@ -97,17 +97,17 @@ function VendorRow({ vendor, all, flagged }: { vendor: V; all: V[]; flagged: boo
           <form action={mergeAction} onSubmit={confirmMerge} className="flex items-center gap-1">
             <input type="hidden" name="fromId" value={vendor.id} />
             <input type="hidden" name="toId" value={target} />
-            <Select
+            <Combobox
               aria-label="Gabung ke"
               value={target}
-              onChange={(e) => setTarget(e.target.value)}
+              onChange={(value) => setTarget(value)}
               className="h-8 w-44 text-[13px]"
             >
               <option value="">Gabung ke…</option>
               {others.map((o) => (
                 <option key={o.id} value={o.id}>{o.name}</option>
               ))}
-            </Select>
+            </Combobox>
             <Button type="submit" size="sm" variant="secondary" loading={merging} disabled={!target}>
               <GitMerge aria-hidden className="size-3.5" />
               Gabung

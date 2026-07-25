@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Banner, Button, FileInput, Input, Label, Select, StatusPill, Textarea } from "@/components/ui";
+import { Banner, Button, FileInput, Input, Label, Combobox, StatusPill, Textarea } from "@/components/ui";
 import {
   updateMilestoneAction,
   verifyMilestoneAction,
@@ -61,20 +61,20 @@ function MilestoneEditForm({
       <input type="hidden" name="packageId" value={packageId} />
       <div>
         <Label htmlFor={`st-${item.id}`}>Status</Label>
-        <Select id={`st-${item.id}`} name="status" defaultValue={item.status}>
+        <Combobox id={`st-${item.id}`} name="status" defaultValue={item.status}>
           {STATUS_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
-        </Select>
+        </Combobox>
       </div>
       <div>
         <Label htmlFor={`pic-${item.id}`}>Penanggung jawab (PIC)</Label>
-        <Select id={`pic-${item.id}`} name="picUserId" defaultValue={item.picUserId ?? ""}>
+        <Combobox id={`pic-${item.id}`} name="picUserId" defaultValue={item.picUserId ?? ""}>
           <option value="">— tanpa PIC —</option>
           {picOptions.map((p) => (
             <option key={p.id} value={p.id}>{p.fullName}</option>
           ))}
-        </Select>
+        </Combobox>
       </div>
       <div>
         <Label htmlFor={`due-${item.id}`}>Jatuh tempo</Label>
@@ -220,28 +220,28 @@ export function QuickUploadForm({
       </div>
       <div>
         <Label htmlFor="up-phase" required>Fase</Label>
-        <Select id="up-phase" name="phase" defaultValue="pelaksanaan">
+        <Combobox id="up-phase" name="phase" defaultValue="pelaksanaan">
           {ALL_PHASES.map((p) => (
             <option key={p} value={p}>{PHASE_LABEL[p]}</option>
           ))}
-        </Select>
+        </Combobox>
       </div>
       <div>
         <Label htmlFor="up-type" required>Tipe</Label>
-        <Select id="up-type" name="type" defaultValue="laporan">
+        <Combobox id="up-type" name="type" defaultValue="laporan">
           {ALL_DOC_TYPES.map((t) => (
             <option key={t} value={t}>{TYPE_LABEL[t]}</option>
           ))}
-        </Select>
+        </Combobox>
       </div>
       <div>
         <Label htmlFor="up-milestone">Milestone (bukti utk)</Label>
-        <Select id="up-milestone" name="milestoneId" defaultValue="">
+        <Combobox id="up-milestone" name="milestoneId" defaultValue="">
           <option value="">— tidak terkait milestone —</option>
           {milestones.map((m) => (
             <option key={m.id} value={m.id}>{m.name}</option>
           ))}
-        </Select>
+        </Combobox>
       </div>
       <div>
         <Label htmlFor="up-docnumber">Nomor dokumen</Label>

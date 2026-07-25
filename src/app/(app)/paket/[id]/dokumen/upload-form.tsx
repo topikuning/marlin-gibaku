@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { Banner, Button, FileInput, Input, Label, Select, Textarea } from "@/components/ui";
+import { Banner, Button, FileInput, Input, Label, Combobox, Textarea } from "@/components/ui";
 import { uploadDocumentAction, type UploadActionState } from "@/app/(app)/dokumen/actions";
 import { ALL_DOC_TYPES, ALL_PHASES, PHASE_LABEL, TYPE_LABEL, TYPES_BY_PHASE } from "@/lib/documents-meta";
 import type { AdminPhase } from "@/generated/prisma/enums";
@@ -41,29 +41,29 @@ export function PackageDocUploadForm({
 
       <div>
         <Label htmlFor="pu-phase" required>Fase</Label>
-        <Select id="pu-phase" name="phase" value={phase} onChange={(e) => setPhase(e.target.value as AdminPhase)}>
+        <Combobox id="pu-phase" name="phase" value={phase} onChange={(value) => setPhase(value as AdminPhase)}>
           {ALL_PHASES.map((p) => (
             <option key={p} value={p}>{PHASE_LABEL[p]}</option>
           ))}
-        </Select>
+        </Combobox>
       </div>
       <div>
         <Label htmlFor="pu-type" required>Jenis dokumen</Label>
-        <Select id="pu-type" name="type" defaultValue={typeOptions[0]} key={phase}>
+        <Combobox id="pu-type" name="type" defaultValue={typeOptions[0]} key={phase}>
           {typeOptions.map((t) => (
             <option key={t} value={t}>{TYPE_LABEL[t]}</option>
           ))}
-        </Select>
+        </Combobox>
       </div>
 
       <div>
         <Label htmlFor="pu-loc">Lokasi (opsional)</Label>
-        <Select id="pu-loc" name="locationId" defaultValue="">
+        <Combobox id="pu-loc" name="locationId" defaultValue="">
           <option value="">— tingkat paket —</option>
           {locations.map((l) => (
             <option key={l.id} value={l.id}>{l.name}</option>
           ))}
-        </Select>
+        </Combobox>
       </div>
       <div>
         <Label htmlFor="pu-number">Nomor dokumen</Label>

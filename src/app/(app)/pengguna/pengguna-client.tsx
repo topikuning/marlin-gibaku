@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Banner, Button, Input, Label, Select, StatusPill } from "@/components/ui";
+import { Banner, Button, Input, Label, Combobox, StatusPill } from "@/components/ui";
 import { ROLE_LABEL } from "@/lib/authz";
 import { formatTanggalWaktu } from "@/lib/format";
 import {
@@ -47,11 +47,11 @@ export function UserForm({ locations, roles }: { locations: LocationOption[]; ro
       </div>
       <div>
         <Label htmlFor="u-role" required>Peran</Label>
-        <Select id="u-role" name="role" required defaultValue={roles[0]}>
+        <Combobox id="u-role" name="role" required defaultValue={roles[0]}>
           {roles.map((r) => (
             <option key={r} value={r}>{ROLE_LABEL[r]}</option>
           ))}
-        </Select>
+        </Combobox>
       </div>
       <div>
         <Label htmlFor="u-password" required>Password awal (min 8)</Label>

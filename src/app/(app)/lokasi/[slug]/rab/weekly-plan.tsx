@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useActionState, useMemo, useState } from "react";
-import { Banner, Button, HelpText, Input, Label, Select, Textarea } from "@/components/ui";
+import { Banner, Button, HelpText, Input, Label, Combobox, Textarea } from "@/components/ui";
 import { formatNumber, formatPct, formatRupiah } from "@/lib/format";
 import {
   addWeeklyPlanItem,
@@ -96,7 +96,7 @@ function AddItemForm({
         </div>
         <div className="sm:col-span-2">
           <Label htmlFor="wp-item" required>Item pekerjaan</Label>
-          <Select id="wp-item" name="rabNodeId" required key={query /* reset pilihan saat filter berubah */}>
+          <Combobox id="wp-item" name="rabNodeId" required key={query /* reset pilihan saat filter berubah */}>
             <option value="">— pilih item ({filtered.length}{filtered.length === MAX_OPTIONS ? "+" : ""} tersedia) —</option>
             {filtered.map((o) => (
               <option key={o.id} value={o.id}>
@@ -104,7 +104,7 @@ function AddItemForm({
                 {o.volume != null ? ` (vol RAB ${formatNumber(o.volume)} ${o.unit ?? ""})` : ""}
               </option>
             ))}
-          </Select>
+          </Combobox>
           {filtered.length === MAX_OPTIONS ? (
             <HelpText>Menampilkan {MAX_OPTIONS} pertama — persempit lewat pencarian.</HelpText>
           ) : null}
@@ -115,11 +115,11 @@ function AddItemForm({
         </div>
         <div>
           <Label htmlFor="wp-priority">Prioritas (1 = tertinggi)</Label>
-          <Select id="wp-priority" name="priority" defaultValue="5">
+          <Combobox id="wp-priority" name="priority" defaultValue="5">
             {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((p) => (
               <option key={p} value={p}>{p}</option>
             ))}
-          </Select>
+          </Combobox>
         </div>
         <div>
           <Label htmlFor="wp-pic">PIC</Label>
@@ -265,10 +265,10 @@ export function WeeklyPlanSection({
       <div className="flex flex-wrap items-end gap-3">
         <div>
           <Label htmlFor="wp-week">Minggu</Label>
-          <Select
+          <Combobox
             id="wp-week"
-            value={weekNumber}
-            onChange={(e) => router.push(`${pathname}?minggu=${e.target.value}`)}
+            value={String(weekNumber)}
+            onChange={(value) => router.push(`${pathname}?minggu=${value}`)}
             className="w-44"
           >
             {weeks.map((w) => (
@@ -277,7 +277,7 @@ export function WeeklyPlanSection({
                 {w === currentWeek ? " (berjalan)" : ""}
               </option>
             ))}
-          </Select>
+          </Combobox>
         </div>
         {weekPeriod ? <p className="pb-2 text-[13px] text-ink-muted">{weekPeriod}</p> : null}
       </div>

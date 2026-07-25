@@ -1836,3 +1836,18 @@ scurve — dengan test properti, bukan paritas nilai):**
   di WORKER_ROLE_LABEL tetap.
 - Komentar konteks-peran ("PM→SM/Mandor", dst) ikut diselaraskan ke "Pelaksana".
 - Verifikasi: typecheck/lint ✓, 139 unit test ✓, build ✓.
+
+## 094 · 2026-07-25 · Semua dropdown form → Combobox SEARCHABLE (bukan AG Grid)
+
+- User: semua dropdown harus bisa dicari, "jangan monoton". Menyangka AG Grid bisa — TAPI
+  searchable select AG Grid = Rich Select (Enterprise, DILARANG CLAUDE.md). AG Grid = grid data,
+  bukan kontrol form. → bikin komponen sendiri, tanpa dependency baru.
+- `components/ui/combobox.tsx` (`Combobox`): pengganti `Select` yang bisa diketik-cari. DROP-IN —
+  terima `<option>` sebagai children ATAU prop `options`; nilai terpilih ditaruh di
+  `<input type="hidden" name=…>` supaya tetap ikut FormData Server Action. Kotak cari OTOMATIS
+  muncul bila opsi > 7 (daftar pendek tetap ringkas). Mobile-friendly (target ketuk besar, panel
+  selebar kontrol), a11y (role combobox/listbox, navigasi keyboard ↑↓/Enter/Esc, klik-luar tutup),
+  token-based (tanpa hex). onChange bertipe `(value: string) => void` (bukan event).
+- Migrasi 15 file: `Select` → `Combobox` (rename), 6 call-site onChange disesuaikan ke `(value)=>`.
+  `Select` primitive di field.tsx tetap ada (belum dihapus) utk kompatibilitas.
+- Verifikasi: typecheck/lint ✓, 139 unit test ✓, build ✓. Interaksi/mobile diuji manual user.

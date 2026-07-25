@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { Banner, Button, Label, Select, Textarea } from "@/components/ui";
+import { Banner, Button, Label, Combobox, Textarea } from "@/components/ui";
 import { changeLocationStatus, type StatusActionState } from "./actions";
 import type { LocationStatus } from "@/generated/prisma/enums";
 
@@ -30,13 +30,13 @@ export function LocationStatusForm({
       <input type="hidden" name="locationId" value={locationId} />
       <div>
         <Label htmlFor="ls-status" required>Status baru</Label>
-        <Select id="ls-status" name="toStatus" required defaultValue={targets[0][0]}>
+        <Combobox id="ls-status" name="toStatus" required defaultValue={targets[0][0]}>
           {targets.map(([value, label]) => (
             <option key={value} value={value}>
               {label}
             </option>
           ))}
-        </Select>
+        </Combobox>
       </div>
       <div>
         <Label htmlFor="ls-note">Catatan (opsional)</Label>

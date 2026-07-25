@@ -12,7 +12,7 @@ import {
   type DailyActionState,
 } from "@/lib/daily-report/actions";
 import { ISSUE_SEVERITY_LABEL } from "@/lib/daily-report/constants";
-import { Select } from "@/components/ui";
+import { Combobox } from "@/components/ui";
 
 /** Aksi reviewer (dikirim): Setujui / Kembalikan (alasan wajib). */
 export function ReviewActions({ reportId }: { reportId: string }) {
@@ -152,13 +152,13 @@ export function IssueForm({ reportId }: { reportId: string }) {
         </div>
         <div className="w-full sm:w-32">
           <Label htmlFor="is-severity">Tingkat</Label>
-          <Select id="is-severity" name="severity" defaultValue="sedang">
+          <Combobox id="is-severity" name="severity" defaultValue="sedang">
             {(Object.keys(ISSUE_SEVERITY_LABEL) as (keyof typeof ISSUE_SEVERITY_LABEL)[]).map((s) => (
               <option key={s} value={s}>
                 {ISSUE_SEVERITY_LABEL[s]}
               </option>
             ))}
-          </Select>
+          </Combobox>
         </div>
       </div>
       <div>
