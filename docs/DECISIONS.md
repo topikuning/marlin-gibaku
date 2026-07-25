@@ -1978,3 +1978,20 @@ scurve — dengan test properti, bukan paritas nilai):**
   diambil dari `Location.gpsLat/gpsLng` (sudah terisi dari import master / form lokasi).
 - Dipakai di kegiatan lapangan (form buat + Tambah foto) dan laporan harian (report-editor).
   Waktu fallback galeri = tanggal kegiatan/laporan (bukan waktu upload).
+
+## 102 · 2026-07-25 · Export Time Schedule: sumber grafik TERTAUT rumus (edit → grafik ikut update)
+
+- **Masalah (temuan user + file editan sipil)**: export TS menulis baris sumber grafik
+  (helper tersembunyi) sebagai ANGKA STATIS, tak tertaut ke tabel "Kumulatif Rencana %".
+  Saat sipil mengedit tabel, grafik tidak ikut berubah (sampai sipil ubah sel jadi rumus manual).
+- **Fix (`src/lib/export/xlsx.ts` addKurvaSheet)**: baris prestasi kini RUMUS —
+  "Rencana %" = `SUM(<kolom>catAwal:catAkhir)`, "Kumulatif Rencana %" = kumulatif
+  (`=D9`, `=D10+E9`, …). Baris helper sumber grafik = rumus tertaut ke baris kumulatif
+  yang terlihat (`helperY = =D10,=E10,…`; `helperR = =D12,…` hanya minggu ber-realisasi),
+  sel A tetap 0 (origin agar kurva mulai 0%). `result` diisi supaya tampil sebelum recalc.
+- **Efek**: (a) edit tabel kategori otomatis menjalar ke kumulatif → grafik update di Excel;
+  (b) pekerjaan dengan MINGGU TERPUTUS (mis. M1–4, jeda M5–6, lanjut M7–10) kini valid &
+  tergambar benar — kumulatif mendatar di minggu jeda (…45,45,45,58.75…). Kaidah TS sipil
+  membolehkan aktivitas terputus.
+- Verifikasi: generate TS sintetis (10 minggu, 1 kategori terputus) → helper Y = `=D10..=M10`,
+  kumulatif cache [.,.,45,45,.] benar. Sisa (editor in-app dukung gap + re-import export) menyusul.

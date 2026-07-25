@@ -130,27 +130,57 @@ async function addKurvaSheet(
     });
   }
 
-  // Baris prestasi (kumulatif rencana/realisasi + deviasi).
-  const prestasi: [string, (number | null)[], boolean][] = [
-    ["Rencana Prestasi %", sheet.rencanaPerWeek, false],
-    ["Kumulatif Rencana Prestasi %", sheet.kumulatifRencana, true],
-    ["Realisasi Prestasi %", sheet.realisasiPerWeek, false],
-    ["Kumulatif Realisasi Prestasi %", sheet.kumulatifRealisasi, true],
-    ["Deviasi +/-", sheet.deviasi, true],
+  // Baris prestasi (kumulatif rencana/realisasi + deviasi). RUMUS, bukan angka
+  // statis, supaya edit tabel kategori otomatis menjalar ke kumulatif → grafik.
+  const firstCatN = catRowNums[0];
+  const lastCatN = catRowNums[catRowNums.length - 1];
+  const colL = (i: number) => colLetter(FIRST + i); // kolom minggu ke-i (0-based): D, E, …
+  let rencanaRow = 0;
+  let kumRencanaRow = 0;
+  let realisasiRow = 0;
+  let kumRealisasiRow = 0;
+  type Kind = "rencana" | "kumRencana" | "realisasi" | "kumRealisasi" | "deviasi";
+  const prestasi: { label: string; arr: (number | null)[]; bold: boolean; kind: Kind }[] = [
+    { label: "Rencana Prestasi %", arr: sheet.rencanaPerWeek, bold: false, kind: "rencana" },
+    { label: "Kumulatif Rencana Prestasi %", arr: sheet.kumulatifRencana, bold: true, kind: "kumRencana" },
+    { label: "Realisasi Prestasi %", arr: sheet.realisasiPerWeek, bold: false, kind: "realisasi" },
+    { label: "Kumulatif Realisasi Prestasi %", arr: sheet.kumulatifRealisasi, bold: true, kind: "kumRealisasi" },
+    { label: "Deviasi +/-", arr: sheet.deviasi, bold: true, kind: "deviasi" },
   ];
-  for (const [label, arr, bold] of prestasi) {
+  for (const def of prestasi) {
     const row = ws.addRow([]);
-    row.getCell(1).value = label;
+    if (def.kind === "rencana") rencanaRow = row.number;
+    else if (def.kind === "kumRencana") kumRencanaRow = row.number;
+    else if (def.kind === "realisasi") realisasiRow = row.number;
+    else if (def.kind === "kumRealisasi") kumRealisasiRow = row.number;
+    row.getCell(1).value = def.label;
     ws.mergeCells(row.number, 1, row.number, 3);
     row.getCell(1).alignment = { horizontal: "right" };
-    row.getCell(1).font = { size: 8, bold };
+    row.getCell(1).font = { size: 8, bold: def.bold };
     row.getCell(1).border = box;
     for (let i = 0; i < N; i++) {
       const cell = row.getCell(FIRST + i);
-      cell.value = arr[i] == null ? null : round2(arr[i] as number);
+      const val = def.arr[i] == null ? null : round2(def.arr[i] as number);
+      if (def.kind === "rencana") {
+        // Σ increment kategori pada minggu ini.
+        cell.value = { formula: `SUM(${colL(i)}${firstCatN}:${colL(i)}${lastCatN})`, result: val ?? 0 };
+      } else if (def.kind === "kumRencana") {
+        // Kumulatif: minggu-1 = rencana; berikutnya = kumulatif sebelumnya + rencana.
+        const f = i === 0 ? `${colL(0)}${rencanaRow}` : `${colL(i - 1)}${kumRencanaRow}+${colL(i)}${rencanaRow}`;
+        cell.value = { formula: f, result: val ?? 0 };
+      } else if (def.kind === "deviasi") {
+        // Realisasi − rencana (hanya minggu yg sudah ada realisasi).
+        cell.value =
+          sheet.kumulatifRealisasi[i] == null
+            ? null
+            : { formula: `${colL(i)}${kumRealisasiRow}-${colL(i)}${kumRencanaRow}`, result: val ?? 0 };
+      } else {
+        // Realisasi & kumulatif realisasi = nilai aktual dari aplikasi (bisa diedit manual).
+        cell.value = val;
+      }
       cell.numFmt = "#,##0.00";
       cell.alignment = { horizontal: "right" };
-      cell.font = { size: 8, bold };
+      cell.font = { size: 8, bold: def.bold };
       cell.border = box;
     }
     for (const kc of [scaleA, scaleB, ketLabel]) row.getCell(kc).border = box; // KET berpetak
@@ -192,8 +222,22 @@ async function addKurvaSheet(
   // kurva MULAI dari 0% di kiri-bawah & X menembus tepi kolom minggu (w/N). `plotVisOnly=0`
   // di chartXml → baris tersembunyi ini tetap diplot.
   const helperX = ws.addRow([0, ...Array.from({ length: N }, (_, i) => i + 1)]);
-  const helperY = ws.addRow([0, ...sheet.kumulatifRencana.map((v) => round2(v))]);
-  const helperR = ws.addRow([0, ...sheet.kumulatifRealisasi.map((v) => (v == null ? null : round2(v)))]);
+  // Sumber Y grafik = RUMUS tertaut ke baris kumulatif yang terlihat (bukan angka
+  // statis). Jadi begitu tabel diedit di Excel, grafik ikut ter-update. Sel A tetap
+  // 0 (titik origin agar kurva mulai dari 0%).
+  const helperY = ws.addRow([]);
+  helperY.getCell(1).value = 0;
+  for (let i = 0; i < N; i++) {
+    helperY.getCell(2 + i).value = { formula: `${colL(i)}${kumRencanaRow}`, result: round2(sheet.kumulatifRencana[i]) };
+  }
+  const helperR = ws.addRow([]);
+  helperR.getCell(1).value = 0;
+  for (let i = 0; i < N; i++) {
+    const v = sheet.kumulatifRealisasi[i];
+    // Hanya minggu yg SUDAH ada realisasi ditaut; minggu depan biarkan kosong
+    // supaya garis realisasi berhenti di minggu berjalan (tak jatuh ke 0).
+    helperR.getCell(2 + i).value = v == null ? null : { formula: `${colL(i)}${kumRealisasiRow}`, result: round2(v) };
+  }
   for (const hr of [helperX, helperY, helperR]) hr.hidden = true;
   const lastHelperCol = colLetter(N + 1); // A..(N+1) = origin + N minggu
   const hRange = (rowN: number) => `'${ws.name}'!$A$${rowN}:$${lastHelperCol}$${rowN}`;
