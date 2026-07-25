@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { buildPhotoViews, type PhotoView } from "@/lib/photos";
-import type { FieldActivityStatus, FieldActivityType } from "@/generated/prisma/enums";
+import type { FieldActivityStatus } from "@/generated/prisma/enums";
 
 export type FieldActivityAttachmentView = {
   id: string;
@@ -13,7 +13,7 @@ export type FieldActivityAttachmentView = {
 export type FieldActivityView = {
   id: string;
   activityDate: string; // ISO date (yyyy-mm-dd)
-  type: FieldActivityType;
+  type: string;
   title: string;
   notes: string | null;
   participants: string | null;

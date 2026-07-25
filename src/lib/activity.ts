@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { REPORT_STATUS_LABEL } from "@/lib/lifecycle";
-import { FIELD_ACTIVITY_TYPE_LABEL } from "@/lib/field-activity/labels";
+import { getActivityKindLabelMap } from "@/lib/field-activity/kinds";
 import { formatTanggal } from "@/lib/format";
 import type { BadgeTone } from "@/components/ui";
 import type { BaselineSource, DailyReportStatus } from "@/generated/prisma/enums";
@@ -128,7 +128,7 @@ export async function getActivityFeed(locIds: string[] | null, limit = 40): Prom
   }
   for (const b of baselines) if (b.createdById) actorIds.push(b.createdById);
   for (const i of issues) if (i.raisedById) actorIds.push(i.raisedById);
-  const actors = await resolveActors(actorIds);
+  const [actors, kindLabels] = await Promise.all([resolveActors(actorIds), getActivityKindLabelMap()]);
   const nameOf = (id: string | null | undefined) => (id && actors.get(id)) || "Sistem";
 
   const events: ActivityEvent[] = [];
@@ -161,7 +161,7 @@ export async function getActivityFeed(locIds: string[] | null, limit = 40): Prom
       locationName: a.location.name,
       locationSlug: a.location.slug,
       actor: nameOf(a.createdById),
-      summary: `Kegiatan lapangan: ${a.title} (${FIELD_ACTIVITY_TYPE_LABEL[a.type]})`,
+      summary: `Kegiatan lapangan: ${a.title} (${kindLabels.get(a.type) ?? a.type})`,
       tone: KIND_TONE.kegiatan,
       href: `/lokasi/${a.location.slug}`,
     });

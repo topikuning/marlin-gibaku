@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { FolderOpen } from "lucide-react";
-import { Card, CardBody, CardHeader, EmptyState, KpiCard, PageHeader, StatusPill } from "@/components/ui";
+import { Card, CardBody, CardHeader, Combobox, EmptyState, KpiCard, PageHeader, StatusPill } from "@/components/ui";
 import { requireUser, accessibleLocationIds } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
@@ -85,30 +85,30 @@ export default async function DokumenPage({
         <CardHeader title="Arsip" />
         <CardBody className="space-y-4">
           <form method="GET" className="grid gap-2 text-sm sm:grid-cols-3 lg:grid-cols-6">
-            <select name="paket" defaultValue={sp.paket ?? ""} className="rounded-md border border-border px-2 py-1.5">
+            <Combobox name="paket" defaultValue={sp.paket ?? ""} placeholder="Semua paket">
               <option value="">Semua paket</option>
               {packages.map((p) => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
-            </select>
-            <select name="lokasi" defaultValue={sp.lokasi ?? ""} className="rounded-md border border-border px-2 py-1.5">
+            </Combobox>
+            <Combobox name="lokasi" defaultValue={sp.lokasi ?? ""} placeholder="Semua lokasi">
               <option value="">Semua lokasi</option>
               {locations.map((l) => (
                 <option key={l.id} value={l.id}>{l.name}</option>
               ))}
-            </select>
-            <select name="fase" defaultValue={sp.fase ?? ""} className="rounded-md border border-border px-2 py-1.5">
+            </Combobox>
+            <Combobox name="fase" defaultValue={sp.fase ?? ""} placeholder="Semua fase">
               <option value="">Semua fase</option>
               {ALL_PHASES.map((p) => (
                 <option key={p} value={p}>{PHASE_LABEL[p]}</option>
               ))}
-            </select>
-            <select name="tipe" defaultValue={sp.tipe ?? ""} className="rounded-md border border-border px-2 py-1.5">
+            </Combobox>
+            <Combobox name="tipe" defaultValue={sp.tipe ?? ""} placeholder="Semua tipe">
               <option value="">Semua tipe</option>
               {ALL_DOC_TYPES.map((t) => (
                 <option key={t} value={t}>{TYPE_LABEL[t]}</option>
               ))}
-            </select>
+            </Combobox>
             <input
               name="q"
               defaultValue={sp.q ?? ""}

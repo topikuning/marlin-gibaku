@@ -10,7 +10,7 @@ import { MAX_PHOTOS_PER_UPLOAD, PhotoError, savePhotoForItem } from "@/lib/photo
 import { isR2Configured, r2Delete, r2Put } from "@/lib/r2";
 import { ALLOWED_UPLOAD_MIMES, MAX_UPLOAD_BYTES } from "@/lib/documents-meta";
 import { jakartaDateKey } from "@/lib/format";
-import { FIELD_ACTIVITY_TYPE_LABEL } from "@/lib/field-activity/labels";
+import { getActivityKinds, getActivityKindLabelMap, activeActivityKindKeys } from "@/lib/field-activity/kinds";
 
 /** Hapus objek R2 (best-effort — orphan diabaikan bila gagal). */
 async function deleteR2Keys(keys: (string | null | undefined)[]): Promise<void> {
@@ -121,15 +121,7 @@ function parseTakenAt(v: FormDataEntryValue | null): Date | null {
 
 const createSchema = z.object({
   locationId: z.uuid(),
-  type: z.enum([
-    "rapat_pcm",
-    "pengukuran_uitzet",
-    "mc0",
-    "sosialisasi",
-    "mobilisasi",
-    "dokumentasi_0",
-    "lainnya",
-  ]),
+  type: z.string().trim().min(1, "Jenis kegiatan wajib dipilih"),
   activityDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal tidak valid"),
   title: z.string().trim().min(3, "Judul minimal 3 karakter").max(160),
   notes: z.string().trim().max(2000).optional(),
@@ -165,6 +157,8 @@ export async function createActivityAction(
     await requireLocationAccess(user, d.locationId);
     const location = await locationForStamp(d.locationId);
     if (!location) return { error: "Lokasi tidak ditemukan." };
+    const kind = (await getActivityKinds({ activeOnly: true })).find((k) => k.key === d.type);
+    if (!kind) return { error: "Jenis kegiatan tidak dikenal atau nonaktif." };
 
     const activity = await db.fieldActivity.create({
       data: {
@@ -199,7 +193,7 @@ export async function createActivityAction(
       lng: d.gpsLng ?? null,
       takenAt: parseTakenAt(formData.get("photoTakenAt")),
       workDate: new Date(`${d.activityDate}T00:00:00.000Z`),
-      categoryName: FIELD_ACTIVITY_TYPE_LABEL[d.type],
+      categoryName: kind.label,
     });
 
     await audit(user.id, "field_activity.create", "field_activity", activity.id, {
@@ -218,15 +212,7 @@ export async function createActivityAction(
 
 const updateSchema = z.object({
   activityId: z.uuid(),
-  type: z.enum([
-    "rapat_pcm",
-    "pengukuran_uitzet",
-    "mc0",
-    "sosialisasi",
-    "mobilisasi",
-    "dokumentasi_0",
-    "lainnya",
-  ]),
+  type: z.string().trim().min(1, "Jenis kegiatan wajib dipilih"),
   activityDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal tidak valid"),
   title: z.string().trim().min(3, "Judul minimal 3 karakter").max(160),
   notes: z.string().trim().max(2000).optional(),
@@ -264,6 +250,11 @@ export async function updateActivityAction(
     await requireLocationAccess(user, ctx.locationId);
     if (ctx.status !== "draft") {
       return { error: "Kegiatan sudah final — buka kembali dulu untuk mengoreksi." };
+    }
+    const activeKeys = await activeActivityKindKeys();
+    // Izinkan mempertahankan jenis lama walau kini nonaktif (jangan paksa ganti).
+    if (d.type !== ctx.type && !activeKeys.has(d.type)) {
+      return { error: "Jenis kegiatan tidak dikenal atau nonaktif." };
     }
 
     await db.fieldActivity.update({
@@ -351,7 +342,7 @@ export async function addActivityPhotosAction(
       lng: Number.isFinite(devLng) && formData.get("gpsLng") ? devLng : null,
       takenAt: parseTakenAt(formData.get("photoTakenAt")),
       workDate: ctx.activityDate,
-      categoryName: FIELD_ACTIVITY_TYPE_LABEL[ctx.type],
+      categoryName: (await getActivityKindLabelMap()).get(ctx.type) ?? ctx.type,
     });
     revalidate(ctx.location.slug);
     if (photoErrors.length) return { warning: `Sebagian foto gagal: ${[...new Set(photoErrors)].join("; ")}` };

@@ -4,9 +4,10 @@ import { useActionState, useEffect, useRef, useState, useTransition } from "reac
 import { CheckCircle2, Download, MessageCircle, Paperclip, Pencil, RotateCcw, Trash2, Plus } from "lucide-react";
 import { Banner, Button, Input, Label, Combobox, Textarea } from "@/components/ui";
 import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
-import { FIELD_ACTIVITY_TYPES, FIELD_ACTIVITY_TYPE_LABEL } from "@/lib/field-activity/labels";
 import type { FieldActivityAttachmentView } from "@/lib/field-activity/queries";
-import type { FieldActivityType } from "@/generated/prisma/enums";
+
+/** Opsi jenis kegiatan (master data) yang dialirkan dari server ke form. */
+export type ActivityKindOption = { key: string; label: string };
 import {
   addActivityAttachmentsAction,
   addActivityPhotosAction,
@@ -74,7 +75,7 @@ export function SendToWaButton({
 /** Data kegiatan yang bisa dikoreksi lewat form edit. */
 export type EditableActivity = {
   id: string;
-  type: FieldActivityType;
+  type: string;
   activityDate: string;
   title: string;
   notes: string | null;
@@ -85,7 +86,15 @@ export type EditableActivity = {
 
 
 /** Form buat kegiatan lapangan baru (draft) + foto awal. */
-export function CreateActivityForm({ locationId, todayKey }: { locationId: string; todayKey: string }) {
+export function CreateActivityForm({
+  locationId,
+  todayKey,
+  kinds,
+}: {
+  locationId: string;
+  todayKey: string;
+  kinds: ActivityKindOption[];
+}) {
   const [state, action, pending] = useActionState<FieldActivityState, FormData>(createActivityAction, undefined);
   const formRef = useRef<HTMLFormElement>(null);
   const [photoKey, setPhotoKey] = useState(0);
@@ -112,9 +121,9 @@ export function CreateActivityForm({ locationId, todayKey }: { locationId: strin
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <Label htmlFor="fa-type" required>Jenis kegiatan</Label>
-          <Combobox id="fa-type" name="type" defaultValue="rapat_pcm" required>
-            {FIELD_ACTIVITY_TYPES.map((t) => (
-              <option key={t} value={t}>{FIELD_ACTIVITY_TYPE_LABEL[t]}</option>
+          <Combobox id="fa-type" name="type" defaultValue={kinds[0]?.key ?? ""} required>
+            {kinds.map((k) => (
+              <option key={k.key} value={k.key}>{k.label}</option>
             ))}
           </Combobox>
         </div>
@@ -161,7 +170,7 @@ export function CreateActivityForm({ locationId, todayKey }: { locationId: strin
 }
 
 /** Tombol aksi untuk kegiatan draft: edit · tambah foto · tambah dokumen · finalkan · hapus. */
-export function DraftActions({ activity }: { activity: EditableActivity }) {
+export function DraftActions({ activity, kinds }: { activity: EditableActivity; kinds: ActivityKindOption[] }) {
   const [editing, setEditing] = useState(false);
   return (
     <>
@@ -180,13 +189,21 @@ export function DraftActions({ activity }: { activity: EditableActivity }) {
         <FinalizeButton activityId={activity.id} />
         <DeleteButton activityId={activity.id} />
       </div>
-      {editing ? <EditActivityForm activity={activity} onDone={() => setEditing(false)} /> : null}
+      {editing ? <EditActivityForm activity={activity} kinds={kinds} onDone={() => setEditing(false)} /> : null}
     </>
   );
 }
 
 /** Form koreksi isi kegiatan draft (jenis/tanggal/judul/catatan/peserta). */
-function EditActivityForm({ activity, onDone }: { activity: EditableActivity; onDone: () => void }) {
+function EditActivityForm({
+  activity,
+  kinds,
+  onDone,
+}: {
+  activity: EditableActivity;
+  kinds: ActivityKindOption[];
+  onDone: () => void;
+}) {
   const [state, action, pending] = useActionState<FieldActivityState, FormData>(updateActivityAction, undefined);
   useEffect(() => {
     if (state?.success) onDone();
@@ -199,8 +216,9 @@ function EditActivityForm({ activity, onDone }: { activity: EditableActivity; on
         <div>
           <Label htmlFor={`ed-type-${activity.id}`} required>Jenis kegiatan</Label>
           <Combobox id={`ed-type-${activity.id}`} name="type" defaultValue={activity.type} required>
-            {FIELD_ACTIVITY_TYPES.map((t) => (
-              <option key={t} value={t}>{FIELD_ACTIVITY_TYPE_LABEL[t]}</option>
+            {/* Sertakan jenis lama meski kini nonaktif, agar nilai tersimpan tetap tampil. */}
+            {(kinds.some((k) => k.key === activity.type) ? kinds : [{ key: activity.type, label: activity.type }, ...kinds]).map((k) => (
+              <option key={k.key} value={k.key}>{k.label}</option>
             ))}
           </Combobox>
         </div>

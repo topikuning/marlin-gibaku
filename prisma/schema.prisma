@@ -127,15 +127,19 @@ enum PhotoMetadataSource {
   manual
 }
 
-/// Jenis kegiatan lapangan non-pekerjaan (dokumentasi, bukan progres volume)
-enum FieldActivityType {
-  rapat_pcm // Rapat Persiapan Pelaksanaan (PCM)
-  pengukuran_uitzet // Pengukuran / uitzet / setting out
-  mc0 // Mutual Check awal (MC-0)
-  sosialisasi // Sosialisasi ke masyarakat/pihak terkait
-  mobilisasi // Mobilisasi alat/material/personel
-  dokumentasi_0 // Dokumentasi kondisi awal (0%)
-  lainnya
+/// Master data jenis kegiatan lapangan — bisa dikelola admin di Sistem (tambah/
+/// ubah/nonaktif). Menggantikan enum FieldActivityType supaya jenis kegiatan
+/// tidak lagi hardcode. `key` = slug stabil yang disimpan di FieldActivity.type.
+model FieldActivityKind {
+  id        String   @id @default(uuid()) @db.Uuid
+  key       String   @unique
+  label     String
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("field_activity_kinds")
 }
 
 /// Alur ringkas kegiatan lapangan: draft → final (dokumentasi, tanpa approval)
@@ -790,7 +794,8 @@ model FieldActivity {
   id            String              @id @default(uuid()) @db.Uuid
   locationId    String              @map("location_id") @db.Uuid
   activityDate  DateTime            @map("activity_date") @db.Date
-  type          FieldActivityType
+  // Jenis kegiatan = key master FieldActivityKind (bukan enum lagi).
+  type          String
   title         String
   notes         String?
   participants  String?             @map("participants")

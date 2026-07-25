@@ -2232,3 +2232,24 @@ scurve — dengan test properti, bukan paritas nilai):**
   + sisa volume), unggah → **pratinjau** (baris siap vs bermasalah, dilewati) → **simpan**. Gate
   `daily_report.create` + `requireLocationAccess`; entry lewat tombol "Impor rekap Excel" di Pelaksanaan Harian.
 - Uji unit `tests/unit/recap-import.test.ts` (parser + matcher). Verifikasi: typecheck/lint/unit/build ✓.
+
+## 115 · 2026-07-25 · Jenis kegiatan lapangan jadi MASTER DATA + semua dropdown pakai Combobox
+
+- **Keputusan user**: jenis kegiatan lapangan harus bisa dikelola admin ("seharusnya ada master
+  datanya"), termasuk menambah **Survei Awal**. Enum `FieldActivityType` diganti tabel master
+  **`FieldActivityKind`** (key stabil · label · sortOrder · isActive). `FieldActivity.type` kini
+  `String` (key), bukan enum. Migration `20260725200000_field_activity_kind_master`
+  (buat tabel + seed 6 lama + Survei Awal, ALTER enum→text via `USING`, DROP TYPE). Sistem belum
+  production → migrasi aman.
+- **Sumber tunggal** `src/lib/field-activity/kinds.ts` (`getActivityKinds`, `getActivityKindLabelMap`,
+  `activeActivityKindKeys`). Label tak lagi hardcode di `labels.ts`. Konsumen label (dashboard,
+  activity feed, WA kirim, halaman kegiatan) memakai peta key→label (fallback ke key bila jenis
+  dihapus). Form create/edit memuat pilihan dari master (aktif saja; jenis lama tetap tampil di edit
+  walau nonaktif). Validasi server: type ∈ jenis aktif.
+- **Kelola di Sistem** (`system.manage`): panel "Jenis kegiatan lapangan" — tambah (key auto-slug,
+  dijamin unik), ubah nama, aktif/nonaktifkan. Aksi `saveActivityKindAction` + audit. Key immutable.
+- **Semua `<select>` → `Combobox` (filterable)**, per aturan user (apalagi opsi banyak): sisa native
+  select dikonversi — filter Foto Lapangan (lokasi/status/sumber), Document Center (paket/lokasi/fase/
+  tipe), panel cap foto di Sistem (overlay/ukuran), dan fallback GPS di input foto. Selebihnya sudah
+  Combobox sejak awal.
+- Verifikasi: typecheck/lint/unit(172)/build ✓.

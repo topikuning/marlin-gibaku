@@ -7,7 +7,7 @@ import { audit } from "@/lib/audit";
 import { ForbiddenError, requireCapability, requireLocationAccess } from "@/lib/auth/session";
 import { r2GetBuffer } from "@/lib/r2";
 import { formatTanggal } from "@/lib/format";
-import { FIELD_ACTIVITY_TYPE_LABEL } from "@/lib/field-activity/labels";
+import { getActivityKindLabelMap } from "@/lib/field-activity/kinds";
 import { getPeriodReport, type PeriodKind } from "@/lib/periodic-report";
 import { buildPeriodReportXlsx } from "@/lib/export/xlsx";
 import { getKkpDailyData } from "@/lib/daily-report/queries";
@@ -177,7 +177,7 @@ export async function wahaStatusAction(): Promise<
 
 /** Rangkai teks ringkas kegiatan untuk pesan WA. */
 function buildActivityMessage(a: {
-  type: keyof typeof FIELD_ACTIVITY_TYPE_LABEL;
+  typeLabel: string;
   activityDate: Date;
   title: string;
   notes: string | null;
@@ -188,7 +188,7 @@ function buildActivityMessage(a: {
 }): string {
   const lines: string[] = [];
   lines.push(`*${a.title}*`);
-  lines.push(`📋 ${FIELD_ACTIVITY_TYPE_LABEL[a.type]} · 📅 ${formatTanggal(a.activityDate)}`);
+  lines.push(`📋 ${a.typeLabel} · 📅 ${formatTanggal(a.activityDate)}`);
   lines.push(`📍 ${a.locationName}`);
   if (a.participants) lines.push(`👥 Hadir: ${a.participants}`);
   if (a.notes) lines.push(`\n${a.notes}`);
@@ -250,7 +250,7 @@ export async function sendActivityToWaAction(
 
     // 1) Teks ringkas.
     const message = buildActivityMessage({
-      type: activity.type,
+      typeLabel: (await getActivityKindLabelMap()).get(activity.type) ?? activity.type,
       activityDate: activity.activityDate,
       title: activity.title,
       notes: activity.notes,

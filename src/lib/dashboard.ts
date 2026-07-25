@@ -4,8 +4,8 @@ import { getLocationsProgress } from "@/lib/progress";
 import { getPetaMarkers, type PetaMarker } from "@/lib/peta";
 import { buildPhotoViews, type PhotoView } from "@/lib/photos";
 import { jakartaDateKey, parseDateKey } from "@/lib/format";
-import { FIELD_ACTIVITY_TYPE_LABEL } from "@/lib/field-activity/labels";
-import type { IssueSeverity, IssueStatus, RecoveryStatus, FieldActivityType, DailyReportStatus } from "@/generated/prisma/enums";
+import { getActivityKindLabelMap } from "@/lib/field-activity/kinds";
+import type { IssueSeverity, IssueStatus, RecoveryStatus, DailyReportStatus } from "@/generated/prisma/enums";
 
 /**
  * Data untuk Dashboard Eksekutif — komposisi dari lapisan yang sudah ada
@@ -87,7 +87,7 @@ export type ActivityCentreItem = {
   at: Date;
   locationName: string;
   locationSlug: string;
-  type: FieldActivityType;
+  type: string;
   typeLabel: string;
   title: string;
   hasKendala: boolean;
@@ -278,7 +278,10 @@ export async function getActivityCentre(locIds: string[] | null, limit = 6): Pro
   const views = await buildPhotoViews(flatPhotos);
   const viewById = new Map(views.map((v) => [v.id, v]));
 
-  const progress = await getLocationsProgress([...new Set(acts.map((a) => a.locationId))]);
+  const [progress, kindLabels] = await Promise.all([
+    getLocationsProgress([...new Set(acts.map((a) => a.locationId))]),
+    getActivityKindLabelMap(),
+  ]);
 
   return acts.map((a) => ({
     id: a.id,
@@ -286,7 +289,7 @@ export async function getActivityCentre(locIds: string[] | null, limit = 6): Pro
     locationName: a.location.name,
     locationSlug: a.location.slug,
     type: a.type,
-    typeLabel: FIELD_ACTIVITY_TYPE_LABEL[a.type],
+    typeLabel: kindLabels.get(a.type) ?? a.type,
     title: a.title,
     hasKendala: !!a.kendala?.trim(),
     hasSolusi: !!a.solusi?.trim(),
