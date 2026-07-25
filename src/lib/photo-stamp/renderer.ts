@@ -103,9 +103,6 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
   parts.push(
     `<rect x="0" y="${h - band}" width="${w}" height="${band}" fill="url(#pg)"/>`,
   );
-  // Scrim atas tipis → logo & panel perusahaan tetap terbaca di foto terang/ramai.
-  const topBand = Math.round(h * (portrait ? 0.2 : 0.24));
-  parts.push(`<rect x="0" y="0" width="${w}" height="${topBand}" fill="url(#tg)"/>`);
 
   // ── Panel perusahaan (kiri-atas) ──
   if (d.companyName?.trim()) {
@@ -129,7 +126,7 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
     );
   }
 
-  // ── Logo lockup MARLIN (kanan-atas): wordmark + aksen diagonal + PROJECT CONTROL ──
+  // ── Logo lockup MARLIN (kanan-atas): wordmark (A oranye) + PROJECT CONTROL, transparan ──
   parts.push(marlinLogo(w - safeX, safeY, fs(0.034, 22), ff, accent));
 
   // ── Blok info (kiri-bawah) ──
@@ -227,11 +224,6 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
     `<stop offset="0" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="${a.toFixed(3)}"/>` +
     `<stop offset="0.32" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="${(a * 0.81).toFixed(3)}"/>` +
     `<stop offset="0.68" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="${(a * 0.32).toFixed(3)}"/>` +
-    `<stop offset="1" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="0"/>` +
-    `</linearGradient>` +
-    `<linearGradient id="tg" x1="0" y1="0" x2="0" y2="1">` +
-    `<stop offset="0" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="0.62"/>` +
-    `<stop offset="0.55" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="0.22"/>` +
     `<stop offset="1" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="0"/>` +
     `</linearGradient>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><defs>${opts.fontFaceCss}${grad}</defs>${parts.join("")}</svg>`;
