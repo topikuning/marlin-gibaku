@@ -131,10 +131,20 @@ async function addKurvaSheet(
   }
 
   // Baris prestasi (kumulatif rencana/realisasi + deviasi). RUMUS, bukan angka
-  // statis, supaya edit tabel kategori otomatis menjalar ke kumulatif → grafik.
+  // statis, supaya edit tabel kategori/realisasi otomatis menjalar ke kumulatif → grafik.
   const firstCatN = catRowNums[0];
   const lastCatN = catRowNums[catRowNums.length - 1];
   const colL = (i: number) => colLetter(FIRST + i); // kolom minggu ke-i (0-based): D, E, …
+  // Kumulatif realisasi ter-carry-forward (minggu tanpa realisasi = 0 increment →
+  // kumulatif mendatar) untuk cache `result` rumus kumulatif realisasi & deviasi.
+  const realCumFilled: number[] = [];
+  {
+    let acc = 0;
+    for (let i = 0; i < N; i++) {
+      acc += sheet.realisasiPerWeek[i] ?? 0;
+      realCumFilled.push(round2(acc));
+    }
+  }
   let rencanaRow = 0;
   let kumRencanaRow = 0;
   let realisasiRow = 0;
@@ -168,14 +178,20 @@ async function addKurvaSheet(
         // Kumulatif: minggu-1 = rencana; berikutnya = kumulatif sebelumnya + rencana.
         const f = i === 0 ? `${colL(0)}${rencanaRow}` : `${colL(i - 1)}${kumRencanaRow}+${colL(i)}${rencanaRow}`;
         cell.value = { formula: f, result: val ?? 0 };
+      } else if (def.kind === "kumRealisasi") {
+        // Kumulatif realisasi = RUMUS kumulatif dari baris "Realisasi Prestasi %"
+        // (SAMA polanya dgn kumulatif rencana) — walau selnya masih kosong/0.
+        // Jadi begitu realisasi diisi/diedit di Excel, kumulatif & grafik ikut update.
+        const f = i === 0 ? `${colL(0)}${realisasiRow}` : `${colL(i - 1)}${kumRealisasiRow}+${colL(i)}${realisasiRow}`;
+        cell.value = { formula: f, result: realCumFilled[i] };
       } else if (def.kind === "deviasi") {
-        // Realisasi − rencana (hanya minggu yg sudah ada realisasi).
-        cell.value =
-          sheet.kumulatifRealisasi[i] == null
-            ? null
-            : { formula: `${colL(i)}${kumRealisasiRow}-${colL(i)}${kumRencanaRow}`, result: val ?? 0 };
+        // Deviasi = kumulatif realisasi − kumulatif rencana (RUMUS, semua minggu).
+        cell.value = {
+          formula: `${colL(i)}${kumRealisasiRow}-${colL(i)}${kumRencanaRow}`,
+          result: round2(realCumFilled[i] - sheet.kumulatifRencana[i]),
+        };
       } else {
-        // Realisasi & kumulatif realisasi = nilai aktual dari aplikasi (bisa diedit manual).
+        // Realisasi per-minggu = nilai aktual dari aplikasi (sumber; bisa diedit manual).
         cell.value = val;
       }
       cell.numFmt = "#,##0.00";
@@ -233,10 +249,10 @@ async function addKurvaSheet(
   const helperR = ws.addRow([]);
   helperR.getCell(1).value = 0;
   for (let i = 0; i < N; i++) {
-    const v = sheet.kumulatifRealisasi[i];
-    // Hanya minggu yg SUDAH ada realisasi ditaut; minggu depan biarkan kosong
-    // supaya garis realisasi berhenti di minggu berjalan (tak jatuh ke 0).
-    helperR.getCell(2 + i).value = v == null ? null : { formula: `${colL(i)}${kumRealisasiRow}`, result: round2(v) };
+    // Sumber realisasi grafik = RUMUS tertaut ke baris "Kumulatif Realisasi" utk
+    // SEMUA minggu (sama seperti rencana) — walau nilainya masih 0. Begitu realisasi
+    // diisi di Excel, garis realisasi ikut bergerak. Origin (sel A) = 0.
+    helperR.getCell(2 + i).value = { formula: `${colL(i)}${kumRealisasiRow}`, result: realCumFilled[i] };
   }
   for (const hr of [helperX, helperY, helperR]) hr.hidden = true;
   const lastHelperCol = colLetter(N + 1); // A..(N+1) = origin + N minggu

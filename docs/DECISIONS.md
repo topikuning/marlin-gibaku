@@ -2034,3 +2034,20 @@ scurve — dengan test properti, bukan paritas nilai):**
   (bentuk/jeda dari Excel dipertahankan, bobot di-RENORMALISASI ke RAB; kategori tak-cocok →
   fallback auto agar kurva tuntas 100). UI: tombol "Impor jadwal dari Excel" di editor jadwal.
   Uji round-trip: export → parse balik → kategori/kode/matriks + jeda (mgg 5–6 = 0) terbaca benar.
+
+## 104 · 2026-07-25 · Export TS: baris realisasi PENUH rumus (kumulatif + sumber grafik) seperti rencana
+
+- **Temuan user**: di export Time Schedule, sisi RENCANA sudah hidup (rumus), tetapi
+  "Kumulatif Realisasi Prestasi %" masih statis/kosong dan sumber grafik realisasi cuma
+  tertaut untuk minggu yang sudah ada realisasi. "Meskipun kosong, tetap harus pakai rumus
+  seperti kumulatif rencana."
+- **Fix (`xlsx.ts` addKurvaSheet)** — cermin persis sisi rencana:
+  - "Realisasi Prestasi %" = nilai per-minggu aktual (sumber, bisa diedit; minggu depan kosong).
+  - "Kumulatif Realisasi Prestasi %" = RUMUS kumulatif (`=D10`, `=D11+E10`, …) utk SEMUA minggu,
+    walau selnya masih 0/kosong (blank → 0 dalam rumus → mendatar).
+  - "Deviasi +/-" = RUMUS `=kumReal−kumRenc` utk SEMUA minggu.
+  - Sumber realisasi grafik (helperR) = RUMUS tertaut ke baris kumulatif realisasi utk SEMUA
+    minggu (`=D11…`), bukan lagi hanya minggu ber-realisasi.
+  - `result` cache diisi dari kumulatif realisasi carry-forward (increment 0 saat kosong).
+- **Efek**: mengisi/mengedit realisasi di Excel otomatis memperbarui kumulatif realisasi,
+  deviasi, dan garis realisasi grafik — perlakuan identik dgn rencana. DECISIONS 102 dilengkapi.
