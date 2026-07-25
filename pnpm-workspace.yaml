@@ -2,10 +2,22 @@
 #   sharp   — dedupe salinan next→sharp ke versi patched (libvips) yg sama dgn dep langsung
 #   fast-uri — patch host-confusion (transitif Prisma), >=3.1.4
 #   postcss — patch arbitrary file read via sourceMappingURL (transitif Next), >=8.5.12
+#   brace-expansion@5 — patch DoS unbounded expansion (transitif exceljs→minimatch@10), GHSA-mh99-v99m-4gvg.
+#     HANYA lini v5 yg di-bump ke >=5.0.8 (satu-satunya instance yg benar-benar rentan). Lini v1
+#     (minimatch@3, mis. eslint) & v2 (minimatch@5) TAK boleh dipaksa ke v5: CJS build v5 memakai
+#     named export → `expand is not a function` di minimatch@3 (rusak). Keduanya sudah patched di
+#     lini masing2 (1.1.16 > 1.1.12, 2.1.2 > 2.0.2).
 overrides:
   sharp: 0.35.3
   fast-uri: '>=3.1.4'
   postcss: '>=8.5.12'
+  brace-expansion@5: '>=5.0.8'
+# Audit pnpm memakai rentang datar <=5.0.7 utk advisory ini → ikut menandai salinan v1/v2 yg
+# SUDAH patched (false-positive; tak bisa dikecualikan per-path). Instance rentan sejati (v5)
+# sudah di-override ke 5.0.8 di atas, jadi GHSA ini nyatanya sudah tertutup di pohon dependensi.
+auditConfig:
+  ignoreGhsas:
+    - GHSA-mh99-v99m-4gvg
 allowBuilds:
   '@prisma/engines': true
   '@node-rs/argon2': true
