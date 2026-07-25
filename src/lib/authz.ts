@@ -26,6 +26,7 @@ export const CAPABILITIES = [
   "daily_report.review",
   "daily_report.finalize",
   "field_activity.manage",
+  "wa.configure", // atur grup WhatsApp per paket + tes koneksi WAHA
   "progress.view",
   "issue.manage",
   "finance.view",
@@ -65,6 +66,7 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
     "weekly_plan.manage",
     "issue.manage",
     "field_activity.manage",
+    "wa.configure",
     "finance.view",
     "finance.approve",
     "document.upload",
@@ -82,6 +84,7 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
     "weekly_plan.manage",
     "daily_report.review",
     "field_activity.manage",
+    "wa.configure",
     "issue.manage",
     "finance.view",
     "finance.input",

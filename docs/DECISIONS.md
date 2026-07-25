@@ -1911,3 +1911,28 @@ scurve — dengan test properti, bukan paritas nilai):**
   pilihan **Kamera ATAU Galeri**. Cap waktu/GPS tetap direkam saat berkas dipilih.
 - **RecalcBaselineButton** dirapikan jadi popover mengambang (`absolute z-30`) — panel konfirmasi
   + banner hasil tak lagi menekan judul kartu / menumpuk kartu tetangga (anti tumpang tindih).
+- Penugasan lokasi (buat pengguna & editor penugasan): tambah kotak cari `LocationPicker`
+  (nama lokasi ATAU perusahaan). Baris tak cocok disembunyikan (CSS), bukan unmount → centang
+  tetap terkirim di FormData walau difilter.
+
+## 099 · 2026-07-25 · Integrasi WhatsApp (WAHA): grup per paket + kirim kegiatan 1 klik
+
+- **Keputusan arsitektur**: kirim laporan/kegiatan ke **grup WhatsApp per PAKET** via
+  [WAHA](https://waha.devlike.pro) (self-hosted, Docker terpisah). Karena hierarki
+  lokasi→paket, semua kiriman lokasi otomatis ke grup paketnya. Tersimpan di
+  `Package.waGroupId`/`waGroupName` (WAHA chatId `…@g.us`). Migration `20260725010000_waha_integration`.
+- **Config** (opsional, seperti R2): env `WAHA_BASE_URL`, `WAHA_API_KEY`, `WAHA_SESSION`
+  (default `default`). Wajib berpasangan; kalau kosong fitur menonaktifkan diri tanpa error.
+  `src/lib/env.ts` validasi + `normalizeWahaBaseUrl` (buang trailing `/api`). Panduan deploy
+  lengkap: `docs/WAHA_SETUP.md` (image `devlikeapro/waha:latest`, engine NOWEB, scan QR).
+- **Klien** `src/lib/waha/client.ts`: `sendText`/`sendImage`/`sendFile` (file base64 dari byte
+  R2 sendiri — WAHA tak perlu jangkau presigned URL), `listGroups`, `getSessionStatus`,
+  `normalizeGroupChatId`. Auth header `X-Api-Key`.
+- **Kirim kegiatan (1 klik)** `sendActivityToWaAction` (gate `field_activity.manage` +
+  `requireLocationAccess`): teks ringkas + semua foto (image) + semua dokumen (file) ke grup
+  paket; tandai `FieldActivity.waSentAt`/`waSentById` ("✓ Terkirim", bisa kirim ulang). Audit.
+- **Set grup**: capability baru `wa.configure` (super_admin, program_director, regional_manager,
+  project_manager, site_manager). `WaGroupForm` di halaman Paket — pilih dari daftar grup
+  (ditarik via `listWaGroupsAction`, butuh sesi WORKING) **atau** tempel ID manual (cadangan).
+- **Diagnostik** di Sistem: status koneksi + sesi WA (`wahaStatusAction`).
+- Scope iterasi ini: kegiatan lapangan saja (per keputusan user). Laporan harian/progres menyusul.

@@ -101,6 +101,8 @@ export const getPackageWorkspace = cache(async (id: string) => {
       note: true,
       isBypass: true,
       cancelReason: true,
+      waGroupId: true,
+      waGroupName: true,
       createdAt: true,
       updatedAt: true,
       contract: {

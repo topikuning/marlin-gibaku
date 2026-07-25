@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
-import { Camera, CheckCircle2, Download, Paperclip, Pencil, RotateCcw, Trash2, Plus } from "lucide-react";
+import { Camera, CheckCircle2, Download, MessageCircle, Paperclip, Pencil, RotateCcw, Trash2, Plus } from "lucide-react";
 import { Banner, Button, Input, Label, Combobox, Textarea } from "@/components/ui";
 import { FIELD_ACTIVITY_TYPES, FIELD_ACTIVITY_TYPE_LABEL } from "@/lib/field-activity/labels";
 import type { FieldActivityAttachmentView } from "@/lib/field-activity/queries";
@@ -17,6 +17,58 @@ import {
   updateActivityAction,
   type FieldActivityState,
 } from "@/lib/field-activity/actions";
+import { sendActivityToWaAction, type WaActionState } from "@/lib/waha/actions";
+import { formatTanggalWaktu } from "@/lib/format";
+
+/**
+ * Tombol "Kirim ke WhatsApp" (1 klik) — kirim teks + semua foto + dokumen
+ * kegiatan ke grup WA paket. Menampilkan status "sudah dikirim" bila pernah.
+ */
+export function SendToWaButton({
+  activityId,
+  wahaConfigured,
+  hasGroup,
+  groupName,
+  sentAt,
+}: {
+  activityId: string;
+  wahaConfigured: boolean;
+  hasGroup: boolean;
+  groupName: string | null;
+  sentAt: string | null;
+}) {
+  const [state, action, pending] = useActionState<WaActionState, FormData>(sendActivityToWaAction, undefined);
+  if (!wahaConfigured) return null;
+  const disabled = !hasGroup;
+  return (
+    <div className="mt-3 space-y-2 border-t border-border pt-3">
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      {state?.success ? <Banner tone="success" title={state.success} /> : null}
+      {state?.warning ? <Banner tone="warning" title="Sebagian lampiran gagal" description={state.warning} /> : null}
+      <div className="flex flex-wrap items-center gap-2">
+        <form action={action} className="inline">
+          <input type="hidden" name="activityId" value={activityId} />
+          <Button type="submit" size="sm" variant="secondary" loading={pending} disabled={disabled}>
+            <MessageCircle aria-hidden className="size-3.5" />
+            {sentAt ? "Kirim ulang ke WhatsApp" : "Kirim ke WhatsApp"}
+          </Button>
+        </form>
+        {sentAt ? (
+          <span className="text-[12px] text-success">
+            ✓ Terkirim {formatTanggalWaktu(new Date(sentAt))}
+          </span>
+        ) : null}
+        {disabled ? (
+          <span className="text-[12px] text-ink-muted">
+            Paket belum punya grup WA — atur di halaman Paket.
+          </span>
+        ) : groupName ? (
+          <span className="text-[12px] text-ink-muted">Grup: {groupName}</span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 /** Data kegiatan yang bisa dikoreksi lewat form edit. */
 export type EditableActivity = {

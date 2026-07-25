@@ -10,6 +10,54 @@ import {
   type ResetState,
   type BrandingState,
 } from "@/lib/system/actions";
+import { wahaStatusAction } from "@/lib/waha/actions";
+
+/** Tes koneksi + status sesi WhatsApp (WAHA). */
+export function WahaTestPanel({ configured }: { configured: boolean }) {
+  const [pending, start] = useTransition();
+  const [result, setResult] = useState<
+    { ok: true; status: string; me: string | null } | { ok: false; error: string } | null
+  >(null);
+  if (!configured) {
+    return (
+      <Banner
+        tone="info"
+        title="WAHA belum dikonfigurasi"
+        description="Isi WAHA_BASE_URL & WAHA_API_KEY di environment, deploy server WAHA terbaru, lalu login sesi WhatsApp (scan QR). Panduan: docs/WAHA_SETUP.md."
+      />
+    );
+  }
+  const statusTone = (s: string) => (s === "WORKING" ? "success" : s === "SCAN_QR_CODE" ? "warning" : "neutral");
+  return (
+    <div className="space-y-3">
+      <Button
+        type="button"
+        variant="secondary"
+        loading={pending}
+        onClick={() => start(async () => setResult(await wahaStatusAction()))}
+      >
+        Cek status WhatsApp
+      </Button>
+      {result?.ok === true ? (
+        <div className="space-y-1 text-sm">
+          <div className="flex items-center gap-2">
+            <span className="text-ink-muted">Sesi:</span>
+            <StatusPill tone={statusTone(result.status)} label={result.status} />
+          </div>
+          {result.status === "WORKING" ? (
+            <p className="text-[13px] text-ink-muted">Terhubung sebagai {result.me ?? "—"}. Siap mengirim.</p>
+          ) : (
+            <p className="text-[13px] text-warning">
+              Sesi belum siap. Buka dashboard WAHA dan scan QR dengan akun WhatsApp pengirim.
+            </p>
+          )}
+        </div>
+      ) : result?.ok === false ? (
+        <Banner tone="error" title={result.error} />
+      ) : null}
+    </div>
+  );
+}
 
 export function BrandingPanel({
   initial,

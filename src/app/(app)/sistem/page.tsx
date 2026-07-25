@@ -4,10 +4,11 @@ import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { env } from "@/lib/env";
 import { isR2Configured } from "@/lib/r2";
+import { isWahaConfigured } from "@/lib/waha/client";
 import { db } from "@/lib/db";
 import { formatTanggalWaktu } from "@/lib/format";
 import { getBranding, BRAND_DEFAULTS } from "@/lib/branding";
-import { R2TestPanel, ResetPanel, BrandingPanel } from "./sistem-client";
+import { R2TestPanel, ResetPanel, BrandingPanel, WahaTestPanel } from "./sistem-client";
 
 export const metadata: Metadata = { title: "Sistem" };
 export const dynamic = "force-dynamic";
@@ -50,6 +51,10 @@ export default async function SistemPage() {
                 <dd><StatusPill tone={isR2Configured() ? "success" : "neutral"} label={isR2Configured() ? "Terkonfigurasi" : "Belum dikonfigurasi"} /></dd>
               </div>
               <div className="flex justify-between">
+                <dt className="text-ink-muted">WhatsApp (WAHA)</dt>
+                <dd><StatusPill tone={isWahaConfigured() ? "success" : "neutral"} label={isWahaConfigured() ? "Terkonfigurasi" : "Belum dikonfigurasi"} /></dd>
+              </div>
+              <div className="flex justify-between">
                 <dt className="text-ink-muted">Sesi aktif</dt>
                 <dd className="tabular">{sessionCount}</dd>
               </div>
@@ -61,6 +66,13 @@ export default async function SistemPage() {
           <CardHeader title="Diagnostik R2 & foto" subtitle="Round-trip R2 (PUT→GET→presign→DELETE) + tes pemrosesan gambar (SHARP)" />
           <CardBody>
             <R2TestPanel configured={isR2Configured()} />
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader title="Diagnostik WhatsApp (WAHA)" subtitle="Cek koneksi server WAHA + status login sesi WhatsApp" />
+          <CardBody>
+            <WahaTestPanel configured={isWahaConfigured()} />
           </CardBody>
         </Card>
       </div>
