@@ -1934,8 +1934,9 @@ scurve — dengan test properti, bukan paritas nilai):**
 - **Kirim kegiatan (1 klik)** `sendActivityToWaAction` (gate `field_activity.manage` +
   `requireLocationAccess`): teks ringkas + semua foto (image) + semua dokumen (file) ke grup
   paket; tandai `FieldActivity.waSentAt`/`waSentById` ("✓ Terkirim", bisa kirim ulang). Audit.
-- **Set grup**: capability baru `wa.configure` (super_admin, program_director, regional_manager,
-  project_manager, site_manager). `WaGroupForm` di halaman Paket, 3 cara: (1) pilih dari daftar
+- **Set grup**: capability baru `wa.configure` — SEMENTARA super_admin SAJA (permintaan user:
+  set ID grup cukup di admin, jangan role lain). Mengirim kegiatan tetap `field_activity.manage`
+  (semua peran lapangan). `WaGroupForm` di halaman Paket, 3 cara: (1) pilih dari daftar
   (`listWaGroupsAction`, butuh sesi WORKING + store NOWEB aktif); (2) **link undangan grup** →
   `resolveWaInviteAction`/`resolveGroupByInvite` (join-info→fallback join) — resolve ID TANPA
   store NOWEB; (3) tempel ID manual. WhatsApp tak pernah menampilkan ID grup di aplikasinya,
