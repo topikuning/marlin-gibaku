@@ -14,7 +14,7 @@ import type { LeafNodeOption, WorkspaceItem } from "@/lib/daily-report/queries";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
 
 /**
- * Editor laporan (draft/perlu_koreksi) — MOBILE-FIRST untuk SM/mandor:
+ * Editor laporan (draft/perlu_koreksi) — MOBILE-FIRST untuk SM/pelaksana:
  * cari item RAB → volume besar (inputmode=decimal) → foto (capture) → simpan.
  * Draft lokal: volume tersimpan di localStorage per (slug,date,nodeId),
  * dihapus setelah kirim laporan sukses.

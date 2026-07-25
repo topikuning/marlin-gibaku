@@ -1810,3 +1810,29 @@ scurve — dengan test properti, bukan paritas nilai):**
 - Form upload terpisah lama TETAP (cadangan, pilihan user) utk dokumen tak terkait item.
 - Verifikasi: typecheck/lint ✓, 139 unit test ✓ (uji `statusAfterUpload`), build ✓. Jalur upload
   nyata (R2) diuji manual oleh user di app.
+
+## 092 · 2026-07-25 · Cetak Jadwal tetap tersedia sebelum SPMK (asumsi mulai hari ini)
+
+- User: penguncian Cetak Jadwal di balik SPMK benar secara alur, TAPI jadwal (kurva-S rencana)
+  harus tetap bisa dicetak sebelum SPMK — bila SPMK masih 0, asumsikan perhitungan saat jadwal
+  diminta.
+- `getPeriodBounds(locationId, { assume })` + `getPeriodReport(..., { assume })`: bila startDate
+  (SPMK) belum ada TAPI `durationDays` diketahui, asumsikan mulai = HARI INI (Asia/Jakarta),
+  akhir = mulai + durasi − 1; field baru `assumed: boolean`. Tanpa opsi assume → perilaku lama
+  (butuh SPMK) tetap, jadi LAPORAN PERIODIK real tak berubah.
+- Cetak Jadwal page & route Unduh Excel Jadwal pakai `assume:true`; page kasih catatan kuning
+  "SPMK belum diterbitkan — jadwal dihitung dari asumsi mulai <tgl>". Tombol Jadwal di Progress
+  & Laporan Lokasi kini muncul lewat `scheduleBounds` (assume), sedangkan selector laporan
+  periodik tetap pakai `bounds` REAL (butuh SPMK).
+- Verifikasi: typecheck/lint ✓, 139 unit test ✓, build ✓.
+
+## 093 · 2026-07-25 · Istilah peran "Mandor" → "Pelaksana" (label saja)
+
+- User: ganti istilah "Mandor" jadi "Pelaksana". Yang dimaksud = LABEL peran user `field_supervisor`
+  (bukan enum). `ROLE_LABEL.field_supervisor` "Mandor" → "Pelaksana" (satu sumber → propagasi
+  ke seluruh UI). Identifier enum `field_supervisor` TETAP (tak ada migrasi).
+- TIDAK menyentuh `WorkerRole.mandor` (kategori tenaga kerja laporan harian) — enum itu SUDAH
+  punya `pelaksana` DAN `mandor` sebagai kategori berbeda; rename akan bentrok. Label "Mandor"
+  di WORKER_ROLE_LABEL tetap.
+- Komentar konteks-peran ("PM→SM/Mandor", dst) ikut diselaraskan ke "Pelaksana".
+- Verifikasi: typecheck/lint ✓, 139 unit test ✓, build ✓.

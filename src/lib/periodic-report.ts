@@ -155,22 +155,48 @@ export type PeriodBounds = {
   totalMonths: number;
   currentWeek: number;
   currentMonth: number;
+  /** true = SPMK belum terbit; startDate diasumsikan HARI INI (jadwal/kurva-S saja). */
+  assumed: boolean;
 };
 
 /**
  * Batas periode valid utk selector & validasi (null bila kontrak belum ada).
  * totalWeeks/totalMonths = jumlah periode dalam masa kontrak (maxN).
+ *
+ * opts.assume=true: bila SPMK belum terbit (startDate null) TAPI durasi kontrak
+ * diketahui, asumsikan mulai HARI INI (saat jadwal diminta) → dipakai Cetak Jadwal
+ * /Unduh Excel supaya kurva-S rencana tetap bisa dilihat sebelum SPMK. Laporan
+ * periodik REAL tetap panggil tanpa assume (butuh SPMK sungguhan).
  */
-export async function getPeriodBounds(locationId: string): Promise<PeriodBounds | null> {
+export async function getPeriodBounds(
+  locationId: string,
+  opts?: { assume?: boolean },
+): Promise<PeriodBounds | null> {
   const location = await db.location.findUnique({
     where: { id: locationId },
-    select: { id: true, package: { select: { contract: { select: { startDate: true, endDate: true } } } } },
+    select: {
+      id: true,
+      package: { select: { contract: { select: { startDate: true, endDate: true, durationDays: true } } } },
+    },
   });
   const contract = location?.package.contract;
-  // Butuh SPMK (startDate) & endDate — jadwal periodik baru aktif setelah SPMK terbit.
-  if (!contract || !contract.startDate || !contract.endDate) return null;
-  const startDate = contract.startDate;
-  const endDate = contract.endDate;
+  if (!contract) return null;
+
+  let startDate: Date;
+  let endDate: Date;
+  let assumed = false;
+  if (contract.startDate && contract.endDate) {
+    startDate = contract.startDate;
+    endDate = contract.endDate;
+  } else if (opts?.assume && contract.durationDays > 0) {
+    // SPMK belum terbit → asumsikan mulai hari ini, akhir = mulai + durasi − 1.
+    startDate = new Date(`${jakartaDateKey(new Date())}T00:00:00.000Z`);
+    endDate = new Date(startDate.getTime() + (contract.durationDays - 1) * DAY);
+    assumed = true;
+  } else {
+    return null;
+  }
+
   const totalWeeks = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime() + DAY) / (7 * DAY)));
   const totalMonths = Math.max(
     1,
@@ -184,7 +210,7 @@ export async function getPeriodBounds(locationId: string): Promise<PeriodBounds 
     (now.getUTCFullYear() - startDate.getUTCFullYear()) * 12 + (now.getUTCMonth() - startDate.getUTCMonth()),
   );
   const currentMonth = Math.max(1, Math.min(totalMonths, monthsElapsed + 1));
-  return { locationId, startDate, endDate, totalWeeks, totalMonths, currentWeek, currentMonth };
+  return { locationId, startDate, endDate, totalWeeks, totalMonths, currentWeek, currentMonth, assumed };
 }
 
 /**
@@ -196,6 +222,7 @@ export async function getPeriodReport(
   locationId: string,
   kind: PeriodKind,
   n: number,
+  opts?: { assume?: boolean },
 ): Promise<PeriodReport | null> {
   if (!Number.isInteger(n) || n < 1) return null;
 
@@ -236,7 +263,7 @@ export async function getPeriodReport(
   const contract = location.package.contract;
   if (!contract) return null;
 
-  const bounds = await getPeriodBounds(locationId);
+  const bounds = await getPeriodBounds(locationId, opts);
   if (!bounds) return null;
   const { startDate, totalWeeks, totalMonths } = bounds;
   const maxN = kind === "mingguan" ? totalWeeks : totalMonths;

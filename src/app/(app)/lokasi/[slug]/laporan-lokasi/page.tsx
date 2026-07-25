@@ -29,7 +29,11 @@ export default async function LaporanLokasiPage({
   if (!location) notFound();
   await requireLocationAccess(user, location.id);
 
-  const bounds = await getPeriodBounds(location.id);
+  // scheduleBounds: real bila SPMK ada, else asumsi mulai hari ini — utk tombol Jadwal
+  // (kurva-S rencana tetap bisa dilihat sebelum SPMK). bounds REAL: hanya utk laporan
+  // periodik (butuh SPMK sungguhan).
+  const scheduleBounds = await getPeriodBounds(location.id, { assume: true });
+  const bounds = scheduleBounds && !scheduleBounds.assumed ? scheduleBounds : null;
   const kind: PeriodKind = sp.kind === "bulanan" ? "bulanan" : "mingguan";
   const maxN = bounds ? (kind === "mingguan" ? bounds.totalWeeks : bounds.totalMonths) : 0;
   const currentN = bounds ? (kind === "mingguan" ? bounds.currentWeek : bounds.currentMonth) : 1;
@@ -54,7 +58,7 @@ export default async function LaporanLokasiPage({
           title="Laporan Periodik KKP"
           subtitle="Mingguan / bulanan — dihitung dari laporan harian terkirim (satu calculation layer)."
           action={
-            bounds ? (
+            scheduleBounds ? (
               <div className="flex items-center gap-2">
                 <Link
                   href={`/cetak/jadwal/${slug}`}

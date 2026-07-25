@@ -24,9 +24,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "Tidak punya akses lokasi" }, { status: 403 });
   }
 
-  const bounds = await getPeriodBounds(location.id);
-  if (!bounds) return NextResponse.json({ error: "Jadwal butuh kontrak + SPMK" }, { status: 404 });
-  const report = await getPeriodReport(location.id, "mingguan", bounds.currentWeek);
+  // Jadwal tetap tersedia sebelum SPMK (asumsi mulai hari ini dari durasi kontrak).
+  const bounds = await getPeriodBounds(location.id, { assume: true });
+  if (!bounds) return NextResponse.json({ error: "Jadwal butuh kontrak + durasi" }, { status: 404 });
+  const report = await getPeriodReport(location.id, "mingguan", bounds.currentWeek, { assume: true });
   if (!report) return NextResponse.json({ error: "Jadwal tidak tersedia" }, { status: 404 });
 
   const buffer = await buildJadwalXlsx(report);

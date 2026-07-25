@@ -31,7 +31,7 @@ const createUserSchema = z.object({
 export type UserActionState = { error?: string; success?: string } | undefined;
 
 export async function createUser(_prev: UserActionState, formData: FormData): Promise<UserActionState> {
-  // Pembuatan user berjenjang (PM → SM/Mandor, SM → Mandor). Peran manajemen
+  // Pembuatan user berjenjang (PM → SM/Pelaksana, SM → Pelaksana). Peran manajemen
   // penuh (user.manage) juga punya user.create.
   const actor = await requireCapability("user.create");
   const parsed = createUserSchema.safeParse({

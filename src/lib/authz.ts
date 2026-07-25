@@ -89,7 +89,7 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
     "document.verify",
     "compliance.manage",
     "report.export",
-    "user.create", // bikin Site Manager & Mandor di bawahnya
+    "user.create", // bikin Site Manager & Pelaksana di bawahnya
   ]),
   site_manager: new Set<Capability>([
     ...VIEW_ALL,
@@ -103,7 +103,7 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
     "finance.input",
     "document.upload",
     "report.export",
-    "user.create", // bikin Mandor di bawahnya
+    "user.create", // bikin Pelaksana di bawahnya
   ]),
   field_supervisor: new Set<Capability>([
     ...VIEW_ALL,
@@ -140,7 +140,7 @@ export const ROLE_LABEL: Record<UserRole, string> = {
   regional_manager: "Area Manager",
   project_manager: "Project Manager",
   site_manager: "Site Manager",
-  field_supervisor: "Mandor",
+  field_supervisor: "Pelaksana",
   exec_viewer: "Exec Viewer (KKP)",
 };
 
@@ -148,7 +148,7 @@ export const ALL_ROLES = Object.keys(ROLE_LABEL) as UserRole[];
 
 /**
  * Pembuatan user BERJENJANG: siapa boleh membuat akun peran apa.
- * PM boleh bikin Site Manager & Mandor; Site Manager boleh bikin Mandor.
+ * PM boleh bikin Site Manager & Pelaksana; Site Manager boleh bikin Pelaksana.
  * Peran manajemen penuh (super_admin/program_director) boleh membuat semua.
  * Selalu dicatat createdById agar tahu pembuatnya.
  */
