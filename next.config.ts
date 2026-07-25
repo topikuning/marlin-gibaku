@@ -12,6 +12,11 @@ const nextConfig: NextConfig = {
     serverActions: {
       bodySizeLimit: "30mb", // upload dokumen/foto lewat server action (file maks 25MB + overhead multipart)
     },
+    // middleware.ts membungkus SEMUA route → Next membatasi body request yang lewat
+    // middleware via proxyClientMaxBodySize (default ~1MB). Tanpa ini, upload >1MB
+    // ditolak framework SEBELUM server action jalan (500 digest, crash halaman).
+    // Samakan dengan bodySizeLimit agar upload dokumen/foto lolos.
+    proxyClientMaxBodySize: "30mb",
   },
   // Sertakan font bundel (cap foto via sharp) + seed-data (bootstrap data demo).
   // PLUS: paket sharp + @img LENGKAP. Tracer Next tidak bisa melihat dependensi

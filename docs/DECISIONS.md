@@ -2126,3 +2126,15 @@ scurve — dengan test properti, bukan paritas nilai):**
   Perlu Koreksi (`perlu_koreksi`) — semua klik-tembus. Data via `getDashboardData(locIds, orgId)`
   (finance dari sum progress; paketAktif/verifikasi/koreksi via count scoped).
 - Verifikasi: typecheck/lint/build ✓.
+
+## 109 · 2026-07-25 · Fix upload >1MB gagal (500 digest) — proxyClientMaxBodySize
+
+- **Gejala**: upload dokumen ≥16MB di dev → crash halaman penuh "A server error occurred",
+  ERROR digest 3940070422. `serverActions.bodySizeLimit` sudah 30mb & action menangkap error,
+  tapi tetap gagal SEBELUM kode kita jalan.
+- **Akar masalah**: `src/middleware.ts` (auth) punya matcher yang membungkus SEMUA route.
+  Next 16 membatasi body request yang melewati middleware via `experimental.proxyClientMaxBodySize`
+  (dulu `middlewareClientMaxBodySize`), **default ~1MB**. Jadi SEMUA body >1MB ditolak framework —
+  bukan soal 16mb vs 30mb.
+- **Fix**: set `experimental.proxyClientMaxBodySize: "30mb"` di next.config.ts (samakan dgn
+  serverActions.bodySizeLimit). Perlu re-deploy (config di-bake saat build).
