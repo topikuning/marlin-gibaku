@@ -20,7 +20,7 @@ import { requireUser, accessibleLocationIds } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { getDashboardData, getActivityCentre } from "@/lib/dashboard";
 import { formatPct, formatTanggal } from "@/lib/format";
-import { FIELD_ACTIVITY_TYPE_LABEL } from "@/lib/field-activity/labels";
+import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import { ISSUE_SEVERITY_LABEL, ISSUE_SEVERITY_TONE, RECOVERY_STATUS_LABEL, RECOVERY_STATUS_TONE } from "@/app/(app)/lokasi/[slug]/issue-labels";
 import { DashboardMap } from "./dashboard-map";
 
@@ -107,7 +107,7 @@ export default async function DashboardEksekutifPage() {
       </div>
 
       {/* Peta + Status submit */}
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid items-start gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <div className="border-b border-border px-4 py-3">
             <h2 className="text-sm font-semibold text-ink">Peta Monitoring Lokasi</h2>
@@ -129,45 +129,52 @@ export default async function DashboardEksekutifPage() {
           <div className="border-b border-border px-4 py-3">
             <h2 className="text-sm font-semibold text-ink">Status Submit Lokasi Hari Ini</h2>
           </div>
-          <div className="space-y-4 p-4">
-            <div className="flex h-7 w-full overflow-hidden rounded-md text-[11px] font-semibold text-white">
-              <div className="flex items-center justify-center bg-success" style={{ width: `${Math.max(kpi.submittedPct, 6)}%` }}>
-                {kpi.submittedToday} ({formatPct(kpi.submittedPct)})
+          <div className="space-y-5 p-4">
+            <div>
+              <div className="flex h-7 w-full overflow-hidden rounded-md bg-surface-inset">
+                {kpi.submittedPct > 0 ? <div className="h-full bg-success" style={{ width: `${kpi.submittedPct}%` }} /> : null}
+                {kpi.notSubmittedPct > 0 ? <div className="h-full bg-warning" style={{ width: `${kpi.notSubmittedPct}%` }} /> : null}
               </div>
-              <div className="flex items-center justify-center bg-warning" style={{ width: `${Math.max(kpi.notSubmittedPct, 6)}%` }}>
-                {kpi.notSubmittedToday} ({formatPct(kpi.notSubmittedPct)})
+              <div className="mt-2 flex items-center justify-between text-xs">
+                <span className="flex items-center gap-1.5 text-ink-muted">
+                  <span className="size-2 rounded-full bg-success" /> Sudah{" "}
+                  <span className="tabular font-semibold text-ink">{kpi.submittedToday}</span>
+                  <span className="text-ink-faint">({formatPct(kpi.submittedPct)})</span>
+                </span>
+                <span className="flex items-center gap-1.5 text-ink-muted">
+                  <span className="size-2 rounded-full bg-warning" /> Belum{" "}
+                  <span className="tabular font-semibold text-ink">{kpi.notSubmittedToday}</span>
+                  <span className="text-ink-faint">({formatPct(kpi.notSubmittedPct)})</span>
+                </span>
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <MiniList
-                dot="bg-ink-faint"
-                title="Lokasi Belum Submit"
-                right="Update Terakhir"
-                rows={data.belumSubmit.slice(0, 5).map((l, i) => ({
-                  key: l.id,
-                  href: `/lokasi/${l.slug}`,
-                  rank: i + 1,
-                  label: l.name,
-                  value: l.lastReportDate ? formatTanggal(l.lastReportDate) : "Belum ada laporan",
-                  muted: true,
-                }))}
-              />
-              <MiniList
-                dot="bg-warning"
-                title="Perlu Perhatian"
-                right="Deviasi"
-                rows={data.perluPerhatian.slice(0, 5).map((l, i) => ({
-                  key: l.id,
-                  href: `/lokasi/${l.slug}`,
-                  rank: i + 1,
-                  label: l.name,
-                  value: `${l.deviationPct.toFixed(1)} pp`,
-                  danger: true,
-                }))}
-              />
-            </div>
-            <Link href="/lokasi" className="flex items-center justify-center gap-1 text-xs font-medium text-primary hover:underline">
+            <MiniList
+              dot="bg-ink-faint"
+              title="Lokasi Belum Submit"
+              right="Update terakhir"
+              rows={data.belumSubmit.slice(0, 6).map((l, i) => ({
+                key: l.id,
+                href: `/lokasi/${l.slug}`,
+                rank: i + 1,
+                label: l.name,
+                value: l.lastReportDate ? formatTanggal(l.lastReportDate) : "Belum ada laporan",
+              }))}
+            />
+            <MiniList
+              dot="bg-warning"
+              title="Perlu Perhatian"
+              right="Deviasi"
+              rows={data.perluPerhatian.slice(0, 6).map((l, i) => ({
+                key: l.id,
+                href: `/lokasi/${l.slug}`,
+                rank: i + 1,
+                label: l.name,
+                value: `${l.deviationPct.toFixed(1)} pp`,
+                danger: true,
+              }))}
+            />
+            <Link href="/lokasi" className="flex items-center justify-center gap-1 border-t border-border pt-3 text-xs font-medium text-primary hover:underline">
               Lihat semua lokasi <ChevronRight aria-hidden className="size-3.5" />
             </Link>
           </div>
@@ -175,7 +182,7 @@ export default async function DashboardEksekutifPage() {
       </div>
 
       {/* Activity Centre + Deviasi + Kendala */}
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid items-start gap-4 lg:grid-cols-3">
         {/* Activity Centre */}
         <Card>
           <PanelHeader title="Activity Centre" href="/hari-ini" hrefLabel="Lihat semua aktivitas" />
@@ -197,24 +204,15 @@ export default async function DashboardEksekutifPage() {
                     </div>
                     <p className="truncate text-xs text-ink-muted">{a.title}</p>
                     <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                      <StatusPill tone="info" label={FIELD_ACTIVITY_TYPE_LABEL[a.type]} />
-                      {a.hasKendala ? <StatusPill tone="danger" label="Kendala" /> : null}
-                      {a.hasSolusi ? <StatusPill tone="success" label="Solusi" /> : null}
-                      {a.photoCount > 0 ? <StatusPill tone="neutral" label={`Foto ${a.photoCount}`} /> : null}
+                      <StatusPill tone="neutral" label={a.typeLabel} />
+                      {a.hasKendala ? <StatusPill tone="danger" label="Ada kendala" /> : null}
+                      {a.hasSolusi ? <StatusPill tone="success" label="Ada solusi" /> : null}
                       {a.deviationPct != null ? <DeltaBadge value={a.deviationPct} /> : null}
                     </div>
                   </div>
                   {a.thumbs.length > 0 ? (
-                    <div className="flex shrink-0 items-center gap-1">
-                      {a.thumbs.slice(0, 2).map((t) => (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img key={t.id} src={t.thumbUrl} alt="" loading="lazy" className="size-11 rounded-md border border-border object-cover" />
-                      ))}
-                      {a.photoCount > 2 ? (
-                        <div className="flex size-11 items-center justify-center rounded-md border border-border bg-surface-inset text-xs font-medium text-ink-muted">
-                          +{a.photoCount - 2}
-                        </div>
-                      ) : null}
+                    <div className="w-[5.75rem] shrink-0">
+                      <PhotoGallery photos={a.thumbs} thumbClass="size-[2.6rem]" />
                     </div>
                   ) : null}
                 </div>
@@ -226,29 +224,29 @@ export default async function DashboardEksekutifPage() {
         {/* Ringkasan Deviasi */}
         <Card>
           <PanelHeader title="Ringkasan Deviasi Proyek" href="/progress" hrefLabel="Lihat ranking lengkap" />
-          <div className="px-2 py-1">
-            <table className="w-full text-sm">
+          <div className="px-4 pb-3 pt-1">
+            <table className="w-full table-fixed text-sm">
               <thead>
-                <tr className="text-left text-[11px] uppercase text-ink-muted">
-                  <th className="px-2 py-1.5">Lokasi</th>
-                  <th className="px-2 py-1.5 text-right">Rencana</th>
-                  <th className="px-2 py-1.5 text-right">Aktual</th>
-                  <th className="px-2 py-1.5 text-right">Deviasi</th>
+                <tr className="text-[11px] uppercase tracking-wide text-ink-muted">
+                  <th className="py-1.5 pr-2 text-left font-medium">Lokasi</th>
+                  <th className="w-16 py-1.5 text-right font-medium">Rencana</th>
+                  <th className="w-14 py-1.5 text-right font-medium">Aktual</th>
+                  <th className="w-[4.5rem] py-1.5 pl-2 text-right font-medium">Deviasi</th>
                 </tr>
               </thead>
               <tbody>
                 {data.deviasiRanking.slice(0, 5).map((r) => (
                   <tr key={r.id} className="border-t border-border">
-                    <td className="max-w-40 truncate px-2 py-2">
+                    <td className="max-w-0 truncate py-2.5 pr-2">
                       <Link href={`/lokasi/${r.slug}`} className="hover:underline">{r.name}</Link>
                     </td>
-                    <td className="tabular px-2 py-2 text-right text-ink-muted">{formatPct(r.planPct)}</td>
-                    <td className="tabular px-2 py-2 text-right">{formatPct(r.realizedPct)}</td>
-                    <td className="px-2 py-2 text-right"><DeltaBadge value={r.deviationPct} /></td>
+                    <td className="tabular py-2.5 text-right text-ink-muted">{formatPct(r.planPct)}</td>
+                    <td className="tabular py-2.5 text-right">{formatPct(r.realizedPct)}</td>
+                    <td className="py-2.5 pl-2 text-right"><DeltaBadge value={r.deviationPct} /></td>
                   </tr>
                 ))}
                 {data.deviasiRanking.length === 0 ? (
-                  <tr><td colSpan={4} className="px-2 py-6 text-center text-xs text-ink-muted">Belum ada baseline/realisasi.</td></tr>
+                  <tr><td colSpan={4} className="py-6 text-center text-xs text-ink-muted">Belum ada baseline/realisasi.</td></tr>
                 ) : null}
               </tbody>
             </table>
@@ -324,15 +322,13 @@ const TONE_ICON: Record<Tone, string> = {
 
 function StatCard({ icon, tone, label, value, sub }: { icon: ReactNode; tone: Tone; label: string; value: ReactNode; sub?: ReactNode }) {
   return (
-    <Card className="p-4">
-      <div className="flex items-start gap-3">
-        <span className={`flex size-11 shrink-0 items-center justify-center rounded-lg [&>svg]:size-5 ${TONE_ICON[tone]}`}>{icon}</span>
-        <div className="min-w-0 flex-1">
-          <div className="text-[11px] uppercase tracking-wide text-ink-muted">{label}</div>
-          <div className="tabular text-2xl font-semibold leading-tight text-ink">{value}</div>
-          {sub ? <div className="mt-1 text-xs text-ink-muted">{sub}</div> : null}
-        </div>
+    <Card className="flex flex-col p-4">
+      <div className="flex items-center gap-2.5">
+        <span className={`flex size-9 shrink-0 items-center justify-center rounded-lg [&>svg]:size-[1.1rem] ${TONE_ICON[tone]}`}>{icon}</span>
+        <span className="text-[11px] font-medium uppercase leading-tight tracking-wide text-ink-muted">{label}</span>
       </div>
+      <div className="tabular mt-2.5 text-3xl font-semibold leading-none text-ink">{value}</div>
+      {sub ? <div className="mt-2 text-xs text-ink-muted">{sub}</div> : null}
     </Card>
   );
 }
@@ -342,16 +338,16 @@ function Delta({ value, pct, goodWhenUp }: { value: number; pct: number; goodWhe
   const good = goodWhenUp ? up : !up;
   const Icon = up ? ArrowUpRight : ArrowDownRight;
   return (
-    <span className={`inline-flex items-center gap-0.5 font-medium ${good ? "text-success" : "text-danger"}`}>
+    <span className={`inline-flex items-center gap-0.5 whitespace-nowrap font-medium ${good ? "text-success" : "text-danger"}`}>
       <Icon aria-hidden className="size-3.5" />
-      {Math.abs(value)} ({formatPct(Math.abs(pct))}) dari kemarin
+      {value > 0 ? "+" : ""}{value} ({formatPct(Math.abs(pct))}) dari kemarin
     </span>
   );
 }
 
 function Bar({ value, tone }: { value: number; tone: "success" | "warning" }) {
   return (
-    <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-surface-inset">
+    <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-surface-inset">
       <div className={tone === "success" ? "h-full rounded-full bg-success" : "h-full rounded-full bg-warning"} style={{ width: `${Math.min(100, value)}%` }} />
     </div>
   );
@@ -366,28 +362,28 @@ function MiniList({
   title: string;
   right: string;
   dot: string;
-  rows: { key: string; href: string; rank: number; label: string; value: string; muted?: boolean; danger?: boolean }[];
+  rows: { key: string; href: string; rank: number; label: string; value: string; danger?: boolean }[];
 }) {
   return (
     <div>
-      <div className="mb-1 flex items-center justify-between">
+      <div className="mb-1.5 flex items-center justify-between border-b border-border pb-1.5">
         <div className="flex items-center gap-1.5 text-xs font-semibold text-ink">
           <span className={`size-2 rounded-full ${dot}`} />
           {title}
         </div>
-        <span className="text-[10px] uppercase text-ink-faint">{right}</span>
+        <span className="text-[10px] uppercase tracking-wide text-ink-faint">{right}</span>
       </div>
-      <ul className="space-y-0.5">
+      <ul>
         {rows.length === 0 ? (
           <li className="py-2 text-xs text-ink-muted">—</li>
         ) : (
           rows.map((r) => (
-            <li key={r.key} className="flex items-center justify-between gap-2 text-xs">
-              <Link href={r.href} className="flex min-w-0 items-center gap-1.5 hover:underline">
-                <span className="w-4 text-ink-faint">{r.rank}</span>
-                <span className="truncate text-ink">{r.label}</span>
+            <li key={r.key}>
+              <Link href={r.href} className="flex items-center gap-2 rounded-md px-1 py-1.5 text-xs hover:bg-surface-muted">
+                <span className="w-4 shrink-0 text-right text-ink-faint">{r.rank}</span>
+                <span className="min-w-0 flex-1 truncate text-ink">{r.label}</span>
+                <span className={`shrink-0 tabular ${r.danger ? "font-medium text-danger" : "text-ink-muted"}`}>{r.value}</span>
               </Link>
-              <span className={`shrink-0 tabular ${r.danger ? "font-medium text-danger" : "text-ink-muted"}`}>{r.value}</span>
             </li>
           ))
         )}
