@@ -56,18 +56,30 @@ async function addKurvaSheet(
   const N = sheet.totalWeeks;
   const FIRST = 4; // A=No, B=Uraian, C=Bobot, D.. = minggu
   const lastCol = 3 + N;
-  const ketCol = lastCol + 1; // kolom skala 0–100% (KETERANGAN) di kanan
+  // KETERANGAN di kanan: 2 kolom sempit batang skala checkerboard (0–100%) + 1 kolom label.
+  const scaleA = lastCol + 1;
+  const scaleB = lastCol + 2;
+  const ketLabel = lastCol + 3;
+  const lastTableCol = ketLabel;
   const ws = wb.addWorksheet(opts?.sheetName ?? "Kurva S", {
     pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   });
-  ws.columns = [{ width: 5 }, { width: 40 }, { width: 9 }, ...Array.from({ length: N }, () => ({ width: 6 })), { width: 8 }];
+  ws.columns = [
+    { width: 5 },
+    { width: 40 },
+    { width: 9 },
+    ...Array.from({ length: N }, () => ({ width: 6 })),
+    { width: 2.6 },
+    { width: 2.6 },
+    { width: 6 },
+  ];
 
   const thin = { style: "thin" as const };
   const box = { top: thin, bottom: thin, left: thin, right: thin };
 
   const banner = (text: string, bold: boolean, size: number) => {
     const row = ws.addRow([text]);
-    ws.mergeCells(row.number, 1, row.number, ketCol);
+    ws.mergeCells(row.number, 1, row.number, lastTableCol);
     row.getCell(1).font = { bold, size };
     row.getCell(1).alignment = { horizontal: "center" };
   };
@@ -91,11 +103,11 @@ async function addKurvaSheet(
   ws.mergeCells(monthRow.number, 1, weekRow.number, 1);
   ws.mergeCells(monthRow.number, 2, weekRow.number, 2);
   ws.mergeCells(monthRow.number, 3, weekRow.number, 3);
-  monthRow.getCell(ketCol).value = "KET";
-  ws.mergeCells(monthRow.number, ketCol, weekRow.number, ketCol); // header KET 2 baris
+  monthRow.getCell(scaleA).value = "KETERANGAN";
+  ws.mergeCells(monthRow.number, scaleA, weekRow.number, ketLabel); // header KET 2 baris × 3 kolom
   for (const row of [monthRow, weekRow]) {
     row.eachCell({ includeEmpty: true }, (cell, col) => {
-      if (col > ketCol) return;
+      if (col > lastTableCol) return;
       cell.font = { bold: true, size: 8 };
       cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
       cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
@@ -116,9 +128,6 @@ async function addKurvaSheet(
       else if (col === 3) { cell.alignment = { horizontal: "center" }; cell.numFmt = "#,##0.00"; }
       else if (col >= FIRST) { cell.alignment = { horizontal: "right" }; cell.numFmt = "#,##0.000"; }
     });
-    // Sel KET (skala 0–100%) — garis sumbu kiri tebal supaya terbaca sbg sumbu.
-    const ket = row.getCell(ketCol);
-    ket.border = { ...box, left: { style: "medium" } };
   }
 
   // Baris prestasi (kumulatif rencana/realisasi + deviasi).
@@ -144,13 +153,22 @@ async function addKurvaSheet(
       cell.font = { size: 8, bold };
       cell.border = box;
     }
-    row.getCell(ketCol).border = box; // KET tetap berpetak di baris prestasi
+    for (const kc of [scaleA, scaleB, ketLabel]) row.getCell(kc).border = box; // KET berpetak
   }
 
-  // Skala 0–100% di kolom KET, sejajar rentang vertikal kurva (baris kategori):
-  // 100 di atas baris pertama, 0 di bawah baris terakhir, 75/50/25 proporsional.
+  // KETERANGAN = BATANG SKALA 0–100% kotak-kotak HITAM-PUTIH (checkerboard) sejajar
+  // rentang vertikal kurva (baris kategori), + label 100/75/50/25/0 di kanan batang.
   const M = catRowNums.length;
   if (M > 0) {
+    const fillC = (argb: string) => ({ type: "pattern" as const, pattern: "solid" as const, fgColor: { argb } });
+    const BLACK = "FF000000";
+    const WHITE = "FFFFFFFF";
+    catRowNums.forEach((rowN, i) => {
+      const row = ws.getRow(rowN);
+      row.getCell(scaleA).fill = fillC(i % 2 === 0 ? BLACK : WHITE);
+      row.getCell(scaleB).fill = fillC(i % 2 === 0 ? WHITE : BLACK);
+      for (const kc of [scaleA, scaleB, ketLabel]) row.getCell(kc).border = box;
+    });
     const marks: [number, number, "top" | "middle" | "bottom"][] = [
       [100, catRowNums[0], "top"],
       [0, catRowNums[M - 1], "bottom"],
@@ -161,10 +179,10 @@ async function addKurvaSheet(
       marks.push([25, catRowNums[Math.round((M - 1) * 0.75)], "middle"]);
     }
     for (const [val, rowN, vAlign] of marks) {
-      const cell = ws.getRow(rowN).getCell(ketCol);
+      const cell = ws.getRow(rowN).getCell(ketLabel);
       cell.value = val;
       cell.numFmt = '0"%"';
-      cell.font = { size: 8, bold: true, color: { argb: "FF475569" } };
+      cell.font = { size: 8, bold: true, color: { argb: "FF0F172A" } };
       cell.alignment = { horizontal: "right", vertical: vAlign };
     }
   }

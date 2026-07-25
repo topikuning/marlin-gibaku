@@ -1777,3 +1777,16 @@ scurve — dengan test properti, bukan paritas nilai):**
 - PDF (`ScurveKkpSheet`) sudah mulai dari 0 (prepend `0,plotH`) sejak awal — tak berubah.
 - Verifikasi: typecheck/lint ✓, 134 unit test ✓ (uji diubah ke scatter: xVal/yVal + plotVisOnly=0),
   build ✓. openpyxl: ScatterChart; baris helper Y-rencana = [0, 1.85, 4.75, …] (MULAI 0).
+
+## 090 · 2026-07-25 · KETERANGAN = batang skala 0–100% checkerboard hitam-putih
+
+- User minta (berulang, dgn contoh): penanda vertikal 0–100% bergaya BATANG KOTAK-KOTAK
+  HITAM-PUTIH (checkerboard) seperti kolom "KETERANGAN" TS sipil — bukan sekadar angka.
+- Excel (`addKurvaSheet`): kolom KET tunggal → 3 kolom (2 kolom sempit batang checkerboard
+  `scaleA`/`scaleB` + 1 kolom label). Header "KETERANGAN" merge 3 kolom × 2 baris. Per baris
+  kategori: `scaleA`/`scaleB` diisi solid HITAM/PUTIH selang-seling (checkerboard) →
+  batang skala sejajar rentang vertikal kurva; label 100/75/50/25/0 di kolom kanan batang.
+- PDF (`ScurveKkpSheet`): sumbu KET diganti batang checkerboard 10 pita (10%/pita) × 2 kolom
+  hitam-putih + bingkai + label 100/75/50/25/0.
+- Verifikasi: typecheck/lint ✓, 134 unit test ✓, build ✓. openpyxl: baris kategori scaleA/scaleB
+  = FF000000/FFFFFFFF selang-seling; label 100(top)…0(bottom).

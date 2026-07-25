@@ -206,16 +206,22 @@ export function ScurveKkpSheet({
           ) : null}
         </svg>
 
-        {/* Skala 0–100% (kolom KET) — sejajar rentang vertikal kurva */}
+        {/* KETERANGAN: batang skala 0–100% kotak-kotak hitam-putih + label */}
         <div
           className="pointer-events-none absolute"
           style={{ left: LEFT + plotW, top: HEAD_H * 2, width: W_KET, height: plotH }}
         >
-          <div className="absolute bg-slate-400" style={{ left: 0, top: 0, width: 1, height: plotH }} />
+          {/* batang checkerboard: 10 pita (10% tiap pita) × 2 kolom, hitam-putih selang-seling */}
+          {Array.from({ length: 10 }).map((_, band) => (
+            <div key={band} className="absolute flex" style={{ left: 6, top: (band / 10) * plotH, width: 12, height: plotH / 10 }}>
+              <div className="h-full w-1/2" style={{ background: band % 2 === 0 ? "#000" : "#fff" }} />
+              <div className="h-full w-1/2" style={{ background: band % 2 === 0 ? "#fff" : "#000" }} />
+            </div>
+          ))}
+          <div className="absolute border border-black" style={{ left: 6, top: 0, width: 12, height: plotH }} />
           {[100, 75, 50, 25, 0].map((g) => (
-            <div key={g} className="absolute flex items-center" style={{ top: yFor(g) - 4, left: 0 }}>
-              <span className="inline-block bg-slate-500" style={{ width: 3, height: 1 }} />
-              <span className="ml-0.5 text-[7px] font-semibold text-slate-700">{g}%</span>
+            <div key={g} className="absolute text-[7px] font-semibold text-slate-800" style={{ top: yFor(g) - 4, left: 21 }}>
+              {g}
             </div>
           ))}
         </div>
