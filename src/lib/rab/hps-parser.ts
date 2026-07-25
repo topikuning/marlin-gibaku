@@ -234,7 +234,18 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): {
     );
   };
 
+  let hiddenSkipped = 0;
   ws.eachRow((row) => {
+    // Baris yang SENGAJA DI-HIDE di Excel (mis. dikecualikan dari resume) tidak
+    // ikut dihitung — importer mengikuti apa yang terlihat, sama seperti resume
+    // kontrak. Sinyal: atribut hidden Excel; height 0 sbg cadangan defensif.
+    if (row.hidden === true || row.height === 0) {
+      const c = str(cellVal(row, 1));
+      const nm = nameOf(row);
+      if ((c || nm) && !isSummaryRow(nm)) hiddenSkipped++;
+      return;
+    }
+
     const code = str(cellVal(row, 1));
     const name = nameOf(row);
 
@@ -308,6 +319,11 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): {
       pushSub(code, name);
     }
   });
+
+  if (hiddenSkipped > 0)
+    warnings.push(
+      `${hiddenSkipped} baris tersembunyi (hidden) di Excel diabaikan — tidak masuk perhitungan (mengikuti resume kontrak).`,
+    );
 
   // Hitung total dari leaf
   for (const c of categories) {

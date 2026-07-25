@@ -1655,3 +1655,18 @@ scurve — dengan test properti, bukan paritas nilai):**
 - Verifikasi: typecheck/lint ✓, 129 unit test ✓, build ✓ (route terdaftar). Uji end-to-end
   export: workbook 2 sheet + 1 gambar, round-trip; grafik PNG ter-render benar (S-shape,
   garis rencana→100 & realisasi terpotong di minggu berjalan, label sumbu).
+
+## 084 · 2026-07-25 · Import RAB: abaikan baris yang DI-HIDE di Excel
+
+- Temuan user (urgent): importer mengambil semua baris (nilai dari kolom HARGA
+  NEGOSIASI bila ada — sudah benar), TAPI beberapa baris SENGAJA di-hide di Excel
+  agar tak masuk resume/kontrak — importer tetap menghitungnya → total melembung.
+- Perbaikan (`parseHpsWorkbook`): baris dgn `row.hidden === true` (atau `height === 0`
+  sbg cadangan) DILEWATI seluruhnya sebelum klasifikasi → tak masuk pohon & tak
+  ikut total. Importer mengikuti yang TERLIHAT, sama seperti resume kontrak.
+  exceljs membaca atribut hidden Excel/LibreOffice dgn benar (round-trip terverifikasi).
+- Peringatan "N baris tersembunyi (hidden) diabaikan" ditambahkan ke `warnings` →
+  tampil di banner pratinjau import (user tahu berapa yg dikecualikan). Parser tunggal
+  dipakai pratinjau & commit (dijaga hash file) → hidden dikecualikan di dua-duanya.
+- Verifikasi: unit test baru (total 21,5jt tanpa 5jt baris hidden + peringatan muncul);
+  typecheck/lint ✓, 130 unit test ✓.

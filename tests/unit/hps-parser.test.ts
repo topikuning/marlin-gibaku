@@ -180,3 +180,23 @@ describe("parseHpsBuffer error", () => {
     await expect(parseHpsBuffer(Buffer.from(buf as ArrayBuffer))).rejects.toThrow(/RAB/);
   });
 });
+
+describe("baris DIHIDE di Excel diabaikan (tidak masuk perhitungan) — DECISIONS 084", () => {
+  it("baris hidden dikecualikan dari pohon & total; ada peringatan", async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("RAB");
+    ws.addRow(["No", "Uraian", null, null, "Vol", "Sat", "Harga Satuan", "Jumlah Harga", "TKDN"]);
+    ws.addRow(["I", "PEKERJAAN PERSIAPAN", null, null, null, null, null, null, null]);
+    ws.addRow(["1", "Mobilisasi", null, null, 1, "ls", 1000000, 1000000, 1]);
+    const hidden = ws.addRow(["2", "Item dikecualikan dari resume", null, null, 1, "ls", 5000000, 5000000, 1]);
+    hidden.hidden = true;
+    ws.addRow(["3", "Papan nama", null, null, 1, "ls", 500000, 500000, 1]);
+    const buf = Buffer.from((await wb.xlsx.writeBuffer()) as ArrayBuffer);
+    const { parsed, warnings } = await parseHpsBuffer(buf);
+
+    const cat = parsed.categories.find((c) => c.roman === "I")!;
+    expect(cat.direct_items.map((i) => i.name)).toEqual(["Mobilisasi", "Papan nama"]);
+    expect(parsed.total).toBe(1_500_000); // TANPA 5jt baris hidden
+    expect(warnings.some((w) => /tersembunyi \(hidden\)/i.test(w))).toBe(true);
+  });
+});
