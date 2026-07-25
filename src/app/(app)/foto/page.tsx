@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Camera, ChevronLeft, ChevronRight, ImageOff } from "lucide-react";
-import { PageHeader, KpiCard, Card, EmptyState } from "@/components/ui";
+import { PageHeader, KpiCard, Card, EmptyState, Combobox } from "@/components/ui";
 import { requireUser, accessibleLocationIds } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { getPhotoGallery, type GalleryFilters } from "@/lib/photos-gallery";
@@ -73,23 +73,29 @@ export default async function FotoLapanganPage({ searchParams }: { searchParams:
 
       {/* Filter */}
       <form method="get" action="/foto" className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-surface p-2.5 shadow-sm">
-        <select name="lokasi" defaultValue={filters.locationId ?? ""} className={SELECT}>
-          <option value="">Semua Lokasi</option>
-          {data.locations.map((l) => (
-            <option key={l.id} value={l.id}>{l.name}</option>
-          ))}
-        </select>
-        <select name="status" defaultValue={filters.verification ?? ""} className={SELECT}>
-          <option value="">Semua Status Verifikasi</option>
-          {ALL_VERIFICATIONS.map((v) => (
-            <option key={v} value={v}>{PHOTO_VERIF_LABEL[v]}</option>
-          ))}
-        </select>
-        <select name="sumber" defaultValue={filters.source ?? ""} className={SELECT}>
-          <option value="">Semua Sumber</option>
-          <option value="laporan">Laporan Harian</option>
-          <option value="kegiatan">Kegiatan Lapangan</option>
-        </select>
+        <div className="w-52">
+          <Combobox name="lokasi" defaultValue={filters.locationId ?? ""} placeholder="Semua Lokasi">
+            <option value="">Semua Lokasi</option>
+            {data.locations.map((l) => (
+              <option key={l.id} value={l.id}>{l.name}</option>
+            ))}
+          </Combobox>
+        </div>
+        <div className="w-52">
+          <Combobox name="status" defaultValue={filters.verification ?? ""} placeholder="Semua Status Verifikasi">
+            <option value="">Semua Status Verifikasi</option>
+            {ALL_VERIFICATIONS.map((v) => (
+              <option key={v} value={v}>{PHOTO_VERIF_LABEL[v]}</option>
+            ))}
+          </Combobox>
+        </div>
+        <div className="w-48">
+          <Combobox name="sumber" defaultValue={filters.source ?? ""} placeholder="Semua Sumber">
+            <option value="">Semua Sumber</option>
+            <option value="laporan">Laporan Harian</option>
+            <option value="kegiatan">Kegiatan Lapangan</option>
+          </Combobox>
+        </div>
         <input name="q" defaultValue={filters.q ?? ""} placeholder="Cari caption / lokasi / pelapor…" className={`${SELECT} min-w-52 flex-1`} />
         <button type="submit" className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-white hover:opacity-90">Terapkan</button>
       </form>

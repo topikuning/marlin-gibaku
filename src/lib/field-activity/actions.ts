@@ -6,11 +6,11 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { ForbiddenError, requireCapability, requireLocationAccess } from "@/lib/auth/session";
-import { MAX_PHOTOS_PER_UPLOAD, PhotoError, savePhotoForItem } from "@/lib/photos";
+import { MAX_PHOTOS_PER_ACTIVITY, PhotoError, savePhotoForItem } from "@/lib/photos";
 import { isR2Configured, r2Delete, r2Put } from "@/lib/r2";
 import { ALLOWED_UPLOAD_MIMES, MAX_UPLOAD_BYTES } from "@/lib/documents-meta";
 import { jakartaDateKey } from "@/lib/format";
-import { FIELD_ACTIVITY_TYPE_LABEL } from "@/lib/field-activity/labels";
+import { getActivityKinds, getActivityKindLabelMap, activeActivityKindKeys } from "@/lib/field-activity/kinds";
 
 /** Hapus objek R2 (best-effort — orphan diabaikan bila gagal). */
 async function deleteR2Keys(keys: (string | null | undefined)[]): Promise<void> {
@@ -67,11 +67,13 @@ async function uploadPhotos(opts: {
   takenAt: Date | null;
   workDate: Date | null;
   categoryName: string | null;
+  /** Maksimal foto yang diproses di panggilan ini (sisa kuota kegiatan). */
+  limit: number;
 }): Promise<string[]> {
   const errors: string[] = [];
   const locLat = opts.location.gpsLat != null ? Number(opts.location.gpsLat) : null;
   const locLng = opts.location.gpsLng != null ? Number(opts.location.gpsLng) : null;
-  for (const file of opts.files.slice(0, MAX_PHOTOS_PER_UPLOAD)) {
+  for (const file of opts.files.slice(0, Math.max(0, opts.limit))) {
     try {
       await savePhotoForItem({
         activityId: opts.activityId,
@@ -121,15 +123,7 @@ function parseTakenAt(v: FormDataEntryValue | null): Date | null {
 
 const createSchema = z.object({
   locationId: z.uuid(),
-  type: z.enum([
-    "rapat_pcm",
-    "pengukuran_uitzet",
-    "mc0",
-    "sosialisasi",
-    "mobilisasi",
-    "dokumentasi_0",
-    "lainnya",
-  ]),
+  type: z.string().trim().min(1, "Jenis kegiatan wajib dipilih"),
   activityDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal tidak valid"),
   title: z.string().trim().min(3, "Judul minimal 3 karakter").max(160),
   notes: z.string().trim().max(2000).optional(),
@@ -165,6 +159,8 @@ export async function createActivityAction(
     await requireLocationAccess(user, d.locationId);
     const location = await locationForStamp(d.locationId);
     if (!location) return { error: "Lokasi tidak ditemukan." };
+    const kind = (await getActivityKinds({ activeOnly: true })).find((k) => k.key === d.type);
+    if (!kind) return { error: "Jenis kegiatan tidak dikenal atau nonaktif." };
 
     const activity = await db.fieldActivity.create({
       data: {
@@ -184,8 +180,10 @@ export async function createActivityAction(
     });
 
     const { source, fallbackMode } = photoSourceFrom(formData);
+    const files = filesFrom(formData);
+    const overLimit = Math.max(0, files.length - MAX_PHOTOS_PER_ACTIVITY);
     const photoErrors = await uploadPhotos({
-      files: filesFrom(formData),
+      files,
       activityId: activity.id,
       userId: user.id,
       reporterName: user.fullName,
@@ -199,7 +197,8 @@ export async function createActivityAction(
       lng: d.gpsLng ?? null,
       takenAt: parseTakenAt(formData.get("photoTakenAt")),
       workDate: new Date(`${d.activityDate}T00:00:00.000Z`),
-      categoryName: FIELD_ACTIVITY_TYPE_LABEL[d.type],
+      categoryName: kind.label,
+      limit: MAX_PHOTOS_PER_ACTIVITY,
     });
 
     await audit(user.id, "field_activity.create", "field_activity", activity.id, {
@@ -207,9 +206,11 @@ export async function createActivityAction(
       type: d.type,
     });
     revalidate(location.slug);
+    const warnings = [...new Set(photoErrors)];
+    if (overLimit > 0) warnings.push(`${overLimit} foto tidak disimpan — maksimal ${MAX_PHOTOS_PER_ACTIVITY} foto per kegiatan.`);
     return {
       success: "Kegiatan tersimpan (draft).",
-      warning: photoErrors.length ? `Sebagian foto gagal: ${[...new Set(photoErrors)].join("; ")}` : undefined,
+      warning: warnings.length ? warnings.join("; ") : undefined,
     };
   } catch (err) {
     return fail(err);
@@ -218,15 +219,7 @@ export async function createActivityAction(
 
 const updateSchema = z.object({
   activityId: z.uuid(),
-  type: z.enum([
-    "rapat_pcm",
-    "pengukuran_uitzet",
-    "mc0",
-    "sosialisasi",
-    "mobilisasi",
-    "dokumentasi_0",
-    "lainnya",
-  ]),
+  type: z.string().trim().min(1, "Jenis kegiatan wajib dipilih"),
   activityDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal tidak valid"),
   title: z.string().trim().min(3, "Judul minimal 3 karakter").max(160),
   notes: z.string().trim().max(2000).optional(),
@@ -264,6 +257,11 @@ export async function updateActivityAction(
     await requireLocationAccess(user, ctx.locationId);
     if (ctx.status !== "draft") {
       return { error: "Kegiatan sudah final — buka kembali dulu untuk mengoreksi." };
+    }
+    const activeKeys = await activeActivityKindKeys();
+    // Izinkan mempertahankan jenis lama walau kini nonaktif (jangan paksa ganti).
+    if (d.type !== ctx.type && !activeKeys.has(d.type)) {
+      return { error: "Jenis kegiatan tidak dikenal atau nonaktif." };
     }
 
     await db.fieldActivity.update({
@@ -332,6 +330,13 @@ export async function addActivityPhotosAction(
 
     const files = filesFrom(formData);
     if (!files.length) return { error: "Tidak ada foto untuk diunggah." };
+    // Kuota total per kegiatan = 32 foto. Sisa = 32 − foto yang sudah ada.
+    const existingPhotos = await db.photo.count({ where: { activityId: ctx.id } });
+    const remaining = MAX_PHOTOS_PER_ACTIVITY - existingPhotos;
+    if (remaining <= 0) {
+      return { error: `Kegiatan sudah mencapai batas ${MAX_PHOTOS_PER_ACTIVITY} foto.` };
+    }
+    const overLimit = Math.max(0, files.length - remaining);
     const dateKey = ctx.activityDate.toISOString().slice(0, 10);
     const { source, fallbackMode } = photoSourceFrom(formData);
     const devLat = Number(formData.get("gpsLat"));
@@ -351,10 +356,13 @@ export async function addActivityPhotosAction(
       lng: Number.isFinite(devLng) && formData.get("gpsLng") ? devLng : null,
       takenAt: parseTakenAt(formData.get("photoTakenAt")),
       workDate: ctx.activityDate,
-      categoryName: FIELD_ACTIVITY_TYPE_LABEL[ctx.type],
+      categoryName: (await getActivityKindLabelMap()).get(ctx.type) ?? ctx.type,
+      limit: remaining,
     });
     revalidate(ctx.location.slug);
-    if (photoErrors.length) return { warning: `Sebagian foto gagal: ${[...new Set(photoErrors)].join("; ")}` };
+    const warnings = [...new Set(photoErrors)];
+    if (overLimit > 0) warnings.push(`${overLimit} foto tidak disimpan — batas ${MAX_PHOTOS_PER_ACTIVITY} foto per kegiatan.`);
+    if (warnings.length) return { warning: warnings.join("; ") };
     return { success: "Foto ditambahkan." };
   } catch (err) {
     return fail(err);

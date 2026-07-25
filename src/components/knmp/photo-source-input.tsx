@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Camera, Images } from "lucide-react";
+import { Combobox } from "@/components/ui";
 
 /**
  * Input foto sadar-sumber (Kamera vs Galeri) untuk kontrol tagging lokasi:
@@ -120,17 +121,19 @@ export function PhotoSourceInput({
         </label>
       </div>
 
-      <label className="flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
+      <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
         <span>Foto galeri tanpa GPS →</span>
-        <select
-          value={fallback}
-          onChange={(e) => setFallback(e.target.value === "none" ? "none" : "project")}
-          className="rounded border border-border bg-surface px-1.5 py-0.5 text-xs text-ink"
-        >
-          <option value="project">pakai titik lokasi proyek</option>
-          <option value="none">tanpa tag lokasi</option>
-        </select>
-      </label>
+        <div className="w-56">
+          <Combobox
+            value={fallback}
+            onChange={(val) => setFallback(val === "none" ? "none" : "project")}
+            options={[
+              { value: "project", label: "pakai titik lokasi proyek" },
+              { value: "none", label: "tanpa tag lokasi" },
+            ]}
+          />
+        </div>
+      </div>
 
       {!compact && previews.length > 0 ? (
         <div className="flex flex-wrap gap-2">

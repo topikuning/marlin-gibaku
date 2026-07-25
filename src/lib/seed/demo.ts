@@ -70,6 +70,25 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
   // Master data awal (katalog lokasi + vendor) dari impor lokasi_awal.xlsx.
   await seedMasterLocations(db, org.id);
 
+  // Master jenis kegiatan lapangan (idempoten; migrasi juga menyeed nilai ini).
+  const activityKinds = [
+    { key: "survei_awal", label: "Survei Awal", sortOrder: 5 },
+    { key: "rapat_pcm", label: "Rapat Persiapan (PCM)", sortOrder: 10 },
+    { key: "pengukuran_uitzet", label: "Pengukuran / Uitzet", sortOrder: 20 },
+    { key: "mc0", label: "Mutual Check awal (MC-0)", sortOrder: 30 },
+    { key: "dokumentasi_0", label: "Dokumentasi kondisi 0%", sortOrder: 40 },
+    { key: "sosialisasi", label: "Sosialisasi", sortOrder: 50 },
+    { key: "mobilisasi", label: "Mobilisasi", sortOrder: 60 },
+    { key: "lainnya", label: "Lainnya", sortOrder: 999 },
+  ];
+  for (const k of activityKinds) {
+    await db.fieldActivityKind.upsert({
+      where: { key: k.key },
+      update: { label: k.label, sortOrder: k.sortOrder },
+      create: k,
+    });
+  }
+
   // ── Users (password dev: marlin123) ─────────────────────────
   const password = await hashPassword("marlin123");
   const users: { username: string; fullName: string; role: "super_admin" | "program_director" | "regional_manager" | "project_manager" | "site_manager" | "field_supervisor" | "exec_viewer"; mustChange?: boolean }[] = [

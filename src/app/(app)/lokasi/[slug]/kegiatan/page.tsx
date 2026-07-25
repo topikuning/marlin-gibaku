@@ -8,8 +8,8 @@ import { listFieldActivities } from "@/lib/field-activity/queries";
 import {
   FIELD_ACTIVITY_STATUS_LABEL,
   FIELD_ACTIVITY_STATUS_TONE,
-  FIELD_ACTIVITY_TYPE_LABEL,
 } from "@/lib/field-activity/labels";
+import { getActivityKinds, getActivityKindLabelMap } from "@/lib/field-activity/kinds";
 import { removeActivityPhotoAction } from "@/lib/field-activity/actions";
 import { isWahaConfigured } from "@/lib/waha/client";
 import { db } from "@/lib/db";
@@ -30,7 +30,12 @@ export default async function KegiatanLapanganPage({ params }: { params: Promise
   const { user, location } = await requireLocationPage(slug);
   requireCapabilityPage(user.role, "location.view");
   const canManage = can(user.role, "field_activity.manage");
-  const activities = await listFieldActivities(location.id);
+  const [activities, kinds, kindLabels] = await Promise.all([
+    listFieldActivities(location.id),
+    getActivityKinds({ activeOnly: true }),
+    getActivityKindLabelMap(),
+  ]);
+  const kindOptions = kinds.map((k) => ({ key: k.key, label: k.label }));
   const todayKey = jakartaDateKey(jakartaToday());
 
   // Grup WA paket (tujuan kiriman kegiatan). Sama untuk semua kegiatan lokasi ini.
@@ -54,7 +59,7 @@ export default async function KegiatanLapanganPage({ params }: { params: Promise
         />
         {canManage ? (
           <CardBody>
-            <CreateActivityForm locationId={location.id} todayKey={todayKey} />
+            <CreateActivityForm locationId={location.id} todayKey={todayKey} kinds={kindOptions} />
           </CardBody>
         ) : null}
       </Card>
@@ -76,7 +81,7 @@ export default async function KegiatanLapanganPage({ params }: { params: Promise
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-md bg-surface-inset px-2 py-0.5 text-[12px] font-semibold text-ink-muted">
-                        {FIELD_ACTIVITY_TYPE_LABEL[a.type]}
+                        {kindLabels.get(a.type) ?? a.type}
                       </span>
                       <StatusPill
                         tone={FIELD_ACTIVITY_STATUS_TONE[a.status]}
@@ -130,6 +135,7 @@ export default async function KegiatanLapanganPage({ params }: { params: Promise
 
                 {canManage && a.status === "draft" ? (
                   <DraftActions
+                    kinds={kindOptions}
                     activity={{
                       id: a.id,
                       type: a.type,

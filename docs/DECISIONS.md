@@ -2209,3 +2209,63 @@ scurve — dengan test properti, bukan paritas nilai):**
   (dipunyai field_supervisor) — tak ada loop.
 - **E2E** disesuaikan: uji `mandor-01` (field_supervisor) kini `toHaveURL("/hari-ini")`.
 - Verifikasi: typecheck/lint ✓.
+
+## 114 · 2026-07-25 · Impor rekap laporan harian dari Excel (backfill saat lapangan lupa lapor)
+
+- **Kebutuhan user**: kadang lapangan lupa lapor; admin merekap volume terpasang di Excel lalu
+  ingin mengunggahnya. Analog dengan import jadwal, tapi berbeda esensinya.
+- **Prinsip yang dijaga**: progress adalah angka **DERIVED** dari laporan harian (`src/lib/progress.ts`,
+  CLAUDE.md #4) — TIDAK boleh ada "suntik angka progress". Jadi yang diimpor bukan progress, melainkan
+  **rekap laporan harian** (volume per item RAB per tanggal). Impor merekonstruksi `DailyReport` +
+  `DailyReportItem` lewat **service yang sama** dengan input manual (`getOrCreateDraft` → `upsertItem`
+  → `submitReport`), jadi guard volume kumulatif, hitung nilai, histori status, dan audit tetap berlaku.
+  Progress ikut naik otomatis. **Tanpa perubahan skema, tanpa migrasi.**
+- **Keputusan user (2 fork)**: (1) rekap **per hari** (kolom Tanggal · Kode/Uraian · Volume) →
+  satu laporan per tanggal; (2) laporan hasil impor masuk **"dikirim" (menunggu verifikasi)**, bukan
+  langsung final — baru dihitung ke progress setelah manajemen menyetujui.
+- **Modul**: `recap-parse.ts` (MURNI, tanpa DB — parser Excel deteksi-header fleksibel + tanggal
+  ISO/DD-MM-YYYY + pencocokan ke leaf RAB by kode→nama→contains-unik, penanda masalah
+  unmatched/bad_date/future_date/zero_volume/over_volume; bisa diuji unit tanpa env) dan
+  `recap-import.ts` (orkestrasi DB: `getRecapLeaves`, `buildRecapPreview`, `commitRecap` urut tanggal
+  menaik supaya guard kumulatif benar).
+- **UI** `/lokasi/[slug]/harian/import`: unduh template Excel (route `…/import/template`, prisi item RAB
+  + sisa volume), unggah → **pratinjau** (baris siap vs bermasalah, dilewati) → **simpan**. Gate
+  `daily_report.create` + `requireLocationAccess`; entry lewat tombol "Impor rekap Excel" di Pelaksanaan Harian.
+- Uji unit `tests/unit/recap-import.test.ts` (parser + matcher). Verifikasi: typecheck/lint/unit/build ✓.
+
+## 115 · 2026-07-25 · Jenis kegiatan lapangan jadi MASTER DATA + semua dropdown pakai Combobox
+
+- **Keputusan user**: jenis kegiatan lapangan harus bisa dikelola admin ("seharusnya ada master
+  datanya"), termasuk menambah **Survei Awal**. Enum `FieldActivityType` diganti tabel master
+  **`FieldActivityKind`** (key stabil · label · sortOrder · isActive). `FieldActivity.type` kini
+  `String` (key), bukan enum. Migration `20260725200000_field_activity_kind_master`
+  (buat tabel + seed 6 lama + Survei Awal, ALTER enum→text via `USING`, DROP TYPE). Sistem belum
+  production → migrasi aman.
+- **Sumber tunggal** `src/lib/field-activity/kinds.ts` (`getActivityKinds`, `getActivityKindLabelMap`,
+  `activeActivityKindKeys`). Label tak lagi hardcode di `labels.ts`. Konsumen label (dashboard,
+  activity feed, WA kirim, halaman kegiatan) memakai peta key→label (fallback ke key bila jenis
+  dihapus). Form create/edit memuat pilihan dari master (aktif saja; jenis lama tetap tampil di edit
+  walau nonaktif). Validasi server: type ∈ jenis aktif.
+- **Kelola di Sistem** (`system.manage`): panel "Jenis kegiatan lapangan" — tambah (key auto-slug,
+  dijamin unik), ubah nama, aktif/nonaktifkan. Aksi `saveActivityKindAction` + audit. Key immutable.
+- **Semua `<select>` → `Combobox` (filterable)**, per aturan user (apalagi opsi banyak): sisa native
+  select dikonversi — filter Foto Lapangan (lokasi/status/sumber), Document Center (paket/lokasi/fase/
+  tipe), panel cap foto di Sistem (overlay/ukuran), dan fallback GPS di input foto. Selebihnya sudah
+  Combobox sejak awal.
+- Verifikasi: typecheck/lint/unit(172)/build ✓.
+
+## 116 · 2026-07-25 · Edit nama pengguna · batas 32 foto/kegiatan · jam dari nama file WhatsApp
+
+- **Edit nama pengguna**: aksi `updateUserProfile` (gate `user.manage`, audit `user.update_profile`)
+  ubah `fullName` + email (cek bentrok email). UI: tombol "Edit nama" per baris di halaman Pengguna
+  (panel inline). Username & peran tidak diubah di sini.
+- **Batas 32 foto per KEGIATAN lapangan** (`MAX_PHOTOS_PER_ACTIVITY=32`, di `photos.ts`): `uploadPhotos`
+  menerima `limit`. Create → limit 32; Add foto → limit = 32 − foto existing (query count), tolak bila
+  sudah 32, dan beri peringatan jumlah yang dilewati. Tidak mengubah batas upload laporan harian.
+- **Jam dari nama file WhatsApp**: WhatsApp membuang EXIF, jadi untuk foto galeri tanpa EXIF, ambil
+  waktu dari nama file bila polanya mengandung jam (`parseWhatsAppTime` di `photos.ts`): format
+  desktop/iOS "WhatsApp Image YYYY-MM-DD at HH.MM.SS[ AM/PM]" (24/12 jam), diasumsikan WIB. Format
+  Android "IMG-YYYYMMDD-WAxxxx" hanya tanggal → diabaikan. Urutan sumber waktu galeri kini:
+  EXIF → nama file WA → tanggal kerja/server. Enum baru `PhotoMetadataSource.filename`
+  (migration `20260725210000_photo_metadata_filename`), `timeApprox=false` (waktu nyata, bukan fallback).
+- Uji unit `tests/unit/wa-filename-time.test.ts` (7 kasus). Verifikasi: typecheck/lint/unit(179)/build ✓.

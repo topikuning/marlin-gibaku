@@ -41,6 +41,34 @@ const THUMB_MAX = 256;
 /** Batas ukuran & jumlah foto per unggahan (SM di lapangan, sinyal terbatas). */
 export const MAX_PHOTO_BYTES = 8 * 1024 * 1024; // 8 MB / foto
 export const MAX_PHOTOS_PER_UPLOAD = 6;
+/** Batas total foto per kegiatan lapangan (lihat DECISIONS 116). */
+export const MAX_PHOTOS_PER_ACTIVITY = 32;
+
+/**
+ * Ambil waktu dari nama file WhatsApp bila polanya mengandung jam. WhatsApp
+ * membuang EXIF, jadi nama file jadi satu-satunya sumber waktu untuk foto yang
+ * diteruskan lewat WA. Format desktop/iOS: "WhatsApp Image 2026-07-25 at
+ * 14.30.55.jpeg" (24 jam) atau "...at 2.30.55 PM.jpeg" (12 jam). Format Android
+ * "IMG-20260725-WA0001.jpg" HANYA tanggal (tanpa jam) → null. Diasumsikan WIB.
+ */
+export function parseWhatsAppTime(fileName: string | null | undefined): Date | null {
+  if (!fileName) return null;
+  const m = fileName.match(
+    /(\d{4})-(\d{2})-(\d{2})\s+at\s+(\d{1,2})[.:](\d{2})[.:](\d{2})(?:\s*(AM|PM))?/i,
+  );
+  if (!m) return null;
+  const [, y, mo, d, hh, mi, ss, ap] = m;
+  let hour = Number(hh);
+  if (ap) {
+    const pm = ap.toUpperCase() === "PM";
+    if (pm && hour < 12) hour += 12;
+    if (!pm && hour === 12) hour = 0;
+  }
+  if (hour > 23 || Number(mi) > 59 || Number(ss) > 59) return null;
+  const iso = `${y}-${mo}-${d}T${String(hour).padStart(2, "0")}:${mi}:${ss}+07:00`;
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
 
 const ALLOWED_MIME = ["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
 const EXT_RE = /\.(jpe?g|png|webp|heic|heif)$/i;
@@ -227,9 +255,14 @@ export async function savePhotoForItem(input: SavePhotoInput) {
     const useProject = s?.fallbackMode === "project";
     lat = exif.lat ?? (useProject ? projLat : null);
     lng = exif.lng ?? (useProject ? projLng : null);
+    const waTime = parseWhatsAppTime(file.name);
     if (exif.takenAt) {
       takenAt = exif.takenAt;
       timeSource = "exif";
+    } else if (waTime) {
+      // Foto WhatsApp (EXIF terbuang) — ambil jam dari nama file.
+      takenAt = waTime;
+      timeSource = "filename";
     } else {
       // workDate = tanggal kerja (jam 00:00), bukan jam jepret asli → tandai server.
       takenAt = s?.workDate ?? new Date();

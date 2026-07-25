@@ -1,16 +1,18 @@
 "use client";
 
 import { useActionState, useTransition, useState } from "react";
-import { Banner, Button, Input, Label, StatusPill } from "@/components/ui";
+import { Banner, Button, Combobox, Input, Label, StatusPill } from "@/components/ui";
 import {
   runR2Test,
   resetOperationalData,
   saveBranding,
   savePhotoStampConfigAction,
+  saveActivityKindAction,
   type R2TestState,
   type ResetState,
   type BrandingState,
   type PhotoStampState,
+  type ActivityKindState,
 } from "@/lib/system/actions";
 import { saveWahaConfigAction, wahaStatusAction, type WaActionState } from "@/lib/waha/actions";
 import type { PhotoStampConfig } from "@/lib/photo-stamp/config";
@@ -230,8 +232,6 @@ export function PhotoStampPanel({ initial }: { initial: PhotoStampConfig }) {
   const [accent, setAccent] = useState(v.accentColor);
   const safe = normalizeHex(accent) ?? "#FF8A00";
   const onAccent = getContrastText(safe);
-  const SELECT =
-    "w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink focus:border-border-strong focus:outline-none";
 
   return (
     <form action={action} className="space-y-4">
@@ -268,20 +268,20 @@ export function PhotoStampPanel({ initial }: { initial: PhotoStampConfig }) {
         </div>
         <div>
           <Label htmlFor="ps-overlay">Kekuatan overlay</Label>
-          <select id="ps-overlay" name="overlayStrength" defaultValue={v.overlayStrength} className={SELECT}>
+          <Combobox id="ps-overlay" name="overlayStrength" defaultValue={v.overlayStrength}>
             <option value="auto">Auto</option>
             <option value="light">Ringan</option>
             <option value="standard">Standar</option>
             <option value="strong">Kuat</option>
-          </select>
+          </Combobox>
         </div>
         <div>
           <Label htmlFor="ps-size">Ukuran stamp</Label>
-          <select id="ps-size" name="size" defaultValue={v.size} className={SELECT}>
+          <Combobox id="ps-size" name="size" defaultValue={v.size}>
             <option value="compact">Compact</option>
             <option value="standard">Standard</option>
             <option value="large">Large</option>
-          </select>
+          </Combobox>
         </div>
         <fieldset className="space-y-1.5">
           <Label>Tampilkan di cap</Label>
@@ -324,5 +324,65 @@ export function PhotoStampPanel({ initial }: { initial: PhotoStampConfig }) {
         Simpan pengaturan cap foto
       </Button>
     </form>
+  );
+}
+
+/**
+ * Master data "Jenis kegiatan lapangan" — kelola pilihan dropdown kegiatan tanpa
+ * developer: tambah jenis baru, ubah nama, aktif/nonaktifkan. Key stabil supaya
+ * data lama tetap tertaut walau jenis dinonaktifkan. DECISIONS 115.
+ */
+export function ActivityKindsPanel({
+  kinds,
+}: {
+  kinds: { key: string; label: string; isActive: boolean; sortOrder: number }[];
+}) {
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-ink-muted">
+        Pilihan ini muncul di dropdown <span className="font-medium">Jenis kegiatan</span> saat mencatat
+        kegiatan lapangan. Menonaktifkan jenis menyembunyikannya dari dropdown tanpa mengubah data lama.
+      </p>
+      <AddActivityKindForm />
+      <ul className="divide-y divide-border rounded-md border border-border">
+        {kinds.map((k) => (
+          <ActivityKindRow key={k.key} kind={k} />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function AddActivityKindForm() {
+  const [state, action, pending] = useActionState<ActivityKindState, FormData>(saveActivityKindAction, undefined);
+  return (
+    <form action={action} className="flex flex-wrap items-end gap-2 rounded-md border border-border bg-surface-muted p-3">
+      <div className="min-w-56 flex-1">
+        <Label htmlFor="ak-new">Tambah jenis kegiatan</Label>
+        <Input id="ak-new" name="label" placeholder="mis. Survei Awal" maxLength={60} required />
+      </div>
+      <Button type="submit" size="sm" loading={pending}>Tambah</Button>
+      {state?.error ? <div className="w-full"><Banner tone="error" title={state.error} /></div> : null}
+      {state?.success ? <div className="w-full"><Banner tone="success" title={state.success} /></div> : null}
+    </form>
+  );
+}
+
+function ActivityKindRow({ kind }: { kind: { key: string; label: string; isActive: boolean; sortOrder: number } }) {
+  const [state, action, pending] = useActionState<ActivityKindState, FormData>(saveActivityKindAction, undefined);
+  return (
+    <li className="p-3">
+      <form action={action} className="flex flex-wrap items-center gap-2">
+        <input type="hidden" name="key" value={kind.key} />
+        <Input name="label" defaultValue={kind.label} maxLength={60} className="min-w-48 flex-1" required />
+        <label className="flex items-center gap-1.5 text-sm text-ink-muted">
+          <input type="checkbox" name="isActive" defaultChecked={kind.isActive} /> Aktif
+        </label>
+        <StatusPill tone={kind.isActive ? "success" : "neutral"} label={kind.isActive ? "Aktif" : "Nonaktif"} />
+        <Button type="submit" size="sm" variant="secondary" loading={pending}>Simpan</Button>
+      </form>
+      {state?.error ? <div className="mt-1.5"><Banner tone="error" title={state.error} /></div> : null}
+      {state?.success ? <p className="mt-1 text-xs text-success">{state.success}</p> : null}
+    </li>
   );
 }

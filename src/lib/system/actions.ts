@@ -119,3 +119,65 @@ export async function savePhotoStampConfigAction(
   await audit(actor.id, "system.photo_stamp_update", "system", null, parsed.data);
   return { success: "Pengaturan cap foto tersimpan — berlaku pada foto berikutnya.", values: await getPhotoStampConfig() };
 }
+
+// ─── Master data jenis kegiatan lapangan ──────────────────────────────
+// Kelola pilihan "Jenis kegiatan" (tabel FieldActivityKind) tanpa developer.
+// Key stabil (immutable) supaya data lama tetap tertaut; label & aktif bisa diubah.
+
+export type ActivityKindState = { error?: string; success?: string } | undefined;
+
+const activityKindSchema = z.object({
+  key: z.string().trim().optional().default(""),
+  label: z.string().trim().min(2, "Nama minimal 2 karakter").max(60, "Nama maksimal 60 karakter"),
+  isActive: z.boolean().default(true),
+});
+
+function slugifyKind(label: string): string {
+  return (
+    label
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 40) || "jenis"
+  );
+}
+
+export async function saveActivityKindAction(_prev: ActivityKindState, formData: FormData): Promise<ActivityKindState> {
+  const actor = await requireCapability("system.manage");
+  const parsed = activityKindSchema.safeParse({
+    key: formData.get("key") ?? "",
+    label: formData.get("label") ?? "",
+    isActive: formData.get("isActive") === "on" || formData.get("isActive") === "true",
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const d = parsed.data;
+
+  if (d.key) {
+    const existing = await db.fieldActivityKind.findUnique({ where: { key: d.key } });
+    if (!existing) return { error: "Jenis kegiatan tidak ditemukan." };
+    await db.fieldActivityKind.update({ where: { key: d.key }, data: { label: d.label, isActive: d.isActive } });
+    await audit(actor.id, "system.activity_kind_update", "field_activity_kind", existing.id, {
+      key: d.key,
+      label: d.label,
+      isActive: d.isActive,
+    });
+    revalidatePath("/sistem");
+    return { success: `Jenis "${d.label}" diperbarui.` };
+  }
+
+  // Tambah baru: key = slug label, dijamin unik.
+  const taken = new Set((await db.fieldActivityKind.findMany({ select: { key: true } })).map((k) => k.key));
+  let key = slugifyKind(d.label);
+  if (taken.has(key)) {
+    let i = 2;
+    while (taken.has(`${key}_${i}`)) i++;
+    key = `${key}_${i}`;
+  }
+  const maxOrder = (await db.fieldActivityKind.aggregate({ _max: { sortOrder: true } }))._max.sortOrder ?? 0;
+  const created = await db.fieldActivityKind.create({
+    data: { key, label: d.label, isActive: true, sortOrder: maxOrder + 10 },
+  });
+  await audit(actor.id, "system.activity_kind_create", "field_activity_kind", created.id, { key, label: d.label });
+  revalidatePath("/sistem");
+  return { success: `Jenis "${d.label}" ditambahkan.` };
+}

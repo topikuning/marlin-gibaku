@@ -9,7 +9,8 @@ import { db } from "@/lib/db";
 import { formatTanggalWaktu } from "@/lib/format";
 import { getBranding, BRAND_DEFAULTS } from "@/lib/branding";
 import { getPhotoStampConfig } from "@/lib/photo-stamp/config";
-import { R2TestPanel, ResetPanel, BrandingPanel, WahaConfigPanel, PhotoStampPanel } from "./sistem-client";
+import { getActivityKinds } from "@/lib/field-activity/kinds";
+import { R2TestPanel, ResetPanel, BrandingPanel, WahaConfigPanel, PhotoStampPanel, ActivityKindsPanel } from "./sistem-client";
 
 export const metadata: Metadata = { title: "Sistem" };
 export const dynamic = "force-dynamic";
@@ -35,6 +36,7 @@ export default async function SistemPage() {
     getWahaConfigDisplay(),
     getPhotoStampConfig(),
   ]);
+  const activityKinds = await getActivityKinds();
   const wahaConfigured = wahaDisplay.hasApiKey && wahaDisplay.baseUrl.length > 0;
 
   return (
@@ -85,6 +87,16 @@ export default async function SistemPage() {
         <CardHeader title="Branding" subtitle="Identitas produk (global) + konteks proyek (tambahan)" />
         <CardBody>
           <BrandingPanel initial={branding} defaults={BRAND_DEFAULTS} />
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Jenis kegiatan lapangan"
+          subtitle="Master data pilihan dropdown saat mencatat kegiatan lapangan (survei awal, PCM, dst.)"
+        />
+        <CardBody>
+          <ActivityKindsPanel kinds={activityKinds} />
         </CardBody>
       </Card>
 
