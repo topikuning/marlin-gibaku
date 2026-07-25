@@ -90,7 +90,7 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
         points: { orderBy: { weekNumber: "asc" }, select: { weekNumber: true, plannedPct: true } },
       },
     }),
-    getPeriodBounds(location.id),
+    getPeriodBounds(location.id, { assume: true }),
   ]);
 
   const activeBaseline = baselines.find((b) => b.status === "aktif");

@@ -4,6 +4,7 @@ import { ScurveKkpSheet } from "@/components/knmp/scurve-kkp-sheet";
 import { requireUser, requireLocationAccess } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { getPeriodBounds, getPeriodReport } from "@/lib/periodic-report";
+import { formatTanggal } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -24,9 +25,11 @@ export default async function CetakJadwalPage({
   if (!location) notFound();
   await requireLocationAccess(user, location.id);
 
-  const bounds = await getPeriodBounds(location.id);
-  if (!bounds) notFound(); // jadwal butuh kontrak + SPMK
-  const report = await getPeriodReport(location.id, "mingguan", bounds.currentWeek);
+  // Jadwal tetap tersedia sebelum SPMK: bila startDate belum ada, asumsikan mulai
+  // HARI INI (saat jadwal diminta) dari durasi kontrak. Realisasi 0 (belum jalan).
+  const bounds = await getPeriodBounds(location.id, { assume: true });
+  if (!bounds) notFound(); // butuh kontrak + durasi
+  const report = await getPeriodReport(location.id, "mingguan", bounds.currentWeek, { assume: true });
   if (!report) notFound();
 
   return (
@@ -35,6 +38,12 @@ export default async function CetakJadwalPage({
       <style>{`@media print { @page { size: A4 landscape; margin: 8mm; } }`}</style>
       <main className="bg-white">
         <section className="mx-auto w-full max-w-[1400px] overflow-x-auto p-6 print:overflow-visible print:p-0">
+          {bounds.assumed ? (
+            <p className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-800 print:border-black print:bg-white print:text-black">
+              Catatan: SPMK belum diterbitkan. Jadwal ini dihitung dari <b>asumsi mulai {formatTanggal(bounds.startDate)}</b>{" "}
+              (durasi kontrak {report.header.masaPelaksanaanHari} hari). Tanggal akan menyesuaikan otomatis setelah SPMK diinput.
+            </p>
+          ) : null}
           <ScurveKkpSheet
             r={report}
             titleOverride="TIME SCHEDULE (KURVA S) — RENCANA & REALISASI"

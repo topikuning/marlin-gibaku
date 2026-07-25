@@ -313,7 +313,7 @@ model User {
   mustChangePassword Boolean   @default(true) @map("must_change_password")
   tokenVersion       Int       @default(0) @map("token_version")
   lastLoginAt        DateTime? @map("last_login_at") @db.Timestamptz
-  // Pembuat akun (berjenjang: PM→SM/Mandor, SM→Mandor). Null utk akun awal/seed.
+  // Pembuat akun (berjenjang: PM→SM/Pelaksana, SM→Pelaksana). Null utk akun awal/seed.
   createdById        String?   @map("created_by_id") @db.Uuid
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz
