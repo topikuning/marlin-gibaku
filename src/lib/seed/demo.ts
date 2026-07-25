@@ -4,6 +4,7 @@ import type { PrismaClient } from "@/generated/prisma/client";
 import { hashPassword } from "@/lib/auth/password";
 import { flattenParsedRab, grandTotal, type FlatNode } from "@/lib/rab/flatten";
 import type { ParsedRab } from "@/lib/rab/parsed";
+import { weeklyFromSegments } from "@/lib/scurve/generate";
 import { autoCategoryWindowFrac, cumulativeFromCategoryWeekly, scheduleFromItems } from "@/lib/scurve/sequencing";
 import { LOKASI_MILESTONES, PAKET_MILESTONES, type AdminMilestone } from "@/lib/milestones/template";
 import { withPpn, valueDone as calcValueDone } from "@/lib/money";
@@ -286,20 +287,19 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
           const [s, e] = catWinS.get(name) ?? [1, totalWeeks];
           return [(s - 1) / totalWeeks, e / totalWeeks];
         };
-        const weekly = cumulativeFromCategoryWeekly(
-          scheduleFromItems(schedItems, contractDays, winFracS).categories,
-          totalWeeks,
-        );
+        const schedFromItems = scheduleFromItems(schedItems, contractDays, winFracS);
+        const weekly = cumulativeFromCategoryWeekly(schedFromItems.categories, totalWeeks);
+        const weeklyByNameS = new Map(schedFromItems.categories.map((c) => [c.categoryName, c.weekly]));
         const schedule = catNodes
           .filter((c) => c.amount > 0n)
           .map((c) => {
             const [sW, eW] = catWinS.get(c.name) ?? [1, totalWeeks];
+            const weightPct = (Number(c.amount) / grandCatS) * 100;
             return {
               lineageKey: c.lineageKey,
               name: c.name,
-              weightPct: (Number(c.amount) / grandCatS) * 100,
-              startWeek: sW,
-              endWeek: eW,
+              weightPct,
+              weekly: weeklyByNameS.get(c.name) ?? weeklyFromSegments(weightPct, [{ startWeek: sW, endWeek: eW }], totalWeeks),
             };
           });
         const baseline = await db.baseline.create({
@@ -323,8 +323,7 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
               lineageKey: s.lineageKey,
               name: s.name,
               weightPct: Math.round(s.weightPct * 1000) / 1000,
-              startWeek: s.startWeek,
-              endWeek: s.endWeek,
+              weekly: s.weekly.map((v) => Math.round(v * 1e6) / 1e6),
             })),
           });
         }

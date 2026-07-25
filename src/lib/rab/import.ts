@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { flattenParsedRab, grandTotal } from "@/lib/rab/flatten";
 import type { ParsedRab } from "@/lib/rab/parsed";
-import { DEFAULT_CONTRACT_DAYS } from "@/lib/scurve/generate";
+import { DEFAULT_CONTRACT_DAYS, weeklyFromSegments } from "@/lib/scurve/generate";
 import { autoCategoryWindowFrac, cumulativeFromCategoryWeekly, scheduleFromItems } from "@/lib/scurve/sequencing";
 import type { BaselineSource, RabRevisionSource } from "@/generated/prisma/enums";
 
@@ -263,16 +263,21 @@ export async function regenerateBaseline(locationId: string, opts: RegenerateBas
   const sched = scheduleFromItems(items, contractDays, winFrac);
   const weekly = cumulativeFromCategoryWeekly(sched.categories, totalWeeks);
 
+  // Matriks mingguan per kategori (bentuk kanonik, DECISIONS 103): dari jadwal
+  // berbasis item bila kategori punya item; fallback lonceng jendela kategori.
+  const weeklyByName = new Map(sched.categories.map((c) => [c.categoryName, c.weekly]));
   const schedule = catNodes
     .filter((c) => c.amount > 0n)
     .map((c) => {
       const [sWeek, eWeek] = catWindowWeeks.get(c.name) ?? [1, totalWeeks];
+      const weightPct = (Number(c.amount) / grandCat) * 100;
+      const catWeekly =
+        weeklyByName.get(c.name) ?? weeklyFromSegments(weightPct, [{ startWeek: sWeek, endWeek: eWeek }], totalWeeks);
       return {
         lineageKey: c.lineageKey,
         name: c.name,
-        weightPct: (Number(c.amount) / grandCat) * 100,
-        startWeek: sWeek,
-        endWeek: eWeek,
+        weightPct,
+        weekly: catWeekly,
       };
     });
 
@@ -333,8 +338,7 @@ export async function regenerateBaseline(locationId: string, opts: RegenerateBas
           lineageKey: s.lineageKey,
           name: s.name,
           weightPct: Math.round(s.weightPct * 1000) / 1000,
-          startWeek: s.startWeek,
-          endWeek: s.endWeek,
+          weekly: s.weekly.map((v) => Math.round(v * 1e6) / 1e6),
         })),
       });
     }

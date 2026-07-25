@@ -5,13 +5,15 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { requireCapability, requireLocationAccess, ForbiddenError } from "@/lib/auth/session";
-import { activateRevision, discardDraft, regenerateBaseline } from "@/lib/rab/import";
+import { activateRevision, contractDaysFor, discardDraft, regenerateBaseline } from "@/lib/rab/import";
 import {
   restoreBaseline,
   saveCategorySchedule,
+  saveCategoryWeekly,
   updateBaselinePoints,
   validateBaselinePoints,
 } from "@/lib/baseline";
+import { parseJadwalWorkbook } from "@/lib/scurve/jadwal-import";
 import { suggestWeeklyPlan, type WeeklySuggestionResult } from "@/lib/plan/suggest";
 
 export type RabActionState = { error?: string; success?: string } | undefined;
@@ -199,10 +201,15 @@ export async function saveManualBaselineAction(_prev: RabActionState, formData: 
   }
 }
 
-const scheduleRowSchema = z.object({
-  lineageKey: z.string().min(1).max(200),
+const segmentSchema = z.object({
   startWeek: z.number().int().min(1).max(520),
   endWeek: z.number().int().min(1).max(520),
+});
+
+const scheduleRowSchema = z.object({
+  lineageKey: z.string().min(1).max(200),
+  // Boleh >1 segmen = minggu terputus (jeda). DECISIONS 103.
+  segments: z.array(segmentSchema).min(1, "Minimal satu rentang minggu.").max(52, "Terlalu banyak rentang."),
 });
 
 const saveScheduleSchema = z.object({
@@ -212,7 +219,7 @@ const saveScheduleSchema = z.object({
 
 /**
  * Simpan jadwal per pekerjaan (kategori) → baseline baru. Klien hanya mengirim
- * jendela minggu; bobot dihitung ulang server dari RAB aktif.
+ * SEGMEN minggu (boleh berjeda); bobot dihitung ulang server dari RAB aktif.
  */
 export async function saveCategoryScheduleAction(
   _prev: RabActionState,
@@ -246,6 +253,92 @@ export async function saveCategoryScheduleAction(
     }
     return {
       success: `Jadwal tersimpan — baseline #${result.baselineNo} aktif. Versi sebelumnya ada di Riwayat baseline.`,
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+const IMPORT_XLSX_MIME = [
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel",
+];
+
+const norm = (s: string): string => s.normalize("NFKC").toUpperCase().replace(/\s+/g, " ").trim();
+
+/**
+ * Impor Time Schedule Excel yang diedit sipil → jadwal (matriks mingguan per
+ * kategori) → baseline BARU. Bentuk/jeda dari Excel dipertahankan; bobot
+ * di-renormalisasi ke RAB. Cocokkan kategori via kode, fallback nama. DECISIONS 103.
+ */
+export async function importJadwalAction(_prev: RabActionState, formData: FormData): Promise<RabActionState> {
+  const locId = z.uuid().safeParse(formData.get("locationId"));
+  if (!locId.success) return { error: "Lokasi tidak valid." };
+
+  try {
+    const user = await requireCapability("baseline.manage");
+    await requireLocationAccess(user, locId.data);
+    const location = await db.location.findUniqueOrThrow({
+      where: { id: locId.data },
+      select: { id: true, slug: true },
+    });
+
+    const file = formData.get("file");
+    if (!(file instanceof File) || file.size === 0) return { error: "File jadwal (.xlsx) wajib dipilih." };
+    if (file.size > 15 * 1024 * 1024) return { error: "File terlalu besar (maks 15 MB)." };
+    if (!IMPORT_XLSX_MIME.includes(file.type) && !/\.xlsx?$/i.test(file.name)) {
+      return { error: "File harus Excel (.xlsx)." };
+    }
+
+    let parsed;
+    try {
+      parsed = await parseJadwalWorkbook(Buffer.from(await file.arrayBuffer()));
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : "Gagal membaca file jadwal." };
+    }
+
+    const contractDays = await contractDaysFor(location.id);
+    const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
+    if (parsed.totalWeeks !== totalWeeks) {
+      return {
+        error: `Jumlah minggu di Excel (${parsed.totalWeeks}) ≠ durasi kontrak lokasi ini (${totalWeeks} minggu). Pastikan file berasal dari lokasi & durasi yang sama.`,
+      };
+    }
+
+    // Kategori RAB aktif utk pencocokan (kode → nama).
+    const revision = await db.rabRevision.findFirst({ where: { locationId: location.id, status: "aktif" }, select: { id: true } });
+    if (!revision) return { error: "Belum ada revisi RAB aktif — impor RAB dulu." };
+    const catNodes = await db.rabNode.findMany({
+      where: { revisionId: revision.id, kind: "kategori", amount: { gt: 0n } },
+      select: { code: true, name: true, lineageKey: true },
+    });
+
+    const byCode = new Map<string, string>(); // norm(code) → lineageKey
+    const byName = new Map<string, string>(); // norm(name) → lineageKey
+    for (const c of catNodes) {
+      if (c.code) byCode.set(norm(c.code), c.lineageKey);
+      byName.set(norm(c.name), c.lineageKey);
+    }
+    const input: { lineageKey: string; weekly: number[] }[] = [];
+    const usedKeys = new Set<string>();
+    for (const pc of parsed.categories) {
+      const key = (pc.code ? byCode.get(norm(pc.code)) : undefined) ?? byName.get(norm(pc.name));
+      if (!key || usedKeys.has(key)) continue;
+      usedKeys.add(key);
+      input.push({ lineageKey: key, weekly: pc.weekly });
+    }
+    if (input.length === 0) {
+      return { error: "Tak satu pun pekerjaan di Excel cocok dengan kategori RAB (kode/nama) lokasi ini." };
+    }
+
+    const result = await saveCategoryWeekly(location.id, input, user.id, "Impor jadwal dari Excel");
+    revalidateRab(location.slug);
+    revalidatePath(`/lokasi/${location.slug}/progress`);
+    if (result.unchanged) {
+      return { success: `Tidak ada perubahan — jadwal identik dengan baseline #${result.baselineNo} yang aktif (${result.matched} pekerjaan cocok).` };
+    }
+    return {
+      success: `Jadwal terimpor — baseline #${result.baselineNo} aktif (${result.matched} dari ${catNodes.length} pekerjaan cocok). Versi sebelumnya ada di Riwayat baseline.`,
     };
   } catch (err) {
     return fail(err);

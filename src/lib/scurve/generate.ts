@@ -446,6 +446,82 @@ export function curveFromCategorySchedule(
   return out;
 }
 
+// ── Matriks bobot per-minggu per kategori (BENTUK KANONIK, DECISIONS 103) ─────
+// Jadwal kategori disimpan sebagai array increment mingguan (bukan satu jendela
+// mulai–selesai) → mendukung minggu TERPUTUS (jeda) & bisa di-round-trip dari
+// Excel. Segmen = rentang minggu aktif; sebuah kategori boleh punya >1 segmen.
+
+export type WeekSegment = { startWeek: number; endWeek: number };
+
+/**
+ * Sebar bobot ke BEBERAPA segmen minggu (boleh ada JEDA di antaranya). Tiap
+ * segmen mendapat porsi bobot ∝ panjangnya, lalu di-lonceng dalam segmen
+ * (categoryWeeklyIncrements → tetap bentuk-S per segmen). Minggu di luar semua
+ * segmen = 0. Return array panjang totalWeeks; Σ = bobot.
+ */
+export function weeklyFromSegments(
+  weightPct: number,
+  segments: WeekSegment[],
+  totalWeeks: number,
+): number[] {
+  const n = Math.max(1, Math.floor(totalWeeks));
+  const out = new Array<number>(n).fill(0);
+  if (!(weightPct > 0) || segments.length === 0) return out;
+  const segs = segments
+    .map((s) => ({
+      s: Math.max(1, Math.min(n, Math.floor(s.startWeek))),
+      e: Math.max(1, Math.min(n, Math.floor(s.endWeek))),
+    }))
+    .filter((s) => s.e >= s.s)
+    .sort((a, b) => a.s - b.s);
+  if (segs.length === 0) return out;
+  const totalLen = segs.reduce((t, s) => t + (s.e - s.s + 1), 0);
+  for (const seg of segs) {
+    const len = seg.e - seg.s + 1;
+    const inc = categoryWeeklyIncrements(weightPct * (len / totalLen), seg.s, seg.e, n);
+    for (let i = 0; i < n; i++) out[i] += inc[i];
+  }
+  return out;
+}
+
+/**
+ * Rekonstruksi segmen (run kontigu bernilai > eps) dari array mingguan — utk
+ * tampilan editor/gantt & derivasi jendela presedensi. Kebalikan longgar dari
+ * weeklyFromSegments.
+ */
+export function segmentsFromWeekly(weekly: number[], eps = 0.0005): WeekSegment[] {
+  const segs: WeekSegment[] = [];
+  let start = -1;
+  for (let i = 0; i < weekly.length; i++) {
+    const active = (weekly[i] ?? 0) > eps;
+    if (active && start < 0) start = i;
+    if (!active && start >= 0) {
+      segs.push({ startWeek: start + 1, endWeek: i });
+      start = -1;
+    }
+  }
+  if (start >= 0) segs.push({ startWeek: start + 1, endWeek: weekly.length });
+  return segs;
+}
+
+/**
+ * Kurva kumulatif (%) dari beberapa array increment mingguan per-kategori.
+ * Sama seperti curveFromCategorySchedule tetapi menerima weekly[] langsung
+ * (mendukung jeda) — sumber tunggal saat jadwal disimpan sebagai matriks.
+ */
+export function cumulativeFromWeeklyRows(rows: number[][], totalWeeks: number): number[] {
+  const n = Math.max(1, Math.floor(totalWeeks));
+  const weekly = new Array<number>(n).fill(0);
+  for (const r of rows) for (let i = 0; i < n; i++) weekly[i] += r[i] ?? 0;
+  const out: number[] = [];
+  let acc = 0;
+  for (let w = 0; w < n; w++) {
+    acc += weekly[w];
+    out.push(Math.min(100, Math.round(acc * 100) / 100));
+  }
+  return out;
+}
+
 /**
  * Fraksi rencana selesai (0..1) untuk SATU trade pada akhir minggu tertentu.
  * Dipakai saran rencana mingguan: berapa yang seharusnya sudah selesai per item.

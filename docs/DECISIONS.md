@@ -1995,3 +1995,59 @@ scurve — dengan test properti, bukan paritas nilai):**
   membolehkan aktivitas terputus.
 - Verifikasi: generate TS sintetis (10 minggu, 1 kategori terputus) → helper Y = `=D10..=M10`,
   kumulatif cache [.,.,45,45,.] benar. Sisa (editor in-app dukung gap + re-import export) menyusul.
+
+## 103 · 2026-07-25 · Jadwal kategori = MATRIKS bobot per-minggu (mendukung minggu TERPUTUS/jeda)
+
+- **Keluhan user (inti, berlarut)**: kurva-S "berlarut-larut" karena jadwal per kategori
+  hanya bisa SATU jendela kontigu `startWeek–endWeek`. Pekerjaan yang minggunya TERPUTUS
+  (mis. M1–4, jeda M5–6, lanjut M7–14) — yang SAH menurut kaidah TS sipil (menunggu curing/
+  pekerjaan lain/material, tahap bertahap) — tidak bisa dijadwalkan, baik auto maupun manual.
+  Juga tak bisa menyerap editan Excel sipil (round-trip).
+- **Akar (audit end-to-end)**: `BaselineScheduleItem` menyimpan `start_week/end_week` (satu
+  jendela). Turunan kurva (`categoryWeeklyIncrements`/`curveFromCategorySchedule`) strictly
+  kontigu. Editor = dua input mulai–selesai + gantt satu batang. TAMBAHAN: report & editor
+  memakai DUA mesin kurva berbeda (report `scheduleFromItems`, preview editor
+  `curveFromCategorySchedule`) → bisa beda. Lapisan tabel KKP & export Excel SUDAH gap-agnostic.
+- **Solusi (bentuk kanonik)**: `BaselineScheduleItem.weekly Json` (array increment %/minggu,
+  panjang totalWeeks) MENGGANTIKAN start/end. 0 = minggu jeda. `weightPct` = Σ weekly.
+  Kurva baseline = Σ semua weekly diakumulasi (`cumulativeFromWeeklyRows`). Konsekuensi:
+  - Mendukung jeda secara native (interior nol).
+  - SATU sumber: report membaca `weekly` tersimpan langsung = preview editor = kurva
+    tersimpan (mesin ganda hilang). Fallback re-derive item-based hanya bila matriks
+    belum ada / durasi berubah.
+  - Baseline jadi SNAPSHOT sejati (tak lagi drift dgn RAB live; "Hitung ulang" utk refresh).
+- **Helper baru (`generate.ts`)**: `weeklyFromSegments(weight, segments[], N)` (lonceng per
+  segmen, porsi ∝ panjang), `segmentsFromWeekly(weekly)` (rekonstruksi run kontigu utk gantt),
+  `cumulativeFromWeeklyRows(rows[][], N)`.
+- **Titik sentuh**: schema+migration (backfill even-spread dari jendela lama), `baseline.ts`
+  (derive/save/restore), `rab/import.ts` regenerateBaseline (simpan weekly per kategori),
+  `periodic-report.ts` (baca weekly tersimpan + fallback), `plan/suggest.ts` (jendela look-ahead
+  = minggu aktif pertama..terakhir dari weekly), `seed/demo.ts`. Editor: segmen (Tambah/Hapus
+  rentang) + gantt multi-batang + zod `segments[]`.
+- **Verifikasi**: typecheck ✓ lint ✓ build ✓ unit 151 (+5 gap: Σ=bobot, jeda=0, porsi ∝ panjang,
+  kurva mendatar saat jeda & tetap monoton/akhir 100, rekonstruksi segmen). Baseline lama →
+  backfill even-spread; "Hitung ulang"/simpan editor menghasilkan bentuk eksak.
+- **Round-trip (S3)**: re-import Time Schedule Excel (editan sipil) → weekly per kategori →
+  baseline. Parser `scurve/jadwal-import.ts` (deteksi header M1..MN, baca baris kategori termasuk
+  sel rumus via `.result`, minggu 0 = jeda). Action `importJadwalAction` cocokkan kategori via
+  KODE (fallback nama), tolak bila jumlah minggu ≠ durasi kontrak, lalu `saveCategoryWeekly`
+  (bentuk/jeda dari Excel dipertahankan, bobot di-RENORMALISASI ke RAB; kategori tak-cocok →
+  fallback auto agar kurva tuntas 100). UI: tombol "Impor jadwal dari Excel" di editor jadwal.
+  Uji round-trip: export → parse balik → kategori/kode/matriks + jeda (mgg 5–6 = 0) terbaca benar.
+
+## 104 · 2026-07-25 · Export TS: baris realisasi PENUH rumus (kumulatif + sumber grafik) seperti rencana
+
+- **Temuan user**: di export Time Schedule, sisi RENCANA sudah hidup (rumus), tetapi
+  "Kumulatif Realisasi Prestasi %" masih statis/kosong dan sumber grafik realisasi cuma
+  tertaut untuk minggu yang sudah ada realisasi. "Meskipun kosong, tetap harus pakai rumus
+  seperti kumulatif rencana."
+- **Fix (`xlsx.ts` addKurvaSheet)** — cermin persis sisi rencana:
+  - "Realisasi Prestasi %" = nilai per-minggu aktual (sumber, bisa diedit; minggu depan kosong).
+  - "Kumulatif Realisasi Prestasi %" = RUMUS kumulatif (`=D10`, `=D11+E10`, …) utk SEMUA minggu,
+    walau selnya masih 0/kosong (blank → 0 dalam rumus → mendatar).
+  - "Deviasi +/-" = RUMUS `=kumReal−kumRenc` utk SEMUA minggu.
+  - Sumber realisasi grafik (helperR) = RUMUS tertaut ke baris kumulatif realisasi utk SEMUA
+    minggu (`=D11…`), bukan lagi hanya minggu ber-realisasi.
+  - `result` cache diisi dari kumulatif realisasi carry-forward (increment 0 saat kosong).
+- **Efek**: mengisi/mengedit realisasi di Excel otomatis memperbarui kumulatif realisasi,
+  deviasi, dan garis realisasi grafik — perlakuan identik dgn rencana. DECISIONS 102 dilengkapi.
