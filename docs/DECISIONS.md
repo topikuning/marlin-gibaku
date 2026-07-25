@@ -1851,3 +1851,23 @@ scurve — dengan test properti, bukan paritas nilai):**
 - Migrasi 15 file: `Select` → `Combobox` (rename), 6 call-site onChange disesuaikan ke `(value)=>`.
   `Select` primitive di field.tsx tetap ada (belum dihapus) utk kompatibilitas.
 - Verifikasi: typecheck/lint ✓, 139 unit test ✓, build ✓. Interaksi/mobile diuji manual user.
+
+## 095 · 2026-07-25 · Import RAB: harga = NEGOSIASI (bug ambil HPS pada header 2-baris)
+
+- Bug (file Lampiran_NEGO_Asemdoyong…): parser mengambil harga HPS padahal ada kolom
+  NEGOSIASI. Akar: `detectColumns` mencari baris header ber-"VOL"+"JUMLAH", TAPI file ini
+  (a) total-nya berlabel "HARGA TOTAL" (bukan "JUMLAH"), (b) header DUA BARIS — grup
+  "HPS | PENAWARAN | NEGOSIASI" (merge) di atas "HARGA SATUAN | HARGA TOTAL" berulang. →
+  header tak terdeteksi → fallback klasik G/H = HPS.
+- `detectColumns` ditulis ulang, tahan 1- & 2-baris:
+  - Baris header utama = punya VOL & SAT (hindari salah-deteksi baris rekap "JUMLAH" kolom B).
+  - Deteksi 2-baris: bila baris di bawahnya memuat "HARGA SATUAN", gabungkan label grup
+    (nearest-left, merge left-anchored) + sub. Harga = kolom "HARGA SATUAN" di bawah grup;
+    total = "HARGA TOTAL"/"JUMLAH".
+  - 1-baris: kolom harga = sel grup yg header-harga (mis. "HARGA NEGOISASI", "NILAI HPS"),
+    total = "JUMLAH"/"TOTAL" sesudahnya.
+  - Prioritas nilai kontrak: **NEGOSIASI > PENAWARAN > HPS** (HPS cuma pagu). Warning kini
+    menyebut sumber (nego/penawaran). TKDN tak ketemu → kolom kosong (bukan salah baca harga blok lain).
+- Verifikasi file NYATA: "Buat Bedeng" → 1.559.155,82 (nego), bukan 1.707.676,69 (HPS);
+  "Pagar Sementara" → 445.884,46 (nego). typecheck/lint ✓, 17 uji hps-parser (2 baru:
+  header 2-baris nego, penawaran-tanpa-nego) + full unit ✓, build ✓.
