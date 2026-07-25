@@ -310,7 +310,6 @@ function ItemForm({
               name="photos"
               type="file"
               accept="image/*"
-              capture="environment"
               multiple
               onChange={onFiles}
               className="hidden"

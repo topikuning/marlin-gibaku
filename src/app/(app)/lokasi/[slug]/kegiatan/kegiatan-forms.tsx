@@ -129,7 +129,7 @@ export function CreateActivityForm({ locationId, todayKey }: { locationId: strin
         <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-border bg-surface-muted px-3 py-2.5 text-sm text-ink-muted hover:border-border-strong">
           <Camera aria-hidden className="size-4" />
           Ambil / pilih foto (maks 6)
-          <input id="fa-photos" type="file" name="photos" accept="image/*" capture="environment" multiple className="sr-only" onChange={onFiles} />
+          <input id="fa-photos" type="file" name="photos" accept="image/*" multiple className="sr-only" onChange={onFiles} />
         </label>
         {previews.length > 0 ? (
           <div className="mt-2 flex flex-wrap gap-2">
@@ -345,7 +345,6 @@ function AddPhotoForm({ activityId }: { activityId: string }) {
           type="file"
           name="photos"
           accept="image/*"
-          capture="environment"
           multiple
           className="sr-only"
           onChange={(e) => {
