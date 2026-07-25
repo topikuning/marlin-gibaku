@@ -141,7 +141,7 @@ export default async function DokumenPage({
                   {documents.map((d) => (
                     <tr key={d.id}>
                       <td className="py-1.5 pr-3">
-                        <a href={`/api/documents/${d.id}`} className="font-medium text-primary hover:underline">
+                        <a href={`/api/documents/${d.id}`} target="_blank" rel="noopener" className="font-medium text-primary hover:underline">
                           {d.title}
                         </a>
                         {d.supersedesId && <span className="ml-1 text-xs text-ink-muted">(versi baru)</span>}
