@@ -40,6 +40,9 @@ function esc(s: string): string {
 const clamp = (min: number, v: number, max: number) => Math.round(Math.max(min, Math.min(max, v)));
 /** Estimasi lebar teks (tanpa mesin font) — cukup untuk fit & wrap. */
 const estWidth = (text: string, fs: number, bold: boolean) => text.length * fs * (bold ? 0.6 : 0.52);
+/** Halo gelap tipis di sekeliling teks → terbaca di atas foto terang/ramai. */
+const halo = (fs: number) =>
+  `paint-order="stroke" stroke="rgb(${OVERLAY_RGB})" stroke-opacity="0.55" stroke-width="${Math.max(1, fs * 0.09).toFixed(1)}" stroke-linejoin="round"`;
 
 // Path Lucide (viewBox 24) — MapPin, UserRound, Camera.
 const ICON_PATHS: Record<"map" | "user" | "camera", string> = {
@@ -100,6 +103,9 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
   parts.push(
     `<rect x="0" y="${h - band}" width="${w}" height="${band}" fill="url(#pg)"/>`,
   );
+  // Scrim atas tipis → logo & panel perusahaan tetap terbaca di foto terang/ramai.
+  const topBand = Math.round(h * (portrait ? 0.2 : 0.24));
+  parts.push(`<rect x="0" y="0" width="${w}" height="${topBand}" fill="url(#tg)"/>`);
 
   // ── Panel perusahaan (kiri-atas) ──
   if (d.companyName?.trim()) {
@@ -119,7 +125,7 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
     const barH = Math.round(fsCo * 1.05);
     parts.push(`<rect x="${padH}" y="${Math.round((panelH - barH) / 2)}" width="${barW}" height="${barH}" rx="1" fill="${accent}"/>`);
     parts.push(
-      `<text x="${padH + barW + gap}" y="${Math.round(panelH / 2 + fsCo * 0.35)}" font-family="${ff}" font-weight="700" font-size="${fsCo}" fill="${TEXT_WHITE}">${esc(company)}</text>`,
+      `<text x="${padH + barW + gap}" y="${Math.round(panelH / 2 + fsCo * 0.35)}" font-family="${ff}" font-weight="700" font-size="${fsCo}" ${halo(fsCo)} fill="${TEXT_WHITE}">${esc(company)}</text>`,
     );
   }
 
@@ -180,7 +186,7 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
   for (const line of loc.lines) {
     cy += Math.round(loc.fs * 0.82);
     parts.push(
-      `<text x="${x}" y="${cy}" font-family="${ff}" font-weight="700" font-size="${loc.fs}" letter-spacing="${(loc.fs * -0.02).toFixed(1)}" fill="${TEXT_WHITE}">${esc(line)}</text>`,
+      `<text x="${x}" y="${cy}" font-family="${ff}" font-weight="700" font-size="${loc.fs}" letter-spacing="${(loc.fs * -0.02).toFixed(1)}" ${halo(loc.fs)} fill="${TEXT_WHITE}">${esc(line)}</text>`,
     );
     cy += locLineH - Math.round(loc.fs * 0.82);
   }
@@ -189,7 +195,7 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
   // Tanggal & waktu.
   cy += Math.round(fsDate * 0.85);
   parts.push(
-    `<text x="${x}" y="${cy}" font-family="${ff}" font-weight="400" font-size="${fsDate}" fill="${TEXT_WHITE}">${esc(d.dateTimeText)}</text>`,
+    `<text x="${x}" y="${cy}" font-family="${ff}" font-weight="400" font-size="${fsDate}" ${halo(fsDate)} fill="${TEXT_WHITE}">${esc(d.dateTimeText)}</text>`,
   );
   cy += dateH - Math.round(fsDate * 0.85);
   cy += gapDateDiv;
@@ -222,6 +228,11 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
     `<stop offset="0.32" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="${(a * 0.81).toFixed(3)}"/>` +
     `<stop offset="0.68" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="${(a * 0.32).toFixed(3)}"/>` +
     `<stop offset="1" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="0"/>` +
+    `</linearGradient>` +
+    `<linearGradient id="tg" x1="0" y1="0" x2="0" y2="1">` +
+    `<stop offset="0" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="0.62"/>` +
+    `<stop offset="0.55" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="0.22"/>` +
+    `<stop offset="1" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="0"/>` +
     `</linearGradient>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><defs>${opts.fontFaceCss}${grad}</defs>${parts.join("")}</svg>`;
 }
@@ -235,20 +246,12 @@ function marlinLogo(rightX: number, topY: number, fsM: number, ff: string, accen
   const p: string[] = [];
   const m = Math.round(fsM);
   const track = Math.round(fsM * 0.03);
-  const mW = estWidth("MARLIN", fsM, true) + track * 5;
   const baseY = topY + Math.round(fsM * 0.82);
 
-  // Aksen diagonal oranye di bawah wordmark (angled underline, tak menutup huruf).
-  const accH = Math.max(3, Math.round(fsM * 0.14));
-  const accW = Math.round(mW * 0.44);
-  const accSk = Math.round(accH * 1.1);
-  const ax = rightX - accW;
-  const ay = baseY + Math.round(fsM * 0.12);
-  p.push(`<polygon points="${ax + accSk},${ay} ${rightX},${ay} ${rightX - accSk},${ay + accH} ${ax},${ay + accH}" fill="${accent}"/>`);
-
-  // Wordmark MARLIN.
+  // Wordmark MARLIN — huruf "A" beraksen oranye (sesuai referensi); halo gelap
+  // agar terbaca di foto terang/ramai.
   p.push(
-    `<text x="${rightX}" y="${baseY}" text-anchor="end" font-family="${ff}" font-weight="700" font-size="${m}" letter-spacing="${track}" fill="#FFFFFF">MARLIN</text>`,
+    `<text x="${rightX}" y="${baseY}" text-anchor="end" font-family="${ff}" font-weight="700" font-size="${m}" letter-spacing="${track}" ${halo(m)} fill="#FFFFFF">M<tspan fill="${accent}">A</tspan>RLIN</text>`,
   );
 
   // PROJECT CONTROL + dash oranye diagonal di kiri.
@@ -258,12 +261,12 @@ function marlinLogo(rightX: number, topY: number, fsM: number, ff: string, accen
   const subW = estWidth(label, fsSub, true) + subTrack * (label.length - 1);
   const subBase = baseY + Math.round(fsM * 0.72) + fsSub;
   p.push(
-    `<text x="${rightX}" y="${subBase}" text-anchor="end" font-family="${ff}" font-weight="700" font-size="${fsSub}" letter-spacing="${subTrack}" fill="#E7EDF5">${label}</text>`,
+    `<text x="${rightX}" y="${subBase}" text-anchor="end" font-family="${ff}" font-weight="700" font-size="${fsSub}" letter-spacing="${subTrack}" ${halo(fsSub)} fill="#FFFFFF">${label}</text>`,
   );
   const dW = Math.round(fsM * 0.5);
   const dH = Math.max(3, Math.round(fsSub * 0.36));
   const dSk = Math.round(dH * 1.1);
-  const dRight = rightX - Math.round(subW) - Math.round(fsSub * 0.7);
+  const dRight = rightX - Math.round(subW) - Math.round(fsSub * 1.15);
   const dx = dRight - dW;
   const dy = subBase - Math.round(fsSub * 0.5);
   p.push(`<polygon points="${dx + dSk},${dy} ${dRight + dSk},${dy} ${dRight},${dy + dH} ${dx},${dy + dH}" fill="${accent}"/>`);
