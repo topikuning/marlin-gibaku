@@ -3,8 +3,10 @@
 import { useActionState, useState } from "react";
 import { Banner, Button, FileInput, Input, Label, Combobox, StatusPill, Textarea } from "@/components/ui";
 import {
+  syncComplianceAction,
   updateMilestoneAction,
   verifyMilestoneAction,
+  type ComplianceSyncState,
   type MilestoneActionState,
 } from "@/lib/milestones/actions";
 import { uploadDocumentAction, type UploadActionState } from "@/app/(app)/dokumen/actions";
@@ -95,7 +97,7 @@ function MilestoneEditForm({
           <ul className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
             {item.documents.map((d) => (
               <li key={d.id}>
-                <a href={`/api/documents/${d.id}`} className="text-primary hover:underline">📎 {d.title}</a>
+                <a href={`/api/documents/${d.id}`} target="_blank" rel="noopener" className="text-primary hover:underline">📎 {d.title}</a>
               </li>
             ))}
           </ul>
@@ -169,7 +171,7 @@ export function MilestonePanel({
                   <span className="text-warning">butuh verifikasi</span>
                 )}
                 {m.documents.map((d) => (
-                  <a key={d.id} href={`/api/documents/${d.id}`} className="text-primary hover:underline">
+                  <a key={d.id} href={`/api/documents/${d.id}`} target="_blank" rel="noopener" className="text-primary hover:underline">
                     📎 {d.title}
                   </a>
                 ))}
@@ -192,6 +194,24 @@ export function MilestonePanel({
         </li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * Tombol "Sinkronkan dari dokumen" — tautkan dokumen paket yang belum terhubung
+ * ke checklist kepatuhan berdasarkan jenisnya, tanpa perlu hapus & unggah ulang.
+ */
+export function SyncComplianceButton({ packageId }: { packageId: string }) {
+  const [state, action, pending] = useActionState<ComplianceSyncState, FormData>(syncComplianceAction, undefined);
+  return (
+    <form action={action} className="flex flex-col items-end gap-1">
+      <input type="hidden" name="packageId" value={packageId} />
+      <Button size="sm" variant="secondary" type="submit" loading={pending}>
+        Sinkronkan dari dokumen
+      </Button>
+      {state?.error ? <span className="text-right text-xs text-danger">{state.error}</span> : null}
+      {state?.success ? <span className="text-right text-xs text-success">{state.success}</span> : null}
+    </form>
   );
 }
 

@@ -118,6 +118,15 @@ enum PhotoVerification {
   rejected
 }
 
+/// Sumber waktu cap foto: exif (metadata foto), device (jam perangkat saat jepret),
+/// server (fallback waktu unggah — TIDAK pasti waktu jepret), manual.
+enum PhotoMetadataSource {
+  exif
+  device
+  server
+  manual
+}
+
 /// Jenis kegiatan lapangan non-pekerjaan (dokumentasi, bukan progres volume)
 enum FieldActivityType {
   rapat_pcm // Rapat Persiapan Pelaksanaan (PCM)
@@ -901,6 +910,7 @@ model Photo {
   exifGpsLng   Decimal?          @map("exif_gps_lng") @db.Decimal(10, 7)
   exifTakenAt  DateTime?         @map("exif_taken_at") @db.Timestamptz
   verification PhotoVerification @default(pending)
+  metadataSource PhotoMetadataSource @default(server) @map("metadata_source")
   uploadedById String?           @map("uploaded_by_id") @db.Uuid
   createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz
 

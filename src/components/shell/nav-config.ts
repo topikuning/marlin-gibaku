@@ -1,5 +1,6 @@
 import {
   Activity,
+  Camera,
   FileText,
   FolderOpen,
   Home,
@@ -24,6 +25,7 @@ import { can, type Capability } from "@/lib/authz";
 export const ICONS = {
   home: Home,
   activity: Activity,
+  camera: Camera,
   package: Package,
   mapPin: MapPin,
   map: Map,
@@ -50,6 +52,7 @@ export const MAIN_NAV: NavItem[] = [
   { label: "Lokasi", href: "/lokasi", icon: "mapPin", capability: "location.view" },
   { label: "Peta", href: "/peta", icon: "map", capability: "location.view" },
   { label: "Hari Ini", href: "/hari-ini", icon: "sun", capability: "daily_report.create" },
+  { label: "Foto Lapangan", href: "/foto", icon: "camera", capability: "location.view" },
   { label: "Progress", href: "/progress", icon: "trendingUp", capability: "progress.view" },
   { label: "Keuangan", href: "/keuangan", icon: "wallet", capability: "finance.view" },
   { label: "Dokumen", href: "/dokumen", icon: "folderOpen", capability: "document.view" },

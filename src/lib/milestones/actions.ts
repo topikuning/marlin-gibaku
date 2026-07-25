@@ -340,6 +340,123 @@ export async function updateMilestoneAction(
   return { success: hasFile ? "Dokumen terunggah & item diperbarui." : "Item diperbarui." };
 }
 
+// ─── Sinkronisasi kepatuhan dari dokumen ─────────────────────────────
+
+/**
+ * Tautkan dokumen paket yang BELUM terhubung milestone (mis. diunggah sebelum
+ * milestone dimaterialisasi, atau lewat Document Center tanpa auto-link) ke
+ * checklist kepatuhan berdasarkan jenis dokumen — lalu majukan status milestone
+ * persis seperti saat upload biasa. Idempoten: dokumen yang sudah tertaut
+ * diabaikan, jadi aman ditekan berulang. Return jumlah yang ditaut & dimajukan.
+ */
+async function syncComplianceFromDocuments(packageId: string): Promise<{ linked: number; advanced: number }> {
+  const user = await requireCapability("compliance.manage");
+  const pkg = await db.package.findUnique({ where: { id: packageId }, select: { orgId: true } });
+  if (!pkg || pkg.orgId !== user.orgId) throw new ForbiddenError("Paket tidak ditemukan");
+
+  // Pastikan template milestone (induk + lokasi) sudah ada sebelum menaut.
+  await ensureMilestones(packageId);
+
+  const orphans = await db.document.findMany({
+    where: { packageId, milestoneId: null },
+    orderBy: { uploadedAt: "asc" },
+    select: { id: true, type: true, locationId: true, title: true },
+  });
+  if (orphans.length === 0) return { linked: 0, advanced: 0 };
+
+  let linked = 0;
+  let advanced = 0;
+  for (const doc of orphans) {
+    const matching = ADMIN_MILESTONE_TEMPLATE.filter((t) => t.docTypes.includes(doc.type));
+    if (matching.length === 0) continue;
+    const paketKeys = matching.filter((t) => t.scope === "paket").map((t) => t.key);
+    const lokasiKeys = matching.filter((t) => t.scope === "lokasi").map((t) => t.key);
+    const or: Prisma.AdminMilestoneWhereInput[] = [];
+    if (paketKeys.length > 0) or.push({ locationId: null, templateKey: { in: paketKeys } });
+    if (lokasiKeys.length > 0 && doc.locationId)
+      or.push({ locationId: doc.locationId, templateKey: { in: lokasiKeys } });
+    if (or.length === 0) continue;
+
+    const select = {
+      id: true,
+      status: true,
+      requiresVerification: true,
+      note: true,
+      name: true,
+    } satisfies Prisma.AdminMilestoneSelect;
+    // Prioritaskan milestone yang masih bisa maju; kalau semua sudah selesai,
+    // tetap tautkan ke yang ada supaya dokumen muncul di checklist.
+    const milestone =
+      (await db.adminMilestone.findFirst({
+        where: { packageId, status: { notIn: ["selesai", "tidak_berlaku"] }, OR: or },
+        orderBy: { sortOrder: "asc" },
+        select,
+      })) ??
+      (await db.adminMilestone.findFirst({
+        where: { packageId, OR: or },
+        orderBy: { sortOrder: "asc" },
+        select,
+      }));
+    if (!milestone) continue;
+
+    await db.document.update({ where: { id: doc.id }, data: { milestoneId: milestone.id } });
+    linked += 1;
+
+    // Efek kepatuhan — sama persis dengan uploadDocument.
+    if (milestone.status !== "selesai" && milestone.status !== "tidak_berlaku") {
+      if (!milestone.requiresVerification) {
+        await db.adminMilestone.update({
+          where: { id: milestone.id },
+          data: {
+            status: "selesai",
+            completedAt: new Date(),
+            note: milestone.note || `Selesai otomatis — bukti "${doc.title}" diunggah`,
+          },
+        });
+        await audit(user.id, "milestone.auto_selesai", "admin_milestone", milestone.id, {
+          documentId: doc.id,
+          milestone: milestone.name,
+          catatan: "Sinkronisasi kepatuhan dari dokumen",
+        });
+        advanced += 1;
+      } else if (milestone.status !== "berjalan") {
+        await db.adminMilestone.update({ where: { id: milestone.id }, data: { status: "berjalan" } });
+        await audit(user.id, "milestone.bukti_masuk", "admin_milestone", milestone.id, {
+          documentId: doc.id,
+          milestone: milestone.name,
+          catatan: "Sinkronisasi kepatuhan — menunggu verifikasi manusia",
+        });
+        advanced += 1;
+      }
+    }
+  }
+
+  await audit(user.id, "milestone.sync_dokumen", "package", packageId, { linked, advanced });
+  return { linked, advanced };
+}
+
+export type ComplianceSyncState = { error?: string; success?: string } | undefined;
+
+export async function syncComplianceAction(
+  _prev: ComplianceSyncState,
+  formData: FormData,
+): Promise<ComplianceSyncState> {
+  const packageId = formData.get("packageId");
+  if (typeof packageId !== "string" || !packageId) return { error: "Paket tidak valid" };
+  try {
+    const { linked, advanced } = await syncComplianceFromDocuments(packageId);
+    revalidatePath(`/paket/${packageId}/dokumen`);
+    if (linked === 0) return { success: "Semua dokumen sudah tersambung — tidak ada perubahan." };
+    return {
+      success:
+        `${linked} dokumen tersambung ke checklist` +
+        (advanced > 0 ? `, ${advanced} item kepatuhan maju.` : "."),
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Gagal menyinkronkan kepatuhan" };
+  }
+}
+
 const verifySchema = z.object({
   milestoneId: z.uuid(),
   slug: z.string().optional().default(""),

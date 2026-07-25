@@ -12,7 +12,7 @@ import { getPackageWorkspace } from "@/lib/package/queries";
 import { ensureMilestones } from "@/lib/milestones/actions";
 import { milestoneBoard, MILESTONE_STATUS_LABEL, MILESTONE_STATUS_TONE } from "@/lib/milestones/queries";
 import type { AdminPhase } from "@/generated/prisma/enums";
-import { MilestonePanel } from "@/app/(app)/lokasi/[slug]/dokumen/kepatuhan-client";
+import { MilestonePanel, SyncComplianceButton } from "@/app/(app)/lokasi/[slug]/dokumen/kepatuhan-client";
 import { PackageDocUploadForm } from "./upload-form";
 
 export const metadata: Metadata = { title: "Dokumen Paket" };
@@ -113,6 +113,7 @@ export default async function DokumenPaketPage({
         <CardHeader
           title="Kepatuhan administrasi induk (paket)"
           subtitle={`${indukBoard.done}/${indukBoard.total} selesai · ${indukBoard.late} terlambat — berlaku untuk seluruh lokasi. Status otomatis dari dokumen yang diunggah.`}
+          action={canManage ? <SyncComplianceButton packageId={pkg.id} /> : undefined}
         />
         <CardBody className="space-y-5">
           <ProgressBar value={indukBoard.completenessPct} tone={indukBoard.late > 0 ? "warning" : "success"} />
@@ -196,7 +197,14 @@ export default async function DokumenPaketPage({
                         className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"
                       >
                         <div className="min-w-0">
-                          <p className="font-medium text-ink">{doc.title}</p>
+                          <a
+                            href={`/api/documents/${doc.id}`}
+                            target="_blank"
+                            rel="noopener"
+                            className="font-medium text-ink hover:text-primary hover:underline"
+                          >
+                            {doc.title}
+                          </a>
                           <p className="text-xs text-ink-muted">
                             {doc.fileName}
                             {doc.docNumber ? ` · No. ${doc.docNumber}` : ""}

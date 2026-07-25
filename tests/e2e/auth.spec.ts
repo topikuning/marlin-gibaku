@@ -29,10 +29,12 @@ test.describe("autentikasi", () => {
     await expect(page.getByRole("alert").filter({ hasText: "salah" })).toBeVisible();
   });
 
-  test("login admin → Command Center", async ({ page }) => {
+  test("login admin → Dashboard Eksekutif", async ({ page }) => {
+    // Peran manajemen (punya portfolio.view) mendarat di Dashboard Eksekutif,
+    // bukan Command Center. Peran lapangan tetap Command Center (lihat uji mandor).
     await login(page, "admin");
     await expect(page).toHaveURL("/");
-    await expect(page.getByText("Halo, Administrator")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Dashboard Eksekutif" })).toBeVisible();
   });
 
   test("user mustChangePassword dipaksa ganti password", async ({ page }) => {
