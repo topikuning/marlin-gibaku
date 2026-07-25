@@ -123,24 +123,8 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
     );
   }
 
-  // ── Logo MARLIN (kanan-atas) ──
-  {
-    const fsM = fs(0.03, 22);
-    const fsSub = fs(0.011, 9);
-    const right = w - safeX;
-    const topY = safeY + Math.round(fsM * 0.85);
-    const mW = estWidth("MARLIN", fsM, true);
-    parts.push(
-      `<text x="${right}" y="${topY}" text-anchor="end" font-family="${ff}" font-weight="700" font-size="${fsM}" letter-spacing="${(fsM * 0.03).toFixed(1)}" fill="${TEXT_WHITE}">MARLIN</text>`,
-    );
-    // Aksen tick di bawah MARLIN (kiri-align dgn awal kata).
-    const tickW = Math.round(fsM * 0.55);
-    const tickH = Math.max(2, Math.round(fsM * 0.11));
-    parts.push(`<rect x="${Math.round(right - mW)}" y="${topY + Math.round(fsM * 0.18)}" width="${tickW}" height="${tickH}" rx="1" fill="${accent}"/>`);
-    parts.push(
-      `<text x="${right}" y="${topY + Math.round(fsM * 0.6) + fsSub}" text-anchor="end" font-family="${ff}" font-weight="700" font-size="${fsSub}" letter-spacing="${(fsSub * 0.18).toFixed(1)}" fill="${TEXT_SUBTLE}">PROJECT CONTROL</text>`,
-    );
-  }
+  // ── Logo lockup MARLIN (kanan-atas): wordmark + aksen diagonal + PROJECT CONTROL ──
+  parts.push(marlinLogo(w - safeX, safeY, fs(0.034, 22), ff, accent));
 
   // ── Blok info (kiri-bawah) ──
   const maxW = portrait ? w - 2 * safeX : Math.round(w * 0.6);
@@ -240,6 +224,51 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
     `<stop offset="1" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="0"/>` +
     `</linearGradient>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><defs>${opts.fontFaceCss}${grad}</defs>${parts.join("")}</svg>`;
+}
+
+/**
+ * Wordmark MARLIN (vektor, right-aligned di rightX/topY): "MARLIN" tebal putih,
+ * aksen diagonal oranye, lalu "PROJECT CONTROL" ber-tracking dgn dash oranye
+ * diagonal di kirinya — meniru lockup logo referensi.
+ */
+function marlinLogo(rightX: number, topY: number, fsM: number, ff: string, accent: string): string {
+  const p: string[] = [];
+  const m = Math.round(fsM);
+  const track = Math.round(fsM * 0.03);
+  const mW = estWidth("MARLIN", fsM, true) + track * 5;
+  const baseY = topY + Math.round(fsM * 0.82);
+
+  // Aksen diagonal oranye di bawah wordmark (angled underline, tak menutup huruf).
+  const accH = Math.max(3, Math.round(fsM * 0.14));
+  const accW = Math.round(mW * 0.44);
+  const accSk = Math.round(accH * 1.1);
+  const ax = rightX - accW;
+  const ay = baseY + Math.round(fsM * 0.12);
+  p.push(`<polygon points="${ax + accSk},${ay} ${rightX},${ay} ${rightX - accSk},${ay + accH} ${ax},${ay + accH}" fill="${accent}"/>`);
+
+  // Wordmark MARLIN.
+  p.push(
+    `<text x="${rightX}" y="${baseY}" text-anchor="end" font-family="${ff}" font-weight="700" font-size="${m}" letter-spacing="${track}" fill="#FFFFFF">MARLIN</text>`,
+  );
+
+  // PROJECT CONTROL + dash oranye diagonal di kiri.
+  const fsSub = Math.max(9, Math.round(fsM * 0.32));
+  const subTrack = Math.round(fsSub * 0.22);
+  const label = "PROJECT CONTROL";
+  const subW = estWidth(label, fsSub, true) + subTrack * (label.length - 1);
+  const subBase = baseY + Math.round(fsM * 0.72) + fsSub;
+  p.push(
+    `<text x="${rightX}" y="${subBase}" text-anchor="end" font-family="${ff}" font-weight="700" font-size="${fsSub}" letter-spacing="${subTrack}" fill="#E7EDF5">${label}</text>`,
+  );
+  const dW = Math.round(fsM * 0.5);
+  const dH = Math.max(3, Math.round(fsSub * 0.36));
+  const dSk = Math.round(dH * 1.1);
+  const dRight = rightX - Math.round(subW) - Math.round(fsSub * 0.7);
+  const dx = dRight - dW;
+  const dy = subBase - Math.round(fsSub * 0.5);
+  p.push(`<polygon points="${dx + dSk},${dy} ${dRight + dSk},${dy} ${dRight},${dy + dH} ${dx},${dy + dH}" fill="${accent}"/>`);
+
+  return p.join("");
 }
 
 /** Puncak alpha gradient dari mode overlay (+ luminance area bawah utk mode auto). */
