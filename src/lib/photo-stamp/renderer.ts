@@ -266,18 +266,21 @@ function marlinLogo(rightX: number, topY: number, fsM: number, accent: string): 
   p.push(
     `<text x="${rightX}" y="${baseY}" text-anchor="end" font-family="ML" font-weight="800" font-size="${m}" letter-spacing="${trackM}" ${halo(m)} fill="#FFFFFF">MARLIN</text>`,
   );
-  // Aksen: segitiga oranye di dalam huruf "A".
-  const aCenter = left + Math.round(EM_M * fsM + trackM + (EM_A * fsM) / 2);
-  const triW = Math.round(fsM * 0.3);
-  const apexY = baseY - Math.round(fsM * 0.6);
-  const baseTriY = baseY - Math.round(fsM * 0.19);
+  // Aksen: KAKI KIRI huruf "A" berwarna aksen (garis diagonal dari kaki ke apex).
+  const aLeft = left + EM_M * fsM + trackM;
+  const aWidth = EM_A * fsM;
+  const apexX = Math.round(aLeft + aWidth / 2);
+  const apexY = baseY - Math.round(fsM * 0.7);
+  const footX = Math.round(aLeft + aWidth * 0.12);
+  const legW = Math.max(3, Math.round(fsM * 0.16));
   p.push(
-    `<polygon points="${aCenter},${apexY} ${aCenter - Math.round(triW / 2)},${baseTriY} ${aCenter + Math.round(triW / 2)},${baseTriY}" fill="${accent}"/>`,
+    `<line x1="${footX}" y1="${baseY}" x2="${apexX}" y2="${apexY}" stroke="${accent}" stroke-width="${legW}" stroke-linecap="butt"/>`,
   );
 
   // Baris bawah: bar oranye (kiri) + PROJECT CONTROL — LEBARNYA = lebar MARLIN.
+  // Gap ke MARLIN dirapatkan (jangan menempel).
   const fsSub = Math.round(fsM * 0.28);
-  const subBase = baseY + Math.round(fsM * 0.72) + fsSub;
+  const subBase = baseY + Math.round(fsM * 0.5) + fsSub;
   const barW = Math.round(mW * 0.17);
   const gap = Math.round(fsM * 0.16);
   const availW = mW - barW - gap;
