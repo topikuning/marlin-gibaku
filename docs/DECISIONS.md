@@ -2138,3 +2138,26 @@ scurve — dengan test properti, bukan paritas nilai):**
   bukan soal 16mb vs 30mb.
 - **Fix**: set `experimental.proxyClientMaxBodySize: "30mb"` di next.config.ts (samakan dgn
   serverActions.bodySizeLimit). Perlu re-deploy (config di-bake saat build).
+
+## 110 · 2026-07-25 · Photo stamp: tata letak mengikuti master layout referensi
+
+- **Fokus (dikoreksi user)**: stamp SUDAH ada; ini soal MENYAMAKAN TATA LETAK dengan gambar
+  referensi, bukan fitur baru besar. Aparat besar (schema/settings UI/kategori master) sengaja
+  TIDAK dikerjakan.
+- **Renderer baru** `src/lib/photo-stamp/renderer.ts` (`buildStampSvg`, pure) meniru komposisi:
+  kiri-atas panel perusahaan (navy rounded + aksen), kanan-atas MARLIN/PROJECT CONTROL, kiri-bawah
+  badge kategori → nama lokasi (dominan, fit ≤2 baris) → tanggal → garis → koordinat/pelapor/Photo ID
+  dgn ikon Lucide (MapPin/UserRound/Camera). Gradient bawah sesuai spec. Landscape & portrait.
+- **Util** `src/lib/photo-stamp/format.ts`: `formatStampDateTime` (Sabtu, 25 Juli 2026 • 16:15 WIB;
+  tz WIB/WITA/WIT), `formatCoordinate` (6 desimal N/S/E/W), `getContrastText` (WCAG),
+  `generatePhotoId` (KODE-YYMMDD-HHMM-URUT). Unit test `tests/unit/photo-stamp-format.test.ts`.
+- **Aksen** dapat diubah via AppSetting `photoStamp.*` (`src/lib/photo-stamp/config.ts`, default
+  #FF8A00; overlay/toggle/ukuran) — dibaca `savePhotoForItem`. UI Settings BELUM dibuat (default
+  berlaku).
+- **Kategori badge** dinamis (bukan hardcode "Kondisi Eksisting"): laporan harian = nama pekerjaan
+  (RabNode), kegiatan lapangan = label tipe. Photo ID digenerate saat cap (urut per lokasi+hari).
+- **Keterbatasan jujur**: (a) font bundle = DejaVu Sans (bukan Inter — perlu regen subset offline);
+  (b) logo MARLIN = teks (belum ada aset resmi); (c) teks badge kontras (WCAG) → di atas oranye jadi
+  gelap, beda dgn referensi yang putih (bisa diubah bila diminta); (d) belum: persist Photo ID unik,
+  simpan file ASLI terpisah, Settings UI + live preview, kategori master.
+- Verifikasi: typecheck ✓ lint ✓ 16 unit test ✓ build ✓; pratinjau render landscape+portrait cocok.

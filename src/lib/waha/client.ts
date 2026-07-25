@@ -107,12 +107,40 @@ function extractGroupId(idRaw: unknown): string {
 }
 
 function extractGroupName(rec: Record<string, unknown>, fallback: string): string {
+  const str = (v: unknown) => (typeof v === "string" && v.trim() ? v : undefined);
   return (
-    (rec.name as string | undefined) ??
-    (rec.subject as string | undefined) ??
-    ((rec.groupMetadata as Record<string, unknown> | undefined)?.subject as string | undefined) ??
+    str(rec.name) ??
+    str(rec.subject) ??
+    str(rec.Name) ?? // engine GOWS
+    str(rec.GroupName) ??
+    str(rec.title) ??
+    str((rec.groupMetadata as Record<string, unknown> | undefined)?.subject) ??
     fallback
   );
+}
+
+/** ID grup dari berbagai varian key lintas engine WAHA (id/JID/jid/chatId). */
+function extractGroupIdMulti(rec: Record<string, unknown>): string {
+  for (const key of ["id", "JID", "jid", "chatId", "chat_id", "_serialized"]) {
+    const id = extractGroupId(rec[key]);
+    if (id) return id;
+  }
+  return "";
+}
+
+/**
+ * Ambil array grup dari respons WAHA. Beberapa versi/engine mengembalikan array
+ * polos; yang lain membungkus dalam { data | groups | items | results | chats }.
+ */
+function unwrapArray(data: unknown): unknown[] {
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === "object") {
+    const rec = data as Record<string, unknown>;
+    for (const k of ["data", "groups", "items", "results", "chats"]) {
+      if (Array.isArray(rec[k])) return rec[k] as unknown[];
+    }
+  }
+  return [];
 }
 
 /** Daftar grup WA yang bisa dikirimi (butuh sesi WORKING + store aktif utk NOWEB). */
@@ -120,11 +148,10 @@ export async function listGroups(): Promise<WahaGroup[]> {
   const c = await cfg();
   const res = await wahaFetch(c, `/api/${encodeURIComponent(c.session)}/groups`);
   const data = (await res.json()) as unknown;
-  const arr = Array.isArray(data) ? data : [];
-  return arr
+  return unwrapArray(data)
     .map((g) => {
-      const rec = g as Record<string, unknown>;
-      const id = extractGroupId(rec.id);
+      const rec = (g && typeof g === "object" ? g : {}) as Record<string, unknown>;
+      const id = extractGroupIdMulti(rec);
       return { id, name: extractGroupName(rec, id) };
     })
     .filter((g) => g.id.endsWith("@g.us"));

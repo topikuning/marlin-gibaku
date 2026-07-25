@@ -6,11 +6,15 @@ import {
   runR2Test,
   resetOperationalData,
   saveBranding,
+  savePhotoStampConfigAction,
   type R2TestState,
   type ResetState,
   type BrandingState,
+  type PhotoStampState,
 } from "@/lib/system/actions";
 import { saveWahaConfigAction, wahaStatusAction, type WaActionState } from "@/lib/waha/actions";
+import type { PhotoStampConfig } from "@/lib/photo-stamp/config";
+import { getContrastText, normalizeHex } from "@/lib/photo-stamp/format";
 
 /**
  * Konfigurasi WAHA (WhatsApp) sebagai SETTING APLIKASI — URL server, API key,
@@ -209,6 +213,115 @@ export function ResetPanel() {
       </div>
       <Button type="submit" variant="danger" loading={pending}>
         Kosongkan data operasional
+      </Button>
+    </form>
+  );
+}
+
+/**
+ * Pengaturan Cap Foto (Photo Stamp): warna aksen (picker + HEX), kekuatan
+ * overlay, ukuran, dan toggle koordinat/pelapor/Photo ID — dengan PRATINJAU
+ * LANGSUNG (badge + kontras teks otomatis). Berlaku pada cap foto berikutnya;
+ * warna foto asli tidak diubah.
+ */
+export function PhotoStampPanel({ initial }: { initial: PhotoStampConfig }) {
+  const [state, action, pending] = useActionState<PhotoStampState, FormData>(savePhotoStampConfigAction, undefined);
+  const v = state?.values ?? initial;
+  const [accent, setAccent] = useState(v.accentColor);
+  const safe = normalizeHex(accent) ?? "#FF8A00";
+  const onAccent = getContrastText(safe);
+  const SELECT =
+    "w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink focus:border-border-strong focus:outline-none";
+
+  return (
+    <form action={action} className="space-y-4">
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      {state?.success ? <Banner tone="success" title={state.success} /> : null}
+      <p className="text-sm text-ink-muted">
+        Warna aksen dipakai semua elemen cap (garis panel, badge, ikon, aksen logo). Perubahan berlaku
+        pada cap foto berikutnya — tidak mengubah warna foto asli.
+      </p>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <Label htmlFor="ps-accent">Warna aksen</Label>
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              aria-label="Pilih warna aksen"
+              value={safe}
+              onChange={(e) => setAccent(e.target.value.toUpperCase())}
+              className="h-9 w-12 cursor-pointer rounded-md border border-border bg-surface p-0.5"
+            />
+            <Input
+              id="ps-accent"
+              name="accentColor"
+              value={accent}
+              onChange={(e) => setAccent(e.target.value)}
+              maxLength={7}
+              className="w-32 font-mono"
+            />
+            <button type="button" onClick={() => setAccent("#FF8A00")} className="text-xs font-medium text-primary hover:underline">
+              Reset
+            </button>
+          </div>
+        </div>
+        <div>
+          <Label htmlFor="ps-overlay">Kekuatan overlay</Label>
+          <select id="ps-overlay" name="overlayStrength" defaultValue={v.overlayStrength} className={SELECT}>
+            <option value="auto">Auto</option>
+            <option value="light">Ringan</option>
+            <option value="standard">Standar</option>
+            <option value="strong">Kuat</option>
+          </select>
+        </div>
+        <div>
+          <Label htmlFor="ps-size">Ukuran stamp</Label>
+          <select id="ps-size" name="size" defaultValue={v.size} className={SELECT}>
+            <option value="compact">Compact</option>
+            <option value="standard">Standard</option>
+            <option value="large">Large</option>
+          </select>
+        </div>
+        <fieldset className="space-y-1.5">
+          <Label>Tampilkan di cap</Label>
+          <label className="flex items-center gap-2 text-sm text-ink">
+            <input type="checkbox" name="showCoordinates" defaultChecked={v.showCoordinates} /> Koordinat
+          </label>
+          <label className="flex items-center gap-2 text-sm text-ink">
+            <input type="checkbox" name="showReporter" defaultChecked={v.showReporter} /> Nama pelapor
+          </label>
+          <label className="flex items-center gap-2 text-sm text-ink">
+            <input type="checkbox" name="showPhotoId" defaultChecked={v.showPhotoId} /> Photo ID
+          </label>
+        </fieldset>
+      </div>
+
+      {/* Pratinjau langsung */}
+      <div>
+        <Label>Pratinjau</Label>
+        <div className="rounded-lg border border-border bg-[#0b1a30] p-4">
+          <span
+            className="inline-flex rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide"
+            style={{ backgroundColor: safe, color: onAccent }}
+          >
+            Kondisi Eksisting
+          </span>
+          <div className="mt-2 text-2xl font-extrabold leading-tight text-white">KNMP Purwahamba</div>
+          <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-300">
+            <span style={{ color: safe }} aria-hidden>
+              ●
+            </span>
+            Koordinat: 6.871010°S, 109.253123°E
+          </div>
+        </div>
+        <p className="mt-1 text-xs text-ink-muted">
+          Teks badge otomatis kontras (putih/gelap) mengikuti warna aksen. Contoh badge di atas memakai warna terpilih.
+        </p>
+      </div>
+
+      <Button type="submit" loading={pending}>
+        Simpan pengaturan cap foto
       </Button>
     </form>
   );
