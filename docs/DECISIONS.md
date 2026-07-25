@@ -2269,3 +2269,20 @@ scurve — dengan test properti, bukan paritas nilai):**
   EXIF → nama file WA → tanggal kerja/server. Enum baru `PhotoMetadataSource.filename`
   (migration `20260725210000_photo_metadata_filename`), `timeApprox=false` (waktu nyata, bukan fallback).
 - Uji unit `tests/unit/wa-filename-time.test.ts` (7 kasus). Verifikasi: typecheck/lint/unit(179)/build ✓.
+
+## 117 · 2026-07-25 · Seragamkan nama lokasi (buang prefix "KNMP") + edit nama lokasi
+
+- **Masalah**: nama lokasi tak seragam — alur bypass & buat-cepat-kontrak dari katalog
+  meng-generate `KNMP {desa}`, sedangkan lokasi lama/manual pakai nama desa saja. Prefix "KNMP"
+  redundan (seluruh sistem = proyek KNMP). Tak ada fitur edit nama lokasi.
+- **Keputusan user**: (1) konvensi **tanpa prefix** — nama desa saja; (2) **rapikan data lama otomatis**.
+- **Perubahan**:
+  - Auto-generate berhenti menambah "KNMP": `package/actions.ts` (2 alur: katalog & bypass) + seed
+    `name = m.village`. Placeholder form lokasi manual diubah (contoh desa, bukan "KNMP Desa …").
+  - Migration `20260725220000_normalize_location_names`: `regexp_replace(name,'^KNMP\s+','')` untuk
+    semua lokasi existing. **Slug TIDAK diubah** (URL stabil) — hanya nama tampilan.
+  - **Edit nama lokasi**: aksi `renameLocation` (gate `location.manage` + `requireLocationAccess`,
+    audit `location.rename`, revalidate lokasi/paket/index). UI: tombol pensil di samping nama di
+    header workspace lokasi (`EditableLocationName`, inline) — muncul untuk super_admin/PD/RM/PM.
+    Mengubah nama tampilan saja, slug tetap.
+- Verifikasi: typecheck/lint/build ✓.

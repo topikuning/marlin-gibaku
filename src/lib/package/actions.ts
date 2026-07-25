@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
-import { requireCapability } from "@/lib/auth/session";
+import { requireCapability, requireLocationAccess } from "@/lib/auth/session";
 import {
   canTransitionPackage,
   canTransitionLocation,
@@ -478,7 +478,7 @@ export async function addTargetLocationsFromCatalog(
 
     const takenSlugs = new Set<string>();
     for (const m of masters) {
-      const name = `KNMP ${m.village}`;
+      const name = m.village;
       const base = slugify(`${name}-${m.regency}`);
       let slug = base;
       for (let n = 2; takenSlugs.has(slug) || (await tx.location.findUnique({ where: { slug }, select: { id: true } })); n += 1) {
@@ -559,6 +559,40 @@ export async function removeTargetLocation(locationId: string): Promise<PackageA
   });
   revalidatePath(`/paket/${result.loc.packageId}`, "layout");
   return { success: `Lokasi target "${result.loc.name}" dihapus.` };
+}
+
+const renameLocationSchema = z.object({
+  locationId: z.uuid(),
+  name: z.string().trim().min(3, "Nama lokasi minimal 3 karakter").max(200),
+});
+
+/**
+ * Ubah NAMA TAMPILAN lokasi (bukan slug — URL tetap stabil). Untuk merapikan
+ * penamaan yang tak seragam (mis. prefix "KNMP"). DECISIONS 117.
+ */
+export async function renameLocation(_prev: PackageActionState, formData: FormData): Promise<PackageActionState> {
+  const actor = await requireCapability("location.manage");
+  const parsed = renameLocationSchema.safeParse({
+    locationId: formData.get("locationId"),
+    name: formData.get("name"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { locationId, name } = parsed.data;
+
+  const loc = await db.location.findUnique({
+    where: { id: locationId },
+    select: { id: true, slug: true, name: true, packageId: true },
+  });
+  if (!loc) return { error: "Lokasi tidak ditemukan." };
+  await requireLocationAccess(actor, locationId);
+  if (name === loc.name) return { success: "Nama lokasi tidak berubah." };
+
+  await db.location.update({ where: { id: locationId }, data: { name } });
+  await audit(actor.id, "location.rename", "location", locationId, { from: loc.name, to: name });
+  revalidatePath(`/lokasi/${loc.slug}`, "layout");
+  revalidatePath(`/paket/${loc.packageId}`, "layout");
+  revalidatePath("/lokasi");
+  return { success: "Nama lokasi diperbarui." };
 }
 
 /* ------------------------------------------------------------------ */
@@ -934,7 +968,7 @@ export async function createDirectProject(
     // Instansiasi lokasi dari katalog (slug unik, aktif, histori persiapan).
     const takenSlugs = new Set<string>();
     for (const m of masters) {
-      const name = `KNMP ${m.village}`;
+      const name = m.village;
       const base = slugify(`${name}-${m.regency}`);
       let slug = base;
       for (let n = 2; takenSlugs.has(slug) || (await tx.location.findUnique({ where: { slug }, select: { id: true } })); n += 1) {
