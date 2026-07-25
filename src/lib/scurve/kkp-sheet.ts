@@ -1,5 +1,3 @@
-import { categoryWeeklyIncrements } from "./generate";
-
 /**
  * Data untuk sheet "KURVA S" resmi KKP (halaman-1 laporan periodik): tabel bobot
  * kategori × minggu (increment per minggu) + baris prestasi + garis kurva-S.
@@ -35,8 +33,8 @@ export type KurvaSheet = {
 };
 
 export function buildKurvaSheet(input: {
-  /** Jadwal per kategori (BaselineScheduleItem): bobot + jendela minggu. */
-  categories: { code: string; name: string; weightPct: number; startWeek: number; endWeek: number }[];
+  /** Profil mingguan per kategori (increment %/minggu) — dari jadwal berbasis item. */
+  categories: { code: string; name: string; weekly: number[] }[];
   totalWeeks: number;
   contractStart: Date;
   /** Kumulatif realisasi % per minggu (null utk minggu > minggu berjalan). */
@@ -56,15 +54,13 @@ export function buildKurvaSheet(input: {
     else monthGroups.push({ label, span: 1 });
   }
 
-  // Increment bobot per kategori per minggu = distribusi LONCENG dalam jendela
-  // (categoryWeeklyIncrements — bukan rata; DECISIONS 081). Jumlah agregat =
-  // kurva baseline (curveFromCategorySchedule) → sinkron dgn grafik & deviasi.
-  const categories: KurvaSheetCategory[] = input.categories.map((c) => ({
-    code: c.code,
-    name: c.name,
-    bobot: c.weightPct,
-    weekly: categoryWeeklyIncrements(c.weightPct, c.startWeek, c.endWeek, n),
-  }));
+  // Profil mingguan per kategori sudah dihitung dari jadwal berbasis ITEM
+  // (tahap bersarang di jendela kategori; DECISIONS 082) → tinggal dipakai.
+  const categories: KurvaSheetCategory[] = input.categories.map((c) => {
+    const weekly = new Array<number>(n).fill(0);
+    for (let i = 0; i < n && i < c.weekly.length; i++) weekly[i] = c.weekly[i];
+    return { code: c.code, name: c.name, bobot: weekly.reduce((s, v) => s + v, 0), weekly };
+  });
 
   // Baris prestasi.
   const rencanaPerWeek = weeks.map((_, i) => categories.reduce((s, c) => s + c.weekly[i], 0));

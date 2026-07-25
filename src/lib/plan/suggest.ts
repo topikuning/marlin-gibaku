@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { cumulativeVolumeByLineage, currentWeekNumber } from "@/lib/progress";
 import { contractDaysFor } from "@/lib/rab/import";
+import { autoCategoryWindowFrac } from "@/lib/scurve/sequencing";
 import { computeSuggestions, type LeafInput, type WeeklySuggestionResult } from "./suggest-core";
 
 /**
@@ -41,7 +42,10 @@ export async function suggestWeeklyPlan(
     db.baseline.findFirst({
       where: { locationId, status: "aktif" },
       orderBy: { baselineNo: "desc" },
-      select: { points: { orderBy: { weekNumber: "asc" }, select: { weekNumber: true, plannedPct: true } } },
+      select: {
+        points: { orderBy: { weekNumber: "asc" }, select: { weekNumber: true, plannedPct: true } },
+        scheduleItems: { select: { name: true, startWeek: true, endWeek: true } },
+      },
     }),
     db.location.findUnique({
       where: { id: locationId },
@@ -72,7 +76,14 @@ export async function suggestWeeklyPlan(
       lineageKey: n.lineageKey,
     }));
 
-  const suggestions = computeSuggestions(leaves, realizedByLineage, weekNumber, totalWeeks);
+  // Saran mingguan pakai JENDELA KATEGORI yang SAMA dgn baseline (tersimpan =
+  // ikut edit manual; fallback auto) → look-ahead konsisten dgn kurva. DECISIONS 082.
+  const storedWin = new Map<string, [number, number]>();
+  for (const s of baseline?.scheduleItems ?? []) {
+    storedWin.set(s.name, [(s.startWeek - 1) / totalWeeks, s.endWeek / totalWeeks]);
+  }
+  const winFrac = (name: string): [number, number] => storedWin.get(name) ?? autoCategoryWindowFrac(name);
+  const suggestions = computeSuggestions(leaves, realizedByLineage, weekNumber, totalWeeks, 20, winFrac);
 
   // Konteks deviasi (minggu berjalan).
   const startDate = loc?.package.contract?.startDate ?? null;

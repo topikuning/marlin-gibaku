@@ -31,7 +31,7 @@
  * Semua deterministik & pure (tak sentuh DB) → bisa diuji terhadap korpus RAB.
  */
 
-import { smoothstep } from "./generate";
+import { categoryWeeklyIncrements, smoothstep } from "./generate";
 
 export type WorkType = "gedung" | "jalan" | "marine" | "utilitas" | "lansekap" | "umum";
 
@@ -448,4 +448,157 @@ export function stagePlannedFraction(
   if (x <= 0) return 0;
   if (x >= 1) return 1;
   return 3 * x * x - 2 * x * x * x; // smoothstep
+}
+
+// ── JADWAL BERBASIS ITEM (cost-loaded schedule) — DECISIONS 082 ─────────────
+// Kaidah (PMBOK/CPM + Last Planner): baseline S-curve DITURUNKAN dari jadwal
+// aktivitas ber-presedensi yang di-cost-load; look-ahead/saran mingguan
+// di-extract dari jadwal yang SAMA. Bukan meratakan bobot kategori.
+//
+// Model: jendela item = TAHAP-nya (STAGE_TEMPLATES, kini ditafsir RELATIF
+// terhadap unit) DISARANGKAN ke dalam jendela PRESEDENSI KATEGORI
+// (getCategoryPhase / jadwal manual). Jadi galian penerangan tetap DI DALAM
+// jendela penerangan yang di ujung — bukan di minggu-1. Item di-cost-load
+// (lonceng) di jendelanya; profil kategori = Σ item → variatif & sesuai metode.
+
+/** Jendela absolut (fraksi durasi) sebuah item: tahap disarangkan di [cs,ce] unit. */
+export function nestedItemWindow(
+  workType: WorkType,
+  stage: StageKey,
+  catStart: number,
+  catEnd: number,
+): [number, number] {
+  const def = stageDef(workType, stage);
+  const span = Math.max(1e-9, catEnd - catStart);
+  return [catStart + def.start * span, catStart + def.end * span];
+}
+
+/** Fraksi rencana selesai (0..1) sebuah item pada akhir minggu — jendela bersarang. */
+export function itemPlannedFraction(
+  workType: WorkType,
+  stage: StageKey,
+  catStart: number,
+  catEnd: number,
+  weekNumber: number,
+  totalWeeks: number,
+): number {
+  const [is, ie] = nestedItemWindow(workType, stage, catStart, catEnd);
+  const t = Math.max(0, Math.min(1, weekNumber / Math.max(1, totalWeeks)));
+  const w = Math.max(1e-9, ie - is);
+  const x = (t - is) / w;
+  if (x <= 0) return 0;
+  if (x >= 1) return 1;
+  return 3 * x * x - 2 * x * x * x; // smoothstep
+}
+
+export type SchedItem = { name: string; categoryName: string; amount: bigint };
+export type CategoryWeekly = { categoryName: string; weightPct: number; weekly: number[] };
+
+/**
+ * Jadwal mingguan dari ITEM (sumber tunggal). Tiap item: tipe unit → tahap →
+ * jendela bersarang di jendela kategori (categoryWindowFrac) → di-cost-load
+ * lonceng. Return: profil per-kategori (Σ item) + agregat mingguan (increment).
+ * Dari sini diturunkan kurva baseline, tabel KKP, dan saran mingguan — konsisten.
+ */
+export function scheduleFromItems(
+  items: SchedItem[],
+  contractDays: number,
+  categoryWindowFrac: (categoryName: string) => [number, number],
+): { totalWeeks: number; grand: number; categories: CategoryWeekly[] } {
+  const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
+  const positive = items.filter((it) => it.amount > 0n);
+  const grand = positive.reduce((s, it) => s + Number(it.amount), 0);
+  if (grand <= 0) return { totalWeeks, grand: 0, categories: [] };
+
+  // Tipe pekerjaan per unit (kategori) dari mayoritas nama item.
+  const namesByCat = new Map<string, string[]>();
+  for (const it of positive) {
+    const arr = namesByCat.get(it.categoryName) ?? [];
+    arr.push(it.name);
+    namesByCat.set(it.categoryName, arr);
+  }
+  const typeByCat = new Map<string, WorkType>();
+  for (const [cat, names] of namesByCat) typeByCat.set(cat, detectWorkType(cat, names));
+
+  const catAcc = new Map<string, { weightPct: number; weekly: number[] }>();
+  const order: string[] = [];
+  for (const it of positive) {
+    const wt = typeByCat.get(it.categoryName) ?? "gedung";
+    const stage = classifyStage(wt, it.name, it.categoryName);
+    const [cs, ce] = categoryWindowFrac(it.categoryName);
+    const [isF, ieF] = nestedItemWindow(wt, stage, cs, ce);
+    const sWeek = Math.max(1, Math.min(totalWeeks, Math.floor(isF * totalWeeks) + 1));
+    const eWeek = Math.max(sWeek, Math.min(totalWeeks, Math.ceil(ieF * totalWeeks)));
+    const w = (Number(it.amount) / grand) * 100;
+    const inc = categoryWeeklyIncrements(w, sWeek, eWeek, totalWeeks);
+    let entry = catAcc.get(it.categoryName);
+    if (!entry) {
+      entry = { weightPct: 0, weekly: new Array<number>(totalWeeks).fill(0) };
+      catAcc.set(it.categoryName, entry);
+      order.push(it.categoryName);
+    }
+    entry.weightPct += w;
+    for (let i = 0; i < totalWeeks; i++) entry.weekly[i] += inc[i];
+  }
+
+  return {
+    totalWeeks,
+    grand,
+    categories: order.map((cat) => ({
+      categoryName: cat,
+      weightPct: catAcc.get(cat)!.weightPct,
+      weekly: catAcc.get(cat)!.weekly,
+    })),
+  };
+}
+
+/** Kurva kumulatif (%) dari profil per-kategori scheduleFromItems. */
+export function cumulativeFromCategoryWeekly(categories: CategoryWeekly[], totalWeeks: number): number[] {
+  const n = Math.max(1, totalWeeks);
+  const weekly = new Array<number>(n).fill(0);
+  for (const c of categories) for (let i = 0; i < n; i++) weekly[i] += c.weekly[i] ?? 0;
+  const out: number[] = [];
+  let acc = 0;
+  for (let i = 0; i < n; i++) {
+    acc += weekly[i];
+    out.push(Math.min(100, Math.round(acc * 100) / 100));
+  }
+  return out;
+}
+
+/**
+ * Jendela PRESEDENSI SITE-LEVEL sebuah unit menurut PERAN-nya (tipe pekerjaan),
+ * bukan tabel kata-kunci per-bangunan yang rapuh. Kaidah urutan lapangan
+ * (DECISIONS 079/080, ditegakkan lewat tipe): persiapan/tanah AWAL → revetment/
+ * penahan (marine) → bangunan TENGAH (envelope lebar, tahap internal yang
+ * menempatkan) → jalan → utilitas kawasan (penerangan/IPAL/air) AKHIR →
+ * landskap PALING AKHIR. Tahap item (STAGE_TEMPLATES) DISARANGKAN di jendela ini
+ * (nestedItemWindow) → satu-satunya sumber timing utk baseline, KKP, & saran.
+ *
+ * Catatan penting: "rumah genset/pabrik es" = GEDUNG (punya struktur sipil), jadi
+ * dapat envelope bangunan biasa — BUKAN jendela akhir "utilitas". Yang di ujung
+ * hanya utilitas kawasan sejati (penerangan/IPAL/sumur), dideteksi via workType.
+ */
+const SITE_ROLE_WINDOW: Record<WorkType, [number, number]> = {
+  umum: [0.0, 0.35], // persiapan, land clearing, tanah/levelling kawasan
+  marine: [0.05, 0.5], // revetment/tambatan/penahan — proteksi pantai lebih awal
+  gedung: [0.08, 0.85], // bangunan — envelope lebar; tahap internal menempatkan
+  jalan: [0.45, 0.95], // jalan/paving — setelah bangunan sebagian berdiri
+  utilitas: [0.6, 1.0], // penerangan/IPAL/air kawasan — site harus terbentuk dulu
+  lansekap: [0.78, 1.0], // landskap/penanaman — paling akhir
+};
+
+/** Jendela presedensi site-level sebuah tipe pekerjaan (fraksi durasi). */
+export function siteRoleWindow(workType: WorkType): [number, number] {
+  return SITE_ROLE_WINDOW[workType];
+}
+
+/**
+ * Jendela kategori (fraksi) AUTO dari PERAN site-level (tipe pekerjaan) unit.
+ * Tipe dideteksi dari nama kategori (detectWorkType); item stage disarangkan di
+ * dalamnya. Menggantikan pemetaan getCategoryPhase per-nama yang rapuh (mis.
+ * "BANGUNAN GENSET" salah dianggap utilitas-akhir). DECISIONS 082.
+ */
+export function autoCategoryWindowFrac(categoryName: string): [number, number] {
+  return siteRoleWindow(detectWorkType(categoryName));
 }

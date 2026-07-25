@@ -1,9 +1,10 @@
 import {
+  autoCategoryWindowFrac,
   classifyStage,
   detectWorkType,
   HARD_EDGES,
+  itemPlannedFraction,
   stageLabel,
-  stagePlannedFraction,
   type StageKey,
   type WorkType,
 } from "@/lib/scurve/sequencing";
@@ -73,13 +74,15 @@ export type LeafInput = {
 function overdueWeeks(
   workType: WorkType,
   stage: StageKey,
+  cs: number,
+  ce: number,
   volume: number,
   realized: number,
   weekNumber: number,
   totalWeeks: number,
 ): number {
   for (let k = 0; k < weekNumber; k++) {
-    const planned = stagePlannedFraction(workType, stage, k, totalWeeks) * volume;
+    const planned = itemPlannedFraction(workType, stage, cs, ce, k, totalWeeks) * volume;
     if (planned > realized + EPS) return weekNumber - 1 - k;
   }
   return 0;
@@ -99,6 +102,8 @@ export function computeSuggestions(
   weekNumber: number,
   totalWeeks: number,
   maxSuggestions = 20,
+  /** Jendela presedensi kategori (fraksi) — dari baseline tersimpan/manual; auto default. */
+  categoryWindowFrac: (categoryName: string) => [number, number] = autoCategoryWindowFrac,
 ): WeeklySuggestion[] {
   const raw: (WeeklySuggestion & { rankScore: number })[] = [];
 
@@ -160,8 +165,9 @@ export function computeSuggestions(
     // muncul sendiri karena jendelanya aktif/tertinggal.
     if (blockingPrereq(it.categoryName, workType, stage)) continue;
 
-    const fracNow = stagePlannedFraction(workType, stage, weekNumber, totalWeeks);
-    const fracPrev = stagePlannedFraction(workType, stage, weekNumber - 1, totalWeeks);
+    const [cs, ce] = categoryWindowFrac(it.categoryName);
+    const fracNow = itemPlannedFraction(workType, stage, cs, ce, weekNumber, totalWeeks);
+    const fracPrev = itemPlannedFraction(workType, stage, cs, ce, weekNumber - 1, totalWeeks);
 
     const incrementalThisWeek = Math.max(0, (fracNow - fracPrev) * it.volume);
     const plannedByLastWeek = fracPrev * it.volume;
@@ -177,7 +183,7 @@ export function computeSuggestions(
 
     let reason: string;
     if (shortfall > EPS) {
-      const wk = overdueWeeks(workType, stage, it.volume, realized, weekNumber, totalWeeks);
+      const wk = overdueWeeks(workType, stage, cs, ce, it.volume, realized, weekNumber, totalWeeks);
       reason = wk > 0 ? `Tertinggal ~${wk} mgg — kejar` : "Tertinggal — kejar";
     } else if (fracPrev <= EPS && fracNow > EPS) {
       reason = "Mulai minggu ini";

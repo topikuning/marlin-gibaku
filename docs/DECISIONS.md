@@ -1593,3 +1593,42 @@ scurve — dengan test properti, bukan paritas nilai):**
 - Verifikasi: typecheck/lint ✓, 128 unit test ✓ (uji lonceng + Σ=bobot + simetris),
   6 RAB nyata → kurva agregat tetap S valid (monoton, berakhir 100, 6–9/38–42/89–94).
   Baseline lama perlu "Hitung ulang" agar ikut distribusi lonceng.
+
+## 082 · 2026-07-25 · Jadwal BERBASIS ITEM (cost-loaded) = sumber tunggal baseline + KKP + saran
+
+- Keluhan user (inti): "kamu meratakan bobot ke jumlah minggu pekerjaan, padahal kamu
+  di awal sudah buat pembobotan jadwal atas urutan / berdasar metode kerja. lalu apa
+  jadinya sistem saran pekerjaan 1 minggu ke depan kalau begini!" — dua sistem paralel
+  saling bertabrakan: (a) jadwal per-KATEGORI (079) + sebar lonceng (081) yang
+  memperlakukan tiap kategori sebagai satu blok bobot; (b) saran mingguan (recommender)
+  yang MASIH pakai tahap absolut per-item (`stagePlannedFraction`) → tak sinkron dgn
+  baseline. Diminta: satukan ke penjadwalan berbasis METODE/urutan item yang sudah ada.
+- Pijakan aturan (divalidasi ulang, bukan cuma 3 TS KNMP):
+  - PMBOK/CPM: baseline S-curve DITURUNKAN dari jadwal aktivitas ber-presedensi yang
+    di-cost-load (durasi ∝ konten biaya/sumber daya) — S adalah HASIL, bukan bentuk
+    yang dipaksakan.
+  - Last Planner System: rencana mingguan / look-ahead di-EXTRACT dari master schedule
+    yang sama — bukan model terpisah. Maka baseline & saran WAJIB satu sumber.
+- Model tunggal (`scheduleFromItems`, sequencing.ts):
+  - Tiap item RAB → tipe unit (gedung/jalan/marine/utilitas/lansekap/umum) → TAHAP
+    (STAGE_TEMPLATES, kini ditafsir RELATIF di dalam unit) → jendela tahap DISARANGKAN
+    (`nestedItemWindow`) ke dalam jendela PRESEDENSI SITE-LEVEL unit.
+  - Item di-cost-load LONCENG (`categoryWeeklyIncrements`) di jendela bersarangnya;
+    profil kategori = Σ item; kurva agregat = Σ semua kategori (`cumulativeFromCategoryWeekly`).
+- Jendela presedensi unit = PERAN site-level dari TIPE pekerjaan (`siteRoleWindow`),
+  BUKAN tabel kata-kunci per-nama yang rapuh (`getCategoryPhase`). Mengganti bug nyata:
+  "PEKERJAAN BANGUNAN GENSET" salah jatuh ke jendela akhir "GENSET" (utilitas) padahal
+  itu GEDUNG; "PEKERJAAN TANAH" tak match apa pun → default tengah. Peran:
+  umum [0–0.35] · marine [0.05–0.5] · gedung [0.08–0.85] · jalan [0.45–0.95] ·
+  utilitas [0.6–1.0] · lansekap [0.78–1.0]. Rumah genset/pabrik es = gedung (envelope
+  bangunan biasa); hanya utilitas kawasan sejati (penerangan/IPAL/sumur) di ujung.
+- Sumber tunggal ditegakkan di SEMUA hilir dari `scheduleFromItems` + jendela yang sama:
+  `regenerateBaseline` (simpan BaselineScheduleItem week-based + kurva), `buildKurvaSheet`
+  (tabel KKP), `periodic-report` (kurvaSchedule per-kategori), `saveCategorySchedule`
+  (editor manual), dan `computeSuggestions` (saran mingguan pakai `itemPlannedFraction`
+  bersarang + jendela kategori yang IDENTIK — tersimpan/manual bila ada, auto bila tidak).
+- Verifikasi: typecheck/lint ✓, 129 unit test ✓. Cek RAB campuran realistis (30 mgg):
+  kurva mulai 5%, seperempat 20% (< diagonal 25), akhir 100, monoton, ber-S; presedensi
+  terjaga — persiapan w1–3 → revetment w6–12 → bangunan w6–24 → jalan w23–27 →
+  penerangan kawasan w27–30 → landskap w29–30. Saran mingguan kini SATU jendela dgn
+  kurva (look-ahead konsisten). Baseline lama perlu "Hitung ulang".

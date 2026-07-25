@@ -3,7 +3,8 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { flattenParsedRab, grandTotal } from "@/lib/rab/flatten";
 import type { ParsedRab } from "@/lib/rab/parsed";
-import { autoCategorySchedule, curveFromCategorySchedule, DEFAULT_CONTRACT_DAYS } from "@/lib/scurve/generate";
+import { DEFAULT_CONTRACT_DAYS } from "@/lib/scurve/generate";
+import { autoCategoryWindowFrac, cumulativeFromCategoryWeekly, scheduleFromItems } from "@/lib/scurve/sequencing";
 import type { BaselineSource, RabRevisionSource } from "@/generated/prisma/enums";
 
 /**
@@ -229,17 +230,51 @@ export async function regenerateBaseline(locationId: string, opts: RegenerateBas
   const contractDays = await contractDaysFor(locationId);
   const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
 
-  // Jadwal per-KATEGORI dari presedensi (DECISIONS 079) = sumber tunggal.
-  // Disimpan sebagai BaselineScheduleItem; kurva agregat diturunkan dari situ
-  // (curveFromCategorySchedule) → grafik, tabel KKP, deviasi semua konsisten.
-  const categories = nodes
-    .filter((n) => n.kind === "kategori")
-    .map((n) => ({ lineageKey: n.lineageKey, name: n.name, amount: n.amount }));
-  const schedule = autoCategorySchedule(categories, totalWeeks);
-  const weekly = curveFromCategorySchedule(
-    schedule.map((s) => ({ weightPct: s.weightPct, startWeek: s.startWeek, endWeek: s.endWeek })),
-    totalWeeks,
-  );
+  // JADWAL BERBASIS ITEM (DECISIONS 082) = sumber tunggal. Tiap item RAB
+  // ditempatkan menurut TAHAP-nya, bersarang di jendela PRESEDENSI kategori
+  // (auto). Profil kategori = Σ item (sesuai metode, bukan rata/lonceng generik);
+  // kurva agregat & tabel KKP & saran mingguan semua turun dari sini.
+  const catNodes = nodes.filter((n) => n.kind === "kategori");
+  const catKeys = catNodes
+    .map((n) => ({ key: n.lineageKey, name: n.name }))
+    .sort((a, b) => b.key.length - a.key.length);
+  const categoryNameFor = (lineageKey: string): string =>
+    catKeys.find((c) => lineageKey === c.key || lineageKey.startsWith(`${c.key}#`))?.name ?? "";
+  const items = nodes
+    .filter((n) => n.kind === "item" && n.amount > 0n)
+    .map((n) => ({ name: n.name, categoryName: categoryNameFor(n.lineageKey), amount: n.amount }));
+
+  // Jendela presedensi per kategori DALAM BASIS MINGGU (disimpan = handle editor
+  // & sumber rekonstruksi report). Kurva diturunkan dari jendela yang SAMA →
+  // grafik == tabel KKP == deviasi persis.
+  const grandCat = catNodes.reduce((s, c) => s + (c.amount > 0n ? Number(c.amount) : 0), 0) || 1;
+  const catWindowWeeks = new Map<string, [number, number]>();
+  for (const c of catNodes) {
+    const [cs, ce] = autoCategoryWindowFrac(c.name);
+    const sWeek = Math.max(1, Math.min(totalWeeks, Math.floor(cs * totalWeeks) + 1));
+    const eWeek = Math.max(sWeek, Math.min(totalWeeks, Math.ceil(ce * totalWeeks)));
+    catWindowWeeks.set(c.name, [sWeek, eWeek]);
+  }
+  const winFrac = (name: string): [number, number] => {
+    const [s, e] = catWindowWeeks.get(name) ?? [1, totalWeeks];
+    return [(s - 1) / totalWeeks, e / totalWeeks];
+  };
+
+  const sched = scheduleFromItems(items, contractDays, winFrac);
+  const weekly = cumulativeFromCategoryWeekly(sched.categories, totalWeeks);
+
+  const schedule = catNodes
+    .filter((c) => c.amount > 0n)
+    .map((c) => {
+      const [sWeek, eWeek] = catWindowWeeks.get(c.name) ?? [1, totalWeeks];
+      return {
+        lineageKey: c.lineageKey,
+        name: c.name,
+        weightPct: (Number(c.amount) / grandCat) * 100,
+        startWeek: sWeek,
+        endWeek: eWeek,
+      };
+    });
 
   // IDEMPOTENT: bila hasil hitung identik dengan baseline aktif (revisi, durasi,
   // dan seluruh titik sama), JANGAN buat versi baru — menekan "Hitung ulang"

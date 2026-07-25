@@ -1,11 +1,16 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  autoCategoryWindowFrac,
   classifyStage,
+  cumulativeFromCategoryWeekly,
   detectWorkType,
   HARD_EDGES,
+  itemPlannedFraction,
+  nestedItemWindow,
   placeItems,
   scheduleBySequence,
+  scheduleFromItems,
   STAGE_TEMPLATES,
   stageOrder,
   type SeqItem,
@@ -241,5 +246,43 @@ describe("korpus RAB nyata: cakupan klasifikasi & tanpa error", () => {
         }
       }
     }
+  });
+});
+
+// ── Jadwal berbasis ITEM (tahap bersarang di jendela kategori) — DECISIONS 082 ─
+describe("scheduleFromItems: item nested di jendela presedensi kategori", () => {
+  it("nestedItemWindow menyarangkan tahap RELATIF ke jendela unit", () => {
+    // stage util_galian gedung? pakai utilitas: util_galian start 0.08 end 0.4.
+    // Jika jendela kategori [0.7, 1.0] (penerangan), galian ada DI DALAM 0.7–1.0.
+    const [is, ie] = nestedItemWindow("utilitas", "util_galian", 0.72, 1.0);
+    expect(is).toBeGreaterThanOrEqual(0.72);
+    expect(ie).toBeLessThanOrEqual(1.0);
+    expect(is).toBeLessThan(ie);
+  });
+
+  it("PENERANGAN: galian & pasang keduanya di ujung; galian sebelum pasang", () => {
+    const items: SeqItem[] = [
+      { name: "Galian tanah tiang lampu", categoryName: "PEKERJAAN PENERANGAN KAWASAN", amount: 40n },
+      { name: "Pasang lampu PJU", categoryName: "PEKERJAAN PENERANGAN KAWASAN", amount: 60n },
+      { name: "Pembersihan lahan", categoryName: "PEKERJAAN PERSIAPAN", amount: 30n },
+    ];
+    const sched = scheduleFromItems(items, 140, autoCategoryWindowFrac); // 20 minggu
+    const pen = sched.categories.find((c) => c.categoryName.includes("PENERANGAN"))!;
+    // Penerangan NOL sampai jauh (site belum jadi) — cek minggu 1..8 kosong.
+    for (let w = 0; w < 8; w++) expect(pen.weekly[w]).toBeCloseTo(0, 6);
+    // Ada isi di paruh akhir.
+    expect(pen.weekly.slice(13).reduce((s, v) => s + v, 0)).toBeGreaterThan(0);
+    // Kurva agregat monoton & berakhir ~100.
+    const curve = cumulativeFromCategoryWeekly(sched.categories, sched.totalWeeks);
+    for (let i = 1; i < curve.length; i++) expect(curve[i]).toBeGreaterThanOrEqual(curve[i - 1] - 1e-9);
+    expect(curve.at(-1)).toBeCloseTo(100, 1);
+  });
+
+  it("itemPlannedFraction bersarang: penerangan galian 0 di minggu awal", () => {
+    // jendela penerangan ~[0.72,1.0]; galian util nested → mulai jauh setelah awal.
+    const f = itemPlannedFraction("utilitas", "util_galian", 0.72, 1.0, 3, 20); // minggu 3
+    expect(f).toBe(0);
+    const fLate = itemPlannedFraction("utilitas", "util_galian", 0.72, 1.0, 18, 20);
+    expect(fLate).toBeGreaterThan(0);
   });
 });

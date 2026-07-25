@@ -3,7 +3,8 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { COUNTED_REPORT_STATUSES, currentWeekNumber } from "@/lib/progress";
 import { contractDaysFor } from "@/lib/rab/import";
-import { autoCategorySchedule, curveFromCategorySchedule } from "@/lib/scurve/generate";
+import { autoCategorySchedule } from "@/lib/scurve/generate";
+import { autoCategoryWindowFrac, cumulativeFromCategoryWeekly, scheduleFromItems } from "@/lib/scurve/sequencing";
 
 /**
  * Layer baseline (kurva-S rencana ber-versi) + deret rencana vs realisasi.
@@ -244,7 +245,26 @@ export async function saveCategorySchedule(
     };
   });
 
-  const weekly = curveFromCategorySchedule(rows, totalWeeks);
+  // Kurva DITURUNKAN dari jadwal berbasis ITEM (DECISIONS 082): tahap item
+  // bersarang di jendela kategori yang DISETEL user. Bukan lonceng kategori.
+  const winByName = new Map<string, [number, number]>(
+    rows.map((r) => [r.name, [(r.startWeek - 1) / totalWeeks, r.endWeek / totalWeeks]]),
+  );
+  const winFrac = (name: string): [number, number] => winByName.get(name) ?? autoCategoryWindowFrac(name);
+  const catKeys2 = base.categories
+    .map((c) => ({ key: c.lineageKey, name: c.name }))
+    .sort((a, b) => b.key.length - a.key.length);
+  const catNameFor = (lk: string): string =>
+    catKeys2.find((c) => lk === c.key || lk.startsWith(`${c.key}#`))?.name ?? "";
+  const schedItems = base.items.map((it) => ({
+    name: it.name,
+    categoryName: catNameFor(it.lineageKey),
+    amount: it.amount,
+  }));
+  const weekly = cumulativeFromCategoryWeekly(
+    scheduleFromItems(schedItems, contractDays, winFrac).categories,
+    totalWeeks,
+  );
   const invalid = validateBaselinePoints(weekly);
   if (invalid) throw new Error(invalid);
 

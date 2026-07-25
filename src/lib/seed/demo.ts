@@ -4,7 +4,7 @@ import type { PrismaClient } from "@/generated/prisma/client";
 import { hashPassword } from "@/lib/auth/password";
 import { flattenParsedRab, grandTotal, type FlatNode } from "@/lib/rab/flatten";
 import type { ParsedRab } from "@/lib/rab/parsed";
-import { autoCategorySchedule, curveFromCategorySchedule } from "@/lib/scurve/generate";
+import { autoCategoryWindowFrac, cumulativeFromCategoryWeekly, scheduleFromItems } from "@/lib/scurve/sequencing";
 import { LOKASI_MILESTONES, PAKET_MILESTONES, type AdminMilestone } from "@/lib/milestones/template";
 import { withPpn, valueDone as calcValueDone } from "@/lib/money";
 import { seedMasterLocations } from "@/lib/seed/master-location";
@@ -264,15 +264,44 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
       if (!hasBaseline) {
         const contractDays = Math.round((dateOnly(m.end_date).getTime() - dateOnly(m.start_date).getTime()) / DAY);
         const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
-        // Jadwal per-KATEGORI dari presedensi (DECISIONS 079) = sumber tunggal.
-        const catNodes = nodes
-          .filter((n) => n.kind === "kategori")
-          .map((n) => ({ lineageKey: n.lineageKey, name: n.name, amount: n.amount }));
-        const schedule = autoCategorySchedule(catNodes, totalWeeks);
-        const weekly = curveFromCategorySchedule(
-          schedule.map((s) => ({ weightPct: s.weightPct, startWeek: s.startWeek, endWeek: s.endWeek })),
+        // Jadwal BERBASIS ITEM (DECISIONS 082) = sumber tunggal.
+        const catNodes = nodes.filter((n) => n.kind === "kategori");
+        const catKeysS = catNodes
+          .map((n) => ({ key: n.lineageKey, name: n.name }))
+          .sort((a, b) => b.key.length - a.key.length);
+        const catNameForS = (lk: string): string =>
+          catKeysS.find((c) => lk === c.key || lk.startsWith(`${c.key}#`))?.name ?? "";
+        const schedItems = nodes
+          .filter((n) => n.kind === "item" && n.amount > 0n)
+          .map((n) => ({ name: n.name, categoryName: catNameForS(n.lineageKey), amount: n.amount }));
+        const grandCatS = catNodes.reduce((s, c) => s + (c.amount > 0n ? Number(c.amount) : 0), 0) || 1;
+        const catWinS = new Map<string, [number, number]>();
+        for (const c of catNodes) {
+          const [cs, ce] = autoCategoryWindowFrac(c.name);
+          const sW = Math.max(1, Math.min(totalWeeks, Math.floor(cs * totalWeeks) + 1));
+          const eW = Math.max(sW, Math.min(totalWeeks, Math.ceil(ce * totalWeeks)));
+          catWinS.set(c.name, [sW, eW]);
+        }
+        const winFracS = (name: string): [number, number] => {
+          const [s, e] = catWinS.get(name) ?? [1, totalWeeks];
+          return [(s - 1) / totalWeeks, e / totalWeeks];
+        };
+        const weekly = cumulativeFromCategoryWeekly(
+          scheduleFromItems(schedItems, contractDays, winFracS).categories,
           totalWeeks,
         );
+        const schedule = catNodes
+          .filter((c) => c.amount > 0n)
+          .map((c) => {
+            const [sW, eW] = catWinS.get(c.name) ?? [1, totalWeeks];
+            return {
+              lineageKey: c.lineageKey,
+              name: c.name,
+              weightPct: (Number(c.amount) / grandCatS) * 100,
+              startWeek: sW,
+              endWeek: eW,
+            };
+          });
         const baseline = await db.baseline.create({
           data: {
             locationId: location.id,

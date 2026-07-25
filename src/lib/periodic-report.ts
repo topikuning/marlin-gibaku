@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { autoCategorySchedule } from "@/lib/scurve/generate";
+import { autoCategoryWindowFrac, scheduleFromItems } from "@/lib/scurve/sequencing";
 import { COUNTED_REPORT_STATUSES, currentWeekNumber } from "@/lib/progress";
 import { jakartaDateKey } from "@/lib/format";
 import type {
@@ -101,7 +101,7 @@ export type PeriodReport = {
   deviationPct: number;
   scurve: { planPct: number[]; actualPct: (number | null)[]; currentWeek: number };
   /** Jadwal per kategori untuk tabel KKP (bobot + jendela minggu) — sumber tunggal. */
-  kurvaSchedule: { code: string; name: string; weightPct: number; startWeek: number; endWeek: number }[];
+  kurvaSchedule: { code: string; name: string; weekly: number[] }[];
   tenaga: { role: WorkerRole; label: string; count: number }[];
   material: { name: string; unit: string | null; qty: number }[];
   alat: { name: string; count: number }[];
@@ -384,30 +384,29 @@ export async function getPeriodReport(
   });
   const planSeries = baseline?.points.map((p) => Number(p.plannedPct)) ?? [];
 
-  // Jadwal per-kategori untuk tabel KKP — dari baseline TERSIMPAN (ikut edit
-  // manual); fallback auto (presedensi kategori) bila baseline lama tak simpan.
-  // DECISIONS 079: sumber tunggal → tabel KKP sinkron dgn grafik & deviasi.
-  const codeByKey = new Map(kategoriNodes.map((nd) => [nd.lineageKey, nd.code ?? ""]));
-  const storedSchedule = baseline?.scheduleItems ?? [];
-  const kurvaSchedule =
-    storedSchedule.length > 0
-      ? storedSchedule.map((s) => ({
-          code: codeByKey.get(s.lineageKey) ?? "",
-          name: s.name,
-          weightPct: Number(s.weightPct),
-          startWeek: s.startWeek,
-          endWeek: s.endWeek,
-        }))
-      : autoCategorySchedule(
-          kategoriNodes.map((nd) => ({ lineageKey: nd.lineageKey, name: nd.name, amount: nd.amount })),
-          totalWeeks,
-        ).map((s) => ({
-          code: codeByKey.get(s.lineageKey) ?? "",
-          name: s.name,
-          weightPct: s.weightPct,
-          startWeek: s.startWeek,
-          endWeek: s.endWeek,
-        }));
+  // Tabel KKP: profil mingguan per-kategori DITURUNKAN dari jadwal BERBASIS ITEM
+  // (DECISIONS 082) — tahap item bersarang di jendela kategori (tersimpan bila ada
+  // = ikut edit manual; fallback auto). Sumber tunggal → sinkron dgn grafik/deviasi
+  // & sesuai metode (bukan rata/lonceng kategori).
+  const codeByName = new Map(kategoriNodes.map((nd) => [nd.name, nd.code ?? ""]));
+  const catNameByRoot = new Map(kategoriNodes.map((nd) => [nd.lineageKey, nd.name]));
+  const schedItems = itemNodes
+    .filter((nd) => nd.amount > 0n)
+    .map((nd) => ({
+      name: nd.name,
+      categoryName: catNameByRoot.get(nd.lineageKey.split("#")[0]) ?? "",
+      amount: nd.amount,
+    }));
+  const storedWin = new Map<string, [number, number]>();
+  for (const s of baseline?.scheduleItems ?? []) {
+    storedWin.set(s.name, [(s.startWeek - 1) / totalWeeks, s.endWeek / totalWeeks]);
+  }
+  const winFrac = (name: string): [number, number] => storedWin.get(name) ?? autoCategoryWindowFrac(name);
+  const kurvaSchedule = scheduleFromItems(schedItems, totalWeeks * 7, winFrac).categories.map((c) => ({
+    code: codeByName.get(c.categoryName) ?? "",
+    name: c.categoryName,
+    weekly: c.weekly,
+  }));
   const seriesLen = Math.max(planSeries.length, totalWeeks);
   const today = new Date(`${jakartaDateKey(new Date())}T00:00:00.000Z`);
   const currentWeek = currentWeekNumber(startDate, seriesLen, today);
