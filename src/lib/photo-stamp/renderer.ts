@@ -242,34 +242,54 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
  * aksen diagonal oranye, lalu "PROJECT CONTROL" ber-tracking dgn dash oranye
  * diagonal di kirinya — meniru lockup logo referensi.
  */
+// Lebar lanjut (em) Montserrat subset — hasil ukur hmtx (bukan tebakan):
+const EM_MARLIN = 4.235; // total "MARLIN" @800
+const EM_M = 0.954; // advance "M" @800 (untuk posisi huruf "A")
+const EM_A = 0.786; // advance "A" @800
+const EM_PROJECT_CONTROL = 10.236; // total "PROJECT CONTROL" @600
+
+/**
+ * Logo lockup MARLIN (transparan): wordmark Montserrat ExtraBold + segitiga
+ * oranye pada huruf "A" + baris "bar oranye + PROJECT CONTROL". Lebar baris
+ * bawah DISETEL SAMA dengan lebar MARLIN (seimbang) memakai lebar font terukur.
+ * Oranye = warna aksen aplikasi. Halo gelap agar terbaca di foto apa pun.
+ */
 function marlinLogo(rightX: number, topY: number, fsM: number, accent: string): string {
   const p: string[] = [];
   const m = Math.round(fsM);
-  const track = Math.round(fsM * 0.03);
+  const trackM = Math.round(fsM * 0.02);
+  const mW = Math.round(EM_MARLIN * fsM + trackM * 5); // lebar wordmark (5 celah)
+  const left = rightX - mW;
   const baseY = topY + Math.round(fsM * 0.82);
 
-  // Wordmark MARLIN — Montserrat ExtraBold, huruf "A" beraksen oranye (sesuai
-  // referensi); halo gelap agar terbaca di foto terang/ramai.
+  // Wordmark MARLIN (putih).
   p.push(
-    `<text x="${rightX}" y="${baseY}" text-anchor="end" font-family="ML" font-weight="800" font-size="${m}" letter-spacing="${track}" ${halo(m)} fill="#FFFFFF">M<tspan fill="${accent}">A</tspan>RLIN</text>`,
+    `<text x="${rightX}" y="${baseY}" text-anchor="end" font-family="ML" font-weight="800" font-size="${m}" letter-spacing="${trackM}" ${halo(m)} fill="#FFFFFF">MARLIN</text>`,
+  );
+  // Aksen: segitiga oranye di dalam huruf "A".
+  const aCenter = left + Math.round(EM_M * fsM + trackM + (EM_A * fsM) / 2);
+  const triW = Math.round(fsM * 0.3);
+  const apexY = baseY - Math.round(fsM * 0.6);
+  const baseTriY = baseY - Math.round(fsM * 0.19);
+  p.push(
+    `<polygon points="${aCenter},${apexY} ${aCenter - Math.round(triW / 2)},${baseTriY} ${aCenter + Math.round(triW / 2)},${baseTriY}" fill="${accent}"/>`,
   );
 
-  // PROJECT CONTROL + dash oranye diagonal di kiri.
-  const fsSub = Math.max(9, Math.round(fsM * 0.32));
-  const subTrack = Math.round(fsSub * 0.22);
-  const label = "PROJECT CONTROL";
-  const subW = estWidth(label, fsSub, true) + subTrack * (label.length - 1);
+  // Baris bawah: bar oranye (kiri) + PROJECT CONTROL — LEBARNYA = lebar MARLIN.
+  const fsSub = Math.round(fsM * 0.28);
   const subBase = baseY + Math.round(fsM * 0.72) + fsSub;
+  const barW = Math.round(mW * 0.17);
+  const gap = Math.round(fsM * 0.16);
+  const availW = mW - barW - gap;
+  const lsPC = Math.max(0, (availW - EM_PROJECT_CONTROL * fsSub) / 14); // 15 huruf → 14 celah
+  const barH = Math.max(4, Math.round(fsSub * 0.5));
+  const barMidY = subBase - Math.round(fsSub * 0.34);
   p.push(
-    `<text x="${rightX}" y="${subBase}" text-anchor="end" font-family="ML" font-weight="600" font-size="${fsSub}" letter-spacing="${subTrack}" ${halo(fsSub)} fill="#FFFFFF">${label}</text>`,
+    `<rect x="${left}" y="${barMidY - Math.round(barH / 2)}" width="${barW}" height="${barH}" rx="${Math.round(barH / 2)}" fill="${accent}"/>`,
   );
-  const dW = Math.round(fsM * 0.5);
-  const dH = Math.max(3, Math.round(fsSub * 0.36));
-  const dSk = Math.round(dH * 1.1);
-  const dRight = rightX - Math.round(subW) - Math.round(fsSub * 1.9);
-  const dx = dRight - dW;
-  const dy = subBase - Math.round(fsSub * 0.5);
-  p.push(`<polygon points="${dx + dSk},${dy} ${dRight + dSk},${dy} ${dRight},${dy + dH} ${dx},${dy + dH}" fill="${accent}"/>`);
+  p.push(
+    `<text x="${rightX}" y="${subBase}" text-anchor="end" font-family="ML" font-weight="600" font-size="${fsSub}" letter-spacing="${lsPC.toFixed(1)}" ${halo(fsSub)} fill="#FFFFFF">PROJECT CONTROL</text>`,
+  );
 
   return p.join("");
 }
