@@ -2027,4 +2027,10 @@ scurve — dengan test properti, bukan paritas nilai):**
 - **Verifikasi**: typecheck ✓ lint ✓ build ✓ unit 151 (+5 gap: Σ=bobot, jeda=0, porsi ∝ panjang,
   kurva mendatar saat jeda & tetap monoton/akhir 100, rekonstruksi segmen). Baseline lama →
   backfill even-spread; "Hitung ulang"/simpan editor menghasilkan bentuk eksak.
-- **Menyusul (S3)**: re-import Time Schedule Excel (editan sipil) → weekly per kategori → baseline.
+- **Round-trip (S3)**: re-import Time Schedule Excel (editan sipil) → weekly per kategori →
+  baseline. Parser `scurve/jadwal-import.ts` (deteksi header M1..MN, baca baris kategori termasuk
+  sel rumus via `.result`, minggu 0 = jeda). Action `importJadwalAction` cocokkan kategori via
+  KODE (fallback nama), tolak bila jumlah minggu ≠ durasi kontrak, lalu `saveCategoryWeekly`
+  (bentuk/jeda dari Excel dipertahankan, bobot di-RENORMALISASI ke RAB; kategori tak-cocok →
+  fallback auto agar kurva tuntas 100). UI: tombol "Impor jadwal dari Excel" di editor jadwal.
+  Uji round-trip: export → parse balik → kategori/kode/matriks + jeda (mgg 5–6 = 0) terbaca benar.

@@ -350,6 +350,122 @@ export async function saveCategorySchedule(
 }
 
 /**
+ * Simpan jadwal dari MATRIKS mingguan mentah per kategori (mis. hasil re-import
+ * Time Schedule Excel yang diedit sipil) → baseline BARU "manual". Bentuk/jeda
+ * dari Excel DIPERTAHANKAN, tetapi bobot tiap kategori DI-RENORMALISASI ke bobot
+ * RAB (Σ weekly = weightPct RAB) — bobot tak pernah dipercaya dari luar
+ * (CLAUDE.md). Kategori yang tak ada di Excel / total 0 → fallback jadwal auto
+ * (agar kurva tetap tuntas 100%). DECISIONS 103.
+ */
+export async function saveCategoryWeekly(
+  locationId: string,
+  input: { lineageKey: string; weekly: number[] }[],
+  userId: string,
+  note: string,
+) {
+  const base = await activeCategoriesWithWeights(locationId);
+  if (!base) throw new Error("Belum ada revisi RAB aktif — impor RAB dulu.");
+  const contractDays = await contractDaysFor(locationId);
+  const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
+
+  const byKey = new Map(input.map((r) => [r.lineageKey, r.weekly]));
+  const auto = autoCategorySchedule(
+    base.categories.map((c) => ({ lineageKey: c.lineageKey, name: c.name, amount: c.amount })),
+    totalWeeks,
+  );
+  const autoByKey = new Map(auto.map((a) => [a.lineageKey, a]));
+
+  let matched = 0;
+  const rows = base.categories.map((c) => {
+    const weightPct = (Number(c.amount) / base.grand) * 100;
+    const raw = byKey.get(c.lineageKey);
+    const posSum = raw && raw.length === totalWeeks ? raw.reduce((s, v) => s + (v > 0 ? v : 0), 0) : 0;
+    let weekly: number[];
+    if (raw && raw.length === totalWeeks && posSum > 0) {
+      // Pertahankan bentuk/jeda dari Excel, skalakan ke bobot RAB.
+      const k = weightPct / posSum;
+      weekly = raw.map((v) => (v > 0 ? Math.round(v * k * 1e6) / 1e6 : 0));
+      matched += 1;
+    } else {
+      const a = autoByKey.get(c.lineageKey);
+      weekly = weeklyFromSegments(weightPct, [{ startWeek: a?.startWeek ?? 1, endWeek: a?.endWeek ?? totalWeeks }], totalWeeks);
+    }
+    return { lineageKey: c.lineageKey, name: c.name, weightPct, weekly };
+  });
+
+  const weekly = cumulativeFromWeeklyRows(
+    rows.map((r) => r.weekly),
+    totalWeeks,
+  );
+  const invalid = validateBaselinePoints(weekly);
+  if (invalid) throw new Error(invalid);
+
+  const active = await db.baseline.findFirst({
+    where: { locationId, status: "aktif" },
+    include: {
+      points: { orderBy: { weekNumber: "asc" }, select: { plannedPct: true } },
+      scheduleItems: { select: { lineageKey: true, weekly: true } },
+    },
+  });
+  if (
+    active &&
+    active.rabRevisionId === base.revisionId &&
+    active.points.length === weekly.length &&
+    active.points.every((p, i) => Math.abs(Number(p.plannedPct) - weekly[i]) < 0.005) &&
+    active.scheduleItems.length === rows.length &&
+    rows.every((r) => {
+      const prev = active.scheduleItems.find((x) => x.lineageKey === r.lineageKey);
+      if (!prev) return false;
+      const pw = asWeekly(prev.weekly);
+      return pw.length === r.weekly.length && pw.every((v, i) => Math.abs(v - r.weekly[i]) < 0.005);
+    })
+  ) {
+    return { baselineNo: active.baselineNo, unchanged: true as const, matched };
+  }
+
+  const baseline = await db.$transaction(async (tx) => {
+    await tx.baseline.updateMany({
+      where: { locationId, status: "aktif" },
+      data: { status: "digantikan", supersededAt: new Date() },
+    });
+    const last = await tx.baseline.aggregate({ where: { locationId }, _max: { baselineNo: true } });
+    const created = await tx.baseline.create({
+      data: {
+        locationId,
+        baselineNo: (last._max.baselineNo ?? 0) + 1,
+        source: "manual",
+        status: "aktif",
+        rabRevisionId: base.revisionId,
+        contractDays,
+        note,
+        createdById: userId,
+      },
+    });
+    await tx.baselinePoint.createMany({
+      data: weekly.map((p, i) => ({ baselineId: created.id, weekNumber: i + 1, plannedPct: p })),
+    });
+    await tx.baselineScheduleItem.createMany({
+      data: rows.map((r) => ({
+        baselineId: created.id,
+        lineageKey: r.lineageKey,
+        name: r.name,
+        weightPct: Math.round(r.weightPct * 1000) / 1000,
+        weekly: r.weekly,
+      })),
+    });
+    return created;
+  });
+  await audit(userId, "baseline.import", "baseline", baseline.id, {
+    locationId,
+    baselineNo: baseline.baselineNo,
+    categories: rows.length,
+    matched,
+    weeks: weekly.length,
+  });
+  return { baselineNo: baseline.baselineNo, unchanged: false as const, matched };
+}
+
+/**
  * Pulihkan baseline lama: SALIN titik (+ jadwal bila ada) menjadi versi BARU
  * yang aktif — append-only, riwayat tetap linear & utuh (versi lama tidak
  * diubah statusnya menjadi aktif kembali).

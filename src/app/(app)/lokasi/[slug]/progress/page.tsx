@@ -17,6 +17,7 @@ import { IssuesPanel, type IssueData } from "./issues-client";
 import { RecalcBaselineButton } from "./recalc-baseline";
 import { BaselineEditor } from "./baseline-editor";
 import { ScheduleEditor } from "./schedule-editor";
+import { JadwalImport } from "./jadwal-import";
 import { BaselineHistory, type BaselineHistoryRow } from "./baseline-history";
 
 export const metadata: Metadata = { title: "Progress Lokasi" };
@@ -255,7 +256,7 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
       {canManageBaseline && schedule ? (
         <CollapsibleCard
           title="Jadwal per pekerjaan (kurva-S)"
-          subtitle="Atur minggu mulai–selesai tiap pekerjaan (bobot mengikuti RAB). Klik untuk membuka."
+          subtitle="Atur rentang minggu tiap pekerjaan — boleh >1 rentang bila terputus (jeda); bobot mengikuti RAB. Klik untuk membuka."
         >
           <ScheduleEditor
             locationId={location.id}
@@ -263,6 +264,7 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
             origin={schedule.origin}
             initial={schedule.rows}
           />
+          <JadwalImport locationId={location.id} />
         </CollapsibleCard>
       ) : null}
 
