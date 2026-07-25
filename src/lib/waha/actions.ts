@@ -8,6 +8,10 @@ import { ForbiddenError, requireCapability, requireLocationAccess } from "@/lib/
 import { r2GetBuffer } from "@/lib/r2";
 import { formatTanggal } from "@/lib/format";
 import { FIELD_ACTIVITY_TYPE_LABEL } from "@/lib/field-activity/labels";
+import { getPeriodReport, type PeriodKind } from "@/lib/periodic-report";
+import { buildPeriodReportXlsx } from "@/lib/export/xlsx";
+import { getKkpDailyData } from "@/lib/daily-report/queries";
+import { buildDailyReportXlsx } from "@/lib/export/daily-xlsx";
 import {
   WahaError,
   getSessionStatus,
@@ -301,6 +305,129 @@ export async function sendActivityToWaAction(
       };
     }
     return { success: "Kegiatan terkirim ke grup WhatsApp (teks, foto, dokumen)." };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Kirim laporan (harian / mingguan) sebagai Excel ke grup WA          */
+/* ------------------------------------------------------------------ */
+
+const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+/** Grup WA + nama paket dari sebuah lokasi. */
+async function groupForLocation(locationId: string) {
+  const loc = await db.location.findUnique({
+    where: { id: locationId },
+    select: { name: true, slug: true, package: { select: { name: true, waGroupId: true } } },
+  });
+  return loc;
+}
+
+/** Kirim laporan periodik (mingguan/bulanan) sebagai Excel ke grup WA paket. */
+export async function sendPeriodReportToWaAction(
+  _prev: WaActionState,
+  formData: FormData,
+): Promise<WaActionState> {
+  const schema = z.object({
+    locationId: z.uuid(),
+    kind: z.enum(["mingguan", "bulanan"]),
+    n: z.coerce.number().int().min(1).max(520),
+  });
+  const parsed = schema.safeParse({
+    locationId: formData.get("locationId"),
+    kind: formData.get("kind"),
+    n: formData.get("n"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { locationId, kind, n } = parsed.data;
+
+  try {
+    const user = await requireCapability("report.export");
+    await requireLocationAccess(user, locationId);
+    const loc = await groupForLocation(locationId);
+    if (!loc) return { error: "Lokasi tidak ditemukan." };
+    if (!loc.package?.waGroupId) {
+      return { error: "Paket ini belum punya grup WhatsApp. Minta admin mengaturnya di halaman Paket." };
+    }
+    const chatId = normalizeGroupChatId(loc.package.waGroupId);
+
+    const report = await getPeriodReport(locationId, kind as PeriodKind, n);
+    if (!report) return { error: "Laporan untuk periode ini tidak tersedia." };
+    const buf = await buildPeriodReportXlsx(report);
+
+    const periodeLabel = kind === "mingguan" ? `Minggu ke-${n}` : `Bulan ke-${n}`;
+    const caption = [
+      `*Laporan ${kind === "mingguan" ? "Mingguan" : "Bulanan"} — ${periodeLabel}*`,
+      `📍 ${loc.name} — ${loc.package.name}`,
+      report.header?.periodeStart && report.header?.periodeEnd
+        ? `📅 ${formatTanggal(report.header.periodeStart)} s/d ${formatTanggal(report.header.periodeEnd)}`
+        : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    await sendText(chatId, caption);
+    const fileName = `laporan-${kind}-${loc.slug}-${n}.xlsx`;
+    await sendFile(chatId, toFilePayload(buf, XLSX_MIME, fileName), fileName);
+
+    await audit(user.id, "report.wa_send", "location", locationId, { kind, n });
+    return { success: `Laporan ${kind} (${periodeLabel}) terkirim ke grup WhatsApp.` };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Kirim laporan harian (Excel) ke grup WA paket + tandai waSentAt. */
+export async function sendDailyReportToWaAction(
+  _prev: WaActionState,
+  formData: FormData,
+): Promise<WaActionState> {
+  const schema = z.object({
+    slug: z.string().trim().min(1),
+    dateKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal tidak valid"),
+  });
+  const parsed = schema.safeParse({ slug: formData.get("slug"), dateKey: formData.get("dateKey") });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { slug, dateKey } = parsed.data;
+
+  try {
+    const user = await requireCapability("report.export");
+    const locBasic = await db.location.findUnique({ where: { slug }, select: { id: true } });
+    if (!locBasic) return { error: "Lokasi tidak ditemukan." };
+    await requireLocationAccess(user, locBasic.id);
+    const loc = await groupForLocation(locBasic.id);
+    if (!loc?.package?.waGroupId) {
+      return { error: "Paket ini belum punya grup WhatsApp. Minta admin mengaturnya di halaman Paket." };
+    }
+    const chatId = normalizeGroupChatId(loc.package.waGroupId);
+
+    const data = await getKkpDailyData(slug, dateKey);
+    if (!data) return { error: "Laporan harian tidak ditemukan." };
+    const buf = await buildDailyReportXlsx(data);
+
+    const caption = [
+      `*Laporan Harian*`,
+      `📍 ${data.locationName} — ${loc.package.name}`,
+      `📅 ${data.hari}, ${data.tanggalFull}`,
+      `👷 ${data.totalWorkers} pekerja${data.activeWeather ? ` · ☁️ ${data.activeWeather}` : ""}`,
+    ].join("\n");
+
+    await sendText(chatId, caption);
+    const fileName = `laporan-harian-${slug}-${dateKey}.xlsx`;
+    await sendFile(chatId, toFilePayload(buf, XLSX_MIME, fileName), fileName);
+
+    // Tandai "sudah dikirim" bila laporan final tersimpan (row nyata).
+    await db.dailyReport
+      .update({
+        where: { locationId_reportDate: { locationId: locBasic.id, reportDate: new Date(`${dateKey}T00:00:00.000Z`) } },
+        data: { waSentAt: new Date(), waSentById: user.id },
+      })
+      .catch(() => {});
+    await audit(user.id, "report.wa_send", "daily_report", null, { locationId: locBasic.id, dateKey });
+    revalidatePath(`/lokasi/${slug}/laporan-lokasi`);
+    return { success: "Laporan harian terkirim ke grup WhatsApp." };
   } catch (err) {
     return fail(err);
   }

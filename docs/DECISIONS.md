@@ -1943,3 +1943,20 @@ scurve — dengan test properti, bukan paritas nilai):**
   jadi cara (2) jadi jalur utama saat engine NOWEB tanpa store.
 - **Diagnostik** di Sistem: status koneksi + sesi WA (`wahaStatusAction`).
 - Scope iterasi ini: kegiatan lapangan saja (per keputusan user). Laporan harian/progres menyusul.
+
+## 100 · 2026-07-25 · Kirim laporan harian & mingguan ke grup WA (Excel, tombol manual)
+
+- Perluasan WAHA (setelah 099): laporan **harian** & **periodik (mingguan/bulanan)** bisa dikirim
+  ke grup WA paket sebagai **Excel** (.xlsx). Keputusan user: **Excel dulu** (PDF butuh Chromium
+  headless di server — ditunda), pemicu **tombol manual** per laporan.
+- **Builder Excel harian baru** `src/lib/export/daily-xlsx.ts` `buildDailyReportXlsx(KkpDailyData)`
+  (satu sheet: identitas → kemajuan item → tenaga kerja → material → peralatan → cuaca/catatan).
+  Laporan periodik pakai `buildPeriodReportXlsx` yang sudah ada.
+- **Actions** `sendPeriodReportToWaAction` (locationId+kind+n) & `sendDailyReportToWaAction`
+  (slug+dateKey) — gate `report.export` + `requireLocationAccess`; getReport→build xlsx→
+  `sendText`(caption)+`sendFile`(xlsx) ke `Package.waGroupId`; audit `report.wa_send`.
+- **Penanda** `DailyReport.waSentAt`/`waSentById` (migration `20260725020000_daily_report_wa_sent`)
+  → indikator "✓ WA <waktu>". Periodik derived (tanpa row) → tanpa penanda.
+- **UI** (`laporan-lokasi`): tombol "Kirim ke WhatsApp (Excel)" di kartu laporan periodik saat
+  ditampilkan + tombol "Kirim WA" per baris laporan harian final. Nonaktif bila paket belum
+  punya grup / WAHA belum diatur.

@@ -734,6 +734,9 @@ model DailyReport {
   finalizedById String?           @map("finalized_by_id") @db.Uuid
   finalizedAt   DateTime?         @map("finalized_at") @db.Timestamptz
   finalSnapshot Json?             @map("final_snapshot")
+  // Penanda kiriman laporan ke grup WhatsApp (info "sudah dikirim").
+  waSentAt      DateTime?         @map("wa_sent_at") @db.Timestamptz
+  waSentById    String?           @map("wa_sent_by_id") @db.Uuid
   createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz
 
