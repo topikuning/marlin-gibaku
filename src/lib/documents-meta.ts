@@ -79,7 +79,7 @@ export const TYPES_BY_PHASE: Record<AdminPhase, DocumentType[]> = {
 
 // ─── Validasi file ───────────────────────────────────────────────────
 
-export const MAX_UPLOAD_BYTES = 15 * 1024 * 1024; // 15 MB
+export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25 MB (bodySizeLimit next.config = 30mb)
 
 /** Mime yang diterima → label pendek untuk pesan error/UI. */
 export const ALLOWED_UPLOAD_MIMES: Record<string, string> = {
@@ -90,4 +90,33 @@ export const ALLOWED_UPLOAD_MIMES: Record<string, string> = {
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "XLSX",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "DOCX",
 };
+
+/** Ekstensi → mime kanonik. Fallback ketika browser/HP mengirim `file.type`
+ *  kosong atau `application/octet-stream` (umum utk PDF/Office di beberapa OS &
+ *  aplikasi HP) — penyebab tersembunyi "jenis file tidak didukung" walau file valid. */
+const EXT_TO_MIME: Record<string, string> = {
+  pdf: "application/pdf",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+};
+
+export const ALLOWED_UPLOAD_LABEL = "PDF, JPG, PNG, WebP, XLSX, DOCX";
+
+/**
+ * Tentukan mime kanonik dari (nama file + mime browser). Menerima file valid
+ * meski `file.type` kosong/octet-stream/alias (mis. image/jpg) dengan jatuh ke
+ * ekstensi. Return null bila benar-benar tak didukung.
+ */
+export function resolveUploadMime(fileName: string, mimeType: string | null | undefined): string | null {
+  const mt = (mimeType ?? "").toLowerCase().split(";")[0].trim();
+  if (mt === "image/jpg" || mt === "image/pjpeg") return "image/jpeg";
+  if (ALLOWED_UPLOAD_MIMES[mt]) return mt;
+  // Browser tak yakin (kosong / generik) → pakai ekstensi nama file.
+  const ext = fileName.toLowerCase().split(".").pop() ?? "";
+  return EXT_TO_MIME[ext] ?? null;
+}
 

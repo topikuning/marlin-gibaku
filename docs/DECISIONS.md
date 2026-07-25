@@ -2051,3 +2051,41 @@ scurve — dengan test properti, bukan paritas nilai):**
   - `result` cache diisi dari kumulatif realisasi carry-forward (increment 0 saat kosong).
 - **Efek**: mengisi/mengedit realisasi di Excel otomatis memperbarui kumulatif realisasi,
   deviasi, dan garis realisasi grafik — perlakuan identik dgn rencana. DECISIONS 102 dilengkapi.
+
+## 105 · 2026-07-25 · Dashboard "Aktivitas & Denyut Lokasi" (eksekutif) — feed lintas lokasi + progress per lokasi
+
+- **Kebutuhan user**: eksekutif perlu tahu pergerakan tiap lokasi tanpa membuka satu per satu —
+  siapa membuat laporan harian/kegiatan lapangan, ada perubahan jadwal, progress tiap lokasi,
+  siapa belum lapor.
+- **Sumber data**: BUKAN AuditLog (tak selalu menyimpan locationId). Union tabel domain yang
+  ber-locationId: `DailyReportStatusHistory` (via report→location), `FieldActivity`, `Baseline`
+  (perubahan jadwal), `Issue` (kendala). Nama aktor di-resolve batch (relasi user tak
+  dideklarasikan di tabel histori). Progress dari `getLocationsProgress` (batched, sudah ada).
+- **Modul** `src/lib/activity.ts`: `getActivityFeed(locIds|null, limit)` → 50 kejadian terbaru
+  (tersortir), + `getLocationActivity(locIds)` → laporan terakhir (tanggal/status/oleh) & aktivitas
+  terakhir per lokasi (query "terbaru per lokasi" via `distinct`).
+- **Halaman** `/aktivitas` (gate `portfolio.view` = super_admin/PD/AM/PM/exec_viewer; BUKAN peran
+  lapangan). Scoped `accessibleLocationIds` (cross-location = semua, selain itu hanya lokasi user).
+  Isi: KPI (lokasi aktif · perlu perhatian deviasi<−10 · belum lapor ≥3 hari · aktivitas hari ini),
+  feed kronologis (badge jenis + lokasi + aktor + waktu, klik-tembus), sorotan "belum lapor", dan
+  tabel progress per lokasi (rencana/realisasi/deviasi + laporan terakhir + denyut) urut deviasi
+  terburuk dulu. Nav "Aktivitas" (ikon Activity) setelah Beranda.
+- Verifikasi: typecheck/lint/build ✓.
+
+## 106 · 2026-07-25 · Upload dokumen: batas 25MB + MIME toleran + pesan R2 jelas (403 = Cloudflare WAF, di luar kode)
+
+- **Gejala user**: "upload dokumen selalu error, bahkan file kecil". Network inspector: **403**;
+  halaman "Sorry, you have been blocked … security solution … malformed data" = **Cloudflare WAF**
+  memblokir POST upload di origin gibaku.com SEBELUM sampai ke aplikasi (Ray ID a20b0fb3…). Bukan
+  ukuran/kode — biner file / payload Server Action multipart memicu managed rule.
+- **Perbaikan sisi kode (berguna terlepas dari WAF)**:
+  - `MAX_UPLOAD_BYTES` 15 → **25 MB**; `next.config` `serverActions.bodySizeLimit` 16 → **30mb**;
+    label form → 25MB.
+  - **MIME toleran** (`resolveUploadMime`): terima file valid meski browser/HP kirim `file.type`
+    kosong / `application/octet-stream` / alias (image/jpg) dengan fallback EKSTENSI; simpan mime
+    kanonik. Menutup kelas error "jenis file tidak didukung" tersembunyi.
+  - Error `r2Put` dibungkus `classifyR2Error` → pesan jelas ("Bucket tidak ada", "Access Key salah",
+    dst.) alih-alih dump AWS mentah.
+- **Akar 403 (operasional, di tangan pemilik situs)**: Cloudflare WAF. Solusi: (a) buat aturan
+  Skip/exception WAF untuk path upload, atau (b) DURABLE — upload presigned LANGSUNG ke R2 dari
+  browser (biner tak lewat Cloudflare origin). Menunggu keputusan user; belum diimplementasi.

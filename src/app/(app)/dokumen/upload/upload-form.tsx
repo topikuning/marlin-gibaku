@@ -72,7 +72,7 @@ export function UploadForm({
         <Textarea id="d-desc" name="description" rows={2} />
       </div>
       <div className="sm:col-span-2">
-        <Label htmlFor="d-file" required>File (PDF/JPG/PNG/WEBP/XLSX/DOCX, maks 15MB)</Label>
+        <Label htmlFor="d-file" required>File (PDF/JPG/PNG/WEBP/XLSX/DOCX, maks 25MB)</Label>
         <FileInput
           id="d-file"
           name="file"

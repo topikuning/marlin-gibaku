@@ -36,7 +36,14 @@ export {
   MAX_UPLOAD_BYTES,
   ALLOWED_UPLOAD_MIMES,
 } from "@/lib/documents-meta";
-import { ALLOWED_UPLOAD_MIMES, MAX_UPLOAD_BYTES, PHASE_LABEL, TYPE_LABEL } from "@/lib/documents-meta";
+import {
+  ALLOWED_UPLOAD_LABEL,
+  MAX_UPLOAD_BYTES,
+  PHASE_LABEL,
+  resolveUploadMime,
+  TYPE_LABEL,
+} from "@/lib/documents-meta";
+import { classifyR2Error } from "@/lib/r2";
 
 /** Nama file aman untuk key R2: whitelist karakter, ekstensi dipertahankan (ambil ekor). */
 function sanitizeFileName(name: string): string {
@@ -85,12 +92,16 @@ export async function uploadDocument(input: UploadDocumentInput, userId: string)
 
   const { file } = input;
   if (!(file instanceof File) || file.size === 0) throw new DocumentError("File wajib dipilih");
+  const maxMb = Math.round(MAX_UPLOAD_BYTES / 1024 / 1024);
   if (file.size > MAX_UPLOAD_BYTES) {
-    throw new DocumentError(`Ukuran file ${(file.size / 1024 / 1024).toFixed(1)} MB melebihi batas 15 MB`);
+    throw new DocumentError(`Ukuran file ${(file.size / 1024 / 1024).toFixed(1)} MB melebihi batas ${maxMb} MB`);
   }
-  if (!ALLOWED_UPLOAD_MIMES[file.type]) {
+  // Toleran: terima file valid meski browser/HP kirim mime kosong/octet-stream
+  // (fallback ekstensi). Simpan mime KANONIK, bukan yang dari browser.
+  const mimeType = resolveUploadMime(file.name, file.type);
+  if (!mimeType) {
     throw new DocumentError(
-      `Jenis file tidak didukung (${file.type || "tidak dikenal"}). Yang diterima: ${Object.values(ALLOWED_UPLOAD_MIMES).join(", ")}`,
+      `Jenis file tidak didukung (${file.type || "tidak dikenal"}). Yang diterima: ${ALLOWED_UPLOAD_LABEL}`,
     );
   }
 
@@ -190,7 +201,11 @@ export async function uploadDocument(input: UploadDocumentInput, userId: string)
 
   const yyyy = jakartaDateKey(new Date()).slice(0, 4);
   const r2Key = `documents/${yyyy}/${randomUUID()}-${sanitizeFileName(file.name)}`;
-  await r2Put(r2Key, buffer, file.type);
+  try {
+    await r2Put(r2Key, buffer, mimeType);
+  } catch (err) {
+    throw new DocumentError(`Gagal menyimpan file ke penyimpanan (R2): ${classifyR2Error(err)}`);
+  }
 
   const doc = await db.document.create({
     data: {
@@ -209,7 +224,7 @@ export async function uploadDocument(input: UploadDocumentInput, userId: string)
       description: input.description?.trim() || null,
       r2Key,
       fileName: file.name,
-      mimeType: file.type,
+      mimeType,
       bytes: file.size,
       sha256,
       supersedesId: input.supersedesId ?? null,

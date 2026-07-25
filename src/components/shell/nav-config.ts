@@ -1,4 +1,5 @@
 import {
+  Activity,
   FileText,
   FolderOpen,
   Home,
@@ -22,6 +23,7 @@ import { can, type Capability } from "@/lib/authz";
 
 export const ICONS = {
   home: Home,
+  activity: Activity,
   package: Package,
   mapPin: MapPin,
   map: Map,
@@ -44,6 +46,7 @@ export type NavItem = {
 
 export const MAIN_NAV: NavItem[] = [
   { label: "Beranda", href: "/", icon: "home" },
+  { label: "Aktivitas", href: "/aktivitas", icon: "activity", capability: "portfolio.view" },
   { label: "Paket", href: "/paket", icon: "package", capability: "package.view" },
   { label: "Lokasi", href: "/lokasi", icon: "mapPin", capability: "location.view" },
   { label: "Peta", href: "/peta", icon: "map", capability: "location.view" },
