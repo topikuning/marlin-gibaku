@@ -155,6 +155,10 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
     const locLat = location.gpsLat != null ? Number(location.gpsLat) : null;
     const locLng = location.gpsLng != null ? Number(location.gpsLng) : null;
     const workDate = new Date(`${d.dateKey}T00:00:00.000Z`);
+    // Badge kategori foto = nama pekerjaan (RabNode) laporan harian ini.
+    const workName = d.rabNodeId
+      ? (await db.rabNode.findUnique({ where: { id: d.rabNodeId }, select: { name: true } }))?.name ?? null
+      : null;
     for (const file of files) {
       try {
         await savePhotoForItem({
@@ -176,6 +180,7 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
             locationLabel: location.name,
             companyName,
             reporterName: user.fullName,
+            categoryName: workName,
           },
         });
       } catch (err) {

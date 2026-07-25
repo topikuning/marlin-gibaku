@@ -10,6 +10,7 @@ import { MAX_PHOTOS_PER_UPLOAD, PhotoError, savePhotoForItem } from "@/lib/photo
 import { isR2Configured, r2Delete, r2Put } from "@/lib/r2";
 import { ALLOWED_UPLOAD_MIMES, MAX_UPLOAD_BYTES } from "@/lib/documents-meta";
 import { jakartaDateKey } from "@/lib/format";
+import { FIELD_ACTIVITY_TYPE_LABEL } from "@/lib/field-activity/labels";
 
 /** Hapus objek R2 (best-effort — orphan diabaikan bila gagal). */
 async function deleteR2Keys(keys: (string | null | undefined)[]): Promise<void> {
@@ -65,6 +66,7 @@ async function uploadPhotos(opts: {
   lng: number | null;
   takenAt: Date | null;
   workDate: Date | null;
+  categoryName: string | null;
 }): Promise<string[]> {
   const errors: string[] = [];
   const locLat = opts.location.gpsLat != null ? Number(opts.location.gpsLat) : null;
@@ -89,6 +91,7 @@ async function uploadPhotos(opts: {
           locationLabel: opts.location.name,
           companyName: opts.companyName,
           reporterName: opts.reporterName,
+          categoryName: opts.categoryName,
         },
       });
     } catch (err) {
@@ -196,6 +199,7 @@ export async function createActivityAction(
       lng: d.gpsLng ?? null,
       takenAt: parseTakenAt(formData.get("photoTakenAt")),
       workDate: new Date(`${d.activityDate}T00:00:00.000Z`),
+      categoryName: FIELD_ACTIVITY_TYPE_LABEL[d.type],
     });
 
     await audit(user.id, "field_activity.create", "field_activity", activity.id, {
@@ -290,6 +294,7 @@ async function activityCtx(activityId: string) {
     where: { id: activityId },
     select: {
       id: true,
+      type: true,
       status: true,
       locationId: true,
       activityDate: true,
@@ -346,6 +351,7 @@ export async function addActivityPhotosAction(
       lng: Number.isFinite(devLng) && formData.get("gpsLng") ? devLng : null,
       takenAt: parseTakenAt(formData.get("photoTakenAt")),
       workDate: ctx.activityDate,
+      categoryName: FIELD_ACTIVITY_TYPE_LABEL[ctx.type],
     });
     revalidate(ctx.location.slug);
     if (photoErrors.length) return { warning: `Sebagian foto gagal: ${[...new Set(photoErrors)].join("; ")}` };
