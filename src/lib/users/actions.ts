@@ -90,6 +90,38 @@ export async function createUser(_prev: UserActionState, formData: FormData): Pr
   return { success: `Pengguna ${d.username} (${ROLE_LABEL[targetRole]}) dibuat. Password harus diganti saat login pertama.` };
 }
 
+const updateProfileSchema = z.object({
+  userId: z.uuid(),
+  fullName: z.string().trim().min(2, "Nama lengkap wajib").max(120),
+  email: z.union([z.email("Email tidak valid"), z.literal("")]).optional(),
+});
+
+/** Ubah nama (& email) pengguna. Username & peran tidak diubah di sini. */
+export async function updateUserProfile(_prev: UserActionState, formData: FormData): Promise<UserActionState> {
+  const actor = await requireCapability("user.manage");
+  const parsed = updateProfileSchema.safeParse({
+    userId: formData.get("userId"),
+    fullName: formData.get("fullName"),
+    email: formData.get("email") ?? "",
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const d = parsed.data;
+
+  const target = await db.user.findUnique({ where: { id: d.userId }, select: { id: true, orgId: true } });
+  if (!target || target.orgId !== actor.orgId) return { error: "Pengguna tidak ditemukan." };
+
+  const email = d.email ? d.email.toLowerCase() : null;
+  if (email) {
+    const clash = await db.user.findFirst({ where: { email, id: { not: d.userId } }, select: { id: true } });
+    if (clash) return { error: "Email sudah dipakai pengguna lain." };
+  }
+
+  await db.user.update({ where: { id: d.userId }, data: { fullName: d.fullName, email } });
+  await audit(actor.id, "user.update_profile", "user", d.userId, { fullName: d.fullName });
+  revalidatePath("/pengguna");
+  return { success: "Data pengguna diperbarui." };
+}
+
 export async function setUserActive(userId: string, isActive: boolean): Promise<void> {
   const actor = await requireCapability("user.manage");
   if (actor.id === userId && !isActive) throw new ForbiddenError("Tidak bisa menonaktifkan akun sendiri");

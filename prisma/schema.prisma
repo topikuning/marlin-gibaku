@@ -119,10 +119,12 @@ enum PhotoVerification {
 }
 
 /// Sumber waktu cap foto: exif (metadata foto), device (jam perangkat saat jepret),
-/// server (fallback waktu unggah — TIDAK pasti waktu jepret), manual.
+/// filename (jam dari nama file WhatsApp yang EXIF-nya terbuang), server (fallback
+/// waktu unggah — TIDAK pasti waktu jepret), manual.
 enum PhotoMetadataSource {
   exif
   device
+  filename
   server
   manual
 }

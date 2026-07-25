@@ -2253,3 +2253,19 @@ scurve — dengan test properti, bukan paritas nilai):**
   tipe), panel cap foto di Sistem (overlay/ukuran), dan fallback GPS di input foto. Selebihnya sudah
   Combobox sejak awal.
 - Verifikasi: typecheck/lint/unit(172)/build ✓.
+
+## 116 · 2026-07-25 · Edit nama pengguna · batas 32 foto/kegiatan · jam dari nama file WhatsApp
+
+- **Edit nama pengguna**: aksi `updateUserProfile` (gate `user.manage`, audit `user.update_profile`)
+  ubah `fullName` + email (cek bentrok email). UI: tombol "Edit nama" per baris di halaman Pengguna
+  (panel inline). Username & peran tidak diubah di sini.
+- **Batas 32 foto per KEGIATAN lapangan** (`MAX_PHOTOS_PER_ACTIVITY=32`, di `photos.ts`): `uploadPhotos`
+  menerima `limit`. Create → limit 32; Add foto → limit = 32 − foto existing (query count), tolak bila
+  sudah 32, dan beri peringatan jumlah yang dilewati. Tidak mengubah batas upload laporan harian.
+- **Jam dari nama file WhatsApp**: WhatsApp membuang EXIF, jadi untuk foto galeri tanpa EXIF, ambil
+  waktu dari nama file bila polanya mengandung jam (`parseWhatsAppTime` di `photos.ts`): format
+  desktop/iOS "WhatsApp Image YYYY-MM-DD at HH.MM.SS[ AM/PM]" (24/12 jam), diasumsikan WIB. Format
+  Android "IMG-YYYYMMDD-WAxxxx" hanya tanggal → diabaikan. Urutan sumber waktu galeri kini:
+  EXIF → nama file WA → tanggal kerja/server. Enum baru `PhotoMetadataSource.filename`
+  (migration `20260725210000_photo_metadata_filename`), `timeApprox=false` (waktu nyata, bukan fallback).
+- Uji unit `tests/unit/wa-filename-time.test.ts` (7 kasus). Verifikasi: typecheck/lint/unit(179)/build ✓.

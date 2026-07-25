@@ -10,6 +10,7 @@ import {
   resetUserPassword,
   setAssignments,
   setUserActive,
+  updateUserProfile,
   type UserActionState,
 } from "@/lib/users/actions";
 import type { UserRole } from "@/generated/prisma/enums";
@@ -162,6 +163,27 @@ function AssignmentEditor({ user, locations, onClose }: { user: UserRow; locatio
   );
 }
 
+function EditProfile({ user, onClose }: { user: UserRow; onClose: () => void }) {
+  const [state, action, pending] = useActionState<UserActionState, FormData>(updateUserProfile, undefined);
+  return (
+    <form action={action} className="mt-2 flex flex-wrap items-end gap-2 rounded-md border border-border bg-surface-muted p-3">
+      {state?.error ? <div className="w-full"><Banner tone="error" title={state.error} /></div> : null}
+      {state?.success ? <div className="w-full"><Banner tone="success" title={state.success} /></div> : null}
+      <input type="hidden" name="userId" value={user.id} />
+      <div>
+        <Label htmlFor={`ep-name-${user.id}`}>Nama lengkap</Label>
+        <Input id={`ep-name-${user.id}`} name="fullName" defaultValue={user.fullName} minLength={2} maxLength={120} required className="w-56" />
+      </div>
+      <div>
+        <Label htmlFor={`ep-email-${user.id}`}>Email (opsional)</Label>
+        <Input id={`ep-email-${user.id}`} name="email" type="email" defaultValue={user.email ?? ""} className="w-56" />
+      </div>
+      <Button size="sm" type="submit" loading={pending}>Simpan</Button>
+      <Button size="sm" type="button" variant="ghost" onClick={onClose}>Tutup</Button>
+    </form>
+  );
+}
+
 function ResetPassword({ userId, onClose }: { userId: string; onClose: () => void }) {
   const [state, action, pending] = useActionState<UserActionState, FormData>(resetUserPassword, undefined);
   return (
@@ -188,7 +210,7 @@ export function UsersTable({
   locations: LocationOption[];
   canManage: boolean;
 }) {
-  const [open, setOpen] = useState<{ id: string; panel: "assign" | "reset" } | null>(null);
+  const [open, setOpen] = useState<{ id: string; panel: "assign" | "reset" | "profile" } | null>(null);
   if (users.length === 0) {
     return <p className="text-sm text-ink-muted">Belum ada pengguna.</p>;
   }
@@ -219,6 +241,13 @@ export function UsersTable({
                 <Button
                   size="sm"
                   variant="secondary"
+                  onClick={() => setOpen(open?.id === u.id && open.panel === "profile" ? null : { id: u.id, panel: "profile" })}
+                >
+                  Edit nama
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
                   onClick={() => setOpen(open?.id === u.id && open.panel === "assign" ? null : { id: u.id, panel: "assign" })}
                 >
                   Penugasan
@@ -242,6 +271,9 @@ export function UsersTable({
               </div>
             )}
           </div>
+          {canManage && open?.id === u.id && open.panel === "profile" && (
+            <EditProfile user={u} onClose={() => setOpen(null)} />
+          )}
           {canManage && open?.id === u.id && open.panel === "assign" && (
             <AssignmentEditor user={u} locations={locations} onClose={() => setOpen(null)} />
           )}
