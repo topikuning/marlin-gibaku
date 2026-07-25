@@ -1896,3 +1896,18 @@ scurve — dengan test properti, bukan paritas nilai):**
   ITEM SIBLING (kode sintetis `~N`), bukan anak. Tree bersih; sumLeaves & flatten dua-duanya benar.
 - Verifikasi file NYATA via JALUR APP (flatten+grandTotal): 3.239.042.115; XI 213.950.001.
   typecheck/lint ✓, 145 unit test ✓ (uji baru: parse+flatten grandTotal atas pola #REF!), build ✓.
+
+## 098 · 2026-07-25 · Kegiatan lapangan: Edit + Kendala/Solusi; input foto bisa dari galeri
+
+- **Edit kegiatan draft**: sebelumnya kegiatan lapangan hanya bisa Tambah foto/dokumen/
+  Finalkan/Hapus — judul/jenis/tanggal/peserta salah ketik tak bisa dikoreksi tanpa hapus+ulang.
+  Tambah `updateActivityAction` (gate `field_activity.manage` + `requireLocationAccess` + audit,
+  hanya status draft) + tombol "Edit" (form inline) di `DraftActions`.
+- **Kendala & Solusi**: tambah kolom `kendala` & `solusi` (TEXT nullable) di `FieldActivity`
+  (migration `20260725000000_field_activity_kendala_solusi`) — "ada kendala/solusi atau tidak"
+  eksplisit. Tampil di form buat, form edit, dan kartu (Kendala=tone warning, Solusi=tone success).
+- **Input foto**: buang `capture="environment"` dari SEMUA input foto (kegiatan buat/tambah,
+  laporan harian). Alasan: `capture` memaksa HP langsung buka kamera; tanpa itu HP menampilkan
+  pilihan **Kamera ATAU Galeri**. Cap waktu/GPS tetap direkam saat berkas dipilih.
+- **RecalcBaselineButton** dirapikan jadi popover mengambang (`absolute z-30`) — panel konfirmasi
+  + banner hasil tak lagi menekan judul kartu / menumpuk kartu tetangga (anti tumpang tindih).

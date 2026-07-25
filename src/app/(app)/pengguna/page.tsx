@@ -42,9 +42,24 @@ export default async function PenggunaPage() {
     db.location.findMany({
       where: accessibleLocs ? { id: { in: accessibleLocs } } : undefined,
       orderBy: { name: "asc" },
-      select: { id: true, name: true },
+      select: {
+        id: true,
+        name: true,
+        package: {
+          select: {
+            organization: { select: { name: true } },
+            contract: { select: { vendor: { select: { name: true } } } },
+          },
+        },
+      },
     }),
   ]);
+
+  const locationOptions = locations.map((l) => ({
+    id: l.id,
+    name: l.name,
+    company: l.package?.contract?.vendor?.name ?? l.package?.organization?.name ?? null,
+  }));
 
   const listTitle = fullManage ? "Daftar pengguna" : "Pengguna yang saya buat";
   const description = fullManage
@@ -72,7 +87,7 @@ export default async function PenggunaPage() {
                 createdByName: u.creator?.fullName ?? null,
                 assignments: u.assignments.map((a) => ({ id: a.locationId, name: a.location.name })),
               }))}
-              locations={locations}
+              locations={locationOptions}
             />
           </CardBody>
         </Card>
@@ -82,7 +97,7 @@ export default async function PenggunaPage() {
             {allowedRoles.length === 0 ? (
               <p className="text-sm text-ink-muted">Anda tidak berwenang membuat pengguna.</p>
             ) : (
-              <UserForm locations={locations} roles={allowedRoles} />
+              <UserForm locations={locationOptions} roles={allowedRoles} />
             )}
           </CardBody>
         </Card>

@@ -82,6 +82,16 @@ export default async function KegiatanLapanganPage({ params }: { params: Promise
                     <span className="font-medium">Hadir:</span> {a.participants}
                   </p>
                 ) : null}
+                {a.kendala ? (
+                  <p className="mt-1.5 text-[13px] whitespace-pre-line text-ink">
+                    <span className="font-medium text-warning">Kendala:</span> {a.kendala}
+                  </p>
+                ) : null}
+                {a.solusi ? (
+                  <p className="mt-1.5 text-[13px] whitespace-pre-line text-ink">
+                    <span className="font-medium text-success">Solusi / tindak lanjut:</span> {a.solusi}
+                  </p>
+                ) : null}
 
                 {a.photos.length > 0 ? (
                   <div className="mt-3">
@@ -103,7 +113,20 @@ export default async function KegiatanLapanganPage({ params }: { params: Promise
                   />
                 ) : null}
 
-                {canManage && a.status === "draft" ? <DraftActions activityId={a.id} /> : null}
+                {canManage && a.status === "draft" ? (
+                  <DraftActions
+                    activity={{
+                      id: a.id,
+                      type: a.type,
+                      activityDate: a.activityDate,
+                      title: a.title,
+                      notes: a.notes,
+                      participants: a.participants,
+                      kendala: a.kendala,
+                      solusi: a.solusi,
+                    }}
+                  />
+                ) : null}
                 {canManage && a.status === "final" ? <ReopenActivityButton activityId={a.id} /> : null}
               </CardBody>
             </Card>
