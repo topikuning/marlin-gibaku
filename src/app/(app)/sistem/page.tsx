@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { PageHeader, Card, CardHeader, CardBody, StatusPill } from "@/components/ui";
 import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
@@ -10,7 +11,7 @@ import { formatTanggalWaktu } from "@/lib/format";
 import { getBranding, BRAND_DEFAULTS } from "@/lib/branding";
 import { getPhotoStampConfig } from "@/lib/photo-stamp/config";
 import { getActivityKinds } from "@/lib/field-activity/kinds";
-import { R2TestPanel, ResetPanel, BrandingPanel, WahaConfigPanel, PhotoStampPanel, ActivityKindsPanel } from "./sistem-client";
+import { R2TestPanel, ResetPanel, BrandingPanel, WahaConfigPanel, WahaWebhookPanel, PhotoStampPanel, ActivityKindsPanel } from "./sistem-client";
 
 export const metadata: Metadata = { title: "Sistem" };
 export const dynamic = "force-dynamic";
@@ -38,6 +39,17 @@ export default async function SistemPage() {
   ]);
   const activityKinds = await getActivityKinds();
   const wahaConfigured = wahaDisplay.hasApiKey && wahaDisplay.baseUrl.length > 0;
+
+  // Webhook inbound WAHA: URL (origin dari header) + token secret + statistik tangkapan.
+  const h = await headers();
+  const origin = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host") ?? ""}`;
+  const webhookUrl = wahaDisplay.webhookSecret
+    ? `${origin}/api/waha/webhook?token=${encodeURIComponent(wahaDisplay.webhookSecret)}`
+    : null;
+  const [waCapturedCount, waLast] = await Promise.all([
+    db.waMessage.count(),
+    db.waMessage.findFirst({ orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -82,6 +94,21 @@ export default async function SistemPage() {
           </CardBody>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader
+          title="Tangkap percakapan WhatsApp (webhook)"
+          subtitle="Arsipkan pesan grup tertaut paket ke sistem — fondasi ringkasan/telusur berbasis AI"
+        />
+        <CardBody>
+          <WahaWebhookPanel
+            webhookUrl={webhookUrl}
+            hasSecret={!!wahaDisplay.webhookSecret}
+            capturedCount={waCapturedCount}
+            lastCapturedAt={waLast ? formatTanggalWaktu(waLast.createdAt) : null}
+          />
+        </CardBody>
+      </Card>
 
       <Card>
         <CardHeader title="Branding" subtitle="Identitas produk (global) + konteks proyek (tambahan)" />

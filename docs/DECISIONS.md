@@ -2300,3 +2300,22 @@ scurve — dengan test properti, bukan paritas nilai):**
   `rab_revisions.source` 'adendum'→'hps_awal' dan `baselines.source` 'adendum'→'auto' untuk semua
   lokasi yang kontraknya belum SPMK (start_date kosong / tanpa kontrak).
 - Verifikasi: typecheck ✓.
+
+## 119 · 2026-07-25 · Tangkap percakapan grup WhatsApp (Layer A) — webhook WAHA → arsip per paket
+
+- **Tujuan** (kembali ke integrasi AI): arsipkan percakapan grup WA sebagai fondasi ringkasan/telusur
+  berbasis AI. Default disepakati: ringkasan harian per lokasi; cakupan **hanya grup tertaut paket,
+  teks**; provider AI Claude (lapis B menyusul). Ini **Layer A** — penangkap (provider-agnostic).
+- **Skema**: model `WaMessage` (wa_messages) — packageId (nullable, dari waGroupId), chatId,
+  waMessageId (unik, dedup), fromNumber/fromName, body, hasMedia/mediaType, fromMe, timestamp, raw.
+  Relasi Package.waMessages. Migration `20260725230000_wa_message_capture`.
+- **Ingest**: `ingest-parse.ts` (MURNI, teruji unit — parser event WAHA defensif lintas versi
+  Core/Plus, WEBJS/NOWEB) + `ingest.ts` (resolve paket via waGroupId; **hanya simpan grup tertaut
+  paket**; dedup via upsert waMessageId).
+- **Webhook**: `POST /api/waha/webhook` — auth secret via query `?token=` / header `X-Webhook-Secret`
+  (timing-safe vs `waha.webhook_secret`); selalu 200 utk event terautentikasi (WAHA tak retry
+  karena diabaikan). Secret dikelola di Sistem (`generateWahaWebhookSecretAction`, rotasi) — panel
+  menampilkan URL webhook siap-salin + statistik "N pesan tertangkap".
+- Uji unit `tests/unit/wa-ingest-parse.test.ts` (6 kasus). Verifikasi: typecheck/lint/unit(185)/build ✓.
+- **Layer B (AI) — belum**: butuh ANTHROPIC_API_KEY + egress ke api.anthropic.com; ringkasan harian
+  dari WaMessage per paket/lokasi. Menyusul setelah key & egress disiapkan.

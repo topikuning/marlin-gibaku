@@ -425,9 +425,36 @@ model Package {
   stageHistory PackageStageHistory[]
   documents    Document[]
   milestones   AdminMilestone[]
+  waMessages   WaMessage[]
 
   @@index([orgId, stage])
   @@map("packages")
+}
+
+/// Pesan grup WhatsApp yang tertangkap via webhook WAHA (inbound). Fondasi
+/// integrasi AI: arsip percakapan lapangan per paket untuk diringkas/ditelusur.
+/// Hanya menyimpan pesan dari grup yang tertaut paket (Package.waGroupId).
+/// DECISIONS 119.
+model WaMessage {
+  id          String    @id @default(uuid()) @db.Uuid
+  packageId   String?   @map("package_id") @db.Uuid
+  chatId      String    @map("chat_id")
+  waMessageId String    @unique @map("wa_message_id") // id pesan WAHA — dedup
+  fromNumber  String?   @map("from_number")
+  fromName    String?   @map("from_name")
+  body        String    @db.Text
+  hasMedia    Boolean   @default(false) @map("has_media")
+  mediaType   String?   @map("media_type")
+  fromMe      Boolean   @default(false) @map("from_me")
+  timestamp   DateTime  @db.Timestamptz // waktu pesan (dari WAHA)
+  raw         Json?     @db.JsonB // event mentah (audit/debug)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  package Package? @relation(fields: [packageId], references: [id], onDelete: SetNull)
+
+  @@index([packageId, timestamp])
+  @@index([chatId, timestamp])
+  @@map("wa_messages")
 }
 
 /// APPEND-ONLY (trigger): histori transisi stage paket

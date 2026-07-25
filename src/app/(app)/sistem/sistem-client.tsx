@@ -14,7 +14,12 @@ import {
   type PhotoStampState,
   type ActivityKindState,
 } from "@/lib/system/actions";
-import { saveWahaConfigAction, wahaStatusAction, type WaActionState } from "@/lib/waha/actions";
+import {
+  saveWahaConfigAction,
+  wahaStatusAction,
+  generateWahaWebhookSecretAction,
+  type WaActionState,
+} from "@/lib/waha/actions";
 import type { PhotoStampConfig } from "@/lib/photo-stamp/config";
 import { getContrastText, normalizeHex } from "@/lib/photo-stamp/format";
 
@@ -384,5 +389,82 @@ function ActivityKindRow({ kind }: { kind: { key: string; label: string; isActiv
       {state?.error ? <div className="mt-1.5"><Banner tone="error" title={state.error} /></div> : null}
       {state?.success ? <p className="mt-1 text-xs text-success">{state.success}</p> : null}
     </li>
+  );
+}
+
+/**
+ * Webhook inbound WAHA — tangkap percakapan grup ke arsip per paket (fondasi
+ * integrasi AI). Admin men-generate secret, menyalin URL webhook ke WAHA, lalu
+ * pesan grup tertaut paket mulai tertangkap. DECISIONS 119.
+ */
+export function WahaWebhookPanel({
+  webhookUrl,
+  hasSecret,
+  capturedCount,
+  lastCapturedAt,
+}: {
+  webhookUrl: string | null;
+  hasSecret: boolean;
+  capturedCount: number;
+  lastCapturedAt: string | null;
+}) {
+  const [state, action, pending] = useActionState<WaActionState, FormData>(
+    generateWahaWebhookSecretAction,
+    undefined,
+  );
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="space-y-3">
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      {state?.success ? <Banner tone="success" title={state.success} /> : null}
+      <p className="text-sm text-ink-muted">
+        Menangkap percakapan grup WhatsApp (hanya grup yang sudah ditautkan ke paket) ke arsip —
+        fondasi ringkasan/telusur berbasis AI. Butuh langkah di WAHA: pasang URL webhook di bawah &
+        aktifkan event <span className="font-mono">message</span>.
+      </p>
+
+      {hasSecret && webhookUrl ? (
+        <div>
+          <Label htmlFor="wh-url">URL webhook (salin ke WAHA)</Label>
+          <div className="flex items-center gap-2">
+            <Input id="wh-url" readOnly value={webhookUrl} className="font-mono text-xs" onFocus={(e) => e.currentTarget.select()} />
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(webhookUrl);
+                  setCopied(true);
+                  window.setTimeout(() => setCopied(false), 1500);
+                } catch {
+                  /* clipboard bisa gagal di http non-secure — user salin manual */
+                }
+              }}
+            >
+              {copied ? "Tersalin" : "Salin"}
+            </Button>
+          </div>
+          <p className="mt-1 text-xs text-ink-muted">
+            URL memuat token rahasia. Merotasi secret membuat URL lama berhenti berfungsi.
+          </p>
+        </div>
+      ) : (
+        <Banner tone="info" title="Webhook belum diaktifkan" description="Buat secret dulu untuk mendapatkan URL webhook." />
+      )}
+
+      <div className="flex flex-wrap items-center gap-3">
+        <form action={action}>
+          <Button type="submit" variant={hasSecret ? "secondary" : "primary"} loading={pending}>
+            {hasSecret ? "Rotasi secret" : "Aktifkan & buat secret"}
+          </Button>
+        </form>
+        <span className="text-[13px] text-ink-muted">
+          {capturedCount > 0
+            ? `${capturedCount.toLocaleString("id-ID")} pesan tertangkap${lastCapturedAt ? ` · terakhir ${lastCapturedAt}` : ""}`
+            : "Belum ada pesan tertangkap."}
+        </span>
+      </div>
+    </div>
   );
 }

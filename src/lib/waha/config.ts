@@ -18,6 +18,7 @@ export const WAHA_KEYS = {
   baseUrl: "waha.base_url",
   apiKey: "waha.api_key",
   session: "waha.session",
+  webhookSecret: "waha.webhook_secret",
 } as const;
 
 export class WahaConfigError extends Error {}
@@ -66,13 +67,26 @@ export async function isWahaConfigured(): Promise<boolean> {
 }
 
 /** Untuk tampilan form: base URL, session, dan apakah key sudah tersimpan (tanpa membocorkan key). */
-export async function getWahaConfigDisplay(): Promise<{ baseUrl: string; session: string; hasApiKey: boolean }> {
+export async function getWahaConfigDisplay(): Promise<{
+  baseUrl: string;
+  session: string;
+  hasApiKey: boolean;
+  webhookSecret: string;
+}> {
   const s = await latestSettings();
   return {
     baseUrl: s.get(WAHA_KEYS.baseUrl)?.trim() ?? "",
     session: s.get(WAHA_KEYS.session)?.trim() ?? "default",
     hasApiKey: !!s.get(WAHA_KEYS.apiKey)?.trim(),
+    // Secret webhook ditampilkan penuh (admin harus menyalinnya ke WAHA).
+    webhookSecret: s.get(WAHA_KEYS.webhookSecret)?.trim() ?? "",
   };
+}
+
+/** Secret untuk memverifikasi webhook inbound WAHA (query `?token=` / header). */
+export async function getWahaWebhookSecret(): Promise<string | null> {
+  const s = await latestSettings();
+  return s.get(WAHA_KEYS.webhookSecret)?.trim() || null;
 }
 
 /**
@@ -83,6 +97,7 @@ export async function setWahaConfig(input: {
   baseUrl?: string;
   apiKey?: string;
   session?: string;
+  webhookSecret?: string;
 }): Promise<void> {
   const effectiveFrom = jakartaToday();
   const put = async (key: string, value: string) => {
@@ -103,5 +118,8 @@ export async function setWahaConfig(input: {
   // apiKey: hanya tulis bila DIBERIKAN (undefined = biarkan). String kosong = hapus.
   if (input.apiKey !== undefined) {
     await put(WAHA_KEYS.apiKey, input.apiKey.trim());
+  }
+  if (input.webhookSecret !== undefined) {
+    await put(WAHA_KEYS.webhookSecret, input.webhookSecret.trim());
   }
 }

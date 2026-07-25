@@ -1,5 +1,6 @@
 "use server";
 
+import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -67,6 +68,23 @@ export async function saveWahaConfigAction(
     await audit(user.id, "system.waha_config", "app_setting", null, {});
     revalidatePath("/sistem");
     return { success: "Konfigurasi WhatsApp disimpan." };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * Buat/rotasi secret webhook inbound WAHA. Secret masuk query `?token=` pada URL
+ * webhook yang dipasang di WAHA. Merotasi = URL lama tak berlaku. DECISIONS 119.
+ */
+export async function generateWahaWebhookSecretAction(): Promise<WaActionState> {
+  try {
+    const user = await requireCapability("system.manage");
+    const secret = randomBytes(24).toString("base64url");
+    await setWahaConfig({ webhookSecret: secret });
+    await audit(user.id, "system.waha_webhook_secret", "app_setting", null, {});
+    revalidatePath("/sistem");
+    return { success: "Secret webhook baru dibuat — salin URL webhook ke WAHA." };
   } catch (err) {
     return fail(err);
   }
