@@ -75,6 +75,11 @@ export type DashboardData = {
   markers: PetaMarker[];
   markerTone: Record<string, MarkerTone>;
   locationsIndex: { name: string; slug: string }[];
+  // Portofolio & administrasi (gabungan dari Command Center).
+  finance: { totalContract: bigint; totalRealized: bigint; realizedPct: number };
+  paketAktif: number;
+  menungguVerifikasi: number;
+  perluKoreksi: number;
 };
 
 export type ActivityCentreItem = {
@@ -94,13 +99,13 @@ export type ActivityCentreItem = {
 
 const SEVERITY_RANK: Record<IssueSeverity, number> = { kritis: 0, tinggi: 1, sedang: 2, rendah: 3 };
 
-/** Data utama dashboard (KPI, submit, deviasi, kendala, peta). */
-export async function getDashboardData(locIds: string[] | null): Promise<DashboardData> {
+/** Data utama dashboard (KPI, submit, deviasi, kendala, peta, portofolio). */
+export async function getDashboardData(locIds: string[] | null, orgId: string): Promise<DashboardData> {
   const locWhere = locIds === null ? {} : { id: { in: locIds } };
   const today = parseDateKey(jakartaDateKey(new Date()))!;
   const yesterday = new Date(today.getTime() - 86_400_000);
 
-  const [locations, submittedTodayRows, submittedYdayRows, activitiesTodayCount, markers] = await Promise.all([
+  const [locations, submittedTodayRows, submittedYdayRows, activitiesTodayCount, markers, paketAktif, menungguVerifikasi, perluKoreksi] = await Promise.all([
     db.location.findMany({
       where: { ...locWhere, isActive: true },
       select: { id: true, name: true, slug: true, province: true, status: true },
@@ -116,11 +121,22 @@ export async function getDashboardData(locIds: string[] | null): Promise<Dashboa
     }),
     db.fieldActivity.count({ where: { location: locWhere, activityDate: today } }),
     getPetaMarkers(locIds),
+    db.package.count({ where: { orgId, stage: { notIn: ["selesai", "batal"] } } }),
+    db.dailyReport.count({ where: { location: locWhere, status: "dikirim" } }),
+    db.dailyReport.count({ where: { location: locWhere, status: "perlu_koreksi" } }),
   ]);
 
   const ids = locations.map((l) => l.id);
   const progress = await getLocationsProgress(ids);
   const lastReport = await lastReportDateByLocation(ids);
+
+  let totalContract = 0n;
+  let totalRealized = 0n;
+  for (const p of progress.values()) {
+    totalContract += p.grandTotal;
+    totalRealized += p.realizedValue;
+  }
+  const realizedPct = totalContract > 0n ? Number((totalRealized * 10000n) / totalContract) / 100 : 0;
 
   const submittedIds = new Set(submittedTodayRows.map((r) => r.locationId));
   const submittedToday = submittedIds.size;
@@ -226,6 +242,10 @@ export async function getDashboardData(locIds: string[] | null): Promise<Dashboa
     markers,
     markerTone,
     locationsIndex: locations.map((l) => ({ name: l.name, slug: l.slug })),
+    finance: { totalContract, totalRealized, realizedPct },
+    paketAktif,
+    menungguVerifikasi,
+    perluKoreksi,
   };
 }
 

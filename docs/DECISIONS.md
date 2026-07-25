@@ -2109,3 +2109,20 @@ scurve — dengan test properti, bukan paritas nilai):**
 - **UI**: token-based (tanpa hex), komponen `ui/*`; nav "Dashboard Eksekutif" (gate `portfolio.view`).
   Field PIC & target diambil dari `RecoveryAction` (bukan mock). "Total Laporan" = harian + kegiatan.
 - Verifikasi: typecheck/lint/build ✓.
+
+## 108 · 2026-07-25 · Dashboard Eksekutif jadi beranda peran manajemen + gabung Command Center
+
+- **Keputusan user**: Dashboard Eksekutif jadi landing setelah login **untuk peran manajemen**
+  (`portfolio.view`: super_admin, project_director, PM, regional_manager, exec_viewer, keuangan).
+  Peran lapangan (Site Manager/Mandor) TETAP di Command Center yang lebih ringkas — hindari
+  membebani user gaptek.
+- **Routing** (`src/app/(app)/page.tsx`): `HomePage` → `can(role,"portfolio.view")` ? `ExecutiveDashboard`
+  : `CommandCenter`. Command Center di-extract jadi komponen `CommandCenter({user})` di file yang sama.
+- **Dashboard di-extract** jadi `ExecutiveDashboard({user})` (`aktivitas/executive-dashboard.tsx`);
+  `/aktivitas/page.tsx` tinggal wrapper (alias route, tetap ter-gate). Nav "Dashboard Eksekutif"
+  dihapus (Beranda sudah mengarah ke sana bagi manajemen).
+- **Info Command Center digabung** ke dashboard: baris "Portofolio & administrasi" — Nilai Kontrak
+  (RAB pra-PPN), Nilai Terpasang (+% bar), Paket Aktif, Menunggu Verifikasi (laporan `dikirim`),
+  Perlu Koreksi (`perlu_koreksi`) — semua klik-tembus. Data via `getDashboardData(locIds, orgId)`
+  (finance dari sum progress; paketAktif/verifikasi/koreksi via count scoped).
+- Verifikasi: typecheck/lint/build ✓.
