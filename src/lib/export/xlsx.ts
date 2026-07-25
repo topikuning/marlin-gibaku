@@ -44,7 +44,7 @@ const round3 = (n: number) => Math.round(n * 1000) / 1000;
 async function addKurvaSheet(
   wb: ExcelJS.Workbook,
   r: PeriodReport,
-  opts?: { sheetName?: string; chartTitle?: string },
+  opts?: { sheetName?: string },
 ): Promise<LineChartSpec> {
   const sheet = buildKurvaSheet({
     categories: r.kurvaSchedule,
@@ -143,19 +143,23 @@ async function addKurvaSheet(
   }
 
   // Spesifikasi GRAFIK NATIVE (disuntikkan setelah workbook ditulis) — chart garis
-  // Excel sungguhan yang mereferensikan sel kumulatif, bukan gambar.
+  // Excel sungguhan yang mereferensikan sel kumulatif, bukan gambar. Dipasang
+  // OVERLAY transparan TEPAT di atas blok kolom minggu tabel (kolom D..lastCol,
+  // baris kategori s/d prestasi) → kurva-S menelusuri kolom minggu, mirip time
+  // schedule sipil. Anchor 0-based: kolom D = FIRST-1, tepi kanan kolom terakhir
+  // = lastCol; baris atas = baris kategori pertama, bawah = baris terakhir.
   const q = (col: number, rowN: number) => `'${ws.name}'!$${colLetter(col)}$${rowN}`;
   const range = (rowN: number) => `${q(FIRST, rowN)}:$${colLetter(lastCol)}$${rowN}`;
-  const lastRow = ws.rowCount;
+  const firstCatRow = weekRow.number + 1;
+  const lastCatRow = firstCatRow + sheet.categories.length - 1; // baris prestasi di bawahnya tetap bersih
   return {
     sheetName: ws.name,
-    title: opts?.chartTitle ?? `KURVA S ${r.kind === "mingguan" ? `MINGGU KE-${r.n}` : `BULAN KE-${r.n}`}`,
     catRef: range(weekRow.number),
     series: [
-      { name: "Rencana", valRef: range(kumRencanaRow), color: "64748B", dash: true },
+      { name: "Rencana", valRef: range(kumRencanaRow), color: "2563EB" },
       { name: "Realisasi", valRef: range(kumRealisasiRow), color: "16A34A" },
     ],
-    anchor: { fromCol: 1, fromRow: lastRow + 1, toCol: Math.min(lastCol, 16), toRow: lastRow + 24 },
+    anchor: { fromCol: FIRST - 1, fromRow: firstCatRow - 1, toCol: lastCol, toRow: lastCatRow },
   } satisfies LineChartSpec;
 }
 
@@ -168,10 +172,7 @@ export async function buildJadwalXlsx(r: PeriodReport): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "MARLIN";
   wb.created = new Date();
-  const chartSpec = await addKurvaSheet(wb, r, {
-    sheetName: "Time Schedule",
-    chartTitle: "TIME SCHEDULE (KURVA S) — RENCANA & REALISASI",
-  });
+  const chartSpec = await addKurvaSheet(wb, r, { sheetName: "Time Schedule" });
   const buf = Buffer.from(await wb.xlsx.writeBuffer());
   try {
     return await addLineChartToXlsx(buf, chartSpec);

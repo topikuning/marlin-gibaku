@@ -24,7 +24,6 @@ export type ChartSeries = {
 
 export type LineChartSpec = {
   sheetName: string;
-  title?: string;
   /** Referensi label kategori (sumbu X), mis. "'Kurva S'!$D$5:$O$5". */
   catRef: string;
   series: ChartSeries[];
@@ -46,28 +45,38 @@ function seriesXml(s: ChartSeries, idx: number, catRef: string): string {
   return `<c:ser>
     <c:idx val="${idx}"/><c:order val="${idx}"/>
     <c:tx><c:v>${esc(s.name)}</c:v></c:tx>
-    <c:spPr><a:ln w="22225" cap="rnd"><a:solidFill><a:srgbClr val="${s.color}"/></a:solidFill>${dash}</a:ln></c:spPr>
-    <c:marker><c:symbol val="none"/></c:marker>
+    <c:spPr><a:ln w="19050" cap="rnd"><a:solidFill><a:srgbClr val="${s.color}"/></a:solidFill>${dash}</a:ln></c:spPr>
+    <c:marker><c:symbol val="circle"/><c:size val="4"/><c:spPr><a:solidFill><a:srgbClr val="${s.color}"/></a:solidFill><a:ln w="9525"><a:solidFill><a:srgbClr val="${s.color}"/></a:solidFill></a:ln></c:spPr></c:marker>
     <c:cat><c:strRef><c:f>${esc(catRef)}</c:f></c:strRef></c:cat>
     <c:val><c:numRef><c:f>${esc(s.valRef)}</c:f></c:numRef></c:val>
     <c:smooth val="0"/>
   </c:ser>`;
 }
 
+/**
+ * Chart OVERLAY ala Time Schedule sipil: latar TRANSPARAN, tanpa sumbu/legenda/
+ * judul/gridline, plot-area diisi penuh frame (manualLayout inner 0,0,1,1) supaya
+ * garis kurva-S menelusuri kolom minggu tabel di BAWAHNYA. Di-anchor tepat di atas
+ * blok kolom minggu (lihat addKurvaSheet). Sumbu tetap ada (dibutuhkan lineChart)
+ * tapi `delete=1` → skala 0–100% jalan tanpa tampil.
+ */
 function chartXml(spec: LineChartSpec): string {
   const CAT_AX = 111111111;
   const VAL_AX = 222222222;
-  const title = spec.title
-    ? `<c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr b="1" sz="1200"/><a:t>${esc(spec.title)}</a:t></a:r></a:p></c:rich></c:tx><c:overlay val="0"/></c:title><c:autoTitleDeleted val="0"/>`
-    : `<c:autoTitleDeleted val="1"/>`;
   const yMin = spec.yMin ?? 0;
   const yMax = spec.yMax ?? 100;
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <c:chartSpace xmlns:c="${C}" xmlns:a="${A}" xmlns:r="${R}">
   <c:chart>
-    ${title}
+    <c:autoTitleDeleted val="1"/>
     <c:plotArea>
-      <c:layout/>
+      <c:layout>
+        <c:manualLayout>
+          <c:layoutTarget val="inner"/>
+          <c:xMode val="edge"/><c:yMode val="edge"/>
+          <c:x val="0"/><c:y val="0"/><c:w val="1"/><c:h val="1"/>
+        </c:manualLayout>
+      </c:layout>
       <c:lineChart>
         <c:grouping val="standard"/>
         <c:varyColors val="0"/>
@@ -79,24 +88,24 @@ function chartXml(spec: LineChartSpec): string {
       <c:catAx>
         <c:axId val="${CAT_AX}"/>
         <c:scaling><c:orientation val="minMax"/></c:scaling>
-        <c:delete val="0"/>
+        <c:delete val="1"/>
         <c:axPos val="b"/>
         <c:crossAx val="${VAL_AX}"/>
       </c:catAx>
       <c:valAx>
         <c:axId val="${VAL_AX}"/>
         <c:scaling><c:orientation val="minMax"/><c:max val="${yMax}"/><c:min val="${yMin}"/></c:scaling>
-        <c:delete val="0"/>
+        <c:delete val="1"/>
         <c:axPos val="l"/>
-        <c:majorGridlines/>
-        <c:numFmt formatCode="0&quot;%&quot;" sourceLinked="0"/>
         <c:crossAx val="${CAT_AX}"/>
+        <c:crossBetween val="midCat"/>
       </c:valAx>
+      <c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>
     </c:plotArea>
-    <c:legend><c:legendPos val="t"/><c:overlay val="0"/></c:legend>
     <c:plotVisOnly val="1"/>
     <c:dispBlanksAs val="gap"/>
   </c:chart>
+  <c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>
 </c:chartSpace>`;
 }
 

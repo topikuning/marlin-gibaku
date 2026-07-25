@@ -14,7 +14,6 @@ async function baseWorkbook(): Promise<Buffer> {
 
 const spec: LineChartSpec = {
   sheetName: "Kurva S",
-  title: "KURVA S",
   catRef: "'Kurva S'!$D$1:$F$1",
   series: [
     { name: "Rencana", valRef: "'Kurva S'!$D$2:$F$2", color: "64748B", dash: true },
@@ -50,6 +49,10 @@ describe("addLineChartToXlsx", () => {
     expect(chart).toContain("'Kurva S'!$D$3:$F$3");
     expect(chart).toContain("'Kurva S'!$D$1:$F$1");
     expect(chart).toContain("dispBlanksAs val=\"gap\""); // realisasi berhenti = gap, bukan 0
+    // Mode OVERLAY: latar transparan + sumbu disembunyikan (delete=1) + plot penuh.
+    expect(chart).toContain("<a:noFill/>"); // chart & plot area transparan
+    expect(chart).toContain("<c:manualLayout>"); // plot diisi penuh frame
+    expect((chart.match(/<c:delete val="1"\/>/g) ?? []).length).toBe(2); // kedua sumbu disembunyikan
 
     // exceljs masih bisa memuat ulang workbook (konsistensi part-level).
     const reload = new ExcelJS.Workbook();

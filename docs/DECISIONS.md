@@ -1719,3 +1719,23 @@ scurve — dengan test properti, bukan paritas nilai):**
   sel yg dirujuk berisi kumulatif rencana (→100) & realisasi (berhenti minggu berjalan).
   typecheck/lint ✓, 134 unit test ✓ (uji injektor chart: part+rels+content-types+reload),
   build ✓ (route terdaftar). `server-only` di-alias no-op di vitest agar modul export teruji.
+
+## 087 · 2026-07-25 · Kurva-S = OVERLAY transparan DI ATAS tabel (bukan chart terpisah di bawah)
+
+- Feedback user (bandingkan 2 contoh): mau kurva-S menempel TRANSPARAN di atas tabel time
+  schedule — garis menelusuri kolom minggu — persis format TS sipil; bukan chart kotak
+  terpisah di bawah tabel (versi 086).
+- `chartXml` diubah jadi mode overlay: chartSpace + plotArea `<a:noFill/>` (latar transparan),
+  `autoTitleDeleted=1`, TANPA legenda/gridline, kedua sumbu `delete=1` (skala 0–100% tetap
+  jalan tapi tak tampil), `plotArea/layout/manualLayout` inner (x0 y0 w1 h1) → plot mengisi
+  penuh frame sehingga garis sejajar kolom, `crossBetween=midCat` (valAx). Deret pakai marker
+  bulat; Rencana biru (2563EB), Realisasi hijau (16A34A).
+- Anchor (`addKurvaSheet`): TEPAT di atas blok kolom minggu — `fromCol=D (FIRST-1)`,
+  `toCol=lastCol`; vertikal hanya baris KATEGORI (`firstCatRow-1 … lastCatRow`) supaya baris
+  prestasi/kumulatif di bawahnya tetap bersih & terbaca. 0-based twoCellAnchor → kurva ikut
+  ukuran sel.
+- Bersih-bersih: `LineChartSpec.title` + opsi `chartTitle` dibuang (overlay tak berjudul;
+  sheet punya banner sendiri).
+- Verifikasi: typecheck/lint ✓, 134 unit test ✓ (uji ditambah: `noFill` transparan +
+  `manualLayout` + tepat 2 sumbu `delete=1`), build ✓. openpyxl: LineChart 2 deret; anchor
+  D..kolom-terakhir × baris kategori (dikonfirmasi dari drawing1.xml).
