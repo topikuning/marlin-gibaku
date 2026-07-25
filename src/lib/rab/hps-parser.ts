@@ -176,10 +176,20 @@ export function detectColumns(ws: ExcelJS.Worksheet): {
 export function sumLeaves(items: ParsedRabItem[]): number {
   let t = 0;
   for (const it of items) {
-    // Grup = pakai total anak; kalau anak semua nihil (mis. baris deskripsi),
-    // jatuhkan ke total node sendiri agar leaf tak kehilangan nilainya.
     const childSum = it.children.length > 0 ? sumLeaves(it.children) : 0;
-    t += childSum > 0 ? childSum : it.total_price ?? 0;
+    const own = it.total_price ?? 0;
+    if (childSum === 0) {
+      t += own; // leaf: pakai nilai sendiri
+    } else if (own === 0) {
+      t += childSum; // grup tanpa nilai sendiri (konvensi umum RAB KKP: subtotal di baris terpisah)
+    } else if (Math.abs(own - childSum) <= Math.max(2, childSum * 0.001)) {
+      t += own; // baris grup memuat SUBTOTAL anak (breakdown) — jangan dihitung ganda
+    } else {
+      // Item BERHARGA yang juga punya baris tambahan (mis. "Pengiriman", atau baris
+      // berkode rusak #REF! yang nyangkut jadi anak) → jumlahkan keduanya, jangan
+      // membuang nilai item induknya. (Bug lama: nilai induk hilang.)
+      t += own + childSum;
+    }
   }
   return t;
 }
