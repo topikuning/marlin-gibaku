@@ -1871,3 +1871,16 @@ scurve — dengan test properti, bukan paritas nilai):**
 - Verifikasi file NYATA: "Buat Bedeng" → 1.559.155,82 (nego), bukan 1.707.676,69 (HPS);
   "Pagar Sementara" → 445.884,46 (nego). typecheck/lint ✓, 17 uji hps-parser (2 baru:
   header 2-baris nego, penawaran-tanpa-nego) + full unit ✓, build ✓.
+
+## 096 · 2026-07-25 · Import RAB: item berharga yang punya baris-tambahan tak boleh hilang nilainya
+
+- Bug (file RAB Asemdoyong, dari user "berapa totalnya"): total impor kurang Rp 7,19 jt
+  (0,22%) dari total file. Akar di `sumLeaves`: node dgn children memakai HANYA jumlah anak
+  dan MEMBUANG `total_price` node itu sendiri. Di kategori XI, item "4" (Pengadaan Tiang,
+  Rp 7,19 jt) punya anak nyasar (baris "Pengiriman" berkode **`#REF!`** → dibaca kode kosong
+  → nyangkut jadi anak) sehingga nilai induknya hilang.
+- Fix `sumLeaves`: leaf → nilai sendiri; grup tanpa nilai (own=0) → jumlah anak; grup yg
+  baris-nya memuat SUBTOTAL anak (|own−childSum| ≤ 0,1%) → own saja (anti dobel); selain itu
+  (item berharga + baris tambahan, own≠childSum) → **own + childSum**.
+- Verifikasi file NYATA: total 3.239.042.115 (persis sama dgn jumlah seluruh baris file);
+  kategori XI 213.950.001. typecheck/lint ✓, 144 unit test ✓ (3 uji baru `sumLeaves`), build ✓.

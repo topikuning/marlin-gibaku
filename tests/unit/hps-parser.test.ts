@@ -1,7 +1,33 @@
 import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
-import { classifyRow, isSummaryRow, parseHpsBuffer } from "@/lib/rab/hps-parser";
+import { classifyRow, isSummaryRow, parseHpsBuffer, sumLeaves } from "@/lib/rab/hps-parser";
 import { flattenParsedRab } from "@/lib/rab/flatten";
+
+const mk = (total: number | null, children: any[] = []): any => ({
+  code: "x",
+  name: "x",
+  volume: 1,
+  unit: "ls",
+  unit_price: total,
+  total_price: total,
+  tkdn_ratio: null,
+  parent_code: null,
+  children,
+});
+
+describe("sumLeaves", () => {
+  it("leaf → nilai sendiri; grup tanpa nilai → total anak", () => {
+    expect(sumLeaves([mk(500)])).toBe(500);
+    expect(sumLeaves([mk(null, [mk(300), mk(200)])])).toBe(500); // grup
+  });
+  it("item BERHARGA + baris tambahan (mis. pengiriman/#REF!) → dijumlahkan", () => {
+    // Bug lama: nilai induk (7000) hilang, hanya anak (2000) terhitung.
+    expect(sumLeaves([mk(7000, [mk(2000)])])).toBe(9000);
+  });
+  it("baris grup memuat SUBTOTAL anak (breakdown) → tidak dihitung ganda", () => {
+    expect(sumLeaves([mk(1000, [mk(600), mk(400)])])).toBe(1000);
+  });
+});
 
 async function xlsxFromRows(rows: (string | number | null)[][]): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
