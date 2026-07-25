@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
+import { Search } from "lucide-react";
 import { Banner, Button, Input, Label, Combobox, StatusPill } from "@/components/ui";
 import { ROLE_LABEL } from "@/lib/authz";
 import { formatTanggalWaktu } from "@/lib/format";
@@ -13,7 +14,82 @@ import {
 } from "@/lib/users/actions";
 import type { UserRole } from "@/generated/prisma/enums";
 
-type LocationOption = { id: string; name: string };
+type LocationOption = { id: string; name: string; company?: string | null };
+
+/**
+ * Daftar lokasi dengan pencarian (nama lokasi ATAU nama perusahaan) + centang.
+ * Dipakai di form buat pengguna dan editor penugasan. Saat lokasi banyak,
+ * mencari satu-satu terlalu ribet — kotak cari menyaring daftar seketika.
+ */
+function LocationPicker({
+  locations,
+  isChecked,
+  columns = false,
+}: {
+  locations: LocationOption[];
+  isChecked?: (id: string) => boolean;
+  columns?: boolean;
+}) {
+  const [q, setQ] = useState("");
+  // Cocokkan per-lokasi (bukan memfilter array) supaya SEMUA checkbox tetap
+  // ter-mount — yang tak cocok cuma disembunyikan (CSS). Kalau di-unmount,
+  // centang-nya hilang dari FormData saat submit.
+  const needle = q.trim().toLowerCase();
+  const matches = (l: LocationOption) =>
+    !needle ||
+    l.name.toLowerCase().includes(needle) ||
+    (l.company ? l.company.toLowerCase().includes(needle) : false);
+  const matchCount = useMemo(
+    () => (needle ? locations.filter(matches).length : locations.length),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [locations, needle],
+  );
+
+  return (
+    <div className="space-y-2">
+      <div className="relative">
+        <Search aria-hidden className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-ink-muted" />
+        <Input
+          type="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Cari nama lokasi atau perusahaan…"
+          className="pl-8"
+          aria-label="Cari lokasi"
+        />
+      </div>
+      <div className="max-h-52 overflow-y-auto rounded-md border border-border p-2">
+        {matchCount === 0 ? (
+          <p className="px-1 py-2 text-sm text-ink-muted">Tidak ada lokasi yang cocok.</p>
+        ) : null}
+        <div className={columns ? "grid gap-1 sm:grid-cols-2" : "space-y-1"}>
+          {locations.map((l) => (
+            <label
+              key={l.id}
+              className={`flex items-start gap-2 text-sm ${matches(l) ? "" : "hidden"}`}
+            >
+              <input
+                type="checkbox"
+                name="locationIds"
+                value={l.id}
+                defaultChecked={isChecked ? isChecked(l.id) : false}
+                className="mt-0.5 rounded border-border"
+              />
+              <span className="min-w-0">
+                {l.name}
+                {l.company ? <span className="block text-xs text-ink-muted">{l.company}</span> : null}
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+      <p className="text-xs text-ink-muted">
+        {needle ? `${matchCount} dari ${locations.length} lokasi` : `${locations.length} lokasi`}
+        {" · centang tetap tersimpan walau daftar difilter"}
+      </p>
+    </div>
+  );
+}
 type UserRow = {
   id: string;
   username: string;
@@ -59,14 +135,7 @@ export function UserForm({ locations, roles }: { locations: LocationOption[]; ro
       </div>
       <fieldset>
         <legend className="mb-1 text-sm font-medium text-ink">Penugasan lokasi</legend>
-        <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-border p-2">
-          {locations.map((l) => (
-            <label key={l.id} className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="locationIds" value={l.id} className="rounded border-border" />
-              {l.name}
-            </label>
-          ))}
-        </div>
+        <LocationPicker locations={locations} />
       </fieldset>
       <Button type="submit" loading={pending}>Buat pengguna</Button>
     </form>
@@ -80,20 +149,11 @@ function AssignmentEditor({ user, locations, onClose }: { user: UserRow; locatio
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
       <input type="hidden" name="userId" value={user.id} />
-      <div className="grid gap-1 sm:grid-cols-2">
-        {locations.map((l) => (
-          <label key={l.id} className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              name="locationIds"
-              value={l.id}
-              defaultChecked={user.assignments.some((a) => a.id === l.id)}
-              className="rounded border-border"
-            />
-            {l.name}
-          </label>
-        ))}
-      </div>
+      <LocationPicker
+        locations={locations}
+        columns
+        isChecked={(id) => user.assignments.some((a) => a.id === id)}
+      />
       <div className="flex gap-2">
         <Button size="sm" type="submit" loading={pending}>Simpan penugasan</Button>
         <Button size="sm" type="button" variant="ghost" onClick={onClose}>Tutup</Button>
