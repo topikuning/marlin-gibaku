@@ -143,7 +143,7 @@ export const ROLE_LABEL: Record<UserRole, string> = {
   project_manager: "Project Manager",
   site_manager: "Site Manager",
   field_supervisor: "Pelaksana",
-  exec_viewer: "Exec Viewer (KKP)",
+  exec_viewer: "Executive View",
 };
 
 export const ALL_ROLES = Object.keys(ROLE_LABEL) as UserRole[];
