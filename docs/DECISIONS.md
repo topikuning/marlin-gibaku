@@ -2286,3 +2286,17 @@ scurve — dengan test properti, bukan paritas nilai):**
     header workspace lokasi (`EditableLocationName`, inline) — muncul untuk super_admin/PD/RM/PM.
     Mengubah nama tampilan saja, slug tetap.
 - Verifikasi: typecheck/lint/build ✓.
+
+## 118 · 2026-07-25 · Revisi RAB = adendum HANYA setelah SPMK (bukan sekadar revisi ke-2)
+
+- **Bug**: impor RAB menandai revisi sebagai "adendum" hanya berdasarkan `isAdendum = ada
+  revisi aktif` — jadi revisi ke-2 apa pun langsung dicap adendum, walau kontrak **belum SPMK**
+  ("menunggu SPMK"). Adendum = perubahan kontrak yang SUDAH berjalan; sebelum SPMK, impor ulang
+  cuma **koreksi HPS awal**.
+- **Fix** (`lokasi/[slug]/rab/import/actions.ts`): `isAdendum = ada revisi aktif && kontrak sudah
+  SPMK` (`Contract.startDate != null`). Sebelum SPMK → source `hps_awal` (label "sumber HPS awal"),
+  baseline source `auto` (bukan `adendum`).
+- **Koreksi data lama** (migration `20260725225000_relabel_non_spmk_adendum`): turunkan
+  `rab_revisions.source` 'adendum'→'hps_awal' dan `baselines.source` 'adendum'→'auto' untuk semua
+  lokasi yang kontraknya belum SPMK (start_date kosong / tanpa kontrak).
+- Verifikasi: typecheck ✓.

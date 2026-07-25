@@ -53,7 +53,13 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     await requireLocationAccess(user, locId.data);
     const location = await db.location.findUniqueOrThrow({
       where: { id: locId.data },
-      select: { id: true, slug: true, name: true, packageId: true, package: { select: { orgId: true } } },
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        packageId: true,
+        package: { select: { orgId: true, contract: { select: { startDate: true } } } },
+      },
     });
 
     const file = formData.get("file");
@@ -81,7 +87,11 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       where: { locationId: location.id, status: "aktif" },
       select: { id: true },
     });
-    const isAdendum = activeRevision !== null;
+    // Adendum HANYA bila kontrak sudah SPMK/jalan (startDate terisi). Sebelum SPMK
+    // (masih "menunggu SPMK"), impor RAB ulang = KOREKSI HPS awal, bukan adendum
+    // resmi. DECISIONS 118.
+    const contractStarted = location.package?.contract?.startDate != null;
+    const isAdendum = activeRevision !== null && contractStarted;
 
     const preview: ImportPreview = {
       fileName: file.name,
