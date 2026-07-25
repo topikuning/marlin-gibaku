@@ -8,7 +8,8 @@ import { getWahaConfigDisplay } from "@/lib/waha/config";
 import { db } from "@/lib/db";
 import { formatTanggalWaktu } from "@/lib/format";
 import { getBranding, BRAND_DEFAULTS } from "@/lib/branding";
-import { R2TestPanel, ResetPanel, BrandingPanel, WahaConfigPanel } from "./sistem-client";
+import { getPhotoStampConfig } from "@/lib/photo-stamp/config";
+import { R2TestPanel, ResetPanel, BrandingPanel, WahaConfigPanel, PhotoStampPanel } from "./sistem-client";
 
 export const metadata: Metadata = { title: "Sistem" };
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
 export default async function SistemPage() {
   const user = await requireUser();
   requireCapabilityPage(user.role, "system.manage");
-  const [auditLogs, sessionCount, branding, wahaDisplay] = await Promise.all([
+  const [auditLogs, sessionCount, branding, wahaDisplay, photoStamp] = await Promise.all([
     db.auditLog.findMany({
       orderBy: { createdAt: "desc" },
       take: 100,
@@ -32,6 +33,7 @@ export default async function SistemPage() {
     db.session.count({ where: { revokedAt: null, expiresAt: { gt: new Date() } } }),
     getBranding(),
     getWahaConfigDisplay(),
+    getPhotoStampConfig(),
   ]);
   const wahaConfigured = wahaDisplay.hasApiKey && wahaDisplay.baseUrl.length > 0;
 
@@ -83,6 +85,16 @@ export default async function SistemPage() {
         <CardHeader title="Branding" subtitle="Identitas produk (global) + konteks proyek (tambahan)" />
         <CardBody>
           <BrandingPanel initial={branding} defaults={BRAND_DEFAULTS} />
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Cap Foto — Warna Aksen & Tata Letak"
+          subtitle="Warna aksen photo stamp, kekuatan overlay, ukuran, dan elemen yang ditampilkan"
+        />
+        <CardBody>
+          <PhotoStampPanel initial={photoStamp} />
         </CardBody>
       </Card>
 
