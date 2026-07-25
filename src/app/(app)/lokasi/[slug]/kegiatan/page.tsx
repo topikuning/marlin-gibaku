@@ -34,7 +34,7 @@ export default async function KegiatanLapanganPage({ params }: { params: Promise
   const todayKey = jakartaDateKey(jakartaToday());
 
   // Grup WA paket (tujuan kiriman kegiatan). Sama untuk semua kegiatan lokasi ini.
-  const wahaConfigured = isWahaConfigured();
+  const wahaConfigured = await isWahaConfigured();
   const pkgGroup =
     canManage && wahaConfigured
       ? await db.location.findUnique({

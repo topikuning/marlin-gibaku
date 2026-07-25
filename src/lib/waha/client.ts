@@ -1,16 +1,18 @@
 import "server-only";
-import { env } from "@/lib/env";
+import { getWahaConfig } from "@/lib/waha/config";
 
 /**
  * Klien WAHA (WhatsApp HTTP API) — https://waha.devlike.pro.
  *
- * WAHA di-host terpisah (Docker/Railway). Kita hanya bicara REST:
+ * WAHA di-host terpisah (Docker/Railway). Config (URL + API key + sesi) dibaca
+ * dari SETTING APLIKASI di DB (lihat waha/config.ts), bukan environment. Kita
+ * hanya bicara REST:
  * - POST /api/sendText   { session, chatId, text }
  * - POST /api/sendImage  { session, chatId, file:{mimetype,filename,data|url}, caption }
  * - POST /api/sendFile   { session, chatId, file:{mimetype,filename,data|url}, caption }
  * - GET  /api/{session}/groups            → daftar grup
  * - GET  /api/sessions/{session}          → status sesi (WORKING / SCAN_QR_CODE / ...)
- * Auth: header `X-Api-Key: <WAHA_API_KEY>`.
+ * Auth: header `X-Api-Key: <api key>`.
  *
  * File dikirim sebagai base64 (`file.data`) dari byte yang kita ambil sendiri
  * dari R2 — supaya tidak bergantung pada WAHA bisa menjangkau presigned URL kita.
@@ -18,19 +20,19 @@ import { env } from "@/lib/env";
 
 export class WahaError extends Error {}
 
-export function isWahaConfigured(): boolean {
-  return env.waha != null;
-}
+// Re-export supaya pemanggil lama tetap jalan (isWahaConfigured async, dari DB).
+export { isWahaConfigured } from "@/lib/waha/config";
 
 /** Ambil config atau lempar error ramah kalau belum diatur. */
-function cfg() {
-  if (!env.waha) {
-    throw new WahaError("Integrasi WhatsApp (WAHA) belum dikonfigurasi — isi WAHA_BASE_URL & WAHA_API_KEY.");
+async function cfg() {
+  const c = await getWahaConfig();
+  if (!c) {
+    throw new WahaError(
+      "Integrasi WhatsApp (WAHA) belum dikonfigurasi — atur URL & API key di halaman Sistem.",
+    );
   }
-  return env.waha;
+  return c;
 }
-
-export const wahaSession = (): string => cfg().session;
 
 /** Format chatId grup: pastikan berakhiran @g.us (terima id polos atau lengkap). */
 export function normalizeGroupChatId(raw: string): string {
@@ -43,14 +45,15 @@ export function normalizeGroupChatId(raw: string): string {
   throw new WahaError(`Format ID grup tidak dikenal: ${raw} (harusnya seperti 12036300000000@g.us)`);
 }
 
-async function wahaFetch(path: string, init?: RequestInit): Promise<Response> {
-  const { baseUrl, apiKey } = cfg();
+type ResolvedCfg = { baseUrl: string; apiKey: string; session: string };
+
+async function wahaFetch(c: ResolvedCfg, path: string, init?: RequestInit): Promise<Response> {
   let res: Response;
   try {
-    res = await fetch(`${baseUrl}${path}`, {
+    res = await fetch(`${c.baseUrl}${path}`, {
       ...init,
       headers: {
-        "X-Api-Key": apiKey,
+        "X-Api-Key": c.apiKey,
         ...(init?.body ? { "Content-Type": "application/json" } : {}),
         ...(init?.headers ?? {}),
       },
@@ -59,7 +62,7 @@ async function wahaFetch(path: string, init?: RequestInit): Promise<Response> {
     });
   } catch (err) {
     throw new WahaError(
-      `Tidak bisa menghubungi server WAHA (${baseUrl}): ${err instanceof Error ? err.message : "gagal koneksi"}`,
+      `Tidak bisa menghubungi server WAHA (${c.baseUrl}): ${err instanceof Error ? err.message : "gagal koneksi"}`,
     );
   }
   if (!res.ok) {
@@ -70,7 +73,7 @@ async function wahaFetch(path: string, init?: RequestInit): Promise<Response> {
       /* abaikan */
     }
     if (res.status === 401 || res.status === 403) {
-      throw new WahaError("WAHA menolak API key (401/403) — periksa WAHA_API_KEY.");
+      throw new WahaError("WAHA menolak API key (401/403) — periksa API key di halaman Sistem.");
     }
     throw new WahaError(`WAHA error ${res.status}: ${detail.slice(0, 300) || res.statusText}`);
   }
@@ -85,7 +88,8 @@ export type WahaSessionStatus = {
 
 /** Status sesi WA (login/belum). */
 export async function getSessionStatus(): Promise<WahaSessionStatus> {
-  const res = await wahaFetch(`/api/sessions/${encodeURIComponent(wahaSession())}`);
+  const c = await cfg();
+  const res = await wahaFetch(c, `/api/sessions/${encodeURIComponent(c.session)}`);
   const data = (await res.json()) as WahaSessionStatus;
   return data;
 }
@@ -94,7 +98,8 @@ export type WahaGroup = { id: string; name: string };
 
 /** Daftar grup WA yang bisa dikirimi (butuh sesi WORKING). */
 export async function listGroups(): Promise<WahaGroup[]> {
-  const res = await wahaFetch(`/api/${encodeURIComponent(wahaSession())}/groups`);
+  const c = await cfg();
+  const res = await wahaFetch(c, `/api/${encodeURIComponent(c.session)}/groups`);
   const data = (await res.json()) as unknown;
   const arr = Array.isArray(data) ? data : [];
   return arr
@@ -119,23 +124,26 @@ export async function listGroups(): Promise<WahaGroup[]> {
 type FilePayload = { mimetype: string; filename: string; data: string }; // data = base64
 
 export async function sendText(chatId: string, text: string): Promise<void> {
-  await wahaFetch(`/api/sendText`, {
+  const c = await cfg();
+  await wahaFetch(c, `/api/sendText`, {
     method: "POST",
-    body: JSON.stringify({ session: wahaSession(), chatId, text }),
+    body: JSON.stringify({ session: c.session, chatId, text }),
   });
 }
 
 export async function sendImage(chatId: string, file: FilePayload, caption?: string): Promise<void> {
-  await wahaFetch(`/api/sendImage`, {
+  const c = await cfg();
+  await wahaFetch(c, `/api/sendImage`, {
     method: "POST",
-    body: JSON.stringify({ session: wahaSession(), chatId, file, caption: caption || undefined }),
+    body: JSON.stringify({ session: c.session, chatId, file, caption: caption || undefined }),
   });
 }
 
 export async function sendFile(chatId: string, file: FilePayload, caption?: string): Promise<void> {
-  await wahaFetch(`/api/sendFile`, {
+  const c = await cfg();
+  await wahaFetch(c, `/api/sendFile`, {
     method: "POST",
-    body: JSON.stringify({ session: wahaSession(), chatId, file, caption: caption || undefined }),
+    body: JSON.stringify({ session: c.session, chatId, file, caption: caption || undefined }),
   });
 }
 

@@ -352,7 +352,7 @@ export default async function RingkasanPaketPage({
               packageId={pkg.id}
               currentGroupId={pkg.waGroupId}
               currentGroupName={pkg.waGroupName}
-              wahaConfigured={isWahaConfigured()}
+              wahaConfigured={await isWahaConfigured()}
             />
           </CardBody>
         </Card>

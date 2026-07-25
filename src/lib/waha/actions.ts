@@ -19,13 +19,52 @@ import {
   toFilePayload,
   type WahaGroup,
 } from "@/lib/waha/client";
+import { WahaConfigError, setWahaConfig } from "@/lib/waha/config";
 
 export type WaActionState = { error?: string; success?: string; warning?: string } | undefined;
 
 function fail(err: unknown): WaActionState {
   if (err instanceof ForbiddenError) return { error: err.message };
-  if (err instanceof WahaError) return { error: err.message };
+  if (err instanceof WahaError || err instanceof WahaConfigError) return { error: err.message };
   return { error: err instanceof Error ? err.message : "Terjadi kesalahan." };
+}
+
+/* ------------------------------------------------------------------ */
+/* Konfigurasi WAHA (setting aplikasi, khusus super_admin)             */
+/* ------------------------------------------------------------------ */
+
+const saveConfigSchema = z.object({
+  baseUrl: z.string().trim().max(300),
+  apiKey: z.string().max(300),
+  session: z.string().trim().max(100),
+});
+
+/**
+ * Simpan konfigurasi WAHA (URL/API key/sesi) sebagai setting aplikasi.
+ * apiKey kosong = pertahankan yang lama; "-" = hapus.
+ */
+export async function saveWahaConfigAction(
+  _prev: WaActionState,
+  formData: FormData,
+): Promise<WaActionState> {
+  const parsed = saveConfigSchema.safeParse({
+    baseUrl: formData.get("baseUrl") ?? "",
+    apiKey: formData.get("apiKey") ?? "",
+    session: formData.get("session") ?? "",
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const d = parsed.data;
+  try {
+    const user = await requireCapability("system.manage");
+    // apiKey: undefined (jangan ubah) bila kosong; "" (hapus) bila "-".
+    const apiKey = d.apiKey.trim() === "" ? undefined : d.apiKey.trim() === "-" ? "" : d.apiKey;
+    await setWahaConfig({ baseUrl: d.baseUrl, apiKey, session: d.session });
+    await audit(user.id, "system.waha_config", "app_setting", null, {});
+    revalidatePath("/sistem");
+    return { success: "Konfigurasi WhatsApp disimpan." };
+  } catch (err) {
+    return fail(err);
+  }
 }
 
 /* ------------------------------------------------------------------ */

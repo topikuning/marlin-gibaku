@@ -46,21 +46,23 @@ port 3000 (dapatkan URL publik, mis. `https://waha-xxxx.up.railway.app`).
 
 Akun WhatsApp pengirim **harus sudah menjadi anggota** setiap grup tujuan.
 
-## 3. Konfigurasi MARLIN
+## 3. Konfigurasi MARLIN (di halaman Sistem — bukan environment)
 
-Set environment variable pada service MARLIN (Railway → Variables):
+Konfigurasi WAHA disimpan sebagai **setting aplikasi di database**, diisi lewat UI,
+**tanpa perlu redeploy**. Buka **Sistem → WhatsApp (WAHA)** (khusus super admin):
 
-| Variabel        | Contoh                                   | Keterangan                          |
-|-----------------|------------------------------------------|-------------------------------------|
-| `WAHA_BASE_URL` | `https://waha-xxxx.up.railway.app`       | URL server WAHA (tanpa `/api`)      |
-| `WAHA_API_KEY`  | `ISI_API_KEY_RAHASIA_PANJANG`            | Sama dengan `WAHA_API_KEY` di WAHA  |
-| `WAHA_SESSION`  | `default`                                | Opsional (default: `default`)       |
+| Field         | Contoh                              | Keterangan                                    |
+|---------------|-------------------------------------|-----------------------------------------------|
+| URL server    | `https://waha-xxxx.up.railway.app`  | URL server WAHA (tanpa `/api`)                |
+| API key       | `ISI_API_KEY_RAHASIA_PANJANG`       | Sama dengan `WAHA_API_KEY` di container WAHA  |
+| Nama sesi     | `default`                           | Opsional (default: `default`)                 |
 
-`WAHA_BASE_URL` & `WAHA_API_KEY` **wajib bersamaan** — isi keduanya atau kosongkan
-keduanya (kalau kosong, fitur WA menonaktifkan diri, tidak error).
+- API key **hanya dibaca di server** (tidak dikirim ke browser) dan ditampilkan tersamar.
+  Saat menyimpan, **kosongkan** field API key untuk mempertahankan yang lama; ketik `-`
+  lalu simpan untuk menghapus.
+- Ganti server WAHA / rotasi key cukup ubah di sini — langsung berlaku, tanpa redeploy.
 
-Verifikasi di **Sistem → Diagnostik WhatsApp (WAHA)**: klik "Cek status WhatsApp".
-Harus `WORKING`.
+Verifikasi: klik **Cek status WhatsApp** di kartu yang sama. Harus `WORKING`.
 
 ## 4. Set grup WA per paket
 
@@ -87,3 +89,5 @@ kendala, solusi, lokasi) + **semua foto** (sebagai gambar) + **semua dokumen**
 - Foto sudah ber-cap (waktu/GPS/perusahaan) saat unggah, dikirim apa adanya (JPEG).
 - Endpoint yang dipakai: `POST /api/sendText`, `/api/sendImage`, `/api/sendFile`;
   `GET /api/{session}/groups`; `GET /api/sessions/{session}`. Auth header `X-Api-Key`.
+- Konfigurasi (URL/API key/sesi) disimpan di tabel `AppSetting` (key-value, effective-
+  dated) — pola sama dengan Branding — bukan environment. Lihat `src/lib/waha/config.ts`.

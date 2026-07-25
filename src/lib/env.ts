@@ -26,31 +26,7 @@ export type R2Config = {
   secretAccessKey: string;
 };
 
-export type WahaConfig = {
-  baseUrl: string;
-  apiKey: string;
-  session: string;
-};
-
 export class EnvError extends Error {}
-
-/** Normalisasi base URL WAHA: trim, wajib http(s), buang trailing slash & path /api. */
-export function normalizeWahaBaseUrl(raw: string): string {
-  const trimmed = raw.trim().replace(/\/+$/, "");
-  const withProto = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-  let url: URL;
-  try {
-    url = new URL(withProto);
-  } catch {
-    throw new EnvError(`WAHA_BASE_URL bukan URL valid: ${raw}`);
-  }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new EnvError("WAHA_BASE_URL wajib http(s)");
-  }
-  // Buang path /api bila ikut ditempel — klien menambahkannya sendiri.
-  const path = url.pathname.replace(/\/api\/?$/, "").replace(/\/+$/, "");
-  return `${url.protocol}//${url.host}${path}`;
-}
 
 /** Normalisasi endpoint R2: trim, tolak protokol ganda, wajib https, tolak r2.dev (bukan endpoint S3). */
 export function normalizeR2Endpoint(raw: string): string {
@@ -105,24 +81,7 @@ function loadEnv() {
     };
   }
 
-  // WAHA (WhatsApp HTTP API) — opsional. Butuh base URL + API key kalau dipakai.
-  // Session default "default". Kalau salah satu diisi, base URL & key wajib.
-  const anyWaha = process.env.WAHA_BASE_URL || process.env.WAHA_API_KEY;
-  let waha: WahaConfig | null = null;
-  if (anyWaha) {
-    if (!process.env.WAHA_BASE_URL || !process.env.WAHA_API_KEY) {
-      throw new EnvError(
-        "Konfigurasi WAHA tidak lengkap: WAHA_BASE_URL dan WAHA_API_KEY wajib diisi bersamaan (atau kosongkan keduanya)",
-      );
-    }
-    waha = {
-      baseUrl: normalizeWahaBaseUrl(process.env.WAHA_BASE_URL),
-      apiKey: process.env.WAHA_API_KEY.trim(),
-      session: (process.env.WAHA_SESSION || "default").trim(),
-    };
-  }
-
-  return { ...parsed.data, r2, waha };
+  return { ...parsed.data, r2 };
 }
 
 export const env = loadEnv();

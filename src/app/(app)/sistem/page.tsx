@@ -4,11 +4,11 @@ import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { env } from "@/lib/env";
 import { isR2Configured } from "@/lib/r2";
-import { isWahaConfigured } from "@/lib/waha/client";
+import { getWahaConfigDisplay } from "@/lib/waha/config";
 import { db } from "@/lib/db";
 import { formatTanggalWaktu } from "@/lib/format";
 import { getBranding, BRAND_DEFAULTS } from "@/lib/branding";
-import { R2TestPanel, ResetPanel, BrandingPanel, WahaTestPanel } from "./sistem-client";
+import { R2TestPanel, ResetPanel, BrandingPanel, WahaConfigPanel } from "./sistem-client";
 
 export const metadata: Metadata = { title: "Sistem" };
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 export default async function SistemPage() {
   const user = await requireUser();
   requireCapabilityPage(user.role, "system.manage");
-  const [auditLogs, sessionCount, branding] = await Promise.all([
+  const [auditLogs, sessionCount, branding, wahaDisplay] = await Promise.all([
     db.auditLog.findMany({
       orderBy: { createdAt: "desc" },
       take: 100,
@@ -31,7 +31,9 @@ export default async function SistemPage() {
     }),
     db.session.count({ where: { revokedAt: null, expiresAt: { gt: new Date() } } }),
     getBranding(),
+    getWahaConfigDisplay(),
   ]);
+  const wahaConfigured = wahaDisplay.hasApiKey && wahaDisplay.baseUrl.length > 0;
 
   return (
     <div className="space-y-6">
@@ -52,7 +54,7 @@ export default async function SistemPage() {
               </div>
               <div className="flex justify-between">
                 <dt className="text-ink-muted">WhatsApp (WAHA)</dt>
-                <dd><StatusPill tone={isWahaConfigured() ? "success" : "neutral"} label={isWahaConfigured() ? "Terkonfigurasi" : "Belum dikonfigurasi"} /></dd>
+                <dd><StatusPill tone={wahaConfigured ? "success" : "neutral"} label={wahaConfigured ? "Terkonfigurasi" : "Belum dikonfigurasi"} /></dd>
               </div>
               <div className="flex justify-between">
                 <dt className="text-ink-muted">Sesi aktif</dt>
@@ -70,9 +72,9 @@ export default async function SistemPage() {
         </Card>
 
         <Card>
-          <CardHeader title="Diagnostik WhatsApp (WAHA)" subtitle="Cek koneksi server WAHA + status login sesi WhatsApp" />
+          <CardHeader title="WhatsApp (WAHA)" subtitle="Konfigurasi server WAHA (URL + API key + sesi) & cek status login. Panduan: docs/WAHA_SETUP.md" />
           <CardBody>
-            <WahaTestPanel configured={isWahaConfigured()} />
+            <WahaConfigPanel initial={wahaDisplay} />
           </CardBody>
         </Card>
       </div>

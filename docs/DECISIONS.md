@@ -1921,10 +1921,13 @@ scurve — dengan test properti, bukan paritas nilai):**
   [WAHA](https://waha.devlike.pro) (self-hosted, Docker terpisah). Karena hierarki
   lokasi→paket, semua kiriman lokasi otomatis ke grup paketnya. Tersimpan di
   `Package.waGroupId`/`waGroupName` (WAHA chatId `…@g.us`). Migration `20260725010000_waha_integration`.
-- **Config** (opsional, seperti R2): env `WAHA_BASE_URL`, `WAHA_API_KEY`, `WAHA_SESSION`
-  (default `default`). Wajib berpasangan; kalau kosong fitur menonaktifkan diri tanpa error.
-  `src/lib/env.ts` validasi + `normalizeWahaBaseUrl` (buang trailing `/api`). Panduan deploy
-  lengkap: `docs/WAHA_SETUP.md` (image `devlikeapro/waha:latest`, engine NOWEB, scan QR).
+- **Config = SETTING APLIKASI di DB (bukan env)**: disimpan di `AppSetting` (key-value,
+  effective-dated) — pola sama dengan Branding — diatur admin di halaman Sistem TANPA
+  redeploy (`src/lib/waha/config.ts`: `getWahaConfig`/`setWahaConfig`/`getWahaConfigDisplay`,
+  `normalizeWahaBaseUrl`). API key server-only, tak pernah ke klien; form menampilkannya
+  tersamar (kosong = pertahankan, `-` = hapus). `saveWahaConfigAction` gate `system.manage`.
+  Alasan pilih DB vs env: admin non-teknis bisa ganti server/rotasi key sendiri. Panduan
+  deploy: `docs/WAHA_SETUP.md` (image `devlikeapro/waha:latest`, engine NOWEB, scan QR).
 - **Klien** `src/lib/waha/client.ts`: `sendText`/`sendImage`/`sendFile` (file base64 dari byte
   R2 sendiri — WAHA tak perlu jangkau presigned URL), `listGroups`, `getSessionStatus`,
   `normalizeGroupChatId`. Auth header `X-Api-Key`.
