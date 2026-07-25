@@ -56,17 +56,18 @@ async function addKurvaSheet(
   const N = sheet.totalWeeks;
   const FIRST = 4; // A=No, B=Uraian, C=Bobot, D.. = minggu
   const lastCol = 3 + N;
+  const ketCol = lastCol + 1; // kolom skala 0–100% (KETERANGAN) di kanan
   const ws = wb.addWorksheet(opts?.sheetName ?? "Kurva S", {
     pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   });
-  ws.columns = [{ width: 5 }, { width: 40 }, { width: 9 }, ...Array.from({ length: N }, () => ({ width: 6 }))];
+  ws.columns = [{ width: 5 }, { width: 40 }, { width: 9 }, ...Array.from({ length: N }, () => ({ width: 6 })), { width: 8 }];
 
   const thin = { style: "thin" as const };
   const box = { top: thin, bottom: thin, left: thin, right: thin };
 
   const banner = (text: string, bold: boolean, size: number) => {
     const row = ws.addRow([text]);
-    ws.mergeCells(row.number, 1, row.number, lastCol);
+    ws.mergeCells(row.number, 1, row.number, ketCol);
     row.getCell(1).font = { bold, size };
     row.getCell(1).alignment = { horizontal: "center" };
   };
@@ -90,9 +91,11 @@ async function addKurvaSheet(
   ws.mergeCells(monthRow.number, 1, weekRow.number, 1);
   ws.mergeCells(monthRow.number, 2, weekRow.number, 2);
   ws.mergeCells(monthRow.number, 3, weekRow.number, 3);
+  monthRow.getCell(ketCol).value = "KET";
+  ws.mergeCells(monthRow.number, ketCol, weekRow.number, ketCol); // header KET 2 baris
   for (const row of [monthRow, weekRow]) {
     row.eachCell({ includeEmpty: true }, (cell, col) => {
-      if (col > lastCol) return;
+      if (col > ketCol) return;
       cell.font = { bold: true, size: 8 };
       cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
       cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
@@ -101,8 +104,10 @@ async function addKurvaSheet(
   }
 
   // Baris kategori (bobot + increment mingguan).
+  const catRowNums: number[] = [];
   for (const cat of sheet.categories) {
     const row = ws.addRow([cat.code, cat.name, round2(cat.bobot), ...cat.weekly.map((v) => (v >= 0.0005 ? round3(v) : null))]);
+    catRowNums.push(row.number);
     row.eachCell({ includeEmpty: true }, (cell, col) => {
       if (col > lastCol) return;
       cell.border = box;
@@ -111,6 +116,9 @@ async function addKurvaSheet(
       else if (col === 3) { cell.alignment = { horizontal: "center" }; cell.numFmt = "#,##0.00"; }
       else if (col >= FIRST) { cell.alignment = { horizontal: "right" }; cell.numFmt = "#,##0.000"; }
     });
+    // Sel KET (skala 0–100%) — garis sumbu kiri tebal supaya terbaca sbg sumbu.
+    const ket = row.getCell(ketCol);
+    ket.border = { ...box, left: { style: "medium" } };
   }
 
   // Baris prestasi (kumulatif rencana/realisasi + deviasi).
@@ -139,6 +147,29 @@ async function addKurvaSheet(
       cell.alignment = { horizontal: "right" };
       cell.font = { size: 8, bold };
       cell.border = box;
+    }
+    row.getCell(ketCol).border = box; // KET tetap berpetak di baris prestasi
+  }
+
+  // Skala 0–100% di kolom KET, sejajar rentang vertikal kurva (baris kategori):
+  // 100 di atas baris pertama, 0 di bawah baris terakhir, 75/50/25 proporsional.
+  const M = catRowNums.length;
+  if (M > 0) {
+    const marks: [number, number, "top" | "middle" | "bottom"][] = [
+      [100, catRowNums[0], "top"],
+      [0, catRowNums[M - 1], "bottom"],
+    ];
+    if (M >= 3) marks.push([50, catRowNums[Math.round((M - 1) / 2)], "middle"]);
+    if (M >= 6) {
+      marks.push([75, catRowNums[Math.round((M - 1) * 0.25)], "middle"]);
+      marks.push([25, catRowNums[Math.round((M - 1) * 0.75)], "middle"]);
+    }
+    for (const [val, rowN, vAlign] of marks) {
+      const cell = ws.getRow(rowN).getCell(ketCol);
+      cell.value = val;
+      cell.numFmt = '0"%"';
+      cell.font = { size: 8, bold: true, color: { argb: "FF475569" } };
+      cell.alignment = { horizontal: "right", vertical: vAlign };
     }
   }
 

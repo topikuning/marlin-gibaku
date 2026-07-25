@@ -99,7 +99,7 @@ export function ScurveKkpSheet({
             </tr>
             <tr>
               <td className="pr-2 font-semibold">Rencana</td>
-              <td>: <span className="inline-block h-0 w-8 border-t-2 border-dashed border-slate-500 align-middle" /></td>
+              <td>: <span className="inline-block h-0 w-8 border-t-2 border-solid border-blue-600 align-middle" /></td>
             </tr>
             <tr>
               <td className="pr-2 font-semibold">Realisasi</td>
@@ -192,17 +192,30 @@ export function ScurveKkpSheet({
           {[0, 25, 50, 75, 100].map((g) => (
             <line key={g} x1={0} y1={yFor(g)} x2={plotW} y2={yFor(g)} stroke="#cbd5e1" strokeWidth={0.5} />
           ))}
-          <polyline points={planPts} fill="none" stroke="#64748b" strokeWidth={1.2} strokeDasharray="4 3" />
+          <polyline points={planPts} fill="none" stroke="#2563eb" strokeWidth={1.4} />
+          {sheet.kumulatifRencana.map((p, i) => (
+            <circle key={i} cx={xFor(i + 1)} cy={yFor(p)} r={1.8} fill="#2563eb" />
+          ))}
           {actualIdx.length > 0 ? (
-            <polyline points={actualPts} fill="none" stroke="#16a34a" strokeWidth={1.6} />
+            <>
+              <polyline points={actualPts} fill="none" stroke="#16a34a" strokeWidth={1.6} />
+              {actualIdx.map((i) => (
+                <circle key={i} cx={xFor(i + 1)} cy={yFor(sheet.kumulatifRealisasi[i] as number)} r={1.8} fill="#16a34a" />
+              ))}
+            </>
           ) : null}
         </svg>
 
-        {/* Sumbu % kanan */}
-        <div className="pointer-events-none absolute text-[7px] text-slate-500" style={{ left: LEFT + plotW + 3, top: HEAD_H * 2 }}>
-          {[100, 80, 60, 40, 20, 0].map((g) => (
-            <div key={g} style={{ position: "absolute", top: yFor(g) - 4 }}>
-              {g}%
+        {/* Skala 0–100% (kolom KET) — sejajar rentang vertikal kurva */}
+        <div
+          className="pointer-events-none absolute"
+          style={{ left: LEFT + plotW, top: HEAD_H * 2, width: W_KET, height: plotH }}
+        >
+          <div className="absolute bg-slate-400" style={{ left: 0, top: 0, width: 1, height: plotH }} />
+          {[100, 75, 50, 25, 0].map((g) => (
+            <div key={g} className="absolute flex items-center" style={{ top: yFor(g) - 4, left: 0 }}>
+              <span className="inline-block bg-slate-500" style={{ width: 3, height: 1 }} />
+              <span className="ml-0.5 text-[7px] font-semibold text-slate-700">{g}%</span>
             </div>
           ))}
         </div>

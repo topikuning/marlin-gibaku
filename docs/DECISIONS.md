@@ -1739,3 +1739,23 @@ scurve — dengan test properti, bukan paritas nilai):**
 - Verifikasi: typecheck/lint ✓, 134 unit test ✓ (uji ditambah: `noFill` transparan +
   `manualLayout` + tepat 2 sumbu `delete=1`), build ✓. openpyxl: LineChart 2 deret; anchor
   D..kolom-terakhir × baris kategori (dikonfirmasi dari drawing1.xml).
+
+## 088 · 2026-07-25 · Kurva-S: skala 0–100% (KET) + titik marker tak kepotong
+
+- Feedback user (screenshot Excel): (1) titik marker kurva kepotong di tepi atas frame;
+  (2) tak ada penanda skala 0–50–100 vertikal seperti kolom "KETERANGAN" pada TS sipil —
+  di Excel MAUPUN PDF.
+- Fix marker kepotong: `plotArea/manualLayout` inner di-inset vertikal (y=0.03, h=0.94) →
+  titik di 0%/100% tak lagi menyentuh tepi frame (offset ~3% terhadap label KET, dapat
+  diabaikan).
+- Skala 0–100% (Excel, `addKurvaSheet`): tambah kolom "KET" di kanan (setelah kolom minggu).
+  Header KET merge 2 baris; sel per baris kategori diberi garis sumbu kiri (border medium).
+  Label 100/75/50/25/0 ditaruh di baris kategori proporsional (100 valign-top di baris
+  pertama, 0 valign-bottom di baris terakhir, 50 di tengah; 75/25 bila ≥6 kategori) → sejajar
+  rentang vertikal kurva (chart di-anchor firstCatRow..lastCatRow). Banner ikut melebar ke KET.
+- Skala 0–100% (PDF, `ScurveKkpSheet`): sumbu % kanan lama (samar) diganti — garis sumbu
+  vertikal + tick + label 100/75/50/25/0 tebal di kolom KET, sejajar gridline. Garis rencana
+  jadi biru solid + titik marker (dulu abu putus-putus), realisasi hijau + marker; legenda
+  header disesuaikan.
+- Verifikasi: typecheck/lint ✓, 134 unit test ✓, build ✓. openpyxl: kolom KET (Z) berisi
+  100(top)…0(bottom) sejajar baris kategori; manualLayout y=0.03/h=0.94.

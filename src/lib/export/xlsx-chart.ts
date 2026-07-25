@@ -74,7 +74,7 @@ function chartXml(spec: LineChartSpec): string {
         <c:manualLayout>
           <c:layoutTarget val="inner"/>
           <c:xMode val="edge"/><c:yMode val="edge"/>
-          <c:x val="0"/><c:y val="0"/><c:w val="1"/><c:h val="1"/>
+          <c:x val="0"/><c:y val="0.03"/><c:w val="1"/><c:h val="0.94"/>
         </c:manualLayout>
       </c:layout>
       <c:lineChart>
