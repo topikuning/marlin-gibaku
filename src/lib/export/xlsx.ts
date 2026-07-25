@@ -1,12 +1,15 @@
 import "server-only";
 import ExcelJS from "exceljs";
 import type { PeriodReport } from "@/lib/periodic-report";
+import { buildKurvaSheet } from "@/lib/scurve/kkp-sheet";
+import { addLineChartToXlsx, colLetter, type LineChartSpec } from "@/lib/export/xlsx-chart";
 import { formatTanggal } from "@/lib/format";
 
 /**
  * Export laporan periodik ke .xlsx (exceljs, server-side — BUKAN AG Grid export).
- * Satu sheet "Laporan": header identitas → tabel item per kategori → totals.
- * Format angka #,##0.00 agar konsisten dibuka di Excel Indonesia.
+ * Sheet-1 "Kurva S": tabel bobot kategori × minggu + baris prestasi + GAMBAR grafik
+ * kurva-S (setara halaman-1 PDF). Sheet-2 "Laporan": header identitas → tabel item
+ * per kategori → totals. Format angka #,##0.00 agar konsisten di Excel Indonesia.
  */
 
 const NUM_FMT = "#,##0.00";
@@ -30,10 +33,209 @@ const COLUMNS = [
   { header: "Sisa %", width: 9 },
 ] as const;
 
+const round2 = (n: number) => Math.round(n * 100) / 100;
+const round3 = (n: number) => Math.round(n * 1000) / 1000;
+
+/**
+ * Sheet-1 "Kurva S": tabel bobot kategori × minggu (increment) + baris prestasi
+ * (rencana/realisasi kumulatif + deviasi) + GAMBAR grafik kurva-S. Angka identik
+ * dgn tabel KKP & kurva PDF (satu sumber, buildKurvaSheet).
+ */
+async function addKurvaSheet(
+  wb: ExcelJS.Workbook,
+  r: PeriodReport,
+  opts?: { sheetName?: string },
+): Promise<LineChartSpec> {
+  const sheet = buildKurvaSheet({
+    categories: r.kurvaSchedule,
+    totalWeeks: r.totalWeeks,
+    contractStart: r.header.contractStart,
+    actualCum: r.scurve.actualPct,
+    currentWeek: r.scurve.currentWeek,
+  });
+  const N = sheet.totalWeeks;
+  const FIRST = 4; // A=No, B=Uraian, C=Bobot, D.. = minggu
+  const lastCol = 3 + N;
+  // KETERANGAN di kanan: 2 kolom sempit batang skala checkerboard (0–100%) + 1 kolom label.
+  const scaleA = lastCol + 1;
+  const scaleB = lastCol + 2;
+  const ketLabel = lastCol + 3;
+  const lastTableCol = ketLabel;
+  const ws = wb.addWorksheet(opts?.sheetName ?? "Kurva S", {
+    pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+  });
+  ws.columns = [
+    { width: 5 },
+    { width: 40 },
+    { width: 9 },
+    ...Array.from({ length: N }, () => ({ width: 6 })),
+    { width: 2.6 },
+    { width: 2.6 },
+    { width: 6 },
+  ];
+
+  const thin = { style: "thin" as const };
+  const box = { top: thin, bottom: thin, left: thin, right: thin };
+
+  const banner = (text: string, bold: boolean, size: number) => {
+    const row = ws.addRow([text]);
+    ws.mergeCells(row.number, 1, row.number, lastTableCol);
+    row.getCell(1).font = { bold, size };
+    row.getCell(1).alignment = { horizontal: "center" };
+  };
+  banner(`KURVA S — ${r.kind === "mingguan" ? `MINGGU KE-${r.n}` : `BULAN KE-${r.n}`}`, true, 12);
+  banner(`${r.header.packageName} — ${r.header.village}, ${r.header.regency}`, false, 10);
+  ws.addRow([]);
+
+  // Header 2 baris: kelompok bulan (merge) + minggu.
+  const monthRow = ws.addRow([]);
+  monthRow.getCell(1).value = "No";
+  monthRow.getCell(2).value = "Uraian Pekerjaan";
+  monthRow.getCell(3).value = "Bobot (%)";
+  let c = FIRST;
+  for (const g of sheet.monthGroups) {
+    monthRow.getCell(c).value = g.label;
+    if (g.span > 1) ws.mergeCells(monthRow.number, c, monthRow.number, c + g.span - 1);
+    c += g.span;
+  }
+  const weekRow = ws.addRow([]);
+  for (let i = 0; i < N; i++) weekRow.getCell(FIRST + i).value = `M${i + 1}`;
+  ws.mergeCells(monthRow.number, 1, weekRow.number, 1);
+  ws.mergeCells(monthRow.number, 2, weekRow.number, 2);
+  ws.mergeCells(monthRow.number, 3, weekRow.number, 3);
+  monthRow.getCell(scaleA).value = "KETERANGAN";
+  ws.mergeCells(monthRow.number, scaleA, weekRow.number, ketLabel); // header KET 2 baris × 3 kolom
+  for (const row of [monthRow, weekRow]) {
+    row.eachCell({ includeEmpty: true }, (cell, col) => {
+      if (col > lastTableCol) return;
+      cell.font = { bold: true, size: 8 };
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
+      cell.border = box;
+    });
+  }
+
+  // Baris kategori (bobot + increment mingguan).
+  const catRowNums: number[] = [];
+  for (const cat of sheet.categories) {
+    const row = ws.addRow([cat.code, cat.name, round2(cat.bobot), ...cat.weekly.map((v) => (v >= 0.0005 ? round3(v) : null))]);
+    catRowNums.push(row.number);
+    row.eachCell({ includeEmpty: true }, (cell, col) => {
+      if (col > lastCol) return;
+      cell.border = box;
+      cell.font = { size: 8, bold: col === 2 };
+      if (col === 1) cell.alignment = { horizontal: "center" };
+      else if (col === 3) { cell.alignment = { horizontal: "center" }; cell.numFmt = "#,##0.00"; }
+      else if (col >= FIRST) { cell.alignment = { horizontal: "right" }; cell.numFmt = "#,##0.000"; }
+    });
+  }
+
+  // Baris prestasi (kumulatif rencana/realisasi + deviasi).
+  const prestasi: [string, (number | null)[], boolean][] = [
+    ["Rencana Prestasi %", sheet.rencanaPerWeek, false],
+    ["Kumulatif Rencana Prestasi %", sheet.kumulatifRencana, true],
+    ["Realisasi Prestasi %", sheet.realisasiPerWeek, false],
+    ["Kumulatif Realisasi Prestasi %", sheet.kumulatifRealisasi, true],
+    ["Deviasi +/-", sheet.deviasi, true],
+  ];
+  for (const [label, arr, bold] of prestasi) {
+    const row = ws.addRow([]);
+    row.getCell(1).value = label;
+    ws.mergeCells(row.number, 1, row.number, 3);
+    row.getCell(1).alignment = { horizontal: "right" };
+    row.getCell(1).font = { size: 8, bold };
+    row.getCell(1).border = box;
+    for (let i = 0; i < N; i++) {
+      const cell = row.getCell(FIRST + i);
+      cell.value = arr[i] == null ? null : round2(arr[i] as number);
+      cell.numFmt = "#,##0.00";
+      cell.alignment = { horizontal: "right" };
+      cell.font = { size: 8, bold };
+      cell.border = box;
+    }
+    for (const kc of [scaleA, scaleB, ketLabel]) row.getCell(kc).border = box; // KET berpetak
+  }
+
+  // KETERANGAN = BATANG SKALA 0–100% kotak-kotak HITAM-PUTIH (checkerboard) sejajar
+  // rentang vertikal kurva (baris kategori), + label 100/75/50/25/0 di kanan batang.
+  const M = catRowNums.length;
+  if (M > 0) {
+    const fillC = (argb: string) => ({ type: "pattern" as const, pattern: "solid" as const, fgColor: { argb } });
+    const BLACK = "FF000000";
+    const WHITE = "FFFFFFFF";
+    catRowNums.forEach((rowN, i) => {
+      const row = ws.getRow(rowN);
+      row.getCell(scaleA).fill = fillC(i % 2 === 0 ? BLACK : WHITE);
+      row.getCell(scaleB).fill = fillC(i % 2 === 0 ? WHITE : BLACK);
+      for (const kc of [scaleA, scaleB, ketLabel]) row.getCell(kc).border = box;
+    });
+    const marks: [number, number, "top" | "middle" | "bottom"][] = [
+      [100, catRowNums[0], "top"],
+      [0, catRowNums[M - 1], "bottom"],
+    ];
+    if (M >= 3) marks.push([50, catRowNums[Math.round((M - 1) / 2)], "middle"]);
+    if (M >= 6) {
+      marks.push([75, catRowNums[Math.round((M - 1) * 0.25)], "middle"]);
+      marks.push([25, catRowNums[Math.round((M - 1) * 0.75)], "middle"]);
+    }
+    for (const [val, rowN, vAlign] of marks) {
+      const cell = ws.getRow(rowN).getCell(ketLabel);
+      cell.value = val;
+      cell.numFmt = '0"%"';
+      cell.font = { size: 8, bold: true, color: { argb: "FF0F172A" } };
+      cell.alignment = { horizontal: "right", vertical: vAlign };
+    }
+  }
+
+  // Data helper (baris TERSEMBUNYI) utk chart scatter: titik origin (X=0, Y=0%) +
+  // kumulatif per akhir-minggu (X=1..N). Scatter dipilih (bukan line/kategori) supaya
+  // kurva MULAI dari 0% di kiri-bawah & X menembus tepi kolom minggu (w/N). `plotVisOnly=0`
+  // di chartXml → baris tersembunyi ini tetap diplot.
+  const helperX = ws.addRow([0, ...Array.from({ length: N }, (_, i) => i + 1)]);
+  const helperY = ws.addRow([0, ...sheet.kumulatifRencana.map((v) => round2(v))]);
+  const helperR = ws.addRow([0, ...sheet.kumulatifRealisasi.map((v) => (v == null ? null : round2(v)))]);
+  for (const hr of [helperX, helperY, helperR]) hr.hidden = true;
+  const lastHelperCol = colLetter(N + 1); // A..(N+1) = origin + N minggu
+  const hRange = (rowN: number) => `'${ws.name}'!$A$${rowN}:$${lastHelperCol}$${rowN}`;
+
+  // Anchor OVERLAY transparan TEPAT di atas blok kolom minggu (kolom D..lastCol) ×
+  // baris kategori (firstCatRow..lastCatRow) → kurva-S menelusuri kolom minggu.
+  const firstCatRow = weekRow.number + 1;
+  const lastCatRow = firstCatRow + sheet.categories.length - 1;
+  return {
+    sheetName: ws.name,
+    xMax: N,
+    series: [
+      { name: "Rencana", xRef: hRange(helperX.number), yRef: hRange(helperY.number), color: "2563EB" },
+      { name: "Realisasi", xRef: hRange(helperX.number), yRef: hRange(helperR.number), color: "16A34A" },
+    ],
+    anchor: { fromCol: FIRST - 1, fromRow: firstCatRow - 1, toCol: lastCol, toRow: lastCatRow },
+  } satisfies LineChartSpec;
+}
+
+/**
+ * Time Schedule (Kurva-S) berdiri sendiri sebagai .xlsx — satu sheet tabel
+ * kategori × minggu (bobot) + kumulatif rencana/realisasi + GRAFIK NATIVE Excel.
+ * Format menyerupai time schedule sipil (contoh TS vendor).
+ */
+export async function buildJadwalXlsx(r: PeriodReport): Promise<Buffer> {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "MARLIN";
+  wb.created = new Date();
+  const chartSpec = await addKurvaSheet(wb, r, { sheetName: "Time Schedule" });
+  const buf = Buffer.from(await wb.xlsx.writeBuffer());
+  try {
+    return await addLineChartToXlsx(buf, chartSpec);
+  } catch {
+    return buf;
+  }
+}
+
 export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "MARLIN";
   wb.created = new Date();
+  const chartSpec = await addKurvaSheet(wb, r);
   const ws = wb.addWorksheet("Laporan", {
     pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   });
@@ -54,10 +256,22 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
   title(`Periode ${formatTanggal(h.periodeStart, "d MMMM yyyy")} s/d ${formatTanggal(h.periodeEnd, "d MMMM yyyy")}`, false, 10);
   ws.addRow([]);
 
-  const kv = (k: string, v: string | number) => {
-    const row = ws.addRow([k, v]);
-    row.getCell(1).font = { bold: true };
-    ws.mergeCells(row.number, 2, row.number, 8);
+  // Blok identitas: label (merge A:B, kolom "No"+"Uraian" — lebar, tak terpotong)
+  // + nilai (merge C:H) sama-sama rata kiri, jadi nilai menempel ke labelnya.
+  const kv = (k: string, v: string | number, numFmt?: string) => {
+    const row = ws.addRow([]);
+    const label = row.getCell(1);
+    label.value = k;
+    label.font = { bold: true, size: 9 };
+    label.alignment = { horizontal: "left", vertical: "middle" };
+    ws.mergeCells(row.number, 1, row.number, 2);
+    const value = row.getCell(3);
+    value.value = v;
+    value.font = { size: 9 };
+    value.alignment = { horizontal: "left", vertical: "middle" };
+    if (numFmt) value.numFmt = numFmt;
+    ws.mergeCells(row.number, 3, row.number, 8);
+    row.height = 15;
   };
   kv("Paket Pekerjaan", h.packageName);
   kv("Lokasi", `${h.locationName} — ${h.village}, ${h.regency}, ${h.province}`);
@@ -65,10 +279,10 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
   kv("Kontraktor Pelaksana", h.vendorName);
   kv("Nilai Fisik Lokasi", `Rp ${new Intl.NumberFormat("id-ID").format(Number(h.locationValue))}`);
   kv("Masa Pelaksanaan", `${h.masaPelaksanaanHari} Hari Kalender`);
-  kv("Tahun Anggaran", h.tahunAnggaran);
-  kv("Rencana s/d periode (%)", Number(r.planPct.toFixed(2)));
-  kv("Realisasi s/d periode (%)", Number(r.actualPct.toFixed(2)));
-  kv("Deviasi (%)", Number(r.deviationPct.toFixed(2)));
+  kv("Tahun Anggaran", String(h.tahunAnggaran));
+  kv("Rencana s/d periode (%)", Number(r.planPct.toFixed(2)), "0.00");
+  kv("Realisasi s/d periode (%)", Number(r.actualPct.toFixed(2)), "0.00");
+  kv("Deviasi (%)", Number(r.deviationPct.toFixed(2)), "0.00");
   ws.addRow([]);
 
   // Header tabel.
@@ -193,6 +407,12 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
     for (const k of r.kendala) kv(formatTanggal(k.createdAt), `${k.title} (${k.severity}, ${k.status})`);
   }
 
-  const buf = await wb.xlsx.writeBuffer();
-  return Buffer.from(buf);
+  const buf = Buffer.from(await wb.xlsx.writeBuffer());
+  // Sisipkan grafik kurva-S NATIVE ke sheet "Kurva S" (exceljs tak bisa; kita
+  // pasca-proses XML chart OOXML). Bila gagal, kembalikan workbook tanpa chart.
+  try {
+    return await addLineChartToXlsx(buf, chartSpec);
+  } catch {
+    return buf;
+  }
 }

@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { CalendarClock, Sheet } from "lucide-react";
 import { Card, CardBody, CardHeader, CollapsibleCard, type BadgeTone } from "@/components/ui";
 import { DeltaBadge } from "@/components/ui/stat-delta";
 import { ScurveChart } from "@/components/knmp/scurve-chart";
@@ -6,6 +8,7 @@ import { db } from "@/lib/db";
 import { can } from "@/lib/authz";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { cumulativeVolumeByLineage } from "@/lib/progress";
+import { getPeriodBounds } from "@/lib/periodic-report";
 import { deriveCategorySchedule, getScurveSeries } from "@/lib/baseline";
 import { formatNumber, formatPct, formatRupiahShort, formatTanggal } from "@/lib/format";
 import type { BaselineSource, RevisionStatus } from "@/generated/prisma/enums";
@@ -44,7 +47,7 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
   const canManageIssues = can(user.role, "issue.manage");
   const canManageBaseline = can(user.role, "baseline.manage");
 
-  const [series, realizedVol, issues, baselines] = await Promise.all([
+  const [series, realizedVol, issues, baselines, bounds] = await Promise.all([
     getScurveSeries(location.id),
     cumulativeVolumeByLineage(location.id),
     db.issue.findMany({
@@ -87,6 +90,7 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
         points: { orderBy: { weekNumber: "asc" }, select: { weekNumber: true, plannedPct: true } },
       },
     }),
+    getPeriodBounds(location.id),
   ]);
 
   const activeBaseline = baselines.find((b) => b.status === "aktif");
@@ -173,7 +177,27 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
           <CardHeader
             title="Kurva-S"
             subtitle="Baseline aktif vs realisasi mingguan"
-            action={canManageBaseline ? <RecalcBaselineButton locationId={location.id} /> : undefined}
+            action={
+              <div className="flex items-center gap-2">
+                {bounds ? (
+                  <>
+                    <Link
+                      href={`/cetak/jadwal/${slug}`}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-muted hover:border-border-strong"
+                    >
+                      <CalendarClock aria-hidden className="size-4" /> Cetak Jadwal
+                    </Link>
+                    <a
+                      href={`/lokasi/${slug}/jadwal/export`}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-muted hover:border-border-strong"
+                    >
+                      <Sheet aria-hidden className="size-4" /> Unduh Excel
+                    </a>
+                  </>
+                ) : null}
+                {canManageBaseline ? <RecalcBaselineButton locationId={location.id} /> : null}
+              </div>
+            }
           />
           <CardBody>
             <ScurveChart series={series} />

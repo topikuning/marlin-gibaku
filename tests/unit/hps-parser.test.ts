@@ -180,3 +180,52 @@ describe("parseHpsBuffer error", () => {
     await expect(parseHpsBuffer(Buffer.from(buf as ArrayBuffer))).rejects.toThrow(/RAB/);
   });
 });
+
+describe("baris DIHIDE di Excel diabaikan (tidak masuk perhitungan) — DECISIONS 084", () => {
+  it("baris hidden dikecualikan dari pohon & total; ada peringatan", async () => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("RAB");
+    ws.addRow(["No", "Uraian", null, null, "Vol", "Sat", "Harga Satuan", "Jumlah Harga", "TKDN"]);
+    ws.addRow(["I", "PEKERJAAN PERSIAPAN", null, null, null, null, null, null, null]);
+    ws.addRow(["1", "Mobilisasi", null, null, 1, "ls", 1000000, 1000000, 1]);
+    const hidden = ws.addRow(["2", "Item dikecualikan dari resume", null, null, 1, "ls", 5000000, 5000000, 1]);
+    hidden.hidden = true;
+    ws.addRow(["3", "Papan nama", null, null, 1, "ls", 500000, 500000, 1]);
+    const buf = Buffer.from((await wb.xlsx.writeBuffer()) as ArrayBuffer);
+    const { parsed, warnings } = await parseHpsBuffer(buf);
+
+    const cat = parsed.categories.find((c) => c.roman === "I")!;
+    expect(cat.direct_items.map((i) => i.name)).toEqual(["Mobilisasi", "Papan nama"]);
+    expect(parsed.total).toBe(1_500_000); // TANPA 5jt baris hidden
+    expect(warnings.some((w) => /tersembunyi \(hidden\)/i.test(w))).toBe(true);
+  });
+});
+
+describe("slimRabWorkbook: file raksasa multi-sheet + defined names → ramping ke RAB — DECISIONS 085", () => {
+  it("workbook 3 sheet + 3000 defined names → parse RAB benar, tanpa OOM", async () => {
+    const { slimRabWorkbook } = await import("@/lib/rab/xlsx-slim");
+    const wb = new ExcelJS.Workbook();
+    // Sheet volume besar & sheet resume (harus dibuang oleh slimming).
+    const vol = wb.addWorksheet("Vol Besar");
+    for (let i = 0; i < 500; i++) vol.addRow([i, `baris volume ${i}`, i, i * 2, i * 3]);
+    wb.addWorksheet("Resume").addRow(["Resume"]);
+    const ws = wb.addWorksheet("RAB");
+    ws.addRow(["No", "Uraian", null, null, "Vol", "Sat", "Harga Satuan", "Jumlah Harga", "TKDN"]);
+    ws.addRow(["I", "PEKERJAAN PERSIAPAN", null, null, null, null, null, null, null]);
+    ws.addRow(["1", "Mobilisasi", null, null, 1, "ls", 1000000, 1000000, 1]);
+    // banyak defined names sampah (simulasi 47k → kecil utk uji)
+    for (let i = 0; i < 3000; i++) wb.definedNames.add(`Vol Besar!A1`, `_junk${i}`);
+    const buf = Buffer.from((await wb.xlsx.writeBuffer()) as ArrayBuffer);
+
+    const slim = await slimRabWorkbook(buf);
+    expect(slim.length).toBeLessThan(buf.length); // lebih ramping
+    // Slim workbook hanya berisi sheet RAB.
+    const check = new ExcelJS.Workbook();
+    await check.xlsx.load(slim as unknown as ArrayBuffer);
+    expect(check.worksheets.map((w) => w.name)).toEqual(["RAB"]);
+
+    const { parsed } = await parseHpsBuffer(buf);
+    expect(parsed.categories.map((c) => c.roman)).toEqual(["I"]);
+    expect(parsed.total).toBe(1_000_000);
+  });
+});

@@ -20,7 +20,17 @@ const ROW_H = 26; // tinggi baris kategori
 const num = (v: number, d = 3) => v.toLocaleString("id-ID", { minimumFractionDigits: d, maximumFractionDigits: d });
 const pct = (v: number | null, d = 2) => (v == null ? "" : `${v.toLocaleString("id-ID", { minimumFractionDigits: d, maximumFractionDigits: d })}%`);
 
-export function ScurveKkpSheet({ r }: { r: PeriodReport }) {
+export function ScurveKkpSheet({
+  r,
+  titleOverride,
+  periodeOverride,
+}: {
+  r: PeriodReport;
+  /** Judul dokumen (default: "KURVA S MINGGU/BULAN KE-N"). Utk dokumen jadwal berdiri sendiri. */
+  titleOverride?: string;
+  /** Rentang periode di subjudul (default: periode laporan). Utk jadwal = seluruh masa kontrak. */
+  periodeOverride?: { start: Date; end: Date };
+}) {
   const sheet = buildKurvaSheet({
     categories: r.kurvaSchedule,
     totalWeeks: r.totalWeeks,
@@ -37,7 +47,9 @@ export function ScurveKkpSheet({ r }: { r: PeriodReport }) {
   // dengan overflow-x-auto sehingga di layar sempit dokumen di-scroll, bukan
   // melebarkan halaman.
   const docW = LEFT + plotW + W_KET;
-  const title = `KURVA S ${r.kind === "mingguan" ? "MINGGU" : "BULAN"} KE - ${r.n}`;
+  const title = titleOverride ?? `KURVA S ${r.kind === "mingguan" ? "MINGGU" : "BULAN"} KE - ${r.n}`;
+  const periodeStart = periodeOverride?.start ?? r.header.periodeStart;
+  const periodeEnd = periodeOverride?.end ?? r.header.periodeEnd;
 
   // Titik kurva (x = akhir minggu w, y = 1 − kumulatif/100). Anchor minggu-0 = 0%.
   const xFor = (w: number) => (w / N) * plotW;
@@ -54,7 +66,7 @@ export function ScurveKkpSheet({ r }: { r: PeriodReport }) {
       <div className="text-center">
         <div className="text-[13px] font-bold underline">{title}</div>
         <div className="text-[9px] font-semibold">
-          Periode tanggal {formatTanggal(hdr.periodeStart)} s/d {formatTanggal(hdr.periodeEnd)}
+          Periode tanggal {formatTanggal(periodeStart)} s/d {formatTanggal(periodeEnd)}
         </div>
       </div>
 
@@ -87,7 +99,7 @@ export function ScurveKkpSheet({ r }: { r: PeriodReport }) {
             </tr>
             <tr>
               <td className="pr-2 font-semibold">Rencana</td>
-              <td>: <span className="inline-block h-0 w-8 border-t-2 border-dashed border-slate-500 align-middle" /></td>
+              <td>: <span className="inline-block h-0 w-8 border-t-2 border-solid border-blue-600 align-middle" /></td>
             </tr>
             <tr>
               <td className="pr-2 font-semibold">Realisasi</td>
@@ -180,17 +192,36 @@ export function ScurveKkpSheet({ r }: { r: PeriodReport }) {
           {[0, 25, 50, 75, 100].map((g) => (
             <line key={g} x1={0} y1={yFor(g)} x2={plotW} y2={yFor(g)} stroke="#cbd5e1" strokeWidth={0.5} />
           ))}
-          <polyline points={planPts} fill="none" stroke="#64748b" strokeWidth={1.2} strokeDasharray="4 3" />
+          <polyline points={planPts} fill="none" stroke="#2563eb" strokeWidth={1.4} />
+          {sheet.kumulatifRencana.map((p, i) => (
+            <circle key={i} cx={xFor(i + 1)} cy={yFor(p)} r={1.8} fill="#2563eb" />
+          ))}
           {actualIdx.length > 0 ? (
-            <polyline points={actualPts} fill="none" stroke="#16a34a" strokeWidth={1.6} />
+            <>
+              <polyline points={actualPts} fill="none" stroke="#16a34a" strokeWidth={1.6} />
+              {actualIdx.map((i) => (
+                <circle key={i} cx={xFor(i + 1)} cy={yFor(sheet.kumulatifRealisasi[i] as number)} r={1.8} fill="#16a34a" />
+              ))}
+            </>
           ) : null}
         </svg>
 
-        {/* Sumbu % kanan */}
-        <div className="pointer-events-none absolute text-[7px] text-slate-500" style={{ left: LEFT + plotW + 3, top: HEAD_H * 2 }}>
-          {[100, 80, 60, 40, 20, 0].map((g) => (
-            <div key={g} style={{ position: "absolute", top: yFor(g) - 4 }}>
-              {g}%
+        {/* KETERANGAN: batang skala 0–100% kotak-kotak hitam-putih + label */}
+        <div
+          className="pointer-events-none absolute"
+          style={{ left: LEFT + plotW, top: HEAD_H * 2, width: W_KET, height: plotH }}
+        >
+          {/* batang checkerboard: 10 pita (10% tiap pita) × 2 kolom, hitam-putih selang-seling */}
+          {Array.from({ length: 10 }).map((_, band) => (
+            <div key={band} className="absolute flex" style={{ left: 6, top: (band / 10) * plotH, width: 12, height: plotH / 10 }}>
+              <div className="h-full w-1/2" style={{ background: band % 2 === 0 ? "#000" : "#fff" }} />
+              <div className="h-full w-1/2" style={{ background: band % 2 === 0 ? "#fff" : "#000" }} />
+            </div>
+          ))}
+          <div className="absolute border border-black" style={{ left: 6, top: 0, width: 12, height: plotH }} />
+          {[100, 75, 50, 25, 0].map((g) => (
+            <div key={g} className="absolute text-[7px] font-semibold text-slate-800" style={{ top: yFor(g) - 4, left: 21 }}>
+              {g}
             </div>
           ))}
         </div>

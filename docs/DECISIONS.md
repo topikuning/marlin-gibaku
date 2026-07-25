@@ -1632,3 +1632,161 @@ scurve — dengan test properti, bukan paritas nilai):**
   terjaga — persiapan w1–3 → revetment w6–12 → bangunan w6–24 → jalan w23–27 →
   penerangan kawasan w27–30 → landskap w29–30. Saran mingguan kini SATU jendela dgn
   kurva (look-ahead konsisten). Baseline lama perlu "Hitung ulang".
+
+## 083 · 2026-07-25 · Cetak Jadwal (Time Schedule) + kurva-S di export Excel
+
+- Permintaan user: (1) tombol khusus cetak JADWAL, hasil seperti 3 file Time Schedule
+  sipil; (2) export Excel laporan mingguan tak memuat kurva-S padahal PDF ada.
+- Cetak Jadwal (rencana + realisasi — pilihan user):
+  - Route baru `/cetak/jadwal/[slug]` — dokumen Time Schedule/Kurva-S berdiri sendiri
+    (bukan terikat periode): baris kategori × minggu (bobot), kumulatif rencana +
+    realisasi s/d minggu berjalan, garis kurva-S, blok TTD. Landscape A4.
+  - Reuse `ScurveKkpSheet` dgn `titleOverride` + `periodeOverride` (periode = seluruh
+    masa kontrak, snapshot realisasi s/d `bounds.currentWeek`). Butuh SPMK (startDate)
+    agar kolom minggu terpetakan ke bulan → gate: hanya muncul bila `getPeriodBounds`.
+  - Tombol "Cetak Jadwal" di kartu Kurva-S (progress) & hub Laporan Lokasi.
+- Kurva-S di Excel (sheet tabel + gambar — pilihan user):
+  - `buildPeriodReportXlsx` kini sheet-1 "Kurva S": tabel bobot kategori × minggu +
+    baris kumulatif rencana/realisasi + deviasi (dari `buildKurvaSheet`, angka IDENTIK
+    dgn PDF/tabel KKP) + GAMBAR grafik kurva-S. Sheet-2 "Laporan" (detail item, spt dulu).
+  - exceljs tak bisa chart garis native → `renderScurveChartPng` (SVG → PNG via sharp,
+    sudah dipakai utk gambar) menghasilkan grafik (rencana putus-putus + realisasi hijau,
+    sumbu %/minggu, legenda) lalu disisipkan via `addImage`.
+- Verifikasi: typecheck/lint ✓, 129 unit test ✓, build ✓ (route terdaftar). Uji end-to-end
+  export: workbook 2 sheet + 1 gambar, round-trip; grafik PNG ter-render benar (S-shape,
+  garis rencana→100 & realisasi terpotong di minggu berjalan, label sumbu).
+
+## 084 · 2026-07-25 · Import RAB: abaikan baris yang DI-HIDE di Excel
+
+- Temuan user (urgent): importer mengambil semua baris (nilai dari kolom HARGA
+  NEGOSIASI bila ada — sudah benar), TAPI beberapa baris SENGAJA di-hide di Excel
+  agar tak masuk resume/kontrak — importer tetap menghitungnya → total melembung.
+- Perbaikan (`parseHpsWorkbook`): baris dgn `row.hidden === true` (atau `height === 0`
+  sbg cadangan) DILEWATI seluruhnya sebelum klasifikasi → tak masuk pohon & tak
+  ikut total. Importer mengikuti yang TERLIHAT, sama seperti resume kontrak.
+  exceljs membaca atribut hidden Excel/LibreOffice dgn benar (round-trip terverifikasi).
+- Peringatan "N baris tersembunyi (hidden) diabaikan" ditambahkan ke `warnings` →
+  tampil di banner pratinjau import (user tahu berapa yg dikecualikan). Parser tunggal
+  dipakai pratinjau & commit (dijaga hash file) → hidden dikecualikan di dua-duanya.
+- Verifikasi: unit test baru (total 21,5jt tanpa 5jt baris hidden + peringatan muncul);
+  typecheck/lint ✓, 130 unit test ✓.
+
+## 085 · 2026-07-25 · Import RAB: perampingan xlsx (anti-OOM) sebelum parse exceljs
+
+- Bug (urgent, dari file Lampiran_Negosiasi_PesisirJawa_Timur_HUB1.xlsx): import RAB
+  CRASH "JavaScript heap out of memory" saat `wb.xlsx.load`. Diagnosis file mentah:
+  `xl/workbook.xml` 4,5 MB berisi **47.746 defined names sampah** (mis. `_` byte rusak
+  warisan copy-paste) + **44 sheet volume**; exceljs memuat SEMUA ke model objek →
+  heap ~447 MB (batas) terlampaui. Sheet "RAB" sendiri kecil (A1:W1964).
+- Opsi ditolak: (a) streaming reader exceljs — HEMAT memori TAPI membuang `row.hidden`
+  (uji: 820 baris hidden → terbaca 0), padahal DECISIONS 084 butuh hidden; (b) naikkan
+  heap — band-aid, tak scalable ke container kecil / file lebih besar.
+- Solusi (`slimRabWorkbook`, xlsx-slim.ts, pakai jszip): unzip → buang `<definedNames>`
+  → pangkas `<sheets>` jadi HANYA sheet RAB → simpan closure transitif part yg dirujuk
+  (sharedStrings/styles/theme/drawing) via BFS `.rels` → re-zip. Full `.load()` pada
+  workbook 1-sheet mungil → atribut sel & `row.hidden` UTUH. Bila pola tak cocok
+  (tak ada sheet mirip "RAB"), kembalikan buffer asli (fallback aman). Dipakai
+  `parseHpsBuffer` (pratinjau & commit).
+- Hasil pada file bermasalah: 5,8 MB → 0,9 MB slim; parse 1,6 dtk (dulu OOM); di bawah
+  cap heap 300 MB → heap 52 MB / rss 214 MB (lega). 16 kategori, total Rp 3,89 M,
+  794 baris hidden dikecualikan (DECISIONS 084 tetap jalan). +dep langsung `jszip`
+  (MIT, sudah transitif via exceljs → audit lisensi tetap hijau).
+- Verifikasi: typecheck/lint ✓, 131 unit test ✓ (uji slim multi-sheet+defined names →
+  ramping ke RAB & parse benar), build ✓, audit --prod --high exit 0.
+
+## 086 · 2026-07-25 · Kurva-S di Excel = GRAFIK NATIVE (bukan gambar) + Unduh Excel Jadwal
+
+- Permintaan user (menolak DECISIONS 083 bagian gambar): "yang aku mau bukan gambar tapi
+  grafis asli seperti contoh yang kuberikan" — chart Excel SUNGGUHAN (bisa diklik/diedit,
+  mengikuti sel), seperti file Time Schedule vendor, bukan PNG hasil render.
+- Kendala: exceljs TAK BISA menulis chart native. Ditolak: (a) tetap PNG (yg dikeluhkan);
+  (b) ganti library chart-capable (dep besar / tak terawat).
+- Solusi (`addLineChartToXlsx`, `src/lib/export/xlsx-chart.ts`, pakai jszip): pasca-proses
+  buffer hasil exceljs → suntik part OOXML `xl/charts/chart1.xml` (c:lineChart, 2 deret:
+  Rencana putus-putus abu + Realisasi hijau, sumbu-Y 0–100% + gridlines, `dispBlanksAs=gap`
+  agar realisasi berhenti di minggu berjalan) + `xl/drawings/drawing1.xml` (twoCellAnchor)
+  + relasi (drawing→chart, sheet→drawing) + Override content-types + `<drawing>` di
+  worksheet. Chart mereferensikan SEL (kategori M1..Mn + baris kumulatif) → live terhadap
+  data sheet, angka identik dgn tabel/PDF KKP.
+- `buildPeriodReportXlsx` sheet "Kurva S": PNG (083) DIGANTI chart native. `renderScurveChartPng`
+  + `scurve-image.ts` dihapus (dead code).
+- Tambahan: `buildJadwalXlsx` + route `/lokasi/[slug]/jadwal/export` + tombol "Unduh Excel"
+  (di kartu Kurva-S progress & hub Laporan Lokasi, di samping "Cetak Jadwal") — Time Schedule
+  1-sheet (tabel kategori × minggu + kumulatif + chart native), gate `getPeriodBounds` (butuh
+  SPMK), `requireCapability(report.export)` + `requireLocationAccess` + audit.
+- Verifikasi (LibreOffice headless tak fungsional di sandbox → dipakai openpyxl, parser OOXML
+  chart ketat): kedua workbook di-parse openpyxl = LineChart valid, 2 deret, ref sel benar;
+  sel yg dirujuk berisi kumulatif rencana (→100) & realisasi (berhenti minggu berjalan).
+  typecheck/lint ✓, 134 unit test ✓ (uji injektor chart: part+rels+content-types+reload),
+  build ✓ (route terdaftar). `server-only` di-alias no-op di vitest agar modul export teruji.
+
+## 087 · 2026-07-25 · Kurva-S = OVERLAY transparan DI ATAS tabel (bukan chart terpisah di bawah)
+
+- Feedback user (bandingkan 2 contoh): mau kurva-S menempel TRANSPARAN di atas tabel time
+  schedule — garis menelusuri kolom minggu — persis format TS sipil; bukan chart kotak
+  terpisah di bawah tabel (versi 086).
+- `chartXml` diubah jadi mode overlay: chartSpace + plotArea `<a:noFill/>` (latar transparan),
+  `autoTitleDeleted=1`, TANPA legenda/gridline, kedua sumbu `delete=1` (skala 0–100% tetap
+  jalan tapi tak tampil), `plotArea/layout/manualLayout` inner (x0 y0 w1 h1) → plot mengisi
+  penuh frame sehingga garis sejajar kolom, `crossBetween=midCat` (valAx). Deret pakai marker
+  bulat; Rencana biru (2563EB), Realisasi hijau (16A34A).
+- Anchor (`addKurvaSheet`): TEPAT di atas blok kolom minggu — `fromCol=D (FIRST-1)`,
+  `toCol=lastCol`; vertikal hanya baris KATEGORI (`firstCatRow-1 … lastCatRow`) supaya baris
+  prestasi/kumulatif di bawahnya tetap bersih & terbaca. 0-based twoCellAnchor → kurva ikut
+  ukuran sel.
+- Bersih-bersih: `LineChartSpec.title` + opsi `chartTitle` dibuang (overlay tak berjudul;
+  sheet punya banner sendiri).
+- Verifikasi: typecheck/lint ✓, 134 unit test ✓ (uji ditambah: `noFill` transparan +
+  `manualLayout` + tepat 2 sumbu `delete=1`), build ✓. openpyxl: LineChart 2 deret; anchor
+  D..kolom-terakhir × baris kategori (dikonfirmasi dari drawing1.xml).
+
+## 088 · 2026-07-25 · Kurva-S: skala 0–100% (KET) + titik marker tak kepotong
+
+- Feedback user (screenshot Excel): (1) titik marker kurva kepotong di tepi atas frame;
+  (2) tak ada penanda skala 0–50–100 vertikal seperti kolom "KETERANGAN" pada TS sipil —
+  di Excel MAUPUN PDF.
+- Fix marker kepotong: `plotArea/manualLayout` inner di-inset vertikal (y=0.03, h=0.94) →
+  titik di 0%/100% tak lagi menyentuh tepi frame (offset ~3% terhadap label KET, dapat
+  diabaikan).
+- Skala 0–100% (Excel, `addKurvaSheet`): tambah kolom "KET" di kanan (setelah kolom minggu).
+  Header KET merge 2 baris; sel per baris kategori diberi garis sumbu kiri (border medium).
+  Label 100/75/50/25/0 ditaruh di baris kategori proporsional (100 valign-top di baris
+  pertama, 0 valign-bottom di baris terakhir, 50 di tengah; 75/25 bila ≥6 kategori) → sejajar
+  rentang vertikal kurva (chart di-anchor firstCatRow..lastCatRow). Banner ikut melebar ke KET.
+- Skala 0–100% (PDF, `ScurveKkpSheet`): sumbu % kanan lama (samar) diganti — garis sumbu
+  vertikal + tick + label 100/75/50/25/0 tebal di kolom KET, sejajar gridline. Garis rencana
+  jadi biru solid + titik marker (dulu abu putus-putus), realisasi hijau + marker; legenda
+  header disesuaikan.
+- Verifikasi: typecheck/lint ✓, 134 unit test ✓, build ✓. openpyxl: kolom KET (Z) berisi
+  100(top)…0(bottom) sejajar baris kategori; manualLayout y=0.03/h=0.94.
+
+## 089 · 2026-07-25 · Kurva-S Excel: SCATTER mulai dari origin 0% (bukan line/kategori)
+
+- Feedback user (screenshot render Excel): kurva TIDAK mulai dari 0 — titik pertama (M1)
+  langsung di kumulatif ~12% (line/kategori memplot titik di M1 tanpa origin), "agak naik
+  sedikit". Minta kurva mulai dari 0 di kiri-bawah.
+- Akar: chart garis kategori (`c:lineChart`, titik di tengah band) tak punya titik (0,0) &
+  tak bisa menaruhnya di tepi kiri.
+- Solusi: ganti ke SCATTER (`c:scatterChart`, XY). Deret pakai `c:xVal`/`c:yVal` numerik.
+  Ditambah baris HELPER TERSEMBUNYI di sheet: X = `0,1,…,N` (origin + akhir tiap minggu),
+  Y-rencana = `0, kumRencana…`, Y-realisasi = `0, kumRealisasi…` (null pasca minggu berjalan
+  → gap). Sumbu-X `min=0,max=N` → X=0 di tepi kiri (mulai 0%), X=w di w/N lebar (menembus tepi
+  kolom minggu, konvensi TS sipil). `plotVisOnly=0` supaya baris tersembunyi tetap diplot.
+- `LineChartSpec`: `catRef`+`valRef`+`dash` → `xRef`+`yRef`+`xMax`. Inset plot y=0.02/h=0.96
+  (anti-marker-kepotong, dari 088).
+- PDF (`ScurveKkpSheet`) sudah mulai dari 0 (prepend `0,plotH`) sejak awal — tak berubah.
+- Verifikasi: typecheck/lint ✓, 134 unit test ✓ (uji diubah ke scatter: xVal/yVal + plotVisOnly=0),
+  build ✓. openpyxl: ScatterChart; baris helper Y-rencana = [0, 1.85, 4.75, …] (MULAI 0).
+
+## 090 · 2026-07-25 · KETERANGAN = batang skala 0–100% checkerboard hitam-putih
+
+- User minta (berulang, dgn contoh): penanda vertikal 0–100% bergaya BATANG KOTAK-KOTAK
+  HITAM-PUTIH (checkerboard) seperti kolom "KETERANGAN" TS sipil — bukan sekadar angka.
+- Excel (`addKurvaSheet`): kolom KET tunggal → 3 kolom (2 kolom sempit batang checkerboard
+  `scaleA`/`scaleB` + 1 kolom label). Header "KETERANGAN" merge 3 kolom × 2 baris. Per baris
+  kategori: `scaleA`/`scaleB` diisi solid HITAM/PUTIH selang-seling (checkerboard) →
+  batang skala sejajar rentang vertikal kurva; label 100/75/50/25/0 di kolom kanan batang.
+- PDF (`ScurveKkpSheet`): sumbu KET diganti batang checkerboard 10 pita (10%/pita) × 2 kolom
+  hitam-putih + bingkai + label 100/75/50/25/0.
+- Verifikasi: typecheck/lint ✓, 134 unit test ✓, build ✓. openpyxl: baris kategori scaleA/scaleB
+  = FF000000/FFFFFFFF selang-seling; label 100(top)…0(bottom).
