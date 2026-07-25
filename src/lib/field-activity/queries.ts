@@ -20,6 +20,7 @@ export type FieldActivityView = {
   kendala: string | null;
   solusi: string | null;
   status: FieldActivityStatus;
+  waSentAt: string | null;
   createdByName: string | null;
   photos: PhotoView[];
   attachments: FieldActivityAttachmentView[];
@@ -40,6 +41,7 @@ export async function listFieldActivities(locationId: string): Promise<FieldActi
       kendala: true,
       solusi: true,
       status: true,
+      waSentAt: true,
       createdById: true,
       photos: {
         orderBy: { createdAt: "asc" },
@@ -82,6 +84,7 @@ export async function listFieldActivities(locationId: string): Promise<FieldActi
     kendala: r.kendala,
     solusi: r.solusi,
     status: r.status,
+    waSentAt: r.waSentAt?.toISOString() ?? null,
     createdByName: nameById.get(r.createdById) ?? null,
     photos: r.photos.map((p) => byId.get(p.id)).filter((v): v is PhotoView => v != null),
     attachments: r.attachments,

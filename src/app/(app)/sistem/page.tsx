@@ -4,10 +4,11 @@ import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { env } from "@/lib/env";
 import { isR2Configured } from "@/lib/r2";
+import { getWahaConfigDisplay } from "@/lib/waha/config";
 import { db } from "@/lib/db";
 import { formatTanggalWaktu } from "@/lib/format";
 import { getBranding, BRAND_DEFAULTS } from "@/lib/branding";
-import { R2TestPanel, ResetPanel, BrandingPanel } from "./sistem-client";
+import { R2TestPanel, ResetPanel, BrandingPanel, WahaConfigPanel } from "./sistem-client";
 
 export const metadata: Metadata = { title: "Sistem" };
 export const dynamic = "force-dynamic";
@@ -15,7 +16,7 @@ export const dynamic = "force-dynamic";
 export default async function SistemPage() {
   const user = await requireUser();
   requireCapabilityPage(user.role, "system.manage");
-  const [auditLogs, sessionCount, branding] = await Promise.all([
+  const [auditLogs, sessionCount, branding, wahaDisplay] = await Promise.all([
     db.auditLog.findMany({
       orderBy: { createdAt: "desc" },
       take: 100,
@@ -30,7 +31,9 @@ export default async function SistemPage() {
     }),
     db.session.count({ where: { revokedAt: null, expiresAt: { gt: new Date() } } }),
     getBranding(),
+    getWahaConfigDisplay(),
   ]);
+  const wahaConfigured = wahaDisplay.hasApiKey && wahaDisplay.baseUrl.length > 0;
 
   return (
     <div className="space-y-6">
@@ -50,6 +53,10 @@ export default async function SistemPage() {
                 <dd><StatusPill tone={isR2Configured() ? "success" : "neutral"} label={isR2Configured() ? "Terkonfigurasi" : "Belum dikonfigurasi"} /></dd>
               </div>
               <div className="flex justify-between">
+                <dt className="text-ink-muted">WhatsApp (WAHA)</dt>
+                <dd><StatusPill tone={wahaConfigured ? "success" : "neutral"} label={wahaConfigured ? "Terkonfigurasi" : "Belum dikonfigurasi"} /></dd>
+              </div>
+              <div className="flex justify-between">
                 <dt className="text-ink-muted">Sesi aktif</dt>
                 <dd className="tabular">{sessionCount}</dd>
               </div>
@@ -61,6 +68,13 @@ export default async function SistemPage() {
           <CardHeader title="Diagnostik R2 & foto" subtitle="Round-trip R2 (PUT→GET→presign→DELETE) + tes pemrosesan gambar (SHARP)" />
           <CardBody>
             <R2TestPanel configured={isR2Configured()} />
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader title="WhatsApp (WAHA)" subtitle="Konfigurasi server WAHA (URL + API key + sesi) & cek status login. Panduan: docs/WAHA_SETUP.md" />
+          <CardBody>
+            <WahaConfigPanel initial={wahaDisplay} />
           </CardBody>
         </Card>
       </div>

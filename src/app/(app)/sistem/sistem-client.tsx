@@ -10,6 +10,91 @@ import {
   type ResetState,
   type BrandingState,
 } from "@/lib/system/actions";
+import { saveWahaConfigAction, wahaStatusAction, type WaActionState } from "@/lib/waha/actions";
+
+/**
+ * Konfigurasi WAHA (WhatsApp) sebagai SETTING APLIKASI — URL server, API key,
+ * nama sesi — plus tombol cek status/sesi. API key ditampilkan tersamar;
+ * kosongkan untuk mempertahankan key lama. Panduan deploy: docs/WAHA_SETUP.md.
+ */
+export function WahaConfigPanel({
+  initial,
+}: {
+  initial: { baseUrl: string; session: string; hasApiKey: boolean };
+}) {
+  const [state, action, pending] = useActionState<WaActionState, FormData>(saveWahaConfigAction, undefined);
+  const [testing, startTest] = useTransition();
+  const [result, setResult] = useState<
+    { ok: true; status: string; me: string | null } | { ok: false; error: string } | null
+  >(null);
+  const statusTone = (s: string) => (s === "WORKING" ? "success" : s === "SCAN_QR_CODE" ? "warning" : "neutral");
+  const configured = initial.hasApiKey && initial.baseUrl.length > 0;
+
+  return (
+    <div className="space-y-4">
+      <form action={action} className="space-y-3">
+        {state?.error ? <Banner tone="error" title={state.error} /> : null}
+        {state?.success ? <Banner tone="success" title={state.success} /> : null}
+        <div>
+          <Label htmlFor="waha-url">URL server WAHA</Label>
+          <Input id="waha-url" name="baseUrl" defaultValue={initial.baseUrl} placeholder="https://waha-xxxx.up.railway.app" />
+        </div>
+        <div>
+          <Label htmlFor="waha-key">API key</Label>
+          <Input
+            id="waha-key"
+            name="apiKey"
+            type="password"
+            autoComplete="new-password"
+            placeholder={initial.hasApiKey ? "•••••••• (tersimpan — isi untuk mengganti)" : "API key WAHA"}
+          />
+          <p className="mt-1 text-xs text-ink-muted">
+            Kosongkan untuk mempertahankan key yang sudah tersimpan. Ketik tanda minus lalu simpan untuk menghapus.
+          </p>
+        </div>
+        <div>
+          <Label htmlFor="waha-session">Nama sesi</Label>
+          <Input id="waha-session" name="session" defaultValue={initial.session} placeholder="default" />
+        </div>
+        <Button type="submit" loading={pending}>Simpan konfigurasi WhatsApp</Button>
+      </form>
+
+      <div className="border-t border-border pt-3">
+        <Button
+          type="button"
+          variant="secondary"
+          loading={testing}
+          disabled={!configured}
+          onClick={() => startTest(async () => setResult(await wahaStatusAction()))}
+        >
+          Cek status WhatsApp
+        </Button>
+        {!configured ? (
+          <p className="mt-2 text-[13px] text-ink-muted">
+            Isi & simpan URL + API key dulu, lalu login sesi WhatsApp (scan QR di dashboard WAHA). Panduan: docs/WAHA_SETUP.md.
+          </p>
+        ) : null}
+        {result?.ok === true ? (
+          <div className="mt-2 space-y-1 text-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-ink-muted">Sesi:</span>
+              <StatusPill tone={statusTone(result.status)} label={result.status} />
+            </div>
+            {result.status === "WORKING" ? (
+              <p className="text-[13px] text-ink-muted">Terhubung sebagai {result.me ?? "—"}. Siap mengirim.</p>
+            ) : (
+              <p className="text-[13px] text-warning">
+                Sesi belum siap. Buka dashboard WAHA dan scan QR dengan akun WhatsApp pengirim.
+              </p>
+            )}
+          </div>
+        ) : result?.ok === false ? (
+          <Banner tone="error" title={result.error} className="mt-2" />
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 export function BrandingPanel({
   initial,

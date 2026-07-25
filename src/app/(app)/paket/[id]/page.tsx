@@ -20,11 +20,13 @@ import {
   runningContractValue,
 } from "@/lib/package/queries";
 import type { PackageStage } from "@/generated/prisma/enums";
+import { isWahaConfigured } from "@/lib/waha/client";
 import {
   AdvanceStageButton,
   RevertStageButton,
   StartPelaksanaanButton,
 } from "./stage-actions";
+import { WaGroupForm } from "./wa-group-form";
 
 export const metadata: Metadata = { title: "Ringkasan Paket" };
 export const dynamic = "force-dynamic";
@@ -124,6 +126,7 @@ export default async function RingkasanPaketPage({
 
   const canProspect = can(user.role, "prospect.manage");
   const canContract = can(user.role, "contract.manage");
+  const canWaConfigure = can(user.role, "wa.configure");
 
   const nextAction = (() => {
     switch (pkg.stage) {
@@ -337,6 +340,23 @@ export default async function RingkasanPaketPage({
           ) : null}
         </CardBody>
       </Card>
+
+      {canWaConfigure ? (
+        <Card>
+          <CardHeader
+            title="Grup WhatsApp paket"
+            subtitle="Tujuan kiriman laporan & kegiatan lapangan semua lokasi di paket ini. Pilih dari daftar grup atau tempel ID grup (…@g.us)."
+          />
+          <CardBody>
+            <WaGroupForm
+              packageId={pkg.id}
+              currentGroupId={pkg.waGroupId}
+              currentGroupName={pkg.waGroupName}
+              wahaConfigured={await isWahaConfigured()}
+            />
+          </CardBody>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader

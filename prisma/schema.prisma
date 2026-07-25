@@ -396,6 +396,10 @@ model Package {
   // Dibuat via jalur cepat admin (bypass proses pra-kontrak); dokumen menyusul.
   isBypass      Boolean      @default(false) @map("is_bypass")
   cancelReason  String?      @map("cancel_reason")
+  // Grup WhatsApp tujuan kiriman laporan/kegiatan paket ini (WAHA chatId, mis.
+  // "12036300...@g.us"). Semua lokasi di paket ini mengirim ke grup yang sama.
+  waGroupId     String?      @map("wa_group_id")
+  waGroupName   String?      @map("wa_group_name")
   createdById   String?      @map("created_by_id") @db.Uuid
   createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime     @updatedAt @map("updated_at") @db.Timestamptz
@@ -730,6 +734,9 @@ model DailyReport {
   finalizedById String?           @map("finalized_by_id") @db.Uuid
   finalizedAt   DateTime?         @map("finalized_at") @db.Timestamptz
   finalSnapshot Json?             @map("final_snapshot")
+  // Penanda kiriman laporan ke grup WhatsApp (info "sudah dikirim").
+  waSentAt      DateTime?         @map("wa_sent_at") @db.Timestamptz
+  waSentById    String?           @map("wa_sent_by_id") @db.Uuid
   createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -784,6 +791,9 @@ model FieldActivity {
   createdById   String              @map("created_by_id") @db.Uuid
   finalizedById String?             @map("finalized_by_id") @db.Uuid
   finalizedAt   DateTime?           @map("finalized_at") @db.Timestamptz
+  // Penanda kiriman ke grup WhatsApp (WAHA) — untuk info "sudah dikirim" & hindari dobel.
+  waSentAt      DateTime?           @map("wa_sent_at") @db.Timestamptz
+  waSentById    String?             @map("wa_sent_by_id") @db.Uuid
   createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime            @updatedAt @map("updated_at") @db.Timestamptz
 

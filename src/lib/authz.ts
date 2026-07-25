@@ -26,6 +26,7 @@ export const CAPABILITIES = [
   "daily_report.review",
   "daily_report.finalize",
   "field_activity.manage",
+  "wa.configure", // atur grup WhatsApp per paket + tes koneksi WAHA (sementara super_admin saja)
   "progress.view",
   "issue.manage",
   "finance.view",
@@ -55,7 +56,8 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
   super_admin: new Set<Capability>(CAPABILITIES),
   program_director: new Set<Capability>(
     // contract.edit = koreksi data kontrak, khusus super_admin.
-    CAPABILITIES.filter((c) => c !== "system.manage" && c !== "contract.edit"),
+    // wa.configure (set grup WhatsApp paket) sementara khusus super_admin juga.
+    CAPABILITIES.filter((c) => c !== "system.manage" && c !== "contract.edit" && c !== "wa.configure"),
   ),
   regional_manager: new Set<Capability>([
     ...VIEW_ALL,

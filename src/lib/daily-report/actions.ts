@@ -88,6 +88,8 @@ const saveItemSchema = z.object({
   photoLat: z.coerce.number().min(-90).max(90).optional(),
   photoLng: z.coerce.number().min(-180).max(180).optional(),
   photoTakenAt: z.string().optional(),
+  photoSource: z.enum(["camera", "gallery"]).optional(),
+  galleryFallback: z.enum(["project", "none"]).optional(),
 });
 
 export async function saveItemAction(_prev: DailyActionState, formData: FormData): Promise<DailyActionState> {
@@ -102,6 +104,8 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
       photoLat: formData.get("photoLat") || undefined,
       photoLng: formData.get("photoLng") || undefined,
       photoTakenAt: formData.get("photoTakenAt") || undefined,
+      photoSource: formData.get("photoSource") || undefined,
+      galleryFallback: formData.get("galleryFallback") || undefined,
     });
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const d = parsed.data;
@@ -112,6 +116,8 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
       select: {
         slug: true,
         name: true,
+        gpsLat: true,
+        gpsLng: true,
         // Nama perusahaan utk cap foto = pelaksana sesuai KONTRAK (vendor);
         // fallback ke organisasi bila kontrak belum ada.
         package: {
@@ -144,6 +150,11 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
       const t = new Date(d.photoTakenAt);
       if (!Number.isNaN(t.getTime())) takenAt = t;
     }
+    const source = d.photoSource ?? "camera";
+    const fallbackMode = d.galleryFallback ?? "project";
+    const locLat = location.gpsLat != null ? Number(location.gpsLat) : null;
+    const locLng = location.gpsLng != null ? Number(location.gpsLng) : null;
+    const workDate = new Date(`${d.dateKey}T00:00:00.000Z`);
     for (const file of files) {
       try {
         await savePhotoForItem({
@@ -154,9 +165,14 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
           locationSlug: location.slug,
           dateKey: d.dateKey,
           stamp: {
+            source,
+            fallbackMode,
             lat: d.photoLat ?? null,
             lng: d.photoLng ?? null,
+            locationLat: locLat,
+            locationLng: locLng,
             takenAt,
+            workDate,
             locationLabel: location.name,
             companyName,
             reporterName: user.fullName,

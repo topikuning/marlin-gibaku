@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Search, Send, Trash2 } from "lucide-react";
+import { Search, Send, Trash2 } from "lucide-react";
 import { Banner, Button, Input, Label } from "@/components/ui";
 import { formatNumber, formatRupiah } from "@/lib/format";
 import {
@@ -12,6 +12,7 @@ import {
 } from "@/lib/daily-report/actions";
 import type { LeafNodeOption, WorkspaceItem } from "@/lib/daily-report/queries";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
+import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
 
 /**
  * Editor laporan (draft/perlu_koreksi) — MOBILE-FIRST untuk SM/pelaksana:
@@ -92,10 +93,7 @@ function ItemForm({
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<LeafNodeOption | null>(null);
   const [volume, setVolume] = useState("");
-  const [previews, setPreviews] = useState<string[]>([]);
-  const [geo, setGeo] = useState<{ lat: number; lng: number } | null>(null);
-  const [takenAt, setTakenAt] = useState("");
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [photoKey, setPhotoKey] = useState(0);
   const formRef = useRef<HTMLFormElement>(null);
 
   // Reset form + hapus draft lokal node ini setelah sukses simpan.
@@ -115,9 +113,7 @@ function ItemForm({
       });
       setQuery("");
       setVolume("");
-      setPreviews([]);
-      setGeo(null);
-      setTakenAt("");
+      setPhotoKey((k) => k + 1);
       formRef.current?.reset();
     }, 0);
     return () => window.clearTimeout(timer);
@@ -154,26 +150,6 @@ function ItemForm({
     }
   }
 
-  function onFiles() {
-    const files = fileRef.current?.files;
-    if (!files || files.length === 0) {
-      setPreviews([]);
-      return;
-    }
-    const urls: string[] = [];
-    for (let i = 0; i < Math.min(files.length, 6); i++) urls.push(URL.createObjectURL(files[i]));
-    setPreviews(urls);
-    // Cap foto: rekam waktu ambil + koordinat GPS (dibakar ke gambar di server).
-    setTakenAt(new Date().toISOString());
-    if (typeof navigator !== "undefined" && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => setGeo({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        () => setGeo(null),
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 },
-      );
-    }
-  }
-
   return (
     <form
       ref={formRef}
@@ -188,9 +164,6 @@ function ItemForm({
       <input type="hidden" name="locationId" value={locationId} />
       <input type="hidden" name="dateKey" value={dateKey} />
       <input type="hidden" name="rabNodeId" value={picked?.id ?? ""} />
-      <input type="hidden" name="photoLat" value={geo?.lat ?? ""} />
-      <input type="hidden" name="photoLng" value={geo?.lng ?? ""} />
-      <input type="hidden" name="photoTakenAt" value={takenAt} />
 
       {/* 1 · Pekerjaan */}
       <div>
@@ -296,49 +269,15 @@ function ItemForm({
 
       {/* 3 · Foto */}
       <div>
-        <Label htmlFor="dr-photos">3 · Foto bukti (opsional)</Label>
+        <Label>3 · Foto bukti (opsional)</Label>
         {!photoEnabled ? (
           <p className="rounded-lg border border-warning bg-warning-soft px-3 py-2 text-sm text-ink">
             Penyimpanan foto (Cloudflare R2) belum diaktifkan — unggah foto sementara tidak tersedia.
             Volume tetap bisa disimpan. Hubungi admin untuk mengaktifkan (menu Sistem → tes R2).
           </p>
         ) : (
-          <>
-            <input
-              ref={fileRef}
-              id="dr-photos"
-              name="photos"
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={onFiles}
-              className="hidden"
-            />
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-primary/40 bg-primary-50 px-4 py-4 text-sm font-semibold text-primary active:bg-primary-100"
-            >
-              <Camera aria-hidden className="size-4" />
-              {previews.length > 0 ? `${previews.length} foto dipilih — ketuk untuk ubah` : "Ambil / pilih foto"}
-            </button>
-          </>
+          <PhotoSourceInput key={photoKey} latName="photoLat" lngName="photoLng" />
         )}
-        {previews.length > 0 ? (
-          <>
-            <div className="mt-2 grid grid-cols-4 gap-1.5">
-              {previews.map((u, i) => (
-                // eslint-disable-next-line @next/next/no-img-element -- object URL lokal untuk pratinjau
-                <img key={i} src={u} alt="" className="h-16 w-full rounded-md border border-border object-cover" />
-              ))}
-            </div>
-            <p className="mt-1.5 text-[11px] text-ink-muted">
-              {geo
-                ? `Koordinat tercatat (${geo.lat.toFixed(5)}, ${geo.lng.toFixed(5)}) — waktu & koordinat akan dicap ke foto.`
-                : "Mengambil koordinat GPS… izinkan akses lokasi agar foto dicap koordinat."}
-            </p>
-          </>
-        ) : null}
       </div>
 
       {/* Catatan */}

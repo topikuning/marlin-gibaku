@@ -1911,3 +1911,70 @@ scurve — dengan test properti, bukan paritas nilai):**
   pilihan **Kamera ATAU Galeri**. Cap waktu/GPS tetap direkam saat berkas dipilih.
 - **RecalcBaselineButton** dirapikan jadi popover mengambang (`absolute z-30`) — panel konfirmasi
   + banner hasil tak lagi menekan judul kartu / menumpuk kartu tetangga (anti tumpang tindih).
+- Penugasan lokasi (buat pengguna & editor penugasan): tambah kotak cari `LocationPicker`
+  (nama lokasi ATAU perusahaan). Baris tak cocok disembunyikan (CSS), bukan unmount → centang
+  tetap terkirim di FormData walau difilter.
+
+## 099 · 2026-07-25 · Integrasi WhatsApp (WAHA): grup per paket + kirim kegiatan 1 klik
+
+- **Keputusan arsitektur**: kirim laporan/kegiatan ke **grup WhatsApp per PAKET** via
+  [WAHA](https://waha.devlike.pro) (self-hosted, Docker terpisah). Karena hierarki
+  lokasi→paket, semua kiriman lokasi otomatis ke grup paketnya. Tersimpan di
+  `Package.waGroupId`/`waGroupName` (WAHA chatId `…@g.us`). Migration `20260725010000_waha_integration`.
+- **Config = SETTING APLIKASI di DB (bukan env)**: disimpan di `AppSetting` (key-value,
+  effective-dated) — pola sama dengan Branding — diatur admin di halaman Sistem TANPA
+  redeploy (`src/lib/waha/config.ts`: `getWahaConfig`/`setWahaConfig`/`getWahaConfigDisplay`,
+  `normalizeWahaBaseUrl`). API key server-only, tak pernah ke klien; form menampilkannya
+  tersamar (kosong = pertahankan, `-` = hapus). `saveWahaConfigAction` gate `system.manage`.
+  Alasan pilih DB vs env: admin non-teknis bisa ganti server/rotasi key sendiri. Panduan
+  deploy: `docs/WAHA_SETUP.md` (image `devlikeapro/waha:latest`, engine NOWEB, scan QR).
+- **Klien** `src/lib/waha/client.ts`: `sendText`/`sendImage`/`sendFile` (file base64 dari byte
+  R2 sendiri — WAHA tak perlu jangkau presigned URL), `listGroups`, `getSessionStatus`,
+  `normalizeGroupChatId`. Auth header `X-Api-Key`.
+- **Kirim kegiatan (1 klik)** `sendActivityToWaAction` (gate `field_activity.manage` +
+  `requireLocationAccess`): teks ringkas + semua foto (image) + semua dokumen (file) ke grup
+  paket; tandai `FieldActivity.waSentAt`/`waSentById` ("✓ Terkirim", bisa kirim ulang). Audit.
+- **Set grup**: capability baru `wa.configure` — SEMENTARA super_admin SAJA (permintaan user:
+  set ID grup cukup di admin, jangan role lain). Mengirim kegiatan tetap `field_activity.manage`
+  (semua peran lapangan). `WaGroupForm` di halaman Paket, 3 cara: (1) pilih dari daftar
+  (`listWaGroupsAction`, butuh sesi WORKING + store NOWEB aktif); (2) **link undangan grup** →
+  `resolveWaInviteAction`/`resolveGroupByInvite` (join-info→fallback join) — resolve ID TANPA
+  store NOWEB; (3) tempel ID manual. WhatsApp tak pernah menampilkan ID grup di aplikasinya,
+  jadi cara (2) jadi jalur utama saat engine NOWEB tanpa store.
+- **Diagnostik** di Sistem: status koneksi + sesi WA (`wahaStatusAction`).
+- Scope iterasi ini: kegiatan lapangan saja (per keputusan user). Laporan harian/progres menyusul.
+
+## 100 · 2026-07-25 · Kirim laporan harian & mingguan ke grup WA (Excel, tombol manual)
+
+- Perluasan WAHA (setelah 099): laporan **harian** & **periodik (mingguan/bulanan)** bisa dikirim
+  ke grup WA paket sebagai **Excel** (.xlsx). Keputusan user: **Excel dulu** (PDF butuh Chromium
+  headless di server — ditunda), pemicu **tombol manual** per laporan.
+- **Builder Excel harian baru** `src/lib/export/daily-xlsx.ts` `buildDailyReportXlsx(KkpDailyData)`
+  (satu sheet: identitas → kemajuan item → tenaga kerja → material → peralatan → cuaca/catatan).
+  Laporan periodik pakai `buildPeriodReportXlsx` yang sudah ada.
+- **Actions** `sendPeriodReportToWaAction` (locationId+kind+n) & `sendDailyReportToWaAction`
+  (slug+dateKey) — gate `report.export` + `requireLocationAccess`; getReport→build xlsx→
+  `sendText`(caption)+`sendFile`(xlsx) ke `Package.waGroupId`; audit `report.wa_send`.
+- **Penanda** `DailyReport.waSentAt`/`waSentById` (migration `20260725020000_daily_report_wa_sent`)
+  → indikator "✓ WA <waktu>". Periodik derived (tanpa row) → tanpa penanda.
+- **UI** (`laporan-lokasi`): tombol "Kirim ke WhatsApp (Excel)" di kartu laporan periodik saat
+  ditampilkan + tombol "Kirim WA" per baris laporan harian final. Nonaktif bila paket belum
+  punya grup / WAHA belum diatur.
+
+## 101 · 2026-07-25 · Tag lokasi foto sadar-sumber (Kamera vs Galeri) — perbaiki batch galeri
+
+- **Masalah**: `savePhotoForItem` dulu memprioritaskan GPS perangkat saat upload
+  (`stamp.lat ?? exif.lat`), sehingga foto galeri yang di-batch setelah pindah lokasi
+  ketag titik upload — bukan titik asli foto.
+- **Solusi (per keputusan user)**: input foto dibedah jadi 2 sumber eksplisit
+  (komponen baru `src/components/knmp/photo-source-input.tsx`):
+  - **Kamera** (`capture=environment`): GPS real-time perangkat → EXIF → titik lokasi proyek;
+    waktu = sekarang → EXIF.
+  - **Galeri** (tanpa capture): UTAMAKAN EXIF asli foto; bila EXIF tak ada, cadangan sesuai
+    pilihan di tombol galeri (`galleryFallback`: "project" = titik lokasi proyek, "none" = tanpa tag).
+    GPS perangkat saat upload TIDAK dikirim untuk galeri.
+- `savePhotoForItem` (photos.ts) kini menerima `stamp.source`/`fallbackMode`/`locationLat`/
+  `locationLng`/`workDate` dan menentukan lat/lng/takenAt sesuai sumber. Koordinat lokasi proyek
+  diambil dari `Location.gpsLat/gpsLng` (sudah terisi dari import master / form lokasi).
+- Dipakai di kegiatan lapangan (form buat + Tambah foto) dan laporan harian (report-editor).
+  Waktu fallback galeri = tanggal kegiatan/laporan (bukan waktu upload).

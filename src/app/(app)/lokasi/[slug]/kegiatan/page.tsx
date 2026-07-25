@@ -11,12 +11,15 @@ import {
   FIELD_ACTIVITY_TYPE_LABEL,
 } from "@/lib/field-activity/labels";
 import { removeActivityPhotoAction } from "@/lib/field-activity/actions";
+import { isWahaConfigured } from "@/lib/waha/client";
+import { db } from "@/lib/db";
 import { requireLocationPage } from "../get-location";
 import {
   ActivityAttachments,
   CreateActivityForm,
   DraftActions,
   ReopenActivityButton,
+  SendToWaButton,
 } from "./kegiatan-forms";
 
 export const metadata: Metadata = { title: "Kegiatan & Dokumentasi Lapangan" };
@@ -29,6 +32,18 @@ export default async function KegiatanLapanganPage({ params }: { params: Promise
   const canManage = can(user.role, "field_activity.manage");
   const activities = await listFieldActivities(location.id);
   const todayKey = jakartaDateKey(jakartaToday());
+
+  // Grup WA paket (tujuan kiriman kegiatan). Sama untuk semua kegiatan lokasi ini.
+  const wahaConfigured = await isWahaConfigured();
+  const pkgGroup =
+    canManage && wahaConfigured
+      ? await db.location.findUnique({
+          where: { id: location.id },
+          select: { package: { select: { waGroupId: true, waGroupName: true } } },
+        })
+      : null;
+  const hasGroup = !!pkgGroup?.package?.waGroupId;
+  const groupName = pkgGroup?.package?.waGroupName ?? null;
 
   return (
     <div className="space-y-4">
@@ -128,6 +143,15 @@ export default async function KegiatanLapanganPage({ params }: { params: Promise
                   />
                 ) : null}
                 {canManage && a.status === "final" ? <ReopenActivityButton activityId={a.id} /> : null}
+                {canManage && wahaConfigured ? (
+                  <SendToWaButton
+                    activityId={a.id}
+                    wahaConfigured={wahaConfigured}
+                    hasGroup={hasGroup}
+                    groupName={groupName}
+                    sentAt={a.waSentAt}
+                  />
+                ) : null}
               </CardBody>
             </Card>
           ))}

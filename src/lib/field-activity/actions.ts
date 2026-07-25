@@ -31,13 +31,15 @@ function revalidate(slug: string): void {
   revalidatePath(`/lokasi/${slug}`);
 }
 
-/** Ambil lokasi + nama perusahaan (utk cap foto). */
+/** Ambil lokasi + nama perusahaan + koordinat (utk cap foto). */
 async function locationForStamp(locationId: string) {
   return db.location.findUnique({
     where: { id: locationId },
     select: {
       slug: true,
       name: true,
+      gpsLat: true,
+      gpsLng: true,
       package: {
         select: {
           organization: { select: { name: true } },
@@ -54,14 +56,19 @@ async function uploadPhotos(opts: {
   activityId: string;
   userId: string;
   reporterName: string;
-  location: { slug: string; name: string };
+  location: { slug: string; name: string; gpsLat: unknown; gpsLng: unknown };
   companyName: string | null;
   dateKey: string;
+  source: "camera" | "gallery";
+  fallbackMode: "project" | "none";
   lat: number | null;
   lng: number | null;
   takenAt: Date | null;
+  workDate: Date | null;
 }): Promise<string[]> {
   const errors: string[] = [];
+  const locLat = opts.location.gpsLat != null ? Number(opts.location.gpsLat) : null;
+  const locLng = opts.location.gpsLng != null ? Number(opts.location.gpsLng) : null;
   for (const file of opts.files.slice(0, MAX_PHOTOS_PER_UPLOAD)) {
     try {
       await savePhotoForItem({
@@ -71,9 +78,14 @@ async function uploadPhotos(opts: {
         locationSlug: opts.location.slug,
         dateKey: opts.dateKey,
         stamp: {
+          source: opts.source,
+          fallbackMode: opts.fallbackMode,
           lat: opts.lat,
           lng: opts.lng,
+          locationLat: locLat,
+          locationLng: locLng,
           takenAt: opts.takenAt,
+          workDate: opts.workDate,
           locationLabel: opts.location.name,
           companyName: opts.companyName,
           reporterName: opts.reporterName,
@@ -89,6 +101,13 @@ async function uploadPhotos(opts: {
 
 function filesFrom(formData: FormData): File[] {
   return formData.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
+}
+
+/** Sumber foto ("camera"/"gallery") + mode cadangan tag dari formData. */
+function photoSourceFrom(formData: FormData): { source: "camera" | "gallery"; fallbackMode: "project" | "none" } {
+  const source = formData.get("photoSource") === "gallery" ? "gallery" : "camera";
+  const fallbackMode = formData.get("galleryFallback") === "none" ? "none" : "project";
+  return { source, fallbackMode };
 }
 
 function parseTakenAt(v: FormDataEntryValue | null): Date | null {
@@ -161,6 +180,7 @@ export async function createActivityAction(
       },
     });
 
+    const { source, fallbackMode } = photoSourceFrom(formData);
     const photoErrors = await uploadPhotos({
       files: filesFrom(formData),
       activityId: activity.id,
@@ -170,9 +190,12 @@ export async function createActivityAction(
       companyName:
         location.package?.contract?.vendor?.name ?? location.package?.organization?.name ?? null,
       dateKey: d.activityDate,
+      source,
+      fallbackMode,
       lat: d.gpsLat ?? null,
       lng: d.gpsLng ?? null,
       takenAt: parseTakenAt(formData.get("photoTakenAt")),
+      workDate: new Date(`${d.activityDate}T00:00:00.000Z`),
     });
 
     await audit(user.id, "field_activity.create", "field_activity", activity.id, {
@@ -274,6 +297,8 @@ async function activityCtx(activityId: string) {
         select: {
           slug: true,
           name: true,
+          gpsLat: true,
+          gpsLng: true,
           package: {
             select: {
               organization: { select: { name: true } },
@@ -303,6 +328,9 @@ export async function addActivityPhotosAction(
     const files = filesFrom(formData);
     if (!files.length) return { error: "Tidak ada foto untuk diunggah." };
     const dateKey = ctx.activityDate.toISOString().slice(0, 10);
+    const { source, fallbackMode } = photoSourceFrom(formData);
+    const devLat = Number(formData.get("gpsLat"));
+    const devLng = Number(formData.get("gpsLng"));
     const photoErrors = await uploadPhotos({
       files,
       activityId: ctx.id,
@@ -312,9 +340,12 @@ export async function addActivityPhotosAction(
       companyName:
         ctx.location.package?.contract?.vendor?.name ?? ctx.location.package?.organization?.name ?? null,
       dateKey,
-      lat: null,
-      lng: null,
+      source,
+      fallbackMode,
+      lat: Number.isFinite(devLat) && formData.get("gpsLat") ? devLat : null,
+      lng: Number.isFinite(devLng) && formData.get("gpsLng") ? devLng : null,
       takenAt: parseTakenAt(formData.get("photoTakenAt")),
+      workDate: ctx.activityDate,
     });
     revalidate(ctx.location.slug);
     if (photoErrors.length) return { warning: `Sebagian foto gagal: ${[...new Set(photoErrors)].join("; ")}` };

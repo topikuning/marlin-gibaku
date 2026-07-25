@@ -5,10 +5,12 @@ import { Card, CardBody, CardHeader, EmptyState } from "@/components/ui";
 import { KkpPeriodReport } from "@/components/knmp/kkp-period-report";
 import { ScurveKkpSheet } from "@/components/knmp/scurve-kkp-sheet";
 import { PeriodFilter } from "./period-filter";
+import { SendPeriodReportWaButton, SendDailyReportWaButton } from "./laporan-wa";
 import { requireUser, requireLocationAccess } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
 import { getPeriodBounds, getPeriodReport, type PeriodKind } from "@/lib/periodic-report";
+import { isWahaConfigured } from "@/lib/waha/client";
 import { jakartaDateKey, formatTanggal } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -25,9 +27,15 @@ export default async function LaporanLokasiPage({
   const sp = await searchParams;
   const user = await requireUser();
   requireCapabilityPage(user.role, "report.export");
-  const location = await db.location.findUnique({ where: { slug }, select: { id: true, name: true } });
+  const location = await db.location.findUnique({
+    where: { slug },
+    select: { id: true, name: true, package: { select: { waGroupId: true } } },
+  });
   if (!location) notFound();
   await requireLocationAccess(user, location.id);
+
+  const wahaOn = await isWahaConfigured();
+  const hasGroup = !!location.package?.waGroupId;
 
   // scheduleBounds: real bila SPMK ada, else asumsi mulai hari ini — utk tombol Jadwal
   // (kurva-S rencana tetap bisa dilihat sebelum SPMK). bounds REAL: hanya utk laporan
@@ -47,7 +55,7 @@ export default async function LaporanLokasiPage({
       where: { locationId: location.id, status: "final" },
       orderBy: { reportDate: "desc" },
       take: 30,
-      select: { id: true, reportDate: true, _count: { select: { items: true } } },
+      select: { id: true, reportDate: true, waSentAt: true, _count: { select: { items: true } } },
     }),
   ]);
 
@@ -90,6 +98,9 @@ export default async function LaporanLokasiPage({
                 />
               ) : report ? (
                 <div className="space-y-4">
+                  {wahaOn ? (
+                    <SendPeriodReportWaButton locationId={location.id} kind={kind} n={n} hasGroup={hasGroup} />
+                  ) : null}
                   {/* Hal-1: KURVA S (grafik) */}
                   <div className="overflow-x-auto rounded-md border border-border bg-white p-4">
                     <ScurveKkpSheet r={report} />
@@ -117,14 +128,24 @@ export default async function LaporanLokasiPage({
               {finalReports.map((r) => {
                 const key = jakartaDateKey(r.reportDate);
                 return (
-                  <li key={r.id} className="flex items-center justify-between gap-2 py-2">
+                  <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                     <span>
                       {formatTanggal(r.reportDate, "EEEE, d MMM yyyy")}
                       <span className="ml-2 text-ink-muted">{r._count.items} item</span>
                     </span>
-                    <Link href={`/cetak/harian/${slug}/${key}`} className="font-medium text-primary hover:underline">
-                      Cetak
-                    </Link>
+                    <span className="flex flex-wrap items-center gap-3">
+                      {wahaOn ? (
+                        <SendDailyReportWaButton
+                          slug={slug}
+                          dateKey={key}
+                          hasGroup={hasGroup}
+                          sentAt={r.waSentAt ? r.waSentAt.toISOString() : null}
+                        />
+                      ) : null}
+                      <Link href={`/cetak/harian/${slug}/${key}`} className="font-medium text-primary hover:underline">
+                        Cetak
+                      </Link>
+                    </span>
                   </li>
                 );
               })}
