@@ -56,7 +56,8 @@ test.describe("autentikasi", () => {
 test.describe("otorisasi per peran", () => {
   test("mandor tidak melihat menu Pengguna/Keuangan dan ditolak akses halaman", async ({ page }) => {
     await login(page, "mandor-01");
-    await expect(page).toHaveURL("/");
+    // Pelaksana (field_supervisor) mendarat langsung di Hari Ini, bukan Beranda.
+    await expect(page).toHaveURL("/hari-ini");
     await expect(page.locator("nav").getByRole("link", { name: "Pengguna" })).toHaveCount(0);
     await page.goto("/pengguna");
     await expect(page.getByText(/404|not found/i).first()).toBeVisible();

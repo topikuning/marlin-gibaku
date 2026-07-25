@@ -2196,3 +2196,16 @@ scurve — dengan test properti, bukan paritas nilai):**
   cap menampilkan penanda amber "· waktu unggah" di sebelah tanggal. Migration
   `20260725190000_photo_metadata_source`.
 - Verifikasi: typecheck/lint/build ✓; pratinjau penanda ✓.
+
+## 113 · 2026-07-25 · Pelaksana mendarat langsung di "Hari Ini" (bukan Beranda)
+
+- **Keputusan user**: peran **Pelaksana** (`field_supervisor`) mendarat langsung di **Hari Ini**
+  setelah login — alur kerjanya murni input laporan harian, Beranda hanya menambah langkah.
+  **Hanya Pelaksana** (bukan Site Manager): Site Manager tetap di Command Center karena tugasnya
+  termasuk verifikasi laporan (`daily_report.review`). Manajemen tetap ke Dashboard Eksekutif (DEC 108).
+- **Routing** (`src/app/(app)/page.tsx`): `HomePage` → `role === "field_supervisor"` ? `redirect("/hari-ini")`
+  : (portfolio.view ? Dashboard : Command Center). Redirect di level "/" (bukan hanya login), jadi
+  logo/Beranda pun mengarah ke Hari Ini bagi Pelaksana. `/hari-ini` ter-gate `daily_report.create`
+  (dipunyai field_supervisor) — tak ada loop.
+- **E2E** disesuaikan: uji `mandor-01` (field_supervisor) kini `toHaveURL("/hari-ini")`.
+- Verifikasi: typecheck/lint ✓.
