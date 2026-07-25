@@ -17,6 +17,8 @@ export type FieldActivityView = {
   title: string;
   notes: string | null;
   participants: string | null;
+  kendala: string | null;
+  solusi: string | null;
   status: FieldActivityStatus;
   createdByName: string | null;
   photos: PhotoView[];
@@ -35,6 +37,8 @@ export async function listFieldActivities(locationId: string): Promise<FieldActi
       title: true,
       notes: true,
       participants: true,
+      kendala: true,
+      solusi: true,
       status: true,
       createdById: true,
       photos: {
@@ -75,6 +79,8 @@ export async function listFieldActivities(locationId: string): Promise<FieldActi
     title: r.title,
     notes: r.notes,
     participants: r.participants,
+    kendala: r.kendala,
+    solusi: r.solusi,
     status: r.status,
     createdByName: nameById.get(r.createdById) ?? null,
     photos: r.photos.map((p) => byId.get(p.id)).filter((v): v is PhotoView => v != null),

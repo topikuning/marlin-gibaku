@@ -1,10 +1,11 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
-import { Camera, CheckCircle2, Download, Paperclip, RotateCcw, Trash2, Plus } from "lucide-react";
+import { Camera, CheckCircle2, Download, Paperclip, Pencil, RotateCcw, Trash2, Plus } from "lucide-react";
 import { Banner, Button, Input, Label, Combobox, Textarea } from "@/components/ui";
 import { FIELD_ACTIVITY_TYPES, FIELD_ACTIVITY_TYPE_LABEL } from "@/lib/field-activity/labels";
 import type { FieldActivityAttachmentView } from "@/lib/field-activity/queries";
+import type { FieldActivityType } from "@/generated/prisma/enums";
 import {
   addActivityAttachmentsAction,
   addActivityPhotosAction,
@@ -13,8 +14,21 @@ import {
   finalizeActivityAction,
   removeActivityAttachmentAction,
   reopenActivityAction,
+  updateActivityAction,
   type FieldActivityState,
 } from "@/lib/field-activity/actions";
+
+/** Data kegiatan yang bisa dikoreksi lewat form edit. */
+export type EditableActivity = {
+  id: string;
+  type: FieldActivityType;
+  activityDate: string;
+  title: string;
+  notes: string | null;
+  participants: string | null;
+  kendala: string | null;
+  solusi: string | null;
+};
 
 type Geo = { lat: number; lng: number } | null;
 
@@ -99,6 +113,17 @@ export function CreateActivityForm({ locationId, todayKey }: { locationId: strin
         <Input id="fa-participants" name="participants" placeholder="mis. PPK, Konsultan Pengawas, Penyedia, Kades" maxLength={500} />
       </div>
 
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <Label htmlFor="fa-kendala">Kendala (opsional)</Label>
+          <Textarea id="fa-kendala" name="kendala" rows={2} placeholder="Kendala di lapangan — kosongkan bila tidak ada" maxLength={2000} />
+        </div>
+        <div>
+          <Label htmlFor="fa-solusi">Solusi / tindak lanjut (opsional)</Label>
+          <Textarea id="fa-solusi" name="solusi" rows={2} placeholder="Solusi/tindak lanjut atas kendala — kosongkan bila tidak ada" maxLength={2000} />
+        </div>
+      </div>
+
       <div>
         <Label htmlFor="fa-photos">Foto dokumentasi</Label>
         <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-border bg-surface-muted px-3 py-2.5 text-sm text-ink-muted hover:border-border-strong">
@@ -121,15 +146,82 @@ export function CreateActivityForm({ locationId, todayKey }: { locationId: strin
   );
 }
 
-/** Tombol aksi untuk kegiatan draft: tambah foto · tambah dokumen · finalkan · hapus. */
-export function DraftActions({ activityId }: { activityId: string }) {
+/** Tombol aksi untuk kegiatan draft: edit · tambah foto · tambah dokumen · finalkan · hapus. */
+export function DraftActions({ activity }: { activity: EditableActivity }) {
+  const [editing, setEditing] = useState(false);
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
-      <AddPhotoForm activityId={activityId} />
-      <AddAttachmentForm activityId={activityId} />
-      <FinalizeButton activityId={activityId} />
-      <DeleteButton activityId={activityId} />
-    </div>
+    <>
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
+        <Button
+          type="button"
+          size="sm"
+          variant={editing ? "secondary" : "ghost"}
+          onClick={() => setEditing((v) => !v)}
+        >
+          <Pencil aria-hidden className="size-3.5" />
+          {editing ? "Tutup edit" : "Edit"}
+        </Button>
+        <AddPhotoForm activityId={activity.id} />
+        <AddAttachmentForm activityId={activity.id} />
+        <FinalizeButton activityId={activity.id} />
+        <DeleteButton activityId={activity.id} />
+      </div>
+      {editing ? <EditActivityForm activity={activity} onDone={() => setEditing(false)} /> : null}
+    </>
+  );
+}
+
+/** Form koreksi isi kegiatan draft (jenis/tanggal/judul/catatan/peserta). */
+function EditActivityForm({ activity, onDone }: { activity: EditableActivity; onDone: () => void }) {
+  const [state, action, pending] = useActionState<FieldActivityState, FormData>(updateActivityAction, undefined);
+  useEffect(() => {
+    if (state?.success) onDone();
+  }, [state?.success, onDone]);
+  return (
+    <form action={action} className="mt-3 space-y-3 rounded-md border border-border bg-surface-muted p-3">
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      <input type="hidden" name="activityId" value={activity.id} />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <Label htmlFor={`ed-type-${activity.id}`} required>Jenis kegiatan</Label>
+          <Combobox id={`ed-type-${activity.id}`} name="type" defaultValue={activity.type} required>
+            {FIELD_ACTIVITY_TYPES.map((t) => (
+              <option key={t} value={t}>{FIELD_ACTIVITY_TYPE_LABEL[t]}</option>
+            ))}
+          </Combobox>
+        </div>
+        <div>
+          <Label htmlFor={`ed-date-${activity.id}`} required>Tanggal</Label>
+          <Input id={`ed-date-${activity.id}`} type="date" name="activityDate" defaultValue={activity.activityDate} required />
+        </div>
+      </div>
+      <div>
+        <Label htmlFor={`ed-title-${activity.id}`} required>Judul / uraian singkat</Label>
+        <Input id={`ed-title-${activity.id}`} name="title" defaultValue={activity.title} required maxLength={160} />
+      </div>
+      <div>
+        <Label htmlFor={`ed-notes-${activity.id}`}>Catatan (opsional)</Label>
+        <Textarea id={`ed-notes-${activity.id}`} name="notes" rows={2} defaultValue={activity.notes ?? ""} maxLength={2000} />
+      </div>
+      <div>
+        <Label htmlFor={`ed-part-${activity.id}`}>Peserta / hadir (opsional)</Label>
+        <Input id={`ed-part-${activity.id}`} name="participants" defaultValue={activity.participants ?? ""} maxLength={500} />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <Label htmlFor={`ed-kendala-${activity.id}`}>Kendala (opsional)</Label>
+          <Textarea id={`ed-kendala-${activity.id}`} name="kendala" rows={2} defaultValue={activity.kendala ?? ""} placeholder="Kosongkan bila tidak ada" maxLength={2000} />
+        </div>
+        <div>
+          <Label htmlFor={`ed-solusi-${activity.id}`}>Solusi / tindak lanjut (opsional)</Label>
+          <Textarea id={`ed-solusi-${activity.id}`} name="solusi" rows={2} defaultValue={activity.solusi ?? ""} placeholder="Kosongkan bila tidak ada" maxLength={2000} />
+        </div>
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button type="button" size="sm" variant="ghost" onClick={onDone}>Batal</Button>
+        <Button type="submit" size="sm" loading={pending}>Simpan perubahan</Button>
+      </div>
+    </form>
   );
 }
 

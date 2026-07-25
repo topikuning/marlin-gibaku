@@ -112,6 +112,8 @@ const createSchema = z.object({
   title: z.string().trim().min(3, "Judul minimal 3 karakter").max(160),
   notes: z.string().trim().max(2000).optional(),
   participants: z.string().trim().max(500).optional(),
+  kendala: z.string().trim().max(2000).optional(),
+  solusi: z.string().trim().max(2000).optional(),
   gpsLat: z.coerce.number().min(-90).max(90).optional(),
   gpsLng: z.coerce.number().min(-180).max(180).optional(),
 });
@@ -128,6 +130,8 @@ export async function createActivityAction(
     title: formData.get("title"),
     notes: formData.get("notes") || undefined,
     participants: formData.get("participants") || undefined,
+    kendala: formData.get("kendala") || undefined,
+    solusi: formData.get("solusi") || undefined,
     gpsLat: formData.get("gpsLat") || undefined,
     gpsLng: formData.get("gpsLng") || undefined,
   });
@@ -148,6 +152,8 @@ export async function createActivityAction(
         title: d.title,
         notes: d.notes ?? null,
         participants: d.participants ?? null,
+        kendala: d.kendala ?? null,
+        solusi: d.solusi ?? null,
         gpsLat: d.gpsLat != null ? d.gpsLat.toFixed(7) : null,
         gpsLng: d.gpsLng != null ? d.gpsLng.toFixed(7) : null,
         status: "draft",
@@ -178,6 +184,78 @@ export async function createActivityAction(
       success: "Kegiatan tersimpan (draft).",
       warning: photoErrors.length ? `Sebagian foto gagal: ${[...new Set(photoErrors)].join("; ")}` : undefined,
     };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+const updateSchema = z.object({
+  activityId: z.uuid(),
+  type: z.enum([
+    "rapat_pcm",
+    "pengukuran_uitzet",
+    "mc0",
+    "sosialisasi",
+    "mobilisasi",
+    "dokumentasi_0",
+    "lainnya",
+  ]),
+  activityDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal tidak valid"),
+  title: z.string().trim().min(3, "Judul minimal 3 karakter").max(160),
+  notes: z.string().trim().max(2000).optional(),
+  participants: z.string().trim().max(500).optional(),
+  kendala: z.string().trim().max(2000).optional(),
+  solusi: z.string().trim().max(2000).optional(),
+});
+
+/**
+ * Koreksi isi kegiatan (jenis/tanggal/judul/catatan/peserta/kendala/solusi) — hanya saat draft.
+ * Foto & lampiran tidak disentuh di sini. Kegiatan final harus dibuka kembali
+ * dulu (reopen) sebelum bisa diedit.
+ */
+export async function updateActivityAction(
+  _prev: FieldActivityState,
+  formData: FormData,
+): Promise<FieldActivityState> {
+  const parsed = updateSchema.safeParse({
+    activityId: formData.get("activityId"),
+    type: formData.get("type"),
+    activityDate: formData.get("activityDate"),
+    title: formData.get("title"),
+    notes: formData.get("notes") || undefined,
+    participants: formData.get("participants") || undefined,
+    kendala: formData.get("kendala") || undefined,
+    solusi: formData.get("solusi") || undefined,
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const d = parsed.data;
+
+  try {
+    const user = await requireCapability("field_activity.manage");
+    const ctx = await activityCtx(d.activityId);
+    if (!ctx) return { error: "Kegiatan tidak ditemukan." };
+    await requireLocationAccess(user, ctx.locationId);
+    if (ctx.status !== "draft") {
+      return { error: "Kegiatan sudah final — buka kembali dulu untuk mengoreksi." };
+    }
+
+    await db.fieldActivity.update({
+      where: { id: ctx.id },
+      data: {
+        type: d.type,
+        activityDate: new Date(`${d.activityDate}T00:00:00.000Z`),
+        title: d.title,
+        notes: d.notes ?? null,
+        participants: d.participants ?? null,
+        kendala: d.kendala ?? null,
+        solusi: d.solusi ?? null,
+      },
+    });
+    await audit(user.id, "field_activity.update", "field_activity", ctx.id, {
+      locationId: ctx.locationId,
+    });
+    revalidate(ctx.location.slug);
+    return { success: "Perubahan kegiatan tersimpan." };
   } catch (err) {
     return fail(err);
   }
