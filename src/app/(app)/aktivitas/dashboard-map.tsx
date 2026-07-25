@@ -53,7 +53,7 @@ export function DashboardMap({
   const slugById = useMemo(() => new Map(markers.map((m) => [m.id, m.slug])), [markers]);
 
   return (
-    <div className="space-y-3">
+    <div className="flex h-full flex-col gap-3">
       <div className="flex flex-wrap gap-1.5">
         {FILTERS.map((f) => (
           <button
@@ -71,7 +71,7 @@ export function DashboardMap({
         ))}
       </div>
 
-      <div className="relative h-[360px] overflow-hidden rounded-lg border border-border">
+      <div className="relative min-h-[300px] flex-1 overflow-hidden rounded-lg border border-border">
         <PetaMap
           markers={shown}
           selectedId={selected}

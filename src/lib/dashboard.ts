@@ -74,6 +74,7 @@ export type DashboardData = {
   kendalaKritis: number;
   markers: PetaMarker[];
   markerTone: Record<string, MarkerTone>;
+  locationsIndex: { name: string; slug: string }[];
 };
 
 export type ActivityCentreItem = {
@@ -224,6 +225,7 @@ export async function getDashboardData(locIds: string[] | null): Promise<Dashboa
     kendalaKritis: kendalaAll.filter((k) => k.severity === "kritis").length,
     markers,
     markerTone,
+    locationsIndex: locations.map((l) => ({ name: l.name, slug: l.slug })),
   };
 }
 

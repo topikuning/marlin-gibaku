@@ -11,7 +11,6 @@ import {
   FileText,
   LayoutDashboard,
   MapPin,
-  Search,
   TrendingUp,
 } from "lucide-react";
 import { Card, StatusPill } from "@/components/ui";
@@ -23,6 +22,7 @@ import { formatPct, formatTanggal } from "@/lib/format";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import { ISSUE_SEVERITY_LABEL, ISSUE_SEVERITY_TONE, RECOVERY_STATUS_LABEL, RECOVERY_STATUS_TONE } from "@/app/(app)/lokasi/[slug]/issue-labels";
 import { DashboardMap } from "./dashboard-map";
+import { DashboardSearch } from "./dashboard-search";
 
 export const dynamic = "force-dynamic";
 
@@ -56,14 +56,11 @@ export default async function DashboardEksekutifPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="hidden items-center gap-2 rounded-md border border-border bg-surface px-3 py-1.5 text-sm text-ink-muted sm:flex">
-            <Search aria-hidden className="size-4" />
-            <span>Cari lokasi / proyek…</span>
-          </div>
+          <DashboardSearch locations={data.locationsIndex} />
           <div className="flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1.5 text-xs text-ink-muted">
             <Clock aria-hidden className="size-3.5" />
             <span>
-              Terakhir diperbarui <span className="font-medium text-ink">{jamWIB} WIB</span>
+              Diperbarui <span className="font-medium text-ink">{jamWIB} WIB</span>
             </span>
           </div>
         </div>
@@ -107,13 +104,15 @@ export default async function DashboardEksekutifPage() {
       </div>
 
       {/* Peta + Status submit */}
-      <div className="grid items-start gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="flex flex-col lg:col-span-2">
           <div className="border-b border-border px-4 py-3">
             <h2 className="text-sm font-semibold text-ink">Peta Monitoring Lokasi</h2>
           </div>
-          <div className="p-4">
-            <DashboardMap markers={data.markers} markerTone={data.markerTone} />
+          <div className="flex flex-1 flex-col p-4">
+            <div className="min-h-[300px] flex-1">
+              <DashboardMap markers={data.markers} markerTone={data.markerTone} />
+            </div>
             <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
               {data.regions.map((r) => (
                 <div key={r.region} className="rounded-md border border-border bg-surface-muted px-2 py-1.5 text-center">
@@ -322,13 +321,13 @@ const TONE_ICON: Record<Tone, string> = {
 
 function StatCard({ icon, tone, label, value, sub }: { icon: ReactNode; tone: Tone; label: string; value: ReactNode; sub?: ReactNode }) {
   return (
-    <Card className="flex flex-col p-4">
-      <div className="flex items-center gap-2.5">
-        <span className={`flex size-9 shrink-0 items-center justify-center rounded-lg [&>svg]:size-[1.1rem] ${TONE_ICON[tone]}`}>{icon}</span>
-        <span className="text-[11px] font-medium uppercase leading-tight tracking-wide text-ink-muted">{label}</span>
+    <Card className="flex flex-col p-3">
+      <div className="flex items-center gap-2">
+        <span className={`flex size-7 shrink-0 items-center justify-center rounded-md [&>svg]:size-4 ${TONE_ICON[tone]}`}>{icon}</span>
+        <span className="text-[10px] font-medium uppercase leading-tight tracking-wide text-ink-muted">{label}</span>
       </div>
-      <div className="tabular mt-2.5 text-3xl font-semibold leading-none text-ink">{value}</div>
-      {sub ? <div className="mt-2 text-xs text-ink-muted">{sub}</div> : null}
+      <div className="tabular mt-2 text-2xl font-semibold leading-none text-ink">{value}</div>
+      {sub ? <div className="mt-1.5 text-[11px] text-ink-muted">{sub}</div> : null}
     </Card>
   );
 }
