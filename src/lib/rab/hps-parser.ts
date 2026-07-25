@@ -237,6 +237,7 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): {
   let itemL1: ParsedRabItem | null = null; // item numerik (mis. "6")
   let itemL2: ParsedRabItem | null = null; // sub-item dotted (mis. "6.1")
   let subSeen = new Map<string, number>(); // dedup kode sub per kategori
+  let orphanSeq = 0; // penomoran baris berkode rusak/kosong yang jadi item sendiri
 
   const mkItem = (
     code: string,
@@ -370,6 +371,21 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): {
     // Huruf (a,b,c) atau kode kosong (lanjutan) → anak grup terdalam saat ini
     if (LETTER.test(code) || code === "") {
       const parent = itemL2 ?? itemL1;
+      // Baris kode-KOSONG/rusak (mis. "#REF!" → terbaca kosong) yang punya NILAI
+      // sendiri, sementara induk terdekat adalah ITEM BERHARGA (leaf, punya total),
+      // itu line-item TERSENDIRI (mis. "Pengiriman"), BUKAN rincian anak. Jadikan
+      // SIBLING di level yang sama supaya nilai induk tak hilang & tak menggelembungkan
+      // anak (bug: total kurang sebesar nilai induk).
+      if (code === "" && parent && parent.total_price != null) {
+        const vol = num(cellVal(row, col.vol));
+        const tot = num(cellVal(row, col.amount));
+        if (tot == null && vol == null) return; // deskripsi lanjutan tanpa nilai → skip
+        const it = mkItem(`~${++orphanSeq}`, name, row, null);
+        (sub ? sub.items : cat.direct_items).push(it);
+        itemL1 = it;
+        itemL2 = null;
+        return;
+      }
       const childCode = code
         ? `${parent?.code ?? "-"}.${code}`
         : `${parent?.code ?? "-"}.${(parent?.children.length ?? 0) + 1}`;

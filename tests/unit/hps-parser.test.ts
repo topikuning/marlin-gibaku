@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
 import { classifyRow, isSummaryRow, parseHpsBuffer, sumLeaves } from "@/lib/rab/hps-parser";
-import { flattenParsedRab } from "@/lib/rab/flatten";
+import { flattenParsedRab, grandTotal } from "@/lib/rab/flatten";
 
 const mk = (total: number | null, children: any[] = []): any => ({
   code: "x",
@@ -26,6 +26,23 @@ describe("sumLeaves", () => {
   });
   it("baris grup memuat SUBTOTAL anak (breakdown) → tidak dihitung ganda", () => {
     expect(sumLeaves([mk(1000, [mk(600), mk(400)])])).toBe(1000);
+  });
+});
+
+describe("baris berkode rusak/kosong (#REF!) sesudah item berharga → item sendiri (bukan anak)", () => {
+  it("grand total (jalur flatten) ikut menghitung baris tsb — nilai induk tak hilang", async () => {
+    // Item "4" berharga (2000), lalu baris kode-KOSONG (#REF! → terbaca kosong) yg
+    // punya nilai sendiri (500). Bug lama: baris jadi anak "4" → nilai induk 2000
+    // hilang, hanya 500 terhitung. Harus: 2000 + 500 = 2500.
+    const { parsed } = await parseHpsBuffer(
+      await xlsxFromRows([
+        ["I", "PEKERJAAN PERSIAPAN", null, null, null, null, null, null, null],
+        ["4", "Pengadaan Tiang", null, null, 2, "unit", 1000, 2000, 1],
+        ["", "Pengiriman Tiang", null, null, 1, "unit", 500, 500, 1],
+      ]),
+    );
+    expect(Math.round(parsed.categories[0].total_value)).toBe(2500);
+    expect(Number(grandTotal(flattenParsedRab(parsed)))).toBe(2500);
   });
 });
 

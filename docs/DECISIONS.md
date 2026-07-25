@@ -1884,3 +1884,15 @@ scurve — dengan test properti, bukan paritas nilai):**
   (item berharga + baris tambahan, own≠childSum) → **own + childSum**.
 - Verifikasi file NYATA: total 3.239.042.115 (persis sama dgn jumlah seluruh baris file);
   kategori XI 213.950.001. typecheck/lint ✓, 144 unit test ✓ (3 uji baru `sumLeaves`), build ✓.
+
+## 097 · 2026-07-25 · Import RAB: JALUR PREVIEW (flatten) juga harus benar — #REF! jadi item sendiri
+
+- Lanjutan 096: user tunjukkan preview impor di app MASIH kurang Rp 7,19 jt (XI=206,76 jt).
+  Sebab: preview/commit pakai `flattenParsedRab`+`grandTotal` (BUKAN `sumLeaves` yg diperbaiki
+  di 096). `walkItem` di flatten punya bug sama: node dgn anak → exact = jumlah anak, membuang
+  nilai node sendiri; plus masalah struktur — item berharga jadi "grup" saat baris #REF! nyangkut.
+- Fix di PARSER (akar, sekali untuk semua jalur): baris berkode KOSONG/rusak ("#REF!" terbaca
+  kosong) yang punya NILAI sendiri, sedang induk terdekat = ITEM BERHARGA (leaf) → jadikan
+  ITEM SIBLING (kode sintetis `~N`), bukan anak. Tree bersih; sumLeaves & flatten dua-duanya benar.
+- Verifikasi file NYATA via JALUR APP (flatten+grandTotal): 3.239.042.115; XI 213.950.001.
+  typecheck/lint ✓, 145 unit test ✓ (uji baru: parse+flatten grandTotal atas pola #REF!), build ✓.
