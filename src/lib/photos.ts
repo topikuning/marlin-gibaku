@@ -13,6 +13,7 @@ import {
   type StampTimezone,
 } from "@/lib/photo-stamp/format";
 import { getPhotoStampConfig, DEFAULT_STAMP_ACCENT, type StampSize } from "@/lib/photo-stamp/config";
+import type { PhotoMetadataSource } from "@/generated/prisma/enums";
 
 /**
  * Pipeline foto lapangan (port dari modul lama, arsitektur baru):
@@ -72,10 +73,13 @@ function readExif(buffer: Buffer): { takenAt: Date | null; lat: number | null; l
     let takenAt: Date | null = null;
     const dt = tags.exif?.DateTimeOriginal?.description ?? tags.exif?.DateTime?.description ?? null;
     if (dt) {
-      // Format EXIF "YYYY:MM:DD HH:MM:SS" → ISO.
+      // Format EXIF "YYYY:MM:DD HH:MM:SS" → ISO. EXIF menyimpan JAM DINDING tanpa
+      // timezone; perlakukan sebagai zona proyek (WIB +07:00) supaya jam yang
+      // dicap sama dengan yang tertulis di EXIF (tanpa +07:00 akan dianggap UTC
+      // oleh server → tampil bergeser 7 jam saat diformat ke WIB).
       const m = dt.match(/^(\d{4}):(\d{2}):(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/);
       if (m) {
-        const d = new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}`);
+        const d = new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}+07:00`);
         if (!Number.isNaN(d.getTime())) takenAt = d;
       }
     }
@@ -129,6 +133,8 @@ export type PhotoStamp = {
   showCoordinate?: boolean;
   showReporter?: boolean;
   showPhotoId?: boolean;
+  /** Waktu = fallback unggah (bukan jepret) → tampilkan penanda di cap. */
+  timeApprox?: boolean;
 };
 
 /** Bangun overlay SVG mengikuti master layout (lihat photo-stamp/renderer). */
@@ -145,6 +151,7 @@ function stampSvg(w: number, h: number, s: PhotoStamp): string {
     accentColor: s.accentColor || DEFAULT_STAMP_ACCENT,
     overlayAlpha: s.overlayAlpha ?? 0.9,
     sizeScale: s.sizeScale ?? 1,
+    timeApprox: s.timeApprox ?? false,
   };
   return buildStampSvg(w, h, data, { fontFamily: STAMP_FAMILY, fontFaceCss: FONT_FACE_CSS });
 }
@@ -211,19 +218,39 @@ export async function savePhotoForItem(input: SavePhotoInput) {
   let lat: number | null;
   let lng: number | null;
   let takenAt: Date;
+  // Sumber WAKTU cap: exif (metadata) / device (jam HP saat jepret) / server
+  // (fallback waktu unggah — BUKAN waktu jepret asli). Disimpan + jadi penanda cap.
+  let timeSource: PhotoMetadataSource;
   if (source === "gallery") {
     // Galeri: EXIF asli dulu; bila tak ada → cadangan (titik lokasi proyek / tanpa tag).
     // GPS perangkat saat upload sengaja diabaikan (bisa salah saat batch).
     const useProject = s?.fallbackMode === "project";
     lat = exif.lat ?? (useProject ? projLat : null);
     lng = exif.lng ?? (useProject ? projLng : null);
-    takenAt = exif.takenAt ?? s?.workDate ?? new Date();
+    if (exif.takenAt) {
+      takenAt = exif.takenAt;
+      timeSource = "exif";
+    } else {
+      // workDate = tanggal kerja (jam 00:00), bukan jam jepret asli → tandai server.
+      takenAt = s?.workDate ?? new Date();
+      timeSource = "server";
+    }
   } else {
     // Kamera: GPS real-time perangkat dulu → EXIF → titik lokasi proyek.
     lat = s?.lat ?? exif.lat ?? projLat;
     lng = s?.lng ?? exif.lng ?? projLng;
-    takenAt = s?.takenAt ?? exif.takenAt ?? new Date();
+    if (s?.takenAt) {
+      takenAt = s.takenAt;
+      timeSource = "device";
+    } else if (exif.takenAt) {
+      takenAt = exif.takenAt;
+      timeSource = "exif";
+    } else {
+      takenAt = new Date();
+      timeSource = "server";
+    }
   }
+  const timeApprox = timeSource === "server"; // waktu tak pasti = waktu unggah
 
   // Pipeline ideal: sharp resize + cap (Timemark) + webp. Bila sharp TIDAK
   // tersedia/gagal di runtime (mis. binari native tak termuat di host), JANGAN
@@ -267,6 +294,7 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       showCoordinate: cfg?.showCoordinates ?? true,
       showReporter: cfg?.showReporter ?? true,
       showPhotoId: cfg?.showPhotoId ?? true,
+      timeApprox,
     },
     file,
   );
@@ -299,6 +327,7 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       exifGpsLat: lat != null ? lat.toFixed(7) : null,
       exifGpsLng: lng != null ? lng.toFixed(7) : null,
       verification: "pending",
+      metadataSource: timeSource,
       uploadedById: input.userId,
     },
   });

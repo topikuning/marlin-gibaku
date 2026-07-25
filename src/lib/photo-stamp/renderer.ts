@@ -33,6 +33,8 @@ export type StampRenderData = {
   overlayAlpha: number;
   /** Skala ukuran stamp (compact .85 / standard 1 / large 1.15). */
   sizeScale: number;
+  /** Waktu = fallback unggah (bukan jepret) → tampilkan penanda "waktu unggah". */
+  timeApprox?: boolean;
 };
 
 type RenderOpts = { fontFamily: string; fontFaceCss: string };
@@ -199,8 +201,11 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
 
   // Tanggal & waktu.
   cy += Math.round(fsDate * 0.85);
+  const timeNote = d.timeApprox
+    ? `<tspan font-size="${Math.round(fsDate * 0.72)}" fill="#FBBF24"> · waktu unggah</tspan>`
+    : "";
   parts.push(
-    `<text x="${x}" y="${cy}" font-family="${ff}" font-weight="400" font-size="${fsDate}" ${halo(fsDate)} fill="${TEXT_WHITE}">${esc(d.dateTimeText)}</text>`,
+    `<text x="${x}" y="${cy}" font-family="${ff}" font-weight="400" font-size="${fsDate}" ${halo(fsDate)} fill="${TEXT_WHITE}">${esc(d.dateTimeText)}${timeNote}</text>`,
   );
   cy += dateH - Math.round(fsDate * 0.85);
   cy += gapDateDiv;

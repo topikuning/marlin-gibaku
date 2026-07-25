@@ -2182,3 +2182,17 @@ scurve — dengan test properti, bukan paritas nilai):**
   chip Before/After. Foto tetap diunggah lewat Laporan Harian & Kegiatan Lapangan (tak ada upload
   terpusat baru) — galeri ini murni tampilan/agregasi.
 - Verifikasi: typecheck/lint/build ✓.
+
+## 112 · 2026-07-25 · Tagging waktu foto: fix timezone EXIF + metadataSource + penanda "waktu unggah"
+
+- **Sumber waktu cap (`takenAt`)** — `savePhotoForItem`:
+  - Kamera: jam perangkat (`photoTakenAt`) → EXIF → waktu unggah.
+  - Galeri: EXIF → tanggal kerja → waktu unggah.
+- **Fix #1 (bug tz EXIF)**: EXIF menyimpan jam DINDING tanpa timezone. Dulu di-parse tanpa offset →
+  di server (UTC) dianggap UTC → bergeser 7 jam saat diformat ke WIB. Sekarang di-parse sebagai
+  **+07:00 (WIB)** supaya jam yang dicap = jam di EXIF. (Belum ada tz per-lokasi; asumsi zona proyek WIB.)
+- **Fix #2 (transparansi)**: kolom baru `Photo.metadataSource` (enum `PhotoMetadataSource`:
+  exif/device/server/manual) mencatat asal waktu. Bila `server` (fallback waktu unggah, BUKAN jepret),
+  cap menampilkan penanda amber "· waktu unggah" di sebelah tanggal. Migration
+  `20260725190000_photo_metadata_source`.
+- Verifikasi: typecheck/lint/build ✓; pratinjau penanda ✓.
