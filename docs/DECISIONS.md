@@ -2051,3 +2051,23 @@ scurve — dengan test properti, bukan paritas nilai):**
   - `result` cache diisi dari kumulatif realisasi carry-forward (increment 0 saat kosong).
 - **Efek**: mengisi/mengedit realisasi di Excel otomatis memperbarui kumulatif realisasi,
   deviasi, dan garis realisasi grafik — perlakuan identik dgn rencana. DECISIONS 102 dilengkapi.
+
+## 105 · 2026-07-25 · Dashboard "Aktivitas & Denyut Lokasi" (eksekutif) — feed lintas lokasi + progress per lokasi
+
+- **Kebutuhan user**: eksekutif perlu tahu pergerakan tiap lokasi tanpa membuka satu per satu —
+  siapa membuat laporan harian/kegiatan lapangan, ada perubahan jadwal, progress tiap lokasi,
+  siapa belum lapor.
+- **Sumber data**: BUKAN AuditLog (tak selalu menyimpan locationId). Union tabel domain yang
+  ber-locationId: `DailyReportStatusHistory` (via report→location), `FieldActivity`, `Baseline`
+  (perubahan jadwal), `Issue` (kendala). Nama aktor di-resolve batch (relasi user tak
+  dideklarasikan di tabel histori). Progress dari `getLocationsProgress` (batched, sudah ada).
+- **Modul** `src/lib/activity.ts`: `getActivityFeed(locIds|null, limit)` → 50 kejadian terbaru
+  (tersortir), + `getLocationActivity(locIds)` → laporan terakhir (tanggal/status/oleh) & aktivitas
+  terakhir per lokasi (query "terbaru per lokasi" via `distinct`).
+- **Halaman** `/aktivitas` (gate `portfolio.view` = super_admin/PD/AM/PM/exec_viewer; BUKAN peran
+  lapangan). Scoped `accessibleLocationIds` (cross-location = semua, selain itu hanya lokasi user).
+  Isi: KPI (lokasi aktif · perlu perhatian deviasi<−10 · belum lapor ≥3 hari · aktivitas hari ini),
+  feed kronologis (badge jenis + lokasi + aktor + waktu, klik-tembus), sorotan "belum lapor", dan
+  tabel progress per lokasi (rencana/realisasi/deviasi + laporan terakhir + denyut) urut deviasi
+  terburuk dulu. Nav "Aktivitas" (ikon Activity) setelah Beranda.
+- Verifikasi: typecheck/lint/build ✓.
