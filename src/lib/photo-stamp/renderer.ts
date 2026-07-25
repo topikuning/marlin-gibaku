@@ -1,4 +1,12 @@
 import { getContrastText } from "@/lib/photo-stamp/format";
+import { MONTSERRAT_800_B64, MONTSERRAT_600_B64 } from "@/lib/logo-font";
+
+/** @font-face Montserrat khusus wordmark logo (family "ML"). Selalu dibenamkan. */
+const LOGO_FONT_FACE =
+  `<style>` +
+  `@font-face{font-family:'ML';font-weight:800;src:url(data:font/ttf;base64,${MONTSERRAT_800_B64}) format('truetype');}` +
+  `@font-face{font-family:'ML';font-weight:600;src:url(data:font/ttf;base64,${MONTSERRAT_600_B64}) format('truetype');}` +
+  `</style>`;
 
 /**
  * Renderer overlay stamp (SVG) — meniru MASTER LAYOUT referensi:
@@ -127,7 +135,7 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
   }
 
   // ── Logo lockup MARLIN (kanan-atas): wordmark (A oranye) + PROJECT CONTROL, transparan ──
-  parts.push(marlinLogo(w - safeX, safeY, fs(0.034, 22), ff, accent));
+  parts.push(marlinLogo(w - safeX, safeY, fs(0.034, 22), accent));
 
   // ── Blok info (kiri-bawah) ──
   const maxW = portrait ? w - 2 * safeX : Math.round(w * 0.6);
@@ -226,7 +234,7 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
     `<stop offset="0.68" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="${(a * 0.32).toFixed(3)}"/>` +
     `<stop offset="1" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="0"/>` +
     `</linearGradient>`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><defs>${opts.fontFaceCss}${grad}</defs>${parts.join("")}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><defs>${opts.fontFaceCss}${LOGO_FONT_FACE}${grad}</defs>${parts.join("")}</svg>`;
 }
 
 /**
@@ -234,16 +242,16 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
  * aksen diagonal oranye, lalu "PROJECT CONTROL" ber-tracking dgn dash oranye
  * diagonal di kirinya — meniru lockup logo referensi.
  */
-function marlinLogo(rightX: number, topY: number, fsM: number, ff: string, accent: string): string {
+function marlinLogo(rightX: number, topY: number, fsM: number, accent: string): string {
   const p: string[] = [];
   const m = Math.round(fsM);
   const track = Math.round(fsM * 0.03);
   const baseY = topY + Math.round(fsM * 0.82);
 
-  // Wordmark MARLIN — huruf "A" beraksen oranye (sesuai referensi); halo gelap
-  // agar terbaca di foto terang/ramai.
+  // Wordmark MARLIN — Montserrat ExtraBold, huruf "A" beraksen oranye (sesuai
+  // referensi); halo gelap agar terbaca di foto terang/ramai.
   p.push(
-    `<text x="${rightX}" y="${baseY}" text-anchor="end" font-family="${ff}" font-weight="700" font-size="${m}" letter-spacing="${track}" ${halo(m)} fill="#FFFFFF">M<tspan fill="${accent}">A</tspan>RLIN</text>`,
+    `<text x="${rightX}" y="${baseY}" text-anchor="end" font-family="ML" font-weight="800" font-size="${m}" letter-spacing="${track}" ${halo(m)} fill="#FFFFFF">M<tspan fill="${accent}">A</tspan>RLIN</text>`,
   );
 
   // PROJECT CONTROL + dash oranye diagonal di kiri.
@@ -253,12 +261,12 @@ function marlinLogo(rightX: number, topY: number, fsM: number, ff: string, accen
   const subW = estWidth(label, fsSub, true) + subTrack * (label.length - 1);
   const subBase = baseY + Math.round(fsM * 0.72) + fsSub;
   p.push(
-    `<text x="${rightX}" y="${subBase}" text-anchor="end" font-family="${ff}" font-weight="700" font-size="${fsSub}" letter-spacing="${subTrack}" ${halo(fsSub)} fill="#FFFFFF">${label}</text>`,
+    `<text x="${rightX}" y="${subBase}" text-anchor="end" font-family="ML" font-weight="600" font-size="${fsSub}" letter-spacing="${subTrack}" ${halo(fsSub)} fill="#FFFFFF">${label}</text>`,
   );
   const dW = Math.round(fsM * 0.5);
   const dH = Math.max(3, Math.round(fsSub * 0.36));
   const dSk = Math.round(dH * 1.1);
-  const dRight = rightX - Math.round(subW) - Math.round(fsSub * 1.15);
+  const dRight = rightX - Math.round(subW) - Math.round(fsSub * 1.9);
   const dx = dRight - dW;
   const dy = subBase - Math.round(fsSub * 0.5);
   p.push(`<polygon points="${dx + dSk},${dy} ${dRight + dSk},${dy} ${dRight},${dy + dH} ${dx},${dy + dH}" fill="${accent}"/>`);
