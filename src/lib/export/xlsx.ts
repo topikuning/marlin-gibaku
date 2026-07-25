@@ -205,10 +205,22 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
   title(`Periode ${formatTanggal(h.periodeStart, "d MMMM yyyy")} s/d ${formatTanggal(h.periodeEnd, "d MMMM yyyy")}`, false, 10);
   ws.addRow([]);
 
-  const kv = (k: string, v: string | number) => {
-    const row = ws.addRow([k, v]);
-    row.getCell(1).font = { bold: true };
-    ws.mergeCells(row.number, 2, row.number, 8);
+  // Blok identitas: label (merge A:B, kolom "No"+"Uraian" — lebar, tak terpotong)
+  // + nilai (merge C:H) sama-sama rata kiri, jadi nilai menempel ke labelnya.
+  const kv = (k: string, v: string | number, numFmt?: string) => {
+    const row = ws.addRow([]);
+    const label = row.getCell(1);
+    label.value = k;
+    label.font = { bold: true, size: 9 };
+    label.alignment = { horizontal: "left", vertical: "middle" };
+    ws.mergeCells(row.number, 1, row.number, 2);
+    const value = row.getCell(3);
+    value.value = v;
+    value.font = { size: 9 };
+    value.alignment = { horizontal: "left", vertical: "middle" };
+    if (numFmt) value.numFmt = numFmt;
+    ws.mergeCells(row.number, 3, row.number, 8);
+    row.height = 15;
   };
   kv("Paket Pekerjaan", h.packageName);
   kv("Lokasi", `${h.locationName} — ${h.village}, ${h.regency}, ${h.province}`);
@@ -216,10 +228,10 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
   kv("Kontraktor Pelaksana", h.vendorName);
   kv("Nilai Fisik Lokasi", `Rp ${new Intl.NumberFormat("id-ID").format(Number(h.locationValue))}`);
   kv("Masa Pelaksanaan", `${h.masaPelaksanaanHari} Hari Kalender`);
-  kv("Tahun Anggaran", h.tahunAnggaran);
-  kv("Rencana s/d periode (%)", Number(r.planPct.toFixed(2)));
-  kv("Realisasi s/d periode (%)", Number(r.actualPct.toFixed(2)));
-  kv("Deviasi (%)", Number(r.deviationPct.toFixed(2)));
+  kv("Tahun Anggaran", String(h.tahunAnggaran));
+  kv("Rencana s/d periode (%)", Number(r.planPct.toFixed(2)), "0.00");
+  kv("Realisasi s/d periode (%)", Number(r.actualPct.toFixed(2)), "0.00");
+  kv("Deviasi (%)", Number(r.deviationPct.toFixed(2)), "0.00");
   ws.addRow([]);
 
   // Header tabel.
