@@ -53,7 +53,9 @@ describe("addLineChartToXlsx", () => {
 
     // exceljs masih bisa memuat ulang workbook (konsistensi part-level).
     const reload = new ExcelJS.Workbook();
-    await expect(reload.xlsx.load(out)).resolves.toBeDefined();
+    await expect(
+      reload.xlsx.load(out as unknown as Parameters<typeof reload.xlsx.load>[0]),
+    ).resolves.toBeDefined();
   });
 
   it("mengembalikan buffer apa adanya bila sheet tak ditemukan", async () => {
