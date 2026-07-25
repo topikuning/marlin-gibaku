@@ -2209,3 +2209,26 @@ scurve — dengan test properti, bukan paritas nilai):**
   (dipunyai field_supervisor) — tak ada loop.
 - **E2E** disesuaikan: uji `mandor-01` (field_supervisor) kini `toHaveURL("/hari-ini")`.
 - Verifikasi: typecheck/lint ✓.
+
+## 114 · 2026-07-25 · Impor rekap laporan harian dari Excel (backfill saat lapangan lupa lapor)
+
+- **Kebutuhan user**: kadang lapangan lupa lapor; admin merekap volume terpasang di Excel lalu
+  ingin mengunggahnya. Analog dengan import jadwal, tapi berbeda esensinya.
+- **Prinsip yang dijaga**: progress adalah angka **DERIVED** dari laporan harian (`src/lib/progress.ts`,
+  CLAUDE.md #4) — TIDAK boleh ada "suntik angka progress". Jadi yang diimpor bukan progress, melainkan
+  **rekap laporan harian** (volume per item RAB per tanggal). Impor merekonstruksi `DailyReport` +
+  `DailyReportItem` lewat **service yang sama** dengan input manual (`getOrCreateDraft` → `upsertItem`
+  → `submitReport`), jadi guard volume kumulatif, hitung nilai, histori status, dan audit tetap berlaku.
+  Progress ikut naik otomatis. **Tanpa perubahan skema, tanpa migrasi.**
+- **Keputusan user (2 fork)**: (1) rekap **per hari** (kolom Tanggal · Kode/Uraian · Volume) →
+  satu laporan per tanggal; (2) laporan hasil impor masuk **"dikirim" (menunggu verifikasi)**, bukan
+  langsung final — baru dihitung ke progress setelah manajemen menyetujui.
+- **Modul**: `recap-parse.ts` (MURNI, tanpa DB — parser Excel deteksi-header fleksibel + tanggal
+  ISO/DD-MM-YYYY + pencocokan ke leaf RAB by kode→nama→contains-unik, penanda masalah
+  unmatched/bad_date/future_date/zero_volume/over_volume; bisa diuji unit tanpa env) dan
+  `recap-import.ts` (orkestrasi DB: `getRecapLeaves`, `buildRecapPreview`, `commitRecap` urut tanggal
+  menaik supaya guard kumulatif benar).
+- **UI** `/lokasi/[slug]/harian/import`: unduh template Excel (route `…/import/template`, prisi item RAB
+  + sisa volume), unggah → **pratinjau** (baris siap vs bermasalah, dilewati) → **simpan**. Gate
+  `daily_report.create` + `requireLocationAccess`; entry lewat tombol "Impor rekap Excel" di Pelaksanaan Harian.
+- Uji unit `tests/unit/recap-import.test.ts` (parser + matcher). Verifikasi: typecheck/lint/unit/build ✓.

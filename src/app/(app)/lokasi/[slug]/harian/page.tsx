@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Card, CardBody, CardHeader, StatusPill } from "@/components/ui";
 import { requireUser, requireLocationAccess } from "@/lib/auth/session";
+import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { getRecentDays } from "@/lib/daily-report/queries";
 import { jakartaDateKey, formatTanggal } from "@/lib/format";
@@ -26,12 +27,22 @@ export default async function HarianIndexPage({ params }: { params: Promise<{ sl
         title="Pelaksanaan Harian"
         subtitle="Satu laporan per tanggal: volume, tenaga, material, alat, cuaca, foto, kendala."
         action={
-          <Link
-            href={`/lokasi/${slug}/harian/${todayKey}`}
-            className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-800"
-          >
-            Buka hari ini
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            {can(user.role, "daily_report.create") && (
+              <Link
+                href={`/lokasi/${slug}/harian/import`}
+                className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-ink hover:bg-surface-muted"
+              >
+                Impor rekap Excel
+              </Link>
+            )}
+            <Link
+              href={`/lokasi/${slug}/harian/${todayKey}`}
+              className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-800"
+            >
+              Buka hari ini
+            </Link>
+          </div>
         }
       />
       <CardBody>
