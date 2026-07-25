@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Banner, Button, Input, Label, Select, StatusPill, Textarea } from "@/components/ui";
+import { Banner, Button, Input, Label, Combobox, StatusPill, Textarea } from "@/components/ui";
 import { formatTanggal } from "@/lib/format";
 import {
   addRecoveryAction,
@@ -64,11 +64,11 @@ function CreateIssueForm({ locationId }: { locationId: string }) {
         </div>
         <div>
           <Label htmlFor="is-severity" required>Tingkat</Label>
-          <Select id="is-severity" name="severity" required defaultValue="sedang">
+          <Combobox id="is-severity" name="severity" required defaultValue="sedang">
             {ALL_ISSUE_SEVERITIES.map((s) => (
               <option key={s} value={s}>{ISSUE_SEVERITY_LABEL[s]}</option>
             ))}
-          </Select>
+          </Combobox>
         </div>
         <div className="sm:col-span-3">
           <Label htmlFor="is-desc">Uraian (opsional)</Label>
@@ -85,11 +85,11 @@ function IssueStatusControl({ issueId, status }: { issueId: string; status: Issu
   return (
     <form action={action} className="flex items-center gap-1.5">
       <input type="hidden" name="issueId" value={issueId} />
-      <Select name="status" defaultValue={status} className="h-8 w-32 py-0 text-[13px]" aria-label="Status kendala">
+      <Combobox name="status" defaultValue={status} className="h-8 w-32 py-0 text-[13px]" aria-label="Status kendala">
         {ALL_ISSUE_STATUSES.map((s) => (
           <option key={s} value={s}>{ISSUE_STATUS_LABEL[s]}</option>
         ))}
-      </Select>
+      </Combobox>
       <Button size="sm" variant="secondary" type="submit" loading={pending}>Ubah</Button>
       {state?.error ? <span className="text-xs text-danger">{state.error}</span> : null}
     </form>
@@ -101,11 +101,11 @@ function RecoveryStatusControl({ actionId, status }: { actionId: string; status:
   return (
     <form action={action} className="flex items-center gap-1.5">
       <input type="hidden" name="actionId" value={actionId} />
-      <Select name="status" defaultValue={status} className="h-8 w-36 py-0 text-[13px]" aria-label="Status aksi pemulihan">
+      <Combobox name="status" defaultValue={status} className="h-8 w-36 py-0 text-[13px]" aria-label="Status aksi pemulihan">
         {ALL_RECOVERY_STATUSES.map((s) => (
           <option key={s} value={s}>{RECOVERY_STATUS_LABEL[s]}</option>
         ))}
-      </Select>
+      </Combobox>
       <Button size="sm" variant="secondary" type="submit" loading={pending}>Ubah</Button>
       {state?.error ? <span className="text-xs text-danger">{state.error}</span> : null}
     </form>

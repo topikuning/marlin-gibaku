@@ -150,6 +150,37 @@ describe("nilai kontrak = HARGA NEGOSIASI bila ada (bukan HPS)", () => {
     // fixture in-memory teratas tak punya baris header → total = kolom H (klasik)
     expect(parsed.categories[0].direct_items[0].total_price).toBe(500000);
   });
+
+  it("header DUA BARIS (HPS | PENAWARAN | NEGOSIASI × HARGA SATUAN/TOTAL) → pakai NEGOSIASI", async () => {
+    // Baris grup di atas, sub-header HARGA SATUAN/HARGA TOTAL di bawah (spt file NEGO vendor).
+    // Kol: A=NO B=JENIS E=VOL F=SAT G=HPS-sat H=HPS-tot I=Pen-sat J=Pen-tot K=Nego-sat L=Nego-tot
+    const { parsed, warnings } = await parseHpsBuffer(
+      await xlsxFromRows([
+        ["RAB"],
+        ["NO", "JENIS PEKERJAAN", null, null, "VOL", "SAT", "HPS", null, "PENAWARAN", null, "NEGOSIASI", null],
+        [null, null, null, null, null, null, "HARGA SATUAN", "HARGA TOTAL", "HARGA SATUAN", "HARGA TOTAL", "HARGA SATUAN", "HARGA TOTAL"],
+        ["I", "PEKERJAAN PERSIAPAN"],
+        ["1", "Item A", null, null, 50, "m²", 1700, 85000, 1600, 80000, 1559, 77950],
+      ]),
+    );
+    const it = parsed.categories[0].direct_items[0];
+    expect(it.unit_price).toBe(1559); // NEGOSIASI harga satuan, bukan 1700 (HPS) / 1600 (penawaran)
+    expect(it.total_price).toBe(77950); // NEGOSIASI harga total
+    expect(warnings.some((w) => /NEGOSIASI/i.test(w))).toBe(true);
+  });
+
+  it("hanya PENAWARAN (tanpa NEGOSIASI) → pakai PENAWARAN, bukan HPS", async () => {
+    const { parsed, warnings } = await parseHpsBuffer(
+      await xlsxFromRows([
+        ["NO", "JENIS PEKERJAAN", null, null, "VOL", "SAT", "HPS", null, "PENAWARAN", null],
+        [null, null, null, null, null, null, "HARGA SATUAN", "HARGA TOTAL", "HARGA SATUAN", "HARGA TOTAL"],
+        ["I", "PEKERJAAN PERSIAPAN"],
+        ["1", "Item A", null, null, 2, "m", 1000, 2000, 900, 1800],
+      ]),
+    );
+    expect(parsed.categories[0].direct_items[0].unit_price).toBe(900); // penawaran, bukan 1000 (HPS)
+    expect(warnings.some((w) => /PENAWARAN/i.test(w))).toBe(true);
+  });
 });
 
 describe("kategori total 0 tidak masuk DB (flatten)", () => {

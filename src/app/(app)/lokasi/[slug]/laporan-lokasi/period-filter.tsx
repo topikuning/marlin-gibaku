@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Printer, Sheet } from "lucide-react";
 import { useState } from "react";
-import { Button, FieldError, Label, Select } from "@/components/ui";
+import { Button, FieldError, Label, Combobox } from "@/components/ui";
 import { cn } from "@/lib/cn";
 
 /**
@@ -41,10 +41,10 @@ export function PeriodFilter({
 
       <div>
         <Label htmlFor="lp-kind">Jenis laporan</Label>
-        <Select id="lp-kind" name="kind" defaultValue={kind} className="w-40">
+        <Combobox id="lp-kind" name="kind" defaultValue={kind} className="w-40">
           <option value="mingguan">Mingguan</option>
           <option value="bulanan">Bulanan</option>
-        </Select>
+        </Combobox>
       </div>
 
       <div>

@@ -15,6 +15,7 @@ export {
   type SelectProps,
   type TextareaProps,
 } from "./field";
+export { Combobox, type ComboboxProps, type ComboOption } from "./combobox";
 export { PasswordInput, type PasswordInputProps } from "./password-input";
 export { EmptyState, type EmptyStateProps } from "./empty-state";
 export { FileInput } from "./file-input";

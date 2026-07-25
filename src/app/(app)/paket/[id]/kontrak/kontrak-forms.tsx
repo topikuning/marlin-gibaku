@@ -7,7 +7,7 @@ import {
   HelpText,
   Input,
   Label,
-  Select,
+  Combobox,
   Textarea,
 } from "@/components/ui";
 import {
@@ -179,10 +179,10 @@ export function ConvertContractForm({
           <Label htmlFor="cv-vendor" required>
             Vendor
           </Label>
-          <Select
+          <Combobox
             id="cv-vendor"
             value={vendorChoice}
-            onChange={(e) => setVendorChoice(e.target.value)}
+            onChange={(value) => setVendorChoice(value)}
           >
             {vendors.map((v) => (
               <option key={v.id} value={v.id}>
@@ -190,7 +190,7 @@ export function ConvertContractForm({
               </option>
             ))}
             <option value={NEW_VENDOR}>+ Vendor baru…</option>
-          </Select>
+          </Combobox>
         </div>
         {newVendor ? (
           <div>

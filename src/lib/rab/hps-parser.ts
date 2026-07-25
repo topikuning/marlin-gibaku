@@ -83,45 +83,94 @@ export type ColMap = { vol: number; unit: number; price: number; amount: number;
  * (bukan HPS), sesuai dokumen kontrol lapangan. Fallback ke posisi klasik
  * (G=harga, H=jumlah, I=TKDN) bila header tak terbaca (mis. fixture uji).
  */
-export function detectColumns(ws: ExcelJS.Worksheet): { col: ColMap; usedNego: boolean } {
+export type PriceSource = "nego" | "penawaran" | "hps";
+
+/**
+ * Deteksi kolom nilai, TAHAN 2 varian header:
+ *  (a) satu baris: NO | JENIS | VOL | SAT | HARGA SATUAN | JUMLAH | TKDN
+ *  (b) dua baris: baris grup "HPS | PENAWARAN | NEGOSIASI" (merge) DI ATAS baris
+ *      "HARGA SATUAN | HARGA TOTAL" (berulang per blok).
+ * Nilai KONTRAK = harga akhir: prioritas NEGOSIASI > PENAWARAN > HPS (HPS cuma
+ * pagu, tak pernah jadi nilai kontrak). Fallback posisi klasik (G/H/I) bila tak
+ * ada header terbaca (fixture uji). Kolom "HARGA TOTAL" dianggap sama dgn "JUMLAH".
+ */
+export function detectColumns(ws: ExcelJS.Worksheet): {
+  col: ColMap;
+  usedNego: boolean;
+  priceSource: PriceSource;
+} {
   const classic: ColMap = { vol: 5, unit: 6, price: 7, amount: 8, tkdn: 9 };
-  let headerRow: ExcelJS.Row | null = null;
-  for (let rn = 1; rn <= 20; rn++) {
-    const row = ws.getRow(rn);
-    let hasVol = false;
-    let hasJml = false;
-    for (let c = 1; c <= 20; c++) {
-      const l = str(cellVal(row, c)).toUpperCase();
-      if (/^VOL/.test(l)) hasVol = true;
-      if (/JUMLAH/.test(l)) hasJml = true;
-    }
-    if (hasVol && hasJml) {
-      headerRow = row;
+  const NC = 24;
+  const labelsOf = (row: ExcelJS.Row): string[] => {
+    const arr: string[] = [];
+    for (let c = 1; c <= NC; c++) arr[c] = str(cellVal(row, c)).toUpperCase().trim();
+    return arr;
+  };
+
+  // Baris header UTAMA = punya VOL & SAT (satuan) sebagai sel terpisah. Ini menghindari
+  // salah-deteksi baris rekap "JUMLAH" (kolom B) sbg header.
+  let mainRow: ExcelJS.Row | null = null;
+  for (let rn = 1; rn <= 25; rn++) {
+    const L = labelsOf(ws.getRow(rn));
+    if (L.some((l) => /^VOL/.test(l)) && L.some((l) => /^SAT/.test(l))) {
+      mainRow = ws.getRow(rn);
       break;
     }
   }
-  if (!headerRow) return { col: classic, usedNego: false };
-  const label = (c: number) => str(cellVal(headerRow!, c)).toUpperCase();
-  const findCol = (re: RegExp, from = 1, to = 20): number | null => {
-    for (let c = from; c <= to; c++) if (re.test(label(c))) return c;
+  if (!mainRow) return { col: classic, usedNego: false, priceSource: "hps" };
+
+  const grp = labelsOf(mainRow); // baris grup: HPS/PENAWARAN/NEGOSIASI (+ VOL/SAT)
+  const below = labelsOf(ws.getRow(mainRow.number + 1));
+  const twoRow = below.some((l) => /HARGA\s*SATUAN/.test(l)); // header 2 baris (grup + satuan/total)
+  const sub = twoRow ? below : grp;
+
+  const findFirst = (pred: (c: number) => boolean): number | null => {
+    for (let c = 1; c <= NC; c++) if (pred(c)) return c;
     return null;
   };
-  const vol = findCol(/^VOL/) ?? classic.vol;
-  const unit = findCol(/^SAT/) ?? classic.unit;
-  const tkdn = findCol(/TKDN/) ?? classic.tkdn;
-  const nego = findCol(/NEGO/); // "HARGA NEGOISASI"/"NEGOSIASI" (harga satuan nego)
-  let price: number;
-  let amount: number;
-  let usedNego = false;
-  if (nego != null) {
-    price = nego;
-    amount = findCol(/JUMLAH/, nego + 1) ?? nego + 1; // "JUMLAH HARGA" sesudah nego
-    usedNego = true;
-  } else {
-    price = findCol(/HARGA\s*SATUAN|NILAI\s*HPS|^HARGA/) ?? classic.price;
-    amount = findCol(/JUMLAH/) ?? classic.amount;
+  // Label grup utk kolom c = sel non-kosong terdekat di KIRI (merge left-anchored).
+  const groupAt = (c: number): string => {
+    for (let k = c; k >= 1; k--) if (grp[k]) return grp[k];
+    return "";
+  };
+  const isSatuan = (c: number) => /HARGA\s*SATUAN/.test(sub[c] ?? "");
+  const isTotal = (c: number) => /HARGA\s*TOTAL|JUMLAH/.test(sub[c] ?? "");
+  // Header harga satu-baris (mis. "NILAI HPS", "HARGA NEGOISASI") — kolom harga langsung.
+  const isPriceHeader = (s: string) =>
+    /HARGA|NILAI/.test(s) && !/JUMLAH|TOTAL/.test(s) && !/^SAT/.test(s) && !/^VOL/.test(s) && !/TKDN/.test(s);
+
+  /** Kolom HARGA SATUAN untuk blok (NEGO/PENAWAR/HPS). Dukung header 1- & 2-baris. */
+  const blockPrice = (re: RegExp): number | null =>
+    twoRow
+      ? findFirst((c) => re.test(groupAt(c)) && isSatuan(c))
+      : findFirst((c) => re.test(grp[c] ?? "") && isPriceHeader(grp[c] ?? ""));
+  /** Kolom TOTAL/JUMLAH untuk blok, sesudah kolom harga-nya. */
+  const blockTotal = (re: RegExp, priceIdx: number): number | null =>
+    twoRow
+      ? findFirst((c) => re.test(groupAt(c)) && isTotal(c))
+      : findFirst((c) => c > priceIdx && /JUMLAH|TOTAL/.test(grp[c] ?? ""));
+
+  const vol = findFirst((c) => /^VOL/.test(grp[c] ?? "")) ?? classic.vol;
+  const unit = findFirst((c) => /^SAT/.test(grp[c] ?? "")) ?? classic.unit;
+  // TKDN: pakai kolom bila terdeteksi; kalau tidak, kolom jauh (kosong → null) supaya
+  // tak salah baca kolom harga blok lain sbg rasio TKDN.
+  const tkdn = findFirst((c) => /TKDN/.test(sub[c] ?? "") || /TKDN/.test(grp[c] ?? "")) ?? 999;
+
+  // Nilai kontrak = harga akhir: NEGOSIASI > PENAWARAN > HPS.
+  let price: number | null;
+  let priceSource: PriceSource;
+  if ((price = blockPrice(/NEGO/)) != null) priceSource = "nego";
+  else if ((price = blockPrice(/PENAWAR/)) != null) priceSource = "penawaran";
+  else {
+    price =
+      (twoRow ? findFirst(isSatuan) : blockPrice(/HPS/) ?? findFirst((c) => isPriceHeader(grp[c] ?? ""))) ??
+      classic.price;
+    priceSource = "hps";
   }
-  return { col: { vol, unit, price, amount, tkdn }, usedNego };
+  const re = priceSource === "nego" ? /NEGO/ : priceSource === "penawaran" ? /PENAWAR/ : /HPS/;
+  const amount = blockTotal(re, price) ?? (twoRow ? findFirst(isTotal) : null) ?? price + 1;
+
+  return { col: { vol, unit, price, amount, tkdn }, usedNego: priceSource !== "hps", priceSource };
 }
 
 export function sumLeaves(items: ParsedRabItem[]): number {
@@ -161,12 +210,12 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): {
   const ws = wb.getWorksheet("RAB") ?? wb.worksheets.find((w) => /rab/i.test(w.name));
   if (!ws) throw new Error('Sheet "RAB" tidak ditemukan di file HPS.');
 
-  // Nilai kontrak = kolom HARGA NEGOSIASI bila ada; kalau tidak, kolom JUMLAH (HPS).
-  const { col, usedNego } = detectColumns(ws);
-  if (usedNego)
-    warnings.push(
-      "File punya kolom HARGA NEGOSIASI — nilai kontrak diambil dari kolom itu (bukan HPS).",
-    );
+  // Nilai kontrak = harga akhir (NEGOSIASI > PENAWARAN > HPS). HPS cuma pagu.
+  const { col, priceSource } = detectColumns(ws);
+  if (priceSource === "nego")
+    warnings.push("File punya kolom HARGA NEGOSIASI — nilai kontrak diambil dari kolom itu (bukan HPS).");
+  else if (priceSource === "penawaran")
+    warnings.push("File tidak punya kolom NEGOSIASI — nilai kontrak diambil dari kolom PENAWARAN (bukan HPS).");
 
   let project = "";
   let locationRaw = "";

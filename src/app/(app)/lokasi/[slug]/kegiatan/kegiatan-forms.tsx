@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { Camera, CheckCircle2, Download, Paperclip, RotateCcw, Trash2, Plus } from "lucide-react";
-import { Banner, Button, Input, Label, Select, Textarea } from "@/components/ui";
+import { Banner, Button, Input, Label, Combobox, Textarea } from "@/components/ui";
 import { FIELD_ACTIVITY_TYPES, FIELD_ACTIVITY_TYPE_LABEL } from "@/lib/field-activity/labels";
 import type { FieldActivityAttachmentView } from "@/lib/field-activity/queries";
 import {
@@ -72,11 +72,11 @@ export function CreateActivityForm({ locationId, todayKey }: { locationId: strin
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <Label htmlFor="fa-type" required>Jenis kegiatan</Label>
-          <Select id="fa-type" name="type" defaultValue="rapat_pcm" required>
+          <Combobox id="fa-type" name="type" defaultValue="rapat_pcm" required>
             {FIELD_ACTIVITY_TYPES.map((t) => (
               <option key={t} value={t}>{FIELD_ACTIVITY_TYPE_LABEL[t]}</option>
             ))}
-          </Select>
+          </Combobox>
         </div>
         <div>
           <Label htmlFor="fa-date" required>Tanggal</Label>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Badge, Banner, Button, HelpText, Input, Label, Select, Textarea } from "@/components/ui";
+import { Badge, Banner, Button, HelpText, Input, Label, Combobox, Textarea } from "@/components/ui";
 import { formatRupiah, formatTanggal } from "@/lib/format";
 import {
   addDisbursement,
@@ -320,13 +320,13 @@ export function CommitmentSection({
                 <Label htmlFor="c-type" required>
                   Jenis
                 </Label>
-                <Select id="c-type" name="type" required defaultValue="po">
+                <Combobox id="c-type" name="type" required defaultValue="po">
                   {COMMITMENT_TYPES.map((t) => (
                     <option key={t} value={t}>
                       {COMMITMENT_TYPE_LABEL[t]}
                     </option>
                   ))}
-                </Select>
+                </Combobox>
               </div>
               <div>
                 <Label htmlFor="c-number" required>
@@ -347,13 +347,13 @@ export function CommitmentSection({
                 <Label htmlFor="c-category" required>
                   Kategori biaya
                 </Label>
-                <Select id="c-category" name="category" required defaultValue="material">
+                <Combobox id="c-category" name="category" required defaultValue="material">
                   {COST_CATEGORIES.map((c) => (
                     <option key={c} value={c}>
                       {CATEGORY_LABEL[c]}
                     </option>
                   ))}
-                </Select>
+                </Combobox>
               </div>
               <AmountInput id="c-amount" label="Nilai (Rp)" />
               <div>
@@ -479,26 +479,26 @@ export function ExpenseSection({
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <div>
                 <Label htmlFor="e-commitment">Komitmen terbuka (opsional)</Label>
-                <Select id="e-commitment" name="commitmentId" defaultValue="">
+                <Combobox id="e-commitment" name="commitmentId" defaultValue="">
                   <option value="">— tanpa komitmen —</option>
                   {openCommitments.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.label}
                     </option>
                   ))}
-                </Select>
+                </Combobox>
               </div>
               <div>
                 <Label htmlFor="e-category" required>
                   Kategori biaya
                 </Label>
-                <Select id="e-category" name="category" required defaultValue="material">
+                <Combobox id="e-category" name="category" required defaultValue="material">
                   {COST_CATEGORIES.map((c) => (
                     <option key={c} value={c}>
                       {CATEGORY_LABEL[c]}
                     </option>
                   ))}
-                </Select>
+                </Combobox>
               </div>
               <AmountInput id="e-amount" />
               <div>
@@ -643,14 +643,14 @@ export function InvoiceSection({
               </div>
               <div>
                 <Label htmlFor="i-commitment">Komitmen (opsional)</Label>
-                <Select id="i-commitment" name="commitmentId" defaultValue="">
+                <Combobox id="i-commitment" name="commitmentId" defaultValue="">
                   <option value="">— tanpa komitmen —</option>
                   {commitments.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.label}
                     </option>
                   ))}
-                </Select>
+                </Combobox>
               </div>
               <AmountInput id="i-amount" label="Nilai invoice (Rp)" />
               <div>

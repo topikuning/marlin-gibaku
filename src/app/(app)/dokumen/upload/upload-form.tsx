@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { Banner, Button, FileInput, Input, Label, Select, Textarea } from "@/components/ui";
+import { Banner, Button, FileInput, Input, Label, Combobox, Textarea } from "@/components/ui";
 import { uploadDocumentAction, type UploadActionState } from "@/app/(app)/dokumen/actions";
 import { ALL_DOC_TYPES, ALL_PHASES, PHASE_LABEL, TYPE_LABEL } from "@/lib/documents-meta";
 
@@ -23,37 +23,37 @@ export function UploadForm({
       </div>
       <div>
         <Label htmlFor="d-phase" required>Fase</Label>
-        <Select id="d-phase" name="phase" defaultValue="pelaksanaan">
+        <Combobox id="d-phase" name="phase" defaultValue="pelaksanaan">
           {ALL_PHASES.map((p) => (
             <option key={p} value={p}>{PHASE_LABEL[p]}</option>
           ))}
-        </Select>
+        </Combobox>
       </div>
       <div>
         <Label htmlFor="d-type" required>Tipe</Label>
-        <Select id="d-type" name="type" defaultValue="laporan">
+        <Combobox id="d-type" name="type" defaultValue="laporan">
           {ALL_DOC_TYPES.map((t) => (
             <option key={t} value={t}>{TYPE_LABEL[t]}</option>
           ))}
-        </Select>
+        </Combobox>
       </div>
       <div>
         <Label htmlFor="d-package">Paket</Label>
-        <Select id="d-package" name="packageId" defaultValue="">
+        <Combobox id="d-package" name="packageId" defaultValue="">
           <option value="">— tidak terkait paket —</option>
           {packages.map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
-        </Select>
+        </Combobox>
       </div>
       <div>
         <Label htmlFor="d-location">Lokasi</Label>
-        <Select id="d-location" name="locationId" defaultValue="">
+        <Combobox id="d-location" name="locationId" defaultValue="">
           <option value="">— tidak terkait lokasi —</option>
           {locations.map((l) => (
             <option key={l.id} value={l.id}>{l.name}</option>
           ))}
-        </Select>
+        </Combobox>
       </div>
       <div>
         <Label htmlFor="d-number">Nomor dokumen</Label>
