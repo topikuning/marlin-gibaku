@@ -5,6 +5,9 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
+      // `server-only` melempar di luar bundler Next; di unit test ia no-op supaya
+      // modul server (mis. export xlsx) tetap bisa diuji tanpa melemahkan proteksi.
+      "server-only": path.resolve(__dirname, "tests/stubs/server-only.ts"),
     },
   },
   test: {

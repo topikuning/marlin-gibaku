@@ -2,7 +2,7 @@ import "server-only";
 import ExcelJS from "exceljs";
 import type { PeriodReport } from "@/lib/periodic-report";
 import { buildKurvaSheet } from "@/lib/scurve/kkp-sheet";
-import { renderScurveChartPng } from "@/lib/export/scurve-image";
+import { addLineChartToXlsx, colLetter, type LineChartSpec } from "@/lib/export/xlsx-chart";
 import { formatTanggal } from "@/lib/format";
 
 /**
@@ -41,7 +41,11 @@ const round3 = (n: number) => Math.round(n * 1000) / 1000;
  * (rencana/realisasi kumulatif + deviasi) + GAMBAR grafik kurva-S. Angka identik
  * dgn tabel KKP & kurva PDF (satu sumber, buildKurvaSheet).
  */
-async function addKurvaSheet(wb: ExcelJS.Workbook, r: PeriodReport): Promise<void> {
+async function addKurvaSheet(
+  wb: ExcelJS.Workbook,
+  r: PeriodReport,
+  opts?: { sheetName?: string; chartTitle?: string },
+): Promise<LineChartSpec> {
   const sheet = buildKurvaSheet({
     categories: r.kurvaSchedule,
     totalWeeks: r.totalWeeks,
@@ -52,7 +56,7 @@ async function addKurvaSheet(wb: ExcelJS.Workbook, r: PeriodReport): Promise<voi
   const N = sheet.totalWeeks;
   const FIRST = 4; // A=No, B=Uraian, C=Bobot, D.. = minggu
   const lastCol = 3 + N;
-  const ws = wb.addWorksheet("Kurva S", {
+  const ws = wb.addWorksheet(opts?.sheetName ?? "Kurva S", {
     pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   });
   ws.columns = [{ width: 5 }, { width: 40 }, { width: 9 }, ...Array.from({ length: N }, () => ({ width: 6 }))];
@@ -117,8 +121,12 @@ async function addKurvaSheet(wb: ExcelJS.Workbook, r: PeriodReport): Promise<voi
     ["Kumulatif Realisasi Prestasi %", sheet.kumulatifRealisasi, true],
     ["Deviasi +/-", sheet.deviasi, true],
   ];
+  let kumRencanaRow = 0;
+  let kumRealisasiRow = 0;
   for (const [label, arr, bold] of prestasi) {
     const row = ws.addRow([]);
+    if (label.startsWith("Kumulatif Rencana")) kumRencanaRow = row.number;
+    if (label.startsWith("Kumulatif Realisasi")) kumRealisasiRow = row.number;
     row.getCell(1).value = label;
     ws.mergeCells(row.number, 1, row.number, 3);
     row.getCell(1).alignment = { horizontal: "right" };
@@ -134,22 +142,49 @@ async function addKurvaSheet(wb: ExcelJS.Workbook, r: PeriodReport): Promise<voi
     }
   }
 
-  // Gambar grafik kurva-S di bawah tabel (exceljs tak bisa chart garis native).
-  const chart = await renderScurveChartPng({
-    weeks: sheet.weeks,
-    kumulatifRencana: sheet.kumulatifRencana,
-    kumulatifRealisasi: sheet.kumulatifRealisasi,
-    title: `Kurva S ${r.kind === "mingguan" ? `Minggu ke-${r.n}` : `Bulan ke-${r.n}`}`,
+  // Spesifikasi GRAFIK NATIVE (disuntikkan setelah workbook ditulis) — chart garis
+  // Excel sungguhan yang mereferensikan sel kumulatif, bukan gambar.
+  const q = (col: number, rowN: number) => `'${ws.name}'!$${colLetter(col)}$${rowN}`;
+  const range = (rowN: number) => `${q(FIRST, rowN)}:$${colLetter(lastCol)}$${rowN}`;
+  const lastRow = ws.rowCount;
+  return {
+    sheetName: ws.name,
+    title: opts?.chartTitle ?? `KURVA S ${r.kind === "mingguan" ? `MINGGU KE-${r.n}` : `BULAN KE-${r.n}`}`,
+    catRef: range(weekRow.number),
+    series: [
+      { name: "Rencana", valRef: range(kumRencanaRow), color: "64748B", dash: true },
+      { name: "Realisasi", valRef: range(kumRealisasiRow), color: "16A34A" },
+    ],
+    anchor: { fromCol: 1, fromRow: lastRow + 1, toCol: Math.min(lastCol, 16), toRow: lastRow + 24 },
+  } satisfies LineChartSpec;
+}
+
+/**
+ * Time Schedule (Kurva-S) berdiri sendiri sebagai .xlsx — satu sheet tabel
+ * kategori × minggu (bobot) + kumulatif rencana/realisasi + GRAFIK NATIVE Excel.
+ * Format menyerupai time schedule sipil (contoh TS vendor).
+ */
+export async function buildJadwalXlsx(r: PeriodReport): Promise<Buffer> {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "MARLIN";
+  wb.created = new Date();
+  const chartSpec = await addKurvaSheet(wb, r, {
+    sheetName: "Time Schedule",
+    chartTitle: "TIME SCHEDULE (KURVA S) — RENCANA & REALISASI",
   });
-  const imgId = wb.addImage({ buffer: chart.buffer as unknown as ExcelJS.Buffer, extension: "png" });
-  ws.addImage(imgId, { tl: { col: 0, row: ws.rowCount + 1 }, ext: { width: chart.width, height: chart.height } });
+  const buf = Buffer.from(await wb.xlsx.writeBuffer());
+  try {
+    return await addLineChartToXlsx(buf, chartSpec);
+  } catch {
+    return buf;
+  }
 }
 
 export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "MARLIN";
   wb.created = new Date();
-  await addKurvaSheet(wb, r);
+  const chartSpec = await addKurvaSheet(wb, r);
   const ws = wb.addWorksheet("Laporan", {
     pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   });
@@ -309,6 +344,12 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
     for (const k of r.kendala) kv(formatTanggal(k.createdAt), `${k.title} (${k.severity}, ${k.status})`);
   }
 
-  const buf = await wb.xlsx.writeBuffer();
-  return Buffer.from(buf);
+  const buf = Buffer.from(await wb.xlsx.writeBuffer());
+  // Sisipkan grafik kurva-S NATIVE ke sheet "Kurva S" (exceljs tak bisa; kita
+  // pasca-proses XML chart OOXML). Bila gagal, kembalikan workbook tanpa chart.
+  try {
+    return await addLineChartToXlsx(buf, chartSpec);
+  } catch {
+    return buf;
+  }
 }

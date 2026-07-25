@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CalendarClock } from "lucide-react";
+import { CalendarClock, Sheet } from "lucide-react";
 import { Card, CardBody, CardHeader, CollapsibleCard, type BadgeTone } from "@/components/ui";
 import { DeltaBadge } from "@/components/ui/stat-delta";
 import { ScurveChart } from "@/components/knmp/scurve-chart";
@@ -180,12 +180,20 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
             action={
               <div className="flex items-center gap-2">
                 {bounds ? (
-                  <Link
-                    href={`/cetak/jadwal/${slug}`}
-                    className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-muted hover:border-border-strong"
-                  >
-                    <CalendarClock aria-hidden className="size-4" /> Cetak Jadwal
-                  </Link>
+                  <>
+                    <Link
+                      href={`/cetak/jadwal/${slug}`}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-muted hover:border-border-strong"
+                    >
+                      <CalendarClock aria-hidden className="size-4" /> Cetak Jadwal
+                    </Link>
+                    <a
+                      href={`/lokasi/${slug}/jadwal/export`}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-muted hover:border-border-strong"
+                    >
+                      <Sheet aria-hidden className="size-4" /> Unduh Excel
+                    </a>
+                  </>
                 ) : null}
                 {canManageBaseline ? <RecalcBaselineButton locationId={location.id} /> : null}
               </div>

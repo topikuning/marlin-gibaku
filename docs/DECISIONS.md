@@ -1693,3 +1693,29 @@ scurve — dengan test properti, bukan paritas nilai):**
   (MIT, sudah transitif via exceljs → audit lisensi tetap hijau).
 - Verifikasi: typecheck/lint ✓, 131 unit test ✓ (uji slim multi-sheet+defined names →
   ramping ke RAB & parse benar), build ✓, audit --prod --high exit 0.
+
+## 086 · 2026-07-25 · Kurva-S di Excel = GRAFIK NATIVE (bukan gambar) + Unduh Excel Jadwal
+
+- Permintaan user (menolak DECISIONS 083 bagian gambar): "yang aku mau bukan gambar tapi
+  grafis asli seperti contoh yang kuberikan" — chart Excel SUNGGUHAN (bisa diklik/diedit,
+  mengikuti sel), seperti file Time Schedule vendor, bukan PNG hasil render.
+- Kendala: exceljs TAK BISA menulis chart native. Ditolak: (a) tetap PNG (yg dikeluhkan);
+  (b) ganti library chart-capable (dep besar / tak terawat).
+- Solusi (`addLineChartToXlsx`, `src/lib/export/xlsx-chart.ts`, pakai jszip): pasca-proses
+  buffer hasil exceljs → suntik part OOXML `xl/charts/chart1.xml` (c:lineChart, 2 deret:
+  Rencana putus-putus abu + Realisasi hijau, sumbu-Y 0–100% + gridlines, `dispBlanksAs=gap`
+  agar realisasi berhenti di minggu berjalan) + `xl/drawings/drawing1.xml` (twoCellAnchor)
+  + relasi (drawing→chart, sheet→drawing) + Override content-types + `<drawing>` di
+  worksheet. Chart mereferensikan SEL (kategori M1..Mn + baris kumulatif) → live terhadap
+  data sheet, angka identik dgn tabel/PDF KKP.
+- `buildPeriodReportXlsx` sheet "Kurva S": PNG (083) DIGANTI chart native. `renderScurveChartPng`
+  + `scurve-image.ts` dihapus (dead code).
+- Tambahan: `buildJadwalXlsx` + route `/lokasi/[slug]/jadwal/export` + tombol "Unduh Excel"
+  (di kartu Kurva-S progress & hub Laporan Lokasi, di samping "Cetak Jadwal") — Time Schedule
+  1-sheet (tabel kategori × minggu + kumulatif + chart native), gate `getPeriodBounds` (butuh
+  SPMK), `requireCapability(report.export)` + `requireLocationAccess` + audit.
+- Verifikasi (LibreOffice headless tak fungsional di sandbox → dipakai openpyxl, parser OOXML
+  chart ketat): kedua workbook di-parse openpyxl = LineChart valid, 2 deret, ref sel benar;
+  sel yg dirujuk berisi kumulatif rencana (→100) & realisasi (berhenti minggu berjalan).
+  typecheck/lint ✓, 134 unit test ✓ (uji injektor chart: part+rels+content-types+reload),
+  build ✓ (route terdaftar). `server-only` di-alias no-op di vitest agar modul export teruji.
