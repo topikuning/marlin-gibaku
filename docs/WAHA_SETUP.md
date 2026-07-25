@@ -66,11 +66,31 @@ Verifikasi: klik **Cek status WhatsApp** di kartu yang sama. Harus `WORKING`.
 
 ## 4. Set grup WA per paket
 
-Di halaman **Paket → Grup WhatsApp paket**:
-- Klik **Muat daftar grup dari WhatsApp** → pilih grup dari daftar, **atau**
-- Tempel **ID grup** manual (format `1203630xxxxxxxxxxx@g.us`).
+Di halaman **Paket → Grup WhatsApp paket**, ada 3 cara (WhatsApp TIDAK menampilkan
+ID grup di aplikasinya — ID hanya bisa didapat lewat WAHA):
+
+1. **Muat daftar grup** → pilih dari daftar. ⚠️ Untuk engine **NOWEB**, daftar grup
+   HANYA muncul bila **store diaktifkan** (lihat catatan di bawah). Tanpa store,
+   daftar kosong walau sesi `WORKING`.
+2. **Link undangan grup (disarankan, tanpa store):** di WhatsApp buka grup → Info grup
+   → *Tautan undangan grup* → Salin → tempel di form → **Ambil ID dari link**. Sistem
+   meresolusi ID grup via WAHA (`join-info`/`join`). Nomor pengirim harus anggota grup.
+3. **Tempel ID grup manual** (`1203630xxxxxxxxxxx@g.us`) bila sudah tahu ID-nya.
 
 Simpan. Sejak itu, semua lokasi paket tersebut mengirim ke grup itu.
+
+### (Opsional) Aktifkan NOWEB store agar "Muat daftar grup" berfungsi
+Engine NOWEB tidak menyimpan daftar grup/kontak secara default. Untuk mengaktifkan
+endpoint `GET /groups`, saat membuat sesi kirim konfigurasi store, atau set env pada
+container WAHA lalu start ulang sesi:
+
+```
+WHATSAPP_DEFAULT_ENGINE=NOWEB
+WHATSAPP_STORE_ENABLED=True
+WHATSAPP_STORE_FULLSYNC=True
+```
+
+Bila tidak ingin repot, **lewati ini** — pakai Cara 2 (link undangan) yang tidak butuh store.
 
 ## 5. Kirim kegiatan lapangan (1 klik)
 

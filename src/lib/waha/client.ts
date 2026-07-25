@@ -96,7 +96,26 @@ export async function getSessionStatus(): Promise<WahaSessionStatus> {
 
 export type WahaGroup = { id: string; name: string };
 
-/** Daftar grup WA yang bisa dikirimi (butuh sesi WORKING). */
+/** Ekstrak id grup ("…@g.us") dari bentuk string atau objek { _serialized } / { user, server }. */
+function extractGroupId(idRaw: unknown): string {
+  if (typeof idRaw === "string") return idRaw;
+  const rec = idRaw as Record<string, unknown> | null;
+  if (!rec) return "";
+  if (typeof rec._serialized === "string") return rec._serialized;
+  if (typeof rec.user === "string" && typeof rec.server === "string") return `${rec.user}@${rec.server}`;
+  return "";
+}
+
+function extractGroupName(rec: Record<string, unknown>, fallback: string): string {
+  return (
+    (rec.name as string | undefined) ??
+    (rec.subject as string | undefined) ??
+    ((rec.groupMetadata as Record<string, unknown> | undefined)?.subject as string | undefined) ??
+    fallback
+  );
+}
+
+/** Daftar grup WA yang bisa dikirimi (butuh sesi WORKING + store aktif utk NOWEB). */
 export async function listGroups(): Promise<WahaGroup[]> {
   const c = await cfg();
   const res = await wahaFetch(c, `/api/${encodeURIComponent(c.session)}/groups`);
@@ -105,20 +124,53 @@ export async function listGroups(): Promise<WahaGroup[]> {
   return arr
     .map((g) => {
       const rec = g as Record<string, unknown>;
-      // id bisa berupa string atau { _serialized } tergantung engine.
-      const idRaw = rec.id;
-      const id =
-        typeof idRaw === "string"
-          ? idRaw
-          : ((idRaw as Record<string, unknown> | null)?._serialized as string | undefined) ?? "";
-      const name =
-        (rec.name as string | undefined) ??
-        (rec.subject as string | undefined) ??
-        ((rec.groupMetadata as Record<string, unknown> | undefined)?.subject as string | undefined) ??
-        id;
-      return { id, name };
+      const id = extractGroupId(rec.id);
+      return { id, name: extractGroupName(rec, id) };
     })
     .filter((g) => g.id.endsWith("@g.us"));
+}
+
+/** Ambil kode undangan dari link chat.whatsapp.com/XXXX (atau kode polos). */
+export function parseInviteCode(raw: string): string {
+  const t = raw.trim();
+  const m = t.match(/(?:chat\.whatsapp\.com\/)([A-Za-z0-9_-]{6,})/i);
+  if (m) return m[1];
+  if (/^[A-Za-z0-9_-]{6,}$/.test(t)) return t;
+  throw new WahaError("Link undangan tidak valid. Tempel link seperti https://chat.whatsapp.com/XXXXXXXX");
+}
+
+/**
+ * Resolusi ID grup dari LINK UNDANGAN (chat.whatsapp.com/XXXX) via WAHA —
+ * TANPA perlu store NOWEB. Coba join-info (tak bergabung) dulu; bila engine
+ * tak dukung, fallback ke join (idempotent bila nomor sudah anggota).
+ */
+export async function resolveGroupByInvite(rawLink: string): Promise<WahaGroup> {
+  const c = await cfg();
+  const code = parseInviteCode(rawLink);
+  const session = encodeURIComponent(c.session);
+
+  // 1) join-info: ambil metadata grup tanpa bergabung.
+  try {
+    const res = await wahaFetch(c, `/api/${session}/groups/join-info?code=${encodeURIComponent(code)}`);
+    const data = (await res.json()) as Record<string, unknown>;
+    const id = extractGroupId(data.id ?? data);
+    if (id.endsWith("@g.us")) return { id, name: extractGroupName(data, id) };
+  } catch {
+    /* engine tak dukung join-info → fallback join */
+  }
+
+  // 2) join: bergabung (aman bila sudah anggota) → kembalikan id grup.
+  const res = await wahaFetch(c, `/api/${session}/groups/join`, {
+    method: "POST",
+    body: JSON.stringify({ code }),
+  });
+  const data = (await res.json()) as unknown;
+  const rec = (typeof data === "object" && data ? data : {}) as Record<string, unknown>;
+  const id = extractGroupId(rec.id ?? data);
+  if (!id.endsWith("@g.us")) {
+    throw new WahaError("Tidak bisa mengambil ID grup dari link ini. Pastikan link undangan benar & masih aktif.");
+  }
+  return { id, name: extractGroupName(rec, id) };
 }
 
 type FilePayload = { mimetype: string; filename: string; data: string }; // data = base64

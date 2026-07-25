@@ -13,6 +13,7 @@ import {
   getSessionStatus,
   listGroups,
   normalizeGroupChatId,
+  resolveGroupByInvite,
   sendFile,
   sendImage,
   sendText,
@@ -134,6 +135,21 @@ export async function listWaGroupsAction(): Promise<
   } catch (err) {
     const s = fail(err);
     return { ok: false, error: s?.error ?? "Gagal memuat grup." };
+  }
+}
+
+/** Ambil ID grup dari link undangan (chat.whatsapp.com/…). */
+export async function resolveWaInviteAction(
+  link: string,
+): Promise<{ ok: true; id: string; name: string } | { ok: false; error: string }> {
+  try {
+    await requireCapability("wa.configure");
+    if (!link || !link.trim()) return { ok: false, error: "Tempel link undangan grup dulu." };
+    const g = await resolveGroupByInvite(link);
+    return { ok: true, id: g.id, name: g.name };
+  } catch (err) {
+    const s = fail(err);
+    return { ok: false, error: s?.error ?? "Gagal mengambil ID grup." };
   }
 }
 

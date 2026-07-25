@@ -1935,7 +1935,10 @@ scurve — dengan test properti, bukan paritas nilai):**
   `requireLocationAccess`): teks ringkas + semua foto (image) + semua dokumen (file) ke grup
   paket; tandai `FieldActivity.waSentAt`/`waSentById` ("✓ Terkirim", bisa kirim ulang). Audit.
 - **Set grup**: capability baru `wa.configure` (super_admin, program_director, regional_manager,
-  project_manager, site_manager). `WaGroupForm` di halaman Paket — pilih dari daftar grup
-  (ditarik via `listWaGroupsAction`, butuh sesi WORKING) **atau** tempel ID manual (cadangan).
+  project_manager, site_manager). `WaGroupForm` di halaman Paket, 3 cara: (1) pilih dari daftar
+  (`listWaGroupsAction`, butuh sesi WORKING + store NOWEB aktif); (2) **link undangan grup** →
+  `resolveWaInviteAction`/`resolveGroupByInvite` (join-info→fallback join) — resolve ID TANPA
+  store NOWEB; (3) tempel ID manual. WhatsApp tak pernah menampilkan ID grup di aplikasinya,
+  jadi cara (2) jadi jalur utama saat engine NOWEB tanpa store.
 - **Diagnostik** di Sistem: status koneksi + sesi WA (`wahaStatusAction`).
 - Scope iterasi ini: kegiatan lapangan saja (per keputusan user). Laporan harian/progres menyusul.
