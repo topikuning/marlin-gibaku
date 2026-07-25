@@ -200,3 +200,32 @@ describe("baris DIHIDE di Excel diabaikan (tidak masuk perhitungan) — DECISION
     expect(warnings.some((w) => /tersembunyi \(hidden\)/i.test(w))).toBe(true);
   });
 });
+
+describe("slimRabWorkbook: file raksasa multi-sheet + defined names → ramping ke RAB — DECISIONS 085", () => {
+  it("workbook 3 sheet + 3000 defined names → parse RAB benar, tanpa OOM", async () => {
+    const { slimRabWorkbook } = await import("@/lib/rab/xlsx-slim");
+    const wb = new ExcelJS.Workbook();
+    // Sheet volume besar & sheet resume (harus dibuang oleh slimming).
+    const vol = wb.addWorksheet("Vol Besar");
+    for (let i = 0; i < 500; i++) vol.addRow([i, `baris volume ${i}`, i, i * 2, i * 3]);
+    wb.addWorksheet("Resume").addRow(["Resume"]);
+    const ws = wb.addWorksheet("RAB");
+    ws.addRow(["No", "Uraian", null, null, "Vol", "Sat", "Harga Satuan", "Jumlah Harga", "TKDN"]);
+    ws.addRow(["I", "PEKERJAAN PERSIAPAN", null, null, null, null, null, null, null]);
+    ws.addRow(["1", "Mobilisasi", null, null, 1, "ls", 1000000, 1000000, 1]);
+    // banyak defined names sampah (simulasi 47k → kecil utk uji)
+    for (let i = 0; i < 3000; i++) wb.definedNames.add(`Vol Besar!A1`, `_junk${i}`);
+    const buf = Buffer.from((await wb.xlsx.writeBuffer()) as ArrayBuffer);
+
+    const slim = await slimRabWorkbook(buf);
+    expect(slim.length).toBeLessThan(buf.length); // lebih ramping
+    // Slim workbook hanya berisi sheet RAB.
+    const check = new ExcelJS.Workbook();
+    await check.xlsx.load(slim as unknown as ArrayBuffer);
+    expect(check.worksheets.map((w) => w.name)).toEqual(["RAB"]);
+
+    const { parsed } = await parseHpsBuffer(buf);
+    expect(parsed.categories.map((c) => c.roman)).toEqual(["I"]);
+    expect(parsed.total).toBe(1_000_000);
+  });
+});

@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import { slimRabWorkbook } from "@/lib/rab/xlsx-slim";
 import type {
   ParsedRab,
   ParsedRabCategory,
@@ -137,9 +138,18 @@ export function sumLeaves(items: ParsedRabItem[]): number {
 export async function parseHpsBuffer(
   buf: Buffer | ArrayBuffer,
 ): Promise<{ parsed: ParsedRab; warnings: string[] }> {
+  // Rampingkan dulu ke sheet RAB saja (buang 40+ sheet volume & ribuan defined
+  // names sampah) agar exceljs tak OOM pada file HPS/Negosiasi raksasa. Bila file
+  // tak cocok pola, slimRabWorkbook mengembalikan buffer asli (aman).
+  let loadBuf: Buffer;
+  try {
+    loadBuf = await slimRabWorkbook(buf);
+  } catch {
+    loadBuf = Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
+  }
   const wb = new ExcelJS.Workbook();
   // Tipe Buffer ExcelJS lebih tua dari @types/node generic Buffer — cast di sini.
-  await wb.xlsx.load(buf as ArrayBuffer);
+  await wb.xlsx.load(loadBuf as unknown as ArrayBuffer);
   return parseHpsWorkbook(wb);
 }
 

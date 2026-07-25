@@ -50,6 +50,9 @@ importers:
       exifreader:
         specifier: 4.41.0
         version: 4.41.0
+      jszip:
+        specifier: 3.10.1
+        version: 3.10.1
       leaflet:
         specifier: 1.9.4
         version: 1.9.4

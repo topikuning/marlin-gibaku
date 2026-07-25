@@ -1670,3 +1670,26 @@ scurve — dengan test properti, bukan paritas nilai):**
   dipakai pratinjau & commit (dijaga hash file) → hidden dikecualikan di dua-duanya.
 - Verifikasi: unit test baru (total 21,5jt tanpa 5jt baris hidden + peringatan muncul);
   typecheck/lint ✓, 130 unit test ✓.
+
+## 085 · 2026-07-25 · Import RAB: perampingan xlsx (anti-OOM) sebelum parse exceljs
+
+- Bug (urgent, dari file Lampiran_Negosiasi_PesisirJawa_Timur_HUB1.xlsx): import RAB
+  CRASH "JavaScript heap out of memory" saat `wb.xlsx.load`. Diagnosis file mentah:
+  `xl/workbook.xml` 4,5 MB berisi **47.746 defined names sampah** (mis. `_` byte rusak
+  warisan copy-paste) + **44 sheet volume**; exceljs memuat SEMUA ke model objek →
+  heap ~447 MB (batas) terlampaui. Sheet "RAB" sendiri kecil (A1:W1964).
+- Opsi ditolak: (a) streaming reader exceljs — HEMAT memori TAPI membuang `row.hidden`
+  (uji: 820 baris hidden → terbaca 0), padahal DECISIONS 084 butuh hidden; (b) naikkan
+  heap — band-aid, tak scalable ke container kecil / file lebih besar.
+- Solusi (`slimRabWorkbook`, xlsx-slim.ts, pakai jszip): unzip → buang `<definedNames>`
+  → pangkas `<sheets>` jadi HANYA sheet RAB → simpan closure transitif part yg dirujuk
+  (sharedStrings/styles/theme/drawing) via BFS `.rels` → re-zip. Full `.load()` pada
+  workbook 1-sheet mungil → atribut sel & `row.hidden` UTUH. Bila pola tak cocok
+  (tak ada sheet mirip "RAB"), kembalikan buffer asli (fallback aman). Dipakai
+  `parseHpsBuffer` (pratinjau & commit).
+- Hasil pada file bermasalah: 5,8 MB → 0,9 MB slim; parse 1,6 dtk (dulu OOM); di bawah
+  cap heap 300 MB → heap 52 MB / rss 214 MB (lega). 16 kategori, total Rp 3,89 M,
+  794 baris hidden dikecualikan (DECISIONS 084 tetap jalan). +dep langsung `jszip`
+  (MIT, sudah transitif via exceljs → audit lisensi tetap hijau).
+- Verifikasi: typecheck/lint ✓, 131 unit test ✓ (uji slim multi-sheet+defined names →
+  ramping ke RAB & parse benar), build ✓, audit --prod --high exit 0.
