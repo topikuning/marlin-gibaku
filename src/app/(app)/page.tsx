@@ -2,8 +2,9 @@ import Link from "next/link";
 import { ClipboardCheck, FileWarning, MapPin, Package as PackageIcon } from "lucide-react";
 import { KpiCard, PageHeader, EmptyState, StatusPill, Card, CardHeader, CardBody } from "@/components/ui";
 import { DeltaBadge, deviationTone } from "@/components/ui/stat-delta";
-import { requireUser, accessibleLocationIds } from "@/lib/auth/session";
+import { requireUser, accessibleLocationIds, type SessionUser } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
+import { ExecutiveDashboard } from "@/app/(app)/aktivitas/executive-dashboard";
 import { db } from "@/lib/db";
 import { getLocationsProgress } from "@/lib/progress";
 import { formatRupiahShort, formatTanggal } from "@/lib/format";
@@ -12,10 +13,19 @@ import { PACKAGE_STAGE_LABEL, PACKAGE_STAGE_TONE, REPORT_STATUS_LABEL, REPORT_ST
 export const dynamic = "force-dynamic";
 
 /**
+ * Beranda: peran manajemen (portfolio.view) mendarat di Dashboard Eksekutif;
+ * peran lapangan (Site Manager/Mandor) tetap di Command Center yang lebih ringkas.
+ */
+export default async function HomePage() {
+  const user = await requireUser();
+  if (can(user.role, "portfolio.view")) return <ExecutiveDashboard user={user} />;
+  return <CommandCenter user={user} />;
+}
+
+/**
  * Command Center — exception-first: yang harus DIKERJAKAN di atas, KPI klik-tembus di bawah.
  */
-export default async function CommandCenterPage() {
-  const user = await requireUser();
+async function CommandCenter({ user }: { user: SessionUser }) {
   const locIds = await accessibleLocationIds(user);
   const locWhere = locIds === null ? {} : { id: { in: locIds } };
 

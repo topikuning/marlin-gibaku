@@ -42,13 +42,24 @@ function useTokenColor(): (token: string) => string {
   return (token: string) => colors[token] ?? "";
 }
 
+/** Warna pin opsional per-id (mis. status submit di dashboard) — menimpa warna
+ *  default per LocationStatus. Token CSS var, di-resolve client-side. */
+const TONE_TOKEN: Record<"success" | "warning" | "danger" | "neutral", string> = {
+  success: "--color-success",
+  warning: "--color-warning",
+  danger: "--color-danger",
+  neutral: "--color-ink-faint",
+};
+
 export interface PetaMapProps {
   markers: PetaMarker[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  /** Timpa warna pin per-id dengan tone (dashboard: status submit). */
+  toneById?: Record<string, "success" | "warning" | "danger" | "neutral">;
 }
 
-export function PetaMap({ markers, selectedId, onSelect }: PetaMapProps) {
+export function PetaMap({ markers, selectedId, onSelect, toneById }: PetaMapProps) {
   const tokenColor = useTokenColor();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -87,11 +98,13 @@ export function PetaMap({ markers, selectedId, onSelect }: PetaMapProps) {
     const statusColor = (status: LocationStatus) => tokenColor(statusColorToken(status));
     for (const m of markers) {
       const active = selectedId === m.id;
+      const tone = toneById?.[m.id];
+      const fill = tone ? tokenColor(TONE_TOKEN[tone]) : statusColor(m.status);
       const marker = L.circleMarker([m.lat, m.lng], {
         radius: active ? 11 : 7,
         color: active ? tokenColor("--color-primary") : tokenColor("--color-surface"),
         weight: active ? 3 : 1.2,
-        fillColor: statusColor(m.status),
+        fillColor: fill,
         fillOpacity: 0.92,
       });
       marker.bindTooltip(
@@ -101,7 +114,7 @@ export function PetaMap({ markers, selectedId, onSelect }: PetaMapProps) {
       marker.on("click", () => onSelectRef.current(m.id));
       marker.addTo(layer);
     }
-  }, [markers, selectedId, tokenColor]);
+  }, [markers, selectedId, tokenColor, toneById]);
 
   // Terbang ke lokasi terpilih.
   useEffect(() => {

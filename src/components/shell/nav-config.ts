@@ -46,7 +46,6 @@ export type NavItem = {
 
 export const MAIN_NAV: NavItem[] = [
   { label: "Beranda", href: "/", icon: "home" },
-  { label: "Aktivitas", href: "/aktivitas", icon: "activity", capability: "portfolio.view" },
   { label: "Paket", href: "/paket", icon: "package", capability: "package.view" },
   { label: "Lokasi", href: "/lokasi", icon: "mapPin", capability: "location.view" },
   { label: "Peta", href: "/peta", icon: "map", capability: "location.view" },

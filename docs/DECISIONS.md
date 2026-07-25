@@ -2089,3 +2089,52 @@ scurve — dengan test properti, bukan paritas nilai):**
 - **Akar 403 (operasional, di tangan pemilik situs)**: Cloudflare WAF. Solusi: (a) buat aturan
   Skip/exception WAF untuk path upload, atau (b) DURABLE — upload presigned LANGSUNG ke R2 dari
   browser (biner tak lewat Cloudflare origin). Menunggu keputusan user; belum diimplementasi.
+
+## 107 · 2026-07-25 · Rombak /aktivitas → "Dashboard Eksekutif" (layout mockup, data nyata)
+
+- **Permintaan user**: rombak total dashboard mengikuti mockup "Dashboard Eksekutif" — 5 KPI,
+  Peta Monitoring Lokasi, Status Submit harian, Activity Centre (dengan thumbnail foto), Ringkasan
+  Deviasi, Kendala & Solusi Tertunda, kartu Arah Navigasi. (Menu sidebar = contoh; tetap pakai shell asli.)
+- **Data (`src/lib/dashboard.ts`)** — komposisi lapisan yang ada, scoped `accessibleLocationIds`:
+  - `getDashboardData`: KPI (total lokasi, sudah/belum submit hari ini + delta vs kemarin + %, total
+    laporan = laporan harian + kegiatan lapangan hari ini, deviasi kritis <−10pp); daftar belum-submit
+    (+laporan terakhir), perlu-perhatian (deviasi<0), ranking deviasi, sebaran region (peta
+    provinsi→wilayah), warna pin peta per status submit/deviasi, kendala terbuka/ditangani + aksi
+    pemulihan terbaru (PIC `picName`, target `dueDate`, status, flag terlambat).
+  - `getActivityCentre`: kegiatan lapangan terbaru + thumbnail foto (presigned via `buildPhotoViews`)
+    + tag Kendala/Solusi/Foto/Deviasi.
+- **Peta**: reuse `PetaMap` (Leaflet) via wrapper client `dashboard-map.tsx` (filter Semua/Sudah/Belum/
+  Kritis + legend); `PetaMap` diberi prop opsional `toneById` untuk mewarnai pin per status submit
+  (tak mengganggu halaman `/peta`).
+- **UI**: token-based (tanpa hex), komponen `ui/*`; nav "Dashboard Eksekutif" (gate `portfolio.view`).
+  Field PIC & target diambil dari `RecoveryAction` (bukan mock). "Total Laporan" = harian + kegiatan.
+- Verifikasi: typecheck/lint/build ✓.
+
+## 108 · 2026-07-25 · Dashboard Eksekutif jadi beranda peran manajemen + gabung Command Center
+
+- **Keputusan user**: Dashboard Eksekutif jadi landing setelah login **untuk peran manajemen**
+  (`portfolio.view`: super_admin, project_director, PM, regional_manager, exec_viewer, keuangan).
+  Peran lapangan (Site Manager/Mandor) TETAP di Command Center yang lebih ringkas — hindari
+  membebani user gaptek.
+- **Routing** (`src/app/(app)/page.tsx`): `HomePage` → `can(role,"portfolio.view")` ? `ExecutiveDashboard`
+  : `CommandCenter`. Command Center di-extract jadi komponen `CommandCenter({user})` di file yang sama.
+- **Dashboard di-extract** jadi `ExecutiveDashboard({user})` (`aktivitas/executive-dashboard.tsx`);
+  `/aktivitas/page.tsx` tinggal wrapper (alias route, tetap ter-gate). Nav "Dashboard Eksekutif"
+  dihapus (Beranda sudah mengarah ke sana bagi manajemen).
+- **Info Command Center digabung** ke dashboard: baris "Portofolio & administrasi" — Nilai Kontrak
+  (RAB pra-PPN), Nilai Terpasang (+% bar), Paket Aktif, Menunggu Verifikasi (laporan `dikirim`),
+  Perlu Koreksi (`perlu_koreksi`) — semua klik-tembus. Data via `getDashboardData(locIds, orgId)`
+  (finance dari sum progress; paketAktif/verifikasi/koreksi via count scoped).
+- Verifikasi: typecheck/lint/build ✓.
+
+## 109 · 2026-07-25 · Fix upload >1MB gagal (500 digest) — proxyClientMaxBodySize
+
+- **Gejala**: upload dokumen ≥16MB di dev → crash halaman penuh "A server error occurred",
+  ERROR digest 3940070422. `serverActions.bodySizeLimit` sudah 30mb & action menangkap error,
+  tapi tetap gagal SEBELUM kode kita jalan.
+- **Akar masalah**: `src/middleware.ts` (auth) punya matcher yang membungkus SEMUA route.
+  Next 16 membatasi body request yang melewati middleware via `experimental.proxyClientMaxBodySize`
+  (dulu `middlewareClientMaxBodySize`), **default ~1MB**. Jadi SEMUA body >1MB ditolak framework —
+  bukan soal 16mb vs 30mb.
+- **Fix**: set `experimental.proxyClientMaxBodySize: "30mb"` di next.config.ts (samakan dgn
+  serverActions.bodySizeLimit). Perlu re-deploy (config di-bake saat build).
