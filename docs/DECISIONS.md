@@ -1960,3 +1960,21 @@ scurve — dengan test properti, bukan paritas nilai):**
 - **UI** (`laporan-lokasi`): tombol "Kirim ke WhatsApp (Excel)" di kartu laporan periodik saat
   ditampilkan + tombol "Kirim WA" per baris laporan harian final. Nonaktif bila paket belum
   punya grup / WAHA belum diatur.
+
+## 101 · 2026-07-25 · Tag lokasi foto sadar-sumber (Kamera vs Galeri) — perbaiki batch galeri
+
+- **Masalah**: `savePhotoForItem` dulu memprioritaskan GPS perangkat saat upload
+  (`stamp.lat ?? exif.lat`), sehingga foto galeri yang di-batch setelah pindah lokasi
+  ketag titik upload — bukan titik asli foto.
+- **Solusi (per keputusan user)**: input foto dibedah jadi 2 sumber eksplisit
+  (komponen baru `src/components/knmp/photo-source-input.tsx`):
+  - **Kamera** (`capture=environment`): GPS real-time perangkat → EXIF → titik lokasi proyek;
+    waktu = sekarang → EXIF.
+  - **Galeri** (tanpa capture): UTAMAKAN EXIF asli foto; bila EXIF tak ada, cadangan sesuai
+    pilihan di tombol galeri (`galleryFallback`: "project" = titik lokasi proyek, "none" = tanpa tag).
+    GPS perangkat saat upload TIDAK dikirim untuk galeri.
+- `savePhotoForItem` (photos.ts) kini menerima `stamp.source`/`fallbackMode`/`locationLat`/
+  `locationLng`/`workDate` dan menentukan lat/lng/takenAt sesuai sumber. Koordinat lokasi proyek
+  diambil dari `Location.gpsLat/gpsLng` (sudah terisi dari import master / form lokasi).
+- Dipakai di kegiatan lapangan (form buat + Tambah foto) dan laporan harian (report-editor).
+  Waktu fallback galeri = tanggal kegiatan/laporan (bukan waktu upload).

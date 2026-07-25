@@ -185,11 +185,26 @@ export type SavePhotoInput = {
   userId: string;
   locationSlug: string;
   dateKey: string;
-  /** Sumber cap dari klien (geolokasi + waktu ambil); fallback EXIF → now. */
+  /**
+   * Sumber cap. Prioritas GPS & waktu tergantung `source`:
+   * - "camera" (foto baru diambil): GPS real-time perangkat → EXIF → titik lokasi proyek;
+   *   waktu = sekarang → EXIF.
+   * - "gallery" (dipilih dari galeri): UTAMAKAN EXIF asli foto; bila EXIF tak ada,
+   *   cadangan sesuai `fallbackMode` ("project" = titik lokasi proyek, "none" = tanpa tag).
+   *   GPS perangkat saat upload TIDAK PERNAH dipakai untuk galeri (bisa salah saat batch).
+   */
   stamp?: {
+    source?: "camera" | "gallery";
+    fallbackMode?: "project" | "none";
+    /** GPS real-time perangkat (hanya relevan utk source "camera"). */
     lat?: number | null;
     lng?: number | null;
+    /** Koordinat lokasi proyek (fallback). */
+    locationLat?: number | null;
+    locationLng?: number | null;
     takenAt?: Date | null;
+    /** Tanggal kerja kegiatan/laporan (fallback waktu utk galeri tanpa EXIF). */
+    workDate?: Date | null;
     locationLabel?: string | null;
     companyName?: string | null;
     reporterName?: string | null;
@@ -214,9 +229,26 @@ export async function savePhotoForItem(input: SavePhotoInput) {
   if (existing) throw new PhotoError("Foto duplikat (sudah pernah diunggah)");
 
   const exif = readExif(original);
-  const lat = input.stamp?.lat ?? exif.lat;
-  const lng = input.stamp?.lng ?? exif.lng;
-  const takenAt = input.stamp?.takenAt ?? exif.takenAt ?? new Date();
+  const s = input.stamp;
+  const source = s?.source ?? "camera";
+  const projLat = s?.locationLat ?? null;
+  const projLng = s?.locationLng ?? null;
+  let lat: number | null;
+  let lng: number | null;
+  let takenAt: Date;
+  if (source === "gallery") {
+    // Galeri: EXIF asli dulu; bila tak ada → cadangan (titik lokasi proyek / tanpa tag).
+    // GPS perangkat saat upload sengaja diabaikan (bisa salah saat batch).
+    const useProject = s?.fallbackMode === "project";
+    lat = exif.lat ?? (useProject ? projLat : null);
+    lng = exif.lng ?? (useProject ? projLng : null);
+    takenAt = exif.takenAt ?? s?.workDate ?? new Date();
+  } else {
+    // Kamera: GPS real-time perangkat dulu → EXIF → titik lokasi proyek.
+    lat = s?.lat ?? exif.lat ?? projLat;
+    lng = s?.lng ?? exif.lng ?? projLng;
+    takenAt = s?.takenAt ?? exif.takenAt ?? new Date();
+  }
 
   // Pipeline ideal: sharp resize + cap (Timemark) + webp. Bila sharp TIDAK
   // tersedia/gagal di runtime (mis. binari native tak termuat di host), JANGAN

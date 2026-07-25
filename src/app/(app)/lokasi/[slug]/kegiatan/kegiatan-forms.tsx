@@ -1,8 +1,9 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
-import { Camera, CheckCircle2, Download, MessageCircle, Paperclip, Pencil, RotateCcw, Trash2, Plus } from "lucide-react";
+import { CheckCircle2, Download, MessageCircle, Paperclip, Pencil, RotateCcw, Trash2, Plus } from "lucide-react";
 import { Banner, Button, Input, Label, Combobox, Textarea } from "@/components/ui";
+import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
 import { FIELD_ACTIVITY_TYPES, FIELD_ACTIVITY_TYPE_LABEL } from "@/lib/field-activity/labels";
 import type { FieldActivityAttachmentView } from "@/lib/field-activity/queries";
 import type { FieldActivityType } from "@/generated/prisma/enums";
@@ -82,46 +83,22 @@ export type EditableActivity = {
   solusi: string | null;
 };
 
-type Geo = { lat: number; lng: number } | null;
-
-/** Rekam waktu ambil + koordinat GPS saat foto dipilih (dibakar ke gambar di server). */
-function usePhotoCapture() {
-  const [geo, setGeo] = useState<Geo>(null);
-  const [takenAt, setTakenAt] = useState<string>("");
-  const [previews, setPreviews] = useState<string[]>([]);
-  function onFiles(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = e.target.files;
-    if (!files || files.length === 0) {
-      setPreviews([]);
-      return;
-    }
-    const urls: string[] = [];
-    for (let i = 0; i < Math.min(files.length, 6); i++) urls.push(URL.createObjectURL(files[i]));
-    setPreviews(urls);
-    setTakenAt(new Date().toISOString());
-    if (typeof navigator !== "undefined" && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => setGeo({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        () => setGeo(null),
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 },
-      );
-    }
-  }
-  return { geo, takenAt, previews, setPreviews, onFiles };
-}
 
 /** Form buat kegiatan lapangan baru (draft) + foto awal. */
 export function CreateActivityForm({ locationId, todayKey }: { locationId: string; todayKey: string }) {
   const [state, action, pending] = useActionState<FieldActivityState, FormData>(createActivityAction, undefined);
   const formRef = useRef<HTMLFormElement>(null);
-  const { geo, takenAt, previews, setPreviews, onFiles } = usePhotoCapture();
+  const [photoKey, setPhotoKey] = useState(0);
 
   useEffect(() => {
-    if (state?.success) {
+    if (!state?.success) return;
+    // setState via timeout (bukan sinkron di effect) — patuh react-hooks/set-state-in-effect.
+    const t = window.setTimeout(() => {
       formRef.current?.reset();
-      setPreviews([]);
-    }
-  }, [state?.success, setPreviews]);
+      setPhotoKey((k) => k + 1); // remount PhotoSourceInput → bersihkan pratinjau/pilihan
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [state?.success]);
 
   return (
     <form ref={formRef} action={action} className="space-y-3 rounded-lg border border-border bg-surface p-4 shadow-xs">
@@ -131,9 +108,6 @@ export function CreateActivityForm({ locationId, todayKey }: { locationId: strin
       {state?.warning ? <Banner tone="warning" title="Sebagian foto gagal" description={state.warning} /> : null}
 
       <input type="hidden" name="locationId" value={locationId} />
-      <input type="hidden" name="gpsLat" value={geo?.lat ?? ""} />
-      <input type="hidden" name="gpsLng" value={geo?.lng ?? ""} />
-      <input type="hidden" name="photoTakenAt" value={takenAt} />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
@@ -177,20 +151,8 @@ export function CreateActivityForm({ locationId, todayKey }: { locationId: strin
       </div>
 
       <div>
-        <Label htmlFor="fa-photos">Foto dokumentasi</Label>
-        <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-border bg-surface-muted px-3 py-2.5 text-sm text-ink-muted hover:border-border-strong">
-          <Camera aria-hidden className="size-4" />
-          Ambil / pilih foto (maks 6)
-          <input id="fa-photos" type="file" name="photos" accept="image/*" multiple className="sr-only" onChange={onFiles} />
-        </label>
-        {previews.length > 0 ? (
-          <div className="mt-2 flex flex-wrap gap-2">
-            {previews.map((src, i) => (
-              // eslint-disable-next-line @next/next/no-img-element -- preview lokal (objectURL) sebelum unggah
-              <img key={i} src={src} alt="" className="h-16 w-16 rounded-md border border-border object-cover" />
-            ))}
-          </div>
-        ) : null}
+        <Label>Foto dokumentasi (maks 6)</Label>
+        <PhotoSourceInput key={photoKey} />
       </div>
 
       <Button type="submit" loading={pending}>Simpan kegiatan</Button>
@@ -385,26 +347,13 @@ export function ActivityAttachments({
 function AddPhotoForm({ activityId }: { activityId: string }) {
   const [state, action, pending] = useActionState<FieldActivityState, FormData>(addActivityPhotosAction, undefined);
   const formRef = useRef<HTMLFormElement>(null);
-  const { takenAt, onFiles } = usePhotoCapture();
   return (
-    <form ref={formRef} action={action} className="inline-flex items-center gap-1">
+    <form ref={formRef} action={action} className="inline-flex flex-wrap items-center gap-2">
       <input type="hidden" name="activityId" value={activityId} />
-      <input type="hidden" name="photoTakenAt" value={takenAt} />
-      <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1.5 text-[13px] font-medium text-ink hover:bg-surface-muted">
-        <Plus aria-hidden className="size-3.5" />
-        {pending ? "Mengunggah…" : "Tambah foto"}
-        <input
-          type="file"
-          name="photos"
-          accept="image/*"
-          multiple
-          className="sr-only"
-          onChange={(e) => {
-            onFiles(e);
-            if (e.target.files && e.target.files.length) formRef.current?.requestSubmit();
-          }}
-        />
-      </label>
+      <span className="inline-flex items-center gap-1 text-[13px] text-ink-muted">
+        <Plus aria-hidden className="size-3.5" /> {pending ? "Mengunggah…" : "Tambah foto:"}
+      </span>
+      <PhotoSourceInput compact onPicked={() => formRef.current?.requestSubmit()} />
       {state?.error ? <span className="text-[12px] text-danger">{state.error}</span> : null}
       {state?.warning ? <span className="text-[12px] text-warning">{state.warning}</span> : null}
     </form>
