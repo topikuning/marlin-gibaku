@@ -2089,3 +2089,23 @@ scurve — dengan test properti, bukan paritas nilai):**
 - **Akar 403 (operasional, di tangan pemilik situs)**: Cloudflare WAF. Solusi: (a) buat aturan
   Skip/exception WAF untuk path upload, atau (b) DURABLE — upload presigned LANGSUNG ke R2 dari
   browser (biner tak lewat Cloudflare origin). Menunggu keputusan user; belum diimplementasi.
+
+## 107 · 2026-07-25 · Rombak /aktivitas → "Dashboard Eksekutif" (layout mockup, data nyata)
+
+- **Permintaan user**: rombak total dashboard mengikuti mockup "Dashboard Eksekutif" — 5 KPI,
+  Peta Monitoring Lokasi, Status Submit harian, Activity Centre (dengan thumbnail foto), Ringkasan
+  Deviasi, Kendala & Solusi Tertunda, kartu Arah Navigasi. (Menu sidebar = contoh; tetap pakai shell asli.)
+- **Data (`src/lib/dashboard.ts`)** — komposisi lapisan yang ada, scoped `accessibleLocationIds`:
+  - `getDashboardData`: KPI (total lokasi, sudah/belum submit hari ini + delta vs kemarin + %, total
+    laporan = laporan harian + kegiatan lapangan hari ini, deviasi kritis <−10pp); daftar belum-submit
+    (+laporan terakhir), perlu-perhatian (deviasi<0), ranking deviasi, sebaran region (peta
+    provinsi→wilayah), warna pin peta per status submit/deviasi, kendala terbuka/ditangani + aksi
+    pemulihan terbaru (PIC `picName`, target `dueDate`, status, flag terlambat).
+  - `getActivityCentre`: kegiatan lapangan terbaru + thumbnail foto (presigned via `buildPhotoViews`)
+    + tag Kendala/Solusi/Foto/Deviasi.
+- **Peta**: reuse `PetaMap` (Leaflet) via wrapper client `dashboard-map.tsx` (filter Semua/Sudah/Belum/
+  Kritis + legend); `PetaMap` diberi prop opsional `toneById` untuk mewarnai pin per status submit
+  (tak mengganggu halaman `/peta`).
+- **UI**: token-based (tanpa hex), komponen `ui/*`; nav "Dashboard Eksekutif" (gate `portfolio.view`).
+  Field PIC & target diambil dari `RecoveryAction` (bukan mock). "Total Laporan" = harian + kegiatan.
+- Verifikasi: typecheck/lint/build ✓.
