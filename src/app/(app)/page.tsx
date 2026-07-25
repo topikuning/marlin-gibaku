@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ClipboardCheck, FileWarning, MapPin, Package as PackageIcon } from "lucide-react";
 import { KpiCard, PageHeader, EmptyState, StatusPill, Card, CardHeader, CardBody } from "@/components/ui";
 import { DeltaBadge, deviationTone } from "@/components/ui/stat-delta";
@@ -13,11 +14,15 @@ import { PACKAGE_STAGE_LABEL, PACKAGE_STAGE_TONE, REPORT_STATUS_LABEL, REPORT_ST
 export const dynamic = "force-dynamic";
 
 /**
- * Beranda: peran manajemen (portfolio.view) mendarat di Dashboard Eksekutif;
- * peran lapangan (Site Manager/Mandor) tetap di Command Center yang lebih ringkas.
+ * Beranda:
+ * - Pelaksana (field_supervisor) langsung ke "Hari Ini" — alur kerjanya murni
+ *   input laporan harian, jadi Beranda hanya menambah langkah.
+ * - Peran manajemen (portfolio.view) mendarat di Dashboard Eksekutif.
+ * - Site Manager tetap di Command Center (tugasnya termasuk verifikasi laporan).
  */
 export default async function HomePage() {
   const user = await requireUser();
+  if (user.role === "field_supervisor") redirect("/hari-ini");
   if (can(user.role, "portfolio.view")) return <ExecutiveDashboard user={user} />;
   return <CommandCenter user={user} />;
 }
