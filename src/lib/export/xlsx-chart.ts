@@ -14,21 +14,21 @@ import JSZip from "jszip";
 export type ChartSeries = {
   /** Nama deret (mis. "Rencana"). */
   name: string;
-  /** Referensi nilai, mis. "'Kurva S'!$D$14:$O$14". */
-  valRef: string;
-  /** Warna garis heksa tanpa # (mis. "64748B"). */
+  /** Referensi nilai X (posisi minggu 0..N), mis. "'Kurva S'!$A$30:$W$30". */
+  xRef: string;
+  /** Referensi nilai Y (kumulatif %), mis. "'Kurva S'!$A$31:$W$31". */
+  yRef: string;
+  /** Warna garis heksa tanpa # (mis. "2563EB"). */
   color: string;
-  /** true = garis putus-putus. */
-  dash?: boolean;
 };
 
 export type LineChartSpec = {
   sheetName: string;
-  /** Referensi label kategori (sumbu X), mis. "'Kurva S'!$D$5:$O$5". */
-  catRef: string;
   series: ChartSeries[];
   /** Anchor sel (0-based) tempat chart diletakkan. */
   anchor: { fromCol: number; fromRow: number; toCol: number; toRow: number };
+  /** Batas atas sumbu-X (= jumlah minggu N); origin X=0 = awal pelaksanaan. */
+  xMax: number;
   yMin?: number;
   yMax?: number;
 };
@@ -40,29 +40,29 @@ const XDR = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-function seriesXml(s: ChartSeries, idx: number, catRef: string): string {
-  const dash = s.dash ? `<a:prstDash val="dash"/>` : "";
+function seriesXml(s: ChartSeries, idx: number): string {
   return `<c:ser>
     <c:idx val="${idx}"/><c:order val="${idx}"/>
     <c:tx><c:v>${esc(s.name)}</c:v></c:tx>
-    <c:spPr><a:ln w="19050" cap="rnd"><a:solidFill><a:srgbClr val="${s.color}"/></a:solidFill>${dash}</a:ln></c:spPr>
+    <c:spPr><a:ln w="19050" cap="rnd"><a:solidFill><a:srgbClr val="${s.color}"/></a:solidFill></a:ln></c:spPr>
     <c:marker><c:symbol val="circle"/><c:size val="4"/><c:spPr><a:solidFill><a:srgbClr val="${s.color}"/></a:solidFill><a:ln w="9525"><a:solidFill><a:srgbClr val="${s.color}"/></a:solidFill></a:ln></c:spPr></c:marker>
-    <c:cat><c:strRef><c:f>${esc(catRef)}</c:f></c:strRef></c:cat>
-    <c:val><c:numRef><c:f>${esc(s.valRef)}</c:f></c:numRef></c:val>
+    <c:xVal><c:numRef><c:f>${esc(s.xRef)}</c:f></c:numRef></c:xVal>
+    <c:yVal><c:numRef><c:f>${esc(s.yRef)}</c:f></c:numRef></c:yVal>
     <c:smooth val="0"/>
   </c:ser>`;
 }
 
 /**
- * Chart OVERLAY ala Time Schedule sipil: latar TRANSPARAN, tanpa sumbu/legenda/
- * judul/gridline, plot-area diisi penuh frame (manualLayout inner 0,0,1,1) supaya
- * garis kurva-S menelusuri kolom minggu tabel di BAWAHNYA. Di-anchor tepat di atas
- * blok kolom minggu (lihat addKurvaSheet). Sumbu tetap ada (dibutuhkan lineChart)
- * tapi `delete=1` → skala 0–100% jalan tanpa tampil.
+ * Chart OVERLAY ala Time Schedule sipil: SCATTER (XY) — bukan line/kategori — supaya
+ * kurva MULAI dari origin (X=0, Y=0%) di pojok kiri-bawah dan titik menembus tepi
+ * kolom minggu (X=w di w/N lebar). Latar TRANSPARAN, tanpa sumbu/legenda/judul/
+ * gridline, plot diisi (nyaris) penuh frame (manualLayout inner) → sejajar blok kolom
+ * minggu tabel di bawahnya. Sumbu X (0..N) & Y (0..100%) `delete=1` (skala jalan, tak
+ * tampil). `plotVisOnly=0` → data dari baris helper tersembunyi tetap diplot.
  */
 function chartXml(spec: LineChartSpec): string {
-  const CAT_AX = 111111111;
-  const VAL_AX = 222222222;
+  const X_AX = 111111111;
+  const Y_AX = 222222222;
   const yMin = spec.yMin ?? 0;
   const yMax = spec.yMax ?? 100;
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -74,35 +74,33 @@ function chartXml(spec: LineChartSpec): string {
         <c:manualLayout>
           <c:layoutTarget val="inner"/>
           <c:xMode val="edge"/><c:yMode val="edge"/>
-          <c:x val="0"/><c:y val="0.03"/><c:w val="1"/><c:h val="0.94"/>
+          <c:x val="0"/><c:y val="0.02"/><c:w val="1"/><c:h val="0.96"/>
         </c:manualLayout>
       </c:layout>
-      <c:lineChart>
-        <c:grouping val="standard"/>
+      <c:scatterChart>
+        <c:scatterStyle val="lineMarker"/>
         <c:varyColors val="0"/>
-        ${spec.series.map((s, i) => seriesXml(s, i, spec.catRef)).join("\n")}
-        <c:marker val="1"/>
-        <c:axId val="${CAT_AX}"/>
-        <c:axId val="${VAL_AX}"/>
-      </c:lineChart>
-      <c:catAx>
-        <c:axId val="${CAT_AX}"/>
-        <c:scaling><c:orientation val="minMax"/></c:scaling>
+        ${spec.series.map((s, i) => seriesXml(s, i)).join("\n")}
+        <c:axId val="${X_AX}"/>
+        <c:axId val="${Y_AX}"/>
+      </c:scatterChart>
+      <c:valAx>
+        <c:axId val="${X_AX}"/>
+        <c:scaling><c:orientation val="minMax"/><c:max val="${spec.xMax}"/><c:min val="0"/></c:scaling>
         <c:delete val="1"/>
         <c:axPos val="b"/>
-        <c:crossAx val="${VAL_AX}"/>
-      </c:catAx>
+        <c:crossAx val="${Y_AX}"/>
+      </c:valAx>
       <c:valAx>
-        <c:axId val="${VAL_AX}"/>
+        <c:axId val="${Y_AX}"/>
         <c:scaling><c:orientation val="minMax"/><c:max val="${yMax}"/><c:min val="${yMin}"/></c:scaling>
         <c:delete val="1"/>
         <c:axPos val="l"/>
-        <c:crossAx val="${CAT_AX}"/>
-        <c:crossBetween val="midCat"/>
+        <c:crossAx val="${X_AX}"/>
       </c:valAx>
       <c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>
     </c:plotArea>
-    <c:plotVisOnly val="1"/>
+    <c:plotVisOnly val="0"/>
     <c:dispBlanksAs val="gap"/>
   </c:chart>
   <c:spPr><a:noFill/><a:ln><a:noFill/></a:ln></c:spPr>

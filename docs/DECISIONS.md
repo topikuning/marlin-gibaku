@@ -1759,3 +1759,21 @@ scurve — dengan test properti, bukan paritas nilai):**
   header disesuaikan.
 - Verifikasi: typecheck/lint ✓, 134 unit test ✓, build ✓. openpyxl: kolom KET (Z) berisi
   100(top)…0(bottom) sejajar baris kategori; manualLayout y=0.03/h=0.94.
+
+## 089 · 2026-07-25 · Kurva-S Excel: SCATTER mulai dari origin 0% (bukan line/kategori)
+
+- Feedback user (screenshot render Excel): kurva TIDAK mulai dari 0 — titik pertama (M1)
+  langsung di kumulatif ~12% (line/kategori memplot titik di M1 tanpa origin), "agak naik
+  sedikit". Minta kurva mulai dari 0 di kiri-bawah.
+- Akar: chart garis kategori (`c:lineChart`, titik di tengah band) tak punya titik (0,0) &
+  tak bisa menaruhnya di tepi kiri.
+- Solusi: ganti ke SCATTER (`c:scatterChart`, XY). Deret pakai `c:xVal`/`c:yVal` numerik.
+  Ditambah baris HELPER TERSEMBUNYI di sheet: X = `0,1,…,N` (origin + akhir tiap minggu),
+  Y-rencana = `0, kumRencana…`, Y-realisasi = `0, kumRealisasi…` (null pasca minggu berjalan
+  → gap). Sumbu-X `min=0,max=N` → X=0 di tepi kiri (mulai 0%), X=w di w/N lebar (menembus tepi
+  kolom minggu, konvensi TS sipil). `plotVisOnly=0` supaya baris tersembunyi tetap diplot.
+- `LineChartSpec`: `catRef`+`valRef`+`dash` → `xRef`+`yRef`+`xMax`. Inset plot y=0.02/h=0.96
+  (anti-marker-kepotong, dari 088).
+- PDF (`ScurveKkpSheet`) sudah mulai dari 0 (prepend `0,plotH`) sejak awal — tak berubah.
+- Verifikasi: typecheck/lint ✓, 134 unit test ✓ (uji diubah ke scatter: xVal/yVal + plotVisOnly=0),
+  build ✓. openpyxl: ScatterChart; baris helper Y-rencana = [0, 1.85, 4.75, …] (MULAI 0).

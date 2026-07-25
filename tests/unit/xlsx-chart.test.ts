@@ -6,18 +6,18 @@ import { addLineChartToXlsx, colLetter, type LineChartSpec } from "@/lib/export/
 async function baseWorkbook(): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("Kurva S");
-  ws.addRow(["", "", "", "M1", "M2", "M3"]); // baris 1: label minggu (D:F)
-  ws.addRow(["", "", "", 10, 40, 100]); // baris 2: kumulatif rencana
-  ws.addRow(["", "", "", 8, 25, null]); // baris 3: kumulatif realisasi (berhenti)
+  ws.addRow([0, 1, 2, 3]); // baris 1: X (origin 0 + minggu 1..3)
+  ws.addRow([0, 10, 40, 100]); // baris 2: Y kumulatif rencana
+  ws.addRow([0, 8, 25, null]); // baris 3: Y kumulatif realisasi (berhenti)
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
 
 const spec: LineChartSpec = {
   sheetName: "Kurva S",
-  catRef: "'Kurva S'!$D$1:$F$1",
+  xMax: 3,
   series: [
-    { name: "Rencana", valRef: "'Kurva S'!$D$2:$F$2", color: "64748B", dash: true },
-    { name: "Realisasi", valRef: "'Kurva S'!$D$3:$F$3", color: "16A34A" },
+    { name: "Rencana", xRef: "'Kurva S'!$A$1:$D$1", yRef: "'Kurva S'!$A$2:$D$2", color: "2563EB" },
+    { name: "Realisasi", xRef: "'Kurva S'!$A$1:$D$1", yRef: "'Kurva S'!$A$3:$D$3", color: "16A34A" },
   ],
   anchor: { fromCol: 1, fromRow: 5, toCol: 10, toRow: 25 },
 };
@@ -42,13 +42,14 @@ describe("addLineChartToXlsx", () => {
     const rels = await zip.file("xl/worksheets/_rels/sheet1.xml.rels")!.async("string");
     expect(rels).toContain("../drawings/drawing1.xml");
 
-    // Chart mereferensikan sel yang benar (deret + kategori), bukan gambar.
+    // Chart SCATTER (XY) mereferensikan X (origin+minggu) & Y (kumulatif), bukan gambar.
     const chart = await zip.file("xl/charts/chart1.xml")!.async("string");
-    expect(chart).toContain("<c:lineChart>");
-    expect(chart).toContain("'Kurva S'!$D$2:$F$2");
-    expect(chart).toContain("'Kurva S'!$D$3:$F$3");
-    expect(chart).toContain("'Kurva S'!$D$1:$F$1");
+    expect(chart).toContain("<c:scatterChart>");
+    expect(chart).toContain("<c:xVal><c:numRef><c:f>'Kurva S'!$A$1:$D$1</c:f>");
+    expect(chart).toContain("<c:yVal><c:numRef><c:f>'Kurva S'!$A$2:$D$2</c:f>");
+    expect(chart).toContain("<c:yVal><c:numRef><c:f>'Kurva S'!$A$3:$D$3</c:f>");
     expect(chart).toContain("dispBlanksAs val=\"gap\""); // realisasi berhenti = gap, bukan 0
+    expect(chart).toContain("plotVisOnly val=\"0\""); // baris helper tersembunyi tetap diplot
     // Mode OVERLAY: latar transparan + sumbu disembunyikan (delete=1) + plot penuh.
     expect(chart).toContain("<a:noFill/>"); // chart & plot area transparan
     expect(chart).toContain("<c:manualLayout>"); // plot diisi penuh frame

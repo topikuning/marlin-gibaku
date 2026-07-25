@@ -129,12 +129,8 @@ async function addKurvaSheet(
     ["Kumulatif Realisasi Prestasi %", sheet.kumulatifRealisasi, true],
     ["Deviasi +/-", sheet.deviasi, true],
   ];
-  let kumRencanaRow = 0;
-  let kumRealisasiRow = 0;
   for (const [label, arr, bold] of prestasi) {
     const row = ws.addRow([]);
-    if (label.startsWith("Kumulatif Rencana")) kumRencanaRow = row.number;
-    if (label.startsWith("Kumulatif Realisasi")) kumRealisasiRow = row.number;
     row.getCell(1).value = label;
     ws.mergeCells(row.number, 1, row.number, 3);
     row.getCell(1).alignment = { horizontal: "right" };
@@ -173,22 +169,27 @@ async function addKurvaSheet(
     }
   }
 
-  // Spesifikasi GRAFIK NATIVE (disuntikkan setelah workbook ditulis) — chart garis
-  // Excel sungguhan yang mereferensikan sel kumulatif, bukan gambar. Dipasang
-  // OVERLAY transparan TEPAT di atas blok kolom minggu tabel (kolom D..lastCol,
-  // baris kategori s/d prestasi) → kurva-S menelusuri kolom minggu, mirip time
-  // schedule sipil. Anchor 0-based: kolom D = FIRST-1, tepi kanan kolom terakhir
-  // = lastCol; baris atas = baris kategori pertama, bawah = baris terakhir.
-  const q = (col: number, rowN: number) => `'${ws.name}'!$${colLetter(col)}$${rowN}`;
-  const range = (rowN: number) => `${q(FIRST, rowN)}:$${colLetter(lastCol)}$${rowN}`;
+  // Data helper (baris TERSEMBUNYI) utk chart scatter: titik origin (X=0, Y=0%) +
+  // kumulatif per akhir-minggu (X=1..N). Scatter dipilih (bukan line/kategori) supaya
+  // kurva MULAI dari 0% di kiri-bawah & X menembus tepi kolom minggu (w/N). `plotVisOnly=0`
+  // di chartXml → baris tersembunyi ini tetap diplot.
+  const helperX = ws.addRow([0, ...Array.from({ length: N }, (_, i) => i + 1)]);
+  const helperY = ws.addRow([0, ...sheet.kumulatifRencana.map((v) => round2(v))]);
+  const helperR = ws.addRow([0, ...sheet.kumulatifRealisasi.map((v) => (v == null ? null : round2(v)))]);
+  for (const hr of [helperX, helperY, helperR]) hr.hidden = true;
+  const lastHelperCol = colLetter(N + 1); // A..(N+1) = origin + N minggu
+  const hRange = (rowN: number) => `'${ws.name}'!$A$${rowN}:$${lastHelperCol}$${rowN}`;
+
+  // Anchor OVERLAY transparan TEPAT di atas blok kolom minggu (kolom D..lastCol) ×
+  // baris kategori (firstCatRow..lastCatRow) → kurva-S menelusuri kolom minggu.
   const firstCatRow = weekRow.number + 1;
-  const lastCatRow = firstCatRow + sheet.categories.length - 1; // baris prestasi di bawahnya tetap bersih
+  const lastCatRow = firstCatRow + sheet.categories.length - 1;
   return {
     sheetName: ws.name,
-    catRef: range(weekRow.number),
+    xMax: N,
     series: [
-      { name: "Rencana", valRef: range(kumRencanaRow), color: "2563EB" },
-      { name: "Realisasi", valRef: range(kumRealisasiRow), color: "16A34A" },
+      { name: "Rencana", xRef: hRange(helperX.number), yRef: hRange(helperY.number), color: "2563EB" },
+      { name: "Realisasi", xRef: hRange(helperX.number), yRef: hRange(helperR.number), color: "16A34A" },
     ],
     anchor: { fromCol: FIRST - 1, fromRow: firstCatRow - 1, toCol: lastCol, toRow: lastCatRow },
   } satisfies LineChartSpec;
