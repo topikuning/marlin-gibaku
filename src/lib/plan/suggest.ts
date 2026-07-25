@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { cumulativeVolumeByLineage, currentWeekNumber } from "@/lib/progress";
 import { contractDaysFor } from "@/lib/rab/import";
+import { segmentsFromWeekly } from "@/lib/scurve/generate";
 import { autoCategoryWindowFrac } from "@/lib/scurve/sequencing";
 import { computeSuggestions, type LeafInput, type WeeklySuggestionResult } from "./suggest-core";
 
@@ -44,7 +45,7 @@ export async function suggestWeeklyPlan(
       orderBy: { baselineNo: "desc" },
       select: {
         points: { orderBy: { weekNumber: "asc" }, select: { weekNumber: true, plannedPct: true } },
-        scheduleItems: { select: { name: true, startWeek: true, endWeek: true } },
+        scheduleItems: { select: { name: true, weekly: true } },
       },
     }),
     db.location.findUnique({
@@ -77,10 +78,19 @@ export async function suggestWeeklyPlan(
     }));
 
   // Saran mingguan pakai JENDELA KATEGORI yang SAMA dgn baseline (tersimpan =
-  // ikut edit manual; fallback auto) → look-ahead konsisten dgn kurva. DECISIONS 082.
+  // ikut edit manual; fallback auto) → look-ahead konsisten dgn kurva. Jendela
+  // diturunkan dari matriks mingguan tersimpan (minggu aktif pertama..terakhir).
+  // DECISIONS 082/103.
   const storedWin = new Map<string, [number, number]>();
   for (const s of baseline?.scheduleItems ?? []) {
-    storedWin.set(s.name, [(s.startWeek - 1) / totalWeeks, s.endWeek / totalWeeks]);
+    const weekly = Array.isArray(s.weekly)
+      ? (s.weekly as unknown[]).map((x) => (typeof x === "number" && Number.isFinite(x) ? x : 0))
+      : [];
+    const segs = segmentsFromWeekly(weekly);
+    if (segs.length === 0) continue;
+    const first = segs[0].startWeek;
+    const last = segs[segs.length - 1].endWeek;
+    storedWin.set(s.name, [(first - 1) / totalWeeks, last / totalWeeks]);
   }
   const winFrac = (name: string): [number, number] => storedWin.get(name) ?? autoCategoryWindowFrac(name);
   const suggestions = computeSuggestions(leaves, realizedByLineage, weekNumber, totalWeeks, 20, winFrac);

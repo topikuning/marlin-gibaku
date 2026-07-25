@@ -3,13 +3,16 @@ import {
   classifyTrade,
   computeTradeWindows,
   autoCategorySchedule,
+  cumulativeFromWeeklyRows,
   curveFromCategorySchedule,
   DEFAULT_CONTRACT_DAYS,
   generateScurve,
   scheduleItems,
+  segmentsFromWeekly,
   smoothstep,
   TRADE_BANDS,
   TYPICAL_TRADE_MIX,
+  weeklyFromSegments,
 } from "@/lib/scurve/generate";
 
 describe("smoothstep", () => {
@@ -253,6 +256,62 @@ describe("curveFromCategorySchedule (jadwal per pekerjaan, distribusi LONCENG �
       5,
     );
     expect(c[4]).toBeCloseTo(100, 5);
+  });
+});
+
+describe("weeklyFromSegments / segmentsFromWeekly / cumulativeFromWeeklyRows (matriks per-minggu, JEDA — DECISIONS 103)", () => {
+  it("satu segmen = identik dgn lonceng jendela tunggal; Σ = bobot", () => {
+    const w = weeklyFromSegments(60, [{ startWeek: 3, endWeek: 5 }], 6);
+    expect(w).toHaveLength(6);
+    expect(w[0]).toBe(0);
+    expect(w[1]).toBe(0);
+    expect(w[5]).toBe(0);
+    expect(w[2] + w[3] + w[4]).toBeCloseTo(60, 5);
+    expect(w[3]).toBeGreaterThan(w[2]); // lonceng: puncak di tengah
+    expect(w[3]).toBeGreaterThan(w[4]);
+  });
+
+  it("DUA segmen dgn JEDA → minggu jeda = 0; Σ = bobot; porsi ∝ panjang segmen", () => {
+    // Aktif mgg 1–2 (jeda 3–4) lalu 5–8. Total 6 minggu aktif dari 8.
+    const w = weeklyFromSegments(100, [{ startWeek: 1, endWeek: 2 }, { startWeek: 5, endWeek: 8 }], 8);
+    expect(w[2]).toBe(0); // jeda
+    expect(w[3]).toBe(0); // jeda
+    expect(w[0] + w[1]).toBeGreaterThan(0);
+    expect(w[4] + w[5] + w[6] + w[7]).toBeGreaterThan(0);
+    expect(w.reduce((s, v) => s + v, 0)).toBeCloseTo(100, 5);
+    // segmen-2 (4 minggu) dapat porsi lebih besar dari segmen-1 (2 minggu)
+    const seg1 = w[0] + w[1];
+    const seg2 = w[4] + w[5] + w[6] + w[7];
+    expect(seg2).toBeGreaterThan(seg1);
+    expect(seg1).toBeCloseTo(100 * (2 / 6), 5);
+    expect(seg2).toBeCloseTo(100 * (4 / 6), 5);
+  });
+
+  it("segmentsFromWeekly merekonstruksi run kontigu (deteksi jeda)", () => {
+    const w = weeklyFromSegments(100, [{ startWeek: 1, endWeek: 2 }, { startWeek: 5, endWeek: 8 }], 8);
+    const segs = segmentsFromWeekly(w);
+    expect(segs).toEqual([
+      { startWeek: 1, endWeek: 2 },
+      { startWeek: 5, endWeek: 8 },
+    ]);
+  });
+
+  it("kurva dari matriks berjeda: MENDATAR saat jeda, monoton, mulai 0, akhir 100", () => {
+    const a = weeklyFromSegments(40, [{ startWeek: 1, endWeek: 4 }], 10);
+    // kategori terputus: aktif 1–4, jeda 5–6, lanjut 7–10
+    const b = weeklyFromSegments(60, [{ startWeek: 1, endWeek: 4 }, { startWeek: 7, endWeek: 10 }], 10);
+    const c = cumulativeFromWeeklyRows([a, b], 10);
+    expect(c).toHaveLength(10);
+    for (let i = 1; i < c.length; i++) expect(c[i]).toBeGreaterThanOrEqual(c[i - 1]);
+    expect(c[9]).toBeCloseTo(100, 1);
+    // b tidak menambah apa pun di mgg 5–6 → kenaikan hanya dari a bila a masih aktif;
+    // a juga selesai mgg 4, jadi mgg 5→6 harus DATAR (increment 0).
+    expect(c[5] - c[4]).toBeCloseTo(0, 5); // mgg 6 vs 5: datar (kedua kategori jeda)
+  });
+
+  it("segmen kosong / bobot ≤ 0 → array nol", () => {
+    expect(weeklyFromSegments(0, [{ startWeek: 1, endWeek: 5 }], 5).every((v) => v === 0)).toBe(true);
+    expect(weeklyFromSegments(50, [], 5).every((v) => v === 0)).toBe(true);
   });
 });
 

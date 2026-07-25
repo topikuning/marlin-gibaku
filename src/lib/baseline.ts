@@ -3,8 +3,13 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { COUNTED_REPORT_STATUSES, currentWeekNumber } from "@/lib/progress";
 import { contractDaysFor } from "@/lib/rab/import";
-import { autoCategorySchedule } from "@/lib/scurve/generate";
-import { autoCategoryWindowFrac, cumulativeFromCategoryWeekly, scheduleFromItems } from "@/lib/scurve/sequencing";
+import {
+  autoCategorySchedule,
+  cumulativeFromWeeklyRows,
+  segmentsFromWeekly,
+  weeklyFromSegments,
+  type WeekSegment,
+} from "@/lib/scurve/generate";
 
 /**
  * Layer baseline (kurva-S rencana ber-versi) + deret rencana vs realisasi.
@@ -108,8 +113,10 @@ export type CategoryScheduleView = {
   lineageKey: string;
   name: string;
   weightPct: number;
-  startWeek: number;
-  endWeek: number;
+  /** Rentang minggu aktif (boleh >1 = ada JEDA). Diturunkan dari `weekly`. */
+  segments: WeekSegment[];
+  /** Increment bobot per minggu (panjang totalWeeks). */
+  weekly: number[];
 };
 
 export type CategoryScheduleData = {
@@ -152,29 +159,35 @@ export async function deriveCategorySchedule(locationId: string): Promise<Catego
 
   const weightFor = (catAmount: bigint) => (Number(catAmount) / base.grand) * 100;
 
-  // Jadwal tersimpan dari baseline aktif (revisi sama + minggu masih muat).
+  // Jadwal tersimpan dari baseline aktif (revisi sama + matriks minggu cocok).
   const active = await db.baseline.findFirst({
     where: { locationId, status: "aktif" },
     select: {
       rabRevisionId: true,
-      scheduleItems: { select: { lineageKey: true, startWeek: true, endWeek: true } },
+      scheduleItems: { select: { lineageKey: true, weekly: true } },
     },
   });
   if (active && active.rabRevisionId === base.revisionId && active.scheduleItems.length > 0) {
-    const byKey = new Map(active.scheduleItems.map((s) => [s.lineageKey, s]));
-    const allWithin = active.scheduleItems.every((s) => s.endWeek <= totalWeeks);
-    if (allWithin && base.categories.every((c) => byKey.has(c.lineageKey))) {
+    const byKey = new Map(active.scheduleItems.map((s) => [s.lineageKey, asWeekly(s.weekly)]));
+    // Pakai jadwal tersimpan hanya bila SEMUA kategori punya matriks minggu
+    // sepanjang totalWeeks (bukan backfill '[]' / durasi berubah).
+    const usable =
+      base.categories.every((c) => {
+        const w = byKey.get(c.lineageKey);
+        return w && w.length === totalWeeks && w.some((v) => v > 0);
+      });
+    if (usable) {
       return {
         totalWeeks,
         origin: "tersimpan",
         rows: base.categories.map((c) => {
-          const s = byKey.get(c.lineageKey)!;
+          const weekly = byKey.get(c.lineageKey)!;
           return {
             lineageKey: c.lineageKey,
             name: c.name,
             weightPct: Math.round(weightFor(c.amount) * 1000) / 1000,
-            startWeek: s.startWeek,
-            endWeek: s.endWeek,
+            segments: segmentsFromWeekly(weekly),
+            weekly,
           };
         }),
       };
@@ -182,8 +195,7 @@ export async function deriveCategorySchedule(locationId: string): Promise<Catego
   }
 
   // Derivasi otomatis: jendela presedensi per KATEGORI (DECISIONS 079) —
-  // konsisten dgn regenerateBaseline (autoCategorySchedule). Bukan lagi envelope
-  // tahap per-item (yang menaruh galian penerangan di minggu awal).
+  // konsisten dgn regenerateBaseline (autoCategorySchedule). Satu segmen kontigu.
   const auto = autoCategorySchedule(
     base.categories.map((c) => ({ lineageKey: c.lineageKey, name: c.name, amount: c.amount })),
     totalWeeks,
@@ -195,26 +207,36 @@ export async function deriveCategorySchedule(locationId: string): Promise<Catego
     origin: "otomatis",
     rows: base.categories.map((c) => {
       const a = autoByKey.get(c.lineageKey);
+      const weightPct = Math.round(weightFor(c.amount) * 1000) / 1000;
+      const segments: WeekSegment[] = [{ startWeek: a?.startWeek ?? 1, endWeek: a?.endWeek ?? totalWeeks }];
       return {
         lineageKey: c.lineageKey,
         name: c.name,
-        weightPct: Math.round(weightFor(c.amount) * 1000) / 1000,
-        startWeek: a?.startWeek ?? 1,
-        endWeek: a?.endWeek ?? totalWeeks,
+        weightPct,
+        segments,
+        weekly: weeklyFromSegments(weightPct, segments, totalWeeks),
       };
     }),
   };
 }
 
+/** Baca kolom Json `weekly` → number[] (aman terhadap bentuk tak terduga). */
+function asWeekly(v: unknown): number[] {
+  if (!Array.isArray(v)) return [];
+  return v.map((x) => (typeof x === "number" && Number.isFinite(x) ? x : 0));
+}
+
 /**
  * Simpan jadwal per kategori → baseline BARU source "manual" + scheduleItems.
- * Bobot DIHITUNG ULANG dari RAB aktif (klien hanya mengirim jendela minggu —
- * bobot tidak pernah dipercaya dari luar). Idempotent: jadwal & titik identik
- * dengan baseline aktif ⇒ tidak dibuat versi baru.
+ * Bobot DIHITUNG ULANG dari RAB aktif (klien hanya mengirim SEGMEN minggu —
+ * bobot tidak pernah dipercaya dari luar). Segmen boleh >1 per kategori =
+ * minggu TERPUTUS (jeda). Matriks `weekly` disimpan sebagai bentuk kanonik;
+ * kurva = Σ weekly diakumulasi. Idempotent: matriks & titik identik ⇒ no-op.
+ * DECISIONS 103.
  */
 export async function saveCategorySchedule(
   locationId: string,
-  input: { lineageKey: string; startWeek: number; endWeek: number }[],
+  input: { lineageKey: string; segments: WeekSegment[] }[],
   userId: string,
 ) {
   const base = await activeCategoriesWithWeights(locationId);
@@ -226,54 +248,45 @@ export async function saveCategorySchedule(
   const rows = base.categories.map((c) => {
     const r = byKey.get(c.lineageKey);
     if (!r) throw new Error(`Jadwal untuk kategori "${c.name}" tidak lengkap — muat ulang halaman.`);
-    const startWeek = Math.floor(r.startWeek);
-    const endWeek = Math.floor(r.endWeek);
-    if (!Number.isFinite(startWeek) || !Number.isFinite(endWeek)) {
-      throw new Error(`Minggu kategori "${c.name}" tidak valid.`);
+    const segments = (r.segments ?? []).map((s) => ({
+      startWeek: Math.floor(s.startWeek),
+      endWeek: Math.floor(s.endWeek),
+    }));
+    if (segments.length === 0) throw new Error(`Kategori "${c.name}": minimal satu rentang minggu.`);
+    for (const s of segments) {
+      if (!Number.isFinite(s.startWeek) || !Number.isFinite(s.endWeek)) {
+        throw new Error(`Minggu kategori "${c.name}" tidak valid.`);
+      }
+      if (s.startWeek < 1 || s.endWeek > totalWeeks || s.startWeek > s.endWeek) {
+        throw new Error(
+          `Kategori "${c.name}": rentang ${s.startWeek}–${s.endWeek} di luar 1–${totalWeeks} atau terbalik.`,
+        );
+      }
     }
-    if (startWeek < 1 || endWeek > totalWeeks || startWeek > endWeek) {
-      throw new Error(
-        `Kategori "${c.name}": minggu ${startWeek}–${endWeek} di luar rentang 1–${totalWeeks} atau terbalik.`,
-      );
-    }
+    const weightPct = (Number(c.amount) / base.grand) * 100;
     return {
       lineageKey: c.lineageKey,
       name: c.name,
-      weightPct: (Number(c.amount) / base.grand) * 100,
-      startWeek,
-      endWeek,
+      weightPct,
+      // Matriks kanonik: lonceng per segmen, 0 di minggu jeda.
+      weekly: weeklyFromSegments(weightPct, segments, totalWeeks),
     };
   });
 
-  // Kurva DITURUNKAN dari jadwal berbasis ITEM (DECISIONS 082): tahap item
-  // bersarang di jendela kategori yang DISETEL user. Bukan lonceng kategori.
-  const winByName = new Map<string, [number, number]>(
-    rows.map((r) => [r.name, [(r.startWeek - 1) / totalWeeks, r.endWeek / totalWeeks]]),
-  );
-  const winFrac = (name: string): [number, number] => winByName.get(name) ?? autoCategoryWindowFrac(name);
-  const catKeys2 = base.categories
-    .map((c) => ({ key: c.lineageKey, name: c.name }))
-    .sort((a, b) => b.key.length - a.key.length);
-  const catNameFor = (lk: string): string =>
-    catKeys2.find((c) => lk === c.key || lk.startsWith(`${c.key}#`))?.name ?? "";
-  const schedItems = base.items.map((it) => ({
-    name: it.name,
-    categoryName: catNameFor(it.lineageKey),
-    amount: it.amount,
-  }));
-  const weekly = cumulativeFromCategoryWeekly(
-    scheduleFromItems(schedItems, contractDays, winFrac).categories,
+  // Kurva = Σ weekly semua kategori, diakumulasi (sumber tunggal = matriks).
+  const weekly = cumulativeFromWeeklyRows(
+    rows.map((r) => r.weekly),
     totalWeeks,
   );
   const invalid = validateBaselinePoints(weekly);
   if (invalid) throw new Error(invalid);
 
-  // Idempotent: identik dengan baseline aktif (jadwal & titik) → no-op.
+  // Idempotent: identik dengan baseline aktif (matriks minggu & titik) → no-op.
   const active = await db.baseline.findFirst({
     where: { locationId, status: "aktif" },
     include: {
       points: { orderBy: { weekNumber: "asc" }, select: { plannedPct: true } },
-      scheduleItems: { select: { lineageKey: true, startWeek: true, endWeek: true } },
+      scheduleItems: { select: { lineageKey: true, weekly: true } },
     },
   });
   if (
@@ -283,8 +296,10 @@ export async function saveCategorySchedule(
     active.points.every((p, i) => Math.abs(Number(p.plannedPct) - weekly[i]) < 0.005) &&
     active.scheduleItems.length === rows.length &&
     rows.every((r) => {
-      const s = active.scheduleItems.find((x) => x.lineageKey === r.lineageKey);
-      return s && s.startWeek === r.startWeek && s.endWeek === r.endWeek;
+      const prev = active.scheduleItems.find((x) => x.lineageKey === r.lineageKey);
+      if (!prev) return false;
+      const pw = asWeekly(prev.weekly);
+      return pw.length === r.weekly.length && pw.every((v, i) => Math.abs(v - r.weekly[i]) < 0.005);
     })
   ) {
     return { baselineNo: active.baselineNo, unchanged: true as const };
@@ -320,8 +335,7 @@ export async function saveCategorySchedule(
         lineageKey: r.lineageKey,
         name: r.name,
         weightPct: Math.round(r.weightPct * 1000) / 1000,
-        startWeek: r.startWeek,
-        endWeek: r.endWeek,
+        weekly: r.weekly.map((v) => Math.round(v * 1e6) / 1e6),
       })),
     });
     return created;
@@ -346,7 +360,7 @@ export async function restoreBaseline(baselineId: string, userId: string) {
     include: {
       points: { orderBy: { weekNumber: "asc" }, select: { weekNumber: true, plannedPct: true } },
       scheduleItems: {
-        select: { lineageKey: true, name: true, weightPct: true, startWeek: true, endWeek: true },
+        select: { lineageKey: true, name: true, weightPct: true, weekly: true },
       },
     },
   });
@@ -385,7 +399,13 @@ export async function restoreBaseline(baselineId: string, userId: string) {
     });
     if (src.scheduleItems.length > 0) {
       await tx.baselineScheduleItem.createMany({
-        data: src.scheduleItems.map((s) => ({ ...s, baselineId: created.id })),
+        data: src.scheduleItems.map((s) => ({
+          baselineId: created.id,
+          lineageKey: s.lineageKey,
+          name: s.name,
+          weightPct: s.weightPct,
+          weekly: asWeekly(s.weekly),
+        })),
       });
     }
     return created;

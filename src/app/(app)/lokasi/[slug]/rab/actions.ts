@@ -199,10 +199,15 @@ export async function saveManualBaselineAction(_prev: RabActionState, formData: 
   }
 }
 
-const scheduleRowSchema = z.object({
-  lineageKey: z.string().min(1).max(200),
+const segmentSchema = z.object({
   startWeek: z.number().int().min(1).max(520),
   endWeek: z.number().int().min(1).max(520),
+});
+
+const scheduleRowSchema = z.object({
+  lineageKey: z.string().min(1).max(200),
+  // Boleh >1 segmen = minggu terputus (jeda). DECISIONS 103.
+  segments: z.array(segmentSchema).min(1, "Minimal satu rentang minggu.").max(52, "Terlalu banyak rentang."),
 });
 
 const saveScheduleSchema = z.object({
@@ -212,7 +217,7 @@ const saveScheduleSchema = z.object({
 
 /**
  * Simpan jadwal per pekerjaan (kategori) → baseline baru. Klien hanya mengirim
- * jendela minggu; bobot dihitung ulang server dari RAB aktif.
+ * SEGMEN minggu (boleh berjeda); bobot dihitung ulang server dari RAB aktif.
  */
 export async function saveCategoryScheduleAction(
   _prev: RabActionState,

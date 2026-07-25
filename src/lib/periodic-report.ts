@@ -406,34 +406,44 @@ export async function getPeriodReport(
     where: { locationId, status: "aktif" },
     select: {
       points: { select: { weekNumber: true, plannedPct: true }, orderBy: { weekNumber: "asc" } },
-      scheduleItems: { select: { lineageKey: true, name: true, weightPct: true, startWeek: true, endWeek: true } },
+      scheduleItems: { select: { lineageKey: true, name: true, weightPct: true, weekly: true } },
     },
   });
   const planSeries = baseline?.points.map((p) => Number(p.plannedPct)) ?? [];
 
-  // Tabel KKP: profil mingguan per-kategori DITURUNKAN dari jadwal BERBASIS ITEM
-  // (DECISIONS 082) — tahap item bersarang di jendela kategori (tersimpan bila ada
-  // = ikut edit manual; fallback auto). Sumber tunggal → sinkron dgn grafik/deviasi
-  // & sesuai metode (bukan rata/lonceng kategori).
+  // Tabel KKP: profil mingguan per-kategori = MATRIKS TERSIMPAN pada baseline
+  // (bentuk kanonik, DECISIONS 103) — ikut editan manual & bisa berjeda. Sumber
+  // tunggal → sinkron dgn grafik/deviasi. Fallback (matriks belum ada / durasi
+  // berubah): turunkan lagi dari jadwal berbasis item + jendela auto.
   const codeByName = new Map(kategoriNodes.map((nd) => [nd.name, nd.code ?? ""]));
   const catNameByRoot = new Map(kategoriNodes.map((nd) => [nd.lineageKey, nd.name]));
-  const schedItems = itemNodes
-    .filter((nd) => nd.amount > 0n)
-    .map((nd) => ({
-      name: nd.name,
-      categoryName: catNameByRoot.get(nd.lineageKey.split("#")[0]) ?? "",
-      amount: nd.amount,
-    }));
-  const storedWin = new Map<string, [number, number]>();
-  for (const s of baseline?.scheduleItems ?? []) {
-    storedWin.set(s.name, [(s.startWeek - 1) / totalWeeks, s.endWeek / totalWeeks]);
-  }
-  const winFrac = (name: string): [number, number] => storedWin.get(name) ?? autoCategoryWindowFrac(name);
-  const kurvaSchedule = scheduleFromItems(schedItems, totalWeeks * 7, winFrac).categories.map((c) => ({
-    code: codeByName.get(c.categoryName) ?? "",
-    name: c.categoryName,
-    weekly: c.weekly,
+  const storedSched = (baseline?.scheduleItems ?? []).map((s) => ({
+    name: s.name,
+    weekly: Array.isArray(s.weekly)
+      ? (s.weekly as unknown[]).map((x) => (typeof x === "number" && Number.isFinite(x) ? x : 0))
+      : [],
   }));
+  const usableStored =
+    storedSched.length > 0 && storedSched.every((s) => s.weekly.length === totalWeeks && s.weekly.some((v) => v > 0));
+
+  let kurvaSchedule: { code: string; name: string; weekly: number[] }[];
+  if (usableStored) {
+    kurvaSchedule = storedSched.map((s) => ({ code: codeByName.get(s.name) ?? "", name: s.name, weekly: s.weekly }));
+  } else {
+    const schedItems = itemNodes
+      .filter((nd) => nd.amount > 0n)
+      .map((nd) => ({
+        name: nd.name,
+        categoryName: catNameByRoot.get(nd.lineageKey.split("#")[0]) ?? "",
+        amount: nd.amount,
+      }));
+    const winFrac = (name: string): [number, number] => autoCategoryWindowFrac(name);
+    kurvaSchedule = scheduleFromItems(schedItems, totalWeeks * 7, winFrac).categories.map((c) => ({
+      code: codeByName.get(c.categoryName) ?? "",
+      name: c.categoryName,
+      weekly: c.weekly,
+    }));
+  }
   const seriesLen = Math.max(planSeries.length, totalWeeks);
   const today = new Date(`${jakartaDateKey(new Date())}T00:00:00.000Z`);
   const currentWeek = currentWeekNumber(startDate, seriesLen, today);

@@ -1995,3 +1995,36 @@ scurve — dengan test properti, bukan paritas nilai):**
   membolehkan aktivitas terputus.
 - Verifikasi: generate TS sintetis (10 minggu, 1 kategori terputus) → helper Y = `=D10..=M10`,
   kumulatif cache [.,.,45,45,.] benar. Sisa (editor in-app dukung gap + re-import export) menyusul.
+
+## 103 · 2026-07-25 · Jadwal kategori = MATRIKS bobot per-minggu (mendukung minggu TERPUTUS/jeda)
+
+- **Keluhan user (inti, berlarut)**: kurva-S "berlarut-larut" karena jadwal per kategori
+  hanya bisa SATU jendela kontigu `startWeek–endWeek`. Pekerjaan yang minggunya TERPUTUS
+  (mis. M1–4, jeda M5–6, lanjut M7–14) — yang SAH menurut kaidah TS sipil (menunggu curing/
+  pekerjaan lain/material, tahap bertahap) — tidak bisa dijadwalkan, baik auto maupun manual.
+  Juga tak bisa menyerap editan Excel sipil (round-trip).
+- **Akar (audit end-to-end)**: `BaselineScheduleItem` menyimpan `start_week/end_week` (satu
+  jendela). Turunan kurva (`categoryWeeklyIncrements`/`curveFromCategorySchedule`) strictly
+  kontigu. Editor = dua input mulai–selesai + gantt satu batang. TAMBAHAN: report & editor
+  memakai DUA mesin kurva berbeda (report `scheduleFromItems`, preview editor
+  `curveFromCategorySchedule`) → bisa beda. Lapisan tabel KKP & export Excel SUDAH gap-agnostic.
+- **Solusi (bentuk kanonik)**: `BaselineScheduleItem.weekly Json` (array increment %/minggu,
+  panjang totalWeeks) MENGGANTIKAN start/end. 0 = minggu jeda. `weightPct` = Σ weekly.
+  Kurva baseline = Σ semua weekly diakumulasi (`cumulativeFromWeeklyRows`). Konsekuensi:
+  - Mendukung jeda secara native (interior nol).
+  - SATU sumber: report membaca `weekly` tersimpan langsung = preview editor = kurva
+    tersimpan (mesin ganda hilang). Fallback re-derive item-based hanya bila matriks
+    belum ada / durasi berubah.
+  - Baseline jadi SNAPSHOT sejati (tak lagi drift dgn RAB live; "Hitung ulang" utk refresh).
+- **Helper baru (`generate.ts`)**: `weeklyFromSegments(weight, segments[], N)` (lonceng per
+  segmen, porsi ∝ panjang), `segmentsFromWeekly(weekly)` (rekonstruksi run kontigu utk gantt),
+  `cumulativeFromWeeklyRows(rows[][], N)`.
+- **Titik sentuh**: schema+migration (backfill even-spread dari jendela lama), `baseline.ts`
+  (derive/save/restore), `rab/import.ts` regenerateBaseline (simpan weekly per kategori),
+  `periodic-report.ts` (baca weekly tersimpan + fallback), `plan/suggest.ts` (jendela look-ahead
+  = minggu aktif pertama..terakhir dari weekly), `seed/demo.ts`. Editor: segmen (Tambah/Hapus
+  rentang) + gantt multi-batang + zod `segments[]`.
+- **Verifikasi**: typecheck ✓ lint ✓ build ✓ unit 151 (+5 gap: Σ=bobot, jeda=0, porsi ∝ panjang,
+  kurva mendatar saat jeda & tetap monoton/akhir 100, rekonstruksi segmen). Baseline lama →
+  backfill even-spread; "Hitung ulang"/simpan editor menghasilkan bentuk eksak.
+- **Menyusul (S3)**: re-import Time Schedule Excel (editan sipil) → weekly per kategori → baseline.
