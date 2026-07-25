@@ -1632,3 +1632,26 @@ scurve — dengan test properti, bukan paritas nilai):**
   terjaga — persiapan w1–3 → revetment w6–12 → bangunan w6–24 → jalan w23–27 →
   penerangan kawasan w27–30 → landskap w29–30. Saran mingguan kini SATU jendela dgn
   kurva (look-ahead konsisten). Baseline lama perlu "Hitung ulang".
+
+## 083 · 2026-07-25 · Cetak Jadwal (Time Schedule) + kurva-S di export Excel
+
+- Permintaan user: (1) tombol khusus cetak JADWAL, hasil seperti 3 file Time Schedule
+  sipil; (2) export Excel laporan mingguan tak memuat kurva-S padahal PDF ada.
+- Cetak Jadwal (rencana + realisasi — pilihan user):
+  - Route baru `/cetak/jadwal/[slug]` — dokumen Time Schedule/Kurva-S berdiri sendiri
+    (bukan terikat periode): baris kategori × minggu (bobot), kumulatif rencana +
+    realisasi s/d minggu berjalan, garis kurva-S, blok TTD. Landscape A4.
+  - Reuse `ScurveKkpSheet` dgn `titleOverride` + `periodeOverride` (periode = seluruh
+    masa kontrak, snapshot realisasi s/d `bounds.currentWeek`). Butuh SPMK (startDate)
+    agar kolom minggu terpetakan ke bulan → gate: hanya muncul bila `getPeriodBounds`.
+  - Tombol "Cetak Jadwal" di kartu Kurva-S (progress) & hub Laporan Lokasi.
+- Kurva-S di Excel (sheet tabel + gambar — pilihan user):
+  - `buildPeriodReportXlsx` kini sheet-1 "Kurva S": tabel bobot kategori × minggu +
+    baris kumulatif rencana/realisasi + deviasi (dari `buildKurvaSheet`, angka IDENTIK
+    dgn PDF/tabel KKP) + GAMBAR grafik kurva-S. Sheet-2 "Laporan" (detail item, spt dulu).
+  - exceljs tak bisa chart garis native → `renderScurveChartPng` (SVG → PNG via sharp,
+    sudah dipakai utk gambar) menghasilkan grafik (rencana putus-putus + realisasi hijau,
+    sumbu %/minggu, legenda) lalu disisipkan via `addImage`.
+- Verifikasi: typecheck/lint ✓, 129 unit test ✓, build ✓ (route terdaftar). Uji end-to-end
+  export: workbook 2 sheet + 1 gambar, round-trip; grafik PNG ter-render benar (S-shape,
+  garis rencana→100 & realisasi terpotong di minggu berjalan, label sumbu).

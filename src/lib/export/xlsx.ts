@@ -1,12 +1,15 @@
 import "server-only";
 import ExcelJS from "exceljs";
 import type { PeriodReport } from "@/lib/periodic-report";
+import { buildKurvaSheet } from "@/lib/scurve/kkp-sheet";
+import { renderScurveChartPng } from "@/lib/export/scurve-image";
 import { formatTanggal } from "@/lib/format";
 
 /**
  * Export laporan periodik ke .xlsx (exceljs, server-side — BUKAN AG Grid export).
- * Satu sheet "Laporan": header identitas → tabel item per kategori → totals.
- * Format angka #,##0.00 agar konsisten dibuka di Excel Indonesia.
+ * Sheet-1 "Kurva S": tabel bobot kategori × minggu + baris prestasi + GAMBAR grafik
+ * kurva-S (setara halaman-1 PDF). Sheet-2 "Laporan": header identitas → tabel item
+ * per kategori → totals. Format angka #,##0.00 agar konsisten di Excel Indonesia.
  */
 
 const NUM_FMT = "#,##0.00";
@@ -30,10 +33,123 @@ const COLUMNS = [
   { header: "Sisa %", width: 9 },
 ] as const;
 
+const round2 = (n: number) => Math.round(n * 100) / 100;
+const round3 = (n: number) => Math.round(n * 1000) / 1000;
+
+/**
+ * Sheet-1 "Kurva S": tabel bobot kategori × minggu (increment) + baris prestasi
+ * (rencana/realisasi kumulatif + deviasi) + GAMBAR grafik kurva-S. Angka identik
+ * dgn tabel KKP & kurva PDF (satu sumber, buildKurvaSheet).
+ */
+async function addKurvaSheet(wb: ExcelJS.Workbook, r: PeriodReport): Promise<void> {
+  const sheet = buildKurvaSheet({
+    categories: r.kurvaSchedule,
+    totalWeeks: r.totalWeeks,
+    contractStart: r.header.contractStart,
+    actualCum: r.scurve.actualPct,
+    currentWeek: r.scurve.currentWeek,
+  });
+  const N = sheet.totalWeeks;
+  const FIRST = 4; // A=No, B=Uraian, C=Bobot, D.. = minggu
+  const lastCol = 3 + N;
+  const ws = wb.addWorksheet("Kurva S", {
+    pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+  });
+  ws.columns = [{ width: 5 }, { width: 40 }, { width: 9 }, ...Array.from({ length: N }, () => ({ width: 6 }))];
+
+  const thin = { style: "thin" as const };
+  const box = { top: thin, bottom: thin, left: thin, right: thin };
+
+  const banner = (text: string, bold: boolean, size: number) => {
+    const row = ws.addRow([text]);
+    ws.mergeCells(row.number, 1, row.number, lastCol);
+    row.getCell(1).font = { bold, size };
+    row.getCell(1).alignment = { horizontal: "center" };
+  };
+  banner(`KURVA S — ${r.kind === "mingguan" ? `MINGGU KE-${r.n}` : `BULAN KE-${r.n}`}`, true, 12);
+  banner(`${r.header.packageName} — ${r.header.village}, ${r.header.regency}`, false, 10);
+  ws.addRow([]);
+
+  // Header 2 baris: kelompok bulan (merge) + minggu.
+  const monthRow = ws.addRow([]);
+  monthRow.getCell(1).value = "No";
+  monthRow.getCell(2).value = "Uraian Pekerjaan";
+  monthRow.getCell(3).value = "Bobot (%)";
+  let c = FIRST;
+  for (const g of sheet.monthGroups) {
+    monthRow.getCell(c).value = g.label;
+    if (g.span > 1) ws.mergeCells(monthRow.number, c, monthRow.number, c + g.span - 1);
+    c += g.span;
+  }
+  const weekRow = ws.addRow([]);
+  for (let i = 0; i < N; i++) weekRow.getCell(FIRST + i).value = `M${i + 1}`;
+  ws.mergeCells(monthRow.number, 1, weekRow.number, 1);
+  ws.mergeCells(monthRow.number, 2, weekRow.number, 2);
+  ws.mergeCells(monthRow.number, 3, weekRow.number, 3);
+  for (const row of [monthRow, weekRow]) {
+    row.eachCell({ includeEmpty: true }, (cell, col) => {
+      if (col > lastCol) return;
+      cell.font = { bold: true, size: 8 };
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
+      cell.border = box;
+    });
+  }
+
+  // Baris kategori (bobot + increment mingguan).
+  for (const cat of sheet.categories) {
+    const row = ws.addRow([cat.code, cat.name, round2(cat.bobot), ...cat.weekly.map((v) => (v >= 0.0005 ? round3(v) : null))]);
+    row.eachCell({ includeEmpty: true }, (cell, col) => {
+      if (col > lastCol) return;
+      cell.border = box;
+      cell.font = { size: 8, bold: col === 2 };
+      if (col === 1) cell.alignment = { horizontal: "center" };
+      else if (col === 3) { cell.alignment = { horizontal: "center" }; cell.numFmt = "#,##0.00"; }
+      else if (col >= FIRST) { cell.alignment = { horizontal: "right" }; cell.numFmt = "#,##0.000"; }
+    });
+  }
+
+  // Baris prestasi (kumulatif rencana/realisasi + deviasi).
+  const prestasi: [string, (number | null)[], boolean][] = [
+    ["Rencana Prestasi %", sheet.rencanaPerWeek, false],
+    ["Kumulatif Rencana Prestasi %", sheet.kumulatifRencana, true],
+    ["Realisasi Prestasi %", sheet.realisasiPerWeek, false],
+    ["Kumulatif Realisasi Prestasi %", sheet.kumulatifRealisasi, true],
+    ["Deviasi +/-", sheet.deviasi, true],
+  ];
+  for (const [label, arr, bold] of prestasi) {
+    const row = ws.addRow([]);
+    row.getCell(1).value = label;
+    ws.mergeCells(row.number, 1, row.number, 3);
+    row.getCell(1).alignment = { horizontal: "right" };
+    row.getCell(1).font = { size: 8, bold };
+    row.getCell(1).border = box;
+    for (let i = 0; i < N; i++) {
+      const cell = row.getCell(FIRST + i);
+      cell.value = arr[i] == null ? null : round2(arr[i] as number);
+      cell.numFmt = "#,##0.00";
+      cell.alignment = { horizontal: "right" };
+      cell.font = { size: 8, bold };
+      cell.border = box;
+    }
+  }
+
+  // Gambar grafik kurva-S di bawah tabel (exceljs tak bisa chart garis native).
+  const chart = await renderScurveChartPng({
+    weeks: sheet.weeks,
+    kumulatifRencana: sheet.kumulatifRencana,
+    kumulatifRealisasi: sheet.kumulatifRealisasi,
+    title: `Kurva S ${r.kind === "mingguan" ? `Minggu ke-${r.n}` : `Bulan ke-${r.n}`}`,
+  });
+  const imgId = wb.addImage({ buffer: chart.buffer as unknown as ExcelJS.Buffer, extension: "png" });
+  ws.addImage(imgId, { tl: { col: 0, row: ws.rowCount + 1 }, ext: { width: chart.width, height: chart.height } });
+}
+
 export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "MARLIN";
   wb.created = new Date();
+  await addKurvaSheet(wb, r);
   const ws = wb.addWorksheet("Laporan", {
     pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   });

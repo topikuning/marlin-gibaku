@@ -20,7 +20,17 @@ const ROW_H = 26; // tinggi baris kategori
 const num = (v: number, d = 3) => v.toLocaleString("id-ID", { minimumFractionDigits: d, maximumFractionDigits: d });
 const pct = (v: number | null, d = 2) => (v == null ? "" : `${v.toLocaleString("id-ID", { minimumFractionDigits: d, maximumFractionDigits: d })}%`);
 
-export function ScurveKkpSheet({ r }: { r: PeriodReport }) {
+export function ScurveKkpSheet({
+  r,
+  titleOverride,
+  periodeOverride,
+}: {
+  r: PeriodReport;
+  /** Judul dokumen (default: "KURVA S MINGGU/BULAN KE-N"). Utk dokumen jadwal berdiri sendiri. */
+  titleOverride?: string;
+  /** Rentang periode di subjudul (default: periode laporan). Utk jadwal = seluruh masa kontrak. */
+  periodeOverride?: { start: Date; end: Date };
+}) {
   const sheet = buildKurvaSheet({
     categories: r.kurvaSchedule,
     totalWeeks: r.totalWeeks,
@@ -37,7 +47,9 @@ export function ScurveKkpSheet({ r }: { r: PeriodReport }) {
   // dengan overflow-x-auto sehingga di layar sempit dokumen di-scroll, bukan
   // melebarkan halaman.
   const docW = LEFT + plotW + W_KET;
-  const title = `KURVA S ${r.kind === "mingguan" ? "MINGGU" : "BULAN"} KE - ${r.n}`;
+  const title = titleOverride ?? `KURVA S ${r.kind === "mingguan" ? "MINGGU" : "BULAN"} KE - ${r.n}`;
+  const periodeStart = periodeOverride?.start ?? r.header.periodeStart;
+  const periodeEnd = periodeOverride?.end ?? r.header.periodeEnd;
 
   // Titik kurva (x = akhir minggu w, y = 1 − kumulatif/100). Anchor minggu-0 = 0%.
   const xFor = (w: number) => (w / N) * plotW;
@@ -54,7 +66,7 @@ export function ScurveKkpSheet({ r }: { r: PeriodReport }) {
       <div className="text-center">
         <div className="text-[13px] font-bold underline">{title}</div>
         <div className="text-[9px] font-semibold">
-          Periode tanggal {formatTanggal(hdr.periodeStart)} s/d {formatTanggal(hdr.periodeEnd)}
+          Periode tanggal {formatTanggal(periodeStart)} s/d {formatTanggal(periodeEnd)}
         </div>
       </div>
 

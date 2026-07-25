@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { FileText } from "lucide-react";
+import { CalendarClock, FileText } from "lucide-react";
 import { Card, CardBody, CardHeader, EmptyState } from "@/components/ui";
 import { KkpPeriodReport } from "@/components/knmp/kkp-period-report";
 import { ScurveKkpSheet } from "@/components/knmp/scurve-kkp-sheet";
@@ -50,7 +50,20 @@ export default async function LaporanLokasiPage({
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader title="Laporan Periodik KKP" subtitle="Mingguan / bulanan — dihitung dari laporan harian terkirim (satu calculation layer)." />
+        <CardHeader
+          title="Laporan Periodik KKP"
+          subtitle="Mingguan / bulanan — dihitung dari laporan harian terkirim (satu calculation layer)."
+          action={
+            bounds ? (
+              <Link
+                href={`/cetak/jadwal/${slug}`}
+                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-4 text-sm font-medium text-ink transition-colors hover:bg-surface-muted hover:border-border-strong"
+              >
+                <CalendarClock aria-hidden className="size-4" /> Cetak Jadwal
+              </Link>
+            ) : undefined
+          }
+        />
         <CardBody className="space-y-4">
           {!bounds ? (
             <EmptyState icon={FileText} title="Kontrak belum ada" description="Laporan periodik butuh periode kontrak." />
