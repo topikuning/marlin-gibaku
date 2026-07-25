@@ -41,17 +41,19 @@ function MilestoneEditForm({
   packageId = "",
   item,
   picOptions,
+  canUpload,
   onClose,
 }: {
   slug?: string;
   packageId?: string;
   item: MilestoneRow;
   picOptions: { id: string; fullName: string }[];
+  canUpload: boolean;
   onClose: () => void;
 }) {
   const [state, action, pending] = useActionState<MilestoneActionState, FormData>(updateMilestoneAction, undefined);
   return (
-    <form action={action} className="mt-2 grid gap-2 rounded-md border border-border bg-surface-muted p-3 sm:grid-cols-2">
+    <form action={action} className="mt-2 grid gap-3 rounded-md border border-border bg-surface-muted p-3 sm:grid-cols-2">
       {state?.error ? <div className="sm:col-span-2"><Banner tone="error" title={state.error} /></div> : null}
       {state?.success ? <div className="sm:col-span-2"><Banner tone="success" title={state.success} /></div> : null}
       <input type="hidden" name="milestoneId" value={item.id} />
@@ -66,7 +68,7 @@ function MilestoneEditForm({
         </Select>
       </div>
       <div>
-        <Label htmlFor={`pic-${item.id}`}>PIC</Label>
+        <Label htmlFor={`pic-${item.id}`}>Penanggung jawab (PIC)</Label>
         <Select id={`pic-${item.id}`} name="picUserId" defaultValue={item.picUserId ?? ""}>
           <option value="">— tanpa PIC —</option>
           {picOptions.map((p) => (
@@ -78,13 +80,34 @@ function MilestoneEditForm({
         <Label htmlFor={`due-${item.id}`}>Jatuh tempo</Label>
         <Input id={`due-${item.id}`} name="dueDate" type="date" defaultValue={item.dueDate ?? ""} />
       </div>
-      <div>
+      {canUpload ? (
+        <div>
+          <Label htmlFor={`file-${item.id}`}>Lampiran dokumen</Label>
+          <FileInput id={`file-${item.id}`} name="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.xlsx,.docx" />
+          <p className="mt-1 text-xs text-ink-muted">
+            Unggah bukti (PDF/DOCX) — status otomatis maju setelah terunggah.
+          </p>
+        </div>
+      ) : null}
+      {item.documents.length > 0 ? (
+        <div className="sm:col-span-2">
+          <Label>Dokumen terlampir</Label>
+          <ul className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
+            {item.documents.map((d) => (
+              <li key={d.id}>
+                <a href={`/api/documents/${d.id}`} className="text-primary hover:underline">📎 {d.title}</a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      <div className="sm:col-span-2">
         <Label htmlFor={`note-${item.id}`}>Catatan</Label>
-        <Input id={`note-${item.id}`} name="note" defaultValue={item.note ?? ""} />
+        <Textarea id={`note-${item.id}`} name="note" rows={2} defaultValue={item.note ?? ""} placeholder="Tambahkan catatan kepatuhan di sini…" />
       </div>
-      <div className="flex gap-2 sm:col-span-2">
-        <Button size="sm" type="submit" loading={pending}>Simpan</Button>
+      <div className="flex justify-end gap-2 sm:col-span-2">
         <Button size="sm" type="button" variant="ghost" onClick={onClose}>Tutup</Button>
+        <Button size="sm" type="submit" loading={pending}>Simpan Perubahan</Button>
       </div>
     </form>
   );
@@ -120,6 +143,7 @@ export function MilestonePanel({
   picOptions,
   canManage,
   canVerify,
+  canUpload = false,
 }: {
   slug?: string;
   packageId?: string;
@@ -127,6 +151,7 @@ export function MilestonePanel({
   picOptions: { id: string; fullName: string }[];
   canManage: boolean;
   canVerify: boolean;
+  canUpload?: boolean;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
   return (
@@ -162,7 +187,7 @@ export function MilestonePanel({
             </div>
           </div>
           {openId === m.id && canManage && (
-            <MilestoneEditForm slug={slug} packageId={packageId} item={m} picOptions={picOptions} onClose={() => setOpenId(null)} />
+            <MilestoneEditForm slug={slug} packageId={packageId} item={m} picOptions={picOptions} canUpload={canUpload} onClose={() => setOpenId(null)} />
           )}
         </li>
       ))}

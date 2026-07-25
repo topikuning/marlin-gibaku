@@ -117,6 +117,7 @@ export default async function DokumenKepatuhanPage({ params }: { params: Promise
                 picOptions={picOptions}
                 canManage={canManage}
                 canVerify={canVerify}
+                canUpload={canUpload}
               />
             </section>
           ))}

@@ -141,6 +141,7 @@ export default async function DokumenPaketPage({
                 picOptions={picOptions}
                 canManage={canManage}
                 canVerify={canVerify}
+                canUpload={canUpload}
               />
             </section>
           ))}
