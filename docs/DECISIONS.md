@@ -2161,3 +2161,24 @@ scurve — dengan test properti, bukan paritas nilai):**
   gelap, beda dgn referensi yang putih (bisa diubah bila diminta); (d) belum: persist Photo ID unik,
   simpan file ASLI terpisah, Settings UI + live preview, kategori master.
 - Verifikasi: typecheck ✓ lint ✓ 16 unit test ✓ build ✓; pratinjau render landscape+portrait cocok.
+
+## 111 · 2026-07-25 · Menu "Foto Lapangan" — galeri foto lintas lokasi
+
+- **Permintaan user**: menu untuk menampilkan SEMUA foto yang diunggah, layout mengikuti mockup
+  preview (galeri per tanggal + KPI + filter + kartu foto + lightbox).
+- **Best-practice implementasi** (ke sistem saat ini, tanpa schema baru):
+  - `src/lib/photos-gallery.ts`: `getPhotoGallery(locIds, filters)` — foto discope ke lokasi yang
+    boleh dilihat user (via relasi report/activity → location), TERPAGINASI (96/hal, jangan muat
+    ribuan), thumbnail presigned (`buildPhotoViews`). KPI hari-ini (total/verified/pending) + terkait
+    kendala + tanpa-GPS. Judul foto = nama pekerjaan (RabNode) / judul kegiatan; lokasi/pelapor/GPS/
+    verifikasi diturunkan dari relasi. Filter: lokasi, status verifikasi, sumber (laporan/kegiatan),
+    cari (caption/lokasi/pelapor).
+  - `src/lib/photo-verif.ts`: label & tone status verifikasi (dipakai server & client).
+  - `src/app/(app)/foto/page.tsx`: heading + 5 KPI + filterbar (form GET) + chip cepat + grid +
+    paginasi. Gate `location.view`, scoped.
+  - `foto/gallery-grid.tsx` (client): kartu dikelompokkan per tanggal + lightbox in-page.
+  - Nav "Foto Lapangan" (ikon camera) setelah "Hari Ini".
+- **Ditunda** (dari mockup): pilih-massal + unduh ZIP, view timeline, filter item-pekerjaan/pelapor,
+  chip Before/After. Foto tetap diunggah lewat Laporan Harian & Kegiatan Lapangan (tak ada upload
+  terpusat baru) — galeri ini murni tampilan/agregasi.
+- Verifikasi: typecheck/lint/build ✓.
