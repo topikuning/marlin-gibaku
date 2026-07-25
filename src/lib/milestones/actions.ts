@@ -12,8 +12,10 @@ import {
 } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
 import { parseDateKey } from "@/lib/format";
-import { ADMIN_MILESTONE_TEMPLATE, LOKASI_MILESTONES, PAKET_MILESTONES } from "@/lib/milestones/template";
-import type { MilestoneStatus } from "@/generated/prisma/enums";
+import { ADMIN_MILESTONE_TEMPLATE, LOKASI_MILESTONES, PAKET_MILESTONES, milestoneTemplate } from "@/lib/milestones/template";
+import { statusAfterUpload } from "@/lib/milestones/status";
+import { uploadDocument } from "@/lib/documents";
+import type { AdminPhase, DocumentType, MilestoneStatus } from "@/generated/prisma/enums";
 import type { Prisma } from "@/generated/prisma/client";
 
 /**
@@ -197,6 +199,8 @@ async function loadScopedMilestone(id: string, user: { orgId: string }) {
       requiresVerification: true,
       locationId: true,
       packageId: true,
+      phase: true,
+      templateKey: true,
       name: true,
       package: { select: { orgId: true } },
     },
@@ -286,12 +290,42 @@ export async function updateMilestoneAction(
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
+  const file = formData.get("file");
+  const hasFile = file instanceof File && file.size > 0;
   try {
     const user = await requireCapability("compliance.manage");
+    const ms = await loadScopedMilestone(d.milestoneId, user);
+    if (ms.locationId) await requireLocationAccess(user, ms.locationId);
+
+    // Upload dokumen INLINE (bila dilampirkan): fase & tipe bukti otomatis dari
+    // template milestone, judul = nama item, tertaut ke milestone ini.
+    let status: MilestoneStatus = d.status;
+    if (hasFile) {
+      if (!can(user.role, "document.upload")) return { error: "Tidak punya izin mengunggah dokumen" };
+      const type = (milestoneTemplate(ms.templateKey)?.docTypes[0] ?? "lainnya") as DocumentType;
+      await uploadDocument(
+        {
+          file,
+          packageId: ms.packageId,
+          locationId: ms.locationId ?? undefined,
+          milestoneId: ms.id,
+          phase: ms.phase as AdminPhase,
+          type,
+          title: ms.name,
+          docNumber: null,
+          docDate: null,
+          expiryDate: null,
+          description: null,
+        },
+        user.id,
+      );
+      status = statusAfterUpload(ms.status, d.status, ms.requiresVerification);
+    }
+
     await updateMilestone(
       d.milestoneId,
       {
-        status: d.status,
+        status,
         picUserId: d.picUserId || null,
         dueDate: d.dueDate ? parseDateKey(d.dueDate) : null,
         note: d.note,
@@ -303,7 +337,7 @@ export async function updateMilestoneAction(
   }
   if (d.slug) revalidatePath(`/lokasi/${d.slug}/dokumen`);
   if (d.packageId) revalidatePath(`/paket/${d.packageId}/dokumen`);
-  return { success: "Milestone diperbarui." };
+  return { success: hasFile ? "Dokumen terunggah & item diperbarui." : "Item diperbarui." };
 }
 
 const verifySchema = z.object({

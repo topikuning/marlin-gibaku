@@ -162,3 +162,8 @@ export const LOKASI_MILESTONES = ADMIN_MILESTONE_TEMPLATE.filter((t) => t.scope 
 export function milestoneScope(templateKey: string): MilestoneScope {
   return ADMIN_MILESTONE_TEMPLATE.find((t) => t.key === templateKey)?.scope ?? "paket";
 }
+
+/** Entri template lengkap by key (utk infer fase & tipe dokumen bukti saat upload inline). */
+export function milestoneTemplate(templateKey: string): AdminMilestone | undefined {
+  return ADMIN_MILESTONE_TEMPLATE.find((t) => t.key === templateKey);
+}

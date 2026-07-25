@@ -1790,3 +1790,23 @@ scurve — dengan test properti, bukan paritas nilai):**
   hitam-putih + bingkai + label 100/75/50/25/0.
 - Verifikasi: typecheck/lint ✓, 134 unit test ✓, build ✓. openpyxl: baris kategori scaleA/scaleB
   = FF000000/FFFFFFFF selang-seling; label 100(top)…0(bottom).
+
+## 091 · 2026-07-25 · Kepatuhan: UNGGAH dokumen inline di tiap item (status ikut dokumen)
+
+- Keluhan user (dgn contoh Figma): form "Kelola" tiap item kepatuhan hanya berisi Status/PIC/
+  Jatuh tempo/Catatan — TAK ADA tempat mengunggah dokumennya; upload harus lewat form terpisah
+  ("Milestone bukti untuk"). "Kelola lalu isi status" jadi terasa sia-sia, padahal subjudul &
+  template sudah menyatakan "status otomatis dari dokumen yang diunggah".
+- Fix (paket & lokasi, komponen `MilestonePanel` dipakai bersama):
+  - Form Kelola (`MilestoneEditForm`) kini punya **FILE ATTACHMENT** (unggah PDF/DOCX langsung),
+    daftar dokumen terlampir, catatan jadi Textarea, tombol "Simpan Perubahan"/"Tutup". Muncul
+    bila `document.upload`.
+  - `updateMilestoneAction` terima file opsional → `uploadDocument` (fase & tipe bukti OTOMATIS
+    dari template milestone via `milestoneTemplate(templateKey).docTypes[0]`, judul = nama item,
+    tertaut ke milestone) → status maju via `statusAfterUpload`.
+- Perilaku status = "auto-maju + bisa override" (pilihan user): `statusAfterUpload(current,
+  submitted, requiresVerification)` — override manual dihormati; sudah selesai/tidak_berlaku tak
+  mundur; selain itu dokumen → "berjalan" (butuh verifikasi) atau "selesai". Fungsi murni, diuji.
+- Form upload terpisah lama TETAP (cadangan, pilihan user) utk dokumen tak terkait item.
+- Verifikasi: typecheck/lint ✓, 139 unit test ✓ (uji `statusAfterUpload`), build ✓. Jalur upload
+  nyata (R2) diuji manual oleh user di app.
