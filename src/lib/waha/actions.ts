@@ -185,12 +185,11 @@ function buildActivityMessage(a: {
   kendala: string | null;
   solusi: string | null;
   locationName: string;
-  packageName: string;
 }): string {
   const lines: string[] = [];
   lines.push(`*${a.title}*`);
   lines.push(`📋 ${FIELD_ACTIVITY_TYPE_LABEL[a.type]} · 📅 ${formatTanggal(a.activityDate)}`);
-  lines.push(`📍 ${a.locationName} — ${a.packageName}`);
+  lines.push(`📍 ${a.locationName}`);
   if (a.participants) lines.push(`👥 Hadir: ${a.participants}`);
   if (a.notes) lines.push(`\n${a.notes}`);
   if (a.kendala) lines.push(`\n⚠️ *Kendala:* ${a.kendala}`);
@@ -259,7 +258,6 @@ export async function sendActivityToWaAction(
       kendala: activity.kendala,
       solusi: activity.solusi,
       locationName: activity.location.name,
-      packageName: activity.location.package?.name ?? "-",
     });
     await sendText(chatId, message);
 
@@ -360,7 +358,7 @@ export async function sendPeriodReportToWaAction(
     const periodeLabel = kind === "mingguan" ? `Minggu ke-${n}` : `Bulan ke-${n}`;
     const caption = [
       `*Laporan ${kind === "mingguan" ? "Mingguan" : "Bulanan"} — ${periodeLabel}*`,
-      `📍 ${loc.name} — ${loc.package.name}`,
+      `📍 ${loc.name}`,
       report.header?.periodeStart && report.header?.periodeEnd
         ? `📅 ${formatTanggal(report.header.periodeStart)} s/d ${formatTanggal(report.header.periodeEnd)}`
         : null,
@@ -409,7 +407,7 @@ export async function sendDailyReportToWaAction(
 
     const caption = [
       `*Laporan Harian*`,
-      `📍 ${data.locationName} — ${loc.package.name}`,
+      `📍 ${data.locationName}`,
       `📅 ${data.hari}, ${data.tanggalFull}`,
       `👷 ${data.totalWorkers} pekerja${data.activeWeather ? ` · ☁️ ${data.activeWeather}` : ""}`,
     ].join("\n");
