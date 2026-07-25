@@ -280,7 +280,7 @@ function marlinLogo(rightX: number, topY: number, fsM: number, accent: string): 
   // Baris bawah: bar oranye (kiri) + PROJECT CONTROL — LEBARNYA = lebar MARLIN.
   // Gap ke MARLIN dirapatkan (jangan menempel).
   const fsSub = Math.round(fsM * 0.28);
-  const subBase = baseY + Math.round(fsM * 0.5) + fsSub;
+  const subBase = baseY + Math.round(fsM * 0.3) + fsSub;
   const barW = Math.round(mW * 0.17);
   const gap = Math.round(fsM * 0.16);
   const availW = mW - barW - gap;
