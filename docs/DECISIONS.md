@@ -2814,3 +2814,34 @@ Tiga bug tampilan pada PDF produksi (dari bundle self-contained DECISIONS 128):
   `lineageKey` sehingga tidak bergantung urutan. Angka bobot/prestasi/kumulatif
   tidak berubah — hanya urutan baris.
 - Verifikasi: typecheck ✓ lint ✓ unit 299 (+4) ✓.
+
+## 141 · 2026-07-26 · Upload laporan ke Google Drive folder KKP (per paket)
+
+- **Kebutuhan**: KKP memberi folder Drive per paket; tim wajib menyetor laporan
+  ke sana. Akun Gmail biasa milik tim terdaftar sebagai editor folder.
+- **Auth**: OAuth akun Gmail tsb (BUKAN service account — file upload service
+  account memakan kuota 15 GB miliknya sendiri dan tidak cocok untuk folder
+  pemberian pihak lain). Refresh token + client secret disimpan TERENKRIPSI di
+  AppSetting (AES-256-GCM, kunci `AI_SECRET_ENCRYPTION_KEY`, pola DECISIONS 121).
+  Scope `drive` penuh — `drive.file` tidak bisa menulis ke folder yang bukan
+  buatan app. OAuth app HARUS berstatus In production (Testing = token mati 7
+  hari); dicatat di `docs/GDRIVE_SETUP.md` + hint UI.
+- **Implementasi**: klien Drive v3 via fetch murni tanpa SDK googleapis
+  (`lib/gdrive/client.ts` — refresh token cache per proses, multipart upload,
+  `supportsAllDrives=true`); util MURNI `lib/gdrive/parse.ts`
+  (`parseDriveFolderId` menerima ID/URL, `buildMultipartBody`) + 6 unit test.
+  Route `/api/gdrive/auth` + `/api/gdrive/callback` (state anti-CSRF cookie,
+  gate `system.manage`).
+- **Data**: `Package.driveFolderId` (folder per paket, diatur di halaman paket,
+  gate `wa.configure`, validasi akses via `probeDriveFolder` bila akun sudah
+  terhubung) + `GDriveUpload` (log append-only: file, status sukses/gagal,
+  error, pelaku — upload gagal terlihat & bisa diulang, tidak diam-diam).
+- **Trigger MANUAL per laporan** (keputusan user): tombol di halaman
+  Laporan lokasi — harian = PDF; mingguan/bulanan = PDF + Excel (reuse
+  `renderHarianPdf`/`renderPeriodikPdf`/`buildPeriodReportXlsx`, tanpa pipeline
+  baru). Gate `report.export` + `requireLocationAccess` + `audit()`. Status "✓
+  Drive <waktu>" tampil per laporan harian dari log sukses terakhir.
+- **UI**: Sistem → Integrasi → kartu Google Drive (client ID/secret, hubungkan/
+  tes/putuskan, email akun terhubung); halaman paket → kartu Folder Google
+  Drive.
+- Verifikasi: typecheck ✓ lint ✓ unit 305 (+6) ✓ build ✓ browser /sistem ✓.

@@ -6,12 +6,14 @@ import { KkpPeriodReport } from "@/components/knmp/kkp-period-report";
 import { ScurveKkpSheet } from "@/components/knmp/scurve-kkp-sheet";
 import { PeriodFilter } from "./period-filter";
 import { SendPeriodReportWaButton, SendDailyReportWaButton } from "./laporan-wa";
+import { UploadDailyToDriveButton, UploadPeriodToDriveButton } from "./laporan-drive";
 import { requireUser, requireLocationAccess } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
 import { getPeriodBounds, getPeriodReport, type PeriodKind } from "@/lib/periodic-report";
 import { isWahaConfigured } from "@/lib/waha/client";
-import { jakartaDateKey, formatTanggal } from "@/lib/format";
+import { getGDriveConfigDisplay } from "@/lib/gdrive/config";
+import { jakartaDateKey, formatTanggal, formatTanggalWaktu } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -29,13 +31,19 @@ export default async function LaporanLokasiPage({
   requireCapabilityPage(user.role, "report.export");
   const location = await db.location.findUnique({
     where: { slug },
-    select: { id: true, name: true, package: { select: { waGroupId: true } } },
+    select: {
+      id: true,
+      name: true,
+      package: { select: { id: true, waGroupId: true, driveFolderId: true } },
+    },
   });
   if (!location) notFound();
   await requireLocationAccess(user, location.id);
 
   const wahaOn = await isWahaConfigured();
   const hasGroup = !!location.package?.waGroupId;
+  const hasDrive = !!location.package?.driveFolderId;
+  const driveOn = (await getGDriveConfigDisplay()).connected;
 
   // scheduleBounds: real bila SPMK ada, else asumsi mulai hari ini — utk tombol Jadwal
   // (kurva-S rencana tetap bisa dilihat sebelum SPMK). bounds REAL: hanya utk laporan
@@ -49,7 +57,7 @@ export default async function LaporanLokasiPage({
   // Generate eksplisit (audit UX #7): laporan hanya dihitung setelah "Tampilkan".
   const shown = sp.show === "1" && !!bounds;
 
-  const [report, finalReports] = await Promise.all([
+  const [report, finalReports, driveLogs] = await Promise.all([
     shown ? getPeriodReport(location.id, kind, n) : Promise.resolve(null),
     db.dailyReport.findMany({
       where: { locationId: location.id, status: "final" },
@@ -57,7 +65,18 @@ export default async function LaporanLokasiPage({
       take: 30,
       select: { id: true, reportDate: true, waSentAt: true, _count: { select: { items: true } } },
     }),
+    // Upload Drive sukses terakhir per laporan harian (log append-only).
+    hasDrive
+      ? db.gDriveUpload.findMany({
+          where: { locationId: location.id, kind: "laporan_harian", status: "sukses" },
+          orderBy: { createdAt: "desc" },
+          take: 60,
+          select: { refKey: true, createdAt: true },
+        })
+      : Promise.resolve([]),
   ]);
+  const driveUploadedAt = new Map<string, Date>();
+  for (const l of driveLogs) if (!driveUploadedAt.has(l.refKey)) driveUploadedAt.set(l.refKey, l.createdAt);
 
   return (
     <div className="space-y-6">
@@ -98,9 +117,14 @@ export default async function LaporanLokasiPage({
                 />
               ) : report ? (
                 <div className="space-y-4">
-                  {wahaOn ? (
-                    <SendPeriodReportWaButton slug={slug} locationId={location.id} kind={kind} n={n} hasGroup={hasGroup} />
-                  ) : null}
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                    {wahaOn ? (
+                      <SendPeriodReportWaButton slug={slug} locationId={location.id} kind={kind} n={n} hasGroup={hasGroup} />
+                    ) : null}
+                    {driveOn ? (
+                      <UploadPeriodToDriveButton locationId={location.id} kind={kind} n={n} hasDrive={hasDrive} />
+                    ) : null}
+                  </div>
                   {/* Hal-1: KURVA S (grafik) */}
                   <div className="overflow-x-auto rounded-md border border-border bg-white p-4">
                     <ScurveKkpSheet r={report} />
@@ -140,6 +164,18 @@ export default async function LaporanLokasiPage({
                           dateKey={key}
                           hasGroup={hasGroup}
                           sentAt={r.waSentAt ? r.waSentAt.toISOString() : null}
+                        />
+                      ) : null}
+                      {driveOn ? (
+                        <UploadDailyToDriveButton
+                          slug={slug}
+                          dateKey={key}
+                          hasDrive={hasDrive}
+                          uploadedAt={
+                            driveUploadedAt.has(`${slug}:${key}`)
+                              ? formatTanggalWaktu(driveUploadedAt.get(`${slug}:${key}`)!)
+                              : null
+                          }
                         />
                       ) : null}
                       <Link href={`/cetak/harian/${slug}/${key}`} className="font-medium text-primary hover:underline">
