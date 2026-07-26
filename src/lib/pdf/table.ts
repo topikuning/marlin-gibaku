@@ -5,6 +5,7 @@ import {
   PDF_COLORS,
   PDF_FONT,
   ensureSpace,
+  sanitizeText,
   type PdfDoc,
 } from "@/lib/pdf/document";
 
@@ -31,7 +32,8 @@ function drawHeaderRow(doc: PdfDoc, columns: PdfColumn[], x0: number, y: number)
 }
 
 /** Gambar tabel. rows = array baris (array sel string). Mengembalikan y akhir. */
-export function table(doc: PdfDoc, columns: PdfColumn[], rows: string[][]): void {
+export function table(doc: PdfDoc, columns: PdfColumn[], rowsRaw: string[][]): void {
+  const rows = rowsRaw.map((r) => r.map((c) => sanitizeText(c ?? "")));
   const x0 = PAGE_MARGIN;
   const totalW = columns.reduce((s, c) => s + c.width, 0);
   ensureSpace(doc, 40);

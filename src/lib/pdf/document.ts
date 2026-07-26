@@ -105,27 +105,58 @@ export function docToBuffer(doc: PdfDoc): Promise<Buffer> {
   });
 }
 
+/* ── Sanitasi teks ───────────────────────────────────────────────────────── */
+
+/**
+ * Buang karakter yang TIDAK ada di font DejaVu (emoji, simbol/dingbat, variation
+ * selector, zero-width, kontrol) → cegah kotak tofu "□" di PDF. Latin beraksen,
+ * tanda baca, ·, →, ©®™ tetap dipertahankan. DECISIONS 129.
+ */
+export function sanitizeText(s: string): string {
+  // Buang karakter yang tak ada di DejaVu (emoji/simbol/kontrol/zero-width)
+  // agar tak jadi kotak tofu di PDF. Latin beraksen & tanda baca dipertahankan.
+  let out = "";
+  for (const ch of s) {
+    const c = ch.codePointAt(0)!;
+    if (c === 9 || c === 10) { out += ch; continue; } // tab, newline
+    if (c < 32 || c === 127) continue; // kontrol lain
+    if (c >= 0x200b && c <= 0x200d) continue; // zero-width
+    if (c === 0x2060 || c === 0xfeff) continue; // word-joiner / BOM
+    if (c >= 0xfe00 && c <= 0xfe0f) continue; // variation selectors
+    if (c >= 0x2600 && c <= 0x27bf) continue; // simbol lain-lain & dingbat
+    if (c >= 0x2b00 && c <= 0x2bff) continue; // panah/simbol tambahan
+    if (c >= 0x1f000 && c <= 0x1faff) continue; // bidang emoji
+    out += ch;
+  }
+  return out;
+}
+
 /* ── Primitif tata letak ─────────────────────────────────────────────────── */
 
 /** Kop laporan: nama app + konteks proyek (kiri) & judul dokumen (kanan), garis navy. */
 export function reportHeader(doc: PdfDoc, appName: string, context: string, title: string): void {
   const top = PAGE_MARGIN;
+  const leftW = CONTENT_WIDTH * 0.5 - 8;
+  const rightX = PAGE_MARGIN + CONTENT_WIDTH * 0.5 + 8;
+  const rightW = CONTENT_WIDTH * 0.5 - 8;
   doc
     .font(PDF_FONT.bold)
     .fontSize(9)
     .fillColor(PDF_COLORS.inkMuted)
-    .text(appName.toUpperCase(), PAGE_MARGIN, top, { characterSpacing: 1, width: CONTENT_WIDTH * 0.55 });
+    .text(sanitizeText(appName).toUpperCase(), PAGE_MARGIN, top, { characterSpacing: 1, width: leftW });
   doc
     .font(PDF_FONT.regular)
     .fontSize(8)
     .fillColor(PDF_COLORS.inkMuted)
-    .text(context, PAGE_MARGIN, doc.y + 1, { width: CONTENT_WIDTH * 0.55 });
+    .text(sanitizeText(context), PAGE_MARGIN, doc.y + 1, { width: leftW });
+  const leftBottom = doc.y;
+  // Judul di KOLOM KANAN saja (boleh wrap) — tak menabrak teks kiri.
   doc
     .font(PDF_FONT.bold)
     .fontSize(15)
     .fillColor(PDF_COLORS.primary)
-    .text(title.toUpperCase(), PAGE_MARGIN, top + 2, { width: CONTENT_WIDTH, align: "right" });
-  const lineY = Math.max(doc.y, top + 34) + 4;
+    .text(sanitizeText(title).toUpperCase(), rightX, top, { width: rightW, align: "right" });
+  const lineY = Math.max(leftBottom, doc.y, top + 34) + 4;
   doc.moveTo(PAGE_MARGIN, lineY).lineTo(PAGE_MARGIN + CONTENT_WIDTH, lineY).lineWidth(2.5).strokeColor(PDF_COLORS.primary).stroke();
   doc.y = lineY + 12;
   doc.x = PAGE_MARGIN;
@@ -171,15 +202,16 @@ export function paragraph(doc: PdfDoc, text: string): void {
     .font(PDF_FONT.regular)
     .fontSize(10)
     .fillColor(PDF_COLORS.ink)
-    .text(text, PAGE_MARGIN, doc.y, { width: CONTENT_WIDTH, lineGap: 2, align: "left" });
+    .text(sanitizeText(text), PAGE_MARGIN, doc.y, { width: CONTENT_WIDTH, lineGap: 2, align: "left" });
 }
 
 /** Baris "label : nilai" dalam kotak rincian. Mengembalikan y setelah baris. */
 export function metaRow(doc: PdfDoc, label: string, value: string, x: number, y: number, width: number): number {
   const labelW = 96;
-  doc.font(PDF_FONT.bold).fontSize(9.5).fillColor(PDF_COLORS.inkMuted).text(label, x, y, { width: labelW });
-  const valH = doc.heightOfString(value, { width: width - labelW - 8 });
-  doc.font(PDF_FONT.regular).fontSize(9.5).fillColor(PDF_COLORS.ink).text(value, x + labelW + 8, y, {
+  const val = sanitizeText(value);
+  doc.font(PDF_FONT.bold).fontSize(9.5).fillColor(PDF_COLORS.inkMuted).text(sanitizeText(label), x, y, { width: labelW });
+  const valH = doc.heightOfString(val, { width: width - labelW - 8 });
+  doc.font(PDF_FONT.regular).fontSize(9.5).fillColor(PDF_COLORS.ink).text(val, x + labelW + 8, y, {
     width: width - labelW - 8,
   });
   return y + Math.max(doc.currentLineHeight(), valH) + 4;

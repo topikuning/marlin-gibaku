@@ -18,6 +18,8 @@ import {
   ensureSpace,
   metaRow,
   paragraph,
+  reportHeader,
+  sanitizeText,
   sectionHeading,
   stampFooters,
   type PdfDoc,
@@ -211,32 +213,7 @@ export async function renderKegiatanPdf(
 /* ── Bagian-bagian dokumen ───────────────────────────────────────────────── */
 
 function drawHeader(doc: PdfDoc, appName: string, context: string): void {
-  const top = PAGE_MARGIN;
-  doc
-    .font(PDF_FONT.bold)
-    .fontSize(9)
-    .fillColor(PDF_COLORS.inkMuted)
-    .text(appName.toUpperCase(), PAGE_MARGIN, top, { characterSpacing: 1, width: CONTENT_WIDTH * 0.6 });
-  doc
-    .font(PDF_FONT.regular)
-    .fontSize(8)
-    .fillColor(PDF_COLORS.inkMuted)
-    .text(context, PAGE_MARGIN, doc.y + 1, { width: CONTENT_WIDTH * 0.6 });
-  // Judul dokumen (kanan-atas).
-  doc
-    .font(PDF_FONT.bold)
-    .fontSize(15)
-    .fillColor(PDF_COLORS.primary)
-    .text("LAPORAN KEGIATAN LAPANGAN", PAGE_MARGIN, top + 2, { width: CONTENT_WIDTH, align: "right" });
-  const lineY = Math.max(doc.y, top + 34) + 4;
-  doc
-    .moveTo(PAGE_MARGIN, lineY)
-    .lineTo(PAGE_MARGIN + CONTENT_WIDTH, lineY)
-    .lineWidth(2.5)
-    .strokeColor(PDF_COLORS.primary)
-    .stroke();
-  doc.y = lineY + 12;
-  doc.x = PAGE_MARGIN;
+  reportHeader(doc, appName, context, "Laporan Kegiatan Lapangan");
 }
 
 function drawIdentity(
@@ -247,9 +224,10 @@ function drawIdentity(
   const y = doc.y;
   const padH = 6;
   doc.font(PDF_FONT.bold).fontSize(8.5);
-  const badgeW = doc.widthOfString(d.kindLabel) + padH * 2;
+  const kindLabel = sanitizeText(d.kindLabel);
+  const badgeW = doc.widthOfString(kindLabel) + padH * 2;
   doc.roundedRect(PAGE_MARGIN, y, badgeW, 15, 3).fill(PDF_COLORS.primary50);
-  doc.fillColor(PDF_COLORS.primary).text(d.kindLabel, PAGE_MARGIN + padH, y + 3.5, { lineBreak: false });
+  doc.fillColor(PDF_COLORS.primary).text(kindLabel, PAGE_MARGIN + padH, y + 3.5, { lineBreak: false });
   doc
     .font(PDF_FONT.regular)
     .fontSize(8.5)
@@ -258,12 +236,12 @@ function drawIdentity(
   doc.y = y + 21;
   doc.x = PAGE_MARGIN;
 
-  doc.font(PDF_FONT.bold).fontSize(16).fillColor(PDF_COLORS.ink).text(d.title, PAGE_MARGIN, doc.y, { width: CONTENT_WIDTH });
+  doc.font(PDF_FONT.bold).fontSize(16).fillColor(PDF_COLORS.ink).text(sanitizeText(d.title), PAGE_MARGIN, doc.y, { width: CONTENT_WIDTH });
   doc
     .font(PDF_FONT.regular)
     .fontSize(9.5)
     .fillColor(PDF_COLORS.inkMuted)
-    .text(`${d.locationName} · ${d.packageName} · ${d.province}`, PAGE_MARGIN, doc.y + 1, { width: CONTENT_WIDTH });
+    .text(sanitizeText(`${d.locationName} · ${d.packageName} · ${d.province}`), PAGE_MARGIN, doc.y + 1, { width: CONTENT_WIDTH });
   doc.y += 8;
 }
 
@@ -336,11 +314,14 @@ function drawPhotoGrid(doc: PdfDoc, photos: PhotoForPdf[]): void {
 function drawPhotoCell(doc: PdfDoc, p: PhotoForPdf, x: number, y: number, w: number, boxH: number, captionH: number): void {
   // Bingkai.
   doc.roundedRect(x, y, w, boxH + captionH, 5).lineWidth(0.8).strokeColor(PDF_COLORS.border).stroke();
-  // Foto (cover + clip ke area gambar).
+  // Foto (cover + clip ke area gambar). PENTING: bundle pdfkit self-contained
+  // menstub `fs` → doc.image(Buffer) gagal ("fs.readFileSync is not a function").
+  // Beri DATA URI base64 supaya decode inline tanpa fs. DECISIONS 129.
   doc.save();
   doc.roundedRect(x, y, w, boxH, 5).clip();
   try {
-    doc.image(p.jpeg, x, y, { cover: [w, boxH], align: "center", valign: "center" });
+    const dataUri = `data:image/jpeg;base64,${p.jpeg.toString("base64")}`;
+    doc.image(dataUri, x, y, { cover: [w, boxH], align: "center", valign: "center" });
   } catch {
     doc.rect(x, y, w, boxH).fill(PDF_COLORS.primary50);
   }

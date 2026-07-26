@@ -2494,3 +2494,18 @@ scurve — dengan test properti, bukan paritas nilai):**
   node_modules), require path absolut + registerFont DejaVu + render → OK. Bukan lagi false
   positive. typecheck/lint/unit/build ✓.
 - Catatan: bundle di-pin ke pdfkit 0.15.2; regen bila upgrade pdfkit.
+
+## 129 · 2026-07-26 · Fix render PDF: foto kosong, teks tumpang tindih, kotak tofu
+
+Tiga bug tampilan pada PDF produksi (dari bundle self-contained DECISIONS 128):
+- **Foto kosong**: bundle pdfkit self-contained (build browser) MENSTUB `fs`, sehingga
+  `doc.image(Buffer)` gagal `fs.readFileSync is not a function` (Buffer bundel ≠ Buffer Node →
+  jatuh ke jalur baca file). FIX: beri **DATA URI base64** (`data:image/jpeg;base64,…`) → decode
+  inline tanpa fs. Diuji: image XObject + DCTDecode tertanam.
+- **Kop tumpang tindih**: judul kanan dipakai lebar penuh + rata kanan → menabrak teks kiri. FIX:
+  `reportHeader` — kiri & judul masing-masing di KOLOM 50% (judul boleh wrap). `drawHeader`
+  kegiatan kini pakai `reportHeader` (satu sumber).
+- **Kotak tofu □**: user mengetik emoji yang tak ada di DejaVu → glyph .notdef. FIX: `sanitizeText`
+  (filter code-point: buang emoji/simbol/dingbat/variation-selector/zero-width/kontrol; Latin
+  beraksen, ·, →, ©®™ dipertahankan) diterapkan di paragraph/metaRow/table/identitas.
+- Verifikasi: typecheck/lint/unit/build ✓, e2e render (emoji + 3 foto) → foto tertanam & tanpa tofu.
