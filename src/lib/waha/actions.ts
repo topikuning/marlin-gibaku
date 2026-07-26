@@ -375,6 +375,97 @@ export async function sendActivityToWaAction(
 }
 
 /* ------------------------------------------------------------------ */
+/* Kirim Laporan Kegiatan Lapangan sebagai PDF ke WhatsApp             */
+/* ------------------------------------------------------------------ */
+
+const PDF_MIME = "application/pdf";
+
+/** Normalisasi tujuan WA bebas: id grup "…@g.us" / kontak "…@c.us" / nomor → "…@c.us". */
+function normalizeWaDest(raw: string): string {
+  const t = raw.trim();
+  if (t.endsWith("@g.us") || t.endsWith("@c.us") || t.endsWith("@s.whatsapp.net")) return t;
+  const digits = t.replace(/[^0-9]/g, "");
+  if (digits.length >= 8) return `${digits}@c.us`;
+  throw new WahaError(`Format tujuan WA tidak dikenal: ${raw} (pakai nomor WA, atau id grup …@g.us).`);
+}
+
+/**
+ * Kirim Laporan Kegiatan Lapangan sebagai DOKUMEN PDF (dokumen rapi: teks +
+ * galeri foto) ke WhatsApp. Tujuan: grup WA paket (default) ATAU nomor/ID bebas
+ * (mis. dilaporkan ke atasan tertentu). DECISIONS 124.
+ */
+export async function sendActivityPdfToWaAction(
+  _prev: WaActionState,
+  formData: FormData,
+): Promise<WaActionState> {
+  const idParse = z.uuid().safeParse(formData.get("activityId"));
+  if (!idParse.success) return { error: "Kegiatan tidak valid." };
+
+  try {
+    const user = await requireCapability("field_activity.manage");
+    const activity = await db.fieldActivity.findUnique({
+      where: { id: idParse.data },
+      select: {
+        id: true,
+        type: true,
+        title: true,
+        activityDate: true,
+        locationId: true,
+        location: {
+          select: { name: true, slug: true, package: { select: { name: true, waGroupId: true } } },
+        },
+      },
+    });
+    if (!activity) return { error: "Kegiatan tidak ditemukan." };
+    await requireLocationAccess(user, activity.locationId);
+
+    // Tujuan: input bebas bila diisi, selain itu grup WA paket.
+    const rawDest = String(formData.get("destChatId") ?? "").trim();
+    let chatId: string;
+    let destLabel: string;
+    if (rawDest) {
+      chatId = normalizeWaDest(rawDest);
+      destLabel = chatId.endsWith("@g.us") ? "grup WhatsApp" : "WhatsApp";
+    } else if (activity.location.package?.waGroupId) {
+      chatId = normalizeGroupChatId(activity.location.package.waGroupId);
+      destLabel = "grup WhatsApp paket";
+    } else {
+      return {
+        error:
+          "Belum ada tujuan: paket ini tanpa grup WhatsApp. Isi nomor/ID tujuan, atau atur grup di halaman Paket.",
+      };
+    }
+
+    const { renderKegiatanPdf } = await import("@/lib/pdf/kegiatan");
+    const result = await renderKegiatanPdf(activity.id);
+    if (!result) return { error: "Gagal menyusun PDF — kegiatan tidak ditemukan." };
+
+    const kindLabel = (await getActivityKindLabelMap()).get(activity.type) ?? activity.type;
+    const caption = [
+      `📄 *Laporan Kegiatan Lapangan*`,
+      `*${activity.title}*`,
+      `📋 ${kindLabel} · 📅 ${formatTanggal(activity.activityDate)}`,
+      `📍 ${activity.location.name}`,
+    ].join("\n");
+
+    const fileName = `laporan-kegiatan-${activity.location.slug}-${result.activityDate
+      .toISOString()
+      .slice(0, 10)}.pdf`;
+    await sendFile(chatId, toFilePayload(result.buffer, PDF_MIME, fileName), caption);
+
+    await audit(user.id, "field_activity.wa_send_pdf", "field_activity", activity.id, {
+      locationId: activity.locationId,
+      chatId,
+      bytes: result.buffer.length,
+    });
+    revalidatePath(`/lokasi/${activity.location.slug}/kegiatan`);
+    return { success: `Laporan PDF terkirim ke ${destLabel}.` };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Kirim laporan (harian / mingguan) sebagai Excel ke grup WA          */
 /* ------------------------------------------------------------------ */
 

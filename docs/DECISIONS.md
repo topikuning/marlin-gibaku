@@ -2395,3 +2395,31 @@ scurve — dengan test properti, bukan paritas nilai):**
 - Verifikasi: typecheck/lint/build ✓.
 - Menyusul: (a) opsi "susun uraian dengan AI" dari notes mentah; (b) laporan EKSEKUTIF sebagai
   dokumen A4 berdesain (bukan sekadar teks WA).
+
+## 124 · 2026-07-26 · Kirim Laporan Kegiatan sebagai PDF (server-side) ke WhatsApp
+
+- **Kebutuhan**: kirim laporan kegiatan sebagai DOKUMEN PDF rapi (teks + foto) ke WhatsApp, bukan
+  hanya teks/foto lepas. WAHA `sendFile` sudah ada (base64), yang kurang: BINARY PDF di server.
+- **Keputusan mesin PDF**: `pdfkit` (murni-Node, MIT) — BUKAN headless Chromium. Runner produksi =
+  `node:slim` TANPA Chromium; menambah Playwright/Chromium ke image runtime berat & rapuh di
+  Railway. pdfkit: teks vektor (bisa diseleksi), alir teks + page-break OTOMATIS (narasi bisa
+  panjang → hindari paginasi SVG manual yang rawan salah), foto ditanam via `sharp` (JPEG,
+  rotasi EXIF). Alternatif SVG→raster→pdf-lib ditolak: teks jadi raster & paginasi manual.
+- **Font**: pakai DejaVu Sans TTF yang SUDAH dibawa aplikasi (`assets/fonts`, sudah di-trace ke
+  standalone). Didaftarkan via `registerFont` → pdfkit tak pernah menyentuh font AFM bawaan →
+  hindari jebakan tracing `.afm` di build standalone.
+- **Tracing standalone**: `next.config` `outputFileTracingIncludes` + `serverExternalPackages`
+  tambah `pdfkit`, `fontkit`, `unicode-properties`, `unicode-trie`, `linebreak`, `brotli`, `dfa`,
+  `png-js` (require dinamis file data tak terlihat tracer statik). Diverifikasi tersalin ke
+  `.next/standalone`. License audit tetap lolos (semua MIT/BSD/dalam allowlist).
+- **Modul**: `lib/pdf/document.ts` (fondasi: font, doc A4, palet token, primitif section/meta/
+  paragraph/footer i-per-n) + `lib/pdf/kegiatan.ts` (`buildKegiatanPdf(data)` MURNI tanpa I/O,
+  dipakai bersama produksi & pratinjau; `renderKegiatanPdf(id)` gather DB/R2 → build).
+- **Bug halus diperbaiki**: menulis kaki halaman di pita margin bawah memicu pdfkit menambah
+  halaman kosong; diakali dengan menol-kan `page.margins.bottom` sementara saat menulis kaki.
+- **Distribusi**: (a) unduhan PDF server-side `GET /api/kegiatan/[id]/pdf` (auth + akses lokasi;
+  bukan print browser); (b) tombol "Kirim PDF ke WhatsApp" → `sendActivityPdfToWaAction` (gate
+  `field_activity.manage` + `requireLocationAccess` + `audit`), tujuan default grup WA paket ATAU
+  nomor/ID bebas ("dilaporkan ke atasan tertentu"). Caption = judul + jenis + tanggal + lokasi.
+- Verifikasi: typecheck/lint/unit(185)/build ✓, tracing standalone ✓, smoke-render (font+foto+
+  multi-halaman+kaki) ✓. Menyusul: laporan EKSEKUTIF sebagai PDF berdesain.

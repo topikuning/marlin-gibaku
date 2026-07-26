@@ -5,9 +5,10 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,
-  // sharp = binari native: JANGAN dibundel webpack (rusak). Biarkan resolve
-  // sebagai require runtime dari node_modules (lihat setup sharp di Dockerfile).
-  serverExternalPackages: ["sharp"],
+  // sharp = binari native + pdfkit = require dinamis file data: JANGAN dibundel
+  // webpack (rusak). Biarkan resolve sebagai require runtime dari node_modules
+  // (lihat setup sharp di Dockerfile; pdfkit di outputFileTracingIncludes).
+  serverExternalPackages: ["sharp", "pdfkit"],
   experimental: {
     serverActions: {
       bodySizeLimit: "30mb", // upload dokumen/foto lewat server action (file maks 25MB + overhead multipart)
@@ -30,6 +31,17 @@ const nextConfig: NextConfig = {
       "./seed-data/**",
       "./node_modules/.pnpm/sharp@*/**",
       "./node_modules/.pnpm/@img+*/**",
+      // pdfkit + fontkit: butuh file DATA (.afm, trie unicode) yang dirujuk via
+      // require dinamis/fs — tracer statik Next tak melihatnya. Include eksplisit
+      // agar render PDF server-side tidak gagal "ENOENT" di standalone. DECISIONS 124.
+      "./node_modules/.pnpm/pdfkit@*/**",
+      "./node_modules/.pnpm/fontkit@*/**",
+      "./node_modules/.pnpm/unicode-properties@*/**",
+      "./node_modules/.pnpm/unicode-trie@*/**",
+      "./node_modules/.pnpm/linebreak@*/**",
+      "./node_modules/.pnpm/brotli@*/**",
+      "./node_modules/.pnpm/dfa@*/**",
+      "./node_modules/.pnpm/png-js@*/**",
     ],
   },
 };

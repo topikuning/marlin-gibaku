@@ -20,6 +20,7 @@ import {
   DraftActions,
   ReopenActivityButton,
   SendToWaButton,
+  SendPdfToWaButton,
 } from "./kegiatan-forms";
 
 export const metadata: Metadata = { title: "Kegiatan & Dokumentasi Lapangan" };
@@ -95,14 +96,24 @@ export default async function KegiatanLapanganPage({ params }: { params: Promise
                     <span className="text-[12px] text-ink-faint">
                       {a.createdByName ? `oleh ${a.createdByName}` : null}
                     </span>
-                    <a
-                      href={`/cetak/kegiatan/${a.id}`}
-                      target="_blank"
-                      rel="noopener"
-                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-[13px] font-medium text-ink hover:border-border-strong hover:bg-surface-muted"
-                    >
-                      Cetak / PDF
-                    </a>
+                    <div className="flex items-center gap-1.5">
+                      <a
+                        href={`/api/kegiatan/${a.id}/pdf`}
+                        target="_blank"
+                        rel="noopener"
+                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-[13px] font-medium text-ink hover:border-border-strong hover:bg-surface-muted"
+                      >
+                        Unduh PDF
+                      </a>
+                      <a
+                        href={`/cetak/kegiatan/${a.id}`}
+                        target="_blank"
+                        rel="noopener"
+                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-[13px] font-medium text-ink hover:border-border-strong hover:bg-surface-muted"
+                      >
+                        Cetak
+                      </a>
+                    </div>
                   </div>
                 </div>
 
@@ -160,13 +171,21 @@ export default async function KegiatanLapanganPage({ params }: { params: Promise
                 ) : null}
                 {canManage && a.status === "final" ? <ReopenActivityButton activityId={a.id} /> : null}
                 {canManage && wahaConfigured ? (
-                  <SendToWaButton
-                    activityId={a.id}
-                    wahaConfigured={wahaConfigured}
-                    hasGroup={hasGroup}
-                    groupName={groupName}
-                    sentAt={a.waSentAt}
-                  />
+                  <>
+                    <SendToWaButton
+                      activityId={a.id}
+                      wahaConfigured={wahaConfigured}
+                      hasGroup={hasGroup}
+                      groupName={groupName}
+                      sentAt={a.waSentAt}
+                    />
+                    <SendPdfToWaButton
+                      activityId={a.id}
+                      wahaConfigured={wahaConfigured}
+                      hasGroup={hasGroup}
+                      groupName={groupName}
+                    />
+                  </>
                 ) : null}
               </CardBody>
             </Card>

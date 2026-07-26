@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
-import { CheckCircle2, Download, MessageCircle, Paperclip, Pencil, RotateCcw, Trash2, Plus } from "lucide-react";
+import { CheckCircle2, Download, FileText, MessageCircle, Paperclip, Pencil, RotateCcw, Trash2, Plus } from "lucide-react";
 import { Banner, Button, Input, Label, Combobox, Textarea } from "@/components/ui";
 import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
 import type { FieldActivityAttachmentView } from "@/lib/field-activity/queries";
@@ -19,8 +19,73 @@ import {
   updateActivityAction,
   type FieldActivityState,
 } from "@/lib/field-activity/actions";
-import { sendActivityToWaAction, type WaActionState } from "@/lib/waha/actions";
+import { sendActivityToWaAction, sendActivityPdfToWaAction, type WaActionState } from "@/lib/waha/actions";
 import { formatTanggalWaktu } from "@/lib/format";
+
+/**
+ * Tombol "Kirim PDF ke WhatsApp" — susun Laporan Kegiatan jadi dokumen PDF rapi
+ * (teks + galeri foto) di server, lalu kirim ke grup WA paket (default) atau ke
+ * nomor/ID tujuan bebas yang bisa dibuka. DECISIONS 124.
+ */
+export function SendPdfToWaButton({
+  activityId,
+  wahaConfigured,
+  hasGroup,
+  groupName,
+}: {
+  activityId: string;
+  wahaConfigured: boolean;
+  hasGroup: boolean;
+  groupName: string | null;
+}) {
+  const [state, action, pending] = useActionState<WaActionState, FormData>(sendActivityPdfToWaAction, undefined);
+  const [customDest, setCustomDest] = useState(false);
+  if (!wahaConfigured) return null;
+
+  return (
+    <div className="mt-3 space-y-2 border-t border-border pt-3">
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      {state?.success ? <Banner tone="success" title={state.success} /> : null}
+      <form action={action} className="space-y-2">
+        <input type="hidden" name="activityId" value={activityId} />
+        {customDest ? (
+          <div>
+            <Label htmlFor={`pdf-dest-${activityId}`}>Tujuan lain (nomor WA atau ID grup)</Label>
+            <Input
+              id={`pdf-dest-${activityId}`}
+              name="destChatId"
+              placeholder="mis. 6281234567890 atau 12036...@g.us"
+              maxLength={120}
+            />
+            <p className="mt-1 text-[12px] text-ink-muted">Kosongkan untuk kirim ke grup WA paket.</p>
+          </div>
+        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="submit" size="sm" variant="secondary" loading={pending} disabled={!hasGroup && !customDest}>
+            <FileText aria-hidden className="size-3.5" />
+            Kirim PDF ke WhatsApp
+          </Button>
+          <button
+            type="button"
+            onClick={() => setCustomDest((v) => !v)}
+            className="text-[12px] font-medium text-primary hover:underline"
+          >
+            {customDest ? "Kirim ke grup paket" : "Kirim ke tujuan lain…"}
+          </button>
+          {!customDest ? (
+            hasGroup ? (
+              groupName ? (
+                <span className="text-[12px] text-ink-muted">Grup: {groupName}</span>
+              ) : null
+            ) : (
+              <span className="text-[12px] text-ink-muted">Paket belum punya grup WA — pakai “tujuan lain”.</span>
+            )
+          ) : null}
+        </div>
+      </form>
+    </div>
+  );
+}
 
 /**
  * Tombol "Kirim ke WhatsApp" (1 klik) — kirim teks + semua foto + dokumen
