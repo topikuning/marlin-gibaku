@@ -275,7 +275,7 @@ export function DraftActions({ activity, kinds }: { activity: EditableActivity; 
           <Button
             type="button"
             size="sm"
-            variant={editing ? "secondary" : "ghost"}
+            variant={editing ? "primary" : "secondary"}
             onClick={() => setEditing((v) => !v)}
           >
             <Pencil aria-hidden className="size-3.5" />
@@ -284,7 +284,7 @@ export function DraftActions({ activity, kinds }: { activity: EditableActivity; 
           <Button
             type="button"
             size="sm"
-            variant={addingPhoto ? "secondary" : "ghost"}
+            variant={addingPhoto ? "primary" : "secondary"}
             onClick={() => setAddingPhoto((v) => !v)}
           >
             <Plus aria-hidden className="size-3.5" />
