@@ -146,6 +146,7 @@ export async function sendExecReportAction(
     });
     await audit(user.id, "exec_report.send", "report_dispatch", null, { reportKey: key, destChatId });
     revalidatePath("/laporan-wa");
+    revalidatePath("/master/kontak-wa");
     return { success: `Terkirim ke ${destName}.` };
   } catch (err) {
     return fail(err);
@@ -176,6 +177,7 @@ export async function addWaContactAction(_prev: ContactState, formData: FormData
       data: { ownerId: user.id, name: parsed.data.name, chatId, note: parsed.data.note || null },
     });
     revalidatePath("/laporan-wa");
+    revalidatePath("/master/kontak-wa");
     return { success: `Kontak "${parsed.data.name}" disimpan.` };
   } catch (err) {
     return fail(err);
@@ -189,6 +191,7 @@ export async function deleteWaContactAction(_prev: ContactState, formData: FormD
     if (!z.uuid().safeParse(id).success) return { error: "Kontak tidak valid." };
     await db.waContact.deleteMany({ where: { id, ownerId: user.id } });
     revalidatePath("/laporan-wa");
+    revalidatePath("/master/kontak-wa");
     return { success: "Kontak dihapus." };
   } catch (err) {
     return fail(err);

@@ -2539,3 +2539,126 @@ Tiga bug tampilan pada PDF produksi (dari bundle self-contained DECISIONS 128):
   nilai 8.5pt). Nilai panjang (Nama proyek/Peserta, >44 char) otomatis memakai baris penuh. Ringkas,
   tak lagi melebar.
 - Verifikasi: typecheck/lint/build ✓ (route cetak/kegiatan hilang), render PDF 2 kolom ✓.
+
+## 132 · 2026-07-26 · Forecast v1 — Prognosa penyelesaian (jadwal/fisik)
+
+- Melengkapi siklus Rencana → Aktual → **Prognosa**. Sebelumnya tak ada proyeksi
+  ke depan sama sekali. Ruang lingkup v1 = **jadwal/fisik** (biaya = fase berikut,
+  lihat docs/FORECAST_DESIGN.md §7). Detail rancangan: docs/FORECAST_DESIGN.md.
+- **`src/lib/forecast.ts`** — mesin MURNI `forecastFromSeries(series, startDate)`
+  (tanpa I/O; input = kurva-S yang sudah ada). Dua metode EVM-jadwal: **laju terkini**
+  (run-rate N minggu, default 4) sebagai utama, **SPI** (aktual%/rencana%) sebagai
+  cadangan bila laju terhenti. Keluaran: `forecastFinishWeek/Date`, `slipWeeks`,
+  `projectedPctAtEnd`, `velocityPerWeek`, `requiredPerWeek`, `spi`, `status`
+  (aman/waspada/telat/selesai/belum_mulai/data_kurang) + garis prognosa `forecastPct[]`.
+  100% derived (prinsip #4) — TANPA model DB baru. 8 unit test.
+- **Chart**: `ScurveChart` menerima `forecast?` → polyline ke-3 (oranye titik-titik)
+  dari titik aktual terakhir. Legenda + % akhir prognosa.
+- **Halaman Progress lokasi**: kartu "Prognosa penyelesaian" (status, tanggal selesai
+  vs rencana + slip, realisasi vs rencana + deviasi, laju terkini/dibutuhkan + SPI).
+  Tanggal hanya bila SPMK terbit (`bounds.assumed=false`); pra-SPMK cukup minggu/status.
+  Data < 2 minggu → "data belum cukup" (bukan angka menyesatkan).
+- Verifikasi: typecheck/lint/unit(193)/build ✓.
+- Menyusul: kolom "prognosa selesai / diprediksi telat" di dashboard eksekutif &
+  portfolio; ringkas prognosa di PDF/laporan; forecast BIAYA (butuh tambahan model).
+
+## 133 · 2026-07-26 · AI Intelligence Hub (menu global /ai)
+
+- **Keputusan produk**: AI menjadi menu global mandiri `/ai` (bukan modul duplikat
+  per lokasi) dengan 5 tab: Portfolio Pulse, Perlu Tindakan, Report Studio,
+  Ask MARLIN, Riwayat & Audit. Halaman lokasi hanya punya tombol deep-link
+  (`/ai?scopeIds=<id>`). Sumber: master prompt user 2026-07-26 (hasil diskusi
+  arsitektur dgn ChatGPT + Claude), diimplementasi dengan penyesuaian di bawah.
+- **Prinsip non-negotiable**: AI BUKAN sumber angka. Semua angka dari calculation
+  layer (lib/progress, lib/baseline, lib/forecast, lib/finance); AI hanya
+  menjelaskan/merangkum/memprioritaskan/menyusun draf. Setiap output AI melewati:
+  skema zod → validasi lokasi ∈ scope → validasi sourceRefId → validasi klaim
+  angka (`numericClaimsValid`, ±0.6 thd angka resmi); bagian gagal DIBUANG dan
+  tercatat sebagai limitation.
+- **Arsitektur**: in-process di service Next.js yang sama (satu web service
+  Railway + Postgres). TANPA: MCP, Redis, worker, LiteLLM, agent framework,
+  multi-agent, autonomous tool loop, SQL/shell tool. Satu operasi = satu
+  panggilan provider terstruktur (maks 1 repair), sinkron.
+- **Lapisan deterministik** (`src/lib/ai-hub/`): `source.ts` (portfolio builder
+  batched + resolveAiScope intersect izin), `readiness.ts` (Data Readiness Gate,
+  bobot eksplisit, unit-tested), `risk.ts` (ruleScore terpisah dari narasi AI;
+  TANPA klaim CPM — istilah "kesehatan jadwal"), `quality-rules.ts` (audit
+  kualitas: volume>RAB, EXIF mismatch, GPS radius, final tanpa foto, 0% dengan
+  bukti, invoice>commitment; status lulus/periksa/gagal/info ditentukan rule).
+  Pulse deterministik tetap berfungsi penuh saat provider AI mati.
+- **Schema**: `AiRun` (usage inline — 1 run = 1 call, tabel AiUsage terpisah
+  tidak memberi nilai; sourceRefs sbg Json — menghindari ledakan baris),
+  `AiArtifact` (lifecycle draft→direview→disetujui→beku→terkirim via
+  lifecycle.ts; beku immutable + contentHash; runId nullable utk saran
+  deterministik), `AiConversation`+`AiMessage` (Ask MARLIN; TANPA menyimpan
+  chain-of-thought). Migration `20260726120000_ai_hub` + `..121000`.
+- **AI client v2** (`src/lib/ai/`): `aiCall()` dgn usage token + latency +
+  finish reason + kode error stabil + timeout (AbortSignal) + maks 1 retry
+  (429/5xx/timeout); parser murni `parse.ts` (unit-tested); `structured.ts`
+  (JSON-only + zod + 1 repair). `aiComplete()` lama tetap kompatibel
+  (laporan eksekutif WA).
+- **Proteksi**: API key AI dienkripsi at-rest AES-256-GCM (`src/lib/ai/crypto.ts`,
+  env `AI_SECRET_ENCRYPTION_KEY`, format `enc:v1:iv:tag:ct`, baca
+  kompatibel-mundur plaintext lama; production TANPA kunci → tolak simpan key
+  baru). Guard (`ai-hub/guard.ts` + AppSetting): kill switch global, maks
+  run/user/jam (20), run/org/hari (200), lokasi/run (25), input chars, output
+  token, ask/conversation; penolakan diaudit. Pricing token opsional (setting
+  admin, TIDAK hardcode) → estimatedCostUsd per run. Kontrol di Sistem → AI.
+- **Capability baru**: ai.view, ai.generate, ai.ask, ai.report_review,
+  ai.report_approve, ai.report_send. field_supervisor TANPA akses AI.
+- **Report Studio**: 7 template; satu `structuredContent` kanonik → renderer
+  deterministik sama utk pratinjau, cetak A4 (`/cetak/ai/[id]`, PDF via print —
+  pola cetak existing), WhatsApp, Excel (`/api/ai-artifact/[id]/excel`,
+  exceljs) — angka dijamin identik. Distribusi WA reuse WAHA + WaContact,
+  hanya artefak BEKU, riwayat distribusi + hash tersimpan.
+- **Perlu Tindakan**: antrean deterministik dari rule risiko; "Simpan Draft"
+  membuat artefak `saran` — TIDAK pernah menulis Issue/RecoveryAction domain.
+- **Penyesuaian sadar vs master prompt** (dicatat jujur): (1) AiUsage &
+  AiSourceRef digabung ke AiRun (lean, fungsi sama); (2) tab = route App
+  Router + LinkTabs (pola repo) bukan client tablist; (3) PDF via halaman
+  cetak print-A4 (pola repo) bukan pdfkit; (4) dokumen wajib & foto near-duplicate
+  belum masuk rules readiness/quality v1 (tercatat sbg limitation); (5) E2E
+  Playwright penuh belum ditulis (unit 34 + integration hijau; E2E menyusul).
+- Verifikasi: typecheck ✓ lint ✓ unit 227 ✓ integration 13 ✓ build ✓.
+
+## 134 · 2026-07-26 · Kontak WA mandiri · master data perusahaan & lokasi · peta auto-fit
+
+- **Kontak WA** jadi menu mandiri `/kontak-wa` (capability `exec_report.send`,
+  per-pemilik) — dipakai distribusi Report Studio AI & laporan eksekutif.
+  Action tambah/hapus reuse dari exec-report (revalidate kedua halaman).
+- **Master data perusahaan (Vendor)**: kolom baru `address/phone/email/logoKey`
+  + form edit per-vendor di /paket/vendor + upload logo (PNG/JPG/WebP ≤2 MB →
+  sharp 512px webp → R2 `vendors/{id}/logo.webp`). Profil ini dasar KOP SURAT
+  dokumen cetak (wiring kop ke /cetak menyusul). Nama unik per org divalidasi.
+- **Master data lokasi**: form edit alamat administratif + KOORDINAT di
+  ringkasan lokasi (capability `location.manage` + scope). Validasi rentang
+  Indonesia (lat -11..6.5, lng 95..141.5), lat+lng wajib berpasangan; before/
+  after tercatat di audit. Koordinat dipakai peta, cap foto, rule GPS AI Hub.
+- **Peta auto-fit**: PetaMap tidak lagi hardcode view Jawa — fitBounds otomatis
+  ke seluruh marker saat init & saat sebaran marker berubah (lokasi NTB/luar
+  Jawa langsung terlihat). flyTo lokasi terpilih tetap.
+- **Laporan → WA lama**: DIPERTAHANKAN dulu (rekomendasi: hapus setelah Report
+  Studio AI terbukti di produksi — menunggu keputusan user; lihat percakapan).
+
+## 135 · 2026-07-26 · Ringkasan harian chat grup (Layer B) + menu Master Data + kop surat
+
+- **Ringkasan chat grup** (melunasi DECISIONS 119 "Layer B — menyusul"): halaman
+  `/chat-grup` (gate `exec_report.send`) — pilih paket tertaut grup + tanggal →
+  arsip pesan hari itu (WaMessage, hari Jakarta) + tombol "Ringkas dengan AI".
+  Model `WaChatSummary` unik (paket, tanggal); regenerate menimpa (upsert);
+  prompt terstruktur (progres/kendala/keputusan/tindak lanjut, maks ~250 kata,
+  dilarang mengarang); transkrip dibatasi 500 pesan / 45k karakter (truncation
+  dicatat di ringkasan); provider/model + audit tercatat. V1 ON-DEMAND —
+  penjadwalan otomatis harian butuh scheduler (belum ada di infra; opsi Railway
+  cron → keputusan user, tercatat OPEN_ISSUES). Sinkronisasi ke laporan harian/
+  eksekutif = tahap berikut.
+- **Menu Master Data** `/master` (tab by-capability): Perusahaan (pindah dari
+  /paket/vendor — memang tidak relevan nempel di Paket), Kontak WA (pindah dari
+  /kontak-wa), Pengguna (pindah dari /pengguna). URL lama → redirect. Nav:
+  entri "Master Data" dgn `anyCapability` (salah satu dari contract.manage /
+  exec_report.send / user.create).
+- **Kop surat perusahaan** = GAMBAR desain jadi (bukan disusun dari field):
+  kolom `Vendor.kopKey`, upload PNG/JPG/WebP ≤2 MB → webp ≤2000×700 → R2
+  `vendors/{id}/kop.webp`, pratinjau + hapus di form. Field alamat/telepon/email
+  tetap (fallback bila tanpa gambar kop). Penempatan otomatis kop+logo di
+  header laporan cetak (/cetak) = MENYUSUL (tercatat OPEN_ISSUES).

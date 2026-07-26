@@ -6,6 +6,11 @@ export type VendorRow = {
   name: string;
   npwp: string | null;
   contact: string | null;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  logoKey: string | null;
+  kopKey: string | null;
   contractCount: number;
   commitmentCount: number;
   /** Kunci ternormalisasi utk mendeteksi kemungkinan duplikat (CV./PT/spasi/titik dibuang). */
@@ -29,6 +34,11 @@ export async function listVendorsWithUsage(orgId: string): Promise<VendorRow[]> 
       name: true,
       npwp: true,
       contact: true,
+      address: true,
+      phone: true,
+      email: true,
+      logoKey: true,
+      kopKey: true,
       _count: { select: { contracts: true, commitments: true } },
     },
   });
@@ -37,6 +47,11 @@ export async function listVendorsWithUsage(orgId: string): Promise<VendorRow[]> 
     name: v.name,
     npwp: v.npwp,
     contact: v.contact,
+    address: v.address,
+    phone: v.phone,
+    email: v.email,
+    logoKey: v.logoKey,
+    kopKey: v.kopKey,
     contractCount: v._count.contracts,
     commitmentCount: v._count.commitments,
     normKey: normalizeVendorName(v.name),

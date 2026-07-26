@@ -1,0 +1,324 @@
+import "server-only";
+import { createHash } from "node:crypto";
+import { db } from "@/lib/db";
+import { audit } from "@/lib/audit";
+import type { SessionUser } from "@/lib/auth/session";
+import { aiStructured } from "@/lib/ai/structured";
+import type { AiRunKind } from "@/generated/prisma/enums";
+import { checkAiGuard, estimateCostUsd, getAiPricing } from "./guard";
+import { buildPortfolioPulse, buildQualityDetails, resolveAiScope } from "./source";
+import { runQualityRules } from "./quality-rules";
+import {
+  KIND_INSTRUCTION,
+  PROMPT_VERSION,
+  SYSTEM_BASE,
+  buildPulsePayload,
+  buildQualityPayload,
+} from "./prompt";
+import {
+  SCHEMA_HINTS,
+  askOutputSchema,
+  filterGrounded,
+  numericClaimsValid,
+  pulseOutputSchema,
+  qualityOutputSchema,
+  reportOutputSchema,
+  riskOutputSchema,
+  varianceOutputSchema,
+  type GroundingContext,
+} from "./schemas";
+import { aiReportTemplate } from "./report-templates";
+import type { PortfolioPulse, QualityFinding } from "./types";
+
+/**
+ * Orkestrasi run AI — SATU panggilan provider per operasi deterministik,
+ * sinkron (tanpa worker/queue). Alur: auth (di action) → guard → sumber
+ * deterministik → readiness → persist run → panggil provider → validasi
+ * skema + grounding → persist output/usage → audit. Status DB selalu benar
+ * meski provider gagal. DECISIONS 133.
+ */
+
+export class AiRunError extends Error {}
+
+export type ExecuteRunInput = {
+  kind: AiRunKind;
+  locationIds: string[];
+  startKey: string;
+  endKey: string;
+  /** kind=laporan */
+  templateKey?: string;
+  /** kind=tanya */
+  question?: string;
+};
+
+function hashInput(userId: string, i: ExecuteRunInput): string {
+  return createHash("sha256")
+    .update([userId, i.kind, [...i.locationIds].sort().join(","), i.startKey, i.endKey, i.templateKey ?? "", i.question ?? ""].join("|"))
+    .digest("hex");
+}
+
+function groundingContext(pulse: PortfolioPulse): GroundingContext {
+  const officials = new Map<string, number[]>();
+  for (const r of pulse.rows) {
+    officials.set(r.locationId, [
+      r.planPct,
+      r.actualPct,
+      r.deviationPp,
+      r.readiness.score,
+      r.finalReports,
+      r.expectedReports,
+      r.sentReports,
+      r.draftReports,
+      r.needFixReports,
+      r.photoCount,
+      r.activityCount,
+      r.openIssues,
+      r.criticalIssues,
+      r.overdueRecoveries,
+      r.currentWeek,
+      r.totalWeeks,
+      r.daysSinceLastReport ?? -1,
+      r.riskScore,
+    ]);
+  }
+  return {
+    allowedLocationIds: new Set(pulse.rows.map((r) => r.locationId)),
+    allowedSourceRefIds: new Set(pulse.sourceRefs.map((s) => s.id)),
+    officialNumbersByLocation: officials,
+  };
+}
+
+/** Angka global (utk validasi klaim pada teks tanpa lokasi). */
+function globalNumbers(pulse: PortfolioPulse): number[] {
+  const t = pulse.totals;
+  const nums = [
+    t.locations,
+    t.reportsExpected,
+    t.reportsFinal,
+    t.negativeDeviationLocations,
+    t.openIssues,
+    t.overdueRecoveries,
+    t.lowReadinessLocations,
+  ];
+  for (const r of pulse.rows) nums.push(r.planPct, r.actualPct, r.deviationPp, r.readiness.score);
+  return nums;
+}
+
+export type ExecuteRunResult = { runId: string; status: "siap" | "gagal"; error?: string };
+
+export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): Promise<ExecuteRunResult> {
+  // 1-2. Scope resmi (intersect izin) — SEBELUM guard supaya locationCount benar.
+  const scope = await resolveAiScope(user, input.locationIds);
+  if (scope.ids.length === 0) throw new AiRunError("Tidak ada lokasi dalam scope.");
+
+  // 3. Guard: kill switch + rate + ukuran (lempar bila ditolak; sudah diaudit).
+  const guardCfg = await checkAiGuard(user, { kind: input.kind, locationCount: scope.ids.length });
+
+  // 4. Anti double-submit: run sama (hash) dalam 90 detik → kembalikan yang ada.
+  const inputHash = hashInput(user.id, input);
+  const recent = await db.aiRun.findFirst({
+    where: {
+      userId: user.id,
+      inputHash,
+      createdAt: { gte: new Date(Date.now() - 90_000) },
+      status: { in: ["berjalan", "siap"] },
+    },
+    select: { id: true, status: true },
+  });
+  if (recent) return { runId: recent.id, status: recent.status === "siap" ? "siap" : "gagal" };
+
+  // 5. Sumber deterministik + readiness (+ temuan kualitas utk kind terkait).
+  const pulse = await buildPortfolioPulse(user, scope.ids, input.startKey, input.endKey);
+  let qualityFindings: QualityFinding[] = [];
+  if (input.kind === "kualitas_data") {
+    const details = await buildQualityDetails(user, scope.ids, input.startKey, input.endKey);
+    for (const row of pulse.rows) {
+      const d = details.get(row.locationId);
+      if (d) qualityFindings.push(...runQualityRules(row, d));
+    }
+  }
+  const readinessAvg = pulse.rows.length
+    ? Math.round(pulse.rows.reduce((s, r) => s + r.readiness.score, 0) / pulse.rows.length)
+    : 0;
+
+  // 6. Persist run (berjalan) + snapshot sumber.
+  const run = await db.aiRun.create({
+    data: {
+      userId: user.id,
+      runKind: input.kind,
+      status: "berjalan",
+      scopeType: scope.all ? "all" : "location",
+      scopeIds: scope.ids,
+      periodStart: new Date(`${input.startKey}T00:00:00.000Z`),
+      periodEnd: new Date(`${input.endKey}T00:00:00.000Z`),
+      promptVersion: PROMPT_VERSION,
+      inputHash,
+      sourceSnapshotAt: new Date(pulse.dataAsOf),
+      readinessScore: readinessAvg,
+      sourcesJson: JSON.parse(JSON.stringify(pulse.sourceRefs)),
+      outputJson: undefined,
+    },
+    select: { id: true },
+  });
+  await audit(user.id, "ai.run.buat", "ai_run", run.id, {
+    kind: input.kind,
+    locations: scope.ids.length,
+    period: `${input.startKey}..${input.endKey}`,
+  });
+
+  // Snapshot deterministik SELALU tersimpan (dipakai UI walau AI gagal).
+  const officialSnapshot = JSON.parse(
+    JSON.stringify({
+      totals: pulse.totals,
+      rows: pulse.rows,
+      risks: pulse.risks,
+      quality: qualityFindings,
+      periodStart: pulse.periodStart,
+      periodEnd: pulse.periodEnd,
+      dataAsOf: pulse.dataAsOf,
+    }),
+  );
+
+  const fail = async (errorCode: string, error: string): Promise<ExecuteRunResult> => {
+    await db.aiRun.update({
+      where: { id: run.id },
+      data: {
+        status: "gagal",
+        errorCode,
+        errorMessage: error.slice(0, 500),
+        finishedAt: new Date(),
+        outputJson: { official: officialSnapshot },
+      },
+    });
+    await audit(user.id, "ai.run.gagal", "ai_run", run.id, { errorCode });
+    return { runId: run.id, status: "gagal", error };
+  };
+
+  // 7. Susun prompt per kind.
+  const payload = buildPulsePayload(pulse, { maxRows: guardCfg.maxLocationsPerRun });
+  const template = input.kind === "laporan" ? aiReportTemplate(input.templateKey ?? "") : undefined;
+  if (input.kind === "laporan" && !template) return fail("invalid_input", "Template laporan tidak dikenal.");
+
+  let instruction: string;
+  let schemaHint: string;
+  if (input.kind === "laporan") {
+    instruction = `Susun laporan terstruktur "${template!.label}". ${template!.instruction}`;
+    schemaHint = SCHEMA_HINTS.report;
+  } else if (input.kind === "tanya") {
+    instruction = KIND_INSTRUCTION.tanya;
+    schemaHint = SCHEMA_HINTS.ask;
+  } else {
+    instruction = KIND_INSTRUCTION[input.kind] ?? KIND_INSTRUCTION.pulse;
+    schemaHint =
+      input.kind === "deviasi"
+        ? SCHEMA_HINTS.variance
+        : input.kind === "risiko"
+          ? SCHEMA_HINTS.risk
+          : input.kind === "kualitas_data"
+            ? SCHEMA_HINTS.quality
+            : SCHEMA_HINTS.pulse;
+  }
+  const qualityBlock = qualityFindings.length ? `\n\n${buildQualityPayload(qualityFindings)}` : "";
+  const questionBlock = input.question ? `\n\nPERTANYAAN USER:\n${input.question}` : "";
+  const prompt = `${instruction}\n\n=== DATA ===\n${payload}${qualityBlock}${questionBlock}`;
+  if (prompt.length > guardCfg.maxInputChars) {
+    return fail("input_too_big", "Data sumber melebihi batas — persempit scope/periode.");
+  }
+
+  // 8. SATU panggilan provider terstruktur (+maks 1 repair internal).
+  const schema =
+    input.kind === "laporan"
+      ? reportOutputSchema
+      : input.kind === "tanya"
+        ? askOutputSchema
+        : input.kind === "deviasi"
+          ? varianceOutputSchema
+          : input.kind === "risiko"
+            ? riskOutputSchema
+            : input.kind === "kualitas_data"
+              ? qualityOutputSchema
+              : pulseOutputSchema;
+  const result = await aiStructured(schema as never, {
+    system: SYSTEM_BASE,
+    prompt,
+    schemaHint,
+    maxTokens: guardCfg.maxOutputTokens,
+    timeoutMs: guardCfg.timeoutMs,
+  });
+
+  if (!result.ok) return fail(result.errorCode, result.error);
+
+  // 9. Grounding: buang bagian tak tergrounding, catat sebagai limitations.
+  const ctx = groundingContext(pulse);
+  const globals = globalNumbers(pulse);
+  const output = result.data as Record<string, unknown>;
+  const droppedNotes: string[] = [];
+  const applyFilter = <T extends object>(arr: T[] | undefined): T[] => {
+    if (!Array.isArray(arr)) return [];
+    const { kept, report } = filterGrounded(arr as never[], ctx);
+    droppedNotes.push(...report.dropped);
+    return kept as T[];
+  };
+  if (input.kind === "pulse") {
+    output.priorityLocations = applyFilter(output.priorityLocations as never[]);
+    output.actionsToConsider = applyFilter(output.actionsToConsider as never[]);
+  } else if (input.kind === "deviasi") {
+    output.locations = applyFilter(output.locations as never[]);
+  } else if (input.kind === "risiko") {
+    output.rationales = applyFilter(output.rationales as never[]);
+  } else if (input.kind === "kualitas_data") {
+    output.explanations = applyFilter(output.explanations as never[]);
+  } else if (input.kind === "laporan") {
+    output.sections = applyFilter(output.sections as never[]);
+    output.recommendations = applyFilter(output.recommendations as never[]);
+    if (typeof output.waSummary === "string" && !numericClaimsValid(output.waSummary, globals)) {
+      droppedNotes.push("ringkasan WA memuat angka tanpa sumber — periksa sebelum kirim");
+    }
+  } else if (input.kind === "tanya") {
+    const cites = (output.citations as { sourceRefId: string }[] | undefined) ?? [];
+    output.citations = cites.filter((c) => ctx.allowedSourceRefIds.has(c.sourceRefId));
+    if (typeof output.answer === "string" && !numericClaimsValid(output.answer, globals)) {
+      droppedNotes.push("jawaban memuat angka persen yang tidak cocok data — verifikasi manual");
+    }
+  }
+  // Ringkasan global: klaim angka dibandingkan seluruh angka resmi.
+  if (typeof output.summary === "string" && !numericClaimsValid(output.summary, globals)) {
+    droppedNotes.push("ringkasan memuat angka yang tidak cocok data resmi — verifikasi manual");
+  }
+  const limitations = [
+    ...((output.limitations as string[] | undefined) ?? []),
+    ...droppedNotes,
+  ].slice(0, 15);
+  output.limitations = limitations;
+
+  // 10. Persist hasil + usage + estimasi biaya.
+  const pricing = await getAiPricing();
+  const cost = estimateCostUsd(pricing, result.meta.usage);
+  const confidence = typeof output.confidence === "number" ? output.confidence : null;
+  await db.aiRun.update({
+    where: { id: run.id },
+    data: {
+      status: "siap",
+      provider: result.meta.provider,
+      model: result.meta.model,
+      confidence,
+      outputJson: JSON.parse(JSON.stringify({ [input.kind]: output, official: officialSnapshot })),
+      limitations,
+      inputTokens: result.meta.usage.inputTokens,
+      outputTokens: result.meta.usage.outputTokens,
+      latencyMs: result.meta.latencyMs,
+      estimatedCostUsd: cost != null ? cost.toFixed(6) : undefined,
+      finishedAt: new Date(),
+    },
+  });
+  await audit(user.id, "ai.run.siap", "ai_run", run.id, {
+    kind: input.kind,
+    provider: result.meta.provider,
+    model: result.meta.model,
+    inputTokens: result.meta.usage.inputTokens,
+    outputTokens: result.meta.usage.outputTokens,
+    latencyMs: result.meta.latencyMs,
+    attempts: result.attempts,
+  });
+  return { runId: run.id, status: "siap" };
+}

@@ -8,8 +8,11 @@ import type { ScurveSeries } from "@/lib/baseline";
  */
 export function ScurveChart({
   series,
+  forecast,
 }: {
   series: Pick<ScurveSeries, "totalWeeks" | "currentWeek" | "planPct" | "actualPct">;
+  /** Garis prognosa (panjang totalWeeks; null utk minggu sebelum titik aktual). */
+  forecast?: (number | null)[] | null;
 }) {
   const { planPct, actualPct, currentWeek, totalWeeks } = series;
 
@@ -47,6 +50,13 @@ export function ScurveChart({
     .map((p, i) => (p == null ? null : i))
     .filter((i): i is number => i != null);
   const actualPts = actualIdx.map((i) => `${xFor(i)},${yFor(actual[i] as number)}`).join(" ");
+
+  // Garis prognosa (opsional). Prepend null utk indeks 0 (mulai) → selaras sumbu.
+  const fc: (number | null)[] = forecast ? [null, ...forecast] : [];
+  const fcIdx = fc.map((p, i) => (p == null ? null : i)).filter((i): i is number => i != null);
+  const fcPts = fcIdx.map((i) => `${xFor(i)},${yFor(fc[i] as number)}`).join(" ");
+  const hasForecast = fcIdx.length >= 2;
+  const forecastEndPct = hasForecast ? (fc[fcIdx[fcIdx.length - 1]] as number) : 0;
 
   const gridY = [0, 25, 50, 75, 100];
   const lastActual = actualIdx.length ? (actual[actualIdx[actualIdx.length - 1]] as number) : 0;
@@ -105,6 +115,17 @@ export function ScurveChart({
           <circle key={i} cx={xFor(i)} cy={yFor(actualPct[i] as number)} r={2.5} fill="var(--color-primary)" />
         ))}
 
+        {/* garis prognosa (dari titik aktual terakhir → proyeksi) */}
+        {hasForecast && (
+          <polyline
+            points={fcPts}
+            fill="none"
+            stroke="var(--color-warning)"
+            strokeWidth={2}
+            strokeDasharray="2 3"
+          />
+        )}
+
         {/* label minggu — anchor tepi supaya label pertama/terakhir tidak keklip */}
         {weekTicks.map((i) => {
           const anchor = i === 0 ? "start" : i === n ? "end" : "middle";
@@ -127,6 +148,12 @@ export function ScurveChart({
           <span aria-hidden className="inline-block h-0.5 w-5 border-t-2 border-dashed border-ink-faint" /> Rencana (
           {lastPlan.toFixed(1)}%)
         </span>
+        {hasForecast && (
+          <span className="flex items-center gap-1.5 text-ink">
+            <span aria-hidden className="inline-block h-0.5 w-5 border-t-2 border-dotted border-warning" /> Prognosa (
+            {forecastEndPct.toFixed(1)}%)
+          </span>
+        )}
         {hasActual && (
           <span className="text-ink-muted">
             Minggu {currentWeek}/{totalWeeks}

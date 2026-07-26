@@ -69,12 +69,21 @@ export function PetaMap({ markers, selectedId, onSelect, toneById }: PetaMapProp
     onSelectRef.current = onSelect;
   }, [onSelect]);
 
-  // Inisialisasi peta sekali; view awal dari marker pertama bila ada.
+  // Inisialisasi peta sekali; view awal AUTO-FIT ke seluruh marker (bukan
+  // hardcode Jawa) — lokasi baru di NTB/luar Jawa langsung terlihat.
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
-    const first = markers[0];
-    const center: [number, number] = first ? [first.lat, first.lng] : DEFAULT_CENTER;
-    const map = L.map(containerRef.current, { scrollWheelZoom: true }).setView(center, 7);
+    const map = L.map(containerRef.current, { scrollWheelZoom: true });
+    if (markers.length > 1) {
+      map.fitBounds(L.latLngBounds(markers.map((m) => [m.lat, m.lng] as [number, number])), {
+        padding: [28, 28],
+        maxZoom: 11,
+      });
+    } else if (markers.length === 1) {
+      map.setView([markers[0].lat, markers[0].lng], 10);
+    } else {
+      map.setView(DEFAULT_CENTER, 7);
+    }
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
@@ -89,6 +98,33 @@ export function PetaMap({ markers, selectedId, onSelect, toneById }: PetaMapProp
     // markers hanya untuk view awal — pembaruan berikutnya lewat effect marker.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Set marker BERUBAH (filter/tambah lokasi) & tak ada seleksi → refit bounds
+  // supaya sebaran baru (mis. NTB muncul) selalu masuk viewport.
+  const markersKey = useMemo(
+    () =>
+      markers
+        .map((m) => m.id)
+        .sort()
+        .join(","),
+    [markers],
+  );
+  const prevKeyRef = useRef(markersKey);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || prevKeyRef.current === markersKey) return;
+    prevKeyRef.current = markersKey;
+    if (selectedId || markers.length === 0) return;
+    if (markers.length === 1) {
+      map.flyTo([markers[0].lat, markers[0].lng], 10, { duration: 0.6 });
+    } else {
+      map.flyToBounds(L.latLngBounds(markers.map((m) => [m.lat, m.lng] as [number, number])), {
+        padding: [28, 28],
+        maxZoom: 11,
+        duration: 0.6,
+      });
+    }
+  }, [markersKey, markers, selectedId]);
 
   // Gambar ulang marker saat data/seleksi berubah.
   useEffect(() => {

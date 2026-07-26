@@ -12,7 +12,9 @@ import { formatTanggalWaktu, jakartaToday } from "@/lib/format";
 import { getBranding, BRAND_DEFAULTS } from "@/lib/branding";
 import { getPhotoStampConfig } from "@/lib/photo-stamp/config";
 import { getActivityKinds } from "@/lib/field-activity/kinds";
-import { getAiConfigDisplay } from "@/lib/ai/config";
+import { aiSecretStorageStatus, getAiConfigDisplay } from "@/lib/ai/config";
+import { getAiGuardConfig, getAiPricing } from "@/lib/ai-hub/guard";
+import { AiGuardPanel } from "./ai-guard-panel";
 import { CAPABILITIES, ROLE_CAPABILITIES, ROLE_LABEL, ALL_ROLES, type Capability } from "@/lib/authz";
 import type { UserRole } from "@/generated/prisma/enums";
 import {
@@ -134,6 +136,9 @@ export default async function SistemPage() {
     ]);
   const activityKinds = await getActivityKinds();
   const aiConfig = await getAiConfigDisplay();
+  const aiGuard = await getAiGuardConfig();
+  const aiPricing = await getAiPricing();
+  const aiSecretStatus = aiSecretStorageStatus();
 
   const r2On = isR2Configured();
   const wahaConfigured = wahaDisplay.hasApiKey && wahaDisplay.baseUrl.length > 0;
@@ -387,15 +392,34 @@ export default async function SistemPage() {
 
   /* ── PANEL: AI ────────────────────────────────────────────────────────── */
   const aiPanel: ReactNode = (
-    <Card>
-      <CardHeader
-        title="Provider AI"
-        subtitle="Atur Claude, ChatGPT (OpenAI), Mistral, Grok — pilih satu yang aktif untuk fitur AI"
-      />
-      <CardBody>
-        <AiProvidersPanel activeProvider={aiConfig.activeProvider} providers={aiConfig.providers} />
-      </CardBody>
-    </Card>
+    <div className="space-y-4">
+      <Card>
+        <CardHeader
+          title="Provider AI"
+          subtitle="Atur Claude, ChatGPT (OpenAI), Mistral, Grok — pilih satu yang aktif untuk fitur AI"
+        />
+        <CardBody>
+          <AiProvidersPanel activeProvider={aiConfig.activeProvider} providers={aiConfig.providers} />
+        </CardBody>
+      </Card>
+      <Card>
+        <CardHeader
+          title="Kontrol AI Hub"
+          subtitle="Kill switch, rate limit, batas ukuran, dan pricing token — mengatur seluruh fitur AI Intelligence (DECISIONS 133)"
+        />
+        <CardBody>
+          <AiGuardPanel
+            enabled={aiGuard.enabled}
+            maxRunsPerUserPerHour={aiGuard.maxRunsPerUserPerHour}
+            maxRunsPerOrgPerDay={aiGuard.maxRunsPerOrgPerDay}
+            maxLocationsPerRun={aiGuard.maxLocationsPerRun}
+            maxOutputTokens={aiGuard.maxOutputTokens}
+            pricing={aiPricing}
+            secretStatus={aiSecretStatus}
+          />
+        </CardBody>
+      </Card>
+    </div>
   );
 
   /* ── PANEL: Branding & Photo Stamp ────────────────────────────────────── */

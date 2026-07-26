@@ -18,8 +18,11 @@ function findLocation(slug: string) {
       name: true,
       slug: true,
       village: true,
+      district: true,
       regency: true,
       province: true,
+      gpsLat: true,
+      gpsLng: true,
       status: true,
       isActive: true,
       package: {

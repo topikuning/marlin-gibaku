@@ -1,5 +1,7 @@
 import {
   Activity,
+  Database,
+  MessagesSquare,
   Camera,
   FileText,
   FolderOpen,
@@ -9,6 +11,7 @@ import {
   Package,
   Send,
   Settings,
+  Sparkles,
   Sun,
   TrendingUp,
   Users,
@@ -36,6 +39,9 @@ export const ICONS = {
   folderOpen: FolderOpen,
   fileText: FileText,
   send: Send,
+  database: Database,
+  messagesSquare: MessagesSquare,
+  sparkles: Sparkles,
   users: Users,
   settings: Settings,
 } as const;
@@ -46,6 +52,8 @@ export type NavItem = {
   icon: keyof typeof ICONS;
   /** Tanpa capability = tampil untuk semua role. */
   capability?: Capability;
+  /** Alternatif: tampil bila punya SALAH SATU capability ini (menu gabungan). */
+  anyCapability?: Capability[];
 };
 
 export const MAIN_NAV: NavItem[] = [
@@ -55,16 +63,24 @@ export const MAIN_NAV: NavItem[] = [
   { label: "Peta", href: "/peta", icon: "map", capability: "location.view" },
   { label: "Hari Ini", href: "/hari-ini", icon: "sun", capability: "daily_report.create" },
   { label: "Foto Lapangan", href: "/foto", icon: "camera", capability: "location.view" },
+  { label: "AI Intelligence", href: "/ai", icon: "sparkles", capability: "ai.view" },
   { label: "Progress", href: "/progress", icon: "trendingUp", capability: "progress.view" },
   { label: "Keuangan", href: "/keuangan", icon: "wallet", capability: "finance.view" },
   { label: "Dokumen", href: "/dokumen", icon: "folderOpen", capability: "document.view" },
   { label: "Laporan", href: "/laporan", icon: "fileText", capability: "report.export" },
   { label: "Laporan → WA", href: "/laporan-wa", icon: "send", capability: "exec_report.send" },
-  { label: "Pengguna", href: "/pengguna", icon: "users", capability: "user.create" },
+  { label: "Chat Grup", href: "/chat-grup", icon: "messagesSquare", capability: "exec_report.send" },
+  {
+    label: "Master Data",
+    href: "/master",
+    icon: "database",
+    anyCapability: ["contract.manage", "exec_report.send", "user.create"],
+  },
   { label: "Sistem", href: "/sistem", icon: "settings", capability: "system.manage" },
 ];
 
 function allowed(role: UserRole, item: NavItem): boolean {
+  if (item.anyCapability) return item.anyCapability.some((c) => can(role, c));
   return !item.capability || can(role, item.capability);
 }
 

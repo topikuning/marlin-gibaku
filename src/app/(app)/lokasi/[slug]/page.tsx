@@ -28,6 +28,7 @@ import {
 import type { LocationStatus } from "@/generated/prisma/enums";
 import { requireLocationPage } from "./get-location";
 import { LocationStatusForm } from "./status-form";
+import { LocationMasterForm } from "./master-form";
 import { ISSUE_SEVERITY_LABEL, ISSUE_SEVERITY_TONE, ISSUE_STATUS_LABEL, ISSUE_STATUS_TONE } from "./issue-labels";
 
 export const metadata: Metadata = { title: "Ringkasan Lokasi" };
@@ -248,6 +249,17 @@ export default async function LokasiRingkasanPage({
             subtitle={canManageLocation ? "Ubah status mengikuti lifecycle proyek" : "Riwayat perubahan status"}
           />
           <CardBody className="space-y-4">
+            {canManageLocation ? (
+              <LocationMasterForm
+                locationId={location.id}
+                village={location.village}
+                district={location.district}
+                regency={location.regency}
+                province={location.province}
+                gpsLat={location.gpsLat != null ? location.gpsLat.toString() : null}
+                gpsLng={location.gpsLng != null ? location.gpsLng.toString() : null}
+              />
+            ) : null}
             {canManageLocation ? (
               <LocationStatusForm locationId={location.id} targets={targets} />
             ) : null}

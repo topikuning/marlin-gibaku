@@ -426,6 +426,7 @@ model Package {
   documents    Document[]
   milestones   AdminMilestone[]
   waMessages   WaMessage[]
+  waChatSummaries WaChatSummary[]
 
   @@index([orgId, stage])
   @@map("packages")
@@ -479,6 +480,12 @@ model Vendor {
   name      String
   npwp      String?
   contact   String?
+  // Master data perusahaan — dasar kop surat & logo (DECISIONS 134).
+  address   String?
+  phone     String?
+  email     String?
+  logoKey   String?  @map("logo_key") // key R2 logo perusahaan
+  kopKey    String?  @map("kop_key") // key R2 gambar kop surat (desain jadi milik perusahaan)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -1319,4 +1326,168 @@ model ReportDispatch {
 
   @@index([senderId, createdAt])
   @@map("report_dispatches")
+}
+
+// ─────────────────────────────────────────────────────────────
+// AI INTELLIGENCE HUB (DECISIONS 133)
+// AI = penjelas, BUKAN sumber angka. Semua angka dari calc layer;
+// run menyimpan snapshot sumber + output terstruktur tervalidasi.
+// ─────────────────────────────────────────────────────────────
+
+enum AiRunKind {
+  pulse          // Portfolio Pulse — ringkasan + prioritas lintas lokasi
+  deviasi        // Explain Variance — pisahkan data gap vs keterlambatan fisik
+  risiko         // Risk Intelligence — prioritisasi risiko
+  kualitas_data  // Audit Kualitas Data — penjelasan temuan rule
+  laporan        // Report Studio — draf laporan terstruktur
+  tanya          // Ask MARLIN — jawaban grounded
+}
+
+enum AiRunStatus {
+  berjalan
+  siap
+  gagal
+}
+
+enum AiArtifactKind {
+  laporan // draf laporan (Report Studio)
+  saran   // draft action/recovery usulan AI — TIDAK menulis domain
+}
+
+/// Lifecycle artefak laporan AI — terpisah dari DailyReport.
+enum AiArtifactStatus {
+  draft
+  direview
+  disetujui
+  beku      // immutable; siap distribusi
+  terkirim
+}
+
+/// Satu eksekusi AI (satu panggilan provider per run). Usage inline (1 run = 1 call,
+/// tabel terpisah tidak memberi nilai). sourcesJson = SourceRef[] utk drawer sumber.
+model AiRun {
+  id               String      @id @default(uuid()) @db.Uuid
+  userId           String      @map("user_id") @db.Uuid
+  runKind          AiRunKind   @map("run_kind")
+  status           AiRunStatus @default(berjalan)
+  scopeType        String      @map("scope_type") // location | package | all
+  scopeIds         Json        @map("scope_ids") // string[] locationId TERRESOLVE (sudah di-intersect izin)
+  periodStart      DateTime    @map("period_start") @db.Date
+  periodEnd        DateTime    @map("period_end") @db.Date
+  provider         String?
+  model            String?
+  promptVersion    String?     @map("prompt_version")
+  inputHash        String?     @map("input_hash")
+  sourceSnapshotAt DateTime?   @map("source_snapshot_at") @db.Timestamptz
+  readinessScore   Int?        @map("readiness_score")
+  confidence       Int?
+  sourcesJson      Json?       @map("sources_json")
+  outputJson       Json?       @map("output_json")
+  limitations      Json?
+  inputTokens      Int?        @map("input_tokens")
+  outputTokens     Int?        @map("output_tokens")
+  latencyMs        Int?        @map("latency_ms")
+  estimatedCostUsd Decimal?    @map("estimated_cost_usd") @db.Decimal(12, 6)
+  errorCode        String?     @map("error_code")
+  errorMessage     String?     @map("error_message")
+  startedAt        DateTime    @default(now()) @map("started_at") @db.Timestamptz
+  finishedAt       DateTime?   @map("finished_at") @db.Timestamptz
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz
+
+  artifacts AiArtifact[]
+  messages  AiMessage[]
+
+  @@index([userId, createdAt])
+  @@index([runKind, createdAt])
+  @@index([status, createdAt])
+  @@map("ai_runs")
+}
+
+/// Artefak hasil run: laporan (lifecycle review→approve→freeze→distribute) atau
+/// saran (draft action non-eksekusi). Regenerate = version baru (baris baru).
+model AiArtifact {
+  id                String           @id @default(uuid()) @db.Uuid
+  // Nullable: artefak "saran" bisa dibuat dari temuan deterministik TANPA run AI.
+  runId             String?          @map("run_id") @db.Uuid
+  kind              AiArtifactKind
+  templateKey       String?          @map("template_key")
+  templateVersion   Int              @default(1) @map("template_version")
+  version           Int              @default(1)
+  status            AiArtifactStatus @default(draft)
+  title             String
+  structuredContent Json             @map("structured_content")
+  renderedText      String?          @map("rendered_text") @db.Text
+  humanEditNote     String?          @map("human_edit_note")
+  createdById       String           @map("created_by_id") @db.Uuid
+  reviewedById      String?          @map("reviewed_by_id") @db.Uuid
+  reviewedAt        DateTime?        @map("reviewed_at") @db.Timestamptz
+  approvedById      String?          @map("approved_by_id") @db.Uuid
+  approvedAt        DateTime?        @map("approved_at") @db.Timestamptz
+  frozenAt          DateTime?        @map("frozen_at") @db.Timestamptz
+  contentHash       String?          @map("content_hash")
+  distributions     Json?            // {at, channel, target, byId, hash}[]
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime         @updatedAt @map("updated_at") @db.Timestamptz
+
+  run AiRun? @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([kind, status])
+  @@index([status, updatedAt])
+  @@map("ai_artifacts")
+}
+
+/// Percakapan Ask MARLIN (scope + periode terkunci saat dibuat).
+model AiConversation {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  title       String?
+  scopeIds    Json     @map("scope_ids") // string[] locationId terresolve
+  periodStart DateTime @map("period_start") @db.Date
+  periodEnd   DateTime @map("period_end") @db.Date
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  messages AiMessage[]
+
+  @@index([userId, updatedAt])
+  @@map("ai_conversations")
+}
+
+model AiMessage {
+  id             String   @id @default(uuid()) @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  role           String // "user" | "asisten"
+  content        String   @db.Text
+  citations      Json? // SourceRef[] ringkas
+  confidence     Int?
+  runId          String?  @map("run_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  run          AiRun?         @relation(fields: [runId], references: [id])
+
+  @@index([conversationId, createdAt])
+  @@map("ai_messages")
+}
+
+/// Ringkasan AI harian percakapan grup WA per paket (Layer B, DECISIONS 135).
+/// Satu baris per (paket, tanggal Jakarta); regenerate menimpa (upsert).
+model WaChatSummary {
+  id           String   @id @default(uuid()) @db.Uuid
+  packageId    String   @map("package_id") @db.Uuid
+  summaryDate  DateTime @map("summary_date") @db.Date
+  messageCount Int      @map("message_count")
+  summaryText  String   @map("summary_text") @db.Text
+  provider     String?
+  model        String?
+  createdById  String?  @map("created_by_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  package Package @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@unique([packageId, summaryDate])
+  @@index([summaryDate])
+  @@map("wa_chat_summaries")
 }

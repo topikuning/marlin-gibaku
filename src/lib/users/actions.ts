@@ -86,7 +86,7 @@ export async function createUser(_prev: UserActionState, formData: FormData): Pr
     });
   }
   await audit(actor.id, "user.create", "user", user.id, { role: targetRole, locations: locationIds.length });
-  revalidatePath("/pengguna");
+  revalidatePath("/master/pengguna");
   return { success: `Pengguna ${d.username} (${ROLE_LABEL[targetRole]}) dibuat. Password harus diganti saat login pertama.` };
 }
 
@@ -118,7 +118,7 @@ export async function updateUserProfile(_prev: UserActionState, formData: FormDa
 
   await db.user.update({ where: { id: d.userId }, data: { fullName: d.fullName, email } });
   await audit(actor.id, "user.update_profile", "user", d.userId, { fullName: d.fullName });
-  revalidatePath("/pengguna");
+  revalidatePath("/master/pengguna");
   return { success: "Data pengguna diperbarui." };
 }
 
@@ -128,7 +128,7 @@ export async function setUserActive(userId: string, isActive: boolean): Promise<
   await db.user.update({ where: { id: userId }, data: { isActive } });
   if (!isActive) await revokeAllSessions(userId); // sesi langsung mati
   await audit(actor.id, isActive ? "user.activate" : "user.deactivate", "user", userId);
-  revalidatePath("/pengguna");
+  revalidatePath("/master/pengguna");
 }
 
 export async function resetUserPassword(_prev: UserActionState, formData: FormData): Promise<UserActionState> {
@@ -142,7 +142,7 @@ export async function resetUserPassword(_prev: UserActionState, formData: FormDa
   });
   await revokeAllSessions(userId);
   await audit(actor.id, "user.reset_password", "user", userId);
-  revalidatePath("/pengguna");
+  revalidatePath("/master/pengguna");
   return { success: "Password direset. Pengguna wajib menggantinya saat login." };
 }
 
@@ -165,6 +165,6 @@ export async function setAssignments(_prev: UserActionState, formData: FormData)
     }
   });
   await audit(actor.id, "user.set_assignments", "user", userId, { count: locationIds.length });
-  revalidatePath("/pengguna");
+  revalidatePath("/master/pengguna");
   return { success: "Penugasan lokasi diperbarui." };
 }
