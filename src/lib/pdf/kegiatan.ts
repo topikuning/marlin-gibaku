@@ -47,6 +47,9 @@ export type KegiatanPdfData = {
   locationName: string;
   province: string;
   packageName: string;
+  projectOfficialName: string | null; // nama pekerjaan resmi (Contract.workTitle)
+  vendorName: string | null; // penyedia / perusahaan pelaksana
+  contractNumber: string | null;
   creatorName: string | null;
   participants: string | null;
   notes: string | null;
@@ -88,6 +91,9 @@ export async function buildKegiatanPdf(d: KegiatanPdfData): Promise<Buffer> {
     locationName: d.locationName,
     province: d.province,
     packageName: d.packageName,
+    projectOfficialName: d.projectOfficialName,
+    vendorName: d.vendorName,
+    contractNumber: d.contractNumber,
     creatorName: d.creatorName,
     participants: d.participants,
   });
@@ -145,7 +151,21 @@ export async function renderKegiatanPdf(
       status: true,
       createdById: true,
       location: {
-        select: { id: true, slug: true, name: true, province: true, package: { select: { name: true } } },
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          province: true,
+          package: {
+            select: {
+              name: true,
+              candidateVendorName: true,
+              contract: {
+                select: { workTitle: true, contractNumber: true, vendor: { select: { name: true } } },
+              },
+            },
+          },
+        },
       },
       photos: {
         select: { id: true, r2Key: true, exifTakenAt: true, exifGpsLat: true, exifGpsLng: true },
@@ -194,6 +214,13 @@ export async function renderKegiatanPdf(
     locationName: activity.location.name,
     province: activity.location.province,
     packageName: activity.location.package.name,
+    projectOfficialName:
+      activity.location.package.contract?.workTitle?.trim() || null,
+    vendorName:
+      activity.location.package.contract?.vendor?.name?.trim() ||
+      activity.location.package.candidateVendorName?.trim() ||
+      null,
+    contractNumber: activity.location.package.contract?.contractNumber ?? null,
     creatorName: creator?.fullName ?? null,
     participants: activity.participants,
     notes: activity.notes,
@@ -253,16 +280,23 @@ function drawDetails(
     locationName: string;
     province: string;
     packageName: string;
+    projectOfficialName: string | null;
+    vendorName: string | null;
+    contractNumber: string | null;
     creatorName: string | null;
     participants: string | null;
   },
 ): void {
-  const rows: [string, string][] = [
+  const rows: [string, string][] = [];
+  if (d.projectOfficialName) rows.push(["Nama proyek", d.projectOfficialName]);
+  rows.push(
     ["Jenis kegiatan", d.kindLabel],
     ["Tanggal", formatTanggal(d.activityDate, "EEEE, d MMMM yyyy")],
     ["Lokasi", `${d.locationName} (${d.province})`],
     ["Paket", d.packageName],
-  ];
+  );
+  if (d.vendorName) rows.push(["Penyedia", d.vendorName]);
+  if (d.contractNumber) rows.push(["No. kontrak", d.contractNumber]);
   if (d.creatorName) rows.push(["Pelapor", d.creatorName]);
   if (d.participants) rows.push(["Peserta / hadir", d.participants]);
 
