@@ -33,11 +33,40 @@ const KIND_LABEL: Record<string, string> = {
   tanya: "Ask MARLIN",
 };
 
+type NarrativeReportView = {
+  id: string;
+  date: string;
+  status: string;
+  weather: string | null;
+  notes: string | null;
+  photoCount: number;
+  items: { itemName: string; unit: string | null; volumeDone: number; notes: string | null }[];
+};
+type NarrativeActivityView = {
+  id: string;
+  date: string;
+  kindLabel: string;
+  title: string;
+  notes: string | null;
+  kendala: string | null;
+  solusi: string | null;
+  status: string;
+  photoCount: number;
+};
+type LocationNarrativeView = {
+  locationId: string;
+  locationName: string;
+  slug: string;
+  reports: NarrativeReportView[];
+  activities: NarrativeActivityView[];
+};
+
 type Official = {
   totals: PulseTotals;
   rows: PulseRow[];
   risks: RiskItem[];
   quality: QualityFinding[];
+  narrative: { locations: LocationNarrativeView[] } | null;
   periodStart: string;
   periodEnd: string;
   dataAsOf: string;
@@ -229,6 +258,64 @@ export default async function AiRunDetailPage({ params }: { params: Promise<{ id
                 </tbody>
               </table>
             </div>
+          </CardBody>
+        </Card>
+      ) : null}
+
+      {/* ── Narasi lapangan (mentah — verifikasi kutipan AI) ── */}
+      {official?.narrative && official.narrative.locations.some((l) => l.reports.length || l.activities.length) ? (
+        <Card>
+          <CardHeader
+            title="Narasi lapangan (sumber mentah)"
+            subtitle="Catatan laporan harian & kegiatan lapangan apa adanya — dasar kutipan AI. Foto TIDAK dianalisis AI (hanya jumlah + tautan); isinya tetap perlu dilihat manusia."
+          />
+          <CardBody className="space-y-4 text-sm">
+            {official.narrative.locations
+              .filter((l) => l.reports.length || l.activities.length)
+              .map((l) => (
+                <div key={l.locationId}>
+                  <p className="font-medium text-ink">{l.locationName}</p>
+                  {l.reports.length > 0 ? (
+                    <ul className="mt-1 space-y-1">
+                      {l.reports.map((r) => (
+                        <li key={r.id} className="rounded-md border border-border-muted px-2.5 py-1.5">
+                          <span className="text-xs text-ink-faint">
+                            {r.date} · laporan · {r.status}
+                            {r.weather ? ` · cuaca ${r.weather}` : ""} · {r.photoCount} foto
+                          </span>
+                          <p className="text-ink-muted">{r.notes ?? "(tanpa catatan)"}</p>
+                          {r.items.length > 0 ? (
+                            <p className="text-xs text-ink-faint">
+                              Item: {r.items.map((it) => `${it.itemName} ${it.volumeDone}${it.unit ?? ""}`).join("; ")}
+                            </p>
+                          ) : null}
+                          <Link href={`/lokasi/${l.slug}/harian/${r.date}`} className="text-xs text-primary hover:underline">
+                            Buka laporan →
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {l.activities.length > 0 ? (
+                    <ul className="mt-1 space-y-1">
+                      {l.activities.map((a) => (
+                        <li key={a.id} className="rounded-md border border-border-muted px-2.5 py-1.5">
+                          <span className="text-xs text-ink-faint">
+                            {a.date} · {a.kindLabel} · {a.status} · {a.photoCount} foto
+                          </span>
+                          <p className="font-medium text-ink">{a.title}</p>
+                          <p className="text-ink-muted">{a.notes ?? "(tanpa catatan)"}</p>
+                          {a.kendala ? <p className="text-xs text-warning">Kendala: {a.kendala}</p> : null}
+                          {a.solusi ? <p className="text-xs text-success">Solusi: {a.solusi}</p> : null}
+                          <Link href={`/lokasi/${l.slug}/kegiatan`} className="text-xs text-primary hover:underline">
+                            Buka kegiatan →
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              ))}
           </CardBody>
         </Card>
       ) : null}

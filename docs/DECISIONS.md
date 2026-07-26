@@ -2662,3 +2662,28 @@ Tiga bug tampilan pada PDF produksi (dari bundle self-contained DECISIONS 128):
   `vendors/{id}/kop.webp`, pratinjau + hapus di form. Field alamat/telepon/email
   tetap (fallback bila tanpa gambar kop). Penempatan otomatis kop+logo di
   header laporan cetak (/cetak) = MENYUSUL (tercatat OPEN_ISSUES).
+
+## 136 · 2026-07-26 · Narasi lapangan (laporan harian + kegiatan) jadi konteks AI Hub
+
+- **Masalah**: sebelumnya kegiatan lapangan & laporan harian hanya masuk AI Hub
+  sebagai ANGKA (`activityCount`, `finalReports`) — isinya (judul, jenis, catatan,
+  kendala, solusi) tidak pernah dibaca AI. Akibatnya AI bisa bilang "deviasi 90 pp"
+  tapi tak bisa menjawab "hari ini di lapangan ada apa saja".
+- **Solusi**: `src/lib/ai-hub/narrative.ts` (server, fetch DB) +
+  `narrative-format.ts` (MURNI: tipe, `truncateText`, `buildNarrativePayload`,
+  `toNarrativeSourceRefs`). Dipisah supaya formatter bisa di-unit-test tanpa env DB.
+- **Konten**: per lokasi maks 6 laporan harian (status, cuaca, catatan, maks 6 item
+  volume+catatan, jumlah foto) + 8 kegiatan lapangan (jenis, judul, catatan,
+  KENDALA, SOLUSI, jumlah foto). Catatan dipotong 240 char, payload dibatasi
+  18k char dgn penanda truncation eksplisit.
+- **Grounding**: tiap entri punya sourceRefId granular (`slug:laporan:YYYY-MM-DD`,
+  `slug:kegiatan:<id>`) + href drill-down; digabung ke `allowedSourceRefIds`
+  sehingga AI wajib mengutip entri spesifik, bukan sekadar id lokasi.
+- **Batas tegas** (SYSTEM_BASE aturan #6): narasi = konteks KUALITATIF, tidak
+  pernah jadi sumber angka progres/deviasi. **Foto TIDAK dikirim sebagai gambar
+  ke provider** (vision/OCR tetap di luar scope, DECISIONS 133 §17) — hanya
+  jumlah + tautan; AI dilarang mengklaim mendeskripsikan isi foto.
+- Aktif untuk kind: pulse, deviasi, risiko, laporan, tanya. PROMPT_VERSION → `hub-v2`.
+- UI: kartu "Narasi lapangan (sumber mentah)" di /ai/run/[id] — reviewer bisa
+  memverifikasi kutipan AI vs catatan asli, dgn tautan ke laporan/kegiatan.
+- Audit `ai.run.buat` mencatat `narrativeEntries`. 10 unit test baru (237 total).

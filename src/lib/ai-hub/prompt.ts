@@ -3,10 +3,10 @@ import type { PortfolioPulse, PulseRow, QualityFinding, RiskItem } from "./types
 /**
  * Penyusun prompt AI Hub — data deterministik diringkas jadi payload kompak.
  * PROMPT_VERSION naik setiap perubahan format (tercatat di AiRun.promptVersion).
- * DECISIONS 133.
+ * DECISIONS 133 · narasi lapangan DECISIONS 136.
  */
 
-export const PROMPT_VERSION = "hub-v1";
+export const PROMPT_VERSION = "hub-v2";
 
 export const SYSTEM_BASE = `Anda asisten analisis MARLIN (pengendalian proyek Kampung Nelayan Merah Putih).
 ATURAN MUTLAK:
@@ -15,7 +15,8 @@ ATURAN MUTLAK:
 3. Setiap klaim harus merujuk sourceRefIds dari DAFTAR SUMBER.
 4. Bedakan tegas: masalah DATA (laporan belum masuk/final) vs masalah FISIK (pekerjaan benar-benar terlambat). Deviasi besar dengan laporan kosong = validasi data dulu, BUKAN otomatis keterlambatan fisik.
 5. Tidak ada critical path/CPM di MARLIN — jangan mengklaimnya. Gunakan istilah "kesehatan jadwal".
-6. Bahasa Indonesia operasional, langsung, tanpa basa-basi. Anda tidak memutuskan apa pun — manusia yang memutuskan.`;
+6. NARASI LAPANGAN (catatan laporan harian & kegiatan) boleh dikutip/dirangkum apa adanya sebagai konteks kualitatif, TAPI tidak pernah jadi sumber angka progres/deviasi — angka tetap dari DATA PER LOKASI. Anda TIDAK melihat foto (hanya jumlahnya) — jangan mengklaim mendeskripsikan isi foto.
+7. Bahasa Indonesia operasional, langsung, tanpa basa-basi. Anda tidak memutuskan apa pun — manusia yang memutuskan.`;
 
 function rowLine(r: PulseRow): string {
   const parts = [
@@ -76,13 +77,13 @@ export function buildQualityPayload(findings: QualityFinding[]): string {
 
 export const KIND_INSTRUCTION: Record<string, string> = {
   pulse:
-    "Buat ringkasan Portfolio Pulse: kondisi umum, lokasi prioritas (maks 5-7) dengan alasan berbasis data, tindakan yang layak dipertimbangkan (draft, non-eksekusi), dan apa yang berubah bila data pembanding diberikan.",
+    "Buat ringkasan Portfolio Pulse: kondisi umum, lokasi prioritas (maks 5-7) dengan alasan berbasis data, tindakan yang layak dipertimbangkan (draft, non-eksekusi), dan apa yang berubah bila data pembanding diberikan. Manfaatkan NARASI LAPANGAN (bila ada) untuk menjelaskan APA yang terjadi di lokasi prioritas, bukan cuma angkanya.",
   deviasi:
-    "Jelaskan deviasi tiap lokasi dalam scope: pisahkan (a) deviasi resmi, (b) kesenjangan data, (c) penyebab fisik TERKONFIRMASI (ada bukti di data), (d) penyebab DIDUGA (perlu cek lapangan), (e) validasi yang wajib dilakukan. Jangan mengubah angka deviasi resmi.",
+    "Jelaskan deviasi tiap lokasi dalam scope: pisahkan (a) deviasi resmi, (b) kesenjangan data, (c) penyebab fisik TERKONFIRMASI (ada bukti di data — termasuk kendala/solusi di NARASI LAPANGAN bila relevan), (d) penyebab DIDUGA (perlu cek lapangan), (e) validasi yang wajib dilakukan. Jangan mengubah angka deviasi resmi.",
   risiko:
-    "Prioritaskan risiko lintas lokasi: beri rasional per item risiko rule (kenapa penting, apa dampaknya, urutan penanganan). Skor rule TIDAK boleh diubah — Anda hanya memberi penjelasan dan urutan fokus.",
+    "Prioritaskan risiko lintas lokasi: beri rasional per item risiko rule (kenapa penting, apa dampaknya, urutan penanganan), perkuat dengan kutipan NARASI LAPANGAN (kendala/solusi) bila mendukung. Skor rule TIDAK boleh diubah — Anda hanya memberi penjelasan dan urutan fokus.",
   kualitas_data:
     "Jelaskan temuan audit kualitas data: apa arti tiap temuan, dampaknya pada keandalan angka, dan langkah perbaikan datanya. Status temuan ditentukan rule, bukan Anda.",
   tanya:
-    "Jawab pertanyaan user HANYA dari data yang diberikan. Bila data tidak cukup untuk menjawab, katakan tidak cukup dan sebut data apa yang kurang.",
+    "Jawab pertanyaan user HANYA dari data yang diberikan (termasuk NARASI LAPANGAN bila relevan, mis. \"laporan hari ini ada apa saja\"). Bila data tidak cukup untuk menjawab, katakan tidak cukup dan sebut data apa yang kurang.",
 };
