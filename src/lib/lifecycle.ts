@@ -1,4 +1,6 @@
 import type {
+  AiArtifactStatus,
+  AiRunStatus,
   DailyReportStatus,
   LocationStatus,
   PackageStage,
@@ -138,4 +140,46 @@ export const LOCATION_STATUS_TONE: Record<LocationStatus, "neutral" | "info" | "
   pemeliharaan: "info",
   fho: "success",
   batal: "danger",
+};
+
+/* ── Artefak laporan AI (AI Hub, DECISIONS 133) ─────────────────────────── */
+
+const AI_ARTIFACT_TRANSITIONS: Record<AiArtifactStatus, AiArtifactStatus[]> = {
+  draft: ["direview"],
+  direview: ["disetujui", "draft"], // kembalikan ke draft = minta perbaikan
+  disetujui: ["beku", "direview"],
+  beku: ["terkirim"], // beku immutable — hanya boleh didistribusikan
+  terkirim: ["terkirim"], // boleh dikirim ulang ke target lain
+};
+
+export function canTransitionAiArtifact(from: AiArtifactStatus, to: AiArtifactStatus): boolean {
+  return AI_ARTIFACT_TRANSITIONS[from]?.includes(to) ?? false;
+}
+
+export const AI_ARTIFACT_STATUS_LABEL: Record<AiArtifactStatus, string> = {
+  draft: "Draft AI",
+  direview: "Sedang direview",
+  disetujui: "Disetujui",
+  beku: "Beku (final)",
+  terkirim: "Terkirim",
+};
+
+export const AI_ARTIFACT_STATUS_TONE: Record<AiArtifactStatus, "neutral" | "info" | "warning" | "success"> = {
+  draft: "neutral",
+  direview: "warning",
+  disetujui: "info",
+  beku: "success",
+  terkirim: "success",
+};
+
+export const AI_RUN_STATUS_LABEL: Record<AiRunStatus, string> = {
+  berjalan: "Berjalan",
+  siap: "Siap",
+  gagal: "Gagal",
+};
+
+export const AI_RUN_STATUS_TONE: Record<AiRunStatus, "info" | "success" | "danger"> = {
+  berjalan: "info",
+  siap: "success",
+  gagal: "danger",
 };

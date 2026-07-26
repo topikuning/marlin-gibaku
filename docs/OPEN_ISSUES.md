@@ -67,3 +67,15 @@ Termin 20/25/30/25 ditagih saat progres TOTAL kontrak mencapai 25/50/80/100%, de
 retensi pemeliharaan 5% (bisa diganti jaminan pemeliharaan). Perlu: modul keuangan
 otomatis menandai "termin-N siap ditagih" saat progres agregat lewat ambang, +
 perhitungan retensi & opsi jaminan pemeliharaan. Milestone pembayaran sudah scope induk.
+
+## FUTURE · AI Hub — pekerjaan lanjutan yang sengaja ditunda (DECISIONS 133)
+- E2E Playwright alur AI (PM buka hub → pulse → variance → report lifecycle →
+  distribusi → Ask) belum ditulis — unit (34) + integration hijau.
+- Rule readiness/quality tambahan: dokumen WAJIB per fase (butuh definisi daftar
+  wajib), kandidat foto near-duplicate (butuh perceptual hash — byte-identik
+  sudah dicegah sha256), spike volume harian abnormal.
+- "What changed vs periode sebelumnya" di Pulse masih dari data run yang sama;
+  pembanding run sebelumnya (inputHash sama) belum di-feed ke prompt.
+- Estimasi biaya: pricing per-provider (sekarang satu set harga global aktif).
+- Rotasi AI_SECRET_ENCRYPTION_KEY: prosedur = set kunci baru + simpan ulang API
+  key dari Sistem → AI (re-encrypt); belum ada tooling re-encrypt massal.

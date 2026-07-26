@@ -84,6 +84,21 @@ Hari Ini (landing lapangan mobile) · Progress · Keuangan · Dokumen · Laporan
 Pengguna · Sistem. Cetak KKP di `/cetak/*` tanpa shell. Mobile bottom-nav ≤5
 tujuan per role.
 
+## 5a. AI Intelligence Hub (DECISIONS 133)
+
+Menu global `/ai` (capability `ai.*`; field_supervisor tanpa akses): Portfolio
+Pulse (KPI + tabel exception-first + readiness gate — deterministik penuh,
+berfungsi tanpa provider AI), Perlu Tindakan (antrean rule risiko; simpan =
+draft saran, TIDAK menulis Issue/Recovery), Report Studio (7 template; satu
+structuredContent → pratinjau/cetak-A4/WA/Excel dgn angka identik; lifecycle
+draft→direview→disetujui→beku→terkirim via lifecycle.ts; beku immutable),
+Ask MARLIN (grounded, read-only, bersitasi, percakapan tersimpan), Riwayat &
+Audit (usage token/latency/estimasi biaya per run). Prinsip: **AI bukan sumber
+angka** — semua angka dari calc layer; output AI lolos zod + validasi scope +
+sourceRef + klaim angka, bagian gagal dibuang jadi limitation. In-process (tanpa
+service/Redis/MCP/agent framework); guard AppSetting: kill switch + rate limit +
+batas ukuran; API key provider terenkripsi AES-256-GCM (`AI_SECRET_ENCRYPTION_KEY`).
+
 ## 6. Alur harian (jantung sistem)
 
 Mandor/SM buka **Hari Ini** → workspace tanggal `/lokasi/[slug]/harian/[date]` →

@@ -2561,3 +2561,62 @@ Tiga bug tampilan pada PDF produksi (dari bundle self-contained DECISIONS 128):
 - Verifikasi: typecheck/lint/unit(193)/build ✓.
 - Menyusul: kolom "prognosa selesai / diprediksi telat" di dashboard eksekutif &
   portfolio; ringkas prognosa di PDF/laporan; forecast BIAYA (butuh tambahan model).
+
+## 133 · 2026-07-26 · AI Intelligence Hub (menu global /ai)
+
+- **Keputusan produk**: AI menjadi menu global mandiri `/ai` (bukan modul duplikat
+  per lokasi) dengan 5 tab: Portfolio Pulse, Perlu Tindakan, Report Studio,
+  Ask MARLIN, Riwayat & Audit. Halaman lokasi hanya punya tombol deep-link
+  (`/ai?scopeIds=<id>`). Sumber: master prompt user 2026-07-26 (hasil diskusi
+  arsitektur dgn ChatGPT + Claude), diimplementasi dengan penyesuaian di bawah.
+- **Prinsip non-negotiable**: AI BUKAN sumber angka. Semua angka dari calculation
+  layer (lib/progress, lib/baseline, lib/forecast, lib/finance); AI hanya
+  menjelaskan/merangkum/memprioritaskan/menyusun draf. Setiap output AI melewati:
+  skema zod → validasi lokasi ∈ scope → validasi sourceRefId → validasi klaim
+  angka (`numericClaimsValid`, ±0.6 thd angka resmi); bagian gagal DIBUANG dan
+  tercatat sebagai limitation.
+- **Arsitektur**: in-process di service Next.js yang sama (satu web service
+  Railway + Postgres). TANPA: MCP, Redis, worker, LiteLLM, agent framework,
+  multi-agent, autonomous tool loop, SQL/shell tool. Satu operasi = satu
+  panggilan provider terstruktur (maks 1 repair), sinkron.
+- **Lapisan deterministik** (`src/lib/ai-hub/`): `source.ts` (portfolio builder
+  batched + resolveAiScope intersect izin), `readiness.ts` (Data Readiness Gate,
+  bobot eksplisit, unit-tested), `risk.ts` (ruleScore terpisah dari narasi AI;
+  TANPA klaim CPM — istilah "kesehatan jadwal"), `quality-rules.ts` (audit
+  kualitas: volume>RAB, EXIF mismatch, GPS radius, final tanpa foto, 0% dengan
+  bukti, invoice>commitment; status lulus/periksa/gagal/info ditentukan rule).
+  Pulse deterministik tetap berfungsi penuh saat provider AI mati.
+- **Schema**: `AiRun` (usage inline — 1 run = 1 call, tabel AiUsage terpisah
+  tidak memberi nilai; sourceRefs sbg Json — menghindari ledakan baris),
+  `AiArtifact` (lifecycle draft→direview→disetujui→beku→terkirim via
+  lifecycle.ts; beku immutable + contentHash; runId nullable utk saran
+  deterministik), `AiConversation`+`AiMessage` (Ask MARLIN; TANPA menyimpan
+  chain-of-thought). Migration `20260726120000_ai_hub` + `..121000`.
+- **AI client v2** (`src/lib/ai/`): `aiCall()` dgn usage token + latency +
+  finish reason + kode error stabil + timeout (AbortSignal) + maks 1 retry
+  (429/5xx/timeout); parser murni `parse.ts` (unit-tested); `structured.ts`
+  (JSON-only + zod + 1 repair). `aiComplete()` lama tetap kompatibel
+  (laporan eksekutif WA).
+- **Proteksi**: API key AI dienkripsi at-rest AES-256-GCM (`src/lib/ai/crypto.ts`,
+  env `AI_SECRET_ENCRYPTION_KEY`, format `enc:v1:iv:tag:ct`, baca
+  kompatibel-mundur plaintext lama; production TANPA kunci → tolak simpan key
+  baru). Guard (`ai-hub/guard.ts` + AppSetting): kill switch global, maks
+  run/user/jam (20), run/org/hari (200), lokasi/run (25), input chars, output
+  token, ask/conversation; penolakan diaudit. Pricing token opsional (setting
+  admin, TIDAK hardcode) → estimatedCostUsd per run. Kontrol di Sistem → AI.
+- **Capability baru**: ai.view, ai.generate, ai.ask, ai.report_review,
+  ai.report_approve, ai.report_send. field_supervisor TANPA akses AI.
+- **Report Studio**: 7 template; satu `structuredContent` kanonik → renderer
+  deterministik sama utk pratinjau, cetak A4 (`/cetak/ai/[id]`, PDF via print —
+  pola cetak existing), WhatsApp, Excel (`/api/ai-artifact/[id]/excel`,
+  exceljs) — angka dijamin identik. Distribusi WA reuse WAHA + WaContact,
+  hanya artefak BEKU, riwayat distribusi + hash tersimpan.
+- **Perlu Tindakan**: antrean deterministik dari rule risiko; "Simpan Draft"
+  membuat artefak `saran` — TIDAK pernah menulis Issue/RecoveryAction domain.
+- **Penyesuaian sadar vs master prompt** (dicatat jujur): (1) AiUsage &
+  AiSourceRef digabung ke AiRun (lean, fungsi sama); (2) tab = route App
+  Router + LinkTabs (pola repo) bukan client tablist; (3) PDF via halaman
+  cetak print-A4 (pola repo) bukan pdfkit; (4) dokumen wajib & foto near-duplicate
+  belum masuk rules readiness/quality v1 (tercatat sbg limitation); (5) E2E
+  Playwright penuh belum ditulis (unit 34 + integration hijau; E2E menyusul).
+- Verifikasi: typecheck ✓ lint ✓ unit 227 ✓ integration 13 ✓ build ✓.

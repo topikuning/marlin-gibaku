@@ -1,6 +1,8 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { env } from "@/lib/env";
 import { jakartaToday } from "@/lib/format";
+import { encryptionKeyFromEnv, encryptSecret, readStoredSecret } from "@/lib/ai/crypto";
 import {
   AI_PROVIDERS,
   AI_PROVIDER_IDS,
@@ -26,7 +28,7 @@ function allKeys(): string[] {
 }
 
 /** Nilai efektif terbaru per key. */
-async function latestSettings(keys: string[]): Promise<Map<string, string>> {
+export async function latestSettings(keys: string[]): Promise<Map<string, string>> {
   const rows = await db.appSetting.findMany({
     where: { key: { in: keys } },
     orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }],
@@ -36,7 +38,7 @@ async function latestSettings(keys: string[]): Promise<Map<string, string>> {
   return latest;
 }
 
-async function put(key: string, value: string): Promise<void> {
+export async function putAiSetting(key: string, value: string): Promise<void> {
   const effectiveFrom = jakartaToday();
   await db.appSetting.upsert({
     where: { key_effectiveFrom: { key, effectiveFrom } },
@@ -44,6 +46,7 @@ async function put(key: string, value: string): Promise<void> {
     create: { key, value, effectiveFrom },
   });
 }
+const put = putAiSetting;
 
 export type AiProviderDisplay = {
   id: AiProviderId;
@@ -78,6 +81,19 @@ export async function getAiConfigDisplay(): Promise<AiConfigDisplay> {
   };
 }
 
+/** Status penyimpanan rahasia (untuk tampilan Sistem — tanpa bocorkan kunci/nilai). */
+export function aiSecretStorageStatus(): { encrypted: boolean; detail: string } {
+  const key = encryptionKeyFromEnv();
+  if (key) return { encrypted: true, detail: "API key dienkripsi at-rest (AES-256-GCM)." };
+  return {
+    encrypted: false,
+    detail:
+      env.APP_ENV === "production"
+        ? "AI_SECRET_ENCRYPTION_KEY belum diset — penyimpanan API key baru DITOLAK di production."
+        : "AI_SECRET_ENCRYPTION_KEY belum diset — API key tersimpan plaintext (hanya boleh di dev).",
+  };
+}
+
 /** Simpan API key & model satu provider. apiKey `undefined` = jangan ubah; "" = hapus. */
 export async function setAiProviderConfig(
   id: AiProviderId,
@@ -87,7 +103,22 @@ export async function setAiProviderConfig(
     await put(keyModel(id), input.model.trim());
   }
   if (input.apiKey !== undefined) {
-    await put(keyApiKey(id), input.apiKey.trim());
+    const plain = input.apiKey.trim();
+    if (plain === "") {
+      await put(keyApiKey(id), "");
+      return;
+    }
+    const key = encryptionKeyFromEnv();
+    if (key) {
+      await put(keyApiKey(id), encryptSecret(plain, key));
+    } else if (env.APP_ENV === "production") {
+      // Jangan pernah diam-diam menyimpan plaintext baru di production.
+      throw new Error(
+        "AI_SECRET_ENCRYPTION_KEY belum diset di server — API key tidak disimpan. Set env tersebut lalu ulangi.",
+      );
+    } else {
+      await put(keyApiKey(id), plain); // dev/test: transisi, tetap jalan
+    }
   }
 }
 
@@ -110,7 +141,9 @@ export async function getAiProviderConfig(id: AiProviderId): Promise<ResolvedAiC
   const meta = aiProvider(id);
   if (!meta) return null;
   const s = await latestSettings([keyApiKey(id), keyModel(id)]);
-  const apiKey = s.get(keyApiKey(id))?.trim();
+  const stored = s.get(keyApiKey(id))?.trim();
+  // Kompatibel-mundur: plaintext lama terbaca apa adanya; terenkripsi didekripsi.
+  const apiKey = stored ? readStoredSecret(stored, encryptionKeyFromEnv())?.trim() : undefined;
   if (!apiKey) return null;
   return {
     id,

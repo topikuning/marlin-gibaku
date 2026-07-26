@@ -264,6 +264,16 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
           <CardHeader
             title="Prognosa penyelesaian"
             subtitle="Proyeksi ke depan dari laju realisasi terkini + kinerja kumulatif (SPI). Estimasi berbasis tren, bukan kepastian."
+            action={
+              can(user.role, "ai.view") ? (
+                <Link
+                  href={`/ai?scopeIds=${location.id}`}
+                  className="text-xs font-medium text-primary hover:underline"
+                >
+                  Jelaskan dengan AI →
+                </Link>
+              ) : null
+            }
           />
           <CardBody>
             {!forecast.enoughData ? (

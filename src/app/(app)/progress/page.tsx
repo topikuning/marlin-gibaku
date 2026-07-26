@@ -4,6 +4,7 @@ import { PageHeader, KpiCard, Card, CardHeader, CardBody, EmptyState, ProgressBa
 import { DeltaBadge } from "@/components/ui/stat-delta";
 import { TrendingUp } from "lucide-react";
 import { requireUser, accessibleLocationIds } from "@/lib/auth/session";
+import { can } from "@/lib/authz";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
 import { getLocationsProgress } from "@/lib/progress";
@@ -53,6 +54,16 @@ export default async function ProgressPage() {
       <PageHeader
         title="Progress Portfolio"
         description="Rencana vs realisasi berbasis volume — angka dihitung dari RAB aktif, baseline aktif, dan laporan harian terkirim."
+        actions={
+          can(user.role, "ai.view") ? (
+            <Link
+              href="/ai"
+              className="inline-flex h-9 items-center rounded-md border border-border bg-surface px-3 text-sm font-medium text-primary hover:bg-surface-muted"
+            >
+              Buka di AI Intelligence
+            </Link>
+          ) : null
+        }
       />
       <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <KpiCard label="Nilai RAB aktif" value={formatRupiahShort(totalRab)} sub="pra-PPN" />

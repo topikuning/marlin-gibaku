@@ -38,6 +38,13 @@ export const CAPABILITIES = [
   "compliance.manage",
   "report.export",
   "exec_report.send", // kirim laporan eksekutif (rangkuman AI) ke WA — site_manager ke atas
+  // AI Intelligence Hub (DECISIONS 133) — AI = penjelas, bukan sumber angka.
+  "ai.view", // buka hub + riwayat run
+  "ai.generate", // jalankan analisis (pulse/deviasi/risiko/kualitas) + draf laporan + saran
+  "ai.ask", // Ask MARLIN (tanya-jawab grounded, read-only)
+  "ai.report_review", // review/edit draf laporan AI
+  "ai.report_approve", // approve + freeze artefak laporan
+  "ai.report_send", // distribusi artefak beku (WA)
   "user.manage",
   "user.create",
   "system.manage",
@@ -75,6 +82,12 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
     "document.verify",
     "compliance.manage",
     "report.export",
+    "ai.view",
+    "ai.generate",
+    "ai.ask",
+    "ai.report_review",
+    "ai.report_approve",
+    "ai.report_send",
   ]),
   project_manager: new Set<Capability>([
     ...VIEW_ALL,
@@ -95,6 +108,11 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
     "compliance.manage",
     "report.export",
     "user.create", // bikin Site Manager & Pelaksana di bawahnya
+    "ai.view",
+    "ai.generate",
+    "ai.ask",
+    "ai.report_review",
+    "ai.report_send",
   ]),
   site_manager: new Set<Capability>([
     ...VIEW_ALL,
@@ -110,6 +128,9 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
     "document.upload",
     "report.export",
     "user.create", // bikin Pelaksana di bawahnya
+    "ai.view",
+    "ai.generate",
+    "ai.ask",
   ]),
   field_supervisor: new Set<Capability>([
     ...VIEW_ALL,
@@ -122,6 +143,9 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
     "package.view",
     "finance.view",
     "report.export",
+    "ai.view",
+    "ai.generate",
+    "ai.ask",
   ]),
 };
 

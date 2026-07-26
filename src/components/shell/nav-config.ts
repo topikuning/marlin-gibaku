@@ -9,6 +9,7 @@ import {
   Package,
   Send,
   Settings,
+  Sparkles,
   Sun,
   TrendingUp,
   Users,
@@ -36,6 +37,7 @@ export const ICONS = {
   folderOpen: FolderOpen,
   fileText: FileText,
   send: Send,
+  sparkles: Sparkles,
   users: Users,
   settings: Settings,
 } as const;
@@ -55,6 +57,7 @@ export const MAIN_NAV: NavItem[] = [
   { label: "Peta", href: "/peta", icon: "map", capability: "location.view" },
   { label: "Hari Ini", href: "/hari-ini", icon: "sun", capability: "daily_report.create" },
   { label: "Foto Lapangan", href: "/foto", icon: "camera", capability: "location.view" },
+  { label: "AI Intelligence", href: "/ai", icon: "sparkles", capability: "ai.view" },
   { label: "Progress", href: "/progress", icon: "trendingUp", capability: "progress.view" },
   { label: "Keuangan", href: "/keuangan", icon: "wallet", capability: "finance.view" },
   { label: "Dokumen", href: "/dokumen", icon: "folderOpen", capability: "document.view" },
