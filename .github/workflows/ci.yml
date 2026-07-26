@@ -97,7 +97,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build image
-        run: docker build --no-cache -t marlin:ci .
+        # Tahan-flake: tarik base image dari Docker Hub kadang timeout jaringan
+        # (i/o timeout / DeadlineExceeded) SEBELUM kode kita jalan. Retry HANYA
+        # pada error jaringan/registry; TETAP gagal cepat bila build kode gagal.
+        run: |
+          set +e
+          for i in 1 2 3; do
+            out="$(docker build --no-cache -t marlin:ci . 2>&1)"; code=$?
+            echo "$out"
+            if [ $code -eq 0 ]; then exit 0; fi
+            if echo "$out" | grep -qiE "i/o timeout|deadlineexceeded|failed to do request|tls handshake timeout|connection reset|temporary failure|timeout awaiting|registry-1\.docker\.io"; then
+              echo "::warning::Docker registry/jaringan flake (percobaan $i) — retry…"; sleep $((i * 10)); continue
+            fi
+            echo "::error::Docker build gagal (bukan flake jaringan)."; exit "$code"
+          done
+          echo "::error::Docker registry tak responsif setelah retry."; exit 1
 
   e2e:
     name: E2E (Playwright)
