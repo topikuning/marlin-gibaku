@@ -90,6 +90,44 @@ export function docToBuffer(doc: PdfDoc): Promise<Buffer> {
 
 /* ── Primitif tata letak ─────────────────────────────────────────────────── */
 
+/** Kop laporan: nama app + konteks proyek (kiri) & judul dokumen (kanan), garis navy. */
+export function reportHeader(doc: PdfDoc, appName: string, context: string, title: string): void {
+  const top = PAGE_MARGIN;
+  doc
+    .font(PDF_FONT.bold)
+    .fontSize(9)
+    .fillColor(PDF_COLORS.inkMuted)
+    .text(appName.toUpperCase(), PAGE_MARGIN, top, { characterSpacing: 1, width: CONTENT_WIDTH * 0.55 });
+  doc
+    .font(PDF_FONT.regular)
+    .fontSize(8)
+    .fillColor(PDF_COLORS.inkMuted)
+    .text(context, PAGE_MARGIN, doc.y + 1, { width: CONTENT_WIDTH * 0.55 });
+  doc
+    .font(PDF_FONT.bold)
+    .fontSize(15)
+    .fillColor(PDF_COLORS.primary)
+    .text(title.toUpperCase(), PAGE_MARGIN, top + 2, { width: CONTENT_WIDTH, align: "right" });
+  const lineY = Math.max(doc.y, top + 34) + 4;
+  doc.moveTo(PAGE_MARGIN, lineY).lineTo(PAGE_MARGIN + CONTENT_WIDTH, lineY).lineWidth(2.5).strokeColor(PDF_COLORS.primary).stroke();
+  doc.y = lineY + 12;
+  doc.x = PAGE_MARGIN;
+}
+
+/** Blok identitas: judul besar + subteks + kotak rincian (label:value). */
+export function detailBox(doc: PdfDoc, rows: [string, string][]): void {
+  const boxX = PAGE_MARGIN;
+  const boxW = CONTENT_WIDTH;
+  const padIn = 10;
+  const startY = doc.y;
+  let y = startY + padIn;
+  for (const [label, value] of rows) y = metaRow(doc, label, value, boxX + padIn, y, boxW - padIn * 2);
+  const boxH = y - startY + padIn - 4;
+  doc.roundedRect(boxX, startY, boxW, boxH, 6).lineWidth(0.8).strokeColor(PDF_COLORS.border).stroke();
+  doc.y = startY + boxH + 8;
+  doc.x = PAGE_MARGIN;
+}
+
 /** Judul section bergaris bawah aksen (uppercase, seperti laporan cetak). */
 export function sectionHeading(doc: PdfDoc, title: string): void {
   ensureSpace(doc, 34);

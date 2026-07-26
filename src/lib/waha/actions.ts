@@ -588,3 +588,122 @@ export async function sendDailyReportToWaAction(
     return fail(err);
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Kirim laporan (harian / periodik) sebagai PDF ringkas ke WhatsApp   */
+/* ------------------------------------------------------------------ */
+
+/** Resolusi tujuan WA: input bebas bila ada, selain itu grup WA paket lokasi. */
+async function resolveWaChat(
+  locationId: string,
+  rawDest: string,
+): Promise<{ chatId: string; label: string } | { error: string }> {
+  if (rawDest.trim()) {
+    const chatId = normalizeWaDest(rawDest);
+    return { chatId, label: chatId.endsWith("@g.us") ? "grup WhatsApp" : "WhatsApp" };
+  }
+  const loc = await groupForLocation(locationId);
+  if (!loc?.package?.waGroupId) {
+    return { error: "Belum ada tujuan: paket tanpa grup WhatsApp. Isi nomor/ID tujuan, atau atur grup di halaman Paket." };
+  }
+  return { chatId: normalizeGroupChatId(loc.package.waGroupId), label: "grup WhatsApp paket" };
+}
+
+/** Kirim Laporan Harian sebagai PDF ringkas ke WA (grup paket atau tujuan bebas). */
+export async function sendDailyReportPdfToWaAction(
+  _prev: WaActionState,
+  formData: FormData,
+): Promise<WaActionState> {
+  const schema = z.object({
+    slug: z.string().trim().min(1),
+    dateKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal tidak valid"),
+  });
+  const parsed = schema.safeParse({ slug: formData.get("slug"), dateKey: formData.get("dateKey") });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { slug, dateKey } = parsed.data;
+
+  try {
+    const user = await requireCapability("report.export");
+    const locBasic = await db.location.findUnique({ where: { slug }, select: { id: true } });
+    if (!locBasic) return { error: "Lokasi tidak ditemukan." };
+    await requireLocationAccess(user, locBasic.id);
+
+    const target = await resolveWaChat(locBasic.id, String(formData.get("destChatId") ?? ""));
+    if ("error" in target) return { error: target.error };
+
+    const { renderHarianPdf } = await import("@/lib/pdf/harian");
+    const result = await renderHarianPdf(slug, dateKey);
+    if (!result) return { error: "Laporan harian tidak ditemukan." };
+
+    const data = await getKkpDailyData(slug, dateKey);
+    const caption = [
+      `📄 *Laporan Harian*`,
+      `📍 ${data?.locationName ?? ""}`,
+      data ? `📅 ${data.hari}, ${data.tanggalFull}` : null,
+      data ? `👷 ${data.totalWorkers} pekerja${data.activeWeather ? ` · ☁️ ${data.activeWeather}` : ""}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
+    const fileName = `laporan-harian-${slug}-${dateKey}.pdf`;
+    await sendFile(target.chatId, toFilePayload(result.buffer, PDF_MIME, fileName), caption);
+
+    await db.dailyReport
+      .update({
+        where: { locationId_reportDate: { locationId: locBasic.id, reportDate: new Date(`${dateKey}T00:00:00.000Z`) } },
+        data: { waSentAt: new Date(), waSentById: user.id },
+      })
+      .catch(() => {});
+    await audit(user.id, "report.wa_send_pdf", "daily_report", null, { locationId: locBasic.id, dateKey, chatId: target.chatId });
+    revalidatePath(`/lokasi/${slug}/laporan-lokasi`);
+    return { success: `Laporan harian (PDF) terkirim ke ${target.label}.` };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Kirim Laporan Mingguan/Bulanan sebagai PDF ringkas ke WA (grup paket atau tujuan bebas). */
+export async function sendPeriodReportPdfToWaAction(
+  _prev: WaActionState,
+  formData: FormData,
+): Promise<WaActionState> {
+  const schema = z.object({
+    locationId: z.uuid(),
+    kind: z.enum(["mingguan", "bulanan"]),
+    n: z.coerce.number().int().min(1).max(520),
+  });
+  const parsed = schema.safeParse({
+    locationId: formData.get("locationId"),
+    kind: formData.get("kind"),
+    n: formData.get("n"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { locationId, kind, n } = parsed.data;
+
+  try {
+    const user = await requireCapability("report.export");
+    await requireLocationAccess(user, locationId);
+
+    const target = await resolveWaChat(locationId, String(formData.get("destChatId") ?? ""));
+    if ("error" in target) return { error: target.error };
+
+    const { renderPeriodikPdf } = await import("@/lib/pdf/periodik");
+    const result = await renderPeriodikPdf(locationId, kind as PeriodKind, n);
+    if (!result) return { error: "Laporan untuk periode ini tidak tersedia." };
+
+    const loc = await groupForLocation(locationId);
+    const periodeLabel = kind === "mingguan" ? `Minggu ke-${n}` : `Bulan ke-${n}`;
+    const caption = [
+      `📄 *Laporan ${kind === "mingguan" ? "Mingguan" : "Bulanan"} — ${periodeLabel}*`,
+      loc?.name ? `📍 ${loc.name}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
+    const fileName = `laporan-${kind}-${loc?.slug ?? locationId}-${n}.pdf`;
+    await sendFile(target.chatId, toFilePayload(result.buffer, PDF_MIME, fileName), caption);
+
+    await audit(user.id, "report.wa_send_pdf", "location", locationId, { kind, n, chatId: target.chatId });
+    return { success: `Laporan ${kind} (PDF) terkirim ke ${target.label}.` };
+  } catch (err) {
+    return fail(err);
+  }
+}

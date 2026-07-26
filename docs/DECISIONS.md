@@ -2438,3 +2438,25 @@ scurve — dengan test properti, bukan paritas nilai):**
   absolut disusun dari origin request (`lib/http.ts getRequestOrigin`, header x-forwarded-*).
 - `renderKegiatanPdf(id, { baseUrl })`: pemanggil (route unduh + aksi kirim WA) meneruskan origin.
 - Verifikasi: typecheck/lint ✓, token round-trip + tolak tamper/garবage ✓, render PDF berlink ✓.
+
+## 126 · 2026-07-26 · Laporan Harian & Mingguan/Bulanan → PDF ringkas + kirim WA
+
+- **Kebutuhan**: kirim laporan harian & mingguan ke WA sebagai PDF (bukan cuma Excel). Format
+  dipilih user: DUA-DUANYA (ringkas profesional + form KKP resmi).
+- **Slice ini = format RINGKAS** (bersih, enak dibaca di HP, beda dari Excel) untuk keduanya.
+  Format resmi KKP (form bergaris; mingguan perlu landscape) = slice berikutnya.
+- **Primitif** `lib/pdf/table.ts`: `table()` (header berwarna + zebra + wrap sel + page-break yang
+  MENGULANG header) + `kpiRow()` (kartu KPI). `document.ts` tambah `reportHeader()` + `detailBox()`
+  agar semua jenis laporan berbagi kop & kotak identitas.
+- **`lib/pdf/harian.ts`** `buildHarianRingkasPdf(KkpDailyData)` + `renderHarianPdf(slug, dateKey)`:
+  kop, identitas, KPI (pekerja/cuaca/jam), tabel progres pekerjaan hari ini, tenaga/material/alat,
+  catatan. **`lib/pdf/periodik.ts`** `buildPeriodikRingkasPdf(PeriodReport)` +
+  `renderPeriodikPdf(locationId, kind, n)`: KPI rencana/realisasi/deviasi (warna), progres per
+  kategori + baris TOTAL, sumber daya, kendala.
+- **Distribusi**: unduh `GET /api/laporan/harian/[slug]/[date]/pdf` &
+  `/api/laporan/periodik/[slug]/[kind]/[n]/pdf` (auth + akses lokasi). Aksi kirim WA
+  `sendDailyReportPdfToWaAction` & `sendPeriodReportPdfToWaAction` (gate report.export +
+  requireLocationAccess + audit; tujuan grup paket ATAU nomor/ID bebas). UI laporan-lokasi: tombol
+  "Kirim WA (PDF)" + "Excel" + "Unduh PDF".
+- Verifikasi: typecheck/lint/unit(185)/build ✓ (semua route terdaftar), smoke-render harian &
+  mingguan ✓.
