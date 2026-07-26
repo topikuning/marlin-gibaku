@@ -89,34 +89,45 @@ export async function getWahaWebhookSecret(): Promise<string | null> {
   return s.get(WAHA_KEYS.webhookSecret)?.trim() || null;
 }
 
-/* ── Diagnostik webhook: catat event terakhir yang masuk (self-service Sistem) ── */
-const WAHA_DEBUG_LAST_INBOUND = "waha.debug_last_inbound";
+/* ── Diagnostik webhook: log SETIAP POST yang mendarat (self-service Sistem) ──
+ * Dicatat di level route SEBELUM/terlepas dari hasil, agar admin bisa bedakan:
+ * (a) WAHA tak sampai (log kosong), (b) sampai tapi token salah, (c) sampai &
+ * diproses tapi diabaikan (grup tak tertaut), (d) tersimpan. Simpan 10 terakhir. */
+const WAHA_HITS = "waha.debug_hits";
 
-export type WahaInboundInfo = { chatId: string | null; stored: boolean; reason?: string; at: string };
+export type WahaHit = {
+  at: string;
+  tokenOk: boolean;
+  event: string;
+  chatId: string | null;
+  outcome: string;
+};
 
-/** Catat event webhook terakhir yang MASUK (arrived) — agar admin tahu webhook
- * benar-benar sampai & chatId persis yang dikirim WAHA (untuk menautkan grup). */
-export async function recordWahaInbound(info: Omit<WahaInboundInfo, "at">): Promise<void> {
-  const effectiveFrom = jakartaToday();
-  const value = JSON.stringify({ ...info, at: new Date().toISOString() });
-  await db.appSetting.upsert({
-    where: { key_effectiveFrom: { key: WAHA_DEBUG_LAST_INBOUND, effectiveFrom } },
-    update: { value },
-    create: { key: WAHA_DEBUG_LAST_INBOUND, value, effectiveFrom },
-  });
-}
-
-export async function getWahaLastInbound(): Promise<WahaInboundInfo | null> {
+export async function getWahaHits(): Promise<WahaHit[]> {
   const row = await db.appSetting.findFirst({
-    where: { key: WAHA_DEBUG_LAST_INBOUND },
+    where: { key: WAHA_HITS },
     orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }],
   });
-  if (!row) return null;
+  if (!row) return [];
   try {
-    return JSON.parse(row.value) as WahaInboundInfo;
+    const arr = JSON.parse(row.value);
+    return Array.isArray(arr) ? (arr as WahaHit[]) : [];
   } catch {
-    return null;
+    return [];
   }
+}
+
+/** Catat satu hit webhook (dipanggil di route untuk SETIAP POST). Simpan 10 terbaru. */
+export async function recordWahaHit(hit: Omit<WahaHit, "at">): Promise<void> {
+  const existing = await getWahaHits();
+  const next = [{ ...hit, at: new Date().toISOString() }, ...existing].slice(0, 10);
+  const effectiveFrom = jakartaToday();
+  const value = JSON.stringify(next);
+  await db.appSetting.upsert({
+    where: { key_effectiveFrom: { key: WAHA_HITS, effectiveFrom } },
+    update: { value },
+    create: { key: WAHA_HITS, value, effectiveFrom },
+  });
 }
 
 /**

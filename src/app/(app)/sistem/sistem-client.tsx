@@ -62,6 +62,7 @@ import {
   saveWahaConfigAction,
   wahaStatusAction,
   generateWahaWebhookSecretAction,
+  testWahaCaptureAction,
   type WaActionState,
 } from "@/lib/waha/actions";
 import type { PhotoStampConfig } from "@/lib/photo-stamp/config";
@@ -446,16 +447,20 @@ export function WahaWebhookPanel({
   hasSecret,
   capturedCount,
   lastCapturedAt,
-  lastInbound,
+  hits,
 }: {
   webhookUrl: string | null;
   hasSecret: boolean;
   capturedCount: number;
   lastCapturedAt: string | null;
-  lastInbound: { chatId: string | null; stored: boolean; reason: string | null; at: string } | null;
+  hits: { at: string; tokenOk: boolean; event: string; chatId: string | null; outcome: string }[];
 }) {
   const [state, action, pending] = useActionState<WaActionState, FormData>(
     generateWahaWebhookSecretAction,
+    undefined,
+  );
+  const [testState, testAction, testing] = useActionState<WaActionState, FormData>(
+    testWahaCaptureAction,
     undefined,
   );
   const [copied, setCopied] = useState(false);
@@ -512,38 +517,62 @@ export function WahaWebhookPanel({
         </span>
       </div>
 
-      {/* Diagnostik: event webhook terakhir yang benar-benar SAMPAI ke server. */}
-      <div className="rounded-md border border-border bg-surface-inset p-3 text-[13px]">
-        <p className="mb-1 font-medium text-ink">Diagnostik webhook</p>
-        {lastInbound ? (
-          <div className="space-y-0.5 text-ink-muted">
-            <p>
-              Webhook terakhir masuk: <span className="text-ink">{lastInbound.at}</span>
-            </p>
-            <p>
-              chatId dikirim WAHA:{" "}
-              <span className="font-mono text-ink">{lastInbound.chatId ?? "(tak terbaca)"}</span>
-            </p>
-            <p>
-              Hasil:{" "}
-              {lastInbound.stored ? (
-                <span className="text-success">tersimpan ✓</span>
-              ) : (
-                <span className="text-warning">dibuang — {lastInbound.reason ?? "?"}</span>
-              )}
-            </p>
-            {!lastInbound.stored && lastInbound.reason === "grup tidak tertaut paket" && lastInbound.chatId ? (
-              <p className="text-ink">
-                → Salin chatId di atas ke <span className="font-medium">Paket → Grup WhatsApp</span> agar
-                pesan grup ini tertangkap.
-              </p>
-            ) : null}
-          </div>
-        ) : (
-          <p className="text-ink-muted">
-            Belum ada webhook yang masuk. Kirim pesan uji di grup lalu muat ulang halaman ini. Kalau
-            tetap kosong, webhook belum sampai ke server (cek URL & tombol Update di WAHA).
+      {/* Diagnostik: self-test + log 10 hit webhook terakhir yang mendarat. */}
+      <div className="rounded-md border border-border bg-surface-inset p-3">
+        {testState?.error ? <Banner tone="error" title={testState.error} className="mb-2" /> : null}
+        {testState?.success ? <Banner tone="success" title={testState.success} className="mb-2" /> : null}
+        {testState?.warning ? <Banner tone="warning" title={testState.warning} className="mb-2" /> : null}
+
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-[13px] font-medium text-ink">Diagnostik webhook</p>
+          <form action={testAction}>
+            <Button type="submit" size="sm" variant="secondary" loading={testing}>
+              Kirim event uji (cek sisi MARLIN)
+            </Button>
+          </form>
+        </div>
+        <p className="mt-1 text-xs text-ink-muted">
+          Tombol di atas mensimulasikan 1 event WAHA ke grup tertaut — membuktikan jalur terima→simpan
+          MARLIN sehat, lepas dari WAHA. Tabel di bawah mencatat <b>setiap</b> POST yang benar-benar
+          mendarat (10 terakhir): kalau kosong setelah kirim pesan → WAHA belum sampai ke server.
+        </p>
+
+        {hits.length === 0 ? (
+          <p className="mt-2 text-[13px] text-ink-muted">
+            Belum ada hit tercatat. Kirim pesan uji di grup, lalu muat ulang halaman ini.
           </p>
+        ) : (
+          <div className="mt-2 overflow-x-auto">
+            <table className="w-full min-w-[520px] text-[13px]">
+              <thead>
+                <tr className="border-b border-border text-left text-xs text-ink-muted">
+                  <th className="py-1.5 pr-3 font-medium">Waktu</th>
+                  <th className="py-1.5 pr-3 font-medium">Token</th>
+                  <th className="py-1.5 pr-3 font-medium">Event</th>
+                  <th className="py-1.5 font-medium">Hasil</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {hits.map((hit, i) => (
+                  <tr key={i}>
+                    <td className="tabular py-1.5 pr-3 whitespace-nowrap">{hit.at}</td>
+                    <td className="py-1.5 pr-3">
+                      {hit.tokenOk ? (
+                        <span className="text-success">valid</span>
+                      ) : (
+                        <span className="text-danger">salah</span>
+                      )}
+                    </td>
+                    <td className="py-1.5 pr-3 font-mono text-xs">{hit.event}</td>
+                    <td className="py-1.5">
+                      {hit.outcome}
+                      {hit.chatId ? <span className="block font-mono text-xs text-ink-muted">{hit.chatId}</span> : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

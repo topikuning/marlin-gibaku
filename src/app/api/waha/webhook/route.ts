@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
-import { getWahaWebhookSecret } from "@/lib/waha/config";
+import { getWahaWebhookSecret, recordWahaHit } from "@/lib/waha/config";
 import { ingestWaEvent } from "@/lib/waha/ingest";
 
 export const dynamic = "force-dynamic";
@@ -34,31 +34,55 @@ export function GET() {
 
 export async function POST(req: Request) {
   const expected = await getWahaWebhookSecret();
-  if (!expected) {
-    // Webhook belum diaktifkan (secret belum diatur di Sistem).
-    return NextResponse.json({ error: "Webhook belum diaktifkan" }, { status: 503 });
-  }
-
   const url = new URL(req.url);
   const provided = url.searchParams.get("token") ?? req.headers.get("x-webhook-secret");
-  if (!secretMatches(provided, expected)) {
-    return NextResponse.json({ error: "Token tidak valid" }, { status: 401 });
-  }
+  const tokenOk = !!expected && secretMatches(provided, expected);
 
-  let body: unknown;
+  let body: unknown = null;
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "Body bukan JSON" }, { status: 400 });
+    /* body bukan JSON — tetap dicatat di log hit */
+  }
+  const event =
+    body && typeof (body as { event?: unknown }).event === "string"
+      ? (body as { event: string }).event
+      : "(tanpa event)";
+
+  let status = 200;
+  let outcome = "";
+  let chatId: string | null = null;
+
+  if (!expected) {
+    status = 503;
+    outcome = "secret webhook belum diatur di Sistem";
+  } else if (!tokenOk) {
+    status = 401;
+    outcome = "token tidak valid (URL webhook di WAHA tidak cocok dengan secret)";
+  } else if (body === null) {
+    status = 400;
+    outcome = "body bukan JSON";
+  } else {
+    try {
+      const result = await ingestWaEvent(body);
+      chatId = result.chatId ?? null;
+      outcome = result.stored ? "tersimpan ✓" : `diabaikan — ${result.reason}`;
+    } catch (err) {
+      console.error("[waha/webhook] gagal ingest:", err);
+      status = 500;
+      outcome = "error saat memproses";
+    }
   }
 
+  // Catat SETIAP hit (untuk diagnosa di Sistem). Kegagalan pencatatan tak
+  // boleh menggagalkan respons ke WAHA.
   try {
-    const result = await ingestWaEvent(body);
-    // Selalu 200 untuk event yang terautentikasi — supaya WAHA tidak retry
-    // hanya karena pesan diabaikan (mis. grup tak tertaut). `stored` = penanda.
-    return NextResponse.json({ ok: true, stored: result.stored, reason: result.reason });
+    await recordWahaHit({ tokenOk, event, chatId, outcome });
   } catch (err) {
-    console.error("[waha/webhook] gagal ingest:", err);
-    return NextResponse.json({ error: "Gagal memproses" }, { status: 500 });
+    console.error("[waha/webhook] gagal catat hit:", err);
   }
+
+  // 200 untuk hit terautentikasi (walau diabaikan) supaya WAHA tak retry; selain
+  // itu kembalikan status error yang sesuai.
+  return NextResponse.json({ ok: status === 200, outcome }, { status });
 }
