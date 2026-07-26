@@ -91,9 +91,19 @@ export default async function KegiatanLapanganPage({ params }: { params: Promise
                     </div>
                     <h3 className="mt-1.5 text-sm font-semibold text-ink">{a.title}</h3>
                   </div>
-                  <span className="text-[12px] text-ink-faint">
-                    {a.createdByName ? `oleh ${a.createdByName}` : null}
-                  </span>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="text-[12px] text-ink-faint">
+                      {a.createdByName ? `oleh ${a.createdByName}` : null}
+                    </span>
+                    <a
+                      href={`/cetak/kegiatan/${a.id}`}
+                      target="_blank"
+                      rel="noopener"
+                      className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-[13px] font-medium text-ink hover:border-border-strong hover:bg-surface-muted"
+                    >
+                      Cetak / PDF
+                    </a>
+                  </div>
                 </div>
 
                 {a.notes ? <p className="mt-2 text-[13px] whitespace-pre-line text-ink">{a.notes}</p> : null}

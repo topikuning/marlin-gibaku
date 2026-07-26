@@ -2381,3 +2381,17 @@ scurve — dengan test properti, bukan paritas nilai):**
   migration `20260726010000_exec_report_wa`. authz: capability `exec_report.send` ditambah ke
   site_manager/PM/RM (SA/PD inherit). Nav item "Laporan → WA".
 - Verifikasi: typecheck/lint/unit(185)/build ✓. Butuh: provider AI aktif + WAHA terkonfigurasi.
+
+## 123 · 2026-07-26 · Laporan Kegiatan Lapangan → PDF (dokumen A4 rapi: teks + foto)
+
+- **Kebutuhan**: laporan kegiatan lapangan yang bisa dijadikan PDF profesional (teks + foto) untuk
+  dilaporkan ke seseorang.
+- **Pendekatan**: pola cetak MARLIN yang sudah ada (`app/cetak/*`, A4 tanpa shell, `PrintToolbar` →
+  window.print → Simpan PDF). Andal & lintas-platform, tanpa dependensi PDF server.
+- **Halaman `/cetak/kegiatan/[id]`** (auth + `requireLocationAccess`): susun jenis, judul, tanggal,
+  pelapor, peserta, **uraian**, **kendala**, **solusi**, dan **galeri foto** berlabel (waktu EXIF +
+  koordinat) jadi dokumen A4 profesional (`components/knmp/kegiatan-report.tsx`). Foto via presigned
+  R2 (600 dtk). Tautan "Cetak / PDF" per kegiatan di tab Kegiatan Lapangan.
+- Verifikasi: typecheck/lint/build ✓.
+- Menyusul: (a) opsi "susun uraian dengan AI" dari notes mentah; (b) laporan EKSEKUTIF sebagai
+  dokumen A4 berdesain (bukan sekadar teks WA).
