@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildMultipartBody, parseDriveFolderId } from "@/lib/gdrive/parse";
+import {
+  GDRIVE_REDIRECT_PATH,
+  buildMultipartBody,
+  driveRedirectUri,
+  parseDriveFolderId,
+  publicOrigin,
+} from "@/lib/gdrive/parse";
 
 /** Integrasi Google Drive — util murni. DECISIONS 141. */
 
@@ -47,5 +53,35 @@ describe("buildMultipartBody", () => {
     const data = Buffer.from(Array.from({ length: 256 }, (_, i) => i));
     const { body } = buildMultipartBody({ name: "b.bin" }, "application/octet-stream", data);
     expect(body.includes(data)).toBe(true);
+  });
+});
+
+describe("publicOrigin & driveRedirectUri", () => {
+  it("memaksa https untuk domain publik (proxy Railway meneruskan http internal)", () => {
+    // Ini penyebab nyata error Google 400 invalid_request sebelum diperbaiki.
+    expect(publicOrigin(null, "marlin.up.railway.app", "http")).toBe("https://marlin.up.railway.app");
+    expect(publicOrigin("marlin.up.railway.app", "internal:8080", "http")).toBe("https://marlin.up.railway.app");
+    expect(publicOrigin(null, "marlin.co.id", null)).toBe("https://marlin.co.id");
+  });
+
+  it("host lokal tetap boleh http (dev)", () => {
+    expect(publicOrigin(null, "localhost:3000", "http")).toBe("http://localhost:3000");
+    expect(publicOrigin(null, "127.0.0.1:3000", null)).toBe("http://127.0.0.1:3000");
+  });
+
+  it("x-forwarded-host menang atas host, dan daftar koma diambil yang pertama", () => {
+    expect(publicOrigin("a.example.com, b.example.com", "internal", "http")).toBe("https://a.example.com");
+  });
+
+  it("tanpa host sama sekali → null (jangan menebak)", () => {
+    expect(publicOrigin(null, null, "https")).toBeNull();
+    expect(driveRedirectUri(null, null, null)).toBeNull();
+  });
+
+  it("redirect URI memakai path callback yang sama persis", () => {
+    expect(driveRedirectUri(null, "marlin.up.railway.app", "http")).toBe(
+      `https://marlin.up.railway.app${GDRIVE_REDIRECT_PATH}`,
+    );
+    expect(GDRIVE_REDIRECT_PATH).toBe("/api/gdrive/callback");
   });
 });

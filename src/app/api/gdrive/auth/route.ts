@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
 import { getGDriveConfigDisplay } from "@/lib/gdrive/config";
+import { driveRedirectUri } from "@/lib/gdrive/parse";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,14 @@ export async function GET(request: NextRequest) {
   }
 
   const state = randomBytes(16).toString("hex");
-  const redirectUri = new URL("/api/gdrive/callback", request.nextUrl.origin).toString();
+  // Bukan request.nextUrl.origin: di belakang proxy Railway skemanya http dan
+  // Google menolak redirect URI http untuk domain publik (error 400).
+  const redirectUri = driveRedirectUri(
+    request.headers.get("x-forwarded-host"),
+    request.headers.get("host"),
+    request.headers.get("x-forwarded-proto"),
+  );
+  if (!redirectUri) return NextResponse.redirect(new URL("/sistem?gdrive=host-tak-diketahui", request.nextUrl.origin));
   const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   authUrl.search = new URLSearchParams({
     client_id: cfg.clientId,

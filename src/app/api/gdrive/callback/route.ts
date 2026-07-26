@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { getGDriveAuth, storeGDriveToken } from "@/lib/gdrive/config";
+import { driveRedirectUri } from "@/lib/gdrive/parse";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +46,13 @@ export async function GET(request: NextRequest) {
       client_secret: auth.clientSecret,
       code,
       grant_type: "authorization_code",
-      redirect_uri: new URL("/api/gdrive/callback", request.nextUrl.origin).toString(),
+      // Harus PERSIS sama dengan yang dipakai saat meminta consent.
+      redirect_uri:
+        driveRedirectUri(
+          request.headers.get("x-forwarded-host"),
+          request.headers.get("host"),
+          request.headers.get("x-forwarded-proto"),
+        ) ?? "",
     }),
     signal: AbortSignal.timeout(20_000),
   }).catch(() => null);

@@ -2845,3 +2845,23 @@ Tiga bug tampilan pada PDF produksi (dari bundle self-contained DECISIONS 128):
   tes/putuskan, email akun terhubung); halaman paket → kartu Folder Google
   Drive.
 - Verifikasi: typecheck ✓ lint ✓ unit 305 (+6) ✓ build ✓ browser /sistem ✓.
+
+## 142 · 2026-07-26 · Fix: redirect URI OAuth Google dipaksa https (di balik proxy)
+
+- **Gejala**: "Access blocked: Authorization Error … Error 400: invalid_request"
+  saat menghubungkan akun Google.
+- **Akar masalah**: kedua route OAuth memakai `request.nextUrl.origin`. Di balik
+  proxy Railway request internal berskema **http**, sedangkan Google MENOLAK
+  redirect URI http untuk domain publik. Repo sebenarnya sudah punya pola benar
+  (`lib/http.ts` membaca `x-forwarded-proto`), tapi route Drive tidak memakainya.
+- **Perbaikan**: `publicOrigin()` + `driveRedirectUri()` di `gdrive/parse.ts`
+  (MURNI, 5 unit test) — ambil `x-forwarded-host` → `host`, paksa `https`
+  kecuali host lokal (localhost/127.0.0.1/[::1]); daftar koma diambil yang
+  pertama. Dipakai SATU sumber di `/api/gdrive/auth`, `/api/gdrive/callback`
+  (redirect_uri saat tukar code wajib identik dengan saat consent), dan
+  ditampilkan di panel Sistem sebagai kotak "Authorized redirect URI" siap
+  salin — operator tidak perlu menebak apa yang didaftarkan di Google Console.
+- **Docs**: `docs/GDRIVE_SETUP.md` + daftar penyebab error 400 terurut
+  (redirect URI beda, tipe client bukan Web, scope drive belum ditambahkan,
+  app masih Testing tanpa test user, propagasi Console).
+- Verifikasi: typecheck ✓ lint ✓ unit 310 (+5) ✓.

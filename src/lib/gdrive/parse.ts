@@ -50,6 +50,37 @@ export function buildMultipartBody(
   };
 }
 
+/** Path callback OAuth — HARUS identik di /auth, /callback, dan Google Console. */
+export const GDRIVE_REDIRECT_PATH = "/api/gdrive/callback";
+
+/**
+ * Origin publik untuk redirect URI OAuth. Di belakang proxy (Railway) request
+ * internal berskema http, sedangkan Google MENOLAK redirect URI http untuk
+ * domain publik ("doesn't comply with Google's OAuth 2.0 policy", error 400
+ * invalid_request) — jadi paksa https kecuali host lokal. MURNI.
+ */
+export function publicOrigin(
+  forwardedHost: string | null,
+  host: string | null,
+  forwardedProto: string | null,
+): string | null {
+  const h = (forwardedHost ?? host ?? "").split(",")[0].trim();
+  if (!h) return null;
+  const local = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(h);
+  if (local) return `${(forwardedProto ?? "http").split(",")[0].trim()}://${h}`;
+  return `https://${h}`;
+}
+
+/** Redirect URI lengkap — satu-satunya sumber, dipakai kedua route & ditampilkan di UI. */
+export function driveRedirectUri(
+  forwardedHost: string | null,
+  host: string | null,
+  forwardedProto: string | null,
+): string | null {
+  const origin = publicOrigin(forwardedHost, host, forwardedProto);
+  return origin ? `${origin}${GDRIVE_REDIRECT_PATH}` : null;
+}
+
 export type GDriveUploadKind = "laporan_harian" | "laporan_mingguan" | "laporan_bulanan";
 
 export const GDRIVE_KIND_LABEL: Record<GDriveUploadKind, string> = {
