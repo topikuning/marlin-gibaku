@@ -2662,3 +2662,61 @@ Tiga bug tampilan pada PDF produksi (dari bundle self-contained DECISIONS 128):
   `vendors/{id}/kop.webp`, pratinjau + hapus di form. Field alamat/telepon/email
   tetap (fallback bila tanpa gambar kop). Penempatan otomatis kop+logo di
   header laporan cetak (/cetak) = MENYUSUL (tercatat OPEN_ISSUES).
+
+## 136 · 2026-07-26 · Narasi lapangan (laporan harian + kegiatan) jadi konteks AI Hub
+
+- **Masalah**: sebelumnya kegiatan lapangan & laporan harian hanya masuk AI Hub
+  sebagai ANGKA (`activityCount`, `finalReports`) — isinya (judul, jenis, catatan,
+  kendala, solusi) tidak pernah dibaca AI. Akibatnya AI bisa bilang "deviasi 90 pp"
+  tapi tak bisa menjawab "hari ini di lapangan ada apa saja".
+- **Solusi**: `src/lib/ai-hub/narrative.ts` (server, fetch DB) +
+  `narrative-format.ts` (MURNI: tipe, `truncateText`, `buildNarrativePayload`,
+  `toNarrativeSourceRefs`). Dipisah supaya formatter bisa di-unit-test tanpa env DB.
+- **Konten**: per lokasi maks 6 laporan harian (status, cuaca, catatan, maks 6 item
+  volume+catatan, jumlah foto) + 8 kegiatan lapangan (jenis, judul, catatan,
+  KENDALA, SOLUSI, jumlah foto). Catatan dipotong 240 char, payload dibatasi
+  18k char dgn penanda truncation eksplisit.
+- **Grounding**: tiap entri punya sourceRefId granular (`slug:laporan:YYYY-MM-DD`,
+  `slug:kegiatan:<id>`) + href drill-down; digabung ke `allowedSourceRefIds`
+  sehingga AI wajib mengutip entri spesifik, bukan sekadar id lokasi.
+- **Batas tegas** (SYSTEM_BASE aturan #6): narasi = konteks KUALITATIF, tidak
+  pernah jadi sumber angka progres/deviasi. **Foto TIDAK dikirim sebagai gambar
+  ke provider** (vision/OCR tetap di luar scope, DECISIONS 133 §17) — hanya
+  jumlah + tautan; AI dilarang mengklaim mendeskripsikan isi foto.
+- Aktif untuk kind: pulse, deviasi, risiko, laporan, tanya. PROMPT_VERSION → `hub-v2`.
+- UI: kartu "Narasi lapangan (sumber mentah)" di /ai/run/[id] — reviewer bisa
+  memverifikasi kutipan AI vs catatan asli, dgn tautan ke laporan/kegiatan.
+- Audit `ai.run.buat` mencatat `narrativeEntries`. 10 unit test baru (237 total).
+
+## 137 · 2026-07-26 · Ringkasan chat grup: kiriman MARLIN tertangkap, konteks paket, filter noise, distribusi
+
+- **BUG KRITIS diperbaiki — kiriman MARLIN sendiri tidak pernah terarsip**:
+  `ingest-parse.ts` selalu mengambil `chatId` dari `payload.from`. Untuk pesan
+  KELUAR (fromMe) WAHA mengisi `from` = nomor kita dan `to` = grup tujuan →
+  chatId jadi nomor sendiri → tak cocok `Package.waGroupId` → pesan DIBUANG.
+  Akibatnya laporan harian/kegiatan yang MARLIN kirim ke grup hilang dari arsip
+  dan ringkasan harian tidak utuh. Fix: bila `fromMe`, chatId dibaca dari `to`
+  (fallback berlapis); pengirim = `from`. 2 unit test regresi (masuk & keluar).
+- **Panduan WAHA salah** — panel Sistem menyuruh aktifkan event `message` yang
+  HANYA membawa pesan masuk. Diubah ke **`message.any`** + banner penjelas;
+  tanpa itu pesan keluar tetap tak terkirim ke webhook.
+- **Rekonsiliasi kiriman sistem**: `getMarlinDispatches()` membaca data DOMAIN
+  (`DailyReport.waSentAt`, `FieldActivity.waSentAt`) → blok "KIRIMAN SISTEM
+  MARLIN" di prompt + kartu di UI. Ringkasan tetap menyebut laporan yang sudah
+  dikirim walau webhook belum aktif saat itu. Pesan `fromMe` di transkrip
+  ditandai `[MARLIN]` supaya tidak dibaca sebagai obrolan anggota.
+  Ringkasan kini bisa dibuat walau chat kosong asalkan ada kiriman MARLIN.
+- **Konteks paket** (`describePackageContext`): grup WA sering bernama generik
+  ("KNMP Jawa"). Prompt kini membawa paket + nomor paket + judul pekerjaan +
+  pelaksana + daftar lokasi; ringkasan wajib menyebut identitas pekerjaan.
+- **Filter noise** (`isNoiseMessage`, MURNI + teruji): uji webhook/sistem &
+  basa-basi satu kata disaring sebelum masuk prompt (konservatif — "Hasil test
+  beton sudah keluar" TIDAK dibuang). Pesan noise tetap tampil di UI dgn badge,
+  jumlahnya dicatat di ringkasan & audit.
+- **Privasi**: prompt melarang menampilkan nomor telepon mentah; tanpa nama →
+  tulis "salah satu anggota".
+- **Distribusi**: aksi kirim ringkasan satu grup ke kontak WA, dan halaman
+  **`/chat-grup/global`** — semua ringkasan pada satu tanggal digabung jadi satu
+  pesan WhatsApp (pengantar AI opsional bila >1 paket) untuk pimpinan. Semua
+  pengiriman diaudit.
+- Verifikasi: typecheck ✓ lint ✓ unit 252 (+15) ✓ build ✓.

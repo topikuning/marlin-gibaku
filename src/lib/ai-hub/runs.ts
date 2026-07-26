@@ -9,12 +9,13 @@ import { checkAiGuard, estimateCostUsd, getAiPricing } from "./guard";
 import { buildPortfolioPulse, buildQualityDetails, resolveAiScope } from "./source";
 import { runQualityRules } from "./quality-rules";
 import {
-  KIND_INSTRUCTION,
-  PROMPT_VERSION,
-  SYSTEM_BASE,
-  buildPulsePayload,
-  buildQualityPayload,
-} from "./prompt";
+  buildNarrativeBundle,
+  buildNarrativePayload,
+  narrativeEntryCount,
+  toNarrativeSourceRefs,
+  type NarrativeBundle,
+} from "./narrative";
+import { KIND_INSTRUCTION, PROMPT_VERSION, SYSTEM_BASE, buildPulsePayload, buildQualityPayload } from "./prompt";
 import {
   SCHEMA_HINTS,
   askOutputSchema,
@@ -28,7 +29,7 @@ import {
   type GroundingContext,
 } from "./schemas";
 import { aiReportTemplate } from "./report-templates";
-import type { PortfolioPulse, QualityFinding } from "./types";
+import type { PortfolioPulse, QualityFinding, SourceRef } from "./types";
 
 /**
  * Orkestrasi run AI — SATU panggilan provider per operasi deterministik,
@@ -57,7 +58,7 @@ function hashInput(userId: string, i: ExecuteRunInput): string {
     .digest("hex");
 }
 
-function groundingContext(pulse: PortfolioPulse): GroundingContext {
+function groundingContext(pulse: PortfolioPulse, extraRefs: SourceRef[]): GroundingContext {
   const officials = new Map<string, number[]>();
   for (const r of pulse.rows) {
     officials.set(r.locationId, [
@@ -83,10 +84,13 @@ function groundingContext(pulse: PortfolioPulse): GroundingContext {
   }
   return {
     allowedLocationIds: new Set(pulse.rows.map((r) => r.locationId)),
-    allowedSourceRefIds: new Set(pulse.sourceRefs.map((s) => s.id)),
+    allowedSourceRefIds: new Set([...pulse.sourceRefs, ...extraRefs].map((s) => s.id)),
     officialNumbersByLocation: officials,
   };
 }
+
+/** Kind yang boleh memakai narasi lapangan sebagai konteks tambahan (DECISIONS 136). */
+const NARRATIVE_KINDS = new Set<AiRunKind>(["pulse", "deviasi", "risiko", "laporan", "tanya"]);
 
 /** Angka global (utk validasi klaim pada teks tanpa lokasi). */
 function globalNumbers(pulse: PortfolioPulse): number[] {
@@ -127,7 +131,10 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
   });
   if (recent) return { runId: recent.id, status: recent.status === "siap" ? "siap" : "gagal" };
 
-  // 5. Sumber deterministik + readiness (+ temuan kualitas utk kind terkait).
+  // 5. Sumber deterministik + readiness (+ temuan kualitas / narasi lapangan
+  //    utk kind terkait). Narasi = catatan laporan harian & kegiatan lapangan
+  //    sebagai KONTEKS kualitatif — foto TIDAK dikirim sebagai gambar ke
+  //    provider (hanya jumlah + tautan), sesuai batas arsitektur DECISIONS 133.
   const pulse = await buildPortfolioPulse(user, scope.ids, input.startKey, input.endKey);
   let qualityFindings: QualityFinding[] = [];
   if (input.kind === "kualitas_data") {
@@ -137,6 +144,17 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
       if (d) qualityFindings.push(...runQualityRules(row, d));
     }
   }
+  let narrativeBundle: NarrativeBundle | null = null;
+  if (NARRATIVE_KINDS.has(input.kind)) {
+    narrativeBundle = await buildNarrativeBundle(
+      user,
+      pulse.rows.map((r) => ({ id: r.locationId, name: r.name, slug: r.slug })),
+      input.startKey,
+      input.endKey,
+    );
+  }
+  const narrativeRefs = narrativeBundle ? toNarrativeSourceRefs(narrativeBundle) : [];
+  const allSourceRefs = [...pulse.sourceRefs, ...narrativeRefs];
   const readinessAvg = pulse.rows.length
     ? Math.round(pulse.rows.reduce((s, r) => s + r.readiness.score, 0) / pulse.rows.length)
     : 0;
@@ -155,7 +173,7 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
       inputHash,
       sourceSnapshotAt: new Date(pulse.dataAsOf),
       readinessScore: readinessAvg,
-      sourcesJson: JSON.parse(JSON.stringify(pulse.sourceRefs)),
+      sourcesJson: JSON.parse(JSON.stringify(allSourceRefs)),
       outputJson: undefined,
     },
     select: { id: true },
@@ -164,6 +182,7 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
     kind: input.kind,
     locations: scope.ids.length,
     period: `${input.startKey}..${input.endKey}`,
+    narrativeEntries: narrativeBundle ? narrativeEntryCount(narrativeBundle) : 0,
   });
 
   // Snapshot deterministik SELALU tersimpan (dipakai UI walau AI gagal).
@@ -173,6 +192,7 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
       rows: pulse.rows,
       risks: pulse.risks,
       quality: qualityFindings,
+      narrative: narrativeBundle,
       periodStart: pulse.periodStart,
       periodEnd: pulse.periodEnd,
       dataAsOf: pulse.dataAsOf,
@@ -219,8 +239,9 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
             : SCHEMA_HINTS.pulse;
   }
   const qualityBlock = qualityFindings.length ? `\n\n${buildQualityPayload(qualityFindings)}` : "";
+  const narrativeBlock = narrativeBundle ? `\n\n${buildNarrativePayload(narrativeBundle)}` : "";
   const questionBlock = input.question ? `\n\nPERTANYAAN USER:\n${input.question}` : "";
-  const prompt = `${instruction}\n\n=== DATA ===\n${payload}${qualityBlock}${questionBlock}`;
+  const prompt = `${instruction}\n\n=== DATA ===\n${payload}${qualityBlock}${narrativeBlock}${questionBlock}`;
   if (prompt.length > guardCfg.maxInputChars) {
     return fail("input_too_big", "Data sumber melebihi batas — persempit scope/periode.");
   }
@@ -249,7 +270,7 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
   if (!result.ok) return fail(result.errorCode, result.error);
 
   // 9. Grounding: buang bagian tak tergrounding, catat sebagai limitations.
-  const ctx = groundingContext(pulse);
+  const ctx = groundingContext(pulse, narrativeRefs);
   const globals = globalNumbers(pulse);
   const output = result.data as Record<string, unknown>;
   const droppedNotes: string[] = [];
