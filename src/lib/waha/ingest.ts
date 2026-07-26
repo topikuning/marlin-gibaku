@@ -34,23 +34,33 @@ export async function ingestWaEvent(body: unknown): Promise<IngestResult> {
     return { stored: false, reason: "grup tidak tertaut paket", chatId: m.chatId };
   }
 
-  await db.waMessage.upsert({
-    where: { waMessageId: m.waMessageId },
-    update: {}, // idempoten — pesan sama tidak ditimpa
-    create: {
-      packageId: pkg.id,
-      chatId: m.chatId,
-      waMessageId: m.waMessageId,
-      fromNumber: m.fromNumber,
-      fromName: m.fromName,
-      body: m.body,
-      hasMedia: m.hasMedia,
-      mediaType: m.mediaType,
-      fromMe: m.fromMe,
-      timestamp: m.timestamp,
-      raw: body as Prisma.InputJsonValue,
-    },
-  });
+  try {
+    await db.waMessage.upsert({
+      where: { waMessageId: m.waMessageId },
+      update: {}, // idempoten — pesan sama tidak ditimpa
+      create: {
+        packageId: pkg.id,
+        chatId: m.chatId,
+        waMessageId: m.waMessageId,
+        fromNumber: m.fromNumber,
+        fromName: m.fromName,
+        body: m.body,
+        hasMedia: m.hasMedia,
+        mediaType: m.mediaType,
+        fromMe: m.fromMe,
+        timestamp: m.timestamp,
+        raw: body as Prisma.InputJsonValue,
+      },
+    });
+  } catch (err) {
+    // Race idempoten: pesan sama tiba lewat `message` + `message.any` berbarengan
+    // → dua INSERT dengan wa_message_id sama. Salah satu menang; yang kalah kena
+    // unique violation (P2002). Perlakukan sebagai sudah tersimpan — BUKAN error.
+    if (err && typeof err === "object" && (err as { code?: unknown }).code === "P2002") {
+      return { stored: true, packageId: pkg.id, chatId: m.chatId };
+    }
+    throw err;
+  }
   console.log(`[waha] TERSIMPAN pesan grup "${m.chatId}" → paket ${pkg.id} (from=${m.fromNumber ?? "?"})`);
   return { stored: true, packageId: pkg.id, chatId: m.chatId };
 }
