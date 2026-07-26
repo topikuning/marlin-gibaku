@@ -263,28 +263,43 @@ export function CreateActivityForm({
   );
 }
 
-/** Tombol aksi untuk kegiatan draft: edit · tambah foto · tambah dokumen · finalkan · hapus. */
+/** Baris pengelolaan kegiatan draft — dua grup rapi: kiri (edit/tambah), kanan
+ * (finalkan/hapus). Panel foto/edit muncul RAPI di bawah, tak berdesakan di baris. */
 export function DraftActions({ activity, kinds }: { activity: EditableActivity; kinds: ActivityKindOption[] }) {
   const [editing, setEditing] = useState(false);
+  const [addingPhoto, setAddingPhoto] = useState(false);
   return (
-    <>
-      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
-        <Button
-          type="button"
-          size="sm"
-          variant={editing ? "secondary" : "ghost"}
-          onClick={() => setEditing((v) => !v)}
-        >
-          <Pencil aria-hidden className="size-3.5" />
-          {editing ? "Tutup edit" : "Edit"}
-        </Button>
-        <AddPhotoForm activityId={activity.id} />
-        <AddAttachmentForm activityId={activity.id} />
-        <FinalizeButton activityId={activity.id} />
-        <DeleteButton activityId={activity.id} />
+    <div className="mt-3 border-t border-border pt-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant={editing ? "secondary" : "ghost"}
+            onClick={() => setEditing((v) => !v)}
+          >
+            <Pencil aria-hidden className="size-3.5" />
+            {editing ? "Tutup edit" : "Edit"}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={addingPhoto ? "secondary" : "ghost"}
+            onClick={() => setAddingPhoto((v) => !v)}
+          >
+            <Plus aria-hidden className="size-3.5" />
+            Tambah foto
+          </Button>
+          <AddAttachmentForm activityId={activity.id} />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <FinalizeButton activityId={activity.id} />
+          <DeleteButton activityId={activity.id} />
+        </div>
       </div>
+      {addingPhoto ? <AddPhotoPanel activityId={activity.id} onDone={() => setAddingPhoto(false)} /> : null}
       {editing ? <EditActivityForm activity={activity} kinds={kinds} onDone={() => setEditing(false)} /> : null}
-    </>
+    </div>
   );
 }
 
@@ -364,7 +379,7 @@ function AddAttachmentForm({ activityId }: { activityId: string }) {
   return (
     <form ref={formRef} action={action} className="inline-flex items-center gap-1">
       <input type="hidden" name="activityId" value={activityId} />
-      <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1.5 text-[13px] font-medium text-ink hover:bg-surface-muted">
+      <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-[13px] font-medium text-ink hover:bg-surface-muted">
         <Paperclip aria-hidden className="size-3.5" />
         {pending ? "Mengunggah…" : "Tambah dokumen"}
         <input
@@ -456,18 +471,26 @@ export function ActivityAttachments({
   );
 }
 
-function AddPhotoForm({ activityId }: { activityId: string }) {
+/** Panel tambah foto (muncul di bawah baris aksi) — Kamera/Galeri + opsi GPS
+ * tertata rapi dalam kotak, auto-unggah saat foto dipilih, menutup bila sukses. */
+function AddPhotoPanel({ activityId, onDone }: { activityId: string; onDone: () => void }) {
   const [state, action, pending] = useActionState<FieldActivityState, FormData>(addActivityPhotosAction, undefined);
   const formRef = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (state?.success) onDone();
+  }, [state?.success, onDone]);
   return (
-    <form ref={formRef} action={action} className="inline-flex flex-wrap items-center gap-2">
+    <form ref={formRef} action={action} className="mt-3 rounded-md border border-border bg-surface-muted p-3">
       <input type="hidden" name="activityId" value={activityId} />
-      <span className="inline-flex items-center gap-1 text-[13px] text-ink-muted">
-        <Plus aria-hidden className="size-3.5" /> {pending ? "Mengunggah…" : "Tambah foto:"}
-      </span>
-      <PhotoSourceInput compact onPicked={() => formRef.current?.requestSubmit()} />
-      {state?.error ? <span className="text-[12px] text-danger">{state.error}</span> : null}
-      {state?.warning ? <span className="text-[12px] text-warning">{state.warning}</span> : null}
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="text-[13px] font-medium text-ink">Tambah foto{pending ? " — mengunggah…" : ""}</span>
+        <button type="button" onClick={onDone} className="text-[12px] font-medium text-ink-muted hover:underline">
+          Tutup
+        </button>
+      </div>
+      <PhotoSourceInput onPicked={() => formRef.current?.requestSubmit()} />
+      {state?.error ? <div className="mt-2"><Banner tone="error" title={state.error} /></div> : null}
+      {state?.warning ? <div className="mt-2"><Banner tone="warning" title="Sebagian foto gagal" description={state.warning} /></div> : null}
     </form>
   );
 }
