@@ -2319,3 +2319,21 @@ scurve — dengan test properti, bukan paritas nilai):**
 - Uji unit `tests/unit/wa-ingest-parse.test.ts` (6 kasus). Verifikasi: typecheck/lint/unit(185)/build ✓.
 - **Layer B (AI) — belum**: butuh ANTHROPIC_API_KEY + egress ke api.anthropic.com; ringkasan harian
   dari WaMessage per paket/lokasi. Menyusul setelah key & egress disiapkan.
+
+## 120 · 2026-07-26 · Rombak halaman /sistem → hub Pengaturan 5-tab (Slice 1)
+
+- **Standar**: mockup user (setting.html) — hub setting ber-header KPI + tab, kartu kesehatan
+  layanan, integration-card, matriks hak akses, dll. Prinsip: adopsi struktur + gaya visual, TAPI
+  pakai token warna MARLIN (bukan hex mentah) & TIDAK memalsukan data (yang belum ada backend →
+  read-only jujur / dihilangkan). Dikerjakan bertahap (Slice 1 = kerangka + pindah panel).
+- **Slice 1**: header (judul + environment + KPI: Layanan Aktif/Pengguna Aktif/Sesi/Audit Hari Ini)
+  + `SettingsTabs` (client switcher) 5 tab:
+  - Ringkasan: Kesehatan Layanan (env/DB/R2/WAHA/sesi), Konfigurasi Penting (read-only), Perubahan Terbaru.
+  - Integrasi: R2 (+diagnostik), WAHA (+webhook capture), PostgreSQL (read-only).
+  - Akses & Keamanan: Ringkasan Pengguna per peran, Aktivitas Keamanan (audit tersaring), Matriks
+    Hak Akses read-only (dari authz.ts — single source of truth, belum editable).
+  - Branding & Photo Stamp: Identitas Merek, Cap Foto, Jenis Kegiatan Lapangan.
+  - Audit Trail: 100 mutasi + Zona Berbahaya (dev).
+- Panel existing (R2/WAHA/Branding/PhotoStamp/ActivityKinds/Reset) dipertahankan, dipindah ke tab
+  yang tepat. Semua data NYATA (hitung user/audit/sesi/integrasi). Tanpa SMTP/security-toggle palsu.
+- Verifikasi: typecheck/lint/build ✓. Slice 2 (poles per tab sesuai mockup) menyusul.

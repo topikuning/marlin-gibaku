@@ -1,7 +1,51 @@
 "use client";
 
-import { useActionState, useTransition, useState } from "react";
+import { useActionState, useTransition, useState, type ReactNode } from "react";
+import { cn } from "@/lib/cn";
 import { Banner, Button, Combobox, Input, Label, StatusPill } from "@/components/ui";
+
+/**
+ * Tab switcher client-side untuk hub Pengaturan Sistem — ganti panel tanpa
+ * reload. Panel dibangun di server & dioper sebagai ReactNode per key.
+ */
+export function SettingsTabs({
+  tabs,
+  panels,
+}: {
+  tabs: { key: string; label: string }[];
+  panels: Record<string, ReactNode>;
+}) {
+  const [active, setActive] = useState(tabs[0]?.key);
+  return (
+    <div>
+      <nav aria-label="Tab pengaturan" className="border-b border-border">
+        <ul className="-mb-px flex gap-1 overflow-x-auto">
+          {tabs.map((t) => {
+            const on = t.key === active;
+            return (
+              <li key={t.key}>
+                <button
+                  type="button"
+                  onClick={() => setActive(t.key)}
+                  aria-current={on ? "page" : undefined}
+                  className={cn(
+                    "inline-block border-b-2 px-3.5 py-2.5 text-sm font-semibold whitespace-nowrap transition-colors",
+                    on
+                      ? "border-primary text-primary"
+                      : "border-transparent text-ink-muted hover:border-border-strong hover:text-ink",
+                  )}
+                >
+                  {t.label}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+      <div className="mt-5">{panels[active]}</div>
+    </div>
+  );
+}
 import {
   runR2Test,
   resetOperationalData,
