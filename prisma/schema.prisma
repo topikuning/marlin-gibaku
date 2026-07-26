@@ -1285,3 +1285,38 @@ model AppSetting {
   @@unique([key, effectiveFrom])
   @@map("app_settings")
 }
+
+// ─────────────────────────────────────────────────────────────
+// LAPORAN EKSEKUTIF → WA (rangkuman AI dikirim ke direksi)
+// ─────────────────────────────────────────────────────────────
+
+/// Kontak tujuan WA milik seorang user (per-pembuat). chatId = target WAHA:
+/// grup "…@g.us", kontak "…@c.us", atau nomor polos. DECISIONS 122.
+model WaContact {
+  id        String   @id @default(uuid()) @db.Uuid
+  ownerId   String   @map("owner_id") @db.Uuid
+  name      String
+  chatId    String   @map("chat_id")
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([ownerId])
+  @@map("wa_contacts")
+}
+
+/// Histori kirim laporan eksekutif (audit + arsip teks yang dikirim). DECISIONS 122.
+model ReportDispatch {
+  id          String   @id @default(uuid()) @db.Uuid
+  senderId    String   @map("sender_id") @db.Uuid
+  reportKey   String   @map("report_key")
+  periodStart DateTime @map("period_start") @db.Date
+  periodEnd   DateTime @map("period_end") @db.Date
+  destName    String   @map("dest_name")
+  destChatId  String   @map("dest_chat_id")
+  provider    String? // provider AI yang menyusun (untuk jejak)
+  text        String   @db.Text
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([senderId, createdAt])
+  @@map("report_dispatches")
+}

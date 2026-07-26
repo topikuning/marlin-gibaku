@@ -2363,3 +2363,21 @@ scurve — dengan test properti, bukan paritas nilai):**
   knownModels — Claude dari referensi Anthropic; OpenAI/Mistral/Grok dari docs 2026) + (b) tombol
   "Muat model" yang menarik daftar OTORITATIF langsung dari endpoint /models provider
   (listModels/listAiModelsAction) memakai API key tersimpan. Tetap boleh ketik bebas.
+
+## 122 · 2026-07-26 · Laporan Eksekutif → WA (rangkuman AI dikirim ke direksi)
+
+- **Halaman `/laporan-wa`** (capability `exec_report.send` = site_manager ke atas; scope data
+  mengikuti penugasan lokasi). Alur: pilih jenis + periode → **Susun (AI)** → **pratinjau/edit** →
+  pilih tujuan (kontak tersimpan **per-pembuat** atau input bebas nomor/grup) → **Kirim** (WAHA
+  sendText) → histori (ReportDispatch).
+- **Fitur utama**: `rangkuman_kegiatan` — rangkuman kegiatan semua lokasi dalam periode (default
+  hari ini) untuk direksi. Plus `rekap_kendala` & `kepatuhan_lapor` (harian inti). Katalog
+  `lib/exec-report/catalog.ts` extensible untuk jenis lain (kegiatan+foto detail, ringkasan lokasi,
+  ringkasan percakapan WA, periodik/roll-up) — menyusul.
+- **Pipeline**: `gather.ts` (query FieldActivity + DailyReport + Issue per lokasi, hormati
+  `accessibleLocationIds`) → `prompt.ts` (serialisasi data + instruksi anti-halusinasi + format WA)
+  → `aiComplete()` (provider aktif, DECISIONS 121). Draf bisa diedit sebelum kirim.
+- **Schema**: WaContact (per-pembuat: name + chatId) + ReportDispatch (histori/audit teks kirim);
+  migration `20260726010000_exec_report_wa`. authz: capability `exec_report.send` ditambah ke
+  site_manager/PM/RM (SA/PD inherit). Nav item "Laporan → WA".
+- Verifikasi: typecheck/lint/unit(185)/build ✓. Butuh: provider AI aktif + WAHA terkonfigurasi.
