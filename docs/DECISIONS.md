@@ -2526,3 +2526,16 @@ Tiga bug tampilan pada PDF produksi (dari bundle self-contained DECISIONS 128):
   ActivityAttachments + hitungan), lalu DraftActions/Reopen + tombol WA (komponen lama, tetap).
 - Styling token-only (tak ada hex); komponen aksi lama dipakai ulang (rendah risiko).
 - Verifikasi: typecheck/lint/build ✓ (route kegiatan ter-compile; RSC node→klien lolos).
+
+## 131 · 2026-07-26 · Kegiatan: satukan Cetak+PDF jadi satu, rincian PDF 2 kolom
+
+- **Keluhan**: (a) kotak "Rincian" di PDF terlalu lebar (1 kolom, huruf besar, banyak ruang kosong);
+  (b) ada DUA tombol "Cetak" (print HTML) & "Unduh PDF" (PDF server) yang ISINYA BEDA — membingungkan.
+- **Satukan**: buang halaman print HTML (`/cetak/kegiatan/[id]` + `components/knmp/kegiatan-report.tsx`
+  DIHAPUS). Sisakan SATU tombol "Cetak / PDF" → PDF server (`/api/kegiatan/[id]/pdf`), yakni sumber
+  yang SAMA dengan yang dikirim ke WA (isi lengkap: Penyedia, No. kontrak, link foto). PDF terbuka di
+  browser → bisa langsung dicetak (Ctrl/Cmd+P) atau disimpan. Tak ada lagi dua format berbeda.
+- **Rincian 2 kolom**: `drawDetails` ditata ulang jadi 2 kolom + huruf lebih kecil (label 7.5pt,
+  nilai 8.5pt). Nilai panjang (Nama proyek/Peserta, >44 char) otomatis memakai baris penuh. Ringkas,
+  tak lagi melebar.
+- Verifikasi: typecheck/lint/build ✓ (route cetak/kegiatan hilang), render PDF 2 kolom ✓.

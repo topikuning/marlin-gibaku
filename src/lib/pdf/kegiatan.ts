@@ -16,7 +16,6 @@ import {
   createA4Doc,
   docToBuffer,
   ensureSpace,
-  metaRow,
   paragraph,
   reportHeader,
   sanitizeText,
@@ -300,19 +299,60 @@ function drawDetails(
   if (d.creatorName) rows.push(["Pelapor", d.creatorName]);
   if (d.participants) rows.push(["Peserta / hadir", d.participants]);
 
+  // Tata letak 2 KOLOM + huruf kecil supaya rincian ringkas (tak terlalu lebar).
+  // Nilai panjang (mis. nama proyek/peserta) memakai satu baris penuh (2 kolom).
   const boxX = PAGE_MARGIN;
   const boxW = CONTENT_WIDTH;
   const padIn = 10;
+  const colGap = 18;
+  const colW = (boxW - padIn * 2 - colGap) / 2;
+  const LABEL_W = 70;
+  const LABEL_FS = 7.5;
+  const VALUE_FS = 8.5;
+  const ROW_GAP = 5;
+
+  // Ukur tinggi satu sel (label kiri + nilai kanan) pada lebar tertentu.
+  const cellHeight = (value: string, cellW: number): number => {
+    const vw = cellW - LABEL_W - 6;
+    doc.font(PDF_FONT.regular).fontSize(VALUE_FS);
+    return Math.max(doc.currentLineHeight(), doc.heightOfString(sanitizeText(value), { width: vw }));
+  };
+  // Gambar satu sel di (cx, cy) lebar cellW → tak mengubah doc.y.
+  const drawCell = (label: string, value: string, cx: number, cy: number, cellW: number): void => {
+    doc.font(PDF_FONT.bold).fontSize(LABEL_FS).fillColor(PDF_COLORS.inkMuted).text(label, cx, cy + 0.5, { width: LABEL_W, lineBreak: false });
+    doc
+      .font(PDF_FONT.regular)
+      .fontSize(VALUE_FS)
+      .fillColor(PDF_COLORS.ink)
+      .text(sanitizeText(value), cx + LABEL_W + 6, cy, { width: cellW - LABEL_W - 6 });
+  };
+
   const startY = doc.y;
   let y = startY + padIn;
-  for (const [label, value] of rows) {
-    y = metaRow(doc, label, value, boxX + padIn, y, boxW - padIn * 2);
+  const leftX = boxX + padIn;
+  const rightX = boxX + padIn + colW + colGap;
+  const isLong = (v: string) => v.length > 44;
+
+  let i = 0;
+  while (i < rows.length) {
+    const [lLabel, lValue] = rows[i];
+    if (isLong(lValue)) {
+      // Baris penuh (2 kolom) untuk nilai panjang.
+      const h = cellHeight(lValue, boxW - padIn * 2);
+      drawCell(lLabel, lValue, leftX, y, boxW - padIn * 2);
+      y += h + ROW_GAP;
+      i += 1;
+      continue;
+    }
+    const right = rows[i + 1] && !isLong(rows[i + 1][1]) ? rows[i + 1] : null;
+    const h = Math.max(cellHeight(lValue, colW), right ? cellHeight(right[1], colW) : 0);
+    drawCell(lLabel, lValue, leftX, y, colW);
+    if (right) drawCell(right[0], right[1], rightX, y, colW);
+    y += h + ROW_GAP;
+    i += right ? 2 : 1;
   }
-  const boxH = y - startY + padIn - 4;
-  // Gambar border di belakang tanpa menimpa teks: pdfkit menggambar sesuai urutan,
-  // jadi kita gambar ulang kotak lalu render ulang? Lebih murah: kotak digambar
-  // setelah menghitung tinggi, dengan teks sudah tergambar di atasnya — border
-  // stroke tidak menutup teks. Cukup stroke persegi rounded.
+
+  const boxH = y - startY + padIn - ROW_GAP;
   doc.roundedRect(boxX, startY, boxW, boxH, 6).lineWidth(0.8).strokeColor(PDF_COLORS.border).stroke();
   doc.y = startY + boxH + 6;
   doc.x = PAGE_MARGIN;

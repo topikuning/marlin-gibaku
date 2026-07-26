@@ -127,11 +127,10 @@ export default async function KegiatanLapanganPage({ params }: { params: Promise
               </span>
             ) : null}
             <div className="flex flex-wrap gap-1.5">
+              {/* Satu sumber: PDF server (isi sama dgn yang dikirim WA). Terbuka di
+                  browser → bisa langsung dicetak (Ctrl/Cmd+P) atau disimpan. */}
               <a href={`/api/kegiatan/${a.id}/pdf`} target="_blank" rel="noopener" className={linkBtn}>
-                Unduh PDF
-              </a>
-              <a href={`/cetak/kegiatan/${a.id}`} target="_blank" rel="noopener" className={linkBtn}>
-                Cetak
+                Cetak / PDF
               </a>
             </div>
           </div>
