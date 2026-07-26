@@ -8,6 +8,7 @@ const eslintConfig = [
       "next-env.d.ts",
       "src/generated/**",
       "prisma/migrations/**",
+      "assets/**",
       "artifacts/**",
       "playwright-report/**",
       "test-results/**",

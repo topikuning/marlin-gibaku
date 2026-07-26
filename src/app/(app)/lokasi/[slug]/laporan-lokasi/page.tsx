@@ -99,7 +99,7 @@ export default async function LaporanLokasiPage({
               ) : report ? (
                 <div className="space-y-4">
                   {wahaOn ? (
-                    <SendPeriodReportWaButton locationId={location.id} kind={kind} n={n} hasGroup={hasGroup} />
+                    <SendPeriodReportWaButton slug={slug} locationId={location.id} kind={kind} n={n} hasGroup={hasGroup} />
                   ) : null}
                   {/* Hal-1: KURVA S (grafik) */}
                   <div className="overflow-x-auto rounded-md border border-border bg-white p-4">

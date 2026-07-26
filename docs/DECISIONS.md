@@ -2381,3 +2381,161 @@ scurve — dengan test properti, bukan paritas nilai):**
   migration `20260726010000_exec_report_wa`. authz: capability `exec_report.send` ditambah ke
   site_manager/PM/RM (SA/PD inherit). Nav item "Laporan → WA".
 - Verifikasi: typecheck/lint/unit(185)/build ✓. Butuh: provider AI aktif + WAHA terkonfigurasi.
+
+## 123 · 2026-07-26 · Laporan Kegiatan Lapangan → PDF (dokumen A4 rapi: teks + foto)
+
+- **Kebutuhan**: laporan kegiatan lapangan yang bisa dijadikan PDF profesional (teks + foto) untuk
+  dilaporkan ke seseorang.
+- **Pendekatan**: pola cetak MARLIN yang sudah ada (`app/cetak/*`, A4 tanpa shell, `PrintToolbar` →
+  window.print → Simpan PDF). Andal & lintas-platform, tanpa dependensi PDF server.
+- **Halaman `/cetak/kegiatan/[id]`** (auth + `requireLocationAccess`): susun jenis, judul, tanggal,
+  pelapor, peserta, **uraian**, **kendala**, **solusi**, dan **galeri foto** berlabel (waktu EXIF +
+  koordinat) jadi dokumen A4 profesional (`components/knmp/kegiatan-report.tsx`). Foto via presigned
+  R2 (600 dtk). Tautan "Cetak / PDF" per kegiatan di tab Kegiatan Lapangan.
+- Verifikasi: typecheck/lint/build ✓.
+- Menyusul: (a) opsi "susun uraian dengan AI" dari notes mentah; (b) laporan EKSEKUTIF sebagai
+  dokumen A4 berdesain (bukan sekadar teks WA).
+
+## 124 · 2026-07-26 · Kirim Laporan Kegiatan sebagai PDF (server-side) ke WhatsApp
+
+- **Kebutuhan**: kirim laporan kegiatan sebagai DOKUMEN PDF rapi (teks + foto) ke WhatsApp, bukan
+  hanya teks/foto lepas. WAHA `sendFile` sudah ada (base64), yang kurang: BINARY PDF di server.
+- **Keputusan mesin PDF**: `pdfkit` (murni-Node, MIT) — BUKAN headless Chromium. Runner produksi =
+  `node:slim` TANPA Chromium; menambah Playwright/Chromium ke image runtime berat & rapuh di
+  Railway. pdfkit: teks vektor (bisa diseleksi), alir teks + page-break OTOMATIS (narasi bisa
+  panjang → hindari paginasi SVG manual yang rawan salah), foto ditanam via `sharp` (JPEG,
+  rotasi EXIF). Alternatif SVG→raster→pdf-lib ditolak: teks jadi raster & paginasi manual.
+- **Font**: pakai DejaVu Sans TTF yang SUDAH dibawa aplikasi (`assets/fonts`, sudah di-trace ke
+  standalone). Didaftarkan via `registerFont` → pdfkit tak pernah menyentuh font AFM bawaan →
+  hindari jebakan tracing `.afm` di build standalone.
+- **Tracing standalone**: `next.config` `outputFileTracingIncludes` + `serverExternalPackages`
+  tambah `pdfkit`, `fontkit`, `unicode-properties`, `unicode-trie`, `linebreak`, `brotli`, `dfa`,
+  `png-js` (require dinamis file data tak terlihat tracer statik). Diverifikasi tersalin ke
+  `.next/standalone`. License audit tetap lolos (semua MIT/BSD/dalam allowlist).
+- **Modul**: `lib/pdf/document.ts` (fondasi: font, doc A4, palet token, primitif section/meta/
+  paragraph/footer i-per-n) + `lib/pdf/kegiatan.ts` (`buildKegiatanPdf(data)` MURNI tanpa I/O,
+  dipakai bersama produksi & pratinjau; `renderKegiatanPdf(id)` gather DB/R2 → build).
+- **Bug halus diperbaiki**: menulis kaki halaman di pita margin bawah memicu pdfkit menambah
+  halaman kosong; diakali dengan menol-kan `page.margins.bottom` sementara saat menulis kaki.
+- **Distribusi**: (a) unduhan PDF server-side `GET /api/kegiatan/[id]/pdf` (auth + akses lokasi;
+  bukan print browser); (b) tombol "Kirim PDF ke WhatsApp" → `sendActivityPdfToWaAction` (gate
+  `field_activity.manage` + `requireLocationAccess` + `audit`), tujuan default grup WA paket ATAU
+  nomor/ID bebas ("dilaporkan ke atasan tertentu"). Caption = judul + jenis + tanggal + lokasi.
+- Verifikasi: typecheck/lint/unit(185)/build ✓, tracing standalone ✓, smoke-render (font+foto+
+  multi-halaman+kaki) ✓. Menyusul: laporan EKSEKUTIF sebagai PDF berdesain.
+
+## 125 · 2026-07-26 · Foto di PDF: link publik MARLIN ke gambar penuh (tak ter-crop)
+
+- **Kebutuhan**: foto di PDF di-crop (`cover`) agar grid rapi → sebagian gambar hilang. Perlu
+  tautan aktif ke gambar PENUH di cloud, bisa dibuka penerima WA.
+- **Keputusan link** (pilihan user: "link dari MARLIN tapi bisa untuk publik"): route PUBLIK
+  `GET /api/foto/[token]` (tanpa login) yang redirect ke presigned R2 pendek. Keamanan = token
+  HMAC-SHA256 atas photoId pakai SESSION_SECRET (`lib/pdf/photo-token.ts`) — hanya link yang DIBUAT
+  MARLIN valid (bukan tebak id), **permanen** (tanpa kedaluwarsa), dan rotasi SESSION_SECRET
+  otomatis mematikan semua link lama. Ditambah ke `PUBLIC_PATHS` middleware.
+- **Di PDF**: tiap foto tetap `cover`-crop + chip "Lihat penuh" (kanan-atas) + seluruh sel jadi
+  tautan (`doc.link`) ke gambar penuh; catatan satu baris di bawah judul Dokumentasi Foto. URL
+  absolut disusun dari origin request (`lib/http.ts getRequestOrigin`, header x-forwarded-*).
+- `renderKegiatanPdf(id, { baseUrl })`: pemanggil (route unduh + aksi kirim WA) meneruskan origin.
+- Verifikasi: typecheck/lint ✓, token round-trip + tolak tamper/garবage ✓, render PDF berlink ✓.
+
+## 126 · 2026-07-26 · Laporan Harian & Mingguan/Bulanan → PDF ringkas + kirim WA
+
+- **Kebutuhan**: kirim laporan harian & mingguan ke WA sebagai PDF (bukan cuma Excel). Format
+  dipilih user: DUA-DUANYA (ringkas profesional + form KKP resmi).
+- **Slice ini = format RINGKAS** (bersih, enak dibaca di HP, beda dari Excel) untuk keduanya.
+  Format resmi KKP (form bergaris; mingguan perlu landscape) = slice berikutnya.
+- **Primitif** `lib/pdf/table.ts`: `table()` (header berwarna + zebra + wrap sel + page-break yang
+  MENGULANG header) + `kpiRow()` (kartu KPI). `document.ts` tambah `reportHeader()` + `detailBox()`
+  agar semua jenis laporan berbagi kop & kotak identitas.
+- **`lib/pdf/harian.ts`** `buildHarianRingkasPdf(KkpDailyData)` + `renderHarianPdf(slug, dateKey)`:
+  kop, identitas, KPI (pekerja/cuaca/jam), tabel progres pekerjaan hari ini, tenaga/material/alat,
+  catatan. **`lib/pdf/periodik.ts`** `buildPeriodikRingkasPdf(PeriodReport)` +
+  `renderPeriodikPdf(locationId, kind, n)`: KPI rencana/realisasi/deviasi (warna), progres per
+  kategori + baris TOTAL, sumber daya, kendala.
+- **Distribusi**: unduh `GET /api/laporan/harian/[slug]/[date]/pdf` &
+  `/api/laporan/periodik/[slug]/[kind]/[n]/pdf` (auth + akses lokasi). Aksi kirim WA
+  `sendDailyReportPdfToWaAction` & `sendPeriodReportPdfToWaAction` (gate report.export +
+  requireLocationAccess + audit; tujuan grup paket ATAU nomor/ID bebas). UI laporan-lokasi: tombol
+  "Kirim WA (PDF)" + "Excel" + "Unduh PDF".
+- Verifikasi: typecheck/lint/unit(185)/build ✓ (semua route terdaftar), smoke-render harian &
+  mingguan ✓.
+
+## 127 · 2026-07-26 · Fix produksi: pdfkit gagal muat di Railway (pakai bundle self-contained)
+
+- **Gejala (Railway)**: klik "Kirim PDF ke WhatsApp" → `Failed to load external module pdfkit …
+  Cannot find module '…/.pnpm/node_modules/@swc/…'`, lalu setelah menyalin dep →
+  `applyDecoratedDescriptor is not a function`.
+- **Akar masalah**: `serverExternalPackages: ["pdfkit"]` + Next standalone TIDAK menyalin closure
+  dep paket external. Menyalin closure per-file (77 paket) via outputFileTracingIncludes MERUSAK
+  symlink pnpm yang memaku fontkit ke versi @swc/helpers-nya → Node resolve ke @swc/helpers versi
+  lain yang API-nya beda (`applyDecoratedDescriptor` tak ada). Menyalin file tak bisa menjaga
+  resolusi pnpm.
+- **Keputusan**: muat pdfkit dari **bundle prebuilt self-contained** `pdfkit/js/pdfkit.standalone.js`
+  (fontkit + @swc/helpers dll. sudah di-inline, TANPA dependensi eksternal) via `createRequire`.
+  Kebal masalah symlink. Cukup trace paket `pdfkit@*` (bundle ada di dalamnya); buang seluruh
+  closure-include yang rapuh dari next.config.
+- **Verifikasi**: probe `require("pdfkit/js/pdfkit.standalone.js")` + registerFont DejaVu + render
+  DIJALANKAN DI DALAM `.next/standalone` (mereproduksi mode produksi) → OK. typecheck/lint/unit(185)/
+  build ✓.
+
+## 128 · 2026-07-26 · Fix produksi #2: pdfkit "Cannot find module" → vendor bundle di assets/
+
+- **Gejala (Railway)**: `Cannot find module 'pdfkit/js/pdfkit.standalone.js' Require stack:
+  /app/index.js`. Verifikasi lokal DECISIONS 127 ternyata FALSE POSITIVE: `.next/standalone`
+  bersarang di dalam pohon proyek, jadi resolusi `require("pdfkit/…")` naik ke `node_modules`
+  proyek induk. Di `/app` (produksi) tak ada induk → gagal. Next standalone TIDAK membuat symlink
+  `node_modules/pdfkit` untuk paket yang hanya dipanggil via createRequire string.
+- **Keputusan**: VENDOR file bundle self-contained ke `assets/pdfkit-standalone.cjs` (2.6 MB, fontkit
+  + @swc/helpers inline) dan MUAT via PATH ABSOLUT `process.cwd()/assets/pdfkit-standalone.cjs` —
+  TANPA resolusi node_modules sama sekali. assets/ selalu di-copy Dockerfile + di-trace next.config
+  (`./assets/**`). Kebal dua jebakan sekaligus (symlink pnpm & symlink top-level Next).
+- **Verifikasi BENAR (isolasi)**: salin `.next/standalone/assets` ke `/tmp/appsim` (TANPA
+  node_modules), require path absolut + registerFont DejaVu + render → OK. Bukan lagi false
+  positive. typecheck/lint/unit/build ✓.
+- Catatan: bundle di-pin ke pdfkit 0.15.2; regen bila upgrade pdfkit.
+
+## 129 · 2026-07-26 · Fix render PDF: foto kosong, teks tumpang tindih, kotak tofu
+
+Tiga bug tampilan pada PDF produksi (dari bundle self-contained DECISIONS 128):
+- **Foto kosong**: bundle pdfkit self-contained (build browser) MENSTUB `fs`, sehingga
+  `doc.image(Buffer)` gagal `fs.readFileSync is not a function` (Buffer bundel ≠ Buffer Node →
+  jatuh ke jalur baca file). FIX: beri **DATA URI base64** (`data:image/jpeg;base64,…`) → decode
+  inline tanpa fs. Diuji: image XObject + DCTDecode tertanam.
+- **Kop tumpang tindih**: judul kanan dipakai lebar penuh + rata kanan → menabrak teks kiri. FIX:
+  `reportHeader` — kiri & judul masing-masing di KOLOM 50% (judul boleh wrap). `drawHeader`
+  kegiatan kini pakai `reportHeader` (satu sumber).
+- **Kotak tofu □**: user mengetik emoji yang tak ada di DejaVu → glyph .notdef. FIX: `sanitizeText`
+  (filter code-point: buang emoji/simbol/dingbat/variation-selector/zero-width/kontrol; Latin
+  beraksen, ·, →, ©®™ dipertahankan) diterapkan di paragraph/metaRow/table/identitas.
+- Verifikasi: typecheck/lint/unit/build ✓, e2e render (emoji + 3 foto) → foto tertanam & tanpa tofu.
+
+## 130 · 2026-07-26 · Rombak UI/UX halaman Kegiatan & Dokumentasi Lapangan
+
+- **Kebutuhan**: tata ulang halaman kegiatan sesuai mockup UI/UX (rapi, desktop & mobile).
+- **Layout**: intro + chip ringkasan (Total/Draft/Final dari data nyata) → workspace 2 kolom
+  (form kiri STICKY di lg + daftar kanan; menumpuk 1 kolom di mobile).
+- **Form** (`CreateActivityForm`): "Informasi utama" (grid) + blok "Kendala & tindak lanjut" yang
+  BISA DILIPAT (field tetap di DOM via CSS `hidden` agar tetap terkirim) + blok foto + footer
+  Reset/Simpan.
+- **Daftar** (`kegiatan-list.tsx`, klien): toolbar cari + filter jenis/status. Kartu di-render di
+  SERVER (beserta semua form aksinya) lalu di-passing sebagai `node` + metadata ke komponen klien
+  untuk disaring — pola RSC (node server → prop komponen klien), bukan manipulasi DOM.
+- **Kartu**: header (pills jenis/status/tanggal + judul + catatan · penulis + Unduh PDF/Cetak),
+  ringkasan Peserta/Kendala(warning)/Solusi(success), "Bukti & lampiran" (PhotoGallery +
+  ActivityAttachments + hitungan), lalu DraftActions/Reopen + tombol WA (komponen lama, tetap).
+- Styling token-only (tak ada hex); komponen aksi lama dipakai ulang (rendah risiko).
+- Verifikasi: typecheck/lint/build ✓ (route kegiatan ter-compile; RSC node→klien lolos).
+
+## 131 · 2026-07-26 · Kegiatan: satukan Cetak+PDF jadi satu, rincian PDF 2 kolom
+
+- **Keluhan**: (a) kotak "Rincian" di PDF terlalu lebar (1 kolom, huruf besar, banyak ruang kosong);
+  (b) ada DUA tombol "Cetak" (print HTML) & "Unduh PDF" (PDF server) yang ISINYA BEDA — membingungkan.
+- **Satukan**: buang halaman print HTML (`/cetak/kegiatan/[id]` + `components/knmp/kegiatan-report.tsx`
+  DIHAPUS). Sisakan SATU tombol "Cetak / PDF" → PDF server (`/api/kegiatan/[id]/pdf`), yakni sumber
+  yang SAMA dengan yang dikirim ke WA (isi lengkap: Penyedia, No. kontrak, link foto). PDF terbuka di
+  browser → bisa langsung dicetak (Ctrl/Cmd+P) atau disimpan. Tak ada lagi dua format berbeda.
+- **Rincian 2 kolom**: `drawDetails` ditata ulang jadi 2 kolom + huruf lebih kecil (label 7.5pt,
+  nilai 8.5pt). Nilai panjang (Nama proyek/Peserta, >44 char) otomatis memakai baris penuh. Ringkas,
+  tak lagi melebar.
+- Verifikasi: typecheck/lint/build ✓ (route cetak/kegiatan hilang), render PDF 2 kolom ✓.

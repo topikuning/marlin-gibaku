@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Card, CardBody, CardHeader, StatusPill } from "@/components/ui";
+import { StatusPill } from "@/components/ui";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import { can } from "@/lib/authz";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
@@ -20,10 +20,41 @@ import {
   DraftActions,
   ReopenActivityButton,
   SendToWaButton,
+  SendPdfToWaButton,
 } from "./kegiatan-forms";
+import { KegiatanList, type ActivityCardItem } from "./kegiatan-list";
 
 export const metadata: Metadata = { title: "Kegiatan & Dokumentasi Lapangan" };
 export const dynamic = "force-dynamic";
+
+function Chip({ label, value, tone }: { label: string; value: number; tone?: "warning" | "success" }) {
+  const color = tone === "warning" ? "text-warning" : tone === "success" ? "text-success" : "text-ink";
+  return (
+    <div className="min-w-[84px] rounded-lg border border-border bg-surface px-3 py-2 text-center sm:text-left">
+      <div className="text-[10px] font-bold tracking-wide text-ink-muted uppercase">{label}</div>
+      <div className={`mt-0.5 text-lg font-bold ${color}`}>{value}</div>
+    </div>
+  );
+}
+
+function SummaryBox({ label, value, tone }: { label: string; value: string; tone?: "issue" | "solution" }) {
+  const box =
+    tone === "issue"
+      ? "border-warning-border bg-warning-soft"
+      : tone === "solution"
+        ? "border-success-border bg-success-soft"
+        : "border-border bg-surface-inset";
+  const labelColor = tone === "issue" ? "text-warning" : tone === "solution" ? "text-success" : "text-ink-muted";
+  return (
+    <div className={`rounded-lg border p-2.5 ${box}`}>
+      <div className={`text-[10px] font-bold tracking-wide uppercase ${labelColor}`}>{label}</div>
+      <p className="mt-1 text-[12px] leading-relaxed whitespace-pre-line text-ink">{value}</p>
+    </div>
+  );
+}
+
+const linkBtn =
+  "inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-[12px] font-medium text-ink hover:border-border-strong hover:bg-surface-muted";
 
 export default async function KegiatanLapanganPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -50,119 +81,188 @@ export default async function KegiatanLapanganPage({ params }: { params: Promise
   const hasGroup = !!pkgGroup?.package?.waGroupId;
   const groupName = pkgGroup?.package?.waGroupName ?? null;
 
+  const draftCount = activities.filter((a) => a.status === "draft").length;
+  const finalCount = activities.length - draftCount;
+
+  const kindLabelOf = (t: string) => kindLabels.get(t) ?? t;
+  const items: ActivityCardItem[] = activities.map((a) => {
+    const typeLabel = kindLabelOf(a.type);
+    const statusLabel = FIELD_ACTIVITY_STATUS_LABEL[a.status];
+    const text = [
+      a.title,
+      a.notes,
+      a.participants,
+      a.kendala,
+      a.solusi,
+      typeLabel,
+      ...a.attachments.map((x) => x.fileName),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    const node = (
+      <article className="overflow-hidden rounded-xl border border-border bg-surface shadow-xs">
+        {/* Header: meta + judul + catatan · penulis + cetak/PDF */}
+        <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="rounded-full border border-border bg-surface-inset px-2 py-0.5 text-[11px] font-semibold text-ink-muted">
+                {typeLabel}
+              </span>
+              <StatusPill tone={FIELD_ACTIVITY_STATUS_TONE[a.status]} label={statusLabel} />
+              <span className="rounded-full border border-border bg-surface-inset px-2 py-0.5 text-[11px] text-ink-muted">
+                {formatTanggal(new Date(a.activityDate))}
+              </span>
+            </div>
+            <h3 className="mt-2 text-[15px] font-semibold text-ink">{a.title}</h3>
+            {a.notes ? (
+              <p className="mt-1 text-[13px] leading-relaxed whitespace-pre-line text-ink-muted">{a.notes}</p>
+            ) : null}
+          </div>
+          <div className="flex shrink-0 flex-col gap-2 sm:items-end">
+            {a.createdByName ? (
+              <span className="text-[12px] text-ink-faint">
+                oleh <span className="font-medium text-ink-muted">{a.createdByName}</span>
+              </span>
+            ) : null}
+            <div className="flex flex-wrap gap-1.5">
+              {/* Satu sumber: PDF server (isi sama dgn yang dikirim WA). Terbuka di
+                  browser → bisa langsung dicetak (Ctrl/Cmd+P) atau disimpan. */}
+              <a href={`/api/kegiatan/${a.id}/pdf`} target="_blank" rel="noopener" className={linkBtn}>
+                Cetak / PDF
+              </a>
+            </div>
+          </div>
+        </div>
+
+        {/* Ringkasan: Peserta / Kendala / Solusi */}
+        {a.participants || a.kendala || a.solusi ? (
+          <div className="grid gap-2 px-4 pb-4 sm:grid-cols-3">
+            {a.participants ? <SummaryBox label="Peserta" value={a.participants} /> : null}
+            {a.kendala ? <SummaryBox label="Kendala" value={a.kendala} tone="issue" /> : null}
+            {a.solusi ? <SummaryBox label="Solusi / tindak lanjut" value={a.solusi} tone="solution" /> : null}
+          </div>
+        ) : null}
+
+        {/* Bukti & lampiran */}
+        <div className="border-t border-border bg-surface-muted/40 p-4">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="text-[11px] font-bold tracking-wide text-ink-muted uppercase">Bukti &amp; lampiran</span>
+            <span className="text-[11px] text-ink-faint">
+              {a.photos.length} foto · {a.attachments.length} dokumen
+            </span>
+          </div>
+          {a.photos.length > 0 ? (
+            <PhotoGallery
+              photos={a.photos}
+              thumbClass="h-20 w-20"
+              canDelete={canManage && a.status === "draft"}
+              deleteAction={removeActivityPhotoAction}
+            />
+          ) : (
+            <p className="text-[12px] text-ink-faint">Belum ada foto.</p>
+          )}
+          {a.attachments.length > 0 ? (
+            <ActivityAttachments attachments={a.attachments} canDelete={canManage && a.status === "draft"} />
+          ) : null}
+        </div>
+
+        {/* Pengelolaan + distribusi (komponen membawa pemisah sendiri) */}
+        {canManage ? (
+          <div className="px-4 pb-4">
+            {a.status === "draft" ? (
+              <DraftActions
+                kinds={kindOptions}
+                activity={{
+                  id: a.id,
+                  type: a.type,
+                  activityDate: a.activityDate,
+                  title: a.title,
+                  notes: a.notes,
+                  participants: a.participants,
+                  kendala: a.kendala,
+                  solusi: a.solusi,
+                }}
+              />
+            ) : (
+              <ReopenActivityButton activityId={a.id} />
+            )}
+            {wahaConfigured ? (
+              <>
+                <SendToWaButton
+                  activityId={a.id}
+                  wahaConfigured={wahaConfigured}
+                  hasGroup={hasGroup}
+                  groupName={groupName}
+                  sentAt={a.waSentAt}
+                />
+                <SendPdfToWaButton
+                  activityId={a.id}
+                  wahaConfigured={wahaConfigured}
+                  hasGroup={hasGroup}
+                  groupName={groupName}
+                />
+              </>
+            ) : null}
+          </div>
+        ) : null}
+      </article>
+    );
+
+    return { id: a.id, typeLabel, statusLabel, text, node };
+  });
+
+  const typeOptions = [...new Set(items.map((i) => i.typeLabel))].sort((x, y) => x.localeCompare(y, "id"));
+  const statusOptions = [...new Set(items.map((i) => i.statusLabel))];
+
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader
-          title="Kegiatan & Dokumentasi Lapangan"
-          subtitle="Catatan kegiatan NON-pekerjaan beserta foto & dokumen pendukung (notulen, undangan, berita acara, dsb.) — mis. rapat persiapan (PCM), pengukuran/uitzet, MC-0, sosialisasi, mobilisasi, dokumentasi kondisi 0%. Terpisah dari laporan progres harian."
-        />
-        {canManage ? (
-          <CardBody>
-            <CreateActivityForm locationId={location.id} todayKey={todayKey} kinds={kindOptions} />
-          </CardBody>
-        ) : null}
-      </Card>
-
-      {activities.length === 0 ? (
-        <Card>
-          <CardBody>
-            <p className="text-sm text-ink-muted">
-              Belum ada kegiatan tercatat.{canManage ? " Gunakan formulir di atas untuk menambah." : ""}
+      {/* Intro + ringkasan */}
+      <section className="rounded-xl border border-border bg-surface p-4 shadow-xs sm:p-5">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-lg font-semibold tracking-tight text-ink">Kegiatan &amp; Dokumentasi Lapangan</h1>
+            <p className="mt-1 max-w-3xl text-[12px] leading-relaxed text-ink-muted">
+              Catat kegiatan NON-progres seperti PCM, pengukuran/uitzet, MC-0, sosialisasi, mobilisasi, dan dokumentasi
+              kondisi 0%. Foto, dokumen pendukung, finalisasi, serta distribusi WhatsApp dalam satu alur. Terpisah dari
+              laporan progres harian.
             </p>
-          </CardBody>
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {activities.map((a) => (
-            <Card key={a.id}>
-              <CardBody>
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-md bg-surface-inset px-2 py-0.5 text-[12px] font-semibold text-ink-muted">
-                        {kindLabels.get(a.type) ?? a.type}
-                      </span>
-                      <StatusPill
-                        tone={FIELD_ACTIVITY_STATUS_TONE[a.status]}
-                        label={FIELD_ACTIVITY_STATUS_LABEL[a.status]}
-                      />
-                      <span className="text-[13px] text-ink-muted">{formatTanggal(new Date(a.activityDate))}</span>
-                    </div>
-                    <h3 className="mt-1.5 text-sm font-semibold text-ink">{a.title}</h3>
-                  </div>
-                  <span className="text-[12px] text-ink-faint">
-                    {a.createdByName ? `oleh ${a.createdByName}` : null}
-                  </span>
-                </div>
-
-                {a.notes ? <p className="mt-2 text-[13px] whitespace-pre-line text-ink">{a.notes}</p> : null}
-                {a.participants ? (
-                  <p className="mt-1.5 text-[12px] text-ink-muted">
-                    <span className="font-medium">Hadir:</span> {a.participants}
-                  </p>
-                ) : null}
-                {a.kendala ? (
-                  <p className="mt-1.5 text-[13px] whitespace-pre-line text-ink">
-                    <span className="font-medium text-warning">Kendala:</span> {a.kendala}
-                  </p>
-                ) : null}
-                {a.solusi ? (
-                  <p className="mt-1.5 text-[13px] whitespace-pre-line text-ink">
-                    <span className="font-medium text-success">Solusi / tindak lanjut:</span> {a.solusi}
-                  </p>
-                ) : null}
-
-                {a.photos.length > 0 ? (
-                  <div className="mt-3">
-                    <PhotoGallery
-                      photos={a.photos}
-                      thumbClass="h-20 w-20"
-                      canDelete={canManage && a.status === "draft"}
-                      deleteAction={removeActivityPhotoAction}
-                    />
-                  </div>
-                ) : (
-                  <p className="mt-3 text-[12px] text-ink-faint">Belum ada foto.</p>
-                )}
-
-                {a.attachments.length > 0 ? (
-                  <ActivityAttachments
-                    attachments={a.attachments}
-                    canDelete={canManage && a.status === "draft"}
-                  />
-                ) : null}
-
-                {canManage && a.status === "draft" ? (
-                  <DraftActions
-                    kinds={kindOptions}
-                    activity={{
-                      id: a.id,
-                      type: a.type,
-                      activityDate: a.activityDate,
-                      title: a.title,
-                      notes: a.notes,
-                      participants: a.participants,
-                      kendala: a.kendala,
-                      solusi: a.solusi,
-                    }}
-                  />
-                ) : null}
-                {canManage && a.status === "final" ? <ReopenActivityButton activityId={a.id} /> : null}
-                {canManage && wahaConfigured ? (
-                  <SendToWaButton
-                    activityId={a.id}
-                    wahaConfigured={wahaConfigured}
-                    hasGroup={hasGroup}
-                    groupName={groupName}
-                    sentAt={a.waSentAt}
-                  />
-                ) : null}
-              </CardBody>
-            </Card>
-          ))}
+          </div>
+          <div className="flex flex-wrap gap-2 sm:justify-end">
+            <Chip label="Total" value={activities.length} />
+            <Chip label="Draft" value={draftCount} tone="warning" />
+            <Chip label="Final" value={finalCount} tone="success" />
+          </div>
         </div>
-      )}
+      </section>
+
+      {/* Workspace: form (kiri) + daftar (kanan) */}
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,380px)_minmax(0,1fr)]">
+        {canManage ? (
+          <aside className="rounded-xl border border-border bg-surface shadow-xs lg:sticky lg:top-4">
+            <div className="border-b border-border p-4">
+              <h2 className="text-sm font-semibold text-ink">Catat kegiatan lapangan</h2>
+              <p className="mt-1 text-[11px] leading-relaxed text-ink-muted">
+                Informasi wajib di atas. Detail opsional bisa dibuka bila diperlukan.
+              </p>
+            </div>
+            <div className="p-4">
+              <CreateActivityForm locationId={location.id} todayKey={todayKey} kinds={kindOptions} />
+            </div>
+          </aside>
+        ) : null}
+
+        <section className="rounded-xl border border-border bg-surface shadow-xs">
+          <div className="border-b border-border p-4">
+            <h2 className="text-sm font-semibold text-ink">Riwayat kegiatan</h2>
+            <p className="mt-1 text-[11px] text-ink-muted">
+              Konten, bukti, tindakan, dan distribusi dipisahkan agar mudah dipindai.
+            </p>
+          </div>
+          <KegiatanList items={items} typeOptions={typeOptions} statusOptions={statusOptions} />
+        </section>
+      </div>
     </div>
   );
 }

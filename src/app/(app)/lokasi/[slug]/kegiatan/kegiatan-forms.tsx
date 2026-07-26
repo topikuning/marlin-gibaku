@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
-import { CheckCircle2, Download, MessageCircle, Paperclip, Pencil, RotateCcw, Trash2, Plus } from "lucide-react";
+import { CheckCircle2, Download, FileText, MessageCircle, Paperclip, Pencil, RotateCcw, Trash2, Plus } from "lucide-react";
 import { Banner, Button, Input, Label, Combobox, Textarea } from "@/components/ui";
 import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
 import type { FieldActivityAttachmentView } from "@/lib/field-activity/queries";
@@ -19,8 +19,73 @@ import {
   updateActivityAction,
   type FieldActivityState,
 } from "@/lib/field-activity/actions";
-import { sendActivityToWaAction, type WaActionState } from "@/lib/waha/actions";
+import { sendActivityToWaAction, sendActivityPdfToWaAction, type WaActionState } from "@/lib/waha/actions";
 import { formatTanggalWaktu } from "@/lib/format";
+
+/**
+ * Tombol "Kirim PDF ke WhatsApp" — susun Laporan Kegiatan jadi dokumen PDF rapi
+ * (teks + galeri foto) di server, lalu kirim ke grup WA paket (default) atau ke
+ * nomor/ID tujuan bebas yang bisa dibuka. DECISIONS 124.
+ */
+export function SendPdfToWaButton({
+  activityId,
+  wahaConfigured,
+  hasGroup,
+  groupName,
+}: {
+  activityId: string;
+  wahaConfigured: boolean;
+  hasGroup: boolean;
+  groupName: string | null;
+}) {
+  const [state, action, pending] = useActionState<WaActionState, FormData>(sendActivityPdfToWaAction, undefined);
+  const [customDest, setCustomDest] = useState(false);
+  if (!wahaConfigured) return null;
+
+  return (
+    <div className="mt-3 space-y-2 border-t border-border pt-3">
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      {state?.success ? <Banner tone="success" title={state.success} /> : null}
+      <form action={action} className="space-y-2">
+        <input type="hidden" name="activityId" value={activityId} />
+        {customDest ? (
+          <div>
+            <Label htmlFor={`pdf-dest-${activityId}`}>Tujuan lain (nomor WA atau ID grup)</Label>
+            <Input
+              id={`pdf-dest-${activityId}`}
+              name="destChatId"
+              placeholder="mis. 6281234567890 atau 12036...@g.us"
+              maxLength={120}
+            />
+            <p className="mt-1 text-[12px] text-ink-muted">Kosongkan untuk kirim ke grup WA paket.</p>
+          </div>
+        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="submit" size="sm" variant="secondary" loading={pending} disabled={!hasGroup && !customDest}>
+            <FileText aria-hidden className="size-3.5" />
+            Kirim PDF ke WhatsApp
+          </Button>
+          <button
+            type="button"
+            onClick={() => setCustomDest((v) => !v)}
+            className="text-[12px] font-medium text-primary hover:underline"
+          >
+            {customDest ? "Kirim ke grup paket" : "Kirim ke tujuan lain…"}
+          </button>
+          {!customDest ? (
+            hasGroup ? (
+              groupName ? (
+                <span className="text-[12px] text-ink-muted">Grup: {groupName}</span>
+              ) : null
+            ) : (
+              <span className="text-[12px] text-ink-muted">Paket belum punya grup WA — pakai “tujuan lain”.</span>
+            )
+          ) : null}
+        </div>
+      </form>
+    </div>
+  );
+}
 
 /**
  * Tombol "Kirim ke WhatsApp" (1 klik) — kirim teks + semua foto + dokumen
@@ -85,7 +150,15 @@ export type EditableActivity = {
 };
 
 
-/** Form buat kegiatan lapangan baru (draft) + foto awal. */
+/** Label bagian kecil (uppercase) untuk mengelompokkan field form. */
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="mb-2 text-[11px] font-bold tracking-wide text-ink-muted uppercase">{children}</p>
+  );
+}
+
+/** Form buat kegiatan lapangan baru (draft) + foto awal. Info utama di atas,
+ * kendala/tindak-lanjut opsional bisa dilipat, blok foto & dokumen terpisah. */
 export function CreateActivityForm({
   locationId,
   todayKey,
@@ -98,6 +171,7 @@ export function CreateActivityForm({
   const [state, action, pending] = useActionState<FieldActivityState, FormData>(createActivityAction, undefined);
   const formRef = useRef<HTMLFormElement>(null);
   const [photoKey, setPhotoKey] = useState(0);
+  const [showOptional, setShowOptional] = useState(false);
 
   useEffect(() => {
     if (!state?.success) return;
@@ -109,88 +183,123 @@ export function CreateActivityForm({
     return () => window.clearTimeout(t);
   }, [state?.success]);
 
+  const resetForm = () => {
+    formRef.current?.reset();
+    setPhotoKey((k) => k + 1);
+  };
+
   return (
-    <form ref={formRef} action={action} className="space-y-3 rounded-lg border border-border bg-surface p-4 shadow-xs">
-      <h2 className="text-sm font-semibold text-ink">Catat kegiatan lapangan</h2>
+    <form ref={formRef} action={action} className="space-y-4">
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
       {state?.warning ? <Banner tone="warning" title="Sebagian foto gagal" description={state.warning} /> : null}
 
       <input type="hidden" name="locationId" value={locationId} />
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <Label htmlFor="fa-type" required>Jenis kegiatan</Label>
-          <Combobox id="fa-type" name="type" defaultValue={kinds[0]?.key ?? ""} required>
-            {kinds.map((k) => (
-              <option key={k.key} value={k.key}>{k.label}</option>
-            ))}
-          </Combobox>
-        </div>
-        <div>
-          <Label htmlFor="fa-date" required>Tanggal</Label>
-          <Input id="fa-date" type="date" name="activityDate" defaultValue={todayKey} required />
-        </div>
-      </div>
-
       <div>
-        <Label htmlFor="fa-title" required>Judul / uraian singkat</Label>
-        <Input id="fa-title" name="title" placeholder="mis. Rapat PCM & pengukuran awal" required maxLength={160} />
-      </div>
-
-      <div>
-        <Label htmlFor="fa-notes">Catatan (opsional)</Label>
-        <Textarea id="fa-notes" name="notes" rows={2} placeholder="Hasil/keputusan penting, kondisi lapangan…" maxLength={2000} />
-      </div>
-
-      <div>
-        <Label htmlFor="fa-participants">Peserta / hadir (opsional)</Label>
-        <Input id="fa-participants" name="participants" placeholder="mis. PPK, Konsultan Pengawas, Penyedia, Kades" maxLength={500} />
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <Label htmlFor="fa-kendala">Kendala (opsional)</Label>
-          <Textarea id="fa-kendala" name="kendala" rows={2} placeholder="Kendala di lapangan — kosongkan bila tidak ada" maxLength={2000} />
-        </div>
-        <div>
-          <Label htmlFor="fa-solusi">Solusi / tindak lanjut (opsional)</Label>
-          <Textarea id="fa-solusi" name="solusi" rows={2} placeholder="Solusi/tindak lanjut atas kendala — kosongkan bila tidak ada" maxLength={2000} />
+        <SectionLabel>Informasi utama</SectionLabel>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="fa-type" required>Jenis kegiatan</Label>
+            <Combobox id="fa-type" name="type" defaultValue={kinds[0]?.key ?? ""} required>
+              {kinds.map((k) => (
+                <option key={k.key} value={k.key}>{k.label}</option>
+              ))}
+            </Combobox>
+          </div>
+          <div>
+            <Label htmlFor="fa-date" required>Tanggal</Label>
+            <Input id="fa-date" type="date" name="activityDate" defaultValue={todayKey} required />
+          </div>
+          <div className="sm:col-span-2">
+            <Label htmlFor="fa-title" required>Judul / uraian singkat</Label>
+            <Input id="fa-title" name="title" placeholder="mis. Rapat PCM & pengukuran awal" required maxLength={160} />
+          </div>
+          <div className="sm:col-span-2">
+            <Label htmlFor="fa-notes">Catatan / hasil penting</Label>
+            <Textarea id="fa-notes" name="notes" rows={2} placeholder="Keputusan, kondisi lapangan, atau hasil kegiatan…" maxLength={2000} />
+          </div>
+          <div className="sm:col-span-2">
+            <Label htmlFor="fa-participants">Peserta / hadir</Label>
+            <Input id="fa-participants" name="participants" placeholder="mis. PPK, Konsultan Pengawas, Penyedia, Kades" maxLength={500} />
+          </div>
         </div>
       </div>
 
-      <div>
+      {/* Kendala & tindak lanjut — opsional, bisa dilipat. Field TETAP di DOM
+          (disembunyikan via CSS) agar isian ikut terkirim walau terlipat. */}
+      <div className="overflow-hidden rounded-lg border border-border">
+        <button
+          type="button"
+          onClick={() => setShowOptional((v) => !v)}
+          className="flex w-full items-center justify-between bg-surface-inset px-3 py-2.5 text-[13px] font-semibold text-ink-muted hover:bg-surface-muted"
+          aria-expanded={showOptional}
+        >
+          <span>Kendala &amp; tindak lanjut</span>
+          <span className="text-base leading-none">{showOptional ? "−" : "+"}</span>
+        </button>
+        <div className={`${showOptional ? "" : "hidden"} space-y-3 border-t border-border p-3`}>
+          <div>
+            <Label htmlFor="fa-kendala">Kendala</Label>
+            <Textarea id="fa-kendala" name="kendala" rows={2} placeholder="Kosongkan bila tidak ada kendala" maxLength={2000} />
+          </div>
+          <div>
+            <Label htmlFor="fa-solusi">Solusi / tindak lanjut</Label>
+            <Textarea id="fa-solusi" name="solusi" rows={2} placeholder="Kosongkan bila tidak ada tindak lanjut" maxLength={2000} />
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-border bg-surface-inset/40 p-3">
         <Label>Foto dokumentasi (maks 6)</Label>
         <PhotoSourceInput key={photoKey} />
       </div>
 
-      <Button type="submit" loading={pending}>Simpan kegiatan</Button>
+      <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
+        <Button type="button" variant="ghost" onClick={resetForm}>Reset</Button>
+        <Button type="submit" loading={pending}>Simpan kegiatan</Button>
+      </div>
     </form>
   );
 }
 
-/** Tombol aksi untuk kegiatan draft: edit · tambah foto · tambah dokumen · finalkan · hapus. */
+/** Baris pengelolaan kegiatan draft — dua grup rapi: kiri (edit/tambah), kanan
+ * (finalkan/hapus). Panel foto/edit muncul RAPI di bawah, tak berdesakan di baris. */
 export function DraftActions({ activity, kinds }: { activity: EditableActivity; kinds: ActivityKindOption[] }) {
   const [editing, setEditing] = useState(false);
+  const [addingPhoto, setAddingPhoto] = useState(false);
   return (
-    <>
-      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
-        <Button
-          type="button"
-          size="sm"
-          variant={editing ? "secondary" : "ghost"}
-          onClick={() => setEditing((v) => !v)}
-        >
-          <Pencil aria-hidden className="size-3.5" />
-          {editing ? "Tutup edit" : "Edit"}
-        </Button>
-        <AddPhotoForm activityId={activity.id} />
-        <AddAttachmentForm activityId={activity.id} />
-        <FinalizeButton activityId={activity.id} />
-        <DeleteButton activityId={activity.id} />
+    <div className="mt-3 border-t border-border pt-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant={editing ? "primary" : "secondary"}
+            onClick={() => setEditing((v) => !v)}
+          >
+            <Pencil aria-hidden className="size-3.5" />
+            {editing ? "Tutup edit" : "Edit"}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={addingPhoto ? "primary" : "secondary"}
+            onClick={() => setAddingPhoto((v) => !v)}
+          >
+            <Plus aria-hidden className="size-3.5" />
+            Tambah foto
+          </Button>
+          <AddAttachmentForm activityId={activity.id} />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <FinalizeButton activityId={activity.id} />
+          <DeleteButton activityId={activity.id} />
+        </div>
       </div>
+      {addingPhoto ? <AddPhotoPanel activityId={activity.id} onDone={() => setAddingPhoto(false)} /> : null}
       {editing ? <EditActivityForm activity={activity} kinds={kinds} onDone={() => setEditing(false)} /> : null}
-    </>
+    </div>
   );
 }
 
@@ -270,7 +379,7 @@ function AddAttachmentForm({ activityId }: { activityId: string }) {
   return (
     <form ref={formRef} action={action} className="inline-flex items-center gap-1">
       <input type="hidden" name="activityId" value={activityId} />
-      <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1.5 text-[13px] font-medium text-ink hover:bg-surface-muted">
+      <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-[13px] font-medium text-ink hover:bg-surface-muted">
         <Paperclip aria-hidden className="size-3.5" />
         {pending ? "Mengunggah…" : "Tambah dokumen"}
         <input
@@ -362,18 +471,26 @@ export function ActivityAttachments({
   );
 }
 
-function AddPhotoForm({ activityId }: { activityId: string }) {
+/** Panel tambah foto (muncul di bawah baris aksi) — Kamera/Galeri + opsi GPS
+ * tertata rapi dalam kotak, auto-unggah saat foto dipilih, menutup bila sukses. */
+function AddPhotoPanel({ activityId, onDone }: { activityId: string; onDone: () => void }) {
   const [state, action, pending] = useActionState<FieldActivityState, FormData>(addActivityPhotosAction, undefined);
   const formRef = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (state?.success) onDone();
+  }, [state?.success, onDone]);
   return (
-    <form ref={formRef} action={action} className="inline-flex flex-wrap items-center gap-2">
+    <form ref={formRef} action={action} className="mt-3 rounded-md border border-border bg-surface-muted p-3">
       <input type="hidden" name="activityId" value={activityId} />
-      <span className="inline-flex items-center gap-1 text-[13px] text-ink-muted">
-        <Plus aria-hidden className="size-3.5" /> {pending ? "Mengunggah…" : "Tambah foto:"}
-      </span>
-      <PhotoSourceInput compact onPicked={() => formRef.current?.requestSubmit()} />
-      {state?.error ? <span className="text-[12px] text-danger">{state.error}</span> : null}
-      {state?.warning ? <span className="text-[12px] text-warning">{state.warning}</span> : null}
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="text-[13px] font-medium text-ink">Tambah foto{pending ? " — mengunggah…" : ""}</span>
+        <button type="button" onClick={onDone} className="text-[12px] font-medium text-ink-muted hover:underline">
+          Tutup
+        </button>
+      </div>
+      <PhotoSourceInput onPicked={() => formRef.current?.requestSubmit()} />
+      {state?.error ? <div className="mt-2"><Banner tone="error" title={state.error} /></div> : null}
+      {state?.warning ? <div className="mt-2"><Banner tone="warning" title="Sebagian foto gagal" description={state.warning} /></div> : null}
     </form>
   );
 }

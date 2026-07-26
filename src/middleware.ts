@@ -2,7 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // Catatan: /api/waha/webhook WAJIB publik — WAHA mem-POST tanpa cookie sesi;
 // endpoint itu mengautentikasi dirinya sendiri via token (?token=/header).
-const PUBLIC_PATHS = ["/masuk", "/api/health", "/api/ready", "/api/waha/webhook"];
+// /api/foto = link foto publik untuk PDF yang dikirim ke WA (auth via token HMAC).
+const PUBLIC_PATHS = ["/masuk", "/api/health", "/api/ready", "/api/waha/webhook", "/api/foto"];
 const SESSION_COOKIE = "marlin_session";
 
 /**

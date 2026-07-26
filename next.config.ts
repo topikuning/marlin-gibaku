@@ -5,9 +5,10 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,
-  // sharp = binari native: JANGAN dibundel webpack (rusak). Biarkan resolve
-  // sebagai require runtime dari node_modules (lihat setup sharp di Dockerfile).
-  serverExternalPackages: ["sharp"],
+  // sharp = binari native + pdfkit = require dinamis file data: JANGAN dibundel
+  // webpack (rusak). Biarkan resolve sebagai require runtime dari node_modules
+  // (lihat setup sharp di Dockerfile; pdfkit pakai bundle standalone, lihat bawah).
+  serverExternalPackages: ["sharp", "pdfkit"],
   experimental: {
     serverActions: {
       bodySizeLimit: "30mb", // upload dokumen/foto lewat server action (file maks 25MB + overhead multipart)
@@ -24,9 +25,12 @@ const nextConfig: NextConfig = {
   // dari JS) sehingga sharp tersalin SETENGAH ke standalone → runtime gagal
   // "libvips-cpp.so: cannot open shared object file". Include eksplisit ini
   // memastikan seluruh isi paket (termasuk .so) ikut ter-copy.
+  // PLUS pdfkit: bundle SELF-CONTAINED DI-VENDOR ke assets/pdfkit-standalone.cjs
+  // (lihat lib/pdf/document.ts) — dimuat via path absolut, tanpa resolusi
+  // node_modules. Cukup pastikan file assets ikut ter-copy.
   outputFileTracingIncludes: {
     "/**": [
-      "./assets/fonts/**",
+      "./assets/**",
       "./seed-data/**",
       "./node_modules/.pnpm/sharp@*/**",
       "./node_modules/.pnpm/@img+*/**",
