@@ -79,3 +79,11 @@ perhitungan retensi & opsi jaminan pemeliharaan. Milestone pembayaran sudah scop
 - Estimasi biaya: pricing per-provider (sekarang satu set harga global aktif).
 - Rotasi AI_SECRET_ENCRYPTION_KEY: prosedur = set kunci baru + simpan ulang API
   key dari Sistem → AI (re-encrypt); belum ada tooling re-encrypt massal.
+
+## FUTURE · Chat grup & kop surat — lanjutan (DECISIONS 135)
+- Penjadwalan OTOMATIS ringkasan harian chat grup (tiap pagi utk H-1) — butuh
+  scheduler; opsi: Railway cron job memanggil route internal. Perlu keputusan.
+- Sinkronisasi ringkasan chat ke laporan: tampilkan di workspace lokasi/paket,
+  ikut sebagai konteks exec-report & AI Hub (sumber "chat_grup" + sourceRef).
+- Wiring kop surat + logo perusahaan ke header dokumen cetak /cetak/* (KKP,
+  laporan periodik, laporan AI).

@@ -1,6 +1,7 @@
 import {
   Activity,
-  BookUser,
+  Database,
+  MessagesSquare,
   Camera,
   FileText,
   FolderOpen,
@@ -38,7 +39,8 @@ export const ICONS = {
   folderOpen: FolderOpen,
   fileText: FileText,
   send: Send,
-  bookUser: BookUser,
+  database: Database,
+  messagesSquare: MessagesSquare,
   sparkles: Sparkles,
   users: Users,
   settings: Settings,
@@ -50,6 +52,8 @@ export type NavItem = {
   icon: keyof typeof ICONS;
   /** Tanpa capability = tampil untuk semua role. */
   capability?: Capability;
+  /** Alternatif: tampil bila punya SALAH SATU capability ini (menu gabungan). */
+  anyCapability?: Capability[];
 };
 
 export const MAIN_NAV: NavItem[] = [
@@ -65,12 +69,18 @@ export const MAIN_NAV: NavItem[] = [
   { label: "Dokumen", href: "/dokumen", icon: "folderOpen", capability: "document.view" },
   { label: "Laporan", href: "/laporan", icon: "fileText", capability: "report.export" },
   { label: "Laporan → WA", href: "/laporan-wa", icon: "send", capability: "exec_report.send" },
-  { label: "Kontak WA", href: "/kontak-wa", icon: "bookUser", capability: "exec_report.send" },
-  { label: "Pengguna", href: "/pengguna", icon: "users", capability: "user.create" },
+  { label: "Chat Grup", href: "/chat-grup", icon: "messagesSquare", capability: "exec_report.send" },
+  {
+    label: "Master Data",
+    href: "/master",
+    icon: "database",
+    anyCapability: ["contract.manage", "exec_report.send", "user.create"],
+  },
   { label: "Sistem", href: "/sistem", icon: "settings", capability: "system.manage" },
 ];
 
 function allowed(role: UserRole, item: NavItem): boolean {
+  if (item.anyCapability) return item.anyCapability.some((c) => can(role, c));
   return !item.capability || can(role, item.capability);
 }
 

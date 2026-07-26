@@ -426,6 +426,7 @@ model Package {
   documents    Document[]
   milestones   AdminMilestone[]
   waMessages   WaMessage[]
+  waChatSummaries WaChatSummary[]
 
   @@index([orgId, stage])
   @@map("packages")
@@ -484,6 +485,7 @@ model Vendor {
   phone     String?
   email     String?
   logoKey   String?  @map("logo_key") // key R2 logo perusahaan
+  kopKey    String?  @map("kop_key") // key R2 gambar kop surat (desain jadi milik perusahaan)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -1467,4 +1469,25 @@ model AiMessage {
 
   @@index([conversationId, createdAt])
   @@map("ai_messages")
+}
+
+/// Ringkasan AI harian percakapan grup WA per paket (Layer B, DECISIONS 135).
+/// Satu baris per (paket, tanggal Jakarta); regenerate menimpa (upsert).
+model WaChatSummary {
+  id           String   @id @default(uuid()) @db.Uuid
+  packageId    String   @map("package_id") @db.Uuid
+  summaryDate  DateTime @map("summary_date") @db.Date
+  messageCount Int      @map("message_count")
+  summaryText  String   @map("summary_text") @db.Text
+  provider     String?
+  model        String?
+  createdById  String?  @map("created_by_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  package Package @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@unique([packageId, summaryDate])
+  @@index([summaryDate])
+  @@map("wa_chat_summaries")
 }

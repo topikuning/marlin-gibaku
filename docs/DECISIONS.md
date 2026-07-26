@@ -2639,3 +2639,26 @@ Tiga bug tampilan pada PDF produksi (dari bundle self-contained DECISIONS 128):
   Jawa langsung terlihat). flyTo lokasi terpilih tetap.
 - **Laporan → WA lama**: DIPERTAHANKAN dulu (rekomendasi: hapus setelah Report
   Studio AI terbukti di produksi — menunggu keputusan user; lihat percakapan).
+
+## 135 · 2026-07-26 · Ringkasan harian chat grup (Layer B) + menu Master Data + kop surat
+
+- **Ringkasan chat grup** (melunasi DECISIONS 119 "Layer B — menyusul"): halaman
+  `/chat-grup` (gate `exec_report.send`) — pilih paket tertaut grup + tanggal →
+  arsip pesan hari itu (WaMessage, hari Jakarta) + tombol "Ringkas dengan AI".
+  Model `WaChatSummary` unik (paket, tanggal); regenerate menimpa (upsert);
+  prompt terstruktur (progres/kendala/keputusan/tindak lanjut, maks ~250 kata,
+  dilarang mengarang); transkrip dibatasi 500 pesan / 45k karakter (truncation
+  dicatat di ringkasan); provider/model + audit tercatat. V1 ON-DEMAND —
+  penjadwalan otomatis harian butuh scheduler (belum ada di infra; opsi Railway
+  cron → keputusan user, tercatat OPEN_ISSUES). Sinkronisasi ke laporan harian/
+  eksekutif = tahap berikut.
+- **Menu Master Data** `/master` (tab by-capability): Perusahaan (pindah dari
+  /paket/vendor — memang tidak relevan nempel di Paket), Kontak WA (pindah dari
+  /kontak-wa), Pengguna (pindah dari /pengguna). URL lama → redirect. Nav:
+  entri "Master Data" dgn `anyCapability` (salah satu dari contract.manage /
+  exec_report.send / user.create).
+- **Kop surat perusahaan** = GAMBAR desain jadi (bukan disusun dari field):
+  kolom `Vendor.kopKey`, upload PNG/JPG/WebP ≤2 MB → webp ≤2000×700 → R2
+  `vendors/{id}/kop.webp`, pratinjau + hapus di form. Field alamat/telepon/email
+  tetap (fallback bila tanpa gambar kop). Penempatan otomatis kop+logo di
+  header laporan cetak (/cetak) = MENYUSUL (tercatat OPEN_ISSUES).

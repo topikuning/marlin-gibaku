@@ -19,6 +19,7 @@ type V = {
   phone: string | null;
   email: string | null;
   logoUrl: string | null;
+  kopUrl: string | null;
   contractCount: number;
   commitmentCount: number;
   normKey: string;
@@ -197,6 +198,21 @@ function VendorEditForm({ vendor, onDone }: { vendor: V; onDone: () => void }) {
           <Label htmlFor={`v-addr-${vendor.id}`}>Alamat (untuk kop surat)</Label>
           <Input id={`v-addr-${vendor.id}`} name="address" defaultValue={vendor.address ?? ""} placeholder="Jl. … , Kab/Kota, Provinsi" />
         </div>
+        <div className="sm:col-span-2 lg:col-span-3">
+          <Label htmlFor={`v-kop-${vendor.id}`}>Kop surat (gambar desain jadi — PNG/JPG/WebP ≤ 2 MB, lebar penuh)</Label>
+          {vendor.kopUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- URL presigned R2 sementara
+            <img src={vendor.kopUrl} alt="Kop surat saat ini" className="mb-1.5 max-h-28 w-full rounded border border-border bg-white object-contain object-left" />
+          ) : null}
+          <input
+            id={`v-kop-${vendor.id}`}
+            name="kop"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="block w-full text-sm text-ink-muted file:mr-2 file:rounded-md file:border file:border-border file:bg-surface file:px-2 file:py-1 file:text-sm"
+          />
+          <p className="mt-0.5 text-xs text-ink-faint">Unggah desain kop yang sudah jadi; penempatan otomatis di header laporan cetak menyusul.</p>
+        </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <Button type="submit" size="sm" loading={saving}>
@@ -207,10 +223,15 @@ function VendorEditForm({ vendor, onDone }: { vendor: V; onDone: () => void }) {
             <input type="checkbox" name="removeLogo" value="1" /> Hapus logo
           </label>
         ) : null}
+        {vendor.kopUrl ? (
+          <label className="flex items-center gap-1.5 text-xs text-ink-muted">
+            <input type="checkbox" name="removeKop" value="1" /> Hapus kop
+          </label>
+        ) : null}
         <Button type="button" size="sm" variant="ghost" onClick={onDone}>
           Tutup
         </Button>
-        <span className="text-xs text-ink-faint">Profil ini jadi dasar kop surat & logo pada dokumen cetak (menyusul).</span>
+        <span className="text-xs text-ink-faint">Logo & kop dipakai dokumen cetak (wiring penempatan menyusul).</span>
       </div>
     </form>
   );

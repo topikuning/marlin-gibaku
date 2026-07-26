@@ -64,7 +64,7 @@ export default async function PaketPage({
           <div className="flex flex-wrap gap-2">
             {can(user.role, "contract.manage") ? (
               <Link
-                href="/paket/vendor"
+                href="/master/perusahaan"
                 className="inline-flex h-9 items-center rounded-md border border-border bg-surface px-4 text-sm font-medium text-ink hover:bg-surface-muted"
               >
                 Master Perusahaan

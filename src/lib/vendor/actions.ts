@@ -50,7 +50,7 @@ export async function mergeVendorsAction(_prev: VendorActionState, formData: For
       movedContracts: result.contracts,
       movedCommitments: result.commitments,
     });
-    revalidatePath("/paket/vendor");
+    revalidatePath("/master/perusahaan");
     revalidatePath("/paket");
     return {
       success: `"${from.name}" digabung ke "${to.name}" — ${result.contracts} kontrak & ${result.commitments} komitmen dialihkan.`,
@@ -76,7 +76,7 @@ export async function deleteVendorAction(_prev: VendorActionState, formData: For
     }
     await db.vendor.delete({ where: { id: vendor.id } });
     await audit(actor.id, "vendor.delete", "vendor", vendor.id, { name: vendor.name });
-    revalidatePath("/paket/vendor");
+    revalidatePath("/master/perusahaan");
     return { success: `Vendor "${vendor.name}" dihapus.` };
   } catch (err) {
     return fail(err);
@@ -118,7 +118,7 @@ export async function updateVendorAction(_prev: VendorActionState, formData: For
     const actor = await requireCapability("contract.manage");
     const vendor = await db.vendor.findFirst({
       where: { id: d.id, orgId: actor.orgId },
-      select: { id: true, name: true, logoKey: true },
+      select: { id: true, name: true, logoKey: true, kopKey: true },
     });
     if (!vendor) return { error: "Vendor tidak ditemukan." };
 
@@ -129,22 +129,45 @@ export async function updateVendorAction(_prev: VendorActionState, formData: For
     });
     if (clash) return { error: `Nama "${d.name}" sudah dipakai vendor lain — gunakan fitur gabung bila memang sama.` };
 
-    let logoKey = vendor.logoKey;
-    const file = formData.get("logo");
-    if (file instanceof File && file.size > 0) {
-      if (file.size > LOGO_MAX_BYTES) return { error: "Logo terlalu besar (maks 2 MB)." };
-      if (!/^image\/(png|jpe?g|webp)$/i.test(file.type)) return { error: "Format logo harus PNG/JPG/WebP." };
-      const { isR2Configured, r2Put } = await import("@/lib/r2");
-      if (!isR2Configured()) return { error: "Penyimpanan file (R2) belum dikonfigurasi — logo tidak dapat diunggah." };
+    const { isR2Configured, r2Put } = await import("@/lib/r2");
+    const processImage = async (
+      file: File,
+      maxW: number,
+      maxH: number,
+      key: string,
+      label: string,
+    ): Promise<{ key: string } | { error: string }> => {
+      if (file.size > LOGO_MAX_BYTES) return { error: `${label} terlalu besar (maks 2 MB).` };
+      if (!/^image\/(png|jpe?g|webp)$/i.test(file.type)) return { error: `Format ${label} harus PNG/JPG/WebP.` };
+      if (!isR2Configured()) return { error: "Penyimpanan file (R2) belum dikonfigurasi — gambar tidak dapat diunggah." };
       const sharp = (await import("sharp")).default;
       const buf = await sharp(Buffer.from(await file.arrayBuffer()), { failOn: "none" })
-        .resize(512, 512, { fit: "inside", withoutEnlargement: true })
-        .webp({ quality: 88 })
+        .resize(maxW, maxH, { fit: "inside", withoutEnlargement: true })
+        .webp({ quality: 90 })
         .toBuffer();
-      logoKey = `vendors/${vendor.id}/logo.webp`;
-      await r2Put(logoKey, buf, "image/webp");
+      await r2Put(key, buf, "image/webp");
+      return { key };
+    };
+
+    let logoKey = vendor.logoKey;
+    const logoFile = formData.get("logo");
+    if (logoFile instanceof File && logoFile.size > 0) {
+      const r = await processImage(logoFile, 512, 512, `vendors/${vendor.id}/logo.webp`, "logo");
+      if ("error" in r) return { error: r.error };
+      logoKey = r.key;
     }
     if (formData.get("removeLogo") === "1") logoKey = null;
+
+    // Kop surat = gambar desain jadi milik perusahaan (lebar penuh; dipakai
+    // header dokumen cetak — penempatan di laporan menyusul).
+    let kopKey = vendor.kopKey;
+    const kopFile = formData.get("kop");
+    if (kopFile instanceof File && kopFile.size > 0) {
+      const r = await processImage(kopFile, 2000, 700, `vendors/${vendor.id}/kop.webp`, "kop surat");
+      if ("error" in r) return { error: r.error };
+      kopKey = r.key;
+    }
+    if (formData.get("removeKop") === "1") kopKey = null;
 
     await db.vendor.update({
       where: { id: vendor.id },
@@ -156,13 +179,15 @@ export async function updateVendorAction(_prev: VendorActionState, formData: For
         phone: d.phone || null,
         email: d.email || null,
         logoKey,
+        kopKey,
       },
     });
     await audit(actor.id, "vendor.update", "vendor", vendor.id, {
       name: d.name,
       logoChanged: logoKey !== vendor.logoKey,
+      kopChanged: kopKey !== vendor.kopKey,
     });
-    revalidatePath("/paket/vendor");
+    revalidatePath("/master/perusahaan");
     return { success: `Master data "${d.name}" tersimpan.` };
   } catch (err) {
     return fail(err);
