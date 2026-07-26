@@ -2269,3 +2269,115 @@ scurve — dengan test properti, bukan paritas nilai):**
   EXIF → nama file WA → tanggal kerja/server. Enum baru `PhotoMetadataSource.filename`
   (migration `20260725210000_photo_metadata_filename`), `timeApprox=false` (waktu nyata, bukan fallback).
 - Uji unit `tests/unit/wa-filename-time.test.ts` (7 kasus). Verifikasi: typecheck/lint/unit(179)/build ✓.
+
+## 117 · 2026-07-25 · Seragamkan nama lokasi (buang prefix "KNMP") + edit nama lokasi
+
+- **Masalah**: nama lokasi tak seragam — alur bypass & buat-cepat-kontrak dari katalog
+  meng-generate `KNMP {desa}`, sedangkan lokasi lama/manual pakai nama desa saja. Prefix "KNMP"
+  redundan (seluruh sistem = proyek KNMP). Tak ada fitur edit nama lokasi.
+- **Keputusan user**: (1) konvensi **tanpa prefix** — nama desa saja; (2) **rapikan data lama otomatis**.
+- **Perubahan**:
+  - Auto-generate berhenti menambah "KNMP": `package/actions.ts` (2 alur: katalog & bypass) + seed
+    `name = m.village`. Placeholder form lokasi manual diubah (contoh desa, bukan "KNMP Desa …").
+  - Migration `20260725220000_normalize_location_names`: `regexp_replace(name,'^KNMP\s+','')` untuk
+    semua lokasi existing. **Slug TIDAK diubah** (URL stabil) — hanya nama tampilan.
+  - **Edit nama lokasi**: aksi `renameLocation` (gate `location.manage` + `requireLocationAccess`,
+    audit `location.rename`, revalidate lokasi/paket/index). UI: tombol pensil di samping nama di
+    header workspace lokasi (`EditableLocationName`, inline) — muncul untuk super_admin/PD/RM/PM.
+    Mengubah nama tampilan saja, slug tetap.
+- Verifikasi: typecheck/lint/build ✓.
+
+## 118 · 2026-07-25 · Revisi RAB = adendum HANYA setelah SPMK (bukan sekadar revisi ke-2)
+
+- **Bug**: impor RAB menandai revisi sebagai "adendum" hanya berdasarkan `isAdendum = ada
+  revisi aktif` — jadi revisi ke-2 apa pun langsung dicap adendum, walau kontrak **belum SPMK**
+  ("menunggu SPMK"). Adendum = perubahan kontrak yang SUDAH berjalan; sebelum SPMK, impor ulang
+  cuma **koreksi HPS awal**.
+- **Fix** (`lokasi/[slug]/rab/import/actions.ts`): `isAdendum = ada revisi aktif && kontrak sudah
+  SPMK` (`Contract.startDate != null`). Sebelum SPMK → source `hps_awal` (label "sumber HPS awal"),
+  baseline source `auto` (bukan `adendum`).
+- **Koreksi data lama** (migration `20260725225000_relabel_non_spmk_adendum`): turunkan
+  `rab_revisions.source` 'adendum'→'hps_awal' dan `baselines.source` 'adendum'→'auto' untuk semua
+  lokasi yang kontraknya belum SPMK (start_date kosong / tanpa kontrak).
+- Verifikasi: typecheck ✓.
+
+## 119 · 2026-07-25 · Tangkap percakapan grup WhatsApp (Layer A) — webhook WAHA → arsip per paket
+
+- **Tujuan** (kembali ke integrasi AI): arsipkan percakapan grup WA sebagai fondasi ringkasan/telusur
+  berbasis AI. Default disepakati: ringkasan harian per lokasi; cakupan **hanya grup tertaut paket,
+  teks**; provider AI Claude (lapis B menyusul). Ini **Layer A** — penangkap (provider-agnostic).
+- **Skema**: model `WaMessage` (wa_messages) — packageId (nullable, dari waGroupId), chatId,
+  waMessageId (unik, dedup), fromNumber/fromName, body, hasMedia/mediaType, fromMe, timestamp, raw.
+  Relasi Package.waMessages. Migration `20260725230000_wa_message_capture`.
+- **Ingest**: `ingest-parse.ts` (MURNI, teruji unit — parser event WAHA defensif lintas versi
+  Core/Plus, WEBJS/NOWEB) + `ingest.ts` (resolve paket via waGroupId; **hanya simpan grup tertaut
+  paket**; dedup via upsert waMessageId).
+- **Webhook**: `POST /api/waha/webhook` — auth secret via query `?token=` / header `X-Webhook-Secret`
+  (timing-safe vs `waha.webhook_secret`); selalu 200 utk event terautentikasi (WAHA tak retry
+  karena diabaikan). Secret dikelola di Sistem (`generateWahaWebhookSecretAction`, rotasi) — panel
+  menampilkan URL webhook siap-salin + statistik "N pesan tertangkap".
+- Uji unit `tests/unit/wa-ingest-parse.test.ts` (6 kasus). Verifikasi: typecheck/lint/unit(185)/build ✓.
+- **Layer B (AI) — belum**: butuh ANTHROPIC_API_KEY + egress ke api.anthropic.com; ringkasan harian
+  dari WaMessage per paket/lokasi. Menyusul setelah key & egress disiapkan.
+
+## 120 · 2026-07-26 · Rombak halaman /sistem → hub Pengaturan 5-tab (Slice 1)
+
+- **Standar**: mockup user (setting.html) — hub setting ber-header KPI + tab, kartu kesehatan
+  layanan, integration-card, matriks hak akses, dll. Prinsip: adopsi struktur + gaya visual, TAPI
+  pakai token warna MARLIN (bukan hex mentah) & TIDAK memalsukan data (yang belum ada backend →
+  read-only jujur / dihilangkan). Dikerjakan bertahap (Slice 1 = kerangka + pindah panel).
+- **Slice 1**: header (judul + environment + KPI: Layanan Aktif/Pengguna Aktif/Sesi/Audit Hari Ini)
+  + `SettingsTabs` (client switcher) 5 tab:
+  - Ringkasan: Kesehatan Layanan (env/DB/R2/WAHA/sesi), Konfigurasi Penting (read-only), Perubahan Terbaru.
+  - Integrasi: R2 (+diagnostik), WAHA (+webhook capture), PostgreSQL (read-only).
+  - Akses & Keamanan: Ringkasan Pengguna per peran, Aktivitas Keamanan (audit tersaring), Matriks
+    Hak Akses read-only (dari authz.ts — single source of truth, belum editable).
+  - Branding & Photo Stamp: Identitas Merek, Cap Foto, Jenis Kegiatan Lapangan.
+  - Audit Trail: 100 mutasi + Zona Berbahaya (dev).
+- Panel existing (R2/WAHA/Branding/PhotoStamp/ActivityKinds/Reset) dipertahankan, dipindah ke tab
+  yang tepat. Semua data NYATA (hitung user/audit/sesi/integrasi). Tanpa SMTP/security-toggle palsu.
+- Verifikasi: typecheck/lint/build ✓. Slice 2 (poles per tab sesuai mockup) menyusul.
+
+## 121 · 2026-07-26 · Multi-provider AI (Claude/OpenAI/Mistral/Grok) + pemilih aktif
+
+- **Kebutuhan**: beberapa provider AI tersedia; admin isi API key masing-masing lalu pilih SATU
+  yang aktif. Fitur AI (mis. ringkasan percakapan WA) memakai provider aktif.
+- **providers.ts** (murni): metadata 4 provider — Claude (Messages API Anthropic),
+  OpenAI/Mistral/Grok (chat-completions kompatibel-OpenAI). Default model editable (claude-opus-5,
+  gpt-5, mistral-large-latest, grok-4). OpenAI pakai `max_completion_tokens`, lainnya `max_tokens`.
+- **config.ts** (server-only, AppSetting effective-dated seperti WAHA): `ai.active_provider` +
+  `ai.<id>.api_key` + `ai.<id>.model`. getAiConfigDisplay / setAiProviderConfig / setActiveAiProvider
+  / getActiveAiConfig / getAiProviderConfig. Key rahasia (tak pernah ke klien).
+- **client.ts** (server-only): `aiComplete()` klien TERPADU (dua bentuk API via fetch) memakai
+  provider aktif; `testAiProvider()` untuk tes koneksi. Butuh egress server ke host provider.
+- **actions.ts**: saveAiProviderAction / setActiveAiProviderAction (guard: wajib ada API key) /
+  testAiProviderAction — semua `requireCapability("system.manage")` + audit.
+- **UI**: tab baru **AI** di hub Sistem — kartu per provider (model + API key + Simpan + Tes koneksi)
+  + tombol "Jadikan aktif" (badge Aktif). Data nyata, tanpa memalsukan.
+- Verifikasi: typecheck/lint/build ✓. Catatan: fitur AI konkret (ringkasan WA) menyusul memakai
+  `aiComplete()`; egress ke provider harus diizinkan di environment.
+
+## 121b · 2026-07-26 · Pilihan model AI dari sumber kredibel (kurasi + live /models)
+
+- Field model kini datalist: saran dari (a) kurasi dokumentasi resmi per provider (providers.ts
+  knownModels — Claude dari referensi Anthropic; OpenAI/Mistral/Grok dari docs 2026) + (b) tombol
+  "Muat model" yang menarik daftar OTORITATIF langsung dari endpoint /models provider
+  (listModels/listAiModelsAction) memakai API key tersimpan. Tetap boleh ketik bebas.
+
+## 122 · 2026-07-26 · Laporan Eksekutif → WA (rangkuman AI dikirim ke direksi)
+
+- **Halaman `/laporan-wa`** (capability `exec_report.send` = site_manager ke atas; scope data
+  mengikuti penugasan lokasi). Alur: pilih jenis + periode → **Susun (AI)** → **pratinjau/edit** →
+  pilih tujuan (kontak tersimpan **per-pembuat** atau input bebas nomor/grup) → **Kirim** (WAHA
+  sendText) → histori (ReportDispatch).
+- **Fitur utama**: `rangkuman_kegiatan` — rangkuman kegiatan semua lokasi dalam periode (default
+  hari ini) untuk direksi. Plus `rekap_kendala` & `kepatuhan_lapor` (harian inti). Katalog
+  `lib/exec-report/catalog.ts` extensible untuk jenis lain (kegiatan+foto detail, ringkasan lokasi,
+  ringkasan percakapan WA, periodik/roll-up) — menyusul.
+- **Pipeline**: `gather.ts` (query FieldActivity + DailyReport + Issue per lokasi, hormati
+  `accessibleLocationIds`) → `prompt.ts` (serialisasi data + instruksi anti-halusinasi + format WA)
+  → `aiComplete()` (provider aktif, DECISIONS 121). Draf bisa diedit sebelum kirim.
+- **Schema**: WaContact (per-pembuat: name + chatId) + ReportDispatch (histori/audit teks kirim);
+  migration `20260726010000_exec_report_wa`. authz: capability `exec_report.send` ditambah ke
+  site_manager/PM/RM (SA/PD inherit). Nav item "Laporan → WA".
+- Verifikasi: typecheck/lint/unit(185)/build ✓. Butuh: provider AI aktif + WAHA terkonfigurasi.

@@ -116,7 +116,7 @@ export function AddLocationForm({
         <Label htmlFor="lk-name" required>
           Nama lokasi
         </Label>
-        <Input id="lk-name" name="name" required minLength={3} placeholder="mis. KNMP Desa ..." />
+        <Input id="lk-name" name="name" required minLength={3} placeholder="mis. Kedungmutih" />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

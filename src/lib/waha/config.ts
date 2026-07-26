@@ -18,6 +18,7 @@ export const WAHA_KEYS = {
   baseUrl: "waha.base_url",
   apiKey: "waha.api_key",
   session: "waha.session",
+  webhookSecret: "waha.webhook_secret",
 } as const;
 
 export class WahaConfigError extends Error {}
@@ -66,13 +67,67 @@ export async function isWahaConfigured(): Promise<boolean> {
 }
 
 /** Untuk tampilan form: base URL, session, dan apakah key sudah tersimpan (tanpa membocorkan key). */
-export async function getWahaConfigDisplay(): Promise<{ baseUrl: string; session: string; hasApiKey: boolean }> {
+export async function getWahaConfigDisplay(): Promise<{
+  baseUrl: string;
+  session: string;
+  hasApiKey: boolean;
+  webhookSecret: string;
+}> {
   const s = await latestSettings();
   return {
     baseUrl: s.get(WAHA_KEYS.baseUrl)?.trim() ?? "",
     session: s.get(WAHA_KEYS.session)?.trim() ?? "default",
     hasApiKey: !!s.get(WAHA_KEYS.apiKey)?.trim(),
+    // Secret webhook ditampilkan penuh (admin harus menyalinnya ke WAHA).
+    webhookSecret: s.get(WAHA_KEYS.webhookSecret)?.trim() ?? "",
   };
+}
+
+/** Secret untuk memverifikasi webhook inbound WAHA (query `?token=` / header). */
+export async function getWahaWebhookSecret(): Promise<string | null> {
+  const s = await latestSettings();
+  return s.get(WAHA_KEYS.webhookSecret)?.trim() || null;
+}
+
+/* ── Diagnostik webhook: log SETIAP POST yang mendarat (self-service Sistem) ──
+ * Dicatat di level route SEBELUM/terlepas dari hasil, agar admin bisa bedakan:
+ * (a) WAHA tak sampai (log kosong), (b) sampai tapi token salah, (c) sampai &
+ * diproses tapi diabaikan (grup tak tertaut), (d) tersimpan. Simpan 10 terakhir. */
+const WAHA_HITS = "waha.debug_hits";
+
+export type WahaHit = {
+  at: string;
+  tokenOk: boolean;
+  event: string;
+  chatId: string | null;
+  outcome: string;
+};
+
+export async function getWahaHits(): Promise<WahaHit[]> {
+  const row = await db.appSetting.findFirst({
+    where: { key: WAHA_HITS },
+    orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }],
+  });
+  if (!row) return [];
+  try {
+    const arr = JSON.parse(row.value);
+    return Array.isArray(arr) ? (arr as WahaHit[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Catat satu hit webhook (dipanggil di route untuk SETIAP POST). Simpan 10 terbaru. */
+export async function recordWahaHit(hit: Omit<WahaHit, "at">): Promise<void> {
+  const existing = await getWahaHits();
+  const next = [{ ...hit, at: new Date().toISOString() }, ...existing].slice(0, 10);
+  const effectiveFrom = jakartaToday();
+  const value = JSON.stringify(next);
+  await db.appSetting.upsert({
+    where: { key_effectiveFrom: { key: WAHA_HITS, effectiveFrom } },
+    update: { value },
+    create: { key: WAHA_HITS, value, effectiveFrom },
+  });
 }
 
 /**
@@ -83,6 +138,7 @@ export async function setWahaConfig(input: {
   baseUrl?: string;
   apiKey?: string;
   session?: string;
+  webhookSecret?: string;
 }): Promise<void> {
   const effectiveFrom = jakartaToday();
   const put = async (key: string, value: string) => {
@@ -103,5 +159,8 @@ export async function setWahaConfig(input: {
   // apiKey: hanya tulis bila DIBERIKAN (undefined = biarkan). String kosong = hapus.
   if (input.apiKey !== undefined) {
     await put(WAHA_KEYS.apiKey, input.apiKey.trim());
+  }
+  if (input.webhookSecret !== undefined) {
+    await put(WAHA_KEYS.webhookSecret, input.webhookSecret.trim());
   }
 }

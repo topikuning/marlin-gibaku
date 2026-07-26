@@ -212,7 +212,7 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
         update: { packageId: pkg.id },
         create: {
           packageId: pkg.id,
-          name: `KNMP ${m.village}`,
+          name: m.village,
           slug,
           village: m.village,
           regency: m.regency,

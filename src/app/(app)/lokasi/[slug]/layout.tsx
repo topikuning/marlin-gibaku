@@ -6,7 +6,9 @@ import { cn } from "@/lib/cn";
 import { LOCATION_STATUS_LABEL, LOCATION_STATUS_TONE } from "@/lib/lifecycle";
 import { formatPct, formatRupiah, formatTanggal } from "@/lib/format";
 import { getLocationProgress } from "@/lib/progress";
+import { can } from "@/lib/authz";
 import { requireLocationPage } from "./get-location";
+import { EditableLocationName } from "./edit-name";
 
 export const dynamic = "force-dynamic";
 
@@ -40,7 +42,8 @@ export default async function LokasiLayout({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const { location } = await requireLocationPage(slug);
+  const { user, location } = await requireLocationPage(slug);
+  const canRename = can(user.role, "location.manage");
   const progress = await getLocationProgress(location.id);
   const contract = location.package.contract;
 
@@ -54,7 +57,7 @@ export default async function LokasiLayout({
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-xl font-semibold text-ink">{location.name}</h1>
+              <EditableLocationName locationId={location.id} name={location.name} canEdit={canRename} />
               <StatusPill
                 tone={LOCATION_STATUS_TONE[location.status]}
                 label={LOCATION_STATUS_LABEL[location.status]}

@@ -1,5 +1,6 @@
 "use server";
 
+import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
@@ -25,6 +26,7 @@ import {
   type WahaGroup,
 } from "@/lib/waha/client";
 import { WahaConfigError, setWahaConfig } from "@/lib/waha/config";
+import { ingestWaEvent } from "@/lib/waha/ingest";
 
 export type WaActionState = { error?: string; success?: string; warning?: string } | undefined;
 
@@ -67,6 +69,70 @@ export async function saveWahaConfigAction(
     await audit(user.id, "system.waha_config", "app_setting", null, {});
     revalidatePath("/sistem");
     return { success: "Konfigurasi WhatsApp disimpan." };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * Buat/rotasi secret webhook inbound WAHA. Secret masuk query `?token=` pada URL
+ * webhook yang dipasang di WAHA. Merotasi = URL lama tak berlaku. DECISIONS 119.
+ */
+export async function generateWahaWebhookSecretAction(): Promise<WaActionState> {
+  try {
+    const user = await requireCapability("system.manage");
+    const secret = randomBytes(24).toString("base64url");
+    await setWahaConfig({ webhookSecret: secret });
+    await audit(user.id, "system.waha_webhook_secret", "app_setting", null, {});
+    revalidatePath("/sistem");
+    return { success: "Secret webhook baru dibuat — salin URL webhook ke WAHA." };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * Tes jalur terima→parse→simpan MARLIN dengan mensimulasikan satu event pesan
+ * WAHA ke grup paket yang tertaut — TANPA melibatkan WAHA. Bila tersimpan, sisi
+ * MARLIN sehat; kalau pesan asli tetap tak masuk, masalah ada di pengiriman WAHA
+ * (bukan MARLIN). Menyimpan 1 pesan uji bertanda jelas. DECISIONS 119.
+ */
+export async function testWahaCaptureAction(): Promise<WaActionState> {
+  try {
+    const user = await requireCapability("system.manage");
+    const pkg = await db.package.findFirst({
+      where: { waGroupId: { not: null } },
+      select: { id: true, name: true, waGroupId: true },
+    });
+    if (!pkg?.waGroupId) {
+      return {
+        warning:
+          "Belum ada paket dengan grup WhatsApp tertaut. Tautkan grup dulu di Paket → Grup WhatsApp, lalu tes lagi.",
+      };
+    }
+    const ts = Math.floor(Date.now() / 1000);
+    const event = {
+      event: "message",
+      session: "uji",
+      payload: {
+        id: `TES_${ts}_${pkg.id.slice(0, 8)}`,
+        from: pkg.waGroupId,
+        timestamp: ts,
+        fromMe: false,
+        body: "[uji webhook MARLIN] pesan ini dibuat oleh tombol Kirim event uji di Sistem.",
+        author: "0@c.us",
+        notifyName: "Tes Sistem",
+      },
+    };
+    const result = await ingestWaEvent(event);
+    revalidatePath("/sistem");
+    await audit(user.id, "system.waha_selftest", "app_setting", null, { stored: result.stored });
+    if (result.stored) {
+      return {
+        success: `Jalur terima→simpan SEHAT — event uji tersimpan ke paket "${pkg.name}" (grup ${pkg.waGroupId}). Kalau pesan asli tetap tak masuk, masalahnya di pengiriman WAHA, bukan MARLIN.`,
+      };
+    }
+    return { warning: `Event uji tidak tersimpan: ${result.reason}. (grup ${pkg.waGroupId})` };
   } catch (err) {
     return fail(err);
   }

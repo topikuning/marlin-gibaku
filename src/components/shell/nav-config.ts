@@ -7,6 +7,7 @@ import {
   Map,
   MapPin,
   Package,
+  Send,
   Settings,
   Sun,
   TrendingUp,
@@ -34,6 +35,7 @@ export const ICONS = {
   wallet: Wallet,
   folderOpen: FolderOpen,
   fileText: FileText,
+  send: Send,
   users: Users,
   settings: Settings,
 } as const;
@@ -57,6 +59,7 @@ export const MAIN_NAV: NavItem[] = [
   { label: "Keuangan", href: "/keuangan", icon: "wallet", capability: "finance.view" },
   { label: "Dokumen", href: "/dokumen", icon: "folderOpen", capability: "document.view" },
   { label: "Laporan", href: "/laporan", icon: "fileText", capability: "report.export" },
+  { label: "Laporan → WA", href: "/laporan-wa", icon: "send", capability: "exec_report.send" },
   { label: "Pengguna", href: "/pengguna", icon: "users", capability: "user.create" },
   { label: "Sistem", href: "/sistem", icon: "settings", capability: "system.manage" },
 ];
