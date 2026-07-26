@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { autoCategoryWindowFrac, scheduleFromItems } from "@/lib/scurve/sequencing";
+import { orderCategoriesByRab } from "@/lib/scurve/kkp-sheet";
 import { COUNTED_REPORT_STATUSES, currentWeekNumber } from "@/lib/progress";
 import { jakartaDateKey } from "@/lib/format";
 import type {
@@ -444,6 +445,12 @@ export async function getPeriodReport(
       weekly: c.weekly,
     }));
   }
+  // Kedua sumber di atas datang dalam urutan penyimpanan/penjadwalan, bukan
+  // urutan RAB — tanpa ini nomor romawi di tabel KKP meloncat (XIV… lalu I…).
+  kurvaSchedule = orderCategoriesByRab(
+    kurvaSchedule,
+    kategoriNodes.map((nd) => nd.name),
+  );
   const seriesLen = Math.max(planSeries.length, totalWeeks);
   const today = new Date(`${jakartaDateKey(new Date())}T00:00:00.000Z`);
   const currentWeek = currentWeekNumber(startDate, seriesLen, today);
