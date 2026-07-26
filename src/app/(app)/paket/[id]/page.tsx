@@ -27,6 +27,8 @@ import {
   StartPelaksanaanButton,
 } from "./stage-actions";
 import { WaGroupForm } from "./wa-group-form";
+import { DriveFolderForm } from "./drive-folder-form";
+import { getGDriveConfigDisplay } from "@/lib/gdrive/config";
 
 export const metadata: Metadata = { title: "Ringkasan Paket" };
 export const dynamic = "force-dynamic";
@@ -353,6 +355,22 @@ export default async function RingkasanPaketPage({
               currentGroupId={pkg.waGroupId}
               currentGroupName={pkg.waGroupName}
               wahaConfigured={await isWahaConfigured()}
+            />
+          </CardBody>
+        </Card>
+      ) : null}
+
+      {canWaConfigure ? (
+        <Card>
+          <CardHeader
+            title="Folder Google Drive paket"
+            subtitle="Folder pemberian KKP — tujuan upload PDF/Excel laporan harian & mingguan lokasi paket ini."
+          />
+          <CardBody>
+            <DriveFolderForm
+              packageId={pkg.id}
+              currentFolderId={pkg.driveFolderId}
+              driveConnected={(await getGDriveConfigDisplay()).connected}
             />
           </CardBody>
         </Card>

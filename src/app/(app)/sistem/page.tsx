@@ -7,6 +7,8 @@ import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { env } from "@/lib/env";
 import { isR2Configured } from "@/lib/r2";
 import { getWahaConfigDisplay, getWahaHits } from "@/lib/waha/config";
+import { getGDriveConfigDisplay } from "@/lib/gdrive/config";
+import { GDrivePanel } from "./gdrive-panel";
 import { db } from "@/lib/db";
 import { formatTanggalWaktu, jakartaToday } from "@/lib/format";
 import { getBranding, BRAND_DEFAULTS } from "@/lib/branding";
@@ -135,6 +137,7 @@ export default async function SistemPage() {
       db.user.groupBy({ by: ["role"], _count: { _all: true } }),
     ]);
   const activityKinds = await getActivityKinds();
+  const gdriveDisplay = await getGDriveConfigDisplay();
   const aiConfig = await getAiConfigDisplay();
   const aiGuard = await getAiGuardConfig();
   const aiPricing = await getAiPricing();
@@ -271,6 +274,23 @@ export default async function SistemPage() {
             lastCapturedAt={waLast ? formatTanggalWaktu(waLast.createdAt) : null}
             hits={waHitsFmt}
           />
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Google Drive"
+          subtitle="Upload PDF/Excel laporan harian & mingguan ke folder Drive per paket (pemberian KKP)"
+        />
+        <CardBody className="space-y-4">
+          <IntegrationHeader
+            code="GD"
+            title="Google Drive"
+            desc="OAuth akun Gmail yang jadi editor folder KKP. Folder per paket diatur di halaman paket."
+            tone={gdriveDisplay.connected ? "success" : "neutral"}
+            status={gdriveDisplay.connected ? "Terhubung" : "Belum terhubung"}
+          />
+          <GDrivePanel initial={gdriveDisplay} />
         </CardBody>
       </Card>
 

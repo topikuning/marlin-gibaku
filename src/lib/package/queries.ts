@@ -103,6 +103,7 @@ export const getPackageWorkspace = cache(async (id: string) => {
       cancelReason: true,
       waGroupId: true,
       waGroupName: true,
+      driveFolderId: true,
       createdAt: true,
       updatedAt: true,
       contract: {

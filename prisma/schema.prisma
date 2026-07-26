@@ -415,6 +415,8 @@ model Package {
   // "12036300...@g.us"). Semua lokasi di paket ini mengirim ke grup yang sama.
   waGroupId     String?      @map("wa_group_id")
   waGroupName   String?      @map("wa_group_name")
+  // Folder Google Drive paket (pemberian KKP) — tujuan upload PDF/Excel laporan.
+  driveFolderId String?      @map("drive_folder_id")
   createdById   String?      @map("created_by_id") @db.Uuid
   createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime     @updatedAt @map("updated_at") @db.Timestamptz
@@ -427,9 +429,36 @@ model Package {
   milestones   AdminMilestone[]
   waMessages   WaMessage[]
   waChatSummaries WaChatSummary[]
+  gdriveUploads GDriveUpload[]
 
   @@index([orgId, stage])
   @@map("packages")
+}
+
+/// Log upload laporan ke folder Google Drive paket (append-only). Baris terbaru
+/// per (paket, kind, refKey) = status terkini; gagal tetap tercatat supaya bisa
+/// diulang & diaudit. DECISIONS 141.
+model GDriveUpload {
+  id          String   @id @default(uuid()) @db.Uuid
+  packageId   String   @map("package_id") @db.Uuid
+  locationId  String?  @map("location_id") @db.Uuid
+  /// laporan_harian | laporan_mingguan | laporan_bulanan
+  kind        String
+  /// Kunci periode: dateKey (harian) atau nomor periode (mingguan/bulanan).
+  refKey      String   @map("ref_key")
+  fileName    String   @map("file_name")
+  fileId      String?  @map("file_id")
+  webLink     String?  @map("web_link")
+  /// sukses | gagal
+  status      String
+  error       String?
+  createdById String?  @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  package Package @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@index([packageId, kind, refKey, createdAt])
+  @@map("gdrive_uploads")
 }
 
 /// Pesan grup WhatsApp yang tertangkap via webhook WAHA (inbound). Fondasi
