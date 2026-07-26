@@ -20,8 +20,8 @@ export function GDrivePanel({
   redirectUri,
 }: {
   initial: { clientId: string; hasClientSecret: boolean; connected: boolean; accountEmail: string | null };
-  /** Redirect URI persis yang dikirim MARLIN — harus terdaftar di Google Console. */
-  redirectUri: string;
+  /** Redirect URI persis yang dikirim MARLIN; null = domain publik tak terdeteksi. */
+  redirectUri: string | null;
 }) {
   const [state, action, pending] = useActionState<GDriveActionState, FormData>(saveGDriveClientAction, undefined);
   const [opMsg, setOpMsg] = useState<{ tone: "success" | "error"; text: string } | null>(null);
@@ -67,16 +67,24 @@ export function GDrivePanel({
             />
           </div>
         </div>
-        <div className="rounded-md border border-border bg-surface-inset p-2.5">
-          <p className="text-[11px] font-medium tracking-wide text-ink-muted uppercase">
-            Authorized redirect URI (salin ke Google Console)
-          </p>
-          <code className="mt-1 block break-all text-[13px] text-ink">{redirectUri}</code>
-          <p className="mt-1.5 text-[12px] text-ink-muted">
-            Harus PERSIS sama (termasuk https dan tanpa garis miring di akhir) di{" "}
-            <span className="font-medium">Credentials → OAuth client → Authorized redirect URIs</span>.
-          </p>
-        </div>
+        {redirectUri ? (
+          <div className="rounded-md border border-border bg-surface-inset p-2.5">
+            <p className="text-[11px] font-medium tracking-wide text-ink-muted uppercase">
+              Authorized redirect URI (salin ke Google Console)
+            </p>
+            <code className="mt-1 block break-all text-[13px] text-ink">{redirectUri}</code>
+            <p className="mt-1.5 text-[12px] text-ink-muted">
+              Harus PERSIS sama (termasuk https dan tanpa garis miring di akhir) di{" "}
+              <span className="font-medium">Credentials → OAuth client → Authorized redirect URIs</span>.
+            </p>
+          </div>
+        ) : (
+          <Banner
+            tone="warning"
+            title="Domain publik tidak terdeteksi"
+            description="Set environment variable APP_PUBLIC_URL (mis. https://marlin.up.railway.app) lalu redeploy. Tanpa itu MARLIN tidak tahu alamat publiknya sendiri dan OAuth Google akan ditolak."
+          />
+        )}
         <HelpText>
           Buat OAuth Client <span className="font-medium">tipe Web application</span> di Google Cloud Console.
           Aktifkan <span className="font-medium">Google Drive API</span>, dan di OAuth consent screen tambahkan

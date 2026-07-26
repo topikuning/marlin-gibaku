@@ -57,29 +57,57 @@ describe("buildMultipartBody", () => {
 });
 
 describe("publicOrigin & driveRedirectUri", () => {
-  it("memaksa https untuk domain publik (proxy Railway meneruskan http internal)", () => {
-    // Ini penyebab nyata error Google 400 invalid_request sebelum diperbaiki.
-    expect(publicOrigin(null, "marlin.up.railway.app", "http")).toBe("https://marlin.up.railway.app");
-    expect(publicOrigin("marlin.up.railway.app", "internal:8080", "http")).toBe("https://marlin.up.railway.app");
-    expect(publicOrigin(null, "marlin.co.id", null)).toBe("https://marlin.co.id");
+  it("env eksplisit APP_PUBLIC_URL menang atas header apa pun", () => {
+    expect(
+      publicOrigin({ envUrl: "https://marlin.co.id", railwayDomain: "x.up.railway.app", host: "0.0.0.0:8080" }),
+    ).toBe("https://marlin.co.id");
+    // URL dengan garis miring di akhir tetap dinormalisasi.
+    expect(publicOrigin({ envUrl: "https://marlin.co.id/" })).toBe("https://marlin.co.id");
+    // Host polos tanpa skema juga diterima.
+    expect(publicOrigin({ envUrl: "marlin.co.id" })).toBe("https://marlin.co.id");
+  });
+
+  it("RAILWAY_PUBLIC_DOMAIN dipakai bila env eksplisit kosong", () => {
+    expect(publicOrigin({ railwayDomain: "marlin.up.railway.app", host: "0.0.0.0:8080" })).toBe(
+      "https://marlin.up.railway.app",
+    );
+  });
+
+  it("alamat bind container DITOLAK — ini penyebab redirect_uri https://0.0.0.0:8080", () => {
+    expect(publicOrigin({ host: "0.0.0.0:8080" })).toBeNull();
+    expect(publicOrigin({ host: "[::]:8080" })).toBeNull();
+    expect(publicOrigin({ host: "marlin.railway.internal" })).toBeNull();
+    // Bind address diabaikan, lanjut ke sumber berikutnya yang sah.
+    expect(publicOrigin({ forwardedHost: "0.0.0.0:8080", host: "marlin.co.id" })).toBe("https://marlin.co.id");
+  });
+
+  it("memaksa https untuk domain publik (proxy meneruskan http internal)", () => {
+    expect(publicOrigin({ host: "marlin.up.railway.app", forwardedProto: "http" })).toBe(
+      "https://marlin.up.railway.app",
+    );
+    expect(publicOrigin({ forwardedHost: "marlin.up.railway.app", host: "internal:8080", forwardedProto: "http" })).toBe(
+      "https://marlin.up.railway.app",
+    );
   });
 
   it("host lokal tetap boleh http (dev)", () => {
-    expect(publicOrigin(null, "localhost:3000", "http")).toBe("http://localhost:3000");
-    expect(publicOrigin(null, "127.0.0.1:3000", null)).toBe("http://127.0.0.1:3000");
+    expect(publicOrigin({ host: "localhost:3000", forwardedProto: "http" })).toBe("http://localhost:3000");
+    expect(publicOrigin({ host: "127.0.0.1:3000" })).toBe("http://127.0.0.1:3000");
   });
 
-  it("x-forwarded-host menang atas host, dan daftar koma diambil yang pertama", () => {
-    expect(publicOrigin("a.example.com, b.example.com", "internal", "http")).toBe("https://a.example.com");
+  it("daftar berkoma diambil yang pertama", () => {
+    expect(publicOrigin({ forwardedHost: "a.example.com, b.example.com", forwardedProto: "http" })).toBe(
+      "https://a.example.com",
+    );
   });
 
-  it("tanpa host sama sekali → null (jangan menebak)", () => {
-    expect(publicOrigin(null, null, "https")).toBeNull();
-    expect(driveRedirectUri(null, null, null)).toBeNull();
+  it("tanpa sumber sama sekali → null (jangan menebak)", () => {
+    expect(publicOrigin({})).toBeNull();
+    expect(driveRedirectUri({})).toBeNull();
   });
 
   it("redirect URI memakai path callback yang sama persis", () => {
-    expect(driveRedirectUri(null, "marlin.up.railway.app", "http")).toBe(
+    expect(driveRedirectUri({ host: "marlin.up.railway.app", forwardedProto: "http" })).toBe(
       `https://marlin.up.railway.app${GDRIVE_REDIRECT_PATH}`,
     );
     expect(GDRIVE_REDIRECT_PATH).toBe("/api/gdrive/callback");

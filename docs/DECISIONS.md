@@ -2864,4 +2864,14 @@ Tiga bug tampilan pada PDF produksi (dari bundle self-contained DECISIONS 128):
 - **Docs**: `docs/GDRIVE_SETUP.md` + daftar penyebab error 400 terurut
   (redirect URI beda, tipe client bukan Web, scope drive belum ditambahkan,
   app masih Testing tanpa test user, propagasi Console).
-- Verifikasi: typecheck ✓ lint ✓ unit 310 (+5) ✓.
+- **Lanjutan (host, bukan cuma skema)**: ternyata Railway juga tidak mengirim
+  `x-forwarded-host`, dan header `host` berisi alamat bind container sehingga
+  redirect URI jadi `https://0.0.0.0:8080/...`. Resolusi origin dinaikkan jadi
+  berjenjang: `APP_PUBLIC_URL` (override operator) → `RAILWAY_PUBLIC_DOMAIN`
+  (otomatis dari Railway) → `x-forwarded-host` → `host`, dengan alamat bind
+  (`0.0.0.0`, `::`, `*.railway.internal`) DITOLAK di setiap tingkat. Helper
+  server `gdrive/origin.ts` dipakai ketiga titik (auth, callback, panel Sistem)
+  supaya tidak mungkin beda. Bila origin tak terdeteksi, panel Sistem
+  menampilkan peringatan + instruksi set `APP_PUBLIC_URL` (bukan diam-diam
+  mengirim URI ngawur ke Google).
+- Verifikasi: typecheck ✓ lint ✓ unit 313 (+8) ✓.
