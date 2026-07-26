@@ -2460,3 +2460,21 @@ scurve — dengan test properti, bukan paritas nilai):**
   "Kirim WA (PDF)" + "Excel" + "Unduh PDF".
 - Verifikasi: typecheck/lint/unit(185)/build ✓ (semua route terdaftar), smoke-render harian &
   mingguan ✓.
+
+## 127 · 2026-07-26 · Fix produksi: pdfkit gagal muat di Railway (pakai bundle self-contained)
+
+- **Gejala (Railway)**: klik "Kirim PDF ke WhatsApp" → `Failed to load external module pdfkit …
+  Cannot find module '…/.pnpm/node_modules/@swc/…'`, lalu setelah menyalin dep →
+  `applyDecoratedDescriptor is not a function`.
+- **Akar masalah**: `serverExternalPackages: ["pdfkit"]` + Next standalone TIDAK menyalin closure
+  dep paket external. Menyalin closure per-file (77 paket) via outputFileTracingIncludes MERUSAK
+  symlink pnpm yang memaku fontkit ke versi @swc/helpers-nya → Node resolve ke @swc/helpers versi
+  lain yang API-nya beda (`applyDecoratedDescriptor` tak ada). Menyalin file tak bisa menjaga
+  resolusi pnpm.
+- **Keputusan**: muat pdfkit dari **bundle prebuilt self-contained** `pdfkit/js/pdfkit.standalone.js`
+  (fontkit + @swc/helpers dll. sudah di-inline, TANPA dependensi eksternal) via `createRequire`.
+  Kebal masalah symlink. Cukup trace paket `pdfkit@*` (bundle ada di dalamnya); buang seluruh
+  closure-include yang rapuh dari next.config.
+- **Verifikasi**: probe `require("pdfkit/js/pdfkit.standalone.js")` + registerFont DejaVu + render
+  DIJALANKAN DI DALAM `.next/standalone` (mereproduksi mode produksi) → OK. typecheck/lint/unit(185)/
+  build ✓.

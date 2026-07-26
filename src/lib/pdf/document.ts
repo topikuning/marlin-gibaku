@@ -1,7 +1,19 @@
 import "server-only";
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
-import PDFDocument from "pdfkit";
+import type PDFDocumentType from "pdfkit";
+
+/**
+ * pdfkit dimuat dari BUNDLE PREBUILT SELF-CONTAINED (`pdfkit.standalone.js`) —
+ * fontkit + @swc/helpers dll. sudah di-inline. Ini menghindari jebakan pnpm +
+ * Next standalone: menyalin dependensi per-file MERUSAK symlink pnpm yang
+ * memaku fontkit ke versi @swc/helpers-nya → runtime gagal
+ * "applyDecoratedDescriptor is not a function". Bundle tanpa dependensi eksternal
+ * = kebal masalah itu. Resolusi dari cwd (root app di dev & standalone). DECISIONS 127.
+ */
+const nodeRequire = createRequire(path.join(process.cwd(), "index.js"));
+const PDFDocument = nodeRequire("pdfkit/js/pdfkit.standalone.js") as typeof PDFDocumentType;
 
 /**
  * Fondasi dokumen PDF server-side (pdfkit) — dipakai lintas jenis laporan

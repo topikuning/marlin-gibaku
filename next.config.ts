@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
   compress: true,
   // sharp = binari native + pdfkit = require dinamis file data: JANGAN dibundel
   // webpack (rusak). Biarkan resolve sebagai require runtime dari node_modules
-  // (lihat setup sharp di Dockerfile; pdfkit di outputFileTracingIncludes).
+  // (lihat setup sharp di Dockerfile; pdfkit pakai bundle standalone, lihat bawah).
   serverExternalPackages: ["sharp", "pdfkit"],
   experimental: {
     serverActions: {
@@ -25,23 +25,16 @@ const nextConfig: NextConfig = {
   // dari JS) sehingga sharp tersalin SETENGAH ke standalone → runtime gagal
   // "libvips-cpp.so: cannot open shared object file". Include eksplisit ini
   // memastikan seluruh isi paket (termasuk .so) ikut ter-copy.
+  // PLUS pdfkit: kita pakai bundle SELF-CONTAINED js/pdfkit.standalone.js (fontkit
+  // dll. inline) → cukup salin paket pdfkit; TAK perlu closure dep (yang justru
+  // rusak karena symlink pnpm tak terjaga saat disalin). Lihat lib/pdf/document.ts.
   outputFileTracingIncludes: {
     "/**": [
       "./assets/fonts/**",
       "./seed-data/**",
       "./node_modules/.pnpm/sharp@*/**",
       "./node_modules/.pnpm/@img+*/**",
-      // pdfkit + fontkit: butuh file DATA (.afm, trie unicode) yang dirujuk via
-      // require dinamis/fs — tracer statik Next tak melihatnya. Include eksplisit
-      // agar render PDF server-side tidak gagal "ENOENT" di standalone. DECISIONS 124.
       "./node_modules/.pnpm/pdfkit@*/**",
-      "./node_modules/.pnpm/fontkit@*/**",
-      "./node_modules/.pnpm/unicode-properties@*/**",
-      "./node_modules/.pnpm/unicode-trie@*/**",
-      "./node_modules/.pnpm/linebreak@*/**",
-      "./node_modules/.pnpm/brotli@*/**",
-      "./node_modules/.pnpm/dfa@*/**",
-      "./node_modules/.pnpm/png-js@*/**",
     ],
   },
 };
