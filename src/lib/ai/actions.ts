@@ -5,7 +5,7 @@ import { z } from "zod";
 import { audit } from "@/lib/audit";
 import { ForbiddenError, requireCapability } from "@/lib/auth/session";
 import { setAiProviderConfig, setActiveAiProvider, getAiProviderConfig } from "@/lib/ai/config";
-import { testAiProvider } from "@/lib/ai/client";
+import { testAiProvider, listModels } from "@/lib/ai/client";
 import { AI_PROVIDER_IDS, aiProvider, type AiProviderId } from "@/lib/ai/providers";
 
 /** Konfigurasi provider AI (setting aplikasi, khusus super_admin). DECISIONS 121. */
@@ -77,5 +77,22 @@ export async function testAiProviderAction(
     return { error: `Tes ${aiProvider(id)?.label ?? id} gagal: ${result.error}` };
   } catch (err) {
     return fail(err);
+  }
+}
+
+/** Ambil daftar model dari endpoint /models provider (sumber otoritatif). */
+export type AiModelsState = { error?: string; models?: string[] } | undefined;
+export async function listAiModelsAction(
+  _prev: AiModelsState,
+  formData: FormData,
+): Promise<AiModelsState> {
+  try {
+    await requireCapability("system.manage");
+    const id = providerSchema.parse(formData.get("provider"));
+    const result = await listModels(id);
+    if (result.ok) return { models: result.models };
+    return { error: `Gagal memuat model: ${result.error}` };
+  } catch (err) {
+    return { error: fail(err)?.error };
   }
 }

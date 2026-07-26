@@ -19,6 +19,11 @@ export type AiProviderMeta = {
   keyHint: string;
   /** Untuk OpenAI, parameter batas token berbeda (max_completion_tokens). */
   tokenParam: "max_tokens" | "max_completion_tokens";
+  /**
+   * Saran model dari dokumentasi resmi (per 2026) — hint untuk dropdown. Daftar
+   * OTORITATIF diambil live via endpoint /models provider (lihat listModels).
+   */
+  knownModels: string[];
 };
 
 export const AI_PROVIDERS: readonly AiProviderMeta[] = [
@@ -30,6 +35,15 @@ export const AI_PROVIDERS: readonly AiProviderMeta[] = [
     defaultModel: "claude-opus-5",
     keyHint: "console.anthropic.com → API keys",
     tokenParam: "max_tokens",
+    knownModels: [
+      "claude-opus-5",
+      "claude-sonnet-5",
+      "claude-fable-5",
+      "claude-opus-4-8",
+      "claude-opus-4-7",
+      "claude-sonnet-4-6",
+      "claude-haiku-4-5",
+    ],
   },
   {
     id: "openai",
@@ -39,6 +53,7 @@ export const AI_PROVIDERS: readonly AiProviderMeta[] = [
     defaultModel: "gpt-5",
     keyHint: "platform.openai.com → API keys",
     tokenParam: "max_completion_tokens",
+    knownModels: ["gpt-5", "gpt-5-mini", "gpt-4.1", "gpt-4.1-mini", "gpt-4o", "gpt-4o-mini", "o4-mini"],
   },
   {
     id: "mistral",
@@ -48,6 +63,14 @@ export const AI_PROVIDERS: readonly AiProviderMeta[] = [
     defaultModel: "mistral-large-latest",
     keyHint: "console.mistral.ai → API Keys",
     tokenParam: "max_tokens",
+    knownModels: [
+      "mistral-large-latest",
+      "mistral-medium-latest",
+      "mistral-small-latest",
+      "magistral-medium-latest",
+      "codestral-latest",
+      "open-mistral-nemo",
+    ],
   },
   {
     id: "grok",
@@ -57,6 +80,7 @@ export const AI_PROVIDERS: readonly AiProviderMeta[] = [
     defaultModel: "grok-4",
     keyHint: "console.x.ai → API Keys",
     tokenParam: "max_tokens",
+    knownModels: ["grok-4", "grok-4-fast", "grok-3", "grok-3-mini", "grok-2-latest"],
   },
 ] as const;
 

@@ -52,6 +52,7 @@ export type AiProviderDisplay = {
   keyHint: string;
   hasApiKey: boolean;
   model: string;
+  knownModels: string[];
 };
 
 export type AiConfigDisplay = {
@@ -72,6 +73,7 @@ export async function getAiConfigDisplay(): Promise<AiConfigDisplay> {
       keyHint: p.keyHint,
       hasApiKey: !!s.get(keyApiKey(p.id))?.trim(),
       model: s.get(keyModel(p.id))?.trim() || p.defaultModel,
+      knownModels: p.knownModels,
     })),
   };
 }

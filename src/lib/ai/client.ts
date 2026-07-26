@@ -95,3 +95,32 @@ export async function testAiProvider(id: AiProviderId): Promise<AiResult> {
   if (!cfg) return { ok: false, error: "API key provider ini belum diisi." };
   return callProvider(cfg, { prompt: "Balas satu kata: OK", maxTokens: 16 });
 }
+
+export type AiModelsResult = { ok: true; models: string[] } | { ok: false; error: string };
+
+/**
+ * Ambil daftar model OTORITATIF langsung dari endpoint /models provider (sumber
+ * paling kredibel & selalu terkini). Anthropic: GET /v1/models; OpenAI/Mistral/
+ * Grok: GET {baseUrl}/models. Butuh API key tersimpan + egress.
+ */
+export async function listModels(id: AiProviderId): Promise<AiModelsResult> {
+  const cfg = await getAiProviderConfig(id);
+  if (!cfg) return { ok: false, error: "API key provider ini belum diisi." };
+  try {
+    const url = cfg.apiStyle === "anthropic" ? `${cfg.baseUrl}/v1/models` : `${cfg.baseUrl}/models`;
+    const headers: Record<string, string> =
+      cfg.apiStyle === "anthropic"
+        ? { "x-api-key": cfg.apiKey, "anthropic-version": "2023-06-01" }
+        : { authorization: `Bearer ${cfg.apiKey}` };
+    const res = await fetch(url, { headers });
+    if (!res.ok) return { ok: false, error: await readError(res) };
+    const json = (await res.json()) as { data?: { id?: string }[] };
+    const models = (json.data ?? [])
+      .map((m) => m.id)
+      .filter((x): x is string => typeof x === "string" && x.length > 0)
+      .sort((a, b) => a.localeCompare(b));
+    return { ok: true, models };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "gagal mengambil daftar model" };
+  }
+}

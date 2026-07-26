@@ -69,7 +69,9 @@ import {
   saveAiProviderAction,
   setActiveAiProviderAction,
   testAiProviderAction,
+  listAiModelsAction,
   type AiActionState,
+  type AiModelsState,
 } from "@/lib/ai/actions";
 import type { PhotoStampConfig } from "@/lib/photo-stamp/config";
 import { getContrastText, normalizeHex } from "@/lib/photo-stamp/format";
@@ -594,6 +596,7 @@ type AiProviderCardData = {
   keyHint: string;
   hasApiKey: boolean;
   model: string;
+  knownModels: string[];
 };
 
 function AiProviderCard({ p, active }: { p: AiProviderCardData; active: boolean }) {
@@ -603,7 +606,15 @@ function AiProviderCard({ p, active }: { p: AiProviderCardData; active: boolean 
     setActiveAiProviderAction,
     undefined,
   );
+  const [modelsState, listAction, listing] = useActionState<AiModelsState, FormData>(listAiModelsAction, undefined);
   const banner = saveState ?? testState ?? activateState;
+
+  // Saran model: gabung yang tersimpan + hasil live /models + kurasi dokumentasi.
+  const fetched = modelsState?.models ?? [];
+  const suggestions = Array.from(
+    new Set([...(p.model ? [p.model] : []), ...fetched, ...p.knownModels]),
+  );
+  const listId = `ai-models-${p.id}`;
 
   return (
     <div
@@ -633,12 +644,32 @@ function AiProviderCard({ p, active }: { p: AiProviderCardData; active: boolean 
 
       {banner?.error ? <Banner tone="error" title={banner.error} className="mt-2" /> : null}
       {banner?.success ? <Banner tone="success" title={banner.success} className="mt-2" /> : null}
+      {modelsState?.error ? <Banner tone="error" title={modelsState.error} className="mt-2" /> : null}
+      {modelsState?.models ? (
+        <Banner tone="success" title={`${modelsState.models.length} model dimuat dari API.`} className="mt-2" />
+      ) : null}
 
       <form action={saveAction} className="mt-3 space-y-2">
         <input type="hidden" name="provider" value={p.id} />
         <div>
           <Label htmlFor={`ai-model-${p.id}`}>Model</Label>
-          <Input id={`ai-model-${p.id}`} name="model" defaultValue={p.model} placeholder={p.defaultModel} />
+          <Input
+            id={`ai-model-${p.id}`}
+            name="model"
+            defaultValue={p.model}
+            placeholder={p.defaultModel}
+            list={listId}
+            autoComplete="off"
+          />
+          <datalist id={listId}>
+            {suggestions.map((m) => (
+              <option key={m} value={m} />
+            ))}
+          </datalist>
+          <p className="mt-1 text-xs text-ink-muted">
+            Ketik bebas atau pilih dari saran{fetched.length > 0 ? ` (${fetched.length} dari API)` : ""}. Klik
+            &quot;Muat model&quot; untuk daftar terkini dari provider.
+          </p>
         </div>
         <div>
           <Label htmlFor={`ai-key-${p.id}`}>API key</Label>
@@ -653,19 +684,25 @@ function AiProviderCard({ p, active }: { p: AiProviderCardData; active: boolean 
             Kosongkan untuk mempertahankan key tersimpan. Ketik tanda minus lalu simpan untuk menghapus.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button type="submit" size="sm" loading={saving}>
-            Simpan
-          </Button>
-        </div>
-      </form>
-
-      <form action={testAction} className="mt-2">
-        <input type="hidden" name="provider" value={p.id} />
-        <Button type="submit" size="sm" variant="secondary" loading={testing} disabled={!p.hasApiKey}>
-          Tes koneksi
+        <Button type="submit" size="sm" loading={saving}>
+          Simpan
         </Button>
       </form>
+
+      <div className="mt-2 flex flex-wrap gap-2">
+        <form action={testAction}>
+          <input type="hidden" name="provider" value={p.id} />
+          <Button type="submit" size="sm" variant="secondary" loading={testing} disabled={!p.hasApiKey}>
+            Tes koneksi
+          </Button>
+        </form>
+        <form action={listAction}>
+          <input type="hidden" name="provider" value={p.id} />
+          <Button type="submit" size="sm" variant="secondary" loading={listing} disabled={!p.hasApiKey}>
+            Muat model
+          </Button>
+        </form>
+      </div>
     </div>
   );
 }

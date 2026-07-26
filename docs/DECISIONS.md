@@ -2356,3 +2356,10 @@ scurve — dengan test properti, bukan paritas nilai):**
   + tombol "Jadikan aktif" (badge Aktif). Data nyata, tanpa memalsukan.
 - Verifikasi: typecheck/lint/build ✓. Catatan: fitur AI konkret (ringkasan WA) menyusul memakai
   `aiComplete()`; egress ke provider harus diizinkan di environment.
+
+## 121b · 2026-07-26 · Pilihan model AI dari sumber kredibel (kurasi + live /models)
+
+- Field model kini datalist: saran dari (a) kurasi dokumentasi resmi per provider (providers.ts
+  knownModels — Claude dari referensi Anthropic; OpenAI/Mistral/Grok dari docs 2026) + (b) tombol
+  "Muat model" yang menarik daftar OTORITATIF langsung dari endpoint /models provider
+  (listModels/listAiModelsAction) memakai API key tersimpan. Tetap boleh ketik bebas.
