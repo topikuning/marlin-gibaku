@@ -58,4 +58,42 @@ describe("parseWaEvent", () => {
     const m = parseWaEvent({ ...groupEvent, payload: { ...groupEvent.payload, fromMe: true } });
     expect(m!.fromMe).toBe(true);
   });
+
+  // REGRESI: kiriman MARLIN sendiri ke grup. WAHA mengisi `from` = nomor kita
+  // dan `to` = grup; membaca `from` membuat chatId salah → pesan dibuang karena
+  // tak cocok Package.waGroupId, sehingga ringkasan harian tidak utuh.
+  it("pesan KELUAR ke grup: chatId diambil dari `to`, bukan `from`", () => {
+    const m = parseWaEvent({
+      event: "message.any",
+      payload: {
+        id: "out-1",
+        from: "628111222333@c.us", // nomor kita sendiri
+        to: "120363000111222@g.us", // grup tujuan
+        fromMe: true,
+        body: "Laporan harian Purwahamba 26 Juli",
+        timestamp: 1_690_000_000,
+      },
+    });
+    expect(m).not.toBeNull();
+    expect(m!.chatId).toBe("120363000111222@g.us");
+    expect(m!.fromMe).toBe(true);
+    expect(m!.body).toContain("Laporan harian");
+  });
+
+  it("pesan MASUK tetap memakai `from` sebagai chatId (tidak berubah)", () => {
+    const m = parseWaEvent({
+      event: "message",
+      payload: {
+        id: "in-1",
+        from: "120363000111222@g.us",
+        to: "628111222333@c.us",
+        author: "628999@c.us",
+        body: "Material sudah datang",
+        timestamp: 1_690_000_000,
+      },
+    });
+    expect(m!.chatId).toBe("120363000111222@g.us");
+    expect(m!.fromMe).toBe(false);
+    expect(m!.fromNumber).toBe("628999");
+  });
 });

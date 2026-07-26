@@ -479,8 +479,13 @@ export function WahaWebhookPanel({
       <p className="text-sm text-ink-muted">
         Menangkap percakapan grup WhatsApp (hanya grup yang sudah ditautkan ke paket) ke arsip —
         fondasi ringkasan/telusur berbasis AI. Butuh langkah di WAHA: pasang URL webhook di bawah &
-        aktifkan event <span className="font-mono">message</span>.
+        aktifkan event <span className="font-mono">message.any</span>.
       </p>
+      <Banner
+        tone="info"
+        title="Pakai message.any, bukan message"
+        description="Event message hanya membawa pesan MASUK. Kiriman MARLIN sendiri (laporan harian/kegiatan yang dikirim ke grup) hanya ikut terarsip lewat message.any — tanpa itu ringkasan harian tidak utuh."
+      />
 
       {hasSecret && webhookUrl ? (
         <div>

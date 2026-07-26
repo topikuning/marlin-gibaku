@@ -42,14 +42,23 @@ export function parseWaEvent(body: unknown): ParsedWaMessage | null {
   const data = (p._data ?? {}) as AnyObj;
 
   const waMessageId = str(p.id) ?? str(data.id) ?? str((data.id as AnyObj)?._serialized);
-  const chatId = str(p.from) ?? str(p.chatId) ?? str(data.from);
+  const fromMe = p.fromMe === true || data.fromMe === true;
+  // Pesan KELUAR (fromMe): WAHA mengisi `from` = nomor kita sendiri dan `to` =
+  // chat tujuan. Tanpa membaca `to`, kiriman MARLIN ke grup tak pernah cocok
+  // dengan Package.waGroupId → dibuang, sehingga ringkasan harian tidak utuh.
+  const chatId = fromMe
+    ? (str(p.to) ?? str(data.to) ?? str(p.chatId) ?? str(p.from))
+    : (str(p.from) ?? str(p.chatId) ?? str(data.from));
   if (!waMessageId || !chatId) return null;
 
   const isGroup = chatId.endsWith("@g.us");
   // Di grup, `from` = grup dan `author`/`participant` = pengirim sebenarnya.
+  // Untuk pesan keluar, pengirim = kita (`from`).
   const senderJid = isGroup
-    ? str(p.author) ?? str(p.participant) ?? str(data.author)
-    : chatId;
+    ? (fromMe ? (str(p.author) ?? str(p.from)) : (str(p.author) ?? str(p.participant) ?? str(data.author)))
+    : fromMe
+      ? (str(p.from) ?? chatId)
+      : chatId;
 
   const timestampSec =
     typeof p.timestamp === "number"
@@ -68,7 +77,7 @@ export function parseWaEvent(body: unknown): ParsedWaMessage | null {
     body: str(p.body) ?? str(p.caption) ?? "",
     hasMedia: p.hasMedia === true || !!media.url || !!media.mimetype,
     mediaType: str(media.mimetype) ?? str(p.type) ?? str(data.type) ?? null,
-    fromMe: p.fromMe === true || data.fromMe === true,
+    fromMe,
     timestamp: timestampSec != null ? new Date(timestampSec * 1000) : new Date(0),
   };
 }

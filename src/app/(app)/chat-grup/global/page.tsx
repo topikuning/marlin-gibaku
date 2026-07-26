@@ -1,0 +1,124 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { Card, CardBody, CardHeader, EmptyState, PageHeader } from "@/components/ui";
+import { MessageSquareText } from "lucide-react";
+import { requireUser } from "@/lib/auth/session";
+import { requireCapabilityPage } from "@/lib/auth/page-guard";
+import { db } from "@/lib/db";
+import { listGlobalSummaryDates, listSummariesForDate } from "@/lib/waha/chat-summary";
+import { formatTanggal, formatTanggalWaktu, jakartaToday } from "@/lib/format";
+import { SendGlobalForm } from "./send-global-form";
+
+export const metadata: Metadata = { title: "Chat Grup — Ringkasan Global" };
+export const dynamic = "force-dynamic";
+
+/**
+ * Ringkasan GLOBAL: semua ringkasan grup pada satu tanggal, siap dikirim ke
+ * pimpinan lewat satu pesan WhatsApp (dengan pengantar AI bila > 1 paket).
+ * DECISIONS 137.
+ */
+export default async function ChatGrupGlobalPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ d?: string }>;
+}) {
+  const user = await requireUser();
+  requireCapabilityPage(user.role, "exec_report.send");
+  const sp = await searchParams;
+
+  const [dates, contacts] = await Promise.all([
+    listGlobalSummaryDates(user),
+    db.waContact.findMany({ where: { ownerId: user.id }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+  ]);
+  const todayKey = jakartaToday().toISOString().slice(0, 10);
+  const dateKey = sp.d && /^\d{4}-\d{2}-\d{2}$/.test(sp.d) ? sp.d : (dates[0]?.dateKey ?? todayKey);
+  const rows = await listSummariesForDate(user, dateKey);
+
+  return (
+    <div className="space-y-4">
+      <PageHeader
+        title="Ringkasan Global Chat Grup"
+        description="Gabungan ringkasan seluruh grup WhatsApp pada satu tanggal — kirim sekali jalan ke pimpinan."
+        actions={
+          <Link
+            href="/chat-grup"
+            className="inline-flex h-9 items-center rounded-md border border-border bg-surface px-3 text-sm font-medium text-primary hover:bg-surface-muted"
+          >
+            Per grup
+          </Link>
+        }
+      />
+
+      <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <Card className="self-start">
+          <CardHeader title="Tanggal" subtitle="Hari yang sudah punya ringkasan." />
+          <CardBody className="space-y-1">
+            {dates.length === 0 ? (
+              <p className="text-sm text-ink-muted">Belum ada ringkasan tersimpan.</p>
+            ) : (
+              dates.map((d) => (
+                <Link
+                  key={d.dateKey}
+                  href={`/chat-grup/global?d=${d.dateKey}`}
+                  aria-current={d.dateKey === dateKey ? "page" : undefined}
+                  className={`flex items-center justify-between rounded-md px-2 py-1.5 text-sm ${
+                    d.dateKey === dateKey ? "bg-info-soft text-primary" : "hover:bg-surface-muted"
+                  }`}
+                >
+                  <span>{formatTanggal(new Date(`${d.dateKey}T00:00:00.000Z`))}</span>
+                  <span className="text-xs text-ink-faint">{d.packages} grup</span>
+                </Link>
+              ))
+            )}
+          </CardBody>
+        </Card>
+
+        <div className="space-y-4">
+          <Card>
+            <CardHeader
+              title={`Kirim ke pimpinan — ${formatTanggal(new Date(`${dateKey}T00:00:00.000Z`))}`}
+              subtitle={
+                rows.length > 1
+                  ? `${rows.length} grup digabung jadi satu pesan; AI menambahkan pengantar singkat.`
+                  : `${rows.length} grup pada tanggal ini.`
+              }
+            />
+            <CardBody>
+              {rows.length === 0 ? (
+                <p className="text-sm text-ink-muted">
+                  Belum ada ringkasan pada tanggal ini — buat dulu di halaman per grup.
+                </p>
+              ) : (
+                <SendGlobalForm dateKey={dateKey} contacts={contacts} />
+              )}
+            </CardBody>
+          </Card>
+
+          {rows.length === 0 ? (
+            <EmptyState icon={MessageSquareText} title="Belum ada ringkasan" className="py-8" />
+          ) : (
+            rows.map((r) => (
+              <Card key={r.packageId}>
+                <CardHeader
+                  title={r.title}
+                  subtitle={`${r.messageCount} pesan · diperbarui ${formatTanggalWaktu(r.updatedAt)}`}
+                  action={
+                    <Link
+                      href={`/chat-grup?p=${r.packageId}&d=${dateKey}`}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      Buka grup →
+                    </Link>
+                  }
+                />
+                <CardBody>
+                  <p className="text-sm whitespace-pre-wrap text-ink">{r.summaryText}</p>
+                </CardBody>
+              </Card>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

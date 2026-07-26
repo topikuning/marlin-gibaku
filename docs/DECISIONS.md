@@ -2687,3 +2687,36 @@ Tiga bug tampilan pada PDF produksi (dari bundle self-contained DECISIONS 128):
 - UI: kartu "Narasi lapangan (sumber mentah)" di /ai/run/[id] — reviewer bisa
   memverifikasi kutipan AI vs catatan asli, dgn tautan ke laporan/kegiatan.
 - Audit `ai.run.buat` mencatat `narrativeEntries`. 10 unit test baru (237 total).
+
+## 137 · 2026-07-26 · Ringkasan chat grup: kiriman MARLIN tertangkap, konteks paket, filter noise, distribusi
+
+- **BUG KRITIS diperbaiki — kiriman MARLIN sendiri tidak pernah terarsip**:
+  `ingest-parse.ts` selalu mengambil `chatId` dari `payload.from`. Untuk pesan
+  KELUAR (fromMe) WAHA mengisi `from` = nomor kita dan `to` = grup tujuan →
+  chatId jadi nomor sendiri → tak cocok `Package.waGroupId` → pesan DIBUANG.
+  Akibatnya laporan harian/kegiatan yang MARLIN kirim ke grup hilang dari arsip
+  dan ringkasan harian tidak utuh. Fix: bila `fromMe`, chatId dibaca dari `to`
+  (fallback berlapis); pengirim = `from`. 2 unit test regresi (masuk & keluar).
+- **Panduan WAHA salah** — panel Sistem menyuruh aktifkan event `message` yang
+  HANYA membawa pesan masuk. Diubah ke **`message.any`** + banner penjelas;
+  tanpa itu pesan keluar tetap tak terkirim ke webhook.
+- **Rekonsiliasi kiriman sistem**: `getMarlinDispatches()` membaca data DOMAIN
+  (`DailyReport.waSentAt`, `FieldActivity.waSentAt`) → blok "KIRIMAN SISTEM
+  MARLIN" di prompt + kartu di UI. Ringkasan tetap menyebut laporan yang sudah
+  dikirim walau webhook belum aktif saat itu. Pesan `fromMe` di transkrip
+  ditandai `[MARLIN]` supaya tidak dibaca sebagai obrolan anggota.
+  Ringkasan kini bisa dibuat walau chat kosong asalkan ada kiriman MARLIN.
+- **Konteks paket** (`describePackageContext`): grup WA sering bernama generik
+  ("KNMP Jawa"). Prompt kini membawa paket + nomor paket + judul pekerjaan +
+  pelaksana + daftar lokasi; ringkasan wajib menyebut identitas pekerjaan.
+- **Filter noise** (`isNoiseMessage`, MURNI + teruji): uji webhook/sistem &
+  basa-basi satu kata disaring sebelum masuk prompt (konservatif — "Hasil test
+  beton sudah keluar" TIDAK dibuang). Pesan noise tetap tampil di UI dgn badge,
+  jumlahnya dicatat di ringkasan & audit.
+- **Privasi**: prompt melarang menampilkan nomor telepon mentah; tanpa nama →
+  tulis "salah satu anggota".
+- **Distribusi**: aksi kirim ringkasan satu grup ke kontak WA, dan halaman
+  **`/chat-grup/global`** — semua ringkasan pada satu tanggal digabung jadi satu
+  pesan WhatsApp (pengantar AI opsional bila >1 paket) untuk pimpinan. Semua
+  pengiriman diaudit.
+- Verifikasi: typecheck ✓ lint ✓ unit 252 (+15) ✓ build ✓.
