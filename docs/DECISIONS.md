@@ -2337,3 +2337,22 @@ scurve — dengan test properti, bukan paritas nilai):**
 - Panel existing (R2/WAHA/Branding/PhotoStamp/ActivityKinds/Reset) dipertahankan, dipindah ke tab
   yang tepat. Semua data NYATA (hitung user/audit/sesi/integrasi). Tanpa SMTP/security-toggle palsu.
 - Verifikasi: typecheck/lint/build ✓. Slice 2 (poles per tab sesuai mockup) menyusul.
+
+## 121 · 2026-07-26 · Multi-provider AI (Claude/OpenAI/Mistral/Grok) + pemilih aktif
+
+- **Kebutuhan**: beberapa provider AI tersedia; admin isi API key masing-masing lalu pilih SATU
+  yang aktif. Fitur AI (mis. ringkasan percakapan WA) memakai provider aktif.
+- **providers.ts** (murni): metadata 4 provider — Claude (Messages API Anthropic),
+  OpenAI/Mistral/Grok (chat-completions kompatibel-OpenAI). Default model editable (claude-opus-5,
+  gpt-5, mistral-large-latest, grok-4). OpenAI pakai `max_completion_tokens`, lainnya `max_tokens`.
+- **config.ts** (server-only, AppSetting effective-dated seperti WAHA): `ai.active_provider` +
+  `ai.<id>.api_key` + `ai.<id>.model`. getAiConfigDisplay / setAiProviderConfig / setActiveAiProvider
+  / getActiveAiConfig / getAiProviderConfig. Key rahasia (tak pernah ke klien).
+- **client.ts** (server-only): `aiComplete()` klien TERPADU (dua bentuk API via fetch) memakai
+  provider aktif; `testAiProvider()` untuk tes koneksi. Butuh egress server ke host provider.
+- **actions.ts**: saveAiProviderAction / setActiveAiProviderAction (guard: wajib ada API key) /
+  testAiProviderAction — semua `requireCapability("system.manage")` + audit.
+- **UI**: tab baru **AI** di hub Sistem — kartu per provider (model + API key + Simpan + Tes koneksi)
+  + tombol "Jadikan aktif" (badge Aktif). Data nyata, tanpa memalsukan.
+- Verifikasi: typecheck/lint/build ✓. Catatan: fitur AI konkret (ringkasan WA) menyusul memakai
+  `aiComplete()`; egress ke provider harus diizinkan di environment.

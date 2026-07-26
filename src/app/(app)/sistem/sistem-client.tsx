@@ -65,6 +65,12 @@ import {
   testWahaCaptureAction,
   type WaActionState,
 } from "@/lib/waha/actions";
+import {
+  saveAiProviderAction,
+  setActiveAiProviderAction,
+  testAiProviderAction,
+  type AiActionState,
+} from "@/lib/ai/actions";
 import type { PhotoStampConfig } from "@/lib/photo-stamp/config";
 import { getContrastText, normalizeHex } from "@/lib/photo-stamp/format";
 
@@ -574,6 +580,119 @@ export function WahaWebhookPanel({
             </table>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Provider AI (Claude / OpenAI / Mistral / Grok) ─────────────────────── */
+
+type AiProviderCardData = {
+  id: string;
+  label: string;
+  defaultModel: string;
+  keyHint: string;
+  hasApiKey: boolean;
+  model: string;
+};
+
+function AiProviderCard({ p, active }: { p: AiProviderCardData; active: boolean }) {
+  const [saveState, saveAction, saving] = useActionState<AiActionState, FormData>(saveAiProviderAction, undefined);
+  const [testState, testAction, testing] = useActionState<AiActionState, FormData>(testAiProviderAction, undefined);
+  const [activateState, activateAction, activating] = useActionState<AiActionState, FormData>(
+    setActiveAiProviderAction,
+    undefined,
+  );
+  const banner = saveState ?? testState ?? activateState;
+
+  return (
+    <div
+      className={cn(
+        "rounded-lg border p-3",
+        active ? "border-primary bg-primary-50" : "border-border bg-surface",
+      )}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <h4 className="text-sm font-semibold">{p.label}</h4>
+          {active ? (
+            <StatusPill tone="success" label="Aktif" />
+          ) : (
+            <StatusPill tone={p.hasApiKey ? "neutral" : "warning"} label={p.hasApiKey ? "Siap" : "Belum ada key"} />
+          )}
+        </div>
+        {active ? null : (
+          <form action={activateAction}>
+            <input type="hidden" name="provider" value={p.id} />
+            <Button type="submit" size="sm" variant="secondary" loading={activating} disabled={!p.hasApiKey}>
+              Jadikan aktif
+            </Button>
+          </form>
+        )}
+      </div>
+
+      {banner?.error ? <Banner tone="error" title={banner.error} className="mt-2" /> : null}
+      {banner?.success ? <Banner tone="success" title={banner.success} className="mt-2" /> : null}
+
+      <form action={saveAction} className="mt-3 space-y-2">
+        <input type="hidden" name="provider" value={p.id} />
+        <div>
+          <Label htmlFor={`ai-model-${p.id}`}>Model</Label>
+          <Input id={`ai-model-${p.id}`} name="model" defaultValue={p.model} placeholder={p.defaultModel} />
+        </div>
+        <div>
+          <Label htmlFor={`ai-key-${p.id}`}>API key</Label>
+          <Input
+            id={`ai-key-${p.id}`}
+            name="apiKey"
+            type="password"
+            autoComplete="new-password"
+            placeholder={p.hasApiKey ? "•••••••• (tersimpan — isi untuk mengganti)" : `API key dari ${p.keyHint}`}
+          />
+          <p className="mt-1 text-xs text-ink-muted">
+            Kosongkan untuk mempertahankan key tersimpan. Ketik tanda minus lalu simpan untuk menghapus.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button type="submit" size="sm" loading={saving}>
+            Simpan
+          </Button>
+        </div>
+      </form>
+
+      <form action={testAction} className="mt-2">
+        <input type="hidden" name="provider" value={p.id} />
+        <Button type="submit" size="sm" variant="secondary" loading={testing} disabled={!p.hasApiKey}>
+          Tes koneksi
+        </Button>
+      </form>
+    </div>
+  );
+}
+
+/**
+ * Panel provider AI — atur beberapa provider (Claude/OpenAI/Mistral/Grok) &
+ * pilih satu yang aktif. Fitur AI (mis. ringkasan WA) memakai provider aktif.
+ * DECISIONS 121.
+ */
+export function AiProvidersPanel({
+  activeProvider,
+  providers,
+}: {
+  activeProvider: string | null;
+  providers: AiProviderCardData[];
+}) {
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-ink-muted">
+        Isi API key untuk provider yang ingin dipakai, lalu klik <b>Jadikan aktif</b> pada salah satunya.
+        Fitur AI di MARLIN memakai provider aktif. Server harus punya egress ke host provider.
+        {activeProvider ? null : " Belum ada provider aktif."}
+      </p>
+      <div className="grid gap-3 md:grid-cols-2">
+        {providers.map((p) => (
+          <AiProviderCard key={p.id} p={p} active={p.id === activeProvider} />
+        ))}
       </div>
     </div>
   );

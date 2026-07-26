@@ -12,6 +12,7 @@ import { formatTanggalWaktu, jakartaToday } from "@/lib/format";
 import { getBranding, BRAND_DEFAULTS } from "@/lib/branding";
 import { getPhotoStampConfig } from "@/lib/photo-stamp/config";
 import { getActivityKinds } from "@/lib/field-activity/kinds";
+import { getAiConfigDisplay } from "@/lib/ai/config";
 import { CAPABILITIES, ROLE_CAPABILITIES, ROLE_LABEL, ALL_ROLES, type Capability } from "@/lib/authz";
 import type { UserRole } from "@/generated/prisma/enums";
 import {
@@ -22,6 +23,7 @@ import {
   WahaWebhookPanel,
   PhotoStampPanel,
   ActivityKindsPanel,
+  AiProvidersPanel,
   SettingsTabs,
 } from "./sistem-client";
 
@@ -131,6 +133,7 @@ export default async function SistemPage() {
       db.user.groupBy({ by: ["role"], _count: { _all: true } }),
     ]);
   const activityKinds = await getActivityKinds();
+  const aiConfig = await getAiConfigDisplay();
 
   const r2On = isR2Configured();
   const wahaConfigured = wahaDisplay.hasApiKey && wahaDisplay.baseUrl.length > 0;
@@ -382,6 +385,19 @@ export default async function SistemPage() {
     </div>
   );
 
+  /* ── PANEL: AI ────────────────────────────────────────────────────────── */
+  const aiPanel: ReactNode = (
+    <Card>
+      <CardHeader
+        title="Provider AI"
+        subtitle="Atur Claude, ChatGPT (OpenAI), Mistral, Grok — pilih satu yang aktif untuk fitur AI"
+      />
+      <CardBody>
+        <AiProvidersPanel activeProvider={aiConfig.activeProvider} providers={aiConfig.providers} />
+      </CardBody>
+    </Card>
+  );
+
   /* ── PANEL: Branding & Photo Stamp ────────────────────────────────────── */
   const brandingPanel: ReactNode = (
     <div className="space-y-5">
@@ -488,6 +504,7 @@ export default async function SistemPage() {
         tabs={[
           { key: "overview", label: "Ringkasan" },
           { key: "integrations", label: "Integrasi" },
+          { key: "ai", label: "AI" },
           { key: "access", label: "Akses & Keamanan" },
           { key: "branding", label: "Branding & Photo Stamp" },
           { key: "audit", label: "Audit Trail" },
@@ -495,6 +512,7 @@ export default async function SistemPage() {
         panels={{
           overview: overviewPanel,
           integrations: integrationsPanel,
+          ai: aiPanel,
           access: accessPanel,
           branding: brandingPanel,
           audit: auditPanel,
