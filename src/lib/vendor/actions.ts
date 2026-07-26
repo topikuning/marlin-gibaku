@@ -82,3 +82,89 @@ export async function deleteVendorAction(_prev: VendorActionState, formData: For
     return fail(err);
   }
 }
+
+/* ── Master data perusahaan: edit profil + logo (DECISIONS 134) ─────────── */
+
+const updateSchema = z.object({
+  id: z.uuid("Vendor tidak valid"),
+  name: z.string().min(2, "Nama minimal 2 karakter").max(160),
+  npwp: z.string().max(40).optional(),
+  contact: z.string().max(120).optional(),
+  address: z.string().max(400).optional(),
+  phone: z.string().max(40).optional(),
+  email: z.union([z.literal(""), z.email("Format email tidak valid")]).optional(),
+});
+
+const LOGO_MAX_BYTES = 2 * 1024 * 1024;
+
+/**
+ * Perbarui master data perusahaan (profil kop surat) + logo opsional.
+ * Logo: PNG/JPG/WebP ≤ 2 MB → resize 512px webp → R2 `vendors/{id}/logo.webp`.
+ */
+export async function updateVendorAction(_prev: VendorActionState, formData: FormData): Promise<VendorActionState> {
+  const parsed = updateSchema.safeParse({
+    id: formData.get("id"),
+    name: String(formData.get("name") ?? "").trim(),
+    npwp: String(formData.get("npwp") ?? "").trim(),
+    contact: String(formData.get("contact") ?? "").trim(),
+    address: String(formData.get("address") ?? "").trim(),
+    phone: String(formData.get("phone") ?? "").trim(),
+    email: String(formData.get("email") ?? "").trim(),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const d = parsed.data;
+
+  try {
+    const actor = await requireCapability("contract.manage");
+    const vendor = await db.vendor.findFirst({
+      where: { id: d.id, orgId: actor.orgId },
+      select: { id: true, name: true, logoKey: true },
+    });
+    if (!vendor) return { error: "Vendor tidak ditemukan." };
+
+    // Nama unik per org — cegah tabrakan dgn vendor lain.
+    const clash = await db.vendor.findFirst({
+      where: { orgId: actor.orgId, name: d.name, id: { not: d.id } },
+      select: { id: true },
+    });
+    if (clash) return { error: `Nama "${d.name}" sudah dipakai vendor lain — gunakan fitur gabung bila memang sama.` };
+
+    let logoKey = vendor.logoKey;
+    const file = formData.get("logo");
+    if (file instanceof File && file.size > 0) {
+      if (file.size > LOGO_MAX_BYTES) return { error: "Logo terlalu besar (maks 2 MB)." };
+      if (!/^image\/(png|jpe?g|webp)$/i.test(file.type)) return { error: "Format logo harus PNG/JPG/WebP." };
+      const { isR2Configured, r2Put } = await import("@/lib/r2");
+      if (!isR2Configured()) return { error: "Penyimpanan file (R2) belum dikonfigurasi — logo tidak dapat diunggah." };
+      const sharp = (await import("sharp")).default;
+      const buf = await sharp(Buffer.from(await file.arrayBuffer()), { failOn: "none" })
+        .resize(512, 512, { fit: "inside", withoutEnlargement: true })
+        .webp({ quality: 88 })
+        .toBuffer();
+      logoKey = `vendors/${vendor.id}/logo.webp`;
+      await r2Put(logoKey, buf, "image/webp");
+    }
+    if (formData.get("removeLogo") === "1") logoKey = null;
+
+    await db.vendor.update({
+      where: { id: vendor.id },
+      data: {
+        name: d.name,
+        npwp: d.npwp || null,
+        contact: d.contact || null,
+        address: d.address || null,
+        phone: d.phone || null,
+        email: d.email || null,
+        logoKey,
+      },
+    });
+    await audit(actor.id, "vendor.update", "vendor", vendor.id, {
+      name: d.name,
+      logoChanged: logoKey !== vendor.logoKey,
+    });
+    revalidatePath("/paket/vendor");
+    return { success: `Master data "${d.name}" tersimpan.` };
+  } catch (err) {
+    return fail(err);
+  }
+}

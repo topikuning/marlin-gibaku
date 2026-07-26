@@ -1,5 +1,6 @@
 import {
   Activity,
+  BookUser,
   Camera,
   FileText,
   FolderOpen,
@@ -37,6 +38,7 @@ export const ICONS = {
   folderOpen: FolderOpen,
   fileText: FileText,
   send: Send,
+  bookUser: BookUser,
   sparkles: Sparkles,
   users: Users,
   settings: Settings,
@@ -63,6 +65,7 @@ export const MAIN_NAV: NavItem[] = [
   { label: "Dokumen", href: "/dokumen", icon: "folderOpen", capability: "document.view" },
   { label: "Laporan", href: "/laporan", icon: "fileText", capability: "report.export" },
   { label: "Laporan → WA", href: "/laporan-wa", icon: "send", capability: "exec_report.send" },
+  { label: "Kontak WA", href: "/kontak-wa", icon: "bookUser", capability: "exec_report.send" },
   { label: "Pengguna", href: "/pengguna", icon: "users", capability: "user.create" },
   { label: "Sistem", href: "/sistem", icon: "settings", capability: "system.manage" },
 ];

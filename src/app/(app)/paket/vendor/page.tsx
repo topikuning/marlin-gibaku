@@ -3,6 +3,7 @@ import { Card, CardBody, CardHeader, KpiCard, PageHeader } from "@/components/ui
 import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { duplicateGroups, listVendorsWithUsage } from "@/lib/vendor/queries";
+import { presignKeys } from "@/lib/photos";
 import { VendorManager } from "./vendor-client";
 
 export const metadata: Metadata = { title: "Master Perusahaan" };
@@ -13,6 +14,7 @@ export default async function VendorPage() {
   requireCapabilityPage(user.role, "contract.manage");
 
   const vendors = await listVendorsWithUsage(user.orgId);
+  const logoUrls = await presignKeys(vendors.map((v) => v.logoKey).filter((k): k is string => !!k));
   const groups = duplicateGroups(vendors);
   const dupCount = groups.reduce((s, g) => s + g.length, 0);
 
@@ -21,7 +23,7 @@ export default async function VendorPage() {
       <PageHeader
         breadcrumb={[{ label: "Paket", href: "/paket" }, { label: "Master Perusahaan" }]}
         title="Master Perusahaan (Vendor)"
-        description="Kelola daftar penyedia. Gabungkan entri duplikat (kontrak & komitmen dialihkan ke satu vendor), hapus yang belum terpakai."
+        description="Master data perusahaan: profil (alamat, telepon, email, NPWP) + logo — dasar kop surat. Gabungkan entri duplikat, hapus yang belum terpakai."
       />
 
       <section className="grid grid-cols-2 gap-4 lg:grid-cols-3">
@@ -41,6 +43,11 @@ export default async function VendorPage() {
               id: v.id,
               name: v.name,
               npwp: v.npwp,
+              contact: v.contact,
+              address: v.address,
+              phone: v.phone,
+              email: v.email,
+              logoUrl: v.logoKey ? (logoUrls.get(v.logoKey) ?? null) : null,
               contractCount: v.contractCount,
               commitmentCount: v.commitmentCount,
               normKey: v.normKey,

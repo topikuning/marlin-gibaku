@@ -201,7 +201,7 @@ function ArtifactCard({
             <Button type="submit" size="sm" disabled={distPending || contacts.length === 0}>
               {distPending ? "Mengirim…" : "Kirim"}
             </Button>
-            {contacts.length === 0 ? <span className="text-xs text-ink-muted">Tambah kontak di menu Laporan → WA.</span> : null}
+            {contacts.length === 0 ? <span className="text-xs text-ink-muted">Tambah kontak di menu Kontak WA.</span> : null}
             {distState?.error ? <span className="text-xs text-danger">{distState.error}</span> : null}
             {distState?.ok ? <span className="text-xs text-success">{distState.ok}</span> : null}
           </form>

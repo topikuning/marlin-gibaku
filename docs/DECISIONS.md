@@ -2620,3 +2620,22 @@ Tiga bug tampilan pada PDF produksi (dari bundle self-contained DECISIONS 128):
   belum masuk rules readiness/quality v1 (tercatat sbg limitation); (5) E2E
   Playwright penuh belum ditulis (unit 34 + integration hijau; E2E menyusul).
 - Verifikasi: typecheck ✓ lint ✓ unit 227 ✓ integration 13 ✓ build ✓.
+
+## 134 · 2026-07-26 · Kontak WA mandiri · master data perusahaan & lokasi · peta auto-fit
+
+- **Kontak WA** jadi menu mandiri `/kontak-wa` (capability `exec_report.send`,
+  per-pemilik) — dipakai distribusi Report Studio AI & laporan eksekutif.
+  Action tambah/hapus reuse dari exec-report (revalidate kedua halaman).
+- **Master data perusahaan (Vendor)**: kolom baru `address/phone/email/logoKey`
+  + form edit per-vendor di /paket/vendor + upload logo (PNG/JPG/WebP ≤2 MB →
+  sharp 512px webp → R2 `vendors/{id}/logo.webp`). Profil ini dasar KOP SURAT
+  dokumen cetak (wiring kop ke /cetak menyusul). Nama unik per org divalidasi.
+- **Master data lokasi**: form edit alamat administratif + KOORDINAT di
+  ringkasan lokasi (capability `location.manage` + scope). Validasi rentang
+  Indonesia (lat -11..6.5, lng 95..141.5), lat+lng wajib berpasangan; before/
+  after tercatat di audit. Koordinat dipakai peta, cap foto, rule GPS AI Hub.
+- **Peta auto-fit**: PetaMap tidak lagi hardcode view Jawa — fitBounds otomatis
+  ke seluruh marker saat init & saat sebaran marker berubah (lokasi NTB/luar
+  Jawa langsung terlihat). flyTo lokasi terpilih tetap.
+- **Laporan → WA lama**: DIPERTAHANKAN dulu (rekomendasi: hapus setelah Report
+  Studio AI terbukti di produksi — menunggu keputusan user; lihat percakapan).

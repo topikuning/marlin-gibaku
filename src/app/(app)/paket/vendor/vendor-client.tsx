@@ -1,11 +1,12 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
-import { GitMerge, Trash2, AlertTriangle } from "lucide-react";
-import { Banner, Button, Combobox } from "@/components/ui";
+import { GitMerge, Trash2, AlertTriangle, Pencil } from "lucide-react";
+import { Banner, Button, Combobox, Input, Label } from "@/components/ui";
 import {
   deleteVendorAction,
   mergeVendorsAction,
+  updateVendorAction,
   type VendorActionState,
 } from "@/lib/vendor/actions";
 
@@ -13,6 +14,11 @@ type V = {
   id: string;
   name: string;
   npwp: string | null;
+  contact: string | null;
+  address: string | null;
+  phone: string | null;
+  email: string | null;
+  logoUrl: string | null;
   contractCount: number;
   commitmentCount: number;
   normKey: string;
@@ -71,6 +77,7 @@ function VendorRow({ vendor, all, flagged }: { vendor: V; all: V[]; flagged: boo
   const [mergeState, mergeAction, merging] = useActionState<VendorActionState, FormData>(mergeVendorsAction, undefined);
   const [delState, delAction, deleting] = useActionState<VendorActionState, FormData>(deleteVendorAction, undefined);
   const [target, setTarget] = useState("");
+  const [editing, setEditing] = useState(false);
   const others = all.filter((v) => v.id !== vendor.id);
   const err = mergeState?.error ?? delState?.error;
   const targetName = others.find((o) => o.id === target)?.name ?? "";
@@ -81,19 +88,30 @@ function VendorRow({ vendor, all, flagged }: { vendor: V; all: V[]; flagged: boo
   }
 
   return (
+    <>
     <tr className="align-top">
       <td className="px-3 py-2">
-        <div className="flex items-center gap-1.5 font-medium text-ink">
+        <div className="flex items-center gap-2 font-medium text-ink">
+          {vendor.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- URL presigned R2 sementara
+            <img src={vendor.logoUrl} alt="" className="size-7 shrink-0 rounded border border-border object-contain" />
+          ) : null}
           {flagged ? <AlertTriangle aria-hidden className="size-3.5 text-warning" /> : null}
           {vendor.name}
         </div>
-        {vendor.npwp ? <div className="text-[11px] text-ink-faint">NPWP {vendor.npwp}</div> : null}
+        <div className="text-[11px] text-ink-faint">
+          {[vendor.npwp ? `NPWP ${vendor.npwp}` : null, vendor.phone, vendor.email].filter(Boolean).join(" · ") || "profil belum lengkap"}
+        </div>
         {err ? <div className="mt-1 text-[12px] text-danger">{err}</div> : null}
       </td>
       <td className="tabular px-3 py-2 text-right">{vendor.contractCount}</td>
       <td className="tabular px-3 py-2 text-right">{vendor.commitmentCount}</td>
       <td className="px-3 py-2">
         <div className="flex flex-wrap items-center gap-1.5">
+          <Button type="button" size="sm" variant={editing ? "primary" : "ghost"} onClick={() => setEditing((v) => !v)}>
+            <Pencil aria-hidden className="size-3.5" />
+            {editing ? "Tutup" : "Edit"}
+          </Button>
           <form action={mergeAction} onSubmit={confirmMerge} className="flex items-center gap-1">
             <input type="hidden" name="fromId" value={vendor.id} />
             <input type="hidden" name="toId" value={target} />
@@ -125,5 +143,75 @@ function VendorRow({ vendor, all, flagged }: { vendor: V; all: V[]; flagged: boo
         </div>
       </td>
     </tr>
+    {editing ? (
+      <tr>
+        <td colSpan={4} className="bg-surface-muted px-3 py-3">
+          <VendorEditForm vendor={vendor} onDone={() => setEditing(false)} />
+        </td>
+      </tr>
+    ) : null}
+    </>
+  );
+}
+
+/** Form master data perusahaan (profil kop surat + logo). */
+function VendorEditForm({ vendor, onDone }: { vendor: V; onDone: () => void }) {
+  const [state, action, saving] = useActionState<VendorActionState, FormData>(updateVendorAction, undefined);
+  return (
+    <form action={action} className="space-y-2">
+      <input type="hidden" name="id" value={vendor.id} />
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      {state?.success ? <Banner tone="success" title={state.success} /> : null}
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <div>
+          <Label htmlFor={`v-name-${vendor.id}`}>Nama perusahaan</Label>
+          <Input id={`v-name-${vendor.id}`} name="name" defaultValue={vendor.name} />
+        </div>
+        <div>
+          <Label htmlFor={`v-npwp-${vendor.id}`}>NPWP</Label>
+          <Input id={`v-npwp-${vendor.id}`} name="npwp" defaultValue={vendor.npwp ?? ""} />
+        </div>
+        <div>
+          <Label htmlFor={`v-contact-${vendor.id}`}>Narahubung</Label>
+          <Input id={`v-contact-${vendor.id}`} name="contact" defaultValue={vendor.contact ?? ""} placeholder="nama PIC" />
+        </div>
+        <div>
+          <Label htmlFor={`v-phone-${vendor.id}`}>Telepon</Label>
+          <Input id={`v-phone-${vendor.id}`} name="phone" defaultValue={vendor.phone ?? ""} placeholder="0812…" />
+        </div>
+        <div>
+          <Label htmlFor={`v-email-${vendor.id}`}>Email</Label>
+          <Input id={`v-email-${vendor.id}`} name="email" type="email" defaultValue={vendor.email ?? ""} />
+        </div>
+        <div>
+          <Label htmlFor={`v-logo-${vendor.id}`}>Logo (PNG/JPG/WebP ≤ 2 MB)</Label>
+          <input
+            id={`v-logo-${vendor.id}`}
+            name="logo"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="block w-full text-sm text-ink-muted file:mr-2 file:rounded-md file:border file:border-border file:bg-surface file:px-2 file:py-1 file:text-sm"
+          />
+        </div>
+        <div className="sm:col-span-2 lg:col-span-3">
+          <Label htmlFor={`v-addr-${vendor.id}`}>Alamat (untuk kop surat)</Label>
+          <Input id={`v-addr-${vendor.id}`} name="address" defaultValue={vendor.address ?? ""} placeholder="Jl. … , Kab/Kota, Provinsi" />
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="submit" size="sm" loading={saving}>
+          Simpan master data
+        </Button>
+        {vendor.logoUrl ? (
+          <label className="flex items-center gap-1.5 text-xs text-ink-muted">
+            <input type="checkbox" name="removeLogo" value="1" /> Hapus logo
+          </label>
+        ) : null}
+        <Button type="button" size="sm" variant="ghost" onClick={onDone}>
+          Tutup
+        </Button>
+        <span className="text-xs text-ink-faint">Profil ini jadi dasar kop surat & logo pada dokumen cetak (menyusul).</span>
+      </div>
+    </form>
   );
 }

@@ -479,6 +479,11 @@ model Vendor {
   name      String
   npwp      String?
   contact   String?
+  // Master data perusahaan — dasar kop surat & logo (DECISIONS 134).
+  address   String?
+  phone     String?
+  email     String?
+  logoKey   String?  @map("logo_key") // key R2 logo perusahaan
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 

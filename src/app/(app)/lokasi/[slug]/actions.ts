@@ -80,3 +80,96 @@ export async function changeLocationStatus(
     return { error: err instanceof Error ? err.message : "Terjadi kesalahan." };
   }
 }
+
+/* ── Master data lokasi: alamat + koordinat (DECISIONS 134) ─────────────── */
+
+const masterSchema = z.object({
+  locationId: z.uuid(),
+  village: z.string().trim().min(2, "Desa/kelurahan wajib diisi").max(120),
+  district: z.string().trim().max(120).optional(),
+  regency: z.string().trim().min(2, "Kabupaten/kota wajib diisi").max(120),
+  province: z.string().trim().min(2, "Provinsi wajib diisi").max(120),
+  gpsLat: z.string().trim().optional(),
+  gpsLng: z.string().trim().optional(),
+});
+
+function parseCoord(raw: string | undefined, min: number, max: number, label: string): number | null {
+  if (!raw) return null;
+  const v = Number(raw.replace(",", "."));
+  if (!Number.isFinite(v) || v < min || v > max) {
+    throw new Error(`${label} tidak valid (rentang ${min} s/d ${max}).`);
+  }
+  return v;
+}
+
+/**
+ * Perbarui master data lokasi (alamat administratif + titik koordinat).
+ * Koordinat dipakai peta, cap foto (fallback titik proyek), dan rule GPS —
+ * karenanya edit di-audit. Isi keduanya atau kosongkan keduanya.
+ */
+export async function updateLocationMaster(
+  _prev: StatusActionState,
+  formData: FormData,
+): Promise<StatusActionState> {
+  const parsed = masterSchema.safeParse({
+    locationId: formData.get("locationId"),
+    village: formData.get("village") ?? "",
+    district: String(formData.get("district") ?? "").trim() || undefined,
+    regency: formData.get("regency") ?? "",
+    province: formData.get("province") ?? "",
+    gpsLat: String(formData.get("gpsLat") ?? "").trim() || undefined,
+    gpsLng: String(formData.get("gpsLng") ?? "").trim() || undefined,
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const d = parsed.data;
+
+  try {
+    const user = await requireCapability("location.manage");
+    await requireLocationAccess(user, d.locationId);
+    const lat = parseCoord(d.gpsLat, -11, 6.5, "Latitude");
+    const lng = parseCoord(d.gpsLng, 95, 141.5, "Longitude"); // rentang wilayah Indonesia
+    if ((lat == null) !== (lng == null)) {
+      return { error: "Isi latitude DAN longitude bersamaan (atau kosongkan keduanya)." };
+    }
+    const before = await db.location.findUnique({
+      where: { id: d.locationId },
+      select: { slug: true, village: true, district: true, regency: true, province: true, gpsLat: true, gpsLng: true },
+    });
+    if (!before) return { error: "Lokasi tidak ditemukan." };
+
+    await db.location.update({
+      where: { id: d.locationId },
+      data: {
+        village: d.village,
+        district: d.district ?? null,
+        regency: d.regency,
+        province: d.province,
+        gpsLat: lat != null ? lat.toFixed(7) : null,
+        gpsLng: lng != null ? lng.toFixed(7) : null,
+      },
+    });
+    await audit(user.id, "location.master_update", "location", d.locationId, {
+      before: {
+        village: before.village,
+        district: before.district,
+        regency: before.regency,
+        province: before.province,
+        gps: before.gpsLat != null ? `${before.gpsLat},${before.gpsLng}` : null,
+      },
+      after: {
+        village: d.village,
+        district: d.district ?? null,
+        regency: d.regency,
+        province: d.province,
+        gps: lat != null ? `${lat},${lng}` : null,
+      },
+    });
+    revalidatePath(`/lokasi/${before.slug}`);
+    revalidatePath("/peta");
+    revalidatePath("/aktivitas");
+    return { success: "Master data lokasi tersimpan." };
+  } catch (err) {
+    if (err instanceof ForbiddenError) return { error: err.message };
+    return { error: err instanceof Error ? err.message : "Terjadi kesalahan." };
+  }
+}
