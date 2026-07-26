@@ -18,6 +18,30 @@ const DAY = 24 * 3600 * 1000;
 
 export type KurvaSheetCategory = { code: string; name: string; bobot: number; weekly: number[] };
 
+/**
+ * Urutkan baris kategori mengikuti URUTAN RAB (sortOrder → nomor romawi I, II,
+ * III, …). Jadwal tersimpan (BaselineScheduleItem) maupun hasil penjadwalan
+ * otomatis datang dalam urutan penyimpanan/penjadwalan, bukan urutan RAB —
+ * kalau dipakai apa adanya, tabel KKP menampilkan romawi meloncat
+ * (mis. XIV, XV, …, lalu I, II). Kategori yang tidak ada di daftar RAB
+ * diletakkan di belakang dengan urutan relatifnya dipertahankan. MURNI.
+ */
+export function orderCategoriesByRab<T extends { name: string }>(
+  categories: T[],
+  /** Nama kategori RAB urut `sortOrder` (indeksnya = urutan romawi). */
+  rabOrder: string[],
+): T[] {
+  const rank = new Map<string, number>();
+  rabOrder.forEach((name, i) => {
+    if (!rank.has(name)) rank.set(name, i);
+  });
+  const last = rabOrder.length;
+  return categories
+    .map((c, i) => ({ c, i, r: rank.get(c.name) ?? last }))
+    .sort((a, b) => (a.r !== b.r ? a.r - b.r : a.i - b.i))
+    .map((x) => x.c);
+}
+
 export type KurvaSheet = {
   totalWeeks: number;
   weeks: number[];

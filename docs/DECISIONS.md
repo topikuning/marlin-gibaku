@@ -2791,3 +2791,26 @@ Tiga bug tampilan pada PDF produksi (dari bundle self-contained DECISIONS 128):
   Pengiriman mencatat riwayat ke `dispatches`.
 - Verifikasi: typecheck ✓ lint ✓ unit 295 (+30) ✓ build ✓ browser 1440px & 390px
   (tanpa overflow horizontal) ✓.
+
+## 140 · 2026-07-26 · Fix: urutan kategori tabel Kurva-S KKP tidak ikut urutan RAB
+
+- **Bug**: pada laporan mingguan (sheet "KURVA S MINGGU KE-x"), nomor romawi di
+  kolom "No." meloncat — mis. XIV, XV, XVI, XVII, XVIII lalu baru I, II, III …
+- **Akar masalah**: baris tabel disusun dari `kurvaSchedule`, yang datang dari
+  `baseline.scheduleItems` — query tanpa `orderBy` sama sekali
+  (`periodic-report.ts`), jadi Postgres mengembalikan urutan fisik baris. Jalur
+  fallback (jadwal diturunkan ulang) juga salah: urutannya mengikuti hasil
+  penjadwalan, bukan urutan RAB. Nomor romawi sendiri diambil dari `RabNode.code`
+  lewat `codeByName`, dan node RAB memang sudah urut `sortOrder` — sehingga kode
+  benar tapi posisi barisnya tidak.
+- **Perbaikan**: `orderCategoriesByRab()` di `scurve/kkp-sheet.ts` (MURNI, 4 unit
+  test) — mengurutkan baris kategori mengikuti urutan `kategoriNodes`
+  (`sortOrder`). Kategori yang tidak ada di daftar RAB ditaruh di belakang dengan
+  urutan relatifnya utuh; nama kembar memakai kemunculan pertama. Diterapkan
+  sekali di sumber (`periodic-report.ts`) sehingga cetak A4 dan ekspor Excel
+  ikut benar tanpa perubahan di masing-masing renderer.
+- **Bukan bug**: editor jadwal per kategori sudah benar (`baseline.ts` memakai
+  `orderBy: { sortOrder: "asc" }`); konsumen `scheduleItems` lain memetakan lewat
+  `lineageKey` sehingga tidak bergantung urutan. Angka bobot/prestasi/kumulatif
+  tidak berubah — hanya urutan baris.
+- Verifikasi: typecheck ✓ lint ✓ unit 299 (+4) ✓.

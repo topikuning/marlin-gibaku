@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildKurvaSheet } from "@/lib/scurve/kkp-sheet";
+import { buildKurvaSheet, orderCategoriesByRab } from "@/lib/scurve/kkp-sheet";
 
 describe("buildKurvaSheet (profil mingguan per-kategori dari jadwal item — DECISIONS 082)", () => {
   // Profil mingguan per kategori (increment %/minggu) — sudah dihitung upstream.
@@ -44,5 +44,57 @@ describe("buildKurvaSheet (profil mingguan per-kategori dari jadwal item — DEC
 
   it("realisasi null → deviasi null", () => {
     expect(sheet.deviasi.every((d) => d === null)).toBe(true);
+  });
+});
+
+describe("orderCategoriesByRab", () => {
+  // Kasus nyata: jadwal tersimpan datang dalam urutan penyimpanan, sehingga
+  // nomor romawi di tabel KKP meloncat (XIV, XV, … lalu I, II).
+  const rab = [
+    "PEKERJAAN PERSIAPAN", // I
+    "PEKERJAAN REVETMENT", // II
+    "PEKERJAAN TAMBATAN PERAHU", // III
+    "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN", // IV
+    "PEKERJAAN LANDSKAPING KAWASAN", // V
+  ];
+
+  it("mengembalikan urutan RAB, bukan urutan penyimpanan", () => {
+    const stored = [
+      { name: "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN" },
+      { name: "PEKERJAAN LANDSKAPING KAWASAN" },
+      { name: "PEKERJAAN PERSIAPAN" },
+      { name: "PEKERJAAN REVETMENT" },
+      { name: "PEKERJAAN TAMBATAN PERAHU" },
+    ];
+    expect(orderCategoriesByRab(stored, rab).map((c) => c.name)).toEqual(rab);
+  });
+
+  it("kategori di luar daftar RAB ditaruh di belakang, urutan relatifnya utuh", () => {
+    const stored = [
+      { name: "PEKERJAAN TAMBAHAN B" },
+      { name: "PEKERJAAN REVETMENT" },
+      { name: "PEKERJAAN TAMBAHAN A" },
+      { name: "PEKERJAAN PERSIAPAN" },
+    ];
+    expect(orderCategoriesByRab(stored, rab).map((c) => c.name)).toEqual([
+      "PEKERJAAN PERSIAPAN",
+      "PEKERJAAN REVETMENT",
+      "PEKERJAAN TAMBAHAN B",
+      "PEKERJAAN TAMBAHAN A",
+    ]);
+  });
+
+  it("tidak membuang/menggandakan baris & tidak mengubah array asal", () => {
+    const stored = rab.map((name) => ({ name, weekly: [1] }));
+    const before = stored.map((c) => c.name);
+    const out = orderCategoriesByRab(stored, [...rab].reverse());
+    expect(out).toHaveLength(stored.length);
+    expect(new Set(out.map((c) => c.name)).size).toBe(stored.length);
+    expect(stored.map((c) => c.name)).toEqual(before);
+  });
+
+  it("nama kembar di RAB memakai kemunculan pertama; daftar RAB kosong = urutan tetap", () => {
+    expect(orderCategoriesByRab([{ name: "A" }, { name: "B" }], ["B", "A", "B"]).map((c) => c.name)).toEqual(["B", "A"]);
+    expect(orderCategoriesByRab([{ name: "A" }, { name: "B" }], []).map((c) => c.name)).toEqual(["A", "B"]);
   });
 });
