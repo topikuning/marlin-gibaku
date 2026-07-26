@@ -160,3 +160,50 @@ export async function sendGlobalSummaryAction(
     return fail(err);
   }
 }
+
+/* ── Pemetaan nama pengirim (alias) ─────────────────────────────────────── */
+
+const aliasSchema = z.object({
+  senderKey: z.string().min(3, "Kunci pengirim tidak valid").max(160),
+  displayName: z.string().trim().min(2, "Nama minimal 2 karakter").max(120),
+  role: z.string().trim().max(60).optional(),
+});
+
+/**
+ * Beri NAMA pada pengirim chat yang hanya dikenal sebagai nomor/LID. Dipakai
+ * semua ringkasan berikutnya (dan tampilan arsip). DECISIONS 138.
+ */
+export async function saveSenderAliasAction(
+  _prev: ChatSummaryState,
+  formData: FormData,
+): Promise<ChatSummaryState> {
+  try {
+    const user = await requireCapability("exec_report.send");
+    const parsed = aliasSchema.safeParse({
+      senderKey: String(formData.get("senderKey") ?? ""),
+      displayName: String(formData.get("displayName") ?? ""),
+      role: String(formData.get("role") ?? "") || undefined,
+    });
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    const senderKey = parsed.data.senderKey.toLowerCase();
+    await db.waSenderAlias.upsert({
+      where: { orgId_senderKey: { orgId: user.orgId, senderKey } },
+      update: { displayName: parsed.data.displayName, role: parsed.data.role || null },
+      create: {
+        orgId: user.orgId,
+        senderKey,
+        displayName: parsed.data.displayName,
+        role: parsed.data.role || null,
+        createdById: user.id,
+      },
+    });
+    await audit(user.id, "wa.sender_alias.simpan", "wa_sender_alias", null, {
+      senderKey,
+      displayName: parsed.data.displayName,
+    });
+    revalidatePath("/chat-grup");
+    return { success: `Pengirim dikenali sebagai "${parsed.data.displayName}".` };
+  } catch (err) {
+    return fail(err);
+  }
+}

@@ -2720,3 +2720,30 @@ Tiga bug tampilan pada PDF produksi (dari bundle self-contained DECISIONS 128):
   pesan WhatsApp (pengantar AI opsional bila >1 paket) untuk pimpinan. Semua
   pengiriman diaudit.
 - Verifikasi: typecheck ✓ lint ✓ unit 252 (+15) ✓ build ✓.
+
+## 138 · 2026-07-26 · Identitas pengirim chat grup — ringkasan menyebut ORANG, bukan kode
+
+- **Temuan**: ringkasan ke pimpinan menampilkan angka panjang (mis.
+  `86350418202744`). Itu BUKAN nomor telepon melainkan **LID** (Linked ID,
+  identitas privasi WhatsApp). Parser membuang suffix `@lid` sehingga tampak
+  seperti nomor. Selain itu ekstraksi nama hanya membaca `notifyName`/`pushName`.
+- **Perbaikan berlapis** (`sender-identity.ts`, MURNI + 12 unit test):
+  1. **Alias manual** (`WaSenderAlias`, unik per org+senderKey) — satu-satunya
+     cara andal untuk kasus @lid; dipetakan sekali, berlaku selamanya.
+  2. **Pengguna MARLIN** dicocokkan lewat `User.phone` (normalisasi format
+     0812/+62/62/8xx) → tampil "Nama (peran)".
+  3. **Kontak WA** tersimpan.
+  4. **Nama tampilan WhatsApp** — ekstraksi diperluas (`notifyName`, `pushName`,
+     `contact.name`, `contact.pushname`, `verifiedBizName`, `participantName`,
+     `senderName`); nama yang isinya cuma digit DITOLAK (itu nomor, bukan nama).
+  5. **Label anonim aman**: "Anggota grup (belum dikenali)" utk LID, atau
+     "Anggota (…1234)" utk nomor. **Kode/LID mentah tidak pernah ditampilkan.**
+- **Schema**: `WaMessage.senderJid` (JID mentah, membedakan @c.us vs @lid) +
+  model `WaSenderAlias`. `bareNumber()` kini mengembalikan null untuk @lid —
+  LID tidak pernah diperlakukan sebagai nomor telepon.
+- **Prompt**: AI diinstruksikan memakai nama PERSIS seperti di transkrip (sudah
+  terpetakan), dilarang mengarang nama maupun menampilkan nomor/kode.
+- **UI**: nama pengirim di arsip chat memakai hasil resolusi; pengirim yang
+  belum dikenali mendapat tautan inline **"Beri nama pengirim ini"** (nama +
+  peran opsional) — langsung berlaku ke ringkasan berikutnya. Aksi diaudit.
+- Verifikasi: typecheck ✓ lint ✓ unit 265 (+13) ✓ integration 13 ✓ build ✓.

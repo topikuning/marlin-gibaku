@@ -42,6 +42,7 @@ export async function ingestWaEvent(body: unknown): Promise<IngestResult> {
         packageId: pkg.id,
         chatId: m.chatId,
         waMessageId: m.waMessageId,
+        senderJid: m.senderJid,
         fromNumber: m.fromNumber,
         fromName: m.fromName,
         body: m.body,

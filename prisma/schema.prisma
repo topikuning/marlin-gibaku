@@ -443,6 +443,9 @@ model WaMessage {
   waMessageId String    @unique @map("wa_message_id") // id pesan WAHA — dedup
   fromNumber  String?   @map("from_number")
   fromName    String?   @map("from_name")
+  // JID mentah pengirim (…@c.us / …@lid). Perlu dibedakan: @lid = identitas
+  // privasi WhatsApp, TIDAK mengandung nomor telepon. DECISIONS 138.
+  senderJid   String?   @map("sender_jid")
   body        String    @db.Text
   hasMedia    Boolean   @default(false) @map("has_media")
   mediaType   String?   @map("media_type")
@@ -1490,4 +1493,22 @@ model WaChatSummary {
   @@unique([packageId, summaryDate])
   @@index([summaryDate])
   @@map("wa_chat_summaries")
+}
+
+/// Alias pengirim WhatsApp — memberi NAMA pada pengirim yang hanya dikenal
+/// sebagai nomor/LID, supaya ringkasan ke pimpinan menyebut orang, bukan kode.
+/// Kunci = JID mentah (…@c.us / …@lid) atau nomor polos. DECISIONS 138.
+model WaSenderAlias {
+  id          String   @id @default(uuid()) @db.Uuid
+  orgId       String   @map("org_id") @db.Uuid
+  senderKey   String   @map("sender_key")
+  displayName String   @map("display_name")
+  role        String?
+  note        String?
+  createdById String?  @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@unique([orgId, senderKey])
+  @@map("wa_sender_aliases")
 }

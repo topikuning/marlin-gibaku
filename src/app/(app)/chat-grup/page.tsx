@@ -7,6 +7,7 @@ import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
 import { getActiveAiConfig } from "@/lib/ai/config";
 import {
+  buildSenderDirectory,
   getChatMessages,
   getMarlinDispatches,
   getPackageContext,
@@ -15,6 +16,7 @@ import {
 } from "@/lib/waha/chat-summary";
 import { formatTanggal, formatTanggalWaktu, jakartaToday } from "@/lib/format";
 import { SendSummaryForm, SummaryButton } from "./summary-button";
+import { SenderAliasForm } from "./sender-alias-form";
 
 export const metadata: Metadata = { title: "Chat Grup — Ringkasan Harian" };
 export const dynamic = "force-dynamic";
@@ -54,10 +56,11 @@ export default async function ChatGrupPage({
 
   const days = activePkg ? await listChatDays(activePkg.id) : [];
   const dateKey = sp.d && /^\d{4}-\d{2}-\d{2}$/.test(sp.d) ? sp.d : (days[0]?.dateKey ?? todayKey);
+  const senderDir = await buildSenderDirectory(user.orgId);
 
   const [messages, summary, recentSummaries, ctx, dispatches] = activePkg
     ? await Promise.all([
-        getChatMessages(activePkg.id, dateKey),
+        getChatMessages(activePkg.id, dateKey, senderDir),
         db.waChatSummary.findUnique({
           where: {
             packageId_summaryDate: {
@@ -237,9 +240,15 @@ export default async function ChatGrupPage({
                           }`}
                         >
                           <span className="mr-2 text-xs text-ink-faint">{m.timeLabel}</span>
-                          <span className="font-medium text-ink">{m.fromMe ? "MARLIN (sistem)" : m.fromName}</span>
+                          <span className="font-medium text-ink">{m.sender.displayName}</span>
                           {m.fromMe ? <Badge tone="info" label="kiriman MARLIN" className="ml-1.5" /> : null}
                           {m.noise ? <Badge tone="neutral" label="uji sistem" className="ml-1.5" /> : null}
+                          {m.sender.needsAlias && m.sender.senderKey ? (
+                            <SenderAliasForm
+                              senderKey={m.sender.senderKey}
+                              hint={m.sender.displayName}
+                            />
+                          ) : null}
                           <span className="block whitespace-pre-wrap text-ink-muted">
                             {m.body}
                             {m.hasMedia ? " 📎" : ""}
