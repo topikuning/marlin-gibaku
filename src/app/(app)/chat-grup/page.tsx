@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Badge, Banner, Card, CardBody, CardHeader, EmptyState, PageHeader } from "@/components/ui";
-import { MessageSquareText } from "lucide-react";
+import { Badge, Banner, Card, CardBody, CardHeader, EmptyState, KpiCard, PageHeader } from "@/components/ui";
+import { MessageSquareText, Send } from "lucide-react";
 import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
@@ -14,17 +14,25 @@ import {
   listChatDays,
   packageTitleOf,
 } from "@/lib/waha/chat-summary";
+import {
+  SUMMARY_STATUS_LABEL,
+  SUMMARY_STATUS_TONE,
+  parseDispatches,
+  type SummaryViewStatus,
+} from "@/lib/waha/summary-lifecycle";
 import { formatTanggal, formatTanggalWaktu, jakartaToday } from "@/lib/format";
-import { SendSummaryForm, SummaryButton } from "./summary-button";
-import { SenderAliasForm } from "./sender-alias-form";
+import { EvidenceTabs } from "./evidence-tabs";
+import { MessageCard } from "./message-card";
+import { SummaryPanel, type TimelineItem } from "./summary-panel";
 
 export const metadata: Metadata = { title: "Chat Grup — Ringkasan Harian" };
 export const dynamic = "force-dynamic";
 
 /**
- * Ringkasan harian percakapan grup WA per paket (Layer B, DECISIONS 135/137).
- * Sumber = arsip webhook WAHA (hanya grup tertaut paket). Ringkasan disusun
- * AI on-demand per hari, tersimpan, dan bisa dikirim ke kontak WhatsApp.
+ * Workspace analisis percakapan grup WA per paket (DECISIONS 139, rombak dari
+ * 135/137/138). Tiga kolom: (kiri) scope grup & tanggal, (tengah) bukti
+ * percakapan berlapis relevansi, (kanan) ringkasan AI dengan siklus hidup
+ * draft_ai → edited_draft → final → sent. Draf AI tidak pernah otomatis final.
  */
 export default async function ChatGrupPage({
   searchParams,
@@ -58,7 +66,7 @@ export default async function ChatGrupPage({
   const dateKey = sp.d && /^\d{4}-\d{2}-\d{2}$/.test(sp.d) ? sp.d : (days[0]?.dateKey ?? todayKey);
   const senderDir = await buildSenderDirectory(user.orgId);
 
-  const [messages, summary, recentSummaries, ctx, dispatches] = activePkg
+  const [messages, summary, recentSummaries, ctx, dispatches, lastMsg] = activePkg
     ? await Promise.all([
         getChatMessages(activePkg.id, dateKey, senderDir),
         db.waChatSummary.findUnique({
@@ -68,34 +76,114 @@ export default async function ChatGrupPage({
               summaryDate: new Date(`${dateKey}T00:00:00.000Z`),
             },
           },
-          select: { summaryText: true, messageCount: true, provider: true, model: true, updatedAt: true },
+          select: {
+            summaryText: true,
+            aiText: true,
+            messageCount: true,
+            provider: true,
+            model: true,
+            updatedAt: true,
+            status: true,
+            version: true,
+            confidence: true,
+            generatedById: true,
+            generatedAt: true,
+            editedById: true,
+            editedAt: true,
+            finalizedById: true,
+            finalizedAt: true,
+            lastSentAt: true,
+            dispatches: true,
+          },
         }),
         db.waChatSummary.findMany({
           where: { packageId: activePkg.id },
           orderBy: { summaryDate: "desc" },
-          take: 10,
-          select: { summaryDate: true, messageCount: true },
+          take: 30,
+          select: { summaryDate: true, status: true },
         }),
         getPackageContext(user, activePkg.id),
         getMarlinDispatches(activePkg.id, dateKey),
+        db.waMessage.findFirst({
+          where: { packageId: activePkg.id },
+          orderBy: { timestamp: "desc" },
+          select: { timestamp: true },
+        }),
       ])
-    : [[], null, [], null, []];
+    : [[], null, [], null, [], null];
 
-  const summarizedDays = new Set(recentSummaries.map((s) => s.summaryDate.toISOString().slice(0, 10)));
-  const relevant = messages.filter((m) => !m.noise);
-  const noiseCount = messages.length - relevant.length;
+  const statusByDay = new Map(
+    recentSummaries.map((s) => [s.summaryDate.toISOString().slice(0, 10), s.status as SummaryViewStatus]),
+  );
+
+  // Bukti dipisah tegas: obrolan anggota ≠ kiriman resmi MARLIN (jangan dicampur).
+  const memberMessages = messages.filter((m) => !m.fromMe);
+  const relevant = memberMessages.filter((m) => m.class.useForSummary);
+  const lowContext = memberMessages.filter((m) => !m.class.useForSummary);
+  const marlinMessages = messages.filter((m) => m.fromMe);
+
+  const status: SummaryViewStatus = (summary?.status as SummaryViewStatus | undefined) ?? "belum_dibuat";
+  const dateLabel = formatTanggal(new Date(`${dateKey}T00:00:00.000Z`), "EEEE, d MMMM yyyy");
+
+  // Nama pelaku jejak — dicari terpisah (kolom penyusun sengaja tanpa relasi FK).
+  const actorIds = [summary?.generatedById, summary?.editedById, summary?.finalizedById].filter(
+    (x): x is string => !!x,
+  );
+  const actorName = new Map(
+    actorIds.length
+      ? (
+          await db.user.findMany({
+            where: { id: { in: [...new Set(actorIds)] } },
+            select: { id: true, fullName: true },
+          })
+        ).map((u) => [u.id, u.fullName])
+      : [],
+  );
+
+  const timeline: TimelineItem[] = [];
+  if (summary?.generatedAt)
+    timeline.push({
+      label: "Draf AI dibuat",
+      at: formatTanggalWaktu(summary.generatedAt),
+      by: actorName.get(summary.generatedById ?? "") ?? null,
+    });
+  if (summary?.editedAt)
+    timeline.push({
+      label: "Disunting",
+      at: formatTanggalWaktu(summary.editedAt),
+      by: actorName.get(summary.editedById ?? "") ?? null,
+    });
+  if (summary?.finalizedAt)
+    timeline.push({
+      label: "Difinalkan",
+      at: formatTanggalWaktu(summary.finalizedAt),
+      by: actorName.get(summary.finalizedById ?? "") ?? null,
+    });
+  for (const d of parseDispatches(summary?.dispatches)) {
+    timeline.push({ label: `Dikirim ke ${d.target}`, at: formatTanggalWaktu(new Date(d.at)), by: null });
+  }
+
+  const nothingToSummarize = relevant.length === 0 && dispatches.length === 0 && marlinMessages.length === 0;
+  const blockedReason = !aiCfg
+    ? "Provider AI belum dikonfigurasi (Sistem → AI)."
+    : nothingToSummarize
+      ? messages.length === 0
+        ? "Tidak ada pesan maupun kiriman MARLIN pada tanggal ini."
+        : `Semua ${messages.length} pesan hari ini berkonteks rendah — tidak ada yang layak diringkas.`
+      : null;
 
   return (
     <div className="space-y-4">
       <PageHeader
         title="Chat Grup — Ringkasan Harian"
-        description="Percakapan grup WhatsApp yang tertaut paket diarsipkan otomatis (webhook WAHA). Pilih paket & tanggal, buat ringkasan AI, lalu kirim ke pimpinan."
+        description="Baca bukti percakapan, verifikasi kiriman MARLIN, susun draf AI, review, lalu finalkan dan kirim ke pimpinan."
         actions={
           <Link
             href="/chat-grup/global"
-            className="inline-flex h-9 items-center rounded-md border border-border bg-surface px-3 text-sm font-medium text-primary hover:bg-surface-muted"
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-sm font-medium text-primary hover:bg-surface-muted"
           >
-            Ringkasan global semua grup
+            <Send aria-hidden className="size-4" />
+            Ringkasan global
           </Link>
         }
       />
@@ -112,154 +200,233 @@ export default async function ChatGrupPage({
             <Banner
               tone="warning"
               title="Provider AI belum dikonfigurasi (Sistem → AI)"
-              description="Arsip chat tetap tampil; tombol ringkas aktif setelah provider siap."
+              description="Bukti percakapan tetap bisa dibaca; penyusunan draf aktif setelah provider siap."
             />
           ) : null}
 
-          <div className="flex flex-wrap items-center gap-2">
-            {packages.map((p) => (
-              <Link
-                key={p.id}
-                href={`/chat-grup?p=${p.id}`}
-                aria-current={activePkg?.id === p.id ? "page" : undefined}
-                className={`rounded-full border px-3 py-1.5 text-sm ${
-                  activePkg?.id === p.id
-                    ? "border-primary bg-info-soft text-primary"
-                    : "border-border text-ink-muted hover:border-border-strong"
-                }`}
-              >
-                {p.contract?.workTitle ? `${p.name} — ${p.contract.workTitle}` : p.name}
-                <span className="ml-1.5 text-xs text-ink-faint">{p._count.waMessages}</span>
-              </Link>
-            ))}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+            <KpiCard label="Grup dalam scope" value={packages.length} sub="paket tertaut grup WA" />
+            <KpiCard
+              label="Pesan relevan"
+              value={relevant.length}
+              sub={lowContext.length > 0 ? `${lowContext.length} konteks rendah disaring` : "hari terpilih"}
+              tone={relevant.length === 0 ? "warning" : "default"}
+            />
+            <KpiCard
+              label="Kiriman MARLIN"
+              value={dispatches.length}
+              sub={marlinMessages.length > 0 ? `${marlinMessages.length} terekam di grup` : "menurut data MARLIN"}
+            />
+            <KpiCard
+              label="Status ringkasan"
+              value={<span className="text-lg">{SUMMARY_STATUS_LABEL[status]}</span>}
+              sub={dateLabel}
+              tone={status === "final" || status === "sent" ? "success" : status === "belum_dibuat" ? "warning" : "default"}
+            />
+            <KpiCard
+              label="Terakhir sinkron"
+              value={<span className="text-lg">{lastMsg ? formatTanggalWaktu(lastMsg.timestamp) : "—"}</span>}
+              sub="pesan terakhir masuk"
+            />
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
-            <Card className="self-start">
-              <CardHeader title="Tanggal" subtitle="Hari yang punya pesan." />
-              <CardBody className="space-y-1">
-                {days.length === 0 ? (
-                  <p className="text-sm text-ink-muted">Belum ada pesan terarsip.</p>
-                ) : (
-                  days.map((d) => (
-                    <Link
-                      key={d.dateKey}
-                      href={`/chat-grup?p=${activePkg!.id}&d=${d.dateKey}`}
-                      aria-current={d.dateKey === dateKey ? "page" : undefined}
-                      className={`flex items-center justify-between rounded-md px-2 py-1.5 text-sm ${
-                        d.dateKey === dateKey ? "bg-info-soft text-primary" : "hover:bg-surface-muted"
-                      }`}
-                    >
-                      <span>{formatTanggal(new Date(`${d.dateKey}T00:00:00.000Z`))}</span>
-                      <span className="flex items-center gap-1 text-xs text-ink-faint">
-                        {summarizedDays.has(d.dateKey) ? <Badge tone="success" label="✓" /> : null}
-                        {d.count}
-                      </span>
-                    </Link>
-                  ))
-                )}
+          <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[240px_minmax(0,1fr)_360px]">
+            {/* ── Kolom kiri: scope ──────────────────────────────────── */}
+            <div className="space-y-3">
+              <Card>
+                <CardHeader title="Grup" subtitle="Paket yang tertaut grup WA." />
+                <CardBody className="space-y-1">
+                  {packages.map((p) => {
+                    const on = activePkg?.id === p.id;
+                    return (
+                      <Link
+                        key={p.id}
+                        href={`/chat-grup?p=${p.id}`}
+                        aria-current={on ? "page" : undefined}
+                        className={`block rounded-md border px-2.5 py-2 text-sm ${
+                          on
+                            ? "border-primary bg-info-soft text-primary"
+                            : "border-transparent text-ink-muted hover:bg-surface-muted"
+                        }`}
+                      >
+                        <span className="block font-medium">{p.name}</span>
+                        {p.contract?.workTitle ? (
+                          <span className="block truncate text-xs text-ink-faint">{p.contract.workTitle}</span>
+                        ) : null}
+                        <span className="mt-0.5 block text-xs text-ink-faint">
+                          {p.waGroupName ?? "grup WA"} · {p._count.waMessages} pesan
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </CardBody>
+              </Card>
+
+              <Card>
+                <CardHeader title="Tanggal" subtitle="Hari yang punya pesan." />
+                <CardBody className="space-y-1">
+                  {days.length === 0 ? (
+                    <p className="text-sm text-ink-muted">Belum ada pesan terarsip.</p>
+                  ) : (
+                    days.map((d) => {
+                      const st = statusByDay.get(d.dateKey);
+                      return (
+                        <Link
+                          key={d.dateKey}
+                          href={`/chat-grup?p=${activePkg!.id}&d=${d.dateKey}`}
+                          aria-current={d.dateKey === dateKey ? "page" : undefined}
+                          className={`flex items-center justify-between gap-1 rounded-md px-2 py-1.5 text-sm ${
+                            d.dateKey === dateKey ? "bg-info-soft text-primary" : "hover:bg-surface-muted"
+                          }`}
+                        >
+                          <span>{formatTanggal(new Date(`${d.dateKey}T00:00:00.000Z`))}</span>
+                          <span className="flex items-center gap-1 text-xs text-ink-faint">
+                            {st ? <Badge tone={SUMMARY_STATUS_TONE[st]} label={SUMMARY_STATUS_LABEL[st]} /> : null}
+                            {d.count}
+                          </span>
+                        </Link>
+                      );
+                    })
+                  )}
+                </CardBody>
+              </Card>
+
+              {lowContext.length > 0 ? (
+                <p className="px-1 text-xs text-ink-faint">
+                  {lowContext.length} pesan hari ini ditandai berkonteks rendah (uji sistem/basa-basi) dan tidak
+                  dikirim ke AI. Tetap bisa dibaca di tab “Arsip lengkap”.
+                </p>
+              ) : null}
+            </div>
+
+            {/* ── Kolom tengah: bukti ────────────────────────────────── */}
+            <Card className="min-w-0">
+              <CardHeader
+                title="Bukti percakapan"
+                subtitle={`${ctx ? packageTitleOf(ctx) : ""} · ${dateLabel}`}
+              />
+              <CardBody>
+                <EvidenceTabs
+                  tabs={[
+                    {
+                      id: "relevan",
+                      label: "Pesan relevan",
+                      count: relevant.length,
+                      content:
+                        relevant.length === 0 ? (
+                          <EmptyState
+                            icon={MessageSquareText}
+                            title="Tidak ada pesan relevan"
+                            description="Tidak ada obrolan anggota yang layak diringkas pada tanggal ini."
+                            className="py-8"
+                          />
+                        ) : (
+                          <ul className="max-h-[560px] space-y-2 overflow-y-auto pr-1">
+                            {relevant.map((m) => (
+                              <MessageCard key={m.id} m={m} />
+                            ))}
+                          </ul>
+                        ),
+                    },
+                    {
+                      id: "marlin",
+                      label: "Kiriman MARLIN",
+                      count: dispatches.length + marlinMessages.length,
+                      content: (
+                        <div className="space-y-4">
+                          <div>
+                            <p className="mb-1.5 text-[11px] font-medium tracking-wide text-ink-muted uppercase">
+                              Menurut data MARLIN ({dispatches.length})
+                            </p>
+                            {dispatches.length === 0 ? (
+                              <p className="text-sm text-ink-muted">
+                                Tidak ada laporan/kegiatan yang dikirim MARLIN ke grup pada tanggal ini.
+                              </p>
+                            ) : (
+                              <ul className="space-y-1 text-sm">
+                                {dispatches.map((d, i) => (
+                                  <li key={`${d.kind}-${i}`} className="flex gap-2">
+                                    <span className="tabular shrink-0 text-xs text-ink-faint">
+                                      {d.timeLabel ?? "--:--"}
+                                    </span>
+                                    <span className="text-ink-muted">{d.label}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                          <div>
+                            <p className="mb-1.5 text-[11px] font-medium tracking-wide text-ink-muted uppercase">
+                              Terekam di grup ({marlinMessages.length})
+                            </p>
+                            {marlinMessages.length === 0 ? (
+                              <p className="text-sm text-ink-muted">
+                                Belum ada pesan keluar yang tertangkap webhook. Pastikan event WAHA
+                                <code className="mx-1 rounded bg-surface-inset px-1">message.any</code>
+                                aktif agar kiriman MARLIN ikut terarsip.
+                              </p>
+                            ) : (
+                              <ul className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
+                                {marlinMessages.map((m) => (
+                                  <MessageCard key={m.id} m={m} />
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        </div>
+                      ),
+                    },
+                    {
+                      id: "arsip",
+                      label: "Arsip lengkap",
+                      count: messages.length,
+                      content:
+                        messages.length === 0 ? (
+                          <EmptyState
+                            icon={MessageSquareText}
+                            title="Tidak ada pesan"
+                            description="Belum ada pesan terarsip pada tanggal ini."
+                            className="py-8"
+                          />
+                        ) : (
+                          <ul className="max-h-[560px] space-y-2 overflow-y-auto pr-1">
+                            {messages.map((m) => (
+                              <MessageCard key={m.id} m={m} dim={!m.class.useForSummary} />
+                            ))}
+                          </ul>
+                        ),
+                    },
+                  ]}
+                />
               </CardBody>
             </Card>
 
-            <div className="space-y-4">
-              <Card>
-                <CardHeader
-                  title={`Ringkasan ${formatTanggal(new Date(`${dateKey}T00:00:00.000Z`))}`}
-                  subtitle={
-                    summary
-                      ? `${ctx ? packageTitleOf(ctx) : ""} · ${summary.messageCount} pesan · ${summary.provider ?? "AI"}/${summary.model ?? ""} · diperbarui ${formatTanggalWaktu(summary.updatedAt)}`
-                      : "Belum ada ringkasan untuk tanggal ini."
-                  }
-                  action={
-                    activePkg ? (
-                      <SummaryButton
-                        packageId={activePkg.id}
-                        dateKey={dateKey}
-                        hasSummary={!!summary}
-                        disabled={!aiCfg || (relevant.length === 0 && dispatches.length === 0)}
-                      />
-                    ) : null
-                  }
-                />
-                <CardBody className="space-y-3">
-                  {summary ? (
-                    <p className="text-sm whitespace-pre-wrap text-ink">{summary.summaryText}</p>
-                  ) : (
-                    <p className="text-sm text-ink-muted">
-                      {relevant.length === 0 && dispatches.length === 0
-                        ? messages.length === 0
-                          ? "Tidak ada pesan maupun kiriman MARLIN pada tanggal ini."
-                          : `Semua ${messages.length} pesan hari ini adalah uji sistem/basa-basi — tidak ada yang layak diringkas.`
-                        : "Klik “Ringkas dengan AI” untuk menyusun ringkasan hari ini."}
-                    </p>
-                  )}
-                  {summary && activePkg ? (
-                    <SendSummaryForm packageId={activePkg.id} dateKey={dateKey} contacts={contacts} />
-                  ) : null}
-                </CardBody>
-              </Card>
-
-              <Card>
-                <CardHeader
-                  title={`Kiriman MARLIN ke grup (${dispatches.length})`}
-                  subtitle="Laporan harian & kegiatan yang dikirim sistem ke grup pada tanggal ini — menurut data MARLIN, dipakai memverifikasi kelengkapan ringkasan."
-                />
-                <CardBody>
-                  {dispatches.length === 0 ? (
-                    <p className="text-sm text-ink-muted">
-                      Tidak ada laporan/kegiatan yang dikirim MARLIN ke grup pada tanggal ini.
-                    </p>
-                  ) : (
-                    <ul className="space-y-1 text-sm">
-                      {dispatches.map((d, i) => (
-                        <li key={`${d.kind}-${i}`} className="flex gap-2">
-                          <span className="tabular shrink-0 text-xs text-ink-faint">{d.timeLabel ?? "--:--"}</span>
-                          <span className="text-ink-muted">{d.label}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </CardBody>
-              </Card>
-
-              <Card>
-                <CardHeader
-                  title={`Arsip pesan (${relevant.length} relevan${noiseCount > 0 ? ` · ${noiseCount} uji sistem diabaikan` : ""})`}
-                  subtitle="Teks apa adanya dari grup. Pesan bertanda “uji sistem” tidak dikirim ke AI."
-                />
-                <CardBody>
-                  {messages.length === 0 ? (
-                    <EmptyState icon={MessageSquareText} title="Tidak ada pesan" className="py-6" />
-                  ) : (
-                    <ul className="max-h-[480px] space-y-1.5 overflow-y-auto text-sm">
-                      {messages.map((m) => (
-                        <li
-                          key={m.id}
-                          className={`rounded-md border px-2.5 py-1.5 ${
-                            m.noise ? "border-dashed border-border-muted opacity-60" : "border-border-muted"
-                          }`}
-                        >
-                          <span className="mr-2 text-xs text-ink-faint">{m.timeLabel}</span>
-                          <span className="font-medium text-ink">{m.sender.displayName}</span>
-                          {m.fromMe ? <Badge tone="info" label="kiriman MARLIN" className="ml-1.5" /> : null}
-                          {m.noise ? <Badge tone="neutral" label="uji sistem" className="ml-1.5" /> : null}
-                          {m.sender.needsAlias && m.sender.senderKey ? (
-                            <SenderAliasForm
-                              senderKey={m.sender.senderKey}
-                              hint={m.sender.displayName}
-                            />
-                          ) : null}
-                          <span className="block whitespace-pre-wrap text-ink-muted">
-                            {m.body}
-                            {m.hasMedia ? " 📎" : ""}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </CardBody>
-              </Card>
-            </div>
+            {/* ── Kolom kanan: ringkasan ─────────────────────────────── */}
+            <Card className="min-w-0 self-start lg:col-span-2 xl:col-span-1">
+              <CardHeader title="Ringkasan AI" subtitle={dateLabel} />
+              <CardBody>
+                {activePkg ? (
+                  <SummaryPanel
+                    key={`${activePkg.id}-${dateKey}-${status}-${summary?.version ?? 0}`}
+                    packageId={activePkg.id}
+                    dateKey={dateKey}
+                    status={status}
+                    summaryText={summary?.summaryText ?? ""}
+                    aiText={summary?.aiText ?? null}
+                    confidence={summary?.confidence ?? null}
+                    version={summary?.version ?? 0}
+                    providerLabel={
+                      summary
+                        ? `${summary.provider ?? "AI"}/${summary.model ?? "—"} · ${summary.messageCount} pesan · diperbarui ${formatTanggalWaktu(summary.updatedAt)}`
+                        : null
+                    }
+                    blockedReason={blockedReason}
+                    timeline={timeline}
+                    contacts={contacts}
+                  />
+                ) : null}
+              </CardBody>
+            </Card>
           </div>
         </>
       )}
