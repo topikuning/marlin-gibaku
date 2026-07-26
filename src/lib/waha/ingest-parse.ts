@@ -8,6 +8,8 @@
 export type ParsedWaMessage = {
   waMessageId: string;
   chatId: string;
+  /** JID mentah pengirim (…@c.us / …@lid) — @lid TIDAK memuat nomor telepon. */
+  senderJid: string | null;
   fromNumber: string | null;
   fromName: string | null;
   body: string;
@@ -23,9 +25,14 @@ function str(v: unknown): string | null {
   return typeof v === "string" && v.trim() ? v.trim() : null;
 }
 
-/** Buang suffix @c.us / @g.us / @s.whatsapp.net → nomor polos. */
+/**
+ * Buang suffix @c.us / @g.us / @s.whatsapp.net → nomor polos.
+ * JID ber-suffix @lid adalah identitas privasi WhatsApp (BUKAN nomor telepon)
+ * → kembalikan null supaya tidak pernah tampil sebagai "nomor". DECISIONS 138.
+ */
 function bareNumber(jid: string | null): string | null {
   if (!jid) return null;
+  if (/@lid$/i.test(jid)) return null;
   return jid.replace(/@.*$/, "").replace(/[^0-9+]/g, "") || null;
 }
 
@@ -72,8 +79,21 @@ export function parseWaEvent(body: unknown): ParsedWaMessage | null {
   return {
     waMessageId,
     chatId,
+    senderJid,
     fromNumber: bareNumber(senderJid),
-    fromName: str(p.notifyName) ?? str(data.notifyName) ?? str(p.pushName) ?? null,
+    // Nama tampilan WhatsApp bisa datang di banyak field tergantung versi/engine
+    // WAHA (WEBJS/NOWEB, Core/Plus) — baca defensif supaya tidak jatuh ke nomor.
+    fromName:
+      str(p.notifyName) ??
+      str(data.notifyName) ??
+      str(p.pushName) ??
+      str(data.pushName) ??
+      str((p.contact as AnyObj)?.name) ??
+      str((p.contact as AnyObj)?.pushname) ??
+      str((p._data as AnyObj)?.verifiedBizName) ??
+      str(p.participantName) ??
+      str(data.senderName) ??
+      null,
     body: str(p.body) ?? str(p.caption) ?? "",
     hasMedia: p.hasMedia === true || !!media.url || !!media.mimetype,
     mediaType: str(media.mimetype) ?? str(p.type) ?? str(data.type) ?? null,

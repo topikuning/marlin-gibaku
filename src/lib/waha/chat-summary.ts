@@ -11,8 +11,44 @@ import {
   shortPackageTitle,
   type PackageContext,
 } from "./chat-summary-format";
+import {
+  normalizePhone,
+  resolveSender,
+  type ResolvedSender,
+  type SenderDirectory,
+} from "./sender-identity";
 
 export * from "./chat-summary-format";
+export * from "./sender-identity";
+
+/**
+ * Direktori pengenal pengirim: alias manual + pengguna MARLIN (cocok nomor) +
+ * kontak WA. Dibangun sekali per pemanggilan, dipakai semua pesan. DECISIONS 138.
+ */
+export async function buildSenderDirectory(orgId: string): Promise<SenderDirectory> {
+  const [aliases, users, contacts] = await Promise.all([
+    db.waSenderAlias.findMany({ where: { orgId }, select: { senderKey: true, displayName: true, role: true } }),
+    db.user.findMany({
+      where: { orgId, phone: { not: null } },
+      select: { fullName: true, role: true, phone: true },
+    }),
+    db.waContact.findMany({ select: { name: true, chatId: true } }),
+  ]);
+  const aliasByKey = new Map(
+    aliases.map((a) => [a.senderKey.toLowerCase(), { displayName: a.displayName, role: a.role }]),
+  );
+  const userByPhone = new Map<string, { fullName: string; role: string }>();
+  for (const u of users) {
+    const p = normalizePhone(u.phone);
+    if (p) userByPhone.set(p, { fullName: u.fullName, role: u.role });
+  }
+  const contactByPhone = new Map<string, string>();
+  for (const c of contacts) {
+    const p = normalizePhone(c.chatId);
+    if (p) contactByPhone.set(p, c.name);
+  }
+  return { aliasByKey, userByPhone, contactByPhone };
+}
 
 /**
  * Ringkasan AI harian percakapan grup WA per paket — Layer B dari penangkap
@@ -59,10 +95,16 @@ export type ChatMessageView = {
   fromMe: boolean;
   /** Disaring sebagai uji sistem/basa-basi — tetap tampil di UI, tidak masuk prompt. */
   noise: boolean;
+  /** Nama aman + sumbernya (alias/pengguna/kontak/whatsapp/anonim). */
+  sender: ResolvedSender;
 };
 
 /** Pesan satu hari (Jakarta) utk tampilan + bahan prompt (dgn tanda noise). */
-export async function getChatMessages(packageId: string, dateKey: string): Promise<ChatMessageView[]> {
+export async function getChatMessages(
+  packageId: string,
+  dateKey: string,
+  dir?: SenderDirectory,
+): Promise<ChatMessageView[]> {
   const range = jakartaDayRange(dateKey);
   if (!range) return [];
   const msgs = await db.waMessage.findMany({
@@ -73,6 +115,7 @@ export async function getChatMessages(packageId: string, dateKey: string): Promi
       id: true,
       fromName: true,
       fromNumber: true,
+      senderJid: true,
       body: true,
       hasMedia: true,
       fromMe: true,
@@ -91,6 +134,10 @@ export async function getChatMessages(packageId: string, dateKey: string): Promi
     }),
     fromMe: m.fromMe,
     noise: isNoiseMessage(m.body, { fromMe: m.fromMe }),
+    sender: resolveSender(
+      { senderJid: m.senderJid, fromNumber: m.fromNumber, fromName: m.fromName, fromMe: m.fromMe },
+      dir,
+    ),
   }));
 }
 
@@ -125,7 +172,7 @@ Aturan:
 - Bahasa Indonesia operasional, langsung, tanpa basa-basi.
 - HANYA dari isi chat & data kiriman sistem yang diberikan — jangan mengarang progres/angka yang tidak disebut.
 - Selalu sebut identitas pekerjaan (paket/lokasi) dari KONTEKS, jangan menulis "grup" secara generik.
-- Sebut nama pengirim untuk hal penting. Jika hanya ada nomor telepon tanpa nama, tulis "salah satu anggota" — JANGAN menampilkan nomor telepon mentah di ringkasan.
+- Sebut nama pengirim untuk hal penting, PERSIS seperti tertulis di transkrip (sudah dipetakan ke nama asli bila diketahui). Bila pengirim tertulis "Anggota grup (belum dikenali)" atau "Anggota (…1234)", sebut begitu saja — JANGAN mengarang nama dan JANGAN menampilkan nomor/kode identitas.
 - ABAIKAN pesan uji coba sistem/webhook dan basa-basi tanpa isi.
 - Pesan bertanda [MARLIN] adalah kiriman OTOMATIS dari sistem (laporan harian/kegiatan), bukan obrolan anggota. Perlakukan sebagai "yang sudah dilaporkan sistem", dan sebutkan bila ada yang seharusnya dikirim tapi tidak muncul.
 - Bila ada blok "KIRIMAN SISTEM MARLIN", pakai untuk memverifikasi kelengkapan: sebut laporan/kegiatan yang sudah dikirim ke grup hari itu.
@@ -194,8 +241,9 @@ export async function generateChatSummary(
   const ctx = await getPackageContext(user, packageId);
   if (!ctx) return { ok: false, error: "Paket tidak ditemukan." };
 
+  const dir = await buildSenderDirectory(user.orgId);
   const [all, dispatches] = await Promise.all([
-    getChatMessages(packageId, dateKey),
+    getChatMessages(packageId, dateKey, dir),
     getMarlinDispatches(packageId, dateKey),
   ]);
   const messages = all.filter((m) => !m.noise);
@@ -214,7 +262,7 @@ export async function generateChatSummary(
     messages.map((m) => ({
       timeLabel: m.timeLabel,
       // Kiriman sistem ditandai eksplisit supaya tidak dibaca sbg obrolan anggota.
-      fromName: m.fromMe ? `[MARLIN] ${m.fromName ?? "sistem"}` : (m.fromName ?? "Anggota"),
+      fromName: m.fromMe ? `[MARLIN] ${m.sender.displayName}` : m.sender.displayName,
       body: m.body,
       hasMedia: m.hasMedia,
     })),
