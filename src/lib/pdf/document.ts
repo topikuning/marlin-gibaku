@@ -5,15 +5,20 @@ import path from "node:path";
 import type PDFDocumentType from "pdfkit";
 
 /**
- * pdfkit dimuat dari BUNDLE PREBUILT SELF-CONTAINED (`pdfkit.standalone.js`) —
- * fontkit + @swc/helpers dll. sudah di-inline. Ini menghindari jebakan pnpm +
- * Next standalone: menyalin dependensi per-file MERUSAK symlink pnpm yang
- * memaku fontkit ke versi @swc/helpers-nya → runtime gagal
- * "applyDecoratedDescriptor is not a function". Bundle tanpa dependensi eksternal
- * = kebal masalah itu. Resolusi dari cwd (root app di dev & standalone). DECISIONS 127.
+ * pdfkit dimuat dari BUNDLE PREBUILT SELF-CONTAINED yang DI-VENDOR ke
+ * `assets/pdfkit-standalone.cjs` (fontkit + @swc/helpers dll. sudah di-inline,
+ * TANPA dependensi eksternal). Ini menghindari DUA jebakan pnpm + Next standalone:
+ *  1) menyalin dep per-file MERUSAK symlink pnpm yang memaku fontkit ke versi
+ *     @swc/helpers-nya → "applyDecoratedDescriptor is not a function";
+ *  2) Next standalone TIDAK membuat symlink `node_modules/pdfkit` untuk paket yang
+ *     hanya dipanggil via createRequire → "Cannot find module 'pdfkit/js/...'".
+ * Dengan MEMUAT lewat path absolut file yang kita bawa sendiri (di-copy Dockerfile
+ * lewat `assets/`), resolusi node_modules TAK terlibat sama sekali. DECISIONS 128.
  */
 const nodeRequire = createRequire(path.join(process.cwd(), "index.js"));
-const PDFDocument = nodeRequire("pdfkit/js/pdfkit.standalone.js") as typeof PDFDocumentType;
+const PDFDocument = nodeRequire(
+  path.join(process.cwd(), "assets", "pdfkit-standalone.cjs"),
+) as typeof PDFDocumentType;
 
 /**
  * Fondasi dokumen PDF server-side (pdfkit) — dipakai lintas jenis laporan

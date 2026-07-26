@@ -25,16 +25,15 @@ const nextConfig: NextConfig = {
   // dari JS) sehingga sharp tersalin SETENGAH ke standalone → runtime gagal
   // "libvips-cpp.so: cannot open shared object file". Include eksplisit ini
   // memastikan seluruh isi paket (termasuk .so) ikut ter-copy.
-  // PLUS pdfkit: kita pakai bundle SELF-CONTAINED js/pdfkit.standalone.js (fontkit
-  // dll. inline) → cukup salin paket pdfkit; TAK perlu closure dep (yang justru
-  // rusak karena symlink pnpm tak terjaga saat disalin). Lihat lib/pdf/document.ts.
+  // PLUS pdfkit: bundle SELF-CONTAINED DI-VENDOR ke assets/pdfkit-standalone.cjs
+  // (lihat lib/pdf/document.ts) — dimuat via path absolut, tanpa resolusi
+  // node_modules. Cukup pastikan file assets ikut ter-copy.
   outputFileTracingIncludes: {
     "/**": [
-      "./assets/fonts/**",
+      "./assets/**",
       "./seed-data/**",
       "./node_modules/.pnpm/sharp@*/**",
       "./node_modules/.pnpm/@img+*/**",
-      "./node_modules/.pnpm/pdfkit@*/**",
     ],
   },
 };

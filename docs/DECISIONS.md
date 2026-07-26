@@ -2478,3 +2478,19 @@ scurve — dengan test properti, bukan paritas nilai):**
 - **Verifikasi**: probe `require("pdfkit/js/pdfkit.standalone.js")` + registerFont DejaVu + render
   DIJALANKAN DI DALAM `.next/standalone` (mereproduksi mode produksi) → OK. typecheck/lint/unit(185)/
   build ✓.
+
+## 128 · 2026-07-26 · Fix produksi #2: pdfkit "Cannot find module" → vendor bundle di assets/
+
+- **Gejala (Railway)**: `Cannot find module 'pdfkit/js/pdfkit.standalone.js' Require stack:
+  /app/index.js`. Verifikasi lokal DECISIONS 127 ternyata FALSE POSITIVE: `.next/standalone`
+  bersarang di dalam pohon proyek, jadi resolusi `require("pdfkit/…")` naik ke `node_modules`
+  proyek induk. Di `/app` (produksi) tak ada induk → gagal. Next standalone TIDAK membuat symlink
+  `node_modules/pdfkit` untuk paket yang hanya dipanggil via createRequire string.
+- **Keputusan**: VENDOR file bundle self-contained ke `assets/pdfkit-standalone.cjs` (2.6 MB, fontkit
+  + @swc/helpers inline) dan MUAT via PATH ABSOLUT `process.cwd()/assets/pdfkit-standalone.cjs` —
+  TANPA resolusi node_modules sama sekali. assets/ selalu di-copy Dockerfile + di-trace next.config
+  (`./assets/**`). Kebal dua jebakan sekaligus (symlink pnpm & symlink top-level Next).
+- **Verifikasi BENAR (isolasi)**: salin `.next/standalone/assets` ke `/tmp/appsim` (TANPA
+  node_modules), require path absolut + registerFont DejaVu + render → OK. Bukan lagi false
+  positive. typecheck/lint/unit/build ✓.
+- Catatan: bundle di-pin ke pdfkit 0.15.2; regen bila upgrade pdfkit.
