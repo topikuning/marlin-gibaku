@@ -437,7 +437,8 @@ export async function sendActivityPdfToWaAction(
     }
 
     const { renderKegiatanPdf } = await import("@/lib/pdf/kegiatan");
-    const result = await renderKegiatanPdf(activity.id);
+    const { getRequestOrigin } = await import("@/lib/http");
+    const result = await renderKegiatanPdf(activity.id, { baseUrl: await getRequestOrigin() });
     if (!result) return { error: "Gagal menyusun PDF — kegiatan tidak ditemukan." };
 
     const kindLabel = (await getActivityKindLabelMap()).get(activity.type) ?? activity.type;

@@ -7,6 +7,7 @@ import { getActivityKindLabelMap } from "@/lib/field-activity/kinds";
 import { FIELD_ACTIVITY_STATUS_LABEL } from "@/lib/field-activity/labels";
 import { formatTanggal, formatTanggalWaktu } from "@/lib/format";
 import { formatCoordinate } from "@/lib/photo-stamp/format";
+import { signPhotoToken } from "@/lib/pdf/photo-token";
 import {
   CONTENT_WIDTH,
   PAGE_MARGIN,
@@ -31,7 +32,7 @@ export type KegiatanPdfResult = {
   activityDate: Date;
 };
 
-export type PhotoForPdf = { jpeg: Buffer; caption: string; sub: string | null };
+export type PhotoForPdf = { jpeg: Buffer; caption: string; sub: string | null; link?: string | null };
 
 /** Data siap-render (murni, tanpa I/O) — dipakai renderer produksi & pratinjau. */
 export type KegiatanPdfData = {
@@ -103,6 +104,16 @@ export async function buildKegiatanPdf(d: KegiatanPdfData): Promise<Buffer> {
   }
 
   sectionHeading(doc, `Dokumentasi Foto (${d.photos.length})`);
+  if (d.photos.some((p) => p.link)) {
+    doc
+      .font(PDF_FONT.regular)
+      .fontSize(8)
+      .fillColor(PDF_COLORS.inkMuted)
+      .text("Foto dipangkas agar rapi — ketuk foto untuk membuka gambar penuh (tak ter-crop) di cloud.", PAGE_MARGIN, doc.y, {
+        width: CONTENT_WIDTH,
+      });
+    doc.y += 4;
+  }
   drawPhotoGrid(doc, d.photos);
 
   stampFooters(doc, `Dibuat otomatis via ${d.appName} · ${formatTanggalWaktu(new Date())}`);
@@ -115,7 +126,10 @@ export async function buildKegiatanPdf(d: KegiatanPdfData): Promise<Buffer> {
  * profesional. Mengembalikan null bila kegiatan tak ada. TIDAK melakukan
  * otorisasi — pemanggil wajib gate capability + akses lokasi. DECISIONS 124.
  */
-export async function renderKegiatanPdf(activityId: string): Promise<KegiatanPdfResult | null> {
+export async function renderKegiatanPdf(
+  activityId: string,
+  opts?: { baseUrl?: string | null },
+): Promise<KegiatanPdfResult | null> {
   const activity = await db.fieldActivity.findUnique({
     where: { id: activityId },
     select: {
@@ -132,7 +146,7 @@ export async function renderKegiatanPdf(activityId: string): Promise<KegiatanPdf
         select: { id: true, slug: true, name: true, province: true, package: { select: { name: true } } },
       },
       photos: {
-        select: { r2Key: true, exifTakenAt: true, exifGpsLat: true, exifGpsLng: true },
+        select: { id: true, r2Key: true, exifTakenAt: true, exifGpsLat: true, exifGpsLng: true },
         orderBy: { createdAt: "asc" },
       },
     },
@@ -145,6 +159,7 @@ export async function renderKegiatanPdf(activityId: string): Promise<KegiatanPdf
     db.user.findUnique({ where: { id: activity.createdById }, select: { fullName: true } }),
   ]);
   const kindLabel = kindLabels.get(activity.type) ?? activity.type;
+  const baseUrl = opts?.baseUrl?.replace(/\/+$/, "") || null;
 
   // Foto: ambil + normalisasi (best-effort; foto gagal dilewati, laporan tetap terbentuk).
   const photos: PhotoForPdf[] = [];
@@ -158,7 +173,9 @@ export async function renderKegiatanPdf(activityId: string): Promise<KegiatanPdf
         const lng = p.exifGpsLng != null ? Number(p.exifGpsLng) : null;
         const koord = formatCoordinate(lat, lng);
         const sub = [p.exifTakenAt ? formatTanggalWaktu(p.exifTakenAt) : null, koord].filter(Boolean).join("  ·  ");
-        photos.push({ jpeg, caption: `Foto ${i}`, sub: sub || null });
+        // Link publik MARLIN ke gambar PENUH (tak ter-crop) — hanya bila origin diketahui.
+        const link = baseUrl ? `${baseUrl}/api/foto/${signPhotoToken(p.id)}` : null;
+        photos.push({ jpeg, caption: `Foto ${i}`, sub: sub || null, link });
       } catch {
         /* lewati foto yang gagal diambil/diolah */
       }
@@ -328,6 +345,23 @@ function drawPhotoCell(doc: PdfDoc, p: PhotoForPdf, x: number, y: number, w: num
     doc.rect(x, y, w, boxH).fill(PDF_COLORS.primary50);
   }
   doc.restore();
+
+  // Chip "Lihat penuh" (kanan-atas foto) — foto di-crop, chip menandai bisa diketuk
+  // untuk membuka gambar PENUH di cloud (link publik MARLIN). DECISIONS 125.
+  if (p.link) {
+    const label = "Lihat penuh";
+    doc.font(PDF_FONT.bold).fontSize(7);
+    const chipPadH = 5;
+    const chipH = 14;
+    const chipW = doc.widthOfString(label) + chipPadH * 2;
+    const chipX = x + w - chipW - 6;
+    const chipY = y + 6;
+    doc.roundedRect(chipX, chipY, chipW, chipH, 3).fill(PDF_COLORS.primary);
+    doc.fillColor(PDF_COLORS.white).text(label, chipX + chipPadH, chipY + 3.5, { lineBreak: false });
+    // Seluruh sel (foto + kapsi) jadi tautan ke gambar penuh.
+    doc.link(x, y, w, boxH + captionH, p.link);
+  }
+
   // Caption.
   const capX = x + 8;
   const capY = y + boxH + 5;

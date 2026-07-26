@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { getCurrentUser, hasLocationAccess } from "@/lib/auth/session";
 import { renderKegiatanPdf } from "@/lib/pdf/kegiatan";
+import { getRequestOrigin } from "@/lib/http";
 
 /**
  * Unduh Laporan Kegiatan Lapangan sebagai PDF (dihasilkan server-side, bukan
@@ -23,7 +24,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ error: "Tidak punya akses ke kegiatan ini" }, { status: 403 });
   }
 
-  const result = await renderKegiatanPdf(id);
+  const result = await renderKegiatanPdf(id, { baseUrl: await getRequestOrigin() });
   if (!result) return NextResponse.json({ error: "Kegiatan tidak ditemukan" }, { status: 404 });
 
   const fileName = `laporan-kegiatan-${result.slug}-${result.activityDate.toISOString().slice(0, 10)}.pdf`;

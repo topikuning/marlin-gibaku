@@ -2423,3 +2423,18 @@ scurve — dengan test properti, bukan paritas nilai):**
   nomor/ID bebas ("dilaporkan ke atasan tertentu"). Caption = judul + jenis + tanggal + lokasi.
 - Verifikasi: typecheck/lint/unit(185)/build ✓, tracing standalone ✓, smoke-render (font+foto+
   multi-halaman+kaki) ✓. Menyusul: laporan EKSEKUTIF sebagai PDF berdesain.
+
+## 125 · 2026-07-26 · Foto di PDF: link publik MARLIN ke gambar penuh (tak ter-crop)
+
+- **Kebutuhan**: foto di PDF di-crop (`cover`) agar grid rapi → sebagian gambar hilang. Perlu
+  tautan aktif ke gambar PENUH di cloud, bisa dibuka penerima WA.
+- **Keputusan link** (pilihan user: "link dari MARLIN tapi bisa untuk publik"): route PUBLIK
+  `GET /api/foto/[token]` (tanpa login) yang redirect ke presigned R2 pendek. Keamanan = token
+  HMAC-SHA256 atas photoId pakai SESSION_SECRET (`lib/pdf/photo-token.ts`) — hanya link yang DIBUAT
+  MARLIN valid (bukan tebak id), **permanen** (tanpa kedaluwarsa), dan rotasi SESSION_SECRET
+  otomatis mematikan semua link lama. Ditambah ke `PUBLIC_PATHS` middleware.
+- **Di PDF**: tiap foto tetap `cover`-crop + chip "Lihat penuh" (kanan-atas) + seluruh sel jadi
+  tautan (`doc.link`) ke gambar penuh; catatan satu baris di bawah judul Dokumentasi Foto. URL
+  absolut disusun dari origin request (`lib/http.ts getRequestOrigin`, header x-forwarded-*).
+- `renderKegiatanPdf(id, { baseUrl })`: pemanggil (route unduh + aksi kirim WA) meneruskan origin.
+- Verifikasi: typecheck/lint ✓, token round-trip + tolak tamper/garবage ✓, render PDF berlink ✓.
