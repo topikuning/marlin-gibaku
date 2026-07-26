@@ -2509,3 +2509,20 @@ Tiga bug tampilan pada PDF produksi (dari bundle self-contained DECISIONS 128):
   (filter code-point: buang emoji/simbol/dingbat/variation-selector/zero-width/kontrol; Latin
   beraksen, ·, →, ©®™ dipertahankan) diterapkan di paragraph/metaRow/table/identitas.
 - Verifikasi: typecheck/lint/unit/build ✓, e2e render (emoji + 3 foto) → foto tertanam & tanpa tofu.
+
+## 130 · 2026-07-26 · Rombak UI/UX halaman Kegiatan & Dokumentasi Lapangan
+
+- **Kebutuhan**: tata ulang halaman kegiatan sesuai mockup UI/UX (rapi, desktop & mobile).
+- **Layout**: intro + chip ringkasan (Total/Draft/Final dari data nyata) → workspace 2 kolom
+  (form kiri STICKY di lg + daftar kanan; menumpuk 1 kolom di mobile).
+- **Form** (`CreateActivityForm`): "Informasi utama" (grid) + blok "Kendala & tindak lanjut" yang
+  BISA DILIPAT (field tetap di DOM via CSS `hidden` agar tetap terkirim) + blok foto + footer
+  Reset/Simpan.
+- **Daftar** (`kegiatan-list.tsx`, klien): toolbar cari + filter jenis/status. Kartu di-render di
+  SERVER (beserta semua form aksinya) lalu di-passing sebagai `node` + metadata ke komponen klien
+  untuk disaring — pola RSC (node server → prop komponen klien), bukan manipulasi DOM.
+- **Kartu**: header (pills jenis/status/tanggal + judul + catatan · penulis + Unduh PDF/Cetak),
+  ringkasan Peserta/Kendala(warning)/Solusi(success), "Bukti & lampiran" (PhotoGallery +
+  ActivityAttachments + hitungan), lalu DraftActions/Reopen + tombol WA (komponen lama, tetap).
+- Styling token-only (tak ada hex); komponen aksi lama dipakai ulang (rendah risiko).
+- Verifikasi: typecheck/lint/build ✓ (route kegiatan ter-compile; RSC node→klien lolos).

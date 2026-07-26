@@ -150,7 +150,15 @@ export type EditableActivity = {
 };
 
 
-/** Form buat kegiatan lapangan baru (draft) + foto awal. */
+/** Label bagian kecil (uppercase) untuk mengelompokkan field form. */
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="mb-2 text-[11px] font-bold tracking-wide text-ink-muted uppercase">{children}</p>
+  );
+}
+
+/** Form buat kegiatan lapangan baru (draft) + foto awal. Info utama di atas,
+ * kendala/tindak-lanjut opsional bisa dilipat, blok foto & dokumen terpisah. */
 export function CreateActivityForm({
   locationId,
   todayKey,
@@ -163,6 +171,7 @@ export function CreateActivityForm({
   const [state, action, pending] = useActionState<FieldActivityState, FormData>(createActivityAction, undefined);
   const formRef = useRef<HTMLFormElement>(null);
   const [photoKey, setPhotoKey] = useState(0);
+  const [showOptional, setShowOptional] = useState(false);
 
   useEffect(() => {
     if (!state?.success) return;
@@ -174,62 +183,82 @@ export function CreateActivityForm({
     return () => window.clearTimeout(t);
   }, [state?.success]);
 
+  const resetForm = () => {
+    formRef.current?.reset();
+    setPhotoKey((k) => k + 1);
+  };
+
   return (
-    <form ref={formRef} action={action} className="space-y-3 rounded-lg border border-border bg-surface p-4 shadow-xs">
-      <h2 className="text-sm font-semibold text-ink">Catat kegiatan lapangan</h2>
+    <form ref={formRef} action={action} className="space-y-4">
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
       {state?.warning ? <Banner tone="warning" title="Sebagian foto gagal" description={state.warning} /> : null}
 
       <input type="hidden" name="locationId" value={locationId} />
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <Label htmlFor="fa-type" required>Jenis kegiatan</Label>
-          <Combobox id="fa-type" name="type" defaultValue={kinds[0]?.key ?? ""} required>
-            {kinds.map((k) => (
-              <option key={k.key} value={k.key}>{k.label}</option>
-            ))}
-          </Combobox>
-        </div>
-        <div>
-          <Label htmlFor="fa-date" required>Tanggal</Label>
-          <Input id="fa-date" type="date" name="activityDate" defaultValue={todayKey} required />
-        </div>
-      </div>
-
       <div>
-        <Label htmlFor="fa-title" required>Judul / uraian singkat</Label>
-        <Input id="fa-title" name="title" placeholder="mis. Rapat PCM & pengukuran awal" required maxLength={160} />
-      </div>
-
-      <div>
-        <Label htmlFor="fa-notes">Catatan (opsional)</Label>
-        <Textarea id="fa-notes" name="notes" rows={2} placeholder="Hasil/keputusan penting, kondisi lapangan…" maxLength={2000} />
-      </div>
-
-      <div>
-        <Label htmlFor="fa-participants">Peserta / hadir (opsional)</Label>
-        <Input id="fa-participants" name="participants" placeholder="mis. PPK, Konsultan Pengawas, Penyedia, Kades" maxLength={500} />
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <Label htmlFor="fa-kendala">Kendala (opsional)</Label>
-          <Textarea id="fa-kendala" name="kendala" rows={2} placeholder="Kendala di lapangan — kosongkan bila tidak ada" maxLength={2000} />
-        </div>
-        <div>
-          <Label htmlFor="fa-solusi">Solusi / tindak lanjut (opsional)</Label>
-          <Textarea id="fa-solusi" name="solusi" rows={2} placeholder="Solusi/tindak lanjut atas kendala — kosongkan bila tidak ada" maxLength={2000} />
+        <SectionLabel>Informasi utama</SectionLabel>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="fa-type" required>Jenis kegiatan</Label>
+            <Combobox id="fa-type" name="type" defaultValue={kinds[0]?.key ?? ""} required>
+              {kinds.map((k) => (
+                <option key={k.key} value={k.key}>{k.label}</option>
+              ))}
+            </Combobox>
+          </div>
+          <div>
+            <Label htmlFor="fa-date" required>Tanggal</Label>
+            <Input id="fa-date" type="date" name="activityDate" defaultValue={todayKey} required />
+          </div>
+          <div className="sm:col-span-2">
+            <Label htmlFor="fa-title" required>Judul / uraian singkat</Label>
+            <Input id="fa-title" name="title" placeholder="mis. Rapat PCM & pengukuran awal" required maxLength={160} />
+          </div>
+          <div className="sm:col-span-2">
+            <Label htmlFor="fa-notes">Catatan / hasil penting</Label>
+            <Textarea id="fa-notes" name="notes" rows={2} placeholder="Keputusan, kondisi lapangan, atau hasil kegiatan…" maxLength={2000} />
+          </div>
+          <div className="sm:col-span-2">
+            <Label htmlFor="fa-participants">Peserta / hadir</Label>
+            <Input id="fa-participants" name="participants" placeholder="mis. PPK, Konsultan Pengawas, Penyedia, Kades" maxLength={500} />
+          </div>
         </div>
       </div>
 
-      <div>
+      {/* Kendala & tindak lanjut — opsional, bisa dilipat. Field TETAP di DOM
+          (disembunyikan via CSS) agar isian ikut terkirim walau terlipat. */}
+      <div className="overflow-hidden rounded-lg border border-border">
+        <button
+          type="button"
+          onClick={() => setShowOptional((v) => !v)}
+          className="flex w-full items-center justify-between bg-surface-inset px-3 py-2.5 text-[13px] font-semibold text-ink-muted hover:bg-surface-muted"
+          aria-expanded={showOptional}
+        >
+          <span>Kendala &amp; tindak lanjut</span>
+          <span className="text-base leading-none">{showOptional ? "−" : "+"}</span>
+        </button>
+        <div className={`${showOptional ? "" : "hidden"} space-y-3 border-t border-border p-3`}>
+          <div>
+            <Label htmlFor="fa-kendala">Kendala</Label>
+            <Textarea id="fa-kendala" name="kendala" rows={2} placeholder="Kosongkan bila tidak ada kendala" maxLength={2000} />
+          </div>
+          <div>
+            <Label htmlFor="fa-solusi">Solusi / tindak lanjut</Label>
+            <Textarea id="fa-solusi" name="solusi" rows={2} placeholder="Kosongkan bila tidak ada tindak lanjut" maxLength={2000} />
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-border bg-surface-inset/40 p-3">
         <Label>Foto dokumentasi (maks 6)</Label>
         <PhotoSourceInput key={photoKey} />
       </div>
 
-      <Button type="submit" loading={pending}>Simpan kegiatan</Button>
+      <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
+        <Button type="button" variant="ghost" onClick={resetForm}>Reset</Button>
+        <Button type="submit" loading={pending}>Simpan kegiatan</Button>
+      </div>
     </form>
   );
 }
