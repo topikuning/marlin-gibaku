@@ -607,14 +607,14 @@ function AiProviderCard({ p, active }: { p: AiProviderCardData; active: boolean 
     undefined,
   );
   const [modelsState, listAction, listing] = useActionState<AiModelsState, FormData>(listAiModelsAction, undefined);
+  const [model, setModel] = useState(p.model);
   const banner = saveState ?? testState ?? activateState;
 
   // Saran model: gabung yang tersimpan + hasil live /models + kurasi dokumentasi.
   const fetched = modelsState?.models ?? [];
   const suggestions = Array.from(
-    new Set([...(p.model ? [p.model] : []), ...fetched, ...p.knownModels]),
+    new Set([...(model ? [model] : []), ...fetched, ...p.knownModels]),
   );
-  const listId = `ai-models-${p.id}`;
 
   return (
     <div
@@ -652,23 +652,23 @@ function AiProviderCard({ p, active }: { p: AiProviderCardData; active: boolean 
       <form action={saveAction} className="mt-3 space-y-2">
         <input type="hidden" name="provider" value={p.id} />
         <div>
-          <Label htmlFor={`ai-model-${p.id}`}>Model</Label>
-          <Input
-            id={`ai-model-${p.id}`}
-            name="model"
-            defaultValue={p.model}
-            placeholder={p.defaultModel}
-            list={listId}
-            autoComplete="off"
+          <Label>Model</Label>
+          <input type="hidden" name="model" value={model} />
+          <Combobox
+            options={suggestions.map((m) => ({ value: m, label: m }))}
+            value={suggestions.includes(model) ? model : ""}
+            onChange={setModel}
+            placeholder={`Pilih model… (${suggestions.length} pilihan)`}
           />
-          <datalist id={listId}>
-            {suggestions.map((m) => (
-              <option key={m} value={m} />
-            ))}
-          </datalist>
+          <Input
+            className="mt-2"
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            placeholder={`atau ketik manual (mis. ${p.defaultModel})`}
+          />
           <p className="mt-1 text-xs text-ink-muted">
-            Ketik bebas atau pilih dari saran{fetched.length > 0 ? ` (${fetched.length} dari API)` : ""}. Klik
-            &quot;Muat model&quot; untuk daftar terkini dari provider.
+            Pilih dari daftar (klik <b>Muat model</b> untuk daftar terkini{fetched.length > 0 ? ` — ${fetched.length} dari API` : ""})
+            atau ketik nama model kustom.
           </p>
         </div>
         <div>
