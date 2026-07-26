@@ -1474,6 +1474,15 @@ model AiMessage {
   @@map("ai_messages")
 }
 
+/// Lifecycle ringkasan chat grup — draf AI wajib direview manusia sebelum
+/// difinalkan & dikirim. DECISIONS 139.
+enum WaChatSummaryStatus {
+  draft_ai
+  edited_draft
+  final
+  sent
+}
+
 /// Ringkasan AI harian percakapan grup WA per paket (Layer B, DECISIONS 135).
 /// Satu baris per (paket, tanggal Jakarta); regenerate menimpa (upsert).
 model WaChatSummary {
@@ -1485,6 +1494,22 @@ model WaChatSummary {
   provider     String?
   model        String?
   createdById  String?  @map("created_by_id") @db.Uuid
+  // Lifecycle + jejak penyusunan (DECISIONS 139). Draf AI TIDAK PERNAH otomatis
+  // final — harus dilewatkan review manusia sebelum dikirim ke pimpinan.
+  status         WaChatSummaryStatus @default(draft_ai)
+  version        Int                 @default(1)
+  aiText         String?             @map("ai_text") @db.Text // draf AI asli (pembanding editan manusia)
+  confidence     Int?
+  marlinCount    Int                 @default(0) @map("marlin_count")
+  excludedCount  Int                 @default(0) @map("excluded_count")
+  generatedById  String?             @map("generated_by_id") @db.Uuid
+  generatedAt    DateTime?           @map("generated_at") @db.Timestamptz
+  editedById     String?             @map("edited_by_id") @db.Uuid
+  editedAt       DateTime?           @map("edited_at") @db.Timestamptz
+  finalizedById  String?             @map("finalized_by_id") @db.Uuid
+  finalizedAt    DateTime?           @map("finalized_at") @db.Timestamptz
+  lastSentAt     DateTime?           @map("last_sent_at") @db.Timestamptz
+  dispatches     Json?               // {at, target, chatId, byId}[]
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
 

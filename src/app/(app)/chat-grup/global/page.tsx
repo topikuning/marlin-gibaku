@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Card, CardBody, CardHeader, EmptyState, PageHeader } from "@/components/ui";
+import { Badge, Banner, Card, CardBody, CardHeader, EmptyState, PageHeader } from "@/components/ui";
 import { MessageSquareText } from "lucide-react";
 import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
 import { listGlobalSummaryDates, listSummariesForDate } from "@/lib/waha/chat-summary";
+import { SUMMARY_STATUS_LABEL, SUMMARY_STATUS_TONE, canSend } from "@/lib/waha/summary-lifecycle";
 import { formatTanggal, formatTanggalWaktu, jakartaToday } from "@/lib/format";
 import { SendGlobalForm } from "./send-global-form";
 
@@ -33,6 +34,7 @@ export default async function ChatGrupGlobalPage({
   const todayKey = jakartaToday().toISOString().slice(0, 10);
   const dateKey = sp.d && /^\d{4}-\d{2}-\d{2}$/.test(sp.d) ? sp.d : (dates[0]?.dateKey ?? todayKey);
   const rows = await listSummariesForDate(user, dateKey);
+  const sendable = rows.filter((r) => canSend(r.status));
 
   return (
     <div className="space-y-4">
@@ -78,18 +80,27 @@ export default async function ChatGrupGlobalPage({
             <CardHeader
               title={`Kirim ke pimpinan — ${formatTanggal(new Date(`${dateKey}T00:00:00.000Z`))}`}
               subtitle={
-                rows.length > 1
-                  ? `${rows.length} grup digabung jadi satu pesan; AI menambahkan pengantar singkat.`
-                  : `${rows.length} grup pada tanggal ini.`
+                sendable.length > 1
+                  ? `${sendable.length} ringkasan final digabung jadi satu pesan; AI menambahkan pengantar singkat.`
+                  : `${sendable.length} ringkasan final pada tanggal ini.`
               }
             />
-            <CardBody>
+            <CardBody className="space-y-2">
               {rows.length === 0 ? (
                 <p className="text-sm text-ink-muted">
                   Belum ada ringkasan pada tanggal ini — buat dulu di halaman per grup.
                 </p>
               ) : (
-                <SendGlobalForm dateKey={dateKey} contacts={contacts} />
+                <>
+                  {sendable.length < rows.length ? (
+                    <Banner
+                      tone="warning"
+                      title={`${rows.length - sendable.length} ringkasan belum final`}
+                      description="Hanya ringkasan berstatus final/terkirim yang ikut dikirim ke pimpinan. Finalkan dulu di halaman per grup."
+                    />
+                  ) : null}
+                  <SendGlobalForm dateKey={dateKey} contacts={contacts} />
+                </>
               )}
             </CardBody>
           </Card>
@@ -103,12 +114,15 @@ export default async function ChatGrupGlobalPage({
                   title={r.title}
                   subtitle={`${r.messageCount} pesan · diperbarui ${formatTanggalWaktu(r.updatedAt)}`}
                   action={
-                    <Link
-                      href={`/chat-grup?p=${r.packageId}&d=${dateKey}`}
-                      className="text-xs text-primary hover:underline"
-                    >
-                      Buka grup →
-                    </Link>
+                    <span className="flex items-center gap-2">
+                      <Badge tone={SUMMARY_STATUS_TONE[r.status]} label={SUMMARY_STATUS_LABEL[r.status]} />
+                      <Link
+                        href={`/chat-grup?p=${r.packageId}&d=${dateKey}`}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        Buka grup →
+                      </Link>
+                    </span>
                   }
                 />
                 <CardBody>

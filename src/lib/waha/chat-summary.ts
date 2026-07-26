@@ -17,9 +17,18 @@ import {
   type ResolvedSender,
   type SenderDirectory,
 } from "./sender-identity";
+import { classifyMessage, type MessageClass } from "./message-classify";
+import {
+  computeConfidence,
+  orderByRelevance,
+  transitionSummary,
+  type SummaryViewStatus,
+} from "./summary-lifecycle";
 
 export * from "./chat-summary-format";
 export * from "./sender-identity";
+export * from "./message-classify";
+export * from "./summary-lifecycle";
 
 /**
  * Direktori pengenal pengirim: alias manual + pengguna MARLIN (cocok nomor) +
@@ -97,6 +106,8 @@ export type ChatMessageView = {
   noise: boolean;
   /** Nama aman + sumbernya (alias/pengguna/kontak/whatsapp/anonim). */
   sender: ResolvedSender;
+  /** Bobot relevansi + kategori informasi (deterministik, DECISIONS 139). */
+  class: MessageClass;
 };
 
 /** Pesan satu hari (Jakarta) utk tampilan + bahan prompt (dgn tanda noise). */
@@ -122,23 +133,27 @@ export async function getChatMessages(
       timestamp: true,
     },
   });
-  return msgs.map((m) => ({
-    id: m.id,
-    fromName: m.fromName ?? m.fromNumber ?? "Anggota",
-    body: m.body,
-    hasMedia: m.hasMedia,
-    timeLabel: m.timestamp.toLocaleTimeString("id-ID", {
-      timeZone: "Asia/Jakarta",
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
-    fromMe: m.fromMe,
-    noise: isNoiseMessage(m.body, { fromMe: m.fromMe }),
-    sender: resolveSender(
-      { senderJid: m.senderJid, fromNumber: m.fromNumber, fromName: m.fromName, fromMe: m.fromMe },
-      dir,
-    ),
-  }));
+  return msgs.map((m) => {
+    const noise = isNoiseMessage(m.body, { fromMe: m.fromMe });
+    return {
+      id: m.id,
+      fromName: m.fromName ?? m.fromNumber ?? "Anggota",
+      body: m.body,
+      hasMedia: m.hasMedia,
+      timeLabel: m.timestamp.toLocaleTimeString("id-ID", {
+        timeZone: "Asia/Jakarta",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      fromMe: m.fromMe,
+      noise,
+      sender: resolveSender(
+        { senderJid: m.senderJid, fromNumber: m.fromNumber, fromName: m.fromName, fromMe: m.fromMe },
+        dir,
+      ),
+      class: classifyMessage({ body: m.body, hasMedia: m.hasMedia, noise, fromMe: m.fromMe }),
+    };
+  });
 }
 
 /** Konteks paket (pekerjaan, pelaksana, lokasi) — grup WA sering bernama generik. */
@@ -230,8 +245,10 @@ export async function getMarlinDispatches(packageId: string, dateKey: string): P
 export type SummaryResult = { ok: true; summaryText: string } | { ok: false; error: string };
 
 /**
- * Buat/perbarui ringkasan harian satu paket. Idempotent per (paket, tanggal) —
- * upsert. Pesan noise (uji webhook/basa-basi) disaring lebih dulu.
+ * Buat/perbarui DRAF ringkasan harian satu paket. Idempotent per (paket,
+ * tanggal) — upsert. Hasil selalu berstatus `draft_ai`: keluaran AI tidak
+ * pernah otomatis final (DECISIONS 139). Pesan berkonteks rendah disaring dan
+ * pesan penting (kendala/tindak lanjut) didahulukan bila transkrip terpotong.
  */
 export async function generateChatSummary(
   user: SessionUser,
@@ -241,12 +258,20 @@ export async function generateChatSummary(
   const ctx = await getPackageContext(user, packageId);
   if (!ctx) return { ok: false, error: "Paket tidak ditemukan." };
 
+  const summaryDate = new Date(`${dateKey}T00:00:00.000Z`);
+  const existing = await db.waChatSummary.findUnique({
+    where: { packageId_summaryDate: { packageId, summaryDate } },
+    select: { status: true, version: true },
+  });
+  const gate = transitionSummary((existing?.status ?? "belum_dibuat") as SummaryViewStatus, "draft_ai");
+  if (!gate.ok) return { ok: false, error: gate.error };
+
   const dir = await buildSenderDirectory(user.orgId);
   const [all, dispatches] = await Promise.all([
     getChatMessages(packageId, dateKey, dir),
     getMarlinDispatches(packageId, dateKey),
   ]);
-  const messages = all.filter((m) => !m.noise);
+  const messages = all.filter((m) => m.class.useForSummary);
   // Tetap bisa meringkas bila chat kosong tapi MARLIN mengirim laporan/kegiatan.
   if (messages.length === 0 && dispatches.length === 0) {
     return {
@@ -254,12 +279,15 @@ export async function generateChatSummary(
       error:
         all.length === 0
           ? "Tidak ada pesan maupun kiriman MARLIN pada tanggal ini."
-          : `Semua ${all.length} pesan pada tanggal ini adalah uji sistem/basa-basi — tidak ada yang layak diringkas.`,
+          : `Semua ${all.length} pesan pada tanggal ini berkonteks rendah (uji sistem/basa-basi) — tidak ada yang layak diringkas.`,
     };
   }
 
+  // Prioritas konteks: kendala & tindak lanjut lebih dulu saat harus dipotong,
+  // lalu dikembalikan ke urutan waktu supaya transkrip tetap terbaca kronologis.
+  const prioritized = orderByRelevance(messages);
   const { transcript, truncated } = buildTranscript(
-    messages.map((m) => ({
+    prioritized.map((m) => ({
       timeLabel: m.timeLabel,
       // Kiriman sistem ditandai eksplisit supaya tidak dibaca sbg obrolan anggota.
       fromName: m.fromMe ? `[MARLIN] ${m.sender.displayName}` : m.sender.displayName,
@@ -269,6 +297,14 @@ export async function generateChatSummary(
     MAX_CHARS,
   );
   const skipped = all.length - messages.length;
+  const marlinCount = all.filter((m) => m.fromMe).length;
+  const confidence = computeConfidence({
+    usedCount: messages.length,
+    excludedCount: skipped,
+    needsInterpretationCount: messages.filter((m) => m.class.relevance === "perlu_interpretasi").length,
+    marlinCount: dispatches.length,
+    truncated,
+  });
 
   const dispatchBlock = dispatches.length
     ? `\n\n=== KIRIMAN SISTEM MARLIN KE GRUP (dari data MARLIN, bukan chat) ===\n` +
@@ -290,10 +326,24 @@ export async function generateChatSummary(
 
   const notes: string[] = [];
   if (truncated) notes.push(`chat sangat panjang — ringkasan dari ${MAX_CHARS.toLocaleString("id-ID")} karakter pertama`);
-  if (skipped > 0) notes.push(`${skipped} pesan uji sistem/basa-basi diabaikan`);
+  if (skipped > 0) notes.push(`${skipped} pesan berkonteks rendah diabaikan`);
   const summaryText = notes.length ? `${result.text}\n\n(Catatan: ${notes.join("; ")}.)` : result.text;
 
-  const summaryDate = new Date(`${dateKey}T00:00:00.000Z`);
+  const now = new Date();
+  const lifecycle = {
+    status: gate.status,
+    aiText: summaryText,
+    confidence,
+    marlinCount,
+    excludedCount: skipped,
+    generatedById: user.id,
+    generatedAt: now,
+    // Draf baru menghapus jejak sunting/final lama — status kembali ke awal.
+    editedById: null,
+    editedAt: null,
+    finalizedById: null,
+    finalizedAt: null,
+  };
   await db.waChatSummary.upsert({
     where: { packageId_summaryDate: { packageId, summaryDate } },
     update: {
@@ -302,6 +352,8 @@ export async function generateChatSummary(
       provider: result.provider,
       model: result.model,
       createdById: user.id,
+      version: (existing?.version ?? 0) + 1,
+      ...lifecycle,
     },
     create: {
       packageId,
@@ -311,12 +363,16 @@ export async function generateChatSummary(
       provider: result.provider,
       model: result.model,
       createdById: user.id,
+      version: 1,
+      ...lifecycle,
     },
   });
   await audit(user.id, "wa.chat_summary", "package", packageId, {
     dateKey,
     messages: messages.length,
-    skippedNoise: skipped,
+    skippedLowContext: skipped,
+    marlinDispatches: dispatches.length,
+    confidence,
     provider: result.provider,
   });
   return { ok: true, summaryText };
@@ -328,6 +384,8 @@ export type GlobalSummaryRow = {
   summaryText: string;
   messageCount: number;
   updatedAt: Date;
+  /** Hanya yang `final`/`sent` boleh ikut terkirim ke pimpinan (DECISIONS 139). */
+  status: SummaryViewStatus;
 };
 
 /** Semua ringkasan tersimpan pada satu tanggal (lintas paket) — untuk menu global. */
@@ -341,6 +399,7 @@ export async function listSummariesForDate(user: SessionUser, dateKey: string): 
       messageCount: true,
       summaryText: true,
       updatedAt: true,
+      status: true,
       package: {
         select: { name: true, contract: { select: { workTitle: true } } },
       },
@@ -352,6 +411,7 @@ export async function listSummariesForDate(user: SessionUser, dateKey: string): 
     summaryText: r.summaryText,
     messageCount: r.messageCount,
     updatedAt: r.updatedAt,
+    status: r.status as SummaryViewStatus,
   }));
 }
 

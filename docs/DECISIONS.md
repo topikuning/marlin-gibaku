@@ -2747,3 +2747,47 @@ Tiga bug tampilan pada PDF produksi (dari bundle self-contained DECISIONS 128):
   belum dikenali mendapat tautan inline **"Beri nama pengirim ini"** (nama +
   peran opsional) — langsung berlaku ke ringkasan berikutnya. Aksi diaudit.
 - Verifikasi: typecheck ✓ lint ✓ unit 265 (+13) ✓ integration 13 ✓ build ✓.
+
+## 139 · 2026-07-26 · Chat Grup jadi workspace analisis + siklus hidup ringkasan
+
+- **Masalah**: halaman `/chat-grup` hanya "daftar grup + kotak ringkasan".
+  Semua pesan terlihat sama bobotnya (basa-basi setara laporan kendala), tidak
+  ada tempat me-review/menyunting draf, dan keluaran AI bisa langsung dikirim ke
+  pimpinan tanpa satu pun mata manusia. Itu risiko, bukan fitur.
+- **Klasifikasi relevansi deterministik** (`waha/message-classify.ts`, MURNI +
+  15 unit test). Rule — bukan AI — yang menentukan bobot:
+  `sangat_relevan` (kendala, tindak lanjut) · `relevan` (progres, administrasi,
+  koordinasi) · `perlu_interpretasi` (lampiran tanpa teks, teks panjang tanpa
+  kata kunci) · `konteks_rendah` (uji sistem, pesan pendek tanpa kata kunci).
+  Hanya `useForSummary` yang masuk prompt; saat transkrip harus dipotong,
+  kendala/tindak lanjut didahulukan (`orderByRelevance`) supaya yang penting
+  tidak kalah oleh basa-basi. Setiap keputusan membawa `reason` yang tampil di UI.
+- **Siklus hidup ringkasan** (`waha/summary-lifecycle.ts`, MURNI + 15 unit test;
+  enum `WaChatSummaryStatus`):
+  `belum_dibuat → draft_ai → (edited_draft) → final → sent`.
+  **Draf AI TIDAK PERNAH otomatis final.** `draft_ai`/`edited_draft` tidak bisa
+  langsung `sent` — aksi kirim ditolak di server, bukan cuma disembunyikan di UI.
+  Menyusun ulang draf boleh dari status apa pun (kembali ke `draft_ai`, versi
+  naik); menyunting yang sudah terkirim mengembalikan ke `edited_draft`.
+  Ringkasan global hanya mengirim yang `final`/`sent` dan melaporkan berapa yang
+  dilewati karena masih draf.
+- **Skor keyakinan deterministik** (`computeConfidence`) — AI tidak menilai
+  dirinya sendiri. Naik oleh volume bukti & kiriman resmi MARLIN; turun oleh
+  rasio pesan ambigu, transkrip terpotong, dan bukti sangat tipis.
+- **Schema**: `WaChatSummary` + `status`, `version`, `aiText` (draf AI asli
+  sebagai pembanding editan manusia), `confidence`, `marlinCount`,
+  `excludedCount`, jejak `generated/edited/finalized` (id + waktu), `lastSentAt`,
+  `dispatches` (Json riwayat kiriman). Kolom pelaku sengaja **tanpa relasi FK** —
+  nama dicari terpisah; jejak tidak boleh ikut terhapus bersama user.
+- **IA 3 kolom** (`/chat-grup`): kiri = scope (grup + tanggal, tiap tanggal
+  membawa badge status ringkasan), tengah = bukti percakapan dalam tab WAI-ARIA
+  (Pesan relevan · Kiriman MARLIN · Arsip lengkap), kanan = ringkasan AI
+  (status, keyakinan, editor, jejak, aksi). Responsif 3 kolom → 2 → tumpuk.
+  **Kiriman MARLIN tidak dicampur dengan obrolan anggota** — dipisah jadi
+  "menurut data MARLIN" (domain) vs "terekam di grup" (webhook), karena keduanya
+  menjawab pertanyaan berbeda.
+- **Aksi baru**: `saveSummaryDraftAction` (simpan editan / finalkan) — semua
+  lewat `requireCapability("exec_report.send")` + gerbang transisi + `audit()`.
+  Pengiriman mencatat riwayat ke `dispatches`.
+- Verifikasi: typecheck ✓ lint ✓ unit 295 (+30) ✓ build ✓ browser 1440px & 390px
+  (tanpa overflow horizontal) ✓.
