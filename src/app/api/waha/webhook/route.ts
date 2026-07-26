@@ -20,6 +20,18 @@ function secretMatches(provided: string | null, expected: string): boolean {
  * dengan `waha.webhook_secret` di Sistem). Hanya pesan dari grup tertaut paket
  * yang disimpan (lihat ingestWaEvent). DECISIONS 119.
  */
+/**
+ * GET (mis. dibuka di browser) — balas ramah, BUKAN error. Endpoint ini hanya
+ * memproses POST dari WAHA; tidak membocorkan apa pun & tidak mengecek token.
+ */
+export function GET() {
+  return NextResponse.json({
+    ok: true,
+    service: "marlin-waha-webhook",
+    message: "Endpoint webhook WAHA aktif. Hanya menerima POST dari WAHA (GET ini hanya info).",
+  });
+}
+
 export async function POST(req: Request) {
   const expected = await getWahaWebhookSecret();
   if (!expected) {
