@@ -402,11 +402,13 @@ export function WahaWebhookPanel({
   hasSecret,
   capturedCount,
   lastCapturedAt,
+  lastInbound,
 }: {
   webhookUrl: string | null;
   hasSecret: boolean;
   capturedCount: number;
   lastCapturedAt: string | null;
+  lastInbound: { chatId: string | null; stored: boolean; reason: string | null; at: string } | null;
 }) {
   const [state, action, pending] = useActionState<WaActionState, FormData>(
     generateWahaWebhookSecretAction,
@@ -464,6 +466,41 @@ export function WahaWebhookPanel({
             ? `${capturedCount.toLocaleString("id-ID")} pesan tertangkap${lastCapturedAt ? ` · terakhir ${lastCapturedAt}` : ""}`
             : "Belum ada pesan tertangkap."}
         </span>
+      </div>
+
+      {/* Diagnostik: event webhook terakhir yang benar-benar SAMPAI ke server. */}
+      <div className="rounded-md border border-border bg-surface-inset p-3 text-[13px]">
+        <p className="mb-1 font-medium text-ink">Diagnostik webhook</p>
+        {lastInbound ? (
+          <div className="space-y-0.5 text-ink-muted">
+            <p>
+              Webhook terakhir masuk: <span className="text-ink">{lastInbound.at}</span>
+            </p>
+            <p>
+              chatId dikirim WAHA:{" "}
+              <span className="font-mono text-ink">{lastInbound.chatId ?? "(tak terbaca)"}</span>
+            </p>
+            <p>
+              Hasil:{" "}
+              {lastInbound.stored ? (
+                <span className="text-success">tersimpan ✓</span>
+              ) : (
+                <span className="text-warning">dibuang — {lastInbound.reason ?? "?"}</span>
+              )}
+            </p>
+            {!lastInbound.stored && lastInbound.reason === "grup tidak tertaut paket" && lastInbound.chatId ? (
+              <p className="text-ink">
+                → Salin chatId di atas ke <span className="font-medium">Paket → Grup WhatsApp</span> agar
+                pesan grup ini tertangkap.
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <p className="text-ink-muted">
+            Belum ada webhook yang masuk. Kirim pesan uji di grup lalu muat ulang halaman ini. Kalau
+            tetap kosong, webhook belum sampai ke server (cek URL & tombol Update di WAHA).
+          </p>
+        )}
       </div>
     </div>
   );

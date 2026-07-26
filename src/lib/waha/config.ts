@@ -89,6 +89,36 @@ export async function getWahaWebhookSecret(): Promise<string | null> {
   return s.get(WAHA_KEYS.webhookSecret)?.trim() || null;
 }
 
+/* ── Diagnostik webhook: catat event terakhir yang masuk (self-service Sistem) ── */
+const WAHA_DEBUG_LAST_INBOUND = "waha.debug_last_inbound";
+
+export type WahaInboundInfo = { chatId: string | null; stored: boolean; reason?: string; at: string };
+
+/** Catat event webhook terakhir yang MASUK (arrived) — agar admin tahu webhook
+ * benar-benar sampai & chatId persis yang dikirim WAHA (untuk menautkan grup). */
+export async function recordWahaInbound(info: Omit<WahaInboundInfo, "at">): Promise<void> {
+  const effectiveFrom = jakartaToday();
+  const value = JSON.stringify({ ...info, at: new Date().toISOString() });
+  await db.appSetting.upsert({
+    where: { key_effectiveFrom: { key: WAHA_DEBUG_LAST_INBOUND, effectiveFrom } },
+    update: { value },
+    create: { key: WAHA_DEBUG_LAST_INBOUND, value, effectiveFrom },
+  });
+}
+
+export async function getWahaLastInbound(): Promise<WahaInboundInfo | null> {
+  const row = await db.appSetting.findFirst({
+    where: { key: WAHA_DEBUG_LAST_INBOUND },
+    orderBy: [{ effectiveFrom: "desc" }, { createdAt: "desc" }],
+  });
+  if (!row) return null;
+  try {
+    return JSON.parse(row.value) as WahaInboundInfo;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Simpan konfigurasi WAHA (efektif hari ini). apiKey `undefined` = jangan ubah
  * (pertahankan yang lama); string kosong = hapus. baseUrl kosong = hapus.

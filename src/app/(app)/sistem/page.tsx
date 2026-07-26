@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { env } from "@/lib/env";
 import { isR2Configured } from "@/lib/r2";
-import { getWahaConfigDisplay } from "@/lib/waha/config";
+import { getWahaConfigDisplay, getWahaLastInbound } from "@/lib/waha/config";
 import { db } from "@/lib/db";
 import { formatTanggalWaktu } from "@/lib/format";
 import { getBranding, BRAND_DEFAULTS } from "@/lib/branding";
@@ -46,9 +46,10 @@ export default async function SistemPage() {
   const webhookUrl = wahaDisplay.webhookSecret
     ? `${origin}/api/waha/webhook?token=${encodeURIComponent(wahaDisplay.webhookSecret)}`
     : null;
-  const [waCapturedCount, waLast] = await Promise.all([
+  const [waCapturedCount, waLast, waLastInbound] = await Promise.all([
     db.waMessage.count(),
     db.waMessage.findFirst({ orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
+    getWahaLastInbound(),
   ]);
 
   return (
@@ -106,6 +107,16 @@ export default async function SistemPage() {
             hasSecret={!!wahaDisplay.webhookSecret}
             capturedCount={waCapturedCount}
             lastCapturedAt={waLast ? formatTanggalWaktu(waLast.createdAt) : null}
+            lastInbound={
+              waLastInbound
+                ? {
+                    chatId: waLastInbound.chatId,
+                    stored: waLastInbound.stored,
+                    reason: waLastInbound.reason ?? null,
+                    at: formatTanggalWaktu(new Date(waLastInbound.at)),
+                  }
+                : null
+            }
           />
         </CardBody>
       </Card>
