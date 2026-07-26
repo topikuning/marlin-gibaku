@@ -2539,3 +2539,25 @@ Tiga bug tampilan pada PDF produksi (dari bundle self-contained DECISIONS 128):
   nilai 8.5pt). Nilai panjang (Nama proyek/Peserta, >44 char) otomatis memakai baris penuh. Ringkas,
   tak lagi melebar.
 - Verifikasi: typecheck/lint/build ✓ (route cetak/kegiatan hilang), render PDF 2 kolom ✓.
+
+## 132 · 2026-07-26 · Forecast v1 — Prognosa penyelesaian (jadwal/fisik)
+
+- Melengkapi siklus Rencana → Aktual → **Prognosa**. Sebelumnya tak ada proyeksi
+  ke depan sama sekali. Ruang lingkup v1 = **jadwal/fisik** (biaya = fase berikut,
+  lihat docs/FORECAST_DESIGN.md §7). Detail rancangan: docs/FORECAST_DESIGN.md.
+- **`src/lib/forecast.ts`** — mesin MURNI `forecastFromSeries(series, startDate)`
+  (tanpa I/O; input = kurva-S yang sudah ada). Dua metode EVM-jadwal: **laju terkini**
+  (run-rate N minggu, default 4) sebagai utama, **SPI** (aktual%/rencana%) sebagai
+  cadangan bila laju terhenti. Keluaran: `forecastFinishWeek/Date`, `slipWeeks`,
+  `projectedPctAtEnd`, `velocityPerWeek`, `requiredPerWeek`, `spi`, `status`
+  (aman/waspada/telat/selesai/belum_mulai/data_kurang) + garis prognosa `forecastPct[]`.
+  100% derived (prinsip #4) — TANPA model DB baru. 8 unit test.
+- **Chart**: `ScurveChart` menerima `forecast?` → polyline ke-3 (oranye titik-titik)
+  dari titik aktual terakhir. Legenda + % akhir prognosa.
+- **Halaman Progress lokasi**: kartu "Prognosa penyelesaian" (status, tanggal selesai
+  vs rencana + slip, realisasi vs rencana + deviasi, laju terkini/dibutuhkan + SPI).
+  Tanggal hanya bila SPMK terbit (`bounds.assumed=false`); pra-SPMK cukup minggu/status.
+  Data < 2 minggu → "data belum cukup" (bukan angka menyesatkan).
+- Verifikasi: typecheck/lint/unit(193)/build ✓.
+- Menyusul: kolom "prognosa selesai / diprediksi telat" di dashboard eksekutif &
+  portfolio; ringkas prognosa di PDF/laporan; forecast BIAYA (butuh tambahan model).

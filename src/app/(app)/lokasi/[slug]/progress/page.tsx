@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CalendarClock, Sheet } from "lucide-react";
-import { Card, CardBody, CardHeader, CollapsibleCard, type BadgeTone } from "@/components/ui";
+import { Badge, Card, CardBody, CardHeader, CollapsibleCard, type BadgeTone } from "@/components/ui";
 import { DeltaBadge } from "@/components/ui/stat-delta";
 import { ScurveChart } from "@/components/knmp/scurve-chart";
+import { forecastFromSeries, FORECAST_STATUS } from "@/lib/forecast";
 import { db } from "@/lib/db";
 import { can } from "@/lib/authz";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
@@ -95,6 +96,11 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
   ]);
 
   const activeBaseline = baselines.find((b) => b.status === "aktif");
+
+  // Prognosa (forecast) jadwal/fisik — derived dari kurva-S. Tanggal hanya bila
+  // SPMK sudah terbit (bounds.assume=false); pra-SPMK cukup minggu & status.
+  const forecast = forecastFromSeries(series, bounds && !bounds.assumed ? bounds.startDate : null);
+  const fcStatus = FORECAST_STATUS[forecast.status];
   const schedule = canManageBaseline ? await deriveCategorySchedule(location.id) : null;
 
   const historyRows: BaselineHistoryRow[] = baselines.map((b) => ({
@@ -201,7 +207,7 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
             }
           />
           <CardBody>
-            <ScurveChart series={series} />
+            <ScurveChart series={series} forecast={forecast.enoughData ? forecast.forecastPct : null} />
           </CardBody>
         </Card>
 
@@ -252,6 +258,71 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
           </CardBody>
         </Card>
       </div>
+
+      {series.totalWeeks > 0 ? (
+        <Card>
+          <CardHeader
+            title="Prognosa penyelesaian"
+            subtitle="Proyeksi ke depan dari laju realisasi terkini + kinerja kumulatif (SPI). Estimasi berbasis tren, bukan kepastian."
+          />
+          <CardBody>
+            {!forecast.enoughData ? (
+              <p className="text-sm text-ink-muted">
+                {fcStatus.label} — prognosa tampil setelah ada realisasi minimal 2 minggu.
+              </p>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-lg border border-border bg-surface-inset p-3">
+                  <div className="text-[11px] font-semibold tracking-wide text-ink-muted uppercase">Status</div>
+                  <div className="mt-1.5">
+                    <Badge tone={fcStatus.tone} label={fcStatus.label} />
+                  </div>
+                </div>
+                <div className="rounded-lg border border-border bg-surface-inset p-3">
+                  <div className="text-[11px] font-semibold tracking-wide text-ink-muted uppercase">Prognosa selesai</div>
+                  <div className="mt-1 text-base font-semibold text-ink">
+                    {forecast.forecastFinishDate
+                      ? formatTanggal(forecast.forecastFinishDate)
+                      : `± minggu ${Math.round(forecast.forecastFinishWeek ?? forecast.totalWeeks)}`}
+                  </div>
+                  <div className="text-[12px] text-ink-muted">
+                    rencana: {bounds && !bounds.assumed ? formatTanggal(bounds.endDate) : `minggu ${forecast.totalWeeks}`}
+                    {forecast.slipWeeks != null
+                      ? ` · ${forecast.slipWeeks <= 0 ? "tepat / lebih cepat" : `perkiraan telat ~${forecast.slipWeeks} mgg`}`
+                      : ""}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-border bg-surface-inset p-3">
+                  <div className="text-[11px] font-semibold tracking-wide text-ink-muted uppercase">
+                    Realisasi vs rencana (mgg {forecast.currentWeek})
+                  </div>
+                  <div className="mt-1 text-base font-semibold text-ink">
+                    {formatPct(forecast.actualPct)} <span className="text-ink-muted">/ {formatPct(forecast.planPct)}</span>
+                  </div>
+                  <div className="mt-1">
+                    <DeltaBadge value={forecast.deviationPct} />
+                  </div>
+                </div>
+                <div className="rounded-lg border border-border bg-surface-inset p-3">
+                  <div className="text-[11px] font-semibold tracking-wide text-ink-muted uppercase">
+                    Laju terkini / dibutuhkan
+                  </div>
+                  <div className="mt-1 text-base font-semibold text-ink">
+                    {forecast.velocityPerWeek != null ? `${forecast.velocityPerWeek.toFixed(2)}%` : "—"}
+                    <span className="text-ink-muted">
+                      {" / "}
+                      {forecast.requiredPerWeek != null ? `${forecast.requiredPerWeek.toFixed(2)}%` : "—"}/mgg
+                    </span>
+                  </div>
+                  {forecast.spi != null ? (
+                    <div className="text-[12px] text-ink-muted">SPI {forecast.spi.toFixed(2)}</div>
+                  ) : null}
+                </div>
+              </div>
+            )}
+          </CardBody>
+        </Card>
+      ) : null}
 
       {canManageBaseline && schedule ? (
         <CollapsibleCard
