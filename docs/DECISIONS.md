@@ -3350,7 +3350,10 @@ v11.13.1 or newer"). Dinaikkan ke 11.17.0; lockfile TIDAK berubah.
 Fallback itu mengarang harga satuan yang tidak ada di dokumen RAB; diganti
 proporsi terhadap `amount`.
 
-**M10 · CI tidak berjalan pada push ke `dev`.** Ditambahkan.
+**M10 · CI tidak berjalan pada push ke `dev`.** Ditambahkan — lalu ketahuan
+efek sampingnya: commit yang sama memicu DUA event (push + pull_request)
+sehingga CI berjalan dobel. Ditutup dengan `concurrency: ci-${{ github.sha }}`
++ `cancel-in-progress`, jadi tetap satu set check per commit.
 
 **L8 · PPN selalu dibulatkan ke bawah** (pembagian BigInt memotong). Diganti
 half-up, simetris untuk nilai negatif.

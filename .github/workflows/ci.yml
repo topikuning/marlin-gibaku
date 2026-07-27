@@ -7,6 +7,14 @@ on:
     branches: [main, dev]
   pull_request:
 
+# Commit yang sama memicu DUA event (push ke dev + pull_request). Tanpa ini CI
+# berjalan dobel: boros runner, dan dua set check dengan nama sama menempel di
+# SHA yang sama. Dikelompokkan per SHA supaya run kedua membatalkan yang
+# pertama — hasil akhir tetap satu set check per commit.
+concurrency:
+  group: ci-${{ github.sha }}
+  cancel-in-progress: true
+
 env:
   DATABASE_URL: postgresql://marlin:marlin@localhost:5432/marlin_test
   SESSION_SECRET: ci-only-secret-0123456789abcdef-0123456789abcdef
