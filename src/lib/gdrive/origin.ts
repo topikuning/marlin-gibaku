@@ -25,3 +25,12 @@ export function driveRedirectUriFrom(headers: Headers): string | null {
 export function publicOriginFrom(headers: Headers): string | null {
   return publicOrigin(originSources(headers));
 }
+
+/**
+ * URL absolut ke halaman MARLIN untuk redirect balik dari OAuth. WAJIB memakai
+ * origin publik: `request.nextUrl.origin` di container berisi alamat bind
+ * (`http://0.0.0.0:8080`) sehingga browser pengguna tidak bisa membukanya.
+ */
+export function appUrl(path: string, headers: Headers, fallbackOrigin: string): URL {
+  return new URL(path, publicOriginFrom(headers) ?? fallbackOrigin);
+}

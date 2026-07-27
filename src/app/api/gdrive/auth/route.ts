@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getCurrentUser } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
 import { getGDriveConfigDisplay } from "@/lib/gdrive/config";
-import { driveRedirectUriFrom } from "@/lib/gdrive/origin";
+import { appUrl, driveRedirectUriFrom } from "@/lib/gdrive/origin";
 
 export const dynamic = "force-dynamic";
 
@@ -15,18 +15,19 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
   if (!user || !can(user.role, "system.manage")) {
-    return NextResponse.redirect(new URL("/sistem", request.nextUrl.origin));
+    return NextResponse.redirect(appUrl("/sistem", request.headers, request.nextUrl.origin));
   }
   const cfg = await getGDriveConfigDisplay();
   if (!cfg.clientId || !cfg.hasClientSecret) {
-    return NextResponse.redirect(new URL("/sistem?gdrive=belum-konfigurasi", request.nextUrl.origin));
+    return NextResponse.redirect(appUrl("/sistem?gdrive=belum-konfigurasi", request.headers, request.nextUrl.origin));
   }
 
   const state = randomBytes(16).toString("hex");
   // Bukan request.nextUrl.origin: di belakang proxy Railway skemanya http dan
   // Google menolak redirect URI http untuk domain publik (error 400).
   const redirectUri = driveRedirectUriFrom(request.headers);
-  if (!redirectUri) return NextResponse.redirect(new URL("/sistem?gdrive=host-tak-diketahui", request.nextUrl.origin));
+  if (!redirectUri)
+    return NextResponse.redirect(appUrl("/sistem?gdrive=host-tak-diketahui", request.headers, request.nextUrl.origin));
   const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   authUrl.search = new URLSearchParams({
     client_id: cfg.clientId,
@@ -44,7 +45,8 @@ export async function GET(request: NextRequest) {
   res.cookies.set("gdrive_oauth_state", state, {
     httpOnly: true,
     sameSite: "lax",
-    secure: request.nextUrl.protocol === "https:",
+    // Ikut origin PUBLIK — protokol request internal selalu http di container.
+    secure: redirectUri.startsWith("https:"),
     maxAge: 600,
     path: "/api/gdrive",
   });

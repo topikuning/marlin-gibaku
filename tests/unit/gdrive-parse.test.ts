@@ -113,3 +113,14 @@ describe("publicOrigin & driveRedirectUri", () => {
     expect(GDRIVE_REDIRECT_PATH).toBe("/api/gdrive/callback");
   });
 });
+
+describe("regresi: origin yang tidak bisa dibuka browser", () => {
+  it("alamat bind tidak boleh jadi origin redirect balik ke MARLIN", () => {
+    // Gejala nyata: browser diarahkan ke http://0.0.0.0:8080/sistem?gdrive=terhubung
+    // (OAuth-nya sukses, tapi halaman tujuannya tidak bisa dibuka).
+    expect(publicOrigin({ host: "0.0.0.0:8080", forwardedProto: "http" })).toBeNull();
+    expect(publicOrigin({ railwayDomain: "marlin.up.railway.app", host: "0.0.0.0:8080" })).toBe(
+      "https://marlin.up.railway.app",
+    );
+  });
+});

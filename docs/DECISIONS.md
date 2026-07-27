@@ -2874,4 +2874,11 @@ Tiga bug tampilan pada PDF produksi (dari bundle self-contained DECISIONS 128):
   supaya tidak mungkin beda. Bila origin tak terdeteksi, panel Sistem
   menampilkan peringatan + instruksi set `APP_PUBLIC_URL` (bukan diam-diam
   mengirim URI ngawur ke Google).
-- Verifikasi: typecheck ✓ lint ✓ unit 313 (+8) ✓.
+- **Lanjutan-2 (redirect balik, bukan cuma redirect_uri)**: setelah OAuth
+  BERHASIL, browser diarahkan ke `http://0.0.0.0:8080/sistem?gdrive=terhubung`
+  — token sudah tersimpan tapi halamannya tak bisa dibuka. Sebabnya semua
+  `NextResponse.redirect` di kedua route masih memakai
+  `request.nextUrl.origin`. Ditambah helper `appUrl()` yang memakai origin
+  publik (fallback ke nextUrl.origin), dipakai di SEMUA redirect. Flag `secure`
+  cookie state juga ikut origin publik, bukan protokol request internal.
+- Verifikasi: typecheck ✓ lint ✓ unit 314 (+9) ✓.
