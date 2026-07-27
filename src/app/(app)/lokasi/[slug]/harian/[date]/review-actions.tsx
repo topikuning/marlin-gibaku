@@ -8,6 +8,7 @@ import {
   addIssueAction,
   approveReportAction,
   finalizeReportAction,
+  unfinalizeReportAction,
   returnReportAction,
   type DailyActionState,
 } from "@/lib/daily-report/actions";
@@ -84,11 +85,14 @@ export function FinalizePanel({
   slug,
   dateKey,
   isFinal,
+  canUnfinalize,
 }: {
   reportId: string;
   slug: string;
   dateKey: string;
   isFinal: boolean;
+  /** Super admin boleh membuka kembali laporan final untuk koreksi. */
+  canUnfinalize?: boolean;
 }) {
   const [state, formAction, pending] = useActionState<DailyActionState, FormData>(
     finalizeReportAction,
@@ -97,16 +101,19 @@ export function FinalizePanel({
 
   if (isFinal) {
     return (
-      <div className="flex flex-col gap-2 rounded-lg border border-success-border bg-success-soft p-4 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm font-medium text-ink">Laporan final — angka dibekukan untuk cetak KKP.</p>
-        <Link
-          href={`/cetak/harian/${slug}/${dateKey}`}
-          target="_blank"
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-white hover:bg-primary-800"
-        >
-          <Printer aria-hidden className="size-4" />
-          Cetak Laporan KKP
-        </Link>
+      <div className="space-y-2">
+        <div className="flex flex-col gap-2 rounded-lg border border-success-border bg-success-soft p-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm font-medium text-ink">Laporan final — angka dibekukan untuk cetak KKP.</p>
+          <Link
+            href={`/cetak/harian/${slug}/${dateKey}`}
+            target="_blank"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-white hover:bg-primary-800"
+          >
+            <Printer aria-hidden className="size-4" />
+            Cetak Laporan KKP
+          </Link>
+        </div>
+        {canUnfinalize ? <UnfinalizeForm reportId={reportId} /> : null}
       </div>
     );
   }
@@ -123,6 +130,63 @@ export function FinalizePanel({
       <p className="text-[11px] text-ink-muted">
         Finalisasi membekukan snapshot angka (immutable) untuk cetak laporan KKP. Tidak bisa dibatalkan.
       </p>
+    </form>
+  );
+}
+
+/**
+ * Buka kunci laporan final untuk koreksi — super admin saja. Sengaja tertutup
+ * (harus diklik dulu) + wajib alasan supaya tidak terpakai sambil lalu.
+ * DECISIONS 149.
+ */
+function UnfinalizeForm({ reportId }: { reportId: string }) {
+  const [open, setOpen] = useState(false);
+  const [state, formAction, pending] = useActionState<DailyActionState, FormData>(
+    unfinalizeReportAction,
+    undefined,
+  );
+
+  if (state?.success) return <Banner tone="success" title={state.success} />;
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="text-[13px] font-medium text-ink-muted underline decoration-dotted underline-offset-4 hover:text-ink"
+      >
+        Buka kembali untuk koreksi (super admin)
+      </button>
+    );
+  }
+  return (
+    <form action={formAction} className="space-y-2 rounded-lg border border-warning-border bg-warning-soft p-4">
+      <h3 className="text-sm font-semibold text-ink">Buka kembali laporan final</h3>
+      <p className="text-[12px] text-ink-muted">
+        Status kembali ke <span className="font-medium">Disetujui</span> supaya angka bisa dikoreksi. Snapshot
+        cetak dihapus dan dibangun ulang saat difinalkan lagi. Progres &amp; kurva-S tidak berubah oleh aksi ini —
+        yang mengubah angka adalah editan setelahnya.
+      </p>
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      <input type="hidden" name="reportId" value={reportId} />
+      <div>
+        <Label htmlFor={`alasan-${reportId}`} required>
+          Alasan koreksi
+        </Label>
+        <Textarea
+          id={`alasan-${reportId}`}
+          name="reason"
+          rows={2}
+          placeholder="mis. Volume pekerjaan pagar salah input, seharusnya 25 m bukan 30 m"
+        />
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" variant="danger" size="sm" loading={pending}>
+          Buka kembali
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+          Batal
+        </Button>
+      </div>
     </form>
   );
 }

@@ -29,12 +29,17 @@ describe("authz capability matrix", () => {
     }
   });
 
-  it("program_director TIDAK punya system.manage, contract.edit & wa.configure, sisanya punya", () => {
-    expect(can("program_director", "system.manage")).toBe(false);
-    expect(can("program_director", "contract.edit")).toBe(false); // koreksi kontrak khusus super_admin
-    expect(can("program_director", "wa.configure")).toBe(false); // set grup WA sementara super_admin saja
+  it("program_director TIDAK punya 4 kapabilitas khusus super_admin, sisanya punya", () => {
+    // Kapabilitas yang sengaja dikunci super_admin saja.
+    const HANYA_SUPER_ADMIN = [
+      "system.manage",
+      "contract.edit", // koreksi kontrak
+      "wa.configure", // set grup WA (sementara)
+      "daily_report.unfinalize", // buka kunci laporan final (DECISIONS 149)
+    ] as const;
+    for (const cap of HANYA_SUPER_ADMIN) expect(can("program_director", cap), cap).toBe(false);
     for (const cap of CAPABILITIES) {
-      if (cap === "system.manage" || cap === "contract.edit" || cap === "wa.configure") continue;
+      if ((HANYA_SUPER_ADMIN as readonly string[]).includes(cap)) continue;
       expect(can("program_director", cap), cap).toBe(true);
     }
   });

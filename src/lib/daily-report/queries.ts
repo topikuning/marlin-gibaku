@@ -189,7 +189,8 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
     db.dailyReport.findUnique({
       where: { locationId_reportDate: { locationId: location.id, reportDate } },
       include: {
-        items: { include: { rabNode: true }, orderBy: { createdAt: "asc" } },
+        // Urut RAB (sortOrder), bukan urutan input — konsisten antar hari.
+        items: { include: { rabNode: true }, orderBy: { rabNode: { sortOrder: "asc" } } },
         workers: true,
         materials: { orderBy: { name: "asc" } },
         equipment: { orderBy: { name: "asc" } },
@@ -485,7 +486,7 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
   const report = await db.dailyReport.findUnique({
     where: { locationId_reportDate: { locationId: location.id, reportDate } },
     include: {
-      items: { include: { rabNode: true }, orderBy: { createdAt: "asc" } },
+      items: { include: { rabNode: true }, orderBy: { rabNode: { sortOrder: "asc" } } },
       workers: true,
       materials: { orderBy: { name: "asc" } },
       equipment: { orderBy: { name: "asc" } },

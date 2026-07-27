@@ -66,7 +66,11 @@ const REPORT_TRANSITIONS: Record<DailyReportStatus, DailyReportStatus[]> = {
   dikirim: ["perlu_koreksi", "disetujui"],
   perlu_koreksi: ["dikirim"],
   disetujui: ["final", "perlu_koreksi"],
-  final: [],
+  // Buka kunci final → disetujui: KOREKSI salah input yang baru ketahuan setelah
+  // finalisasi. Bukan alur normal — aksinya digerbang capability khusus yang
+  // hanya dimiliki super_admin, wajib alasan, dan tercatat di histori status.
+  // DECISIONS 149.
+  final: ["disetujui"],
 };
 
 export function canTransitionPackage(from: PackageStage, to: PackageStage): boolean {

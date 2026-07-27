@@ -2960,3 +2960,106 @@ Tiga bug tampilan pada PDF produksi (dari bundle self-contained DECISIONS 128):
   ringkas — di layar HP blanko lanskap tidak terbaca.
 - Verifikasi: typecheck ✓ lint ✓ unit 342 ✓ build ✓ render sampel 14 item →
   2 halaman, tata letak & footer benar (diperiksa visual).
+
+## 146 · 2026-07-27 · Upload Drive memperbarui file (revisi), bukan menumpuk kembar
+
+- **Gejala nyata**: dua file `Laporan Harian - Pasar Banggi - 2026-07-21.pdf`
+  di folder yang sama. Penyebab: `uploadToDrive` selalu POST (create), sedangkan
+  Drive MEMBOLEHKAN nama ganda dalam satu folder — jadi tiap upload ulang
+  menambah file, bukan memperbarui.
+- **Perbaikan**: cari dulu file bernama sama di folder tujuan
+  (`findFileInFolder`, trashed=false). Bila ada → **PATCH** ke fileId itu
+  (`uploadType=multipart`), yang oleh Drive dicatat sebagai **revisi baru**:
+  isi lama tetap tersimpan & bisa dibuka lewat "Kelola versi", dan tautan yang
+  sudah dibagikan ke KKP tidak berubah. Bila tidak ada → POST seperti biasa.
+- `keepRevisionForever=true` supaya revisi lama tidak dipangkas otomatis Drive —
+  laporan resmi harus bisa ditelusuri kapan pun. PDF laporan kecil, biaya kuota
+  tidak signifikan.
+- Saat MEMPERBARUI, metadata `parents` TIDAK dikirim — Drive menolak perubahan
+  induk lewat body (pemindahan folder butuh addParents/removeParents).
+- `uploadToDrive` mengembalikan `created: boolean`; `summarize()` (dipindah ke
+  modul MURNI + 5 unit test) membedakan "file baru" vs "file diperbarui (versi
+  baru di Drive)" supaya user tahu tidak ada yang terhapus.
+- **Tidak dilakukan**: menghapus file kembar yang terlanjur ada. Menghapus
+  otomatis di Drive milik KKP terlalu berisiko — didokumentasikan sebagai
+  langkah manual di `docs/GDRIVE_SETUP.md`.
+- Verifikasi: typecheck ✓ lint ✓ unit 347 (+5) ✓ build ✓.
+
+## 147 · 2026-07-27 · Fix: kumulatif snapshot laporan harian tidak dibatasi tanggal
+
+- **Gejala** (dari laporan produksi Pasar Banggi 21–23 Juli): kolom "s/d" selalu
+  mentok = volume kontrak & 100% di SEMUA hari, dan "s/d Lalu" berbeda-beda tanpa
+  alasan (Selasa 42, Rabu 41) padahal tanggalnya maju.
+- **Akar masalah**: `buildFinalSnapshot()` memanggil
+  `cumulativeVolumeByLineage(locationId)` **tanpa argumen `upToDate`**, sehingga
+  kumulatif yang dibekukan = total SELURUH WAKTU (termasuk hari-hari SESUDAH
+  laporan itu yang sudah berstatus counted). Jalur non-final (`getKkpDailyData`)
+  sudah benar mengirim `reportDate` — jadi selisihnya hanya muncul pada laporan
+  yang SUDAH final, yaitu justru yang dicetak & disetor ke KKP.
+- **Efek berantai**: `volumeBefore` = `volumeCumulative − volumeToday`
+  (turunan, bukan angka independen). Karena `volumeCumulative` sama-sama total
+  akhir, "s/d lalu" hanya beda mengikuti besar "hari ini" — 50−8=42 vs 50−9=41.
+  Itu penjelasan persis angka yang terlihat.
+- **Perbaikan**: `cumulativeVolumeByLineage(report.locationId, report.reportDate)`.
+  Rumus `volumeBefore` dipertahankan (sah setelah kumulatif dibatasi tanggal,
+  karena satu lokasi hanya punya SATU laporan per tanggal — unik di schema).
+- **Bug kedua — urutan baris**: `items` di-`orderBy: { createdAt: "asc" }`, yaitu
+  urutan INPUT, sehingga baris berpindah-pindah antar hari (Selasa: Pagar dulu;
+  Rabu: Bedeng dulu). Diubah ke `orderBy: { rabNode: { sortOrder: "asc" } }` di
+  snapshot builder DAN kedua query — sejalan dengan DECISIONS 140 (urutan RAB).
+- **Data lama**: snapshot yang terlanjur beku TIDAK ikut berubah. Disediakan
+  `scripts/rebuild-daily-snapshots.mts` (idempoten, dukung DRY_RUN & filter slug)
+  untuk membangun ulang dari data laporan yang sama — status/volume/input tidak
+  disentuh.
+- **BUKAN bug — "Minggu Ke"**: dihitung dari tanggal SPMK dalam blok 7 hari
+  (`floor((tanggal − mulai)/7) + 1`), bukan minggu kalender. Dengan SPMK 15 Juli
+  2026: 15–21 Juli = Minggu 1, 22–28 Juli = Minggu 2 — karena itu Selasa 21 masih
+  Minggu 1 sedangkan Rabu 22 sudah Minggu 2. Sengaja begini supaya SAMA dengan
+  penomoran minggu kurva-S/baseline; kalau memakai minggu kalender, "Minggu ke-n"
+  di laporan harian akan berbeda dari kurva-S.
+- Verifikasi: typecheck ✓ lint ✓ unit 347 ✓ integration 13 ✓ build ✓.
+
+## 148 · 2026-07-27 · Tombol "Bangun ulang snapshot" (bukan skrip, bukan revert final)
+
+- **Kebutuhan**: perbaikan DECISIONS 147 tidak merambat ke laporan yang sudah
+  final karena snapshot-nya beku. Skrip CLI tidak praktis — deploy Railway tidak
+  menyediakan shell yang mudah dijangkau operator.
+- **Keputusan**: sediakan aksi di UI (Sistem → Pemeliharaan data), gate
+  `system.manage`, cakupan semua lokasi atau satu lokasi. Menghitung ulang
+  `finalSnapshot` dari data laporan yang SAMA — status, volume, dan input tidak
+  disentuh. Idempoten, aman diulang, dan diaudit.
+- **Sengaja BUKAN "revert dari final"**: dua kebutuhan berbeda. Revert =
+  membuka laporan untuk diedit (perubahan domain: progres & kurva-S ikut
+  berubah, perlu alasan + histori status). Untuk memperbaiki bug pembekuan,
+  revert justru merugikan: harus finalisasi ulang satu per satu untuk 83 lokasi
+  × puluhan hari, dan histori status penuh catatan revert padahal datanya benar.
+  Revert tetap layak dibangun sebagai fitur tersendiri bila memang dibutuhkan
+  (salah input ketahuan setelah final) — belum diputuskan.
+- Tersedia juga di production (berbeda dari Zona Berbahaya/Reset yang dikunci
+  dev), karena sifatnya koreksi tampilan, bukan penghapusan data.
+- `scripts/rebuild-daily-snapshots.mts` dipertahankan untuk pemakaian massal
+  lewat CLI, tapi tombol adalah jalur utama operator.
+- Verifikasi: typecheck ✓ lint ✓ unit 347 ✓ build ✓.
+
+## 149 · 2026-07-27 · Buka kunci laporan final untuk koreksi (super_admin saja)
+
+- **Kebutuhan** (dari user, terpisah dari bug 147): salah input kadang baru
+  ketahuan SETELAH laporan difinalkan. Sebelumnya `final` adalah jalan buntu
+  (`REPORT_TRANSITIONS.final = []`) — satu-satunya jalan adalah edit database.
+- **Mesin transisi** (CLAUDE.md #5): ditambahkan `final → disetujui` SAJA.
+  Tidak ke draft/dikirim/perlu_koreksi — laporan yang sudah lolos review tidak
+  perlu mengulang seluruh alur, cukup kembali ke titik sebelum pembekuan.
+- **Kapabilitas baru `daily_report.unfinalize`**, hanya super_admin (dikecualikan
+  eksplisit dari program_director yang biasanya mewarisi semua). Site manager
+  tetap boleh MEMFINALKAN tapi tidak boleh membuka kunci.
+- **Wajib alasan** (min. 10 karakter) → tersimpan di `DailyReportStatusHistory`
+  + `audit()`. Laporan resmi yang dibuka lagi harus jelas kenapa.
+- **`finalSnapshot` dikosongkan** saat dibuka: begitu laporan bisa diedit, angka
+  beku itu tidak lagi sah. Dibangun ulang otomatis saat difinalkan kembali.
+- **Progres & kurva-S TIDAK berubah** oleh aksi ini — `disetujui` tetap termasuk
+  `COUNTED_REPORT_STATUSES`. Yang menggeser angka adalah editan setelahnya, dan
+  itu memang niatnya.
+- **UI**: tautan kecil "Buka kembali untuk koreksi (super admin)" di panel final,
+  tertutup secara default; membuka form berwarna peringatan dengan penjelasan
+  konsekuensi + kolom alasan. Sengaja tidak berupa tombol mencolok.
+- Verifikasi: typecheck ✓ lint ✓ unit 352 (+5) ✓ integration 13 ✓ build ✓.

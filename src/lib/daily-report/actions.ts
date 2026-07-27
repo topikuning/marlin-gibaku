@@ -20,6 +20,7 @@ import {
   approveReport,
   DailyReportError,
   finalizeReport,
+  unfinalizeReport,
   getOrCreateDraft,
   removeItem,
   returnReport,
@@ -346,6 +347,39 @@ export async function finalizeReportAction(_prev: DailyActionState, formData: Fo
     await finalizeReport(reportId, user.id);
     revalidateReport(ctx.slug, ctx.dateKey);
     return { success: "Laporan difinalisasi — siap dicetak." };
+  } catch (err) {
+    return errState(err);
+  }
+}
+
+/**
+ * Buka kunci laporan final untuk koreksi (super_admin saja). Wajib alasan —
+ * tercatat di histori status supaya jelas kenapa laporan resmi dibuka lagi.
+ * DECISIONS 149.
+ */
+export async function unfinalizeReportAction(
+  _prev: DailyActionState,
+  formData: FormData,
+): Promise<DailyActionState> {
+  try {
+    const user = await requireCapability("daily_report.unfinalize");
+    const parsed = z
+      .object({
+        reportId: z.uuid(),
+        reason: z.string().trim().min(10, "Alasan koreksi wajib diisi (minimal 10 karakter)"),
+      })
+      .safeParse({ reportId: formData.get("reportId"), reason: formData.get("reason") });
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+    const ctx = await loadReportContext(parsed.data.reportId);
+    await requireLocationAccess(user, ctx.locationId);
+    await unfinalizeReport(parsed.data.reportId, user.id, parsed.data.reason);
+    revalidateReport(ctx.slug, ctx.dateKey);
+    return {
+      success:
+        "Laporan dibuka kembali (status: Disetujui) dan bisa dikoreksi. " +
+        "Finalkan ulang setelah selesai supaya cetakannya diperbarui.",
+    };
   } catch (err) {
     return errState(err);
   }

@@ -69,14 +69,18 @@ const FOLDER_MIME = "application/vnd.google-apps.folder";
  */
 const folderCache = new Map<string, string>();
 
+/** Nama di query Drive dikutip tunggal — escape backslash & kutipnya. */
+function escapeQ(name: string): string {
+  return name.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+}
+
 export async function ensureFolder(parentId: string, name: string): Promise<string> {
   const cacheKey = `${parentId}/${name}`;
   const hit = folderCache.get(cacheKey);
   if (hit) return hit;
 
   const token = await getAccessToken();
-  // Nama di query Drive pakai kutip tunggal — escape backslash & kutipnya.
-  const escaped = name.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  const escaped = escapeQ(name);
   const q = `name = '${escaped}' and mimeType = '${FOLDER_MIME}' and '${parentId}' in parents and trashed = false`;
   const url =
     `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}` +
@@ -114,9 +118,40 @@ export async function ensureFolderPath(rootId: string, segments: string[]): Prom
   return parent;
 }
 
-export type DriveFile = { id: string; name: string; webViewLink: string | null };
+export type DriveFile = {
+  id: string;
+  name: string;
+  webViewLink: string | null;
+  /** false = file lama diperbarui (revisi baru), bukan file baru dibuat. */
+  created: boolean;
+};
 
-/** Upload satu file ke folder. Error → GDriveError (pesan siap tampil). */
+/** Cari file bernama `name` di dalam folder (yang tidak di sampah). */
+async function findFileInFolder(folderId: string, name: string): Promise<string | null> {
+  const token = await getAccessToken();
+  const q = `name = '${escapeQ(name)}' and '${folderId}' in parents and trashed = false`;
+  const url =
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}` +
+    `&fields=files(id)&pageSize=2&supportsAllDrives=true&includeItemsFromAllDrives=true` +
+    `&orderBy=createdTime`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!res.ok) throw new GDriveError(`Gagal mencari file "${name}": ${await readError(res)}`);
+  const files = ((await res.json()) as { files?: { id: string }[] }).files ?? [];
+  return files[0]?.id ?? null;
+}
+
+/**
+ * Upload satu file ke folder — MEMPERBARUI bila nama yang sama sudah ada.
+ * Drive membolehkan nama ganda dalam satu folder, jadi tanpa pencarian ini
+ * upload ulang akan menumpuk file kembar. Dengan PATCH ke fileId yang sama,
+ * Drive menyimpan isi baru sebagai REVISI: versi lama tetap bisa dibuka lewat
+ * "Kelola versi" dan tautan yang sudah dibagikan tidak berubah.
+ * `keepRevisionForever` menjaga revisi lama tidak dipangkas otomatis —
+ * laporan resmi ke KKP harus bisa ditelusuri. DECISIONS 146.
+ */
 export async function uploadToDrive(input: {
   folderId: string;
   fileName: string;
@@ -124,13 +159,22 @@ export async function uploadToDrive(input: {
   data: Buffer;
 }): Promise<DriveFile> {
   const token = await getAccessToken();
+  const existingId = await findFileInFolder(input.folderId, input.fileName);
+
+  // Saat memperbarui: JANGAN kirim `parents` (Drive menolak perubahan induk
+  // lewat body; pemindahan folder butuh addParents/removeParents).
   const { body, contentType } = buildMultipartBody(
-    { name: input.fileName, parents: [input.folderId] },
+    existingId ? { name: input.fileName } : { name: input.fileName, parents: [input.folderId] },
     input.mime,
     input.data,
   );
-  const res = await fetch(UPLOAD_URL, {
-    method: "POST",
+  const url = existingId
+    ? `https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(existingId)}` +
+      `?uploadType=multipart&supportsAllDrives=true&keepRevisionForever=true&fields=id,name,webViewLink`
+    : UPLOAD_URL;
+
+  const res = await fetch(url, {
+    method: existingId ? "PATCH" : "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": contentType },
     body: new Uint8Array(body),
     signal: AbortSignal.timeout(120_000),
@@ -140,11 +184,11 @@ export async function uploadToDrive(input: {
     throw new GDriveError(
       res.status === 404
         ? "Folder Drive tidak ditemukan / akun tidak punya akses. Cek ID folder di paket & hak editor akun."
-        : `Upload ke Drive gagal: ${msg}`,
+        : `${existingId ? "Memperbarui" : "Upload"} file di Drive gagal: ${msg}`,
     );
   }
   const j = (await res.json()) as { id: string; name: string; webViewLink?: string };
-  return { id: j.id, name: j.name, webViewLink: j.webViewLink ?? null };
+  return { id: j.id, name: j.name, webViewLink: j.webViewLink ?? null, created: !existingId };
 }
 
 /** Validasi akses folder (dipakai saat menyimpan ID folder di paket). */

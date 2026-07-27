@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   canTransitionPackage,
+  canTransitionReport,
   revertTargetFor,
   PACKAGE_STAGE_ORDER,
 } from "@/lib/lifecycle";
+import { can } from "@/lib/authz";
 import type { PackageStage } from "@/generated/prisma/enums";
 
 describe("revertTargetFor", () => {
@@ -59,5 +61,41 @@ describe("canTransitionPackage — serah terima satu arah", () => {
     for (const t of targets) {
       expect(canTransitionPackage("pelaksanaan", t)).toBe(t === "serah_terima");
     }
+  });
+});
+
+describe("transisi laporan harian — buka kunci final (DECISIONS 149)", () => {
+  it("alur normal draft → dikirim → disetujui → final", () => {
+    expect(canTransitionReport("draft", "dikirim")).toBe(true);
+    expect(canTransitionReport("dikirim", "disetujui")).toBe(true);
+    expect(canTransitionReport("disetujui", "final")).toBe(true);
+  });
+
+  it("final HANYA boleh kembali ke disetujui (koreksi), tidak ke status lain", () => {
+    expect(canTransitionReport("final", "disetujui")).toBe(true);
+    expect(canTransitionReport("final", "draft")).toBe(false);
+    expect(canTransitionReport("final", "dikirim")).toBe(false);
+    expect(canTransitionReport("final", "perlu_koreksi")).toBe(false);
+  });
+
+  it("lompatan yang melewati review tetap ditolak", () => {
+    expect(canTransitionReport("draft", "final")).toBe(false);
+    expect(canTransitionReport("draft", "disetujui")).toBe(false);
+    expect(canTransitionReport("dikirim", "final")).toBe(false);
+  });
+});
+
+describe("kapabilitas buka kunci final", () => {
+  it("hanya super_admin", () => {
+    expect(can("super_admin", "daily_report.unfinalize")).toBe(true);
+    for (const r of ["program_director", "regional_manager", "project_manager", "site_manager"] as const) {
+      expect(can(r, "daily_report.unfinalize")).toBe(false);
+    }
+  });
+
+  it("finalisasi biasa TIDAK ikut terbuka aksesnya", () => {
+    // Site manager boleh memfinalkan, tapi tetap tidak boleh membuka kunci.
+    expect(can("site_manager", "daily_report.finalize")).toBe(true);
+    expect(can("site_manager", "daily_report.unfinalize")).toBe(false);
   });
 });

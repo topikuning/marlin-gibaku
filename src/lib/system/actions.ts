@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import type { Prisma } from "@/generated/prisma/client";
 import { env } from "@/lib/env";
 import { audit } from "@/lib/audit";
 import { requireCapability } from "@/lib/auth/session";
@@ -180,4 +181,71 @@ export async function saveActivityKindAction(_prev: ActivityKindState, formData:
   await audit(actor.id, "system.activity_kind_create", "field_activity_kind", created.id, { key, label: d.label });
   revalidatePath("/sistem");
   return { success: `Jenis "${d.label}" ditambahkan.` };
+}
+
+/* ── Bangun ulang snapshot laporan harian final ─────────────────────────── */
+
+export type RebuildSnapshotState = { error?: string; success?: string } | undefined;
+
+/**
+ * Hitung ulang `finalSnapshot` laporan harian yang sudah final dari data
+ * laporan yang SAMA — status, volume, dan input tidak disentuh sama sekali.
+ *
+ * Perlu karena snapshot dibekukan saat finalisasi: perbaikan rumus (mis.
+ * DECISIONS 147, kumulatif tidak dibatasi tanggal) tidak otomatis merambat ke
+ * laporan yang terlanjur final. Idempoten & aman diulang. DECISIONS 148.
+ */
+export async function rebuildFinalSnapshots(
+  _prev: RebuildSnapshotState,
+  formData: FormData,
+): Promise<RebuildSnapshotState> {
+  try {
+    const actor = await requireCapability("system.manage");
+    const scope = z
+      .object({ locationId: z.string().trim() })
+      .safeParse({ locationId: formData.get("locationId") ?? "" });
+    const locationId = scope.success && scope.data.locationId ? scope.data.locationId : null;
+
+    const reports = await db.dailyReport.findMany({
+      where: {
+        status: "final",
+        location: locationId ? { id: locationId, package: { orgId: actor.orgId } } : { package: { orgId: actor.orgId } },
+      },
+      orderBy: [{ locationId: "asc" }, { reportDate: "asc" }],
+      select: { id: true },
+    });
+    if (reports.length === 0) return { error: "Tidak ada laporan harian berstatus final pada cakupan ini." };
+
+    const { buildFinalSnapshot } = await import("@/lib/daily-report/service");
+    let ok = 0;
+    let gagal = 0;
+    // Berurutan, bukan paralel: menghitung kumulatif per laporan cukup berat
+    // dan koreksi ini tidak perlu cepat — yang penting tidak membebani DB.
+    for (const r of reports) {
+      try {
+        const snapshot = await buildFinalSnapshot(r.id);
+        await db.dailyReport.update({
+          where: { id: r.id },
+          data: { finalSnapshot: snapshot as unknown as Prisma.InputJsonValue },
+        });
+        ok++;
+      } catch {
+        gagal++;
+      }
+    }
+
+    await audit(actor.id, "daily_report.snapshot_rebuild", "location", locationId, {
+      total: reports.length,
+      ok,
+      gagal,
+    });
+    revalidatePath("/", "layout");
+    return {
+      success:
+        `${ok} laporan final dibangun ulang${gagal > 0 ? `, ${gagal} gagal` : ""}. ` +
+        "Status & data input tidak berubah — hanya angka pada cetakan yang dihitung ulang.",
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Terjadi kesalahan." };
+  }
 }

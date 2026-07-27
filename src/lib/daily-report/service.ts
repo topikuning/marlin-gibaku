@@ -379,7 +379,9 @@ export async function buildFinalSnapshot(reportId: string): Promise<FinalSnapsho
           package: { select: { contract: { select: { startDate: true } } } },
         },
       },
-      items: { include: { rabNode: true }, orderBy: { createdAt: "asc" } },
+      // Urut RAB (sortOrder), BUKAN urutan input — supaya baris laporan
+      // konsisten antar hari & sama dengan tabel KKP lain.
+      items: { include: { rabNode: true }, orderBy: { rabNode: { sortOrder: "asc" } } },
       workers: true,
       materials: { orderBy: { name: "asc" } },
       equipment: { orderBy: { name: "asc" } },
@@ -388,7 +390,11 @@ export async function buildFinalSnapshot(reportId: string): Promise<FinalSnapsho
   });
 
   const [cumulative, progress] = await Promise.all([
-    cumulativeVolumeByLineage(report.locationId),
+    // WAJIB dibatasi s/d tanggal laporan: tanpa batas ini snapshot membeku
+    // dengan kumulatif SELURUH WAKTU (termasuk hari-hari SESUDAHNYA yang sudah
+    // counted), sehingga "s/d" langsung mentok 100% dan "s/d lalu" ikut
+    // salah karena diturunkan dari pengurangan. DECISIONS 147.
+    cumulativeVolumeByLineage(report.locationId, report.reportDate),
     getLocationProgress(report.locationId),
   ]);
 
@@ -483,6 +489,37 @@ export async function finalizeReport(reportId: string, userId: string) {
     items: snapshot.items.length,
     totalValueToday: snapshot.totalValueToday,
   });
+  return updated;
+}
+
+/**
+ * final → disetujui: BUKA KUNCI laporan yang sudah final agar bisa dikoreksi.
+ * Untuk salah input yang baru ketahuan setelah finalisasi. Bukan alur normal —
+ * pemanggil WAJIB menggerbang `daily_report.unfinalize` (super_admin saja).
+ *
+ * `finalSnapshot` dikosongkan karena sudah tidak sah: begitu laporan bisa
+ * diedit, angka beku itu bisa berbeda dari data sebenarnya. Snapshot dibangun
+ * ulang saat difinalkan kembali. Progres & kurva-S TIDAK berubah oleh aksi ini
+ * — status `disetujui` tetap terhitung (COUNTED_REPORT_STATUSES); yang mengubah
+ * angka adalah editan setelahnya. DECISIONS 149.
+ */
+export async function unfinalizeReport(reportId: string, userId: string, reason: string) {
+  const current = await getReportOrThrow(reportId);
+  if (current.status !== "final") {
+    throw new DailyReportError("Laporan ini tidak berstatus final.");
+  }
+  const alasan = reason.trim();
+  if (alasan.length < 10) {
+    throw new DailyReportError("Alasan koreksi wajib diisi (minimal 10 karakter).");
+  }
+  const { updated } = await transition(
+    reportId,
+    "disetujui",
+    userId,
+    { finalizedById: null, finalizedAt: null, finalSnapshot: Prisma.DbNull },
+    alasan,
+  );
+  await audit(userId, "daily_report.unfinalize", "daily_report", reportId, { reason: alasan });
   return updated;
 }
 
