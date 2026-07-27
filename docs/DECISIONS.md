@@ -3791,3 +3791,34 @@ pekerjaan ikut menyesuaikan dan bobot tetap sesuai RAB.
 Verifikasi: typecheck ✓ · lint ✓ · unit **422** (rescheduleToCurve +5: idempotent
 saat kurva tak berubah, dilambatkan, dipercepat, jumlah minggu berubah, matriks
 nol; tiap kasus memeriksa kedua marginal) · build ✓.
+
+---
+
+## 160 · 2026-07-27 · Sheet Laporan: identitas tidak terpotong + angka terhitung jadi rumus
+
+Temuan user pada file .xlsx nyata:
+
+1. **Nilai identitas terpotong.** Blok identitas menulis nilai di sel gabungan
+   C:H. Sel gabungan tidak melimpah ke kolom tetangga dan tidak ikut auto-tinggi,
+   jadi nama paket KKP (>80 karakter) terpotong di tengah kalimat. Sekarang
+   digabung C..kolom terakhir tabel (Q, ±147 karakter); bila masih lebih panjang,
+   teks dibungkus dan tinggi baris ditambah sesuai jumlah barisnya.
+2. **Rencana/Realisasi/Deviasi s/d periode** di kepala dokumen ditulis sebagai
+   angka. Kini rumus: Rencana = `=O{JUMLAH}` (JUMLAH kolom Bobot Rencana),
+   Realisasi = `=N{JUMLAH}` (JUMLAH kolom Bobot S/d — `actualPct` memang
+   didefinisikan Σ bobot s/d di periodic-report.ts), Deviasi = `=Realisasi −
+   Rencana` (formula kanonik progress.ts).
+3. **Kolom "Sisa Pekerjaan"** (Prestasi & Volume) ditulis sebagai angka padahal
+   jelas turunan. Kini rumus persis formula kanonik: `MAX(0,100−M{baris})` dan
+   `MAX(0,C{baris}−L{baris})`.
+4. **Bobot di baris judul kategori** ditulis dua kali (di baris judul dan di
+   baris Subtotal). Baris judul kini mengikuti sel subtotalnya (`=E{subtotal}`) —
+   satu angka, satu sumber.
+
+Catatan teknis: exceljs tidak menulis nilai cache ketika hasilnya 0, jadi sel
+rumus bernilai nol terbaca tanpa `result` (pembaca non-Excel memperlakukannya 0).
+Uji penjaga `tests/unit/xlsx-laporan-rumus.test.ts` memperhitungkan itu dan
+memeriksa: rentang merge identitas, teks identitas utuh, rumus + cache kolom
+sisa, tautan tiga angka ringkasan ke baris JUMLAH, dan bobot judul kategori.
+
+Verifikasi: typecheck ✓ · lint ✓ · unit **426** ✓ · build ✓.
