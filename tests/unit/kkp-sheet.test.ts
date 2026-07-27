@@ -106,6 +106,62 @@ describe("angka tampil kolom Bobot (%) — kolom WAJIB menjumlah (Excel: =SUM(M1
   });
 });
 
+describe("angka tampil — properti bertahan di 300 jadwal acak (LCG deterministik)", () => {
+  // Pembulatan penjaga-jumlah gampang bocor di kasus pinggir: kategori 1 minggu,
+  // bobot sangat kecil, jadwal berlubang, minggu sangat banyak. Fuzz deterministik
+  // (tanpa Math.random supaya kegagalan bisa diulang) menyapu bentuk-bentuk itu.
+  let seed = 20260727;
+  const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+
+  it("Σ weeklyShown == bobotShown, Σ bobotShown == totalBobotShown, jeda tetap 0", () => {
+    for (let iter = 0; iter < 300; iter++) {
+      const N = 1 + Math.floor(rnd() * 40);
+      const nCat = 1 + Math.floor(rnd() * 12);
+      // Bobot acak lalu dinormalisasi ke 100 (seperti bobot RAB sungguhan).
+      const raw = Array.from({ length: nCat }, () => 0.05 + rnd() * 20);
+      const scale = 100 / raw.reduce((s, v) => s + v, 0);
+      const cats = raw.map((b, i) => {
+        const bobot = b * scale;
+        const start = Math.floor(rnd() * N);
+        const len = 1 + Math.floor(rnd() * (N - start));
+        const weekly = new Array<number>(N).fill(0);
+        for (let w = start; w < start + len; w++) weekly[w] = bobot / len;
+        return { code: `K${i + 1}`, name: `KATEGORI ${i + 1}`, weekly };
+      });
+      const sheet = buildKurvaSheet({
+        categories: cats,
+        totalWeeks: N,
+        contractStart: new Date(Date.UTC(2026, 3, 1)),
+        actualCum: Array(N).fill(null),
+        currentWeek: 1,
+      });
+
+      const ctx = `iter ${iter} · N=${N} · kategori=${nCat}`;
+      let totalShown = 0;
+      for (const c of sheet.categories) {
+        // Kolom "Bobot (%)" di Excel = SUM sel minggu → keduanya WAJIB identik.
+        expect(c.weeklyShown.reduce((s, v) => s + v, 0), `${ctx} · ${c.name}`).toBeCloseTo(c.bobotShown, 9);
+        c.weekly.forEach((rawV, i) => {
+          if (rawV === 0) expect(c.weeklyShown[i], `${ctx} · ${c.name} M${i + 1} jeda`).toBe(0);
+        });
+        // Tidak ada sel yang dipakai jadi "tempat buang" galat pembulatan.
+        // Batas per sel = pembulatan bobot kategori ke 2 desimal (≤0,01; seluruhnya
+        // jatuh ke satu sel bila kategori cuma aktif 1 minggu) + pembulatan sel ke
+        // 3 desimal (<0,001).
+        c.weekly.forEach((rawV, i) => {
+          expect(Math.abs(c.weeklyShown[i] - rawV), `${ctx} · ${c.name} M${i + 1} geser`).toBeLessThanOrEqual(0.011);
+        });
+        // Baris tampil tidak boleh menyimpang dari bobot sebenarnya lebih dari
+        // satu digit terakhir kolom bobot (2 desimal).
+        expect(Math.abs(c.bobotShown - c.bobot), `${ctx} · ${c.name} bobot`).toBeLessThanOrEqual(0.01 + 1e-9);
+        totalShown += c.bobotShown;
+      }
+      expect(totalShown, `${ctx} · total`).toBeCloseTo(sheet.totalBobotShown, 9);
+      expect(sheet.totalBobotShown, `${ctx} · total == 100`).toBe(100);
+    }
+  });
+});
+
 describe("orderCategoriesByRab", () => {
   // Kasus nyata: jadwal tersimpan datang dalam urutan penyimpanan, sehingga
   // nomor romawi di tabel KKP meloncat (XIV, XV, … lalu I, II).

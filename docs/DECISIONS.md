@@ -3706,6 +3706,14 @@ jumlah lokasi.
 
 ### Verifikasi
 
-typecheck ✓ · lint ✓ · unit **415** (kkp-sheet +4 rekonsiliasi kolom, region +4,
-xlsx-kurva-bobot +2 yang membaca file .xlsx hasil dan membuktikan Σ sel minggu
-tertulis == cache rumus) · build ✓.
+typecheck ✓ · lint ✓ · unit **416** (kkp-sheet +5 termasuk fuzz deterministik
+300 jadwal acak — Σ weeklyShown == bobotShown & Σ bobotShown == 100 di semua
+kasus; region +4; xlsx-kurva-bobot +2 yang membaca file .xlsx hasil dan
+membuktikan Σ sel minggu tertulis == cache rumus) · build ✓.
+
+Batas galat yang melekat (bukan bug): sel minggu bisa menyimpang sampai ~0,011
+dari nilai penuh presisi **bila kategori hanya aktif satu minggu** — sel tunggal
+itu memikul seluruh pembulatan bobot ke 2 desimal. Konsekuensi metode sisa
+terbesar: sebuah bobot sesekali dibulatkan ke bawah (mis. 0,34606 → 0,34, bukan
+0,35) supaya kolom tetap menjumlah tepat 100,00. Kolom yang menjumlah dinilai
+lebih penting daripada pembulatan terdekat per sel.
