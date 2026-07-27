@@ -2913,3 +2913,50 @@ Tiga bug tampilan pada PDF produksi (dari bundle self-contained DECISIONS 128):
   di MARLIN, terupload / layak disetor, gagal, terakhir kapan) — menjawab "mana
   yang belum disetor ke KKP" tanpa membuka Drive.
 - Verifikasi: typecheck ✓ lint ✓ unit 334 (+20) ✓ build ✓.
+
+## 144 · 2026-07-27 · Rute folder Drive lewat MILESTONE (bukan hanya jenis dokumen)
+
+- **Temuan**: 18 dari 45 milestone template KKP tidak punya jenis dokumen
+  sendiri (Pakta Integritas, Justifikasi Teknis, BA Pemeriksaan, Permohonan CCO,
+  BA Pembahasan, dst) → tersimpan sebagai `lainnya` → tidak punya tujuan folder
+  di Drive dan tak pernah tersetor.
+- **Keputusan**: JANGAN tambah 18 nilai enum. Dokumen sudah tertaut milestone
+  (`Document.milestoneId`), dan milestone jauh lebih spesifik daripada jenis
+  dokumen. `documentPath()` kini menentukan tujuan berurutan: **milestone dulu,
+  jenis dokumen sebagai cadangan**. Contoh nyata: jenis `undangan` sendiri tidak
+  dipetakan (bisa undangan apa saja), tapi milestone `undangan-pcm` jelas milik
+  folder 2.
+- **`folderForMilestone()`** memetakan SELURUH 45 milestone: perencanaan /
+  penunjukan / kontrak / adendum / SCM → folder 1; PCM + seluruh rangkaian MC-0
+  → folder 2; termin + serah terima pekerjaan (PHO/FHO) → folder 7. Unit test
+  menjaga invarian: setiap milestone template WAJIB punya tujuan folder.
+- **Jenis dokumen baru** `rks` & `smkk` (dokumen bernama & berulang, layak punya
+  tipe sendiri) → folder 1; milestone `ded`/`rks`/`smkk` diberi `docTypes`
+  supaya unggah inline dari milestone terisi otomatis.
+- `coverage.ts` dan halaman Dokumen memakai rute yang SAMA PERSIS dengan aksi
+  upload — hitungan kelengkapan tidak bisa meleset dari kenyataan.
+- Verifikasi: typecheck ✓ lint ✓ unit 342 (+8) ✓ integration 13 ✓ build ✓.
+
+## 145 · 2026-07-27 · Laporan harian ke Drive memakai BLANKO KKP, bukan ringkasan
+
+- **Masalah**: yang disetor ke Drive adalah `buildHarianRingkasPdf` — ringkasan
+  naratif (KPI + tabel item yang ada volumenya). KKP menerima **blanko resmi**:
+  kop tiga kolom, identitas proyek, progres per item dengan Vol Kontrak & s/d
+  Lalu, tenaga kerja + material/peralatan berdampingan, matriks cuaca per jam,
+  jam kerja, catatan, dan blok tanda tangan Konsultan Pengawas / Kontraktor.
+- **`pdf/grid.ts`** (baru): grid bergaris penuh untuk FORMULIR — beda dari
+  `table.ts` yang bergaya laporan modern (garis tipis horizontal). Mendukung
+  colSpan, tinggi baris mengikuti isi, dan `colWidths()` yang membulatkan
+  sisa lebar ke kolom terakhir supaya garis kanan tidak meleset.
+- **`pdf/harian-kkp.ts`** (baru): `buildHarianKkpPdf` meniru komponen web
+  `KkpDailyReport` supaya cetakan layar & setoran Drive IDENTIK. A4 **lanskap**
+  (matriks cuaca butuh 16 kolom). Sumber data sama (`getKkpDailyData`) — tidak
+  ada query baru dan tidak ada kemungkinan angka berbeda.
+- **Paginasi manual**: `doc.page.margins.bottom = 0` mematikan auto-page-break
+  pdfkit (yang menghasilkan 4 halaman kosong pada uji pertama); perpindahan
+  halaman dikendalikan `fit()`, header tabel progres diulang di halaman baru,
+  dan blok cuaca / jam kerja / catatan / tanda tangan dijaga tidak terpotong.
+- **Cakupan**: hanya kiriman Drive yang berubah. Kiriman WhatsApp tetap PDF
+  ringkas — di layar HP blanko lanskap tidak terbaca.
+- Verifikasi: typecheck ✓ lint ✓ unit 342 ✓ build ✓ render sampel 14 item →
+  2 halaman, tata letak & footer benar (diperiksa visual).

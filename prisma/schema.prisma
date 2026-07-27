@@ -260,8 +260,10 @@ enum DocumentType {
   invoice
   faktur_pajak
   hps
-  // Ditambahkan utk struktur folder KKP di Google Drive (DECISIONS 143).
+  // Ditambahkan utk struktur folder KKP di Google Drive (DECISIONS 143/144).
   ded
+  rks
+  smkk
   shop_drawing
   as_built
   lainnya

@@ -168,9 +168,10 @@ async function ctxFor(
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal tidak valid");
 
 /**
- * Laporan harian → "3. LAPORAN HARIAN/<Lokasi>/<bulan>": PDF laporan + semua
- * foto laporan itu (subfolder "Foto"). Foto ikut karena KKP menilai bukti
- * visual, bukan hanya narasi.
+ * Laporan harian → "3. LAPORAN HARIAN/<Lokasi>/<bulan>": PDF FORMAT KKP
+ * (blanko resmi, sama dgn yang dicetak dari layar) + semua foto laporan itu
+ * (subfolder "Foto"). Foto ikut karena KKP menilai bukti visual, bukan hanya
+ * narasi. PDF ringkas tetap dipakai untuk kiriman WhatsApp. DECISIONS 145.
  */
 export async function uploadDailyReportToDriveAction(
   _prev: GDriveActionState,
@@ -188,8 +189,8 @@ export async function uploadDailyReportToDriveAction(
     if ("error" in c) return { error: c.error };
     await requireLocationAccess(user, c.target.locationId!);
 
-    const { renderHarianPdf } = await import("@/lib/pdf/harian");
-    const pdf = await renderHarianPdf(slug, dateKey);
+    const { renderHarianKkpPdf } = await import("@/lib/pdf/harian-kkp");
+    const pdf = await renderHarianKkpPdf(slug, dateKey);
     if (!pdf) return { error: "Laporan harian tidak ditemukan." };
 
     const report = await db.dailyReport.findUnique({
@@ -387,11 +388,16 @@ export async function uploadDocumentToDriveAction(
         locationId: true,
         location: { select: { name: true, packageId: true } },
         package: { select: { id: true, driveFolderId: true } },
+        milestone: { select: { templateKey: true } },
       },
     });
     if (!doc) return { error: "Dokumen tidak ditemukan." };
 
-    const path = documentPath(doc.type, doc.location?.name ?? null);
+    const path = documentPath({
+      type: doc.type,
+      milestoneKey: doc.milestone?.templateKey ?? null,
+      locationName: doc.location?.name ?? null,
+    });
     if (!path)
       return {
         error: `Jenis dokumen ini tidak punya folder di struktur KKP — tidak perlu dishare ke Drive.`,

@@ -59,6 +59,8 @@ export const TYPE_LABEL: Record<DocumentType, string> = {
   faktur_pajak: "Faktur Pajak",
   hps: "HPS (Harga Perkiraan Sendiri)",
   ded: "DED (Detail Engineering Design)",
+  rks: "RKS (Rencana Kerja & Syarat)",
+  smkk: "SMKK (Sistem Manajemen Keselamatan Konstruksi)",
   shop_drawing: "Shop Drawing",
   as_built: "As Built Drawing",
   lainnya: "Lainnya",
@@ -69,7 +71,7 @@ export const ALL_DOC_TYPES = Object.keys(TYPE_LABEL) as DocumentType[];
 
 /** Jenis dokumen yang relevan per fase (untuk dropdown dependen). */
 export const TYPES_BY_PHASE: Record<AdminPhase, DocumentType[]> = {
-  pemilihan: ["hps", "undangan", "ba_penjelasan", "penawaran", "ba_evaluasi", "ba_klarifikasi", "ba_negosiasi", "lainnya"],
+  pemilihan: ["hps", "ded", "rks", "smkk", "undangan", "ba_penjelasan", "penawaran", "ba_evaluasi", "ba_klarifikasi", "ba_negosiasi", "lainnya"],
   penunjukan: ["penetapan_pemenang", "sanggah", "sppbj", "jaminan", "lainnya"],
   kontrak: ["undangan", "kontrak", "jaminan", "ded", "lainnya"],
   mulai_kerja: ["undangan", "spmk", "ba_serah_terima_lapangan", "pcm", "mc0", "shop_drawing", "lainnya"],

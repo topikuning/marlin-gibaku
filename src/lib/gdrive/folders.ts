@@ -50,9 +50,93 @@ const DOC_FOLDER: Partial<Record<DocumentType, KkpFolder>> = {
   bast_pho: "7. BERKAS TERMIN",
   bast_fho: "7. BERKAS TERMIN",
 
+  rks: "1. SPPBJ, SPK, SPMK, RAB, DED",
+  smkk: "1. SPPBJ, SPK, SPMK, RAB, DED",
+
   shop_drawing: "8. SHOP DRAWING",
   as_built: "9. AS BUILT",
 };
+
+/**
+ * Pemetaan MILESTONE → folder KKP. Lebih tepat daripada jenis dokumen karena
+ * banyak milestone (Justifikasi Teknis, BA Pemeriksaan, Permohonan CCO, …) tidak
+ * punya jenis dokumen sendiri dan akan tersimpan sebagai "lainnya". Selama
+ * dokumen tertaut ke milestone, tujuannya tetap pasti. DECISIONS 144.
+ *
+ * Prinsip pengelompokan:
+ *  - Perencanaan, penunjukan, kontrak, adendum, SCM → folder 1 (administrasi kontrak)
+ *  - Serah terima lokasi & SPMK → folder 1 (SPMK memang disebut di nama folder)
+ *  - PCM & seluruh rangkaian MC-0 → folder 2
+ *  - Termin/pembayaran & serah terima pekerjaan (PHO/FHO) → folder 7
+ */
+const MILESTONE_FOLDER: Record<string, KkpFolder> = {
+  // 1. Perencanaan & persiapan
+  "rab-hps": "1. SPPBJ, SPK, SPMK, RAB, DED",
+  ded: "1. SPPBJ, SPK, SPMK, RAB, DED",
+  rks: "1. SPPBJ, SPK, SPMK, RAB, DED",
+  smkk: "1. SPPBJ, SPK, SPMK, RAB, DED",
+
+  // 2. Penunjukan & kontrak
+  sppbj: "1. SPPBJ, SPK, SPMK, RAB, DED",
+  "pakta-integritas": "1. SPPBJ, SPK, SPMK, RAB, DED",
+  "jaminan-pelaksanaan": "1. SPPBJ, SPK, SPMK, RAB, DED",
+  "keabsahan-jaminan-pelaksanaan": "1. SPPBJ, SPK, SPMK, RAB, DED",
+  "undangan-kontrak": "1. SPPBJ, SPK, SPMK, RAB, DED",
+  kontrak: "1. SPPBJ, SPK, SPMK, RAB, DED",
+
+  // 3. Serah terima lokasi & mulai kerja
+  "undangan-peninjauan-lokasi": "1. SPPBJ, SPK, SPMK, RAB, DED",
+  "pernyataan-pemahaman-lokasi": "1. SPPBJ, SPK, SPMK, RAB, DED",
+  "ba-serah-terima-lokasi": "1. SPPBJ, SPK, SPMK, RAB, DED",
+  spmk: "1. SPPBJ, SPK, SPMK, RAB, DED",
+
+  // 4. PCM & Mutual Check 0% — satu rangkaian acara
+  "undangan-pcm": "2. PCM",
+  "ba-pcm": "2. PCM",
+  "permohonan-kesiapan-mc0": "2. PCM",
+  "undangan-pelaksanaan-mc0": "2. PCM",
+  "ba-pemeriksaan-bersama-mc0": "2. PCM",
+  "justifikasi-teknis-pengawas": "2. PCM",
+  "undangan-pembahasan-mc0": "2. PCM",
+  "ba-persetujuan-mc0": "2. PCM",
+
+  // 5. Adendum / CCO
+  "adendum-1-kontrak": "1. SPPBJ, SPK, SPMK, RAB, DED",
+  "permohonan-cco": "1. SPPBJ, SPK, SPMK, RAB, DED",
+  "ba-perhitungan-bersama-cco": "1. SPPBJ, SPK, SPMK, RAB, DED",
+  "justifikasi-teknis-cco": "1. SPPBJ, SPK, SPMK, RAB, DED",
+  "undangan-pembahasan-cco": "1. SPPBJ, SPK, SPMK, RAB, DED",
+  "ba-pembahasan-cco": "1. SPPBJ, SPK, SPMK, RAB, DED",
+  "persetujuan-cco": "1. SPPBJ, SPK, SPMK, RAB, DED",
+  "undangan-penandatanganan-adendum": "1. SPPBJ, SPK, SPMK, RAB, DED",
+  "adendum-surat-perjanjian": "1. SPPBJ, SPK, SPMK, RAB, DED",
+
+  // 6. Termin & pembayaran
+  "ba-pembahasan-kemajuan": "7. BERKAS TERMIN",
+  "laporan-kemajuan": "7. BERKAS TERMIN",
+  "permohonan-pemeriksaan-pekerjaan": "7. BERKAS TERMIN",
+  "ba-pemeriksaan-pekerjaan": "7. BERKAS TERMIN",
+  "ba-persetujuan-persentase": "7. BERKAS TERMIN",
+  "permohonan-pembayaran": "7. BERKAS TERMIN",
+  "ba-pembayaran": "7. BERKAS TERMIN",
+
+  // 7. Kontrak kritis / SCM — administrasi kontrak
+  "surat-peringatan-kontrak-kritis": "1. SPPBJ, SPK, SPMK, RAB, DED",
+  "undangan-ba-scm": "1. SPPBJ, SPK, SPMK, RAB, DED",
+  "ba-pembuktian-scm": "1. SPPBJ, SPK, SPMK, RAB, DED",
+  "adendum-pemberian-kesempatan": "1. SPPBJ, SPK, SPMK, RAB, DED",
+
+  // 8. Serah terima pekerjaan — prasyarat pembayaran akhir
+  "permohonan-pho": "7. BERKAS TERMIN",
+  "bast-pho": "7. BERKAS TERMIN",
+  "bast-fho": "7. BERKAS TERMIN",
+};
+
+/** Folder KKP untuk milestone (templateKey). Null bila key tak dikenal. */
+export function folderForMilestone(templateKey: string | null | undefined): KkpFolder | null {
+  if (!templateKey) return null;
+  return MILESTONE_FOLDER[templateKey] ?? null;
+}
 
 /** Folder KKP untuk satu dokumen; null = tidak perlu/ tidak layak dishare. */
 export function folderForDocumentType(type: DocumentType): KkpFolder | null {
@@ -142,12 +226,15 @@ export function activityPath(input: {
 
 /**
  * Dokumen administrasi → <folder KKP> / <Lokasi bila dokumen milik lokasi>.
- * Dokumen level paket tidak diberi lapisan lokasi. Null = tipe tak dipetakan.
+ * Urutan penentuan: MILESTONE dulu (paling spesifik — banyak milestone tidak
+ * punya jenis dokumen sendiri), baru jenis dokumen. Null = tak dipetakan.
  */
-export function documentPath(type: DocumentType, locationName: string | null): string[] | null {
-  const folder = folderForDocumentType(type);
+export function documentPath(
+  input: { type: DocumentType; milestoneKey?: string | null; locationName?: string | null },
+): string[] | null {
+  const folder = folderForMilestone(input.milestoneKey) ?? folderForDocumentType(input.type);
   if (!folder) return null;
-  return cleanPath([folder, locationName]);
+  return cleanPath([folder, input.locationName ?? null]);
 }
 
 /* ── Penamaan file ──────────────────────────────────────────────────────── */

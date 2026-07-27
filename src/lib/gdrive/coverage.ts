@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { KKP_FOLDERS, folderForDocumentType, type KkpFolder } from "./folders";
+import { KKP_FOLDERS, folderForDocumentType, folderForMilestone, type KkpFolder } from "./folders";
 
 /**
  * Kelengkapan Drive per paket: untuk tiap folder standar KKP, berapa yang
@@ -39,14 +39,17 @@ export async function getDriveCoverage(packageId: string): Promise<FolderCoverag
     }),
     db.document.findMany({
       where: { OR: [{ packageId }, { location: { packageId } }] },
-      select: { id: true, type: true },
+      select: { id: true, type: true, milestone: { select: { templateKey: true } } },
     }),
     db.location.findMany({ where: { packageId }, select: { id: true } }),
     db.dailyReport.count({ where: { location: { packageId }, status: "final" } }),
     db.fieldActivity.count({ where: { location: { packageId }, status: "final" } }),
   ]);
 
-  const docFolderById = new Map(docs.map((d) => [d.id, folderForDocumentType(d.type)]));
+  // Rute sama dengan saat upload: milestone dulu, baru jenis dokumen.
+  const docFolderById = new Map(
+    docs.map((d) => [d.id, folderForMilestone(d.milestone?.templateKey) ?? folderForDocumentType(d.type)]),
+  );
   const expectedDocs = new Map<KkpFolder, number>();
   for (const f of docFolderById.values()) {
     if (f) expectedDocs.set(f, (expectedDocs.get(f) ?? 0) + 1);

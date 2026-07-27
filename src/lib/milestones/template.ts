@@ -48,7 +48,10 @@ export type MilestoneDocType =
   | "bast_fho"
   | "ba_pembayaran"
   | "invoice"
-  | "hps";
+  | "hps"
+  | "ded"
+  | "rks"
+  | "smkk";
 
 export type AdminMilestone = {
   key: string;
@@ -81,9 +84,9 @@ const L = (
 const ITEMS: Omit<AdminMilestone, "sortOrder">[] = [
   // 1. Perencanaan & Persiapan (lama: "perencanaan") → pemilihan — INDUK
   M("rab-hps", "RAB HPS", "pemilihan", ["hps"]),
-  M("ded", "DED (Detail Engineering Design)", "pemilihan"),
-  M("rks", "RKS (Rencana Kerja & Syarat)", "pemilihan"),
-  M("smkk", "SMKK (Sistem Manajemen Keselamatan Konstruksi)", "pemilihan"),
+  M("ded", "DED (Detail Engineering Design)", "pemilihan", ["ded"]),
+  M("rks", "RKS (Rencana Kerja & Syarat)", "pemilihan", ["rks"]),
+  M("smkk", "SMKK (Sistem Manajemen Keselamatan Konstruksi)", "pemilihan", ["smkk"]),
 
   // 2. Penunjukan & Kontrak (lama: "penunjukan") → penunjukan + kontrak — INDUK
   M("sppbj", "SPPBJ", "penunjukan", ["sppbj"], true),
