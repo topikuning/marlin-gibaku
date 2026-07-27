@@ -3746,3 +3746,48 @@ Uji penjaga: `tests/unit/xlsx-kurva-bobot.test.ts` menuntut kedua baris berupa
 rumus + cache == Σ sel kategori kolomnya.
 
 Verifikasi: typecheck ✓ · lint ✓ · unit **417** ✓ · build ✓.
+
+---
+
+## 159 · 2026-07-27 · Penyesuaian halus kurva-S ikut menyetel jadwal kategori
+
+Pertanyaan user: "kalau aku edit di menu yang sudah kamu sediakan, bukankah
+semuanya menyesuaikan?" Penelusuran seluruh jalur tulis baseline menunjukkan
+jawabannya **ya untuk semua jalur kecuali satu**:
+
+| Jalur | Titik kurva | Jadwal kategori | Sinkron |
+|---|---|---|---|
+| Editor jadwal per kategori (`saveCategorySchedule`) | dihitung dari jadwal | disimpan | ya |
+| Re-import Time Schedule Excel (`saveScheduleMatrix`) | dihitung dari matriks | disimpan | ya |
+| Regenerate otomatis / impor RAB | satu sumber | satu sumber | ya |
+| Pulihkan baseline lama (`restoreBaseline`) | disalin | disalin | ya (mewarisi versi asal) |
+| **Penyesuaian halus %-mingguan (`updateBaselinePoints`)** | diganti | **disalin apa adanya** | **TIDAK** |
+
+Akibatnya, sesudah penyesuaian halus: Excel (baris rencananya rumus Σ kolom
+kategori, DECISIONS 158) menampilkan kurva LAMA — termasuk garis rencana di
+grafiknya — sementara PDF halaman-2, halaman-1 layar, dan dashboard memakai
+kurva hasil penyesuaian.
+
+### Keputusan user: jadwal ikut menyesuaikan (opsi 1)
+
+`rescheduleToCurve` (`scurve/generate.ts`, murni) menyetel ulang matriks jadwal
+mengikuti kurva baru sambil menjaga **dua marginal sekaligus**:
+
+- Σ kolom (semua kategori pada satu minggu) = increment kurva baru;
+- Σ baris (satu kategori sepanjang kontrak) = bobot kategori, TIDAK berubah.
+
+Menskala tiap kolom dengan `increment baru / increment lama` hanya memenuhi
+syarat pertama dan **merusak** yang kedua — bobot kategori tidak lagi sama
+dengan porsi nilainya di RAB, padahal kolom Bobot (%) blanko KKP adalah angka
+RAB. Karena itu metodenya **pemetaan waktu**: tiap kategori dibaca ulang pada
+titik kemajuan global yang sama (interpolasi linear atas kumulatifnya sendiri).
+Kurva digeser/direntang, seluruh jadwal ikut bergeser dengan bentuk yang sama.
+Sebagai bonus, jumlah minggu boleh berubah — jadwal ikut diregangkan, dulu
+malah dibuang sehingga halaman-1 jatuh ke jadwal otomatis.
+
+UI diberi tahu: subtitle kartu + teks bantuan editor menyebut jadwal per
+pekerjaan ikut menyesuaikan dan bobot tetap sesuai RAB.
+
+Verifikasi: typecheck ✓ · lint ✓ · unit **422** (rescheduleToCurve +5: idempotent
+saat kurva tak berubah, dilambatkan, dipercepat, jumlah minggu berubah, matriks
+nol; tiap kasus memeriksa kedua marginal) · build ✓.

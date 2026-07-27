@@ -8,6 +8,7 @@ import { contractDaysFor } from "@/lib/rab/import";
 import {
   autoCategorySchedule,
   cumulativeFromWeeklyRows,
+  rescheduleToCurve,
   segmentsFromWeekly,
   weeklyFromSegments,
   type WeekSegment,
@@ -99,28 +100,31 @@ export async function updateBaselinePoints(baselineId: string, points: number[],
         plannedPct: p,
       })),
     });
-    // Salin jadwal per-kategori dari baseline acuan (audit 2026-07-27, B3).
-    // Tanpa ini, edit manual kurva MENGHILANGKAN scheduleItems → halaman-1
-    // dokumen KKP jatuh ke jadwal auto sementara halaman-2 memakai kurva hasil
-    // edit. Disalin hanya bila jumlah minggu tidak berubah (matriks masih
-    // bermakna); kurva RESMI tetap points — baris total hal-1 kini juga dari
-    // points (kkp-sheet planCumOfficial), jadwal kategori tinggal informasi.
-    if (points.length === refWeeks) {
-      const refSchedule = await tx.baselineScheduleItem.findMany({
-        where: { baselineId },
-        select: { lineageKey: true, name: true, weightPct: true, weekly: true },
+    // Jadwal per-kategori IKUT DISETEL ke kurva baru (keputusan user
+    // 2026-07-27, DECISIONS 159). Dulu disalin apa adanya, sehingga sesudah
+    // penyesuaian halus Σ jadwal kategori ≠ titik kurva — Excel (yang baris
+    // rencananya rumus Σ kolom kategori) menampilkan kurva LAMA sementara
+    // PDF/dashboard memakai kurva baru. `rescheduleToCurve` memetakan waktu:
+    // kolom mengikuti increment kurva baru, bobot tiap baris tetap = porsi RAB.
+    // Jumlah minggu boleh berubah — jadwal ikut diregangkan (dulu malah dibuang).
+    const refSchedule = await tx.baselineScheduleItem.findMany({
+      where: { baselineId },
+      select: { lineageKey: true, name: true, weightPct: true, weekly: true },
+    });
+    if (refSchedule.length > 0) {
+      const setel = rescheduleToCurve(
+        refSchedule.map((it) => asWeekly(it.weekly)),
+        points,
+      );
+      await tx.baselineScheduleItem.createMany({
+        data: refSchedule.map((it, i) => ({
+          baselineId: created.id,
+          lineageKey: it.lineageKey,
+          name: it.name,
+          weightPct: it.weightPct,
+          weekly: setel[i].map((v) => Math.round(v * 1e6) / 1e6) as Prisma.InputJsonValue,
+        })),
       });
-      if (refSchedule.length > 0) {
-        await tx.baselineScheduleItem.createMany({
-          data: refSchedule.map((it) => ({
-            baselineId: created.id,
-            lineageKey: it.lineageKey,
-            name: it.name,
-            weightPct: it.weightPct,
-            weekly: it.weekly as Prisma.InputJsonValue,
-          })),
-        });
-      }
     }
     return created;
   });
