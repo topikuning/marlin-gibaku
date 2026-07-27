@@ -3352,8 +3352,12 @@ proporsi terhadap `amount`.
 
 **M10 · CI tidak berjalan pada push ke `dev`.** Ditambahkan — lalu ketahuan
 efek sampingnya: commit yang sama memicu DUA event (push + pull_request)
-sehingga CI berjalan dobel. Ditutup dengan `concurrency: ci-${{ github.sha }}`
-+ `cancel-in-progress`, jadi tetap satu set check per commit.
+sehingga CI berjalan dobel. Percobaan pertama menutupnya dengan
+`concurrency: ci-${{ github.sha }}` GAGAL diam-diam — pada event
+`pull_request`, `github.sha` adalah SHA merge-commit bikinan GitHub, bukan SHA
+commit yang di-push, jadi kedua run tidak pernah masuk grup yang sama
+(terbukti: 8 check untuk satu commit). Yang benar
+`ci-${{ github.event.pull_request.head.sha || github.sha }}`.
 
 **L8 · PPN selalu dibulatkan ke bawah** (pembagian BigInt memotong). Diganti
 half-up, simetris untuk nilai negatif.

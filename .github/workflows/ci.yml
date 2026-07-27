@@ -7,12 +7,15 @@ on:
     branches: [main, dev]
   pull_request:
 
-# Commit yang sama memicu DUA event (push ke dev + pull_request). Tanpa ini CI
-# berjalan dobel: boros runner, dan dua set check dengan nama sama menempel di
-# SHA yang sama. Dikelompokkan per SHA supaya run kedua membatalkan yang
-# pertama — hasil akhir tetap satu set check per commit.
+# Commit yang sama memicu DUA event (push ke dev + pull_request), jadi CI
+# berjalan dobel tanpa pengelompokan ini.
+#
+# WAJIB memakai `pull_request.head.sha`, BUKAN `github.sha`: pada event
+# pull_request `github.sha` adalah SHA merge-commit bikinan GitHub, bukan SHA
+# commit yang di-push — sehingga grupnya tidak pernah bertemu dan dedupnya
+# gagal diam-diam (terbukti: 8 check untuk satu commit).
 concurrency:
-  group: ci-${{ github.sha }}
+  group: ci-${{ github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: true
 
 env:
