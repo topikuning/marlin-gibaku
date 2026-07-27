@@ -3822,3 +3822,48 @@ memeriksa: rentang merge identitas, teks identitas utuh, rumus + cache kolom
 sisa, tautan tiga angka ringkasan ke baris JUMLAH, dan bobot judul kategori.
 
 Verifikasi: typecheck ✓ · lint ✓ · unit **426** ✓ · build ✓.
+
+---
+
+## 161 · 2026-07-27 · PDF laporan mingguan/bulanan ke Drive = blanko resmi KKP
+
+Temuan user: PDF yang disetor ke Google Drive "membuat format sendiri".
+Penelusuran ketiga jalur unggah:
+
+| Unggahan Drive | Renderer | Format |
+|---|---|---|
+| Laporan harian | `pdf/harian-kkp.ts` | blanko resmi KKP (DECISIONS 145) — benar |
+| Laporan mingguan | `pdf/periodik.ts` | "ringkas profesional" (DECISIONS 126) — SALAH |
+| Laporan bulanan | `pdf/periodik.ts` | idem — SALAH |
+
+PDF ringkas itu dibuat untuk kiriman WhatsApp ke atasan, bukan untuk arsip KKP.
+Yang resmi ada di halaman cetak `/cetak/periodik` (`ScurveKkpSheet` +
+`KkpPeriodReport`) — acuan yang juga dipakai sheet Excel.
+
+### `src/lib/pdf/periodik-kkp.ts` (baru)
+
+Cermin halaman cetak, pola sama dengan `harian-kkp.ts` (grid blanko `pdf/grid.ts`,
+A4 lanskap):
+
+- **Halaman 1 — KURVA S**: identitas, matriks bobot kategori × minggu (header
+  kelompok bulan + M1..MN), lima baris prestasi, garis kurva rencana (biru) &
+  realisasi (hijau) digambar di atas blok baris kategori, batang skala
+  KETERANGAN 0–100% kotak-kotak, blok tanda tangan 3 kolom.
+- **Halaman 2+ — BLANKO RINCIAN**: kop, identitas, tabel 17 kolom dengan header
+  3 baris berkelompok (No · Uraian · Volume Kontrak · Satuan · Bobot · Realisasi
+  Pekerjaan {Lalu/Ini/S-d × Volume-Prestasi-Bobot} · Bobot Rencana · Sisa
+  Pekerjaan), subtotal kategori, JUMLAH, ringkasan bobot, tenaga/material/alat,
+  kendala, tanda tangan.
+
+Angka diambil dari `getPeriodReport` + `buildKurvaSheet` — sumber yang SAMA
+dengan layar, halaman cetak, dan Excel; termasuk `bobotShown`/`weeklyShown`
+(DECISIONS 157) sehingga kolom bobot di PDF menjumlah sama dengan di Excel.
+Format angka Indonesia (koma desimal) sebagaimana dokumen resmi.
+
+`gdrive/actions.ts` untuk mingguan/bulanan kini memanggil `renderPeriodikKkpPdf`.
+**Belum diubah** (menunggu keputusan user): tombol unduh PDF di layar
+(`/api/laporan/periodik/...`) dan kiriman WhatsApp masih memakai PDF ringkas.
+
+Verifikasi: typecheck ✓ · lint ✓ · unit **428** (+2 penjaga render mingguan &
+bulanan) · build ✓ · PDF nyata dirender ke PNG dan diperiksa halaman per halaman
+(3 halaman: kurva-S, rincian, sumber daya+kendala+TTD).

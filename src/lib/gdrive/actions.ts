@@ -268,13 +268,16 @@ export async function uploadPeriodReportToDriveAction(
     if ("error" in c) return { error: c.error };
     await requireLocationAccess(user, locationId);
 
-    const [{ renderPeriodikPdf }, { getPeriodReport }, { buildPeriodReportXlsx }] = await Promise.all([
-      import("@/lib/pdf/periodik"),
+    // PDF yang disetor ke Drive WAJIB blanko resmi KKP (halaman kurva-S +
+    // rincian), sama dengan halaman cetak — bukan PDF ringkasan yang dipakai
+    // kiriman WhatsApp (DECISIONS 161).
+    const [{ renderPeriodikKkpPdf }, { getPeriodReport }, { buildPeriodReportXlsx }] = await Promise.all([
+      import("@/lib/pdf/periodik-kkp"),
       import("@/lib/periodic-report"),
       import("@/lib/export/xlsx"),
     ]);
     const [pdf, report] = await Promise.all([
-      renderPeriodikPdf(locationId, kind, n),
+      renderPeriodikKkpPdf(locationId, kind, n),
       getPeriodReport(locationId, kind, n),
     ]);
     if (!pdf || !report) return { error: "Laporan untuk periode ini tidak tersedia." };
