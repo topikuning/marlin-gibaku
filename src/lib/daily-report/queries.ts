@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { prestasiPct } from "@/lib/progress-calc";
 import { cumulativeVolumeByLineage } from "@/lib/progress";
 import { jakartaDateKey, parseDateKey } from "@/lib/format";
 import { buildPhotoViews, type PhotoView } from "@/lib/photos";
@@ -249,8 +250,11 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
       valueDone: it.valueDone.toString(),
       volumeContract,
       volumeCumulative,
+      // Dibatasi 100% memakai formula yang sama dengan blanko mingguan/bulanan
+      // (DECISIONS 151) — item yang sama tidak boleh 110% di harian tapi 100%
+      // di mingguan.
       pctCumulative:
-        volumeContract != null && volumeContract > 0 ? (volumeCumulative / volumeContract) * 100 : null,
+        volumeContract != null && volumeContract > 0 ? prestasiPct(volumeCumulative, volumeContract) : null,
       notes: it.notes,
       photos: photoByItem.get(it.id) ?? [],
     };

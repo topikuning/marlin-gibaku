@@ -4,10 +4,15 @@ import { pct } from "@/lib/money";
 
 /**
  * Calculation layer progress — SATU sumber untuk dashboard, workspace, laporan, export.
- * Formula dipertahankan dari implementasi lama yang terverifikasi (docs/rebuild/DATA_MODEL_AUDIT.md):
  *   grandTotal   = Σ amount node kind "kategori" pada revisi aktif
- *   realized     = Σ valueDone item laporan status ≥ dikirim (dikirim/disetujui/final), by lineageKey revisi aktif
+ *   realized     = Σ min(1, Σvolume/volumeRAB) × amount, atas item revisi AKTIF,
+ *                  dari laporan status ≥ dikirim (dikirim/disetujui/final)
  *   deviationPct = realizedPct − planPct
+ *
+ * Formula realized DIUBAH pada DECISIONS 151 (sebelumnya Σ valueDone): rumusnya
+ * kini identik dengan blanko KKP di `lib/progress-calc.ts`, supaya dashboard dan
+ * laporan resmi mustahil menampilkan dua angka berbeda. Lihat DECISIONS 151
+ * untuk alasan lengkapnya.
  */
 
 export const COUNTED_REPORT_STATUSES = ["dikirim", "disetujui", "final"] as const;
@@ -78,18 +83,32 @@ export async function getLocationsProgress(locationIds: string[]): Promise<Map<s
     : [];
   const totalByRev = new Map(catSums.map((c) => [c.revisionId, c._sum.amount ?? 0n]));
 
-  // realized per lokasi: Σ valueDone item laporan counted, hanya lineage yang ada di revisi aktif
+  // Realized per lokasi = Σ (prestasi item × amount item revisi AKTIF), prestasi
+  // dibatasi 100%. Basisnya SAMA PERSIS dengan blanko KKP (lib/progress-calc.ts,
+  // DECISIONS 151) — dashboard dan laporan resmi tidak boleh menampilkan dua
+  // angka berbeda untuk hal yang sama.
+  //
+  // Sengaja BUKAN Σ value_done: kolom itu dibekukan memakai harga satuan revisi
+  // yang aktif SAAT laporan dibuat, jadi satu adendum yang mengubah harga
+  // langsung membuat dashboard melenceng dari laporan tanpa ada salah input.
+  // Volume yang melebihi RAB (mis. adendum mengurangi volume setelah laporan
+  // ada) juga ikut dibatasi, sama seperti di laporan.
   const realizedPerLoc = await db.$queryRaw<{ location_id: string; realized: bigint }[]>`
-    SELECT dr.location_id, COALESCE(SUM(dri.value_done), 0)::bigint AS realized
-    FROM daily_report_items dri
-    JOIN daily_reports dr ON dr.id = dri.report_id
-    JOIN rab_nodes rn ON rn.lineage_key = dri.lineage_key
-    JOIN rab_revisions rr ON rr.id = rn.revision_id
-      AND rr.location_id = dr.location_id AND rr.status = 'aktif'
-    WHERE dr.location_id = ANY(${locationIds}::uuid[])
-      AND dr.status IN ('dikirim','disetujui','final')
-      AND rn.kind = 'item'
-    GROUP BY dr.location_id
+    SELECT t.location_id, COALESCE(SUM(t.realized), 0)::bigint AS realized
+    FROM (
+      SELECT dr.location_id AS location_id,
+             LEAST(1.0, SUM(dri.volume_done) / NULLIF(rn.volume, 0)) * rn.amount AS realized
+      FROM daily_report_items dri
+      JOIN daily_reports dr ON dr.id = dri.report_id
+      JOIN rab_nodes rn ON rn.lineage_key = dri.lineage_key
+      JOIN rab_revisions rr ON rr.id = rn.revision_id
+        AND rr.location_id = dr.location_id AND rr.status = 'aktif'
+      WHERE dr.location_id = ANY(${locationIds}::uuid[])
+        AND dr.status IN ('dikirim','disetujui','final')
+        AND rn.kind = 'item'
+      GROUP BY dr.location_id, rn.id, rn.volume, rn.amount
+    ) t
+    GROUP BY t.location_id
   `;
   const realizedByLoc = new Map(realizedPerLoc.map((r) => [r.location_id, BigInt(r.realized)]));
 

@@ -87,3 +87,21 @@ perhitungan retensi & opsi jaminan pemeliharaan. Milestone pembayaran sudah scop
   ikut sebagai konteks exec-report & AI Hub (sumber "chat_grup" + sourceRef).
 - Wiring kop surat + logo perusahaan ke header dokumen cetak /cetak/* (KKP,
   laporan periodik, laporan AI).
+
+## PERF · Halaman cetak laporan mingguan lambat pada RAB besar (DECISIONS 151)
+Lokasi dengan RAB ~1.700 baris item butuh ~22 detik untuk merender
+`/cetak/periodik/<slug>/mingguan/<n>` di mode dev. Perhitungannya BUKAN
+penyebabnya — `getPeriodReport` selesai 55–129 ms; sisanya render React untuk
+1.657 baris tabel. Belum diukur di build produksi (dev Turbopack jauh lebih
+lambat). Kalau di produksi masih terasa: opsi = virtualisasi/segmentasi tabel
+per kategori, atau render PDF di server (jalur `lib/pdf/periodik.ts` sudah ada)
+sebagai jalur cetak utama.
+
+## PERF · Kontrol jumlah kategori tanpa item (DECISIONS 151)
+`getPeriodReport` hanya membentuk kategori dari lineage ITEM yang ada. Kategori
+RAB yang punya `amount` tetapi tidak punya item sama sekali tidak muncul di
+tabel, sementara `amount`-nya tetap masuk `grandTotal` — akibatnya Σ bobot item
+< 100%. Belum pernah terlihat pada data nyata (importer selalu membuat item),
+dan uji integrasi menjaga Σ bobot = 100 untuk RAB normal. Kalau suatu saat
+muncul, keputusannya: tampilkan kategori kosong dengan bobot 0, atau keluarkan
+`amount`-nya dari `grandTotal`. Perlu keputusan user.

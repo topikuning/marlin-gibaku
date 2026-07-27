@@ -3130,3 +3130,103 @@ di atas), dan alias lama tidak diubah kepemilikannya.
 uji browser: super admin melihat kontak akun lain & normalisasi `0812…` →
 `6281…`; site_manager TIDAK melihat kontak akun lain tetapi tetap melihat alias
 se-organisasi.
+
+## 151 · 2026-07-27 · Satu formula prestasi untuk laporan, kurva-S, dan dashboard
+
+**Pemicu (dari user):** "periksa juga laporan mingguan. jangan sampai ada
+kesalahan lagi."
+
+Audit dilakukan dengan menulis uji integrasi invarian lebih dulu
+(`tests/integration/periodic-report.test.ts`), bukan dengan membaca kode saja.
+Tiga uji langsung merah.
+
+### Temuan 1 — baris blanko KKP tidak jumlah
+
+`prestasi()` dipanggil TERPISAH untuk tiap kolom, masing-masing dibatasi 100%:
+
+```
+prestasiLalu = min(100, volLalu/vk × 100)
+prestasiIni  = min(100, volIni /vk × 100)   ← salah
+prestasiSd   = min(100, volSd /vk × 100)
+```
+
+Begitu volume kumulatif melampaui volume RAB, "lalu + ini" jadi lebih besar
+dari "s/d". Contoh terukur di uji: vk 100, lalu 50, ini 60 →
+`bobotLalu + bobotIni = 17,09` sedangkan `bobotSd = 15,54`. Baris tidak jumlah
+di dokumen yang diteken PPK.
+
+Jalur nyatanya bukan salah input (form harian sudah menolak volume melebihi
+sisa RAB), melainkan **adendum yang MENGURANGI volume setelah laporan ada** —
+realisasi lama mendadak melebihi volume kontrak yang baru.
+
+**Perbaikan:** pembatas 100% hanya dipasang pada KUMULATIF; kolom periode
+diturunkan dengan pengurangan (`prestasiIni = prestasiSd − prestasiLalu`),
+persis pola laporan harian di DECISIONS 147. Kolom volume tetap mentah — itu
+fakta lapangan; yang dibatasi hanya persentasenya.
+
+### Temuan 2 — satu halaman, dua angka realisasi
+
+Total kolom "bobot s/d" di tabel dihitung dari **volume × bobot revisi aktif**,
+sedangkan kurva-S & deviasi di halaman yang SAMA dihitung dari **Σ valueDone**.
+Dua basis berbeda untuk hal yang sama. Terukur di uji: tabel 40,34% vs kurva
+41,90%.
+
+`valueDone` dibekukan memakai harga satuan revisi yang aktif SAAT laporan
+dibuat. Jadi selain kasus pembatas 100%, **setiap adendum yang mengubah harga**
+membuat kedua angka melenceng tanpa ada yang salah input.
+
+**Perbaikan:** kurva-S dihitung dari volume + bobot revisi aktif, dan
+`actualPct` laporan = total kolom "bobot s/d" tabel. Satu perhitungan, satu
+angka.
+
+### Temuan 3 — dashboard tidak sepakat dengan laporan resmi
+
+`progress.ts` (yang dokumennya sendiri menyebut diri "SATU sumber") memakai
+`Σ value_done`, tanpa pembatas dan dengan harga beku. Terukur: dashboard 72,97%
+vs blanko KKP 71,41%; dengan harga beku 3× selisihnya jadi **9 poin**.
+
+**Perbaikan:** `realized` di SQL jadi
+`Σ LEAST(1, Σvolume/volumeRAB) × amount` atas item revisi AKTIF — identik
+dengan blanko KKP. Ikut memperbaiki `installedValue` di modul keuangan yang
+memakai angka yang sama.
+
+### Temuan 4 — laporan harian tidak membatasi 100% sama sekali
+
+`pctCumulative` = `volumeCumulative / volumeContract × 100` tanpa `min(100)`,
+sehingga item yang sama bisa tampil 110% di blanko harian tapi 100% di blanko
+mingguan.
+
+**Perbaikan:** memakai `prestasiPct` yang sama.
+
+### Perubahan
+
+- Modul baru **`src/lib/progress-calc.ts`** (murni, tanpa DB): `prestasiPct`,
+  `itemAchievement`, `realizedPctFromItems`, `bobotPct`. Ini satu-satunya
+  tempat formula prestasi/bobot boleh ditulis.
+- Dipakai oleh: `periodic-report.ts` (tabel + kurva), `progress.ts` (dashboard,
+  portofolio, keuangan), `daily-report/{service,queries}.ts` (blanko harian),
+  `plan/suggest.ts` (deviasi di panel saran, sebelumnya versi ketiga lagi).
+- Excel, PDF, dan komponen cetak sudah memakai objek `PeriodReport` yang sama,
+  jadi ikut terkoreksi tanpa perubahan.
+
+### Dampak angka setelah deploy
+
+Realisasi % bisa **turun sedikit** di lokasi yang (a) punya adendum pengurang
+volume, atau (b) punya adendum pengubah harga. Itu koreksi, bukan kemunduran:
+angka yang sekarang tampil adalah angka yang sama dengan blanko KKP.
+
+### Verifikasi
+
+- Uji integrasi baru: **16 invarian** — kolom berjumlah, "s/d" tidak pernah
+  mundur antar minggu, "lalu" minggu n = "s/d" minggu n−1, urutan kategori &
+  baris ikut RAB, Σ bobot = 100, tabel = kurva, dashboard = laporan, termasuk
+  kasus volume melebihi kontrak dan harga beku.
+- Uji unit baru: 18 untuk formula murni.
+- typecheck ✓ · lint ✓ · unit 384 ✓ · integration 29 ✓ · build ✓
+- Uji browser: `/cetak/periodik/.../mingguan/21`, blanko harian, `/progress`,
+  dan beranda semuanya 200.
+
+**Catatan performa (bukan bagian perbaikan):** halaman cetak mingguan lokasi
+dengan 1657 baris butuh ~22 detik di mode dev. Perhitungannya sendiri 55–129 ms
+— sisanya render React di dev. Belum diukur di produksi; dicatat di
+`docs/OPEN_ISSUES.md`.
