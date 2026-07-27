@@ -387,11 +387,16 @@ export async function uploadDocumentToDriveAction(
         locationId: true,
         location: { select: { name: true, packageId: true } },
         package: { select: { id: true, driveFolderId: true } },
+        milestone: { select: { templateKey: true } },
       },
     });
     if (!doc) return { error: "Dokumen tidak ditemukan." };
 
-    const path = documentPath(doc.type, doc.location?.name ?? null);
+    const path = documentPath({
+      type: doc.type,
+      milestoneKey: doc.milestone?.templateKey ?? null,
+      locationName: doc.location?.name ?? null,
+    });
     if (!path)
       return {
         error: `Jenis dokumen ini tidak punya folder di struktur KKP — tidak perlu dishare ke Drive.`,

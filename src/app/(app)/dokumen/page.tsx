@@ -15,7 +15,7 @@ import {
 } from "@/lib/documents";
 import { formatTanggal, formatTanggalWaktu } from "@/lib/format";
 import { getGDriveConfigDisplay } from "@/lib/gdrive/config";
-import { folderForDocumentType } from "@/lib/gdrive/folders";
+import { folderForDocumentType, folderForMilestone } from "@/lib/gdrive/folders";
 import { UploadDocumentToDrive } from "@/components/knmp/drive-upload-button";
 import type { AdminPhase, DocumentType } from "@/generated/prisma/enums";
 
@@ -94,6 +94,22 @@ export default async function DokumenPage({
   const driveUploadedAt = new Map<string, string>();
   for (const l of driveLogs) {
     if (!driveUploadedAt.has(l.refKey)) driveUploadedAt.set(l.refKey, formatTanggalWaktu(l.createdAt));
+  }
+  // Rute folder ikut milestone bila dokumen tertaut — sama dengan saat upload.
+  const milestoneKeyById = new Map<string, string>();
+  if (driveOn) {
+    const withMs = documents.filter((d) => d.milestoneId).map((d) => d.milestoneId!);
+    if (withMs.length > 0) {
+      const ms = await db.adminMilestone.findMany({
+        where: { id: { in: [...new Set(withMs)] } },
+        select: { id: true, templateKey: true },
+      });
+      const keyByMilestone = new Map(ms.map((m) => [m.id, m.templateKey]));
+      for (const d of documents) {
+        const k = d.milestoneId ? keyByMilestone.get(d.milestoneId) : undefined;
+        if (k) milestoneKeyById.set(d.id, k);
+      }
+    }
   }
 
   return (
@@ -192,7 +208,7 @@ export default async function DokumenPage({
                       <td className="py-1.5 pr-3 text-right tabular">{Math.max(1, Math.round(d.bytes / 1024))} KB</td>
                       <td className="py-1.5 pr-3 text-ink-muted">{d.uploadedByName}</td>
                       <td className="py-1.5">
-                        {driveOn && folderForDocumentType(d.type) ? (
+                        {driveOn && (folderForMilestone(milestoneKeyById.get(d.id)) ?? folderForDocumentType(d.type)) ? (
                           <UploadDocumentToDrive
                             documentId={d.id}
                             hasDrive={driveReadyDocIds.has(d.id)}
