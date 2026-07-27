@@ -3867,3 +3867,34 @@ Format angka Indonesia (koma desimal) sebagaimana dokumen resmi.
 Verifikasi: typecheck ✓ · lint ✓ · unit **428** (+2 penjaga render mingguan &
 bulanan) · build ✓ · PDF nyata dirender ke PNG dan diperiksa halaman per halaman
 (3 halaman: kurva-S, rincian, sumber daya+kendala+TTD).
+
+---
+
+## 162 · 2026-07-27 · Satu format dokumen: unduh layar & kiriman WhatsApp ikut blanko KKP
+
+Keputusan user atas pertanyaan di DECISIONS 161: **blanko** — bukan hanya untuk
+unggahan Drive. Jadi tidak ada lagi dua format PDF untuk dokumen yang sama.
+
+| Jalur | Sebelum | Sekarang |
+|---|---|---|
+| Drive — harian | `harian-kkp` (blanko) | tetap |
+| Drive — mingguan/bulanan | ringkas | `periodik-kkp` (blanko, DECISIONS 161) |
+| Unduh layar — harian | ringkas | `harian-kkp` |
+| Unduh layar — mingguan/bulanan | ringkas | `periodik-kkp` |
+| Kirim WhatsApp — harian | ringkas | `harian-kkp` |
+| Kirim WhatsApp — mingguan/bulanan | ringkas | `periodik-kkp` |
+
+Konsekuensi yang disadari: blanko A4 **lanskap** (17 kolom pada rincian) lebih
+berat dibaca di layar HP daripada PDF ringkas yang dulu dipakai untuk WhatsApp
+(DECISIONS 126). User memilih keseragaman dokumen resmi di atas kenyamanan baca
+di HP.
+
+### Kode mati dihapus
+
+`src/lib/pdf/harian.ts`, `src/lib/pdf/periodik.ts`, dan `src/lib/pdf/table.ts`
+(primitif tabel yang hanya dipakai keduanya) tidak lagi punya pemanggil dan
+dihapus — membiarkannya justru mengundang pemakaian ulang yang menghidupkan lagi
+"dua format untuk satu dokumen". Primitif blanko `pdf/grid.ts` dan helper
+`pdf/document.ts` tetap (dipakai `harian-kkp`, `periodik-kkp`, `kegiatan`).
+
+Verifikasi: typecheck ✓ · lint ✓ · unit **428** ✓ · build ✓.

@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentUser, hasLocationAccess } from "@/lib/auth/session";
 import { parseDateKey } from "@/lib/format";
-import { renderHarianPdf } from "@/lib/pdf/harian";
+import { renderHarianKkpPdf } from "@/lib/pdf/harian-kkp";
 
-/** Unduh Laporan Harian (PDF ringkas server-side). Auth → akses lokasi. DECISIONS 126. */
+/** Unduh Laporan Harian — blanko resmi KKP, sama dengan yang disetor ke Drive
+ *  & halaman cetak (DECISIONS 162). Auth → akses lokasi. */
 export async function GET(_req: Request, ctx: { params: Promise<{ slug: string; date: string }> }) {
   const { slug, date } = await ctx.params;
   if (!parseDateKey(date)) return NextResponse.json({ error: "Tanggal tidak valid" }, { status: 404 });
@@ -18,7 +19,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ slug: string; 
     return NextResponse.json({ error: "Tidak punya akses ke laporan ini" }, { status: 403 });
   }
 
-  const result = await renderHarianPdf(slug, date);
+  const result = await renderHarianKkpPdf(slug, date);
   if (!result) return NextResponse.json({ error: "Laporan harian tidak ditemukan" }, { status: 404 });
 
   return new NextResponse(new Uint8Array(result.buffer), {
