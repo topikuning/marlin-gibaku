@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildMultipartBody, parseDriveFolderId } from "@/lib/gdrive/parse";
+import {
+  GDRIVE_REDIRECT_PATH,
+  buildMultipartBody,
+  driveRedirectUri,
+  parseDriveFolderId,
+  publicOrigin,
+} from "@/lib/gdrive/parse";
 
 /** Integrasi Google Drive — util murni. DECISIONS 141. */
 
@@ -47,5 +53,74 @@ describe("buildMultipartBody", () => {
     const data = Buffer.from(Array.from({ length: 256 }, (_, i) => i));
     const { body } = buildMultipartBody({ name: "b.bin" }, "application/octet-stream", data);
     expect(body.includes(data)).toBe(true);
+  });
+});
+
+describe("publicOrigin & driveRedirectUri", () => {
+  it("env eksplisit APP_PUBLIC_URL menang atas header apa pun", () => {
+    expect(
+      publicOrigin({ envUrl: "https://marlin.co.id", railwayDomain: "x.up.railway.app", host: "0.0.0.0:8080" }),
+    ).toBe("https://marlin.co.id");
+    // URL dengan garis miring di akhir tetap dinormalisasi.
+    expect(publicOrigin({ envUrl: "https://marlin.co.id/" })).toBe("https://marlin.co.id");
+    // Host polos tanpa skema juga diterima.
+    expect(publicOrigin({ envUrl: "marlin.co.id" })).toBe("https://marlin.co.id");
+  });
+
+  it("RAILWAY_PUBLIC_DOMAIN dipakai bila env eksplisit kosong", () => {
+    expect(publicOrigin({ railwayDomain: "marlin.up.railway.app", host: "0.0.0.0:8080" })).toBe(
+      "https://marlin.up.railway.app",
+    );
+  });
+
+  it("alamat bind container DITOLAK — ini penyebab redirect_uri https://0.0.0.0:8080", () => {
+    expect(publicOrigin({ host: "0.0.0.0:8080" })).toBeNull();
+    expect(publicOrigin({ host: "[::]:8080" })).toBeNull();
+    expect(publicOrigin({ host: "marlin.railway.internal" })).toBeNull();
+    // Bind address diabaikan, lanjut ke sumber berikutnya yang sah.
+    expect(publicOrigin({ forwardedHost: "0.0.0.0:8080", host: "marlin.co.id" })).toBe("https://marlin.co.id");
+  });
+
+  it("memaksa https untuk domain publik (proxy meneruskan http internal)", () => {
+    expect(publicOrigin({ host: "marlin.up.railway.app", forwardedProto: "http" })).toBe(
+      "https://marlin.up.railway.app",
+    );
+    expect(publicOrigin({ forwardedHost: "marlin.up.railway.app", host: "internal:8080", forwardedProto: "http" })).toBe(
+      "https://marlin.up.railway.app",
+    );
+  });
+
+  it("host lokal tetap boleh http (dev)", () => {
+    expect(publicOrigin({ host: "localhost:3000", forwardedProto: "http" })).toBe("http://localhost:3000");
+    expect(publicOrigin({ host: "127.0.0.1:3000" })).toBe("http://127.0.0.1:3000");
+  });
+
+  it("daftar berkoma diambil yang pertama", () => {
+    expect(publicOrigin({ forwardedHost: "a.example.com, b.example.com", forwardedProto: "http" })).toBe(
+      "https://a.example.com",
+    );
+  });
+
+  it("tanpa sumber sama sekali → null (jangan menebak)", () => {
+    expect(publicOrigin({})).toBeNull();
+    expect(driveRedirectUri({})).toBeNull();
+  });
+
+  it("redirect URI memakai path callback yang sama persis", () => {
+    expect(driveRedirectUri({ host: "marlin.up.railway.app", forwardedProto: "http" })).toBe(
+      `https://marlin.up.railway.app${GDRIVE_REDIRECT_PATH}`,
+    );
+    expect(GDRIVE_REDIRECT_PATH).toBe("/api/gdrive/callback");
+  });
+});
+
+describe("regresi: origin yang tidak bisa dibuka browser", () => {
+  it("alamat bind tidak boleh jadi origin redirect balik ke MARLIN", () => {
+    // Gejala nyata: browser diarahkan ke http://0.0.0.0:8080/sistem?gdrive=terhubung
+    // (OAuth-nya sukses, tapi halaman tujuannya tidak bisa dibuka).
+    expect(publicOrigin({ host: "0.0.0.0:8080", forwardedProto: "http" })).toBeNull();
+    expect(publicOrigin({ railwayDomain: "marlin.up.railway.app", host: "0.0.0.0:8080" })).toBe(
+      "https://marlin.up.railway.app",
+    );
   });
 });

@@ -8,6 +8,7 @@ import { env } from "@/lib/env";
 import { isR2Configured } from "@/lib/r2";
 import { getWahaConfigDisplay, getWahaHits } from "@/lib/waha/config";
 import { getGDriveConfigDisplay } from "@/lib/gdrive/config";
+import { driveRedirectUriFrom } from "@/lib/gdrive/origin";
 import { GDrivePanel } from "./gdrive-panel";
 import { db } from "@/lib/db";
 import { formatTanggalWaktu, jakartaToday } from "@/lib/format";
@@ -290,7 +291,7 @@ export default async function SistemPage() {
             tone={gdriveDisplay.connected ? "success" : "neutral"}
             status={gdriveDisplay.connected ? "Terhubung" : "Belum terhubung"}
           />
-          <GDrivePanel initial={gdriveDisplay} />
+          <GDrivePanel initial={gdriveDisplay} redirectUri={driveRedirectUriFrom(h)} />
         </CardBody>
       </Card>
 

@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { getGDriveAuth, storeGDriveToken } from "@/lib/gdrive/config";
+import { appUrl, driveRedirectUriFrom } from "@/lib/gdrive/origin";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,10 @@ function emailFromIdToken(idToken: string | undefined): string | null {
 
 /** Callback OAuth Google: tukar code → refresh token, simpan terenkripsi. DECISIONS 141. */
 export async function GET(request: NextRequest) {
-  const done = (q: string) => NextResponse.redirect(new URL(`/sistem?gdrive=${q}`, request.nextUrl.origin));
+  // Origin publik, bukan request.nextUrl.origin: di container yang terakhir
+  // berisi http://0.0.0.0:8080 dan browser pengguna gagal membukanya.
+  const done = (q: string) =>
+    NextResponse.redirect(appUrl(`/sistem?gdrive=${q}`, request.headers, request.nextUrl.origin));
 
   const user = await getCurrentUser();
   if (!user || !can(user.role, "system.manage")) return done("tanpa-izin");
@@ -45,7 +49,8 @@ export async function GET(request: NextRequest) {
       client_secret: auth.clientSecret,
       code,
       grant_type: "authorization_code",
-      redirect_uri: new URL("/api/gdrive/callback", request.nextUrl.origin).toString(),
+      // Harus PERSIS sama dengan yang dipakai saat meminta consent.
+      redirect_uri: driveRedirectUriFrom(request.headers) ?? "",
     }),
     signal: AbortSignal.timeout(20_000),
   }).catch(() => null);

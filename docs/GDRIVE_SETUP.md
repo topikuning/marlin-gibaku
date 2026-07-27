@@ -14,11 +14,34 @@ Drive lewat OAuth akun Gmail tersebut (refresh token disimpan terenkripsi).
      **In production**. Status *Testing* membuat refresh token mati tiap 7 hari.
    - App tidak perlu diverifikasi Google — saat login akan muncul layar
      "unverified app"; klik *Advanced → Continue*. Itu normal (app internal).
+   - Di tab **Data access / Scopes**, tambahkan scope
+     `https://www.googleapis.com/auth/drive`.
 4. **APIs & Services → Credentials → Create credentials → OAuth client ID**:
-   - Type: **Web application**.
-   - Authorized redirect URI: `https://<domain-marlin>/api/gdrive/callback`
-     (tambahkan juga `http://localhost:3000/api/gdrive/callback` untuk dev).
+   - Type: **Web application** (bukan Desktop — tipe salah = error 400).
+   - Authorized redirect URI: **salin persis** dari Sistem → Integrasi → Google
+     Drive (kotak "Authorized redirect URI"). Harus `https://` dan tanpa garis
+     miring di akhir. Tambahkan juga `http://localhost:3000/api/gdrive/callback`
+     untuk dev.
 5. Salin **Client ID** dan **Client secret**.
+
+### Kalau muncul "Access blocked: Authorization Error — Error 400: invalid_request"
+
+Urut dari yang paling sering:
+
+0. **Redirect URI berisi `https://0.0.0.0:8080/...`** → MARLIN tidak tahu
+   domain publiknya (platform tidak mengirim `x-forwarded-host`). Set env
+   `APP_PUBLIC_URL=https://<domain-marlin>` lalu redeploy. Di Railway,
+   `RAILWAY_PUBLIC_DOMAIN` biasanya sudah otomatis tersedia.
+1. **Redirect URI tidak terdaftar / beda persis** (termasuk beda `http` vs
+   `https`, atau ada `/` di akhir) → samakan dengan kotak di halaman Sistem.
+2. **Tipe OAuth client salah** (Desktop/Android/iOS) → harus Web application.
+3. **Scope `.../auth/drive` belum ditambahkan** di OAuth consent screen.
+4. **App masih status Testing dan akun belum terdaftar sebagai Test user** →
+   Publish app, atau tambahkan email akun di daftar Test users.
+5. Perubahan di Google Console kadang butuh **beberapa menit** untuk aktif.
+
+Klik tautan **error details** di halaman error Google untuk melihat penyebab
+persisnya (mis. `redirect_uri_mismatch`).
 
 ## 2. Hubungkan di MARLIN
 

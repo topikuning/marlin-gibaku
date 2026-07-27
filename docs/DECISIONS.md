@@ -2845,3 +2845,40 @@ Tiga bug tampilan pada PDF produksi (dari bundle self-contained DECISIONS 128):
   tes/putuskan, email akun terhubung); halaman paket → kartu Folder Google
   Drive.
 - Verifikasi: typecheck ✓ lint ✓ unit 305 (+6) ✓ build ✓ browser /sistem ✓.
+
+## 142 · 2026-07-26 · Fix: redirect URI OAuth Google dipaksa https (di balik proxy)
+
+- **Gejala**: "Access blocked: Authorization Error … Error 400: invalid_request"
+  saat menghubungkan akun Google.
+- **Akar masalah**: kedua route OAuth memakai `request.nextUrl.origin`. Di balik
+  proxy Railway request internal berskema **http**, sedangkan Google MENOLAK
+  redirect URI http untuk domain publik. Repo sebenarnya sudah punya pola benar
+  (`lib/http.ts` membaca `x-forwarded-proto`), tapi route Drive tidak memakainya.
+- **Perbaikan**: `publicOrigin()` + `driveRedirectUri()` di `gdrive/parse.ts`
+  (MURNI, 5 unit test) — ambil `x-forwarded-host` → `host`, paksa `https`
+  kecuali host lokal (localhost/127.0.0.1/[::1]); daftar koma diambil yang
+  pertama. Dipakai SATU sumber di `/api/gdrive/auth`, `/api/gdrive/callback`
+  (redirect_uri saat tukar code wajib identik dengan saat consent), dan
+  ditampilkan di panel Sistem sebagai kotak "Authorized redirect URI" siap
+  salin — operator tidak perlu menebak apa yang didaftarkan di Google Console.
+- **Docs**: `docs/GDRIVE_SETUP.md` + daftar penyebab error 400 terurut
+  (redirect URI beda, tipe client bukan Web, scope drive belum ditambahkan,
+  app masih Testing tanpa test user, propagasi Console).
+- **Lanjutan (host, bukan cuma skema)**: ternyata Railway juga tidak mengirim
+  `x-forwarded-host`, dan header `host` berisi alamat bind container sehingga
+  redirect URI jadi `https://0.0.0.0:8080/...`. Resolusi origin dinaikkan jadi
+  berjenjang: `APP_PUBLIC_URL` (override operator) → `RAILWAY_PUBLIC_DOMAIN`
+  (otomatis dari Railway) → `x-forwarded-host` → `host`, dengan alamat bind
+  (`0.0.0.0`, `::`, `*.railway.internal`) DITOLAK di setiap tingkat. Helper
+  server `gdrive/origin.ts` dipakai ketiga titik (auth, callback, panel Sistem)
+  supaya tidak mungkin beda. Bila origin tak terdeteksi, panel Sistem
+  menampilkan peringatan + instruksi set `APP_PUBLIC_URL` (bukan diam-diam
+  mengirim URI ngawur ke Google).
+- **Lanjutan-2 (redirect balik, bukan cuma redirect_uri)**: setelah OAuth
+  BERHASIL, browser diarahkan ke `http://0.0.0.0:8080/sistem?gdrive=terhubung`
+  — token sudah tersimpan tapi halamannya tak bisa dibuka. Sebabnya semua
+  `NextResponse.redirect` di kedua route masih memakai
+  `request.nextUrl.origin`. Ditambah helper `appUrl()` yang memakai origin
+  publik (fallback ke nextUrl.origin), dipakai di SEMUA redirect. Flag `secure`
+  cookie state juga ikut origin publik, bukan protokol request internal.
+- Verifikasi: typecheck ✓ lint ✓ unit 314 (+9) ✓.

@@ -17,8 +17,11 @@ import {
  */
 export function GDrivePanel({
   initial,
+  redirectUri,
 }: {
   initial: { clientId: string; hasClientSecret: boolean; connected: boolean; accountEmail: string | null };
+  /** Redirect URI persis yang dikirim MARLIN; null = domain publik tak terdeteksi. */
+  redirectUri: string | null;
 }) {
   const [state, action, pending] = useActionState<GDriveActionState, FormData>(saveGDriveClientAction, undefined);
   const [opMsg, setOpMsg] = useState<{ tone: "success" | "error"; text: string } | null>(null);
@@ -64,10 +67,30 @@ export function GDrivePanel({
             />
           </div>
         </div>
+        {redirectUri ? (
+          <div className="rounded-md border border-border bg-surface-inset p-2.5">
+            <p className="text-[11px] font-medium tracking-wide text-ink-muted uppercase">
+              Authorized redirect URI (salin ke Google Console)
+            </p>
+            <code className="mt-1 block break-all text-[13px] text-ink">{redirectUri}</code>
+            <p className="mt-1.5 text-[12px] text-ink-muted">
+              Harus PERSIS sama (termasuk https dan tanpa garis miring di akhir) di{" "}
+              <span className="font-medium">Credentials → OAuth client → Authorized redirect URIs</span>.
+            </p>
+          </div>
+        ) : (
+          <Banner
+            tone="warning"
+            title="Domain publik tidak terdeteksi"
+            description="Set environment variable APP_PUBLIC_URL (mis. https://marlin.up.railway.app) lalu redeploy. Tanpa itu MARLIN tidak tahu alamat publiknya sendiri dan OAuth Google akan ditolak."
+          />
+        )}
         <HelpText>
-          Buat OAuth Client (tipe Web) di Google Cloud Console; daftarkan redirect URI{" "}
-          <code className="rounded bg-surface-inset px-1">{`{domain}/api/gdrive/callback`}</code>. Set status app{" "}
-          <span className="font-medium">In production</span> — status Testing membuat token mati tiap 7 hari.
+          Buat OAuth Client <span className="font-medium">tipe Web application</span> di Google Cloud Console.
+          Aktifkan <span className="font-medium">Google Drive API</span>, dan di OAuth consent screen tambahkan
+          scope <code className="rounded bg-surface-inset px-1">.../auth/drive</code> lalu klik{" "}
+          <span className="font-medium">Publish app</span> (status In production) — status Testing membuat token
+          mati tiap 7 hari.
         </HelpText>
         <Button type="submit" size="sm" variant="secondary" loading={pending}>
           Simpan konfigurasi

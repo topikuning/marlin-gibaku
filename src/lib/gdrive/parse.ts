@@ -50,6 +50,73 @@ export function buildMultipartBody(
   };
 }
 
+/** Path callback OAuth — HARUS identik di /auth, /callback, dan Google Console. */
+export const GDRIVE_REDIRECT_PATH = "/api/gdrive/callback";
+
+/** Host yang BUKAN alamat publik — alamat bind container / jaringan internal. */
+function isBindAddress(host: string): boolean {
+  const bare = host.replace(/:\d+$/, "").toLowerCase();
+  return (
+    bare === "0.0.0.0" ||
+    bare === "::" ||
+    bare === "[::]" ||
+    bare === "" ||
+    bare.endsWith(".railway.internal")
+  );
+}
+
+function isLocalHost(host: string): boolean {
+  return /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(host);
+}
+
+/** Ambil host dari nilai yang mungkin berupa URL penuh atau host polos. */
+function hostOf(value: string): string {
+  const v = value.trim().replace(/\/+$/, "");
+  if (!v) return "";
+  try {
+    return new URL(/^https?:\/\//i.test(v) ? v : `https://${v}`).host;
+  } catch {
+    return "";
+  }
+}
+
+export type OriginSources = {
+  /** Override eksplisit operator (APP_PUBLIC_URL) — prioritas tertinggi. */
+  envUrl?: string | null;
+  /** RAILWAY_PUBLIC_DOMAIN — disediakan Railway otomatis. */
+  railwayDomain?: string | null;
+  forwardedHost?: string | null;
+  host?: string | null;
+  forwardedProto?: string | null;
+};
+
+/**
+ * Origin publik untuk redirect URI OAuth. Dua jebakan nyata yang ditangani:
+ * (1) di balik proxy request internal berskema http, sedangkan Google MENOLAK
+ * redirect URI http untuk domain publik; (2) header `host` bisa berisi alamat
+ * bind container (`0.0.0.0:8080`) sehingga URI-nya tidak berarti. Karena itu
+ * env eksplisit didahulukan dan alamat bind ditolak. MURNI.
+ */
+export function publicOrigin(src: OriginSources): string | null {
+  for (const raw of [src.envUrl, src.railwayDomain]) {
+    const h = hostOf(raw ?? "");
+    if (h && !isBindAddress(h)) return isLocalHost(h) ? `http://${h}` : `https://${h}`;
+  }
+  for (const raw of [src.forwardedHost, src.host]) {
+    const h = (raw ?? "").split(",")[0].trim();
+    if (!h || isBindAddress(h)) continue;
+    if (isLocalHost(h)) return `${(src.forwardedProto ?? "http").split(",")[0].trim()}://${h}`;
+    return `https://${h}`;
+  }
+  return null;
+}
+
+/** Redirect URI lengkap — satu-satunya sumber, dipakai kedua route & ditampilkan di UI. */
+export function driveRedirectUri(src: OriginSources): string | null {
+  const origin = publicOrigin(src);
+  return origin ? `${origin}${GDRIVE_REDIRECT_PATH}` : null;
+}
+
 export type GDriveUploadKind = "laporan_harian" | "laporan_mingguan" | "laporan_bulanan";
 
 export const GDRIVE_KIND_LABEL: Record<GDriveUploadKind, string> = {
