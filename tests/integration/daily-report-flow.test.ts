@@ -160,6 +160,32 @@ describe("siklus laporan harian terpadu", () => {
     expect(Number(full.items[0].volumeDone)).toBe(2);
   });
 
+  it("REGRESI B1 (audit 2026-07-27): dua draft menembus guard volume — submit kedua DITOLAK", async () => {
+    // Laporan 2026-07-01 sudah final dengan volume 2 → sisa RAB = 98.
+    // Dua draft di dua tanggal masing-masing lolos guard upsert (draft tidak
+    // counted), tetapi keduanya bersama melampaui RAB. Sebelum perbaikan,
+    // KEDUANYA bisa dikirim tanpa error.
+    const d2 = await getOrCreateDraft(locationId, "2026-07-02", mandorId);
+    const d3 = await getOrCreateDraft(locationId, "2026-07-03", mandorId);
+    await upsertItem(d2.id, { rabNodeId: nodeId, volumeDone: 60 }, mandorId);
+    await upsertItem(d3.id, { rabNodeId: nodeId, volumeDone: 60 }, mandorId);
+
+    await submitReport(d2.id, mandorId); // 2 + 60 = 62 ≤ 100 → sah
+    await expect(submitReport(d3.id, mandorId)).rejects.toThrow(/melebihi RAB/i);
+
+    // Laporan kedua tetap draft — tidak setengah-terkirim.
+    const after = await db.dailyReport.findUniqueOrThrow({ where: { id: d3.id }, select: { status: true } });
+    expect(after.status).toBe("draft");
+
+    // Setelah volumenya dikoreksi ke sisa yang sah, kirim ulang berhasil.
+    await upsertItem(d3.id, { rabNodeId: nodeId, volumeDone: 38 }, mandorId); // 2+60+38 = 100
+    await submitReport(d3.id, mandorId);
+    // Bersih-bersih agar test lain tidak terpengaruh: kembalikan keduanya ke draft.
+    const { returnReport } = await import("@/lib/daily-report/service");
+    await returnReport(d2.id, "reset uji B1", smId);
+    await returnReport(d3.id, "reset uji B1", smId);
+  });
+
   it("transisi ilegal ditolak (final → dikirim)", async () => {
     const report = await getOrCreateDraft(locationId, "2026-07-01", mandorId).catch(() => null);
     // report sudah final — getOrCreateDraft harus menolak/mengembalikan yang final tanpa reset

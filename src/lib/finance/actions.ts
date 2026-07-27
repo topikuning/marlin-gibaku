@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { applyDisbursementTx, applyPaymentTx, FinanceGuardError } from "./apply";
 import { audit } from "@/lib/audit";
 import {
   requireCapability,
@@ -48,7 +49,9 @@ async function run(fn: () => Promise<FinanceActionState>): Promise<FinanceAction
     return await fn();
   } catch (e) {
     if (isNextRedirect(e)) throw e;
-    if (e instanceof ForbiddenError || e instanceof GuardError) return { error: e.message };
+    if (e instanceof ForbiddenError || e instanceof GuardError || e instanceof FinanceGuardError) {
+      return { error: e.message };
+    }
     console.error("[finance] aksi gagal:", e);
     return { error: "Terjadi kesalahan tak terduga. Coba lagi." };
   }
@@ -368,6 +371,9 @@ export async function createExpense(_prev: FinanceActionState, formData: FormDat
 
     const expense = await db.$transaction(async (tx) => {
       if (d.commitmentId) {
+        // Row lock — dua realisasi paralel atas komitmen yang sama tidak boleh
+        // sama-sama lolos guard sisa (B6, pola sama dengan applyPaymentTx).
+        await tx.$queryRaw`SELECT id FROM "commitments" WHERE id = ${d.commitmentId}::uuid FOR UPDATE`;
         const commitment = await tx.commitment.findUnique({
           where: { id: d.commitmentId },
           select: { id: true, locationId: true, status: true, closedAt: true, amount: true, number: true },
@@ -593,33 +599,17 @@ export async function addPayment(_prev: FinanceActionState, formData: FormData):
     const d = parsed.data;
     const scoped = await loadInvoiceScoped(actor, d.invoiceId);
 
-    const result = await db.$transaction(async (tx) => {
-      const inv = await tx.invoice.findUniqueOrThrow({
-        where: { id: d.invoiceId },
-        select: { id: true, amount: true, status: true, number: true },
-      });
-      if (inv.status !== "disetujui" && inv.status !== "dibayar_sebagian") {
-        throw new GuardError("Pembayaran hanya untuk invoice disetujui / dibayar sebagian.");
-      }
-      const agg = await tx.paymentOut.aggregate({ where: { invoiceId: inv.id }, _sum: { amount: true } });
-      const paid = agg._sum.amount ?? 0n;
-      const remaining = inv.amount - paid;
-      if (d.amount > remaining) {
-        throw new GuardError(`Melebihi sisa tagihan invoice ${inv.number}: sisa ${formatRupiah(remaining)}.`);
-      }
-      const payment = await tx.paymentOut.create({
-        data: {
-          invoiceId: inv.id,
-          amount: d.amount,
-          paidDate: d.paidDate,
-          note: d.note || null,
-          createdById: actor.id,
-        },
-      });
-      const newStatus = paid + d.amount === inv.amount ? "lunas" : "dibayar_sebagian";
-      await tx.invoice.update({ where: { id: inv.id }, data: { status: newStatus } });
-      return { payment, newStatus };
-    });
+    // Row-lock + guard + create dalam SATU jalur teruji (lib/finance/apply.ts)
+    // — dua pembayaran paralel tidak lagi bisa sama-sama lolos guard (B6).
+    const result = await db.$transaction(async (tx) =>
+      applyPaymentTx(tx, {
+        invoiceId: d.invoiceId,
+        amount: d.amount,
+        paidDate: d.paidDate,
+        note: d.note || null,
+        createdById: actor.id,
+      }),
+    );
 
     await audit(actor.id, "finance.payment.add", "payment_out", result.payment.id, {
       invoiceId: d.invoiceId,
@@ -775,36 +765,16 @@ export async function addDisbursement(_prev: FinanceActionState, formData: FormD
     const d = parsed.data;
     const { locationIds } = await loadBillingScoped(actor, d.billingId);
 
-    const result = await db.$transaction(async (tx) => {
-      const billing = await tx.ownerBilling.findUniqueOrThrow({
-        where: { id: d.billingId },
-        select: { id: true, amount: true, status: true, terminNo: true },
-      });
-      if (billing.status !== "disetujui" && billing.status !== "cair_sebagian") {
-        throw new GuardError("Pencairan hanya untuk termin disetujui / cair sebagian.");
-      }
-      const agg = await tx.disbursement.aggregate({
-        where: { ownerBillingId: billing.id },
-        _sum: { amount: true },
-      });
-      const received = agg._sum.amount ?? 0n;
-      const remaining = billing.amount - received;
-      if (d.amount > remaining) {
-        throw new GuardError(`Melebihi sisa termin ${billing.terminNo}: sisa ${formatRupiah(remaining)}.`);
-      }
-      const disbursement = await tx.disbursement.create({
-        data: {
-          ownerBillingId: billing.id,
-          amount: d.amount,
-          receivedDate: d.receivedDate,
-          note: d.note || null,
-          createdById: actor.id,
-        },
-      });
-      const newStatus = received + d.amount === billing.amount ? "cair" : "cair_sebagian";
-      await tx.ownerBilling.update({ where: { id: billing.id }, data: { status: newStatus } });
-      return { disbursement, newStatus };
-    });
+    // Lihat applyPaymentTx — pola lock yang sama untuk pencairan termin (B6).
+    const result = await db.$transaction(async (tx) =>
+      applyDisbursementTx(tx, {
+        billingId: d.billingId,
+        amount: d.amount,
+        receivedDate: d.receivedDate,
+        note: d.note || null,
+        createdById: actor.id,
+      }),
+    );
 
     await audit(actor.id, "finance.disbursement.add", "disbursement", result.disbursement.id, {
       billingId: d.billingId,

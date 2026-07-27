@@ -742,6 +742,30 @@ describe("Tindak lanjut audit independen 2026-07-27", () => {
   });
 });
 
+describe("REGRESI B2 (audit 2026-07-27): blanko harian jalur LIVE ikut cap 100%", () => {
+  it("item over-volume tampil 100% di pratinjau harian, sama dengan blanko mingguan", async () => {
+    // Fixture utama: I#1.1 kumulatif 110 dari volume kontrak 100 (minggu 3
+    // menambah 60). Laporan dibuat langsung via db TANPA finalSnapshot →
+    // getKkpDailyData memakai jalur LIVE — jalur yang dulu menyalin rumus
+    // tanpa cap dan menampilkan 110%.
+    const { getKkpDailyData } = await import("@/lib/daily-report/queries");
+    const loc = await db.location.findUniqueOrThrow({
+      where: { id: locationId },
+      select: { slug: true },
+    });
+    const week3 = plusDays(START, 2 * 7); // laporan minggu 3, day 0
+    const data = await getKkpDailyData(loc.slug, week3.toISOString().slice(0, 10));
+    expect(data).not.toBeNull();
+    const galian = data!.items.find((it) => it.code === "1.1");
+    expect(galian).toBeDefined();
+    expect(galian!.volumeCumulative).toBeCloseTo(110, 6); // volume mentah tetap jujur
+    expect(galian!.pctCumulative).toBe(100); // persentase di-cap, konsisten blanko mingguan
+    for (const it of data!.items) {
+      if (it.pctCumulative != null) expect(it.pctCumulative).toBeLessThanOrEqual(100);
+    }
+  });
+});
+
 describe("laporan bulanan — invarian yang sama", () => {
   it("total tabel = angka kurva-S", async () => {
     const b = await getPeriodBounds(locationId);

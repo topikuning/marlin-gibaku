@@ -5,8 +5,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { scopeCoveredBy } from "@/lib/ai-hub/read-scope";
 import { audit } from "@/lib/audit";
-import { ForbiddenError, requireCapability } from "@/lib/auth/session";
+import { accessibleLocationIds, ForbiddenError, requireCapability } from "@/lib/auth/session";
 import { canTransitionAiArtifact } from "@/lib/lifecycle";
 import { sendText, WahaError } from "@/lib/waha/client";
 import { jakartaToday, parseDateKey } from "@/lib/format";
@@ -216,9 +217,14 @@ export async function transitionArtifactAction(_prev: AiHubState, formData: Form
     const user = await requireCapability(TRANSITION_CAPABILITY[to]);
     const artifact = await db.aiArtifact.findUnique({
       where: { id: artifactId },
-      select: { id: true, status: true, kind: true, structuredContent: true, frozenAt: true, runId: true },
+      select: { id: true, status: true, kind: true, structuredContent: true, frozenAt: true, runId: true, run: { select: { scopeIds: true } } },
     });
     if (!artifact || artifact.kind !== "laporan") return { error: "Artefak tidak ditemukan." };
+    // Lifecycle mengikuti scope baca — RM/PM scoped tidak boleh menyentuh
+    // artefak lokasi lain (audit 2026-07-27, B9).
+    if (!scopeCoveredBy(await accessibleLocationIds(user), artifact.run?.scopeIds ?? null)) {
+      return { error: "Artefak tidak ditemukan." };
+    }
     if (!canTransitionAiArtifact(artifact.status, to)) {
       return { error: `Transisi ${artifact.status} → ${to} tidak diizinkan.` };
     }
@@ -269,9 +275,12 @@ export async function editArtifactAction(_prev: AiHubState, formData: FormData):
     if (!parsed.success) return { error: "Isian edit tidak valid (ringkasan terlalu pendek/panjang)." };
     const artifact = await db.aiArtifact.findUnique({
       where: { id: parsed.data.artifactId },
-      select: { id: true, status: true, kind: true, structuredContent: true, frozenAt: true, runId: true },
+      select: { id: true, status: true, kind: true, structuredContent: true, frozenAt: true, runId: true, run: { select: { scopeIds: true } } },
     });
     if (!artifact || artifact.kind !== "laporan") return { error: "Artefak tidak ditemukan." };
+    if (!scopeCoveredBy(await accessibleLocationIds(user), artifact.run?.scopeIds ?? null)) {
+      return { error: "Artefak tidak ditemukan." };
+    }
     if (artifact.frozenAt || (artifact.status !== "draft" && artifact.status !== "direview" && artifact.status !== "disetujui")) {
       return { error: "Artefak tidak dapat diedit pada status ini." };
     }
@@ -300,9 +309,12 @@ export async function distributeArtifactAction(_prev: AiHubState, formData: Form
     const contactId = String(formData.get("contactId") ?? "");
     const artifact = await db.aiArtifact.findUnique({
       where: { id: artifactId },
-      select: { id: true, status: true, kind: true, renderedText: true, structuredContent: true, distributions: true, contentHash: true, runId: true },
+      select: { id: true, status: true, kind: true, renderedText: true, structuredContent: true, distributions: true, contentHash: true, runId: true, run: { select: { scopeIds: true } } },
     });
     if (!artifact || artifact.kind !== "laporan") return { error: "Artefak tidak ditemukan." };
+    if (!scopeCoveredBy(await accessibleLocationIds(user), artifact.run?.scopeIds ?? null)) {
+      return { error: "Artefak tidak ditemukan." };
+    }
     if (artifact.status !== "beku" && artifact.status !== "terkirim") {
       return { error: "Hanya artefak BEKU yang boleh didistribusikan — bekukan dulu setelah approve." };
     }

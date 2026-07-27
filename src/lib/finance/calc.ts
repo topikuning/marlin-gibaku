@@ -6,7 +6,8 @@ import { db } from "@/lib/db";
  * Formula (docs/rebuild/DOMAIN_MODEL.md):
  *   availableBudget    = Σ budget disetujui − Σ expense disetujui − komitmen disetujui belum terealisasi
  *   outstandingPayable = Σ invoice disetujui/dibayar_sebagian − Σ pembayaran keluar
- *   unbilledWork       = nilai terpasang terverifikasi − Σ owner billing (diajukan+)
+ *   unbilledWork       = nilai terpasang DILAPORKAN (level counted: dikirim+disetujui+
+ *                        final — BUKAN terverifikasi; audit 2026-07-27 B4) − Σ owner billing (diajukan+)
  *   cashRequirement    = komitmen jatuh tempo + forecast biaya − kas tersedia − pencairan terjadwal
  */
 
@@ -136,9 +137,15 @@ export async function getContractsBilling(contractIds: string[]): Promise<Map<st
   return result;
 }
 
-/** unbilledWork utk satu kontrak: nilai terpasang terverifikasi (Σ lokasi) − billed. */
-export function unbilledWork(installedVerified: bigint, billed: bigint): bigint {
-  return installedVerified > billed ? installedVerified - billed : 0n;
+/**
+ * unbilledWork utk satu kontrak: nilai terpasang DILAPORKAN (Σ lokasi) − billed.
+ * Basisnya level counted (dikirim+disetujui+final) dari lib/progress — bukan
+ * "terverifikasi"; nama lama `installedVerified` adalah klaim palsu
+ * (audit 2026-07-27, B4). Pemisahan level status menunggu keputusan user
+ * (OPEN_ISSUES).
+ */
+export function unbilledWork(installedReported: bigint, billed: bigint): bigint {
+  return installedReported > billed ? installedReported - billed : 0n;
 }
 
 /** cashRequirement: komitmen jatuh tempo ≤ horizon + forecast − kas tersedia − pencairan dijadwalkan. */

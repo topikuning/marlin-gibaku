@@ -3427,3 +3427,89 @@ normal setelah PR di-merge. Alur yang berlaku tetap `dev` → PR → `main`.
 typecheck ✓ · lint ✓ · unit 390 ✓ · integration 47 ✓ · build ✓ · E2E 16 ✓.
 `docker build --no-cache` tetap tidak dapat dijalankan di lingkungan kerja
 (tarikan Docker Hub diblokir proxy) — dibuktikan job Docker build di CI.
+
+## 154 · 2026-07-27 · Eksekusi P0 audit total (B1, B2, B4, B6, B9, B8, UI-konfirmasi)
+
+**Pemicu:** user memberikan `AUDIT_TOTAL_MARLIN_20260727.md` (audit menyeluruh —
+kalkulasi + UI/UX, dijalankan dengan test hijau di lingkungan auditor) dengan
+perintah "cek dan eksekusi". Semua temuan P0 diverifikasi ke kode dulu —
+seluruhnya TERBUKTI — lalu dieksekusi. Keputusan bisnis (bagian I audit) tidak
+diputuskan sendiri; dicatat di OPEN_ISSUES.
+
+### B1 (CRITICAL) — guard volume harian bisa ditembus tanpa race
+
+Guard "kumulatif ≤ volume RAB" hanya berjalan saat item DISIMPAN, dan hanya
+melihat laporan yang sudah counted. Dua draft di dua tanggal masing-masing
+lolos, lalu keduanya dikirim — kumulatif melampaui RAB tanpa error. Jalur yang
+sama terbuka lewat `perlu_koreksi`.
+
+**Fix:** `assertVolumeWithinRab()` — re-validasi DI DALAM transaksi transisi
+`→ dikirim`: kumulatif counted laporan LAIN + item laporan ini ≤ volume RAB.
+Pesan error menyebut item dan sisa. Regresi: dua draft dua tanggal → submit
+kedua ditolak, status tetap draft, koreksi ke sisa yang sah lolos.
+
+### B2 (CRITICAL) — blanko harian jalur LIVE menampilkan >100%
+
+`getKkpDailyData` jalur live menghitung `vol/volK×100` tanpa cap — situs
+KETIGA rumus ini; dua lainnya sudah dibetulkan DECISIONS 151, yang ini terlewat.
+Item over-volume tampil 110% di pratinjau/PDF/Excel harian, 100% di blanko
+mingguan. **Fix:** `prestasiPct`. Regresi: item 110/100 → `pctCumulative` 100,
+volume mentah tetap 110 (fakta lapangan tidak disembunyikan).
+
+### B4 (HIGH) — label "terverifikasi" palsu di keuangan
+
+`installedValue` = level COUNTED (dikirim+disetujui+final) tetapi dilabeli
+"nilai terpasang terverifikasi" di `/keuangan`, dan `unbilledWork` menamai
+parameternya `installedVerified`. **Fix label** (basis TIDAK diubah — itu
+keputusan user): "dilaporkan (dikirim+disetujui+final) — belum tentu
+terverifikasi"; param → `installedReported`; jsdoc dikoreksi.
+
+### B6 (HIGH) — race double-payment
+
+`addPayment`/`addDisbursement`/`createExpense` = aggregate→guard→create pada
+READ COMMITTED; dua request paralel sama-sama lolos guard → kas keluar dobel,
+disembunyikan clamp `0n`. **Fix:** lapisan baru `lib/finance/apply.ts`
+(`applyPaymentTx`/`applyDisbursementTx`) dengan `SELECT … FOR UPDATE` pada
+baris induk sebelum agregasi; `createExpense` mengunci baris komitmen dengan
+pola sama. Regresi konkurensi NYATA: dua pembayaran paralel 60jt atas invoice
+100jt → tepat satu ditolak, total tersimpan 60jt; idem pencairan termin.
+
+### B9 (HIGH) — scope bocor di jalur baca AI
+
+Jalur generate ketat (`resolveAiScope`), jalur baca hanya cek `ai.view`.
+**Fix:** `lib/ai-hub/read-scope.ts` (`scopeCoveredBy` — murni, diuji): user
+boleh membaca run/artefak hanya bila SEMUA `scopeIds` run tercakup izinnya;
+scope kosong/korup = tolak untuk role scoped. Diterapkan di **7 jalur** (audit
+menyebut 4): halaman run, daftar artefak, route Excel, halaman cetak, plus
+`/ai/history` dan 3 action lifecycle artefak (transisi/edit/distribusi) yang
+sekelas bocornya. Respons 404/"tidak ditemukan", bukan 403 — keberadaan tidak
+dikonfirmasi.
+
+### B8 (HIGH, kecil) — TOTAL bobot PDF hardcode 100
+
+Diganti Σ `subtotalBobot` nyata — PDF tidak boleh bercerita lain dari
+layar/Excel pada kasus kategori-tanpa-item.
+
+### UI-P0 — konfirmasi untuk persetujuan keuangan
+
+Primitif dialog PERTAMA di repo: `ui/confirm-dialog.tsx` (`ConfirmSubmit`) —
+role=dialog + aria-modal, focus trap, Escape menutup, fokus dipulihkan ke
+pemicu (pola APG). Dipakai tombol **Setujui** di antrean approval `/keuangan`
+dan panel lokasi; dialog menyebut jenis + nomor + nominal transaksi. Tombol
+pembuka **Tolak** diturunkan ke `secondary` (bukan danger filled berdampingan
+primary) — aksi finalnya tetap lewat form alasan. Diverifikasi browser: klik
+pertama TIDAK menyetujui apa pun, Escape menutup, konfirmasi menyetujui.
+
+### Temuan audit yang DIPERIKSA dan DITOLAK
+
+**B16a** (`rebuildFinalSnapshots` tanpa `requireLocationAccess`): gate-nya
+`system.manage` = super_admin SAJA, plus filter `orgId` — `requireLocationAccess`
+untuk super_admin selalu lolos, jadi "kaki tripod yang hilang" tidak berdampak.
+Tidak diubah.
+
+### Verifikasi
+
+typecheck ✓ · lint ✓ · unit **394** ✓ · integration **52** ✓ (finance-race
+baru: 3) · build ✓ · uji browser dialog konfirmasi ✓.
+
+Sisa temuan audit (P1/P2 + UI) dan 3 keputusan baru dicatat di OPEN_ISSUES.

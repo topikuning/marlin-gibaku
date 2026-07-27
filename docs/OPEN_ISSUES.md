@@ -193,3 +193,58 @@ PDF, Excel, komponen cetak, dan payload AI semuanya mengonsumsi objek
 struktural. Tetapi tidak ada test yang MEMBUKTIKAN angka di file hasil render
 sama dengan angka di layar. Kalau suatu saat ada yang menyisipkan pembulatan di
 renderer, tidak ada yang menangkapnya.
+
+## Audit total 2026-07-27 — temuan yang BELUM dikerjakan (P0 selesai di DECISIONS 154)
+
+Per ID audit; satu baris per temuan, detail di laporan audit + kode.
+
+- 🟠 **B3** Dokumen KKP hal-1 ≠ hal-2 setelah edit manual baseline:
+  `updateBaselinePoints` membuat baseline baru TANPA menyalin `scheduleItems` →
+  hal-1 (kurva) jatuh ke jadwal auto, hal-2 pakai points hasil edit. Fix: salin
+  scheduleItems saat edit points + satukan basis rencana.
+- 🟠 **B5** Keuangan mengabaikan PPN: `unbilled = terpasang (pre-PPN) − billing
+  (incl-PPN)` → understated ~11%. TERGANTUNG KEPUTUSAN basis termin (bawah).
+- 🟠 **B7** Excel kurva-S menulis realisasi/deviasi carry-forward melewati
+  minggu laporan (layar & PDF kosong) — hormati cutoff atau beri banner sheet.
+- 🟠 **B10** Validasi klaim angka AI buta tanda (`Math.abs`), `sections[].body`
+  tak dicek, `waSummary` gagal-cek tetap terkirim.
+- 🟠 **B11** Role lintas lokasi tidak difilter `orgId` di dashboard/peta/progress
+  (dorman selama single-org; pola benar ada di `exec-report/gather.ts`).
+- 🟡 **B12** Panel saran memakai grandTotal Σ(vol×harga) — basis "Realisasi"
+  keempat; test justru melonggarkan toleransi untuk menampungnya.
+- 🟡 **B13** Agregat tertimbang portofolio di-fork 4× (dashboard, progress page,
+  paket page, gate serah_terima) — ekstrak satu fungsi kanonik.
+- 🟡 **B14** Retensi: diakumulasi utk billing draft, ambang `cair` abaikan
+  retensi, `retentionHeld` tak divalidasi silang `Contract.retentionPercent`.
+- 🟡 **B15** `setBudgetLine` self-approve by design; tidak ada four-eyes di
+  seluruh finance. TERGANTUNG KEPUTUSAN four-eyes (bawah).
+- 🟡 **B16b/c** `saveEnrichmentAction` bisa mengedit laporan `dikirim` dgn
+  capability `daily_report.create`; `addIssueFromReport` tanpa guard status.
+- 🟡 **B17** Aktivasi revisi + regenerate baseline = 2 transaksi; lineage
+  ber-realisasi yang hilang di revisi baru lenyap tanpa warning di preview.
+- 🟡 **B18** Kuota AI: hitungan org tanpa filter `orgId`; batas hari pakai
+  midnight server, bukan `jakartaToday()`.
+- 🟡 **B19** `dataAsOf` AI = waktu render, bukan watermark kesegaran data.
+- **UI P1/P2** (bagian Q audit): migrasi 4 dialog ad-hoc ke primitif modal;
+  angkat skala font de-facto (10/11/12/13px) jadi token; 53 tombol mentah;
+  reflow `/lokasi/[slug]/progress` @390px; peredam prognosa absurd (SPI≈0 →
+  "16 Apr 2086"); token cetak; combobox aria-activedescendant; password toggle
+  fokusable.
+
+## KEPUTUSAN · Basis penagihan termin: level status + PPN (audit B4+B5)
+
+`unbilled` sekarang = terpasang level COUNTED (pre-PPN) − billing (incl-PPN).
+Dua keputusan menentukan bentuk perbaikannya: (1) basis terpasang counted atau
+verified; (2) dibandingkan pre-PPN vs pre-PPN, atau keduanya incl-PPN. Label
+sudah dikoreksi (DECISIONS 154); ANGKANYA belum diubah.
+
+## KEPUTUSAN · Lineage ber-realisasi yang hilang saat adendum (audit B17)
+
+Item dgn realisasi yang tidak dibawa revisi baru → realisasinya keluar dari
+progress aktif diam-diam. Blokir aktivasi, atau cukup warning di preview import?
+
+## KEPUTUSAN · Four-eyes keuangan (audit B15)
+
+Apakah super_admin/program_director boleh input + approve transaksi yang sama
+sendirian (termasuk budget yang langsung `disetujui`)? Kalau tidak: cek
+`createdById !== approver` minimal di approve/budget.

@@ -252,6 +252,65 @@ export async function setEnrichment(reportId: string, input: EnrichmentInput, us
   });
 }
 
+/**
+ * Guard volume saat laporan MASUK ke status counted (audit 2026-07-27, B1).
+ *
+ * Guard di `upsertItem` hanya berjalan saat item DISIMPAN, dan hanya melihat
+ * laporan yang SUDAH counted. Dua draft di dua tanggal masing-masing lolos
+ * guard itu, lalu keduanya dikirim — kumulatif melampaui RAB tanpa satu pun
+ * error. Jalur yang sama terbuka lewat `perlu_koreksi` (laporan keluar dari
+ * counted selama dikoreksi, laporan lain bisa mengisi sisa volumenya).
+ *
+ * Karena itu volume di-RE-VALIDASI di sini, DI DALAM transaksi transisi
+ * `→ dikirim`: kumulatif counted laporan LAIN + item laporan ini ≤ volume RAB.
+ */
+async function assertVolumeWithinRab(
+  tx: Prisma.TransactionClient,
+  report: { id: string; locationId: string },
+) {
+  const items = await tx.dailyReportItem.findMany({
+    where: { reportId: report.id },
+    select: {
+      lineageKey: true,
+      volumeDone: true,
+      rabNode: { select: { code: true, name: true, unit: true, volume: true } },
+    },
+  });
+  if (items.length === 0) return;
+
+  const counted = await tx.dailyReportItem.groupBy({
+    by: ["lineageKey"],
+    where: {
+      lineageKey: { in: items.map((it) => it.lineageKey) },
+      report: {
+        locationId: report.locationId,
+        status: { in: [...COUNTED_REPORT_STATUSES] },
+        id: { not: report.id },
+      },
+    },
+    _sum: { volumeDone: true },
+  });
+  const othersByLineage = new Map(counted.map((c) => [c.lineageKey, Number(c._sum.volumeDone ?? 0)]));
+
+  const offending: string[] = [];
+  for (const it of items) {
+    const volK = it.rabNode.volume != null ? Number(it.rabNode.volume) : null;
+    if (volK == null) continue;
+    const total = (othersByLineage.get(it.lineageKey) ?? 0) + Number(it.volumeDone);
+    if (total > volK + VOLUME_EPSILON) {
+      const sisa = Math.max(0, Math.round((volK - (othersByLineage.get(it.lineageKey) ?? 0)) * 1000) / 1000);
+      offending.push(
+        `${it.rabNode.code} ${it.rabNode.name}: total ${formatNumber(total)} > RAB ${formatNumber(volK)} ${it.rabNode.unit ?? ""} (sisa ${formatNumber(sisa)})`.trim(),
+      );
+    }
+  }
+  if (offending.length > 0) {
+    throw new DailyReportError(
+      `Volume kumulatif melebihi RAB — laporan lain sudah terkirim lebih dulu. Perbaiki item berikut: ${offending.join("; ")}`,
+    );
+  }
+}
+
 /** Transisi generik: validasi lifecycle + update + history APPEND-ONLY dalam satu $transaction. */
 async function transition(
   reportId: string,
@@ -265,6 +324,11 @@ async function transition(
     throw new DailyReportError(`Transisi status ${report.status} → ${to} tidak diizinkan`);
   }
   const updated = await db.$transaction(async (tx) => {
+    // Masuk ke counted = mulai memengaruhi progress/kurva/blanko — volume
+    // wajib dicek ulang di sini, bukan hanya saat item diketik (B1).
+    if (to === "dikirim") {
+      await assertVolumeWithinRab(tx, { id: report.id, locationId: report.locationId });
+    }
     const row = await tx.dailyReport.update({
       where: { id: reportId, status: report.status }, // optimistic lock: status tidak berubah di tengah
       data: { status: to, ...extra },

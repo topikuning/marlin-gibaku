@@ -546,8 +546,12 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
         volumeBefore: Math.max(0, Math.round((volumeCumulative - volumeToday) * 1000) / 1000),
         volumeToday,
         volumeCumulative,
+        // prestasiPct (cap 100) — situs KETIGA rumus ini; dua lainnya sudah
+        // dibetulkan DECISIONS 151, yang ini terlewat dan membuat pratinjau/PDF
+        // harian menampilkan 110% saat blanko mingguan menulis 100%
+        // (audit 2026-07-27, B2).
         pctCumulative:
-          volumeContract != null && volumeContract > 0 ? (volumeCumulative / volumeContract) * 100 : null,
+          volumeContract != null && volumeContract > 0 ? prestasiPct(volumeCumulative, volumeContract) : null,
       };
     }),
     isFinal: report?.status === "final",

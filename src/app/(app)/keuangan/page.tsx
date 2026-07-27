@@ -176,7 +176,7 @@ export default async function KeuanganPage() {
           href="#per-lokasi"
         />
         <KpiCard label="Outstanding payable" value={formatRupiahShort(totalOutstanding)} href="#per-lokasi" />
-        <KpiCard label="Terpasang" value={formatRupiahShort(totalInstalled)} sub="nilai terpasang terverifikasi" href="#per-lokasi" />
+        <KpiCard label="Terpasang" value={formatRupiahShort(totalInstalled)} sub="dilaporkan (dikirim+disetujui+final) — belum tentu terverifikasi" href="#per-lokasi" />
         <KpiCard label="Tertagih" value={formatRupiahShort(totalBilled)} sub="owner billing diajukan+" href="#per-lokasi" />
         <KpiCard label="Cair" value={formatRupiahShort(totalDisbursed)} sub="pencairan diterima" href="#per-lokasi" />
       </section>

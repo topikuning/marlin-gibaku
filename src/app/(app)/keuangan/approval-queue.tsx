@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useState } from "react";
-import { Badge, Banner, Button, Input, Label } from "@/components/ui";
+import { Badge, Banner, Button, ConfirmSubmit, Input, Label } from "@/components/ui";
 import { formatRupiah, formatTanggal } from "@/lib/format";
 import {
   approveCommitment,
@@ -87,16 +87,15 @@ function QueueRow({ item, canApprove }: { item: QueueItem; canApprove: boolean }
             <div className="flex gap-1.5">
               <form action={approveAction}>
                 <input type="hidden" name="id" value={item.id} />
-                <Button size="sm" type="submit" loading={approving}>
-                  Setujui
-                </Button>
+                {/* Persetujuan finansial ireversibel — wajib konfirmasi (audit UI P0-1). */}
+                <ConfirmSubmit
+                  label="Setujui"
+                  title="Setujui transaksi ini?"
+                  description={`${item.kindLabel} — ${item.description} senilai ${formatRupiah(Number(item.amount))}. Persetujuan tercatat atas nama Anda dan langsung memengaruhi angka keuangan.`}
+                  loading={approving}
+                />
               </form>
-              <Button
-                size="sm"
-                variant="danger"
-                type="button"
-                onClick={() => setShowReject((v) => !v)}
-              >
+              <Button size="sm" variant="secondary" type="button" onClick={() => setShowReject((v) => !v)}>
                 Tolak
               </Button>
             </div>

@@ -170,7 +170,7 @@ export default async function LokasiKeuanganPage({ params }: { params: Promise<{
           sub={(s?.availableBudget ?? 0n) < 0n ? "melebihi budget" : undefined}
         />
         <KpiCard label="Outstanding payable" value={formatRupiahShort(s?.outstandingPayable ?? 0n)} />
-        <KpiCard label="Terpasang" value={formatRupiahShort(s?.installedValue ?? 0n)} />
+        <KpiCard label="Terpasang" value={formatRupiahShort(s?.installedValue ?? 0n)} sub="dilaporkan — belum tentu terverifikasi" />
       </section>
 
       <Card>

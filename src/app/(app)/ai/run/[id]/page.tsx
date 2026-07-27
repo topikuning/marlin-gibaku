@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge, Banner, Card, CardBody, CardHeader, KpiCard } from "@/components/ui";
-import { requireUser } from "@/lib/auth/session";
+import { accessibleLocationIds, requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
+import { scopeCoveredBy } from "@/lib/ai-hub/read-scope";
 import { listSendableContacts } from "@/lib/contacts/queries";
 import { AI_RUN_STATUS_LABEL, AI_RUN_STATUS_TONE } from "@/lib/lifecycle";
 import { formatTanggalWaktu } from "@/lib/format";
@@ -115,6 +116,10 @@ export default async function AiRunDetailPage({ params }: { params: Promise<{ id
     },
   });
   if (!run) notFound();
+  // Jalur BACA wajib se-ketat jalur generate: run di luar scope lokasi user
+  // tidak boleh terbaca (audit 2026-07-27, B9).
+  if (!scopeCoveredBy(await accessibleLocationIds(user), run.scopeIds)) notFound();
+
 
   const [creator, contacts, auditTrail] = await Promise.all([
     db.user.findUnique({ where: { id: run.userId }, select: { fullName: true } }),

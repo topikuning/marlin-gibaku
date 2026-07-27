@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Badge, Banner, Button, HelpText, Input, Label, Combobox, Textarea } from "@/components/ui";
+import { Badge, Banner, Button, ConfirmSubmit, HelpText, Input, Label, Combobox, Textarea } from "@/components/ui";
 import { formatRupiah, formatTanggal } from "@/lib/format";
 import {
   addDisbursement,
@@ -83,11 +83,15 @@ function ApproveRejectButtons({
       <div className="flex flex-wrap gap-1.5">
         <form action={approve}>
           <input type="hidden" name="id" value={id} />
-          <Button size="sm" type="submit" loading={approving}>
-            Setujui
-          </Button>
+          {/* Persetujuan finansial ireversibel — wajib konfirmasi (audit UI P0-1). */}
+          <ConfirmSubmit
+            label="Setujui"
+            title="Setujui transaksi ini?"
+            description="Persetujuan tercatat atas nama Anda dan langsung memengaruhi angka keuangan lokasi."
+            loading={approving}
+          />
         </form>
-        <Button size="sm" variant="danger" type="button" onClick={() => setShowReject((v) => !v)}>
+        <Button size="sm" variant="secondary" type="button" onClick={() => setShowReject((v) => !v)}>
           Tolak
         </Button>
       </div>
