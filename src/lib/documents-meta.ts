@@ -58,6 +58,9 @@ export const TYPE_LABEL: Record<DocumentType, string> = {
   invoice: "Invoice / Kwitansi",
   faktur_pajak: "Faktur Pajak",
   hps: "HPS (Harga Perkiraan Sendiri)",
+  ded: "DED (Detail Engineering Design)",
+  shop_drawing: "Shop Drawing",
+  as_built: "As Built Drawing",
   lainnya: "Lainnya",
 };
 
@@ -68,11 +71,11 @@ export const ALL_DOC_TYPES = Object.keys(TYPE_LABEL) as DocumentType[];
 export const TYPES_BY_PHASE: Record<AdminPhase, DocumentType[]> = {
   pemilihan: ["hps", "undangan", "ba_penjelasan", "penawaran", "ba_evaluasi", "ba_klarifikasi", "ba_negosiasi", "lainnya"],
   penunjukan: ["penetapan_pemenang", "sanggah", "sppbj", "jaminan", "lainnya"],
-  kontrak: ["undangan", "kontrak", "jaminan", "lainnya"],
-  mulai_kerja: ["undangan", "spmk", "ba_serah_terima_lapangan", "pcm", "mc0", "lainnya"],
-  pelaksanaan: ["laporan", "mc_berkala", "surat_kendala", "surat_peringatan", "lainnya"],
+  kontrak: ["undangan", "kontrak", "jaminan", "ded", "lainnya"],
+  mulai_kerja: ["undangan", "spmk", "ba_serah_terima_lapangan", "pcm", "mc0", "shop_drawing", "lainnya"],
+  pelaksanaan: ["laporan", "mc_berkala", "shop_drawing", "surat_kendala", "surat_peringatan", "lainnya"],
   adendum: ["undangan", "adendum", "jaminan", "lainnya"],
-  serah_terima: ["bast_pho", "bast_fho", "lainnya"],
+  serah_terima: ["bast_pho", "bast_fho", "as_built", "lainnya"],
   pembayaran: ["laporan", "ba_pembayaran", "invoice", "faktur_pajak", "lainnya"],
   lainnya: ALL_DOC_TYPES,
 };

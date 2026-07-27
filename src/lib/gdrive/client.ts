@@ -59,6 +59,61 @@ export async function getAccessToken(): Promise<string> {
   return j.access_token;
 }
 
+const FOLDER_MIME = "application/vnd.google-apps.folder";
+
+/**
+ * Cari folder bernama `name` di dalam `parentId`; buat bila belum ada.
+ * Pencarian didahulukan supaya folder yang SUDAH dibuat KKP (beserta isinya)
+ * dipakai apa adanya, bukan diduplikasi. Cache per proses menekan panggilan
+ * berulang saat mengupload banyak file ke folder yang sama. DECISIONS 143.
+ */
+const folderCache = new Map<string, string>();
+
+export async function ensureFolder(parentId: string, name: string): Promise<string> {
+  const cacheKey = `${parentId}/${name}`;
+  const hit = folderCache.get(cacheKey);
+  if (hit) return hit;
+
+  const token = await getAccessToken();
+  // Nama di query Drive pakai kutip tunggal — escape backslash & kutipnya.
+  const escaped = name.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  const q = `name = '${escaped}' and mimeType = '${FOLDER_MIME}' and '${parentId}' in parents and trashed = false`;
+  const url =
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}` +
+    `&fields=files(id,name)&pageSize=10&supportsAllDrives=true&includeItemsFromAllDrives=true`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!res.ok) throw new GDriveError(`Gagal mencari folder "${name}": ${await readError(res)}`);
+  const found = ((await res.json()) as { files?: { id: string }[] }).files ?? [];
+  if (found[0]?.id) {
+    folderCache.set(cacheKey, found[0].id);
+    return found[0].id;
+  }
+
+  const create = await fetch(
+    "https://www.googleapis.com/drive/v3/files?supportsAllDrives=true&fields=id",
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ name, mimeType: FOLDER_MIME, parents: [parentId] }),
+      signal: AbortSignal.timeout(20_000),
+    },
+  );
+  if (!create.ok) throw new GDriveError(`Gagal membuat folder "${name}": ${await readError(create)}`);
+  const id = ((await create.json()) as { id: string }).id;
+  folderCache.set(cacheKey, id);
+  return id;
+}
+
+/** Telusuri/buat berjenjang; mengembalikan ID folder terdalam. */
+export async function ensureFolderPath(rootId: string, segments: string[]): Promise<string> {
+  let parent = rootId;
+  for (const seg of segments.slice(0, 8)) parent = await ensureFolder(parent, seg);
+  return parent;
+}
+
 export type DriveFile = { id: string; name: string; webViewLink: string | null };
 
 /** Upload satu file ke folder. Error → GDriveError (pesan siap tampil). */

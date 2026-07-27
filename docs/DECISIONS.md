@@ -2882,3 +2882,34 @@ Tiga bug tampilan pada PDF produksi (dari bundle self-contained DECISIONS 128):
   publik (fallback ke nextUrl.origin), dipakai di SEMUA redirect. Flag `secure`
   cookie state juga ikut origin publik, bukan protokol request internal.
 - Verifikasi: typecheck ✓ lint ✓ unit 314 (+9) ✓.
+
+## 143 · 2026-07-27 · Struktur 9 folder KKP di Drive + foto & kegiatan lapangan ikut
+
+- **Konteks**: tiap Drive paket dari KKP punya struktur baku 9 folder bernomor
+  (1. SPPBJ…DED, 2. PCM, 3. LAPORAN HARIAN, 4. MINGGUAN, 5. BULANAN,
+  6. DOKUMENTASI, 7. BERKAS TERMIN, 8. SHOP DRAWING, 9. AS BUILT). Sebelumnya
+  MARLIN menaruh semua file di akar folder paket.
+- **Struktur**: `<folder paket>/<folder KKP>/<Nama Lokasi>/…`. Lapisan lokasi
+  ditambahkan supaya satu paket berisi banyak lokasi tetap seragam. Harian &
+  kegiatan diberi lapisan bulan `2026-07 Juli` (urut alfabet = urut kronologis).
+  Foto laporan harian di subfolder `Foto`; kegiatan lapangan satu folder per
+  kegiatan berisi PDF + fotonya.
+- **Cari-dulu-baru-buat** (`ensureFolder`): folder dicocokkan by name di dalam
+  parent; hanya dibuat bila tidak ada. Folder buatan KKP yang sudah berisi file
+  dipakai apa adanya, tidak pernah terduplikasi. Cache per proses menekan
+  panggilan berulang saat mengupload banyak file.
+- **Cakupan baru**: (a) foto laporan harian ikut terupload — KKP menilai bukti
+  visual, bukan hanya narasi; (b) kegiatan lapangan (PDF + foto) → folder 6;
+  (c) dokumen administrasi → folder sesuai JENIS dokumen. Jenis dokumen proses
+  tender internal (undangan, penawaran, BA evaluasi/negosiasi, sanggah) sengaja
+  TIDAK dipetakan — ditolak dengan pesan jelas, bukan ditaruh sembarangan.
+- **Schema**: `DocumentType` + `ded`, `shop_drawing`, `as_built` (folder 1/8/9
+  sebelumnya tidak punya sumber sama sekali). `GDriveUploadKind` + `kegiatan`,
+  `dokumen`.
+- **Ketahanan**: satu file gagal tidak membatalkan sisanya; tiap file dicatat
+  sukses/gagal di `GDriveUpload` dan bisa diulang. Foto yang tak terbaca dari R2
+  dilewati & dilaporkan jumlahnya — laporan utamanya tetap naik.
+- **Kelengkapan** (`coverage.ts`): halaman paket menampilkan 9 folder × (sumber
+  di MARLIN, terupload / layak disetor, gagal, terakhir kapan) — menjawab "mana
+  yang belum disetor ke KKP" tanpa membuka Drive.
+- Verifikasi: typecheck ✓ lint ✓ unit 334 (+20) ✓ build ✓.

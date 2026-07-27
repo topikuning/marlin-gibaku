@@ -3,7 +3,7 @@ import { StatusPill } from "@/components/ui";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import { can } from "@/lib/authz";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
-import { jakartaDateKey, jakartaToday, formatTanggal } from "@/lib/format";
+import { jakartaDateKey, jakartaToday, formatTanggal, formatTanggalWaktu } from "@/lib/format";
 import { listFieldActivities } from "@/lib/field-activity/queries";
 import {
   FIELD_ACTIVITY_STATUS_LABEL,
@@ -23,6 +23,8 @@ import {
   SendPdfToWaButton,
 } from "./kegiatan-forms";
 import { KegiatanList, type ActivityCardItem } from "./kegiatan-list";
+import { UploadActivityToDrive } from "@/components/knmp/drive-upload-button";
+import { getGDriveConfigDisplay } from "@/lib/gdrive/config";
 
 export const metadata: Metadata = { title: "Kegiatan & Dokumentasi Lapangan" };
 export const dynamic = "force-dynamic";
@@ -81,6 +83,28 @@ export default async function KegiatanLapanganPage({ params }: { params: Promise
   const hasGroup = !!pkgGroup?.package?.waGroupId;
   const groupName = pkgGroup?.package?.waGroupName ?? null;
 
+  // Kesiapan Drive KKP (folder "6. DOKUMENTASI") + jejak upload per kegiatan.
+  const driveOn = canManage && (await getGDriveConfigDisplay()).connected;
+  const drivePkg = driveOn
+    ? await db.location.findUnique({
+        where: { id: location.id },
+        select: { package: { select: { driveFolderId: true } } },
+      })
+    : null;
+  const hasDriveFolder = !!drivePkg?.package?.driveFolderId;
+  const driveLogs = driveOn
+    ? await db.gDriveUpload.findMany({
+        where: { locationId: location.id, kind: "kegiatan", status: "sukses" },
+        orderBy: { createdAt: "desc" },
+        select: { refKey: true, createdAt: true },
+        take: 500,
+      })
+    : [];
+  const driveUploadedAt = new Map<string, string>();
+  for (const l of driveLogs) {
+    if (!driveUploadedAt.has(l.refKey)) driveUploadedAt.set(l.refKey, formatTanggalWaktu(l.createdAt));
+  }
+
   const draftCount = activities.filter((a) => a.status === "draft").length;
   const finalCount = activities.length - draftCount;
 
@@ -132,6 +156,13 @@ export default async function KegiatanLapanganPage({ params }: { params: Promise
               <a href={`/api/kegiatan/${a.id}/pdf`} target="_blank" rel="noopener" className={linkBtn}>
                 Cetak / PDF
               </a>
+              {canManage && driveOn && a.status === "final" ? (
+                <UploadActivityToDrive
+                  activityId={a.id}
+                  hasDrive={hasDriveFolder}
+                  uploadedAt={driveUploadedAt.get(a.id) ?? null}
+                />
+              ) : null}
             </div>
           </div>
         </div>

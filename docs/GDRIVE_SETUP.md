@@ -69,3 +69,36 @@ tercatat (siapa, kapan, file ID) dan bisa diulang.
   diupload MARLIN memakai kuota 15 GB akun Gmail tim — pantau sesekali.
 - Enkripsi token butuh `AI_SECRET_ENCRYPTION_KEY` (kunci yang sama dengan
   enkripsi API key AI — sudah ada di production).
+
+## Struktur folder di dalam Drive paket
+
+MARLIN mengikuti 9 folder standar KKP dan menambahkan lapisan **nama lokasi**
+supaya satu paket dengan banyak lokasi tetap rapi & seragam:
+
+```
+<Folder Drive paket dari KKP>/
+├── 1. SPPBJ, SPK, SPMK, RAB, DED/   ← dokumen sppbj, kontrak, spmk, HPS/RAB, DED, adendum, jaminan
+├── 2. PCM/                          ← dokumen PCM, BA serah terima lapangan, MC-0
+├── 3. LAPORAN HARIAN/
+│   └── <Lokasi>/<2026-07 Juli>/     ← PDF laporan harian
+│       └── Foto/                    ← seluruh foto laporan hari itu
+├── 4. LAPORAN MINGGUAN/<Lokasi>/    ← PDF + Excel per periode
+├── 5. LAPORAN BULANAN/<Lokasi>/     ← PDF + Excel per periode
+├── 6. DOKUMENTASI/
+│   └── <Lokasi>/<2026-07 Juli>/<2026-07-26 Judul kegiatan>/   ← PDF kegiatan + fotonya
+├── 7. BERKAS TERMIN/                ← MC berkala, invoice, faktur pajak, BA pembayaran, BAST
+├── 8. SHOP DRAWING/                 ← dokumen jenis Shop Drawing
+└── 9. AS BUILT/                     ← dokumen jenis As Built Drawing
+```
+
+Catatan:
+
+- Folder **dicari dulu berdasarkan nama**; hanya dibuat kalau belum ada. Folder
+  yang sudah dibuat KKP (beserta isinya) dipakai apa adanya, tidak diduplikasi.
+- Nama folder harus **persis** seperti di atas agar dikenali. Kalau KKP memakai
+  penamaan berbeda di suatu paket, MARLIN akan membuat folder baru sesuai daftar
+  ini — samakan penamaannya lebih dulu bila tidak diinginkan.
+- Dokumen proses tender internal (undangan, penawaran, BA evaluasi, negosiasi,
+  sanggah) **sengaja tidak** punya tujuan folder — tidak ikut terupload.
+- Cek kelengkapan per paket: halaman paket → kartu **"Kelengkapan folder KKP di
+  Drive"** (jumlah terupload vs yang layak disetor + kapan terakhir).

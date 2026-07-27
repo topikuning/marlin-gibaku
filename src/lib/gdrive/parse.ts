@@ -117,10 +117,17 @@ export function driveRedirectUri(src: OriginSources): string | null {
   return origin ? `${origin}${GDRIVE_REDIRECT_PATH}` : null;
 }
 
-export type GDriveUploadKind = "laporan_harian" | "laporan_mingguan" | "laporan_bulanan";
+export type GDriveUploadKind =
+  | "laporan_harian"
+  | "laporan_mingguan"
+  | "laporan_bulanan"
+  | "kegiatan"
+  | "dokumen";
 
 export const GDRIVE_KIND_LABEL: Record<GDriveUploadKind, string> = {
   laporan_harian: "Laporan harian",
   laporan_mingguan: "Laporan mingguan",
   laporan_bulanan: "Laporan bulanan",
+  kegiatan: "Kegiatan lapangan",
+  dokumen: "Dokumen administrasi",
 };

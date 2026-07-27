@@ -29,6 +29,7 @@ import {
 import { WaGroupForm } from "./wa-group-form";
 import { DriveFolderForm } from "./drive-folder-form";
 import { getGDriveConfigDisplay } from "@/lib/gdrive/config";
+import { getDriveCoverage } from "@/lib/gdrive/coverage";
 
 export const metadata: Metadata = { title: "Ringkasan Paket" };
 export const dynamic = "force-dynamic";
@@ -372,6 +373,48 @@ export default async function RingkasanPaketPage({
               currentFolderId={pkg.driveFolderId}
               driveConnected={(await getGDriveConfigDisplay()).connected}
             />
+          </CardBody>
+        </Card>
+      ) : null}
+
+      {canWaConfigure && pkg.driveFolderId ? (
+        <Card>
+          <CardHeader
+            title="Kelengkapan folder KKP di Drive"
+            subtitle="Sembilan folder standar KKP — apa yang MARLIN punya vs apa yang sudah disetor."
+          />
+          <CardBody className="overflow-x-auto">
+            <table className="w-full min-w-[560px] text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-[12px] text-ink-muted">
+                  <th className="py-2 font-medium">Folder</th>
+                  <th className="py-2 font-medium">Sumber di MARLIN</th>
+                  <th className="py-2 text-right font-medium">Terupload</th>
+                  <th className="py-2 text-right font-medium">Terakhir</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(await getDriveCoverage(pkg.id)).map((r) => (
+                  <tr key={r.folder} className="border-b border-border-muted last:border-0">
+                    <td className="py-2 pr-3 font-medium text-ink">{r.folder}</td>
+                    <td className="py-2 pr-3 text-[13px] text-ink-muted">{r.source}</td>
+                    <td className="tabular py-2 pr-3 text-right">
+                      <span className={r.uploaded > 0 ? "text-success" : "text-ink-faint"}>{r.uploaded}</span>
+                      {r.expected != null ? <span className="text-ink-faint"> / {r.expected}</span> : null}
+                      {r.failed > 0 ? <span className="ml-1 text-danger">({r.failed} gagal)</span> : null}
+                    </td>
+                    <td className="py-2 text-right text-[13px] text-ink-muted">
+                      {r.lastAt ? formatTanggalWaktu(r.lastAt) : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="mt-2 text-[12px] text-ink-muted">
+              Upload dilakukan per laporan/dokumen dari halamannya masing-masing. Kolom “/ n” = jumlah yang
+              layak disetor menurut data MARLIN; laporan mingguan/bulanan tidak dihitung karena jumlah
+              periodenya mengikuti masa kontrak.
+            </p>
           </CardBody>
         </Card>
       ) : null}
