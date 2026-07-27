@@ -3605,3 +3605,49 @@ AUDIT_TOTAL_MARLIN_20260727.
 typecheck ✓ · lint ✓ · unit **396** ✓ (forecast damper baru: 2) · integration
 **52** ✓ · build ✓ · browser: keuangan (label + antrean), progress desktop
 (damper aktif di data seed), progress @390px (overflow 0), drawer Escape ✓.
+
+## 156 · 2026-07-27 · Laporan mingguan: Excel tertaut ke rincian + header tabel blanko KKP
+
+**Permintaan user.** (1) Baris "Realisasi Prestasi %" di sheet kurva-S Excel
+selama ini angka tempelan — harus TERTAUT ke detail laporan di rincian,
+terutama minggu aktif. (2) Header tabel rincian harus mengikuti blanko KKP.
+
+### Tautan Excel (satu rantai rumus sampai kurva)
+
+- Sheet **Laporan**: subtotal kategori = rumus `SUM(...)` atas baris item;
+  baris **JUMLAH** = penjumlahan sel subtotal. Nilai cache = angka resmi
+  aplikasi, jadi pembaca tanpa recalc melihat angka yang sama.
+- Sheet **Kurva S**: sel "Realisasi Prestasi %" **minggu laporan** =
+  `=Laporan!K<JUMLAH>` (total "Bobot Minggu ini"). Baris kumulatif & grafik
+  sudah membaca baris itu → tautan menjalar sampai kurva. Hanya laporan
+  MINGGUAN (bulanan mencakup >1 kolom minggu, tak bisa dipetakan ke satu sel);
+  minggu di luar cutoff realisasi tetap kosong (B7 dipertahankan).
+
+### Header blanko KKP (layar + Excel)
+
+`No | Uraian Pekerjaan | Volume Kontrak | Satuan | Bobot | Realisasi Pekerjaan
+{Minggu Lalu / Minggu ini / S-d Minggu ini × Volume, Prestasi, Bobot} |
+Bobot Rencana | Sisa Pekerjaan {S-d Minggu ini: Prestasi, Volume}` — 3 baris
+merge. Kolom "Harga Satuan" DIBUANG (tidak ada di blanko; sering kosong di RAB
+impor). Kolom Bobot per kelompok memakai `bobotLalu/bobotIni/bobotSd` yang
+sudah ada (kolom selalu menjumlah, DECISIONS 151).
+
+### Kolom baru "Bobot Rencana" (per item)
+
+Jadwal rencana disimpan per KATEGORI (DECISIONS 103), maka rencana per item =
+bobot × fraksi rencana kategorinya (`planFractionFromWeekly`, progress-calc).
+**Gate rekonsiliasi**: Σ matriks kategori boleh beda tipis dari titik baseline
+resmi (mis. setelah edit manual titik, B3) — supaya satu dokumen tidak
+menampilkan dua angka rencana, kolom didistribusikan via `distributeWithCaps`
+(waterfilling, plafon = bobot item) sehingga **JUMLAH kolom == planPct resmi
+persis**; bentuk antar-kategori tetap mengikuti matriks. Uji integrasi
+menuntut `totals.bobotRencana ≈ planPct` (6 desimal) tiap minggu + monoton +
+per-item ≤ bobot.
+
+### Verifikasi
+
+typecheck ✓ · lint ✓ · unit **405** (planFractionFromWeekly 4 + 
+distributeWithCaps 5) · integration **53** (kolom Bobot Rencana + rekonsiliasi)
+· build ✓ · file .xlsx nyata dibongkar: `E25 = Laporan!K1704` (minggu 2),
+`K1704 = K73+K107+…` (rantai subtotal), `O JUMLAH = 22,40` == rencana resmi
+minggu 2 ✓ · tampilan layar diverifikasi browser.

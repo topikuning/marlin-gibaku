@@ -210,6 +210,36 @@ describe("laporan mingguan — invarian angka", () => {
     }
   });
 
+  it("kolom Bobot Rencana: 0 ≤ per-item ≤ bobot, kolom menjumlah ke subtotal & JUMLAH, dan naik monoton", async () => {
+    // Header blanko KKP menuntut kolom "Bobot Rencana" per item; nilainya
+    // = bobot × fraksi rencana kategorinya s/d minggu laporan.
+    let prev = -1;
+    for (let n = 1; n <= WEEKS; n++) {
+      const r = await getPeriodReport(locationId, "mingguan", n);
+      let sum = 0;
+      for (const cat of r!.categories) {
+        let catSum = 0;
+        for (const row of cat.rows) {
+          expect(row.bobotRencana, `minggu ${n} · ${row.name}`).toBeGreaterThanOrEqual(0);
+          expect(row.bobotRencana, `minggu ${n} · ${row.name}`).toBeLessThanOrEqual(row.bobot + 1e-9);
+          catSum += row.bobotRencana;
+        }
+        expect(cat.subtotalBobotRencana, `minggu ${n} · ${cat.name}`).toBeCloseTo(catSum, 9);
+        sum += catSum;
+      }
+      expect(r!.totals.bobotRencana, `minggu ${n} · total`).toBeCloseTo(sum, 9);
+      // REKONSILIASI: JUMLAH kolom Bobot Rencana == rencana resmi kurva-S di
+      // halaman yang sama — satu dokumen, satu angka rencana.
+      expect(r!.totals.bobotRencana, `minggu ${n} · vs planPct`).toBeCloseTo(r!.planPct, 6);
+      expect(r!.totals.bobotRencana, `minggu ${n} · monoton`).toBeGreaterThanOrEqual(prev - 1e-9);
+      prev = r!.totals.bobotRencana;
+    }
+    // Minggu terakhir kontrak: seluruh rencana selesai → Σ Bobot Rencana = Σ bobot.
+    const last = await getPeriodReport(locationId, "mingguan", WEEKS);
+    const totalBobot = allRows(last!).reduce((s, row) => s + row.bobot, 0);
+    expect(last!.totals.bobotRencana).toBeCloseTo(totalBobot, 6);
+  });
+
   it("REGRESI: 's/d' tidak pernah mundur antar minggu", async () => {
     // Gejala yang pernah terjadi di laporan harian: Selasa s/d 120, Rabu s/d 41.
     let prev = -1;

@@ -13,25 +13,13 @@ import { formatTanggal } from "@/lib/format";
  */
 
 const NUM_FMT = "#,##0.00";
-const RUPIAH_FMT = "#,##0";
 
-const COLUMNS = [
-  { header: "No", width: 5 },
-  { header: "Uraian Pekerjaan", width: 48 },
-  { header: "Vol. Kontrak", width: 12 },
-  { header: "Sat.", width: 8 },
-  { header: "Harga Satuan", width: 14 },
-  { header: "Bobot %", width: 9 },
-  { header: "Vol Lalu", width: 11 },
-  { header: "% Lalu", width: 9 },
-  { header: "Vol Ini", width: 11 },
-  { header: "% Ini", width: 9 },
-  { header: "Vol S/d", width: 11 },
-  { header: "% S/d", width: 9 },
-  { header: "Bobot S/d %", width: 11 },
-  { header: "Sisa Vol", width: 11 },
-  { header: "Sisa %", width: 9 },
-] as const;
+// Lebar kolom tabel rincian — header blanko KKP (3 baris, berkelompok):
+// No | Uraian | Volume Kontrak | Satuan | Bobot |
+// Realisasi Pekerjaan { Lalu / Ini / S-d × Volume, Prestasi, Bobot } |
+// Bobot Rencana | Sisa Pekerjaan { Prestasi, Volume }.
+const COL_WIDTHS = [5, 48, 12, 8, 9, 11, 9, 9, 11, 9, 9, 11, 9, 9, 11, 9, 11] as const;
+const COL_COUNT = COL_WIDTHS.length; // 17
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
@@ -41,11 +29,22 @@ const round3 = (n: number) => Math.round(n * 1000) / 1000;
  * (rencana/realisasi kumulatif + deviasi) + GAMBAR grafik kurva-S. Angka identik
  * dgn tabel KKP & kurva PDF (satu sumber, buildKurvaSheet).
  */
+type KurvaSheetResult = {
+  chart: LineChartSpec;
+  /**
+   * Tautkan sel "Realisasi Prestasi %" minggu `week` (1-based) ke rumus Excel
+   * (mis. total "Bobot Minggu ini" di sheet Laporan) — angka minggu aktif
+   * TERTAUT ke rinciannya, bukan tempelan statis. Diabaikan bila minggu di luar
+   * rentang ber-realisasi (menjaga kolom kosong tetap kosong, B7).
+   */
+  linkRealisasi: (week: number, formula: string) => void;
+};
+
 async function addKurvaSheet(
   wb: ExcelJS.Workbook,
   r: PeriodReport,
   opts?: { sheetName?: string },
-): Promise<LineChartSpec> {
+): Promise<KurvaSheetResult> {
   const sheet = buildKurvaSheet({
     categories: r.kurvaSchedule,
     totalWeeks: r.totalWeeks,
@@ -273,7 +272,7 @@ async function addKurvaSheet(
   // baris kategori (firstCatRow..lastCatRow) → kurva-S menelusuri kolom minggu.
   const firstCatRow = weekRow.number + 1;
   const lastCatRow = firstCatRow + sheet.categories.length - 1;
-  return {
+  const chart: LineChartSpec = {
     sheetName: ws.name,
     xMax: N,
     series: [
@@ -281,7 +280,16 @@ async function addKurvaSheet(
       { name: "Realisasi", xRef: hRange(helperX.number), yRef: hRange(helperR.number), color: "16A34A" },
     ],
     anchor: { fromCol: FIRST - 1, fromRow: firstCatRow - 1, toCol: lastCol, toRow: lastCatRow },
-  } satisfies LineChartSpec;
+  };
+  return {
+    chart,
+    linkRealisasi: (week, formula) => {
+      if (week < 1 || week > N || week - 1 > cutoffIdx) return;
+      const cell = ws.getRow(realisasiRow).getCell(FIRST + week - 1);
+      const cur = cell.value;
+      cell.value = { formula, result: typeof cur === "number" ? cur : 0 };
+    },
+  };
 }
 
 /**
@@ -293,10 +301,10 @@ export async function buildJadwalXlsx(r: PeriodReport): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "MARLIN";
   wb.created = new Date();
-  const chartSpec = await addKurvaSheet(wb, r, { sheetName: "Time Schedule" });
+  const { chart } = await addKurvaSheet(wb, r, { sheetName: "Time Schedule" });
   const buf = Buffer.from(await wb.xlsx.writeBuffer());
   try {
-    return await addLineChartToXlsx(buf, chartSpec);
+    return await addLineChartToXlsx(buf, chart);
   } catch {
     return buf;
   }
@@ -306,11 +314,12 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "MARLIN";
   wb.created = new Date();
-  const chartSpec = await addKurvaSheet(wb, r);
+  const kurva = await addKurvaSheet(wb, r);
   const ws = wb.addWorksheet("Laporan", {
     pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   });
-  ws.columns = COLUMNS.map((c) => ({ width: c.width }));
+  ws.columns = COL_WIDTHS.map((w) => ({ width: w }));
+  const periodeLabel = r.kind === "mingguan" ? "Minggu" : "Bulan";
 
   const judul = r.kind === "mingguan" ? "LAPORAN MINGGUAN PEKERJAAN" : "LAPORAN BULANAN PEKERJAAN";
   const ke = r.kind === "mingguan" ? `Minggu Ke-${r.n}` : `Bulan Ke-${r.n}`;
@@ -318,7 +327,7 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
 
   const title = (text: string, bold = true, size = 12) => {
     const row = ws.addRow([text]);
-    ws.mergeCells(row.number, 1, row.number, COLUMNS.length);
+    ws.mergeCells(row.number, 1, row.number, COL_COUNT);
     row.getCell(1).font = { bold, size };
     row.getCell(1).alignment = { horizontal: "center" };
   };
@@ -356,24 +365,59 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
   kv("Deviasi (%)", Number(r.deviationPct.toFixed(2)), "0.00");
   ws.addRow([]);
 
-  // Header tabel.
-  const head = ws.addRow(COLUMNS.map((c) => c.header));
-  head.eachCell((cell) => {
-    cell.font = { bold: true, size: 9 };
-    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
-    cell.border = {
-      top: { style: "thin" },
-      bottom: { style: "thin" },
-      left: { style: "thin" },
-      right: { style: "thin" },
-    };
-  });
+  // Header tabel — 3 baris berkelompok, mengikuti blanko KKP.
+  const thinBox = {
+    top: { style: "thin" as const },
+    bottom: { style: "thin" as const },
+    left: { style: "thin" as const },
+    right: { style: "thin" as const },
+  };
+  const h1 = ws.addRow([]);
+  const h2 = ws.addRow([]);
+  const h3 = ws.addRow([]);
+  const setHead = (row: ExcelJS.Row, col: number, text: string) => {
+    row.getCell(col).value = text;
+  };
+  setHead(h1, 1, "No");
+  setHead(h1, 2, "Uraian Pekerjaan");
+  setHead(h1, 3, "Volume Kontrak");
+  setHead(h1, 4, "Satuan");
+  setHead(h1, 5, "Bobot");
+  setHead(h1, 6, "Realisasi Pekerjaan");
+  setHead(h1, 15, "Bobot Rencana");
+  setHead(h1, 16, "Sisa Pekerjaan");
+  setHead(h2, 6, `${periodeLabel} Lalu`);
+  setHead(h2, 9, `${periodeLabel} ini`);
+  setHead(h2, 12, `S/d ${periodeLabel} ini`);
+  setHead(h2, 16, `S/d ${periodeLabel} ini`);
+  for (const base of [6, 9, 12]) {
+    setHead(h3, base, "Volume");
+    setHead(h3, base + 1, "Prestasi");
+    setHead(h3, base + 2, "Bobot");
+  }
+  setHead(h3, 16, "Prestasi");
+  setHead(h3, 17, "Volume");
+  for (const col of [1, 2, 3, 4, 5, 15]) ws.mergeCells(h1.number, col, h3.number, col);
+  ws.mergeCells(h1.number, 6, h1.number, 14); // "Realisasi Pekerjaan"
+  ws.mergeCells(h1.number, 16, h1.number, 17); // "Sisa Pekerjaan"
+  ws.mergeCells(h2.number, 6, h2.number, 8);
+  ws.mergeCells(h2.number, 9, h2.number, 11);
+  ws.mergeCells(h2.number, 12, h2.number, 14);
+  ws.mergeCells(h2.number, 16, h2.number, 17);
+  for (const row of [h1, h2, h3]) {
+    row.eachCell({ includeEmpty: true }, (cell, col) => {
+      if (col > COL_COUNT) return;
+      cell.font = { bold: true, size: 9 };
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
+      cell.border = thinBox;
+    });
+  }
 
-  const numericCols = [3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+  const numericCols = [3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
   const styleDataRow = (row: ExcelJS.Row, opts?: { bold?: boolean; fill?: string }) => {
     row.eachCell({ includeEmpty: true }, (cell, col) => {
-      if (col > COLUMNS.length) return;
+      if (col > COL_COUNT) return;
       cell.border = {
         top: { style: "hair" },
         bottom: { style: "hair" },
@@ -387,74 +431,83 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
       }
       if (numericCols.includes(col)) {
         cell.alignment = { horizontal: "right" };
-        cell.numFmt = col === 5 ? RUPIAH_FMT : NUM_FMT;
+        cell.numFmt = NUM_FMT;
       }
       if (col === 4) cell.alignment = { horizontal: "center" };
     });
   };
 
+  // Kolom bobot yang MENJUMLAH: E=Bobot, H=Bobot Lalu, K=Bobot Ini,
+  // N=Bobot S/d, O=Bobot Rencana. Subtotal kategori = rumus SUM atas baris
+  // item; JUMLAH = penjumlahan sel subtotal — angka agregat TERTAUT ke rincian
+  // (kebiasaan pemeriksa KKP menelusuri link), nilai cache = angka resmi.
+  const SUM_COLS = [
+    { col: 5, sub: (c: (typeof r.categories)[number]) => c.subtotalBobot, total: () => r.categories.reduce((s, c) => s + c.subtotalBobot, 0) },
+    { col: 8, sub: (c: (typeof r.categories)[number]) => c.subtotalBobotLalu, total: () => r.totals.bobotLalu },
+    { col: 11, sub: (c: (typeof r.categories)[number]) => c.subtotalBobotIni, total: () => r.totals.bobotIni },
+    { col: 14, sub: (c: (typeof r.categories)[number]) => c.subtotalBobotSd, total: () => r.totals.bobotSd },
+    { col: 15, sub: (c: (typeof r.categories)[number]) => c.subtotalBobotRencana, total: () => r.totals.bobotRencana },
+  ] as const;
+  const subRowNums: number[] = [];
+
   for (const cat of r.categories) {
-    const catRow = ws.addRow([cat.code, cat.name, null, null, null, cat.subtotalBobot]);
+    const catRow = ws.addRow([cat.code, cat.name, null, null, cat.subtotalBobot]);
     styleDataRow(catRow, { bold: true, fill: "FFF1F5F9" });
+    let firstItemRow = 0;
+    let lastItemRow = 0;
     for (const it of cat.rows) {
       const row = ws.addRow([
         it.no,
         it.name,
         it.volK,
         it.unit,
-        it.hargaSatuan,
         it.bobot,
         it.volLalu,
         it.prestasiLalu,
+        it.bobotLalu,
         it.volIni,
         it.prestasiIni,
+        it.bobotIni,
         it.volSd,
         it.prestasiSd,
         it.bobotSd,
-        it.sisaVol,
+        it.bobotRencana,
         it.sisaPrestasi,
+        it.sisaVol,
       ]);
+      if (!firstItemRow) firstItemRow = row.number;
+      lastItemRow = row.number;
       styleDataRow(row);
     }
-    const subRow = ws.addRow([
-      null,
-      `Subtotal ${cat.name}`,
-      null,
-      null,
-      null,
-      cat.subtotalBobot,
-      null,
-      cat.subtotalBobotLalu,
-      null,
-      cat.subtotalBobotIni,
-      null,
-      null,
-      cat.subtotalBobotSd,
-      null,
-      null,
-    ]);
+    const subRow = ws.addRow([null, `Subtotal ${cat.name}`]);
+    for (const { col, sub } of SUM_COLS) {
+      const L = colLetter(col);
+      subRow.getCell(col).value = firstItemRow
+        ? { formula: `SUM(${L}${firstItemRow}:${L}${lastItemRow})`, result: sub(cat) }
+        : sub(cat);
+    }
+    subRowNums.push(subRow.number);
     styleDataRow(subRow, { bold: true });
   }
 
-  const totalBobot = r.categories.reduce((s, c) => s + c.subtotalBobot, 0);
-  const totalRow = ws.addRow([
-    null,
-    "JUMLAH",
-    null,
-    null,
-    null,
-    totalBobot,
-    null,
-    r.totals.bobotLalu,
-    null,
-    r.totals.bobotIni,
-    null,
-    null,
-    r.totals.bobotSd,
-    null,
-    null,
-  ]);
+  const totalRow = ws.addRow([null, "JUMLAH"]);
+  for (const { col, total } of SUM_COLS) {
+    const L = colLetter(col);
+    totalRow.getCell(col).value =
+      subRowNums.length > 0
+        ? { formula: subRowNums.map((n2) => `${L}${n2}`).join("+"), result: total() }
+        : total();
+  }
   styleDataRow(totalRow, { bold: true, fill: "FFE2E8F0" });
+
+  // Baris "Realisasi Prestasi %" minggu laporan di sheet Kurva S TERTAUT ke
+  // total "Bobot Minggu ini" (JUMLAH kolom K) di sheet ini — bukan angka
+  // tempelan. Rumus kumulatif & grafik sudah membaca baris itu, jadi tautan
+  // menjalar sampai kurva. Hanya utk laporan mingguan (bulanan mencakup >1
+  // kolom minggu — tak bisa dipetakan ke satu sel).
+  if (r.kind === "mingguan") {
+    kurva.linkRealisasi(r.n, `Laporan!${colLetter(11)}${totalRow.number}`);
+  }
 
   // Ringkasan sumber daya + kendala.
   ws.addRow([]);
@@ -482,7 +535,7 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
   // Sisipkan grafik kurva-S NATIVE ke sheet "Kurva S" (exceljs tak bisa; kita
   // pasca-proses XML chart OOXML). Bila gagal, kembalikan workbook tanpa chart.
   try {
-    return await addLineChartToXlsx(buf, chartSpec);
+    return await addLineChartToXlsx(buf, kurva.chart);
   } catch {
     return buf;
   }

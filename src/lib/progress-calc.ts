@@ -84,6 +84,70 @@ export function bobotPct(amount: number, grandTotal: number): number {
   return Number.isFinite(b) ? b : 0;
 }
 
+/**
+ * Fraksi rencana kumulatif (0..1) sebuah kategori s/d minggu ke-`week`
+ * (1-based) dari matriks increment mingguannya. Dipakai kolom "Bobot Rencana"
+ * blanko KKP: rencana bobot item = bobot × fraksi rencana kategorinya
+ * (jadwal disimpan per kategori, bukan per item). Total 0 → 0.
+ */
+export function planFractionFromWeekly(weekly: number[], week: number): number {
+  let total = 0;
+  let cum = 0;
+  for (let i = 0; i < weekly.length; i++) {
+    const v = Number.isFinite(weekly[i]) ? weekly[i] : 0;
+    total += v;
+    if (i < week) cum += v;
+  }
+  if (!(total > 0)) return 0;
+  return Math.min(1, Math.max(0, cum / total));
+}
+
+/**
+ * Bagikan `target` ke n item proporsional `weights` dengan PLAFON per item
+ * (`caps`), gaya waterfilling: item yang mentok plafon dipatok, sisa target
+ * dibagi ulang ke item lain; bila bobot habis, sisa dibagi proporsional
+ * headroom. Σ hasil = min(target, Σ caps) — dipakai kolom "Bobot Rencana"
+ * blanko KKP agar JUMLAH kolom == rencana resmi kurva (satu dokumen, satu
+ * angka) tanpa ada item melebihi bobotnya sendiri.
+ */
+export function distributeWithCaps(weights: number[], caps: number[], target: number): number[] {
+  const n = weights.length;
+  const out = new Array<number>(n).fill(0);
+  if (!(target > 0) || n === 0) return out;
+  const capOf = (i: number) => Math.max(0, caps[i]);
+  let remaining = Math.min(
+    target,
+    caps.reduce((s, c) => s + Math.max(0, c), 0),
+  );
+  let active = weights.map((w, i) => ({ i, w: Math.max(0, Number.isFinite(w) ? w : 0) })).filter((a) => a.w > 0);
+  for (let guard = 0; guard <= n && remaining > 1e-12 && active.length > 0; guard++) {
+    const sumW = active.reduce((s, a) => s + a.w, 0);
+    if (!(sumW > 0)) break;
+    const clipped = active.filter((a) => (a.w / sumW) * remaining >= capOf(a.i) - out[a.i] - 1e-12);
+    if (clipped.length === 0) {
+      for (const a of active) out[a.i] += (a.w / sumW) * remaining;
+      remaining = 0;
+      break;
+    }
+    for (const a of clipped) {
+      const room = capOf(a.i) - out[a.i];
+      out[a.i] += room;
+      remaining -= room;
+    }
+    const clippedIdx = new Set(clipped.map((a) => a.i));
+    active = active.filter((a) => !clippedIdx.has(a.i));
+  }
+  if (remaining > 1e-12) {
+    const head = out.map((v, i) => capOf(i) - v);
+    const sumH = head.reduce((s, h) => s + h, 0);
+    if (sumH > 0) {
+      const give = Math.min(remaining, sumH);
+      for (let i = 0; i < n; i++) out[i] += (head[i] / sumH) * give;
+    }
+  }
+  return out;
+}
+
 export type LaggingInput = {
   lineageKey: string;
   /** Volume kontrak item. */
