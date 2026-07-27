@@ -94,6 +94,33 @@ export function createA4Doc(meta?: { title?: string; author?: string }): PdfDoc 
   return doc;
 }
 
+/** Margin A4 lanskap — lebih rapat, blanko resmi butuh lebar maksimal. */
+export const LANDSCAPE_MARGIN = 28;
+
+/**
+ * A4 LANSKAP untuk blanko/formulir bertabel lebar (mis. laporan harian KKP
+ * dengan matriks cuaca 16 kolom). Font & metadata sama dgn createA4Doc.
+ */
+export function createLandscapeA4Doc(meta?: { title?: string; author?: string }): PdfDoc {
+  const doc = new PDFDocument({
+    size: "A4",
+    layout: "landscape",
+    margin: LANDSCAPE_MARGIN,
+    autoFirstPage: true,
+    bufferPages: true,
+    info: {
+      Title: meta?.title ?? "Laporan MARLIN",
+      Author: meta?.author ?? "MARLIN",
+      Producer: "MARLIN",
+    },
+  });
+  const fonts = loadFonts();
+  doc.registerFont(PDF_FONT.regular, fonts.regular);
+  doc.registerFont(PDF_FONT.bold, fonts.bold);
+  doc.font(PDF_FONT.regular);
+  return doc;
+}
+
 /** Selesaikan dokumen → Buffer PDF. Selalu memanggil doc.end() sekali. */
 export function docToBuffer(doc: PdfDoc): Promise<Buffer> {
   return new Promise((resolve, reject) => {
