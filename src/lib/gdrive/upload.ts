@@ -3,7 +3,9 @@ import { db } from "@/lib/db";
 import { r2GetBuffer } from "@/lib/r2";
 import { ensureFolderPath, uploadToDrive } from "./client";
 import { photoFileName, photoMimeFromKey, safeFileName } from "./folders";
-import type { GDriveUploadKind } from "./parse";
+import { type GDriveUploadKind, type UploadOutcome } from "./parse";
+
+export { summarize, type UploadOutcome } from "./parse";
 
 /**
  * Lapisan upload: menempatkan file ke path folder KKP dan MENCATAT hasilnya
@@ -22,13 +24,6 @@ export type UploadTarget = {
 
 export type UploadItem = { fileName: string; mime: string; data: Buffer };
 
-export type UploadOutcome = {
-  ok: number;
-  failed: number;
-  /** Pesan error pertama — ditampilkan ke user. */
-  firstError: string | null;
-  webLink: string | null;
-};
 
 async function log(
   t: UploadTarget,
@@ -60,7 +55,7 @@ export async function uploadBatch(
   path: string[],
   items: UploadItem[],
 ): Promise<UploadOutcome> {
-  const out: UploadOutcome = { ok: 0, failed: 0, firstError: null, webLink: null };
+  const out: UploadOutcome = { ok: 0, failed: 0, updated: 0, firstError: null, webLink: null };
   if (items.length === 0) return out;
 
   let folderId: string;
@@ -69,7 +64,7 @@ export async function uploadBatch(
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Gagal menyiapkan folder.";
     for (const it of items) await log(target, it.fileName, "gagal", { error: msg });
-    return { ok: 0, failed: items.length, firstError: msg, webLink: null };
+    return { ok: 0, failed: items.length, updated: 0, firstError: msg, webLink: null };
   }
 
   for (const it of items) {
@@ -81,6 +76,7 @@ export async function uploadBatch(
         data: it.data,
       });
       out.ok++;
+      if (!file.created) out.updated++;
       out.webLink ??= file.webViewLink;
       await log(target, it.fileName, "sukses", { fileId: file.id, webLink: file.webViewLink });
     } catch (err) {
@@ -132,14 +128,4 @@ export async function documentItem(doc: {
     mime: doc.mimeType || "application/octet-stream",
     data: await r2GetBuffer(doc.r2Key),
   };
-}
-
-/** Rangkum hasil jadi kalimat Indonesia untuk banner aksi. */
-export function summarize(label: string, outcomes: UploadOutcome[], skippedPhotos = 0): string {
-  const ok = outcomes.reduce((s, o) => s + o.ok, 0);
-  const failed = outcomes.reduce((s, o) => s + o.failed, 0);
-  const parts = [`${label}: ${ok} file terupload`];
-  if (failed > 0) parts.push(`${failed} gagal`);
-  if (skippedPhotos > 0) parts.push(`${skippedPhotos} foto tak terbaca dari penyimpanan`);
-  return `${parts.join(", ")}.`;
 }

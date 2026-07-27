@@ -102,3 +102,21 @@ Catatan:
   sanggah) **sengaja tidak** punya tujuan folder — tidak ikut terupload.
 - Cek kelengkapan per paket: halaman paket → kartu **"Kelengkapan folder KKP di
   Drive"** (jumlah terupload vs yang layak disetor + kapan terakhir).
+
+## Upload ulang = versi baru, bukan file kembar
+
+Upload ulang laporan/dokumen yang sama TIDAK membuat file baru. MARLIN mencari
+file dengan nama sama di folder tujuan, lalu memperbarui isinya — Drive
+menyimpannya sebagai **revisi**:
+
+- Isi lama tetap bisa dibuka: klik kanan file → **Kelola versi** (Manage
+  versions) → unduh versi sebelumnya.
+- Tautan file tidak berubah, jadi link yang sudah dibagikan ke KKP tetap hidup.
+- Revisi dipin (`keepRevisionForever`) supaya tidak dipangkas otomatis — laporan
+  resmi harus bisa ditelusuri kapan pun.
+- Banner hasil upload membedakan "file baru" dan "file diperbarui (versi baru di
+  Drive)" supaya jelas apa yang terjadi.
+
+Catatan: file kembar yang terlanjur dibuat SEBELUM perbaikan ini tidak dihapus
+otomatis — hapus manual salah satunya di Drive. Setelah itu upload berikutnya
+akan memperbarui file yang tersisa.

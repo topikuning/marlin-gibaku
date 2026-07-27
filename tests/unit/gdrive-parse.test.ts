@@ -5,6 +5,8 @@ import {
   driveRedirectUri,
   parseDriveFolderId,
   publicOrigin,
+  summarize,
+  type UploadOutcome,
 } from "@/lib/gdrive/parse";
 
 /** Integrasi Google Drive — util murni. DECISIONS 141. */
@@ -122,5 +124,38 @@ describe("regresi: origin yang tidak bisa dibuka browser", () => {
     expect(publicOrigin({ railwayDomain: "marlin.up.railway.app", host: "0.0.0.0:8080" })).toBe(
       "https://marlin.up.railway.app",
     );
+  });
+});
+
+describe("summarize — bedakan file baru vs diperbarui", () => {
+  const o = (p: Partial<UploadOutcome>): UploadOutcome => ({
+    ok: 0, failed: 0, updated: 0, firstError: null, webLink: null, ...p,
+  });
+
+  it("semua baru", () => {
+    expect(summarize("Laporan harian", [o({ ok: 3 })])).toBe("Laporan harian: 3 file baru.");
+  });
+
+  it("semua memperbarui — sebut eksplisit bahwa isi lama jadi versi sebelumnya", () => {
+    expect(summarize("Laporan harian", [o({ ok: 2, updated: 2 })])).toBe(
+      "Laporan harian: 2 file diperbarui (versi baru di Drive).",
+    );
+  });
+
+  it("campuran baru + diperbarui, dijumlah lintas batch", () => {
+    expect(summarize("Kegiatan", [o({ ok: 1 }), o({ ok: 4, updated: 3 })])).toBe(
+      "Kegiatan: 2 file baru, 3 file diperbarui (versi baru di Drive).",
+    );
+  });
+
+  it("kegagalan & foto tak terbaca ikut dilaporkan", () => {
+    expect(summarize("Laporan harian", [o({ ok: 1, failed: 2 })], 3)).toBe(
+      "Laporan harian: 1 file baru, 2 gagal, 3 foto tak terbaca dari penyimpanan.",
+    );
+  });
+
+  it("tidak ada yang naik sama sekali", () => {
+    expect(summarize("Dokumen", [o({ failed: 1 })])).toBe("Dokumen: tidak ada file, 1 gagal.");
+    expect(summarize("Dokumen", [])).toBe("Dokumen: tidak ada file.");
   });
 });

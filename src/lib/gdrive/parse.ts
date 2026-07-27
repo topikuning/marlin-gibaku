@@ -131,3 +131,35 @@ export const GDRIVE_KIND_LABEL: Record<GDriveUploadKind, string> = {
   kegiatan: "Kegiatan lapangan",
   dokumen: "Dokumen administrasi",
 };
+
+/* ── Hasil upload ───────────────────────────────────────────────────────── */
+
+export type UploadOutcome = {
+  ok: number;
+  failed: number;
+  /** Berapa yang MEMPERBARUI file lama (revisi baru), bukan file baru. */
+  updated: number;
+  /** Pesan error pertama — ditampilkan ke user. */
+  firstError: string | null;
+  webLink: string | null;
+};
+
+/**
+ * Rangkum hasil upload jadi kalimat Indonesia untuk banner aksi. Membedakan
+ * file BARU dan file DIPERBARUI itu penting: yang diperbarui tidak menghapus
+ * apa pun — isi lama tersimpan sebagai versi sebelumnya di Drive. MURNI.
+ * DECISIONS 146.
+ */
+export function summarize(label: string, outcomes: UploadOutcome[], skippedPhotos = 0): string {
+  const ok = outcomes.reduce((s, o) => s + o.ok, 0);
+  const failed = outcomes.reduce((s, o) => s + o.failed, 0);
+  const updated = outcomes.reduce((s, o) => s + o.updated, 0);
+  const baru = ok - updated;
+  const parts: string[] = [];
+  if (baru > 0) parts.push(`${baru} file baru`);
+  if (updated > 0) parts.push(`${updated} file diperbarui (versi baru di Drive)`);
+  if (parts.length === 0) parts.push("tidak ada file");
+  if (failed > 0) parts.push(`${failed} gagal`);
+  if (skippedPhotos > 0) parts.push(`${skippedPhotos} foto tak terbaca dari penyimpanan`);
+  return `${label}: ${parts.join(", ")}.`;
+}

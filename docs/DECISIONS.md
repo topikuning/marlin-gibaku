@@ -2960,3 +2960,27 @@ Tiga bug tampilan pada PDF produksi (dari bundle self-contained DECISIONS 128):
   ringkas — di layar HP blanko lanskap tidak terbaca.
 - Verifikasi: typecheck ✓ lint ✓ unit 342 ✓ build ✓ render sampel 14 item →
   2 halaman, tata letak & footer benar (diperiksa visual).
+
+## 146 · 2026-07-27 · Upload Drive memperbarui file (revisi), bukan menumpuk kembar
+
+- **Gejala nyata**: dua file `Laporan Harian - Pasar Banggi - 2026-07-21.pdf`
+  di folder yang sama. Penyebab: `uploadToDrive` selalu POST (create), sedangkan
+  Drive MEMBOLEHKAN nama ganda dalam satu folder — jadi tiap upload ulang
+  menambah file, bukan memperbarui.
+- **Perbaikan**: cari dulu file bernama sama di folder tujuan
+  (`findFileInFolder`, trashed=false). Bila ada → **PATCH** ke fileId itu
+  (`uploadType=multipart`), yang oleh Drive dicatat sebagai **revisi baru**:
+  isi lama tetap tersimpan & bisa dibuka lewat "Kelola versi", dan tautan yang
+  sudah dibagikan ke KKP tidak berubah. Bila tidak ada → POST seperti biasa.
+- `keepRevisionForever=true` supaya revisi lama tidak dipangkas otomatis Drive —
+  laporan resmi harus bisa ditelusuri kapan pun. PDF laporan kecil, biaya kuota
+  tidak signifikan.
+- Saat MEMPERBARUI, metadata `parents` TIDAK dikirim — Drive menolak perubahan
+  induk lewat body (pemindahan folder butuh addParents/removeParents).
+- `uploadToDrive` mengembalikan `created: boolean`; `summarize()` (dipindah ke
+  modul MURNI + 5 unit test) membedakan "file baru" vs "file diperbarui (versi
+  baru di Drive)" supaya user tahu tidak ada yang terhapus.
+- **Tidak dilakukan**: menghapus file kembar yang terlanjur ada. Menghapus
+  otomatis di Drive milik KKP terlalu berisiko — didokumentasikan sebagai
+  langkah manual di `docs/GDRIVE_SETUP.md`.
+- Verifikasi: typecheck ✓ lint ✓ unit 347 (+5) ✓ build ✓.
