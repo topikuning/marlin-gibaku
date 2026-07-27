@@ -49,11 +49,13 @@ export function SettingsTabs({
 import {
   runR2Test,
   resetOperationalData,
+  rebuildFinalSnapshots,
   saveBranding,
   savePhotoStampConfigAction,
   saveActivityKindAction,
   type R2TestState,
   type ResetState,
+  type RebuildSnapshotState,
   type BrandingState,
   type PhotoStampState,
   type ActivityKindState,
@@ -252,6 +254,49 @@ export function R2TestPanel({ configured }: { configured: boolean }) {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Bangun ulang snapshot laporan harian final — koreksi angka cetakan tanpa
+ * menyentuh status/volume/input. Tersedia di production (beda dari Reset).
+ * DECISIONS 148.
+ */
+export function RebuildSnapshotPanel({ locations }: { locations: { id: string; name: string }[] }) {
+  const [state, action, pending] = useActionState<RebuildSnapshotState, FormData>(
+    rebuildFinalSnapshots,
+    undefined,
+  );
+  return (
+    <form action={action} className="space-y-3">
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      {state?.success ? <Banner tone="success" title={state.success} /> : null}
+      <p className="text-sm text-ink-muted">
+        Menghitung ulang angka pada <span className="font-medium">cetakan laporan harian final</span> dari data
+        laporan yang sama. Status, volume, dan input TIDAK disentuh — aman diulang. Perlu dijalankan setelah
+        perbaikan rumus supaya laporan yang terlanjur final ikut benar.
+      </p>
+      <div className="flex flex-wrap items-end gap-2">
+        <div>
+          <Label htmlFor="rebuild-loc">Cakupan</Label>
+          <select
+            id="rebuild-loc"
+            name="locationId"
+            className="h-9 rounded-md border border-border bg-surface px-2 text-sm"
+          >
+            <option value="">Semua lokasi</option>
+            {locations.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <Button type="submit" variant="secondary" loading={pending}>
+          {pending ? "Menghitung ulang…" : "Bangun ulang snapshot"}
+        </Button>
+      </div>
+    </form>
   );
 }
 

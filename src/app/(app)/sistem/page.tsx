@@ -23,6 +23,7 @@ import type { UserRole } from "@/generated/prisma/enums";
 import {
   R2TestPanel,
   ResetPanel,
+  RebuildSnapshotPanel,
   BrandingPanel,
   WahaConfigPanel,
   WahaWebhookPanel,
@@ -138,6 +139,11 @@ export default async function SistemPage() {
       db.user.groupBy({ by: ["role"], _count: { _all: true } }),
     ]);
   const activityKinds = await getActivityKinds();
+  const maintenanceLocations = await db.location.findMany({
+    where: { package: { orgId: user.orgId } },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
   const gdriveDisplay = await getGDriveConfigDisplay();
   const aiConfig = await getAiConfigDisplay();
   const aiGuard = await getAiGuardConfig();
@@ -506,6 +512,16 @@ export default async function SistemPage() {
               </tbody>
             </table>
           </div>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Pemeliharaan data"
+          subtitle="Koreksi angka cetakan laporan final tanpa mengubah status atau data input"
+        />
+        <CardBody>
+          <RebuildSnapshotPanel locations={maintenanceLocations} />
         </CardBody>
       </Card>
 

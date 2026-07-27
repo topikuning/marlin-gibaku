@@ -3018,3 +3018,25 @@ Tiga bug tampilan pada PDF produksi (dari bundle self-contained DECISIONS 128):
   penomoran minggu kurva-S/baseline; kalau memakai minggu kalender, "Minggu ke-n"
   di laporan harian akan berbeda dari kurva-S.
 - Verifikasi: typecheck ✓ lint ✓ unit 347 ✓ integration 13 ✓ build ✓.
+
+## 148 · 2026-07-27 · Tombol "Bangun ulang snapshot" (bukan skrip, bukan revert final)
+
+- **Kebutuhan**: perbaikan DECISIONS 147 tidak merambat ke laporan yang sudah
+  final karena snapshot-nya beku. Skrip CLI tidak praktis — deploy Railway tidak
+  menyediakan shell yang mudah dijangkau operator.
+- **Keputusan**: sediakan aksi di UI (Sistem → Pemeliharaan data), gate
+  `system.manage`, cakupan semua lokasi atau satu lokasi. Menghitung ulang
+  `finalSnapshot` dari data laporan yang SAMA — status, volume, dan input tidak
+  disentuh. Idempoten, aman diulang, dan diaudit.
+- **Sengaja BUKAN "revert dari final"**: dua kebutuhan berbeda. Revert =
+  membuka laporan untuk diedit (perubahan domain: progres & kurva-S ikut
+  berubah, perlu alasan + histori status). Untuk memperbaiki bug pembekuan,
+  revert justru merugikan: harus finalisasi ulang satu per satu untuk 83 lokasi
+  × puluhan hari, dan histori status penuh catatan revert padahal datanya benar.
+  Revert tetap layak dibangun sebagai fitur tersendiri bila memang dibutuhkan
+  (salah input ketahuan setelah final) — belum diputuskan.
+- Tersedia juga di production (berbeda dari Zona Berbahaya/Reset yang dikunci
+  dev), karena sifatnya koreksi tampilan, bukan penghapusan data.
+- `scripts/rebuild-daily-snapshots.mts` dipertahankan untuk pemakaian massal
+  lewat CLI, tapi tombol adalah jalur utama operator.
+- Verifikasi: typecheck ✓ lint ✓ unit 347 ✓ build ✓.
