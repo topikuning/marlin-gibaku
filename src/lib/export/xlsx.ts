@@ -22,7 +22,6 @@ const COL_WIDTHS = [5, 48, 12, 8, 9, 11, 9, 9, 11, 9, 9, 11, 9, 9, 11, 9, 11] as
 const COL_COUNT = COL_WIDTHS.length; // 17
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
-const round3 = (n: number) => Math.round(n * 1000) / 1000;
 
 /**
  * Sheet-1 "Kurva S": tabel bobot kategori × minggu (increment) + baris prestasi
@@ -117,8 +116,19 @@ async function addKurvaSheet(
 
   // Baris kategori (bobot + increment mingguan).
   const catRowNums: number[] = [];
+  const weekFirstL = colLetter(FIRST);
+  const weekLastL = colLetter(lastCol);
   for (const cat of sheet.categories) {
-    const row = ws.addRow([cat.code, cat.name, round2(cat.bobot), ...cat.weekly.map((v) => (v >= 0.0005 ? round3(v) : null))]);
+    const row = ws.addRow([cat.code, cat.name, null, ...cat.weeklyShown.map((v) => (v > 0 ? v : null))]);
+    // Kolom "Bobot (%)" = RUMUS Σ sebaran mingguan barisnya, bukan angka
+    // tempelan: bobot kategori bisa ditelusuri ke minggu pembentuknya, dan
+    // mengubah sel minggu di Excel langsung memperbarui bobotnya. Nilai cache =
+    // bobot resmi kategori — `weeklyShown` sudah dialokasikan supaya Σ-nya
+    // persis segitu (kkp-sheet.ts).
+    row.getCell(3).value = {
+      formula: `SUM(${weekFirstL}${row.number}:${weekLastL}${row.number})`,
+      result: cat.bobotShown,
+    };
     catRowNums.push(row.number);
     row.eachCell({ includeEmpty: true }, (cell, col) => {
       if (col > lastCol) return;
@@ -161,10 +171,23 @@ async function addKurvaSheet(
     else if (def.kind === "realisasi") realisasiRow = row.number;
     else if (def.kind === "kumRealisasi") kumRealisasiRow = row.number;
     row.getCell(1).value = def.label;
-    ws.mergeCells(row.number, 1, row.number, 3);
+    ws.mergeCells(row.number, 1, row.number, 2); // label A:B — kolom C tetap kolom bobot
     row.getCell(1).alignment = { horizontal: "right" };
     row.getCell(1).font = { size: 8, bold: def.bold };
     row.getCell(1).border = box;
+    // Total kolom bobot (baris kumulatif rencana) = RUMUS Σ bobot kategori,
+    // sejajar dengan tampilan layar/PDF. Ikut hidup bila baris kategori diedit.
+    const totalCell = row.getCell(3);
+    if (def.kind === "kumRencana" && catRowNums.length > 0) {
+      totalCell.value = {
+        formula: `SUM(C${catRowNums[0]}:C${catRowNums[catRowNums.length - 1]})`,
+        result: sheet.totalBobotShown,
+      };
+      totalCell.numFmt = "#,##0.00";
+    }
+    totalCell.alignment = { horizontal: "center" };
+    totalCell.font = { size: 8, bold: def.bold };
+    totalCell.border = box;
     for (let i = 0; i < N; i++) {
       const cell = row.getCell(FIRST + i);
       const val = def.arr[i] == null ? null : round2(def.arr[i] as number);

@@ -47,6 +47,65 @@ describe("buildKurvaSheet (profil mingguan per-kategori dari jadwal item — DEC
   });
 });
 
+describe("angka tampil kolom Bobot (%) — kolom WAJIB menjumlah (Excel: =SUM(M1:MN))", () => {
+  // Angka yang tidak habis dibagi: bila tiap sel dibulatkan sendiri-sendiri,
+  // Σ sel minggu meleset dari bobot kategori dan `=SUM(...)` di Excel akan
+  // menampilkan angka yang berbeda dari bobot resmi.
+  const spread = (total: number, weeks: number[], n: number) => {
+    const w = new Array<number>(n).fill(0);
+    for (const i of weeks) w[i] = total / weeks.length;
+    return w;
+  };
+  const N = 7;
+  const cats = [
+    { code: "I", name: "PEKERJAAN PERSIAPAN", weekly: spread(4.33, [0, 1, 2, 3, 4, 5, 6], N) },
+    { code: "II", name: "PEKERJAAN TAMBATAN PERAHU", weekly: spread(11.19, [2, 3, 4], N) },
+    { code: "III", name: "PEKERJAAN KANTOR PENGELOLA", weekly: spread(84.48, [1, 2, 3, 4, 5, 6], N) },
+  ];
+  const sheet = buildKurvaSheet({
+    categories: cats,
+    totalWeeks: N,
+    contractStart: new Date(Date.UTC(2026, 3, 1)),
+    actualCum: Array(N).fill(null),
+    currentWeek: 1,
+  });
+
+  it("Σ weeklyShown == bobotShown PERSIS di tiap kategori", () => {
+    for (const c of sheet.categories) {
+      const sum = c.weeklyShown.reduce((s, v) => s + v, 0);
+      expect(sum, c.name).toBeCloseTo(c.bobotShown, 9);
+    }
+  });
+
+  it("Σ bobotShown == total tabel (100,00) dan bobotShown ≈ bobot penuh presisi", () => {
+    const sum = sheet.categories.reduce((s, c) => s + c.bobotShown, 0);
+    expect(sum).toBeCloseTo(100, 9);
+    expect(sheet.totalBobotShown).toBe(100);
+    for (const c of sheet.categories) expect(Math.abs(c.bobotShown - c.bobot), c.name).toBeLessThanOrEqual(0.005 + 1e-9);
+  });
+
+  it("minggu tanpa pekerjaan TETAP kosong; sel lain bergeser ≤0,002 dari nilai asli", () => {
+    for (const c of sheet.categories) {
+      c.weekly.forEach((raw, i) => {
+        if (raw === 0) expect(c.weeklyShown[i], `${c.name} M${i + 1}`).toBe(0);
+        else expect(Math.abs(c.weeklyShown[i] - raw), `${c.name} M${i + 1}`).toBeLessThanOrEqual(0.002 + 1e-9);
+      });
+    }
+  });
+
+  it("jadwal yang belum menutup 100% ditampilkan apa adanya, tidak dipaksa penuh", () => {
+    const parsial = buildKurvaSheet({
+      categories: [{ code: "I", name: "A", weekly: spread(90, [0, 1, 2], 3) }],
+      totalWeeks: 3,
+      contractStart: new Date(Date.UTC(2026, 3, 1)),
+      actualCum: [null, null, null],
+      currentWeek: 1,
+    });
+    expect(parsial.totalBobotShown).toBe(90);
+    expect(parsial.categories[0].weeklyShown.reduce((s, v) => s + v, 0)).toBeCloseTo(90, 9);
+  });
+});
+
 describe("orderCategoriesByRab", () => {
   // Kasus nyata: jadwal tersimpan datang dalam urutan penyimpanan, sehingga
   // nomor romawi di tabel KKP meloncat (XIV, XV, … lalu I, II).

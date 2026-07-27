@@ -21,6 +21,8 @@ export type PetaMarker = {
   lng: number;
   status: LocationStatus;
   packageName: string;
+  /** false = lokasi TARGET (belum mulai berjalan) — dibedakan di peta. */
+  isActive: boolean;
 };
 
 /** Titik lokasi untuk peta — hanya yang punya koordinat. scopedIds null = semua lokasi ORGANISASI (audit B11). */
@@ -39,6 +41,7 @@ export async function getPetaMarkers(scopedIds: string[] | null, orgId: string):
       regency: true,
       province: true,
       status: true,
+      isActive: true,
       gpsLat: true,
       gpsLng: true,
       package: { select: { name: true } },
@@ -62,6 +65,7 @@ export async function getPetaMarkers(scopedIds: string[] | null, orgId: string):
       lng,
       status: l.status,
       packageName: l.package.name,
+      isActive: l.isActive,
     });
   }
   return out;

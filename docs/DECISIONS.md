@@ -3651,3 +3651,61 @@ distributeWithCaps 5) · integration **53** (kolom Bobot Rencana + rekonsiliasi)
 · build ✓ · file .xlsx nyata dibongkar: `E25 = Laporan!K1704` (minggu 2),
 `K1704 = K73+K107+…` (rantai subtotal), `O JUMLAH = 22,40` == rencana resmi
 minggu 2 ✓ · tampilan layar diverifikasi browser.
+
+---
+
+## 157 · 2026-07-27 · Kolom Bobot kurva-S = SUM kolom minggu; sebaran wilayah dashboard = populasi peta
+
+### Kolom "Bobot (%)" bukan lagi angka tempelan
+
+Permintaan user: kolom bobot di sheet Kurva S adalah penjumlahan sel minggu di
+barisnya. Excel kini menulis `=SUM(D{r}:{kolom minggu terakhir}{r})` per baris
+kategori (cache = bobot kategori), dan baris "Kumulatif Rencana" memuat
+`=SUM(C{baris pertama}:C{baris terakhir})` menggantikan teks "100,00" statis di
+layar/PDF. Baris rencana per minggu **tetap** memakai kurva baseline resmi
+(B3) — jadwal kategori adalah rincian, mengeditnya di Excel tidak menggeser
+kurva resmi.
+
+### Pembulatan penjaga-jumlah (`allocateRounded`, kkp-sheet.ts)
+
+Kalau tiap sel minggu dibulatkan sendiri-sendiri (3 desimal), `=SUM(...)` bisa
+meleset dari bobot resmi kategori — kolom yang seharusnya menjumlah malah
+menampilkan 4,32 di tempat 4,33. Angka TAMPIL karena itu dialokasikan sekali di
+calculation layer dengan metode sisa terbesar: `weeklyShown` (3 desimal)
+menjumlah persis ke `bobotShown` (2 desimal), dan Σ `bobotShown` = total tabel.
+Total dipatok 100,00 **hanya** bila selisih jadwal terhadap 100 sebatas galat
+pembulatan (≤0,05); jadwal yang memang belum menutup 100% ditampilkan apa
+adanya. Minggu bernilai 0 tidak pernah menerima alokasi — jeda tetap jeda.
+Layar/PDF dan Excel memakai `weeklyShown`/`bobotShown` yang sama.
+
+### Sebaran wilayah dashboard: satu populasi dengan peta
+
+Temuan user: kartu wilayah menampilkan Jawa 46, sisanya 0, padahal pin NTB/Bali
+jelas ada di peta. Sebabnya bukan ejaan provinsi melainkan **dua populasi dalam
+satu layar**: kartu menghitung `isActive: true` (lokasi berjalan), sedangkan
+peta menggambar semua lokasi ber-GPS termasuk lokasi target yang belum mulai.
+Keputusan user: kartu wilayah memotret **seluruh lokasi**, dan peta membedakan
+lokasi belum mulai. Perubahan:
+
+- `regions` dihitung dari query lokasi tanpa filter `isActive` (KPI submit
+  harian tetap atas lokasi berjalan, labelnya sudah "Aktif dipantau").
+- `MarkerTone` bertambah `idle` = belum mulai; pin digambar **berongga** dan
+  lebih kecil, dengan legenda "Belum mulai (target)". Filter "Belum Submit"
+  tidak lagi menyeret lokasi yang memang belum mulai.
+- `PetaMarker.isActive` ditambahkan sebagai sumber tone tersebut.
+
+### `regionOf` dipindah ke `src/lib/region.ts` + tahan variasi penulisan
+
+`Location.province` adalah teks bebas (ketik manual / ikut kolom Excel impor),
+tetapi dulu dicocokkan PERSIS ke tabel nama provinsi dan sisanya jatuh ke
+"Lainnya" yang tidak pernah ditampilkan — data bisa lenyap tanpa jejak.
+Sekarang: normalisasi (huruf kecil, buang tanda baca & kata "Provinsi"/"Prov."/
+"Daerah Istimewa") + alias singkatan (NTB, NTT, DIY, JATIM, …) + kata kunci
+pulau; dan ember "Lainnya" **ikut ditampilkan bila terisi** sehingga Σ kartu =
+jumlah lokasi.
+
+### Verifikasi
+
+typecheck ✓ · lint ✓ · unit **415** (kkp-sheet +4 rekonsiliasi kolom, region +4,
+xlsx-kurva-bobot +2 yang membaca file .xlsx hasil dan membuktikan Σ sel minggu
+tertulis == cache rumus) · build ✓.
