@@ -379,7 +379,9 @@ export async function buildFinalSnapshot(reportId: string): Promise<FinalSnapsho
           package: { select: { contract: { select: { startDate: true } } } },
         },
       },
-      items: { include: { rabNode: true }, orderBy: { createdAt: "asc" } },
+      // Urut RAB (sortOrder), BUKAN urutan input — supaya baris laporan
+      // konsisten antar hari & sama dengan tabel KKP lain.
+      items: { include: { rabNode: true }, orderBy: { rabNode: { sortOrder: "asc" } } },
       workers: true,
       materials: { orderBy: { name: "asc" } },
       equipment: { orderBy: { name: "asc" } },
@@ -388,7 +390,11 @@ export async function buildFinalSnapshot(reportId: string): Promise<FinalSnapsho
   });
 
   const [cumulative, progress] = await Promise.all([
-    cumulativeVolumeByLineage(report.locationId),
+    // WAJIB dibatasi s/d tanggal laporan: tanpa batas ini snapshot membeku
+    // dengan kumulatif SELURUH WAKTU (termasuk hari-hari SESUDAHNYA yang sudah
+    // counted), sehingga "s/d" langsung mentok 100% dan "s/d lalu" ikut
+    // salah karena diturunkan dari pengurangan. DECISIONS 147.
+    cumulativeVolumeByLineage(report.locationId, report.reportDate),
     getLocationProgress(report.locationId),
   ]);
 

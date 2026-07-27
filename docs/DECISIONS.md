@@ -2984,3 +2984,37 @@ Tiga bug tampilan pada PDF produksi (dari bundle self-contained DECISIONS 128):
   otomatis di Drive milik KKP terlalu berisiko — didokumentasikan sebagai
   langkah manual di `docs/GDRIVE_SETUP.md`.
 - Verifikasi: typecheck ✓ lint ✓ unit 347 (+5) ✓ build ✓.
+
+## 147 · 2026-07-27 · Fix: kumulatif snapshot laporan harian tidak dibatasi tanggal
+
+- **Gejala** (dari laporan produksi Pasar Banggi 21–23 Juli): kolom "s/d" selalu
+  mentok = volume kontrak & 100% di SEMUA hari, dan "s/d Lalu" berbeda-beda tanpa
+  alasan (Selasa 42, Rabu 41) padahal tanggalnya maju.
+- **Akar masalah**: `buildFinalSnapshot()` memanggil
+  `cumulativeVolumeByLineage(locationId)` **tanpa argumen `upToDate`**, sehingga
+  kumulatif yang dibekukan = total SELURUH WAKTU (termasuk hari-hari SESUDAH
+  laporan itu yang sudah berstatus counted). Jalur non-final (`getKkpDailyData`)
+  sudah benar mengirim `reportDate` — jadi selisihnya hanya muncul pada laporan
+  yang SUDAH final, yaitu justru yang dicetak & disetor ke KKP.
+- **Efek berantai**: `volumeBefore` = `volumeCumulative − volumeToday`
+  (turunan, bukan angka independen). Karena `volumeCumulative` sama-sama total
+  akhir, "s/d lalu" hanya beda mengikuti besar "hari ini" — 50−8=42 vs 50−9=41.
+  Itu penjelasan persis angka yang terlihat.
+- **Perbaikan**: `cumulativeVolumeByLineage(report.locationId, report.reportDate)`.
+  Rumus `volumeBefore` dipertahankan (sah setelah kumulatif dibatasi tanggal,
+  karena satu lokasi hanya punya SATU laporan per tanggal — unik di schema).
+- **Bug kedua — urutan baris**: `items` di-`orderBy: { createdAt: "asc" }`, yaitu
+  urutan INPUT, sehingga baris berpindah-pindah antar hari (Selasa: Pagar dulu;
+  Rabu: Bedeng dulu). Diubah ke `orderBy: { rabNode: { sortOrder: "asc" } }` di
+  snapshot builder DAN kedua query — sejalan dengan DECISIONS 140 (urutan RAB).
+- **Data lama**: snapshot yang terlanjur beku TIDAK ikut berubah. Disediakan
+  `scripts/rebuild-daily-snapshots.mts` (idempoten, dukung DRY_RUN & filter slug)
+  untuk membangun ulang dari data laporan yang sama — status/volume/input tidak
+  disentuh.
+- **BUKAN bug — "Minggu Ke"**: dihitung dari tanggal SPMK dalam blok 7 hari
+  (`floor((tanggal − mulai)/7) + 1`), bukan minggu kalender. Dengan SPMK 15 Juli
+  2026: 15–21 Juli = Minggu 1, 22–28 Juli = Minggu 2 — karena itu Selasa 21 masih
+  Minggu 1 sedangkan Rabu 22 sudah Minggu 2. Sengaja begini supaya SAMA dengan
+  penomoran minggu kurva-S/baseline; kalau memakai minggu kalender, "Minggu ke-n"
+  di laporan harian akan berbeda dari kurva-S.
+- Verifikasi: typecheck ✓ lint ✓ unit 347 ✓ integration 13 ✓ build ✓.
