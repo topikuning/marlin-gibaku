@@ -3717,3 +3717,32 @@ itu memikul seluruh pembulatan bobot ke 2 desimal. Konsekuensi metode sisa
 terbesar: sebuah bobot sesekali dibulatkan ke bawah (mis. 0,34606 → 0,34, bukan
 0,35) supaya kolom tetap menjumlah tepat 100,00. Kolom yang menjumlah dinilai
 lebih penting daripada pembulatan terdekat per sel.
+
+---
+
+## 158 · 2026-07-27 · Baris rencana kurva-S kembali RUMUS (membatalkan penguncian B3 di Excel)
+
+Keputusan user setelah menemukan baris "Rencana Prestasi %" dan "Kumulatif
+Rencana Prestasi %" di Excel berisi angka statik: **kembalikan persis seperti
+sebelum commit `60673a4`**.
+
+- `Rencana Prestasi %` = `SUM(kolom minggu itu, baris kategori pertama:terakhir)`
+- `Kumulatif Rencana` = `{kumulatif minggu lalu} + {rencana minggu ini}`
+
+Penguncian di B3 (DECISIONS 155) dilakukan agar baris rencana memakai kurva
+baseline RESMI (`scurve.planPct`) yang juga dipakai PDF halaman-2 dan dashboard.
+Efek sampingnya — rumus mati, rencana tidak lagi tertelusur ke jadwal
+pembentuknya — tidak diminta user dan tidak dilaporkan saat itu.
+
+**Konsekuensi yang diterima user**: bila matriks jadwal kategori berbeda dari
+kurva baseline resmi (hanya terjadi bila titik kurva pernah diedit manual tanpa
+menyentuh `scheduleItems`), angka rencana di Excel bisa berbeda tipis dari PDF
+halaman-2 dan dashboard. Layar/PDF tetap memakai kurva resmi.
+
+Nilai cache rumus diambil dari **sel kategori yang benar-benar ditulis**
+(bukan kurva resmi) supaya angka tersimpan tidak pernah bertentangan dengan
+hasil hitung Excel; cache baris helper grafik mengikuti sel yang dirujuknya.
+Uji penjaga: `tests/unit/xlsx-kurva-bobot.test.ts` menuntut kedua baris berupa
+rumus + cache == Σ sel kategori kolomnya.
+
+Verifikasi: typecheck ✓ · lint ✓ · unit **417** ✓ · build ✓.

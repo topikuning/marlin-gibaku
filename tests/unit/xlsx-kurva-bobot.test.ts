@@ -121,4 +121,42 @@ describe("sheet Kurva S — kolom Bobot (%) = SUM kolom minggu", () => {
     expect(cell.formula).toMatch(/^SUM\(C\d+:C\d+\)$/);
     expect(cell.result).toBeCloseTo(100, 9);
   });
+
+  it("baris Rencana & Kumulatif Rencana tetap RUMUS (bukan angka statik)", async () => {
+    // Pernah terkunci jadi angka statik saat audit B3; dikembalikan atas
+    // keputusan user (DECISIONS 158). Uji ini yang menahannya supaya tidak
+    // diam-diam mati lagi.
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load((await buildJadwalXlsx(fixture())) as unknown as ArrayBuffer);
+    const ws = wb.getWorksheet("Time Schedule")!;
+
+    const rowOf = (label: string) => {
+      let found = 0;
+      ws.eachRow((row, r) => {
+        if (String(row.getCell(1).value ?? "") === label) found = r;
+      });
+      return found;
+    };
+    const rencanaRow = rowOf("Rencana Prestasi %");
+    const kumRow = rowOf("Kumulatif Rencana Prestasi %");
+    expect(rencanaRow).toBeGreaterThan(0);
+    expect(kumRow).toBeGreaterThan(0);
+
+    for (let i = 0; i < N; i++) {
+      const col = 4 + i;
+      const rencana = ws.getRow(rencanaRow).getCell(col).value as { formula?: string; result?: number };
+      expect(rencana?.formula, `rencana M${i + 1}`).toMatch(/^SUM\([A-Z]+\d+:[A-Z]+\d+\)$/);
+      const kum = ws.getRow(kumRow).getCell(col).value as { formula?: string; result?: number };
+      expect(kum?.formula, `kumulatif M${i + 1}`).toBeTruthy();
+
+      // Cache tidak boleh berbohong: = Σ sel kategori kolom itu.
+      let sumCat = 0;
+      ws.eachRow((row, r) => {
+        if (r > 0 && r < rencanaRow && ["I", "II", "III"].includes(String(row.getCell(1).value ?? ""))) {
+          sumCat += numOf(row.getCell(col).value);
+        }
+      });
+      expect(rencana.result as number, `rencana M${i + 1} cache`).toBeCloseTo(sumCat, 2);
+    }
+  });
 });

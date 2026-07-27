@@ -152,6 +152,24 @@ async function addKurvaSheet(
     for (let i = 0; i < N; i++) if (sheet.kumulatifRealisasi[i] != null) last = i;
     return last;
   })();
+  // Baris rencana kembali memakai RUMUS Σ kolom kategori (keputusan user
+  // 2026-07-27, DECISIONS 158 — membatalkan pengunciannya di B3): rencana harus
+  // bisa ditelusuri ke jadwal pembentuknya dan ikut hidup saat jadwal diedit.
+  // Nilai cache diambil dari sel kategori yang BENAR-BENAR ditulis, bukan dari
+  // kurva resmi, supaya angka simpan tidak pernah berbeda dari hasil hitung Excel.
+  const firstCatN = catRowNums[0];
+  const lastCatN = catRowNums[catRowNums.length - 1];
+  const rencanaMatrix = Array.from({ length: N }, (_, i) =>
+    round2(sheet.categories.reduce((s, c) => s + c.weeklyShown[i], 0)),
+  );
+  const kumRencanaMatrix: number[] = [];
+  {
+    let acc = 0;
+    for (const v of rencanaMatrix) {
+      acc += v;
+      kumRencanaMatrix.push(round2(acc));
+    }
+  }
   let rencanaRow = 0;
   let kumRencanaRow = 0;
   let realisasiRow = 0;
@@ -191,13 +209,20 @@ async function addKurvaSheet(
     for (let i = 0; i < N; i++) {
       const cell = row.getCell(FIRST + i);
       const val = def.arr[i] == null ? null : round2(def.arr[i] as number);
-      if (def.kind === "rencana" || def.kind === "kumRencana") {
-        // Rencana = kurva RESMI baseline (statik, bukan Σ rumus jadwal): sumber
-        // yang sama dengan halaman-2 dan dashboard (B3). Jadwal kategori di
-        // atasnya tinggal rincian — mengeditnya di Excel TIDAK menggeser kurva
-        // resmi; perubahan rencana resmi lewat editor baseline / re-import
-        // Time Schedule.
-        cell.value = val;
+      if (def.kind === "rencana") {
+        // Σ increment kategori pada minggu ini.
+        cell.value = firstCatN
+          ? { formula: `SUM(${colL(i)}${firstCatN}:${colL(i)}${lastCatN})`, result: rencanaMatrix[i] }
+          : val;
+      } else if (def.kind === "kumRencana") {
+        // Kumulatif: minggu-1 = rencana; berikutnya = kumulatif sebelumnya + rencana.
+        cell.value = firstCatN
+          ? {
+              formula:
+                i === 0 ? `${colL(0)}${rencanaRow}` : `${colL(i - 1)}${kumRencanaRow}+${colL(i)}${rencanaRow}`,
+              result: kumRencanaMatrix[i],
+            }
+          : val;
       } else if (def.kind === "kumRealisasi") {
         // Rumus kumulatif hidup HANYA s/d minggu ber-realisasi; sesudahnya
         // kosong seperti layar/PDF (B7).
@@ -270,7 +295,8 @@ async function addKurvaSheet(
   const helperY = ws.addRow([]);
   helperY.getCell(1).value = 0;
   for (let i = 0; i < N; i++) {
-    helperY.getCell(2 + i).value = { formula: `${colL(i)}${kumRencanaRow}`, result: round2(sheet.kumulatifRencana[i]) };
+    // Cache mengikuti sel yang dirujuk (baris kumulatif rencana), bukan kurva resmi.
+    helperY.getCell(2 + i).value = { formula: `${colL(i)}${kumRencanaRow}`, result: kumRencanaMatrix[i] };
   }
   const helperR = ws.addRow([]);
   helperR.getCell(1).value = 0;
