@@ -3063,3 +3063,70 @@ Tiga bug tampilan pada PDF produksi (dari bundle self-contained DECISIONS 128):
   tertutup secara default; membuka form berwarna peringatan dengan penjelasan
   konsekuensi + kolom alasan. Sengaja tidak berupa tombol mencolok.
 - Verifikasi: typecheck ✓ lint ✓ unit 352 (+5) ✓ integration 13 ✓ build ✓.
+
+## 150 · 2026-07-27 · Manajemen Kontak terpadu + fix kebocoran kontak lintas-tenant
+
+**Gejala (dari user):** "kembali ke chat group, itu kontak yang disimpan masuk
+mana, manajemennya dimana? sebaiknya jadikan satu di manajemen kontak."
+
+**Temuan.** MARLIN menyimpan DUA hal berbeda yang sama-sama disebut "kontak",
+tersebar di tiga tempat:
+
+| Yang disimpan | Tabel | Cakupan | Dikelola di mana (sebelum) |
+|---|---|---|---|
+| Tujuan kirim WA | `WaContact` | per-akun (`ownerId`) | `/master/kontak-wa` **dan** `/laporan-wa` (duplikat) |
+| Nama pengirim grup | `WaSenderAlias` | se-organisasi (`orgId`) | **tidak ada** — hanya bisa dibuat dari Chat Grup, tidak bisa dilihat/diperbaiki/dihapus |
+
+**Keputusan cakupan** (dikonfirmasi user):
+
+- **Kontak tujuan tetap per-akun.** Super admin (capability baru
+  `contact.view_all`, super_admin SAJA) bisa melihat dan merapikan kontak akun
+  lain; mutasi atas kontak orang lain diaudit dengan nama pemiliknya.
+- **Nama pengirim grup TETAP dipakai bersama se-organisasi.** Alias adalah
+  jawaban atas "nomor ini siapa" — faktanya sama untuk semua orang. Kalau
+  dibuat per-akun, tiap user harus menamai ulang orang yang sama dan ringkasan
+  bisa menyebut nama berbeda untuk orang yang sama tergantung siapa yang
+  menekan tombol.
+- Tujuan kirim SELALU dibatasi milik sendiri (`listSendableContacts`) walau
+  super admin bisa melihat semuanya di halaman kontak.
+
+**Bug yang ditemukan saat menelusuri (bukan permintaan user):**
+
+1. **Kebocoran lintas-tenant.** `buildSenderDirectory` memanggil
+   `db.waContact.findMany({ select: … })` **tanpa filter apa pun** — kontak
+   pribadi semua akun, bahkan organisasi lain, ikut dipakai menamai pengirim
+   grup. Diperbaiki jadi `where: { owner: { orgId } }`.
+2. **Tidak ada foreign key.** `owner_id` / `org_id` / `created_by_id` cuma UUID
+   lepas, jadi filter per-organisasi memang tidak mungkin dan baris yatim tidak
+   pernah ikut terhapus. Migration `20260727120000_contact_relations` memasang
+   FK (kontak → user CASCADE, alias → org CASCADE, alias → pembuat SET NULL)
+   setelah membersihkan baris yatim.
+3. **Nomor `0…` tersimpan apa adanya.** `normalizeWaTarget("0812…")` menghasilkan
+   `081234567890@c.us`; WhatsApp hanya mengenal format internasional, jadi
+   kiriman gagal SENYAP dan baru ketahuan saat laporan tidak sampai. Sekarang
+   `0…`/`8…` dinormalisasi ke `62…`, kode negara ganda dirapikan.
+
+**Perubahan:**
+
+- Halaman baru `/master/kontak` (tab Master Data "Kontak") berisi dua bagian:
+  kontak tujuan kirim (tambah/ubah/hapus + pencarian + panel "kontak akun lain"
+  untuk super admin) dan nama pengirim grup (ubah nama/peran/catatan, lepas
+  nama, tampil "dinamai oleh"). URL lama `/kontak-wa` & `/master/kontak-wa`
+  redirect ke sini.
+- Modul baru `src/lib/contacts/`: `model.ts` (murni — normalisasi tujuan,
+  bentuk senderKey, pencarian), `queries.ts` (aturan cakupan dipaksakan di satu
+  tempat), `actions.ts` (CRUD kontak + edit/hapus alias, semua `requireCapability`
+  + `audit`).
+- `/laporan-wa` tidak lagi mengelola kontak — hanya menampilkan daftar tujuan
+  milik sendiri + tautan ke halaman kontak. Chat Grup menautkan ke sana setelah
+  menyimpan nama pengirim.
+- Duplikasi `addWaContactAction`/`deleteWaContactAction`/`normalizeWaTarget` di
+  `exec-report/actions.ts` dihapus (pindah ke modul kontak).
+
+**Yang sengaja TIDAK dilakukan.** Alias tidak dijadikan per-akun (lihat alasan
+di atas), dan alias lama tidak diubah kepemilikannya.
+
+**Verifikasi:** typecheck ✓ · lint ✓ · unit 367 ✓ · integration 13 ✓ · build ✓ ·
+uji browser: super admin melihat kontak akun lain & normalisasi `0812…` →
+`6281…`; site_manager TIDAK melihat kontak akun lain tetapi tetap melihat alias
+se-organisasi.

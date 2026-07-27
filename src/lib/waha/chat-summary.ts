@@ -41,7 +41,9 @@ export async function buildSenderDirectory(orgId: string): Promise<SenderDirecto
       where: { orgId, phone: { not: null } },
       select: { fullName: true, role: true, phone: true },
     }),
-    db.waContact.findMany({ select: { name: true, chatId: true } }),
+    // WAJIB disaring per organisasi: kontak itu milik akun pribadi, dan tanpa
+    // filter ini kontak tenant lain ikut terbaca (DECISIONS 150).
+    db.waContact.findMany({ where: { owner: { orgId } }, select: { name: true, chatId: true } }),
   ]);
   const aliasByKey = new Map(
     aliases.map((a) => [a.senderKey.toLowerCase(), { displayName: a.displayName, role: a.role }]),

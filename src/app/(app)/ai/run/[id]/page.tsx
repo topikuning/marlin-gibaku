@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
+import { listSendableContacts } from "@/lib/contacts/queries";
 import { AI_RUN_STATUS_LABEL, AI_RUN_STATUS_TONE } from "@/lib/lifecycle";
 import { formatTanggalWaktu } from "@/lib/format";
 import { READINESS_GRADE_LABEL } from "@/lib/ai-hub/readiness";
@@ -117,7 +118,7 @@ export default async function AiRunDetailPage({ params }: { params: Promise<{ id
 
   const [creator, contacts, auditTrail] = await Promise.all([
     db.user.findUnique({ where: { id: run.userId }, select: { fullName: true } }),
-    db.waContact.findMany({ where: { ownerId: user.id }, select: { id: true, name: true } }),
+    listSendableContacts(user.id),
     db.auditLog.findMany({
       where: { resourceType: { in: ["ai_run", "ai_artifact"] }, resourceId: { in: [run.id, ...run.artifacts.map((a) => a.id)] } },
       orderBy: { createdAt: "asc" },

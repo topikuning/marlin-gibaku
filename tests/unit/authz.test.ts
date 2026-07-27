@@ -36,6 +36,7 @@ describe("authz capability matrix", () => {
       "contract.edit", // koreksi kontrak
       "wa.configure", // set grup WA (sementara)
       "daily_report.unfinalize", // buka kunci laporan final (DECISIONS 149)
+      "contact.view_all", // lihat kontak akun lain (DECISIONS 150)
     ] as const;
     for (const cap of HANYA_SUPER_ADMIN) expect(can("program_director", cap), cap).toBe(false);
     for (const cap of CAPABILITIES) {

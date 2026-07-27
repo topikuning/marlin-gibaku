@@ -40,6 +40,9 @@ export const CAPABILITIES = [
   "compliance.manage",
   "report.export",
   "exec_report.send", // kirim laporan eksekutif (rangkuman AI) ke WA — site_manager ke atas
+  // Lihat & kelola kontak tujuan WA milik SEMUA akun — super_admin SAJA
+  // (DECISIONS 150). Tanpa ini setiap akun hanya melihat kontaknya sendiri.
+  "contact.view_all",
   // AI Intelligence Hub (DECISIONS 133) — AI = penjelas, bukan sumber angka.
   "ai.view", // buka hub + riwayat run
   "ai.generate", // jalankan analisis (pulse/deviasi/risiko/kualitas) + draf laporan + saran
@@ -68,12 +71,14 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
     // contract.edit = koreksi data kontrak, khusus super_admin.
     // wa.configure (set grup WhatsApp paket) sementara khusus super_admin juga.
     // daily_report.unfinalize = membuka laporan yang sudah final, super_admin saja.
+    // contact.view_all = melihat kontak milik akun lain, super_admin saja.
     CAPABILITIES.filter(
       (c) =>
         c !== "system.manage" &&
         c !== "contract.edit" &&
         c !== "wa.configure" &&
-        c !== "daily_report.unfinalize",
+        c !== "daily_report.unfinalize" &&
+        c !== "contact.view_all",
     ),
   ),
   regional_manager: new Set<Capability>([

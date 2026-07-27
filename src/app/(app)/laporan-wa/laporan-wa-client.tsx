@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import { Banner, Button, Card, CardBody, CardHeader, Input, Label, Select, StatusPill, Textarea } from "@/components/ui";
 import { cn } from "@/lib/cn";
@@ -7,11 +8,8 @@ import { EXEC_REPORTS, PERIOD_PRESETS, execReportMeta } from "@/lib/exec-report/
 import {
   generateExecReportAction,
   sendExecReportAction,
-  addWaContactAction,
-  deleteWaContactAction,
   type ExecReportState,
   type ExecSendState,
-  type ContactState,
 } from "@/lib/exec-report/actions";
 
 type Contact = { id: string; name: string; chatId: string; note: string | null };
@@ -203,11 +201,30 @@ export function LaporanWaClient({
         </CardBody>
       </Card>
 
-      {/* Kontak WA */}
+      {/* Kontak WA — dikelola terpusat di Master Data → Kontak (DECISIONS 150). */}
       <Card>
-        <CardHeader title="Kontak WA" subtitle="Tujuan tersimpan milikmu (bisa dipakai berulang)" />
-        <CardBody>
-          <ContactManager contacts={contacts} />
+        <CardHeader
+          title={`Kontak tujuan (${contacts.length})`}
+          subtitle="Tujuan tersimpan milik Anda, dipakai di pemilih tujuan di atas."
+        />
+        <CardBody className="space-y-3">
+          {contacts.length > 0 ? (
+            <ul className="divide-y divide-border">
+              {contacts.map((c) => (
+                <li key={c.id} className="flex items-center justify-between gap-3 py-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{c.name}</p>
+                    <p className="truncate font-mono text-xs text-ink-muted">{c.chatId}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-[13px] text-ink-muted">Belum ada kontak tersimpan.</p>
+          )}
+          <Link href="/master/kontak" className="inline-block text-sm text-primary hover:underline">
+            Kelola kontak di Master Data → Kontak →
+          </Link>
         </CardBody>
       </Card>
 
@@ -234,52 +251,3 @@ export function LaporanWaClient({
   );
 }
 
-function ContactManager({ contacts }: { contacts: Contact[] }) {
-  const [addState, addAction, adding] = useActionState<ContactState, FormData>(addWaContactAction, undefined);
-  const [delState, delAction] = useActionState<ContactState, FormData>(deleteWaContactAction, undefined);
-  const banner = addState ?? delState;
-
-  return (
-    <div className="space-y-3">
-      {banner?.error ? <Banner tone="error" title={banner.error} /> : null}
-      {banner?.success ? <Banner tone="success" title={banner.success} /> : null}
-
-      {contacts.length > 0 ? (
-        <ul className="divide-y divide-border">
-          {contacts.map((c) => (
-            <li key={c.id} className="flex items-center justify-between gap-3 py-2">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{c.name}</p>
-                <p className="truncate font-mono text-xs text-ink-muted">{c.chatId}</p>
-              </div>
-              <form action={delAction}>
-                <input type="hidden" name="id" value={c.id} />
-                <Button type="submit" size="sm" variant="ghost">
-                  Hapus
-                </Button>
-              </form>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="text-[13px] text-ink-muted">Belum ada kontak. Tambahkan di bawah.</p>
-      )}
-
-      <form action={addAction} className="grid gap-2 border-t border-border pt-3 sm:grid-cols-[1fr_1fr_auto]">
-        <div>
-          <Label htmlFor="c-name">Nama</Label>
-          <Input id="c-name" name="name" placeholder="mis. Direksi" />
-        </div>
-        <div>
-          <Label htmlFor="c-chat">Nomor WA / ID grup</Label>
-          <Input id="c-chat" name="chatId" placeholder="628123… atau 12036…@g.us" />
-        </div>
-        <div className="flex items-end">
-          <Button type="submit" size="sm" variant="secondary" loading={adding}>
-            Tambah kontak
-          </Button>
-        </div>
-      </form>
-    </div>
-  );
-}

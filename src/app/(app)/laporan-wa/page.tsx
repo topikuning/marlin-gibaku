@@ -16,9 +16,10 @@ export default async function LaporanWaPage() {
   requireCapabilityPage(user.role, "exec_report.send");
 
   const [contacts, dispatches, wahaOn, aiCfg] = await Promise.all([
+    // Hanya kontak milik sendiri yang boleh jadi tujuan kirim (DECISIONS 150).
     db.waContact.findMany({
       where: { ownerId: user.id },
-      orderBy: { createdAt: "desc" },
+      orderBy: { name: "asc" },
       select: { id: true, name: true, chatId: true, note: true },
     }),
     db.reportDispatch.findMany({
