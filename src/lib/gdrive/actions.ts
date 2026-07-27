@@ -5,9 +5,18 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { ForbiddenError, requireCapability, requireLocationAccess } from "@/lib/auth/session";
-import { GDriveError, driveAbout, probeDriveFolder, uploadToDrive } from "./client";
+import { GDriveError, driveAbout, probeDriveFolder } from "./client";
 import { clearGDriveToken, saveGDriveClient } from "./config";
-import { parseDriveFolderId, type GDriveUploadKind } from "./parse";
+import { parseDriveFolderId } from "./parse";
+import {
+  activityPath,
+  dailyPhotoPath,
+  dailyReportPath,
+  documentPath,
+  periodReportPath,
+  safeFileName,
+} from "./folders";
+import { documentItem, photoItems, summarize, uploadBatch, type UploadTarget } from "./upload";
 
 /** Server action integrasi Google Drive (upload manual laporan). DECISIONS 141. */
 
@@ -123,147 +132,140 @@ export async function setPackageDriveFolderAction(
   }
 }
 
-/* ── Upload laporan ─────────────────────────────────────────────────────── */
 
-async function logUpload(input: {
-  packageId: string;
-  locationId: string | null;
-  kind: GDriveUploadKind;
-  refKey: string;
-  fileName: string;
-  fileId?: string | null;
-  webLink?: string | null;
-  status: "sukses" | "gagal";
-  error?: string | null;
-  byId: string;
-}): Promise<void> {
-  await db.gDriveUpload
-    .create({
-      data: {
-        packageId: input.packageId,
-        locationId: input.locationId,
-        kind: input.kind,
-        refKey: input.refKey,
-        fileName: input.fileName,
-        fileId: input.fileId ?? null,
-        webLink: input.webLink ?? null,
-        status: input.status,
-        error: input.error ?? null,
-        createdById: input.byId,
-      },
-    })
-    .catch(() => {});
-}
+/* ── Upload ke struktur folder KKP ──────────────────────────────────────── */
 
-async function locationWithFolder(slugOrId: { slug?: string; locationId?: string }) {
+type Ctx = { target: UploadTarget; locationName: string; slug: string };
+
+/** Resolusi lokasi + folder paket + guard akses. Dipakai semua aksi upload. */
+async function ctxFor(
+  by: { slug?: string; locationId?: string },
+  kind: UploadTarget["kind"],
+  refKey: string,
+  userId: string,
+): Promise<Ctx | { error: string }> {
   const loc = await db.location.findFirst({
-    where: slugOrId.slug ? { slug: slugOrId.slug } : { id: slugOrId.locationId },
-    select: {
-      id: true,
-      slug: true,
-      name: true,
-      package: { select: { id: true, driveFolderId: true } },
-    },
+    where: by.slug ? { slug: by.slug } : { id: by.locationId },
+    select: { id: true, slug: true, name: true, package: { select: { id: true, driveFolderId: true } } },
   });
-  if (!loc) return { error: "Lokasi tidak ditemukan." as const };
+  if (!loc) return { error: "Lokasi tidak ditemukan." };
   if (!loc.package.driveFolderId)
-    return {
-      error: "Paket ini belum punya folder Google Drive — atur di halaman paket." as const,
-    };
-  return { loc, packageId: loc.package.id, folderId: loc.package.driveFolderId };
+    return { error: "Paket ini belum punya folder Google Drive — atur di halaman paket." };
+  return {
+    locationName: loc.name,
+    slug: loc.slug,
+    target: {
+      packageId: loc.package.id,
+      locationId: loc.id,
+      rootFolderId: loc.package.driveFolderId,
+      kind,
+      refKey,
+      byId: userId,
+    },
+  };
 }
 
-/** Upload PDF laporan harian ke folder Drive paket. */
+const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal tidak valid");
+
+/**
+ * Laporan harian → "3. LAPORAN HARIAN/<Lokasi>/<bulan>": PDF laporan + semua
+ * foto laporan itu (subfolder "Foto"). Foto ikut karena KKP menilai bukti
+ * visual, bukan hanya narasi.
+ */
 export async function uploadDailyReportToDriveAction(
   _prev: GDriveActionState,
   formData: FormData,
 ): Promise<GDriveActionState> {
-  const schema = z.object({
-    slug: z.string().trim().min(1),
-    dateKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal tidak valid"),
-  });
-  const parsed = schema.safeParse({ slug: formData.get("slug"), dateKey: formData.get("dateKey") });
+  const parsed = z
+    .object({ slug: z.string().trim().min(1), dateKey: dateSchema })
+    .safeParse({ slug: formData.get("slug"), dateKey: formData.get("dateKey") });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const { slug, dateKey } = parsed.data;
 
   try {
     const user = await requireCapability("report.export");
-    const r = await locationWithFolder({ slug });
-    if ("error" in r) return { error: r.error };
-    await requireLocationAccess(user, r.loc.id);
+    const c = await ctxFor({ slug }, "laporan_harian", `${slug}:${dateKey}`, user.id);
+    if ("error" in c) return { error: c.error };
+    await requireLocationAccess(user, c.target.locationId!);
 
     const { renderHarianPdf } = await import("@/lib/pdf/harian");
     const pdf = await renderHarianPdf(slug, dateKey);
     if (!pdf) return { error: "Laporan harian tidak ditemukan." };
 
-    const fileName = `Laporan Harian - ${r.loc.name} - ${dateKey}.pdf`;
-    try {
-      const file = await uploadToDrive({
-        folderId: r.folderId,
-        fileName,
-        mime: PDF_MIME,
-        data: pdf.buffer,
-      });
-      await logUpload({
-        packageId: r.packageId,
-        locationId: r.loc.id,
-        kind: "laporan_harian",
-        refKey: `${slug}:${dateKey}`,
-        fileName,
-        fileId: file.id,
-        webLink: file.webViewLink,
-        status: "sukses",
-        byId: user.id,
-      });
-      await audit(user.id, "gdrive.upload", "daily_report", null, {
-        locationId: r.loc.id,
-        dateKey,
-        fileId: file.id,
-      });
-      revalidatePath(`/lokasi/${slug}/laporan-lokasi`);
-      return { success: `Laporan harian terupload ke Drive.` };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Upload gagal.";
-      await logUpload({
-        packageId: r.packageId,
-        locationId: r.loc.id,
-        kind: "laporan_harian",
-        refKey: `${slug}:${dateKey}`,
-        fileName,
-        status: "gagal",
-        error: msg,
-        byId: user.id,
-      });
-      return { error: msg };
+    const report = await db.dailyReport.findUnique({
+      where: {
+        locationId_reportDate: {
+          locationId: c.target.locationId!,
+          reportDate: new Date(`${dateKey}T00:00:00.000Z`),
+        },
+      },
+      select: { photos: { select: { r2Key: true }, orderBy: { createdAt: "asc" } } },
+    });
+
+    const outcomes = [
+      await uploadBatch(c.target, dailyReportPath({ locationName: c.locationName, dateKey }), [
+        {
+          fileName: safeFileName(`Laporan Harian - ${c.locationName} - ${dateKey}.pdf`),
+          mime: PDF_MIME,
+          data: pdf.buffer,
+        },
+      ]),
+    ];
+
+    let skipped = 0;
+    const photos = report?.photos ?? [];
+    if (photos.length > 0) {
+      const got = await photoItems(photos, { dateKey, locationName: c.locationName });
+      skipped = got.skipped;
+      outcomes.push(
+        await uploadBatch(c.target, dailyPhotoPath({ locationName: c.locationName, dateKey }), got.items),
+      );
     }
+
+    await audit(user.id, "gdrive.upload", "daily_report", null, {
+      locationId: c.target.locationId,
+      dateKey,
+      files: outcomes.reduce((s, o) => s + o.ok, 0),
+      photos: photos.length,
+    });
+    revalidatePath(`/lokasi/${slug}/laporan-lokasi`);
+    const err = outcomes.find((o) => o.firstError)?.firstError;
+    const msg = summarize("Laporan harian", outcomes, skipped);
+    return err ? { error: `${msg} Penyebab: ${err}` } : { success: msg };
   } catch (err) {
     return fail(err);
   }
 }
 
-/** Upload laporan mingguan/bulanan (PDF + Excel) ke folder Drive paket. */
+/** Laporan mingguan/bulanan → "4./5. …/<Lokasi>": PDF + Excel. */
 export async function uploadPeriodReportToDriveAction(
   _prev: GDriveActionState,
   formData: FormData,
 ): Promise<GDriveActionState> {
-  const schema = z.object({
-    locationId: z.uuid(),
-    kind: z.enum(["mingguan", "bulanan"]),
-    n: z.coerce.number().int().min(1).max(520),
-  });
-  const parsed = schema.safeParse({
-    locationId: formData.get("locationId"),
-    kind: formData.get("kind"),
-    n: formData.get("n"),
-  });
+  const parsed = z
+    .object({
+      locationId: z.uuid(),
+      kind: z.enum(["mingguan", "bulanan"]),
+      n: z.coerce.number().int().min(1).max(520),
+    })
+    .safeParse({
+      locationId: formData.get("locationId"),
+      kind: formData.get("kind"),
+      n: formData.get("n"),
+    });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const { locationId, kind, n } = parsed.data;
 
   try {
     const user = await requireCapability("report.export");
-    const r = await locationWithFolder({ locationId });
-    if ("error" in r) return { error: r.error };
-    await requireLocationAccess(user, r.loc.id);
+    const c = await ctxFor(
+      { locationId },
+      kind === "mingguan" ? "laporan_mingguan" : "laporan_bulanan",
+      `${locationId}:${kind}-${n}`,
+      user.id,
+    );
+    if ("error" in c) return { error: c.error };
+    await requireLocationAccess(user, locationId);
 
     const [{ renderPeriodikPdf }, { getPeriodReport }, { buildPeriodReportXlsx }] = await Promise.all([
       import("@/lib/pdf/periodik"),
@@ -278,52 +280,152 @@ export async function uploadPeriodReportToDriveAction(
     const xlsx = await buildPeriodReportXlsx(report);
 
     const label = kind === "mingguan" ? `Minggu ke-${n}` : `Bulan ke-${n}`;
-    const gKind: GDriveUploadKind = kind === "mingguan" ? "laporan_mingguan" : "laporan_bulanan";
-    const refKey = `${r.loc.slug}:${kind}-${n}`;
-    const base = `Laporan ${kind === "mingguan" ? "Mingguan" : "Bulanan"} ${label} - ${r.loc.name}`;
+    const base = `Laporan ${kind === "mingguan" ? "Mingguan" : "Bulanan"} ${label} - ${c.locationName}`;
+    const outcome = await uploadBatch(c.target, periodReportPath(kind, c.locationName), [
+      { fileName: safeFileName(`${base}.pdf`), mime: PDF_MIME, data: pdf.buffer },
+      { fileName: safeFileName(`${base}.xlsx`), mime: XLSX_MIME, data: xlsx },
+    ]);
 
-    const results: string[] = [];
-    for (const f of [
-      { fileName: `${base}.pdf`, mime: PDF_MIME, data: pdf.buffer },
-      { fileName: `${base}.xlsx`, mime: XLSX_MIME, data: xlsx },
-    ]) {
-      try {
-        const file = await uploadToDrive({ folderId: r.folderId, ...f });
-        await logUpload({
-          packageId: r.packageId,
-          locationId: r.loc.id,
-          kind: gKind,
-          refKey,
-          fileName: f.fileName,
-          fileId: file.id,
-          webLink: file.webViewLink,
-          status: "sukses",
-          byId: user.id,
-        });
-        results.push(f.fileName.endsWith(".pdf") ? "PDF" : "Excel");
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : "Upload gagal.";
-        await logUpload({
-          packageId: r.packageId,
-          locationId: r.loc.id,
-          kind: gKind,
-          refKey,
-          fileName: f.fileName,
-          status: "gagal",
-          error: msg,
-          byId: user.id,
-        });
-        return {
-          error:
-            results.length > 0
-              ? `${results.join(" & ")} terupload, tapi ${f.fileName.endsWith(".pdf") ? "PDF" : "Excel"} gagal: ${msg}`
-              : msg,
-        };
-      }
+    await audit(user.id, "gdrive.upload", "location", locationId, { kind, n, files: outcome.ok });
+    revalidatePath(`/lokasi/${c.slug}/laporan-lokasi`);
+    const msg = summarize(`Laporan ${kind} ${label}`, [outcome]);
+    return outcome.firstError ? { error: `${msg} Penyebab: ${outcome.firstError}` } : { success: msg };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * Kegiatan lapangan → "6. DOKUMENTASI/<Lokasi>/<bulan>/<tanggal judul>":
+ * PDF kegiatan + seluruh fotonya, satu folder per kegiatan.
+ */
+export async function uploadActivityToDriveAction(
+  _prev: GDriveActionState,
+  formData: FormData,
+): Promise<GDriveActionState> {
+  const parsed = z.object({ activityId: z.uuid() }).safeParse({ activityId: formData.get("activityId") });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { activityId } = parsed.data;
+
+  try {
+    const user = await requireCapability("field_activity.manage");
+    const act = await db.fieldActivity.findUnique({
+      where: { id: activityId },
+      select: {
+        title: true,
+        activityDate: true,
+        locationId: true,
+        location: { select: { slug: true } },
+        photos: { select: { r2Key: true }, orderBy: { createdAt: "asc" } },
+      },
+    });
+    if (!act) return { error: "Kegiatan tidak ditemukan." };
+    await requireLocationAccess(user, act.locationId);
+
+    const dateKey = act.activityDate.toISOString().slice(0, 10);
+    const c = await ctxFor({ locationId: act.locationId }, "kegiatan", activityId, user.id);
+    if ("error" in c) return { error: c.error };
+
+    const { renderKegiatanPdf } = await import("@/lib/pdf/kegiatan");
+    const pdf = await renderKegiatanPdf(activityId);
+    if (!pdf) return { error: "Kegiatan tidak bisa dirender." };
+
+    const path = activityPath({ locationName: c.locationName, dateKey, title: act.title });
+    const outcomes = [
+      await uploadBatch(c.target, path, [
+        {
+          fileName: safeFileName(`Kegiatan - ${act.title} - ${dateKey}.pdf`),
+          mime: PDF_MIME,
+          data: pdf.buffer,
+        },
+      ]),
+    ];
+    let skipped = 0;
+    if (act.photos.length > 0) {
+      const got = await photoItems(act.photos, { dateKey, locationName: c.locationName });
+      skipped = got.skipped;
+      outcomes.push(await uploadBatch(c.target, path, got.items));
     }
-    await audit(user.id, "gdrive.upload", "location", locationId, { kind, n });
-    revalidatePath(`/lokasi/${r.loc.slug}/laporan-lokasi`);
-    return { success: `Laporan ${kind} (PDF + Excel) terupload ke Drive.` };
+
+    await audit(user.id, "gdrive.upload", "field_activity", activityId, {
+      files: outcomes.reduce((s, o) => s + o.ok, 0),
+      photos: act.photos.length,
+    });
+    revalidatePath(`/lokasi/${act.location.slug}/kegiatan`);
+    const err = outcomes.find((o) => o.firstError)?.firstError;
+    const msg = summarize("Kegiatan lapangan", outcomes, skipped);
+    return err ? { error: `${msg} Penyebab: ${err}` } : { success: msg };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * Dokumen administrasi → folder KKP sesuai JENIS dokumen (1/2/7/8/9).
+ * Jenis yang tidak dipetakan (dokumen proses tender internal) ditolak dengan
+ * pesan jelas — bukan ditaruh sembarangan.
+ */
+export async function uploadDocumentToDriveAction(
+  _prev: GDriveActionState,
+  formData: FormData,
+): Promise<GDriveActionState> {
+  const parsed = z.object({ documentId: z.uuid() }).safeParse({ documentId: formData.get("documentId") });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { documentId } = parsed.data;
+
+  try {
+    const user = await requireCapability("document.upload");
+    const doc = await db.document.findFirst({
+      where: { id: documentId, orgId: user.orgId },
+      select: {
+        type: true,
+        title: true,
+        fileName: true,
+        mimeType: true,
+        r2Key: true,
+        packageId: true,
+        locationId: true,
+        location: { select: { name: true, packageId: true } },
+        package: { select: { id: true, driveFolderId: true } },
+      },
+    });
+    if (!doc) return { error: "Dokumen tidak ditemukan." };
+
+    const path = documentPath(doc.type, doc.location?.name ?? null);
+    if (!path)
+      return {
+        error: `Jenis dokumen ini tidak punya folder di struktur KKP — tidak perlu dishare ke Drive.`,
+      };
+
+    // Folder Drive diambil dari paket dokumen, atau paket pemilik lokasinya.
+    const packageId = doc.packageId ?? doc.location?.packageId ?? null;
+    if (!packageId) return { error: "Dokumen tidak terhubung ke paket mana pun." };
+    const pkg = await db.package.findFirst({
+      where: { id: packageId, orgId: user.orgId },
+      select: { id: true, driveFolderId: true },
+    });
+    if (!pkg?.driveFolderId)
+      return { error: "Paket ini belum punya folder Google Drive — atur di halaman paket." };
+    if (doc.locationId) await requireLocationAccess(user, doc.locationId);
+
+    const target: UploadTarget = {
+      packageId: pkg.id,
+      locationId: doc.locationId,
+      rootFolderId: pkg.driveFolderId,
+      kind: "dokumen",
+      refKey: documentId,
+      byId: user.id,
+    };
+    const outcome = await uploadBatch(target, path, [await documentItem(doc)]);
+
+    await audit(user.id, "gdrive.upload", "document", documentId, {
+      type: doc.type,
+      folder: path[0],
+      ok: outcome.ok,
+    });
+    revalidatePath("/dokumen");
+    const msg = summarize(`Dokumen “${doc.title}”`, [outcome]);
+    return outcome.firstError ? { error: `${msg} Penyebab: ${outcome.firstError}` } : { success: msg };
   } catch (err) {
     return fail(err);
   }

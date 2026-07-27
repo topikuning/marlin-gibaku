@@ -13,7 +13,10 @@ import {
   PHASE_LABEL,
   TYPE_LABEL,
 } from "@/lib/documents";
-import { formatTanggal } from "@/lib/format";
+import { formatTanggal, formatTanggalWaktu } from "@/lib/format";
+import { getGDriveConfigDisplay } from "@/lib/gdrive/config";
+import { folderForDocumentType } from "@/lib/gdrive/folders";
+import { UploadDocumentToDrive } from "@/components/knmp/drive-upload-button";
 import type { AdminPhase, DocumentType } from "@/generated/prisma/enums";
 
 export const metadata: Metadata = { title: "Dokumen" };
@@ -58,6 +61,40 @@ export default async function DokumenPage({
   });
 
   const expiring = countExpiringSoon(documents.map((d) => d.expiryDate));
+
+  // Kesiapan Drive: hanya dokumen yang paketnya punya folder Drive yang bisa
+  // diupload; status upload terakhir diambil dari log (refKey = documentId).
+  const driveOn = (await getGDriveConfigDisplay()).connected;
+  const docIds = documents.map((d) => d.id);
+  const [drivePackages, driveLogs] = driveOn
+    ? await Promise.all([
+        db.package.findMany({
+          where: { orgId: user.orgId, driveFolderId: { not: null } },
+          select: { id: true, locations: { select: { id: true } } },
+        }),
+        db.gDriveUpload.findMany({
+          where: { kind: "dokumen", refKey: { in: docIds }, status: "sukses" },
+          orderBy: { createdAt: "desc" },
+          select: { refKey: true, createdAt: true },
+          take: 2000,
+        }),
+      ])
+    : [[], []];
+  const drivePackageIds = new Set(drivePackages.map((p) => p.id));
+  const driveLocationIds = new Set(drivePackages.flatMap((p) => p.locations.map((l) => l.id)));
+  const driveReadyDocIds = new Set(
+    documents
+      .filter(
+        (d) =>
+          (d.packageId && drivePackageIds.has(d.packageId)) ||
+          (d.locationId && driveLocationIds.has(d.locationId)),
+      )
+      .map((d) => d.id),
+  );
+  const driveUploadedAt = new Map<string, string>();
+  for (const l of driveLogs) {
+    if (!driveUploadedAt.has(l.refKey)) driveUploadedAt.set(l.refKey, formatTanggalWaktu(l.createdAt));
+  }
 
   return (
     <div className="space-y-6">
@@ -134,7 +171,8 @@ export default async function DokumenPage({
                     <th className="py-2 pr-3">Tanggal</th>
                     <th className="py-2 pr-3">Paket / Lokasi</th>
                     <th className="py-2 pr-3 text-right">Ukuran</th>
-                    <th className="py-2">Oleh</th>
+                    <th className="py-2 pr-3">Oleh</th>
+                    <th className="py-2">Drive KKP</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -152,7 +190,18 @@ export default async function DokumenPage({
                       <td className="py-1.5 pr-3 tabular">{d.docDate ? formatTanggal(d.docDate) : "—"}</td>
                       <td className="py-1.5 pr-3 text-ink-muted">{d.locationName ?? d.packageName ?? "—"}</td>
                       <td className="py-1.5 pr-3 text-right tabular">{Math.max(1, Math.round(d.bytes / 1024))} KB</td>
-                      <td className="py-1.5 text-ink-muted">{d.uploadedByName}</td>
+                      <td className="py-1.5 pr-3 text-ink-muted">{d.uploadedByName}</td>
+                      <td className="py-1.5">
+                        {driveOn && folderForDocumentType(d.type) ? (
+                          <UploadDocumentToDrive
+                            documentId={d.id}
+                            hasDrive={driveReadyDocIds.has(d.id)}
+                            uploadedAt={driveUploadedAt.get(d.id) ?? null}
+                          />
+                        ) : (
+                          <span className="text-[12px] text-ink-faint">—</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
