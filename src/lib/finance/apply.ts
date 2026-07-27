@@ -71,7 +71,7 @@ export async function applyDisbursementTx(
 
   const billing = await tx.ownerBilling.findUniqueOrThrow({
     where: { id: input.billingId },
-    select: { id: true, amount: true, status: true, terminNo: true },
+    select: { id: true, amount: true, retentionHeld: true, status: true, terminNo: true },
   });
   if (billing.status !== "disetujui" && billing.status !== "cair_sebagian") {
     throw new FinanceGuardError("Pencairan hanya untuk termin disetujui / cair sebagian.");
@@ -81,9 +81,15 @@ export async function applyDisbursementTx(
     _sum: { amount: true },
   });
   const received = agg._sum.amount ?? 0n;
-  const remaining = billing.amount - received;
+  // Yang bisa dicairkan = amount − retensi yang ditahan owner. Tanpa ini,
+  // termin ber-retensi selamanya "cair_sebagian" dan pencairan bisa melebihi
+  // hak (audit 2026-07-27, B14b).
+  const payable = billing.amount - billing.retentionHeld;
+  const remaining = payable - received;
   if (input.amount > remaining) {
-    throw new FinanceGuardError(`Melebihi sisa termin ${billing.terminNo}: sisa ${formatRupiah(remaining)}.`);
+    throw new FinanceGuardError(
+      `Melebihi sisa termin ${billing.terminNo} (setelah retensi ${formatRupiah(billing.retentionHeld)}): sisa ${formatRupiah(remaining > 0n ? remaining : 0n)}.`,
+    );
   }
   const disbursement = await tx.disbursement.create({
     data: {
@@ -95,7 +101,7 @@ export async function applyDisbursementTx(
     },
     select: { id: true },
   });
-  const newStatus = received + input.amount === billing.amount ? "cair" : "cair_sebagian";
+  const newStatus = received + input.amount >= payable ? "cair" : "cair_sebagian";
   await tx.ownerBilling.update({ where: { id: billing.id }, data: { status: newStatus } });
   return { disbursement, newStatus };
 }

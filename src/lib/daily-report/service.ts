@@ -33,6 +33,13 @@ export class DailyReportError extends Error {}
 
 const EDITABLE_STATUSES: DailyReportStatus[] = ["draft", "perlu_koreksi"];
 const ENRICHABLE_STATUSES: DailyReportStatus[] = ["draft", "perlu_koreksi", "dikirim"];
+/**
+ * Status yang boleh di-enrich oleh PEMBUAT (daily_report.create saja).
+ * "dikirim" hanya boleh dilengkapi reviewer — SM melengkapi data KKP saat
+ * verifikasi; UI memang menyembunyikannya dari mandor, tapi backend dulu tidak
+ * (audit 2026-07-27, B16b: frontend ≠ backend permission).
+ */
+export const CREATOR_ENRICHABLE_STATUSES: DailyReportStatus[] = ["draft", "perlu_koreksi"];
 
 async function getReportOrThrow(reportId: string) {
   const report = await db.dailyReport.findUnique({
@@ -600,6 +607,11 @@ export type IssueInput = {
 /** Catat kendala lapangan yang menempel ke laporan harian. */
 export async function addIssueFromReport(reportId: string, input: IssueInput, userId: string) {
   const report = await getReportOrThrow(reportId);
+  // Laporan final beku — kendala baru dicatat lewat menu Kendala lokasi, bukan
+  // menempel diam-diam ke dokumen yang sudah final (audit 2026-07-27, B16c).
+  if (report.status === "final") {
+    throw new DailyReportError("Laporan sudah final — catat kendala lewat menu Kendala lokasi");
+  }
   if (!input.title || input.title.trim().length === 0) {
     throw new DailyReportError("Judul kendala wajib diisi");
   }

@@ -48,7 +48,7 @@ export function buildPulsePayload(pulse: PortfolioPulse, opts?: { maxRows?: numb
   const rows = pulse.rows.slice(0, opts?.maxRows ?? 30);
   const refs = pulse.sourceRefs.map((s) => `- ${s.id}: ${s.label}${s.value ? ` = ${s.value}` : ""}`);
   return [
-    `PERIODE: ${pulse.periodStart} s/d ${pulse.periodEnd} (data per ${pulse.dataAsOf})`,
+    `PERIODE: ${pulse.periodStart} s/d ${pulse.periodEnd} (data terakhir berubah: ${pulse.dataAsOf ?? "belum ada data"})`,
     `TOTAL: ${pulse.totals.locations} lokasi | laporan final ${pulse.totals.reportsFinal}/${pulse.totals.reportsExpected} | deviasi negatif ${pulse.totals.negativeDeviationLocations} lokasi | kendala terbuka ${pulse.totals.openIssues} | recovery overdue ${pulse.totals.overdueRecoveries} | readiness rendah ${pulse.totals.lowReadinessLocations} lokasi`,
     "",
     "DATA PER LOKASI (angka RESMI — kutip persis):",

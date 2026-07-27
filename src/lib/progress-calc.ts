@@ -133,3 +133,34 @@ export function laggingItems(items: LaggingInput[], planFraction: number, limit 
     .sort((a, b) => b.gapValue - a.gapValue)
     .slice(0, limit);
 }
+
+
+/**
+ * Agregat progress banyak lokasi = rata-rata TERTIMBANG grandTotal
+ * (audit 2026-07-27, B13 — sebelumnya di-fork 4× dengan penanganan div-0 dan
+ * pembulatan yang berbeda-beda, termasuk varian BigInt yang memotong desimal).
+ * Ini SATU-SATUNYA tempat rumusnya ditulis; dipakai dashboard, halaman
+ * Progress, halaman Paket, dan gate transisi serah_terima.
+ */
+export function weightedRealizedPct(rows: { grandTotal: bigint; realizedValue: bigint }[]): number {
+  let grand = 0n;
+  let realized = 0n;
+  for (const r of rows) {
+    grand += r.grandTotal;
+    realized += r.realizedValue;
+  }
+  if (grand <= 0n) return 0;
+  return (Number(realized) / Number(grand)) * 100;
+}
+
+/** Rata-rata tertimbang deret persen apa pun (mis. planPct) dgn bobot grandTotal. */
+export function weightedPct(rows: { grandTotal: bigint; pct: number }[]): number {
+  let grand = 0;
+  let acc = 0;
+  for (const r of rows) {
+    const w = Number(r.grandTotal);
+    grand += w;
+    acc += r.pct * w;
+  }
+  return grand > 0 ? acc / grand : 0;
+}

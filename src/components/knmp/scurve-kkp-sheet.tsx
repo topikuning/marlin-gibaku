@@ -37,6 +37,7 @@ export function ScurveKkpSheet({
     contractStart: r.header.contractStart,
     actualCum: r.scurve.actualPct,
     currentWeek: r.scurve.currentWeek,
+    planCumOfficial: r.scurve.planPct,
   });
   const N = sheet.totalWeeks;
   const M = sheet.categories.length;

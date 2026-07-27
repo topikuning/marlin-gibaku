@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Card, CardBody, CardHeader, KpiCard } from "@/components/ui";
 import { PageHeader } from "@/components/ui";
 import { requireUser, accessibleLocationIds } from "@/lib/auth/session";
+import { locationScopeWhere } from "@/lib/auth/scope";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
@@ -22,7 +23,7 @@ export default async function KeuanganPage() {
   const locIds = await accessibleLocationIds(user);
 
   const locations = await db.location.findMany({
-    where: locIds === null ? {} : { id: { in: locIds } },
+    where: locationScopeWhere(user, locIds),
     select: { id: true, name: true, slug: true, province: true },
     orderBy: { name: "asc" },
   });
@@ -33,7 +34,7 @@ export default async function KeuanganPage() {
     pendingApprovals(locIds),
     db.contract.findMany({
       where: { package: { locations: { some: { id: { in: ids } } } } },
-      select: { id: true, package: { select: { locations: { select: { id: true } } } } },
+      select: { id: true, ppnPercent: true, package: { select: { locations: { select: { id: true } } } } },
     }),
   ]);
   const billing = await getContractsBilling(contracts.map((c) => c.id));
@@ -50,7 +51,7 @@ export default async function KeuanganPage() {
       (s, l) => s + (summary.get(l.id)?.installedValue ?? 0n),
       0n,
     );
-    const unbilled = unbilledWork(installedTotal, b?.billed ?? 0n);
+    const unbilled = unbilledWork(installedTotal, b?.billed ?? 0n, Number(c.ppnPercent));
     totalBilled += b?.billed ?? 0n;
     totalDisbursed += b?.disbursed ?? 0n;
     for (const l of contractLocs) {

@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { Check, X } from "lucide-react";
-import { Banner, FieldError, Label, PasswordInput } from "@/components/ui";
+import { Banner, Button, FieldError, Label, PasswordInput } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { changePassword, type ChangePasswordState } from "@/lib/auth/actions";
 
@@ -128,13 +128,9 @@ export function ChangePasswordForm() {
         <FieldError className="mb-4">{errors.confirmPassword}</FieldError>
       )}
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="w-full rounded-md bg-primary px-4 py-2.5 font-medium text-white transition-colors hover:bg-primary-800 active:bg-primary-900 disabled:cursor-not-allowed disabled:opacity-60"
-      >
+      <Button type="submit" loading={pending} className="w-full">
         {pending ? "Menyimpan…" : "Simpan password baru"}
-      </button>
+      </Button>
     </form>
   );
 }

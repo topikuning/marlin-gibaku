@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useMemo, useState } from "react";
-import { Badge, Banner, Button, Card, CardBody, CardHeader } from "@/components/ui";
+import { Badge, Banner, Button, Card, CardBody, CardHeader, useDismissable } from "@/components/ui";
 import { runAnalysisAction, type AiHubState } from "@/lib/ai-hub/actions";
 import { READINESS_GRADE_LABEL } from "@/lib/ai-hub/readiness";
 import type { PulseRow, SourceRef } from "@/lib/ai-hub/types";
@@ -42,12 +42,14 @@ export function PulseClient({
   preselect: string[];
   aiReady: boolean;
   canGenerate: boolean;
-  dataAsOf: string;
+  dataAsOf: string | null;
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set(preselect));
   const [q, setQ] = useState("");
   const [gradeFilter, setGradeFilter] = useState("");
   const [drawer, setDrawer] = useState<PulseRow | null>(null);
+  // Escape menutup drawer + fokus kembali ke baris pemicu (audit UI 2026-07-27).
+  const dismiss = useDismissable(drawer != null, () => setDrawer(null));
   const [state, formAction, pending] = useActionState<AiHubState, FormData>(runAnalysisAction, undefined);
 
   const filtered = useMemo(() => {
@@ -84,7 +86,7 @@ export function PulseClient({
       <Card>
         <CardHeader
           title="Portfolio Intelligence"
-          subtitle={`Urutan exception-first (risiko → readiness → deviasi). Data per ${dataAsOf.slice(0, 16).replace("T", " ")} UTC.`}
+          subtitle={`Urutan exception-first (risiko → readiness → deviasi). Data terakhir berubah: ${dataAsOf ? new Date(dataAsOf).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", dateStyle: "medium", timeStyle: "short" }) + " WIB" : "belum ada data"}.`}
         />
         <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
           <input
@@ -160,7 +162,10 @@ export function PulseClient({
                     <button
                       type="button"
                       className="text-left hover:underline"
-                      onClick={() => setDrawer(r)}
+                      onClick={() => {
+                        dismiss.capture();
+                        setDrawer(r);
+                      }}
                       aria-haspopup="dialog"
                     >
                       <span className="block font-medium text-ink">{r.name}</span>
@@ -271,7 +276,7 @@ export function PulseClient({
             type="button"
             aria-label="Tutup"
             className="absolute inset-0 bg-black/40"
-            onClick={() => setDrawer(null)}
+            onClick={dismiss.close}
           />
           <div className="absolute inset-y-0 right-0 w-full max-w-md overflow-y-auto bg-surface p-4 shadow-lg">
             <div className="mb-3 flex items-start justify-between gap-3">
@@ -281,7 +286,7 @@ export function PulseClient({
                   {drawer.packageName} · {drawer.province} · status {drawer.status}
                 </p>
               </div>
-              <Button type="button" variant="ghost" size="sm" onClick={() => setDrawer(null)}>
+              <Button type="button" variant="ghost" size="sm" autoFocus onClick={dismiss.close}>
                 Tutup
               </Button>
             </div>

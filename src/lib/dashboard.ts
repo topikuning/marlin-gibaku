@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { COUNTED_REPORT_STATUSES, getLocationsProgress } from "@/lib/progress";
+import { weightedRealizedPct } from "@/lib/progress-calc";
 import { getPetaMarkers, type PetaMarker } from "@/lib/peta";
 import { buildPhotoViews, type PhotoView } from "@/lib/photos";
 import { jakartaDateKey, parseDateKey } from "@/lib/format";
@@ -103,7 +104,8 @@ const SEVERITY_RANK: Record<IssueSeverity, number> = { kritis: 0, tinggi: 1, sed
 
 /** Data utama dashboard (KPI, submit, deviasi, kendala, peta, portofolio). */
 export async function getDashboardData(locIds: string[] | null, orgId: string): Promise<DashboardData> {
-  const locWhere = locIds === null ? {} : { id: { in: locIds } };
+  // null = semua lokasi ORGANISASI, bukan semua lokasi database (audit B11).
+  const locWhere = locIds === null ? { package: { orgId } } : { id: { in: locIds } };
   const today = parseDateKey(jakartaDateKey(new Date()))!;
   const yesterday = new Date(today.getTime() - 86_400_000);
 
@@ -122,7 +124,7 @@ export async function getDashboardData(locIds: string[] | null, orgId: string): 
       select: { locationId: true },
     }),
     db.fieldActivity.count({ where: { location: locWhere, activityDate: today } }),
-    getPetaMarkers(locIds),
+    getPetaMarkers(locIds, orgId),
     db.package.count({ where: { orgId, stage: { notIn: ["selesai", "batal"] } } }),
     db.dailyReport.count({ where: { location: locWhere, status: "dikirim" } }),
     db.dailyReport.count({ where: { location: locWhere, status: "perlu_koreksi" } }),
@@ -138,7 +140,8 @@ export async function getDashboardData(locIds: string[] | null, orgId: string): 
     totalContract += p.grandTotal;
     totalRealized += p.realizedValue;
   }
-  const realizedPct = totalContract > 0n ? Number((totalRealized * 10000n) / totalContract) / 100 : 0;
+  // Formula kanonik (B13) — varian BigInt lama memotong desimal.
+  const realizedPct = weightedRealizedPct([...progress.values()]);
 
   const submittedIds = new Set(submittedTodayRows.map((r) => r.locationId));
   const submittedToday = submittedIds.size;

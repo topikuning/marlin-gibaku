@@ -64,6 +64,15 @@ export function buildKurvaSheet(input: {
   /** Kumulatif realisasi % per minggu (null utk minggu > minggu berjalan). */
   actualCum: (number | null)[];
   currentWeek: number;
+  /**
+   * Kurva rencana RESMI (baseline.points). Bila diberikan, baris "Kumulatif
+   * Rencana" & "Rencana per minggu" diturunkan dari sini — SUMBER YANG SAMA
+   * dengan planPct halaman-2 dan dashboard. Tanpa ini (fallback), total
+   * dihitung dari Σ jadwal kategori, yang bisa berbeda dari kurva resmi
+   * setelah baseline diedit manual (audit 2026-07-27, B3: satu dokumen KKP,
+   * dua angka rencana).
+   */
+  planCumOfficial?: number[];
 }): KurvaSheet {
   const n = Math.max(1, input.totalWeeks);
   const weeks = Array.from({ length: n }, (_, i) => i + 1);
@@ -86,15 +95,28 @@ export function buildKurvaSheet(input: {
     return { code: c.code, name: c.name, bobot: weekly.reduce((s, v) => s + v, 0), weekly };
   });
 
-  // Baris prestasi.
-  const rencanaPerWeek = weeks.map((_, i) => categories.reduce((s, c) => s + c.weekly[i], 0));
-  // Kumulatif dibulatkan 2 desimal — IDENTIK dgn curveFromCategorySchedule (kurva
-  // baseline) & format KKP. Jadi tabel, grafik, dan deviasi memakai angka sama.
-  const kumulatifRencana: number[] = [];
-  let run = 0;
-  for (const r of rencanaPerWeek) {
-    run += r;
-    kumulatifRencana.push(Math.min(100, Math.round(run * 100) / 100));
+  // Baris prestasi — rencana dari kurva RESMI bila tersedia (B3).
+  let rencanaPerWeek: number[];
+  let kumulatifRencana: number[];
+  const official = input.planCumOfficial;
+  if (official && official.length > 0) {
+    kumulatifRencana = weeks.map((_, i) => {
+      const v = official[Math.min(i, official.length - 1)] ?? 0;
+      return Math.min(100, Math.round(v * 100) / 100);
+    });
+    rencanaPerWeek = kumulatifRencana.map((v, i) =>
+      Math.max(0, Math.round((v - (i > 0 ? kumulatifRencana[i - 1] : 0)) * 100) / 100),
+    );
+  } else {
+    rencanaPerWeek = weeks.map((_, i) => categories.reduce((s, c) => s + c.weekly[i], 0));
+    // Kumulatif dibulatkan 2 desimal — IDENTIK dgn curveFromCategorySchedule
+    // (kurva baseline) & format KKP.
+    kumulatifRencana = [];
+    let run = 0;
+    for (const r of rencanaPerWeek) {
+      run += r;
+      kumulatifRencana.push(Math.min(100, Math.round(run * 100) / 100));
+    }
   }
   const kumulatifRealisasi = weeks.map((_, i) => input.actualCum[i] ?? null);
   const realisasiPerWeek = weeks.map((_, i) => {

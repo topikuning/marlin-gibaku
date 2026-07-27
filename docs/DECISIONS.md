@@ -3513,3 +3513,95 @@ typecheck ✓ · lint ✓ · unit **394** ✓ · integration **52** ✓ (finance
 baru: 3) · build ✓ · uji browser dialog konfirmasi ✓.
 
 Sisa temuan audit (P1/P2 + UI) dan 3 keputusan baru dicatat di OPEN_ISSUES.
+
+## 155 · 2026-07-27 · Eksekusi P1/P2 audit total — keuangan best-practice, konsistensi angka, guard, UI
+
+**Konteks.** Lanjutan DECISIONS 154. Instruksi user: fitur keuangan tidak perlu
+menunggu keputusan bisnis — perbaiki menurut best practice; sisanya (konsistensi
+angka, guard, UI) diselesaikan sekalian. Semua ID mengacu laporan
+AUDIT_TOTAL_MARLIN_20260727.
+
+### Keuangan (best-practice defaults, bisa direvisi user)
+
+- **B5 — PPN apel-ke-apel.** `unbilledWork(installedReportedPreTax, billed,
+  ppnPercent)` kini meng-gross-up terpasang ke incl-PPN via
+  `withPpn(…, Contract.ppnPercent)` sebelum dikurangi billing (incl-PPN).
+  Dulu pre-PPN dikurangi incl-PPN → "belum tertagih" understated ~PPN%.
+  Basis level status TETAP counted (menunggu KEPUTUSAN level status).
+- **B14a — retensi billing draft tidak dihitung**: `getContractsBilling`
+  mengakumulasi `retentionHeld` hanya untuk status non-draft.
+- **B14b — ambang `cair` memperhitungkan retensi**: pencairan lunas ketika
+  `received ≥ amount − retentionHeld` (dulu `≥ amount` → termin ber-retensi
+  tak pernah "cair").
+- **B14c — validasi silang retensi kontrak**: `createOwnerBilling` menolak
+  `retentionHeld` > ceil(amount × `Contract.retentionPercent`%). Lebih KECIL
+  boleh — kontrak KNMP mengizinkan retensi diganti jaminan pemeliharaan.
+- **B15 — four-eyes.** `assertFourEyes` di approve komitmen/expense/invoice/
+  billing: pengaju tidak boleh menyetujui transaksinya sendiri. Break-glass:
+  super_admin BOLEH self-approve tetapi flag `selfApprove: true` masuk audit
+  log (jejak, bukan larangan — tim kecil butuh jalan darurat).
+
+### Konsistensi angka
+
+- **B13 — satu agregat kanonik.** `weightedRealizedPct`/`weightedPct` di
+  `progress-calc.ts` menggantikan 4 fork (dashboard, /progress, /paket, gate
+  serah_terima) yang beda penanganan div-0 & pembulatan.
+- **B12 — panel saran se-basis laporan resmi.** grandTotal = Σ amount kategori
+  + bobot dari `amount` (dulu Σ vol×harga = basis "Realisasi" keempat);
+  toleransi test dikencangkan kembali ke 2 desimal.
+- **B3 — kurva resmi satu basis.** `updateBaselinePoints` menyalin
+  `scheduleItems` dari baseline acuan (bila jumlah minggu sama) sehingga
+  dokumen KKP hal-1 (kurva) dan hal-2 (matriks) tidak bercerita beda setelah
+  edit manual; `buildKurvaSheet` menerima `planCumOfficial` (points resmi)
+  sebagai baris kumulatif rencana, mingguan = selisihnya.
+- **B7 — Excel berhenti di cutoff.** Baris realisasi/deviasi & seri chart
+  hanya sampai minggu laporan terakhir (dulu carry-forward sampai akhir
+  kontrak, beda dari layar/PDF).
+
+### Guard
+
+- **B16b** — enrichment (isu/cuaca/foto) pada laporan `dikirim` kini butuh
+  `daily_report.review`; pembuat hanya di `draft`/`perlu_koreksi`.
+  **B16c** — `addIssueFromReport` menolak laporan `final`.
+- **B11 — scope org.** `lib/auth/scope.ts` (`locationScopeWhere`): role
+  lintas-lokasi (`locIds === null`) difilter `package.orgId` di beranda,
+  progress, keuangan, lokasi, laporan, hari-ini, dokumen, dashboard, peta.
+  Dorman selama single-org, meledak saat org kedua — ditutup sekarang.
+- **B18 — kuota AI.** Hitungan harian org difilter user se-org (AiRun tidak
+  punya relasi user → two-step `orgUserIds`); batas hari = midnight
+  Asia/Jakarta (`jakartaDateKey`), bukan midnight server.
+- **B19 — dataAsOf jujur.** `dataAsOf` = watermark data (max `updatedAt`
+  laporan/kegiatan dalam scope; null bila kosong), ditampilkan WIB — bukan
+  jam render yang menyulap data basi jadi terlihat segar.
+- **B10 — validasi klaim AI sadar-tanda.** Deviasi −8% tidak lagi tervalidasi
+  oleh +8% resmi; `sections[].body` ikut dicek (section gagal DIBUANG per
+  kontrak PROJECT.md §5a); `waSummary` gagal-cek dikosongkan + `droppedNote`.
+- **B17 — adendum tidak menghilangkan realisasi diam-diam.** (1) Pratinjau
+  impor menampilkan PERINGATAN daftar item ber-realisasi yang tidak ditemukan
+  di file baru (pilihan best-practice: warning, bukan blokir — adendum resmi
+  memang boleh menghapus item). (2) Kegagalan `regenerateBaseline` SETELAH
+  revisi aktif dilaporkan apa adanya ("revisi SUDAH AKTIF, kurva-S gagal —
+  tekan Hitung ulang"), bukan error generik seolah impor batal. Penyatuan ke
+  satu transaksi DB di-defer (OPEN_ISSUES).
+
+### UI (quick wins; defer dicatat di OPEN_ISSUES)
+
+- Tombol submit `/masuk` & `/ganti-password` + "Terapkan" `/foto` → primitif
+  `Button`; hover `opacity-90` terakhir diganti token.
+- `CardHeader`: `flex-wrap` + slot aksi `min-w-0` — di 390px aksi melipat ke
+  bawah, judul tidak terpotong ("K S"). Overflow horizontal
+  `/lokasi/[slug]/progress` @390px = 0px (diverifikasi browser).
+- **Peredam prognosa**: `forecast.ts` horizon = akhir kontrak + 52 minggu;
+  proyeksi yang jatuh melewatinya (SPI≈0 → "16 Apr 2086, telat ~3115 mgg")
+  tampil "Belum bisa diperkirakan — laju terlalu rendah", status tetap
+  "telat", `projectedPctAtEnd` tetap dihitung. Unit test 2 arah (diredam vs
+  telat moderat tetap tampil).
+- `useDismissable` (ui): Escape + pemulihan fokus utk drawer ad-hoc — dipakai
+  drawer menu bottom-nav & drawer sumber Pulse. Diverifikasi browser: Escape
+  menutup, fokus kembali ke pemicu.
+
+### Verifikasi
+
+typecheck ✓ · lint ✓ · unit **396** ✓ (forecast damper baru: 2) · integration
+**52** ✓ · build ✓ · browser: keuangan (label + antrean), progress desktop
+(damper aktif di data seed), progress @390px (overflow 0), drawer Escape ✓.

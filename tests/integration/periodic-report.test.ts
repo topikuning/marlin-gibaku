@@ -462,9 +462,9 @@ describe("Reconciliation gate — satu lokasi, satu dataAsOf, satu angka", () =>
       getLocationProgress(locationId),
       suggestWeeklyPlan(locationId, WEEKS),
     ]);
-    // suggest memakai grandTotal Σ(volume×harga) sedangkan progress memakai
-    // Σ amount kategori; pada RAB yang konsisten keduanya sama.
-    expect(plan!.actualPct).toBeCloseTo(Math.round(p.realizedPct * 100) / 100, 1);
+    // Sejak audit B12, suggest memakai basis yang SAMA dengan dashboard
+    // (Σ amount kategori + bobot amount) — toleransi hanya pembulatan tampilan.
+    expect(plan!.actualPct).toBeCloseTo(Math.round(p.realizedPct * 100) / 100, 2);
   });
 
   it("kurva ringkasan lokasi tidak pernah melewati 100% walau volume over", async () => {

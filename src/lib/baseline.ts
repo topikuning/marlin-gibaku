@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import type { Prisma } from "@/generated/prisma/client";
 import { audit } from "@/lib/audit";
 import { COUNTED_REPORT_STATUSES, currentWeekNumber } from "@/lib/progress";
 import { bobotPct, prestasiPct } from "@/lib/progress-calc";
@@ -98,6 +99,29 @@ export async function updateBaselinePoints(baselineId: string, points: number[],
         plannedPct: p,
       })),
     });
+    // Salin jadwal per-kategori dari baseline acuan (audit 2026-07-27, B3).
+    // Tanpa ini, edit manual kurva MENGHILANGKAN scheduleItems → halaman-1
+    // dokumen KKP jatuh ke jadwal auto sementara halaman-2 memakai kurva hasil
+    // edit. Disalin hanya bila jumlah minggu tidak berubah (matriks masih
+    // bermakna); kurva RESMI tetap points — baris total hal-1 kini juga dari
+    // points (kkp-sheet planCumOfficial), jadwal kategori tinggal informasi.
+    if (points.length === refWeeks) {
+      const refSchedule = await tx.baselineScheduleItem.findMany({
+        where: { baselineId },
+        select: { lineageKey: true, name: true, weightPct: true, weekly: true },
+      });
+      if (refSchedule.length > 0) {
+        await tx.baselineScheduleItem.createMany({
+          data: refSchedule.map((it) => ({
+            baselineId: created.id,
+            lineageKey: it.lineageKey,
+            name: it.name,
+            weightPct: it.weightPct,
+            weekly: it.weekly as Prisma.InputJsonValue,
+          })),
+        });
+      }
+    }
     return created;
   });
   await audit(userId, "baseline.update_points", "baseline", baseline.id, {

@@ -137,11 +137,19 @@ draft volume tersimpan lokal (localStorage) sampai submit sukses.
 
 ## 7. Keuangan
 
-Transaction-based; agregat derived: availableBudget = budget − realisasi −
+Transaction-based; agregat derived (SATU-satunya tempat formula:
+`lib/finance/calc.ts`): availableBudget = budget − realisasi −
 komitmen-belum-realisasi; outstanding = invoice disetujui − pembayaran;
-unbilled = terpasang terverifikasi − tertagih; cashRequirement = komitmen jatuh
-tempo + forecast − kas − pencairan terjadwal. Approval flow di semua transaksi;
-`finance.approve` terpisah dari input dan dari `user.manage`.
+unbilled = terpasang **dilaporkan** (dikirim+disetujui+final; BELUM tentu
+terverifikasi — lihat KEPUTUSAN level status di OPEN_ISSUES) di-gross-up ke
+incl-PPN via `Contract.ppnPercent` − tertagih (incl-PPN); cashRequirement =
+komitmen jatuh tempo + forecast − kas − pencairan terjadwal. Approval flow di
+semua transaksi; `finance.approve` terpisah dari input dan dari `user.manage`;
+**empat mata**: pengaju tidak boleh menyetujui transaksinya sendiri
+(super_admin boleh break-glass, ter-audit `selfApprove`). Pembayaran/pencairan/
+expense memakai `SELECT … FOR UPDATE` (`lib/finance/apply.ts`) — guard sisa
+tahan race. Retensi termin ≤ `Contract.retentionPercent` (boleh lebih kecil —
+retensi dapat diganti jaminan pemeliharaan).
 
 ## 8. Deployment
 
@@ -154,8 +162,11 @@ sebelum merge. Reset DB hanya APP_ENV development/test dgn guard ganda.
 ## 9. Testing
 
 docs/rebuild/TEST_PLAN.md. Unit (formula, parser, authz, env, lifecycle),
-integration (constraint DB, transaksi, append-only), E2E kritis (auth+role,
-prospek→kontrak, RAB import, siklus laporan+koreksi, keuangan, kepatuhan).
+integration (constraint DB, transaksi+race, append-only, golden fixtures
+laporan periodik). E2E Playwright saat ini baru mencakup auth + otorisasi
+dasar (`tests/e2e/auth.spec.ts`); alur kritis lain (prospek→kontrak, RAB
+import, siklus laporan, keuangan) diverifikasi via integration + uji browser
+manual terdokumentasi di DECISIONS — penambahan E2E dicatat sebagai defer.
 Definition of Done = prompt rebuild §38 + traceability matrix terisi.
 
 ## 10. Scope yang sengaja ditunda

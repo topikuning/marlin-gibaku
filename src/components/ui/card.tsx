@@ -36,7 +36,9 @@ export function CardHeader({
   return (
     <header
       className={cn(
-        "flex items-start justify-between gap-3 border-b border-border px-4 py-3",
+        // flex-wrap: di layar sempit slot aksi turun ke baris berikutnya, BUKAN
+        // memeras judul sampai terpotong (audit UI 2026-07-27, progress @390px).
+        "flex flex-wrap items-start justify-between gap-3 border-b border-border px-4 py-3",
         className,
       )}
     >
@@ -46,7 +48,10 @@ export function CardHeader({
           <p className="mt-0.5 text-[13px] text-ink-muted">{subtitle}</p>
         ) : null}
       </div>
-      {action ? <div className="shrink-0">{action}</div> : null}
+      {/* min-w-0 (bukan shrink-0): slot aksi boleh menyempit sehingga isi
+          ber-flex-wrap ikut melipat — shrink-0 memaksa lebar konten penuh dan
+          meluberkan halaman di 390px. */}
+      {action ? <div className="min-w-0">{action}</div> : null}
     </header>
   );
 }

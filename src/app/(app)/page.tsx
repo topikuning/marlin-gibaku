@@ -4,6 +4,7 @@ import { ClipboardCheck, FileWarning, MapPin, Package as PackageIcon } from "luc
 import { KpiCard, PageHeader, EmptyState, StatusPill, Card, CardHeader, CardBody } from "@/components/ui";
 import { DeltaBadge, deviationTone } from "@/components/ui/stat-delta";
 import { requireUser, accessibleLocationIds, type SessionUser } from "@/lib/auth/session";
+import { locationScopeWhere } from "@/lib/auth/scope";
 import { can } from "@/lib/authz";
 import { ExecutiveDashboard } from "@/app/(app)/aktivitas/executive-dashboard";
 import { db } from "@/lib/db";
@@ -32,7 +33,7 @@ export default async function HomePage() {
  */
 async function CommandCenter({ user }: { user: SessionUser }) {
   const locIds = await accessibleLocationIds(user);
-  const locWhere = locIds === null ? {} : { id: { in: locIds } };
+  const locWhere = locationScopeWhere(user, locIds);
 
   const [locations, packages, pendingReports, openIssues, correctionReports] = await Promise.all([
     db.location.findMany({

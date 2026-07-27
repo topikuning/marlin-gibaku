@@ -17,6 +17,14 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const RUNRATE_WINDOW = 4; // minggu terakhir untuk laju terkini
 const MIN_ACTUAL_POINTS = 2; // minimal titik realisasi agar laju bermakna
 const DONE_PCT = 99.95; // dianggap selesai
+/**
+ * PEREDAM horizon (audit UI 2026-07-27): laju/SPI mendekati nol membuat minggu
+ * selesai melesat absurd ("16 Apr 2086, telat ~3115 mgg") — itu artefak
+ * pembagian dgn bilangan kecil, bukan informasi. Prognosa yang jatuh lebih dari
+ * setahun melewati akhir kontrak tidak ditampilkan sebagai tanggal/selisih;
+ * status tetap "telat".
+ */
+const HORIZON_EXTRA_WEEKS = 52;
 
 export type ForecastStatus = "aman" | "waspada" | "telat" | "belum_mulai" | "selesai" | "data_kurang";
 
@@ -37,6 +45,8 @@ export type LocationForecast = {
 
   forecastFinishWeek: number | null; // minggu selesai fisik (bisa pecahan)
   forecastFinishDate: Date | null;
+  /** Prognosa jatuh > horizon (akhir kontrak + 52 mgg) — tanggal/selisih diredam. */
+  beyondHorizon: boolean;
   slipWeeks: number | null; // finishWeek − totalWeeks (bulat; ≤0 = tepat/awal)
   projectedPctAtEnd: number | null; // prognosa % saat akhir kontrak
 
@@ -87,6 +97,7 @@ export function forecastFromSeries(
     requiredPerWeek: null,
     forecastFinishWeek: null,
     forecastFinishDate: null,
+    beyondHorizon: false,
     slipWeeks: null,
     projectedPctAtEnd: null,
     altFinishWeek: null,
@@ -130,6 +141,7 @@ export function forecastFromSeries(
       requiredPerWeek: 0,
       forecastFinishWeek: wA,
       forecastFinishDate: startDate ? weekToDate(startDate, wA) : null,
+      beyondHorizon: false,
       slipWeeks: Math.round(wA - N),
       projectedPctAtEnd: 100,
       altFinishWeek: null,
@@ -193,6 +205,14 @@ export function forecastFromSeries(
     status = (slipWeeks ?? 0) <= waspadaMax ? "waspada" : "telat";
   }
 
+  // Peredam horizon — status dihitung DULU dari angka mentah (pasti "telat"),
+  // baru tanggal/minggu/selisih yang absurd disembunyikan dari output.
+  const horizonWeek = N + HORIZON_EXTRA_WEEKS;
+  const beyondHorizon = finishWeek != null && finishWeek > horizonWeek;
+  if (beyondHorizon) finishWeek = null;
+  if (altFinishWeek != null && altFinishWeek > horizonWeek) altFinishWeek = null;
+  const dampedSlip = beyondHorizon ? null : slipWeeks;
+
   return {
     enoughData: true,
     status,
@@ -207,7 +227,8 @@ export function forecastFromSeries(
     requiredPerWeek,
     forecastFinishWeek: finishWeek,
     forecastFinishDate: startDate && finishWeek != null ? weekToDate(startDate, finishWeek) : null,
-    slipWeeks,
+    beyondHorizon,
+    slipWeeks: dampedSlip,
     projectedPctAtEnd,
     altFinishWeek,
     altFinishDate: startDate && altFinishWeek != null ? weekToDate(startDate, altFinishWeek) : null,

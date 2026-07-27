@@ -188,7 +188,7 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
             title="Kurva-S"
             subtitle="Baseline aktif vs realisasi mingguan"
             action={
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {bounds ? (
                   <>
                     <Link
@@ -294,15 +294,19 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
                 <div className="rounded-lg border border-border bg-surface-inset p-3">
                   <div className="text-[11px] font-semibold tracking-wide text-ink-muted uppercase">Prognosa selesai</div>
                   <div className="mt-1 text-base font-semibold text-ink">
-                    {forecast.forecastFinishDate
-                      ? formatTanggal(forecast.forecastFinishDate)
-                      : `± minggu ${Math.round(forecast.forecastFinishWeek ?? forecast.totalWeeks)}`}
+                    {forecast.beyondHorizon
+                      ? "Belum bisa diperkirakan"
+                      : forecast.forecastFinishDate
+                        ? formatTanggal(forecast.forecastFinishDate)
+                        : `± minggu ${Math.round(forecast.forecastFinishWeek ?? forecast.totalWeeks)}`}
                   </div>
                   <div className="text-[12px] text-ink-muted">
                     rencana: {bounds && !bounds.assumed ? formatTanggal(bounds.endDate) : `minggu ${forecast.totalWeeks}`}
-                    {forecast.slipWeeks != null
-                      ? ` · ${forecast.slipWeeks <= 0 ? "tepat / lebih cepat" : `perkiraan telat ~${forecast.slipWeeks} mgg`}`
-                      : ""}
+                    {forecast.beyondHorizon
+                      ? " · laju realisasi terlalu rendah — proyeksi jatuh >1 tahun melewati rencana"
+                      : forecast.slipWeeks != null
+                        ? ` · ${forecast.slipWeeks <= 0 ? "tepat / lebih cepat" : `perkiraan telat ~${forecast.slipWeeks} mgg`}`
+                        : ""}
                   </div>
                 </div>
                 <div className="rounded-lg border border-border bg-surface-inset p-3">

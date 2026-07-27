@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { withPpn } from "@/lib/money";
 
 /**
  * Calculation layer keuangan — semua agregat DERIVED dari transaksi.
@@ -129,8 +130,12 @@ export async function getContractsBilling(contractIds: string[]): Promise<Map<st
   });
   for (const b of billings) {
     const cur = result.get(b.contractId) ?? { contractId: b.contractId, billed: 0n, disbursed: 0n, retentionHeld: 0n };
-    if (b.status !== "draft") cur.billed += b.amount;
-    cur.retentionHeld += b.retentionHeld;
+    if (b.status !== "draft") {
+      cur.billed += b.amount;
+      // Retensi hanya dari termin yang benar-benar diajukan+ — termin draft
+      // belum menahan apa pun (audit 2026-07-27, B14a).
+      cur.retentionHeld += b.retentionHeld;
+    }
     for (const d of b.disbursements) cur.disbursed += d.amount;
     result.set(b.contractId, cur);
   }
@@ -138,14 +143,19 @@ export async function getContractsBilling(contractIds: string[]): Promise<Map<st
 }
 
 /**
- * unbilledWork utk satu kontrak: nilai terpasang DILAPORKAN (Σ lokasi) − billed.
- * Basisnya level counted (dikirim+disetujui+final) dari lib/progress — bukan
- * "terverifikasi"; nama lama `installedVerified` adalah klaim palsu
- * (audit 2026-07-27, B4). Pemisahan level status menunggu keputusan user
- * (OPEN_ISSUES).
+ * unbilledWork utk satu kontrak: nilai terpasang DILAPORKAN (Σ lokasi) − billed,
+ * DIBANDINGKAN APPLE-TO-APPLE pada basis inklusif PPN (audit 2026-07-27, B5):
+ * terpasang berasal dari RAB (pre-PPN) sedangkan owner billing ditagihkan
+ * inklusif PPN — tanpa penyetaraan, unbilled understated ~11% dan klaim
+ * "sudah tertagih semua" bisa palsu. Terpasang dinaikkan dgn `withPpn` memakai
+ * `Contract.ppnPercent` (jangan hardcode — CLAUDE.md).
+ *
+ * Basis level status tetap counted (dikirim+disetujui+final) — "dilaporkan",
+ * bukan "terverifikasi" (B4); pemisahan level menunggu keputusan user.
  */
-export function unbilledWork(installedReported: bigint, billed: bigint): bigint {
-  return installedReported > billed ? installedReported - billed : 0n;
+export function unbilledWork(installedReportedPreTax: bigint, billed: bigint, ppnPercent: number): bigint {
+  const installedInclPpn = withPpn(installedReportedPreTax, ppnPercent);
+  return installedInclPpn > billed ? installedInclPpn - billed : 0n;
 }
 
 /** cashRequirement: komitmen jatuh tempo ≤ horizon + forecast − kas tersedia − pencairan dijadwalkan. */

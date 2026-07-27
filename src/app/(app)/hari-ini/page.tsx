@@ -3,6 +3,7 @@ import Link from "next/link";
 import { CalendarDays, ClipboardList, MapPin } from "lucide-react";
 import { Banner, Card, CardBody, CardHeader, EmptyState, PageHeader, StatusPill } from "@/components/ui";
 import { requireUser, accessibleLocationIds } from "@/lib/auth/session";
+import { locationScopeWhere } from "@/lib/auth/scope";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
 import { getHariIniLocation } from "@/lib/daily-report/queries";
@@ -20,7 +21,7 @@ export default async function HariIniPage() {
   const todayKey = jakartaDateKey(new Date());
 
   const locations = await db.location.findMany({
-    where: { ...(locIds === null ? {} : { id: { in: locIds } }), isActive: true },
+    where: { ...locationScopeWhere(user, locIds), isActive: true },
     select: { id: true },
     orderBy: { name: "asc" },
   });
@@ -75,7 +76,7 @@ export default async function HariIniPage() {
               <Link
                 key={c.dateKey}
                 href={`/lokasi/${s.slug}/harian/${c.dateKey}`}
-                className="block rounded-lg border border-warning bg-warning-soft px-4 py-3 text-center text-sm font-medium text-ink hover:opacity-90"
+                className="block rounded-lg border border-warning bg-warning-soft px-4 py-3 text-center text-sm font-medium text-ink transition-colors hover:bg-warning/15 active:bg-warning/25"
               >
                 Perbaiki laporan {formatTanggal(new Date(`${c.dateKey}T00:00:00Z`))}
               </Link>

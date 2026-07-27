@@ -157,10 +157,28 @@ export function extractNumericClaims(text: string): number[] {
   return out;
 }
 
-/** Klaim angka valid bila tiap angka cocok (±0.6) dengan salah satu angka resmi. */
+/**
+ * Klaim angka valid bila tiap angka cocok (±0.6) dengan salah satu angka resmi,
+ * TERMASUK TANDANYA (audit 2026-07-27, B10): versi lama membandingkan
+ * `Math.abs` kedua sisi, sehingga klaim "+12,5 pp" lolos padahal angka resminya
+ * −12,5 pp — narasi terdistribusi WA membalik makna deviasi.
+ *
+ * Klaim yang ditulis TANPA tanda ("deviasi 12,5 pp") tetap boleh cocok dengan
+ * angka resmi negatif — gaya bahasa umum ("tertinggal 12,5 pp"); yang DILARANG
+ * hanyalah tanda yang tegas-tegas BERLAWANAN (klaim "+" utk resmi "−" atau
+ * sebaliknya).
+ */
 export function numericClaimsValid(text: string, official: readonly number[]): boolean {
   const claims = extractNumericClaims(text);
-  return claims.every((c) => official.some((o) => Math.abs(Math.abs(c) - Math.abs(o)) <= 0.6));
+  return claims.every((c) =>
+    official.some((o) => {
+      if (Math.abs(Math.abs(c) - Math.abs(o)) > 0.6) return false;
+      // Tanda eksplisit berlawanan = tolak; klaim tak bertanda (≥0 ditulis polos)
+      // dibiarkan cocok dgn resmi negatif.
+      if (c < 0 && o > 0.6) return false;
+      return true;
+    }),
+  );
 }
 
 export type GroundingReport = { dropped: string[] };

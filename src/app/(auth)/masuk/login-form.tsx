@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Banner, FieldError, Input, Label, PasswordInput } from "@/components/ui";
+import { Banner, Button, FieldError, Input, Label, PasswordInput } from "@/components/ui";
 import { login, type LoginState } from "@/lib/auth/actions";
 
 type FieldErrors = { identifier?: string; password?: string };
@@ -62,13 +62,9 @@ export function LoginForm() {
         {errors.password}
       </FieldError>
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="w-full rounded-md bg-primary px-4 py-2.5 font-medium text-white transition-colors hover:bg-primary-800 active:bg-primary-900 disabled:cursor-not-allowed disabled:opacity-60"
-      >
+      <Button type="submit" loading={pending} className="w-full">
         {pending ? "Memeriksa…" : "Masuk"}
-      </button>
+      </Button>
     </form>
   );
 }

@@ -4,6 +4,7 @@ import { Menu, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { useDismissable } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { ICONS, type NavItem } from "./nav-config";
 
@@ -20,6 +21,8 @@ function isActive(pathname: string, href: string): boolean {
 export function BottomNav({ nav, fullNav }: { nav: NavItem[]; fullNav: NavItem[] }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  // Escape menutup + fokus kembali ke tombol "Menu" (audit UI 2026-07-27).
+  const dismiss = useDismissable(open, () => setOpen(false));
 
   // Tutup drawer setiap navigasi berhasil (adjust-state-during-render,
   // bukan effect — hindari render kaskade).
@@ -41,7 +44,7 @@ export function BottomNav({ nav, fullNav }: { nav: NavItem[]; fullNav: NavItem[]
           <button
             type="button"
             aria-label="Tutup menu"
-            onClick={() => setOpen(false)}
+            onClick={dismiss.close}
             className="absolute inset-0 bg-black/40"
           />
           <div className="absolute inset-x-0 bottom-0 max-h-[75dvh] overflow-y-auto rounded-t-2xl border-t border-border bg-surface p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-xl">
@@ -50,7 +53,8 @@ export function BottomNav({ nav, fullNav }: { nav: NavItem[]; fullNav: NavItem[]
               <button
                 type="button"
                 aria-label="Tutup"
-                onClick={() => setOpen(false)}
+                autoFocus
+                onClick={dismiss.close}
                 className="flex size-8 items-center justify-center rounded-md text-ink-muted hover:bg-surface-muted"
               >
                 <X aria-hidden className="size-4" />
@@ -115,7 +119,10 @@ export function BottomNav({ nav, fullNav }: { nav: NavItem[]; fullNav: NavItem[]
             <li>
               <button
                 type="button"
-                onClick={() => setOpen(true)}
+                onClick={() => {
+                  dismiss.capture();
+                  setOpen(true);
+                }}
                 aria-expanded={open}
                 className={cn(
                   "flex min-h-12 w-full flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium",

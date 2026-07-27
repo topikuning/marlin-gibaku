@@ -31,6 +31,24 @@ export type FinanceActionState = { error?: string; success?: string } | undefine
 /** Error guard bisnis: pesan aman ditampilkan ke user, membatalkan $transaction. */
 class GuardError extends Error {}
 
+/**
+ * Four-eyes (audit 2026-07-27, B15): transaksi tidak boleh disetujui oleh
+ * orang yang mengajukannya sendiri. super_admin dikecualikan sebagai
+ * break-glass (organisasi kecil sering satu admin) — tapi self-approve-nya
+ * DIAUDIT eksplisit supaya terlihat di jejak.
+ */
+function assertFourEyes(actor: SessionUser, createdById: string | null): { selfApprove: boolean } {
+  if (createdById !== null && createdById === actor.id) {
+    if (actor.role !== "super_admin") {
+      throw new GuardError(
+        "Empat mata: transaksi yang Anda ajukan sendiri harus disetujui orang lain.",
+      );
+    }
+    return { selfApprove: true };
+  }
+  return { selfApprove: false };
+}
+
 function isNextRedirect(e: unknown): boolean {
   return (
     typeof e === "object" &&
@@ -136,6 +154,7 @@ async function requireContractAccess(actor: SessionUser, contractId: string) {
       id: true,
       contractNumber: true,
       contractValue: true,
+      retentionPercent: true,
       package: { select: { locations: { select: { id: true } } } },
     },
   });
@@ -276,7 +295,7 @@ const idReasonSchema = z.object({ id: z.uuid(), reason: reasonSchema });
 async function loadCommitmentScoped(actor: SessionUser, id: string) {
   const c = await db.commitment.findUnique({
     where: { id },
-    select: { id: true, locationId: true, number: true, status: true, closedAt: true },
+    select: { id: true, locationId: true, number: true, status: true, closedAt: true, createdById: true },
   });
   if (!c) throw new GuardError("Komitmen tidak ditemukan.");
   await requireLocationAccess(actor, c.locationId);
@@ -289,13 +308,14 @@ export async function approveCommitment(_prev: FinanceActionState, formData: For
     const parsed = idSchema.safeParse({ id: formData.get("id") });
     if (!parsed.success) return firstError(parsed.error);
     const c = await loadCommitmentScoped(actor, parsed.data.id);
+    const eyes = assertFourEyes(actor, c.createdById);
     // updateMany dgn syarat status: race-safe — hanya dari "diajukan"
     const res = await db.commitment.updateMany({
       where: { id: c.id, status: "diajukan" },
       data: { status: "disetujui", approvedById: actor.id, approvedAt: new Date() },
     });
     if (res.count === 0) return { error: "Hanya komitmen berstatus diajukan yang bisa disetujui." };
-    await audit(actor.id, "finance.commitment.approve", "commitment", c.id, { number: c.number });
+    await audit(actor.id, "finance.commitment.approve", "commitment", c.id, { number: c.number, ...eyes });
     await revalidateFinance([c.locationId]);
     return { success: `Komitmen ${c.number} disetujui.` };
   });
@@ -422,7 +442,7 @@ export async function createExpense(_prev: FinanceActionState, formData: FormDat
 async function loadExpenseScoped(actor: SessionUser, id: string) {
   const e = await db.expense.findUnique({
     where: { id },
-    select: { id: true, locationId: true, description: true, status: true },
+    select: { id: true, locationId: true, description: true, status: true, createdById: true },
   });
   if (!e) throw new GuardError("Realisasi tidak ditemukan.");
   await requireLocationAccess(actor, e.locationId);
@@ -435,12 +455,13 @@ export async function approveExpense(_prev: FinanceActionState, formData: FormDa
     const parsed = idSchema.safeParse({ id: formData.get("id") });
     if (!parsed.success) return firstError(parsed.error);
     const e = await loadExpenseScoped(actor, parsed.data.id);
+    const eyes = assertFourEyes(actor, e.createdById);
     const res = await db.expense.updateMany({
       where: { id: e.id, status: "diajukan" },
       data: { status: "disetujui", approvedById: actor.id, approvedAt: new Date() },
     });
     if (res.count === 0) return { error: "Hanya realisasi berstatus diajukan yang bisa disetujui." };
-    await audit(actor.id, "finance.expense.approve", "expense", e.id);
+    await audit(actor.id, "finance.expense.approve", "expense", e.id, eyes);
     await revalidateFinance([e.locationId]);
     return { success: "Realisasi disetujui." };
   });
@@ -530,7 +551,7 @@ export async function createInvoice(_prev: FinanceActionState, formData: FormDat
 async function loadInvoiceScoped(actor: SessionUser, id: string) {
   const inv = await db.invoice.findUnique({
     where: { id },
-    select: { id: true, locationId: true, number: true, amount: true, status: true },
+    select: { id: true, locationId: true, number: true, amount: true, status: true, createdById: true },
   });
   if (!inv) throw new GuardError("Invoice tidak ditemukan.");
   await requireLocationAccess(actor, inv.locationId);
@@ -543,12 +564,13 @@ export async function approveInvoice(_prev: FinanceActionState, formData: FormDa
     const parsed = idSchema.safeParse({ id: formData.get("id") });
     if (!parsed.success) return firstError(parsed.error);
     const inv = await loadInvoiceScoped(actor, parsed.data.id);
+    const eyes = assertFourEyes(actor, inv.createdById);
     const res = await db.invoice.updateMany({
       where: { id: inv.id, status: "diajukan" },
       data: { status: "disetujui", approvedById: actor.id },
     });
     if (res.count === 0) return { error: "Hanya invoice berstatus diajukan yang bisa disetujui." };
-    await audit(actor.id, "finance.invoice.approve", "invoice", inv.id, { number: inv.number });
+    await audit(actor.id, "finance.invoice.approve", "invoice", inv.id, { number: inv.number, ...eyes });
     await revalidateFinance([inv.locationId]);
     return { success: `Invoice ${inv.number} disetujui.` };
   });
@@ -648,6 +670,18 @@ export async function createOwnerBilling(_prev: FinanceActionState, formData: Fo
     const d = parsed.data;
     const contract = await requireContractAccess(actor, d.contractId);
     if (d.retentionHeld > d.amount) return { error: "Retensi tidak boleh melebihi nilai termin." };
+    // Validasi silang thd retensi kontrak (audit 2026-07-27, B14c): retensi
+    // termin tidak boleh MELEBIHI persen retensi kontrak. Lebih kecil boleh —
+    // kontrak KNMP mengizinkan retensi diganti jaminan pemeliharaan.
+    if (contract.retentionPercent != null) {
+      const pct = Number(contract.retentionPercent);
+      const maxRetention = (d.amount * BigInt(Math.round(pct * 100)) + 9999n) / 10000n; // ceil(amount × pct%)
+      if (pct >= 0 && d.retentionHeld > maxRetention) {
+        return {
+          error: `Retensi melebihi ketentuan kontrak (${pct}% dari nilai termin = maks ${formatRupiah(maxRetention)}).`,
+        };
+      }
+    }
 
     let billing;
     try {
@@ -679,7 +713,7 @@ export async function createOwnerBilling(_prev: FinanceActionState, formData: Fo
 async function loadBillingScoped(actor: SessionUser, id: string) {
   const b = await db.ownerBilling.findUnique({
     where: { id },
-    select: { id: true, contractId: true, terminNo: true, amount: true, status: true },
+    select: { id: true, contractId: true, terminNo: true, amount: true, status: true, createdById: true },
   });
   if (!b) throw new GuardError("Termin penagihan tidak ditemukan.");
   const contract = await requireContractAccess(actor, b.contractId);
@@ -710,12 +744,13 @@ export async function approveOwnerBilling(_prev: FinanceActionState, formData: F
     const parsed = idSchema.safeParse({ id: formData.get("id") });
     if (!parsed.success) return firstError(parsed.error);
     const { billing, locationIds } = await loadBillingScoped(actor, parsed.data.id);
+    const eyes = assertFourEyes(actor, billing.createdById);
     const res = await db.ownerBilling.updateMany({
       where: { id: billing.id, status: "diajukan" },
       data: { status: "disetujui" },
     });
     if (res.count === 0) return { error: "Hanya termin berstatus diajukan yang bisa disetujui." };
-    await audit(actor.id, "finance.billing.approve", "owner_billing", billing.id, { terminNo: billing.terminNo });
+    await audit(actor.id, "finance.billing.approve", "owner_billing", billing.id, { terminNo: billing.terminNo, ...eyes });
     await revalidateFinance(locationIds);
     return { success: `Termin ${billing.terminNo} disetujui.` };
   });

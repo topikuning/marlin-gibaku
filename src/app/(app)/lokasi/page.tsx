@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/ui";
 import { requireUser, accessibleLocationIds } from "@/lib/auth/session";
+import { locationScopeWhere } from "@/lib/auth/scope";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
 import { getLocationsProgress } from "@/lib/progress";
@@ -16,7 +17,7 @@ export default async function LokasiListPage() {
   const locIds = await accessibleLocationIds(user);
 
   const locations = await db.location.findMany({
-    where: locIds === null ? {} : { id: { in: locIds } },
+    where: locationScopeWhere(user, locIds),
     select: {
       id: true,
       name: true,

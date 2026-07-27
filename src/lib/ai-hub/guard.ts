@@ -1,5 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { jakartaDateKey } from "@/lib/format";
 import { audit } from "@/lib/audit";
 import { latestSettings, putAiSetting } from "@/lib/ai/config";
 import type { SessionUser } from "@/lib/auth/session";
@@ -83,9 +84,19 @@ export async function checkAiGuard(
 ): Promise<AiGuardConfig & { enabled: boolean }> {
   const cfg = await getAiGuardConfig();
   const now = Date.now();
+  // "Hari" = hari kerja Asia/Jakarta, bukan midnight server (audit B18) —
+  // kalau server UTC, kuota lama ter-reset jam 07:00 WIB.
+  const jakartaMidnight = new Date(`${jakartaDateKey(new Date())}T00:00:00+07:00`);
+  // AiRun tidak punya relasi ke User (hanya userId skalar) — filter org lewat
+  // daftar user organisasi. Kuota org tanpa filter ini bocor lintas tenant (B18).
+  const orgUserIds = (
+    await db.user.findMany({ where: { orgId: user.orgId }, select: { id: true } })
+  ).map((u) => u.id);
   const [userLastHour, orgToday] = await Promise.all([
     db.aiRun.count({ where: { userId: user.id, createdAt: { gte: new Date(now - 3600_000) } } }),
-    db.aiRun.count({ where: { createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } } }),
+    db.aiRun.count({
+      where: { userId: { in: orgUserIds }, createdAt: { gte: jakartaMidnight } },
+    }),
   ]);
   const verdict = decideAiGuard(cfg, {
     enabled: cfg.enabled,
