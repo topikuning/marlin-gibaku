@@ -1,5 +1,11 @@
 # LAPORAN AKHIR — REBUILD TOTAL MARLIN (2026-07-14)
 
+> **ARSIP — laporan penutup rebuild 2026-07-14.**
+> Bukan spesifikasi berjalan. Kondisi terkini ada di `PROJECT.md`
+> (arsitektur & formula), `docs/OPEN_ISSUES.md` (yang masih terbuka), dan
+> `docs/DECISIONS.md` (riwayat keputusan).
+
+
 ## 1. Audit
 
 - **Masalah lama** (rincian `CURRENT_STATE_AUDIT.md`): 4 taksonomi lifecycle paralel; laporan harian terpecah 2 model data + 4 menu; keuangan snapshot manual tak terekonsiliasi (3 model uang); permission `canManageUsers` jadi gate keuangan/kontrak/RAB; lock anti-dobel hanya app-level; `reportDate` di-stamp tanggal approve; 8 kolom FK menggantung; 0 test; tanpa CI; Nixpacks tanpa Dockerfile; next-auth & Tailwind beta di production; audit log tidak pernah ditulis; session JWT tak bisa direvoke.

@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { can } from "@/lib/authz";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { cumulativeVolumeByLineage } from "@/lib/progress";
+import { laggingItems } from "@/lib/progress-calc";
 import { getPeriodBounds } from "@/lib/periodic-report";
 import { deriveCategorySchedule, getScurveSeries } from "@/lib/baseline";
 import { formatNumber, formatPct, formatRupiahShort, formatTanggal } from "@/lib/format";
@@ -137,27 +138,29 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
       where: { revision: { locationId: location.id, status: "aktif" }, kind: "item" },
       select: { id: true, code: true, name: true, unit: true, volume: true, unitPrice: true, amount: true, lineageKey: true },
     });
-    lagging = activeItems
-      .filter((n) => n.volume != null && Number(n.volume) > 0)
-      .map((n) => {
-        const volume = Number(n.volume);
-        const expected = volume * planFraction;
-        const realized = realizedVol.get(n.lineageKey) ?? 0;
-        const unitPrice = n.unitPrice != null ? Number(n.unitPrice) : Number(n.amount) / volume;
-        return {
-          id: n.id,
-          code: n.code,
-          name: n.name,
-          unit: n.unit,
-          volume,
-          expected,
-          realized,
-          gapValue: Math.max(0, (expected - realized) * unitPrice),
-        };
-      })
-      .filter((it) => it.realized < it.expected - 1e-9)
-      .sort((a, b) => b.gapValue - a.gapValue)
-      .slice(0, 10);
+    // Formula ada di calculation layer, bukan di halaman (audit 2026-07-27, M6).
+    const meta = new Map(activeItems.map((n) => [n.lineageKey, n]));
+    lagging = laggingItems(
+      activeItems.map((n) => ({
+        lineageKey: n.lineageKey,
+        volK: n.volume != null ? Number(n.volume) : 0,
+        amount: Number(n.amount),
+        volSd: realizedVol.get(n.lineageKey) ?? 0,
+      })),
+      planFraction,
+    ).map((it) => {
+      const n = meta.get(it.lineageKey)!;
+      return {
+        id: n.id,
+        code: n.code,
+        name: n.name,
+        unit: n.unit,
+        volume: it.volK,
+        expected: it.expected,
+        realized: it.realized,
+        gapValue: it.gapValue,
+      };
+    });
   }
 
   const issueData: IssueData[] = issues.map((i) => ({

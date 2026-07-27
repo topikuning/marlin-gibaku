@@ -472,7 +472,7 @@ export function ExpenseSection({
   return (
     <div>
       {canInput ? (
-        <ToggleFormCard label="+ Realisasi baru">
+        <ToggleFormCard label="+ Realisasi biaya baru">
           <form action={act} className="space-y-3">
             <StateBanners state={state} />
             <input type="hidden" name="locationId" value={locationId} />

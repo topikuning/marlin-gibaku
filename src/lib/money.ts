@@ -5,8 +5,15 @@
  */
 
 export function ppnAmount(preTax: bigint, ppnPercent: number): bigint {
-  // persen bisa pecahan (mis. 11 / 12); hitung basis 1/100 dgn pembulatan integer
-  return (preTax * BigInt(Math.round(ppnPercent * 100))) / 10000n;
+  // Persen bisa pecahan (mis. 11 / 12) → hitung pada basis 1/100.
+  // Pembagian BigInt MEMOTONG; tanpa koreksi ini PPN selalu dibulatkan ke
+  // bawah (audit 2026-07-27, L8). Dibulatkan half-up, dan tanda dijaga supaya
+  // nilai negatif (koreksi/retur) tidak dibulatkan ke arah yang salah.
+  const scaled = preTax * BigInt(Math.round(ppnPercent * 100));
+  const neg = scaled < 0n;
+  const abs = neg ? -scaled : scaled;
+  const rounded = (abs + 5000n) / 10000n;
+  return neg ? -rounded : rounded;
 }
 
 export function withPpn(preTax: bigint, ppnPercent: number): bigint {

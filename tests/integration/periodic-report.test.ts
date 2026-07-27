@@ -592,6 +592,156 @@ describe("Revision & lineage gate", () => {
   });
 });
 
+describe("Tindak lanjut audit independen 2026-07-27", () => {
+  /** C1 — dua revisi aktif pada satu lokasi = fan-out join = realisasi dobel. */
+  it("C1: dua revisi RAB 'aktif' pada satu lokasi DITOLAK database", async () => {
+    const rev = await db.rabRevision.findFirstOrThrow({
+      where: { locationId, status: "aktif" },
+      select: { locationId: true },
+    });
+    await expect(
+      db.rabRevision.create({
+        data: {
+          locationId: rev.locationId,
+          revisionNo: 99,
+          source: "adendum",
+          status: "aktif",
+          totalValue: 1n,
+        },
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("C1: dua baseline 'aktif' pada satu lokasi DITOLAK database", async () => {
+    const b = await db.baseline.findFirstOrThrow({
+      where: { locationId, status: "aktif" },
+      select: { locationId: true },
+    });
+    await expect(
+      db.baseline.create({
+        data: { locationId: b.locationId, baselineNo: 99, source: "manual", status: "aktif", contractDays: 7 },
+      }),
+    ).rejects.toThrow();
+  });
+
+  /**
+   * H2 — formula ditulis dua kali (SQL di progress.ts, TS di progress-calc.ts).
+   * Hanya TS yang punya unit test; paritasnya sendiri tidak pernah diuji.
+   */
+  it("H2: raw SQL realisasi identik dengan realizedPctFromItems atas data yang sama", async () => {
+    const { getLocationProgress } = await import("@/lib/progress");
+    const { realizedPctFromItems, bobotPct } = await import("@/lib/progress-calc");
+
+    const rev = await db.rabRevision.findFirstOrThrow({
+      where: { locationId, status: "aktif" },
+      select: { id: true },
+    });
+    const [items, cats, vols] = await Promise.all([
+      db.rabNode.findMany({
+        where: { revisionId: rev.id, kind: "item" },
+        select: { lineageKey: true, volume: true, amount: true },
+      }),
+      db.rabNode.aggregate({ where: { revisionId: rev.id, kind: "kategori" }, _sum: { amount: true } }),
+      db.dailyReportItem.groupBy({
+        by: ["lineageKey"],
+        where: { report: { locationId, status: { in: ["dikirim", "disetujui", "final"] } } },
+        _sum: { volumeDone: true },
+      }),
+    ]);
+    const volByLineage = new Map(vols.map((v) => [v.lineageKey, Number(v._sum.volumeDone ?? 0)]));
+    const grand = Number(cats._sum.amount ?? 0n);
+    const ts = realizedPctFromItems(
+      items.map((n) => ({
+        volK: n.volume != null ? Number(n.volume) : 0,
+        volSd: volByLineage.get(n.lineageKey) ?? 0,
+        bobot: bobotPct(Number(n.amount), grand),
+      })),
+    );
+    const sql = await getLocationProgress(locationId);
+    // Toleransi kecil: SQL membulatkan ke rupiah bulat sebelum dibagi.
+    expect(sql.realizedPct).toBeCloseTo(ts, 6);
+  });
+
+  it("H2: volume negatif neto tidak membuat SQL & TS berselisih tanda", async () => {
+    const { prestasiPct } = await import("@/lib/progress-calc");
+    // TS meng-clamp ke 0; SQL kini memakai GREATEST(0, …) yang sepadan.
+    expect(prestasiPct(-10, 100)).toBe(0);
+    const rows = await db.$queryRaw<{ v: number }[]>`
+      SELECT GREATEST(0.0, LEAST(1.0, (-10)::numeric / NULLIF(GREATEST(100, 0), 0)))::float AS v
+    `;
+    expect(rows[0].v).toBe(0);
+  });
+
+  /**
+   * M8 — pembilang realisasi menjumlah ITEM, penyebut grandTotal menjumlah
+   * KATEGORI. Kalau keduanya drift, realizedPct salah tanpa gejala apa pun.
+   */
+  it("M8: Σ amount kategori == Σ amount item pada revisi aktif", async () => {
+    const rev = await db.rabRevision.findFirstOrThrow({
+      where: { locationId, status: "aktif" },
+      select: { id: true },
+    });
+    const [kat, item] = await Promise.all([
+      db.rabNode.aggregate({ where: { revisionId: rev.id, kind: "kategori" }, _sum: { amount: true } }),
+      db.rabNode.aggregate({ where: { revisionId: rev.id, kind: "item" }, _sum: { amount: true } }),
+    ]);
+    expect(kat._sum.amount).toBe(item._sum.amount);
+  });
+
+  /**
+   * M7 — satu-satunya fixture CIP yang benar-benar belum tertutup: siklus
+   * koreksi. Penolakan volume > kontrak dan PPN/contractMismatch SUDAH diuji
+   * (daily-report-flow.test.ts & money.test.ts); audit keliru pada dua itu.
+   */
+  it("M7: laporan dikembalikan → diperbaiki → dikirim ulang dihitung SEKALI", async () => {
+    const { getLocationProgress } = await import("@/lib/progress");
+    const org = await db.organization.findFirstOrThrow({ where: { slug: `orgp-${suffix}` } });
+    const pkg = await db.package.findFirstOrThrow({ where: { orgId: org.id } });
+    const loc = await db.location.create({
+      data: {
+        packageId: pkg.id, name: "Lokasi Koreksi", slug: `lokasi-koreksi-${suffix}`,
+        village: "Desa", regency: "Kab", province: "Prov",
+      },
+    });
+    const rev = await db.rabRevision.create({
+      data: { locationId: loc.id, revisionNo: 1, source: "hps_awal", status: "aktif", totalValue: 100_000_000n },
+    });
+    await db.rabNode.create({
+      data: { revisionId: rev.id, kind: "kategori", code: "I", name: "PEKERJAAN I", amount: 100_000_000n, lineageKey: "I", sortOrder: 0 },
+    });
+    const node = await db.rabNode.create({
+      data: {
+        revisionId: rev.id, kind: "item", code: "1.1", name: "Item Koreksi",
+        volume: 100, unit: "m3", unitPrice: 1_000_000, amount: 100_000_000n,
+        lineageKey: "I#1.1", sortOrder: 1,
+      },
+    });
+    const rep = await db.dailyReport.create({
+      data: { locationId: loc.id, reportDate: d(START), status: "dikirim", createdById: userId },
+    });
+    await db.dailyReportItem.create({
+      data: { reportId: rep.id, rabNodeId: node.id, lineageKey: "I#1.1", volumeDone: 30, valueDone: 30_000_000n },
+    });
+    expect((await getLocationProgress(loc.id)).realizedPct).toBeCloseTo(30, 9);
+
+    // Dikembalikan untuk koreksi → keluar dari status counted.
+    await db.dailyReport.update({ where: { id: rep.id }, data: { status: "perlu_koreksi" } });
+    expect((await getLocationProgress(loc.id)).realizedPct, "perlu_koreksi tidak dihitung").toBeCloseTo(0, 9);
+
+    // Volume diperbaiki (upsert pada lineage yang sama, BUKAN baris baru) lalu
+    // dikirim ulang → disetujui → final. Harus 45%, bukan 30+45.
+    await db.dailyReportItem.update({
+      where: { reportId_lineageKey: { reportId: rep.id, lineageKey: "I#1.1" } },
+      data: { volumeDone: 45, valueDone: 45_000_000n },
+    });
+    for (const status of ["dikirim", "disetujui", "final"] as const) {
+      await db.dailyReport.update({ where: { id: rep.id }, data: { status } });
+      expect((await getLocationProgress(loc.id)).realizedPct, `setelah koreksi · ${status}`).toBeCloseTo(45, 9);
+    }
+    expect(await db.dailyReportItem.count({ where: { reportId: rep.id } })).toBe(1);
+  });
+});
+
 describe("laporan bulanan — invarian yang sama", () => {
   it("total tabel = angka kurva-S", async () => {
     const b = await getPeriodBounds(locationId);

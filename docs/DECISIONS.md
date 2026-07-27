@@ -3303,3 +3303,108 @@ periodik) · build ✓ · E2E 16 ✓.
 tarikan image Docker Hub diblokir proxy (403 dari cloudfront). Gate itu
 dijalankan oleh job "Docker build" di CI, bukan lokal; jangan dianggap terbukti
 sampai CI hijau.
+
+## 153 · 2026-07-27 · Tindak lanjut audit independen + dokumentasi dirapikan
+
+**Pemicu:** user memberikan `AUDIT_MARLIN_DEV_20260727.md` (audit independen,
+berbasis pembacaan tanpa menjalankan perintah apa pun) dan meminta temuannya
+diverifikasi lalu diperbaiki bila memang benar.
+
+### Temuan yang TERBUKTI dan diperbaiki
+
+**C1 · Tidak ada constraint satu revisi aktif per lokasi.** Query realisasi
+JOIN ke `rab_revisions … status='aktif'`; dua revisi aktif = fan-out = realisasi
+DOBEL, tanpa error. `activateRevision` memang sudah atomik di `$transaction`,
+tetapi dua transaksi bersamaan pada isolation level default masih bisa lolos —
+disiplin kode saja tidak cukup. Migration `20260727140000_one_active_per_location`
+memasang partial unique index pada `rab_revisions` DAN `baselines` (masalah yang
+sama persis), setelah merapikan duplikat yang mungkin sudah ada (pertahankan
+nomor tertinggi). Diverifikasi: Prisma TIDAK menganggap partial index sebagai
+drift, jadi `migrate diff` tetap bersih.
+
+**H2 · Paritas SQL ↔ TS.** `prestasiPct` (TS) meng-clamp ke 0; SQL hanya punya
+`LEAST(1.0, …)` tanpa batas bawah, dan `NULLIF(volume, 0)` tidak menangkap
+volume negatif. Diperbaiki jadi
+`GREATEST(0.0, LEAST(1.0, Σvol / NULLIF(GREATEST(volume,0), 0)))` + uji paritas.
+
+**H3 · Protokol tidak ada di repo.** Prompt auditor menunjuk
+`docs/rebuild/CALCULATION_INTEGRITY_PROTOCOL.md` yang tidak pernah ada.
+Disimpan di repo DENGAN tabel contract yang sudah dikoreksi — versi aslinya
+masih memuat `realizedValue = Σ valueDone` yang batal sejak DECISIONS 151, dan
+kalau dibiarkan, pembaca berikutnya akan "memperbaiki" kode agar cocok dengan
+dokumen yang salah.
+
+**H4 · Tiga besaran berbeda bernama sama.** `keuangan/page.tsx` memakai
+`realizedPct = pct(expenseApproved, budgetTotal)` — itu **serapan biaya**,
+bukan progress fisik — dan melabelinya "Realisasi". Di halaman lokasi yang sama
+seseorang bisa membaca "Realisasi 45%" (biaya) dan "Realisasi 71%" (fisik) lalu
+menyimpulkan deviasi yang tidak ada. Diganti `serapanBiayaPct` / "Serapan
+Biaya" / "Realisasi Biaya".
+
+**H5 · pnpm 11.13.0 adalah rilis RUSAK menurut vendornya sendiri** (`npm view
+pnpm@11.13.0 deprecated` → "This is a broken version. Please install pnpm
+v11.13.1 or newer"). Dinaikkan ke 11.17.0; lockfile TIDAK berubah.
+
+**M6 · Formula bisnis di React component.** `gapValue` + fallback
+`unitPrice = amount / volume` dipindah ke `progress-calc.laggingItems()`.
+Fallback itu mengarang harga satuan yang tidak ada di dokumen RAB; diganti
+proporsi terhadap `amount`.
+
+**M10 · CI tidak berjalan pada push ke `dev`.** Ditambahkan.
+
+**L8 · PPN selalu dibulatkan ke bawah** (pembagian BigInt memotong). Diganti
+half-up, simetris untuk nilai negatif.
+
+**M7/M8 · Uji yang bolong.** Ditambahkan: siklus koreksi dihitung sekali,
+paritas SQL↔TS, Σ amount kategori = Σ amount item, constraint revisi/baseline
+ganda, pembulatan PPN.
+
+### Temuan yang KELIRU — tidak diubah
+
+- **#13 "volume > kontrak tidak ada test penolakan"** — ada, sejak awal:
+  `daily-report-flow.test.ts` "guard: volume kumulatif melebihi volume RAB
+  ditolak".
+- **#15 "PPN tanpa test"** — `money.test.ts` punya 4 case `contractMismatch`
+  plus `ppnAmount`/`withPpn`. Auditor tampaknya mencari string "ppn" huruf
+  kecil dan tidak menemukan `ppnAmount`.
+- **M9 "`new Date()` sebagai fallback startDate tidak ditandai"** — `new Date()`
+  di `periodic-report.ts:199` hanya hidup di cabang `assume` (khusus pratinjau
+  jadwal sebelum SPMK), dan di `:463` untuk membatasi kolom minggu di DEPAN
+  minggu berjalan. Laporan periodik resmi tidak memakainya. Yang benar dari
+  temuan ini hanyalah: flag `assumed` tidak diteruskan ke output — dicatat di
+  OPEN_ISSUES sebagai 🟢.
+
+### Temuan yang BENAR tapi sengaja tidak dikerjakan
+
+M5 (`dataAsOf` pada `getLocationProgress`), L9/L10 (keseragaman pembulatan),
+paritas PDF/Excel/WA/AI, dan pemisahan level status — semuanya butuh keputusan
+user atau refactor lintas modul. Dicatat di `docs/OPEN_ISSUES.md`.
+
+**M4 (`dev` tidak lagi mendahului `main`)** bukan temuan kode: itu konsekuensi
+normal setelah PR di-merge. Alur yang berlaku tetap `dev` → PR → `main`.
+
+### Dokumentasi dirapikan
+
+- **`docs/README.md` baru** — peta navigasi: mana yang HIDUP, mana ARSIP, dan
+  aturan merawat dokumentasi.
+- **`PERMISSION_MATRIX.md` sekarang DIBANGKITKAN** dari `src/lib/authz.ts`
+  (`pnpm docs:permission`), dijaga `tests/unit/permission-matrix-doc.test.ts`.
+  Sebelumnya tertinggal 43 vs sebagian kecil capability yang tercatat — persis
+  jenis dokumen yang tidak boleh ditulis tangan.
+- **`TEST_PLAN.md` ditulis ulang** memisahkan "sudah ada" (angka nyata: 31
+  berkas unit / 390 case, 4 integration / 47 case, 1 E2E / 16 case) dari
+  "direncanakan". Versi lama membaca seolah 9 skenario E2E sudah ada padahal
+  baru autentikasi.
+- **`SESSION_LOG.md` DIHAPUS** — berhenti diperbarui berbulan-bulan, dan
+  entri terakhirnya mengklaim menghapus `DEPLOY_RAILWAY.md` yang nyatanya masih
+  ada. `DECISIONS.md` sudah menjadi log yang sebenarnya.
+- **11 artefak rebuild diberi banner ARSIP** supaya tidak terbaca sebagai
+  spesifikasi berjalan.
+- `TECHNOLOGY_AUDIT.md` (pnpm), `OPEN_ISSUES.md` (konvensi + temuan baru,
+  entri `dataAsOf` ganda digabung), `CLAUDE.md`, dan `README.md` diselaraskan.
+
+### Verifikasi
+
+typecheck ✓ · lint ✓ · unit 390 ✓ · integration 47 ✓ · build ✓ · E2E 16 ✓.
+`docker build --no-cache` tetap tidak dapat dijalankan di lingkungan kerja
+(tarikan Docker Hub diblokir proxy) — dibuktikan job Docker build di CI.

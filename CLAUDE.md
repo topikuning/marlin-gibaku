@@ -3,10 +3,14 @@
 Instruksi untuk Claude Code saat bekerja di repo ini.
 
 **Baca file ini dulu**, lalu:
-1. [`PROJECT.md`](./PROJECT.md) — arsitektur & keputusan design (single source of truth)
+1. [`PROJECT.md`](./PROJECT.md) — arsitektur, domain model, **formula angka kanonik** (single source of truth)
 2. [`docs/OPEN_ISSUES.md`](./docs/OPEN_ISSUES.md) — bug + TODO sebelum fitur baru
 3. [`docs/DECISIONS.md`](./docs/DECISIONS.md) — decision log append-only (051 = rebuild total)
-4. [`docs/rebuild/`](./docs/rebuild/) — artefak rebuild 2026-07-14 (domain model, permission matrix, IA, dst.)
+4. [`docs/README.md`](./docs/README.md) — peta seluruh dokumentasi (mana yang hidup, mana yang arsip)
+
+**Menyentuh progress / deviasi / kurva-S / laporan / uang?** Baca
+[`docs/rebuild/CALCULATION_INTEGRITY_PROTOCOL.md`](./docs/rebuild/CALCULATION_INTEGRITY_PROTOCOL.md)
+lebih dulu — protokol itu wajib, bukan anjuran.
 
 ---
 
@@ -30,7 +34,11 @@ Instruksi untuk Claude Code saat bekerja di repo ini.
    bila menyangkut lokasi) + `audit()`. Frontend hanya menyembunyikan menu.
 4. **Angka agregat selalu derived** — jangan pernah bikin kolom agregat yang diedit manual.
 5. **Status hanya berubah lewat mesin transisi** `src/lib/lifecycle.ts` + tulis histori.
-6. Bug baru → `docs/OPEN_ISSUES.md`; keputusan baru → `docs/DECISIONS.md`.
+6. Bug baru → `docs/OPEN_ISSUES.md` (yang SELESAI dihapus dari sana, bukan
+   dicoret); keputusan baru → append `docs/DECISIONS.md`.
+7. **Formula angka hanya boleh ditulis di `src/lib/progress-calc.ts` +
+   `src/lib/progress.ts` + `src/lib/finance/calc.ts`.** Komponen, PDF, Excel,
+   dan prompt AI dilarang menghitung ulang.
 
 ## Commands
 
@@ -48,6 +56,7 @@ pnpm db:generate         # regenerate Prisma Client (Prisma 7 → src/generated/
 pnpm db:migrate          # migration dev
 pnpm db:seed             # seed dev (idempotent; password semua user: marlin123)
 pnpm db:reset            # guarded (tolak production / DB non-dev)
+pnpm docs:permission     # regenerate docs/rebuild/PERMISSION_MATRIX.md dari authz.ts
 
 docker build --no-cache -t marlin:test .   # verifikasi deploy
 ```

@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # `dev` adalah branch kerja; push langsung ke sana (tanpa PR) dulu TIDAK
+    # menjalankan CI sama sekali (audit 2026-07-27, M10).
+    branches: [main, dev]
   pull_request:
 
 env:

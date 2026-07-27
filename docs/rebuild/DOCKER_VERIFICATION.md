@@ -1,5 +1,11 @@
 # DOCKER VERIFICATION — MARLIN
 
+> **ARSIP — hasil verifikasi Docker saat rebuild.**
+> Bukan spesifikasi berjalan. Kondisi terkini ada di `PROJECT.md`
+> (arsitektur & formula), `docs/OPEN_ISSUES.md` (yang masih terbuka), dan
+> `docs/DECISIONS.md` (riwayat keputusan).
+
+
 ## Status per 2026-07-14
 
 | Langkah | Hasil | Bukti |

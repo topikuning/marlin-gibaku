@@ -8,7 +8,7 @@ Kebijakan: versi stable/LTS terbaru, open-source, pinned exact. Lihat `docs/DEPE
 | Technology | Current | Latest Stable/LTS | Target | Channel | License | Official Source | Compatibility | Decision | Reason |
 |---|---|---|---|---|---|---|---|---|---|
 | Node.js | 22 (>=22.0.0 range) | **24.18.0** (Active LTS "Krypton") | 24.18.0 | Active LTS | MIT-style (Node license) | nodejs.org/dist | Prisma 7 engines `>=24` OK; Next 16 OK | **UPGRADE** | Node 24 = Active LTS per Jul 2026; Node 22 sudah Maintenance |
-| pnpm | 9.15.0 | 11.13.0 | 11.13.0 | stable | MIT | npm registry | Corepack 0.35 OK | **UPGRADE** | latest stable, aktifkan via Corepack, pin di `packageManager` |
+| pnpm | 9.15.0 | 11.17.0 | 11.17.0 | stable | MIT | npm registry | Corepack OK | **UPGRADE** | 11.13.0 ditandai vendor sebagai rilis RUSAK (audit 2026-07-27, H5) — jangan turun ke bawah 11.13.1 |
 | TypeScript | ^5.7.2 | 7.0.2 (native), 5.9.3 (JS line) | **5.9.3** | stable | Apache-2.0 | npm/microsoft | TS 7 (compiler native Go) belum diverifikasi kompatibel dengan plugin `next` tsserver, `eslint-config-next`, dan Prisma generated types | **UPGRADE ke 5.9.3, TAHAN dari 7.x** | 7.0.2 baru rilis; ekosistem (typescript-eslint, next plugin) belum menjaminnya. Didokumentasikan sebagai pengecualian sadar |
 | PostgreSQL | 16 (lokal/Railway) | 18.x | **16+** (tested 16.13) | stable | PostgreSQL License | postgresql.org | Prisma 7 & Railway mendukung 16–17; fitur schema tidak butuh >16 | **KEEP 16+** | Tidak memaksakan major terbaru; schema kompatibel 16–18 |
 

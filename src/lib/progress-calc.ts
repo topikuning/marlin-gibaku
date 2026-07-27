@@ -83,3 +83,53 @@ export function bobotPct(amount: number, grandTotal: number): number {
   const b = (amount / grandTotal) * 100;
   return Number.isFinite(b) ? b : 0;
 }
+
+export type LaggingInput = {
+  lineageKey: string;
+  /** Volume kontrak item. */
+  volK: number;
+  /** Nilai item (rupiah) pada revisi aktif. */
+  amount: number;
+  /** Volume yang sudah direalisasi s/d sekarang. */
+  volSd: number;
+};
+
+export type LaggingItem = {
+  lineageKey: string;
+  volK: number;
+  /** Volume yang SEHARUSNYA tercapai pada fraksi rencana ini. */
+  expected: number;
+  realized: number;
+  /** Nilai rupiah dari kekurangan volume — dasar pengurutan "paling tertinggal". */
+  gapValue: number;
+};
+
+/**
+ * Item yang tertinggal terhadap fraksi rencana (0..1) — dipakai panel
+ * "paling tertinggal" di halaman Progress.
+ *
+ * Nilai kekurangan sengaja dihitung dari `amount` (nilai item pada revisi
+ * aktif) × porsi volume yang kurang, BUKAN dari harga satuan. Harga satuan
+ * boleh kosong di RAB hasil impor, dan menambalnya dengan `amount / volume`
+ * berarti mengarang angka yang tidak ada di dokumen RAB (audit 2026-07-27, M6).
+ */
+export function laggingItems(items: LaggingInput[], planFraction: number, limit = 10): LaggingItem[] {
+  if (!(planFraction > 0)) return [];
+  const frac = Math.min(1, planFraction);
+  return items
+    .filter((it) => it.volK > 0)
+    .map((it) => {
+      const expected = it.volK * frac;
+      const shortfall = Math.max(0, expected - it.volSd);
+      return {
+        lineageKey: it.lineageKey,
+        volK: it.volK,
+        expected,
+        realized: it.volSd,
+        gapValue: (shortfall / it.volK) * Math.max(0, it.amount),
+      };
+    })
+    .filter((it) => it.realized < it.expected - 1e-9)
+    .sort((a, b) => b.gapValue - a.gapValue)
+    .slice(0, limit);
+}
