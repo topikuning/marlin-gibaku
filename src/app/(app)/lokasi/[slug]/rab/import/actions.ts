@@ -8,6 +8,7 @@ import { requireCapability, requireLocationAccess, ForbiddenError } from "@/lib/
 import { parseHpsBuffer } from "@/lib/rab/hps-parser";
 import { flattenParsedRab, grandTotal } from "@/lib/rab/flatten";
 import { activateRevision, createRevisionFromParsed, regenerateBaseline } from "@/lib/rab/import";
+import { cumulativeVolumeByLineage } from "@/lib/progress";
 import { isR2Configured, r2Put } from "@/lib/r2";
 
 /**
@@ -93,6 +94,34 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     const contractStarted = location.package?.contract?.startDate != null;
     const isAdendum = activeRevision !== null && contractStarted;
 
+    // Lineage realisasi yang HILANG di file baru: realisasi item itu tidak akan
+    // tersambung ke revisi baru (progress lokasi turun diam-diam). Tampilkan di
+    // pratinjau SEBELUM commit — audit 2026-07-27, B17.
+    if (activeRevision) {
+      const realized = await cumulativeVolumeByLineage(location.id);
+      const newItemKeys = new Set(
+        nodes.filter((n) => n.kind === "item").map((n) => n.lineageKey),
+      );
+      const lostKeys = [...realized.entries()]
+        .filter(([key, vol]) => vol > 0 && !newItemKeys.has(key))
+        .map(([key]) => key);
+      if (lostKeys.length > 0) {
+        const named = await db.rabNode.findMany({
+          where: { revisionId: activeRevision.id, lineageKey: { in: lostKeys } },
+          select: { code: true, name: true, lineageKey: true },
+        });
+        const nameByKey = new Map(named.map((n) => [n.lineageKey, `${n.code} ${n.name}`]));
+        const labels = lostKeys.map((k) => nameByKey.get(k) ?? k);
+        const shown = labels.slice(0, 8);
+        warnings.push(
+          `PERHATIAN — ${lostKeys.length} item yang SUDAH punya realisasi tidak ditemukan di file baru: ` +
+            `${shown.join("; ")}${labels.length > shown.length ? `; +${labels.length - shown.length} lainnya` : ""}. ` +
+            `Realisasi item tersebut TIDAK akan tersambung ke revisi baru sehingga progress lokasi bisa turun. ` +
+            `Pastikan kode/struktur item di file sama dengan RAB aktif, atau lanjutkan hanya bila item memang dihapus lewat adendum resmi.`,
+        );
+      }
+    }
+
     const preview: ImportPreview = {
       fileName: file.name,
       bytes: file.size,
@@ -127,12 +156,23 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       userId: user.id,
     });
     await activateRevision(res.revisionId, user.id);
-    await regenerateBaseline(location.id, {
-      source: isAdendum ? "adendum" : "auto",
-      rabRevisionId: res.revisionId,
-      note: `Regenerate otomatis (impor revisi #${res.revisionNo})`,
-      userId: user.id,
-    });
+    // Revisi sudah AKTIF di titik ini. Bila regenerate baseline gagal, JANGAN
+    // jatuh ke catch generik ("Terjadi kesalahan saat impor") — user akan
+    // mengira impor batal padahal revisi sudah berganti dan kurva-S masih
+    // memakai baseline lama. Laporkan keadaan campuran itu apa adanya.
+    // Audit 2026-07-27, B17.
+    let baselineError: string | null = null;
+    try {
+      await regenerateBaseline(location.id, {
+        source: isAdendum ? "adendum" : "auto",
+        rabRevisionId: res.revisionId,
+        note: `Regenerate otomatis (impor revisi #${res.revisionNo})`,
+        userId: user.id,
+      });
+    } catch (e) {
+      console.error("[rab-import] regenerate baseline gagal (revisi sudah aktif):", e);
+      baselineError = e instanceof Error ? e.message : "kesalahan tak dikenal";
+    }
 
     // Arsip file sumber ke R2 + Document — best-effort, kegagalan tidak
     // membatalkan revisi yang sudah aktif.
@@ -172,6 +212,13 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       isAdendum && res.carriedItemLineages > 0
         ? ` ${res.carriedItemLineages} item tersambung ke realisasi lama (lineage sama).`
         : "";
+    if (baselineError) {
+      return {
+        error:
+          `Revisi RAB #${res.revisionNo} SUDAH AKTIF, tetapi kurva-S GAGAL di-regenerate (${baselineError}). ` +
+          `Grafik & deviasi masih memakai baseline lama — buka tab Kurva-S lalu tekan "Hitung ulang kurva-S" untuk menyelaraskan.`,
+      };
+    }
     return {
       success: `Revisi RAB #${res.revisionNo} (${source === "adendum" ? "adendum" : "HPS awal"}) aktif — ${res.itemCount} item. Baseline kurva-S di-regenerate.${carryInfo}`,
     };

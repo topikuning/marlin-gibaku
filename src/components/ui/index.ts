@@ -1,3 +1,5 @@
+export { ConfirmSubmit } from "./confirm-dialog";
+export { useDismissable } from "./use-dismissable";
 export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from "./button";
 export { Card, CardBody, CardHeader, CollapsibleCard } from "./card";
 export { KpiCard, type KpiCardProps, type KpiTone } from "./kpi";

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { FileText, Printer } from "lucide-react";
 import { Card, CardBody, CardHeader, EmptyState, PageHeader } from "@/components/ui";
 import { requireUser, accessibleLocationIds } from "@/lib/auth/session";
+import { locationScopeWhere } from "@/lib/auth/scope";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
 import { jakartaDateKey, formatTanggal } from "@/lib/format";
@@ -18,12 +19,12 @@ export default async function LaporanPage() {
 
   const [locations, recentFinal] = await Promise.all([
     db.location.findMany({
-      where: { ...(scoped === null ? {} : { id: { in: scoped } }), isActive: true },
+      where: { ...locationScopeWhere(user, scoped), isActive: true },
       select: { id: true, name: true, slug: true, province: true },
       orderBy: { name: "asc" },
     }),
     db.dailyReport.findMany({
-      where: { status: "final", ...(scoped === null ? {} : { locationId: { in: scoped } }) },
+      where: { status: "final", ...(scoped === null ? { location: { package: { orgId: user.orgId } } } : { locationId: { in: scoped } }) },
       orderBy: { reportDate: "desc" },
       take: 20,
       select: { id: true, reportDate: true, location: { select: { name: true, slug: true } } },

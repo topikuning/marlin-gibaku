@@ -1,11 +1,15 @@
 # OPEN_ISSUES.md
 
-Bug + technical debt + missing pieces. Ditulis ulang saat rebuild total 2026-07-14
+Bug + technical debt + missing pieces yang MASIH TERBUKA. Yang sudah selesai
+dihapus dari sini — riwayatnya ada di `DECISIONS.md` dan git history.
+
+Priority: 🔴 Critical (blocking production) · 🟡 Important · 🟢 Nice-to-have ·
+🔵 Future · **KEPUTUSAN** = menunggu jawaban user, bukan pekerjaan teknis.
+
+Ditulis ulang saat rebuild total 2026-07-14
 (isu lama pra-rebuild ada di git history — mayoritas selesai by design di rebuild:
 audit log kini ditulis tiap mutasi, rate limit login ada, session revocable,
 anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary baru).
-
-Priority: 🔴 Critical (blocking production) · 🟡 Important · 🟢 Nice-to-have
 
 ---
 
@@ -97,14 +101,15 @@ lambat). Kalau di produksi masih terasa: opsi = virtualisasi/segmentasi tabel
 per kategori, atau render PDF di server (jalur `lib/pdf/periodik.ts` sudah ada)
 sebagai jalur cetak utama.
 
-## PERF · Kontrol jumlah kategori tanpa item (DECISIONS 151)
+## 🟡 Kategori RAB tanpa item (DECISIONS 151, diperkuat audit M8)
 `getPeriodReport` hanya membentuk kategori dari lineage ITEM yang ada. Kategori
 RAB yang punya `amount` tetapi tidak punya item sama sekali tidak muncul di
 tabel, sementara `amount`-nya tetap masuk `grandTotal` — akibatnya Σ bobot item
 < 100%. Belum pernah terlihat pada data nyata (importer selalu membuat item),
-dan uji integrasi menjaga Σ bobot = 100 untuk RAB normal. Kalau suatu saat
-muncul, keputusannya: tampilkan kategori kosong dengan bobot 0, atau keluarkan
-`amount`-nya dari `grandTotal`. Perlu keputusan user.
+dan uji integrasi menjaga Σ bobot = 100 untuk RAB normal. Sejak audit 2026-07-27 ada uji integrasi yang menjaga `Σ amount kategori ==
+Σ amount item` pada revisi aktif, jadi drift akan ketahuan. Kalau suatu saat
+kondisinya muncul di data nyata, keputusannya: tampilkan kategori kosong dengan
+bobot 0, atau keluarkan `amount`-nya dari `grandTotal`. Perlu keputusan user.
 
 ## KEPUTUSAN · Level status progress belum dipisah (Calculation Integrity Protocol)
 
@@ -145,18 +150,75 @@ DECISION REQUIRED:
 Sampai diputuskan, kode TIDAK diubah: mengganti level status diam-diam persis
 yang dilarang protokol.
 
-## KEPUTUSAN · `dataAsOf` belum melekat di setiap angka (Calculation Integrity Protocol)
+## KEPUTUSAN · `dataAsOf` belum melekat di setiap angka (CIP; audit M5)
 
 Protokol meminta tiap angka membawa metadata (`dataAsOf`, `calculationKey`,
 `statusLevel`, `revisionId`, `baselineId`, `sourceEntityIds`) supaya bisa
-di-drill-down. Saat ini hanya AI Hub Pulse yang punya `dataAsOf`; modul lain
-mengembalikan angka telanjang.
+di-drill-down. Saat ini hanya AI Hub Pulse yang punya `dataAsOf`.
 
-Yang sudah aman tanpa metadata itu: laporan periodik memakai batas periode
-eksplisit (diuji di *Date-as-of gate*), dan `new Date()` hanya dipakai untuk
-membatasi kolom minggu di DEPAN minggu berjalan — laporan periode lampau
-stabil (juga diuji). Jadi ini soal ketertelusuran, bukan kebenaran angka.
+Wujud konkretnya di `getLocationProgress`: realisasi dihitung untuk SELURUH
+waktu sementara `planPct` memakai minggu berjalan menurut jam dinding. Untuk
+"hari ini" angkanya benar; yang tidak bisa dijawab adalah **"berapa angkanya
+per 30 Juni?"**. Laporan periodik tidak punya masalah ini — ia memakai batas
+periode eksplisit dan sudah diuji stabil terhadap "hari ini" (*Date-as-of
+gate*). Jadi ini soal ketertelusuran, bukan kebenaran angka.
 
-Perlu keputusan: apakah presentation contract berlabel penuh sepadan dengan
-refactor lintas modul, atau cukup ditambahkan pada laporan resmi (blanko KKP,
-PDF, Excel) saja.
+Opsi: (a) tambah parameter `asOf` pada `getLocationProgress`; (b) cukup beri
+label "s.d. hari ini" pada setiap KPI dashboard; (c) presentation contract
+berlabel penuh lintas modul. Perlu keputusan — (a) dan (c) refactor besar,
+(b) murah dan sudah menghilangkan salah tafsir.
+
+## 🟢 Jadwal asumsi (SPMK belum terbit) tidak ditandai di output (audit M9)
+
+`getPeriodBounds(locationId, { assume: true })` mengasumsikan kontrak mulai HARI
+INI ketika SPMK belum ada, supaya kurva-S rencana tetap bisa dilihat. Flag
+`assumed` ADA di `PeriodBounds` tetapi tidak diteruskan ke `PeriodReport`,
+sehingga halaman Cetak Jadwal / Unduh Excel tidak memberi tanda bahwa tanggalnya
+karangan. Laporan periodik resmi tidak terpengaruh (dipanggil tanpa `assume`).
+
+## 🟢 Pembulatan belum seragam antar layer (audit L9, L10)
+
+- `pct()` dan `bobotPct()` mengubah uang `BigInt` → `Number`. Aman untuk rupiah
+  (jauh di bawah 2^53) tetapi melanggar aturan "jangan ubah BigInt uang jadi
+  Number tanpa alasan" — alasannya perlu ditulis eksplisit atau polanya diganti.
+- SQL memakai `::bigint` (Postgres: round-half-away-from-zero), TS memakai
+  `Math.round` (half-up). Berbeda arah hanya pada nilai negatif tepat `.5`.
+  Tidak terjangkau alur normal (volume negatif ditolak di input), tetapi kalau
+  suatu saat koreksi negatif diizinkan, ini harus diseragamkan lebih dulu.
+
+## 🟢 Paritas output belum diuji untuk PDF / Excel / WhatsApp / AI (audit E)
+
+PDF, Excel, komponen cetak, dan payload AI semuanya mengonsumsi objek
+`PeriodReport` / `getLocationsProgress` yang sama, jadi kesamaannya bersifat
+struktural. Tetapi tidak ada test yang MEMBUKTIKAN angka di file hasil render
+sama dengan angka di layar. Kalau suatu saat ada yang menyisipkan pembulatan di
+renderer, tidak ada yang menangkapnya.
+
+## Audit total 2026-07-27 — sisa yang sengaja di-defer (P0 di DECISIONS 154, P1/P2 di DECISIONS 155)
+
+Semua temuan B1–B19 sudah dikerjakan (lihat DECISIONS 154–155). Yang tersisa
+adalah defer eksplisit + item yang butuh keputusan:
+
+- 🟡 **UI — migrasi primitif Modal/Drawer penuh**: 4 dialog/drawer ad-hoc sudah
+  dapat Escape + focus-restore (`useDismissable`, `ConfirmSubmit`), tetapi belum
+  jadi satu primitif Modal/Drawer bersama (focus trap penuh + inert background).
+- 🟢 **UI — token tipografi**: skala font de-facto (10/11/12/13px, 262 kemunculan
+  `text-[Npx]`) belum diangkat jadi token; sensus 53 tombol mentah belum
+  dimigrasi semua ke `Button` (yang paling terlihat sudah: masuk, ganti-password,
+  foto).
+- 🟢 **UI — a11y lanjutan**: combobox belum `aria-activedescendant`; toggle
+  lihat-password belum focusable; token warna khusus cetak belum ada.
+- 🟢 **Paritas render**: belum ada test yang membuktikan angka PDF/Excel/WA/AI ==
+  layar (lihat bagian "Paritas output" di atas).
+- 🟡 **B17 (bagian transaksi)**: aktivasi revisi + regenerate baseline masih 2
+  transaksi. Kegagalan regenerate kini DILAPORKAN jujur ke user (bukan error
+  generik) + jalur pemulihan ("Hitung ulang kurva-S"); penyatuan ke satu
+  transaksi DB (ribuan node + baseline) di-defer.
+
+## KEPUTUSAN · Basis penagihan termin: level status (audit B4+B5)
+
+PPN sudah dibereskan best-practice (DECISIONS 155): `unbilled` kini membandingkan
+apel-ke-apel — terpasang di-gross-up ke incl-PPN via `Contract.ppnPercent`
+sebelum dikurangi billing (incl-PPN). Yang MASIH menunggu keputusan: basis
+terpasang memakai level COUNTED (dilaporkan) atau VERIFIED — ini bagian dari
+KEPUTUSAN "Level status progress" di atas, bukan keputusan terpisah.

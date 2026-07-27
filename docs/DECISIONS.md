@@ -3303,3 +3303,446 @@ periodik) · build ✓ · E2E 16 ✓.
 tarikan image Docker Hub diblokir proxy (403 dari cloudfront). Gate itu
 dijalankan oleh job "Docker build" di CI, bukan lokal; jangan dianggap terbukti
 sampai CI hijau.
+
+## 153 · 2026-07-27 · Tindak lanjut audit independen + dokumentasi dirapikan
+
+**Pemicu:** user memberikan `AUDIT_MARLIN_DEV_20260727.md` (audit independen,
+berbasis pembacaan tanpa menjalankan perintah apa pun) dan meminta temuannya
+diverifikasi lalu diperbaiki bila memang benar.
+
+### Temuan yang TERBUKTI dan diperbaiki
+
+**C1 · Tidak ada constraint satu revisi aktif per lokasi.** Query realisasi
+JOIN ke `rab_revisions … status='aktif'`; dua revisi aktif = fan-out = realisasi
+DOBEL, tanpa error. `activateRevision` memang sudah atomik di `$transaction`,
+tetapi dua transaksi bersamaan pada isolation level default masih bisa lolos —
+disiplin kode saja tidak cukup. Migration `20260727140000_one_active_per_location`
+memasang partial unique index pada `rab_revisions` DAN `baselines` (masalah yang
+sama persis), setelah merapikan duplikat yang mungkin sudah ada (pertahankan
+nomor tertinggi). Diverifikasi: Prisma TIDAK menganggap partial index sebagai
+drift, jadi `migrate diff` tetap bersih.
+
+**H2 · Paritas SQL ↔ TS.** `prestasiPct` (TS) meng-clamp ke 0; SQL hanya punya
+`LEAST(1.0, …)` tanpa batas bawah, dan `NULLIF(volume, 0)` tidak menangkap
+volume negatif. Diperbaiki jadi
+`GREATEST(0.0, LEAST(1.0, Σvol / NULLIF(GREATEST(volume,0), 0)))` + uji paritas.
+
+**H3 · Protokol tidak ada di repo.** Prompt auditor menunjuk
+`docs/rebuild/CALCULATION_INTEGRITY_PROTOCOL.md` yang tidak pernah ada.
+Disimpan di repo DENGAN tabel contract yang sudah dikoreksi — versi aslinya
+masih memuat `realizedValue = Σ valueDone` yang batal sejak DECISIONS 151, dan
+kalau dibiarkan, pembaca berikutnya akan "memperbaiki" kode agar cocok dengan
+dokumen yang salah.
+
+**H4 · Tiga besaran berbeda bernama sama.** `keuangan/page.tsx` memakai
+`realizedPct = pct(expenseApproved, budgetTotal)` — itu **serapan biaya**,
+bukan progress fisik — dan melabelinya "Realisasi". Di halaman lokasi yang sama
+seseorang bisa membaca "Realisasi 45%" (biaya) dan "Realisasi 71%" (fisik) lalu
+menyimpulkan deviasi yang tidak ada. Diganti `serapanBiayaPct` / "Serapan
+Biaya" / "Realisasi Biaya".
+
+**H5 · pnpm 11.13.0 adalah rilis RUSAK menurut vendornya sendiri** (`npm view
+pnpm@11.13.0 deprecated` → "This is a broken version. Please install pnpm
+v11.13.1 or newer"). Dinaikkan ke 11.17.0; lockfile TIDAK berubah.
+
+**M6 · Formula bisnis di React component.** `gapValue` + fallback
+`unitPrice = amount / volume` dipindah ke `progress-calc.laggingItems()`.
+Fallback itu mengarang harga satuan yang tidak ada di dokumen RAB; diganti
+proporsi terhadap `amount`.
+
+**M10 · CI tidak berjalan pada push ke `dev`.** DITOLAK setelah dicoba.
+
+Menambahkan `dev` ke trigger `push` membuat setiap commit memicu DUA event
+(push + pull_request) sehingga CI berjalan dobel. Upaya menutupnya dengan
+`concurrency: ci-${{ github.sha }}` gagal diam-diam — pada event
+`pull_request`, `github.sha` adalah SHA merge-commit bikinan GitHub, bukan SHA
+commit yang di-push, jadi kedua run tidak pernah masuk grup yang sama (terbukti
+8 check untuk satu commit). Diperbaiki ke
+`pull_request.head.sha || github.sha`: dedup berhasil (run push dibatalkan
+dalam 2 detik), TETAPI setiap PR jadi memampang 4 check *cancelled* di samping
+4 yang hijau.
+
+Ditimbang ulang: trigger itu hanya menutup celah "push ke `dev` sebelum PR
+dibuat" — jendela beberapa menit dalam alur yang selalu berujung PR. Harganya
+noise permanen di setiap PR. Trigger `push` dikembalikan ke `[main]` saja.
+
+Yang DIPERTAHANKAN dari percobaan ini: blok `concurrency` dengan grup per-PR
+(`github.event.pull_request.number || github.ref`). Ini membatalkan run yang
+sudah usang ketika ada push baru ke PR yang sama — manfaat nyata yang tidak ada
+sebelumnya, tanpa efek samping.
+
+**L8 · PPN selalu dibulatkan ke bawah** (pembagian BigInt memotong). Diganti
+half-up, simetris untuk nilai negatif.
+
+**M7/M8 · Uji yang bolong.** Ditambahkan: siklus koreksi dihitung sekali,
+paritas SQL↔TS, Σ amount kategori = Σ amount item, constraint revisi/baseline
+ganda, pembulatan PPN.
+
+### Temuan yang KELIRU — tidak diubah
+
+- **#13 "volume > kontrak tidak ada test penolakan"** — ada, sejak awal:
+  `daily-report-flow.test.ts` "guard: volume kumulatif melebihi volume RAB
+  ditolak".
+- **#15 "PPN tanpa test"** — `money.test.ts` punya 4 case `contractMismatch`
+  plus `ppnAmount`/`withPpn`. Auditor tampaknya mencari string "ppn" huruf
+  kecil dan tidak menemukan `ppnAmount`.
+- **M9 "`new Date()` sebagai fallback startDate tidak ditandai"** — `new Date()`
+  di `periodic-report.ts:199` hanya hidup di cabang `assume` (khusus pratinjau
+  jadwal sebelum SPMK), dan di `:463` untuk membatasi kolom minggu di DEPAN
+  minggu berjalan. Laporan periodik resmi tidak memakainya. Yang benar dari
+  temuan ini hanyalah: flag `assumed` tidak diteruskan ke output — dicatat di
+  OPEN_ISSUES sebagai 🟢.
+
+### Temuan yang BENAR tapi sengaja tidak dikerjakan
+
+M5 (`dataAsOf` pada `getLocationProgress`), L9/L10 (keseragaman pembulatan),
+paritas PDF/Excel/WA/AI, dan pemisahan level status — semuanya butuh keputusan
+user atau refactor lintas modul. Dicatat di `docs/OPEN_ISSUES.md`.
+
+**M4 (`dev` tidak lagi mendahului `main`)** bukan temuan kode: itu konsekuensi
+normal setelah PR di-merge. Alur yang berlaku tetap `dev` → PR → `main`.
+
+### Dokumentasi dirapikan
+
+- **`docs/README.md` baru** — peta navigasi: mana yang HIDUP, mana ARSIP, dan
+  aturan merawat dokumentasi.
+- **`PERMISSION_MATRIX.md` sekarang DIBANGKITKAN** dari `src/lib/authz.ts`
+  (`pnpm docs:permission`), dijaga `tests/unit/permission-matrix-doc.test.ts`.
+  Sebelumnya tertinggal 43 vs sebagian kecil capability yang tercatat — persis
+  jenis dokumen yang tidak boleh ditulis tangan.
+- **`TEST_PLAN.md` ditulis ulang** memisahkan "sudah ada" (angka nyata: 31
+  berkas unit / 390 case, 4 integration / 47 case, 1 E2E / 16 case) dari
+  "direncanakan". Versi lama membaca seolah 9 skenario E2E sudah ada padahal
+  baru autentikasi.
+- **`SESSION_LOG.md` DIHAPUS** — berhenti diperbarui berbulan-bulan, dan
+  entri terakhirnya mengklaim menghapus `DEPLOY_RAILWAY.md` yang nyatanya masih
+  ada. `DECISIONS.md` sudah menjadi log yang sebenarnya.
+- **11 artefak rebuild diberi banner ARSIP** supaya tidak terbaca sebagai
+  spesifikasi berjalan.
+- `TECHNOLOGY_AUDIT.md` (pnpm), `OPEN_ISSUES.md` (konvensi + temuan baru,
+  entri `dataAsOf` ganda digabung), `CLAUDE.md`, dan `README.md` diselaraskan.
+
+### Verifikasi
+
+typecheck ✓ · lint ✓ · unit 390 ✓ · integration 47 ✓ · build ✓ · E2E 16 ✓.
+`docker build --no-cache` tetap tidak dapat dijalankan di lingkungan kerja
+(tarikan Docker Hub diblokir proxy) — dibuktikan job Docker build di CI.
+
+## 154 · 2026-07-27 · Eksekusi P0 audit total (B1, B2, B4, B6, B9, B8, UI-konfirmasi)
+
+**Pemicu:** user memberikan `AUDIT_TOTAL_MARLIN_20260727.md` (audit menyeluruh —
+kalkulasi + UI/UX, dijalankan dengan test hijau di lingkungan auditor) dengan
+perintah "cek dan eksekusi". Semua temuan P0 diverifikasi ke kode dulu —
+seluruhnya TERBUKTI — lalu dieksekusi. Keputusan bisnis (bagian I audit) tidak
+diputuskan sendiri; dicatat di OPEN_ISSUES.
+
+### B1 (CRITICAL) — guard volume harian bisa ditembus tanpa race
+
+Guard "kumulatif ≤ volume RAB" hanya berjalan saat item DISIMPAN, dan hanya
+melihat laporan yang sudah counted. Dua draft di dua tanggal masing-masing
+lolos, lalu keduanya dikirim — kumulatif melampaui RAB tanpa error. Jalur yang
+sama terbuka lewat `perlu_koreksi`.
+
+**Fix:** `assertVolumeWithinRab()` — re-validasi DI DALAM transaksi transisi
+`→ dikirim`: kumulatif counted laporan LAIN + item laporan ini ≤ volume RAB.
+Pesan error menyebut item dan sisa. Regresi: dua draft dua tanggal → submit
+kedua ditolak, status tetap draft, koreksi ke sisa yang sah lolos.
+
+### B2 (CRITICAL) — blanko harian jalur LIVE menampilkan >100%
+
+`getKkpDailyData` jalur live menghitung `vol/volK×100` tanpa cap — situs
+KETIGA rumus ini; dua lainnya sudah dibetulkan DECISIONS 151, yang ini terlewat.
+Item over-volume tampil 110% di pratinjau/PDF/Excel harian, 100% di blanko
+mingguan. **Fix:** `prestasiPct`. Regresi: item 110/100 → `pctCumulative` 100,
+volume mentah tetap 110 (fakta lapangan tidak disembunyikan).
+
+### B4 (HIGH) — label "terverifikasi" palsu di keuangan
+
+`installedValue` = level COUNTED (dikirim+disetujui+final) tetapi dilabeli
+"nilai terpasang terverifikasi" di `/keuangan`, dan `unbilledWork` menamai
+parameternya `installedVerified`. **Fix label** (basis TIDAK diubah — itu
+keputusan user): "dilaporkan (dikirim+disetujui+final) — belum tentu
+terverifikasi"; param → `installedReported`; jsdoc dikoreksi.
+
+### B6 (HIGH) — race double-payment
+
+`addPayment`/`addDisbursement`/`createExpense` = aggregate→guard→create pada
+READ COMMITTED; dua request paralel sama-sama lolos guard → kas keluar dobel,
+disembunyikan clamp `0n`. **Fix:** lapisan baru `lib/finance/apply.ts`
+(`applyPaymentTx`/`applyDisbursementTx`) dengan `SELECT … FOR UPDATE` pada
+baris induk sebelum agregasi; `createExpense` mengunci baris komitmen dengan
+pola sama. Regresi konkurensi NYATA: dua pembayaran paralel 60jt atas invoice
+100jt → tepat satu ditolak, total tersimpan 60jt; idem pencairan termin.
+
+### B9 (HIGH) — scope bocor di jalur baca AI
+
+Jalur generate ketat (`resolveAiScope`), jalur baca hanya cek `ai.view`.
+**Fix:** `lib/ai-hub/read-scope.ts` (`scopeCoveredBy` — murni, diuji): user
+boleh membaca run/artefak hanya bila SEMUA `scopeIds` run tercakup izinnya;
+scope kosong/korup = tolak untuk role scoped. Diterapkan di **7 jalur** (audit
+menyebut 4): halaman run, daftar artefak, route Excel, halaman cetak, plus
+`/ai/history` dan 3 action lifecycle artefak (transisi/edit/distribusi) yang
+sekelas bocornya. Respons 404/"tidak ditemukan", bukan 403 — keberadaan tidak
+dikonfirmasi.
+
+### B8 (HIGH, kecil) — TOTAL bobot PDF hardcode 100
+
+Diganti Σ `subtotalBobot` nyata — PDF tidak boleh bercerita lain dari
+layar/Excel pada kasus kategori-tanpa-item.
+
+### UI-P0 — konfirmasi untuk persetujuan keuangan
+
+Primitif dialog PERTAMA di repo: `ui/confirm-dialog.tsx` (`ConfirmSubmit`) —
+role=dialog + aria-modal, focus trap, Escape menutup, fokus dipulihkan ke
+pemicu (pola APG). Dipakai tombol **Setujui** di antrean approval `/keuangan`
+dan panel lokasi; dialog menyebut jenis + nomor + nominal transaksi. Tombol
+pembuka **Tolak** diturunkan ke `secondary` (bukan danger filled berdampingan
+primary) — aksi finalnya tetap lewat form alasan. Diverifikasi browser: klik
+pertama TIDAK menyetujui apa pun, Escape menutup, konfirmasi menyetujui.
+
+### Temuan audit yang DIPERIKSA dan DITOLAK
+
+**B16a** (`rebuildFinalSnapshots` tanpa `requireLocationAccess`): gate-nya
+`system.manage` = super_admin SAJA, plus filter `orgId` — `requireLocationAccess`
+untuk super_admin selalu lolos, jadi "kaki tripod yang hilang" tidak berdampak.
+Tidak diubah.
+
+### Verifikasi
+
+typecheck ✓ · lint ✓ · unit **394** ✓ · integration **52** ✓ (finance-race
+baru: 3) · build ✓ · uji browser dialog konfirmasi ✓.
+
+Sisa temuan audit (P1/P2 + UI) dan 3 keputusan baru dicatat di OPEN_ISSUES.
+
+## 155 · 2026-07-27 · Eksekusi P1/P2 audit total — keuangan best-practice, konsistensi angka, guard, UI
+
+**Konteks.** Lanjutan DECISIONS 154. Instruksi user: fitur keuangan tidak perlu
+menunggu keputusan bisnis — perbaiki menurut best practice; sisanya (konsistensi
+angka, guard, UI) diselesaikan sekalian. Semua ID mengacu laporan
+AUDIT_TOTAL_MARLIN_20260727.
+
+### Keuangan (best-practice defaults, bisa direvisi user)
+
+- **B5 — PPN apel-ke-apel.** `unbilledWork(installedReportedPreTax, billed,
+  ppnPercent)` kini meng-gross-up terpasang ke incl-PPN via
+  `withPpn(…, Contract.ppnPercent)` sebelum dikurangi billing (incl-PPN).
+  Dulu pre-PPN dikurangi incl-PPN → "belum tertagih" understated ~PPN%.
+  Basis level status TETAP counted (menunggu KEPUTUSAN level status).
+- **B14a — retensi billing draft tidak dihitung**: `getContractsBilling`
+  mengakumulasi `retentionHeld` hanya untuk status non-draft.
+- **B14b — ambang `cair` memperhitungkan retensi**: pencairan lunas ketika
+  `received ≥ amount − retentionHeld` (dulu `≥ amount` → termin ber-retensi
+  tak pernah "cair").
+- **B14c — validasi silang retensi kontrak**: `createOwnerBilling` menolak
+  `retentionHeld` > ceil(amount × `Contract.retentionPercent`%). Lebih KECIL
+  boleh — kontrak KNMP mengizinkan retensi diganti jaminan pemeliharaan.
+- **B15 — four-eyes.** `assertFourEyes` di approve komitmen/expense/invoice/
+  billing: pengaju tidak boleh menyetujui transaksinya sendiri. Break-glass:
+  super_admin BOLEH self-approve tetapi flag `selfApprove: true` masuk audit
+  log (jejak, bukan larangan — tim kecil butuh jalan darurat).
+
+### Konsistensi angka
+
+- **B13 — satu agregat kanonik.** `weightedRealizedPct`/`weightedPct` di
+  `progress-calc.ts` menggantikan 4 fork (dashboard, /progress, /paket, gate
+  serah_terima) yang beda penanganan div-0 & pembulatan.
+- **B12 — panel saran se-basis laporan resmi.** grandTotal = Σ amount kategori
+  + bobot dari `amount` (dulu Σ vol×harga = basis "Realisasi" keempat);
+  toleransi test dikencangkan kembali ke 2 desimal.
+- **B3 — kurva resmi satu basis.** `updateBaselinePoints` menyalin
+  `scheduleItems` dari baseline acuan (bila jumlah minggu sama) sehingga
+  dokumen KKP hal-1 (kurva) dan hal-2 (matriks) tidak bercerita beda setelah
+  edit manual; `buildKurvaSheet` menerima `planCumOfficial` (points resmi)
+  sebagai baris kumulatif rencana, mingguan = selisihnya.
+- **B7 — Excel berhenti di cutoff.** Baris realisasi/deviasi & seri chart
+  hanya sampai minggu laporan terakhir (dulu carry-forward sampai akhir
+  kontrak, beda dari layar/PDF).
+
+### Guard
+
+- **B16b** — enrichment (isu/cuaca/foto) pada laporan `dikirim` kini butuh
+  `daily_report.review`; pembuat hanya di `draft`/`perlu_koreksi`.
+  **B16c** — `addIssueFromReport` menolak laporan `final`.
+- **B11 — scope org.** `lib/auth/scope.ts` (`locationScopeWhere`): role
+  lintas-lokasi (`locIds === null`) difilter `package.orgId` di beranda,
+  progress, keuangan, lokasi, laporan, hari-ini, dokumen, dashboard, peta.
+  Dorman selama single-org, meledak saat org kedua — ditutup sekarang.
+- **B18 — kuota AI.** Hitungan harian org difilter user se-org (AiRun tidak
+  punya relasi user → two-step `orgUserIds`); batas hari = midnight
+  Asia/Jakarta (`jakartaDateKey`), bukan midnight server.
+- **B19 — dataAsOf jujur.** `dataAsOf` = watermark data (max `updatedAt`
+  laporan/kegiatan dalam scope; null bila kosong), ditampilkan WIB — bukan
+  jam render yang menyulap data basi jadi terlihat segar.
+- **B10 — validasi klaim AI sadar-tanda.** Deviasi −8% tidak lagi tervalidasi
+  oleh +8% resmi; `sections[].body` ikut dicek (section gagal DIBUANG per
+  kontrak PROJECT.md §5a); `waSummary` gagal-cek dikosongkan + `droppedNote`.
+- **B17 — adendum tidak menghilangkan realisasi diam-diam.** (1) Pratinjau
+  impor menampilkan PERINGATAN daftar item ber-realisasi yang tidak ditemukan
+  di file baru (pilihan best-practice: warning, bukan blokir — adendum resmi
+  memang boleh menghapus item). (2) Kegagalan `regenerateBaseline` SETELAH
+  revisi aktif dilaporkan apa adanya ("revisi SUDAH AKTIF, kurva-S gagal —
+  tekan Hitung ulang"), bukan error generik seolah impor batal. Penyatuan ke
+  satu transaksi DB di-defer (OPEN_ISSUES).
+
+### UI (quick wins; defer dicatat di OPEN_ISSUES)
+
+- Tombol submit `/masuk` & `/ganti-password` + "Terapkan" `/foto` → primitif
+  `Button`; hover `opacity-90` terakhir diganti token.
+- `CardHeader`: `flex-wrap` + slot aksi `min-w-0` — di 390px aksi melipat ke
+  bawah, judul tidak terpotong ("K S"). Overflow horizontal
+  `/lokasi/[slug]/progress` @390px = 0px (diverifikasi browser).
+- **Peredam prognosa**: `forecast.ts` horizon = akhir kontrak + 52 minggu;
+  proyeksi yang jatuh melewatinya (SPI≈0 → "16 Apr 2086, telat ~3115 mgg")
+  tampil "Belum bisa diperkirakan — laju terlalu rendah", status tetap
+  "telat", `projectedPctAtEnd` tetap dihitung. Unit test 2 arah (diredam vs
+  telat moderat tetap tampil).
+- `useDismissable` (ui): Escape + pemulihan fokus utk drawer ad-hoc — dipakai
+  drawer menu bottom-nav & drawer sumber Pulse. Diverifikasi browser: Escape
+  menutup, fokus kembali ke pemicu.
+
+### Verifikasi
+
+typecheck ✓ · lint ✓ · unit **396** ✓ (forecast damper baru: 2) · integration
+**52** ✓ · build ✓ · browser: keuangan (label + antrean), progress desktop
+(damper aktif di data seed), progress @390px (overflow 0), drawer Escape ✓.
+
+## 156 · 2026-07-27 · Laporan mingguan: Excel tertaut ke rincian + header tabel blanko KKP
+
+**Permintaan user.** (1) Baris "Realisasi Prestasi %" di sheet kurva-S Excel
+selama ini angka tempelan — harus TERTAUT ke detail laporan di rincian,
+terutama minggu aktif. (2) Header tabel rincian harus mengikuti blanko KKP.
+
+### Tautan Excel (satu rantai rumus sampai kurva)
+
+- Sheet **Laporan**: subtotal kategori = rumus `SUM(...)` atas baris item;
+  baris **JUMLAH** = penjumlahan sel subtotal. Nilai cache = angka resmi
+  aplikasi, jadi pembaca tanpa recalc melihat angka yang sama.
+- Sheet **Kurva S**: sel "Realisasi Prestasi %" **minggu laporan** =
+  `=Laporan!K<JUMLAH>` (total "Bobot Minggu ini"). Baris kumulatif & grafik
+  sudah membaca baris itu → tautan menjalar sampai kurva. Hanya laporan
+  MINGGUAN (bulanan mencakup >1 kolom minggu, tak bisa dipetakan ke satu sel);
+  minggu di luar cutoff realisasi tetap kosong (B7 dipertahankan).
+
+### Header blanko KKP (layar + Excel)
+
+`No | Uraian Pekerjaan | Volume Kontrak | Satuan | Bobot | Realisasi Pekerjaan
+{Minggu Lalu / Minggu ini / S-d Minggu ini × Volume, Prestasi, Bobot} |
+Bobot Rencana | Sisa Pekerjaan {S-d Minggu ini: Prestasi, Volume}` — 3 baris
+merge. Kolom "Harga Satuan" DIBUANG (tidak ada di blanko; sering kosong di RAB
+impor). Kolom Bobot per kelompok memakai `bobotLalu/bobotIni/bobotSd` yang
+sudah ada (kolom selalu menjumlah, DECISIONS 151).
+
+### Kolom baru "Bobot Rencana" (per item)
+
+Jadwal rencana disimpan per KATEGORI (DECISIONS 103), maka rencana per item =
+bobot × fraksi rencana kategorinya (`planFractionFromWeekly`, progress-calc).
+**Gate rekonsiliasi**: Σ matriks kategori boleh beda tipis dari titik baseline
+resmi (mis. setelah edit manual titik, B3) — supaya satu dokumen tidak
+menampilkan dua angka rencana, kolom didistribusikan via `distributeWithCaps`
+(waterfilling, plafon = bobot item) sehingga **JUMLAH kolom == planPct resmi
+persis**; bentuk antar-kategori tetap mengikuti matriks. Uji integrasi
+menuntut `totals.bobotRencana ≈ planPct` (6 desimal) tiap minggu + monoton +
+per-item ≤ bobot.
+
+### Verifikasi
+
+typecheck ✓ · lint ✓ · unit **405** (planFractionFromWeekly 4 + 
+distributeWithCaps 5) · integration **53** (kolom Bobot Rencana + rekonsiliasi)
+· build ✓ · file .xlsx nyata dibongkar: `E25 = Laporan!K1704` (minggu 2),
+`K1704 = K73+K107+…` (rantai subtotal), `O JUMLAH = 22,40` == rencana resmi
+minggu 2 ✓ · tampilan layar diverifikasi browser.
+
+---
+
+## 157 · 2026-07-27 · Kolom Bobot kurva-S = SUM kolom minggu; sebaran wilayah dashboard = populasi peta
+
+### Kolom "Bobot (%)" bukan lagi angka tempelan
+
+Permintaan user: kolom bobot di sheet Kurva S adalah penjumlahan sel minggu di
+barisnya. Excel kini menulis `=SUM(D{r}:{kolom minggu terakhir}{r})` per baris
+kategori (cache = bobot kategori), dan baris "Kumulatif Rencana" memuat
+`=SUM(C{baris pertama}:C{baris terakhir})` menggantikan teks "100,00" statis di
+layar/PDF. Baris rencana per minggu **tetap** memakai kurva baseline resmi
+(B3) — jadwal kategori adalah rincian, mengeditnya di Excel tidak menggeser
+kurva resmi.
+
+### Pembulatan penjaga-jumlah (`allocateRounded`, kkp-sheet.ts)
+
+Kalau tiap sel minggu dibulatkan sendiri-sendiri (3 desimal), `=SUM(...)` bisa
+meleset dari bobot resmi kategori — kolom yang seharusnya menjumlah malah
+menampilkan 4,32 di tempat 4,33. Angka TAMPIL karena itu dialokasikan sekali di
+calculation layer dengan metode sisa terbesar: `weeklyShown` (3 desimal)
+menjumlah persis ke `bobotShown` (2 desimal), dan Σ `bobotShown` = total tabel.
+Total dipatok 100,00 **hanya** bila selisih jadwal terhadap 100 sebatas galat
+pembulatan (≤0,05); jadwal yang memang belum menutup 100% ditampilkan apa
+adanya. Minggu bernilai 0 tidak pernah menerima alokasi — jeda tetap jeda.
+Layar/PDF dan Excel memakai `weeklyShown`/`bobotShown` yang sama.
+
+### Sebaran wilayah dashboard: satu populasi dengan peta
+
+Temuan user: kartu wilayah menampilkan Jawa 46, sisanya 0, padahal pin NTB/Bali
+jelas ada di peta. Sebabnya bukan ejaan provinsi melainkan **dua populasi dalam
+satu layar**: kartu menghitung `isActive: true` (lokasi berjalan), sedangkan
+peta menggambar semua lokasi ber-GPS termasuk lokasi target yang belum mulai.
+Keputusan user: kartu wilayah memotret **seluruh lokasi**, dan peta membedakan
+lokasi belum mulai. Perubahan:
+
+- `regions` dihitung dari query lokasi tanpa filter `isActive` (KPI submit
+  harian tetap atas lokasi berjalan, labelnya sudah "Aktif dipantau").
+- `MarkerTone` bertambah `idle` = belum mulai; pin digambar **berongga** dan
+  lebih kecil, dengan legenda "Belum mulai (target)". Filter "Belum Submit"
+  tidak lagi menyeret lokasi yang memang belum mulai.
+- `PetaMarker.isActive` ditambahkan sebagai sumber tone tersebut.
+
+### `regionOf` dipindah ke `src/lib/region.ts` + tahan variasi penulisan
+
+`Location.province` adalah teks bebas (ketik manual / ikut kolom Excel impor),
+tetapi dulu dicocokkan PERSIS ke tabel nama provinsi dan sisanya jatuh ke
+"Lainnya" yang tidak pernah ditampilkan — data bisa lenyap tanpa jejak.
+Sekarang: normalisasi (huruf kecil, buang tanda baca & kata "Provinsi"/"Prov."/
+"Daerah Istimewa") + alias singkatan (NTB, NTT, DIY, JATIM, …) + kata kunci
+pulau; dan ember "Lainnya" **ikut ditampilkan bila terisi** sehingga Σ kartu =
+jumlah lokasi.
+
+### Verifikasi
+
+typecheck ✓ · lint ✓ · unit **416** (kkp-sheet +5 termasuk fuzz deterministik
+300 jadwal acak — Σ weeklyShown == bobotShown & Σ bobotShown == 100 di semua
+kasus; region +4; xlsx-kurva-bobot +2 yang membaca file .xlsx hasil dan
+membuktikan Σ sel minggu tertulis == cache rumus) · build ✓.
+
+Batas galat yang melekat (bukan bug): sel minggu bisa menyimpang sampai ~0,011
+dari nilai penuh presisi **bila kategori hanya aktif satu minggu** — sel tunggal
+itu memikul seluruh pembulatan bobot ke 2 desimal. Konsekuensi metode sisa
+terbesar: sebuah bobot sesekali dibulatkan ke bawah (mis. 0,34606 → 0,34, bukan
+0,35) supaya kolom tetap menjumlah tepat 100,00. Kolom yang menjumlah dinilai
+lebih penting daripada pembulatan terdekat per sel.
+
+---
+
+## 158 · 2026-07-27 · Baris rencana kurva-S kembali RUMUS (membatalkan penguncian B3 di Excel)
+
+Keputusan user setelah menemukan baris "Rencana Prestasi %" dan "Kumulatif
+Rencana Prestasi %" di Excel berisi angka statik: **kembalikan persis seperti
+sebelum commit `60673a4`**.
+
+- `Rencana Prestasi %` = `SUM(kolom minggu itu, baris kategori pertama:terakhir)`
+- `Kumulatif Rencana` = `{kumulatif minggu lalu} + {rencana minggu ini}`
+
+Penguncian di B3 (DECISIONS 155) dilakukan agar baris rencana memakai kurva
+baseline RESMI (`scurve.planPct`) yang juga dipakai PDF halaman-2 dan dashboard.
+Efek sampingnya — rumus mati, rencana tidak lagi tertelusur ke jadwal
+pembentuknya — tidak diminta user dan tidak dilaporkan saat itu.
+
+**Konsekuensi yang diterima user**: bila matriks jadwal kategori berbeda dari
+kurva baseline resmi (hanya terjadi bila titik kurva pernah diedit manual tanpa
+menyentuh `scheduleItems`), angka rencana di Excel bisa berbeda tipis dari PDF
+halaman-2 dan dashboard. Layar/PDF tetap memakai kurva resmi.
+
+Nilai cache rumus diambil dari **sel kategori yang benar-benar ditulis**
+(bukan kurva resmi) supaya angka tersimpan tidak pernah bertentangan dengan
+hasil hitung Excel; cache baris helper grafik mengikuti sel yang dirujuknya.
+Uji penjaga: `tests/unit/xlsx-kurva-bobot.test.ts` menuntut kedua baris berupa
+rumus + cache == Σ sel kategori kolomnya.
+
+Verifikasi: typecheck ✓ · lint ✓ · unit **417** ✓ · build ✓.

@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Badge, Card, CardBody, CardHeader } from "@/components/ui";
-import { requireUser } from "@/lib/auth/session";
+import { accessibleLocationIds, requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
+import { scopeCoveredBy } from "@/lib/ai-hub/read-scope";
 import { AI_RUN_STATUS_LABEL, AI_RUN_STATUS_TONE } from "@/lib/lifecycle";
 import { formatTanggalWaktu } from "@/lib/format";
 
@@ -24,9 +25,9 @@ export default async function AiHistoryPage() {
   const user = await requireUser();
   requireCapabilityPage(user.role, "ai.view");
 
-  const runs = await db.aiRun.findMany({
+  const allRuns = await db.aiRun.findMany({
     orderBy: { createdAt: "desc" },
-    take: 50,
+    take: 100,
     select: {
       id: true,
       runKind: true,
@@ -47,6 +48,11 @@ export default async function AiHistoryPage() {
       createdAt: true,
     },
   });
+
+  // Riwayat difilter per scope BACA — sekelas dengan guard di halaman run
+  // (audit 2026-07-27, B9). Role scoped hanya melihat run dalam lingkupnya.
+  const accessible = await accessibleLocationIds(user);
+  const runs = allRuns.filter((r) => scopeCoveredBy(accessible, r.scopeIds)).slice(0, 50);
   const users = await db.user.findMany({
     where: { id: { in: [...new Set(runs.map((r) => r.userId))] } },
     select: { id: true, fullName: true },

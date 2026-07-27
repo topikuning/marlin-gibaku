@@ -36,7 +36,7 @@ export async function suggestWeeklyPlan(
   const [nodes, realizedByLineage, contractDays, baseline, loc] = await Promise.all([
     db.rabNode.findMany({
       where: { revisionId: revision.id, kind: { in: ["kategori", "item"] } },
-      select: { id: true, kind: true, code: true, name: true, unit: true, volume: true, unitPrice: true, lineageKey: true },
+      select: { id: true, kind: true, code: true, name: true, unit: true, volume: true, unitPrice: true, amount: true, lineageKey: true },
       orderBy: { sortOrder: "asc" },
     }),
     cumulativeVolumeByLineage(locationId),
@@ -102,16 +102,21 @@ export async function suggestWeeklyPlan(
   const currentWeek = startDate ? currentWeekNumber(startDate, totalWeeks) : Math.min(weekNumber, totalWeeks);
   const planPct = Number(points[currentWeek - 1]?.plannedPct ?? points[points.length - 1]?.plannedPct ?? 0);
 
-  // Deviasi di panel saran memakai formula yang sama dengan laporan resmi &
-  // dashboard (DECISIONS 151) — panel ini dipakai untuk mengambil keputusan,
-  // jadi tidak boleh menampilkan deviasi versinya sendiri.
-  const grandTotal = leaves.reduce((s, l) => s + l.volume * l.unitPrice, 0);
+  // Deviasi di panel saran memakai formula & BASIS yang sama dengan laporan
+  // resmi & dashboard: grandTotal = Σ amount KATEGORI, bobot dari `amount`
+  // (audit 2026-07-27, B12 — versi lama memakai Σ volume×unitPrice, basis
+  // "Realisasi" keempat; unitPrice boleh kosong di RAB impor).
+  const grandTotal = nodes
+    .filter((n) => n.kind === "kategori")
+    .reduce((s, n) => s + Number(n.amount), 0);
   const actualPct = realizedPctFromItems(
-    leaves.map((l) => ({
-      volK: l.volume,
-      volSd: realizedByLineage.get(l.lineageKey) ?? 0,
-      bobot: bobotPct(l.volume * l.unitPrice, grandTotal),
-    })),
+    nodes
+      .filter((n) => n.kind === "item")
+      .map((n) => ({
+        volK: n.volume != null ? Number(n.volume) : 0,
+        volSd: realizedByLineage.get(n.lineageKey) ?? 0,
+        bobot: bobotPct(Number(n.amount), grandTotal),
+      })),
   );
   const deviationPct = Math.round((actualPct - planPct) * 100) / 100;
 

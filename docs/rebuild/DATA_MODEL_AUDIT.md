@@ -1,5 +1,11 @@
 # DATA MODEL AUDIT — schema & logic lama (per b6e77af)
 
+> **ARSIP — schema & formula sistem LAMA (b6e77af).**
+> Bukan spesifikasi berjalan. Kondisi terkini ada di `PROJECT.md`
+> (arsitektur & formula), `docs/OPEN_ISSUES.md` (yang masih terbuka), dan
+> `docs/DECISIONS.md` (riwayat keputusan).
+
+
 Referensi lengkap hasil pembacaan `prisma/schema.prisma`, seluruh `src/lib/*.ts`, seed, dan scripts. Verdict final ada di `CURRENT_STATE_AUDIT.md`; target ada di `DOMAIN_MODEL.md`.
 
 ## Empat taksonomi lifecycle paralel (masalah inti #1)

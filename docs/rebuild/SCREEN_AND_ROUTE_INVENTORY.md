@@ -1,5 +1,11 @@
 # SCREEN & ROUTE INVENTORY — aplikasi lama (per b6e77af)
 
+> **ARSIP — rute aplikasi LAMA (b6e77af).**
+> Bukan spesifikasi berjalan. Kondisi terkini ada di `PROJECT.md`
+> (arsitektur & formula), `docs/OPEN_ISSUES.md` (yang masih terbuka), dan
+> `docs/DECISIONS.md` (riwayat keputusan).
+
+
 Verdict per modul di `CURRENT_STATE_AUDIT.md`. IA target di `TARGET_INFORMATION_ARCHITECTURE.md`.
 
 ## Route lama

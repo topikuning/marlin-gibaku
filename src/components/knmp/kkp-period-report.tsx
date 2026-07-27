@@ -54,27 +54,34 @@ export function KkpPeriodReport({ r }: { r: PeriodReport }) {
           tidak diulang di sini agar tidak redundan. Halaman ini fokus rincian item. */}
 
       {/* ── 1. Rincian capaian per item ── */}
+      {/* Header mengikuti blanko KKP: No | Uraian | Volume Kontrak | Satuan |
+          Bobot | Realisasi Pekerjaan (Lalu / Ini / S-d × Volume-Prestasi-Bobot)
+          | Bobot Rencana | Sisa Pekerjaan (Prestasi, Volume). */}
       <SectionTitle>1. Rincian Capaian per Item Pekerjaan</SectionTitle>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[940px] border-collapse text-[9.5px]">
+        <table className="w-full min-w-[1000px] border-collapse text-[9.5px]">
           <thead>
             <tr className="bg-slate-100 text-center">
-              <Th rowSpan={2} w="30px">No</Th>
-              <Th rowSpan={2} align="left">Uraian Pekerjaan</Th>
-              <Th rowSpan={2} align="right" w="66px">Vol. Kontrak</Th>
-              <Th rowSpan={2} w="40px">Sat.</Th>
-              <Th rowSpan={2} align="right" w="76px">Harga Satuan</Th>
-              <Th rowSpan={2} align="right" w="48px">Bobot %</Th>
-              <Th colSpan={2}>Realisasi Lalu</Th>
-              <Th colSpan={2}>Realisasi {periodeLabel} Ini</Th>
-              <Th colSpan={3}>S/d {periodeLabel} Ini</Th>
-              <Th colSpan={2}>Sisa</Th>
+              <Th rowSpan={3} w="30px">No</Th>
+              <Th rowSpan={3} align="left">Uraian Pekerjaan</Th>
+              <Th rowSpan={3} align="right" w="62px">Volume Kontrak</Th>
+              <Th rowSpan={3} w="40px">Satuan</Th>
+              <Th rowSpan={3} align="right" w="44px">Bobot</Th>
+              <Th colSpan={9}>Realisasi Pekerjaan</Th>
+              <Th rowSpan={3} align="right" w="48px">Bobot Rencana</Th>
+              <Th colSpan={2}>Sisa Pekerjaan</Th>
             </tr>
             <tr className="bg-slate-100 text-center text-[8.5px]">
-              <Th align="right">Vol</Th><Th align="right">%</Th>
-              <Th align="right">Vol</Th><Th align="right">%</Th>
-              <Th align="right">Vol</Th><Th align="right">%</Th><Th align="right">Bobot%</Th>
-              <Th align="right">Vol</Th><Th align="right">%</Th>
+              <Th colSpan={3}>{periodeLabel} Lalu</Th>
+              <Th colSpan={3}>{periodeLabel} ini</Th>
+              <Th colSpan={3}>S/d {periodeLabel} ini</Th>
+              <Th colSpan={2}>S/d {periodeLabel} ini</Th>
+            </tr>
+            <tr className="bg-slate-100 text-center text-[8.5px]">
+              <Th align="right">Volume</Th><Th align="right">Prestasi</Th><Th align="right">Bobot</Th>
+              <Th align="right">Volume</Th><Th align="right">Prestasi</Th><Th align="right">Bobot</Th>
+              <Th align="right">Volume</Th><Th align="right">Prestasi</Th><Th align="right">Bobot</Th>
+              <Th align="right">Prestasi</Th><Th align="right">Volume</Th>
             </tr>
           </thead>
           <tbody>
@@ -82,11 +89,12 @@ export function KkpPeriodReport({ r }: { r: PeriodReport }) {
               <CategoryBlock key={ci} c={c} />
             ))}
             <tr className="bg-slate-100 font-bold">
-              <Td colSpan={5}>J U M L A H</Td>
+              <Td colSpan={4}>J U M L A H</Td>
               <Td align="right">{p2(r.categories.reduce((s, c) => s + c.subtotalBobot, 0))}</Td>
-              <Td colSpan={2} align="right">{p2(r.totals.bobotLalu)}</Td>
-              <Td colSpan={2} align="right">{p2(r.totals.bobotIni)}</Td>
+              <Td colSpan={3} align="right">{p2(r.totals.bobotLalu)}</Td>
+              <Td colSpan={3} align="right">{p2(r.totals.bobotIni)}</Td>
               <Td colSpan={3} align="right">{p2(r.totals.bobotSd)}</Td>
+              <Td align="right">{p2(r.totals.bobotRencana)}</Td>
               <Td colSpan={2} />
             </tr>
           </tbody>
@@ -157,9 +165,9 @@ function CategoryBlock({ c }: { c: PeriodCategory }) {
     <>
       <tr className="bg-slate-50 font-semibold">
         <Td>{c.code}</Td>
-        <Td colSpan={4}>{c.name}</Td>
+        <Td colSpan={3}>{c.name}</Td>
         <Td align="right">{p2(c.subtotalBobot)}</Td>
-        <Td colSpan={9} />
+        <Td colSpan={12} />
       </tr>
       {c.rows.map((it) => (
         <tr key={it.no} className="border-b border-slate-100">
@@ -167,17 +175,19 @@ function CategoryBlock({ c }: { c: PeriodCategory }) {
           <Td>{it.name}</Td>
           <Td align="right">{volFmt.format(it.volK)}</Td>
           <Td align="center">{it.unit}</Td>
-          <Td align="right">{it.hargaSatuan > 0 ? volFmt.format(it.hargaSatuan) : "–"}</Td>
           <Td align="right">{it.bobot.toFixed(2)}</Td>
           <Td align="right">{dash(it.volLalu)}</Td>
           <Td align="right">{it.prestasiLalu > 0 ? p1(it.prestasiLalu) : "–"}</Td>
+          <Td align="right">{it.bobotLalu > 0 ? it.bobotLalu.toFixed(2) : "–"}</Td>
           <Td align="right">{dash(it.volIni)}</Td>
           <Td align="right">{it.prestasiIni > 0 ? p1(it.prestasiIni) : "–"}</Td>
+          <Td align="right">{it.bobotIni > 0 ? it.bobotIni.toFixed(2) : "–"}</Td>
           <Td align="right">{dash(it.volSd)}</Td>
           <Td align="right">{it.prestasiSd > 0 ? p1(it.prestasiSd) : "–"}</Td>
           <Td align="right">{it.bobotSd > 0 ? it.bobotSd.toFixed(2) : "–"}</Td>
-          <Td align="right">{dash(it.sisaVol)}</Td>
+          <Td align="right">{it.bobotRencana > 0 ? it.bobotRencana.toFixed(2) : "–"}</Td>
           <Td align="right">{it.sisaPrestasi > 0 ? p1(it.sisaPrestasi) : "–"}</Td>
+          <Td align="right">{dash(it.sisaVol)}</Td>
         </tr>
       ))}
     </>

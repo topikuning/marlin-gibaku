@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { autoCategoryWindowFrac, scheduleFromItems } from "@/lib/scurve/sequencing";
 import { orderCategoriesByRab } from "@/lib/scurve/kkp-sheet";
 import { COUNTED_REPORT_STATUSES, currentWeekNumber } from "@/lib/progress";
-import { bobotPct, itemAchievement, prestasiPct } from "@/lib/progress-calc";
+import { bobotPct, distributeWithCaps, itemAchievement, planFractionFromWeekly, prestasiPct } from "@/lib/progress-calc";
 import { jakartaDateKey } from "@/lib/format";
 import type {
   IssueSeverity,
@@ -40,7 +40,6 @@ export type PeriodItemRow = {
   name: string;
   volK: number;
   unit: string;
-  hargaSatuan: number;
   bobot: number;
   volLalu: number;
   prestasiLalu: number;
@@ -51,6 +50,12 @@ export type PeriodItemRow = {
   volSd: number;
   prestasiSd: number;
   bobotSd: number;
+  /**
+   * Rencana bobot kumulatif s/d akhir periode (kolom "Bobot Rencana" blanko
+   * KKP) = bobot × fraksi rencana KATEGORI-nya (jadwal per kategori; per-item
+   * mengikuti proporsional kategorinya).
+   */
+  bobotRencana: number;
   sisaVol: number;
   sisaPrestasi: number;
 };
@@ -63,6 +68,7 @@ export type PeriodCategory = {
   subtotalBobotLalu: number;
   subtotalBobotIni: number;
   subtotalBobotSd: number;
+  subtotalBobotRencana: number;
 };
 
 export type PeriodHeader = {
@@ -101,7 +107,7 @@ export type PeriodReport = {
   totalMonths: number;
   header: PeriodHeader;
   categories: PeriodCategory[];
-  totals: { bobotLalu: number; bobotIni: number; bobotSd: number };
+  totals: { bobotLalu: number; bobotIni: number; bobotSd: number; bobotRencana: number };
   planPct: number;
   actualPct: number;
   deviationPct: number;
@@ -351,6 +357,7 @@ export async function getPeriodReport(
         subtotalBobotLalu: 0,
         subtotalBobotIni: 0,
         subtotalBobotSd: 0,
+        subtotalBobotRencana: 0,
       };
       catMap.set(root, cat);
     }
@@ -391,7 +398,6 @@ export async function getPeriodReport(
       name: it.name,
       volK: vk,
       unit: it.unit ?? "",
-      hargaSatuan: Number(it.unitPrice ?? 0),
       bobot,
       volLalu,
       prestasiLalu,
@@ -402,6 +408,7 @@ export async function getPeriodReport(
       volSd,
       prestasiSd,
       bobotSd,
+      bobotRencana: 0, // diisi setelah jadwal kategori & minggu acuan diketahui (bawah)
       sisaVol: Math.max(0, vk - volSd),
       sisaPrestasi: Math.max(0, 100 - prestasiSd),
     });
@@ -516,6 +523,37 @@ export async function getPeriodReport(
   // satu angka — tabel, kurva, dan deviasi tidak mungkin lagi berselisih.
   const actualPct = totalBobotSd;
 
+  // Kolom "Bobot Rencana" blanko KKP: rencana bobot kumulatif s/d akhir periode
+  // per item = bobot × fraksi rencana KATEGORI-nya (jadwal disimpan per
+  // kategori — DECISIONS 103; per-item mengikuti proporsional kategorinya).
+  // Kategori tanpa jadwal → fallback fraksi rencana lokasi (planPct/100).
+  //
+  // REKONSILIASI: kurva RESMI = titik baseline (B3), yang boleh berbeda tipis
+  // dari Σ matriks kategori (mis. setelah edit manual titik). Supaya SATU
+  // dokumen tidak menampilkan dua angka rencana, seluruh kolom diskalakan
+  // sehingga JUMLAH "Bobot Rencana" == planPct resmi; bentuk antar-kategori
+  // tetap mengikuti matriks. Per item di-clamp ke bobotnya.
+  const planWeek = Math.max(1, Math.min(seriesLen, weekIndex));
+  const weeklyByCatName = new Map(kurvaSchedule.map((s) => [s.name, s.weekly]));
+  const locPlanFrac = Math.min(1, Math.max(0, planPct / 100));
+  const flatRows = categories.flatMap((cat) => cat.rows.map((row) => ({ cat, row })));
+  const rawWeights = flatRows.map(({ cat, row }) => {
+    const weekly = weeklyByCatName.get(cat.name);
+    const frac = weekly ? planFractionFromWeekly(weekly, planWeek) : locPlanFrac;
+    return row.bobot * frac;
+  });
+  const distributed = distributeWithCaps(
+    rawWeights,
+    flatRows.map(({ row }) => row.bobot),
+    planPct,
+  );
+  let totalBobotRencana = 0;
+  flatRows.forEach(({ cat, row }, i) => {
+    row.bobotRencana = distributed[i];
+    cat.subtotalBobotRencana += distributed[i];
+    totalBobotRencana += distributed[i];
+  });
+
   // Agregat tenaga/material/alat + cuaca dari laporan harian dalam periode.
   const periodReports = await db.dailyReport.findMany({
     where: {
@@ -603,7 +641,7 @@ export async function getPeriodReport(
       contractorSignerTitle: contract.contractorSignerTitle,
     },
     categories,
-    totals: { bobotLalu: totalBobotLalu, bobotIni: totalBobotIni, bobotSd: totalBobotSd },
+    totals: { bobotLalu: totalBobotLalu, bobotIni: totalBobotIni, bobotSd: totalBobotSd, bobotRencana: totalBobotRencana },
     planPct,
     actualPct,
     deviationPct: actualPct - planPct,

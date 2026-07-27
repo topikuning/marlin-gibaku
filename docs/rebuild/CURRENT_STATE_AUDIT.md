@@ -1,5 +1,11 @@
 # CURRENT STATE AUDIT — MARLIN (pra-rebuild, per commit b6e77af)
 
+> **ARSIP — verdict sistem LAMA (b6e77af) sebelum rebuild.**
+> Bukan spesifikasi berjalan. Kondisi terkini ada di `PROJECT.md`
+> (arsitektur & formula), `docs/OPEN_ISSUES.md` (yang masih terbuka), dan
+> `docs/DECISIONS.md` (riwayat keputusan).
+
+
 Detail per area: `SCREEN_AND_ROUTE_INVENTORY.md` (UI/route), `DATA_MODEL_AUDIT.md` (schema/logic), `DEPLOYMENT_ARCHITECTURE.md` (infra). Dokumen ini = ringkasan + keputusan per modul.
 
 ## Ringkasan kondisi

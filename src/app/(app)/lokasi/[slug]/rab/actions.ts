@@ -76,12 +76,25 @@ export async function activateDraftAction(_prev: RabActionState, formData: FormD
     });
     await requireLocationAccess(user, rev.locationId);
     await activateRevision(rev.id, user.id);
-    await regenerateBaseline(rev.locationId, {
-      source: rev.source === "adendum" ? "adendum" : "auto",
-      rabRevisionId: rev.id,
-      note: `Regenerate otomatis (aktivasi revisi #${rev.revisionNo})`,
-      userId: user.id,
-    });
+    // Revisi sudah aktif — kegagalan regenerate baseline TIDAK boleh tampil
+    // sebagai error generik seolah aktivasi batal (audit 2026-07-27, B17).
+    try {
+      await regenerateBaseline(rev.locationId, {
+        source: rev.source === "adendum" ? "adendum" : "auto",
+        rabRevisionId: rev.id,
+        note: `Regenerate otomatis (aktivasi revisi #${rev.revisionNo})`,
+        userId: user.id,
+      });
+    } catch (e) {
+      console.error("[rab] regenerate baseline gagal (revisi sudah aktif):", e);
+      revalidateRab(rev.location.slug);
+      return {
+        error:
+          `Revisi #${rev.revisionNo} SUDAH AKTIF, tetapi kurva-S GAGAL di-regenerate ` +
+          `(${e instanceof Error ? e.message : "kesalahan tak dikenal"}). ` +
+          `Buka tab Kurva-S lalu tekan "Hitung ulang kurva-S" untuk menyelaraskan.`,
+      };
+    }
     revalidateRab(rev.location.slug);
     return { success: `Revisi #${rev.revisionNo} aktif. Baseline kurva-S di-regenerate.` };
   } catch (err) {

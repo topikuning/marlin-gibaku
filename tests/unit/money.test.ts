@@ -11,6 +11,20 @@ describe("ppnAmount / withPpn", () => {
     expect(ppnAmount(1_000_000_000n, 11.5)).toBe(115_000_000n);
     expect(ppnAmount(0n, 11)).toBe(0n);
   });
+
+  it("REGRESI: sisa pembagian DIBULATKAN, bukan dipotong (audit 2026-07-27 L8)", () => {
+    // 1.000.005 × 11% = 110.000,55 → 110.001, bukan 110.000.
+    expect(ppnAmount(1_000_005n, 11)).toBe(110_001n);
+    // Tepat di batas .5 → naik.
+    expect(ppnAmount(50n, 11)).toBe(6n); // 5,5 → 6
+    // Di bawah .5 → tetap turun.
+    expect(ppnAmount(40n, 11)).toBe(4n); // 4,4 → 4
+  });
+
+  it("nilai negatif (koreksi/retur) dibulatkan menjauhi nol secara simetris", () => {
+    expect(ppnAmount(-50n, 11)).toBe(-6n);
+    expect(ppnAmount(-1_000_005n, 11)).toBe(-110_001n);
+  });
 });
 
 describe("contractMismatch (toleransi 0.1%)", () => {

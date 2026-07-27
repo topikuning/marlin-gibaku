@@ -1,5 +1,11 @@
 # BUSINESS LIFECYCLE — MARLIN
 
+> **ARSIP — analisis lifecycle saat rebuild.**
+> Bukan spesifikasi berjalan. Kondisi terkini ada di `PROJECT.md`
+> (arsitektur & formula), `docs/OPEN_ISSUES.md` (yang masih terbuka), dan
+> `docs/DECISIONS.md` (riwayat keputusan).
+
+
 Alur bisnis KNMP (83 lokasi, 7 provinsi; owner = KKP; PT sebagai pengendali program dengan vendor pelaksana).
 
 ```

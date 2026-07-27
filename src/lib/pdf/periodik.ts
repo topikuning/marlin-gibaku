@@ -89,7 +89,10 @@ export async function buildPeriodikRingkasPdf(r: PeriodReport, appName: string, 
     pct(c.subtotalBobotIni),
     pct(c.subtotalBobotSd),
   ]);
-  rows.push(["TOTAL", pct(100), pct(r.totals.bobotIni), pct(r.totals.bobotSd)]);
+  // Σ subtotal nyata, BUKAN literal 100 — pada kategori-tanpa-item Σ bobot bisa
+  // < 100 dan PDF tidak boleh bercerita lain dari layar/Excel (audit B8).
+  const totalBobot = r.categories.reduce((s, c) => s + c.subtotalBobot, 0);
+  rows.push(["TOTAL", pct(totalBobot), pct(r.totals.bobotIni), pct(r.totals.bobotSd)]);
   table(doc, cols, rows);
 
   // Sumber daya.

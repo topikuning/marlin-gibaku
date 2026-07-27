@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Camera, ChevronLeft, ChevronRight, ImageOff } from "lucide-react";
-import { PageHeader, KpiCard, Card, EmptyState, Combobox } from "@/components/ui";
+import { PageHeader, KpiCard, Card, EmptyState, Combobox, Button } from "@/components/ui";
 import { requireUser, accessibleLocationIds } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { getPhotoGallery, type GalleryFilters } from "@/lib/photos-gallery";
@@ -97,7 +97,7 @@ export default async function FotoLapanganPage({ searchParams }: { searchParams:
           </Combobox>
         </div>
         <input name="q" defaultValue={filters.q ?? ""} placeholder="Cari caption / lokasi / pelapor…" className={`${SELECT} min-w-52 flex-1`} />
-        <button type="submit" className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-white hover:opacity-90">Terapkan</button>
+        <Button type="submit">Terapkan</Button>
       </form>
 
       {/* Chip cepat */}

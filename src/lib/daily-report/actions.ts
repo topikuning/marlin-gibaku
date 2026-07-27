@@ -18,6 +18,7 @@ import { WEATHER_ORDER, WORKER_ROLE_ORDER } from "./constants";
 import {
   addIssueFromReport,
   approveReport,
+  CREATOR_ENRICHABLE_STATUSES,
   DailyReportError,
   finalizeReport,
   unfinalizeReport,
@@ -55,6 +56,7 @@ async function loadReportContext(reportId: string) {
       id: true,
       locationId: true,
       reportDate: true,
+      status: true,
       location: { select: { slug: true } },
     },
   });
@@ -245,6 +247,14 @@ export async function saveEnrichmentAction(_prev: DailyActionState, formData: Fo
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const ctx = await loadReportContext(parsed.data.reportId);
     await requireLocationAccess(user, ctx.locationId);
+    // Pembuat (tanpa capability review) hanya boleh melengkapi draft /
+    // perlu_koreksi; laporan "dikirim" dilengkapi reviewer (B16b).
+    if (
+      !can(user.role, "daily_report.review") &&
+      !(CREATOR_ENRICHABLE_STATUSES as readonly string[]).includes(ctx.status)
+    ) {
+      return { error: "Laporan sudah dikirim — data KKP dilengkapi oleh Site Manager saat verifikasi." };
+    }
 
     const workers = WORKER_ROLE_ORDER.map((role: WorkerRole) => ({
       role,

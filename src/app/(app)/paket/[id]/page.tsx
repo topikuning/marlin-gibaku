@@ -14,6 +14,7 @@ import {
 } from "@/lib/lifecycle";
 import { formatPct, formatRupiah, formatRupiahShort, formatTanggalWaktu } from "@/lib/format";
 import { getLocationsProgress } from "@/lib/progress";
+import { weightedRealizedPct } from "@/lib/progress-calc";
 import {
   getPackageWorkspace,
   getStageHistory,
@@ -95,14 +96,11 @@ export default async function RingkasanPaketPage({
     getStageHistory(pkg.id),
   ]);
 
-  // Progress agregat: rata-rata tertimbang grandTotal RAB aktif.
+  // Progress agregat — formula kanonik weightedRealizedPct (B13).
+  const aggregatePct = weightedRealizedPct([...progressMap.values()]);
+  // Σ RAB semua lokasi — masih dipakai rekonsiliasi kontrak vs RAB di bawah.
   let totalRab = 0n;
-  let weighted = 0;
-  for (const p of progressMap.values()) {
-    totalRab += p.grandTotal;
-    weighted += p.realizedPct * Number(p.grandTotal);
-  }
-  const aggregatePct = Number(totalRab) > 0 ? weighted / Number(totalRab) : 0;
+  for (const p of progressMap.values()) totalRab += p.grandTotal;
 
   const running = pkg.contract
     ? runningContractValue(pkg.contract.contractValue, pkg.contract.amendments)

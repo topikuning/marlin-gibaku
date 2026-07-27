@@ -1,5 +1,11 @@
 # TARGET INFORMATION ARCHITECTURE — MARLIN Rebuild
 
+> **ARSIP — IA target saat rebuild.**
+> Bukan spesifikasi berjalan. Kondisi terkini ada di `PROJECT.md`
+> (arsitektur & formula), `docs/OPEN_ISSUES.md` (yang masih terbuka), dan
+> `docs/DECISIONS.md` (riwayat keputusan).
+
+
 Menu berdasarkan pekerjaan, bukan tabel database. Maksimal 2 tingkat. Menu difilter per capability.
 
 ## Desktop (sidebar)

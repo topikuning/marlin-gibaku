@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bobotPct, itemAchievement, prestasiPct, realizedPctFromItems } from "@/lib/progress-calc";
+import { bobotPct, distributeWithCaps, itemAchievement, planFractionFromWeekly, prestasiPct, realizedPctFromItems } from "@/lib/progress-calc";
 
 /** Formula prestasi/bobot — satu sumber utk laporan & dashboard. DECISIONS 151. */
 
@@ -127,5 +127,62 @@ describe("bobotPct", () => {
     const amounts = [15_000_000, 8_800_000, 54_000_000, 18_750_000];
     const total = amounts.reduce((a, b) => a + b, 0);
     expect(amounts.reduce((s, a) => s + bobotPct(a, total), 0)).toBeCloseTo(100, 9);
+  });
+});
+
+describe("planFractionFromWeekly (kolom Bobot Rencana blanko KKP)", () => {
+  it("fraksi kumulatif s/d minggu w", () => {
+    const weekly = [2, 3, 5, 0, 0]; // total 10
+    expect(planFractionFromWeekly(weekly, 1)).toBeCloseTo(0.2, 9);
+    expect(planFractionFromWeekly(weekly, 2)).toBeCloseTo(0.5, 9);
+    expect(planFractionFromWeekly(weekly, 3)).toBeCloseTo(1, 9);
+    expect(planFractionFromWeekly(weekly, 5)).toBeCloseTo(1, 9);
+  });
+
+  it("minggu melewati panjang matriks → 1 (jadwal sudah selesai)", () => {
+    expect(planFractionFromWeekly([1, 1], 10)).toBe(1);
+  });
+
+  it("total 0 / matriks kosong → 0 (bukan NaN)", () => {
+    expect(planFractionFromWeekly([], 3)).toBe(0);
+    expect(planFractionFromWeekly([0, 0, 0], 2)).toBe(0);
+  });
+
+  it("elemen non-finite dianggap 0", () => {
+    expect(planFractionFromWeekly([2, Number.NaN, 2], 1)).toBeCloseTo(0.5, 9);
+  });
+});
+
+describe("distributeWithCaps (Bobot Rencana == rencana resmi)", () => {
+  it("tanpa plafon mentok → proporsional bobot, Σ = target", () => {
+    const out = distributeWithCaps([1, 3], [10, 10], 8);
+    expect(out[0]).toBeCloseTo(2, 9);
+    expect(out[1]).toBeCloseTo(6, 9);
+  });
+
+  it("item mentok plafon → sisa dibagi ulang, Σ tetap = target", () => {
+    // proporsional murni: [5, 5] tapi plafon item-1 = 3 → item-1 dipatok 3, sisa ke item-2.
+    const out = distributeWithCaps([1, 1], [3, 10], 10);
+    expect(out[0]).toBeCloseTo(3, 9);
+    expect(out[1]).toBeCloseTo(7, 9);
+    expect(out[0] + out[1]).toBeCloseTo(10, 9);
+  });
+
+  it("target > Σ plafon → semua dipatok plafon", () => {
+    const out = distributeWithCaps([1, 2], [4, 5], 100);
+    expect(out[0]).toBeCloseTo(4, 9);
+    expect(out[1]).toBeCloseTo(5, 9);
+  });
+
+  it("bobot 0 semua → sisa dibagi proporsional headroom", () => {
+    const out = distributeWithCaps([0, 0], [6, 2], 4);
+    expect(out[0] + out[1]).toBeCloseTo(4, 9);
+    expect(out[0]).toBeCloseTo(3, 9); // 6/8 × 4
+    expect(out[1]).toBeCloseTo(1, 9); // 2/8 × 4
+  });
+
+  it("target 0 / daftar kosong → nol semua", () => {
+    expect(distributeWithCaps([1], [1], 0)).toEqual([0]);
+    expect(distributeWithCaps([], [], 5)).toEqual([]);
   });
 });

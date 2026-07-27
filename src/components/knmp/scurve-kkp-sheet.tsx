@@ -37,6 +37,7 @@ export function ScurveKkpSheet({
     contractStart: r.header.contractStart,
     actualCum: r.scurve.actualPct,
     currentWeek: r.scurve.currentWeek,
+    planCumOfficial: r.scurve.planPct,
   });
   const N = sheet.totalWeeks;
   const M = sheet.categories.length;
@@ -146,10 +147,11 @@ export function ScurveKkpSheet({
               <tr key={c.code} style={{ height: ROW_H }}>
                 <td className="border border-black text-center font-semibold">{c.code}</td>
                 <td className="border border-black px-1 font-semibold">{c.name}</td>
-                <td className="border border-black text-center">{num(c.bobot, 2)}</td>
-                {c.weekly.map((v, i) => (
+                {/* Bobot = Σ sebaran mingguan di barisnya (di Excel: =SUM(M1:MN)) */}
+                <td className="border border-black text-center">{num(c.bobotShown, 2)}</td>
+                {c.weeklyShown.map((v, i) => (
                   <td key={i} className="border border-black text-center text-[7px]">
-                    {v >= 0.0005 ? num(v, 3) : ""}
+                    {v > 0 ? num(v, 3) : ""}
                   </td>
                 ))}
                 <td className="border border-black" />
@@ -169,7 +171,10 @@ export function ScurveKkpSheet({
                 <td colSpan={2} className={`border border-black pr-1 text-right ${bold ? "font-semibold" : ""}`}>
                   {label}
                 </td>
-                <td className="border border-black text-center">{label.startsWith("Kumulatif Rencana") ? "100,00" : ""}</td>
+                {/* Total kolom bobot = Σ bobot kategori (bukan "100,00" tempelan) */}
+                <td className="border border-black text-center">
+                  {label.startsWith("Kumulatif Rencana") ? num(sheet.totalBobotShown, 2) : ""}
+                </td>
                 {arr.map((v, i) => (
                   <td key={i} className={`border border-black text-center text-[7px] ${bold ? "font-semibold" : ""}`}>
                     {pct(v, 2)}

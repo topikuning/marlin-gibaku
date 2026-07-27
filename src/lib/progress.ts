@@ -96,8 +96,15 @@ export async function getLocationsProgress(locationIds: string[]): Promise<Map<s
   const realizedPerLoc = await db.$queryRaw<{ location_id: string; realized: bigint }[]>`
     SELECT t.location_id, COALESCE(SUM(t.realized), 0)::bigint AS realized
     FROM (
+      -- GREATEST/LEAST harus PERSIS sepadan dengan prestasiPct() di
+      -- progress-calc.ts: batas atas 100% DAN batas bawah 0, serta volume RAB
+      -- ≤ 0 diperlakukan sebagai "tidak bisa dihitung" (bukan bagi negatif).
+      -- Tanpa batas bawah, koreksi bervolume negatif membuat dashboard minus
+      -- sementara blanko KKP menulis 0 — dua angka berbeda lagi.
       SELECT dr.location_id AS location_id,
-             LEAST(1.0, SUM(dri.volume_done) / NULLIF(rn.volume, 0)) * rn.amount AS realized
+             GREATEST(0.0, LEAST(1.0,
+               SUM(dri.volume_done) / NULLIF(GREATEST(rn.volume, 0), 0)
+             )) * rn.amount AS realized
       FROM daily_report_items dri
       JOIN daily_reports dr ON dr.id = dri.report_id
       JOIN rab_nodes rn ON rn.lineage_key = dri.lineage_key

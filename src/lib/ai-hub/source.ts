@@ -21,6 +21,31 @@ const DAY_MS = 24 * 3600 * 1000;
  * intersect accessibleLocationIds (null = semua di org). Query string /
  * pilihan klien TIDAK pernah dipercaya langsung.
  */
+
+/**
+ * Watermark kesegaran data (audit 2026-07-27, B19): kapan data sumber TERAKHIR
+ * berubah — bukan kapan payload dirender. "Data per <waktu render>" membuat
+ * laporan yang datanya basi 20 hari tampak segar.
+ */
+async function dataWatermark(locIds: string[]): Promise<string | null> {
+  if (locIds.length === 0) return null;
+  const [lastReport, lastActivity] = await Promise.all([
+    db.dailyReport.findFirst({
+      where: { locationId: { in: locIds } },
+      orderBy: { updatedAt: "desc" },
+      select: { updatedAt: true },
+    }),
+    db.fieldActivity.findFirst({
+      where: { locationId: { in: locIds } },
+      orderBy: { updatedAt: "desc" },
+      select: { updatedAt: true },
+    }),
+  ]);
+  const times = [lastReport?.updatedAt, lastActivity?.updatedAt].filter((t): t is Date => t != null);
+  if (times.length === 0) return null;
+  return new Date(Math.max(...times.map((t) => t.getTime()))).toISOString();
+}
+
 export async function resolveAiScope(
   user: SessionUser,
   requestedIds: string[],
@@ -62,7 +87,7 @@ export async function buildPortfolioPulse(
     return {
       periodStart: startKey,
       periodEnd: endKey,
-      dataAsOf: new Date().toISOString(),
+      dataAsOf: null,
       totals: {
         locations: 0,
         reportsExpected: 0,
@@ -296,7 +321,7 @@ export async function buildPortfolioPulse(
   return {
     periodStart: startKey,
     periodEnd: endKey,
-    dataAsOf: new Date().toISOString(),
+    dataAsOf: await dataWatermark(locIds),
     totals,
     rows: ordered,
     risks: risks.sort((a, b) => b.ruleScore - a.ruleScore),

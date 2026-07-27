@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { can } from "@/lib/authz";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { cumulativeVolumeByLineage } from "@/lib/progress";
+import { laggingItems } from "@/lib/progress-calc";
 import { getPeriodBounds } from "@/lib/periodic-report";
 import { deriveCategorySchedule, getScurveSeries } from "@/lib/baseline";
 import { formatNumber, formatPct, formatRupiahShort, formatTanggal } from "@/lib/format";
@@ -137,27 +138,29 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
       where: { revision: { locationId: location.id, status: "aktif" }, kind: "item" },
       select: { id: true, code: true, name: true, unit: true, volume: true, unitPrice: true, amount: true, lineageKey: true },
     });
-    lagging = activeItems
-      .filter((n) => n.volume != null && Number(n.volume) > 0)
-      .map((n) => {
-        const volume = Number(n.volume);
-        const expected = volume * planFraction;
-        const realized = realizedVol.get(n.lineageKey) ?? 0;
-        const unitPrice = n.unitPrice != null ? Number(n.unitPrice) : Number(n.amount) / volume;
-        return {
-          id: n.id,
-          code: n.code,
-          name: n.name,
-          unit: n.unit,
-          volume,
-          expected,
-          realized,
-          gapValue: Math.max(0, (expected - realized) * unitPrice),
-        };
-      })
-      .filter((it) => it.realized < it.expected - 1e-9)
-      .sort((a, b) => b.gapValue - a.gapValue)
-      .slice(0, 10);
+    // Formula ada di calculation layer, bukan di halaman (audit 2026-07-27, M6).
+    const meta = new Map(activeItems.map((n) => [n.lineageKey, n]));
+    lagging = laggingItems(
+      activeItems.map((n) => ({
+        lineageKey: n.lineageKey,
+        volK: n.volume != null ? Number(n.volume) : 0,
+        amount: Number(n.amount),
+        volSd: realizedVol.get(n.lineageKey) ?? 0,
+      })),
+      planFraction,
+    ).map((it) => {
+      const n = meta.get(it.lineageKey)!;
+      return {
+        id: n.id,
+        code: n.code,
+        name: n.name,
+        unit: n.unit,
+        volume: it.volK,
+        expected: it.expected,
+        realized: it.realized,
+        gapValue: it.gapValue,
+      };
+    });
   }
 
   const issueData: IssueData[] = issues.map((i) => ({
@@ -185,7 +188,7 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
             title="Kurva-S"
             subtitle="Baseline aktif vs realisasi mingguan"
             action={
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {bounds ? (
                   <>
                     <Link
@@ -291,15 +294,19 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
                 <div className="rounded-lg border border-border bg-surface-inset p-3">
                   <div className="text-[11px] font-semibold tracking-wide text-ink-muted uppercase">Prognosa selesai</div>
                   <div className="mt-1 text-base font-semibold text-ink">
-                    {forecast.forecastFinishDate
-                      ? formatTanggal(forecast.forecastFinishDate)
-                      : `± minggu ${Math.round(forecast.forecastFinishWeek ?? forecast.totalWeeks)}`}
+                    {forecast.beyondHorizon
+                      ? "Belum bisa diperkirakan"
+                      : forecast.forecastFinishDate
+                        ? formatTanggal(forecast.forecastFinishDate)
+                        : `± minggu ${Math.round(forecast.forecastFinishWeek ?? forecast.totalWeeks)}`}
                   </div>
                   <div className="text-[12px] text-ink-muted">
                     rencana: {bounds && !bounds.assumed ? formatTanggal(bounds.endDate) : `minggu ${forecast.totalWeeks}`}
-                    {forecast.slipWeeks != null
-                      ? ` · ${forecast.slipWeeks <= 0 ? "tepat / lebih cepat" : `perkiraan telat ~${forecast.slipWeeks} mgg`}`
-                      : ""}
+                    {forecast.beyondHorizon
+                      ? " · laju realisasi terlalu rendah — proyeksi jatuh >1 tahun melewati rencana"
+                      : forecast.slipWeeks != null
+                        ? ` · ${forecast.slipWeeks <= 0 ? "tepat / lebih cepat" : `perkiraan telat ~${forecast.slipWeeks} mgg`}`
+                        : ""}
                   </div>
                 </div>
                 <div className="rounded-lg border border-border bg-surface-inset p-3">

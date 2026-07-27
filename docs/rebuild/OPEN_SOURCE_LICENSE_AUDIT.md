@@ -1,5 +1,11 @@
 # OPEN SOURCE LICENSE AUDIT — MARLIN Rebuild
 
+> **ARSIP — audit lisensi saat rebuild.**
+> Bukan spesifikasi berjalan. Kondisi terkini ada di `PROJECT.md`
+> (arsitektur & formula), `docs/OPEN_ISSUES.md` (yang masih terbuka), dan
+> `docs/DECISIONS.md` (riwayat keputusan).
+
+
 Dijalankan otomatis: `node scripts/license-audit.mjs` (juga di CI; gagal = pipeline merah).
 Snapshot lengkap: `artifacts/rebuild/licenses/licenses.json` (dari `pnpm licenses list --prod --json`).
 

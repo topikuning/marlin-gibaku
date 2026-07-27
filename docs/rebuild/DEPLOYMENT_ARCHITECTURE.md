@@ -1,5 +1,11 @@
 # DEPLOYMENT ARCHITECTURE — MARLIN Rebuild
 
+> **ARSIP — arsitektur deploy saat rebuild.**
+> Bukan spesifikasi berjalan. Kondisi terkini ada di `PROJECT.md`
+> (arsitektur & formula), `docs/OPEN_ISSUES.md` (yang masih terbuka), dan
+> `docs/DECISIONS.md` (riwayat keputusan).
+
+
 ## Kondisi lama
 
 Railway **Nixpacks** (tanpa Dockerfile), `pnpm start` (bukan standalone), preDeploy `scripts/release.sh` (migrate deploy + seed opsional), healthcheck `/api/health` (DB only). Tanpa CI. → Semua diganti.

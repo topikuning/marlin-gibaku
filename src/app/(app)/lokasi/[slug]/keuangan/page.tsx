@@ -73,7 +73,10 @@ export default async function LokasiKeuanganPage({ params }: { params: Promise<{
   const s = summaryMap.get(location.id);
   const budgetTotal = s?.budgetTotal ?? 0n;
   const expenseApproved = s?.expenseApproved ?? 0n;
-  const realizedPct = pct(expenseApproved, budgetTotal);
+  // BUKAN progress fisik. Ini serapan BIAYA terhadap budget — besaran yang
+  // berbeda dari `realizedPct` di lib/progress.ts. Dinamai & dilabeli berbeda
+  // supaya dua angka ini tidak pernah dibandingkan di rapat (audit 2026-07-27, H4).
+  const serapanBiayaPct = pct(expenseApproved, budgetTotal);
   const today = jakartaDateKey(new Date());
 
   // ── Serialisasi untuk client components (BigInt → string, Date → ISO) ──
@@ -158,7 +161,7 @@ export default async function LokasiKeuanganPage({ params }: { params: Promise<{
 
       <section className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6" aria-label="Ringkasan keuangan lokasi">
         <KpiCard label="Budget" value={formatRupiahShort(budgetTotal)} />
-        <KpiCard label="Realisasi" value={formatRupiahShort(expenseApproved)} sub={formatPct(realizedPct)} />
+        <KpiCard label="Serapan Biaya" value={formatRupiahShort(expenseApproved)} sub={formatPct(serapanBiayaPct)} />
         <KpiCard label="Komitmen terbuka" value={formatRupiahShort(s?.commitmentOpen ?? 0n)} />
         <KpiCard
           label="Available budget"
@@ -167,21 +170,21 @@ export default async function LokasiKeuanganPage({ params }: { params: Promise<{
           sub={(s?.availableBudget ?? 0n) < 0n ? "melebihi budget" : undefined}
         />
         <KpiCard label="Outstanding payable" value={formatRupiahShort(s?.outstandingPayable ?? 0n)} />
-        <KpiCard label="Terpasang" value={formatRupiahShort(s?.installedValue ?? 0n)} />
+        <KpiCard label="Terpasang" value={formatRupiahShort(s?.installedValue ?? 0n)} sub="dilaporkan — belum tentu terverifikasi" />
       </section>
 
       <Card>
         <CardBody>
           <div className="mb-1 flex items-center justify-between text-sm">
-            <span className="font-medium text-ink">Realisasi vs budget</span>
+            <span className="font-medium text-ink">Serapan biaya vs budget</span>
             <span className="tabular text-ink-muted">
-              {formatRupiah(expenseApproved)} / {formatRupiah(budgetTotal)} ({formatPct(realizedPct)})
+              {formatRupiah(expenseApproved)} / {formatRupiah(budgetTotal)} ({formatPct(serapanBiayaPct)})
             </span>
           </div>
           <ProgressBar
-            value={realizedPct}
-            label="Realisasi vs budget"
-            tone={realizedPct > 100 ? "danger" : realizedPct > 90 ? "warning" : "primary"}
+            value={serapanBiayaPct}
+            label="Serapan biaya vs budget"
+            tone={serapanBiayaPct > 100 ? "danger" : serapanBiayaPct > 90 ? "warning" : "primary"}
           />
         </CardBody>
       </Card>
@@ -214,7 +217,7 @@ export default async function LokasiKeuanganPage({ params }: { params: Promise<{
 
       <Card>
         <CardHeader
-          title="Realisasi"
+          title="Realisasi Biaya"
           subtitle="Pengeluaran aktual — termasuk settlement kasbon (pilih komitmen terbuka)."
         />
         <CardBody>

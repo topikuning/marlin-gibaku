@@ -1,47 +1,75 @@
-# PERMISSION MATRIX — MARLIN Rebuild
+# PERMISSION MATRIX
 
-Model: **capability-based**. Role → set capability (konstanta di `src/lib/authz.ts`). Frontend hanya menyembunyikan menu; **setiap Server Action / Route Handler wajib otorisasi ulang** via `requireCapability()` + scope check (`requireLocationAccess()`).
+> **DIBANGKITKAN OTOMATIS dari `src/lib/authz.ts` — jangan diedit tangan.**
+> Perbarui dengan `pnpm docs:permission`.
+> `tests/unit/permission-matrix-doc.test.ts` gagal bila file ini tertinggal.
 
-Scope: `super_admin`, `program_director`, `exec_viewer` = cross-location. Lainnya dibatasi `LocationAssignment` (dan paket yang memuat lokasi tsb).
+Model: **capability-based**. Role → set capability (konstanta di `src/lib/authz.ts`).
+Frontend hanya menyembunyikan menu; **setiap Server Action / Route Handler wajib
+otorisasi ulang** via `requireCapability()` + scope check (`requireLocationAccess()`).
+
+Scope lokasi: `super_admin`, `program_director`, `exec_viewer` = lintas lokasi.
+Role lain dibatasi `LocationAssignment` (dan paket yang memuat lokasi tersebut).
+
+Jumlah capability: **43**.
 
 | Capability | super_admin | program_director | regional_manager | project_manager | site_manager | field_supervisor | exec_viewer |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| portfolio.view | ✓ | ✓ | ✓ | ✓ | — | — | ✓ |
-| package.view | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ |
-| package.create / package.edit | ✓ | ✓ | — | — | — | — | — |
-| prospect.manage (tender, konversi) | ✓ | ✓ | — | — | — | — | — |
-| contract.manage | ✓ | ✓ | — | — | — | — | — |
-| amendment.manage | ✓ | ✓ | — | — | — | — | — |
-| location.view | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| location.manage (status, tim) | ✓ | ✓ | ✓ | ✓ | — | — | — |
-| rab.view | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| rab.manage (import, revisi) | ✓ | ✓ | — | ✓ | — | — | — |
-| baseline.manage | ✓ | ✓ | — | ✓ | — | — | — |
-| weekly_plan.manage | ✓ | ✓ | ✓ | ✓ | ✓ | — | — |
-| daily_report.create | ✓ | ✓ | — | — | ✓ | ✓ | — |
-| daily_report.review (verifikasi/koreksi) | ✓ | ✓ | — | ✓ | ✓ | — | — |
-| daily_report.finalize (KKP final) | ✓ | ✓ | — | — | ✓ | — | — |
-| progress.view | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| issue.manage (kendala, recovery) | ✓ | ✓ | ✓ | ✓ | ✓ | — | — |
-| finance.view | ✓ | ✓ | ✓ | ✓ | — | — | ✓ |
-| finance.input (transaksi) | ✓ | ✓ | — | ✓ | ✓* | — | — |
-| finance.approve | ✓ | ✓ | ✓ | — | — | — | — |
-| document.view | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| document.upload | ✓ | ✓ | ✓ | ✓ | ✓ | — | — |
-| document.verify / compliance.manage | ✓ | ✓ | ✓ | ✓ | — | — | — |
-| report.export | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ |
-| user.manage | ✓ | ✓ | — | — | — | — | — |
-| system.manage (diagnostik, setting, reset dev) | ✓ | — | — | — | — | — | — |
-| audit.view | ✓ | ✓ | — | — | — | — | — |
+| `portfolio.view` | ✓ | ✓ | ✓ | ✓ | — | — | ✓ |
+| `package.view` | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ |
+| `package.create` | ✓ | ✓ | — | — | — | — | — |
+| `package.edit` | ✓ | ✓ | — | — | — | — | — |
+| `package.bypass` | ✓ | ✓ | — | — | — | — | — |
+| `prospect.manage` | ✓ | ✓ | — | — | — | — | — |
+| `contract.manage` | ✓ | ✓ | — | — | — | — | — |
+| `contract.edit` | ✓ | — | — | — | — | — | — |
+| `amendment.manage` | ✓ | ✓ | — | — | — | — | — |
+| `location.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `location.manage` | ✓ | ✓ | ✓ | ✓ | — | — | — |
+| `rab.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `rab.manage` | ✓ | ✓ | — | ✓ | — | — | — |
+| `baseline.manage` | ✓ | ✓ | — | ✓ | — | — | — |
+| `weekly_plan.manage` | ✓ | ✓ | ✓ | ✓ | ✓ | — | — |
+| `daily_report.create` | ✓ | ✓ | — | — | ✓ | ✓ | — |
+| `daily_report.review` | ✓ | ✓ | — | ✓ | ✓ | — | — |
+| `daily_report.finalize` | ✓ | ✓ | — | — | ✓ | — | — |
+| `daily_report.unfinalize` | ✓ | — | — | — | — | — | — |
+| `field_activity.manage` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — |
+| `wa.configure` | ✓ | — | — | — | — | — | — |
+| `progress.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `issue.manage` | ✓ | ✓ | ✓ | ✓ | ✓ | — | — |
+| `finance.view` | ✓ | ✓ | ✓ | ✓ | — | — | ✓ |
+| `finance.input` | ✓ | ✓ | — | ✓ | ✓ | — | — |
+| `finance.approve` | ✓ | ✓ | ✓ | — | — | — | — |
+| `document.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| `document.upload` | ✓ | ✓ | ✓ | ✓ | ✓ | — | — |
+| `document.verify` | ✓ | ✓ | ✓ | ✓ | — | — | — |
+| `compliance.manage` | ✓ | ✓ | ✓ | ✓ | — | — | — |
+| `report.export` | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ |
+| `exec_report.send` | ✓ | ✓ | ✓ | ✓ | ✓ | — | — |
+| `contact.view_all` | ✓ | — | — | — | — | — | — |
+| `ai.view` | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ |
+| `ai.generate` | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ |
+| `ai.ask` | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ |
+| `ai.report_review` | ✓ | ✓ | ✓ | ✓ | — | — | — |
+| `ai.report_approve` | ✓ | ✓ | ✓ | — | — | — | — |
+| `ai.report_send` | ✓ | ✓ | ✓ | ✓ | — | — | — |
+| `user.manage` | ✓ | ✓ | — | — | — | — | — |
+| `user.create` | ✓ | ✓ | — | ✓ | ✓ | — | — |
+| `system.manage` | ✓ | — | — | — | — | — | — |
+| `audit.view` | ✓ | ✓ | — | — | — | — | — |
 
-\* site_manager hanya input pengeluaran/kasbon lokasi sendiri, tanpa approve.
+## Capability yang HANYA super_admin
 
-Perbaikan dari sistem lama: `canManageUsers` tidak lagi dipakai sebagai gate keuangan/kontrak/RAB/kurva-S (bug semantik lama). `user.manage` ≠ `finance.approve` ≠ `contract.manage`.
+- `contract.edit`
+- `daily_report.unfinalize`
+- `wa.configure`
+- `contact.view_all`
+- `system.manage`
 
-Keamanan tambahan:
-- Session DB revocable (deactivate user = sesi mati; tokenVersion bump = force-logout).
-- `mustChangePassword` saat first-login / reset.
-- Rate limit login (per identifier+IP, window di DB).
-- Audit log tiap mutasi (siapa, kapan, apa, payload ringkas).
-- Aksi destruktif (reset data dev) = `system.manage` + konfirmasi ketik + APP_ENV != production.
-- RLS: TIDAK diklaim. Otorisasi di application layer, diuji integration test. (RLS dicatat sebagai kandidat hardening berikutnya.)
+Alasan pembatasannya ditulis sebagai komentar di `src/lib/authz.ts`.
+
+## Hierarki pembuatan akun
+
+`user.create` dibatasi lagi oleh `creatableRoles(role)` — seorang user hanya
+boleh membuat akun dengan peran DI BAWAHnya. Lihat `src/lib/authz.ts`.

@@ -5,8 +5,8 @@ Sistem pengendalian proyek **Kampung Nelayan Merah Putih (KNMP)** — 83 lokasi,
 RAB & baseline → pelaksanaan harian → verifikasi → progress → keuangan →
 laporan KKP → serah terima.
 
-> Hasil rebuild total 2026-07-14 — lihat `docs/rebuild/` untuk audit, domain model,
-> permission matrix, dan rencana. Status: pra-production.
+> Hasil rebuild total 2026-07-14. Status: **pra-production**.
+> Peta dokumentasi: [`docs/README.md`](./docs/README.md).
 
 ## Stack
 
@@ -65,9 +65,10 @@ diagnostik R2 di `/api/ready` dan menu Sistem). Env wajib: `DATABASE_URL`,
 
 ## Dokumentasi
 
-- **`docs/DEPLOY_RAILWAY.md` — panduan deploy Railway langkah demi langkah**
-- `PROJECT.md` — arsitektur & keputusan (source of truth)
-- `docs/DECISIONS.md` — log keputusan append-only
-- `docs/OPEN_ISSUES.md` — hutang teknis terbuka
-- `docs/rebuild/` — artefak rebuild (audit, domain model, permission, test plan, dst.)
-- `docs/DEPENDENCY_POLICY.md` — kebijakan dependency & lisensi
+**Peta lengkapnya ada di [`docs/README.md`](./docs/README.md).** Yang paling sering dibuka:
+
+- [`PROJECT.md`](./PROJECT.md) — arsitektur, domain model, **formula angka kanonik** (source of truth)
+- [`docs/OPEN_ISSUES.md`](./docs/OPEN_ISSUES.md) — yang masih rusak / belum selesai
+- [`docs/DECISIONS.md`](./docs/DECISIONS.md) — log keputusan, append-only
+- [`docs/DEPLOY_RAILWAY.md`](./docs/DEPLOY_RAILWAY.md) — deploy Railway langkah demi langkah
+- [`docs/rebuild/CALCULATION_INTEGRITY_PROTOCOL.md`](./docs/rebuild/CALCULATION_INTEGRITY_PROTOCOL.md) — **wajib** sebelum menyentuh angka progress/laporan/uang

@@ -89,6 +89,29 @@ describe("forecastFromSeries", () => {
     if (finishIdx < N) expect(f.forecastPct[finishIdx]!).toBeGreaterThanOrEqual(f.forecastPct[7]!);
   });
 
+  it("laju ≈ 0 → tanggal/selisih diredam (beyondHorizon), status tetap telat", () => {
+    // 0.05%/mgg → butuh ±2000 minggu; dulu tampil "16 Apr 2086, telat ~3115 mgg".
+    const actual: (number | null)[] = new Array(N).fill(null);
+    for (let i = 0; i < 10; i++) actual[i] = (i + 1) * 0.05;
+    const f = forecastFromSeries({ totalWeeks: N, currentWeek: 10, planPct: planLinear(N), actualPct: actual }, START);
+    expect(f.status).toBe("telat");
+    expect(f.beyondHorizon).toBe(true);
+    expect(f.forecastFinishWeek).toBeNull();
+    expect(f.forecastFinishDate).toBeNull();
+    expect(f.slipWeeks).toBeNull();
+    expect(f.projectedPctAtEnd!).toBeLessThan(5); // proyeksi % akhir kontrak tetap ada
+  });
+
+  it("telat moderat (< horizon) → tanggal & slip TETAP tampil", () => {
+    const f = forecastFromSeries(
+      { totalWeeks: N, currentWeek: 10, planPct: planLinear(N), actualPct: actualLinear(3, 10, N) },
+      START,
+    );
+    expect(f.beyondHorizon).toBe(false);
+    expect(f.forecastFinishDate).toBeInstanceOf(Date);
+    expect(f.slipWeeks).not.toBeNull();
+  });
+
   it("tanpa startDate → tanggal null tapi minggu tetap", () => {
     const f = forecastFromSeries(
       { totalWeeks: N, currentWeek: 10, planPct: planLinear(N), actualPct: actualLinear(5, 10, N) },

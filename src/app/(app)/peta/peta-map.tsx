@@ -44,11 +44,13 @@ function useTokenColor(): (token: string) => string {
 
 /** Warna pin opsional per-id (mis. status submit di dashboard) — menimpa warna
  *  default per LocationStatus. Token CSS var, di-resolve client-side. */
-const TONE_TOKEN: Record<"success" | "warning" | "danger" | "neutral", string> = {
+const TONE_TOKEN: Record<"success" | "warning" | "danger" | "neutral" | "idle", string> = {
   success: "--color-success",
   warning: "--color-warning",
   danger: "--color-danger",
   neutral: "--color-ink-faint",
+  // "Belum mulai" (lokasi target): pin BERONGGA — surut, bukan sekadar abu lain.
+  idle: "--color-ink-faint",
 };
 
 export interface PetaMapProps {
@@ -56,7 +58,7 @@ export interface PetaMapProps {
   selectedId: string | null;
   onSelect: (id: string) => void;
   /** Timpa warna pin per-id dengan tone (dashboard: status submit). */
-  toneById?: Record<string, "success" | "warning" | "danger" | "neutral">;
+  toneById?: Record<string, "success" | "warning" | "danger" | "neutral" | "idle">;
 }
 
 export function PetaMap({ markers, selectedId, onSelect, toneById }: PetaMapProps) {
@@ -136,12 +138,15 @@ export function PetaMap({ markers, selectedId, onSelect, toneById }: PetaMapProp
       const active = selectedId === m.id;
       const tone = toneById?.[m.id];
       const fill = tone ? tokenColor(TONE_TOKEN[tone]) : statusColor(m.status);
+      // Lokasi belum mulai digambar berongga & lebih kecil: hadir di peta, tetapi
+      // jelas bukan pekerjaan berjalan yang menunggu laporan hari ini.
+      const hollow = tone === "idle";
       const marker = L.circleMarker([m.lat, m.lng], {
-        radius: active ? 11 : 7,
-        color: active ? tokenColor("--color-primary") : tokenColor("--color-surface"),
-        weight: active ? 3 : 1.2,
-        fillColor: fill,
-        fillOpacity: 0.92,
+        radius: active ? 11 : hollow ? 5.5 : 7,
+        color: active ? tokenColor("--color-primary") : hollow ? fill : tokenColor("--color-surface"),
+        weight: active ? 3 : hollow ? 1.6 : 1.2,
+        fillColor: hollow ? tokenColor("--color-surface") : fill,
+        fillOpacity: hollow ? 0.85 : 0.92,
       });
       marker.bindTooltip(
         `<span style="font-size:12px;font-weight:600">${m.name}</span><br/><span style="font-size:11px">${m.regency} · ${m.province}</span>`,

@@ -1,8 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import ExcelJS from "exceljs";
-import { getCurrentUser } from "@/lib/auth/session";
+import { accessibleLocationIds, getCurrentUser } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
+import { scopeCoveredBy } from "@/lib/ai-hub/read-scope";
 import { audit } from "@/lib/audit";
 import { parseAiReportContent, renderAiReportExcelRows } from "@/lib/ai-hub/render";
 
@@ -20,9 +21,13 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   const artifact = await db.aiArtifact.findUnique({
     where: { id },
-    select: { id: true, kind: true, title: true, version: true, structuredContent: true },
+    select: { id: true, kind: true, title: true, version: true, structuredContent: true, run: { select: { scopeIds: true } } },
   });
   if (!artifact || artifact.kind !== "laporan") {
+    return NextResponse.json({ error: "Artefak tidak ditemukan" }, { status: 404 });
+  }
+  // Scope baca (audit 2026-07-27, B9): 404, bukan 403 — jangan konfirmasi keberadaan.
+  if (!scopeCoveredBy(await accessibleLocationIds(user), artifact.run?.scopeIds ?? null)) {
     return NextResponse.json({ error: "Artefak tidak ditemukan" }, { status: 404 });
   }
 

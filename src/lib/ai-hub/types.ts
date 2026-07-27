@@ -113,7 +113,8 @@ export type PulseRow = LocationFacts & {
 export type PortfolioPulse = {
   periodStart: string;
   periodEnd: string;
-  dataAsOf: string; // ISO
+  /** Watermark data sumber terakhir berubah (ISO); null = belum ada data. */
+  dataAsOf: string | null;
   totals: PulseTotals;
   rows: PulseRow[]; // exception-first
   risks: RiskItem[];

@@ -1,12 +1,14 @@
 import "server-only";
 import { db } from "@/lib/db";
+import { withPpn } from "@/lib/money";
 
 /**
  * Calculation layer keuangan — semua agregat DERIVED dari transaksi.
  * Formula (docs/rebuild/DOMAIN_MODEL.md):
  *   availableBudget    = Σ budget disetujui − Σ expense disetujui − komitmen disetujui belum terealisasi
  *   outstandingPayable = Σ invoice disetujui/dibayar_sebagian − Σ pembayaran keluar
- *   unbilledWork       = nilai terpasang terverifikasi − Σ owner billing (diajukan+)
+ *   unbilledWork       = nilai terpasang DILAPORKAN (level counted: dikirim+disetujui+
+ *                        final — BUKAN terverifikasi; audit 2026-07-27 B4) − Σ owner billing (diajukan+)
  *   cashRequirement    = komitmen jatuh tempo + forecast biaya − kas tersedia − pencairan terjadwal
  */
 
@@ -128,17 +130,32 @@ export async function getContractsBilling(contractIds: string[]): Promise<Map<st
   });
   for (const b of billings) {
     const cur = result.get(b.contractId) ?? { contractId: b.contractId, billed: 0n, disbursed: 0n, retentionHeld: 0n };
-    if (b.status !== "draft") cur.billed += b.amount;
-    cur.retentionHeld += b.retentionHeld;
+    if (b.status !== "draft") {
+      cur.billed += b.amount;
+      // Retensi hanya dari termin yang benar-benar diajukan+ — termin draft
+      // belum menahan apa pun (audit 2026-07-27, B14a).
+      cur.retentionHeld += b.retentionHeld;
+    }
     for (const d of b.disbursements) cur.disbursed += d.amount;
     result.set(b.contractId, cur);
   }
   return result;
 }
 
-/** unbilledWork utk satu kontrak: nilai terpasang terverifikasi (Σ lokasi) − billed. */
-export function unbilledWork(installedVerified: bigint, billed: bigint): bigint {
-  return installedVerified > billed ? installedVerified - billed : 0n;
+/**
+ * unbilledWork utk satu kontrak: nilai terpasang DILAPORKAN (Σ lokasi) − billed,
+ * DIBANDINGKAN APPLE-TO-APPLE pada basis inklusif PPN (audit 2026-07-27, B5):
+ * terpasang berasal dari RAB (pre-PPN) sedangkan owner billing ditagihkan
+ * inklusif PPN — tanpa penyetaraan, unbilled understated ~11% dan klaim
+ * "sudah tertagih semua" bisa palsu. Terpasang dinaikkan dgn `withPpn` memakai
+ * `Contract.ppnPercent` (jangan hardcode — CLAUDE.md).
+ *
+ * Basis level status tetap counted (dikirim+disetujui+final) — "dilaporkan",
+ * bukan "terverifikasi" (B4); pemisahan level menunggu keputusan user.
+ */
+export function unbilledWork(installedReportedPreTax: bigint, billed: bigint, ppnPercent: number): bigint {
+  const installedInclPpn = withPpn(installedReportedPreTax, ppnPercent);
+  return installedInclPpn > billed ? installedInclPpn - billed : 0n;
 }
 
 /** cashRequirement: komitmen jatuh tempo ≤ horizon + forecast − kas tersedia − pencairan dijadwalkan. */

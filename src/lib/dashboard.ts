@@ -1,9 +1,11 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { COUNTED_REPORT_STATUSES, getLocationsProgress } from "@/lib/progress";
+import { weightedRealizedPct } from "@/lib/progress-calc";
 import { getPetaMarkers, type PetaMarker } from "@/lib/peta";
 import { buildPhotoViews, type PhotoView } from "@/lib/photos";
 import { jakartaDateKey, parseDateKey } from "@/lib/format";
+import { REGION_ORDER, REGION_OTHER, regionOf } from "@/lib/region";
 import { getActivityKindLabelMap } from "@/lib/field-activity/kinds";
 import type { IssueSeverity, IssueStatus, RecoveryStatus, DailyReportStatus } from "@/generated/prisma/enums";
 
@@ -19,27 +21,9 @@ import type { IssueSeverity, IssueStatus, RecoveryStatus, DailyReportStatus } fr
 const COUNTED: DailyReportStatus[] = [...COUNTED_REPORT_STATUSES];
 const KRITIS_THRESHOLD = -10; // deviasi (pp) < -10 = kritis (butuh tindakan segera)
 
-// ── Region (provinsi → wilayah besar) ────────────────────────────────────────
-export const REGION_ORDER = ["Sumatera", "Jawa", "Kalimantan", "Sulawesi", "Bali & Nusa", "Maluku & Papua"] as const;
-const PROVINCE_REGION: Record<string, string> = {
-  Aceh: "Sumatera", "Sumatera Utara": "Sumatera", "Sumatera Barat": "Sumatera", Riau: "Sumatera",
-  "Kepulauan Riau": "Sumatera", Jambi: "Sumatera", Bengkulu: "Sumatera", "Sumatera Selatan": "Sumatera",
-  "Kepulauan Bangka Belitung": "Sumatera", Lampung: "Sumatera",
-  Banten: "Jawa", "DKI Jakarta": "Jawa", "Jawa Barat": "Jawa", "Jawa Tengah": "Jawa", "Jawa Timur": "Jawa",
-  "Daerah Istimewa Yogyakarta": "Jawa",
-  "Kalimantan Barat": "Kalimantan", "Kalimantan Tengah": "Kalimantan", "Kalimantan Selatan": "Kalimantan",
-  "Kalimantan Timur": "Kalimantan", "Kalimantan Utara": "Kalimantan",
-  "Sulawesi Utara": "Sulawesi", Gorontalo: "Sulawesi", "Sulawesi Tengah": "Sulawesi", "Sulawesi Barat": "Sulawesi",
-  "Sulawesi Selatan": "Sulawesi", "Sulawesi Tenggara": "Sulawesi",
-  Bali: "Bali & Nusa", "Nusa Tenggara Barat": "Bali & Nusa", "Nusa Tenggara Timur": "Bali & Nusa",
-  Maluku: "Maluku & Papua", "Maluku Utara": "Maluku & Papua", Papua: "Maluku & Papua",
-  "Papua Barat": "Maluku & Papua", "Papua Selatan": "Maluku & Papua", "Papua Tengah": "Maluku & Papua",
-  "Papua Pegunungan": "Maluku & Papua", "Papua Barat Daya": "Maluku & Papua",
-};
-export const regionOf = (province: string): string => PROVINCE_REGION[province] ?? "Lainnya";
-
 // ── Tipe hasil ────────────────────────────────────────────────────────────────
-export type MarkerTone = "success" | "warning" | "danger" | "neutral";
+/** "idle" = lokasi TARGET (belum mulai) — bukan "belum submit hari ini". */
+export type MarkerTone = "success" | "warning" | "danger" | "neutral" | "idle";
 
 export type DashboardData = {
   updatedAt: Date;
@@ -103,11 +87,12 @@ const SEVERITY_RANK: Record<IssueSeverity, number> = { kritis: 0, tinggi: 1, sed
 
 /** Data utama dashboard (KPI, submit, deviasi, kendala, peta, portofolio). */
 export async function getDashboardData(locIds: string[] | null, orgId: string): Promise<DashboardData> {
-  const locWhere = locIds === null ? {} : { id: { in: locIds } };
+  // null = semua lokasi ORGANISASI, bukan semua lokasi database (audit B11).
+  const locWhere = locIds === null ? { package: { orgId } } : { id: { in: locIds } };
   const today = parseDateKey(jakartaDateKey(new Date()))!;
   const yesterday = new Date(today.getTime() - 86_400_000);
 
-  const [locations, submittedTodayRows, submittedYdayRows, activitiesTodayCount, markers, paketAktif, menungguVerifikasi, perluKoreksi] = await Promise.all([
+  const [locations, submittedTodayRows, submittedYdayRows, activitiesTodayCount, markers, paketAktif, menungguVerifikasi, perluKoreksi, allLocations] = await Promise.all([
     db.location.findMany({
       where: { ...locWhere, isActive: true },
       select: { id: true, name: true, slug: true, province: true, status: true },
@@ -122,10 +107,15 @@ export async function getDashboardData(locIds: string[] | null, orgId: string): 
       select: { locationId: true },
     }),
     db.fieldActivity.count({ where: { location: locWhere, activityDate: today } }),
-    getPetaMarkers(locIds),
+    getPetaMarkers(locIds, orgId),
     db.package.count({ where: { orgId, stage: { notIn: ["selesai", "batal"] } } }),
     db.dailyReport.count({ where: { location: locWhere, status: "dikirim" } }),
     db.dailyReport.count({ where: { location: locWhere, status: "perlu_koreksi" } }),
+    // Sebaran wilayah memotret SELURUH lokasi (termasuk yang belum mulai),
+    // sama dengan populasi pin peta — dulu kartu ini hanya menghitung lokasi
+    // berjalan sehingga Bali/NTB tampil 0 padahal pin-nya ada di peta
+    // (temuan 2026-07-27).
+    db.location.findMany({ where: locWhere, select: { province: true } }),
   ]);
 
   const ids = locations.map((l) => l.id);
@@ -138,7 +128,8 @@ export async function getDashboardData(locIds: string[] | null, orgId: string): 
     totalContract += p.grandTotal;
     totalRealized += p.realizedValue;
   }
-  const realizedPct = totalContract > 0n ? Number((totalRealized * 10000n) / totalContract) / 100 : 0;
+  // Formula kanonik (B13) — varian BigInt lama memotong desimal.
+  const realizedPct = weightedRealizedPct([...progress.values()]);
 
   const submittedIds = new Set(submittedTodayRows.map((r) => r.locationId));
   const submittedToday = submittedIds.size;
@@ -163,19 +154,27 @@ export async function getDashboardData(locIds: string[] | null, orgId: string): 
   const deviasiRanking = [...withDev].sort((a, b) => a.deviationPct - b.deviationPct);
   const deviasiKritis = withDev.filter((x) => x.deviationPct < KRITIS_THRESHOLD).length;
 
-  // Sebaran region — SEMUA lokasi (bukan hanya yg punya GPS).
+  // Sebaran region — SEMUA lokasi (bukan hanya yg punya GPS / yg sudah berjalan).
   const regionCount = new Map<string, number>();
-  for (const l of locations) {
+  for (const l of allLocations) {
     const r = regionOf(l.province);
     regionCount.set(r, (regionCount.get(r) ?? 0) + 1);
   }
-  const regions = REGION_ORDER.map((r) => ({ region: r, count: regionCount.get(r) ?? 0 }));
+  // "Lainnya" ikut ditampilkan bila terisi — provinsi yang belum dikenali harus
+  // KELIHATAN (Σ kartu wilayah = jumlah lokasi), bukan hilang diam-diam.
+  const regions = [
+    ...REGION_ORDER.map((r) => ({ region: r as string, count: regionCount.get(r) ?? 0 })),
+    ...(regionCount.get(REGION_OTHER) ? [{ region: REGION_OTHER, count: regionCount.get(REGION_OTHER)! }] : []),
+  ];
 
   // Warna pin peta = status submit + deviasi.
   const markerTone: Record<string, MarkerTone> = {};
   for (const m of markers) {
     const p = progress.get(m.id);
-    if (p && p.deviationPct < KRITIS_THRESHOLD) markerTone[m.id] = "danger";
+    // Lokasi belum mulai tidak diminta lapor hari ini — jangan diwarnai
+    // "belum submit" seolah menunggak.
+    if (!m.isActive) markerTone[m.id] = "idle";
+    else if (p && p.deviationPct < KRITIS_THRESHOLD) markerTone[m.id] = "danger";
     else if (!submittedIds.has(m.id)) markerTone[m.id] = "neutral";
     else if (p && p.deviationPct < 0) markerTone[m.id] = "warning";
     else markerTone[m.id] = "success";

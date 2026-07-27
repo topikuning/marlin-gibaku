@@ -171,7 +171,7 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
       periodEnd: new Date(`${input.endKey}T00:00:00.000Z`),
       promptVersion: PROMPT_VERSION,
       inputHash,
-      sourceSnapshotAt: new Date(pulse.dataAsOf),
+      sourceSnapshotAt: pulse.dataAsOf ? new Date(pulse.dataAsOf) : null,
       readinessScore: readinessAvg,
       sourcesJson: JSON.parse(JSON.stringify(allSourceRefs)),
       outputJson: undefined,
@@ -291,9 +291,23 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
     output.explanations = applyFilter(output.explanations as never[]);
   } else if (input.kind === "laporan") {
     output.sections = applyFilter(output.sections as never[]);
+    // Isi bagian (body) ikut divalidasi — dulu hanya reason/explanation
+    // (audit B10): angka karangan bisa bersembunyi di paragraf isi.
+    if (Array.isArray(output.sections)) {
+      const before = output.sections.length;
+      output.sections = (output.sections as { body?: string }[]).filter(
+        (sec) => typeof sec.body !== "string" || numericClaimsValid(sec.body, globals),
+      );
+      const removed = before - (output.sections as unknown[]).length;
+      if (removed > 0) droppedNotes.push(`${removed} bagian laporan dibuang: isi memuat angka tanpa sumber`);
+    }
     output.recommendations = applyFilter(output.recommendations as never[]);
     if (typeof output.waSummary === "string" && !numericClaimsValid(output.waSummary, globals)) {
-      droppedNotes.push("ringkasan WA memuat angka tanpa sumber — periksa sebelum kirim");
+      // PROJECT.md §5a: bagian yang gagal grounding DIBUANG — ringkasan WA yang
+      // angkanya tak bersumber tidak boleh ikut terkirim (audit B10; dulu cuma
+      // jadi limitation dan TETAP dikirim).
+      output.waSummary = "";
+      droppedNotes.push("ringkasan WA dibuang: memuat angka tanpa sumber — tulis ulang manual sebelum kirim");
     }
   } else if (input.kind === "tanya") {
     const cites = (output.citations as { sourceRefId: string }[] | undefined) ?? [];

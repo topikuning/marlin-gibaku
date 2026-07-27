@@ -14,6 +14,7 @@ import {
 } from "@/lib/lifecycle";
 import { parseDateKey } from "@/lib/format";
 import { getLocationsProgress } from "@/lib/progress";
+import { weightedRealizedPct } from "@/lib/progress-calc";
 import { regenerateBaseline } from "@/lib/rab/import";
 import { existingLocationKeys, locationKey } from "@/lib/master-location/queries";
 import type { PackageStage } from "@/generated/prisma/enums";
@@ -78,18 +79,11 @@ const PRA_KONTRAK: PackageStage[] = ["prospek", "tender", "penetapan"];
 /** Ambang "100%" — sejalan dgn formatPct (1 desimal); 99.95 tampil "100.0%". */
 const SERAH_TERIMA_MIN_PCT = 99.95;
 
-/** Progress agregat paket (rata-rata tertimbang grandTotal RAB aktif per lokasi). */
+/** Progress agregat paket — formula kanonik weightedRealizedPct (B13). */
 async function aggregateProgressPct(locationIds: string[]): Promise<number> {
   if (locationIds.length === 0) return 0;
   const progress = await getLocationsProgress(locationIds);
-  let totalRab = 0;
-  let weighted = 0;
-  for (const p of progress.values()) {
-    const w = Number(p.grandTotal);
-    totalRab += w;
-    weighted += p.realizedPct * w;
-  }
-  return totalRab > 0 ? weighted / totalRab : 0;
+  return weightedRealizedPct([...progress.values()]);
 }
 
 /* ------------------------------------------------------------------ */

@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
 import { PrintToolbar } from "@/components/print/print-toolbar";
-import { requireUser } from "@/lib/auth/session";
+import { accessibleLocationIds, requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
+import { scopeCoveredBy } from "@/lib/ai-hub/read-scope";
 import { parseAiReportContent, renderAiReportHtml } from "@/lib/ai-hub/render";
 
 export const dynamic = "force-dynamic";
@@ -19,9 +20,12 @@ export default async function CetakAiPage({ params }: { params: Promise<{ artifa
 
   const artifact = await db.aiArtifact.findUnique({
     where: { id: artifactId },
-    select: { kind: true, status: true, structuredContent: true, runId: true },
+    select: { kind: true, status: true, structuredContent: true, runId: true, run: { select: { scopeIds: true } } },
   });
   if (!artifact || artifact.kind !== "laporan") notFound();
+  // Scope baca = scope run asal artefak (audit 2026-07-27, B9). Artefak tanpa
+  // run → hanya role lintas lokasi.
+  if (!scopeCoveredBy(await accessibleLocationIds(user), artifact.run?.scopeIds ?? null)) notFound();
 
   let html: string;
   try {

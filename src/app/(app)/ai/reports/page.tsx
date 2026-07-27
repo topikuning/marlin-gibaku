@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Badge, Banner, Card, CardBody, CardHeader } from "@/components/ui";
-import { requireUser } from "@/lib/auth/session";
+import { accessibleLocationIds, requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
+import { scopeCoveredBy } from "@/lib/ai-hub/read-scope";
 import { getActiveAiConfig } from "@/lib/ai/config";
 import { getAiGuardConfig } from "@/lib/ai-hub/guard";
 import { resolveAiScope } from "@/lib/ai-hub/source";
@@ -25,7 +26,7 @@ export default async function AiReportsPage() {
   requireCapabilityPage(user.role, "ai.view");
 
   const [scope, aiCfg, guard] = await Promise.all([resolveAiScope(user, []), getActiveAiConfig(), getAiGuardConfig()]);
-  const [locations, artifacts] = await Promise.all([
+  const [locations, allArtifacts] = await Promise.all([
     db.location.findMany({
       where: { id: { in: scope.ids } },
       select: { id: true, name: true, package: { select: { name: true } } },
@@ -34,10 +35,25 @@ export default async function AiReportsPage() {
     db.aiArtifact.findMany({
       where: { kind: "laporan" },
       orderBy: { updatedAt: "desc" },
-      take: 15,
-      select: { id: true, title: true, templateKey: true, version: true, status: true, updatedAt: true, runId: true },
+      take: 50,
+      select: {
+        id: true,
+        title: true,
+        templateKey: true,
+        version: true,
+        status: true,
+        updatedAt: true,
+        runId: true,
+        run: { select: { scopeIds: true } },
+      },
     }),
   ]);
+  // Daftar difilter per scope BACA — user ber-scope sempit tidak boleh melihat
+  // judul/keberadaan laporan lokasi lain (audit 2026-07-27, B9).
+  const accessible = await accessibleLocationIds(user);
+  const artifacts = allArtifacts
+    .filter((a) => scopeCoveredBy(accessible, a.run?.scopeIds ?? null))
+    .slice(0, 15);
 
   const aiReady = guard.enabled && !!aiCfg;
 

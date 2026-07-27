@@ -1,5 +1,11 @@
 # REBUILD PLAN — MARLIN
 
+> **ARSIP — rencana rebuild 2026-07-14, sudah dieksekusi.**
+> Bukan spesifikasi berjalan. Kondisi terkini ada di `PROJECT.md`
+> (arsitektur & formula), `docs/OPEN_ISSUES.md` (yang masih terbuka), dan
+> `docs/DECISIONS.md` (riwayat keputusan).
+
+
 Eksekusi vertical slices; tiap slice usable + lulus typecheck/lint/test/build sebelum lanjut.
 
 ## Slice 1 — Foundation

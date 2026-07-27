@@ -26,6 +26,7 @@ const LEGEND: { tone: MarkerTone; label: string; dot: string }[] = [
   { tone: "warning", label: "Sudah submit, perlu perhatian", dot: "bg-warning" },
   { tone: "danger", label: "Deviasi negatif / kendala kritis", dot: "bg-danger" },
   { tone: "neutral", label: "Belum submit hari ini", dot: "bg-ink-faint" },
+  { tone: "idle", label: "Belum mulai (target)", dot: "border border-ink-faint bg-surface" },
 ];
 
 export function DashboardMap({
@@ -43,8 +44,10 @@ export function DashboardMap({
     if (filter === "semua") return markers;
     return markers.filter((m) => {
       const t = markerTone[m.id];
+      // "Belum Submit" hanya untuk lokasi BERJALAN yang belum lapor — lokasi
+      // yang belum mulai tidak masuk hitungan tunggakan.
       if (filter === "belum") return t === "neutral";
-      if (filter === "submit") return t && t !== "neutral";
+      if (filter === "submit") return t === "success" || t === "warning" || t === "danger";
       if (filter === "kritis") return t === "danger";
       return true;
     });

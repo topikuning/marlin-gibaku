@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export default async function PetaPage() {
   const user = await requireUser();
   requireCapabilityPage(user.role, "location.view");
-  const markers = await getPetaMarkers(await accessibleLocationIds(user));
+  const markers = await getPetaMarkers(await accessibleLocationIds(user), user.orgId);
 
   return (
     <div className="space-y-4">

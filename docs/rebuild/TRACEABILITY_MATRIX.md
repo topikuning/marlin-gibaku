@@ -1,5 +1,11 @@
 # TRACEABILITY MATRIX — MARLIN Rebuild
 
+> **ARSIP — penelusuran fitur lama → baru saat rebuild.**
+> Bukan spesifikasi berjalan. Kondisi terkini ada di `PROJECT.md`
+> (arsitektur & formula), `docs/OPEN_ISSUES.md` (yang masih terbuka), dan
+> `docs/DECISIONS.md` (riwayat keputusan).
+
+
 Status: `✅ selesai` / `🔶 sebagian` / `⏳ direncanakan` / `⏸ ditunda (dicatat)`. Diupdate setiap slice.
 
 | # | Kebutuhan | Sumber | Entitas | Service/Lib | UI | Role/Capability | Test | Status |

@@ -4,10 +4,12 @@ import { PageHeader, KpiCard, Card, CardHeader, CardBody, EmptyState, ProgressBa
 import { DeltaBadge } from "@/components/ui/stat-delta";
 import { TrendingUp } from "lucide-react";
 import { requireUser, accessibleLocationIds } from "@/lib/auth/session";
+import { locationScopeWhere } from "@/lib/auth/scope";
 import { can } from "@/lib/authz";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
 import { getLocationsProgress } from "@/lib/progress";
+import { weightedPct, weightedRealizedPct } from "@/lib/progress-calc";
 import { formatRupiahShort, formatPct } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Progress" };
@@ -19,7 +21,7 @@ export default async function ProgressPage() {
   const locIds = await accessibleLocationIds(user);
 
   const locations = await db.location.findMany({
-    where: { ...(locIds === null ? {} : { id: { in: locIds } }), isActive: true },
+    where: { ...locationScopeWhere(user, locIds), isActive: true },
     select: {
       id: true,
       name: true,
@@ -33,17 +35,13 @@ export default async function ProgressPage() {
 
   let totalRab = 0n;
   let totalRealized = 0n;
-  let weightedPlan = 0;
-  let weightedActual = 0;
   for (const p of progress.values()) {
     totalRab += p.grandTotal;
     totalRealized += p.realizedValue;
-    weightedPlan += p.planPct * Number(p.grandTotal);
-    weightedActual += p.realizedPct * Number(p.grandTotal);
   }
-  const denom = Number(totalRab) || 1;
-  const avgPlan = weightedPlan / denom;
-  const avgActual = weightedActual / denom;
+  // Formula kanonik (B13) — jangan tulis ulang rata-rata tertimbang di halaman.
+  const avgPlan = weightedPct([...progress.values()].map((p) => ({ grandTotal: p.grandTotal, pct: p.planPct })));
+  const avgActual = weightedRealizedPct([...progress.values()]);
 
   const rows = locations
     .map((l) => ({ ...l, p: progress.get(l.id)! }))

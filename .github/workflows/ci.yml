@@ -5,6 +5,13 @@ on:
     branches: [main]
   pull_request:
 
+# Batalkan run yang sudah usang: push berikutnya ke PR yang sama membuat run
+# sebelumnya tidak relevan. Dikelompokkan per PR (atau per ref untuk push ke
+# main), BUKAN per SHA — supaya run commit lama benar-benar dibatalkan.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   DATABASE_URL: postgresql://marlin:marlin@localhost:5432/marlin_test
   SESSION_SECRET: ci-only-secret-0123456789abcdef-0123456789abcdef

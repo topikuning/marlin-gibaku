@@ -141,7 +141,8 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
             <div className="min-h-[300px] flex-1">
               <DashboardMap markers={data.markers} markerTone={data.markerTone} />
             </div>
-            <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
+            <div className="mt-3 text-[11px] text-ink-muted">Sebaran seluruh lokasi (termasuk yang belum mulai)</div>
+            <div className="mt-1.5 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-7">
               {data.regions.map((r) => (
                 <div key={r.region} className="rounded-md border border-border bg-surface-muted px-2 py-1.5 text-center">
                   <div className="truncate text-[11px] text-ink-muted">{r.region}</div>
