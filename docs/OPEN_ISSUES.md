@@ -87,3 +87,76 @@ perhitungan retensi & opsi jaminan pemeliharaan. Milestone pembayaran sudah scop
   ikut sebagai konteks exec-report & AI Hub (sumber "chat_grup" + sourceRef).
 - Wiring kop surat + logo perusahaan ke header dokumen cetak /cetak/* (KKP,
   laporan periodik, laporan AI).
+
+## PERF · Halaman cetak laporan mingguan lambat pada RAB besar (DECISIONS 151)
+Lokasi dengan RAB ~1.700 baris item butuh ~22 detik untuk merender
+`/cetak/periodik/<slug>/mingguan/<n>` di mode dev. Perhitungannya BUKAN
+penyebabnya — `getPeriodReport` selesai 55–129 ms; sisanya render React untuk
+1.657 baris tabel. Belum diukur di build produksi (dev Turbopack jauh lebih
+lambat). Kalau di produksi masih terasa: opsi = virtualisasi/segmentasi tabel
+per kategori, atau render PDF di server (jalur `lib/pdf/periodik.ts` sudah ada)
+sebagai jalur cetak utama.
+
+## PERF · Kontrol jumlah kategori tanpa item (DECISIONS 151)
+`getPeriodReport` hanya membentuk kategori dari lineage ITEM yang ada. Kategori
+RAB yang punya `amount` tetapi tidak punya item sama sekali tidak muncul di
+tabel, sementara `amount`-nya tetap masuk `grandTotal` — akibatnya Σ bobot item
+< 100%. Belum pernah terlihat pada data nyata (importer selalu membuat item),
+dan uji integrasi menjaga Σ bobot = 100 untuk RAB normal. Kalau suatu saat
+muncul, keputusannya: tampilkan kategori kosong dengan bobot 0, atau keluarkan
+`amount`-nya dari `grandTotal`. Perlu keputusan user.
+
+## KEPUTUSAN · Level status progress belum dipisah (Calculation Integrity Protocol)
+
+```text
+CONFLICT:
+  Protokol menuntut tiga level progress yang dibedakan; sistem hanya punya satu.
+SOURCE A (protokol):
+  reportedProgress = dikirim + disetujui + final
+  verifiedProgress = disetujui + final
+  frozenProgress   = final
+  Label generik "Realisasi" DILARANG; harus "Progress Dilaporkan" /
+  "Progress Terverifikasi" / "Progress Final".
+SOURCE B (kode):
+  COUNTED_REPORT_STATUSES = [dikirim, disetujui, final] — SATU level, dipakai
+  dashboard, blanko KKP, kurva-S, keuangan (installedValue), dan AI. UI
+  melabelinya "Realisasi" di ±12 tempat.
+BUSINESS IMPACT:
+  Angka yang diteken PPK saat ini memasukkan laporan yang BARU DIKIRIM dan
+  belum diverifikasi siapa pun. Pembaca tidak bisa membedakannya. Untuk
+  penagihan termin, "terpasang" idealnya memakai level terverifikasi.
+SAFE OPTIONS:
+  1. Biarkan satu level, perjelas labelnya saja jadi "Realisasi (dilaporkan)".
+     Murah, tidak mengubah angka mana pun.
+  2. Tambah verifiedProgress sebagai angka KEDUA yang ditampilkan berdampingan;
+     angka utama tetap seperti sekarang. Tidak ada regresi, tapi dua kolom baru
+     di dashboard/laporan.
+  3. Pindahkan basis resmi ke verifiedProgress. Paling benar secara kontrak,
+     TAPI seluruh angka historis turun dan blanko KKP yang sudah dikirim ke KKP
+     tidak lagi cocok dengan sistem. Butuh backfill + pengumuman.
+RECOMMENDATION:
+  Opsi 1 sekarang (label), opsi 2 kalau KKP/PPK memang meminta pemisahan.
+  Opsi 3 hanya bila diputuskan bersama KKP — bukan keputusan teknis.
+DECISION REQUIRED:
+  Hery: apakah "Realisasi" di dashboard & blanko boleh berisi laporan yang
+  belum diverifikasi? Kalau tidak, pilih opsi 2 atau 3.
+```
+
+Sampai diputuskan, kode TIDAK diubah: mengganti level status diam-diam persis
+yang dilarang protokol.
+
+## KEPUTUSAN · `dataAsOf` belum melekat di setiap angka (Calculation Integrity Protocol)
+
+Protokol meminta tiap angka membawa metadata (`dataAsOf`, `calculationKey`,
+`statusLevel`, `revisionId`, `baselineId`, `sourceEntityIds`) supaya bisa
+di-drill-down. Saat ini hanya AI Hub Pulse yang punya `dataAsOf`; modul lain
+mengembalikan angka telanjang.
+
+Yang sudah aman tanpa metadata itu: laporan periodik memakai batas periode
+eksplisit (diuji di *Date-as-of gate*), dan `new Date()` hanya dipakai untuk
+membatasi kolom minggu di DEPAN minggu berjalan — laporan periode lampau
+stabil (juga diuji). Jadi ini soal ketertelusuran, bukan kebenaran angka.
+
+Perlu keputusan: apakah presentation contract berlabel penuh sepadan dengan
+refactor lintas modul, atau cukup ditambahkan pada laporan resmi (blanko KKP,
+PDF, Excel) saja.

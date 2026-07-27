@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { cumulativeVolumeByLineage, currentWeekNumber } from "@/lib/progress";
+import { bobotPct, realizedPctFromItems } from "@/lib/progress-calc";
 import { contractDaysFor } from "@/lib/rab/import";
 import { segmentsFromWeekly } from "@/lib/scurve/generate";
 import { autoCategoryWindowFrac } from "@/lib/scurve/sequencing";
@@ -101,10 +102,17 @@ export async function suggestWeeklyPlan(
   const currentWeek = startDate ? currentWeekNumber(startDate, totalWeeks) : Math.min(weekNumber, totalWeeks);
   const planPct = Number(points[currentWeek - 1]?.plannedPct ?? points[points.length - 1]?.plannedPct ?? 0);
 
+  // Deviasi di panel saran memakai formula yang sama dengan laporan resmi &
+  // dashboard (DECISIONS 151) — panel ini dipakai untuk mengambil keputusan,
+  // jadi tidak boleh menampilkan deviasi versinya sendiri.
   const grandTotal = leaves.reduce((s, l) => s + l.volume * l.unitPrice, 0);
-  let realizedValue = 0;
-  for (const l of leaves) realizedValue += (realizedByLineage.get(l.lineageKey) ?? 0) * l.unitPrice;
-  const actualPct = grandTotal > 0 ? (realizedValue / grandTotal) * 100 : 0;
+  const actualPct = realizedPctFromItems(
+    leaves.map((l) => ({
+      volK: l.volume,
+      volSd: realizedByLineage.get(l.lineageKey) ?? 0,
+      bobot: bobotPct(l.volume * l.unitPrice, grandTotal),
+    })),
+  );
   const deviationPct = Math.round((actualPct - planPct) * 100) / 100;
 
   return {

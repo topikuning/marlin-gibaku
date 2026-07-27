@@ -3,6 +3,7 @@ import { audit } from "@/lib/audit";
 import { canTransitionReport } from "@/lib/lifecycle";
 import { cumulativeVolumeByLineage, getLocationProgress, COUNTED_REPORT_STATUSES } from "@/lib/progress";
 import { valueDone as calcValueDone } from "@/lib/money";
+import { prestasiPct } from "@/lib/progress-calc";
 import { formatNumber, jakartaDateKey, parseDateKey } from "@/lib/format";
 import { Prisma } from "@/generated/prisma/client";
 import type {
@@ -419,8 +420,11 @@ export async function buildFinalSnapshot(reportId: string): Promise<FinalSnapsho
       volumeBefore: Math.max(0, Math.round((volumeCumulative - volumeToday) * 1000) / 1000),
       volumeToday,
       volumeCumulative,
+      // Dibatasi 100% memakai formula yang sama dengan blanko mingguan/bulanan
+      // (DECISIONS 151) — item yang sama tidak boleh 110% di harian tapi 100%
+      // di mingguan.
       pctCumulative:
-        volumeContract != null && volumeContract > 0 ? (volumeCumulative / volumeContract) * 100 : null,
+        volumeContract != null && volumeContract > 0 ? prestasiPct(volumeCumulative, volumeContract) : null,
       valueDone: it.valueDone.toString(),
       notes: it.notes,
     };

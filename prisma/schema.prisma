@@ -291,6 +291,7 @@ model Organization {
   vendors          Vendor[]
   documents        Document[]
   masterLocations  MasterLocation[]
+  waSenderAliases  WaSenderAlias[]
 
   @@map("organizations")
 }
@@ -345,6 +346,8 @@ model User {
   auditLogs    AuditLog[]
   creator      User?   @relation("UserCreator", fields: [createdById], references: [id])
   createdUsers User[]  @relation("UserCreator")
+  waContacts   WaContact[]     @relation("WaContactOwner")
+  waAliases    WaSenderAlias[] @relation("WaSenderAliasCreator")
 
   @@index([orgId])
   @@index([role])
@@ -1337,6 +1340,9 @@ model AppSetting {
 
 /// Kontak tujuan WA milik seorang user (per-pembuat). chatId = target WAHA:
 /// grup "…@g.us", kontak "…@c.us", atau nomor polos. DECISIONS 122.
+/// Relasi `owner` WAJIB ada (DECISIONS 150): tanpa itu kontak tidak bisa
+/// disaring per organisasi — penyebab kebocoran lintas-tenant di direktori
+/// pengenal pengirim.
 model WaContact {
   id        String   @id @default(uuid()) @db.Uuid
   ownerId   String   @map("owner_id") @db.Uuid
@@ -1344,6 +1350,9 @@ model WaContact {
   chatId    String   @map("chat_id")
   note      String?
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  owner User @relation("WaContactOwner", fields: [ownerId], references: [id], onDelete: Cascade)
 
   @@index([ownerId])
   @@map("wa_contacts")
@@ -1558,6 +1567,9 @@ model WaChatSummary {
 /// Alias pengirim WhatsApp — memberi NAMA pada pengirim yang hanya dikenal
 /// sebagai nomor/LID, supaya ringkasan ke pimpinan menyebut orang, bukan kode.
 /// Kunci = JID mentah (…@c.us / …@lid) atau nomor polos. DECISIONS 138.
+/// Berbeda dari WaContact: alias adalah jawaban atas "nomor ini siapa" —
+/// faktanya sama untuk semua orang, jadi sengaja DIPAKAI BERSAMA se-organisasi
+/// (DECISIONS 150). Dikelola di halaman Manajemen Kontak.
 model WaSenderAlias {
   id          String   @id @default(uuid()) @db.Uuid
   orgId       String   @map("org_id") @db.Uuid
@@ -1569,6 +1581,10 @@ model WaSenderAlias {
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdBy    User?        @relation("WaSenderAliasCreator", fields: [createdById], references: [id], onDelete: SetNull)
+
   @@unique([orgId, senderKey])
+  @@index([orgId])
   @@map("wa_sender_aliases")
 }

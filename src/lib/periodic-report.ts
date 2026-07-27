@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { autoCategoryWindowFrac, scheduleFromItems } from "@/lib/scurve/sequencing";
 import { orderCategoriesByRab } from "@/lib/scurve/kkp-sheet";
 import { COUNTED_REPORT_STATUSES, currentWeekNumber } from "@/lib/progress";
+import { bobotPct, itemAchievement, prestasiPct } from "@/lib/progress-calc";
 import { jakartaDateKey } from "@/lib/format";
 import type {
   IssueSeverity,
@@ -13,11 +14,15 @@ import type {
 
 /**
  * Laporan periodik (mingguan/bulanan) format KKP.
- * FORMULA bobot/prestasi dipertahankan PERSIS dari implementasi lama (b6e77af):
+ *
+ * FORMULA angka ada di `lib/progress-calc.ts` — SATU sumber yang dipakai
+ * laporan ini, kurva-S di halaman yang sama, dan dashboard (DECISIONS 151):
  *   bobot item      = amount / grandTotal × 100   (grandTotal = Σ amount node kategori revisi aktif)
- *   prestasi        = vk > 0 ? min(100, vol / vk × 100) : 0
+ *   prestasi s/d    = vk > 0 ? min(100, volSd / vk × 100) : 0
+ *   prestasi ini    = prestasi s/d − prestasi lalu   ← DITURUNKAN, supaya kolom berjumlah
  *   bobot realisasi = prestasi / 100 × bobot
  *   sisaVol         = max(0, vk − volSd);  sisaPrestasi = max(0, 100 − prestasiSd)
+ *   realisasi kurva = Σ bobot realisasi s/d minggu itu (BUKAN Σ valueDone)
  * Adaptasi ke schema baru:
  *   item      = DailyReportItem dengan report.status ∈ (dikirim, disetujui, final)
  *   bucketing = report.reportDate (sudah tanggal kerja, date-only)
@@ -317,7 +322,6 @@ export async function getPeriodReport(
     select: {
       lineageKey: true,
       volumeDone: true,
-      valueDone: true,
       report: { select: { reportDate: true } },
     },
   });
@@ -356,20 +360,24 @@ export async function getPeriodReport(
   let totalBobotLalu = 0;
   let totalBobotIni = 0;
   let totalBobotSd = 0;
+  /** Basis kurva-S: bobot + volume kontrak per item, dipakai ulang di bawah. */
+  const curveBasis: { lineageKey: string; volK: number; bobot: number }[] = [];
   for (const it of itemNodes) {
     const cat = catOf(it.lineageKey);
-    const bobot = (Number(it.amount) / grandTotal) * 100;
+    const bobot = bobotPct(Number(it.amount), grandTotal);
     const vk = Number(it.volume ?? 0);
     const volLalu = lalu.get(it.lineageKey) ?? 0;
     const volIni = ini.get(it.lineageKey) ?? 0;
     const volSd = volLalu + volIni;
-    const prestasi = (v: number) => (vk > 0 ? Math.min(100, (v / vk) * 100) : 0);
-    const prestasiLalu = prestasi(volLalu);
-    const prestasiIni = prestasi(volIni);
-    const prestasiSd = prestasi(volSd);
-    const bobotLalu = (prestasiLalu / 100) * bobot;
-    const bobotIni = (prestasiIni / 100) * bobot;
-    const bobotSd = (prestasiSd / 100) * bobot;
+    curveBasis.push({ lineageKey: it.lineageKey, volK: vk, bobot });
+    // Pembatas 100% hanya di kumulatif; kolom periode diturunkan dgn
+    // pengurangan supaya "lalu + ini = s/d" (DECISIONS 151).
+    const { prestasiLalu, prestasiIni, prestasiSd, bobotLalu, bobotIni, bobotSd } = itemAchievement({
+      volK: vk,
+      volLalu,
+      volIni,
+      bobot,
+    });
     totalBobotLalu += bobotLalu;
     totalBobotIni += bobotIni;
     totalBobotSd += bobotSd;
@@ -402,7 +410,7 @@ export async function getPeriodReport(
   let seq = 0;
   for (const c of categories) for (const row of c.rows) row.no = ++seq;
 
-  // Kurva-S: rencana dari baseline aktif; realisasi kumulatif per minggu dari valueDone.
+  // Kurva-S: rencana dari baseline aktif; realisasi kumulatif per minggu dari VOLUME.
   const baseline = await db.baseline.findFirst({
     where: { locationId, status: "aktif" },
     select: {
@@ -454,17 +462,28 @@ export async function getPeriodReport(
   const seriesLen = Math.max(planSeries.length, totalWeeks);
   const today = new Date(`${jakartaDateKey(new Date())}T00:00:00.000Z`);
   const currentWeek = currentWeekNumber(startDate, seriesLen, today);
-  const weeklyValue = new Array<number>(seriesLen).fill(0);
-  let valueSdPeriode = 0;
+
+  // Realisasi kurva-S dihitung dari VOLUME + bobot revisi aktif — basis yang
+  // SAMA persis dengan tabel di atas, bukan dari `valueDone` yang dibekukan
+  // memakai harga saat laporan dibuat (DECISIONS 151). Kalau berbeda basis,
+  // satu halaman menampilkan dua angka untuk hal yang sama.
+  // Hanya item yang PUNYA realisasi yang butuh deret mingguan — RAB bisa ribuan
+  // baris sementara yang dilaporkan biasanya puluhan.
+  const weeklyVolume = new Map<string, number[]>();
   for (const r of realRows) {
     if (!itemLineages.has(r.lineageKey)) continue;
     const wk = Math.min(
       seriesLen,
       Math.max(1, Math.floor((r.report.reportDate.getTime() - startDate.getTime()) / (7 * DAY)) + 1),
     );
-    weeklyValue[wk - 1] += Number(r.valueDone);
-    if (dateKey(r.report.reportDate) <= eKey) valueSdPeriode += Number(r.valueDone);
+    let arr = weeklyVolume.get(r.lineageKey);
+    if (!arr) {
+      arr = new Array<number>(seriesLen).fill(0);
+      weeklyVolume.set(r.lineageKey, arr);
+    }
+    arr[wk - 1] += Number(r.volumeDone);
   }
+  const basisByLineage = new Map(curveBasis.map((b) => [b.lineageKey, b]));
 
   // Minggu akhir periode yang diminta (mingguan = n; bulanan = minggu berisi periodeEnd).
   const weekIndex =
@@ -476,16 +495,26 @@ export async function getPeriodReport(
   // bukan s/d hari ini — jadi kolom minggu > n tidak diisi realisasi/deviasi.
   const cutoffWeek = Math.min(currentWeek, Math.max(1, weekIndex));
 
-  const actualSeries: (number | null)[] = [];
-  let cum = 0;
-  for (let w = 1; w <= seriesLen; w++) {
-    cum += weeklyValue[w - 1];
-    actualSeries.push(w <= cutoffWeek ? (cum / grandTotal) * 100 : null);
+  // Akumulasi per item sekali jalan (item × minggu, tanpa alokasi per minggu):
+  // tiap minggu ditambah prestasi KUMULATIF item itu s/d minggu tsb × bobotnya —
+  // pembatas 100% ikut terpasang, persis seperti kolom "bobot s/d" di tabel.
+  const actualTotals = new Array<number>(seriesLen).fill(0);
+  for (const [lineageKey, arr] of weeklyVolume) {
+    const b = basisByLineage.get(lineageKey);
+    if (!b) continue;
+    let cum = 0;
+    for (let w = 0; w < seriesLen; w++) {
+      cum += arr[w];
+      actualTotals[w] += (prestasiPct(cum, b.volK) / 100) * b.bobot;
+    }
   }
+  const actualSeries: (number | null)[] = actualTotals.map((v, i) => (i + 1 <= cutoffWeek ? v : null));
 
   const planIdx = Math.min(Math.max(planSeries.length, 1), Math.max(1, weekIndex)) - 1;
   const planPct = planSeries[planIdx] ?? 0;
-  const actualPct = (valueSdPeriode / grandTotal) * 100;
+  // Angka realisasi laporan = total kolom "bobot s/d" tabel. Satu perhitungan,
+  // satu angka — tabel, kurva, dan deviasi tidak mungkin lagi berselisih.
+  const actualPct = totalBobotSd;
 
   // Agregat tenaga/material/alat + cuaca dari laporan harian dalam periode.
   const periodReports = await db.dailyReport.findMany({

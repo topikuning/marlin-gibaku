@@ -5,6 +5,7 @@ import { MessageSquareText, Send } from "lucide-react";
 import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
+import { listSendableContacts } from "@/lib/contacts/queries";
 import { getActiveAiConfig } from "@/lib/ai/config";
 import {
   buildSenderDirectory,
@@ -56,7 +57,7 @@ export default async function ChatGrupPage({
       orderBy: { name: "asc" },
     }),
     getActiveAiConfig(),
-    db.waContact.findMany({ where: { ownerId: user.id }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    listSendableContacts(user.id),
   ]);
 
   const activePkg = packages.find((p) => p.id === sp.p) ?? packages[0] ?? null;

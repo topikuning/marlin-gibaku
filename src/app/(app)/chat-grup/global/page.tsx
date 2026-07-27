@@ -5,6 +5,7 @@ import { MessageSquareText } from "lucide-react";
 import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
+import { listSendableContacts } from "@/lib/contacts/queries";
 import { listGlobalSummaryDates, listSummariesForDate } from "@/lib/waha/chat-summary";
 import { SUMMARY_STATUS_LABEL, SUMMARY_STATUS_TONE, canSend } from "@/lib/waha/summary-lifecycle";
 import { formatTanggal, formatTanggalWaktu, jakartaToday } from "@/lib/format";
@@ -29,7 +30,7 @@ export default async function ChatGrupGlobalPage({
 
   const [dates, contacts] = await Promise.all([
     listGlobalSummaryDates(user),
-    db.waContact.findMany({ where: { ownerId: user.id }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    listSendableContacts(user.id),
   ]);
   const todayKey = jakartaToday().toISOString().slice(0, 10);
   const dateKey = sp.d && /^\d{4}-\d{2}-\d{2}$/.test(sp.d) ? sp.d : (dates[0]?.dateKey ?? todayKey);

@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { getLocationsProgress } from "@/lib/progress";
+import { COUNTED_REPORT_STATUSES, getLocationsProgress } from "@/lib/progress";
 import { getPetaMarkers, type PetaMarker } from "@/lib/peta";
 import { buildPhotoViews, type PhotoView } from "@/lib/photos";
 import { jakartaDateKey, parseDateKey } from "@/lib/format";
@@ -14,7 +14,9 @@ import type { IssueSeverity, IssueStatus, RecoveryStatus, DailyReportStatus } fr
  * dibatasi ke lokasi yang boleh dilihat user (locIds=null = semua).
  */
 
-const COUNTED: DailyReportStatus[] = ["dikirim", "disetujui", "final"];
+// Level status progress TUNGGAL — jangan pernah ditulis ulang sebagai literal
+// di modul mana pun (Calculation Integrity Protocol, DECISIONS 152).
+const COUNTED: DailyReportStatus[] = [...COUNTED_REPORT_STATUSES];
 const KRITIS_THRESHOLD = -10; // deviasi (pp) < -10 = kritis (butuh tindakan segera)
 
 // ── Region (provinsi → wilayah besar) ────────────────────────────────────────

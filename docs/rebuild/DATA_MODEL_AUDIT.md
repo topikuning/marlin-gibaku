@@ -11,6 +11,17 @@ Referensi lengkap hasil pembacaan `prisma/schema.prisma`, seluruh `src/lib/*.ts`
 
 ## Formula yang WAJIB dipertahankan (dikutip dari kode lama)
 
+> **SUDAH TIDAK BERLAKU SEPENUHNYA — dua formula di bawah sengaja diubah.**
+> Dokumen ini adalah arsip sistem lama (b6e77af); formula berjalan ada di
+> `PROJECT.md` + `src/lib/progress-calc.ts`. Yang berubah (DECISIONS 151):
+> 1. `realizedValue = Σ valueDone` → `Σ (prestasi dibatasi 100% × amount revisi
+>    aktif)`. `valueDone` dibekukan memakai harga saat laporan dibuat, sehingga
+>    adendum pengubah harga membuat dashboard melenceng dari blanko KKP.
+> 2. `perWeek += valueDone` pada kurva-S → berbasis volume, dengan alasan sama.
+>
+> Sisanya (valueDone per laporan, grandTotal, bobot, prestasi s/d, PPN,
+> weeksElapsed) tetap berlaku apa adanya.
+
 ```ts
 // Nilai realisasi item (lapor/actions.ts)
 valueDone = BigInt(Math.round(volumeDone * unitPrice))

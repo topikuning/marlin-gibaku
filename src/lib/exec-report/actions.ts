@@ -11,6 +11,7 @@ import { aiComplete } from "@/lib/ai/client";
 import { gatherExecData } from "@/lib/exec-report/gather";
 import { buildExecPrompt } from "@/lib/exec-report/prompt";
 import { isExecReportKey, isPeriodPreset } from "@/lib/exec-report/catalog";
+import { normalizeWaTarget } from "@/lib/contacts/model";
 
 /** Laporan Eksekutif → WA (rangkuman AI). Semua aksi gate `exec_report.send`. DECISIONS 122. */
 
@@ -100,15 +101,6 @@ export async function generateExecReportAction(
 export type ExecSendState = { error?: string; success?: string } | undefined;
 
 /** Normalisasi tujuan WA: id grup "…@g.us", kontak "…@c.us", atau nomor → "…@c.us". */
-function normalizeWaTarget(raw: string): string {
-  const t = raw.trim();
-  if (!t) throw new Error("Tujuan WA kosong.");
-  if (t.endsWith("@g.us") || t.endsWith("@c.us") || t.endsWith("@s.whatsapp.net")) return t;
-  const digits = t.replace(/[^0-9]/g, "");
-  if (digits.length >= 8) return `${digits}@c.us`;
-  throw new Error(`Format tujuan WA tidak dikenal: ${raw} (pakai nomor WA, atau id grup …@g.us).`);
-}
-
 export async function sendExecReportAction(
   _prev: ExecSendState,
   formData: FormData,
@@ -146,54 +138,10 @@ export async function sendExecReportAction(
     });
     await audit(user.id, "exec_report.send", "report_dispatch", null, { reportKey: key, destChatId });
     revalidatePath("/laporan-wa");
-    revalidatePath("/master/kontak-wa");
+    revalidatePath("/master/kontak");
     return { success: `Terkirim ke ${destName}.` };
   } catch (err) {
     return fail(err);
   }
 }
 
-/* ── Kontak WA (per-pembuat) ─────────────────────────────────────────────── */
-
-export type ContactState = { error?: string; success?: string } | undefined;
-
-const contactSchema = z.object({
-  name: z.string().trim().min(1, "Nama kontak wajib diisi").max(120),
-  chatId: z.string().trim().min(3, "Tujuan WA wajib diisi").max(120),
-  note: z.string().trim().max(200).optional(),
-});
-
-export async function addWaContactAction(_prev: ContactState, formData: FormData): Promise<ContactState> {
-  try {
-    const user = await requireCapability("exec_report.send");
-    const parsed = contactSchema.safeParse({
-      name: formData.get("name") ?? "",
-      chatId: formData.get("chatId") ?? "",
-      note: formData.get("note") ?? "",
-    });
-    if (!parsed.success) return { error: parsed.error.issues[0].message };
-    const chatId = normalizeWaTarget(parsed.data.chatId);
-    await db.waContact.create({
-      data: { ownerId: user.id, name: parsed.data.name, chatId, note: parsed.data.note || null },
-    });
-    revalidatePath("/laporan-wa");
-    revalidatePath("/master/kontak-wa");
-    return { success: `Kontak "${parsed.data.name}" disimpan.` };
-  } catch (err) {
-    return fail(err);
-  }
-}
-
-export async function deleteWaContactAction(_prev: ContactState, formData: FormData): Promise<ContactState> {
-  try {
-    const user = await requireCapability("exec_report.send");
-    const id = String(formData.get("id") ?? "");
-    if (!z.uuid().safeParse(id).success) return { error: "Kontak tidak valid." };
-    await db.waContact.deleteMany({ where: { id, ownerId: user.id } });
-    revalidatePath("/laporan-wa");
-    revalidatePath("/master/kontak-wa");
-    return { success: "Kontak dihapus." };
-  } catch (err) {
-    return fail(err);
-  }
-}

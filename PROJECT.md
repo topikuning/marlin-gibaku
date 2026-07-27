@@ -53,15 +53,41 @@ Akses   → User (mustChangePassword, tokenVersion) · Session (DB, revocable) �
            LoginAttempt (rate limit) · LocationAssignment (scope)
 ```
 
-Aturan angka: uang BigInt rupiah; agregat SELALU derived (`src/lib/progress.ts`,
-`src/lib/finance/calc.ts` = calculation layer tunggal utk dashboard, workspace,
-laporan, export); snapshot hanya `DailyReport.finalSnapshot` (immutable saat final).
+Aturan angka: uang BigInt rupiah; agregat SELALU derived; snapshot hanya
+`DailyReport.finalSnapshot` (immutable saat final).
 
-Formula dipertahankan dari implementasi terverifikasi lama (dikutip di
-docs/rebuild/DATA_MODEL_AUDIT.md): valueDone = round(volume×hargaSatuan);
-grandTotal = Σ amount kategori revisi aktif; bobot = nilai item/grandTotal×100;
-prestasi = min(100, vol/volKontrak×100); kurva-S smoothstep per fase kategori +
-penjadwalan per-trade; PPN: RAB pre-PPN vs kontrak incl-PPN, warning selisih >0.1%.
+**Calculation layer tunggal** (DECISIONS 151/152 — dilarang menulis ulang
+formula ini di modul, komponen, PDF, Excel, atau prompt AI mana pun):
+
+| Modul | Isi |
+|---|---|
+| `src/lib/progress-calc.ts` | MURNI: `prestasiPct`, `itemAchievement`, `realizedPctFromItems`, `bobotPct` |
+| `src/lib/progress.ts` | akses DB: `grandTotal`, `realized`, `planPct`, `deviationPct`, `COUNTED_REPORT_STATUSES` |
+| `src/lib/finance/calc.ts` | agregat keuangan |
+
+Formula kanonik:
+
+```
+grandTotal    = Σ amount node kategori revisi AKTIF
+bobot item    = amount item / grandTotal × 100
+prestasi s/d  = volKontrak > 0 ? min(100, volSd / volKontrak × 100) : 0
+prestasi ini  = prestasi s/d − prestasi lalu        ← DITURUNKAN (kolom wajib berjumlah)
+bobot realisasi = prestasi / 100 × bobot
+realized      = Σ bobot realisasi (BUKAN Σ valueDone — lihat DECISIONS 151)
+deviationPct  = realizedPct − planPct
+valueDone     = round(volume × hargaSatuan)          ← nilai TERSIMPAN per laporan, bukan basis agregat
+```
+
+Level status yang dihitung: `COUNTED_REPORT_STATUSES` = dikirim + disetujui +
+final (satu level; belum dipisah dilaporkan/terverifikasi/final — lihat
+docs/OPEN_ISSUES.md). Kurva-S: smoothstep per fase kategori + penjadwalan
+per-trade. PPN: RAB pre-PPN vs kontrak incl-PPN, warning selisih >0.1%.
+
+Invarian yang dijaga uji (`tests/integration/periodic-report.test.ts`): kolom
+laporan berjumlah, "s/d" tidak pernah mundur antar periode, Σ bobot = 100,
+dashboard = kurva ringkasan lokasi = blanko KKP, lineage mati tidak ikut,
+draft tidak dihitung, grandTotal 0 tidak menghasilkan NaN, lokasi tidak
+tercampur.
 
 ## 4. Permission
 

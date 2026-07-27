@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import { Button, Input } from "@/components/ui";
 import { saveSenderAliasAction, type ChatSummaryState } from "@/lib/waha/summary-actions";
@@ -7,13 +8,21 @@ import { saveSenderAliasAction, type ChatSummaryState } from "@/lib/waha/summary
 /**
  * Beri nama pada pengirim chat yang belum dikenali (nomor/LID). Sekali dipetakan,
  * berlaku untuk semua ringkasan & arsip berikutnya. DECISIONS 138.
+ * Daftar nama yang sudah dibuat dikelola di Master Data → Kontak (DECISIONS 150).
  */
 export function SenderAliasForm({ senderKey, hint }: { senderKey: string; hint: string }) {
   const [open, setOpen] = useState(false);
   const [state, action, pending] = useActionState<ChatSummaryState, FormData>(saveSenderAliasAction, undefined);
 
   if (state?.success) {
-    return <span className="text-xs text-success">{state.success}</span>;
+    return (
+      <span className="text-xs text-success">
+        {state.success}{" "}
+        <Link href="/master/kontak" className="text-primary hover:underline">
+          Kelola nama pengirim
+        </Link>
+      </span>
+    );
   }
   if (!open) {
     return (
