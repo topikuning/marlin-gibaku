@@ -104,7 +104,7 @@ export async function getLocationsProgress(locationIds: string[]): Promise<Map<s
       JOIN rab_revisions rr ON rr.id = rn.revision_id
         AND rr.location_id = dr.location_id AND rr.status = 'aktif'
       WHERE dr.location_id = ANY(${locationIds}::uuid[])
-        AND dr.status IN ('dikirim','disetujui','final')
+        AND dr.status::text = ANY(${[...COUNTED_REPORT_STATUSES]}::text[])
         AND rn.kind = 'item'
       GROUP BY dr.location_id, rn.id, rn.volume, rn.amount
     ) t

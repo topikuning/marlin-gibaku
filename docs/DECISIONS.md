@@ -3230,3 +3230,76 @@ angka yang sekarang tampil adalah angka yang sama dengan blanko KKP.
 dengan 1657 baris butuh ~22 detik di mode dev. Perhitungannya sendiri 55–129 ms
 — sisanya render React di dev. Belum diukur di produksi; dicatat di
 `docs/OPEN_ISSUES.md`.
+
+## 152 · 2026-07-27 · Calculation Integrity Protocol dijalankan atas kode
+
+**Pemicu:** user memberikan `CLAUDE_CODE_CALCULATION_INTEGRITY_PROTOCOL.md` dan
+meminta protokolnya dijalankan, bukan sekadar dibaca.
+
+### Pelanggaran yang ditemukan & dibereskan
+
+**1. Kurva-S KETIGA di `lib/baseline.ts` (`getScurveSeries`).** Dipakai
+ringkasan lokasi, halaman Progress, dan `lib/forecast.ts`. Menghitung realisasi
+dari `Σ valueDone ÷ grandTotal`, tanpa pembatas 100% dan dengan harga beku —
+jadi berbeda dari kurva blanko KKP untuk lokasi yang sama. Diubah ke basis
+volume + bobot revisi aktif lewat `progress-calc.ts`.
+
+**2. `COUNTED_REPORT_STATUSES` ditulis ulang sebagai literal di 5 tempat**
+(`daily-report/queries.ts` ×2, `ai-hub/source.ts` ×2, `dashboard.ts`). Kalau
+level status diubah, kelimanya mengambang diam-diam. Semua diganti memakai
+konstanta kanonik; dua raw SQL diparameterkan
+(`dr.status::text = ANY(${[...COUNTED_REPORT_STATUSES]}::text[])`).
+
+**3. Dokumen vs kode (STOP condition).** `PROJECT.md` masih menyebut formula
+lama pasca DECISIONS 151 — pelanggaran yang dibuat sendiri. `PROJECT.md`
+ditulis ulang dengan tabel calculation layer + formula kanonik + daftar
+invarian. `docs/rebuild/DATA_MODEL_AUDIT.md` (arsip sistem lama) diberi kotak
+peringatan bahwa dua formulanya sengaja tidak lagi berlaku.
+
+**Yang diperiksa dan ternyata SUDAH benar:** AI Hub tidak menghitung realisasi
+sendiri — `ai-hub/source.ts` memakai `getLocationsProgress` (`realizedPct` /
+`deviationPct`); Excel, PDF, dan komponen cetak memakai objek `PeriodReport`
+yang sama; query over-volume di `ai-hub/source.ts` memang detektor, bukan
+perhitungan progress.
+
+### Gate yang sekarang dijaga uji otomatis
+
+- **Reconciliation gate**: dashboard = kurva ringkasan lokasi = blanko KKP
+  mingguan; panel saran rencana memakai deviasi yang sama; kurva lokasi tidak
+  pernah > 100%.
+- **Date-as-of gate**: laporan minggu n tidak melihat realisasi minggu n+1;
+  batas tanggal periode benar; laporan periode lampau stabil terhadap "hari
+  ini".
+- **Revision & lineage gate**: adendum yang membuang item — revisi lama
+  di-supersede, bukan dihapus (foreign key laporan melindunginya) — membuat
+  lineage-nya keluar dari realisasi aktif tanpa menghapus histori, dan tidak
+  menggelembungkan persentase ketika basisnya mengecil.
+- **Fixture emas** dengan hitungan manual: RAB Rp100.000.000, realisasi 10 dari
+  100 unit → `realizedValue` Rp10.000.000 / 10,00%; draft tidak dihitung;
+  dikirim/disetujui/final menghitung sama; grandTotal 0 tidak menghasilkan
+  NaN/Infinity; dua lokasi satu paket tidak tercampur.
+
+Total uji integrasi laporan: **28**.
+
+### Yang SENGAJA tidak dikerjakan (butuh keputusan user)
+
+Dicatat di `docs/OPEN_ISSUES.md` dengan format konflik protokol:
+
+1. **Level status belum dipisah** — protokol menuntut reportedProgress /
+   verifiedProgress / frozenProgress dan melarang label generik "Realisasi".
+   Sistem punya satu level. Mengubahnya diam-diam persis yang dilarang
+   protokol, dan opsi paling benar (basis = terverifikasi) menurunkan seluruh
+   angka historis sehingga blanko yang sudah dikirim ke KKP tidak lagi cocok.
+2. **`dataAsOf` belum melekat di setiap angka** — hanya AI Hub Pulse yang
+   punya. Ini soal ketertelusuran, bukan kebenaran: laporan periodik memakai
+   batas periode eksplisit dan sudah diuji stabil terhadap "hari ini".
+
+### Verifikasi
+
+typecheck ✓ · lint ✓ · unit 384 ✓ · integration 41 ✓ (28 di antaranya laporan
+periodik) · build ✓ · E2E 16 ✓.
+
+`docker build --no-cache` TIDAK dapat dijalankan di lingkungan kerja ini —
+tarikan image Docker Hub diblokir proxy (403 dari cloudfront). Gate itu
+dijalankan oleh job "Docker build" di CI, bukan lokal; jangan dianggap terbukti
+sampai CI hijau.

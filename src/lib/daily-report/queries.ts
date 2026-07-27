@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { prestasiPct } from "@/lib/progress-calc";
-import { cumulativeVolumeByLineage } from "@/lib/progress";
+import { COUNTED_REPORT_STATUSES, cumulativeVolumeByLineage } from "@/lib/progress";
 import { jakartaDateKey, parseDateKey } from "@/lib/format";
 import { buildPhotoViews, type PhotoView } from "@/lib/photos";
 import type { DailyReportStatus, IssueSeverity, IssueStatus, WeatherCode, WorkerRole } from "@/generated/prisma/enums";
@@ -229,7 +229,7 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
 
   // Kumulatif counted: laporan status editable (draft/perlu_koreksi) belum
   // counted — tampilkan kumulatif TERMASUK angka hari ini supaya SM lihat efeknya.
-  const counted = new Set<DailyReportStatus>(["dikirim", "disetujui", "final"]);
+  const counted = new Set<DailyReportStatus>(COUNTED_REPORT_STATUSES);
   const includesSelf = counted.has(report.status);
 
   let totalValueToday = 0n;
@@ -502,7 +502,9 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
   }
 
   const cumulative = await cumulativeVolumeByLineage(location.id, reportDate);
-  const counted = report ? ["dikirim", "disetujui", "final"].includes(report.status) : false;
+  const counted = report
+    ? (COUNTED_REPORT_STATUSES as readonly string[]).includes(report.status)
+    : false;
   const startDate = location.package.contract?.startDate ?? null;
   const weekNo = startDate
     ? Math.max(1, Math.floor((reportDate.getTime() - startDate.getTime()) / (7 * 86_400_000)) + 1)

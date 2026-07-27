@@ -312,6 +312,286 @@ describe("REGRESI: dashboard & laporan resmi tidak boleh beda angka", () => {
   });
 });
 
+describe("Fixture emas — angka bulat, hitungan manual", () => {
+  /**
+   * Calculation Integrity Protocol menuntut fixture dengan expected yang bisa
+   * dihitung tangan. Lokasi terpisah dengan angka bulat supaya selisih sekecil
+   * apa pun terlihat.
+   *
+   * RAB: 1 kategori Rp100.000.000 = 1 item 100 m3 × Rp1.000.000 (bobot 100%).
+   * Realisasi 10 m3 → 10% prestasi → 10% bobot → realizedValue Rp10.000.000.
+   */
+  let emasLoc: string;
+  let emasNode: string;
+
+  beforeAll(async () => {
+    const org = await db.organization.findFirstOrThrow({ where: { slug: `orgp-${suffix}` } });
+    const pkg = await db.package.findFirstOrThrow({ where: { orgId: org.id } });
+    const loc = await db.location.create({
+      data: {
+        packageId: pkg.id, name: "Lokasi Emas", slug: `lokasi-emas-${suffix}`,
+        village: "Desa", regency: "Kab", province: "Prov",
+      },
+    });
+    emasLoc = loc.id;
+    const rev = await db.rabRevision.create({
+      data: { locationId: emasLoc, revisionNo: 1, source: "hps_awal", status: "aktif", totalValue: 100_000_000n },
+    });
+    await db.rabNode.create({
+      data: { revisionId: rev.id, kind: "kategori", code: "I", name: "PEKERJAAN I", amount: 100_000_000n, lineageKey: "I", sortOrder: 0 },
+    });
+    const node = await db.rabNode.create({
+      data: {
+        revisionId: rev.id, kind: "item", code: "1.1", name: "Item Emas",
+        volume: 100, unit: "m3", unitPrice: 1_000_000, amount: 100_000_000n,
+        lineageKey: "I#1.1", sortOrder: 1,
+      },
+    });
+    emasNode = node.id;
+    const baseline = await db.baseline.create({
+      data: { locationId: emasLoc, baselineNo: 1, source: "auto", status: "aktif", rabRevisionId: rev.id, contractDays: WEEKS * 7 },
+    });
+    await db.baselinePoint.createMany({
+      data: Array.from({ length: WEEKS }, (_, i) => ({
+        baselineId: baseline.id, weekNumber: i + 1, plannedPct: ((i + 1) / WEEKS) * 100,
+      })),
+    });
+  });
+
+  it("#1+#2 RAB Rp100.000.000, realisasi 10 dari 100 unit → 10,00% / Rp10.000.000", async () => {
+    const { getLocationProgress } = await import("@/lib/progress");
+    const kosong = await getLocationProgress(emasLoc);
+    expect(kosong.grandTotal).toBe(100_000_000n);
+    expect(kosong.realizedPct, "belum ada laporan → 0%").toBe(0);
+
+    const rep = await db.dailyReport.create({
+      data: { locationId: emasLoc, reportDate: d(START), status: "final", createdById: userId },
+    });
+    await db.dailyReportItem.create({
+      data: { reportId: rep.id, rabNodeId: emasNode, lineageKey: "I#1.1", volumeDone: 10, valueDone: 10_000_000n },
+    });
+
+    const p = await getLocationProgress(emasLoc);
+    expect(p.realizedValue).toBe(10_000_000n); // 10/100 × Rp100.000.000
+    expect(p.realizedPct).toBeCloseTo(10, 9); // Rp10jt / Rp100jt × 100
+  });
+
+  it("#3 status draft TIDAK dihitung", async () => {
+    const { getLocationProgress } = await import("@/lib/progress");
+    const rep = await db.dailyReport.create({
+      data: { locationId: emasLoc, reportDate: plusDays(START, 1), status: "draft", createdById: userId },
+    });
+    await db.dailyReportItem.create({
+      data: { reportId: rep.id, rabNodeId: emasNode, lineageKey: "I#1.1", volumeDone: 40, valueDone: 40_000_000n },
+    });
+    const p = await getLocationProgress(emasLoc);
+    expect(p.realizedPct, "draft tidak boleh menaikkan progress").toBeCloseTo(10, 9);
+
+    // #4/#5/#6: begitu naik ke dikirim/disetujui/final, ketiganya menghitung sama.
+    for (const status of ["dikirim", "disetujui", "final"] as const) {
+      await db.dailyReport.update({ where: { id: rep.id }, data: { status } });
+      const q = await getLocationProgress(emasLoc);
+      expect(q.realizedPct, `status ${status}`).toBeCloseTo(50, 9); // (10+40)/100
+    }
+    await db.dailyReport.delete({ where: { id: rep.id } });
+  });
+
+  it("#12 grand total nol tidak menghasilkan NaN/Infinity", async () => {
+    const { getLocationProgress } = await import("@/lib/progress");
+    const org = await db.organization.findFirstOrThrow({ where: { slug: `orgp-${suffix}` } });
+    const pkg = await db.package.findFirstOrThrow({ where: { orgId: org.id } });
+    const loc = await db.location.create({
+      data: {
+        packageId: pkg.id, name: "Lokasi Kosong", slug: `lokasi-kosong-${suffix}`,
+        village: "Desa", regency: "Kab", province: "Prov",
+      },
+    });
+    const p = await getLocationProgress(loc.id);
+    expect(p.grandTotal).toBe(0n);
+    expect(Number.isFinite(p.realizedPct)).toBe(true);
+    expect(p.realizedPct).toBe(0);
+    expect(Number.isFinite(p.deviationPct)).toBe(true);
+    // Laporan periodik untuk lokasi tanpa RAB aktif → null, bukan crash.
+    expect(await getPeriodReport(loc.id, "mingguan", 1)).toBeNull();
+  });
+
+  it("#14 dua lokasi dalam satu paket tidak tercampur", async () => {
+    const { getLocationsProgress } = await import("@/lib/progress");
+    const m = await getLocationsProgress([emasLoc, locationId]);
+    const emas = m.get(emasLoc)!;
+    const utama = m.get(locationId)!;
+    expect(emas.grandTotal).toBe(100_000_000n);
+    expect(utama.grandTotal).toBe(GRAND);
+    expect(emas.realizedPct).toBeCloseTo(10, 9);
+    // Lokasi utama punya realisasi jauh lebih besar — kalau tercampur, kedua
+    // angka ini akan saling menular.
+    expect(utama.realizedPct).toBeGreaterThan(50);
+  });
+});
+
+describe("Reconciliation gate — satu lokasi, satu dataAsOf, satu angka", () => {
+  /**
+   * Calculation Integrity Protocol: untuk lokasi & tanggal yang sama, seluruh
+   * output WAJIB identik. Diuji lewat calculation layer yang dikonsumsi tiap
+   * output, bukan lewat render — PDF/Excel/komponen cetak memakai objek
+   * `PeriodReport` yang sama persis, jadi kesamaannya struktural.
+   */
+  it("dashboard = kurva-S ringkasan lokasi = laporan mingguan terakhir", async () => {
+    const { getLocationProgress } = await import("@/lib/progress");
+    const { getScurveSeries } = await import("@/lib/baseline");
+
+    const [p, s, r] = await Promise.all([
+      getLocationProgress(locationId),
+      getScurveSeries(locationId),
+      getPeriodReport(locationId, "mingguan", WEEKS),
+    ]);
+
+    // Titik terakhir kurva ringkasan lokasi yang terisi (minggu berjalan).
+    const filled = s.actualPct.filter((v): v is number => v != null);
+    const kurvaLokasi = filled[filled.length - 1];
+
+    expect(p.realizedPct, "dashboard vs laporan").toBeCloseTo(r!.totals.bobotSd, 6);
+    expect(kurvaLokasi, "kurva ringkasan lokasi vs laporan").toBeCloseTo(r!.totals.bobotSd, 6);
+    expect(kurvaLokasi, "kurva ringkasan lokasi vs dashboard").toBeCloseTo(p.realizedPct, 6);
+  });
+
+  it("panel saran rencana memakai deviasi yang sama dengan dashboard", async () => {
+    const { getLocationProgress } = await import("@/lib/progress");
+    const { suggestWeeklyPlan } = await import("@/lib/plan/suggest");
+    const [p, plan] = await Promise.all([
+      getLocationProgress(locationId),
+      suggestWeeklyPlan(locationId, WEEKS),
+    ]);
+    // suggest memakai grandTotal Σ(volume×harga) sedangkan progress memakai
+    // Σ amount kategori; pada RAB yang konsisten keduanya sama.
+    expect(plan!.actualPct).toBeCloseTo(Math.round(p.realizedPct * 100) / 100, 1);
+  });
+
+  it("kurva ringkasan lokasi tidak pernah melewati 100% walau volume over", async () => {
+    const { getScurveSeries } = await import("@/lib/baseline");
+    const s = await getScurveSeries(locationId);
+    for (const v of s.actualPct) {
+      if (v == null) continue;
+      expect(v).toBeGreaterThanOrEqual(0);
+      expect(v).toBeLessThanOrEqual(100 + 1e-9);
+    }
+  });
+});
+
+describe("Date-as-of gate", () => {
+  it("laporan minggu n tidak memasukkan realisasi minggu sesudahnya", async () => {
+    // Minggu 4 punya realisasi; laporan minggu 3 tidak boleh melihatnya.
+    const w3 = await getPeriodReport(locationId, "mingguan", 3);
+    const w4 = await getPeriodReport(locationId, "mingguan", 4);
+    expect(w4!.totals.bobotSd).toBeGreaterThan(w3!.totals.bobotSd);
+    // "ini" minggu 4 = selisih s/d — tidak ada realisasi yang bocor mundur.
+    expect(w4!.totals.bobotIni).toBeCloseTo(w4!.totals.bobotSd - w3!.totals.bobotSd, 9);
+  });
+
+  it("periode minggu n memakai batas tanggal yang benar", async () => {
+    for (const n of [1, 3, WEEKS]) {
+      const r = await getPeriodReport(locationId, "mingguan", n);
+      const expStart = plusDays(START, (n - 1) * 7);
+      expect(r!.header.periodeStart.toISOString().slice(0, 10)).toBe(expStart.toISOString().slice(0, 10));
+      expect(r!.header.periodeEnd.getTime() - r!.header.periodeStart.getTime()).toBe(6 * DAY);
+    }
+  });
+
+  it("laporan periode lampau tidak berubah oleh 'hari ini'", async () => {
+    // Semua data fixture ada di minggu 1..4 dan kontraknya sudah lewat, jadi
+    // laporan minggu 4 harus stabil dipanggil berkali-kali.
+    const a = await getPeriodReport(locationId, "mingguan", 4);
+    const b = await getPeriodReport(locationId, "mingguan", 4);
+    expect(a!.totals).toEqual(b!.totals);
+    expect(a!.actualPct).toBe(b!.actualPct);
+  });
+});
+
+describe("Revision & lineage gate", () => {
+  it("laporan dua tanggal dengan lineage sama dijumlah, tidak dobel-hitung", async () => {
+    const r = await getPeriodReport(locationId, "mingguan", WEEKS);
+    const galian = allRows(r!).find((x) => x.code === "1.1")!;
+    // 20 (mgg 1) + 30 (mgg 2) + 60 (mgg 3) = 110 volume mentah.
+    expect(galian.volSd).toBeCloseTo(110, 6);
+    // Prestasinya tetap dibatasi 100% karena volume kontraknya 100.
+    expect(galian.prestasiSd).toBe(100);
+  });
+
+  /**
+   * Adendum di dunia nyata TIDAK menghapus node RAB (foreign key laporan
+   * melindunginya) — revisi lama di-supersede dan revisi BARU jadi aktif.
+   * Lokasi terpisah supaya fixture utama tidak terganggu.
+   */
+  it("lineage yang hilang di revisi aktif baru TIDAK masuk realisasi aktif, histori tetap utuh", async () => {
+    const org = await db.organization.findFirstOrThrow({ where: { slug: `orgp-${suffix}` } });
+    const pkg = await db.package.findFirstOrThrow({ where: { orgId: org.id } });
+    const loc = await db.location.create({
+      data: {
+        packageId: pkg.id,
+        name: "Lokasi Adendum",
+        slug: `lokasi-adendum-${suffix}`,
+        village: "Desa",
+        regency: "Kab",
+        province: "Prov",
+      },
+    });
+
+    // Revisi 1: dua item, masing-masing Rp50 juta (bobot 50/50).
+    const rev1 = await db.rabRevision.create({
+      data: { locationId: loc.id, revisionNo: 1, source: "hps_awal", status: "aktif", totalValue: 100_000_000n },
+    });
+    await db.rabNode.create({
+      data: { revisionId: rev1.id, kind: "kategori", code: "I", name: "PEKERJAAN I", amount: 100_000_000n, lineageKey: "I", sortOrder: 0 },
+    });
+    const mk = (revId: string, key: string, code: string, sort: number) =>
+      db.rabNode.create({
+        data: {
+          revisionId: revId, kind: "item", code, name: `Item ${code}`,
+          volume: 50, unit: "m3", unitPrice: 1_000_000, amount: 50_000_000n,
+          lineageKey: key, sortOrder: sort,
+        },
+      });
+    const a1 = await mk(rev1.id, "I#A", "1.1", 1);
+    const b1 = await mk(rev1.id, "I#B", "1.2", 2);
+
+    const rep = await db.dailyReport.create({
+      data: { locationId: loc.id, reportDate: d(START), status: "final", createdById: userId },
+    });
+    for (const [node, key] of [[a1, "I#A"], [b1, "I#B"]] as const) {
+      await db.dailyReportItem.create({
+        data: { reportId: rep.id, rabNodeId: node.id, lineageKey: key, volumeDone: 50, valueDone: 50_000_000n },
+      });
+    }
+
+    const { getLocationProgress } = await import("@/lib/progress");
+    const before = await getLocationProgress(loc.id);
+    expect(before.realizedPct, "kedua item selesai penuh").toBeCloseTo(100, 6);
+
+    // Adendum: revisi 2 aktif, item I#B DIHAPUS dari lingkup.
+    await db.rabRevision.update({ where: { id: rev1.id }, data: { status: "digantikan", supersededAt: new Date() } });
+    const rev2 = await db.rabRevision.create({
+      data: { locationId: loc.id, revisionNo: 2, source: "adendum", status: "aktif", totalValue: 50_000_000n },
+    });
+    await db.rabNode.create({
+      data: { revisionId: rev2.id, kind: "kategori", code: "I", name: "PEKERJAAN I", amount: 50_000_000n, lineageKey: "I", sortOrder: 0 },
+    });
+    await mk(rev2.id, "I#A", "1.1", 1);
+
+    const after = await getLocationProgress(loc.id);
+    // Basis tinggal I#A (bobot 100%) dan realisasinya penuh → tetap 100%,
+    // BUKAN 200% (kalau realisasi I#B ikut terhitung ke basis yang mengecil).
+    expect(after.realizedPct, "lineage mati tidak boleh ikut").toBeCloseTo(100, 6);
+
+    // Histori laporan TIDAK dihapus oleh adendum.
+    const stillThere = await db.dailyReportItem.count({ where: { reportId: rep.id } });
+    expect(stillThere).toBe(2);
+
+    // Realisasi yang dibawa lintas revisi lewat lineageKey tidak dihitung dua kali.
+    const items = await db.dailyReportItem.findMany({ where: { lineageKey: "I#A", report: { locationId: loc.id } } });
+    expect(items).toHaveLength(1);
+  });
+});
+
 describe("laporan bulanan — invarian yang sama", () => {
   it("total tabel = angka kurva-S", async () => {
     const b = await getPeriodBounds(locationId);

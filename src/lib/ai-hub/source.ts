@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { accessibleLocationIds, ForbiddenError, type SessionUser } from "@/lib/auth/session";
-import { getLocationsProgress } from "@/lib/progress";
+import { COUNTED_REPORT_STATUSES, getLocationsProgress } from "@/lib/progress";
 import { jakartaDateKey, jakartaToday, parseDateKey } from "@/lib/format";
 import { computeReadiness } from "./readiness";
 import { computeRisks, exceptionFirst } from "./risk";
@@ -101,7 +101,7 @@ export async function buildPortfolioPulse(
         _count: { _all: true },
       }),
       db.dailyReport.findMany({
-        where: { locationId: { in: locIds }, status: { in: ["dikirim", "disetujui", "final"] } },
+        where: { locationId: { in: locIds }, status: { in: [...COUNTED_REPORT_STATUSES] } },
         distinct: ["locationId"],
         orderBy: [{ locationId: "asc" }, { reportDate: "desc" }],
         select: { locationId: true, reportDate: true },
@@ -337,7 +337,7 @@ export async function buildQualityDetails(
       JOIN rab_revisions rr ON rr.location_id = dr.location_id AND rr.status = 'aktif'
       JOIN rab_nodes rn ON rn.revision_id = rr.id AND rn.lineage_key = dri.lineage_key AND rn.kind = 'item'
       WHERE dr.location_id = ANY(${locIds}::uuid[])
-        AND dr.status IN ('dikirim','disetujui','final')
+        AND dr.status::text = ANY(${[...COUNTED_REPORT_STATUSES]}::text[])
         AND rn.volume IS NOT NULL
       GROUP BY 1, 2, rn.volume
       HAVING SUM(dri.volume_done) > rn.volume::float * 1.001

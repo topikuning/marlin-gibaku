@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { COUNTED_REPORT_STATUSES, currentWeekNumber } from "@/lib/progress";
+import { bobotPct, prestasiPct } from "@/lib/progress-calc";
 import { contractDaysFor } from "@/lib/rab/import";
 import {
   autoCategorySchedule,
@@ -16,8 +17,9 @@ import {
  * Semantik dipertahankan dari b6e77af src/lib/scurve-plan.ts + scurve-data.ts:
  *   - baseline TIDAK pernah di-edit in place — perubahan = baseline BARU,
  *     yang lama di-supersede (histori utuh, DECISIONS 027)
- *   - realisasi = Σ valueDone item laporan counted, bucket per minggu dari
- *     tanggal laporan, kumulatif ÷ grand total revisi aktif
+ *   - realisasi = Σ (prestasi item dibatasi 100% × bobot revisi aktif), bucket
+ *     per minggu dari tanggal laporan — formula tunggal di lib/progress-calc.ts
+ *     (DECISIONS 151), sama dengan lib/progress & lib/periodic-report
  */
 
 const WEEK_MS = 7 * 24 * 3600 * 1000;
@@ -547,11 +549,15 @@ export type ScurveSeries = {
 };
 
 /**
- * Deret kurva-S lokasi: plan dari baseline aktif, realisasi dari
- * DailyReportItem.valueDone (laporan counted), bucket minggu
- * = floor((reportDate − startDate) / 7 hari) + 1, kumulatif ÷ grand total
- * revisi aktif × 100. Lineage dicocokkan ke item revisi AKTIF supaya angka
- * konsisten dengan lib/progress (carry-over lintas revisi by lineageKey).
+ * Deret kurva-S lokasi: plan dari baseline aktif, realisasi dari VOLUME item
+ * laporan counted × bobot revisi aktif, dibatasi 100% per item
+ * (`lib/progress-calc.ts`, DECISIONS 151). Bucket minggu
+ * = floor((reportDate − startDate) / 7 hari) + 1.
+ *
+ * Basisnya WAJIB sama dengan `lib/progress` dan `lib/periodic-report` — kurva
+ * ini tampil di ringkasan lokasi & halaman Progress, sementara kurva laporan
+ * mingguan tampil di blanko KKP. Dua kurva berbeda untuk lokasi yang sama
+ * adalah cacat, bukan sudut pandang.
  */
 export async function getScurveSeries(locationId: string): Promise<ScurveSeries> {
   const [baseline, revision, loc] = await Promise.all([
@@ -577,41 +583,62 @@ export async function getScurveSeries(locationId: string): Promise<ScurveSeries>
   const currentWeek = currentWeekNumber(startDate, totalWeeks);
 
   let grandTotal = 0n;
-  const perWeek: bigint[] = new Array<bigint>(totalWeeks).fill(0n);
+  /** Volume mingguan per lineage — hanya item yang benar-benar dilaporkan. */
+  const weeklyVolume = new Map<string, number[]>();
+  /** volume kontrak + bobot per lineage item revisi aktif. */
+  const basis = new Map<string, { volK: number; bobot: number }>();
   if (revision) {
-    const catAgg = await db.rabNode.aggregate({
-      where: { revisionId: revision.id, kind: "kategori" },
-      _sum: { amount: true },
-    });
+    const [catAgg, itemNodes] = await Promise.all([
+      db.rabNode.aggregate({
+        where: { revisionId: revision.id, kind: "kategori" },
+        _sum: { amount: true },
+      }),
+      db.rabNode.findMany({
+        where: { revisionId: revision.id, kind: "item" },
+        select: { lineageKey: true, volume: true, amount: true },
+      }),
+    ]);
     grandTotal = catAgg._sum.amount ?? 0n;
+    const total = Number(grandTotal);
+    for (const nd of itemNodes) {
+      basis.set(nd.lineageKey, {
+        volK: nd.volume != null ? Number(nd.volume) : 0,
+        bobot: bobotPct(Number(nd.amount), total),
+      });
+    }
 
     const rows = await db.dailyReportItem.findMany({
       where: {
         report: { locationId, status: { in: [...COUNTED_REPORT_STATUSES] } },
-        lineageKey: { in: (
-          await db.rabNode.findMany({
-            where: { revisionId: revision.id, kind: "item" },
-            select: { lineageKey: true },
-          })
-        ).map((n) => n.lineageKey) },
+        lineageKey: { in: [...basis.keys()] },
       },
-      select: { valueDone: true, report: { select: { reportDate: true } } },
+      select: { lineageKey: true, volumeDone: true, report: { select: { reportDate: true } } },
     });
     for (const r of rows) {
       const wk = Math.floor((r.report.reportDate.getTime() - startDate.getTime()) / WEEK_MS) + 1;
       const idx = Math.max(1, Math.min(wk, totalWeeks)) - 1;
-      perWeek[idx] += r.valueDone;
+      let arr = weeklyVolume.get(r.lineageKey);
+      if (!arr) {
+        arr = new Array<number>(totalWeeks).fill(0);
+        weeklyVolume.set(r.lineageKey, arr);
+      }
+      arr[idx] += Number(r.volumeDone);
     }
   }
 
-  let cum = 0n;
-  const actualPct: (number | null)[] = [];
-  for (let w = 1; w <= totalWeeks; w++) {
-    cum += perWeek[w - 1];
-    actualPct.push(
-      w <= currentWeek ? (grandTotal > 0n ? (Number(cum) / Number(grandTotal)) * 100 : 0) : null,
-    );
+  // Kumulatif per item lebih dulu, baru dibatasi 100% dan dikali bobot —
+  // urutan ini yang membuat angkanya sama dengan blanko KKP.
+  const cumPct = new Array<number>(totalWeeks).fill(0);
+  for (const [lineageKey, arr] of weeklyVolume) {
+    const b = basis.get(lineageKey);
+    if (!b) continue;
+    let cum = 0;
+    for (let w = 0; w < totalWeeks; w++) {
+      cum += arr[w];
+      cumPct[w] += (prestasiPct(cum, b.volK) / 100) * b.bobot;
+    }
   }
+  const actualPct: (number | null)[] = cumPct.map((v, i) => (i + 1 <= currentWeek ? v : null));
 
   return { totalWeeks, currentWeek, planPct, actualPct, grandTotal };
 }
