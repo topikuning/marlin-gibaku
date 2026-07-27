@@ -3040,3 +3040,26 @@ Tiga bug tampilan pada PDF produksi (dari bundle self-contained DECISIONS 128):
 - `scripts/rebuild-daily-snapshots.mts` dipertahankan untuk pemakaian massal
   lewat CLI, tapi tombol adalah jalur utama operator.
 - Verifikasi: typecheck ✓ lint ✓ unit 347 ✓ build ✓.
+
+## 149 · 2026-07-27 · Buka kunci laporan final untuk koreksi (super_admin saja)
+
+- **Kebutuhan** (dari user, terpisah dari bug 147): salah input kadang baru
+  ketahuan SETELAH laporan difinalkan. Sebelumnya `final` adalah jalan buntu
+  (`REPORT_TRANSITIONS.final = []`) — satu-satunya jalan adalah edit database.
+- **Mesin transisi** (CLAUDE.md #5): ditambahkan `final → disetujui` SAJA.
+  Tidak ke draft/dikirim/perlu_koreksi — laporan yang sudah lolos review tidak
+  perlu mengulang seluruh alur, cukup kembali ke titik sebelum pembekuan.
+- **Kapabilitas baru `daily_report.unfinalize`**, hanya super_admin (dikecualikan
+  eksplisit dari program_director yang biasanya mewarisi semua). Site manager
+  tetap boleh MEMFINALKAN tapi tidak boleh membuka kunci.
+- **Wajib alasan** (min. 10 karakter) → tersimpan di `DailyReportStatusHistory`
+  + `audit()`. Laporan resmi yang dibuka lagi harus jelas kenapa.
+- **`finalSnapshot` dikosongkan** saat dibuka: begitu laporan bisa diedit, angka
+  beku itu tidak lagi sah. Dibangun ulang otomatis saat difinalkan kembali.
+- **Progres & kurva-S TIDAK berubah** oleh aksi ini — `disetujui` tetap termasuk
+  `COUNTED_REPORT_STATUSES`. Yang menggeser angka adalah editan setelahnya, dan
+  itu memang niatnya.
+- **UI**: tautan kecil "Buka kembali untuk koreksi (super admin)" di panel final,
+  tertutup secara default; membuka form berwarna peringatan dengan penjelasan
+  konsekuensi + kolom alasan. Sengaja tidak berupa tombol mencolok.
+- Verifikasi: typecheck ✓ lint ✓ unit 352 (+5) ✓ integration 13 ✓ build ✓.

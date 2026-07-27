@@ -45,6 +45,7 @@ export default async function HarianWorkspacePage({
   const canCreate = can(user.role, "daily_report.create");
   const canReview = can(user.role, "daily_report.review");
   const canFinalize = can(user.role, "daily_report.finalize");
+  const canUnfinalize = can(user.role, "daily_report.unfinalize");
 
   const editable = canCreate && !isFuture && (!report || status === "draft" || status === "perlu_koreksi");
   const enrichable = !!report && canReview && (status === "draft" || status === "perlu_koreksi" || status === "dikirim");
@@ -202,7 +203,7 @@ export default async function HarianWorkspacePage({
         <FinalizePanel reportId={report.id} slug={slug} dateKey={date} isFinal={false} />
       ) : null}
       {report && status === "final" ? (
-        <FinalizePanel reportId={report.id} slug={slug} dateKey={date} isFinal />
+        <FinalizePanel reportId={report.id} slug={slug} dateKey={date} isFinal canUnfinalize={canUnfinalize} />
       ) : null}
       {report && (status === "dikirim" || status === "disetujui") ? (
         <p className="text-right">

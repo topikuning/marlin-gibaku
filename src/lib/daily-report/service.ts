@@ -492,6 +492,37 @@ export async function finalizeReport(reportId: string, userId: string) {
   return updated;
 }
 
+/**
+ * final → disetujui: BUKA KUNCI laporan yang sudah final agar bisa dikoreksi.
+ * Untuk salah input yang baru ketahuan setelah finalisasi. Bukan alur normal —
+ * pemanggil WAJIB menggerbang `daily_report.unfinalize` (super_admin saja).
+ *
+ * `finalSnapshot` dikosongkan karena sudah tidak sah: begitu laporan bisa
+ * diedit, angka beku itu bisa berbeda dari data sebenarnya. Snapshot dibangun
+ * ulang saat difinalkan kembali. Progres & kurva-S TIDAK berubah oleh aksi ini
+ * — status `disetujui` tetap terhitung (COUNTED_REPORT_STATUSES); yang mengubah
+ * angka adalah editan setelahnya. DECISIONS 149.
+ */
+export async function unfinalizeReport(reportId: string, userId: string, reason: string) {
+  const current = await getReportOrThrow(reportId);
+  if (current.status !== "final") {
+    throw new DailyReportError("Laporan ini tidak berstatus final.");
+  }
+  const alasan = reason.trim();
+  if (alasan.length < 10) {
+    throw new DailyReportError("Alasan koreksi wajib diisi (minimal 10 karakter).");
+  }
+  const { updated } = await transition(
+    reportId,
+    "disetujui",
+    userId,
+    { finalizedById: null, finalizedAt: null, finalSnapshot: Prisma.DbNull },
+    alasan,
+  );
+  await audit(userId, "daily_report.unfinalize", "daily_report", reportId, { reason: alasan });
+  return updated;
+}
+
 export type IssueInput = {
   title: string;
   description?: string | null;
