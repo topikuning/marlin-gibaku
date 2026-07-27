@@ -3350,14 +3350,26 @@ v11.13.1 or newer"). Dinaikkan ke 11.17.0; lockfile TIDAK berubah.
 Fallback itu mengarang harga satuan yang tidak ada di dokumen RAB; diganti
 proporsi terhadap `amount`.
 
-**M10 · CI tidak berjalan pada push ke `dev`.** Ditambahkan — lalu ketahuan
-efek sampingnya: commit yang sama memicu DUA event (push + pull_request)
-sehingga CI berjalan dobel. Percobaan pertama menutupnya dengan
-`concurrency: ci-${{ github.sha }}` GAGAL diam-diam — pada event
+**M10 · CI tidak berjalan pada push ke `dev`.** DITOLAK setelah dicoba.
+
+Menambahkan `dev` ke trigger `push` membuat setiap commit memicu DUA event
+(push + pull_request) sehingga CI berjalan dobel. Upaya menutupnya dengan
+`concurrency: ci-${{ github.sha }}` gagal diam-diam — pada event
 `pull_request`, `github.sha` adalah SHA merge-commit bikinan GitHub, bukan SHA
-commit yang di-push, jadi kedua run tidak pernah masuk grup yang sama
-(terbukti: 8 check untuk satu commit). Yang benar
-`ci-${{ github.event.pull_request.head.sha || github.sha }}`.
+commit yang di-push, jadi kedua run tidak pernah masuk grup yang sama (terbukti
+8 check untuk satu commit). Diperbaiki ke
+`pull_request.head.sha || github.sha`: dedup berhasil (run push dibatalkan
+dalam 2 detik), TETAPI setiap PR jadi memampang 4 check *cancelled* di samping
+4 yang hijau.
+
+Ditimbang ulang: trigger itu hanya menutup celah "push ke `dev` sebelum PR
+dibuat" — jendela beberapa menit dalam alur yang selalu berujung PR. Harganya
+noise permanen di setiap PR. Trigger `push` dikembalikan ke `[main]` saja.
+
+Yang DIPERTAHANKAN dari percobaan ini: blok `concurrency` dengan grup per-PR
+(`github.event.pull_request.number || github.ref`). Ini membatalkan run yang
+sudah usang ketika ada push baru ke PR yang sama — manfaat nyata yang tidak ada
+sebelumnya, tanpa efek samping.
 
 **L8 · PPN selalu dibulatkan ke bawah** (pembagian BigInt memotong). Diganti
 half-up, simetris untuk nilai negatif.

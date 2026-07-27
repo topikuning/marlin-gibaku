@@ -2,20 +2,14 @@ name: CI
 
 on:
   push:
-    # `dev` adalah branch kerja; push langsung ke sana (tanpa PR) dulu TIDAK
-    # menjalankan CI sama sekali (audit 2026-07-27, M10).
-    branches: [main, dev]
+    branches: [main]
   pull_request:
 
-# Commit yang sama memicu DUA event (push ke dev + pull_request), jadi CI
-# berjalan dobel tanpa pengelompokan ini.
-#
-# WAJIB memakai `pull_request.head.sha`, BUKAN `github.sha`: pada event
-# pull_request `github.sha` adalah SHA merge-commit bikinan GitHub, bukan SHA
-# commit yang di-push — sehingga grupnya tidak pernah bertemu dan dedupnya
-# gagal diam-diam (terbukti: 8 check untuk satu commit).
+# Batalkan run yang sudah usang: push berikutnya ke PR yang sama membuat run
+# sebelumnya tidak relevan. Dikelompokkan per PR (atau per ref untuk push ke
+# main), BUKAN per SHA — supaya run commit lama benar-benar dibatalkan.
 concurrency:
-  group: ci-${{ github.event.pull_request.head.sha || github.sha }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
