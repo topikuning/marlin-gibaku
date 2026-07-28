@@ -292,38 +292,34 @@ export function KkpDailyReport({ d }: { d: KkpDailyData }) {
           Rencana = pecahan rencana MINGGUAN ke hari ini menurut alur & metode
           kerja (DECISIONS 163); realisasi = pekerjaan yang benar-benar dilapor
           hari itu. Baris disamakan panjangnya supaya kedua kolom sejajar. */}
-      <div className="grid grid-cols-2">
-        <table className="w-full border-x border-b border-slate-500">
-          <thead>
-            <tr>
-              <Cell head center colSpan={2}>Rencana Pekerjaan</Cell>
+      {/* SATU tabel, bukan dua yang ditempel berdampingan: baris rencana dan
+          realisasi wajib sebaris. Dengan dua tabel terpisah, satu teks
+          realisasi yang membungkus jadi dua baris langsung menggeser seluruh
+          sisanya dan garisnya tidak lagi bertemu. */}
+      <table className="w-full table-fixed border-x border-b border-slate-500">
+        <colgroup>
+          <col className="w-[4%]" />
+          <col className="w-[46%]" />
+          <col className="w-[4%]" />
+          <col />
+        </colgroup>
+        <thead>
+          <tr>
+            <Cell head center colSpan={2}>Rencana Pekerjaan</Cell>
+            <Cell head center colSpan={2}>Realisasi Pekerjaan</Cell>
+          </tr>
+        </thead>
+        <tbody>
+          {rr.map((row, i) => (
+            <tr key={`rr${i}`}>
+              <Cell center>{i + 1}</Cell>
+              <Cell>{row.rencana ?? <>&nbsp;</>}</Cell>
+              <Cell center>{i + 1}</Cell>
+              <Cell>{row.realisasi ?? <>&nbsp;</>}</Cell>
             </tr>
-          </thead>
-          <tbody>
-            {rr.map((row, i) => (
-              <tr key={`rp${i}`}>
-                <Cell center w>{i + 1}</Cell>
-                <Cell>{row.rencana ?? <>&nbsp;</>}</Cell>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <table className="w-full border-r border-b border-slate-500">
-          <thead>
-            <tr>
-              <Cell head center colSpan={2}>Realisasi Pekerjaan</Cell>
-            </tr>
-          </thead>
-          <tbody>
-            {rr.map((row, i) => (
-              <tr key={`rl${i}`}>
-                <Cell center w>{i + 1}</Cell>
-                <Cell>{row.realisasi ?? <>&nbsp;</>}</Cell>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+          ))}
+        </tbody>
+      </table>
 
       {/* ── Catatan (data sistem; tetap dipertahankan) ───────────────────── */}
       <table className="w-full border-x border-b border-slate-500">

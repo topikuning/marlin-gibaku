@@ -110,11 +110,20 @@ export async function buildHarianKkpPdf(d: KkpDailyData, appName: string, logo?:
   y = Math.max(ky, ny);
 
   // Logo pemilik pekerjaan dari menu Sistem — bukan hardcode KKP (DECISIONS 166).
+  //
+  // Dikirim sebagai DATA URI, bukan Buffer. pdfkit di sini adalah bundle
+  // STANDALONE (assets/pdfkit-standalone.cjs) yang membawa shim `Buffer`
+  // sendiri: `Buffer.isBuffer(<Buffer Node>)` bernilai false di dalamnya,
+  // sehingga input Buffer jatuh ke cabang `fs.readFileSync` yang TIDAK ADA di
+  // bundle itu ("fs.readFileSync is not a function"). Data URI ditangani cabang
+  // base64 yang bekerja di kedua build.
   if (logo) {
     try {
-      doc.image(logo, x + 3, atas + 3, { fit: [logoW - 6, kopBawah - atas - 6], align: "center", valign: "center" });
-    } catch {
-      // Logo rusak/format tak didukung tidak boleh menggagalkan laporan.
+      const src = `data:image/png;base64,${logo.toString("base64")}`;
+      doc.image(src, x + 3, atas + 3, { fit: [logoW - 6, kopBawah - atas - 6], align: "center", valign: "center" });
+    } catch (err) {
+      // Logo rusak tidak boleh menggagalkan laporan — tapi jangan diam-diam.
+      console.error("[laporan-harian] logo gagal digambar di kop PDF:", err);
     }
   }
 
@@ -265,18 +274,22 @@ export async function buildHarianKkpPdf(d: KkpDailyData, appName: string, logo?:
   const realisasiTeks = d.items.map((it) => teksRealisasi(it));
   const barisRR = Math.max(MIN_RR_ROWS, rencanaTeks.length, realisasiTeks.length);
   fit(14 * (barisRR + 1));
-  const rrTop = y;
-  let rly = gridRow(doc, rrTop, [{ text: "RENCANA PEKERJAAN", head: true, align: "center", span: 2 }], rrLeft);
+
+  // Kedua kolom digambar BARIS PER BARIS dengan tinggi yang SAMA
+  // (= yang paling tinggi di antara keduanya). Kalau digambar sebagai dua
+  // loop terpisah, satu teks realisasi yang membungkus jadi dua baris
+  // menggeser seluruh sisanya dan garis mendatar kiri–kanan tidak lagi
+  // bertemu — cacat yang dilaporkan 28 Juli 2026.
+  let rry = gridRow(doc, y, [{ text: "RENCANA PEKERJAAN", head: true, align: "center", span: 2 }], rrLeft);
+  gridRow(doc, y, [{ text: "REALISASI PEKERJAAN", head: true, align: "center", span: 2 }], rrRight);
   for (let i = 0; i < barisRR; i++) {
-    const teks = rencanaTeks[i];
-    rly = gridRow(doc, rly, [{ text: String(i + 1), align: "center" }, { text: teks ?? " " }], rrLeft);
+    const kiri: GridCell[] = [{ text: String(i + 1), align: "center" }, { text: rencanaTeks[i] ?? " " }];
+    const kanan: GridCell[] = [{ text: String(i + 1), align: "center" }, { text: realisasiTeks[i] ?? " " }];
+    const tinggi = Math.max(gridRowHeight(doc, kiri, rrLeft), gridRowHeight(doc, kanan, rrRight));
+    gridRow(doc, rry, kiri, { ...rrLeft, minRowHeight: tinggi });
+    rry = gridRow(doc, rry, kanan, { ...rrRight, minRowHeight: tinggi });
   }
-  let rry = gridRow(doc, rrTop, [{ text: "REALISASI PEKERJAAN", head: true, align: "center", span: 2 }], rrRight);
-  for (let i = 0; i < barisRR; i++) {
-    const teks = realisasiTeks[i];
-    rry = gridRow(doc, rry, [{ text: String(i + 1), align: "center" }, { text: teks ?? " " }], rrRight);
-  }
-  y = Math.max(rly, rry);
+  y = rry;
 
   /* ── Catatan (data sistem, di luar blanko) & tanda tangan ──────────── */
   const catatan: GridOptions = { x, width, cols: [width], fontSize: 7 };
@@ -336,12 +349,21 @@ export async function renderHarianKkpPdf(slug: string, dateKey: string): Promise
   ]);
   if (!data || !loc) return null;
   // Logo pemilik untuk kop; kegagalan R2 tidak boleh menggagalkan laporan.
+  //
+  // WAJIB dikonversi ke PNG: logo disimpan sebagai WebP (system/actions.ts),
+  // sedangkan pdfkit HANYA mendukung JPEG dan PNG. Tanpa konversi,
+  // `doc.image()` melempar dan logonya hilang DIAM-DIAM di semua keluaran PDF
+  // (unduh, Google Drive, WhatsApp) padahal di layar tampil normal — persis
+  // ketidakkonsistenan yang dilaporkan 28 Juli 2026.
   let logo: Buffer | null = null;
   if (branding.ownerLogoKey) {
     try {
       const { r2GetBuffer } = await import("@/lib/r2");
-      logo = await r2GetBuffer(branding.ownerLogoKey);
-    } catch {
+      const asli = await r2GetBuffer(branding.ownerLogoKey);
+      const sharp = (await import("sharp")).default;
+      logo = await sharp(asli).png().toBuffer();
+    } catch (err) {
+      console.error("[laporan-harian] logo pemilik gagal disiapkan untuk PDF:", err);
       logo = null;
     }
   }
