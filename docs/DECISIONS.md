@@ -4041,3 +4041,24 @@ Saran yang belum dikerjakan karena butuh setelan GitHub, bukan kode: nyalakan
 branch protection pada `main` (wajib PR + seluruh check hijau).
 
 Verifikasi: typecheck ✓ · lint ✓ · unit **443** (+7 proteksi akun) · build ✓.
+
+---
+
+## 166 · 2026-07-28 · Identitas pemilik pekerjaan (nama + logo) pindah ke menu Sistem
+
+Kop blanko harian dulu HARDCODE "Pembangunan Kampung Nelayan Merah Putih (KNMP)
+· Kementerian Kelautan dan Perikanan". Karena MARLIN akan dipakai klien lain
+(pemkab, dinas, kontraktor), identitas itu jadi setelan:
+
+- `brand.owner_name`, `brand.owner_subtitle`, `brand.owner_logo_key` di
+  `AppSetting` (pola sama dengan branding aplikasi, efektif-bertanggal).
+- Form di menu **Sistem → Branding**: nama, keterangan/nama program, dan unggah
+  logo (PNG/JPG/WebP, maks 2 MB). Logo dikecilkan ke ≤512px dan dinormalisasi ke
+  WebP lewat sharp, disimpan di R2 — pola sama dengan logo perusahaan di master
+  vendor. Pratinjau memakai presigned URL.
+- Dipakai kop blanko harian di LAYAR dan di PDF. Kegagalan R2 tidak menggagalkan
+  laporan — kop hanya tampil tanpa logo.
+- Nilai bawaan tetap KKP/KNMP, jadi instalasi yang ada tidak berubah tampilannya
+  sampai adminnya mengganti.
+
+Verifikasi: typecheck ✓ · lint ✓ · unit **443** ✓ · build ✓.

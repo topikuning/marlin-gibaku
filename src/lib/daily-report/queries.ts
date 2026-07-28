@@ -492,6 +492,22 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
     contractorSub: contract?.contractorSignerTitle ?? null,
   };
 
+  // Identitas pemilik pekerjaan untuk kop — dari menu Sistem, bukan hardcode
+  // KKP (DECISIONS 166). Logo dipresign singkat; kegagalan R2 tidak boleh
+  // menggagalkan laporan, cukup kop tanpa logo.
+  const { getBranding } = await import("@/lib/branding");
+  const brand = await getBranding();
+  let ownerLogoUrl: string | null = null;
+  if (brand.ownerLogoKey) {
+    try {
+      const { r2PresignGet } = await import("@/lib/r2");
+      ownerLogoUrl = await r2PresignGet(brand.ownerLogoKey, 600);
+    } catch {
+      ownerLogoUrl = null;
+    }
+  }
+  const owner = { ownerName: brand.ownerName, ownerSubtitle: brand.ownerSubtitle, ownerLogoUrl };
+
   const report = await db.dailyReport.findUnique({
     where: { locationId_reportDate: { locationId: location.id, reportDate } },
     include: {
@@ -503,7 +519,7 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
   });
 
   if (report?.status === "final" && report.finalSnapshot) {
-    return { ...snapshotToKkp(report.finalSnapshot as unknown as FinalSnapshot), ...signatories };
+    return { ...snapshotToKkp(report.finalSnapshot as unknown as FinalSnapshot), ...signatories, ...owner };
   }
 
   const cumulative = await cumulativeVolumeByLineage(location.id, reportDate);
@@ -519,6 +535,7 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
   for (const w of report?.workers ?? []) workerMap[w.role] = w.count;
 
   return {
+    ...owner,
     locationName: location.name,
     regency: location.regency,
     province: location.province,
