@@ -94,6 +94,39 @@ function fitLocation(name: string, maxW: number, fs0: number): { lines: string[]
   return { lines: l2 ? [l1, l2] : [l1], fs: Math.round(fs) };
 }
 
+/**
+ * Lebar teks badge (KAPITAL, tebal, ber-letter-spacing).
+ *
+ * Faktornya DIUKUR, bukan ditebak: merender ketiga contoh nyata lalu memangkas
+ * tepi tintanya memberi 0,715–0,724 per huruf. Rumus lama `estWidth` (0,60 +
+ * 0,03) meleset ~13% ke bawah — itulah sebabnya teks meluber keluar pill.
+ * Dipakai 0,75 sebagai marjin aman; jaminan KERAS-nya tetap `textLength`
+ * di bawah, supaya tidak bergantung pada font yang dipakai runtime.
+ */
+const badgeTextW = (text: string, fs: number) => text.length * fs * 0.75;
+
+/**
+ * Pastikan teks badge MUAT di dalam pill yang tidak melebihi lebar aman foto.
+ *
+ * Tanpa penjagaan ini, nama pekerjaan panjang membuat pill melar melewati tepi
+ * kanan foto DAN teksnya ikut terpotong: teks di-anchor di TENGAH pill, jadi
+ * begitu pill-nya lebih lebar dari kanvas, titik tengahnya bergeser ke luar
+ * layar dan huruf depan ikut terbuang (terlihat di lapangan 28 Juli 2026:
+ * "…EKERJAAN SONDIR …" — huruf P-nya hilang).
+ *
+ * Urutan: kecilkan font sampai batas bawah, baru potong dengan elipsis.
+ */
+function fitBadge(text: string, maxW: number, fs0: number): { text: string; fs: number } {
+  const floor = Math.max(9, fs0 * 0.72);
+  const totalW = (t: string, f: number) => badgeTextW(t, f) + 2 * Math.round(f * 0.95);
+  let fs = fs0;
+  while (totalW(text, fs) > maxW && fs > floor) fs *= 0.95;
+  if (totalW(text, fs) <= maxW) return { text, fs: Math.round(fs) };
+  let t = text;
+  while (t.length > 4 && totalW(`${t.trimEnd()}…`, fs) > maxW) t = t.slice(0, -1);
+  return { text: `${t.trimEnd()}…`, fs: Math.round(fs) };
+}
+
 export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: RenderOpts): string {
   const ff = opts.fontFamily;
   const base = Math.min(w, h);
@@ -177,14 +210,21 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
   let cy = h - safeY - total;
   const x = safeX;
 
-  // Badge kategori.
+  // Badge kategori. Lebarnya DIBATASI lebar aman foto; teksnya dikecilkan lalu
+  // dipotong bila perlu supaya pill tidak pernah melewati tepi (lihat fitBadge).
   if (hasBadge) {
     const cat = d.categoryName!.trim().toUpperCase();
-    const badgePadH = Math.round(fsBadge * 0.95);
-    const badgeW = Math.round(estWidth(cat, fsBadge, true) + 2 * badgePadH);
+    const maxBadgeW = w - 2 * safeX;
+    const fit = fitBadge(cat, maxBadgeW, fsBadge);
+    const badgePadH = Math.round(fit.fs * 0.95);
+    const badgeW = Math.min(maxBadgeW, Math.round(badgeTextW(fit.text, fit.fs) + 2 * badgePadH));
     parts.push(`<rect x="${x}" y="${cy}" width="${badgeW}" height="${badgeH}" rx="${Math.round(badgeH / 2)}" fill="${accent}"/>`);
+    // `textLength` = JAMINAN KERAS lebar teks: apa pun fontnya saat runtime,
+    // teks dipaksa persis selebar bagian dalam pill, jadi tidak mungkin
+    // meluber. Estimasi di atas hanya menentukan ukuran pill-nya.
+    const innerW = Math.max(1, badgeW - 2 * badgePadH);
     parts.push(
-      `<text x="${x + badgeW / 2}" y="${cy + Math.round(badgeH / 2 + fsBadge * 0.35)}" text-anchor="middle" font-family="${ff}" font-weight="700" font-size="${fsBadge}" letter-spacing="${(fsBadge * 0.03).toFixed(1)}" fill="${onAccent}">${esc(cat)}</text>`,
+      `<text x="${x + badgePadH}" y="${cy + Math.round(badgeH / 2 + fit.fs * 0.35)}" textLength="${innerW}" lengthAdjust="spacingAndGlyphs" font-family="${ff}" font-weight="700" font-size="${fit.fs}" fill="${onAccent}">${esc(fit.text)}</text>`,
     );
     cy += badgeH + gapBadgeLoc;
   }

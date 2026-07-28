@@ -21,6 +21,7 @@ import {
 } from "@/lib/field-activity/actions";
 import { sendActivityToWaAction, sendActivityPdfToWaAction, type WaActionState } from "@/lib/waha/actions";
 import { formatTanggalWaktu } from "@/lib/format";
+import { MAX_PHOTOS_PER_ACTIVITY } from "@/lib/photo-limits";
 
 /**
  * Tombol "Kirim PDF ke WhatsApp" — susun Laporan Kegiatan jadi dokumen PDF rapi
@@ -251,7 +252,7 @@ export function CreateActivityForm({
       </div>
 
       <div className="rounded-lg border border-border bg-surface-inset/40 p-3">
-        <Label>Foto dokumentasi (maks 6)</Label>
+        <Label>Foto dokumentasi (maks {MAX_PHOTOS_PER_ACTIVITY})</Label>
         <PhotoSourceInput key={photoKey} />
       </div>
 
