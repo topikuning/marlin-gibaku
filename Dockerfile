@@ -64,6 +64,8 @@ COPY --from=builder --chown=marlin:marlin /app/assets ./assets
 # Schema + migrations + config untuk migrate deploy
 COPY --from=builder --chown=marlin:marlin /app/prisma ./prisma
 COPY --from=builder --chown=marlin:marlin /app/prisma.config.js ./prisma.config.js
+# preDeploy: migrate deploy + pemulihan otomatis migrasi yang tercatat gagal.
+COPY --from=builder --chown=marlin:marlin /app/scripts/migrate-deploy.mjs ./scripts/migrate-deploy.mjs
 # Data demo untuk BOOTSTRAP_DEMO_DATA=true (deployment uji coba)
 COPY --from=builder --chown=marlin:marlin /app/seed-data ./seed-data
 

@@ -46,7 +46,7 @@ export async function suggestWeeklyPlan(
       orderBy: { baselineNo: "desc" },
       select: {
         points: { orderBy: { weekNumber: "asc" }, select: { weekNumber: true, plannedPct: true } },
-        scheduleItems: { select: { name: true, weekly: true } },
+        scheduleItems: { select: { lineageKey: true, name: true, weekly: true } },
       },
     }),
     db.location.findUnique({
@@ -57,13 +57,14 @@ export async function suggestWeeklyPlan(
 
   const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
 
-  // categoryName per lineage (prefix terpanjang) — sama seperti regenerateBaseline.
+  // Kategori per lineage (prefix terpanjang) — sama seperti regenerateBaseline.
+  // Identitas = lineageKey, nama hanya label/klasifikasi (CALC-04).
   const catKeys = nodes
     .filter((n) => n.kind === "kategori")
     .map((n) => ({ key: n.lineageKey, name: n.name }))
     .sort((a, b) => b.key.length - a.key.length);
-  const categoryNameFor = (lineageKey: string): string =>
-    catKeys.find((c) => lineageKey === c.key || lineageKey.startsWith(`${c.key}#`))?.name ?? "";
+  const categoryFor = (lineageKey: string): { key: string; name: string } =>
+    catKeys.find((c) => lineageKey === c.key || lineageKey.startsWith(`${c.key}#`)) ?? { key: "", name: "" };
 
   const leaves: LeafInput[] = nodes
     .filter((n) => n.kind === "item" && n.volume != null && Number(n.volume) > 0)
@@ -72,7 +73,8 @@ export async function suggestWeeklyPlan(
       code: n.code,
       name: n.name,
       unit: n.unit,
-      categoryName: categoryNameFor(n.lineageKey),
+      categoryKey: categoryFor(n.lineageKey).key,
+      categoryName: categoryFor(n.lineageKey).name,
       volume: Number(n.volume),
       unitPrice: n.unitPrice != null ? Number(n.unitPrice) : 0,
       lineageKey: n.lineageKey,
@@ -91,9 +93,10 @@ export async function suggestWeeklyPlan(
     if (segs.length === 0) continue;
     const first = segs[0].startWeek;
     const last = segs[segs.length - 1].endWeek;
-    storedWin.set(s.name, [(first - 1) / totalWeeks, last / totalWeeks]);
+    storedWin.set(s.lineageKey, [(first - 1) / totalWeeks, last / totalWeeks]);
   }
-  const winFrac = (name: string): [number, number] => storedWin.get(name) ?? autoCategoryWindowFrac(name);
+  const winFrac = (name: string, key?: string): [number, number] =>
+    storedWin.get(key ?? "") ?? autoCategoryWindowFrac(name);
   const suggestions = computeSuggestions(leaves, realizedByLineage, weekNumber, totalWeeks, 20, winFrac);
 
   // Konteks deviasi (minggu berjalan).

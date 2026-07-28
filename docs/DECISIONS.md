@@ -4062,3 +4062,40 @@ Kop blanko harian dulu HARDCODE "Pembangunan Kampung Nelayan Merah Putih (KNMP)
   sampai adminnya mengganti.
 
 Verifikasi: typecheck ✓ · lint ✓ · unit **443** ✓ · build ✓.
+
+---
+
+## 167 · 2026-07-28 · Migrasi WAJIB idempoten + preDeploy memulihkan migrasi gagal
+
+**Fakta pemicu, dibuktikan di PostgreSQL 16 sungguhan (bukan asumsi):** Prisma
+menjalankan pernyataan di dalam satu file migrasi **satu per satu, BUKAN dalam
+satu transaksi**. Ketika migrasi `20260728020000_data_integrity_checks` gagal di
+Railway (`master_locations` memakai `latitude`/`longitude`, bukan
+`gps_lat`/`gps_lng`), pernyataan sebelum baris yang gagal **tetap tersimpan** —
+kolom `photos.location_id`, FK-nya, indeks, dan sebagian CHECK sudah terpasang.
+Migrasi lalu tercatat gagal dan memblokir SELURUH deploy berikutnya (P3009),
+sementara menandainya rolled-back saja tidak menolong: eksekusi ulang menabrak
+objek yang terlanjur dibuat (`constraint ... already exists`).
+
+Keputusan:
+
+1. **Migrasi baru (28 Juli 2026 ke atas) wajib aman dijalankan ulang.** Tiap
+   `ADD CONSTRAINT` didahului `DROP CONSTRAINT IF EXISTS` bernama sama; tiap
+   `CREATE INDEX/TABLE` dan `ADD COLUMN` memakai `IF NOT EXISTS`. Migrasi lama
+   dibiarkan — sudah terpasang di semua lingkungan, mengubahnya justru berisiko.
+2. **preDeploy Railway** bukan lagi `prisma migrate deploy` telanjang, melainkan
+   `node scripts/migrate-deploy.mjs`: deploy → bila kena P3009, baca nama
+   migrasi yang gagal → **periksa file SQL-nya idempoten** → tandai
+   `--rolled-back` → deploy ulang. Bila TIDAK idempoten, skrip BERHENTI dan
+   minta penanganan manual; ia tidak pernah menebak. `--applied` sengaja tidak
+   dipakai karena itu membohongi riwayat.
+3. **Penjaga di CI**: `tests/unit/migrasi-idempoten.test.ts` memakai fungsi
+   pendeteksi yang SAMA dengan skrip preDeploy, sehingga aturan dan
+   penegakannya tidak bisa berbeda.
+
+Verifikasi (PostgreSQL 16 lokal, kondisi Railway direproduksi persis): SQL rusak
+→ P3018; deploy ulang → P3009 (tersangkut, separuh terpasang); skrip preDeploy →
+pulih dan migrasi terpasang penuh; `migrate diff` → tidak ada drift; skrip
+dijalankan lagi → no-op. Ditambah: `db:seed` penuh lolos, tiap CHECK diuji
+menolak data mustahil, dedup foto diuji lintas lokasi.
+typecheck ✓ · lint ✓ · unit **453** ✓ · build ✓.

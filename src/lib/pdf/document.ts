@@ -97,6 +97,33 @@ export function createA4Doc(meta?: { title?: string; author?: string }): PdfDoc 
 /** Margin A4 lanskap — lebih rapat, blanko resmi butuh lebar maksimal. */
 export const LANDSCAPE_MARGIN = 28;
 
+/** Margin A4 potret rapat — blanko harian KKP memakai hampir seluruh halaman. */
+export const FORM_MARGIN = 24;
+
+/**
+ * A4 POTRET rapat untuk blanko formulir yang harus muat SATU halaman seperti
+ * contoh resmi (laporan harian KKP). Sama seperti createA4Doc, hanya marginnya
+ * dipangkas supaya 17 kolom matriks cuaca tetap terbaca.
+ */
+export function createFormA4Doc(meta?: { title?: string; author?: string }): PdfDoc {
+  const doc = new PDFDocument({
+    size: "A4",
+    margin: FORM_MARGIN,
+    autoFirstPage: true,
+    bufferPages: true,
+    info: {
+      Title: meta?.title ?? "Laporan MARLIN",
+      Author: meta?.author ?? "MARLIN",
+      Producer: "MARLIN",
+    },
+  });
+  const fonts = loadFonts();
+  doc.registerFont(PDF_FONT.regular, fonts.regular);
+  doc.registerFont(PDF_FONT.bold, fonts.bold);
+  doc.font(PDF_FONT.regular);
+  return doc;
+}
+
 /**
  * A4 LANSKAP untuk blanko/formulir bertabel lebar (mis. laporan harian KKP
  * dengan matriks cuaca 16 kolom). Font & metadata sama dgn createA4Doc.

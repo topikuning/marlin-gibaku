@@ -477,6 +477,7 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
               supervisorFirm: true,
               contractorSignerName: true,
               contractorSignerTitle: true,
+              vendor: { select: { name: true } },
             },
           },
         },
@@ -491,6 +492,9 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
     supervisorSub: contract?.supervisorFirm ?? null,
     contractorName: contract?.contractorSignerName ?? null,
     contractorSub: contract?.contractorSignerTitle ?? null,
+    // Nama perusahaan untuk kop blanko (posisi "logo perusahaan" di contoh KKP).
+    supervisorFirm: contract?.supervisorFirm ?? null,
+    contractorFirm: contract?.vendor?.name ?? null,
   };
 
   // Identitas pemilik pekerjaan untuk kop — dari menu Sistem, bukan hardcode
