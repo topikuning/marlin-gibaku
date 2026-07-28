@@ -94,13 +94,15 @@ export function KkpDailyReport({ d }: { d: KkpDailyData }) {
       ) : null}
 
       {/* ── Kop: logo pemilik + judul | pengawas | pelaksana ─────────────── */}
-      <div className="grid grid-cols-4 border border-slate-500">
-        <div className="col-span-2 flex items-center gap-3 border-r border-slate-500 px-3 py-2">
-          {d.ownerLogoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={d.ownerLogoUrl} alt="" className="h-10 w-auto shrink-0" />
-          ) : null}
-          <div className="text-sm font-bold tracking-wide uppercase">Laporan Harian</div>
+      <div className="grid grid-cols-[14%_36%_25%_25%] border border-slate-500">
+        <div className="col-span-2 grid grid-cols-[14fr_36fr] items-center border-r border-slate-500">
+          <div className="flex h-full items-center justify-center border-r border-slate-500 px-1 py-2">
+            {d.ownerLogoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={d.ownerLogoUrl} alt="" className="max-h-10 w-auto" />
+            ) : null}
+          </div>
+          <div className="px-3 py-2 text-sm font-bold tracking-wide uppercase">Laporan Harian</div>
         </div>
         <div className="border-r border-slate-500">
           <div className="border-b border-slate-500 px-2 py-1 text-center text-[10px] font-semibold text-slate-600 uppercase">
@@ -121,7 +123,14 @@ export function KkpDailyReport({ d }: { d: KkpDailyData }) {
       </div>
 
       {/* ── Identitas: Minggu/Hari/Tanggal (separuh kiri) ────────────────── */}
-      <table className="w-1/2 border-x border-b border-slate-500">
+      <table className="w-1/2 table-fixed border-x border-b border-slate-500">
+        {/* 14% & 4% dari LEBAR HALAMAN → di tabel separuh lebar jadi 28% & 8%,
+            sehingga garis vertikalnya tepat sama dengan blok di bawahnya. */}
+        <colgroup>
+          <col className="w-[28%]" />
+          <col className="w-[8%]" />
+          <col />
+        </colgroup>
         <tbody>
           {[
             ["Minggu Ke", d.weekNo != null ? String(d.weekNo) : ""],
@@ -129,14 +138,19 @@ export function KkpDailyReport({ d }: { d: KkpDailyData }) {
             ["Tanggal", d.tanggalFull],
           ].map(([label, value]) => (
             <tr key={label}>
-              <Cell w>{label}</Cell>
-              <Cell w center>:</Cell>
+              <Cell>{label}</Cell>
+              <Cell center>:</Cell>
               <Cell>{value}</Cell>
             </tr>
           ))}
         </tbody>
       </table>
-      <table className="w-full border-x border-b border-slate-500">
+      <table className="w-full table-fixed border-x border-b border-slate-500">
+        <colgroup>
+          <col className="w-[14%]" />
+          <col className="w-[4%]" />
+          <col />
+        </colgroup>
         <tbody>
           {[
             ["PEKERJAAN", d.pekerjaan ?? "Konstruksi"],
@@ -144,8 +158,8 @@ export function KkpDailyReport({ d }: { d: KkpDailyData }) {
             ["TH. ANGGARAN", String(d.tahunAnggaran)],
           ].map(([label, value]) => (
             <tr key={label}>
-              <Cell w>{label}</Cell>
-              <Cell w center>:</Cell>
+              <Cell>{label}</Cell>
+              <Cell center>:</Cell>
               <Cell>{value}</Cell>
             </tr>
           ))}
@@ -269,10 +283,14 @@ export function KkpDailyReport({ d }: { d: KkpDailyData }) {
           ))}
         </tbody>
       </table>
-      <table className="w-full border-x border-b border-slate-500">
+      <table className="w-full table-fixed border-x border-b border-slate-500">
+        <colgroup>
+          <col className="w-[18%]" />
+          <col />
+        </colgroup>
         <tbody>
           <tr>
-            <Cell w>Jam Kerja</Cell>
+            <Cell>Jam Kerja</Cell>
             <Cell>
               mulai {d.workStart ?? "……"} — selesai {d.workEnd ?? "……"}
             </Cell>

@@ -58,8 +58,20 @@ export async function buildHarianKkpPdf(d: KkpDailyData, appName: string, logo?:
     y = gridRow(doc, y, cells, o);
   };
 
-  /* ── Kop: logo pemilik | judul | pengawas | pelaksana ──────────────── */
-  const kop: GridOptions = { x, width, cols: colWidths(width, [0.5, 1.7, 1, 1]), fontSize: 7.5, minRowHeight: 30 };
+  /* ── Kop: logo pemilik | judul | pengawas | pelaksana ────────────────
+     Semua garis vertikal utama dikunci ke TITIK YANG SAMA supaya blanko
+     simetris: tepi kanan kotak logo = tepi kanan kolom label identitas, dan
+     pembatas tengah = width/2 (dipakai juga oleh tenaga|material dan
+     rencana|realisasi). */
+  const labelW = 62; // lebar kotak logo == lebar kolom label identitas
+  const colonW = 10;
+  const kop: GridOptions = {
+    x,
+    width,
+    cols: [labelW, width / 2 - labelW, width / 4, width / 4],
+    fontSize: 7.5,
+    minRowHeight: 30,
+  };
   const kopTop = y;
   y = gridRow(
     doc,
@@ -82,14 +94,14 @@ export async function buildHarianKkpPdf(d: KkpDailyData, appName: string, logo?:
   }
 
   /* ── Identitas proyek (mengikuti blanko: label · titik dua · isi) ───── */
-  const identKiri: GridOptions = { x, width: width / 2, cols: colWidths(width / 2, [1, 0.12, 2.4]), fontSize: 7 };
+  const identKiri: GridOptions = { x, width: width / 2, cols: [labelW, colonW, width / 2 - labelW - colonW], fontSize: 7 };
   const barisKiri = (label: string, value: string) =>
     draw([{ text: label }, { text: ":", align: "center" }, { text: value }], identKiri);
   barisKiri("Minggu Ke", d.weekNo != null ? String(d.weekNo) : "");
   barisKiri("Hari", d.hari);
   barisKiri("Tanggal", d.tanggalFull);
 
-  const ident: GridOptions = { x, width, cols: colWidths(width, [1, 0.12, 7]), fontSize: 7 };
+  const ident: GridOptions = { x, width, cols: [labelW, colonW, width - labelW - colonW], fontSize: 7 };
   const barisIdent = (label: string, value: string) =>
     draw([{ text: label }, { text: ":", align: "center" }, { text: value }], ident);
   barisIdent("PEKERJAAN", d.pekerjaan || "Konstruksi");
@@ -213,7 +225,7 @@ export async function buildHarianKkpPdf(d: KkpDailyData, appName: string, logo?:
   }
 
   /* ── Jam kerja ─────────────────────────────────────────────────────── */
-  const jam: GridOptions = { x, width, cols: colWidths(width, [1, 7]), fontSize: 7 };
+  const jam: GridOptions = { x, width, cols: [labelW + colonW, width - labelW - colonW], fontSize: 7 };
   draw(
     [
       { text: "Jam Kerja", head: true },

@@ -117,6 +117,7 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
     const location = await db.location.findUnique({
       where: { id: d.locationId },
       select: {
+        id: true,
         slug: true,
         name: true,
         gpsLat: true,
@@ -165,6 +166,7 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
     for (const file of files) {
       try {
         await savePhotoForItem({
+          locationId: location.id,
           reportId: report.id,
           reportItemId: item.id,
           file,
