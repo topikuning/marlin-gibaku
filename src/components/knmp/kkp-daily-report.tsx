@@ -93,74 +93,64 @@ export function KkpDailyReport({ d }: { d: KkpDailyData }) {
         </div>
       ) : null}
 
-      {/* ── Kop: logo pemilik + judul | pengawas | pelaksana ─────────────── */}
-      <div className="grid grid-cols-[14%_36%_25%_25%] border border-slate-500">
-        <div className="col-span-2 grid grid-cols-[14fr_36fr] items-center border-r border-slate-500">
-          <div className="flex h-full items-center justify-center border-r border-slate-500 px-1 py-2">
-            {d.ownerLogoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={d.ownerLogoUrl} alt="" className="max-h-10 w-auto" />
-            ) : null}
-          </div>
-          <div className="px-3 py-2 text-sm font-bold tracking-wide uppercase">Laporan Harian</div>
-        </div>
-        <div className="border-r border-slate-500">
-          <div className="border-b border-slate-500 px-2 py-1 text-center text-[10px] font-semibold text-slate-600 uppercase">
-            Konsultan Pengawas
-          </div>
-          <div className="flex h-11 items-center justify-center px-2 text-center text-[10px] text-slate-500">
-            {d.supervisorFirm ?? ""}
-          </div>
-        </div>
-        <div>
-          <div className="border-b border-slate-500 px-2 py-1 text-center text-[10px] font-semibold text-slate-600 uppercase">
-            Kontraktor Pelaksana
-          </div>
-          <div className="flex h-11 items-center justify-center px-2 text-center text-[10px] text-slate-500">
-            {d.contractorFirm ?? ""}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Identitas: Minggu/Hari/Tanggal (separuh kiri) ────────────────── */}
-      <table className="w-1/2 table-fixed border-x border-b border-slate-500">
-        {/* 14% & 4% dari LEBAR HALAMAN → di tabel separuh lebar jadi 28% & 8%,
-            sehingga garis vertikalnya tepat sama dengan blok di bawahnya. */}
+      {/* ── Kop + identitas: SATU tabel, persis blanko ────────────────────
+          Kop, Minggu/Hari/Tanggal, dan PEKERJAAN/LOKASI/TH. ANGGARAN harus
+          sekerangka supaya semua garis bertemu dan blok kanan tertutup:
+          · baris identitas berhenti tepat di garis kanan sel "LAPORAN HARIAN";
+          · kotak perusahaan pengawas/pelaksana MEMANJANG ke bawah sampai baris
+            Tanggal (rowSpan), jadi sisi kanan tidak menganga;
+          · PEKERJAAN/LOKASI/TH. ANGGARAN membentang penuh sampai tepi kanan. */}
+      <table className="w-full table-fixed border border-slate-500">
         <colgroup>
-          <col className="w-[28%]" />
-          <col className="w-[8%]" />
-          <col />
+          <col className="w-[9%]" /> {/* logo */}
+          <col className="w-[14%]" /> {/* label */}
+          <col className="w-[3%]" /> {/* titik dua */}
+          <col className="w-[18%]" /> {/* isi — kiri berakhir di 44% */}
+          <col className="w-[28%]" /> {/* konsultan pengawas */}
+          <col className="w-[28%]" /> {/* kontraktor pelaksana */}
         </colgroup>
         <tbody>
+          <tr>
+            <Cell center>
+              {d.ownerLogoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={d.ownerLogoUrl} alt="" className="mx-auto max-h-10 w-auto" />
+              ) : (
+                <>&nbsp;</>
+              )}
+            </Cell>
+            <Cell colSpan={3}>
+              <span className="text-sm font-bold tracking-wide uppercase">Laporan Harian</span>
+            </Cell>
+            <Cell head center>Konsultan Pengawas</Cell>
+            <Cell head center>Kontraktor Pelaksana</Cell>
+          </tr>
           {[
             ["Minggu Ke", d.weekNo != null ? String(d.weekNo) : ""],
             ["Hari", d.hari],
             ["Tanggal", d.tanggalFull],
-          ].map(([label, value]) => (
+          ].map(([label, value], i) => (
             <tr key={label}>
-              <Cell>{label}</Cell>
+              <Cell colSpan={2}>{label}</Cell>
               <Cell center>:</Cell>
               <Cell>{value}</Cell>
+              {i === 0 ? (
+                <>
+                  <Cell center rowSpan={3}>{d.supervisorFirm ?? <>&nbsp;</>}</Cell>
+                  <Cell center rowSpan={3}>{d.contractorFirm ?? <>&nbsp;</>}</Cell>
+                </>
+              ) : null}
             </tr>
           ))}
-        </tbody>
-      </table>
-      <table className="w-full table-fixed border-x border-b border-slate-500">
-        <colgroup>
-          <col className="w-[14%]" />
-          <col className="w-[4%]" />
-          <col />
-        </colgroup>
-        <tbody>
           {[
             ["PEKERJAAN", d.pekerjaan ?? "Konstruksi"],
             ["LOKASI", `${d.locationName}, ${d.regency}, ${d.province}`],
             ["TH. ANGGARAN", String(d.tahunAnggaran)],
           ].map(([label, value]) => (
             <tr key={label}>
-              <Cell>{label}</Cell>
+              <Cell colSpan={2}>{label}</Cell>
               <Cell center>:</Cell>
-              <Cell>{value}</Cell>
+              <Cell colSpan={3}>{value}</Cell>
             </tr>
           ))}
         </tbody>
@@ -415,6 +405,7 @@ function Cell({
   center,
   right,
   colSpan,
+  rowSpan,
 }: {
   children?: React.ReactNode;
   head?: boolean;
@@ -422,11 +413,13 @@ function Cell({
   center?: boolean;
   right?: boolean;
   colSpan?: number;
+  rowSpan?: number;
 }) {
   const Tag = head ? "th" : "td";
   return (
     <Tag
       colSpan={colSpan}
+      rowSpan={rowSpan}
       className={[
         "border border-slate-500 px-1.5 py-0.5 align-top",
         head ? "bg-slate-50 text-[10px] font-semibold text-slate-600 uppercase" : "",

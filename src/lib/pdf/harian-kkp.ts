@@ -58,48 +58,65 @@ export async function buildHarianKkpPdf(d: KkpDailyData, appName: string, logo?:
     y = gridRow(doc, y, cells, o);
   };
 
-  /* ── Kop: logo pemilik | judul | pengawas | pelaksana ────────────────
-     Semua garis vertikal utama dikunci ke TITIK YANG SAMA supaya blanko
-     simetris: tepi kanan kotak logo = tepi kanan kolom label identitas, dan
-     pembatas tengah = width/2 (dipakai juga oleh tenaga|material dan
-     rencana|realisasi). */
-  const labelW = 62; // lebar kotak logo == lebar kolom label identitas
-  const colonW = 10;
-  const kop: GridOptions = {
-    x,
-    width,
-    cols: [labelW, width / 2 - labelW, width / 4, width / 4],
-    fontSize: 7.5,
-    minRowHeight: 30,
-  };
-  const kopTop = y;
-  y = gridRow(
+  /* ── Kop + identitas: satu kerangka, persis blanko ───────────────────
+     Blok kiri (logo · LAPORAN HARIAN, lalu Minggu/Hari/Tanggal) berakhir di
+     44% lebar. Blok kanan (KONSULTAN PENGAWAS | KONTRAKTOR PELAKSANA + nama
+     perusahaan) MEMANJANG ke bawah sampai sejajar baris Tanggal, jadi sisi
+     kanan tidak menganga. Baru sesudah itu PEKERJAAN/LOKASI/TH. ANGGARAN
+     membentang PENUH sampai tepi kanan. */
+  const kiriW = width * 0.44;
+  const logoW = width * 0.09;
+  const labelW = width * 0.23; // kolom label = kotak logo + kolom label blanko
+  const colonW = width * 0.03;
+  const kananW = width - kiriW;
+
+  const kopKiri: GridOptions = { x, width: kiriW, cols: [logoW, kiriW - logoW], fontSize: 7.5, minRowHeight: 30 };
+  const kopKanan: GridOptions = { x: x + kiriW, width: kananW, cols: [kananW / 2, kananW / 2], fontSize: 7.5 };
+  const identKiri: GridOptions = { x, width: kiriW, cols: [labelW, colonW, kiriW - labelW - colonW], fontSize: 7 };
+
+  fit(30 + 3 * 13 + 3 * 13);
+  const atas = y;
+
+  // Sisi kiri: kop + tiga baris identitas.
+  let ky = gridRow(doc, atas, [{ text: " " }, { text: "LAPORAN HARIAN", bold: true }], kopKiri);
+  const kopBawah = ky;
+  for (const [label, value] of [
+    ["Minggu Ke", d.weekNo != null ? String(d.weekNo) : ""],
+    ["Hari", d.hari],
+    ["Tanggal", d.tanggalFull],
+  ] as const) {
+    ky = gridRow(doc, ky, [{ text: label }, { text: ":", align: "center" }, { text: value }], identKiri);
+  }
+
+  // Sisi kanan: judul kolom, lalu kotak nama perusahaan setinggi sisa blok kiri.
+  let ny = gridRow(
     doc,
-    y,
+    atas,
     [
-      { text: " " }, // kotak logo — gambarnya ditempel setelah baris digambar
-      { text: "LAPORAN HARIAN", bold: true },
-      { text: `KONSULTAN PENGAWAS\n${d.supervisorFirm ?? ""}`, align: "center", head: true },
-      { text: `KONTRAKTOR PELAKSANA\n${d.contractorFirm ?? ""}`, align: "center", head: true },
+      { text: "KONSULTAN PENGAWAS", align: "center", head: true },
+      { text: "KONTRAKTOR PELAKSANA", align: "center", head: true },
     ],
-    kop,
+    { ...kopKanan, minRowHeight: kopBawah - atas },
   );
+  ny = gridRow(
+    doc,
+    ny,
+    [
+      { text: d.supervisorFirm ?? " ", align: "center" },
+      { text: d.contractorFirm ?? " ", align: "center" },
+    ],
+    { ...kopKanan, minRowHeight: Math.max(12, ky - ny) },
+  );
+  y = Math.max(ky, ny);
+
   // Logo pemilik pekerjaan dari menu Sistem — bukan hardcode KKP (DECISIONS 166).
   if (logo) {
     try {
-      doc.image(logo, x + 4, kopTop + 4, { fit: [kop.cols[0] - 8, y - kopTop - 8], align: "center", valign: "center" });
+      doc.image(logo, x + 3, atas + 3, { fit: [logoW - 6, kopBawah - atas - 6], align: "center", valign: "center" });
     } catch {
       // Logo rusak/format tak didukung tidak boleh menggagalkan laporan.
     }
   }
-
-  /* ── Identitas proyek (mengikuti blanko: label · titik dua · isi) ───── */
-  const identKiri: GridOptions = { x, width: width / 2, cols: [labelW, colonW, width / 2 - labelW - colonW], fontSize: 7 };
-  const barisKiri = (label: string, value: string) =>
-    draw([{ text: label }, { text: ":", align: "center" }, { text: value }], identKiri);
-  barisKiri("Minggu Ke", d.weekNo != null ? String(d.weekNo) : "");
-  barisKiri("Hari", d.hari);
-  barisKiri("Tanggal", d.tanggalFull);
 
   const ident: GridOptions = { x, width, cols: [labelW, colonW, width - labelW - colonW], fontSize: 7 };
   const barisIdent = (label: string, value: string) =>
