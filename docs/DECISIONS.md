@@ -4142,3 +4142,39 @@ EFEKTIF pada tanggal itu, jadi revisi yang dibuat belakangan tidak berlaku
 surut — fixture uji harus di-back-date, dan itu memang perilaku yang benar.
 
 Masih utang: parity output layar vs PDF vs Excel vs WhatsApp.
+
+---
+
+## 170 · 2026-07-28 · Foto laporan harian bisa dihapus selama laporan masih draft
+
+Temuan user: foto laporan harian TIDAK BISA dihapus sama sekali — aksinya
+memang tidak pernah dibuat (yang ada hanya di Kegiatan Lapangan). Lebih buruk,
+menghapus item pekerjaan hanya MELEPAS fotonya (`reportItemId = null`) dan foto
+itu lalu tidak ditampilkan di mana pun, sehingga mustahil dibersihkan baik dari
+layar maupun dari bucket R2. Draft yang tidak bisa dikoreksi penuh adalah bug,
+bukan desain — mandor salah pilih foto dari galeri itu kejadian wajar.
+
+Keputusan (user, 28 Juli 2026):
+
+- **Siapa yang boleh**: PENGUNGGAH foto itu sendiri, Site Manager, atau
+  Super Admin. Ditegakkan di server (`removeReportPhotoAction`), bukan hanya
+  disembunyikan di UI.
+- **Kapan**: hanya saat laporan berstatus `draft` atau `perlu_koreksi`. Begitu
+  dikirim, foto sudah jadi dasar verifikasi — mengubah bukti setelah itu bukan
+  koreksi.
+- **Foto yatim**: statusnya DITURUNKAN (`reportItemId` kosong padahal `reportId`
+  terisi), BUKAN disimpan sebagai kolom flag. Flag tersimpan adalah fakta
+  turunan yang bisa melenceng dari kenyataan — dilarang PROJECT.md. Karena
+  fotonya masih menempel ke laporan, yang sudah terlanjur yatim langsung
+  terjangkau begitu galeri menampilkannya: TIDAK perlu migrasi atau backfill.
+- UI: blok "Foto tanpa pekerjaan" di editor laporan harian, plus tombol hapus
+  pada galeri per item.
+
+Urutan hapus: baris DB dulu, objek R2 belakangan — gagal menghapus objek hanya
+menyisakan berkas tak terpakai, sedangkan urutan sebaliknya menyisakan foto
+rusak di layar.
+
+Verifikasi: `tests/integration/hapus-foto-harian.test.ts` (8 kasus) — pengunggah
+boleh; mandor lain DITOLAK; SM & Super Admin boleh; dikirim/final ditolak;
+perlu_koreksi boleh; foto yatim terbukti terjangkau dan terhapus.
+typecheck ✓ · lint ✓ · unit 456 ✓ · integrasi 9 berkas/72 uji ✓ · build ✓.

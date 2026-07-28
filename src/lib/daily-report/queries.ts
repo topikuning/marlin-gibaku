@@ -139,6 +139,8 @@ export type WorkspaceReport = {
   history: WorkspaceHistoryRow[];
   issues: WorkspaceIssue[];
   photos: PhotoView[];
+  /** Foto yang tidak menempel ke item mana pun (item-nya sudah dihapus). */
+  photosTanpaItem: PhotoView[];
   /** Alasan pengembalian terakhir (transisi → perlu_koreksi paling baru). */
   lastCorrectionReason: string | null;
   isFinal: boolean;
@@ -212,9 +214,18 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
     cumulativeVolumeByLineage(location.id, reportDate),
     buildPhotoViews(report.photos),
   ]);
+  // Foto TANPA item (yatim). Terjadi saat item pekerjaannya dihapus: fotonya
+  // sengaja dilepas, bukan ikut terhapus. Dulu foto begini tidak ditampilkan di
+  // mana pun sehingga mustahil dibersihkan — sekarang dipisahkan supaya tetap
+  // terlihat dan bisa dihapus. Statusnya DITURUNKAN (reportItemId kosong),
+  // bukan disimpan sebagai flag yang bisa melenceng dari kenyataan.
   const photoByItem = new Map<string, PhotoView[]>();
+  const photosTanpaItem: PhotoView[] = [];
   for (const p of photoViews) {
-    if (!p.reportItemId) continue;
+    if (!p.reportItemId) {
+      photosTanpaItem.push(p);
+      continue;
+    }
     const arr = photoByItem.get(p.reportItemId) ?? [];
     arr.push(p);
     photoByItem.set(p.reportItemId, arr);
@@ -301,6 +312,7 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
         status: i.status,
       })),
       photos: photoViews,
+      photosTanpaItem,
       lastCorrectionReason: lastCorrection?.reason ?? null,
       isFinal: report.status === "final",
     },

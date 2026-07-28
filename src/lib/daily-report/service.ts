@@ -32,7 +32,7 @@ import { VOLUME_EPSILON } from "./constants";
 
 export class DailyReportError extends Error {}
 
-const EDITABLE_STATUSES: DailyReportStatus[] = ["draft", "perlu_koreksi"];
+export const EDITABLE_STATUSES: DailyReportStatus[] = ["draft", "perlu_koreksi"];
 const ENRICHABLE_STATUSES: DailyReportStatus[] = ["draft", "perlu_koreksi", "dikirim"];
 /**
  * Status yang boleh di-enrich oleh PEMBUAT (daily_report.create saja).
