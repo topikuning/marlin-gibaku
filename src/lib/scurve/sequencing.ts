@@ -491,8 +491,23 @@ export function itemPlannedFraction(
   return 3 * x * x - 2 * x * x * x; // smoothstep
 }
 
-export type SchedItem = { name: string; categoryName: string; amount: bigint };
-export type CategoryWeekly = { categoryName: string; weightPct: number; weekly: number[] };
+export type SchedItem = {
+  name: string;
+  /**
+   * IDENTITAS kategori — `lineageKey` node kategori (CALC-04). Nama kategori
+   * BUKAN kunci unik: dua unit boleh bernama sama ("Bangunan Pos") pada satu
+   * revisi, dan mengganti nama tidak boleh mengubah identitas jadwal. Opsional
+   * demi kompatibilitas pemanggil lama; bila kosong, nama dipakai sebagai kunci.
+   */
+  categoryKey?: string;
+  /** Label + bahan klasifikasi (detectWorkType/classifyStage) — bukan kunci. */
+  categoryName: string;
+  amount: bigint;
+};
+export type CategoryWeekly = { categoryKey: string; categoryName: string; weightPct: number; weekly: number[] };
+
+/** Kunci kategori: lineageKey bila ada, jatuh ke nama untuk pemanggil lama. */
+const catKeyOf = (it: { categoryKey?: string; categoryName: string }): string => it.categoryKey || it.categoryName;
 
 /**
  * Jadwal mingguan dari ITEM (sumber tunggal). Tiap item: tipe unit → tahap →
@@ -503,39 +518,45 @@ export type CategoryWeekly = { categoryName: string; weightPct: number; weekly: 
 export function scheduleFromItems(
   items: SchedItem[],
   contractDays: number,
-  categoryWindowFrac: (categoryName: string) => [number, number],
+  /** Jendela kategori; dipanggil dengan (nama, kunci) — kunci untuk lookup jadwal tersimpan. */
+  categoryWindowFrac: (categoryName: string, categoryKey?: string) => [number, number],
 ): { totalWeeks: number; grand: number; categories: CategoryWeekly[] } {
   const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
   const positive = items.filter((it) => it.amount > 0n);
   const grand = positive.reduce((s, it) => s + Number(it.amount), 0);
   if (grand <= 0) return { totalWeeks, grand: 0, categories: [] };
 
-  // Tipe pekerjaan per unit (kategori) dari mayoritas nama item.
+  // Tipe pekerjaan per unit (kategori) dari mayoritas nama item. Dikelompokkan
+  // per KUNCI kategori (lineage), bukan nama — dua unit bernama sama tetap dua.
   const namesByCat = new Map<string, string[]>();
+  const nameOfCat = new Map<string, string>();
   for (const it of positive) {
-    const arr = namesByCat.get(it.categoryName) ?? [];
+    const key = catKeyOf(it);
+    const arr = namesByCat.get(key) ?? [];
     arr.push(it.name);
-    namesByCat.set(it.categoryName, arr);
+    namesByCat.set(key, arr);
+    if (!nameOfCat.has(key)) nameOfCat.set(key, it.categoryName);
   }
   const typeByCat = new Map<string, WorkType>();
-  for (const [cat, names] of namesByCat) typeByCat.set(cat, detectWorkType(cat, names));
+  for (const [key, names] of namesByCat) typeByCat.set(key, detectWorkType(nameOfCat.get(key) ?? "", names));
 
   const catAcc = new Map<string, { weightPct: number; weekly: number[] }>();
   const order: string[] = [];
   for (const it of positive) {
-    const wt = typeByCat.get(it.categoryName) ?? "gedung";
+    const key = catKeyOf(it);
+    const wt = typeByCat.get(key) ?? "gedung";
     const stage = classifyStage(wt, it.name, it.categoryName);
-    const [cs, ce] = categoryWindowFrac(it.categoryName);
+    const [cs, ce] = categoryWindowFrac(it.categoryName, it.categoryKey);
     const [isF, ieF] = nestedItemWindow(wt, stage, cs, ce);
     const sWeek = Math.max(1, Math.min(totalWeeks, Math.floor(isF * totalWeeks) + 1));
     const eWeek = Math.max(sWeek, Math.min(totalWeeks, Math.ceil(ieF * totalWeeks)));
     const w = (Number(it.amount) / grand) * 100;
     const inc = categoryWeeklyIncrements(w, sWeek, eWeek, totalWeeks);
-    let entry = catAcc.get(it.categoryName);
+    let entry = catAcc.get(key);
     if (!entry) {
       entry = { weightPct: 0, weekly: new Array<number>(totalWeeks).fill(0) };
-      catAcc.set(it.categoryName, entry);
-      order.push(it.categoryName);
+      catAcc.set(key, entry);
+      order.push(key);
     }
     entry.weightPct += w;
     for (let i = 0; i < totalWeeks; i++) entry.weekly[i] += inc[i];
@@ -544,10 +565,11 @@ export function scheduleFromItems(
   return {
     totalWeeks,
     grand,
-    categories: order.map((cat) => ({
-      categoryName: cat,
-      weightPct: catAcc.get(cat)!.weightPct,
-      weekly: catAcc.get(cat)!.weekly,
+    categories: order.map((key) => ({
+      categoryKey: key,
+      categoryName: nameOfCat.get(key) ?? key,
+      weightPct: catAcc.get(key)!.weightPct,
+      weekly: catAcc.get(key)!.weekly,
     })),
   };
 }

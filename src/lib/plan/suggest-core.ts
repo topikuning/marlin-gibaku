@@ -64,6 +64,8 @@ export type LeafInput = {
   code: string;
   name: string;
   unit: string | null;
+  /** Identitas kategori (lineageKey node kategori) — nama BUKAN kunci unik (CALC-04). */
+  categoryKey?: string;
   categoryName: string;
   volume: number;
   unitPrice: number;
@@ -103,19 +105,24 @@ export function computeSuggestions(
   totalWeeks: number,
   maxSuggestions = 20,
   /** Jendela presedensi kategori (fraksi) — dari baseline tersimpan/manual; auto default. */
-  categoryWindowFrac: (categoryName: string) => [number, number] = autoCategoryWindowFrac,
+  categoryWindowFrac: (categoryName: string, categoryKey?: string) => [number, number] = autoCategoryWindowFrac,
 ): WeeklySuggestion[] {
   const raw: (WeeklySuggestion & { rankScore: number })[] = [];
 
-  // Tipe pekerjaan PER-UNIT (kategori) — dari mayoritas item unit itu.
+  // Tipe pekerjaan PER-UNIT (kategori) — dari mayoritas item unit itu. Unit
+  // dikenali lewat KUNCI lineage; dua unit bernama sama tidak boleh dilebur.
+  const keyOf = (it: LeafInput): string => it.categoryKey || it.categoryName;
   const namesByCat = new Map<string, string[]>();
+  const nameOfCat = new Map<string, string>();
   for (const it of leaves) {
-    const arr = namesByCat.get(it.categoryName) ?? [];
+    const k = keyOf(it);
+    const arr = namesByCat.get(k) ?? [];
     arr.push(it.name);
-    namesByCat.set(it.categoryName, arr);
+    namesByCat.set(k, arr);
+    if (!nameOfCat.has(k)) nameOfCat.set(k, it.categoryName);
   }
   const typeByCat = new Map<string, WorkType>();
-  for (const [cat, names] of namesByCat) typeByCat.set(cat, detectWorkType(cat, names));
+  for (const [k, names] of namesByCat) typeByCat.set(k, detectWorkType(nameOfCat.get(k) ?? "", names));
 
   // Tahap tiap item + rekap nilai rencana/realisasi per (unit, tahap) untuk
   // gerbang prasyarat.
@@ -124,10 +131,10 @@ export function computeSuggestions(
   const realizedByCatStage = new Map<string, number>();
   for (const it of leaves) {
     if (!(it.volume > 0)) continue;
-    const workType = typeByCat.get(it.categoryName) ?? "gedung";
+    const workType = typeByCat.get(keyOf(it)) ?? "gedung";
     const stage = classifyStage(workType, it.name, it.categoryName);
     stageOf.set(it.rabNodeId, { workType, stage });
-    const key = `${it.categoryName}|${stage}`;
+    const key = `${keyOf(it)}|${stage}`;
     const realized = realizedByLineage.get(it.lineageKey) ?? 0;
     plannedByCatStage.set(key, (plannedByCatStage.get(key) ?? 0) + it.volume * it.unitPrice);
     realizedByCatStage.set(key, (realizedByCatStage.get(key) ?? 0) + realized * it.unitPrice);
@@ -163,9 +170,9 @@ export function computeSuggestions(
     // GERBANG PRASYARAT: jangan sarankan tahap penerus bila prasyarat unit ini
     // belum cukup (mis. dinding sebelum pondasi 80%). Item prasyaratnya akan
     // muncul sendiri karena jendelanya aktif/tertinggal.
-    if (blockingPrereq(it.categoryName, workType, stage)) continue;
+    if (blockingPrereq(keyOf(it), workType, stage)) continue;
 
-    const [cs, ce] = categoryWindowFrac(it.categoryName);
+    const [cs, ce] = categoryWindowFrac(it.categoryName, it.categoryKey);
     const fracNow = itemPlannedFraction(workType, stage, cs, ce, weekNumber, totalWeeks);
     const fracPrev = itemPlannedFraction(workType, stage, cs, ce, weekNumber - 1, totalWeeks);
 

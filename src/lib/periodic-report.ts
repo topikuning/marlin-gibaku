@@ -451,16 +451,17 @@ export async function getPeriodReport(
   if (usableStored) {
     kurvaSchedule = storedSched.map((s) => ({ code: codeByName.get(s.name) ?? "", name: s.name, weekly: s.weekly }));
   } else {
+    // Kategori dikenali lewat lineageKey akarnya (CALC-04), bukan nama.
+    const codeByKey = new Map(kategoriNodes.map((nd) => [nd.lineageKey, nd.code ?? ""]));
     const schedItems = itemNodes
       .filter((nd) => nd.amount > 0n)
-      .map((nd) => ({
-        name: nd.name,
-        categoryName: catNameByRoot.get(nd.lineageKey.split("#")[0]) ?? "",
-        amount: nd.amount,
-      }));
+      .map((nd) => {
+        const root = nd.lineageKey.split("#")[0];
+        return { name: nd.name, categoryKey: root, categoryName: catNameByRoot.get(root) ?? "", amount: nd.amount };
+      });
     const winFrac = (name: string): [number, number] => autoCategoryWindowFrac(name);
     kurvaSchedule = scheduleFromItems(schedItems, totalWeeks * 7, winFrac).categories.map((c) => ({
-      code: codeByName.get(c.categoryName) ?? "",
+      code: codeByKey.get(c.categoryKey) ?? "",
       name: c.categoryName,
       weekly: c.weekly,
     }));

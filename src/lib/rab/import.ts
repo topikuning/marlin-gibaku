@@ -238,11 +238,16 @@ export async function regenerateBaseline(locationId: string, opts: RegenerateBas
   const catKeys = catNodes
     .map((n) => ({ key: n.lineageKey, name: n.name }))
     .sort((a, b) => b.key.length - a.key.length);
-  const categoryNameFor = (lineageKey: string): string =>
-    catKeys.find((c) => lineageKey === c.key || lineageKey.startsWith(`${c.key}#`))?.name ?? "";
+  // Identitas kategori = lineageKey-nya, BUKAN nama (CALC-04): dua unit boleh
+  // bernama sama pada satu revisi dan ganti nama tidak boleh menggeser jadwal.
+  const categoryOf = (lineageKey: string): { key: string; name: string } =>
+    catKeys.find((c) => lineageKey === c.key || lineageKey.startsWith(`${c.key}#`)) ?? { key: "", name: "" };
   const items = nodes
     .filter((n) => n.kind === "item" && n.amount > 0n)
-    .map((n) => ({ name: n.name, categoryName: categoryNameFor(n.lineageKey), amount: n.amount }));
+    .map((n) => {
+      const cat = categoryOf(n.lineageKey);
+      return { name: n.name, categoryKey: cat.key, categoryName: cat.name, amount: n.amount };
+    });
 
   // Jendela presedensi per kategori DALAM BASIS MINGGU (disimpan = handle editor
   // & sumber rekonstruksi report). Kurva diturunkan dari jendela yang SAMA →
@@ -253,10 +258,10 @@ export async function regenerateBaseline(locationId: string, opts: RegenerateBas
     const [cs, ce] = autoCategoryWindowFrac(c.name);
     const sWeek = Math.max(1, Math.min(totalWeeks, Math.floor(cs * totalWeeks) + 1));
     const eWeek = Math.max(sWeek, Math.min(totalWeeks, Math.ceil(ce * totalWeeks)));
-    catWindowWeeks.set(c.name, [sWeek, eWeek]);
+    catWindowWeeks.set(c.lineageKey, [sWeek, eWeek]);
   }
-  const winFrac = (name: string): [number, number] => {
-    const [s, e] = catWindowWeeks.get(name) ?? [1, totalWeeks];
+  const winFrac = (_name: string, key?: string): [number, number] => {
+    const [s, e] = catWindowWeeks.get(key ?? "") ?? [1, totalWeeks];
     return [(s - 1) / totalWeeks, e / totalWeeks];
   };
 
@@ -265,14 +270,15 @@ export async function regenerateBaseline(locationId: string, opts: RegenerateBas
 
   // Matriks mingguan per kategori (bentuk kanonik, DECISIONS 103): dari jadwal
   // berbasis item bila kategori punya item; fallback lonceng jendela kategori.
-  const weeklyByName = new Map(sched.categories.map((c) => [c.categoryName, c.weekly]));
+  const weeklyByKey = new Map(sched.categories.map((c) => [c.categoryKey, c.weekly]));
   const schedule = catNodes
     .filter((c) => c.amount > 0n)
     .map((c) => {
-      const [sWeek, eWeek] = catWindowWeeks.get(c.name) ?? [1, totalWeeks];
+      const [sWeek, eWeek] = catWindowWeeks.get(c.lineageKey) ?? [1, totalWeeks];
       const weightPct = (Number(c.amount) / grandCat) * 100;
       const catWeekly =
-        weeklyByName.get(c.name) ?? weeklyFromSegments(weightPct, [{ startWeek: sWeek, endWeek: eWeek }], totalWeeks);
+        weeklyByKey.get(c.lineageKey) ??
+        weeklyFromSegments(weightPct, [{ startWeek: sWeek, endWeek: eWeek }], totalWeeks);
       return {
         lineageKey: c.lineageKey,
         name: c.name,

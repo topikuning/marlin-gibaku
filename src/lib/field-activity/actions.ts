@@ -37,6 +37,7 @@ async function locationForStamp(locationId: string) {
   return db.location.findUnique({
     where: { id: locationId },
     select: {
+      id: true,
       slug: true,
       name: true,
       gpsLat: true,
@@ -57,7 +58,7 @@ async function uploadPhotos(opts: {
   activityId: string;
   userId: string;
   reporterName: string;
-  location: { slug: string; name: string; gpsLat: unknown; gpsLng: unknown };
+  location: { id: string; slug: string; name: string; gpsLat: unknown; gpsLng: unknown };
   companyName: string | null;
   dateKey: string;
   source: "camera" | "gallery";
@@ -76,6 +77,7 @@ async function uploadPhotos(opts: {
   for (const file of opts.files.slice(0, Math.max(0, opts.limit))) {
     try {
       await savePhotoForItem({
+        locationId: opts.location.id,
         activityId: opts.activityId,
         file,
         userId: opts.userId,
@@ -298,6 +300,7 @@ async function activityCtx(activityId: string) {
       activityDate: true,
       location: {
         select: {
+          id: true,
           slug: true,
           name: true,
           gpsLat: true,

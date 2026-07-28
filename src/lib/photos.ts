@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import ExifReader from "exifreader";
 import { db } from "@/lib/db";
-import { isR2Configured, r2Put, r2PresignGet } from "@/lib/r2";
+import { isR2Configured, r2Delete, r2Put, r2PresignGet } from "@/lib/r2";
 import { STAMP_FONT_REGULAR_B64, STAMP_FONT_BOLD_B64 } from "@/lib/stamp-font";
 import { buildStampSvg, overlayAlphaFor, type StampRenderData } from "@/lib/photo-stamp/renderer";
 import {
@@ -185,6 +185,12 @@ function stampSvg(w: number, h: number, s: PhotoStamp): string {
 }
 
 export type SavePhotoInput = {
+  /**
+   * Lokasi pemilik foto — SCOPE dedup (STORE-01). Foto byte-identik yang sah
+   * dipakai di dua lokasi tidak boleh saling menolak; yang dicegah hanya
+   * kirim ulang di lokasi yang SAMA.
+   */
+  locationId: string;
   /** Salah satu wajib diisi: reportId (laporan harian) ATAU activityId (kegiatan lapangan). */
   reportId?: string | null;
   reportItemId?: string | null;
@@ -235,8 +241,11 @@ export async function savePhotoForItem(input: SavePhotoInput) {
   const original = Buffer.from(await file.arrayBuffer());
   // Dedup pakai sha256 sumber ASLI (cap sama foto = tetap dianggap sama).
   const sha256 = createHash("sha256").update(original).digest("hex");
-  const existing = await db.photo.findUnique({ where: { sha256 }, select: { id: true } });
-  if (existing) throw new PhotoError("Foto duplikat (sudah pernah diunggah)");
+  const existing = await db.photo.findUnique({
+    where: { locationId_sha256: { locationId: input.locationId, sha256 } },
+    select: { id: true },
+  });
+  if (existing) throw new PhotoError("Foto duplikat (sudah pernah diunggah di lokasi ini)");
 
   const exif = readExif(original);
   const s = input.stamp;
@@ -345,8 +354,13 @@ export async function savePhotoForItem(input: SavePhotoInput) {
     }
   }
 
-  return db.photo.create({
+  // Objek sudah di R2 tapi barisnya belum ada. Bila create gagal (mis. dua
+  // unggahan bersamaan menabrak unique (lokasi, sha256)), objeknya DIHAPUS
+  // supaya tidak menyisakan berkas yatim di bucket (STORE-01).
+  try {
+    return await db.photo.create({
     data: {
+      locationId: input.locationId,
       reportId: input.reportId ?? null,
       reportItemId: input.reportItemId ?? null,
       activityId: input.activityId ?? null,
@@ -363,7 +377,15 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       metadataSource: timeSource,
       uploadedById: input.userId,
     },
-  });
+    });
+  } catch (e) {
+    await r2Delete(key).catch(() => {});
+    if (thumbnailKey) await r2Delete(thumbnailKey).catch(() => {});
+    if (e && typeof e === "object" && "code" in e && (e as { code?: string }).code === "P2002") {
+      throw new PhotoError("Foto duplikat (sudah pernah diunggah di lokasi ini)");
+    }
+    throw e;
+  }
 }
 
 type ProcessedPhoto = {
