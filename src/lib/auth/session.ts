@@ -129,8 +129,23 @@ export async function requireCapability(capability: Capability): Promise<Session
   return user;
 }
 
-/** Cek akses lokasi: cross-location roles bebas; lainnya wajib assignment aktif. */
+/**
+ * Cek akses lokasi. Role lintas-lokasi berarti "semua lokasi DALAM ORGANISASI
+ * INI", bukan seluruh database — karena itu keanggotaan organisasi SELALU
+ * dibuktikan lebih dulu, baru penugasan (audit Codex 2026-07-28, AUTH-01).
+ *
+ * Sebelumnya fungsi ini `return true` untuk role lintas-lokasi tanpa menyentuh
+ * organisasi sama sekali; padahal ia adalah penjaga terakhir bagi akses objek
+ * TUNGGAL (halaman lokasi, route PDF, server action) — daftar sudah dijaga
+ * `locationScopeWhere`. Selama hanya ada satu organisasi lubang ini dorman,
+ * tetapi penjagaannya tidak boleh bergantung pada keadaan data.
+ */
 export async function hasLocationAccess(user: SessionUser, locationId: string): Promise<boolean> {
+  const inOrg = await db.location.findFirst({
+    where: { id: locationId, package: { orgId: user.orgId } },
+    select: { id: true },
+  });
+  if (!inOrg) return false;
   if (isCrossLocation(user.role)) return true;
   const assignment = await db.locationAssignment.findFirst({
     where: { userId: user.id, locationId, unassignedAt: null },
@@ -143,7 +158,12 @@ export async function requireLocationAccess(user: SessionUser, locationId: strin
   if (!(await hasLocationAccess(user, locationId))) throw new ForbiddenError("Tidak punya akses ke lokasi ini");
 }
 
-/** Daftar id lokasi yang boleh diakses user. null = semua. */
+/**
+ * Daftar id lokasi yang boleh diakses user. `null` = "tanpa batas DI DALAM
+ * organisasi user" — BUKAN seluruh database. Pemakai wajib menerjemahkannya
+ * lewat `locationScopeWhere`/`locationRelScopeWhere` yang menambahkan filter
+ * `package.orgId`; jangan pernah memakainya sebagai `where: undefined`.
+ */
 export async function accessibleLocationIds(user: SessionUser): Promise<string[] | null> {
   if (isCrossLocation(user.role)) return null;
   const rows = await db.locationAssignment.findMany({

@@ -631,8 +631,8 @@ export async function sendDailyReportPdfToWaAction(
     const target = await resolveWaChat(locBasic.id, String(formData.get("destChatId") ?? ""));
     if ("error" in target) return { error: target.error };
 
-    const { renderHarianPdf } = await import("@/lib/pdf/harian");
-    const result = await renderHarianPdf(slug, dateKey);
+    const { renderHarianKkpPdf } = await import("@/lib/pdf/harian-kkp");
+    const result = await renderHarianKkpPdf(slug, dateKey);
     if (!result) return { error: "Laporan harian tidak ditemukan." };
 
     const data = await getKkpDailyData(slug, dateKey);
@@ -661,7 +661,7 @@ export async function sendDailyReportPdfToWaAction(
   }
 }
 
-/** Kirim Laporan Mingguan/Bulanan sebagai PDF ringkas ke WA (grup paket atau tujuan bebas). */
+/** Kirim Laporan Mingguan/Bulanan sebagai PDF blanko KKP ke WA (grup paket atau tujuan bebas). */
 export async function sendPeriodReportPdfToWaAction(
   _prev: WaActionState,
   formData: FormData,
@@ -686,8 +686,8 @@ export async function sendPeriodReportPdfToWaAction(
     const target = await resolveWaChat(locationId, String(formData.get("destChatId") ?? ""));
     if ("error" in target) return { error: target.error };
 
-    const { renderPeriodikPdf } = await import("@/lib/pdf/periodik");
-    const result = await renderPeriodikPdf(locationId, kind as PeriodKind, n);
+    const { renderPeriodikKkpPdf } = await import("@/lib/pdf/periodik-kkp");
+    const result = await renderPeriodikKkpPdf(locationId, kind as PeriodKind, n);
     if (!result) return { error: "Laporan untuk periode ini tidak tersedia." };
 
     const loc = await groupForLocation(locationId);

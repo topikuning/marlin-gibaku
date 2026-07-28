@@ -58,7 +58,12 @@ export async function buildHarianKkpPdf(d: KkpDailyData, appName: string): Promi
     doc,
     y,
     [
-      { text: "LAPORAN HARIAN\nPembangunan Kampung Nelayan Merah Putih (KNMP) · Kementerian Kelautan dan Perikanan", bold: true },
+      // Identitas pemilik pekerjaan dari menu Sistem — bukan hardcode KKP
+      // (DECISIONS 166), supaya satu basis kode melayani klien mana pun.
+      {
+        text: `LAPORAN HARIAN\n${[d.ownerSubtitle, d.ownerName].filter(Boolean).join(" · ")}`,
+        bold: true,
+      },
       { text: "KONSULTAN PENGAWAS", align: "center", head: true },
       { text: "KONTRAKTOR PELAKSANA", align: "center", head: true },
     ],
@@ -66,34 +71,20 @@ export async function buildHarianKkpPdf(d: KkpDailyData, appName: string): Promi
   );
 
   /* ── Identitas proyek ──────────────────────────────────────────────── */
-  const ident: GridOptions = { x, width, cols: colWidths(width, [1, 2.4, 1, 3.6]), fontSize: 8 };
+  // Blok kiri (selebar kolom kop kiri): Minggu Ke / Hari / Tanggal — mengikuti
+  // blanko, bukan grid 4 kolom seperti versi lama.
+  const identKiri: GridOptions = { x, width: width / 2, cols: colWidths(width / 2, [1, 2.4]), fontSize: 8 };
+  draw([{ text: "Minggu Ke", head: true }, { text: d.weekNo != null ? String(d.weekNo) : "…" }], identKiri);
+  draw([{ text: "Hari", head: true }, { text: d.hari }], identKiri);
+  draw([{ text: "Tanggal", head: true }, { text: d.tanggalFull }], identKiri);
+
+  const ident: GridOptions = { x, width, cols: colWidths(width, [1, 7]), fontSize: 8 };
+  draw([{ text: "Pekerjaan", head: true }, { text: d.pekerjaan || "Konstruksi" }], ident);
   draw(
-    [
-      { text: "Minggu Ke", head: true },
-      { text: d.weekNo != null ? String(d.weekNo) : "…" },
-      { text: "Pekerjaan", head: true },
-      { text: "Konstruksi KNMP" },
-    ],
+    [{ text: "Lokasi", head: true }, { text: `${d.locationName}, ${d.regency}, ${d.province}` }],
     ident,
   );
-  draw(
-    [
-      { text: "Hari", head: true },
-      { text: d.hari },
-      { text: "Lokasi", head: true },
-      { text: `${d.locationName}, ${d.regency}, ${d.province}` },
-    ],
-    ident,
-  );
-  draw(
-    [
-      { text: "Tanggal", head: true },
-      { text: d.tanggalFull },
-      { text: "Th. Anggaran", head: true },
-      { text: String(d.tahunAnggaran) },
-    ],
-    ident,
-  );
+  draw([{ text: "Th. Anggaran", head: true }, { text: String(d.tahunAnggaran) }], ident);
 
   /* ── Progres per kegiatan ──────────────────────────────────────────── */
   const prog: GridOptions = { x, width, cols: colWidths(width, [0.5, 6, 0.8, 1.2, 1.2, 1.2, 1.2, 0.8]), fontSize: 7.5 };
@@ -140,7 +131,7 @@ export async function buildHarianKkpPdf(d: KkpDailyData, appName: string): Promi
   const rightOpt: GridOptions = {
     x: x + half,
     width: half,
-    cols: colWidths(half, [0.6, 3.4, 0.8, 1.2]),
+    cols: colWidths(half, [0.5, 3, 0.8, 1, 0.9]),
     fontSize: 7.5,
   };
 
@@ -165,33 +156,40 @@ export async function buildHarianKkpPdf(d: KkpDailyData, appName: string): Promi
   const matRows: GridCell[][] = [
     [
       { text: "No", head: true, align: "center" },
-      { text: "Rekap Pemasukan Bahan / Material", head: true },
-      { text: "Sat", head: true, align: "center" },
+      { text: "Jenis Material / Bahan", head: true },
+      { text: "Satuan", head: true, align: "center" },
       { text: "Diterima", head: true, align: "center" },
+      // Ditolak: ada di blanko, belum ada inputnya — dikosongkan (keputusan user).
+      { text: "Ditolak", head: true, align: "center" },
     ],
     ...d.materials.map((m, i): GridCell[] => [
       { text: String(i + 1), align: "center" },
       { text: m.name },
       { text: m.unit ?? "", align: "center" },
       { text: m.qty != null ? volFmt.format(m.qty) : "", align: "center" },
+      { text: "", align: "center" },
     ]),
     ...Array.from({ length: Math.max(0, 4 - d.materials.length) }, (_, i): GridCell[] => [
       { text: String(d.materials.length + i + 1), align: "center" },
       { text: " " },
       { text: " " },
       { text: " " },
+      { text: " " },
     ]),
     [
       { text: "No", head: true, align: "center" },
-      { text: "Peralatan", head: true, span: 3 },
+      { text: "Nama Peralatan", head: true, span: 2 },
+      { text: "Jumlah", head: true, align: "center" },
     ],
     ...d.equipment.map((e, i): GridCell[] => [
       { text: String(i + 1), align: "center" },
-      { text: e.count > 1 ? `${e.name} (${e.count})` : e.name, span: 3 },
+      { text: e.name, span: 3 },
+      { text: String(e.count), align: "center" },
     ]),
     ...Array.from({ length: Math.max(0, 3 - d.equipment.length) }, (_, i): GridCell[] => [
       { text: String(d.equipment.length + i + 1), align: "center" },
       { text: " ", span: 3 },
+      { text: " " },
     ]),
   ];
 
@@ -211,7 +209,7 @@ export async function buildHarianKkpPdf(d: KkpDailyData, appName: string): Promi
   y = Math.max(ly, ry);
 
   /* ── Cuaca per jam ─────────────────────────────────────────────────── */
-  const weatherCols = colWidths(width, [2.2, ...HOURS.map(() => 1)]);
+  const weatherCols = colWidths(width, [2.2, ...HOURS.map(() => 1), 1.8]);
   const weather: GridOptions = { x, width, cols: weatherCols, fontSize: 6.5, padX: 1.5 };
   // Matriks cuaca harus utuh dalam satu halaman (header + 3 baris kondisi).
   fit(4 * 13);
@@ -219,6 +217,8 @@ export async function buildHarianKkpPdf(d: KkpDailyData, appName: string): Promi
     [
       { text: "Kondisi / Jam", head: true },
       ...HOURS.map((h): GridCell => ({ text: h, head: true, align: "center" })),
+      // Shop drawing: ada di blanko, belum ada datanya — dikosongkan.
+      { text: "Shop Drawing", head: true, align: "center" },
     ],
     weather,
   );
@@ -227,10 +227,38 @@ export async function buildHarianKkpPdf(d: KkpDailyData, appName: string): Promi
       [
         { text: cat },
         ...HOURS.map((): GridCell => ({ text: d.activeWeather === cat ? "v" : "", align: "center" })),
+        { text: "", align: "center" },
       ],
       weather,
     );
   }
+
+  /* ── Rencana vs realisasi pekerjaan (dua kolom, mengikuti blanko) ──── */
+  const rrHalf = width / 2;
+  const rrLeft: GridOptions = { x, width: rrHalf, cols: colWidths(rrHalf, [0.5, 6]), fontSize: 7 };
+  const rrRight: GridOptions = { x: x + rrHalf, width: rrHalf, cols: colWidths(rrHalf, [0.5, 6]), fontSize: 7 };
+  const rencanaTeks = (d.rencana ?? []).map(
+    (r) =>
+      `${r.name}${r.volume > 0 ? ` — ${volFmt.format(r.volume)}${r.unit ? ` ${r.unit}` : ""}` : ""}` +
+      (r.picName ? ` (${r.picName})` : ""),
+  );
+  const realisasiTeks = d.items.map(
+    (it) => `${it.name} — ${volFmt.format(it.volumeToday)}${it.unit ? ` ${it.unit}` : ""}`,
+  );
+  const barisRR = Math.max(6, rencanaTeks.length, realisasiTeks.length);
+  fit(14 * (barisRR + 1));
+  const rrTop = y;
+  let rly = gridRow(doc, rrTop, [{ text: "Rencana Pekerjaan", head: true, align: "center", span: 2 }], rrLeft);
+  for (let i = 0; i < barisRR; i++) {
+    const teks = rencanaTeks[i];
+    rly = gridRow(doc, rly, [{ text: teks ? String(i + 1) : " ", align: "center" }, { text: teks ?? " " }], rrLeft);
+  }
+  let rry = gridRow(doc, rrTop, [{ text: "Realisasi Pekerjaan", head: true, align: "center", span: 2 }], rrRight);
+  for (let i = 0; i < barisRR; i++) {
+    const teks = realisasiTeks[i];
+    rry = gridRow(doc, rry, [{ text: teks ? String(i + 1) : " ", align: "center" }, { text: teks ?? " " }], rrRight);
+  }
+  y = Math.max(rly, rry);
 
   /* ── Jam kerja & catatan ───────────────────────────────────────────── */
   // Jam kerja + catatan + tanda tangan juga dijaga satu blok.
@@ -256,8 +284,14 @@ export async function buildHarianKkpPdf(d: KkpDailyData, appName: string): Promi
     doc,
     y,
     [
-      { text: `KONSULTAN PENGAWAS${nameOf(d.supervisorName, d.supervisorSub)}`, align: "center" },
-      { text: `KONTRAKTOR PELAKSANA${nameOf(d.contractorName, d.contractorSub)}`, align: "center" },
+      {
+        text: `Disetujui Oleh:\nKONSULTAN PENGAWAS${nameOf(d.supervisorName, d.supervisorSub || "Inspector")}`,
+        align: "center",
+      },
+      {
+        text: `Dibuat Oleh:\nKONTRAKTOR PELAKSANA${nameOf(d.contractorName, d.contractorSub || "Pelaksana")}`,
+        align: "center",
+      },
     ],
     ttd,
   );

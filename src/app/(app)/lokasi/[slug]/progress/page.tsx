@@ -359,7 +359,7 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
       {canManageBaseline && activeBaseline && activeBaseline.points.length > 0 ? (
         <CollapsibleCard
           title="Penyesuaian halus %-mingguan"
-          subtitle="Koreksi kecil deret %-kumulatif per minggu (mis. menyamakan dengan angka pengawas). Klik untuk membuka."
+          subtitle="Koreksi kecil deret %-kumulatif per minggu (mis. menyamakan dengan angka pengawas). Jadwal per pekerjaan ikut menyesuaikan. Klik untuk membuka."
         >
           <BaselineEditor
             locationId={location.id}

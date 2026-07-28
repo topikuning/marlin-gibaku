@@ -3746,3 +3746,319 @@ Uji penjaga: `tests/unit/xlsx-kurva-bobot.test.ts` menuntut kedua baris berupa
 rumus + cache == Σ sel kategori kolomnya.
 
 Verifikasi: typecheck ✓ · lint ✓ · unit **417** ✓ · build ✓.
+
+---
+
+## 159 · 2026-07-27 · Penyesuaian halus kurva-S ikut menyetel jadwal kategori
+
+Pertanyaan user: "kalau aku edit di menu yang sudah kamu sediakan, bukankah
+semuanya menyesuaikan?" Penelusuran seluruh jalur tulis baseline menunjukkan
+jawabannya **ya untuk semua jalur kecuali satu**:
+
+| Jalur | Titik kurva | Jadwal kategori | Sinkron |
+|---|---|---|---|
+| Editor jadwal per kategori (`saveCategorySchedule`) | dihitung dari jadwal | disimpan | ya |
+| Re-import Time Schedule Excel (`saveScheduleMatrix`) | dihitung dari matriks | disimpan | ya |
+| Regenerate otomatis / impor RAB | satu sumber | satu sumber | ya |
+| Pulihkan baseline lama (`restoreBaseline`) | disalin | disalin | ya (mewarisi versi asal) |
+| **Penyesuaian halus %-mingguan (`updateBaselinePoints`)** | diganti | **disalin apa adanya** | **TIDAK** |
+
+Akibatnya, sesudah penyesuaian halus: Excel (baris rencananya rumus Σ kolom
+kategori, DECISIONS 158) menampilkan kurva LAMA — termasuk garis rencana di
+grafiknya — sementara PDF halaman-2, halaman-1 layar, dan dashboard memakai
+kurva hasil penyesuaian.
+
+### Keputusan user: jadwal ikut menyesuaikan (opsi 1)
+
+`rescheduleToCurve` (`scurve/generate.ts`, murni) menyetel ulang matriks jadwal
+mengikuti kurva baru sambil menjaga **dua marginal sekaligus**:
+
+- Σ kolom (semua kategori pada satu minggu) = increment kurva baru;
+- Σ baris (satu kategori sepanjang kontrak) = bobot kategori, TIDAK berubah.
+
+Menskala tiap kolom dengan `increment baru / increment lama` hanya memenuhi
+syarat pertama dan **merusak** yang kedua — bobot kategori tidak lagi sama
+dengan porsi nilainya di RAB, padahal kolom Bobot (%) blanko KKP adalah angka
+RAB. Karena itu metodenya **pemetaan waktu**: tiap kategori dibaca ulang pada
+titik kemajuan global yang sama (interpolasi linear atas kumulatifnya sendiri).
+Kurva digeser/direntang, seluruh jadwal ikut bergeser dengan bentuk yang sama.
+Sebagai bonus, jumlah minggu boleh berubah — jadwal ikut diregangkan, dulu
+malah dibuang sehingga halaman-1 jatuh ke jadwal otomatis.
+
+UI diberi tahu: subtitle kartu + teks bantuan editor menyebut jadwal per
+pekerjaan ikut menyesuaikan dan bobot tetap sesuai RAB.
+
+Verifikasi: typecheck ✓ · lint ✓ · unit **422** (rescheduleToCurve +5: idempotent
+saat kurva tak berubah, dilambatkan, dipercepat, jumlah minggu berubah, matriks
+nol; tiap kasus memeriksa kedua marginal) · build ✓.
+
+---
+
+## 160 · 2026-07-27 · Sheet Laporan: identitas tidak terpotong + angka terhitung jadi rumus
+
+Temuan user pada file .xlsx nyata:
+
+1. **Nilai identitas terpotong.** Blok identitas menulis nilai di sel gabungan
+   C:H. Sel gabungan tidak melimpah ke kolom tetangga dan tidak ikut auto-tinggi,
+   jadi nama paket KKP (>80 karakter) terpotong di tengah kalimat. Sekarang
+   digabung C..kolom terakhir tabel (Q, ±147 karakter); bila masih lebih panjang,
+   teks dibungkus dan tinggi baris ditambah sesuai jumlah barisnya.
+2. **Rencana/Realisasi/Deviasi s/d periode** di kepala dokumen ditulis sebagai
+   angka. Kini rumus: Rencana = `=O{JUMLAH}` (JUMLAH kolom Bobot Rencana),
+   Realisasi = `=N{JUMLAH}` (JUMLAH kolom Bobot S/d — `actualPct` memang
+   didefinisikan Σ bobot s/d di periodic-report.ts), Deviasi = `=Realisasi −
+   Rencana` (formula kanonik progress.ts).
+3. **Kolom "Sisa Pekerjaan"** (Prestasi & Volume) ditulis sebagai angka padahal
+   jelas turunan. Kini rumus persis formula kanonik: `MAX(0,100−M{baris})` dan
+   `MAX(0,C{baris}−L{baris})`.
+4. **Bobot di baris judul kategori** ditulis dua kali (di baris judul dan di
+   baris Subtotal). Baris judul kini mengikuti sel subtotalnya (`=E{subtotal}`) —
+   satu angka, satu sumber.
+
+Catatan teknis: exceljs tidak menulis nilai cache ketika hasilnya 0, jadi sel
+rumus bernilai nol terbaca tanpa `result` (pembaca non-Excel memperlakukannya 0).
+Uji penjaga `tests/unit/xlsx-laporan-rumus.test.ts` memperhitungkan itu dan
+memeriksa: rentang merge identitas, teks identitas utuh, rumus + cache kolom
+sisa, tautan tiga angka ringkasan ke baris JUMLAH, dan bobot judul kategori.
+
+Verifikasi: typecheck ✓ · lint ✓ · unit **426** ✓ · build ✓.
+
+---
+
+## 161 · 2026-07-27 · PDF laporan mingguan/bulanan ke Drive = blanko resmi KKP
+
+Temuan user: PDF yang disetor ke Google Drive "membuat format sendiri".
+Penelusuran ketiga jalur unggah:
+
+| Unggahan Drive | Renderer | Format |
+|---|---|---|
+| Laporan harian | `pdf/harian-kkp.ts` | blanko resmi KKP (DECISIONS 145) — benar |
+| Laporan mingguan | `pdf/periodik.ts` | "ringkas profesional" (DECISIONS 126) — SALAH |
+| Laporan bulanan | `pdf/periodik.ts` | idem — SALAH |
+
+PDF ringkas itu dibuat untuk kiriman WhatsApp ke atasan, bukan untuk arsip KKP.
+Yang resmi ada di halaman cetak `/cetak/periodik` (`ScurveKkpSheet` +
+`KkpPeriodReport`) — acuan yang juga dipakai sheet Excel.
+
+### `src/lib/pdf/periodik-kkp.ts` (baru)
+
+Cermin halaman cetak, pola sama dengan `harian-kkp.ts` (grid blanko `pdf/grid.ts`,
+A4 lanskap):
+
+- **Halaman 1 — KURVA S**: identitas, matriks bobot kategori × minggu (header
+  kelompok bulan + M1..MN), lima baris prestasi, garis kurva rencana (biru) &
+  realisasi (hijau) digambar di atas blok baris kategori, batang skala
+  KETERANGAN 0–100% kotak-kotak, blok tanda tangan 3 kolom.
+- **Halaman 2+ — BLANKO RINCIAN**: kop, identitas, tabel 17 kolom dengan header
+  3 baris berkelompok (No · Uraian · Volume Kontrak · Satuan · Bobot · Realisasi
+  Pekerjaan {Lalu/Ini/S-d × Volume-Prestasi-Bobot} · Bobot Rencana · Sisa
+  Pekerjaan), subtotal kategori, JUMLAH, ringkasan bobot, tenaga/material/alat,
+  kendala, tanda tangan.
+
+Angka diambil dari `getPeriodReport` + `buildKurvaSheet` — sumber yang SAMA
+dengan layar, halaman cetak, dan Excel; termasuk `bobotShown`/`weeklyShown`
+(DECISIONS 157) sehingga kolom bobot di PDF menjumlah sama dengan di Excel.
+Format angka Indonesia (koma desimal) sebagaimana dokumen resmi.
+
+`gdrive/actions.ts` untuk mingguan/bulanan kini memanggil `renderPeriodikKkpPdf`.
+**Belum diubah** (menunggu keputusan user): tombol unduh PDF di layar
+(`/api/laporan/periodik/...`) dan kiriman WhatsApp masih memakai PDF ringkas.
+
+Verifikasi: typecheck ✓ · lint ✓ · unit **428** (+2 penjaga render mingguan &
+bulanan) · build ✓ · PDF nyata dirender ke PNG dan diperiksa halaman per halaman
+(3 halaman: kurva-S, rincian, sumber daya+kendala+TTD).
+
+---
+
+## 162 · 2026-07-27 · Satu format dokumen: unduh layar & kiriman WhatsApp ikut blanko KKP
+
+Keputusan user atas pertanyaan di DECISIONS 161: **blanko** — bukan hanya untuk
+unggahan Drive. Jadi tidak ada lagi dua format PDF untuk dokumen yang sama.
+
+| Jalur | Sebelum | Sekarang |
+|---|---|---|
+| Drive — harian | `harian-kkp` (blanko) | tetap |
+| Drive — mingguan/bulanan | ringkas | `periodik-kkp` (blanko, DECISIONS 161) |
+| Unduh layar — harian | ringkas | `harian-kkp` |
+| Unduh layar — mingguan/bulanan | ringkas | `periodik-kkp` |
+| Kirim WhatsApp — harian | ringkas | `harian-kkp` |
+| Kirim WhatsApp — mingguan/bulanan | ringkas | `periodik-kkp` |
+
+Konsekuensi yang disadari: blanko A4 **lanskap** (17 kolom pada rincian) lebih
+berat dibaca di layar HP daripada PDF ringkas yang dulu dipakai untuk WhatsApp
+(DECISIONS 126). User memilih keseragaman dokumen resmi di atas kenyamanan baca
+di HP.
+
+### Kode mati dihapus
+
+`src/lib/pdf/harian.ts`, `src/lib/pdf/periodik.ts`, dan `src/lib/pdf/table.ts`
+(primitif tabel yang hanya dipakai keduanya) tidak lagi punya pemanggil dan
+dihapus — membiarkannya justru mengundang pemakaian ulang yang menghidupkan lagi
+"dua format untuk satu dokumen". Primitif blanko `pdf/grid.ts` dan helper
+`pdf/document.ts` tetap (dipakai `harian-kkp`, `periodik-kkp`, `kegiatan`).
+
+Verifikasi: typecheck ✓ · lint ✓ · unit **428** ✓ · build ✓.
+
+---
+
+## 163 · 2026-07-28 · Nama hari ganda diperbaiki di sumber + mesin rencana harian
+
+### Nama hari disebut dua kali (temuan user)
+
+Blanko harian menulis "Hari: Minggu" lalu "Tanggal: **Minggu**, 26 Juli 2026",
+dan caption WhatsApp bahkan "**Minggu, Minggu**, 26 Juli 2026". Sebabnya
+`tanggalFull` memakai `dateStyle: "full"` yang SUDAH memuat nama hari, lalu di
+hilir digabung lagi dengan `hari`. Diperbaiki di sumber (`daily-report/queries.ts`
+→ `dateStyle: "long"`), sehingga empat tempat ikut benar sekaligus: blanko layar,
+PDF harian, dua caption WhatsApp, dan Excel harian. Tidak ada penambal per-tempat.
+
+### Rencana mingguan → rencana harian (`lib/plan/rencana-harian.ts`)
+
+Blanko menuntut kolom "Rencana Pekerjaan" per HARI, sedangkan rencana disimpan
+per MINGGU (`WeeklyPlan`). Keputusan user: pecah jadi harian **berdasarkan alur
+dan metode pekerjaan**, bukan mengulang target minggu di tiap hari.
+
+Memakai mesin yang sudah ada, bukan aturan baru:
+
+- **Hari mana** — `placeItems` (sequencing) menempatkan tiap item pada jendela
+  tahapnya menurut tipe unit + metode kerja (persiapan → tanah → struktur →
+  arsitektur → MEP → finishing, dengan presedensi antar tahap); jendela fraksi
+  itu dipetakan ke hari ke-berapa dalam minggu rencana.
+- **Berapa banyak** — `categoryWeeklyIncrements` menyebar volume dalam jendela
+  itu memakai kurva-S (lonceng), sama seperti penyebaran bobot di kurva-S.
+- **Σ harian = target mingguan PERSIS** — `allocateRounded` (3 desimal, presisi
+  volume).
+
+`allocateRounded` diangkat dari `scurve/kkp-sheet.ts` ke `lib/round-alloc.ts`
+supaya dipakai bersama tanpa digandakan.
+
+Verifikasi: typecheck ✓ · lint ✓ · unit **436** (+8: Σ harian = target, tidak ada
+volume negatif, urutan metode kerja — galian mulai sebelum pengecatan, kumulatif
+monoton berakhir di target, hari di luar rentang dijepit) · build ✓.
+
+**Belum selesai (lanjutan permintaan user)**: susunan blanko harian mengikuti PDF
+contoh (blok RENCANA | REALISASI berdampingan, kolom material DITOLAK, sel SHOP
+DRAWING kosong, blok TTD Inspector/Pelaksana) dan logo pemilik pekerjaan yang
+bisa diunggah di menu Sistem.
+
+---
+
+## 164 · 2026-07-28 · Eksekusi audit Codex: tenancy P0 ditutup di jalur aplikasi
+
+Audit independen kedua (Codex, `docs/AUDIT_MENYELURUH_2026-07-28.md`, 17 temuan)
+diperiksa seluruhnya ke kode. Tidak ada temuan yang terbukti salah; dua diterima
+sebagian dengan koreksi fakta, satu dipersempit ruang lingkupnya dengan bukti.
+
+### Diperbaiki
+
+- **AUTH-01** — `hasLocationAccess()` SELALU membuktikan `package.orgId =
+  user.orgId` sebelum role/assignment. Jalur DAFTAR sudah aman sejak DECISIONS
+  155 (B11) lewat `locationScopeWhere`; yang bocor adalah pemeriksaan objek
+  TUNGGAL — penjaga terakhir 34 pemanggil.
+- **AUTH-02** — 23 lookup di `package/actions.ts` (paket, vendor, kontrak,
+  lokasi) ber-scope organisasi aktor. Uji duplikat `contractNumber` sengaja
+  tetap global: itu keunikan, bukan jalur akses.
+- **AUTH-03** — `requireSameOrgUser()` pada `setUserActive`,
+  `resetUserPassword`, `setAssignments`; `setAssignments` juga memvalidasi
+  seluruh lokasi tujuan; halaman `master/pengguna` difilter organisasi.
+- **AUTH-05** — tiga route PDF menegakkan `report.export`. Definisi produk yang
+  diambil: **mengunduh PDF = ekspor**, karena berkasnya keluar dari aplikasi
+  (Drive, WhatsApp, dokumen resmi).
+- **CALC-02** — `pg_advisory_xact_lock` per lokasi sebelum guard volume di
+  transisi `→ dikirim`. Ini menambal lubang di perbaikan B1 sendiri: validasi
+  di dalam transaksi menutup kasus berurutan, bukan kasus paralel.
+- **CALC-03** — sentinel `grandTotal = 1` dibuang; pembagi nol sudah ditangani
+  `bobotPct()`. Fallback Σ item untuk RAB tanpa kategori dipertahankan.
+- **SEC-01** — `/api/health` tidak lagi mengembalikan pesan error database ke
+  publik; detail ke log server.
+
+### Menunggu keputusan user
+
+CALC-01 (arti angka progress blanko harian: as-of tanggal laporan vs saat
+finalisasi), kontrak tenancy (single vs multi-organization), CI-01 (pemicu
+push-ke-dev yang pernah ditolak di DECISIONS 153 M10), dan kebijakan proteksi
+akun admin.
+
+### Utang yang diakui
+
+Perbaikan otorisasi ini **belum ditutup test** — verifikasinya pembacaan kode +
+typecheck + lint + build. Persis kelemahan yang ditunjuk TEST-01. Prioritas
+berikutnya: fixture dua organisasi + matriks negatif, lalu race test submit
+paralel di PostgreSQL.
+
+Verifikasi: typecheck ✓ · lint ✓ · unit **436** ✓ · build ✓.
+
+---
+
+## 165 · 2026-07-28 · Model deployment single-tenant + snapshot as-of + proteksi akun
+
+### Keputusan tenancy (jawaban Fase 0 audit Codex)
+
+**Satu instalasi = satu organisasi = satu database.** Tiap klien (Pemkab
+Lamongan, KKP, Gibaku, Pemkab Banyuwangi, …) mendapat service Railway sendiri
+dengan database sendiri. TIDAK ada dua organisasi hidup dalam satu database.
+
+Konsekuensi terhadap temuan audit:
+
+- **AUTH-04** (orgId pada AiRun/AiArtifact) — tidak berlaku sebagai batas tenant.
+- **DATA-01 bagian tenant** (composite FK ber-orgId) — tidak berlaku.
+  Bagian invariant lokal (uang/volume non-negatif, retensi ≤ termin, rentang
+  tanggal, lat/lng, foto XOR parent) TETAP utang.
+- **DATA-02** — "global" dan "tenant-local" berimpit; tidak ada pekerjaan orgId.
+- Scoping `orgId` yang dipasang di DECISIONS 164 **dipertahankan** sebagai
+  defense-in-depth: no-op pada model ini, penyelamat bila asumsinya jebol.
+
+**Syarat mutlak model ini:** jangan pernah mengarahkan dua klien ke database yang
+sama. Bila kelak berubah, AUTH-04 dan DATA-01/02 hidup kembali sebagai P0.
+
+### CALC-01 — snapshot laporan harian as-of tanggal laporan
+
+Keputusan user: **as-of tanggal laporan**. Laporan harian adalah potret hari itu;
+finalisasi terlambat tidak boleh mengubah isinya.
+
+`getLocationsProgress(ids, { asOf })`:
+
+- realisasi hanya dari laporan counted `report_date <= asOf`;
+- revisi RAB & baseline yang EFEKTIF pada tanggal itu (`createdAt <= asOf` dan
+  belum digantikan), bukan yang aktif sekarang;
+- minggu rencana dihitung terhadap `asOf`, bukan jam dinding.
+
+`finalSnapshot` memanggil dengan `asOf: report.reportDate`. Tanpa `asOf`
+perilaku lama dipertahankan — dashboard & halaman progress tetap posisi terkini.
+
+### Proteksi akun (permintaan user)
+
+- `outranks()` di `authz.ts`: admin tidak bisa mereset password atau
+  menonaktifkan akun SETINGKAT atau lebih tinggi (akun sendiri dikecualikan untuk
+  ganti password sendiri).
+- **Admin aktif terakhir** tidak boleh dinonaktifkan — mencegah organisasi
+  terkunci dari sistemnya sendiri dengan pemulihan lewat SQL produksi.
+
+### CI-01
+
+Keputusan user: **jalankan seperti sekarang** (tanpa pemicu push-ke-dev).
+Saran yang belum dikerjakan karena butuh setelan GitHub, bukan kode: nyalakan
+branch protection pada `main` (wajib PR + seluruh check hijau).
+
+Verifikasi: typecheck ✓ · lint ✓ · unit **443** (+7 proteksi akun) · build ✓.
+
+---
+
+## 166 · 2026-07-28 · Identitas pemilik pekerjaan (nama + logo) pindah ke menu Sistem
+
+Kop blanko harian dulu HARDCODE "Pembangunan Kampung Nelayan Merah Putih (KNMP)
+· Kementerian Kelautan dan Perikanan". Karena MARLIN akan dipakai klien lain
+(pemkab, dinas, kontraktor), identitas itu jadi setelan:
+
+- `brand.owner_name`, `brand.owner_subtitle`, `brand.owner_logo_key` di
+  `AppSetting` (pola sama dengan branding aplikasi, efektif-bertanggal).
+- Form di menu **Sistem → Branding**: nama, keterangan/nama program, dan unggah
+  logo (PNG/JPG/WebP, maks 2 MB). Logo dikecilkan ke ≤512px dan dinormalisasi ke
+  WebP lewat sharp, disimpan di R2 — pola sama dengan logo perusahaan di master
+  vendor. Pratinjau memakai presigned URL.
+- Dipakai kop blanko harian di LAYAR dan di PDF. Kegagalan R2 tidak menggagalkan
+  laporan — kop hanya tampil tanpa logo.
+- Nilai bawaan tetap KKP/KNMP, jadi instalasi yang ada tidak berubah tampilannya
+  sampai adminnya mengganti.
+
+Verifikasi: typecheck ✓ · lint ✓ · unit **443** ✓ · build ✓.

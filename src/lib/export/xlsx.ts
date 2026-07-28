@@ -385,8 +385,13 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
   title(`Periode ${formatTanggal(h.periodeStart, "d MMMM yyyy")} s/d ${formatTanggal(h.periodeEnd, "d MMMM yyyy")}`, false, 10);
   ws.addRow([]);
 
-  // Blok identitas: label (merge A:B, kolom "No"+"Uraian" — lebar, tak terpotong)
-  // + nilai (merge C:H) sama-sama rata kiri, jadi nilai menempel ke labelnya.
+  // Blok identitas: label (merge A:B) + nilai (merge C..kolom terakhir tabel).
+  // Sel gabungan TIDAK melimpah ke kolom tetangga dan tidak ikut auto-tinggi,
+  // jadi nilai panjang (nama paket KKP bisa >80 karakter) dulu terpotong di
+  // tengah kalimat. Sekarang lebarnya seluruh tabel; kalau masih lebih panjang,
+  // teks dibungkus dan tinggi baris ditambah sesuai jumlah barisnya.
+  const VALUE_LAST = COL_COUNT;
+  const VALUE_WIDTH = COL_WIDTHS.slice(2, VALUE_LAST).reduce((s, w) => s + w, 0);
   const kv = (k: string, v: string | number, numFmt?: string) => {
     const row = ws.addRow([]);
     const label = row.getCell(1);
@@ -397,10 +402,12 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
     const value = row.getCell(3);
     value.value = v;
     value.font = { size: 9 };
-    value.alignment = { horizontal: "left", vertical: "middle" };
     if (numFmt) value.numFmt = numFmt;
-    ws.mergeCells(row.number, 3, row.number, 8);
-    row.height = 15;
+    ws.mergeCells(row.number, 3, row.number, VALUE_LAST);
+    const lines = Math.max(1, Math.ceil(String(v).length / Math.max(10, VALUE_WIDTH - 2)));
+    value.alignment = { horizontal: "left", vertical: "middle", wrapText: lines > 1 };
+    row.height = lines > 1 ? lines * 13.5 : 15;
+    return { cell: value, row: row.number };
   };
   kv("Paket Pekerjaan", h.packageName);
   kv("Lokasi", `${h.locationName} — ${h.village}, ${h.regency}, ${h.province}`);
@@ -409,9 +416,11 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
   kv("Nilai Fisik Lokasi", `Rp ${new Intl.NumberFormat("id-ID").format(Number(h.locationValue))}`);
   kv("Masa Pelaksanaan", `${h.masaPelaksanaanHari} Hari Kalender`);
   kv("Tahun Anggaran", String(h.tahunAnggaran));
-  kv("Rencana s/d periode (%)", Number(r.planPct.toFixed(2)), "0.00");
-  kv("Realisasi s/d periode (%)", Number(r.actualPct.toFixed(2)), "0.00");
-  kv("Deviasi (%)", Number(r.deviationPct.toFixed(2)), "0.00");
+  // Tiga angka ringkasan ini DITAUTKAN ke baris JUMLAH tabel di bawah setelah
+  // tabelnya terbentuk (nomor barisnya belum diketahui di sini).
+  const sumRencana = kv("Rencana s/d periode (%)", round2(r.planPct), "0.00");
+  const sumRealisasi = kv("Realisasi s/d periode (%)", round2(r.actualPct), "0.00");
+  const sumDeviasi = kv("Deviasi (%)", round2(r.deviationPct), "0.00");
   ws.addRow([]);
 
   // Header tabel — 3 baris berkelompok, mengikuti blanko KKP.
@@ -521,9 +530,19 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
         it.prestasiSd,
         it.bobotSd,
         it.bobotRencana,
-        it.sisaPrestasi,
-        it.sisaVol,
       ]);
+      // Kolom "Sisa Pekerjaan" = PERHITUNGAN, bukan angka tempelan — persis
+      // formula kanonik (periodic-report §sisa): sisa prestasi = 100 − prestasi
+      // s/d, sisa volume = volume kontrak − volume s/d, keduanya dibatasi ≥ 0.
+      const rn = row.number;
+      row.getCell(16).value = {
+        formula: `MAX(0,100-${colLetter(13)}${rn})`,
+        result: round2(it.sisaPrestasi),
+      };
+      row.getCell(17).value = {
+        formula: `MAX(0,${colLetter(3)}${rn}-${colLetter(12)}${rn})`,
+        result: it.sisaVol,
+      };
       if (!firstItemRow) firstItemRow = row.number;
       lastItemRow = row.number;
       styleDataRow(row);
@@ -534,6 +553,9 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
       subRow.getCell(col).value = firstItemRow
         ? { formula: `SUM(${L}${firstItemRow}:${L}${lastItemRow})`, result: sub(cat) }
         : sub(cat);
+      // Bobot di baris JUDUL kategori mengikuti sel subtotalnya — satu angka,
+      // satu sumber; dulu ditulis dua kali dan bisa berbeda diam-diam.
+      catRow.getCell(col).value = { formula: `${L}${subRow.number}`, result: sub(cat) };
     }
     subRowNums.push(subRow.number);
     styleDataRow(subRow, { bold: true });
@@ -548,6 +570,19 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
         : total();
   }
   styleDataRow(totalRow, { bold: true, fill: "FFE2E8F0" });
+
+  // Ringkasan di kepala dokumen TERTAUT ke JUMLAH tabel — bukan angka tempelan:
+  // Rencana = JUMLAH kolom "Bobot Rencana", Realisasi = JUMLAH kolom "Bobot S/d"
+  // (`actualPct` memang didefinisikan = Σ bobot s/d, periodic-report.ts), dan
+  // Deviasi = Realisasi − Rencana (formula kanonik progress.ts). Jadi pemeriksa
+  // bisa klik dari angka ringkasan sampai ke baris item pembentuknya.
+  const valueCol = colLetter(3);
+  sumRencana.cell.value = { formula: `${colLetter(15)}${totalRow.number}`, result: round2(r.planPct) };
+  sumRealisasi.cell.value = { formula: `${colLetter(14)}${totalRow.number}`, result: round2(r.actualPct) };
+  sumDeviasi.cell.value = {
+    formula: `${valueCol}${sumRealisasi.row}-${valueCol}${sumRencana.row}`,
+    result: round2(r.deviationPct),
+  };
 
   // Baris "Realisasi Prestasi %" minggu laporan di sheet Kurva S TERTAUT ke
   // total "Bobot Minggu ini" (JUMLAH kolom K) di sheet ini — bukan angka

@@ -549,3 +549,73 @@ export function categoryPlannedFraction(name: string, weekNumber: number, totalW
   const span = Math.max(1e-9, end - start);
   return smoothstep((t - start) / span);
 }
+
+/**
+ * Setel ulang MATRIKS jadwal kategori supaya mengikuti kurva rencana BARU hasil
+ * penyesuaian halus, dengan menjaga DUA marginal sekaligus:
+ *
+ *   - Σ kolom (semua kategori pada minggu ke-i) = increment kurva baru;
+ *   - Σ baris (satu kategori sepanjang kontrak) = bobot kategori, TIDAK berubah.
+ *
+ * Menskala tiap kolom dengan faktor `increment baru / increment lama` memenuhi
+ * syarat pertama tetapi merusak syarat kedua — bobot kategori tidak lagi sama
+ * dengan porsi nilainya di RAB. Karena itu yang dilakukan adalah PEMETAAN WAKTU:
+ * tiap kategori dibaca ulang pada titik kemajuan global yang sama. Kurva
+ * digeser/direntang, seluruh jadwal ikut bergeser dengan bentuk yang sama —
+ * persis makna "menyesuaikan kurva" di lapangan.
+ *
+ * `newCum` = deret kumulatif % kurva baru (boleh beda panjang dari matriks lama;
+ * jadwal ikut diregangkan ke jumlah minggu yang baru). MURNI.
+ */
+export function rescheduleToCurve(rows: number[][], newCum: number[]): number[][] {
+  const N = rows[0]?.length ?? 0;
+  const M = newCum.length;
+  if (rows.length === 0 || N === 0 || M === 0) return rows.map((r) => [...r]);
+
+  // Kurva LAMA diambil dari matriks itu sendiri (sumber kolom), bukan dari titik
+  // tersimpan — keduanya bisa sudah berbeda, dan yang sedang dipetakan matriks.
+  const catCum = rows.map((r) => {
+    const out: number[] = [];
+    let acc = 0;
+    for (let i = 0; i < N; i++) {
+      acc += r[i] ?? 0;
+      out.push(acc);
+    }
+    return out;
+  });
+  const oldCum = Array.from({ length: N }, (_, i) => catCum.reduce((s, c) => s + c[i], 0));
+  const total = oldCum[N - 1];
+  if (total <= 0) return rows.map((r) => [...r]);
+
+  /** Posisi kontinu u ∈ [0,N] tempat kurva LAMA mencapai `pct` kurva baru. */
+  const posFor = (pct: number): number => {
+    const t = Math.max(0, Math.min(total, (pct / 100) * total));
+    let i = 0;
+    while (i < N && oldCum[i] < t - 1e-12) i++;
+    if (i >= N) return N;
+    const prev = i === 0 ? 0 : oldCum[i - 1];
+    const span = oldCum[i] - prev;
+    return i + (span > 1e-12 ? (t - prev) / span : 1);
+  };
+
+  /** Kumulatif kategori pada posisi kontinu u (interpolasi linear). */
+  const catAt = (cum: number[], u: number): number => {
+    if (u <= 0) return 0;
+    if (u >= N) return cum[N - 1];
+    const k = Math.floor(u);
+    const a = k === 0 ? 0 : cum[k - 1];
+    return a + (cum[k] - a) * (u - k);
+  };
+
+  const pos = Array.from({ length: M }, (_, w) => posFor(newCum[w]));
+  return catCum.map((cum) => {
+    const out: number[] = [];
+    let prev = 0;
+    for (let w = 0; w < M; w++) {
+      const cur = catAt(cum, pos[w]);
+      out.push(Math.max(0, cur - prev));
+      prev = cur;
+    }
+    return out;
+  });
+}

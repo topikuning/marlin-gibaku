@@ -412,7 +412,12 @@ export async function getHariIniLocation(locationId: string): Promise<HariIniLoc
 // ─────────────────────────────────────────────────────────────
 
 const hariFmt = new Intl.DateTimeFormat("id-ID", { weekday: "long", timeZone: "Asia/Jakarta" });
-const tanggalFullFmt = new Intl.DateTimeFormat("id-ID", { dateStyle: "full", timeZone: "Asia/Jakarta" });
+// TANPA nama hari — nama hari sudah disediakan `hari` secara terpisah. Dulu
+// `dateStyle: "full"` memuat nama hari juga, sehingga setiap penggabungan
+// "hari + tanggal" menghasilkan sebutan ganda: blanko harian menulis
+// "Hari: Minggu" lalu "Tanggal: Minggu, 26 Juli 2026", dan caption WhatsApp
+// bahkan "Minggu, Minggu, 26 Juli 2026" (temuan user 2026-07-27).
+const tanggalFullFmt = new Intl.DateTimeFormat("id-ID", { dateStyle: "long", timeZone: "Asia/Jakarta" });
 
 function snapshotToKkp(snap: FinalSnapshot): KkpDailyData {
   const d = parseDateKey(snap.reportDate)!;
@@ -467,6 +472,7 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
           contract: {
             select: {
               startDate: true,
+              workTitle: true,
               supervisorName: true,
               supervisorFirm: true,
               contractorSignerName: true,
@@ -487,6 +493,32 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
     contractorSub: contract?.contractorSignerTitle ?? null,
   };
 
+  // Identitas pemilik pekerjaan untuk kop — dari menu Sistem, bukan hardcode
+  // KKP (DECISIONS 166). Logo dipresign singkat; kegagalan R2 tidak boleh
+  // menggagalkan laporan, cukup kop tanpa logo.
+  const { getBranding } = await import("@/lib/branding");
+  const brand = await getBranding();
+  let ownerLogoUrl: string | null = null;
+  if (brand.ownerLogoKey) {
+    try {
+      const { r2PresignGet } = await import("@/lib/r2");
+      ownerLogoUrl = await r2PresignGet(brand.ownerLogoKey, 600);
+    } catch {
+      ownerLogoUrl = null;
+    }
+  }
+  const owner = {
+    ownerName: brand.ownerName,
+    ownerSubtitle: brand.ownerSubtitle,
+    ownerLogoUrl,
+    pekerjaan: contract?.workTitle ?? null,
+  };
+
+  // Kolom "RENCANA PEKERJAAN" blanko: rencana MINGGUAN dipecah ke hari ini
+  // menurut alur & metode kerja (DECISIONS 163). Tanpa rencana mingguan,
+  // kolomnya kosong seperti blanko cetak.
+  const rencana = await rencanaHarianUntukTanggal(location.id, reportDate);
+
   const report = await db.dailyReport.findUnique({
     where: { locationId_reportDate: { locationId: location.id, reportDate } },
     include: {
@@ -498,7 +530,7 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
   });
 
   if (report?.status === "final" && report.finalSnapshot) {
-    return { ...snapshotToKkp(report.finalSnapshot as unknown as FinalSnapshot), ...signatories };
+    return { ...snapshotToKkp(report.finalSnapshot as unknown as FinalSnapshot), ...signatories, ...owner, rencana };
   }
 
   const cumulative = await cumulativeVolumeByLineage(location.id, reportDate);
@@ -514,6 +546,8 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
   for (const w of report?.workers ?? []) workerMap[w.role] = w.count;
 
   return {
+    ...owner,
+    rencana,
     locationName: location.name,
     regency: location.regency,
     province: location.province,
@@ -557,4 +591,53 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
     isFinal: report?.status === "final",
     ...signatories,
   };
+}
+
+/**
+ * Baris "Rencana Pekerjaan" blanko harian: ambil rencana MINGGUAN yang memuat
+ * tanggal ini, lalu pecah ke hari memakai `rencanaHarian` (urutan tahap +
+ * sebaran lonceng). Kosong bila minggu itu belum punya rencana.
+ */
+async function rencanaHarianUntukTanggal(
+  locationId: string,
+  reportDate: Date,
+): Promise<{ name: string; unit: string | null; volume: number; picName: string | null }[]> {
+  const plan = await db.weeklyPlan.findFirst({
+    where: { locationId, weekStart: { lte: reportDate }, weekEnd: { gte: reportDate } },
+    select: {
+      weekStart: true,
+      weekEnd: true,
+      items: {
+        select: {
+          targetVolume: true,
+          priority: true,
+          picName: true,
+          rabNode: { select: { name: true, unit: true, amount: true, parentId: true } },
+        },
+      },
+    },
+  });
+  if (!plan || plan.items.length === 0) return [];
+
+  const hari = Math.floor((reportDate.getTime() - plan.weekStart.getTime()) / 86_400_000) + 1;
+  const jumlahHari =
+    Math.floor((plan.weekEnd.getTime() - plan.weekStart.getTime()) / 86_400_000) + 1;
+
+  const { rencanaHarian } = await import("@/lib/plan/rencana-harian");
+  return rencanaHarian(
+    plan.items.map((it) => ({
+      name: it.rabNode.name,
+      // Kategori dipakai mesin sequencing untuk mendeteksi tipe unit; nama
+      // induk tidak selalu tersedia di sini, jadi dipakai nama itemnya sendiri
+      // sebagai konteks — klasifikasi tahap tetap jalan dari nama pekerjaan.
+      categoryName: it.rabNode.name,
+      unit: it.rabNode.unit,
+      targetVolume: Number(it.targetVolume),
+      amount: it.rabNode.amount,
+      picName: it.picName,
+      priority: it.priority,
+    })),
+    jumlahHari,
+    hari,
+  ).map((r) => ({ name: r.name, unit: r.unit, volume: r.volume, picName: r.picName }));
 }

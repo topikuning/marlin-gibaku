@@ -1,3 +1,5 @@
+import { allocateRounded } from "@/lib/round-alloc";
+
 /**
  * Data untuk sheet "KURVA S" resmi KKP (halaman-1 laporan periodik): tabel bobot
  * kategori × minggu (increment per minggu) + baris prestasi + garis kurva-S.
@@ -32,40 +34,6 @@ export type KurvaSheetCategory = {
   weeklyShown: number[];
 };
 
-/**
- * Bulatkan `values` ke kelipatan 1/`scale` sedemikian rupa sehingga JUMLAHNYA
- * persis `target` (metode sisa terbesar / largest remainder).
- *
- * Alasannya: kolom "Bobot (%)" di Excel adalah `=SUM(kolom minggu)`. Kalau tiap
- * sel minggu dibulatkan sendiri-sendiri, jumlahnya bisa meleset dari bobot resmi
- * kategori (galat ≤0,0005/sel × jumlah minggu) — pengawas akan melihat 4,32 di
- * tempat yang seharusnya 4,33. Dengan alokasi ini tiap sel bergeser paling
- * banyak satu satuan terakhir, tetapi kolomnya menjumlah tepat.
- *
- * Sel bernilai 0 TIDAK PERNAH diisi: minggu tanpa pekerjaan harus tetap kosong,
- * jeda jangan sampai "ketempelan" 0,001 gara-gara pembulatan.
- */
-function allocateRounded(values: number[], target: number, scale: number): number[] {
-  const units = values.map((v) => Math.floor(v * scale + 1e-9));
-  const out = [...units];
-  let rest = Math.round(target * scale) - units.reduce((s, u) => s + u, 0);
-  const movable = values.map((v, i) => ({ i, frac: v * scale - units[i], v })).filter((x) => x.v > 0);
-  if (movable.length === 0) return out.map((u) => u / scale);
-  const order = [...movable].sort((a, b) =>
-    rest > 0 ? b.frac - a.frac || b.v - a.v || a.i - b.i : a.frac - b.frac || a.v - b.v || a.i - b.i,
-  );
-  for (let k = 0; rest !== 0 && k < order.length * 4 + 16; k++) {
-    const idx = order[k % order.length].i;
-    if (rest > 0) {
-      out[idx] += 1;
-      rest -= 1;
-    } else if (out[idx] > 0) {
-      out[idx] -= 1;
-      rest += 1;
-    }
-  }
-  return out.map((u) => u / scale);
-}
 
 /**
  * Urutkan baris kategori mengikuti URUTAN RAB (sortOrder → nomor romawi I, II,

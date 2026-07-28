@@ -318,8 +318,13 @@ export async function getPeriodReport(
   const itemNodes = nodes.filter((nd) => nd.kind === "item");
   const sumKategori = kategoriNodes.reduce((s, nd) => s + Number(nd.amount), 0);
   const sumItem = itemNodes.reduce((s, nd) => s + Number(nd.amount), 0);
-  // grandTotal = Σ amount kategori (fallback Σ item bila RAB tanpa kategori).
-  const grandTotal = sumKategori > 0 ? sumKategori : sumItem > 0 ? sumItem : 1;
+  // grandTotal = Σ amount kategori (formula kanonik, PROJECT.md + progress.ts).
+  // Fallback Σ item hanya untuk RAB tanpa baris kategori. Sentinel `1` yang
+  // dulu dipakai saat keduanya nol DIBUANG (audit Codex 2026-07-28, CALC-03):
+  // denominator buatan membuat persentase tampak wajar padahal datanya kosong,
+  // dan angkanya berbeda dari dashboard yang memakai 0. Nol tetap nol; pembagi
+  // nol ditangani sebagai "tidak dapat dihitung" di bawah.
+  const grandTotal = sumKategori > 0 ? sumKategori : sumItem;
 
   // Realisasi terhitung (dikirim/disetujui/final), bucketing by reportDate.
   const itemLineages = new Set(itemNodes.map((nd) => nd.lineageKey));

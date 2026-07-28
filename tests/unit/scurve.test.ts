@@ -7,6 +7,7 @@ import {
   curveFromCategorySchedule,
   DEFAULT_CONTRACT_DAYS,
   generateScurve,
+  rescheduleToCurve,
   scheduleItems,
   segmentsFromWeekly,
   smoothstep,
@@ -351,5 +352,74 @@ describe("autoCategorySchedule (presedensi kategori — DECISIONS 079)", () => {
       expect(s.endWeek).toBeGreaterThanOrEqual(s.startWeek);
       expect(s.endWeek).toBeLessThanOrEqual(20);
     }
+  });
+});
+
+describe("rescheduleToCurve (penyesuaian halus kurva → jadwal kategori ikut, DECISIONS 159)", () => {
+  // Matriks 3 kategori × 6 minggu, dengan JEDA di kategori III.
+  const rows = [
+    [8, 6, 4, 0, 0, 0], // 18
+    [0, 0, 12, 24, 12, 0], // 48
+    [0, 0, 0, 0, 16, 18], // 34
+  ];
+  const bobot = rows.map((r) => r.reduce((s, v) => s + v, 0));
+  const kurvaLama = (() => {
+    const out: number[] = [];
+    let acc = 0;
+    for (let i = 0; i < 6; i++) {
+      acc += rows.reduce((s, r) => s + r[i], 0);
+      out.push(acc);
+    }
+    return out;
+  })();
+
+  const cek = (out: number[][], newCum: number[]) => {
+    // Marginal BARIS: bobot tiap kategori tidak berubah.
+    out.forEach((r, i) => {
+      expect(r.reduce((s, v) => s + v, 0), `bobot kategori ${i + 1}`).toBeCloseTo(bobot[i], 6);
+    });
+    // Marginal KOLOM: Σ kategori tiap minggu == increment kurva baru.
+    for (let w = 0; w < newCum.length; w++) {
+      const inc = newCum[w] - (w > 0 ? newCum[w - 1] : 0);
+      expect(out.reduce((s, r) => s + r[w], 0), `increment minggu ${w + 1}`).toBeCloseTo(inc, 6);
+    }
+    // Tidak ada increment negatif.
+    for (const r of out) for (const v of r) expect(v).toBeGreaterThanOrEqual(-1e-9);
+  };
+
+  it("kurva tidak berubah → matriks tidak berubah (idempotent)", () => {
+    const out = rescheduleToCurve(rows, kurvaLama);
+    out.forEach((r, i) => r.forEach((v, w) => expect(v).toBeCloseTo(rows[i][w], 6)));
+    cek(out, kurvaLama);
+  });
+
+  it("kurva dilambatkan → pekerjaan mundur, bobot kategori tetap", () => {
+    const lambat = [4, 10, 20, 40, 70, 100];
+    const out = rescheduleToCurve(rows, lambat);
+    cek(out, lambat);
+    // Kategori I (pekerjaan awal) belum selesai secepat semula di minggu 2.
+    const sdMinggu2Baru = out[0][0] + out[0][1];
+    const sdMinggu2Lama = rows[0][0] + rows[0][1];
+    expect(sdMinggu2Baru).toBeLessThan(sdMinggu2Lama);
+  });
+
+  it("kurva dipercepat → pekerjaan maju", () => {
+    const cepat = [25, 50, 70, 85, 95, 100];
+    const out = rescheduleToCurve(rows, cepat);
+    cek(out, cepat);
+    expect(out[2].slice(0, 4).reduce((s, v) => s + v, 0)).toBeGreaterThan(0); // kategori akhir mulai lebih awal
+  });
+
+  it("jumlah minggu berubah → jadwal ikut diregangkan (dulu malah dibuang)", () => {
+    const panjang = [3, 8, 16, 28, 45, 62, 80, 100];
+    const out = rescheduleToCurve(rows, panjang);
+    expect(out[0]).toHaveLength(8);
+    cek(out, panjang);
+  });
+
+  it("matriks kosong / nol dikembalikan apa adanya", () => {
+    expect(rescheduleToCurve([], [0, 100])).toEqual([]);
+    const nol = [[0, 0, 0]];
+    expect(rescheduleToCurve(nol, [10, 50, 100])).toEqual(nol);
   });
 });

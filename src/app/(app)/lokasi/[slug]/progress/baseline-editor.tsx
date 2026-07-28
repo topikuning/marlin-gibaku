@@ -105,6 +105,8 @@ export function BaselineEditor({
           <p className="mt-3 text-xs text-ink-muted">
             Kurva valid: monoton naik, mulai 0%, berakhir 100%. Simpan membuat
             baseline manual baru (baseline lama tetap tersimpan sebagai histori).
+            Jadwal per pekerjaan ikut disetel mengikuti kurva ini — bobot tiap
+            pekerjaan tetap sesuai RAB, hanya waktunya yang bergeser.
           </p>
         )}
         <form action={action} className="mt-3">
