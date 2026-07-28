@@ -53,29 +53,29 @@ export default async function LokasiLayout({
     <div className="space-y-4">
       {/* Header proyek terstruktur (audit UI #5): identitas + stat berlabel dalam
           kartu, bukan satu baris teks datar — informasi lebih cepat dipindai. */}
-      <header className="space-y-3">
-        <div className="flex flex-wrap items-start justify-between gap-2">
+      <header className="overflow-hidden rounded-xl bg-primary-900 text-white">
+        <div className="flex flex-wrap items-start justify-between gap-3 px-5 py-5 sm:px-6">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <EditableLocationName locationId={location.id} name={location.name} canEdit={canRename} />
+              <EditableLocationName locationId={location.id} name={location.name} canEdit={canRename} inverse />
               <StatusPill
                 tone={LOCATION_STATUS_TONE[location.status]}
                 label={LOCATION_STATUS_LABEL[location.status]}
               />
             </div>
-            <p className="mt-1 text-[13px] text-ink-muted">
+            <p className="mt-2 text-sm text-slate-300">
               {location.village}, {location.regency} — {location.province}
             </p>
           </div>
-          <div className="text-right text-[13px]">
-            <Link href={`/paket/${location.package.id}`} className="font-medium text-primary hover:underline">
+          <div className="text-left text-sm sm:text-right">
+            <Link href={`/paket/${location.package.id}`} className="font-medium text-cyan-300 hover:underline">
               {location.package.name}
             </Link>
-            {contract ? <p className="text-ink-muted">{contract.vendor.name}</p> : null}
+            {contract ? <p className="mt-1 text-slate-300">{contract.vendor.name}</p> : null}
           </div>
         </div>
 
-        <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-3 lg:grid-cols-6">
+        <dl className="grid grid-cols-2 border-t border-slate-700 bg-slate-700 sm:grid-cols-3 lg:grid-cols-6">
           <StatCell label="Nilai kontrak">
             {contract ? (
               <span className="tabular">{formatRupiah(contract.contractValue)}</span>
@@ -108,7 +108,7 @@ export default async function LokasiLayout({
           <StatCell label="Rencana">
             <span className="tabular">{formatPct(progress.planPct)}</span>
           </StatCell>
-          <StatCell label="Realisasi">
+          <StatCell label="Progress Dilaporkan">
             <span className="tabular">{formatPct(progress.realizedPct)}</span>
           </StatCell>
           <StatCell label="Deviasi">
@@ -133,9 +133,9 @@ export default async function LokasiLayout({
 /** Sel stat berlabel untuk header lokasi. */
 function StatCell({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="bg-surface px-3 py-2">
-      <dt className="text-[11px] font-medium tracking-wide text-ink-muted uppercase">{label}</dt>
-      <dd className="mt-0.5 text-sm font-semibold text-ink">{children}</dd>
+    <div className="bg-primary-900 px-4 py-3">
+      <dt className="text-[11px] font-medium tracking-wide text-slate-400 uppercase">{label}</dt>
+      <dd className="mt-1 text-sm font-semibold text-white">{children}</dd>
     </div>
   );
 }

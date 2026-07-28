@@ -94,8 +94,9 @@ async function CommandCenter({ user }: { user: SessionUser }) {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`Halo, ${user.fullName.split(" ")[0]}`}
-        description={actionCount > 0 ? `${actionCount} hal menunggu tindakan hari ini.` : "Tidak ada yang menunggu tindakan. Semua terkendali."}
+        eyebrow={`Workspace ${user.fullName.split(" ")[0]} · scope sesuai penugasan`}
+        title="Prioritas pekerjaan hari ini"
+        description={actionCount > 0 ? `${actionCount} hal menunggu tindakan dalam lokasi yang Anda kelola.` : "Tidak ada yang menunggu tindakan. Semua terkendali."}
       />
 
       {/* ── Perlu tindakan (exception-first) ── */}
@@ -148,7 +149,7 @@ async function CommandCenter({ user }: { user: SessionUser }) {
         )}
         {critical.length > 0 && (
           <Card>
-            <CardHeader title="Proyek deviasi kritis" subtitle="Realisasi tertinggal >10% dari rencana" />
+            <CardHeader title="Proyek deviasi kritis" subtitle="Progress Dilaporkan tertinggal >10 poin dari rencana" />
             <CardBody>
               <ul className="divide-y divide-border">
                 {critical.slice(0, 8).map((l) => (
@@ -202,7 +203,7 @@ async function CommandCenter({ user }: { user: SessionUser }) {
         <KpiCard label="Paket aktif" value={String(activePackages.length)} href="/paket" />
         <KpiCard label="Lokasi aktif" value={String(locations.length)} href="/lokasi" />
         <KpiCard label="Nilai RAB aktif" value={formatRupiahShort(totalContract)} sub="pra-PPN" href="/progress" />
-        <KpiCard label="Nilai terpasang" value={formatRupiahShort(totalRealized)} href="/progress" />
+        <KpiCard label="Nilai progress dilaporkan" value={formatRupiahShort(totalRealized)} href="/progress" />
       </section>
 
       {/* ── Ringkasan portfolio ── */}

@@ -14,10 +14,12 @@ export function EditableLocationName({
   locationId,
   name,
   canEdit,
+  inverse = false,
 }: {
   locationId: string;
   name: string;
   canEdit: boolean;
+  inverse?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [state, action, pending] = useActionState<PackageActionState, FormData>(renameLocation, undefined);
@@ -29,18 +31,18 @@ export function EditableLocationName({
     return () => window.clearTimeout(t);
   }, [state?.success]);
 
-  if (!canEdit) return <h1 className="text-xl font-semibold text-ink">{name}</h1>;
+  if (!canEdit) return <h1 className={`text-2xl font-semibold ${inverse ? "text-white" : "text-ink"}`}>{name}</h1>;
 
   if (!editing) {
     return (
       <span className="inline-flex items-center gap-1.5">
-        <h1 className="text-xl font-semibold text-ink">{name}</h1>
+        <h1 className={`text-2xl font-semibold ${inverse ? "text-white" : "text-ink"}`}>{name}</h1>
         <button
           type="button"
           onClick={() => setEditing(true)}
           aria-label="Ubah nama lokasi"
           title="Ubah nama lokasi"
-          className="text-ink-faint transition hover:text-primary"
+          className={inverse ? "text-slate-400 transition hover:text-cyan-300" : "text-ink-faint transition hover:text-primary"}
         >
           <Pencil className="size-4" />
         </button>

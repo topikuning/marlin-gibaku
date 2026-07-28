@@ -126,7 +126,7 @@ export default async function LokasiRingkasanPage({
           tone={mismatch ? "warning" : "default"}
         />
         <KpiCard
-          label="Terpasang"
+          label="Progress Dilaporkan"
           value={formatRupiahShort(progress.realizedValue)}
           sub={formatPct(progress.realizedPct)}
         />

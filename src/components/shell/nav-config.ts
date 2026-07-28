@@ -50,33 +50,57 @@ export type NavItem = {
   label: string;
   href: string;
   icon: keyof typeof ICONS;
+  group: NavGroup;
   /** Tanpa capability = tampil untuk semua role. */
   capability?: Capability;
   /** Alternatif: tampil bila punya SALAH SATU capability ini (menu gabungan). */
   anyCapability?: Capability[];
 };
 
+export type NavGroup =
+  | "Ringkasan"
+  | "Pelaksanaan"
+  | "Komersial"
+  | "Analisis"
+  | "Administrasi";
+
+export const NAV_GROUP_ORDER: readonly NavGroup[] = [
+  "Ringkasan",
+  "Pelaksanaan",
+  "Komersial",
+  "Analisis",
+  "Administrasi",
+];
+
 export const MAIN_NAV: NavItem[] = [
-  { label: "Beranda", href: "/", icon: "home" },
-  { label: "Paket", href: "/paket", icon: "package", capability: "package.view" },
-  { label: "Lokasi", href: "/lokasi", icon: "mapPin", capability: "location.view" },
-  { label: "Peta", href: "/peta", icon: "map", capability: "location.view" },
-  { label: "Hari Ini", href: "/hari-ini", icon: "sun", capability: "daily_report.create" },
-  { label: "Foto Lapangan", href: "/foto", icon: "camera", capability: "location.view" },
-  { label: "AI Intelligence", href: "/ai", icon: "sparkles", capability: "ai.view" },
-  { label: "Progress", href: "/progress", icon: "trendingUp", capability: "progress.view" },
-  { label: "Keuangan", href: "/keuangan", icon: "wallet", capability: "finance.view" },
-  { label: "Dokumen", href: "/dokumen", icon: "folderOpen", capability: "document.view" },
-  { label: "Laporan", href: "/laporan", icon: "fileText", capability: "report.export" },
-  { label: "Laporan → WA", href: "/laporan-wa", icon: "send", capability: "exec_report.send" },
-  { label: "Chat Grup", href: "/chat-grup", icon: "messagesSquare", capability: "exec_report.send" },
+  { label: "Command centre", href: "/", icon: "home", group: "Ringkasan" },
+  {
+    label: "Perlu tindakan",
+    href: "/tindakan",
+    icon: "activity",
+    group: "Ringkasan",
+    capability: "portfolio.view",
+  },
+  { label: "Lokasi", href: "/lokasi", icon: "mapPin", group: "Pelaksanaan", capability: "location.view" },
+  { label: "Laporan lapangan", href: "/hari-ini", icon: "sun", group: "Pelaksanaan", capability: "daily_report.create" },
+  { label: "Progress", href: "/progress", icon: "trendingUp", group: "Pelaksanaan", capability: "progress.view" },
+  { label: "Peta", href: "/peta", icon: "map", group: "Pelaksanaan", capability: "location.view" },
+  { label: "Foto", href: "/foto", icon: "camera", group: "Pelaksanaan", capability: "location.view" },
+  { label: "Paket & kontrak", href: "/paket", icon: "package", group: "Komersial", capability: "package.view" },
+  { label: "Keuangan", href: "/keuangan", icon: "wallet", group: "Komersial", capability: "finance.view" },
+  { label: "Dokumen", href: "/dokumen", icon: "folderOpen", group: "Komersial", capability: "document.view" },
+  { label: "Laporan", href: "/laporan", icon: "fileText", group: "Analisis", capability: "report.export" },
+  { label: "AI Hub", href: "/ai", icon: "sparkles", group: "Analisis", capability: "ai.view" },
+  { label: "Laporan → WA", href: "/laporan-wa", icon: "send", group: "Analisis", capability: "exec_report.send" },
+  { label: "Chat Grup", href: "/chat-grup", icon: "messagesSquare", group: "Analisis", capability: "exec_report.send" },
   {
     label: "Master Data",
     href: "/master",
     icon: "database",
+    group: "Administrasi",
     anyCapability: ["contract.manage", "exec_report.send", "user.create"],
   },
-  { label: "Sistem", href: "/sistem", icon: "settings", capability: "system.manage" },
+  { label: "Sistem", href: "/sistem", icon: "settings", group: "Administrasi", capability: "system.manage" },
 ];
 
 function allowed(role: UserRole, item: NavItem): boolean {
@@ -100,16 +124,16 @@ const FIELD_ROLES: ReadonlySet<UserRole> = new Set([
 export function MOBILE_NAV(role: UserRole): NavItem[] {
   const items: NavItem[] = FIELD_ROLES.has(role)
     ? [
-        { label: "Hari Ini", href: "/hari-ini", icon: "sun", capability: "daily_report.create" },
-        { label: "Proyek", href: "/lokasi", icon: "mapPin", capability: "location.view" },
-        { label: "Laporan", href: "/laporan", icon: "fileText", capability: "report.export" },
-        { label: "Beranda", href: "/", icon: "home" },
+        { label: "Hari Ini", href: "/hari-ini", icon: "sun", group: "Pelaksanaan", capability: "daily_report.create" },
+        { label: "Proyek", href: "/lokasi", icon: "mapPin", group: "Pelaksanaan", capability: "location.view" },
+        { label: "Laporan", href: "/laporan", icon: "fileText", group: "Analisis", capability: "report.export" },
+        { label: "Beranda", href: "/", icon: "home", group: "Ringkasan" },
       ]
     : [
-        { label: "Beranda", href: "/", icon: "home" },
-        { label: "Paket", href: "/paket", icon: "package", capability: "package.view" },
-        { label: "Lokasi", href: "/lokasi", icon: "mapPin", capability: "location.view" },
-        { label: "Progress", href: "/progress", icon: "trendingUp", capability: "progress.view" },
+        { label: "Beranda", href: "/", icon: "home", group: "Ringkasan" },
+        { label: "Tindakan", href: "/tindakan", icon: "activity", group: "Ringkasan", capability: "portfolio.view" },
+        { label: "Lokasi", href: "/lokasi", icon: "mapPin", group: "Pelaksanaan", capability: "location.view" },
+        { label: "Progress", href: "/progress", icon: "trendingUp", group: "Pelaksanaan", capability: "progress.view" },
       ];
   return items.filter((item) => allowed(role, item)).slice(0, 4);
 }

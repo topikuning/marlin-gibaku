@@ -3,8 +3,6 @@ import type { ReactNode } from "react";
 import {
   Activity,
   AlertTriangle,
-  ArrowDownRight,
-  ArrowUpRight,
   CheckCircle2,
   ChevronRight,
   ClipboardCheck,
@@ -47,12 +45,17 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
+      {/* Header operasional: scope, tujuan, dan freshness selalu terbaca. */}
       <header className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-ink">Dashboard Eksekutif</h1>
+          <p className="text-xs font-bold tracking-[0.14em] text-primary-600 uppercase">
+            Portfolio nasional · {kpi.totalLokasi} lokasi aktif
+          </p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-ink">
+            Kondisi yang membutuhkan perhatian hari ini
+          </h1>
           <p className="text-sm text-ink-muted">
-            Pantau laporan harian, deviasi progres, kendala, solusi, dan foto lapangan seluruh proyek.
+            Status pelaksanaan, kelengkapan laporan, dan keputusan lintas proyek—diurutkan berdasarkan urgensi.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -66,45 +69,21 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
         </div>
       </header>
 
-      {/* KPI row */}
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
-        <StatCard icon={<MapPin aria-hidden />} tone="info" label="Total Lokasi" value={kpi.totalLokasi} sub="Aktif dipantau" />
-        <StatCard
-          icon={<CheckCircle2 aria-hidden />}
-          tone="success"
-          label="Sudah Submit Hari Ini"
-          value={kpi.submittedToday}
-          sub={
-            <>
-              <Delta value={kpi.submittedDelta} pct={kpi.submittedDeltaPct} goodWhenUp />
-              <Bar value={kpi.submittedPct} tone="success" />
-            </>
-          }
-        />
-        <StatCard
-          icon={<Clock aria-hidden />}
-          tone="warning"
-          label="Belum Submit Hari Ini"
-          value={kpi.notSubmittedToday}
-          sub={
-            <>
-              <Delta value={kpi.notSubmittedDelta} pct={kpi.notSubmittedDeltaPct} goodWhenUp={false} />
-              <Bar value={kpi.notSubmittedPct} tone="warning" />
-            </>
-          }
-        />
-        <StatCard icon={<FileText aria-hidden />} tone="primary" label="Total Laporan Hari Ini" value={kpi.totalReportsToday} sub="Laporan harian + kegiatan lapangan" />
-        <StatCard
-          icon={<AlertTriangle aria-hidden />}
-          tone="danger"
-          label="Deviasi Negatif Kritis"
-          value={kpi.deviasiKritis}
-          sub={<span className="text-danger">Butuh tindakan segera</span>}
-        />
-      </div>
+      {/* Satu status strip, bukan kumpulan KPI yang saling berebut perhatian. */}
+      <section
+        aria-label="Ringkasan status portfolio"
+        className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-3 xl:grid-cols-6"
+      >
+        <MetricSegment href="/lokasi" icon={<MapPin aria-hidden />} label="Lokasi aktif" value={kpi.totalLokasi} sub="dalam scope" />
+        <MetricSegment href="/laporan" icon={<CheckCircle2 aria-hidden />} label="Sudah melapor" value={kpi.submittedToday} sub={`${formatPct(kpi.submittedPct)} hari ini`} tone="success" />
+        <MetricSegment href="/lokasi" icon={<Clock aria-hidden />} label="Belum melapor" value={kpi.notSubmittedToday} sub="perlu dihubungi" tone="warning" />
+        <MetricSegment href="/progress" icon={<AlertTriangle aria-hidden />} label="Deviasi kritis" value={kpi.deviasiKritis} sub="di bawah −10 poin" tone="danger" />
+        <MetricSegment href="/tindakan" icon={<ClipboardCheck aria-hidden />} label="Menunggu verifikasi" value={data.menungguVerifikasi} sub="butuh keputusan" tone="info" />
+        <MetricSegment href="/tindakan" icon={<FileWarning aria-hidden />} label="Perlu koreksi" value={data.perluKoreksi} sub="dikembalikan" tone="warning" />
+      </section>
 
-      {/* Portofolio & administrasi (gabungan Command Center) */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+      {/* Nilai portfolio tetap tersedia, tetapi turun satu tingkat dari exception. */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard
           icon={<Wallet aria-hidden />}
           tone="primary"
@@ -116,7 +95,7 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
         <StatCard
           icon={<TrendingUp aria-hidden />}
           tone="success"
-          label="Nilai Terpasang"
+          label="Nilai Progress Dilaporkan"
           value={formatRupiahShort(data.finance.totalRealized)}
           sub={
             <>
@@ -127,8 +106,7 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
           href="/progress"
         />
         <StatCard icon={<PackageIcon aria-hidden />} tone="info" label="Paket Aktif" value={data.paketAktif} sub="sedang berjalan" href="/paket" />
-        <StatCard icon={<ClipboardCheck aria-hidden />} tone="warning" label="Menunggu Verifikasi" value={data.menungguVerifikasi} sub="laporan dikirim" href="/laporan" />
-        <StatCard icon={<FileWarning aria-hidden />} tone="danger" label="Perlu Koreksi" value={data.perluKoreksi} sub="dikembalikan" href="/laporan" />
+        <StatCard icon={<FileText aria-hidden />} tone="primary" label="Aktivitas Hari Ini" value={kpi.totalReportsToday} sub="laporan + kegiatan" href="/hari-ini" />
       </div>
 
       {/* Peta + Status submit */}
@@ -348,6 +326,45 @@ const TONE_ICON: Record<Tone, string> = {
   primary: "bg-primary-50 text-primary",
 };
 
+function MetricSegment({
+  href,
+  icon,
+  label,
+  value,
+  sub,
+  tone = "default",
+}: {
+  href: string;
+  icon: ReactNode;
+  label: string;
+  value: ReactNode;
+  sub: ReactNode;
+  tone?: "default" | "success" | "warning" | "danger" | "info";
+}) {
+  const valueTone = tone === "success"
+    ? "text-success"
+    : tone === "warning"
+      ? "text-warning"
+      : tone === "danger"
+        ? "text-danger"
+        : tone === "info"
+          ? "text-info"
+          : "text-ink";
+  return (
+    <Link href={href} className="group min-w-0 bg-surface px-4 py-4 hover:bg-surface-muted">
+      <span className="flex items-center gap-2 text-xs font-medium text-ink-muted">
+        <span className="[&>svg]:size-4">{icon}</span>
+        {label}
+      </span>
+      <strong className={`tabular mt-2 block text-3xl leading-none font-semibold ${valueTone}`}>{value}</strong>
+      <span className="mt-1.5 flex items-center justify-between gap-2 text-xs text-ink-muted">
+        {sub}
+        <ChevronRight aria-hidden className="size-3.5 opacity-0 transition group-hover:translate-x-0.5 group-hover:opacity-100" />
+      </span>
+    </Link>
+  );
+}
+
 function StatCard({ icon, tone, label, value, sub, href }: { icon: ReactNode; tone: Tone; label: string; value: ReactNode; sub?: ReactNode; href?: string }) {
   const card = (
     <Card className="flex h-full flex-col p-3">
@@ -365,18 +382,6 @@ function StatCard({ icon, tone, label, value, sub, href }: { icon: ReactNode; to
     </Link>
   ) : (
     card
-  );
-}
-
-function Delta({ value, pct, goodWhenUp }: { value: number; pct: number; goodWhenUp: boolean }) {
-  const up = value >= 0;
-  const good = goodWhenUp ? up : !up;
-  const Icon = up ? ArrowUpRight : ArrowDownRight;
-  return (
-    <span className={`inline-flex items-center gap-0.5 whitespace-nowrap font-medium ${good ? "text-success" : "text-danger"}`}>
-      <Icon aria-hidden className="size-3.5" />
-      {value > 0 ? "+" : ""}{value} ({formatPct(Math.abs(pct))}) dari kemarin
-    </span>
   );
 }
 

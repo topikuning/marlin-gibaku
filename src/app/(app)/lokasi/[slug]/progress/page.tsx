@@ -226,7 +226,7 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
                     <tr className="border-b border-border text-left text-xs uppercase text-ink-muted">
                       <th className="py-1.5 pr-3">Minggu</th>
                       <th className="py-1.5 pr-3 text-right">Rencana</th>
-                      <th className="py-1.5 pr-3 text-right">Realisasi</th>
+                      <th className="py-1.5 pr-3 text-right">Dilaporkan</th>
                       <th className="py-1.5">Deviasi</th>
                     </tr>
                   </thead>
@@ -311,7 +311,7 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
                 </div>
                 <div className="rounded-lg border border-border bg-surface-inset p-3">
                   <div className="text-[11px] font-semibold tracking-wide text-ink-muted uppercase">
-                    Realisasi vs rencana (mgg {forecast.currentWeek})
+                    Progress Dilaporkan vs rencana (mgg {forecast.currentWeek})
                   </div>
                   <div className="mt-1 text-base font-semibold text-ink">
                     {formatPct(forecast.actualPct)} <span className="text-ink-muted">/ {formatPct(forecast.planPct)}</span>
@@ -372,7 +372,7 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
       <Card>
         <CardHeader
           title="Item tertinggal"
-          subtitle={`Realisasi kumulatif di bawah target proporsional rencana (${formatPct(planNow)} pada minggu ${series.currentWeek}) — 10 terbesar berdasar nilai kekurangan.`}
+          subtitle={`Progress Dilaporkan kumulatif di bawah target proporsional rencana (${formatPct(planNow)} pada minggu ${series.currentWeek}) — 10 terbesar berdasar nilai kekurangan.`}
         />
         <CardBody>
           {lagging.length === 0 ? (
@@ -390,7 +390,7 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
                     <th className="py-2 pr-3">Uraian</th>
                     <th className="py-2 pr-3 text-right">Vol RAB</th>
                     <th className="py-2 pr-3 text-right">Target s/d mgg ini</th>
-                    <th className="py-2 pr-3 text-right">Realisasi</th>
+                    <th className="py-2 pr-3 text-right">Dilaporkan</th>
                     <th className="py-2 pr-3 text-right">Kekurangan</th>
                     <th className="py-2 text-right">Nilai kekurangan</th>
                   </tr>

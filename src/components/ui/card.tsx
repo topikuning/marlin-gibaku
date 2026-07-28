@@ -12,7 +12,7 @@ export function Card({
   return (
     <section
       className={cn(
-        "rounded-lg border border-border bg-surface shadow-xs",
+        "rounded-lg border border-border bg-surface",
         className,
       )}
     >
@@ -88,7 +88,7 @@ export function CollapsibleCard({
 }) {
   return (
     <details
-      className={cn("group rounded-lg border border-border bg-surface shadow-xs", className)}
+      className={cn("group rounded-lg border border-border bg-surface", className)}
       {...(defaultOpen ? { open: true } : {})}
     >
       <summary className="flex cursor-pointer list-none items-start gap-2 px-4 py-3 [&::-webkit-details-marker]:hidden">

@@ -54,11 +54,13 @@ export function PageHeader({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           {eyebrow ? (
-            <p className="text-xs font-medium tracking-wide text-ink-faint uppercase">
+            <p className="text-xs font-bold tracking-[0.14em] text-primary-600 uppercase">
               {eyebrow}
             </p>
           ) : null}
-          <h1 className="text-xl font-semibold text-ink">{title}</h1>
+          <h1 className="mt-0.5 text-2xl leading-tight font-semibold tracking-tight text-ink lg:text-[28px]">
+            {title}
+          </h1>
           {description ? (
             <div className="mt-1 text-sm text-ink-muted">{description}</div>
           ) : null}

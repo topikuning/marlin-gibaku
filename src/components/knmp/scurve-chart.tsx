@@ -140,7 +140,7 @@ export function ScurveChart({
       <div className="mt-2 flex flex-wrap items-center gap-4 text-xs">
         {hasActual && (
           <span className="flex items-center gap-1.5 text-ink">
-            <span aria-hidden className="inline-block h-0.5 w-5 bg-primary" /> Realisasi (
+            <span aria-hidden className="inline-block h-0.5 w-5 bg-primary" /> Progress Dilaporkan (
             {lastActual.toFixed(1)}%)
           </span>
         )}

@@ -68,7 +68,7 @@ export default async function ProgressPage() {
         <KpiCard label="Nilai terpasang" value={formatRupiahShort(totalRealized)} />
         <KpiCard label="Rencana (tertimbang)" value={formatPct(avgPlan)} />
         <KpiCard
-          label="Realisasi (tertimbang)"
+          label="Progress Dilaporkan (tertimbang)"
           value={formatPct(avgActual)}
           tone={avgActual - avgPlan < -10 ? "danger" : avgActual - avgPlan < -1 ? "warning" : "success"}
           sub={`deviasi ${formatPct(avgActual - avgPlan)}`}
@@ -88,9 +88,9 @@ export default async function ProgressPage() {
                     <th className="py-2 pr-3">Paket</th>
                     <th className="py-2 pr-3">Minggu</th>
                     <th className="py-2 pr-3 text-right">Rencana</th>
-                    <th className="py-2 pr-3 text-right">Realisasi</th>
+                    <th className="py-2 pr-3 text-right">Dilaporkan</th>
                     <th className="py-2 pr-3">Deviasi</th>
-                    <th className="py-2 pr-3 text-right">Terpasang</th>
+                    <th className="py-2 pr-3 text-right">Nilai dilaporkan</th>
                     <th className="py-2 w-40">Kurva</th>
                   </tr>
                 </thead>

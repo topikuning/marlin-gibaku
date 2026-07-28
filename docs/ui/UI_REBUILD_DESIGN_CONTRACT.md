@@ -1,6 +1,6 @@
 # MARLIN UI Rebuild — Design Contract
 
-Status: kontrak desain untuk prototype; belum menjadi keputusan implementasi produksi.
+Status: diterapkan bertahap pada branch `devCodex`; keputusan dan batas produksi dicatat di `UI_REBUILD_PRODUCTION_IMPLEMENTATION.md`.
 
 ## 1. Experience principles
 

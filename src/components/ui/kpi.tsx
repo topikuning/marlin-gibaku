@@ -43,7 +43,7 @@ export function KpiCard({
   );
 
   const base = cn(
-    "block rounded-lg border border-border bg-surface px-4 py-3 shadow-xs",
+    "block rounded-lg border border-border bg-surface px-4 py-3",
     className,
   );
 

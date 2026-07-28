@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useDismissable } from "@/components/ui";
 import { cn } from "@/lib/cn";
-import { ICONS, type NavItem } from "./nav-config";
+import { ICONS, NAV_GROUP_ORDER, type NavItem } from "./nav-config";
 
 function isActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
@@ -60,30 +60,43 @@ export function BottomNav({ nav, fullNav }: { nav: NavItem[]; fullNav: NavItem[]
                 <X aria-hidden className="size-4" />
               </button>
             </div>
-            <ul className="grid grid-cols-3 gap-2">
-              {fullNav.map((item) => {
-                const Icon = ICONS[item.icon];
-                const active = isActive(pathname, item.href);
+            <div className="space-y-4">
+              {NAV_GROUP_ORDER.map((group) => {
+                const groupItems = fullNav.filter((item) => item.group === group);
+                if (groupItems.length === 0) return null;
                 return (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      aria-current={active ? "page" : undefined}
-                      onClick={() => setOpen(false)}
-                      className={cn(
-                        "flex min-h-16 flex-col items-center justify-center gap-1 rounded-lg border px-2 py-2 text-[11px] font-medium",
-                        active
-                          ? "border-primary bg-primary-50 text-primary"
-                          : "border-border text-ink-muted hover:bg-surface-muted hover:text-ink",
-                      )}
-                    >
-                      <Icon aria-hidden className="size-5" />
-                      {item.label}
-                    </Link>
-                  </li>
+                  <section key={group} aria-labelledby={`mobile-nav-${group}`}>
+                    <h2 id={`mobile-nav-${group}`} className="mb-1.5 text-[11px] font-bold tracking-wide text-ink-muted uppercase">
+                      {group}
+                    </h2>
+                    <ul className="grid grid-cols-3 gap-2">
+                      {groupItems.map((item) => {
+                        const Icon = ICONS[item.icon];
+                        const active = isActive(pathname, item.href);
+                        return (
+                          <li key={item.href}>
+                            <Link
+                              href={item.href}
+                              aria-current={active ? "page" : undefined}
+                              onClick={() => setOpen(false)}
+                              className={cn(
+                                "flex min-h-16 flex-col items-center justify-center gap-1 rounded-lg border px-2 py-2 text-center text-[11px] font-medium",
+                                active
+                                  ? "border-primary-400 bg-primary-50 text-primary"
+                                  : "border-border text-ink-muted hover:bg-surface-muted hover:text-ink",
+                              )}
+                            >
+                              <Icon aria-hidden className="size-5" />
+                              {item.label}
+                            </Link>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
                 );
               })}
-            </ul>
+            </div>
           </div>
         </div>
       ) : null}
