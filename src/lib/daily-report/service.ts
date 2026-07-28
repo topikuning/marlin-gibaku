@@ -475,7 +475,12 @@ export async function buildFinalSnapshot(reportId: string): Promise<FinalSnapsho
     // counted), sehingga "s/d" langsung mentok 100% dan "s/d lalu" ikut
     // salah karena diturunkan dari pengurangan. DECISIONS 147.
     cumulativeVolumeByLineage(report.locationId, report.reportDate),
-    getLocationProgress(report.locationId),
+    // Sama seperti kumulatif volume di atas: blok progress SNAPSHOT juga wajib
+    // as-of TANGGAL LAPORAN. Tanpa `asOf`, laporan 1 Juli yang difinalkan 20
+    // Juli membekukan realisasi 20 Juli, bobot revisi RAB terbaru, dan minggu
+    // rencana ke-20 — dokumen bertanggal 1 Juli memuat angka masa depan
+    // (audit Codex 2026-07-28, CALC-01).
+    getLocationProgress(report.locationId, { asOf: report.reportDate }),
   ]);
 
   const dateKey = jakartaDateKey(report.reportDate);

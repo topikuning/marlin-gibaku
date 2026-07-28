@@ -3987,3 +3987,57 @@ berikutnya: fixture dua organisasi + matriks negatif, lalu race test submit
 paralel di PostgreSQL.
 
 Verifikasi: typecheck ✓ · lint ✓ · unit **436** ✓ · build ✓.
+
+---
+
+## 165 · 2026-07-28 · Model deployment single-tenant + snapshot as-of + proteksi akun
+
+### Keputusan tenancy (jawaban Fase 0 audit Codex)
+
+**Satu instalasi = satu organisasi = satu database.** Tiap klien (Pemkab
+Lamongan, KKP, Gibaku, Pemkab Banyuwangi, …) mendapat service Railway sendiri
+dengan database sendiri. TIDAK ada dua organisasi hidup dalam satu database.
+
+Konsekuensi terhadap temuan audit:
+
+- **AUTH-04** (orgId pada AiRun/AiArtifact) — tidak berlaku sebagai batas tenant.
+- **DATA-01 bagian tenant** (composite FK ber-orgId) — tidak berlaku.
+  Bagian invariant lokal (uang/volume non-negatif, retensi ≤ termin, rentang
+  tanggal, lat/lng, foto XOR parent) TETAP utang.
+- **DATA-02** — "global" dan "tenant-local" berimpit; tidak ada pekerjaan orgId.
+- Scoping `orgId` yang dipasang di DECISIONS 164 **dipertahankan** sebagai
+  defense-in-depth: no-op pada model ini, penyelamat bila asumsinya jebol.
+
+**Syarat mutlak model ini:** jangan pernah mengarahkan dua klien ke database yang
+sama. Bila kelak berubah, AUTH-04 dan DATA-01/02 hidup kembali sebagai P0.
+
+### CALC-01 — snapshot laporan harian as-of tanggal laporan
+
+Keputusan user: **as-of tanggal laporan**. Laporan harian adalah potret hari itu;
+finalisasi terlambat tidak boleh mengubah isinya.
+
+`getLocationsProgress(ids, { asOf })`:
+
+- realisasi hanya dari laporan counted `report_date <= asOf`;
+- revisi RAB & baseline yang EFEKTIF pada tanggal itu (`createdAt <= asOf` dan
+  belum digantikan), bukan yang aktif sekarang;
+- minggu rencana dihitung terhadap `asOf`, bukan jam dinding.
+
+`finalSnapshot` memanggil dengan `asOf: report.reportDate`. Tanpa `asOf`
+perilaku lama dipertahankan — dashboard & halaman progress tetap posisi terkini.
+
+### Proteksi akun (permintaan user)
+
+- `outranks()` di `authz.ts`: admin tidak bisa mereset password atau
+  menonaktifkan akun SETINGKAT atau lebih tinggi (akun sendiri dikecualikan untuk
+  ganti password sendiri).
+- **Admin aktif terakhir** tidak boleh dinonaktifkan — mencegah organisasi
+  terkunci dari sistemnya sendiri dengan pemulihan lewat SQL produksi.
+
+### CI-01
+
+Keputusan user: **jalankan seperti sekarang** (tanpa pemicu push-ke-dev).
+Saran yang belum dikerjakan karena butuh setelan GitHub, bukan kode: nyalakan
+branch protection pada `main` (wajib PR + seluruh check hijau).
+
+Verifikasi: typecheck ✓ · lint ✓ · unit **443** (+7 proteksi akun) · build ✓.

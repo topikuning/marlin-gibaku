@@ -413,6 +413,21 @@ memutuskannya sendiri. Diusulkan ke user sebagai keputusan terpisah.
 
 ---
 
+**PEMUTAKHIRAN 28 Juli 2026 — proteksi akun dipasang (permintaan user).**
+
+- **Peringkat peran**: admin tidak bisa mereset password atau menonaktifkan akun
+  yang SETINGKAT atau lebih tinggi (`outranks()` di `authz.ts`). Akun sendiri
+  dikecualikan untuk ganti password.
+- **Admin aktif terakhir**: menonaktifkan admin terakhir yang masih aktif di
+  organisasi ditolak dengan pesan "angkat admin lain dulu" — mencegah organisasi
+  terkunci dari sistemnya sendiri dan pemulihan lewat SQL produksi.
+
+Uji murni (peringkat + daftar peran admin) ada di
+`tests/unit/authz-proteksi-akun.test.ts`; penegakan di action butuh database
+dan masuk utang integration test.
+
+---
+
 ## AUTH-04 — AI run/artifact tidak mempunyai boundary organisasi
 
 **Prioritas:** P1 / Tinggi
@@ -471,6 +486,23 @@ perbaikan lain dalam satu commit tanpa akses DB produksi.
 `AiArtifact`; diisi dari session, tidak pernah dari form; read/mutate/export
 memakai `{ id, orgId }` lebih dulu, baru scope lokasi. Migrasi disertai query
 laporan pengecualian sebelum constraint dinyalakan.
+
+---
+
+**PEMUTAKHIRAN 28 Juli 2026 — TIDAK BERLAKU pada model deployment yang dipilih.**
+
+User menetapkan model: **satu instalasi = satu organisasi = satu database**
+(tiap klien — Pemkab Lamongan, KKP, Gibaku, Pemkab Banyuwangi — mendapat service
+Railway dan database sendiri). Dengan begitu tidak ada tenant kedua di dalam satu
+database, sehingga `orgId` pada `AiRun`/`AiArtifact` tidak diperlukan sebagai
+batas tenant.
+
+Yang TETAP berlaku dari temuan ini dan sudah ditutup: scope lokasi pada jalur
+baca/ekspor AI (DECISIONS 154 B9) — itu membatasi ANTAR-PENGGUNA di dalam satu
+organisasi, bukan antar-tenant.
+
+Syarat yang harus dipegang: **jangan pernah mengarahkan dua klien ke database
+yang sama.** Bila kelak modelnya berubah, temuan ini hidup kembali sebagai P0.
 
 ---
 
@@ -602,6 +634,26 @@ dapat diaudit.
 
 **Menunggu keputusan user.** Setelah itu: golden test "menambah laporan tanggal
 berikutnya tidak mengubah snapshot tanggal lama".
+
+---
+
+**PEMUTAKHIRAN 28 Juli 2026 — sudah dikerjakan.** User memutuskan: **as-of
+tanggal laporan** (data produksi masih sedikit, jadi diubah sekarang sebelum
+menumpuk).
+
+`getLocationsProgress(ids, { asOf })` ditambahkan:
+
+- realisasi hanya dari laporan counted dengan `report_date <= asOf`;
+- revisi RAB & baseline yang dipakai adalah yang EFEKTIF pada tanggal itu
+  (`createdAt <= asOf` dan belum digantikan saat itu), bukan yang aktif sekarang;
+- minggu rencana dihitung terhadap `asOf`, bukan jam dinding.
+
+`finalSnapshot` laporan harian memanggilnya dengan `asOf: report.reportDate`.
+Tanpa `asOf` perilakunya tidak berubah — dashboard dan halaman progress tetap
+menampilkan posisi terkini, sebagaimana mestinya.
+
+Utang: golden test "menambah laporan tanggal berikutnya tidak mengubah snapshot
+tanggal lama" butuh PostgreSQL, dijalankan di CI.
 
 ---
 
@@ -839,6 +891,19 @@ defense-in-depth SETELAH scoping aplikasi benar — bukan penggantinya.
 
 ---
 
+**PEMUTAKHIRAN 28 Juli 2026 — dipecah menurut model deployment.**
+
+Bagian **tenant** (composite FK ber-`orgId`, larangan kontrak/vendor lintas-org)
+TIDAK BERLAKU: satu database hanya berisi satu organisasi.
+
+Bagian **invariant lokal TETAP BERLAKU dan tetap utang**, karena tidak ada
+hubungannya dengan tenancy: jumlah uang/volume non-negatif, retensi ≤ nilai
+termin, tanggal akhir ≥ tanggal mulai, lat/lng dalam rentang, dan foto tepat
+punya salah satu parent (report XOR activity). Ini yang akan dikerjakan dari
+temuan DATA-01, dengan query preflight lebih dulu.
+
+---
+
 ## DATA-02 — Setting, audit, dan sebagian data domain bersifat global
 
 **Prioritas:** P2 / Sedang; naik menjadi P0 bila multi-org aktif
@@ -889,6 +954,19 @@ effectiveFrom)`, dan halaman `/sistem` membaca metrik global.
 temuan ini P2. Begitu organisasi kedua masuk, ia naik P0 — dan menambah `orgId`
 setelah data menumpuk jauh lebih mahal. Karena itu saya setuju ini dikerjakan
 SEBELUM organisasi kedua, bukan sesudah.
+
+---
+
+**PEMUTAKHIRAN 28 Juli 2026 — TIDAK BERLAKU sebagai isu tenancy.**
+
+Karena satu database = satu organisasi, "global" dan "tenant-local" berimpit:
+branding, kredensial WAHA, folder Drive, dan audit log memang milik satu
+organisasi itu. Klasifikasi yang saya usulkan di atas tetap berguna sebagai
+dokumentasi, tetapi tidak ada pekerjaan `orgId` yang perlu dikerjakan.
+
+Yang tersisa dari temuan ini dan tetap valid: **secret sebaiknya di environment
+variable, bukan baris database biasa** — itu soal pengelolaan rahasia, bukan
+tenancy.
 
 ---
 
@@ -1144,6 +1222,19 @@ Perbaikan yang tidak menimbulkan run ganda: tambahkan `push: branches: [dev]`
 DENGAN `concurrency` per-ref yang sudah ada, atau tegakkan aturan bahwa `dev`
 selalu punya PR terbuka ke `main`. Saya usulkan yang pertama; menunggu
 persetujuan karena ini menyentuh perilaku CI yang sudah pernah diputuskan.
+
+---
+
+**PEMUTAKHIRAN 28 Juli 2026 — keputusan user: JALANKAN SEPERTI SEKARANG.**
+
+Pemicu `push: branches: [dev]` tidak ditambahkan. Konsekuensi yang diterima:
+selama `dev` tidak punya PR terbuka ke `main`, push ke `dev` tidak menjalankan
+CI. Dalam praktik kerja repo ini `dev` hampir selalu punya PR terbuka, jadi
+celahnya sempit.
+
+Saran yang tetap saya sampaikan dan belum dikerjakan karena butuh akses setelan
+GitHub (bukan kode): nyalakan **branch protection** pada `main` — wajib PR dan
+wajib seluruh check hijau sebelum merge.
 
 ---
 

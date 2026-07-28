@@ -203,6 +203,30 @@ const ROLE_CREATE_MATRIX: Partial<Record<UserRole, UserRole[]>> = {
   site_manager: ["field_supervisor"],
 };
 
+/**
+ * Peringkat peran — angka KECIL = lebih tinggi. Dipakai proteksi akun: seorang
+ * admin tidak boleh mereset password atau menonaktifkan akun yang setingkat
+ * atau lebih tinggi darinya, supaya satu akun yang bocor tidak bisa mengambil
+ * alih seluruh sistem (DECISIONS 165).
+ */
+const ROLE_RANK: Record<UserRole, number> = {
+  super_admin: 0,
+  program_director: 1,
+  regional_manager: 2,
+  project_manager: 3,
+  site_manager: 4,
+  field_supervisor: 5,
+  exec_viewer: 6,
+};
+
+/** `actor` berperingkat lebih tinggi daripada `target` (bukan setingkat). */
+export function outranks(actor: UserRole, target: UserRole): boolean {
+  return ROLE_RANK[actor] < ROLE_RANK[target];
+}
+
+/** Peran yang boleh mengelola akun — dasar proteksi "admin aktif terakhir". */
+export const ADMIN_ROLES: UserRole[] = ALL_ROLES.filter((r) => can(r, "user.manage"));
+
 /** Daftar peran yang boleh dibuat oleh `role` (kosong = tidak boleh membuat user). */
 export function creatableRoles(role: UserRole): UserRole[] {
   return ROLE_CREATE_MATRIX[role] ?? [];
