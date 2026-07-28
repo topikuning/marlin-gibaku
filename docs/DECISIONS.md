@@ -3898,3 +3898,45 @@ dihapus — membiarkannya justru mengundang pemakaian ulang yang menghidupkan la
 `pdf/document.ts` tetap (dipakai `harian-kkp`, `periodik-kkp`, `kegiatan`).
 
 Verifikasi: typecheck ✓ · lint ✓ · unit **428** ✓ · build ✓.
+
+---
+
+## 163 · 2026-07-28 · Nama hari ganda diperbaiki di sumber + mesin rencana harian
+
+### Nama hari disebut dua kali (temuan user)
+
+Blanko harian menulis "Hari: Minggu" lalu "Tanggal: **Minggu**, 26 Juli 2026",
+dan caption WhatsApp bahkan "**Minggu, Minggu**, 26 Juli 2026". Sebabnya
+`tanggalFull` memakai `dateStyle: "full"` yang SUDAH memuat nama hari, lalu di
+hilir digabung lagi dengan `hari`. Diperbaiki di sumber (`daily-report/queries.ts`
+→ `dateStyle: "long"`), sehingga empat tempat ikut benar sekaligus: blanko layar,
+PDF harian, dua caption WhatsApp, dan Excel harian. Tidak ada penambal per-tempat.
+
+### Rencana mingguan → rencana harian (`lib/plan/rencana-harian.ts`)
+
+Blanko menuntut kolom "Rencana Pekerjaan" per HARI, sedangkan rencana disimpan
+per MINGGU (`WeeklyPlan`). Keputusan user: pecah jadi harian **berdasarkan alur
+dan metode pekerjaan**, bukan mengulang target minggu di tiap hari.
+
+Memakai mesin yang sudah ada, bukan aturan baru:
+
+- **Hari mana** — `placeItems` (sequencing) menempatkan tiap item pada jendela
+  tahapnya menurut tipe unit + metode kerja (persiapan → tanah → struktur →
+  arsitektur → MEP → finishing, dengan presedensi antar tahap); jendela fraksi
+  itu dipetakan ke hari ke-berapa dalam minggu rencana.
+- **Berapa banyak** — `categoryWeeklyIncrements` menyebar volume dalam jendela
+  itu memakai kurva-S (lonceng), sama seperti penyebaran bobot di kurva-S.
+- **Σ harian = target mingguan PERSIS** — `allocateRounded` (3 desimal, presisi
+  volume).
+
+`allocateRounded` diangkat dari `scurve/kkp-sheet.ts` ke `lib/round-alloc.ts`
+supaya dipakai bersama tanpa digandakan.
+
+Verifikasi: typecheck ✓ · lint ✓ · unit **436** (+8: Σ harian = target, tidak ada
+volume negatif, urutan metode kerja — galian mulai sebelum pengecatan, kumulatif
+monoton berakhir di target, hari di luar rentang dijepit) · build ✓.
+
+**Belum selesai (lanjutan permintaan user)**: susunan blanko harian mengikuti PDF
+contoh (blok RENCANA | REALISASI berdampingan, kolom material DITOLAK, sel SHOP
+DRAWING kosong, blok TTD Inspector/Pelaksana) dan logo pemilik pekerjaan yang
+bisa diunggah di menu Sistem.

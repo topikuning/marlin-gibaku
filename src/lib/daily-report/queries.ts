@@ -412,7 +412,12 @@ export async function getHariIniLocation(locationId: string): Promise<HariIniLoc
 // ─────────────────────────────────────────────────────────────
 
 const hariFmt = new Intl.DateTimeFormat("id-ID", { weekday: "long", timeZone: "Asia/Jakarta" });
-const tanggalFullFmt = new Intl.DateTimeFormat("id-ID", { dateStyle: "full", timeZone: "Asia/Jakarta" });
+// TANPA nama hari — nama hari sudah disediakan `hari` secara terpisah. Dulu
+// `dateStyle: "full"` memuat nama hari juga, sehingga setiap penggabungan
+// "hari + tanggal" menghasilkan sebutan ganda: blanko harian menulis
+// "Hari: Minggu" lalu "Tanggal: Minggu, 26 Juli 2026", dan caption WhatsApp
+// bahkan "Minggu, Minggu, 26 Juli 2026" (temuan user 2026-07-27).
+const tanggalFullFmt = new Intl.DateTimeFormat("id-ID", { dateStyle: "long", timeZone: "Asia/Jakarta" });
 
 function snapshotToKkp(snap: FinalSnapshot): KkpDailyData {
   const d = parseDateKey(snap.reportDate)!;
