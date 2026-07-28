@@ -48,9 +48,10 @@ ALTER TABLE "locations" ADD CONSTRAINT "locations_gps_range_ck" CHECK (
   ("gps_lat" IS NULL OR ("gps_lat" >= -90 AND "gps_lat" <= 90)) AND
   ("gps_lng" IS NULL OR ("gps_lng" >= -180 AND "gps_lng" <= 180))
 );
+-- Katalog master memakai nama kolom latitude/longitude, bukan gps_lat/gps_lng.
 ALTER TABLE "master_locations" ADD CONSTRAINT "master_locations_gps_range_ck" CHECK (
-  ("gps_lat" IS NULL OR ("gps_lat" >= -90 AND "gps_lat" <= 90)) AND
-  ("gps_lng" IS NULL OR ("gps_lng" >= -180 AND "gps_lng" <= 180))
+  ("latitude" IS NULL OR ("latitude" >= -90 AND "latitude" <= 90)) AND
+  ("longitude" IS NULL OR ("longitude" >= -180 AND "longitude" <= 180))
 );
 ALTER TABLE "photos" ADD CONSTRAINT "photos_exif_gps_range_ck" CHECK (
   ("exif_gps_lat" IS NULL OR ("exif_gps_lat" >= -90 AND "exif_gps_lat" <= 90)) AND
