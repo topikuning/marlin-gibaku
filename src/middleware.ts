@@ -13,6 +13,15 @@ const SESSION_COOKIE = "marlin_session";
  */
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  // Prototype UI terisolasi: hanya publik saat flag eksplisit aktif. Saat flag
+  // mati, request mengikuti guard sesi normal dan route-nya sendiri notFound().
+  if (
+    process.env.ENABLE_UI_PROTOTYPE === "true" &&
+    (pathname === "/prototype/ui-rebuild" ||
+      pathname.startsWith("/prototype/ui-rebuild/"))
+  ) {
+    return NextResponse.next();
+  }
   if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
     return NextResponse.next();
   }
