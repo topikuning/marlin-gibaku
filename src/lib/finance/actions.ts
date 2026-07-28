@@ -4,11 +4,12 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { applyDisbursementTx, applyPaymentTx, FinanceGuardError } from "./apply";
-import { audit } from "@/lib/audit";
+import { auditIn } from "@/lib/audit";
 import {
   requireCapability,
   requireLocationAccess,
   hasLocationAccess,
+  requestIp,
   ForbiddenError,
   type SessionUser,
 } from "@/lib/auth/session";
@@ -126,6 +127,37 @@ function firstError(error: z.ZodError): FinanceActionState {
 }
 
 /** Revalidate halaman portfolio + halaman keuangan lokasi terkait. */
+/**
+ * Mutasi UANG/STATUS + auditnya dalam SATU transaksi (AUDIT-01).
+ *
+ * Sebelumnya audit ditulis SETELAH mutasi commit dan kegagalannya ditelan, jadi
+ * perubahan uang bisa berhasil tanpa jejak. Di sini keduanya sehidup-semati:
+ * `fn` gagal (mis. GuardError karena transisi tidak sah) ⇒ tidak ada audit;
+ * penulisan audit gagal ⇒ mutasinya ikut dibatalkan.
+ *
+ * IP dibaca SEBELUM transaksi dibuka supaya tidak ada pembacaan header di
+ * tengah transaksi. `jejak` menerima hasil `fn` karena untuk pembuatan data
+ * baru id-nya baru ada setelah row-nya jadi.
+ */
+async function mutasiBerjejak<T>(
+  actorId: string,
+  fn: (tx: Prisma.TransactionClient) => Promise<T>,
+  jejak: (hasil: T) => {
+    action: string;
+    resourceType: string;
+    resourceId: string;
+    payload?: Record<string, unknown>;
+  },
+): Promise<T> {
+  const ip = (await requestIp()) ?? null;
+  return db.$transaction(async (tx) => {
+    const hasil = await fn(tx);
+    const j = jejak(hasil);
+    await auditIn(tx, actorId, j.action, j.resourceType, j.resourceId, j.payload, ip);
+    return hasil;
+  });
+}
+
 async function revalidateFinance(locationIds: string[]): Promise<void> {
   revalidatePath("/keuangan");
   if (locationIds.length === 0) return;
@@ -193,7 +225,9 @@ export async function setBudgetLine(_prev: FinanceActionState, formData: FormDat
     const d = parsed.data;
     await requireLocationAccess(actor, d.locationId);
 
-    const row = await db.$transaction(async (tx) => {
+    const row = await mutasiBerjejak(
+      actor.id,
+      async (tx) => {
       await tx.budgetLine.updateMany({
         where: { locationId: d.locationId, category: d.category, status: "disetujui" },
         data: { status: "batal" },
@@ -209,12 +243,15 @@ export async function setBudgetLine(_prev: FinanceActionState, formData: FormDat
           approvedById: actor.id,
         },
       });
-    });
-    await audit(actor.id, "finance.budget.set", "budget_line", row.id, {
-      locationId: d.locationId,
-      category: d.category,
-      amount: d.amount,
-    });
+      },
+      (row) => ({
+        action: "finance.budget.set",
+        resourceType: "budget_line",
+        resourceId: row.id,
+        payload: { locationId: d.locationId, category: d.category, amount: d.amount },
+      }),
+    );
+    void row;
     await revalidateFinance([d.locationId]);
     return { success: `Budget kategori ${d.category} diperbarui.` };
   });
@@ -258,32 +295,35 @@ export async function createCommitment(_prev: FinanceActionState, formData: Form
       return { error: "Vendor wajib diisi untuk PO / kontrak vendor." };
     }
 
-    let commitment;
     try {
-      commitment = await db.commitment.create({
-        data: {
-          locationId: d.locationId,
-          vendorId,
-          type: d.type,
-          number: d.number,
-          description: d.description,
-          category: d.category,
-          amount: d.amount,
-          dueDate: d.dueDate ?? null,
-          status: "diajukan",
-          createdById: actor.id,
-        },
-      });
+      await mutasiBerjejak(
+        actor.id,
+        (tx) =>
+          tx.commitment.create({
+            data: {
+              locationId: d.locationId,
+              vendorId,
+              type: d.type,
+              number: d.number,
+              description: d.description,
+              category: d.category,
+              amount: d.amount,
+              dueDate: d.dueDate ?? null,
+              status: "diajukan",
+              createdById: actor.id,
+            },
+          }),
+        (commitment) => ({
+          action: "finance.commitment.create",
+          resourceType: "commitment",
+          resourceId: commitment.id,
+          payload: { locationId: d.locationId, type: d.type, number: d.number, amount: d.amount },
+        }),
+      );
     } catch (e) {
       if (isUniqueViolation(e)) return { error: `Nomor ${d.number} sudah dipakai di lokasi ini.` };
       throw e;
     }
-    await audit(actor.id, "finance.commitment.create", "commitment", commitment.id, {
-      locationId: d.locationId,
-      type: d.type,
-      number: d.number,
-      amount: d.amount,
-    });
     await revalidateFinance([d.locationId]);
     return { success: `Komitmen ${d.number} diajukan.` };
   });
@@ -310,12 +350,22 @@ export async function approveCommitment(_prev: FinanceActionState, formData: For
     const c = await loadCommitmentScoped(actor, parsed.data.id);
     const eyes = assertFourEyes(actor, c.createdById);
     // updateMany dgn syarat status: race-safe — hanya dari "diajukan"
-    const res = await db.commitment.updateMany({
-      where: { id: c.id, status: "diajukan" },
-      data: { status: "disetujui", approvedById: actor.id, approvedAt: new Date() },
-    });
-    if (res.count === 0) return { error: "Hanya komitmen berstatus diajukan yang bisa disetujui." };
-    await audit(actor.id, "finance.commitment.approve", "commitment", c.id, { number: c.number, ...eyes });
+    await mutasiBerjejak(
+      actor.id,
+      async (tx) => {
+        const res = await tx.commitment.updateMany({
+          where: { id: c.id, status: "diajukan" },
+          data: { status: "disetujui", approvedById: actor.id, approvedAt: new Date() },
+        });
+        if (res.count === 0) throw new GuardError("Hanya komitmen berstatus diajukan yang bisa disetujui.");
+      },
+      () => ({
+        action: "finance.commitment.approve",
+        resourceType: "commitment",
+        resourceId: c.id,
+        payload: { number: c.number, ...eyes },
+      }),
+    );
     await revalidateFinance([c.locationId]);
     return { success: `Komitmen ${c.number} disetujui.` };
   });
@@ -327,15 +377,22 @@ export async function rejectCommitment(_prev: FinanceActionState, formData: Form
     const parsed = idReasonSchema.safeParse({ id: formData.get("id"), reason: formData.get("reason") });
     if (!parsed.success) return firstError(parsed.error);
     const c = await loadCommitmentScoped(actor, parsed.data.id);
-    const res = await db.commitment.updateMany({
-      where: { id: c.id, status: "diajukan" },
-      data: { status: "ditolak", approvedById: actor.id, approvedAt: new Date() },
-    });
-    if (res.count === 0) return { error: "Hanya komitmen berstatus diajukan yang bisa ditolak." };
-    await audit(actor.id, "finance.commitment.reject", "commitment", c.id, {
-      number: c.number,
-      reason: parsed.data.reason,
-    });
+    await mutasiBerjejak(
+      actor.id,
+      async (tx) => {
+        const res = await tx.commitment.updateMany({
+          where: { id: c.id, status: "diajukan" },
+          data: { status: "ditolak", approvedById: actor.id, approvedAt: new Date() },
+        });
+        if (res.count === 0) throw new GuardError("Hanya komitmen berstatus diajukan yang bisa ditolak.");
+      },
+      () => ({
+        action: "finance.commitment.reject",
+        resourceType: "commitment",
+        resourceId: c.id,
+        payload: { number: c.number, reason: parsed.data.reason },
+      }),
+    );
     await revalidateFinance([c.locationId]);
     return { success: `Komitmen ${c.number} ditolak.` };
   });
@@ -348,12 +405,22 @@ export async function closeCommitment(_prev: FinanceActionState, formData: FormD
     const parsed = idSchema.safeParse({ id: formData.get("id") });
     if (!parsed.success) return firstError(parsed.error);
     const c = await loadCommitmentScoped(actor, parsed.data.id);
-    const res = await db.commitment.updateMany({
-      where: { id: c.id, status: "disetujui", closedAt: null },
-      data: { closedAt: new Date() },
-    });
-    if (res.count === 0) return { error: "Hanya komitmen disetujui yang belum ditutup yang bisa ditutup." };
-    await audit(actor.id, "finance.commitment.close", "commitment", c.id, { number: c.number });
+    await mutasiBerjejak(
+      actor.id,
+      async (tx) => {
+        const res = await tx.commitment.updateMany({
+          where: { id: c.id, status: "disetujui", closedAt: null },
+          data: { closedAt: new Date() },
+        });
+        if (res.count === 0) throw new GuardError("Hanya komitmen disetujui yang belum ditutup yang bisa ditutup.");
+      },
+      () => ({
+        action: "finance.commitment.close",
+        resourceType: "commitment",
+        resourceId: c.id,
+        payload: { number: c.number },
+      }),
+    );
     await revalidateFinance([c.locationId]);
     return { success: `Komitmen ${c.number} ditutup.` };
   });
@@ -389,7 +456,9 @@ export async function createExpense(_prev: FinanceActionState, formData: FormDat
     const d = parsed.data;
     await requireLocationAccess(actor, d.locationId);
 
-    const expense = await db.$transaction(async (tx) => {
+    await mutasiBerjejak(
+      actor.id,
+      async (tx) => {
       if (d.commitmentId) {
         // Row lock — dua realisasi paralel atas komitmen yang sama tidak boleh
         // sama-sama lolos guard sisa (B6, pola sama dengan applyPaymentTx).
@@ -428,12 +497,14 @@ export async function createExpense(_prev: FinanceActionState, formData: FormDat
           createdById: actor.id,
         },
       });
-    });
-    await audit(actor.id, "finance.expense.create", "expense", expense.id, {
-      locationId: d.locationId,
-      commitmentId: d.commitmentId ?? null,
-      amount: d.amount,
-    });
+      },
+      (expense) => ({
+        action: "finance.expense.create",
+        resourceType: "expense",
+        resourceId: expense.id,
+        payload: { locationId: d.locationId, commitmentId: d.commitmentId ?? null, amount: d.amount },
+      }),
+    );
     await revalidateFinance([d.locationId]);
     return { success: "Realisasi diajukan." };
   });
@@ -456,12 +527,22 @@ export async function approveExpense(_prev: FinanceActionState, formData: FormDa
     if (!parsed.success) return firstError(parsed.error);
     const e = await loadExpenseScoped(actor, parsed.data.id);
     const eyes = assertFourEyes(actor, e.createdById);
-    const res = await db.expense.updateMany({
-      where: { id: e.id, status: "diajukan" },
-      data: { status: "disetujui", approvedById: actor.id, approvedAt: new Date() },
-    });
-    if (res.count === 0) return { error: "Hanya realisasi berstatus diajukan yang bisa disetujui." };
-    await audit(actor.id, "finance.expense.approve", "expense", e.id, eyes);
+    await mutasiBerjejak(
+      actor.id,
+      async (tx) => {
+        const res = await tx.expense.updateMany({
+          where: { id: e.id, status: "diajukan" },
+          data: { status: "disetujui", approvedById: actor.id, approvedAt: new Date() },
+        });
+        if (res.count === 0) throw new GuardError("Hanya realisasi berstatus diajukan yang bisa disetujui.");
+      },
+      () => ({
+        action: "finance.expense.approve",
+        resourceType: "expense",
+        resourceId: e.id,
+        payload: eyes,
+      }),
+    );
     await revalidateFinance([e.locationId]);
     return { success: "Realisasi disetujui." };
   });
@@ -473,12 +554,22 @@ export async function rejectExpense(_prev: FinanceActionState, formData: FormDat
     const parsed = idReasonSchema.safeParse({ id: formData.get("id"), reason: formData.get("reason") });
     if (!parsed.success) return firstError(parsed.error);
     const e = await loadExpenseScoped(actor, parsed.data.id);
-    const res = await db.expense.updateMany({
-      where: { id: e.id, status: "diajukan" },
-      data: { status: "ditolak", approvedById: actor.id, approvedAt: new Date() },
-    });
-    if (res.count === 0) return { error: "Hanya realisasi berstatus diajukan yang bisa ditolak." };
-    await audit(actor.id, "finance.expense.reject", "expense", e.id, { reason: parsed.data.reason });
+    await mutasiBerjejak(
+      actor.id,
+      async (tx) => {
+        const res = await tx.expense.updateMany({
+          where: { id: e.id, status: "diajukan" },
+          data: { status: "ditolak", approvedById: actor.id, approvedAt: new Date() },
+        });
+        if (res.count === 0) throw new GuardError("Hanya realisasi berstatus diajukan yang bisa ditolak.");
+      },
+      () => ({
+        action: "finance.expense.reject",
+        resourceType: "expense",
+        resourceId: e.id,
+        payload: { reason: parsed.data.reason },
+      }),
+    );
     await revalidateFinance([e.locationId]);
     return { success: "Realisasi ditolak." };
   });
@@ -520,29 +611,33 @@ export async function createInvoice(_prev: FinanceActionState, formData: FormDat
       }
     }
 
-    let invoice;
     try {
-      invoice = await db.invoice.create({
-        data: {
-          locationId: d.locationId,
-          commitmentId: d.commitmentId ?? null,
-          number: d.number,
-          amount: d.amount,
-          invoiceDate: d.invoiceDate,
-          dueDate: d.dueDate ?? null,
-          status: "diajukan",
-          createdById: actor.id,
-        },
-      });
+      await mutasiBerjejak(
+        actor.id,
+        (tx) =>
+          tx.invoice.create({
+            data: {
+              locationId: d.locationId,
+              commitmentId: d.commitmentId ?? null,
+              number: d.number,
+              amount: d.amount,
+              invoiceDate: d.invoiceDate,
+              dueDate: d.dueDate ?? null,
+              status: "diajukan",
+              createdById: actor.id,
+            },
+          }),
+        (invoice) => ({
+          action: "finance.invoice.create",
+          resourceType: "invoice",
+          resourceId: invoice.id,
+          payload: { locationId: d.locationId, number: d.number, amount: d.amount },
+        }),
+      );
     } catch (e) {
       if (isUniqueViolation(e)) return { error: `Nomor invoice ${d.number} sudah dipakai di lokasi ini.` };
       throw e;
     }
-    await audit(actor.id, "finance.invoice.create", "invoice", invoice.id, {
-      locationId: d.locationId,
-      number: d.number,
-      amount: d.amount,
-    });
     await revalidateFinance([d.locationId]);
     return { success: `Invoice ${d.number} diajukan.` };
   });
@@ -565,12 +660,22 @@ export async function approveInvoice(_prev: FinanceActionState, formData: FormDa
     if (!parsed.success) return firstError(parsed.error);
     const inv = await loadInvoiceScoped(actor, parsed.data.id);
     const eyes = assertFourEyes(actor, inv.createdById);
-    const res = await db.invoice.updateMany({
-      where: { id: inv.id, status: "diajukan" },
-      data: { status: "disetujui", approvedById: actor.id },
-    });
-    if (res.count === 0) return { error: "Hanya invoice berstatus diajukan yang bisa disetujui." };
-    await audit(actor.id, "finance.invoice.approve", "invoice", inv.id, { number: inv.number, ...eyes });
+    await mutasiBerjejak(
+      actor.id,
+      async (tx) => {
+        const res = await tx.invoice.updateMany({
+          where: { id: inv.id, status: "diajukan" },
+          data: { status: "disetujui", approvedById: actor.id },
+        });
+        if (res.count === 0) throw new GuardError("Hanya invoice berstatus diajukan yang bisa disetujui.");
+      },
+      () => ({
+        action: "finance.invoice.approve",
+        resourceType: "invoice",
+        resourceId: inv.id,
+        payload: { number: inv.number, ...eyes },
+      }),
+    );
     await revalidateFinance([inv.locationId]);
     return { success: `Invoice ${inv.number} disetujui.` };
   });
@@ -582,15 +687,22 @@ export async function rejectInvoice(_prev: FinanceActionState, formData: FormDat
     const parsed = idReasonSchema.safeParse({ id: formData.get("id"), reason: formData.get("reason") });
     if (!parsed.success) return firstError(parsed.error);
     const inv = await loadInvoiceScoped(actor, parsed.data.id);
-    const res = await db.invoice.updateMany({
-      where: { id: inv.id, status: "diajukan" },
-      data: { status: "ditolak", approvedById: actor.id },
-    });
-    if (res.count === 0) return { error: "Hanya invoice berstatus diajukan yang bisa ditolak." };
-    await audit(actor.id, "finance.invoice.reject", "invoice", inv.id, {
-      number: inv.number,
-      reason: parsed.data.reason,
-    });
+    await mutasiBerjejak(
+      actor.id,
+      async (tx) => {
+        const res = await tx.invoice.updateMany({
+          where: { id: inv.id, status: "diajukan" },
+          data: { status: "ditolak", approvedById: actor.id },
+        });
+        if (res.count === 0) throw new GuardError("Hanya invoice berstatus diajukan yang bisa ditolak.");
+      },
+      () => ({
+        action: "finance.invoice.reject",
+        resourceType: "invoice",
+        resourceId: inv.id,
+        payload: { number: inv.number, reason: parsed.data.reason },
+      }),
+    );
     await revalidateFinance([inv.locationId]);
     return { success: `Invoice ${inv.number} ditolak.` };
   });
@@ -623,21 +735,23 @@ export async function addPayment(_prev: FinanceActionState, formData: FormData):
 
     // Row-lock + guard + create dalam SATU jalur teruji (lib/finance/apply.ts)
     // — dua pembayaran paralel tidak lagi bisa sama-sama lolos guard (B6).
-    const result = await db.$transaction(async (tx) =>
-      applyPaymentTx(tx, {
-        invoiceId: d.invoiceId,
-        amount: d.amount,
-        paidDate: d.paidDate,
-        note: d.note || null,
-        createdById: actor.id,
+    const result = await mutasiBerjejak(
+      actor.id,
+      (tx) =>
+        applyPaymentTx(tx, {
+          invoiceId: d.invoiceId,
+          amount: d.amount,
+          paidDate: d.paidDate,
+          note: d.note || null,
+          createdById: actor.id,
+        }),
+      (r) => ({
+        action: "finance.payment.add",
+        resourceType: "payment_out",
+        resourceId: r.payment.id,
+        payload: { invoiceId: d.invoiceId, amount: d.amount, newStatus: r.newStatus },
       }),
     );
-
-    await audit(actor.id, "finance.payment.add", "payment_out", result.payment.id, {
-      invoiceId: d.invoiceId,
-      amount: d.amount,
-      newStatus: result.newStatus,
-    });
     await revalidateFinance([scoped.locationId]);
     return {
       success: result.newStatus === "lunas" ? "Pembayaran dicatat — invoice lunas." : "Pembayaran parsial dicatat.",
@@ -683,28 +797,32 @@ export async function createOwnerBilling(_prev: FinanceActionState, formData: Fo
       }
     }
 
-    let billing;
     try {
-      billing = await db.ownerBilling.create({
-        data: {
-          contractId: d.contractId,
-          terminNo: d.terminNo,
-          description: d.description || null,
-          amount: d.amount,
-          retentionHeld: d.retentionHeld,
-          status: "draft",
-          createdById: actor.id,
-        },
-      });
+      await mutasiBerjejak(
+        actor.id,
+        (tx) =>
+          tx.ownerBilling.create({
+            data: {
+              contractId: d.contractId,
+              terminNo: d.terminNo,
+              description: d.description || null,
+              amount: d.amount,
+              retentionHeld: d.retentionHeld,
+              status: "draft",
+              createdById: actor.id,
+            },
+          }),
+        (billing) => ({
+          action: "finance.billing.create",
+          resourceType: "owner_billing",
+          resourceId: billing.id,
+          payload: { contractId: d.contractId, terminNo: d.terminNo, amount: d.amount },
+        }),
+      );
     } catch (e) {
       if (isUniqueViolation(e)) return { error: `Termin ${d.terminNo} sudah ada untuk kontrak ini.` };
       throw e;
     }
-    await audit(actor.id, "finance.billing.create", "owner_billing", billing.id, {
-      contractId: d.contractId,
-      terminNo: d.terminNo,
-      amount: d.amount,
-    });
     await revalidateFinance(contract.package.locations.map((l) => l.id));
     return { success: `Termin ${d.terminNo} dibuat (draft).` };
   });
@@ -727,12 +845,22 @@ export async function submitOwnerBilling(_prev: FinanceActionState, formData: Fo
     const parsed = idSchema.safeParse({ id: formData.get("id") });
     if (!parsed.success) return firstError(parsed.error);
     const { billing, locationIds } = await loadBillingScoped(actor, parsed.data.id);
-    const res = await db.ownerBilling.updateMany({
-      where: { id: billing.id, status: "draft" },
-      data: { status: "diajukan", billedDate: jakartaToday() },
-    });
-    if (res.count === 0) return { error: "Hanya termin draft yang bisa diajukan." };
-    await audit(actor.id, "finance.billing.submit", "owner_billing", billing.id, { terminNo: billing.terminNo });
+    await mutasiBerjejak(
+      actor.id,
+      async (tx) => {
+        const res = await tx.ownerBilling.updateMany({
+          where: { id: billing.id, status: "draft" },
+          data: { status: "diajukan", billedDate: jakartaToday() },
+        });
+        if (res.count === 0) throw new GuardError("Hanya termin draft yang bisa diajukan.");
+      },
+      () => ({
+        action: "finance.billing.submit",
+        resourceType: "owner_billing",
+        resourceId: billing.id,
+        payload: { terminNo: billing.terminNo },
+      }),
+    );
     await revalidateFinance(locationIds);
     return { success: `Termin ${billing.terminNo} diajukan.` };
   });
@@ -745,12 +873,22 @@ export async function approveOwnerBilling(_prev: FinanceActionState, formData: F
     if (!parsed.success) return firstError(parsed.error);
     const { billing, locationIds } = await loadBillingScoped(actor, parsed.data.id);
     const eyes = assertFourEyes(actor, billing.createdById);
-    const res = await db.ownerBilling.updateMany({
-      where: { id: billing.id, status: "diajukan" },
-      data: { status: "disetujui" },
-    });
-    if (res.count === 0) return { error: "Hanya termin berstatus diajukan yang bisa disetujui." };
-    await audit(actor.id, "finance.billing.approve", "owner_billing", billing.id, { terminNo: billing.terminNo, ...eyes });
+    await mutasiBerjejak(
+      actor.id,
+      async (tx) => {
+        const res = await tx.ownerBilling.updateMany({
+          where: { id: billing.id, status: "diajukan" },
+          data: { status: "disetujui" },
+        });
+        if (res.count === 0) throw new GuardError("Hanya termin berstatus diajukan yang bisa disetujui.");
+      },
+      () => ({
+        action: "finance.billing.approve",
+        resourceType: "owner_billing",
+        resourceId: billing.id,
+        payload: { terminNo: billing.terminNo, ...eyes },
+      }),
+    );
     await revalidateFinance(locationIds);
     return { success: `Termin ${billing.terminNo} disetujui.` };
   });
@@ -762,15 +900,22 @@ export async function rejectOwnerBilling(_prev: FinanceActionState, formData: Fo
     const parsed = idReasonSchema.safeParse({ id: formData.get("id"), reason: formData.get("reason") });
     if (!parsed.success) return firstError(parsed.error);
     const { billing, locationIds } = await loadBillingScoped(actor, parsed.data.id);
-    const res = await db.ownerBilling.updateMany({
-      where: { id: billing.id, status: "diajukan" },
-      data: { status: "ditolak" },
-    });
-    if (res.count === 0) return { error: "Hanya termin berstatus diajukan yang bisa ditolak." };
-    await audit(actor.id, "finance.billing.reject", "owner_billing", billing.id, {
-      terminNo: billing.terminNo,
-      reason: parsed.data.reason,
-    });
+    await mutasiBerjejak(
+      actor.id,
+      async (tx) => {
+        const res = await tx.ownerBilling.updateMany({
+          where: { id: billing.id, status: "diajukan" },
+          data: { status: "ditolak" },
+        });
+        if (res.count === 0) throw new GuardError("Hanya termin berstatus diajukan yang bisa ditolak.");
+      },
+      () => ({
+        action: "finance.billing.reject",
+        resourceType: "owner_billing",
+        resourceId: billing.id,
+        payload: { terminNo: billing.terminNo, reason: parsed.data.reason },
+      }),
+    );
     await revalidateFinance(locationIds);
     return { success: `Termin ${billing.terminNo} ditolak.` };
   });
@@ -801,21 +946,23 @@ export async function addDisbursement(_prev: FinanceActionState, formData: FormD
     const { locationIds } = await loadBillingScoped(actor, d.billingId);
 
     // Lihat applyPaymentTx — pola lock yang sama untuk pencairan termin (B6).
-    const result = await db.$transaction(async (tx) =>
-      applyDisbursementTx(tx, {
-        billingId: d.billingId,
-        amount: d.amount,
-        receivedDate: d.receivedDate,
-        note: d.note || null,
-        createdById: actor.id,
+    const result = await mutasiBerjejak(
+      actor.id,
+      (tx) =>
+        applyDisbursementTx(tx, {
+          billingId: d.billingId,
+          amount: d.amount,
+          receivedDate: d.receivedDate,
+          note: d.note || null,
+          createdById: actor.id,
+        }),
+      (r) => ({
+        action: "finance.disbursement.add",
+        resourceType: "disbursement",
+        resourceId: r.disbursement.id,
+        payload: { billingId: d.billingId, amount: d.amount, newStatus: r.newStatus },
       }),
     );
-
-    await audit(actor.id, "finance.disbursement.add", "disbursement", result.disbursement.id, {
-      billingId: d.billingId,
-      amount: d.amount,
-      newStatus: result.newStatus,
-    });
     await revalidateFinance(locationIds);
     return {
       success: result.newStatus === "cair" ? "Pencairan dicatat — termin cair penuh." : "Pencairan parsial dicatat.",

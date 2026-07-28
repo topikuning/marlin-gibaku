@@ -352,6 +352,28 @@ akses; membatasinya per-organisasi justru mengizinkan nomor kontrak kembar.
 **Belum:** invariant di level database (paket & vendor satu organisasi) — lihat
 tanggapan DATA-01. Perbaikan ini menutup jalur aplikasi, bukan raw SQL.
 
+**PEMUTAKHIRAN 28 Juli 2026 — CHECK invariant lokal SUDAH DIPASANG.**
+
+Migrasi `20260728020000_data_integrity_checks` menambahkan:
+· foto: TEPAT SATU parent (`report_id` XOR `activity_id`), `report_item_id`
+  hanya boleh terisi bila `report_id` terisi, `bytes > 0`, EXIF lat/lng dalam rentang;
+· `locations` & `master_locations`: lat/lng dalam rentang bumi (katalog master
+  memakai kolom `latitude`/`longitude`, bukan `gps_lat`/`gps_lng`);
+· kontrak: nilai ≥ 0, durasi > 0, persentase 0..100, `end_date >= start_date`;
+· `rab_nodes` & `daily_report_items`: volume/harga/nilai tidak negatif;
+· keuangan: nilai ≥ 0, `due_date >= invoice_date`, dan
+  `retention_held <= amount` (retensi tidak melebihi nilai termin).
+
+Diverifikasi terhadap PostgreSQL 16 SUNGGUHAN, bukan dibaca ulang: `migrate
+deploy` seluruh riwayat lolos, `migrate diff` tidak menemukan drift, `db:seed`
+penuh (73 lokasi katalog, 7 RAB) lolos sehingga data sah tidak tertolak, dan
+tiap CHECK diuji MENOLAK data mustahil (retensi > termin, nilai kontrak negatif,
+lat/lng di luar rentang pada KEDUA tabel, tanggal terbalik, volume realisasi
+negatif, foto tanpa parent).
+
+Composite FK ber-`orgId` TIDAK dikerjakan — sesuai tanggapan di atas, model
+deployment satu-organisasi-satu-database membuatnya tidak berlaku.
+
 ---
 
 ## AUTH-03 — Administrasi pengguna dapat membaca/mengubah akun lintas-organisasi
@@ -821,6 +843,25 @@ fixture duplicate-name dengan lineage berbeda. Belum dikerjakan di commit ini
 supaya perubahan mesin penjadwalan tidak bercampur dengan perbaikan otorisasi —
 mesin itu punya 400+ baris uji korpus yang perlu dievaluasi ulang.
 
+**PEMUTAKHIRAN 28 Juli 2026 — SUDAH DIKERJAKAN.**
+
+`SchedItem`/`CategoryWeekly` kini membawa `categoryKey` (= `lineageKey` node
+kategori); SELURUH `Map` di `scheduleFromItems` di-key dengan kunci itu, nama
+hanya dipakai untuk `detectWorkType`/`classifyStage` dan label. `categoryWindowFrac`
+dipanggil `(nama, kunci)`. Pemanggil ikut disesuaikan: `rab/import.ts`
+(`catWindowWeeks` & matriks mingguan per-kategori di-key `lineageKey`),
+`periodic-report.ts` (kode kategori dicari lewat `codeByKey`), `seed/demo.ts`,
+serta `plan/suggest.ts` + `plan/suggest-core.ts` — gerbang prasyarat per (unit,
+tahap) di sana punya cacat yang sama dan ikut diperbaiki.
+
+Bukti uji (`tests/unit/sequencing.test.ts`, +2 kasus):
+· dua kategori bernama sama dengan lineage berbeda ⇒ **dua** profil terpisah,
+  bobot 50/50, jendela A selesai sebelum B mulai, Σ bobot 100, kurva berakhir 100;
+· mengganti NAMA kategori tidak mengubah `weightPct` maupun larik `weekly`
+  (identitas jadwal tidak bergeser).
+
+Kriteria penerimaan terpenuhi seluruhnya.
+
 ---
 
 ## DATA-01 — Integritas tenant antar-entitas tidak dijaga database
@@ -1022,6 +1063,23 @@ Foto byte-identik yang sah dipakai pada dua lokasi/organisasi ditolak. Sebalikny
 Belum diperbaiki di commit ini: ketiganya menyentuh migrasi + pipeline foto, dan
 saya memilih tidak mencampurnya dengan perbaikan otorisasi.
 
+**PEMUTAKHIRAN 28 Juli 2026 — SUDAH DIKERJAKAN (dedup + XOR + orphan).**
+
+· `Photo.locationId` ditambahkan (di-backfill dari parent laporan/kegiatan),
+  unique `sha256` GLOBAL diganti unique `(locationId, sha256)`. Foto identik yang
+  sah di DUA lokasi kini diterima; kirim ulang di lokasi yang SAMA ditolak —
+  keduanya dibuktikan langsung di Postgres.
+· `savePhotoForItem` menerima `locationId` (dialirkan dari laporan harian dan
+  kegiatan lapangan) dan mencari duplikat dengan kunci komposit itu.
+· Orphan R2: `db.photo.create` dibungkus try/catch — bila gagal (termasuk
+  tabrakan unique dari unggahan bersamaan), objek utama DAN thumbnail-nya
+  dihapus dari bucket, lalu dilaporkan sebagai duplikat, bukan error mentah.
+· CHECK XOR parent dipasang lewat migrasi DATA-01.
+
+Belum dikerjakan: status `pending/finalized` + job rekonsiliasi menyeluruh.
+Yang sekarang menutup kegagalan-setelah-upload pada jalur normal; sisa risikonya
+tinggal proses mati persis di antara `r2Put` dan `create`.
+
 ---
 
 ## AUDIT-01 — Audit log best-effort dan tidak atomik dengan mutasi
@@ -1069,6 +1127,34 @@ tepat.
 **Rencana:** pindahkan penulisan audit KE DALAM transaksi untuk mutasi
 berdampak-uang/status (keuangan, transisi laporan, kontrak), dan pertahankan
 best-effort untuk yang lain. Tambahkan `orgId` snapshot sekalian (DATA-02).
+
+**PEMUTAKHIRAN 28 Juli 2026 — SUDAH DIKERJAKAN untuk mutasi uang & status.**
+
+`src/lib/audit.ts` kini punya DUA fungsi dengan kontrak berbeda dan
+terdokumentasi: `audit()` tetap best-effort untuk peristiwa non-kritis, dan
+`auditIn(tx, …)` menulis DI DALAM transaksi pemanggil dan **tidak menelan
+error** — gagal menulis audit membatalkan mutasinya. IP dibaca sebelum transaksi
+dibuka supaya tidak ada pembacaan header di tengah transaksi.
+
+Penerapan:
+· `finance/actions.ts` — helper `mutasiBerjejak(actorId, fn, jejak)` membungkus
+  mutasi + auditnya dalam satu `$transaction`. SEMUA 15 aksi keuangan dipindah
+  ke sana (budget, komitmen buat/setujui/tolak/tutup, realisasi buat/setujui/
+  tolak, invoice buat/setujui/tolak, pembayaran, termin buat/ajukan/setujui/
+  tolak, pencairan). Guard `res.count === 0` yang dulu `return {error}` kini
+  `throw new GuardError` supaya transaksinya ikut batal — pesan ke user sama.
+· `daily-report/service.ts` — `transition()` adalah satu-satunya pintu perubahan
+  status laporan; auditnya dipindah ke dalam `$transaction` yang sudah ada,
+  sehingga submit/kembalikan/setujui/finalkan/buka-kunci semuanya atomik.
+
+Bukti uji (`tests/integration/audit-atomik.test.ts`, fault injection sungguhan):
+· penulisan audit dipaksa gagal di tengah transaksi ⇒ pembayaran TIDAK tersimpan,
+  status invoice tidak berubah, dan barisan auditnya juga tidak ada;
+· mutasi gagal (melebihi nilai invoice) ⇒ tidak ada baris audit yatim;
+· jalur sah ⇒ pembayaran dan auditnya sama-sama tersimpan.
+
+Belum dikerjakan: metric/alert/dead-letter untuk jalur best-effort, dan
+before/after + correlation ID di payload.
 
 ---
 
@@ -1293,6 +1379,38 @@ terang-terangan alih-alih mengklaim aman.
 Ketiga yang pertama butuh PostgreSQL; lingkungan kerja saya tidak punya, jadi
 akan dijalankan di CI. Itu alasan, bukan pembenaran — utangnya tetap utang.
 
+**PEMUTAKHIRAN 28 Juli 2026 — tiga dari empat utang SUDAH DIBAYAR.**
+
+PostgreSQL 16 dijalankan langsung di lingkungan kerja (bukan lagi ditunda ke CI),
+lalu ditulis tiga berkas uji integrasi baru:
+
+1. **Matriks negatif dua organisasi** — `tests/integration/tenancy-dua-organisasi.test.ts`
+   (5 kasus). DUA organisasi lengkap dibuat di SATU database, lalu dituntut:
+   super_admin org A ditolak pada lokasi org B dan sebaliknya; site_manager
+   hanya lokasi yang ditugaskan; `accessibleLocationIds = null` (peran lintas
+   lokasi) TETAP membawa filter organisasi lewat `locationScopeWhere` — inilah
+   `{}` lama yang jadi P0; varian relasi (laporan harian) juga tidak bocor;
+   paket organisasi lain tidak terbaca. Justru karena produksi single-org,
+   scoping `orgId` tidak pernah teruji tanpa fixture ini.
+2. **Race submit paralel** — `tests/integration/laporan-harian-race-asof.test.ts`.
+   Dua laporan BERBEDA di lokasi yang sama, masing-masing 60 m³ atas RAB 100 m³,
+   di-submit BERSAMAAN: tepat satu lolos, satu ditolak, dan Σ volume berstatus
+   counted tetap ≤ volume RAB (menguji advisory lock per lokasi, CALC-02).
+4. **Golden test as-of** — berkas yang sama. Laporan 5 Juli difinalkan SESUDAH
+   laporan 20 Juli masuk; progres "sekarang" 50%, tetapi `finalSnapshot`-nya
+   tetap 20%. Plus pemeriksaan langsung `getLocationProgress({asOf})` pada dua
+   tanggal (20% dan 50%). Catatan yang muncul dari uji ini: revisi RAB yang
+   dibuat BELAKANGAN memang tidak berlaku surut — perhitungan as-of memakai
+   revisi yang efektif pada tanggal itu, jadi fixture-nya harus di-back-date.
+
+Ditambah `tests/integration/audit-atomik.test.ts` (3 kasus, fault injection)
+untuk AUDIT-01. Suite integrasi: **8 berkas / 64 uji**, seluruhnya lulus terhadap
+PostgreSQL sungguhan; unit **453** lulus.
+
+**Masih utang:** butir 3 — parity output layar vs PDF vs Excel vs WhatsApp untuk
+satu fixture. Belum dikerjakan, dan saya sebut terang-terangan alih-alih
+menganggapnya tertutup oleh yang lain.
+
 ---
 
 ## 7. Backlog yang sudah diketahui dan dikonfirmasi
@@ -1497,3 +1615,42 @@ pembacaan kode + typecheck + lint + build, bukan uji lintas-tenant. Itu persis
 kelemahan yang ditunjuk TEST-01, dan menyebutnya di sini lebih berguna daripada
 mengklaim aman. Prioritas berikutnya: fixture dua organisasi + matriks negatif,
 lalu race test submit paralel di PostgreSQL.
+
+---
+
+### PEMUTAKHIRAN AKHIR 28 Juli 2026 — status seluruh 17 temuan
+
+Untuk verifikasi Codex / auditor berikutnya. Semua yang berlabel SELESAI punya
+blok `PEMUTAKHIRAN` di bagian temuannya masing-masing, lengkap dengan cara
+pembuktiannya.
+
+| ID | Status | Bukti |
+|---|---|---|
+| AUTH-01 | SELESAI | `hasLocationAccess` membuktikan `package.orgId` + uji dua organisasi |
+| AUTH-02 | SELESAI | 23 lookup ber-scope organisasi aktor |
+| AUTH-03 | SELESAI | `requireSameOrgUser` + `outranks` + proteksi admin aktif terakhir; unit test 7 kasus |
+| AUTH-04 | TIDAK BERLAKU | model deployment satu-organisasi-satu-database (DECISIONS 162) |
+| AUTH-05 | SELESAI | tiga route PDF menegakkan `report.export` |
+| CALC-01 | SELESAI | progres as-of tanggal laporan + golden test |
+| CALC-02 | SELESAI | advisory lock per lokasi + uji submit paralel |
+| CALC-03 | SELESAI | sentinel `grandTotal = 1` dibuang |
+| CALC-04 | SELESAI | identitas kategori = `lineageKey`; uji nama kembar + ganti nama |
+| DATA-01 | SELESAI (invariant lokal) | migrasi CHECK, diuji menolak 7 bentuk data mustahil |
+| DATA-02 | TIDAK BERLAKU | sda AUTH-04 |
+| STORE-01 | SELESAI (dedup + XOR + orphan) | unique `(locationId, sha256)`, cleanup objek R2 |
+| AUDIT-01 | SELESAI (uang & status) | `auditIn` dalam transaksi; uji fault injection |
+| SEC-01 | SELESAI | `/api/health` tidak membocorkan error database |
+| SUPPLY-01 | DIBLOKIR | menunggu rilis Prisma yang memutakhirkan rantai `valibot` |
+| CI-01 | KEPUTUSAN USER | jalankan seperti sekarang |
+| TEST-01 | SEBAGIAN | 3 dari 4 utang dibayar; parity output masih terbuka |
+
+**Yang masih terbuka dan saya sebut sendiri, bukan disembunyikan:**
+
+1. TEST-01 butir 3 — parity output layar vs PDF vs Excel vs WhatsApp.
+2. AUDIT-01 lanjutan — metric/alert/dead-letter untuk jalur best-effort, serta
+   before/after + correlation ID di payload.
+3. STORE-01 lanjutan — status `pending/finalized` + job rekonsiliasi R2.
+4. SUPPLY-01 — menunggu upstream.
+
+**Verifikasi commit ini:** typecheck ✓ · lint ✓ · unit **453** ✓ · build ✓ ·
+integrasi **8 berkas / 64 uji** ✓ terhadap PostgreSQL 16 sungguhan.

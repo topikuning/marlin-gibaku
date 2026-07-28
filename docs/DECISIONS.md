@@ -4099,3 +4099,46 @@ pulih dan migrasi terpasang penuh; `migrate diff` → tidak ada drift; skrip
 dijalankan lagi → no-op. Ditambah: `db:seed` penuh lolos, tiap CHECK diuji
 menolak data mustahil, dedup foto diuji lintas lokasi.
 typecheck ✓ · lint ✓ · unit **453** ✓ · build ✓.
+
+---
+
+## 168 · 2026-07-28 · Audit uang & status ditulis DI DALAM transaksinya
+
+Sebelumnya `audit()` selalu dipanggil SESUDAH mutasi commit, dan kegagalannya
+sengaja ditelan (`catch → console.error`). Akibatnya uang bisa berpindah atau
+status berpindah TANPA jejak — persis yang ditemukan AUDIT-01.
+
+Keputusan: dua kontrak yang berbeda dan eksplisit.
+
+- `audit()` — tetap best-effort, untuk peristiwa non-kritis.
+- `auditIn(tx, …)` — menulis di dalam transaksi pemanggil dan **tidak menelan
+  error**. Mutasi dan jejaknya sehidup-semati: audit gagal ⇒ mutasi batal;
+  mutasi batal ⇒ tidak ada audit yatim. IP dibaca sebelum transaksi dibuka.
+
+Penerapan: seluruh 15 aksi keuangan lewat helper `mutasiBerjejak`, dan seluruh
+transisi status laporan harian lewat `transition()` yang memang satu-satunya
+pintu. Guard `res.count === 0` yang dulu `return { error }` kini `throw
+GuardError` supaya transaksinya ikut batal — pesan ke user tidak berubah.
+
+Verifikasi: `tests/integration/audit-atomik.test.ts` menyuntikkan kegagalan
+audit sungguhan di tengah transaksi dan menuntut pembayarannya ikut batal.
+
+---
+
+## 169 · 2026-07-28 · Utang uji TEST-01 dibayar dengan PostgreSQL sungguhan
+
+Tiga dari empat utang uji yang diakui di audit ditutup, dijalankan terhadap
+PostgreSQL 16 nyata (bukan ditunda ke CI seperti rencana semula):
+
+1. `tenancy-dua-organisasi.test.ts` — DUA organisasi lengkap di SATU database.
+   Justru karena produksi single-org, scoping `orgId` tidak pernah benar-benar
+   teruji tanpa fixture ini: ia "lulus" hanya karena tidak ada tetangga.
+2. `laporan-harian-race-asof.test.ts` — dua submit paralel di satu lokasi
+   (advisory lock CALC-02) dan golden test as-of (CALC-01).
+3. `audit-atomik.test.ts` — fault injection audit (DECISIONS 168).
+
+Temuan sampingan yang layak dicatat: perhitungan as-of memakai revisi RAB yang
+EFEKTIF pada tanggal itu, jadi revisi yang dibuat belakangan tidak berlaku
+surut — fixture uji harus di-back-date, dan itu memang perilaku yang benar.
+
+Masih utang: parity output layar vs PDF vs Excel vs WhatsApp.

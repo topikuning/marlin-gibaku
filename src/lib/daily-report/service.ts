@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
-import { audit } from "@/lib/audit";
+import { audit, auditIn } from "@/lib/audit";
+import { requestIp } from "@/lib/auth/session";
 import { canTransitionReport } from "@/lib/lifecycle";
 import { cumulativeVolumeByLineage, getLocationProgress, COUNTED_REPORT_STATUSES } from "@/lib/progress";
 import { valueDone as calcValueDone } from "@/lib/money";
@@ -318,18 +319,27 @@ async function assertVolumeWithinRab(
   }
 }
 
-/** Transisi generik: validasi lifecycle + update + history APPEND-ONLY dalam satu $transaction. */
+/**
+ * Transisi generik: validasi lifecycle + update + history APPEND-ONLY + AUDIT
+ * dalam satu $transaction.
+ *
+ * Auditnya sengaja ditulis DI DALAM transaksi (AUDIT-01): sebelumnya ia
+ * dipanggil setelah commit dan kegagalannya ditelan, jadi status laporan bisa
+ * berpindah tanpa jejak. Sekarang keduanya sehidup-semati.
+ */
 async function transition(
   reportId: string,
   to: DailyReportStatus,
   userId: string,
   extra: Prisma.DailyReportUpdateInput,
+  jejak: { action: string; payload?: Record<string, unknown> },
   reason?: string | null,
 ) {
   const report = await getReportOrThrow(reportId);
   if (!canTransitionReport(report.status, to)) {
     throw new DailyReportError(`Transisi status ${report.status} → ${to} tidak diizinkan`);
   }
+  const ip = (await requestIp()) ?? null;
   const updated = await db.$transaction(async (tx) => {
     // Masuk ke counted = mulai memengaruhi progress/kurva/blanko — volume
     // wajib dicek ulang di sini, bukan hanya saat item diketik (B1).
@@ -357,6 +367,7 @@ async function transition(
         reason: reason?.trim() || null,
       },
     });
+    await auditIn(tx, userId, jejak.action, "daily_report", reportId, jejak.payload, ip);
     return row;
   });
   return { report, updated };
@@ -368,11 +379,13 @@ export async function submitReport(reportId: string, userId: string) {
   if (itemCount === 0) {
     throw new DailyReportError("Laporan belum punya item pekerjaan — tambah minimal satu");
   }
-  const { updated } = await transition(reportId, "dikirim", userId, {
-    submittedById: userId,
-    submittedAt: new Date(),
-  });
-  await audit(userId, "daily_report.submit", "daily_report", reportId, { items: itemCount });
+  const { updated } = await transition(
+    reportId,
+    "dikirim",
+    userId,
+    { submittedById: userId, submittedAt: new Date() },
+    { action: "daily_report.submit", payload: { items: itemCount } },
+  );
   return updated;
 }
 
@@ -381,18 +394,26 @@ export async function returnReport(reportId: string, reason: string, userId: str
   if (!reason || reason.trim().length === 0) {
     throw new DailyReportError("Alasan pengembalian wajib diisi");
   }
-  const { updated } = await transition(reportId, "perlu_koreksi", userId, {}, reason);
-  await audit(userId, "daily_report.return", "daily_report", reportId, { reason: reason.trim() });
+  const { updated } = await transition(
+    reportId,
+    "perlu_koreksi",
+    userId,
+    {},
+    { action: "daily_report.return", payload: { reason: reason.trim() } },
+    reason,
+  );
   return updated;
 }
 
 /** dikirim → disetujui. */
 export async function approveReport(reportId: string, userId: string) {
-  const { updated } = await transition(reportId, "disetujui", userId, {
-    verifiedById: userId,
-    verifiedAt: new Date(),
-  });
-  await audit(userId, "daily_report.approve", "daily_report", reportId);
+  const { updated } = await transition(
+    reportId,
+    "disetujui",
+    userId,
+    { verifiedById: userId, verifiedAt: new Date() },
+    { action: "daily_report.approve" },
+  );
   return updated;
 }
 
@@ -568,15 +589,20 @@ export async function finalizeReport(reportId: string, userId: string) {
     throw new DailyReportError(`Transisi status ${current.status} → final tidak diizinkan`);
   }
   const snapshot = await buildFinalSnapshot(reportId);
-  const { updated } = await transition(reportId, "final", userId, {
-    finalizedById: userId,
-    finalizedAt: new Date(),
-    finalSnapshot: snapshot as unknown as Prisma.InputJsonValue,
-  });
-  await audit(userId, "daily_report.finalize", "daily_report", reportId, {
-    items: snapshot.items.length,
-    totalValueToday: snapshot.totalValueToday,
-  });
+  const { updated } = await transition(
+    reportId,
+    "final",
+    userId,
+    {
+      finalizedById: userId,
+      finalizedAt: new Date(),
+      finalSnapshot: snapshot as unknown as Prisma.InputJsonValue,
+    },
+    {
+      action: "daily_report.finalize",
+      payload: { items: snapshot.items.length, totalValueToday: snapshot.totalValueToday },
+    },
+  );
   return updated;
 }
 
@@ -605,9 +631,9 @@ export async function unfinalizeReport(reportId: string, userId: string, reason:
     "disetujui",
     userId,
     { finalizedById: null, finalizedAt: null, finalSnapshot: Prisma.DbNull },
+    { action: "daily_report.unfinalize", payload: { reason: alasan } },
     alasan,
   );
-  await audit(userId, "daily_report.unfinalize", "daily_report", reportId, { reason: alasan });
   return updated;
 }
 
