@@ -58,7 +58,12 @@ export async function buildHarianKkpPdf(d: KkpDailyData, appName: string): Promi
     doc,
     y,
     [
-      { text: "LAPORAN HARIAN\nPembangunan Kampung Nelayan Merah Putih (KNMP) · Kementerian Kelautan dan Perikanan", bold: true },
+      // Identitas pemilik pekerjaan dari menu Sistem — bukan hardcode KKP
+      // (DECISIONS 166), supaya satu basis kode melayani klien mana pun.
+      {
+        text: `LAPORAN HARIAN\n${[d.ownerSubtitle, d.ownerName].filter(Boolean).join(" · ")}`,
+        bold: true,
+      },
       { text: "KONSULTAN PENGAWAS", align: "center", head: true },
       { text: "KONTRAKTOR PELAKSANA", align: "center", head: true },
     ],

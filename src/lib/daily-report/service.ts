@@ -334,6 +334,14 @@ async function transition(
     // Masuk ke counted = mulai memengaruhi progress/kurva/blanko — volume
     // wajib dicek ulang di sini, bukan hanya saat item diketik (B1).
     if (to === "dikirim") {
+      // Guard di atas membaca AGREGAT laporan lain lalu menulis status laporan
+      // ini. Optimistic lock `where: {id, status}` hanya melindungi baris yang
+      // sama, jadi dua laporan BERBEDA pada lokasi yang sama bisa lolos
+      // bersamaan dan total counted melampaui volume RAB (audit Codex
+      // 2026-07-28, CALC-02). Advisory lock per LOKASI membuat submit
+      // bersamaan di satu lokasi antre — pola yang sama dengan `FOR UPDATE`
+      // di jalur keuangan. Lock otomatis lepas saat transaksi selesai.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${report.locationId}::text, 0))`;
       await assertVolumeWithinRab(tx, { id: report.id, locationId: report.locationId });
     }
     const row = await tx.dailyReport.update({
@@ -467,7 +475,12 @@ export async function buildFinalSnapshot(reportId: string): Promise<FinalSnapsho
     // counted), sehingga "s/d" langsung mentok 100% dan "s/d lalu" ikut
     // salah karena diturunkan dari pengurangan. DECISIONS 147.
     cumulativeVolumeByLineage(report.locationId, report.reportDate),
-    getLocationProgress(report.locationId),
+    // Sama seperti kumulatif volume di atas: blok progress SNAPSHOT juga wajib
+    // as-of TANGGAL LAPORAN. Tanpa `asOf`, laporan 1 Juli yang difinalkan 20
+    // Juli membekukan realisasi 20 Juli, bobot revisi RAB terbaru, dan minggu
+    // rencana ke-20 — dokumen bertanggal 1 Juli memuat angka masa depan
+    // (audit Codex 2026-07-28, CALC-01).
+    getLocationProgress(report.locationId, { asOf: report.reportDate }),
   ]);
 
   const dateKey = jakartaDateKey(report.reportDate);

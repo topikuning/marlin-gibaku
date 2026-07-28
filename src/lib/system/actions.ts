@@ -36,14 +36,23 @@ export async function runR2Test(): Promise<R2TestState> {
 // ─────────────────────────────────────────────────────────────
 
 export type BrandingState =
-  | { error?: string; success?: string; values?: { appName: string; tagline: string; projectContext: string } }
+  | {
+      error?: string;
+      success?: string;
+      values?: { appName: string; tagline: string; projectContext: string; ownerName: string; ownerSubtitle: string };
+    }
   | undefined;
 
 const brandingSchema = z.object({
   appName: z.string().trim().max(60, "Nama app maksimal 60 karakter"),
   tagline: z.string().trim().max(160, "Tagline maksimal 160 karakter"),
   projectContext: z.string().trim().max(160, "Konteks proyek maksimal 160 karakter"),
+  ownerName: z.string().trim().max(120, "Nama pemilik pekerjaan maksimal 120 karakter"),
+  ownerSubtitle: z.string().trim().max(160, "Keterangan pemilik pekerjaan maksimal 160 karakter"),
 });
+
+/** Batas & format logo pemilik pekerjaan — sama dengan logo perusahaan. */
+const LOGO_MAX_BYTES = 2 * 1024 * 1024;
 
 export async function saveBranding(_prev: BrandingState, formData: FormData): Promise<BrandingState> {
   const actor = await requireCapability("system.manage");
@@ -51,10 +60,32 @@ export async function saveBranding(_prev: BrandingState, formData: FormData): Pr
     appName: formData.get("appName") ?? "",
     tagline: formData.get("tagline") ?? "",
     projectContext: formData.get("projectContext") ?? "",
+    ownerName: formData.get("ownerName") ?? "",
+    ownerSubtitle: formData.get("ownerSubtitle") ?? "",
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+  // Logo pemilik pekerjaan (opsional). Diperkecil & dinormalisasi ke WebP
+  // supaya kop blanko ringan dan formatnya seragam — pola sama dengan logo
+  // perusahaan di master vendor.
+  let ownerLogoKey: string | undefined;
+  const file = formData.get("ownerLogo");
+  if (file instanceof File && file.size > 0) {
+    const { isR2Configured, r2Put } = await import("@/lib/r2");
+    if (!isR2Configured()) return { error: "Penyimpanan berkas (R2) belum dikonfigurasi." };
+    if (file.size > LOGO_MAX_BYTES) return { error: "Logo terlalu besar (maks 2 MB)." };
+    if (!/^image\/(png|jpe?g|webp)$/i.test(file.type)) return { error: "Format logo harus PNG/JPG/WebP." };
+    const sharp = (await import("sharp")).default;
+    const buf = await sharp(Buffer.from(await file.arrayBuffer()), { failOn: "none" })
+      .resize({ width: 512, height: 512, fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 90 })
+      .toBuffer();
+    ownerLogoKey = `branding/owner-logo-${Date.now()}.webp`;
+    await r2Put(ownerLogoKey, buf, "image/webp");
+  }
+
   // Kosong → pakai default (tetap disimpan sbg string kosong → getBranding fallback).
-  await setBranding(parsed.data);
+  await setBranding({ ...parsed.data, ...(ownerLogoKey ? { ownerLogoKey } : {}) });
   await audit(actor.id, "system.branding_update", "system", null, parsed.data);
   const values = await getBranding();
   // Refresh shell + login supaya perubahan langsung tampak.

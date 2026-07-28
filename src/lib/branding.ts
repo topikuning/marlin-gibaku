@@ -15,14 +15,31 @@ export const BRAND_DEFAULTS = {
   appName: "MARLIN",
   tagline: "Monitoring, Analysis, Reporting & Learning for Infrastructure Network",
   projectContext: "Pengendalian Proyek Kampung Nelayan Merah Putih (KNMP)",
+  // Pemilik pekerjaan = instansi yang memberi pekerjaan (KKP hari ini, bisa
+  // pemkab/dinas lain besok). Dulu nama & logonya HARDCODE di kop blanko
+  // harian; sekarang diisi lewat menu Sistem supaya satu basis kode melayani
+  // klien mana pun (DECISIONS 166).
+  ownerName: "Kementerian Kelautan dan Perikanan",
+  ownerSubtitle: "Pembangunan Kampung Nelayan Merah Putih (KNMP)",
 } as const;
 
-export type Branding = { appName: string; tagline: string; projectContext: string };
+export type Branding = {
+  appName: string;
+  tagline: string;
+  projectContext: string;
+  ownerName: string;
+  ownerSubtitle: string;
+  /** Key R2 logo pemilik pekerjaan (null = belum diunggah → kop tanpa logo). */
+  ownerLogoKey: string | null;
+};
 
 export const BRAND_KEYS = {
   appName: "brand.app_name",
   tagline: "brand.tagline",
   projectContext: "brand.project_context",
+  ownerName: "brand.owner_name",
+  ownerSubtitle: "brand.owner_subtitle",
+  ownerLogoKey: "brand.owner_logo_key",
 } as const;
 
 /** Ambil branding efektif (nilai terbaru per key, fallback ke default). */
@@ -41,6 +58,9 @@ export async function getBranding(): Promise<Branding> {
     appName: pick(BRAND_KEYS.appName, BRAND_DEFAULTS.appName),
     tagline: pick(BRAND_KEYS.tagline, BRAND_DEFAULTS.tagline),
     projectContext: pick(BRAND_KEYS.projectContext, BRAND_DEFAULTS.projectContext),
+    ownerName: pick(BRAND_KEYS.ownerName, BRAND_DEFAULTS.ownerName),
+    ownerSubtitle: pick(BRAND_KEYS.ownerSubtitle, BRAND_DEFAULTS.ownerSubtitle),
+    ownerLogoKey: latest.get(BRAND_KEYS.ownerLogoKey)?.trim() || null,
   };
 }
 
@@ -51,6 +71,9 @@ export async function setBranding(input: Partial<Branding>): Promise<void> {
     [BRAND_KEYS.appName, input.appName],
     [BRAND_KEYS.tagline, input.tagline],
     [BRAND_KEYS.projectContext, input.projectContext],
+    [BRAND_KEYS.ownerName, input.ownerName],
+    [BRAND_KEYS.ownerSubtitle, input.ownerSubtitle],
+    [BRAND_KEYS.ownerLogoKey, input.ownerLogoKey ?? undefined],
   ];
   for (const [key, raw] of entries) {
     if (raw === undefined) continue;

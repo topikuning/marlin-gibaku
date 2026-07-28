@@ -165,14 +165,17 @@ export function WahaConfigPanel({
 export function BrandingPanel({
   initial,
   defaults,
+  ownerLogoUrl,
 }: {
-  initial: { appName: string; tagline: string; projectContext: string };
-  defaults: { appName: string; tagline: string; projectContext: string };
+  initial: { appName: string; tagline: string; projectContext: string; ownerName: string; ownerSubtitle: string };
+  defaults: { appName: string; tagline: string; projectContext: string; ownerName: string; ownerSubtitle: string };
+  ownerLogoUrl?: string | null;
 }) {
   const [state, action, pending] = useActionState<BrandingState, FormData>(saveBranding, undefined);
   const v = state?.values ?? initial;
   return (
-    <form action={action} className="space-y-3">
+    // encType multipart — form ini membawa berkas logo pemilik pekerjaan.
+    <form action={action} encType="multipart/form-data" className="space-y-3">
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
       <p className="text-sm text-ink-muted">
@@ -202,6 +205,52 @@ export function BrandingPanel({
           maxLength={160}
           placeholder={defaults.projectContext}
         />
+      </div>
+      <div className="mt-4 space-y-3 rounded-md border border-border bg-surface-muted p-3">
+        <p className="text-sm font-semibold text-ink">Pemilik Pekerjaan (kop laporan)</p>
+        <p className="text-xs text-ink-muted">
+          Nama, keterangan, dan logo instansi pemberi pekerjaan — dipakai di kop blanko laporan harian
+          dan periodik. Ubah bila proyek ini bukan milik KKP.
+        </p>
+        <div>
+          <Label htmlFor="brand-owner">Nama pemilik pekerjaan</Label>
+          <Input
+            id="brand-owner"
+            name="ownerName"
+            defaultValue={v.ownerName}
+            maxLength={120}
+            placeholder={defaults.ownerName}
+          />
+        </div>
+        <div>
+          <Label htmlFor="brand-owner-sub">Keterangan / nama program</Label>
+          <Input
+            id="brand-owner-sub"
+            name="ownerSubtitle"
+            defaultValue={v.ownerSubtitle}
+            maxLength={160}
+            placeholder={defaults.ownerSubtitle}
+          />
+        </div>
+        <div>
+          <Label htmlFor="brand-owner-logo">Logo pemilik pekerjaan (PNG/JPG/WebP, maks 2 MB)</Label>
+          {ownerLogoUrl ? (
+            <div className="mb-2 flex items-center gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={ownerLogoUrl} alt="Logo pemilik pekerjaan" className="h-12 w-auto rounded border border-border bg-white p-1" />
+              <span className="text-xs text-ink-muted">Logo terpasang — unggah berkas baru untuk mengganti.</span>
+            </div>
+          ) : (
+            <p className="mb-2 text-xs text-ink-muted">Belum ada logo — kop memakai teks saja.</p>
+          )}
+          <input
+            id="brand-owner-logo"
+            name="ownerLogo"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="block w-full text-sm text-ink file:mr-3 file:rounded-md file:border-0 file:bg-surface-inset file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-ink"
+          />
+        </div>
       </div>
       <Button type="submit" loading={pending}>
         Simpan branding

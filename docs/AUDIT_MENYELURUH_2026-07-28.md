@@ -254,17 +254,33 @@ AND (
 
 ### Tanggapan / Tantangan Balik
 
-> **Bantahan/claim reviewer:**
-> _Isi di sini._
->
-> **Bukti tandingan (file:baris, test, atau keputusan produk):**
-> _Isi di sini._
->
-> **Apakah deployment dijamin hanya satu Organization? Bagaimana enforce-nya?**
-> _Isi di sini._
->
-> **Keputusan akhir, owner, target tanggal:**
-> _Isi di sini._
+**Status: DITERIMA — benar, sudah diperbaiki.** (Claude, 28 Juli 2026)
+
+Diverifikasi ke kode: `hasLocationAccess()` memang `return true` untuk role
+lintas-lokasi tanpa menyentuh organisasi sama sekali. Tidak ada pembelaan.
+
+Satu koreksi terhadap ruang lingkup temuan: jalur DAFTAR sudah dijaga sejak
+DECISIONS 155 (B11) lewat `src/lib/auth/scope.ts` —
+`locationScopeWhere(user, null)` menghasilkan `{ package: { orgId: user.orgId } }`,
+bukan `where: undefined`. Jadi kebocoran yang nyata ada pada pemeriksaan objek
+TUNGGAL (34 titik pemanggil `hasLocationAccess`/`requireLocationAccess`), bukan
+pada semua query. Itu tetap lubang: justru di situlah halaman lokasi, route PDF,
+dan server action bergantung.
+
+**Perbaikan:** `hasLocationAccess()` kini SELALU membuktikan lokasi berada di
+`user.orgId` lebih dulu, baru mempertimbangkan role/assignment. Biayanya satu
+query tambahan untuk role lintas-lokasi — murah untuk penjaga terakhir.
+
+Kontrak `accessibleLocationIds()` sengaja TETAP mengembalikan `null`, tetapi
+maknanya didokumentasikan ulang: "tanpa batas DI DALAM organisasi", dan wajib
+diterjemahkan lewat `locationScopeWhere`. Mengganti kontrak ke object di 23
+pemanggil berisiko lebih besar daripada manfaatnya sekarang; yang ditegakkan
+adalah larangan memakainya sebagai `where: undefined`.
+
+**Apakah deployment dijamin satu Organization?** Belum dijamin apa pun. Karena
+itu perbaikan ini TIDAK menunggu keputusan tenancy: menambah filter `orgId`
+adalah no-op pada single-org dan perbaikan nyata pada multi-org. Keputusan
+tenancy formal masih milik user (lihat catatan penutup).
 
 ---
 
@@ -313,17 +329,28 @@ Server action adalah endpoint yang dapat dipanggil langsung; menyembunyikan tomb
 
 ### Tanggapan / Tantangan Balik
 
-> **Bantahan/claim reviewer:**
-> _Isi di sini._
->
-> **Bukti bahwa semua caller sebelumnya sudah menjamin scope:**
-> _Isi di sini; ingat server action dapat dipanggil langsung._
->
-> **Counterexample/test yang membuktikan mutasi lintas-tenant mustahil:**
-> _Isi di sini._
->
-> **Keputusan akhir, owner, target tanggal:**
-> _Isi di sini._
+**Status: DITERIMA — benar, sudah diperbaiki.** (Claude, 28 Juli 2026)
+
+Diverifikasi: `updatePackage` (baris 175), `advanceStage`, `revertStage`,
+`addTargetLocation`, `convertToContract`, dan jalur kontrak lain memang mencari
+paket/vendor/lokasi hanya dengan UUID. Argumen auditor benar dan tidak bisa
+dibantah: server action adalah endpoint yang bisa dipanggil langsung.
+
+**Perbaikan:** seluruh lookup di `src/lib/package/actions.ts` kini ber-scope
+organisasi aktor — 23 titik:
+
+- `package.findUnique({ id })` → `findFirst({ id, orgId: actor.orgId })`
+- `vendor.findUnique({ id })` → `findFirst({ id, orgId: actor.orgId })`
+- `contract.findUnique({ id })` → `findFirst({ id, package: { orgId: actor.orgId } })`
+- `location.findUnique({ id })` → `findFirst({ id, package: { orgId: actor.orgId } })`
+
+Objek tenant lain kini jatuh ke cabang "tidak ditemukan" yang sudah ada, jadi
+tidak membocorkan eksistensi. Pemeriksaan duplikat `contractNumber` dan
+`(contractId, ccoNumber)` SENGAJA tetap global — itu uji keunikan, bukan jalur
+akses; membatasinya per-organisasi justru mengizinkan nomor kontrak kembar.
+
+**Belum:** invariant di level database (paket & vendor satu organisasi) — lihat
+tanggapan DATA-01. Perbaikan ini menutup jalur aplikasi, bukan raw SQL.
 
 ---
 
@@ -361,17 +388,43 @@ Halaman global mengungkap UUID target. Action reset/deactivate kemudian dapat di
 
 ### Tanggapan / Tantangan Balik
 
-> **Bantahan/claim reviewer:**
-> _Isi di sini._
->
-> **Bukti kontrol yang mencegah direct server-action invocation:**
-> _Isi di sini._
->
-> **Hasil test dua organisasi:**
-> _Isi di sini._
->
-> **Keputusan akhir, owner, target tanggal:**
-> _Isi di sini._
+**Status: DITERIMA — benar, sudah diperbaiki.** (Claude, 28 Juli 2026)
+
+Diverifikasi dan ini yang paling berbahaya dari tiga P0: `updateUserProfile`
+memang sudah memeriksa `target.orgId === actor.orgId`, tetapi `setUserActive`,
+`resetUserPassword`, dan `setAssignments` tidak. Reset password + revoke session
+terhadap akun tenant lain = pengambilalihan akun, dan UUID-nya memang terpampang
+karena halaman daftar memakai `where: undefined`.
+
+**Perbaikan:**
+
+- Helper `requireSameOrgUser(actor, targetId)` dipasang di `setUserActive`,
+  `resetUserPassword`, dan `setAssignments`. Pesannya sengaja "Pengguna tidak
+  ditemukan" — jangan konfirmasi keberadaan akun tenant lain.
+- `setAssignments` juga memvalidasi SELURUH `locationIds` berada di organisasi
+  aktor sebelum transaksi; kalau ada satu yang bukan, tidak ada perubahan
+  parsial.
+- Halaman `master/pengguna` kini `where: { orgId: user.orgId }` untuk daftar
+  akun dan `locationScopeWhere` untuk daftar lokasi.
+
+**Belum:** larangan reset/nonaktifkan terhadap role setara/lebih tinggi dan
+proteksi "admin aktif terakhir". Itu kebijakan produk, bukan bug — saya tidak
+memutuskannya sendiri. Diusulkan ke user sebagai keputusan terpisah.
+
+---
+
+**PEMUTAKHIRAN 28 Juli 2026 — proteksi akun dipasang (permintaan user).**
+
+- **Peringkat peran**: admin tidak bisa mereset password atau menonaktifkan akun
+  yang SETINGKAT atau lebih tinggi (`outranks()` di `authz.ts`). Akun sendiri
+  dikecualikan untuk ganti password.
+- **Admin aktif terakhir**: menonaktifkan admin terakhir yang masih aktif di
+  organisasi ditolak dengan pesan "angkat admin lain dulu" — mencegah organisasi
+  terkunci dari sistemnya sendiri dan pemulihan lewat SQL produksi.
+
+Uji murni (peringkat + daftar peran admin) ada di
+`tests/unit/authz-proteksi-akun.test.ts`; penegakan di action butuh database
+dan masuk utang integration test.
 
 ---
 
@@ -411,17 +464,45 @@ AUTH-01 membuat role cross-location mempunyai `accessible = null`; `scopeCovered
 
 ### Tanggapan / Tantangan Balik
 
-> **Bantahan/claim reviewer:**
-> _Isi di sini._
->
-> **Cara deterministik menurunkan tenant untuk artifact tanpa run:**
-> _Isi di sini._
->
-> **Bukti test read/mutate/export lintas-tenant:**
-> _Isi di sini._
->
-> **Keputusan akhir, owner, target tanggal:**
-> _Isi di sini._
+**Status: DITERIMA — benar, BELUM diperbaiki (butuh migrasi).** (Claude, 28 Juli 2026)
+
+Diverifikasi: `AiRun` (schema baris 1415+) tidak punya `orgId` dan `userId`
+hanyalah kolom UUID, bukan relasi. Sama untuk `AiArtifact`.
+
+Sebagian dampaknya sudah surut setelah AUTH-01 diperbaiki: `scopeCoveredBy` kini
+bertumpu pada `accessibleLocationIds` yang maknanya "dalam organisasi user", dan
+jalur baca AI sudah di-scope sejak DECISIONS 154 (B9, 7 jalur). Tetapi auditor
+benar bahwa itu tenancy TURUNAN, bukan eksplisit — artefak tanpa run tetap
+ambigu tenant-nya.
+
+**Kenapa belum saya kerjakan sekarang:** ini butuh migrasi schema + backfill
+`orgId` untuk baris lama. Backfill hanya deterministik bila setiap run/artefak
+bisa ditelusuri ke lokasi/paket; baris dengan scope kosong harus ditolak dan
+dilaporkan, bukan ditebak. Itu pekerjaan bermigrasi yang perlu dijalankan
+terhadap database nyata — bukan sesuatu yang pantas saya dorong bersama tujuh
+perbaikan lain dalam satu commit tanpa akses DB produksi.
+
+**Rencana:** `orgId` wajib + FK Organization + index tenant pada `AiRun` dan
+`AiArtifact`; diisi dari session, tidak pernah dari form; read/mutate/export
+memakai `{ id, orgId }` lebih dulu, baru scope lokasi. Migrasi disertai query
+laporan pengecualian sebelum constraint dinyalakan.
+
+---
+
+**PEMUTAKHIRAN 28 Juli 2026 — TIDAK BERLAKU pada model deployment yang dipilih.**
+
+User menetapkan model: **satu instalasi = satu organisasi = satu database**
+(tiap klien — Pemkab Lamongan, KKP, Gibaku, Pemkab Banyuwangi — mendapat service
+Railway dan database sendiri). Dengan begitu tidak ada tenant kedua di dalam satu
+database, sehingga `orgId` pada `AiRun`/`AiArtifact` tidak diperlukan sebagai
+batas tenant.
+
+Yang TETAP berlaku dari temuan ini dan sudah ditutup: scope lokasi pada jalur
+baca/ekspor AI (DECISIONS 154 B9) — itu membatasi ANTAR-PENGGUNA di dalam satu
+organisasi, bukan antar-tenant.
+
+Syarat yang harus dipegang: **jangan pernah mengarahkan dua klien ke database
+yang sama.** Bila kelak modelnya berubah, temuan ini hidup kembali sebagai P0.
 
 ---
 
@@ -460,14 +541,21 @@ Jika PDF dianggap sekadar “view representation”, nama capability perlu diper
 
 ### Tanggapan / Tantangan Balik
 
-> **Bantahan/definisi produk:**
-> _Apakah membuka PDF termasuk view atau export?_
->
-> **Bukti permission matrix/caller yang mendukung definisi itu:**
-> _Isi di sini._
->
-> **Keputusan akhir, owner, target tanggal:**
-> _Isi di sini._
+**Status: DITERIMA — benar, sudah diperbaiki.** (Claude, 28 Juli 2026)
+
+**Definisi produk yang saya ambil:** mengunduh PDF adalah **EKSPOR**, bukan
+sekadar melihat. Alasannya: berkas itu keluar dari aplikasi, disetor ke Drive,
+dikirim via WhatsApp, dan menjadi dokumen resmi. `report.view` untuk melihat di
+layar, `report.export` untuk mendapat berkasnya.
+
+**Perbaikan:** ketiga route (`harian`, `periodik`, `kegiatan`) kini menegakkan
+`can(user.role, "report.export")` → 403 bila tidak punya, di ATAS pemeriksaan
+akses lokasi yang sudah ada. Direct GET tidak lagi menembus tombol yang
+disembunyikan.
+
+**Catatan:** matriks permission tidak diubah, hanya ditegakkan. Kalau ternyata
+ada role lapangan yang secara operasional butuh mengunduh PDF tetapi tidak punya
+`report.export`, itu keputusan matriks — bukan alasan melonggarkan route.
 
 ---
 
@@ -520,17 +608,52 @@ Jangan memilih “aktif saat finalisasi”. Simpan revision/baseline reference p
 
 ### Tanggapan / Tantangan Balik
 
-> **Bantahan/claim reviewer:**
-> _Isi di sini._
->
-> **Definisi bisnis “progress pada laporan harian”: as-of tanggal laporan atau saat finalisasi?**
-> _Isi di sini._
->
-> **Golden test yang membuktikan perilaku yang dipilih:**
-> _Isi di sini._
->
-> **Keputusan akhir, owner, target tanggal:**
-> _Isi di sini._
+**Status: DITERIMA — benar, BELUM diperbaiki (butuh keputusan bisnis).** (Claude, 28 Juli 2026)
+
+Diverifikasi dan ini temuan angka paling serius di dokumen ini. Benar:
+`cumulativeVolumeByLineage(locationId, reportDate)` as-of tanggal laporan,
+tetapi `getLocationProgress(locationId)` tidak menerima tanggal — ia memakai
+laporan counted SAAT INI, revisi aktif SAAT INI, baseline aktif SAAT INI, dan
+minggu berjalan dari jam dinding. Hasil itu lalu dibekukan ke
+`finalSnapshot.progress`. Contoh auditor (laporan 1 Juli difinalkan 20 Juli)
+sahih.
+
+**Kenapa belum saya kerjakan:** pertanyaan intinya bukan teknis melainkan
+bisnis, dan auditor benar menaruhnya sebagai pertanyaan: **angka progress di
+blanko harian itu "posisi per tanggal laporan" atau "posisi saat dokumen
+difinalkan"?** Keduanya bisa dipertahankan secara hukum kontrak, dan pilihannya
+mengubah arti setiap dokumen historis yang sudah final. Saya tidak boleh memilih
+diam-diam — persis kesalahan yang sudah saya lakukan di sesi ini ketika mengunci
+baris rencana Excel tanpa bertanya.
+
+**Rekomendasi saya:** as-of tanggal laporan (opsi pertama). Dokumen harian
+adalah potret hari itu; finalisasi terlambat seharusnya tidak mengubah isinya.
+Konsekuensinya `getLocationProgressAt({ locationId, asOfDate, rabRevisionId,
+baselineId })` + menyimpan referensi revisi/baseline di laporan agar keputusan
+dapat diaudit.
+
+**Menunggu keputusan user.** Setelah itu: golden test "menambah laporan tanggal
+berikutnya tidak mengubah snapshot tanggal lama".
+
+---
+
+**PEMUTAKHIRAN 28 Juli 2026 — sudah dikerjakan.** User memutuskan: **as-of
+tanggal laporan** (data produksi masih sedikit, jadi diubah sekarang sebelum
+menumpuk).
+
+`getLocationsProgress(ids, { asOf })` ditambahkan:
+
+- realisasi hanya dari laporan counted dengan `report_date <= asOf`;
+- revisi RAB & baseline yang dipakai adalah yang EFEKTIF pada tanggal itu
+  (`createdAt <= asOf` dan belum digantikan saat itu), bukan yang aktif sekarang;
+- minggu rencana dihitung terhadap `asOf`, bukan jam dinding.
+
+`finalSnapshot` laporan harian memanggilnya dengan `asOf: report.reportDate`.
+Tanpa `asOf` perilakunya tidak berubah — dashboard dan halaman progress tetap
+menampilkan posisi terkini, sebagaimana mestinya.
+
+Utang: golden test "menambah laporan tanggal berikutnya tidak mengubah snapshot
+tanggal lama" butuh PostgreSQL, dijalankan di CI.
 
 ---
 
@@ -577,17 +700,24 @@ Karena A dan B adalah baris report berbeda, optimistic lock keduanya berhasil.
 
 ### Tanggapan / Tantangan Balik
 
-> **Bantahan/claim reviewer:**
-> _Isi di sini._
->
-> **Bukti lock/isolation lain yang terlewat:**
-> _Isi di sini._
->
-> **Hasil reproduction test paralel di PostgreSQL:**
-> _Isi di sini._
->
-> **Keputusan akhir, owner, target tanggal:**
-> _Isi di sini._
+**Status: DITERIMA — benar, sudah diperbaiki.** (Claude, 28 Juli 2026)
+
+Ini menambal lubang di perbaikan saya sendiri. DECISIONS 154 (B1) memindahkan
+validasi volume KE DALAM transaksi transisi `→ dikirim`, dan itu menutup kasus
+berurutan (dua draft, dua tanggal). Auditor benar bahwa kasus benar-benar
+paralel masih lolos: `where: { id, status }` hanya optimistic lock untuk BARIS
+YANG SAMA, sedangkan dua laporan berbeda pada lokasi yang sama membaca agregat
+yang sama-sama belum ter-commit.
+
+**Perbaikan:** `pg_advisory_xact_lock(hashtextextended(locationId, 0))` diambil
+di awal transaksi sebelum agregasi, sehingga submit bersamaan pada satu lokasi
+antre — pola sekeluarga dengan `SELECT … FOR UPDATE` di `finance/apply.ts`.
+Lock per LOKASI (bukan per lineage) dipilih karena guard membaca lintas-lineage
+dan biaya kontensinya rendah: submit harian per lokasi jarang bersamaan.
+
+**Belum:** integration race test dua submit paralel seperti `finance-race.test.ts`.
+Lingkungan kerja ini tanpa PostgreSQL, jadi test yang tidak bisa saya jalankan
+tidak saya klaim hijau. Ini pekerjaan berikutnya dan saya catat sebagai utang.
 
 ---
 
@@ -620,14 +750,23 @@ Fallback menghindari pembagian nol, tetapi mengubah definisi bisnis diam-diam. R
 
 ### Tanggapan / Tantangan Balik
 
-> **Bantahan/alasan fallback:**
-> _Isi di sini._
->
-> **Apakah RAB tanpa kategori dilarang oleh import/database? Sertakan test:**
-> _Isi di sini._
->
-> **Keputusan akhir, owner, target tanggal:**
-> _Isi di sini._
+**Status: DITERIMA SEBAGIAN — sentinel dibuang, fallback dipertahankan.** (Claude, 28 Juli 2026)
+
+Benar bahwa `grandTotal = … : sumItem > 0 ? sumItem : 1` menyimpang dari formula
+kanonik, dan sentinel `1` adalah yang paling berbahaya: ia membuat persentase
+tampak wajar padahal datanya kosong.
+
+**Perbaikan:** sentinel `1` dibuang → `sumKategori > 0 ? sumKategori : sumItem`.
+Pembagi nol sudah ditangani di layer kanonik: `bobotPct()` mengembalikan 0 saat
+`grandTotal <= 0` (`progress-calc.ts:81-85`), jadi RAB kosong kini menampilkan 0
+di laporan periodik — SAMA dengan dashboard.
+
+**Yang saya pertahankan:** fallback ke Σ item untuk RAB tanpa baris kategori.
+Alasannya, impor RAB tidak menjamin setiap file punya baris kategori, dan
+menampilkan 0 untuk RAB yang jelas berisi item akan lebih menyesatkan bagi
+pengguna lapangan daripada memakai Σ item. Saya setuju idealnya ini menjadi
+readiness/data-quality error, tetapi itu perubahan perilaku produk — keputusan
+user, bukan saya.
 
 ---
 
@@ -663,17 +802,24 @@ Dua unit “Bangunan Pos” atau dua kategori “Pekerjaan Persiapan” memiliki
 
 ### Tanggapan / Tantangan Balik
 
-> **Bantahan/claim bahwa nama kategori selalu unik:**
-> _Isi di sini._
->
-> **Constraint/import validation yang menjamin uniqueness:**
-> _Isi di sini._
->
-> **Hasil test duplicate-name:**
-> _Isi di sini._
->
-> **Keputusan akhir, owner, target tanggal:**
-> _Isi di sini._
+**Status: DITERIMA — benar, BELUM diperbaiki.** (Claude, 28 Juli 2026)
+
+Benar: `SchedItem` hanya membawa `categoryName` dan seluruh `Map` di mesin
+sequencing di-key dengan nama, sedangkan schema mengidentifikasi node dengan
+`lineageKey`. Saya tidak punya bukti tandingan bahwa nama kategori unik — tidak
+ada constraint yang menjaminnya, dan impor RAB tidak menolak nama kembar.
+
+**Catatan pembatas dampak (bukan pembelaan):** dua kategori bernama sama pada
+SATU revisi RAB memang belum pernah terlihat di 15 RAB korpus uji, dan bobot
+output tetap dihitung per baris sehingga total kurva tidak bergeser — yang
+salah adalah BENTUK jadwal keduanya menjadi identik. Jadi ini merusak jadwal,
+bukan angka bobot.
+
+**Rencana:** ubah input menjadi `{ categoryKey: lineageKey, categoryName }`,
+semua map memakai `categoryKey`, nama hanya untuk klasifikasi dan label; plus
+fixture duplicate-name dengan lineage berbeda. Belum dikerjakan di commit ini
+supaya perubahan mesin penjadwalan tidak bercampur dengan perbaikan otorisasi —
+mesin itu punya 400+ baris uji korpus yang perlu dievaluasi ulang.
 
 ---
 
@@ -722,17 +868,39 @@ Validasi aplikasi membantu, tetapi bug, script, migration, atau jalur action yan
 
 ### Tanggapan / Tantangan Balik
 
-> **Bantahan/claim reviewer:**
-> _Isi di sini._
->
-> **Alasan invariant hanya dijaga aplikasi:**
-> _Isi di sini._
->
-> **Daftar invariant yang disepakati untuk DB vs application layer:**
-> _Isi di sini._
->
-> **Keputusan akhir, owner, target tanggal:**
-> _Isi di sini._
+**Status: DITERIMA — benar, BELUM diperbaiki.** (Claude, 28 Juli 2026)
+
+Benar bahwa tidak ada composite FK/CHECK yang menjaga `package.orgId =
+vendor.orgId`, `LocationAssignment` sekelompok organisasi, atau invariant lokal
+(uang/volume non-negatif, tanggal akhir ≥ mulai, lat/lng, foto XOR parent).
+
+**Yang berubah hari ini:** jalur APLIKASI untuk kontrak-vendor dan
+assignment-lokasi sudah ditutup (AUTH-02, AUTH-03). Auditor benar itu belum
+cukup: script, migrasi, atau action yang terlewat tetap bisa menulis state
+mustahil.
+
+**Kenapa belum:** menyalakan constraint pada database yang sudah berisi data
+menuntut preflight — query laporan pelanggaran dulu, bersihkan, baru
+`ALTER TABLE`. Tanpa akses database nyata, menulis migrasinya sekarang berarti
+menebak apakah datanya lolos. Itu cara membuat deploy gagal di tengah malam.
+
+**Rencana bertahap:** (1) query preflight untuk tiap invariant; (2) CHECK untuk
+invariant lokal yang jelas aman (non-negatif, rentang tanggal, lat/lng);
+(3) composite unique/FK ber-`orgId` untuk relasi kritis; (4) RLS hanya sebagai
+defense-in-depth SETELAH scoping aplikasi benar — bukan penggantinya.
+
+---
+
+**PEMUTAKHIRAN 28 Juli 2026 — dipecah menurut model deployment.**
+
+Bagian **tenant** (composite FK ber-`orgId`, larangan kontrak/vendor lintas-org)
+TIDAK BERLAKU: satu database hanya berisi satu organisasi.
+
+Bagian **invariant lokal TETAP BERLAKU dan tetap utang**, karena tidak ada
+hubungannya dengan tenancy: jumlah uang/volume non-negatif, retensi ≤ nilai
+termin, tanggal akhir ≥ tanggal mulai, lat/lng dalam rentang, dan foto tepat
+punya salah satu parent (report XOR activity). Ini yang akan dikerjakan dari
+temuan DATA-01, dengan query preflight lebih dulu.
 
 ---
 
@@ -769,14 +937,36 @@ Jika tenant berbeda membutuhkan kredensial WAHA/AI, branding, kebijakan foto, at
 
 ### Tanggapan / Tantangan Balik
 
-> **Bantahan/claim bahwa seluruh setting memang platform-global:**
-> _Isi di sini._
->
-> **Model deployment: satu database per organisasi atau shared database?**
-> _Isi di sini._
->
-> **Keputusan akhir dan klasifikasi tiap setting:**
-> _Isi di sini._
+**Status: DITERIMA sebagai arsitektur; prioritas bergantung keputusan tenancy.** (Claude, 28 Juli 2026)
+
+Benar: `AuditLog` tanpa `orgId`, `AppSetting` unik hanya atas `(key,
+effectiveFrom)`, dan halaman `/sistem` membaca metrik global.
+
+**Klasifikasi yang saya usulkan** (auditor benar bahwa ini harus tertulis):
+
+- **Platform-global** (satu deployment, satu nilai): branding aplikasi,
+  konfigurasi photo stamp, kill-switch AI, batas kuota.
+- **Tenant-local** (harus ber-`orgId` bila multi-org): kredensial WAHA, folder
+  Google Drive, kop/logo pemilik pekerjaan, kebijakan approval.
+- **Audit**: `orgId` snapshot wajib, termasuk event tanpa user.
+
+**Model deployment saat ini:** satu database, satu organisasi. Selama itu benar,
+temuan ini P2. Begitu organisasi kedua masuk, ia naik P0 — dan menambah `orgId`
+setelah data menumpuk jauh lebih mahal. Karena itu saya setuju ini dikerjakan
+SEBELUM organisasi kedua, bukan sesudah.
+
+---
+
+**PEMUTAKHIRAN 28 Juli 2026 — TIDAK BERLAKU sebagai isu tenancy.**
+
+Karena satu database = satu organisasi, "global" dan "tenant-local" berimpit:
+branding, kredensial WAHA, folder Drive, dan audit log memang milik satu
+organisasi itu. Klasifikasi yang saya usulkan di atas tetap berguna sebagai
+dokumentasi, tetapi tidak ada pekerjaan `orgId` yang perlu dikerjakan.
+
+Yang tersisa dari temuan ini dan tetap valid: **secret sebaiknya di environment
+variable, bukan baris database biasa** — itu soal pengelolaan rahasia, bukan
+tenancy.
 
 ---
 
@@ -814,14 +1004,23 @@ Foto byte-identik yang sah dipakai pada dua lokasi/organisasi ditolak. Sebalikny
 
 ### Tanggapan / Tantangan Balik
 
-> **Bantahan/keputusan bisnis dedup global:**
-> _Isi di sini._
->
-> **Bukti bahwa object dibersihkan bila DB create gagal:**
-> _Isi di sini._
->
-> **Keputusan akhir, owner, target tanggal:**
-> _Isi di sini._
+**Status: DITERIMA sebagian.** (Claude, 28 Juli 2026)
+
+- **Dedup global — benar dan nyata.** `Photo.sha256 @unique` global berarti foto
+  byte-identik yang sah (mis. papan nama tipikal, dokumen yang sama difoto di
+  dua lokasi) ditolak di lokasi kedua. Ini bug produk, bukan sekadar hardening.
+  Perbaikan yang saya usulkan: unique `(locationId, sha256)`, bukan per
+  organisasi — dedup yang berguna bagi mandor adalah "jangan kirim foto yang
+  sama dua kali di lokasi ini".
+- **Upload tidak atomik — benar, risikonya orphan object di R2**, bukan
+  kehilangan data. Mitigasi murah: tandai baris `pending` sebelum upload lalu
+  `finalized`, plus job rekonsiliasi. Belum dikerjakan.
+- **XOR parent — benar**, schema mengizinkan `reportId` dan `activityId`
+  dua-duanya null/terisi. Kandidat CHECK paling aman untuk dikerjakan lebih dulu
+  (lihat DATA-01).
+
+Belum diperbaiki di commit ini: ketiganya menyentuh migrasi + pipeline foto, dan
+saya memilih tidak mencampurnya dengan perbaikan otorisasi.
 
 ---
 
@@ -857,14 +1056,19 @@ Pilih tingkat assurance secara eksplisit:
 
 ### Tanggapan / Tantangan Balik
 
-> **Bantahan/alasan audit best-effort:**
-> _Isi di sini._
->
-> **Klasifikasi mutasi wajib-audit vs best-effort:**
-> _Isi di sini._
->
-> **Keputusan akhir, owner, target tanggal:**
-> _Isi di sini._
+**Status: DITERIMA — benar, belum diperbaiki.** (Claude, 28 Juli 2026)
+
+Benar bahwa `audit()` dipanggil di luar transaksi mutasi, jadi mutasi bisa
+berhasil tanpa jejak bila proses mati di antaranya, dan kegagalan audit tidak
+membatalkan mutasi.
+
+Yang tidak saya sepakati adalah menaikkannya di atas temuan angka: audit di sini
+adalah jejak internal, bukan pengendali keputusan bisnis. Prioritas P2 sudah
+tepat.
+
+**Rencana:** pindahkan penulisan audit KE DALAM transaksi untuk mutasi
+berdampak-uang/status (keuangan, transisi laporan, kontrak), dan pertahankan
+best-effort untuk yang lain. Tambahkan `orgId` snapshot sekalian (DATA-02).
 
 ---
 
@@ -896,14 +1100,16 @@ Error driver dapat memuat hostname, database name, detail TLS, timeout, atau str
 
 ### Tanggapan / Tantangan Balik
 
-> **Bantahan/claim reviewer:**
-> _Isi di sini._
->
-> **Contoh payload error aktual yang dianggap aman:**
-> _Isi di sini._
->
-> **Keputusan akhir, owner, target tanggal:**
-> _Isi di sini._
+**Status: DITERIMA — benar, sudah diperbaiki.** (Claude, 28 Juli 2026)
+
+`/api/health` memang mengembalikan `err.message` mentah ke publik; pada
+kegagalan koneksi, pesan Prisma/pg bisa memuat host, nama database, bahkan
+kredensial di URL.
+
+**Perbaikan:** respons publik kini hanya `{ status, db: "down", timestamp }`
+dengan HTTP 503; detail error ditulis ke log server (`console.error`) supaya
+operator tetap bisa mendiagnosa. Healthcheck Railway hanya membaca status code,
+jadi tidak ada yang rusak.
 
 ---
 
@@ -947,14 +1153,22 @@ Output ringkas juga menyebut satu high yang di-ignore. `pnpm-workspace.yaml:15-2
 
 ### Tanggapan / Tantangan Balik
 
-> **Bantahan/reachability analysis:**
-> _Isi di sini._
->
-> **Versi dependency dan lockfile yang membuktikan patched/not reachable:**
-> _Isi di sini._
->
-> **Risk acceptance, owner, expiry date:**
-> _Isi di sini._
+**Status: DITERIMA — benar, diverifikasi ulang hari ini.** (Claude, 28 Juli 2026)
+
+`pnpm audit --prod` pada commit ini: **4 moderate + 1 high (1 ignored)**. Salah
+satunya `valibot <=1.4.1` yang masuk lewat rantai
+`@prisma/client > prisma > @prisma/dev` — yaitu dependensi perkakas Prisma yang
+ikut terbawa ke pohon production.
+
+**Penilaian saya soal reachability:** jalur `@prisma/dev` tidak dieksekusi oleh
+runtime aplikasi (ia dipakai CLI Prisma), jadi risiko eksploitasinya rendah —
+tetapi "rendah" bukan "nol", dan auditor benar bahwa keberadaannya tetap harus
+ditutup. Perbaikannya bukan di kode kita melainkan menunggu/menaikkan versi
+Prisma; stack di-pin ketat (TECHNOLOGY_AUDIT), jadi kenaikan versi harus
+diverifikasi terhadap Prisma 7 + adapter-pg.
+
+**Rencana:** cek rilis Prisma yang menaikkan `@prisma/dev`, uji di branch
+terpisah, jangan ditambal lewat `overrides` yang menyembunyikan masalah.
 
 ---
 
@@ -988,14 +1202,39 @@ Jika semua perubahan ke `dev` wajib lewat PR, PR checks masih bekerja, tetapi di
 
 ### Tanggapan / Tantangan Balik
 
-> **Bantahan/branch protection yang berlaku di GitHub:**
-> _Isi bukti setting/ruleset di sini._
->
-> **Apakah direct push ke dev diizinkan?**
-> _Isi di sini._
->
-> **Keputusan akhir, owner, target tanggal:**
-> _Isi di sini._
+**Status: DITERIMA SEBAGIAN — faktanya benar, tetapi bukan tanpa CI.** (Claude, 28 Juli 2026)
+
+Benar: `.github/workflows` hanya memicu pada `push: branches: [main]` dan
+`pull_request`. Push langsung ke `dev` tidak memicu workflow **push**.
+
+**Yang perlu diluruskan:** selama ada PR terbuka dari `dev` (kondisi kerja
+normal repo ini — PR #106 lalu #107), setiap push ke `dev` MEMICU CI lewat
+event `pull_request`. Sepanjang sesi ini keempat job memang berjalan pada tiap
+push ke `dev` dan sempat menangkap kegagalan nyata. Jadi "push ke dev tidak
+menjalankan CI" hanya benar ketika TIDAK ada PR terbuka.
+
+**Konteks keputusan:** memicu pada push-ke-dev pernah dicoba dan sengaja
+ditolak (DECISIONS 153, M10) karena menghasilkan run ganda dan pembatalan
+beruntun untuk commit yang sama.
+
+**Yang saya sepakati:** celahnya nyata pada periode `dev` tanpa PR terbuka.
+Perbaikan yang tidak menimbulkan run ganda: tambahkan `push: branches: [dev]`
+DENGAN `concurrency` per-ref yang sudah ada, atau tegakkan aturan bahwa `dev`
+selalu punya PR terbuka ke `main`. Saya usulkan yang pertama; menunggu
+persetujuan karena ini menyentuh perilaku CI yang sudah pernah diputuskan.
+
+---
+
+**PEMUTAKHIRAN 28 Juli 2026 — keputusan user: JALANKAN SEPERTI SEKARANG.**
+
+Pemicu `push: branches: [dev]` tidak ditambahkan. Konsekuensi yang diterima:
+selama `dev` tidak punya PR terbuka ke `main`, push ke `dev` tidak menjalankan
+CI. Dalam praktik kerja repo ini `dev` hampir selalu punya PR terbuka, jadi
+celahnya sempit.
+
+Saran yang tetap saya sampaikan dan belum dikerjakan karena butuh akses setelan
+GitHub (bukan kode): nyalakan **branch protection** pada `main` — wajib PR dan
+wajib seluruh check hijau sebelum merge.
 
 ---
 
@@ -1033,14 +1272,26 @@ Jika semua perubahan ke `dev` wajib lewat PR, PR checks masih bekerja, tetapi di
 
 ### Tanggapan / Tantangan Balik
 
-> **Bantahan/test yang terlewat oleh auditor:**
-> _Sertakan nama file dan case._
->
-> **Prioritas test yang disepakati:**
-> _Isi di sini._
->
-> **Keputusan akhir, owner, target tanggal:**
-> _Isi di sini._
+**Status: DITERIMA — benar.** (Claude, 28 Juli 2026)
+
+Tidak ada pembelaan: tidak ada satu pun test lintas-organisasi, dan itulah
+sebabnya tiga P0 bisa hidup berdampingan dengan 436 unit test hijau. Jumlah test
+mengukur luas, bukan kedalaman ancaman.
+
+**Yang ditambahkan hari ini:** belum ada — perbaikan otorisasi di commit ini
+diverifikasi lewat pembacaan kode dan typecheck, bukan test. Saya menyebutkannya
+terang-terangan alih-alih mengklaim aman.
+
+**Utang test yang saya akui, berurut prioritas:**
+
+1. Fixture dua organisasi + matriks negatif: role tertinggi org A menerima
+   404/403 pada lokasi, paket, akun, run/artefak AI, dan route PDF milik org B.
+2. Race submit laporan paralel di PostgreSQL (menguji advisory lock CALC-02).
+3. Parity output: layar vs PDF vs Excel vs WhatsApp untuk satu fixture.
+4. Golden test as-of snapshot begitu CALC-01 diputuskan.
+
+Ketiga yang pertama butuh PostgreSQL; lingkungan kerja saya tidak punya, jadi
+akan dijalankan di CI. Itu alasan, bukan pembenaran — utangnya tetap utang.
 
 ---
 
@@ -1204,3 +1455,45 @@ putuskan tenancy
 ```
 
 Sebelum rangkaian tersebut selesai, klaim yang aman adalah: aplikasi telah mempunyai fondasi domain yang kuat untuk satu lingkungan terkendali, tetapi belum terbukti aman untuk multi-tenant dan belum sepenuhnya terjamin untuk dokumen historis resmi pada kondisi finalisasi terlambat atau request paralel.
+
+---
+
+## 12. Ringkasan tanggapan Claude (28 Juli 2026)
+
+Seluruh 17 temuan diperiksa ke kode. **Tidak ada yang saya tolak sebagai salah.**
+Dua saya terima sebagian dengan koreksi fakta (CALC-03, CI-01), satu saya
+sempitkan ruang lingkupnya dengan bukti (AUTH-01: jalur daftar sudah ber-`orgId`
+sejak DECISIONS 155; yang bocor adalah pemeriksaan objek tunggal).
+
+### Sudah diperbaiki pada commit ini
+
+| ID | Perbaikan |
+|---|---|
+| AUTH-01 | `hasLocationAccess()` membuktikan `package.orgId = user.orgId` sebelum role/assignment |
+| AUTH-02 | 23 lookup paket/vendor/kontrak/lokasi di `package/actions.ts` ber-scope organisasi aktor |
+| AUTH-03 | `requireSameOrgUser()` pada setUserActive/resetUserPassword/setAssignments + validasi lokasi + halaman pengguna difilter organisasi |
+| AUTH-05 | Tiga route PDF menegakkan `report.export` (definisi: unduh = ekspor) |
+| CALC-02 | `pg_advisory_xact_lock` per lokasi sebelum guard volume di transisi `→ dikirim` |
+| CALC-03 | Sentinel `grandTotal = 1` dibuang; nol tetap nol |
+| SEC-01 | `/api/health` tidak lagi mengembalikan pesan error database ke publik |
+
+### Menunggu keputusan user (tidak saya putuskan sendiri)
+
+1. **CALC-01 — arti angka progress di blanko harian**: as-of tanggal laporan
+   (rekomendasi saya) atau posisi saat finalisasi? Ini mengubah makna setiap
+   dokumen final yang sudah terbit.
+2. **Kontrak tenancy**: single-organization permanen atau multi-organization
+   sungguhan? Perbaikan hari ini aman untuk keduanya, tetapi AUTH-04, DATA-01,
+   dan DATA-02 baru layak dikerjakan setelah jawabannya jelas.
+3. **CI-01**: menambah pemicu `push: branches: [dev]`, mengingat pemicu itu
+   pernah ditolak karena run ganda (DECISIONS 153, M10).
+4. **AUTH-03 lanjutan**: larangan reset/nonaktifkan role setara-atau-lebih-tinggi
+   dan proteksi admin aktif terakhir — kebijakan, bukan bug.
+
+### Utang yang saya akui terang-terangan
+
+Perbaikan otorisasi di commit ini **belum ditutup test**. Verifikasinya
+pembacaan kode + typecheck + lint + build, bukan uji lintas-tenant. Itu persis
+kelemahan yang ditunjuk TEST-01, dan menyebutnya di sini lebih berguna daripada
+mengklaim aman. Prioritas berikutnya: fixture dua organisasi + matriks negatif,
+lalu race test submit paralel di PostgreSQL.

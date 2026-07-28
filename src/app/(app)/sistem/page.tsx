@@ -449,13 +449,24 @@ export default async function SistemPage() {
     </div>
   );
 
+  // URL sementara logo pemilik pekerjaan untuk pratinjau di form (R2 privat).
+  let ownerLogoUrl: string | null = null;
+  if (branding.ownerLogoKey) {
+    try {
+      const { r2PresignGet } = await import("@/lib/r2");
+      ownerLogoUrl = await r2PresignGet(branding.ownerLogoKey, 600);
+    } catch {
+      ownerLogoUrl = null; // R2 belum siap — form tetap tampil tanpa pratinjau
+    }
+  }
+
   /* ── PANEL: Branding & Photo Stamp ────────────────────────────────────── */
   const brandingPanel: ReactNode = (
     <div className="space-y-5">
       <Card>
         <CardHeader title="Identitas Merek" subtitle="Identitas produk (global) + konteks proyek (tambahan)" />
         <CardBody>
-          <BrandingPanel initial={branding} defaults={BRAND_DEFAULTS} />
+          <BrandingPanel initial={branding} defaults={BRAND_DEFAULTS} ownerLogoUrl={ownerLogoUrl} />
         </CardBody>
       </Card>
 

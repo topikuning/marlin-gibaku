@@ -43,6 +43,14 @@ export type KkpDailyData = {
   items: KkpDailyItem[];
   /** false = pratinjau dari data live (belum dibekukan finalSnapshot). */
   isFinal: boolean;
+  /**
+   * Identitas pemilik pekerjaan untuk kop — dari menu Sistem, BUKAN hardcode
+   * KKP, supaya satu basis kode melayani klien mana pun (DECISIONS 166).
+   */
+  ownerName?: string;
+  ownerSubtitle?: string;
+  /** URL logo pemilik (presigned, opsional). */
+  ownerLogoUrl?: string | null;
   /** Penanda tangan (dari kontrak, current — null = baris kosong). */
   supervisorName?: string | null;
   supervisorSub?: string | null;
@@ -62,9 +70,17 @@ export function KkpDailyReport({ d }: { d: KkpDailyData }) {
       {/* Kop */}
       <div className="grid grid-cols-4 border border-slate-500">
         <div className="col-span-2 flex flex-col justify-center border-r border-slate-500 px-3 py-2">
-          <div className="text-sm font-bold tracking-wide uppercase">Laporan Harian</div>
-          <div className="text-[10px] text-slate-500">
-            Pembangunan Kampung Nelayan Merah Putih (KNMP) · Kementerian Kelautan dan Perikanan
+          <div className="flex items-center gap-2">
+            {d.ownerLogoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={d.ownerLogoUrl} alt="" className="h-9 w-auto shrink-0" />
+            ) : null}
+            <div>
+              <div className="text-sm font-bold tracking-wide uppercase">Laporan Harian</div>
+              <div className="text-[10px] text-slate-500">
+                {[d.ownerSubtitle, d.ownerName].filter(Boolean).join(" · ")}
+              </div>
+            </div>
           </div>
         </div>
         <div className="flex items-center justify-center border-r border-slate-500 px-2 py-3 text-center text-[10px] font-semibold text-slate-600 uppercase">

@@ -45,19 +45,46 @@ export function planPctAtWeek(points: number[], weekNumber: number): number {
   return points[idx];
 }
 
+/**
+ * Opsi perhitungan progress.
+ *
+ * `asOf` = hitung posisi PADA tanggal itu, bukan posisi hari ini:
+ *  - hanya laporan dengan `reportDate <= asOf` yang dihitung;
+ *  - revisi RAB & baseline yang dipakai adalah yang EFEKTIF pada tanggal itu
+ *    (dibuat sebelum/pada `asOf` dan belum digantikan saat itu);
+ *  - minggu rencana dihitung terhadap `asOf`, bukan jam dinding.
+ *
+ * Dipakai `finalSnapshot` laporan harian supaya dokumen resmi bertanggal 1 Juli
+ * tidak memuat realisasi 20 Juli hanya karena difinalkan terlambat (audit Codex
+ * 2026-07-28, CALC-01). Tanpa `asOf`, perilakunya persis seperti sebelumnya:
+ * posisi terkini — itulah yang dipakai dashboard & halaman progress.
+ */
+export type ProgressAsOf = { asOf?: Date };
+
 /** Progress banyak lokasi sekaligus (batched, bukan per-lokasi N+1). */
-export async function getLocationsProgress(locationIds: string[]): Promise<Map<string, LocationProgress>> {
+export async function getLocationsProgress(
+  locationIds: string[],
+  opts: ProgressAsOf = {},
+): Promise<Map<string, LocationProgress>> {
   const result = new Map<string, LocationProgress>();
   if (locationIds.length === 0) return result;
+  const asOf = opts.asOf;
+  // Versi yang efektif pada `asOf`: dibuat ≤ asOf dan belum digantikan saat itu.
+  // Tanpa asOf: versi yang berstatus aktif sekarang.
+  const efektif = asOf
+    ? { createdAt: { lte: asOf }, OR: [{ supersededAt: null }, { supersededAt: { gt: asOf } }] }
+    : { status: "aktif" as const };
 
   const [revisions, baselines, contracts] = await Promise.all([
     db.rabRevision.findMany({
-      where: { locationId: { in: locationIds }, status: "aktif" },
-      select: { id: true, locationId: true },
+      where: { locationId: { in: locationIds }, ...efektif },
+      select: { id: true, locationId: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
     }),
     db.baseline.findMany({
-      where: { locationId: { in: locationIds }, status: "aktif" },
-      select: { id: true, locationId: true, contractDays: true, points: { select: { weekNumber: true, plannedPct: true }, orderBy: { weekNumber: "asc" } } },
+      where: { locationId: { in: locationIds }, ...efektif },
+      select: { id: true, locationId: true, contractDays: true, createdAt: true, points: { select: { weekNumber: true, plannedPct: true }, orderBy: { weekNumber: "asc" } } },
+      orderBy: { createdAt: "desc" },
     }),
     db.contract.findMany({
       where: { package: { locations: { some: { id: { in: locationIds } } } } },
@@ -65,8 +92,12 @@ export async function getLocationsProgress(locationIds: string[]): Promise<Map<s
     }),
   ]);
 
-  const revByLoc = new Map(revisions.map((r) => [r.locationId, r.id]));
-  const baseByLoc = new Map(baselines.map((b) => [b.locationId, b]));
+  // Urutan createdAt desc → entri PERTAMA per lokasi adalah versi terakhir yang
+  // efektif pada titik waktu yang diminta.
+  const revByLoc = new Map<string, string>();
+  for (const r of revisions) if (!revByLoc.has(r.locationId)) revByLoc.set(r.locationId, r.id);
+  const baseByLoc = new Map<string, (typeof baselines)[number]>();
+  for (const b of baselines) if (!baseByLoc.has(b.locationId)) baseByLoc.set(b.locationId, b);
   const startByLoc = new Map<string, Date | null>();
   for (const c of contracts) {
     for (const l of c.package.locations) startByLoc.set(l.id, c.startDate);
@@ -112,6 +143,7 @@ export async function getLocationsProgress(locationIds: string[]): Promise<Map<s
         AND rr.location_id = dr.location_id AND rr.status = 'aktif'
       WHERE dr.location_id = ANY(${locationIds}::uuid[])
         AND dr.status::text = ANY(${[...COUNTED_REPORT_STATUSES]}::text[])
+        AND (${asOf ?? null}::date IS NULL OR dr.report_date <= ${asOf ?? null}::date)
         AND rn.kind = 'item'
       GROUP BY dr.location_id, rn.id, rn.volume, rn.amount
     ) t
@@ -127,7 +159,7 @@ export async function getLocationsProgress(locationIds: string[]): Promise<Map<s
     const points = baseline?.points.map((p) => Number(p.plannedPct)) ?? [];
     const totalWeeks = points.length || Math.ceil((baseline?.contractDays ?? 0) / 7);
     const start = startByLoc.get(locId);
-    const weekNumber = start ? currentWeekNumber(start, totalWeeks) : 1;
+    const weekNumber = start ? currentWeekNumber(start, totalWeeks, asOf ?? new Date()) : 1;
     const planPct = planPctAtWeek(points, weekNumber);
     const realizedPct = pct(realizedValue, grandTotal);
     result.set(locId, {
@@ -146,8 +178,11 @@ export async function getLocationsProgress(locationIds: string[]): Promise<Map<s
   return result;
 }
 
-export async function getLocationProgress(locationId: string): Promise<LocationProgress> {
-  const map = await getLocationsProgress([locationId]);
+export async function getLocationProgress(
+  locationId: string,
+  opts: ProgressAsOf = {},
+): Promise<LocationProgress> {
+  const map = await getLocationsProgress([locationId], opts);
   return (
     map.get(locationId) ?? {
       locationId,
