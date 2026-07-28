@@ -2,16 +2,28 @@ import type { WorkerRole } from "@/generated/prisma/enums";
 import { WORKER_ROLE_LABEL, WORKER_ROLE_ORDER } from "@/lib/daily-report/constants";
 
 /**
- * FORMAT LAPORAN HARIAN KKP — form bergaris A4, dipakai preview & cetak.
- * Port layout lama (kop, identitas, tenaga per keahlian, material masuk,
- * peralatan, ceklis cuaca per jam, jam kerja, blok tanda tangan) + tabel
- * progres per kegiatan (vol kontrak, s/d lalu, hari ini, s/d, %).
- * Server component murni — data disiapkan queries.getKkpDailyData.
+ * FORMAT LAPORAN HARIAN KKP — tata letak MENGIKUTI BLANKO RESMI (contoh KKP),
+ * blok demi blok dengan urutan yang sama:
+ *
+ *   kop (logo pemilik · LAPORAN HARIAN | KONSULTAN PENGAWAS | KONTRAKTOR PELAKSANA)
+ *   → Minggu Ke / Hari / Tanggal (separuh kiri) → PEKERJAAN / LOKASI / TH. ANGGARAN
+ *   → TENAGA KERJA | REKAP PEMASUKAN BAHAN / MATERIAL (+ PERALATAN)
+ *   → KONDISI CUACA per jam (+ SHOP DRAWING) → Jam Kerja
+ *   → RENCANA PEKERJAAN | REALISASI PEKERJAAN → tanda tangan.
+ *
+ * Dua blok TAMBAHAN di luar blanko (progres per pekerjaan & catatan) sengaja
+ * diletakkan SESUDAH rencana/realisasi supaya susunan utama blanko tidak
+ * bergeser. Server component murni — data disiapkan queries.getKkpDailyData.
  */
 
 const volFmt = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 });
+const orgFmt = new Intl.NumberFormat("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const pctFmt = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 1 });
 const HOURS = ["07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21"];
+/** Baris kosong tercetak (blanko punya kotak siap-isi walau data belum ada). */
+const MIN_MATERIAL_ROWS = 8;
+const MIN_EQUIPMENT_ROWS = 6;
+const MIN_RR_ROWS = 6;
 
 export type KkpDailyItem = {
   code: string;
@@ -63,9 +75,16 @@ export type KkpDailyData = {
   supervisorSub?: string | null;
   contractorName?: string | null;
   contractorSub?: string | null;
+  /** Nama perusahaan pengawas & pelaksana (di blanko: kotak "logo perusahaan"). */
+  supervisorFirm?: string | null;
+  contractorFirm?: string | null;
 };
 
 export function KkpDailyReport({ d }: { d: KkpDailyData }) {
+  const rr = barisRencanaRealisasi(d);
+  const materialRows = Math.max(MIN_MATERIAL_ROWS, d.materials.length);
+  const equipmentRows = Math.max(MIN_EQUIPMENT_ROWS, d.equipment.length);
+
   return (
     <div className="mx-auto max-w-225 bg-white text-[11px] leading-tight text-slate-900">
       {!d.isFinal ? (
@@ -74,109 +93,76 @@ export function KkpDailyReport({ d }: { d: KkpDailyData }) {
         </div>
       ) : null}
 
-      {/* Kop */}
+      {/* ── Kop: logo pemilik + judul | pengawas | pelaksana ─────────────── */}
       <div className="grid grid-cols-4 border border-slate-500">
-        <div className="col-span-2 flex flex-col justify-center border-r border-slate-500 px-3 py-2">
-          <div className="flex items-center gap-2">
-            {d.ownerLogoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={d.ownerLogoUrl} alt="" className="h-9 w-auto shrink-0" />
-            ) : null}
-            <div>
-              <div className="text-sm font-bold tracking-wide uppercase">Laporan Harian</div>
-              <div className="text-[10px] text-slate-500">
-                {[d.ownerSubtitle, d.ownerName].filter(Boolean).join(" · ")}
-              </div>
-            </div>
+        <div className="col-span-2 flex items-center gap-3 border-r border-slate-500 px-3 py-2">
+          {d.ownerLogoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={d.ownerLogoUrl} alt="" className="h-10 w-auto shrink-0" />
+          ) : null}
+          <div className="text-sm font-bold tracking-wide uppercase">Laporan Harian</div>
+        </div>
+        <div className="border-r border-slate-500">
+          <div className="border-b border-slate-500 px-2 py-1 text-center text-[10px] font-semibold text-slate-600 uppercase">
+            Konsultan Pengawas
+          </div>
+          <div className="flex h-11 items-center justify-center px-2 text-center text-[10px] text-slate-500">
+            {d.supervisorFirm ?? ""}
           </div>
         </div>
-        <div className="flex items-center justify-center border-r border-slate-500 px-2 py-3 text-center text-[10px] font-semibold text-slate-600 uppercase">
-          Konsultan Pengawas
-        </div>
-        <div className="flex items-center justify-center px-2 py-3 text-center text-[10px] font-semibold text-slate-600 uppercase">
-          Kontraktor Pelaksana
+        <div>
+          <div className="border-b border-slate-500 px-2 py-1 text-center text-[10px] font-semibold text-slate-600 uppercase">
+            Kontraktor Pelaksana
+          </div>
+          <div className="flex h-11 items-center justify-center px-2 text-center text-[10px] text-slate-500">
+            {d.contractorFirm ?? ""}
+          </div>
         </div>
       </div>
 
-      {/* Identitas — mengikuti blanko: Minggu/Hari/Tanggal bertumpuk di kiri
-          (selebar kolom kop kiri), lalu blok PEKERJAAN/LOKASI/TH. ANGGARAN. */}
+      {/* ── Identitas: Minggu/Hari/Tanggal (separuh kiri) ────────────────── */}
       <table className="w-1/2 border-x border-b border-slate-500">
         <tbody>
-          <tr>
-            <Cell w>Minggu Ke</Cell>
-            <Cell>{d.weekNo ?? "…"}</Cell>
-          </tr>
-          <tr>
-            <Cell w>Hari</Cell>
-            <Cell>{d.hari}</Cell>
-          </tr>
-          <tr>
-            <Cell w>Tanggal</Cell>
-            <Cell>{d.tanggalFull}</Cell>
-          </tr>
-        </tbody>
-      </table>
-      <table className="w-full border-x border-b border-slate-500">
-        <tbody>
-          <tr>
-            <Cell w>Pekerjaan</Cell>
-            <Cell>{d.pekerjaan ?? "Konstruksi"}</Cell>
-          </tr>
-          <tr>
-            <Cell w>Lokasi</Cell>
-            <Cell>{`${d.locationName}, ${d.regency}, ${d.province}`}</Cell>
-          </tr>
-          <tr>
-            <Cell w>Th. Anggaran</Cell>
-            <Cell>{d.tahunAnggaran}</Cell>
-          </tr>
-        </tbody>
-      </table>
-
-      {/* Progres per kegiatan */}
-      <table className="w-full border-x border-b border-slate-500">
-        <thead>
-          <tr>
-            <Cell head w>No</Cell>
-            <Cell head>Uraian Pekerjaan (Progres Hari Ini)</Cell>
-            <Cell head w>Sat</Cell>
-            <Cell head w>Vol Kontrak</Cell>
-            <Cell head w>s/d Lalu</Cell>
-            <Cell head w>Hari Ini</Cell>
-            <Cell head w>s/d</Cell>
-            <Cell head w>%</Cell>
-          </tr>
-        </thead>
-        <tbody>
-          {d.items.length ? (
-            d.items.map((it, i) => (
-              <tr key={`${it.code}-${i}`}>
-                <Cell center>{i + 1}</Cell>
-                <Cell>{it.name}</Cell>
-                <Cell center>{it.unit ?? ""}</Cell>
-                <Cell right>{it.volumeContract != null ? volFmt.format(it.volumeContract) : ""}</Cell>
-                <Cell right>{volFmt.format(it.volumeBefore)}</Cell>
-                <Cell right>{volFmt.format(it.volumeToday)}</Cell>
-                <Cell right>{volFmt.format(it.volumeCumulative)}</Cell>
-                <Cell right>{it.pctCumulative != null ? pctFmt.format(it.pctCumulative) : ""}</Cell>
-              </tr>
-            ))
-          ) : (
-            <tr>
-              <Cell center colSpan={8}>Tidak ada realisasi tercatat pada tanggal ini.</Cell>
+          {[
+            ["Minggu Ke", d.weekNo != null ? String(d.weekNo) : ""],
+            ["Hari", d.hari],
+            ["Tanggal", d.tanggalFull],
+          ].map(([label, value]) => (
+            <tr key={label}>
+              <Cell w>{label}</Cell>
+              <Cell w center>:</Cell>
+              <Cell>{value}</Cell>
             </tr>
-          )}
+          ))}
+        </tbody>
+      </table>
+      <table className="w-full border-x border-b border-slate-500">
+        <tbody>
+          {[
+            ["PEKERJAAN", d.pekerjaan ?? "Konstruksi"],
+            ["LOKASI", `${d.locationName}, ${d.regency}, ${d.province}`],
+            ["TH. ANGGARAN", String(d.tahunAnggaran)],
+          ].map(([label, value]) => (
+            <tr key={label}>
+              <Cell w>{label}</Cell>
+              <Cell w center>:</Cell>
+              <Cell>{value}</Cell>
+            </tr>
+          ))}
         </tbody>
       </table>
 
-      {/* Tenaga + material/peralatan */}
+      {/* ── Tenaga kerja | material & peralatan ──────────────────────────── */}
       <div className="grid grid-cols-2">
         <table className="w-full border-x border-b border-slate-500">
           <thead>
             <tr>
-              <Cell head w>No</Cell>
-              <Cell head>Tenaga Kerja (Keahlian)</Cell>
-              <Cell head w>Jmh</Cell>
+              <Cell head center colSpan={4}>Tenaga Kerja</Cell>
+            </tr>
+            <tr>
+              <Cell head center w>No</Cell>
+              <Cell head center>Keahlian</Cell>
+              <Cell head center w colSpan={2}>Jmh</Cell>
             </tr>
           </thead>
           <tbody>
@@ -184,12 +170,14 @@ export function KkpDailyReport({ d }: { d: KkpDailyData }) {
               <tr key={r}>
                 <Cell center>{i + 1}</Cell>
                 <Cell>{WORKER_ROLE_LABEL[r]}</Cell>
-                <Cell center>{d.workerMap[r] ?? 0}</Cell>
+                <Cell right>{orgFmt.format(d.workerMap[r] ?? 0)}</Cell>
+                <Cell w center>org</Cell>
               </tr>
             ))}
             <tr className="font-semibold">
-              <Cell colSpan={2} right>Jumlah</Cell>
-              <Cell center>{d.totalWorkers}</Cell>
+              <Cell colSpan={2} center>Jumlah</Cell>
+              <Cell right>{orgFmt.format(d.totalWorkers)}</Cell>
+              <Cell w center>org</Cell>
             </tr>
           </tbody>
         </table>
@@ -198,81 +186,81 @@ export function KkpDailyReport({ d }: { d: KkpDailyData }) {
           <table className="w-full border-r border-b border-slate-500">
             <thead>
               <tr>
-                <Cell head w>No</Cell>
-                <Cell head>Jenis Material / Bahan</Cell>
-                <Cell head w>Satuan</Cell>
-                <Cell head w>Diterima</Cell>
+                <Cell head center colSpan={5}>Rekap Pemasukan Bahan / Material</Cell>
+              </tr>
+              <tr>
+                <Cell head center w>No</Cell>
+                <Cell head center>Jenis Material / Bahan</Cell>
+                <Cell head center w>Satuan</Cell>
+                <Cell head center w>Diterima</Cell>
                 {/* Ditolak: ada di blanko, belum ada inputnya di sistem —
                     sengaja dikosongkan untuk diisi tangan (keputusan user). */}
-                <Cell head w>Ditolak</Cell>
+                <Cell head center w>Ditolak</Cell>
               </tr>
             </thead>
             <tbody>
-              {d.materials.map((m, i) => (
-                <tr key={`${m.name}-${i}`}>
-                  <Cell center>{i + 1}</Cell>
-                  <Cell>{m.name}</Cell>
-                  <Cell center>{m.unit ?? ""}</Cell>
-                  <Cell center>{m.qty != null ? volFmt.format(m.qty) : ""}</Cell>
-                  <Cell center></Cell>
-                </tr>
-              ))}
-              {Array.from({ length: Math.max(0, 4 - d.materials.length) }).map((_, i) => (
-                <tr key={`me${i}`}>
-                  <Cell center>{d.materials.length + i + 1}</Cell>
-                  <Cell>&nbsp;</Cell>
-                  <Cell></Cell>
-                  <Cell></Cell>
-                  <Cell></Cell>
-                </tr>
-              ))}
+              {Array.from({ length: materialRows }).map((_, i) => {
+                const m = d.materials[i];
+                return (
+                  <tr key={`m${i}`}>
+                    <Cell center>{i + 1}</Cell>
+                    <Cell>{m?.name ?? <>&nbsp;</>}</Cell>
+                    <Cell center>{m?.unit ?? ""}</Cell>
+                    <Cell right>{m && m.qty != null ? volFmt.format(m.qty) : ""}</Cell>
+                    <Cell></Cell>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           <table className="w-full border-r border-b border-slate-500">
             <thead>
               <tr>
-                <Cell head w>No</Cell>
-                <Cell head colSpan={3}>Nama Peralatan</Cell>
-                <Cell head w>Jumlah</Cell>
+                <Cell head center colSpan={3}>Peralatan</Cell>
+              </tr>
+              <tr>
+                <Cell head center w>No</Cell>
+                <Cell head center>Nama Peralatan</Cell>
+                <Cell head center w>Jumlah</Cell>
               </tr>
             </thead>
             <tbody>
-              {d.equipment.map((e, i) => (
-                <tr key={`${e.name}-${i}`}>
-                  <Cell center>{i + 1}</Cell>
-                  <Cell colSpan={3}>{e.name}</Cell>
-                  <Cell center>{e.count}</Cell>
-                </tr>
-              ))}
-              {Array.from({ length: Math.max(0, 3 - d.equipment.length) }).map((_, i) => (
-                <tr key={`ee${i}`}>
-                  <Cell center>{d.equipment.length + i + 1}</Cell>
-                  <Cell colSpan={3}>&nbsp;</Cell>
-                  <Cell></Cell>
-                </tr>
-              ))}
+              {Array.from({ length: equipmentRows }).map((_, i) => {
+                const e = d.equipment[i];
+                return (
+                  <tr key={`e${i}`}>
+                    <Cell center>{i + 1}</Cell>
+                    <Cell>{e?.name ?? <>&nbsp;</>}</Cell>
+                    <Cell center>{e ? e.count : ""}</Cell>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Cuaca per jam */}
+      {/* ── Kondisi cuaca per jam ────────────────────────────────────────── */}
       <table className="w-full border-x border-b border-slate-500 text-center">
         <thead>
           <tr>
-            <Cell head>Kondisi / Jam</Cell>
-            {HOURS.map((h) => (
-              <Cell head center key={h}>{h}</Cell>
-            ))}
+            <Cell head center colSpan={HOURS.length + 1}>Kondisi Cuaca</Cell>
             {/* Shop drawing: ada di blanko, belum ada datanya di sistem —
                 dikosongkan untuk diisi tangan (keputusan user). */}
             <Cell head center>Shop Drawing</Cell>
+          </tr>
+          <tr>
+            <Cell head center>Kondisi / Jam</Cell>
+            {HOURS.map((h) => (
+              <Cell head center key={h}>{h}.00</Cell>
+            ))}
+            <Cell head center></Cell>
           </tr>
         </thead>
         <tbody>
           {(["Cerah", "Mendung", "Hujan"] as const).map((cat) => (
             <tr key={cat}>
-              <Cell>{cat}</Cell>
+              <Cell center>{cat}</Cell>
               {HOURS.map((h) => (
                 <Cell center key={h}>{d.activeWeather === cat ? "✓" : ""}</Cell>
               ))}
@@ -292,7 +280,7 @@ export function KkpDailyReport({ d }: { d: KkpDailyData }) {
         </tbody>
       </table>
 
-      {/* Rencana vs realisasi pekerjaan — dua kolom bernomor, mengikuti blanko.
+      {/* ── Rencana | realisasi pekerjaan ────────────────────────────────
           Rencana = pecahan rencana MINGGUAN ke hari ini menurut alur & metode
           kerja (DECISIONS 163); realisasi = pekerjaan yang benar-benar dilapor
           hari itu. Baris disamakan panjangnya supaya kedua kolom sejajar. */}
@@ -304,9 +292,9 @@ export function KkpDailyReport({ d }: { d: KkpDailyData }) {
             </tr>
           </thead>
           <tbody>
-            {barisRencanaRealisasi(d).map((row, i) => (
+            {rr.map((row, i) => (
               <tr key={`rp${i}`}>
-                <Cell center w>{row.rencana ? i + 1 : ""}</Cell>
+                <Cell center w>{i + 1}</Cell>
                 <Cell>{row.rencana ?? <>&nbsp;</>}</Cell>
               </tr>
             ))}
@@ -319,9 +307,9 @@ export function KkpDailyReport({ d }: { d: KkpDailyData }) {
             </tr>
           </thead>
           <tbody>
-            {barisRencanaRealisasi(d).map((row, i) => (
+            {rr.map((row, i) => (
               <tr key={`rl${i}`}>
-                <Cell center w>{row.realisasi ? i + 1 : ""}</Cell>
+                <Cell center w>{i + 1}</Cell>
                 <Cell>{row.realisasi ?? <>&nbsp;</>}</Cell>
               </tr>
             ))}
@@ -329,7 +317,7 @@ export function KkpDailyReport({ d }: { d: KkpDailyData }) {
         </table>
       </div>
 
-      {/* Catatan */}
+      {/* ── Catatan (data sistem; tetap dipertahankan) ───────────────────── */}
       <table className="w-full border-x border-b border-slate-500">
         <thead>
           <tr>
@@ -338,28 +326,30 @@ export function KkpDailyReport({ d }: { d: KkpDailyData }) {
         </thead>
         <tbody>
           <tr>
-            <Cell>{d.notes || " "}</Cell>
+            <Cell>{d.notes || " "}</Cell>
           </tr>
         </tbody>
       </table>
 
-      {/* Tanda tangan */}
+      {/* ── Tanda tangan ─────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 border-x border-b border-slate-500">
         <div className="border-r border-slate-500 px-3 py-2 text-center">
-          <div className="text-[10px] text-slate-600">Disetujui Oleh:</div>
-          <div className="text-[10px] font-semibold text-slate-600 uppercase">Konsultan Pengawas</div>
+          <div className="text-[10px] text-slate-600">Disetujui Oleh;</div>
+          <div className="text-[10px] text-slate-600">Konsultan Pengawas</div>
+          <div className="text-[10px] text-slate-500">{d.supervisorFirm ?? d.supervisorSub ?? ""}</div>
           <div className="mt-12 border-t border-slate-400 pt-1 font-semibold text-slate-900">
             {d.supervisorName ? `( ${d.supervisorName} )` : <span className="font-normal text-slate-500">( …………………… )</span>}
           </div>
-          <div className="text-[9px] text-slate-500">{d.supervisorSub || "Inspector"}</div>
+          <div className="text-[9px] text-slate-500 italic">Inspector</div>
         </div>
         <div className="px-3 py-2 text-center">
-          <div className="text-[10px] text-slate-600">Dibuat Oleh:</div>
-          <div className="text-[10px] font-semibold text-slate-600 uppercase">Kontraktor Pelaksana</div>
+          <div className="text-[10px] text-slate-600">Dibuat Oleh :</div>
+          <div className="text-[10px] text-slate-600">Kontraktor Pelaksana</div>
+          <div className="text-[10px] text-slate-500">{d.contractorFirm ?? ""}</div>
           <div className="mt-12 border-t border-slate-400 pt-1 font-semibold text-slate-900">
             {d.contractorName ? `( ${d.contractorName} )` : <span className="font-normal text-slate-500">( …………………… )</span>}
           </div>
-          <div className="text-[9px] text-slate-500">{d.contractorSub || "Pelaksana"}</div>
+          <div className="text-[9px] text-slate-500 italic">{d.contractorSub || "Pelaksana"}</div>
         </div>
       </div>
     </div>
@@ -367,8 +357,24 @@ export function KkpDailyReport({ d }: { d: KkpDailyData }) {
 }
 
 /**
+ * Satu baris REALISASI PEKERJAAN = uraian pekerjaan + volume hari ini, ditambah
+ * kemajuan kumulatifnya. Blanko hanya minta uraian; angka progres disisipkan di
+ * baris yang sama supaya tidak perlu tabel terpisah.
+ * Contoh: "Pagar Pengaman Proyek — 15 m (s/d 25 dari 120 m · 20,8%)".
+ */
+export function teksRealisasi(it: KkpDailyItem): string {
+  const satuan = it.unit ? ` ${it.unit}` : "";
+  const bagian = [`${it.name} — ${volFmt.format(it.volumeToday)}${satuan}`];
+  const progres: string[] = [`s/d ${volFmt.format(it.volumeCumulative)}`];
+  if (it.volumeContract != null) progres.push(`dari ${volFmt.format(it.volumeContract)}${satuan}`);
+  if (it.pctCumulative != null) progres.push(`${pctFmt.format(it.pctCumulative)}%`);
+  bagian.push(`(${progres.join(" · ")})`);
+  return bagian.join(" ");
+}
+
+/**
  * Pasangkan baris "Rencana" dan "Realisasi" jadi satu daftar sejajar; jumlah
- * baris = yang terpanjang, minimal 6 seperti blanko cetak supaya kotaknya tetap
+ * baris = yang terpanjang, minimal seperti blanko cetak supaya kotaknya tetap
  * ada untuk diisi tangan.
  */
 function barisRencanaRealisasi(d: KkpDailyData): { rencana: string | null; realisasi: string | null }[] {
@@ -376,10 +382,8 @@ function barisRencanaRealisasi(d: KkpDailyData): { rencana: string | null; reali
     `${r.name}${r.volume > 0 ? ` — ${volFmt.format(r.volume)}${r.unit ? ` ${r.unit}` : ""}` : ""}` +
     (r.picName ? ` (${r.picName})` : ""),
   );
-  const realisasi = d.items.map(
-    (it) => `${it.name} — ${volFmt.format(it.volumeToday)}${it.unit ? ` ${it.unit}` : ""}`,
-  );
-  const n = Math.max(6, rencana.length, realisasi.length);
+  const realisasi = d.items.map((it) => teksRealisasi(it));
+  const n = Math.max(MIN_RR_ROWS, rencana.length, realisasi.length);
   return Array.from({ length: n }, (_, i) => ({
     rencana: rencana[i] ?? null,
     realisasi: realisasi[i] ?? null,

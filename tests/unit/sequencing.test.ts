@@ -13,6 +13,7 @@ import {
   scheduleFromItems,
   STAGE_TEMPLATES,
   stageOrder,
+  type SchedItem,
   type SeqItem,
   type StageKey,
   type WorkType,
@@ -80,7 +81,7 @@ describe("kasus rumah genset: pondasi sebelum dinding (di dalam unit)", () => {
   });
 
   it("jendela pondasi berakhir sebelum jendela dinding mulai", () => {
-    const items: SeqItem[] = [
+    const items: SchedItem[] = [
       { name: "PEKERJAAN PONDASI FOOTPLAT", categoryName: "PEKERJAAN BANGUNAN GENSET", amount: 100n },
       { name: "PEKERJAAN PASANGAN DINDING BATA MERAH", categoryName: "PEKERJAAN BANGUNAN GENSET", amount: 100n },
     ];
@@ -91,7 +92,7 @@ describe("kasus rumah genset: pondasi sebelum dinding (di dalam unit)", () => {
   });
 
   it("unit genset kecil TIDAK terpengaruh unit lain yang besar (no cross-leak)", () => {
-    const items: SeqItem[] = [
+    const items: SchedItem[] = [
       { name: "PONDASI FOOTPLAT", categoryName: "PEKERJAAN BANGUNAN GENSET", amount: 10n },
       { name: "PASANGAN DINDING BATA", categoryName: "PEKERJAAN BANGUNAN GENSET", amount: 10n },
       // unit dermaga raksasa dgn pondasi/pancang besar:
@@ -127,7 +128,7 @@ describe("jalan: marka & perkerasan urutannya benar", () => {
 });
 
 describe("kurva dari penjadwalan berurut", () => {
-  const items: SeqItem[] = [
+  const items: SchedItem[] = [
     { name: "PERSIAPAN K3", categoryName: "PEKERJAAN PERSIAPAN", amount: 50n },
     { name: "PONDASI FOOTPLAT", categoryName: "PEKERJAAN BANGUNAN KIOS", amount: 200n },
     { name: "KOLOM BETON K-250", categoryName: "PEKERJAAN BANGUNAN KIOS", amount: 300n },
@@ -261,7 +262,7 @@ describe("scheduleFromItems: item nested di jendela presedensi kategori", () => 
   });
 
   it("PENERANGAN: galian & pasang keduanya di ujung; galian sebelum pasang", () => {
-    const items: SeqItem[] = [
+    const items: SchedItem[] = [
       { name: "Galian tanah tiang lampu", categoryName: "PEKERJAAN PENERANGAN KAWASAN", amount: 40n },
       { name: "Pasang lampu PJU", categoryName: "PEKERJAAN PENERANGAN KAWASAN", amount: 60n },
       { name: "Pembersihan lahan", categoryName: "PEKERJAAN PERSIAPAN", amount: 30n },
@@ -276,6 +277,54 @@ describe("scheduleFromItems: item nested di jendela presedensi kategori", () => 
     const curve = cumulativeFromCategoryWeekly(sched.categories, sched.totalWeeks);
     for (let i = 1; i < curve.length; i++) expect(curve[i]).toBeGreaterThanOrEqual(curve[i - 1] - 1e-9);
     expect(curve.at(-1)).toBeCloseTo(100, 1);
+  });
+
+  // CALC-04: identitas kategori = lineageKey, BUKAN nama.
+  it("dua kategori bernama sama dengan lineage berbeda tetap dua jadwal terpisah", () => {
+    const items: SchedItem[] = [
+      { name: "Pondasi batu kali", categoryKey: "A", categoryName: "BANGUNAN POS", amount: 100n },
+      { name: "Pengecatan dinding", categoryKey: "B", categoryName: "BANGUNAN POS", amount: 100n },
+    ];
+    // Jendela BEDA per kunci meski namanya identik: A di awal, B di akhir.
+    const win = (_n: string, k?: string): [number, number] => (k === "A" ? [0, 0.4] : [0.6, 1]);
+    const sched = scheduleFromItems(items, 140, win); // 20 minggu
+
+    expect(sched.categories).toHaveLength(2);
+    const a = sched.categories.find((c) => c.categoryKey === "A")!;
+    const b = sched.categories.find((c) => c.categoryKey === "B")!;
+    expect(a.categoryName).toBe("BANGUNAN POS");
+    expect(b.categoryName).toBe("BANGUNAN POS");
+    // Bobot terbagi rata — tidak dilebur jadi satu baris 100%.
+    expect(a.weightPct).toBeCloseTo(50, 6);
+    expect(b.weightPct).toBeCloseTo(50, 6);
+    // Bentuk jadwal benar-benar berbeda: A selesai sebelum B mulai.
+    const lastA = a.weekly.reduce((acc, v, i) => (v > 1e-9 ? i : acc), -1);
+    const firstB = b.weekly.findIndex((v) => v > 1e-9);
+    expect(lastA).toBeGreaterThanOrEqual(0);
+    expect(firstB).toBeGreaterThan(lastA);
+    // Σ seluruh kategori tetap 100 dan kurva berakhir 100.
+    expect(a.weightPct + b.weightPct).toBeCloseTo(100, 6);
+    expect(cumulativeFromCategoryWeekly(sched.categories, sched.totalWeeks).at(-1)).toBeCloseTo(100, 1);
+  });
+
+  it("ganti nama kategori tidak mengubah identitas maupun bentuk jadwal", () => {
+    const base: SchedItem[] = [
+      { name: "Pondasi batu kali", categoryKey: "A", categoryName: "BANGUNAN POS", amount: 100n },
+      { name: "Pasang lampu PJU", categoryKey: "B", categoryName: "PENERANGAN KAWASAN", amount: 60n },
+    ];
+    const renamed: SchedItem[] = base.map((it) =>
+      it.categoryKey === "A" ? { ...it, categoryName: "BANGUNAN POS JAGA (REVISI)" } : it,
+    );
+    const win = (_n: string, k?: string): [number, number] => (k === "A" ? [0, 0.4] : [0.6, 1]);
+    const s1 = scheduleFromItems(base, 140, win);
+    const s2 = scheduleFromItems(renamed, 140, win);
+
+    for (const key of ["A", "B"]) {
+      const c1 = s1.categories.find((c) => c.categoryKey === key)!;
+      const c2 = s2.categories.find((c) => c.categoryKey === key)!;
+      expect(c2.weightPct).toBeCloseTo(c1.weightPct, 9);
+      expect(c2.weekly).toEqual(c1.weekly);
+    }
   });
 
   it("itemPlannedFraction bersarang: penerangan galian 0 di minggu awal", () => {

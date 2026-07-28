@@ -289,36 +289,41 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
         const catKeysS = catNodes
           .map((n) => ({ key: n.lineageKey, name: n.name }))
           .sort((a, b) => b.key.length - a.key.length);
-        const catNameForS = (lk: string): string =>
-          catKeysS.find((c) => lk === c.key || lk.startsWith(`${c.key}#`))?.name ?? "";
+        const catForS = (lk: string): { key: string; name: string } =>
+          catKeysS.find((c) => lk === c.key || lk.startsWith(`${c.key}#`)) ?? { key: "", name: "" };
         const schedItems = nodes
           .filter((n) => n.kind === "item" && n.amount > 0n)
-          .map((n) => ({ name: n.name, categoryName: catNameForS(n.lineageKey), amount: n.amount }));
+          .map((n) => {
+            const cat = catForS(n.lineageKey);
+            return { name: n.name, categoryKey: cat.key, categoryName: cat.name, amount: n.amount };
+          });
         const grandCatS = catNodes.reduce((s, c) => s + (c.amount > 0n ? Number(c.amount) : 0), 0) || 1;
         const catWinS = new Map<string, [number, number]>();
         for (const c of catNodes) {
           const [cs, ce] = autoCategoryWindowFrac(c.name);
           const sW = Math.max(1, Math.min(totalWeeks, Math.floor(cs * totalWeeks) + 1));
           const eW = Math.max(sW, Math.min(totalWeeks, Math.ceil(ce * totalWeeks)));
-          catWinS.set(c.name, [sW, eW]);
+          catWinS.set(c.lineageKey, [sW, eW]);
         }
-        const winFracS = (name: string): [number, number] => {
-          const [s, e] = catWinS.get(name) ?? [1, totalWeeks];
+        const winFracS = (_name: string, key?: string): [number, number] => {
+          const [s, e] = catWinS.get(key ?? "") ?? [1, totalWeeks];
           return [(s - 1) / totalWeeks, e / totalWeeks];
         };
         const schedFromItems = scheduleFromItems(schedItems, contractDays, winFracS);
         const weekly = cumulativeFromCategoryWeekly(schedFromItems.categories, totalWeeks);
-        const weeklyByNameS = new Map(schedFromItems.categories.map((c) => [c.categoryName, c.weekly]));
+        const weeklyByKeyS = new Map(schedFromItems.categories.map((c) => [c.categoryKey, c.weekly]));
         const schedule = catNodes
           .filter((c) => c.amount > 0n)
           .map((c) => {
-            const [sW, eW] = catWinS.get(c.name) ?? [1, totalWeeks];
+            const [sW, eW] = catWinS.get(c.lineageKey) ?? [1, totalWeeks];
             const weightPct = (Number(c.amount) / grandCatS) * 100;
             return {
               lineageKey: c.lineageKey,
               name: c.name,
               weightPct,
-              weekly: weeklyByNameS.get(c.name) ?? weeklyFromSegments(weightPct, [{ startWeek: sW, endWeek: eW }], totalWeeks),
+              weekly:
+                weeklyByKeyS.get(c.lineageKey) ??
+                weeklyFromSegments(weightPct, [{ startWeek: sW, endWeek: eW }], totalWeeks),
             };
           });
         const baseline = await db.baseline.create({

@@ -631,6 +631,7 @@ model Location {
   documents     Document[]
   milestones    AdminMilestone[]
   alerts        Alert[]
+  photos        Photo[]
   masterLocation MasterLocation?
 
   @@index([packageId])
@@ -979,12 +980,16 @@ model DailyReportEquipment {
 
 model Photo {
   id           String            @id @default(uuid()) @db.Uuid
+  /// Lokasi pemilik foto — SCOPE dedup (STORE-01). Foto byte-identik yang sah
+  /// dipakai di dua lokasi (papan nama tipikal, dokumen yang sama) tidak boleh
+  /// saling menolak; yang dicegah hanya kirim ulang di lokasi yang SAMA.
+  locationId   String?           @map("location_id") @db.Uuid
   reportId     String?           @map("report_id") @db.Uuid
   reportItemId String?           @map("report_item_id") @db.Uuid
   activityId   String?           @map("activity_id") @db.Uuid
   r2Key        String            @unique @map("r2_key")
   thumbnailKey String?           @map("thumbnail_key")
-  sha256       String            @unique
+  sha256       String
   bytes        Int
   widthPx      Int?              @map("width_px")
   heightPx     Int?              @map("height_px")
@@ -996,13 +1001,16 @@ model Photo {
   uploadedById String?           @map("uploaded_by_id") @db.Uuid
   createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz
 
+  location   Location?        @relation(fields: [locationId], references: [id])
   report     DailyReport?     @relation(fields: [reportId], references: [id])
   reportItem DailyReportItem? @relation(fields: [reportItemId], references: [id])
   activity   FieldActivity?   @relation(fields: [activityId], references: [id])
 
+  @@unique([locationId, sha256])
   @@index([reportId])
   @@index([reportItemId])
   @@index([activityId])
+  @@index([locationId])
   @@map("photos")
 }
 
