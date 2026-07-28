@@ -3940,3 +3940,50 @@ monoton berakhir di target, hari di luar rentang dijepit) · build ✓.
 contoh (blok RENCANA | REALISASI berdampingan, kolom material DITOLAK, sel SHOP
 DRAWING kosong, blok TTD Inspector/Pelaksana) dan logo pemilik pekerjaan yang
 bisa diunggah di menu Sistem.
+
+---
+
+## 164 · 2026-07-28 · Eksekusi audit Codex: tenancy P0 ditutup di jalur aplikasi
+
+Audit independen kedua (Codex, `docs/AUDIT_MENYELURUH_2026-07-28.md`, 17 temuan)
+diperiksa seluruhnya ke kode. Tidak ada temuan yang terbukti salah; dua diterima
+sebagian dengan koreksi fakta, satu dipersempit ruang lingkupnya dengan bukti.
+
+### Diperbaiki
+
+- **AUTH-01** — `hasLocationAccess()` SELALU membuktikan `package.orgId =
+  user.orgId` sebelum role/assignment. Jalur DAFTAR sudah aman sejak DECISIONS
+  155 (B11) lewat `locationScopeWhere`; yang bocor adalah pemeriksaan objek
+  TUNGGAL — penjaga terakhir 34 pemanggil.
+- **AUTH-02** — 23 lookup di `package/actions.ts` (paket, vendor, kontrak,
+  lokasi) ber-scope organisasi aktor. Uji duplikat `contractNumber` sengaja
+  tetap global: itu keunikan, bukan jalur akses.
+- **AUTH-03** — `requireSameOrgUser()` pada `setUserActive`,
+  `resetUserPassword`, `setAssignments`; `setAssignments` juga memvalidasi
+  seluruh lokasi tujuan; halaman `master/pengguna` difilter organisasi.
+- **AUTH-05** — tiga route PDF menegakkan `report.export`. Definisi produk yang
+  diambil: **mengunduh PDF = ekspor**, karena berkasnya keluar dari aplikasi
+  (Drive, WhatsApp, dokumen resmi).
+- **CALC-02** — `pg_advisory_xact_lock` per lokasi sebelum guard volume di
+  transisi `→ dikirim`. Ini menambal lubang di perbaikan B1 sendiri: validasi
+  di dalam transaksi menutup kasus berurutan, bukan kasus paralel.
+- **CALC-03** — sentinel `grandTotal = 1` dibuang; pembagi nol sudah ditangani
+  `bobotPct()`. Fallback Σ item untuk RAB tanpa kategori dipertahankan.
+- **SEC-01** — `/api/health` tidak lagi mengembalikan pesan error database ke
+  publik; detail ke log server.
+
+### Menunggu keputusan user
+
+CALC-01 (arti angka progress blanko harian: as-of tanggal laporan vs saat
+finalisasi), kontrak tenancy (single vs multi-organization), CI-01 (pemicu
+push-ke-dev yang pernah ditolak di DECISIONS 153 M10), dan kebijakan proteksi
+akun admin.
+
+### Utang yang diakui
+
+Perbaikan otorisasi ini **belum ditutup test** — verifikasinya pembacaan kode +
+typecheck + lint + build. Persis kelemahan yang ditunjuk TEST-01. Prioritas
+berikutnya: fixture dua organisasi + matriks negatif, lalu race test submit
+paralel di PostgreSQL.
+
+Verifikasi: typecheck ✓ · lint ✓ · unit **436** ✓ · build ✓.

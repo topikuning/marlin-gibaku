@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentUser, hasLocationAccess } from "@/lib/auth/session";
+import { can } from "@/lib/authz";
 import { renderPeriodikKkpPdf } from "@/lib/pdf/periodik-kkp";
 import type { PeriodKind } from "@/lib/periodic-report";
 
@@ -18,6 +19,12 @@ export async function GET(_req: Request, ctx: { params: Promise<{ slug: string; 
 
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Belum masuk — silakan login" }, { status: 401 });
+  // Mengunduh PDF = EKSPOR dokumen, bukan sekadar melihat layar: capability
+  // `report.export` ditegakkan di route, bukan hanya menyembunyikan tombol
+  // (audit Codex 2026-07-28, AUTH-05 — direct GET tetap bisa dipanggil).
+  if (!can(user.role, "report.export")) {
+    return NextResponse.json({ error: "Tidak punya izin mengekspor laporan" }, { status: 403 });
+  }
 
   const loc = await db.location.findUnique({ where: { slug }, select: { id: true } });
   if (!loc) return NextResponse.json({ error: "Lokasi tidak ditemukan" }, { status: 404 });

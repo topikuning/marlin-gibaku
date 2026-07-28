@@ -172,8 +172,8 @@ export async function updatePackage(
   if (hpsValue === null) return { error: "Nilai HPS wajib diisi (angka rupiah, boleh 0)." };
   const d = parsed.data;
 
-  const pkg = await db.package.findUnique({
-    where: { id: d.packageId },
+  const pkg = await db.package.findFirst({
+    where: { id: d.packageId, orgId: actor.orgId },
     select: { stage: true, contract: { select: { id: true } } },
   });
   if (!pkg) return { error: "Paket tidak ditemukan." };
@@ -226,8 +226,8 @@ export async function advanceStage(
   // Guard serah terima: progress fisik harus 100% (tidak mungkin serah terima
   // pekerjaan yang belum tuntas). Dihitung dari realisasi RAB aktif semua lokasi.
   if (toStage === "serah_terima") {
-    const pre = await db.package.findUnique({
-      where: { id: id.data },
+    const pre = await db.package.findFirst({
+      where: { id: id.data, orgId: actor.orgId },
       select: { locations: { select: { id: true } } },
     });
     if (!pre) return { error: "Paket tidak ditemukan." };
@@ -243,8 +243,8 @@ export async function advanceStage(
   }
 
   const result = await db.$transaction(async (tx) => {
-    const pkg = await tx.package.findUnique({
-      where: { id: id.data },
+    const pkg = await tx.package.findFirst({
+      where: { id: id.data, orgId: actor.orgId },
       select: { stage: true },
     });
     if (!pkg) return { error: "Paket tidak ditemukan." as string };
@@ -301,8 +301,8 @@ export async function revertStage(
   if (note.length < 5) return { error: "Alasan mundur wajib diisi (min 5 karakter)." };
 
   const result = await db.$transaction(async (tx) => {
-    const pkg = await tx.package.findUnique({
-      where: { id: id.data },
+    const pkg = await tx.package.findFirst({
+      where: { id: id.data, orgId: actor.orgId },
       select: { stage: true },
     });
     if (!pkg) return { error: "Paket tidak ditemukan." as string };
@@ -376,8 +376,8 @@ export async function addTargetLocation(
   const d = parsed.data;
 
   const result = await db.$transaction(async (tx) => {
-    const pkg = await tx.package.findUnique({
-      where: { id: d.packageId },
+    const pkg = await tx.package.findFirst({
+      where: { id: d.packageId, orgId: actor.orgId },
       select: { stage: true, contract: { select: { id: true } } },
     });
     if (!pkg) return { error: "Paket tidak ditemukan." as string };
@@ -442,8 +442,8 @@ export async function addTargetLocationsFromCatalog(
   if (!ids.success) return { error: ids.error.issues[0].message };
 
   const result = await db.$transaction(async (tx) => {
-    const pkg = await tx.package.findUnique({
-      where: { id: pid.data },
+    const pkg = await tx.package.findFirst({
+      where: { id: pid.data, orgId: actor.orgId },
       select: { orgId: true, stage: true, candidateVendorName: true, contract: { select: { id: true } } },
     });
     if (!pkg) return { error: "Paket tidak ditemukan." as string };
@@ -524,8 +524,8 @@ export async function removeTargetLocation(locationId: string): Promise<PackageA
   if (!id.success) return { error: "ID lokasi tidak valid." };
 
   const result = await db.$transaction(async (tx) => {
-    const loc = await tx.location.findUnique({
-      where: { id: id.data },
+    const loc = await tx.location.findFirst({
+      where: { id: id.data, package: { orgId: actor.orgId } },
       select: {
         id: true,
         name: true,
@@ -573,8 +573,8 @@ export async function renameLocation(_prev: PackageActionState, formData: FormDa
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const { locationId, name } = parsed.data;
 
-  const loc = await db.location.findUnique({
-    where: { id: locationId },
+  const loc = await db.location.findFirst({
+    where: { id: locationId, package: { orgId: actor.orgId } },
     select: { id: true, slug: true, name: true, packageId: true },
   });
   if (!loc) return { error: "Lokasi tidak ditemukan." };
@@ -665,8 +665,8 @@ export async function convertToContract(
   // Pelaksanaan. Kontrak hanya menyimpan durationDays (masa pelaksanaan).
 
   const result = await db.$transaction(async (tx) => {
-    const pkg = await tx.package.findUnique({
-      where: { id: d.packageId },
+    const pkg = await tx.package.findFirst({
+      where: { id: d.packageId, orgId: actor.orgId },
       select: {
         id: true,
         stage: true,
@@ -704,7 +704,7 @@ export async function convertToContract(
     // Vendor: pilih existing atau upsert nama baru (unik per org+name).
     let vendorId = d.vendorId ?? null;
     if (vendorId) {
-      const vendor = await tx.vendor.findUnique({ where: { id: vendorId }, select: { id: true } });
+      const vendor = await tx.vendor.findFirst({ where: { id: vendorId, orgId: actor.orgId }, select: { id: true } });
       if (!vendor) return { error: "Vendor tidak ditemukan." };
     } else {
       const vendor = await tx.vendor.upsert({
@@ -1066,8 +1066,8 @@ export async function editContractAction(
   if (d.startDate && !startDate) return { error: "Format tanggal SPMK tidak valid." };
   const endDate = startDate ? new Date(startDate.getTime() + d.durationDays * DAY_MS) : null;
 
-  const pkg = await db.package.findUnique({
-    where: { id: d.packageId },
+  const pkg = await db.package.findFirst({
+    where: { id: d.packageId, orgId: actor.orgId },
     select: {
       id: true,
       contract: { select: { id: true, durationDays: true, startDate: true } },
@@ -1172,8 +1172,8 @@ export async function updateContractSignatories(
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
 
-  const contract = await db.contract.findUnique({
-    where: { id: d.contractId },
+  const contract = await db.contract.findFirst({
+    where: { id: d.contractId, package: { orgId: actor.orgId } },
     select: { id: true, packageId: true },
   });
   if (!contract) return { error: "Kontrak tidak ditemukan." };
@@ -1215,8 +1215,8 @@ export async function startPelaksanaan(
   if (!spmkDate) return { error: "Tanggal SPMK wajib diisi." };
 
   const result = await db.$transaction(async (tx) => {
-    const pkg = await tx.package.findUnique({
-      where: { id: id.data },
+    const pkg = await tx.package.findFirst({
+      where: { id: id.data, orgId: actor.orgId },
       select: {
         stage: true,
         contract: { select: { id: true, durationDays: true } },
@@ -1317,8 +1317,8 @@ export async function addAmendment(
   if (!effectiveDate) return { error: "Format tanggal berlaku tidak valid." };
 
   const result = await db.$transaction(async (tx) => {
-    const contract = await tx.contract.findUnique({
-      where: { id: d.contractId },
+    const contract = await tx.contract.findFirst({
+      where: { id: d.contractId, package: { orgId: actor.orgId } },
       select: { id: true, packageId: true },
     });
     if (!contract) return { error: "Kontrak tidak ditemukan." as string };

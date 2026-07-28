@@ -10,6 +10,7 @@ import {
   revokeAllSessions,
   accessibleLocationIds,
   ForbiddenError,
+  type SessionUser,
 } from "@/lib/auth/session";
 import { ALL_ROLES, ROLE_LABEL, can, canCreateRole } from "@/lib/authz";
 import type { UserRole } from "@/generated/prisma/enums";
@@ -122,9 +123,25 @@ export async function updateUserProfile(_prev: UserActionState, formData: FormDa
   return { success: "Data pengguna diperbarui." };
 }
 
+/**
+ * Pastikan user target berada di organisasi aktor. Dipakai SEMUA mutasi akun —
+ * capability menjawab "boleh mengelola pengguna", bukan "pengguna organisasi
+ * mana" (audit Codex 2026-07-28, AUTH-03). Server action bisa dipanggil
+ * langsung, jadi menyembunyikan tombol bukan kontrol.
+ */
+async function requireSameOrgUser(actor: SessionUser, targetId: string): Promise<void> {
+  const target = await db.user.findFirst({
+    where: { id: targetId, orgId: actor.orgId },
+    select: { id: true },
+  });
+  // Pesan "tidak ditemukan" disengaja: jangan bocorkan keberadaan akun tenant lain.
+  if (!target) throw new ForbiddenError("Pengguna tidak ditemukan.");
+}
+
 export async function setUserActive(userId: string, isActive: boolean): Promise<void> {
   const actor = await requireCapability("user.manage");
   if (actor.id === userId && !isActive) throw new ForbiddenError("Tidak bisa menonaktifkan akun sendiri");
+  await requireSameOrgUser(actor, userId);
   await db.user.update({ where: { id: userId }, data: { isActive } });
   if (!isActive) await revokeAllSessions(userId); // sesi langsung mati
   await audit(actor.id, isActive ? "user.activate" : "user.deactivate", "user", userId);
@@ -134,6 +151,7 @@ export async function setUserActive(userId: string, isActive: boolean): Promise<
 export async function resetUserPassword(_prev: UserActionState, formData: FormData): Promise<UserActionState> {
   const actor = await requireCapability("user.manage");
   const userId = z.uuid().parse(formData.get("userId"));
+  await requireSameOrgUser(actor, userId);
   const password = z.string().min(8, "Password minimal 8 karakter").safeParse(formData.get("password"));
   if (!password.success) return { error: password.error.issues[0].message };
   await db.user.update({
@@ -149,7 +167,16 @@ export async function resetUserPassword(_prev: UserActionState, formData: FormDa
 export async function setAssignments(_prev: UserActionState, formData: FormData): Promise<UserActionState> {
   const actor = await requireCapability("user.manage");
   const userId = z.uuid().parse(formData.get("userId"));
+  await requireSameOrgUser(actor, userId);
   const locationIds = formData.getAll("locationIds").map(String).filter(Boolean);
+  // Lokasi tujuan juga wajib satu organisasi — tanpa ini, user organisasi A
+  // bisa ditugaskan ke lokasi organisasi B (AUTH-03).
+  if (locationIds.length > 0) {
+    const sah = await db.location.count({
+      where: { id: { in: locationIds }, package: { orgId: actor.orgId } },
+    });
+    if (sah !== locationIds.length) return { error: "Ada lokasi yang tidak ditemukan di organisasi ini." };
+  }
   const now = new Date();
   await db.$transaction(async (tx) => {
     await tx.locationAssignment.updateMany({

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Card, CardHeader, CardBody } from "@/components/ui";
 import { requireUser, accessibleLocationIds } from "@/lib/auth/session";
+import { locationScopeWhere } from "@/lib/auth/scope";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can, creatableRoles, ROLE_LABEL } from "@/lib/authz";
 import { db } from "@/lib/db";
@@ -20,8 +21,11 @@ export default async function PenggunaPage() {
 
   const [users, locations] = await Promise.all([
     db.user.findMany({
-      // Manajemen penuh → semua akun; pembuat terbatas → hanya akun yang IA buat.
-      where: fullManage ? undefined : { createdById: user.id },
+      // Manajemen penuh → semua akun DI ORGANISASI INI; pembuat terbatas →
+      // hanya akun yang IA buat. `undefined` dulu berarti seluruh database
+      // (audit Codex 2026-07-28, AUTH-03) — halaman ini yang membocorkan UUID
+      // akun tenant lain ke tombol reset/nonaktifkan.
+      where: fullManage ? { orgId: user.orgId } : { createdById: user.id, orgId: user.orgId },
       orderBy: [{ role: "asc" }, { fullName: "asc" }],
       select: {
         id: true,
@@ -40,7 +44,7 @@ export default async function PenggunaPage() {
       },
     }),
     db.location.findMany({
-      where: accessibleLocs ? { id: { in: accessibleLocs } } : undefined,
+      where: locationScopeWhere(user, accessibleLocs),
       orderBy: { name: "asc" },
       select: {
         id: true,
