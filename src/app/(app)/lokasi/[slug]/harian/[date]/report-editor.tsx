@@ -12,6 +12,8 @@ import {
 } from "@/lib/daily-report/actions";
 import type { LeafNodeOption, WorkspaceItem } from "@/lib/daily-report/queries";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
+import type { PhotoView } from "@/lib/photos";
+import { removeReportPhotoAction } from "@/lib/daily-report/actions";
 import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
 
 /**
@@ -48,6 +50,8 @@ export function ReportEditor({
   items,
   correctionReason,
   photoEnabled,
+  photosTanpaItem,
+  bolehHapusFoto,
 }: {
   locationId: string;
   slug: string;
@@ -57,6 +61,10 @@ export function ReportEditor({
   items: WorkspaceItem[];
   correctionReason: string | null;
   photoEnabled: boolean;
+  /** Foto yang item-nya sudah dihapus — ditampilkan supaya bisa dibersihkan. */
+  photosTanpaItem: PhotoView[];
+  /** Laporan masih bisa diedit (draft / perlu koreksi). */
+  bolehHapusFoto: boolean;
 }) {
   return (
     <div className="space-y-4">
@@ -68,7 +76,29 @@ export function ReportEditor({
         />
       ) : null}
       <ItemForm locationId={locationId} slug={slug} dateKey={dateKey} nodes={nodes} photoEnabled={photoEnabled} />
-      <ItemList reportId={reportId} slug={slug} dateKey={dateKey} items={items} />
+      <ItemList
+        reportId={reportId}
+        slug={slug}
+        dateKey={dateKey}
+        items={items}
+        bolehHapusFoto={bolehHapusFoto}
+      />
+      {photosTanpaItem.length > 0 ? (
+        <section className="rounded-lg border border-border bg-surface p-3">
+          <h3 className="text-sm font-semibold">Foto tanpa pekerjaan</h3>
+          <p className="mt-0.5 text-xs text-muted">
+            Foto ini ikut terlepas saat pekerjaannya dihapus. Hapus bila tidak dipakai.
+          </p>
+          <div className="mt-2">
+            <PhotoGallery
+              photos={photosTanpaItem}
+              thumbClass="h-14 w-14"
+              canDelete={bolehHapusFoto}
+              deleteAction={removeReportPhotoAction}
+            />
+          </div>
+        </section>
+      ) : null}
       {reportId && items.length > 0 ? <SubmitPanel reportId={reportId} slug={slug} dateKey={dateKey} /> : null}
     </div>
   );
@@ -303,11 +333,13 @@ function ItemRow({
   slug,
   dateKey,
   item,
+  bolehHapusFoto,
 }: {
   reportId: string | null;
   slug: string;
   dateKey: string;
   item: WorkspaceItem;
+  bolehHapusFoto: boolean;
 }) {
   const [state, formAction, pending] = useActionState<DailyActionState, FormData>(removeItemAction, undefined);
 
@@ -349,7 +381,14 @@ function ItemRow({
         ) : null}
       </div>
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
-      {item.photos.length > 0 ? <PhotoGallery photos={item.photos} thumbClass="h-14 w-14" /> : null}
+      {item.photos.length > 0 ? (
+        <PhotoGallery
+          photos={item.photos}
+          thumbClass="h-14 w-14"
+          canDelete={bolehHapusFoto}
+          deleteAction={removeReportPhotoAction}
+        />
+      ) : null}
     </li>
   );
 }
@@ -359,11 +398,13 @@ function ItemList({
   slug,
   dateKey,
   items,
+  bolehHapusFoto,
 }: {
   reportId: string | null;
   slug: string;
   dateKey: string;
   items: WorkspaceItem[];
+  bolehHapusFoto: boolean;
 }) {
   if (items.length === 0) {
     return (
@@ -379,7 +420,14 @@ function ItemList({
       </div>
       <ul className="divide-y divide-border">
         {items.map((it) => (
-          <ItemRow key={it.id} reportId={reportId} slug={slug} dateKey={dateKey} item={it} />
+          <ItemRow
+            key={it.id}
+            reportId={reportId}
+            slug={slug}
+            dateKey={dateKey}
+            item={it}
+            bolehHapusFoto={bolehHapusFoto}
+          />
         ))}
       </ul>
     </div>

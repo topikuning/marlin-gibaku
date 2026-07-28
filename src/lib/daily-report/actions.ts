@@ -13,13 +13,16 @@ import {
 import { can } from "@/lib/authz";
 import { jakartaDateKey } from "@/lib/format";
 import { MAX_PHOTOS_PER_UPLOAD, PhotoError, savePhotoForItem } from "@/lib/photos";
-import type { WeatherCode, WorkerRole } from "@/generated/prisma/enums";
+import { isR2Configured, r2Delete } from "@/lib/r2";
+import { audit } from "@/lib/audit";
+import type { UserRole, WeatherCode, WorkerRole } from "@/generated/prisma/enums";
 import { WEATHER_ORDER, WORKER_ROLE_ORDER } from "./constants";
 import {
   addIssueFromReport,
   approveReport,
   CREATOR_ENRICHABLE_STATUSES,
   DailyReportError,
+  EDITABLE_STATUSES,
   finalizeReport,
   unfinalizeReport,
   getOrCreateDraft,
@@ -219,6 +222,85 @@ export async function removeItemAction(_prev: DailyActionState, formData: FormDa
     await removeItem(ctx.id, parsed.data.itemId, user.id);
     revalidateReport(ctx.slug, ctx.dateKey);
     return { success: "Item dihapus." };
+  } catch (err) {
+    return errState(err);
+  }
+}
+
+/**
+ * Hapus SATU foto bukti dari laporan harian (baris DB + objek R2).
+ *
+ * Sebelum ini foto sama sekali tidak bisa dihapus: aksinya memang tidak pernah
+ * ada. Lebih buruk, menghapus item pekerjaan hanya MELEPAS fotonya
+ * (`reportItemId = null`) — foto itu lalu tidak tampil di mana pun dan jadi
+ * mustahil dibersihkan, baik dari layar maupun dari bucket.
+ *
+ * Aturan (keputusan user 28 Juli 2026):
+ * - Hanya saat laporan masih DRAFT atau PERLU KOREKSI. Begitu dikirim, foto
+ *   sudah jadi dasar verifikasi — mengubah bukti setelah itu bukan koreksi.
+ * - Yang boleh: PENGUNGGAH foto itu sendiri, Site Manager, atau Super Admin.
+ */
+const photoIdSchema = z.object({ photoId: z.uuid("Foto tidak valid.") });
+
+/** Peran yang boleh menghapus foto milik orang lain. */
+const PERAN_BOLEH_HAPUS_FOTO_ORANG_LAIN: UserRole[] = ["site_manager", "super_admin"];
+
+export async function removeReportPhotoAction(
+  _prev: DailyActionState,
+  formData: FormData,
+): Promise<DailyActionState> {
+  try {
+    const user = await requireCapability("daily_report.create");
+    const parsed = photoIdSchema.safeParse({ photoId: formData.get("photoId") });
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+    const photo = await db.photo.findUnique({
+      where: { id: parsed.data.photoId },
+      select: {
+        id: true,
+        r2Key: true,
+        thumbnailKey: true,
+        uploadedById: true,
+        reportId: true,
+        report: {
+          select: {
+            id: true,
+            status: true,
+            locationId: true,
+            reportDate: true,
+            location: { select: { slug: true } },
+          },
+        },
+      },
+    });
+    if (!photo?.report) return { error: "Foto laporan tidak ditemukan." };
+    await requireLocationAccess(user, photo.report.locationId);
+
+    if (!EDITABLE_STATUSES.includes(photo.report.status)) {
+      return { error: "Foto hanya bisa dihapus saat laporan berstatus Draft atau Perlu Koreksi." };
+    }
+    const miliknyaSendiri = photo.uploadedById !== null && photo.uploadedById === user.id;
+    if (!miliknyaSendiri && !PERAN_BOLEH_HAPUS_FOTO_ORANG_LAIN.includes(user.role)) {
+      return { error: "Hanya pengunggah foto, Site Manager, atau Super Admin yang bisa menghapus foto ini." };
+    }
+
+    // Baris dulu, objek belakangan: gagal hapus objek hanya menyisakan berkas
+    // tak terpakai, sedangkan urutan sebaliknya menyisakan foto rusak di layar.
+    await db.photo.delete({ where: { id: photo.id } });
+    if (isR2Configured()) {
+      await Promise.all(
+        [photo.r2Key, photo.thumbnailKey]
+          .filter((k): k is string => !!k)
+          .map((k) => r2Delete(k).catch(() => {})),
+      );
+    }
+    await audit(user.id, "daily_report.photo_remove", "photo", photo.id, {
+      reportId: photo.report.id,
+      uploadedById: photo.uploadedById,
+    });
+
+    revalidateReport(photo.report.location.slug, jakartaDateKey(photo.report.reportDate));
+    return { success: "Foto dihapus." };
   } catch (err) {
     return errState(err);
   }

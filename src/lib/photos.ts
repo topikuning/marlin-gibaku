@@ -554,6 +554,8 @@ export async function sharpSelfTest(): Promise<{ ok: boolean; detail: string; sa
 export type PhotoView = {
   id: string;
   reportItemId?: string | null;
+  /** Pengunggah — dipakai UI untuk memutuskan siapa boleh menghapus. */
+  uploadedById?: string | null;
   thumbUrl?: string;
   fullUrl?: string;
   takenAt: string | null; // ISO
@@ -566,6 +568,7 @@ type PhotoRow = {
   r2Key: string;
   thumbnailKey?: string | null;
   reportItemId?: string | null;
+  uploadedById?: string | null;
   exifTakenAt?: Date | null;
   exifGpsLat?: { toString(): string } | null;
   exifGpsLng?: { toString(): string } | null;
@@ -605,6 +608,7 @@ export async function buildPhotoViews(photos: PhotoRow[], expiresIn = 300): Prom
     return {
       id: p.id,
       reportItemId: p.reportItemId ?? null,
+      uploadedById: p.uploadedById ?? null,
       thumbUrl: thumbUrl ?? fullUrl,
       fullUrl,
       takenAt: p.exifTakenAt ? p.exifTakenAt.toISOString() : null,

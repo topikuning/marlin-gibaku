@@ -90,6 +90,10 @@ export default async function HarianWorkspacePage({
           reportId={report?.id ?? null}
           nodes={await getLeafNodeOptions(data.location.id)}
           items={report?.items ?? []}
+          photosTanpaItem={report?.photosTanpaItem ?? []}
+          // Foto hanya bisa dihapus selama laporan masih bisa diedit; siapa yang
+          // boleh (pengunggah / Site Manager / Super Admin) ditegakkan di server.
+          bolehHapusFoto={editable}
           correctionReason={status === "perlu_koreksi" ? report?.lastCorrectionReason ?? null : null}
           photoEnabled={isR2Configured()}
         />
