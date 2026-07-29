@@ -15,7 +15,8 @@ import {
   toNarrativeSourceRefs,
   type NarrativeBundle,
 } from "./narrative";
-import { KIND_INSTRUCTION, PROMPT_VERSION, SYSTEM_BASE, buildPulsePayload, buildQualityPayload } from "./prompt";
+import { KIND_INSTRUCTION, PROMPT_VERSION, buildPulsePayload, buildQualityPayload } from "./prompt";
+import { resolvePrompt } from "@/lib/ai/prompts";
 import {
   SCHEMA_HINTS,
   askOutputSchema,
@@ -228,7 +229,10 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
     instruction = KIND_INSTRUCTION.tanya;
     schemaHint = SCHEMA_HINTS.ask;
   } else {
-    instruction = KIND_INSTRUCTION[input.kind] ?? KIND_INSTRUCTION.pulse;
+    // Instruksi & aturan dasar dibaca dari pengaturan (Sistem → Prompt AI);
+    // bila belum pernah ditimpa, teks bawaan registri yang dipakai.
+    instruction =
+      (await resolvePrompt(`hub.kind.${input.kind}`)) || KIND_INSTRUCTION[input.kind] || KIND_INSTRUCTION.pulse;
     schemaHint =
       input.kind === "deviasi"
         ? SCHEMA_HINTS.variance
@@ -260,7 +264,7 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
               ? qualityOutputSchema
               : pulseOutputSchema;
   const result = await aiStructured(schema as never, {
-    system: SYSTEM_BASE,
+    system: await resolvePrompt("hub.system"),
     prompt,
     schemaHint,
     maxTokens: guardCfg.maxOutputTokens,

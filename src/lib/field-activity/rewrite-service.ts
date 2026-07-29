@@ -2,6 +2,7 @@ import "server-only";
 import { aiCall } from "@/lib/ai/client";
 import { getActiveAiConfig } from "@/lib/ai/config";
 import { checkAiGuard, AiGuardError } from "@/lib/ai-hub/guard";
+import { resolvePrompts } from "@/lib/ai/prompts";
 import type { SessionUser } from "@/lib/auth/session";
 import {
   buildBatchRewritePrompt,
@@ -73,13 +74,15 @@ export async function suggestActivityRewrite(
     throw e;
   }
 
+  const teks = await resolvePrompts(["kegiatan.rewrite.system", `kegiatan.rewrite.${input.style}`]);
   const res = await aiCall({
-    system: REWRITE_SYSTEM_PROMPT,
+    system: teks["kegiatan.rewrite.system"] || REWRITE_SYSTEM_PROMPT,
     prompt: buildBatchRewritePrompt({
       fields,
       style: input.style,
       kindLabel: input.kindLabel ?? null,
       title: input.title ?? null,
+      styleInstruction: teks[`kegiatan.rewrite.${input.style}`],
     }),
     maxTokens: 1600,
     timeoutMs: 60_000,

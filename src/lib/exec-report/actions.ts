@@ -9,6 +9,7 @@ import { jakartaToday, parseDateKey, formatTanggal } from "@/lib/format";
 import { sendText, WahaError } from "@/lib/waha/client";
 import { aiComplete } from "@/lib/ai/client";
 import { gatherExecData } from "@/lib/exec-report/gather";
+import { resolvePrompts } from "@/lib/ai/prompts";
 import { buildExecPrompt } from "@/lib/exec-report/prompt";
 import { isExecReportKey, isPeriodPreset } from "@/lib/exec-report/catalog";
 import { normalizeWaTarget } from "@/lib/contacts/model";
@@ -86,7 +87,11 @@ export async function generateExecReportAction(
       return { error: "Tidak ada lokasi dalam cakupanmu untuk periode ini." };
     }
 
-    const { system, prompt } = buildExecPrompt(key, data, label);
+    const teks = await resolvePrompts(["exec.system", `exec.${key}`]);
+    const { system, prompt } = buildExecPrompt(key, data, label, {
+      system: teks["exec.system"],
+      instruction: teks[`exec.${key}`],
+    });
     const result = await aiComplete({ system, prompt, maxTokens: 1500 });
     if (!result.ok) return { error: `AI gagal menyusun: ${result.error}` };
 

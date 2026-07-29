@@ -125,6 +125,11 @@ sourceRef + klaim angka, bagian gagal dibuang jadi limitation. In-process (tanpa
 service/Redis/MCP/agent framework); guard AppSetting: kill switch + rate limit +
 batas ukuran; API key provider terenkripsi AES-256-GCM (`AI_SECRET_ENCRYPTION_KEY`).
 
+**Prompt semua aksi AI** diatur di Sistem → Prompt AI (registri
+`src/lib/ai/prompt-registry.ts`, override AppSetting `ai.prompt.*`). Frasa
+pengaman anti-mengarang per slot tidak bisa dihapus lewat halaman itu
+(DECISIONS 180).
+
 ## 6. Alur harian (jantung sistem)
 
 Mandor/SM buka **Hari Ini** → workspace tanggal `/lokasi/[slug]/harian/[date]` →

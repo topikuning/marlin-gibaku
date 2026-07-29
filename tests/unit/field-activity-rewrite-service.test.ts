@@ -21,6 +21,18 @@ vi.mock("@/lib/ai-hub/guard", () => ({
   },
 }));
 
+// Prompt diambil dari registri (Sistem → Prompt AI). Di unit test kita pakai
+// teks BAWAAN supaya tidak menyentuh DB — yang diuji perangkaiannya, bukan
+// penyimpanan override (itu ada di tests/integration/ai-prompt-override).
+vi.mock("@/lib/ai/prompts", async () => {
+  const reg = await import("@/lib/ai/prompt-registry");
+  return {
+    resolvePrompts: async (keys: string[]) =>
+      Object.fromEntries(keys.map((k) => [k, reg.promptDefault(k)])),
+    resolvePrompt: async (key: string) => reg.promptDefault(key),
+  };
+});
+
 const { suggestActivityRewrite } = await import("@/lib/field-activity/rewrite-service");
 
 const user = { id: "u1", orgId: "o1", role: "site_manager" } as never;

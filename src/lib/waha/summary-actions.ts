@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { promptDefault } from "@/lib/ai/prompt-registry";
+import { resolvePrompt } from "@/lib/ai/prompts";
 import { audit } from "@/lib/audit";
 import { ForbiddenError, requireCapability } from "@/lib/auth/session";
 import { sendText, WahaError } from "@/lib/waha/client";
@@ -201,8 +203,7 @@ export async function sendChatSummaryAction(
 
 const sendGlobalSchema = z.object({ dateKey: dateSchema, contactId: z.uuid("Pilih kontak tujuan") });
 
-const OVERVIEW_SYSTEM = `Anda menyusun pengantar singkat (maks 90 kata) untuk laporan harian chat grup lintas paket proyek KNMP kepada pimpinan.
-Aturan: Bahasa Indonesia langsung; HANYA dari ringkasan yang diberikan; sebut paket yang paling perlu perhatian; jangan mengarang angka.`;
+const OVERVIEW_SYSTEM = promptDefault("chat.overview");
 
 export async function sendGlobalSummaryAction(
   _prev: ChatSummaryState,
@@ -236,7 +237,7 @@ export async function sendGlobalSummaryAction(
     if (rows.length > 1) {
       const { aiCall } = await import("@/lib/ai/client");
       const r = await aiCall({
-        system: OVERVIEW_SYSTEM,
+        system: (await resolvePrompt("chat.overview")) || OVERVIEW_SYSTEM,
         prompt:
           `Tanggal: ${dateKey}\n\n` +
           rows.map((x) => `## ${x.title} (${x.messageCount} pesan)\n${x.summaryText}`).join("\n\n"),

@@ -4581,3 +4581,62 @@ perangkaian layanan (satu panggilan untuk tiga bagian, penyelundupan angka pada
 SATU bagian tidak menjatuhkan bagian lain, bagian pendek tidak dikirim ke model,
 AI belum diatur, kuota ditolak, provider gagal, beda gaya beda instruksi) ·
 typecheck ✓ · lint ✓ · build ✓.
+
+## 180 · 2026-07-29 · Sistem → Prompt AI: satu halaman mengatur teks perintah SEMUA aksi AI
+
+Permintaan user: perlu halaman khusus di pengaturan untuk mengatur prompt semua
+aksi AI. Sebelumnya prompt tersebar sebagai konstanta di lima modul dan hanya
+bisa diubah lewat deploy.
+
+**Registri tunggal** `src/lib/ai/prompt-registry.ts` (lapisan murni) memuat 14
+slot yang menutup SELURUH aksi AI yang ada:
+
+| Kelompok | Slot |
+|---|---|
+| AI Hub | `hub.system` + `hub.kind.{pulse,deviasi,risiko,kualitas_data,tanya}` |
+| Laporan eksekutif WA | `exec.system` + `exec.{rangkuman_kegiatan,rekap_kendala,kepatuhan_lapor}` |
+| Ringkasan chat grup | `chat.summary`, `chat.overview` |
+| Perapian teks kegiatan | `kegiatan.rewrite.{system,rapi,teknis}` |
+
+Konstanta lama di `ai-hub/prompt.ts`, `exec-report/prompt.ts`,
+`waha/chat-summary.ts`, `waha/summary-actions.ts`, dan `field-activity/rewrite.ts`
+kini MENGAMBIL teksnya dari registri — tidak ada lagi dua sumber kebenaran.
+
+**Penyimpanan & pembacaan** (`ai/prompts.ts`, server-only): override disimpan
+sebagai AppSetting `ai.prompt.<key>` (effective-dated, pola sama dengan config
+AI lain), sehingga perubahan prompt punya jejak waktu. Belum pernah ditimpa
+atau isinya kosong → teks BAWAAN dipakai; sistem tidak pernah berjalan tanpa
+prompt. Perubahan langsung berlaku pada aksi AI berikutnya, tanpa deploy.
+
+**Penjaga `mustContain` — inti keputusan ini.** Tiap slot mencantumkan frasa
+yang tidak boleh hilang, dan simpan DITOLAK bila frasa itu dibuang:
+
+- `hub.system` → "BUKAN sumber angka"
+- `hub.kind.deviasi` → "Jangan mengubah angka deviasi resmi"
+- `hub.kind.risiko` → "Skor rule TIDAK boleh diubah"
+- `hub.kind.kualitas_data` → "ditentukan rule"
+- `hub.kind.tanya` → "HANYA dari data"
+- `exec.system` → "JANGAN mengarang"
+- `chat.summary` / `chat.overview` → "jangan mengarang…"
+- `kegiatan.rewrite.system` → "JANGAN menambah informasi"
+- `kegiatan.rewrite.teknis` → "JANGAN menebak"
+
+Alasannya: prompt boleh disetel gayanya, tetapi larangan mengarang angka bukan
+urusan selera. Tanpa penjaga ini, satu tempel-timpa teks baru bisa menghapus
+pagar yang menjaga angka laporan resmi. Pengosongan juga ditolak — pakai
+"Kembalikan ke bawaan". Batas panjang per slot ditegakkan.
+
+**UI**: tab baru "Prompt AI" di /sistem (capability `system.manage`, sama dengan
+pengaturan AI lain). Tiap slot menampilkan status Bawaan/Diubah, editor, jumlah
+karakter, "Lihat teks bawaan", dan "Kembalikan ke bawaan" bila sudah ditimpa.
+Frasa pengaman ditampilkan sebagai chip supaya jelas apa yang tak boleh hilang.
+Audit mencatat slot, pelaku, dan jumlah karakter — BUKAN isi promptnya.
+
+Catatan penting yang tidak berubah: AI tetap bukan sumber angka. Semua angka
+laporan berasal dari calculation layer; isi prompt tidak bisa mengubah itu.
+
+Verifikasi: unit 537 ✓ (13 kasus registri & penjaga: kunci unik, tiap bawaan
+lolos validasinya sendiri, batas karakter, cakupan seluruh aksi AI, penolakan
+saat frasa pengaman dibuang) · integrasi 98 ✓ di PostgreSQL 16 lokal (8 kasus:
+bawaan→override→reset, override kosong = belum ditimpa, penolakan tersimpan,
+penandaan Bawaan/Diubah) · typecheck ✓ · lint ✓ · build ✓.

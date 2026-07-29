@@ -1,3 +1,4 @@
+import { promptDefault } from "@/lib/ai/prompt-registry";
 /**
  * Perapian teks bebas laporan kegiatan lapangan (catatan / kendala / solusi).
  *
@@ -45,17 +46,10 @@ export const REWRITE_STYLE_HINT: Record<RewriteStyle, string> = {
 };
 
 const STYLE_INSTRUCTION: Record<RewriteStyle, string> = {
-  rapi: [
-    "GAYA: bahasa Indonesia baku yang lugas dan mudah dibaca.",
-    "Rapikan ejaan, tanda baca, dan susunan kalimat. Pertahankan cara bertutur yang wajar.",
-  ].join("\n"),
-  teknis: [
-    "GAYA: register teknis laporan pekerjaan konstruksi.",
-    "Gunakan kalimat pasif yang lazim di laporan proyek ('dilaksanakan', 'dikerjakan', 'ditemukan').",
-    "Pakai istilah baku pekerjaan sipil bila padanannya JELAS dari teks asli (mis. 'cor' → 'pengecoran',",
-    "'besi' → 'pembesian'). Bila padanan tidak jelas, biarkan istilah aslinya — JANGAN menebak.",
-  ].join("\n"),
+  rapi: promptDefault("kegiatan.rewrite.rapi"),
+  teknis: promptDefault("kegiatan.rewrite.teknis"),
 };
+
 
 const FIELD_INSTRUCTION: Record<RewriteField, string> = {
   notes:
@@ -66,20 +60,7 @@ const FIELD_INSTRUCTION: Record<RewriteField, string> = {
     "Tindak lanjut: tulis langkah yang disepakati atau dilakukan; jangan menjanjikan hal yang tidak tertulis di teks asli.",
 };
 
-export const REWRITE_SYSTEM_PROMPT = [
-  "Anda editor bahasa untuk laporan proyek konstruksi pemerintah di Indonesia.",
-  "Tugas Anda HANYA merapikan tulisan lapangan menjadi bahasa Indonesia baku yang formal dan enak dibaca.",
-  "",
-  "ATURAN MUTLAK:",
-  "1. JANGAN menambah informasi apa pun yang tidak ada di teks asli — tidak ada angka baru, tanggal baru, nama baru, penyebab baru, maupun kesimpulan baru.",
-  "2. Angka, satuan, tanggal, nama orang/instansi, dan istilah teknis disalin PERSIS seperti aslinya.",
-  "3. Jangan memperhalus atau menghilangkan kabar buruk. Kendala tetap ditulis sebagai kendala.",
-  "4. Singkatan lapangan yang jelas boleh dipanjangkan (mis. 'dgn' → 'dengan'), tetapi istilah teknis dan singkatan resmi dibiarkan.",
-  "5. Bila teks asli terlalu pendek atau tidak jelas, rapikan seadanya. JANGAN mengarang pelengkap.",
-  "6. Balas HANYA teks hasil perapian. Tanpa pengantar, tanpa penjelasan, tanpa tanda kutip pembungkus, tanpa penanda markdown.",
-  "7. Panjang hasil sepadan dengan aslinya — merapikan, bukan mengarang paragraf baru.",
-  "8. Bila diminta beberapa bagian sekaligus, balas dengan penanda bagian PERSIS seperti yang dicontohkan, tanpa teks lain di luar bagian.",
-].join("\n");
+export const REWRITE_SYSTEM_PROMPT = promptDefault("kegiatan.rewrite.system");
 
 /** Penanda bagian pada mode gabungan (satu panggilan untuk semua teks bebas). */
 export const SECTION_MARK: Record<RewriteField, string> = {
@@ -116,11 +97,13 @@ export function buildBatchRewritePrompt(input: {
   style: RewriteStyle;
   kindLabel?: string | null;
   title?: string | null;
+  /** Instruksi gaya dari Sistem → Prompt AI; kosong = bawaan registri. */
+  styleInstruction?: string | null;
 }): string {
   const lines: string[] = [];
   if (input.kindLabel) lines.push(`Jenis kegiatan: ${input.kindLabel}`);
   if (input.title) lines.push(`Judul kegiatan: ${input.title}`);
-  lines.push(STYLE_INSTRUCTION[input.style], "");
+  lines.push(input.styleInstruction?.trim() || STYLE_INSTRUCTION[input.style], "");
   lines.push("Rapikan SETIAP bagian di bawah. Balas dengan penanda bagian yang sama persis:");
   lines.push(input.fields.map((f) => SECTION_MARK[f.field]).join(" "), "");
   for (const f of input.fields) {

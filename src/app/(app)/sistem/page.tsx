@@ -18,6 +18,8 @@ import { getActivityKinds } from "@/lib/field-activity/kinds";
 import { aiSecretStorageStatus, getAiConfigDisplay } from "@/lib/ai/config";
 import { getAiGuardConfig, getAiPricing } from "@/lib/ai-hub/guard";
 import { AiGuardPanel } from "./ai-guard-panel";
+import { listPrompts } from "@/lib/ai/prompts";
+import { PromptPanel } from "./prompt-panel";
 import { CAPABILITIES, ROLE_CAPABILITIES, ROLE_LABEL, ALL_ROLES, type Capability } from "@/lib/authz";
 import type { UserRole } from "@/generated/prisma/enums";
 import {
@@ -417,6 +419,20 @@ export default async function SistemPage() {
     </div>
   );
 
+  /* ── PANEL: Prompt AI ─────────────────────────────────────────────────── */
+  // Teks perintah SEMUA aksi AI, bisa disetel admin tanpa deploy (DECISIONS 180).
+  const promptPanel: ReactNode = (
+    <Card>
+      <CardHeader
+        title="Prompt AI"
+        subtitle="Teks perintah untuk AI Hub, laporan eksekutif WA, ringkasan chat grup, dan perapian teks kegiatan"
+      />
+      <CardBody>
+        <PromptPanel items={await listPrompts()} />
+      </CardBody>
+    </Card>
+  );
+
   /* ── PANEL: AI ────────────────────────────────────────────────────────── */
   const aiPanel: ReactNode = (
     <div className="space-y-4">
@@ -577,6 +593,7 @@ export default async function SistemPage() {
           { key: "overview", label: "Ringkasan" },
           { key: "integrations", label: "Integrasi" },
           { key: "ai", label: "AI" },
+          { key: "prompt", label: "Prompt AI" },
           { key: "access", label: "Akses & Keamanan" },
           { key: "branding", label: "Branding & Photo Stamp" },
           { key: "audit", label: "Audit Trail" },
@@ -585,6 +602,7 @@ export default async function SistemPage() {
           overview: overviewPanel,
           integrations: integrationsPanel,
           ai: aiPanel,
+          prompt: promptPanel,
           access: accessPanel,
           branding: brandingPanel,
           audit: auditPanel,
