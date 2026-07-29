@@ -610,3 +610,63 @@ export async function reopenActivityAction(
     return fail(err);
   }
 }
+
+// ─────────────────────────────────────────────────────────────
+// Rapikan teks bebas dengan AI (usulan — TIDAK menyimpan apa pun)
+// ─────────────────────────────────────────────────────────────
+
+const rewriteSchema = z.object({
+  locationId: z.uuid(),
+  field: z.enum(["notes", "kendala", "solusi"]),
+  text: z.string().trim().min(1, "Isi teksnya dulu."),
+  kindLabel: z.string().trim().max(120).optional(),
+  title: z.string().trim().max(200).optional(),
+});
+
+export type RewriteState =
+  | { error?: string; suggestion?: string; field?: "notes" | "kendala" | "solusi" }
+  | undefined;
+
+/**
+ * Usulkan versi rapi dari teks bebas kegiatan lapangan. Mengembalikan USULAN ke
+ * layar — penyimpanan tetap lewat aksi simpan biasa setelah pengguna menekan
+ * "Pakai". Tidak ada teks lapangan yang berubah tanpa persetujuan orangnya.
+ */
+export async function rewriteActivityTextAction(
+  _prev: RewriteState,
+  formData: FormData,
+): Promise<RewriteState> {
+  const parsed = rewriteSchema.safeParse({
+    locationId: formData.get("locationId"),
+    field: formData.get("field"),
+    text: formData.get("text"),
+    kindLabel: formData.get("kindLabel") || undefined,
+    title: formData.get("title") || undefined,
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const d = parsed.data;
+
+  try {
+    const user = await requireCapability("field_activity.manage");
+    await requireLocationAccess(user, d.locationId);
+
+    const { rewriteFieldText } = await import("@/lib/field-activity/rewrite-service");
+    const res = await rewriteFieldText(user, {
+      field: d.field,
+      text: d.text,
+      kindLabel: d.kindLabel ?? null,
+      title: d.title ?? null,
+    });
+    if (!res.ok) return { error: res.error, field: d.field };
+
+    await audit(user.id, "field_activity.rapikan_teks", "location", d.locationId, {
+      field: d.field,
+      charsBefore: d.text.length,
+      charsAfter: res.text.length,
+      model: res.model,
+    });
+    return { suggestion: res.text, field: d.field };
+  } catch (err) {
+    return fail(err) as RewriteState;
+  }
+}

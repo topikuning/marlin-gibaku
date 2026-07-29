@@ -4495,3 +4495,49 @@ TANGGAL laporan.
 Verifikasi: unit 495 ✓ · integrasi 90 ✓ di PostgreSQL 16 lokal (2 kasus baru:
 simpan pelengkap tanpa field cuaca tidak menghapus hasil otomatis; `null`
 eksplisit tetap mengosongkan) · typecheck ✓ · lint ✓.
+
+## 178 · 2026-07-29 · "Rapikan dengan AI" untuk teks bebas kegiatan lapangan (usulan, bukan penulisan otomatis)
+
+Permintaan user: teks bebas di kegiatan lapangan dibantu AI supaya laporan
+sistem terbaca formal dan layak dibaca.
+
+**Bentuknya: USULAN dua langkah, bukan penulisan otomatis.** Tombol "Rapikan
+dengan AI" di bawah tiap textarea (catatan, kendala, tindak lanjut — form buat
+dan form edit) memanggil model, lalu menampilkan hasilnya sebagai usulan
+berdampingan dengan teks asli. Menekan "Pakai" hanya mengganti isi kotak;
+penyimpanan tetap lewat tombol simpan form. Tidak ada tulisan lapangan yang
+berubah tanpa persetujuan orang yang menulisnya, dan tidak ada teks yang
+dikirim ke model tanpa tombol ditekan.
+
+**Penjaga anti-karang (inti fitur, `field-activity/rewrite.ts`).** Teks ini ikut
+tercetak ke laporan resmi, jadi hasil model TIDAK dipercaya begitu saja.
+`verifyRewrite` menolak usulan secara deterministik bila:
+
+- memuat **angka yang tidak ada** di teks asli (penyelundupan fakta);
+- **membuang angka** yang ada di teks asli (perapian tidak boleh menghapus data);
+- **melar** melewati 2,2× panjang asli (mengarang paragraf, bukan merapikan);
+- berupa pengantar model ("Berikut versi rapinya…") atau kosong.
+
+Usulan yang gagal penjaga DIBUANG dengan pesan alasannya — bukan ditampilkan
+dengan catatan kecil. Perbandingan angka mengabaikan pemisah ribuan/desimal
+supaya perubahan format ("1.500" → "1500") tidak dianggap fakta baru.
+
+System prompt melarang eksplisit: menambah informasi, mengubah angka/tanggal/
+nama, memperhalus kabar buruk ("Kendala tetap ditulis sebagai kendala"), dan
+membalas dengan pengantar. `cleanRewrite` membuang pembungkus kutip, blok kode,
+dan penanda markdown (blanko KKP dicetak polos), tetapi mempertahankan
+penomoran daftar karena itu isi.
+
+**Batas & jalur aman.** Guard AI Hub (kill-switch + kuota per user/org,
+DECISIONS 133) dipakai ulang supaya fitur ini bukan pintu belakang yang
+melewati batas pemakaian AI. Teks < 12 karakter atau > 2000 karakter ditolak
+sebelum guard & provider dipanggil. AI belum dikonfigurasi → pesan yang
+menunjuk halaman Sistem, provider tidak dipanggil. Otorisasi
+`field_activity.manage` + `requireLocationAccess`; tiap panggilan diaudit
+(`field_activity.rapikan_teks`, mencatat jumlah karakter sebelum/sesudah dan
+model — bukan isi teksnya).
+
+Verifikasi: unit 517 ✓ — 15 kasus penjaga/pembersih/prompt + 7 kasus
+perangkaian layanan (provider & guard di-mock: usulan bersih, penyelundupan
+angka, AI belum diatur, teks pendek, kuota ditolak, hasil identik, provider
+gagal) · typecheck ✓ · lint ✓ · build ✓.

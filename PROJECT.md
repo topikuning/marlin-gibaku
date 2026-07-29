@@ -139,6 +139,11 @@ dari pengamatan. Integritas: uniq(lokasi,tanggal) +
 uniq(report,lineage) di DB; kumulatif ≤ volume RAB; revisi tidak dihitung dobel;
 draft volume tersimpan lokal (localStorage) sampai submit sukses.
 
+**Kegiatan lapangan** punya tombol "Rapikan dengan AI" pada teks bebas
+(catatan/kendala/tindak lanjut): AI hanya MENGUSULKAN versi formal, orangnya
+yang menekan "Pakai". Usulan yang menambah/membuang angka atau melar dari teks
+asli ditolak penjaga deterministik (DECISIONS 178).
+
 ## 7. Keuangan
 
 Transaction-based; agregat derived (SATU-satunya tempat formula:

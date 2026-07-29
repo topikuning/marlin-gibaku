@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState, useTransition } from "reac
 import { CheckCircle2, Download, FileText, MessageCircle, Paperclip, Pencil, RotateCcw, Trash2, Plus } from "lucide-react";
 import { Banner, Button, Input, Label, Combobox, Textarea } from "@/components/ui";
 import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
+import { RewriteTextarea } from "./rewrite-textarea";
 import type { FieldActivityAttachmentView } from "@/lib/field-activity/queries";
 
 /** Opsi jenis kegiatan (master data) yang dialirkan dari server ke form. */
@@ -141,6 +142,8 @@ export function SendToWaButton({
 /** Data kegiatan yang bisa dikoreksi lewat form edit. */
 export type EditableActivity = {
   id: string;
+  /** Dipakai tombol "Rapikan dengan AI" (otorisasi per lokasi di server). */
+  locationId: string;
   type: string;
   activityDate: string;
   title: string;
@@ -218,7 +221,14 @@ export function CreateActivityForm({
           </div>
           <div className="sm:col-span-2">
             <Label htmlFor="fa-notes">Catatan / hasil penting</Label>
-            <Textarea id="fa-notes" name="notes" rows={2} placeholder="Keputusan, kondisi lapangan, atau hasil kegiatan…" maxLength={2000} />
+            <RewriteTextarea
+              id="fa-notes"
+              name="notes"
+              locationId={locationId}
+              field="notes"
+              rows={2}
+              placeholder="Keputusan, kondisi lapangan, atau hasil kegiatan…"
+            />
           </div>
           <div className="sm:col-span-2">
             <Label htmlFor="fa-participants">Peserta / hadir</Label>
@@ -242,11 +252,25 @@ export function CreateActivityForm({
         <div className={`${showOptional ? "" : "hidden"} space-y-3 border-t border-border p-3`}>
           <div>
             <Label htmlFor="fa-kendala">Kendala</Label>
-            <Textarea id="fa-kendala" name="kendala" rows={2} placeholder="Kosongkan bila tidak ada kendala" maxLength={2000} />
+            <RewriteTextarea
+              id="fa-kendala"
+              name="kendala"
+              locationId={locationId}
+              field="kendala"
+              rows={2}
+              placeholder="Kosongkan bila tidak ada kendala"
+            />
           </div>
           <div>
             <Label htmlFor="fa-solusi">Solusi / tindak lanjut</Label>
-            <Textarea id="fa-solusi" name="solusi" rows={2} placeholder="Kosongkan bila tidak ada tindak lanjut" maxLength={2000} />
+            <RewriteTextarea
+              id="fa-solusi"
+              name="solusi"
+              locationId={locationId}
+              field="solusi"
+              rows={2}
+              placeholder="Kosongkan bila tidak ada tindak lanjut"
+            />
           </div>
         </div>
       </div>
@@ -343,7 +367,15 @@ function EditActivityForm({
       </div>
       <div>
         <Label htmlFor={`ed-notes-${activity.id}`}>Catatan (opsional)</Label>
-        <Textarea id={`ed-notes-${activity.id}`} name="notes" rows={2} defaultValue={activity.notes ?? ""} maxLength={2000} />
+        <RewriteTextarea
+          id={`ed-notes-${activity.id}`}
+          name="notes"
+          locationId={activity.locationId}
+          field="notes"
+          rows={2}
+          defaultValue={activity.notes ?? ""}
+          title={activity.title}
+        />
       </div>
       <div>
         <Label htmlFor={`ed-part-${activity.id}`}>Peserta / hadir (opsional)</Label>
@@ -352,11 +384,29 @@ function EditActivityForm({
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <Label htmlFor={`ed-kendala-${activity.id}`}>Kendala (opsional)</Label>
-          <Textarea id={`ed-kendala-${activity.id}`} name="kendala" rows={2} defaultValue={activity.kendala ?? ""} placeholder="Kosongkan bila tidak ada" maxLength={2000} />
+          <RewriteTextarea
+            id={`ed-kendala-${activity.id}`}
+            name="kendala"
+            locationId={activity.locationId}
+            field="kendala"
+            rows={2}
+            defaultValue={activity.kendala ?? ""}
+            placeholder="Kosongkan bila tidak ada"
+            title={activity.title}
+          />
         </div>
         <div>
           <Label htmlFor={`ed-solusi-${activity.id}`}>Solusi / tindak lanjut (opsional)</Label>
-          <Textarea id={`ed-solusi-${activity.id}`} name="solusi" rows={2} defaultValue={activity.solusi ?? ""} placeholder="Kosongkan bila tidak ada" maxLength={2000} />
+          <RewriteTextarea
+            id={`ed-solusi-${activity.id}`}
+            name="solusi"
+            locationId={activity.locationId}
+            field="solusi"
+            rows={2}
+            defaultValue={activity.solusi ?? ""}
+            placeholder="Kosongkan bila tidak ada"
+            title={activity.title}
+          />
         </div>
       </div>
       <div className="flex justify-end gap-2">
