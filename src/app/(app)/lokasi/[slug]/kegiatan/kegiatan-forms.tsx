@@ -4,7 +4,7 @@ import { useActionState, useEffect, useRef, useState, useTransition } from "reac
 import { CheckCircle2, Download, FileText, MessageCircle, Paperclip, Pencil, RotateCcw, Trash2, Plus } from "lucide-react";
 import { Banner, Button, Input, Label, Combobox, Textarea } from "@/components/ui";
 import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
-import { RewriteTextarea } from "./rewrite-textarea";
+import { FinalizePanel } from "./finalize-panel";
 import type { FieldActivityAttachmentView } from "@/lib/field-activity/queries";
 
 /** Opsi jenis kegiatan (master data) yang dialirkan dari server ke form. */
@@ -14,7 +14,6 @@ import {
   addActivityPhotosAction,
   createActivityAction,
   deleteActivityAction,
-  finalizeActivityAction,
   removeActivityAttachmentAction,
   reopenActivityAction,
   updateActivityAction,
@@ -221,14 +220,7 @@ export function CreateActivityForm({
           </div>
           <div className="sm:col-span-2">
             <Label htmlFor="fa-notes">Catatan / hasil penting</Label>
-            <RewriteTextarea
-              id="fa-notes"
-              name="notes"
-              locationId={locationId}
-              field="notes"
-              rows={2}
-              placeholder="Keputusan, kondisi lapangan, atau hasil kegiatan…"
-            />
+            <Textarea id="fa-notes" name="notes" rows={2} placeholder="Keputusan, kondisi lapangan, atau hasil kegiatan…" maxLength={2000} />
           </div>
           <div className="sm:col-span-2">
             <Label htmlFor="fa-participants">Peserta / hadir</Label>
@@ -252,25 +244,11 @@ export function CreateActivityForm({
         <div className={`${showOptional ? "" : "hidden"} space-y-3 border-t border-border p-3`}>
           <div>
             <Label htmlFor="fa-kendala">Kendala</Label>
-            <RewriteTextarea
-              id="fa-kendala"
-              name="kendala"
-              locationId={locationId}
-              field="kendala"
-              rows={2}
-              placeholder="Kosongkan bila tidak ada kendala"
-            />
+            <Textarea id="fa-kendala" name="kendala" rows={2} placeholder="Kosongkan bila tidak ada kendala" maxLength={2000} />
           </div>
           <div>
             <Label htmlFor="fa-solusi">Solusi / tindak lanjut</Label>
-            <RewriteTextarea
-              id="fa-solusi"
-              name="solusi"
-              locationId={locationId}
-              field="solusi"
-              rows={2}
-              placeholder="Kosongkan bila tidak ada tindak lanjut"
-            />
+            <Textarea id="fa-solusi" name="solusi" rows={2} placeholder="Kosongkan bila tidak ada tindak lanjut" maxLength={2000} />
           </div>
         </div>
       </div>
@@ -317,8 +295,8 @@ export function DraftActions({ activity, kinds }: { activity: EditableActivity; 
           </Button>
           <AddAttachmentForm activityId={activity.id} />
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <FinalizeButton activityId={activity.id} />
+        <div className="flex flex-wrap items-start gap-2">
+          <FinalizePanel activityId={activity.id} />
           <DeleteButton activityId={activity.id} />
         </div>
       </div>
@@ -367,15 +345,7 @@ function EditActivityForm({
       </div>
       <div>
         <Label htmlFor={`ed-notes-${activity.id}`}>Catatan (opsional)</Label>
-        <RewriteTextarea
-          id={`ed-notes-${activity.id}`}
-          name="notes"
-          locationId={activity.locationId}
-          field="notes"
-          rows={2}
-          defaultValue={activity.notes ?? ""}
-          title={activity.title}
-        />
+        <Textarea id={`ed-notes-${activity.id}`} name="notes" rows={2} defaultValue={activity.notes ?? ""} maxLength={2000} />
       </div>
       <div>
         <Label htmlFor={`ed-part-${activity.id}`}>Peserta / hadir (opsional)</Label>
@@ -384,29 +354,11 @@ function EditActivityForm({
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <Label htmlFor={`ed-kendala-${activity.id}`}>Kendala (opsional)</Label>
-          <RewriteTextarea
-            id={`ed-kendala-${activity.id}`}
-            name="kendala"
-            locationId={activity.locationId}
-            field="kendala"
-            rows={2}
-            defaultValue={activity.kendala ?? ""}
-            placeholder="Kosongkan bila tidak ada"
-            title={activity.title}
-          />
+          <Textarea id={`ed-kendala-${activity.id}`} name="kendala" rows={2} defaultValue={activity.kendala ?? ""} placeholder="Kosongkan bila tidak ada" maxLength={2000} />
         </div>
         <div>
           <Label htmlFor={`ed-solusi-${activity.id}`}>Solusi / tindak lanjut (opsional)</Label>
-          <RewriteTextarea
-            id={`ed-solusi-${activity.id}`}
-            name="solusi"
-            locationId={activity.locationId}
-            field="solusi"
-            rows={2}
-            defaultValue={activity.solusi ?? ""}
-            placeholder="Kosongkan bila tidak ada"
-            title={activity.title}
-          />
+          <Textarea id={`ed-solusi-${activity.id}`} name="solusi" rows={2} defaultValue={activity.solusi ?? ""} placeholder="Kosongkan bila tidak ada" maxLength={2000} />
         </div>
       </div>
       <div className="flex justify-end gap-2">
@@ -542,20 +494,6 @@ function AddPhotoPanel({ activityId, onDone }: { activityId: string; onDone: () 
       <PhotoSourceInput onPicked={() => formRef.current?.requestSubmit()} />
       {state?.error ? <div className="mt-2"><Banner tone="error" title={state.error} /></div> : null}
       {state?.warning ? <div className="mt-2"><Banner tone="warning" title="Sebagian foto gagal" description={state.warning} /></div> : null}
-    </form>
-  );
-}
-
-function FinalizeButton({ activityId }: { activityId: string }) {
-  const [state, action, pending] = useActionState<FieldActivityState, FormData>(finalizeActivityAction, undefined);
-  return (
-    <form action={action} className="inline">
-      <input type="hidden" name="activityId" value={activityId} />
-      <Button type="submit" size="sm" variant="secondary" loading={pending}>
-        <CheckCircle2 aria-hidden className="size-3.5" />
-        Finalkan
-      </Button>
-      {state?.error ? <span className="ml-1 text-[12px] text-danger">{state.error}</span> : null}
     </form>
   );
 }

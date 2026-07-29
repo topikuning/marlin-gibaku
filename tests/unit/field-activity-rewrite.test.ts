@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildBatchRewritePrompt,
   buildRewritePrompt,
+  parseBatchRewrite,
   cleanRewrite,
   REWRITE_SYSTEM_PROMPT,
   rewriteInputProblem,
@@ -116,5 +118,45 @@ describe("prompt", () => {
     expect(p).toContain("Rapat Koordinasi");
     expect(p).toContain("PCM minggu 3");
     expect(p).toContain("alat berat telat datang");
+  });
+});
+
+describe("mode gabungan (dipakai saat finalisasi) — satu panggilan, banyak bagian", () => {
+  it("prompt hanya memuat bagian yang dikirim + gaya yang dipilih", () => {
+    const p = buildBatchRewritePrompt({
+      fields: [
+        { field: "notes", text: "cor kolom 12 titik" },
+        { field: "solusi", text: "besok mulai lebih pagi" },
+      ],
+      style: "teknis",
+      kindLabel: "Pengawasan Harian",
+    });
+    expect(p).toContain("[CATATAN]");
+    expect(p).toContain("[TINDAK_LANJUT]");
+    expect(p).not.toContain("[KENDALA]"); // kendala tidak dikirim
+    expect(p).toMatch(/register teknis/i);
+    expect(p).toContain("Pengawasan Harian");
+  });
+
+  it("balasan bertanda diurai per bagian", () => {
+    const hasil = parseBatchRewrite(
+      "[CATATAN]\nDilaksanakan pengecoran kolom.\n\n[KENDALA]\nAlat berat terlambat.\n\n[TINDAK_LANJUT]\nPekerjaan dimulai lebih pagi.",
+    );
+    expect(hasil.notes).toBe("Dilaksanakan pengecoran kolom.");
+    expect(hasil.kendala).toBe("Alat berat terlambat.");
+    expect(hasil.solusi).toBe("Pekerjaan dimulai lebih pagi.");
+  });
+
+  it("bagian yang tidak dibalas model → absen (bukan string kosong yang menimpa teks asli)", () => {
+    const hasil = parseBatchRewrite("[CATATAN]\nDilaksanakan pengecoran kolom.");
+    expect(hasil.notes).toBeTruthy();
+    expect(hasil.kendala).toBeUndefined();
+    expect(hasil.solusi).toBeUndefined();
+  });
+
+  it("urutan penanda acak tetap terurai benar", () => {
+    const hasil = parseBatchRewrite("[TINDAK_LANJUT]\nMulai lebih pagi.\n[CATATAN]\nPengecoran kolom.");
+    expect(hasil.solusi).toBe("Mulai lebih pagi.");
+    expect(hasil.notes).toBe("Pengecoran kolom.");
   });
 });

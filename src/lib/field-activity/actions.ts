@@ -612,61 +612,124 @@ export async function reopenActivityAction(
 }
 
 // ─────────────────────────────────────────────────────────────
-// Rapikan teks bebas dengan AI (usulan — TIDAK menyimpan apa pun)
+// Rapikan teks saat FINALISASI (usulan → dicentang → finalkan)
 // ─────────────────────────────────────────────────────────────
 
-const rewriteSchema = z.object({
-  locationId: z.uuid(),
-  field: z.enum(["notes", "kendala", "solusi"]),
-  text: z.string().trim().min(1, "Isi teksnya dulu."),
-  kindLabel: z.string().trim().max(120).optional(),
-  title: z.string().trim().max(200).optional(),
+const suggestSchema = z.object({
+  activityId: z.uuid(),
+  style: z.enum(["rapi", "teknis"]),
 });
 
-export type RewriteState =
-  | { error?: string; suggestion?: string; field?: "notes" | "kendala" | "solusi" }
+export type SuggestRewriteState =
+  | {
+      error?: string;
+      style?: "rapi" | "teknis";
+      fields?: { field: "notes" | "kendala" | "solusi"; original: string; suggestion: string | null; rejected?: string }[];
+    }
   | undefined;
 
 /**
- * Usulkan versi rapi dari teks bebas kegiatan lapangan. Mengembalikan USULAN ke
- * layar — penyimpanan tetap lewat aksi simpan biasa setelah pengguna menekan
- * "Pakai". Tidak ada teks lapangan yang berubah tanpa persetujuan orangnya.
+ * Usulkan versi rapi/teknis untuk SELURUH teks bebas kegiatan draft. Tidak
+ * menyimpan apa pun — layar menampilkan asli vs usulan per bagian, pengguna
+ * mencentang yang dipakai lalu menekan finalkan.
  */
-export async function rewriteActivityTextAction(
-  _prev: RewriteState,
+export async function suggestActivityRewriteAction(
+  _prev: SuggestRewriteState,
   formData: FormData,
-): Promise<RewriteState> {
-  const parsed = rewriteSchema.safeParse({
-    locationId: formData.get("locationId"),
-    field: formData.get("field"),
-    text: formData.get("text"),
-    kindLabel: formData.get("kindLabel") || undefined,
-    title: formData.get("title") || undefined,
+): Promise<SuggestRewriteState> {
+  const parsed = suggestSchema.safeParse({
+    activityId: formData.get("activityId"),
+    style: formData.get("style"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+  try {
+    const user = await requireCapability("field_activity.manage");
+    const activity = await db.fieldActivity.findUnique({
+      where: { id: parsed.data.activityId },
+      select: {
+        id: true, locationId: true, status: true, type: true, title: true,
+        notes: true, kendala: true, solusi: true,
+      },
+    });
+    if (!activity) return { error: "Kegiatan tidak ditemukan." };
+    await requireLocationAccess(user, activity.locationId);
+    if (activity.status === "final") return { error: "Kegiatan sudah final." };
+
+    const kindLabel = (await getActivityKindLabelMap()).get(activity.type) ?? activity.type;
+    const { suggestActivityRewrite } = await import("@/lib/field-activity/rewrite-service");
+    const res = await suggestActivityRewrite(user, {
+      texts: { notes: activity.notes, kendala: activity.kendala, solusi: activity.solusi },
+      style: parsed.data.style,
+      kindLabel,
+      title: activity.title,
+    });
+    if (!res.ok) return { error: res.error, style: parsed.data.style };
+
+    await audit(user.id, "field_activity.rapikan_teks", "field_activity", activity.id, {
+      style: res.style,
+      model: res.model,
+      // Isi teks TIDAK ikut dicatat — cukup bagian mana yang berubah.
+      dipakai: res.fields.filter((f) => f.suggestion).map((f) => f.field),
+      ditolak: res.fields.filter((f) => !f.suggestion).map((f) => f.field),
+    });
+    return { style: res.style, fields: res.fields };
+  } catch (err) {
+    return fail(err) as SuggestRewriteState;
+  }
+}
+
+const finalizeWithTextSchema = z.object({
+  activityId: z.uuid(),
+  notes: z.string().trim().max(2000).optional(),
+  kendala: z.string().trim().max(2000).optional(),
+  solusi: z.string().trim().max(2000).optional(),
+});
+
+/**
+ * Simpan teks yang DISETUJUI pengguna (bagian yang dicentang saja) lalu
+ * finalkan dalam satu langkah. Bagian yang tidak dikirim tidak disentuh.
+ */
+export async function finalizeActivityWithTextAction(
+  _prev: FieldActivityState,
+  formData: FormData,
+): Promise<FieldActivityState> {
+  const parsed = finalizeWithTextSchema.safeParse({
+    activityId: formData.get("activityId"),
+    notes: formData.get("notes") ?? undefined,
+    kendala: formData.get("kendala") ?? undefined,
+    solusi: formData.get("solusi") ?? undefined,
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
 
   try {
     const user = await requireCapability("field_activity.manage");
-    await requireLocationAccess(user, d.locationId);
+    const ctx = await activityCtx(d.activityId);
+    if (!ctx) return { error: "Kegiatan tidak ditemukan." };
+    await requireLocationAccess(user, ctx.locationId);
+    if (ctx.status === "final") return { error: "Kegiatan sudah final." };
 
-    const { rewriteFieldText } = await import("@/lib/field-activity/rewrite-service");
-    const res = await rewriteFieldText(user, {
-      field: d.field,
-      text: d.text,
-      kindLabel: d.kindLabel ?? null,
-      title: d.title ?? null,
-    });
-    if (!res.ok) return { error: res.error, field: d.field };
+    const changed: Record<string, string> = {};
+    if (d.notes !== undefined) changed.notes = d.notes;
+    if (d.kendala !== undefined) changed.kendala = d.kendala;
+    if (d.solusi !== undefined) changed.solusi = d.solusi;
 
-    await audit(user.id, "field_activity.rapikan_teks", "location", d.locationId, {
-      field: d.field,
-      charsBefore: d.text.length,
-      charsAfter: res.text.length,
-      model: res.model,
+    await db.fieldActivity.update({
+      where: { id: ctx.id },
+      data: { ...changed, status: "final", finalizedById: user.id, finalizedAt: new Date() },
     });
-    return { suggestion: res.text, field: d.field };
+    await audit(user.id, "field_activity.finalize", "field_activity", ctx.id, {
+      locationId: ctx.locationId,
+      teksDirapikan: Object.keys(changed),
+    });
+    revalidate(ctx.location.slug);
+    return {
+      success: Object.keys(changed).length
+        ? `Kegiatan difinalkan (${Object.keys(changed).length} bagian teks dirapikan).`
+        : "Kegiatan difinalkan.",
+    };
   } catch (err) {
-    return fail(err) as RewriteState;
+    return fail(err);
   }
 }

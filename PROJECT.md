@@ -139,10 +139,12 @@ dari pengamatan. Integritas: uniq(lokasi,tanggal) +
 uniq(report,lineage) di DB; kumulatif ≤ volume RAB; revisi tidak dihitung dobel;
 draft volume tersimpan lokal (localStorage) sampai submit sukses.
 
-**Kegiatan lapangan** punya tombol "Rapikan dengan AI" pada teks bebas
-(catatan/kendala/tindak lanjut): AI hanya MENGUSULKAN versi formal, orangnya
-yang menekan "Pakai". Usulan yang menambah/membuang angka atau melar dari teks
-asli ditolak penjaga deterministik (DECISIONS 178).
+**Kegiatan lapangan**: teks bebas diisi tanpa gangguan; saat **Finalkan**
+muncul pilihan "Rapikan bahasa" / "Bahasa teknis" / "Finalkan apa adanya".
+Perapian memanggil AI sekali untuk seluruh teks bebas, menampilkan asli vs
+usulan per bagian dengan centang masing-masing, dan hanya menyimpan yang
+dicentang. Usulan yang menambah/membuang angka atau melar dari teks asli
+ditolak penjaga deterministik per bagian (DECISIONS 178/179).
 
 ## 7. Keuangan
 

@@ -4541,3 +4541,43 @@ Verifikasi: unit 517 ✓ — 15 kasus penjaga/pembersih/prompt + 7 kasus
 perangkaian layanan (provider & guard di-mock: usulan bersih, penyelundupan
 angka, AI belum diatur, teks pendek, kuota ditolak, hasil identik, provider
 gagal) · typecheck ✓ · lint ✓ · build ✓.
+
+## 179 · 2026-07-29 · Perapian teks kegiatan dipindah ke SAAT FINALISASI (menggantikan pola tombol per-field 178)
+
+Koreksi pola dari user: "polanya user input semua, lalu saat finalkan ada opsi
+rewrite atau membahasa tekniskan". Benar — tombol per-field (DECISIONS 178)
+mengganggu saat mengetik dan memancing bolak-balik di tengah pekerjaan.
+
+**Pola sekarang.** Orang lapangan mengisi seluruh kegiatan tanpa gangguan.
+Tombol **Finalkan** membuka panel dengan tiga pilihan:
+
+1. **Rapikan bahasa** — Indonesia baku yang lugas, kalimat lapangan dirapikan
+   seperlunya;
+2. **Bahasa teknis** — register laporan konstruksi (kalimat pasif, istilah baku
+   pekerjaan sipil, hanya bila padanannya JELAS dari teks asli — tidak menebak);
+3. **Finalkan apa adanya** — jalan tercepat, tanpa AI sama sekali.
+
+Pilihan 1/2 memanggil model SEKALI untuk seluruh teks bebas (catatan, kendala,
+tindak lanjut) memakai penanda bagian `[CATATAN]/[KENDALA]/[TINDAK_LANJUT]`
+yang diurai deterministik — hemat kuota dan gayanya konsisten antarbagian.
+Hasilnya ditampilkan **asli vs usulan berdampingan per bagian**, tiap bagian
+punya centang sendiri; "Pakai & finalkan" hanya menyimpan bagian yang dicentang
+lalu memfinalkan dalam satu langkah.
+
+**Penjaga per bagian (dari 178, tetap berlaku).** Tiap bagian diperiksa sendiri:
+angka baru, angka hilang, melar >2,2×, pengantar model, atau kosong → bagian itu
+DIBUANG dan teks aslinya dipertahankan, dengan alasan ditampilkan. Satu bagian
+bermasalah tidak menggugurkan bagian lain yang bersih. Bagian yang tidak dibalas
+model juga dibiarkan apa adanya, bukan dikosongkan.
+
+**Yang dibuang dari 178**: komponen `RewriteTextarea` dan action per-field.
+Textarea kembali polos. Guard AI Hub, otorisasi `field_activity.manage` +
+`requireLocationAccess`, audit tanpa isi teks (hanya gaya, model, bagian yang
+dipakai/ditolak), dan batas panjang tetap seperti 178.
+
+Verifikasi: unit 524 ✓ — 19 kasus lapisan murni (penjaga, pembersih, prompt
+gabungan, pengurai penanda termasuk urutan acak & bagian absen) + 10 kasus
+perangkaian layanan (satu panggilan untuk tiga bagian, penyelundupan angka pada
+SATU bagian tidak menjatuhkan bagian lain, bagian pendek tidak dikirim ke model,
+AI belum diatur, kuota ditolak, provider gagal, beda gaya beda instruksi) ·
+typecheck ✓ · lint ✓ · build ✓.

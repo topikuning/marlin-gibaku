@@ -4,44 +4,70 @@ import { getActiveAiConfig } from "@/lib/ai/config";
 import { checkAiGuard, AiGuardError } from "@/lib/ai-hub/guard";
 import type { SessionUser } from "@/lib/auth/session";
 import {
-  buildRewritePrompt,
-  cleanRewrite,
+  buildBatchRewritePrompt,
+  parseBatchRewrite,
+  REWRITE_MAX_CHARS,
+  REWRITE_MIN_CHARS,
   REWRITE_SYSTEM_PROMPT,
-  rewriteInputProblem,
   verifyRewrite,
-  type RewriteContext,
+  type RewriteField,
+  type RewriteStyle,
 } from "@/lib/field-activity/rewrite";
 
 /**
- * Panggilan model untuk merapikan teks kegiatan lapangan. Hasilnya USULAN —
- * tidak pernah tersimpan sendiri; pemanggil (server action) mengembalikannya ke
- * layar untuk disetujui manusia.
+ * Perapian teks kegiatan saat FINALISASI: satu panggilan model untuk seluruh
+ * teks bebas (catatan/kendala/tindak lanjut), lalu tiap bagian diperiksa
+ * penjaga masing-masing (DECISIONS 179).
  *
- * Guard AI Hub (kill-switch + kuota per user/org) dipakai ulang supaya fitur
- * ini tidak jadi pintu belakang yang melewati batas pemakaian AI.
+ * Hasilnya USULAN — tidak ada yang tersimpan di sini. Server action yang
+ * memanggil mengembalikannya ke layar; penyimpanan baru terjadi saat pengguna
+ * mencentang bagian yang dipakai dan menekan finalkan.
  */
 
-export type RewriteResult =
-  | { ok: true; text: string; model: string }
+export type FieldSuggestion = {
+  field: RewriteField;
+  original: string;
+  /** null = tidak ada usulan yang layak dipakai. */
+  suggestion: string | null;
+  /** Alasan bila usulan dibuang penjaga (ditampilkan apa adanya ke pengguna). */
+  rejected?: string;
+};
+
+export type SuggestResult =
+  | { ok: true; style: RewriteStyle; model: string; fields: FieldSuggestion[] }
   | { ok: false; error: string };
 
-export async function rewriteFieldText(
+export type ActivityTexts = Partial<Record<RewriteField, string | null>>;
+
+/** Bagian yang cukup panjang untuk dirapikan (yang lain dilewati apa adanya). */
+function eligibleFields(texts: ActivityTexts): { field: RewriteField; text: string }[] {
+  const order: RewriteField[] = ["notes", "kendala", "solusi"];
+  return order
+    .map((field) => ({ field, text: (texts[field] ?? "").trim() }))
+    .filter((f) => f.text.length >= REWRITE_MIN_CHARS && f.text.length <= REWRITE_MAX_CHARS);
+}
+
+export async function suggestActivityRewrite(
   user: SessionUser,
-  ctx: RewriteContext,
-): Promise<RewriteResult> {
-  const inputProblem = rewriteInputProblem(ctx.text);
-  if (inputProblem) return { ok: false, error: inputProblem };
+  input: {
+    texts: ActivityTexts;
+    style: RewriteStyle;
+    kindLabel?: string | null;
+    title?: string | null;
+  },
+): Promise<SuggestResult> {
+  const fields = eligibleFields(input.texts);
+  if (fields.length === 0) {
+    return { ok: false, error: "Belum ada teks yang cukup panjang untuk dirapikan." };
+  }
 
   if (!(await getActiveAiConfig())) {
     return { ok: false, error: "AI belum dikonfigurasi — atur penyedia & API key di halaman Sistem." };
   }
 
+  const inputChars = fields.reduce((n, f) => n + f.text.length, 0);
   try {
-    await checkAiGuard(user, {
-      kind: "kegiatan.rapikan_teks",
-      locationCount: 1,
-      inputChars: ctx.text.length,
-    });
+    await checkAiGuard(user, { kind: "kegiatan.rapikan_finalisasi", locationCount: 1, inputChars });
   } catch (e) {
     if (e instanceof AiGuardError) return { ok: false, error: e.message };
     throw e;
@@ -49,26 +75,33 @@ export async function rewriteFieldText(
 
   const res = await aiCall({
     system: REWRITE_SYSTEM_PROMPT,
-    prompt: buildRewritePrompt(ctx),
-    // Perapian tidak boleh melar; batas token sengaja ketat.
-    maxTokens: 900,
-    timeoutMs: 45_000,
+    prompt: buildBatchRewritePrompt({
+      fields,
+      style: input.style,
+      kindLabel: input.kindLabel ?? null,
+      title: input.title ?? null,
+    }),
+    maxTokens: 1600,
+    timeoutMs: 60_000,
   });
   if (!res.ok) return { ok: false, error: res.error };
 
-  const text = cleanRewrite(res.text);
-  const verdict = verifyRewrite(ctx.text, text);
-  if (!verdict.ok) {
-    // Usulan dibuang, BUKAN ditampilkan dengan catatan kecil: teks laporan
-    // ikut ke dokumen resmi, jadi yang meragukan tidak boleh sampai ke layar.
-    return {
-      ok: false,
-      error: `Usulan AI ditolak penjaga: ${verdict.problems.join(" ")} Teks asli dibiarkan apa adanya.`,
-    };
-  }
-  if (text === ctx.text.trim()) {
-    return { ok: false, error: "Teks sudah rapi — tidak ada yang perlu diubah." };
-  }
+  const parsed = parseBatchRewrite(res.text);
+  const out: FieldSuggestion[] = fields.map(({ field, text }) => {
+    const usul = parsed[field];
+    if (!usul) return { field, original: text, suggestion: null, rejected: "Model tidak mengembalikan bagian ini." };
+    if (usul === text) return { field, original: text, suggestion: null, rejected: "Sudah rapi." };
+    const verdict = verifyRewrite(text, usul);
+    if (!verdict.ok) {
+      // Bagian yang gagal penjaga DIBUANG — teks asli dipertahankan. Satu
+      // bagian bermasalah tidak menggugurkan bagian lain yang bersih.
+      return { field, original: text, suggestion: null, rejected: verdict.problems.join(" ") };
+    }
+    return { field, original: text, suggestion: usul };
+  });
 
-  return { ok: true, text, model: res.model };
+  if (out.every((f) => f.suggestion === null)) {
+    return { ok: false, error: `Tidak ada usulan yang lolos penjaga: ${out.map((f) => f.rejected).join(" ")}` };
+  }
+  return { ok: true, style: input.style, model: res.model, fields: out };
 }
