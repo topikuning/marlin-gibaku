@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useMemo, useState } from "react";
-import { Badge, Banner, Button, Card, CardBody, CardHeader, useDismissable } from "@/components/ui";
+import { Badge, Banner, Button, Card, CardBody, CardHeader, Combobox, useDismissable } from "@/components/ui";
 import { runAnalysisAction, type AiHubState } from "@/lib/ai-hub/actions";
 import { READINESS_GRADE_LABEL } from "@/lib/ai-hub/readiness";
 import type { PulseRow, SourceRef } from "@/lib/ai-hub/types";
@@ -96,18 +96,13 @@ export function PulseClient({
             aria-label="Cari lokasi"
             className="h-9 w-56 rounded-md border border-border bg-surface px-2 text-sm"
           />
-          <select
-            value={gradeFilter}
-            onChange={(e) => setGradeFilter(e.target.value)}
-            aria-label="Filter readiness"
-            className="h-9 rounded-md border border-border bg-surface px-2 text-sm"
-          >
+          <Combobox value={gradeFilter} onChange={setGradeFilter} className="w-44" placeholder="Semua readiness">
             <option value="">Semua readiness</option>
             <option value="poor">Buruk</option>
             <option value="limited">Terbatas</option>
             <option value="adequate">Memadai</option>
             <option value="strong">Kuat</option>
-          </select>
+          </Combobox>
           <Button
             type="button"
             variant="secondary"

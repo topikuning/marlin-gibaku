@@ -4302,3 +4302,34 @@ Verifikasi: unit 465 ✓ (rab-xlsx 4 kasus: urutan sheet, rumus item/induk,
 referensi antar-sheet, PPN/pembulatan) · integrasi 81 ✓ (adendum-editor 9,
 termasuk harga item baru boleh / item lama terkunci) · typecheck ✓ · lint ✓ ·
 build ✓.
+
+## 174 · 2026-07-29 · Ekspor RAB tampilan profesional + TUNTASKAN aturan Combobox (kritik user)
+
+Kritik user atas ekspor Excel RAB: kode kategori tampil `VI#2`/`VIII#8`
+(artefak dedup lineageKey bocor ke dokumen), roman ganda/loncat dan digabung
+ke teks uraian, item ber-"spasi banyak" (indentasi spasi literal). Plus:
+combobox induk di form "Item baru" adendum masih `<select>` native — melanggar
+aturan DECISIONS 094/115 (SEMUA dropdown filterable).
+
+- **Ekspor RAB 3 sheet — lapisan TAMPILAN saja, angka/rumus tidak berubah**
+  (`lib/export/rab-xlsx.ts`):
+  - Suffix dedup internal `#N` pada kode DILARANG tampil (strip `/#\d+$/`).
+  - Kategori dinomori ULANG berurutan (I, II, III, … urutan dokumen) dan
+    dipakai konsisten di ketiga sheet; di Resume roman masuk kolom **No**,
+    uraian = nama saja. (File sumber HPS nyata memuat roman ganda/loncat
+    antar bangunan — penomoran dokumen ekspor tak boleh mewarisinya.)
+  - Indentasi hierarki pakai `alignment.indent` natif Excel (bukan spasi
+    literal); nama dinormalisasi dari spasi ganda; baris kategori diberi fill;
+    uraian wrapText. Unit test baru menjaga: tak ada `#N` di body sheet.
+- **Adendum**: form "Item baru" → `Combobox` searchable untuk pilih induk
+  (ratusan opsi) + field berlabel (`Label`/`Input`), bukan input polos; form
+  kategori baru sama; dropdown CCO di form buat draft → `Combobox`; kolom Kode
+  grid menyembunyikan suffix `#N` (valueFormatter, display-only).
+- **Sapu bersih sisa `<select>` native app** (ditemukan 8): sistem (cakupan
+  rebuild snapshot, 83 lokasi), AI run distribusi WA, AI report period, pulse
+  filter readiness, chat-grup global + per-paket (kontak), kegiatan (filter
+  jenis/status) — semua → `Combobox`. `<Select>` primitive di `ui/field.tsx`
+  dibiarkan ada untuk print/cetak bila perlu, tapi TIDAK dipakai form app.
+- Verifikasi: typecheck ✓ · lint ✓ · unit 470 ✓ (rab-xlsx 5). Integrasi tidak
+  jalan di kontainer ini (tanpa Postgres) — perubahan murni presentasi/UI,
+  service adendum tak disentuh.

@@ -46,6 +46,28 @@ export type RabExportInput = {
 const RUPIAH_FMT = "#,##0";
 const VOL_FMT = "#,##0.000";
 
+/**
+ * Kode/nama TAMPILAN — data DB tidak diubah:
+ * - `code` di DB bisa membawa suffix dedup internal (`VI#2`, `X.1#2`) hasil
+ *   disambiguasi lineageKey saat impor; itu artefak teknis, dilarang tampil
+ *   di dokumen ekspor.
+ * - Kategori dinomori ULANG berurutan (I, II, III, … sesuai urutan dokumen)
+ *   karena file sumber HPS kerap memuat roman ganda/loncat antar bangunan.
+ * - Nama dirapikan dari spasi ganda bawaan file sumber.
+ */
+const displayCode = (code: string) => code.replace(/#\d+$/, "");
+const displayName = (name: string) => name.replace(/\s+/g, " ").trim();
+
+const ROMAN: [number, string][] = [
+  [1000, "M"], [900, "CM"], [500, "D"], [400, "CD"], [100, "C"], [90, "XC"],
+  [50, "L"], [40, "XL"], [10, "X"], [9, "IX"], [5, "V"], [4, "IV"], [1, "I"],
+];
+function toRoman(n: number): string {
+  let out = "";
+  for (const [v, s] of ROMAN) while (n >= v) { out += s; n -= v; }
+  return out;
+}
+
 const thin: Partial<ExcelJS.Borders> = {
   top: { style: "thin" },
   left: { style: "thin" },
@@ -86,6 +108,10 @@ export async function buildRabXlsx(input: RabExportInput): Promise<Buffer> {
   }
   const kategoris = byParent.get(null) ?? [];
 
+  /** Nomor roman tampilan per kategori (urut dokumen), dipakai KETIGA sheet. */
+  const romanOf = new Map<string, string>();
+  kategoris.forEach((k, i) => romanOf.set(k.id, toRoman(i + 1)));
+
   // Urutan tab: Resume → Sub Resume → Detail RAB (dibuat dulu semua supaya
   // urut, lalu DIISI dari Detail karena dua sheet lain menunjuk ke barisnya).
   const res = wb.addWorksheet("Resume", { views: [{ state: "frozen", ySplit: 5 }] });
@@ -116,8 +142,11 @@ export async function buildRabXlsx(input: RabExportInput): Promise<Buffer> {
     r += 1;
     const row = r;
     detRowOf.set(n.id, row);
-    det.getCell(row, 1).value = n.code;
-    det.getCell(row, 2).value = `${"  ".repeat(depth)}${n.name}`;
+    det.getCell(row, 1).value = n.kind === "kategori" ? romanOf.get(n.id)! : displayCode(n.code);
+    det.getCell(row, 1).alignment = { horizontal: "center", vertical: "top" };
+    // Hierarki lewat indent NATIF Excel, bukan spasi literal di teks.
+    det.getCell(row, 2).value = displayName(n.name);
+    det.getCell(row, 2).alignment = { indent: depth, wrapText: true, vertical: "top" };
     if (n.kind === "item") {
       det.getCell(row, 3).value = n.volume ?? 0;
       det.getCell(row, 3).numFmt = VOL_FMT;
@@ -131,6 +160,11 @@ export async function buildRabXlsx(input: RabExportInput): Promise<Buffer> {
       };
     } else {
       det.getRow(row).font = { bold: depth === 0, italic: depth > 0 };
+      if (n.kind === "kategori") {
+        for (let c = 1; c <= 6; c++) {
+          det.getCell(row, c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F5F5" } };
+        }
+      }
       const children = byParent.get(n.id) ?? [];
       for (const c of children) writeNode(c, depth + 1);
       const parts = children.map((c) => `F${detRowOf.get(c.id)!}`);
@@ -173,17 +207,23 @@ export async function buildRabXlsx(input: RabExportInput): Promise<Buffer> {
   let s = subHeaderRow;
   for (const kat of kategoris) {
     s += 1;
-    sub.getCell(s, 1).value = kat.code;
-    sub.getCell(s, 2).value = kat.name;
+    sub.getCell(s, 1).value = romanOf.get(kat.id)!;
+    sub.getCell(s, 1).alignment = { horizontal: "center" };
+    sub.getCell(s, 2).value = displayName(kat.name);
     sub.getRow(s).font = { bold: true };
-    for (let c = 1; c <= 3; c++) sub.getCell(s, c).border = thin;
+    for (let c = 1; c <= 3; c++) {
+      sub.getCell(s, c).border = thin;
+      sub.getCell(s, c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F5F5" } };
+    }
     const children = byParent.get(kat.id) ?? [];
     const childRows: number[] = [];
     for (const c of children) {
       s += 1;
       childRows.push(s);
-      sub.getCell(s, 1).value = c.code;
-      sub.getCell(s, 2).value = `  ${c.name}`;
+      sub.getCell(s, 1).value = displayCode(c.code);
+      sub.getCell(s, 1).alignment = { horizontal: "center" };
+      sub.getCell(s, 2).value = displayName(c.name);
+      sub.getCell(s, 2).alignment = { indent: 1, wrapText: true };
       sub.getCell(s, 3).value = {
         formula: `'Detail RAB'!F${detRowOf.get(c.id)!}`,
         result: Number(c.amount),
@@ -193,7 +233,7 @@ export async function buildRabXlsx(input: RabExportInput): Promise<Buffer> {
     }
     s += 1;
     subTotalRowOf.set(kat.id, s);
-    sub.getCell(s, 2).value = `JUMLAH ${kat.code} — ${kat.name}`;
+    sub.getCell(s, 2).value = `JUMLAH ${romanOf.get(kat.id)!} — ${displayName(kat.name)}`;
     sub.getCell(s, 2).font = { bold: true };
     sub.getCell(s, 3).value = childRows.length
       ? { formula: childRows.map((cr) => `C${cr}`).join("+"), result: Number(kat.amount) }
@@ -216,11 +256,12 @@ export async function buildRabXlsx(input: RabExportInput): Promise<Buffer> {
   });
   let q = resHeaderRow;
   const katRows: number[] = [];
-  kategoris.forEach((kat, i) => {
+  kategoris.forEach((kat) => {
     q += 1;
     katRows.push(q);
-    res.getCell(q, 1).value = i + 1;
-    res.getCell(q, 2).value = `${kat.code} — ${kat.name}`;
+    res.getCell(q, 1).value = romanOf.get(kat.id)!;
+    res.getCell(q, 1).alignment = { horizontal: "center" };
+    res.getCell(q, 2).value = displayName(kat.name);
     res.getCell(q, 3).value = {
       formula: `'Sub Resume'!C${subTotalRowOf.get(kat.id)!}`,
       result: Number(kat.amount),

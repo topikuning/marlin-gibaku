@@ -2,7 +2,7 @@
 
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { Inbox, Search } from "lucide-react";
-import { EmptyState } from "@/components/ui";
+import { Combobox, EmptyState } from "@/components/ui";
 
 /** Metadata untuk filter + node kartu (di-render di server, termasuk aksinya). */
 export type ActivityCardItem = {
@@ -58,18 +58,18 @@ export function KegiatanList({
             aria-label="Cari kegiatan"
           />
         </div>
-        <select value={type} onChange={(e) => setType(e.target.value)} className={`${controlClass} min-w-0`} aria-label="Filter jenis">
+        <Combobox value={type} onChange={setType} className="min-w-0" placeholder="Semua jenis">
           <option value="">Semua jenis</option>
           {typeOptions.map((t) => (
             <option key={t} value={t}>{t}</option>
           ))}
-        </select>
-        <select value={status} onChange={(e) => setStatus(e.target.value)} className={`${controlClass} min-w-0`} aria-label="Filter status">
+        </Combobox>
+        <Combobox value={status} onChange={setStatus} className="min-w-0" placeholder="Semua status">
           <option value="">Semua status</option>
           {statusOptions.map((s) => (
             <option key={s} value={s}>{s}</option>
           ))}
-        </select>
+        </Combobox>
         <button
           type="button"
           onClick={() => {

@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import type { CellClassParams, CellValueChangedEvent, ColDef, EditableCallbackParams } from "ag-grid-community";
 import { Plus, Trash2 } from "lucide-react";
-import { Banner, Button } from "@/components/ui";
+import { Banner, Button, Combobox, Input, Label } from "@/components/ui";
 import { MarlinGrid } from "@/components/grid/marlin-grid";
 import {
   addItemAction,
@@ -132,6 +132,8 @@ export function AdendumEditor({
         sortable: false,
         filter: false,
         editable: (p) => Boolean(p.data?.isNew && p.data.kind === "item"),
+        // Suffix dedup internal `#N` (artefak lineageKey) tidak ditampilkan.
+        valueFormatter: (p) => (p.value == null ? "" : kodeTampil(String(p.value))),
         cellClass: (p) => (p.data?.isNew && p.data.kind === "item" ? "text-ink" : "text-ink-muted"),
       },
       {
@@ -325,7 +327,14 @@ export function AdendumEditor({
   );
 }
 
-/** Form tambah item baru — pilih induk (kategori/sub/grup) lalu isi satu baris. */
+/** Kode tampilan: buang suffix dedup internal `#2`, `#3`, … (artefak lineageKey). */
+const kodeTampil = (code: string) => code.replace(/#\d+$/, "");
+
+/**
+ * Form tambah item baru — induk dipilih lewat Combobox SEARCHABLE (aturan
+ * DECISIONS 094/115: semua dropdown filterable, apalagi opsi ratusan), field
+ * berlabel jelas, bukan deretan input polos.
+ */
 function TambahItem({
   slug,
   revisionId,
@@ -337,7 +346,16 @@ function TambahItem({
 }) {
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<AdendumActionState>(undefined);
+  const [parentId, setParentId] = useState("");
   const [pending, startTransition] = useTransition();
+  const parentOptions = useMemo(
+    () =>
+      parents.map((p) => ({
+        value: p.id,
+        label: `${"— ".repeat(p.depth)}${kodeTampil(p.code)} · ${p.name}`,
+      })),
+    [parents],
+  );
   if (parents.length === 0) return null;
   if (!open) {
     return (
@@ -347,35 +365,64 @@ function TambahItem({
     );
   }
   const submit = (formData: FormData) => {
+    if (!formData.get("parentId")) {
+      setState({ error: "Pilih dulu induk (kategori/sub) tempat item baru masuk." });
+      return;
+    }
     startTransition(() => {
       void addItemAction(undefined, formData).then((res) => {
         setState(res);
-        if (res?.success) setOpen(false);
+        if (res?.success) {
+          setOpen(false);
+          setParentId("");
+        }
       });
     });
   };
   return (
-    <form
-      action={submit}
-      className="flex w-full flex-wrap items-end gap-1.5 rounded-lg border border-dashed border-border bg-surface p-2"
-    >
+    <form action={submit} className="w-full rounded-lg border border-dashed border-border bg-surface p-3">
       <input type="hidden" name="slug" value={slug} />
       <input type="hidden" name="revisionId" value={revisionId} />
-      <select name="parentId" className="rounded border border-border bg-surface px-1.5 py-1 text-[12px]">
-        {parents.map((p) => (
-          <option key={p.id} value={p.id}>
-            {`${"—".repeat(p.depth)} ${p.code} ${p.name}`}
-          </option>
-        ))}
-      </select>
-      <input name="code" placeholder="Kode" className="w-16 rounded border border-border bg-surface px-1.5 py-1 text-[12px]" />
-      <input name="name" placeholder="Nama item pekerjaan baru" className="w-56 rounded border border-border bg-surface px-1.5 py-1 text-[12px]" />
-      <input name="unit" placeholder="Sat" className="w-14 rounded border border-border bg-surface px-1.5 py-1 text-[12px]" />
-      <input name="volume" type="number" step="0.001" min="0.001" placeholder="Volume" className="w-20 rounded border border-border bg-surface px-1.5 py-1 text-right text-[12px]" />
-      <input name="unitPrice" type="number" step="1" min="0" placeholder="Harga satuan" className="w-28 rounded border border-border bg-surface px-1.5 py-1 text-right text-[12px]" />
-      <Button type="submit" size="sm" loading={pending}>Tambah</Button>
-      <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>Batal</Button>
-      {state?.error ? <span className="w-full text-[11px] text-danger">{state.error}</span> : null}
+      <p className="mb-2 text-[13px] font-semibold text-ink">Item pekerjaan baru</p>
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="w-full lg:min-w-96 lg:flex-1">
+          <Label htmlFor="ti-parent" required>Induk (kategori / sub pekerjaan)</Label>
+          <Combobox
+            id="ti-parent"
+            name="parentId"
+            required
+            value={parentId}
+            onChange={setParentId}
+            options={parentOptions}
+            placeholder="Ketik untuk mencari kategori/sub…"
+          />
+        </div>
+        <div className="w-20">
+          <Label htmlFor="ti-code" required>Kode</Label>
+          <Input id="ti-code" name="code" required placeholder="cth. 8" />
+        </div>
+        <div className="w-full sm:min-w-64 sm:flex-1">
+          <Label htmlFor="ti-name" required>Nama item pekerjaan</Label>
+          <Input id="ti-name" name="name" required placeholder="cth. Pekerjaan Bollard 15/15 cm" />
+        </div>
+        <div className="w-16">
+          <Label htmlFor="ti-unit">Sat</Label>
+          <Input id="ti-unit" name="unit" placeholder="m3" />
+        </div>
+        <div className="w-24">
+          <Label htmlFor="ti-volume" required>Volume</Label>
+          <Input id="ti-volume" name="volume" required type="number" step="0.001" min="0.001" placeholder="0,000" className="text-right" />
+        </div>
+        <div className="w-32">
+          <Label htmlFor="ti-harga" required>Harga satuan</Label>
+          <Input id="ti-harga" name="unitPrice" required type="number" step="1" min="0" placeholder="Rp" className="text-right" />
+        </div>
+        <div className="flex gap-1.5">
+          <Button type="submit" size="sm" loading={pending}>Tambah</Button>
+          <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>Batal</Button>
+        </div>
+      </div>
+      {state?.error ? <p className="mt-2 text-[12px] text-danger">{state.error}</p> : null}
     </form>
   );
 }
@@ -401,17 +448,25 @@ function TambahKategori({ slug, revisionId }: { slug: string; revisionId: string
     });
   };
   return (
-    <form
-      action={submit}
-      className="flex w-full flex-wrap items-end gap-1.5 rounded-lg border border-dashed border-border bg-surface p-2"
-    >
+    <form action={submit} className="w-full rounded-lg border border-dashed border-border bg-surface p-3">
       <input type="hidden" name="slug" value={slug} />
       <input type="hidden" name="revisionId" value={revisionId} />
-      <input name="code" placeholder="Kode (mis. XV)" className="w-24 rounded border border-border bg-surface px-1.5 py-1 text-[12px]" />
-      <input name="name" placeholder="Nama kategori (mis. PEKERJAAN BANGUNAN POS JAGA)" className="w-80 rounded border border-border bg-surface px-1.5 py-1 text-[12px]" />
-      <Button type="submit" size="sm" loading={pending}>Tambah</Button>
-      <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>Batal</Button>
-      {state?.error ? <span className="w-full text-[11px] text-danger">{state.error}</span> : null}
+      <p className="mb-2 text-[13px] font-semibold text-ink">Kategori / bangunan baru</p>
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="w-24">
+          <Label htmlFor="tk-code" required>Kode</Label>
+          <Input id="tk-code" name="code" required placeholder="cth. XV" />
+        </div>
+        <div className="w-full sm:min-w-80 sm:flex-1">
+          <Label htmlFor="tk-name" required>Nama kategori</Label>
+          <Input id="tk-name" name="name" required placeholder="cth. PEKERJAAN BANGUNAN POS JAGA" />
+        </div>
+        <div className="flex gap-1.5">
+          <Button type="submit" size="sm" loading={pending}>Tambah</Button>
+          <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>Batal</Button>
+        </div>
+      </div>
+      {state?.error ? <p className="mt-2 text-[12px] text-danger">{state.error}</p> : null}
     </form>
   );
 }
