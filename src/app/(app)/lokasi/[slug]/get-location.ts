@@ -32,6 +32,7 @@ function findLocation(slug: string) {
           packageNumber: true,
           contract: {
             select: {
+              id: true,
               contractNumber: true,
               contractValue: true,
               ppnPercent: true,

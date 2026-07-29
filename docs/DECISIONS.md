@@ -4215,3 +4215,90 @@ Verifikasi: `tests/unit/stamp-badge.test.ts` (5 kasus) — pill selalu di dalam
 kanvas (lanskap, potret, foto sempit 640×480), teks selalu di dalam pill, nama
 pendek tidak dipotong. Plus pemeriksaan visual hasil render.
 typecheck ✓ · lint ✓ · unit 461 ✓ · build ✓.
+
+## 172 · 2026-07-29 · Adendum RAB tahap (a): editor draft di aplikasi, bukan hanya Excel
+
+Kebutuhan lapangan: adendum harga = ubah volume item, tambah item pekerjaan,
+atau tambah bangunan baru. Selama ini satu-satunya jalur revisi RAB adalah
+impor Excel — merepotkan untuk perubahan kecil dan tidak menegakkan aturan
+adendum apa pun.
+
+Dasar aturan (riset online, Perpres 16/2018 Pasal 54 + praktik CCO):
+
+1. **Harga satuan item LAMA terkunci** (harga kontrak tetap). Di editor memang
+   TIDAK ADA jalur mutasi harga item lama — yang bisa diubah hanya volume.
+2. **Item baru** = hasil negosiasi; harga satuannya bebas diisi.
+3. **Pekerjaan tambah maksimal 10% nilai kontrak awal** → jadi warning (bukan
+   blocker) pada tahap (b) — MARLIN mencatat kenyataan, bukan menolaknya.
+
+Keputusan desain (persetujuan user 29 Juli 2026):
+
+- Semua editan terjadi pada **REVISI DRAFT** salinan penuh revisi aktif
+  (lineageKey ikut disalin → realisasi nyambung otomatis saat diaktifkan lewat
+  `activateRevision` yang sudah ada). Angka live tidak tersentuh sampai aktivasi.
+- **Volume minimal = realisasi tercatat** (`cumulativeVolumeByLineage`).
+  Pekerjaan-kurang atas item berjalan maksimal sampai volume terealisasi.
+- **Hapus hanya untuk node tanpa realisasi** — bukti lapangan tidak boleh
+  kehilangan induk RAB. Jejak penghapusan permanen: audit log
+  (`rab.adendum_node_remove`) + item terhapus tetap terlihat di `diffRevisions`
+  karena revisi lama append-only.
+- **Semua agregat SELALU dihitung ulang penuh dari daun** per mutasi
+  (`recomputeTotals`) — tidak pernah diedit langsung (prinsip #4 CLAUDE.md).
+- Satu lokasi maksimal SATU draft pada satu waktu.
+- Setiap mutasi ber-audit SEATURAN transaksinya (`auditIn`, AUDIT-01).
+
+Implementasi: `src/lib/rab/adendum.ts` (service + diff), server actions +
+halaman `/lokasi/[slug]/rab/adendum` (editor inline: edit volume per baris,
+tambah item per kategori, tambah kategori/bangunan, hapus berpenjaga, panel
+diff lama→baru dengan delta nilai). Aktivasi/buang draft tetap lewat riwayat
+revisi di halaman RAB.
+
+Tahap (b) berikutnya: wizard dari ContractAmendment (amendmentId link, validasi
+nilai vs kontrak, warning 10%), tahap (c): halaman review sebelum aktivasi +
+lampiran dokumen adendum. Ditambah fitur cetak Excel RAB aktif 3 sheet
+(Resume / Sub Resume / Detail) dengan formula antar-sheet.
+
+Verifikasi: `tests/integration/adendum-editor.test.ts` (8 kasus, Postgres asli)
+— salinan draft + tolak draft kedua, volume < realisasi ditolak, harga item
+lama tak tersentuh, agregat selalu dihitung ulang, tambah item/kategori, hapus
+ber-realisasi ditolak + hapus berjejak audit, diff (dihapus/ditambah/diubah),
+mutasi non-draft ditolak. typecheck ✓ · lint ✓ · unit 461 ✓ · integrasi 80 ✓ ·
+build ✓.
+
+## 173 · 2026-07-29 · Adendum lengkap: grid Excel-like, link CCO, review aktivasi, ekspor Excel 3 sheet
+
+Lanjutan 172, satu putaran penuh sesuai arahan user ("langsung lanjut semua"):
+
+1. **Editor jadi grid gaya Excel** (AG Grid via MarlinGrid + mode edit baru:
+   `singleClickEdit`, Enter turun baris, simpan saat sel kehilangan fokus).
+   Satu klik langsung mengetik — tanpa tombol OK per baris. Kolom lama vs baru
+   berdampingan (Vol. kontrak → Vol. adendum, Jumlah kontrak → Jumlah adendum,
+   Δ per baris dihitung server). Item BARU: kode/nama/satuan/harga satuan bisa
+   diketik langsung di sel (`updateDraftNewItemFields` — DITOLAK untuk item
+   lama, dicek terhadap lineage revisi aktif). Gagal simpan → sel dikembalikan
+   ke nilai lama + banner alasan.
+2. **Link CCO**: draft adendum bisa dikaitkan ke `ContractAmendment` saat
+   dibuat (dropdown CCO paket; divalidasi milik paket lokasi). Peringatan
+   otomatis (informasi, bukan penghalang): (a) pekerjaan tambah
+   (`diffRevisions.totalTambah`) > 10% nilai RAB kontrak awal — batas Perpres
+   16/2018; (b) Δ draft + PPN ≠ `valueDelta` CCO terkait.
+3. **Review aktivasi di tempat**: tombol Aktifkan/Buang langsung di halaman
+   adendum — konfirmasinya menyebut ringkasan (n tambah/hapus/ubah + Δ) dan
+   mengingatkan bila ada peringatan nilai. Mesin aktivasi tetap yang lama
+   (`activateRevision` + regenerate baseline).
+4. **Dokumen CCO**: riwayat adendum di halaman Kontrak paket kini punya kolom
+   Dokumen — lampirkan file per CCO tanpa pindah halaman
+   (`uploadDocumentAction` sekarang meneruskan `amendmentId`/`contractId`).
+5. **Ekspor Excel RAB aktif 3 sheet** (`lib/export/rab-xlsx.ts` +
+   `/lokasi/[slug]/rab/export`): Resume → Sub Resume → Detail RAB, SEMUA
+   TERTAUT FORMULA antar sel/sheet (pola konsep file KKP): Jumlah item =
+   `ROUND(volume×harga,0)` (cermin `valueDone`), induk = penjumlahan sel anak,
+   Sub Resume menunjuk baris Detail, Resume menunjuk subtotal Sub Resume,
+   PPN/TOTAL/DIBULATKAN juga rumus. Nilai cache tiap sel rumus = angka DB
+   (via `ppnAmount`/`withPpn` — bukan hitungan lokal baru), jadi tampilan
+   identik aplikasi sebelum rekalkulasi.
+
+Verifikasi: unit 465 ✓ (rab-xlsx 4 kasus: urutan sheet, rumus item/induk,
+referensi antar-sheet, PPN/pembulatan) · integrasi 81 ✓ (adendum-editor 9,
+termasuk harga item baru boleh / item lama terkunci) · typecheck ✓ · lint ✓ ·
+build ✓.

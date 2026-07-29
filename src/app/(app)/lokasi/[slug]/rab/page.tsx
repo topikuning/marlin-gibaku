@@ -177,14 +177,32 @@ export default async function RabPage({
               : "Belum ada revisi aktif"
           }
           action={
-            canManage ? (
-              <Link
-                href={`/lokasi/${slug}/rab/import`}
-                className="text-[13px] font-medium text-primary hover:underline"
-              >
-                Impor HPS / Adendum
-              </Link>
-            ) : null
+            <span className="flex items-center gap-3">
+              {active ? (
+                <a
+                  href={`/lokasi/${slug}/rab/export`}
+                  className="text-[13px] font-medium text-primary hover:underline"
+                >
+                  Unduh Excel
+                </a>
+              ) : null}
+              {canManage ? (
+                <>
+                  <Link
+                    href={`/lokasi/${slug}/rab/adendum`}
+                    className="text-[13px] font-medium text-primary hover:underline"
+                  >
+                    Adendum (editor)
+                  </Link>
+                  <Link
+                    href={`/lokasi/${slug}/rab/import`}
+                    className="text-[13px] font-medium text-primary hover:underline"
+                  >
+                    Impor HPS / Adendum
+                  </Link>
+                </>
+              ) : null}
+            </span>
           }
         />
         <CardBody>

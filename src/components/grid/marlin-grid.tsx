@@ -4,12 +4,14 @@ import {
   AllCommunityModule,
   ModuleRegistry,
   themeQuartz,
+  type CellValueChangedEvent,
   type ColDef,
   type ColDefField,
   type GetRowIdParams,
   type GridApi,
   type GridReadyEvent,
   type IDatasource,
+  type RowClassRules,
   type RowClickedEvent,
   type ValueFormatterParams,
 } from "ag-grid-community";
@@ -129,6 +131,14 @@ export interface MarlinGridProps<T> {
   emptyText?: string;
   loading?: boolean;
   className?: string;
+  /**
+   * Mode edit sel gaya Excel: satu klik langsung edit, Enter pindah ke bawah,
+   * editan tersimpan saat sel kehilangan fokus. Kolom mana yang bisa diedit
+   * tetap ditentukan `editable` pada masing-masing ColDef.
+   */
+  editMode?: boolean;
+  onCellValueChanged?: (e: CellValueChangedEvent<T>) => void;
+  rowClassRules?: RowClassRules<T>;
 }
 
 export function MarlinGrid<T>({
@@ -146,6 +156,9 @@ export function MarlinGrid<T>({
   emptyText,
   loading,
   className,
+  editMode = false,
+  onCellValueChanged,
+  rowClassRules,
 }: MarlinGridProps<T>) {
   const apiRef = useRef<GridApi<T> | null>(null);
   const [quickFilterText, setQuickFilterText] = useState("");
@@ -244,6 +257,16 @@ export function MarlinGrid<T>({
           noRowsOverlayComponent={NoRowsOverlay}
           noRowsOverlayComponentParams={{ emptyText }}
           getRowId={rowIdGetter}
+          rowClassRules={rowClassRules}
+          {...(editMode
+            ? {
+                singleClickEdit: true,
+                stopEditingWhenCellsLoseFocus: true,
+                enterNavigatesVertically: true,
+                enterNavigatesVerticallyAfterEdit: true,
+              }
+            : {})}
+          onCellValueChanged={onCellValueChanged}
           onGridReady={onGridReady}
           onRowClicked={onRowClicked ? handleRowClicked : undefined}
           rowClass={onRowClicked ? "cursor-pointer" : undefined}
