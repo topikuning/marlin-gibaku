@@ -179,6 +179,41 @@ describe("pengamatan lapangan menang atas data otomatis", () => {
   });
 });
 
+describe("pemilih cuaca manual dimatikan (DECISIONS 177)", () => {
+  it("menyimpan pelengkap KKP TANPA field cuaca tidak menghapus hasil ambil otomatis", async () => {
+    const report = await getOrCreateDraft(locationId, "2026-07-15", userId);
+    await applyWeatherToReport(report.id);
+
+    // Form tanpa pemilih manual tidak mengirim `weather` sama sekali →
+    // input.weather undefined. Dulu ini akan mengosongkan cuaca tiap simpan.
+    await setEnrichment(
+      report.id,
+      { workStart: "08:00", workEnd: "17:00", notes: null, workers: [], materials: [], equipment: [] },
+      userId,
+    );
+
+    const after = await db.dailyReport.findUniqueOrThrow({ where: { id: report.id } });
+    expect(after.weather).toBe("hujan_ringan");
+    expect(after.weatherSource).toBe("otomatis");
+    expect(parseHourlyWeather(after.weatherHourly)).toHaveLength(15);
+    expect(after.workStart).toBe("08:00"); // field lain tetap tersimpan
+  });
+
+  it("cuaca null EKSPLISIT tetap bisa mengosongkan (jalur pemilih manual bila dihidupkan lagi)", async () => {
+    const report = await getOrCreateDraft(locationId, "2026-07-14", userId);
+    await applyWeatherToReport(report.id);
+    await setEnrichment(
+      report.id,
+      { weather: null, workStart: null, workEnd: null, notes: null, workers: [], materials: [], equipment: [] },
+      userId,
+    );
+    const after = await db.dailyReport.findUniqueOrThrow({ where: { id: report.id } });
+    expect(after.weather).toBeNull();
+    expect(after.weatherSource).toBeNull();
+    expect(after.weatherHourly).toBeNull();
+  });
+});
+
 describe("laporan terkunci", () => {
   it("laporan disetujui/final tidak bisa diubah cuacanya", async () => {
     const report = await getOrCreateDraft(locationId, "2026-07-16", userId);

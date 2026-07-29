@@ -4462,3 +4462,36 @@ KALI di PostgreSQL 16 sungguhan — sukses keduanya.
 Verifikasi: unit 489 ✓ (14 kasus cuaca + 3 kasus penjaga migrasi) · integrasi
 88 ✓ di PostgreSQL 16 lokal (7 kasus cuaca: cache, manual menang, laporan
 terkunci, lokasi tanpa koordinat) · typecheck ✓ · lint ✓ · build ✓.
+
+## 177 · 2026-07-29 · Pemilih cuaca MANUAL dimatikan (bisa dihidupkan lagi) + penegasan: cuaca mengikuti TANGGAL LAPORAN
+
+Keputusan user setelah cuaca otomatis per jam berjalan: enam radio cuaca di
+form pelengkap KKP tidak lagi dibutuhkan — hilangkan dulu, tapi tetap bisa
+dipakai lagi bila suatu saat perlu.
+
+- `SHOW_MANUAL_WEATHER_PICKER = false` di `daily-report/constants.ts`. Jalur
+  backend (enum, action, service, snapshot) SENGAJA utuh: ubah satu boolean
+  itu ke `true` dan pemilih manual muncul lagi tanpa perubahan lain.
+- **Bug yang dicegah sekalian**: kalau form tidak lagi mengirim field
+  `weather`, penanganan lama (`formData.get("weather") || null`) membacanya
+  sebagai "kosongkan" sehingga cuaca otomatis TERHAPUS setiap kali pelengkap
+  KKP disimpan. `EnrichmentInput.weather` kini membedakan `undefined` (tidak
+  dikirim → jangan sentuh kolom cuaca) dari `null` (dikosongkan sengaja).
+- Konsekuensi yang diterima: selama pemilih mati, `angin_kencang` dan `banjir`
+  tidak punya jalur input (keduanya memang tidak pernah dihasilkan otomatis);
+  kejadian seperti itu dicatat lewat kendala/catatan laporan.
+
+**Penegasan tanggal (pertanyaan user).** Pengambilan memakai `report.reportDate`,
+BUKAN hari ini: `applyWeatherToReport` mengirim `jakartaDateKey(report.reportDate)`
+dan `open-meteo.ts` menghitung `past_days` dari selisih tanggal itu terhadap
+hari ini, lalu menyaring jam yang cocok dengan tanggal tersebut. Laporan yang
+diisi mundur (mis. lupa 3 hari) tetap mendapat kondisi tanggalnya. Batas 60 hari
+ke belakang; tanggal masa depan dan di luar batas ditolak tanpa menembak
+penyedia. Perilaku ini sekarang dikunci `tests/unit/weather-open-meteo.test.ts`
+(6 kasus, `fetch` di-stub). Teks bantuan di form yang sebelumnya berbunyi
+"jam-jam yang sudah lewat hari ini" — menyesatkan — diganti menjadi mengikuti
+TANGGAL laporan.
+
+Verifikasi: unit 495 ✓ · integrasi 90 ✓ di PostgreSQL 16 lokal (2 kasus baru:
+simpan pelengkap tanpa field cuaca tidak menghapus hasil otomatis; `null`
+eksplisit tetap mengosongkan) · typecheck ✓ · lint ✓.

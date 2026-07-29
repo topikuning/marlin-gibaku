@@ -313,7 +313,9 @@ export async function removeReportPhotoAction(
 
 const enrichmentSchema = z.object({
   reportId: z.uuid(),
-  weather: z.enum(WEATHER_ORDER as [WeatherCode, ...WeatherCode[]]).nullable(),
+  // optional = field tidak dikirim (pemilih manual dimatikan) → jangan sentuh
+  // kolom cuaca; nullable = dikosongkan sengaja. Lihat EnrichmentInput.
+  weather: z.enum(WEATHER_ORDER as [WeatherCode, ...WeatherCode[]]).nullable().optional(),
   workStart: z.string().regex(/^\d{2}:\d{2}$/).nullable(),
   workEnd: z.string().regex(/^\d{2}:\d{2}$/).nullable(),
   notes: z.string().trim().max(2000).nullable(),
@@ -372,7 +374,7 @@ export async function saveEnrichmentAction(_prev: DailyActionState, formData: Fo
     const user = await requireReviewOrCreate();
     const parsed = enrichmentSchema.safeParse({
       reportId: formData.get("reportId"),
-      weather: formData.get("weather") || null,
+      weather: formData.has("weather") ? formData.get("weather") || null : undefined,
       workStart: formData.get("workStart") || null,
       workEnd: formData.get("workEnd") || null,
       notes: (formData.get("notes") as string | null) || null,
