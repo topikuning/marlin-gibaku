@@ -15,6 +15,7 @@ import {
 } from "@/lib/package/queries";
 import { StartPelaksanaanButton } from "../stage-actions";
 import { AmendmentForm, ConvertContractForm, EditContractForm, SignatoriesForm } from "./kontrak-forms";
+import { AmendmentDocUpload } from "./amendment-doc-upload";
 
 export const metadata: Metadata = { title: "Kontrak & Adendum" };
 export const dynamic = "force-dynamic";
@@ -269,7 +270,8 @@ export default async function KontrakPage({
                     <th className="py-2 pr-3 text-right">Perubahan nilai</th>
                     <th className="py-2 pr-3 text-right">Waktu</th>
                     <th className="py-2 pr-3">Berlaku</th>
-                    <th className="py-2">Alasan</th>
+                    <th className="py-2 pr-3">Alasan</th>
+                    <th className="py-2">Dokumen</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -287,7 +289,29 @@ export default async function KontrakPage({
                         {a.endDateDelta} hari
                       </td>
                       <td className="py-2 pr-3">{formatTanggal(a.effectiveDate)}</td>
-                      <td className="py-2 text-ink-muted">{a.reason}</td>
+                      <td className="py-2 pr-3 text-ink-muted">{a.reason}</td>
+                      <td className="py-2">
+                        <span className="flex flex-wrap items-center gap-2">
+                          {a.documents.map((doc) => (
+                            <a
+                              key={doc.id}
+                              href={`/api/documents/${doc.id}`}
+                              className="text-[12px] font-medium text-primary hover:underline"
+                              target="_blank"
+                            >
+                              {doc.title}
+                            </a>
+                          ))}
+                          {canAmend ? (
+                            <AmendmentDocUpload
+                              packageId={pkg.id}
+                              contractId={contract.id}
+                              amendmentId={a.id}
+                              ccoNumber={a.ccoNumber}
+                            />
+                          ) : null}
+                        </span>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

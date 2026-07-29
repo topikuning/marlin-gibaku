@@ -28,6 +28,8 @@ const uploadSchema = z.object({
   packageId: optionalUuid,
   locationId: optionalUuid,
   milestoneId: optionalUuid,
+  amendmentId: optionalUuid,
+  contractId: optionalUuid,
   docNumber: z.string().trim().max(120, "Nomor maksimal 120 karakter"),
   docDate: optionalDate,
   expiryDate: optionalDate,
@@ -47,6 +49,8 @@ export async function uploadDocumentAction(
     packageId: formData.get("packageId") ?? "",
     locationId: formData.get("locationId") ?? "",
     milestoneId: formData.get("milestoneId") ?? "",
+    amendmentId: formData.get("amendmentId") ?? "",
+    contractId: formData.get("contractId") ?? "",
     docNumber: formData.get("docNumber") ?? "",
     docDate: formData.get("docDate") ?? "",
     expiryDate: formData.get("expiryDate") ?? "",
@@ -70,6 +74,8 @@ export async function uploadDocumentAction(
         packageId: d.packageId,
         locationId: d.locationId,
         milestoneId: d.milestoneId,
+        amendmentId: d.amendmentId,
+        contractId: d.contractId,
         phase: d.phase,
         type: d.type,
         title: d.title,
@@ -83,6 +89,7 @@ export async function uploadDocumentAction(
     revalidatePath("/dokumen");
     if (d.locationSlug) revalidatePath(`/lokasi/${d.locationSlug}/dokumen`);
     if (d.packageId) revalidatePath(`/paket/${d.packageId}/dokumen`);
+    if (d.amendmentId && d.packageId) revalidatePath(`/paket/${d.packageId}/kontrak`);
     return {
       success: doc.milestoneId
         ? `Dokumen "${doc.title}" diunggah & tertaut ke milestone administrasi.`

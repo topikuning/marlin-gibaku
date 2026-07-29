@@ -25,6 +25,7 @@ const {
   diffRevisions,
   removeDraftNode,
   updateDraftItemVolume,
+  updateDraftNewItemFields,
 } = await import("@/lib/rab/adendum");
 const { getOrCreateDraft, upsertItem, submitReport } = await import("@/lib/daily-report/service");
 
@@ -166,6 +167,19 @@ describe("editor draft adendum", () => {
     expect(rev.totalValue).toBe(163_000_000n);
     const pondasi = await draftNode(draftId, "II#1");
     expect(pondasi.lineageKey).toBe("II#1");
+  });
+
+  it("harga satuan item BARU bisa diedit (negosiasi); item LAMA ditolak — terkunci", async () => {
+    const sondir = await draftNode(draftId, "I#3");
+    const naik = await updateDraftNewItemFields(draftId, sondir.id, { unitPrice: 3_000_000 }, userId);
+    expect(naik.totalValue).toBe(165_000_000n); // 163jt + 4 titik × 500rb
+    const balik = await updateDraftNewItemFields(draftId, sondir.id, { unitPrice: 2_500_000 }, userId);
+    expect(balik.totalValue).toBe(163_000_000n);
+
+    const psb = await draftNode(draftId, "I#1"); // item kontrak lama
+    await expect(
+      updateDraftNewItemFields(draftId, psb.id, { unitPrice: 900_000 }, userId),
+    ).rejects.toThrow(/terkunci/i);
   });
 
   it("hapus item BER-realisasi DITOLAK; item tanpa realisasi boleh dan berjejak audit", async () => {

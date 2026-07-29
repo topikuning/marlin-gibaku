@@ -4264,3 +4264,41 @@ lama tak tersentuh, agregat selalu dihitung ulang, tambah item/kategori, hapus
 ber-realisasi ditolak + hapus berjejak audit, diff (dihapus/ditambah/diubah),
 mutasi non-draft ditolak. typecheck ✓ · lint ✓ · unit 461 ✓ · integrasi 80 ✓ ·
 build ✓.
+
+## 173 · 2026-07-29 · Adendum lengkap: grid Excel-like, link CCO, review aktivasi, ekspor Excel 3 sheet
+
+Lanjutan 172, satu putaran penuh sesuai arahan user ("langsung lanjut semua"):
+
+1. **Editor jadi grid gaya Excel** (AG Grid via MarlinGrid + mode edit baru:
+   `singleClickEdit`, Enter turun baris, simpan saat sel kehilangan fokus).
+   Satu klik langsung mengetik — tanpa tombol OK per baris. Kolom lama vs baru
+   berdampingan (Vol. kontrak → Vol. adendum, Jumlah kontrak → Jumlah adendum,
+   Δ per baris dihitung server). Item BARU: kode/nama/satuan/harga satuan bisa
+   diketik langsung di sel (`updateDraftNewItemFields` — DITOLAK untuk item
+   lama, dicek terhadap lineage revisi aktif). Gagal simpan → sel dikembalikan
+   ke nilai lama + banner alasan.
+2. **Link CCO**: draft adendum bisa dikaitkan ke `ContractAmendment` saat
+   dibuat (dropdown CCO paket; divalidasi milik paket lokasi). Peringatan
+   otomatis (informasi, bukan penghalang): (a) pekerjaan tambah
+   (`diffRevisions.totalTambah`) > 10% nilai RAB kontrak awal — batas Perpres
+   16/2018; (b) Δ draft + PPN ≠ `valueDelta` CCO terkait.
+3. **Review aktivasi di tempat**: tombol Aktifkan/Buang langsung di halaman
+   adendum — konfirmasinya menyebut ringkasan (n tambah/hapus/ubah + Δ) dan
+   mengingatkan bila ada peringatan nilai. Mesin aktivasi tetap yang lama
+   (`activateRevision` + regenerate baseline).
+4. **Dokumen CCO**: riwayat adendum di halaman Kontrak paket kini punya kolom
+   Dokumen — lampirkan file per CCO tanpa pindah halaman
+   (`uploadDocumentAction` sekarang meneruskan `amendmentId`/`contractId`).
+5. **Ekspor Excel RAB aktif 3 sheet** (`lib/export/rab-xlsx.ts` +
+   `/lokasi/[slug]/rab/export`): Resume → Sub Resume → Detail RAB, SEMUA
+   TERTAUT FORMULA antar sel/sheet (pola konsep file KKP): Jumlah item =
+   `ROUND(volume×harga,0)` (cermin `valueDone`), induk = penjumlahan sel anak,
+   Sub Resume menunjuk baris Detail, Resume menunjuk subtotal Sub Resume,
+   PPN/TOTAL/DIBULATKAN juga rumus. Nilai cache tiap sel rumus = angka DB
+   (via `ppnAmount`/`withPpn` — bukan hitungan lokal baru), jadi tampilan
+   identik aplikasi sebelum rekalkulasi.
+
+Verifikasi: unit 465 ✓ (rab-xlsx 4 kasus: urutan sheet, rumus item/induk,
+referensi antar-sheet, PPN/pembulatan) · integrasi 81 ✓ (adendum-editor 9,
+termasuk harga item baru boleh / item lama terkunci) · typecheck ✓ · lint ✓ ·
+build ✓.

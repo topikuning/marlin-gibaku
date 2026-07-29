@@ -109,6 +109,20 @@ export async function createAdendumDraft(
     });
     if (!active) throw new AdendumError("Belum ada revisi RAB aktif untuk disalin.");
 
+    if (opts.amendmentId) {
+      const loc = await tx.location.findUniqueOrThrow({
+        where: { id: locationId },
+        select: { packageId: true },
+      });
+      const amendment = await tx.contractAmendment.findUnique({
+        where: { id: opts.amendmentId },
+        select: { contract: { select: { packageId: true } } },
+      });
+      if (!amendment || amendment.contract.packageId !== loc.packageId) {
+        throw new AdendumError("Adendum kontrak (CCO) itu bukan milik paket lokasi ini.");
+      }
+    }
+
     const maxRev = await tx.rabRevision.aggregate({ where: { locationId }, _max: { revisionNo: true } });
     const revisionNo = (maxRev._max.revisionNo ?? 0) + 1;
     const draft = await tx.rabRevision.create({
@@ -283,6 +297,74 @@ export async function addDraftItem(
   });
 }
 
+/**
+ * Edit field ITEM BARU (kode/nama/satuan/harga satuan). HANYA untuk item yang
+ * belum ada di revisi aktif — item lama harga & identitasnya terkunci (harga
+ * kontrak tetap). lineageKey TIDAK ikut berubah ketika kode diedit: identitas
+ * node dalam draft sudah terbentuk dan tidak boleh goyah.
+ */
+export async function updateDraftNewItemFields(
+  revisionId: string,
+  nodeId: string,
+  patch: { code?: string; name?: string; unit?: string | null; unitPrice?: number },
+  userId: string,
+): Promise<{ totalValue: bigint }> {
+  return db.$transaction(async (tx) => {
+    const rev = await requireDraft(tx, revisionId);
+    const node = await tx.rabNode.findUnique({
+      where: { id: nodeId },
+      select: { id: true, revisionId: true, kind: true, name: true, lineageKey: true },
+    });
+    if (!node || node.revisionId !== revisionId) throw new AdendumError("Item tidak ditemukan di draft ini.");
+    if (node.kind !== "item") throw new AdendumError("Hanya item pekerjaan yang bisa diedit di sini.");
+
+    const active = await tx.rabRevision.findFirst({
+      where: { locationId: rev.locationId, status: "aktif" },
+      select: { id: true },
+    });
+    if (active) {
+      const lama = await tx.rabNode.findFirst({
+        where: { revisionId: active.id, lineageKey: node.lineageKey },
+        select: { id: true },
+      });
+      if (lama) {
+        throw new AdendumError(
+          `"${node.name}" adalah item kontrak lama — harga satuan dan identitasnya terkunci. Hanya volume yang boleh diubah.`,
+        );
+      }
+    }
+
+    const data: { code?: string; name?: string; unit?: string | null; unitPrice?: number } = {};
+    if (patch.code !== undefined) {
+      const code = patch.code.trim();
+      if (!code) throw new AdendumError("Kode tidak boleh kosong.");
+      data.code = code;
+    }
+    if (patch.name !== undefined) {
+      const name = patch.name.trim();
+      if (!name) throw new AdendumError("Nama tidak boleh kosong.");
+      data.name = name;
+    }
+    if (patch.unit !== undefined) data.unit = patch.unit?.trim() || null;
+    if (patch.unitPrice !== undefined) {
+      if (!Number.isFinite(patch.unitPrice) || patch.unitPrice < 0) {
+        throw new AdendumError("Harga satuan tidak valid.");
+      }
+      data.unitPrice = Math.round(patch.unitPrice * 100) / 100;
+    }
+    if (Object.keys(data).length === 0) throw new AdendumError("Tidak ada perubahan.");
+
+    await tx.rabNode.update({ where: { id: nodeId }, data });
+    const totalValue = await recomputeTotals(tx, revisionId);
+    await auditIn(tx, userId, "rab.adendum_new_item_update", "rab_node", nodeId, {
+      revisionId,
+      lineageKey: node.lineageKey,
+      patch: data,
+    });
+    return { totalValue };
+  });
+}
+
 /** Tambah KATEGORI baru (bangunan/unit baru) di akar draft. */
 export async function addDraftKategori(
   revisionId: string,
@@ -400,6 +482,10 @@ export type RevisionDiff = {
   totalLama: bigint;
   totalBaru: bigint;
   delta: bigint;
+  /** Σ kenaikan nilai per item (pekerjaan tambah) — basis warning 10% Perpres. */
+  totalTambah: bigint;
+  /** Σ penurunan nilai per item (pekerjaan kurang), ≤ 0. */
+  totalKurang: bigint;
 };
 
 /**
@@ -474,6 +560,14 @@ export async function diffRevisions(oldRevisionId: string, newRevisionId: string
     }
   }
 
+  let totalTambah = 0n;
+  let totalKurang = 0n;
+  for (const it of [...ditambah, ...dihapus, ...diubah]) {
+    const d = it.amountBaru - it.amountLama;
+    if (d > 0n) totalTambah += d;
+    else totalKurang += d;
+  }
+
   return {
     ditambah,
     dihapus,
@@ -481,5 +575,7 @@ export async function diffRevisions(oldRevisionId: string, newRevisionId: string
     totalLama: oldRev.totalValue,
     totalBaru: newRev.totalValue,
     delta: newRev.totalValue - oldRev.totalValue,
+    totalTambah,
+    totalKurang,
   };
 }

@@ -11,6 +11,7 @@ import {
   createAdendumDraft,
   removeDraftNode,
   updateDraftItemVolume,
+  updateDraftNewItemFields,
 } from "@/lib/rab/adendum";
 
 /**
@@ -51,10 +52,13 @@ export async function createDraftAction(_prev: AdendumActionState, formData: For
     const slug = slugSchema.parse(formData.get("slug"));
     const { user, location } = await requireCtx(slug);
     const note = String(formData.get("note") ?? "").trim() || null;
-    const res = await createAdendumDraft(location.id, user.id, { note });
+    const amendmentRaw = String(formData.get("amendmentId") ?? "").trim();
+    const amendmentId = amendmentRaw ? z.uuid().parse(amendmentRaw) : null;
+    const res = await createAdendumDraft(location.id, user.id, { note, amendmentId });
     revalidate(slug);
     return { success: `Draft revisi #${res.revisionNo} dibuat — silakan edit lalu aktifkan.` };
   } catch (err) {
+    if (err instanceof z.ZodError) return { error: "Adendum kontrak (CCO) tidak valid." };
     return errState(err);
   }
 }
@@ -79,6 +83,43 @@ export async function updateVolumeAction(_prev: AdendumActionState, formData: Fo
     revalidate(d.slug);
     return { success: "Volume diperbarui." };
   } catch (err) {
+    return errState(err);
+  }
+}
+
+const newItemFieldSchema = z.object({
+  slug: slugSchema,
+  revisionId: z.uuid(),
+  nodeId: z.uuid(),
+  field: z.enum(["code", "name", "unit", "unitPrice"]),
+  value: z.string(),
+});
+
+/** Edit satu field item BARU dari sel grid (kode/nama/satuan/harga satuan). */
+export async function updateNewItemFieldAction(
+  _prev: AdendumActionState,
+  formData: FormData,
+): Promise<AdendumActionState> {
+  try {
+    const d = newItemFieldSchema.parse({
+      slug: formData.get("slug"),
+      revisionId: formData.get("revisionId"),
+      nodeId: formData.get("nodeId"),
+      field: formData.get("field"),
+      value: formData.get("value"),
+    });
+    const { user } = await requireCtx(d.slug);
+    const patch =
+      d.field === "unitPrice"
+        ? { unitPrice: Number(d.value) }
+        : d.field === "unit"
+          ? { unit: d.value || null }
+          : { [d.field]: d.value };
+    await updateDraftNewItemFields(d.revisionId, d.nodeId, patch, user.id);
+    revalidate(d.slug);
+    return { success: "Tersimpan." };
+  } catch (err) {
+    if (err instanceof z.ZodError) return { error: err.issues[0].message };
     return errState(err);
   }
 }
