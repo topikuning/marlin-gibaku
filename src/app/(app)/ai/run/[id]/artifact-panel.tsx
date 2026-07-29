@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useState } from "react";
-import { Badge, Banner, Button, Card, CardBody, CardHeader } from "@/components/ui";
+import { Badge, Banner, Button, Card, CardBody, CardHeader, Combobox } from "@/components/ui";
 import {
   distributeArtifactAction,
   editArtifactAction,
@@ -191,13 +191,13 @@ function ArtifactCard({
             <label htmlFor={`dist-${a.id}`} className="text-xs text-ink-muted">
               Distribusi WhatsApp:
             </label>
-            <select id={`dist-${a.id}`} name="contactId" className="h-9 rounded-md border border-border bg-surface px-2 text-sm">
+            <Combobox id={`dist-${a.id}`} name="contactId" defaultValue={contacts[0]?.id ?? ""} className="w-56">
               {contacts.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
               ))}
-            </select>
+            </Combobox>
             <Button type="submit" size="sm" disabled={distPending || contacts.length === 0}>
               {distPending ? "Mengirim…" : "Kirim"}
             </Button>

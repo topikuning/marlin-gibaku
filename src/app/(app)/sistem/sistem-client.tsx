@@ -328,18 +328,14 @@ export function RebuildSnapshotPanel({ locations }: { locations: { id: string; n
       <div className="flex flex-wrap items-end gap-2">
         <div>
           <Label htmlFor="rebuild-loc">Cakupan</Label>
-          <select
-            id="rebuild-loc"
-            name="locationId"
-            className="h-9 rounded-md border border-border bg-surface px-2 text-sm"
-          >
+          <Combobox id="rebuild-loc" name="locationId" defaultValue="" className="w-64" placeholder="Semua lokasi">
             <option value="">Semua lokasi</option>
             {locations.map((l) => (
               <option key={l.id} value={l.id}>
                 {l.name}
               </option>
             ))}
-          </select>
+          </Combobox>
         </div>
         <Button type="submit" variant="secondary" loading={pending}>
           {pending ? "Menghitung ulang…" : "Bangun ulang snapshot"}

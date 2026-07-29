@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { Banner, Button } from "@/components/ui";
+import { Banner, Button, Combobox } from "@/components/ui";
 import { sendGlobalSummaryAction, type ChatSummaryState } from "@/lib/waha/summary-actions";
 
 /** Kirim ringkasan seluruh grup pada satu tanggal ke satu kontak WhatsApp. */
@@ -22,10 +22,11 @@ export function SendGlobalForm({
         <label htmlFor="global-contact" className="text-sm text-ink-muted">
           Tujuan
         </label>
-        <select
+        <Combobox
           id="global-contact"
           name="contactId"
-          className="h-9 rounded-md border border-border bg-surface px-2 text-sm"
+          defaultValue={contacts[0]?.id ?? ""}
+          className="w-56"
           disabled={contacts.length === 0}
         >
           {contacts.map((c) => (
@@ -33,7 +34,7 @@ export function SendGlobalForm({
               {c.name}
             </option>
           ))}
-        </select>
+        </Combobox>
         <Button type="submit" size="sm" disabled={pending || contacts.length === 0}>
           {pending ? "Mengirim…" : "Kirim ke WhatsApp"}
         </Button>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Banner, Button, Card, CardBody, CardHeader } from "@/components/ui";
+import { Banner, Button, Card, CardBody, CardHeader, Combobox } from "@/components/ui";
 import { generateAiReportAction, type AiHubState } from "@/lib/ai-hub/actions";
 import { AI_REPORT_TEMPLATES } from "@/lib/ai-hub/report-templates";
 
@@ -70,11 +70,11 @@ export function ReportStudioClient({
               <label className="text-sm text-ink-muted" htmlFor="ai-report-period">
                 Periode
               </label>
-              <select id="ai-report-period" name="period" defaultValue="7hari" className="h-9 rounded-md border border-border bg-surface px-2 text-sm">
+              <Combobox id="ai-report-period" name="period" defaultValue="7hari" className="w-44">
                 <option value="7hari">7 hari terakhir</option>
                 <option value="14hari">14 hari terakhir</option>
                 <option value="30hari">30 hari terakhir</option>
-              </select>
+              </Combobox>
               <Button type="submit" disabled={!aiReady || pending}>
                 {pending ? "Menyusun draf…" : "Generate Draft"}
               </Button>

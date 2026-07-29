@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { Banner, Button } from "@/components/ui";
+import { Banner, Button, Combobox } from "@/components/ui";
 import { createDraftAction, type AdendumActionState } from "./actions";
 
 export type AmendmentOption = {
@@ -31,11 +31,7 @@ export function CreateDraftForm({
       {amendments.length > 0 ? (
         <label className="block text-sm">
           <span className="mb-1 block font-medium text-ink">Kaitkan ke adendum kontrak (CCO)</span>
-          <select
-            name="amendmentId"
-            className="w-full rounded border border-border bg-surface px-2.5 py-1.5 text-sm"
-            defaultValue=""
-          >
+          <Combobox name="amendmentId" defaultValue="">
             <option value="">— Tanpa kaitan CCO (bisa dikaitkan belakangan) —</option>
             {amendments.map((a) => {
               const d = BigInt(a.valueDelta);
@@ -45,7 +41,7 @@ export function CreateDraftForm({
                 </option>
               );
             })}
-          </select>
+          </Combobox>
         </label>
       ) : (
         <p className="text-[13px] text-ink-muted">

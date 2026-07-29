@@ -100,7 +100,9 @@ describe("ekspor RAB 3 sheet ber-formula", () => {
     const sub = wb.getWorksheet("Sub Resume")!;
     const res = wb.getWorksheet("Resume")!;
     const rSubtotalI = barisDengan(sub, 2, "JUMLAH I — PEKERJAAN GEDUNG");
-    const rKatResume = barisDengan(res, 2, "I — PEKERJAAN GEDUNG");
+    const rKatResume = barisDengan(res, 2, "PEKERJAAN GEDUNG");
+    // No = roman di kolomnya sendiri, uraian = nama saja (tanpa kode tergabung).
+    expect(res.getCell(rKatResume, 1).value).toBe("I");
     expect(rumus(res.getCell(rKatResume, 3)).formula).toBe(`'Sub Resume'!C${rSubtotalI}`);
 
     const rJumlah = barisDengan(res, 2, "JUMLAH");
@@ -117,5 +119,49 @@ describe("ekspor RAB 3 sheet ber-formula", () => {
     expect(rumus(res.getCell(rTotal, 3)).result).toBe(147_630_000);
     const rBulat = barisDengan(res, 2, "DIBULATKAN");
     expect(rumus(res.getCell(rBulat, 3)).formula).toBe(`ROUNDDOWN(C${rTotal},-3)`);
+  });
+
+  it("tampilan bersih: suffix dedup #N tak bocor, kategori dinomori ulang roman, tanpa spasi literal", async () => {
+    // Data DB kotor yang nyata terjadi: kategori roman ganda (VI, VI#2 — suffix
+    // artefak lineage), kode sub bersuffix, nama berspasi ganda.
+    const kotor: RabExportNode[] = [
+      { id: "k1", parentId: null, kind: "kategori", code: "VI", name: "PEKERJAAN  PONDASI", unit: null, volume: null, unitPrice: null, amount: 10_000n },
+      { id: "i1", parentId: "k1", kind: "item", code: "1", name: "Galian", unit: "m3", volume: 1, unitPrice: 10_000, amount: 10_000n },
+      { id: "k2", parentId: null, kind: "kategori", code: "VI#2", name: "PEKERJAAN PONDASI LANJUTAN", unit: null, volume: null, unitPrice: null, amount: 5_000n },
+      { id: "s2", parentId: "k2", kind: "sub", code: "X.1#2", name: "Struktur", unit: null, volume: null, unitPrice: null, amount: 5_000n },
+      { id: "i2", parentId: "s2", kind: "item", code: "1", name: "Beton", unit: "m3", volume: 1, unitPrice: 5_000, amount: 5_000n },
+    ];
+    const buffer = await buildRabXlsx({
+      locationName: "Lokasi Uji", packageName: "Paket Uji", contractNumber: null,
+      vendorName: null, ppnPercent: 11, revisionNo: 1, totalValue: 15_000n, nodes: kotor,
+    });
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer as unknown as ArrayBuffer);
+
+    const res = wb.getWorksheet("Resume")!;
+    const det = wb.getWorksheet("Detail RAB")!;
+    // Resume: dua kategori bernomor roman berurutan I, II (bukan VI dan VI#2).
+    const rKat1 = barisDengan(res, 2, "PEKERJAAN PONDASI");
+    expect(res.getCell(rKat1, 1).value).toBe("I");
+    expect(res.getCell(rKat1 + 1, 1).value).toBe("II");
+    // Tidak ada sel BODY tabel (di bawah header baris 5) yang memuat artefak
+    // `#N` di ketiga sheet. (Judul "RAB revisi aktif #1" di blok identitas sah.)
+    for (const ws of wb.worksheets) {
+      ws.eachRow((row, rowNo) => {
+        if (rowNo <= 5) return;
+        row.eachCell((cell) => {
+          if (typeof cell.value === "string") expect(cell.value).not.toMatch(/#\d/);
+        });
+      });
+    }
+    // Sub bersuffix → tampil "X.1"; nama spasi ganda dinormalisasi; indentasi
+    // via alignment.indent (bukan spasi literal di awal teks).
+    const rSub = barisDengan(det, 2, "Struktur");
+    expect(det.getCell(rSub, 1).value).toBe("X.1");
+    const rNama = barisDengan(det, 2, "PEKERJAAN PONDASI");
+    expect(det.getCell(rNama, 2).value).toBe("PEKERJAAN PONDASI");
+    const rBeton = barisDengan(det, 2, "Beton");
+    expect(det.getCell(rBeton, 2).value).toBe("Beton");
+    expect(det.getCell(rBeton, 2).alignment?.indent).toBe(2);
   });
 });

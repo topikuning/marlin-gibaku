@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { Badge, Button, Textarea } from "@/components/ui";
+import { Badge, Button, Combobox, Textarea } from "@/components/ui";
 import {
   generateChatSummaryAction,
   saveSummaryDraftAction,
@@ -217,10 +217,11 @@ export function SummaryPanel(props: SummaryPanelProps) {
             Kirim ke WhatsApp
           </label>
           <div className="flex flex-wrap gap-2">
-            <select
+            <Combobox
               id="kirim-kontak"
               name="contactId"
-              className="h-9 min-w-0 flex-1 rounded-md border border-border bg-surface px-2 text-sm"
+              defaultValue={contacts[0]?.id ?? ""}
+              className="min-w-0 flex-1"
               disabled={contacts.length === 0 || !canSend(status)}
             >
               {contacts.map((c) => (
@@ -228,7 +229,7 @@ export function SummaryPanel(props: SummaryPanelProps) {
                   {c.name}
                 </option>
               ))}
-            </select>
+            </Combobox>
             <Button
               type="submit"
               size="sm"
