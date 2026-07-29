@@ -91,6 +91,14 @@ jobs:
         with:
           node-version-file: .nvmrc
       - run: corepack enable
+      - name: Get pnpm store
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
       - name: Install
         run: pnpm install --frozen-lockfile
       - name: Migrate + generate
@@ -142,6 +150,14 @@ jobs:
         with:
           node-version-file: .nvmrc
       - run: corepack enable
+      - name: Get pnpm store
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
       - name: Install
         run: pnpm install --frozen-lockfile
       - name: Migrate + generate + seed
