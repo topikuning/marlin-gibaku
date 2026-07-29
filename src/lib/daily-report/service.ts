@@ -6,6 +6,7 @@ import { cumulativeVolumeByLineage, getLocationProgress, COUNTED_REPORT_STATUSES
 import { valueDone as calcValueDone } from "@/lib/money";
 import { prestasiPct } from "@/lib/progress-calc";
 import { formatNumber, jakartaDateKey, parseDateKey } from "@/lib/format";
+import { dominantWeatherCode, parseHourlyWeather, type HourlyWeather } from "@/lib/weather/hourly";
 import { Prisma } from "@/generated/prisma/client";
 import type {
   DailyReportStatus,
@@ -218,11 +219,21 @@ export async function setEnrichment(reportId: string, input: EnrichmentInput, us
   const materials = input.materials.filter((m) => m.name.trim().length > 0);
   const equipment = input.equipment.filter((e) => e.name.trim().length > 0 && e.count > 0);
 
+  // Cuaca yang dipilih tangan = PENGAMATAN lapangan → tandai `manual` supaya
+  // pengambilan otomatis tidak pernah menimpanya. Deret per jam hasil ambil
+  // otomatis hanya dipertahankan bila masih sepadan dengan pilihan itu;
+  // kalau tidak, dibuang supaya blanko tidak mencetak dua cerita berbeda.
+  const existingHourly = parseHourlyWeather(report.weatherHourly);
+  const keepHourly =
+    existingHourly != null && input.weather != null && dominantWeatherCode(existingHourly) === input.weather;
+
   await db.$transaction(async (tx) => {
     await tx.dailyReport.update({
       where: { id: reportId },
       data: {
         weather: input.weather,
+        weatherSource: input.weather != null ? "manual" : null,
+        weatherHourly: keepHourly ? undefined : Prisma.DbNull,
         workStart: input.workStart?.trim() || null,
         workEnd: input.workEnd?.trim() || null,
         notes: input.notes?.trim() || null,
@@ -426,6 +437,8 @@ export type FinalSnapshot = {
   weekNo: number | null;
   tahunAnggaran: number;
   weather: WeatherCode | null;
+  /** Kondisi per jam 07–21 (bila diambil otomatis) — dibekukan bersama laporan. */
+  weatherHourly: HourlyWeather[] | null;
   workStart: string | null;
   workEnd: string | null;
   notes: string | null;
@@ -549,6 +562,7 @@ export async function buildFinalSnapshot(reportId: string): Promise<FinalSnapsho
     weekNo,
     tahunAnggaran: (startDate ?? report.reportDate).getUTCFullYear(),
     weather: report.weather,
+    weatherHourly: parseHourlyWeather(report.weatherHourly),
     workStart: report.workStart,
     workEnd: report.workEnd,
     notes: report.notes,

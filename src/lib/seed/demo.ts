@@ -477,6 +477,7 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
         reportDate,
         status,
         weather: "cerah",
+        weatherSource: "manual", // seed = isian tangan, bukan hasil ambil otomatis
         workStart: "07:30",
         workEnd: "16:30",
         createdById: mandorId,

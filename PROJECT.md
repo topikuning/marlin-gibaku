@@ -131,7 +131,11 @@ Mandor/SM buka **Hari Ini** → workspace tanggal `/lokasi/[slug]/harian/[date]`
 pilih item RAB (sisa volume tampil) → isi volume + foto (kompresi + EXIF + stamp,
 dedup sha256) + kendala → kirim. SM verifikasi di layar yang sama: kembalikan
 (alasan wajib) atau lengkapi KKP (tenaga/material/alat/cuaca/jam) → setujui →
-final (snapshot) → cetak KKP harian. Integritas: uniq(lokasi,tanggal) +
+final (snapshot) → cetak KKP harian. **Cuaca**: blanko minta kondisi PER JAM
+(07–21). Tombol "Ambil cuaca otomatis" mengisinya dari koordinat lokasi (jam
+yang sudah lewat, bukan prakiraan — DECISIONS 176); isian manual lapangan
+selalu menang dan tak pernah ditimpa otomatis; angin kencang & banjir hanya
+dari pengamatan. Integritas: uniq(lokasi,tanggal) +
 uniq(report,lineage) di DB; kumulatif ≤ volume RAB; revisi tidak dihitung dobel;
 draft volume tersimpan lokal (localStorage) sampai submit sukses.
 

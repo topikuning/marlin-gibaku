@@ -4398,3 +4398,67 @@ data tersimpan — lokasi terdampak wajib impor ulang file negosiasinya
 Verifikasi: unit hps-parser 26 kasus (termasuk fixture varian (d) & (e), file
 HPS murni, dan dua kasus cek-silang) · typecheck ✓ · lint ✓ · unit 471 ✓ ·
 dijalankan pada 4 file Excel nyata (angka di tabel atas).
+
+## 176 · 2026-07-29 · Cuaca laporan harian: kondisi PER JAM dari koordinat lokasi (bukan satu kategori sehari)
+
+Usul user: cuaca di laporan harian diambil dari layanan cuaca berdasar
+koordinat lokasi. Pemeriksaan format yang berjalan menemukan masalah yang
+lebih besar dari sekadar "belum otomatis":
+
+- Input: SATU radio 6 pilihan → `DailyReport.weather`, satu nilai sehari penuh.
+- Blanko KKP: tabel "Kondisi Cuaca" dengan **15 kolom jam (07.00–21.00)** dan 3
+  baris kategori (Cerah/Mendung/Hujan), diisi
+  `d.activeWeather === cat ? "✓" : ""` — satu kategori dicentang RATA di kelima
+  belas kolom. Hujan sejam sore tercetak identik dengan hujan seharian.
+
+**Sumber data.** User mengoreksi arah pemilihan sumber: laporan harian diisi di
+UJUNG hari, jadi yang dibutuhkan jam-jam yang SUDAH terjadi. BMKG publik
+(prakiraan per wilayah desa, granularitas 3 jam, terbit pagi hari) tidak cocok
+mengisi kolom jam lampau. Dipakai **Open-Meteo** endpoint `forecast` dengan
+`past_days` — per jam, per koordinat, analisis (observasi + model). Arsip ERA5
+tidak dipakai karena tertinggal beberapa hari sehingga tak berguna untuk hari
+berjalan. Base URL bisa ditimpa `WEATHER_API_URL` (mirror/langganan bila
+lisensi komersial menuntutnya — BELUM diverifikasi, lihat "sisa risiko").
+
+**Keputusan.**
+
+1. `DailyReport.weatherHourly` (Json) menyimpan kondisi per jam 07–21;
+   `weather` (satu nilai) tetap ada sebagai ringkasan untuk ekspor/AI/WhatsApp.
+2. `WeatherObservation` = cache per (lokasi, tanggal), 83 lokasi × 1 panggilan
+   per hari. Jam hujan & curah total **diturunkan**, tidak disimpan (aturan
+   agregat derived).
+3. **Pengamatan lapangan menang.** `weatherSource` = `manual` begitu orang
+   lapangan memilih cuaca; pengambilan otomatis menolak menimpanya kecuali
+   tombol ditekan sadar (`overwriteManual`). Memilih manual yang TIDAK sepadan
+   dengan deret otomatis membuang deret itu — blanko tak boleh bercerita dua
+   versi.
+4. `angin_kencang` dan `banjir` TIDAK PERNAH dihasilkan otomatis — kejadian
+   lokal yang hanya sah dari pengamatan.
+5. Pengambilan dipicu TOMBOL, bukan diam-diam saat halaman dibuka: laporan
+   lapangan tidak boleh menunggu jaringan, dan asal angka harus terlihat.
+   Form menampilkan pita 07–21 supaya bisa dibandingkan dengan kenyataan.
+6. Laporan `disetujui`/`final` tidak bisa diubah cuacanya; snapshot final ikut
+   membekukan deret per jam.
+7. Cetak (React + PDF) mencentang per jam bila ada datanya; tanpa data jatuh ke
+   perilaku lama (satu kategori) — bukan regresi bagi laporan lama.
+
+**Perubahan penjaga deploy.** `alasanTidakIdempoten` (DECISIONS 167) menolak
+SEMUA `CREATE TYPE`. PostgreSQL memang tak punya `CREATE TYPE IF NOT EXISTS`,
+tapi blok `DO $$ … IF NOT EXISTS (SELECT 1 FROM pg_type …) $$` benar-benar aman
+diulang. Detektor diajari bentuk itu; `CREATE TYPE` telanjang dan blok DO tanpa
+penjaga pg_type tetap ditolak (3 unit test baru). Migrasi diuji dijalankan DUA
+KALI di PostgreSQL 16 sungguhan — sukses keduanya.
+
+**Sisa risiko (belum terverifikasi, wajib dicek saat deploy).**
+
+- Panggilan nyata ke Open-Meteo TIDAK bisa diuji dari kontainer kerja (proxy
+  memblokir host luar, 403). Yang teruji adalah aturan & pemetaannya; penyedia
+  di-mock di test integrasi. Verifikasi panggilan sungguhan dilakukan di
+  Railway.
+- Lisensi Open-Meteo untuk pemakaian komersial belum dipastikan.
+- Berapa dari 83 lokasi yang koordinatnya kosong belum dihitung; lokasi tanpa
+  koordinat ditolak dengan pesan yang menyuruh mengisi koordinat dulu.
+
+Verifikasi: unit 489 ✓ (14 kasus cuaca + 3 kasus penjaga migrasi) · integrasi
+88 ✓ di PostgreSQL 16 lokal (7 kasus cuaca: cache, manual menang, laporan
+terkunci, lokasi tanpa koordinat) · typecheck ✓ · lint ✓ · build ✓.

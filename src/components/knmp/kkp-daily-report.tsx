@@ -16,10 +16,12 @@ import { WORKER_ROLE_LABEL, WORKER_ROLE_ORDER } from "@/lib/daily-report/constan
  * bergeser. Server component murni — data disiapkan queries.getKkpDailyData.
  */
 
+import { KKP_WEATHER_HOURS, type KkpWeatherCategory } from "@/lib/weather/hourly";
+
 const volFmt = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 });
 const orgFmt = new Intl.NumberFormat("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const pctFmt = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 1 });
-const HOURS = ["07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21"];
+const HOURS = KKP_WEATHER_HOURS.map((h) => String(h).padStart(2, "0"));
 /** Baris kosong tercetak (blanko punya kotak siap-isi walau data belum ada). */
 const MIN_MATERIAL_ROWS = 8;
 const MIN_EQUIPMENT_ROWS = 6;
@@ -47,6 +49,8 @@ export type KkpDailyData = {
   workerMap: Partial<Record<WorkerRole, number>>;
   totalWorkers: number;
   activeWeather: "Cerah" | "Mendung" | "Hujan" | null;
+  /** Kondisi per jam (07–21) bila diambil otomatis dari koordinat lokasi. */
+  weatherByHour: Record<number, KkpWeatherCategory> | null;
   workStart: string | null;
   workEnd: string | null;
   notes: string | null;
@@ -266,7 +270,12 @@ export function KkpDailyReport({ d }: { d: KkpDailyData }) {
             <tr key={cat}>
               <Cell center>{cat}</Cell>
               {HOURS.map((h) => (
-                <Cell center key={h}>{d.activeWeather === cat ? "✓" : ""}</Cell>
+                // Kondisi PER JAM bila cuaca diambil otomatis dari koordinat
+                // lokasi; jam tanpa data dibiarkan kosong. Tanpa data per jam,
+                // jatuh ke perilaku lama (satu kategori sehari penuh).
+                <Cell center key={h}>
+                  {(d.weatherByHour ? d.weatherByHour[Number(h)] === cat : d.activeWeather === cat) ? "✓" : ""}
+                </Cell>
               ))}
               <Cell center></Cell>
             </tr>
