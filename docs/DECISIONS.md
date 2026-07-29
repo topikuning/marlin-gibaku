@@ -4178,3 +4178,40 @@ Verifikasi: `tests/integration/hapus-foto-harian.test.ts` (8 kasus) — pengungg
 boleh; mandor lain DITOLAK; SM & Super Admin boleh; dikirim/final ditolak;
 perlu_koreksi boleh; foto yatim terbukti terjangkau dan terhapus.
 typecheck ✓ · lint ✓ · unit 456 ✓ · integrasi 9 berkas/72 uji ✓ · build ✓.
+
+---
+
+## 171 · 2026-07-28 · Badge nama pekerjaan pada cap foto dijamin muat
+
+Cacat di lapangan: nama pekerjaan panjang ("PEKERJAAN SONDIR TERMASUK PELAPORAN
+TERMASUK MOBILISASI ALAT DAN PERSONIL") membuat pill merah melar melewati tepi
+kanan foto, DAN teksnya ikut terpotong. Sebabnya berlapis:
+
+1. `badgeW` dihitung dari estimasi lebar teks TANPA dibatasi lebar kanvas.
+2. Teks di-anchor di TENGAH pill, jadi begitu pill lebih lebar dari kanvas,
+   titik tengahnya keluar layar dan huruf depan ikut terbuang.
+3. Estimasi lebarnya sendiri meleset. DIUKUR (render + trim tinta): faktor
+   sebenarnya 0,715–0,724 per huruf kapital tebal; rumus lama memakai 0,63 —
+   kurang ~13%.
+
+Perbaikan berlapis pula:
+
+- Lebar pill dibatasi lebar aman kanvas (`w - 2·safeX`).
+- `fitBadge`: kecilkan font sampai batas bawah, baru potong dengan elipsis.
+- Faktor estimasi dikoreksi ke 0,75 (marjin di atas hasil ukur).
+- **`textLength` + `lengthAdjust="spacingAndGlyphs"`** sebagai jaminan KERAS:
+  teks dipaksa persis selebar bagian dalam pill, jadi hasilnya tidak bergantung
+  pada metrik font yang dipakai runtime. Ini yang penting — produksi memakai
+  font tertanam "MB", bukan sans-serif yang dipakai saat kalibrasi.
+
+Sekalian: label "Foto dokumentasi (maks 6)" di form kegiatan lapangan ternyata
+BASI — batas kegiatan sudah 32 (`MAX_PHOTOS_PER_ACTIVITY`), angka 6 itu batas
+per-unggah laporan harian. Ditulis sebagai teks mati sehingga tidak ikut berubah
+saat limitnya dilonggarkan. Konstanta batas dipindah ke `lib/photo-limits.ts`
+(modul MURNI, tanpa dependensi server) supaya komponen klien memakai angka yang
+SAMA dengan yang ditegakkan server.
+
+Verifikasi: `tests/unit/stamp-badge.test.ts` (5 kasus) — pill selalu di dalam
+kanvas (lanskap, potret, foto sempit 640×480), teks selalu di dalam pill, nama
+pendek tidak dipotong. Plus pemeriksaan visual hasil render.
+typecheck ✓ · lint ✓ · unit 461 ✓ · build ✓.

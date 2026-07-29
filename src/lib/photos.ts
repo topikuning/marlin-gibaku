@@ -38,11 +38,10 @@ import type { PhotoMetadataSource } from "@/generated/prisma/enums";
 const MAIN_MAX = 1920;
 const THUMB_MAX = 256;
 
-/** Batas ukuran & jumlah foto per unggahan (SM di lapangan, sinyal terbatas). */
-export const MAX_PHOTO_BYTES = 8 * 1024 * 1024; // 8 MB / foto
-export const MAX_PHOTOS_PER_UPLOAD = 6;
-/** Batas total foto per kegiatan lapangan (lihat DECISIONS 116). */
-export const MAX_PHOTOS_PER_ACTIVITY = 32;
+// Batas foto tinggal di modul murni supaya komponen KLIEN bisa memakainya
+// (lihat lib/photo-limits.ts). Di-re-export agar pemanggil lama tidak berubah.
+export { MAX_PHOTO_BYTES, MAX_PHOTOS_PER_UPLOAD, MAX_PHOTOS_PER_ACTIVITY } from "@/lib/photo-limits";
+import { MAX_PHOTO_BYTES } from "@/lib/photo-limits";
 
 /**
  * Ambil waktu dari nama file WhatsApp bila polanya mengandung jam. WhatsApp
