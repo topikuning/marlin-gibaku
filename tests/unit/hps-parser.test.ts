@@ -212,6 +212,59 @@ describe("nilai kontrak = HARGA NEGOSIASI bila ada (bukan HPS)", () => {
     expect(warnings.some((w) => /NEGOSIASI/i.test(w))).toBe(true);
   });
 
+  it("sub-header TANPA kata 'HARGA SATUAN' (HPS | TOTAL HPS | HARGA NEGOSIASI | TOTAL NEGOSIASI) → NEGOSIASI", async () => {
+    // Varian Lampiran Negosiasi Kedungrejo: baris grup HPS/PENAWARAN/NEGOSIASI di atas,
+    // sub-header memakai nama blok ("HARGA NEGOSIASI"/"TOTAL NEGOSIASI"), BUKAN
+    // "HARGA SATUAN". Deteksi lama tak mengenalinya → jatuh ke G/H = pagu HPS.
+    const { parsed, warnings, priceColumn } = await parseHpsBuffer(
+      await xlsxFromRows([
+        ["Lampiran Berita Acara Klarifikasi Teknis"],
+        ["NO", "JENIS PEKERJAAN", null, null, "VOL", "SAT", "HPS", null, "PENAWARAN", null, "NEGOSIASI", null],
+        [null, null, null, null, null, null, "HPS", "TOTAL HPS", "HARGA PENAWARAN", "TOTAL PENAWARAN", "HARGA NEGOSIASI", "TOTAL NEGOSIASI"],
+        ["I", "PEKERJAAN PERSIAPAN"],
+        ["1", "Buat Bedeng Pekerja", null, null, 50, "m²", 1_424_530, 71_226_500, 1_741_735, 87_086_750, 1_600_000, 80_000_000],
+      ]),
+    );
+    const it = parsed.categories[0].direct_items[0];
+    expect(it.unit_price).toBe(1_600_000); // nego, bukan 1.424.530 (HPS) / 1.741.735 (penawaran)
+    expect(it.total_price).toBe(80_000_000);
+    expect(priceColumn).toEqual({ source: "nego", label: "NEGOSIASI (kolom K/L)" });
+    expect(warnings.some((w) => /NEGOSIASI/i.test(w))).toBe(true);
+  });
+
+  it("baris grup jauh di ATAS header utama (grup baris 1, header baris 4) → NEGOSIASI", async () => {
+    // Varian Lampiran Negosiasi Pesisir: label blok di baris 1, header utama
+    // (VOL/SAT + tiga pasang HARGA SATUAN/JUMLAH HARGA) baru muncul di baris 4.
+    // Deteksi lama hanya melihat header utama + 1 baris di bawahnya → ambil pasangan
+    // PERTAMA (= HPS).
+    const { parsed, priceColumn } = await parseHpsBuffer(
+      await xlsxFromRows([
+        ["NEGOSIASI", null, null, null, null, null, "HPS", null, "PENAWARAN", null, "NEGOSIASI"],
+        ["PROYEK", null, ":", "KAMPUNG NELAYAN MERAH PUTIH"],
+        ["TAHUN ANGGARAN", null, ":", 2025],
+        ["NO", "JENIS PEKERJAAN", null, null, "VOL", "SAT", "HARGA SATUAN", "JUMLAH HARGA", "HARGA SATUAN", "JUMLAH HARGA", "HARGA SATUAN", "JUMLAH HARGA", "%", "TIMPANG", null, "NILAI TKDN"],
+        ["I", "PEKERJAAN PERSIAPAN"],
+        ["1", "Item A", null, null, 2, "m", 1000, 2000, 900, 1800, 800, 1600, null, null, null, 0.9],
+      ]),
+    );
+    const it = parsed.categories[0].direct_items[0];
+    expect(it.unit_price).toBe(800); // nego, bukan 1000 (HPS) / 900 (penawaran)
+    expect(it.total_price).toBe(1600);
+    expect(it.tkdn_ratio).toBe(0.9); // kolom TKDN tetap terbaca, tak tertukar harga
+    expect(priceColumn.source).toBe("nego");
+  });
+
+  it("file HPS murni (tanpa blok penawaran/negosiasi) → tetap HPS, label kolom dilaporkan", async () => {
+    const { priceColumn } = await parseHpsBuffer(
+      await xlsxFromRows([
+        ["NO", "JENIS PEKERJAAN", null, null, "VOL", "SAT", "HARGA SATUAN", "JUMLAH HARGA", "NILAI TKDN"],
+        ["I", "PEKERJAAN PERSIAPAN"],
+        ["1", "Item A", null, null, 2, "m", 1000, 2000, 0.9],
+      ]),
+    );
+    expect(priceColumn).toEqual({ source: "hps", label: "HPS (kolom G/H)" });
+  });
+
   it("hanya PENAWARAN (tanpa NEGOSIASI) → pakai PENAWARAN, bukan HPS", async () => {
     const { parsed, warnings } = await parseHpsBuffer(
       await xlsxFromRows([
@@ -223,6 +276,29 @@ describe("nilai kontrak = HARGA NEGOSIASI bila ada (bukan HPS)", () => {
     );
     expect(parsed.categories[0].direct_items[0].unit_price).toBe(900); // penawaran, bukan 1000 (HPS)
     expect(warnings.some((w) => /PENAWARAN/i.test(w))).toBe(true);
+  });
+});
+
+describe("cek-silang kolom nilai (volume × harga = jumlah)", () => {
+  it("mayoritas baris tidak konsisten → peringatan kolom mungkin salah", async () => {
+    const rows: (string | number | null)[][] = [
+      ["NO", "JENIS PEKERJAAN", null, null, "VOL", "SAT", "HARGA SATUAN", "JUMLAH HARGA", "NILAI TKDN"],
+      ["I", "PEKERJAAN PERSIAPAN"],
+    ];
+    // 25 baris dgn jumlah TIDAK sama dengan volume × harga satuan.
+    for (let i = 1; i <= 25; i++) rows.push([String(i), `Item ${i}`, null, null, 2, "m", 1000, 9999, 1]);
+    const { warnings } = await parseHpsBuffer(await xlsxFromRows(rows));
+    expect(warnings.some((w) => /volume × harga satuan = jumlah/i.test(w))).toBe(true);
+  });
+
+  it("file konsisten → tanpa peringatan cek-silang", async () => {
+    const rows: (string | number | null)[][] = [
+      ["NO", "JENIS PEKERJAAN", null, null, "VOL", "SAT", "HARGA SATUAN", "JUMLAH HARGA", "NILAI TKDN"],
+      ["I", "PEKERJAAN PERSIAPAN"],
+    ];
+    for (let i = 1; i <= 25; i++) rows.push([String(i), `Item ${i}`, null, null, 2, "m", 1000, 2000, 1]);
+    const { warnings } = await parseHpsBuffer(await xlsxFromRows(rows));
+    expect(warnings.some((w) => /volume × harga satuan = jumlah/i.test(w))).toBe(false);
   });
 });
 

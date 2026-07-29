@@ -4333,3 +4333,68 @@ aturan DECISIONS 094/115 (SEMUA dropdown filterable).
 - Verifikasi: typecheck ✓ · lint ✓ · unit 470 ✓ (rab-xlsx 5). Integrasi tidak
   jalan di kontainer ini (tanpa Postgres) — perubahan murni presentasi/UI,
   service adendum tak disentuh.
+
+## 175 · 2026-07-29 · Impor RAB: kolom NEGOSIASI gagal terdeteksi pada 2 varian header (nilai kontrak terbaca = pagu HPS)
+
+User melaporkan parser "selalu ambil harga HPS atau penawaran, bukan
+negosiasi". Benar, dan dampaknya uang: nilai kontrak terimpor sebesar PAGU.
+
+**Diagnosis (diukur pada 3 file Lampiran Negosiasi nyata + 1 file HPS murni).**
+`detectColumns` lama hanya mengenali dua bentuk header. Korpus nyata memuat
+setidaknya lima; dua di antaranya lolos ke fallback posisi klasik G/H = HPS:
+
+- **(d) Kedungrejo** — baris grup `HPS | PENAWARAN | NEGOSIASI` ada, tetapi
+  sub-headernya `HPS | TOTAL HPS | HARGA PENAWARAN | TOTAL PENAWARAN |
+  HARGA NEGOSIASI | TOTAL NEGOSIASI`. Deteksi lama menuntut kata harfiah
+  "HARGA SATUAN" di baris bawah untuk mengaktifkan mode 2-baris; karena tak
+  ada, ia jatuh ke mode 1-baris, lalu `isPriceHeader("NEGOSIASI")` gagal
+  (tak memuat "HARGA"/"NILAI") → G/H (HPS).
+- **(e) Pesisir** — label blok ada di **baris 1**, header utama (VOL/SAT +
+  tiga pasang `HARGA SATUAN`/`JUMLAH HARGA`) baru di baris 9. Deteksi lama
+  hanya melihat header utama + 1 baris di bawahnya → mengambil pasangan
+  PERTAMA (= HPS).
+
+Selisih terukur (total kategori, baris hidden dikecualikan spt biasa):
+
+| File | Terbaca SEBELUM (HPS) | Seharusnya (nego) | Selisih |
+|---|---|---|---|
+| Kedungrejo | 2.621.552.025 | 2.505.445.677 | −116.106.348 (−4,4%) |
+| Pesisir | 3.893.781.159 | 3.723.269.226 | −170.511.933 (−4,4%) |
+| Asemdoyong (varian (c), sudah benar) | 3.232.956.644 | 3.232.956.644 | 0 |
+| HPS murni Kedungrejo Bwi (kontrol) | 4.102.114.218 | 4.102.114.218 | 0 |
+
+**Keputusan.** Deteksi kolom tidak lagi bergantung pada frasa header tertentu:
+
+1. Cari baris GRUP di mana pun pada/di atas header utama yang memuat ≥2 label
+   blok (`HPS|PENAWAR|NEGO`) di kolom nilai (≥5). Ambang ≥2 mencegah kata
+   "HPS" di judul dokumen dianggap baris grup.
+2. Rentang kolom tiap blok = label blok non-kosong terdekat di kiri (merge
+   left-anchored).
+3. Peran kolom dari gabungan label header utama + sub-header:
+   `TOTAL|JUMLAH` → kolom jumlah; `HARGA|NILAI|SATUAN` → harga satuan
+   (kolom rasio TKDN/KDN/BOBOT/%/TIMPANG dikecualikan). Cek TOTAL dulu supaya
+   "JUMLAH HARGA" tak salah dibaca sebagai harga satuan.
+4. Prioritas nilai kontrak tetap **NEGOSIASI > PENAWARAN > HPS** (HPS = pagu,
+   tak pernah jadi nilai kontrak). Tanpa baris grup → jalur lama; tanpa header
+   sama sekali → posisi klasik G/H/I.
+5. Sub-header dikenali dari ≥2 label bernuansa nilai — TIDAK menuntut frasa
+   "HARGA SATUAN".
+
+**Jaring pengaman + transparansi** (protokol integritas angka: jangan
+mengandalkan build hijau):
+
+- Cek-silang data: bila >30% baris berharga gagal `volume × harga satuan =
+  jumlah` (min. 20 sampel), pratinjau memberi PERINGATAN kolom mungkin salah.
+  Parser TIDAK diam-diam mengoreksi angka.
+- `parseHpsBuffer` kini mengembalikan `priceColumn` (`source` + label
+  "NEGOSIASI (kolom K/L)"), ditampilkan di pratinjau impor sebelum commit —
+  supaya salah-kolom ketahuan mata, bukan setelah kontrak jalan.
+
+**Dampak data lama.** Lokasi yang RAB-nya diimpor dari file varian (d)/(e)
+sebelum perbaikan ini menyimpan harga PAGU. Perbaikan parser tidak menyentuh
+data tersimpan — lokasi terdampak wajib impor ulang file negosiasinya
+(jalur impor biasa; bila kontrak sudah SPMK ini menjadi adendum, DECISIONS 118).
+
+Verifikasi: unit hps-parser 26 kasus (termasuk fixture varian (d) & (e), file
+HPS murni, dan dua kasus cek-silang) · typecheck ✓ · lint ✓ · unit 471 ✓ ·
+dijalankan pada 4 file Excel nyata (angka di tabel atas).
