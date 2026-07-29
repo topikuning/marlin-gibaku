@@ -178,12 +178,20 @@ export default async function RabPage({
           }
           action={
             canManage ? (
-              <Link
-                href={`/lokasi/${slug}/rab/import`}
-                className="text-[13px] font-medium text-primary hover:underline"
-              >
-                Impor HPS / Adendum
-              </Link>
+              <span className="flex items-center gap-3">
+                <Link
+                  href={`/lokasi/${slug}/rab/adendum`}
+                  className="text-[13px] font-medium text-primary hover:underline"
+                >
+                  Adendum (editor)
+                </Link>
+                <Link
+                  href={`/lokasi/${slug}/rab/import`}
+                  className="text-[13px] font-medium text-primary hover:underline"
+                >
+                  Impor HPS / Adendum
+                </Link>
+              </span>
             ) : null
           }
         />
