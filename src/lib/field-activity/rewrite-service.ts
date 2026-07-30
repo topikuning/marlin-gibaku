@@ -6,6 +6,7 @@ import { resolvePrompts } from "@/lib/ai/prompts";
 import type { SessionUser } from "@/lib/auth/session";
 import {
   buildBatchRewritePrompt,
+  REWRITE_FIELD_LABEL,
   parseBatchRewrite,
   REWRITE_MAX_CHARS,
   REWRITE_MIN_CHARS,
@@ -32,6 +33,8 @@ export type FieldSuggestion = {
   suggestion: string | null;
   /** Alasan bila usulan dibuang penjaga (ditampilkan apa adanya ke pengguna). */
   rejected?: string;
+  /** Catatan yang menyertai usulan yang LOLOS (mis. hasil lebih panjang). */
+  note?: string;
 };
 
 export type SuggestResult =
@@ -92,19 +95,31 @@ export async function suggestActivityRewrite(
   const parsed = parseBatchRewrite(res.text);
   const out: FieldSuggestion[] = fields.map(({ field, text }) => {
     const usul = parsed[field];
-    if (!usul) return { field, original: text, suggestion: null, rejected: "Model tidak mengembalikan bagian ini." };
-    if (usul === text) return { field, original: text, suggestion: null, rejected: "Sudah rapi." };
+    if (!usul) return { field, original: text, suggestion: null, rejected: "model tidak mengembalikan bagian ini" };
+    if (usul === text) return { field, original: text, suggestion: null, rejected: "sudah rapi" };
+    // Pemeriksa MENANDAI, bukan memblokir — usulan tetap ditawarkan bersama
+    // catatannya, pengguna yang memutuskan (DECISIONS 181).
     const verdict = verifyRewrite(text, usul);
     if (!verdict.ok) {
-      // Bagian yang gagal penjaga DIBUANG — teks asli dipertahankan. Satu
-      // bagian bermasalah tidak menggugurkan bagian lain yang bersih.
-      return { field, original: text, suggestion: null, rejected: verdict.problems.join(" ") };
+      return { field, original: text, suggestion: null, rejected: verdict.problems.join("; ") };
     }
-    return { field, original: text, suggestion: usul };
+    return {
+      field,
+      original: text,
+      suggestion: usul,
+      note: verdict.warnings.length > 0 ? verdict.warnings.join(" ") : undefined,
+    };
   });
 
   if (out.every((f) => f.suggestion === null)) {
-    return { ok: false, error: `Tidak ada usulan yang lolos penjaga: ${out.map((f) => f.rejected).join(" ")}` };
+    const rincian = out
+      .map((f) => `${REWRITE_FIELD_LABEL[f.field]}: ${f.rejected ?? "tidak ada usulan"}`)
+      .join(" · ");
+    return {
+      ok: false,
+      error: `Tidak ada usulan yang bisa dipakai — ${rincian}. Teks asli dibiarkan apa adanya.`,
+    };
   }
+
   return { ok: true, style: input.style, model: res.model, fields: out };
 }

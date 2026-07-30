@@ -125,6 +125,7 @@ export function FinalizePanel({ activityId }: { activityId: string }) {
                     <p className="whitespace-pre-wrap text-xs text-ink">{f.suggestion}</p>
                   </div>
                 </div>
+                {f.note ? <p className="text-xs text-warning-700">{f.note}</p> : null}
               </div>
             );
           })}

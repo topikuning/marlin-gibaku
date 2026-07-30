@@ -16,55 +16,57 @@ import {
  * menyelundupkan/menghilangkan fakta (DECISIONS 178).
  */
 
-describe("verifyRewrite — usulan tidak boleh menambah atau membuang fakta", () => {
+describe("verifyRewrite — MENANDAI, bukan memblokir (DECISIONS 181)", () => {
   const asli = "hari ini pengecoran kolom 12 titik, mutu K-250, cuaca hujan sore jadi berhenti jam 15";
 
-  it("perapian bahasa yang jujur → diterima", () => {
+  it("perapian yang jujur → tanpa catatan", () => {
     const usul =
       "Pada hari ini dilaksanakan pengecoran kolom sebanyak 12 titik dengan mutu beton K-250. " +
       "Pekerjaan dihentikan pukul 15 karena hujan pada sore hari.";
-    expect(verifyRewrite(asli, usul)).toEqual({ ok: true, problems: [] });
+    expect(verifyRewrite(asli, usul)).toEqual({ ok: true, problems: [], warnings: [] });
   });
 
-  it("angka yang tidak ada di teks asli → DITOLAK", () => {
-    const usul =
-      "Dilaksanakan pengecoran kolom sebanyak 12 titik mutu K-250 dengan volume 8 m3. " +
-      "Pekerjaan dihentikan pukul 15 karena hujan.";
+  it("angka baru → tetap DITAMPILKAN, dengan catatan (user yang memutuskan)", () => {
+    const usul = "Dilaksanakan pengecoran kolom 12 titik mutu K-250 volume 8 m3, dihentikan pukul 15.";
     const v = verifyRewrite(asli, usul);
-    expect(v.ok).toBe(false);
-    expect(v.problems.join(" ")).toMatch(/tidak ada di teks asli/i);
+    expect(v.ok).toBe(true);
+    expect(v.warnings.join(" ")).toMatch(/tidak ada di teks asli/i);
   });
 
-  it("angka asli yang hilang → DITOLAK (perapian tidak boleh membuang data)", () => {
-    const usul = "Dilaksanakan pengecoran kolom dengan mutu K-250. Pekerjaan dihentikan karena hujan.";
-    const v = verifyRewrite(asli, usul);
-    expect(v.ok).toBe(false);
-    expect(v.problems.join(" ")).toMatch(/hilang/i);
+  it("angka asli hilang → ditampilkan dengan catatan", () => {
+    const v = verifyRewrite(asli, "Dilaksanakan pengecoran kolom mutu K-250, dihentikan karena hujan.");
+    expect(v.ok).toBe(true);
+    expect(v.warnings.join(" ")).toMatch(/tidak muncul lagi/i);
   });
 
-  it("hasil melar jauh (mengarang paragraf) → DITOLAK", () => {
-    const pendek = "kolom 12 titik selesai";
-    const usul =
-      "Pada hari ini telah dilaksanakan pekerjaan pengecoran kolom sebanyak 12 titik yang seluruhnya " +
-      "telah diselesaikan dengan baik sesuai dengan rencana kerja yang telah disepakati bersama antara " +
-      "pihak penyedia dan pengawas lapangan, serta telah dilakukan pemeriksaan mutu dan hasilnya " +
-      "dinyatakan memenuhi persyaratan teknis yang berlaku pada pekerjaan ini.";
-    expect(verifyRewrite(pendek, usul).ok).toBe(false);
-  });
-
-  it("model membalas dengan pengantar, bukan teks laporan → DITOLAK", () => {
-    expect(verifyRewrite("kolom 12 titik selesai", "Berikut versi rapinya: kolom 12 titik selesai").ok).toBe(
-      false,
+  it("teks pendek yang wajar memanjang saat dibakukan → TANPA catatan panjang", () => {
+    // Inilah kasus yang dulu memblokir seluruh usulan di lapangan.
+    const v = verifyRewrite(
+      "cor kolom 12 titik",
+      "Dilaksanakan pekerjaan pengecoran kolom sebanyak 12 titik.",
     );
+    expect(v.ok).toBe(true);
+    expect(v.warnings).toEqual([]);
   });
 
-  it("hasil kosong → DITOLAK", () => {
+  it("memanjang berkali-kali → ditampilkan, diberi catatan", () => {
+    const v = verifyRewrite("kolom 12 titik selesai", "Pengecoran kolom 12 titik selesai. " + "x".repeat(420));
+    expect(v.ok).toBe(true);
+    expect(v.warnings.join(" ")).toMatch(/jauh lebih panjang/i);
+  });
+
+  it("balasan berupa pengantar model → ditampilkan, diberi catatan", () => {
+    const v = verifyRewrite("kolom 12 titik selesai", "Berikut versi rapinya: kolom 12 titik selesai");
+    expect(v.ok).toBe(true);
+    expect(v.warnings.join(" ")).toMatch(/pengantar model/i);
+  });
+
+  it("hasil kosong → satu-satunya alasan tidak ditampilkan", () => {
     expect(verifyRewrite("kolom 12 titik selesai", "   ").ok).toBe(false);
   });
 
   it("desimal & pemisah ribuan dianggap sama walau formatnya berubah", () => {
-    // "1.500" (ribuan) vs "1500" — bukan fakta baru, hanya format.
-    expect(verifyRewrite("pasang 1.500 batako", "Dipasang 1500 buah batako.").ok).toBe(true);
+    expect(verifyRewrite("pasang 1.500 batako", "Dipasang 1500 buah batako.").warnings).toEqual([]);
   });
 });
 

@@ -79,7 +79,7 @@ describe("suggestActivityRewrite — satu panggilan untuk seluruh teks bebas", (
     expect(aiCall).toHaveBeenCalledTimes(1);
   });
 
-  it("bagian yang menyelundupkan angka DIBUANG, bagian lain tetap lolos", async () => {
+  it("bagian dengan angka baru tetap DITAWARKAN + diberi catatan (user memutuskan)", async () => {
     aiCall.mockResolvedValue({
       ok: true,
       model: "uji-1",
@@ -94,9 +94,9 @@ describe("suggestActivityRewrite — satu panggilan untuk seluruh teks bebas", (
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     const notes = res.fields.find((f) => f.field === "notes")!;
-    expect(notes.suggestion).toBeNull();
-    expect(notes.rejected).toMatch(/tidak ada di teks asli/i);
-    expect(res.fields.find((f) => f.field === "kendala")!.suggestion).toBeTruthy();
+    expect(notes.suggestion).toBeTruthy();
+    expect(notes.note).toMatch(/tidak ada di teks asli/i);
+    expect(res.fields.find((f) => f.field === "kendala")!.note).toBeUndefined();
   });
 
   it("bagian yang tidak dibalas model → dipertahankan aslinya, bukan dikarang", async () => {
@@ -113,15 +113,15 @@ describe("suggestActivityRewrite — satu panggilan untuk seluruh teks bebas", (
     expect(kendala.original).toBe(TEKS.kendala);
   });
 
-  it("semua bagian gagal penjaga → tidak ada usulan yang ditawarkan", async () => {
-    aiCall.mockResolvedValue({
-      ok: true,
-      model: "uji-1",
-      text: balasan({ notes: "Pengecoran 99 titik.", kendala: "Telat 5 jam.", solusi: "Mulai jam 6." }),
-    });
+  it("model tidak membalas satu pun bagian → pesan menyebut bagian mana", async () => {
+    aiCall.mockResolvedValue({ ok: true, model: "uji-1", text: "(tanpa penanda bagian)" });
     const res = await suggestActivityRewrite(user, { texts: TEKS, style: "rapi" });
     expect(res.ok).toBe(false);
-    expect(!res.ok && res.error).toMatch(/tidak ada usulan yang lolos/i);
+    const err = !res.ok ? res.error : "";
+    expect(err).toMatch(/Catatan kegiatan/);
+    expect(err).toMatch(/Kendala/);
+    expect(err).toMatch(/Tindak lanjut/);
+    expect(err).toMatch(/dibiarkan apa adanya/i);
   });
 
   it("hanya bagian cukup panjang yang dikirim ke model", async () => {

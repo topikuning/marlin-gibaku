@@ -4640,3 +4640,39 @@ lolos validasinya sendiri, batas karakter, cakupan seluruh aksi AI, penolakan
 saat frasa pengaman dibuang) · integrasi 98 ✓ di PostgreSQL 16 lokal (8 kasus:
 bawaan→override→reset, override kosong = belum ditimpa, penolakan tersimpan,
 penandaan Bawaan/Diubah) · typecheck ✓ · lint ✓ · build ✓.
+
+## 181 · 2026-07-29 · Penjaga perapian teks MENANDAI, bukan memblokir (koreksi user)
+
+Temuan user di lapangan: menekan "Rapikan bahasa" memunculkan
+"Tidak ada usulan yang lolos penjaga: Hasil jauh lebih panjang dari teks asli
+(mengarang, bukan merapikan)." — tiga kali, tanpa menyebut bagian mana.
+
+Dua kesalahan saya di DECISIONS 178/179:
+
+1. **Ambang panjang salah arah.** Batas 2,2× panjang teks asli menghukum teks
+   pendek, padahal justru teks pendek yang paling wajar memanjang saat
+   dibakukan: "cor kolom 12 titik" → "Dilaksanakan pengecoran kolom sebanyak
+   12 titik" sudah >2,2×. Akibatnya usulan yang BENAR tertolak semua dan fitur
+   praktis tidak bisa dipakai.
+2. **Salah menempatkan keputusan.** Usulan tidak pernah tersimpan sendiri —
+   pengguna melihat asli vs usulan berdampingan lalu mencentang. Seperti kata
+   user: "karena ini tidak langsung disimpan, harusnya kamu terima saja …
+   itu keputusanku menerima atau tidak."
+
+**Keputusan.** `verifyRewrite` sekarang MENANDAI, bukan memblokir:
+
+- Satu-satunya alasan usulan tidak ditampilkan: **hasilnya kosong** (tidak ada
+  yang bisa diputuskan).
+- Angka baru, angka asli yang hilang, hasil memanjang berkali-kali (>3× dan
+  >400 karakter), dan balasan yang dimulai seperti pengantar model → usulan
+  TETAP ditawarkan, dengan **catatan** di bawahnya ("periksa sebelum dipakai").
+- Pesan kegagalan kini menyebut BAGIAN mana dan alasannya per bagian
+  ("Catatan kegiatan: … · Kendala: …"), bukan mengulang satu kalimat tiga kali,
+  dan menutup dengan jalan keluar: teks asli dibiarkan apa adanya.
+
+Yang TIDAK berubah: teks tersimpan hanya yang dicentang pengguna; angka tetap
+diperiksa dan dilaporkan; AI tetap bukan sumber angka.
+
+Verifikasi: unit 538 ✓ — kasus pengganti termasuk "teks pendek yang wajar
+memanjang → tanpa catatan" (kasus yang dulu memblokir) dan "angka baru → tetap
+ditawarkan + bercatatan" · typecheck ✓ · lint ✓.

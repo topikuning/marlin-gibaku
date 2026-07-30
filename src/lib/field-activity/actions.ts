@@ -624,7 +624,13 @@ export type SuggestRewriteState =
   | {
       error?: string;
       style?: "rapi" | "teknis";
-      fields?: { field: "notes" | "kendala" | "solusi"; original: string; suggestion: string | null; rejected?: string }[];
+      fields?: {
+        field: "notes" | "kendala" | "solusi";
+        original: string;
+        suggestion: string | null;
+        rejected?: string;
+        note?: string;
+      }[];
     }
   | undefined;
 

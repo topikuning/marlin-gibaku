@@ -164,46 +164,63 @@ function numbersIn(text: string): string[] {
   return (text.match(/\d+(?:[.,]\d+)*/g) ?? []).map((n) => n.replace(/[.,]/g, ""));
 }
 
-export type RewriteVerdict = { ok: boolean; problems: string[] };
+export type RewriteVerdict = {
+  /** false HANYA bila tidak ada yang bisa ditampilkan (hasil kosong). */
+  ok: boolean;
+  problems: string[];
+  /** Catatan yang WAJIB tampil bersama usulan; pengguna yang memutuskan. */
+  warnings: string[];
+};
 
 /**
- * Penjaga deterministik: usulan ditolak bila menyelundupkan fakta baru.
- * Sengaja konservatif — lebih baik menolak usulan bagus daripada meloloskan
- * angka karangan ke dokumen yang ditandatangani.
+ * Pemeriksa usulan — MENANDAI, BUKAN MEMBLOKIR (keputusan user 29 Juli 2026,
+ * DECISIONS 181).
+ *
+ * Versi pertama memblokir usulan yang lebih panjang dari 2,2× teks asli. Itu
+ * salah arah: teks lapangan pendek ("cor kolom 12 titik") memang WAJAR memanjang
+ * saat dibakukan, sehingga seluruh usulan tertolak walau benar. Dan yang lebih
+ * penting: usulan TIDAK PERNAH tersimpan sendiri — pengguna melihat asli vs
+ * usulan berdampingan lalu mencentang. Jadi tugas lapisan ini memberi tahu apa
+ * yang perlu diperiksa, bukan memutuskan untuk pengguna.
+ *
+ * Satu-satunya alasan usulan tidak ditampilkan: hasilnya kosong (tak ada yang
+ * bisa diputuskan). Sisanya — angka baru, angka hilang, hasil memanjang,
+ * balasan berupa pengantar model — muncul sebagai CATATAN di sebelah usulan.
  */
 export function verifyRewrite(original: string, rewritten: string): RewriteVerdict {
-  const problems: string[] = [];
+  const warnings: string[] = [];
   const out = rewritten.trim();
+  const asli = original.trim();
   if (out.length === 0) {
-    return { ok: false, problems: ["Hasil kosong."] };
+    return { ok: false, problems: ["Hasil kosong."], warnings: [] };
   }
 
-  // 1. Angka baru yang tidak ada di teks asli.
-  const before = new Set(numbersIn(original));
-  const added = [...new Set(numbersIn(out))].filter((n) => !before.has(n));
-  if (added.length > 0) {
-    problems.push(`Ada angka yang tidak ada di teks asli: ${added.slice(0, 5).join(", ")}.`);
-  }
-
-  // 2. Angka asli yang HILANG — perapian tidak boleh membuang data.
+  const before = new Set(numbersIn(asli));
   const after = new Set(numbersIn(out));
+
+  const added = [...after].filter((n) => !before.has(n));
+  if (added.length > 0) {
+    warnings.push(
+      `Ada angka yang tidak ada di teks asli: ${added.slice(0, 5).join(", ")}. Periksa sebelum dipakai.`,
+    );
+  }
+
   const dropped = [...before].filter((n) => !after.has(n));
   if (dropped.length > 0) {
-    problems.push(`Ada angka dari teks asli yang hilang: ${dropped.slice(0, 5).join(", ")}.`);
+    warnings.push(`Angka dari teks asli tidak muncul lagi: ${dropped.slice(0, 5).join(", ")}.`);
   }
 
-  // 3. Melar terlalu jauh = mengarang, bukan merapikan.
-  const limit = Math.max(120, Math.round(original.trim().length * 2.2));
-  if (out.length > limit) {
-    problems.push("Hasil jauh lebih panjang dari teks asli (mengarang, bukan merapikan).");
+  // Memanjang itu normal saat membakukan kalimat pendek; hanya diberi catatan
+  // bila selisihnya besar sekali.
+  if (out.length > Math.max(400, asli.length * 3)) {
+    warnings.push("Hasil jauh lebih panjang dari teks asli — periksa apakah ada tambahan yang tidak Anda maksud.");
   }
 
-  // 4. Model membalas dengan komentar, bukan teks laporan.
   if (/^(baik|tentu|berikut|maaf|sebagai model|saya tidak)\b/i.test(out)) {
-    problems.push("Model membalas dengan pengantar, bukan teks laporan.");
+    warnings.push("Hasil dimulai seperti pengantar model, bukan teks laporan.");
   }
 
-  return { ok: problems.length === 0, problems };
+  return { ok: true, problems: [], warnings };
 }
 
 /** Alasan teks tidak perlu/boleh dirapikan (null = boleh diproses). */
