@@ -4839,3 +4839,40 @@ Verifikasi: unit 603 ✓ (43 kasus klasifikasi/pencocokan desa/tanggal) ·
 integration 132 ✓ di PostgreSQL 16 lokal (16 kasus impor: pratinjau menandai
 sudah-ada & dilewati, scope role, validasi lokasi lintas paket, dedup checksum,
 native export, gagal per baris, audit) · typecheck ✓ · lint ✓ · build ✓.
+
+## 185 — Scope PAKET: yang tidak ditugaskan tidak tampil; workspace dijaga di query (2026-07-30)
+
+**Masalah (dilaporkan user).** Paket yang tidak ditugaskan muncul untuk user
+selain admin. Audit menemukan kelasnya lebih luas: halaman LOKASI sudah
+ter-scope rapi (`locationScopeWhere`, audit B11), tapi PAKET bocor di enam
+permukaan — `/paket` (daftar + KPI), command center `/`, dropdown paket di
+`/dokumen` dan `/dokumen/upload`, daftar grup di `/chat-grup`, dan yang paling
+serius: `getPackageWorkspace` tidak memeriksa apa pun, sehingga siapa saja yang
+tahu URL bisa membuka workspace paket mana pun — lintas penugasan, bahkan
+lintas organisasi.
+
+**Keputusan.**
+
+1. **Aturan scope paket** (konsisten dengan pola dokumen level-paket di
+   `listDocuments`): role ter-scope (RM/PM/SM/mandor) hanya melihat paket yang
+   memuat MINIMAL SATU lokasi penugasannya; role lintas lokasi
+   (super_admin/PD/exec_viewer) melihat semua paket ORGANISASI-nya. Penugasan
+   kosong ⇒ daftar kosong, bukan semua paket.
+2. **Satu helper, satu tempat**: `packageScopeWhere(user, locIds)` di
+   `src/lib/auth/scope.ts`, sebaris dengan `locationScopeWhere`. Semua enam
+   permukaan memakainya; tidak ada halaman yang merakit filternya sendiri.
+3. **Penjaga workspace dipindah ke `getPackageWorkspace` sendiri** (bukan di
+   tiap halaman): query-nya kini `findUnique({ id, ...packageScopeWhere })`.
+   Paket di luar hak → null → halaman menampilkan `notFound()` — sama persis
+   dengan paket yang memang tidak ada, jadi keberadaan paket pun tidak bocor.
+   Seluruh tab `/paket/[id]/**` otomatis ikut terjaga.
+4. `listPackages`/`getPackageStats` sekarang menerima `(user, scopedLocationIds)`
+   — KPI dihitung dari scope yang sama dengan daftarnya, tidak lagi menghitung
+   paket yang tak terlihat.
+
+Verifikasi: integration 8 kasus baru ✓ di PostgreSQL 16 lokal (dua organisasi:
+lintas-lokasi tidak melihat org lain; SM hanya paket lokasi penugasan; tanpa
+penugasan = kosong; workspace paket asing & lintas org = null) · browser dev
+server: admin melihat 9 paket, sm-01 melihat 1; URL paket asing + sub-halamannya
+→ HTTP 404; dropdown /dokumen ikut menyusut · unit 603 ✓ · integration 140 ✓ ·
+typecheck ✓ · lint ✓.

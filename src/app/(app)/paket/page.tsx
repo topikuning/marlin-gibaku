@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHeader, KpiCard, Banner } from "@/components/ui";
-import { requireUser } from "@/lib/auth/session";
+import { accessibleLocationIds, requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
 import { PACKAGE_STAGE_LABEL } from "@/lib/lifecycle";
@@ -38,7 +38,11 @@ export default async function PaketPage({
   const { stage } = await searchParams;
   const filter = parseFilter(stage);
 
-  const [stats, packages] = await Promise.all([getPackageStats(), listPackages(filter)]);
+  const scoped = await accessibleLocationIds(user);
+  const [stats, packages] = await Promise.all([
+    getPackageStats(user, scoped),
+    listPackages(user, scoped, filter),
+  ]);
 
   // BigInt → string di boundary server→client (JSON tidak dukung BigInt).
   const rows = bigintToString(

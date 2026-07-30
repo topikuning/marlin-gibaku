@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Badge, Banner, Card, CardBody, CardHeader, EmptyState, KpiCard, PageHeader } from "@/components/ui";
 import { MessageSquareText, Send } from "lucide-react";
-import { requireUser } from "@/lib/auth/session";
+import { accessibleLocationIds, requireUser } from "@/lib/auth/session";
+import { packageScopeWhere } from "@/lib/auth/scope";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
 import { listSendableContacts } from "@/lib/contacts/queries";
@@ -46,7 +47,7 @@ export default async function ChatGrupPage({
 
   const [packages, aiCfg, contacts] = await Promise.all([
     db.package.findMany({
-      where: { orgId: user.orgId, waGroupId: { not: null } },
+      where: { ...packageScopeWhere(user, await accessibleLocationIds(user)), waGroupId: { not: null } },
       select: {
         id: true,
         name: true,

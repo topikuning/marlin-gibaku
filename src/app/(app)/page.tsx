@@ -4,7 +4,7 @@ import { ClipboardCheck, FileWarning, MapPin, Package as PackageIcon } from "luc
 import { KpiCard, PageHeader, EmptyState, StatusPill, Card, CardHeader, CardBody } from "@/components/ui";
 import { DeltaBadge, deviationTone } from "@/components/ui/stat-delta";
 import { requireUser, accessibleLocationIds, type SessionUser } from "@/lib/auth/session";
-import { locationScopeWhere } from "@/lib/auth/scope";
+import { locationScopeWhere, packageScopeWhere } from "@/lib/auth/scope";
 import { can } from "@/lib/authz";
 import { ExecutiveDashboard } from "@/app/(app)/aktivitas/executive-dashboard";
 import { db } from "@/lib/db";
@@ -43,6 +43,7 @@ async function CommandCenter({ user }: { user: SessionUser }) {
     }),
     can(user.role, "package.view")
       ? db.package.findMany({
+          where: packageScopeWhere(user, locIds),
           select: { id: true, name: true, stage: true, hpsValue: true },
           orderBy: { updatedAt: "desc" },
         })
