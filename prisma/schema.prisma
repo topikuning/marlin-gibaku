@@ -276,6 +276,16 @@ enum DocumentType {
   lainnya
 }
 
+enum DocumentStatus {
+  aktif
+  dibatalkan
+}
+
+enum DocumentSource {
+  unggahan
+  drive_kkp
+}
+
 enum AlertSeverity {
   info
   warning
@@ -1309,6 +1319,23 @@ model Document {
   uploadedById String       @map("uploaded_by_id") @db.Uuid
   uploadedAt   DateTime     @default(now()) @map("uploaded_at") @db.Timestamptz
 
+  /// Dokumen tidak dihapus diam-diam: yang salah unggah DIBATALKAN (hilang dari
+  /// daftar, tidak lagi jadi bukti milestone) — file & jejak audit tetap ada.
+  /// Hapus permanen hanya untuk super_admin, dan hanya setelah dibatalkan.
+  status       DocumentStatus @default(aktif)
+  voidedAt     DateTime?      @map("voided_at") @db.Timestamptz
+  voidedById   String?        @map("voided_by_id") @db.Uuid
+  voidReason   String?        @map("void_reason")
+
+  /// Asal berkas. `drive_kkp` = ditarik dari folder Google Drive KKP; salinan
+  /// isinya tetap disimpan di R2 supaya dokumen tidak ikut hilang bila KKP
+  /// memindah/menghapus file di Drive.
+  source          DocumentSource @default(unggahan)
+  driveFileId     String?        @map("drive_file_id")
+  driveWebLink    String?        @map("drive_web_link")
+  drivePath       String?        @map("drive_path")
+  driveModifiedAt DateTime?      @map("drive_modified_at") @db.Timestamptz
+
   organization Organization       @relation(fields: [orgId], references: [id])
   package      Package?           @relation(fields: [packageId], references: [id])
   contract     Contract?          @relation(fields: [contractId], references: [id])
@@ -1320,9 +1347,11 @@ model Document {
   rabRevisions RabRevision[]      @relation("rabSourceDoc")
   expenses     Expense[]          @relation("expenseEvidence")
 
+  @@unique([orgId, driveFileId], name: "documents_org_drive_file_key")
   @@index([packageId, phase])
   @@index([locationId, phase])
   @@index([orgId, sha256])
+  @@index([orgId, status])
   @@index([type])
   @@map("documents")
 }

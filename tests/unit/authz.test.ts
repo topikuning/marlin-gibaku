@@ -29,7 +29,7 @@ describe("authz capability matrix", () => {
     }
   });
 
-  it("program_director TIDAK punya 4 kapabilitas khusus super_admin, sisanya punya", () => {
+  it("program_director TIDAK punya kapabilitas khusus super_admin, sisanya punya", () => {
     // Kapabilitas yang sengaja dikunci super_admin saja.
     const HANYA_SUPER_ADMIN = [
       "system.manage",
@@ -37,6 +37,7 @@ describe("authz capability matrix", () => {
       "wa.configure", // set grup WA (sementara)
       "daily_report.unfinalize", // buka kunci laporan final (DECISIONS 149)
       "contact.view_all", // lihat kontak akun lain (DECISIONS 150)
+      "document.delete", // hapus permanen dokumen (DECISIONS 183) — batalkan cukup
     ] as const;
     for (const cap of HANYA_SUPER_ADMIN) expect(can("program_director", cap), cap).toBe(false);
     for (const cap of CAPABILITIES) {

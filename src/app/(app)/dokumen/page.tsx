@@ -14,6 +14,7 @@ import {
   PHASE_LABEL,
   TYPE_LABEL,
 } from "@/lib/documents";
+import { documentDisplayNames } from "@/lib/document-label";
 import { formatTanggal, formatTanggalWaktu } from "@/lib/format";
 import { getGDriveConfigDisplay } from "@/lib/gdrive/config";
 import { folderForDocumentType, folderForMilestone } from "@/lib/gdrive/folders";
@@ -33,7 +34,14 @@ function countExpiringSoon(expiryDates: (Date | null)[]): number {
 export default async function DokumenPage({
   searchParams,
 }: {
-  searchParams: Promise<{ paket?: string; lokasi?: string; fase?: string; tipe?: string; q?: string }>;
+  searchParams: Promise<{
+    paket?: string;
+    lokasi?: string;
+    fase?: string;
+    tipe?: string;
+    q?: string;
+    status?: string;
+  }>;
 }) {
   const user = await requireUser();
   requireCapabilityPage(user.role, "document.view");
@@ -51,6 +59,10 @@ export default async function DokumenPage({
 
   const phase = ALL_PHASES.includes(sp.fase as AdminPhase) ? (sp.fase as AdminPhase) : undefined;
   const type = ALL_DOC_TYPES.includes(sp.tipe as DocumentType) ? (sp.tipe as DocumentType) : undefined;
+  // Default: hanya dokumen AKTIF. Yang dibatalkan sengaja tidak ikut supaya
+  // daftar mencerminkan berkas yang berlaku; arsipnya dibuka lewat filter.
+  const status =
+    sp.status === "dibatalkan" || sp.status === "semua" ? sp.status : ("aktif" as const);
   const documents = await listDocuments({
     orgId: user.orgId,
     packageId: sp.paket || undefined,
@@ -59,7 +71,12 @@ export default async function DokumenPage({
     type,
     q: sp.q || undefined,
     scopedLocationIds: scoped,
+    status,
   });
+
+  // Nama tampilan diturunkan dari data (jenis · desa · tanggal · nomor + berkas
+  // ke-n) — judul yang diketik pengunggah tidak bisa diandalkan. DECISIONS 183.
+  const labels = documentDisplayNames(documents);
 
   const expiring = countExpiringSoon(documents.map((d) => d.expiryDate));
 
@@ -117,7 +134,7 @@ export default async function DokumenPage({
     <div className="space-y-6">
       <PageHeader
         title="Dokumen"
-        description="Arsip terhubung ke paket, kontrak, lokasi, adendum, dan milestone. Duplikat dicegah via checksum."
+        description="Arsip terhubung ke paket, kontrak, lokasi, adendum, dan milestone. Nama dokumen dibentuk otomatis dari datanya; duplikat dicegah via checksum."
         actions={
           can(user.role, "document.upload") ? (
             <Link
@@ -138,7 +155,7 @@ export default async function DokumenPage({
       <Card>
         <CardHeader title="Arsip" />
         <CardBody className="space-y-4">
-          <form method="GET" className="grid gap-2 text-sm sm:grid-cols-3 lg:grid-cols-6">
+          <form method="GET" className="grid gap-2 text-sm sm:grid-cols-3 lg:grid-cols-7">
             <Combobox name="paket" defaultValue={sp.paket ?? ""} placeholder="Semua paket">
               <option value="">Semua paket</option>
               {packages.map((p) => (
@@ -163,6 +180,11 @@ export default async function DokumenPage({
                 <option key={t} value={t}>{TYPE_LABEL[t]}</option>
               ))}
             </Combobox>
+            <Combobox name="status" defaultValue={status} placeholder="Status">
+              <option value="aktif">Aktif</option>
+              <option value="dibatalkan">Dibatalkan</option>
+              <option value="semua">Aktif + dibatalkan</option>
+            </Combobox>
             <input
               name="q"
               defaultValue={sp.q ?? ""}
@@ -181,7 +203,7 @@ export default async function DokumenPage({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-xs uppercase text-ink-muted">
-                    <th className="py-2 pr-3">Judul</th>
+                    <th className="py-2 pr-3">Dokumen</th>
                     <th className="py-2 pr-3">Tipe</th>
                     <th className="py-2 pr-3">Fase</th>
                     <th className="py-2 pr-3">Nomor</th>
@@ -196,10 +218,25 @@ export default async function DokumenPage({
                   {documents.map((d) => (
                     <tr key={d.id}>
                       <td className="py-1.5 pr-3">
-                        <a href={`/api/documents/${d.id}`} target="_blank" rel="noopener" className="font-medium text-primary hover:underline">
-                          {d.title}
-                        </a>
+                        <Link href={`/dokumen/${d.id}`} className="font-medium text-primary hover:underline">
+                          {labels.get(d.id)?.name ?? d.title}
+                        </Link>
                         {d.supersedesId && <span className="ml-1 text-xs text-ink-muted">(versi baru)</span>}
+                        {d.status === "dibatalkan" && (
+                          <span className="ml-1 text-xs font-medium text-warning">· dibatalkan</span>
+                        )}
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+                          {labels.get(d.id)?.secondary ? <span>{labels.get(d.id)!.secondary}</span> : null}
+                          <a
+                            href={`/api/documents/${d.id}`}
+                            target="_blank"
+                            rel="noopener"
+                            className="text-primary hover:underline"
+                          >
+                            buka berkas
+                          </a>
+                          {d.source === "drive_kkp" ? <span>· dari Drive KKP</span> : null}
+                        </div>
                       </td>
                       <td className="py-1.5 pr-3"><StatusPill tone="neutral" label={TYPE_LABEL[d.type]} /></td>
                       <td className="py-1.5 pr-3">{PHASE_LABEL[d.phase]}</td>

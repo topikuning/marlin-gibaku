@@ -38,7 +38,7 @@ export async function getDriveCoverage(packageId: string): Promise<FolderCoverag
       take: 5000,
     }),
     db.document.findMany({
-      where: { OR: [{ packageId }, { location: { packageId } }] },
+      where: { status: "aktif", OR: [{ packageId }, { location: { packageId } }] },
       select: { id: true, type: true, milestone: { select: { templateKey: true } } },
     }),
     db.location.findMany({ where: { packageId }, select: { id: true } }),

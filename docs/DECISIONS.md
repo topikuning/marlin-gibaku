@@ -4719,3 +4719,66 @@ instruksi per-jenis tidak bisa dikosongkan lagi, tiap template Report Studio
 memuatnya) · integration 98 ✓ (PostgreSQL 16 lokal) · typecheck ✓ · lint ✓.
 Catatan: 2 uji render PDF sempat gagal saat suite penuh jalan paralel
 (fontconfig) dan lulus saat dijalankan sendiri — bukan akibat perubahan ini.
+
+## 183 — Dokumen bisa dikoreksi & dibatalkan; namanya diturunkan dari data (2026-07-30)
+
+**Masalah (dilaporkan user).** Tiga keluhan tentang Document Center:
+
+1. Nama dokumen di daftar **tidak bisa dibedakan**. Judul diisi manusia
+   ("scan", "IMG_0231", "dokumen", "SPMK") dan satu berkas KKP sering discan
+   terpisah per lembar, jadi daftar berisi baris kembar tanpa penanda.
+2. Dokumen **tidak bisa dihapus atau diedit sama sekali**. Salah unggah (salah
+   lokasi, salah jenis, file keliru) menetap selamanya — dan lebih buruk: tetap
+   dihitung sebagai bukti milestone administrasi, sehingga panel kepatuhan
+   melaporkan "selesai" atas berkas yang salah.
+
+**Keputusan.**
+
+1. **Nama tampilan diturunkan dari data**, bukan dari judul yang diketik
+   (`src/lib/document-label.ts`, modul MURNI):
+   `istilah jenis · desa/paket · tanggal · No. nomor` + `(berkas i/n)` bila ada
+   beberapa berkas sejenis pada konteks yang sama. Grup = jenis + lokasi/paket +
+   nomor + tanggal; urutan mengikuti waktu unggah (naik) sehingga **nomor berkas
+   lama tidak bergeser** saat berkas baru masuk. Istilah pendek per jenis
+   (`TYPE_SHORT`) dipisah dari label panjang yang tetap dipakai dropdown & pill.
+   Judul yang diketik **tidak dibuang**: turun jadi keterangan sekunder, dan
+   disembunyikan bila mubazir (mengulang jenis, sudah termuat di nama, atau
+   asal-asalan seperti "scan"/"IMG_0231").
+2. **Koreksi metadata** (`document.edit`): jenis, fase, nomor, tanggal,
+   kadaluarsa, keterangan, judul. **Isi berkas tidak pernah ditukar diam-diam** —
+   berkas keliru dibatalkan lalu diunggah ulang (jalur `supersedesId` sudah ada).
+   Kombinasi fase × jenis TIDAK divalidasi di sini: jalur upload pun tidak
+   memvalidasinya, jadi validasi saat koreksi justru mengunci dokumen lama pada
+   kombinasi keliru yang mau dibetulkan.
+3. **BATALKAN** (`document.void`, wajib alasan ≥5 karakter) — bukan hapus:
+   dokumen hilang dari daftar, tidak bisa diunduh oleh pengguna biasa, tidak
+   dikirim ke Drive KKP, dan **tidak lagi dihitung sebagai bukti milestone**;
+   file R2 + baris DB + audit tetap utuh dan bisa **dipulihkan**.
+4. **Efek kepatuhan ikut turun.** Bila tidak ada bukti aktif lain, milestone yang
+   `selesai`/`berjalan` karena dokumen itu dikembalikan ke `belum_dimulai`
+   (`completedAt` dikosongkan). **Pengecualian:** milestone yang sudah
+   diverifikasi manusia (`verifiedById`) TIDAK diturunkan otomatis — keputusan
+   orang tidak dibatalkan oleh efek samping; ia ditandai "perlu ditinjau" di
+   catatan + audit. Memulihkan dokumen **tidak** menghidupkan milestone kembali;
+   penilaian kepatuhan tetap keputusan manusia.
+5. **HAPUS PERMANEN** (`document.delete`) — **super_admin saja**, tidak dimiliki
+   program_director. Hanya atas dokumen yang **sudah dibatalkan**, ditolak bila
+   masih diacu revisi RAB / bukti pengeluaran / dokumen versi penerus, dan butuh
+   ketik ulang "HAPUS PERMANEN". Urutan: baris DB dulu (dalam transaksi bersama
+   auditnya), lalu file R2 — bila hapus R2 gagal yang tertinggal cuma file tanpa
+   acuan, bukan baris yang menunjuk file hilang.
+6. Dedup sha256 hanya berlaku atas dokumen **aktif**: berkas yang pernah
+   dibatalkan boleh diunggah ulang — itu justru jalur koreksi salah unggah.
+7. Semua mutasi memakai `auditIn` di dalam transaksi yang sama (AUDIT-01):
+   tidak ada perubahan status dokumen tanpa jejaknya.
+
+**Jangkauan.** Daftar dokumen (`/dokumen`, lokasi, paket), panel milestone,
+`gdrive/coverage`, upload ke Drive, dan penautan milestone otomatis semuanya
+memfilter `status = aktif`. Halaman baru `/dokumen/[id]` memuat metadata lengkap,
+asal berkas, koreksi, dan zona bahaya.
+
+Verifikasi: unit 560 ✓ (15 kasus baru penamaan) · integration 18 kasus baru ✓
+dijalankan di PostgreSQL 16 lokal (koreksi hanya kolom berubah, gerbang
+capability tiap role, milestone turun/dipertahankan, tolak buang bukti
+pengeluaran & sumber RAB, hapus permanen + file R2, jejak audit) · migrasi
+idempoten dijalankan dua kali ✓ · typecheck ✓ · lint ✓.

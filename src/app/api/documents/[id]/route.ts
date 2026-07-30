@@ -8,7 +8,9 @@ import { isR2Configured, r2PresignGet } from "@/lib/r2";
 /**
  * Unduh dokumen: auth → scope → redirect ke presigned URL R2 (120 detik).
  * Dokumen ber-lokasi mengikuti scope penugasan; dokumen paket/organisasi
- * cukup capability document.view.
+ * cukup capability document.view. Dokumen DIBATALKAN hanya bisa diunduh oleh
+ * yang berwenang membatalkan/memulihkan (audit & peninjauan) — bukan hilang,
+ * tetapi juga tidak lagi beredar sebagai berkas resmi.
  */
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
@@ -23,7 +25,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
 
   const doc = await db.document.findUnique({
     where: { id },
-    select: { id: true, orgId: true, locationId: true, r2Key: true, title: true },
+    select: { id: true, orgId: true, locationId: true, r2Key: true, title: true, status: true },
   });
   if (!doc || doc.orgId !== user.orgId) {
     return NextResponse.json({ error: "Dokumen tidak ditemukan" }, { status: 404 });

@@ -379,8 +379,9 @@ export async function uploadDocumentToDriveAction(
 
   try {
     const user = await requireCapability("document.upload");
+    // Dokumen dibatalkan tidak boleh ikut terkirim ke folder KKP.
     const doc = await db.document.findFirst({
-      where: { id: documentId, orgId: user.orgId },
+      where: { id: documentId, orgId: user.orgId, status: "aktif" },
       select: {
         type: true,
         title: true,
