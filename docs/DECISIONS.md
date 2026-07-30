@@ -4676,3 +4676,46 @@ diperiksa dan dilaporkan; AI tetap bukan sumber angka.
 Verifikasi: unit 538 ✓ — kasus pengganti termasuk "teks pendek yang wajar
 memanjang → tanpa catatan" (kasus yang dulu memblokir) dan "angka baru → tetap
 ditawarkan + bercatatan" · typecheck ✓ · lint ✓.
+
+---
+
+## 182 — Larangan mengarang ditegaskan di SEMUA prompt (2026-07-30)
+
+**Permintaan user:** "tekankan ke semua prompt jangan mengarang dari sumber".
+
+**Masalahnya nyata, bukan kosmetik.** Setelah DECISIONS 180 (registri prompt +
+halaman Sistem → Prompt AI), pagar anti-mengarang hanya berdiri di slot "aturan
+dasar" (`hub.system`, `exec.system`, `chat.*`, `kegiatan.rewrite.system`).
+Lima slot instruksi per-jenis — `hub.kind.pulse`, `exec.rangkuman_kegiatan`,
+`exec.rekap_kendala`, `exec.kepatuhan_lapor`, `kegiatan.rewrite.rapi` —
+`mustContain`-nya KOSONG. Artinya admin bisa menimpanya jadi apa saja
+("ringkas saja, seingatmu") dan tidak ada yang menolak. Tujuh instruksi template
+Report Studio bahkan tidak lewat registri sama sekali.
+
+**Keputusan.**
+
+1. Frasa pagar dibakukan satu tempat: `ANTI_KARANG_FRASA = "JANGAN MENGARANG"`
+   di `src/lib/ai/prompt-registry.ts`.
+2. Helper `pagarSumber(sumber, bilaTidakAda)` menyusun kalimat yang seragam:
+   **sumbernya disebut eksplisit** ("gunakan HANYA …"), larangan mengarang
+   dirinci (angka, nama orang/instansi, lokasi, tanggal, penyebab, kesimpulan),
+   dan **jalan keluar bila data tidak ada** ("tulis tidak ada di data", "belum
+   lapor", "penyebab belum diketahui") — supaya model punya pilihan selain
+   menebak.
+3. **Ke-14 slot** registri memuat kalimat itu, dan **ke-14 slot** mewajibkannya
+   di `mustContain`. Override yang membuangnya ditolak dengan menyebut frasanya.
+4. Tujuh instruksi template Report Studio ikut memuat pagar yang sama, ditempel
+   terpusat di `AI_REPORT_TEMPLATES` sehingga template baru tidak bisa lupa.
+5. Banner halaman Sistem → Prompt AI menyebutkan syarat itu, jadi admin tahu
+   sebelum menyimpan, bukan setelah ditolak.
+
+**Yang TIDAK berubah:** angka tetap dari calculation layer; grounding filter AI
+Hub tetap membuang bagian tak bersumber; penjaga hasil perapian tetap MENANDAI,
+bukan memblokir (DECISIONS 181). Prompt hanya lapisan pertama — bukan satu-satunya.
+
+Verifikasi: unit 544 ✓ (6 uji invarian baru: tiap bawaan memuat frasa & menyebut
+sumber, tiap slot mewajibkannya, override tanpa frasa ditolak di SEMUA slot,
+instruksi per-jenis tidak bisa dikosongkan lagi, tiap template Report Studio
+memuatnya) · integration 98 ✓ (PostgreSQL 16 lokal) · typecheck ✓ · lint ✓.
+Catatan: 2 uji render PDF sempat gagal saat suite penuh jalan paralel
+(fontconfig) dan lulus saat dijalankan sendiri — bukan akibat perubahan ini.

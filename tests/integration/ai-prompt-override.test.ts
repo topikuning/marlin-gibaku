@@ -40,13 +40,13 @@ describe("resolvePrompt", () => {
   });
 
   it("setelah disimpan → teks admin yang dipakai", async () => {
-    const teks = "Anda analis MARLIN yang sangat ringkas. Anda BUKAN sumber angka.";
+    const teks = "Anda analis MARLIN yang sangat ringkas. Anda BUKAN sumber angka. JANGAN MENGARANG di luar data.";
     await savePromptOverride(KEY, teks);
     expect(await resolvePrompt(KEY)).toBe(teks);
   });
 
   it("setelah dikembalikan → kembali ke bawaan", async () => {
-    await savePromptOverride(KEY, "Ringkas saja. Anda BUKAN sumber angka.");
+    await savePromptOverride(KEY, "Ringkas saja. Anda BUKAN sumber angka. JANGAN MENGARANG di luar data.");
     await resetPromptOverride(KEY);
     expect(await resolvePrompt(KEY)).toBe(promptDefault(KEY));
   });
@@ -72,7 +72,7 @@ describe("penjaga simpan", () => {
 
 describe("listPrompts (halaman Sistem → Prompt AI)", () => {
   it("menandai mana yang bawaan dan mana yang diubah", async () => {
-    await savePromptOverride(KEY, "Sangat ringkas. Anda BUKAN sumber angka.");
+    await savePromptOverride(KEY, "Sangat ringkas. Anda BUKAN sumber angka. JANGAN MENGARANG di luar data.");
     const items = await listPrompts();
 
     const diubah = items.find((i) => i.key === KEY)!;

@@ -2,7 +2,14 @@
  * Katalog template Report Studio — MURNI (aman utk klien). Satu structured
  * report kanonik per generate; renderer (HTML/cetak/WA/Excel) memakai konten
  * yang SAMA sehingga angka identik lintas format. DECISIONS 133.
+ *
+ * Instruksi tiap template ikut membawa PAGAR SUMBER (DECISIONS 182): setiap
+ * prompt di sistem ini harus menyebut sumbernya dan melarang mengarang di luar
+ * sumber. Pagarnya ditempel terpusat di `AI_REPORT_TEMPLATES` supaya template
+ * baru tidak bisa lupa memuatnya.
  */
+
+import { pagarSumber } from "@/lib/ai/prompt-registry";
 
 export type AiReportTemplateKey =
   | "exec_portfolio"
@@ -23,7 +30,12 @@ export type AiReportTemplate = {
   version: number;
 };
 
-export const AI_REPORT_TEMPLATES: readonly AiReportTemplate[] = [
+const PAGAR_SUMBER = pagarSumber(
+  "angka, temuan, dan narasi pada blok DATA yang dilampirkan",
+  "Tiap bagian laporan wajib bisa ditunjuk sumbernya; bila datanya tidak ada, tulis bahwa datanya belum tersedia — jangan ditambal kalimat pelengkap.",
+);
+
+const TEMPLATES: readonly AiReportTemplate[] = [
   {
     key: "exec_portfolio",
     label: "Executive Portfolio Brief",
@@ -81,6 +93,12 @@ export const AI_REPORT_TEMPLATES: readonly AiReportTemplate[] = [
     version: 1,
   },
 ] as const;
+
+/** Katalog siap pakai — pagar sumber sudah menempel di setiap instruksi. */
+export const AI_REPORT_TEMPLATES: readonly AiReportTemplate[] = TEMPLATES.map((t) => ({
+  ...t,
+  instruction: `${t.instruction}\n${PAGAR_SUMBER}`,
+}));
 
 export function aiReportTemplate(key: string): AiReportTemplate | undefined {
   return AI_REPORT_TEMPLATES.find((t) => t.key === key);

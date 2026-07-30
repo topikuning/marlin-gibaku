@@ -13,6 +13,14 @@
  * membuangnya DITOLAK dengan pesan jelas, bukan diam-diam diterima. Alasannya:
  * prompt boleh disetel gayanya, tetapi larangan mengarang angka bukan urusan
  * selera dan tidak boleh terhapus karena orang menyalin-tempel teks baru.
+ *
+ * ATURAN SUMBER DI SEMUA SLOT (permintaan user 30 Juli 2026, DECISIONS 182):
+ * setiap prompt — tanpa kecuali — menyebut secara eksplisit apa sumbernya dan
+ * melarang keluar dari sumber itu. Sebelumnya hanya slot "aturan dasar" yang
+ * memuat larangan itu, sedangkan instruksi per-jenis (Pulse, rangkuman
+ * kegiatan, rekap kendala, kepatuhan lapor, gaya perapian) tidak memuatnya dan
+ * boleh ditimpa jadi apa saja. Sekarang frasa `ANTI_KARANG_FRASA` wajib ada di
+ * SETIAP slot, sehingga override yang membuangnya ditolak.
  */
 
 export type PromptGroup = "hub" | "exec" | "chat" | "kegiatan";
@@ -40,11 +48,34 @@ export const PROMPT_GROUP_LABEL: Record<PromptGroup, string> = {
   kegiatan: "Perapian teks kegiatan lapangan",
 };
 
+/**
+ * Frasa pagar yang WAJIB ada di setiap prompt. Ditulis satu tempat supaya
+ * bunyinya sama di semua slot dan penjaganya tidak bisa lolos karena beda ejaan.
+ */
+export const ANTI_KARANG_FRASA = "JANGAN MENGARANG";
+
+/**
+ * Kalimat pagar sumber — disesuaikan sumber tiap aksi, tetapi larangannya
+ * identik: hanya sumber yang diberikan, dan yang tidak ada di sumber dinyatakan
+ * tidak ada (bukan diisi dugaan).
+ */
+export function pagarSumber(sumber: string, bilaTidakAda: string): string {
+  return (
+    `SUMBER: gunakan HANYA ${sumber}. ${ANTI_KARANG_FRASA} apa pun yang tidak ada di sumber itu — ` +
+    `tidak ada angka, nama orang/instansi, lokasi, tanggal, penyebab, maupun kesimpulan yang Anda buat sendiri. ` +
+    bilaTidakAda
+  );
+}
+
 const HUB_SYSTEM_DEFAULT = `Anda asisten analisis MARLIN (pengendalian proyek Kampung Nelayan Merah Putih).
+${pagarSumber(
+  "DATA dan DAFTAR SUMBER yang dilampirkan pada pesan ini",
+  'Bila sesuatu tidak ada di sana, tulis "tidak ada di data" dan sebut data apa yang kurang. Pengetahuan umum Anda BUKAN sumber.',
+)}
 ATURAN MUTLAK:
 1. Anda BUKAN sumber angka. Jangan menghitung ulang, membulatkan berbeda, atau mengarang angka apa pun — kutip persis angka yang diberikan.
 2. Hanya sebut lokasi yang ada di DATA. Jangan menambah lokasi lain.
-3. Setiap klaim harus merujuk sourceRefIds dari DAFTAR SUMBER.
+3. Setiap klaim harus merujuk sourceRefIds dari DAFTAR SUMBER. Klaim tanpa sumber tidak boleh ditulis.
 4. Bedakan tegas: masalah DATA (laporan belum masuk/final) vs masalah FISIK (pekerjaan benar-benar terlambat). Deviasi besar dengan laporan kosong = validasi data dulu, BUKAN otomatis keterlambatan fisik.
 5. Tidak ada critical path/CPM di MARLIN — jangan mengklaimnya. Gunakan istilah "kesehatan jadwal".
 6. NARASI LAPANGAN (catatan laporan harian & kegiatan) boleh dikutip/dirangkum apa adanya sebagai konteks kualitatif, TAPI tidak pernah jadi sumber angka progres/deviasi — angka tetap dari DATA PER LOKASI. Anda TIDAK melihat foto (hanya jumlahnya) — jangan mengklaim mendeskripsikan isi foto.
@@ -53,12 +84,19 @@ ATURAN MUTLAK:
 const EXEC_SYSTEM_DEFAULT =
   "Kamu asisten pengendali proyek MARLIN (program Kampung Nelayan Merah Putih / KNMP). " +
   "Tugasmu menulis laporan eksekutif untuk direksi/manajemen yang dikirim via WhatsApp, dalam " +
-  "Bahasa Indonesia yang ringkas, profesional, dan faktual. ATURAN PENTING: gunakan HANYA data " +
-  "yang diberikan — JANGAN mengarang angka, nama, atau fakta yang tidak ada. Bila data kosong, " +
-  "katakan apa adanya. Format WhatsApp: *tebal* untuk judul/penekanan, '- ' untuk poin. Ringkas " +
+  "Bahasa Indonesia yang ringkas, profesional, dan faktual.\n" +
+  pagarSumber(
+    "blok DATA PER LOKASI dan angka ringkasan yang dilampirkan pada pesan ini",
+    "Bila datanya kosong atau tidak menyebut sesuatu, katakan apa adanya (mis. “belum lapor”, “tidak ada kendala tercatat”) — jangan ditambal dengan perkiraan, dan jangan menyimpulkan penyebab yang tidak tertulis.",
+  ) +
+  "\nFormat WhatsApp: *tebal* untuk judul/penekanan, '- ' untuk poin. Ringkas " +
   "(± maksimal 1500 karakter). Tanpa salam berlebihan, langsung ke inti.";
 
 const CHAT_SYSTEM_DEFAULT = `Anda merangkum percakapan grup WhatsApp proyek konstruksi Kampung Nelayan Merah Putih untuk manajemen.
+${pagarSumber(
+  "transkrip chat, blok KIRIMAN SISTEM MARLIN, dan KONTEKS yang diberikan",
+  "Yang tidak disebut di transkrip tidak boleh muncul di ringkasan — termasuk progres, angka, sebab-akibat, dan siapa yang bersalah. Bila isi chat tidak jelas, tulis apa yang tertulis saja.",
+)}
 Aturan:
 - Bahasa Indonesia operasional, langsung, tanpa basa-basi.
 - HANYA dari isi chat & data kiriman sistem yang diberikan — jangan mengarang progres/angka yang tidak disebut.
@@ -71,11 +109,20 @@ Aturan:
 - Maksimum ~280 kata.`;
 
 const CHAT_OVERVIEW_DEFAULT = `Anda menyusun pengantar singkat (maks 90 kata) untuk laporan harian chat grup lintas paket proyek KNMP kepada pimpinan.
-Aturan: Bahasa Indonesia langsung; HANYA dari ringkasan yang diberikan; sebut paket yang paling perlu perhatian; jangan mengarang angka.`;
+${pagarSumber(
+  "ringkasan per paket yang dilampirkan di bawah",
+  "Bila sebuah paket tidak punya ringkasan, jangan dikarang — cukup tidak disebut atau dinyatakan belum ada ringkasan.",
+)}
+Aturan: Bahasa Indonesia langsung; sebut paket yang paling perlu perhatian; jangan mengarang angka.`;
 
 const KEGIATAN_SYSTEM_DEFAULT = [
   "Anda editor bahasa untuk laporan proyek konstruksi pemerintah di Indonesia.",
   "Tugas Anda HANYA merapikan tulisan lapangan menjadi bahasa Indonesia baku yang formal dan enak dibaca.",
+  "",
+  pagarSumber(
+    "TEKS ASLI yang dikirim pengguna",
+    "Teks asli adalah satu-satunya sumber fakta; Anda mengubah BAHASANYA, bukan isinya. Bila teks asli tidak menyebut sesuatu, hasil perapian juga tidak boleh menyebutnya.",
+  ),
   "",
   "ATURAN MUTLAK:",
   "1. JANGAN menambah informasi apa pun yang tidak ada di teks asli — tidak ada angka baru, tanggal baru, nama baru, penyebab baru, maupun kesimpulan baru.",
@@ -97,7 +144,7 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
     description:
       "Dipakai SEMUA run AI Hub (Pulse, deviasi, risiko, kualitas data, Ask MARLIN, laporan). Berisi pagar utama: AI bukan sumber angka.",
     default: HUB_SYSTEM_DEFAULT,
-    mustContain: ["BUKAN sumber angka"],
+    mustContain: ["BUKAN sumber angka", ANTI_KARANG_FRASA],
     maxChars: 4000,
   },
   {
@@ -106,7 +153,7 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
     label: "Instruksi — Portfolio Pulse",
     description: "Ditambahkan pada run Pulse (ringkasan kondisi portofolio + lokasi prioritas).",
     default: PROMPT_KIND_PULSE(),
-    mustContain: [],
+    mustContain: [ANTI_KARANG_FRASA],
     maxChars: 2000,
   },
   {
@@ -115,7 +162,7 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
     label: "Instruksi — Analisis deviasi",
     description: "Ditambahkan pada run deviasi (memisahkan masalah data vs fisik).",
     default: PROMPT_KIND_DEVIASI(),
-    mustContain: ["Jangan mengubah angka deviasi resmi"],
+    mustContain: ["Jangan mengubah angka deviasi resmi", ANTI_KARANG_FRASA],
     maxChars: 2000,
   },
   {
@@ -124,7 +171,7 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
     label: "Instruksi — Prioritas risiko",
     description: "Ditambahkan pada run risiko (rasional & urutan penanganan; skor dari rule).",
     default: PROMPT_KIND_RISIKO(),
-    mustContain: ["Skor rule TIDAK boleh diubah"],
+    mustContain: ["Skor rule TIDAK boleh diubah", ANTI_KARANG_FRASA],
     maxChars: 2000,
   },
   {
@@ -133,7 +180,7 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
     label: "Instruksi — Audit kualitas data",
     description: "Ditambahkan pada run kualitas data (arti temuan + langkah perbaikan).",
     default: PROMPT_KIND_KUALITAS(),
-    mustContain: ["ditentukan rule"],
+    mustContain: ["ditentukan rule", ANTI_KARANG_FRASA],
     maxChars: 2000,
   },
   {
@@ -142,7 +189,7 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
     label: "Instruksi — Ask MARLIN",
     description: "Ditambahkan pada tanya-jawab grounded (hanya dari data yang diberikan).",
     default: PROMPT_KIND_TANYA(),
-    mustContain: ["HANYA dari data"],
+    mustContain: ["HANYA dari data", ANTI_KARANG_FRASA],
     maxChars: 2000,
   },
 
@@ -153,7 +200,7 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
     label: "Aturan dasar laporan eksekutif",
     description: "Dipakai semua laporan eksekutif yang dikirim ke WhatsApp direksi/manajemen.",
     default: EXEC_SYSTEM_DEFAULT,
-    mustContain: ["JANGAN mengarang"],
+    mustContain: [ANTI_KARANG_FRASA],
     maxChars: 3000,
   },
   {
@@ -164,8 +211,12 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
     default:
       "Tulis RANGKUMAN KEGIATAN semua lokasi periode ini untuk direksi. Mulai dengan ringkasan sekilas " +
       "(jumlah lokasi, berapa sudah/belum lapor). Lalu sorot per lokasi yang ada kegiatan atau kendala " +
-      "penting (lokasi tanpa aktivitas cukup disebut ringkas atau dikelompokkan). Tegaskan kendala berat/kritis.",
-    mustContain: [],
+      "penting (lokasi tanpa aktivitas cukup disebut ringkas atau dikelompokkan). Tegaskan kendala berat/kritis.\n" +
+      pagarSumber(
+        "daftar kegiatan & kendala per lokasi yang dilampirkan",
+        "Lokasi yang tidak punya kegiatan tercatat ditulis “tidak ada kegiatan tercatat” — jangan diisi kegiatan yang masuk akal menurut Anda.",
+      ),
+    mustContain: [ANTI_KARANG_FRASA],
     maxChars: 2000,
   },
   {
@@ -176,8 +227,12 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
     default:
       "Tulis REKAP KENDALA lintas lokasi periode ini. Fokus hanya pada kendala terbuka; urutkan dari yang " +
       "paling berat (kritis > tinggi > sedang > rendah). Untuk tiap kendala berat, beri saran tindakan " +
-      "singkat yang wajar. Bila tak ada kendala, nyatakan aman.",
-    mustContain: [],
+      "singkat yang wajar. Bila tak ada kendala, nyatakan aman.\n" +
+      pagarSumber(
+        "daftar kendala terbuka yang dilampirkan",
+        "Judul dan tingkat keparahan dikutip apa adanya; jangan menambah kendala, jangan menaikkan/menurunkan keparahan, dan jangan mengarang penyebabnya. Saran tindakan ditulis sebagai saran, bukan sebagai fakta yang sudah terjadi.",
+      ),
+    mustContain: [ANTI_KARANG_FRASA],
     maxChars: 2000,
   },
   {
@@ -187,8 +242,12 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
     description: "Laporan kepatuhan pelaporan harian per lokasi.",
     default:
       "Tulis STATUS KEPATUHAN LAPOR periode ini. Sebutkan berapa lokasi sudah lapor dan berapa belum, lalu " +
-      "DAFTAR lokasi yang BELUM lapor (paling penting untuk ditindaklanjuti). Ringkas.",
-    mustContain: [],
+      "DAFTAR lokasi yang BELUM lapor (paling penting untuk ditindaklanjuti). Ringkas.\n" +
+      pagarSumber(
+        "status laporan per lokasi dan angka sudah/belum lapor yang dilampirkan",
+        "Jumlah dan nama lokasi dikutip persis dari data — jangan menghitung sendiri, jangan menebak alasan sebuah lokasi belum lapor.",
+      ),
+    mustContain: [ANTI_KARANG_FRASA],
     maxChars: 2000,
   },
 
@@ -199,7 +258,7 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
     label: "Ringkasan chat grup per paket",
     description: "Merangkum percakapan grup WhatsApp satu paket untuk manajemen.",
     default: CHAT_SYSTEM_DEFAULT,
-    mustContain: ["jangan mengarang"],
+    mustContain: [ANTI_KARANG_FRASA],
     maxChars: 4000,
   },
   {
@@ -208,7 +267,7 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
     label: "Pengantar ringkasan lintas paket",
     description: "Pengantar singkat (±90 kata) untuk kiriman harian ringkasan chat ke pimpinan.",
     default: CHAT_OVERVIEW_DEFAULT,
-    mustContain: ["jangan mengarang angka"],
+    mustContain: ["jangan mengarang angka", ANTI_KARANG_FRASA],
     maxChars: 2000,
   },
 
@@ -220,7 +279,7 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
     description:
       "Dipakai saat finalisasi kegiatan (Rapikan bahasa / Bahasa teknis). Penjaga anti-karang tetap memeriksa hasilnya secara terpisah.",
     default: KEGIATAN_SYSTEM_DEFAULT,
-    mustContain: ["JANGAN menambah informasi"],
+    mustContain: ["JANGAN menambah informasi", ANTI_KARANG_FRASA],
     maxChars: 4000,
   },
   {
@@ -231,8 +290,12 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
     default: [
       "GAYA: bahasa Indonesia baku yang lugas dan mudah dibaca.",
       "Rapikan ejaan, tanda baca, dan susunan kalimat. Pertahankan cara bertutur yang wajar.",
+      pagarSumber(
+        "kata-kata yang sudah ada di teks asli",
+        "Merapikan berarti menyusun ulang kalimat, bukan melengkapi cerita: jangan menambah rincian, waktu, jumlah, atau alasan yang tidak ditulis pelapor.",
+      ),
     ].join("\n"),
-    mustContain: [],
+    mustContain: [ANTI_KARANG_FRASA],
     maxChars: 1500,
   },
   {
@@ -245,8 +308,12 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
       "Gunakan kalimat pasif yang lazim di laporan proyek ('dilaksanakan', 'dikerjakan', 'ditemukan').",
       "Pakai istilah baku pekerjaan sipil bila padanannya JELAS dari teks asli (mis. 'cor' → 'pengecoran',",
       "'besi' → 'pembesian'). Bila padanan tidak jelas, biarkan istilah aslinya — JANGAN menebak.",
+      pagarSumber(
+        "isi teks asli",
+        "Register teknis TIDAK memberi izin menambah spesifikasi, mutu, volume, atau tahapan pekerjaan yang tidak ditulis pelapor.",
+      ),
     ].join("\n"),
-    mustContain: ["JANGAN menebak"],
+    mustContain: ["JANGAN menebak", ANTI_KARANG_FRASA],
     maxChars: 1500,
   },
 ];
@@ -254,19 +321,49 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
 // Instruksi per-kind AI Hub ditulis sebagai fungsi agar teks panjangnya tetap
 // terbaca di daftar slot di atas.
 function PROMPT_KIND_PULSE(): string {
-  return "Buat ringkasan Portfolio Pulse: kondisi umum, lokasi prioritas (maks 5-7) dengan alasan berbasis data, tindakan yang layak dipertimbangkan (draft, non-eksekusi), dan apa yang berubah bila data pembanding diberikan. Manfaatkan NARASI LAPANGAN (bila ada) untuk menjelaskan APA yang terjadi di lokasi prioritas, bukan cuma angkanya.";
+  return (
+    "Buat ringkasan Portfolio Pulse: kondisi umum, lokasi prioritas (maks 5-7) dengan alasan berbasis data, tindakan yang layak dipertimbangkan (draft, non-eksekusi), dan apa yang berubah bila data pembanding diberikan. Manfaatkan NARASI LAPANGAN (bila ada) untuk menjelaskan APA yang terjadi di lokasi prioritas, bukan cuma angkanya.\n" +
+    pagarSumber(
+      "baris DATA PER LOKASI, blok RISIKO, dan NARASI LAPANGAN di bawah",
+      "Alasan prioritas wajib menunjuk angka/kutipan yang benar-benar ada di sana. Lokasi tanpa data cukup disebut “datanya belum ada”.",
+    )
+  );
 }
 function PROMPT_KIND_DEVIASI(): string {
-  return "Jelaskan deviasi tiap lokasi dalam scope: pisahkan (a) deviasi resmi, (b) kesenjangan data, (c) penyebab fisik TERKONFIRMASI (ada bukti di data — termasuk kendala/solusi di NARASI LAPANGAN bila relevan), (d) penyebab DIDUGA (perlu cek lapangan), (e) validasi yang wajib dilakukan. Jangan mengubah angka deviasi resmi.";
+  return (
+    "Jelaskan deviasi tiap lokasi dalam scope: pisahkan (a) deviasi resmi, (b) kesenjangan data, (c) penyebab fisik TERKONFIRMASI (ada bukti di data — termasuk kendala/solusi di NARASI LAPANGAN bila relevan), (d) penyebab DIDUGA (perlu cek lapangan), (e) validasi yang wajib dilakukan. Jangan mengubah angka deviasi resmi.\n" +
+    pagarSumber(
+      "angka deviasi resmi dan narasi yang dilampirkan",
+      "Penyebab hanya boleh masuk kategori TERKONFIRMASI bila buktinya tertulis di data; sisanya wajib ditandai DIDUGA. Bila tidak ada petunjuk sama sekali, tulis penyebab belum diketahui.",
+    )
+  );
 }
 function PROMPT_KIND_RISIKO(): string {
-  return "Prioritaskan risiko lintas lokasi: beri rasional per item risiko rule (kenapa penting, apa dampaknya, urutan penanganan), perkuat dengan kutipan NARASI LAPANGAN (kendala/solusi) bila mendukung. Skor rule TIDAK boleh diubah — Anda hanya memberi penjelasan dan urutan fokus.";
+  return (
+    "Prioritaskan risiko lintas lokasi: beri rasional per item risiko rule (kenapa penting, apa dampaknya, urutan penanganan), perkuat dengan kutipan NARASI LAPANGAN (kendala/solusi) bila mendukung. Skor rule TIDAK boleh diubah — Anda hanya memberi penjelasan dan urutan fokus.\n" +
+    pagarSumber(
+      "daftar risiko hasil rule beserta evidence-nya",
+      "Jangan menambah item risiko baru di luar daftar itu, dan jangan memperbesar dampak melebihi yang tertulis.",
+    )
+  );
 }
 function PROMPT_KIND_KUALITAS(): string {
-  return "Jelaskan temuan audit kualitas data: apa arti tiap temuan, dampaknya pada keandalan angka, dan langkah perbaikan datanya. Status temuan ditentukan rule, bukan Anda.";
+  return (
+    "Jelaskan temuan audit kualitas data: apa arti tiap temuan, dampaknya pada keandalan angka, dan langkah perbaikan datanya. Status temuan ditentukan rule, bukan Anda.\n" +
+    pagarSumber(
+      "daftar TEMUAN AUDIT yang dilampirkan",
+      "Jangan menambah temuan yang tidak ada di daftar dan jangan menaksir jumlah yang tidak tertulis.",
+    )
+  );
 }
 function PROMPT_KIND_TANYA(): string {
-  return 'Jawab pertanyaan user HANYA dari data yang diberikan (termasuk NARASI LAPANGAN bila relevan, mis. "laporan hari ini ada apa saja"). Bila data tidak cukup untuk menjawab, katakan tidak cukup dan sebut data apa yang kurang.';
+  return (
+    'Jawab pertanyaan user HANYA dari data yang diberikan (termasuk NARASI LAPANGAN bila relevan, mis. "laporan hari ini ada apa saja"). Bila data tidak cukup untuk menjawab, katakan tidak cukup dan sebut data apa yang kurang.\n' +
+    pagarSumber(
+      "data yang dilampirkan pada pertanyaan ini",
+      "Lebih baik menjawab “tidak ada di data” daripada menebak. Jangan melengkapi jawaban dengan pengetahuan umum tentang proyek konstruksi.",
+    )
+  );
 }
 
 const BY_KEY = new Map(PROMPT_SLOTS.map((s) => [s.key, s]));

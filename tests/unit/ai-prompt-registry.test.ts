@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  ANTI_KARANG_FRASA,
   PROMPT_GROUP_LABEL,
   PROMPT_SLOTS,
   promptDefault,
   promptSlot,
   validatePromptOverride,
 } from "@/lib/ai/prompt-registry";
+import { AI_REPORT_TEMPLATES } from "@/lib/ai-hub/report-templates";
 
 /**
  * Halaman Sistem → Prompt AI membuat teks perintah bisa disetel tanpa deploy.
@@ -67,6 +69,53 @@ describe("registri prompt", () => {
   });
 });
 
+/**
+ * Permintaan user 30 Juli 2026 (DECISIONS 182): larangan mengarang harus
+ * DITEKANKAN di SEMUA prompt, bukan cuma di slot "aturan dasar". Yang diuji di
+ * sini: tidak ada satu pun slot yang lolos tanpa aturan sumber, dan pagarnya
+ * tidak bisa dibuang lewat halaman Sistem → Prompt AI.
+ */
+describe("aturan sumber wajib ada di SEMUA prompt", () => {
+  it("setiap bawaan menyebut larangan mengarang", () => {
+    for (const slot of PROMPT_SLOTS) {
+      expect(slot.default.toLowerCase(), slot.key).toContain(ANTI_KARANG_FRASA.toLowerCase());
+    }
+  });
+
+  it("setiap bawaan menyebut sumbernya secara eksplisit", () => {
+    for (const slot of PROMPT_SLOTS) {
+      expect(slot.default, slot.key).toMatch(/SUMBER: gunakan HANYA /);
+    }
+  });
+
+  it("setiap slot mewajibkan frasa itu tetap ada pada override", () => {
+    for (const slot of PROMPT_SLOTS) {
+      const wajib = slot.mustContain.map((f) => f.toLowerCase());
+      expect(wajib, slot.key).toContain(ANTI_KARANG_FRASA.toLowerCase());
+    }
+  });
+
+  it("override tanpa larangan mengarang → DITOLAK di slot mana pun", () => {
+    for (const slot of PROMPT_SLOTS) {
+      const problem = validatePromptOverride(slot.key, "Tulis sebebas mungkin, panjang tidak masalah.");
+      expect(problem, slot.key).toMatch(new RegExp(ANTI_KARANG_FRASA, "i"));
+    }
+  });
+
+  it("instruksi per-jenis pun tidak bisa dikosongkan dari pagarnya", () => {
+    // Dulu slot-slot ini mustContain-nya kosong sehingga bisa ditimpa apa saja.
+    for (const key of [
+      "hub.kind.pulse",
+      "exec.rangkuman_kegiatan",
+      "exec.rekap_kendala",
+      "exec.kepatuhan_lapor",
+      "kegiatan.rewrite.rapi",
+    ]) {
+      expect(validatePromptOverride(key, "Ringkas saja, seingatmu."), key).toMatch(/mengarang/i);
+    }
+  });
+});
+
 describe("validatePromptOverride — pagar anti-mengarang tidak boleh dihapus", () => {
   it("membuang frasa pengaman AI Hub → DITOLAK", () => {
     const problem = validatePromptOverride(
@@ -79,7 +128,8 @@ describe("validatePromptOverride — pagar anti-mengarang tidak boleh dihapus", 
   it("mengubah gaya TAPI mempertahankan frasa pengaman → diterima", () => {
     const problem = validatePromptOverride(
       "hub.system",
-      "Anda analis MARLIN. Tulis sangat ringkas, maksimal 5 poin. Anda BUKAN sumber angka — kutip persis angka yang diberikan.",
+      "Anda analis MARLIN. Tulis sangat ringkas, maksimal 5 poin. Anda BUKAN sumber angka — kutip persis " +
+        "angka yang diberikan. JANGAN MENGARANG apa pun di luar data yang dilampirkan.",
     );
     expect(problem).toBeNull();
   });
@@ -106,6 +156,15 @@ describe("validatePromptOverride — pagar anti-mengarang tidak boleh dihapus", 
 
   it("kunci tidak dikenal → DITOLAK", () => {
     expect(validatePromptOverride("tidak.ada", "apa saja")).toMatch(/tidak dikenal/i);
+  });
+});
+
+describe("template Report Studio ikut memuat pagar sumber", () => {
+  it("setiap instruksi template menyebut sumber & larangan mengarang", () => {
+    for (const t of AI_REPORT_TEMPLATES) {
+      expect(t.instruction, t.key).toContain(ANTI_KARANG_FRASA);
+      expect(t.instruction, t.key).toMatch(/SUMBER: gunakan HANYA /);
+    }
   });
 });
 
