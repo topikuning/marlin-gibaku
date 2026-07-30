@@ -15,6 +15,7 @@ import { getKkpDailyData } from "@/lib/daily-report/queries";
 import { buildDailyReportXlsx } from "@/lib/export/daily-xlsx";
 import {
   WahaError,
+  getGroupInfo,
   getSessionStatus,
   listGroups,
   normalizeGroupChatId,
@@ -175,13 +176,42 @@ export async function setPackageWaGroupAction(
       }
     }
 
+    // Verifikasi ke WAHA saat ID diisi: tarik NAMA GRUP yang sebenarnya supaya
+    // admin yakin ID-nya benar (salah satu digit = laporan nyasar ke grup lain).
+    // Best-effort: WAHA mati/store mati tidak boleh memblokir penyimpanan manual.
+    let groupName: string | null = groupId ? (d.waGroupName ?? null) : null;
+    let verifikasi: string | null = null;
+    if (groupId && groupId.endsWith("@g.us")) {
+      try {
+        const info = await getGroupInfo(groupId);
+        if (info === null) {
+          verifikasi =
+            "ID grup TIDAK ditemukan pada akun WhatsApp pengirim — periksa lagi ID-nya, dan pastikan nomor pengirim sudah menjadi anggota grup. Nama grup belum terverifikasi.";
+        } else if (info.name && info.name !== info.id) {
+          groupName = info.name; // nama asli dari WA menang atas ketikan manual
+          verifikasi = null;
+        }
+      } catch (err) {
+        verifikasi = `Nama grup belum bisa diverifikasi ke WAHA (${err instanceof Error ? err.message : "gagal"}).`;
+      }
+    }
+
     await db.package.update({
       where: { id: pkg.id },
-      data: { waGroupId: groupId, waGroupName: groupId ? d.waGroupName ?? null : null },
+      data: { waGroupId: groupId, waGroupName: groupName },
     });
-    await audit(user.id, "package.wa_group_set", "package", pkg.id, { waGroupId: groupId });
+    await audit(user.id, "package.wa_group_set", "package", pkg.id, {
+      waGroupId: groupId,
+      waGroupName: groupName,
+      terverifikasi: groupId ? verifikasi === null : null,
+    });
     revalidatePath(`/paket/${pkg.id}`);
-    return { success: groupId ? "Grup WhatsApp paket disimpan." : "Grup WhatsApp paket dilepas." };
+    if (!groupId) return { success: "Grup WhatsApp paket dilepas." };
+    return verifikasi
+      ? { success: "Grup WhatsApp paket disimpan.", warning: verifikasi }
+      : {
+          success: `Grup WhatsApp paket disimpan & terverifikasi: "${groupName ?? groupId}".`,
+        };
   } catch (err) {
     return fail(err);
   }
@@ -193,12 +223,18 @@ export async function listWaGroupsAction(): Promise<
 > {
   try {
     await requireCapability("wa.configure");
-    const status = await getSessionStatus();
-    if (status.status !== "WORKING") {
-      return {
-        ok: false,
-        error: `Sesi WhatsApp belum siap (status: ${status.status}). Scan QR di server WAHA dulu, lalu coba lagi.`,
-      };
+    // Cek status = diagnosa yang enak dibaca, tapi TIDAK boleh memblokir:
+    // beberapa versi WAHA gagal di endpoint sessions padahal /groups jalan.
+    try {
+      const status = await getSessionStatus();
+      if (status.status !== "WORKING") {
+        return {
+          ok: false,
+          error: `Sesi WhatsApp belum siap (status: ${status.status}). Scan QR di server WAHA dulu, lalu coba lagi.`,
+        };
+      }
+    } catch {
+      /* lanjut — biar /groups yang bicara */
     }
     const groups = await listGroups();
     return { ok: true, groups };

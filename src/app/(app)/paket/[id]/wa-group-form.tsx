@@ -72,6 +72,7 @@ export function WaGroupForm({
     <form action={action} className="space-y-4">
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
+      {state?.warning ? <Banner tone="warning" title={state.warning} /> : null}
       <input type="hidden" name="packageId" value={packageId} />
 
       {/* Status grup saat ini */}

@@ -23,10 +23,30 @@ export const WAHA_KEYS = {
 
 export class WahaConfigError extends Error {}
 
-/** Normalisasi base URL WAHA: wajib http(s), buang trailing slash & path /api. */
+/** Host yang lazim dipakai tanpa TLS: private networking Railway, localhost, IP privat. */
+export function isInternalHost(host: string): boolean {
+  const h = host.toLowerCase().replace(/:\d+$/, "");
+  return (
+    h.endsWith(".railway.internal") ||
+    h.endsWith(".internal") ||
+    h === "localhost" ||
+    /^127\./.test(h) ||
+    /^10\./.test(h) ||
+    /^192\.168\./.test(h) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(h)
+  );
+}
+
+/**
+ * Normalisasi base URL WAHA: wajib http(s), buang trailing slash & path /api.
+ * Tanpa skema: host internal (mis. `waha.railway.internal:3000`) di-default ke
+ * `http://` — private networking Railway TIDAK ber-TLS, memaksakan https membuat
+ * koneksi selalu gagal; host publik tetap default `https://`.
+ */
 export function normalizeWahaBaseUrl(raw: string): string {
   const trimmed = raw.trim().replace(/\/+$/, "");
-  const withProto = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  const defaultProto = isInternalHost(trimmed.split("/")[0] ?? "") ? "http" : "https";
+  const withProto = /^https?:\/\//i.test(trimmed) ? trimmed : `${defaultProto}://${trimmed}`;
   let url: URL;
   try {
     url = new URL(withProto);

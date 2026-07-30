@@ -47,7 +47,45 @@ export function normalizeGroupChatId(raw: string): string {
 
 type ResolvedCfg = { baseUrl: string; apiKey: string; session: string };
 
-async function wahaFetch(c: ResolvedCfg, path: string, init?: RequestInit): Promise<Response> {
+/**
+ * Terjemahkan error WAHA yang polanya sudah dikenal menjadi instruksi yang bisa
+ * ditindaklanjuti admin — pesan mentah engine berbahasa Inggris dan tidak
+ * menyebut apa yang harus diubah. MURNI supaya bisa diuji. Null = tak dikenal.
+ */
+export function terjemahkanWahaError(status: number, body: string): string | null {
+  const b = body.toLowerCase();
+  if (status === 401 || status === 403) {
+    return "WAHA menolak API key (401/403) — periksa API key di halaman Sistem.";
+  }
+  // Engine NOWEB menolak /groups bila store dimatikan (setelan default-nya mati).
+  if (b.includes("store") && (b.includes("enabled") || b.includes("noweb"))) {
+    return (
+      "Engine NOWEB di server WAHA belum mengaktifkan STORE, jadi daftar grup tidak bisa dibaca. " +
+      "Set env WAHA: WAHA_NOWEB_STORE_ENABLED=true dan WAHA_NOWEB_STORE_FULLSYNC=true, restart WAHA, " +
+      "lalu logout & scan QR ulang. Sementara itu pakai Cara 2 (link undangan grup) — tidak butuh store."
+    );
+  }
+  if (status === 404 && (b.includes("session") || b.includes("not found"))) {
+    return (
+      "WAHA tidak mengenal sesi ini (404) — periksa NAMA SESI di halaman Sistem " +
+      '(bawaan WAHA biasanya "default", huruf kecil semua, harus persis sama).'
+    );
+  }
+  if (status === 422) {
+    return `WAHA menolak permintaan (422): ${body.slice(0, 200)}. Biasanya sesi belum login — cek status sesi di halaman Sistem.`;
+  }
+  return null;
+}
+
+/** Timeout default panggilan WAHA. Kirim file & tarik grup diberi jatah lebih besar. */
+const WAHA_TIMEOUT_MS = 20_000;
+
+async function wahaFetch(
+  c: ResolvedCfg,
+  path: string,
+  init?: RequestInit,
+  timeoutMs: number = WAHA_TIMEOUT_MS,
+): Promise<Response> {
   let res: Response;
   try {
     res = await fetch(`${c.baseUrl}${path}`, {
@@ -57,12 +95,18 @@ async function wahaFetch(c: ResolvedCfg, path: string, init?: RequestInit): Prom
         ...(init?.body ? { "Content-Type": "application/json" } : {}),
         ...(init?.headers ?? {}),
       },
-      // Server-to-server; jangan cache.
+      // Server-to-server; jangan cache. Tanpa timeout, WAHA yang menggantung
+      // membuat tombol berputar selamanya sampai gateway memutus tanpa pesan.
       cache: "no-store",
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch (err) {
+    const timeout = err instanceof Error && err.name === "TimeoutError";
     throw new WahaError(
-      `Tidak bisa menghubungi server WAHA (${c.baseUrl}): ${err instanceof Error ? err.message : "gagal koneksi"}`,
+      timeout
+        ? `Server WAHA tidak merespons dalam ${Math.round(timeoutMs / 1000)} detik (${c.baseUrl}) — cek apakah servernya hidup & tidak kelebihan beban.`
+        : `Tidak bisa menghubungi server WAHA (${c.baseUrl}): ${err instanceof Error ? err.message : "gagal koneksi"}. ` +
+          "Bila WAHA di Railway yang sama, pakai URL private networking dengan http:// (bukan https://), mis. http://waha.railway.internal:3000.",
     );
   }
   if (!res.ok) {
@@ -72,9 +116,8 @@ async function wahaFetch(c: ResolvedCfg, path: string, init?: RequestInit): Prom
     } catch {
       /* abaikan */
     }
-    if (res.status === 401 || res.status === 403) {
-      throw new WahaError("WAHA menolak API key (401/403) — periksa API key di halaman Sistem.");
-    }
+    const dikenal = terjemahkanWahaError(res.status, detail);
+    if (dikenal) throw new WahaError(dikenal);
     throw new WahaError(`WAHA error ${res.status}: ${detail.slice(0, 300) || res.statusText}`);
   }
   return res;
@@ -139,15 +182,20 @@ function unwrapArray(data: unknown): unknown[] {
     for (const k of ["data", "groups", "items", "results", "chats"]) {
       if (Array.isArray(rec[k])) return rec[k] as unknown[];
     }
+    // Peta objek ber-key JID ("1203…@g.us": {...}) — bentuk store NOWEB lama.
+    const keys = Object.keys(rec);
+    if (keys.length > 0 && keys.every((k) => k.includes("@"))) {
+      return keys.map((k) => {
+        const v = rec[k];
+        return v && typeof v === "object" ? { id: k, ...(v as object) } : { id: k };
+      });
+    }
   }
   return [];
 }
 
-/** Daftar grup WA yang bisa dikirimi (butuh sesi WORKING + store aktif utk NOWEB). */
-export async function listGroups(): Promise<WahaGroup[]> {
-  const c = await cfg();
-  const res = await wahaFetch(c, `/api/${encodeURIComponent(c.session)}/groups`);
-  const data = (await res.json()) as unknown;
+/** Parser respons /groups lintas engine — MURNI supaya bisa diuji tanpa server. */
+export function parseGroupsResponse(data: unknown): WahaGroup[] {
   return unwrapArray(data)
     .map((g) => {
       const rec = (g && typeof g === "object" ? g : {}) as Record<string, unknown>;
@@ -155,6 +203,39 @@ export async function listGroups(): Promise<WahaGroup[]> {
       return { id, name: extractGroupName(rec, id) };
     })
     .filter((g) => g.id.endsWith("@g.us"));
+}
+
+/** Daftar grup WA yang bisa dikirimi (butuh sesi WORKING + store aktif utk NOWEB). */
+export async function listGroups(): Promise<WahaGroup[]> {
+  const c = await cfg();
+  // Akun dengan ratusan chat butuh waktu — jangan pakai timeout default 20 dtk.
+  const res = await wahaFetch(c, `/api/${encodeURIComponent(c.session)}/groups`, undefined, 60_000);
+  const data = (await res.json()) as unknown;
+  return parseGroupsResponse(data);
+}
+
+/**
+ * Info satu grup by ID — untuk VERIFIKASI saat admin menyimpan ID grup manual:
+ * memastikan ID benar & nomor pengirim memang anggota, plus mengambil nama
+ * grup yang sebenarnya. Return null = grup tidak ditemukan di akun ini.
+ */
+export async function getGroupInfo(groupId: string): Promise<WahaGroup | null> {
+  const c = await cfg();
+  const id = normalizeGroupChatId(groupId);
+  let res: Response;
+  try {
+    res = await wahaFetch(c, `/api/${encodeURIComponent(c.session)}/groups/${encodeURIComponent(id)}`);
+  } catch (err) {
+    // 404 dari endpoint ini berarti "grup tidak ada di akun", bukan konfigurasi salah.
+    if (err instanceof WahaError && /404/.test(err.message)) return null;
+    throw err;
+  }
+  const data = (await res.json()) as unknown;
+  const rec = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
+  const foundId = extractGroupIdMulti(rec) || id;
+  const name = extractGroupName(rec, "");
+  if (!name && !extractGroupIdMulti(rec)) return null; // respons kosong/tak dikenal
+  return { id: foundId, name: name || foundId };
 }
 
 /** Ambil kode undangan dari link chat.whatsapp.com/XXXX (atau kode polos). */
@@ -212,18 +293,22 @@ export async function sendText(chatId: string, text: string): Promise<void> {
 
 export async function sendImage(chatId: string, file: FilePayload, caption?: string): Promise<void> {
   const c = await cfg();
-  await wahaFetch(c, `/api/sendImage`, {
-    method: "POST",
-    body: JSON.stringify({ session: c.session, chatId, file, caption: caption || undefined }),
-  });
+  await wahaFetch(
+    c,
+    `/api/sendImage`,
+    { method: "POST", body: JSON.stringify({ session: c.session, chatId, file, caption: caption || undefined }) },
+    120_000,
+  );
 }
 
 export async function sendFile(chatId: string, file: FilePayload, caption?: string): Promise<void> {
   const c = await cfg();
-  await wahaFetch(c, `/api/sendFile`, {
-    method: "POST",
-    body: JSON.stringify({ session: c.session, chatId, file, caption: caption || undefined }),
-  });
+  await wahaFetch(
+    c,
+    `/api/sendFile`,
+    { method: "POST", body: JSON.stringify({ session: c.session, chatId, file, caption: caption || undefined }) },
+    120_000,
+  );
 }
 
 /** Ubah buffer → payload file base64 WAHA. */
