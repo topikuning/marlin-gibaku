@@ -55,6 +55,8 @@ export default async function PaketPage({
       hpsValue: p.hpsValue,
       vendorName: p.contract?.vendor.name ?? p.candidateVendorName ?? "—",
       locationCount: p._count.locations,
+      waGroupName: p.waGroupId ? p.waGroupName || p.waGroupId : null,
+      hasDrive: p.driveFolderId != null && p.driveFolderId !== "",
       updatedAt: p.updatedAt.toISOString(),
     })),
   ) as unknown as PaketRow[];
