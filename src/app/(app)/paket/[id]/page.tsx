@@ -442,7 +442,11 @@ export default async function RingkasanPaketPage({
                     label={PACKAGE_STAGE_LABEL[h.toStage]}
                   />
                   <span className="text-ink">
-                    {h.fromStage ? `dari ${PACKAGE_STAGE_LABEL[h.fromStage]}` : "stage awal"}
+                    {h.fromStage === h.toStage
+                      ? "koreksi data"
+                      : h.fromStage
+                        ? `dari ${PACKAGE_STAGE_LABEL[h.fromStage]}`
+                        : "stage awal"}
                   </span>
                   {h.note ? <span className="text-ink-muted">— {h.note}</span> : null}
                   <span className="ml-auto text-xs text-ink-muted">

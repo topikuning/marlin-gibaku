@@ -6,6 +6,7 @@ import type { CatalogItem } from "@/lib/master-location/queries";
 import {
   addTargetLocation,
   addTargetLocationsFromCatalog,
+  correctAddLocationAction,
   removeTargetLocation,
   type PackageActionState,
 } from "@/lib/package/actions";
@@ -189,6 +190,139 @@ export function RemoveLocationButton({
       {state?.error ? <span className="text-xs text-danger">{state.error}</span> : null}
       <Button type="submit" size="sm" variant="ghost" loading={pending}>
         Hapus
+      </Button>
+    </form>
+  );
+}
+
+/**
+ * KOREKSI susunan lokasi paket berkontrak (super_admin) — DECISIONS 187.
+ * Sengaja dibuat berbeda rupa dari "tambah lokasi target" biasa: judul, warna
+ * peringatan, dan alasan wajib, supaya tidak dipakai sebagai jalan pintas
+ * menghindari adendum yang sah.
+ */
+export function CorrectAddLocationForm({
+  packageId,
+  catalog,
+}: {
+  packageId: string;
+  catalog: CatalogItem[];
+}) {
+  const [state, action, pending] = useActionState<PackageActionState, FormData>(
+    correctAddLocationAction,
+    undefined,
+  );
+  const [pakaiKatalog, setPakaiKatalog] = useState(catalog.length > 0);
+
+  return (
+    <form action={action} className="space-y-3">
+      <input type="hidden" name="packageId" value={packageId} />
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      {state?.success ? <Banner tone="success" title={state.success} /> : null}
+      {state?.warning ? <Banner tone="warning" title={state.warning} /> : null}
+
+      <Banner
+        tone="warning"
+        title="Ini jalur koreksi kesalahan input — bukan adendum"
+        description="Pakai hanya bila lokasi memang ketinggalan saat data paket diinput, sementara nilai kontraknya sudah benar. Bila lingkup kontrak benar-benar bertambah, yang sah adalah adendum, bukan koreksi ini. Setiap koreksi tercatat di audit & histori paket."
+      />
+
+      {/*
+        Tombol, BUKAN radio: React mereset form setelah action selesai, dan reset
+        itu mengembalikan radio ke default sementara state React tidak ikut
+        berubah — pilihan yang tampak dan panel yang tampil jadi berbeda.
+      */}
+      {catalog.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5 text-[13px]">
+          {[
+            { katalog: true, label: "Dari katalog master" },
+            { katalog: false, label: "Isi manual" },
+          ].map((o) => (
+            <button
+              key={o.label}
+              type="button"
+              onClick={() => setPakaiKatalog(o.katalog)}
+              aria-pressed={pakaiKatalog === o.katalog}
+              className={`rounded-md border px-2.5 py-1 ${
+                pakaiKatalog === o.katalog
+                  ? "border-primary bg-info-soft font-medium text-ink"
+                  : "border-border text-ink-muted hover:border-border-strong"
+              }`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {pakaiKatalog && catalog.length > 0 ? (
+        <div>
+          <Label htmlFor="koreksi-master" required>
+            Lokasi dari katalog
+          </Label>
+          <select
+            id="koreksi-master"
+            name="masterLocationId"
+            required
+            className="w-full rounded-md border border-border px-2 py-1.5 text-sm"
+          >
+            <option value="">— pilih lokasi —</option>
+            {catalog.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.village} · {c.regency} · {c.province}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <input type="hidden" name="masterLocationId" value="" />
+          <div>
+            <Label htmlFor="koreksi-name" required>
+              Nama lokasi
+            </Label>
+            <Input id="koreksi-name" name="name" required />
+          </div>
+          <div>
+            <Label htmlFor="koreksi-village" required>
+              Desa
+            </Label>
+            <Input id="koreksi-village" name="village" required />
+          </div>
+          <div>
+            <Label htmlFor="koreksi-district">Kecamatan</Label>
+            <Input id="koreksi-district" name="district" />
+          </div>
+          <div>
+            <Label htmlFor="koreksi-regency" required>
+              Kabupaten/Kota
+            </Label>
+            <Input id="koreksi-regency" name="regency" required />
+          </div>
+          <div className="sm:col-span-2">
+            <Label htmlFor="koreksi-province" required>
+              Provinsi
+            </Label>
+            <Input id="koreksi-province" name="province" required />
+          </div>
+        </div>
+      )}
+
+      <div>
+        <Label htmlFor="koreksi-reason" required>
+          Alasan koreksi (tercatat permanen)
+        </Label>
+        <Input
+          id="koreksi-reason"
+          name="reason"
+          required
+          minLength={10}
+          placeholder="mis. lokasi ke-3 terlewat saat input kontrak 12 Mei; nilai kontrak sudah mencakup 3 lokasi"
+        />
+      </div>
+
+      <Button type="submit" size="sm" variant="danger" loading={pending}>
+        Tambahkan sebagai koreksi data
       </Button>
     </form>
   );

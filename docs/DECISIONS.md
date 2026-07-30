@@ -4920,3 +4920,55 @@ ditangani kode lama; uji nyata harus di Railway.
 Verifikasi: unit 619 ✓ (16 kasus baru: skema default URL internal/publik,
 terjemahan error store/sesi/API-key, parser grup lintas engine WEBJS/NOWEB/GOWS/
 peta-JID) · typecheck ✓ · lint ✓.
+
+---
+
+## 187 — Koreksi susunan lokasi paket berkontrak: jalur super admin, BUKAN adendum (2026-07-30)
+
+**Kejadian nyata (laporan user).** Sebuah kontrak sudah jadi, semua nilai diisi
+benar, tapi satu lokasi ketinggalan saat input: seharusnya 3 lokasi, yang
+tercatat hanya 2. Ini murni salah ketik/kelewat saat entri data — isi kontrak
+fisiknya tidak berubah — jadi adendum TIDAK boleh dipakai.
+
+**Kenapa adendum salah untuk kasus ini.** Adendum berarti "kontrak berubah":
+ia menuntut nomor & tanggal dokumen adendum yang di dunia nyata tidak ada,
+mencatat delta nilai nol (padahal nilai kontrak memang tidak berubah), dan
+mengotori jejak adendum yang dipakai laporan KKP serta rekap perubahan
+kontrak. Yang terjadi bukan perubahan kesepakatan, melainkan **data kita yang
+belum sama dengan kontrak**. Maka jalurnya diberi nama apa adanya: *koreksi
+data*.
+
+**Aturan yang berlaku.**
+
+1. **Kapabilitas `location.correct` — super admin SAJA** (program_director pun
+   dikecualikan, sejajar `contract.edit`). Diminta eksplisit oleh user.
+2. **Hanya menambah, tidak pernah menghapus.** Menghapus lokasi dari paket
+   berkontrak berarti membuang RAB, progres, laporan, dan uang yang menempel
+   padanya; kalau lokasi memang kelebihan, itu urusan adendum/pembatalan
+   paket, bukan tombol koreksi.
+3. **Tahap yang diizinkan: `kontrak` dan `pelaksanaan`.** Sebelum kontrak,
+   susunan lokasi masih bebas lewat jalur normal — aksi menolak dengan
+   "pakai jalur normal". Setelah `serah_terima`/`selesai`, pekerjaan sudah
+   diserahterimakan; menambah lokasi di sana bukan koreksi entri lagi.
+4. **Alasan wajib, minimal 10 karakter.** Tanpa alasan, koreksi tidak bisa
+   dibedakan dari manipulasi diam-diam enam bulan kemudian.
+5. **Nilai kontrak TIDAK disentuh** dan tidak ada `ContractAmendment` yang
+   dibuat. Nilai kontrak sudah benar sejak awal — yang kurang cuma barisnya.
+6. **Jejak ganda**: `auditIn` (aksi `package.location_correct_add`, memuat
+   lokasi, tahap, sumber data, alasan) + satu baris `packageStageHistory`
+   dengan `fromStage === toStage` yang tampil sebagai "koreksi data" di
+   riwayat paket. Tidak ada badge permanen di lokasi — pilihan user: cukup
+   audit + catatan histori, lokasi hasil koreksi setara lokasi lain.
+7. **Sumber data lokasi**: katalog master (menandai `assignedLocationId`,
+   sehingga tidak bisa dipakai dua paket) atau isian manual. Duplikat nama/
+   slug dalam paket yang sama ditolak.
+8. **Peringatan lanjutan**: koreksi belum selesai sampai RAB lokasi baru
+   diimpor. RAB pertama lokasi baru berlabel `hps_awal` (DECISIONS 118), jadi
+   tidak mencemari jejak adendum.
+
+Verifikasi: 11 kasus integrasi baru (`tests/integration/koreksi-lokasi.test.ts`)
+— termasuk reproduksi kasus nyata 3-lokasi-terinput-2 yang memastikan
+`contractValue` tetap dan `contractAmendment` tetap nol, pagar peran
+(PD/RM/PM/SM ditolak), pagar tahap, lintas-org, dan duplikat · unit 619 ✓ ·
+integrasi 151 ✓ ·
+typecheck ✓ · lint ✓ · PERMISSION_MATRIX diregenerasi (47 capability).

@@ -18,6 +18,9 @@ export const CAPABILITIES = [
   "amendment.manage",
   "location.view",
   "location.manage",
+  // Koreksi susunan lokasi paket BERKONTRAK (lokasi ketinggalan saat input) —
+  // super_admin SAJA, bukan adendum. DECISIONS 187.
+  "location.correct",
   "rab.view",
   "rab.manage",
   "baseline.manage",
@@ -89,7 +92,8 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
         c !== "wa.configure" &&
         c !== "daily_report.unfinalize" &&
         c !== "contact.view_all" &&
-        c !== "document.delete",
+        c !== "document.delete" &&
+        c !== "location.correct",
     ),
   ),
   regional_manager: new Set<Capability>([
