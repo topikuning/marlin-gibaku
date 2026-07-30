@@ -12,7 +12,7 @@ import { can } from "@/lib/authz";
 import { isR2Configured, r2Put } from "@/lib/r2";
 import { jakartaDateKey } from "@/lib/format";
 import { ADMIN_MILESTONE_TEMPLATE } from "@/lib/milestones/template";
-import type { AdminPhase, DocumentType } from "@/generated/prisma/enums";
+import type { AdminPhase, DocumentSource, DocumentStatus, DocumentType } from "@/generated/prisma/enums";
 import type { Prisma } from "@/generated/prisma/client";
 
 /**
@@ -30,6 +30,7 @@ export {
   PHASE_ORDER,
   PHASE_LABEL,
   TYPE_LABEL,
+  TYPE_SHORT,
   ALL_PHASES,
   ALL_DOC_TYPES,
   TYPES_BY_PHASE,
@@ -75,6 +76,17 @@ export type UploadDocumentInput = {
   description?: string | null;
   /** Diisi oleh supersedeDocument — bukan input form. */
   supersedesId?: string | null;
+  /**
+   * Diisi importir Drive (lib/gdrive/import.ts) — bukan input form. Isi berkas
+   * TETAP disalin ke R2; metadata ini hanya merekam asalnya supaya tidak
+   * terimpor dua kali dan jejak ke folder KKP tetap terbaca.
+   */
+  origin?: {
+    driveFileId: string;
+    driveWebLink: string | null;
+    drivePath: string;
+    driveModifiedAt: Date | null;
+  } | null;
 };
 
 export type UploadedDocument = { id: string; title: string; milestoneId: string | null };
@@ -189,8 +201,10 @@ export async function uploadDocument(input: UploadDocumentInput, userId: string)
   // Dedup per organisasi (sha256 isi file).
   const buffer = Buffer.from(await file.arrayBuffer());
   const sha256 = createHash("sha256").update(buffer).digest("hex");
+  // Hanya dokumen AKTIF yang menghalangi: berkas yang pernah dibatalkan boleh
+  // diunggah ulang (itu justru jalur koreksi salah unggah).
   const duplicate = await db.document.findFirst({
-    where: { orgId: user.orgId, sha256 },
+    where: { orgId: user.orgId, sha256, status: "aktif" },
     select: { title: true, uploadedAt: true },
   });
   if (duplicate) {
@@ -229,6 +243,11 @@ export async function uploadDocument(input: UploadDocumentInput, userId: string)
       sha256,
       supersedesId: input.supersedesId ?? null,
       uploadedById: user.id,
+      source: input.origin ? "drive_kkp" : "unggahan",
+      driveFileId: input.origin?.driveFileId ?? null,
+      driveWebLink: input.origin?.driveWebLink ?? null,
+      drivePath: input.origin?.drivePath ?? null,
+      driveModifiedAt: input.origin?.driveModifiedAt ?? null,
     },
     select: { id: true, title: true, milestoneId: true },
   });
@@ -239,6 +258,7 @@ export async function uploadDocument(input: UploadDocumentInput, userId: string)
     locationId: input.locationId ?? null,
     milestoneId: milestone?.id ?? null,
     supersedesId: input.supersedesId ?? null,
+    driveFileId: input.origin?.driveFileId ?? null,
   });
 
   // Efek kepatuhan milestone.
@@ -325,6 +345,11 @@ export type DocumentListParams = {
   q?: string;
   /** null = semua lokasi (role cross-location). */
   scopedLocationIds: string[] | null;
+  /**
+   * Default HANYA dokumen aktif. Dokumen dibatalkan sengaja tidak muncul di
+   * daftar biasa; halaman arsip bisa memintanya lewat "dibatalkan"/"semua".
+   */
+  status?: "aktif" | "dibatalkan" | "semua";
 };
 
 export type DocumentRow = {
@@ -347,11 +372,18 @@ export type DocumentRow = {
   uploadedById: string;
   uploadedByName: string;
   uploadedAt: Date;
+  status: DocumentStatus;
+  voidReason: string | null;
+  source: DocumentSource;
+  driveWebLink: string | null;
+  drivePath: string | null;
 };
 
 export async function listDocuments(params: DocumentListParams): Promise<DocumentRow[]> {
+  const status = params.status ?? "aktif";
   const where: Prisma.DocumentWhereInput = {
     orgId: params.orgId,
+    ...(status === "semua" ? {} : { status }),
     ...(params.packageId ? { packageId: params.packageId } : {}),
     ...(params.locationId ? { locationId: params.locationId } : {}),
     ...(params.phase ? { phase: params.phase } : {}),
@@ -405,6 +437,11 @@ export async function listDocuments(params: DocumentListParams): Promise<Documen
       supersedesId: true,
       uploadedById: true,
       uploadedAt: true,
+      status: true,
+      voidReason: true,
+      source: true,
+      driveWebLink: true,
+      drivePath: true,
       package: { select: { name: true } },
       location: { select: { name: true } },
     },
@@ -437,15 +474,23 @@ export async function listDocuments(params: DocumentListParams): Promise<Documen
     uploadedById: d.uploadedById,
     uploadedByName: nameById.get(d.uploadedById) ?? "—",
     uploadedAt: d.uploadedAt,
+    status: d.status,
+    voidReason: d.voidReason,
+    source: d.source,
+    driveWebLink: d.driveWebLink,
+    drivePath: d.drivePath,
   }));
 }
 
 /** Dokumen boleh dilihat user ini? Dipakai route unduh. */
 export async function canViewDocument(
   user: SessionUser,
-  doc: { orgId: string; locationId: string | null },
+  doc: { orgId: string; locationId: string | null; status?: DocumentStatus },
 ): Promise<boolean> {
   if (doc.orgId !== user.orgId) return false;
+  // Dokumen dibatalkan: bukan berkas resmi lagi. Masih terbuka untuk yang
+  // berwenang memulihkan/menghapusnya supaya bisa diperiksa sebelum diputuskan.
+  if (doc.status === "dibatalkan" && !can(user.role, "document.void")) return false;
   if (doc.locationId) return hasLocationAccess(user, doc.locationId);
   return can(user.role, "document.view");
 }

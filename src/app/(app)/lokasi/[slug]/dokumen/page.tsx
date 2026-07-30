@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { ensureMilestones } from "@/lib/milestones/actions";
 import { milestoneBoard, MILESTONE_STATUS_LABEL, MILESTONE_STATUS_TONE } from "@/lib/milestones/queries";
 import { listDocuments, PHASE_LABEL, TYPE_LABEL } from "@/lib/documents";
+import { documentDisplayNames } from "@/lib/document-label";
 import { formatTanggal } from "@/lib/format";
 import { MilestonePanel, QuickUploadForm } from "./kepatuhan-client";
 
@@ -43,6 +44,9 @@ export default async function DokumenKepatuhanPage({ params }: { params: Promise
   ]);
 
   const canManage = can(user.role, "compliance.manage");
+  // Nama tampilan otomatis (DECISIONS 183) — judul yang diketik tidak dipakai
+  // sebagai identitas baris.
+  const docLabels = documentDisplayNames(documents);
   const canVerify = can(user.role, "document.verify");
   const canUpload = can(user.role, "document.upload");
 
@@ -142,7 +146,7 @@ export default async function DokumenKepatuhanPage({ params }: { params: Promise
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-xs uppercase text-ink-muted">
-                    <th className="py-2 pr-3">Judul</th>
+                    <th className="py-2 pr-3">Dokumen</th>
                     <th className="py-2 pr-3">Fase</th>
                     <th className="py-2 pr-3">Tipe</th>
                     <th className="py-2 pr-3">Tanggal</th>
@@ -153,9 +157,22 @@ export default async function DokumenKepatuhanPage({ params }: { params: Promise
                   {documents.map((d) => (
                     <tr key={d.id}>
                       <td className="py-1.5 pr-3">
-                        <a href={`/api/documents/${d.id}`} target="_blank" rel="noopener" className="font-medium text-primary hover:underline">
-                          {d.title}
-                        </a>
+                        <Link href={`/dokumen/${d.id}`} className="font-medium text-primary hover:underline">
+                          {docLabels.get(d.id)?.name ?? d.title}
+                        </Link>
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+                          {docLabels.get(d.id)?.secondary ? (
+                            <span>{docLabels.get(d.id)!.secondary}</span>
+                          ) : null}
+                          <a
+                            href={`/api/documents/${d.id}`}
+                            target="_blank"
+                            rel="noopener"
+                            className="text-primary hover:underline"
+                          >
+                            buka berkas
+                          </a>
+                        </div>
                       </td>
                       <td className="py-1.5 pr-3">{PHASE_LABEL[d.phase]}</td>
                       <td className="py-1.5 pr-3">

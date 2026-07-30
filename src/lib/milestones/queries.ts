@@ -101,6 +101,8 @@ export async function milestoneBoard(params: {
       verifiedById: true,
       note: true,
       documents: {
+        // Bukti yang DIBATALKAN tidak dihitung (DECISIONS 183).
+        where: { status: "aktif" },
         select: { id: true, title: true, type: true, uploadedAt: true },
         orderBy: { uploadedAt: "desc" },
       },
