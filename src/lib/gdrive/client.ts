@@ -222,3 +222,182 @@ export async function driveAbout(): Promise<{ email: string | null; name: string
   const j = (await res.json()) as { user?: { emailAddress?: string; displayName?: string } };
   return { email: j.user?.emailAddress ?? null, name: j.user?.displayName ?? null };
 }
+
+/* ── Membaca isi folder (impor dari Drive KKP) ───────────────────────────── */
+
+export type DriveEntry = {
+  id: string;
+  name: string;
+  mimeType: string;
+  /** Ukuran byte; null untuk dokumen native Google (harus diekspor dulu). */
+  size: number | null;
+  modifiedTime: Date | null;
+  webViewLink: string | null;
+  /** Jalur folder relatif dari akar paket, mis. ["2. PCM", "Kedungrejo"]. */
+  path: string[];
+};
+
+const LIST_FIELDS = "nextPageToken,files(id,name,mimeType,size,modifiedTime,webViewLink)";
+
+/** Satu halaman anak folder (file + subfolder). */
+async function listChildren(folderId: string, pageToken?: string) {
+  const token = await getAccessToken();
+  const q = `'${folderId}' in parents and trashed = false`;
+  const url =
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}` +
+    `&fields=${encodeURIComponent(LIST_FIELDS)}&pageSize=200&supportsAllDrives=true` +
+    `&includeItemsFromAllDrives=true&orderBy=folder,name` +
+    (pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : "");
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) throw new GDriveError(`Gagal membaca isi folder: ${await readError(res)}`);
+  return (await res.json()) as {
+    nextPageToken?: string;
+    files?: {
+      id: string;
+      name: string;
+      mimeType: string;
+      size?: string;
+      modifiedTime?: string;
+      webViewLink?: string;
+    }[];
+  };
+}
+
+/**
+ * Telusuri folder Drive secara berjenjang (BFS) dan kembalikan FILE-nya saja.
+ * Batas kedalaman & jumlah dipasang keras: folder KKP dibuat manusia dan bisa
+ * memuat apa saja (termasuk folder foto beribu berkas) — impor tidak boleh
+ * menggantung tanpa batas. Pemanggil diberi tahu bila batas tercapai supaya
+ * angka "ditemukan N file" tidak berbohong.
+ */
+export async function walkDriveFolder(
+  rootId: string,
+  opts: { maxDepth?: number; maxFiles?: number } = {},
+): Promise<{ files: DriveEntry[]; truncated: boolean }> {
+  const maxDepth = opts.maxDepth ?? 4;
+  const maxFiles = opts.maxFiles ?? 500;
+  const files: DriveEntry[] = [];
+  let truncated = false;
+
+  let frontier: { id: string; path: string[] }[] = [{ id: rootId, path: [] }];
+  for (let depth = 0; depth <= maxDepth && frontier.length > 0; depth += 1) {
+    const next: { id: string; path: string[] }[] = [];
+    for (const folder of frontier) {
+      let pageToken: string | undefined;
+      do {
+        const page = await listChildren(folder.id, pageToken);
+        for (const f of page.files ?? []) {
+          if (f.mimeType === FOLDER_MIME) {
+            if (depth < maxDepth) next.push({ id: f.id, path: [...folder.path, f.name] });
+            else truncated = true;
+            continue;
+          }
+          if (files.length >= maxFiles) {
+            truncated = true;
+            continue;
+          }
+          files.push({
+            id: f.id,
+            name: f.name,
+            mimeType: f.mimeType,
+            size: f.size ? Number(f.size) : null,
+            modifiedTime: f.modifiedTime ? new Date(f.modifiedTime) : null,
+            webViewLink: f.webViewLink ?? null,
+            path: folder.path,
+          });
+        }
+        pageToken = page.nextPageToken;
+      } while (pageToken);
+    }
+    frontier = next;
+  }
+  return { files, truncated };
+}
+
+/** Metadata satu file — dibaca ulang saat commit impor (jangan percaya klien). */
+export async function driveFileMeta(fileId: string): Promise<DriveEntry> {
+  const token = await getAccessToken();
+  const res = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}` +
+      `?supportsAllDrives=true&fields=id,name,mimeType,size,modifiedTime,webViewLink`,
+    { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(20_000) },
+  );
+  if (!res.ok) {
+    throw new GDriveError(
+      res.status === 404
+        ? "File tidak ditemukan di Drive (mungkin dipindah/dihapus setelah pratinjau dibuat)."
+        : `Gagal membaca file Drive: ${await readError(res)}`,
+    );
+  }
+  const j = (await res.json()) as {
+    id: string;
+    name: string;
+    mimeType: string;
+    size?: string;
+    modifiedTime?: string;
+    webViewLink?: string;
+  };
+  return {
+    id: j.id,
+    name: j.name,
+    mimeType: j.mimeType,
+    size: j.size ? Number(j.size) : null,
+    modifiedTime: j.modifiedTime ? new Date(j.modifiedTime) : null,
+    webViewLink: j.webViewLink ?? null,
+    path: [],
+  };
+}
+
+/**
+ * Dokumen native Google tidak punya isi biner — harus diekspor. Peta ini juga
+ * jadi daftar putih: jenis native lain (Form, Drawing, Site) tidak diimpor.
+ */
+export const GOOGLE_NATIVE_EXPORT: Record<string, { mime: string; ext: string }> = {
+  "application/vnd.google-apps.document": { mime: "application/pdf", ext: "pdf" },
+  "application/vnd.google-apps.presentation": { mime: "application/pdf", ext: "pdf" },
+  "application/vnd.google-apps.spreadsheet": {
+    mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ext: "xlsx",
+  },
+};
+
+/**
+ * Unduh isi file Drive. File biasa lewat `alt=media`; dokumen native Google
+ * lewat `export`. `maxBytes` menjaga memori proses: Drive tidak selalu
+ * melaporkan ukuran (native docs), jadi batas dicek pada hasil unduhan juga.
+ */
+export async function downloadDriveFile(
+  fileId: string,
+  mimeType: string,
+  maxBytes: number,
+): Promise<{ data: Buffer; mime: string; extension: string | null }> {
+  const token = await getAccessToken();
+  const native = GOOGLE_NATIVE_EXPORT[mimeType];
+  const url = native
+    ? `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/export` +
+      `?mimeType=${encodeURIComponent(native.mime)}`
+    : `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}` +
+      `?alt=media&supportsAllDrives=true`;
+
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(120_000),
+  });
+  if (!res.ok) throw new GDriveError(`Gagal mengunduh file dari Drive: ${await readError(res)}`);
+  const data = Buffer.from(await res.arrayBuffer());
+  if (data.byteLength > maxBytes) {
+    throw new GDriveError(
+      `Ukuran file ${(data.byteLength / 1024 / 1024).toFixed(1)} MB melebihi batas ${Math.round(
+        maxBytes / 1024 / 1024,
+      )} MB`,
+    );
+  }
+  return {
+    data,
+    mime: native?.mime ?? mimeType,
+    extension: native?.ext ?? null,
+  };
+}

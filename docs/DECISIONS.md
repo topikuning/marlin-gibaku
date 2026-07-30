@@ -4782,3 +4782,60 @@ dijalankan di PostgreSQL 16 lokal (koreksi hanya kolom berubah, gerbang
 capability tiap role, milestone turun/dipertahankan, tolak buang bukti
 pengeluaran & sumber RAB, hapus permanen + file R2, jejak audit) · migrasi
 idempoten dijalankan dua kali ✓ · typecheck ✓ · lint ✓.
+
+## 184 — Impor dokumen dari folder Google Drive KKP (2026-07-30)
+
+**Masalah (dilaporkan user).** Integrasi Drive baru satu arah: MARLIN bisa
+MENGIRIM laporan/foto/dokumen ke folder KKP, tapi berkas yang **sudah ada** di
+folder KKP (kontrak, SPMK, BA PCM, MC-0, berkas termin — sering diunggah pihak
+lain) tidak bisa ditarik masuk. Akibatnya arsip MARLIN separuh kosong dan orang
+harus mengunduh-lalu-mengunggah manual satu per satu.
+
+**Keputusan.**
+
+1. **Disalin, bukan ditautkan.** Isi berkas diunduh dan disimpan ke R2 seperti
+   upload biasa; `driveFileId`, `driveWebLink`, `drivePath`, `driveModifiedAt`
+   disimpan sebagai jejak asal (`source = drive_kkp`). Alasan: kalau hanya
+   ditautkan, arsip MARLIN ikut hilang begitu KKP memindah/menghapus file atau
+   mencabut akses akun — dan angka/laporan yang menunjuk bukti itu jadi
+   menggantung. Konsekuensinya diterima: dua salinan, dan perubahan isi file di
+   Drive TIDAK ikut tersalin otomatis (impor ulang = dokumen baru, karena
+   `driveFileId` unik per organisasi).
+2. **Dua langkah dengan mata manusia di tengah.** `previewDriveImport` membaca
+   folder (maks 4 lapis, 500 berkas — batas dilaporkan ke UI bila tercapai) lalu
+   mengusulkan jenis/fase/desa/tanggal per berkas; `commitDriveImport` hanya
+   mengimpor yang dicentang, maks 40 berkas per tekan. Tidak ada sinkronisasi
+   otomatis: klasifikasi ini tebakan, dan yang masuk arsip resmi harus disetujui.
+3. **Pembacaan folder dipicu tombol**, bukan saat halaman dibuka (sejalan
+   DECISIONS 176) — satu kali baca bisa puluhan panggilan jaringan.
+4. **Klasifikasi murni & teruji** (`src/lib/gdrive/classify.ts`): nama berkas
+   menang atas folder (folder "1. SPPBJ, SPK, SPMK, RAB, DED" memuat lima jenis),
+   folder KKP jadi cadangan, keyakinan `tinggi/sedang/rendah` + alasan
+   ditampilkan. Desa dicocokkan sebagai KATA UTUH (biar "Pesisir" tidak menyambar
+   "Pesisirwetan"), folder didahulukan atas nama berkas, nama terpanjang menang.
+   Tanggal diambil hanya dari tiga bentuk yang jelas — tanggal salah lebih
+   merugikan daripada tanggal kosong karena ikut membentuk nama tampilan.
+5. **Yang tidak diimpor:** folder `6. DOKUMENTASI` dan berkas foto kamera
+   (`IMG_…`) — foto lapangan punya modul sendiri yang berstempel; menariknya ke
+   Document Center hanya menggandakan arsip. Juga: mime tak didukung, ukuran di
+   atas 25 MB, dan berkas yang `driveFileId`-nya sudah pernah diimpor.
+6. **Dokumen native Google diekspor** (Docs/Slides → PDF, Sheets → XLSX) dengan
+   ekstensi nama ikut disesuaikan; jenis native lain (Form, Drawing) dilewati.
+7. **Commit tidak memercayai browser:** metadata tiap berkas dibaca ULANG dari
+   Drive, jenis divalidasi enum, lokasi wajib milik paket itu DAN dalam scope
+   penugasan pengimpor. Impor memakai `uploadDocument` yang sama, jadi seluruh
+   penjaga lama tetap jalan: capability, akses lokasi, dedup sha256, penautan
+   milestone otomatis, audit.
+8. **Kegagalan per baris**, bukan per batch: satu berkas hilang/rusak tidak
+   menjatuhkan yang lain; hasilnya dilaporkan berkas-demi-berkas.
+
+**Belum terverifikasi.** Panggilan sungguhan ke `googleapis.com` tidak bisa
+dijalankan dari kontainer kerja (proxy memblokir host luar) — yang teruji adalah
+aturan impornya dengan klien Drive di-mock. Verifikasi terhadap folder KKP nyata
+(termasuk kecocokan nama folder & pola penamaan berkas di lapangan) harus
+dilakukan di Railway; angka "tebakan benar" pada korpus nyata belum diukur.
+
+Verifikasi: unit 603 ✓ (43 kasus klasifikasi/pencocokan desa/tanggal) ·
+integration 132 ✓ di PostgreSQL 16 lokal (16 kasus impor: pratinjau menandai
+sudah-ada & dilewati, scope role, validasi lokasi lintas paket, dedup checksum,
+native export, gagal per baris, audit) · typecheck ✓ · lint ✓ · build ✓.
