@@ -3,7 +3,7 @@ import Link from "next/link";
 import { FolderOpen } from "lucide-react";
 import { Card, CardBody, CardHeader, Combobox, EmptyState, KpiCard, PageHeader, StatusPill } from "@/components/ui";
 import { requireUser, accessibleLocationIds } from "@/lib/auth/session";
-import { locationScopeWhere } from "@/lib/auth/scope";
+import { locationScopeWhere, packageScopeWhere } from "@/lib/auth/scope";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
@@ -49,7 +49,11 @@ export default async function DokumenPage({
   const scoped = await accessibleLocationIds(user);
 
   const [packages, locations] = await Promise.all([
-    db.package.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    db.package.findMany({
+      where: packageScopeWhere(user, scoped),
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
     db.location.findMany({
       where: locationScopeWhere(user, scoped),
       select: { id: true, name: true },

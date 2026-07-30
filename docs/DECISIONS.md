@@ -4839,3 +4839,84 @@ Verifikasi: unit 603 ✓ (43 kasus klasifikasi/pencocokan desa/tanggal) ·
 integration 132 ✓ di PostgreSQL 16 lokal (16 kasus impor: pratinjau menandai
 sudah-ada & dilewati, scope role, validasi lokasi lintas paket, dedup checksum,
 native export, gagal per baris, audit) · typecheck ✓ · lint ✓ · build ✓.
+
+## 185 — Scope PAKET: yang tidak ditugaskan tidak tampil; workspace dijaga di query (2026-07-30)
+
+**Masalah (dilaporkan user).** Paket yang tidak ditugaskan muncul untuk user
+selain admin. Audit menemukan kelasnya lebih luas: halaman LOKASI sudah
+ter-scope rapi (`locationScopeWhere`, audit B11), tapi PAKET bocor di enam
+permukaan — `/paket` (daftar + KPI), command center `/`, dropdown paket di
+`/dokumen` dan `/dokumen/upload`, daftar grup di `/chat-grup`, dan yang paling
+serius: `getPackageWorkspace` tidak memeriksa apa pun, sehingga siapa saja yang
+tahu URL bisa membuka workspace paket mana pun — lintas penugasan, bahkan
+lintas organisasi.
+
+**Keputusan.**
+
+1. **Aturan scope paket** (konsisten dengan pola dokumen level-paket di
+   `listDocuments`): role ter-scope (RM/PM/SM/mandor) hanya melihat paket yang
+   memuat MINIMAL SATU lokasi penugasannya; role lintas lokasi
+   (super_admin/PD/exec_viewer) melihat semua paket ORGANISASI-nya. Penugasan
+   kosong ⇒ daftar kosong, bukan semua paket.
+2. **Satu helper, satu tempat**: `packageScopeWhere(user, locIds)` di
+   `src/lib/auth/scope.ts`, sebaris dengan `locationScopeWhere`. Semua enam
+   permukaan memakainya; tidak ada halaman yang merakit filternya sendiri.
+3. **Penjaga workspace dipindah ke `getPackageWorkspace` sendiri** (bukan di
+   tiap halaman): query-nya kini `findUnique({ id, ...packageScopeWhere })`.
+   Paket di luar hak → null → halaman menampilkan `notFound()` — sama persis
+   dengan paket yang memang tidak ada, jadi keberadaan paket pun tidak bocor.
+   Seluruh tab `/paket/[id]/**` otomatis ikut terjaga.
+4. `listPackages`/`getPackageStats` sekarang menerima `(user, scopedLocationIds)`
+   — KPI dihitung dari scope yang sama dengan daftarnya, tidak lagi menghitung
+   paket yang tak terlihat.
+
+Verifikasi: integration 8 kasus baru ✓ di PostgreSQL 16 lokal (dua organisasi:
+lintas-lokasi tidak melihat org lain; SM hanya paket lokasi penugasan; tanpa
+penugasan = kosong; workspace paket asing & lintas org = null) · browser dev
+server: admin melihat 9 paket, sm-01 melihat 1; URL paket asing + sub-halamannya
+→ HTTP 404; dropdown /dokumen ikut menyusut · unit 603 ✓ · integration 140 ✓ ·
+typecheck ✓ · lint ✓.
+
+## 186 — WAHA: perbaikan penarikan daftar grup + verifikasi nama grup saat simpan ID (2026-07-30)
+
+**Masalah (dilaporkan user).** Penarikan daftar grup dari WAHA gagal. Log WAHA
+tidak tersedia dari lingkungan kerja, jadi jalurnya dibedah dari kode; dua akar
+yang bisa DIPASTIKAN sebagai bug kita, dua lagi diperkeras:
+
+1. **URL internal Railway dipaksa https.** `normalizeWahaBaseUrl` menambahkan
+   `https://` bila skema tak ditulis. WAHA yang di-host di Railway yang sama
+   lazim diisi `waha.railway.internal:3000` — private networking Railway TANPA
+   TLS, jadi koneksi selalu gagal. Kini host internal (`*.railway.internal`,
+   `*.internal`, localhost, IP privat) default `http://`; host publik tetap
+   `https://`; skema yang ditulis eksplisit tidak pernah diubah.
+2. **Error khas engine tampil mentah.** Engine NOWEB menolak `GET /groups` bila
+   store dimatikan (default WAHA: mati) — pesannya bahasa Inggris terpotong,
+   admin tidak tahu harus apa. `terjemahkanWahaError` (murni, diuji) mengubah
+   pola dikenal jadi instruksi: store NOWEB mati → sebut
+   `WAHA_NOWEB_STORE_ENABLED=true` + `WAHA_NOWEB_STORE_FULLSYNC=true` + restart
+   + scan ulang + jalan keluar (Cara 2 link undangan, tanpa store); 404 sesi →
+   periksa nama sesi; 401/403 → API key.
+3. **Tanpa timeout.** Semua panggilan WAHA kini ber-`AbortSignal.timeout`
+   (20 dtk default; 60 dtk `/groups` — akun ratusan chat lambat; 120 dtk kirim
+   file base64) dengan pesan timeout yang menyebut berapa lama menunggu.
+4. **Cek status sesi tidak lagi memblokir.** `listWaGroupsAction` dulu gagal
+   total bila endpoint `/api/sessions/{name}` bermasalah padahal `/groups`
+   sendiri jalan; kini status hanya diagnosa, `/groups` yang menentukan.
+   Parser respons juga menerima bentuk peta-objek ber-key JID (store NOWEB lama).
+
+**Verifikasi nama grup saat simpan ID (permintaan user).** Saat admin menyimpan
+ID grup (manual/pilihan), sistem memanggil `GET /groups/{id}` untuk menarik NAMA
+grup yang sebenarnya: nama asli WA menang atas ketikan manual dan sukses
+menampilkan `terverifikasi: "<nama>"` — salah satu digit ID berarti laporan
+nyasar ke grup lain, jadi nama inilah konfirmasinya. Bila ID tidak ditemukan di
+akun pengirim → tetap tersimpan TAPI dengan peringatan jelas (jalur manual tidak
+boleh diblokir WAHA yang mati — prinsip lama form ini); WAHA tak terjangkau →
+tersimpan + peringatan "belum terverifikasi". Status verifikasi ikut ke audit.
+
+Belum terverifikasi terhadap WAHA sungguhan (proxy kontainer memblokir host
+luar) — pola respons engine diambil dari dokumentasi & bentuk yang sudah
+ditangani kode lama; uji nyata harus di Railway.
+
+Verifikasi: unit 619 ✓ (16 kasus baru: skema default URL internal/publik,
+terjemahan error store/sesi/API-key, parser grup lintas engine WEBJS/NOWEB/GOWS/
+peta-JID) · typecheck ✓ · lint ✓.

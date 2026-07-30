@@ -21,3 +21,15 @@ export function locationRelScopeWhere(user: SessionUser, locIds: string[] | null
     ? { location: { package: { orgId: user.orgId } } }
     : { locationId: { in: locIds } };
 }
+
+/**
+ * Filter Prisma untuk `Package` sesuai scope user. Role ter-scope hanya
+ * melihat paket yang memuat MINIMAL SATU lokasi penugasannya — paket yang
+ * tidak ditugaskan tidak boleh muncul (laporan user 2026-07-30). Role lintas
+ * lokasi melihat semua paket ORGANISASI-nya (bukan semua tenant).
+ */
+export function packageScopeWhere(user: SessionUser, locIds: string[] | null) {
+  return locIds === null
+    ? { orgId: user.orgId }
+    : { orgId: user.orgId, locations: { some: { id: { in: locIds } } } };
+}

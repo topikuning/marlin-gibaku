@@ -1,6 +1,8 @@
 import "server-only";
 import { cache } from "react";
 import { db } from "@/lib/db";
+import { accessibleLocationIds, requireUser, type SessionUser } from "@/lib/auth/session";
+import { packageScopeWhere } from "@/lib/auth/scope";
 import type { PackageStage } from "@/generated/prisma/enums";
 
 /**
@@ -36,11 +38,18 @@ export const BERKONTRAK_STAGES: PackageStage[] = [
   "selesai",
 ];
 
-export async function listPackages(filter?: PackageListFilter) {
+export async function listPackages(
+  user: SessionUser,
+  scopedLocationIds: string[] | null,
+  filter?: PackageListFilter,
+) {
   return db.package.findMany({
-    where: filter
-      ? { stage: filter === "berkontrak" ? { in: BERKONTRAK_STAGES } : filter }
-      : undefined,
+    where: {
+      ...packageScopeWhere(user, scopedLocationIds),
+      ...(filter
+        ? { stage: filter === "berkontrak" ? { in: BERKONTRAK_STAGES } : filter }
+        : {}),
+    },
     orderBy: { updatedAt: "desc" },
     select: {
       id: true,
@@ -68,14 +77,18 @@ export type PackageStats = {
   totalHps: bigint;
 };
 
-/** KPI ringkas daftar paket. HPS total tidak menghitung paket batal. */
-export async function getPackageStats(): Promise<PackageStats> {
+/** KPI ringkas daftar paket (ter-scope sama dengan daftarnya). HPS total tidak menghitung paket batal. */
+export async function getPackageStats(
+  user: SessionUser,
+  scopedLocationIds: string[] | null,
+): Promise<PackageStats> {
+  const scope = packageScopeWhere(user, scopedLocationIds);
   const [total, tender, berkontrak, hps] = await Promise.all([
-    db.package.count(),
-    db.package.count({ where: { stage: "tender" } }),
-    db.package.count({ where: { stage: { in: BERKONTRAK_STAGES } } }),
+    db.package.count({ where: scope }),
+    db.package.count({ where: { ...scope, stage: "tender" } }),
+    db.package.count({ where: { ...scope, stage: { in: BERKONTRAK_STAGES } } }),
     db.package.aggregate({
-      where: { stage: { not: "batal" } },
+      where: { ...scope, stage: { not: "batal" } },
       _sum: { hpsValue: true },
     }),
   ]);
@@ -85,10 +98,17 @@ export async function getPackageStats(): Promise<PackageStats> {
 /**
  * Workspace paket: header + kontrak (vendor, adendum) + lokasi.
  * Di-cache per request — dipakai layout DAN tab pages tanpa query ganda.
+ *
+ * PENJAGA AKSES di sini, bukan di tiap halaman: sebelumnya siapa pun yang tahu
+ * URL bisa membuka workspace paket mana pun (lintas penugasan, bahkan lintas
+ * organisasi). Return null = halaman menampilkan notFound(), sama seperti
+ * paket yang memang tidak ada — tidak membocorkan bahwa paketnya eksis.
  */
 export const getPackageWorkspace = cache(async (id: string) => {
+  const user = await requireUser();
+  const scoped = await accessibleLocationIds(user);
   return db.package.findUnique({
-    where: { id },
+    where: { id, ...packageScopeWhere(user, scoped) },
     select: {
       id: true,
       name: true,

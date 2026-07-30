@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Card, CardBody, CardHeader, PageHeader } from "@/components/ui";
 import { requireUser, accessibleLocationIds } from "@/lib/auth/session";
+import { locationScopeWhere, packageScopeWhere } from "@/lib/auth/scope";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
 import { UploadForm } from "./upload-form";
@@ -13,9 +14,13 @@ export default async function UploadDokumenPage() {
   requireCapabilityPage(user.role, "document.upload");
   const scoped = await accessibleLocationIds(user);
   const [packages, locations] = await Promise.all([
-    db.package.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    db.package.findMany({
+      where: packageScopeWhere(user, scoped),
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
     db.location.findMany({
-      where: scoped === null ? {} : { id: { in: scoped } },
+      where: locationScopeWhere(user, scoped),
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),
