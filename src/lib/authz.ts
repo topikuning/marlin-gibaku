@@ -37,6 +37,15 @@ export const CAPABILITIES = [
   "document.view",
   "document.upload",
   "document.verify",
+  // Koreksi metadata dokumen (jenis/fase/nomor/tanggal/tautan) — salah unggah
+  // dulu menetap selamanya. DECISIONS 183.
+  "document.edit",
+  // Batalkan / pulihkan dokumen: hilang dari daftar & tidak lagi jadi bukti
+  // milestone, file + jejak audit tetap utuh (reversibel).
+  "document.void",
+  // Hapus permanen (file R2 + baris DB) — super_admin SAJA, dan hanya untuk
+  // dokumen yang sudah dibatalkan.
+  "document.delete",
   "compliance.manage",
   "report.export",
   "exec_report.send", // kirim laporan eksekutif (rangkuman AI) ke WA — site_manager ke atas
@@ -72,13 +81,15 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
     // wa.configure (set grup WhatsApp paket) sementara khusus super_admin juga.
     // daily_report.unfinalize = membuka laporan yang sudah final, super_admin saja.
     // contact.view_all = melihat kontak milik akun lain, super_admin saja.
+    // document.delete = hapus permanen dokumen, super_admin saja (batalkan cukup).
     CAPABILITIES.filter(
       (c) =>
         c !== "system.manage" &&
         c !== "contract.edit" &&
         c !== "wa.configure" &&
         c !== "daily_report.unfinalize" &&
-        c !== "contact.view_all",
+        c !== "contact.view_all" &&
+        c !== "document.delete",
     ),
   ),
   regional_manager: new Set<Capability>([
@@ -94,6 +105,8 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
     "exec_report.send",
     "document.upload",
     "document.verify",
+    "document.edit",
+    "document.void",
     "compliance.manage",
     "report.export",
     "ai.view",
@@ -119,6 +132,8 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
     "finance.input",
     "document.upload",
     "document.verify",
+    "document.edit",
+    "document.void",
     "compliance.manage",
     "report.export",
     "user.create", // bikin Site Manager & Pelaksana di bawahnya

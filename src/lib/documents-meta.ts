@@ -66,6 +66,46 @@ export const TYPE_LABEL: Record<DocumentType, string> = {
   lainnya: "Lainnya",
 };
 
+/**
+ * Istilah PENDEK jenis dokumen — dipakai membentuk nama tampilan otomatis
+ * (`documentDisplayName`). TYPE_LABEL terlalu panjang untuk dirangkai dengan
+ * nama desa + tanggal + nomor; label panjang tetap dipakai di dropdown & pill.
+ */
+export const TYPE_SHORT: Record<DocumentType, string> = {
+  undangan: "Undangan",
+  ba_penjelasan: "BA Aanwijzing",
+  penawaran: "Penawaran",
+  ba_evaluasi: "BA Evaluasi",
+  ba_klarifikasi: "BA Klarifikasi",
+  ba_negosiasi: "BA Negosiasi",
+  penetapan_pemenang: "Penetapan Pemenang",
+  sanggah: "Sanggah",
+  sppbj: "SPPBJ",
+  kontrak: "Kontrak",
+  jaminan: "Jaminan",
+  spmk: "SPMK",
+  ba_serah_terima_lapangan: "BA Serah Terima Lapangan",
+  pcm: "PCM",
+  mc0: "MC-0",
+  laporan: "Laporan",
+  mc_berkala: "MC Berkala",
+  adendum: "Adendum",
+  surat_kendala: "Surat Kendala",
+  surat_peringatan: "Surat Peringatan",
+  bast_pho: "BAST-1 (PHO)",
+  bast_fho: "BAST-2 (FHO)",
+  ba_pembayaran: "BA Pembayaran",
+  invoice: "Invoice",
+  faktur_pajak: "Faktur Pajak",
+  hps: "HPS",
+  ded: "DED",
+  rks: "RKS",
+  smkk: "SMKK",
+  shop_drawing: "Shop Drawing",
+  as_built: "As Built",
+  lainnya: "Dokumen",
+};
+
 export const ALL_PHASES = Object.keys(PHASE_LABEL) as AdminPhase[];
 export const ALL_DOC_TYPES = Object.keys(TYPE_LABEL) as DocumentType[];
 

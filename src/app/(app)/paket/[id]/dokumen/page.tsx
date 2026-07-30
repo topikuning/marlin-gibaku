@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
+import { documentDisplayNames } from "@/lib/document-label";
 import { formatTanggal } from "@/lib/format";
 import { getPackageWorkspace } from "@/lib/package/queries";
 import { ensureMilestones } from "@/lib/milestones/actions";
@@ -85,8 +86,10 @@ export default async function DokumenPaketPage({
     }),
   ]);
 
+  // Dokumen yang DIBATALKAN tidak ikut: ia bukan berkas resmi lagi & tidak
+  // dihitung sebagai bukti kepatuhan (DECISIONS 183).
   const documents = await db.document.findMany({
-    where: { packageId: pkg.id },
+    where: { packageId: pkg.id, status: "aktif" },
     orderBy: { uploadedAt: "desc" },
     select: {
       id: true,
@@ -97,8 +100,13 @@ export default async function DokumenPaketPage({
       docDate: true,
       fileName: true,
       uploadedAt: true,
+      locationId: true,
+      location: { select: { name: true } },
     },
   });
+  const docLabels = documentDisplayNames(
+    documents.map((d) => ({ ...d, packageId: pkg.id, packageName: pkg.name, locationName: d.location?.name ?? null })),
+  );
 
   const byPhase = new Map<AdminPhase, typeof documents>();
   for (const doc of documents) {
@@ -162,6 +170,29 @@ export default async function DokumenPaketPage({
         </CollapsibleCard>
       ) : null}
 
+      {canUpload ? (
+        <Card>
+          <CardHeader
+            title="Impor dari folder Google Drive KKP"
+            subtitle="Berkas yang sudah ada di folder KKP (kontrak, SPMK, BA PCM, MC-0, berkas termin) bisa ditarik masuk: MARLIN membaca folder itu, menebak jenis & desanya, lalu menyalin yang Anda setujui."
+          />
+          <CardBody>
+            <Link
+              href={`/dokumen/impor?paket=${pkg.id}`}
+              className="inline-block rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-surface-2"
+            >
+              Buka impor dari Drive
+            </Link>
+            {!pkg.driveFolderId ? (
+              <p className="mt-2 text-xs text-ink-muted">
+                Paket ini belum punya ID folder Google Drive — isi dulu di halaman paket, baru impor
+                bisa membaca folder KKP-nya.
+              </p>
+            ) : null}
+          </CardBody>
+        </Card>
+      ) : null}
+
       <Card>
         <CardHeader
           title="Dokumen paket"
@@ -197,18 +228,25 @@ export default async function DokumenPaketPage({
                         className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"
                       >
                         <div className="min-w-0">
-                          <a
-                            href={`/api/documents/${doc.id}`}
-                            target="_blank"
-                            rel="noopener"
+                          <Link
+                            href={`/dokumen/${doc.id}`}
                             className="font-medium text-ink hover:text-primary hover:underline"
                           >
-                            {doc.title}
-                          </a>
+                            {docLabels.get(doc.id)?.name ?? doc.title}
+                          </Link>
                           <p className="text-xs text-ink-muted">
-                            {doc.fileName}
-                            {doc.docNumber ? ` · No. ${doc.docNumber}` : ""}
-                            {doc.docDate ? ` · ${formatTanggal(doc.docDate)}` : ""}
+                            {docLabels.get(doc.id)?.secondary
+                              ? `${docLabels.get(doc.id)!.secondary} · `
+                              : ""}
+                            <a
+                              href={`/api/documents/${doc.id}`}
+                              target="_blank"
+                              rel="noopener"
+                              className="text-primary hover:underline"
+                            >
+                              buka berkas
+                            </a>
+                            {` · ${doc.fileName}`}
                           </p>
                         </div>
                         <div className="flex shrink-0 items-center gap-2">

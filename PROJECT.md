@@ -28,6 +28,13 @@ diklik sampai data pembentuknya; mobile lapangan ringan; desktop manajemen padat
 - **AdminMilestone**: `belum_dimulai / berjalan / menunggu_pihak_lain / perlu_perbaikan /
   selesai / tidak_berlaku` (+ derived `terlambat`). Milestone `requiresVerification`
   tidak bisa selesai hanya karena upload dokumen.
+- **Document**: `aktif → dibatalkan → (pulihkan) aktif`; hapus permanen (super_admin)
+  hanya dari `dibatalkan`. Dokumen `dibatalkan` hilang dari daftar & TIDAK dihitung
+  sebagai bukti milestone; bila tak ada bukti aktif lain, milestone yang selesai
+  karenanya dikembalikan — kecuali sudah diverifikasi manusia (DECISIONS 183).
+  Nama tampilan dokumen DITURUNKAN dari data (`src/lib/document-label.ts`), bukan
+  dari judul yang diketik. Asal berkas: `unggahan` atau `drive_kkp` (impor dari
+  folder Drive KKP, isi disalin ke R2 — DECISIONS 184).
 - **Transaksi keuangan**: `draft/diajukan → disetujui|ditolak → (dibayar_sebagian → lunas)`.
 - Mesin transisi: `src/lib/lifecycle.ts` — satu-satunya tempat aturan transisi + label + tone.
 

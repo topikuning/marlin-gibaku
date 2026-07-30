@@ -358,7 +358,7 @@ async function syncComplianceFromDocuments(packageId: string): Promise<{ linked:
   await ensureMilestones(packageId);
 
   const orphans = await db.document.findMany({
-    where: { packageId, milestoneId: null },
+    where: { packageId, milestoneId: null, status: "aktif" },
     orderBy: { uploadedAt: "asc" },
     select: { id: true, type: true, locationId: true, title: true },
   });

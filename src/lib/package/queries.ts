@@ -137,6 +137,7 @@ export const getPackageWorkspace = cache(async (id: string) => {
               reason: true,
               createdAt: true,
               documents: {
+                where: { status: "aktif" },
                 orderBy: { uploadedAt: "asc" },
                 select: { id: true, title: true },
               },

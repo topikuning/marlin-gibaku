@@ -4719,3 +4719,123 @@ instruksi per-jenis tidak bisa dikosongkan lagi, tiap template Report Studio
 memuatnya) · integration 98 ✓ (PostgreSQL 16 lokal) · typecheck ✓ · lint ✓.
 Catatan: 2 uji render PDF sempat gagal saat suite penuh jalan paralel
 (fontconfig) dan lulus saat dijalankan sendiri — bukan akibat perubahan ini.
+
+## 183 — Dokumen bisa dikoreksi & dibatalkan; namanya diturunkan dari data (2026-07-30)
+
+**Masalah (dilaporkan user).** Tiga keluhan tentang Document Center:
+
+1. Nama dokumen di daftar **tidak bisa dibedakan**. Judul diisi manusia
+   ("scan", "IMG_0231", "dokumen", "SPMK") dan satu berkas KKP sering discan
+   terpisah per lembar, jadi daftar berisi baris kembar tanpa penanda.
+2. Dokumen **tidak bisa dihapus atau diedit sama sekali**. Salah unggah (salah
+   lokasi, salah jenis, file keliru) menetap selamanya — dan lebih buruk: tetap
+   dihitung sebagai bukti milestone administrasi, sehingga panel kepatuhan
+   melaporkan "selesai" atas berkas yang salah.
+
+**Keputusan.**
+
+1. **Nama tampilan diturunkan dari data**, bukan dari judul yang diketik
+   (`src/lib/document-label.ts`, modul MURNI):
+   `istilah jenis · desa/paket · tanggal · No. nomor` + `(berkas i/n)` bila ada
+   beberapa berkas sejenis pada konteks yang sama. Grup = jenis + lokasi/paket +
+   nomor + tanggal; urutan mengikuti waktu unggah (naik) sehingga **nomor berkas
+   lama tidak bergeser** saat berkas baru masuk. Istilah pendek per jenis
+   (`TYPE_SHORT`) dipisah dari label panjang yang tetap dipakai dropdown & pill.
+   Judul yang diketik **tidak dibuang**: turun jadi keterangan sekunder, dan
+   disembunyikan bila mubazir (mengulang jenis, sudah termuat di nama, atau
+   asal-asalan seperti "scan"/"IMG_0231").
+2. **Koreksi metadata** (`document.edit`): jenis, fase, nomor, tanggal,
+   kadaluarsa, keterangan, judul. **Isi berkas tidak pernah ditukar diam-diam** —
+   berkas keliru dibatalkan lalu diunggah ulang (jalur `supersedesId` sudah ada).
+   Kombinasi fase × jenis TIDAK divalidasi di sini: jalur upload pun tidak
+   memvalidasinya, jadi validasi saat koreksi justru mengunci dokumen lama pada
+   kombinasi keliru yang mau dibetulkan.
+3. **BATALKAN** (`document.void`, wajib alasan ≥5 karakter) — bukan hapus:
+   dokumen hilang dari daftar, tidak bisa diunduh oleh pengguna biasa, tidak
+   dikirim ke Drive KKP, dan **tidak lagi dihitung sebagai bukti milestone**;
+   file R2 + baris DB + audit tetap utuh dan bisa **dipulihkan**.
+4. **Efek kepatuhan ikut turun.** Bila tidak ada bukti aktif lain, milestone yang
+   `selesai`/`berjalan` karena dokumen itu dikembalikan ke `belum_dimulai`
+   (`completedAt` dikosongkan). **Pengecualian:** milestone yang sudah
+   diverifikasi manusia (`verifiedById`) TIDAK diturunkan otomatis — keputusan
+   orang tidak dibatalkan oleh efek samping; ia ditandai "perlu ditinjau" di
+   catatan + audit. Memulihkan dokumen **tidak** menghidupkan milestone kembali;
+   penilaian kepatuhan tetap keputusan manusia.
+5. **HAPUS PERMANEN** (`document.delete`) — **super_admin saja**, tidak dimiliki
+   program_director. Hanya atas dokumen yang **sudah dibatalkan**, ditolak bila
+   masih diacu revisi RAB / bukti pengeluaran / dokumen versi penerus, dan butuh
+   ketik ulang "HAPUS PERMANEN". Urutan: baris DB dulu (dalam transaksi bersama
+   auditnya), lalu file R2 — bila hapus R2 gagal yang tertinggal cuma file tanpa
+   acuan, bukan baris yang menunjuk file hilang.
+6. Dedup sha256 hanya berlaku atas dokumen **aktif**: berkas yang pernah
+   dibatalkan boleh diunggah ulang — itu justru jalur koreksi salah unggah.
+7. Semua mutasi memakai `auditIn` di dalam transaksi yang sama (AUDIT-01):
+   tidak ada perubahan status dokumen tanpa jejaknya.
+
+**Jangkauan.** Daftar dokumen (`/dokumen`, lokasi, paket), panel milestone,
+`gdrive/coverage`, upload ke Drive, dan penautan milestone otomatis semuanya
+memfilter `status = aktif`. Halaman baru `/dokumen/[id]` memuat metadata lengkap,
+asal berkas, koreksi, dan zona bahaya.
+
+Verifikasi: unit 560 ✓ (15 kasus baru penamaan) · integration 18 kasus baru ✓
+dijalankan di PostgreSQL 16 lokal (koreksi hanya kolom berubah, gerbang
+capability tiap role, milestone turun/dipertahankan, tolak buang bukti
+pengeluaran & sumber RAB, hapus permanen + file R2, jejak audit) · migrasi
+idempoten dijalankan dua kali ✓ · typecheck ✓ · lint ✓.
+
+## 184 — Impor dokumen dari folder Google Drive KKP (2026-07-30)
+
+**Masalah (dilaporkan user).** Integrasi Drive baru satu arah: MARLIN bisa
+MENGIRIM laporan/foto/dokumen ke folder KKP, tapi berkas yang **sudah ada** di
+folder KKP (kontrak, SPMK, BA PCM, MC-0, berkas termin — sering diunggah pihak
+lain) tidak bisa ditarik masuk. Akibatnya arsip MARLIN separuh kosong dan orang
+harus mengunduh-lalu-mengunggah manual satu per satu.
+
+**Keputusan.**
+
+1. **Disalin, bukan ditautkan.** Isi berkas diunduh dan disimpan ke R2 seperti
+   upload biasa; `driveFileId`, `driveWebLink`, `drivePath`, `driveModifiedAt`
+   disimpan sebagai jejak asal (`source = drive_kkp`). Alasan: kalau hanya
+   ditautkan, arsip MARLIN ikut hilang begitu KKP memindah/menghapus file atau
+   mencabut akses akun — dan angka/laporan yang menunjuk bukti itu jadi
+   menggantung. Konsekuensinya diterima: dua salinan, dan perubahan isi file di
+   Drive TIDAK ikut tersalin otomatis (impor ulang = dokumen baru, karena
+   `driveFileId` unik per organisasi).
+2. **Dua langkah dengan mata manusia di tengah.** `previewDriveImport` membaca
+   folder (maks 4 lapis, 500 berkas — batas dilaporkan ke UI bila tercapai) lalu
+   mengusulkan jenis/fase/desa/tanggal per berkas; `commitDriveImport` hanya
+   mengimpor yang dicentang, maks 40 berkas per tekan. Tidak ada sinkronisasi
+   otomatis: klasifikasi ini tebakan, dan yang masuk arsip resmi harus disetujui.
+3. **Pembacaan folder dipicu tombol**, bukan saat halaman dibuka (sejalan
+   DECISIONS 176) — satu kali baca bisa puluhan panggilan jaringan.
+4. **Klasifikasi murni & teruji** (`src/lib/gdrive/classify.ts`): nama berkas
+   menang atas folder (folder "1. SPPBJ, SPK, SPMK, RAB, DED" memuat lima jenis),
+   folder KKP jadi cadangan, keyakinan `tinggi/sedang/rendah` + alasan
+   ditampilkan. Desa dicocokkan sebagai KATA UTUH (biar "Pesisir" tidak menyambar
+   "Pesisirwetan"), folder didahulukan atas nama berkas, nama terpanjang menang.
+   Tanggal diambil hanya dari tiga bentuk yang jelas — tanggal salah lebih
+   merugikan daripada tanggal kosong karena ikut membentuk nama tampilan.
+5. **Yang tidak diimpor:** folder `6. DOKUMENTASI` dan berkas foto kamera
+   (`IMG_…`) — foto lapangan punya modul sendiri yang berstempel; menariknya ke
+   Document Center hanya menggandakan arsip. Juga: mime tak didukung, ukuran di
+   atas 25 MB, dan berkas yang `driveFileId`-nya sudah pernah diimpor.
+6. **Dokumen native Google diekspor** (Docs/Slides → PDF, Sheets → XLSX) dengan
+   ekstensi nama ikut disesuaikan; jenis native lain (Form, Drawing) dilewati.
+7. **Commit tidak memercayai browser:** metadata tiap berkas dibaca ULANG dari
+   Drive, jenis divalidasi enum, lokasi wajib milik paket itu DAN dalam scope
+   penugasan pengimpor. Impor memakai `uploadDocument` yang sama, jadi seluruh
+   penjaga lama tetap jalan: capability, akses lokasi, dedup sha256, penautan
+   milestone otomatis, audit.
+8. **Kegagalan per baris**, bukan per batch: satu berkas hilang/rusak tidak
+   menjatuhkan yang lain; hasilnya dilaporkan berkas-demi-berkas.
+
+**Belum terverifikasi.** Panggilan sungguhan ke `googleapis.com` tidak bisa
+dijalankan dari kontainer kerja (proxy memblokir host luar) — yang teruji adalah
+aturan impornya dengan klien Drive di-mock. Verifikasi terhadap folder KKP nyata
+(termasuk kecocokan nama folder & pola penamaan berkas di lapangan) harus
+dilakukan di Railway; angka "tebakan benar" pada korpus nyata belum diukur.
+
+Verifikasi: unit 603 ✓ (43 kasus klasifikasi/pencocokan desa/tanggal) ·
+integration 132 ✓ di PostgreSQL 16 lokal (16 kasus impor: pratinjau menandai
+sudah-ada & dilewati, scope role, validasi lokasi lintas paket, dedup checksum,
+native export, gagal per baris, audit) · typecheck ✓ · lint ✓ · build ✓.
