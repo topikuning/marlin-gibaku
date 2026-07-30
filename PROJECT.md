@@ -125,15 +125,31 @@ sourceRef + klaim angka, bagian gagal dibuang jadi limitation. In-process (tanpa
 service/Redis/MCP/agent framework); guard AppSetting: kill switch + rate limit +
 batas ukuran; API key provider terenkripsi AES-256-GCM (`AI_SECRET_ENCRYPTION_KEY`).
 
+**Prompt semua aksi AI** diatur di Sistem → Prompt AI (registri
+`src/lib/ai/prompt-registry.ts`, override AppSetting `ai.prompt.*`). Frasa
+pengaman anti-mengarang per slot tidak bisa dihapus lewat halaman itu
+(DECISIONS 180).
+
 ## 6. Alur harian (jantung sistem)
 
 Mandor/SM buka **Hari Ini** → workspace tanggal `/lokasi/[slug]/harian/[date]` →
 pilih item RAB (sisa volume tampil) → isi volume + foto (kompresi + EXIF + stamp,
 dedup sha256) + kendala → kirim. SM verifikasi di layar yang sama: kembalikan
 (alasan wajib) atau lengkapi KKP (tenaga/material/alat/cuaca/jam) → setujui →
-final (snapshot) → cetak KKP harian. Integritas: uniq(lokasi,tanggal) +
+final (snapshot) → cetak KKP harian. **Cuaca**: blanko minta kondisi PER JAM
+(07–21). Tombol "Ambil cuaca otomatis" mengisinya dari koordinat lokasi (jam
+yang sudah lewat, bukan prakiraan — DECISIONS 176); isian manual lapangan
+selalu menang dan tak pernah ditimpa otomatis; angin kencang & banjir hanya
+dari pengamatan. Integritas: uniq(lokasi,tanggal) +
 uniq(report,lineage) di DB; kumulatif ≤ volume RAB; revisi tidak dihitung dobel;
 draft volume tersimpan lokal (localStorage) sampai submit sukses.
+
+**Kegiatan lapangan**: teks bebas diisi tanpa gangguan; saat **Finalkan**
+muncul pilihan "Rapikan bahasa" / "Bahasa teknis" / "Finalkan apa adanya".
+Perapian memanggil AI sekali untuk seluruh teks bebas, menampilkan asli vs
+usulan per bagian dengan centang masing-masing, dan hanya menyimpan yang
+dicentang. Usulan yang menambah/membuang angka atau melar dari teks asli
+ditolak penjaga deterministik per bagian (DECISIONS 178/179).
 
 ## 7. Keuangan
 

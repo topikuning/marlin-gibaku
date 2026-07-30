@@ -39,6 +39,20 @@ export const WORKER_ROLE_LABEL: Record<WorkerRole, string> = {
   operator: "Operator",
 };
 
+/**
+ * Pemilih cuaca MANUAL (6 radio) di form pelengkap KKP.
+ *
+ * Dimatikan 29 Juli 2026 (DECISIONS 177) setelah pengambilan otomatis per jam
+ * berjalan: isian sehari-penuh itu tidak lagi dibutuhkan dan hanya menambah
+ * pekerjaan orang lapangan. Jalur backend-nya SENGAJA dipertahankan utuh —
+ * cukup ubah nilai ini ke `true` untuk memunculkannya lagi tanpa perubahan lain.
+ *
+ * Konsekuensi selama mati: `angin_kencang` dan `banjir` tidak punya jalur input
+ * (keduanya memang tidak pernah dihasilkan otomatis). Kejadian seperti itu
+ * dicatat lewat kendala/catatan laporan.
+ */
+export const SHOW_MANUAL_WEATHER_PICKER = false;
+
 export const WEATHER_ORDER: WeatherCode[] = [
   "cerah",
   "berawan",

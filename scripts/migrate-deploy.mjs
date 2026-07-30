@@ -65,8 +65,15 @@ export function alasanTidakIdempoten(sqlMentah) {
   for (const m of sql.matchAll(/ADD\s+COLUMN\s+(?!IF\s+NOT\s+EXISTS)"?([\w]+)"?/gi)) {
     alasan.push(`ADD COLUMN "${m[1]}" tanpa IF NOT EXISTS`);
   }
-  for (const m of sql.matchAll(/CREATE\s+TYPE\s+"?([\w]+)"?/gi)) {
-    alasan.push(`CREATE TYPE "${m[1]}" tidak bisa diulang`);
+  // CREATE TYPE tidak punya bentuk IF NOT EXISTS di PostgreSQL. Satu-satunya
+  // cara aman menambah enum adalah membungkusnya dalam blok DO yang memeriksa
+  // pg_type lebih dulu — bentuk itu MEMANG aman dijalankan ulang, jadi bukan
+  // pelanggaran. CREATE TYPE telanjang tetap ditolak (DECISIONS 176).
+  const sqlTanpaTypeBerpenjaga = sql.replace(/DO\s*\$\$[\s\S]*?\$\$/gi, (blok) =>
+    /pg_type/i.test(blok) && /IF\s+NOT\s+EXISTS/i.test(blok) ? " " : blok,
+  );
+  for (const m of sqlTanpaTypeBerpenjaga.matchAll(/CREATE\s+TYPE\s+"?([\w]+)"?/gi)) {
+    alasan.push(`CREATE TYPE "${m[1]}" tanpa penjaga pg_type (tidak bisa diulang)`);
   }
   return alasan;
 }

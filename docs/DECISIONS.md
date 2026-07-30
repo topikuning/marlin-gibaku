@@ -4333,3 +4333,389 @@ aturan DECISIONS 094/115 (SEMUA dropdown filterable).
 - Verifikasi: typecheck ✓ · lint ✓ · unit 470 ✓ (rab-xlsx 5). Integrasi tidak
   jalan di kontainer ini (tanpa Postgres) — perubahan murni presentasi/UI,
   service adendum tak disentuh.
+
+## 175 · 2026-07-29 · Impor RAB: kolom NEGOSIASI gagal terdeteksi pada 2 varian header (nilai kontrak terbaca = pagu HPS)
+
+User melaporkan parser "selalu ambil harga HPS atau penawaran, bukan
+negosiasi". Benar, dan dampaknya uang: nilai kontrak terimpor sebesar PAGU.
+
+**Diagnosis (diukur pada 3 file Lampiran Negosiasi nyata + 1 file HPS murni).**
+`detectColumns` lama hanya mengenali dua bentuk header. Korpus nyata memuat
+setidaknya lima; dua di antaranya lolos ke fallback posisi klasik G/H = HPS:
+
+- **(d) Kedungrejo** — baris grup `HPS | PENAWARAN | NEGOSIASI` ada, tetapi
+  sub-headernya `HPS | TOTAL HPS | HARGA PENAWARAN | TOTAL PENAWARAN |
+  HARGA NEGOSIASI | TOTAL NEGOSIASI`. Deteksi lama menuntut kata harfiah
+  "HARGA SATUAN" di baris bawah untuk mengaktifkan mode 2-baris; karena tak
+  ada, ia jatuh ke mode 1-baris, lalu `isPriceHeader("NEGOSIASI")` gagal
+  (tak memuat "HARGA"/"NILAI") → G/H (HPS).
+- **(e) Pesisir** — label blok ada di **baris 1**, header utama (VOL/SAT +
+  tiga pasang `HARGA SATUAN`/`JUMLAH HARGA`) baru di baris 9. Deteksi lama
+  hanya melihat header utama + 1 baris di bawahnya → mengambil pasangan
+  PERTAMA (= HPS).
+
+Selisih terukur (total kategori, baris hidden dikecualikan spt biasa):
+
+| File | Terbaca SEBELUM (HPS) | Seharusnya (nego) | Selisih |
+|---|---|---|---|
+| Kedungrejo | 2.621.552.025 | 2.505.445.677 | −116.106.348 (−4,4%) |
+| Pesisir | 3.893.781.159 | 3.723.269.226 | −170.511.933 (−4,4%) |
+| Asemdoyong (varian (c), sudah benar) | 3.232.956.644 | 3.232.956.644 | 0 |
+| HPS murni Kedungrejo Bwi (kontrol) | 4.102.114.218 | 4.102.114.218 | 0 |
+
+**Keputusan.** Deteksi kolom tidak lagi bergantung pada frasa header tertentu:
+
+1. Cari baris GRUP di mana pun pada/di atas header utama yang memuat ≥2 label
+   blok (`HPS|PENAWAR|NEGO`) di kolom nilai (≥5). Ambang ≥2 mencegah kata
+   "HPS" di judul dokumen dianggap baris grup.
+2. Rentang kolom tiap blok = label blok non-kosong terdekat di kiri (merge
+   left-anchored).
+3. Peran kolom dari gabungan label header utama + sub-header:
+   `TOTAL|JUMLAH` → kolom jumlah; `HARGA|NILAI|SATUAN` → harga satuan
+   (kolom rasio TKDN/KDN/BOBOT/%/TIMPANG dikecualikan). Cek TOTAL dulu supaya
+   "JUMLAH HARGA" tak salah dibaca sebagai harga satuan.
+4. Prioritas nilai kontrak tetap **NEGOSIASI > PENAWARAN > HPS** (HPS = pagu,
+   tak pernah jadi nilai kontrak). Tanpa baris grup → jalur lama; tanpa header
+   sama sekali → posisi klasik G/H/I.
+5. Sub-header dikenali dari ≥2 label bernuansa nilai — TIDAK menuntut frasa
+   "HARGA SATUAN".
+
+**Jaring pengaman + transparansi** (protokol integritas angka: jangan
+mengandalkan build hijau):
+
+- Cek-silang data: bila >30% baris berharga gagal `volume × harga satuan =
+  jumlah` (min. 20 sampel), pratinjau memberi PERINGATAN kolom mungkin salah.
+  Parser TIDAK diam-diam mengoreksi angka.
+- `parseHpsBuffer` kini mengembalikan `priceColumn` (`source` + label
+  "NEGOSIASI (kolom K/L)"), ditampilkan di pratinjau impor sebelum commit —
+  supaya salah-kolom ketahuan mata, bukan setelah kontrak jalan.
+
+**Dampak data lama.** Lokasi yang RAB-nya diimpor dari file varian (d)/(e)
+sebelum perbaikan ini menyimpan harga PAGU. Perbaikan parser tidak menyentuh
+data tersimpan — lokasi terdampak wajib impor ulang file negosiasinya
+(jalur impor biasa; bila kontrak sudah SPMK ini menjadi adendum, DECISIONS 118).
+
+Verifikasi: unit hps-parser 26 kasus (termasuk fixture varian (d) & (e), file
+HPS murni, dan dua kasus cek-silang) · typecheck ✓ · lint ✓ · unit 471 ✓ ·
+dijalankan pada 4 file Excel nyata (angka di tabel atas).
+
+## 176 · 2026-07-29 · Cuaca laporan harian: kondisi PER JAM dari koordinat lokasi (bukan satu kategori sehari)
+
+Usul user: cuaca di laporan harian diambil dari layanan cuaca berdasar
+koordinat lokasi. Pemeriksaan format yang berjalan menemukan masalah yang
+lebih besar dari sekadar "belum otomatis":
+
+- Input: SATU radio 6 pilihan → `DailyReport.weather`, satu nilai sehari penuh.
+- Blanko KKP: tabel "Kondisi Cuaca" dengan **15 kolom jam (07.00–21.00)** dan 3
+  baris kategori (Cerah/Mendung/Hujan), diisi
+  `d.activeWeather === cat ? "✓" : ""` — satu kategori dicentang RATA di kelima
+  belas kolom. Hujan sejam sore tercetak identik dengan hujan seharian.
+
+**Sumber data.** User mengoreksi arah pemilihan sumber: laporan harian diisi di
+UJUNG hari, jadi yang dibutuhkan jam-jam yang SUDAH terjadi. BMKG publik
+(prakiraan per wilayah desa, granularitas 3 jam, terbit pagi hari) tidak cocok
+mengisi kolom jam lampau. Dipakai **Open-Meteo** endpoint `forecast` dengan
+`past_days` — per jam, per koordinat, analisis (observasi + model). Arsip ERA5
+tidak dipakai karena tertinggal beberapa hari sehingga tak berguna untuk hari
+berjalan. Base URL bisa ditimpa `WEATHER_API_URL` (mirror/langganan bila
+lisensi komersial menuntutnya — BELUM diverifikasi, lihat "sisa risiko").
+
+**Keputusan.**
+
+1. `DailyReport.weatherHourly` (Json) menyimpan kondisi per jam 07–21;
+   `weather` (satu nilai) tetap ada sebagai ringkasan untuk ekspor/AI/WhatsApp.
+2. `WeatherObservation` = cache per (lokasi, tanggal), 83 lokasi × 1 panggilan
+   per hari. Jam hujan & curah total **diturunkan**, tidak disimpan (aturan
+   agregat derived).
+3. **Pengamatan lapangan menang.** `weatherSource` = `manual` begitu orang
+   lapangan memilih cuaca; pengambilan otomatis menolak menimpanya kecuali
+   tombol ditekan sadar (`overwriteManual`). Memilih manual yang TIDAK sepadan
+   dengan deret otomatis membuang deret itu — blanko tak boleh bercerita dua
+   versi.
+4. `angin_kencang` dan `banjir` TIDAK PERNAH dihasilkan otomatis — kejadian
+   lokal yang hanya sah dari pengamatan.
+5. Pengambilan dipicu TOMBOL, bukan diam-diam saat halaman dibuka: laporan
+   lapangan tidak boleh menunggu jaringan, dan asal angka harus terlihat.
+   Form menampilkan pita 07–21 supaya bisa dibandingkan dengan kenyataan.
+6. Laporan `disetujui`/`final` tidak bisa diubah cuacanya; snapshot final ikut
+   membekukan deret per jam.
+7. Cetak (React + PDF) mencentang per jam bila ada datanya; tanpa data jatuh ke
+   perilaku lama (satu kategori) — bukan regresi bagi laporan lama.
+
+**Perubahan penjaga deploy.** `alasanTidakIdempoten` (DECISIONS 167) menolak
+SEMUA `CREATE TYPE`. PostgreSQL memang tak punya `CREATE TYPE IF NOT EXISTS`,
+tapi blok `DO $$ … IF NOT EXISTS (SELECT 1 FROM pg_type …) $$` benar-benar aman
+diulang. Detektor diajari bentuk itu; `CREATE TYPE` telanjang dan blok DO tanpa
+penjaga pg_type tetap ditolak (3 unit test baru). Migrasi diuji dijalankan DUA
+KALI di PostgreSQL 16 sungguhan — sukses keduanya.
+
+**Sisa risiko (belum terverifikasi, wajib dicek saat deploy).**
+
+- Panggilan nyata ke Open-Meteo TIDAK bisa diuji dari kontainer kerja (proxy
+  memblokir host luar, 403). Yang teruji adalah aturan & pemetaannya; penyedia
+  di-mock di test integrasi. Verifikasi panggilan sungguhan dilakukan di
+  Railway.
+- Lisensi Open-Meteo untuk pemakaian komersial belum dipastikan.
+- Berapa dari 83 lokasi yang koordinatnya kosong belum dihitung; lokasi tanpa
+  koordinat ditolak dengan pesan yang menyuruh mengisi koordinat dulu.
+
+Verifikasi: unit 489 ✓ (14 kasus cuaca + 3 kasus penjaga migrasi) · integrasi
+88 ✓ di PostgreSQL 16 lokal (7 kasus cuaca: cache, manual menang, laporan
+terkunci, lokasi tanpa koordinat) · typecheck ✓ · lint ✓ · build ✓.
+
+## 177 · 2026-07-29 · Pemilih cuaca MANUAL dimatikan (bisa dihidupkan lagi) + penegasan: cuaca mengikuti TANGGAL LAPORAN
+
+Keputusan user setelah cuaca otomatis per jam berjalan: enam radio cuaca di
+form pelengkap KKP tidak lagi dibutuhkan — hilangkan dulu, tapi tetap bisa
+dipakai lagi bila suatu saat perlu.
+
+- `SHOW_MANUAL_WEATHER_PICKER = false` di `daily-report/constants.ts`. Jalur
+  backend (enum, action, service, snapshot) SENGAJA utuh: ubah satu boolean
+  itu ke `true` dan pemilih manual muncul lagi tanpa perubahan lain.
+- **Bug yang dicegah sekalian**: kalau form tidak lagi mengirim field
+  `weather`, penanganan lama (`formData.get("weather") || null`) membacanya
+  sebagai "kosongkan" sehingga cuaca otomatis TERHAPUS setiap kali pelengkap
+  KKP disimpan. `EnrichmentInput.weather` kini membedakan `undefined` (tidak
+  dikirim → jangan sentuh kolom cuaca) dari `null` (dikosongkan sengaja).
+- Konsekuensi yang diterima: selama pemilih mati, `angin_kencang` dan `banjir`
+  tidak punya jalur input (keduanya memang tidak pernah dihasilkan otomatis);
+  kejadian seperti itu dicatat lewat kendala/catatan laporan.
+
+**Penegasan tanggal (pertanyaan user).** Pengambilan memakai `report.reportDate`,
+BUKAN hari ini: `applyWeatherToReport` mengirim `jakartaDateKey(report.reportDate)`
+dan `open-meteo.ts` menghitung `past_days` dari selisih tanggal itu terhadap
+hari ini, lalu menyaring jam yang cocok dengan tanggal tersebut. Laporan yang
+diisi mundur (mis. lupa 3 hari) tetap mendapat kondisi tanggalnya. Batas 60 hari
+ke belakang; tanggal masa depan dan di luar batas ditolak tanpa menembak
+penyedia. Perilaku ini sekarang dikunci `tests/unit/weather-open-meteo.test.ts`
+(6 kasus, `fetch` di-stub). Teks bantuan di form yang sebelumnya berbunyi
+"jam-jam yang sudah lewat hari ini" — menyesatkan — diganti menjadi mengikuti
+TANGGAL laporan.
+
+Verifikasi: unit 495 ✓ · integrasi 90 ✓ di PostgreSQL 16 lokal (2 kasus baru:
+simpan pelengkap tanpa field cuaca tidak menghapus hasil otomatis; `null`
+eksplisit tetap mengosongkan) · typecheck ✓ · lint ✓.
+
+## 178 · 2026-07-29 · "Rapikan dengan AI" untuk teks bebas kegiatan lapangan (usulan, bukan penulisan otomatis)
+
+Permintaan user: teks bebas di kegiatan lapangan dibantu AI supaya laporan
+sistem terbaca formal dan layak dibaca.
+
+**Bentuknya: USULAN dua langkah, bukan penulisan otomatis.** Tombol "Rapikan
+dengan AI" di bawah tiap textarea (catatan, kendala, tindak lanjut — form buat
+dan form edit) memanggil model, lalu menampilkan hasilnya sebagai usulan
+berdampingan dengan teks asli. Menekan "Pakai" hanya mengganti isi kotak;
+penyimpanan tetap lewat tombol simpan form. Tidak ada tulisan lapangan yang
+berubah tanpa persetujuan orang yang menulisnya, dan tidak ada teks yang
+dikirim ke model tanpa tombol ditekan.
+
+**Penjaga anti-karang (inti fitur, `field-activity/rewrite.ts`).** Teks ini ikut
+tercetak ke laporan resmi, jadi hasil model TIDAK dipercaya begitu saja.
+`verifyRewrite` menolak usulan secara deterministik bila:
+
+- memuat **angka yang tidak ada** di teks asli (penyelundupan fakta);
+- **membuang angka** yang ada di teks asli (perapian tidak boleh menghapus data);
+- **melar** melewati 2,2× panjang asli (mengarang paragraf, bukan merapikan);
+- berupa pengantar model ("Berikut versi rapinya…") atau kosong.
+
+Usulan yang gagal penjaga DIBUANG dengan pesan alasannya — bukan ditampilkan
+dengan catatan kecil. Perbandingan angka mengabaikan pemisah ribuan/desimal
+supaya perubahan format ("1.500" → "1500") tidak dianggap fakta baru.
+
+System prompt melarang eksplisit: menambah informasi, mengubah angka/tanggal/
+nama, memperhalus kabar buruk ("Kendala tetap ditulis sebagai kendala"), dan
+membalas dengan pengantar. `cleanRewrite` membuang pembungkus kutip, blok kode,
+dan penanda markdown (blanko KKP dicetak polos), tetapi mempertahankan
+penomoran daftar karena itu isi.
+
+**Batas & jalur aman.** Guard AI Hub (kill-switch + kuota per user/org,
+DECISIONS 133) dipakai ulang supaya fitur ini bukan pintu belakang yang
+melewati batas pemakaian AI. Teks < 12 karakter atau > 2000 karakter ditolak
+sebelum guard & provider dipanggil. AI belum dikonfigurasi → pesan yang
+menunjuk halaman Sistem, provider tidak dipanggil. Otorisasi
+`field_activity.manage` + `requireLocationAccess`; tiap panggilan diaudit
+(`field_activity.rapikan_teks`, mencatat jumlah karakter sebelum/sesudah dan
+model — bukan isi teksnya).
+
+Verifikasi: unit 517 ✓ — 15 kasus penjaga/pembersih/prompt + 7 kasus
+perangkaian layanan (provider & guard di-mock: usulan bersih, penyelundupan
+angka, AI belum diatur, teks pendek, kuota ditolak, hasil identik, provider
+gagal) · typecheck ✓ · lint ✓ · build ✓.
+
+## 179 · 2026-07-29 · Perapian teks kegiatan dipindah ke SAAT FINALISASI (menggantikan pola tombol per-field 178)
+
+Koreksi pola dari user: "polanya user input semua, lalu saat finalkan ada opsi
+rewrite atau membahasa tekniskan". Benar — tombol per-field (DECISIONS 178)
+mengganggu saat mengetik dan memancing bolak-balik di tengah pekerjaan.
+
+**Pola sekarang.** Orang lapangan mengisi seluruh kegiatan tanpa gangguan.
+Tombol **Finalkan** membuka panel dengan tiga pilihan:
+
+1. **Rapikan bahasa** — Indonesia baku yang lugas, kalimat lapangan dirapikan
+   seperlunya;
+2. **Bahasa teknis** — register laporan konstruksi (kalimat pasif, istilah baku
+   pekerjaan sipil, hanya bila padanannya JELAS dari teks asli — tidak menebak);
+3. **Finalkan apa adanya** — jalan tercepat, tanpa AI sama sekali.
+
+Pilihan 1/2 memanggil model SEKALI untuk seluruh teks bebas (catatan, kendala,
+tindak lanjut) memakai penanda bagian `[CATATAN]/[KENDALA]/[TINDAK_LANJUT]`
+yang diurai deterministik — hemat kuota dan gayanya konsisten antarbagian.
+Hasilnya ditampilkan **asli vs usulan berdampingan per bagian**, tiap bagian
+punya centang sendiri; "Pakai & finalkan" hanya menyimpan bagian yang dicentang
+lalu memfinalkan dalam satu langkah.
+
+**Penjaga per bagian (dari 178, tetap berlaku).** Tiap bagian diperiksa sendiri:
+angka baru, angka hilang, melar >2,2×, pengantar model, atau kosong → bagian itu
+DIBUANG dan teks aslinya dipertahankan, dengan alasan ditampilkan. Satu bagian
+bermasalah tidak menggugurkan bagian lain yang bersih. Bagian yang tidak dibalas
+model juga dibiarkan apa adanya, bukan dikosongkan.
+
+**Yang dibuang dari 178**: komponen `RewriteTextarea` dan action per-field.
+Textarea kembali polos. Guard AI Hub, otorisasi `field_activity.manage` +
+`requireLocationAccess`, audit tanpa isi teks (hanya gaya, model, bagian yang
+dipakai/ditolak), dan batas panjang tetap seperti 178.
+
+Verifikasi: unit 524 ✓ — 19 kasus lapisan murni (penjaga, pembersih, prompt
+gabungan, pengurai penanda termasuk urutan acak & bagian absen) + 10 kasus
+perangkaian layanan (satu panggilan untuk tiga bagian, penyelundupan angka pada
+SATU bagian tidak menjatuhkan bagian lain, bagian pendek tidak dikirim ke model,
+AI belum diatur, kuota ditolak, provider gagal, beda gaya beda instruksi) ·
+typecheck ✓ · lint ✓ · build ✓.
+
+## 180 · 2026-07-29 · Sistem → Prompt AI: satu halaman mengatur teks perintah SEMUA aksi AI
+
+Permintaan user: perlu halaman khusus di pengaturan untuk mengatur prompt semua
+aksi AI. Sebelumnya prompt tersebar sebagai konstanta di lima modul dan hanya
+bisa diubah lewat deploy.
+
+**Registri tunggal** `src/lib/ai/prompt-registry.ts` (lapisan murni) memuat 14
+slot yang menutup SELURUH aksi AI yang ada:
+
+| Kelompok | Slot |
+|---|---|
+| AI Hub | `hub.system` + `hub.kind.{pulse,deviasi,risiko,kualitas_data,tanya}` |
+| Laporan eksekutif WA | `exec.system` + `exec.{rangkuman_kegiatan,rekap_kendala,kepatuhan_lapor}` |
+| Ringkasan chat grup | `chat.summary`, `chat.overview` |
+| Perapian teks kegiatan | `kegiatan.rewrite.{system,rapi,teknis}` |
+
+Konstanta lama di `ai-hub/prompt.ts`, `exec-report/prompt.ts`,
+`waha/chat-summary.ts`, `waha/summary-actions.ts`, dan `field-activity/rewrite.ts`
+kini MENGAMBIL teksnya dari registri — tidak ada lagi dua sumber kebenaran.
+
+**Penyimpanan & pembacaan** (`ai/prompts.ts`, server-only): override disimpan
+sebagai AppSetting `ai.prompt.<key>` (effective-dated, pola sama dengan config
+AI lain), sehingga perubahan prompt punya jejak waktu. Belum pernah ditimpa
+atau isinya kosong → teks BAWAAN dipakai; sistem tidak pernah berjalan tanpa
+prompt. Perubahan langsung berlaku pada aksi AI berikutnya, tanpa deploy.
+
+**Penjaga `mustContain` — inti keputusan ini.** Tiap slot mencantumkan frasa
+yang tidak boleh hilang, dan simpan DITOLAK bila frasa itu dibuang:
+
+- `hub.system` → "BUKAN sumber angka"
+- `hub.kind.deviasi` → "Jangan mengubah angka deviasi resmi"
+- `hub.kind.risiko` → "Skor rule TIDAK boleh diubah"
+- `hub.kind.kualitas_data` → "ditentukan rule"
+- `hub.kind.tanya` → "HANYA dari data"
+- `exec.system` → "JANGAN mengarang"
+- `chat.summary` / `chat.overview` → "jangan mengarang…"
+- `kegiatan.rewrite.system` → "JANGAN menambah informasi"
+- `kegiatan.rewrite.teknis` → "JANGAN menebak"
+
+Alasannya: prompt boleh disetel gayanya, tetapi larangan mengarang angka bukan
+urusan selera. Tanpa penjaga ini, satu tempel-timpa teks baru bisa menghapus
+pagar yang menjaga angka laporan resmi. Pengosongan juga ditolak — pakai
+"Kembalikan ke bawaan". Batas panjang per slot ditegakkan.
+
+**UI**: tab baru "Prompt AI" di /sistem (capability `system.manage`, sama dengan
+pengaturan AI lain). Tiap slot menampilkan status Bawaan/Diubah, editor, jumlah
+karakter, "Lihat teks bawaan", dan "Kembalikan ke bawaan" bila sudah ditimpa.
+Frasa pengaman ditampilkan sebagai chip supaya jelas apa yang tak boleh hilang.
+Audit mencatat slot, pelaku, dan jumlah karakter — BUKAN isi promptnya.
+
+Catatan penting yang tidak berubah: AI tetap bukan sumber angka. Semua angka
+laporan berasal dari calculation layer; isi prompt tidak bisa mengubah itu.
+
+Verifikasi: unit 537 ✓ (13 kasus registri & penjaga: kunci unik, tiap bawaan
+lolos validasinya sendiri, batas karakter, cakupan seluruh aksi AI, penolakan
+saat frasa pengaman dibuang) · integrasi 98 ✓ di PostgreSQL 16 lokal (8 kasus:
+bawaan→override→reset, override kosong = belum ditimpa, penolakan tersimpan,
+penandaan Bawaan/Diubah) · typecheck ✓ · lint ✓ · build ✓.
+
+## 181 · 2026-07-29 · Penjaga perapian teks MENANDAI, bukan memblokir (koreksi user)
+
+Temuan user di lapangan: menekan "Rapikan bahasa" memunculkan
+"Tidak ada usulan yang lolos penjaga: Hasil jauh lebih panjang dari teks asli
+(mengarang, bukan merapikan)." — tiga kali, tanpa menyebut bagian mana.
+
+Dua kesalahan saya di DECISIONS 178/179:
+
+1. **Ambang panjang salah arah.** Batas 2,2× panjang teks asli menghukum teks
+   pendek, padahal justru teks pendek yang paling wajar memanjang saat
+   dibakukan: "cor kolom 12 titik" → "Dilaksanakan pengecoran kolom sebanyak
+   12 titik" sudah >2,2×. Akibatnya usulan yang BENAR tertolak semua dan fitur
+   praktis tidak bisa dipakai.
+2. **Salah menempatkan keputusan.** Usulan tidak pernah tersimpan sendiri —
+   pengguna melihat asli vs usulan berdampingan lalu mencentang. Seperti kata
+   user: "karena ini tidak langsung disimpan, harusnya kamu terima saja …
+   itu keputusanku menerima atau tidak."
+
+**Keputusan.** `verifyRewrite` sekarang MENANDAI, bukan memblokir:
+
+- Satu-satunya alasan usulan tidak ditampilkan: **hasilnya kosong** (tidak ada
+  yang bisa diputuskan).
+- Angka baru, angka asli yang hilang, hasil memanjang berkali-kali (>3× dan
+  >400 karakter), dan balasan yang dimulai seperti pengantar model → usulan
+  TETAP ditawarkan, dengan **catatan** di bawahnya ("periksa sebelum dipakai").
+- Pesan kegagalan kini menyebut BAGIAN mana dan alasannya per bagian
+  ("Catatan kegiatan: … · Kendala: …"), bukan mengulang satu kalimat tiga kali,
+  dan menutup dengan jalan keluar: teks asli dibiarkan apa adanya.
+
+Yang TIDAK berubah: teks tersimpan hanya yang dicentang pengguna; angka tetap
+diperiksa dan dilaporkan; AI tetap bukan sumber angka.
+
+Verifikasi: unit 538 ✓ — kasus pengganti termasuk "teks pendek yang wajar
+memanjang → tanpa catatan" (kasus yang dulu memblokir) dan "angka baru → tetap
+ditawarkan + bercatatan" · typecheck ✓ · lint ✓.
+
+---
+
+## 182 — Larangan mengarang ditegaskan di SEMUA prompt (2026-07-30)
+
+**Permintaan user:** "tekankan ke semua prompt jangan mengarang dari sumber".
+
+**Masalahnya nyata, bukan kosmetik.** Setelah DECISIONS 180 (registri prompt +
+halaman Sistem → Prompt AI), pagar anti-mengarang hanya berdiri di slot "aturan
+dasar" (`hub.system`, `exec.system`, `chat.*`, `kegiatan.rewrite.system`).
+Lima slot instruksi per-jenis — `hub.kind.pulse`, `exec.rangkuman_kegiatan`,
+`exec.rekap_kendala`, `exec.kepatuhan_lapor`, `kegiatan.rewrite.rapi` —
+`mustContain`-nya KOSONG. Artinya admin bisa menimpanya jadi apa saja
+("ringkas saja, seingatmu") dan tidak ada yang menolak. Tujuh instruksi template
+Report Studio bahkan tidak lewat registri sama sekali.
+
+**Keputusan.**
+
+1. Frasa pagar dibakukan satu tempat: `ANTI_KARANG_FRASA = "JANGAN MENGARANG"`
+   di `src/lib/ai/prompt-registry.ts`.
+2. Helper `pagarSumber(sumber, bilaTidakAda)` menyusun kalimat yang seragam:
+   **sumbernya disebut eksplisit** ("gunakan HANYA …"), larangan mengarang
+   dirinci (angka, nama orang/instansi, lokasi, tanggal, penyebab, kesimpulan),
+   dan **jalan keluar bila data tidak ada** ("tulis tidak ada di data", "belum
+   lapor", "penyebab belum diketahui") — supaya model punya pilihan selain
+   menebak.
+3. **Ke-14 slot** registri memuat kalimat itu, dan **ke-14 slot** mewajibkannya
+   di `mustContain`. Override yang membuangnya ditolak dengan menyebut frasanya.
+4. Tujuh instruksi template Report Studio ikut memuat pagar yang sama, ditempel
+   terpusat di `AI_REPORT_TEMPLATES` sehingga template baru tidak bisa lupa.
+5. Banner halaman Sistem → Prompt AI menyebutkan syarat itu, jadi admin tahu
+   sebelum menyimpan, bukan setelah ditolak.
+
+**Yang TIDAK berubah:** angka tetap dari calculation layer; grounding filter AI
+Hub tetap membuang bagian tak bersumber; penjaga hasil perapian tetap MENANDAI,
+bukan memblokir (DECISIONS 181). Prompt hanya lapisan pertama — bukan satu-satunya.
+
+Verifikasi: unit 544 ✓ (6 uji invarian baru: tiap bawaan memuat frasa & menyebut
+sumber, tiap slot mewajibkannya, override tanpa frasa ditolak di SEMUA slot,
+instruksi per-jenis tidak bisa dikosongkan lagi, tiap template Report Studio
+memuatnya) · integration 98 ✓ (PostgreSQL 16 lokal) · typecheck ✓ · lint ✓.
+Catatan: 2 uji render PDF sempat gagal saat suite penuh jalan paralel
+(fontconfig) dan lulus saat dijalankan sendiri — bukan akibat perubahan ini.

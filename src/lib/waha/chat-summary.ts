@@ -2,6 +2,8 @@ import "server-only";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { aiCall } from "@/lib/ai/client";
+import { promptDefault } from "@/lib/ai/prompt-registry";
+import { resolvePrompt } from "@/lib/ai/prompts";
 import { parseDateKey } from "@/lib/format";
 import type { SessionUser } from "@/lib/auth/session";
 import {
@@ -184,17 +186,7 @@ export async function getPackageContext(
   };
 }
 
-const SYSTEM_PROMPT = `Anda merangkum percakapan grup WhatsApp proyek konstruksi Kampung Nelayan Merah Putih untuk manajemen.
-Aturan:
-- Bahasa Indonesia operasional, langsung, tanpa basa-basi.
-- HANYA dari isi chat & data kiriman sistem yang diberikan — jangan mengarang progres/angka yang tidak disebut.
-- Selalu sebut identitas pekerjaan (paket/lokasi) dari KONTEKS, jangan menulis "grup" secara generik.
-- Sebut nama pengirim untuk hal penting, PERSIS seperti tertulis di transkrip (sudah dipetakan ke nama asli bila diketahui). Bila pengirim tertulis "Anggota grup (belum dikenali)" atau "Anggota (…1234)", sebut begitu saja — JANGAN mengarang nama dan JANGAN menampilkan nomor/kode identitas.
-- ABAIKAN pesan uji coba sistem/webhook dan basa-basi tanpa isi.
-- Pesan bertanda [MARLIN] adalah kiriman OTOMATIS dari sistem (laporan harian/kegiatan), bukan obrolan anggota. Perlakukan sebagai "yang sudah dilaporkan sistem", dan sebutkan bila ada yang seharusnya dikirim tapi tidak muncul.
-- Bila ada blok "KIRIMAN SISTEM MARLIN", pakai untuk memverifikasi kelengkapan: sebut laporan/kegiatan yang sudah dikirim ke grup hari itu.
-- Struktur ringkasan: (1) Laporan resmi yang sudah dikirim MARLIN, (2) Progres & aktivitas yang dilaporkan anggota, (3) Kendala/masalah, (4) Keputusan & instruksi, (5) Permintaan/butuh tindak lanjut (sebut siapa), (6) Catatan lain. Bagian kosong ditiadakan.
-- Maksimum ~280 kata.`;
+const SYSTEM_PROMPT = promptDefault("chat.summary");
 
 export type MarlinDispatch = { kind: string; label: string; timeLabel: string | null };
 
@@ -314,7 +306,7 @@ export async function generateChatSummary(
     : "";
 
   const result = await aiCall({
-    system: SYSTEM_PROMPT,
+    system: (await resolvePrompt("chat.summary")) || SYSTEM_PROMPT,
     prompt:
       `KONTEKS: ${describePackageContext(ctx)}\n` +
       `Tanggal: ${dateKey} · ${messages.length} pesan relevan` +

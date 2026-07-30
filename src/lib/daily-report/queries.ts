@@ -4,7 +4,15 @@ import { prestasiPct } from "@/lib/progress-calc";
 import { COUNTED_REPORT_STATUSES, cumulativeVolumeByLineage } from "@/lib/progress";
 import { jakartaDateKey, parseDateKey } from "@/lib/format";
 import { buildPhotoViews, type PhotoView } from "@/lib/photos";
-import type { DailyReportStatus, IssueSeverity, IssueStatus, WeatherCode, WorkerRole } from "@/generated/prisma/enums";
+import type {
+  DailyReportStatus,
+  IssueSeverity,
+  IssueStatus,
+  WeatherCode,
+  WeatherSource,
+  WorkerRole,
+} from "@/generated/prisma/enums";
+import { hourlyCategoryEntries, parseHourlyWeather, type HourlyWeather } from "@/lib/weather/hourly";
 import { WEATHER_KKP_CATEGORY } from "./constants";
 import type { FinalSnapshot } from "./service";
 import type { KkpDailyData } from "@/components/knmp/kkp-daily-report";
@@ -128,6 +136,10 @@ export type WorkspaceReport = {
   id: string;
   status: DailyReportStatus;
   weather: WeatherCode | null;
+  /** Kondisi per jam 07–21 bila sudah diambil otomatis dari layanan cuaca. */
+  weatherHourly: HourlyWeather[] | null;
+  weatherSource: WeatherSource | null;
+  weatherFetchedAt: string | null;
   workStart: string | null;
   workEnd: string | null;
   notes: string | null;
@@ -283,6 +295,9 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
       id: report.id,
       status: report.status,
       weather: report.weather,
+      weatherHourly: parseHourlyWeather(report.weatherHourly),
+      weatherSource: report.weatherSource,
+      weatherFetchedAt: report.weatherFetchedAt?.toISOString() ?? null,
       workStart: report.workStart,
       workEnd: report.workEnd,
       notes: report.notes,
@@ -446,6 +461,7 @@ function snapshotToKkp(snap: FinalSnapshot): KkpDailyData {
     workerMap,
     totalWorkers: snap.totalWorkers,
     activeWeather: snap.weather ? WEATHER_KKP_CATEGORY[snap.weather] : null,
+    weatherByHour: snap.weatherHourly ? hourlyCategoryEntries(snap.weatherHourly) : null,
     workStart: snap.workStart,
     workEnd: snap.workEnd,
     notes: snap.notes,
@@ -574,6 +590,10 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
     workerMap,
     totalWorkers: (report?.workers ?? []).reduce((n, w) => n + w.count, 0),
     activeWeather: report?.weather ? WEATHER_KKP_CATEGORY[report.weather] : null,
+    weatherByHour: (() => {
+      const h = parseHourlyWeather(report?.weatherHourly);
+      return h ? hourlyCategoryEntries(h) : null;
+    })(),
     workStart: report?.workStart ?? null,
     workEnd: report?.workEnd ?? null,
     notes: report?.notes ?? null,

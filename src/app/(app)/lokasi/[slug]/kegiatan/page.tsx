@@ -207,6 +207,7 @@ export default async function KegiatanLapanganPage({ params }: { params: Promise
                 kinds={kindOptions}
                 activity={{
                   id: a.id,
+                  locationId: location.id,
                   type: a.type,
                   activityDate: a.activityDate,
                   title: a.title,

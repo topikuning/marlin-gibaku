@@ -35,6 +35,7 @@ const dasar: KkpDailyData = {
   workerMap: {},
   totalWorkers: 0,
   activeWeather: null,
+  weatherByHour: null,
   workStart: null,
   workEnd: null,
   notes: null,

@@ -34,6 +34,11 @@ export type ImportPreview = {
   grandTotal: string;
   itemCount: number;
   isAdendum: boolean;
+  /** Kolom nilai yang dipakai parser — mis. "NEGOSIASI (kolom K/L)". Wajib
+   *  terlihat sebelum commit: file lampiran negosiasi memuat 3 blok harga
+   *  (HPS/penawaran/negosiasi) dan salah kolom = nilai kontrak salah. */
+  priceColumnLabel: string;
+  priceSource: "nego" | "penawaran" | "hps";
   warnings: string[];
   categories: { code: string; name: string; total: string }[];
   /** Diisi bila file berubah setelah pratinjau — commit ditolak, pratinjau diperbarui. */
@@ -75,8 +80,9 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
 
     let parsed;
     let warnings: string[];
+    let priceColumn;
     try {
-      ({ parsed, warnings } = await parseHpsBuffer(buffer));
+      ({ parsed, warnings, priceColumn } = await parseHpsBuffer(buffer));
     } catch (e) {
       return { error: e instanceof Error ? e.message : "Gagal membaca file HPS." };
     }
@@ -129,6 +135,8 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       grandTotal: total.toString(),
       itemCount: nodes.filter((n) => n.kind === "item").length,
       isAdendum,
+      priceColumnLabel: priceColumn.label,
+      priceSource: priceColumn.source,
       warnings,
       categories: nodes
         .filter((n) => n.kind === "kategori")

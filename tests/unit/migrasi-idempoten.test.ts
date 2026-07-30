@@ -50,6 +50,27 @@ describe("pendeteksi idempoten (dipakai preDeploy untuk memutuskan pemulihan)", 
     expect(alasan[0]).toContain("a_ck");
   });
 
+  it("menolak CREATE TYPE telanjang (PostgreSQL tak punya IF NOT EXISTS untuk tipe)", () => {
+    const alasan = alasanTidakIdempoten(`CREATE TYPE "Warna" AS ENUM ('merah', 'putih');`);
+    expect(alasan).toHaveLength(1);
+    expect(alasan[0]).toContain("Warna");
+  });
+
+  it("menerima CREATE TYPE di dalam blok DO berpenjaga pg_type (aman diulang)", () => {
+    expect(
+      alasanTidakIdempoten(
+        `DO $$\nBEGIN\n  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'Warna') THEN\n` +
+          `    CREATE TYPE "Warna" AS ENUM ('merah', 'putih');\n  END IF;\nEND\n$$;`,
+      ),
+    ).toEqual([]);
+  });
+
+  it("blok DO TANPA penjaga pg_type tetap ditolak", () => {
+    expect(
+      alasanTidakIdempoten(`DO $$\nBEGIN\n  CREATE TYPE "Warna" AS ENUM ('merah');\nEND\n$$;`),
+    ).toHaveLength(1);
+  });
+
   it("menerima ADD CONSTRAINT yang didahului DROP CONSTRAINT IF EXISTS", () => {
     expect(
       alasanTidakIdempoten(

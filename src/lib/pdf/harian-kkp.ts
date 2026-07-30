@@ -4,6 +4,7 @@ import { getBranding } from "@/lib/branding";
 import { getKkpDailyData } from "@/lib/daily-report/queries";
 import { WORKER_ROLE_LABEL, WORKER_ROLE_ORDER } from "@/lib/daily-report/constants";
 import { teksRealisasi, type KkpDailyData } from "@/components/knmp/kkp-daily-report";
+import { KKP_WEATHER_HOURS } from "@/lib/weather/hourly";
 import { PDF_COLORS, PDF_FONT, docToBuffer, createFormA4Doc, FORM_MARGIN } from "./document";
 import { colWidths, gridRow, gridRowHeight, type GridCell, type GridOptions } from "./grid";
 
@@ -20,7 +21,7 @@ import { colWidths, gridRow, gridRowHeight, type GridCell, type GridOptions } fr
  * butuh 16 kolom. DECISIONS 145.
  */
 
-const HOURS = ["07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21"];
+const HOURS = KKP_WEATHER_HOURS.map((h) => String(h).padStart(2, "0"));
 const volFmt = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 });
 const orgFmt = new Intl.NumberFormat("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 /** Baris kosong tercetak — blanko punya kotak siap-isi walau datanya belum ada. */
@@ -243,7 +244,12 @@ export async function buildHarianKkpPdf(d: KkpDailyData, appName: string, logo?:
     draw(
       [
         { text: cat, align: "center" },
-        ...HOURS.map((): GridCell => ({ text: d.activeWeather === cat ? "v" : "", align: "center" })),
+        // Kondisi PER JAM bila cuaca diambil otomatis dari koordinat lokasi;
+        // tanpa itu, jatuh ke perilaku lama (satu kategori sehari penuh).
+        ...HOURS.map((h): GridCell => ({
+          text: (d.weatherByHour ? d.weatherByHour[Number(h)] === cat : d.activeWeather === cat) ? "v" : "",
+          align: "center",
+        })),
         { text: "", align: "center" },
       ],
       weather,

@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState, useTransition } from "reac
 import { CheckCircle2, Download, FileText, MessageCircle, Paperclip, Pencil, RotateCcw, Trash2, Plus } from "lucide-react";
 import { Banner, Button, Input, Label, Combobox, Textarea } from "@/components/ui";
 import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
+import { FinalizePanel } from "./finalize-panel";
 import type { FieldActivityAttachmentView } from "@/lib/field-activity/queries";
 
 /** Opsi jenis kegiatan (master data) yang dialirkan dari server ke form. */
@@ -13,7 +14,6 @@ import {
   addActivityPhotosAction,
   createActivityAction,
   deleteActivityAction,
-  finalizeActivityAction,
   removeActivityAttachmentAction,
   reopenActivityAction,
   updateActivityAction,
@@ -141,6 +141,8 @@ export function SendToWaButton({
 /** Data kegiatan yang bisa dikoreksi lewat form edit. */
 export type EditableActivity = {
   id: string;
+  /** Dipakai tombol "Rapikan dengan AI" (otorisasi per lokasi di server). */
+  locationId: string;
   type: string;
   activityDate: string;
   title: string;
@@ -293,8 +295,8 @@ export function DraftActions({ activity, kinds }: { activity: EditableActivity; 
           </Button>
           <AddAttachmentForm activityId={activity.id} />
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <FinalizeButton activityId={activity.id} />
+        <div className="flex flex-wrap items-start gap-2">
+          <FinalizePanel activityId={activity.id} />
           <DeleteButton activityId={activity.id} />
         </div>
       </div>
@@ -492,20 +494,6 @@ function AddPhotoPanel({ activityId, onDone }: { activityId: string; onDone: () 
       <PhotoSourceInput onPicked={() => formRef.current?.requestSubmit()} />
       {state?.error ? <div className="mt-2"><Banner tone="error" title={state.error} /></div> : null}
       {state?.warning ? <div className="mt-2"><Banner tone="warning" title="Sebagian foto gagal" description={state.warning} /></div> : null}
-    </form>
-  );
-}
-
-function FinalizeButton({ activityId }: { activityId: string }) {
-  const [state, action, pending] = useActionState<FieldActivityState, FormData>(finalizeActivityAction, undefined);
-  return (
-    <form action={action} className="inline">
-      <input type="hidden" name="activityId" value={activityId} />
-      <Button type="submit" size="sm" variant="secondary" loading={pending}>
-        <CheckCircle2 aria-hidden className="size-3.5" />
-        Finalkan
-      </Button>
-      {state?.error ? <span className="ml-1 text-[12px] text-danger">{state.error}</span> : null}
     </form>
   );
 }

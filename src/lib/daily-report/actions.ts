@@ -15,6 +15,7 @@ import { jakartaDateKey } from "@/lib/format";
 import { MAX_PHOTOS_PER_UPLOAD, PhotoError, savePhotoForItem } from "@/lib/photos";
 import { isR2Configured, r2Delete } from "@/lib/r2";
 import { audit } from "@/lib/audit";
+import { applyWeatherToReport, WeatherError, WeatherFetchError } from "@/lib/weather/service";
 import type { UserRole, WeatherCode, WorkerRole } from "@/generated/prisma/enums";
 import { WEATHER_ORDER, WORKER_ROLE_ORDER } from "./constants";
 import {
@@ -312,18 +313,68 @@ export async function removeReportPhotoAction(
 
 const enrichmentSchema = z.object({
   reportId: z.uuid(),
-  weather: z.enum(WEATHER_ORDER as [WeatherCode, ...WeatherCode[]]).nullable(),
+  // optional = field tidak dikirim (pemilih manual dimatikan) → jangan sentuh
+  // kolom cuaca; nullable = dikosongkan sengaja. Lihat EnrichmentInput.
+  weather: z.enum(WEATHER_ORDER as [WeatherCode, ...WeatherCode[]]).nullable().optional(),
   workStart: z.string().regex(/^\d{2}:\d{2}$/).nullable(),
   workEnd: z.string().regex(/^\d{2}:\d{2}$/).nullable(),
   notes: z.string().trim().max(2000).nullable(),
 });
+
+/**
+ * Ambil kondisi cuaca PER JAM dari layanan cuaca berdasarkan koordinat lokasi.
+ * Selalu dipicu tombol (bukan diam-diam saat halaman dibuka) supaya orang
+ * lapangan tahu angkanya datang dari mana, dan supaya laporan tidak pernah
+ * tertahan menunggu jaringan. Isian manual menang — lihat weather/service.ts.
+ */
+export async function fetchWeatherAction(_prev: DailyActionState, formData: FormData): Promise<DailyActionState> {
+  try {
+    const user = await requireReviewOrCreate();
+    const reportId = z.uuid().safeParse(formData.get("reportId"));
+    if (!reportId.success) return { error: "Laporan tidak valid." };
+    const ctx = await loadReportContext(reportId.data);
+    await requireLocationAccess(user, ctx.locationId);
+    if (
+      !can(user.role, "daily_report.review") &&
+      !(CREATOR_ENRICHABLE_STATUSES as readonly string[]).includes(ctx.status)
+    ) {
+      return { error: "Laporan sudah dikirim — data KKP dilengkapi oleh Site Manager saat verifikasi." };
+    }
+
+    let result;
+    try {
+      result = await applyWeatherToReport(ctx.id, {
+        overwriteManual: formData.get("overwriteManual") === "1",
+      });
+    } catch (e) {
+      if (e instanceof WeatherError || e instanceof WeatherFetchError) return { error: e.message };
+      throw e;
+    }
+
+    await audit(user.id, "daily_report.weather_fetch", "daily_report", ctx.id, {
+      hours: result.hours.length,
+      weather: result.weather,
+      cached: result.cached,
+    });
+    revalidateReport(ctx.slug, ctx.dateKey);
+    const hujan = result.hours.filter((h) => h.category === "Hujan").length;
+    return {
+      success:
+        `Cuaca ${result.hours.length} jam terisi otomatis` +
+        (hujan > 0 ? ` — ${hujan} jam hujan.` : " — tidak ada jam hujan.") +
+        " Ubah manual bila berbeda dengan kondisi di lapangan.",
+    };
+  } catch (err) {
+    return errState(err);
+  }
+}
 
 export async function saveEnrichmentAction(_prev: DailyActionState, formData: FormData): Promise<DailyActionState> {
   try {
     const user = await requireReviewOrCreate();
     const parsed = enrichmentSchema.safeParse({
       reportId: formData.get("reportId"),
-      weather: formData.get("weather") || null,
+      weather: formData.has("weather") ? formData.get("weather") || null : undefined,
       workStart: formData.get("workStart") || null,
       workEnd: formData.get("workEnd") || null,
       notes: (formData.get("notes") as string | null) || null,

@@ -105,6 +105,16 @@ export function ImportForm({ locationId }: { locationId: string }) {
                 ({(preview.bytes / 1024).toFixed(0)} KB · {preview.itemCount} item pekerjaan)
               </span>
             </p>
+            {/* Sumber harga WAJIB terlihat sebelum commit — lampiran negosiasi memuat
+                tiga blok harga (HPS/penawaran/negosiasi) dan salah blok = nilai
+                kontrak salah puluhan sampai ratusan juta. */}
+            <p className="mt-1 text-ink-muted">
+              Harga dibaca dari kolom{" "}
+              <span className="font-semibold text-ink">{preview.priceColumnLabel}</span>
+              {preview.priceSource === "hps"
+                ? " — file tidak punya kolom penawaran/negosiasi."
+                : " — bukan pagu HPS."}
+            </p>
           </div>
 
           <div className="overflow-x-auto">

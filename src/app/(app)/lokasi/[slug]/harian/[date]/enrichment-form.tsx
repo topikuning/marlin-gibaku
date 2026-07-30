@@ -3,8 +3,14 @@
 import { useActionState, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { Banner, Button, Input, Label, Textarea } from "@/components/ui";
-import { saveEnrichmentAction, type DailyActionState } from "@/lib/daily-report/actions";
 import {
+  fetchWeatherAction,
+  saveEnrichmentAction,
+  type DailyActionState,
+} from "@/lib/daily-report/actions";
+import type { KkpWeatherCategory } from "@/lib/weather/hourly";
+import {
+  SHOW_MANUAL_WEATHER_PICKER,
   WEATHER_LABEL,
   WEATHER_ORDER,
   WORKER_ROLE_LABEL,
@@ -13,13 +19,80 @@ import {
 import type { WorkspaceReport } from "@/lib/daily-report/queries";
 
 /**
- * Panel pelengkap KKP: cuaca (radio), jam kerja, tenaga per keahlian (grid
- * angka), material masuk (baris dinamis), peralatan (baris dinamis), catatan.
+ * Panel pelengkap KKP: cuaca (otomatis per jam; pemilih manual di balik
+ * SHOW_MANUAL_WEATHER_PICKER), jam kerja,
+ * tenaga per keahlian (grid angka), material masuk (baris dinamis),
+ * peralatan (baris dinamis), catatan.
  * Diisi SM saat verifikasi (status dikirim) atau saat menyusun draft.
  */
 
 type Row = { key: number; name: string; a: string; b: string };
 let rowSeq = 1;
+
+const CATEGORY_TONE: Record<KkpWeatherCategory, string> = {
+  Cerah: "bg-amber-100 text-amber-900",
+  Mendung: "bg-slate-200 text-slate-700",
+  Hujan: "bg-sky-200 text-sky-900",
+};
+
+/**
+ * Pengambilan cuaca otomatis per jam dari koordinat lokasi + pita 07–21 supaya
+ * orang lapangan bisa MEMBANDINGKAN dengan yang dia lihat sendiri. Tombol
+ * terpisah (bukan otomatis saat halaman dibuka): laporan tidak boleh menunggu
+ * jaringan, dan asal angka harus jelas.
+ *
+ * Tanggal yang diambil = TANGGAL LAPORAN, bukan hari ini — laporan yang diisi
+ * mundur (mis. lupa 3 hari) tetap mendapat kondisi tanggal itu.
+ */
+function WeatherAuto({ report }: { report: WorkspaceReport }) {
+  const [state, formAction, pending] = useActionState<DailyActionState, FormData>(
+    fetchWeatherAction,
+    undefined,
+  );
+  const hours = report.weatherHourly;
+  const isManual = report.weatherSource === "manual";
+  const rainHours = hours?.filter((h) => h.category === "Hujan").length ?? 0;
+
+  return (
+    <div className="mb-2 space-y-2 rounded-md border border-dashed border-border bg-surface-muted p-2.5">
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      {state?.success ? <Banner tone="success" title={state.success} /> : null}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="submit" variant="secondary" size="sm" formAction={formAction} disabled={pending}>
+          {pending ? "Mengambil…" : hours ? "Muat ulang cuaca" : "Ambil cuaca otomatis"}
+        </Button>
+        <span className="text-xs text-ink-muted">
+          {hours
+            ? `${hours.length} jam terisi${rainHours > 0 ? ` · ${rainHours} jam hujan` : " · tanpa hujan"}`
+            : "Berdasarkan koordinat lokasi, mengikuti TANGGAL laporan ini (bukan hari ini) — laporan yang diisi mundur tetap dapat cuaca tanggalnya."}
+        </span>
+      </div>
+      {isManual ? (
+        <input type="hidden" name="overwriteManual" value="1" />
+      ) : null}
+      {hours ? (
+        <div className="overflow-x-auto">
+          <div className="flex gap-0.5">
+            {hours.map((h) => (
+              <div key={h.hour} className="w-9 shrink-0 text-center">
+                <div className="text-[10px] text-ink-muted">{String(h.hour).padStart(2, "0")}</div>
+                <div className={`rounded px-1 py-0.5 text-[10px] font-medium ${CATEGORY_TONE[h.category]}`}>
+                  {h.category === "Mendung" ? "Mdg" : h.category === "Hujan" ? "Hjn" : "Crh"}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {isManual && hours == null ? (
+        <p className="text-xs text-ink-muted">
+          Cuaca sudah diisi manual dari lapangan. Menekan tombol di atas akan menggantinya dengan data
+          otomatis.
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
 export function EnrichmentForm({ report }: { report: WorkspaceReport }) {
   const [state, formAction, pending] = useActionState<DailyActionState, FormData>(
@@ -48,23 +121,30 @@ export function EnrichmentForm({ report }: { report: WorkspaceReport }) {
       {/* Cuaca */}
       <fieldset>
         <legend className="mb-1.5 text-[13px] font-medium text-ink">Cuaca</legend>
-        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-          {WEATHER_ORDER.map((w) => (
-            <label
-              key={w}
-              className="flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-sm has-checked:border-primary has-checked:bg-primary-50 has-checked:font-medium"
-            >
-              <input
-                type="radio"
-                name="weather"
-                value={w}
-                defaultChecked={report.weather === w}
-                className="accent-primary"
-              />
-              {WEATHER_LABEL[w]}
-            </label>
-          ))}
-        </div>
+        <WeatherAuto report={report} />
+        {/* Pemilih manual dimatikan sejak cuaca otomatis per jam berjalan
+            (DECISIONS 177). Saat mati, form TIDAK mengirim field `weather`
+            sama sekali sehingga server tahu harus membiarkan isian cuaca apa
+            adanya — bukan mengosongkannya. */}
+        {SHOW_MANUAL_WEATHER_PICKER ? (
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+            {WEATHER_ORDER.map((w) => (
+              <label
+                key={w}
+                className="flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-sm has-checked:border-primary has-checked:bg-primary-50 has-checked:font-medium"
+              >
+                <input
+                  type="radio"
+                  name="weather"
+                  value={w}
+                  defaultChecked={report.weather === w}
+                  className="accent-primary"
+                />
+                {WEATHER_LABEL[w]}
+              </label>
+            ))}
+          </div>
+        ) : null}
       </fieldset>
 
       {/* Jam kerja */}
