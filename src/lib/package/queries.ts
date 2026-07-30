@@ -60,6 +60,9 @@ export async function listPackages(
       hpsValue: true,
       candidateVendorName: true,
       updatedAt: true,
+      waGroupId: true,
+      waGroupName: true,
+      driveFolderId: true,
       contract: {
         select: {
           vendor: { select: { name: true } },

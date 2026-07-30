@@ -19,6 +19,10 @@ export type PaketRow = {
   hpsValue: string;
   vendorName: string;
   locationCount: number;
+  /** Nama (atau ID) grup WhatsApp paket; null = belum diatur. */
+  waGroupName: string | null;
+  /** Folder Google Drive KKP sudah ditautkan? */
+  hasDrive: boolean;
   updatedAt: string;
 };
 
@@ -77,6 +81,40 @@ export function PaketGrid({ rows }: { rows: PaketRow[] }) {
         width: 100,
         cellClass: "tabular text-right",
         headerClass: "ag-right-aligned-header",
+      },
+      {
+        // Kesiapan integrasi per paket — permintaan user 2026-07-30: dari daftar
+        // langsung kelihatan paket mana yang belum diatur grup WA / folder Drive.
+        field: "waGroupName",
+        headerName: "Grup WA",
+        width: 150,
+        tooltipValueGetter: (p) => (p.data?.waGroupName ? `Grup: ${p.data.waGroupName}` : "Grup WhatsApp belum diatur"),
+        cellRenderer: (p: ICellRendererParams<GridRow>) =>
+          p.data ? (
+            p.data.waGroupName ? (
+              <span className="block truncate text-[13px] text-success" title={p.data.waGroupName}>
+                ✓ {p.data.waGroupName}
+              </span>
+            ) : (
+              <StatusPill tone="warning" label="Belum" />
+            )
+          ) : null,
+        // Filter/CSV memakai teks, bukan JSX.
+        valueFormatter: (p) => (p.value ? String(p.value) : "Belum diatur"),
+      },
+      {
+        field: "hasDrive",
+        headerName: "Drive",
+        width: 100,
+        cellRenderer: (p: ICellRendererParams<GridRow>) =>
+          p.data ? (
+            p.data.hasDrive ? (
+              <span className="text-[13px] text-success">✓ Ada</span>
+            ) : (
+              <StatusPill tone="warning" label="Belum" />
+            )
+          ) : null,
+        valueFormatter: (p) => (p.value ? "Ada" : "Belum diatur"),
       },
       dateCol<GridRow>("updatedAt", "Diperbarui", { width: 140 }),
     ],
