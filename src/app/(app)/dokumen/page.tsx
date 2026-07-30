@@ -137,12 +137,20 @@ export default async function DokumenPage({
         description="Arsip terhubung ke paket, kontrak, lokasi, adendum, dan milestone. Nama dokumen dibentuk otomatis dari datanya; duplikat dicegah via checksum."
         actions={
           can(user.role, "document.upload") ? (
-            <Link
-              href="/dokumen/upload"
-              className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary-800"
-            >
-              Unggah Dokumen
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/dokumen/impor"
+                className="rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-surface-2"
+              >
+                Impor dari Drive KKP
+              </Link>
+              <Link
+                href="/dokumen/upload"
+                className="rounded-md bg-primary px-3 py-2 text-sm font-medium text-white hover:bg-primary-800"
+              >
+                Unggah Dokumen
+              </Link>
+            </div>
           ) : undefined
         }
       />

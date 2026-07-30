@@ -167,16 +167,30 @@ export default async function DokumenPaketPage({
             packageId={pkg.id}
             locations={pkg.locations.map((l) => ({ id: l.id, name: l.name }))}
           />
-          {pkg.driveFolderId ? (
-            <p className="mt-4 border-t border-border pt-3 text-sm text-ink-muted">
-              Berkas sudah ada di folder Google Drive KKP?{" "}
-              <Link href={`/paket/${pkg.id}/dokumen/impor`} className="text-primary hover:underline">
-                Impor dari Drive
-              </Link>{" "}
-              — MARLIN membaca folder itu, menebak jenis & desanya, lalu menyalin yang Anda setujui.
-            </p>
-          ) : null}
         </CollapsibleCard>
+      ) : null}
+
+      {canUpload ? (
+        <Card>
+          <CardHeader
+            title="Impor dari folder Google Drive KKP"
+            subtitle="Berkas yang sudah ada di folder KKP (kontrak, SPMK, BA PCM, MC-0, berkas termin) bisa ditarik masuk: MARLIN membaca folder itu, menebak jenis & desanya, lalu menyalin yang Anda setujui."
+          />
+          <CardBody>
+            <Link
+              href={`/dokumen/impor?paket=${pkg.id}`}
+              className="inline-block rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-surface-2"
+            >
+              Buka impor dari Drive
+            </Link>
+            {!pkg.driveFolderId ? (
+              <p className="mt-2 text-xs text-ink-muted">
+                Paket ini belum punya ID folder Google Drive — isi dulu di halaman paket, baru impor
+                bisa membaca folder KKP-nya.
+              </p>
+            ) : null}
+          </CardBody>
+        </Card>
       ) : null}
 
       <Card>
