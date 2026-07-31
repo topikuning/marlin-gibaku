@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useState, useTransition } from "react";
-import { Banner, Button, Input, Label } from "@/components/ui";
+import { Banner, Button, Combobox, Input, Label } from "@/components/ui";
 import type { CatalogItem } from "@/lib/master-location/queries";
 import {
   addTargetLocation,
@@ -204,9 +204,12 @@ export function RemoveLocationButton({
 export function CorrectAddLocationForm({
   packageId,
   catalog,
+  hiddenExistingCount = 0,
 }: {
   packageId: string;
   catalog: CatalogItem[];
+  /** Baris katalog yang disembunyikan karena lokasinya sudah ada di sistem. */
+  hiddenExistingCount?: number;
 }) {
   const [state, action, pending] = useActionState<PackageActionState, FormData>(
     correctAddLocationAction,
@@ -260,19 +263,26 @@ export function CorrectAddLocationForm({
           <Label htmlFor="koreksi-master" required>
             Lokasi dari katalog
           </Label>
-          <select
+          {/* Combobox, BUKAN <select> native — katalog puluhan/ratusan lokasi
+              harus bisa diketik-cari (DECISIONS 094/115/174). */}
+          <Combobox
             id="koreksi-master"
             name="masterLocationId"
             required
-            className="w-full rounded-md border border-border px-2 py-1.5 text-sm"
-          >
-            <option value="">— pilih lokasi —</option>
-            {catalog.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.village} · {c.regency} · {c.province}
-              </option>
-            ))}
-          </select>
+            placeholder="ketik nama desa/kabupaten…"
+            options={catalog.map((c) => ({
+              value: c.id,
+              label: `${c.village} · ${c.regency} · ${c.province}`,
+            }))}
+          />
+          <p className="mt-1 text-xs text-ink-muted">
+            Hanya lokasi yang BELUM terpakai yang tampil
+            {hiddenExistingCount > 0
+              ? ` — ${hiddenExistingCount} baris katalog disembunyikan karena lokasinya sudah ada di sistem`
+              : ""}
+            . Tidak ketemu? Berarti lokasi itu sudah dipakai; pakai isian manual bila memang beda
+            lokasi.
+          </p>
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">

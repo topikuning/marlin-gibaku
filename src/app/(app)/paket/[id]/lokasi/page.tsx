@@ -45,10 +45,10 @@ export default async function LokasiPaketPage({
     !praKontrak &&
     !!pkg.contract &&
     ["kontrak", "pelaksanaan"].includes(pkg.stage);
-  const catalog =
-    (praKontrak && canProspect) || bolehKoreksi
-      ? (await getAvailableCatalog(user.orgId)).available
-      : [];
+  const perluKatalog = (praKontrak && canProspect) || bolehKoreksi;
+  const { available: catalog, hiddenExistingCount } = perluKatalog
+    ? await getAvailableCatalog(user.orgId)
+    : { available: [], hiddenExistingCount: 0 };
 
   return (
     <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
@@ -136,7 +136,11 @@ export default async function LokasiPaketPage({
             subtitle="Paket sudah berkontrak — komposisi lokasi terkunci. Panel ini hanya untuk membetulkan lokasi yang KETINGGALAN saat input, ketika nilai kontraknya sendiri sudah benar."
           />
           <CardBody>
-            <CorrectAddLocationForm packageId={pkg.id} catalog={catalog} />
+            <CorrectAddLocationForm
+              packageId={pkg.id}
+              catalog={catalog}
+              hiddenExistingCount={hiddenExistingCount}
+            />
           </CardBody>
         </Card>
       ) : (

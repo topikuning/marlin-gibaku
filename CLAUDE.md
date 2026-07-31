@@ -104,6 +104,12 @@ src/
   (FormData + zod + `useActionState` + `Banner`).
 - Tabel data → `MarlinGrid`; KPI/ringkasan → `KpiCard`; status → `StatusPill`
   dgn label/tone dari `lifecycle.ts`.
+- **SEMUA dropdown form → `Combobox`** (bisa diketik-cari), TIDAK PERNAH
+  `<select>` native — DECISIONS 094/115/174, dijaga lint. Satu-satunya
+  pengecualian: primitive `ui/field.tsx` & halaman `app/cetak/`.
+- Daftar pilihan yang bersumber dari data (mis. katalog lokasi) hanya
+  menampilkan yang MASIH TERSEDIA; yang disembunyikan disebut jumlahnya
+  supaya "tidak muncul" tak terbaca "tidak ada".
 - DB snake_case via `@map`; file kebab-case; URL kebab-case Indonesia.
 
 ## Kalau Ragu

@@ -4,7 +4,7 @@ import { Card, CardBody, CardHeader, KpiCard, PageHeader, StatusPill } from "@/c
 import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
-import { existingLocationKeys, locationKey } from "@/lib/master-location/queries";
+import { existingLocationIndex } from "@/lib/master-location/queries";
 import { MasterImportForm } from "./import-form";
 
 export const metadata: Metadata = { title: "Katalog Lokasi" };
@@ -14,7 +14,7 @@ export default async function KatalogPage() {
   const user = await requireUser();
   requireCapabilityPage(user.role, "package.bypass");
 
-  const [masters, realKeys] = await Promise.all([
+  const [masters, realIndex] = await Promise.all([
     db.masterLocation.findMany({
       where: { orgId: user.orgId },
       orderBy: [{ province: "asc" }, { regency: "asc" }, { village: "asc" }],
@@ -28,12 +28,12 @@ export default async function KatalogPage() {
         assignedLocationId: true,
       },
     }),
-    existingLocationKeys(user.orgId),
+    existingLocationIndex(user.orgId),
   ]);
 
   const rows = masters.map((m) => {
     const usedByBypass = m.assignedLocationId != null;
-    const existsReal = realKeys.has(locationKey(m));
+    const existsReal = realIndex.has(m);
     return {
       ...m,
       status: usedByBypass ? "terpakai" : existsReal ? "sudah_ada" : "tersedia",

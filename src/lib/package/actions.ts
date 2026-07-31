@@ -16,7 +16,7 @@ import { parseDateKey } from "@/lib/format";
 import { getLocationsProgress } from "@/lib/progress";
 import { weightedRealizedPct } from "@/lib/progress-calc";
 import { regenerateBaseline } from "@/lib/rab/import";
-import { existingLocationKeys, locationKey } from "@/lib/master-location/queries";
+import { existingLocationIndex } from "@/lib/master-location/queries";
 import type { PackageStage } from "@/generated/prisma/enums";
 
 /**
@@ -466,8 +466,8 @@ export async function addTargetLocationsFromCatalog(
     if (used.length > 0) return { error: `${used.length} lokasi sudah dipakai proyek lain — segarkan halaman.` };
 
     // Tolak yang kunci alaminya sudah ada sebagai Location riil (cegah ganda).
-    const existingKeys = await existingLocationKeys(actor.orgId);
-    const clash = masters.filter((m) => existingKeys.has(locationKey(m)));
+    const existing = await existingLocationIndex(actor.orgId);
+    const clash = masters.filter((m) => existing.has(m));
     if (clash.length > 0) {
       return { error: `Sudah ada di sistem: ${clash.map((m) => `${m.village} (${m.regency})`).join(", ")}.` };
     }
@@ -887,8 +887,8 @@ export async function createDirectProject(
 
     // Mitigasi lokasi GANDA: tolak master yang kunci alaminya (prov|kab|kec|desa)
     // sudah ada sebagai Location riil (mis. dibuat lewat alur normal di prod).
-    const existingKeys = await existingLocationKeys(actor.orgId);
-    const clash = masters.filter((m) => existingKeys.has(locationKey(m)));
+    const existing = await existingLocationIndex(actor.orgId);
+    const clash = masters.filter((m) => existing.has(m));
     if (clash.length > 0) {
       const list = clash.map((m) => `${m.village} (${m.regency})`).join(", ");
       return {
@@ -1504,8 +1504,8 @@ export async function correctAddLocationAction(
     }
 
     // Cegah lokasi ganda (kunci alami desa+kabupaten+provinsi).
-    const existingKeys = await existingLocationKeys(actor.orgId);
-    if (existingKeys.has(locationKey(src))) {
+    const existing = await existingLocationIndex(actor.orgId);
+    if (existing.has(src)) {
       return { error: `Lokasi "${src.village} (${src.regency})" sudah ada di sistem.` };
     }
 

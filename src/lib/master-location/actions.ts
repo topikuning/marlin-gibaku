@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { ForbiddenError, requireCapability } from "@/lib/auth/session";
 import { parseMasterLocationXlsx, type ParsedMasterRow } from "./import";
-import { existingLocationKeys, locationKey } from "./queries";
+import { existingLocationIndex, locationKey } from "./queries";
 
 export type MasterImportPreview = {
   parsed: number;
@@ -55,9 +55,9 @@ export async function previewMasterImportAction(
     if (rows.length === 0) return { error: warnings.join(" ") || "Tidak ada baris valid." };
 
     const uniq = dedupe(rows);
-    const [existingCatalog, realKeys, vendors] = await Promise.all([
+    const [existingCatalog, realIndex, vendors] = await Promise.all([
       db.masterLocation.findMany({ where: { orgId: actor.orgId }, select: { province: true, regency: true, district: true, village: true } }),
-      existingLocationKeys(actor.orgId),
+      existingLocationIndex(actor.orgId),
       db.vendor.findMany({ where: { orgId: actor.orgId }, select: { name: true } }),
     ]);
     const catalogKeys = new Set(existingCatalog.map(locationKey));
@@ -67,7 +67,7 @@ export async function previewMasterImportAction(
     for (const [k, r] of uniq) {
       if (catalogKeys.has(k)) updateCatalog++;
       else newCatalog++;
-      if (realKeys.has(k)) alreadyReal++;
+      if (realIndex.has(r)) alreadyReal++;
     }
     const fileVendors = new Set(
       [...uniq.values()].map((r) => r.candidateVendor?.trim()).filter((v): v is string => !!v),

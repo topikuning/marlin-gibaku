@@ -4972,3 +4972,55 @@ Verifikasi: 11 kasus integrasi baru (`tests/integration/koreksi-lokasi.test.ts`)
 (PD/RM/PM/SM ditolak), pagar tahap, lintas-org, dan duplikat · unit 619 ✓ ·
 integrasi 151 ✓ ·
 typecheck ✓ · lint ✓ · PERMISSION_MATRIX diregenerasi (47 capability).
+
+---
+
+## 188 — Katalog lokasi: pencocokan ke Location riil diperbaiki; aturan Combobox dijaga lint (2026-07-31)
+
+Dua teguran user pada panel koreksi lokasi (187), dua-duanya benar.
+
+**(a) `<select>` native lagi — aturan yang sudah tiga kali dilanggar.** Dropdown
+katalog di form koreksi memakai `<select>`, padahal DECISIONS 094 → 115 → 174
+sudah menetapkan SEMUA dropdown form pakai `Combobox` yang bisa diketik-cari.
+174 bahkan lahir dari kritik yang sama. Akar masalahnya struktural: aturannya
+hanya hidup di decision log sepanjang 4.900 baris, tidak ada di `CLAUDE.md`
+maupun di lint. Maka:
+
+- Dropdown katalog → `Combobox` (67 opsi, kotak cari otomatis).
+- Aturan masuk `CLAUDE.md` bagian Aturan Coding.
+- **Lint `no-restricted-syntax` menolak `<select>`** di seluruh `src/**/*.tsx`;
+  pengecualian hanya primitive `ui/field.tsx`, `ui/combobox.tsx`, dan
+  `app/cetak/`. Aturan yang tidak dijaga mesin akan dilanggar lagi.
+
+**(b) Lokasi yang SUDAH dipakai tetap muncul di daftar pilihan.** Diukur pada
+data dev: **73 dari 73** baris katalog lolos sebagai "tersedia", 6 di antaranya
+terbukti sudah jadi Location riil. Bukan cuma dropdown baru — `getAvailableCatalog`
+(dipakai jalur normal & bypass), halaman Katalog, pratinjau impor, dan tiga
+penjaga anti-ganda di `package/actions.ts` semuanya memakai pembanding yang
+sama, jadi penjaga duplikatnya pun mandul.
+
+Akarnya kunci alami menyertakan kecamatan. Location riil lazim dibuat TANPA
+kecamatan (kolom opsional, baru ada belakangan) sementara baris katalog hampir
+selalu mengisinya — kunci tidak pernah sama. Ditambah nama desa yang ditulis
+beda spasi antar sumber (`Kedungmutih` vs `Kedung Mutih`).
+
+Sekarang ada DUA pembanding yang sengaja berbeda dan tidak boleh ditukar:
+
+- `locationKey` — KETAT (termasuk kecamatan), untuk katalog ↔ katalog (dedup
+  baris impor). Kedua sisi dari file yang sama, kecamatan pasti terisi.
+- `existingLocationIndex` / `buildExistingLocationIndex` — untuk katalog ↔
+  Location RIIL. Provinsi+kabupaten+desa harus sama; kecamatan cocok bila sama
+  ATAU salah satu sisi kosong; semua perbandingan abai spasi & kapital. Desa
+  senama di dua kecamatan berbeda yang dua-duanya terisi tetap dibedakan.
+
+`existingLocationKeys` (pembanding lama untuk peran ini) DIHAPUS, bukan
+dibiarkan menganggur — supaya tidak ada yang memungutnya lagi.
+
+Hasil pada data dev: lolos 73 → 67, sisa bocor nol. Panel koreksi juga menyebut
+jumlah baris yang disembunyikan, supaya "tidak muncul" tidak terbaca "tidak
+ada", dan mengarahkan ke isian manual bila memang lokasi berbeda.
+
+Verifikasi: unit 629 ✓ (10 kasus baru `location-match`, termasuk reproduksi dua
+kasus bug nyata) · integrasi 151 ✓ · typecheck ✓ · lint ✓ (aturan baru menolak
+`<select>`) · browser: 0 `<select>` di halaman, cari "tengket"/"ujungwatu"/
+"kedungmutih" (sudah terpakai) → kosong, "sumberkima" (belum) → ketemu.
