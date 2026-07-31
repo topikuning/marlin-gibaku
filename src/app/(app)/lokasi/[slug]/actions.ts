@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { requireCapability, requireLocationAccess, ForbiddenError } from "@/lib/auth/session";
 import { canTransitionLocation, LOCATION_STATUS_LABEL } from "@/lib/lifecycle";
+import { coordinateForDb, parseCoordinatePair } from "@/lib/geo";
 import type { LocationStatus } from "@/generated/prisma/enums";
 
 export type StatusActionState = { error?: string; success?: string } | undefined;
@@ -93,15 +94,6 @@ const masterSchema = z.object({
   gpsLng: z.string().trim().optional(),
 });
 
-function parseCoord(raw: string | undefined, min: number, max: number, label: string): number | null {
-  if (!raw) return null;
-  const v = Number(raw.replace(",", "."));
-  if (!Number.isFinite(v) || v < min || v > max) {
-    throw new Error(`${label} tidak valid (rentang ${min} s/d ${max}).`);
-  }
-  return v;
-}
-
 /**
  * Perbarui master data lokasi (alamat administratif + titik koordinat).
  * Koordinat dipakai peta, cap foto (fallback titik proyek), dan rule GPS —
@@ -126,11 +118,9 @@ export async function updateLocationMaster(
   try {
     const user = await requireCapability("location.manage");
     await requireLocationAccess(user, d.locationId);
-    const lat = parseCoord(d.gpsLat, -11, 6.5, "Latitude");
-    const lng = parseCoord(d.gpsLng, 95, 141.5, "Longitude"); // rentang wilayah Indonesia
-    if ((lat == null) !== (lng == null)) {
-      return { error: "Isi latitude DAN longitude bersamaan (atau kosongkan keduanya)." };
-    }
+    const coord = parseCoordinatePair(d.gpsLat, d.gpsLng);
+    if (!coord.ok) return { error: coord.error };
+    const { lat, lng } = coord;
     const before = await db.location.findUnique({
       where: { id: d.locationId },
       select: { slug: true, village: true, district: true, regency: true, province: true, gpsLat: true, gpsLng: true },
@@ -144,8 +134,8 @@ export async function updateLocationMaster(
         district: d.district ?? null,
         regency: d.regency,
         province: d.province,
-        gpsLat: lat != null ? lat.toFixed(7) : null,
-        gpsLng: lng != null ? lng.toFixed(7) : null,
+        gpsLat: coordinateForDb(lat),
+        gpsLng: coordinateForDb(lng),
       },
     });
     await audit(user.id, "location.master_update", "location", d.locationId, {

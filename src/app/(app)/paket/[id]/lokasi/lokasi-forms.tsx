@@ -315,6 +315,22 @@ export function CorrectAddLocationForm({
             </Label>
             <Input id="koreksi-province" name="province" required />
           </div>
+          {/* Tanpa koordinat, lokasi tak muncul di peta, cuaca otomatis mati,
+              dan cap foto kehilangan titik proyek. Boleh dikosongkan lalu
+              diisi belakangan di halaman lokasi. */}
+          <div>
+            <Label htmlFor="koreksi-lat">Latitude</Label>
+            <Input id="koreksi-lat" name="gpsLat" inputMode="decimal" placeholder="-6.8710100" />
+          </div>
+          <div>
+            <Label htmlFor="koreksi-lng">Longitude</Label>
+            <Input id="koreksi-lng" name="gpsLng" inputMode="decimal" placeholder="109.2531230" />
+          </div>
+          <p className="text-xs text-ink-muted sm:col-span-2">
+            Koordinat boleh dikosongkan sekarang, tapi tanpa itu lokasi tidak muncul di Peta,
+            cuaca otomatis mati, dan cap foto kehilangan titik proyek. Salin dari Google Maps:
+            klik kanan titiknya → salin.
+          </p>
         </div>
       )}
 

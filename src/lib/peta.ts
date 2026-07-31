@@ -71,6 +71,25 @@ export async function getPetaMarkers(scopedIds: string[] | null, orgId: string):
   return out;
 }
 
+/**
+ * Lokasi dalam lingkup akses yang TIDAK bisa dipetakan karena koordinatnya
+ * kosong. Tanpa daftar ini peta diam-diam menyembunyikannya, dan "tidak muncul"
+ * terbaca "tidak ada" — padahal cuma titiknya yang belum diisi.
+ */
+export async function getLokasiTanpaKoordinat(
+  scopedIds: string[] | null,
+  orgId: string,
+): Promise<{ id: string; slug: string; name: string; regency: string }[]> {
+  return db.location.findMany({
+    where: {
+      ...(scopedIds === null ? { package: { orgId } } : { id: { in: scopedIds } }),
+      OR: [{ gpsLat: null }, { gpsLng: null }],
+    },
+    select: { id: true, slug: true, name: true, regency: true },
+    orderBy: { name: "asc" },
+  });
+}
+
 export type LocationSnapshot = {
   id: string;
   slug: string;

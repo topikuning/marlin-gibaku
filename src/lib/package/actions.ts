@@ -17,6 +17,7 @@ import { getLocationsProgress } from "@/lib/progress";
 import { weightedRealizedPct } from "@/lib/progress-calc";
 import { regenerateBaseline } from "@/lib/rab/import";
 import { existingLocationIndex } from "@/lib/master-location/queries";
+import { coordinateForDb, parseCoordinatePair } from "@/lib/geo";
 import type { PackageStage } from "@/generated/prisma/enums";
 
 /**
@@ -349,14 +350,10 @@ const addLocationSchema = z.object({
   district: z.string().trim().max(100).optional(),
   regency: z.string().trim().min(2, "Kabupaten/kota wajib diisi").max(100),
   province: z.string().trim().min(2, "Provinsi wajib diisi").max(100),
-  gpsLat: z.preprocess(
-    (v) => (v === "" || v == null ? undefined : Number(v)),
-    z.number().min(-90).max(90).optional(),
-  ),
-  gpsLng: z.preprocess(
-    (v) => (v === "" || v == null ? undefined : Number(v)),
-    z.number().min(-180).max(180).optional(),
-  ),
+  // Koordinat divalidasi terpisah lewat parseCoordinatePair (lib/geo) supaya
+  // rentangnya sama dengan form edit — dulu di sini seluruh bumi diterima.
+  gpsLat: z.string().trim().optional(),
+  gpsLng: z.string().trim().optional(),
 });
 
 export async function addTargetLocation(
@@ -371,11 +368,13 @@ export async function addTargetLocation(
     district: optionalText(formData.get("district"), 100) ?? undefined,
     regency: formData.get("regency"),
     province: formData.get("province"),
-    gpsLat: formData.get("gpsLat"),
-    gpsLng: formData.get("gpsLng"),
+    gpsLat: String(formData.get("gpsLat") ?? "").trim() || undefined,
+    gpsLng: String(formData.get("gpsLng") ?? "").trim() || undefined,
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
+  const coord = parseCoordinatePair(d.gpsLat, d.gpsLng);
+  if (!coord.ok) return { error: coord.error };
 
   const result = await db.$transaction(async (tx) => {
     const pkg = await tx.package.findFirst({
@@ -408,8 +407,8 @@ export async function addTargetLocation(
         district: d.district ?? null,
         regency: d.regency,
         province: d.province,
-        gpsLat: d.gpsLat ?? null,
-        gpsLng: d.gpsLng ?? null,
+        gpsLat: coordinateForDb(coord.lat),
+        gpsLng: coordinateForDb(coord.lng),
         status: "persiapan",
         isActive: false,
       },
@@ -1410,6 +1409,8 @@ const correctLocationSchema = z.object({
   district: z.string().trim().max(100).optional(),
   regency: z.string().trim().max(120).optional(),
   province: z.string().trim().max(120).optional(),
+  gpsLat: z.string().trim().optional(),
+  gpsLng: z.string().trim().optional(),
   reason: z
     .string()
     .trim()
@@ -1442,6 +1443,8 @@ export async function correctAddLocationAction(
     village: optionalText(formData.get("village"), 120) ?? undefined,
     district: optionalText(formData.get("district"), 100) ?? undefined,
     regency: optionalText(formData.get("regency"), 120) ?? undefined,
+    gpsLat: String(formData.get("gpsLat") ?? "").trim() || undefined,
+    gpsLng: String(formData.get("gpsLng") ?? "").trim() || undefined,
     province: optionalText(formData.get("province"), 120) ?? undefined,
     reason: formData.get("reason") ?? "",
   });
@@ -1451,6 +1454,9 @@ export async function correctAddLocationAction(
   if (manual && !(d.name && d.village && d.regency && d.province)) {
     return { error: "Pilih lokasi dari katalog, atau isi nama, desa, kabupaten, dan provinsi." };
   }
+  // Koordinat hanya relevan di jalur manual; dari katalog ikut titik master.
+  const manualCoord = parseCoordinatePair(d.gpsLat, d.gpsLng);
+  if (!manualCoord.ok) return { error: manualCoord.error };
 
   const ip = (await requestIp()) ?? null;
   const result = await db.$transaction(async (tx) => {
@@ -1499,7 +1505,8 @@ export async function correctAddLocationAction(
     } else {
       src = {
         name: d.name!, village: d.village!, district: d.district ?? null,
-        regency: d.regency!, province: d.province!, lat: null, lng: null,
+        regency: d.regency!, province: d.province!,
+        lat: coordinateForDb(manualCoord.lat), lng: coordinateForDb(manualCoord.lng),
       };
     }
 

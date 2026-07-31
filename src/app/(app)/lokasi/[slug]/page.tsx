@@ -243,13 +243,13 @@ export default async function LokasiRingkasanPage({
           </CardBody>
         </Card>
 
-        <Card>
-          <CardHeader
-            title="Status lokasi"
-            subtitle={canManageLocation ? "Ubah status mengikuti lifecycle proyek" : "Riwayat perubahan status"}
-          />
-          <CardBody className="space-y-4">
-            {canManageLocation ? (
+        {canManageLocation ? (
+          <Card>
+            <CardHeader
+              title="Alamat & koordinat"
+              subtitle="Titik GPS proyek — dipakai Peta, cuaca otomatis, cap foto, dan pemeriksaan jarak foto lapangan."
+            />
+            <CardBody>
               <LocationMasterForm
                 locationId={location.id}
                 village={location.village}
@@ -259,7 +259,16 @@ export default async function LokasiRingkasanPage({
                 gpsLat={location.gpsLat != null ? location.gpsLat.toString() : null}
                 gpsLng={location.gpsLng != null ? location.gpsLng.toString() : null}
               />
-            ) : null}
+            </CardBody>
+          </Card>
+        ) : null}
+
+        <Card>
+          <CardHeader
+            title="Status lokasi"
+            subtitle={canManageLocation ? "Ubah status mengikuti lifecycle proyek" : "Riwayat perubahan status"}
+          />
+          <CardBody className="space-y-4">
             {canManageLocation ? (
               <LocationStatusForm locationId={location.id} targets={targets} />
             ) : null}

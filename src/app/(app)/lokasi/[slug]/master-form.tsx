@@ -30,16 +30,40 @@ export function LocationMasterForm({
   const [open, setOpen] = useState(false);
   const [state, action, saving] = useActionState<StatusActionState, FormData>(updateLocationMaster, undefined);
 
+  const adaKoordinat = !!(gpsLat && gpsLng);
+
   if (!open) {
     return (
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs text-ink-faint">
-          Koordinat: {gpsLat && gpsLng ? `${gpsLat}, ${gpsLng}` : "belum diisi"} — dipakai peta, cap foto & pemeriksaan GPS.
-        </p>
-        <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(true)}>
-          <Pencil aria-hidden className="size-3.5" />
-          Edit master data
-        </Button>
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0 text-sm">
+            <p className="text-ink-muted">
+              {village}
+              {district ? `, ${district}` : ""}, {regency}, {province}
+            </p>
+            <p className="mt-0.5">
+              <span className="text-ink-muted">Koordinat: </span>
+              {adaKoordinat ? (
+                <span className="tabular text-ink">
+                  {gpsLat}, {gpsLng}
+                </span>
+              ) : (
+                <span className="text-warning">belum diisi</span>
+              )}
+            </p>
+          </div>
+          <Button type="button" size="sm" variant="secondary" onClick={() => setOpen(true)}>
+            <Pencil aria-hidden className="size-3.5" />
+            Ubah alamat &amp; koordinat
+          </Button>
+        </div>
+        {!adaKoordinat ? (
+          <Banner
+            tone="warning"
+            title="Lokasi ini belum punya koordinat"
+            description="Selama kosong: tidak muncul di Peta, cuaca otomatis tidak jalan, dan cap foto memakai titik perangkat tanpa pembanding proyek."
+          />
+        ) : null}
       </div>
     );
   }
