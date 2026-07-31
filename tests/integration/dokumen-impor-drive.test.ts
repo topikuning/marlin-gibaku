@@ -34,6 +34,8 @@ type FakeFile = {
   body: string;
   /** Simulasi file hilang/dipindah setelah pratinjau dibuat. */
   hilang?: boolean;
+  /** appProperties penanda "diunggah MARLIN sendiri" (DECISIONS 191). */
+  terbitanMarlin?: boolean;
 };
 let driveFiles: FakeFile[] = [];
 let truncated = false;
@@ -59,6 +61,7 @@ vi.mock("@/lib/gdrive/client", () => {
         modifiedTime: new Date("2026-05-12T03:00:00Z"),
         webViewLink: `https://drive.google.com/file/d/${f.id}/view`,
         path: f.path,
+        terbitanMarlin: f.terbitanMarlin === true,
       })),
       truncated,
     }),
@@ -73,6 +76,7 @@ vi.mock("@/lib/gdrive/client", () => {
         modifiedTime: new Date("2026-05-12T03:00:00Z"),
         webViewLink: `https://drive.google.com/file/d/${f.id}/view`,
         path: [],
+        terbitanMarlin: f.terbitanMarlin === true,
       };
     },
     downloadDriveFile: async (id: string, mime: string) => {
@@ -186,6 +190,7 @@ beforeEach(async () => {
   putKeys.length = 0;
   driveFiles = [];
   await db.document.deleteMany({ where: { orgId } });
+  await db.gDriveUpload.deleteMany({ where: { packageId } });
 });
 
 function pdf(over: Partial<FakeFile> & { id: string; name: string }): FakeFile {
@@ -420,5 +425,93 @@ describe("commit", () => {
       select: { payload: true },
     });
     expect(log?.payload).toMatchObject({ diminta: 1, berhasil: 1, gagal: 0 });
+  });
+});
+
+/**
+ * Lingkaran laporan (keluhan user 2026-07-31): MARLIN mengunggah PDF laporan ke
+ * folder KKP, lalu impor Drive membaca folder yang SAMA dan menawarkan berkas
+ * itu lagi sebagai "dokumen baru" — daftar jadi penuh terbitannya sendiri.
+ * DECISIONS 191.
+ */
+describe("berkas terbitan MARLIN sendiri tidak ditawarkan balik", () => {
+  it("KASUS INTI: laporan yang diunggah MARLIN hilang dari daftar & terhitung terpisah", async () => {
+    driveFiles = [
+      pdf({ id: "milik-kkp", name: "SPMK Kedungrejo.pdf" }),
+      pdf({
+        id: "terbitan-marlin",
+        name: "Laporan Harian Kedungrejo 12-05-2026.pdf",
+        terbitanMarlin: true,
+      }),
+    ];
+    const pv = await previewDriveImport(packageId);
+    expect(pv.rows.map((r) => r.driveFileId)).toEqual(["milik-kkp"]);
+    expect(pv.jumlah.terbitanSendiri).toBe(1);
+    expect(pv.jumlah.total).toBe(1);
+  });
+
+  it("berkas lama tanpa penanda tetap tersaring lewat catatan GDriveUpload", async () => {
+    // Berkas yang naik SEBELUM penanda appProperties ada: tidak ber-penanda,
+    // tapi tercatat di GDriveUpload sebagai unggahan sukses paket ini.
+    driveFiles = [
+      pdf({ id: "lama-marlin", name: "Laporan Mingguan M-03.pdf" }),
+      pdf({ id: "milik-kkp", name: "Kontrak.pdf" }),
+    ];
+    await db.gDriveUpload.create({
+      data: {
+        packageId,
+        kind: "laporan_mingguan",
+        refKey: "m-03",
+        fileName: "Laporan Mingguan M-03.pdf",
+        fileId: "lama-marlin",
+        status: "sukses",
+        createdById: sessionUserId,
+      },
+    });
+    const pv = await previewDriveImport(packageId);
+    expect(pv.rows.map((r) => r.driveFileId)).toEqual(["milik-kkp"]);
+    expect(pv.jumlah.terbitanSendiri).toBe(1);
+  });
+
+  it("unggahan yang GAGAL tidak menyaring apa pun", async () => {
+    driveFiles = [pdf({ id: "f1", name: "Kontrak.pdf" })];
+    await db.gDriveUpload.create({
+      data: {
+        packageId,
+        kind: "laporan_harian",
+        refKey: "x",
+        fileName: "Kontrak.pdf",
+        fileId: "f1",
+        status: "gagal",
+        createdById: sessionUserId,
+      },
+    });
+    const pv = await previewDriveImport(packageId);
+    expect(pv.rows.map((r) => r.driveFileId)).toEqual(["f1"]);
+    expect(pv.jumlah.terbitanSendiri).toBe(0);
+  });
+
+  it("commit MENOLAK berkas terbitan sendiri walau lolos ke pilihan (pratinjau basi)", async () => {
+    driveFiles = [
+      pdf({ id: "terbitan-marlin", name: "Laporan Harian.pdf", terbitanMarlin: true }),
+    ];
+    const hasil = await commitDriveImport(packageId, [
+      { driveFileId: "terbitan-marlin", type: "spmk", locationId: null, path: "" },
+    ]);
+    expect(hasil.berhasil).toHaveLength(0);
+    expect(hasil.gagal[0]?.sebab).toMatch(/terbitan MARLIN sendiri/i);
+    expect(await db.document.count({ where: { orgId } })).toBe(0);
+  });
+
+  it("berkas KKP biasa tetap bisa diimpor seperti sebelumnya", async () => {
+    driveFiles = [
+      pdf({ id: "terbitan-marlin", name: "Laporan Harian.pdf", terbitanMarlin: true }),
+      pdf({ id: "kkp", name: "SPMK Kedungrejo.pdf" }),
+    ];
+    const hasil = await commitDriveImport(packageId, [
+      { driveFileId: "kkp", type: "spmk", locationId: kedungrejoId, path: "" },
+    ]);
+    expect(hasil.berhasil).toHaveLength(1);
+    expect(await db.document.count({ where: { orgId } })).toBe(1);
   });
 });

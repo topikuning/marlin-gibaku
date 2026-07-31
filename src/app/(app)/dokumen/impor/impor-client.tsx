@@ -119,6 +119,15 @@ export function ImporDriveClient({
                 {previewState.preview.jumlah.sudahAda} sudah pernah diimpor,{" "}
                 {previewState.preview.jumlah.dilewati} dilewati.
               </p>
+              {/* Yang disembunyikan harus disebut jumlahnya — jangan sampai
+                  "tidak muncul" terbaca "tidak ada". */}
+              {previewState.preview.jumlah.terbitanSendiri > 0 ? (
+                <p className="text-[13px] text-ink-muted">
+                  {previewState.preview.jumlah.terbitanSendiri} berkas tidak ditampilkan karena
+                  terbitan MARLIN sendiri (laporan yang diunggah dari sini) — datanya sudah ada,
+                  tidak perlu diimpor balik.
+                </p>
+              ) : null}
               {previewState.preview.terpotong ? (
                 <Banner
                   tone="warning"

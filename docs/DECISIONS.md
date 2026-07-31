@@ -5123,3 +5123,57 @@ tetap ditolak; program_director tidak ikut berubah) · typecheck ✓ · lint ✓
 browser: `kkp-viewer` tanpa penugasan melihat 0 lokasi + banner penjelas,
 setelah ditugaskan 1 lokasi melihat tepat 1 paket dengan KPI ikut ter-scope,
 sementara admin tetap melihat 7 lokasi.
+
+---
+
+## 191 — Impor Drive tidak lagi menawarkan balik berkas terbitan MARLIN sendiri (2026-07-31)
+
+Keluhan user: "marlin membaca file laporan yang dia upload sendiri, dan menambah
+daftar file, merepotkan." Benar, dan itu lingkaran yang kita buat sendiri.
+
+MARLIN mengunggah PDF/Excel laporan harian & mingguan ke folder KKP di Google
+Drive (DECISIONS 143/146). Impor dokumen membaca folder yang SAMA. Penyaring
+lama hanya mengecualikan berkas yang **sudah pernah diimpor** (`Document.
+driveFileId`) dan berkas kebesaran — bukan berkas yang MARLIN sendiri terbitkan.
+Akibatnya setiap laporan yang naik langsung muncul lagi sebagai "dokumen baru
+siap diimpor", dan daftar impor tenggelam oleh terbitannya sendiri. Makin rajin
+melapor, makin berantakan daftarnya.
+
+**Dua penyaring, sengaja dua-duanya** — satu saja tidak cukup:
+
+1. **Penanda di Drive.** Setiap unggahan MARLIN kini distempel `appProperties`
+   `marlinTerbitan=1`. `appProperties` privat per-aplikasi: tidak terlihat
+   pengguna, tidak mengotori tampilan Drive, dan **ikut terbawa walau berkas
+   diganti nama atau dipindah folder**. Ini penyaring utama karena tidak
+   bergantung pada database kita.
+2. **Catatan `GDriveUpload`.** Berkas yang sudah terlanjur naik SEBELUM penanda
+   itu ada tentu tidak punya `appProperties`. Untuk itu `fileId` unggahan
+   berstatus `sukses` pada paket tsb ikut disaring. Tanpa ini perbaikan baru
+   terasa untuk berkas baru saja, sementara keluhannya justru tentang yang sudah
+   menumpuk.
+
+Unggahan berstatus **gagal** tidak menyaring apa pun — berkasnya memang tidak
+ada di Drive, dan kalau ada berkas senama milik KKP ia tetap harus bisa diimpor.
+
+**Penjaga di sisi commit, bukan cuma tampilan.** `commitDriveImport` membaca
+ulang metadata dari Drive (prinsip lama: jangan percaya klien) dan menolak
+berkas ber-penanda. Pratinjau basi atau permintaan yang dijahili tidak bisa
+menembus penyaring.
+
+**Disembunyikan, bukan ditampilkan sebagai baris "dilewati".** Berkas terbitan
+sendiri tidak informatif sebagai baris — datanya sudah ada di MARLIN. Tapi
+jumlahnya DISEBUT ("N berkas tidak ditampilkan karena terbitan MARLIN sendiri"),
+sesuai aturan daftar-pilihan di `CLAUDE.md`: yang disembunyikan harus disebut
+supaya "tidak muncul" tak terbaca "tidak ada". Jumlahnya juga masuk audit log
+pratinjau.
+
+Yang TIDAK diubah: panel kelengkapan folder KKP tetap menghitung berkas terbitan
+MARLIN sebagai "ada" — memang benar berkasnya ada di folder itu.
+
+Verifikasi: unit 640 ✓ · integrasi 165 ✓ (5 kasus baru: laporan ber-penanda
+hilang dari daftar & terhitung terpisah; berkas lama tanpa penanda tersaring
+lewat GDriveUpload; unggahan gagal tidak menyaring; commit menolak berkas
+terbitan sendiri; berkas KKP biasa tetap bisa diimpor) · typecheck ✓ · lint ✓.
+Panggilan nyata ke googleapis.com tidak bisa dijalankan dari kontainer kerja
+(proxy memblokir host luar) — klien Drive di-mock seperti uji impor yang sudah
+ada; stempel `appProperties` pada unggahan sungguhan harus dipastikan di Railway.

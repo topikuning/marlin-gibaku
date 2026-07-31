@@ -83,7 +83,14 @@ export type DriveImportPreview = {
   rows: DriveImportRow[];
   /** Batas kedalaman/jumlah tercapai — masih ada berkas yang belum ditampilkan. */
   terpotong: boolean;
-  jumlah: { total: number; siap: number; sudahAda: number; dilewati: number };
+  jumlah: {
+    total: number;
+    siap: number;
+    sudahAda: number;
+    dilewati: number;
+    /** Berkas terbitan MARLIN sendiri yang TIDAK ditampilkan (DECISIONS 191). */
+    terbitanSendiri: number;
+  };
 };
 
 async function paketDenganAkses(packageId: string, orgId: string) {
@@ -123,16 +130,36 @@ export async function previewDriveImport(packageId: string): Promise<DriveImport
     maxFiles: MAX_PREVIEW_FILES,
   });
 
-  const sudahAda = new Map<string, string>();
+  // Berkas TERBITAN MARLIN sendiri tidak ditawarkan lagi (DECISIONS 191).
+  // Dua sumber, sengaja dua-duanya: penanda appProperties di Drive (tahan ganti
+  // nama, tidak bergantung DB) DAN catatan GDriveUpload (menangkap berkas yang
+  // sudah terlanjur naik sebelum penanda itu ada).
+  const idTerbitanSendiri = new Set<string>();
   if (files.length > 0) {
+    const unggahanSendiri = await db.gDriveUpload.findMany({
+      where: {
+        packageId: pkg.id,
+        status: "sukses",
+        fileId: { in: files.map((f) => f.id) },
+      },
+      select: { fileId: true },
+    });
+    for (const g of unggahanSendiri) if (g.fileId) idTerbitanSendiri.add(g.fileId);
+  }
+  for (const f of files) if (f.terbitanMarlin) idTerbitanSendiri.add(f.id);
+
+  const kandidat = files.filter((f) => !idTerbitanSendiri.has(f.id));
+
+  const sudahAda = new Map<string, string>();
+  if (kandidat.length > 0) {
     const imported = await db.document.findMany({
-      where: { orgId: user.orgId, driveFileId: { in: files.map((f) => f.id) } },
+      where: { orgId: user.orgId, driveFileId: { in: kandidat.map((f) => f.id) } },
       select: { driveFileId: true, title: true },
     });
     for (const d of imported) if (d.driveFileId) sudahAda.set(d.driveFileId, d.title);
   }
 
-  const rows: DriveImportRow[] = files.map((f) => {
+  const rows: DriveImportRow[] = kandidat.map((f) => {
     const klas = classifyDriveFile({ fileName: f.name, path: f.path });
     const lokasi = matchLocation({ fileName: f.name, path: f.path }, lokasiBoleh);
     const docDate = extractDocDate(f.name);
@@ -171,6 +198,7 @@ export async function previewDriveImport(packageId: string): Promise<DriveImport
 
   await audit(user.id, "document.drive_preview", "package", pkg.id, {
     ditemukan: rows.length,
+    terbitanSendiri: idTerbitanSendiri.size,
     terpotong: truncated,
   });
 
@@ -184,6 +212,7 @@ export async function previewDriveImport(packageId: string): Promise<DriveImport
       siap: rows.filter((r) => !r.dilewati).length,
       sudahAda: rows.filter((r) => r.dilewati?.startsWith("sudah pernah")).length,
       dilewati: rows.filter((r) => r.dilewati && !r.dilewati.startsWith("sudah pernah")).length,
+      terbitanSendiri: idTerbitanSendiri.size,
     },
   };
 }
@@ -250,6 +279,13 @@ export async function commitDriveImport(
       // atau dijahili; nama/mime/ukuran yang dipakai harus yang sebenarnya.
       const meta = await driveFileMeta(sel.driveFileId);
       namaBerkas = meta.name;
+      // Penjaga sisi server: berkas terbitan MARLIN sendiri tidak boleh masuk
+      // lagi walau lolos ke daftar pilihan (pratinjau basi / permintaan dijahili).
+      if (meta.terbitanMarlin) {
+        throw new DocumentError(
+          "Berkas ini terbitan MARLIN sendiri (laporan yang diunggah dari sini) — datanya sudah ada, tidak perlu diimpor",
+        );
+      }
       if (!mimeDidukung(meta.mimeType)) {
         throw new DocumentError(`Jenis berkas tidak didukung (${meta.mimeType})`);
       }
