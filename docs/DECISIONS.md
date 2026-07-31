@@ -5072,3 +5072,54 @@ typecheck ✓ · lint ✓ · browser: kartu "Alamat & koordinat" tampil, input
 tertukar ditolak dengan saran pembetulan, dan setelah satu lokasi dikosongkan
 koordinatnya halaman Peta menyebut "1 lokasi tidak tampil" + tautannya (data dev
 dipulihkan setelah uji).
+
+---
+
+## 190 — Executive View ikut butuh penugasan lokasi (2026-07-31)
+
+Permintaan user: "untuk level eksekutif viewer juga perlu penugasan, jadi tidak
+semua lokasi otomatis eksekutif view bisa lihat."
+
+Sebelum ini `exec_viewer` ada di `CROSS_LOCATION_ROLES`, jadi setiap akun
+Executive View otomatis melihat SELURUH lokasi organisasi tanpa ditugaskan apa
+pun. Sekarang ia keluar dari himpunan itu dan tunduk pada `LocationAssignment`
+seperti Site Manager / Project Manager.
+
+**Akun exec tanpa penugasan melihat NOL lokasi, bukan semuanya** (pilihan user).
+Alasannya: kalau kosong berarti "semua", maka lupa menugaskan diam-diam membuka
+seluruh portofolio — persis hal yang mau dicegah. Gagal ke arah aman.
+
+Perubahannya satu tempat: `CROSS_LOCATION_ROLES` di `src/lib/authz.ts`. Baik
+`accessibleLocationIds` (penyaring daftar) maupun `hasLocationAccess` (penjaga
+per-lokasi, 128 pemanggil) sama-sama lewat `isCrossLocation`, jadi seluruh
+halaman, server action, dan route handler ikut tanpa perubahan masing-masing.
+
+**Yang TIDAK berubah**: `super_admin` dan `program_director` tetap lintas lokasi
+(user memilih demikian). Kapabilitas LIHAT milik exec_viewer juga tidak dicabut
+sama sekali — yang berubah hanya CAKUPAN lokasinya. Untuk exec tingkat nasional,
+tugaskan seluruh lokasi ke akunnya.
+
+**Halaman kosong harus menjelaskan dirinya.** Peran ter-scope tanpa penugasan
+melihat nol data di mana-mana, dan itu terbaca "sistem rusak" atau "proyeknya
+memang belum ada". Satu banner di `app/(app)/layout.tsx` menyebut sebabnya dan
+apa yang harus dilakukan — sekali pasang, berlaku untuk semua halaman. Ini
+penerapan aturan daftar-pilihan di `CLAUDE.md`: yang disembunyikan harus
+disebut, jangan sampai "tidak muncul" terbaca "tidak ada".
+
+`scripts/gen-permission-matrix.mts` dulu menuliskan daftar peran lintas-lokasi
+secara hardcode di teks dokumen, sehingga PERMISSION_MATRIX.md langsung bohong
+begitu konstantanya berubah. Kini baris itu dibangkitkan dari
+`CROSS_LOCATION_ROLES`.
+
+**Dampak rilis**: akun Executive View yang sudah ada (mis. `kkp-viewer`) menjadi
+kosong sampai admin menugaskan lokasi. Itu konsekuensi yang disengaja, bukan
+regresi.
+
+Verifikasi: unit 640 ✓ · integrasi 160 ✓ (9 kasus baru `exec-viewer-scope` yang
+memakai `accessibleLocationIds`/`hasLocationAccess` ASLI, bukan mock: tanpa
+penugasan → nol lokasi & nol paket & URL lokasi tertutup; dengan penugasan →
+hanya lokasi itu; penugasan dicabut → langsung tertutup; penugasan lintas-org
+tetap ditolak; program_director tidak ikut berubah) · typecheck ✓ · lint ✓ ·
+browser: `kkp-viewer` tanpa penugasan melihat 0 lokasi + banner penjelas,
+setelah ditugaskan 1 lokasi melihat tepat 1 paket dengan KPI ikut ter-scope,
+sementara admin tetap melihat 7 lokasi.

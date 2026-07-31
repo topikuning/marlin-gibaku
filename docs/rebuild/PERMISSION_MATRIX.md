@@ -8,8 +8,10 @@ Model: **capability-based**. Role → set capability (konstanta di `src/lib/auth
 Frontend hanya menyembunyikan menu; **setiap Server Action / Route Handler wajib
 otorisasi ulang** via `requireCapability()` + scope check (`requireLocationAccess()`).
 
-Scope lokasi: `super_admin`, `program_director`, `exec_viewer` = lintas lokasi.
-Role lain dibatasi `LocationAssignment` (dan paket yang memuat lokasi tersebut).
+Scope lokasi: `super_admin`, `program_director` = lintas lokasi
+(semua lokasi ORGANISASI-nya, tanpa penugasan). Role lain — termasuk
+`exec_viewer` sejak DECISIONS 190 — dibatasi `LocationAssignment` (dan paket yang
+memuat lokasi tersebut); tanpa penugasan berarti NOL lokasi, bukan semuanya.
 
 Jumlah capability: **47**.
 

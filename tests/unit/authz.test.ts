@@ -73,12 +73,20 @@ describe("authz capability matrix", () => {
     }
   });
 
-  it("cross-location: super_admin/program_director/exec_viewer saja", () => {
+  it("cross-location: super_admin & program_director SAJA", () => {
     expect(isCrossLocation("super_admin")).toBe(true);
     expect(isCrossLocation("program_director")).toBe(true);
-    expect(isCrossLocation("exec_viewer")).toBe(true);
     expect(isCrossLocation("site_manager")).toBe(false);
     expect(isCrossLocation("project_manager")).toBe(false);
+  });
+
+  it("exec_viewer BUTUH penugasan — bukan lintas lokasi (DECISIONS 190)", () => {
+    // Permintaan user 2026-07-31: Executive View tidak boleh otomatis melihat
+    // semua lokasi. Tanpa penugasan ia melihat NOL, bukan semuanya.
+    expect(isCrossLocation("exec_viewer")).toBe(false);
+    // Kapabilitas LIHAT-nya tidak dicabut — yang berubah cuma cakupan lokasi.
+    expect(can("exec_viewer", "location.view")).toBe(true);
+    expect(can("exec_viewer", "progress.view")).toBe(true);
   });
 });
 

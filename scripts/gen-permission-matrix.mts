@@ -9,7 +9,7 @@
  * Pakai: pnpm docs:permission
  */
 import { writeFileSync } from "node:fs";
-import { CAPABILITIES, ROLE_CAPABILITIES } from "@/lib/authz";
+import { CAPABILITIES, CROSS_LOCATION_ROLES, ROLE_CAPABILITIES } from "@/lib/authz";
 import type { UserRole } from "@/generated/prisma/enums";
 
 const ROLES: UserRole[] = [
@@ -51,8 +51,10 @@ Model: **capability-based**. Role → set capability (konstanta di \`src/lib/aut
 Frontend hanya menyembunyikan menu; **setiap Server Action / Route Handler wajib
 otorisasi ulang** via \`requireCapability()\` + scope check (\`requireLocationAccess()\`).
 
-Scope lokasi: \`super_admin\`, \`program_director\`, \`exec_viewer\` = lintas lokasi.
-Role lain dibatasi \`LocationAssignment\` (dan paket yang memuat lokasi tersebut).
+Scope lokasi: ${[...CROSS_LOCATION_ROLES].map((r) => `\`${r}\``).join(", ")} = lintas lokasi
+(semua lokasi ORGANISASI-nya, tanpa penugasan). Role lain — termasuk
+\`exec_viewer\` sejak DECISIONS 190 — dibatasi \`LocationAssignment\` (dan paket yang
+memuat lokasi tersebut); tanpa penugasan berarti NOL lokasi, bukan semuanya.
 
 Jumlah capability: **${CAPABILITIES.length}**.
 
