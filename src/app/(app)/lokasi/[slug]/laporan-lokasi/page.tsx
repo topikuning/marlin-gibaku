@@ -14,6 +14,7 @@ import { getPeriodBounds, getPeriodReport, type PeriodKind } from "@/lib/periodi
 import { isWahaConfigured } from "@/lib/waha/client";
 import { getGDriveConfigDisplay } from "@/lib/gdrive/config";
 import { jakartaDateKey, formatTanggal, formatTanggalWaktu } from "@/lib/format";
+import { withBackTo } from "@/lib/print-back";
 
 export const dynamic = "force-dynamic";
 
@@ -88,7 +89,7 @@ export default async function LaporanLokasiPage({
             scheduleBounds ? (
               <div className="flex items-center gap-2">
                 <Link
-                  href={`/cetak/jadwal/${slug}`}
+                  href={withBackTo(`/cetak/jadwal/${slug}`, `/lokasi/${slug}/laporan-lokasi`)}
                   className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-4 text-sm font-medium text-ink transition-colors hover:bg-surface-muted hover:border-border-strong"
                 >
                   <CalendarClock aria-hidden className="size-4" /> Cetak Jadwal
@@ -178,7 +179,7 @@ export default async function LaporanLokasiPage({
                           }
                         />
                       ) : null}
-                      <Link href={`/cetak/harian/${slug}/${key}`} className="font-medium text-primary hover:underline">
+                      <Link href={withBackTo(`/cetak/harian/${slug}/${key}`, `/lokasi/${slug}/laporan-lokasi`)} className="font-medium text-primary hover:underline">
                         Cetak
                       </Link>
                     </span>

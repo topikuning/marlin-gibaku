@@ -5,16 +5,20 @@ import { KkpPeriodReport } from "@/components/knmp/kkp-period-report";
 import { requireUser, requireLocationAccess } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { getPeriodReport, type PeriodKind } from "@/lib/periodic-report";
+import { PRINT_BACK_PARAM, safeBackPath } from "@/lib/print-back";
 
 export const dynamic = "force-dynamic";
 
 /** Cetak laporan mingguan/bulanan format KKP — tanpa shell aplikasi. */
 export default async function CetakPeriodikPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string; kind: string; n: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { slug, kind, n } = await params;
+  const sp = await searchParams;
   if (kind !== "mingguan" && kind !== "bulanan") notFound();
   const periodN = Number.parseInt(n, 10);
   if (!Number.isInteger(periodN) || periodN < 1) notFound();
@@ -29,7 +33,12 @@ export default async function CetakPeriodikPage({
 
   return (
     <>
-      <PrintToolbar backHref={`/lokasi/${slug}/laporan-lokasi`} />
+      <PrintToolbar
+        backHref={safeBackPath(
+          typeof sp[PRINT_BACK_PARAM] === "string" ? sp[PRINT_BACK_PARAM] : undefined,
+          `/lokasi/${slug}/laporan-lokasi`,
+        )}
+      />
       {/* Landscape utk halaman Kurva-S; tetap A4 potrait utk tabel detail. */}
       <style>{`@media print { @page { size: A4 landscape; margin: 8mm; } }`}</style>
       <main className="bg-white">

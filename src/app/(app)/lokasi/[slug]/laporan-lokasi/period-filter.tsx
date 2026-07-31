@@ -5,6 +5,7 @@ import { Printer, Sheet } from "lucide-react";
 import { useState } from "react";
 import { Button, FieldError, Label, Combobox } from "@/components/ui";
 import { cn } from "@/lib/cn";
+import { withBackTo } from "@/lib/print-back";
 
 /**
  * Filter laporan periodik KKP. Alur (audit UX #7): user pilih Jenis → periode →
@@ -85,7 +86,7 @@ export function PeriodFilter({
 
       {/* Cetak & Unduh — aktif hanya setelah laporan digenerate */}
       <Link
-        href={`/cetak/periodik/${slug}/${kind}/${n}`}
+        href={withBackTo(`/cetak/periodik/${slug}/${kind}/${n}`, `/lokasi/${slug}/laporan-lokasi`)}
         aria-disabled={!shown}
         tabIndex={shown ? undefined : -1}
         className={cn(LINK_BTN, !shown && LINK_BTN_DISABLED)}

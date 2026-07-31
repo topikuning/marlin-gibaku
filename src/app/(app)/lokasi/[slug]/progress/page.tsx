@@ -21,6 +21,7 @@ import { BaselineEditor } from "./baseline-editor";
 import { ScheduleEditor } from "./schedule-editor";
 import { JadwalImport } from "./jadwal-import";
 import { BaselineHistory, type BaselineHistoryRow } from "./baseline-history";
+import { withBackTo } from "@/lib/print-back";
 
 export const metadata: Metadata = { title: "Progress Lokasi" };
 export const dynamic = "force-dynamic";
@@ -192,7 +193,7 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
                 {bounds ? (
                   <>
                     <Link
-                      href={`/cetak/jadwal/${slug}`}
+                      href={withBackTo(`/cetak/jadwal/${slug}`, `/lokasi/${slug}/progress`)}
                       className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-muted hover:border-border-strong"
                     >
                       <CalendarClock aria-hidden className="size-4" /> Cetak Jadwal

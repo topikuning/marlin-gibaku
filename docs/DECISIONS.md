@@ -5177,3 +5177,65 @@ terbitan sendiri; berkas KKP biasa tetap bisa diimpor) · typecheck ✓ · lint 
 Panggilan nyata ke googleapis.com tidak bisa dijalankan dari kontainer kerja
 (proxy memblokir host luar) — klien Drive di-mock seperti uji impor yang sudah
 ada; stempel `appProperties` pada unggahan sungguhan harus dipastikan di Railway.
+
+---
+
+## 192 — Buka kunci final yang buntu, cuaca/tenaga kerja yang tersembunyi, dan tombol Kembali cetak yang nyasar (2026-07-31)
+
+Tiga temuan dari satu sesi pemakaian nyata.
+
+### (a) Buka kunci final tidak menghasilkan apa-apa
+
+`unfinalizeReport` memindahkan `final → disetujui` (DECISIONS 149). Tapi
+`disetujui` TIDAK ada di `EDITABLE_STATUSES` (`draft`, `perlu_koreksi`) maupun
+`ENRICHABLE_STATUSES`, dan satu-satunya panel yang muncul di status itu adalah
+"Finalisasi Laporan". Jadi setelah membuka kunci, tidak ada satu pun yang bisa
+diedit — persis pertanyaan user: "kenapa tidak ada edit apa pun, lalu apa
+gunanya di revert dari final?"
+
+Transisi `disetujui → perlu_koreksi` SUDAH sah di `lifecycle.ts` dan
+`returnReport` sudah bisa melakukannya; yang hilang cuma tombolnya. Kini
+`ReviewActions` punya mode `koreksi` yang tampil saat status `disetujui`:
+hanya "Kembalikan untuk koreksi", tanpa "Setujui" (laporannya memang sudah
+disetujui). Alurnya jadi dua langkah yang masing-masing tercatat: buka kunci
+(super admin) → kembalikan untuk koreksi (pemegang review) → editable.
+
+Panelnya menyebut terus terang bahwa **volume laporan berhenti dihitung di
+progres & kurva-S** selama berstatus `perlu_koreksi` (status itu memang bukan
+anggota `COUNTED_REPORT_STATUSES`) sampai dikirim & disetujui ulang. Angka
+bergerak karena keputusan sadar pengguna, bukan efek samping diam-diam.
+
+### (b) Cuaca & tenaga kerja tak terlihat oleh penulis laporannya sendiri
+
+Panel "Pelengkap laporan KKP" (cuaca, jam kerja, tenaga kerja per keahlian,
+material, alat) digerbang `canReview` di halaman — padahal server action SUDAH
+mengizinkan PEMBUAT laporan mengisinya saat `draft`/`perlu_koreksi`
+(`CREATOR_ENRICHABLE_STATUSES`). Akibatnya mandor yang menulis laporan tidak
+pernah melihat kolom cuaca & tenaga kerja; hanya reviewer yang bisa. Gerbang UI
+kini mengikuti aturan server: reviewer (draft/perlu_koreksi/dikirim) ATAU
+pembuat (draft/perlu_koreksi).
+
+Catatan: cuaca memang TIDAK punya pemilih manual — `SHOW_MANUAL_WEATHER_PICKER
+= false`, diambil otomatis per jam dari koordinat lokasi lewat tombol "Ambil
+cuaca otomatis". Karena itu lokasi tanpa koordinat membuat cuaca mati (lihat
+DECISIONS 189).
+
+### (c) Tombol Kembali di halaman cetak selalu ke daftar laporan lokasi
+
+`backHref` dipaku ke `/lokasi/[slug]/laporan-lokasi` padahal halaman cetak
+harian dicapai dari EMPAT tempat berbeda. Di halaman tujuan itu ada laporan
+mingguan — maka keluhannya: "kadang ke laporan mingguan, padahal awalnya
+laporan harian di hari tertentu."
+
+Asal halaman kini dibawa lewat query `?dari=`, dan `src/lib/print-back.ts`
+menyaringnya: hanya path internal absolut yang diterima; URL absolut,
+protocol-relative (`//host`), backslash, dan `..` ditolak supaya parameter itu
+tidak jadi celah open-redirect. Cadangannya bukan lagi daftar laporan, melainkan
+dokumen itu sendiri (laporan harian tanggal tsb).
+
+Verifikasi: unit 646 ✓ (6 kasus baru `print-back`, termasuk penolakan tujuan
+luar) · integrasi 165 ✓ · typecheck ✓ · lint ✓ · browser: laporan final dibuka
+kuncinya → panel "Kembalikan untuk diedit" muncul → status jadi Perlu Koreksi →
+form item, cuaca, dan tenaga kerja semuanya tampil, dengan riwayat status
+memuat kedua alasan; tombol Kembali cetak diuji 4 kasus (dua asal berbeda,
+tanpa parameter, dan parameter berisi host luar) — semuanya mendarat benar.
