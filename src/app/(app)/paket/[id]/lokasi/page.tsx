@@ -15,7 +15,12 @@ import { can } from "@/lib/authz";
 import { LOCATION_STATUS_LABEL, LOCATION_STATUS_TONE } from "@/lib/lifecycle";
 import { getPackageWorkspace } from "@/lib/package/queries";
 import { getAvailableCatalog } from "@/lib/master-location/queries";
-import { AddLocationForm, CatalogLocationPicker, RemoveLocationButton } from "./lokasi-forms";
+import {
+  AddLocationForm,
+  CatalogLocationPicker,
+  CorrectAddLocationForm,
+  RemoveLocationButton,
+} from "./lokasi-forms";
 
 export const metadata: Metadata = { title: "Lokasi Paket" };
 export const dynamic = "force-dynamic";
@@ -34,7 +39,16 @@ export default async function LokasiPaketPage({
 
   const canProspect = can(user.role, "prospect.manage");
   const praKontrak = !pkg.contract && ["prospek", "tender", "penetapan"].includes(pkg.stage);
-  const catalog = praKontrak && canProspect ? (await getAvailableCatalog(user.orgId)).available : [];
+  // Koreksi susunan lokasi paket BERKONTRAK — super_admin saja (DECISIONS 187).
+  const bolehKoreksi =
+    can(user.role, "location.correct") &&
+    !praKontrak &&
+    !!pkg.contract &&
+    ["kontrak", "pelaksanaan"].includes(pkg.stage);
+  const perluKatalog = (praKontrak && canProspect) || bolehKoreksi;
+  const { available: catalog, hiddenExistingCount } = perluKatalog
+    ? await getAvailableCatalog(user.orgId)
+    : { available: [], hiddenExistingCount: 0 };
 
   return (
     <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
@@ -115,6 +129,20 @@ export default async function LokasiPaketPage({
             </details>
           </CardBody>
         </Card>
+      ) : bolehKoreksi ? (
+        <Card className="self-start">
+          <CardHeader
+            title="Koreksi susunan lokasi (super admin)"
+            subtitle="Paket sudah berkontrak — komposisi lokasi terkunci. Panel ini hanya untuk membetulkan lokasi yang KETINGGALAN saat input, ketika nilai kontraknya sendiri sudah benar."
+          />
+          <CardBody>
+            <CorrectAddLocationForm
+              packageId={pkg.id}
+              catalog={catalog}
+              hiddenExistingCount={hiddenExistingCount}
+            />
+          </CardBody>
+        </Card>
       ) : (
         <Card className="self-start">
           <CardHeader title="Info" />
@@ -122,7 +150,7 @@ export default async function LokasiPaketPage({
             <p className="text-sm text-ink-muted">
               {praKontrak
                 ? "Penambahan lokasi target dilakukan pemegang akses prospek."
-                : "Paket sudah berkontrak — komposisi lokasi terkunci. Perubahan lingkup lewat adendum."}
+                : "Paket sudah berkontrak — komposisi lokasi terkunci. Perubahan lingkup lewat adendum; lokasi yang ketinggalan saat input dikoreksi super admin."}
             </p>
           </CardBody>
         </Card>

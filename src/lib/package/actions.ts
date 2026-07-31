@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { audit } from "@/lib/audit";
-import { requireCapability, requireLocationAccess } from "@/lib/auth/session";
+import { audit, auditIn } from "@/lib/audit";
+import { requestIp, requireCapability, requireLocationAccess } from "@/lib/auth/session";
 import {
   canTransitionPackage,
   canTransitionLocation,
@@ -16,7 +16,8 @@ import { parseDateKey } from "@/lib/format";
 import { getLocationsProgress } from "@/lib/progress";
 import { weightedRealizedPct } from "@/lib/progress-calc";
 import { regenerateBaseline } from "@/lib/rab/import";
-import { existingLocationKeys, locationKey } from "@/lib/master-location/queries";
+import { existingLocationIndex } from "@/lib/master-location/queries";
+import { coordinateForDb, parseCoordinatePair } from "@/lib/geo";
 import type { PackageStage } from "@/generated/prisma/enums";
 
 /**
@@ -27,7 +28,9 @@ import type { PackageStage } from "@/generated/prisma/enums";
  * dalam satu $transaction.
  */
 
-export type PackageActionState = { error?: string; success?: string } | undefined;
+export type PackageActionState =
+  | { error?: string; success?: string; warning?: string }
+  | undefined;
 
 /* ------------------------------------------------------------------ */
 /* Helper internal (bukan export — file "use server")                  */
@@ -347,14 +350,10 @@ const addLocationSchema = z.object({
   district: z.string().trim().max(100).optional(),
   regency: z.string().trim().min(2, "Kabupaten/kota wajib diisi").max(100),
   province: z.string().trim().min(2, "Provinsi wajib diisi").max(100),
-  gpsLat: z.preprocess(
-    (v) => (v === "" || v == null ? undefined : Number(v)),
-    z.number().min(-90).max(90).optional(),
-  ),
-  gpsLng: z.preprocess(
-    (v) => (v === "" || v == null ? undefined : Number(v)),
-    z.number().min(-180).max(180).optional(),
-  ),
+  // Koordinat divalidasi terpisah lewat parseCoordinatePair (lib/geo) supaya
+  // rentangnya sama dengan form edit — dulu di sini seluruh bumi diterima.
+  gpsLat: z.string().trim().optional(),
+  gpsLng: z.string().trim().optional(),
 });
 
 export async function addTargetLocation(
@@ -369,11 +368,13 @@ export async function addTargetLocation(
     district: optionalText(formData.get("district"), 100) ?? undefined,
     regency: formData.get("regency"),
     province: formData.get("province"),
-    gpsLat: formData.get("gpsLat"),
-    gpsLng: formData.get("gpsLng"),
+    gpsLat: String(formData.get("gpsLat") ?? "").trim() || undefined,
+    gpsLng: String(formData.get("gpsLng") ?? "").trim() || undefined,
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
+  const coord = parseCoordinatePair(d.gpsLat, d.gpsLng);
+  if (!coord.ok) return { error: coord.error };
 
   const result = await db.$transaction(async (tx) => {
     const pkg = await tx.package.findFirst({
@@ -406,8 +407,8 @@ export async function addTargetLocation(
         district: d.district ?? null,
         regency: d.regency,
         province: d.province,
-        gpsLat: d.gpsLat ?? null,
-        gpsLng: d.gpsLng ?? null,
+        gpsLat: coordinateForDb(coord.lat),
+        gpsLng: coordinateForDb(coord.lng),
         status: "persiapan",
         isActive: false,
       },
@@ -464,8 +465,8 @@ export async function addTargetLocationsFromCatalog(
     if (used.length > 0) return { error: `${used.length} lokasi sudah dipakai proyek lain — segarkan halaman.` };
 
     // Tolak yang kunci alaminya sudah ada sebagai Location riil (cegah ganda).
-    const existingKeys = await existingLocationKeys(actor.orgId);
-    const clash = masters.filter((m) => existingKeys.has(locationKey(m)));
+    const existing = await existingLocationIndex(actor.orgId);
+    const clash = masters.filter((m) => existing.has(m));
     if (clash.length > 0) {
       return { error: `Sudah ada di sistem: ${clash.map((m) => `${m.village} (${m.regency})`).join(", ")}.` };
     }
@@ -885,8 +886,8 @@ export async function createDirectProject(
 
     // Mitigasi lokasi GANDA: tolak master yang kunci alaminya (prov|kab|kec|desa)
     // sudah ada sebagai Location riil (mis. dibuat lewat alur normal di prod).
-    const existingKeys = await existingLocationKeys(actor.orgId);
-    const clash = masters.filter((m) => existingKeys.has(locationKey(m)));
+    const existing = await existingLocationIndex(actor.orgId);
+    const clash = masters.filter((m) => existing.has(m));
     if (clash.length > 0) {
       const list = clash.map((m) => `${m.village} (${m.regency})`).join(", ");
       return {
@@ -1389,4 +1390,204 @@ export async function createVendor(
   await audit(actor.id, "vendor.upsert", "vendor", vendor.id, { name: d.name });
   revalidatePath("/paket");
   return { success: `Vendor "${d.name}" tersimpan.` };
+}
+
+
+/* ------------------------------------------------------------------ */
+/* KOREKSI susunan lokasi paket berkontrak (super_admin) — DECISIONS 187 */
+/* ------------------------------------------------------------------ */
+
+/** Tahap paket yang masih boleh dikoreksi susunan lokasinya. */
+const KOREKSI_LOKASI_STAGES: PackageStage[] = ["kontrak", "pelaksanaan"];
+
+const correctLocationSchema = z.object({
+  packageId: z.uuid(),
+  /** Dari katalog master (pilih ID) ATAU isian manual. */
+  masterLocationId: z.union([z.uuid(), z.literal("")]).transform((v) => v || undefined),
+  name: z.string().trim().max(120).optional(),
+  village: z.string().trim().max(120).optional(),
+  district: z.string().trim().max(100).optional(),
+  regency: z.string().trim().max(120).optional(),
+  province: z.string().trim().max(120).optional(),
+  gpsLat: z.string().trim().optional(),
+  gpsLng: z.string().trim().optional(),
+  reason: z
+    .string()
+    .trim()
+    .min(10, "Alasan koreksi wajib diisi (minimal 10 karakter) — tercatat di audit.")
+    .max(500, "Alasan maksimal 500 karakter"),
+});
+
+/**
+ * Tambah lokasi yang KETINGGALAN saat input paket yang sudah berkontrak.
+ *
+ * Ini KOREKSI DATA, bukan adendum: nilai kontrak tidak disentuh sama sekali,
+ * karena nilainya memang sudah benar sejak awal — yang salah cuma jumlah lokasi
+ * yang terinput. Memakai adendum untuk kasus ini akan mengarang riwayat
+ * perubahan kontrak yang tidak pernah terjadi (deltanya nol, dokumennya tidak
+ * ada) dan mencemari laporan ke KKP.
+ *
+ * Pengaman: super_admin SAJA (`location.correct`), wajib alasan tertulis,
+ * hanya untuk paket berkontrak yang belum serah terima, ditolak bila lokasinya
+ * sudah ada, dan setiap koreksi meninggalkan jejak di audit + histori paket.
+ */
+export async function correctAddLocationAction(
+  _prev: PackageActionState,
+  formData: FormData,
+): Promise<PackageActionState> {
+  const actor = await requireCapability("location.correct");
+  const parsed = correctLocationSchema.safeParse({
+    packageId: formData.get("packageId"),
+    masterLocationId: formData.get("masterLocationId") ?? "",
+    name: optionalText(formData.get("name"), 120) ?? undefined,
+    village: optionalText(formData.get("village"), 120) ?? undefined,
+    district: optionalText(formData.get("district"), 100) ?? undefined,
+    regency: optionalText(formData.get("regency"), 120) ?? undefined,
+    gpsLat: String(formData.get("gpsLat") ?? "").trim() || undefined,
+    gpsLng: String(formData.get("gpsLng") ?? "").trim() || undefined,
+    province: optionalText(formData.get("province"), 120) ?? undefined,
+    reason: formData.get("reason") ?? "",
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const d = parsed.data;
+  const manual = !d.masterLocationId;
+  if (manual && !(d.name && d.village && d.regency && d.province)) {
+    return { error: "Pilih lokasi dari katalog, atau isi nama, desa, kabupaten, dan provinsi." };
+  }
+  // Koordinat hanya relevan di jalur manual; dari katalog ikut titik master.
+  const manualCoord = parseCoordinatePair(d.gpsLat, d.gpsLng);
+  if (!manualCoord.ok) return { error: manualCoord.error };
+
+  const ip = (await requestIp()) ?? null;
+  const result = await db.$transaction(async (tx) => {
+    const pkg = await tx.package.findFirst({
+      where: { id: d.packageId, orgId: actor.orgId },
+      select: { id: true, name: true, stage: true, contract: { select: { id: true } } },
+    });
+    if (!pkg) return { error: "Paket tidak ditemukan." as string };
+    if (!pkg.contract || PRA_KONTRAK.includes(pkg.stage)) {
+      return {
+        error:
+          "Paket ini belum berkontrak — pakai jalur normal “Tambah lokasi target”, koreksi ini khusus paket yang sudah berkontrak.",
+      };
+    }
+    if (!KOREKSI_LOKASI_STAGES.includes(pkg.stage)) {
+      return {
+        error: `Koreksi lokasi hanya sampai tahap pelaksanaan (paket ini: ${pkg.stage}). Setelah serah terima, susunan lokasi mengikuti laporan yang sudah final.`,
+      };
+    }
+
+    // Sumber data lokasi: katalog master atau isian manual.
+    let src: {
+      name: string;
+      village: string;
+      district: string | null;
+      regency: string;
+      province: string;
+      lat: unknown;
+      lng: unknown;
+      masterId?: string;
+    };
+    if (d.masterLocationId) {
+      const m = await tx.masterLocation.findFirst({
+        where: { id: d.masterLocationId, orgId: actor.orgId },
+        select: {
+          id: true, province: true, regency: true, district: true, village: true,
+          latitude: true, longitude: true, assignedLocationId: true,
+        },
+      });
+      if (!m) return { error: "Lokasi katalog tidak ditemukan." };
+      if (m.assignedLocationId) return { error: "Lokasi katalog itu sudah dipakai proyek lain." };
+      src = {
+        name: m.village, village: m.village, district: m.district, regency: m.regency,
+        province: m.province, lat: m.latitude, lng: m.longitude, masterId: m.id,
+      };
+    } else {
+      src = {
+        name: d.name!, village: d.village!, district: d.district ?? null,
+        regency: d.regency!, province: d.province!,
+        lat: coordinateForDb(manualCoord.lat), lng: coordinateForDb(manualCoord.lng),
+      };
+    }
+
+    // Cegah lokasi ganda (kunci alami desa+kabupaten+provinsi).
+    const existing = await existingLocationIndex(actor.orgId);
+    if (existing.has(src)) {
+      return { error: `Lokasi "${src.village} (${src.regency})" sudah ada di sistem.` };
+    }
+
+    const base = slugify(`${src.name}-${src.village}`);
+    let slug = base;
+    for (
+      let n = 2;
+      await tx.location.findUnique({ where: { slug }, select: { id: true } });
+      n += 1
+    ) {
+      slug = `${base}-${n}`;
+    }
+
+    const loc = await tx.location.create({
+      data: {
+        packageId: pkg.id,
+        name: src.name,
+        slug,
+        village: src.village,
+        district: src.district,
+        regency: src.regency,
+        province: src.province,
+        gpsLat: (src.lat ?? null) as never,
+        gpsLng: (src.lng ?? null) as never,
+        status: "persiapan",
+        // Paket sudah berkontrak: lokasi hasil koreksi langsung aktif, sejajar
+        // dengan lokasi lain yang diaktifkan saat konversi kontrak.
+        isActive: true,
+      },
+      select: { id: true, slug: true, name: true },
+    });
+    if (src.masterId) {
+      await tx.masterLocation.update({
+        where: { id: src.masterId },
+        data: { assignedLocationId: loc.id },
+      });
+    }
+
+    // Jejak di histori paket: stage TIDAK berubah (from = to), catatannya yang
+    // menjelaskan — supaya koreksi kelihatan di lini masa paket, bukan hanya di
+    // audit log yang jarang dibuka.
+    await tx.packageStageHistory.create({
+      data: {
+        packageId: pkg.id,
+        fromStage: pkg.stage,
+        toStage: pkg.stage,
+        changedById: actor.id,
+        note: `Koreksi data (bukan adendum): lokasi "${loc.name}" ditambahkan — ${d.reason}`,
+      },
+    });
+    await auditIn(
+      tx,
+      actor.id,
+      "package.location_correct_add",
+      "package",
+      pkg.id,
+      {
+        locationId: loc.id,
+        slug: loc.slug,
+        name: loc.name,
+        stage: pkg.stage,
+        sumber: src.masterId ? "katalog" : "manual",
+        alasan: d.reason,
+      },
+      ip,
+    );
+    return { loc };
+  });
+  if ("error" in result) return { error: result.error };
+
+  revalidatePath(`/paket/${d.packageId}`, "layout");
+  revalidatePath("/lokasi");
+  return {
+    success: `Lokasi "${result.loc.name}" ditambahkan sebagai koreksi data. Nilai kontrak TIDAK diubah.`,
+    warning:
+      "Koreksi belum selesai: lokasi baru belum punya RAB & baseline, jadi total nilai RAB paket masih timpang terhadap nilai kontrak sampai RAB lokasi ini diimpor. Impor RAB pertamanya tercatat sebagai HPS awal, bukan adendum.",
+  };
 }

@@ -38,6 +38,7 @@ describe("authz capability matrix", () => {
       "daily_report.unfinalize", // buka kunci laporan final (DECISIONS 149)
       "contact.view_all", // lihat kontak akun lain (DECISIONS 150)
       "document.delete", // hapus permanen dokumen (DECISIONS 183) — batalkan cukup
+      "location.correct", // koreksi susunan lokasi paket berkontrak (DECISIONS 187)
     ] as const;
     for (const cap of HANYA_SUPER_ADMIN) expect(can("program_director", cap), cap).toBe(false);
     for (const cap of CAPABILITIES) {

@@ -4920,3 +4920,155 @@ ditangani kode lama; uji nyata harus di Railway.
 Verifikasi: unit 619 ✓ (16 kasus baru: skema default URL internal/publik,
 terjemahan error store/sesi/API-key, parser grup lintas engine WEBJS/NOWEB/GOWS/
 peta-JID) · typecheck ✓ · lint ✓.
+
+---
+
+## 187 — Koreksi susunan lokasi paket berkontrak: jalur super admin, BUKAN adendum (2026-07-30)
+
+**Kejadian nyata (laporan user).** Sebuah kontrak sudah jadi, semua nilai diisi
+benar, tapi satu lokasi ketinggalan saat input: seharusnya 3 lokasi, yang
+tercatat hanya 2. Ini murni salah ketik/kelewat saat entri data — isi kontrak
+fisiknya tidak berubah — jadi adendum TIDAK boleh dipakai.
+
+**Kenapa adendum salah untuk kasus ini.** Adendum berarti "kontrak berubah":
+ia menuntut nomor & tanggal dokumen adendum yang di dunia nyata tidak ada,
+mencatat delta nilai nol (padahal nilai kontrak memang tidak berubah), dan
+mengotori jejak adendum yang dipakai laporan KKP serta rekap perubahan
+kontrak. Yang terjadi bukan perubahan kesepakatan, melainkan **data kita yang
+belum sama dengan kontrak**. Maka jalurnya diberi nama apa adanya: *koreksi
+data*.
+
+**Aturan yang berlaku.**
+
+1. **Kapabilitas `location.correct` — super admin SAJA** (program_director pun
+   dikecualikan, sejajar `contract.edit`). Diminta eksplisit oleh user.
+2. **Hanya menambah, tidak pernah menghapus.** Menghapus lokasi dari paket
+   berkontrak berarti membuang RAB, progres, laporan, dan uang yang menempel
+   padanya; kalau lokasi memang kelebihan, itu urusan adendum/pembatalan
+   paket, bukan tombol koreksi.
+3. **Tahap yang diizinkan: `kontrak` dan `pelaksanaan`.** Sebelum kontrak,
+   susunan lokasi masih bebas lewat jalur normal — aksi menolak dengan
+   "pakai jalur normal". Setelah `serah_terima`/`selesai`, pekerjaan sudah
+   diserahterimakan; menambah lokasi di sana bukan koreksi entri lagi.
+4. **Alasan wajib, minimal 10 karakter.** Tanpa alasan, koreksi tidak bisa
+   dibedakan dari manipulasi diam-diam enam bulan kemudian.
+5. **Nilai kontrak TIDAK disentuh** dan tidak ada `ContractAmendment` yang
+   dibuat. Nilai kontrak sudah benar sejak awal — yang kurang cuma barisnya.
+6. **Jejak ganda**: `auditIn` (aksi `package.location_correct_add`, memuat
+   lokasi, tahap, sumber data, alasan) + satu baris `packageStageHistory`
+   dengan `fromStage === toStage` yang tampil sebagai "koreksi data" di
+   riwayat paket. Tidak ada badge permanen di lokasi — pilihan user: cukup
+   audit + catatan histori, lokasi hasil koreksi setara lokasi lain.
+7. **Sumber data lokasi**: katalog master (menandai `assignedLocationId`,
+   sehingga tidak bisa dipakai dua paket) atau isian manual. Duplikat nama/
+   slug dalam paket yang sama ditolak.
+8. **Peringatan lanjutan**: koreksi belum selesai sampai RAB lokasi baru
+   diimpor. RAB pertama lokasi baru berlabel `hps_awal` (DECISIONS 118), jadi
+   tidak mencemari jejak adendum.
+
+Verifikasi: 11 kasus integrasi baru (`tests/integration/koreksi-lokasi.test.ts`)
+— termasuk reproduksi kasus nyata 3-lokasi-terinput-2 yang memastikan
+`contractValue` tetap dan `contractAmendment` tetap nol, pagar peran
+(PD/RM/PM/SM ditolak), pagar tahap, lintas-org, dan duplikat · unit 619 ✓ ·
+integrasi 151 ✓ ·
+typecheck ✓ · lint ✓ · PERMISSION_MATRIX diregenerasi (47 capability).
+
+---
+
+## 188 — Katalog lokasi: pencocokan ke Location riil diperbaiki; aturan Combobox dijaga lint (2026-07-31)
+
+Dua teguran user pada panel koreksi lokasi (187), dua-duanya benar.
+
+**(a) `<select>` native lagi — aturan yang sudah tiga kali dilanggar.** Dropdown
+katalog di form koreksi memakai `<select>`, padahal DECISIONS 094 → 115 → 174
+sudah menetapkan SEMUA dropdown form pakai `Combobox` yang bisa diketik-cari.
+174 bahkan lahir dari kritik yang sama. Akar masalahnya struktural: aturannya
+hanya hidup di decision log sepanjang 4.900 baris, tidak ada di `CLAUDE.md`
+maupun di lint. Maka:
+
+- Dropdown katalog → `Combobox` (67 opsi, kotak cari otomatis).
+- Aturan masuk `CLAUDE.md` bagian Aturan Coding.
+- **Lint `no-restricted-syntax` menolak `<select>`** di seluruh `src/**/*.tsx`;
+  pengecualian hanya primitive `ui/field.tsx`, `ui/combobox.tsx`, dan
+  `app/cetak/`. Aturan yang tidak dijaga mesin akan dilanggar lagi.
+
+**(b) Lokasi yang SUDAH dipakai tetap muncul di daftar pilihan.** Diukur pada
+data dev: **73 dari 73** baris katalog lolos sebagai "tersedia", 6 di antaranya
+terbukti sudah jadi Location riil. Bukan cuma dropdown baru — `getAvailableCatalog`
+(dipakai jalur normal & bypass), halaman Katalog, pratinjau impor, dan tiga
+penjaga anti-ganda di `package/actions.ts` semuanya memakai pembanding yang
+sama, jadi penjaga duplikatnya pun mandul.
+
+Akarnya kunci alami menyertakan kecamatan. Location riil lazim dibuat TANPA
+kecamatan (kolom opsional, baru ada belakangan) sementara baris katalog hampir
+selalu mengisinya — kunci tidak pernah sama. Ditambah nama desa yang ditulis
+beda spasi antar sumber (`Kedungmutih` vs `Kedung Mutih`).
+
+Sekarang ada DUA pembanding yang sengaja berbeda dan tidak boleh ditukar:
+
+- `locationKey` — KETAT (termasuk kecamatan), untuk katalog ↔ katalog (dedup
+  baris impor). Kedua sisi dari file yang sama, kecamatan pasti terisi.
+- `existingLocationIndex` / `buildExistingLocationIndex` — untuk katalog ↔
+  Location RIIL. Provinsi+kabupaten+desa harus sama; kecamatan cocok bila sama
+  ATAU salah satu sisi kosong; semua perbandingan abai spasi & kapital. Desa
+  senama di dua kecamatan berbeda yang dua-duanya terisi tetap dibedakan.
+
+`existingLocationKeys` (pembanding lama untuk peran ini) DIHAPUS, bukan
+dibiarkan menganggur — supaya tidak ada yang memungutnya lagi.
+
+Hasil pada data dev: lolos 73 → 67, sisa bocor nol. Panel koreksi juga menyebut
+jumlah baris yang disembunyikan, supaya "tidak muncul" tidak terbaca "tidak
+ada", dan mengarahkan ke isian manual bila memang lokasi berbeda.
+
+Verifikasi: unit 629 ✓ (10 kasus baru `location-match`, termasuk reproduksi dua
+kasus bug nyata) · integrasi 151 ✓ · typecheck ✓ · lint ✓ (aturan baru menolak
+`<select>`) · browser: 0 `<select>` di halaman, cari "tengket"/"ujungwatu"/
+"kedungmutih" (sudah terpakai) → kosong, "sumberkima" (belum) → ketemu.
+
+---
+
+## 189 — Koordinat lokasi: satu aturan, satu tempat mengeditnya, dan tidak lagi hilang diam-diam (2026-07-31)
+
+User: "bagaimana jika koordinat proyek berubah, aku tidak tau dimana harus edit
+lat long nya." Formnya SUDAH ada sejak DECISIONS 134 — dan itu justru
+masalahnya: tidak ada yang bisa menemukannya. Penelusuran menemukan tiga hal
+sekaligus.
+
+**(a) Tersembunyi.** Editor koordinat berada di dalam kartu berjudul **"Status
+lokasi"**, di balik tombol **"Edit master data"**. Dua-duanya tidak menyebut
+koordinat sama sekali. Sekarang koordinat punya kartu sendiri di `/lokasi/[slug]`
+— **"Alamat & koordinat"** — menampilkan titik yang berlaku, tombolnya berbunyi
+"Ubah alamat & koordinat", dan bila kosong ada peringatan yang menyebut
+akibatnya (tak muncul di peta, cuaca otomatis mati, cap foto kehilangan titik
+proyek). Ini pola yang sama dengan kekeliruan impor Drive: fitur yang ada tapi
+tak terlihat sama saja dengan tidak ada.
+
+**(b) Aturan koordinat berbeda-beda per pintu.** Form tambah lokasi target
+menerima −90..90 / −180..180 (seluruh bumi); form edit membatasi ke wilayah
+Indonesia; form koreksi lokasi (187) tidak punya input koordinat sama sekali
+sehingga lokasi hasil koreksi manual SELALU lahir tanpa titik. Kini semua
+melewati `src/lib/geo.ts`:
+
+- kotak wilayah Indonesia (lat −11..6.5, lng 95..141.5) sebagai penyaring
+  salah-ketik, bukan penentu batas negara;
+- lat & lng wajib berpasangan — setengah koordinat menyesatkan peta;
+- koma desimal gaya Indonesia diterima;
+- **lat/lng tertukar dideteksi khusus** dan pesannya menyebutkan pasangan yang
+  benar, karena itu kekeliruan yang paling sering terjadi;
+- form koreksi lokasi kini punya input koordinat.
+
+**(c) Lokasi tanpa koordinat lenyap dari peta tanpa jejak.** `getPetaMarkers`
+memfilter `gpsLat/gpsLng not null`, jadi "tidak muncul" terbaca "tidak ada".
+Halaman Peta kini menyebut jumlahnya dan menautkan tiap lokasi langsung ke
+tempat koordinatnya diisi — sesuai aturan daftar-pilihan di `CLAUDE.md`.
+
+Tidak diubah: koordinat `MasterLocation` (katalog) tetap hanya bisa diubah lewat
+impor ulang .xlsx. Yang dipakai peta, cuaca, cap foto, dan rule GPS adalah
+`Location.gpsLat/gpsLng` — dan itu sekarang bisa diedit dengan jelas.
+
+Verifikasi: unit 639 ✓ (10 kasus baru `geo`: pasangan wajib, koma desimal,
+tertukar, salah tanda, batas persis Sabang/Merauke) · integrasi 151 ✓ ·
+typecheck ✓ · lint ✓ · browser: kartu "Alamat & koordinat" tampil, input
+tertukar ditolak dengan saran pembetulan, dan setelah satu lokasi dikosongkan
+koordinatnya halaman Peta menyebut "1 lokasi tidak tampil" + tautannya (data dev
+dipulihkan setelah uji).

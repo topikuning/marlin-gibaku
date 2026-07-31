@@ -11,7 +11,7 @@ otorisasi ulang** via `requireCapability()` + scope check (`requireLocationAcces
 Scope lokasi: `super_admin`, `program_director`, `exec_viewer` = lintas lokasi.
 Role lain dibatasi `LocationAssignment` (dan paket yang memuat lokasi tersebut).
 
-Jumlah capability: **46**.
+Jumlah capability: **47**.
 
 | Capability | super_admin | program_director | regional_manager | project_manager | site_manager | field_supervisor | exec_viewer |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
@@ -26,6 +26,7 @@ Jumlah capability: **46**.
 | `amendment.manage` | ✓ | ✓ | — | — | — | — | — |
 | `location.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `location.manage` | ✓ | ✓ | ✓ | ✓ | — | — | — |
+| `location.correct` | ✓ | — | — | — | — | — | — |
 | `rab.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `rab.manage` | ✓ | ✓ | — | ✓ | — | — | — |
 | `baseline.manage` | ✓ | ✓ | — | ✓ | — | — | — |
@@ -65,6 +66,7 @@ Jumlah capability: **46**.
 ## Capability yang HANYA super_admin
 
 - `contract.edit`
+- `location.correct`
 - `daily_report.unfinalize`
 - `wa.configure`
 - `document.delete`
