@@ -127,8 +127,11 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
           href="/progress"
         />
         <StatCard icon={<PackageIcon aria-hidden />} tone="info" label="Paket Aktif" value={data.paketAktif} sub="sedang berjalan" href="/paket" />
-        <StatCard icon={<ClipboardCheck aria-hidden />} tone="warning" label="Menunggu Verifikasi" value={data.menungguVerifikasi} sub="laporan dikirim" href="/laporan" />
-        <StatCard icon={<FileWarning aria-hidden />} tone="danger" label="Perlu Koreksi" value={data.perluKoreksi} sub="dikembalikan" href="/laporan" />
+        {/* Tujuan link = DAFTAR laporannya, bukan /laporan. Kartu yang menyebut
+            "1 dikembalikan" lalu mendaratkan user di halaman yang tidak memuat
+            laporan itu sama saja dengan tidak bisa diklik (DECISIONS 204). */}
+        <StatCard icon={<ClipboardCheck aria-hidden />} tone="warning" label="Menunggu Verifikasi" value={data.menungguVerifikasi} sub="laporan dikirim" href="/laporan/menunggu-verifikasi" />
+        <StatCard icon={<FileWarning aria-hidden />} tone="danger" label="Perlu Koreksi" value={data.perluKoreksi} sub="dikembalikan" href="/laporan/perlu-koreksi" />
       </div>
 
       {/* Peta + Status submit */}

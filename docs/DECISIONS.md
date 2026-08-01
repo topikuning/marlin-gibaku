@@ -5854,3 +5854,84 @@ baseline tersimpan: bobot 10/60/30 vs RAB 5/70/25, kurva 10/40/80/100, jeda teta
 mendatar, banner menyebut selisih, note baseline, centang RAB mengembalikan
 5/70/25, tolak total 70% & negatif tanpa membuat baseline, pembulatan kecil
 diterima) · unit 706 ✓ · integrasi 229 ✓ · typecheck ✓ · lint ✓.
+
+## 204 — Dua jalan buntu navigasi: kartu antrean & pindah lokasi (2026-08-01)
+
+Dua keluhan user yang ternyata penyakit yang sama: layar menunjukkan sesuatu
+perlu diurus, lalu tidak menyediakan jalan ke barangnya. Angka jadi
+pemberitahuan, bukan pintu.
+
+### A. "Perlu Koreksi: 1" tidak tahu laporan mana
+
+**Keluhan**: *"diklik hanya ke halaman laporan, mana laporan yang dikembalikan,
+mana yang perlu diperbaiki?"*
+
+`executive-dashboard.tsx` menunjuk `/laporan` untuk kartu **Perlu Koreksi** DAN
+**Menunggu Verifikasi**. Halaman itu berisi daftar lokasi + 20 laporan **final**
+terakhir; laporan berstatus `perlu_koreksi`/`dikirim` tidak ada di sana sama
+sekali. Datanya sebenarnya sudah ditampilkan di Command Center dan Hari Ini —
+yang hilang hanya pintunya dari dashboard.
+
+**Sekarang**: `/laporan/[antrean]` (`perlu-koreksi` | `menunggu-verifikasi`,
+slug lain → 404). Tiap baris membuka laporannya langsung dan menyebut yang
+dibutuhkan untuk bertindak:
+
+- perlu-koreksi: **alasan pengembalian**, siapa yang mengembalikan + kapan,
+  siapa pelapornya. Alasan yang kosong ditulis "tidak diisi oleh yang
+  mengembalikan" — itu fakta berguna, bukan sesuatu yang disembunyikan:
+  pelapor yang tak tahu apa yang salah membuat laporannya macet.
+- menunggu-verifikasi: **lama menunggu**, urut yang paling lama di atas. Yang
+  menumpuk 3 hari adalah masalah, yang masuk pagi tadi bukan — urutan
+  tanggal kerja menyembunyikan bedanya. ≥3 hari ditandai merah.
+- Lama menunggu dihitung per **hari kalender Jakarta**, bukan selisih jam:
+  masuk kemarin jam 23 sudah "1 hari", karena itu yang dirasakan penunggunya.
+
+`/laporan` sendiri mendapat dua pintu antrean di ATAS arsip — yang menunggu
+tindakan lebih mendesak daripada yang sudah selesai. Hitungan 0 tetap
+ditampilkan ("tidak ada yang menunggu"): kabar, bukan menu yang hilang.
+
+### B. Pindah lokasi sepaket memutar lewat halaman paket
+
+**Keluhan**: *"ketika masuk satu lokasi, kadang aku perlu pindah ke lokasi lain
+di paket yang sama, hal ini terlalu banyak klik."*
+
+Yang mahal bukan jumlah kliknya tapi **hilangnya konteks**: header → halaman
+paket → cari lokasi → klik → mendarat di Ringkasan → cari tab lagi (4 klik).
+Padahal pola kerjanya menyapu: memeriksa hal yang SAMA di beberapa lokasi.
+
+**Sekarang**: nama lokasi di header workspace merangkap pemicu pemilih lokasi
+(`location-switcher.tsx`) + panah ‹ › untuk sapuan berurutan. Satu klik.
+
+- **Sub-halaman yang sedang dibuka IKUT TERBAWA** — dari `/lokasi/a/progress`
+  memilih B berarti `/lokasi/b/progress`. Termasuk tanggal pada
+  `/harian/[date]`: tanggal milik kalender, bukan milik lokasi, jadi
+  membandingkan hari yang sama antar-lokasi justru itu yang dicari. Seluruh
+  sub-halaman workspace ada di setiap lokasi, jadi tidak ada tautan jadi 404.
+- Tab yang isinya belum tersedia di lokasi tujuan **tetap dibuka**; halamannya
+  sendiri yang menjelaskan. Melempar diam-diam ke Ringkasan terasa seperti
+  kliknya tidak berfungsi — orang akan mengklik dua kali dan makin bingung.
+- Tiap baris membawa **status + deviasi**, supaya user memilih yang perlu
+  dilihat, bukan membuka satu-satu untuk tahu. Lokasi tanpa baseline aktif
+  ditulis "belum ada rencana", BUKAN 0% — 0% terbaca "tidak ada progres",
+  padahal rencananya yang belum ada.
+- **Urut ABJAD**, bukan deviasi terburuk di atas: posisi yang berpindah tiap
+  hari membuat otot memori tak pernah terbentuk, dan "yang perlu perhatian"
+  sudah punya tempatnya di dashboard.
+- Hanya lokasi yang boleh diakses; sisanya **disebut jumlahnya** ("N lokasi
+  lain tidak ditampilkan karena di luar penugasan Anda") — lanjutan aturan
+  DECISIONS 200, "tidak muncul" tidak boleh terbaca "tidak ada".
+- Kotak cari muncul otomatis bila > 7 lokasi — ambang yang sama dengan
+  `Combobox` (`searchThreshold`), bukan angka baru.
+- Satu lokasi saja → judul biasa. Kontrol yang tak punya tujuan tidak dipasang.
+
+Nama lokasi tetap bisa diganti (DECISIONS 117): `EditableLocationName` menerima
+`nameSlot`, jadi pemicu pemilih menggantikan judul saat tidak sedang diedit.
+
+**Verifikasi**: 10 kasus integrasi baru (`navigasi-buntu` — alasan/pengembali/
+pelapor terbawa, final tidak masuk antrean, scope tidak bocor, hitung hari
+kalender Jakarta, urut abjad, deviasi null tanpa baseline, hiddenCount saat
+sebagian/tanpa akses) · unit 706 ✓ · integrasi 239 ✓ · typecheck ✓ · lint ✓ ·
+uji peramban nyata: dropdown terbuka dengan status+deviasi, memilih lokasi
+mempertahankan `/progress`, panah ‹ berfungsi, `/harian/2026-07-20` membawa
+tanggalnya, kedua halaman antrean tampil dengan data asli, slug antrean ngawur
+→ 404.
