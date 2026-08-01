@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useState, type ReactNode } from "react";
 import { Pencil } from "lucide-react";
 import { Banner, Button, Input } from "@/components/ui";
 import { renameLocation, type PackageActionState } from "@/lib/package/actions";
@@ -14,10 +14,17 @@ export function EditableLocationName({
   locationId,
   name,
   canEdit,
+  nameSlot,
 }: {
   locationId: string;
   name: string;
   canEdit: boolean;
+  /**
+   * Pengganti judul saat tidak sedang diedit — dipakai header workspace untuk
+   * menjadikan nama lokasi sebagai pemicu pemilih lokasi (DECISIONS 204).
+   * Mode edit tetap memakai form biasa.
+   */
+  nameSlot?: ReactNode;
 }) {
   const [editing, setEditing] = useState(false);
   const [state, action, pending] = useActionState<PackageActionState, FormData>(renameLocation, undefined);
@@ -29,12 +36,14 @@ export function EditableLocationName({
     return () => window.clearTimeout(t);
   }, [state?.success]);
 
-  if (!canEdit) return <h1 className="text-xl font-semibold text-ink">{name}</h1>;
+  const judul = nameSlot ?? <h1 className="text-xl font-semibold text-ink">{name}</h1>;
+
+  if (!canEdit) return judul;
 
   if (!editing) {
     return (
       <span className="inline-flex items-center gap-1.5">
-        <h1 className="text-xl font-semibold text-ink">{name}</h1>
+        {judul}
         <button
           type="button"
           onClick={() => setEditing(true)}
