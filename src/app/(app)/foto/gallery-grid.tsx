@@ -10,6 +10,19 @@ import type { GalleryGroup, GalleryPhoto } from "@/lib/photos-gallery";
 const dateFmt = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Jakarta" });
 
 /**
+ * Tiga keadaan, bukan dua (DECISIONS 197). Dulu foto ber-koordinat cadangan
+ * titik proyek ikut berlabel "GPS ✓" — pembaca menyangka posisinya terbukti
+ * dari fotonya sendiri, padahal itu koordinat dari database.
+ */
+function gpsLabel(p: GalleryPhoto): string {
+  if (p.hasGps) return "GPS ✓";
+  return p.gpsFromProject ? "GPS titik proyek" : "Tanpa GPS";
+}
+function gpsTone(p: GalleryPhoto): string {
+  return p.hasGps ? "text-success" : p.gpsFromProject ? "text-ink-faint" : "text-warning";
+}
+
+/**
  * Galeri foto: kartu dikelompokkan per tanggal + lightbox in-page. Thumbnail
  * pakai URL presigned (ringan); full dibuka saat diklik. Klik lokasi → workspace.
  */
@@ -67,7 +80,7 @@ export function GalleryGrid({ groups }: { groups: GalleryGroup[] }) {
                   </p>
                   <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-ink-faint">
                     <span className="truncate">{p.reporterName}</span>
-                    <span className={p.hasGps ? "text-success" : "text-warning"}>{p.hasGps ? "GPS ✓" : "GPS ×"}</span>
+                    <span className={gpsTone(p)}>{gpsLabel(p)}</span>
                   </div>
                 </div>
               </article>
@@ -93,7 +106,14 @@ export function GalleryGrid({ groups }: { groups: GalleryGroup[] }) {
               )}
               <span>{active.reporterName}</span>
               <span>{dateFmt.format(new Date(active.takenAtIso))}</span>
-              <span className={active.hasGps ? "text-emerald-600" : "text-amber-600"}>{active.hasGps ? "GPS ✓" : "Tanpa GPS"}</span>
+              <span className={active.hasGps ? "text-emerald-600" : "text-amber-600"}>{gpsLabel(active)}</span>
+              {active.hasOriginal ? (
+                <a href={`/api/foto-asli/${active.id}`} className="text-primary hover:underline">
+                  Unduh foto asli (tanpa cap)
+                </a>
+              ) : (
+                <span className="text-slate-400">Foto asli tidak diarsipkan</span>
+              )}
               <span className="ml-auto text-slate-400">
                 {open! + 1} / {flat.length}
               </span>

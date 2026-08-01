@@ -6,6 +6,7 @@ import { STAMP_FONT_REGULAR_B64, STAMP_FONT_BOLD_B64 } from "@/lib/stamp-font";
 import { buildStampSvg, overlayAlphaFor, type StampRenderData } from "@/lib/photo-stamp/renderer";
 import {
   formatStampDateTime,
+  formatStampDate,
   formatCoordinate,
   generatePhotoId,
   locationCodeFromName,
@@ -13,7 +14,7 @@ import {
   type StampTimezone,
 } from "@/lib/photo-stamp/format";
 import { getPhotoStampConfig, DEFAULT_STAMP_ACCENT, type StampSize } from "@/lib/photo-stamp/config";
-import type { PhotoMetadataSource } from "@/generated/prisma/enums";
+import type { PhotoGpsSource, PhotoMetadataSource } from "@/generated/prisma/enums";
 
 /**
  * Pipeline foto lapangan (port dari modul lama, arsitektur baru):
@@ -42,6 +43,7 @@ const THUMB_MAX = 256;
 // (lihat lib/photo-limits.ts). Di-re-export agar pemanggil lama tidak berubah.
 export { MAX_PHOTO_BYTES, MAX_PHOTOS_PER_UPLOAD, MAX_PHOTOS_PER_ACTIVITY } from "@/lib/photo-limits";
 import { MAX_PHOTO_BYTES } from "@/lib/photo-limits";
+import { originalExt } from "@/lib/photo-file";
 
 /**
  * Ambil waktu dari nama file WhatsApp bila polanya mengandung jam. WhatsApp
@@ -75,6 +77,7 @@ const EXT_RE = /\.(jpe?g|png|webp|heic|heif)$/i;
 export function isAllowedImage(mime: string, name: string): boolean {
   return ALLOWED_MIME.includes(mime.toLowerCase()) || EXT_RE.test(name);
 }
+
 
 export class PhotoError extends Error {}
 
@@ -160,8 +163,15 @@ export type PhotoStamp = {
   showCoordinate?: boolean;
   showReporter?: boolean;
   showPhotoId?: boolean;
-  /** Waktu = fallback unggah (bukan jepret) → tampilkan penanda di cap. */
-  timeApprox?: boolean;
+  /**
+   * Penanda kejujuran cap (DECISIONS 197) — teks kecil kuning di sebelah nilai.
+   * `timeNote`: "waktu unggah" / "jam tidak tercatat"; null = waktu asli jepret.
+   * `coordNote`: "titik proyek"; null = koordinat memang milik foto ini.
+   */
+  timeNote?: string | null;
+  coordNote?: string | null;
+  /** Jam tidak diketahui → cap hanya menampilkan tanggal, tanpa angka jam palsu. */
+  dateOnly?: boolean;
 };
 
 /** Bangun overlay SVG mengikuti master layout (lihat photo-stamp/renderer). */
@@ -171,14 +181,15 @@ function stampSvg(w: number, h: number, s: PhotoStamp): string {
     companyName: s.companyName?.trim() || null,
     locationName: s.locationLabel?.trim() || "—",
     categoryName: s.categoryName?.trim() || null,
-    dateTimeText: formatStampDateTime(s.takenAt, tz),
+    dateTimeText: s.dateOnly ? formatStampDate(s.takenAt, tz) : formatStampDateTime(s.takenAt, tz),
     coordinateText: s.showCoordinate === false ? null : formatCoordinate(s.lat, s.lng),
     reporterName: s.showReporter === false ? null : s.reporterName?.trim() || null,
     photoId: s.showPhotoId === false ? null : s.photoId?.trim() || null,
     accentColor: s.accentColor || DEFAULT_STAMP_ACCENT,
     overlayAlpha: s.overlayAlpha ?? 0.9,
     sizeScale: s.sizeScale ?? 1,
-    timeApprox: s.timeApprox ?? false,
+    timeNote: s.timeNote ?? null,
+    coordNote: s.coordNote ?? null,
   };
   return buildStampSvg(w, h, data, { fontFamily: STAMP_FAMILY, fontFaceCss: FONT_FACE_CSS });
 }
@@ -257,12 +268,26 @@ export async function savePhotoForItem(input: SavePhotoInput) {
   // Sumber WAKTU cap: exif (metadata) / device (jam HP saat jepret) / server
   // (fallback waktu unggah — BUKAN waktu jepret asli). Disimpan + jadi penanda cap.
   let timeSource: PhotoMetadataSource;
+  // Sumber KOORDINAT cap — DIPISAH dari waktu. `project` = titik lokasi dari
+  // database, cadangan saat foto tak bawa GPS; bukan posisi foto (DECISIONS 197).
+  let gpsSource: PhotoGpsSource;
+  // Jam jepret benar-benar tidak diketahui → cap tidak boleh mengarang angka jam.
+  let jamTidakDiketahui = false;
+  const gpsDari = (v: number | null, real: PhotoGpsSource): PhotoGpsSource =>
+    v == null ? "none" : real;
   if (source === "gallery") {
     // Galeri: EXIF asli dulu; bila tak ada → cadangan (titik lokasi proyek / tanpa tag).
     // GPS perangkat saat upload sengaja diabaikan (bisa salah saat batch).
     const useProject = s?.fallbackMode === "project";
-    lat = exif.lat ?? (useProject ? projLat : null);
-    lng = exif.lng ?? (useProject ? projLng : null);
+    if (exif.lat != null && exif.lng != null) {
+      lat = exif.lat;
+      lng = exif.lng;
+      gpsSource = "exif";
+    } else {
+      lat = useProject ? projLat : null;
+      lng = useProject ? projLng : null;
+      gpsSource = gpsDari(lat, "project");
+    }
     const waTime = parseWhatsAppTime(file.name);
     if (exif.takenAt) {
       takenAt = exif.takenAt;
@@ -271,15 +296,33 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       // Foto WhatsApp (EXIF terbuang) — ambil jam dari nama file.
       takenAt = waTime;
       timeSource = "filename";
+    } else if (s?.workDate) {
+      // Tanggal kerja tersimpan sebagai DATE (tengah malam UTC). Tanggalnya benar,
+      // JAMNYA TIDAK ADA — dulu tetap diformat lengkap sehingga tiap foto tercap
+      // "07:00 WIB" (00:00 UTC digeser ke Asia/Jakarta) dan dilabeli "waktu
+      // unggah", padahal itu bukan waktu unggah maupun waktu jepret.
+      takenAt = s.workDate;
+      timeSource = "server";
+      jamTidakDiketahui = true;
     } else {
-      // workDate = tanggal kerja (jam 00:00), bukan jam jepret asli → tandai server.
-      takenAt = s?.workDate ?? new Date();
+      takenAt = new Date();
       timeSource = "server";
     }
   } else {
     // Kamera: GPS real-time perangkat dulu → EXIF → titik lokasi proyek.
-    lat = s?.lat ?? exif.lat ?? projLat;
-    lng = s?.lng ?? exif.lng ?? projLng;
+    if (s?.lat != null && s?.lng != null) {
+      lat = s.lat;
+      lng = s.lng;
+      gpsSource = "device";
+    } else if (exif.lat != null && exif.lng != null) {
+      lat = exif.lat;
+      lng = exif.lng;
+      gpsSource = "exif";
+    } else {
+      lat = projLat;
+      lng = projLng;
+      gpsSource = gpsDari(lat, "project");
+    }
     if (s?.takenAt) {
       takenAt = s.takenAt;
       timeSource = "device";
@@ -291,7 +334,14 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       timeSource = "server";
     }
   }
-  const timeApprox = timeSource === "server"; // waktu tak pasti = waktu unggah
+  // Penanda di cap — masing-masing hanya muncul bila nilainya memang bukan
+  // data asli foto. Diam-diam menampilkannya sebagai fakta = memalsukan bukti.
+  const timeNote = jamTidakDiketahui
+    ? "jam tidak tercatat"
+    : timeSource === "server"
+      ? "waktu unggah"
+      : null;
+  const coordNote = gpsSource === "project" ? "titik proyek" : null;
 
   // Pipeline ideal: sharp resize + cap (Timemark) + webp. Bila sharp TIDAK
   // tersedia/gagal di runtime (mis. binari native tak termuat di host), JANGAN
@@ -335,7 +385,9 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       showCoordinate: cfg?.showCoordinates ?? true,
       showReporter: cfg?.showReporter ?? true,
       showPhotoId: cfg?.showPhotoId ?? true,
-      timeApprox,
+      timeNote,
+      coordNote,
+      dateOnly: jamTidakDiketahui,
     },
     file,
   );
@@ -352,6 +404,16 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       thumbnailKey = null;
     }
   }
+  // Arsip berkas ASLI — byte apa adanya, sebelum kompresi & cap. Ini yang
+  // dipakai bila keaslian foto dipersoalkan (EXIF utuh, resolusi penuh).
+  // Best-effort: gagal mengarsip TIDAK boleh menggagalkan unggahan, karena
+  // versi ber-cap sudah aman di bucket (DECISIONS 197).
+  let originalKey: string | null = `photos/${input.locationSlug}/${input.dateKey}/${uuid}.asli${originalExt(file.name, file.type)}`;
+  try {
+    await r2Put(originalKey, original, file.type || "application/octet-stream");
+  } catch {
+    originalKey = null;
+  }
 
   // Objek sudah di R2 tapi barisnya belum ada. Bila create gagal (mis. dua
   // unggahan bersamaan menabrak unique (lokasi, sha256)), objeknya DIHAPUS
@@ -365,6 +427,8 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       activityId: input.activityId ?? null,
       r2Key: key,
       thumbnailKey,
+      originalKey,
+      originalBytes: originalKey ? original.length : null,
       sha256,
       bytes: processed.main.length,
       widthPx: processed.width,
@@ -372,6 +436,7 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       exifTakenAt: takenAt,
       exifGpsLat: lat != null ? lat.toFixed(7) : null,
       exifGpsLng: lng != null ? lng.toFixed(7) : null,
+      gpsSource,
       verification: "pending",
       metadataSource: timeSource,
       uploadedById: input.userId,
@@ -380,6 +445,7 @@ export async function savePhotoForItem(input: SavePhotoInput) {
   } catch (e) {
     await r2Delete(key).catch(() => {});
     if (thumbnailKey) await r2Delete(thumbnailKey).catch(() => {});
+    if (originalKey) await r2Delete(originalKey).catch(() => {});
     if (e && typeof e === "object" && "code" in e && (e as { code?: string }).code === "P2002") {
       throw new PhotoError("Foto duplikat (sudah pernah diunggah di lokasi ini)");
     }

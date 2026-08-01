@@ -390,12 +390,19 @@ export async function uploadDocumentToDriveAction(
         r2Key: true,
         packageId: true,
         locationId: true,
+        source: true,
         location: { select: { name: true, packageId: true } },
         package: { select: { id: true, driveFolderId: true } },
         milestone: { select: { templateKey: true } },
       },
     });
     if (!doc) return { error: "Dokumen tidak ditemukan." };
+    // Berkas yang DITARIK dari Drive KKP tidak boleh diunggah balik ke Drive KKP.
+    // Frontend menyembunyikan tombolnya; gerbang sesungguhnya di sini
+    // (DECISIONS 197).
+    if (doc.source === "drive_kkp") {
+      return { error: "Dokumen ini berasal dari Drive KKP — berkasnya sudah ada di sana." };
+    }
 
     const path = documentPath({
       type: doc.type,
