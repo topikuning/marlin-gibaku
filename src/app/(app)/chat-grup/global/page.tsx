@@ -25,7 +25,7 @@ export default async function ChatGrupGlobalPage({
   searchParams: Promise<{ d?: string }>;
 }) {
   const user = await requireUser();
-  requireCapabilityPage(user.role, "exec_report.send");
+  requireCapabilityPage(user.role, "wa.chat");
   const sp = await searchParams;
 
   const [dates, contacts] = await Promise.all([

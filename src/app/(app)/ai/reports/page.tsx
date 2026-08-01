@@ -21,7 +21,17 @@ export const dynamic = "force-dynamic";
  * (satu run AI) → artefak draft ber-lifecycle (draft → direview → disetujui →
  * beku → terkirim). Satu konten kanonik utk semua format. DECISIONS 133.
  */
-export default async function AiReportsPage() {
+export default async function AiReportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = await searchParams;
+  // Jembatan masuk (DECISIONS 193/194): ?template= dari pengalihan /laporan-wa
+  // dan Ask MARLIN, ?scopeIds= dari halaman run "Jadikan laporan".
+  const initialTemplate = typeof sp.template === "string" ? sp.template : undefined;
+  const initialScopeIds =
+    typeof sp.scopeIds === "string" ? sp.scopeIds.split(",").filter(Boolean) : [];
   const user = await requireUser();
   requireCapabilityPage(user.role, "ai.view");
 
@@ -73,6 +83,8 @@ export default async function AiReportsPage() {
       <ReportStudioClient
         locations={locations.map((l) => ({ id: l.id, name: l.name, packageName: l.package.name }))}
         aiReady={aiReady && can(user.role, "ai.generate")}
+        initialTemplate={initialTemplate}
+        initialScopeIds={initialScopeIds}
       />
 
       <Card>

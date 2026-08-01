@@ -51,7 +51,10 @@ export const CAPABILITIES = [
   "document.delete",
   "compliance.manage",
   "report.export",
-  "exec_report.send", // kirim laporan eksekutif (rangkuman AI) ke WA — site_manager ke atas
+  // Workspace Chat Grup + kelola kontak tujuan WA milik sendiri — site_manager
+  // ke atas. (Dulu bernama exec_report.send; menu Laporan → WA-nya sendiri
+  // sudah dilebur ke Report Studio, DECISIONS 193/194.)
+  "wa.chat",
   // Lihat & kelola kontak tujuan WA milik SEMUA akun — super_admin SAJA
   // (DECISIONS 150). Tanpa ini setiap akun hanya melihat kontaknya sendiri.
   "contact.view_all",
@@ -106,13 +109,13 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
     "field_activity.manage",
     "finance.view",
     "finance.approve",
-    "exec_report.send",
     "document.upload",
     "document.verify",
     "document.edit",
     "document.void",
     "compliance.manage",
     "report.export",
+    "wa.chat",
     "ai.view",
     "ai.generate",
     "ai.ask",
@@ -131,7 +134,6 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
     "daily_report.review",
     "field_activity.manage",
     "issue.manage",
-    "exec_report.send",
     "finance.view",
     "finance.input",
     "document.upload",
@@ -140,6 +142,7 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
     "document.void",
     "compliance.manage",
     "report.export",
+    "wa.chat",
     "user.create", // bikin Site Manager & Pelaksana di bawahnya
     "ai.view",
     "ai.generate",
@@ -156,14 +159,18 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
     "daily_report.finalize",
     "field_activity.manage",
     "issue.manage",
-    "exec_report.send",
     "finance.input",
     "document.upload",
     "report.export",
+    "wa.chat",
     "user.create", // bikin Pelaksana di bawahnya
     "ai.view",
     "ai.generate",
     "ai.ask",
+    // Pengganti exec_report.send yang dilebur (DECISIONS 193/194): SM tetap
+    // bisa MENGIRIM ke WA, tapi kini hanya artefak yang sudah DIBEKUKAN
+    // atasannya — bukan teks bebas hasil generate sendiri.
+    "ai.report_send",
   ]),
   field_supervisor: new Set<Capability>([
     ...VIEW_ALL,

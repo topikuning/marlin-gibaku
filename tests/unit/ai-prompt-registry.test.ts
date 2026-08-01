@@ -52,11 +52,10 @@ describe("registri prompt", () => {
     for (const kind of ["pulse", "deviasi", "risiko", "kualitas_data", "tanya"]) {
       expect(keys).toContain(`hub.kind.${kind}`);
     }
-    // Laporan eksekutif WA: aturan dasar + 3 template
-    expect(keys).toContain("exec.system");
-    for (const k of ["rangkuman_kegiatan", "rekap_kendala", "kepatuhan_lapor"]) {
-      expect(keys).toContain(`exec.${k}`);
-    }
+    // Slot exec.* SUDAH DIHAPUS: menu Laporan → WA dilebur ke Report Studio
+    // (DECISIONS 194) — laporan WA kini lewat template Report Studio yang
+    // pagarnya menempel di report-templates.ts, bukan slot prompt terpisah.
+    expect(keys.filter((k) => k.startsWith("exec."))).toEqual([]);
     // Chat grup + perapian kegiatan
     expect(keys).toEqual(expect.arrayContaining(["chat.summary", "chat.overview"]));
     expect(keys).toEqual(
@@ -104,13 +103,7 @@ describe("aturan sumber wajib ada di SEMUA prompt", () => {
 
   it("instruksi per-jenis pun tidak bisa dikosongkan dari pagarnya", () => {
     // Dulu slot-slot ini mustContain-nya kosong sehingga bisa ditimpa apa saja.
-    for (const key of [
-      "hub.kind.pulse",
-      "exec.rangkuman_kegiatan",
-      "exec.rekap_kendala",
-      "exec.kepatuhan_lapor",
-      "kegiatan.rewrite.rapi",
-    ]) {
+    for (const key of ["hub.kind.pulse", "kegiatan.rewrite.rapi"]) {
       expect(validatePromptOverride(key, "Ringkas saja, seingatmu."), key).toMatch(/mengarang/i);
     }
   });
@@ -132,12 +125,6 @@ describe("validatePromptOverride — pagar anti-mengarang tidak boleh dihapus", 
         "angka yang diberikan. JANGAN MENGARANG apa pun di luar data yang dilampirkan.",
     );
     expect(problem).toBeNull();
-  });
-
-  it("membuang larangan mengarang di laporan eksekutif → DITOLAK", () => {
-    expect(validatePromptOverride("exec.system", "Tulis laporan yang meyakinkan untuk direksi.")).toMatch(
-      /JANGAN mengarang/i,
-    );
   });
 
   it("membuang larangan menebak istilah di gaya teknis → DITOLAK", () => {

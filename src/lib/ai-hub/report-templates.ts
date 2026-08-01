@@ -18,6 +18,7 @@ export type AiReportTemplateKey =
   | "bulanan_kkp"
   | "owner_brief"
   | "kendala_recovery"
+  | "kepatuhan_lapor"
   | "wa_update";
 
 export type AiReportTemplate = {
@@ -82,6 +83,16 @@ const TEMPLATES: readonly AiReportTemplate[] = [
     desc: "Rekap kendala terbuka + status rencana pemulihan.",
     instruction:
       "Fokus kendala: daftar per lokasi dgn tingkat keparahan, status recovery, yang overdue, dan usulan eskalasi. Urutkan paling kritis dulu.",
+    version: 1,
+  },
+  {
+    // Migrasi preset "Status Kepatuhan Lapor" dari menu Laporan → WA yang
+    // dilebur (DECISIONS 194) — satu-satunya preset lama tanpa padanan.
+    key: "kepatuhan_lapor",
+    label: "Status Kepatuhan Lapor",
+    desc: "Lokasi mana sudah/belum mengirim laporan harian pada periode ini.",
+    instruction:
+      "Fokus kepatuhan pelaporan: kelompokkan lokasi SUDAH vs BELUM lapor (pakai expectedReports vs finalReports dari angka resmi), sorot yang menunggak beruntun, tutup dengan tindak lanjut penagihan. Jangan menilai kualitas fisik pekerjaan.",
     version: 1,
   },
   {

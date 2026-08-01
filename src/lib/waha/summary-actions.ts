@@ -23,7 +23,7 @@ import {
   type SummaryViewStatus,
 } from "./summary-lifecycle";
 
-/** Server action ringkasan chat grup (gate exec_report.send — SM ke atas). DECISIONS 135/137. */
+/** Server action ringkasan chat grup (gate wa.chat — SM ke atas). DECISIONS 135/137. */
 
 export type ChatSummaryState = { error?: string; success?: string } | undefined;
 
@@ -42,7 +42,7 @@ export async function generateChatSummaryAction(
   formData: FormData,
 ): Promise<ChatSummaryState> {
   try {
-    const user = await requireCapability("exec_report.send");
+    const user = await requireCapability("wa.chat");
     const parsed = generateSchema.safeParse({
       packageId: formData.get("packageId"),
       dateKey: formData.get("dateKey"),
@@ -79,7 +79,7 @@ export async function saveSummaryDraftAction(
   formData: FormData,
 ): Promise<ChatSummaryState> {
   try {
-    const user = await requireCapability("exec_report.send");
+    const user = await requireCapability("wa.chat");
     const parsed = editSchema.safeParse({
       packageId: formData.get("packageId"),
       dateKey: formData.get("dateKey"),
@@ -143,7 +143,7 @@ export async function sendChatSummaryAction(
   formData: FormData,
 ): Promise<ChatSummaryState> {
   try {
-    const user = await requireCapability("exec_report.send");
+    const user = await requireCapability("wa.chat");
     const parsed = sendSchema.safeParse({
       packageId: formData.get("packageId"),
       dateKey: formData.get("dateKey"),
@@ -210,7 +210,7 @@ export async function sendGlobalSummaryAction(
   formData: FormData,
 ): Promise<ChatSummaryState> {
   try {
-    const user = await requireCapability("exec_report.send");
+    const user = await requireCapability("wa.chat");
     const parsed = sendGlobalSchema.safeParse({
       dateKey: formData.get("dateKey"),
       contactId: formData.get("contactId"),
@@ -298,7 +298,7 @@ export async function saveSenderAliasAction(
   formData: FormData,
 ): Promise<ChatSummaryState> {
   try {
-    const user = await requireCapability("exec_report.send");
+    const user = await requireCapability("wa.chat");
     const parsed = aliasSchema.safeParse({
       senderKey: String(formData.get("senderKey") ?? ""),
       displayName: String(formData.get("displayName") ?? ""),

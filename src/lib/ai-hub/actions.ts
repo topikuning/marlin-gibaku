@@ -10,6 +10,7 @@ import { audit } from "@/lib/audit";
 import { accessibleLocationIds, ForbiddenError, requireCapability } from "@/lib/auth/session";
 import { canTransitionAiArtifact } from "@/lib/lifecycle";
 import { sendText, WahaError } from "@/lib/waha/client";
+import { normalizeWaTarget } from "@/lib/contacts/model";
 import { jakartaToday, parseDateKey } from "@/lib/format";
 import type { AiArtifactStatus, AiRunKind } from "@/generated/prisma/enums";
 import { AiGuardError, getAiGuardConfig } from "./guard";
@@ -42,7 +43,7 @@ function shiftKey(key: string, deltaDays: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-export type AiPeriodPreset = "7hari" | "14hari" | "30hari" | "custom";
+export type AiPeriodPreset = "hari_ini" | "kemarin" | "7hari" | "14hari" | "30hari" | "custom";
 
 function resolvePeriod(preset: string, customStart: string, customEnd: string): { startKey: string; endKey: string } {
   const today = jakartaToday().toISOString().slice(0, 10);
@@ -54,6 +55,13 @@ function resolvePeriod(preset: string, customStart: string, customEnd: string): 
     let b = customEnd;
     if (a > b) [a, b] = [b, a];
     return { startKey: a, endKey: b };
+  }
+  // hari_ini & kemarin: preset bawaan menu Laporan → WA yang dilebur — dipakai
+  // update harian ringkas ke pimpinan (DECISIONS 194).
+  if (preset === "hari_ini") return { startKey: today, endKey: today };
+  if (preset === "kemarin") {
+    const k = shiftKey(today, -1);
+    return { startKey: k, endKey: k };
   }
   const days = preset === "30hari" ? 29 : preset === "14hari" ? 13 : 6;
   return { startKey: shiftKey(today, -days), endKey: today };
@@ -318,21 +326,34 @@ export async function distributeArtifactAction(_prev: AiHubState, formData: Form
     if (artifact.status !== "beku" && artifact.status !== "terkirim") {
       return { error: "Hanya artefak BEKU yang boleh didistribusikan — bekukan dulu setelah approve." };
     }
-    const contact = await db.waContact.findFirst({
-      where: { id: contactId, ownerId: user.id },
-      select: { name: true, chatId: true },
-    });
-    if (!contact) return { error: "Kontak tujuan tidak ditemukan (kelola di Laporan → WA)." };
+    // Tujuan: kontak tersimpan ATAU tujuan bebas (nomor / id grup) — fungsi
+    // bawaan menu Laporan → WA yang dilebur ke sini (DECISIONS 194). Distribusi
+    // tetap hanya untuk artefak BEKU; yang berubah cuma fleksibilitas tujuan.
+    let target: { name: string; chatId: string };
+    if (contactId) {
+      const contact = await db.waContact.findFirst({
+        where: { id: contactId, ownerId: user.id },
+        select: { name: true, chatId: true },
+      });
+      if (!contact) return { error: "Kontak tujuan tidak ditemukan (kelola di Master Data → Kontak)." };
+      target = contact;
+    } else {
+      const rawTarget = String(formData.get("destChatId") ?? "").trim();
+      if (!rawTarget) return { error: "Pilih kontak tersimpan, atau isi nomor/id grup tujuan." };
+      const chatId = normalizeWaTarget(rawTarget); // lempar error berpesan jelas bila format salah
+      const destName = String(formData.get("destName") ?? "").trim();
+      target = { name: destName || chatId, chatId };
+    }
 
     const text = artifact.renderedText ?? renderAiReportWhatsApp(parseAiReportContent(artifact.structuredContent));
-    await sendText(contact.chatId, text);
+    await sendText(target.chatId, text);
 
     const dist = Array.isArray(artifact.distributions) ? (artifact.distributions as unknown[]) : [];
     dist.push({
       at: new Date().toISOString(),
       channel: "whatsapp",
-      target: contact.name,
-      chatId: contact.chatId,
+      target: target.name,
+      chatId: target.chatId,
       byId: user.id,
       hash: artifact.contentHash,
     });
@@ -340,9 +361,9 @@ export async function distributeArtifactAction(_prev: AiHubState, formData: Form
       where: { id: artifact.id },
       data: { status: "terkirim", distributions: JSON.parse(JSON.stringify(dist)) },
     });
-    await audit(user.id, "ai.artifact.distribusi", "ai_artifact", artifact.id, { target: contact.name });
+    await audit(user.id, "ai.artifact.distribusi", "ai_artifact", artifact.id, { target: target.name, chatId: target.chatId });
     if (artifact.runId) revalidatePath(`/ai/run/${artifact.runId}`);
-    return { ok: `Terkirim ke ${contact.name}.` };
+    return { ok: `Terkirim ke ${target.name}.` };
   } catch (err) {
     return fail(err);
   }

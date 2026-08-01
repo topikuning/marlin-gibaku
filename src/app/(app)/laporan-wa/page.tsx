@@ -1,68 +1,10 @@
-import type { Metadata } from "next";
-import { PageHeader, Banner } from "@/components/ui";
-import { requireUser } from "@/lib/auth/session";
-import { requireCapabilityPage } from "@/lib/auth/page-guard";
-import { db } from "@/lib/db";
-import { formatTanggalWaktu } from "@/lib/format";
-import { isWahaConfigured } from "@/lib/waha/config";
-import { getActiveAiConfig } from "@/lib/ai/config";
-import { LaporanWaClient } from "./laporan-wa-client";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Laporan Eksekutif → WA" };
-export const dynamic = "force-dynamic";
-
-export default async function LaporanWaPage() {
-  const user = await requireUser();
-  requireCapabilityPage(user.role, "exec_report.send");
-
-  const [contacts, dispatches, wahaOn, aiCfg] = await Promise.all([
-    // Hanya kontak milik sendiri yang boleh jadi tujuan kirim (DECISIONS 150).
-    db.waContact.findMany({
-      where: { ownerId: user.id },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, chatId: true, note: true },
-    }),
-    db.reportDispatch.findMany({
-      where: { senderId: user.id },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-      select: { id: true, reportKey: true, destName: true, createdAt: true },
-    }),
-    isWahaConfigured(),
-    getActiveAiConfig(),
-  ]);
-
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Laporan Eksekutif → WA"
-        description="Susun rangkuman dengan AI lalu kirim ke direksi/manajemen via WhatsApp."
-      />
-      {!aiCfg ? (
-        <Banner
-          tone="warning"
-          title="Provider AI belum aktif"
-          description="Buka Sistem → AI, isi API key & jadikan satu provider aktif agar laporan bisa disusun."
-        />
-      ) : null}
-      {!wahaOn ? (
-        <Banner
-          tone="warning"
-          title="WhatsApp (WAHA) belum dikonfigurasi"
-          description="Buka Sistem → Integrasi untuk mengatur WAHA agar laporan bisa dikirim."
-        />
-      ) : null}
-      <LaporanWaClient
-        contacts={contacts}
-        dispatches={dispatches.map((d) => ({
-          id: d.id,
-          reportKey: d.reportKey,
-          destName: d.destName,
-          at: formatTanggalWaktu(d.createdAt),
-        }))}
-        aiReady={!!aiCfg}
-        waReady={wahaOn}
-      />
-    </div>
-  );
+/**
+ * Menu "Laporan → WA" DILEBUR ke AI Report Studio (DECISIONS 193/194): tidak
+ * boleh ada jalur generate-lalu-kirim tanpa review. Route lama dipertahankan
+ * sebagai pengalihan supaya bookmark/kebiasaan pengguna tidak putus.
+ */
+export default function LaporanWaPage() {
+  redirect("/ai/reports?template=wa_update");
 }

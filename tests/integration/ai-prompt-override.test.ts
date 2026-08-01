@@ -84,8 +84,9 @@ describe("listPrompts (halaman Sistem → Prompt AI)", () => {
     expect(bawaan.isOverridden).toBe(false);
     expect(bawaan.text).toBe(promptDefault("chat.summary"));
 
-    // Seluruh slot tetap terdaftar walau hanya satu yang ditimpa.
-    expect(items.length).toBeGreaterThanOrEqual(14);
+    // Seluruh slot tetap terdaftar walau hanya satu yang ditimpa. (4 slot
+    // exec.* hilang bersama menu Laporan → WA yang dilebur — DECISIONS 194.)
+    expect(items.length).toBeGreaterThanOrEqual(11);
   });
 
   it("teks yang PERSIS sama dengan bawaan tidak dianggap 'diubah'", async () => {

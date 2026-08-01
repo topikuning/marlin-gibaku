@@ -5274,3 +5274,51 @@ boleh ada jalur yang berakhir di layar saja atau kirim tanpa review:
 
 Aturan ini tertulis juga di PROJECT.md §5a. Pelanggaran = bug arsitektur,
 bukan preferensi.
+
+---
+
+## 194 — Eksekusi doktrin 193: Laporan → WA dilebur ke Report Studio + jembatan run & Ask (2026-08-01)
+
+Eksekusi konsekuensi DECISIONS 193. Yang berubah:
+
+**(a) Menu global `Laporan → WA` DIHAPUS; route `/laporan-wa` dialihkan** ke
+`/ai/reports?template=wa_update`. Modul `src/lib/exec-report/` dihapus utuh —
+ia jalur AI paralel tanpa review/versi/beku: teks hasil generate bisa diedit
+bebas lalu langsung dikirim. Semua fungsinya berpindah:
+
+- Preset "Status Kepatuhan Lapor" → template Report Studio `kepatuhan_lapor`
+  (preset lain sudah punya padanan: rangkuman ≈ `exec_portfolio`, rekap
+  kendala ≈ `kendala_recovery`). Total template kini 8.
+- Periode `hari_ini` & `kemarin` (khas update harian pimpinan) ditambahkan ke
+  preset periode Report Studio.
+- **Distribusi artefak beku kini menerima kontak tersimpan ATAU tujuan bebas**
+  (nomor / id grup via `normalizeWaTarget`) — fungsi bawaan menu lama yang
+  sebelumnya tidak ada di jalur artefak. Nama+chatId tujuan tercatat di
+  `distributions` dan audit.
+- Slot prompt `exec.*` (4) dihapus dari registri; `aiComplete()` yang menjadi
+  yatim ikut dihapus. Model `ReportDispatch` DIPERTAHANKAN sebagai riwayat
+  historis (tidak ada tulisan baru ke sana).
+
+**(b) Capability dibereskan, bukan sekadar dicabut.** `exec_report.send`
+ternyata juga menggerbangi Chat Grup + kelola kontak WA — bukan urusan
+laporan. Ia diganti `wa.chat` dengan pemegang PERSIS sama (SM ke atas; tidak
+ada perubahan hak). Untuk kemampuan kirim yang hilang: **site_manager diberi
+`ai.report_send`** — SM tetap bisa mengirim ke WA seperti dulu, tapi kini
+HANYA artefak yang sudah dibekukan atasannya, bukan teks bebas hasil generate
+sendiri. Ini pengetatan, bukan perluasan. RM/PM/PD/SA tidak berubah.
+
+**(c) Jembatan sesuai doktrin**: halaman run analisis (`/ai/run/[id]`, status
+siap) punya "Jadikan laporan →" yang membawa scope run ke Report Studio dengan
+template sesuai jenis (risiko → `kendala_recovery`, lainnya →
+`exec_portfolio`); Ask MARLIN punya "Buat laporan dari scope ini →" (template
+`wa_update`). Dua-duanya MENGHITUNG ULANG angka dari calculation layer saat
+generate — run/jawaban lama tidak dibekukan mentah jadi laporan (angka basi).
+Report Studio menerima `?template=` & `?scopeIds=` (scope disaring terhadap
+izin user sebelum dipakai).
+
+Verifikasi: unit 645 ✓ · integrasi 165 ✓ · typecheck ✓ · lint ✓ ·
+PERMISSION_MATRIX diregenerasi (47 capability) · browser: `/laporan-wa` (admin
+& SM) mendarat di Report Studio dgn template WhatsApp Update terpilih, template
+kepatuhan tampil, nav bersih, SM tetap bisa buka Master → Kontak. Kirim WA
+tujuan bebas belum teruji ujung-ke-ujung (butuh provider AI + WAHA hidup —
+hanya ada di Railway); jalur normalisasi tujuannya sudah ter-unit-test lama.

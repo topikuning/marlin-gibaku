@@ -12,7 +12,7 @@ export default async function MasterLayout({ children }: { children: React.React
   const user = await requireUser();
   const tabs: LinkTabItem[] = [];
   if (can(user.role, "contract.manage")) tabs.push({ label: "Perusahaan", href: "/master/perusahaan" });
-  if (can(user.role, "exec_report.send")) tabs.push({ label: "Kontak", href: "/master/kontak" });
+  if (can(user.role, "wa.chat")) tabs.push({ label: "Kontak", href: "/master/kontak" });
   if (can(user.role, "user.create")) tabs.push({ label: "Pengguna", href: "/master/pengguna" });
   if (tabs.length === 0) notFound();
 

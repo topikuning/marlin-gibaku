@@ -96,6 +96,7 @@ export default async function AiAskPage({ searchParams }: { searchParams: Promis
             active
               ? {
                   id: active.id,
+                  scopeIds: active.scopeIds as string[],
                   scopeCount: (active.scopeIds as string[]).length,
                   periodStart: active.periodStart.toISOString().slice(0, 10),
                   periodEnd: active.periodEnd.toISOString().slice(0, 10),

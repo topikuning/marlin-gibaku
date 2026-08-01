@@ -16,7 +16,6 @@ import {
  * v2 (AI Hub, DECISIONS 133): `aiCall()` mengembalikan hasil LENGKAP —
  * usage token, latency, finish reason, kode error stabil — dengan timeout
  * (AbortSignal) + maksimal SATU retry untuk error sementara (429/5xx/timeout).
- * `aiComplete()` lama dipertahankan sebagai pembungkus tipis (kompatibel).
  * Respons mentah provider TIDAK dilog; API key tidak pernah ikut pesan error.
  */
 
@@ -174,12 +173,6 @@ export async function aiCall(req: AiRequest): Promise<AiCallResult> {
     };
   }
   return aiCallWithConfig(cfg, req);
-}
-
-/** Panggil provider AI AKTIF (kompatibel lama — dipakai laporan eksekutif WA). */
-export async function aiComplete(req: AiRequest): Promise<AiResult> {
-  const r = await aiCall(req);
-  return r.ok ? { ok: true, text: r.text, model: r.model } : { ok: false, error: r.error };
 }
 
 /** Tes koneksi satu provider (minimal request) untuk verifikasi API key/model. */

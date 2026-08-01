@@ -27,7 +27,14 @@ export function AskClient({
   locations,
   aiReady,
 }: {
-  conversation: { id: string; scopeCount: number; periodStart: string; periodEnd: string; messages: Msg[] } | null;
+  conversation: {
+    id: string;
+    scopeIds: string[];
+    scopeCount: number;
+    periodStart: string;
+    periodEnd: string;
+    messages: Msg[];
+  } | null;
   locations: { id: string; name: string }[];
   aiReady: boolean;
 }) {
@@ -43,6 +50,18 @@ export function AskClient({
           conversation
             ? `Scope ${conversation.scopeCount} lokasi · periode ${conversation.periodStart} – ${conversation.periodEnd} · grounded (hanya data yang Anda boleh akses)`
             : "Percakapan baru — pilih scope (kosong = semua lokasi Anda), lalu bertanya. Jawaban selalu menyertakan sumber."
+        }
+        action={
+          conversation ? (
+            // Doktrin DECISIONS 193: jawaban tidak berhenti sebagai teks chat —
+            // scope percakapan terbawa ke Report Studio jadi artefak ber-lifecycle.
+            <Link
+              href={`/ai/reports?template=wa_update&scopeIds=${conversation.scopeIds.join(",")}`}
+              className="text-[13px] font-medium text-primary hover:underline"
+            >
+              Buat laporan dari scope ini →
+            </Link>
+          ) : undefined
         }
       />
       <CardBody className="space-y-3">

@@ -194,62 +194,6 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
   },
 
   // ── Laporan eksekutif WhatsApp ────────────────────────────────────────────
-  {
-    key: "exec.system",
-    group: "exec",
-    label: "Aturan dasar laporan eksekutif",
-    description: "Dipakai semua laporan eksekutif yang dikirim ke WhatsApp direksi/manajemen.",
-    default: EXEC_SYSTEM_DEFAULT,
-    mustContain: [ANTI_KARANG_FRASA],
-    maxChars: 3000,
-  },
-  {
-    key: "exec.rangkuman_kegiatan",
-    group: "exec",
-    label: "Instruksi — Rangkuman kegiatan",
-    description: "Laporan rangkuman kegiatan seluruh lokasi pada periode terpilih.",
-    default:
-      "Tulis RANGKUMAN KEGIATAN semua lokasi periode ini untuk direksi. Mulai dengan ringkasan sekilas " +
-      "(jumlah lokasi, berapa sudah/belum lapor). Lalu sorot per lokasi yang ada kegiatan atau kendala " +
-      "penting (lokasi tanpa aktivitas cukup disebut ringkas atau dikelompokkan). Tegaskan kendala berat/kritis.\n" +
-      pagarSumber(
-        "daftar kegiatan & kendala per lokasi yang dilampirkan",
-        "Lokasi yang tidak punya kegiatan tercatat ditulis “tidak ada kegiatan tercatat” — jangan diisi kegiatan yang masuk akal menurut Anda.",
-      ),
-    mustContain: [ANTI_KARANG_FRASA],
-    maxChars: 2000,
-  },
-  {
-    key: "exec.rekap_kendala",
-    group: "exec",
-    label: "Instruksi — Rekap kendala",
-    description: "Laporan rekap kendala lintas lokasi, diurutkan dari yang paling berat.",
-    default:
-      "Tulis REKAP KENDALA lintas lokasi periode ini. Fokus hanya pada kendala terbuka; urutkan dari yang " +
-      "paling berat (kritis > tinggi > sedang > rendah). Untuk tiap kendala berat, beri saran tindakan " +
-      "singkat yang wajar. Bila tak ada kendala, nyatakan aman.\n" +
-      pagarSumber(
-        "daftar kendala terbuka yang dilampirkan",
-        "Judul dan tingkat keparahan dikutip apa adanya; jangan menambah kendala, jangan menaikkan/menurunkan keparahan, dan jangan mengarang penyebabnya. Saran tindakan ditulis sebagai saran, bukan sebagai fakta yang sudah terjadi.",
-      ),
-    mustContain: [ANTI_KARANG_FRASA],
-    maxChars: 2000,
-  },
-  {
-    key: "exec.kepatuhan_lapor",
-    group: "exec",
-    label: "Instruksi — Kepatuhan lapor",
-    description: "Laporan kepatuhan pelaporan harian per lokasi.",
-    default:
-      "Tulis STATUS KEPATUHAN LAPOR periode ini. Sebutkan berapa lokasi sudah lapor dan berapa belum, lalu " +
-      "DAFTAR lokasi yang BELUM lapor (paling penting untuk ditindaklanjuti). Ringkas.\n" +
-      pagarSumber(
-        "status laporan per lokasi dan angka sudah/belum lapor yang dilampirkan",
-        "Jumlah dan nama lokasi dikutip persis dari data — jangan menghitung sendiri, jangan menebak alasan sebuah lokasi belum lapor.",
-      ),
-    mustContain: [ANTI_KARANG_FRASA],
-    maxChars: 2000,
-  },
 
   // ── Ringkasan chat grup ───────────────────────────────────────────────────
   {
