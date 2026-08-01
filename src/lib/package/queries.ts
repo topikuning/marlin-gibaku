@@ -106,11 +106,21 @@ export async function getPackageStats(
  * URL bisa membuka workspace paket mana pun (lintas penugasan, bahkan lintas
  * organisasi). Return null = halaman menampilkan notFound(), sama seperti
  * paket yang memang tidak ada — tidak membocorkan bahwa paketnya eksis.
+ *
+ * DAFTAR LOKASINYA juga ikut scope (DECISIONS 201). Dulu paket yang boleh
+ * dibuka menampilkan SEMUA lokasinya: user yang ditugaskan ke B & C tetap
+ * melihat A & D, dan baru tertahan saat mengkliknya (404). Penahanan di klik
+ * memang mencegah akses datanya, tapi keberadaan & nama lokasi lain sudah
+ * terlanjur bocor — dan daftar itu terbaca sebagai "ini semua tanggung
+ * jawabmu", yang salah.
+ *
+ * Yang disembunyikan DISEBUT JUMLAHNYA (`locationsHidden`) supaya "tidak
+ * muncul" tidak terbaca "tidak ada" — aturan yang sama dengan katalog lokasi.
  */
 export const getPackageWorkspace = cache(async (id: string) => {
   const user = await requireUser();
   const scoped = await accessibleLocationIds(user);
-  return db.package.findUnique({
+  const pkg = await db.package.findUnique({
     where: { id, ...packageScopeWhere(user, scoped) },
     select: {
       id: true,
@@ -169,6 +179,7 @@ export const getPackageWorkspace = cache(async (id: string) => {
         },
       },
       locations: {
+        where: scoped === null ? undefined : { id: { in: scoped } },
         orderBy: { name: "asc" },
         select: {
           id: true,
@@ -182,8 +193,14 @@ export const getPackageWorkspace = cache(async (id: string) => {
           _count: { select: { rabRevisions: true, statusHistory: true, dailyReports: true } },
         },
       },
+      _count: { select: { locations: true } },
     },
   });
+  if (!pkg) return null;
+  // Selisih total vs yang tampil = lokasi paket ini di luar penugasan user.
+  // Untuk role lintas lokasi selalu 0.
+  const locationsHidden = Math.max(0, pkg._count.locations - pkg.locations.length);
+  return { ...pkg, locationsHidden };
 });
 
 /**

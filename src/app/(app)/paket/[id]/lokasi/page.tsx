@@ -55,7 +55,14 @@ export default async function LokasiPaketPage({
       <Card className="self-start">
         <CardHeader
           title="Lokasi paket"
-          subtitle={`${pkg.locations.length} lokasi · ${pkg.locations.filter((l) => l.isActive).length} aktif`}
+          subtitle={
+            `${pkg.locations.length} lokasi · ${pkg.locations.filter((l) => l.isActive).length} aktif` +
+            // Yang di luar penugasan disebut jumlahnya, tidak dihilangkan diam-diam
+            // (DECISIONS 201).
+            (pkg.locationsHidden > 0
+              ? ` · ${pkg.locationsHidden} lokasi lain di paket ini di luar penugasan Anda`
+              : "")
+          }
         />
         <CardBody>
           {pkg.locations.length === 0 ? (
@@ -63,9 +70,11 @@ export default async function LokasiPaketPage({
               icon={MapPin}
               title="Belum ada lokasi"
               description={
-                praKontrak
-                  ? "Tambahkan lokasi target — wajib minimal satu sebelum konversi kontrak."
-                  : "Paket ini belum memiliki lokasi."
+                pkg.locationsHidden > 0
+                  ? `Paket ini punya ${pkg.locationsHidden} lokasi, tetapi tidak ada satu pun yang ditugaskan kepada Anda.`
+                  : praKontrak
+                    ? "Tambahkan lokasi target — wajib minimal satu sebelum konversi kontrak."
+                    : "Paket ini belum memiliki lokasi."
               }
             />
           ) : (

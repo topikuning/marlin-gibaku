@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Card, CardBody, CardHeader, KpiCard, StatusPill } from "@/components/ui";
+import { Banner, Card, CardBody, CardHeader, KpiCard, StatusPill } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
@@ -110,6 +110,12 @@ export default async function RingkasanPaketPage({
   // Kontrak incl-PPN, RAB pra-PPN (konvensi uang) → banding pada basis pra-PPN.
   const recon = (() => {
     if (!pkg.contract || running == null) return null;
+    // Rekonsiliasi membandingkan nilai kontrak SEUTUHNYA dengan Σ RAB SEMUA
+    // lokasi. Untuk user ber-scope sempit, `totalRab` hanya mencakup lokasi
+    // yang terlihat — selisihnya akan tampak besar dan salah. Lebih baik tidak
+    // ditampilkan daripada menampilkan angka yang tidak bisa benar
+    // (DECISIONS 201).
+    if (pkg.locationsHidden > 0) return null;
     const ppn = Number(pkg.contract.ppnPercent);
     const runningNum = Number(running);
     const basePraPpn = ppn > 0 ? runningNum / (1 + ppn / 100) : runningNum;
@@ -225,17 +231,40 @@ export default async function RingkasanPaketPage({
           }
         />
         <KpiCard
-          label="Jumlah lokasi"
+          // Angka ini mengikuti PENUGASAN, bukan isi paket seutuhnya — jadi
+          // labelnya harus menyebutkan itu, bukan diam-diam terbaca sebagai
+          // jumlah lokasi paket (DECISIONS 201).
+          label={pkg.locationsHidden > 0 ? "Lokasi Anda di paket ini" : "Jumlah lokasi"}
           value={pkg.locations.length}
           href={`/paket/${pkg.id}/lokasi`}
-          sub={`${pkg.locations.filter((l) => l.isActive).length} aktif`}
+          sub={
+            pkg.locationsHidden > 0
+              ? `${pkg.locations.filter((l) => l.isActive).length} aktif · ${pkg.locationsHidden} lokasi lain di luar penugasan`
+              : `${pkg.locations.filter((l) => l.isActive).length} aktif`
+          }
         />
         <KpiCard
-          label="Progress agregat"
+          // Dihitung dari lokasi YANG TERLIHAT. Untuk user ber-scope sempit itu
+          // BUKAN progres paket seutuhnya, jadi labelnya wajib menyebutkannya —
+          // satu label untuk dua angka berbeda adalah persis yang dilarang
+          // Calculation Integrity Protocol (DECISIONS 201).
+          label={pkg.locationsHidden > 0 ? "Progress lokasi Anda" : "Progress agregat"}
           value={formatPct(aggregatePct)}
-          sub="tertimbang RAB aktif"
+          sub={
+            pkg.locationsHidden > 0
+              ? "tertimbang RAB aktif · bukan progres seluruh paket"
+              : "tertimbang RAB aktif"
+          }
         />
       </section>
+
+      {!recon && pkg.contract && pkg.locationsHidden > 0 ? (
+        <Banner
+          tone="info"
+          title="Rekonsiliasi kontrak vs RAB tidak ditampilkan"
+          description={`Perbandingan itu memerlukan RAB SELURUH lokasi paket, sementara ${pkg.locationsHidden} lokasi berada di luar penugasan Anda — angkanya tidak akan benar bila dihitung sebagian.`}
+        />
+      ) : null}
 
       {recon ? (
         <Card>
