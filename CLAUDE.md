@@ -83,6 +83,7 @@ src/
 │   ├── auth/            # session (DB, revocable), password, actions, page-guard
 │   ├── rab/             # parsed, hps-parser, flatten, import
 │   ├── scurve/          # generate (kurva-S evaluasi kontinu, DECISIONS 052 — jaga properti: mulai 0, akhir 100, monoton, bentuk-S)
+│   │                    # jadwal-verbatim (impor Excel dipakai APA ADANYA, DECISIONS 203)
 │   ├── daily-report/    # actions + queries workflow laporan
 │   ├── finance/         # calc (SATU-satunya tempat formula agregat) + actions
 │   ├── milestones/      # template 45 item KKP + actions
@@ -108,6 +109,11 @@ src/
   sebagai bukti GPS); jam yang tak diketahui → tulis tanggal saja. Ingat kolom
   tanggal kerja `@db.Date` = tengah malam UTC = **07:00 WIB** kalau diformat
   lengkap — itu bukan data. DECISIONS 197.
+- **Angka yang DIUNGGAH user dipakai apa adanya**, tidak diskalakan/dibetulkan
+  diam-diam ke versi sistem. Kalau invarian memaksa penyesuaian (kurva-S wajib
+  tuntas 100%), penyesuaiannya harus seragam DAN dikatakan di UI; selisih yang
+  terlalu besar DITOLAK dengan menyebut penyebabnya, bukan diperbaiki sendiri.
+  Perilaku "disesuaikan ke sistem" harus DIMINTA user. DECISIONS 203.
 - Server Component default; `"use client"` seperlunya; mutasi via Server Action
   (FormData + zod + `useActionState` + `Banner`).
 - Tabel data → `MarlinGrid`; KPI/ringkasan → `KpiCard`; status → `StatusPill`

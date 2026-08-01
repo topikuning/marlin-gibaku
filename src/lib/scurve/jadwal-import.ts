@@ -88,10 +88,13 @@ export async function parseJadwalWorkbook(buf: Buffer): Promise<ParsedJadwal> {
     const nameText = cellText(row.getCell(2).value);
     if (SUMMARY_RE.test(codeText) || SUMMARY_RE.test(nameText)) break;
     if (!nameText) continue; // baris kosong / helper tersembunyi
+    // Nilai dikembalikan APA ADANYA — termasuk negatif. Dulu negatif diam-diam
+    // jadi 0; sekarang penyimpanlah yang menolaknya dengan menyebut baris &
+    // minggunya, karena mengubah angka user tanpa memberi tahu adalah persoalan
+    // yang sedang diperbaiki (DECISIONS 203).
     const weekly: number[] = [];
     for (let i = 0; i < totalWeeks; i++) {
-      const v = toNum(row.getCell(weekCol0 + i).value);
-      weekly.push(v > 0 ? v : 0);
+      weekly.push(toNum(row.getCell(weekCol0 + i).value));
     }
     categories.push({ code: codeText, name: nameText, weekly });
   }

@@ -11,6 +11,28 @@
 
 export const DEFAULT_CONTRACT_DAYS = 150;
 
+/**
+ * Validasi deret plan: 0..100, monotonik naik, akhir 100 ± 0.5 — properti wajib
+ * kurva-S (DECISIONS 052). Setiap jalur yang menulis baseline melewatinya,
+ * termasuk impor Excel "apa adanya" (DECISIONS 203).
+ */
+export function validateBaselinePoints(points: number[]): string | null {
+  if (points.length === 0) return "Deret rencana kosong.";
+  let prev = -Infinity;
+  for (const [i, p] of points.entries()) {
+    if (!Number.isFinite(p) || p < 0 || p > 100) {
+      return `Minggu ${i + 1}: nilai ${p} di luar rentang 0–100.`;
+    }
+    if (p < prev) return `Minggu ${i + 1}: kurva turun (${prev} → ${p}) — harus monotonik naik.`;
+    prev = p;
+  }
+  const last = points[points.length - 1];
+  if (Math.abs(last - 100) > 0.5) {
+    return `Minggu terakhir harus 100% (±0.5), sekarang ${last}%.`;
+  }
+  return null;
+}
+
 // Category name keyword → [start_pct, end_pct] jendela presedensi (fraksi durasi).
 // First match wins → keyword SPESIFIK sebelum yang umum.
 //

@@ -2030,9 +2030,9 @@ scurve — dengan test properti, bukan paritas nilai):**
 - **Round-trip (S3)**: re-import Time Schedule Excel (editan sipil) → weekly per kategori →
   baseline. Parser `scurve/jadwal-import.ts` (deteksi header M1..MN, baca baris kategori termasuk
   sel rumus via `.result`, minggu 0 = jeda). Action `importJadwalAction` cocokkan kategori via
-  KODE (fallback nama), tolak bila jumlah minggu ≠ durasi kontrak, lalu `saveCategoryWeekly`
-  (bentuk/jeda dari Excel dipertahankan, bobot di-RENORMALISASI ke RAB; kategori tak-cocok →
-  fallback auto agar kurva tuntas 100). UI: tombol "Impor jadwal dari Excel" di editor jadwal.
+  KODE (fallback nama), tolak bila jumlah minggu ≠ durasi kontrak, lalu `saveCategoryWeekly`.
+  **DIGANTI DECISIONS 203**: renormalisasi bobot ke RAB bukan lagi perilaku default — angka
+  Excel dipakai apa adanya kecuali user meminta penyesuaian. UI: tombol "Impor jadwal dari Excel" di editor jadwal.
   Uji round-trip: export → parse balik → kategori/kode/matriks + jeda (mgg 5–6 = 0) terbaca benar.
 
 ## 104 · 2026-07-25 · Export TS: baris realisasi PENUH rumus (kumulatif + sumber grafik) seperti rencana
@@ -5780,3 +5780,77 @@ melempar error, kegagalan tercatat sebagai gagal) · unit 693 ✓ · integrasi 2
 **Yang belum**: penjadwalnya belum dipasang di Railway — `CRON_SECRET` harus
 diisi dan cron job dibuat. Sampai itu dilakukan, endpoint-nya menolak semua
 permintaan dan kedua fitur ini tidak berjalan.
+
+## 203 — Impor jadwal Excel: angka user DIIKUTI apa adanya (2026-08-01)
+
+**Keluhan user** (membaca keterangan di form impor "Bobot tetap mengikuti RAB;
+bentuk & jeda dari Excel dipertahankan"): *"jika user sudah upload jadwal
+versinya, apakah kamu tidak bisa mengikuti angka dari dia apa adanya? ini upload
+manual kamu harus mengikuti, kecuali orang tersebut meminta agar disesuaikan
+dengan sistem dari inputan dia. jadi kalau user tidak minta, maka manual yang
+jadi baselinenya."*
+
+**Yang terjadi sebelumnya** (DECISIONS 103): impor Excel hanya meminjam
+BENTUK-nya. Tiap kategori diskalakan ulang agar Σ mingguannya persis sama dengan
+bobot RAB, dan kategori yang tidak ada di Excel diisi jadwal otomatis. Orang yang
+menyusun 12% untuk satu pekerjaan lalu melihat 9,4% di sistem wajar menyimpulkan
+uploadnya tidak dibaca — dan memang, yang dipakai cuma polanya.
+
+### Keputusan
+
+Impor Excel punya dua mode, **defaultnya `apaadanya`**:
+
+- **`apaadanya` (default, tanpa dicentang)** — angka Excel dipakai sebagaimana
+  adanya, TERMASUK bobot tiap pekerjaan. Pekerjaan yang tidak dijadwalkan di
+  Excel dibiarkan kosong (tidak diisi otomatis). Selisihnya terhadap bobot RAB
+  DISEBUTKAN di banner hasil impor — pilihan user berhak terlihat, bukan
+  disamarkan.
+- **`rab` (harus dicentang)** — perilaku lama: bentuk/jeda dari Excel
+  dipertahankan, bobot direnormalisasi ke RAB, kategori tak-cocok diisi otomatis.
+
+Modenya dicatat di `note` baseline dan payload audit `baseline.import`, supaya
+pembaca angka itu nanti tahu bahwa perbedaan terhadap RAB adalah pilihan, bukan
+bug.
+
+### Batas yang tetap dijaga
+
+Kurva-S wajib mulai 0, monoton naik, dan tuntas 100% (DECISIONS 052) — itu tidak
+bisa dinegosiasi karena deviasi = realisasi − rencana, dan rencana yang berakhir
+di 95% membuat deviasi akhir selamanya +5. Maka:
+
+- Total Excel meleset **≤ 2 pp** dari 100 → diterima, seluruh sel dikalikan
+  **satu faktor yang sama**. Perbandingan antar-pekerjaan, antar-minggu, dan
+  setiap jeda tetap persis seperti di file; yang berubah hanya satuannya. Kalau
+  faktornya bukan 1, itu **dikatakan** di banner.
+- Meleset **> 2 pp** → **DITOLAK**, dengan menyebut totalnya dan pekerjaan RAB
+  mana yang belum dijadwalkan. Selisih sebesar itu adalah kesalahan isi (baris
+  terlewat, kategori belum diisi); menskalakannya diam-diam akan
+  menyembunyikannya.
+- Nilai **negatif ditolak** dengan menyebut baris & minggunya. Sebelumnya parser
+  diam-diam mengubahnya jadi 0 — persis jenis perubahan-tanpa-memberi-tahu yang
+  sedang diperbaiki di sini.
+
+### Yang TIDAK terpengaruh
+
+Kolom "Bobot Rencana" blanko KKP tetap memakai **bobot RAB × fraksi rencana
+kategorinya** (`planFractionFromWeekly` — fraksi, bukan nilai absolut), lalu
+diskalakan agar totalnya sama dengan rencana resmi kurva. Jadi jadwal "apa
+adanya" mengubah BENTUK & BOBOT KURVA, bukan basis nilai per item di tabel KKP —
+satu dokumen tetap tidak menampilkan dua angka untuk hal yang sama.
+
+### Ikutan
+
+`validateBaselinePoints` pindah dari `lib/baseline.ts` (server-only) ke
+`lib/scurve/generate.ts` (murni) dan di-reexport, supaya sifat kurva bisa diuji
+tanpa database. Logika "apa adanya" ada di `lib/scurve/jadwal-verbatim.ts` —
+murni, tanpa db.
+
+**Verifikasi**: 13 kasus unit baru (`jadwal-apa-adanya` — bobot = angka Excel
+bukan RAB, sel & jeda diteruskan persis, kurva sah 10/40/80/100, selisih terhadap
+RAB dilaporkan, skala seragam 99% → 100% mempertahankan rasio 10:60:30, batas
+toleransi 2 pp, negatif & file kosong ditolak, pekerjaan tak terjadwal dibiarkan
+kosong) · 9 kasus integrasi baru (`impor-jadwal-excel` — xlsx nyata → parser →
+baseline tersimpan: bobot 10/60/30 vs RAB 5/70/25, kurva 10/40/80/100, jeda tetap
+mendatar, banner menyebut selisih, note baseline, centang RAB mengembalikan
+5/70/25, tolak total 70% & negatif tanpa membuat baseline, pembulatan kecil
+diterima) · unit 706 ✓ · integrasi 229 ✓ · typecheck ✓ · lint ✓.
