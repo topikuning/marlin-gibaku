@@ -20,7 +20,7 @@ name: Pekerjaan harian MARLIN
 
 on:
   schedule:
-    - cron: "0 9 * * *"
+    - cron: "0 11 * * *"
   # Tombol "Run workflow" di tab Actions — untuk mencoba tanpa menunggu besok.
   workflow_dispatch:
 
