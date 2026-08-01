@@ -182,11 +182,18 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
   ]),
 };
 
-/** Role yang melihat semua lokasi tanpa penugasan. */
+/**
+ * Role yang melihat semua lokasi ORGANISASI tanpa penugasan.
+ *
+ * `exec_viewer` SENGAJA tidak di sini (DECISIONS 190, permintaan user
+ * 2026-07-31): Executive View pun harus ditugaskan lokasi. Akun exec tanpa
+ * penugasan melihat NOL lokasi — lupa menugaskan gagal ke arah aman, bukan
+ * diam-diam membuka seluruh portofolio. Untuk exec tingkat nasional, tugaskan
+ * seluruh lokasi ke akunnya.
+ */
 export const CROSS_LOCATION_ROLES: ReadonlySet<UserRole> = new Set([
   "super_admin",
   "program_director",
-  "exec_viewer",
 ]);
 
 export function can(role: UserRole, capability: Capability): boolean {

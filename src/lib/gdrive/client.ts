@@ -15,6 +15,19 @@ const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const UPLOAD_URL =
   "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,webViewLink";
 
+/**
+ * Penanda "berkas ini TERBITAN MARLIN" di Drive. `appProperties` bersifat
+ * privat per-aplikasi (tidak terlihat pengguna, tidak mengotori UI Drive) dan
+ * ikut terbawa walau file diganti nama atau dipindah folder.
+ *
+ * Gunanya: memutus lingkaran laporan (DECISIONS 191). MARLIN mengunggah PDF
+ * laporan ke folder KKP, lalu impor Drive membaca folder yang sama dan
+ * menawarkan berkas itu lagi sebagai "dokumen baru" — padahal ia terbitan
+ * MARLIN sendiri dan datanya sudah ada.
+ */
+export const MARLIN_APP_PROPERTY = "marlinTerbitan";
+const MARLIN_APP_PROPERTIES = { [MARLIN_APP_PROPERTY]: "1" };
+
 // Cache access token per proses (habis ~1 jam; refresh 60 dtk lebih awal).
 let cached: { token: string; expiresAt: number } | null = null;
 
@@ -164,7 +177,13 @@ export async function uploadToDrive(input: {
   // Saat memperbarui: JANGAN kirim `parents` (Drive menolak perubahan induk
   // lewat body; pemindahan folder butuh addParents/removeParents).
   const { body, contentType } = buildMultipartBody(
-    existingId ? { name: input.fileName } : { name: input.fileName, parents: [input.folderId] },
+    existingId
+      ? { name: input.fileName, appProperties: MARLIN_APP_PROPERTIES }
+      : {
+          name: input.fileName,
+          parents: [input.folderId],
+          appProperties: MARLIN_APP_PROPERTIES,
+        },
     input.mime,
     input.data,
   );
@@ -235,9 +254,12 @@ export type DriveEntry = {
   webViewLink: string | null;
   /** Jalur folder relatif dari akar paket, mis. ["2. PCM", "Kedungrejo"]. */
   path: string[];
+  /** true = berkas ini diunggah MARLIN sendiri (lihat MARLIN_APP_PROPERTY). */
+  terbitanMarlin: boolean;
 };
 
-const LIST_FIELDS = "nextPageToken,files(id,name,mimeType,size,modifiedTime,webViewLink)";
+const LIST_FIELDS =
+  "nextPageToken,files(id,name,mimeType,size,modifiedTime,webViewLink,appProperties)";
 
 /** Satu halaman anak folder (file + subfolder). */
 async function listChildren(folderId: string, pageToken?: string) {
@@ -262,6 +284,7 @@ async function listChildren(folderId: string, pageToken?: string) {
       size?: string;
       modifiedTime?: string;
       webViewLink?: string;
+      appProperties?: Record<string, string>;
     }[];
   };
 }
@@ -307,6 +330,7 @@ export async function walkDriveFolder(
             modifiedTime: f.modifiedTime ? new Date(f.modifiedTime) : null,
             webViewLink: f.webViewLink ?? null,
             path: folder.path,
+            terbitanMarlin: f.appProperties?.[MARLIN_APP_PROPERTY] === "1",
           });
         }
         pageToken = page.nextPageToken;
@@ -322,7 +346,7 @@ export async function driveFileMeta(fileId: string): Promise<DriveEntry> {
   const token = await getAccessToken();
   const res = await fetch(
     `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}` +
-      `?supportsAllDrives=true&fields=id,name,mimeType,size,modifiedTime,webViewLink`,
+      `?supportsAllDrives=true&fields=id,name,mimeType,size,modifiedTime,webViewLink,appProperties`,
     { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(20_000) },
   );
   if (!res.ok) {
@@ -339,6 +363,7 @@ export async function driveFileMeta(fileId: string): Promise<DriveEntry> {
     size?: string;
     modifiedTime?: string;
     webViewLink?: string;
+    appProperties?: Record<string, string>;
   };
   return {
     id: j.id,
@@ -348,6 +373,7 @@ export async function driveFileMeta(fileId: string): Promise<DriveEntry> {
     modifiedTime: j.modifiedTime ? new Date(j.modifiedTime) : null,
     webViewLink: j.webViewLink ?? null,
     path: [],
+    terbitanMarlin: j.appProperties?.[MARLIN_APP_PROPERTY] === "1",
   };
 }
 

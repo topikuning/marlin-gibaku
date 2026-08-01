@@ -14,6 +14,7 @@ import { ISSUE_SEVERITY_LABEL, WEATHER_LABEL, WORKER_ROLE_LABEL } from "@/lib/da
 import { ReportEditor } from "./report-editor";
 import { EnrichmentForm } from "./enrichment-form";
 import { FinalizePanel, IssueForm, ReviewActions } from "./review-actions";
+import { withBackTo } from "@/lib/print-back";
 
 export const metadata: Metadata = { title: "Laporan Harian" };
 export const dynamic = "force-dynamic";
@@ -48,7 +49,15 @@ export default async function HarianWorkspacePage({
   const canUnfinalize = can(user.role, "daily_report.unfinalize");
 
   const editable = canCreate && !isFuture && (!report || status === "draft" || status === "perlu_koreksi");
-  const enrichable = !!report && canReview && (status === "draft" || status === "perlu_koreksi" || status === "dikirim");
+  // Pelengkap KKP (cuaca, jam kerja, tenaga kerja, material, alat). Dulu hanya
+  // muncul untuk pemegang review, padahal server action SUDAH mengizinkan
+  // PEMBUAT laporan mengisinya saat draft/perlu_koreksi
+  // (CREATOR_ENRICHABLE_STATUSES) — akibatnya mandor yang menulis laporan tidak
+  // pernah melihat kolom cuaca & tenaga kerja. Laporan user 2026-07-31.
+  const enrichable =
+    !!report &&
+    ((canReview && (status === "draft" || status === "perlu_koreksi" || status === "dikirim")) ||
+      (canCreate && (status === "draft" || status === "perlu_koreksi")));
   const showReadOnlyItems = !!report && report.items.length > 0 && !editable;
 
   return (
@@ -154,7 +163,14 @@ export default async function HarianWorkspacePage({
       ) : null}
 
       {/* Verifikasi (dikirim) */}
-      {report && status === "dikirim" && canReview ? <ReviewActions reportId={report.id} /> : null}
+      {report && status === "dikirim" && canReview ? (
+        <ReviewActions reportId={report.id} mode="verifikasi" />
+      ) : null}
+      {/* Disetujui = terkunci dari editan. Satu-satunya jalan mengedit lagi
+          (termasuk setelah final dibuka kuncinya) adalah mengembalikannya. */}
+      {report && status === "disetujui" && canReview ? (
+        <ReviewActions reportId={report.id} mode="koreksi" />
+      ) : null}
 
       {/* Pelengkap KKP.
           key = tanda-tangan isi pelengkap: setEnrichment membuat ulang baris dgn
@@ -212,7 +228,7 @@ export default async function HarianWorkspacePage({
       {report && (status === "dikirim" || status === "disetujui") ? (
         <p className="text-right">
           <Link
-            href={`/cetak/harian/${slug}/${date}`}
+            href={withBackTo(`/cetak/harian/${slug}/${date}`, `/lokasi/${slug}/harian/${date}`)}
             target="_blank"
             className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
           >

@@ -14,9 +14,25 @@ import {
 } from "@/lib/daily-report/actions";
 import { ISSUE_SEVERITY_LABEL } from "@/lib/daily-report/constants";
 import { Combobox } from "@/components/ui";
+import { withBackTo } from "@/lib/print-back";
 
-/** Aksi reviewer (dikirim): Setujui / Kembalikan (alasan wajib). */
-export function ReviewActions({ reportId }: { reportId: string }) {
+/**
+ * Aksi reviewer atas sebuah laporan.
+ *
+ * - `verifikasi` (status DIKIRIM): Setujui / Kembalikan.
+ * - `koreksi` (status DISETUJUI): hanya Kembalikan. Ini satu-satunya jalan
+ *   membuat laporan yang sudah disetujui — termasuk yang baru dibuka kuncinya
+ *   dari final — bisa DIEDIT lagi. Tanpa ini, membuka kunci final berhenti di
+ *   status disetujui yang tidak bisa diedit sama sekali (laporan user
+ *   2026-07-31, DECISIONS 192).
+ */
+export function ReviewActions({
+  reportId,
+  mode = "verifikasi",
+}: {
+  reportId: string;
+  mode?: "verifikasi" | "koreksi";
+}) {
   const [approveState, approveAction, approvePending] = useActionState<DailyActionState, FormData>(
     approveReportAction,
     undefined,
@@ -29,20 +45,31 @@ export function ReviewActions({ reportId }: { reportId: string }) {
 
   return (
     <div className="space-y-3 rounded-lg border border-border bg-surface p-4 shadow-xs">
-      <h2 className="text-sm font-semibold text-ink">Verifikasi laporan</h2>
+      <h2 className="text-sm font-semibold text-ink">
+        {mode === "koreksi" ? "Kembalikan untuk diedit" : "Verifikasi laporan"}
+      </h2>
+      {mode === "koreksi" ? (
+        <p className="text-[13px] text-ink-muted">
+          Laporan berstatus Disetujui tidak bisa diedit. Kembalikan ke Perlu Koreksi supaya isinya
+          bisa diperbaiki — <strong>volumenya berhenti dihitung di progres &amp; kurva-S</strong>{" "}
+          sampai laporan dikirim &amp; disetujui ulang.
+        </p>
+      ) : null}
       {approveState?.error ? <Banner tone="error" title={approveState.error} /> : null}
       {approveState?.success ? <Banner tone="success" title={approveState.success} /> : null}
       {returnState?.error ? <Banner tone="error" title={returnState.error} /> : null}
       {returnState?.success ? <Banner tone="success" title={returnState.success} /> : null}
 
       <div className="flex flex-col gap-2 sm:flex-row">
-        <form action={approveAction} className="flex-1">
-          <input type="hidden" name="reportId" value={reportId} />
-          <Button type="submit" loading={approvePending} className="h-11 w-full">
-            <CheckCircle2 aria-hidden className="size-4" />
-            Setujui
-          </Button>
-        </form>
+        {mode === "verifikasi" ? (
+          <form action={approveAction} className="flex-1">
+            <input type="hidden" name="reportId" value={reportId} />
+            <Button type="submit" loading={approvePending} className="h-11 w-full">
+              <CheckCircle2 aria-hidden className="size-4" />
+              Setujui
+            </Button>
+          </form>
+        ) : null}
         <Button
           type="button"
           variant="secondary"
@@ -50,7 +77,7 @@ export function ReviewActions({ reportId }: { reportId: string }) {
           onClick={() => setShowReturn((v) => !v)}
         >
           <Undo2 aria-hidden className="size-4" />
-          Kembalikan
+          {mode === "koreksi" ? "Kembalikan untuk koreksi" : "Kembalikan"}
         </Button>
       </div>
 
@@ -105,7 +132,7 @@ export function FinalizePanel({
         <div className="flex flex-col gap-2 rounded-lg border border-success-border bg-success-soft p-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm font-medium text-ink">Laporan final — angka dibekukan untuk cetak KKP.</p>
           <Link
-            href={`/cetak/harian/${slug}/${dateKey}`}
+            href={withBackTo(`/cetak/harian/${slug}/${dateKey}`, `/lokasi/${slug}/harian/${dateKey}`)}
             target="_blank"
             className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-white hover:bg-primary-800"
           >

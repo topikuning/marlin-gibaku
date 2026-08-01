@@ -117,7 +117,14 @@ Hari Ini (landing lapangan mobile) · Progress · Keuangan · Dokumen · Laporan
 Pengguna · Sistem. Cetak KKP di `/cetak/*` tanpa shell. Mobile bottom-nav ≤5
 tujuan per role.
 
-## 5a. AI Intelligence Hub (DECISIONS 133)
+## 5a. AI Intelligence Hub (DECISIONS 133, 193)
+
+**Doktrin (DECISIONS 193)**: AI Intelligence adalah MESIN ANALISIS & PRODUKSI
+ARTEFAK — bukan fitur visual atau chatbot. Setiap analisis yang relevan harus
+dapat berakhir menjadi laporan terstruktur yang direview → disetujui → dibekukan
+→ diekspor PDF/Excel → didistribusikan WhatsApp → diaudit. Semua pintu keluar AI
+bermuara ke lifecycle `AiArtifact`; tidak boleh ada jalur generate-lalu-kirim
+tanpa review.
 
 Menu global `/ai` (capability `ai.*`; field_supervisor tanpa akses): Portfolio
 Pulse (KPI + tabel exception-first + readiness gate — deterministik penuh,

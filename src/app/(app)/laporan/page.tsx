@@ -7,6 +7,7 @@ import { locationScopeWhere } from "@/lib/auth/scope";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
 import { jakartaDateKey, formatTanggal } from "@/lib/format";
+import { withBackTo } from "@/lib/print-back";
 
 export const metadata: Metadata = { title: "Laporan" };
 export const dynamic = "force-dynamic";
@@ -78,7 +79,7 @@ export default async function LaporanPage() {
                       <span className="ml-2 text-ink-muted">{formatTanggal(r.reportDate)}</span>
                     </span>
                     <Link
-                      href={`/cetak/harian/${r.location.slug}/${jakartaDateKey(r.reportDate)}`}
+                      href={withBackTo(`/cetak/harian/${r.location.slug}/${jakartaDateKey(r.reportDate)}`, "/laporan")}
                       className="font-medium text-primary hover:underline"
                     >
                       Cetak

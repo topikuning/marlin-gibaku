@@ -5072,3 +5072,205 @@ typecheck ✓ · lint ✓ · browser: kartu "Alamat & koordinat" tampil, input
 tertukar ditolak dengan saran pembetulan, dan setelah satu lokasi dikosongkan
 koordinatnya halaman Peta menyebut "1 lokasi tidak tampil" + tautannya (data dev
 dipulihkan setelah uji).
+
+---
+
+## 190 — Executive View ikut butuh penugasan lokasi (2026-07-31)
+
+Permintaan user: "untuk level eksekutif viewer juga perlu penugasan, jadi tidak
+semua lokasi otomatis eksekutif view bisa lihat."
+
+Sebelum ini `exec_viewer` ada di `CROSS_LOCATION_ROLES`, jadi setiap akun
+Executive View otomatis melihat SELURUH lokasi organisasi tanpa ditugaskan apa
+pun. Sekarang ia keluar dari himpunan itu dan tunduk pada `LocationAssignment`
+seperti Site Manager / Project Manager.
+
+**Akun exec tanpa penugasan melihat NOL lokasi, bukan semuanya** (pilihan user).
+Alasannya: kalau kosong berarti "semua", maka lupa menugaskan diam-diam membuka
+seluruh portofolio — persis hal yang mau dicegah. Gagal ke arah aman.
+
+Perubahannya satu tempat: `CROSS_LOCATION_ROLES` di `src/lib/authz.ts`. Baik
+`accessibleLocationIds` (penyaring daftar) maupun `hasLocationAccess` (penjaga
+per-lokasi, 128 pemanggil) sama-sama lewat `isCrossLocation`, jadi seluruh
+halaman, server action, dan route handler ikut tanpa perubahan masing-masing.
+
+**Yang TIDAK berubah**: `super_admin` dan `program_director` tetap lintas lokasi
+(user memilih demikian). Kapabilitas LIHAT milik exec_viewer juga tidak dicabut
+sama sekali — yang berubah hanya CAKUPAN lokasinya. Untuk exec tingkat nasional,
+tugaskan seluruh lokasi ke akunnya.
+
+**Halaman kosong harus menjelaskan dirinya.** Peran ter-scope tanpa penugasan
+melihat nol data di mana-mana, dan itu terbaca "sistem rusak" atau "proyeknya
+memang belum ada". Satu banner di `app/(app)/layout.tsx` menyebut sebabnya dan
+apa yang harus dilakukan — sekali pasang, berlaku untuk semua halaman. Ini
+penerapan aturan daftar-pilihan di `CLAUDE.md`: yang disembunyikan harus
+disebut, jangan sampai "tidak muncul" terbaca "tidak ada".
+
+`scripts/gen-permission-matrix.mts` dulu menuliskan daftar peran lintas-lokasi
+secara hardcode di teks dokumen, sehingga PERMISSION_MATRIX.md langsung bohong
+begitu konstantanya berubah. Kini baris itu dibangkitkan dari
+`CROSS_LOCATION_ROLES`.
+
+**Dampak rilis**: akun Executive View yang sudah ada (mis. `kkp-viewer`) menjadi
+kosong sampai admin menugaskan lokasi. Itu konsekuensi yang disengaja, bukan
+regresi.
+
+Verifikasi: unit 640 ✓ · integrasi 160 ✓ (9 kasus baru `exec-viewer-scope` yang
+memakai `accessibleLocationIds`/`hasLocationAccess` ASLI, bukan mock: tanpa
+penugasan → nol lokasi & nol paket & URL lokasi tertutup; dengan penugasan →
+hanya lokasi itu; penugasan dicabut → langsung tertutup; penugasan lintas-org
+tetap ditolak; program_director tidak ikut berubah) · typecheck ✓ · lint ✓ ·
+browser: `kkp-viewer` tanpa penugasan melihat 0 lokasi + banner penjelas,
+setelah ditugaskan 1 lokasi melihat tepat 1 paket dengan KPI ikut ter-scope,
+sementara admin tetap melihat 7 lokasi.
+
+---
+
+## 191 — Impor Drive tidak lagi menawarkan balik berkas terbitan MARLIN sendiri (2026-07-31)
+
+Keluhan user: "marlin membaca file laporan yang dia upload sendiri, dan menambah
+daftar file, merepotkan." Benar, dan itu lingkaran yang kita buat sendiri.
+
+MARLIN mengunggah PDF/Excel laporan harian & mingguan ke folder KKP di Google
+Drive (DECISIONS 143/146). Impor dokumen membaca folder yang SAMA. Penyaring
+lama hanya mengecualikan berkas yang **sudah pernah diimpor** (`Document.
+driveFileId`) dan berkas kebesaran — bukan berkas yang MARLIN sendiri terbitkan.
+Akibatnya setiap laporan yang naik langsung muncul lagi sebagai "dokumen baru
+siap diimpor", dan daftar impor tenggelam oleh terbitannya sendiri. Makin rajin
+melapor, makin berantakan daftarnya.
+
+**Dua penyaring, sengaja dua-duanya** — satu saja tidak cukup:
+
+1. **Penanda di Drive.** Setiap unggahan MARLIN kini distempel `appProperties`
+   `marlinTerbitan=1`. `appProperties` privat per-aplikasi: tidak terlihat
+   pengguna, tidak mengotori tampilan Drive, dan **ikut terbawa walau berkas
+   diganti nama atau dipindah folder**. Ini penyaring utama karena tidak
+   bergantung pada database kita.
+2. **Catatan `GDriveUpload`.** Berkas yang sudah terlanjur naik SEBELUM penanda
+   itu ada tentu tidak punya `appProperties`. Untuk itu `fileId` unggahan
+   berstatus `sukses` pada paket tsb ikut disaring. Tanpa ini perbaikan baru
+   terasa untuk berkas baru saja, sementara keluhannya justru tentang yang sudah
+   menumpuk.
+
+Unggahan berstatus **gagal** tidak menyaring apa pun — berkasnya memang tidak
+ada di Drive, dan kalau ada berkas senama milik KKP ia tetap harus bisa diimpor.
+
+**Penjaga di sisi commit, bukan cuma tampilan.** `commitDriveImport` membaca
+ulang metadata dari Drive (prinsip lama: jangan percaya klien) dan menolak
+berkas ber-penanda. Pratinjau basi atau permintaan yang dijahili tidak bisa
+menembus penyaring.
+
+**Disembunyikan, bukan ditampilkan sebagai baris "dilewati".** Berkas terbitan
+sendiri tidak informatif sebagai baris — datanya sudah ada di MARLIN. Tapi
+jumlahnya DISEBUT ("N berkas tidak ditampilkan karena terbitan MARLIN sendiri"),
+sesuai aturan daftar-pilihan di `CLAUDE.md`: yang disembunyikan harus disebut
+supaya "tidak muncul" tak terbaca "tidak ada". Jumlahnya juga masuk audit log
+pratinjau.
+
+Yang TIDAK diubah: panel kelengkapan folder KKP tetap menghitung berkas terbitan
+MARLIN sebagai "ada" — memang benar berkasnya ada di folder itu.
+
+Verifikasi: unit 640 ✓ · integrasi 165 ✓ (5 kasus baru: laporan ber-penanda
+hilang dari daftar & terhitung terpisah; berkas lama tanpa penanda tersaring
+lewat GDriveUpload; unggahan gagal tidak menyaring; commit menolak berkas
+terbitan sendiri; berkas KKP biasa tetap bisa diimpor) · typecheck ✓ · lint ✓.
+Panggilan nyata ke googleapis.com tidak bisa dijalankan dari kontainer kerja
+(proxy memblokir host luar) — klien Drive di-mock seperti uji impor yang sudah
+ada; stempel `appProperties` pada unggahan sungguhan harus dipastikan di Railway.
+
+---
+
+## 192 — Buka kunci final yang buntu, cuaca/tenaga kerja yang tersembunyi, dan tombol Kembali cetak yang nyasar (2026-07-31)
+
+Tiga temuan dari satu sesi pemakaian nyata.
+
+### (a) Buka kunci final tidak menghasilkan apa-apa
+
+`unfinalizeReport` memindahkan `final → disetujui` (DECISIONS 149). Tapi
+`disetujui` TIDAK ada di `EDITABLE_STATUSES` (`draft`, `perlu_koreksi`) maupun
+`ENRICHABLE_STATUSES`, dan satu-satunya panel yang muncul di status itu adalah
+"Finalisasi Laporan". Jadi setelah membuka kunci, tidak ada satu pun yang bisa
+diedit — persis pertanyaan user: "kenapa tidak ada edit apa pun, lalu apa
+gunanya di revert dari final?"
+
+Transisi `disetujui → perlu_koreksi` SUDAH sah di `lifecycle.ts` dan
+`returnReport` sudah bisa melakukannya; yang hilang cuma tombolnya. Kini
+`ReviewActions` punya mode `koreksi` yang tampil saat status `disetujui`:
+hanya "Kembalikan untuk koreksi", tanpa "Setujui" (laporannya memang sudah
+disetujui). Alurnya jadi dua langkah yang masing-masing tercatat: buka kunci
+(super admin) → kembalikan untuk koreksi (pemegang review) → editable.
+
+Panelnya menyebut terus terang bahwa **volume laporan berhenti dihitung di
+progres & kurva-S** selama berstatus `perlu_koreksi` (status itu memang bukan
+anggota `COUNTED_REPORT_STATUSES`) sampai dikirim & disetujui ulang. Angka
+bergerak karena keputusan sadar pengguna, bukan efek samping diam-diam.
+
+### (b) Cuaca & tenaga kerja tak terlihat oleh penulis laporannya sendiri
+
+Panel "Pelengkap laporan KKP" (cuaca, jam kerja, tenaga kerja per keahlian,
+material, alat) digerbang `canReview` di halaman — padahal server action SUDAH
+mengizinkan PEMBUAT laporan mengisinya saat `draft`/`perlu_koreksi`
+(`CREATOR_ENRICHABLE_STATUSES`). Akibatnya mandor yang menulis laporan tidak
+pernah melihat kolom cuaca & tenaga kerja; hanya reviewer yang bisa. Gerbang UI
+kini mengikuti aturan server: reviewer (draft/perlu_koreksi/dikirim) ATAU
+pembuat (draft/perlu_koreksi).
+
+Catatan: cuaca memang TIDAK punya pemilih manual — `SHOW_MANUAL_WEATHER_PICKER
+= false`, diambil otomatis per jam dari koordinat lokasi lewat tombol "Ambil
+cuaca otomatis". Karena itu lokasi tanpa koordinat membuat cuaca mati (lihat
+DECISIONS 189).
+
+### (c) Tombol Kembali di halaman cetak selalu ke daftar laporan lokasi
+
+`backHref` dipaku ke `/lokasi/[slug]/laporan-lokasi` padahal halaman cetak
+harian dicapai dari EMPAT tempat berbeda. Di halaman tujuan itu ada laporan
+mingguan — maka keluhannya: "kadang ke laporan mingguan, padahal awalnya
+laporan harian di hari tertentu."
+
+Asal halaman kini dibawa lewat query `?dari=`, dan `src/lib/print-back.ts`
+menyaringnya: hanya path internal absolut yang diterima; URL absolut,
+protocol-relative (`//host`), backslash, dan `..` ditolak supaya parameter itu
+tidak jadi celah open-redirect. Cadangannya bukan lagi daftar laporan, melainkan
+dokumen itu sendiri (laporan harian tanggal tsb).
+
+Verifikasi: unit 646 ✓ (6 kasus baru `print-back`, termasuk penolakan tujuan
+luar) · integrasi 165 ✓ · typecheck ✓ · lint ✓ · browser: laporan final dibuka
+kuncinya → panel "Kembalikan untuk diedit" muncul → status jadi Perlu Koreksi →
+form item, cuaca, dan tenaga kerja semuanya tampil, dengan riwayat status
+memuat kedua alasan; tombol Kembali cetak diuji 4 kasus (dua asal berbeda,
+tanpa parameter, dan parameter berisi host luar) — semuanya mendarat benar.
+
+---
+
+## 193 — Doktrin AI Intelligence: mesin analisis & produksi artefak, bukan fitur visual/chatbot (2026-08-01)
+
+Arahan user, berlaku sebagai prinsip produk (sejajar "AI bukan sumber angka"
+di DECISIONS 133):
+
+> AI Intelligence bukan fitur visual atau chatbot. AI Intelligence adalah mesin
+> analisis dan produksi artefak. Setiap analisis yang relevan harus dapat
+> berakhir menjadi laporan terstruktur yang dapat direview, di-approve,
+> dibekukan, diekspor ke PDF/Excel, didistribusikan melalui WhatsApp, dan
+> diaudit kembali.
+
+Konsekuensi konkret — SEMUA pintu keluar AI harus bermuara ke lifecycle
+artefak (`AiArtifact`: draft → direview → disetujui → beku → terkirim), tidak
+boleh ada jalur yang berakhir di layar saja atau kirim tanpa review:
+
+1. Report Studio sudah memenuhi (satu structuredContent → banyak renderer,
+   distribusi hanya artefak beku). Ia menjadi SATU-SATUNYA pintu produksi
+   artefak keluar.
+2. Menu global `Laporan → WA` (modul exec-report) DILEBUR ke Report Studio —
+   ia jalur AI kedua yang paralel: generate → langsung kirim WA, tanpa
+   review/versi/beku. Route lama dialihkan; fungsi tujuan bebas (kontak
+   tersimpan / nomor manual / grup) dipertahankan di distribusi artefak.
+3. Halaman hasil run (`/ai/run/[id]`) mendapat jembatan "Jadikan laporan":
+   scope run terbawa ke Report Studio dengan template yang sesuai jenis
+   analisisnya. Angka SELALU dihitung ulang dari calculation layer saat
+   generate — run lama tidak dibekukan mentah menjadi laporan, karena itu
+   akan mengawetkan angka basi (prinsip DECISIONS 133 menang).
+4. Ask MARLIN mendapat jalur yang sama: jawaban bisa dibawa ke Report Studio
+   (scope percakapan terbawa), bukan berhenti sebagai teks percakapan.
+
+Aturan ini tertulis juga di PROJECT.md §5a. Pelanggaran = bug arsitektur,
+bukan preferensi.
