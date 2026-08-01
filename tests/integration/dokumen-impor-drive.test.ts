@@ -559,8 +559,8 @@ describe("dokumen asal Drive KKP tidak diunggah balik ke Drive", () => {
   it("KASUS INTI: dokumen ber-source drive_kkp ditolak dengan sebab yang jelas", async () => {
     const doc = await buatDokumen("drive_kkp");
     const res = await uploadDocumentToDriveAction({}, fd(doc.id));
-    expect(res.error).toMatch(/berasal dari Drive KKP/i);
-    expect(res.ok).toBeUndefined();
+    expect(res?.error).toMatch(/berasal dari Drive KKP/i);
+    expect(res?.success).toBeUndefined();
     // Tidak ada jejak unggahan yang tercatat.
     expect(await db.gDriveUpload.count({ where: { packageId } })).toBe(0);
   });
@@ -570,7 +570,7 @@ describe("dokumen asal Drive KKP tidak diunggah balik ke Drive", () => {
     // atau tombol basi di tab lama.
     const doc = await buatDokumen("drive_kkp");
     const res = await uploadDocumentToDriveAction(undefined as never, fd(doc.id));
-    expect(res.error).toMatch(/sudah ada di sana/i);
+    expect(res?.error).toMatch(/sudah ada di sana/i);
   });
 
   it("dokumen unggahan biasa TIDAK ikut terblokir oleh pagar ini", async () => {
@@ -578,6 +578,6 @@ describe("dokumen asal Drive KKP tidak diunggah balik ke Drive", () => {
     const res = await uploadDocumentToDriveAction({}, fd(doc.id));
     // Boleh gagal karena Drive belum terkonfigurasi di lingkungan tes — yang
     // penting BUKAN gagal karena pagar asal-Drive.
-    expect(res.error ?? "").not.toMatch(/berasal dari Drive KKP/i);
+    expect(res?.error ?? "").not.toMatch(/berasal dari Drive KKP/i);
   });
 });
