@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { CAPABILITIES, ROLE_CAPABILITIES } from "@/lib/authz";
+import { ALL_ROLES, CAPABILITIES, ROLE_CAPABILITIES } from "@/lib/authz";
 
 /**
  * Penjaga dokumen: `docs/rebuild/PERMISSION_MATRIX.md` dibangkitkan dari
@@ -30,15 +30,10 @@ describe("PERMISSION_MATRIX.md sinkron dengan authz.ts", () => {
   });
 
   it("tanda centang per role cocok dengan ROLE_CAPABILITIES", () => {
-    const roles = [
-      "super_admin",
-      "program_director",
-      "regional_manager",
-      "project_manager",
-      "site_manager",
-      "field_supervisor",
-      "exec_viewer",
-    ] as const;
+    // Diturunkan dari ALL_ROLES, BUKAN daftar tulis-tangan: daftar manual di
+    // sini pernah membuat role baru (`wakil_ppk`) lolos tanpa diperiksa
+    // sementara tesnya tetap hijau-palsu (DECISIONS 199).
+    const roles = ALL_ROLES;
     for (const line of doc.split("\n")) {
       const m = /^\| `([a-z_]+\.[a-z_]+)` \| (.+) \|$/.exec(line);
       if (!m) continue;

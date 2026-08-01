@@ -3,13 +3,14 @@
 import { useActionState, useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { Banner, Button, Input, Label, Combobox, StatusPill } from "@/components/ui";
-import { ROLE_LABEL } from "@/lib/authz";
+import { ROLE_LABEL, creatableRoles } from "@/lib/authz";
 import { formatTanggalWaktu } from "@/lib/format";
 import {
   createUser,
   resetUserPassword,
   setAssignments,
   setUserActive,
+  setUserRole,
   updateUserProfile,
   type UserActionState,
 } from "@/lib/users/actions";
@@ -201,16 +202,66 @@ function ResetPassword({ userId, onClose }: { userId: string; onClose: () => voi
   );
 }
 
+/**
+ * Ganti peran akun (DECISIONS 200). Pilihan peran DIBATASI ke peran yang boleh
+ * dibuat aktor — sama seperti form pembuatan user, supaya tidak ada jalur
+ * "ganti peran" yang lebih longgar daripada "buat user". Server tetap
+ * memeriksa ulang; daftar ini hanya supaya yang tidak mungkin tidak ditawarkan.
+ */
+function RoleEditor({
+  user,
+  allowedRoles,
+  onClose,
+}: {
+  user: UserRow;
+  allowedRoles: UserRole[];
+  onClose: () => void;
+}) {
+  const [state, action, pending] = useActionState<UserActionState, FormData>(setUserRole, undefined);
+  return (
+    <form action={action} className="mt-2 space-y-2 rounded-md border border-border bg-surface-muted p-3">
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      {state?.success ? <Banner tone="success" title={state.success} /> : null}
+      <input type="hidden" name="userId" value={user.id} />
+      <div className="flex flex-wrap items-end gap-2">
+        <div>
+          <Label htmlFor={`role-${user.id}`}>Peran baru</Label>
+          <Combobox id={`role-${user.id}`} name="role" defaultValue={user.role} className="w-56">
+            {allowedRoles.map((r) => (
+              <option key={r} value={r}>
+                {ROLE_LABEL[r]}
+              </option>
+            ))}
+          </Combobox>
+        </div>
+        <Button size="sm" type="submit" loading={pending}>
+          Ganti peran
+        </Button>
+        <Button size="sm" type="button" variant="ghost" onClick={onClose}>
+          Tutup
+        </Button>
+      </div>
+      <p className="text-xs text-ink-muted">
+        Peran menentukan APA yang boleh dilakukan; penugasan lokasi menentukan DI MANA — penugasan
+        tidak ikut berubah. Sesi lama akun ini akan dicabut, jadi ia harus masuk ulang.
+      </p>
+    </form>
+  );
+}
+
 export function UsersTable({
   users,
   locations,
   canManage,
+  actorRole,
 }: {
   users: UserRow[];
   locations: LocationOption[];
   canManage: boolean;
+  actorRole: UserRole;
 }) {
-  const [open, setOpen] = useState<{ id: string; panel: "assign" | "reset" | "profile" } | null>(null);
+  const [open, setOpen] = useState<{ id: string; panel: "assign" | "reset" | "profile" | "role" } | null>(null);
+  const allowedRoles = useMemo(() => creatableRoles(actorRole), [actorRole]);
   if (users.length === 0) {
     return <p className="text-sm text-ink-muted">Belum ada pengguna.</p>;
   }
@@ -252,6 +303,15 @@ export function UsersTable({
                 >
                   Penugasan
                 </Button>
+                {allowedRoles.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setOpen(open?.id === u.id && open.panel === "role" ? null : { id: u.id, panel: "role" })}
+                  >
+                    Ganti peran
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   variant="secondary"
@@ -276,6 +336,9 @@ export function UsersTable({
           )}
           {canManage && open?.id === u.id && open.panel === "assign" && (
             <AssignmentEditor user={u} locations={locations} onClose={() => setOpen(null)} />
+          )}
+          {canManage && open?.id === u.id && open.panel === "role" && (
+            <RoleEditor user={u} allowedRoles={allowedRoles} onClose={() => setOpen(null)} />
           )}
           {canManage && open?.id === u.id && open.panel === "reset" && (
             <ResetPassword userId={u.id} onClose={() => setOpen(null)} />

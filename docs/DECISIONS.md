@@ -5518,3 +5518,139 @@ migrasi idempoten ✓ · typecheck ✓ · lint ✓.
 diperbaiki capnya — gambarnya sudah dibakar. Yang berubah surut hanya
 KLASIFIKASINYA (`gps_source`), sehingga galeri, KPI, dan rule berhenti
 menganggapnya bukti GPS. Cap "07:00" di foto lama tetap ada di gambarnya.
+
+---
+
+## 198 — Perbaikan cap foto + pengelolaan arsip berkas asli (2026-08-01)
+
+**Konteks.** User: *"foto asli nanti bisa dihapus, tapi atas mauku, jadi ada
+halaman atau fitur khusus untuk itu. lalu ada fitur perbaikan stamp, itu tujuan
+utamaku. jadi kalau ada kesalahan masih bisa diperbaiki"*. Dua fitur yang saling
+bergantung dan saling meniadakan: perbaikan cap MEMBUTUHKAN arsip asli
+(DECISIONS 197), penghapusan arsip MENIADAKANNYA.
+
+**Kenapa harus dari berkas asli.** Cap dibakar ke piksel. Mengecap ulang di atas
+gambar yang sudah ber-cap menumpuk dua cap dan cap lama tetap terbaca di
+bawahnya. Jadi `restampPhotoAction` selalu mulai dari `originalKey`, memakai
+pipeline yang SAMA dengan unggahan pertama (`processWithSharpOrOriginal`
+diekspor untuk itu) — kalau tidak, foto ber-cap perbaikan akan beda ukuran,
+kualitas, dan tata letak dari foto biasa.
+
+**Semua teks cap boleh diedit** (pilihan user). Risikonya nyata: cap bisa
+menyatakan apa saja. Ditanggung dengan tiga hal, bukan dengan melarang:
+1. **Alasan wajib** — perbaikan tanpa alasan ditolak.
+2. **Nilai manual ditandai di capnya sendiri.** Koordinat yang diketik →
+   `gpsSource = manual` + penanda "diisi manual"; waktu manual → "diisi manual".
+   Koordinat yang persis sama dengan titik proyek tetap `project`, bukan
+   `manual` — menandai cadangan sistem sebagai pernyataan manusia sama
+   menyesatkannya dengan sebaliknya.
+3. **Riwayat append-only.** `photo_stamp_revisions` (trigger DB melarang
+   UPDATE/DELETE) menyimpan nilai sebelum→sesudah + daftar field yang diketik.
+   Karena versi ber-cap lama DIBUANG, baris inilah satu-satunya catatan apa yang
+   dulu tertulis di foto itu.
+
+**Yang TIDAK ikut berubah.** `stampPhotoId` (kolom baru) menyimpan Photo ID yang
+tercetak, supaya identitas foto tetap sama setelah perbaikan — ID itu sudah
+beredar di berkas yang diserahkan ke KKP. Foto lama yang belum punya dibuatkan
+sekali lalu disimpan.
+
+**Penghapusan arsip** (`/sistem/arsip-foto`): ringkasan pemakaian penyimpanan
+lebih dulu — keputusan membuang arsip bukti hanya masuk akal kalau alasannya
+terlihat — lalu penghapusan per foto (dari galeri) atau borongan berfilter
+paket/lokasi/rentang tanggal, dengan konfirmasi mengetik "HAPUS". TIDAK ADA
+penghapusan otomatis dan tidak ada retensi diam-diam.
+
+Barisnya tidak dihapus: `originalKey` dikosongkan dan `originalPurgedAt` diisi,
+sehingga **"tidak pernah diarsipkan" tetap bisa dibedakan dari "dihapus
+sengaja"** — tanpa itu pesan di UI akan berbohong pada kasus kedua. Objek R2
+dihapus DULU, baris ditandai hanya bila objeknya benar-benar hilang; kalau
+dibalik, akan ada baris yang mengaku sudah dihapus padahal berkasnya masih
+memakan penyimpanan.
+
+**Izin**: `photo.restamp` + `photo.archive_purge`, keduanya super_admin +
+program_director. Dipisah menjadi dua capability karena akibatnya berbeda:
+yang satu menulis ulang bukti, yang satu membuang kemampuan menulis ulang.
+
+**Verifikasi**: 17 kasus integrasi baru (`perbaikan-cap`) — render dari asli
+(arsip asli TIDAK ikut terhapus, cap lama dibuang), riwayat sebelum→sesudah,
+`manual` vs `project`, mengosongkan koordinat, revisi berurut, alasan wajib,
+tanpa-perubahan ditolak, koordinat luar Indonesia ditolak, izin & scope, dan
+sambungan purge→restamp (pesan penolakan dibedakan) · unit 683 ✓ · integrasi
+203 ✓ · typecheck ✓ · lint ✓.
+
+**Catatan jujur**: foto yang diunggah sebelum DECISIONS 197 tidak punya arsip
+asli, jadi capnya tetap tidak bisa diperbaiki. Fitur ini menolong foto yang
+diunggah sejak arsip aktif — dan itu tidak bisa diubah surut.
+
+---
+
+## 199 — Peran Wakil PPK: baca saja, tanpa AI, sesuai penugasan (2026-08-01)
+
+**Konteks.** User: *"aku butuh satu lagi level login, Wakil PPK. tanpa fitur ai
+intelegence. hanya bisa view saja, tanpa bisa edit sedikitpun. sesuai penugasan
+juga"*.
+
+Wakil PPK adalah wakil PEMBERI KERJA — pihak di luar pelaksana. Karena itu
+batasannya bukan sekadar "sedikit capability", melainkan tiga garis tegas:
+
+1. **Tanpa satu pun capability yang mengubah data.** Dijaga tes yang menyaring
+   `[...ROLE_CAPABILITIES.wakil_ppk]` dan menuntut semuanya berakhiran `.view`
+   (plus `report.export`). Aturan ini otomatis mencakup capability BARU: begitu
+   ada yang tak sengaja diberikan ke peran ini, tesnya gagal tanpa perlu
+   diperbarui.
+2. **Tanpa `ai.*` sama sekali.** Narasi AI adalah draf internal yang wajib
+   direview manusia (DECISIONS 193); ia tidak boleh sampai ke pemberi kerja
+   sebagai kesimpulan MARLIN.
+3. **Tanpa `finance.view`** (dijawab user: tidak). Menu Keuangan di sini adalah
+   uang INTERNAL pelaksana — komitmen, invoice, pengeluaran — bukan urusan
+   pemberi kerja. Nilai kontrak & termin tetap terlihat lewat Paket/Kontrak.
+
+**Sesuai penugasan**: BUKAN `CROSS_LOCATION_ROLES`. Tanpa penugasan → nol
+lokasi, gagal ke arah aman (prinsip yang sama dgn exec_viewer, DECISIONS 190).
+
+**Ikutan.** `scripts/gen-permission-matrix.mts` dan
+`tests/unit/permission-matrix-doc.test.ts` sama-sama memakai daftar role
+HARDCODE, jadi peran baru tidak muncul di matriks dan tesnya tetap hijau-palsu.
+Keduanya kini menurunkan daftarnya dari `ALL_ROLES` — persis alasan dokumen itu
+dibangkitkan otomatis.
+
+**Verifikasi**: 10 kasus unit baru (`wakil-ppk`) · matriks izin 8 role ✓.
+
+---
+
+## 200 — Ganti peran akun (2026-08-01)
+
+**Konteks.** User: *"perlu bisa ganti jenis / level login, misal saat ini
+pelaksana, diganti jadi site manager."*
+
+Ini mutasi paling berbahaya di modul pengguna — satu langkah bisa menaikkan
+seseorang ke wewenang yang tidak dimaksudkan. Pagarnya bertumpuk dan SEMUANYA di
+server (tombol yang disembunyikan bukan kontrol):
+
+1. `user.manage` + satu organisasi (AUTH-03).
+2. **Tidak bisa mengganti peran akun sendiri** — kalau boleh, seorang admin bisa
+   menaikkan dirinya sendiri dan seluruh hierarki jadi hiasan.
+3. Hanya akun yang peringkatnya DI BAWAH aktor (DECISIONS 165, sama seperti
+   reset password & nonaktifkan).
+4. Peran TUJUAN dibatasi `canCreateRole` — aktor tidak bisa memberikan peran
+   yang dia sendiri tidak boleh membuatnya (PD tidak bisa mengangkat SA).
+5. Menurunkan admin aktif TERAKHIR ditolak — hasilnya organisasi terkunci dari
+   sistemnya sendiri.
+
+**Sesi lama dicabut** setelah peran berubah: capability dibaca dari sesi, jadi
+tanpa pencabutan penurunan peran baru berlaku ketika sesinya kedaluwarsa —
+jendela yang tidak boleh ada.
+
+**Penugasan lokasi TIDAK ikut berubah**: peran menentukan APA yang boleh
+dilakukan, penugasan menentukan DI MANA. Kalau peran barunya lintas-lokasi,
+penugasan lamanya cuma tidak terpakai — dan berlaku lagi bila diturunkan.
+
+**Catatan cakupan**: gerbangnya `user.manage`, jadi Project Manager TIDAK bisa
+mengganti peran meski bisa MEMBUAT akun (`user.create`). Itu disengaja: merekrut
+orang baru berbeda wewenang dari menaikkan orang yang sudah ada.
+
+**Verifikasi**: 10 kasus integrasi baru (`ganti-peran`) — Pelaksana → Site
+Manager berhasil + sesi dicabut + audit `user.set_role` memuat dari/ke,
+penugasan tidak terhapus, peran sama ditolak, akun sendiri ditolak, akun
+setingkat/lebih tinggi ditolak, PM ditolak seluruhnya, PD tidak bisa mengangkat
+SA, peran liar ditolak skema, dan Wakil PPK bisa diberikan seperti peran lain.

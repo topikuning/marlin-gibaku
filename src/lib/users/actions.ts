@@ -231,3 +231,71 @@ export async function setAssignments(_prev: UserActionState, formData: FormData)
   revalidatePath("/master/pengguna");
   return { success: "Penugasan lokasi diperbarui." };
 }
+
+/**
+ * Ganti PERAN akun (mis. Pelaksana → Site Manager) — DECISIONS 200.
+ *
+ * Ini mutasi paling berbahaya di modul pengguna: satu langkah bisa menaikkan
+ * seseorang ke wewenang yang tidak dimaksudkan. Pagar-pagarnya sengaja
+ * bertumpuk, dan semuanya di SERVER (tombol yang disembunyikan bukan kontrol):
+ *
+ * 1. `user.manage` + satu organisasi (AUTH-03).
+ * 2. TIDAK boleh mengganti peran akun sendiri — kalau boleh, seorang admin bisa
+ *    menaikkan dirinya sendiri dan seluruh hierarki jadi hiasan.
+ * 3. Hanya boleh menyentuh akun yang peringkatnya DI BAWAH aktor (DECISIONS 165,
+ *    sama seperti reset password & nonaktifkan).
+ * 4. Peran TUJUAN dibatasi `canCreateRole` — aktor tidak bisa memberikan peran
+ *    yang dia sendiri tidak boleh membuatnya (PM tidak bisa mengangkat PD).
+ * 5. Menurunkan admin aktif terakhir DITOLAK — sama seperti menonaktifkannya,
+ *    hasilnya organisasi terkunci dari sistemnya sendiri.
+ *
+ * Setelah peran berubah, SEMUA sesi akun itu dicabut: sesi lama membawa role
+ * lama, dan capability dibaca dari sesi. Tanpa pencabutan, penurunan peran baru
+ * berlaku setelah sesinya kedaluwarsa — jendela yang tidak boleh ada.
+ */
+export async function setUserRole(_prev: UserActionState, formData: FormData): Promise<UserActionState> {
+  const parsed = z
+    .object({ userId: z.uuid(), role: z.enum(ALL_ROLES as [string, ...string[]]) })
+    .safeParse({ userId: formData.get("userId"), role: formData.get("role") });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { userId } = parsed.data;
+  const role = parsed.data.role as UserRole;
+
+  try {
+    // Di DALAM try: kegagalan izin harus muncul sebagai Banner di formnya,
+    // bukan melempar ke error boundary (form ini dipakai lewat useActionState).
+    const actor = await requireCapability("user.manage");
+    if (actor.id === userId) return { error: "Tidak bisa mengganti peran akun sendiri." };
+    const target = await requireSameOrgUser(actor, userId);
+    if (target.role === role) return { error: `Peran akun ini memang sudah ${ROLE_LABEL[role]}.` };
+    requireOutranks(actor, target, "mengganti peran");
+    if (!canCreateRole(actor.role, role)) {
+      return { error: `Anda tidak berwenang memberikan peran ${ROLE_LABEL[role]}.` };
+    }
+    // Turun dari admin → pastikan masih ada admin lain yang aktif.
+    if (ADMIN_ROLES.includes(target.role) && !ADMIN_ROLES.includes(role)) {
+      await assertBukanAdminTerakhir(actor, userId);
+    }
+
+    await db.user.update({ where: { id: userId }, data: { role } });
+    await revokeAllSessions(userId);
+    await audit(actor.id, "user.set_role", "user", userId, {
+      dari: target.role,
+      ke: role,
+      nama: target.fullName,
+    });
+  } catch (err) {
+    if (err instanceof ForbiddenError) return { error: err.message };
+    throw err;
+  }
+
+  revalidatePath("/master/pengguna");
+  revalidatePath("/pengguna");
+  // Penugasan lokasi TIDAK ikut dihapus: peran menentukan APA yang boleh
+  // dilakukan, penugasan menentukan DI MANA. Kalau peran barunya lintas-lokasi
+  // (super_admin/program_director), penugasan lamanya cuma tidak terpakai —
+  // dan kembali berlaku bila suatu saat diturunkan lagi.
+  return {
+    success: `Peran diganti menjadi ${ROLE_LABEL[role]}. Sesi lamanya dicabut — pengguna harus masuk ulang.`,
+  };
+}

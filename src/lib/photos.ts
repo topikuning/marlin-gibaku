@@ -145,6 +145,8 @@ const FONT_FACE_CSS = EMBED_FONTS
 
 const SIZE_SCALE: Record<StampSize, number> = { compact: 0.85, standard: 1, large: 1.15 };
 
+export type ProcessedPhotoResult = ProcessedPhoto;
+
 /** Data cap foto (dibakar ke gambar sebelum simpan). */
 export type PhotoStamp = {
   takenAt: Date;
@@ -434,6 +436,7 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       widthPx: processed.width,
       heightPx: processed.height,
       exifTakenAt: takenAt,
+      stampPhotoId: photoId,
       exifGpsLat: lat != null ? lat.toFixed(7) : null,
       exifGpsLng: lng != null ? lng.toFixed(7) : null,
       gpsSource,
@@ -478,10 +481,16 @@ function mimeExt(mime: string, name: string): { contentType: string; ext: string
  * memprosesnya gagal, kembalikan gambar ASLI (contentType sesuai sumber) supaya
  * unggahan tetap berhasil — cap dilewati, foto tetap tersimpan & tampil.
  */
-async function processWithSharpOrOriginal(
+/**
+ * Resize + cap + thumbnail dari buffer gambar apa pun. Diekspor supaya
+ * PERBAIKAN CAP (DECISIONS 198) memakai pipeline yang SAMA persis dengan
+ * unggahan pertama — kalau tidak, foto ber-cap perbaikan akan beda ukuran,
+ * beda kualitas, dan beda tata letak dari foto biasa.
+ */
+export async function processWithSharpOrOriginal(
   original: Buffer,
   stamp: PhotoStamp,
-  file?: File,
+  file?: { name: string; type: string },
 ): Promise<ProcessedPhoto> {
   let sharp: Awaited<ReturnType<typeof loadSharp>>;
   try {

@@ -24,6 +24,9 @@ enum UserRole {
   site_manager
   field_supervisor
   exec_viewer
+  /// Wakil pemberi kerja — BACA SAJA, tanpa AI, hanya lokasi yang ditugaskan.
+  /// DECISIONS 199.
+  wakil_ppk
 }
 
 /// Lifecycle paket — SATU funnel (menggantikan ProspekStage + ProcurementStage + DocumentStage lama)
@@ -144,6 +147,9 @@ enum PhotoGpsSource {
   exif
   device
   project
+  /// Diketik manusia saat perbaikan cap — bukan bacaan alat. Ditandai di cap
+  /// dan TIDAK dihitung sebagai bukti GPS (DECISIONS 198).
+  manual
   none
 }
 
@@ -1059,6 +1065,16 @@ model Photo {
   exifGpsLat     Decimal?            @map("exif_gps_lat") @db.Decimal(10, 7)
   exifGpsLng     Decimal?            @map("exif_gps_lng") @db.Decimal(10, 7)
   gpsSource      PhotoGpsSource      @default(none) @map("gps_source")
+  /// Photo ID yang TERCETAK di cap (KODE-YYMMDD-HHMM-URUT). Disimpan supaya
+  /// identitas foto TIDAK berubah saat capnya diperbaiki — ID itu sudah beredar
+  /// di berkas yang diserahkan. null = foto lama (sebelum kolom ini ada).
+  stampPhotoId   String?             @map("stamp_photo_id")
+  /// Berapa kali cap foto ini diperbaiki. 0 = cap asli dari unggahan.
+  stampRevision  Int                 @default(0) @map("stamp_revision")
+  /// Arsip asli DIHAPUS sengaja (bukan "tidak pernah ada"). Setelah ini cap
+  /// foto tsb tidak bisa diperbaiki lagi. DECISIONS 198.
+  originalPurgedAt   DateTime? @map("original_purged_at") @db.Timestamptz
+  originalPurgedById String?   @map("original_purged_by_id") @db.Uuid
   exifTakenAt    DateTime?           @map("exif_taken_at") @db.Timestamptz
   verification   PhotoVerification   @default(pending)
   metadataSource PhotoMetadataSource @default(server) @map("metadata_source")
@@ -1070,13 +1086,41 @@ model Photo {
   reportItem DailyReportItem? @relation(fields: [reportItemId], references: [id])
   activity   FieldActivity?   @relation(fields: [activityId], references: [id])
 
+  stampRevisions PhotoStampRevision[]
+
   @@unique([locationId, sha256])
   @@index([reportId])
   @@index([reportItemId])
   @@index([activityId])
   @@index([locationId])
   @@index([gpsSource])
+  @@index([stampPhotoId])
   @@map("photos")
+}
+
+/// Riwayat perbaikan cap foto — APPEND-ONLY (trigger DB). Cap dibakar ke gambar
+/// dan versi lamanya dibuang, jadi baris inilah satu-satunya catatan apa yang
+/// dulu tertulis di foto. Wajib ada sebelum cap boleh ditimpa. DECISIONS 198.
+model PhotoStampRevision {
+  id       String @id @default(uuid()) @db.Uuid
+  photoId  String @map("photo_id") @db.Uuid
+  /// Nomor revisi hasil (1 = perbaikan pertama).
+  revision Int
+  /// Alasan perbaikan — WAJIB diisi manusia, tidak boleh kosong.
+  reason   String
+  /// Nilai cap SEBELUM dan SESUDAH (waktu, koordinat, teks, sumber).
+  before   Json
+  after    Json
+  /// Field yang nilainya DIKETIK manusia (bukan diambil ulang dari data).
+  manualFields String[] @map("manual_fields")
+  changedById  String   @map("changed_by_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  photo Photo @relation(fields: [photoId], references: [id], onDelete: Cascade)
+
+  @@unique([photoId, revision])
+  @@index([photoId])
+  @@map("photo_stamp_revisions")
 }
 
 // ─────────────────────────────────────────────────────────────
