@@ -22,7 +22,10 @@ const terkirim: { chatId: string; text: string }[] = [];
 let wahaAktif = true;
 let gagalKirim = false;
 vi.mock("@/lib/waha/client", () => ({
-  isWahaConfigured: () => wahaAktif,
+  // ASINKRON, sama seperti aslinya (baca konfigurasi dari DB). Versi pertama
+  // mock ini sinkron, sehingga bug `!isWahaConfigured()` di penjadwal — yang
+  // menegasikan Promise dan karena itu tidak pernah aktif — lolos dari uji.
+  isWahaConfigured: async () => wahaAktif,
   sendText: async (chatId: string, text: string) => {
     if (gagalKirim) throw new Error("WAHA mati");
     terkirim.push({ chatId, text });
@@ -293,8 +296,14 @@ describe("pengingat WA harian", () => {
   it("WAHA belum dikonfigurasi → tidak melakukan apa-apa, bukan melempar error", async () => {
     await siapkanLokasiBerjalan("Omicron");
     wahaAktif = false;
+    const sebelum = await db.dailyReminderLog.count({ where: { dateKey: "2026-08-01" } });
     const hasil = await kirimPengingatHarian(HARI_INI);
     expect(hasil).toEqual({ terkirim: 0, gagal: 0, dilewati: 0 });
+    // Yang paling penting: TIDAK ada baris pengingat yang ditulis. Kalau
+    // ditulis, UNIQUE (user, hari) akan memblokir percobaan yang benar
+    // berikutnya di hari itu — WAHA yang mati sejenak jadi kehilangan
+    // pengingat sehari penuh.
+    expect(await db.dailyReminderLog.count({ where: { dateKey: "2026-08-01" } })).toBe(sebelum);
   });
 
   it("kegagalan kirim tercatat sebagai gagal, tidak diam-diam dianggap sukses", async () => {

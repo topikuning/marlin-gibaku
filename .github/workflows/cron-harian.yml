@@ -1,0 +1,85 @@
+name: Pekerjaan harian MARLIN
+
+# Aktivasi SPMK yang jatuh tempo + pengingat WA laporan harian (DECISIONS 202).
+#
+# 09:00 UTC = 16:00 WIB — sore, saat orang lapangan masih sempat mengirim
+# laporan hari itu. Jadwal GitHub Actions memakai UTC dan TIDAK mengenal DST;
+# WIB juga tidak, jadi 16:00 WIB tetap 16:00 WIB sepanjang tahun.
+#
+# CATATAN JUJUR soal keandalan: scheduled workflow di GitHub berjalan di runner
+# bersama, jadi sering TELAT 5–20 menit dan sesekali dilewati saat antreannya
+# padat. Untuk pengingat sore hal itu tidak masalah. Yang perlu diketahui:
+# GitHub MEMATIKAN scheduled workflow secara diam-diam bila repo tidak menerima
+# commit selama 60 hari. Kalau proyek ini masuk mode pemeliharaan, pindahkan
+# pemicunya ke penjadwal yang tidak punya perilaku itu (mis. service cron
+# terpisah di Railway).
+#
+# Aman dipicu berkali-kali: aktivasi SPMK memeriksa ulang status di dalam
+# transaksi, dan pengingat dijaga UNIQUE (user_id, date_key) sehingga percobaan
+# kedua di hari yang sama tidak mengirim pesan dobel ke HP orang lapangan.
+
+on:
+  schedule:
+    - cron: "0 9 * * *"
+  # Tombol "Run workflow" di tab Actions — untuk mencoba tanpa menunggu besok.
+  workflow_dispatch:
+
+# Kalau run sebelumnya masih jalan, jangan menumpuk.
+concurrency:
+  group: cron-harian
+  cancel-in-progress: false
+
+jobs:
+  jalankan:
+    name: Panggil /api/cron/harian
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Periksa konfigurasi
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          # Gagal dengan pesan yang bisa ditindaklanjuti, bukan 404 misterius
+          # dari langkah berikutnya.
+          if [ -z "$APP_URL" ]; then
+            echo "::error::Variable APP_URL belum diisi. Settings → Secrets and variables → Actions → Variables, isi APP_URL = https://<host-produksi> (TANPA garis miring di akhir)."
+            exit 1
+          fi
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::Secret CRON_SECRET belum diisi. Nilainya harus SAMA PERSIS dengan CRON_SECRET di environment aplikasi."
+            exit 1
+          fi
+
+      - name: Jalankan pekerjaan harian
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          # --fail-with-body: badan respons tetap dicetak walau status error,
+          # supaya penyebabnya terbaca di log dan bukan cuma kode angka.
+          # Rahasianya tidak pernah ikut tercetak: hanya ada di header.
+          # 3 percobaan — kegagalan jaringan sesaat tidak boleh membatalkan
+          # pengingat sehari penuh.
+          status=0
+          body=$(curl --fail-with-body -sS -X POST \
+            --retry 3 --retry-delay 20 --retry-all-errors \
+            --max-time 300 \
+            -H "x-cron-secret: ${CRON_SECRET}" \
+            "${APP_URL%/}/api/cron/harian") || status=$?
+
+          echo "Respons: ${body}"
+          if [ "$status" -ne 0 ]; then
+            echo "::error::Pemanggilan gagal (curl exit ${status}). Status 404 hampir selalu berarti CRON_SECRET di sini BERBEDA dengan yang ada di aplikasi — endpoint sengaja menjawab 404, bukan 401, supaya keberadaannya tidak bisa dipetakan dari luar."
+            exit "$status"
+          fi
+
+          # Ringkas hasilnya ke ringkasan run supaya tidak perlu membuka log.
+          {
+            echo "### Pekerjaan harian MARLIN"
+            echo ""
+            echo '```json'
+            echo "${body}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -5943,3 +5943,72 @@ uji peramban nyata: dropdown terbuka dengan status+deviasi, memilih lokasi
 mempertahankan `/progress`, panah ‹ berfungsi, `/harian/2026-07-20` membawa
 tanggalnya, kedua halaman antrean tampil dengan data asli, slug antrean ngawur
 → 404.
+
+## 205 — Penjadwal via GitHub Actions + tombol pengingat manual admin (2026-08-01)
+
+Permintaan user: *"buat yang tadi untuk cron dari github, lalu buat juga satu
+tombol untuk eksekusi pengingat semua orang, dari admin."*
+
+### A. Workflow GitHub Actions
+
+`.github/workflows/cron-harian.yml` — `POST /api/cron/harian` tiap hari 09:00
+UTC (16:00 WIB) + `workflow_dispatch` untuk mencoba tanpa menunggu besok.
+Konfigurasinya `vars.APP_URL` + `secrets.CRON_SECRET`; keduanya diperiksa lebih
+dulu dan gagal dengan pesan yang bisa ditindaklanjuti, bukan 404 misterius.
+Rahasianya hanya ada di header, tidak pernah ikut tercetak di log.
+
+**Batasnya dikatakan di file itu, bukan disembunyikan**: scheduled workflow
+GitHub berjalan di runner bersama (sering telat 5–20 menit) dan **dimatikan
+diam-diam bila repo tidak menerima commit selama 60 hari**. Untuk pengingat sore
+keterlambatannya tidak masalah; yang berbahaya adalah mati senyap, jadi kalau
+proyek masuk mode pemeliharaan pemicunya harus pindah.
+
+### B. Tombol manual di Sistem → tab "Pekerjaan Harian"
+
+Penjadwal luar bisa mati, telat, atau belum dipasang; tanpa tombol ini
+satu-satunya cara menagih lapangan adalah menunggu besok.
+
+Tombolnya memanggil **fungsi yang sama persis** dengan cron, jadi hasil manual
+dan terjadwal tidak mungkin berbeda — termasuk pengaman `UNIQUE (user, hari)`:
+ditekan dua kali TIDAK mengirim pesan kedua, dan itu **dikatakan** ("N dilewati
+karena sudah dikirim hari ini") supaya tidak terbaca sebagai gagal.
+
+Karena ini mengirim WA ke HP orang lain dan tak bisa ditarik:
+- **Daftar penerimanya ditampilkan LEBIH DULU** — nama, lokasi, dan apakah
+  laporannya belum ada atau masih draf. Tombol yang mengirim pesan tanpa
+  memberi tahu siapa penerimanya adalah jebakan, bukan kemudahan.
+- Penanggung jawab **tanpa nomor WA disebut namanya**: "3 terkirim" tidak boleh
+  terbaca "semua sudah tertagih".
+- Dikunci `system.manage` + konfirmasi + tercatat di audit (`reminder.manual_send`).
+- Tombolnya tidak dipasang saat tidak ada yang perlu dikirim — menekan tombol
+  lalu tidak terjadi apa-apa terbaca seperti sistem rusak.
+- Daftar kosong TIDAK diberi sebab karangan: bisa berarti semua sudah lapor,
+  bisa juga belum ada lokasi berjalan yang SPMK-nya tiba.
+
+`pratinjauPengingat` sengaja BUKAN di modul `"use server"` — tiap ekspor di sana
+jadi endpoint yang bisa dipanggil siapa pun, dan daftar ini memuat nama orang.
+
+### Dua bug yang ketahuan sambil mengerjakan ini
+
+1. **`isWahaConfigured()` tidak pernah di-await** (`penjadwal.ts`, DECISIONS
+   202). Fungsinya asinkron (baca konfigurasi dari DB), tapi ditulis
+   `!isWahaConfigured()` — menegasikan Promise selalu `false`, jadi pengamannya
+   TIDAK PERNAH aktif. Akibatnya saat WAHA mati: baris pengingat tetap ditulis,
+   semua pengiriman gagal, dan karena `UNIQUE (user, hari)` percobaan yang benar
+   berikutnya di hari itu ikut terlewat — WAHA mati sejenak = kehilangan
+   pengingat sehari penuh. Lolos dari uji karena mock-nya SINKRON; mock-nya
+   sekarang asinkron seperti aslinya, dan uji WAHA-mati kini memeriksa bahwa
+   TIDAK ADA baris log yang ditulis.
+2. **Pengiriman tidak ter-scope organisasi.** `kumpulkanPengingat` /
+   `kirimPengingatHarian` kini menerima `orgId` opsional: cron sistem memanggil
+   tanpa itu (semua tenant, memang tugasnya), tombol admin WAJIB mengisinya —
+   admin organisasi A tidak boleh mengirim WA ke orang organisasi B
+   (DECISIONS 150).
+
+**Verifikasi**: 9 kasus integrasi baru (`pengingat-manual` — terkirim sungguhan,
+tekan dua kali tidak dobel, tercatat di audit, 4 peran tanpa `system.manage`
+ditolak, WAHA mati ditolak tanpa menghanguskan jatah hari itu, pratinjau
+menyebut nama/lokasi/keadaan, tanpa-nomor disebut, orang pindah ke "sudah
+dikirim" setelah terkirim, yang sudah lapor tidak ditagih) + `tugas-harian`
+diperketat · unit 706 ✓ · integrasi 248 ✓ · typecheck ✓ · lint ✓ · panel dilihat
+di peramban.
