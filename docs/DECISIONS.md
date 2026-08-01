@@ -5478,8 +5478,20 @@ Sekarang: kalau jam jepret tidak diketahui, cap menulis TANGGAL SAJA
 **3. "Foto asli tanpa cap juga disimpan — di mana saya bisa cek?"** Jawaban
 jujurnya: TIDAK ADA. `savePhotoForItem` hanya menyimpan hasil kompresi+cap
 (`r2Key`) dan thumbnail; berkas aslinya dibaca ke memori untuk EXIF & sha256,
-lalu dibuang. Satu-satunya jejak yang tersisa adalah hash-nya. Tidak pernah ada
-catatan keputusan soal ini, jadi kemungkinan besar memang tidak pernah dibuat.
+lalu dibuang. Satu-satunya jejak yang tersisa adalah hash-nya.
+
+**Kenapa terlewat — ini kegagalan proses, bukan kelalaian teknis.** User
+menegaskan bahwa penyimpanan berkas asli SUDAH pernah dia minta sebelumnya,
+justru untuk keadaan seperti ini (bila cap perlu diperbaiki). Permintaan itu
+tidak pernah masuk ke `docs/DECISIONS.md`, tidak ada di dokumen mana pun, dan
+tidak ada commit yang pernah menyentuhnya — dicek dengan
+`git log --all -S originalKey` (hasil: nihil sampai DECISIONS 197 ini).
+Instruksinya hanya hidup di percakapan. Padahal CLAUDE.md poin 6 mewajibkan
+keputusan baru di-append ke DECISIONS.md — kalau itu dijalankan waktu itu,
+sesi-sesi berikutnya akan menemukannya. Karena tidak tercatat, setiap sesi
+berikutnya membaca KODE sebagai satu-satunya sumber, dan kode tidak menyimpan
+apa pun. Pelajarannya: instruksi user yang mengubah perilaku sistem harus
+ditulis SAAT diterima, bukan saat dikerjakan.
 
 Ditambahkan `photos.original_key` + `original_bytes`: byte asli diunggah apa
 adanya ke `…/<uuid>.asli.<ext>`. Best-effort — gagal mengarsip tidak
