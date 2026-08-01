@@ -49,7 +49,10 @@ export async function kirimPengingatSekarangAction(
     revalidatePath("/sistem");
 
     if (hasil.terkirim === 0 && hasil.gagal === 0 && hasil.dilewati === 0) {
-      return { success: "Tidak ada yang perlu ditagih — semua laporan hari ini sudah masuk." };
+      // Sebabnya TIDAK ditebak: nol bisa berarti semua sudah lapor, bisa juga
+      // belum ada lokasi berjalan yang SPMK-nya tiba. Sama seperti bannernya
+      // di panel — satu layar tidak boleh menyebut dua sebab yang berbeda.
+      return { success: "Tidak ada penanggung jawab yang perlu ditagih saat ini." };
     }
     const bagian = [`${hasil.terkirim} pesan terkirim`];
     // "Dilewati" DISEBUT, bukan disembunyikan: tanpa ini, admin yang menekan
