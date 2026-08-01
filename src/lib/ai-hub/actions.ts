@@ -6,8 +6,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { scopeCoveredBy } from "@/lib/ai-hub/read-scope";
-import { audit } from "@/lib/audit";
-import { accessibleLocationIds, ForbiddenError, requireCapability } from "@/lib/auth/session";
+import { audit, auditIn } from "@/lib/audit";
+import { accessibleLocationIds, ForbiddenError, requireCapability, requireLocationAccess } from "@/lib/auth/session";
 import { canTransitionAiArtifact } from "@/lib/lifecycle";
 import { sendText, WahaError } from "@/lib/waha/client";
 import { normalizeWaTarget } from "@/lib/contacts/model";
@@ -201,6 +201,113 @@ export async function saveSuggestionAction(_prev: AiHubState, formData: FormData
     revalidatePath("/ai/actions");
     return {
       ok: `Draft ${s.suggestKind === "recovery" ? "recovery" : "action"} tersimpan — TIDAK mengubah data domain; eksekusi tetap manual di modul Kendala.`,
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * TERAPKAN draft saran menjadi data domain NYATA (Kendala + opsional aksi
+ * pemulihan). Sebelum ini "Simpan Draft" hanya menambah artefak `saran` yang
+ * tidak pernah ditampilkan di mana pun — angkanya naik di KPI, tapi tidak ada
+ * apa-apa yang terjadi di lokasi (laporan user 2026-08-01). Itu jalan buntu
+ * yang melanggar doktrin DECISIONS 193.
+ *
+ * Prinsip DECISIONS 133 tetap dipegang: AI TIDAK PERNAH menulis Issue/Recovery
+ * sendiri. Penulisan terjadi HANYA lewat aksi ini — dipicu manusia, digerbang
+ * `issue.manage` + akses lokasi, dan diaudit. Draft yang sudah diterapkan
+ * ditandai `terkirim` supaya keluar dari antrean "menunggu tindak lanjut".
+ */
+export async function terapkanSaranAction(_prev: AiHubState, formData: FormData): Promise<AiHubState> {
+  try {
+    const artifactId = String(formData.get("artifactId") ?? "");
+    const artifact = await db.aiArtifact.findUnique({
+      where: { id: artifactId },
+      select: { id: true, kind: true, status: true, title: true, structuredContent: true },
+    });
+    if (!artifact || artifact.kind !== "saran") return { error: "Draft saran tidak ditemukan." };
+    if (artifact.status !== "draft") return { error: "Draft ini sudah ditindaklanjuti." };
+
+    const isi = (artifact.structuredContent ?? {}) as {
+      title?: string;
+      detail?: string;
+      severity?: string;
+      suggestKind?: string;
+      locationId?: string | null;
+    };
+    const locationId = isi.locationId ?? null;
+    if (!locationId) {
+      return { error: "Draft ini tidak menunjuk lokasi tertentu — catat manual di workspace lokasi." };
+    }
+
+    // Menulis data domain = capability domain, BUKAN ai.generate.
+    const user = await requireCapability("issue.manage");
+    await requireLocationAccess(user, locationId);
+    const loc = await db.location.findUnique({ where: { id: locationId }, select: { slug: true } });
+    if (!loc) return { error: "Lokasi tidak ditemukan." };
+
+    const severity = (["sedang", "tinggi", "kritis"] as const).includes(
+      isi.severity as "sedang" | "tinggi" | "kritis",
+    )
+      ? (isi.severity as "sedang" | "tinggi" | "kritis")
+      : "sedang";
+    const picName = String(formData.get("picName") ?? "").trim() || null;
+    const dueRaw = String(formData.get("dueDate") ?? "").trim();
+    const dueDate = dueRaw && parseDateKey(dueRaw) ? new Date(`${dueRaw}T00:00:00.000Z`) : null;
+    const buatRecovery = isi.suggestKind === "recovery";
+
+    const { issueId } = await db.$transaction(async (tx) => {
+      const issue = await tx.issue.create({
+        data: {
+          locationId,
+          title: (isi.title ?? artifact.title).slice(0, 200),
+          description: isi.detail ?? null,
+          severity,
+          raisedById: user.id,
+        },
+        select: { id: true },
+      });
+      if (buatRecovery) {
+        await tx.recoveryAction.create({
+          data: {
+            issueId: issue.id,
+            description: (isi.detail ?? artifact.title).slice(0, 2000),
+            picName,
+            dueDate,
+            createdById: user.id,
+          },
+        });
+        // Kendala yang langsung punya aksi pemulihan = sedang ditangani.
+        await tx.issue.update({ where: { id: issue.id }, data: { status: "ditangani" } });
+      }
+      // Tautkan balik + keluarkan dari antrean.
+      await tx.aiArtifact.update({
+        where: { id: artifact.id },
+        data: {
+          status: "terkirim",
+          structuredContent: JSON.parse(JSON.stringify({ ...isi, issueId: issue.id })),
+        },
+      });
+      await auditIn(
+        tx,
+        user.id,
+        "ai.saran.terapkan",
+        "issue",
+        issue.id,
+        { artifactId: artifact.id, locationId, severity, recovery: buatRecovery },
+        null,
+      );
+      return { issueId: issue.id };
+    });
+
+    revalidatePath("/ai/actions");
+    revalidatePath(`/lokasi/${loc.slug}`);
+    revalidatePath(`/lokasi/${loc.slug}/progress`);
+    return {
+      ok: buatRecovery
+        ? `Kendala + aksi pemulihan dibuat di lokasi — buka workspace lokasi untuk memantau (issue ${issueId.slice(0, 8)}).`
+        : `Kendala dibuat di lokasi — buka workspace lokasi untuk memantau (issue ${issueId.slice(0, 8)}).`,
     };
   } catch (err) {
     return fail(err);

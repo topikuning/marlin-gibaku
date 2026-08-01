@@ -5322,3 +5322,50 @@ PERMISSION_MATRIX diregenerasi (47 capability) · browser: `/laporan-wa` (admin
 kepatuhan tampil, nav bersih, SM tetap bisa buka Master → Kontak. Kirim WA
 tujuan bebas belum teruji ujung-ke-ujung (butuh provider AI + WAHA hidup —
 hanya ada di Railway); jalur normalisasi tujuannya sudah ter-unit-test lama.
+
+---
+
+## 195 — "Draft saran" tidak lagi jalan buntu: bisa diterapkan jadi Kendala nyata (2026-08-01)
+
+Laporan user: di Perlu Tindakan, menekan **Draft recovery** hanya menaikkan
+angka KPI "menunggu tindak lanjut manual" — *"aku tidak melihat apapun yang
+nyata, di halaman lokasi pun tidak ada apapun"*. Benar seluruhnya.
+
+**Apa yang sebenarnya terjadi sebelum ini.** `saveSuggestionAction` membuat
+`AiArtifact` kind `saran` status `draft`, lalu selesai. Artefak itu tidak
+pernah muncul di mana pun: `/ai/actions` hanya `count()` tanpa daftar,
+`/ai/reports` hanya melistkan kind `laporan`, dan kartu `saran` di halaman run
+tidak punya aksi apa pun (bahkan isinya tidak ditampilkan). Jadi tombol itu
+menulis ke tempat yang tak terbaca — write-only counter. Ini persis pelanggaran
+doktrin DECISIONS 193.
+
+**Prinsip DECISIONS 133 TIDAK diubah**: AI tetap tidak pernah menulis
+Issue/RecoveryAction sendiri. Yang ditambahkan adalah jalan eksekusi
+manusianya, yang selama ini hilang:
+
+1. **Antrean draft jadi nyata di layar.** `/ai/actions` kini menampilkan
+   DAFTAR draft tersimpan (judul, lokasi), bukan sekadar angka. Daftarnya juga
+   difilter ke lokasi dalam scope user — `count()` lama menghitung lintas
+   organisasi (kebocoran angka multi-tenant).
+2. **`terapkanSaranAction`**: satu tombol mengubah draft menjadi `Issue` nyata
+   di lokasi tsb; untuk draft ber-jenis `recovery` sekalian dibuat
+   `RecoveryAction` (PIC & tanggal target opsional, ditanyakan di form) dan
+   Kendala langsung berstatus `ditangani` — sama seperti alur manual di
+   workspace lokasi. Semua dalam satu transaksi + `auditIn`
+   (`ai.saran.terapkan`, resource `issue`, memuat artifactId).
+3. **Gerbangnya capability DOMAIN, bukan AI**: `issue.manage` +
+   `requireLocationAccess`. Pemegang `ai.generate` tanpa izin Kendala (mis.
+   exec_viewer) tetap bisa membuat draft, tapi tidak bisa menerapkannya — AI
+   tidak boleh jadi pintu belakang ke data domain.
+4. **Draft yang diterapkan keluar dari antrean**: status → `terkirim` dan
+   `issueId` ditulis balik ke `structuredContent` sebagai tautan. Penerapan
+   kedua kali ditolak.
+
+Verifikasi: 8 kasus integrasi baru (`terapkan-saran`) — Issue+Recovery benar
+terbentuk dgn PIC/tanggal, draft action hanya bikin Kendala terbuka, audit
+tertaut, tanpa izin ditolak, lokasi di luar penugasan ditolak, tidak bisa
+diterapkan dua kali, draft tanpa lokasi ditolak, artefak laporan tidak bisa
+lewat pintu ini · typecheck ✓ · lint ✓ · browser: tekan Draft Recovery → panel
+"Draft saran tersimpan" muncul → Terapkan → Kendala "Batah Timur: Deviasi
+jadwal -77.3 pp" (Kritis, Ditangani) beserta aksi pemulihannya TAMPIL di
+halaman lokasi.

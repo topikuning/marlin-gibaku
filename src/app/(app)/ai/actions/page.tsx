@@ -8,7 +8,9 @@ import { buildPortfolioPulse, resolveAiScope } from "@/lib/ai-hub/source";
 import { RISK_CATEGORY_LABEL } from "@/lib/ai-hub/risk";
 import { jakartaToday } from "@/lib/format";
 import { db } from "@/lib/db";
+import { Prisma } from "@/generated/prisma/client";
 import { SuggestionButton } from "./suggestion-button";
+import { ApplySuggestionButton } from "./apply-suggestion-button";
 
 export const metadata: Metadata = { title: "AI Intelligence — Perlu Tindakan" };
 export const dynamic = "force-dynamic";
@@ -31,10 +33,39 @@ export default async function AiActionsPage() {
   const startKey = start.toISOString().slice(0, 10);
 
   const scope = await resolveAiScope(user, []);
-  const [pulse, savedDrafts] = await Promise.all([
+  const [pulse, draftSaran] = await Promise.all([
     buildPortfolioPulse(user, scope.ids, startKey, today),
-    db.aiArtifact.count({ where: { kind: "saran", status: "draft" } }),
+    // DAFTAR, bukan sekadar hitungan: dulu draft tersimpan tidak pernah muncul
+    // di mana pun sehingga tombol "Simpan Draft" terasa tidak melakukan apa-apa
+    // (laporan user 2026-08-01). Juga difilter ke lokasi dalam scope — count
+    // lama menghitung lintas organisasi.
+    db.aiArtifact.findMany({
+      where: {
+        kind: "saran",
+        status: "draft",
+        structuredContent: { path: ["locationId"], not: Prisma.DbNull },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      select: { id: true, title: true, createdAt: true, structuredContent: true },
+    }),
   ]);
+
+  const bolehTerapkan = can(user.role, "issue.manage");
+  const scopeSet = new Set(scope.ids);
+  const antreanDraft = draftSaran
+    .map((a) => {
+      const isi = (a.structuredContent ?? {}) as {
+        detail?: string;
+        severity?: string;
+        locationId?: string | null;
+        locationName?: string | null;
+        suggestKind?: string;
+      };
+      return { id: a.id, title: a.title, createdAt: a.createdAt, ...isi };
+    })
+    .filter((d) => d.locationId && scopeSet.has(d.locationId))
+    .slice(0, 20);
 
   const queue = pulse.risks;
   const kritis = queue.filter((r) => r.severity === "kritis").length;
@@ -94,12 +125,43 @@ export default async function AiActionsPage() {
           <KpiCard label="Kritis" value={String(kritis)} tone={kritis > 0 ? "danger" : "success"} />
           <KpiCard label="Overdue" value={String(overdue)} tone={overdue > 0 ? "warning" : "success"} />
           <KpiCard label="Total item" value={String(queue.length)} />
-          <KpiCard label="Draft saran" value={String(savedDrafts)} sub="menunggu tindak lanjut manual" />
+          <KpiCard label="Draft saran" value={String(antreanDraft.length)} sub="belum ditindaklanjuti" />
         </div>
         <p className="rounded-md border border-warning-border bg-warning-soft px-3 py-2 text-xs leading-snug text-warning">
-          Draft saran TIDAK membuat Issue/Recovery otomatis. Eksekusi tetap manual di workspace lokasi → Kendala,
-          dengan permission domain masing-masing.
+          AI tidak pernah membuat Kendala/Recovery sendiri. Draft di bawah baru menjadi data nyata setelah Anda
+          menerapkannya — dan hanya pemegang izin Kendala yang bisa.
         </p>
+
+        <Card>
+          <CardHeader
+            title="Draft saran tersimpan"
+            subtitle="Terapkan → dibuat sebagai Kendala di lokasi (aksi pemulihan ikut dibuat untuk draft recovery)."
+          />
+          <CardBody className="space-y-2">
+            {antreanDraft.length === 0 ? (
+              <p className="text-xs text-ink-muted">
+                Belum ada draft tersimpan. Tekan “Simpan Draft” pada item antrean di kiri.
+              </p>
+            ) : (
+              antreanDraft.map((d) => (
+                <div key={d.id} className="rounded-md border border-border px-2.5 py-2">
+                  <p className="text-[13px] font-medium text-ink">{d.title}</p>
+                  <p className="mt-0.5 text-xs text-ink-muted">{d.locationName ?? "—"}</p>
+                  {bolehTerapkan ? (
+                    <ApplySuggestionButton
+                      artifactId={d.id}
+                      recovery={d.suggestKind === "recovery"}
+                    />
+                  ) : (
+                    <p className="mt-1 text-xs text-ink-faint">
+                      Perlu izin Kendala untuk menerapkan.
+                    </p>
+                  )}
+                </div>
+              ))
+            )}
+          </CardBody>
+        </Card>
       </div>
     </div>
   );
