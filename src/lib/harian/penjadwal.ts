@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { jakartaDateKey, formatTanggal, parseDateKey } from "@/lib/format";
 import { canTransitionLocation } from "@/lib/lifecycle";
-import { sendText, isWahaConfigured } from "@/lib/waha/client";
+import { sendText, isWahaConfigured, getSessionStatus } from "@/lib/waha/client";
 import { pesanPengingat, type LokasiTertagih } from "./pesan";
 
 /**
@@ -17,7 +17,13 @@ import { pesanPengingat, type LokasiTertagih } from "./pesan";
 export type HasilHarian = {
   dateKey: string;
   spmk: { diaktifkan: number; paket: string[] };
-  pengingat: { terkirim: number; gagal: number; dilewati: number };
+  pengingat: {
+    terkirim: number;
+    gagal: number;
+    dilewati: number;
+    /** Status sesi WhatsApp saat itu — "terkirim" tak berarti apa pun tanpa ini. */
+    sesi: string;
+  };
 };
 
 /* ── 1. Aktivasi SPMK yang jatuh tempo ───────────────────────────────────── */
@@ -186,13 +192,30 @@ export async function kirimPengingatHarian(
 ): Promise<HasilHarian["pengingat"]> {
   const dateKey = jakartaDateKey(now);
   const tanggal = parseDateKey(dateKey)!;
-  const hasil = { terkirim: 0, gagal: 0, dilewati: 0 };
+  const hasil = { terkirim: 0, gagal: 0, dilewati: 0, sesi: "tidak diketahui" };
   // `isWahaConfigured` ASINKRON (baca konfigurasi dari DB). Versi pertama
   // menulisnya `!isWahaConfigured()` — menegasikan Promise selalu false,
   // sehingga pengamannya TIDAK PERNAH aktif: saat WAHA mati, baris pengingat
   // tetap ditulis lalu semua pengiriman gagal, dan karena UNIQUE (user, hari)
   // percobaan yang benar berikutnya di hari itu ikut terlewat.
-  if (!(await isWahaConfigured())) return hasil;
+  if (!(await isWahaConfigured())) {
+    hasil.sesi = "belum dikonfigurasi";
+    return hasil;
+  }
+
+  // Sesi WhatsApp HARUS hidup. WAHA membalas 2xx untuk sendText walau sesinya
+  // belum login — pesannya masuk antrean lalu hilang. Tanpa pemeriksaan ini
+  // sistem melaporkan "7 terkirim" padahal nol yang sampai ke HP orang, dan
+  // UNIQUE (user, hari) membuat percobaan yang benar hari itu ikut terkunci.
+  // Laporan user 2026-08-02 (DECISIONS 206).
+  try {
+    const sesi = await getSessionStatus();
+    hasil.sesi = sesi.status;
+    if (sesi.status !== "WORKING") return hasil;
+  } catch (err) {
+    hasil.sesi = `tidak bisa dicek: ${err instanceof Error ? err.message : "gagal"}`;
+    return hasil;
+  }
 
   const penerima = await kumpulkanPengingat(now, orgId);
   const tanggalTampil = formatTanggal(tanggal);
@@ -214,8 +237,15 @@ export async function kirimPengingatHarian(
     }
 
     try {
-      await sendText(e.wa, teks);
+      const waMessageId = await sendText(e.wa, teks);
       hasil.terkirim++;
+      // Simpan buktinya supaya "sukses" bisa ditelusuri ke pesan yang nyata.
+      if (waMessageId) {
+        await db.dailyReminderLog.update({
+          where: { userId_dateKey: { userId, dateKey } },
+          data: { waMessageId },
+        });
+      }
     } catch (err) {
       hasil.gagal++;
       await db.dailyReminderLog.update({

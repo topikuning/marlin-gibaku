@@ -21,14 +21,17 @@ vi.mock("server-only", () => ({}));
 const terkirim: { chatId: string; text: string }[] = [];
 let wahaAktif = true;
 let gagalKirim = false;
+let statusSesi = "WORKING";
 vi.mock("@/lib/waha/client", () => ({
   // ASINKRON, sama seperti aslinya (baca konfigurasi dari DB). Versi pertama
   // mock ini sinkron, sehingga bug `!isWahaConfigured()` di penjadwal — yang
   // menegasikan Promise dan karena itu tidak pernah aktif — lolos dari uji.
   isWahaConfigured: async () => wahaAktif,
+  getSessionStatus: async () => ({ name: "default", status: statusSesi }),
   sendText: async (chatId: string, text: string) => {
     if (gagalKirim) throw new Error("WAHA mati");
     terkirim.push({ chatId, text });
+    return "true_628123456789@c.us_MSGID";
   },
 }));
 
@@ -133,6 +136,7 @@ beforeEach(async () => {
   terkirim.length = 0;
   wahaAktif = true;
   gagalKirim = false;
+  statusSesi = "WORKING";
   await db.dailyReminderLog.deleteMany({ where: { userId: { in: [smId, smTanpaWaId] } } });
   // Lepas SEMUA penugasan lama: lokasi dari tes sebelumnya tidak dihapus
   // (histori status append-only), jadi tanpa ini tagihan menumpuk lintas tes.
@@ -298,12 +302,43 @@ describe("pengingat WA harian", () => {
     wahaAktif = false;
     const sebelum = await db.dailyReminderLog.count({ where: { dateKey: "2026-08-01" } });
     const hasil = await kirimPengingatHarian(HARI_INI);
-    expect(hasil).toEqual({ terkirim: 0, gagal: 0, dilewati: 0 });
+    expect(hasil).toEqual({ terkirim: 0, gagal: 0, dilewati: 0, sesi: "belum dikonfigurasi" });
     // Yang paling penting: TIDAK ada baris pengingat yang ditulis. Kalau
     // ditulis, UNIQUE (user, hari) akan memblokir percobaan yang benar
     // berikutnya di hari itu — WAHA yang mati sejenak jadi kehilangan
     // pengingat sehari penuh.
     expect(await db.dailyReminderLog.count({ where: { dateKey: "2026-08-01" } })).toBe(sebelum);
+  });
+
+  it("SESI BELUM LOGIN → nol terkirim dan TIDAK menghanguskan jatah hari ini", async () => {
+    // Kejadian nyata 2026-08-02: sistem melaporkan "7 terkirim" padahal sesi
+    // WhatsApp belum login. WAHA menjawab 2xx untuk sendText, jadi kodenya
+    // mengira berhasil — dan UNIQUE (user, hari) mengunci percobaan berikutnya.
+    await siapkanLokasiBerjalan("Sigma");
+    statusSesi = "SCAN_QR_CODE";
+    const sebelum = await db.dailyReminderLog.count({ where: { dateKey: "2026-08-01" } });
+    const hasil = await kirimPengingatHarian(HARI_INI);
+
+    expect(hasil.terkirim).toBe(0);
+    expect(hasil.sesi).toBe("SCAN_QR_CODE");
+    expect(punyaKita()).toHaveLength(0);
+    expect(await db.dailyReminderLog.count({ where: { dateKey: "2026-08-01" } })).toBe(sebelum);
+
+    // Setelah QR di-scan, pengiriman hari itu masih bisa dilakukan.
+    statusSesi = "WORKING";
+    await kirimPengingatHarian(HARI_INI);
+    expect(punyaKita()).toHaveLength(1);
+  });
+
+  it("ID pesan dari WAHA disimpan — bukti bahwa 'sukses' bukan sekadar 2xx", async () => {
+    await siapkanLokasiBerjalan("Tau");
+    await kirimPengingatHarian(HARI_INI);
+    const log = await db.dailyReminderLog.findFirstOrThrow({
+      where: { userId: smId, dateKey: "2026-08-01" },
+      select: { status: true, waMessageId: true },
+    });
+    expect(log.status).toBe("sukses");
+    expect(log.waMessageId).toBe("true_628123456789@c.us_MSGID");
   });
 
   it("kegagalan kirim tercatat sebagai gagal, tidak diam-diam dianggap sukses", async () => {

@@ -222,3 +222,13 @@ apel-ke-apel — terpasang di-gross-up ke incl-PPN via `Contract.ppnPercent`
 sebelum dikurangi billing (incl-PPN). Yang MASIH menunggu keputusan: basis
 terpasang memakai level COUNTED (dilaporkan) atau VERIFIED — ini bagian dari
 KEPUTUSAN "Level status progress" di atas, bukan keputusan terpisah.
+
+## WAHA — pemeriksaan sesi baru dipasang di jalur pengingat harian
+
+- 🟡 **`sendImage` & pemakaian WAHA lain belum memeriksa status sesi.**
+  DECISIONS 206 memasang `getSessionStatus() === "WORKING"` sebagai syarat di
+  `kirimPengingatHarian` saja, karena itu jalur yang dilaporkan user gagal
+  senyap ("terkirim 7", nol sampai). Jalur lain (mis. kirim foto/laporan ke
+  grup WA) masih menganggap "2xx = terkirim", jadi bisa mengulangi kegagalan
+  yang sama. Perlu disisir jadi satu pembungkus kirim yang selalu memeriksa
+  sesi + menyimpan `waMessageId`.

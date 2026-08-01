@@ -22,6 +22,7 @@ export function PengingatPanel({ pratinjau }: { pratinjau: PratinjauPengingat })
     undefined,
   );
 
+  const siapKirim = pratinjau.wahaSiap && pratinjau.sesiStatus === "WORKING";
   const jumlah = pratinjau.akanDitagih.length;
   const totalLokasi = pratinjau.akanDitagih.reduce((s, p) => s + p.lokasi.length, 0);
 
@@ -35,6 +36,15 @@ export function PengingatPanel({ pratinjau }: { pratinjau: PratinjauPengingat })
           tone="warning"
           title="WhatsApp (WAHA) belum dikonfigurasi"
           description="Tanpa itu tidak ada pesan yang bisa dikirim — baik oleh penjadwal maupun tombol ini. Atur di tab Integrasi."
+        />
+      ) : pratinjau.sesiStatus !== "WORKING" ? (
+        /* Sesi mati adalah kegagalan SENYAP: WAHA tetap menjawab 2xx, sistem
+           melaporkan "terkirim", dan tidak satu pun pesan sampai. Karena itu
+           statusnya ditampilkan SEBELUM tombol, bukan setelah. */
+        <Banner
+          tone="error"
+          title={`Sesi WhatsApp tidak siap (status: ${pratinjau.sesiStatus})`}
+          description="Selama status bukan WORKING, tidak ada pesan yang benar-benar terkirim walau sistem menerima permintaannya. Scan QR di server WAHA, lalu cek ulang di tab Integrasi."
         />
       ) : null}
 
@@ -111,7 +121,7 @@ export function PengingatPanel({ pratinjau }: { pratinjau: PratinjauPengingat })
         </details>
       ) : null}
 
-      <TombolKirim jumlah={jumlah} siap={pratinjau.wahaSiap} />
+      <TombolKirim jumlah={jumlah} siap={siapKirim} />
     </form>
   );
 }
@@ -125,7 +135,7 @@ function TombolKirim({ jumlah, siap }: { jumlah: number; siap: boolean }) {
       <p className="text-[13px] text-ink-faint">
         {siap
           ? "Tombol kirim muncul saat ada yang perlu ditagih."
-          : "Tombol kirim aktif setelah WAHA dikonfigurasi."}
+          : "Tombol kirim aktif setelah sesi WhatsApp berstatus WORKING."}
       </p>
     );
   }

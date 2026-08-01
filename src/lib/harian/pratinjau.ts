@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { jakartaDateKey } from "@/lib/format";
-import { isWahaConfigured } from "@/lib/waha/client";
+import { isWahaConfigured, getSessionStatus } from "@/lib/waha/client";
 import { kumpulkanPengingat } from "./penjadwal";
 
 /**
@@ -16,6 +16,8 @@ import { kumpulkanPengingat } from "./penjadwal";
 export type PratinjauPengingat = {
   dateKey: string;
   wahaSiap: boolean;
+  /** Status sesi WhatsApp: "WORKING" = siap kirim. Selain itu, nol yang sampai. */
+  sesiStatus: string;
   /** Yang akan ditagih bila tombol ditekan sekarang. */
   akanDitagih: { nama: string; lokasi: string[]; adaDraft: boolean[] }[];
   /** Sudah menerima pengingat hari ini (tidak akan dikirimi lagi). */
@@ -34,6 +36,18 @@ export async function pratinjauPengingat(orgId: string): Promise<PratinjauPengin
   const dateKey = jakartaDateKey(now);
   const penerima = await kumpulkanPengingat(now, orgId);
 
+  // Status sesi ditarik SEKARANG, bukan diasumsikan: admin harus tahu tombolnya
+  // akan mengirim atau cuma menghanguskan jatah hari ini (DECISIONS 206).
+  const siap = await isWahaConfigured();
+  let sesi = "belum dikonfigurasi";
+  if (siap) {
+    try {
+      sesi = (await getSessionStatus()).status;
+    } catch (err) {
+      sesi = `tidak bisa dicek: ${err instanceof Error ? err.message : "gagal"}`;
+    }
+  }
+
   // `DailyReminderLog` tidak punya relasi Prisma ke User, jadi penyaringan
   // organisasi dilakukan lewat daftar id — bukan dilewati begitu saja.
   const anggota = await db.user.findMany({ where: { orgId }, select: { id: true, fullName: true } });
@@ -46,7 +60,8 @@ export async function pratinjauPengingat(orgId: string): Promise<PratinjauPengin
 
   return {
     dateKey,
-    wahaSiap: await isWahaConfigured(),
+    wahaSiap: siap,
+    sesiStatus: sesi,
     akanDitagih: penerima
       .filter((p) => !sudah.has(p.userId))
       .map((p) => ({
