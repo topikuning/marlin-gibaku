@@ -39,6 +39,21 @@ export function formatStampDateTime(date: Date, tz: StampTimezone = DEFAULT_STAM
   return `${tanggal} • ${jam} ${STAMP_TZ[tz]}`;
 }
 
+/**
+ * Tanggal SAJA: "Jumat, 31 Juli 2026". Dipakai bila jam jepret tidak diketahui —
+ * mencap "07:00 WIB" dari tanggal kerja (yang tersimpan sebagai DATE, jadi
+ * tengah malam UTC = 07:00 WIB) adalah angka karangan. DECISIONS 197.
+ */
+export function formatStampDate(date: Date, tz: StampTimezone = DEFAULT_STAMP_TZ): string {
+  return new Intl.DateTimeFormat("id-ID", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: tz,
+  }).format(date);
+}
+
 // ── Koordinat ─────────────────────────────────────────────────────────────────
 /** "6.871010°S, 109.253123°E" (6 desimal, arah mata angin N/S/E/W). */
 export function formatCoordinate(lat: number | null | undefined, lng: number | null | undefined): string | null {

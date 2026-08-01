@@ -109,7 +109,11 @@ let scopedLocations: string[] | null = null;
 vi.mock("@/lib/auth/session", async () => {
   const { can } = await import("@/lib/authz");
   const user = () => ({ id: sessionUserId, orgId: sessionOrgId, role, fullName: "Tester" });
+  // Dipakai `fail()` di gdrive/actions untuk membedakan error izin — tanpa ini
+  // `err instanceof ForbiddenError` melempar TypeError dan menutupi error asli.
+  class ForbiddenError extends Error {}
   return {
+    ForbiddenError,
     requestIp: async () => null,
     requireCapability: async (cap: string) => {
       if (!can(role as never, cap as never)) throw new Error(`Tidak punya izin: ${cap}`);
@@ -129,6 +133,7 @@ vi.mock("@/lib/auth/session", async () => {
 
 const { db } = await import("@/lib/db");
 const { previewDriveImport, commitDriveImport } = await import("@/lib/gdrive/import");
+const { uploadDocumentToDriveAction } = await import("@/lib/gdrive/actions");
 
 const suffix = `di${Date.now().toString(36)}`;
 let orgId = "";
@@ -513,5 +518,66 @@ describe("berkas terbitan MARLIN sendiri tidak ditawarkan balik", () => {
     ]);
     expect(hasil.berhasil).toHaveLength(1);
     expect(await db.document.count({ where: { orgId } })).toBe(1);
+  });
+});
+
+// Sisi sebaliknya dari lingkaran yang sama (DECISIONS 197): berkas yang DITARIK
+// dari Drive KKP tidak boleh ditawarkan untuk diunggah BALIK ke Drive KKP.
+// Keluhan user 2026-08-01: "dokumen diambil dari google drive, kenapa malah ada
+// upload ke drive lagi?" — kolom Drive KKP menampilkan tombol "Upload Drive"
+// untuk baris yang keterangannya sendiri berbunyi "· dari Drive KKP".
+describe("dokumen asal Drive KKP tidak diunggah balik ke Drive", () => {
+  async function buatDokumen(source: "drive_kkp" | "unggahan") {
+    return db.document.create({
+      data: {
+        orgId,
+        packageId,
+        locationId: kedungrejoId,
+        phase: "mulai_kerja",
+        type: "spmk",
+        title: `SPMK ${source}`,
+        r2Key: `docs/${suffix}-${source}-${Math.random().toString(36).slice(2)}.pdf`,
+        fileName: "spmk.pdf",
+        mimeType: "application/pdf",
+        bytes: 1024,
+        sha256: `${source}${Math.random().toString(36).slice(2)}`,
+        uploadedById: sessionUserId,
+        source,
+        driveFileId: source === "drive_kkp" ? `drv-${Math.random().toString(36).slice(2)}` : null,
+        driveWebLink: source === "drive_kkp" ? "https://drive.google.com/file/d/x/view" : null,
+      },
+      select: { id: true },
+    });
+  }
+
+  function fd(documentId: string): FormData {
+    const f = new FormData();
+    f.set("documentId", documentId);
+    return f;
+  }
+
+  it("KASUS INTI: dokumen ber-source drive_kkp ditolak dengan sebab yang jelas", async () => {
+    const doc = await buatDokumen("drive_kkp");
+    const res = await uploadDocumentToDriveAction({}, fd(doc.id));
+    expect(res?.error).toMatch(/berasal dari Drive KKP/i);
+    expect(res?.success).toBeUndefined();
+    // Tidak ada jejak unggahan yang tercatat.
+    expect(await db.gDriveUpload.count({ where: { packageId } })).toBe(0);
+  });
+
+  it("penolakan terjadi di server, bukan hanya tombolnya disembunyikan", async () => {
+    // Dipanggil langsung tanpa melewati UI — persis yang dilakukan penyerang
+    // atau tombol basi di tab lama.
+    const doc = await buatDokumen("drive_kkp");
+    const res = await uploadDocumentToDriveAction(undefined as never, fd(doc.id));
+    expect(res?.error).toMatch(/sudah ada di sana/i);
+  });
+
+  it("dokumen unggahan biasa TIDAK ikut terblokir oleh pagar ini", async () => {
+    const doc = await buatDokumen("unggahan");
+    const res = await uploadDocumentToDriveAction({}, fd(doc.id));
+    // Boleh gagal karena Drive belum terkonfigurasi di lingkungan tes — yang
+    // penting BUKAN gagal karena pagar asal-Drive.
+    expect(res?.error ?? "").not.toMatch(/berasal dari Drive KKP/i);
   });
 });

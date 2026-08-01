@@ -258,7 +258,26 @@ export default async function DokumenPage({
                       <td className="py-1.5 pr-3 text-right tabular">{Math.max(1, Math.round(d.bytes / 1024))} KB</td>
                       <td className="py-1.5 pr-3 text-ink-muted">{d.uploadedByName}</td>
                       <td className="py-1.5">
-                        {driveOn && (folderForMilestone(milestoneKeyById.get(d.id)) ?? folderForDocumentType(d.type)) ? (
+                        {/* Dokumen yang DITARIK dari Drive KKP sudah ada di Drive —
+                            menawarkan "Upload Drive" berarti menyuruh mengunggah
+                            balik berkas milik KKP ke folder KKP (lingkaran yang
+                            sama seperti impor yang membaca terbitan sendiri).
+                            Yang berguna di sini justru tautan ke berkas aslinya.
+                            DECISIONS 197. */}
+                        {d.source === "drive_kkp" ? (
+                          d.driveWebLink ? (
+                            <a
+                              href={d.driveWebLink}
+                              target="_blank"
+                              rel="noopener"
+                              className="text-[12px] text-primary hover:underline"
+                            >
+                              Lihat di Drive KKP
+                            </a>
+                          ) : (
+                            <span className="text-[12px] text-ink-faint">sudah di Drive KKP</span>
+                          )
+                        ) : driveOn && (folderForMilestone(milestoneKeyById.get(d.id)) ?? folderForDocumentType(d.type)) ? (
                           <UploadDocumentToDrive
                             documentId={d.id}
                             hasDrive={driveReadyDocIds.has(d.id)}

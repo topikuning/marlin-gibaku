@@ -136,6 +136,17 @@ enum PhotoMetadataSource {
   manual
 }
 
+/// Asal KOORDINAT yang tercap di foto. Dipisah dari waktu (PhotoMetadataSource)
+/// karena keduanya bisa berbeda sumber. `project` = titik lokasi proyek dari
+/// database — cadangan saat foto tidak membawa GPS; itu BUKAN posisi foto dan
+/// tidak boleh dihitung sebagai bukti GPS (DECISIONS 197).
+enum PhotoGpsSource {
+  exif
+  device
+  project
+  none
+}
+
 /// Master data jenis kegiatan lapangan — bisa dikelola admin di Sistem (tambah/
 /// ubah/nonaktif). Menggantikan enum FieldActivityType supaya jenis kegiatan
 /// tidak lagi hardcode. `key` = slug stabil yang disimpan di FieldActivity.type.
@@ -1035,12 +1046,19 @@ model Photo {
   activityId     String?             @map("activity_id") @db.Uuid
   r2Key          String              @unique @map("r2_key")
   thumbnailKey   String?             @map("thumbnail_key")
+  /// Berkas ASLI apa adanya (sebelum kompresi & cap) — arsip bukti mentah.
+  /// null = foto lama, diunggah sebelum arsip asli ada (DECISIONS 197).
+  originalKey    String?             @map("original_key")
+  originalBytes  Int?                @map("original_bytes")
   sha256         String
   bytes          Int
   widthPx        Int?                @map("width_px")
   heightPx       Int?                @map("height_px")
+  /// Koordinat yang TERCAP di foto — belum tentu dari EXIF (lihat `gpsSource`).
+  /// Nama kolom dipertahankan demi kompatibilitas data lama.
   exifGpsLat     Decimal?            @map("exif_gps_lat") @db.Decimal(10, 7)
   exifGpsLng     Decimal?            @map("exif_gps_lng") @db.Decimal(10, 7)
+  gpsSource      PhotoGpsSource      @default(none) @map("gps_source")
   exifTakenAt    DateTime?           @map("exif_taken_at") @db.Timestamptz
   verification   PhotoVerification   @default(pending)
   metadataSource PhotoMetadataSource @default(server) @map("metadata_source")
@@ -1057,6 +1075,7 @@ model Photo {
   @@index([reportItemId])
   @@index([activityId])
   @@index([locationId])
+  @@index([gpsSource])
   @@map("photos")
 }
 

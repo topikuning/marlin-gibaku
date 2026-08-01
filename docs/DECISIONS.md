@@ -5436,3 +5436,85 @@ sudah terpotong. Kartu artefak `saran` di halaman run juga menampilkan isinya
 jumlah butir, pemotongan di batas kata, ambang data kosong, status efektif
 WA+HTML, footer per status, dan readiness lokasi tanpa RAB · unit 660 ✓ ·
 integrasi 173 ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 197 — Cap foto hanya boleh menyatakan apa yang benar-benar diketahui + arsip berkas asli (2026-08-01)
+
+**Konteks.** User menunjuk satu foto Pengaradan dan bertanya tiga hal berturut-
+turut. Ketiganya bug, sebabnya berbeda-beda, dan ketiganya membuat sistem
+menyatakan sesuatu yang lebih pasti daripada datanya.
+
+**1. "GPS ✓" padahal koordinatnya dari database.** `savePhotoForItem` menyimpan
+koordinat APA PUN yang dicap ke kolom `exif_gps_lat/lng` — termasuk titik lokasi
+proyek yang dipakai sebagai CADANGAN saat foto tidak membawa GPS. Kolomnya
+bernama `exif_*`, jadi seluruh hilir memperlakukannya sebagai bukti EXIF:
+galeri (`hasGps: exifGpsLat != null`), KPI "Tanpa GPS", `photosNoGps` di
+readiness, dan rule kualitas radius GPS. Efek terburuknya di rule radius: foto
+ber-cadangan jaraknya PASTI nol dari titik proyek, jadi rule itu selalu lulus
+justru pada foto yang tidak punya bukti posisi sama sekali.
+
+Ditambahkan enum `PhotoGpsSource` (`exif`/`device`/`project`/`none`) dan kolom
+`photos.gps_source` — sumber KOORDINAT dipisah dari sumber WAKTU
+(`metadata_source`) karena keduanya memang bisa berbeda. Backfill menandai
+`project` untuk baris yang koordinatnya persis sama dengan `gps_lat/gps_lng`
+lokasinya (peluang GPS asli identik sampai 7 desimal ~ nol), sisanya `exif`.
+Sejak sekarang: galeri punya TIGA keadaan ("GPS ✓" / "GPS titik proyek" /
+"Tanpa GPS"), `photosNoGps` & rule radius hanya menghitung GPS asli, dan capnya
+sendiri menulis penanda kuning "· titik proyek" di sebelah koordinat.
+
+**2. Jam "07:00 WIB" di hampir semua foto.** `activity_date`/`report_date`
+adalah kolom `@db.Date`, jadi Prisma mengembalikannya sebagai tengah malam UTC.
+Diformat ke Asia/Jakarta, tengah malam UTC = **tepat 07:00**. Jadi angka jam itu
+bukan data sama sekali — itu offset zona waktu yang tercetak sebagai fakta. Lebih
+buruk lagi penandanya berbunyi "waktu unggah", padahal itu bukan waktu unggah
+maupun waktu jepret.
+
+Sekarang: kalau jam jepret tidak diketahui, cap menulis TANGGAL SAJA
+("Jumat, 31 Juli 2026") dengan penanda "jam tidak tercatat". Penanda
+"waktu unggah" dipakai hanya bila waktunya memang waktu unggah. Jam jepret asli
+(EXIF / perangkat / nama berkas WhatsApp) tetap tampil lengkap seperti biasa.
+
+**3. "Foto asli tanpa cap juga disimpan — di mana saya bisa cek?"** Jawaban
+jujurnya: TIDAK ADA. `savePhotoForItem` hanya menyimpan hasil kompresi+cap
+(`r2Key`) dan thumbnail; berkas aslinya dibaca ke memori untuk EXIF & sha256,
+lalu dibuang. Satu-satunya jejak yang tersisa adalah hash-nya.
+
+**Kenapa terlewat — ini kegagalan proses, bukan kelalaian teknis.** User
+menegaskan bahwa penyimpanan berkas asli SUDAH pernah dia minta sebelumnya,
+justru untuk keadaan seperti ini (bila cap perlu diperbaiki). Permintaan itu
+tidak pernah masuk ke `docs/DECISIONS.md`, tidak ada di dokumen mana pun, dan
+tidak ada commit yang pernah menyentuhnya — dicek dengan
+`git log --all -S originalKey` (hasil: nihil sampai DECISIONS 197 ini).
+Instruksinya hanya hidup di percakapan. Padahal CLAUDE.md poin 6 mewajibkan
+keputusan baru di-append ke DECISIONS.md — kalau itu dijalankan waktu itu,
+sesi-sesi berikutnya akan menemukannya. Karena tidak tercatat, setiap sesi
+berikutnya membaca KODE sebagai satu-satunya sumber, dan kode tidak menyimpan
+apa pun. Pelajarannya: instruksi user yang mengubah perilaku sistem harus
+ditulis SAAT diterima, bukan saat dikerjakan.
+
+Ditambahkan `photos.original_key` + `original_bytes`: byte asli diunggah apa
+adanya ke `…/<uuid>.asli.<ext>`. Best-effort — gagal mengarsip tidak
+menggagalkan unggahan (versi ber-cap sudah aman), dan rollback ikut menghapusnya.
+Diunduh lewat `/api/foto-asli/<id>`, SENGAJA di luar `/api/foto` yang PUBLIK
+(link token HMAC untuk PDF WA): berkas asli wajib sesi + akses lokasi. Foto lama
+dijawab 404 dengan penjelasan, bukan pesan menyesatkan — arsipnya memang tidak
+pernah ada dan tidak bisa dibuat surut.
+
+**4. Ikutan — "Upload Drive" pada dokumen yang DITARIK dari Drive.** Kolom Drive
+KKP di `/dokumen` menawarkan tombol unggah untuk baris yang keterangannya
+sendiri berbunyi "· dari Drive KKP": mengunggah balik berkas milik KKP ke folder
+KKP. Ini lingkaran yang sama dengan impor yang membaca terbitan sendiri
+(DECISIONS 191). Sekarang baris ber-`source = drive_kkp` menampilkan tautan
+"Lihat di Drive KKP", dan `uploadDocumentToDriveAction` MENOLAKNYA di server —
+bukan sekadar tombolnya disembunyikan.
+
+**Verifikasi**: 11 kasus unit baru (`cap-foto-jujur`) — termasuk bukti sebab
+"07:00" (DATE tengah malam UTC → 07:00 WIB) dan penanda yang ter-escape · 3
+kasus integrasi baru di `dokumen-impor-drive` · unit 671 ✓ · integrasi 176 ✓ ·
+migrasi idempoten ✓ · typecheck ✓ · lint ✓.
+
+**Belum selesai (jujur):** foto yang sudah terlanjur diunggah tidak bisa
+diperbaiki capnya — gambarnya sudah dibakar. Yang berubah surut hanya
+KLASIFIKASINYA (`gps_source`), sehingga galeri, KPI, dan rule berhenti
+menganggapnya bukti GPS. Cap "07:00" di foto lama tetap ada di gambarnya.

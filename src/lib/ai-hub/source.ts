@@ -141,7 +141,10 @@ export async function buildPortfolioPulse(
       >`
         SELECT COALESCE(dr.location_id, fa.location_id) AS loc,
                COUNT(*)::bigint AS total,
-               COUNT(*) FILTER (WHERE p.exif_gps_lat IS NULL)::bigint AS no_gps,
+               -- "tanpa GPS" = tidak ada koordinat ASLI foto. Koordinat cadangan
+               -- titik proyek (gps_source='project') BUKAN bukti GPS, meskipun
+               -- kolom exif_gps_lat-nya terisi (DECISIONS 197).
+               COUNT(*) FILTER (WHERE p.gps_source NOT IN ('exif', 'device'))::bigint AS no_gps,
                COUNT(*) FILTER (WHERE p.metadata_source = 'server')::bigint AS server_time
         FROM photos p
         LEFT JOIN daily_reports dr ON dr.id = p.report_id
@@ -376,6 +379,7 @@ export async function buildQualityDetails(
         exifTakenAt: true,
         exifGpsLat: true,
         exifGpsLng: true,
+        gpsSource: true,
         report: { select: { locationId: true, reportDate: true } },
       },
     }),
@@ -429,7 +433,11 @@ export async function buildQualityDetails(
       if (jakartaDateKey(p.exifTakenAt) !== dateKeyOf(p.report.reportDate)) d.exifDateMismatch++;
     }
     const meta = locMeta.get(locId);
-    if (p.exifGpsLat != null && p.exifGpsLng != null && meta?.gpsLat != null && meta?.gpsLng != null) {
+    // Hanya koordinat ASLI foto yang boleh diuji radius. Koordinat cadangan
+    // titik proyek jaraknya PASTI nol — memasukkannya membuat rule ini tampak
+    // selalu lulus justru pada foto yang tidak punya bukti GPS (DECISIONS 197).
+    const gpsAsli = p.gpsSource === "exif" || p.gpsSource === "device";
+    if (gpsAsli && p.exifGpsLat != null && p.exifGpsLng != null && meta?.gpsLat != null && meta?.gpsLng != null) {
       const dist = haversineMeters(
         Number(p.exifGpsLat),
         Number(p.exifGpsLng),

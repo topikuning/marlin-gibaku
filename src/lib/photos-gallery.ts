@@ -24,7 +24,12 @@ export type GalleryPhoto = {
   locationSlug: string | null;
   sourceLabel: string;
   reporterName: string;
+  /** GPS ASLI foto (EXIF / perangkat) — cadangan titik proyek TIDAK dihitung. */
   hasGps: boolean;
+  /** Koordinat yang tercap berasal dari titik lokasi proyek, bukan dari foto. */
+  gpsFromProject: boolean;
+  /** Ada arsip berkas asli (tanpa cap) yang bisa diunduh. */
+  hasOriginal: boolean;
   verification: PhotoVerification;
 };
 
@@ -98,6 +103,8 @@ export async function getPhotoGallery(locIds: string[] | null, filters: GalleryF
         exifTakenAt: true,
         exifGpsLat: true,
         exifGpsLng: true,
+        gpsSource: true,
+        originalKey: true,
         createdAt: true,
         verification: true,
         uploadedById: true,
@@ -111,7 +118,9 @@ export async function getPhotoGallery(locIds: string[] | null, filters: GalleryF
     db.photo.count({ where: { AND: [scope, { createdAt: { gte: startToday } }, { verification: "passed" }] } }),
     db.photo.count({ where: { AND: [scope, { createdAt: { gte: startToday } }, { verification: "pending" }] } }),
     db.photo.count({ where: { AND: [scope, { activity: { kendala: { not: null } } }] } }),
-    db.photo.count({ where: { AND: [scope, { exifGpsLat: null }] } }),
+    // "Tanpa GPS" = tanpa koordinat ASLI foto; cadangan titik proyek ikut
+    // terhitung di sini karena bukan bukti posisi (DECISIONS 197).
+    db.photo.count({ where: { AND: [scope, { gpsSource: { notIn: ["exif", "device"] } }] } }),
     db.location.findMany({
       where: locIds === null ? { isActive: true } : { id: { in: locIds }, isActive: true },
       select: { id: true, name: true },
@@ -153,7 +162,9 @@ export async function getPhotoGallery(locIds: string[] | null, filters: GalleryF
       locationSlug: r.report?.location.slug ?? r.activity?.location.slug ?? null,
       sourceLabel: r.report ? "Laporan Harian" : "Kegiatan Lapangan",
       reporterName: (r.uploadedById && uploaderName.get(r.uploadedById)) || "—",
-      hasGps: r.exifGpsLat != null,
+      hasGps: r.gpsSource === "exif" || r.gpsSource === "device",
+      gpsFromProject: r.gpsSource === "project",
+      hasOriginal: r.originalKey != null,
       verification: r.verification,
     };
   });

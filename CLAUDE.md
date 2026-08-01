@@ -100,6 +100,14 @@ src/
   `Contract.ppnPercent` (RAB pre-PPN, kontrak incl-PPN) — jangan hardcode.
 - Volume: `Decimal(15,3)`. Datetime: `Timestamptz`; logika harian pakai
   `jakartaDateKey/jakartaToday` (Asia/Jakarta); kolom tanggal kerja = `@db.Date`.
+- **Foto: berkas ASLI wajib diarsipkan** (`Photo.originalKey`) di samping versi
+  ber-cap — cap dibakar ke gambar dan tidak bisa dibatalkan, jadi tanpa aslinya
+  perbaikan cap mustahil. DILARANG menghapus jalur arsip ini. DECISIONS 197.
+- **Cap foto tidak boleh menyatakan yang tidak diketahui**: koordinat cadangan
+  titik proyek wajib ber-penanda + `gpsSource = project` (jangan dihitung
+  sebagai bukti GPS); jam yang tak diketahui → tulis tanggal saja. Ingat kolom
+  tanggal kerja `@db.Date` = tengah malam UTC = **07:00 WIB** kalau diformat
+  lengkap — itu bukan data. DECISIONS 197.
 - Server Component default; `"use client"` seperlunya; mutasi via Server Action
   (FormData + zod + `useActionState` + `Banner`).
 - Tabel data → `MarlinGrid`; KPI/ringkasan → `KpiCard`; status → `StatusPill`

@@ -33,8 +33,14 @@ export type StampRenderData = {
   overlayAlpha: number;
   /** Skala ukuran stamp (compact .85 / standard 1 / large 1.15). */
   sizeScale: number;
-  /** Waktu = fallback unggah (bukan jepret) → tampilkan penanda "waktu unggah". */
-  timeApprox?: boolean;
+  /**
+   * Penanda kejujuran cap (DECISIONS 197) — teks kecil kuning setelah nilainya.
+   * `timeNote` mis. "waktu unggah" / "jam tidak tercatat"; `coordNote` mis.
+   * "titik proyek" saat koordinat bukan milik foto ini melainkan cadangan dari
+   * data lokasi. null = nilainya asli, tanpa penanda.
+   */
+  timeNote?: string | null;
+  coordNote?: string | null;
 };
 
 type RenderOpts = { fontFamily: string; fontFaceCss: string };
@@ -43,6 +49,8 @@ const OVERLAY_RGB = "3,14,28";
 const PANEL_FILL = "rgba(4,20,38,0.72)";
 const TEXT_WHITE = "#FFFFFF";
 const TEXT_SUBTLE = "#C7D2E0";
+/** Penanda "nilai ini bukan data asli foto" — sengaja mencolok tapi kecil. */
+const NOTE_AMBER = "#FBBF24";
 
 function esc(s: string): string {
   return s.replace(/[<>&'"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" })[c]!);
@@ -182,8 +190,10 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
   const loc = fitLocation(d.locationName.trim() || "—", maxW, fsLoc0);
   const metaLH = Math.round(fsMeta * 1.6);
   const iconSize = Math.round(fsMeta * 1.15);
-  const metaRows: Array<{ ic: keyof typeof ICON_PATHS; text: string; boldTail?: string }> = [];
-  if (d.coordinateText) metaRows.push({ ic: "map", text: `Koordinat: ${d.coordinateText}` });
+  const metaRows: Array<{ ic: keyof typeof ICON_PATHS; text: string; boldTail?: string; note?: string }> = [];
+  if (d.coordinateText) {
+    metaRows.push({ ic: "map", text: `Koordinat: ${d.coordinateText}`, note: d.coordNote ?? undefined });
+  }
   if (d.reporterName) metaRows.push({ ic: "user", text: "Dilaporkan oleh: ", boldTail: d.reporterName });
   if (d.photoId) metaRows.push({ ic: "camera", text: `Photo ID: ${d.photoId}` });
 
@@ -241,8 +251,8 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
 
   // Tanggal & waktu.
   cy += Math.round(fsDate * 0.85);
-  const timeNote = d.timeApprox
-    ? `<tspan font-size="${Math.round(fsDate * 0.72)}" fill="#FBBF24"> · waktu unggah</tspan>`
+  const timeNote = d.timeNote
+    ? `<tspan font-size="${Math.round(fsDate * 0.72)}" fill="${NOTE_AMBER}"> · ${esc(d.timeNote)}</tspan>`
     : "";
   parts.push(
     `<text x="${x}" y="${cy}" font-family="${ff}" font-weight="400" font-size="${fsDate}" ${halo(fsDate)} fill="${TEXT_WHITE}">${esc(d.dateTimeText)}${timeNote}</text>`,
@@ -260,13 +270,16 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
     parts.push(icon(row.ic, x, cy, iconSize, accent));
     const tx = x + iconSize + Math.round(fsMeta * 0.55);
     const ty = cy + Math.round(iconSize * 0.78);
+    const note = row.note
+      ? `<tspan font-size="${Math.round(fsMeta * 0.82)}" fill="${NOTE_AMBER}"> · ${esc(row.note)}</tspan>`
+      : "";
     if (row.boldTail) {
       parts.push(
-        `<text x="${tx}" y="${ty}" font-family="${ff}" font-weight="400" font-size="${fsMeta}" fill="${TEXT_SUBTLE}">${esc(row.text)}<tspan font-weight="700" fill="${TEXT_WHITE}">${esc(row.boldTail)}</tspan></text>`,
+        `<text x="${tx}" y="${ty}" font-family="${ff}" font-weight="400" font-size="${fsMeta}" fill="${TEXT_SUBTLE}">${esc(row.text)}<tspan font-weight="700" fill="${TEXT_WHITE}">${esc(row.boldTail)}</tspan>${note}</text>`,
       );
     } else {
       parts.push(
-        `<text x="${tx}" y="${ty}" font-family="${ff}" font-weight="400" font-size="${fsMeta}" fill="${TEXT_WHITE}">${esc(row.text)}</text>`,
+        `<text x="${tx}" y="${ty}" font-family="${ff}" font-weight="400" font-size="${fsMeta}" fill="${TEXT_WHITE}">${esc(row.text)}${note}</text>`,
       );
     }
     cy += metaLH;
