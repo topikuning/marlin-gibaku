@@ -9,31 +9,19 @@
  * Pakai: pnpm docs:permission
  */
 import { writeFileSync } from "node:fs";
-import { CAPABILITIES, CROSS_LOCATION_ROLES, ROLE_CAPABILITIES } from "@/lib/authz";
+import { ALL_ROLES, CAPABILITIES, CROSS_LOCATION_ROLES, ROLE_CAPABILITIES } from "@/lib/authz";
 import type { UserRole } from "@/generated/prisma/enums";
 
-const ROLES: UserRole[] = [
-  "super_admin",
-  "program_director",
-  "regional_manager",
-  "project_manager",
-  "site_manager",
-  "field_supervisor",
-  "exec_viewer",
-];
-
-const ROLE_LABEL: Record<UserRole, string> = {
-  super_admin: "super_admin",
-  program_director: "program_director",
-  regional_manager: "regional_manager",
-  project_manager: "project_manager",
-  site_manager: "site_manager",
-  field_supervisor: "field_supervisor",
-  exec_viewer: "exec_viewer",
-};
+/**
+ * Daftar role DITURUNKAN dari `ALL_ROLES`, bukan ditulis ulang di sini —
+ * dokumen ini ada justru karena daftar manual selalu ketinggalan. Sebelumnya
+ * daftarnya hardcode, jadi role baru (`wakil_ppk`) tidak muncul di matriks
+ * meskipun skripnya dijalankan.
+ */
+const ROLES: UserRole[] = ALL_ROLES;
 
 export function renderMatrix(): string {
-  const head = `| Capability | ${ROLES.map((r) => ROLE_LABEL[r]).join(" | ")} |`;
+  const head = `| Capability | ${ROLES.join(" | ")} |`;
   const sep = `|---|${ROLES.map(() => ":-:").join("|")}|`;
   const rows = CAPABILITIES.map(
     (cap) => `| \`${cap}\` | ${ROLES.map((r) => (ROLE_CAPABILITIES[r].has(cap) ? "✓" : "—")).join(" | ")} |`,

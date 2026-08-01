@@ -31,6 +31,12 @@ export const CAPABILITIES = [
   // Buka kunci laporan final untuk koreksi — super_admin SAJA (DECISIONS 149).
   "daily_report.unfinalize",
   "field_activity.manage",
+  // Perbaiki cap foto dari berkas ASLI yang diarsipkan — SA + PD (DECISIONS 198).
+  // Cap dibakar ke gambar, jadi ini menulis ulang bukti: butuh alasan + riwayat.
+  "photo.restamp",
+  // Hapus arsip berkas asli (melegakan penyimpanan). Setelah dihapus, cap foto
+  // itu TIDAK bisa diperbaiki lagi — karena itu terpisah dari photo.restamp.
+  "photo.archive_purge",
   "wa.configure", // atur grup WhatsApp per paket + tes koneksi WAHA (sementara super_admin saja)
   "progress.view",
   "issue.manage",
@@ -187,6 +193,24 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
     "ai.generate",
     "ai.ask",
   ]),
+  /**
+   * Wakil PPK — wakil pemberi kerja (DECISIONS 199). BACA SAJA, tanpa satu pun
+   * capability yang mengubah data, dan SENGAJA tanpa `ai.*`: narasi AI tidak
+   * boleh sampai ke pemberi kerja sebagai kesimpulan MARLIN.
+   *
+   * `finance.view` juga TIDAK diberikan: menu Keuangan di sini adalah uang
+   * INTERNAL pelaksana (komitmen, invoice, pengeluaran) — bukan urusan pemberi
+   * kerja. Nilai kontrak & termin tetap terlihat lewat halaman Paket/Kontrak.
+   *
+   * Bukan CROSS_LOCATION_ROLES: hanya lokasi yang ditugaskan (permintaan user
+   * "sesuai penugasan juga"). Tanpa penugasan → NOL lokasi, gagal ke arah aman.
+   */
+  wakil_ppk: new Set<Capability>([
+    ...VIEW_ALL,
+    "portfolio.view",
+    "package.view",
+    "report.export",
+  ]),
 };
 
 /**
@@ -219,6 +243,7 @@ export const ROLE_LABEL: Record<UserRole, string> = {
   site_manager: "Site Manager",
   field_supervisor: "Pelaksana",
   exec_viewer: "Executive View",
+  wakil_ppk: "Wakil PPK",
 };
 
 export const ALL_ROLES = Object.keys(ROLE_LABEL) as UserRole[];
@@ -250,6 +275,7 @@ const ROLE_RANK: Record<UserRole, number> = {
   site_manager: 4,
   field_supervisor: 5,
   exec_viewer: 6,
+  wakil_ppk: 6,
 };
 
 /** `actor` berperingkat lebih tinggi daripada `target` (bukan setingkat). */

@@ -26,7 +26,7 @@ function gpsTone(p: GalleryPhoto): string {
  * Galeri foto: kartu dikelompokkan per tanggal + lightbox in-page. Thumbnail
  * pakai URL presigned (ringan); full dibuka saat diklik. Klik lokasi → workspace.
  */
-export function GalleryGrid({ groups }: { groups: GalleryGroup[] }) {
+export function GalleryGrid({ groups, canRestamp = false }: { groups: GalleryGroup[]; canRestamp?: boolean }) {
   const flat = useMemo(() => groups.flatMap((g) => g.photos), [groups]);
   const [open, setOpen] = useState<number | null>(null);
   const close = useCallback(() => setOpen(null), []);
@@ -114,6 +114,11 @@ export function GalleryGrid({ groups }: { groups: GalleryGroup[] }) {
               ) : (
                 <span className="text-slate-400">Foto asli tidak diarsipkan</span>
               )}
+              {canRestamp && active.hasOriginal ? (
+                <Link href={`/foto/${active.id}/cap`} className="text-primary hover:underline">
+                  Perbaiki cap →
+                </Link>
+              ) : null}
               <span className="ml-auto text-slate-400">
                 {open! + 1} / {flat.length}
               </span>

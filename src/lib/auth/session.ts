@@ -19,6 +19,9 @@ const ROLE_SESSION_SECONDS: Record<UserRole, number> = {
   super_admin: 24 * 3600,
   program_director: 24 * 3600,
   exec_viewer: 24 * 3600,
+  // Wakil PPK = pihak luar (pemberi kerja): sesi pendek seperti peran
+  // pengawasan lainnya, bukan sesi panjang gaya perangkat lapangan.
+  wakil_ppk: 24 * 3600,
 };
 
 export type SessionUser = {

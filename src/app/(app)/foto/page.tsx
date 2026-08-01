@@ -3,6 +3,7 @@ import { Camera, ChevronLeft, ChevronRight, ImageOff } from "lucide-react";
 import { PageHeader, KpiCard, Card, EmptyState, Combobox, Button } from "@/components/ui";
 import { requireUser, accessibleLocationIds } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
+import { can } from "@/lib/authz";
 import { getPhotoGallery, type GalleryFilters } from "@/lib/photos-gallery";
 import { PHOTO_VERIF_LABEL, ALL_VERIFICATIONS } from "@/lib/photo-verif";
 import type { PhotoVerification } from "@/generated/prisma/enums";
@@ -60,6 +61,13 @@ export default async function FotoLapanganPage({ searchParams }: { searchParams:
       <PageHeader
         title="Foto & Galeri Lapangan"
         description="Semua bukti visual proyek dalam satu tempat — terhubung ke lokasi, laporan/item pekerjaan atau kegiatan, pelapor, GPS, dan status verifikasi."
+        actions={
+          can(user.role, "photo.archive_purge") ? (
+            <Link href="/sistem/arsip-foto" className="text-sm text-primary hover:underline">
+              Arsip foto asli →
+            </Link>
+          ) : null
+        }
       />
 
       {/* KPI */}
@@ -122,7 +130,7 @@ export default async function FotoLapanganPage({ searchParams }: { searchParams:
           <EmptyState icon={ImageOff} title="Tidak ada foto" description="Belum ada foto yang cocok dengan filter ini." />
         </Card>
       ) : (
-        <GalleryGrid groups={data.groups} />
+        <GalleryGrid groups={data.groups} canRestamp={can(user.role, "photo.restamp")} />
       )}
 
       {/* Paginasi */}

@@ -79,6 +79,7 @@ export default async function PenggunaPage() {
           <CardBody>
             <UsersTable
               canManage={fullManage}
+              actorRole={user.role}
               users={users.map((u) => ({
                 id: u.id,
                 username: u.username ?? "—",
