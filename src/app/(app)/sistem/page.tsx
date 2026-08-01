@@ -20,6 +20,8 @@ import { getAiGuardConfig, getAiPricing } from "@/lib/ai-hub/guard";
 import { AiGuardPanel } from "./ai-guard-panel";
 import { listPrompts } from "@/lib/ai/prompts";
 import { PromptPanel } from "./prompt-panel";
+import { PengingatPanel } from "./pengingat-panel";
+import { pratinjauPengingat } from "@/lib/harian/pratinjau";
 import { CAPABILITIES, ROLE_CAPABILITIES, ROLE_LABEL, ALL_ROLES, type Capability } from "@/lib/authz";
 import type { UserRole } from "@/generated/prisma/enums";
 import {
@@ -169,6 +171,11 @@ export default async function SistemPage() {
     getWahaHits(),
   ]);
   const waHitsFmt = waHits.map((hit) => ({ ...hit, at: formatTanggalWaktu(new Date(hit.at)) }));
+
+  // Pekerjaan harian: siapa yang akan ditagih bila tombol ditekan sekarang, dan
+  // apakah penjadwal luarnya sudah bisa masuk sama sekali (DECISIONS 205).
+  const pratinjau = await pratinjauPengingat(user.orgId);
+  const cronSecretSiap = (process.env.CRON_SECRET ?? "").length > 0;
 
   const roleCountMap = new Map<UserRole, number>(roleCounts.map((r) => [r.role, r._count._all]));
   const securityLogs = auditLogs
@@ -509,6 +516,47 @@ export default async function SistemPage() {
   );
 
   /* ── PANEL: Audit Trail ───────────────────────────────────────────────── */
+  const harianPanel: ReactNode = (
+    <div className="space-y-5">
+      <Card>
+        <CardHeader
+          title="Pengingat laporan harian"
+          subtitle="Kirim sekarang, di luar jadwal — memakai perhitungan yang sama dengan penjadwal"
+        />
+        <CardBody>
+          <PengingatPanel pratinjau={pratinjau} />
+        </CardBody>
+      </Card>
+      <Card>
+        <CardHeader title="Penjadwal otomatis" subtitle="Dipicu dari luar, sekali sehari" />
+        <CardBody className="space-y-3 text-[13px] text-ink-muted">
+          <p>
+            Pekerjaan harian (aktivasi SPMK yang jatuh tempo + pengingat WA) dijalankan penjadwal
+            LUAR yang memanggil <code className="rounded bg-surface-inset px-1 py-0.5">POST /api/cron/harian</code>{" "}
+            dengan header <code className="rounded bg-surface-inset px-1 py-0.5">x-cron-secret</code>.
+            Repo ini menyertakan workflow GitHub Actions{" "}
+            <code className="rounded bg-surface-inset px-1 py-0.5">.github/workflows/cron-harian.yml</code>{" "}
+            yang berjalan tiap hari 09.00 UTC (16.00 WIB).
+          </p>
+          <HealthRow
+            label="CRON_SECRET"
+            detail={
+              cronSecretSiap
+                ? "Terisi — endpoint penjadwal menerima permintaan yang membawa rahasia yang benar."
+                : "KOSONG — endpoint penjadwal menolak SEMUA permintaan, jadi pekerjaan harian tidak berjalan."
+            }
+            tone={cronSecretSiap ? "success" : "warning"}
+            status={cronSecretSiap ? "Terisi" : "Belum diisi"}
+          />
+          <p>
+            Tanpa penjadwal, tombol di atas tetap bisa dipakai — bedanya harus ditekan manusia tiap
+            hari.
+          </p>
+        </CardBody>
+      </Card>
+    </div>
+  );
+
   const auditPanel: ReactNode = (
     <div className="space-y-5">
       <Card>
@@ -596,6 +644,7 @@ export default async function SistemPage() {
           { key: "prompt", label: "Prompt AI" },
           { key: "access", label: "Akses & Keamanan" },
           { key: "branding", label: "Branding & Photo Stamp" },
+          { key: "harian", label: "Pekerjaan Harian" },
           { key: "audit", label: "Audit Trail" },
         ]}
         panels={{
@@ -605,6 +654,7 @@ export default async function SistemPage() {
           prompt: promptPanel,
           access: accessPanel,
           branding: brandingPanel,
+          harian: harianPanel,
           audit: auditPanel,
         }}
       />

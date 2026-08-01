@@ -97,18 +97,33 @@ export async function aktifkanSpmkJatuhTempo(now = new Date()): Promise<HasilHar
 /* ── 2. Pengingat laporan harian ─────────────────────────────────────────── */
 
 /**
- * Kirim pengingat WA ke penanggung jawab lokasi yang laporannya BELUM lengkap
- * hari ini. Yang sudah melapor tidak dikirimi apa pun — pengingat yang datang
- * setiap hari tanpa peduli isinya akan berhenti dibaca dalam seminggu.
- *
  * Penerima: pemegang penugasan aktif di lokasi tsb yang punya nomor WA. Peran
  * lain (PM/AM) sengaja tidak ikut — keputusan user 2026-08-01.
  */
-export async function kirimPengingatHarian(now = new Date()): Promise<HasilHarian["pengingat"]> {
-  const dateKey = jakartaDateKey(now);
-  const tanggal = parseDateKey(dateKey)!;
-  const hasil = { terkirim: 0, gagal: 0, dilewati: 0 };
-  if (!isWahaConfigured()) return hasil;
+export type PenerimaPengingat = {
+  userId: string;
+  nama: string;
+  wa: string;
+  lokasi: LokasiTertagih[];
+};
+
+/**
+ * Siapa yang perlu ditagih hari ini, dan lokasi apa saja per orang.
+ *
+ * DIPAKAI BERSAMA oleh pengiriman terjadwal dan pratinjau di halaman sistem
+ * (DECISIONS 205) — kalau dua jalur ini punya perhitungan sendiri-sendiri,
+ * admin bisa melihat daftar yang berbeda dari yang benar-benar dikirim.
+ */
+export async function kumpulkanPengingat(
+  now = new Date(),
+  /**
+   * Batasi ke satu organisasi. Cron sistem memanggilnya TANPA ini (semua
+   * tenant, memang tugasnya); tombol manual admin WAJIB mengisinya — admin
+   * organisasi A tidak boleh mengirim WA ke orang organisasi B (DECISIONS 150).
+   */
+  orgId?: string,
+): Promise<PenerimaPengingat[]> {
+  const tanggal = parseDateKey(jakartaDateKey(now))!;
 
   // Lokasi yang WAJIB punya laporan hari ini: berjalan, di paket pelaksanaan,
   // dan SPMK-nya sudah lewat (tidak menagih hari sebelum pekerjaan dimulai).
@@ -116,7 +131,11 @@ export async function kirimPengingatHarian(now = new Date()): Promise<HasilHaria
     where: {
       status: "berjalan",
       isActive: true,
-      package: { stage: "pelaksanaan", contract: { startDate: { not: null, lte: tanggal } } },
+      package: {
+        stage: "pelaksanaan",
+        contract: { startDate: { not: null, lte: tanggal } },
+        ...(orgId ? { orgId } : {}),
+      },
     },
     select: {
       id: true,
@@ -149,8 +168,36 @@ export async function kirimPengingatHarian(now = new Date()): Promise<HasilHaria
     }
   }
 
+  // Urut abjad supaya daftar pratinjau di halaman sistem stabil dari waktu ke
+  // waktu — daftar yang berubah urutan tiap muat ulang susah dibaca.
+  return [...perUser.entries()]
+    .map(([userId, e]) => ({ userId, ...e }))
+    .sort((a, b) => a.nama.localeCompare(b.nama, "id"));
+}
+
+/**
+ * Kirim pengingat WA ke penanggung jawab lokasi yang laporannya BELUM lengkap
+ * hari ini. Yang sudah melapor tidak dikirimi apa pun — pengingat yang datang
+ * setiap hari tanpa peduli isinya akan berhenti dibaca dalam seminggu.
+ */
+export async function kirimPengingatHarian(
+  now = new Date(),
+  orgId?: string,
+): Promise<HasilHarian["pengingat"]> {
+  const dateKey = jakartaDateKey(now);
+  const tanggal = parseDateKey(dateKey)!;
+  const hasil = { terkirim: 0, gagal: 0, dilewati: 0 };
+  // `isWahaConfigured` ASINKRON (baca konfigurasi dari DB). Versi pertama
+  // menulisnya `!isWahaConfigured()` — menegasikan Promise selalu false,
+  // sehingga pengamannya TIDAK PERNAH aktif: saat WAHA mati, baris pengingat
+  // tetap ditulis lalu semua pengiriman gagal, dan karena UNIQUE (user, hari)
+  // percobaan yang benar berikutnya di hari itu ikut terlewat.
+  if (!(await isWahaConfigured())) return hasil;
+
+  const penerima = await kumpulkanPengingat(now, orgId);
   const tanggalTampil = formatTanggal(tanggal);
-  for (const [userId, e] of perUser) {
+  for (const e of penerima) {
+    const userId = e.userId;
     const teks = pesanPengingat(e.nama, tanggalTampil, e.lokasi);
     if (!teks) continue;
 
