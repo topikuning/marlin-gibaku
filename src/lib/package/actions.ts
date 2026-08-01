@@ -12,7 +12,7 @@ import {
   revertTargetFor,
   PACKAGE_STAGE_LABEL,
 } from "@/lib/lifecycle";
-import { parseDateKey } from "@/lib/format";
+import { jakartaDateKey, parseDateKey } from "@/lib/format";
 import { getLocationsProgress } from "@/lib/progress";
 import { weightedRealizedPct } from "@/lib/progress-calc";
 import { regenerateBaseline } from "@/lib/rab/import";
@@ -1240,6 +1240,16 @@ export async function startPelaksanaan(
       data: { startDate: spmkDate, endDate },
     });
 
+    // SPMK BERTANGGAL MASA DEPAN: dicatat, tapi pelaksanaannya BELUM dimulai
+    // (DECISIONS 202). Dulu status langsung naik apa pun tanggalnya — mengisi
+    // SPMK 3 Agustus pada 1 Agustus membuat semua lokasi Berjalan dua hari
+    // lebih awal, kurva-S menghitung Minggu 1, dan deviasi negatif muncul untuk
+    // hari yang pekerjaannya belum boleh dimulai. Aktivasinya dijalankan
+    // penjadwal harian pada tanggal SPMK-nya.
+    if (spmkDate.getTime() > parseDateKey(jakartaDateKey(new Date()))!.getTime()) {
+      return { terjadwal: spmkDateStr as string };
+    }
+
     await tx.package.update({ where: { id: id.data }, data: { stage: "pelaksanaan" } });
     await tx.packageStageHistory.create({
       data: {
@@ -1270,6 +1280,18 @@ export async function startPelaksanaan(
     return { started: startable.length };
   });
   if ("error" in result) return { error: result.error };
+
+  if ("terjadwal" in result) {
+    await audit(actor.id, "package.spmk_scheduled", "package", id.data, { spmkDate: spmkDateStr });
+    revalidatePath("/paket");
+    revalidatePath(`/paket/${id.data}`, "layout");
+    return {
+      success:
+        `SPMK ${spmkDateStr} dicatat. Pelaksanaan BELUM dimulai — status paket & lokasi ` +
+        `berubah otomatis pada tanggal tersebut, supaya kurva-S tidak menghitung hari ` +
+        `sebelum pekerjaan dimulai.`,
+    };
+  }
 
   await audit(actor.id, "package.start_pelaksanaan", "package", id.data, {
     locationsStarted: result.started,

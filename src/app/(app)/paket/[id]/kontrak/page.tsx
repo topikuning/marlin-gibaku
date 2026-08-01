@@ -150,7 +150,17 @@ export default async function KontrakPage({
                 <dt className="text-ink-muted">Mulai (SPMK)</dt>
                 <dd className="font-medium text-ink">
                   {contract.startDate ? (
-                    formatTanggal(contract.startDate)
+                    <>
+                      {formatTanggal(contract.startDate)}
+                      {/* SPMK sudah dicatat tapi paket masih Kontrak = tanggalnya
+                          belum tiba. Tanpa keterangan ini, tanggal yang tampil
+                          terbaca seolah pelaksanaan sudah jalan (DECISIONS 202). */}
+                      {pkg.stage === "kontrak" ? (
+                        <span className="ml-1 text-xs font-normal text-warning">
+                          · terjadwal, pelaksanaan belum dimulai
+                        </span>
+                      ) : null}
+                    </>
                   ) : (
                     <span className="text-ink-muted italic">Belum terbit</span>
                   )}

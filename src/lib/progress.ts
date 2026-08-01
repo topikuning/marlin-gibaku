@@ -33,14 +33,25 @@ export type LocationProgress = {
 };
 
 /** Nomor minggu berjalan sejak startDate, clamp [1, totalWeeks]. */
+/**
+ * Minggu ke berapa proyek berjalan. **0 = belum mulai** (hari ini masih sebelum
+ * SPMK) — dulu di-clamp ke minimal 1, sehingga paket yang SPMK-nya belum tiba
+ * sudah dianggap berada di Minggu 1: rencana minggu 1 terbaca sebagai target
+ * yang seharusnya sudah tercapai, realisasi 0, dan muncul deviasi negatif untuk
+ * hari yang pekerjaannya belum boleh dimulai (DECISIONS 202).
+ */
 export function currentWeekNumber(startDate: Date, totalWeeks: number, now = new Date()): number {
   const wk = Math.floor((now.getTime() - startDate.getTime()) / WEEK_MS) + 1;
-  return Math.max(1, Math.min(wk, Math.max(totalWeeks, 1)));
+  if (wk < 1) return 0;
+  return Math.min(wk, Math.max(totalWeeks, 1));
 }
 
 /** Plan % kumulatif pada minggu tertentu dari deret baseline (clamp minggu terakhir). */
 export function planPctAtWeek(points: number[], weekNumber: number): number {
   if (points.length === 0) return 0;
+  // Minggu 0 = belum mulai → rencana 0%. Tanpa ini, minggu 0 jatuh ke index 0
+  // dan mengembalikan rencana MINGGU 1 (DECISIONS 202).
+  if (weekNumber <= 0) return 0;
   const idx = Math.max(0, Math.min(weekNumber - 1, points.length - 1));
   return points[idx];
 }

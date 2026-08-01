@@ -97,6 +97,7 @@ type UserRow = {
   username: string;
   fullName: string;
   email: string | null;
+  waNumber: string | null;
   role: UserRole;
   isActive: boolean;
   mustChangePassword: boolean;
@@ -122,6 +123,16 @@ export function UserForm({ locations, roles }: { locations: LocationOption[]; ro
       <div>
         <Label htmlFor="u-email">Email (opsional)</Label>
         <Input id="u-email" name="email" type="email" />
+      </div>
+      <div>
+        <Label htmlFor="u-wa">Nomor WhatsApp (opsional)</Label>
+        <Input id="u-wa" name="waNumber" inputMode="tel" placeholder="0812xxxxxxx / 62812xxxxxxx" />
+        {/* Tanpa nomor, orang ini TIDAK dikirimi pengingat apa pun — dikatakan
+            terus terang supaya "kok saya tidak dapat WA" tidak jadi misteri
+            (DECISIONS 202). */}
+        <p className="mt-1 text-[11px] text-ink-faint">
+          Dipakai pengingat laporan harian. Dikosongkan = tidak menerima pengingat.
+        </p>
       </div>
       <div>
         <Label htmlFor="u-role" required>Peran</Label>
@@ -178,6 +189,17 @@ function EditProfile({ user, onClose }: { user: UserRow; onClose: () => void }) 
       <div>
         <Label htmlFor={`ep-email-${user.id}`}>Email (opsional)</Label>
         <Input id={`ep-email-${user.id}`} name="email" type="email" defaultValue={user.email ?? ""} className="w-56" />
+      </div>
+      <div>
+        <Label htmlFor={`ep-wa-${user.id}`}>Nomor WhatsApp</Label>
+        <Input
+          id={`ep-wa-${user.id}`}
+          name="waNumber"
+          inputMode="tel"
+          defaultValue={user.waNumber ?? ""}
+          placeholder="0812xxxxxxx"
+          className="w-56"
+        />
       </div>
       <Button size="sm" type="submit" loading={pending}>Simpan</Button>
       <Button size="sm" type="button" variant="ghost" onClick={onClose}>Tutup</Button>

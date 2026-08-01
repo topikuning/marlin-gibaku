@@ -10,9 +10,11 @@ import {
   cumulativeFromWeeklyRows,
   rescheduleToCurve,
   segmentsFromWeekly,
+  validateBaselinePoints,
   weeklyFromSegments,
   type WeekSegment,
 } from "@/lib/scurve/generate";
+import { susunJadwalApaAdanya, type HasilApaAdanya } from "@/lib/scurve/jadwal-verbatim";
 
 /**
  * Layer baseline (kurva-S rencana ber-versi) + deret rencana vs realisasi.
@@ -36,23 +38,10 @@ export async function getActiveBaseline(locationId: string) {
   });
 }
 
-/** Validasi deret plan: 0..100, monotonik naik, akhir 100 ± 0.5. */
-export function validateBaselinePoints(points: number[]): string | null {
-  if (points.length === 0) return "Deret rencana kosong.";
-  let prev = -Infinity;
-  for (const [i, p] of points.entries()) {
-    if (!Number.isFinite(p) || p < 0 || p > 100) {
-      return `Minggu ${i + 1}: nilai ${p} di luar rentang 0–100.`;
-    }
-    if (p < prev) return `Minggu ${i + 1}: kurva turun (${prev} → ${p}) — harus monotonik naik.`;
-    prev = p;
-  }
-  const last = points[points.length - 1];
-  if (Math.abs(last - 100) > 0.5) {
-    return `Minggu terakhir harus 100% (±0.5), sekarang ${last}%.`;
-  }
-  return null;
-}
+// Validator deret rencana tinggal di `scurve/generate` (murni, bisa diuji tanpa
+// DB) — di-reexport di sini karena seluruh pemanggilnya mengenalnya dari modul
+// baseline.
+export { validateBaselinePoints };
 
 /**
  * Simpan kurva rencana hasil edit manual → baseline BARU source "manual"
@@ -380,18 +369,28 @@ export async function saveCategorySchedule(
 }
 
 /**
- * Simpan jadwal dari MATRIKS mingguan mentah per kategori (mis. hasil re-import
- * Time Schedule Excel yang diedit sipil) → baseline BARU "manual". Bentuk/jeda
- * dari Excel DIPERTAHANKAN, tetapi bobot tiap kategori DI-RENORMALISASI ke bobot
- * RAB (Σ weekly = weightPct RAB) — bobot tak pernah dipercaya dari luar
- * (CLAUDE.md). Kategori yang tak ada di Excel / total 0 → fallback jadwal auto
- * (agar kurva tetap tuntas 100%). DECISIONS 103.
+ * Simpan jadwal dari MATRIKS mingguan mentah per kategori (hasil re-import Time
+ * Schedule Excel yang diedit sipil) → baseline BARU "manual". DECISIONS 103/203.
+ *
+ * Dua mode, dan DEFAULTNYA `apaadanya` (keputusan user 2026-08-01):
+ *
+ *   `apaadanya` — angka Excel dipakai sebagaimana adanya, termasuk bobot tiap
+ *     pekerjaan. Orang yang mengunggah jadwalnya sendiri sedang menyatakan
+ *     rencananya; menskalakan ulang diam-diam membuat uploadnya terbaca
+ *     "tidak dibaca sistem". Lihat `scurve/jadwal-verbatim.ts`.
+ *
+ *   `rab` — HARUS DIMINTA: bentuk/jeda dari Excel dipertahankan tetapi bobot
+ *     tiap kategori direnormalisasi ke bobot RAB, dan kategori yang tak ada di
+ *     Excel diisi jadwal otomatis agar kurva tuntas 100%.
  */
+export type ModeJadwal = "apaadanya" | "rab";
+
 export async function saveCategoryWeekly(
   locationId: string,
   input: { lineageKey: string; weekly: number[] }[],
   userId: string,
   note: string,
+  mode: ModeJadwal = "apaadanya",
 ) {
   const base = await activeCategoriesWithWeights(locationId);
   if (!base) throw new Error("Belum ada revisi RAB aktif — impor RAB dulu.");
@@ -399,29 +398,46 @@ export async function saveCategoryWeekly(
   const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
 
   const byKey = new Map(input.map((r) => [r.lineageKey, r.weekly]));
-  const auto = autoCategorySchedule(
-    base.categories.map((c) => ({ lineageKey: c.lineageKey, name: c.name, amount: c.amount })),
-    totalWeeks,
-  );
-  const autoByKey = new Map(auto.map((a) => [a.lineageKey, a]));
 
   let matched = 0;
-  const rows = base.categories.map((c) => {
-    const weightPct = (Number(c.amount) / base.grand) * 100;
-    const raw = byKey.get(c.lineageKey);
-    const posSum = raw && raw.length === totalWeeks ? raw.reduce((s, v) => s + (v > 0 ? v : 0), 0) : 0;
-    let weekly: number[];
-    if (raw && raw.length === totalWeeks && posSum > 0) {
-      // Pertahankan bentuk/jeda dari Excel, skalakan ke bobot RAB.
-      const k = weightPct / posSum;
-      weekly = raw.map((v) => (v > 0 ? Math.round(v * k * 1e6) / 1e6 : 0));
-      matched += 1;
-    } else {
-      const a = autoByKey.get(c.lineageKey);
-      weekly = weeklyFromSegments(weightPct, [{ startWeek: a?.startWeek ?? 1, endWeek: a?.endWeek ?? totalWeeks }], totalWeeks);
-    }
-    return { lineageKey: c.lineageKey, name: c.name, weightPct, weekly };
-  });
+  let rows: { lineageKey: string; name: string; weightPct: number; weekly: number[] }[];
+  let verbatim: HasilApaAdanya | null = null;
+
+  if (mode === "apaadanya") {
+    verbatim = susunJadwalApaAdanya(
+      base.categories.map((c) => ({
+        lineageKey: c.lineageKey,
+        name: c.name,
+        weightRabPct: (Number(c.amount) / base.grand) * 100,
+      })),
+      byKey,
+      totalWeeks,
+    );
+    rows = verbatim.rows;
+    matched = verbatim.cocok;
+  } else {
+    const auto = autoCategorySchedule(
+      base.categories.map((c) => ({ lineageKey: c.lineageKey, name: c.name, amount: c.amount })),
+      totalWeeks,
+    );
+    const autoByKey = new Map(auto.map((a) => [a.lineageKey, a]));
+    rows = base.categories.map((c) => {
+      const weightPct = (Number(c.amount) / base.grand) * 100;
+      const raw = byKey.get(c.lineageKey);
+      const posSum = raw && raw.length === totalWeeks ? raw.reduce((s, v) => s + (v > 0 ? v : 0), 0) : 0;
+      let weekly: number[];
+      if (raw && raw.length === totalWeeks && posSum > 0) {
+        // Pertahankan bentuk/jeda dari Excel, skalakan ke bobot RAB.
+        const k = weightPct / posSum;
+        weekly = raw.map((v) => (v > 0 ? Math.round(v * k * 1e6) / 1e6 : 0));
+        matched += 1;
+      } else {
+        const a = autoByKey.get(c.lineageKey);
+        weekly = weeklyFromSegments(weightPct, [{ startWeek: a?.startWeek ?? 1, endWeek: a?.endWeek ?? totalWeeks }], totalWeeks);
+      }
+      return { lineageKey: c.lineageKey, name: c.name, weightPct, weekly };
+    });
+  }
 
   const weekly = cumulativeFromWeeklyRows(
     rows.map((r) => r.weekly),
@@ -450,7 +466,7 @@ export async function saveCategoryWeekly(
       return pw.length === r.weekly.length && pw.every((v, i) => Math.abs(v - r.weekly[i]) < 0.005);
     })
   ) {
-    return { baselineNo: active.baselineNo, unchanged: true as const, matched };
+    return { baselineNo: active.baselineNo, unchanged: true as const, matched, mode, verbatim };
   }
 
   const baseline = await db.$transaction(async (tx) => {
@@ -491,8 +507,15 @@ export async function saveCategoryWeekly(
     categories: rows.length,
     matched,
     weeks: weekly.length,
+    // Modenya DICATAT: baseline "apa adanya" boleh berbeda dari bobot RAB, jadi
+    // pembaca angka itu nanti harus bisa tahu bahwa itu pilihan, bukan bug.
+    mode,
+    totalExcel: verbatim ? Math.round(verbatim.totalExcel * 1000) / 1000 : undefined,
+    diskalakan: verbatim ? verbatim.faktorSkala !== 1 : undefined,
+    tanpaJadwal: verbatim?.tanpaJadwal.length,
+    bedaDariRab: verbatim?.selisihBobot.length,
   });
-  return { baselineNo: baseline.baselineNo, unchanged: false as const, matched };
+  return { baselineNo: baseline.baselineNo, unchanged: false as const, matched, mode, verbatim };
 }
 
 /**

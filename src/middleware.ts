@@ -3,7 +3,16 @@ import { NextResponse, type NextRequest } from "next/server";
 // Catatan: /api/waha/webhook WAJIB publik — WAHA mem-POST tanpa cookie sesi;
 // endpoint itu mengautentikasi dirinya sendiri via token (?token=/header).
 // /api/foto = link foto publik untuk PDF yang dikirim ke WA (auth via token HMAC).
-const PUBLIC_PATHS = ["/masuk", "/api/health", "/api/ready", "/api/waha/webhook", "/api/foto"];
+// /api/cron = pekerjaan terjadwal, otentikasi lewat header CRON_SECRET (bukan
+// sesi — penjadwal tidak punya cookie). Lihat api/cron/harian/route.ts.
+const PUBLIC_PATHS = [
+  "/masuk",
+  "/api/health",
+  "/api/ready",
+  "/api/waha/webhook",
+  "/api/foto",
+  "/api/cron",
+];
 const SESSION_COOKIE = "marlin_session";
 
 /**

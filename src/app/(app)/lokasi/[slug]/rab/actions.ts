@@ -12,8 +12,10 @@ import {
   saveCategoryWeekly,
   updateBaselinePoints,
   validateBaselinePoints,
+  type ModeJadwal,
 } from "@/lib/baseline";
 import { parseJadwalWorkbook } from "@/lib/scurve/jadwal-import";
+import { ringkasApaAdanya } from "@/lib/scurve/jadwal-verbatim";
 import { suggestWeeklyPlan, type WeeklySuggestionResult } from "@/lib/plan/suggest";
 
 export type RabActionState = { error?: string; success?: string } | undefined;
@@ -281,8 +283,11 @@ const norm = (s: string): string => s.normalize("NFKC").toUpperCase().replace(/\
 
 /**
  * Impor Time Schedule Excel yang diedit sipil → jadwal (matriks mingguan per
- * kategori) → baseline BARU. Bentuk/jeda dari Excel dipertahankan; bobot
- * di-renormalisasi ke RAB. Cocokkan kategori via kode, fallback nama. DECISIONS 103.
+ * kategori) → baseline BARU. Cocokkan kategori via kode, fallback nama.
+ *
+ * DEFAULT: angka Excel dipakai APA ADANYA — jadwal yang diunggah orang adalah
+ * pernyataan rencananya, dan sistem mengikutinya (DECISIONS 203). Renormalisasi
+ * bobot ke RAB hanya terjadi bila DIMINTA lewat centang `sesuaikanRab`.
  */
 export async function importJadwalAction(_prev: RabActionState, formData: FormData): Promise<RabActionState> {
   const locId = z.uuid().safeParse(formData.get("locationId"));
@@ -344,14 +349,25 @@ export async function importJadwalAction(_prev: RabActionState, formData: FormDa
       return { error: "Tak satu pun pekerjaan di Excel cocok dengan kategori RAB (kode/nama) lokasi ini." };
     }
 
-    const result = await saveCategoryWeekly(location.id, input, user.id, "Impor jadwal dari Excel");
+    // Tanpa centang = apa adanya. Tidak ada mode "otomatis" yang menebak: yang
+    // tidak diminta tidak dilakukan.
+    const mode: ModeJadwal = formData.get("sesuaikanRab") === "1" ? "rab" : "apaadanya";
+    const note =
+      mode === "apaadanya"
+        ? "Impor jadwal dari Excel (angka Excel apa adanya)"
+        : "Impor jadwal dari Excel (bobot disesuaikan ke RAB)";
+
+    const result = await saveCategoryWeekly(location.id, input, user.id, note, mode);
     revalidateRab(location.slug);
     revalidatePath(`/lokasi/${location.slug}/progress`);
+    const rincian = result.verbatim
+      ? ` ${ringkasApaAdanya(result.verbatim)}`
+      : ` ${result.matched} dari ${catNodes.length} pekerjaan cocok; bobot mengikuti RAB.`;
     if (result.unchanged) {
-      return { success: `Tidak ada perubahan — jadwal identik dengan baseline #${result.baselineNo} yang aktif (${result.matched} pekerjaan cocok).` };
+      return { success: `Tidak ada perubahan — jadwal identik dengan baseline #${result.baselineNo} yang aktif.${rincian}` };
     }
     return {
-      success: `Jadwal terimpor — baseline #${result.baselineNo} aktif (${result.matched} dari ${catNodes.length} pekerjaan cocok). Versi sebelumnya ada di Riwayat baseline.`,
+      success: `Jadwal terimpor — baseline #${result.baselineNo} aktif.${rincian} Versi sebelumnya ada di Riwayat baseline.`,
     };
   } catch (err) {
     return fail(err);
