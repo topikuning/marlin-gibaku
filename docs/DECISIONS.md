@@ -5700,3 +5700,83 @@ muncul dan id/nama A & D tidak pernah ikut dalam data halaman, jumlah
 tersembunyi = 2, scope kosong → nol lokasi dgn angka tersembunyi utuh, dan
 super_admin tetap melihat keempatnya · unit 683 ✓ · integrasi 207 ✓ ·
 typecheck ✓ · lint ✓.
+
+---
+
+## 202 — Penjadwal harian: SPMK terjadwal + pengingat WA laporan harian (2026-08-01)
+
+**Konteks.** Dua permintaan yang ternyata berbagi satu kebutuhan. User:
+*"pengguna seharusnya ada nomor wa yang diisi, lalu aku ingin tiap hari ada auto
+wa ke tiap penanggung jawab, bahwa laporan hari ini sudah diinput atau belum"* —
+dan, di pesan yang sama, temuan: *"hari ini tanggal 1 agustus, sengaja aku input
+SPMK tanggal 3 agustus, kenapa sistem memposisikan sudah pelaksanaan?"*
+
+### Bug SPMK
+
+`startPelaksanaan` TIDAK PERNAH membandingkan tanggal SPMK dengan hari ini.
+Begitu tombolnya ditekan, paket langsung `stage = pelaksanaan` dan semua
+lokasinya jadi `berjalan`, apa pun tanggal yang diisi. Akibatnya, dua hari
+sebelum pekerjaan boleh dimulai:
+
+- `currentWeekNumber` menghasilkan minggu 0 lalu **di-clamp ke 1**, jadi rencana
+  minggu 1 terbaca sebagai target yang seharusnya sudah tercapai → **deviasi
+  negatif palsu**;
+- menu Hari Ini meminta laporan untuk tanggal sebelum SPMK;
+- (dan nanti) pengingat WA akan menagih laporan untuk hari yang pekerjaannya
+  belum boleh dimulai.
+
+Perbaikan: SPMK bertanggal masa depan **dicatat** (`Contract.startDate`) tetapi
+paket TETAP `kontrak`; penjadwal harian menaikkannya pada tanggalnya. Sekaligus
+`currentWeekNumber` kini mengembalikan **0 = belum mulai** dan
+`planPctAtWeek(…, 0)` mengembalikan **0%**, bukan rencana minggu 1 — supaya
+angkanya tetap benar bahkan bila ada jalur lain yang meloloskan tanggal mundur.
+
+### Penjadwal
+
+`POST /api/cron/harian` + header `x-cron-secret` (env `CRON_SECRET`), dipicu
+penjadwal LUAR (Railway Cron) sekali sehari — disarankan 16:00 WIB = 09:00 UTC.
+Bukan sesi: penjadwal tidak punya cookie. Tanpa/salah rahasia dijawab **404**,
+bukan 401, supaya keberadaan endpoint-nya tidak bisa dipetakan; perbandingannya
+`timingSafeEqual`. `CRON_SECRET` kosong = endpoint menolak semua (fitur mati,
+bukan terbuka).
+
+**Aman dipicu berkali-kali**, dan ini bukan sekadar kerapian: pekerjaan
+otomatis yang dobel = pesan WA dobel ke HP orang lapangan.
+- Aktivasi SPMK membaca ulang status DI DALAM transaksi (bisa berbarengan dengan
+  tombol manual).
+- Pengingat dijaga `UNIQUE (user_id, date_key)` di `daily_reminder_logs`, dan
+  barisnya ditulis **sebelum** pesan dikirim — kalau dibalik, gagal mencatat
+  berarti kirim ulang.
+
+### Pengingat
+
+`User.waNumber` (dinormalkan `normalizeWaTarget` sekali saat disimpan; kosong =
+tidak dikirimi apa pun, dan itu dikatakan di formnya). Penerima: **pemegang
+penugasan aktif di lokasi itu** — PM/AM sengaja tidak ikut (keputusan user).
+
+Dikirim **sekali sehari, HANYA ke yang belum lengkap**. Yang sudah mengirim
+tidak diganggu: pengingat yang datang tiap hari tanpa peduli isinya akan
+berhenti dibaca dalam seminggu, dan pengingat yang tidak dibaca sama saja dengan
+tidak ada. Satu orang tiga lokasi → SATU pesan tiga baris. "Belum ada laporan"
+dibedakan dari "masih DRAF" — dua masalah berbeda. Lokasi yang SPMK-nya belum
+tiba tidak ditagih.
+
+### Ikutan
+
+`changedById` pada `package_stage_history` & `location_status_history` kini
+NULLABLE: aktivasi terjadwal dilakukan SISTEM, dan mengisinya dengan user mana
+pun akan memalsukan siapa yang bertindak. Ditampilkan sebagai
+"Sistem (terjadwal)", bukan "—" yang terbaca seolah pelakunya tak diketahui.
+
+**Verifikasi**: 9 kasus unit baru (`pengingat-harian` — isi pesan, bedakan draf,
+satu pesan per orang, plus BUKTI minggu-0: `currentWeekNumber(SPMK 3 Agt, …, 1
+Agt)` = 0 dan `planPctAtWeek(kurva, 0)` = 0) · 13 kasus integrasi baru
+(`tugas-harian` — SPMK masa depan tidak diaktifkan, aktif pada tanggalnya,
+riwayat mencatat SISTEM, idempoten, pengingat hanya ke yang belum lapor,
+idempoten, tanpa nomor dilewati, SPMK belum tiba tidak ditagih, WAHA mati tidak
+melempar error, kegagalan tercatat sebagai gagal) · unit 693 ✓ · integrasi 220 ✓
+· typecheck ✓ · lint ✓.
+
+**Yang belum**: penjadwalnya belum dipasang di Railway — `CRON_SECRET` harus
+diisi dan cron job dibuat. Sampai itu dilakukan, endpoint-nya menolak semua
+permintaan dan kedua fitur ini tidak berjalan.

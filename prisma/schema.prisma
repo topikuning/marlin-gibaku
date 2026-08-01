@@ -370,6 +370,9 @@ model User {
   tokenVersion       Int       @default(0) @map("token_version")
   lastLoginAt        DateTime? @map("last_login_at") @db.Timestamptz
   // Pembuat akun (berjenjang: PM→SM/Pelaksana, SM→Pelaksana). Null utk akun awal/seed.
+  /// Nomor WhatsApp (format 62xxxxxxxxxx, hasil normalizeWaTarget). Dipakai
+  /// pengingat laporan harian (DECISIONS 202). null = tidak dikirimi apa pun.
+  waNumber     String?  @map("wa_number")
   createdById        String?   @map("created_by_id") @db.Uuid
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz
@@ -561,7 +564,8 @@ model PackageStageHistory {
   packageId   String        @map("package_id") @db.Uuid
   fromStage   PackageStage? @map("from_stage")
   toStage     PackageStage  @map("to_stage")
-  changedById String        @map("changed_by_id") @db.Uuid
+  /// null = dilakukan SISTEM (aktivasi SPMK terjadwal, DECISIONS 202).
+  changedById String?       @map("changed_by_id") @db.Uuid
   changedAt   DateTime      @default(now()) @map("changed_at") @db.Timestamptz
   note        String?
 
@@ -703,7 +707,9 @@ model LocationStatusHistory {
   locationId  String          @map("location_id") @db.Uuid
   fromStatus  LocationStatus? @map("from_status")
   toStatus    LocationStatus  @map("to_status")
-  changedById String          @map("changed_by_id") @db.Uuid
+  /// null = dilakukan SISTEM (mis. aktivasi SPMK terjadwal, DECISIONS 202).
+  /// Tindakan otomatis tidak boleh diatribusikan ke manusia mana pun.
+  changedById String?         @map("changed_by_id") @db.Uuid
   changedAt   DateTime        @default(now()) @map("changed_at") @db.Timestamptz
   note        String?
 
@@ -1723,4 +1729,25 @@ model WaSenderAlias {
   @@unique([orgId, senderKey])
   @@index([orgId])
   @@map("wa_sender_aliases")
+}
+
+/// Catatan pengiriman pengingat laporan harian per orang per hari — SATU baris
+/// per (user, tanggal). Unique-nya yang membuat penjadwal aman dijalankan
+/// berkali-kali: percobaan kedua di hari yang sama akan menabrak, bukan
+/// mengirim pesan dobel ke lapangan. DECISIONS 202.
+model DailyReminderLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  /// Tanggal kerja Asia/Jakarta (YYYY-MM-DD).
+  dateKey   String   @map("date_key")
+  /// Jumlah lokasi yang ditagih pada pesan itu.
+  locations Int
+  /// sukses | gagal
+  status    String
+  error     String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@unique([userId, dateKey])
+  @@index([dateKey])
+  @@map("daily_reminder_logs")
 }

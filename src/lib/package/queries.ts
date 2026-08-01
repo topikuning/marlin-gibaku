@@ -241,7 +241,10 @@ export async function getStageHistory(packageId: string) {
     orderBy: { changedAt: "desc" },
     select: { id: true, fromStage: true, toStage: true, changedAt: true, note: true, changedById: true },
   });
-  const userIds = [...new Set(rows.map((r) => r.changedById))];
+  // changedById boleh null = tindakan SISTEM (aktivasi SPMK terjadwal,
+  // DECISIONS 202) — jangan dicari namanya, dan jangan ditulis "—" seolah
+  // pelakunya tidak diketahui.
+  const userIds = [...new Set(rows.map((r) => r.changedById).filter((v): v is string => !!v))];
   const users = userIds.length
     ? await db.user.findMany({
         where: { id: { in: userIds } },
@@ -249,7 +252,10 @@ export async function getStageHistory(packageId: string) {
       })
     : [];
   const nameById = new Map(users.map((u) => [u.id, u.fullName]));
-  return rows.map((r) => ({ ...r, changedByName: nameById.get(r.changedById) ?? "—" }));
+  return rows.map((r) => ({
+    ...r,
+    changedByName: r.changedById ? (nameById.get(r.changedById) ?? "—") : "Sistem (terjadwal)",
+  }));
 }
 
 /** Audit log paket (resourceType "package") untuk tab Aktivitas. */

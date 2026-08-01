@@ -13,6 +13,7 @@ import {
   type SessionUser,
 } from "@/lib/auth/session";
 import { ADMIN_ROLES, ALL_ROLES, ROLE_LABEL, can, canCreateRole, outranks } from "@/lib/authz";
+import { normalizeWaTarget } from "@/lib/contacts/model";
 import type { UserRole } from "@/generated/prisma/enums";
 
 const createUserSchema = z.object({
@@ -24,6 +25,7 @@ const createUserSchema = z.object({
     .regex(/^[a-z0-9._-]+$/, "Username: huruf kecil, angka, titik, strip"),
   fullName: z.string().trim().min(2, "Nama lengkap wajib").max(120),
   email: z.union([z.email("Email tidak valid"), z.literal("")]).optional(),
+  waNumber: z.string().optional(),
   role: z.enum(ALL_ROLES as [string, ...string[]]),
   password: z.string().min(8, "Password minimal 8 karakter").max(255),
   locationIds: z.array(z.uuid()).optional(),
@@ -39,6 +41,7 @@ export async function createUser(_prev: UserActionState, formData: FormData): Pr
     username: formData.get("username"),
     fullName: formData.get("fullName"),
     email: formData.get("email") ?? "",
+    waNumber: formData.get("waNumber") ?? "",
     role: formData.get("role"),
     password: formData.get("password"),
     locationIds: formData.getAll("locationIds").map(String).filter(Boolean),
@@ -76,6 +79,9 @@ export async function createUser(_prev: UserActionState, formData: FormData): Pr
       fullName: d.fullName,
       role: targetRole,
       passwordHash: await hashPassword(d.password),
+      // Dinormalkan sekali di sini (62xxxx) supaya pengirim pengingat tidak
+      // perlu menebak format yang diketik admin (DECISIONS 202).
+      waNumber: d.waNumber?.trim() ? normalizeWaTarget(d.waNumber) : null,
       mustChangePassword: true,
       createdById: actor.id,
     },
@@ -95,6 +101,7 @@ const updateProfileSchema = z.object({
   userId: z.uuid(),
   fullName: z.string().trim().min(2, "Nama lengkap wajib").max(120),
   email: z.union([z.email("Email tidak valid"), z.literal("")]).optional(),
+  waNumber: z.string().optional(),
 });
 
 /** Ubah nama (& email) pengguna. Username & peran tidak diubah di sini. */
@@ -104,6 +111,7 @@ export async function updateUserProfile(_prev: UserActionState, formData: FormDa
     userId: formData.get("userId"),
     fullName: formData.get("fullName"),
     email: formData.get("email") ?? "",
+    waNumber: formData.get("waNumber") ?? "",
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
@@ -117,8 +125,12 @@ export async function updateUserProfile(_prev: UserActionState, formData: FormDa
     if (clash) return { error: "Email sudah dipakai pengguna lain." };
   }
 
-  await db.user.update({ where: { id: d.userId }, data: { fullName: d.fullName, email } });
-  await audit(actor.id, "user.update_profile", "user", d.userId, { fullName: d.fullName });
+  const waNumber = d.waNumber?.trim() ? normalizeWaTarget(d.waNumber) : null;
+  await db.user.update({ where: { id: d.userId }, data: { fullName: d.fullName, email, waNumber } });
+  await audit(actor.id, "user.update_profile", "user", d.userId, {
+    fullName: d.fullName,
+    waDiisi: !!waNumber,
+  });
   revalidatePath("/master/pengguna");
   return { success: "Data pengguna diperbarui." };
 }
