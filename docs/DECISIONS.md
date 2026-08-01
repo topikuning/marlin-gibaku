@@ -5924,6 +5924,14 @@ Padahal pola kerjanya menyapu: memeriksa hal yang SAMA di beberapa lokasi.
   `Combobox` (`searchThreshold`), bukan angka baru.
 - Satu lokasi saja → judul biasa. Kontrol yang tak punya tujuan tidak dipasang.
 
+**Koreksi hari yang sama** (temuan user dari layar sungguhan): implementasi
+pertama memberi tombol nama `border-transparent` — kotaknya baru muncul saat
+di-hover — sementara panah ‹ › berkotak permanen. Hierarkinya jadi TERBALIK dari
+rancangannya: kontrol utama tak terlihat sebagai kontrol, pelengkapnya paling
+menonjol. Kontrol yang baru kelihatan setelah disentuh tidak akan pernah
+ditemukan orang yang belum tahu fiturnya ada. Sekarang tombol nama berkotak
+permanen dan panahnya yang ringan.
+
 Nama lokasi tetap bisa diganti (DECISIONS 117): `EditableLocationName` menerima
 `nameSlot`, jadi pemicu pemilih menggantikan judul saat tidak sedang diedit.
 

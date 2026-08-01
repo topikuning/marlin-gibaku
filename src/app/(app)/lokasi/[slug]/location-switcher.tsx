@@ -122,10 +122,14 @@ export function LocationSwitcher({
           aria-haspopup="listbox"
           aria-expanded={open}
           title={`Pindah ke lokasi lain di ${packageName}`}
-          className="inline-flex max-w-[70vw] items-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5 text-xl font-semibold text-ink hover:border-border hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-primary-600 sm:max-w-none"
+          // Kotaknya PERMANEN, bukan muncul saat hover: ini kontrol utama baris
+          // ini, dan kontrol yang baru kelihatan setelah disentuh tidak akan
+          // pernah ditemukan orang yang belum tahu ada fiturnya. Panah di
+          // sebelahnya sengaja lebih ringan supaya hierarkinya tidak terbalik.
+          className="inline-flex max-w-[70vw] items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-1 text-xl font-semibold text-ink hover:border-border-strong hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-primary-600 sm:max-w-none"
         >
           <span className="truncate">{current.name}</span>
-          <ChevronDown aria-hidden className="size-4 shrink-0 text-ink-faint" />
+          <ChevronDown aria-hidden className="size-4 shrink-0 text-ink-muted" />
         </button>
       </h1>
 
@@ -246,7 +250,7 @@ function StepButton({
       disabled={disabled}
       aria-label={label}
       title={label}
-      className="inline-flex size-7 shrink-0 items-center justify-center rounded-md border border-border bg-surface text-ink-muted hover:bg-surface-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-primary-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-surface disabled:hover:text-ink-muted"
+      className="inline-flex size-7 shrink-0 items-center justify-center rounded-md border border-transparent text-ink-faint hover:border-border hover:bg-surface-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-primary-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-transparent disabled:hover:bg-transparent disabled:hover:text-ink-faint"
     >
       {children}
     </button>
