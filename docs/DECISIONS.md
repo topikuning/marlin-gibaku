@@ -5654,3 +5654,49 @@ Manager berhasil + sesi dicabut + audit `user.set_role` memuat dari/ke,
 penugasan tidak terhapus, peran sama ditolak, akun sendiri ditolak, akun
 setingkat/lebih tinggi ditolak, PM ditolak seluruhnya, PD tidak bisa mengangkat
 SA, peran liar ditolak skema, dan Wakil PPK bisa diberikan seperti peran lain.
+
+---
+
+## 201 — Daftar lokasi di dalam paket ikut penugasan (2026-08-01)
+
+**Konteks.** User: *"di paket A, ada lokasi A,B,C,D — user di assign B,C. saat
+masuk paket, lalu lihat lokasi, semua lokasi terlist. padahal dia cuma diberi
+akses B,C. klik A, memang 404, tapi kalau bisa sekalian dibatasi sejak level
+tampilan"*.
+
+`getPackageWorkspace` sudah menjaga AKSES PAKETNYA (`packageScopeWhere`), tapi
+begitu paketnya boleh dibuka, `locations` diambil seluruhnya. Penahanan di klik
+memang mencegah akses datanya — tapi keberadaan dan NAMA lokasi lain sudah
+terlanjur terkirim ke browser, dan daftar itu terbaca sebagai "ini semua
+tanggung jawabmu", yang salah.
+
+`locations` kini disaring `{ id: { in: scoped } }` (untuk role lintas lokasi
+`scoped = null` → tanpa filter, tidak berubah). Jumlah yang disembunyikan
+dikembalikan sebagai `locationsHidden` — aturan yang sama dengan katalog lokasi
+(DECISIONS 189): yang tidak muncul harus disebut jumlahnya supaya tidak terbaca
+"tidak ada".
+
+**Dua ikutan yang WAJIB, bukan opsional** — begitu daftarnya disaring, angka
+turunannya ikut menyempit dan bisa berbohong:
+
+1. **KPI "Jumlah lokasi" & "Progress agregat"** dihitung dari lokasi yang
+   TERLIHAT. Untuk user ber-scope sempit itu bukan angka paket seutuhnya, jadi
+   labelnya berganti menjadi "Lokasi Anda di paket ini" dan "Progress lokasi
+   Anda · bukan progres seluruh paket". Satu label untuk dua angka berbeda
+   adalah persis yang dilarang Calculation Integrity Protocol.
+2. **Panel rekonsiliasi kontrak vs Σ RAB DISEMBUNYIKAN** bila ada lokasi
+   tersembunyi. Perbandingan itu memerlukan RAB SELURUH lokasi; dihitung
+   sebagian, selisihnya akan tampak besar dan salah. Diganti Banner yang
+   menyebut alasannya — lebih baik tidak menampilkan angka daripada menampilkan
+   angka yang tidak mungkin benar.
+
+Halaman lain yang memakai `pkg.locations` ikut aman dengan sendirinya:
+`dokumen` (pilihan lokasi memang harus ter-scope) dan `kontrak` (hanya bisa
+dibuka pemegang `contract.manage` = super_admin & program_director, keduanya
+lintas lokasi sehingga `locationsHidden` selalu 0).
+
+**Verifikasi**: 4 kasus integrasi baru (`paket-lokasi-scope`) — hanya B & C yang
+muncul dan id/nama A & D tidak pernah ikut dalam data halaman, jumlah
+tersembunyi = 2, scope kosong → nol lokasi dgn angka tersembunyi utuh, dan
+super_admin tetap melihat keempatnya · unit 683 ✓ · integrasi 207 ✓ ·
+typecheck ✓ · lint ✓.
