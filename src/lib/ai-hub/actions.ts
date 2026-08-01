@@ -358,7 +358,9 @@ export async function transitionArtifactAction(_prev: AiHubState, formData: Form
     if (to === "beku") {
       const content = parseAiReportContent(artifact.structuredContent);
       data.frozenAt = now;
-      data.renderedText = renderAiReportWhatsApp(content);
+      // Dibekukan sebagai versi FINAL: label "draf" tidak boleh ikut terbawa
+      // ke pesan yang dikirim pimpinan (DECISIONS 196).
+      data.renderedText = renderAiReportWhatsApp(content, true);
       data.contentHash = createHash("sha256").update(JSON.stringify(artifact.structuredContent)).digest("hex");
     }
     await db.aiArtifact.update({ where: { id: artifact.id }, data: data as never });
@@ -452,7 +454,8 @@ export async function distributeArtifactAction(_prev: AiHubState, formData: Form
       target = { name: destName || chatId, chatId };
     }
 
-    const text = artifact.renderedText ?? renderAiReportWhatsApp(parseAiReportContent(artifact.structuredContent));
+    const text =
+      artifact.renderedText ?? renderAiReportWhatsApp(parseAiReportContent(artifact.structuredContent), true);
     await sendText(target.chatId, text);
 
     const dist = Array.isArray(artifact.distributions) ? (artifact.distributions as unknown[]) : [];

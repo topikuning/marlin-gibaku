@@ -5369,3 +5369,70 @@ lewat pintu ini · typecheck ✓ · lint ✓ · browser: tekan Draft Recovery �
 "Draft saran tersimpan" muncul → Terapkan → Kendala "Batah Timur: Deviasi
 jadwal -77.3 pp" (Kritis, Ditangani) beserta aksi pemulihannya TAMPIL di
 halaman lokasi.
+
+---
+
+## 196 — Output AI harus punya isi: sections/rekomendasi ikut terkirim, status jujur soal data kosong (2026-08-01)
+
+**Konteks.** User: *"laporan wa yang kamu merger ke sana, sama sekali tidak
+berguna sekarang… coba lihat, apa manfaat output seperti ini, apa yang dikirim
+ke direksi"*. Setelah diperiksa satu per satu, seluruh menu AI Intelligence
+memang menghasilkan artefak yang secara isi nyaris kosong. Enam sebabnya
+berbeda-beda dan semuanya di sisi kode, bukan di prompt:
+
+1. **Renderer WA membuang isi laporannya.** `renderAiReportWhatsApp` hanya
+   memakai `title`, `waSummary`, dan tabel angka. `sections[]` dan
+   `recommendations[]` — bagian yang justru menjawab "apa yang terjadi" dan
+   "apa yang harus dilakukan" — tidak pernah dirender sama sekali, dan
+   `limitations` cuma diambil elemen pertamanya. Padahal `renderedText` inilah
+   yang dibekukan dan dikirim ke pimpinan. Sekarang WA memuat blok
+   *Catatan lapangan* (maks 5 section, body dipotong rapi di batas kata) dan
+   *Tindakan yang disarankan* (maks 5, bernomor), plus seluruh keterbatasan.
+
+2. **Status "Kritis" untuk portofolio yang laporannya belum masuk.** Deviasi
+   −90 pp karena tidak ada satu pun laporan final BUKAN pekerjaan mandek —
+   itu data kosong. Ditambahkan aturan deterministik (bukan imbauan prompt):
+   `dataBelumMemadai()` — laporan final < 25% dari yang seharusnya, atau tidak
+   ada kewajiban lapor sama sekali → `statusEfektif()` MEMAKSA `data_kurang`,
+   apa pun yang ditulis AI, dan pesan dibuka dengan kalimat yang menyebut
+   sebabnya. Baris lokasi tanpa laporan final pun ditulis
+   "belum ada laporan final (0/30) · rencana 68.0%", bukan "realisasi 0.0%".
+
+3. **Label "draf" ikut membeku.** `renderedText` dibuat saat transisi ke `beku`
+   dengan footer "Draf AI MARLIN — narasi perlu review manusia", lalu teks itu
+   yang terkirim. Pesan yang sudah lolos review sampai ke pimpinan berlabel
+   draf mentah. Renderer kini menerima `sudahFinal`; freeze, distribusi, dan
+   halaman cetak meneruskan status artefak yang sebenarnya.
+
+4. **Kolam angka grounding tercampur satuan.** `officialNumbersByLocation` dan
+   `globalNumbers` mencampur persen dengan hitungan (jumlah foto, jumlah
+   laporan, minggu, hari, skor risiko), padahal `extractNumericClaims` hanya
+   menangkap klaim ber-"%"/"pp". Akibatnya klaim "rencana 130,0%" lolos hanya
+   karena ada lokasi dengan `photoCount` 130 — validator grounding-nya bocor.
+   Kolam dipersempit ke satuan persen saja.
+
+5. **`executiveSummary` & `title` tidak pernah divalidasi.** Pemeriksaan
+   generik menyasar `output.summary` yang tidak ada di skema laporan, jadi
+   lewat diam-diam — padahal keduanya tampil di panel, PDF, dan Excel.
+   Ringkasan yang angkanya tak bersumber kini diganti penanda eksplisit +
+   `droppedNote`; judul bermasalah ditandai untuk diperiksa manual.
+
+6. **Lokasi tanpa RAB tampak "Memadai".** Syarat lama
+   `hasActiveRab && !hasActiveBaseline` membuat lokasi tanpa RAB hanya
+   kehilangan 30 poin → skor 70 → grade "Memadai". Lokasi yang datanya kosong
+   total tampak sehat, tidak masuk daftar readiness rendah, tidak memicu rule
+   risiko — sehingga Perlu Tindakan bisa menyatakan "tidak ada masalah" untuk
+   portofolio yang belum berisi apa pun. Tanpa RAB, baseline mustahil ada:
+   potongannya sekarang ikut jatuh (→ `poor`).
+
+**Ikutan.** Filter organisasi di `/ai/history`, `/ai/reports`, dan
+`/ai/actions` dipindah KE DALAM query (`createdById: { in: … }` /
+`userId: { in: … }`) — sebelumnya menyaring setelah `take`, sehingga daftarnya
+bisa kosong padahal ada isinya, dan KPI "Draft saran" melaporkan angka yang
+sudah terpotong. Kartu artefak `saran` di halaman run juga menampilkan isinya
+(dulu dipetakan ke string kosong) + tautan ke antrean penerapannya.
+
+**Verifikasi**: 15 kasus unit baru (`ai-laporan-isi`) mengunci isi WA, batas
+jumlah butir, pemotongan di batas kata, ambang data kosong, status efektif
+WA+HTML, footer per status, dan readiness lokasi tanpa RAB · unit 660 ✓ ·
+integrasi 173 ✓ · typecheck ✓ · lint ✓.

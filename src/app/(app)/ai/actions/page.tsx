@@ -32,6 +32,9 @@ export default async function AiActionsPage() {
   start.setUTCDate(start.getUTCDate() - 13);
   const startKey = start.toISOString().slice(0, 10);
 
+  const idUserOrg = (
+    await db.user.findMany({ where: { orgId: user.orgId }, select: { id: true } })
+  ).map((u) => u.id);
   const scope = await resolveAiScope(user, []);
   const [pulse, draftSaran] = await Promise.all([
     buildPortfolioPulse(user, scope.ids, startKey, today),
@@ -43,6 +46,7 @@ export default async function AiActionsPage() {
       where: {
         kind: "saran",
         status: "draft",
+        createdById: { in: idUserOrg },
         structuredContent: { path: ["locationId"], not: Prisma.DbNull },
       },
       orderBy: { createdAt: "desc" },
@@ -64,8 +68,8 @@ export default async function AiActionsPage() {
       };
       return { id: a.id, title: a.title, createdAt: a.createdAt, ...isi };
     })
-    .filter((d) => d.locationId && scopeSet.has(d.locationId))
-    .slice(0, 20);
+    .filter((d) => d.locationId && scopeSet.has(d.locationId));
+  const draftTampil = antreanDraft.slice(0, 20);
 
   const queue = pulse.risks;
   const kritis = queue.filter((r) => r.severity === "kritis").length;
@@ -143,7 +147,7 @@ export default async function AiActionsPage() {
                 Belum ada draft tersimpan. Tekan “Simpan Draft” pada item antrean di kiri.
               </p>
             ) : (
-              antreanDraft.map((d) => (
+              draftTampil.map((d) => (
                 <div key={d.id} className="rounded-md border border-border px-2.5 py-2">
                   <p className="text-[13px] font-medium text-ink">{d.title}</p>
                   <p className="mt-0.5 text-xs text-ink-muted">{d.locationName ?? "—"}</p>
@@ -160,6 +164,11 @@ export default async function AiActionsPage() {
                 </div>
               ))
             )}
+            {antreanDraft.length > draftTampil.length ? (
+              <p className="text-xs text-ink-muted">
+                +{antreanDraft.length - draftTampil.length} draft lain belum ditampilkan.
+              </p>
+            ) : null}
           </CardBody>
         </Card>
       </div>

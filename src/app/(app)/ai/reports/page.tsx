@@ -35,6 +35,11 @@ export default async function AiReportsPage({
   const user = await requireUser();
   requireCapabilityPage(user.role, "ai.view");
 
+  // Lihat catatan di /ai/history: saring organisasi DI QUERY lewat daftar id
+  // pengguna (AiArtifact tak punya kolom orgId).
+  const idUserOrg = (
+    await db.user.findMany({ where: { orgId: user.orgId }, select: { id: true } })
+  ).map((u) => u.id);
   const [scope, aiCfg, guard] = await Promise.all([resolveAiScope(user, []), getActiveAiConfig(), getAiGuardConfig()]);
   const [locations, allArtifacts] = await Promise.all([
     db.location.findMany({
@@ -43,7 +48,8 @@ export default async function AiReportsPage({
       orderBy: { name: "asc" },
     }),
     db.aiArtifact.findMany({
-      where: { kind: "laporan" },
+      // Lihat catatan di /ai/history: saring organisasi DI QUERY.
+      where: { kind: "laporan", createdById: { in: idUserOrg } },
       orderBy: { updatedAt: "desc" },
       take: 50,
       select: {

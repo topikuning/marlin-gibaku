@@ -25,7 +25,17 @@ export default async function AiHistoryPage() {
   const user = await requireUser();
   requireCapabilityPage(user.role, "ai.view");
 
+  // AiRun tidak punya kolom orgId maupun relasi User — saring lewat daftar id
+  // pengguna organisasi ini (tetap DI QUERY, bukan setelah `take`).
+  const idUserOrg = (
+    await db.user.findMany({ where: { orgId: user.orgId }, select: { id: true } })
+  ).map((u) => u.id);
+
   const allRuns = await db.aiRun.findMany({
+    // Filter ORGANISASI di dalam query, bukan setelah `take` — dulu 100 run
+    // teratas bisa habis oleh run organisasi lain sehingga run sendiri hilang
+    // dari daftar tanpa pesan apa pun (DECISIONS 196).
+    where: { userId: { in: idUserOrg } },
     orderBy: { createdAt: "desc" },
     take: 100,
     select: {

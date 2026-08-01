@@ -62,26 +62,12 @@ function hashInput(userId: string, i: ExecuteRunInput): string {
 function groundingContext(pulse: PortfolioPulse, extraRefs: SourceRef[]): GroundingContext {
   const officials = new Map<string, number[]>();
   for (const r of pulse.rows) {
-    officials.set(r.locationId, [
-      r.planPct,
-      r.actualPct,
-      r.deviationPp,
-      r.readiness.score,
-      r.finalReports,
-      r.expectedReports,
-      r.sentReports,
-      r.draftReports,
-      r.needFixReports,
-      r.photoCount,
-      r.activityCount,
-      r.openIssues,
-      r.criticalIssues,
-      r.overdueRecoveries,
-      r.currentWeek,
-      r.totalWeeks,
-      r.daysSinceLastReport ?? -1,
-      r.riskScore,
-    ]);
+    // HANYA angka bersatuan PERSEN. `extractNumericClaims` cuma menangkap klaim
+    // ber-"%"/"pp", jadi kolam pembandingnya wajib sesatuan. Dulu hitungan
+    // (jumlah foto, jumlah laporan, minggu, hari, skor risiko) ikut dicampur —
+    // klaim "rencana 130,0%" lolos hanya karena ada lokasi ber-photoCount 130.
+    // DECISIONS 196.
+    officials.set(r.locationId, [r.planPct, r.actualPct, r.deviationPp, r.readiness.score]);
   }
   return {
     allowedLocationIds: new Set(pulse.rows.map((r) => r.locationId)),
@@ -95,16 +81,8 @@ const NARRATIVE_KINDS = new Set<AiRunKind>(["pulse", "deviasi", "risiko", "lapor
 
 /** Angka global (utk validasi klaim pada teks tanpa lokasi). */
 function globalNumbers(pulse: PortfolioPulse): number[] {
-  const t = pulse.totals;
-  const nums = [
-    t.locations,
-    t.reportsExpected,
-    t.reportsFinal,
-    t.negativeDeviationLocations,
-    t.openIssues,
-    t.overdueRecoveries,
-    t.lowReadinessLocations,
-  ];
+  // Lihat catatan di officialNumbersByLocation: kolam WAJIB sesatuan (persen).
+  const nums: number[] = [];
   for (const r of pulse.rows) nums.push(r.planPct, r.actualPct, r.deviationPp, r.readiness.score);
   return nums;
 }
@@ -306,6 +284,17 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
       if (removed > 0) droppedNotes.push(`${removed} bagian laporan dibuang: isi memuat angka tanpa sumber`);
     }
     output.recommendations = applyFilter(output.recommendations as never[]);
+    // executiveSummary & title DULU tidak diperiksa sama sekali (cek generik di
+    // bawah menyasar `output.summary` yang tidak ada di skema laporan, jadi
+    // lewat diam-diam) — padahal keduanya tampil di panel, PDF, dan Excel.
+    if (typeof output.executiveSummary === "string" && !numericClaimsValid(output.executiveSummary, globals)) {
+      output.executiveSummary =
+        "[Ringkasan eksekutif dibuang: memuat angka yang tidak cocok data resmi — tulis ulang manual.]";
+      droppedNotes.push("ringkasan eksekutif dibuang: memuat angka tanpa sumber");
+    }
+    if (typeof output.title === "string" && !numericClaimsValid(output.title, globals)) {
+      droppedNotes.push("judul memuat angka yang tidak cocok data resmi — periksa manual");
+    }
     if (typeof output.waSummary === "string" && !numericClaimsValid(output.waSummary, globals)) {
       // PROJECT.md §5a: bagian yang gagal grounding DIBUANG — ringkasan WA yang
       // angkanya tak bersumber tidak boleh ikut terkirim (audit B10; dulu cuma

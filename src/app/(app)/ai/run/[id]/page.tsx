@@ -228,8 +228,13 @@ export default async function AiRunDetailPage({ params }: { params: Promise<{ id
             version: a.version,
             templateKey: a.templateKey,
             frozen: !!a.frozenAt,
+            // Artefak "saran" menyimpan isinya di `detail`, bukan di
+            // report.executiveSummary — dulu dipetakan ke "" sehingga kartunya
+            // kosong melompong (DECISIONS 196).
             executiveSummary:
-              a.kind === "laporan" ? ((a.structuredContent as { report?: ReportOutput })?.report?.executiveSummary ?? "") : "",
+              a.kind === "laporan"
+                ? ((a.structuredContent as { report?: ReportOutput })?.report?.executiveSummary ?? "")
+                : ((a.structuredContent as { detail?: string })?.detail ?? ""),
             waSummary: a.kind === "laporan" ? ((a.structuredContent as { report?: ReportOutput })?.report?.waSummary ?? "") : "",
             renderedText: a.renderedText,
             distributions: (a.distributions as { at: string; target: string }[] | null) ?? [],

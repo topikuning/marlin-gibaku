@@ -95,13 +95,29 @@ function ArtifactCard({
   const [distState, distFormAction, distPending] = useActionState<AiHubState, FormData>(distributeArtifactAction, undefined);
 
   if (a.kind === "saran") {
+    // Isi draft DULU tidak ditampilkan sama sekali — kartunya hanya judul, dan
+    // subtitle-nya menyuruh "tindak lanjut manual" tanpa memberi jalannya.
+    // Sekarang isinya terbaca dan tombol penerapannya ada di antrean tindakan
+    // (DECISIONS 195/196).
     return (
       <Card>
         <CardHeader
           title={`Draft saran — ${a.title}`}
-          subtitle="Saran non-eksekusi: tindak lanjut manual di modul Kendala lokasi."
+          subtitle={
+            a.status === "terkirim"
+              ? "Sudah diterapkan menjadi Kendala di lokasi."
+              : "Belum menjadi apa pun sampai diterapkan di antrean Perlu Tindakan."
+          }
           action={<Badge tone={AI_ARTIFACT_STATUS_TONE[a.status]} label={AI_ARTIFACT_STATUS_LABEL[a.status]} />}
         />
+        <CardBody className="space-y-2 text-sm">
+          {a.executiveSummary ? <p className="whitespace-pre-wrap text-ink">{a.executiveSummary}</p> : null}
+          {a.status !== "terkirim" ? (
+            <Link href="/ai/actions" className="text-xs text-primary hover:underline">
+              Terapkan jadi Kendala di Perlu Tindakan →
+            </Link>
+          ) : null}
+        </CardBody>
       </Card>
     );
   }
