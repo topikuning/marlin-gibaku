@@ -5239,3 +5239,38 @@ kuncinya → panel "Kembalikan untuk diedit" muncul → status jadi Perlu Koreks
 form item, cuaca, dan tenaga kerja semuanya tampil, dengan riwayat status
 memuat kedua alasan; tombol Kembali cetak diuji 4 kasus (dua asal berbeda,
 tanpa parameter, dan parameter berisi host luar) — semuanya mendarat benar.
+
+---
+
+## 193 — Doktrin AI Intelligence: mesin analisis & produksi artefak, bukan fitur visual/chatbot (2026-08-01)
+
+Arahan user, berlaku sebagai prinsip produk (sejajar "AI bukan sumber angka"
+di DECISIONS 133):
+
+> AI Intelligence bukan fitur visual atau chatbot. AI Intelligence adalah mesin
+> analisis dan produksi artefak. Setiap analisis yang relevan harus dapat
+> berakhir menjadi laporan terstruktur yang dapat direview, di-approve,
+> dibekukan, diekspor ke PDF/Excel, didistribusikan melalui WhatsApp, dan
+> diaudit kembali.
+
+Konsekuensi konkret — SEMUA pintu keluar AI harus bermuara ke lifecycle
+artefak (`AiArtifact`: draft → direview → disetujui → beku → terkirim), tidak
+boleh ada jalur yang berakhir di layar saja atau kirim tanpa review:
+
+1. Report Studio sudah memenuhi (satu structuredContent → banyak renderer,
+   distribusi hanya artefak beku). Ia menjadi SATU-SATUNYA pintu produksi
+   artefak keluar.
+2. Menu global `Laporan → WA` (modul exec-report) DILEBUR ke Report Studio —
+   ia jalur AI kedua yang paralel: generate → langsung kirim WA, tanpa
+   review/versi/beku. Route lama dialihkan; fungsi tujuan bebas (kontak
+   tersimpan / nomor manual / grup) dipertahankan di distribusi artefak.
+3. Halaman hasil run (`/ai/run/[id]`) mendapat jembatan "Jadikan laporan":
+   scope run terbawa ke Report Studio dengan template yang sesuai jenis
+   analisisnya. Angka SELALU dihitung ulang dari calculation layer saat
+   generate — run lama tidak dibekukan mentah menjadi laporan, karena itu
+   akan mengawetkan angka basi (prinsip DECISIONS 133 menang).
+4. Ask MARLIN mendapat jalur yang sama: jawaban bisa dibawa ke Report Studio
+   (scope percakapan terbawa), bukan berhenti sebagai teks percakapan.
+
+Aturan ini tertulis juga di PROJECT.md §5a. Pelanggaran = bug arsitektur,
+bukan preferensi.
