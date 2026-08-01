@@ -52,14 +52,14 @@ Jumlah capability: **47**.
 | `document.delete` | ✓ | — | — | — | — | — | — |
 | `compliance.manage` | ✓ | ✓ | ✓ | ✓ | — | — | — |
 | `report.export` | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ |
-| `exec_report.send` | ✓ | ✓ | ✓ | ✓ | ✓ | — | — |
+| `wa.chat` | ✓ | ✓ | ✓ | ✓ | ✓ | — | — |
 | `contact.view_all` | ✓ | — | — | — | — | — | — |
 | `ai.view` | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ |
 | `ai.generate` | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ |
 | `ai.ask` | ✓ | ✓ | ✓ | ✓ | ✓ | — | ✓ |
 | `ai.report_review` | ✓ | ✓ | ✓ | ✓ | — | — | — |
 | `ai.report_approve` | ✓ | ✓ | ✓ | — | — | — | — |
-| `ai.report_send` | ✓ | ✓ | ✓ | ✓ | — | — | — |
+| `ai.report_send` | ✓ | ✓ | ✓ | ✓ | ✓ | — | — |
 | `user.manage` | ✓ | ✓ | — | — | — | — | — |
 | `user.create` | ✓ | ✓ | — | ✓ | ✓ | — | — |
 | `system.manage` | ✓ | — | — | — | — | — | — |

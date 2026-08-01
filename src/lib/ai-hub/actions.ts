@@ -6,10 +6,11 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { scopeCoveredBy } from "@/lib/ai-hub/read-scope";
-import { audit } from "@/lib/audit";
-import { accessibleLocationIds, ForbiddenError, requireCapability } from "@/lib/auth/session";
+import { audit, auditIn } from "@/lib/audit";
+import { accessibleLocationIds, ForbiddenError, requireCapability, requireLocationAccess } from "@/lib/auth/session";
 import { canTransitionAiArtifact } from "@/lib/lifecycle";
 import { sendText, WahaError } from "@/lib/waha/client";
+import { normalizeWaTarget } from "@/lib/contacts/model";
 import { jakartaToday, parseDateKey } from "@/lib/format";
 import type { AiArtifactStatus, AiRunKind } from "@/generated/prisma/enums";
 import { AiGuardError, getAiGuardConfig } from "./guard";
@@ -42,7 +43,7 @@ function shiftKey(key: string, deltaDays: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-export type AiPeriodPreset = "7hari" | "14hari" | "30hari" | "custom";
+export type AiPeriodPreset = "hari_ini" | "kemarin" | "7hari" | "14hari" | "30hari" | "custom";
 
 function resolvePeriod(preset: string, customStart: string, customEnd: string): { startKey: string; endKey: string } {
   const today = jakartaToday().toISOString().slice(0, 10);
@@ -54,6 +55,13 @@ function resolvePeriod(preset: string, customStart: string, customEnd: string): 
     let b = customEnd;
     if (a > b) [a, b] = [b, a];
     return { startKey: a, endKey: b };
+  }
+  // hari_ini & kemarin: preset bawaan menu Laporan → WA yang dilebur — dipakai
+  // update harian ringkas ke pimpinan (DECISIONS 194).
+  if (preset === "hari_ini") return { startKey: today, endKey: today };
+  if (preset === "kemarin") {
+    const k = shiftKey(today, -1);
+    return { startKey: k, endKey: k };
   }
   const days = preset === "30hari" ? 29 : preset === "14hari" ? 13 : 6;
   return { startKey: shiftKey(today, -days), endKey: today };
@@ -199,6 +207,113 @@ export async function saveSuggestionAction(_prev: AiHubState, formData: FormData
   }
 }
 
+/**
+ * TERAPKAN draft saran menjadi data domain NYATA (Kendala + opsional aksi
+ * pemulihan). Sebelum ini "Simpan Draft" hanya menambah artefak `saran` yang
+ * tidak pernah ditampilkan di mana pun — angkanya naik di KPI, tapi tidak ada
+ * apa-apa yang terjadi di lokasi (laporan user 2026-08-01). Itu jalan buntu
+ * yang melanggar doktrin DECISIONS 193.
+ *
+ * Prinsip DECISIONS 133 tetap dipegang: AI TIDAK PERNAH menulis Issue/Recovery
+ * sendiri. Penulisan terjadi HANYA lewat aksi ini — dipicu manusia, digerbang
+ * `issue.manage` + akses lokasi, dan diaudit. Draft yang sudah diterapkan
+ * ditandai `terkirim` supaya keluar dari antrean "menunggu tindak lanjut".
+ */
+export async function terapkanSaranAction(_prev: AiHubState, formData: FormData): Promise<AiHubState> {
+  try {
+    const artifactId = String(formData.get("artifactId") ?? "");
+    const artifact = await db.aiArtifact.findUnique({
+      where: { id: artifactId },
+      select: { id: true, kind: true, status: true, title: true, structuredContent: true },
+    });
+    if (!artifact || artifact.kind !== "saran") return { error: "Draft saran tidak ditemukan." };
+    if (artifact.status !== "draft") return { error: "Draft ini sudah ditindaklanjuti." };
+
+    const isi = (artifact.structuredContent ?? {}) as {
+      title?: string;
+      detail?: string;
+      severity?: string;
+      suggestKind?: string;
+      locationId?: string | null;
+    };
+    const locationId = isi.locationId ?? null;
+    if (!locationId) {
+      return { error: "Draft ini tidak menunjuk lokasi tertentu — catat manual di workspace lokasi." };
+    }
+
+    // Menulis data domain = capability domain, BUKAN ai.generate.
+    const user = await requireCapability("issue.manage");
+    await requireLocationAccess(user, locationId);
+    const loc = await db.location.findUnique({ where: { id: locationId }, select: { slug: true } });
+    if (!loc) return { error: "Lokasi tidak ditemukan." };
+
+    const severity = (["sedang", "tinggi", "kritis"] as const).includes(
+      isi.severity as "sedang" | "tinggi" | "kritis",
+    )
+      ? (isi.severity as "sedang" | "tinggi" | "kritis")
+      : "sedang";
+    const picName = String(formData.get("picName") ?? "").trim() || null;
+    const dueRaw = String(formData.get("dueDate") ?? "").trim();
+    const dueDate = dueRaw && parseDateKey(dueRaw) ? new Date(`${dueRaw}T00:00:00.000Z`) : null;
+    const buatRecovery = isi.suggestKind === "recovery";
+
+    const { issueId } = await db.$transaction(async (tx) => {
+      const issue = await tx.issue.create({
+        data: {
+          locationId,
+          title: (isi.title ?? artifact.title).slice(0, 200),
+          description: isi.detail ?? null,
+          severity,
+          raisedById: user.id,
+        },
+        select: { id: true },
+      });
+      if (buatRecovery) {
+        await tx.recoveryAction.create({
+          data: {
+            issueId: issue.id,
+            description: (isi.detail ?? artifact.title).slice(0, 2000),
+            picName,
+            dueDate,
+            createdById: user.id,
+          },
+        });
+        // Kendala yang langsung punya aksi pemulihan = sedang ditangani.
+        await tx.issue.update({ where: { id: issue.id }, data: { status: "ditangani" } });
+      }
+      // Tautkan balik + keluarkan dari antrean.
+      await tx.aiArtifact.update({
+        where: { id: artifact.id },
+        data: {
+          status: "terkirim",
+          structuredContent: JSON.parse(JSON.stringify({ ...isi, issueId: issue.id })),
+        },
+      });
+      await auditIn(
+        tx,
+        user.id,
+        "ai.saran.terapkan",
+        "issue",
+        issue.id,
+        { artifactId: artifact.id, locationId, severity, recovery: buatRecovery },
+        null,
+      );
+      return { issueId: issue.id };
+    });
+
+    revalidatePath("/ai/actions");
+    revalidatePath(`/lokasi/${loc.slug}`);
+    revalidatePath(`/lokasi/${loc.slug}/progress`);
+    return {
+      ok: buatRecovery
+        ? `Kendala + aksi pemulihan dibuat di lokasi — buka workspace lokasi untuk memantau (issue ${issueId.slice(0, 8)}).`
+        : `Kendala dibuat di lokasi — buka workspace lokasi untuk memantau (issue ${issueId.slice(0, 8)}).`,
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
 /* ── Lifecycle artefak laporan ──────────────────────────────────────────── */
 
 const TRANSITION_CAPABILITY: Record<AiArtifactStatus, "ai.report_review" | "ai.report_approve"> = {
@@ -243,7 +358,9 @@ export async function transitionArtifactAction(_prev: AiHubState, formData: Form
     if (to === "beku") {
       const content = parseAiReportContent(artifact.structuredContent);
       data.frozenAt = now;
-      data.renderedText = renderAiReportWhatsApp(content);
+      // Dibekukan sebagai versi FINAL: label "draf" tidak boleh ikut terbawa
+      // ke pesan yang dikirim pimpinan (DECISIONS 196).
+      data.renderedText = renderAiReportWhatsApp(content, true);
       data.contentHash = createHash("sha256").update(JSON.stringify(artifact.structuredContent)).digest("hex");
     }
     await db.aiArtifact.update({ where: { id: artifact.id }, data: data as never });
@@ -318,21 +435,35 @@ export async function distributeArtifactAction(_prev: AiHubState, formData: Form
     if (artifact.status !== "beku" && artifact.status !== "terkirim") {
       return { error: "Hanya artefak BEKU yang boleh didistribusikan — bekukan dulu setelah approve." };
     }
-    const contact = await db.waContact.findFirst({
-      where: { id: contactId, ownerId: user.id },
-      select: { name: true, chatId: true },
-    });
-    if (!contact) return { error: "Kontak tujuan tidak ditemukan (kelola di Laporan → WA)." };
+    // Tujuan: kontak tersimpan ATAU tujuan bebas (nomor / id grup) — fungsi
+    // bawaan menu Laporan → WA yang dilebur ke sini (DECISIONS 194). Distribusi
+    // tetap hanya untuk artefak BEKU; yang berubah cuma fleksibilitas tujuan.
+    let target: { name: string; chatId: string };
+    if (contactId) {
+      const contact = await db.waContact.findFirst({
+        where: { id: contactId, ownerId: user.id },
+        select: { name: true, chatId: true },
+      });
+      if (!contact) return { error: "Kontak tujuan tidak ditemukan (kelola di Master Data → Kontak)." };
+      target = contact;
+    } else {
+      const rawTarget = String(formData.get("destChatId") ?? "").trim();
+      if (!rawTarget) return { error: "Pilih kontak tersimpan, atau isi nomor/id grup tujuan." };
+      const chatId = normalizeWaTarget(rawTarget); // lempar error berpesan jelas bila format salah
+      const destName = String(formData.get("destName") ?? "").trim();
+      target = { name: destName || chatId, chatId };
+    }
 
-    const text = artifact.renderedText ?? renderAiReportWhatsApp(parseAiReportContent(artifact.structuredContent));
-    await sendText(contact.chatId, text);
+    const text =
+      artifact.renderedText ?? renderAiReportWhatsApp(parseAiReportContent(artifact.structuredContent), true);
+    await sendText(target.chatId, text);
 
     const dist = Array.isArray(artifact.distributions) ? (artifact.distributions as unknown[]) : [];
     dist.push({
       at: new Date().toISOString(),
       channel: "whatsapp",
-      target: contact.name,
-      chatId: contact.chatId,
+      target: target.name,
+      chatId: target.chatId,
       byId: user.id,
       hash: artifact.contentHash,
     });
@@ -340,9 +471,9 @@ export async function distributeArtifactAction(_prev: AiHubState, formData: Form
       where: { id: artifact.id },
       data: { status: "terkirim", distributions: JSON.parse(JSON.stringify(dist)) },
     });
-    await audit(user.id, "ai.artifact.distribusi", "ai_artifact", artifact.id, { target: contact.name });
+    await audit(user.id, "ai.artifact.distribusi", "ai_artifact", artifact.id, { target: target.name, chatId: target.chatId });
     if (artifact.runId) revalidatePath(`/ai/run/${artifact.runId}`);
-    return { ok: `Terkirim ke ${contact.name}.` };
+    return { ok: `Terkirim ke ${target.name}.` };
   } catch (err) {
     return fail(err);
   }

@@ -45,7 +45,14 @@ export function computeReadiness(f: LocationFacts): ReadinessResult {
 
   // Fondasi struktur data.
   check("rab_aktif", "RAB aktif tersedia", !f.hasActiveRab, 30, true);
-  check("baseline_aktif", "Baseline kurva-S aktif tersedia", f.hasActiveRab && !f.hasActiveBaseline, 25, true);
+  // Tanpa RAB, baseline MUSTAHIL ada — jadi potongannya harus ikut jatuh.
+  // Dulu syaratnya `hasActiveRab && !hasActiveBaseline`, sehingga lokasi tanpa
+  // RAB hanya kehilangan 30 poin → skor 70 → tergolong "Memadai". Akibatnya
+  // lokasi yang datanya kosong total tampak sehat, tidak masuk daftar readiness
+  // rendah, dan tidak memicu rule risiko — Perlu Tindakan bisa menyatakan
+  // "tidak ada masalah" untuk portofolio yang belum berisi apa pun.
+  // DECISIONS 196.
+  check("baseline_aktif", "Baseline kurva-S aktif tersedia", !f.hasActiveBaseline, 25, true);
 
   const started = f.startDateKey != null;
   // Kepatuhan lapor dalam periode (hanya relevan setelah SPMK).

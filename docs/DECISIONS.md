@@ -5274,3 +5274,165 @@ boleh ada jalur yang berakhir di layar saja atau kirim tanpa review:
 
 Aturan ini tertulis juga di PROJECT.md §5a. Pelanggaran = bug arsitektur,
 bukan preferensi.
+
+---
+
+## 194 — Eksekusi doktrin 193: Laporan → WA dilebur ke Report Studio + jembatan run & Ask (2026-08-01)
+
+Eksekusi konsekuensi DECISIONS 193. Yang berubah:
+
+**(a) Menu global `Laporan → WA` DIHAPUS; route `/laporan-wa` dialihkan** ke
+`/ai/reports?template=wa_update`. Modul `src/lib/exec-report/` dihapus utuh —
+ia jalur AI paralel tanpa review/versi/beku: teks hasil generate bisa diedit
+bebas lalu langsung dikirim. Semua fungsinya berpindah:
+
+- Preset "Status Kepatuhan Lapor" → template Report Studio `kepatuhan_lapor`
+  (preset lain sudah punya padanan: rangkuman ≈ `exec_portfolio`, rekap
+  kendala ≈ `kendala_recovery`). Total template kini 8.
+- Periode `hari_ini` & `kemarin` (khas update harian pimpinan) ditambahkan ke
+  preset periode Report Studio.
+- **Distribusi artefak beku kini menerima kontak tersimpan ATAU tujuan bebas**
+  (nomor / id grup via `normalizeWaTarget`) — fungsi bawaan menu lama yang
+  sebelumnya tidak ada di jalur artefak. Nama+chatId tujuan tercatat di
+  `distributions` dan audit.
+- Slot prompt `exec.*` (4) dihapus dari registri; `aiComplete()` yang menjadi
+  yatim ikut dihapus. Model `ReportDispatch` DIPERTAHANKAN sebagai riwayat
+  historis (tidak ada tulisan baru ke sana).
+
+**(b) Capability dibereskan, bukan sekadar dicabut.** `exec_report.send`
+ternyata juga menggerbangi Chat Grup + kelola kontak WA — bukan urusan
+laporan. Ia diganti `wa.chat` dengan pemegang PERSIS sama (SM ke atas; tidak
+ada perubahan hak). Untuk kemampuan kirim yang hilang: **site_manager diberi
+`ai.report_send`** — SM tetap bisa mengirim ke WA seperti dulu, tapi kini
+HANYA artefak yang sudah dibekukan atasannya, bukan teks bebas hasil generate
+sendiri. Ini pengetatan, bukan perluasan. RM/PM/PD/SA tidak berubah.
+
+**(c) Jembatan sesuai doktrin**: halaman run analisis (`/ai/run/[id]`, status
+siap) punya "Jadikan laporan →" yang membawa scope run ke Report Studio dengan
+template sesuai jenis (risiko → `kendala_recovery`, lainnya →
+`exec_portfolio`); Ask MARLIN punya "Buat laporan dari scope ini →" (template
+`wa_update`). Dua-duanya MENGHITUNG ULANG angka dari calculation layer saat
+generate — run/jawaban lama tidak dibekukan mentah jadi laporan (angka basi).
+Report Studio menerima `?template=` & `?scopeIds=` (scope disaring terhadap
+izin user sebelum dipakai).
+
+Verifikasi: unit 645 ✓ · integrasi 165 ✓ · typecheck ✓ · lint ✓ ·
+PERMISSION_MATRIX diregenerasi (47 capability) · browser: `/laporan-wa` (admin
+& SM) mendarat di Report Studio dgn template WhatsApp Update terpilih, template
+kepatuhan tampil, nav bersih, SM tetap bisa buka Master → Kontak. Kirim WA
+tujuan bebas belum teruji ujung-ke-ujung (butuh provider AI + WAHA hidup —
+hanya ada di Railway); jalur normalisasi tujuannya sudah ter-unit-test lama.
+
+---
+
+## 195 — "Draft saran" tidak lagi jalan buntu: bisa diterapkan jadi Kendala nyata (2026-08-01)
+
+Laporan user: di Perlu Tindakan, menekan **Draft recovery** hanya menaikkan
+angka KPI "menunggu tindak lanjut manual" — *"aku tidak melihat apapun yang
+nyata, di halaman lokasi pun tidak ada apapun"*. Benar seluruhnya.
+
+**Apa yang sebenarnya terjadi sebelum ini.** `saveSuggestionAction` membuat
+`AiArtifact` kind `saran` status `draft`, lalu selesai. Artefak itu tidak
+pernah muncul di mana pun: `/ai/actions` hanya `count()` tanpa daftar,
+`/ai/reports` hanya melistkan kind `laporan`, dan kartu `saran` di halaman run
+tidak punya aksi apa pun (bahkan isinya tidak ditampilkan). Jadi tombol itu
+menulis ke tempat yang tak terbaca — write-only counter. Ini persis pelanggaran
+doktrin DECISIONS 193.
+
+**Prinsip DECISIONS 133 TIDAK diubah**: AI tetap tidak pernah menulis
+Issue/RecoveryAction sendiri. Yang ditambahkan adalah jalan eksekusi
+manusianya, yang selama ini hilang:
+
+1. **Antrean draft jadi nyata di layar.** `/ai/actions` kini menampilkan
+   DAFTAR draft tersimpan (judul, lokasi), bukan sekadar angka. Daftarnya juga
+   difilter ke lokasi dalam scope user — `count()` lama menghitung lintas
+   organisasi (kebocoran angka multi-tenant).
+2. **`terapkanSaranAction`**: satu tombol mengubah draft menjadi `Issue` nyata
+   di lokasi tsb; untuk draft ber-jenis `recovery` sekalian dibuat
+   `RecoveryAction` (PIC & tanggal target opsional, ditanyakan di form) dan
+   Kendala langsung berstatus `ditangani` — sama seperti alur manual di
+   workspace lokasi. Semua dalam satu transaksi + `auditIn`
+   (`ai.saran.terapkan`, resource `issue`, memuat artifactId).
+3. **Gerbangnya capability DOMAIN, bukan AI**: `issue.manage` +
+   `requireLocationAccess`. Pemegang `ai.generate` tanpa izin Kendala (mis.
+   exec_viewer) tetap bisa membuat draft, tapi tidak bisa menerapkannya — AI
+   tidak boleh jadi pintu belakang ke data domain.
+4. **Draft yang diterapkan keluar dari antrean**: status → `terkirim` dan
+   `issueId` ditulis balik ke `structuredContent` sebagai tautan. Penerapan
+   kedua kali ditolak.
+
+Verifikasi: 8 kasus integrasi baru (`terapkan-saran`) — Issue+Recovery benar
+terbentuk dgn PIC/tanggal, draft action hanya bikin Kendala terbuka, audit
+tertaut, tanpa izin ditolak, lokasi di luar penugasan ditolak, tidak bisa
+diterapkan dua kali, draft tanpa lokasi ditolak, artefak laporan tidak bisa
+lewat pintu ini · typecheck ✓ · lint ✓ · browser: tekan Draft Recovery → panel
+"Draft saran tersimpan" muncul → Terapkan → Kendala "Batah Timur: Deviasi
+jadwal -77.3 pp" (Kritis, Ditangani) beserta aksi pemulihannya TAMPIL di
+halaman lokasi.
+
+---
+
+## 196 — Output AI harus punya isi: sections/rekomendasi ikut terkirim, status jujur soal data kosong (2026-08-01)
+
+**Konteks.** User: *"laporan wa yang kamu merger ke sana, sama sekali tidak
+berguna sekarang… coba lihat, apa manfaat output seperti ini, apa yang dikirim
+ke direksi"*. Setelah diperiksa satu per satu, seluruh menu AI Intelligence
+memang menghasilkan artefak yang secara isi nyaris kosong. Enam sebabnya
+berbeda-beda dan semuanya di sisi kode, bukan di prompt:
+
+1. **Renderer WA membuang isi laporannya.** `renderAiReportWhatsApp` hanya
+   memakai `title`, `waSummary`, dan tabel angka. `sections[]` dan
+   `recommendations[]` — bagian yang justru menjawab "apa yang terjadi" dan
+   "apa yang harus dilakukan" — tidak pernah dirender sama sekali, dan
+   `limitations` cuma diambil elemen pertamanya. Padahal `renderedText` inilah
+   yang dibekukan dan dikirim ke pimpinan. Sekarang WA memuat blok
+   *Catatan lapangan* (maks 5 section, body dipotong rapi di batas kata) dan
+   *Tindakan yang disarankan* (maks 5, bernomor), plus seluruh keterbatasan.
+
+2. **Status "Kritis" untuk portofolio yang laporannya belum masuk.** Deviasi
+   −90 pp karena tidak ada satu pun laporan final BUKAN pekerjaan mandek —
+   itu data kosong. Ditambahkan aturan deterministik (bukan imbauan prompt):
+   `dataBelumMemadai()` — laporan final < 25% dari yang seharusnya, atau tidak
+   ada kewajiban lapor sama sekali → `statusEfektif()` MEMAKSA `data_kurang`,
+   apa pun yang ditulis AI, dan pesan dibuka dengan kalimat yang menyebut
+   sebabnya. Baris lokasi tanpa laporan final pun ditulis
+   "belum ada laporan final (0/30) · rencana 68.0%", bukan "realisasi 0.0%".
+
+3. **Label "draf" ikut membeku.** `renderedText` dibuat saat transisi ke `beku`
+   dengan footer "Draf AI MARLIN — narasi perlu review manusia", lalu teks itu
+   yang terkirim. Pesan yang sudah lolos review sampai ke pimpinan berlabel
+   draf mentah. Renderer kini menerima `sudahFinal`; freeze, distribusi, dan
+   halaman cetak meneruskan status artefak yang sebenarnya.
+
+4. **Kolam angka grounding tercampur satuan.** `officialNumbersByLocation` dan
+   `globalNumbers` mencampur persen dengan hitungan (jumlah foto, jumlah
+   laporan, minggu, hari, skor risiko), padahal `extractNumericClaims` hanya
+   menangkap klaim ber-"%"/"pp". Akibatnya klaim "rencana 130,0%" lolos hanya
+   karena ada lokasi dengan `photoCount` 130 — validator grounding-nya bocor.
+   Kolam dipersempit ke satuan persen saja.
+
+5. **`executiveSummary` & `title` tidak pernah divalidasi.** Pemeriksaan
+   generik menyasar `output.summary` yang tidak ada di skema laporan, jadi
+   lewat diam-diam — padahal keduanya tampil di panel, PDF, dan Excel.
+   Ringkasan yang angkanya tak bersumber kini diganti penanda eksplisit +
+   `droppedNote`; judul bermasalah ditandai untuk diperiksa manual.
+
+6. **Lokasi tanpa RAB tampak "Memadai".** Syarat lama
+   `hasActiveRab && !hasActiveBaseline` membuat lokasi tanpa RAB hanya
+   kehilangan 30 poin → skor 70 → grade "Memadai". Lokasi yang datanya kosong
+   total tampak sehat, tidak masuk daftar readiness rendah, tidak memicu rule
+   risiko — sehingga Perlu Tindakan bisa menyatakan "tidak ada masalah" untuk
+   portofolio yang belum berisi apa pun. Tanpa RAB, baseline mustahil ada:
+   potongannya sekarang ikut jatuh (→ `poor`).
+
+**Ikutan.** Filter organisasi di `/ai/history`, `/ai/reports`, dan
+`/ai/actions` dipindah KE DALAM query (`createdById: { in: … }` /
+`userId: { in: … }`) — sebelumnya menyaring setelah `take`, sehingga daftarnya
+bisa kosong padahal ada isinya, dan KPI "Draft saran" melaporkan angka yang
+sudah terpotong. Kartu artefak `saran` di halaman run juga menampilkan isinya
+(dulu dipetakan ke string kosong) + tautan ke antrean penerapannya.
+
+**Verifikasi**: 15 kasus unit baru (`ai-laporan-isi`) mengunci isi WA, batas
+jumlah butir, pemotongan di batas kata, ambang data kosong, status efektif
+WA+HTML, footer per status, dan readiness lokasi tanpa RAB · unit 660 ✓ ·
+integrasi 173 ✓ · typecheck ✓ · lint ✓.

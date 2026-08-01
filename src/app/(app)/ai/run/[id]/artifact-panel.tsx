@@ -95,13 +95,29 @@ function ArtifactCard({
   const [distState, distFormAction, distPending] = useActionState<AiHubState, FormData>(distributeArtifactAction, undefined);
 
   if (a.kind === "saran") {
+    // Isi draft DULU tidak ditampilkan sama sekali — kartunya hanya judul, dan
+    // subtitle-nya menyuruh "tindak lanjut manual" tanpa memberi jalannya.
+    // Sekarang isinya terbaca dan tombol penerapannya ada di antrean tindakan
+    // (DECISIONS 195/196).
     return (
       <Card>
         <CardHeader
           title={`Draft saran — ${a.title}`}
-          subtitle="Saran non-eksekusi: tindak lanjut manual di modul Kendala lokasi."
+          subtitle={
+            a.status === "terkirim"
+              ? "Sudah diterapkan menjadi Kendala di lokasi."
+              : "Belum menjadi apa pun sampai diterapkan di antrean Perlu Tindakan."
+          }
           action={<Badge tone={AI_ARTIFACT_STATUS_TONE[a.status]} label={AI_ARTIFACT_STATUS_LABEL[a.status]} />}
         />
+        <CardBody className="space-y-2 text-sm">
+          {a.executiveSummary ? <p className="whitespace-pre-wrap text-ink">{a.executiveSummary}</p> : null}
+          {a.status !== "terkirim" ? (
+            <Link href="/ai/actions" className="text-xs text-primary hover:underline">
+              Terapkan jadi Kendala di Perlu Tindakan →
+            </Link>
+          ) : null}
+        </CardBody>
       </Card>
     );
   }
@@ -186,22 +202,42 @@ function ArtifactCard({
         </div>
 
         {(a.status === "beku" || a.status === "terkirim") && canSend ? (
-          <form action={distFormAction} className="flex flex-wrap items-center gap-2 border-t border-border-muted pt-3">
+          <form action={distFormAction} className="space-y-2 border-t border-border-muted pt-3">
             <input type="hidden" name="artifactId" value={a.id} />
-            <label htmlFor={`dist-${a.id}`} className="text-xs text-ink-muted">
-              Distribusi WhatsApp:
-            </label>
-            <Combobox id={`dist-${a.id}`} name="contactId" defaultValue={contacts[0]?.id ?? ""} className="w-56">
-              {contacts.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Combobox>
-            <Button type="submit" size="sm" disabled={distPending || contacts.length === 0}>
-              {distPending ? "Mengirim…" : "Kirim"}
-            </Button>
-            {contacts.length === 0 ? <span className="text-xs text-ink-muted">Tambah kontak di menu Kontak WA.</span> : null}
+            <p className="text-xs font-medium text-ink">Distribusi WhatsApp</p>
+            {/* Kontak tersimpan ATAU tujuan bebas (nomor / id grup) — fungsi
+                bawaan menu Laporan → WA yang dilebur ke sini (DECISIONS 194).
+                Isi salah satu; kontak menang bila dua-duanya terisi. */}
+            <div className="flex flex-wrap items-center gap-2">
+              <Combobox
+                id={`dist-${a.id}`}
+                name="contactId"
+                defaultValue=""
+                placeholder="— kontak tersimpan —"
+                className="w-56"
+              >
+                <option value="">— tanpa kontak (isi tujuan manual) —</option>
+                {contacts.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </Combobox>
+              <span className="text-xs text-ink-muted">atau</span>
+              <input
+                name="destChatId"
+                placeholder="628xxx / 12036…@g.us"
+                className="h-9 w-52 rounded-md border border-border bg-surface px-3 text-sm"
+              />
+              <input
+                name="destName"
+                placeholder="nama tujuan (opsional)"
+                className="h-9 w-44 rounded-md border border-border bg-surface px-3 text-sm"
+              />
+              <Button type="submit" size="sm" disabled={distPending}>
+                {distPending ? "Mengirim…" : "Kirim"}
+              </Button>
+            </div>
             {distState?.error ? <span className="text-xs text-danger">{distState.error}</span> : null}
             {distState?.ok ? <span className="text-xs text-success">{distState.ok}</span> : null}
           </form>

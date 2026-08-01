@@ -5,16 +5,32 @@ import { Banner, Button, Card, CardBody, CardHeader, Combobox } from "@/componen
 import { generateAiReportAction, type AiHubState } from "@/lib/ai-hub/actions";
 import { AI_REPORT_TEMPLATES } from "@/lib/ai-hub/report-templates";
 
-/** Form Report Studio: template + scope lokasi + periode → generate draf AI. */
+/**
+ * Form Report Studio: template + scope lokasi + periode → generate draf AI.
+ * `initialTemplate`/`initialScopeIds` datang dari URL — jembatan dari halaman
+ * run ("Jadikan laporan"), Ask MARLIN, dan pengalihan /laporan-wa
+ * (DECISIONS 193/194).
+ */
 export function ReportStudioClient({
   locations,
   aiReady,
+  initialTemplate,
+  initialScopeIds = [],
 }: {
   locations: { id: string; name: string; packageName: string }[];
   aiReady: boolean;
+  initialTemplate?: string;
+  initialScopeIds?: string[];
 }) {
-  const [template, setTemplate] = useState(AI_REPORT_TEMPLATES[0].key);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [template, setTemplate] = useState(
+    AI_REPORT_TEMPLATES.some((t) => t.key === initialTemplate)
+      ? (initialTemplate as (typeof AI_REPORT_TEMPLATES)[number]["key"])
+      : AI_REPORT_TEMPLATES[0].key,
+  );
+  const [selected, setSelected] = useState<Set<string>>(
+    // hanya lokasi yang memang ada dalam izin user (daftar `locations`)
+    new Set(initialScopeIds.filter((id) => locations.some((l) => l.id === id))),
+  );
   const [state, formAction, pending] = useActionState<AiHubState, FormData>(generateAiReportAction, undefined);
 
   const toggle = (id: string) =>
@@ -71,6 +87,8 @@ export function ReportStudioClient({
                 Periode
               </label>
               <Combobox id="ai-report-period" name="period" defaultValue="7hari" className="w-44">
+                <option value="hari_ini">Hari ini</option>
+                <option value="kemarin">Kemarin</option>
                 <option value="7hari">7 hari terakhir</option>
                 <option value="14hari">14 hari terakhir</option>
                 <option value="30hari">30 hari terakhir</option>

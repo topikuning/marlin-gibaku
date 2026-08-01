@@ -68,13 +68,14 @@ export const MAIN_NAV: NavItem[] = [
   { label: "Keuangan", href: "/keuangan", icon: "wallet", capability: "finance.view" },
   { label: "Dokumen", href: "/dokumen", icon: "folderOpen", capability: "document.view" },
   { label: "Laporan", href: "/laporan", icon: "fileText", capability: "report.export" },
-  { label: "Laporan → WA", href: "/laporan-wa", icon: "send", capability: "exec_report.send" },
-  { label: "Chat Grup", href: "/chat-grup", icon: "messagesSquare", capability: "exec_report.send" },
+  // "Laporan → WA" dilebur ke Report Studio (/ai/reports) — DECISIONS 193/194.
+  // Route /laporan-wa dialihkan ke sana; jangan hidupkan lagi sebagai menu.
+  { label: "Chat Grup", href: "/chat-grup", icon: "messagesSquare", capability: "wa.chat" },
   {
     label: "Master Data",
     href: "/master",
     icon: "database",
-    anyCapability: ["contract.manage", "exec_report.send", "user.create"],
+    anyCapability: ["contract.manage", "wa.chat", "user.create"],
   },
   { label: "Sistem", href: "/sistem", icon: "settings", capability: "system.manage" },
 ];

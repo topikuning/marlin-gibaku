@@ -129,11 +129,15 @@ tanpa review.
 Menu global `/ai` (capability `ai.*`; field_supervisor tanpa akses): Portfolio
 Pulse (KPI + tabel exception-first + readiness gate — deterministik penuh,
 berfungsi tanpa provider AI), Perlu Tindakan (antrean rule risiko; simpan =
-draft saran, TIDAK menulis Issue/Recovery), Report Studio (7 template; satu
+draft saran, TIDAK menulis Issue/Recovery), Report Studio (8 template; satu
 structuredContent → pratinjau/cetak-A4/WA/Excel dgn angka identik; lifecycle
 draft→direview→disetujui→beku→terkirim via lifecycle.ts; beku immutable),
-Ask MARLIN (grounded, read-only, bersitasi, percakapan tersimpan), Riwayat &
-Audit (usage token/latency/estimasi biaya per run). Prinsip: **AI bukan sumber
+Ask MARLIN (grounded, read-only, bersitasi, percakapan tersimpan; scope
+percakapan bisa dibawa ke Report Studio), Riwayat & Audit (usage token/latency/
+estimasi biaya per run). Laporan WA eksekutif = template `wa_update` di Report
+Studio (menu Laporan → WA lama dilebur, route `/laporan-wa` dialihkan —
+DECISIONS 194); distribusi artefak beku menerima kontak tersimpan ATAU
+nomor/id grup bebas. Prinsip: **AI bukan sumber
 angka** — semua angka dari calc layer; output AI lolos zod + validasi scope +
 sourceRef + klaim angka, bagian gagal dibuang jadi limitation. In-process (tanpa
 service/Redis/MCP/agent framework); guard AppSetting: kill switch + rate limit +

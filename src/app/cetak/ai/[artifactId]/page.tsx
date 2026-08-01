@@ -29,7 +29,10 @@ export default async function CetakAiPage({ params }: { params: Promise<{ artifa
 
   let html: string;
   try {
-    html = renderAiReportHtml(parseAiReportContent(artifact.structuredContent));
+    html = renderAiReportHtml(
+      parseAiReportContent(artifact.structuredContent),
+      artifact.status === "beku" || artifact.status === "terkirim",
+    );
   } catch {
     notFound();
   }

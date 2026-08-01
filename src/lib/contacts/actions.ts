@@ -31,7 +31,6 @@ function fail(err: unknown): ContactState {
 /** Halaman yang menampilkan kontak — semuanya perlu disegarkan. */
 function revalidateContacts() {
   revalidatePath("/master/kontak");
-  revalidatePath("/laporan-wa");
   revalidatePath("/chat-grup");
 }
 
@@ -45,7 +44,7 @@ const contactSchema = z.object({
 
 export async function addContactAction(_prev: ContactState, formData: FormData): Promise<ContactState> {
   try {
-    const user = await requireCapability("exec_report.send");
+    const user = await requireCapability("wa.chat");
     const parsed = contactSchema.safeParse({
       name: formData.get("name") ?? "",
       chatId: formData.get("chatId") ?? "",
@@ -77,7 +76,7 @@ const updateContactSchema = contactSchema.extend({ id: z.uuid("Kontak tidak vali
 
 export async function updateContactAction(_prev: ContactState, formData: FormData): Promise<ContactState> {
   try {
-    const user = await requireCapability("exec_report.send");
+    const user = await requireCapability("wa.chat");
     const parsed = updateContactSchema.safeParse({
       id: formData.get("id") ?? "",
       name: formData.get("name") ?? "",
@@ -116,7 +115,7 @@ export async function updateContactAction(_prev: ContactState, formData: FormDat
 
 export async function deleteContactAction(_prev: ContactState, formData: FormData): Promise<ContactState> {
   try {
-    const user = await requireCapability("exec_report.send");
+    const user = await requireCapability("wa.chat");
     const id = String(formData.get("id") ?? "");
     if (!z.uuid().safeParse(id).success) return { error: "Kontak tidak valid." };
 
@@ -158,7 +157,7 @@ const aliasSchema = z.object({
 
 export async function updateAliasAction(_prev: ContactState, formData: FormData): Promise<ContactState> {
   try {
-    const user = await requireCapability("exec_report.send");
+    const user = await requireCapability("wa.chat");
     const parsed = aliasSchema.safeParse({
       id: formData.get("id") ?? "",
       displayName: formData.get("displayName") ?? "",
@@ -195,7 +194,7 @@ export async function updateAliasAction(_prev: ContactState, formData: FormData)
 
 export async function deleteAliasAction(_prev: ContactState, formData: FormData): Promise<ContactState> {
   try {
-    const user = await requireCapability("exec_report.send");
+    const user = await requireCapability("wa.chat");
     const id = String(formData.get("id") ?? "");
     if (!z.uuid().safeParse(id).success) return { error: "Alias tidak valid." };
 

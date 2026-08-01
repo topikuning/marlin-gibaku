@@ -42,34 +42,121 @@ function fmtPp(v: number): string {
   return `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(1)}`;
 }
 
-/** Render teks WhatsApp (tanpa markdown selain *bold* WA). */
-export function renderAiReportWhatsApp(c: AiReportContent): string {
+/**
+ * Ambang "data belum masuk": bila laporan final yang tersedia di bawah porsi
+ * ini dari yang seharusnya, portofolio TIDAK BISA dinilai kinerjanya —
+ * deviasi 0% vs rencana 90% bukan berarti pekerjaan mandek, melainkan
+ * pelaporannya kosong. DECISIONS 196.
+ */
+const AMBANG_DATA_KOSONG = 0.25;
+
+export function dataBelumMemadai(t: PulseTotals): boolean {
+  if (t.reportsExpected <= 0) return true; // belum SPMK / belum ada kewajiban lapor
+  return t.reportsFinal / t.reportsExpected < AMBANG_DATA_KOSONG;
+}
+
+/**
+ * Status yang BOLEH ditampilkan. AI bebas menulis "kritis", tetapi bila
+ * datanya sendiri belum masuk, kode MEMAKSA `data_kurang` — menyebut proyek
+ * kritis karena belum ada yang melapor adalah kesimpulan yang salah dan itu
+ * yang dibaca pimpinan. Aturan deterministik, bukan imbauan prompt.
+ */
+export function statusEfektif(c: AiReportContent): ReportOutput["overallStatus"] {
+  return dataBelumMemadai(c.official.totals) ? "data_kurang" : c.report.overallStatus;
+}
+
+/** Baris "Nama: realisasi X vs rencana Y" — menandai baris yang tanpa laporan. */
+function barisPrioritas(w: PulseRow): string {
+  const tanpaLaporan = w.finalReports === 0;
+  const angka = tanpaLaporan
+    ? `belum ada laporan final (0/${w.expectedReports}) · rencana ${w.planPct.toFixed(1)}%`
+    : `realisasi ${w.actualPct.toFixed(1)}% vs rencana ${w.planPct.toFixed(1)}% (${fmtPp(w.deviationPp)} pp), laporan final ${w.finalReports}/${w.expectedReports}`;
+  return `- ${w.name}: ${angka}`;
+}
+
+/**
+ * Render teks WhatsApp (tanpa markdown selain *bold* WA).
+ *
+ * `sudahFinal` = artefak sudah disetujui/dibekukan → footer TIDAK lagi berbunyi
+ * "draf". Dulu label draf ikut dibekukan ke `renderedText` sehingga pesan yang
+ * sampai ke pimpinan tetap berlabel draf mentah walau sudah lolos review.
+ */
+export function renderAiReportWhatsApp(c: AiReportContent, sudahFinal = false): string {
   const r = c.report;
   const o = c.official;
+  const status = statusEfektif(c);
+  const kosong = dataBelumMemadai(o.totals);
+
   const lines: string[] = [
     `*${r.title}*`,
-    `Periode ${o.periodStart} s/d ${o.periodEnd} · status: ${STATUS_LABEL[r.overallStatus]}`,
+    `Periode ${o.periodStart} s/d ${o.periodEnd} · status: ${STATUS_LABEL[status]}`,
     "",
-    r.waSummary.trim(),
-    "",
+  ];
+
+  // Saat data belum masuk, kalimat pembuka menyebut sebabnya lebih dulu —
+  // supaya pimpinan tidak menyimpulkan pekerjaan mandek.
+  if (kosong) {
+    lines.push(
+      `_Kinerja belum bisa dinilai: baru ${o.totals.reportsFinal} dari ${o.totals.reportsExpected} laporan harian yang final. Angka deviasi di bawah mencerminkan data yang belum masuk, bukan pekerjaan yang berhenti._`,
+      "",
+    );
+  }
+  lines.push(r.waSummary.trim(), "");
+
+  // ISI laporan — dulu dibuang seluruhnya oleh renderer ini sehingga pimpinan
+  // hanya menerima judul + satu paragraf + tabel angka (DECISIONS 196).
+  const sections = r.sections.filter((x) => x.body.trim().length > 0).slice(0, 5);
+  if (sections.length) {
+    lines.push("*Catatan lapangan:*");
+    for (const sec of sections) {
+      lines.push(`• *${sec.heading}* — ${ringkas(sec.body, 320)}`);
+    }
+    lines.push("");
+  }
+
+  const rekom = r.recommendations.slice(0, 5);
+  if (rekom.length) {
+    lines.push("*Tindakan yang disarankan:*");
+    for (const [i, a] of rekom.entries()) {
+      lines.push(`${i + 1}. ${a.title} — ${ringkas(a.reason, 200)}`);
+    }
+    lines.push("");
+  }
+
+  lines.push(
     "*Angka resmi MARLIN:*",
     `Lokasi: ${o.totals.locations} · Laporan final: ${o.totals.reportsFinal}/${o.totals.reportsExpected}`,
     `Deviasi negatif: ${o.totals.negativeDeviationLocations} lokasi · Kendala terbuka: ${o.totals.openIssues} · Recovery overdue: ${o.totals.overdueRecoveries}`,
-  ];
+  );
+
   const worst = o.rows.slice(0, 5);
   if (worst.length) {
     lines.push("", "*Prioritas:*");
-    for (const w of worst) {
-      lines.push(
-        `- ${w.name}: realisasi ${w.actualPct.toFixed(1)}% vs rencana ${w.planPct.toFixed(1)}% (${fmtPp(w.deviationPp)} pp), laporan final ${w.finalReports}/${w.expectedReports}`,
-      );
-    }
+    for (const w of worst) lines.push(barisPrioritas(w));
   }
+
+  // SEMUA keterbatasan, bukan hanya yang pertama.
   if (r.limitations.length) {
-    lines.push("", `Catatan: ${r.limitations[0]}`);
+    lines.push("", "*Keterbatasan:*");
+    for (const l of r.limitations.slice(0, 4)) lines.push(`- ${l}`);
   }
-  lines.push("", "_Draf AI MARLIN — angka dari sistem, narasi perlu review manusia._");
+
+  lines.push(
+    "",
+    sudahFinal
+      ? "_Laporan MARLIN — angka dari sistem, narasi disusun AI dan sudah direview._"
+      : "_Draf AI MARLIN — angka dari sistem, narasi perlu review manusia._",
+  );
   return lines.join("\n");
+}
+
+/** Potong rapi di batas kata supaya pesan WA tidak terputus di tengah kata. */
+function ringkas(teks: string, maks: number): string {
+  const t = teks.trim().replace(/\s+/g, " ");
+  if (t.length <= maks) return t;
+  const potong = t.slice(0, maks);
+  const spasi = potong.lastIndexOf(" ");
+  return `${(spasi > maks * 0.6 ? potong.slice(0, spasi) : potong).trimEnd()}…`;
 }
 
 function esc(s: string): string {
@@ -77,7 +164,7 @@ function esc(s: string): string {
 }
 
 /** Render HTML (pratinjau in-app & halaman cetak A4 → PDF via print browser). */
-export function renderAiReportHtml(c: AiReportContent): string {
+export function renderAiReportHtml(c: AiReportContent, sudahFinal = false): string {
   const r = c.report;
   const o = c.official;
   const rowsHtml = o.rows
@@ -108,7 +195,7 @@ export function renderAiReportHtml(c: AiReportContent): string {
   return `<article class="ai-report">
 <header>
   <h1>${esc(r.title)}</h1>
-  <p class="meta">Periode ${o.periodStart} s/d ${o.periodEnd} · data terakhir berubah ${o.dataAsOf ? esc(new Date(o.dataAsOf).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", dateStyle: "medium", timeStyle: "short" })) + " WIB" : "—"} · status: <strong>${STATUS_LABEL[r.overallStatus]}</strong> · confidence AI ${r.confidence}%</p>
+  <p class="meta">Periode ${o.periodStart} s/d ${o.periodEnd} · data terakhir berubah ${o.dataAsOf ? esc(new Date(o.dataAsOf).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", dateStyle: "medium", timeStyle: "short" })) + " WIB" : "—"} · status: <strong>${STATUS_LABEL[statusEfektif(c)]}</strong> · confidence AI ${r.confidence}%</p>
 </header>
 <div class="summary"><strong>Ringkasan (Analisis AI)</strong><p>${esc(r.executiveSummary).replace(/\n/g, "<br/>")}</p></div>
 <h3>Angka Resmi MARLIN</h3>
@@ -119,7 +206,7 @@ export function renderAiReportHtml(c: AiReportContent): string {
 ${sections}
 ${recs}
 ${limits}
-<footer><p>Draf disusun AI dari data MARLIN — wajib review manusia sebelum distribusi. Angka bersumber dari calculation layer MARLIN, bukan dari AI.</p></footer>
+<footer><p>${sudahFinal ? "Laporan MARLIN — narasi disusun AI dan sudah direview manusia." : "Draf disusun AI dari data MARLIN — wajib review manusia sebelum distribusi."} Angka bersumber dari calculation layer MARLIN, bukan dari AI.</p></footer>
 </article>`;
 }
 

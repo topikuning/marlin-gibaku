@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function KontakPage() {
   const user = await requireUser();
-  requireCapabilityPage(user.role, "exec_report.send");
+  requireCapabilityPage(user.role, "wa.chat");
 
   const [view, wahaOn, dispatches] = await Promise.all([
     getContactsView(user),

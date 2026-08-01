@@ -26,6 +26,15 @@ import { ArtifactPanel } from "./artifact-panel";
 export const metadata: Metadata = { title: "AI Intelligence — Detail Run" };
 export const dynamic = "force-dynamic";
 
+/** Template Report Studio yang paling cocok per jenis analisis (DECISIONS 194). */
+const LAPORAN_TEMPLATE_FOR_KIND: Partial<Record<string, string>> = {
+  pulse: "exec_portfolio",
+  deviasi: "exec_portfolio",
+  risiko: "kendala_recovery",
+  kualitas_data: "exec_portfolio",
+  tanya: "wa_update",
+};
+
 const KIND_LABEL: Record<string, string> = {
   pulse: "Portfolio Pulse",
   deviasi: "Explain Variance",
@@ -155,6 +164,17 @@ export default async function AiRunDetailPage({ params }: { params: Promise<{ id
           {run.periodEnd.toISOString().slice(0, 10)} · oleh {creator?.fullName ?? "—"} ·{" "}
           {formatTanggalWaktu(run.createdAt)}
         </span>
+        {/* Doktrin DECISIONS 193: analisis tidak boleh berakhir di layar —
+            jembatan ke Report Studio dgn scope run terbawa. Angka dihitung
+            ulang dari calc layer saat generate, bukan membekukan run ini. */}
+        {run.status === "siap" && LAPORAN_TEMPLATE_FOR_KIND[run.runKind] ? (
+          <Link
+            href={`/ai/reports?template=${LAPORAN_TEMPLATE_FOR_KIND[run.runKind]}&scopeIds=${(run.scopeIds as string[]).join(",")}`}
+            className="ml-auto text-[13px] font-medium text-primary hover:underline"
+          >
+            Jadikan laporan →
+          </Link>
+        ) : null}
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
@@ -208,8 +228,13 @@ export default async function AiRunDetailPage({ params }: { params: Promise<{ id
             version: a.version,
             templateKey: a.templateKey,
             frozen: !!a.frozenAt,
+            // Artefak "saran" menyimpan isinya di `detail`, bukan di
+            // report.executiveSummary — dulu dipetakan ke "" sehingga kartunya
+            // kosong melompong (DECISIONS 196).
             executiveSummary:
-              a.kind === "laporan" ? ((a.structuredContent as { report?: ReportOutput })?.report?.executiveSummary ?? "") : "",
+              a.kind === "laporan"
+                ? ((a.structuredContent as { report?: ReportOutput })?.report?.executiveSummary ?? "")
+                : ((a.structuredContent as { detail?: string })?.detail ?? ""),
             waSummary: a.kind === "laporan" ? ((a.structuredContent as { report?: ReportOutput })?.report?.waSummary ?? "") : "",
             renderedText: a.renderedText,
             distributions: (a.distributions as { at: string; target: string }[] | null) ?? [],

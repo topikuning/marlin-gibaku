@@ -42,7 +42,7 @@ export default async function ChatGrupPage({
   searchParams: Promise<{ p?: string; d?: string }>;
 }) {
   const user = await requireUser();
-  requireCapabilityPage(user.role, "exec_report.send");
+  requireCapabilityPage(user.role, "wa.chat");
   const sp = await searchParams;
 
   const [packages, aiCfg, contacts] = await Promise.all([

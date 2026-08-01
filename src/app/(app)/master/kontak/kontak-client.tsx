@@ -233,7 +233,7 @@ function ContactSection({
           </div>
         </form>
         <p className="text-xs text-ink-faint">
-          ID grup WhatsApp bisa diambil dari menu Laporan → WA (daftar grup WAHA) atau dari tautan undangan grup.
+          ID grup WhatsApp bisa diambil dari halaman paket (pengaturan Grup WA / daftar grup WAHA) atau dari tautan undangan grup.
         </p>
 
         {canViewAll ? (
