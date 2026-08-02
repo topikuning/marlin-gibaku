@@ -471,6 +471,14 @@ export type DiffItem = {
   volumeLama: number | null;
   volumeBaru: number | null;
   hargaSatuan: number | null;
+  /**
+   * Harga satuan di revisi LAMA — null untuk item baru (memang belum ada).
+   * Ada supaya peninjau bisa melihat harga item kontrak lama bergeser, bukan
+   * hanya melihat "Jumlah berubah" tanpa tahu sebabnya (DECISIONS 213).
+   */
+  hargaSatuanLama: number | null;
+  /** Item lama yang harga satuannya bergeser — seharusnya tidak terjadi. */
+  hargaBergeser: boolean;
   amountLama: bigint;
   amountBaru: bigint;
 };
@@ -524,12 +532,25 @@ export async function diffRevisions(oldRevisionId: string, newRevisionId: string
         volumeLama: null,
         volumeBaru,
         hargaSatuan: harga,
+        hargaSatuanLama: null,
+        hargaBergeser: false,
         amountLama: 0n,
         amountBaru: n.amount,
       });
     } else {
       const volumeLama = o.volume != null ? Number(o.volume) : null;
-      if (Math.abs((volumeLama ?? 0) - (volumeBaru ?? 0)) > EPS || o.amount !== n.amount) {
+      const hargaLama = o.unitPrice != null ? Number(o.unitPrice) : null;
+      // Toleransi 0,005 = setengah rupiah-sen; di bawah itu beda pembulatan
+      // tulis, bukan perubahan harga.
+      const hargaBergeser =
+        hargaLama == null && harga == null
+          ? false
+          : hargaLama == null || harga == null || Math.abs(hargaLama - harga) >= 0.005;
+      if (
+        Math.abs((volumeLama ?? 0) - (volumeBaru ?? 0)) > EPS ||
+        o.amount !== n.amount ||
+        hargaBergeser
+      ) {
         diubah.push({
           lineageKey: n.lineageKey,
           code: n.code,
@@ -538,6 +559,8 @@ export async function diffRevisions(oldRevisionId: string, newRevisionId: string
           volumeLama,
           volumeBaru,
           hargaSatuan: harga,
+          hargaSatuanLama: hargaLama,
+          hargaBergeser,
           amountLama: o.amount,
           amountBaru: n.amount,
         });
@@ -554,6 +577,8 @@ export async function diffRevisions(oldRevisionId: string, newRevisionId: string
         volumeLama: o.volume != null ? Number(o.volume) : null,
         volumeBaru: null,
         hargaSatuan: o.unitPrice != null ? Number(o.unitPrice) : null,
+        hargaSatuanLama: o.unitPrice != null ? Number(o.unitPrice) : null,
+        hargaBergeser: false,
         amountLama: o.amount,
         amountBaru: 0n,
       });

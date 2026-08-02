@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { getBranding } from "@/lib/branding";
 import { getKkpDailyData } from "@/lib/daily-report/queries";
 import { WORKER_ROLE_LABEL, WORKER_ROLE_ORDER } from "@/lib/daily-report/constants";
-import { teksRealisasi, type KkpDailyData } from "@/components/knmp/kkp-daily-report";
+import { barisRealisasiKkp, type KkpDailyData } from "@/components/knmp/kkp-daily-report";
 import { KKP_WEATHER_HOURS } from "@/lib/weather/hourly";
 import { PDF_COLORS, PDF_FONT, docToBuffer, createFormA4Doc, FORM_MARGIN } from "./document";
 import { colWidths, gridRow, gridRowHeight, type GridCell, type GridOptions } from "./grid";
@@ -277,8 +277,12 @@ export async function buildHarianKkpPdf(d: KkpDailyData, appName: string, logo?:
       `${r.name}${r.volume > 0 ? ` — ${volFmt.format(r.volume)}${r.unit ? ` ${r.unit}` : ""}` : ""}` +
       (r.picName ? ` (${r.picName})` : ""),
   );
-  const realisasiTeks = d.items.map((it) => teksRealisasi(it));
-  const barisRR = Math.max(MIN_RR_ROWS, rencanaTeks.length, realisasiTeks.length);
+  // Dikelompokkan per BANGUNAN/KATEGORI — sumbernya sama dengan blanko layar
+  // supaya PDF dan pratinjau tidak pernah berbeda isi (permintaan user
+  // 2026-08-02, DECISIONS 214).
+  const realisasiBaris = barisRealisasiKkp(d.items);
+  const barisRR = Math.max(MIN_RR_ROWS, rencanaTeks.length, realisasiBaris.length);
+  let noLanjut = d.items.length;
   fit(14 * (barisRR + 1));
 
   // Kedua kolom digambar BARIS PER BARIS dengan tinggi yang SAMA
@@ -290,12 +294,34 @@ export async function buildHarianKkpPdf(d: KkpDailyData, appName: string, logo?:
   gridRow(doc, y, [{ text: "REALISASI PEKERJAAN", head: true, align: "center", span: 2 }], rrRight);
   for (let i = 0; i < barisRR; i++) {
     const kiri: GridCell[] = [{ text: String(i + 1), align: "center" }, { text: rencanaTeks[i] ?? " " }];
-    const kanan: GridCell[] = [{ text: String(i + 1), align: "center" }, { text: realisasiTeks[i] ?? " " }];
+    const br = realisasiBaris[i];
+    if (!br) noLanjut += 1;
+    const kanan: GridCell[] = br?.kategori
+      ? [{ text: " ", align: "center" }, { text: br.text, head: true }]
+      : [{ text: br ? br.no : String(noLanjut), align: "center" }, { text: br?.text ?? " " }];
     const tinggi = Math.max(gridRowHeight(doc, kiri, rrLeft), gridRowHeight(doc, kanan, rrRight));
     gridRow(doc, rry, kiri, { ...rrLeft, minRowHeight: tinggi });
     rry = gridRow(doc, rry, kanan, { ...rrRight, minRowHeight: tinggi });
   }
   y = rry;
+
+  /* ── Baris basis draft adendum yang TIDAK dicetak (DECISIONS 215) ─────
+     Disebut, bukan dihilangkan diam-diam: tanpa baris ini pekerjaan yang
+     dilaporkan mandor seolah lenyap dan orang mengira datanya hilang. */
+  if ((d.draftItemCount ?? 0) > 0) {
+    const nota: GridOptions = { x, width, cols: [width], fontSize: 6 };
+    draw(
+      [
+        {
+          text:
+            `${d.draftItemCount} pekerjaan hari ini dilaporkan atas usulan adendum yang belum disetujui ` +
+            `sehingga tidak dicetak di blanko ini — belum ada dasar kontraknya. ` +
+            `Rinciannya ada di pantauan internal MARLIN.`,
+        },
+      ],
+      nota,
+    );
+  }
 
   /* ── Catatan (data sistem, di luar blanko) & tanda tangan ──────────── */
   const catatan: GridOptions = { x, width, cols: [width], fontSize: 7 };

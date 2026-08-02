@@ -11,13 +11,14 @@ import { ppnAmount, withPpn } from "@/lib/money";
  *                     (semuanya rumus, bukan angka mati).
  *   2. "Sub Resume" — per kategori: rincian anak langsungnya, nilai =rumus ke
  *                     baris Detail RAB; subtotal = SUM blok.
- *   3. "Detail RAB" — pohon lengkap; Jumlah item = ROUND(volume×harga,0),
+ *   3. "Detail RAB" — pohon lengkap; Jumlah item = ANGKA TERSIMPAN (angka mati),
  *                     Jumlah induk = penjumlahan sel anak-anaknya.
  *
- * Rumus Excel di sini MENCERMINKAN formula kanonik (valueDone: round(volume ×
- * hargaSatuan) per item, agregat = Σ anak) — bukan menghitung angka baru.
- * Setiap sel rumus juga membawa `result` = angka tersimpan DB, jadi nilai yang
- * tampil identik dengan aplikasi bahkan sebelum Excel merekalkulasi.
+ * Rumus di sini hanya MENJUMLAHKAN sel yang sudah ada, tidak pernah menurunkan
+ * angka baru dari volume × harga satuan (DECISIONS 212 — lihat alasannya di
+ * baris item). Setiap sel rumus membawa `result` = angka tersimpan DB, dan
+ * karena semua daunnya angka mati, hasil rekalkulasi Excel identik dengan
+ * angka aplikasi — bukan hanya sebelum rekalkulasi.
  */
 
 export type RabExportNode = {
@@ -163,11 +164,21 @@ export async function buildRabXlsx(input: RabExportInput): Promise<Buffer> {
       det.getCell(row, 4).value = n.unit ?? "";
       det.getCell(row, 5).value = n.unitPrice ?? 0;
       det.getCell(row, 5).numFmt = RUPIAH_FMT;
-      // Formula kanonik valueDone: round(volume × hargaSatuan) ke rupiah.
-      det.getCell(row, 6).value = {
-        formula: `ROUND(C${row}*E${row},0)`,
-        result: Number(n.amount),
-      };
+      // ANGKA MATI, bukan ROUND(volume×harga) — DECISIONS 212.
+      //
+      // Harga satuan di dokumen sumber sudah dibulatkan (2 desimal) dari analisa
+      // harga satuan yang presisinya lebih panjang, jadi ROUND(vol×harga) TIDAK
+      // sama dengan Jumlah yang tertulis di dokumen. Pada RAB Wonorejo: 152 dari
+      // 1.227 baris meleset Rp1–4, dan begitu Excel merekalkulasi seluruh pohon
+      // ikut bergeser sampai Rp3.697 di nilai pra-PPN — lalu PPN dan TOTAL
+      // dihitung di atas angka yang sudah melenceng.
+      //
+      // Nilai yang diunggah user dipakai apa adanya (DECISIONS 203): berkas
+      // unduhan harus SAMA PERSIS dengan layar dan dengan dokumen kontrak, juga
+      // sesudah Excel menghitung ulang. Baris induk tetap berumus karena
+      // subtotal tersimpan memang PERSIS Σ anak tersimpan (diverifikasi atas
+      // 218 baris agregat: nol selisih), jadi rumusnya tidak menggeser apa pun.
+      det.getCell(row, 6).value = Number(n.amount);
     } else {
       det.getRow(row).font = { bold: depth === 0, italic: depth > 0 };
       if (n.kind === "kategori") {

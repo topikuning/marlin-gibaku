@@ -97,6 +97,8 @@ const saveItemSchema = z.object({
   photoTakenAt: z.string().optional(),
   photoSource: z.enum(["camera", "gallery"]).optional(),
   galleryFallback: z.enum(["project", "none"]).optional(),
+  /** "1" = pelapor menyatakan sedang berada DI LOKASI saat unggah galeri. */
+  galleryAtSite: z.string().optional(),
 });
 
 export async function saveItemAction(_prev: DailyActionState, formData: FormData): Promise<DailyActionState> {
@@ -113,6 +115,7 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
       photoTakenAt: formData.get("photoTakenAt") || undefined,
       photoSource: formData.get("photoSource") || undefined,
       galleryFallback: formData.get("galleryFallback") || undefined,
+      galleryAtSite: formData.get("galleryAtSite") || undefined,
     });
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const d = parsed.data;
@@ -160,13 +163,52 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
     }
     const source = d.photoSource ?? "camera";
     const fallbackMode = d.galleryFallback ?? "project";
+
+    // Wajib-GPS (setelan, default mati — DECISIONS 219). Berlaku untuk KEDUA
+    // jalur, tapi yang diwajibkan berbeda karena sumber koordinatnya berbeda:
+    //   • Kamera → koordinat PERANGKAT saat memotret (dikirim dari browser).
+    //   • Galeri → GPS di EXIF FOTO ITU SENDIRI; posisi perangkat saat unggah
+    //     justru menyesatkan (unggah borongan lazim dilakukan dari kantor).
+    // Pemeriksaan galeri per-berkas ada di `savePhotoForItem`, karena EXIF baru
+    // terbaca di sana.
+    const requireGps = files.length > 0 ? (await import("@/lib/policy")).getPolicy : null;
+    const wajibGps = requireGps ? (await requireGps()).requirePhotoGps : false;
+    if (wajibGps && source === "camera" && (d.photoLat == null || d.photoLng == null)) {
+      return {
+        error:
+          "Foto kamera wajib membawa titik GPS, tapi perangkat tidak mengirimkannya. " +
+          "Izinkan akses lokasi di browser (tombol di atas tombol Kamera), lalu foto ulang.",
+      };
+    }
     const locLat = location.gpsLat != null ? Number(location.gpsLat) : null;
     const locLng = location.gpsLng != null ? Number(location.gpsLng) : null;
     const workDate = new Date(`${d.dateKey}T00:00:00.000Z`);
-    // Badge kategori foto = nama pekerjaan (RabNode) laporan harian ini.
-    const workName = d.rabNodeId
-      ? (await db.rabNode.findUnique({ where: { id: d.rabNodeId }, select: { name: true } }))?.name ?? null
+    // Cap foto: badge = BANGUNAN/kategori RAB, baris di bawahnya = item
+    // pekerjaannya (permintaan user 2026-08-02, DECISIONS 218). Sebelumnya
+    // badge hanya memuat nama item — dan di KNMP satu lokasi punya belasan
+    // bangunan dengan nama item yang sama persis ("Pembesian", "Galian"),
+    // sehingga fotonya tidak bisa dipertanggungjawabkan ke bangunan mana pun.
+    const node = d.rabNodeId
+      ? await db.rabNode.findUnique({
+          where: { id: d.rabNodeId },
+          select: { name: true, lineageKey: true, revisionId: true },
+        })
       : null;
+    const workName = node?.name ?? null;
+    let buildingName: string | null = null;
+    if (node) {
+      const kat = await db.rabNode.findFirst({
+        where: {
+          revisionId: node.revisionId,
+          kind: "kategori",
+          lineageKey: node.lineageKey.split("#")[0],
+        },
+        select: { code: true, name: true },
+      });
+      // Null bila kategorinya tidak ketemu — cap menulis apa adanya, tidak
+      // mengarang bangunan (DECISIONS 197).
+      if (kat) buildingName = kat.code ? `${kat.code}. ${kat.name}` : kat.name;
+    }
     for (const file of files) {
       try {
         await savePhotoForItem({
@@ -180,6 +222,8 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
           stamp: {
             source,
             fallbackMode,
+            requireGps: wajibGps,
+            atSite: d.galleryAtSite === "1",
             lat: d.photoLat ?? null,
             lng: d.photoLng ?? null,
             locationLat: locLat,
@@ -189,7 +233,8 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
             locationLabel: location.name,
             companyName,
             reporterName: user.fullName,
-            categoryName: workName,
+            categoryName: buildingName ?? workName,
+            workName: buildingName ? workName : null,
           },
         });
       } catch (err) {

@@ -13,6 +13,8 @@ import { GDrivePanel } from "./gdrive-panel";
 import { db } from "@/lib/db";
 import { formatTanggalWaktu, jakartaToday } from "@/lib/format";
 import { getBranding, BRAND_DEFAULTS } from "@/lib/branding";
+import { getPolicy } from "@/lib/policy";
+import { PolicyCard } from "./policy-card";
 import { getPhotoStampConfig } from "@/lib/photo-stamp/config";
 import { getActivityKinds } from "@/lib/field-activity/kinds";
 import { aiSecretStorageStatus, getAiConfigDisplay } from "@/lib/ai/config";
@@ -143,6 +145,7 @@ export default async function SistemPage() {
       db.user.groupBy({ by: ["role"], _count: { _all: true } }),
     ]);
   const activityKinds = await getActivityKinds();
+  const policy = await getPolicy();
   const maintenanceLocations = await db.location.findMany({
     where: { package: { orgId: user.orgId } },
     select: { id: true, name: true },
@@ -221,6 +224,11 @@ export default async function SistemPage() {
           <ConfigRow label="Owner agency" value="KKP" />
         </CardBody>
       </Card>
+
+      {/* Kebijakan pengendalian — saklar pemisahan tugas & wajib-GPS
+          (DECISIONS 218). Ditaruh di panel Ringkasan supaya keadaannya
+          TERBACA setiap kali halaman Sistem dibuka, bukan tersembunyi di tab. */}
+      <PolicyCard nilai={policy} />
 
       <Card className="lg:col-span-2">
         <CardHeader title="Perubahan Terbaru" subtitle="6 mutasi terakhir" />

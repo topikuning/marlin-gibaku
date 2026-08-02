@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
-import { flattenParsedRab, grandTotal } from "@/lib/rab/flatten";
+import { flattenParsedRab, grandTotal, type FlatNode } from "@/lib/rab/flatten";
 import type { ParsedRab } from "@/lib/rab/parsed";
 import { DEFAULT_CONTRACT_DAYS, weeklyFromSegments } from "@/lib/scurve/generate";
 import { autoCategoryWindowFrac, cumulativeFromCategoryWeekly, scheduleFromItems } from "@/lib/scurve/sequencing";
@@ -53,7 +53,19 @@ export async function createRevisionFromParsed(
   parsed: ParsedRab,
   opts: CreateRevisionOpts,
 ): Promise<CreateRevisionResult> {
-  const nodes = flattenParsedRab(parsed);
+  return createRevisionFromNodes(locationId, flattenParsedRab(parsed), opts);
+}
+
+/**
+ * Versi yang menerima `FlatNode[]` langsung — dipakai jalur impor yang tidak
+ * melewati `hps-parser`, yaitu TEMPLATE KERJA ADENDUM (DECISIONS 216). Isi
+ * fungsinya sama persis; yang berbeda hanya dari mana node-nya berasal.
+ */
+export async function createRevisionFromNodes(
+  locationId: string,
+  nodes: FlatNode[],
+  opts: CreateRevisionOpts,
+): Promise<CreateRevisionResult> {
   if (nodes.length === 0) throw new Error("Tidak ada node RAB terbaca dari file.");
   const totalValue = grandTotal(nodes);
 

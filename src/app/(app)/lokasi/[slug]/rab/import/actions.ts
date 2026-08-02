@@ -9,12 +9,15 @@ import { parseHpsBuffer } from "@/lib/rab/hps-parser";
 import { flattenParsedRab, grandTotal } from "@/lib/rab/flatten";
 import {
   activateRevision,
+  createRevisionFromNodes,
   createRevisionFromParsed,
   discardDraft,
   regenerateBaseline,
 } from "@/lib/rab/import";
+import { AdendumTemplateError } from "@/lib/rab/adendum-template-parse";
 import { bandingkanTerhadapAktif, type RingkasBeda } from "@/lib/rab/diff-parsed";
 import { cumulativeVolumeByLineage } from "@/lib/progress";
+import { formatNumber, formatRupiah } from "@/lib/format";
 import { isR2Configured, r2Put } from "@/lib/r2";
 
 /**
@@ -58,6 +61,16 @@ export type ImportPreview = {
     itemBaru: { code: string; name: string }[];
     itemHilang: { code: string; name: string; realisasi: number }[];
     volumeBerubah: { code: string; name: string; dari: number | null; ke: number | null; realisasi: number; dibawahRealisasi: boolean }[];
+    /** Harga satuan item KONTRAK LAMA yang bergeser (DECISIONS 213). */
+    hargaBerubah: {
+      lineageKey: string;
+      code: string;
+      name: string;
+      dari: number | null;
+      ke: number | null;
+      /** Rupiah string — BigInt tidak bisa menyeberang ke klien. */
+      dampakRupiah: string;
+    }[];
   } | null;
   /** Diisi bila file berubah setelah pratinjau — commit ditolak, pratinjau diperbarui. */
   notice?: string;
@@ -81,6 +94,45 @@ export type ImportState = { error?: string; success?: string; preview?: ImportPr
 
 function safeName(n: string): string {
   return n.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
+}
+
+/**
+ * Baca template adendum + susun peringatan khas template (DECISIONS 216).
+ *
+ * Dua hal yang WAJIB disebut di pratinjau karena tidak terlihat di diff biasa:
+ * item yang dinyatakan HAPUS (baris hilang bisa juga berarti user lupa), dan
+ * item yang volumenya dijadikan 0 (tetap ada, nilainya nol — bukan dihapus).
+ */
+async function bacaTemplateAdendum(wb: import("exceljs").Workbook) {
+  const { parseAdendumTemplate } = await import("@/lib/rab/adendum-template-parse");
+  const h = parseAdendumTemplate(wb);
+  const warnings: string[] = [];
+  const daftar = (xs: { code: string; name: string }[], n = 8) =>
+    xs.slice(0, n).map((x) => `${x.code} ${x.name}`).join("; ") +
+    (xs.length > n ? `; +${xs.length - n} lainnya` : "");
+
+  if (h.dihapus.length > 0) {
+    warnings.push(
+      `${h.dihapus.length} item DINYATAKAN DICABUT lewat kolom Keterangan: ${daftar(h.dihapus)}. ` +
+        `Item yang sudah punya realisasi akan disebut terpisah di bawah — periksa dulu sebelum melanjutkan.`,
+    );
+  }
+  if (h.volumeNol.length > 0) {
+    warnings.push(
+      `${h.volumeNol.length} item volumenya dijadikan 0: ${daftar(h.volumeNol)}. ` +
+        `Item ini TETAP tercantum di RAB dengan nilai nol — nol bukan penghapusan. ` +
+        `Kalau maksudnya mencabut item, tulis HAPUS di kolom Keterangan.`,
+    );
+  }
+  if (h.itemBaru.length > 0) {
+    warnings.push(
+      `${h.itemBaru.length} item baru disisipkan: ` +
+        h.itemBaru.slice(0, 8).map((x) => `${x.code} ${x.name} (${x.kategori})`).join("; ") +
+        (h.itemBaru.length > 8 ? `; +${h.itemBaru.length - 8} lainnya` : "") +
+        `. Harga item baru dipakai apa adanya — ia memang belum pernah disepakati.`,
+    );
+  }
+  return { ...h, warnings };
 }
 
 export async function importHps(_prev: ImportState, formData: FormData): Promise<ImportState> {
@@ -110,15 +162,57 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     const buffer = Buffer.from(await file.arrayBuffer());
     const sha256 = createHash("sha256").update(buffer).digest("hex");
 
+    // TEMPLATE KERJA ADENDUM terbitan MARLIN punya bentuk sendiri (kolom
+    // kontrak dan kolom adendum berdampingan) dan identitas baris yang
+    // eksplisit lewat lineageKey — tidak bisa dibaca `hps-parser`, yang menebak
+    // struktur dari pola kode. Dikenali dari penanda di sel header, lalu
+    // dikonversi ke bentuk `FlatNode[]` YANG SAMA supaya seluruh mesin
+    // pratinjau di bawah ini (diff, realisasi lepas, harga bergeser) berlaku
+    // apa adanya. DECISIONS 216.
+    // Hanya dicoba pada mode draft: template adendum memang cuma dipakai di
+    // sana, dan membuka workbook dua kali untuk berkas HPS 4-5 MB itu mahal.
+    const mode: ImportMode = formData.get("mode") === "draft" ? "draft" : "aktifkan";
+    let templateAdendum: Awaited<ReturnType<typeof bacaTemplateAdendum>> | null = null;
+    if (mode === "draft") {
+      const ExcelJS = (await import("exceljs")).default;
+      const probe = new ExcelJS.Workbook();
+      let cocok = false;
+      try {
+        await probe.xlsx.load(buffer as unknown as ArrayBuffer);
+        const { isAdendumTemplate } = await import("@/lib/rab/adendum-template-parse");
+        cocok = isAdendumTemplate(probe);
+      } catch {
+        // Gagal dibuka sebagai workbook → biar jalur HPS yang melaporkannya,
+        // dengan pesan galat yang sudah dikenal user.
+      }
+      if (cocok) {
+        // Sudah pasti template: galatnya BUKAN "coba jalur lain", melainkan
+        // kesalahan pengisian yang harus disebut apa adanya ke user.
+        try {
+          templateAdendum = await bacaTemplateAdendum(probe);
+        } catch (e) {
+          if (e instanceof AdendumTemplateError) return { error: e.message };
+          throw e;
+        }
+      }
+    }
+
     let parsed;
     let warnings: string[];
     let priceColumn;
-    try {
-      ({ parsed, warnings, priceColumn } = await parseHpsBuffer(buffer));
-    } catch (e) {
-      return { error: e instanceof Error ? e.message : "Gagal membaca file HPS." };
+    let nodes;
+    if (templateAdendum) {
+      warnings = [...templateAdendum.warnings];
+      priceColumn = { label: "TEMPLATE ADENDUM (kolom Volume Adendum)", source: "nego" as const };
+      nodes = templateAdendum.nodes;
+    } else {
+      try {
+        ({ parsed, warnings, priceColumn } = await parseHpsBuffer(buffer));
+      } catch (e) {
+        return { error: e instanceof Error ? e.message : "Gagal membaca file HPS." };
+      }
+      nodes = flattenParsedRab(parsed);
     }
-    const nodes = flattenParsedRab(parsed);
     if (nodes.length === 0) return { error: "Tidak ada baris RAB terbaca. Cek sheet 'RAB'." };
     const total = grandTotal(nodes);
 
@@ -160,7 +254,6 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       }
     }
 
-    const mode: ImportMode = formData.get("mode") === "draft" ? "draft" : "aktifkan";
     const draft = await db.rabRevision.findFirst({
       where: { locationId: location.id, status: "draft" },
       select: { id: true, revisionNo: true, totalValue: true, amendmentId: true, note: true },
@@ -172,7 +265,15 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     if (activeRevision) {
       const aktifNodes = await db.rabNode.findMany({
         where: { revisionId: activeRevision.id },
-        select: { lineageKey: true, kind: true, code: true, name: true, volume: true, amount: true },
+        select: {
+          lineageKey: true,
+          kind: true,
+          code: true,
+          name: true,
+          volume: true,
+          unitPrice: true,
+          amount: true,
+        },
       });
       beda = bandingkanTerhadapAktif(
         aktifNodes.map((n) => ({
@@ -181,11 +282,32 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
           code: n.code,
           name: n.name,
           volume: n.volume == null ? null : Number(n.volume),
+          unitPrice: n.unitPrice == null ? null : Number(n.unitPrice),
           amount: n.amount,
         })),
         nodes,
         await cumulativeVolumeByLineage(location.id),
       );
+
+      // Harga satuan item KONTRAK LAMA yang bergeser (DECISIONS 213). Adendum
+      // mengubah volume; harga item yang sudah disepakati tidak boleh ikut
+      // bergerak. Kalau bergerak, nilai kontrak berubah TANPA ada pekerjaan
+      // yang bertambah — dan tidak satu pun kolom volume memperlihatkannya.
+      if (beda.hargaBerubah.length > 0) {
+        const naik = beda.hargaBerubah.filter((h) => h.dampakRupiah > 0n).length;
+        const dampak = beda.hargaBerubah.reduce((t, h) => t + h.dampakRupiah, 0n);
+        const harga = (v: number | null) => (v == null ? "—" : formatNumber(v));
+        const contoh = beda.hargaBerubah
+          .slice(0, 5)
+          .map((h) => `${h.code} ${h.name} (${harga(h.dari)} → ${harga(h.ke)})`);
+        warnings.push(
+          `PERHATIAN — harga satuan ${beda.hargaBerubah.length} item KONTRAK LAMA berubah di file ini ` +
+            `(${naik} naik, ${beda.hargaBerubah.length - naik} turun; dampak neto ${formatRupiah(dampak)}): ` +
+            `${contoh.join("; ")}${beda.hargaBerubah.length > contoh.length ? `; +${beda.hargaBerubah.length - contoh.length} lainnya` : ""}. ` +
+            `Adendum mengubah VOLUME — harga satuan item yang sudah ada di kontrak seharusnya tetap. ` +
+            `Angka file TIDAK diubah sendiri; pastikan pergeseran ini memang ada dasarnya sebelum melanjutkan.`,
+        );
+      }
     }
 
     const preview: ImportPreview = {
@@ -217,6 +339,14 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
               ke: b.ke,
               realisasi: b.realisasi,
               dibawahRealisasi: b.dibawahRealisasi,
+            })),
+            hargaBerubah: beda.hargaBerubah.map((b) => ({
+              lineageKey: b.lineageKey,
+              code: b.code,
+              name: b.name,
+              dari: b.dari,
+              ke: b.ke,
+              dampakRupiah: b.dampakRupiah.toString(),
             })),
           }
         : null,
@@ -253,7 +383,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       const amendmentId = draft?.amendmentId ?? null;
       const noteDraft = note ?? draft?.note ?? null;
       if (draft) await discardDraft(draft.id, user.id);
-      const resDraft = await createRevisionFromParsed(location.id, parsed, {
+      const resDraft = await createRevisionFromNodes(location.id, nodes, {
         source,
         note: noteDraft,
         userId: user.id,
@@ -280,7 +410,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       };
     }
 
-    const res = await createRevisionFromParsed(location.id, parsed, {
+    const res = await createRevisionFromNodes(location.id, nodes, {
       source,
       note,
       userId: user.id,

@@ -21,7 +21,19 @@ const LOGO_FONT_FACE =
 export type StampRenderData = {
   companyName: string | null;
   locationName: string;
+  /**
+   * Badge besar = BANGUNAN/KATEGORI RAB (mis. "V. PEKERJAAN SHELTER"). Untuk
+   * kegiatan lapangan diisi label jenis kegiatan.
+   */
   categoryName: string | null;
+  /**
+   * Baris kecil di bawah badge = ITEM PEKERJAANNYA (mis. "Pembesian Besi Beton
+   * D13"). Dipisah dari badge karena satu lokasi KNMP punya belasan bangunan
+   * dan nama item kerap sama persis antar bangunan — foto "Pembesian" tanpa
+   * menyebut bangunannya tidak bisa dipertanggungjawabkan (DECISIONS 218).
+   * null = tidak ada (mis. foto kegiatan lapangan).
+   */
+  workName?: string | null;
   /** Sudah diformat: "Sabtu, 25 Juli 2026 • 16:15 WIB". */
   dateTimeText: string;
   /** Sudah diformat: "6.871010°S, 109.253123°E" — null = sembunyikan. */
@@ -206,9 +218,14 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
   const gapDateDiv = Math.round(base * 0.016);
   const gapDivMeta = Math.round(base * 0.014);
   const hasBadge = !!d.categoryName?.trim();
+  const workText = d.workName?.trim() || null;
+  const fsWork = Math.round(fsBadge * 0.92);
+  const workLineH = Math.round(fsWork * 1.28);
+  const gapWork = Math.round(base * 0.006);
 
   const total =
     (hasBadge ? badgeH + gapBadgeLoc : 0) +
+    (workText ? workLineH + gapWork : 0) +
     loc.lines.length * locLineH +
     gapLocDate +
     dateH +
@@ -237,6 +254,22 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
       `<text x="${x + badgePadH}" y="${cy + Math.round(badgeH / 2 + fit.fs * 0.35)}" textLength="${innerW}" lengthAdjust="spacingAndGlyphs" font-family="${ff}" font-weight="700" font-size="${fit.fs}" fill="${onAccent}">${esc(fit.text)}</text>`,
     );
     cy += badgeH + gapBadgeLoc;
+  }
+
+  // Item pekerjaan — di bawah badge bangunan, sebelum nama lokasi. Dipotong
+  // dengan elipsis, TIDAK dipaksa selebar apa pun: ini kalimat, bukan pill.
+  if (workText) {
+    const maxW = w - 2 * safeX;
+    let teks = workText;
+    while (teks.length > 4 && badgeTextW(teks, fsWork) > maxW) {
+      teks = teks.slice(0, -2);
+    }
+    if (teks !== workText) teks = `${teks.trimEnd()}…`;
+    cy += Math.round(fsWork * 0.9);
+    parts.push(
+      `<text x="${x}" y="${cy}" font-family="${ff}" font-weight="600" font-size="${fsWork}" ${halo(fsWork)} fill="${TEXT_WHITE}">${esc(teks)}</text>`,
+    );
+    cy += workLineH - Math.round(fsWork * 0.9) + gapWork;
   }
 
   // Nama lokasi (dominan).

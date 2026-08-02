@@ -57,9 +57,24 @@ export async function kirimPengingatSekarangAction(
     revalidatePath("/sistem");
 
     if (hasil.terkirim === 0 && hasil.gagal === 0) {
-      // Sebabnya TIDAK ditebak: nol bisa berarti semua sudah lapor, bisa juga
-      // belum ada lokasi berjalan yang SPMK-nya tiba.
-      return { success: "Tidak ada penanggung jawab yang perlu ditagih saat ini." };
+      // Dulu di sini selalu kalimat HIJAU "tidak ada yang perlu ditagih" —
+      // dan itulah keluhan user: "aku sudah klik, dinyatakan berhasil, tapi
+      // tidak ada wa yang terkirim". Nol pesan punya DUA arti yang berlawanan:
+      //   (a) semua lokasi sudah melapor → memang sehat;
+      //   (b) ada yang belum melapor tapi tak satu pun penanggung jawabnya
+      //       punya nomor WA → SALAH KONFIGURASI, dan hijau menyembunyikannya.
+      // Sebabnya tetap tidak ditebak; yang disebut adalah ANGKA-ANGKANYA —
+      // jumlah lokasi, penugasan, dan orang tanpa nomor semuanya fakta.
+      const { sebabTidakAdaPenerima } = await import("./penjadwal");
+      const sebab = hasil.diagnosa ? sebabTidakAdaPenerima(hasil.diagnosa) : null;
+      if (sebab) return { error: `Tidak ada pesan terkirim. ${sebab}` };
+      const d = hasil.diagnosa;
+      return {
+        success:
+          d && d.lokasiSudahLapor > 0
+            ? `Tidak ada yang perlu ditagih — ${d.lokasiSudahLapor} dari ${d.lokasiDalamLingkup} lokasi sudah melapor hari ini.`
+            : "Tidak ada penanggung jawab yang perlu ditagih saat ini.",
+      };
     }
 
     const berbukti = hasil.rincian.filter((r) => r.ok && r.waMessageId).length;

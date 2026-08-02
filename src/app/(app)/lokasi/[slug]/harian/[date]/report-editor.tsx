@@ -218,6 +218,13 @@ function ItemForm({
                   </>
                 ) : null}
               </div>
+              {picked.basis === "draft_adendum" ? (
+                <p className="mt-1 text-[13px] font-medium text-warning">
+                  Item ini dari draft adendum yang belum resmi. Volumenya tercatat dan terlihat di
+                  laporan pengajuan adendum, tetapi TIDAK masuk progres resmi, kurva-S, maupun
+                  termin sampai adendumnya disahkan.
+                </p>
+              ) : null}
             </div>
             <Button type="button" variant="secondary" size="sm" onClick={() => setPicked(null)}>
               Ganti
@@ -252,6 +259,14 @@ function ItemForm({
                         <div className="truncate text-[11px] font-medium text-primary">{n.category}</div>
                       ) : null}
                       <div className="text-sm font-medium text-ink">{n.name}</div>
+                      {/* Item dari draft adendum ditandai — pelapor harus tahu
+                          ia mencatat pekerjaan yang belum punya dasar kontrak
+                          (DECISIONS 210). */}
+                      {n.basis === "draft_adendum" ? (
+                        <div className="mt-0.5 inline-block rounded bg-warning-soft px-1.5 py-0.5 text-[11px] font-medium text-warning">
+                          Pengajuan adendum — belum resmi
+                        </div>
+                      ) : null}
                       <div className="text-xs text-ink-muted">
                         {n.code}
                         {n.unit ? ` · ${n.unit}` : ""}

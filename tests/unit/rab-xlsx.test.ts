@@ -64,13 +64,16 @@ describe("ekspor RAB 3 sheet ber-formula", () => {
     expect(wb.worksheets.map((w) => w.name)).toEqual(["Resume", "Sub Resume", "Detail RAB"]);
   });
 
-  it("Detail: Jumlah item = ROUND(volume×harga), induk = penjumlahan sel anak", async () => {
+  it("Detail: Jumlah item = angka tersimpan (bukan rumus), induk = penjumlahan sel anak", async () => {
     const wb = await bangun();
     const det = wb.getWorksheet("Detail RAB")!;
     const rGalian = barisDengan(det, 2, "Galian tanah");
-    const galian = rumus(det.getCell(rGalian, 6));
-    expect(galian.formula).toBe(`ROUND(C${rGalian}*E${rGalian},0)`);
-    expect(galian.result).toBe(25_000_000);
+    // DECISIONS 212: daun WAJIB angka mati. Rumus ROUND(vol×harga) akan
+    // menghitung ulang dari harga satuan yang sudah dibulatkan di dokumen
+    // sumber, jadi berkas unduhan bergeser dari kontrak begitu Excel
+    // merekalkulasi.
+    expect(rumus(det.getCell(rGalian, 6)).formula).toBeUndefined();
+    expect(det.getCell(rGalian, 6).value).toBe(25_000_000);
 
     const rKategori = barisDengan(det, 2, "PEKERJAAN GEDUNG");
     const kat = rumus(det.getCell(rKategori, 6));
@@ -119,6 +122,37 @@ describe("ekspor RAB 3 sheet ber-formula", () => {
     expect(rumus(res.getCell(rTotal, 3)).result).toBe(147_630_000);
     const rBulat = barisDengan(res, 2, "DIBULATKAN");
     expect(rumus(res.getCell(rBulat, 3)).formula).toBe(`ROUNDDOWN(C${rTotal},-3)`);
+  });
+
+  it("harga satuan yang dibulatkan dokumen TIDAK menggeser angka saat Excel rekalkulasi", async () => {
+    // Kasus nyata (RAB Wonorejo, unduhan 2 Agustus 2026): harga satuan di
+    // dokumen sumber sudah dibulatkan 2 desimal dari analisa harga satuan, jadi
+    // ROUND(vol×harga) ≠ Jumlah yang tertulis. Dulu 152 dari 1.227 baris meleset
+    // Rp1–4 dan nilai pra-PPN bergeser Rp3.697 begitu file dibuka.
+    const miring: RabExportNode[] = [
+      { id: "k1", parentId: null, kind: "kategori", code: "I", name: "PEKERJAAN PERSIAPAN", unit: null, volume: null, unitPrice: null, amount: 41_074_131n },
+      // 4852.122 × 8465.19 = 41.074.134,6 → ROUND = 41.074.135, dokumen menulis 41.074.131.
+      { id: "i1", parentId: "k1", kind: "item", code: "1", name: "Land clearing", unit: "m2", volume: 4852.122, unitPrice: 8465.19, amount: 41_074_131n },
+    ];
+    const buffer = await buildRabXlsx({
+      locationName: "Lokasi Uji", packageName: "Paket Uji", contractNumber: null,
+      vendorName: null, ppnPercent: 11, revisionNo: 1, totalValue: 41_074_131n, nodes: miring,
+    });
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer as unknown as ArrayBuffer);
+    const det = wb.getWorksheet("Detail RAB")!;
+
+    const rItem = barisDengan(det, 2, "Land clearing");
+    // Yang ditulis adalah angka dokumen, BUKAN hasil kali yang meleset Rp4.
+    expect(det.getCell(rItem, 6).value).toBe(41_074_131);
+    expect(Math.round(4852.122 * 8465.19)).toBe(41_074_135); // pembuktian selisihnya nyata
+
+    // Induk tetap rumus, tapi rumusnya hanya menjumlah sel daun yang sudah
+    // angka mati — jadi rekalkulasi Excel mendarat di angka dokumen juga.
+    const rKat = barisDengan(det, 2, "PEKERJAAN PERSIAPAN");
+    const kat = rumus(det.getCell(rKat, 6));
+    expect(kat.formula).toBe(`F${rItem}`);
+    expect(kat.result).toBe(41_074_131);
   });
 
   it("tampilan bersih: suffix dedup #N tak bocor, KODE ASLI dipertahankan, tanpa spasi literal", async () => {

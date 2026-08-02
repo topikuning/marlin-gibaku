@@ -30,12 +30,12 @@ Jumlah capability: **49**.
 | `location.manage` | ✓ | ✓ | ✓ | ✓ | — | — | — | — |
 | `location.correct` | ✓ | — | — | — | — | — | — | — |
 | `rab.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `rab.manage` | ✓ | ✓ | — | ✓ | — | — | — | — |
-| `baseline.manage` | ✓ | ✓ | — | ✓ | — | — | — | — |
+| `rab.manage` | ✓ | ✓ | ✓ | ✓ | — | — | — | — |
+| `baseline.manage` | ✓ | ✓ | ✓ | ✓ | — | — | — | — |
 | `weekly_plan.manage` | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | — |
-| `daily_report.create` | ✓ | ✓ | — | — | ✓ | ✓ | — | — |
-| `daily_report.review` | ✓ | ✓ | — | ✓ | ✓ | — | — | — |
-| `daily_report.finalize` | ✓ | ✓ | — | — | ✓ | — | — | — |
+| `daily_report.create` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | — |
+| `daily_report.review` | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | — |
+| `daily_report.finalize` | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | — |
 | `daily_report.unfinalize` | ✓ | — | — | — | — | — | — | — |
 | `field_activity.manage` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | — |
 | `photo.restamp` | ✓ | ✓ | — | — | — | — | — | — |
@@ -44,7 +44,7 @@ Jumlah capability: **49**.
 | `progress.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `issue.manage` | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | — |
 | `finance.view` | ✓ | ✓ | ✓ | ✓ | — | — | ✓ | — |
-| `finance.input` | ✓ | ✓ | — | ✓ | ✓ | — | — | — |
+| `finance.input` | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | — |
 | `finance.approve` | ✓ | ✓ | ✓ | — | — | — | — | — |
 | `document.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `document.upload` | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | — |
@@ -63,7 +63,7 @@ Jumlah capability: **49**.
 | `ai.report_approve` | ✓ | ✓ | ✓ | — | — | — | — | — |
 | `ai.report_send` | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | — |
 | `user.manage` | ✓ | ✓ | — | — | — | — | — | — |
-| `user.create` | ✓ | ✓ | — | ✓ | ✓ | — | — | — |
+| `user.create` | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | — |
 | `system.manage` | ✓ | — | — | — | — | — | — | — |
 | `audit.view` | ✓ | ✓ | — | — | — | — | — | — |
 

@@ -147,6 +147,9 @@ export async function restampPhotoAction(_prev: RestampState, formData: FormData
     }
 
     const baru: NilaiCap = {
+      // Item pekerjaan tidak bisa diketik ulang di dialog cap: ia identitas
+      // baris laporan, bukan teks bebas.
+      workName: lama.workName,
       takenAt,
       jamDiketahui,
       lat,

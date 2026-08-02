@@ -367,6 +367,11 @@ export async function buildQualityDetails(
       WHERE dr.location_id = ANY(${locIds}::uuid[])
         AND dr.status::text = ANY(${[...COUNTED_REPORT_STATUSES]}::text[])
         AND rn.volume IS NOT NULL
+        -- Pembandingnya volume RAB AKTIF, jadi yang dijumlahkan pun harus
+        -- basis aktif saja (DECISIONS 211). Mencampur basis draft ke sini
+        -- memunculkan "volume melebihi RAB" untuk pekerjaan yang justru
+        -- sedang diajukan adendumnya — temuan palsu.
+        AND dri.basis = 'aktif'
       GROUP BY 1, 2, rn.volume
       HAVING SUM(dri.volume_done) > rn.volume::float * 1.001
     `,

@@ -6302,3 +6302,641 @@ Selisih nilai total ditampilkan apa adanya (aktif → baru, beserta arahnya).
   selisih terhadap Σ item DISEBUT, bukan ditambal. Ini membatalkan sebagian
   prinsip "agregat selalu derived" (CLAUDE.md #4) dan perlu keputusan
   tersendiri saat dikerjakan.
+
+---
+
+## 210 — Progres atas draft adendum: satu laporan, dua basis (2026-08-02)
+
+Permintaan user 2026-08-02:
+
+> dalam realita di lapangan, seringkali pekerjaan itu dikerjakan dulu baru
+> adendumnya dibuat … jadi kita bisa buat rab posisi draft tapi progress atas
+> draft itu tetap bisa dibuat laporannya
+
+Sebelum ini hanya ada dua pilihan, dua-duanya buruk:
+- **tolak laporannya** — pekerjaan nyata di lapangan tidak tercatat sama
+  sekali, dan mandor belajar bahwa sistem ini tidak mewakili kenyataan; atau
+- **aktifkan adendum yang belum sah** — progres resmi, kurva-S, dan dasar
+  termin bergerak atas pekerjaan yang belum punya dasar kontrak.
+
+**Keputusan** (bentuknya dipilih user): laporan tetap SATU, tiap baris diberi
+penanda basisnya — `DailyReportItem.basis`:
+
+- `aktif` — dilaporkan terhadap RAB kontrak yang berlaku;
+- `draft_adendum` — dilaporkan terhadap RAB pengajuan adendum yang belum resmi.
+
+User: *"sebenarnya tidak perlu terpisah penuh juga, kan ada item yang sama
+antara rab aktif dan draft rab, kamu hanya perlu flag laporan progress terhadap
+rab aktif atau terhadap draft adendum."* Tepat — dan itu juga menghindari
+mandor mengisi dua kali (foto & volume dobel = risiko besar di lapangan).
+
+### Angka resmi TIDAK boleh bergerak
+
+Ini bagian yang paling mudah rusak diam-diam, jadi dijaga di tiga tempat:
+
+1. SQL `getLocationsProgress` menyaring `dri.basis = 'aktif'`. Tanpa itu, item
+   yang lineage-nya ada di RAB aktif MAUPUN draft akan ikut terhitung dan
+   progres resmi naik tanpa dasar.
+2. `cumulativeVolumeByLineage` default hanya basis aktif — jadi guard volume,
+   sisa RAB di form, dan blanko KKP ikut aman tanpa perubahan apa pun di
+   pemanggilnya.
+3. Uji integrasi `laporan-basis-adendum` menegakkan: setelah laporan berbasis
+   draft DIKIRIM, `realizedValue` resmi tetap 0.
+
+### Batas volume tetap ditegakkan, hanya bedanya acuan
+
+- Basis **aktif** → dibandingkan dengan volume RAB aktif, menghitung realisasi
+  basis aktif saja.
+- Basis **draft** → dibandingkan dengan volume RAB draft, menghitung realisasi
+  KEDUA basis. Volume draft adalah volume kontrak *seandainya* adendum
+  disetujui; pekerjaan yang sudah dilaporkan lewat basis aktif sudah termasuk
+  di dalamnya. Kalau hanya basis draft yang dihitung, volume total bisa
+  terlampaui diam-diam.
+
+Item dari revisi `digantikan` tetap ditolak — itu masa lalu, bukan pengajuan.
+
+### Yang dilihat orang
+
+- **Daftar pilihan item** memuat item draft yang belum ada di RAB aktif,
+  bertanda "Pengajuan adendum — belum resmi". Item yang lineage-nya masih ada
+  di RAB aktif TIDAK digandakan: yang muncul versi aktifnya, supaya pekerjaan
+  yang sah tidak malah tercatat di luar angka resmi.
+- Setelah item draft dipilih, pelapor diberi tahu dampaknya sebelum menyimpan.
+- **Halaman Progress** memuat kartu "Progres seandainya adendum disetujui" bila
+  lokasinya punya draft: nilai RAB draft, terpasang menurut draft, dan
+  terpasang menurut RAB resmi sebagai pembanding — supaya tidak ada yang
+  mengira angka draft menggantikan angka kontrak.
+
+**Verifikasi**: 9 kasus integrasi baru (`laporan-basis-adendum`) — item khusus
+draft bisa dilaporkan dan bertanda, volume di atas batas RAB aktif bisa lewat
+jalur draft, progres resmi TIDAK naik walau laporan sudah dikirim, kumulatif
+default hanya basis aktif, angka draft dihitung memakai RAB draft mencakup dua
+basis, lokasi tanpa draft → null (bukan nol yang menyesatkan), revisi
+digantikan ditolak, batas volume ditegakkan di kedua jalur · typecheck ✓ ·
+lint ✓ · unit 727 ✓ · integrasi 266 ✓.
+
+**Belum**: laporan periodik/KKP belum punya varian "termasuk pengajuan
+adendum"; yang ada baru ringkasan di halaman Progress.
+
+---
+
+## 211 — Angka resmi disaring basis aktif di SEMUA jalurnya, bukan hanya progres (2026-08-02)
+
+**Permintaan user**: "blanko kkp dan laporan resmi jangan diapa-apakan dulu,
+laporan resmi tetap harus berdasar rab aktif."
+
+DECISIONS 210 menutup tiga tempat (SQL `getLocationsProgress`,
+`cumulativeVolumeByLineage`, uji integrasi). Penyisiran seluruh pembaca
+`DailyReportItem` menemukan empat jalur yang MASIH bocor:
+
+| Jalur | Akibat sebelum ditambal |
+| --- | --- |
+| `baseline.getScurveSeries` | kurva-S realisasi naik atas laporan basis draft |
+| `periodic-report` | bobot realisasi laporan mingguan/bulanan KKP ikut naik |
+| `ai-hub/source` deteksi overrun | temuan palsu "volume melebihi RAB" |
+| halaman RAB (realisasi mingguan) | realisasi ≠ basis target rencananya |
+
+Ketiga yang pertama menyaring lineage ke revisi aktif, dan itulah yang membuat
+kebocorannya tidak kelihatan: item yang **volumenya diubah adendum ada di kedua
+revisi**, jadi ia lolos filter lineage. Yang hanya-ada-di-draft memang
+tersaring; yang berbahaya justru yang beririsan.
+
+Guard volume saat `→ dikirim` (`assertVolumeWithinRab`) juga diperbaiki: dulu
+menjumlahkan semua basis untuk setiap baris, sehingga baris basis AKTIF yang
+sah bisa ditolak gara-gara ada laporan basis draft. Sekarang dikelompokkan per
+basis, sepadan dengan guard di `upsertItem`.
+
+**Tidak diubah**: blanko KKP dan laporan periodik tetap murni RAB aktif — tidak
+diberi varian "termasuk pengajuan adendum". Angka draft hanya hidup di kartu
+halaman Progress.
+
+**Verifikasi**: 2 kasus integrasi baru — kurva-S realisasi tetap 0% walau
+laporan basis draft atas lineage yang beririsan sudah dikirim, lalu bergerak
+tepat 40% begitu dilaporkan lewat basis aktif · typecheck ✓ · lint ✓ · unit 728 ✓.
+
+---
+
+## 212 — Ekspor Excel RAB: Jumlah item angka mati, bukan ROUND(volume×harga) (2026-08-02)
+
+**Laporan user**: "unduh excelmu masih bermasalah, hasil import di layar sudah
+sesuai di excel … apakah perbedaan ini karena di database kamu menggunakan
+harga satuan x volume?"
+
+Ya — dan hanya di ekspor. Berkas unduhan menulis daun sebagai rumus
+`ROUND(volume×harga,0)`; `result`-nya memang angka DB, tapi begitu Excel
+merekalkulasi ia menghitung ulang dari **harga satuan yang sudah dibulatkan 2
+desimal di dokumen sumber**, sementara Jumlah di dokumen berasal dari analisa
+harga satuan yang presisinya lebih panjang. Keduanya tidak sama.
+
+Diukur pada RAB Wonorejo Situbondo rev.1 yang diunggah user:
+
+- 152 dari 1.227 baris item meleset Rp1–Rp4;
+- 118 baris agregat ikut bergeser;
+- nilai pra-PPN 5.891.112.785 → **5.891.116.482** (+Rp3.697) — lalu PPN dan
+  TOTAL dihitung di atas angka yang sudah melenceng.
+
+**Keputusan**: Jumlah item ditulis sebagai angka tersimpan (angka mati). Baris
+induk tetap berumus `F<anak>+F<anak>` karena subtotal tersimpan memang PERSIS Σ
+anak tersimpan — diperiksa atas 218 baris agregat berkas itu, nol selisih —
+sehingga rekalkulasi Excel mendarat tepat di angka dokumen. Kolom volume dan
+harga satuan tetap ditampilkan apa adanya; bahwa vol×harga ≠ Jumlah adalah
+sifat dokumen sumbernya, dan menutupinya berarti mengarang presisi yang tidak
+kita punya (DECISIONS 203).
+
+**Catatan cakupan**: perhitungan di belakang layar TIDAK terpengaruh — progres,
+bobot, kurva-S, dan keuangan semuanya memakai `RabNode.amount` (angka dokumen),
+bukan volume×harga. `DailyReportItem.valueDone` memang disimpan dengan
+round(volume×harga) tapi tidak dibaca satu pun laporan (diverifikasi dengan
+penyisiran: satu-satunya pembaca adalah Prisma Client hasil generate).
+
+**Verifikasi**: uji unit baru memakai angka nyata dari RAB Wonorejo
+(4852,122 × 8.465,19 → dokumen 41.074.131, hasil kali 41.074.135) — ekspor
+wajib menulis 41.074.131 · unit 728 ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 213 — Harga satuan item kontrak lama terkunci; bergeser = peringatan, bukan diam (2026-08-02)
+
+**Koreksi user**: "item yang sudah ada sebelum adendum, harga satuannya tidak
+boleh berubah, harus ada warning jika terjadi. berbeda dengan item baru."
+Sekaligus mengoreksi kalimatku sebelumnya bahwa "harga satuan bisa berubah oleh
+adendum" — itu salah. Adendum mengubah **volume**; harga satuan item yang sudah
+disepakati tetap.
+
+Editor draft memang sudah mengunci (`updateDraftNewItemFields` menolak edit
+harga/identitas item yang lineage-nya ada di revisi aktif). Yang tidak terjaga
+adalah **jalur impor Excel ke draft** — dan justru itu jalur yang dipakai untuk
+adendum nyata. Diagnosis lebih buruk lagi: kedua pembanding tidak melihat harga
+sama sekali. `bandingkanTerhadapAktif` hanya membandingkan volume dan nilai;
+`diffRevisions` menandai "diubah" dari volume/amount saja dan hanya menampilkan
+harga BARU. Jadi harga item lama yang bergeser **tanpa** volume berubah lolos
+sepenuhnya: yang tampak hanya "Jumlah berubah", persis seperti perubahan volume.
+
+**Keputusan** — dibandingkan, ditandai, TIDAK dibetulkan sendiri (DECISIONS 203):
+
+- `RingkasBeda.hargaBerubah` — hanya item yang ADA di RAB aktif; per item dicatat
+  harga lama → baru dan dampak rupiahnya `(harga baru − harga lama) × volume
+  baru`. Item baru tidak masuk: harganya memang belum pernah disepakati.
+- Toleransi 0,005 (setengah rupiah-sen) — di bawah itu beda pembulatan tulis
+  dari dokumen, bukan perubahan harga.
+- `jumlahTetap` sekarang berarti volume DAN harga tetap. Sebelumnya item yang
+  harganya bergeser ikut terhitung "aman".
+- Pratinjau impor: blok merah tersendiri + baris `warnings`, memuat dampak neto
+  dan daftar itemnya. Disebut terpisah dari "volume berubah" karena bisa terjadi
+  tanpa satu pun volume bergerak.
+- `DiffItem.hargaSatuanLama` + `hargaBergeser`; halaman adendum menulis kolom
+  harga sebagai "lama → baru" berwarna bahaya, judul bagian jadi "Diubah (volume
+  / harga)", dan peringatannya ikut ke dialog konfirmasi aktivasi.
+
+**Laporan atas usulan adendum = laporan sampingan/internal** (penegasan user).
+Kartu di halaman Progress diberi judul "Pantauan internal — progres atas usulan
+adendum" supaya perannya tidak terbaca sebagai laporan resmi.
+
+**Verifikasi**: 4 kasus unit baru — terdeteksi walau volume sama persis (bentuk
+yang paling mudah lolos), item baru tidak ikut ditandai, beda pembulatan di
+bawah setengah sen bukan perubahan harga, urutan menurut dampak rupiah ·
+typecheck ✓ · lint ✓ · unit 732 ✓.
+
+---
+
+## 214 — Blanko harian KKP: realisasi dikelompokkan per bangunan/kategori (2026-08-02)
+
+**Permintaan user**: "aku input item di laporan harian, cetak laporan final
+blanko kkp item itu muncul. perlu informasi di pekerjaan hari itu di blanko kkp
+untuk memasukkan pekerjaan itu terkait bangunan/kategori yg mana."
+
+Kolom REALISASI PEKERJAAN hanya menulis uraian item. Di KNMP satu lokasi punya
+belasan bangunan (shelter, kios, kantor pengelola, docking, IPAL …) dan nama
+itemnya **sama persis** antar bangunan — "Pembesian", "Galian tanah",
+"Pekerjaan beton". Pembaca laporan tidak bisa tahu pekerjaan itu di bangunan
+yang mana, dan itu justru informasi yang dicari pengawas.
+
+**Keputusan**: judul bangunan/kategori disisipkan saat kategorinya BERGANTI,
+bukan diulang di tiap baris — item sudah terurut `sortOrder` RAB sehingga satu
+kategori pasti berurutan, dan mengulang nama bangunan memakan lebar kolom yang
+dibutuhkan uraian pekerjaannya. Nomor urut hanya diberikan ke baris pekerjaan;
+judul bukan item pekerjaan, dan baris kosong di bawah daftar melanjutkan nomor
+pekerjaan terakhir.
+
+Kategori **diturunkan dari `lineageKey`** (akar = segmen pertama, aturan yang
+sama dengan `periodic-report`), BUKAN dibekukan ke `finalSnapshot`. Alasannya
+langsung menjawab keluhan: snapshot lama sudah menyimpan `lineageKey`, jadi
+laporan yang **terlanjur final** pun memuat kategorinya tanpa perlu bangun ulang
+snapshot. Ini label, bukan angka — keimutabelan angka snapshot tidak tersentuh.
+Kategori yang tidak ada lagi di RAB aktif (item dihapus adendum) tidak diberi
+judul palsu.
+
+Satu sumber untuk dua penyaji: `barisRealisasiKkp()` dipakai komponen blanko
+(layar/cetak) DAN generator PDF, supaya cetakan ke Drive tidak pernah berbeda
+isi dari pratinjau.
+
+**Verifikasi**: typecheck ✓ · lint ✓ · unit 732 ✓.
+
+---
+
+## 215 — Baris basis draft adendum TIDAK dicetak di blanko harian KKP (2026-08-02)
+
+**Laporan user**: "aku input item yang di draft adendum, tapi muncul di blanko
+harian kkp."
+
+Penyaringan basis di DECISIONS 210/211 semuanya menyentuh angka **agregat** —
+progres, kurva-S, laporan periodik, guard volume. Blanko harian tidak
+menghitung agregat apa pun: ia menyalin baris laporan apa adanya. Jadi
+pekerjaan yang dilaporkan atas usulan adendum tercetak di dokumen resmi seolah
+sudah sah, dan `buildFinalSnapshot` ikut membekukannya ke dalam laporan final.
+
+**Keputusan**: blanko harian KKP hanya memuat baris basis `aktif`.
+
+Yang TIDAK boleh terjadi adalah baris itu lenyap tanpa jejak — pelapor akan
+mengira sistemnya kehilangan data. Karena itu jumlahnya disebut di bawah tabel
+realisasi, di blanko layar maupun PDF: "N pekerjaan hari ini dilaporkan atas
+usulan adendum yang belum disetujui sehingga tidak dicetak di blanko ini —
+belum ada dasar kontraknya."
+
+**Laporan yang terlanjur final** dibersihkan tanpa bangun ulang snapshot:
+lineageKey baris basis draft dibaca dari `DailyReportItem` yang masih tersimpan,
+lalu dipakai menyaring `snapshot.items`. Snapshot baru menyimpan
+`itemsDraftAdendum` langsung; snapshot lama menghitungnya dari selisih baris
+yang tersaring. `totalValueToday` pada snapshot baru juga hanya menjumlah basis
+aktif.
+
+Ekspor Excel harian ikut bersih tanpa perubahan: ia menerima `KkpDailyData`
+yang sudah tersaring.
+
+**Verifikasi**: 2 kasus integrasi baru — laporan yang semua barisnya basis draft
+menghasilkan blanko dengan nol item dan `draftItemCount = 2`; laporan basis
+aktif tetap tercetak lengkap dengan bangunan/kategorinya · typecheck ✓ · lint ✓
+· unit 732 ✓.
+
+---
+
+## 216 — Template kerja adendum: unduh dari RAB aktif, isi volume, impor balik (2026-08-02)
+
+**Permintaan user**: "aku juga butuh template adendum, kamu harusnya dari rab
+yang ada bisa export format untuk adendum" — lalu dua pertanyaan yang justru
+menentukan desainnya: **item baru ditaruh mana**, dan **volume 0 apakah berarti
+item dihapus**.
+
+Ini berkas KERJA, bukan lampiran resmi adendum: unduh dari RAB aktif, isi kolom
+VOLUME ADENDUM di Excel, impor balik ke draft. Perbandingan lama↔baru dan rekap
+tambah/kurang tetap disusun sistem saat impor, bukan diketik ulang di berkas.
+(Lampiran resmi belum dibuat — user memilih "template kerja saja" dulu.)
+
+### Item baru: disisipkan di dalam kategorinya, dikenali dari ketiadaan lineageKey
+
+Kolom terakhir berisi `lineageKey` dan disembunyikan. Baris BER-lineageKey =
+item kontrak yang sudah ada. Baris TANPA lineageKey di dalam blok kategori =
+item baru untuk kategori itu.
+
+Alternatif yang DITOLAK: menyediakan sejumlah "baris kosong" di bawah tiap
+kategori. Jumlahnya selalu salah tebak — kurang untuk yang butuh banyak, dan
+mengotori berkas untuk yang tidak butuh. Dengan penanda lineageKey, user boleh
+menyisipkan baris di mana pun dan sebanyak apa pun.
+
+Item baru diberi lineageKey `<kategori>#+<kode>`. Tanda `+` menjamin ia tidak
+pernah bentrok dengan lineage item kontrak — dan lineage adalah tali yang
+mengikat realisasi lapangan ke RAB, jadi bentrok di sana berarti pekerjaan yang
+sudah dilaporkan menempel ke item yang keliru.
+
+Item baru WAJIB berharga; tanpa harga ditolak dengan menyebut sebabnya, bukan
+diam-diam diberi harga 0. Harga item KONTRAK LAMA tetap terkunci (DECISIONS
+213) — sheet diproteksi tanpa sandi, yang memang berarti rambu dan bukan
+gembok; gembok sebenarnya tetap di impor, yang menandai harga item lama yang
+bergeser.
+
+### Volume 0 BUKAN penghapusan
+
+Nol berarti volumenya nol dan itemnya TETAP tercantum di RAB dengan nilai nol.
+Itu pernyataan yang berbeda dari "item dicabut", dan di adendum keduanya nyata:
+pekerjaan bisa dikurangi habis tapi barisnya tetap ada di daftar kontrak.
+
+Mencabut item harus dinyatakan terang-terangan: tulis `HAPUS` di kolom
+KETERANGAN. Menebak maksud user dari angka nol adalah cara paling mudah
+menghilangkan pekerjaan yang sudah dikerjakan orang — dan item yang dicabut
+padahal sudah punya realisasi tetap tertangkap peringatan keras yang sudah ada
+(audit B17: "item yang SUDAH punya realisasi tidak ditemukan di file baru").
+
+Keduanya disebut di pratinjau: berapa item dinyatakan dicabut, dan berapa item
+volumenya jadi 0 berikut pengingat bahwa nol bukan penghapusan.
+
+### Angka yang tidak disentuh tidak boleh bergeser
+
+Baris yang volumenya TIDAK diubah memakai **Jumlah Kontrak apa adanya** (angka
+dokumen); hanya baris yang volumenya berubah yang dihitung `round(vol × harga)`.
+Tanpa aturan ini, sekadar mengunduh lalu mengimpor balik akan menggeser nilai
+kontrak — persis cacat DECISIONS 212, karena harga satuan dokumen sudah
+dibulatkan 2 desimal.
+
+Nilai induk = Σ anak, dihitung langsung, TANPA apportionment `flattenParsedRab`:
+daunnya di sini sudah rupiah bulat dan sebagiannya angka dokumen yang wajib
+dipakai apa adanya, jadi membagi selisih pembulatan ke bawah justru merusaknya.
+
+### Menyambung ke mesin yang sudah ada
+
+Parser template mengembalikan `FlatNode[]` — bentuk yang SAMA dengan keluaran
+`flattenParsedRab` — sehingga seluruh pratinjau impor berlaku tanpa diubah:
+diff terhadap RAB aktif, peringatan realisasi lepas, dan peringatan harga item
+lama bergeser. `createRevisionFromNodes` dipisah dari `createRevisionFromParsed`
+untuk jalur ini. Deteksi template hanya dijalankan pada mode draft: membuka
+workbook dua kali untuk berkas HPS 4–5 MB itu mahal, dan template memang cuma
+dipakai di sana.
+
+**Verifikasi**: 8 kasus unit — penanda template dikenali (dan berkas lain tidak
+salah dikenali), baris tak tersentuh keluar persis 41.074.131 (bukan 41.074.135
+hasil kali ulang), baris yang volumenya diubah dihitung ulang, volume 0 tetap
+ada + dilaporkan, HAPUS mencabut dan menurunkan nilai kategori, item baru
+menempel ke kategorinya dengan lineageKey `V#+3`, item baru tanpa harga ditolak
+· typecheck ✓ · lint ✓ · unit 740 ✓.
+
+---
+
+## 217 — Overflow mobile dijaga uji, bukan audit manual (2026-08-02)
+
+**Teguran user**: "aku sudah bilang untuk cek tampilan mobile, pastikan nyaman
+dan tidak over. kenapa selalu ada yg seperti ini terulang lagi!"
+
+Teguran itu benar, dan sebabnya struktural: audit 390px pernah dikerjakan
+sekali (tugas #11), lalu tidak ada apa pun yang menjaganya. Setiap halaman baru
+memulai lagi dari nol, dan yang menemukan regresinya selalu user.
+
+### Pagar
+
+`tests/e2e/mobile-overflow.spec.ts` menelusuri 13 halaman utama + 11 halaman
+dalam (workspace lokasi & paket) pada viewport **375×812** (iPhone SE — layar
+tersempit yang masih dipakai orang lapangan) dan menegakkan SATU invarian:
+`document.scrollWidth <= clientWidth`. Halaman tidak boleh bisa digeser ke
+samping.
+
+Elemen lebar DI DALAM kontainer ber-scroll sendiri tidak dihitung pelanggaran —
+itu pola yang memang disengaja (DECISIONS 010). Saat gagal, pesannya menyebut
+elemen mana yang melewati tepi kanan berikut class dan cuplikan teksnya, jadi
+penyebabnya langsung kelihatan tanpa menebak. Uji juga menggulir ke dasar
+halaman dan menunggu `networkidle` lebih dulu: peta dan grafik sering baru
+melebar SESUDAH mount, dan justru itu yang lolos dari periksa manual.
+
+### Tiga cacat yang langsung ketangkap
+
+| Tempat | Sebab | Akibat |
+| --- | --- | --- |
+| `PageHeader` | `shrink-0` pada blok aksi | dua tombol panjang = 597px → `/paket` melebar jadi **613px** |
+| `Card` | anak grid/flex punya `min-width: auto` = min-content | satu baris teks panjang di kartu → `/pengguna` **577px** |
+| daftar pengguna | 5 tombol aksi tanpa `flex-wrap` | **560px** |
+
+Dua yang pertama diperbaiki DI KOMPONEN BERSAMA, bukan di halamannya:
+`PageHeader` dan `Card` dipakai hampir di semua halaman, jadi menambalnya satu
+per satu persis yang membuat cacat ini terus muncul lagi di tempat berbeda.
+
+### Yang BELUM terjawab
+
+Tangkapan layar user memperlihatkan kartu peta & status submit selebar ~1/3
+layar sementara kartu di bawahnya selebar penuh. Itu TIDAK bisa direproduksi:
+diukur pada 375/390/393/430px, kartu peta dan kartu Activity Centre selalu sama
+lebarnya (343/358/361/398) dan `scrollWidth == clientWidth`. Sisa dugaan yang
+belum terbukti: berkas CSS lama yang masih ter-cache di perangkat, atau Safari
+dalam mode "Request Desktop Website". Perlu satu keterangan dari user sebelum
+diklaim selesai — jangan sampai ditandai beres padahal belum.
+
+**Verifikasi**: 13 rute + 1 sapuan halaman dalam LULUS di 375px (dijalankan
+lokal dengan Postgres 16 + seed + dev server) · typecheck ✓ · lint ✓.
+
+---
+
+## 218 — Jenjang peran = superset, pemisahan tugas jadi setelan, cap foto menyebut bangunan (2026-08-02)
+
+Tiga permintaan user dalam satu percakapan, ketiganya berangkat dari temuan
+bahwa Area Manager tidak bisa menyentuh laporan harian sama sekali.
+
+### Jenjang = superset
+
+> karena jenjang am di atas pm, pm di atas sm, sm di atas pelaksana. harusnya
+> semua yang dilakukan di bawahnya bisa dilakukan atasnya.
+
+`ROLE_CAPABILITIES` dulu mendaftar kapabilitas tiap peran DARI NOL. Itulah
+sebabnya Area Manager tidak punya satu pun `daily_report.*` padahal Site Manager
+di bawahnya bisa membuat, memverifikasi, DAN memfinalkan — tidak ada yang salah
+ketik, cuma tidak ada yang menjamin hubungan antar tingkat.
+
+Sekarang tiap tingkat DISUSUN dari tingkat di bawahnya:
+`PELAKSANA ⊂ SITE_MANAGER ⊂ PROJECT_MANAGER ⊂ AREA_MANAGER`. Yang khas tetap
+ada: PM memegang `rab.manage`/`baseline.manage`, AM memegang `finance.approve`
+dan `ai.report_approve` yang sengaja TIDAK dimiliki PM supaya penyusun dan
+pengesah terpisah jenjang. `ROLE_CREATE_MATRIX` ikut berjenjang: AM boleh
+membuat PM, SM, dan Pelaksana.
+
+Dijaga uji invarian (`authz-jenjang`), bukan daftar tandingan — mendaftar ulang
+isi hanya memindahkan kesalahan dari kode ke uji.
+
+**Catatan jujur**: daftar kapabilitas Area Manager sebelumnya tidak pernah
+disetujui user. DECISIONS 030 hanya menetapkan namanya dan bahwa ia scoped.
+Sisanya asumsi yang tidak pernah dicatat — itu kelalaian, dan CLAUDE.md sendiri
+menyebut permission sebagai high-stakes yang harus ditanyakan.
+
+### Pemisahan tugas = setelan, bukan aturan mati
+
+> aku sepakat, tapi untuk saat ini kalau bisa itu dimaintain dengan setingan,
+> karena ini di awal, aku perlu keluwesan
+
+Ditemukan saat memeriksa: `approveReport` dan `finalizeReport` **tidak pernah**
+memeriksa bahwa pengesah ≠ pengirim. Satu Site Manager bisa membuat, mengirim,
+menyetujui, dan memfinalkan laporan yang sama seorang diri — progres resmi naik
+dan dasar termin terbentuk tanpa mata kedua.
+
+Pagarnya sekarang ada di mesin transisi (`assertPemisahanTugas`), **berbasis
+orang, bukan peran** — peran menjawab "boleh menyentuh apa", pemisahan tugas
+menjawab "tidak boleh mengesahkan pekerjaan sendiri"; mencampur keduanya
+membuat dua-duanya salah.
+
+Dikendalikan `lib/policy.ts` di atas `AppSetting` (key-value ber-tanggal-berlaku,
+pola yang sama dengan branding), dengan tiga saklar di halaman Sistem:
+penyetuju-harus-beda, pemfinal-harus-beda, dan foto-wajib-GPS. **Default MATI**
+— menyalakannya di awal pemakaian akan menahan laporan di lokasi yang cuma
+punya satu orang aktif. Tiap saklar menyebut DAMPAKNYA, bukan cuma namanya:
+kebijakan yang konsekuensinya baru ketahuan setelah dinyalakan akan dimatikan
+lagi dengan panik di tengah jam kerja. Perubahannya dicatat audit.
+
+### Cap foto menyebut bangunan, bukan cuma item
+
+> saat ini itu hanya stamp item pekerjaan, tapi parent/kategori/bangunan apanya
+> belum ada
+
+Badge besar kini BANGUNAN/kategori RAB ("V. PEKERJAAN SHELTER"), dengan baris
+kecil di bawahnya berisi item pekerjaannya. Alasannya sama dengan DECISIONS 214:
+satu lokasi KNMP punya belasan bangunan dan nama item kerap sama persis antar
+bangunan — foto berlabel "Pembesian" saja tidak bisa dipertanggungjawabkan ke
+bangunan mana pun.
+
+Bangunan diturunkan dari akar `lineageKey`, dan bila kategorinya tidak ketemu
+(mis. dihapus adendum) ditulis apa adanya tanpa mengarang (DECISIONS 197).
+Jalur cap-ulang ikut membawanya, jadi foto lama bisa diperbaiki capnya.
+
+**Verifikasi**: 8 kasus unit baru (superset tiap tingkat, transitif, AM kini
+punya `daily_report.*`, yang khas tiap peran tetap ada, matriks pembuatan akun
+ikut berjenjang) · `pnpm docs:permission` diregenerasi · typecheck ✓ · lint ✓ ·
+unit 748 ✓.
+
+---
+
+## 219 — Izin GPS diurus di depan + dicatat; wajib-GPS berlaku juga untuk galeri (2026-08-02)
+
+> aku perlu agak memaksa ini, karena saat ini kebanyakan foto ditag dengan
+> lokasi default … apakah bisa dicatat bahwa user ini sudah membolehkan izin
+> gps dan kamera di sistem?
+
+### Sebabnya struktural, bukan kelalaian pelapor
+
+Dulu GPS baru diminta **sesudah** berkas dipilih, dan bila dialog izin ditutup
+atau ditolak, `onPicked()` tetap jalan — fotonya terunggah tanpa koordinat lalu
+dicap memakai titik proyek. Dari sisi pelapor tidak ada apa pun yang tampak
+salah, jadi kebiasaan itu terus berulang. Tambahan: `maximumAge: 60000` membuat
+koordinat berumur satu menit boleh dipakai — foto di lokasi B bisa membawa titik
+lokasi A. Sekarang `maximumAge: 0`.
+
+### Yang berubah
+
+- Keadaan izin dibaca lewat Permissions API saat komponen tampil, ditampilkan
+  **terang-terangan** (aktif / belum diberikan / ditolak / tidak didukung),
+  dengan tombol "Izinkan akses lokasi" yang memicu dialog SEBELUM memotret.
+  Browser tanpa Permissions API ditulis "prompt" apa adanya — bukan ditebak
+  "granted".
+- Keadaannya dicatat ke `DevicePermission` (append-only, per user + userAgent).
+  **Bukan** satu kolom "sudah izin" di `User`: izin browser melekat ke PERANGKAT
+  + situs, bisa dicabut kapan saja lewat setelan HP, dan mandor lazim berganti
+  HP. Kolom tunggal akan berbohong tepat ketika kebohongannya paling mahal —
+  saat fotonya sedang ditandai titik proyek. Baris hanya ditulis bila keadaannya
+  BERUBAH, supaya riwayatnya terbaca.
+- Setelan **wajib-GPS** (default mati, di halaman Sistem) menolak unggahan yang
+  tidak membawa koordinat.
+
+### Wajib-GPS untuk galeri artinya BEDA
+
+Permintaan susulan user: "bukan hanya memotret, tapi saat upload gambar dari
+galeri". Yang diwajibkan tidak bisa sama:
+
+| Jalur | Sumber koordinat | Yang diwajibkan saat setelan menyala |
+| --- | --- | --- |
+| Kamera | GPS perangkat saat memotret | koordinat dari browser wajib ada |
+| Galeri | **EXIF foto itu sendiri** | EXIF foto wajib punya GPS |
+
+Untuk galeri, posisi perangkat saat unggah SENGAJA diabaikan dan tetap begitu:
+unggah borongan lazim dilakukan dari kantor, jadi memakai posisi pengunggah akan
+menandai seluruh foto dengan lokasi yang salah — lebih buruk daripada tidak
+menandai. Penolakannya per-berkas di `savePhotoForItem`, karena EXIF baru
+terbaca di sana, dan menyebut nama berkasnya.
+
+**Catatan yang perlu diketahui**: foto yang pernah lewat WhatsApp kehilangan
+EXIF sepenuhnya, jadi jalur galeri untuk foto kiriman WA tidak akan pernah punya
+GPS. Menyalakan wajib-GPS berarti memaksa alur "foto langsung dari MARLIN",
+bukan "terima dari WA lalu unggah".
+
+**Kelalaian yang perlu dicatat**: build CI sempat merah karena komponen KLIEN
+(`policy-card`) mengimpor modul ber-`server-only`. `typecheck` dan `lint`
+TIDAK menangkapnya — hanya `next build` yang menegakkan batas server/klien, dan
+build itu tidak dijalankan lokal sebelum push. Label & tipe kebijakan dipisah ke
+`lib/policy-meta.ts` (tanpa `server-only`).
+
+**Verifikasi**: `pnpm build` ✓ (dijalankan lokal, bukan hanya typecheck) ·
+typecheck ✓ · lint ✓ · unit 749 ✓.
+
+---
+
+## 220 — Unggah galeri: tanya dulu "sedang di lokasi?", baru tentukan koordinat (2026-08-02)
+
+> untuk upload foto dari galeri, menurutku adalah, saat klik ada konfirmasi,
+> saat ini apakah di lokasi proyek atau bukan? jika iya, ambil lokasi gps aktif
+> dari hp/device, jika tidak ambil dari exif, jika tidak ada baru hardcode dari
+> default lokasi proyek.
+
+Sebelum ini sistem MENEBAK: foto galeri tanpa EXIF langsung dicap titik proyek,
+tanpa pernah bertanya. Sekarang keadaan nyata pelapor ditanyakan lebih dulu, dan
+jawabannya yang menentukan cadangannya. Pertanyaannya sengaja tentang keadaan
+orang ("kamu sedang di lokasi proyek?"), bukan tentang teknis GPS — mandor mana
+pun bisa menjawabnya.
+
+### Urutan sumber koordinat foto galeri
+
+1. **EXIF foto itu sendiri** — posisi nyata saat foto diambil.
+2. **Posisi perangkat saat unggah** — HANYA bila pelapor menjawab "ya, saya di
+   lokasi". Dicap dengan penanda **"posisi saat unggah"**.
+3. **Titik lokasi proyek** — cadangan terakhir, penanda "titik proyek".
+
+Menjawab "tidak" berarti tidak ada koordinat perangkat yang dikirim sama sekali.
+Mengunggah dari kantor lalu menandai fotonya dengan posisi kantor jauh lebih
+buruk daripada tidak menandai: yang pertama bukti palsu, yang kedua data kosong
+yang jujur.
+
+### Satu langkah diurutkan berbeda dari usulan user
+
+User mengusulkan: **jika di lokasi → device, jika tidak → EXIF**. Di sini EXIF
+tetap didahulukan walau pelapor sedang berada di lokasi.
+
+Alasannya: posisi perangkat saat unggah adalah tempat **mengunggah**, sedangkan
+EXIF adalah tempat **memotret**. Di satu lokasi KNMP keduanya bisa berjarak
+ratusan meter — pelapor berdiri di direksi keet, fotonya diambil di dermaga —
+dan yang dipertanggungjawabkan di blanko adalah tempat pekerjaannya. Jadi ketika
+data yang lebih benar ADA, ia dipakai; jawaban "saya di lokasi" berperan
+menentukan CADANGAN, bukan menggantikan data asli. Prinsip yang sama dengan
+DECISIONS 203: yang asli dipakai apa adanya, penggantian hanya saat tidak ada
+yang asli.
+
+Kalau user tetap menghendaki urutan usulannya, yang perlu diubah hanya satu
+cabang di `photos.ts`.
+
+**Verifikasi**: `pnpm build` ✓ · typecheck ✓ · lint ✓ · unit 749 ✓.
+
+---
+
+## 221 — "Berhasil" yang tidak mengirim apa pun: nol pesan harus menjelaskan dirinya (2026-08-02)
+
+> aku sudah klik, dinyatakan berhasil. tapi tidak ada wa yang terkirim,
+> sedangkan fitur kirim laporan ke group berjalan normal.
+
+### Sebabnya
+
+`kumpulkanPengingat` hanya mengambil penanggung jawab yang punya
+`User.waNumber`. Di basis data uji: **8 user aktif, NOL punya nomor WA** — jadi
+daftar penerimanya kosong, `terkirim = 0` dan `gagal = 0`, dan tombolnya jatuh
+ke cabang yang mengembalikan kalimat **hijau** "Tidak ada penanggung jawab yang
+perlu ditagih saat ini."
+
+Ketimpangan yang user perhatikan justru buktinya: kirim ke GRUP berjalan normal
+karena ia memakai chat-id per paket, bukan `waNumber` per orang. WAHA sehat;
+yang kosong daftar tujuannya.
+
+### Yang salah bukan cuma warnanya
+
+Nol pesan punya DUA arti yang berlawanan:
+
+- semua lokasi sudah melapor → memang sehat;
+- ada yang belum melapor tapi tak satu pun penanggung jawabnya bisa dihubungi →
+  **salah konfigurasi**, dan hijau menyembunyikannya.
+
+Komentar lama di kode berbunyi "sebabnya TIDAK ditebak". Niatnya benar, tapi
+tidak menebak bukan berarti diam: jumlah lokasi dalam lingkup, yang sudah
+melapor, yang perlu ditagih, orang yang ditugaskan, dan orang tanpa nomor WA
+semuanya **fakta yang bisa dihitung**, bukan tebakan. Tanpa itu admin hanya
+melihat kalimat hijau tanpa satu pun jalan keluar.
+
+### Yang berubah
+
+`kumpulkanPengingat` sekarang mengembalikan `{ penerima, diagnosa }`, dan
+`sebabTidakAdaPenerima()` menyusunnya jadi kalimat yang bisa ditindaklanjuti:
+
+- belum ada lokasi dalam lingkup → syaratnya disebut (berjalan · pelaksanaan ·
+  SPMK sudah lewat);
+- ada yang belum melapor tapi nol penugasan → diarahkan ke halaman **Lokasi**;
+- ditugaskan tapi tanpa nomor WA / nonaktif → jumlahnya disebut, diarahkan ke
+  **Master Data → Pengguna**;
+- semua sudah melapor → tetap hijau, dengan angkanya ("5 dari 7 lokasi sudah
+  melapor").
+
+Cabang yang tersisa hijau kini hanya cabang yang benar-benar sehat; sisanya
+merah.
+
+Fungsinya ditaruh di `lib/harian/diagnosa.ts` — MURNI, tanpa `lib/db`, supaya
+bisa diuji tanpa env. Satu import `db` di `penjadwal.ts` membuat seluruh modul
+itu tak tersentuh uji unit.
+
+**Verifikasi**: 6 kasus unit baru (semua sudah lapor → null; nol nomor WA →
+disebut berikut tempat mengisinya; nonaktif terpisah; nol penugasan → diarahkan
+ke Lokasi bukan Pengguna; lingkup kosong → syarat disebut; keadaan sehat → tidak
+mengarang masalah) · `pnpm build` ✓ · typecheck ✓ · lint ✓.

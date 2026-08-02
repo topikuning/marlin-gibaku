@@ -155,8 +155,10 @@ export type PhotoStamp = {
   locationLabel: string | null;
   companyName?: string | null;
   reporterName?: string | null;
-  /** Badge kategori (nama pekerjaan utk laporan harian / kategori kegiatan). */
+  /** Badge besar: BANGUNAN/KATEGORI RAB (laporan harian) / jenis kegiatan. */
   categoryName?: string | null;
+  /** Baris kecil di bawah badge: item pekerjaannya (DECISIONS 218). */
+  workName?: string | null;
   photoId?: string | null;
   accentColor?: string;
   overlayAlpha?: number;
@@ -183,6 +185,7 @@ function stampSvg(w: number, h: number, s: PhotoStamp): string {
     companyName: s.companyName?.trim() || null,
     locationName: s.locationLabel?.trim() || "—",
     categoryName: s.categoryName?.trim() || null,
+    workName: s.workName?.trim() || null,
     dateTimeText: s.dateOnly ? formatStampDate(s.takenAt, tz) : formatStampDateTime(s.takenAt, tz),
     coordinateText: s.showCoordinate === false ? null : formatCoordinate(s.lat, s.lng),
     reporterName: s.showReporter === false ? null : s.reporterName?.trim() || null,
@@ -222,6 +225,10 @@ export type SavePhotoInput = {
   stamp?: {
     source?: "camera" | "gallery";
     fallbackMode?: "project" | "none";
+    /** Setelan wajib-GPS sedang menyala (DECISIONS 219). */
+    requireGps?: boolean;
+    /** Galeri: pelapor MENYATAKAN sedang berada di lokasi saat mengunggah. */
+    atSite?: boolean;
     /** GPS real-time perangkat (hanya relevan utk source "camera"). */
     lat?: number | null;
     lng?: number | null;
@@ -234,8 +241,10 @@ export type SavePhotoInput = {
     locationLabel?: string | null;
     companyName?: string | null;
     reporterName?: string | null;
-    /** Badge kategori: nama pekerjaan (laporan harian) / kategori kegiatan. */
+    /** Badge besar: bangunan/kategori RAB (laporan harian) / jenis kegiatan. */
     categoryName?: string | null;
+    /** Baris kecil: item pekerjaannya. */
+    workName?: string | null;
   };
 };
 
@@ -281,10 +290,36 @@ export async function savePhotoForItem(input: SavePhotoInput) {
     // Galeri: EXIF asli dulu; bila tak ada → cadangan (titik lokasi proyek / tanpa tag).
     // GPS perangkat saat upload sengaja diabaikan (bisa salah saat batch).
     const useProject = s?.fallbackMode === "project";
+    // Urutan sumber koordinat foto GALERI (DECISIONS 220):
+    //   1. EXIF foto itu sendiri — posisi NYATA saat foto diambil;
+    //   2. posisi perangkat saat unggah, HANYA bila pelapor menyatakan sedang
+    //      berada di lokasi;
+    //   3. titik lokasi proyek sebagai cadangan terakhir.
+    //
+    // EXIF didahulukan walau pelapor sedang di lokasi: posisi sekarang adalah
+    // tempat MENGUNGGAH, sedangkan EXIF adalah tempat MEMOTRET. Keduanya bisa
+    // berjarak ratusan meter di lokasi yang sama, dan yang dipertanggungjawabkan
+    // di blanko adalah tempat pekerjaannya.
     if (exif.lat != null && exif.lng != null) {
       lat = exif.lat;
       lng = exif.lng;
       gpsSource = "exif";
+    } else if (s?.atSite && s?.lat != null && s?.lng != null) {
+      lat = s.lat;
+      lng = s.lng;
+      gpsSource = "device";
+    } else if (s?.requireGps) {
+      // Wajib-GPS menyala (setelan, DECISIONS 219). Untuk foto GALERI yang
+      // wajib bukan posisi perangkat saat unggah — itu justru menyesatkan saat
+      // unggah borongan dari kantor — melainkan GPS di EXIF foto ITU SENDIRI.
+      // Menolak di sini, bukan diam-diam memakai titik proyek: titik proyek
+      // sebagai cadangan persis mesin yang memproduksi "lokasi default" yang
+      // dikeluhkan user.
+      throw new PhotoError(
+        `"${file.name}" tidak punya data GPS di dalam fotonya. ` +
+          "Nyalakan layanan lokasi di aplikasi kamera HP sebelum memotret, lalu unggah ulang — " +
+          "atau ambil ulang lewat tombol Kamera.",
+      );
     } else {
       lat = useProject ? projLat : null;
       lng = useProject ? projLng : null;
@@ -343,7 +378,15 @@ export async function savePhotoForItem(input: SavePhotoInput) {
     : timeSource === "server"
       ? "waktu unggah"
       : null;
-  const coordNote = gpsSource === "project" ? "titik proyek" : null;
+  const coordNote =
+    gpsSource === "project"
+      ? "titik proyek"
+      : // Foto galeri yang koordinatnya dari perangkat = posisi saat MENGUNGGAH,
+        // bukan saat memotret. Cap wajib menyebutnya; tanpa itu ia mengaku
+        // sebagai posisi jepret padahal bukan (DECISIONS 197/220).
+        source === "gallery" && gpsSource === "device"
+        ? "posisi saat unggah"
+        : null;
 
   // Pipeline ideal: sharp resize + cap (Timemark) + webp. Bila sharp TIDAK
   // tersedia/gagal di runtime (mis. binari native tak termuat di host), JANGAN
@@ -379,6 +422,7 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       companyName: input.stamp?.companyName ?? null,
       reporterName: input.stamp?.reporterName ?? null,
       categoryName: input.stamp?.categoryName ?? null,
+      workName: input.stamp?.workName ?? null,
       photoId,
       accentColor: cfg?.accentColor ?? DEFAULT_STAMP_ACCENT,
       overlayAlpha: overlayAlphaFor(cfg?.overlayStrength ?? "auto"),

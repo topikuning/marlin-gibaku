@@ -34,19 +34,37 @@ export type LeafNodeOption = {
   category: string;
   /** Sisa volume yang masih bisa dilaporkan (volume − kumulatif counted). */
   remaining: number | null;
+  /**
+   * `aktif` = item RAB kontrak · `draft_adendum` = item dari draft adendum yang
+   * BELUM resmi (DECISIONS 210). Yang draft ditandai di daftar pilihan supaya
+   * pelapor tahu ia sedang mencatat pekerjaan yang belum punya dasar kontrak.
+   */
+  basis: "aktif" | "draft_adendum";
 };
 
-/** Leaf item RAB revisi aktif + sisa volume, serialized untuk client search. */
+/**
+ * Leaf item RAB + sisa volume, siap untuk pencarian di klien.
+ *
+ * Mencakup revisi AKTIF dan — bila ada — DRAFT adendum. Item draft yang
+ * lineage-nya SAMA dengan item aktif tidak digandakan: yang muncul adalah versi
+ * aktifnya, karena pekerjaan itu masih punya dasar kontrak. Yang benar-benar
+ * baru (atau volumenya dinaikkan melampaui kontrak) hanya ada di draft, dan
+ * itulah yang perlu dilaporkan lewat basis draft.
+ */
 export async function getLeafNodeOptions(locationId: string): Promise<LeafNodeOption[]> {
   const revision = await db.rabRevision.findFirst({
     where: { locationId, status: "aktif" },
     select: { id: true },
   });
-  if (!revision) return [];
+  const draft = await db.rabRevision.findFirst({
+    where: { locationId, status: "draft" },
+    select: { id: true },
+  });
+  if (!revision && !draft) return [];
 
   const [nodes, cumulative] = await Promise.all([
     db.rabNode.findMany({
-      where: { revisionId: revision.id },
+      where: { revisionId: { in: [revision?.id, draft?.id].filter((x): x is string => !!x) } },
       select: {
         id: true,
         parentId: true,
@@ -57,10 +75,11 @@ export async function getLeafNodeOptions(locationId: string): Promise<LeafNodeOp
         volume: true,
         lineageKey: true,
         sortOrder: true,
+        revisionId: true,
       },
       orderBy: { sortOrder: "asc" },
     }),
-    cumulativeVolumeByLineage(locationId),
+    cumulativeVolumeByLineage(locationId, undefined, "semua"),
   ]);
 
   const byId = new Map(nodes.map((n) => [n.id, n]));
@@ -77,8 +96,19 @@ export async function getLeafNodeOptions(locationId: string): Promise<LeafNodeOp
     return label;
   };
 
+  // Item aktif menang atas item draft dengan lineage yang sama — melaporkan
+  // lewat basis draft padahal masih ada dasar kontrak hanya akan membuat
+  // pekerjaan yang sah tidak terhitung di angka resmi.
+  const lineageAktif = new Set(
+    nodes.filter((n) => n.kind === "item" && n.revisionId === revision?.id).map((n) => n.lineageKey),
+  );
+
   return nodes
-    .filter((n) => n.kind === "item")
+    .filter(
+      (n) =>
+        n.kind === "item" &&
+        (n.revisionId === revision?.id || !lineageAktif.has(n.lineageKey)),
+    )
     .map((n) => {
       const volume = n.volume != null ? Number(n.volume) : null;
       const done = cumulative.get(n.lineageKey) ?? 0;
@@ -91,6 +121,7 @@ export async function getLeafNodeOptions(locationId: string): Promise<LeafNodeOp
         lineageKey: n.lineageKey,
         category: categoryOf(n.id),
         remaining: volume != null ? Math.max(0, Math.round((volume - done) * 1000) / 1000) : null,
+        basis: n.revisionId === revision?.id ? ("aktif" as const) : ("draft_adendum" as const),
       };
     });
 }
@@ -482,6 +513,32 @@ function snapshotToKkp(snap: FinalSnapshot): KkpDailyData {
 }
 
 /**
+ * Peta lineageKey item → kategori (bangunan) induknya di RAB AKTIF.
+ *
+ * Akar lineage = segmen pertama ("V#3.1#b" → "V"), aturan yang sama dengan
+ * `periodic-report`. Kategori yang sudah tidak ada di revisi aktif (mis. item
+ * dihapus adendum) mengembalikan null — ditulis apa adanya, bukan ditebak.
+ */
+async function kategoriLookup(
+  locationId: string,
+): Promise<(lineageKey: string | null) => { categoryCode: string | null; categoryName: string | null }> {
+  const revision = await db.rabRevision.findFirst({
+    where: { locationId, status: "aktif" },
+    select: { id: true },
+  });
+  if (!revision) return () => ({ categoryCode: null, categoryName: null });
+  const kategori = await db.rabNode.findMany({
+    where: { revisionId: revision.id, kind: "kategori" },
+    select: { lineageKey: true, code: true, name: true },
+  });
+  const byKey = new Map(kategori.map((k) => [k.lineageKey, k]));
+  return (lineageKey) => {
+    const k = lineageKey ? byKey.get(lineageKey.split("#")[0]) : undefined;
+    return { categoryCode: k?.code ?? null, categoryName: k?.name ?? null };
+  };
+}
+
+/**
  * Data laporan harian KKP untuk halaman cetak. Sumber:
  *   status final → finalSnapshot beku (immutable), selain itu → hitung live.
  */
@@ -561,8 +618,43 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
     },
   });
 
+  // Bangunan/kategori tiap item — blanko harian hanya menulis uraian pekerjaan,
+  // padahal satu lokasi punya belasan bangunan dan nama item sering sama persis
+  // antar bangunan ("Pembesian", "Galian"). Tanpa ini pembaca tidak tahu
+  // pekerjaan itu di bangunan yang mana (permintaan user 2026-08-02).
+  //
+  // Sengaja DITURUNKAN dari lineageKey, bukan dibekukan ke finalSnapshot:
+  // snapshot lama sudah menyimpan lineageKey, jadi laporan yang TERLANJUR final
+  // pun langsung memuat kategorinya tanpa perlu bangun ulang snapshot. Ini
+  // label, bukan angka — jadi tidak melanggar keimutabelan angka snapshot.
+  const kategoriByRoot = await kategoriLookup(location.id);
+
+  // Baris laporan yang basisnya DRAFT ADENDUM (DECISIONS 215). Blanko harian
+  // KKP adalah dokumen resmi — pekerjaan atas usulan adendum belum punya dasar
+  // kontrak, jadi tidak boleh ikut tercetak di sana. Dihitung dari baris
+  // laporan yang MASIH tersimpan, bukan dari snapshot: laporan yang terlanjur
+  // final SEBELUM aturan ini ada sudah membekukan baris draft ke dalam
+  // snapshot-nya, dan cara ini membersihkannya tanpa perlu bangun ulang.
+  const lineageDraft = new Set(
+    (report?.items ?? []).filter((it) => it.basis !== "aktif").map((it) => it.lineageKey),
+  );
+
   if (report?.status === "final" && report.finalSnapshot) {
-    return { ...snapshotToKkp(report.finalSnapshot as unknown as FinalSnapshot), ...signatories, ...owner, rencana };
+    const snap = report.finalSnapshot as unknown as FinalSnapshot;
+    const base = snapshotToKkp(snap);
+    const dipakai = base.items
+      .map((it, i) => ({ it, lineageKey: snap.items[i]?.lineageKey ?? null }))
+      .filter((r) => !(r.lineageKey != null && lineageDraft.has(r.lineageKey)));
+    return {
+      ...base,
+      items: dipakai.map((r) => ({ ...r.it, ...kategoriByRoot(r.lineageKey) })),
+      // Snapshot baru sudah menyimpan angkanya; snapshot lama dihitung dari
+      // selisih baris yang disaring di sini.
+      draftItemCount: snap.itemsDraftAdendum ?? base.items.length - dipakai.length,
+      ...signatories,
+      ...owner,
+      rencana,
+    };
   }
 
   const cumulative = await cumulativeVolumeByLineage(location.id, reportDate);
@@ -603,7 +695,8 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
       qty: m.qtyReceived != null ? Number(m.qtyReceived) : null,
     })),
     equipment: (report?.equipment ?? []).map((e) => ({ name: e.name, count: e.count })),
-    items: (report?.items ?? []).map((it) => {
+    draftItemCount: lineageDraft.size,
+    items: (report?.items ?? []).filter((it) => it.basis === "aktif").map((it) => {
       const volumeToday = Number(it.volumeDone);
       const base = cumulative.get(it.lineageKey) ?? 0;
       const volumeCumulative = Math.round((counted ? base : base + volumeToday) * 1000) / 1000;
@@ -612,6 +705,7 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
         code: it.rabNode.code,
         name: it.rabNode.name,
         unit: it.rabNode.unit,
+        ...kategoriByRoot(it.lineageKey),
         volumeContract,
         volumeBefore: Math.max(0, Math.round((volumeCumulative - volumeToday) * 1000) / 1000),
         volumeToday,

@@ -156,6 +156,11 @@ export async function getLocationsProgress(
         AND dr.status::text = ANY(${[...COUNTED_REPORT_STATUSES]}::text[])
         AND (${asOf ?? null}::date IS NULL OR dr.report_date <= ${asOf ?? null}::date)
         AND rn.kind = 'item'
+        -- HANYA basis aktif. Laporan terhadap draft adendum TIDAK boleh
+        -- menggerakkan angka resmi — adendumnya belum disetujui siapa pun
+        -- (DECISIONS 210). Tanpa baris ini, item yang lineage-nya ada di kedua
+        -- revisi akan ikut terhitung dan progres resmi naik tanpa dasar.
+        AND dri.basis = 'aktif'
       GROUP BY dr.location_id, rn.id, rn.volume, rn.amount
     ) t
     GROUP BY t.location_id
@@ -220,13 +225,27 @@ export async function getLocationProgress(
  * tampilan/cetak KKP per hari, supaya laporan tanggal lama TIDAK ikut menghitung
  * realisasi hari sesudahnya (mis. laporan 12 Juli tak boleh terhitung volume 13 Juli).
  */
+export type BasisLaporan = "aktif" | "draft_adendum";
+
+/**
+ * Basis mana yang ikut dihitung (DECISIONS 210).
+ * - `aktif` (DEFAULT) — hanya laporan terhadap RAB kontrak. SEMUA angka resmi
+ *   memakai ini: progres, kurva-S, deviasi, keuangan, blanko KKP. Tidak boleh
+ *   berubah gara-gara ada pengajuan adendum yang belum disetujui siapa pun.
+ * - `semua` — termasuk laporan terhadap draft adendum. Untuk laporan "seandainya
+ *   adendum disetujui", dan untuk guard volume di jalur draft.
+ */
+export type CakupanBasis = "aktif" | "semua";
+
 export async function cumulativeVolumeByLineage(
   locationId: string,
   upToDate?: Date,
+  cakupan: CakupanBasis = "aktif",
 ): Promise<Map<string, number>> {
   const rows = await db.dailyReportItem.groupBy({
     by: ["lineageKey"],
     where: {
+      ...(cakupan === "aktif" ? { basis: "aktif" } : {}),
       report: {
         locationId,
         status: { in: [...COUNTED_REPORT_STATUSES] },
@@ -236,4 +255,85 @@ export async function cumulativeVolumeByLineage(
     _sum: { volumeDone: true },
   });
   return new Map(rows.map((r) => [r.lineageKey, Number(r._sum.volumeDone ?? 0)]));
+}
+
+/* ── Progres "seandainya adendum disetujui" (DECISIONS 210) ──────────────── */
+
+export type ProgresDraftAdendum = {
+  revisionId: string;
+  revisionNo: number;
+  /** Nilai RAB draft (Σ amount kategori draft). */
+  grandTotal: bigint;
+  /** Terpasang menurut draft, menghitung laporan basis aktif MAUPUN draft. */
+  realizedValue: bigint;
+  realizedPct: number;
+  /** Berapa baris laporan yang dicatat terhadap draft (bukan RAB resmi). */
+  barisBasisDraft: number;
+  /** Terpasang menurut RAB aktif — pembanding, angka resmi. */
+  realizedValueResmi: bigint;
+};
+
+/**
+ * Progres terhadap DRAFT adendum yang sedang diajukan.
+ *
+ * Perhitungannya SEPADAN dengan jalur resmi (prestasi item dibatasi 0–100%,
+ * dikalikan amount item) — bedanya hanya dua: revisi yang dipakai adalah
+ * DRAFT, dan laporan yang dihitung mencakup KEDUA basis. Alasannya: pekerjaan
+ * yang sudah dilaporkan terhadap RAB aktif tetap pekerjaan yang sama; kalau
+ * adendum disetujui, ia tidak hilang.
+ *
+ * Ini BUKAN angka resmi dan tidak boleh dipakai untuk termin, kurva-S, atau
+ * blanko KKP. Null bila lokasi tidak sedang punya draft.
+ */
+export async function getProgresDraftAdendum(
+  locationId: string,
+  asOf?: Date,
+): Promise<ProgresDraftAdendum | null> {
+  const draft = await db.rabRevision.findFirst({
+    where: { locationId, status: "draft" },
+    select: { id: true, revisionNo: true },
+  });
+  if (!draft) return null;
+
+  const [catSum, barisBasisDraft, rows, resmi] = await Promise.all([
+    db.rabNode.aggregate({
+      where: { revisionId: draft.id, kind: "kategori" },
+      _sum: { amount: true },
+    }),
+    db.dailyReportItem.count({
+      where: {
+        basis: "draft_adendum",
+        report: { locationId, status: { in: [...COUNTED_REPORT_STATUSES] } },
+      },
+    }),
+    db.$queryRaw<{ realized: bigint }[]>`
+      SELECT COALESCE(SUM(t.realized), 0)::bigint AS realized
+      FROM (
+        SELECT GREATEST(0.0, LEAST(1.0,
+                 SUM(dri.volume_done) / NULLIF(GREATEST(rn.volume, 0), 0)
+               )) * rn.amount AS realized
+        FROM daily_report_items dri
+        JOIN daily_reports dr ON dr.id = dri.report_id
+        JOIN rab_nodes rn ON rn.lineage_key = dri.lineage_key AND rn.revision_id = ${draft.id}::uuid
+        WHERE dr.location_id = ${locationId}::uuid
+          AND dr.status::text = ANY(${[...COUNTED_REPORT_STATUSES]}::text[])
+          AND (${asOf ?? null}::date IS NULL OR dr.report_date <= ${asOf ?? null}::date)
+          AND rn.kind = 'item'
+        GROUP BY rn.id, rn.volume, rn.amount
+      ) t
+    `,
+    getLocationProgress(locationId, asOf ? { asOf } : {}),
+  ]);
+
+  const grandTotal = catSum._sum.amount ?? 0n;
+  const realizedValue = BigInt(rows[0]?.realized ?? 0n);
+  return {
+    revisionId: draft.id,
+    revisionNo: draft.revisionNo,
+    grandTotal,
+    realizedValue,
+    realizedPct: pct(realizedValue, grandTotal),
+    barisBasisDraft,
+    realizedValueResmi: resmi.realizedValue,
+  };
 }

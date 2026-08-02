@@ -14,9 +14,9 @@ import { bandingkanTerhadapAktif, type NodeAktif } from "@/lib/rab/diff-parsed";
 import type { FlatNode } from "@/lib/rab/flatten";
 
 const aktif: NodeAktif[] = [
-  { lineageKey: "I", kind: "kategori", code: "I", name: "PEKERJAAN PERSIAPAN", volume: null, amount: 3_000_000n },
-  { lineageKey: "I#1", kind: "item", code: "1", name: "Galian Tanah", volume: 100, amount: 2_000_000n },
-  { lineageKey: "I#2", kind: "item", code: "2", name: "Papan Nama", volume: 1, amount: 1_000_000n },
+  { lineageKey: "I", kind: "kategori", code: "I", name: "PEKERJAAN PERSIAPAN", volume: null, unitPrice: null, amount: 3_000_000n },
+  { lineageKey: "I#1", kind: "item", code: "1", name: "Galian Tanah", volume: 100, unitPrice: null, amount: 2_000_000n },
+  { lineageKey: "I#2", kind: "item", code: "2", name: "Papan Nama", volume: 1, unitPrice: null, amount: 1_000_000n },
 ];
 
 const item = (o: Partial<FlatNode> & Pick<FlatNode, "lineageKey" | "code" | "name">): FlatNode => ({
@@ -55,7 +55,7 @@ describe("KASUS INTI: yang sudah dikerjakan tapi hilang di file baru", () => {
   it("yang sudah dikerjakan diurutkan LEBIH DULU daripada yang belum", () => {
     const dua: NodeAktif[] = [
       ...aktif,
-      { lineageKey: "I#3", kind: "item", code: "3", name: "Belum Dikerjakan", volume: 5, amount: 0n },
+      { lineageKey: "I#3", kind: "item", code: "3", name: "Belum Dikerjakan", volume: 5, unitPrice: null, amount: 0n },
     ];
     const baru = [kategori(2_000_000n), item({ lineageKey: "I#1", code: "1", name: "Galian Tanah", volume: 100 })];
     const h = bandingkanTerhadapAktif(dua, baru, new Map([["I#2", 1]]));
@@ -125,5 +125,70 @@ describe("nilai total dibandingkan dari kategori, bukan dijumlah ulang dari daun
     const h = bandingkanTerhadapAktif(aktif, baru, new Map());
     expect(h.totalAktif).toBe(3_000_000n);
     expect(h.totalBaru).toBe(4_500_000n);
+  });
+});
+
+// Harga satuan item kontrak lama TIDAK BOLEH bergeser (DECISIONS 213).
+//
+// Koreksi user 2026-08-02: "item yang sudah ada sebelum adendum, harga
+// satuannya tidak boleh berubah, harus ada warning jika terjadi. berbeda
+// dengan item baru." Adendum mengubah VOLUME. Harga yang bergeser mengubah
+// nilai kontrak tanpa ada pekerjaan yang bertambah — dan tidak satu pun kolom
+// volume memperlihatkannya, jadi ia lolos justru pada file yang volumenya
+// tampak wajar.
+const berharga: NodeAktif[] = [
+  { lineageKey: "I", kind: "kategori", code: "I", name: "PEKERJAAN PERSIAPAN", volume: null, unitPrice: null, amount: 3_000_000n },
+  { lineageKey: "I#1", kind: "item", code: "1", name: "Galian Tanah", volume: 100, unitPrice: 20_000, amount: 2_000_000n },
+  { lineageKey: "I#2", kind: "item", code: "2", name: "Papan Nama", volume: 1, unitPrice: 1_000_000, amount: 1_000_000n },
+];
+
+describe("KASUS INTI: harga satuan item kontrak lama bergeser", () => {
+  it("tertangkap walau VOLUMENYA sama persis — itu bentuk yang paling mudah lolos", () => {
+    const baru = [
+      kategori(3_100_000n),
+      item({ lineageKey: "I#1", code: "1", name: "Galian Tanah", volume: 100, unitPrice: 21_000 }),
+      item({ lineageKey: "I#2", code: "2", name: "Papan Nama", volume: 1, unitPrice: 1_000_000 }),
+    ];
+    const h = bandingkanTerhadapAktif(berharga, baru, new Map());
+    expect(h.volumeBerubah).toHaveLength(0); // volume tidak bergerak sama sekali
+    expect(h.hargaBerubah).toHaveLength(1);
+    expect(h.hargaBerubah[0]).toMatchObject({ code: "1", dari: 20_000, ke: 21_000, volume: 100 });
+    // Dampak = (21.000 − 20.000) × 100 = +100.000, tanpa satu pun pekerjaan tambahan.
+    expect(h.hargaBerubah[0].dampakRupiah).toBe(100_000n);
+    // "Tetap" berarti volume DAN harga tetap — item yang harganya bergeser
+    // tidak boleh ikut terhitung aman.
+    expect(h.jumlahTetap).toBe(1);
+  });
+
+  it("item BARU tidak ikut ditandai — harganya memang belum pernah disepakati", () => {
+    const baru = [
+      kategori(3_500_000n),
+      item({ lineageKey: "I#1", code: "1", name: "Galian Tanah", volume: 100, unitPrice: 20_000 }),
+      item({ lineageKey: "I#2", code: "2", name: "Papan Nama", volume: 1, unitPrice: 1_000_000 }),
+      item({ lineageKey: "I#9", code: "9", name: "Pekerjaan Tambah", volume: 5, unitPrice: 100_000 }),
+    ];
+    const h = bandingkanTerhadapAktif(berharga, baru, new Map());
+    expect(h.hargaBerubah).toHaveLength(0);
+    expect(h.itemBaru.map((i) => i.code)).toEqual(["9"]);
+  });
+
+  it("beda pembulatan tulis di bawah setengah sen BUKAN perubahan harga", () => {
+    const baru = [
+      kategori(3_000_000n),
+      item({ lineageKey: "I#1", code: "1", name: "Galian Tanah", volume: 100, unitPrice: 20_000.004 }),
+      item({ lineageKey: "I#2", code: "2", name: "Papan Nama", volume: 1, unitPrice: 1_000_000 }),
+    ];
+    expect(bandingkanTerhadapAktif(berharga, baru, new Map()).hargaBerubah).toHaveLength(0);
+  });
+
+  it("dampak rupiah terbesar disebut lebih dulu", () => {
+    const baru = [
+      kategori(3_000_000n),
+      item({ lineageKey: "I#1", code: "1", name: "Galian Tanah", volume: 100, unitPrice: 20_100 }), // +10.000
+      item({ lineageKey: "I#2", code: "2", name: "Papan Nama", volume: 1, unitPrice: 800_000 }), // −200.000
+    ];
+    const h = bandingkanTerhadapAktif(berharga, baru, new Map());
+    expect(h.hargaBerubah.map((x) => x.code)).toEqual(["2", "1"]);
+    expect(h.hargaBerubah[0].dampakRupiah).toBe(-200_000n);
   });
 });

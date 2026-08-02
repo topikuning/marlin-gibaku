@@ -8,11 +8,11 @@ import { forecastFromSeries, FORECAST_STATUS } from "@/lib/forecast";
 import { db } from "@/lib/db";
 import { can } from "@/lib/authz";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
-import { cumulativeVolumeByLineage } from "@/lib/progress";
+import { cumulativeVolumeByLineage, getProgresDraftAdendum } from "@/lib/progress";
 import { laggingItems } from "@/lib/progress-calc";
 import { getPeriodBounds } from "@/lib/periodic-report";
 import { deriveCategorySchedule, getScurveSeries } from "@/lib/baseline";
-import { formatNumber, formatPct, formatRupiahShort, formatTanggal } from "@/lib/format";
+import { formatNumber, formatPct, formatRupiah, formatRupiahShort, formatTanggal } from "@/lib/format";
 import type { BaselineSource, RevisionStatus } from "@/generated/prisma/enums";
 import { requireLocationPage } from "../get-location";
 import { IssuesPanel, type IssueData } from "./issues-client";
@@ -181,8 +181,63 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
     })),
   }));
 
+  // Progres terhadap draft adendum — ditampilkan HANYA bila lokasinya memang
+  // sedang punya draft. Angka ini bukan angka resmi (DECISIONS 210).
+  const draftProg = await getProgresDraftAdendum(location.id);
+
   return (
     <div className="space-y-4">
+      {draftProg ? (
+        <Card>
+          <CardHeader
+            title={`Pantauan internal — progres atas usulan adendum (draft revisi #${draftProg.revisionNo})`}
+            subtitle="Laporan sampingan untuk kebutuhan internal. BUKAN angka resmi: termin, kurva-S, laporan periodik, dan blanko KKP tetap memakai RAB kontrak yang berlaku."
+            action={
+              <Link
+                href={`/lokasi/${slug}/rab/adendum`}
+                className="text-[13px] font-medium text-primary hover:underline"
+              >
+                Buka draft adendum →
+              </Link>
+            }
+          />
+          <CardBody>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-lg border border-border bg-surface-muted px-3 py-2">
+                <p className="text-[11px] uppercase tracking-wide text-ink-faint">Nilai RAB draft</p>
+                <p className="tabular text-sm font-semibold text-ink">
+                  {formatRupiah(Number(draftProg.grandTotal))}
+                </p>
+              </div>
+              <div className="rounded-lg border border-border bg-surface-muted px-3 py-2">
+                <p className="text-[11px] uppercase tracking-wide text-ink-faint">
+                  Terpasang menurut draft
+                </p>
+                <p className="tabular text-sm font-semibold text-ink">
+                  {formatRupiah(Number(draftProg.realizedValue))}{" "}
+                  <span className="font-normal text-ink-muted">
+                    ({formatPct(draftProg.realizedPct)})
+                  </span>
+                </p>
+              </div>
+              <div className="rounded-lg border border-border bg-surface-muted px-3 py-2">
+                <p className="text-[11px] uppercase tracking-wide text-ink-faint">
+                  Terpasang menurut RAB resmi
+                </p>
+                <p className="tabular text-sm font-semibold text-ink">
+                  {formatRupiah(Number(draftProg.realizedValueResmi))}
+                </p>
+              </div>
+            </div>
+            <p className="mt-2 text-[13px] text-ink-muted">
+              {draftProg.barisBasisDraft === 0
+                ? "Belum ada baris laporan yang dicatat terhadap draft ini — angka di atas berasal dari laporan yang sudah ada, dinilai memakai RAB draft."
+                : `${draftProg.barisBasisDraft} baris laporan dicatat terhadap draft ini (pekerjaan yang belum ada dasarnya di kontrak berjalan).`}
+            </p>
+          </CardBody>
+        </Card>
+      ) : null}
+
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader
