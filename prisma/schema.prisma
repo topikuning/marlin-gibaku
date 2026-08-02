@@ -1750,6 +1750,13 @@ model DailyReminderLog {
   /// menjawab 2xx", yang bisa terjadi walau tidak ada pesan yang keluar
   /// (DECISIONS 206).
   waMessageId String? @map("wa_message_id")
+  /// Tujuan yang BENAR-BENAR dipakai saat mengirim (628…@c.us). Disimpan supaya
+  /// "terkirim tapi tidak sampai" bisa ditelusuri ke nomornya, bukan ditebak.
+  chatId    String?  @map("chat_id")
+  /// Berapa kali pengingat hari itu dikirim. Cron mengirim sekali; admin boleh
+  /// mengulang sebanyak yang ia mau (DECISIONS 207).
+  attempts  Int      @default(1)
+  lastSentAt DateTime? @map("last_sent_at") @db.Timestamptz
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   @@unique([userId, dateKey])

@@ -118,8 +118,31 @@ export function ConfirmSubmit({
               <Button type="button" size="sm" variant="ghost" onClick={close}>
                 Batal
               </Button>
-              {/* type=submit → men-submit form pembungkus ConfirmSubmit. */}
-              <Button type="submit" size="sm" variant={confirmVariant ?? variant} onClick={() => setOpen(false)}>
+              {/*
+                Form-nya dikirim SENDIRI lewat requestSubmit, bukan lewat aksi
+                bawaan `type="submit"`.
+
+                Alasannya bug nyata (DECISIONS 207): versi lama menutup dialog
+                di dalam onClick ini. React mem-flush update state sinkron
+                begitu handler selesai — SEBELUM peramban menjalankan aksi
+                bawaan tombol — sehingga tombolnya sudah lepas dari DOM saat
+                form seharusnya dikirim. Hasilnya setiap dialog konfirmasi di
+                aplikasi ini menutup diri tanpa melakukan apa pun: penekanan
+                "Ya" terlihat berhasil, padahal tidak ada yang terjadi.
+
+                Dengan requestSubmit, pengiriman terjadi sinkron di dalam
+                handler, jadi urutan penutupan dialog tidak lagi menentukan.
+              */}
+              <Button
+                type="submit"
+                size="sm"
+                variant={confirmVariant ?? variant}
+                onClick={(e) => {
+                  e.preventDefault(); // aksi bawaan tidak dipakai lagi
+                  e.currentTarget.form?.requestSubmit();
+                  setOpen(false);
+                }}
+              >
                 {confirmLabel ?? label}
               </Button>
             </div>

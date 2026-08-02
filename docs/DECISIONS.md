@@ -6068,3 +6068,96 @@ pemakaian WAHA adalah pekerjaan tersendiri dan dicatat di `OPEN_ISSUES`.
 melaporkan `FAILED`/`WORKING`) + 2 di `tugas-harian` (sesi mati = nol kirim nol
 log; id pesan tersimpan) · mock `getSessionStatus` asinkron seperti aslinya ·
 unit 707 ✓ · integrasi 252 ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 207 — Tombol admin tidak dikunci + dialog konfirmasi yang tidak pernah mengirim (2026-08-02)
+
+Koreksi user atas DECISIONS 206, dan satu bug yang jauh lebih besar yang
+ketahuan saat memverifikasinya di peramban.
+
+### 1. Diagnosis 206 salah menuduh konfigurasi user
+
+DECISIONS 206 menyimpulkan "sesi WhatsApp belum login" sebagai penyebab
+`terkirim: 7` tanpa pesan sampai — **tanpa pernah memeriksanya**. WAHA sudah
+dikonfigurasi sejak awal. Menyodorkan tebakan sebagai sebab, apalagi yang
+menunjuk ke setelan user, lebih buruk daripada mengatakan "belum ketahuan".
+
+### 2. Status sesi: keterangan, BUKAN pagar
+
+206 memasang `getSessionStatus() === "WORKING"` sebagai syarat kirim. Itu
+menjadikan satu bacaan kami sebagai penghenti pengiriman yang mungkin sehat —
+nama status berbeda antar versi/engine WAHA, dan endpoint-nya bisa tak
+terjangkau sesaat. Sekarang statusnya **dilaporkan** (`HasilPengingat.sesi`,
+banner di panel) tetapi tidak pernah membatalkan pengiriman.
+
+### 3. Admin tidak dikunci sekali sehari
+
+Permintaan user: *"di halaman admin aku bebas kirim berapa kali pun … kamu
+cukup mencegah atau menambah aksi ganda untuk kirim ulang, misal konfirmasi
+kalau kirim ulang, bukan me-lock admin sama sekali."*
+
+`kirimPengingatHarian(now, orgId, { paksa })` memisahkan dua pemanggil yang
+kebutuhannya memang berbeda:
+- **cron** (`paksa: false`) tetap sekali sehari per orang — penjadwal yang
+  terpicu dua kali tidak boleh mengirim pesan kedua;
+- **admin** (`paksa: true`) sebanyak yang ia mau. Yang dicegah adalah
+  pengiriman TIDAK SENGAJA — daftar penerima (beserta nomor tujuannya) tampil
+  lebih dulu, dan konfirmasinya menyebut berapa orang akan menerima pesan
+  kedua. Pesan pertama yang tidak sampai adalah keadaan nyata; halaman yang
+  menjawab "sudah dikirim hari ini" pada keadaan itu memutuskan sesuatu yang
+  bukan haknya.
+
+Pratinjau kini **tidak menyaring** yang sudah dikirimi hari ini: daftar "akan
+menerima" harus persis sama dengan yang benar-benar dikirimi.
+
+### 4. "Berhasil atau tidak" dijawab per orang
+
+Keluhan user: *"apalagi saat ini gak jelas, ini berhasil atau tidak."*
+`HasilPengingat.rincian[]` memuat nama, tujuan, ok, `waMessageId`, dan error
+tiap penerima; panel menampilkannya setelah kirim. Nol terkirim dengan
+kegagalan sekarang bernada MERAH — nada hijau di atas daftar yang semuanya
+gagal adalah cara halaman berbohong. Terkirim tapi tak satu pun mengembalikan
+ID pesan juga diangkat sebagai masalah, bukan disebut "sukses".
+
+Kolom baru `daily_reminder_logs`: `chat_id`, `attempts`, `last_sent_at`
+(migrasi idempoten `20260802010000_reminder_jejak_kirim`).
+
+### 5. Nomor dinormalkan SAAT KIRIM, bukan cuma saat disimpan
+
+`normalizeWaTarget` dulu hanya dipakai di form pengguna, sedangkan pengirim
+memakai `waNumber` mentah. Baris lama/hasil impor bisa berisi `0812…`; WAHA
+menerima bentuk itu dengan 2xx lalu **tidak mengirim apa pun**. Ini kandidat
+penyebab nyata "terkirim tapi tidak sampai" — dan sebelumnya tak terlihat
+karena mock uji memakai nomor polos. Nomor tujuan kini ikut ditampilkan di
+pratinjau dan disimpan di log.
+
+### 6. BUG BESAR: setiap dialog konfirmasi di aplikasi ini tidak mengirim apa pun
+
+Ditemukan saat menekan tombolnya sungguhan di peramban. `ConfirmSubmit`
+menutup dialog di dalam `onClick` tombol "Ya" yang bertipe `submit`. React
+mem-flush update state **sinkron** begitu handler selesai — SEBELUM peramban
+menjalankan aksi bawaan tombol — sehingga tombolnya sudah lepas dari DOM saat
+form seharusnya dikirim. Hasilnya: dialog menutup, tidak ada request, tidak
+ada apa pun. Terlihat berhasil.
+
+Terkena SEMUA pemakaian `ConfirmSubmit`: setujui/tolak termin keuangan
+(`approval-queue`, `lokasi-keuangan-client`), kelola dokumen (`manage-forms`),
+dan tombol pengingat ini. Perbaikannya: form dikirim sendiri lewat
+`requestSubmit()` di dalam handler, jadi urutan penutupan dialog tidak lagi
+menentukan.
+
+Tidak bisa dijaga uji unit/integrasi — kegagalannya ada di urutan antara React
+dan peramban. Karena itu dijaga uji E2E `tests/e2e/konfirmasi.spec.ts`, yang
+sudah dibuktikan GAGAL pada kode lama dan LULUS pada kode baru.
+
+**Pelajaran yang lebih penting dari bug-nya**: 206 diverifikasi dengan uji
+otomatis dan typecheck saja. Uji-uji itu memanggil server action langsung —
+jadi seluruh lapisan tombol→dialog→form tidak pernah dilewati sekali pun.
+Fitur yang menyentuh UI harus ditekan tombolnya di peramban sebelum disebut
+selesai.
+
+**Verifikasi**: integrasi 257 ✓ (termasuk kasus baru: paksa mengirim ulang +
+menghitung percobaan, rincian per penerima, nomor lama dinormalkan saat kirim,
+status sesi tidak membatalkan) · unit 708 ✓ · E2E 9 ✓ (desktop) · typecheck ✓ ·
+lint ✓ · panel dilihat dan tombolnya ditekan di peramban.

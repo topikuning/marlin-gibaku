@@ -45,7 +45,9 @@ let smId = "";
 let smTanpaWaId = "";
 
 const NOMOR_KITA = "628123456789";
-const punyaKita = () => terkirim.filter((t) => t.chatId === NOMOR_KITA);
+/** WAHA hanya mengenal bentuk ber-`@c.us`; nomor polos diterima 2xx lalu hilang. */
+const TUJUAN_KITA = `${NOMOR_KITA}@c.us`;
+const punyaKita = () => terkirim.filter((t) => t.chatId === TUJUAN_KITA);
 
 const HARI_INI = new Date("2026-08-01T10:00:00+07:00");
 const tgl = (s: string) => new Date(`${s}T00:00:00.000Z`);
@@ -302,7 +304,13 @@ describe("pengingat WA harian", () => {
     wahaAktif = false;
     const sebelum = await db.dailyReminderLog.count({ where: { dateKey: "2026-08-01" } });
     const hasil = await kirimPengingatHarian(HARI_INI);
-    expect(hasil).toEqual({ terkirim: 0, gagal: 0, dilewati: 0, sesi: "belum dikonfigurasi" });
+    expect(hasil).toEqual({
+      terkirim: 0,
+      gagal: 0,
+      dilewati: 0,
+      sesi: "belum dikonfigurasi",
+      rincian: [],
+    });
     // Yang paling penting: TIDAK ada baris pengingat yang ditulis. Kalau
     // ditulis, UNIQUE (user, hari) akan memblokir percobaan yang benar
     // berikutnya di hari itu — WAHA yang mati sejenak jadi kehilangan
@@ -310,24 +318,90 @@ describe("pengingat WA harian", () => {
     expect(await db.dailyReminderLog.count({ where: { dateKey: "2026-08-01" } })).toBe(sebelum);
   });
 
-  it("SESI BELUM LOGIN → nol terkirim dan TIDAK menghanguskan jatah hari ini", async () => {
-    // Kejadian nyata 2026-08-02: sistem melaporkan "7 terkirim" padahal sesi
-    // WhatsApp belum login. WAHA menjawab 2xx untuk sendText, jadi kodenya
-    // mengira berhasil — dan UNIQUE (user, hari) mengunci percobaan berikutnya.
+  it("status sesi DILAPORKAN, tapi tidak dipakai membatalkan pengiriman", async () => {
+    // DECISIONS 207. Versi sebelumnya memakai status sesi sebagai pagar: bukan
+    // WORKING → tidak mengirim apa pun. Itu menjadikan satu bacaan yang meleset
+    // (nama status berbeda antar versi/engine WAHA, endpoint tak terjangkau
+    // sesaat) sebagai penghenti pengiriman yang sebenarnya sehat. Statusnya
+    // tetap dilaporkan supaya "0 terkirim" bisa dibaca, bukan ditebak.
     await siapkanLokasiBerjalan("Sigma");
     statusSesi = "SCAN_QR_CODE";
-    const sebelum = await db.dailyReminderLog.count({ where: { dateKey: "2026-08-01" } });
     const hasil = await kirimPengingatHarian(HARI_INI);
 
-    expect(hasil.terkirim).toBe(0);
     expect(hasil.sesi).toBe("SCAN_QR_CODE");
-    expect(punyaKita()).toHaveLength(0);
-    expect(await db.dailyReminderLog.count({ where: { dateKey: "2026-08-01" } })).toBe(sebelum);
+    expect(hasil.terkirim).toBe(1);
+    expect(punyaKita()).toHaveLength(1);
+  });
 
-    // Setelah QR di-scan, pengiriman hari itu masih bisa dilakukan.
-    statusSesi = "WORKING";
+  it("nomor lama tanpa @c.us dinormalkan SAAT KIRIM — WAHA hanya kenal bentuk itu", async () => {
+    // Baris lama (dibuat sebelum normalisasi di form, atau hasil impor) bisa
+    // berisi "0812…". WAHA menerima bentuk itu dengan 2xx lalu tidak mengirim
+    // apa pun — persis "terkirim tapi tidak sampai".
+    const lawas = await db.user.create({
+      data: {
+        orgId,
+        username: `lawas-${suffix}-${Math.random().toString(36).slice(2, 7)}`,
+        fullName: "Nomor Lawas",
+        role: "site_manager",
+        passwordHash: "x",
+        waNumber: "0895 1122 3344",
+      },
+      select: { id: true },
+    });
+    const { locationIds } = await buatPaket({
+      spmk: "2026-07-01",
+      stage: "pelaksanaan",
+      lokasi: ["Upsilon"],
+      statusLokasi: "berjalan",
+    });
+    await db.locationAssignment.create({
+      data: { userId: lawas.id, locationId: locationIds[0] },
+    });
+    try {
+      await kirimPengingatHarian(HARI_INI);
+      expect(terkirim.map((t) => t.chatId)).toContain("6289511223344@c.us");
+    } finally {
+      await db.dailyReminderLog.deleteMany({ where: { userId: lawas.id } });
+      await db.locationAssignment.deleteMany({ where: { userId: lawas.id } });
+      await db.user.delete({ where: { id: lawas.id } });
+    }
+  });
+
+  it("PAKSA mengirim ulang di hari yang sama, dan menghitung percobaannya", async () => {
+    // Tombol admin memakai jalur ini (DECISIONS 207): cron sekali sehari, admin
+    // sebanyak yang ia mau.
+    await siapkanLokasiBerjalan("Phi");
     await kirimPengingatHarian(HARI_INI);
     expect(punyaKita()).toHaveLength(1);
+
+    // Tanpa paksa = tetap sekali sehari.
+    const lagi = await kirimPengingatHarian(HARI_INI);
+    expect(lagi.dilewati).toBeGreaterThanOrEqual(1);
+    expect(punyaKita()).toHaveLength(1);
+
+    // Dengan paksa = benar-benar dikirim lagi.
+    const paksa = await kirimPengingatHarian(HARI_INI, undefined, { paksa: true });
+    expect(paksa.terkirim).toBeGreaterThanOrEqual(1);
+    expect(paksa.dilewati).toBe(0);
+    expect(punyaKita()).toHaveLength(2);
+
+    const log = await db.dailyReminderLog.findFirstOrThrow({
+      where: { userId: smId, dateKey: "2026-08-01" },
+      select: { attempts: true, chatId: true, lastSentAt: true },
+    });
+    expect(log.attempts).toBe(2);
+    expect(log.chatId).toBe(TUJUAN_KITA);
+    expect(log.lastSentAt).not.toBeNull();
+  });
+
+  it("rincian menyebut tiap penerima + tujuannya — hasil tidak perlu ditebak", async () => {
+    await siapkanLokasiBerjalan("Chi");
+    const hasil = await kirimPengingatHarian(HARI_INI);
+    const kita = hasil.rincian.find((r) => r.tujuan === TUJUAN_KITA);
+    expect(kita).toBeDefined();
+    expect(kita!.nama).toBe("Prio Yulianto");
+    expect(kita!.ok).toBe(true);
+    expect(kita!.waMessageId).toBe("true_628123456789@c.us_MSGID");
   });
 
   it("ID pesan dari WAHA disimpan — bukti bahwa 'sukses' bukan sekadar 2xx", async () => {

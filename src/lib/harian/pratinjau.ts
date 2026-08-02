@@ -2,6 +2,7 @@ import "server-only";
 import { db } from "@/lib/db";
 import { jakartaDateKey } from "@/lib/format";
 import { isWahaConfigured, getSessionStatus } from "@/lib/waha/client";
+import { normalizeWaTarget } from "@/lib/contacts/model";
 import { kumpulkanPengingat } from "./penjadwal";
 
 /**
@@ -13,15 +14,36 @@ import { kumpulkanPengingat } from "./penjadwal";
  * lewat page-guard.
  */
 
+/** Jejak pengiriman hari ini untuk satu orang. */
+export type RiwayatHariIni = {
+  /** Berapa kali pengingat hari ini sudah dikirim ke orang ini. */
+  attempts: number;
+  status: string;
+  /** Ada ID pesan dari WhatsApp = bukti pesannya benar-benar masuk antrean. */
+  adaBukti: boolean;
+  error: string | null;
+};
+
 export type PratinjauPengingat = {
   dateKey: string;
   wahaSiap: boolean;
-  /** Status sesi WhatsApp: "WORKING" = siap kirim. Selain itu, nol yang sampai. */
+  /** Status sesi WhatsApp. INFORMASI — tidak memblokir tombol (DECISIONS 207). */
   sesiStatus: string;
-  /** Yang akan ditagih bila tombol ditekan sekarang. */
-  akanDitagih: { nama: string; lokasi: string[]; adaDraft: boolean[] }[];
-  /** Sudah menerima pengingat hari ini (tidak akan dikirimi lagi). */
-  sudahDikirim: { nama: string; lokasi: number; status: string }[];
+  /**
+   * Yang akan menerima pesan bila tombol ditekan sekarang — SEMUANYA, termasuk
+   * yang sudah dikirimi hari ini. Daftar ini harus persis sama dengan yang
+   * benar-benar dikirimi; pratinjau yang meleset lebih buruk daripada tidak ada.
+   */
+  akanDitagih: {
+    nama: string;
+    /** Nomor tujuan sebenarnya (628…@c.us) — bukan tebakan dari nama. */
+    tujuan: string;
+    lokasi: string[];
+    adaDraft: boolean[];
+    riwayat: RiwayatHariIni | null;
+  }[];
+  /** Sudah menerima pengingat hari ini (termasuk yang kini tidak perlu ditagih lagi). */
+  sudahDikirim: ({ nama: string; lokasi: number; tujuan: string | null } & RiwayatHariIni)[];
   /** Penanggung jawab lokasi tertagih yang TIDAK punya nomor WA. */
   tanpaNomor: string[];
 };
@@ -36,8 +58,8 @@ export async function pratinjauPengingat(orgId: string): Promise<PratinjauPengin
   const dateKey = jakartaDateKey(now);
   const penerima = await kumpulkanPengingat(now, orgId);
 
-  // Status sesi ditarik SEKARANG, bukan diasumsikan: admin harus tahu tombolnya
-  // akan mengirim atau cuma menghanguskan jatah hari ini (DECISIONS 206).
+  // Status sesi ditarik SEKARANG, bukan diasumsikan. Ini keterangan untuk
+  // membaca hasil, BUKAN syarat menekan tombol (DECISIONS 207).
   const siap = await isWahaConfigured();
   let sesi = "belum dikonfigurasi";
   if (siap) {
@@ -54,28 +76,65 @@ export async function pratinjauPengingat(orgId: string): Promise<PratinjauPengin
   const namaOrg = new Map(anggota.map((u) => [u.id, u.fullName]));
   const log = await db.dailyReminderLog.findMany({
     where: { dateKey, userId: { in: [...namaOrg.keys()] } },
-    select: { userId: true, locations: true, status: true },
+    select: {
+      userId: true,
+      locations: true,
+      status: true,
+      attempts: true,
+      error: true,
+      waMessageId: true,
+      chatId: true,
+    },
   });
   const sudah = new Map(log.map((l) => [l.userId, l]));
+  const riwayat = (userId: string): RiwayatHariIni | null => {
+    const l = sudah.get(userId);
+    if (!l) return null;
+    return {
+      attempts: l.attempts,
+      status: l.status,
+      adaBukti: !!l.waMessageId,
+      error: l.error,
+    };
+  };
 
   return {
     dateKey,
     wahaSiap: siap,
     sesiStatus: sesi,
-    akanDitagih: penerima
-      .filter((p) => !sudah.has(p.userId))
-      .map((p) => ({
-        nama: p.nama,
-        lokasi: p.lokasi.map((l) => l.nama),
-        adaDraft: p.lokasi.map((l) => l.adaDraft),
-      })),
+    // TIDAK disaring oleh log: tombol admin mengirim ke semua orang di daftar
+    // ini, termasuk yang sudah dikirimi tadi. Menyembunyikan mereka membuat
+    // pratinjau berbohong tentang siapa yang akan menerima (DECISIONS 207).
+    akanDitagih: penerima.map((p) => ({
+      nama: p.nama,
+      // Tujuan yang BENAR-BENAR akan dipakai — dinormalkan dengan fungsi yang
+      // sama dengan pengirimnya. Menampilkan "0812…" padahal yang dikirim
+      // "628…@c.us" membuat pratinjau tidak bisa dipakai menelusuri kegagalan.
+      tujuan: tujuanTampil(p.wa),
+      lokasi: p.lokasi.map((l) => l.nama),
+      adaDraft: p.lokasi.map((l) => l.adaDraft),
+      riwayat: riwayat(p.userId),
+    })),
     sudahDikirim: log.map((l) => ({
       nama: namaOrg.get(l.userId) ?? "—",
       lokasi: l.locations,
+      tujuan: l.chatId,
+      attempts: l.attempts,
       status: l.status,
+      adaBukti: !!l.waMessageId,
+      error: l.error,
     })),
     tanpaNomor: await penanggungJawabTanpaNomor(now, orgId),
   };
+}
+
+/** Nomor tersimpan → tujuan WAHA. Yang tak bisa dinormalkan ditandai, bukan disembunyikan. */
+function tujuanTampil(wa: string): string {
+  try {
+    return normalizeWaTarget(wa);
+  } catch {
+    return `${wa} (format tidak dikenal)`;
+  }
 }
 
 /**

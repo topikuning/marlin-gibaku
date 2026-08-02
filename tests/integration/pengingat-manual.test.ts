@@ -20,12 +20,14 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 const terkirim: { chatId: string; text: string }[] = [];
 let wahaAktif = true;
 let statusSesi = "WORKING";
+/** WAHA versi tertentu membalas 2xx tanpa body — "terkirim" tanpa bukti. */
+let tanpaIdPesan = false;
 vi.mock("@/lib/waha/client", () => ({
   isWahaConfigured: async () => wahaAktif,
   getSessionStatus: async () => ({ name: "default", status: statusSesi }),
   sendText: async (chatId: string, text: string) => {
     terkirim.push({ chatId, text });
-    return "MSGID";
+    return tanpaIdPesan ? null : "MSGID";
   },
 }));
 
@@ -63,7 +65,8 @@ let tanpaNomorId = "";
 let lokasiId = "";
 const hariIni = jakartaDateKey(new Date());
 
-const punyaKita = () => terkirim.filter((t) => t.chatId === NOMOR);
+const TUJUAN = `${NOMOR}@c.us`;
+const punyaKita = () => terkirim.filter((t) => t.chatId === TUJUAN);
 
 beforeAll(async () => {
   const org = await db.organization.create({ data: { name: `Org ${suffix}`, slug: `o-${suffix}` } });
@@ -138,6 +141,7 @@ beforeEach(async () => {
   terkirim.length = 0;
   wahaAktif = true;
   statusSesi = "WORKING";
+  tanpaIdPesan = false;
   role = "super_admin";
   await db.dailyReminderLog.deleteMany({ where: { userId: { in: [mandorId, tanpaNomorId] } } });
 });
@@ -151,12 +155,38 @@ describe("KASUS INTI: admin bisa menagih semua orang tanpa menunggu penjadwal", 
     expect(punyaKita()[0].text).toContain("Pengaradan");
   });
 
-  it("ditekan DUA KALI tidak mengirim pesan dobel ke HP orang lapangan", async () => {
+  it("BOLEH dikirim berkali-kali — admin tidak dikunci sehari sekali", async () => {
+    // DECISIONS 207, permintaan user 2026-08-02: "di halaman admin aku bebas
+    // kirim berapa kali pun … kamu cukup mencegah atau menambah aksi ganda
+    // untuk kirim ulang, misal konfirmasi kalau kirim ulang, bukan me-lock
+    // admin sama sekali." Pesan pertama yang tidak sampai adalah keadaan nyata;
+    // menjawab "sudah dikirim hari ini" pada keadaan itu tidak menolong siapa
+    // pun. Pengaman pengiriman tak sengaja ada di UI (daftar penerima +
+    // konfirmasi yang menyebut berapa orang menerima pesan kedua).
     await kirimPengingatSekarangAction(undefined, new FormData());
     const res2 = await kirimPengingatSekarangAction(undefined, new FormData());
-    expect(punyaKita()).toHaveLength(1);
-    // Dan itu DIKATAKAN, bukan diam-diam terlihat seperti gagal.
-    expect(res2?.success).toMatch(/sudah dikirim hari ini/i);
+    expect(punyaKita()).toHaveLength(2);
+    expect(res2?.error).toBeUndefined();
+    expect(res2?.success).toMatch(/terkirim/i);
+
+    // Jejaknya bertambah, bukan tertimpa diam-diam.
+    const log = await db.dailyReminderLog.findFirstOrThrow({
+      where: { userId: mandorId, dateKey: hariIni },
+      select: { attempts: true, chatId: true },
+    });
+    expect(log.attempts).toBe(2);
+    expect(log.chatId).toBe(TUJUAN);
+  });
+
+  it("hasil per orang dilaporkan — 'berhasil atau tidak' tidak perlu ditebak", async () => {
+    const res = await kirimPengingatSekarangAction(undefined, new FormData());
+    const kita = res?.rincian?.find((r) => r.tujuan === TUJUAN);
+    expect(kita).toBeDefined();
+    expect(kita!.nama).toBe("Paijo Sutrisno");
+    expect(kita!.ok).toBe(true);
+    // Bukti nyata, bukan kata "sukses": tanpa ID pesan, 2xx dari WAHA tidak
+    // membuktikan apa pun.
+    expect(kita!.waMessageId).toBe("MSGID");
   });
 
   it("tercatat di audit — pengiriman ke orang lain harus punya jejak pelakunya", async () => {
@@ -195,13 +225,26 @@ describe("pagar tombol", () => {
   });
 });
 
-describe("sesi WhatsApp mati = kegagalan senyap, harus dikatakan", () => {
-  it("tombol menolak dengan menyebut status sesinya, tanpa mengunci hari itu", async () => {
+describe("sesi WhatsApp: dilaporkan, bukan dijadikan pagar", () => {
+  it("status di luar WORKING TIDAK membatalkan pengiriman, hanya disebut", async () => {
+    // DECISIONS 207: status sesi adalah keterangan untuk membaca hasil. Kalau
+    // dijadikan syarat, satu bacaan yang meleset mengunci admin dari tindakan
+    // yang sebenarnya bisa berhasil.
     statusSesi = "SCAN_QR_CODE";
     const res = await kirimPengingatSekarangAction(undefined, new FormData());
-    expect(res?.error).toMatch(/SCAN_QR_CODE/);
-    expect(punyaKita()).toHaveLength(0);
-    expect(await db.dailyReminderLog.count({ where: { userId: mandorId, dateKey: hariIni } })).toBe(0);
+    expect(punyaKita()).toHaveLength(1);
+    expect(res?.success).toMatch(/SCAN_QR_CODE/);
+  });
+
+  it("terkirim tanpa satu pun ID pesan DIANGKAT sebagai masalah, bukan 'sukses'", async () => {
+    // Persis kejadian 2026-08-02: "7 terkirim", nol sampai. 2xx dari WAHA bukan
+    // bukti pengiriman; tanpa ID pesan, kata "sukses" menyesatkan.
+    tanpaIdPesan = true;
+    const res = await kirimPengingatSekarangAction(undefined, new FormData());
+    expect(punyaKita()).toHaveLength(1);
+    expect(res?.success).toBeUndefined();
+    expect(res?.error).toMatch(/tidak satu pun mengembalikan id pesan/i);
+    expect(res?.rincian?.[0].waMessageId).toBeNull();
   });
 
   it("pratinjau menyebut status sesi supaya admin tahu SEBELUM menekan", async () => {
@@ -219,6 +262,9 @@ describe("pratinjau menunjukkan yang SAMA dengan yang akan dikirim", () => {
     expect(kita).toBeDefined();
     expect(kita!.lokasi).toContain("Pengaradan");
     expect(kita!.adaDraft[0]).toBe(false); // belum ada laporan sama sekali
+    // Nomor tujuan ikut disebut: "terkirim tapi tidak sampai" paling sering
+    // berarti nomornya, dan itu hanya kelihatan kalau nomornya ditulis.
+    expect(kita!.tujuan).toBe(TUJUAN);
   });
 
   it("penanggung jawab TANPA nomor WA disebut namanya — 'terkirim 1' bukan berarti semua tertagih", async () => {
@@ -226,13 +272,23 @@ describe("pratinjau menunjukkan yang SAMA dengan yang akan dikirim", () => {
     expect(p.tanpaNomor).toContain("Tanpa Nomor");
   });
 
-  it("setelah dikirim, orangnya pindah dari 'akan ditagih' ke 'sudah dikirim'", async () => {
+  it("setelah dikirim orangnya TETAP di daftar — tombolnya memang akan mengirim lagi", async () => {
+    // DECISIONS 207: daftar "akan menerima" harus persis sama dengan yang
+    // benar-benar dikirimi. Menyembunyikan yang sudah dikirimi tadi membuat
+    // pratinjau berbohong, karena tombolnya tetap mengirim ke mereka.
     await kirimPengingatSekarangAction(undefined, new FormData());
     const p = await pratinjauPengingat(orgId);
-    expect(p.akanDitagih.some((x) => x.nama === "Paijo Sutrisno")).toBe(false);
+    const kita = p.akanDitagih.find((x) => x.nama === "Paijo Sutrisno");
+    expect(kita).toBeDefined();
+    // Dan riwayatnya melekat, supaya "kirim lagi" adalah pilihan sadar.
+    expect(kita!.riwayat).not.toBeNull();
+    expect(kita!.riwayat!.attempts).toBe(1);
+    expect(kita!.riwayat!.adaBukti).toBe(true);
+
     const sudah = p.sudahDikirim.find((x) => x.nama === "Paijo Sutrisno");
     expect(sudah).toBeDefined();
     expect(sudah!.status).toBe("sukses");
+    expect(sudah!.tujuan).toBe(TUJUAN);
   });
 
   it("laporan yang sudah dikirim lapangan → orangnya tidak ditagih lagi", async () => {

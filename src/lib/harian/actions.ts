@@ -5,24 +5,26 @@ import { audit } from "@/lib/audit";
 import { requireCapability, ForbiddenError } from "@/lib/auth/session";
 import { jakartaDateKey } from "@/lib/format";
 import { isWahaConfigured } from "@/lib/waha/client";
-import { kirimPengingatHarian } from "./penjadwal";
+import { kirimPengingatHarian, type RincianKirim } from "./penjadwal";
 
 /**
- * Pemicu MANUAL pengingat harian dari halaman Sistem (DECISIONS 205).
+ * Pemicu MANUAL pengingat harian dari halaman Sistem (DECISIONS 205/207).
  *
  * Permintaan user: "buat juga satu tombol untuk eksekusi pengingat semua orang,
  * dari admin." Alasannya nyata — penjadwal luar bisa mati, telat, atau belum
  * dipasang, dan tanpa tombol ini satu-satunya cara menagih lapangan adalah
  * menunggu besok.
  *
- * Perilakunya PERSIS sama dengan yang dijalankan cron (fungsi yang sama), jadi
- * hasil manual dan hasil terjadwal tidak mungkin berbeda. Termasuk pengaman
- * `UNIQUE (user_id, date_key)`: menekan tombol dua kali di hari yang sama TIDAK
- * mengirim pesan kedua ke HP orang lapangan.
+ * Tombol ini SENGAJA tidak dikunci sekali sehari (DECISIONS 207). Yang dicegah
+ * adalah pengiriman yang tidak disengaja — lewat daftar penerima yang tampil
+ * lebih dulu + konfirmasi yang menyebut berapa orang menerima pesan kedua —
+ * bukan kemampuan admin mengirim ulang. Pesan pertama yang tidak sampai adalah
+ * keadaan yang nyata; sistem yang menjawab "sudah dikirim hari ini" pada
+ * keadaan itu memutuskan sesuatu yang bukan haknya.
  */
 
 export type PengingatState =
-  | { error?: string; success?: string }
+  | { error?: string; success?: string; rincian?: RincianKirim[] }
   | undefined;
 
 export async function kirimPengingatSekarangAction(
@@ -41,34 +43,57 @@ export async function kirimPengingatSekarangAction(
     }
 
     // Ter-scope ke organisasi si admin — lihat catatan di kumpulkanPengingat.
-    const hasil = await kirimPengingatHarian(new Date(), user.orgId);
+    // `paksa` = tombol admin boleh mengirim ulang; lihat DECISIONS 207.
+    const hasil = await kirimPengingatHarian(new Date(), user.orgId, { paksa: true });
     await audit(user.id, "reminder.manual_send", "system", null, {
       dateKey: jakartaDateKey(new Date()),
-      ...hasil,
+      terkirim: hasil.terkirim,
+      gagal: hasil.gagal,
+      sesi: hasil.sesi,
+      // Tujuan tiap pesan ikut tercatat: pengiriman ke HP orang lain harus bisa
+      // ditelusuri ke nomornya, bukan cuma jumlahnya.
+      tujuan: hasil.rincian.map((r) => r.tujuan),
     });
     revalidatePath("/sistem");
 
-    // Sesi mati = tidak ada yang keluar. Katakan status aslinya, jangan
-    // membiarkan "0 terkirim" terbaca sebagai "tidak ada yang perlu ditagih".
-    if (hasil.sesi !== "WORKING") {
-      return {
-        error:
-          `Tidak ada pesan yang dikirim — sesi WhatsApp tidak siap (status: ${hasil.sesi}). ` +
-          "Scan QR di server WAHA, lalu cek status di tab Integrasi dan ulangi.",
-      };
-    }
-    if (hasil.terkirim === 0 && hasil.gagal === 0 && hasil.dilewati === 0) {
+    if (hasil.terkirim === 0 && hasil.gagal === 0) {
       // Sebabnya TIDAK ditebak: nol bisa berarti semua sudah lapor, bisa juga
-      // belum ada lokasi berjalan yang SPMK-nya tiba. Sama seperti bannernya
-      // di panel — satu layar tidak boleh menyebut dua sebab yang berbeda.
+      // belum ada lokasi berjalan yang SPMK-nya tiba.
       return { success: "Tidak ada penanggung jawab yang perlu ditagih saat ini." };
     }
+
+    const berbukti = hasil.rincian.filter((r) => r.ok && r.waMessageId).length;
+    const sesi = hasil.sesi.replace(/\.+$/, "");
     const bagian = [`${hasil.terkirim} pesan terkirim`];
-    // "Dilewati" DISEBUT, bukan disembunyikan: tanpa ini, admin yang menekan
-    // tombol dua kali akan mengira pengirimannya gagal.
-    if (hasil.dilewati > 0) bagian.push(`${hasil.dilewati} dilewati karena sudah dikirim hari ini`);
-    if (hasil.gagal > 0) bagian.push(`${hasil.gagal} GAGAL dikirim`);
-    return { success: `${bagian.join(", ")}.` };
+    if (hasil.gagal > 0) bagian.push(`${hasil.gagal} GAGAL`);
+
+    // Nol terkirim dengan kegagalan = kegagalan, apa pun kalimatnya. Nada hijau
+    // di atas daftar yang semuanya merah adalah cara halaman berbohong.
+    if (hasil.terkirim === 0) {
+      return {
+        error: `${bagian.join(", ")}. Sesi WhatsApp: ${sesi}.`,
+        rincian: hasil.rincian,
+      };
+    }
+    // Inti keluhan user: "gak jelas ini berhasil atau tidak". Jawabannya bukan
+    // kata "sukses", melainkan ID pesan dari WhatsApp — satu-satunya bukti
+    // bahwa pesannya benar-benar diterima antrean, bukan cuma diterima server.
+    if (hasil.terkirim > 0 && berbukti === 0) {
+      return {
+        error:
+          `${bagian.join(", ")} — tetapi TIDAK SATU PUN mengembalikan ID pesan. ` +
+          `WAHA menerima permintaannya tanpa memberi bukti pengiriman (status sesi: ${sesi}). ` +
+          "Periksa rincian di bawah dan cek sesi di tab Integrasi.",
+        rincian: hasil.rincian,
+      };
+    }
+    if (berbukti < hasil.terkirim) {
+      bagian.push(`${hasil.terkirim - berbukti} tanpa ID pesan (tidak bisa dipastikan sampai)`);
+    }
+    return {
+      success: `${bagian.join(", ")}. Sesi WhatsApp: ${sesi}.`,
+      rincian: hasil.rincian,
+    };
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };
     return { error: err instanceof Error ? err.message : "Gagal mengirim pengingat." };
