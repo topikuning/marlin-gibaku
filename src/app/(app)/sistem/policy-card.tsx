@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { Banner, Button, Card, CardBody, CardHeader } from "@/components/ui";
 import { savePolicyAction, type PolicyState } from "@/lib/system/actions";
-import { POLICY_META, type Policy } from "@/lib/policy";
+import { POLICY_META, type Policy } from "@/lib/policy-meta";
 
 /**
  * Saklar kebijakan pengendalian — permintaan user 2026-08-02: pagar pemisahan

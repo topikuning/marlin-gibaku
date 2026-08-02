@@ -160,6 +160,23 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
     }
     const source = d.photoSource ?? "camera";
     const fallbackMode = d.galleryFallback ?? "project";
+
+    // Wajib-GPS (setelan, default mati — DECISIONS 219). Berlaku untuk KEDUA
+    // jalur, tapi yang diwajibkan berbeda karena sumber koordinatnya berbeda:
+    //   • Kamera → koordinat PERANGKAT saat memotret (dikirim dari browser).
+    //   • Galeri → GPS di EXIF FOTO ITU SENDIRI; posisi perangkat saat unggah
+    //     justru menyesatkan (unggah borongan lazim dilakukan dari kantor).
+    // Pemeriksaan galeri per-berkas ada di `savePhotoForItem`, karena EXIF baru
+    // terbaca di sana.
+    const requireGps = files.length > 0 ? (await import("@/lib/policy")).getPolicy : null;
+    const wajibGps = requireGps ? (await requireGps()).requirePhotoGps : false;
+    if (wajibGps && source === "camera" && (d.photoLat == null || d.photoLng == null)) {
+      return {
+        error:
+          "Foto kamera wajib membawa titik GPS, tapi perangkat tidak mengirimkannya. " +
+          "Izinkan akses lokasi di browser (tombol di atas tombol Kamera), lalu foto ulang.",
+      };
+    }
     const locLat = location.gpsLat != null ? Number(location.gpsLat) : null;
     const locLng = location.gpsLng != null ? Number(location.gpsLng) : null;
     const workDate = new Date(`${d.dateKey}T00:00:00.000Z`);
@@ -202,6 +219,7 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
           stamp: {
             source,
             fallbackMode,
+            requireGps: wajibGps,
             lat: d.photoLat ?? null,
             lng: d.photoLng ?? null,
             locationLat: locLat,

@@ -225,6 +225,8 @@ export type SavePhotoInput = {
   stamp?: {
     source?: "camera" | "gallery";
     fallbackMode?: "project" | "none";
+    /** Setelan wajib-GPS sedang menyala (DECISIONS 219). */
+    requireGps?: boolean;
     /** GPS real-time perangkat (hanya relevan utk source "camera"). */
     lat?: number | null;
     lng?: number | null;
@@ -290,6 +292,18 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       lat = exif.lat;
       lng = exif.lng;
       gpsSource = "exif";
+    } else if (s?.requireGps) {
+      // Wajib-GPS menyala (setelan, DECISIONS 219). Untuk foto GALERI yang
+      // wajib bukan posisi perangkat saat unggah — itu justru menyesatkan saat
+      // unggah borongan dari kantor — melainkan GPS di EXIF foto ITU SENDIRI.
+      // Menolak di sini, bukan diam-diam memakai titik proyek: titik proyek
+      // sebagai cadangan persis mesin yang memproduksi "lokasi default" yang
+      // dikeluhkan user.
+      throw new PhotoError(
+        `"${file.name}" tidak punya data GPS di dalam fotonya. ` +
+          "Nyalakan layanan lokasi di aplikasi kamera HP sebelum memotret, lalu unggah ulang — " +
+          "atau ambil ulang lewat tombol Kamera.",
+      );
     } else {
       lat = useProject ? projLat : null;
       lng = useProject ? projLng : null;

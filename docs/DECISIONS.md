@@ -6773,3 +6773,66 @@ Jalur cap-ulang ikut membawanya, jadi foto lama bisa diperbaiki capnya.
 punya `daily_report.*`, yang khas tiap peran tetap ada, matriks pembuatan akun
 ikut berjenjang) · `pnpm docs:permission` diregenerasi · typecheck ✓ · lint ✓ ·
 unit 748 ✓.
+
+---
+
+## 219 — Izin GPS diurus di depan + dicatat; wajib-GPS berlaku juga untuk galeri (2026-08-02)
+
+> aku perlu agak memaksa ini, karena saat ini kebanyakan foto ditag dengan
+> lokasi default … apakah bisa dicatat bahwa user ini sudah membolehkan izin
+> gps dan kamera di sistem?
+
+### Sebabnya struktural, bukan kelalaian pelapor
+
+Dulu GPS baru diminta **sesudah** berkas dipilih, dan bila dialog izin ditutup
+atau ditolak, `onPicked()` tetap jalan — fotonya terunggah tanpa koordinat lalu
+dicap memakai titik proyek. Dari sisi pelapor tidak ada apa pun yang tampak
+salah, jadi kebiasaan itu terus berulang. Tambahan: `maximumAge: 60000` membuat
+koordinat berumur satu menit boleh dipakai — foto di lokasi B bisa membawa titik
+lokasi A. Sekarang `maximumAge: 0`.
+
+### Yang berubah
+
+- Keadaan izin dibaca lewat Permissions API saat komponen tampil, ditampilkan
+  **terang-terangan** (aktif / belum diberikan / ditolak / tidak didukung),
+  dengan tombol "Izinkan akses lokasi" yang memicu dialog SEBELUM memotret.
+  Browser tanpa Permissions API ditulis "prompt" apa adanya — bukan ditebak
+  "granted".
+- Keadaannya dicatat ke `DevicePermission` (append-only, per user + userAgent).
+  **Bukan** satu kolom "sudah izin" di `User`: izin browser melekat ke PERANGKAT
+  + situs, bisa dicabut kapan saja lewat setelan HP, dan mandor lazim berganti
+  HP. Kolom tunggal akan berbohong tepat ketika kebohongannya paling mahal —
+  saat fotonya sedang ditandai titik proyek. Baris hanya ditulis bila keadaannya
+  BERUBAH, supaya riwayatnya terbaca.
+- Setelan **wajib-GPS** (default mati, di halaman Sistem) menolak unggahan yang
+  tidak membawa koordinat.
+
+### Wajib-GPS untuk galeri artinya BEDA
+
+Permintaan susulan user: "bukan hanya memotret, tapi saat upload gambar dari
+galeri". Yang diwajibkan tidak bisa sama:
+
+| Jalur | Sumber koordinat | Yang diwajibkan saat setelan menyala |
+| --- | --- | --- |
+| Kamera | GPS perangkat saat memotret | koordinat dari browser wajib ada |
+| Galeri | **EXIF foto itu sendiri** | EXIF foto wajib punya GPS |
+
+Untuk galeri, posisi perangkat saat unggah SENGAJA diabaikan dan tetap begitu:
+unggah borongan lazim dilakukan dari kantor, jadi memakai posisi pengunggah akan
+menandai seluruh foto dengan lokasi yang salah — lebih buruk daripada tidak
+menandai. Penolakannya per-berkas di `savePhotoForItem`, karena EXIF baru
+terbaca di sana, dan menyebut nama berkasnya.
+
+**Catatan yang perlu diketahui**: foto yang pernah lewat WhatsApp kehilangan
+EXIF sepenuhnya, jadi jalur galeri untuk foto kiriman WA tidak akan pernah punya
+GPS. Menyalakan wajib-GPS berarti memaksa alur "foto langsung dari MARLIN",
+bukan "terima dari WA lalu unggah".
+
+**Kelalaian yang perlu dicatat**: build CI sempat merah karena komponen KLIEN
+(`policy-card`) mengimpor modul ber-`server-only`. `typecheck` dan `lint`
+TIDAK menangkapnya — hanya `next build` yang menegakkan batas server/klien, dan
+build itu tidak dijalankan lokal sebelum push. Label & tipe kebijakan dipisah ke
+`lib/policy-meta.ts` (tanpa `server-only`).
+
+**Verifikasi**: `pnpm build` ✓ (dijalankan lokal, bukan hanya typecheck) ·
+typecheck ✓ · lint ✓ · unit 749 ✓.

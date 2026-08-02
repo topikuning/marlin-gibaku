@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { jakartaToday } from "@/lib/format";
+import { POLICY_DEFAULTS, type Policy } from "@/lib/policy-meta";
 
 /**
  * KEBIJAKAN PENGENDALIAN yang bisa DIATUR, bukan dipaku di kode.
@@ -30,44 +31,8 @@ export const POLICY_KEYS = {
   requirePhotoGps: "policy.photo.require_device_gps",
 } as const;
 
-export type Policy = {
-  approverMustDiffer: boolean;
-  finalizerMustDiffer: boolean;
-  requirePhotoGps: boolean;
-};
-
-export const POLICY_DEFAULTS: Policy = {
-  approverMustDiffer: false,
-  finalizerMustDiffer: false,
-  requirePhotoGps: false,
-};
-
-/** Label + penjelasan untuk halaman Sistem — satu sumber, jangan diketik ulang di UI. */
-export const POLICY_META: Record<
-  keyof Policy,
-  { label: string; deskripsi: string; dampak: string }
-> = {
-  approverMustDiffer: {
-    label: "Penyetuju laporan harian harus orang lain",
-    deskripsi:
-      "Laporan tidak bisa disetujui oleh orang yang mengirimnya sendiri. Ini prinsip empat mata: yang mencatat pekerjaan bukan yang mengesahkannya.",
-    dampak:
-      "Kalau di satu lokasi hanya ada satu orang yang aktif, laporannya akan tertahan sampai ada orang kedua yang menyetujui.",
-  },
-  finalizerMustDiffer: {
-    label: "Pemfinal laporan harian harus orang lain",
-    deskripsi:
-      "Laporan tidak bisa difinalkan oleh orang yang menyetujuinya. Finalisasi membekukan angka untuk dicetak, jadi ia langkah pengesahan terakhir.",
-    dampak: "Butuh minimal tiga orang berbeda dalam satu rantai: pengirim, penyetuju, pemfinal.",
-  },
-  requirePhotoGps: {
-    label: "Foto laporan wajib ber-GPS perangkat",
-    deskripsi:
-      "Unggahan foto ditolak bila perangkat tidak mengirim koordinat. Tanpa ini, foto tanpa GPS tetap diterima dan dicap memakai titik proyek sebagai cadangan.",
-    dampak:
-      "Pelapor yang menolak izin lokasi di browser tidak akan bisa mengunggah foto sampai izinnya diberikan.",
-  },
-};
+export type { Policy } from "@/lib/policy-meta";
+export { POLICY_DEFAULTS, POLICY_META } from "@/lib/policy-meta";
 
 /** Kebijakan efektif (nilai terbaru per key, fallback default). */
 export async function getPolicy(): Promise<Policy> {
