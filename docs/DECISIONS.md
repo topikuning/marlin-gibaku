@@ -6567,3 +6567,83 @@ yang sudah tersaring.
 menghasilkan blanko dengan nol item dan `draftItemCount = 2`; laporan basis
 aktif tetap tercetak lengkap dengan bangunan/kategorinya · typecheck ✓ · lint ✓
 · unit 732 ✓.
+
+---
+
+## 216 — Template kerja adendum: unduh dari RAB aktif, isi volume, impor balik (2026-08-02)
+
+**Permintaan user**: "aku juga butuh template adendum, kamu harusnya dari rab
+yang ada bisa export format untuk adendum" — lalu dua pertanyaan yang justru
+menentukan desainnya: **item baru ditaruh mana**, dan **volume 0 apakah berarti
+item dihapus**.
+
+Ini berkas KERJA, bukan lampiran resmi adendum: unduh dari RAB aktif, isi kolom
+VOLUME ADENDUM di Excel, impor balik ke draft. Perbandingan lama↔baru dan rekap
+tambah/kurang tetap disusun sistem saat impor, bukan diketik ulang di berkas.
+(Lampiran resmi belum dibuat — user memilih "template kerja saja" dulu.)
+
+### Item baru: disisipkan di dalam kategorinya, dikenali dari ketiadaan lineageKey
+
+Kolom terakhir berisi `lineageKey` dan disembunyikan. Baris BER-lineageKey =
+item kontrak yang sudah ada. Baris TANPA lineageKey di dalam blok kategori =
+item baru untuk kategori itu.
+
+Alternatif yang DITOLAK: menyediakan sejumlah "baris kosong" di bawah tiap
+kategori. Jumlahnya selalu salah tebak — kurang untuk yang butuh banyak, dan
+mengotori berkas untuk yang tidak butuh. Dengan penanda lineageKey, user boleh
+menyisipkan baris di mana pun dan sebanyak apa pun.
+
+Item baru diberi lineageKey `<kategori>#+<kode>`. Tanda `+` menjamin ia tidak
+pernah bentrok dengan lineage item kontrak — dan lineage adalah tali yang
+mengikat realisasi lapangan ke RAB, jadi bentrok di sana berarti pekerjaan yang
+sudah dilaporkan menempel ke item yang keliru.
+
+Item baru WAJIB berharga; tanpa harga ditolak dengan menyebut sebabnya, bukan
+diam-diam diberi harga 0. Harga item KONTRAK LAMA tetap terkunci (DECISIONS
+213) — sheet diproteksi tanpa sandi, yang memang berarti rambu dan bukan
+gembok; gembok sebenarnya tetap di impor, yang menandai harga item lama yang
+bergeser.
+
+### Volume 0 BUKAN penghapusan
+
+Nol berarti volumenya nol dan itemnya TETAP tercantum di RAB dengan nilai nol.
+Itu pernyataan yang berbeda dari "item dicabut", dan di adendum keduanya nyata:
+pekerjaan bisa dikurangi habis tapi barisnya tetap ada di daftar kontrak.
+
+Mencabut item harus dinyatakan terang-terangan: tulis `HAPUS` di kolom
+KETERANGAN. Menebak maksud user dari angka nol adalah cara paling mudah
+menghilangkan pekerjaan yang sudah dikerjakan orang — dan item yang dicabut
+padahal sudah punya realisasi tetap tertangkap peringatan keras yang sudah ada
+(audit B17: "item yang SUDAH punya realisasi tidak ditemukan di file baru").
+
+Keduanya disebut di pratinjau: berapa item dinyatakan dicabut, dan berapa item
+volumenya jadi 0 berikut pengingat bahwa nol bukan penghapusan.
+
+### Angka yang tidak disentuh tidak boleh bergeser
+
+Baris yang volumenya TIDAK diubah memakai **Jumlah Kontrak apa adanya** (angka
+dokumen); hanya baris yang volumenya berubah yang dihitung `round(vol × harga)`.
+Tanpa aturan ini, sekadar mengunduh lalu mengimpor balik akan menggeser nilai
+kontrak — persis cacat DECISIONS 212, karena harga satuan dokumen sudah
+dibulatkan 2 desimal.
+
+Nilai induk = Σ anak, dihitung langsung, TANPA apportionment `flattenParsedRab`:
+daunnya di sini sudah rupiah bulat dan sebagiannya angka dokumen yang wajib
+dipakai apa adanya, jadi membagi selisih pembulatan ke bawah justru merusaknya.
+
+### Menyambung ke mesin yang sudah ada
+
+Parser template mengembalikan `FlatNode[]` — bentuk yang SAMA dengan keluaran
+`flattenParsedRab` — sehingga seluruh pratinjau impor berlaku tanpa diubah:
+diff terhadap RAB aktif, peringatan realisasi lepas, dan peringatan harga item
+lama bergeser. `createRevisionFromNodes` dipisah dari `createRevisionFromParsed`
+untuk jalur ini. Deteksi template hanya dijalankan pada mode draft: membuka
+workbook dua kali untuk berkas HPS 4–5 MB itu mahal, dan template memang cuma
+dipakai di sana.
+
+**Verifikasi**: 8 kasus unit — penanda template dikenali (dan berkas lain tidak
+salah dikenali), baris tak tersentuh keluar persis 41.074.131 (bukan 41.074.135
+hasil kali ulang), baris yang volumenya diubah dihitung ulang, volume 0 tetap
+ada + dilaporkan, HAPUS mencabut dan menurunkan nilai kategori, item baru
+menempel ke kategorinya dengan lineageKey `V#+3`, item baru tanpa harga ditolak
+· typecheck ✓ · lint ✓ · unit 740 ✓.

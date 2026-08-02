@@ -235,8 +235,27 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
         <CardHeader
           title="Isi draft dari file Excel"
           subtitle="Ganti seluruh isi draft dengan file adendum. RAB aktif, progres, kurva-S, dan keuangan tidak tersentuh."
+          action={
+            <a
+              href={`/lokasi/${slug}/rab/adendum/template`}
+              className="text-[13px] font-medium text-primary hover:underline"
+            >
+              Unduh template adendum ↓
+            </a>
+          }
         />
         <CardBody>
+          {/* Template kerja: RAB aktif + kolom VOLUME ADENDUM siap isi
+              (DECISIONS 216). Diunggah balik lewat form yang sama — sistem
+              mengenalinya dari penanda di berkasnya. */}
+          <p className="mb-3 rounded-md border border-border bg-surface-muted px-3 py-2 text-[13px] text-ink-muted">
+            Belum punya file adendum? <strong className="text-ink">Unduh template</strong> di atas —
+            isinya RAB aktif dengan kolom <strong className="text-ink">VOLUME ADENDUM</strong> siap
+            diisi, lalu unggah balik di sini. Harga satuan item kontrak lama tetap; item baru
+            disisipkan di dalam kategorinya. Volume 0 berarti volumenya nol,{" "}
+            <strong className="text-ink">bukan</strong> item dihapus — untuk mencabut item, tulis{" "}
+            <code className="rounded bg-surface-inset px-1">HAPUS</code> di kolom Keterangan.
+          </p>
           <ImportForm locationId={location.id} modeAwal="draft" />
         </CardBody>
       </Card>

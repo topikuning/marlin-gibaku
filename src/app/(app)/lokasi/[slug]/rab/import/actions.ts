@@ -9,10 +9,12 @@ import { parseHpsBuffer } from "@/lib/rab/hps-parser";
 import { flattenParsedRab, grandTotal } from "@/lib/rab/flatten";
 import {
   activateRevision,
+  createRevisionFromNodes,
   createRevisionFromParsed,
   discardDraft,
   regenerateBaseline,
 } from "@/lib/rab/import";
+import { AdendumTemplateError } from "@/lib/rab/adendum-template-parse";
 import { bandingkanTerhadapAktif, type RingkasBeda } from "@/lib/rab/diff-parsed";
 import { cumulativeVolumeByLineage } from "@/lib/progress";
 import { formatNumber, formatRupiah } from "@/lib/format";
@@ -94,6 +96,45 @@ function safeName(n: string): string {
   return n.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120);
 }
 
+/**
+ * Baca template adendum + susun peringatan khas template (DECISIONS 216).
+ *
+ * Dua hal yang WAJIB disebut di pratinjau karena tidak terlihat di diff biasa:
+ * item yang dinyatakan HAPUS (baris hilang bisa juga berarti user lupa), dan
+ * item yang volumenya dijadikan 0 (tetap ada, nilainya nol — bukan dihapus).
+ */
+async function bacaTemplateAdendum(wb: import("exceljs").Workbook) {
+  const { parseAdendumTemplate } = await import("@/lib/rab/adendum-template-parse");
+  const h = parseAdendumTemplate(wb);
+  const warnings: string[] = [];
+  const daftar = (xs: { code: string; name: string }[], n = 8) =>
+    xs.slice(0, n).map((x) => `${x.code} ${x.name}`).join("; ") +
+    (xs.length > n ? `; +${xs.length - n} lainnya` : "");
+
+  if (h.dihapus.length > 0) {
+    warnings.push(
+      `${h.dihapus.length} item DINYATAKAN DICABUT lewat kolom Keterangan: ${daftar(h.dihapus)}. ` +
+        `Item yang sudah punya realisasi akan disebut terpisah di bawah — periksa dulu sebelum melanjutkan.`,
+    );
+  }
+  if (h.volumeNol.length > 0) {
+    warnings.push(
+      `${h.volumeNol.length} item volumenya dijadikan 0: ${daftar(h.volumeNol)}. ` +
+        `Item ini TETAP tercantum di RAB dengan nilai nol — nol bukan penghapusan. ` +
+        `Kalau maksudnya mencabut item, tulis HAPUS di kolom Keterangan.`,
+    );
+  }
+  if (h.itemBaru.length > 0) {
+    warnings.push(
+      `${h.itemBaru.length} item baru disisipkan: ` +
+        h.itemBaru.slice(0, 8).map((x) => `${x.code} ${x.name} (${x.kategori})`).join("; ") +
+        (h.itemBaru.length > 8 ? `; +${h.itemBaru.length - 8} lainnya` : "") +
+        `. Harga item baru dipakai apa adanya — ia memang belum pernah disepakati.`,
+    );
+  }
+  return { ...h, warnings };
+}
+
 export async function importHps(_prev: ImportState, formData: FormData): Promise<ImportState> {
   try {
     const user = await requireCapability("rab.manage");
@@ -121,15 +162,57 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     const buffer = Buffer.from(await file.arrayBuffer());
     const sha256 = createHash("sha256").update(buffer).digest("hex");
 
+    // TEMPLATE KERJA ADENDUM terbitan MARLIN punya bentuk sendiri (kolom
+    // kontrak dan kolom adendum berdampingan) dan identitas baris yang
+    // eksplisit lewat lineageKey — tidak bisa dibaca `hps-parser`, yang menebak
+    // struktur dari pola kode. Dikenali dari penanda di sel header, lalu
+    // dikonversi ke bentuk `FlatNode[]` YANG SAMA supaya seluruh mesin
+    // pratinjau di bawah ini (diff, realisasi lepas, harga bergeser) berlaku
+    // apa adanya. DECISIONS 216.
+    // Hanya dicoba pada mode draft: template adendum memang cuma dipakai di
+    // sana, dan membuka workbook dua kali untuk berkas HPS 4-5 MB itu mahal.
+    const mode: ImportMode = formData.get("mode") === "draft" ? "draft" : "aktifkan";
+    let templateAdendum: Awaited<ReturnType<typeof bacaTemplateAdendum>> | null = null;
+    if (mode === "draft") {
+      const ExcelJS = (await import("exceljs")).default;
+      const probe = new ExcelJS.Workbook();
+      let cocok = false;
+      try {
+        await probe.xlsx.load(buffer as unknown as ArrayBuffer);
+        const { isAdendumTemplate } = await import("@/lib/rab/adendum-template-parse");
+        cocok = isAdendumTemplate(probe);
+      } catch {
+        // Gagal dibuka sebagai workbook → biar jalur HPS yang melaporkannya,
+        // dengan pesan galat yang sudah dikenal user.
+      }
+      if (cocok) {
+        // Sudah pasti template: galatnya BUKAN "coba jalur lain", melainkan
+        // kesalahan pengisian yang harus disebut apa adanya ke user.
+        try {
+          templateAdendum = await bacaTemplateAdendum(probe);
+        } catch (e) {
+          if (e instanceof AdendumTemplateError) return { error: e.message };
+          throw e;
+        }
+      }
+    }
+
     let parsed;
     let warnings: string[];
     let priceColumn;
-    try {
-      ({ parsed, warnings, priceColumn } = await parseHpsBuffer(buffer));
-    } catch (e) {
-      return { error: e instanceof Error ? e.message : "Gagal membaca file HPS." };
+    let nodes;
+    if (templateAdendum) {
+      warnings = [...templateAdendum.warnings];
+      priceColumn = { label: "TEMPLATE ADENDUM (kolom Volume Adendum)", source: "nego" as const };
+      nodes = templateAdendum.nodes;
+    } else {
+      try {
+        ({ parsed, warnings, priceColumn } = await parseHpsBuffer(buffer));
+      } catch (e) {
+        return { error: e instanceof Error ? e.message : "Gagal membaca file HPS." };
+      }
+      nodes = flattenParsedRab(parsed);
     }
-    const nodes = flattenParsedRab(parsed);
     if (nodes.length === 0) return { error: "Tidak ada baris RAB terbaca. Cek sheet 'RAB'." };
     const total = grandTotal(nodes);
 
@@ -171,7 +254,6 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       }
     }
 
-    const mode: ImportMode = formData.get("mode") === "draft" ? "draft" : "aktifkan";
     const draft = await db.rabRevision.findFirst({
       where: { locationId: location.id, status: "draft" },
       select: { id: true, revisionNo: true, totalValue: true, amendmentId: true, note: true },
@@ -301,7 +383,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       const amendmentId = draft?.amendmentId ?? null;
       const noteDraft = note ?? draft?.note ?? null;
       if (draft) await discardDraft(draft.id, user.id);
-      const resDraft = await createRevisionFromParsed(location.id, parsed, {
+      const resDraft = await createRevisionFromNodes(location.id, nodes, {
         source,
         note: noteDraft,
         userId: user.id,
@@ -328,7 +410,7 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       };
     }
 
-    const res = await createRevisionFromParsed(location.id, parsed, {
+    const res = await createRevisionFromNodes(location.id, nodes, {
       source,
       note,
       userId: user.id,
