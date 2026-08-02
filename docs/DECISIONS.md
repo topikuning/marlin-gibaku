@@ -6012,3 +6012,59 @@ menyebut nama/lokasi/keadaan, tanpa-nomor disebut, orang pindah ke "sudah
 dikirim" setelah terkirim, yang sudah lapor tidak ditagih) + `tugas-harian`
 diperketat · unit 706 ✓ · integrasi 248 ✓ · typecheck ✓ · lint ✓ · panel dilihat
 di peramban.
+
+---
+
+## 206 — "Terkirim 7" padahal nol sampai: status sesi WA wajib diperiksa (2026-08-02)
+
+**Keputusan**: pengiriman pengingat WA hanya dilakukan bila sesi WAHA berstatus
+`WORKING`. Status sesi itu ikut dilaporkan (`HasilHarian.pengingat.sesi`), dan
+`sendText` mengembalikan ID pesan dari WAHA — bukan `void`.
+
+**Sebab**: user menjalankan workflow cron dari GitHub, responsnya
+`{"pengingat":{"terkirim":7,"gagal":0,"dilewati":0}}`, tapi **tidak satu pun
+pesan sampai ke penerima**. Dua cacat menumpuk:
+
+1. `sendText` bertipe `void`. Pemanggil hanya tahu "tidak melempar error", lalu
+   menghitungnya sebagai "terkirim". WAHA menjawab **2xx untuk `sendText` walau
+   sesinya belum login** (`SCAN_QR_CODE`/`STOPPED`/`FAILED`) — pesannya masuk
+   antrean lalu hilang.
+2. `kirimPengingatHarian` tidak pernah memeriksa `getSessionStatus()`. Selama
+   URL + API key WAHA terisi, ia menembak terus.
+
+Akibat gabungannya lebih buruk daripada sekadar salah angka: baris
+`daily_reminder_logs` tetap ditulis dengan `status = sukses`, dan
+`UNIQUE (user_id, date_key)` membuat percobaan yang BENAR di hari itu ikut
+terkunci. Sesi WA mati semenit = pengingat sehari penuh hilang, sambil sistem
+melaporkan sukses. Kegagalan senyap yang mengaku sukses adalah yang terburuk —
+orang lapangan tidak ditagih, dan tidak ada yang tahu.
+
+**Yang berubah**:
+- Sesi dicek SEBELUM perulangan kirim. Bukan `WORKING` → keluar tanpa menulis
+  satu pun baris log, jadi jatah hari itu utuh untuk percobaan setelah QR
+  dipindai. Gagal mengecek (WAHA tak terjangkau) diperlakukan sama, dan
+  pesan errornya ikut dilaporkan apa adanya.
+- `HasilHarian.pengingat.sesi` — respons cron kini menyebutkan keadaan sesi
+  (`WORKING`, `SCAN_QR_CODE`, `belum dikonfigurasi`, `tidak bisa dicek: …`).
+  "terkirim: 7" tanpa keterangan ini tidak bisa dipercaya siapa pun.
+- Kolom `daily_reminder_logs.wa_message_id` + migrasi idempoten
+  `20260802000000_reminder_wa_message_id`. Diisi dari respons WAHA lewat
+  `extractMessageId` (menangani bentuk `id` / `key.id` / `_id` /
+  `{_serialized}` lintas versi engine). Tanpa id, "sukses" tak punya bukti
+  yang bisa ditelusuri. Respons tanpa body → `null`, **tidak mengarang id**.
+- Tombol admin menolak dengan **menyebut status sesinya**
+  ("Sesi WhatsApp: SCAN_QR_CODE"), bukan "gagal" generik — perbedaannya adalah
+  antara admin tahu harus memindai QR, dan admin menekan tombol berulang kali.
+- Pratinjau di Sistem → Pekerjaan Harian memuat `sesiStatus`; bannernya muncul
+  dan tombolnya disembunyikan saat sesi tidak hidup, jadi keadaannya terlihat
+  SEBELUM ditekan.
+
+**Yang TIDAK diubah**: `sendImage` dan pengiriman lain belum ikut memeriksa
+sesi. Jalur pengingat harian yang dikeluhkan diperbaiki dulu; menyisir seluruh
+pemakaian WAHA adalah pekerjaan tersendiri dan dicatat di `OPEN_ISSUES`.
+
+**Verifikasi**: 2 kasus integrasi baru di `pengingat-manual` (sesi
+`SCAN_QR_CODE` ditolak dengan namanya + tidak menulis log hari itu; pratinjau
+melaporkan `FAILED`/`WORKING`) + 2 di `tugas-harian` (sesi mati = nol kirim nol
+log; id pesan tersimpan) · mock `getSessionStatus` asinkron seperti aslinya ·
+unit 707 ✓ · integrasi 252 ✓ · typecheck ✓ · lint ✓.

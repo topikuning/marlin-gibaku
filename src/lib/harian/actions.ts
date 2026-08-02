@@ -48,6 +48,15 @@ export async function kirimPengingatSekarangAction(
     });
     revalidatePath("/sistem");
 
+    // Sesi mati = tidak ada yang keluar. Katakan status aslinya, jangan
+    // membiarkan "0 terkirim" terbaca sebagai "tidak ada yang perlu ditagih".
+    if (hasil.sesi !== "WORKING") {
+      return {
+        error:
+          `Tidak ada pesan yang dikirim — sesi WhatsApp tidak siap (status: ${hasil.sesi}). ` +
+          "Scan QR di server WAHA, lalu cek status di tab Integrasi dan ulangi.",
+      };
+    }
     if (hasil.terkirim === 0 && hasil.gagal === 0 && hasil.dilewati === 0) {
       // Sebabnya TIDAK ditebak: nol bisa berarti semua sudah lapor, bisa juga
       // belum ada lokasi berjalan yang SPMK-nya tiba. Sama seperti bannernya

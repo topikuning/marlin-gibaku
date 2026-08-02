@@ -19,10 +19,13 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 const terkirim: { chatId: string; text: string }[] = [];
 let wahaAktif = true;
+let statusSesi = "WORKING";
 vi.mock("@/lib/waha/client", () => ({
   isWahaConfigured: async () => wahaAktif,
+  getSessionStatus: async () => ({ name: "default", status: statusSesi }),
   sendText: async (chatId: string, text: string) => {
     terkirim.push({ chatId, text });
+    return "MSGID";
   },
 }));
 
@@ -134,6 +137,7 @@ afterAll(async () => {
 beforeEach(async () => {
   terkirim.length = 0;
   wahaAktif = true;
+  statusSesi = "WORKING";
   role = "super_admin";
   await db.dailyReminderLog.deleteMany({ where: { userId: { in: [mandorId, tanpaNomorId] } } });
 });
@@ -188,6 +192,23 @@ describe("pagar tombol", () => {
     wahaAktif = true;
     await kirimPengingatSekarangAction(undefined, new FormData());
     expect(punyaKita()).toHaveLength(1);
+  });
+});
+
+describe("sesi WhatsApp mati = kegagalan senyap, harus dikatakan", () => {
+  it("tombol menolak dengan menyebut status sesinya, tanpa mengunci hari itu", async () => {
+    statusSesi = "SCAN_QR_CODE";
+    const res = await kirimPengingatSekarangAction(undefined, new FormData());
+    expect(res?.error).toMatch(/SCAN_QR_CODE/);
+    expect(punyaKita()).toHaveLength(0);
+    expect(await db.dailyReminderLog.count({ where: { userId: mandorId, dateKey: hariIni } })).toBe(0);
+  });
+
+  it("pratinjau menyebut status sesi supaya admin tahu SEBELUM menekan", async () => {
+    statusSesi = "FAILED";
+    expect((await pratinjauPengingat(orgId)).sesiStatus).toBe("FAILED");
+    statusSesi = "WORKING";
+    expect((await pratinjauPengingat(orgId)).sesiStatus).toBe("WORKING");
   });
 });
 

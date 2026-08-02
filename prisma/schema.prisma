@@ -1745,6 +1745,11 @@ model DailyReminderLog {
   /// sukses | gagal
   status    String
   error     String?
+  /// ID pesan dari WAHA. Ini SATU-SATUNYA bukti bahwa pesannya benar-benar
+  /// diterima antrean WhatsApp; tanpa ini "sukses" hanya berarti "server
+  /// menjawab 2xx", yang bisa terjadi walau tidak ada pesan yang keluar
+  /// (DECISIONS 206).
+  waMessageId String? @map("wa_message_id")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   @@unique([userId, dateKey])

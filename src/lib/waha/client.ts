@@ -283,12 +283,41 @@ export async function resolveGroupByInvite(rawLink: string): Promise<WahaGroup> 
 
 type FilePayload = { mimetype: string; filename: string; data: string }; // data = base64
 
-export async function sendText(chatId: string, text: string): Promise<void> {
+/**
+ * Kirim teks. Mengembalikan ID pesan dari WAHA bila ada.
+ *
+ * Dulu `void`: pemanggil hanya tahu "tidak melempar error", dan itu DIANGGAP
+ * sebagai "terkirim". Padahal WAHA menjawab 2xx juga saat sesi belum login —
+ * pesannya tidak pernah keluar. ID pesan adalah satu-satunya bukti bahwa
+ * WhatsApp benar-benar menerimanya (DECISIONS 206).
+ */
+export async function sendText(chatId: string, text: string): Promise<string | null> {
   const c = await cfg();
-  await wahaFetch(c, `/api/sendText`, {
+  const res = await wahaFetch(c, `/api/sendText`, {
     method: "POST",
     body: JSON.stringify({ session: c.session, chatId, text }),
   });
+  try {
+    const data = (await res.json()) as unknown;
+    return extractMessageId(data);
+  } catch {
+    // Beberapa versi WAHA membalas tanpa body. Bukan kegagalan kirim, tapi
+    // juga bukan bukti — jangan mengarang id.
+    return null;
+  }
+}
+
+/** ID pesan dari respons sendText, lintas bentuk versi/engine WAHA. */
+export function extractMessageId(data: unknown): string | null {
+  if (!data || typeof data !== "object") return null;
+  const rec = data as Record<string, unknown>;
+  const id = rec.id ?? (rec.key as Record<string, unknown> | undefined)?.id ?? rec._id;
+  if (typeof id === "string" && id) return id;
+  if (id && typeof id === "object") {
+    const ser = (id as Record<string, unknown>)._serialized;
+    if (typeof ser === "string" && ser) return ser;
+  }
+  return null;
 }
 
 export async function sendImage(chatId: string, file: FilePayload, caption?: string): Promise<void> {
