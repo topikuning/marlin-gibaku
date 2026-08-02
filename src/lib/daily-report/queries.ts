@@ -34,19 +34,37 @@ export type LeafNodeOption = {
   category: string;
   /** Sisa volume yang masih bisa dilaporkan (volume − kumulatif counted). */
   remaining: number | null;
+  /**
+   * `aktif` = item RAB kontrak · `draft_adendum` = item dari draft adendum yang
+   * BELUM resmi (DECISIONS 210). Yang draft ditandai di daftar pilihan supaya
+   * pelapor tahu ia sedang mencatat pekerjaan yang belum punya dasar kontrak.
+   */
+  basis: "aktif" | "draft_adendum";
 };
 
-/** Leaf item RAB revisi aktif + sisa volume, serialized untuk client search. */
+/**
+ * Leaf item RAB + sisa volume, siap untuk pencarian di klien.
+ *
+ * Mencakup revisi AKTIF dan — bila ada — DRAFT adendum. Item draft yang
+ * lineage-nya SAMA dengan item aktif tidak digandakan: yang muncul adalah versi
+ * aktifnya, karena pekerjaan itu masih punya dasar kontrak. Yang benar-benar
+ * baru (atau volumenya dinaikkan melampaui kontrak) hanya ada di draft, dan
+ * itulah yang perlu dilaporkan lewat basis draft.
+ */
 export async function getLeafNodeOptions(locationId: string): Promise<LeafNodeOption[]> {
   const revision = await db.rabRevision.findFirst({
     where: { locationId, status: "aktif" },
     select: { id: true },
   });
-  if (!revision) return [];
+  const draft = await db.rabRevision.findFirst({
+    where: { locationId, status: "draft" },
+    select: { id: true },
+  });
+  if (!revision && !draft) return [];
 
   const [nodes, cumulative] = await Promise.all([
     db.rabNode.findMany({
-      where: { revisionId: revision.id },
+      where: { revisionId: { in: [revision?.id, draft?.id].filter((x): x is string => !!x) } },
       select: {
         id: true,
         parentId: true,
@@ -57,10 +75,11 @@ export async function getLeafNodeOptions(locationId: string): Promise<LeafNodeOp
         volume: true,
         lineageKey: true,
         sortOrder: true,
+        revisionId: true,
       },
       orderBy: { sortOrder: "asc" },
     }),
-    cumulativeVolumeByLineage(locationId),
+    cumulativeVolumeByLineage(locationId, undefined, "semua"),
   ]);
 
   const byId = new Map(nodes.map((n) => [n.id, n]));
@@ -77,8 +96,19 @@ export async function getLeafNodeOptions(locationId: string): Promise<LeafNodeOp
     return label;
   };
 
+  // Item aktif menang atas item draft dengan lineage yang sama — melaporkan
+  // lewat basis draft padahal masih ada dasar kontrak hanya akan membuat
+  // pekerjaan yang sah tidak terhitung di angka resmi.
+  const lineageAktif = new Set(
+    nodes.filter((n) => n.kind === "item" && n.revisionId === revision?.id).map((n) => n.lineageKey),
+  );
+
   return nodes
-    .filter((n) => n.kind === "item")
+    .filter(
+      (n) =>
+        n.kind === "item" &&
+        (n.revisionId === revision?.id || !lineageAktif.has(n.lineageKey)),
+    )
     .map((n) => {
       const volume = n.volume != null ? Number(n.volume) : null;
       const done = cumulative.get(n.lineageKey) ?? 0;
@@ -91,6 +121,7 @@ export async function getLeafNodeOptions(locationId: string): Promise<LeafNodeOp
         lineageKey: n.lineageKey,
         category: categoryOf(n.id),
         remaining: volume != null ? Math.max(0, Math.round((volume - done) * 1000) / 1000) : null,
+        basis: n.revisionId === revision?.id ? ("aktif" as const) : ("draft_adendum" as const),
       };
     });
 }

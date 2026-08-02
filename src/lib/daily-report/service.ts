@@ -123,14 +123,41 @@ export async function upsertItem(reportId: string, input: UpsertItemInput, userI
   if (node.revision.locationId !== report.locationId) {
     throw new DailyReportError("Item RAB bukan milik lokasi laporan ini");
   }
-  if (node.revision.status !== "aktif") {
-    throw new DailyReportError("Item RAB berasal dari revisi yang tidak aktif — muat ulang halaman");
-  }
+  /**
+   * Basis laporan (DECISIONS 210). Item boleh berasal dari revisi AKTIF
+   * (angka resmi) atau dari DRAFT adendum yang sedang diajukan. Revisi
+   * `digantikan` tetap ditolak — itu masa lalu, bukan pengajuan.
+   *
+   * Di lapangan pekerjaan sering jalan lebih dulu dan adendumnya menyusul.
+   * Sebelum ini satu-satunya pilihan adalah menolak laporannya (pekerjaan
+   * nyata jadi tak tercatat) atau mengaktifkan adendum yang belum sah (angka
+   * resmi jadi bohong). Sekarang dicatat apa adanya, dengan penanda.
+   */
+  const basis: "aktif" | "draft_adendum" =
+    node.revision.status === "aktif"
+      ? "aktif"
+      : node.revision.status === "draft"
+        ? "draft_adendum"
+        : (() => {
+            throw new DailyReportError(
+              "Item RAB berasal dari revisi lama yang sudah digantikan — muat ulang halaman",
+            );
+          })();
 
   // Guard volume kumulatif ≤ volume RAB.
+  //
+  // Basis DRAFT dibandingkan dengan SELURUH realisasi (aktif + draft), karena
+  // volume draft adalah volume kontrak SEANDAINYA adendum disetujui — pekerjaan
+  // yang sudah dilaporkan di basis aktif sudah termasuk di dalamnya. Kalau
+  // hanya menghitung basis draft, volume total bisa terlampaui diam-diam.
   const nodeVolume = node.volume != null ? Number(node.volume) : null;
   if (nodeVolume != null) {
-    const cumulative = (await cumulativeVolumeByLineage(report.locationId)).get(node.lineageKey) ?? 0;
+    const cumulative =
+      (await cumulativeVolumeByLineage(
+        report.locationId,
+        undefined,
+        basis === "draft_adendum" ? "semua" : "aktif",
+      )).get(node.lineageKey) ?? 0;
     // Kontribusi report INI dikeluarkan dulu (defensif; status editable memang tidak counted).
     let ownContribution = 0;
     if ((COUNTED_REPORT_STATUSES as readonly string[]).includes(report.status)) {
@@ -154,11 +181,12 @@ export async function upsertItem(reportId: string, input: UpsertItemInput, userI
 
   const item = await db.dailyReportItem.upsert({
     where: { reportId_lineageKey: { reportId, lineageKey: node.lineageKey } },
-    update: { rabNodeId: node.id, volumeDone, valueDone, notes, reportedById: userId },
+    update: { rabNodeId: node.id, basis, volumeDone, valueDone, notes, reportedById: userId },
     create: {
       reportId,
       rabNodeId: node.id,
       lineageKey: node.lineageKey,
+      basis,
       volumeDone,
       valueDone,
       notes,
@@ -168,6 +196,7 @@ export async function upsertItem(reportId: string, input: UpsertItemInput, userI
   await audit(userId, "daily_report.item_upsert", "daily_report_item", item.id, {
     reportId,
     lineageKey: node.lineageKey,
+    basis,
     volumeDone,
     valueDone,
   });

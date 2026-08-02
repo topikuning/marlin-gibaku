@@ -6302,3 +6302,78 @@ Selisih nilai total ditampilkan apa adanya (aktif → baru, beserta arahnya).
   selisih terhadap Σ item DISEBUT, bukan ditambal. Ini membatalkan sebagian
   prinsip "agregat selalu derived" (CLAUDE.md #4) dan perlu keputusan
   tersendiri saat dikerjakan.
+
+---
+
+## 210 — Progres atas draft adendum: satu laporan, dua basis (2026-08-02)
+
+Permintaan user 2026-08-02:
+
+> dalam realita di lapangan, seringkali pekerjaan itu dikerjakan dulu baru
+> adendumnya dibuat … jadi kita bisa buat rab posisi draft tapi progress atas
+> draft itu tetap bisa dibuat laporannya
+
+Sebelum ini hanya ada dua pilihan, dua-duanya buruk:
+- **tolak laporannya** — pekerjaan nyata di lapangan tidak tercatat sama
+  sekali, dan mandor belajar bahwa sistem ini tidak mewakili kenyataan; atau
+- **aktifkan adendum yang belum sah** — progres resmi, kurva-S, dan dasar
+  termin bergerak atas pekerjaan yang belum punya dasar kontrak.
+
+**Keputusan** (bentuknya dipilih user): laporan tetap SATU, tiap baris diberi
+penanda basisnya — `DailyReportItem.basis`:
+
+- `aktif` — dilaporkan terhadap RAB kontrak yang berlaku;
+- `draft_adendum` — dilaporkan terhadap RAB pengajuan adendum yang belum resmi.
+
+User: *"sebenarnya tidak perlu terpisah penuh juga, kan ada item yang sama
+antara rab aktif dan draft rab, kamu hanya perlu flag laporan progress terhadap
+rab aktif atau terhadap draft adendum."* Tepat — dan itu juga menghindari
+mandor mengisi dua kali (foto & volume dobel = risiko besar di lapangan).
+
+### Angka resmi TIDAK boleh bergerak
+
+Ini bagian yang paling mudah rusak diam-diam, jadi dijaga di tiga tempat:
+
+1. SQL `getLocationsProgress` menyaring `dri.basis = 'aktif'`. Tanpa itu, item
+   yang lineage-nya ada di RAB aktif MAUPUN draft akan ikut terhitung dan
+   progres resmi naik tanpa dasar.
+2. `cumulativeVolumeByLineage` default hanya basis aktif — jadi guard volume,
+   sisa RAB di form, dan blanko KKP ikut aman tanpa perubahan apa pun di
+   pemanggilnya.
+3. Uji integrasi `laporan-basis-adendum` menegakkan: setelah laporan berbasis
+   draft DIKIRIM, `realizedValue` resmi tetap 0.
+
+### Batas volume tetap ditegakkan, hanya bedanya acuan
+
+- Basis **aktif** → dibandingkan dengan volume RAB aktif, menghitung realisasi
+  basis aktif saja.
+- Basis **draft** → dibandingkan dengan volume RAB draft, menghitung realisasi
+  KEDUA basis. Volume draft adalah volume kontrak *seandainya* adendum
+  disetujui; pekerjaan yang sudah dilaporkan lewat basis aktif sudah termasuk
+  di dalamnya. Kalau hanya basis draft yang dihitung, volume total bisa
+  terlampaui diam-diam.
+
+Item dari revisi `digantikan` tetap ditolak — itu masa lalu, bukan pengajuan.
+
+### Yang dilihat orang
+
+- **Daftar pilihan item** memuat item draft yang belum ada di RAB aktif,
+  bertanda "Pengajuan adendum — belum resmi". Item yang lineage-nya masih ada
+  di RAB aktif TIDAK digandakan: yang muncul versi aktifnya, supaya pekerjaan
+  yang sah tidak malah tercatat di luar angka resmi.
+- Setelah item draft dipilih, pelapor diberi tahu dampaknya sebelum menyimpan.
+- **Halaman Progress** memuat kartu "Progres seandainya adendum disetujui" bila
+  lokasinya punya draft: nilai RAB draft, terpasang menurut draft, dan
+  terpasang menurut RAB resmi sebagai pembanding — supaya tidak ada yang
+  mengira angka draft menggantikan angka kontrak.
+
+**Verifikasi**: 9 kasus integrasi baru (`laporan-basis-adendum`) — item khusus
+draft bisa dilaporkan dan bertanda, volume di atas batas RAB aktif bisa lewat
+jalur draft, progres resmi TIDAK naik walau laporan sudah dikirim, kumulatif
+default hanya basis aktif, angka draft dihitung memakai RAB draft mencakup dua
+basis, lokasi tanpa draft → null (bukan nol yang menyesatkan), revisi
+digantikan ditolak, batas volume ditegakkan di kedua jalur · typecheck ✓ ·
+lint ✓ · unit 727 ✓ · integrasi 266 ✓.
+
+**Belum**: laporan periodik/KKP belum punya varian "termasuk pengajuan
+adendum"; yang ada baru ringkasan di halaman Progress.

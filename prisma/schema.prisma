@@ -994,6 +994,13 @@ model DailyReportItem {
   reportId     String   @map("report_id") @db.Uuid
   rabNodeId    String   @map("rab_node_id") @db.Uuid
   lineageKey   String   @map("lineage_key")
+  /// Terhadap RAB yang mana baris ini dilaporkan (DECISIONS 210):
+  /// `aktif` = RAB kontrak yang berlaku · `draft_adendum` = RAB pengajuan
+  /// adendum yang BELUM resmi. Angka resmi (progres, kurva-S, keuangan, KKP)
+  /// hanya menghitung `aktif`. Di lapangan pekerjaan sering jalan lebih dulu
+  /// dan adendumnya menyusul — itu keadaan nyata, bukan kesalahan input, jadi
+  /// dicatat apa adanya dengan penanda, bukan dipaksa masuk angka resmi.
+  basis        String   @default("aktif")
   volumeDone   Decimal  @map("volume_done") @db.Decimal(15, 3)
   valueDone    BigInt   @map("value_done")
   notes        String?
@@ -1007,6 +1014,7 @@ model DailyReportItem {
 
   @@unique([reportId, lineageKey])
   @@index([lineageKey])
+  @@index([basis])
   @@map("daily_report_items")
 }
 
