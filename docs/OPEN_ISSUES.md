@@ -237,3 +237,28 @@ KEPUTUSAN "Level status progress" di atas, bukan keputusan terpisah.
   kirim; "sukses" tanpa bukti ID pesan) dan membuat hasilnya bisa dibaca per
   orang, tetapi mana yang sebenarnya terjadi di produksi belum terbukti — butuh
   satu pengiriman nyata setelah rilis ini untuk melihat rinciannya.
+
+## RAB — angka berkas ekspor tidak sama dengan angka di layar
+
+- 🔴 **Selisih Rp 3.705 antara ekspor Sugihwaras dan tampilan RAB aktif.**
+  Berkas ekspor (revisi aktif #1) konsisten ke dalam: Σ kategori = JUMLAH =
+  Σ daun tiap kategori = **5.891.116.482**. Layar menunjukkan
+  **5.891.112.777**. Selisihnya tersebar di 8 dari 17 kategori, mis.:
+
+  | Kategori | Ekspor | Layar | Selisih |
+  |---|---:|---:|---:|
+  | I PEKERJAAN PERSIAPAN | 454.354.160 | 454.354.154 | +6 |
+  | V PEKERJAAN BANGUNAN SHELTER | 289.501.021 | 289.501.026 | −5 |
+  | VI PONDASI GUDANG BEKU | 302.657.239 | 302.657.158 | +81 |
+  | IX BANGUNAN KIOS PERBEKALAN | 172.985.194 | 172.982.810 | +2.384 |
+  | XI TANGKI AIR & SUMUR BOR | 493.031.923 | 493.032.035 | −112 |
+  | XIII BANGUNAN GENSET | 237.194.847 | 237.192.920 | +1.927 |
+  | XIV JALAN LINGKUNGAN & SALURAN | 607.649.275 | 607.648.828 | +447 |
+  | XVII BANGUNAN DOCKING KAPAL | 405.673.573 | 405.674.596 | −1.023 |
+
+  Selisihnya dua arah, jadi bukan sekadar pembulatan satu sisi. Penyebabnya
+  belum diketahui: bisa berarti berkas diekspor dari revisi yang berbeda dengan
+  yang kini tampil, bisa juga agregat layar dan agregat tersimpan memang
+  dihitung dari sumber yang berbeda. TIDAK diperbaiki dengan tebakan — perlu
+  dipastikan dulu revisi mana yang diekspor (DECISIONS 208, dan protokol di
+  `docs/rebuild/CALCULATION_INTEGRITY_PROTOCOL.md`).

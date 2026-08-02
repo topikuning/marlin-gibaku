@@ -6161,3 +6161,81 @@ selesai.
 menghitung percobaan, rincian per penerima, nomor lama dinormalkan saat kirim,
 status sesi tidak membatalkan) · unit 708 ✓ · E2E 9 ✓ (desktop) · typecheck ✓ ·
 lint ✓ · panel dilihat dan tombolnya ditekan di peramban.
+
+---
+
+## 208 — Kode RAB dari negosiasi resmi dipakai apa adanya; ekspor bisa diimpor ulang (2026-08-02)
+
+Laporan user 2026-08-02 dengan RAB Sugihwaras di tangan:
+
+> 1. penomoran tidak sync, padahal jelas di sistem itu adalah hasil dari
+>    negoisasi resmi, di sistem III di kamu II. pikirkan bagaimana seharusnya
+> 2. hasil exportmu jika diimport ulang tidak bisa, karena parser tidak
+>    mengenali strukturnya
+
+Keduanya berakar pada SATU keputusan yang salah di ekspor.
+
+### Sebab: ekspor menomori ulang kategori — separuh saja
+
+`rab-xlsx.ts` menomori ulang kategori berurutan (`toRoman(i + 1)`) dengan alasan
+"file sumber kerap memuat roman ganda/loncat". Alasan itu keliru:
+
+- **Loncatnya kode bukan kesalahan.** RAB aktif adalah hasil negosiasi RESMI;
+  nomor bangunan di sana dirujuk kontrak, adendum, berita acara, dan laporan
+  KKP. Menomori ulang membuat dokumen ekspor tak bisa dicocokkan dengan berkas
+  resmi mana pun — diam-diam, tanpa satu kata pun di dokumennya.
+- **Penomoran ulangnya bahkan tidak konsisten.** Hanya baris kategori yang
+  diubah; anak-anaknya tetap membawa kode asli. Hasilnya berkas yang
+  bertentangan dengan dirinya sendiri: kategori "II PEKERJAAN TAMBATAN PERAHU"
+  berisi anak "III.1", dan baris rekapnya berbunyi "JUMLAH II".
+
+Itu pula sebab keluhan kedua. Saat berkas diimpor ulang, parser melihat sub-kode
+`III.1` di bawah kategori `II`, lalu — sesuai aturan yang memang benar untuk RAB
+tanpa judul kategori — membuka KATEGORI HANTU "PEKERJAAN (kategori III — judul
+tidak ada di file)". Diukur pada berkas ekspor nyata user: **29 kategori** (dari
+17), 24 peringatan, dan separuh kategori bertotal 0.
+
+**Keputusan**: kode kategori dipakai apa adanya dari DB (`displayCode`), sama
+seperti kode anak. Yang tetap dibuang hanya suffix dedup internal (`VI#2` → `VI`)
+karena itu artefak teknis lineage, bukan kode dokumen. Kategori yang benar-benar
+tidak punya kode diberi penanda posisi `(1)`, `(2)` — satu-satunya kode yang kami
+karang, dan hanya saat tidak ada yang bisa dipakai. Sejalan dengan DECISIONS 203.
+
+Diverifikasi pada berkas ekspor NYATA user (bukan cuma data buatan): dengan kode
+kategori dikembalikan ke aslinya, parse menghasilkan **17 kategori, 0 peringatan,
+tanpa kategori hantu**.
+
+### Sebab kedua: parser tak mengenali kode yang ia susun sendiri
+
+File HPS asli menulis rincian terdalam dengan kode PENDEK (`a`, `b`) atau kosong;
+parser-lah yang menyusun kode lengkapnya (`${induk}.${huruf}`) sebelum masuk DB.
+Ekspor menulis kembali kode lengkap itu — dan parser tidak mengenalinya:
+`6.1.a`, `6.7.1` jatuh ke `other` lalu **hilang beserta volume, satuan, dan
+harga satuannya**. Totalnya tetap terlihat benar karena diambil dari baris grup,
+jadi kehilangannya tidak kelihatan dari angka mana pun. Itu yang paling
+berbahaya.
+
+`DEEPCODE` (`^\d+(?:\.\d+)*\.(?:[a-z]|\d+)$`) kini dikenali; induknya dicari
+dari PREFIX kode lewat peta `byCode` per kategori, jadi tidak bergantung pada
+tebakan urutan baris.
+
+### Yang BELUM terjawab — angka ekspor ≠ angka layar
+
+Berkas ekspor user konsisten ke dalam (Σ kategori = JUMLAH = Σ daun tiap
+kategori = **5.891.116.482**), tetapi layar menunjukkan **5.891.112.777** —
+selisih Rp 3.705, tersebar di 8 dari 17 kategori (mis. KIOS PERBEKALAN
+172.985.194 vs 172.982.810). Berkasnya menyebut "RAB revisi aktif #1".
+
+Ini TIDAK diperbaiki di sini karena penyebabnya belum diketahui: bisa berarti
+ekspornya diambil dari revisi yang berbeda dengan yang sekarang tampil, bisa
+juga agregat layar dan agregat tersimpan memang berbeda. Menebak salah satunya
+lalu "membetulkan" angka adalah persis yang dilarang CALCULATION_INTEGRITY.
+Dicatat di `docs/OPEN_ISSUES.md`, menunggu keterangan revisi mana yang diekspor.
+
+**Verifikasi**: 11 kasus unit baru (`rab-ekspor-impor-ulang`) — kode asli di
+ketiga sheet termasuk yang loncat, kode induk & anak tidak bertentangan, tanpa
+kategori hantu, nilai & volume & satuan & harga satuan utuh, subkategori tetap
+subkategori, rincian `6.1.a` tidak hilang, kode berjenjang menempel ke induknya,
+baris rekap tidak jadi pekerjaan · uji ekspor lama disesuaikan ke keputusan baru
+· unit 719 ✓ · integrasi 257 ✓ · typecheck ✓ · lint ✓ · dijalankan juga pada
+berkas ekspor nyata user.

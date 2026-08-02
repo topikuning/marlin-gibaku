@@ -32,6 +32,16 @@ const SUBCODE = /^[IVX]+\.\d+(?:\.\d+)*\.?$/; // II.1., III.2.1.
 const NUM = /^\d+$/; // 1, 2, 6
 const DOTNUM = /^\d+\.\d+\.?$/; // 6.1, 6.1.
 const LETTER = /^[a-z]$/i; // a, b, c
+/**
+ * Kode LENGKAP berjenjang: "6.1.a", "6.7.1", "6.1.1.b" (DECISIONS 208).
+ *
+ * File HPS asli menulis anak terdalam dengan kode PENDEK ("a", "b") atau kosong;
+ * parser inilah yang menyusun kode lengkapnya (`${induk}.${huruf}`) sebelum
+ * disimpan ke DB. Ekspor RAB menulis kembali kode lengkap itu — dan dulu parser
+ * tidak mengenalinya, sehingga barisnya jatuh ke "other" lalu HILANG beserta
+ * volume dan harga satuannya saat berkas ekspor diimpor ulang.
+ */
+const DEEPCODE = /^\d+(?:\.\d+)*\.(?:[a-z]|\d+)$/i;
 
 function cellVal(row: ExcelJS.Row, c: number): unknown {
   const v = row.getCell(c).value;
@@ -319,6 +329,8 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
   let itemL1: ParsedRabItem | null = null; // item numerik (mis. "6")
   let itemL2: ParsedRabItem | null = null; // sub-item dotted (mis. "6.1")
   let subSeen = new Map<string, number>(); // dedup kode sub per kategori
+  /** Item per kode dalam kategori berjalan — untuk menemukan induk kode berjenjang. */
+  let byCode = new Map<string, ParsedRabItem>();
   let orphanSeq = 0; // penomoran baris berkode rusak/kosong yang jadi item sendiri
 
   // Cek-silang kolom: pada baris berharga, volume × harga satuan harus ≈ jumlah.
@@ -395,6 +407,7 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
     itemL1 = null;
     itemL2 = null;
     subSeen = new Map();
+    byCode = new Map();
     warnings.push(
       `Kategori ${roman} tidak punya baris judul di file — dibuat otomatis dari sub-kode ${roman}.x agar totalnya tidak tergabung ke kategori sebelumnya. Mohon lengkapi judul kategori ${roman}.`,
     );
@@ -434,6 +447,7 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
       itemL1 = null;
       itemL2 = null;
       subSeen = new Map();
+      byCode = new Map();
       return;
     }
     if (!cat) return; // baris sebelum kategori pertama (header) → skip
@@ -450,6 +464,7 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
     if (NUM.test(code)) {
       const it = mkItem(code, name, row, null);
       (sub ? sub.items : cat.direct_items).push(it);
+      byCode.set(it.code, it);
       itemL1 = it;
       itemL2 = null;
       return;
@@ -460,7 +475,21 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
       const it = mkItem(code.replace(/\.$/, ""), name, row, itemL1?.code ?? null);
       if (itemL1) itemL1.children.push(it);
       else (sub ? sub.items : cat.direct_items).push(it);
+      byCode.set(it.code, it);
       itemL2 = it;
+      return;
+    }
+
+    // Kode LENGKAP berjenjang ("6.1.a", "6.7.1") — bentuk yang DIHASILKAN parser
+    // ini sendiri lalu ditulis kembali oleh ekspor RAB. Induknya dicari dari
+    // prefix kodenya, jadi urutan baris tidak perlu ditebak (DECISIONS 208).
+    if (DEEPCODE.test(code)) {
+      const parentCode = code.slice(0, code.lastIndexOf("."));
+      const parent = byCode.get(parentCode) ?? itemL2 ?? itemL1;
+      const it = mkItem(code, name, row, parent?.code ?? null);
+      if (parent) parent.children.push(it);
+      else (sub ? sub.items : cat.direct_items).push(it);
+      byCode.set(code, it);
       return;
     }
 
