@@ -1,5 +1,6 @@
 import { getContrastText } from "@/lib/photo-stamp/format";
 import { MONTSERRAT_800_B64, MONTSERRAT_600_B64 } from "@/lib/logo-font";
+import { markSvgInner } from "@/lib/brand-mark";
 
 /** @font-face Montserrat khusus wordmark logo (family "ML"). Selalu dibenamkan. */
 const LOGO_FONT_FACE =
@@ -11,7 +12,7 @@ const LOGO_FONT_FACE =
 /**
  * Renderer overlay stamp (SVG) — meniru MASTER LAYOUT referensi:
  *   kiri-atas  : panel perusahaan (navy, aksen vertikal, sudut kanan-bawah rounded)
- *   kanan-atas : MARLIN / PROJECT CONTROL
+ *   kanan-atas : ikon MARLIN + wordmark (logo resmi, DECISIONS 223)
  *   kiri-bawah : badge kategori → nama lokasi → tanggal → garis → koordinat/pelapor/Photo ID
  *   bawah      : gradient keterbacaan (foto tetap background)
  * Pure & deterministik (tanpa I/O) supaya bisa dipakai server & preview.
@@ -190,7 +191,7 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
   }
 
   // ── Logo lockup MARLIN (kanan-atas): wordmark (A oranye) + PROJECT CONTROL, transparan ──
-  parts.push(marlinLogo(w - safeX, safeY, fs(0.034, 22), accent));
+  parts.push(marlinLogo(w - safeX, safeY, fs(0.034, 22)));
 
   // ── Blok info (kiri-bawah) ──
   const maxW = portrait ? w - 2 * safeX : Math.round(w * 0.6);
@@ -329,62 +330,39 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
 }
 
 /**
- * Wordmark MARLIN (vektor, right-aligned di rightX/topY): "MARLIN" tebal putih,
- * aksen diagonal oranye, lalu "PROJECT CONTROL" ber-tracking dgn dash oranye
- * diagonal di kirinya — meniru lockup logo referensi.
+ * Lockup MARLIN untuk cap foto: IKON RESMI + wordmark, rata kanan.
+ *
+ * Sebelum ini logonya digambar ulang dengan tangan — huruf "A" beraksen
+ * oranye plus baris "PROJECT CONTROL" — dan itu BUKAN logo MARLIN, melainkan
+ * tiruan yang dibuat sebelum berkas resminya ada. Sekarang geometrinya
+ * diambil dari `lib/brand-mark`, satu sumber dengan berkas di
+ * `public/brand/marlin-icon.svg`. Tagline resmi sengaja TIDAK dicap: di foto
+ * lapangan ia terlalu kecil untuk terbaca dan hanya memakan ruang yang
+ * dibutuhkan data. DECISIONS 223.
+ *
+ * Varian putih dipakai karena cap menumpang di atas foto apa pun; kurvanya
+ * ber-outline gelap supaya tidak lenyap di latar terang.
  */
 // Lebar lanjut (em) Montserrat subset — hasil ukur hmtx (bukan tebakan):
 const EM_MARLIN = 4.235; // total "MARLIN" @800
-const EM_M = 0.954; // advance "M" @800 (untuk posisi huruf "A")
-const EM_A = 0.786; // advance "A" @800
-const EM_PROJECT_CONTROL = 10.236; // total "PROJECT CONTROL" @600
 
-/**
- * Logo lockup MARLIN (transparan): wordmark Montserrat ExtraBold + segitiga
- * oranye pada huruf "A" + baris "bar oranye + PROJECT CONTROL". Lebar baris
- * bawah DISETEL SAMA dengan lebar MARLIN (seimbang) memakai lebar font terukur.
- * Oranye = warna aksen aplikasi. Halo gelap agar terbaca di foto apa pun.
- */
-function marlinLogo(rightX: number, topY: number, fsM: number, accent: string): string {
+function marlinLogo(rightX: number, topY: number, fsM: number): string {
   const p: string[] = [];
   const m = Math.round(fsM);
   const trackM = Math.round(fsM * 0.02);
   const mW = Math.round(EM_MARLIN * fsM + trackM * 5); // lebar wordmark (5 celah)
-  const left = rightX - mW;
   const baseY = topY + Math.round(fsM * 0.82);
 
-  // Wordmark MARLIN (putih).
+  // Ikon sedikit lebih tinggi dari wordmark, sejajar optis dengan garis dasar.
+  const ikon = Math.round(fsM * 1.18);
+  const gap = Math.round(fsM * 0.32);
+  const ikonX = rightX - mW - gap - ikon;
+  const ikonY = baseY - Math.round(ikon * 0.82);
+  p.push(markSvgInner(ikonX, ikonY, ikon, "putih"));
+
   p.push(
     `<text x="${rightX}" y="${baseY}" text-anchor="end" font-family="ML" font-weight="800" font-size="${m}" letter-spacing="${trackM}" ${halo(m)} fill="#FFFFFF">MARLIN</text>`,
   );
-  // Aksen: KAKI KIRI huruf "A" berwarna aksen (garis diagonal dari kaki ke apex).
-  const aLeft = left + EM_M * fsM + trackM;
-  const aWidth = EM_A * fsM;
-  const apexX = Math.round(aLeft + aWidth / 2);
-  const apexY = baseY - Math.round(fsM * 0.7);
-  const footX = Math.round(aLeft + aWidth * 0.12);
-  const legW = Math.max(3, Math.round(fsM * 0.16));
-  p.push(
-    `<line x1="${footX}" y1="${baseY}" x2="${apexX}" y2="${apexY}" stroke="${accent}" stroke-width="${legW}" stroke-linecap="butt"/>`,
-  );
-
-  // Baris bawah: bar oranye (kiri) + PROJECT CONTROL — LEBARNYA = lebar MARLIN.
-  // Gap ke MARLIN dirapatkan (jangan menempel).
-  const fsSub = Math.round(fsM * 0.28);
-  const subBase = baseY + Math.round(fsM * 0.3) + fsSub;
-  const barW = Math.round(mW * 0.17);
-  const gap = Math.round(fsM * 0.16);
-  const availW = mW - barW - gap;
-  const lsPC = Math.max(0, (availW - EM_PROJECT_CONTROL * fsSub) / 14); // 15 huruf → 14 celah
-  const barH = Math.max(4, Math.round(fsSub * 0.5));
-  const barMidY = subBase - Math.round(fsSub * 0.34);
-  p.push(
-    `<rect x="${left}" y="${barMidY - Math.round(barH / 2)}" width="${barW}" height="${barH}" rx="${Math.round(barH / 2)}" fill="${accent}"/>`,
-  );
-  p.push(
-    `<text x="${rightX}" y="${subBase}" text-anchor="end" font-family="ML" font-weight="600" font-size="${fsSub}" letter-spacing="${lsPC.toFixed(1)}" ${halo(fsSub)} fill="#FFFFFF">PROJECT CONTROL</text>`,
-  );
-
   return p.join("");
 }
 

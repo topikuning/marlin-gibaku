@@ -6983,3 +6983,56 @@ menerima webhook status dari WAHA (`message.ack`: sent → delivered → read) d
 merekonsiliasinya ke `DailyReminderLog`, sehingga "terkirim" bisa naik jadi
 "sampai" atau turun jadi "ditolak". Ditunda: menambah endpoint webhook baru dan
 perlu keputusan user. Dicatat di `OPEN_ISSUES.md` WA-01.
+
+---
+
+## 223 — Logo resmi MARLIN dipasang; cap foto berhenti memakai tiruan (2026-08-02)
+
+User mengirim `logo_Marlin.zip` — lockup, ikon, favicon, dan varian mono —
+dengan permintaan menerapkannya ke seluruh aplikasi, termasuk mengganti logo di
+cap foto.
+
+### Yang paling perlu diperbaiki: cap foto
+
+Logo di cap foto selama ini **digambar ulang dengan tangan**: wordmark
+Montserrat, huruf "A" beraksen oranye, plus baris "PROJECT CONTROL". Itu tiruan
+yang dibuat sebelum berkas resminya ada — dan tiruan yang beredar di ribuan foto
+lapangan adalah cara paling pelan merusak identitas. "PROJECT CONTROL" bahkan
+bukan bagian dari logo mana pun; ia karangan.
+
+Sekarang cap memakai ikon resmi + wordmark. Tagline resmi ("Monitoring,
+Analysis, Reporting & Learning for Infrastructure Network") sengaja **tidak**
+dicap: di foto lapangan ia terlalu kecil untuk terbaca dan hanya memakan ruang
+yang dibutuhkan data bukti.
+
+### Geometri ikon jadi satu sumber
+
+Cap foto dirakit sebagai SATU string SVG lalu diraster sharp — ia tidak bisa
+`<img src>`. Kalau path-nya disalin ke sana, suatu hari berkas resmi dan cap
+akan berbeda, dan yang berbeda itu logo.
+
+Karena itu path ikon ditaruh di `lib/brand-mark.ts` (koordinat mengikuti viewBox
+0 0 96 96 persis seperti berkas aslinya), dipakai BERSAMA oleh cap foto dan
+komponen web `ui/brand-mark.tsx`. Berkas resmi tetap ada di `public/brand/`
+untuk keperluan di luar aplikasi: kop surat, profil WhatsApp, materi cetak.
+
+Varian **putih** dipakai di cap karena cap menumpang di atas foto apa pun;
+kurvanya diberi outline gelap supaya tidak lenyap begitu latarnya kebetulan
+seterang tinta.
+
+### Sisanya
+
+- `src/app/icon.svg` + `apple-icon.png` — favicon & ikon iOS (sebelumnya TIDAK
+  ADA sama sekali).
+- `src/app/manifest.ts` — PWA, supaya MARLIN bisa dipasang di layar depan HP
+  mandor dengan ikon resminya, bukan tangkapan layar halaman. Nama dibaca dari
+  branding (DECISIONS 166), tapi IKONNYA tetap ikon aplikasi: ia identitas
+  produk, bukan identitas pemilik pekerjaan — logo pemilik punya tempatnya
+  sendiri di kop blanko.
+- Sidebar: batang merah polos diganti ikon resmi. Topbar mobile & halaman
+  Masuk: ikon ditambahkan di samping/atas nama aplikasi.
+
+**Verifikasi**: 6 kasus unit baru — path ikon resmi benar-benar tertanam di SVG
+cap, wordmark tetap ada, "PROJECT CONTROL" sudah tidak dicap, varian putih
+ber-outline, varian warna memakai biru/merah resmi, penskalaan lewat `transform`
+(bukan menulis ulang koordinat) · `pnpm build` ✓ · typecheck ✓ · lint ✓.

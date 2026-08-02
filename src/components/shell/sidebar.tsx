@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Branding } from "@/lib/branding";
+import { BrandMark } from "@/components/ui/brand-mark";
 import { cn } from "@/lib/cn";
 import { ICONS, type NavItem } from "./nav-config";
 
@@ -17,7 +18,8 @@ export function Sidebar({ nav, brand }: { nav: NavItem[]; brand: Branding }) {
   return (
     <aside className="no-print fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-border bg-surface lg:flex">
       <div className="flex items-center gap-2.5 border-b border-border px-4 py-3.5">
-        <span aria-hidden className="h-8 w-1 rounded-full bg-brand-red" />
+        {/* Ikon resmi menggantikan batang merah polos (DECISIONS 223). */}
+        <BrandMark size={30} className="shrink-0" />
         <div className="min-w-0">
           <p className="text-base leading-none font-bold tracking-tight text-primary">
             {brand.appName}
