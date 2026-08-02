@@ -6698,3 +6698,78 @@ diklaim selesai — jangan sampai ditandai beres padahal belum.
 
 **Verifikasi**: 13 rute + 1 sapuan halaman dalam LULUS di 375px (dijalankan
 lokal dengan Postgres 16 + seed + dev server) · typecheck ✓ · lint ✓.
+
+---
+
+## 218 — Jenjang peran = superset, pemisahan tugas jadi setelan, cap foto menyebut bangunan (2026-08-02)
+
+Tiga permintaan user dalam satu percakapan, ketiganya berangkat dari temuan
+bahwa Area Manager tidak bisa menyentuh laporan harian sama sekali.
+
+### Jenjang = superset
+
+> karena jenjang am di atas pm, pm di atas sm, sm di atas pelaksana. harusnya
+> semua yang dilakukan di bawahnya bisa dilakukan atasnya.
+
+`ROLE_CAPABILITIES` dulu mendaftar kapabilitas tiap peran DARI NOL. Itulah
+sebabnya Area Manager tidak punya satu pun `daily_report.*` padahal Site Manager
+di bawahnya bisa membuat, memverifikasi, DAN memfinalkan — tidak ada yang salah
+ketik, cuma tidak ada yang menjamin hubungan antar tingkat.
+
+Sekarang tiap tingkat DISUSUN dari tingkat di bawahnya:
+`PELAKSANA ⊂ SITE_MANAGER ⊂ PROJECT_MANAGER ⊂ AREA_MANAGER`. Yang khas tetap
+ada: PM memegang `rab.manage`/`baseline.manage`, AM memegang `finance.approve`
+dan `ai.report_approve` yang sengaja TIDAK dimiliki PM supaya penyusun dan
+pengesah terpisah jenjang. `ROLE_CREATE_MATRIX` ikut berjenjang: AM boleh
+membuat PM, SM, dan Pelaksana.
+
+Dijaga uji invarian (`authz-jenjang`), bukan daftar tandingan — mendaftar ulang
+isi hanya memindahkan kesalahan dari kode ke uji.
+
+**Catatan jujur**: daftar kapabilitas Area Manager sebelumnya tidak pernah
+disetujui user. DECISIONS 030 hanya menetapkan namanya dan bahwa ia scoped.
+Sisanya asumsi yang tidak pernah dicatat — itu kelalaian, dan CLAUDE.md sendiri
+menyebut permission sebagai high-stakes yang harus ditanyakan.
+
+### Pemisahan tugas = setelan, bukan aturan mati
+
+> aku sepakat, tapi untuk saat ini kalau bisa itu dimaintain dengan setingan,
+> karena ini di awal, aku perlu keluwesan
+
+Ditemukan saat memeriksa: `approveReport` dan `finalizeReport` **tidak pernah**
+memeriksa bahwa pengesah ≠ pengirim. Satu Site Manager bisa membuat, mengirim,
+menyetujui, dan memfinalkan laporan yang sama seorang diri — progres resmi naik
+dan dasar termin terbentuk tanpa mata kedua.
+
+Pagarnya sekarang ada di mesin transisi (`assertPemisahanTugas`), **berbasis
+orang, bukan peran** — peran menjawab "boleh menyentuh apa", pemisahan tugas
+menjawab "tidak boleh mengesahkan pekerjaan sendiri"; mencampur keduanya
+membuat dua-duanya salah.
+
+Dikendalikan `lib/policy.ts` di atas `AppSetting` (key-value ber-tanggal-berlaku,
+pola yang sama dengan branding), dengan tiga saklar di halaman Sistem:
+penyetuju-harus-beda, pemfinal-harus-beda, dan foto-wajib-GPS. **Default MATI**
+— menyalakannya di awal pemakaian akan menahan laporan di lokasi yang cuma
+punya satu orang aktif. Tiap saklar menyebut DAMPAKNYA, bukan cuma namanya:
+kebijakan yang konsekuensinya baru ketahuan setelah dinyalakan akan dimatikan
+lagi dengan panik di tengah jam kerja. Perubahannya dicatat audit.
+
+### Cap foto menyebut bangunan, bukan cuma item
+
+> saat ini itu hanya stamp item pekerjaan, tapi parent/kategori/bangunan apanya
+> belum ada
+
+Badge besar kini BANGUNAN/kategori RAB ("V. PEKERJAAN SHELTER"), dengan baris
+kecil di bawahnya berisi item pekerjaannya. Alasannya sama dengan DECISIONS 214:
+satu lokasi KNMP punya belasan bangunan dan nama item kerap sama persis antar
+bangunan — foto berlabel "Pembesian" saja tidak bisa dipertanggungjawabkan ke
+bangunan mana pun.
+
+Bangunan diturunkan dari akar `lineageKey`, dan bila kategorinya tidak ketemu
+(mis. dihapus adendum) ditulis apa adanya tanpa mengarang (DECISIONS 197).
+Jalur cap-ulang ikut membawanya, jadi foto lama bisa diperbaiki capnya.
+
+**Verifikasi**: 8 kasus unit baru (superset tiap tingkat, transitif, AM kini
+punya `daily_report.*`, yang khas tiap peran tetap ada, matriks pembuatan akun
+ikut berjenjang) · `pnpm docs:permission` diregenerasi · typecheck ✓ · lint ✓ ·
+unit 748 ✓.

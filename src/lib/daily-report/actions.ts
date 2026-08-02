@@ -163,10 +163,32 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
     const locLat = location.gpsLat != null ? Number(location.gpsLat) : null;
     const locLng = location.gpsLng != null ? Number(location.gpsLng) : null;
     const workDate = new Date(`${d.dateKey}T00:00:00.000Z`);
-    // Badge kategori foto = nama pekerjaan (RabNode) laporan harian ini.
-    const workName = d.rabNodeId
-      ? (await db.rabNode.findUnique({ where: { id: d.rabNodeId }, select: { name: true } }))?.name ?? null
+    // Cap foto: badge = BANGUNAN/kategori RAB, baris di bawahnya = item
+    // pekerjaannya (permintaan user 2026-08-02, DECISIONS 218). Sebelumnya
+    // badge hanya memuat nama item — dan di KNMP satu lokasi punya belasan
+    // bangunan dengan nama item yang sama persis ("Pembesian", "Galian"),
+    // sehingga fotonya tidak bisa dipertanggungjawabkan ke bangunan mana pun.
+    const node = d.rabNodeId
+      ? await db.rabNode.findUnique({
+          where: { id: d.rabNodeId },
+          select: { name: true, lineageKey: true, revisionId: true },
+        })
       : null;
+    const workName = node?.name ?? null;
+    let buildingName: string | null = null;
+    if (node) {
+      const kat = await db.rabNode.findFirst({
+        where: {
+          revisionId: node.revisionId,
+          kind: "kategori",
+          lineageKey: node.lineageKey.split("#")[0],
+        },
+        select: { code: true, name: true },
+      });
+      // Null bila kategorinya tidak ketemu — cap menulis apa adanya, tidak
+      // mengarang bangunan (DECISIONS 197).
+      if (kat) buildingName = kat.code ? `${kat.code}. ${kat.name}` : kat.name;
+    }
     for (const file of files) {
       try {
         await savePhotoForItem({
@@ -189,7 +211,8 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
             locationLabel: location.name,
             companyName,
             reporterName: user.fullName,
-            categoryName: workName,
+            categoryName: buildingName ?? workName,
+            workName: buildingName ? workName : null,
           },
         });
       } catch (err) {

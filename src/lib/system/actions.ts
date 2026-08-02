@@ -280,3 +280,39 @@ export async function rebuildFinalSnapshots(
     return { error: err instanceof Error ? err.message : "Terjadi kesalahan." };
   }
 }
+
+// ─────────────────────────────────────────────────────────────
+// Kebijakan pengendalian (DECISIONS 218)
+// ─────────────────────────────────────────────────────────────
+
+export type PolicyState = { error?: string; success?: string } | undefined;
+
+/**
+ * Simpan kebijakan pengendalian dari halaman Sistem.
+ *
+ * Sengaja SATU action untuk semua saklar: kebijakan-kebijakan ini saling
+ * berkaitan (mis. menyalakan "pemfinal harus beda" tanpa "penyetuju harus beda"
+ * hanya memindahkan lubangnya), jadi user melihat dan menyimpannya sekaligus.
+ * Setiap perubahan dicatat audit — kebijakan yang bisa dimatikan diam-diam
+ * sama saja dengan tidak ada kebijakan.
+ */
+export async function savePolicyAction(_prev: PolicyState, formData: FormData): Promise<PolicyState> {
+  const actor = await requireCapability("system.manage");
+  const { getPolicy, setPolicy } = await import("@/lib/policy");
+  const sebelum = await getPolicy();
+  const baru = {
+    approverMustDiffer: formData.get("approverMustDiffer") === "on",
+    finalizerMustDiffer: formData.get("finalizerMustDiffer") === "on",
+    requirePhotoGps: formData.get("requirePhotoGps") === "on",
+  };
+  await setPolicy(baru);
+  const berubah = (Object.keys(baru) as (keyof typeof baru)[]).filter((k) => baru[k] !== sebelum[k]);
+  await audit(actor.id, "system.policy_update", "system", null, { sebelum, baru, berubah });
+  revalidatePath("/sistem");
+  return {
+    success:
+      berubah.length === 0
+        ? "Tidak ada perubahan kebijakan."
+        : `Kebijakan tersimpan — ${berubah.length} setelan berubah.`,
+  };
+}

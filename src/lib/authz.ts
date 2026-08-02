@@ -86,6 +86,72 @@ const VIEW_ALL: Capability[] = [
   "document.view",
 ];
 
+/**
+ * JENJANG PERAN = SUPERSET (permintaan user 2026-08-02): "karena jenjang am di
+ * atas pm, pm di atas sm, sm di atas pelaksana. harusnya semua yang dilakukan
+ * di bawahnya bisa dilakukan atasnya."
+ *
+ * Karena itu tiap tingkat DISUSUN dari tingkat di bawahnya, bukan didaftar
+ * ulang dari nol. Mendaftar ulang adalah cara paling mudah membuat atasan
+ * kehilangan hak bawahannya tanpa ada yang sadar — persis yang terjadi sebelum
+ * ini: Area Manager tidak bisa menyentuh laporan harian sama sekali, padahal
+ * Site Manager di bawahnya bisa membuat, memverifikasi, DAN memfinalkan.
+ *
+ * Pemisahan tugas TIDAK dijaga di sini, melainkan di mesin transisi laporan
+ * (setelan `daily_report.approver_must_differ`) — pagar berbasis ORANG, bukan
+ * berbasis peran. Peran menjawab "boleh menyentuh apa"; pemisahan tugas
+ * menjawab "tidak boleh mengesahkan pekerjaan sendiri". Dua soal berbeda;
+ * mencampurnya membuat keduanya salah. DECISIONS 218.
+ */
+const PELAKSANA: Capability[] = [
+  ...VIEW_ALL,
+  "daily_report.create",
+  "field_activity.manage",
+];
+
+const SITE_MANAGER: Capability[] = [
+  ...PELAKSANA,
+  "package.view",
+  "weekly_plan.manage",
+  "daily_report.review",
+  "daily_report.finalize",
+  "issue.manage",
+  "finance.input",
+  "document.upload",
+  "report.export",
+  "wa.chat",
+  "user.create", // bikin Pelaksana di bawahnya
+  "ai.view",
+  "ai.generate",
+  "ai.ask",
+  // Pengganti exec_report.send yang dilebur (DECISIONS 193/194): SM tetap bisa
+  // MENGIRIM ke WA, tapi kini hanya artefak yang sudah DIBEKUKAN atasannya —
+  // bukan teks bebas hasil generate sendiri.
+  "ai.report_send",
+];
+
+const PROJECT_MANAGER: Capability[] = [
+  ...SITE_MANAGER,
+  "portfolio.view",
+  "location.manage",
+  "rab.manage",
+  "baseline.manage",
+  "finance.view",
+  "document.verify",
+  "document.edit",
+  "document.void",
+  "compliance.manage",
+  "ai.report_review",
+];
+
+const AREA_MANAGER: Capability[] = [
+  ...PROJECT_MANAGER,
+  // Yang KHAS Area Manager: mengesahkan, bukan menyusun. Dua ini sengaja tidak
+  // dimiliki PM supaya penyusun dan pengesah tetap terpisah jenjang.
+  "finance.approve",
+  "ai.report_approve",
+];
+
 export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
   super_admin: new Set<Capability>(CAPABILITIES),
   program_director: new Set<Capability>(
@@ -105,84 +171,10 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
         c !== "location.correct",
     ),
   ),
-  regional_manager: new Set<Capability>([
-    ...VIEW_ALL,
-    "portfolio.view",
-    "package.view",
-    "location.manage",
-    "weekly_plan.manage",
-    "issue.manage",
-    "field_activity.manage",
-    "finance.view",
-    "finance.approve",
-    "document.upload",
-    "document.verify",
-    "document.edit",
-    "document.void",
-    "compliance.manage",
-    "report.export",
-    "wa.chat",
-    "ai.view",
-    "ai.generate",
-    "ai.ask",
-    "ai.report_review",
-    "ai.report_approve",
-    "ai.report_send",
-  ]),
-  project_manager: new Set<Capability>([
-    ...VIEW_ALL,
-    "portfolio.view",
-    "package.view",
-    "location.manage",
-    "rab.manage",
-    "baseline.manage",
-    "weekly_plan.manage",
-    "daily_report.review",
-    "field_activity.manage",
-    "issue.manage",
-    "finance.view",
-    "finance.input",
-    "document.upload",
-    "document.verify",
-    "document.edit",
-    "document.void",
-    "compliance.manage",
-    "report.export",
-    "wa.chat",
-    "user.create", // bikin Site Manager & Pelaksana di bawahnya
-    "ai.view",
-    "ai.generate",
-    "ai.ask",
-    "ai.report_review",
-    "ai.report_send",
-  ]),
-  site_manager: new Set<Capability>([
-    ...VIEW_ALL,
-    "package.view",
-    "weekly_plan.manage",
-    "daily_report.create",
-    "daily_report.review",
-    "daily_report.finalize",
-    "field_activity.manage",
-    "issue.manage",
-    "finance.input",
-    "document.upload",
-    "report.export",
-    "wa.chat",
-    "user.create", // bikin Pelaksana di bawahnya
-    "ai.view",
-    "ai.generate",
-    "ai.ask",
-    // Pengganti exec_report.send yang dilebur (DECISIONS 193/194): SM tetap
-    // bisa MENGIRIM ke WA, tapi kini hanya artefak yang sudah DIBEKUKAN
-    // atasannya — bukan teks bebas hasil generate sendiri.
-    "ai.report_send",
-  ]),
-  field_supervisor: new Set<Capability>([
-    ...VIEW_ALL,
-    "daily_report.create",
-    "field_activity.manage",
-  ]),
+  regional_manager: new Set<Capability>(AREA_MANAGER),
+  project_manager: new Set<Capability>(PROJECT_MANAGER),
+  site_manager: new Set<Capability>(SITE_MANAGER),
+  field_supervisor: new Set<Capability>(PELAKSANA),
   exec_viewer: new Set<Capability>([
     ...VIEW_ALL,
     "portfolio.view",
@@ -257,6 +249,9 @@ export const ALL_ROLES = Object.keys(ROLE_LABEL) as UserRole[];
 const ROLE_CREATE_MATRIX: Partial<Record<UserRole, UserRole[]>> = {
   super_admin: ALL_ROLES,
   program_director: ALL_ROLES.filter((r) => r !== "super_admin"),
+  // Jenjang = superset juga di sini (DECISIONS 218): AM boleh membuat semua
+  // yang boleh dibuat PM, ditambah PM itu sendiri.
+  regional_manager: ["project_manager", "site_manager", "field_supervisor"],
   project_manager: ["site_manager", "field_supervisor"],
   site_manager: ["field_supervisor"],
 };

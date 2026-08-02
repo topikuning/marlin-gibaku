@@ -155,8 +155,10 @@ export type PhotoStamp = {
   locationLabel: string | null;
   companyName?: string | null;
   reporterName?: string | null;
-  /** Badge kategori (nama pekerjaan utk laporan harian / kategori kegiatan). */
+  /** Badge besar: BANGUNAN/KATEGORI RAB (laporan harian) / jenis kegiatan. */
   categoryName?: string | null;
+  /** Baris kecil di bawah badge: item pekerjaannya (DECISIONS 218). */
+  workName?: string | null;
   photoId?: string | null;
   accentColor?: string;
   overlayAlpha?: number;
@@ -183,6 +185,7 @@ function stampSvg(w: number, h: number, s: PhotoStamp): string {
     companyName: s.companyName?.trim() || null,
     locationName: s.locationLabel?.trim() || "—",
     categoryName: s.categoryName?.trim() || null,
+    workName: s.workName?.trim() || null,
     dateTimeText: s.dateOnly ? formatStampDate(s.takenAt, tz) : formatStampDateTime(s.takenAt, tz),
     coordinateText: s.showCoordinate === false ? null : formatCoordinate(s.lat, s.lng),
     reporterName: s.showReporter === false ? null : s.reporterName?.trim() || null,
@@ -234,8 +237,10 @@ export type SavePhotoInput = {
     locationLabel?: string | null;
     companyName?: string | null;
     reporterName?: string | null;
-    /** Badge kategori: nama pekerjaan (laporan harian) / kategori kegiatan. */
+    /** Badge besar: bangunan/kategori RAB (laporan harian) / jenis kegiatan. */
     categoryName?: string | null;
+    /** Baris kecil: item pekerjaannya. */
+    workName?: string | null;
   };
 };
 
@@ -379,6 +384,7 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       companyName: input.stamp?.companyName ?? null,
       reporterName: input.stamp?.reporterName ?? null,
       categoryName: input.stamp?.categoryName ?? null,
+      workName: input.stamp?.workName ?? null,
       photoId,
       accentColor: cfg?.accentColor ?? DEFAULT_STAMP_ACCENT,
       overlayAlpha: overlayAlphaFor(cfg?.overlayStrength ?? "auto"),

@@ -474,8 +474,56 @@ export async function returnReport(reportId: string, reason: string, userId: str
   return updated;
 }
 
+/**
+ * Pemisahan tugas — pagar berbasis ORANG, bukan peran (DECISIONS 218).
+ *
+ * Sengaja TIDAK diletakkan di `authz`: peran menjawab "boleh menyentuh apa",
+ * pemisahan tugas menjawab "tidak boleh mengesahkan pekerjaan sendiri". Dulu
+ * pagar ini tidak ada sama sekali, sehingga satu Site Manager bisa membuat,
+ * mengirim, menyetujui, DAN memfinalkan laporan yang sama seorang diri —
+ * progres resmi naik dan dasar termin terbentuk tanpa satu pun mata kedua.
+ *
+ * Bisa dimatikan lewat halaman Sistem karena di awal pemakaian sering hanya
+ * ada satu orang aktif per lokasi (permintaan user). Yang penting: keadaannya
+ * TERBACA, bukan jadi asumsi diam-diam.
+ */
+async function assertPemisahanTugas(
+  reportId: string,
+  userId: string,
+  langkah: "approve" | "finalize",
+) {
+  const { getPolicy } = await import("@/lib/policy");
+  const policy = await getPolicy();
+  const aktif = langkah === "approve" ? policy.approverMustDiffer : policy.finalizerMustDiffer;
+  if (!aktif) return;
+
+  const rep = await db.dailyReport.findUniqueOrThrow({
+    where: { id: reportId },
+    select: { submittedById: true, verifiedById: true, createdById: true },
+  });
+  if (langkah === "approve") {
+    // Pembanding utama = PENGIRIM. `createdById` ikut diperiksa untuk laporan
+    // yang dikirim orang lain tapi seluruh isinya diketik penyetuju sendiri.
+    const sendiri = rep.submittedById === userId || (rep.submittedById == null && rep.createdById === userId);
+    if (sendiri) {
+      throw new DailyReportError(
+        "Laporan ini kamu sendiri yang mengirim — penyetujunya harus orang lain. " +
+          "Setelan ini bisa diubah di menu Sistem → Kebijakan pengendalian.",
+      );
+    }
+    return;
+  }
+  if (rep.verifiedById === userId) {
+    throw new DailyReportError(
+      "Laporan ini kamu sendiri yang menyetujui — pemfinalnya harus orang lain. " +
+        "Setelan ini bisa diubah di menu Sistem → Kebijakan pengendalian.",
+    );
+  }
+}
+
 /** dikirim → disetujui. */
 export async function approveReport(reportId: string, userId: string) {
+  await assertPemisahanTugas(reportId, userId, "approve");
   const { updated } = await transition(
     reportId,
     "disetujui",
@@ -675,6 +723,9 @@ export async function finalizeReport(reportId: string, userId: string) {
   if (!canTransitionReport(current.status, "final")) {
     throw new DailyReportError(`Transisi status ${current.status} → final tidak diizinkan`);
   }
+  // Diperiksa SEBELUM snapshot dibangun: membangun snapshot itu mahal, dan
+  // menolak sesudahnya berarti kerja itu terbuang percuma.
+  await assertPemisahanTugas(reportId, userId, "finalize");
   const snapshot = await buildFinalSnapshot(reportId);
   const { updated } = await transition(
     reportId,

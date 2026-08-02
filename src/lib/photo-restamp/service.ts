@@ -26,6 +26,7 @@ export type NilaiCap = {
   companyName: string | null;
   reporterName: string | null;
   categoryName: string | null;
+  workName: string | null;
   photoId: string | null;
 };
 
@@ -65,6 +66,7 @@ export async function stampDariNilai(v: NilaiCap): Promise<PhotoStamp> {
     companyName: v.companyName,
     reporterName: v.reporterName,
     categoryName: v.categoryName,
+    workName: v.workName,
     photoId: v.photoId,
     accentColor: cfg?.accentColor ?? DEFAULT_STAMP_ACCENT,
     overlayAlpha: overlayAlphaFor(cfg?.overlayStrength ?? "auto"),
@@ -104,6 +106,7 @@ export type KonteksFoto = {
   companyName: string | null;
   reporterName: string | null;
   categoryName: string | null;
+  workName: string | null;
   projectLat: number | null;
   projectLng: number | null;
   workDate: Date | null;
@@ -138,7 +141,9 @@ export async function konteksFoto(id: string): Promise<KonteksFoto | null> {
       stampRevision: true,
       locationId: true,
       uploadedById: true,
-      reportItem: { select: { rabNode: { select: { name: true } } } },
+      // lineageKey ikut dibaca: badge cap = BANGUNAN/kategori RAB, dan
+      // bangunannya diturunkan dari akar lineage (DECISIONS 214/218).
+      reportItem: { select: { lineageKey: true, rabNode: { select: { name: true } } } },
       report: { select: { reportDate: true, locationId: true } },
       activity: { select: { title: true, activityDate: true, locationId: true } },
       location: {
@@ -173,6 +178,26 @@ export async function konteksFoto(id: string): Promise<KonteksFoto | null> {
   // Jam dianggap diketahui hanya bila sumbernya memang membawa jam.
   const jamDiketahui = p.metadataSource !== "server";
 
+  // Bangunan/kategori item — dari revisi RAB AKTIF lokasi ini. Null bila
+  // kategorinya sudah tidak ada lagi (mis. dihapus adendum): ditulis apa
+  // adanya, tidak ditebak.
+  let bangunanCap: string | null = null;
+  const lkCap = p.reportItem?.lineageKey ?? null;
+  const locIdCap = p.locationId ?? p.report?.locationId ?? p.activity?.locationId ?? null;
+  if (lkCap && locIdCap) {
+    const revAktif = await db.rabRevision.findFirst({
+      where: { locationId: locIdCap, status: "aktif" },
+      select: { id: true },
+    });
+    if (revAktif) {
+      const kat = await db.rabNode.findFirst({
+        where: { revisionId: revAktif.id, kind: "kategori", lineageKey: lkCap.split("#")[0] },
+        select: { code: true, name: true },
+      });
+      if (kat) bangunanCap = kat.code ? `${kat.code}. ${kat.name}` : kat.name;
+    }
+  }
+
   return {
     photoId: p.id,
     locationId: p.locationId ?? p.report?.locationId ?? p.activity?.locationId ?? null,
@@ -181,7 +206,8 @@ export async function konteksFoto(id: string): Promise<KonteksFoto | null> {
     companyName:
       p.location?.package.contract?.vendor?.name ?? p.location?.package.organization.name ?? null,
     reporterName: pelapor?.fullName ?? null,
-    categoryName: p.reportItem?.rabNode.name ?? p.activity?.title ?? null,
+    categoryName: bangunanCap ?? p.activity?.title ?? null,
+    workName: p.reportItem?.rabNode.name ?? null,
     projectLat,
     projectLng,
     workDate,
@@ -201,7 +227,8 @@ export async function konteksFoto(id: string): Promise<KonteksFoto | null> {
       companyName:
         p.location?.package.contract?.vendor?.name ?? p.location?.package.organization.name ?? null,
       reporterName: pelapor?.fullName ?? null,
-      categoryName: p.reportItem?.rabNode.name ?? p.activity?.title ?? null,
+      categoryName: bangunanCap ?? p.activity?.title ?? null,
+    workName: p.reportItem?.rabNode.name ?? null,
       photoId: p.stampPhotoId,
     },
   };
