@@ -6239,3 +6239,66 @@ subkategori, rincian `6.1.a` tidak hilang, kode berjenjang menempel ke induknya,
 baris rekap tidak jadi pekerjaan · uji ekspor lama disesuaikan ke keputusan baru
 · unit 719 ✓ · integrasi 257 ✓ · typecheck ✓ · lint ✓ · dijalankan juga pada
 berkas ekspor nyata user.
+
+---
+
+## 209 — Impor Excel ke DRAFT adendum, dengan diff sebelum disimpan (2026-08-02)
+
+Laporan user 2026-08-02:
+
+> saat ini kalau aku membuat draft adendum, harusnya ada import yang bisa
+> digunakan juga di situ, tapi ini tidak ada, sementara draft sudah terlanjur
+> dibuat. sementara jika aku memakai jalur importmu yang sekarang itu langsung
+> dibuat rab aktif dan dianggap adendum, ini tidak pas.
+
+Benar. `importHps` selalu memanggil `activateRevision` tepat setelah membuat
+revisi — jadi SATU-SATUNYA jalur impor Excel selalu mengganti RAB aktif,
+me-regenerate kurva-S, dan menggeser dasar keuangan. Adendum yang baru
+*diajukan* terpaksa diperlakukan seolah sudah sah. Editor draft yang sudah ada
+(DECISIONS 118) hanya bisa diisi baris demi baris dari layar, padahal dokumen
+adendum datang sebagai Excel.
+
+**Keputusan**: impor punya TUJUAN yang dipilih user (`ImportMode`):
+
+- `draft` — isi DRAFT adendum. RAB aktif, progres, kurva-S, dan keuangan tidak
+  tersentuh sama sekali; tidak ada `activateRevision`, tidak ada
+  `regenerateBaseline`. Draft baru berlaku setelah diaktifkan lewat halaman
+  Adendum seperti biasa.
+- `aktifkan` — perilaku lama, untuk HPS awal dan adendum yang SUDAH resmi.
+
+Draft yang sudah ada **diganti seluruhnya** (pilihan user; "gabungkan" ditolak
+karena mudah menyisakan item hantu yang tidak ada di dokumen adendum). Kaitan
+ke adendum kontrak (`amendmentId`) dan catatan draft lama DIBAWA IKUT — kalau
+tidak, tautan resmi ke CCO hilang diam-diam saat file di-impor ulang.
+
+Formnya sekarang muncul juga di halaman Adendum, jadi draft yang "terlanjur
+dibuat" tinggal diisi — tidak perlu dibuang dulu.
+
+### Diff ditampilkan SEBELUM ada yang ditulis
+
+`bandingkanTerhadapAktif` (murni, tanpa DB) membandingkan hasil parse dengan
+RAB aktif memakai **lineageKey** — identitas yang sama dengan yang dipakai
+laporan harian, bukan nama. Yang ditonjolkan adalah dua keadaan yang merugikan
+orang kalau baru ketahuan setelah disimpan:
+
+1. **Item yang SUDAH dikerjakan tapi tidak ada di file baru.** Realisasinya
+   lepas dari RAB dan progres lokasi turun tanpa sebab yang kelihatan. Disebut
+   namanya, diurutkan yang ber-realisasi lebih dulu.
+2. **Volume kontrak turun DI BAWAH volume yang sudah dikerjakan.** Ada
+   pekerjaan yang tidak punya dasar bayar. Ditandai — TIDAK dibetulkan sendiri.
+
+Selisih nilai total ditampilkan apa adanya (aktif → baru, beserta arahnya).
+
+**Verifikasi**: 7 kasus unit baru (`rab-diff-pratinjau`) · typecheck ✓ · lint ✓
+· unit 726 ✓ · integrasi 257 ✓.
+
+### Yang BELUM dikerjakan dari permintaan hari ini
+
+- **Laporan progres atas draft adendum** (permintaan user poin 6): flag per
+  baris laporan "terhadap RAB aktif" atau "terhadap draft adendum", plus
+  laporan berbasis draft. Sudah disepakati bentuknya, belum dibangun.
+- **Subtotal dokumen dipakai apa adanya** (poin 3): user memilih menyimpan
+  subtotal kategori dari file nego dan menampilkannya apa adanya, dengan
+  selisih terhadap Σ item DISEBUT, bukan ditambal. Ini membatalkan sebagian
+  prinsip "agregat selalu derived" (CLAUDE.md #4) dan perlu keputusan
+  tersendiri saat dikerjakan.

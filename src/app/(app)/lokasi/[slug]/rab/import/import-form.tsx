@@ -3,14 +3,22 @@
 import { useState, useTransition } from "react";
 import { Banner, Button, HelpText, Input, Label, Textarea } from "@/components/ui";
 import { formatRupiah } from "@/lib/format";
-import { importHps, type ImportState } from "./actions";
+import { importHps, type BedaPratinjau, type ImportMode, type ImportState } from "./actions";
 
 /**
  * Impor RAB 2 langkah tanpa perlu unggah ulang: file disimpan di STATE klien,
  * jadi "Simpan" memakai file yang sama dgn pratinjau. Memilih file baru otomatis
  * mereset ke mode Pratinjau (isi bisa berubah — jangan langsung simpan).
  */
-export function ImportForm({ locationId }: { locationId: string }) {
+export function ImportForm({
+  locationId,
+  modeAwal = "aktifkan",
+}: {
+  locationId: string;
+  /** "draft" = halaman adendum: isi draft, JANGAN sentuh RAB aktif. */
+  modeAwal?: ImportMode;
+}) {
+  const [mode, setMode] = useState<ImportMode>(modeAwal);
   const [file, setFile] = useState<File | null>(null);
   const [note, setNote] = useState("");
   const [inputKey, setInputKey] = useState(0);
@@ -27,6 +35,7 @@ export function ImportForm({ locationId }: { locationId: string }) {
     fd.set("locationId", locationId);
     fd.set("file", file);
     fd.set("note", note);
+    fd.set("mode", mode);
     if (confirm && preview) {
       fd.set("confirm", "1");
       fd.set("previewSha", preview.sha256);
@@ -82,21 +91,60 @@ export function ImportForm({ locationId }: { locationId: string }) {
         </HelpText>
       </div>
 
+      <fieldset className="rounded-md border border-border p-3">
+        <legend className="px-1 text-[13px] font-medium text-ink">Tujuan impor</legend>
+        {/* Sebelum ini hanya ada satu jalur: impor SELALU mengaktifkan. Adendum
+            yang masih diajukan terpaksa diperlakukan seolah sudah sah. */}
+        <div className="space-y-2">
+          {(
+            [
+              ["draft", "Isi DRAFT adendum", "RAB aktif, progres, kurva-S, dan keuangan TIDAK berubah. Draft baru berlaku setelah diaktifkan."],
+              ["aktifkan", "Jadikan RAB AKTIF sekarang", "Menggantikan RAB aktif dan me-regenerate kurva-S. Untuk HPS awal atau adendum yang SUDAH resmi."],
+            ] as const
+          ).map(([nilai, judul, jelas]) => (
+            <label key={nilai} className="flex cursor-pointer items-start gap-2 text-[13px]">
+              <input
+                type="radio"
+                name="mode"
+                className="mt-0.5"
+                checked={mode === nilai}
+                onChange={() => {
+                  setMode(nilai);
+                  setState(undefined); // pratinjau lama menggambarkan tujuan lain
+                }}
+              />
+              <span>
+                <span className="font-medium text-ink">{judul}</span>
+                <span className="block text-ink-muted">{jelas}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
       {preview ? (
         <div className="space-y-3 rounded-md border border-border bg-surface-muted p-3">
           <Banner
-            tone={preview.isAdendum ? "warning" : "info"}
+            tone={preview.mode === "draft" ? "info" : preview.isAdendum ? "warning" : "info"}
             title={
-              preview.isAdendum
-                ? "Terdeteksi ADENDUM — lokasi sudah punya revisi RAB aktif"
-                : "Impor HPS awal — belum ada revisi RAB aktif"
+              preview.mode === "draft"
+                ? preview.draftAda
+                  ? `Isi draft adendum revisi #${preview.draftAda.revisionNo} akan DIGANTI`
+                  : "Draft adendum baru akan dibuat"
+                : preview.isAdendum
+                  ? "Terdeteksi ADENDUM — lokasi sudah punya revisi RAB aktif"
+                  : "Impor HPS awal — belum ada revisi RAB aktif"
             }
             description={
-              preview.isAdendum
-                ? "Revisi baru akan menggantikan revisi aktif; realisasi item dgn lineage sama tersambung otomatis, dan baseline kurva-S di-regenerate."
-                : "Revisi #1 akan dibuat dan baseline kurva-S dibuat otomatis."
+              preview.mode === "draft"
+                ? "RAB aktif, progres, kurva-S, dan keuangan tidak tersentuh. Draft ini baru berlaku setelah diaktifkan lewat halaman Adendum."
+                : preview.isAdendum
+                  ? "Revisi baru akan menggantikan revisi aktif; realisasi item dgn lineage sama tersambung otomatis, dan baseline kurva-S di-regenerate."
+                  : "Revisi #1 akan dibuat dan baseline kurva-S dibuat otomatis."
             }
           />
+
+          {preview.beda ? <PanelBeda beda={preview.beda} /> : null}
 
           <div className="text-sm text-ink">
             <p className="font-medium">
@@ -181,7 +229,7 @@ export function ImportForm({ locationId }: { locationId: string }) {
         {preview ? (
           <>
             <Button type="button" loading={pending} onClick={() => run(true)}>
-              Simpan &amp; aktifkan revisi
+              {preview.mode === "draft" ? "Simpan ke draft adendum" : "Simpan & aktifkan revisi"}
             </Button>
             <Button type="button" variant="secondary" loading={pending} onClick={() => run(false)}>
               Pratinjau ulang
@@ -193,6 +241,64 @@ export function ImportForm({ locationId }: { locationId: string }) {
           </Button>
         )}
       </div>
+    </div>
+  );
+}
+
+/** Apa yang berubah terhadap RAB aktif — ditampilkan SEBELUM ada yang ditulis. */
+function PanelBeda({ beda }: { beda: BedaPratinjau }) {
+  const selisih = Number(beda.totalBaru) - Number(beda.totalAktif);
+  const berisiko = beda.itemHilang.filter((i) => i.realisasi > 0);
+  const dibawah = beda.volumeBerubah.filter((v) => v.dibawahRealisasi);
+  return (
+    <div className="space-y-2 rounded-md border border-border bg-surface p-3 text-[13px]">
+      <p className="font-medium text-ink">Perubahan terhadap RAB aktif</p>
+      <p className="text-ink-muted">
+        Nilai: <span className="tabular">{formatRupiah(Number(beda.totalAktif))}</span> →{" "}
+        <span className="tabular font-medium text-ink">{formatRupiah(Number(beda.totalBaru))}</span>{" "}
+        <span className={selisih === 0 ? "" : selisih > 0 ? "text-warning" : "text-danger"}>
+          ({selisih >= 0 ? "+" : "−"}
+          {formatRupiah(Math.abs(selisih))})
+        </span>
+      </p>
+      <p className="text-ink-muted">
+        {beda.itemBaru.length} item baru · {beda.volumeBerubah.length} volume berubah ·{" "}
+        {beda.itemHilang.length} item hilang · {beda.jumlahTetap} tetap
+      </p>
+
+      {/* Yang paling mahal disebut lebih dulu: pekerjaan yang SUDAH dikerjakan
+          tapi tidak ada di file baru — realisasinya lepas dari RAB. */}
+      {berisiko.length > 0 ? (
+        <div className="rounded border border-danger-border bg-danger-soft px-2.5 py-2">
+          <p className="font-medium text-danger">
+            {berisiko.length} item yang SUDAH dikerjakan tidak ada di file ini
+          </p>
+          <ul className="mt-1 list-disc pl-4 text-ink-muted">
+            {berisiko.slice(0, 8).map((i) => (
+              <li key={i.code + i.name}>
+                {i.code} {i.name} — realisasi {i.realisasi}
+              </li>
+            ))}
+            {berisiko.length > 8 ? <li>+{berisiko.length - 8} lainnya</li> : null}
+          </ul>
+        </div>
+      ) : null}
+
+      {dibawah.length > 0 ? (
+        <div className="rounded border border-danger-border bg-danger-soft px-2.5 py-2">
+          <p className="font-medium text-danger">
+            {dibawah.length} item volumenya turun DI BAWAH yang sudah dikerjakan
+          </p>
+          <ul className="mt-1 list-disc pl-4 text-ink-muted">
+            {dibawah.slice(0, 8).map((v) => (
+              <li key={v.code + v.name}>
+                {v.code} {v.name} — {v.dari} → {v.ke}, sudah dikerjakan {v.realisasi}
+              </li>
+            ))}
+            {dibawah.length > 8 ? <li>+{dibawah.length - 8} lainnya</li> : null}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }
