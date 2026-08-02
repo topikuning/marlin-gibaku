@@ -7180,3 +7180,49 @@ benar. Di ≥640px header penuh tetap seperti semula.
 
 **Verifikasi**: unit 792 ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓. Belum diuji
 di perangkat nyata — perilaku papan ketik mobile hanya bisa dipastikan di sana.
+
+---
+
+## 225 — `<fieldset>` menolak menyempit: pita cuaca merusak layar mobile (2026-08-02)
+
+> ambil cuaca, langsung merusak tampilan mobile
+
+### Sebabnya bukan pita cuacanya
+
+Pita cuaca per jam SUDAH dibungkus `overflow-x-auto` sejak awal. Yang melar
+bukan isinya, melainkan `<fieldset>` di atasnya: stylesheet BAWAAN browser
+memberi `fieldset` nilai `min-inline-size: min-content`, sehingga ia menolak
+menyempit di bawah lebar konten terlebarnya — dan kontainer ber-scroll di
+dalamnya tidak menolong sama sekali.
+
+Diukur di Chromium, viewport 375px, 15 sel × 36px:
+
+| | `documentElement.scrollWidth` | lebar `fieldset` |
+|---|---|---|
+| sebelum | **613px** | 596px |
+| dengan `min-inline-size: 0` | **375px** | 341px |
+
+Ini juga menjelaskan kenapa seluruh halaman ikut bergeser, bukan hanya kartu
+pelengkap KKP: satu elemen yang menolak menyempit menarik seluruh dokumen.
+
+### Yang berubah
+
+**`fieldset { min-inline-size: 0 }` di `globals.css`.** Diperbaiki sekali di
+lapisan base, bukan satu per satu di sebelas `fieldset` yang ada — cacatnya
+milik elemennya, bukan milik satu halaman. Menambal per-halaman berarti
+menunggu keluhan yang sama datang dari sepuluh halaman lain.
+
+**Pita cuaca MEMBUNGKUS, bukan menggulir ke samping.** Sekalipun overflow-nya
+sudah beres, versi satu-baris memaksa usap horizontal untuk melihat sore hari —
+dan sepertiga pitanya tidak pernah terlihat oleh orang yang tidak sadar pita itu
+bisa diusap. Dua baris memuat 07–21 sekaligus.
+
+### Kenapa lolos sampai ke tangan user
+
+`tests/e2e/mobile-overflow.spec.ts` (DECISIONS 217) memang dibuat persis untuk
+kelas cacat ini, tetapi daftar rutenya TIDAK memuat editor harian satu tanggal —
+layar yang paling sering dipakai orang lapangan. Rute itu sekarang masuk daftar,
+tanggalnya diambil dari daftar harian supaya uji tidak terikat tanggal tertentu.
+
+**Verifikasi**: repro terukur di Chromium (angka di tabel atas) · unit 792 ✓ ·
+`pnpm build` ✓ · typecheck ✓ · lint ✓.

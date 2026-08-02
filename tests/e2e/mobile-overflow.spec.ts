@@ -142,6 +142,18 @@ test.describe("tampilan mobile: halaman tidak boleh melebar ke samping", () => {
       .then((h) => h?.split("/")[2] ?? null)
       .catch(() => null);
 
+    // Editor harian satu tanggal — layar yang PALING sering dipakai orang
+    // lapangan, dan justru yang dulu tidak dijaga di sini: pita cuaca per jam
+    // (15 sel ≈ 570px) melebarkan halaman di 375px tanpa satu pun uji yang
+    // menangkapnya (DECISIONS 225). Tanggalnya diambil dari daftar supaya uji
+    // tidak terikat tanggal tertentu.
+    await page.goto(`/lokasi/${SLUG}/harian`, { waitUntil: "domcontentloaded" });
+    const tanggalHref = await page
+      .locator(`a[href^="/lokasi/${SLUG}/harian/"]`)
+      .first()
+      .getAttribute("href", { timeout: 5_000 })
+      .catch(() => null);
+
     const dalam = [
       `/lokasi/${SLUG}`,
       `/lokasi/${SLUG}/rab`,
@@ -149,6 +161,7 @@ test.describe("tampilan mobile: halaman tidak boleh melebar ke samping", () => {
       `/lokasi/${SLUG}/rab/import`,
       `/lokasi/${SLUG}/progress`,
       `/lokasi/${SLUG}/harian`,
+      ...(tanggalHref && !tanggalHref.endsWith("/import") ? [tanggalHref] : []),
       `/lokasi/${SLUG}/keuangan`,
       `/lokasi/${SLUG}/dokumen`,
       ...(paketId && paketId !== "katalog" && paketId !== "baru" && paketId !== "bypass"

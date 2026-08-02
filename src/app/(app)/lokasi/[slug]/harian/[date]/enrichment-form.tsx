@@ -70,18 +70,20 @@ function WeatherAuto({ report }: { report: WorkspaceReport }) {
       {isManual ? (
         <input type="hidden" name="overwriteManual" value="1" />
       ) : null}
+      {/* MEMBUNGKUS, bukan menggulir ke samping. Lima belas sel × 36px ≈ 570px:
+          di layar 375px versi satu-baris memaksa usap horizontal untuk melihat
+          sore hari — dan sepertiga pitanya tak pernah terlihat kalau tidak ada
+          yang sadar bisa diusap. Dua baris memuat semuanya sekaligus. */}
       {hours ? (
-        <div className="overflow-x-auto">
-          <div className="flex gap-0.5">
-            {hours.map((h) => (
-              <div key={h.hour} className="w-9 shrink-0 text-center">
-                <div className="text-[10px] text-ink-muted">{String(h.hour).padStart(2, "0")}</div>
-                <div className={`rounded px-1 py-0.5 text-[10px] font-medium ${CATEGORY_TONE[h.category]}`}>
-                  {h.category === "Mendung" ? "Mdg" : h.category === "Hujan" ? "Hjn" : "Crh"}
-                </div>
+        <div className="flex flex-wrap gap-0.5">
+          {hours.map((h) => (
+            <div key={h.hour} className="w-9 shrink-0 text-center">
+              <div className="text-[10px] text-ink-muted">{String(h.hour).padStart(2, "0")}</div>
+              <div className={`rounded px-1 py-0.5 text-[10px] font-medium ${CATEGORY_TONE[h.category]}`}>
+                {h.category === "Mendung" ? "Mdg" : h.category === "Hujan" ? "Hjn" : "Crh"}
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
       ) : null}
       {isManual && hours == null ? (

@@ -89,6 +89,19 @@
   ::placeholder {
     color: var(--color-ink-faint);
   }
+
+  /* <fieldset> punya `min-inline-size: min-content` di stylesheet BAWAAN
+     browser. Akibatnya ia MENOLAK menyempit di bawah lebar konten terlebarnya,
+     dan `overflow-x-auto` di dalamnya tidak menolong sama sekali: yang melar
+     bukan anaknya, melainkan fieldset-nya sendiri — lalu seluruh halaman ikut
+     bergeser ke samping.
+     Ini yang membuat pita cuaca per jam (15 sel ≈ 570px) merusak layar 375px
+     meski sudah dibungkus kontainer ber-scroll. Diperbaiki sekali di sini,
+     bukan satu per satu di tiap fieldset, karena cacatnya milik elemennya —
+     bukan milik satu halaman. DECISIONS 225. */
+  fieldset {
+    min-inline-size: 0;
+  }
 }
 
 @utility tabular {
