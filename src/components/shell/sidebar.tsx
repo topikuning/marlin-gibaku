@@ -21,9 +21,13 @@ export function Sidebar({ nav, brand }: { nav: NavItem[]; brand: Branding }) {
         {/* Wordmark resmi menggantikan rakitan "ikon + teks" (DECISIONS 227):
             hurufnya vektor, jadi bentuknya tidak lagi bergantung font UI. */}
         <BrandWordmark tinggi={26} />
-        <p className="mt-1.5 line-clamp-2 text-[11px] leading-tight text-ink-muted">
-          {brand.projectContext}
-        </p>
+        {/* Konteks proyek boleh KOSONG (DECISIONS 228) — jangan sisakan
+            paragraf kosong yang menambah jarak tanpa isi. */}
+        {brand.projectContext ? (
+          <p className="mt-1.5 line-clamp-2 text-[11px] leading-tight text-ink-muted">
+            {brand.projectContext}
+          </p>
+        ) : null}
       </div>
       <nav aria-label="Navigasi utama" className="flex-1 overflow-y-auto p-2">
         <ul className="space-y-0.5">

@@ -19,7 +19,9 @@ export default async function MasukPage() {
           {/* Tagline (kepanjangan MARLIN) = identitas utama global. */}
           <p className="mt-1 text-sm font-medium text-ink">{brand.tagline}</p>
           {/* Konteks proyek = tambahan. */}
-          <p className="mt-0.5 text-xs text-ink-muted">{brand.projectContext}</p>
+          {brand.projectContext ? (
+            <p className="mt-0.5 text-xs text-ink-muted">{brand.projectContext}</p>
+          ) : null}
         </div>
         <LoginForm />
       </div>

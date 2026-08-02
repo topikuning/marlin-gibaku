@@ -7318,3 +7318,47 @@ E2E (alur fokus, kolom cari tidak lepas dari DOM, dialog galeri dua tombol tanpa
 paragraf, foto menyusul) · raster nyata diperiksa mata di latar terang/abu/gelap
 · tangkapan ponsel 375px diperiksa: form muat satu layar, tanpa overflow ·
 unit 770/770 ✓ · E2E 34 lulus ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 228 — "Sengaja dikosongkan" ≠ "belum diatur" pada branding (2026-08-02)
+
+**Laporan user 2026-08-02**: baris "Pengendalian Proyek Kampung Nelayan Merah
+Putih (KNMP)" di bawah logo sidebar berasal dari kolom **Konteks proyek** di
+menu Sistem — *"kenapa juga … jika kuhapus tanpa kuisi apa pun lalu simpan
+selalu kembali terisi dengan nilai yang sama"*.
+
+Karena `getBranding` memperlakukan nilai kosong sebagai "belum diatur" lalu
+menambalnya dengan `BRAND_DEFAULTS`. Niatnya baik (kosongkan = kembali ke
+bawaan), akibatnya buruk: perintah admin yang jelas **ditolak diam-diam**. Layar
+bilang "tersimpan", nilainya kembali seperti semula, dan tidak ada satu pun
+pesan yang menjelaskan. Sistem yang menolak tanpa memberi tahu lebih buruk
+daripada sistem yang menolak dengan kasar.
+
+### Yang berubah
+
+Baris yang **ADA** di `AppSetting` adalah KEPUTUSAN admin dan dihormati apa
+adanya, termasuk saat isinya kosong. Default hanya dipakai untuk key yang
+**belum pernah** disimpan — itulah arti "belum diatur", dan itu berbeda dari
+"sengaja dikosongkan".
+
+Perlakuannya dipisah dua, sengaja:
+
+- **Wajib** (nama aplikasi, tagline, nama pemilik pekerjaan) — kosong tetap
+  ditambal bawaan di `getBranding`, TAPI sekarang **ditolak di boundary aksi**
+  dengan pesan "wajib diisi". Aplikasi tanpa nama bukan pilihan desain, itu
+  layar rusak; dan kalau memang ditolak, harus terbaca ditolak.
+- **Opsional** (konteks proyek, keterangan pemilik) — kosong berarti benar-benar
+  kosong. Sidebar & halaman Masuk tidak lagi merender paragraf kosong yang
+  menyisakan jarak tanpa isi.
+
+Jalan kembalinya tetap ada dan sederhana: ketik ulang. Teks bawaan tetap muncul
+sebagai `placeholder`, jadi admin tahu apa yang dulu ada di situ.
+
+Kalimat bantuan di form ikut dibetulkan — sebelumnya ia menjanjikan "Kosongkan
+untuk memakai nilai bawaan", yang persis kebalikan dari perilaku yang diminta.
+
+**Verifikasi**: 6 kasus integrasi baru (konteks dikosongkan tetap kosong,
+keterangan pemilik juga, spasi dihitung kosong, ketik ulang mengembalikan,
+tanpa baris sama sekali memakai bawaan, isian wajib tetap ditambal) ·
+unit 770/770 ✓ · integrasi 284/284 ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓.

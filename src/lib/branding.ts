@@ -42,7 +42,23 @@ export const BRAND_KEYS = {
   ownerLogoKey: "brand.owner_logo_key",
 } as const;
 
-/** Ambil branding efektif (nilai terbaru per key, fallback ke default). */
+/**
+ * Ambil branding efektif (nilai terbaru per key).
+ *
+ * DUA PERLAKUAN, sengaja berbeda — dan ini pernah jadi bug yang membingungkan
+ * (laporan user 2026-08-02: "kuhapus tanpa kuisi apa pun lalu simpan selalu
+ * kembali terisi dengan nilai yang sama"):
+ *
+ * - **Wajib** (nama aplikasi, tagline, nama pemilik pekerjaan): kosong → pakai
+ *   default. Aplikasi tanpa nama bukan pilihan desain, itu layar rusak.
+ * - **Opsional** (konteks proyek, keterangan pemilik): kosong → BENAR-BENAR
+ *   KOSONG, asalkan barisnya memang pernah disimpan. Baris yang ada di DB
+ *   adalah KEPUTUSAN admin; menimpanya dengan default berarti sistem menolak
+ *   perintah yang jelas dan tidak memberi tahu alasannya.
+ *
+ * Default hanya dipakai untuk key yang BELUM PERNAH disimpan sama sekali —
+ * itulah arti "belum diatur", berbeda dari "sengaja dikosongkan".
+ */
 export async function getBranding(): Promise<Branding> {
   const rows = await db.appSetting.findMany({
     where: { key: { in: Object.values(BRAND_KEYS) } },
@@ -50,21 +66,32 @@ export async function getBranding(): Promise<Branding> {
   });
   const latest = new Map<string, string>();
   for (const r of rows) if (!latest.has(r.key)) latest.set(r.key, r.value);
-  const pick = (key: string, def: string) => {
+  /** Isian yang tak boleh kosong — kosong berarti "belum diatur". */
+  const wajib = (key: string, def: string) => {
     const v = latest.get(key)?.trim();
     return v && v.length ? v : def;
   };
+  /** Isian tambahan — dihormati apa adanya, termasuk saat sengaja dikosongkan. */
+  const opsional = (key: string, def: string) => {
+    const v = latest.get(key);
+    return v === undefined ? def : v.trim();
+  };
   return {
-    appName: pick(BRAND_KEYS.appName, BRAND_DEFAULTS.appName),
-    tagline: pick(BRAND_KEYS.tagline, BRAND_DEFAULTS.tagline),
-    projectContext: pick(BRAND_KEYS.projectContext, BRAND_DEFAULTS.projectContext),
-    ownerName: pick(BRAND_KEYS.ownerName, BRAND_DEFAULTS.ownerName),
-    ownerSubtitle: pick(BRAND_KEYS.ownerSubtitle, BRAND_DEFAULTS.ownerSubtitle),
+    appName: wajib(BRAND_KEYS.appName, BRAND_DEFAULTS.appName),
+    tagline: wajib(BRAND_KEYS.tagline, BRAND_DEFAULTS.tagline),
+    projectContext: opsional(BRAND_KEYS.projectContext, BRAND_DEFAULTS.projectContext),
+    ownerName: wajib(BRAND_KEYS.ownerName, BRAND_DEFAULTS.ownerName),
+    ownerSubtitle: opsional(BRAND_KEYS.ownerSubtitle, BRAND_DEFAULTS.ownerSubtitle),
     ownerLogoKey: latest.get(BRAND_KEYS.ownerLogoKey)?.trim() || null,
   };
 }
 
-/** Simpan branding (efektif hari ini, Asia/Jakarta). String kosong → hapus override (pakai default). */
+/**
+ * Simpan branding (efektif hari ini, Asia/Jakarta).
+ *
+ * String kosong TETAP DISIMPAN sebagai baris kosong — itu yang membedakan
+ * "sengaja dikosongkan" dari "belum pernah diatur". Lihat `getBranding`.
+ */
 export async function setBranding(input: Partial<Branding>): Promise<void> {
   const effectiveFrom = jakartaToday();
   const entries: [string, string | undefined][] = [
