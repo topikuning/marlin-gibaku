@@ -6940,3 +6940,46 @@ itu tak tersentuh uji unit.
 disebut berikut tempat mengisinya; nonaktif terpisah; nol penugasan → diarahkan
 ke Lokasi bukan Pengguna; lingkup kosong → syarat disebut; keadaan sehat → tidak
 mengarang masalah) · `pnpm build` ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 222 — ID pesan WAHA bukan bukti sampai (2026-08-02)
+
+Log server user, sesudah menekan tombol pengingat:
+
+```
+error 463: account restricted or missing tctoken for contact
+msgId: 3EB052C20C9F6C2394177D  from: 6287776689958@s.whatsapp.net  engine: NOWEB
+```
+
+WhatsApp membatasi nomor pengirim untuk menghubungi nomor **baru** — keadaan di
+sisi akun, bukan cacat kode.
+
+### Yang perlu dikoreksi di sisi MARLIN
+
+DECISIONS 207 menetapkan `msgId` sebagai bukti kirim, dan komentar di
+`harian/actions.ts` menyebutnya "satu-satunya bukti bahwa pesannya benar-benar
+diterima antrean". Log ini membuktikan klaim itu terlalu jauh: **id sudah
+terbit, pesan tidak pernah berangkat.** Penolakan 463 terjadi di dalam mesin
+WAHA, SESUDAH respons API, jadi tidak terlihat sama sekali dari sisi pemanggil.
+
+Kalimat hasil kirim sekarang menyebut batas pengetahuannya sendiri — "WAHA
+MENERIMA permintaannya, bukan jaminan sampai" — dan menunjuk log WAHA berikut
+error 463 bila penerima melapor tidak menerima apa pun. Yang berubah bukan
+angkanya, melainkan klaim yang menempel padanya.
+
+### Koreksi diagnosis sebelumnya
+
+Diagnosis "0 dari 8 user punya nomor WA" (DECISIONS 221) diambil dari **basis
+data uji lokal**, bukan produksi. Di produksi nomornya jelas ada — pesannya
+sampai ke WAHA dan ditolak WhatsApp. Kedua temuan itu nyata, tapi menjelaskan
+kejadian yang berbeda; perbaikan 221 tetap berlaku untuk keadaan "daftar tujuan
+kosong", bukan untuk kejadian yang dilaporkan user ini.
+
+### Yang belum
+
+MARLIN tidak punya cara mengetahui nasib pesan sesudah terkirim. Jalan keluarnya
+menerima webhook status dari WAHA (`message.ack`: sent → delivered → read) dan
+merekonsiliasinya ke `DailyReminderLog`, sehingga "terkirim" bisa naik jadi
+"sampai" atau turun jadi "ditolak". Ditunda: menambah endpoint webhook baru dan
+perlu keputusan user. Dicatat di `OPEN_ISSUES.md` WA-01.
