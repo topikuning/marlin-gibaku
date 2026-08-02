@@ -20,6 +20,7 @@ export type NodeAktif = {
   code: string;
   name: string;
   volume: number | null;
+  unitPrice: number | null;
   amount: bigint;
 };
 
@@ -40,13 +41,32 @@ export type VolumeBerubah = BarisBeda & {
 
 export type ItemHilang = BarisBeda & { realisasi: number };
 
+/**
+ * Harga satuan item KONTRAK LAMA yang berubah di file baru (DECISIONS 213).
+ *
+ * Adendum mengubah VOLUME; harga satuan item yang sudah ada di kontrak adalah
+ * harga yang sudah disepakati dan tidak boleh bergeser. Kalau bergeser, nilai
+ * kontrak berubah tanpa ada pekerjaan yang bertambah — dan itu tidak akan
+ * terlihat di kolom volume mana pun. Item BARU tidak masuk sini: harganya
+ * memang belum pernah disepakati.
+ */
+export type HargaBerubah = BarisBeda & {
+  dari: number | null;
+  ke: number | null;
+  /** Volume kontrak baru — dipakai menaksir dampak rupiahnya. */
+  volume: number | null;
+  /** (harga baru − harga lama) × volume baru, dibulatkan ke rupiah. */
+  dampakRupiah: bigint;
+};
+
 export type RingkasBeda = {
   totalAktif: bigint;
   totalBaru: bigint;
   itemBaru: BarisBeda[];
   itemHilang: ItemHilang[];
   volumeBerubah: VolumeBerubah[];
-  /** Item yang lineage-nya sama dan volumenya tidak berubah. */
+  hargaBerubah: HargaBerubah[];
+  /** Item yang lineage-nya sama, volume DAN harga satuannya tidak berubah. */
   jumlahTetap: number;
 };
 
@@ -63,6 +83,7 @@ export function bandingkanTerhadapAktif(
 
   const itemBaru: BarisBeda[] = [];
   const volumeBerubah: VolumeBerubah[] = [];
+  const hargaBerubah: HargaBerubah[] = [];
   let jumlahTetap = 0;
 
   for (const n of itemBaruList) {
@@ -73,9 +94,32 @@ export function bandingkanTerhadapAktif(
     }
     const dari = lama.volume;
     const ke = n.volume;
-    const sama = dari == null && ke == null ? true : dari != null && ke != null && Math.abs(dari - ke) < EPS;
-    if (sama) {
-      jumlahTetap++;
+    const volumeSama = dari == null && ke == null ? true : dari != null && ke != null && Math.abs(dari - ke) < EPS;
+
+    // Harga satuan diperiksa TERPISAH dari volume: item bisa volumenya tetap
+    // tapi harganya bergeser, dan itu justru yang paling mudah lolos.
+    // Toleransi 0,005 = setengah rupiah-sen; di bawah itu beda pembulatan tulis
+    // dari dokumen, bukan perubahan harga.
+    const hargaLama = lama.unitPrice;
+    const hargaBaruNilai = n.unitPrice;
+    const hargaSama =
+      hargaLama == null && hargaBaruNilai == null
+        ? true
+        : hargaLama != null && hargaBaruNilai != null && Math.abs(hargaLama - hargaBaruNilai) < 0.005;
+    if (!hargaSama) {
+      hargaBerubah.push({
+        lineageKey: n.lineageKey,
+        code: n.code,
+        name: n.name,
+        dari: hargaLama,
+        ke: hargaBaruNilai,
+        volume: ke,
+        dampakRupiah: BigInt(Math.round(((hargaBaruNilai ?? 0) - (hargaLama ?? 0)) * (ke ?? 0))),
+      });
+    }
+
+    if (volumeSama) {
+      if (hargaSama) jumlahTetap++;
       continue;
     }
     const realisasi = realisasiByLineage.get(n.lineageKey) ?? 0;
@@ -91,6 +135,12 @@ export function bandingkanTerhadapAktif(
       dibawahRealisasi: ke != null && realisasi - ke > EPS,
     });
   }
+  // Dampak rupiah terbesar disebut lebih dulu.
+  hargaBerubah.sort((a, b) => {
+    const av = a.dampakRupiah < 0n ? -a.dampakRupiah : a.dampakRupiah;
+    const bv = b.dampakRupiah < 0n ? -b.dampakRupiah : b.dampakRupiah;
+    return bv > av ? 1 : bv < av ? -1 : a.code.localeCompare(b.code, "id");
+  });
 
   const itemHilang: ItemHilang[] = [];
   for (const [key, lama] of itemAktif) {
@@ -114,6 +164,7 @@ export function bandingkanTerhadapAktif(
     itemBaru,
     itemHilang,
     volumeBerubah,
+    hargaBerubah,
     jumlahTetap,
   };
 }

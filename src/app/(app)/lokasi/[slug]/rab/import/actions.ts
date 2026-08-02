@@ -15,6 +15,7 @@ import {
 } from "@/lib/rab/import";
 import { bandingkanTerhadapAktif, type RingkasBeda } from "@/lib/rab/diff-parsed";
 import { cumulativeVolumeByLineage } from "@/lib/progress";
+import { formatNumber, formatRupiah } from "@/lib/format";
 import { isR2Configured, r2Put } from "@/lib/r2";
 
 /**
@@ -58,6 +59,16 @@ export type ImportPreview = {
     itemBaru: { code: string; name: string }[];
     itemHilang: { code: string; name: string; realisasi: number }[];
     volumeBerubah: { code: string; name: string; dari: number | null; ke: number | null; realisasi: number; dibawahRealisasi: boolean }[];
+    /** Harga satuan item KONTRAK LAMA yang bergeser (DECISIONS 213). */
+    hargaBerubah: {
+      lineageKey: string;
+      code: string;
+      name: string;
+      dari: number | null;
+      ke: number | null;
+      /** Rupiah string — BigInt tidak bisa menyeberang ke klien. */
+      dampakRupiah: string;
+    }[];
   } | null;
   /** Diisi bila file berubah setelah pratinjau — commit ditolak, pratinjau diperbarui. */
   notice?: string;
@@ -172,7 +183,15 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     if (activeRevision) {
       const aktifNodes = await db.rabNode.findMany({
         where: { revisionId: activeRevision.id },
-        select: { lineageKey: true, kind: true, code: true, name: true, volume: true, amount: true },
+        select: {
+          lineageKey: true,
+          kind: true,
+          code: true,
+          name: true,
+          volume: true,
+          unitPrice: true,
+          amount: true,
+        },
       });
       beda = bandingkanTerhadapAktif(
         aktifNodes.map((n) => ({
@@ -181,11 +200,32 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
           code: n.code,
           name: n.name,
           volume: n.volume == null ? null : Number(n.volume),
+          unitPrice: n.unitPrice == null ? null : Number(n.unitPrice),
           amount: n.amount,
         })),
         nodes,
         await cumulativeVolumeByLineage(location.id),
       );
+
+      // Harga satuan item KONTRAK LAMA yang bergeser (DECISIONS 213). Adendum
+      // mengubah volume; harga item yang sudah disepakati tidak boleh ikut
+      // bergerak. Kalau bergerak, nilai kontrak berubah TANPA ada pekerjaan
+      // yang bertambah — dan tidak satu pun kolom volume memperlihatkannya.
+      if (beda.hargaBerubah.length > 0) {
+        const naik = beda.hargaBerubah.filter((h) => h.dampakRupiah > 0n).length;
+        const dampak = beda.hargaBerubah.reduce((t, h) => t + h.dampakRupiah, 0n);
+        const harga = (v: number | null) => (v == null ? "—" : formatNumber(v));
+        const contoh = beda.hargaBerubah
+          .slice(0, 5)
+          .map((h) => `${h.code} ${h.name} (${harga(h.dari)} → ${harga(h.ke)})`);
+        warnings.push(
+          `PERHATIAN — harga satuan ${beda.hargaBerubah.length} item KONTRAK LAMA berubah di file ini ` +
+            `(${naik} naik, ${beda.hargaBerubah.length - naik} turun; dampak neto ${formatRupiah(dampak)}): ` +
+            `${contoh.join("; ")}${beda.hargaBerubah.length > contoh.length ? `; +${beda.hargaBerubah.length - contoh.length} lainnya` : ""}. ` +
+            `Adendum mengubah VOLUME — harga satuan item yang sudah ada di kontrak seharusnya tetap. ` +
+            `Angka file TIDAK diubah sendiri; pastikan pergeseran ini memang ada dasarnya sebelum melanjutkan.`,
+        );
+      }
     }
 
     const preview: ImportPreview = {
@@ -217,6 +257,14 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
               ke: b.ke,
               realisasi: b.realisasi,
               dibawahRealisasi: b.dibawahRealisasi,
+            })),
+            hargaBerubah: beda.hargaBerubah.map((b) => ({
+              lineageKey: b.lineageKey,
+              code: b.code,
+              name: b.name,
+              dari: b.dari,
+              ke: b.ke,
+              dampakRupiah: b.dampakRupiah.toString(),
             })),
           }
         : null,

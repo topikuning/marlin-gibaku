@@ -266,6 +266,39 @@ function PanelBeda({ beda }: { beda: BedaPratinjau }) {
         {beda.itemHilang.length} item hilang · {beda.jumlahTetap} tetap
       </p>
 
+      {/* Harga satuan item KONTRAK LAMA yang bergeser (DECISIONS 213). Adendum
+          mengubah volume; harga yang sudah disepakati seharusnya tetap. Ini
+          disebut terpisah karena bisa terjadi TANPA satu pun volume berubah —
+          bentuk yang paling mudah lolos dari pemeriksaan sepintas. */}
+      {beda.hargaBerubah.length > 0 ? (
+        <div className="rounded border border-danger-border bg-danger-soft px-2.5 py-2">
+          <p className="font-medium text-danger">
+            Harga satuan {beda.hargaBerubah.length} item KONTRAK LAMA berubah
+          </p>
+          <p className="mt-0.5 text-ink-muted">
+            Adendum mengubah volume — harga item yang sudah ada di kontrak seharusnya tetap. Dampak
+            neto{" "}
+            <span className="tabular font-medium">
+              {formatRupiah(Number(beda.hargaBerubah.reduce((t, h) => t + BigInt(h.dampakRupiah), 0n)))}
+            </span>{" "}
+            tanpa ada pekerjaan yang bertambah.
+          </p>
+          <ul className="mt-1 list-disc pl-4 text-ink-muted">
+            {beda.hargaBerubah.slice(0, 8).map((h) => (
+              <li key={h.lineageKey}>
+                {h.code} {h.name} — <span className="tabular">{h.dari ?? "—"}</span> →{" "}
+                <span className="tabular">{h.ke ?? "—"}</span> (
+                {Number(h.dampakRupiah) >= 0 ? "+" : "−"}
+                {formatRupiah(Math.abs(Number(h.dampakRupiah)))})
+              </li>
+            ))}
+            {beda.hargaBerubah.length > 8 ? (
+              <li>+{beda.hargaBerubah.length - 8} lainnya</li>
+            ) : null}
+          </ul>
+        </div>
+      ) : null}
+
       {/* Yang paling mahal disebut lebih dulu: pekerjaan yang SUDAH dikerjakan
           tapi tidak ada di file baru — realisasinya lepas dari RAB. */}
       {berisiko.length > 0 ? (

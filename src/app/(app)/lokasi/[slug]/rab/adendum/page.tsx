@@ -189,6 +189,28 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
       );
     }
   }
+  // Harga satuan item KONTRAK LAMA yang bergeser (DECISIONS 213). Adendum
+  // mengubah VOLUME; harga yang sudah disepakati tidak boleh ikut bergerak,
+  // karena nilai kontrak berubah tanpa ada pekerjaan yang bertambah. Editor
+  // draft memang mengunci harga item lama — peringatan ini menangkap jalur
+  // lain, terutama draft yang diisi lewat impor Excel.
+  const hargaBergeser = diff?.diubah.filter((r) => r.hargaBergeser) ?? [];
+  if (hargaBergeser.length > 0) {
+    const contoh = hargaBergeser
+      .slice(0, 5)
+      .map(
+        (r) =>
+          `${r.code} ${r.name} (${r.hargaSatuanLama != null ? rupiah.format(r.hargaSatuanLama) : "—"} → ${
+            r.hargaSatuan != null ? rupiah.format(r.hargaSatuan) : "—"
+          })`,
+      );
+    peringatan.push(
+      `Harga satuan ${hargaBergeser.length} item KONTRAK LAMA bergeser di draft ini: ` +
+        `${contoh.join("; ")}${hargaBergeser.length > contoh.length ? `; +${hargaBergeser.length - contoh.length} lainnya` : ""}. ` +
+        `Adendum mengubah volume — harga item yang sudah ada di kontrak seharusnya tetap. ` +
+        `Pastikan pergeseran ini memang ada dasarnya sebelum aktivasi.`,
+    );
+  }
   if (diff && draft.amendment) {
     const deltaInclPpn = withPpn(diff.delta, ppnPercent);
     if (deltaInclPpn !== draft.amendment.valueDelta) {
@@ -289,7 +311,7 @@ function DiffCard({ diff, activeNo, draftNo }: { diff: RevisionDiff; activeNo: n
           <p className="text-sm text-ink-muted">Belum ada perubahan terhadap revisi aktif.</p>
         ) : (
           <div className="space-y-4">
-            <DiffSection judul="Diubah (volume)" tone="warning" rows={diff.diubah} mode="ubah" />
+            <DiffSection judul="Diubah (volume / harga)" tone="warning" rows={diff.diubah} mode="ubah" />
             <DiffSection judul="Ditambah" tone="success" rows={diff.ditambah} mode="tambah" />
             <DiffSection judul="Dihapus" tone="danger" rows={diff.dihapus} mode="hapus" />
           </div>
@@ -346,8 +368,23 @@ function DiffSection({
                   <td className="px-3 py-1.5 text-right font-medium tabular-nums">
                     {r.volumeBaru != null ? volFmt.format(r.volumeBaru) : mode === "hapus" ? "—" : ""}
                   </td>
-                  <td className="px-3 py-1.5 text-right tabular-nums">
-                    {r.hargaSatuan != null ? rupiah.format(r.hargaSatuan) : ""}
+                  {/* Harga item kontrak lama yang bergeser ditulis "lama → baru"
+                      dan diberi warna bahaya: kalau hanya harga barunya yang
+                      tampil, satu-satunya jejaknya cuma kolom Δ — dan Δ terlihat
+                      sama saja seperti perubahan volume. DECISIONS 213. */}
+                  <td
+                    className={`px-3 py-1.5 text-right tabular-nums ${r.hargaBergeser ? "font-medium text-danger" : ""}`}
+                  >
+                    {r.hargaBergeser ? (
+                      <>
+                        {r.hargaSatuanLama != null ? rupiah.format(r.hargaSatuanLama) : "—"} →{" "}
+                        {r.hargaSatuan != null ? rupiah.format(r.hargaSatuan) : "—"}
+                      </>
+                    ) : r.hargaSatuan != null ? (
+                      rupiah.format(r.hargaSatuan)
+                    ) : (
+                      ""
+                    )}
                   </td>
                   <td className="px-3 py-1.5 text-right tabular-nums text-ink-muted">
                     {mode === "tambah" ? "—" : rupiah.format(r.amountLama)}

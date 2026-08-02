@@ -6452,3 +6452,47 @@ penyisiran: satu-satunya pembaca adalah Prisma Client hasil generate).
 **Verifikasi**: uji unit baru memakai angka nyata dari RAB Wonorejo
 (4852,122 × 8.465,19 → dokumen 41.074.131, hasil kali 41.074.135) — ekspor
 wajib menulis 41.074.131 · unit 728 ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 213 — Harga satuan item kontrak lama terkunci; bergeser = peringatan, bukan diam (2026-08-02)
+
+**Koreksi user**: "item yang sudah ada sebelum adendum, harga satuannya tidak
+boleh berubah, harus ada warning jika terjadi. berbeda dengan item baru."
+Sekaligus mengoreksi kalimatku sebelumnya bahwa "harga satuan bisa berubah oleh
+adendum" — itu salah. Adendum mengubah **volume**; harga satuan item yang sudah
+disepakati tetap.
+
+Editor draft memang sudah mengunci (`updateDraftNewItemFields` menolak edit
+harga/identitas item yang lineage-nya ada di revisi aktif). Yang tidak terjaga
+adalah **jalur impor Excel ke draft** — dan justru itu jalur yang dipakai untuk
+adendum nyata. Diagnosis lebih buruk lagi: kedua pembanding tidak melihat harga
+sama sekali. `bandingkanTerhadapAktif` hanya membandingkan volume dan nilai;
+`diffRevisions` menandai "diubah" dari volume/amount saja dan hanya menampilkan
+harga BARU. Jadi harga item lama yang bergeser **tanpa** volume berubah lolos
+sepenuhnya: yang tampak hanya "Jumlah berubah", persis seperti perubahan volume.
+
+**Keputusan** — dibandingkan, ditandai, TIDAK dibetulkan sendiri (DECISIONS 203):
+
+- `RingkasBeda.hargaBerubah` — hanya item yang ADA di RAB aktif; per item dicatat
+  harga lama → baru dan dampak rupiahnya `(harga baru − harga lama) × volume
+  baru`. Item baru tidak masuk: harganya memang belum pernah disepakati.
+- Toleransi 0,005 (setengah rupiah-sen) — di bawah itu beda pembulatan tulis
+  dari dokumen, bukan perubahan harga.
+- `jumlahTetap` sekarang berarti volume DAN harga tetap. Sebelumnya item yang
+  harganya bergeser ikut terhitung "aman".
+- Pratinjau impor: blok merah tersendiri + baris `warnings`, memuat dampak neto
+  dan daftar itemnya. Disebut terpisah dari "volume berubah" karena bisa terjadi
+  tanpa satu pun volume bergerak.
+- `DiffItem.hargaSatuanLama` + `hargaBergeser`; halaman adendum menulis kolom
+  harga sebagai "lama → baru" berwarna bahaya, judul bagian jadi "Diubah (volume
+  / harga)", dan peringatannya ikut ke dialog konfirmasi aktivasi.
+
+**Laporan atas usulan adendum = laporan sampingan/internal** (penegasan user).
+Kartu di halaman Progress diberi judul "Pantauan internal — progres atas usulan
+adendum" supaya perannya tidak terbaca sebagai laporan resmi.
+
+**Verifikasi**: 4 kasus unit baru — terdeteksi walau volume sama persis (bentuk
+yang paling mudah lolos), item baru tidak ikut ditandai, beda pembulatan di
+bawah setengah sen bukan perubahan harga, urutan menurut dampak rupiah ·
+typecheck ✓ · lint ✓ · unit 732 ✓.

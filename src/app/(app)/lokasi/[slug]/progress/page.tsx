@@ -190,8 +190,8 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
       {draftProg ? (
         <Card>
           <CardHeader
-            title={`Progres seandainya adendum disetujui — draft revisi #${draftProg.revisionNo}`}
-            subtitle="BUKAN angka resmi. Termin, kurva-S, dan blanko KKP tetap memakai RAB kontrak yang berlaku."
+            title={`Pantauan internal — progres atas usulan adendum (draft revisi #${draftProg.revisionNo})`}
+            subtitle="Laporan sampingan untuk kebutuhan internal. BUKAN angka resmi: termin, kurva-S, laporan periodik, dan blanko KKP tetap memakai RAB kontrak yang berlaku."
             action={
               <Link
                 href={`/lokasi/${slug}/rab/adendum`}
