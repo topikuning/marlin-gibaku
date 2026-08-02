@@ -280,3 +280,41 @@ describe("dokumen resmi lain juga tidak ikut bergerak", () => {
     expect(resmi.realizedPct).toBeCloseTo(40, 1);
   });
 });
+
+// Blanko harian KKP = DOKUMEN RESMI (DECISIONS 215).
+//
+// Laporan user 2026-08-02: "aku input item yang di draft, tapi muncul di blanko
+// harian kkp". Penyaringan basis sebelumnya hanya menyentuh angka AGREGAT
+// (progres, kurva-S, laporan periodik); dokumen harian menampilkan baris
+// laporan apa adanya, jadi pekerjaan yang belum punya dasar kontrak tercetak
+// di blanko seolah sudah sah.
+describe("KASUS INTI: baris basis draft tidak tercetak di blanko harian KKP", () => {
+  it("item basis draft tidak muncul, dan jumlahnya DISEBUT (bukan hilang diam-diam)", async () => {
+    const { getKkpDailyData } = await import("@/lib/daily-report/queries");
+    const loc = await db.location.findUniqueOrThrow({
+      where: { id: locationId },
+      select: { slug: true },
+    });
+    await db.dailyReport.update({ where: { id: reportId }, data: { status: "dikirim" } });
+
+    const d = await getKkpDailyData(loc.slug, "2026-08-01");
+    expect(d).not.toBeNull();
+    // Dua baris di laporan itu, dua-duanya basis draft.
+    expect(d!.items).toHaveLength(0);
+    expect(d!.draftItemCount).toBe(2);
+  });
+
+  it("laporan basis aktif tetap tercetak, lengkap dengan bangunan/kategorinya", async () => {
+    const { getKkpDailyData } = await import("@/lib/daily-report/queries");
+    const loc = await db.location.findUniqueOrThrow({
+      where: { id: locationId },
+      select: { slug: true },
+    });
+    const d = await getKkpDailyData(loc.slug, "2026-08-02");
+    expect(d!.items.map((i) => i.name)).toEqual(["Pekerjaan 1"]);
+    expect(d!.draftItemCount).toBe(0);
+    // Kategori diturunkan dari akar lineageKey ("I#1" → "I") — DECISIONS 214.
+    expect(d!.items[0].categoryName).toBe("PEKERJAAN PERSIAPAN");
+    expect(d!.items[0].categoryCode).toBe("I");
+  });
+});

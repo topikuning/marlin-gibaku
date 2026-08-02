@@ -513,6 +513,13 @@ export type FinalSnapshot = {
     valueDone: string; // BigInt rupiah sebagai string
     notes: string | null;
   }[];
+  /**
+   * Berapa baris laporan hari itu yang basisnya DRAFT ADENDUM dan karena itu
+   * TIDAK ikut `items` (DECISIONS 215). Opsional: snapshot yang dibekukan
+   * sebelum aturan ini ada tidak punya field ini — pembacanya menghitung ulang
+   * dari baris laporan yang masih tersimpan, jadi laporan lama tetap benar.
+   */
+  itemsDraftAdendum?: number;
   totalValueToday: string;
   progress: {
     grandTotal: string;
@@ -581,8 +588,15 @@ export async function buildFinalSnapshot(reportId: string): Promise<FinalSnapsho
     ? Math.max(1, Math.floor((report.reportDate.getTime() - startDate.getTime()) / (7 * 86_400_000)) + 1)
     : null;
 
+  // Blanko harian KKP adalah DOKUMEN RESMI ⇒ hanya baris basis aktif
+  // (DECISIONS 215). Pekerjaan yang dilaporkan atas usulan adendum belum punya
+  // dasar kontrak; mencetaknya di blanko sama saja menyatakan ia sudah sah.
+  // Jumlahnya tetap dicatat supaya penghilangannya TIDAK diam-diam.
+  const itemsAktif = report.items.filter((it) => it.basis === "aktif");
+  const itemsDraftAdendum = report.items.length - itemsAktif.length;
+
   let totalValueToday = 0n;
-  const items = report.items.map((it) => {
+  const items = itemsAktif.map((it) => {
     const volumeToday = Number(it.volumeDone);
     const volumeCumulative = cumulative.get(it.lineageKey) ?? volumeToday;
     const volumeContract = it.rabNode.volume != null ? Number(it.rabNode.volume) : null;
@@ -625,6 +639,7 @@ export async function buildFinalSnapshot(reportId: string): Promise<FinalSnapsho
     workEnd: report.workEnd,
     notes: report.notes,
     items,
+    itemsDraftAdendum,
     totalValueToday: totalValueToday.toString(),
     progress: {
       grandTotal: progress.grandTotal.toString(),

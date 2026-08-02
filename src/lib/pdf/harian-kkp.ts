@@ -305,6 +305,24 @@ export async function buildHarianKkpPdf(d: KkpDailyData, appName: string, logo?:
   }
   y = rry;
 
+  /* ── Baris basis draft adendum yang TIDAK dicetak (DECISIONS 215) ─────
+     Disebut, bukan dihilangkan diam-diam: tanpa baris ini pekerjaan yang
+     dilaporkan mandor seolah lenyap dan orang mengira datanya hilang. */
+  if ((d.draftItemCount ?? 0) > 0) {
+    const nota: GridOptions = { x, width, cols: [width], fontSize: 6 };
+    draw(
+      [
+        {
+          text:
+            `${d.draftItemCount} pekerjaan hari ini dilaporkan atas usulan adendum yang belum disetujui ` +
+            `sehingga tidak dicetak di blanko ini — belum ada dasar kontraknya. ` +
+            `Rinciannya ada di pantauan internal MARLIN.`,
+        },
+      ],
+      nota,
+    );
+  }
+
   /* ── Catatan (data sistem, di luar blanko) & tanda tangan ──────────── */
   const catatan: GridOptions = { x, width, cols: [width], fontSize: 7 };
   fit(14 + 34 + 70);

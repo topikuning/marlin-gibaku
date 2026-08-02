@@ -69,6 +69,13 @@ export type KkpDailyData = {
   /** false = pratinjau dari data live (belum dibekukan finalSnapshot). */
   isFinal: boolean;
   /**
+   * Berapa baris laporan hari itu yang basisnya DRAFT ADENDUM dan karena itu
+   * TIDAK dicetak di blanko (DECISIONS 215). Blanko harian KKP adalah dokumen
+   * resmi; pekerjaan atas usulan adendum belum punya dasar kontrak. Angkanya
+   * tetap disebut supaya penghilangannya tidak diam-diam.
+   */
+  draftItemCount?: number;
+  /**
    * Rencana kerja hari ini — pecahan rencana mingguan menurut alur & metode
    * kerja (DECISIONS 163). Kosong bila minggu itu belum punya rencana.
    */
@@ -344,6 +351,18 @@ export function KkpDailyReport({ d }: { d: KkpDailyData }) {
           ))}
         </tbody>
       </table>
+
+      {/* Baris basis draft adendum TIDAK dicetak di blanko resmi, tapi
+          keberadaannya disebut — kalau tidak, pekerjaan yang dilaporkan mandor
+          seolah hilang tanpa jejak dan orang akan mengira sistemnya kehilangan
+          data. DECISIONS 215. */}
+      {(d.draftItemCount ?? 0) > 0 ? (
+        <div className="border-x border-b border-slate-500 px-1.5 py-1 text-[8px] leading-tight text-slate-600 italic">
+          {d.draftItemCount} pekerjaan hari ini dilaporkan atas usulan adendum yang belum disetujui
+          sehingga tidak dicetak di blanko ini — belum ada dasar kontraknya. Rinciannya ada di
+          pantauan internal MARLIN.
+        </div>
+      ) : null}
 
       {/* ── Catatan (data sistem; tetap dipertahankan) ───────────────────── */}
       <table className="w-full border-x border-b border-slate-500">

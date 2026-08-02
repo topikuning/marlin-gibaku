@@ -6531,3 +6531,39 @@ Satu sumber untuk dua penyaji: `barisRealisasiKkp()` dipakai komponen blanko
 isi dari pratinjau.
 
 **Verifikasi**: typecheck ✓ · lint ✓ · unit 732 ✓.
+
+---
+
+## 215 — Baris basis draft adendum TIDAK dicetak di blanko harian KKP (2026-08-02)
+
+**Laporan user**: "aku input item yang di draft adendum, tapi muncul di blanko
+harian kkp."
+
+Penyaringan basis di DECISIONS 210/211 semuanya menyentuh angka **agregat** —
+progres, kurva-S, laporan periodik, guard volume. Blanko harian tidak
+menghitung agregat apa pun: ia menyalin baris laporan apa adanya. Jadi
+pekerjaan yang dilaporkan atas usulan adendum tercetak di dokumen resmi seolah
+sudah sah, dan `buildFinalSnapshot` ikut membekukannya ke dalam laporan final.
+
+**Keputusan**: blanko harian KKP hanya memuat baris basis `aktif`.
+
+Yang TIDAK boleh terjadi adalah baris itu lenyap tanpa jejak — pelapor akan
+mengira sistemnya kehilangan data. Karena itu jumlahnya disebut di bawah tabel
+realisasi, di blanko layar maupun PDF: "N pekerjaan hari ini dilaporkan atas
+usulan adendum yang belum disetujui sehingga tidak dicetak di blanko ini —
+belum ada dasar kontraknya."
+
+**Laporan yang terlanjur final** dibersihkan tanpa bangun ulang snapshot:
+lineageKey baris basis draft dibaca dari `DailyReportItem` yang masih tersimpan,
+lalu dipakai menyaring `snapshot.items`. Snapshot baru menyimpan
+`itemsDraftAdendum` langsung; snapshot lama menghitungnya dari selisih baris
+yang tersaring. `totalValueToday` pada snapshot baru juga hanya menjumlah basis
+aktif.
+
+Ekspor Excel harian ikut bersih tanpa perubahan: ia menerima `KkpDailyData`
+yang sudah tersaring.
+
+**Verifikasi**: 2 kasus integrasi baru — laporan yang semua barisnya basis draft
+menghasilkan blanko dengan nol item dan `draftItemCount = 2`; laporan basis
+aktif tetap tercetak lengkap dengan bangunan/kategorinya · typecheck ✓ · lint ✓
+· unit 732 ✓.

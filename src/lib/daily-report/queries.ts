@@ -629,15 +629,28 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
   // label, bukan angka — jadi tidak melanggar keimutabelan angka snapshot.
   const kategoriByRoot = await kategoriLookup(location.id);
 
+  // Baris laporan yang basisnya DRAFT ADENDUM (DECISIONS 215). Blanko harian
+  // KKP adalah dokumen resmi — pekerjaan atas usulan adendum belum punya dasar
+  // kontrak, jadi tidak boleh ikut tercetak di sana. Dihitung dari baris
+  // laporan yang MASIH tersimpan, bukan dari snapshot: laporan yang terlanjur
+  // final SEBELUM aturan ini ada sudah membekukan baris draft ke dalam
+  // snapshot-nya, dan cara ini membersihkannya tanpa perlu bangun ulang.
+  const lineageDraft = new Set(
+    (report?.items ?? []).filter((it) => it.basis !== "aktif").map((it) => it.lineageKey),
+  );
+
   if (report?.status === "final" && report.finalSnapshot) {
     const snap = report.finalSnapshot as unknown as FinalSnapshot;
     const base = snapshotToKkp(snap);
+    const dipakai = base.items
+      .map((it, i) => ({ it, lineageKey: snap.items[i]?.lineageKey ?? null }))
+      .filter((r) => !(r.lineageKey != null && lineageDraft.has(r.lineageKey)));
     return {
       ...base,
-      items: base.items.map((it, i) => ({
-        ...it,
-        ...kategoriByRoot(snap.items[i]?.lineageKey ?? null),
-      })),
+      items: dipakai.map((r) => ({ ...r.it, ...kategoriByRoot(r.lineageKey) })),
+      // Snapshot baru sudah menyimpan angkanya; snapshot lama dihitung dari
+      // selisih baris yang disaring di sini.
+      draftItemCount: snap.itemsDraftAdendum ?? base.items.length - dipakai.length,
       ...signatories,
       ...owner,
       rencana,
@@ -682,7 +695,8 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
       qty: m.qtyReceived != null ? Number(m.qtyReceived) : null,
     })),
     equipment: (report?.equipment ?? []).map((e) => ({ name: e.name, count: e.count })),
-    items: (report?.items ?? []).map((it) => {
+    draftItemCount: lineageDraft.size,
+    items: (report?.items ?? []).filter((it) => it.basis === "aktif").map((it) => {
       const volumeToday = Number(it.volumeDone);
       const base = cumulative.get(it.lineageKey) ?? 0;
       const volumeCumulative = Math.round((counted ? base : base + volumeToday) * 1000) / 1000;
