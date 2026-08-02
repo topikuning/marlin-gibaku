@@ -384,10 +384,14 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
  * diganti ikon + wordmark rakitan sendiri. Sekarang tata letaknya — posisi
  * ikon, ukuran wordmark, dua baris tagline — diambil persis dari berkas itu.
  *
- * PLAT GELAP DIPERTAHANKAN. Lockup ini dirancang untuk latar gelap: wordmark
- * putih dan tagline abu-muda akan lenyap di atas foto siang hari. Plat #08152E
- * itulah yang membuatnya terbaca di foto apa pun — menghapusnya berarti
- * mengembalikan masalah yang justru diselesaikan desainnya.
+ * TANPA PLAT — permintaan user 2026-08-02: "yang aku harapkan itu area
+ * background biru itu jadi transparant". Blok pekat di sudut foto memang
+ * menutup bukti, dan cap seharusnya menumpang di atas foto, bukan menutupinya.
+ *
+ * Gantinya bukan sekadar menghapus `<rect>`: tinta putih di atas foto siang
+ * lenyap. `lockupSvgInner` dengan `plat: false` memberi halo gelap tipis di
+ * sekeliling setiap bentuk dan menaikkan tagline dari abu-muda ke putih —
+ * teknik yang sama dipakai seluruh teks cap lain di berkas ini.
  *
  * Lebar 26% sisi terpanjang: cukup besar agar tagline 48px (skala penuh) masih
  * terbaca setelah diperkecil, tanpa memakan sudut foto yang dibutuhkan bukti.
@@ -395,7 +399,7 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
 function marlinLogo(rightX: number, topY: number, lebar: number, fontTeks: string): string {
   // Wordmark pakai font display "ML"; tagline pakai font teks cap — font display
   // adalah SUBSET tanpa huruf kecil (lihat catatan di `lockupSvgInner`).
-  return lockupSvgInner(rightX - lebar, topY, lebar, "ML", fontTeks);
+  return lockupSvgInner(rightX - lebar, topY, lebar, "ML", fontTeks, { plat: false });
 }
 
 /** Puncak alpha gradient dari mode overlay (+ luminance area bawah utk mode auto). */

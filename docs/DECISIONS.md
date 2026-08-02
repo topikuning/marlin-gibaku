@@ -7062,12 +7062,22 @@ dan tagline `#94A3B8`. Yang lebih baru adalah yang dikirim belakangan;
 menyelaraskan diam-diam ke palet lama berarti mengembalikan revisi yang sudah
 diputuskan user.
 
-### Plat gelap DIPERTAHANKAN
+### Plat gelap DIBUANG di cap foto — koreksi dalam sesi yang sama
 
-Lockup ini dirancang untuk latar gelap: wordmark putih dan tagline abu-muda
-lenyap di atas foto siang hari. Plat `#08152E` itulah yang membuatnya terbaca di
-foto apa pun — menghapusnya berarti mengembalikan masalah yang justru
-diselesaikan desainnya.
+Awalnya plat `#08152E` dipertahankan dengan alasan wordmark putih dan tagline
+abu-muda lenyap di atas foto siang. User menolak: *"hasil stampmu konyol, yang
+aku harapkan itu area background biru itu jadi transparant, kenapa kamu malah
+biarkan itu blok seperti itu"*. Benar — blok pekat di sudut foto menutup bukti,
+dan cap seharusnya menumpang di atas foto, bukan menutupinya.
+
+Masalah keterbacaan itu nyata, tapi plat bukan satu-satunya jawabannya. Yang
+dipakai sekarang teknik yang sudah dipakai SELURUH teks cap lain: halo gelap
+tipis di sekeliling tiap bentuk (`paint-order="stroke"`, `#08152E` @0,6) plus
+tagline dinaikkan dari `#94A3B8` ke putih. Diperiksa pada tiga latar — langit
+terang, beton abu, bayangan gelap — ketiganya terbaca.
+
+`lockupSvgInner` tetap punya varian **berplat** untuk penyaji latar gelap yang
+bukan foto; yang tanpa plat khusus cap.
 
 ### Dua keluarga font — jebakan subset
 
@@ -7109,11 +7119,46 @@ pertama menarik pdfkit + font-nya sekali, dan di runner sibuk impor dingin itu
 saja bisa lewat. Batasnya dinaikkan ke 30 detik — uji yang kadang merah
 mengajari orang mengabaikan merah.
 
-**Verifikasi**: 13 kasus unit (naik dari 6) — tata letak lockup dibandingkan
+**Verifikasi**: 16 kasus unit (naik dari 6) — tata letak lockup dibandingkan
 langsung dengan berkas resmi, kedua baris tagline tercap, warna revisi apa
-adanya, plat gelap ada, wordmark/tagline memakai keluarga font berbeda, berat
-tagline 700, panel berhenti sebelum lockup pada 3 rasio foto, nama panjang
-dipotong elipsis, lockup tidak melewati tepi kanan · raster nyata lanskap
-1600×1200 & potret 1080×1440 diperiksa mata (glyph tagline utuh, tanpa kotak
-kosong) · `pnpm vitest run tests/unit` 768/768 ✓ · `pnpm build` ✓ · typecheck ✓ ·
-lint ✓.
+adanya, plat TIDAK ikut tercap, halo ada di wordmark/tagline/huruf M, tagline
+putih (bukan abu), varian berplat masih utuh untuk penyaji non-foto,
+wordmark/tagline memakai keluarga font berbeda, berat tagline 700, panel berhenti
+sebelum lockup pada 3 rasio foto, nama panjang dipotong elipsis, lockup tidak
+melewati tepi kanan · raster nyata diperiksa mata: lanskap 1600×1200, potret
+1080×1440, dan lockup di atas tiga latar (terang/abu/gelap) — glyph tagline utuh
+tanpa kotak kosong, terbaca di ketiganya · `pnpm vitest run tests/unit` 771/771 ✓
+· `pnpm build` ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 225 — Saklar "foto galeri tanpa GPS →" dibuang (2026-08-02)
+
+**Konteks**: user melihat sisa saklar `Foto galeri tanpa GPS → [pakai titik
+lokasi proyek ▾]` di bawah tombol Kamera/Galeri dan bertanya: *"dengan alur yang
+sudah kita bahas tadi, apakah ini masih relevan?"*
+
+**Tidak.** Saklar itu dibuat SEBELUM ada konfirmasi "kamu sedang berada di lokasi
+proyek?" (DECISIONS 220). Sesudah pertanyaan itu ada, seluruh rantai koordinat
+sudah ditentukan jawaban pelapor:
+
+- Jawab **YA** → EXIF foto → posisi perangkat sekarang → titik lokasi proyek.
+- Jawab **TIDAK** → EXIF foto → titik lokasi proyek (posisi perangkat tidak
+  dikirim sama sekali; menandai foto dengan posisi kantor lebih buruk daripada
+  tidak menandai).
+
+Saklar itu jadi tempat **kedua** untuk menjawab hal yang sama, dan ia bisa
+membatalkan jawaban yang baru saja diberikan. Lebih buruk lagi nilai bawaannya
+— "pakai titik lokasi proyek" — justru perilaku yang sedang diperbaiki
+(*"kebanyakan foto ditag dengan lokasi default"*). Ia juga tampil terus-menerus,
+termasuk saat memakai Kamera, di mana ia tidak berpengaruh apa pun.
+
+Saklar yang bisa membatalkan jawaban barusan bukan keluwesan, itu jebakan.
+
+Gantinya satu kalimat yang muncul **sesudah** dijawab, menyebutkan koordinat mana
+yang akan menempel di foto. Langkah terakhir tetap titik lokasi proyek sesuai
+yang diminta user, selalu ber-penanda `gpsSource = project` sehingga tidak pernah
+terhitung sebagai bukti GPS (DECISIONS 197).
+
+Sisi server tidak berubah: `galleryFallback` masih diterima (kegiatan lapangan
+memakainya) dan defaultnya "project".

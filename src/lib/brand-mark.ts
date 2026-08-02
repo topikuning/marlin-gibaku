@@ -112,6 +112,19 @@ export function lockupSvgInner(
 ): string {
   const s = width / LOCKUP_W;
   const wTag = opts.beratTagline ?? 700;
+  const tanpaPlat = opts.plat === false;
+
+  // TANPA PLAT: tinta putih di atas foto apa pun. Yang menggantikan plat adalah
+  // halo gelap tipis di sekeliling setiap bentuk (`paint-order="stroke"`), plus
+  // tagline dinaikkan dari abu #94A3B8 ke putih — abu-muda di atas langit siang
+  // sama saja dengan tidak ada. Halo bukan hiasan: satu warna solid tanpa
+  // outline LENYAP begitu latarnya kebetulan seterang tinta.
+  const halo = (size: number) =>
+    tanpaPlat
+      ? ` paint-order="stroke" stroke="${BRAND_COLORS.latarGelap}" stroke-opacity="0.6" stroke-width="${Math.max(1, size * 0.11).toFixed(1)}" stroke-linejoin="round"`
+      : "";
+  const fillTagline = tanpaPlat ? "#FFFFFF" : LOCKUP_TAGLINE;
+
   const t = (
     tx: number,
     ty: number,
@@ -122,23 +135,23 @@ export function lockupSvgInner(
     teks: string,
     keluarga: string,
   ) =>
-    `<text x="${tx}" y="${ty}" text-anchor="middle" font-family="${keluarga}" font-size="${size}" font-weight="${weight}" letter-spacing="${tracking}" fill="${fill}">${teks}</text>`;
+    `<text x="${tx}" y="${ty}" text-anchor="middle" font-family="${keluarga}" font-size="${size}" font-weight="${weight}" letter-spacing="${tracking}"${halo(size)} fill="${fill}">${teks}</text>`;
 
   return (
     `<g transform="translate(${x},${y}) scale(${s.toFixed(5)})">` +
-    (opts.plat === false
+    (tanpaPlat
       ? ""
       : `<rect width="${LOCKUP_W}" height="${LOCKUP_H}" fill="${BRAND_COLORS.latarGelap}"/>`) +
     `<g transform="translate(70,110) scale(4.1)">` +
-    `<path d="${PATH_M}" fill="#FFFFFF"/>` +
-    `<path d="${PATH_KURVA}" fill="none" stroke="${BRAND_COLORS.latarGelap}" stroke-width="11" stroke-linecap="round"/>` +
+    `<path d="${PATH_M}" fill="#FFFFFF"${tanpaPlat ? ` paint-order="stroke" stroke="${BRAND_COLORS.latarGelap}" stroke-opacity="0.6" stroke-width="6" stroke-linejoin="round"` : ""}/>` +
+    `<path d="${PATH_KURVA}" fill="none" stroke="${BRAND_COLORS.latarGelap}" stroke-width="11" stroke-linecap="round"${tanpaPlat ? ' stroke-opacity="0.6"' : ""}/>` +
     `<path d="${PATH_KURVA}" fill="none" stroke="${LOCKUP_MERAH}" stroke-width="5.5" stroke-linecap="round"/>` +
-    `<circle cx="88" cy="18" r="7.5" fill="${BRAND_COLORS.latarGelap}"/>` +
+    `<circle cx="88" cy="18" r="7.5" fill="${BRAND_COLORS.latarGelap}"${tanpaPlat ? ' fill-opacity="0.6"' : ""}/>` +
     `<circle cx="88" cy="18" r="4.5" fill="${LOCKUP_MERAH}"/>` +
     `</g>` +
     t(1140, 248, 176, 800, "#FFFFFF", 2, "MARLIN", fontWordmark) +
-    t(1140, 405, 48, wTag, LOCKUP_TAGLINE, 0.1, "Monitoring, Analysis, Reporting &amp; Learning", fontTagline) +
-    t(1140, 480, 48, wTag, LOCKUP_TAGLINE, 0.1, "for Infrastructure Network", fontTagline) +
+    t(1140, 405, 48, wTag, fillTagline, 0.1, "Monitoring, Analysis, Reporting &amp; Learning", fontTagline) +
+    t(1140, 480, 48, wTag, fillTagline, 0.1, "for Infrastructure Network", fontTagline) +
     `</g>`
   );
 }

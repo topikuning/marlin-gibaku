@@ -2,17 +2,23 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, Images, MapPin, MapPinOff } from "lucide-react";
-import { Combobox } from "@/components/ui";
 import { catatIzinPerangkat } from "@/lib/device-permission";
 
 /**
  * Input foto sadar-sumber (Kamera vs Galeri) untuk kontrol tagging lokasi:
  * - Kamera → merekam GPS real-time perangkat + waktu sekarang (foto baru di lokasi).
- * - Galeri → server MENGUTAMAKAN EXIF asli foto; bila tak ada GPS di EXIF, pakai
- *   cadangan `galleryFallback` ("project" = titik lokasi proyek, "none" = tanpa tag).
- *   GPS perangkat saat upload TIDAK dikirim untuk galeri (hindari salah tag saat batch).
+ * - Galeri → pelapor ditanya dulu "sedang di lokasi proyek?" (DECISIONS 220);
+ *   urutan koordinatnya EXIF foto → posisi perangkat (hanya bila menjawab YA) →
+ *   titik lokasi proyek. Langkah terakhir selalu ber-penanda `gpsSource=project`
+ *   sehingga tidak pernah terhitung sebagai bukti GPS (DECISIONS 197).
  *
- * Mengirim hidden field: photoSource, galleryFallback, photoTakenAt, dan koordinat
+ * TIDAK ADA SAKLAR "foto galeri tanpa GPS → …". Dulu ada, dan itu keliru: sesudah
+ * pertanyaan di atas ada, seluruh rantainya sudah ditentukan jawaban pelapor —
+ * saklar itu jadi tempat KEDUA untuk menjawab hal yang sama, dan nilai bawaannya
+ * ("pakai titik lokasi proyek") justru perilaku yang sedang diperbaiki. Saklar
+ * yang bisa membatalkan jawaban barusan bukan keluwesan, itu jebakan.
+ *
+ * Mengirim hidden field: photoSource, galleryAtSite, photoTakenAt, dan koordinat
  * perangkat (nama field bisa diatur via latName/lngName). Dua input file berbagi
  * name "photos"; input yang tak dipakai dikosongkan saat memilih.
  *
@@ -47,7 +53,6 @@ export function PhotoSourceInput({
   const latRef = useRef<HTMLInputElement>(null);
   const lngRef = useRef<HTMLInputElement>(null);
   const [source, setSource] = useState<"camera" | "gallery">("camera");
-  const [fallback, setFallback] = useState<"project" | "none">("project");
   const [takenAt, setTakenAt] = useState("");
   const [previews, setPreviews] = useState<string[]>([]);
   // "unknown" = belum diperiksa. Nilai awal sengaja BUKAN "prompt": menebak
@@ -206,7 +211,6 @@ export function PhotoSourceInput({
   return (
     <div className="space-y-2">
       <input type="hidden" name="photoSource" value={source} />
-      <input type="hidden" name="galleryFallback" value={fallback} />
       <input type="hidden" name="galleryAtSite" value={diLokasi === true ? "1" : ""} />
       <input type="hidden" name="photoTakenAt" value={takenAt} />
       <input ref={latRef} type="hidden" name={latName} defaultValue="" />
@@ -311,19 +315,16 @@ export function PhotoSourceInput({
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
-        <span>Foto galeri tanpa GPS →</span>
-        <div className="w-56">
-          <Combobox
-            value={fallback}
-            onChange={(val) => setFallback(val === "none" ? "none" : "project")}
-            options={[
-              { value: "project", label: "pakai titik lokasi proyek" },
-              { value: "none", label: "tanpa tag lokasi" },
-            ]}
-          />
-        </div>
-      </div>
+      {/* Hasil jawaban, disebut SESUDAH dijawab — bukan saklar yang bisa
+          membatalkannya. Yang perlu diketahui pelapor cuma satu: koordinat mana
+          yang akan menempel di fotonya. */}
+      {source === "gallery" && diLokasi !== null ? (
+        <p className="text-xs text-ink-muted">
+          {diLokasi
+            ? "Foto galeri: GPS di foto dipakai lebih dulu; kalau tidak ada, posisimu sekarang."
+            : "Foto galeri: GPS di foto dipakai lebih dulu; kalau tidak ada, dicap titik lokasi proyek dan ditandai bukan bukti GPS."}
+        </p>
+      ) : null}
 
       {!compact && previews.length > 0 ? (
         <div className="flex flex-wrap gap-2">

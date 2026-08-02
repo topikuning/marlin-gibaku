@@ -77,12 +77,42 @@ describe("KASUS INTI: cap foto memakai lockup resmi, bukan gambar tangan", () =>
     const s = lockupSvgInner(0, 0, 900, "ML", FONT_TEKS);
     expect(BERKAS).toContain("#EF2330");
     expect(s).toContain("#EF2330"); // merah revisi, sengaja beda dari BRAND_COLORS.merah
-    expect(s).toContain("#94A3B8"); // abu tagline
+    expect(s).toContain("#94A3B8"); // abu tagline (varian berplat)
     expect(BRAND_COLORS.merah).not.toBe("#EF2330");
   });
+});
 
-  it("plat gelap dipertahankan — tanpa itu wordmark putih lenyap di foto siang", () => {
-    expect(svg()).toContain(`<rect width="1800" height="640" fill="${BRAND_COLORS.latarGelap}"/>`);
+describe("KASUS INTI: di foto, lockup TRANSPARAN", () => {
+  // Permintaan user 2026-08-02: "area background biru itu jadi transparant".
+  // Blok pekat di sudut foto menutup bukti — cap menumpang di atas foto, bukan
+  // menutupinya.
+  it("plat gelap TIDAK ikut tercap", () => {
+    expect(svg()).not.toContain(`<rect width="1800" height="640"`);
+  });
+
+  it("gantinya halo gelap di setiap bentuk — tanpa itu tinta putih lenyap di foto siang", () => {
+    const s = svg();
+    // Wordmark & kedua baris tagline ber-halo.
+    for (const baris of ["MARLIN", "Monitoring", "for Infrastructure"]) {
+      const tag = new RegExp(`<text[^>]*>${baris}`).exec(s)?.[0] ?? "";
+      expect(tag, baris).toContain('paint-order="stroke"');
+      expect(tag, baris).toContain(BRAND_COLORS.latarGelap);
+    }
+    // Huruf M ikon juga — putih polos di atas beton putih = tidak terlihat.
+    expect(s).toContain(`<path d="${PATH_M}" fill="#FFFFFF" paint-order="stroke"`);
+  });
+
+  it("tagline dinaikkan ke putih; abu-muda di atas langit siang sama saja tidak ada", () => {
+    const s = svg();
+    const tag = /<text[^>]*>Monitoring/.exec(s)?.[0] ?? "";
+    expect(tag).toContain('fill="#FFFFFF"');
+    expect(tag).not.toContain("#94A3B8");
+  });
+
+  it("varian berplat masih ada untuk penyaji latar gelap (bukan foto)", () => {
+    const s = lockupSvgInner(0, 0, 900, "ML", FONT_TEKS);
+    expect(s).toContain(`<rect width="1800" height="640" fill="${BRAND_COLORS.latarGelap}"/>`);
+    expect(s).not.toContain('paint-order="stroke"');
   });
 });
 
