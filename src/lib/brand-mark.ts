@@ -64,3 +64,81 @@ export function markSvgInner(
     `</g>`
   );
 }
+
+/* ── Lockup ringkas latar gelap ─────────────────────────────────────────────
+ * Berkas resmi: `public/brand/marlin-lockup-compact-dark.svg` (user 2026-08-02,
+ * revisi kedua). Ikon + wordmark + tagline dua baris di atas plat #08152E,
+ * viewBox 1800×640.
+ *
+ * Revisi ini memakai merah #EF2330 (lebih terang dari #D21F2A di paket pertama)
+ * dan tagline #94A3B8. Nilainya diambil apa adanya dari berkas — bukan
+ * diselaraskan diam-diam ke palet lama, karena yang lebih baru adalah yang
+ * dikirim belakangan. DECISIONS 224.
+ */
+
+export const LOCKUP_W = 1800;
+export const LOCKUP_H = 640;
+/** Merah pada revisi lockup ringkas — sengaja beda dari BRAND_COLORS.merah. */
+const LOCKUP_MERAH = "#EF2330";
+const LOCKUP_TAGLINE = "#94A3B8";
+
+/**
+ * Rakit lockup ringkas pada lebar tertentu (tinggi mengikuti rasio 1800:640).
+ *
+ * DUA keluarga font, bukan satu — dan ini bukan pilihan gaya:
+ * - `fontWordmark` = font display yang dibenamkan cap ("ML"/Montserrat). Font
+ *   itu SUBSET, isinya hanya huruf yang dulu dibutuhkan wordmark; ia tidak
+ *   punya huruf kecil sama sekali.
+ * - `fontTagline` = font teks cap (huruf lengkap). Tagline penuh huruf kecil,
+ *   koma, dan "&" — dirender dengan font wordmark ia akan keluar sebagai kotak
+ *   kosong, dan cacat itu baru ketahuan setelah ribuan foto tercap.
+ *
+ * Berkas aslinya menyebut "Inter"; nama itu TIDAK diteruskan karena server
+ * peraster tidak punya Inter, dan nama font yang tidak ada berarti bentuk logo
+ * berubah-ubah tergantung mesin.
+ *
+ * Berat tagline: berkas aslinya 600, tetapi font teks cap hanya membenamkan 400
+ * & 700. Yang ditulis 700 — memilih berat yang MEMANG ada, bukan berat yang
+ * harus ditebak peraster. `beratTagline` bisa dioper penyaji lain yang punya
+ * 600 sungguhan.
+ */
+export function lockupSvgInner(
+  x: number,
+  y: number,
+  width: number,
+  fontWordmark: string,
+  fontTagline: string,
+  opts: { plat?: boolean; beratTagline?: number } = {},
+): string {
+  const s = width / LOCKUP_W;
+  const wTag = opts.beratTagline ?? 700;
+  const t = (
+    tx: number,
+    ty: number,
+    size: number,
+    weight: number,
+    fill: string,
+    tracking: number,
+    teks: string,
+    keluarga: string,
+  ) =>
+    `<text x="${tx}" y="${ty}" text-anchor="middle" font-family="${keluarga}" font-size="${size}" font-weight="${weight}" letter-spacing="${tracking}" fill="${fill}">${teks}</text>`;
+
+  return (
+    `<g transform="translate(${x},${y}) scale(${s.toFixed(5)})">` +
+    (opts.plat === false
+      ? ""
+      : `<rect width="${LOCKUP_W}" height="${LOCKUP_H}" fill="${BRAND_COLORS.latarGelap}"/>`) +
+    `<g transform="translate(70,110) scale(4.1)">` +
+    `<path d="${PATH_M}" fill="#FFFFFF"/>` +
+    `<path d="${PATH_KURVA}" fill="none" stroke="${BRAND_COLORS.latarGelap}" stroke-width="11" stroke-linecap="round"/>` +
+    `<path d="${PATH_KURVA}" fill="none" stroke="${LOCKUP_MERAH}" stroke-width="5.5" stroke-linecap="round"/>` +
+    `<circle cx="88" cy="18" r="7.5" fill="${BRAND_COLORS.latarGelap}"/>` +
+    `<circle cx="88" cy="18" r="4.5" fill="${LOCKUP_MERAH}"/>` +
+    `</g>` +
+    t(1140, 248, 176, 800, "#FFFFFF", 2, "MARLIN", fontWordmark) +
+    t(1140, 405, 48, wTag, LOCKUP_TAGLINE, 0.1, "Monitoring, Analysis, Reporting &amp; Learning", fontTagline) +
+    t(1140, 480, 48, wTag, LOCKUP_TAGLINE, 0.1, "for Infrastructure Network", fontTagline) +
+    `</g>`
+  );
+}

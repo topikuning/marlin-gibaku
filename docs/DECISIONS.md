@@ -7036,3 +7036,84 @@ seterang tinta.
 cap, wordmark tetap ada, "PROJECT CONTROL" sudah tidak dicap, varian putih
 ber-outline, varian warna memakai biru/merah resmi, penskalaan lewat `transform`
 (bukan menulis ulang koordinat) · `pnpm build` ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 224 — Cap foto memakai lockup resmi apa adanya; panel perusahaan berhenti sebelum lockup (2026-08-02)
+
+**Konteks**: user mengirim `MARLIN_logo_final_compact_dark.svg` (revisi kedua,
+viewBox 1800×640) dan meminta: "gunakan svg ini untuk bagian itu" — bagian itu =
+logo di kepala cap foto.
+
+### Lockup diambil apa adanya, bukan dirakit ulang
+
+DECISIONS 223 baru saja mengganti logo karangan dengan ikon + wordmark **rakitan
+sendiri**. Itu masih rakitan. Sekarang tata letaknya diambil persis dari berkas:
+ikon di `translate(70,110) scale(4.1)`, wordmark 176/800 di (1140,248), dua baris
+tagline 48 di y=405 & y=480. Angkanya hidup di `lib/brand-mark.ts`
+(`lockupSvgInner`) — satu sumber dengan berkas di `public/brand/`, dijaga uji
+yang membandingkan keduanya.
+
+Tagline yang di 223 sengaja dibuang sekarang **ikut dicap**: pada lebar 26% sisi
+terpanjang ia terbaca, dan ia bagian dari logo yang dikirim.
+
+**Warna revisi dipakai apa adanya**: merah `#EF2330` (paket pertama `#D21F2A`)
+dan tagline `#94A3B8`. Yang lebih baru adalah yang dikirim belakangan;
+menyelaraskan diam-diam ke palet lama berarti mengembalikan revisi yang sudah
+diputuskan user.
+
+### Plat gelap DIPERTAHANKAN
+
+Lockup ini dirancang untuk latar gelap: wordmark putih dan tagline abu-muda
+lenyap di atas foto siang hari. Plat `#08152E` itulah yang membuatnya terbaca di
+foto apa pun — menghapusnya berarti mengembalikan masalah yang justru
+diselesaikan desainnya.
+
+### Dua keluarga font — jebakan subset
+
+Font display yang dibenamkan cap (family `ML`, Montserrat) adalah **subset**:
+isinya hanya huruf yang dulu dibutuhkan wordmark, tanpa huruf kecil sama sekali.
+Tagline penuh huruf kecil, koma, dan "&"; dirender dengan `ML` ia keluar sebagai
+kotak kosong — dan cacat itu baru ketahuan setelah ribuan foto tercap. Karena itu
+`lockupSvgInner` menerima `fontWordmark` dan `fontTagline` terpisah.
+
+Nama font di berkas ("Inter") **tidak** diteruskan: server peraster tidak punya
+Inter, dan nama font yang tidak ada berarti bentuk logo berubah-ubah per mesin.
+
+Berat tagline di berkas 600, tetapi font teks cap hanya membenamkan 400 & 700.
+Yang ditulis **700** — berat yang memang ada, bukan berat yang harus ditebak
+peraster.
+
+### Panel perusahaan berhenti sebelum lockup
+
+Lockup lebih lebar dari logo lama, dan itu menyingkap cacat yang sudah ada:
+panel perusahaan tidak pernah dibatasi. Nama panjang ("PT. PEMBANGUNAN
+PERUMAHAN NUSANTARA SEJAHTERA ABADI (PERSERO) TBK") menyelinap di bawah lockup
+lalu keluar tepi kanan foto. Cap sudah terbakar ke gambar — tidak ada kesempatan
+kedua memperbaikinya.
+
+Sekarang panel dibatasi sampai tepi kiri lockup: font dikecilkan dulu, baru
+dipotong dengan elipsis (pola `fitBadge`).
+
+Sekalian: lebar teks panel dihitung dengan faktor **terukur**, bukan `estWidth`.
+Merender lima nama perusahaan nyata lalu memangkas tepi tintanya memberi 0,566
+(campuran) sampai 0,695 (kapital penuh) per huruf; `estWidth` memakai 0,60 untuk
+tebal, jadi ia meleset ke bawah untuk nama kapital — dan nama perusahaan hampir
+selalu kapital. Itulah sebabnya teks menyembul keluar panel. Dipakai 0,72:
+kelebihan lebar hanya menyisakan ruang kosong, kekurangan lebar merusak cap.
+
+### Sekalian: uji PDF periodik tidak lagi gagal-hilang-timbul
+
+`tests/unit/pdf-periodik-kkp.test.ts` memakai batas 5 detik bawaan; render PDF
+pertama menarik pdfkit + font-nya sekali, dan di runner sibuk impor dingin itu
+saja bisa lewat. Batasnya dinaikkan ke 30 detik — uji yang kadang merah
+mengajari orang mengabaikan merah.
+
+**Verifikasi**: 13 kasus unit (naik dari 6) — tata letak lockup dibandingkan
+langsung dengan berkas resmi, kedua baris tagline tercap, warna revisi apa
+adanya, plat gelap ada, wordmark/tagline memakai keluarga font berbeda, berat
+tagline 700, panel berhenti sebelum lockup pada 3 rasio foto, nama panjang
+dipotong elipsis, lockup tidak melewati tepi kanan · raster nyata lanskap
+1600×1200 & potret 1080×1440 diperiksa mata (glyph tagline utuh, tanpa kotak
+kosong) · `pnpm vitest run tests/unit` 768/768 ✓ · `pnpm build` ✓ · typecheck ✓ ·
+lint ✓.

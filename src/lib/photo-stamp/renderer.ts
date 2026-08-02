@@ -1,6 +1,6 @@
 import { getContrastText } from "@/lib/photo-stamp/format";
 import { MONTSERRAT_800_B64, MONTSERRAT_600_B64 } from "@/lib/logo-font";
-import { markSvgInner } from "@/lib/brand-mark";
+import { lockupSvgInner } from "@/lib/brand-mark";
 
 /** @font-face Montserrat khusus wordmark logo (family "ML"). Selalu dibenamkan. */
 const LOGO_FONT_FACE =
@@ -12,7 +12,7 @@ const LOGO_FONT_FACE =
 /**
  * Renderer overlay stamp (SVG) — meniru MASTER LAYOUT referensi:
  *   kiri-atas  : panel perusahaan (navy, aksen vertikal, sudut kanan-bawah rounded)
- *   kanan-atas : ikon MARLIN + wordmark (logo resmi, DECISIONS 223)
+ *   kanan-atas : lockup resmi MARLIN (ikon + wordmark + tagline, DECISIONS 224)
  *   kiri-bawah : badge kategori → nama lokasi → tanggal → garis → koordinat/pelapor/Photo ID
  *   bawah      : gradient keterbacaan (foto tetap background)
  * Pure & deterministik (tanpa I/O) supaya bisa dipakai server & preview.
@@ -148,6 +148,41 @@ function fitBadge(text: string, maxW: number, fs0: number): { text: string; fs: 
   return { text: `${t.trimEnd()}…`, fs: Math.round(fs) };
 }
 
+/**
+ * Lebar teks panel perusahaan (tebal, umumnya KAPITAL).
+ *
+ * Faktornya DIUKUR seperti `badgeTextW`, bukan ditebak: merender lima nama
+ * perusahaan nyata lalu memangkas tepi tintanya memberi 0,566 (campuran) sampai
+ * 0,695 (kapital penuh) per huruf. `estWidth` memakai 0,60 untuk tebal — itu
+ * MELESET KE BAWAH untuk nama kapital, dan nama perusahaan hampir selalu
+ * kapital, jadi teksnya menyembul keluar panel. Dipakai 0,72 sebagai marjin
+ * aman; kelebihan lebar hanya menyisakan ruang kosong di panel, sedangkan
+ * kekurangan lebar merusak cap yang sudah terbakar ke foto.
+ */
+const panelTextW = (text: string, fs: number) => text.length * fs * 0.72;
+
+/** Padding + aksen + jarak di sekeliling teks panel perusahaan. */
+const panelChromeW = (fs: number) =>
+  Math.round(fs * 0.95) * 2 + Math.max(4, Math.round(fs * 0.26)) + Math.round(fs * 0.55);
+
+/**
+ * Pastikan panel perusahaan MUAT di ruang kiri, sebelum lockup.
+ *
+ * Sama polanya dengan `fitBadge`: kecilkan font sampai batas bawah, baru potong
+ * dengan elipsis. Nama perusahaan lebih baik dipotong terbaca daripada utuh
+ * tapi tertimbun lockup dan hilang di luar tepi foto.
+ */
+function fitPanel(text: string, maxW: number, fs0: number): { text: string; fs: number } {
+  const floor = Math.max(11, fs0 * 0.72);
+  const totalW = (t: string, f: number) => panelTextW(t, f) + panelChromeW(f);
+  let fs = fs0;
+  while (totalW(text, fs) > maxW && fs > floor) fs *= 0.95;
+  if (totalW(text, fs) <= maxW) return { text, fs: Math.round(fs) };
+  let t = text;
+  while (t.length > 4 && totalW(`${t.trimEnd()}…`, fs) > maxW) t = t.slice(0, -1);
+  return { text: `${t.trimEnd()}…`, fs: Math.round(fs) };
+}
+
 export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: RenderOpts): string {
   const ff = opts.fontFamily;
   const base = Math.min(w, h);
@@ -168,16 +203,27 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
     `<rect x="0" y="${h - band}" width="${w}" height="${band}" fill="url(#pg)"/>`,
   );
 
+  // Lebar lockup diikat ke sisi TERPANJANG supaya ukurannya konsisten antara
+  // foto potret dan lanskap — diikat ke lebar saja, lockup di foto potret jadi
+  // kekecilan dan taglinenya tidak terbaca.
+  const lockupW = Math.round(Math.max(w, h) * 0.26);
+  const lockupKiri = w - safeX - lockupW;
+
   // ── Panel perusahaan (kiri-atas) ──
   if (d.companyName?.trim()) {
-    const company = d.companyName.trim();
-    const fsCo = fs(0.023, 16);
+    const fsCo0 = fs(0.023, 16);
+    // Panel BERHENTI sebelum lockup. Tanpa batas ini nama perusahaan panjang
+    // menyelinap di bawah lockup lalu keluar tepi kanan foto — dan cap sudah
+    // terbakar ke gambar, jadi tidak ada kesempatan kedua memperbaikinya.
+    const maxPanelW = Math.max(w * 0.3, lockupKiri - Math.round(safeX * 0.5));
+    const co = fitPanel(d.companyName.trim(), maxPanelW, fsCo0);
+    const company = co.text;
+    const fsCo = co.fs;
     const padH = Math.round(fsCo * 0.95);
     const padV = Math.round(fsCo * 0.72);
     const barW = Math.max(4, Math.round(fsCo * 0.26));
     const gap = Math.round(fsCo * 0.55);
-    const cw = estWidth(company, fsCo, true);
-    const panelW = Math.round(padH + barW + gap + cw + padH);
+    const panelW = Math.round(panelTextW(company, fsCo) + panelChromeW(fsCo));
     const panelH = Math.round(fsCo + 2 * padV);
     const r = Math.round(panelH * 0.3);
     parts.push(
@@ -190,8 +236,8 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
     );
   }
 
-  // ── Logo lockup MARLIN (kanan-atas): wordmark (A oranye) + PROJECT CONTROL, transparan ──
-  parts.push(marlinLogo(w - safeX, safeY, fs(0.034, 22)));
+  // ── Lockup resmi MARLIN (kanan-atas) ──
+  parts.push(marlinLogo(w - safeX, safeY, lockupW, opts.fontFamily));
 
   // ── Blok info (kiri-bawah) ──
   const maxW = portrait ? w - 2 * safeX : Math.round(w * 0.6);
@@ -330,40 +376,26 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
 }
 
 /**
- * Lockup MARLIN untuk cap foto: IKON RESMI + wordmark, rata kanan.
+ * Lockup MARLIN di cap foto — memakai LOCKUP RESMI apa adanya (DECISIONS 224).
  *
- * Sebelum ini logonya digambar ulang dengan tangan — huruf "A" beraksen
- * oranye plus baris "PROJECT CONTROL" — dan itu BUKAN logo MARLIN, melainkan
- * tiruan yang dibuat sebelum berkas resminya ada. Sekarang geometrinya
- * diambil dari `lib/brand-mark`, satu sumber dengan berkas di
- * `public/brand/marlin-icon.svg`. Tagline resmi sengaja TIDAK dicap: di foto
- * lapangan ia terlalu kecil untuk terbaca dan hanya memakan ruang yang
- * dibutuhkan data. DECISIONS 223.
+ * User mengirim `MARLIN_logo_final_compact_dark.svg` dan meminta SVG itu yang
+ * dipakai di bagian ini. Sebelumnya bagian ini digambar ulang dengan tangan
+ * ("PROJECT CONTROL" yang tidak pernah ada di logo mana pun), lalu sempat
+ * diganti ikon + wordmark rakitan sendiri. Sekarang tata letaknya — posisi
+ * ikon, ukuran wordmark, dua baris tagline — diambil persis dari berkas itu.
  *
- * Varian putih dipakai karena cap menumpang di atas foto apa pun; kurvanya
- * ber-outline gelap supaya tidak lenyap di latar terang.
+ * PLAT GELAP DIPERTAHANKAN. Lockup ini dirancang untuk latar gelap: wordmark
+ * putih dan tagline abu-muda akan lenyap di atas foto siang hari. Plat #08152E
+ * itulah yang membuatnya terbaca di foto apa pun — menghapusnya berarti
+ * mengembalikan masalah yang justru diselesaikan desainnya.
+ *
+ * Lebar 26% sisi terpanjang: cukup besar agar tagline 48px (skala penuh) masih
+ * terbaca setelah diperkecil, tanpa memakan sudut foto yang dibutuhkan bukti.
  */
-// Lebar lanjut (em) Montserrat subset — hasil ukur hmtx (bukan tebakan):
-const EM_MARLIN = 4.235; // total "MARLIN" @800
-
-function marlinLogo(rightX: number, topY: number, fsM: number): string {
-  const p: string[] = [];
-  const m = Math.round(fsM);
-  const trackM = Math.round(fsM * 0.02);
-  const mW = Math.round(EM_MARLIN * fsM + trackM * 5); // lebar wordmark (5 celah)
-  const baseY = topY + Math.round(fsM * 0.82);
-
-  // Ikon sedikit lebih tinggi dari wordmark, sejajar optis dengan garis dasar.
-  const ikon = Math.round(fsM * 1.18);
-  const gap = Math.round(fsM * 0.32);
-  const ikonX = rightX - mW - gap - ikon;
-  const ikonY = baseY - Math.round(ikon * 0.82);
-  p.push(markSvgInner(ikonX, ikonY, ikon, "putih"));
-
-  p.push(
-    `<text x="${rightX}" y="${baseY}" text-anchor="end" font-family="ML" font-weight="800" font-size="${m}" letter-spacing="${trackM}" ${halo(m)} fill="#FFFFFF">MARLIN</text>`,
-  );
-  return p.join("");
+function marlinLogo(rightX: number, topY: number, lebar: number, fontTeks: string): string {
+  // Wordmark pakai font display "ML"; tagline pakai font teks cap — font display
+  // adalah SUBSET tanpa huruf kecil (lihat catatan di `lockupSvgInner`).
+  return lockupSvgInner(rightX - lebar, topY, lebar, "ML", fontTeks);
 }
 
 /** Puncak alpha gradient dari mode overlay (+ luminance area bawah utk mode auto). */

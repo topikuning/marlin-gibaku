@@ -102,7 +102,11 @@ function fixture(kind: "mingguan" | "bulanan"): PeriodReport {
 }
 
 describe("PDF blanko KKP periodik (yang disetor ke Drive)", () => {
-  it.each(["mingguan", "bulanan"] as const)("merender laporan %s tanpa gagal", async (kind) => {
+  // Render PDF pertama menarik pdfkit + font-nya sekali; di runner yang sibuk
+  // impor dingin itu saja bisa lewat 5 detik. Batas bawaan membuat uji ini
+  // gagal-hilang-timbul — dan uji yang kadang merah mengajari orang mengabaikan
+  // merah.
+  it.each(["mingguan", "bulanan"] as const)("merender laporan %s tanpa gagal", { timeout: 30_000 }, async (kind) => {
     const { buildPeriodikKkpPdf } = await import("@/lib/pdf/periodik-kkp");
     const buf = await buildPeriodikKkpPdf(fixture(kind), "MARLIN");
     expect(buf.subarray(0, 5).toString()).toBe("%PDF-");
