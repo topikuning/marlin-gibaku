@@ -31,6 +31,15 @@ export type KkpDailyItem = {
   code: string;
   name: string;
   unit: string | null;
+  /**
+   * Bangunan/kategori RAB tempat pekerjaan ini berada. Blanko hanya menulis
+   * uraian pekerjaan, padahal satu lokasi punya belasan bangunan dan nama item
+   * kerap sama persis antar bangunan ("Pembesian", "Galian") — tanpa ini
+   * pembaca tidak tahu itu bangunan yang mana. null = kategorinya tidak ada
+   * lagi di RAB aktif; ditulis apa adanya, tidak ditebak.
+   */
+  categoryCode?: string | null;
+  categoryName?: string | null;
   volumeContract: number | null;
   volumeBefore: number; // s/d laporan lalu
   volumeToday: number; // hari ini
@@ -321,10 +330,16 @@ export function KkpDailyReport({ d }: { d: KkpDailyData }) {
         <tbody>
           {rr.map((row, i) => (
             <tr key={`rr${i}`}>
-              <Cell center>{i + 1}</Cell>
+              <Cell center>{row.rencanaNo}</Cell>
               <Cell>{row.rencana ?? <>&nbsp;</>}</Cell>
-              <Cell center>{i + 1}</Cell>
-              <Cell>{row.realisasi ?? <>&nbsp;</>}</Cell>
+              <Cell center>{row.realisasiKategori ? <>&nbsp;</> : row.realisasiNo}</Cell>
+              <Cell>
+                {row.realisasiKategori ? (
+                  <span className="font-semibold uppercase">{row.realisasi}</span>
+                ) : (
+                  (row.realisasi ?? <>&nbsp;</>)
+                )}
+              </Cell>
             </tr>
           ))}
         </tbody>
@@ -385,22 +400,70 @@ export function teksRealisasi(it: KkpDailyItem): string {
   return bagian.join(" ");
 }
 
+/** Satu baris kolom REALISASI: judul bangunan/kategori, atau baris pekerjaan. */
+export type BarisRealisasi = { no: string; text: string; kategori: boolean };
+
+/**
+ * Kolom REALISASI dikelompokkan per BANGUNAN/KATEGORI (permintaan user
+ * 2026-08-02: "perlu informasi ... pekerjaan itu terkait bangunan/kategori yg
+ * mana").
+ *
+ * Judul kategori disisipkan saat kategorinya BERGANTI, bukan diulang di tiap
+ * baris: item sudah terurut `sortOrder` RAB sehingga satu kategori pasti
+ * berurutan, dan mengulang nama bangunan di tiap baris memakan lebar kolom
+ * yang justru dibutuhkan uraian pekerjaannya. Nomor urut hanya diberikan ke
+ * baris pekerjaan — judul bukan item pekerjaan.
+ *
+ * Item tanpa kategori (tidak ada lagi di RAB aktif) tidak diberi judul palsu.
+ */
+export function barisRealisasiKkp(items: KkpDailyItem[]): BarisRealisasi[] {
+  const out: BarisRealisasi[] = [];
+  let kategoriBerjalan: string | null = null;
+  let no = 0;
+  for (const it of items) {
+    const nama = it.categoryName ?? null;
+    if (nama !== kategoriBerjalan) {
+      if (nama) out.push({ no: "", text: it.categoryCode ? `${it.categoryCode}. ${nama}` : nama, kategori: true });
+      kategoriBerjalan = nama;
+    }
+    no += 1;
+    out.push({ no: String(no), text: teksRealisasi(it), kategori: false });
+  }
+  return out;
+}
+
 /**
  * Pasangkan baris "Rencana" dan "Realisasi" jadi satu daftar sejajar; jumlah
  * baris = yang terpanjang, minimal seperti blanko cetak supaya kotaknya tetap
  * ada untuk diisi tangan.
+ *
+ * Kedua kolom bernomor SENDIRI-SENDIRI: sejak realisasi memuat judul kategori,
+ * nomor baris tabel bukan lagi nomor pekerjaan.
  */
-function barisRencanaRealisasi(d: KkpDailyData): { rencana: string | null; realisasi: string | null }[] {
+function barisRencanaRealisasi(
+  d: KkpDailyData,
+): { rencanaNo: string; rencana: string | null; realisasiNo: string; realisasi: string | null; realisasiKategori: boolean }[] {
   const rencana = (d.rencana ?? []).map((r) =>
     `${r.name}${r.volume > 0 ? ` — ${volFmt.format(r.volume)}${r.unit ? ` ${r.unit}` : ""}` : ""}` +
     (r.picName ? ` (${r.picName})` : ""),
   );
-  const realisasi = d.items.map((it) => teksRealisasi(it));
+  const realisasi = barisRealisasiKkp(d.items);
   const n = Math.max(MIN_RR_ROWS, rencana.length, realisasi.length);
-  return Array.from({ length: n }, (_, i) => ({
-    rencana: rencana[i] ?? null,
-    realisasi: realisasi[i] ?? null,
-  }));
+  // Baris kosong di bawah daftar tetap bernomor (kotaknya memang untuk diisi
+  // tangan), melanjutkan nomor PEKERJAAN terakhir — bukan nomor baris tabel,
+  // yang sudah tidak sama lagi sejak ada judul kategori.
+  let lanjut = d.items.length;
+  return Array.from({ length: n }, (_, i) => {
+    const r = realisasi[i];
+    if (!r) lanjut += 1;
+    return {
+      rencanaNo: String(i + 1),
+      rencana: rencana[i] ?? null,
+      realisasiNo: r ? r.no : String(lanjut),
+      realisasi: r?.text ?? null,
+      realisasiKategori: r?.kategori ?? false,
+    };
+  });
 }
 
 function Cell({

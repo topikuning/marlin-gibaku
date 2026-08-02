@@ -513,6 +513,32 @@ function snapshotToKkp(snap: FinalSnapshot): KkpDailyData {
 }
 
 /**
+ * Peta lineageKey item → kategori (bangunan) induknya di RAB AKTIF.
+ *
+ * Akar lineage = segmen pertama ("V#3.1#b" → "V"), aturan yang sama dengan
+ * `periodic-report`. Kategori yang sudah tidak ada di revisi aktif (mis. item
+ * dihapus adendum) mengembalikan null — ditulis apa adanya, bukan ditebak.
+ */
+async function kategoriLookup(
+  locationId: string,
+): Promise<(lineageKey: string | null) => { categoryCode: string | null; categoryName: string | null }> {
+  const revision = await db.rabRevision.findFirst({
+    where: { locationId, status: "aktif" },
+    select: { id: true },
+  });
+  if (!revision) return () => ({ categoryCode: null, categoryName: null });
+  const kategori = await db.rabNode.findMany({
+    where: { revisionId: revision.id, kind: "kategori" },
+    select: { lineageKey: true, code: true, name: true },
+  });
+  const byKey = new Map(kategori.map((k) => [k.lineageKey, k]));
+  return (lineageKey) => {
+    const k = lineageKey ? byKey.get(lineageKey.split("#")[0]) : undefined;
+    return { categoryCode: k?.code ?? null, categoryName: k?.name ?? null };
+  };
+}
+
+/**
  * Data laporan harian KKP untuk halaman cetak. Sumber:
  *   status final → finalSnapshot beku (immutable), selain itu → hitung live.
  */
@@ -592,8 +618,30 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
     },
   });
 
+  // Bangunan/kategori tiap item — blanko harian hanya menulis uraian pekerjaan,
+  // padahal satu lokasi punya belasan bangunan dan nama item sering sama persis
+  // antar bangunan ("Pembesian", "Galian"). Tanpa ini pembaca tidak tahu
+  // pekerjaan itu di bangunan yang mana (permintaan user 2026-08-02).
+  //
+  // Sengaja DITURUNKAN dari lineageKey, bukan dibekukan ke finalSnapshot:
+  // snapshot lama sudah menyimpan lineageKey, jadi laporan yang TERLANJUR final
+  // pun langsung memuat kategorinya tanpa perlu bangun ulang snapshot. Ini
+  // label, bukan angka — jadi tidak melanggar keimutabelan angka snapshot.
+  const kategoriByRoot = await kategoriLookup(location.id);
+
   if (report?.status === "final" && report.finalSnapshot) {
-    return { ...snapshotToKkp(report.finalSnapshot as unknown as FinalSnapshot), ...signatories, ...owner, rencana };
+    const snap = report.finalSnapshot as unknown as FinalSnapshot;
+    const base = snapshotToKkp(snap);
+    return {
+      ...base,
+      items: base.items.map((it, i) => ({
+        ...it,
+        ...kategoriByRoot(snap.items[i]?.lineageKey ?? null),
+      })),
+      ...signatories,
+      ...owner,
+      rencana,
+    };
   }
 
   const cumulative = await cumulativeVolumeByLineage(location.id, reportDate);
@@ -643,6 +691,7 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
         code: it.rabNode.code,
         name: it.rabNode.name,
         unit: it.rabNode.unit,
+        ...kategoriByRoot(it.lineageKey),
         volumeContract,
         volumeBefore: Math.max(0, Math.round((volumeCumulative - volumeToday) * 1000) / 1000),
         volumeToday,

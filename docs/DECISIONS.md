@@ -6496,3 +6496,38 @@ adendum" supaya perannya tidak terbaca sebagai laporan resmi.
 yang paling mudah lolos), item baru tidak ikut ditandai, beda pembulatan di
 bawah setengah sen bukan perubahan harga, urutan menurut dampak rupiah ·
 typecheck ✓ · lint ✓ · unit 732 ✓.
+
+---
+
+## 214 — Blanko harian KKP: realisasi dikelompokkan per bangunan/kategori (2026-08-02)
+
+**Permintaan user**: "aku input item di laporan harian, cetak laporan final
+blanko kkp item itu muncul. perlu informasi di pekerjaan hari itu di blanko kkp
+untuk memasukkan pekerjaan itu terkait bangunan/kategori yg mana."
+
+Kolom REALISASI PEKERJAAN hanya menulis uraian item. Di KNMP satu lokasi punya
+belasan bangunan (shelter, kios, kantor pengelola, docking, IPAL …) dan nama
+itemnya **sama persis** antar bangunan — "Pembesian", "Galian tanah",
+"Pekerjaan beton". Pembaca laporan tidak bisa tahu pekerjaan itu di bangunan
+yang mana, dan itu justru informasi yang dicari pengawas.
+
+**Keputusan**: judul bangunan/kategori disisipkan saat kategorinya BERGANTI,
+bukan diulang di tiap baris — item sudah terurut `sortOrder` RAB sehingga satu
+kategori pasti berurutan, dan mengulang nama bangunan memakan lebar kolom yang
+dibutuhkan uraian pekerjaannya. Nomor urut hanya diberikan ke baris pekerjaan;
+judul bukan item pekerjaan, dan baris kosong di bawah daftar melanjutkan nomor
+pekerjaan terakhir.
+
+Kategori **diturunkan dari `lineageKey`** (akar = segmen pertama, aturan yang
+sama dengan `periodic-report`), BUKAN dibekukan ke `finalSnapshot`. Alasannya
+langsung menjawab keluhan: snapshot lama sudah menyimpan `lineageKey`, jadi
+laporan yang **terlanjur final** pun memuat kategorinya tanpa perlu bangun ulang
+snapshot. Ini label, bukan angka — keimutabelan angka snapshot tidak tersentuh.
+Kategori yang tidak ada lagi di RAB aktif (item dihapus adendum) tidak diberi
+judul palsu.
+
+Satu sumber untuk dua penyaji: `barisRealisasiKkp()` dipakai komponen blanko
+(layar/cetak) DAN generator PDF, supaya cetakan ke Drive tidak pernah berbeda
+isi dari pratinjau.
+
+**Verifikasi**: typecheck ✓ · lint ✓ · unit 732 ✓.
