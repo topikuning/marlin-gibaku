@@ -97,6 +97,8 @@ const saveItemSchema = z.object({
   photoTakenAt: z.string().optional(),
   photoSource: z.enum(["camera", "gallery"]).optional(),
   galleryFallback: z.enum(["project", "none"]).optional(),
+  /** "1" = pelapor menyatakan sedang berada DI LOKASI saat unggah galeri. */
+  galleryAtSite: z.string().optional(),
 });
 
 export async function saveItemAction(_prev: DailyActionState, formData: FormData): Promise<DailyActionState> {
@@ -113,6 +115,7 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
       photoTakenAt: formData.get("photoTakenAt") || undefined,
       photoSource: formData.get("photoSource") || undefined,
       galleryFallback: formData.get("galleryFallback") || undefined,
+      galleryAtSite: formData.get("galleryAtSite") || undefined,
     });
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const d = parsed.data;
@@ -220,6 +223,7 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
             source,
             fallbackMode,
             requireGps: wajibGps,
+            atSite: d.galleryAtSite === "1",
             lat: d.photoLat ?? null,
             lng: d.photoLng ?? null,
             locationLat: locLat,

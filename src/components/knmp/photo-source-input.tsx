@@ -53,6 +53,10 @@ export function PhotoSourceInput({
   // "unknown" = belum diperiksa. Nilai awal sengaja BUKAN "prompt": menebak
   // keadaan izin lalu menampilkan peringatan yang salah lebih buruk daripada
   // diam sebentar.
+  // Jawaban "sedang di lokasi proyek?" untuk unggahan GALERI (DECISIONS 220).
+  // null = belum dijawab → pemilih berkas belum dibuka.
+  const [diLokasi, setDiLokasi] = useState<boolean | null>(null);
+  const [tanyaLokasi, setTanyaLokasi] = useState(false);
   const [izin, setIzin] = useState<"granted" | "denied" | "prompt" | "unsupported" | "unknown">("unknown");
   const [mintaIzin, setMintaIzin] = useState(false);
 
@@ -153,11 +157,43 @@ export function PhotoSourceInput({
     }
   };
 
+  /**
+   * Jawab "sedang di lokasi proyek?" lalu buka pemilih berkas (DECISIONS 220).
+   *
+   * Kalau YA, posisi perangkat SEKARANG diambil dan dikirim sebagai cadangan —
+   * dipakai hanya bila foto tidak punya GPS sendiri. Kalau TIDAK, tidak ada
+   * koordinat perangkat yang dikirim sama sekali: mengunggah dari kantor lalu
+   * menandai fotonya dengan posisi kantor jauh lebih buruk daripada tidak
+   * menandai apa pun.
+   */
+  const jawabLokasi = (ya: boolean) => {
+    setDiLokasi(ya);
+    setTanyaLokasi(false);
+    setSource("gallery");
+    clearGps();
+    if (ya && typeof navigator !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          if (latRef.current) latRef.current.value = String(pos.coords.latitude);
+          if (lngRef.current) lngRef.current.value = String(pos.coords.longitude);
+          catat("granted");
+          galRef.current?.click();
+        },
+        (err) => {
+          catat(err.code === err.PERMISSION_DENIED ? "denied" : "prompt");
+          galRef.current?.click();
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+      );
+      return;
+    }
+    galRef.current?.click();
+  };
+
   const pickGallery = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     if (camRef.current) camRef.current.value = "";
-    clearGps(); // galeri: JANGAN kirim GPS perangkat
     setSource("gallery");
     setTakenAt(new Date().toISOString());
     makePreviews(files);
@@ -171,6 +207,7 @@ export function PhotoSourceInput({
     <div className="space-y-2">
       <input type="hidden" name="photoSource" value={source} />
       <input type="hidden" name="galleryFallback" value={fallback} />
+      <input type="hidden" name="galleryAtSite" value={diLokasi === true ? "1" : ""} />
       <input type="hidden" name="photoTakenAt" value={takenAt} />
       <input ref={latRef} type="hidden" name={latName} defaultValue="" />
       <input ref={lngRef} type="hidden" name={lngName} defaultValue="" />
@@ -231,19 +268,48 @@ export function PhotoSourceInput({
             onChange={pickCamera}
           />
         </label>
-        <label className={btn}>
+        <button type="button" className={btn} onClick={() => setTanyaLokasi(true)}>
           <Images aria-hidden className="size-4" /> Galeri
-          <input
-            ref={galRef}
-            type="file"
-            name="photos"
-            accept="image/*"
-            multiple
-            className="sr-only"
-            onChange={pickGallery}
-          />
-        </label>
+        </button>
+        <input
+          ref={galRef}
+          type="file"
+          name="photos"
+          accept="image/*"
+          multiple
+          className="sr-only"
+          onChange={pickGallery}
+        />
       </div>
+
+      {/* Konfirmasi sebelum memilih berkas galeri (DECISIONS 220). Pertanyaannya
+          sengaja tentang KEADAAN NYATA pelapor, bukan tentang teknis GPS —
+          "apakah kamu sedang di lokasi" bisa dijawab mandor mana pun. */}
+      {tanyaLokasi ? (
+        <div className="rounded-md border border-border bg-surface-muted px-3 py-2.5">
+          <p className="text-sm font-medium text-ink">Kamu sedang berada di lokasi proyek?</p>
+          <p className="mt-0.5 text-xs text-ink-muted">
+            Kalau ya, posisimu sekarang dipakai sebagai cadangan bila foto tidak membawa GPS
+            sendiri. Kalau tidak, foto tanpa GPS akan ditandai titik lokasi proyek.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => jawabLokasi(true)}
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-800"
+            >
+              <MapPin aria-hidden className="size-3.5" /> Ya, saya di lokasi
+            </button>
+            <button
+              type="button"
+              onClick={() => jawabLokasi(false)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-medium text-ink hover:bg-surface-muted"
+            >
+              <MapPinOff aria-hidden className="size-3.5" /> Tidak, unggah dari tempat lain
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-1.5 text-xs text-ink-muted">
         <span>Foto galeri tanpa GPS →</span>

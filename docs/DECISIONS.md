@@ -6836,3 +6836,49 @@ build itu tidak dijalankan lokal sebelum push. Label & tipe kebijakan dipisah ke
 
 **Verifikasi**: `pnpm build` ✓ (dijalankan lokal, bukan hanya typecheck) ·
 typecheck ✓ · lint ✓ · unit 749 ✓.
+
+---
+
+## 220 — Unggah galeri: tanya dulu "sedang di lokasi?", baru tentukan koordinat (2026-08-02)
+
+> untuk upload foto dari galeri, menurutku adalah, saat klik ada konfirmasi,
+> saat ini apakah di lokasi proyek atau bukan? jika iya, ambil lokasi gps aktif
+> dari hp/device, jika tidak ambil dari exif, jika tidak ada baru hardcode dari
+> default lokasi proyek.
+
+Sebelum ini sistem MENEBAK: foto galeri tanpa EXIF langsung dicap titik proyek,
+tanpa pernah bertanya. Sekarang keadaan nyata pelapor ditanyakan lebih dulu, dan
+jawabannya yang menentukan cadangannya. Pertanyaannya sengaja tentang keadaan
+orang ("kamu sedang di lokasi proyek?"), bukan tentang teknis GPS — mandor mana
+pun bisa menjawabnya.
+
+### Urutan sumber koordinat foto galeri
+
+1. **EXIF foto itu sendiri** — posisi nyata saat foto diambil.
+2. **Posisi perangkat saat unggah** — HANYA bila pelapor menjawab "ya, saya di
+   lokasi". Dicap dengan penanda **"posisi saat unggah"**.
+3. **Titik lokasi proyek** — cadangan terakhir, penanda "titik proyek".
+
+Menjawab "tidak" berarti tidak ada koordinat perangkat yang dikirim sama sekali.
+Mengunggah dari kantor lalu menandai fotonya dengan posisi kantor jauh lebih
+buruk daripada tidak menandai: yang pertama bukti palsu, yang kedua data kosong
+yang jujur.
+
+### Satu langkah diurutkan berbeda dari usulan user
+
+User mengusulkan: **jika di lokasi → device, jika tidak → EXIF**. Di sini EXIF
+tetap didahulukan walau pelapor sedang berada di lokasi.
+
+Alasannya: posisi perangkat saat unggah adalah tempat **mengunggah**, sedangkan
+EXIF adalah tempat **memotret**. Di satu lokasi KNMP keduanya bisa berjarak
+ratusan meter — pelapor berdiri di direksi keet, fotonya diambil di dermaga —
+dan yang dipertanggungjawabkan di blanko adalah tempat pekerjaannya. Jadi ketika
+data yang lebih benar ADA, ia dipakai; jawaban "saya di lokasi" berperan
+menentukan CADANGAN, bukan menggantikan data asli. Prinsip yang sama dengan
+DECISIONS 203: yang asli dipakai apa adanya, penggantian hanya saat tidak ada
+yang asli.
+
+Kalau user tetap menghendaki urutan usulannya, yang perlu diubah hanya satu
+cabang di `photos.ts`.
+
+**Verifikasi**: `pnpm build` ✓ · typecheck ✓ · lint ✓ · unit 749 ✓.

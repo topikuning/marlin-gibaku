@@ -227,6 +227,8 @@ export type SavePhotoInput = {
     fallbackMode?: "project" | "none";
     /** Setelan wajib-GPS sedang menyala (DECISIONS 219). */
     requireGps?: boolean;
+    /** Galeri: pelapor MENYATAKAN sedang berada di lokasi saat mengunggah. */
+    atSite?: boolean;
     /** GPS real-time perangkat (hanya relevan utk source "camera"). */
     lat?: number | null;
     lng?: number | null;
@@ -288,10 +290,24 @@ export async function savePhotoForItem(input: SavePhotoInput) {
     // Galeri: EXIF asli dulu; bila tak ada → cadangan (titik lokasi proyek / tanpa tag).
     // GPS perangkat saat upload sengaja diabaikan (bisa salah saat batch).
     const useProject = s?.fallbackMode === "project";
+    // Urutan sumber koordinat foto GALERI (DECISIONS 220):
+    //   1. EXIF foto itu sendiri — posisi NYATA saat foto diambil;
+    //   2. posisi perangkat saat unggah, HANYA bila pelapor menyatakan sedang
+    //      berada di lokasi;
+    //   3. titik lokasi proyek sebagai cadangan terakhir.
+    //
+    // EXIF didahulukan walau pelapor sedang di lokasi: posisi sekarang adalah
+    // tempat MENGUNGGAH, sedangkan EXIF adalah tempat MEMOTRET. Keduanya bisa
+    // berjarak ratusan meter di lokasi yang sama, dan yang dipertanggungjawabkan
+    // di blanko adalah tempat pekerjaannya.
     if (exif.lat != null && exif.lng != null) {
       lat = exif.lat;
       lng = exif.lng;
       gpsSource = "exif";
+    } else if (s?.atSite && s?.lat != null && s?.lng != null) {
+      lat = s.lat;
+      lng = s.lng;
+      gpsSource = "device";
     } else if (s?.requireGps) {
       // Wajib-GPS menyala (setelan, DECISIONS 219). Untuk foto GALERI yang
       // wajib bukan posisi perangkat saat unggah — itu justru menyesatkan saat
@@ -362,7 +378,15 @@ export async function savePhotoForItem(input: SavePhotoInput) {
     : timeSource === "server"
       ? "waktu unggah"
       : null;
-  const coordNote = gpsSource === "project" ? "titik proyek" : null;
+  const coordNote =
+    gpsSource === "project"
+      ? "titik proyek"
+      : // Foto galeri yang koordinatnya dari perangkat = posisi saat MENGUNGGAH,
+        // bukan saat memotret. Cap wajib menyebutnya; tanpa itu ia mengaku
+        // sebagai posisi jepret padahal bukan (DECISIONS 197/220).
+        source === "gallery" && gpsSource === "device"
+        ? "posisi saat unggah"
+        : null;
 
   // Pipeline ideal: sharp resize + cap (Timemark) + webp. Bila sharp TIDAK
   // tersedia/gagal di runtime (mis. binari native tak termuat di host), JANGAN
