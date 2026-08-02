@@ -90,9 +90,17 @@ export async function kirimPengingatSekarangAction(
         rincian: hasil.rincian,
       };
     }
-    // Inti keluhan user: "gak jelas ini berhasil atau tidak". Jawabannya bukan
-    // kata "sukses", melainkan ID pesan dari WhatsApp — satu-satunya bukti
-    // bahwa pesannya benar-benar diterima antrean, bukan cuma diterima server.
+    // Inti keluhan user: "gak jelas ini berhasil atau tidak". ID pesan dari
+    // WAHA memang lebih baik daripada kata "sukses" — tapi ia BUKAN bukti
+    // sampai.
+    //
+    // Dibuktikan salah oleh log server user 2026-08-02: WAHA mengembalikan
+    // msgId 3EB052C20C9F6C2394177D, lalu mesinnya menolak sendiri —
+    // `error 463: account restricted or missing tctoken for contact`, yaitu
+    // WhatsApp memblokir nomor pengirim untuk menghubungi nomor BARU. ID sudah
+    // terbit, pesan tidak pernah berangkat, dan halaman menyatakan berhasil.
+    // Karena itu kalimatnya sekarang menyebut batas pengetahuannya sendiri.
+    // DECISIONS 222.
     if (hasil.terkirim > 0 && berbukti === 0) {
       return {
         error:
@@ -106,7 +114,12 @@ export async function kirimPengingatSekarangAction(
       bagian.push(`${hasil.terkirim - berbukti} tanpa ID pesan (tidak bisa dipastikan sampai)`);
     }
     return {
-      success: `${bagian.join(", ")}. Sesi WhatsApp: ${sesi}.`,
+      success:
+        `${bagian.join(", ")}. Sesi WhatsApp: ${sesi}. ` +
+        "Angka ini berarti WAHA MENERIMA permintaannya — bukan jaminan pesannya sampai. " +
+        "Kalau penerima melapor tidak menerima apa pun, periksa log server WAHA: " +
+        "penolakan seperti error 463 (nomor pengirim dibatasi WhatsApp untuk menghubungi nomor baru) " +
+        "terjadi SESUDAH ID pesan terbit dan tidak terlihat dari sini.",
       rincian: hasil.rincian,
     };
   } catch (err) {

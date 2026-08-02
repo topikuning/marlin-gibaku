@@ -262,3 +262,31 @@ KEPUTUSAN "Level status progress" di atas, bukan keputusan terpisah.
   dihitung dari sumber yang berbeda. TIDAK diperbaiki dengan tebakan — perlu
   dipastikan dulu revisi mana yang diekspor (DECISIONS 208, dan protokol di
   `docs/rebuild/CALCULATION_INTEGRITY_PROTOCOL.md`).
+
+## WA-01 · ID pesan WAHA BUKAN bukti sampai (DECISIONS 222)
+
+Log server user 2026-08-02:
+
+```
+error 463: account restricted or missing tctoken for contact
+msgId: 3EB052C20C9F6C2394177D  from: 6287776689958@s.whatsapp.net  engine: NOWEB
+```
+
+WAHA menerbitkan `msgId`, MARLIN mencatatnya sebagai bukti, halaman menyatakan
+berhasil — lalu mesin WAHA menolak sendiri karena WhatsApp membatasi nomor
+pengirim menghubungi nomor BARU. Penolakannya terjadi SESUDAH id terbit dan
+tidak terlihat dari respons API.
+
+Sudah dilakukan: kalimat hasil kirim tidak lagi mengaku bukti sampai; ia
+menyebut batas pengetahuannya dan menunjuk log WAHA + error 463.
+
+**Belum**: MARLIN tidak punya cara mengetahui nasib pesan sesudah terkirim.
+Jalan keluarnya menerima webhook status dari WAHA (`message.ack`: sent →
+delivered → read) dan merekonsiliasi ke `DailyReminderLog`, sehingga
+"terkirim" bisa naik jadi "sampai" atau turun jadi "ditolak". Perlu diputuskan
+user karena menambah endpoint webhook baru.
+
+**Catatan operasional (bukan bug kode)**: error 463 tidak bisa diakali dari
+aplikasi. Yang menyelesaikannya di sisi WhatsApp — nomor pengirim yang sudah
+"hangat" (dipakai wajar, punya riwayat percakapan dua arah), atau penerima
+menyimpan/menghubungi nomor itu lebih dulu.
