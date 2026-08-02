@@ -86,12 +86,8 @@ async function requireReviewOrCreate(): Promise<SessionUser> {
 // Item + foto (draft / perlu_koreksi)
 // ─────────────────────────────────────────────────────────────
 
-const saveItemSchema = z.object({
-  locationId: z.uuid(),
-  dateKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal tidak valid"),
-  rabNodeId: z.uuid("Pilih item pekerjaan dulu"),
-  volumeDone: z.coerce.number().positive("Volume harus lebih dari 0"),
-  notes: z.string().trim().max(500).optional(),
+/** Field yang dikirim `PhotoSourceInput` — sama persis di kedua jalur unggah. */
+const photoFieldsShape = {
   photoLat: z.coerce.number().min(-90).max(90).optional(),
   photoLng: z.coerce.number().min(-180).max(180).optional(),
   photoTakenAt: z.string().optional(),
@@ -99,6 +95,170 @@ const saveItemSchema = z.object({
   galleryFallback: z.enum(["project", "none"]).optional(),
   /** "1" = pelapor menyatakan sedang berada DI LOKASI saat unggah galeri. */
   galleryAtSite: z.string().optional(),
+};
+type PhotoFields = z.infer<z.ZodObject<typeof photoFieldsShape>>;
+
+function photoFieldsFrom(formData: FormData) {
+  return {
+    photoLat: formData.get("photoLat") || undefined,
+    photoLng: formData.get("photoLng") || undefined,
+    photoTakenAt: formData.get("photoTakenAt") || undefined,
+    photoSource: formData.get("photoSource") || undefined,
+    galleryFallback: formData.get("galleryFallback") || undefined,
+    galleryAtSite: formData.get("galleryAtSite") || undefined,
+  };
+}
+
+/** Berkas foto dari FormData (maks 6/unggah, yang kosong dibuang). */
+const fotoDariForm = (formData: FormData) =>
+  formData
+    .getAll("photos")
+    .filter((f): f is File => f instanceof File && f.size > 0)
+    .slice(0, MAX_PHOTOS_PER_UPLOAD);
+
+/** Lokasi + nama perusahaan untuk cap foto (pelaksana sesuai KONTRAK). */
+async function muatLokasiCap(locationId: string) {
+  const location = await db.location.findUnique({
+    where: { id: locationId },
+    select: {
+      id: true,
+      slug: true,
+      name: true,
+      gpsLat: true,
+      gpsLng: true,
+      // Nama perusahaan utk cap foto = pelaksana sesuai KONTRAK (vendor);
+      // fallback ke organisasi bila kontrak belum ada.
+      package: {
+        select: {
+          organization: { select: { name: true } },
+          contract: { select: { vendor: { select: { name: true } } } },
+        },
+      },
+    },
+  });
+  if (!location) throw new DailyReportError("Lokasi tidak ditemukan");
+  return {
+    location,
+    companyName:
+      location.package?.contract?.vendor?.name ?? location.package?.organization?.name ?? null,
+  };
+}
+
+/**
+ * Unggah foto bukti untuk SATU item laporan.
+ *
+ * Dipakai DUA jalur — saat item disimpan, dan saat foto ditambahkan menyusul
+ * (DECISIONS 226). Disatukan di sini karena aturan capnya identik, dan aturan
+ * cap yang diduplikasi berarti foto susulan suatu hari bercap beda dari foto
+ * yang menyertai itemnya.
+ *
+ * Gagal satu foto ≠ gagal seluruhnya: pesannya dikembalikan sebagai peringatan.
+ */
+async function unggahFotoItem(p: {
+  user: SessionUser;
+  location: Awaited<ReturnType<typeof muatLokasiCap>>["location"];
+  companyName: string | null;
+  reportId: string;
+  itemId: string;
+  rabNodeId: string;
+  dateKey: string;
+  files: File[];
+  foto: PhotoFields;
+}): Promise<string[]> {
+  const { files, foto, location, user } = p;
+  const photoErrors: string[] = [];
+  let takenAt: Date | null = null;
+  if (foto.photoTakenAt) {
+    const t = new Date(foto.photoTakenAt);
+    if (!Number.isNaN(t.getTime())) takenAt = t;
+  }
+  const source = foto.photoSource ?? "camera";
+  const fallbackMode = foto.galleryFallback ?? "project";
+
+  // Wajib-GPS (setelan, default mati — DECISIONS 219). Berlaku untuk KEDUA
+  // jalur, tapi yang diwajibkan berbeda karena sumber koordinatnya berbeda:
+  //   • Kamera → koordinat PERANGKAT saat memotret (dikirim dari browser).
+  //   • Galeri → GPS di EXIF FOTO ITU SENDIRI; posisi perangkat saat unggah
+  //     justru menyesatkan (unggah borongan lazim dilakukan dari kantor).
+  // Pemeriksaan galeri per-berkas ada di `savePhotoForItem`, karena EXIF baru
+  // terbaca di sana.
+  const wajibGps = files.length > 0 ? (await (await import("@/lib/policy")).getPolicy()).requirePhotoGps : false;
+  if (wajibGps && source === "camera" && (foto.photoLat == null || foto.photoLng == null)) {
+    throw new DailyReportError(
+      "Foto kamera wajib membawa titik GPS, tapi perangkat tidak mengirimkannya. " +
+        "Izinkan akses lokasi di browser (tombol di atas tombol Kamera), lalu foto ulang.",
+    );
+  }
+  const locLat = location.gpsLat != null ? Number(location.gpsLat) : null;
+  const locLng = location.gpsLng != null ? Number(location.gpsLng) : null;
+  const workDate = new Date(`${p.dateKey}T00:00:00.000Z`);
+  // Cap foto: badge = BANGUNAN/kategori RAB, baris di bawahnya = item
+  // pekerjaannya (permintaan user 2026-08-02, DECISIONS 218). Sebelumnya
+  // badge hanya memuat nama item — dan di KNMP satu lokasi punya belasan
+  // bangunan dengan nama item yang sama persis ("Pembesian", "Galian"),
+  // sehingga fotonya tidak bisa dipertanggungjawabkan ke bangunan mana pun.
+  const node = await db.rabNode.findUnique({
+    where: { id: p.rabNodeId },
+    select: { name: true, lineageKey: true, revisionId: true },
+  });
+  const workName = node?.name ?? null;
+  let buildingName: string | null = null;
+  if (node) {
+    const kat = await db.rabNode.findFirst({
+      where: {
+        revisionId: node.revisionId,
+        kind: "kategori",
+        lineageKey: node.lineageKey.split("#")[0],
+      },
+      select: { code: true, name: true },
+    });
+    // Null bila kategorinya tidak ketemu — cap menulis apa adanya, tidak
+    // mengarang bangunan (DECISIONS 197).
+    if (kat) buildingName = kat.code ? `${kat.code}. ${kat.name}` : kat.name;
+  }
+  for (const file of files) {
+    try {
+      await savePhotoForItem({
+        locationId: location.id,
+        reportId: p.reportId,
+        reportItemId: p.itemId,
+        file,
+        userId: user.id,
+        locationSlug: location.slug,
+        dateKey: p.dateKey,
+        stamp: {
+          source,
+          fallbackMode,
+          requireGps: wajibGps,
+          atSite: foto.galleryAtSite === "1",
+          lat: foto.photoLat ?? null,
+          lng: foto.photoLng ?? null,
+          locationLat: locLat,
+          locationLng: locLng,
+          takenAt,
+          workDate,
+          locationLabel: location.name,
+          companyName: p.companyName,
+          reporterName: user.fullName,
+          categoryName: buildingName ?? workName,
+          workName: buildingName ? workName : null,
+        },
+      });
+    } catch (err) {
+      if (err instanceof PhotoError) photoErrors.push(err.message);
+      else throw err;
+    }
+  }
+  return photoErrors;
+}
+
+const saveItemSchema = z.object({
+  locationId: z.uuid(),
+  dateKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal tidak valid"),
+  rabNodeId: z.uuid("Pilih item pekerjaan dulu"),
+  volumeDone: z.coerce.number().positive("Volume harus lebih dari 0"),
+  notes: z.string().trim().max(500).optional(),
+  ...photoFieldsShape,
 });
 
 export async function saveItemAction(_prev: DailyActionState, formData: FormData): Promise<DailyActionState> {
@@ -110,38 +270,13 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
       rabNodeId: formData.get("rabNodeId"),
       volumeDone: formData.get("volumeDone"),
       notes: formData.get("notes") ?? undefined,
-      photoLat: formData.get("photoLat") || undefined,
-      photoLng: formData.get("photoLng") || undefined,
-      photoTakenAt: formData.get("photoTakenAt") || undefined,
-      photoSource: formData.get("photoSource") || undefined,
-      galleryFallback: formData.get("galleryFallback") || undefined,
-      galleryAtSite: formData.get("galleryAtSite") || undefined,
+      ...photoFieldsFrom(formData),
     });
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const d = parsed.data;
     await requireLocationAccess(user, d.locationId);
 
-    const location = await db.location.findUnique({
-      where: { id: d.locationId },
-      select: {
-        id: true,
-        slug: true,
-        name: true,
-        gpsLat: true,
-        gpsLng: true,
-        // Nama perusahaan utk cap foto = pelaksana sesuai KONTRAK (vendor);
-        // fallback ke organisasi bila kontrak belum ada.
-        package: {
-          select: {
-            organization: { select: { name: true } },
-            contract: { select: { vendor: { select: { name: true } } } },
-          },
-        },
-      },
-    });
-    if (!location) return { error: "Lokasi tidak ditemukan" };
-    const companyName =
-      location.package?.contract?.vendor?.name ?? location.package?.organization?.name ?? null;
+    const { location, companyName } = await muatLokasiCap(d.locationId);
 
     const report = await getOrCreateDraft(d.locationId, d.dateKey, user.id);
     const item = await upsertItem(
@@ -151,102 +286,102 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
     );
 
     // Foto bukti (opsional, maks 6/unggah). Gagal satu foto ≠ gagal item.
-    const files = formData
-      .getAll("photos")
-      .filter((f): f is File => f instanceof File && f.size > 0)
-      .slice(0, MAX_PHOTOS_PER_UPLOAD);
-    const photoErrors: string[] = [];
-    let takenAt: Date | null = null;
-    if (d.photoTakenAt) {
-      const t = new Date(d.photoTakenAt);
-      if (!Number.isNaN(t.getTime())) takenAt = t;
-    }
-    const source = d.photoSource ?? "camera";
-    const fallbackMode = d.galleryFallback ?? "project";
-
-    // Wajib-GPS (setelan, default mati — DECISIONS 219). Berlaku untuk KEDUA
-    // jalur, tapi yang diwajibkan berbeda karena sumber koordinatnya berbeda:
-    //   • Kamera → koordinat PERANGKAT saat memotret (dikirim dari browser).
-    //   • Galeri → GPS di EXIF FOTO ITU SENDIRI; posisi perangkat saat unggah
-    //     justru menyesatkan (unggah borongan lazim dilakukan dari kantor).
-    // Pemeriksaan galeri per-berkas ada di `savePhotoForItem`, karena EXIF baru
-    // terbaca di sana.
-    const requireGps = files.length > 0 ? (await import("@/lib/policy")).getPolicy : null;
-    const wajibGps = requireGps ? (await requireGps()).requirePhotoGps : false;
-    if (wajibGps && source === "camera" && (d.photoLat == null || d.photoLng == null)) {
-      return {
-        error:
-          "Foto kamera wajib membawa titik GPS, tapi perangkat tidak mengirimkannya. " +
-          "Izinkan akses lokasi di browser (tombol di atas tombol Kamera), lalu foto ulang.",
-      };
-    }
-    const locLat = location.gpsLat != null ? Number(location.gpsLat) : null;
-    const locLng = location.gpsLng != null ? Number(location.gpsLng) : null;
-    const workDate = new Date(`${d.dateKey}T00:00:00.000Z`);
-    // Cap foto: badge = BANGUNAN/kategori RAB, baris di bawahnya = item
-    // pekerjaannya (permintaan user 2026-08-02, DECISIONS 218). Sebelumnya
-    // badge hanya memuat nama item — dan di KNMP satu lokasi punya belasan
-    // bangunan dengan nama item yang sama persis ("Pembesian", "Galian"),
-    // sehingga fotonya tidak bisa dipertanggungjawabkan ke bangunan mana pun.
-    const node = d.rabNodeId
-      ? await db.rabNode.findUnique({
-          where: { id: d.rabNodeId },
-          select: { name: true, lineageKey: true, revisionId: true },
-        })
-      : null;
-    const workName = node?.name ?? null;
-    let buildingName: string | null = null;
-    if (node) {
-      const kat = await db.rabNode.findFirst({
-        where: {
-          revisionId: node.revisionId,
-          kind: "kategori",
-          lineageKey: node.lineageKey.split("#")[0],
-        },
-        select: { code: true, name: true },
-      });
-      // Null bila kategorinya tidak ketemu — cap menulis apa adanya, tidak
-      // mengarang bangunan (DECISIONS 197).
-      if (kat) buildingName = kat.code ? `${kat.code}. ${kat.name}` : kat.name;
-    }
-    for (const file of files) {
-      try {
-        await savePhotoForItem({
-          locationId: location.id,
-          reportId: report.id,
-          reportItemId: item.id,
-          file,
-          userId: user.id,
-          locationSlug: location.slug,
-          dateKey: d.dateKey,
-          stamp: {
-            source,
-            fallbackMode,
-            requireGps: wajibGps,
-            atSite: d.galleryAtSite === "1",
-            lat: d.photoLat ?? null,
-            lng: d.photoLng ?? null,
-            locationLat: locLat,
-            locationLng: locLng,
-            takenAt,
-            workDate,
-            locationLabel: location.name,
-            companyName,
-            reporterName: user.fullName,
-            categoryName: buildingName ?? workName,
-            workName: buildingName ? workName : null,
-          },
-        });
-      } catch (err) {
-        if (err instanceof PhotoError) photoErrors.push(err.message);
-        else throw err;
-      }
-    }
+    const photoErrors = await unggahFotoItem({
+      user,
+      location,
+      companyName,
+      reportId: report.id,
+      itemId: item.id,
+      rabNodeId: d.rabNodeId,
+      dateKey: d.dateKey,
+      files: fotoDariForm(formData),
+      foto: d,
+    });
 
     revalidateReport(location.slug, d.dateKey);
     return {
       success: "Progres tersimpan.",
       warning: photoErrors.length ? `Sebagian foto gagal: ${[...new Set(photoErrors)].join("; ")}` : undefined,
+    };
+  } catch (err) {
+    return errState(err);
+  }
+}
+
+/**
+ * Tambah foto MENYUSUL ke item yang sudah tersimpan (DECISIONS 226).
+ *
+ * Permintaan user 2026-08-02: *"jika pekerjaan berhasil disimpan, tapi foto
+ * belum ada, saat ini belum ada kejelasan bagaimana edit/menambahkan foto yang
+ * ketinggalan"*. Memang belum ada. Foto itu opsional saat menyimpan, jadi
+ * ketinggalan foto adalah keadaan yang WAJAR — bukan kasus tepi.
+ *
+ * Jalan memutar yang tersedia sebelumnya (pilih ulang pekerjaan yang sama di
+ * form atas lalu simpan ulang) memaksa pelapor MENGETIK ULANG volume yang sudah
+ * benar. Satu salah ketik di situ mengubah angka progres — menambah foto tidak
+ * boleh punya risiko itu. Aksi ini TIDAK menyentuh volume maupun catatan.
+ */
+const addPhotosSchema = z.object({
+  reportId: z.uuid(),
+  itemId: z.uuid(),
+  ...photoFieldsShape,
+});
+
+export async function addItemPhotosAction(
+  _prev: DailyActionState,
+  formData: FormData,
+): Promise<DailyActionState> {
+  try {
+    const user = await requireCapability("daily_report.create");
+    const parsed = addPhotosSchema.safeParse({
+      reportId: formData.get("reportId"),
+      itemId: formData.get("itemId"),
+      ...photoFieldsFrom(formData),
+    });
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    const d = parsed.data;
+
+    const ctx = await loadReportContext(d.reportId);
+    await requireLocationAccess(user, ctx.locationId);
+    // Batas yang sama dengan hapus foto: begitu laporan dikirim, fotonya sudah
+    // jadi dasar verifikasi — menambah bukti setelah itu bukan koreksi.
+    if (!EDITABLE_STATUSES.includes(ctx.status)) {
+      return { error: "Laporan sudah dikirim — foto tidak bisa ditambah lagi." };
+    }
+
+    const item = await db.dailyReportItem.findFirst({
+      where: { id: d.itemId, reportId: ctx.id },
+      select: { id: true, rabNodeId: true },
+    });
+    if (!item) return { error: "Item tidak ditemukan di laporan ini." };
+
+    const files = fotoDariForm(formData);
+    if (files.length === 0) return { error: "Belum ada foto yang dipilih." };
+
+    const { location, companyName } = await muatLokasiCap(ctx.locationId);
+    const photoErrors = await unggahFotoItem({
+      user,
+      location,
+      companyName,
+      reportId: ctx.id,
+      itemId: item.id,
+      rabNodeId: item.rabNodeId,
+      dateKey: ctx.dateKey,
+      files,
+      foto: d,
+    });
+
+    const berhasil = files.length - photoErrors.length;
+    revalidateReport(ctx.slug, ctx.dateKey);
+    // Nol berhasil bukan "sukses sebagian" — itu gagal, dan harus terbaca gagal.
+    if (berhasil === 0) {
+      return { error: `Foto tidak tersimpan: ${[...new Set(photoErrors)].join("; ")}` };
+    }
+    return {
+      success: `${berhasil} foto ditambahkan.`,
+      warning: photoErrors.length
+        ? `Sebagian foto gagal: ${[...new Set(photoErrors)].join("; ")}`
+        : undefined,
     };
   } catch (err) {
     return errState(err);

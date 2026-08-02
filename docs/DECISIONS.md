@@ -7162,3 +7162,65 @@ terhitung sebagai bukti GPS (DECISIONS 197).
 
 Sisi server tidak berubah: `galleryFallback` masih diterima (kegiatan lapangan
 memakainya) dan defaultnya "project".
+
+---
+
+## 226 — Alur isi cepat laporan harian + foto menyusul (2026-08-02)
+
+Permintaan user 2026-08-02, dua hal yang saling melengkapi: kecepatan mengisi,
+dan jalan keluar saat foto ketinggalan.
+
+### Alur fokus: buka → pekerjaan · pilih → volume · simpan → pekerjaan lagi
+
+*"behaviour ini penting untuk kecepatan dan kemudahan bagi pengguna."*
+
+Ini bukan kosmetik. Pelapor lapangan mengisi belasan item berturut-turut dengan
+satu tangan; tiap kali harus mencari dan menyentuh kolom berikutnya, itu satu
+ketukan ekstra dikali belasan — dan alasan orang berhenti mengisi di tengah
+jalan. Tombol "Ganti" juga mengembalikan fokus ke kolom pekerjaan.
+
+Fokus dipindah lewat `requestAnimationFrame`, bukan langsung: kolom cari
+di-unmount saat pekerjaan terpilih dan di-mount lagi saat dikosongkan, jadi
+memanggil `focus()` sebelum render selesai mengenai elemen yang sudah tidak ada.
+
+`InputProps` sekarang menyebut `ref` secara eksplisit. React 19 mengoper `ref`
+sebagai prop biasa ke komponen fungsi, tetapi `InputHTMLAttributes` tidak
+memuatnya — tanpa itu pemanggil tidak bisa memindahkan fokus sama sekali.
+
+### Foto menyusul untuk item yang sudah tersimpan
+
+*"jika pekerjaan berhasil disimpan, tapi foto belum ada, saat ini belum ada
+kejelasan bagaimana edit/menambahkan foto yang ketinggalan. kamu belum handle
+masalah ini."* — Memang belum.
+
+Foto itu OPSIONAL saat menyimpan, jadi ketinggalan foto adalah keadaan yang
+WAJAR, bukan kasus tepi. Satu-satunya jalan yang tersedia sebelumnya adalah
+memilih ulang pekerjaan yang sama di form atas lalu menyimpan ulang — yang
+memaksa pelapor MENGETIK ULANG volume yang sudah benar. Satu salah ketik di situ
+mengubah angka progres; menambah foto tidak boleh punya risiko itu.
+
+Sekarang tiap baris item punya "Tambahkan foto" sendiri (`addItemPhotosAction`)
+yang TIDAK menyentuh volume maupun catatan. Item yang belum punya foto diberi
+penanda "Belum ada foto" — kalau hanya ada tombol, ketiadaan foto tidak
+kelihatan sampai laporan telanjur dikirim.
+
+Batasnya sama dengan hapus foto: hanya selama laporan masih draft / perlu
+koreksi. Begitu dikirim, foto sudah jadi dasar verifikasi — menambah bukti
+setelah itu bukan koreksi.
+
+Aturan cap foto DISATUKAN di satu fungsi (`unggahFotoItem`) yang dipakai kedua
+jalur. Aturan cap yang diduplikasi berarti foto susulan suatu hari bercap beda
+dari foto yang menyertai itemnya — dan bedanya baru ketahuan dari berkas yang
+sudah terbakar.
+
+Nol foto berhasil dilaporkan sebagai GAGAL, bukan "sukses sebagian": pesan
+sukses atas nol hasil adalah cara paling cepat membuat orang berhenti membaca
+pesan.
+
+**Verifikasi**: 8 kasus integrasi baru (volume & catatan tidak berubah, cap
+menyebut bangunan + pekerjaan, tanggal kerja item bukan tanggal unggah, jawaban
+"di lokasi" diteruskan, laporan terkirim ditolak, perlu-koreksi boleh, tanpa
+berkas ditolak, item milik laporan lain ditolak, semua-gagal = gagal) · 2 kasus
+E2E browser sungguhan untuk alur fokus & penanda "Belum ada foto" — fokus tidak
+bisa dibuktikan tanpa browser · unit 771/771 ✓ · integrasi 278/278 ✓ · E2E 34
+lulus (16 dilewati sesuai kondisi) ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓.
