@@ -56,7 +56,7 @@ export type PratinjauPengingat = {
 export async function pratinjauPengingat(orgId: string): Promise<PratinjauPengingat> {
   const now = new Date();
   const dateKey = jakartaDateKey(now);
-  const penerima = await kumpulkanPengingat(now, orgId);
+  const { penerima } = await kumpulkanPengingat(now, orgId);
 
   // Status sesi ditarik SEKARANG, bukan diasumsikan. Ini keterangan untuk
   // membaca hasil, BUKAN syarat menekan tombol (DECISIONS 207).

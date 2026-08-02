@@ -6882,3 +6882,61 @@ Kalau user tetap menghendaki urutan usulannya, yang perlu diubah hanya satu
 cabang di `photos.ts`.
 
 **Verifikasi**: `pnpm build` ✓ · typecheck ✓ · lint ✓ · unit 749 ✓.
+
+---
+
+## 221 — "Berhasil" yang tidak mengirim apa pun: nol pesan harus menjelaskan dirinya (2026-08-02)
+
+> aku sudah klik, dinyatakan berhasil. tapi tidak ada wa yang terkirim,
+> sedangkan fitur kirim laporan ke group berjalan normal.
+
+### Sebabnya
+
+`kumpulkanPengingat` hanya mengambil penanggung jawab yang punya
+`User.waNumber`. Di basis data uji: **8 user aktif, NOL punya nomor WA** — jadi
+daftar penerimanya kosong, `terkirim = 0` dan `gagal = 0`, dan tombolnya jatuh
+ke cabang yang mengembalikan kalimat **hijau** "Tidak ada penanggung jawab yang
+perlu ditagih saat ini."
+
+Ketimpangan yang user perhatikan justru buktinya: kirim ke GRUP berjalan normal
+karena ia memakai chat-id per paket, bukan `waNumber` per orang. WAHA sehat;
+yang kosong daftar tujuannya.
+
+### Yang salah bukan cuma warnanya
+
+Nol pesan punya DUA arti yang berlawanan:
+
+- semua lokasi sudah melapor → memang sehat;
+- ada yang belum melapor tapi tak satu pun penanggung jawabnya bisa dihubungi →
+  **salah konfigurasi**, dan hijau menyembunyikannya.
+
+Komentar lama di kode berbunyi "sebabnya TIDAK ditebak". Niatnya benar, tapi
+tidak menebak bukan berarti diam: jumlah lokasi dalam lingkup, yang sudah
+melapor, yang perlu ditagih, orang yang ditugaskan, dan orang tanpa nomor WA
+semuanya **fakta yang bisa dihitung**, bukan tebakan. Tanpa itu admin hanya
+melihat kalimat hijau tanpa satu pun jalan keluar.
+
+### Yang berubah
+
+`kumpulkanPengingat` sekarang mengembalikan `{ penerima, diagnosa }`, dan
+`sebabTidakAdaPenerima()` menyusunnya jadi kalimat yang bisa ditindaklanjuti:
+
+- belum ada lokasi dalam lingkup → syaratnya disebut (berjalan · pelaksanaan ·
+  SPMK sudah lewat);
+- ada yang belum melapor tapi nol penugasan → diarahkan ke halaman **Lokasi**;
+- ditugaskan tapi tanpa nomor WA / nonaktif → jumlahnya disebut, diarahkan ke
+  **Master Data → Pengguna**;
+- semua sudah melapor → tetap hijau, dengan angkanya ("5 dari 7 lokasi sudah
+  melapor").
+
+Cabang yang tersisa hijau kini hanya cabang yang benar-benar sehat; sisanya
+merah.
+
+Fungsinya ditaruh di `lib/harian/diagnosa.ts` — MURNI, tanpa `lib/db`, supaya
+bisa diuji tanpa env. Satu import `db` di `penjadwal.ts` membuat seluruh modul
+itu tak tersentuh uji unit.
+
+**Verifikasi**: 6 kasus unit baru (semua sudah lapor → null; nol nomor WA →
+disebut berikut tempat mengisinya; nonaktif terpisah; nol penugasan → diarahkan
+ke Lokasi bukan Pengguna; lingkup kosong → syarat disebut; keadaan sehat → tidak
+mengarang masalah) · `pnpm build` ✓ · typecheck ✓ · lint ✓.

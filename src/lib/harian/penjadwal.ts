@@ -6,6 +6,7 @@ import { canTransitionLocation } from "@/lib/lifecycle";
 import { sendText, isWahaConfigured, getSessionStatus } from "@/lib/waha/client";
 import { normalizeWaTarget } from "@/lib/contacts/model";
 import { pesanPengingat, type LokasiTertagih } from "./pesan";
+import type { DiagnosaPengingat } from "./diagnosa";
 
 /**
  * Pekerjaan harian MARLIN (DECISIONS 202) — dijalankan penjadwal luar lewat
@@ -26,6 +27,9 @@ export type RincianKirim = {
   error?: string;
 };
 
+export type { DiagnosaPengingat } from "./diagnosa";
+export { sebabTidakAdaPenerima } from "./diagnosa";
+
 export type HasilPengingat = {
   terkirim: number;
   gagal: number;
@@ -33,6 +37,8 @@ export type HasilPengingat = {
   /** Status sesi WhatsApp saat itu. INFORMASI, bukan pagar (DECISIONS 207). */
   sesi: string;
   rincian: RincianKirim[];
+  /** Angka pendukung supaya "0 terkirim" bisa menjelaskan dirinya (DECISIONS 221). */
+  diagnosa?: DiagnosaPengingat;
 };
 
 export type HasilHarian = {
@@ -143,7 +149,7 @@ export async function kumpulkanPengingat(
    * organisasi A tidak boleh mengirim WA ke orang organisasi B (DECISIONS 150).
    */
   orgId?: string,
-): Promise<PenerimaPengingat[]> {
+): Promise<{ penerima: PenerimaPengingat[]; diagnosa: DiagnosaPengingat }> {
   const tanggal = parseDateKey(jakartaDateKey(now))!;
 
   // Lokasi yang WAJIB punya laporan hari ini: berjalan, di paket pelaksanaan,
@@ -175,25 +181,54 @@ export async function kumpulkanPengingat(
     string,
     { nama: string; wa: string; lokasi: LokasiTertagih[] }
   >();
+  // Angka-angka ini dikumpulkan supaya "0 terkirim" bisa MENJELASKAN DIRINYA.
+  // Tidak menebak sebab bukan berarti diam: jumlah lokasi yang ditagih, yang
+  // sudah lapor, dan orang yang belum punya nomor WA semuanya FAKTA, bukan
+  // tebakan — dan tanpa itu admin cuma melihat kalimat hijau tanpa jalan
+  // keluar. DECISIONS 221.
+  const diagnosa: DiagnosaPengingat = {
+    lokasiDalamLingkup: lokasi.length,
+    lokasiSudahLapor: 0,
+    lokasiPerluDitagih: 0,
+    lokasiTanpaPenugasan: 0,
+    orangDitugaskan: 0,
+    orangTanpaNomorWa: 0,
+    orangNonaktif: 0,
+  };
+  const orangTerlihat = new Set<string>();
+  const tanpaWa = new Set<string>();
   for (const l of lokasi) {
     const laporan = l.dailyReports[0];
     // Sudah dikirim/disetujui/final → tidak ditagih.
-    if (laporan && laporan.status !== "draft") continue;
+    if (laporan && laporan.status !== "draft") {
+      diagnosa.lokasiSudahLapor++;
+      continue;
+    }
+    diagnosa.lokasiPerluDitagih++;
+    if (l.assignments.length === 0) diagnosa.lokasiTanpaPenugasan++;
     const item: LokasiTertagih = { nama: l.name, adaDraft: !!laporan };
     for (const a of l.assignments) {
       const u = a.user;
+      if (!orangTerlihat.has(u.id)) {
+        orangTerlihat.add(u.id);
+        if (!u.isActive) diagnosa.orangNonaktif++;
+        else if (!u.waNumber) tanpaWa.add(u.id);
+      }
       if (!u.isActive || !u.waNumber) continue;
       const entri = perUser.get(u.id) ?? { nama: u.fullName, wa: u.waNumber, lokasi: [] };
       entri.lokasi.push(item);
       perUser.set(u.id, entri);
     }
   }
+  diagnosa.orangDitugaskan = orangTerlihat.size;
+  diagnosa.orangTanpaNomorWa = tanpaWa.size;
 
   // Urut abjad supaya daftar pratinjau di halaman sistem stabil dari waktu ke
   // waktu — daftar yang berubah urutan tiap muat ulang susah dibaca.
-  return [...perUser.entries()]
+  const penerima = [...perUser.entries()]
     .map(([userId, e]) => ({ userId, ...e }))
     .sort((a, b) => a.nama.localeCompare(b.nama, "id"));
+  return { penerima, diagnosa };
 }
 
 /**
@@ -245,7 +280,8 @@ export async function kirimPengingatHarian(
     hasil.sesi = `tidak bisa dicek: ${err instanceof Error ? err.message : "gagal"}`;
   }
 
-  const penerima = await kumpulkanPengingat(now, orgId);
+  const { penerima, diagnosa } = await kumpulkanPengingat(now, orgId);
+  hasil.diagnosa = diagnosa;
   const tanggalTampil = formatTanggal(tanggal);
   for (const e of penerima) {
     const userId = e.userId;
