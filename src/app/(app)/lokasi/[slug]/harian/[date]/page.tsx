@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Camera, ClipboardList, History, Printer, TriangleAlert } from "lucide-react";
+import { Camera, ChevronLeft, ClipboardList, History, Printer, TriangleAlert } from "lucide-react";
 import { Badge, Banner, Card, CardBody, CardHeader, PageHeader, StatusPill } from "@/components/ui";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import { isR2Configured } from "@/lib/r2";
@@ -62,7 +62,38 @@ export default async function HarianWorkspacePage({
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
+      {/* MOBILE: satu baris saja. Layar ini adalah tempat mandor MENGETIK, dan
+          breadcrumb + eyebrow + judul panjang + ringkasan nilai mendorong kolom
+          isian jauh ke bawah lipatan — laporan user 2026-08-02: "tampilan mobile
+          pada halaman input pekerjaan, sebaiknya fokus inputan pekerjaan,
+          informasi di atas inputan seperti progress dll, di hide saja."
+
+          Yang TIDAK ikut disembunyikan: nama lokasi, tanggal, dan status. Ketiganya
+          mencegah kesalahan yang mahal — melaporkan volume ke tanggal atau lokasi
+          yang keliru baru ketahuan setelah laporan terkirim. */}
+      <div className="sm:hidden">
+        <Link
+          href="/hari-ini"
+          className="inline-flex items-center gap-1 text-[13px] text-ink-muted hover:text-ink"
+        >
+          <ChevronLeft aria-hidden className="size-4" /> Hari Ini
+        </Link>
+        <div className="mt-1 flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h1 className="truncate text-base font-semibold text-ink">
+              {formatTanggal(parseDateKey(date)!, "EEE, d MMM yyyy")}
+            </h1>
+            <p className="truncate text-[13px] text-ink-muted">{data.location.name}</p>
+          </div>
+          <StatusPill
+            tone={status ? REPORT_STATUS_TONE[status] : "neutral"}
+            label={status ? REPORT_STATUS_LABEL[status] : "Belum Ada"}
+          />
+        </div>
+      </div>
+
       <PageHeader
+        className="hidden sm:block"
         breadcrumb={[
           { label: "Hari Ini", href: "/hari-ini" },
           { label: data.location.name },

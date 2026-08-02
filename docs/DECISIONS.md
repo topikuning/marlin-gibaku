@@ -7102,3 +7102,81 @@ tidak melihat lokasi tetangga SEPAKET yang tidak ditugaskan; mandor nol
 vendor/pengguna/paket tapi tetap menemukan lokasi tugasnya; dokumen dibatalkan
 tidak muncul; kueri < 2 huruf nol hasil; href tiap hasil menunjuk halaman
 objeknya) · integrasi 280 ✓ · unit 790 ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 224 — Layar input harian mobile: dialog lokasi, papan ketik yang tidak putus, header diciutkan (2026-08-02)
+
+> konfirmasi lokasi saat buka galeri terlalu kecil ... terlalu banyak
+> penjelasan di situ, langsung saja button.
+>
+> saat berhasil simpan pekerjaan harian, memang fokus ke inputan pekerjaan
+> lagi, tapi user tetap harus klik di situ untuk memunculkan keyboardnya.
+>
+> tampilan mobile pada halaman input pekerjaan, sebaiknya fokus inputan
+> pekerjaan, informasi di atas inputan seperti progress dll, di hide saja.
+
+Tiga keluhan pada satu layar yang sama — layar yang paling sering dipakai
+orang lapangan, dan satu-satunya layar di MARLIN yang dipakai sambil berdiri.
+
+### 1. Konfirmasi galeri: panel kecil → dialog
+
+Pertanyaan "sedang di lokasi proyek?" (DECISIONS 220) dulu panel yang menyelip
+di bawah tombol Galeri: judul 14px, dua kalimat penjelasan, dua tombol beraksara
+11px. Di 375px itu terbaca sebagai catatan kaki, bukan sebagai pertanyaan yang
+menghentikan alur.
+
+Sekarang dialog di tengah layar, tanpa paragraf, dua tombol selebar dialog
+dengan tinggi 56px. Penjelasan akibat tiap pilihan DIHAPUS — bukan diperpendek:
+hasilnya toh tercetak pada cap fotonya sendiri (DECISIONS 197), dan penjelasan
+yang tidak dibaca bukan penjelasan.
+
+### 2. Pemilih berkas dibuka seketika; GPS berjalan paralel
+
+Cacat yang ditemukan sambil memperbaiki tampilannya, bukan dilaporkan: `click()`
+pemilih berkas dulu MENUNGGU `getCurrentPosition` selesai. Dengan `timeout:
+10000`, menekan "Ya, saya di lokasi" bisa berarti sepuluh detik layar diam tanpa
+satu pun tanda bahwa sesuatu sedang terjadi. Lebih buruk: `click()` dari dalam
+callback asinkron sudah keluar dari gestur pengguna, dan sebagian browser mobile
+memblokirnya — pemilih berkasnya tidak pernah muncul sama sekali.
+
+Sekarang pemilih dibuka sinkron di gestur ketukan, GPS jalan paralel, dan yang
+menunggu GPS hanya `onPicked` (dipakai form ber-auto-submit di Kegiatan
+Lapangan). Jadi jaminan lamanya tetap: form tidak pernah terkirim sebelum
+koordinat cadangannya siap.
+
+### 3. Papan ketik yang tidak putus setelah simpan
+
+Kolom cari pekerjaan dulu DILEPAS dari DOM begitu satu item dipilih (`picked ?
+kartu : kolom-cari`). Akibatnya saat tombol Simpan diketuk tidak ada apa pun
+yang bisa difokuskan, dan fokus yang dipasang SESUDAH server action selesai
+sudah kehabisan gestur pengguna: kursor pindah, papan ketik tidak muncul.
+Pelapor harus mengetuk sekali lagi — tiap item, sepanjang hari.
+
+Kolom cari sekarang SELALU terpasang, hanya diciutkan (`h-0 overflow-hidden`)
+saat sudah ada pilihan, dan fokus dipindah ke sana DI DALAM `onClick` tombol
+Simpan. Fokus kedua dipasang lagi setelah kolomnya kembali berukuran penuh —
+itu yang memunculkan papan ketik di Android, sementara di iOS yang menahannya
+tetap fokus pertama tadi.
+
+`tabIndex={-1}` saat diciutkan supaya tidak jadi perhentian Tab siluman.
+SENGAJA TANPA `aria-hidden`: menaruh elemen yang difokuskan program di dalam
+subpohon `aria-hidden` memutus pelacakan fokus pembaca layar — memperbaiki satu
+keluhan sambil merusak aksesibilitas bukan perbaikan.
+
+`Input` (`ui/field.tsx`) kini menerima `ref` (React 19: `ref` = prop biasa).
+
+### 4. Header halaman diciutkan di mobile
+
+Breadcrumb + eyebrow + judul panjang ("Laporan Senin, 2 Agustus 2026") +
+ringkasan nilai mendorong kolom isian jauh ke bawah lipatan. Di <640px semuanya
+diganti satu baris: tanggal ringkas, nama lokasi, status.
+
+Yang TIDAK ikut disembunyikan: nama lokasi, tanggal, dan status. Ketiganya
+mencegah kesalahan mahal — melaporkan volume ke tanggal atau lokasi yang keliru
+baru ketahuan setelah laporan terkirim. "Di-hide saja" berlaku untuk hiasan
+navigasi, bukan untuk tiga fakta yang menjaga laporan menempel di tempat yang
+benar. Di ≥640px header penuh tetap seperti semula.
+
+**Verifikasi**: unit 792 ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓. Belum diuji
+di perangkat nyata — perilaku papan ketik mobile hanya bisa dipastikan di sana.

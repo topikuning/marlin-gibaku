@@ -125,6 +125,7 @@ function ItemForm({
   const [volume, setVolume] = useState("");
   const [photoKey, setPhotoKey] = useState(0);
   const formRef = useRef<HTMLFormElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   // Reset form + hapus draft lokal node ini setelah sukses simpan.
   // setState via callback timeout (bukan sinkron di effect) — patuh react-hooks/set-state-in-effect.
@@ -145,6 +146,10 @@ function ItemForm({
       setVolume("");
       setPhotoKey((k) => k + 1);
       formRef.current?.reset();
+      // Fokus ULANG setelah kolom kembali berukuran penuh. Ini yang membuat
+      // papan ketik muncul di Android; di iOS yang menahannya tetap fokus
+      // pertama di dalam gestur ketukan tombol Simpan (lihat onClick).
+      searchRef.current?.focus();
     }, 0);
     return () => window.clearTimeout(timer);
   }, [state, slug, dateKey]);
@@ -201,7 +206,7 @@ function ItemForm({
           1 · Pekerjaan
         </Label>
         {picked ? (
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-primary bg-primary-50 px-4 py-3">
+          <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-primary bg-primary-50 px-4 py-3">
             <div className="min-w-0">
               {picked.category ? (
                 <div className="truncate text-[11px] font-medium text-primary">{picked.category}</div>
@@ -230,55 +235,66 @@ function ItemForm({
               Ganti
             </Button>
           </div>
-        ) : (
-          <>
-            <div className="relative">
-              <Search aria-hidden className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-faint" />
-              <Input
-                id="dr-search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                inputMode="search"
-                placeholder="Ketik nama / kode pekerjaan…"
-                className="h-11 pl-9 text-base"
-              />
-            </div>
-            {query ? (
-              <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-border bg-surface">
-                {matches.length === 0 ? (
-                  <div className="px-4 py-3 text-sm text-ink-muted">Tidak ada yang cocok.</div>
-                ) : (
-                  matches.map((n) => (
-                    <button
-                      key={n.id}
-                      type="button"
-                      onClick={() => pick(n)}
-                      className="block w-full border-b border-surface-inset px-4 py-3 text-left last:border-0 active:bg-primary-50"
-                    >
-                      {n.category ? (
-                        <div className="truncate text-[11px] font-medium text-primary">{n.category}</div>
-                      ) : null}
-                      <div className="text-sm font-medium text-ink">{n.name}</div>
-                      {/* Item dari draft adendum ditandai — pelapor harus tahu
-                          ia mencatat pekerjaan yang belum punya dasar kontrak
-                          (DECISIONS 210). */}
-                      {n.basis === "draft_adendum" ? (
-                        <div className="mt-0.5 inline-block rounded bg-warning-soft px-1.5 py-0.5 text-[11px] font-medium text-warning">
-                          Pengajuan adendum — belum resmi
-                        </div>
-                      ) : null}
-                      <div className="text-xs text-ink-muted">
-                        {n.code}
-                        {n.unit ? ` · ${n.unit}` : ""}
-                        {n.remaining != null ? ` · sisa ${formatNumber(n.remaining)} ${n.unit ?? ""}` : ""}
+        ) : null}
+
+        {/* Kolom cari SELALU terpasang, hanya diciutkan saat sudah ada pilihan.
+            Kalau ia dilepas dari DOM, tidak ada yang bisa difokuskan saat tombol
+            Simpan diketuk — dan begitu fokus baru dipasang SESUDAH server action
+            selesai, gestur pengguna sudah habis dan papan ketik mobile tidak
+            mau muncul lagi. Laporan user 2026-08-02: "simpan berhasil, langsung
+            inputan pekerjaan aktif lagi buka keyboard siap ketik."
+            tabIndex -1 saat diciutkan supaya tidak jadi perhentian Tab siluman.
+            SENGAJA TANPA aria-hidden: menaruh elemen yang difokuskan program di
+            dalam subpohon aria-hidden memutus pelacakan fokus pembaca layar. */}
+        <div className={picked ? "h-0 overflow-hidden opacity-0" : ""}>
+          <div className="relative">
+            <Search aria-hidden className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-faint" />
+            <Input
+              ref={searchRef}
+              id="dr-search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              inputMode="search"
+              tabIndex={picked ? -1 : undefined}
+              placeholder="Ketik nama / kode pekerjaan…"
+              className="h-11 pl-9 text-base"
+            />
+          </div>
+          {!picked && query ? (
+            <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-border bg-surface">
+              {matches.length === 0 ? (
+                <div className="px-4 py-3 text-sm text-ink-muted">Tidak ada yang cocok.</div>
+              ) : (
+                matches.map((n) => (
+                  <button
+                    key={n.id}
+                    type="button"
+                    onClick={() => pick(n)}
+                    className="block w-full border-b border-surface-inset px-4 py-3 text-left last:border-0 active:bg-primary-50"
+                  >
+                    {n.category ? (
+                      <div className="truncate text-[11px] font-medium text-primary">{n.category}</div>
+                    ) : null}
+                    <div className="text-sm font-medium text-ink">{n.name}</div>
+                    {/* Item dari draft adendum ditandai — pelapor harus tahu
+                        ia mencatat pekerjaan yang belum punya dasar kontrak
+                        (DECISIONS 210). */}
+                    {n.basis === "draft_adendum" ? (
+                      <div className="mt-0.5 inline-block rounded bg-warning-soft px-1.5 py-0.5 text-[11px] font-medium text-warning">
+                        Pengajuan adendum — belum resmi
                       </div>
-                    </button>
-                  ))
-                )}
-              </div>
-            ) : null}
-          </>
-        )}
+                    ) : null}
+                    <div className="text-xs text-ink-muted">
+                      {n.code}
+                      {n.unit ? ` · ${n.unit}` : ""}
+                      {n.remaining != null ? ` · sisa ${formatNumber(n.remaining)} ${n.unit ?? ""}` : ""}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {/* 2 · Volume */}
@@ -331,7 +347,17 @@ function ItemForm({
         <Input id="dr-notes" name="notes" maxLength={500} placeholder="mis. cor kolom L2 utara" className="h-11 text-base" />
       </div>
 
-      <Button type="submit" loading={pending} disabled={!picked} className="h-12 w-full text-base">
+      {/* Fokus dipindah ke kolom cari DI DALAM gestur ketukan ini — bukan
+          sesudah server action selesai. Itu satu-satunya cara papan ketik
+          mobile tetap terbuka: begitu gesturnya habis, `focus()` hanya
+          memindahkan kursor tanpa memunculkan papan ketik. */}
+      <Button
+        type="submit"
+        loading={pending}
+        disabled={!picked}
+        onClick={() => searchRef.current?.focus()}
+        className="h-12 w-full text-base"
+      >
         Simpan Progres
       </Button>
       <p className="text-center text-[11px] text-ink-muted">

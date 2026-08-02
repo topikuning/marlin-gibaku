@@ -2,6 +2,7 @@ import type {
   InputHTMLAttributes,
   LabelHTMLAttributes,
   ReactNode,
+  Ref,
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from "react";
@@ -43,6 +44,8 @@ const INVALID_CLASS = "border-danger";
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   invalid?: boolean;
+  /** React 19: `ref` sekadar prop biasa — diteruskan lewat `...rest`. */
+  ref?: Ref<HTMLInputElement>;
 }
 
 export function Input({ invalid, className, ...rest }: InputProps) {
