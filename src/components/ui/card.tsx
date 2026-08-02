@@ -12,7 +12,15 @@ export function Card({
   return (
     <section
       className={cn(
-        "rounded-lg border border-border bg-surface shadow-xs",
+        // `min-w-0` WAJIB di sini, bukan ditambal per halaman. Card hampir
+        // selalu jadi anak grid/flex, dan anak grid/flex punya
+        // `min-width: auto` = lebar MIN-CONTENT-nya. Satu baris teks panjang di
+        // dalam kartu (mis. "Lokasi: A, B, C… · Login terakhir …") lalu
+        // memaksa track grid melebar, halaman jadi bisa digeser ke samping, dan
+        // Safari iOS memperkecil seisi halaman supaya muat. Itu cacat yang
+        // berulang di banyak halaman karena ditambal satu per satu, bukan di
+        // sumbernya. DECISIONS 217.
+        "min-w-0 rounded-lg border border-border bg-surface shadow-xs",
         className,
       )}
     >

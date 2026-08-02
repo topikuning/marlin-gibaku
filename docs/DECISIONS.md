@@ -6647,3 +6647,54 @@ hasil kali ulang), baris yang volumenya diubah dihitung ulang, volume 0 tetap
 ada + dilaporkan, HAPUS mencabut dan menurunkan nilai kategori, item baru
 menempel ke kategorinya dengan lineageKey `V#+3`, item baru tanpa harga ditolak
 · typecheck ✓ · lint ✓ · unit 740 ✓.
+
+---
+
+## 217 — Overflow mobile dijaga uji, bukan audit manual (2026-08-02)
+
+**Teguran user**: "aku sudah bilang untuk cek tampilan mobile, pastikan nyaman
+dan tidak over. kenapa selalu ada yg seperti ini terulang lagi!"
+
+Teguran itu benar, dan sebabnya struktural: audit 390px pernah dikerjakan
+sekali (tugas #11), lalu tidak ada apa pun yang menjaganya. Setiap halaman baru
+memulai lagi dari nol, dan yang menemukan regresinya selalu user.
+
+### Pagar
+
+`tests/e2e/mobile-overflow.spec.ts` menelusuri 13 halaman utama + 11 halaman
+dalam (workspace lokasi & paket) pada viewport **375×812** (iPhone SE — layar
+tersempit yang masih dipakai orang lapangan) dan menegakkan SATU invarian:
+`document.scrollWidth <= clientWidth`. Halaman tidak boleh bisa digeser ke
+samping.
+
+Elemen lebar DI DALAM kontainer ber-scroll sendiri tidak dihitung pelanggaran —
+itu pola yang memang disengaja (DECISIONS 010). Saat gagal, pesannya menyebut
+elemen mana yang melewati tepi kanan berikut class dan cuplikan teksnya, jadi
+penyebabnya langsung kelihatan tanpa menebak. Uji juga menggulir ke dasar
+halaman dan menunggu `networkidle` lebih dulu: peta dan grafik sering baru
+melebar SESUDAH mount, dan justru itu yang lolos dari periksa manual.
+
+### Tiga cacat yang langsung ketangkap
+
+| Tempat | Sebab | Akibat |
+| --- | --- | --- |
+| `PageHeader` | `shrink-0` pada blok aksi | dua tombol panjang = 597px → `/paket` melebar jadi **613px** |
+| `Card` | anak grid/flex punya `min-width: auto` = min-content | satu baris teks panjang di kartu → `/pengguna` **577px** |
+| daftar pengguna | 5 tombol aksi tanpa `flex-wrap` | **560px** |
+
+Dua yang pertama diperbaiki DI KOMPONEN BERSAMA, bukan di halamannya:
+`PageHeader` dan `Card` dipakai hampir di semua halaman, jadi menambalnya satu
+per satu persis yang membuat cacat ini terus muncul lagi di tempat berbeda.
+
+### Yang BELUM terjawab
+
+Tangkapan layar user memperlihatkan kartu peta & status submit selebar ~1/3
+layar sementara kartu di bawahnya selebar penuh. Itu TIDAK bisa direproduksi:
+diukur pada 375/390/393/430px, kartu peta dan kartu Activity Centre selalu sama
+lebarnya (343/358/361/398) dan `scrollWidth == clientWidth`. Sisa dugaan yang
+belum terbukti: berkas CSS lama yang masih ter-cache di perangkat, atau Safari
+dalam mode "Request Desktop Website". Perlu satu keterangan dari user sebelum
+diklaim selesai — jangan sampai ditandai beres padahal belum.
+
+**Verifikasi**: 13 rute + 1 sapuan halaman dalam LULUS di 375px (dijalankan
+lokal dengan Postgres 16 + seed + dev server) · typecheck ✓ · lint ✓.

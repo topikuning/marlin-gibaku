@@ -292,7 +292,12 @@ export function UsersTable({
       {users.map((u) => (
         <div key={u.id} className="py-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
+            {/* min-w-0: tanpa ini blok identitas memakai lebar max-content —
+                "Lokasi: A, B, C…" + "Login terakhir …" berjejer jadi 470px dan
+                MELEBARKAN HALAMAN di 375px, walau baris di dalamnya sudah
+                flex-wrap. Wrap baru bekerja setelah induknya boleh menyempit.
+                DECISIONS 217. */}
+            <div className="min-w-0">
               <div className="font-medium text-ink">
                 {u.fullName} <span className="ml-1 text-sm text-ink-muted">@{u.username}</span>
               </div>
@@ -310,7 +315,9 @@ export function UsersTable({
               </div>
             </div>
             {canManage && (
-              <div className="flex gap-1.5">
+              // flex-wrap: lima tombol aksi berjejer = 527px, jauh di atas
+              // layar 375px. Tanpa wrap, barisnya melebarkan halaman.
+              <div className="flex flex-wrap gap-1.5">
                 <Button
                   size="sm"
                   variant="secondary"

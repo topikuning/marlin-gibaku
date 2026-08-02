@@ -63,8 +63,14 @@ export function PageHeader({
             <div className="mt-1 text-sm text-ink-muted">{description}</div>
           ) : null}
         </div>
+        {/* BUKAN `shrink-0`: itu memerintahkan blok tombol untuk tidak pernah
+            mengecil, sehingga dua tombol beraksara panjang (mis. "Impor batch
+            lokasi" + "Paket baru" = 597px) MELEBARKAN SELURUH HALAMAN di layar
+            390px — Safari iOS lalu memperkecil seisi halaman supaya muat.
+            Karena PageHeader dipakai hampir semua halaman, satu kata ini
+            membuat cacat yang sama muncul berulang di mana-mana. DECISIONS 217. */}
         {actions ? (
-          <div className="flex shrink-0 items-center gap-2">{actions}</div>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">{actions}</div>
         ) : null}
       </div>
     </div>
