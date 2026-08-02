@@ -244,7 +244,7 @@ export function SummaryPanel(props: SummaryPanelProps) {
             <p className="text-xs text-ink-muted">Finalkan dulu sebelum mengirim ke pimpinan.</p>
           ) : null}
           {contacts.length === 0 ? (
-            <p className="text-xs text-ink-muted">Tambah kontak di Master Data → Kontak WA.</p>
+            <p className="text-xs text-ink-muted">Tambah kontak di Administrasi → Kontak WA.</p>
           ) : null}
           {sendState?.error ? <p className="text-xs text-danger">{sendState.error}</p> : null}
           {sendState?.success ? <p className="text-xs text-success">{sendState.success}</p> : null}

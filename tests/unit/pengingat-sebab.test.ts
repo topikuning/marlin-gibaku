@@ -30,7 +30,9 @@ describe("KASUS INTI: nol pesan harus bisa menjelaskan dirinya", () => {
     const s = sebabTidakAdaPenerima(d({ orangTanpaNomorWa: 8 }));
     expect(s).toContain("8 belum punya nomor WhatsApp");
     expect(s).toContain("7 lokasi belum melapor");
-    expect(s).toMatch(/Master Data.*Pengguna/);
+    // Nama menunya harus yang ADA di sidebar hari ini (DECISIONS 222 —
+    // "Master Data" sudah dipecah ke dalam grup Administrasi).
+    expect(s).toMatch(/Administrasi.*Pengguna/);
   });
 
   it("akun nonaktif ikut disebut terpisah dari yang tanpa nomor", () => {

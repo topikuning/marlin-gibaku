@@ -82,6 +82,14 @@ export type NavGroup = {
 /**
  * Enam grup. Setiap menu lama tetap ada — yang hilang dari daftar ini berarti
  * hilang dari aplikasi, jadi jangan menghapus tanpa mengganti tempatnya.
+ *
+ * NAMA DAUN = NAMA HALAMAN TUJUANNYA, bukan nama karangan baru. PRD §3.3
+ * menyebut label seperti "Portfolio Paket" dan "Insight & AI"; itu sketsa
+ * sidebar, sedangkan yang normatif adalah FR-NAV-01 (enam grup + sub-menu
+ * sesuai capability). Memakai nama karangan itu membuat menu "Insight & AI"
+ * mendarat di halaman berjudul "AI Intelligence" dan "Ringkasan Chat" mendarat
+ * di "Chat Grup" — persis ketidaksinambungan yang dikeluhkan PRD. Grupnya ikut
+ * dokumen; nama daunnya ikut aplikasi.
  */
 export const NAV_GROUPS: NavGroup[] = [
   {
@@ -94,9 +102,9 @@ export const NAV_GROUPS: NavGroup[] = [
     label: "Proyek",
     icon: "package",
     items: [
-      { label: "Portofolio Paket", href: "/paket", icon: "package", capability: "package.view" },
-      { label: "Portofolio Lokasi", href: "/lokasi", icon: "mapPin", capability: "location.view" },
-      { label: "Peta Lokasi", href: "/peta", icon: "map", capability: "location.view" },
+      { label: "Paket", href: "/paket", icon: "package", capability: "package.view" },
+      { label: "Lokasi", href: "/lokasi", icon: "mapPin", capability: "location.view" },
+      { label: "Peta", href: "/peta", icon: "map", capability: "location.view" },
     ],
   },
   {
@@ -104,41 +112,41 @@ export const NAV_GROUPS: NavGroup[] = [
     icon: "hardHat",
     items: [
       { label: "Hari Ini", href: "/hari-ini", icon: "sun", capability: "daily_report.create" },
-      { label: "Galeri Foto", href: "/foto", icon: "camera", capability: "location.view" },
+      { label: "Foto Lapangan", href: "/foto", icon: "camera", capability: "location.view" },
     ],
   },
   {
     label: "Pengendalian",
     icon: "gauge",
     items: [
-      { label: "Progress & Deviasi", href: "/progress", icon: "trendingUp", capability: "progress.view" },
+      { label: "Progress", href: "/progress", icon: "trendingUp", capability: "progress.view" },
       { label: "Keuangan", href: "/keuangan", icon: "wallet", capability: "finance.view" },
       // Report Studio + distribusi WA hidup di dalam hub ini (DECISIONS 193/194):
       // tidak ada jalur generate-lalu-kirim tanpa review, jadi jangan dipecah
       // kembali menjadi menu "Laporan → WA" tersendiri.
-      { label: "Insight & AI", href: "/ai", icon: "sparkles", capability: "ai.view" },
+      { label: "AI Intelligence", href: "/ai", icon: "sparkles", capability: "ai.view" },
     ],
   },
   {
     label: "Dokumen & Laporan",
     icon: "folderOpen",
     items: [
-      { label: "Pusat Dokumen", href: "/dokumen", icon: "folderOpen", capability: "document.view" },
-      { label: "Pusat Laporan", href: "/laporan", icon: "fileText", capability: "report.export" },
-      { label: "Ringkasan Chat", href: "/chat-grup", icon: "messagesSquare", capability: "wa.chat" },
+      { label: "Dokumen", href: "/dokumen", icon: "folderOpen", capability: "document.view" },
+      { label: "Laporan", href: "/laporan", icon: "fileText", capability: "report.export" },
+      { label: "Chat Grup", href: "/chat-grup", icon: "messagesSquare", capability: "wa.chat" },
     ],
   },
   {
     label: "Administrasi",
     icon: "shieldCheck",
     items: [
-      { label: "Perusahaan & Vendor", href: "/master/perusahaan", icon: "building", capability: "contract.manage" },
+      { label: "Perusahaan", href: "/master/perusahaan", icon: "building", capability: "contract.manage" },
       // Katalog lokasi induk: dulu hanya terjangkau dari halaman Paket, padahal
       // isinya data referensi. Dimunculkan sebagai menu supaya tidak tersembunyi.
-      { label: "Master Lokasi", href: "/paket/katalog", icon: "database", capability: "package.bypass" },
-      { label: "Pengguna & Penugasan", href: "/master/pengguna", icon: "users", capability: "user.create" },
-      { label: "Kontak WhatsApp", href: "/master/kontak", icon: "send", capability: "wa.chat" },
-      { label: "Sistem & Audit", href: "/sistem", icon: "settings", capability: "system.manage" },
+      { label: "Katalog Lokasi", href: "/paket/katalog", icon: "database", capability: "package.bypass" },
+      { label: "Pengguna", href: "/master/pengguna", icon: "users", capability: "user.create" },
+      { label: "Kontak WA", href: "/master/kontak", icon: "send", capability: "wa.chat" },
+      { label: "Sistem", href: "/sistem", icon: "settings", capability: "system.manage" },
     ],
   },
 ];

@@ -116,12 +116,18 @@ Lihat docs/rebuild/TARGET_INFORMATION_ARCHITECTURE.md.
 ini:
 
 1. **Beranda** — Command Center exception-first (`/`, grup daun tanpa sub-menu)
-2. **Proyek** — Portofolio Paket · Portofolio Lokasi · Peta Lokasi
-3. **Pelaksanaan** — Hari Ini (landing lapangan mobile) · Galeri Foto
-4. **Pengendalian** — Progress & Deviasi · Keuangan · Insight & AI
-5. **Dokumen & Laporan** — Pusat Dokumen · Pusat Laporan · Ringkasan Chat
-6. **Administrasi** — Perusahaan & Vendor · Master Lokasi · Pengguna &
-   Penugasan · Kontak WhatsApp · Sistem & Audit
+2. **Proyek** — Paket · Lokasi · Peta
+3. **Pelaksanaan** — Hari Ini (landing lapangan mobile) · Foto Lapangan
+4. **Pengendalian** — Progress · Keuangan · AI Intelligence
+5. **Dokumen & Laporan** — Dokumen · Laporan · Chat Grup
+6. **Administrasi** — Perusahaan · Katalog Lokasi · Pengguna · Kontak WA ·
+   Sistem
+
+Nama daun = nama halaman tujuannya, bukan nama karangan baru: menu yang
+mendarat di halaman berjudul lain adalah ketidaksinambungan yang justru
+dikeluhkan PRD. Grupnya ikut dokumen; nama daunnya ikut aplikasi. Teks bantuan
+di aplikasi yang menyebut jalur menu ("Administrasi → Pengguna") harus ikut
+nama grup ini — "Master Data" sudah tidak ada sebagai menu.
 
 Grup yang seluruh sub-menunya tersaring capability ikut hilang; judul grup
 kosong tidak pernah tampil. Menu aktif dipilih lewat kecocokan href TERPANJANG

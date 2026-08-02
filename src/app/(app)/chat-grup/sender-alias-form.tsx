@@ -8,7 +8,7 @@ import { saveSenderAliasAction, type ChatSummaryState } from "@/lib/waha/summary
 /**
  * Beri nama pada pengirim chat yang belum dikenali (nomor/LID). Sekali dipetakan,
  * berlaku untuk semua ringkasan & arsip berikutnya. DECISIONS 138.
- * Daftar nama yang sudah dibuat dikelola di Master Data → Kontak (DECISIONS 150).
+ * Daftar nama yang sudah dibuat dikelola di Administrasi → Kontak WA (DECISIONS 150).
  */
 export function SenderAliasForm({ senderKey, hint }: { senderKey: string; hint: string }) {
   const [open, setOpen] = useState(false);

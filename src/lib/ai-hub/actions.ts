@@ -444,7 +444,7 @@ export async function distributeArtifactAction(_prev: AiHubState, formData: Form
         where: { id: contactId, ownerId: user.id },
         select: { name: true, chatId: true },
       });
-      if (!contact) return { error: "Kontak tujuan tidak ditemukan (kelola di Master Data → Kontak)." };
+      if (!contact) return { error: "Kontak tujuan tidak ditemukan (kelola di Administrasi → Kontak WA)." };
       target = contact;
     } else {
       const rawTarget = String(formData.get("destChatId") ?? "").trim();

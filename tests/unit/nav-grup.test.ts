@@ -70,6 +70,36 @@ describe("KASUS INTI: enam grup, tidak ada menu yang hilang", () => {
     expect(hilang).toEqual([]);
   });
 
+  it("nama daun = nama halaman tujuannya, bukan nama karangan baru", () => {
+    // Dipatok supaya penggantian nama jadi keputusan sadar, bukan efek samping.
+    // Menu "Insight & AI" yang mendarat di halaman berjudul "AI Intelligence"
+    // adalah ketidaksinambungan yang justru dikeluhkan PRD.
+    expect(flattenNav(NAV_GROUPS).map((i) => i.label)).toEqual([
+      "Beranda",
+      "Paket",
+      "Lokasi",
+      "Peta",
+      "Hari Ini",
+      "Foto Lapangan",
+      "Progress",
+      "Keuangan",
+      "AI Intelligence",
+      "Dokumen",
+      "Laporan",
+      "Chat Grup",
+      "Perusahaan",
+      "Katalog Lokasi",
+      "Pengguna",
+      "Kontak WA",
+      "Sistem",
+    ]);
+  });
+
+  it("tidak ada nama menu yang kembar", () => {
+    const label = flattenNav(NAV_GROUPS).map((i) => i.label);
+    expect(label).toHaveLength(new Set(label).size);
+  });
+
   it("tidak ada tujuan yang muncul di dua tempat", () => {
     const hrefs = flattenNav(NAV_GROUPS).map((i) => i.href);
     expect(hrefs).toHaveLength(new Set(hrefs).size);
@@ -132,7 +162,7 @@ describe("filter capability", () => {
 describe("menu aktif: kecocokan terpanjang yang menang", () => {
   const hrefs = flattenNav(NAV_GROUPS).map((i) => i.href);
 
-  it("/paket/katalog menyalakan Master Lokasi, bukan Portofolio Paket", () => {
+  it("/paket/katalog menyalakan Katalog Lokasi, bukan Paket", () => {
     expect(matchActiveHref("/paket/katalog", hrefs)).toBe("/paket/katalog");
   });
 

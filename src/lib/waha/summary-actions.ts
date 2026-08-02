@@ -162,7 +162,7 @@ export async function sendChatSummaryAction(
     ]);
     if (!ctx) return { error: "Paket tidak ditemukan." };
     if (!summary) return { error: "Belum ada ringkasan untuk tanggal ini — buat ringkasan dulu." };
-    if (!contact) return { error: "Kontak tujuan tidak ditemukan (kelola di Master Data → Kontak WA)." };
+    if (!contact) return { error: "Kontak tujuan tidak ditemukan (kelola di Administrasi → Kontak WA)." };
     // Draf AI mentah tidak boleh sampai ke pimpinan tanpa review manusia.
     if (!canSend(summary.status as SummaryViewStatus)) {
       return { error: "Ringkasan belum difinalkan. Review dulu, lalu klik “Finalkan”." };
@@ -230,7 +230,7 @@ export async function sendGlobalSummaryAction(
         error: `Belum ada ringkasan berstatus final pada tanggal ini (${all.length} masih draf). Finalkan dulu di halaman per-grup.`,
       };
     }
-    if (!contact) return { error: "Kontak tujuan tidak ditemukan (kelola di Master Data → Kontak WA)." };
+    if (!contact) return { error: "Kontak tujuan tidak ditemukan (kelola di Administrasi → Kontak WA)." };
 
     // Pengantar AI opsional — bila provider gagal, tetap kirim ringkasan per paket.
     let overview: string | null = null;

@@ -6986,15 +6986,29 @@ baris, tapi menambah satu klik untuk pengguna lapangan yang membuka menu yang
 sama tiap hari. Hierarki sudah tersampaikan lewat judul; ongkosnya tidak perlu
 dibayar.
 
+**Nama daun = nama halaman tujuannya**, bukan nama karangan baru. PRD §3.3
+menyebut label seperti "Portfolio Paket", "Insight & AI", "Ringkasan Chat" —
+itu sketsa sidebar, sedangkan yang normatif adalah FR-NAV-01 (enam grup +
+sub-menu sesuai capability). Memakai nama sketsa itu menghasilkan menu "Insight
+& AI" yang mendarat di halaman berjudul "AI Intelligence" dan "Ringkasan Chat"
+yang mendarat di "Chat Grup": persis ketidaksinambungan yang dikeluhkan PRD.
+Grupnya ikut dokumen; nama daunnya ikut aplikasi.
+
+Konsekuensinya teks bantuan di dalam aplikasi ikut berubah: "Master Data →
+Pengguna" / "Master Data → Kontak WA" jadi "Administrasi → …", karena "Master
+Data" tidak lagi ada sebagai menu (isinya dipecah ke grup Administrasi, sesuai
+PRD §5.12 yang menolak "redirect diam-diam ke tab pertama"). Halamannya sendiri
+tetap bernama Master Data.
+
 **`matchActiveHref`** — penyorotan menu aktif dihitung sekali untuk seluruh
 sidebar dengan kecocokan href TERPANJANG. Pencocokan awalan per-item (kode
-lama) menyalakan "Portofolio Paket" DAN "Master Lokasi" berbarengan di
-`/paket/katalog`, karena keduanya berawalan `/paket`.
+lama) menyalakan "Paket" DAN "Katalog Lokasi" berbarengan di `/paket/katalog`,
+karena keduanya berawalan `/paket`.
 
-**Dua menu yang selama ini tersembunyi dimunculkan**: Master Lokasi
+**Dua menu yang selama ini tersembunyi dimunculkan**: Katalog Lokasi
 (`/paket/katalog`, dulu hanya terjangkau dari halaman Paket padahal isinya data
-referensi) dan Kontak WhatsApp (`/master/kontak`, dulu tab di dalam Master
-Data). Tidak ada menu lama yang hilang — dijaga uji.
+referensi) dan Kontak WA (`/master/kontak`, dulu tab di dalam Master Data).
+Tidak ada menu lama yang hilang — dijaga uji.
 
 **Drawer mobile ikut berkelompok.** Satu grid berisi belasan ubin datar
 memaksa pengguna memindai semuanya untuk menemukan satu menu.

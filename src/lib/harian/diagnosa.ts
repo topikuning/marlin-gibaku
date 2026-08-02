@@ -44,7 +44,7 @@ export function sebabTidakAdaPenerima(d: DiagnosaPengingat): string | null {
     return (
       `${d.lokasiPerluDitagih} lokasi belum melapor dan ${d.orangDitugaskan} orang ditugaskan, ` +
       `tetapi ${bagian.join(" dan ")} — jadi tidak ada tujuan yang bisa dikirimi. ` +
-      "Isi nomor WhatsApp mereka di Master Data → Pengguna."
+      "Isi nomor WhatsApp mereka di Administrasi → Pengguna."
     );
   }
   return null;
