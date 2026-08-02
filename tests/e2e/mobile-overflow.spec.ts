@@ -26,8 +26,10 @@ import { test, expect, type Page } from "@playwright/test";
 const VIEWPORT = { width: 375, height: 812 };
 
 const RUTE: { path: string; nama: string }[] = [
-  { path: "/", nama: "Beranda / command center" },
-  { path: "/aktivitas", nama: "Dashboard eksekutif" },
+  // "hery" = program_director, jadi "/" SUDAH dashboard eksekutif. Dulu ada
+  // baris "/aktivitas" terpisah di sini — URL kedua untuk halaman yang sama,
+  // kini pengalihan permanen ke "/".
+  { path: "/", nama: "Beranda / dashboard eksekutif" },
   { path: "/paket", nama: "Daftar paket" },
   { path: "/lokasi", nama: "Daftar lokasi" },
   { path: "/progress", nama: "Progress portofolio" },
@@ -38,7 +40,7 @@ const RUTE: { path: string; nama: string }[] = [
   { path: "/keuangan", nama: "Keuangan" },
   { path: "/dokumen", nama: "Dokumen" },
   { path: "/peta", nama: "Peta" },
-  { path: "/pengguna", nama: "Pengguna" },
+  { path: "/master/pengguna", nama: "Pengguna" },
 ];
 
 type Pelanggar = { tag: string; cls: string; width: number; right: number; text: string };

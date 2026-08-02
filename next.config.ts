@@ -1,7 +1,32 @@
 import type { NextConfig } from "next";
 
+/**
+ * URL lama → URL kanonik. Dulu tiap alias adalah satu `page.tsx` berisi
+ * `redirect()`, yang berarti: satu route terhitung di peta aplikasi, satu
+ * render React, dan status 307 (SEMENTARA) sehingga tidak pernah dianggap
+ * pindah permanen oleh browser maupun mesin pencari.
+ *
+ * Di sini semuanya jadi 308 permanen, ditangani sebelum middleware dan sebelum
+ * React — dan alias berhenti menyamar sebagai halaman. PRD MARLIN FR-NAV-03.
+ */
+const ALIAS_LAMA = [
+  // Dashboard eksekutif pernah punya dua URL untuk satu produk yang sama.
+  { source: "/aktivitas", destination: "/" },
+  { source: "/pengguna", destination: "/master/pengguna" },
+  { source: "/paket/vendor", destination: "/master/perusahaan" },
+  // Kontak WA & nama pengirim jadi satu halaman (DECISIONS 150).
+  { source: "/kontak-wa", destination: "/master/kontak" },
+  { source: "/master/kontak-wa", destination: "/master/kontak" },
+  // Menu "Laporan → WA" dilebur ke Report Studio (DECISIONS 193/194): tidak
+  // boleh ada jalur generate-lalu-kirim tanpa review.
+  { source: "/laporan-wa", destination: "/ai/reports?template=wa_update" },
+];
+
 const nextConfig: NextConfig = {
   output: "standalone",
+  async redirects() {
+    return ALIAS_LAMA.map((r) => ({ ...r, permanent: true }));
+  },
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,

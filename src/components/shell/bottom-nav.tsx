@@ -6,19 +6,16 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useDismissable } from "@/components/ui";
 import { cn } from "@/lib/cn";
-import { ICONS, type NavItem } from "./nav-config";
-
-function isActive(pathname: string, href: string): boolean {
-  if (href === "/") return pathname === "/";
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
+import { flattenNav, ICONS, matchActiveHref, type NavGroup, type NavItem } from "./nav-config";
 
 /**
  * Navigasi bawah mobile (<lg): maks 4 item pintasan + tombol "Menu" yang
  * membuka drawer berisi SELURUH navigasi (sudah difilter capability) — di
  * mobile sidebar tersembunyi, jadi drawer ini satu-satunya jalan ke menu lain.
+ * Drawer memakai enam grup yang sama dengan sidebar; satu grid datar berisi
+ * belasan ubin memaksa pengguna memindai semuanya untuk menemukan satu menu.
  */
-export function BottomNav({ nav, fullNav }: { nav: NavItem[]; fullNav: NavItem[] }) {
+export function BottomNav({ nav, fullNav }: { nav: NavItem[]; fullNav: NavGroup[] }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   // Escape menutup + fokus kembali ke tombol "Menu" (audit UI 2026-07-27).
@@ -32,10 +29,15 @@ export function BottomNav({ nav, fullNav }: { nav: NavItem[]; fullNav: NavItem[]
     setOpen(false);
   }
 
-  if (nav.length === 0 && fullNav.length === 0) return null;
+  const flat = flattenNav(fullNav);
+  if (nav.length === 0 && flat.length === 0) return null;
   const shortcuts = nav.slice(0, 4);
-  const showMenu = fullNav.length > shortcuts.length;
+  const showMenu = flat.length > shortcuts.length;
   const cols = shortcuts.length + (showMenu ? 1 : 0);
+  const active = matchActiveHref(pathname, [
+    ...flat.map((i) => i.href),
+    ...shortcuts.map((i) => i.href),
+  ]);
 
   return (
     <>
@@ -60,30 +62,48 @@ export function BottomNav({ nav, fullNav }: { nav: NavItem[]; fullNav: NavItem[]
                 <X aria-hidden className="size-4" />
               </button>
             </div>
-            <ul className="grid grid-cols-3 gap-2">
-              {fullNav.map((item) => {
-                const Icon = ICONS[item.icon];
-                const active = isActive(pathname, item.href);
+            <div className="space-y-3">
+              {fullNav.map((group) => {
+                const items =
+                  group.href !== undefined && group.items.length === 0
+                    ? [{ label: group.label, href: group.href, icon: group.icon }]
+                    : group.items;
+                const headingId = `menu-grup-${slug(group.label)}`;
                 return (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      aria-current={active ? "page" : undefined}
-                      onClick={() => setOpen(false)}
-                      className={cn(
-                        "flex min-h-16 flex-col items-center justify-center gap-1 rounded-lg border px-2 py-2 text-[11px] font-medium",
-                        active
-                          ? "border-primary bg-primary-50 text-primary"
-                          : "border-border text-ink-muted hover:bg-surface-muted hover:text-ink",
-                      )}
+                  <section key={group.label} aria-labelledby={headingId}>
+                    <h2
+                      id={headingId}
+                      className="mb-1.5 px-0.5 text-[11px] font-semibold tracking-wide text-ink-faint uppercase"
                     >
-                      <Icon aria-hidden className="size-5" />
-                      {item.label}
-                    </Link>
-                  </li>
+                      {group.label}
+                    </h2>
+                    <ul className="grid grid-cols-3 gap-2">
+                      {items.map((item) => {
+                        const Icon = ICONS[item.icon];
+                        return (
+                          <li key={item.href}>
+                            <Link
+                              href={item.href}
+                              aria-current={active === item.href ? "page" : undefined}
+                              onClick={() => setOpen(false)}
+                              className={cn(
+                                "flex min-h-16 flex-col items-center justify-center gap-1 rounded-lg border px-2 py-2 text-center text-[11px] font-medium",
+                                active === item.href
+                                  ? "border-primary bg-primary-50 text-primary"
+                                  : "border-border text-ink-muted hover:bg-surface-muted hover:text-ink",
+                              )}
+                            >
+                              <Icon aria-hidden className="size-5 shrink-0" />
+                              {item.label}
+                            </Link>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
                 );
               })}
-            </ul>
+            </div>
           </div>
         </div>
       ) : null}
@@ -98,15 +118,14 @@ export function BottomNav({ nav, fullNav }: { nav: NavItem[]; fullNav: NavItem[]
         >
           {shortcuts.map((item) => {
             const Icon = ICONS[item.icon];
-            const active = isActive(pathname, item.href);
             return (
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  aria-current={active ? "page" : undefined}
+                  aria-current={active === item.href ? "page" : undefined}
                   className={cn(
                     "flex min-h-12 flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium",
-                    active ? "text-primary" : "text-ink-muted",
+                    active === item.href ? "text-primary" : "text-ink-muted",
                   )}
                 >
                   <Icon aria-hidden className="size-5" />
@@ -138,4 +157,8 @@ export function BottomNav({ nav, fullNav }: { nav: NavItem[]; fullNav: NavItem[]
       </nav>
     </>
   );
+}
+
+function slug(label: string): string {
+  return label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }

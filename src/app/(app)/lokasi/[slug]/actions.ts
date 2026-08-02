@@ -156,7 +156,9 @@ export async function updateLocationMaster(
     });
     revalidatePath(`/lokasi/${before.slug}`);
     revalidatePath("/peta");
-    revalidatePath("/aktivitas");
+    // Dashboard eksekutif kini hanya hidup di "/" — `/aktivitas` sudah jadi
+    // pengalihan permanen, jadi merevalidasinya tidak menyegarkan apa pun.
+    revalidatePath("/");
     return { success: "Master data lokasi tersimpan." };
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };

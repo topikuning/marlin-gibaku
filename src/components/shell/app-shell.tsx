@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { Branding } from "@/lib/branding";
 import { BottomNav } from "./bottom-nav";
-import type { NavItem } from "./nav-config";
+import { flattenNav, type NavGroup, type NavItem } from "./nav-config";
 import { Sidebar } from "./sidebar";
 import { Topbar, type TopbarUser } from "./topbar";
 
@@ -9,7 +9,7 @@ export interface AppShellProps {
   brand: Branding;
   user: TopbarUser;
   /** Nav SUDAH difilter capability (pakai filterNav(role)) — shell tidak tahu authz. */
-  nav: NavItem[];
+  nav: NavGroup[];
   /** Nav bawah mobile (pakai MOBILE_NAV(role)). Default: 4 item pertama `nav`. */
   mobileNav?: NavItem[];
   /** Server action logout, diteruskan ke Topbar. */
@@ -43,7 +43,7 @@ export function AppShell({
           {children}
         </main>
       </div>
-      <BottomNav nav={mobileNav ?? nav.slice(0, 4)} fullNav={nav} />
+      <BottomNav nav={mobileNav ?? flattenNav(nav).slice(0, 4)} fullNav={nav} />
     </div>
   );
 }

@@ -6940,3 +6940,87 @@ itu tak tersentuh uji unit.
 disebut berikut tempat mengisinya; nonaktif terpisah; nol penugasan → diarahkan
 ke Lokasi bukan Pengguna; lingkup kosong → syarat disebut; keadaan sehat → tidak
 mengarang masalah) · `pnpm build` ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 222 — Navigasi jadi enam grup; alias lama berhenti menyamar sebagai halaman (2026-08-02)
+
+> aku lebih concern ke navigasi ... hanya navigasinya yang penting mengikuti
+> dokumen ini
+
+Dasar: PRD MARLIN §3.2–3.3 (14 menu datar → 6 grup) dan FR-NAV-01/03.
+
+### Yang TIDAK dikerjakan, dan kenapa
+
+PRD juga mengusulkan seluruh URL dipindah ke keluarga baru
+(`/proyek/lokasi/[slug]?tab=rencana` dst). Ditolak atas keputusan user ("url
+ikuti yang sudah di sistem saja") — dan secara teknis memang tidak menghasilkan
+apa-apa di repo ini:
+
+- Klaim terbesar PRD, "8 route lokasi digabung jadi satu workspace", **sudah
+  terjadi sejak lama**. `lokasi/[slug]/layout.tsx` dan `paket/[id]/layout.tsx`
+  adalah object workspace lengkap dengan header identitas + `LinkTabs`. Yang
+  ditawarkan PRD di sana cuma penggantian nama URL.
+- Mengubah tab dari path segment jadi `?tab=` justru **regresi**: tiap tab
+  sekarang punya code-split, `loading`, dan error boundary sendiri. Satu
+  halaman berisi tujuh tab kehilangan ketiganya — dan FR-PERF-01 ("perpindahan
+  tab tidak memuat data yang tidak diperlukan") jadi lebih sulit dipenuhi,
+  bukan lebih mudah.
+
+Catatan: tabel 55-route di PRD tidak lengkap. Minimal sembilan route nyata
+tidak tercantum (`/lokasi/[slug]/rab/adendum`, `/dokumen/[id]`,
+`/dokumen/impor`, `/foto/[id]/cap`, `/laporan/[antrean]`, `/master/kontak`,
+`/paket/[id]/dokumen/impor`, `/sistem/arsip-foto`) berikut lima route handler
+export. Mengikuti tabel itu apa adanya akan menghapusnya tanpa pengganti.
+
+### Yang berubah
+
+**Enam grup** di `nav-config.ts` — Beranda · Proyek · Pelaksanaan ·
+Pengendalian · Dokumen & Laporan · Administrasi. `NavGroup` punya dua bentuk:
+grup daun (`href`, tanpa sub-menu — hanya Beranda) dan grup biasa (judul +
+sub-menu). Grup yang seluruh isinya tersaring capability ikut hilang; judul
+grup kosong tidak pernah tampil.
+
+**Judul grup bukan tombol lipat.** Melipat memang membuat sidebar jadi enam
+baris, tapi menambah satu klik untuk pengguna lapangan yang membuka menu yang
+sama tiap hari. Hierarki sudah tersampaikan lewat judul; ongkosnya tidak perlu
+dibayar.
+
+**`matchActiveHref`** — penyorotan menu aktif dihitung sekali untuk seluruh
+sidebar dengan kecocokan href TERPANJANG. Pencocokan awalan per-item (kode
+lama) menyalakan "Portofolio Paket" DAN "Master Lokasi" berbarengan di
+`/paket/katalog`, karena keduanya berawalan `/paket`.
+
+**Dua menu yang selama ini tersembunyi dimunculkan**: Master Lokasi
+(`/paket/katalog`, dulu hanya terjangkau dari halaman Paket padahal isinya data
+referensi) dan Kontak WhatsApp (`/master/kontak`, dulu tab di dalam Master
+Data). Tidak ada menu lama yang hilang — dijaga uji.
+
+**Drawer mobile ikut berkelompok.** Satu grid berisi belasan ubin datar
+memaksa pengguna memindai semuanya untuk menemukan satu menu.
+
+### Alias lama: 6 halaman dihapus, jadi redirect 308
+
+`/aktivitas`, `/pengguna`, `/paket/vendor`, `/kontak-wa`, `/master/kontak-wa`,
+`/laporan-wa` dulu masing-masing satu `page.tsx` berisi `redirect()`. Artinya:
+terhitung sebagai route di peta aplikasi, dirender React, dan berstatus **307
+sementara** — tidak pernah dianggap pindah permanen. Sekarang semuanya
+`redirects()` di `next.config.ts`, 308, ditangani sebelum middleware.
+
+`/aktivitas` sekaligus menutup duplikasi yang disebut PRD §4: ia dan `/`
+menampilkan Dashboard Eksekutif yang sama persis. Komponennya pindah ke
+`app/(app)/_beranda/` (folder privat, bukan route). `revalidatePath("/aktivitas")`
+dan `revalidatePath("/pengguna")` yang tertinggal ikut dibetulkan — keduanya
+sudah tidak menyegarkan apa pun.
+
+### Yang BELUM dikerjakan dari PRD
+
+Telemetry pemakaian alias (FR-NAV-03 bagian "dicatat untuk analisis migrasi"),
+Unified Task & Approval Inbox (model `Alert` ada di schema tapi nol referensi
+di `src/` — masih model mati), dan global search lintas objek (yang ada hanya
+pencarian lokasi di dashboard eksekutif, bukan di shell).
+
+**Verifikasi**: 35 kasus unit baru (`tests/unit/nav-grup.test.ts` — enam grup,
+tidak ada tujuan lama yang hilang, tidak ada tujuan ganda, grup kosong
+tersaring per role, pintasan mobile ⊆ menu yang boleh dibuka, kecocokan
+terpanjang) · unit 790 ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓.

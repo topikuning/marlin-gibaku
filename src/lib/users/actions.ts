@@ -302,7 +302,6 @@ export async function setUserRole(_prev: UserActionState, formData: FormData): P
   }
 
   revalidatePath("/master/pengguna");
-  revalidatePath("/pengguna");
   // Penugasan lokasi TIDAK ikut dihapus: peran menentukan APA yang boleh
   // dilakukan, penugasan menentukan DI MANA. Kalau peran barunya lintas-lokasi
   // (super_admin/program_director), penugasan lamanya cuma tidak terpakai —

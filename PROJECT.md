@@ -109,13 +109,36 @@ RLS TIDAK diklaim (lihat OPEN_ISSUES).
 
 ## 5. Informasi arsitektur
 
-Lihat docs/rebuild/TARGET_INFORMATION_ARCHITECTURE.md. Menu: Beranda (Command
-Center exception-first) · Paket (workspace tab: Ringkasan/Tender/Kontrak &
-Adendum/Lokasi/Dokumen/Aktivitas) · Lokasi (workspace tab: Ringkasan/Rencana &
-RAB/Pelaksanaan Harian/Progress/Keuangan/Dokumen & Kepatuhan/Laporan) ·
-Hari Ini (landing lapangan mobile) · Progress · Keuangan · Dokumen · Laporan ·
-Pengguna · Sistem. Cetak KKP di `/cetak/*` tanpa shell. Mobile bottom-nav ≤5
-tujuan per role.
+Lihat docs/rebuild/TARGET_INFORMATION_ARCHITECTURE.md.
+
+**Navigasi = ENAM grup** (DECISIONS 222), sumbernya
+`src/components/shell/nav-config.ts` — daftar itu yang berlaku, bukan paragraf
+ini:
+
+1. **Beranda** — Command Center exception-first (`/`, grup daun tanpa sub-menu)
+2. **Proyek** — Portofolio Paket · Portofolio Lokasi · Peta Lokasi
+3. **Pelaksanaan** — Hari Ini (landing lapangan mobile) · Galeri Foto
+4. **Pengendalian** — Progress & Deviasi · Keuangan · Insight & AI
+5. **Dokumen & Laporan** — Pusat Dokumen · Pusat Laporan · Ringkasan Chat
+6. **Administrasi** — Perusahaan & Vendor · Master Lokasi · Pengguna &
+   Penugasan · Kontak WhatsApp · Sistem & Audit
+
+Grup yang seluruh sub-menunya tersaring capability ikut hilang; judul grup
+kosong tidak pernah tampil. Menu aktif dipilih lewat kecocokan href TERPANJANG
+(`matchActiveHref`) supaya URL bersarang seperti `/paket/katalog` tidak
+menyalakan `/paket` sekaligus.
+
+Objek induk tetap punya workspace bertab sendiri: Paket (Ringkasan/Tender/
+Kontrak & Adendum/Lokasi/Dokumen/Aktivitas) dan Lokasi (Ringkasan/Rencana &
+RAB/Pelaksanaan Harian/Kegiatan/Progress/Keuangan/Dokumen & Kepatuhan/Laporan)
+— dibuka dengan drill-down dari grup Proyek, bukan dari menu global.
+
+Cetak KKP di `/cetak/*` tanpa shell. Mobile bottom-nav ≤5 tujuan per role,
+ditambah drawer "Semua menu" yang memakai keenam grup yang sama.
+
+URL alias lama (`/aktivitas`, `/pengguna`, `/paket/vendor`, `/kontak-wa`,
+`/master/kontak-wa`, `/laporan-wa`) = redirect **308 permanen** di
+`next.config.ts`, bukan halaman berisi `redirect()`.
 
 ## 5a. AI Intelligence Hub (DECISIONS 133, 193)
 

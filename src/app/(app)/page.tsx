@@ -6,7 +6,7 @@ import { DeltaBadge, deviationTone } from "@/components/ui/stat-delta";
 import { requireUser, accessibleLocationIds, type SessionUser } from "@/lib/auth/session";
 import { locationScopeWhere, packageScopeWhere } from "@/lib/auth/scope";
 import { can } from "@/lib/authz";
-import { ExecutiveDashboard } from "@/app/(app)/aktivitas/executive-dashboard";
+import { ExecutiveDashboard } from "@/app/(app)/_beranda/executive-dashboard";
 import { db } from "@/lib/db";
 import { getLocationsProgress } from "@/lib/progress";
 import { formatRupiahShort, formatTanggal } from "@/lib/format";
