@@ -7024,3 +7024,67 @@ pencarian lokasi di dashboard eksekutif, bukan di shell).
 tidak ada tujuan lama yang hilang, tidak ada tujuan ganda, grup kosong
 tersaring per role, pintasan mobile ⊆ menu yang boleh dibuka, kecocokan
 terpanjang) · unit 790 ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 223 — Pencarian global di setiap halaman; hasilnya disaring capability + scope (2026-08-02)
+
+Dasar: PRD MARLIN P0 "Global Search & Context Switcher" + FR-NAV-02. Temuan
+PRD-nya benar dan terverifikasi di kode: satu-satunya pencarian yang ada
+(`DashboardSearch`) hanya hidup di dashboard eksekutif, hanya mencari LOKASI,
+dan memfilter di memori dari daftar yang sudah terlanjur dikirim ke client.
+Di luar halaman itu, satu-satunya jalan menemukan sesuatu adalah tahu lebih
+dulu menu mana yang memuatnya.
+
+### Yang dibangun
+
+`lib/search/global.ts` — satu kueri untuk lima jenis: paket, lokasi, dokumen,
+vendor, pengguna. Panel terpusat dibuka dari topbar atau **Ctrl/Cmd+K**.
+
+Bentuknya panel, BUKAN kotak teks di topbar. Topbar mobile sudah memuat merek +
+breadcrumb + identitas + tombol keluar; menyelipkan input di sana adalah cara
+tercepat membuat halaman melebar di layar 375px — persis yang dijaga
+`tests/e2e/mobile-overflow.spec.ts`. Nama pengguna di topbar sekalian dibatasi
+lebarnya dan dipotong.
+
+### Pagar
+
+Pencarian menyentuh SEMUA jenis objek sekaligus, jadi ia pintu belakang paling
+mudah menuju kebocoran: hasil yang bocor tetap membocorkan NAMA, walaupun
+halamannya nanti menolak dibuka. Karena itu dua lapis, keduanya di server:
+
+- **capability** — jenis yang tidak boleh dilihat role itu tidak pernah dikueri
+  sama sekali (mandor: nol paket, nol vendor, nol pengguna);
+- **scope** — `packageScopeWhere` / `locationScopeWhere` / `orgId`, sehingga
+  "semua" selalu berarti "semua milik organisasi & penugasan saya".
+
+Client tidak pernah memegang daftar objek; ia hanya mengirim kata kunci dan
+menerima hasil yang sudah disaring. Dokumen berstatus `dibatalkan` tidak muncul
+— konsisten dengan DECISIONS 183, bukan pengecualian diam-diam.
+
+### Detail yang tidak sepele
+
+- **Hasil disimpan bersama kuerinya** (`{ q, hits }`). Tanpa itu hasil kueri
+  lama tidak bisa dibedakan dari hasil yang sedang diketik, dan yang basi
+  terlanjur tampil sebagai jawaban benar. Hasil kueri yang lebih pendek tetap
+  ditampilkan selama kueri baru dalam perjalanan supaya panel tidak berkedip
+  tiap ketukan tombol; begitu kuerinya dipersempit lalu dihapus, dikosongkan.
+- **Lokasi belum aktif tetap muncul, ditandai "belum aktif".** Menyembunyikannya
+  membuat pencarian menjawab "tidak ada" untuk sesuatu yang sebenarnya ada.
+- Tunda 250 ms; tanpa itu mengetik "tengket" = tujuh kueri DB, enam basi.
+- `lib/search/types.ts` dipisah dari `global.ts` karena `global.ts` memakai
+  `server-only` dan panelnya komponen client — impor langsung akan menggagalkan
+  build, bukan sekadar melar bundel.
+
+### Yang belum
+
+Bagian "context switcher ... pertahankan scope ketika berpindah objek" dari
+PRD belum dikerjakan; pencarian ini menavigasi ke objek, belum membawa filter
+yang sedang aktif.
+
+**Verifikasi**: 10 kasus integrasi baru (`tests/integration/pencarian-global.test.ts`
+— matriks NEGATIF dua organisasi: super_admin org A nol objek org B; site_manager
+tidak melihat lokasi tetangga SEPAKET yang tidak ditugaskan; mandor nol
+vendor/pengguna/paket tapi tetap menemukan lokasi tugasnya; dokumen dibatalkan
+tidak muncul; kueri < 2 huruf nol hasil; href tiap hasil menunjuk halaman
+objeknya) · integrasi 280 ✓ · unit 790 ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓.

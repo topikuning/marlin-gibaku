@@ -133,6 +133,13 @@ Kontrak & Adendum/Lokasi/Dokumen/Aktivitas) dan Lokasi (Ringkasan/Rencana &
 RAB/Pelaksanaan Harian/Kegiatan/Progress/Keuangan/Dokumen & Kepatuhan/Laporan)
 — dibuka dengan drill-down dari grup Proyek, bukan dari menu global.
 
+**Pencarian global** (DECISIONS 223) ada di topbar SETIAP halaman ber-shell —
+tombol + Ctrl/Cmd+K membuka panel yang mencari paket, lokasi, dokumen, vendor,
+dan pengguna sekaligus. Kuerinya di `src/lib/search/global.ts`; hasil disaring
+dua kali (capability = boleh melihat jenis ini, scope = boleh melihat baris
+ini). Bentuk hasil + label di `src/lib/search/types.ts` (tanpa `server-only`,
+karena panelnya komponen client).
+
 Cetak KKP di `/cetak/*` tanpa shell. Mobile bottom-nav ≤5 tujuan per role,
 ditambah drawer "Semua menu" yang memakai keenam grup yang sama.
 

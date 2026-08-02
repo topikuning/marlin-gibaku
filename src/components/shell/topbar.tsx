@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type { UserRole } from "@/generated/prisma/enums";
 import type { Branding } from "@/lib/branding";
 import { ROLE_LABEL } from "@/lib/authz";
+import { GlobalSearch } from "./global-search";
 
 export interface TopbarUser {
   fullName: string;
@@ -29,12 +30,17 @@ export function Topbar({ brand, user, logoutAction, children }: TopbarProps) {
         </span>
         <div className="min-w-0 truncate text-sm text-ink-muted">{children}</div>
       </div>
-      <div className="flex shrink-0 items-center gap-3">
-        <div className="text-right">
-          <p className="text-[13px] leading-tight font-medium text-ink">
+      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+        {/* Pencarian global: ada di SETIAP halaman ber-shell, bukan hanya di
+            dashboard eksekutif seperti sebelumnya. */}
+        <GlobalSearch />
+        {/* Dibatasi + dipotong di layar sempit: nama panjang pernah jadi sumber
+            melebarnya topbar, dan sekarang ruangnya berbagi dgn tombol cari. */}
+        <div className="max-w-[6.5rem] text-right sm:max-w-none">
+          <p className="truncate text-[13px] leading-tight font-medium text-ink">
             {user.fullName}
           </p>
-          <p className="text-[11px] leading-tight text-ink-muted">
+          <p className="truncate text-[11px] leading-tight text-ink-muted">
             {ROLE_LABEL[user.role]}
           </p>
         </div>
