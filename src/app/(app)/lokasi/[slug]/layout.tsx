@@ -64,7 +64,19 @@ export default async function LokasiLayout({
     <div className="space-y-4">
       {/* Header proyek terstruktur (audit UI #5): identitas + stat berlabel dalam
           kartu, bukan satu baris teks datar — informasi lebih cepat dipindai. */}
-      <header className="space-y-3">
+      {/* DI PONSEL header ini DISEMBUNYIKAN (permintaan user 2026-08-02: "untuk
+          tampilan mobile pada halaman input pekerjaan … informasi di atas
+          inputan seperti progress dll, di hide saja").
+
+          Alasannya nyata: identitas + alamat + paket + enam sel statistik
+          memakan ~600px sebelum kolom pertama yang harus diisi mandor —
+          di layar 812px itu berarti menggulir dua kali hanya untuk mulai
+          bekerja. Angkanya tidak hilang, cuma tidak dipaksakan di layar input:
+          semuanya ada di tab Ringkasan, lengkap dengan kartu KPI-nya sendiri.
+          Yang tetap tampil di ponsel: nama lokasi, status, dan deviasi — tiga
+          hal yang menjawab "saya sedang di lokasi mana, dan sedang seberapa
+          tertinggal". */}
+      <header className="space-y-3 max-sm:hidden">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
             <div className="flex flex-wrap items-center gap-2">
@@ -147,6 +159,18 @@ export default async function LokasiLayout({
           </StatCell>
         </dl>
       </header>
+
+      {/* Baris ringkas pengganti header di ponsel — satu baris, bukan blok. */}
+      <div className="flex items-center gap-2 sm:hidden">
+        <span className="min-w-0 truncate text-sm font-semibold text-ink">{location.name}</span>
+        <StatusPill
+          tone={LOCATION_STATUS_TONE[location.status]}
+          label={LOCATION_STATUS_LABEL[location.status]}
+        />
+        <span className="ms-auto shrink-0">
+          <DeltaBadge value={progress.deviationPct} />
+        </span>
+      </div>
 
       <LinkTabs items={tabItems(location.slug)} />
 

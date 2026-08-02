@@ -63,6 +63,9 @@ export default async function HarianWorkspacePage({
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <PageHeader
+        // Halaman ini tugasnya MENGISI. Di ponsel kepala halaman diringkas
+        // supaya kolom pertama tidak terdorong keluar layar (DECISIONS 227).
+        compactMobile
         breadcrumb={[
           { label: "Hari Ini", href: "/hari-ini" },
           { label: data.location.name },

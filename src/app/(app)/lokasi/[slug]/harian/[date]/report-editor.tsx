@@ -232,8 +232,30 @@ function ItemForm({
         <Label htmlFor="dr-search" required>
           1 · Pekerjaan
         </Label>
-        {picked ? (
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-primary bg-primary-50 px-4 py-3">
+        {/* Kolom cari SELALU TERPASANG DAN TERLIHAT, bahkan saat pekerjaan
+            sudah dipilih. Bukan soal tata letak: papan ketik ponsel hanya mau
+            terbuka dari gestur pengguna. Dulu kolom ini di-unmount saat ada
+            pilihan, jadi ketika "Simpan Progres" ditekan tidak ada elemen yang
+            bisa difokuskan di dalam gestur itu — fokus baru dipasang setelah
+            aksi server selesai, dan papan ketik tetap tertutup sampai pelapor
+            mengetuk sendiri. Sekarang fokus dipindah SINKRON di dalam ketukan
+            tombol simpan, sehingga papan ketik tidak pernah sempat menutup. */}
+        <div className="relative">
+          <Search aria-hidden className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-faint" />
+          <Input
+            id="dr-search"
+            ref={cariRef}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            inputMode="search"
+            placeholder={picked ? "Ketik untuk ganti pekerjaan…" : "Ketik nama / kode pekerjaan…"}
+            className="h-11 pl-9 text-base"
+          />
+        </div>
+        {/* Hasil pencarian menang atas kartu pilihan: begitu pelapor mulai
+            mengetik, yang ingin dilihatnya adalah daftar, bukan pilihan lama. */}
+        {query ? null : picked ? (
+          <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-primary bg-primary-50 px-4 py-3">
             <div className="min-w-0">
               {picked.category ? (
                 <div className="truncate text-[11px] font-medium text-primary">{picked.category}</div>
@@ -270,22 +292,9 @@ function ItemForm({
               Ganti
             </Button>
           </div>
-        ) : (
-          <>
-            <div className="relative">
-              <Search aria-hidden className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-faint" />
-              <Input
-                id="dr-search"
-                ref={cariRef}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                inputMode="search"
-                placeholder="Ketik nama / kode pekerjaan…"
-                className="h-11 pl-9 text-base"
-              />
-            </div>
-            {query ? (
-              <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-border bg-surface">
+        ) : null}
+        {query ? (
+          <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-border bg-surface">
                 {matches.length === 0 ? (
                   <div className="px-4 py-3 text-sm text-ink-muted">Tidak ada yang cocok.</div>
                 ) : (
@@ -316,10 +325,8 @@ function ItemForm({
                     </button>
                   ))
                 )}
-              </div>
-            ) : null}
-          </>
-        )}
+          </div>
+        ) : null}
       </div>
 
       {/* 2 · Volume */}
@@ -373,7 +380,16 @@ function ItemForm({
         <Input id="dr-notes" name="notes" maxLength={500} placeholder="mis. cor kolom L2 utara" className="h-11 text-base" />
       </div>
 
-      <Button type="submit" loading={pending} disabled={!picked} className="h-12 w-full text-base">
+      <Button
+        type="submit"
+        loading={pending}
+        disabled={!picked}
+        className="h-12 w-full text-base"
+        // Fokus dipindah SINKRON di dalam ketukan — lihat catatan di kolom cari.
+        // Ini yang membuat papan ketik tetap terbuka dan siap diketik begitu
+        // simpan selesai, bukan sekadar kolomnya bergaris biru.
+        onClick={() => cariRef.current?.focus()}
+      >
         Simpan Progres
       </Button>
       <p className="text-center text-[11px] text-ink-muted">

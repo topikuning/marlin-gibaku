@@ -64,6 +64,43 @@ test.describe("alur fokus isi cepat", () => {
   });
 });
 
+test.describe("kolom cari tidak pernah lepas dari DOM", () => {
+  // Papan ketik ponsel hanya mau terbuka dari gestur pengguna. Kalau kolom cari
+  // di-unmount saat pekerjaan terpilih, ketukan "Simpan Progres" tidak punya
+  // elemen untuk difokuskan di dalam gestur itu — dan papan ketik tetap tertutup
+  // sampai pelapor mengetuk sendiri. Itu keluhan nyata user 2026-08-02.
+  test("kolom cari tetap ada saat pekerjaan sudah dipilih", async ({ page }) => {
+    await bukaEditor(page);
+    await page.getByPlaceholder("Ketik nama / kode pekerjaan").fill("galian");
+    const opsi = page.locator("button", { hasText: /galian/i }).first();
+    await expect(opsi).toBeVisible({ timeout: 10_000 });
+    await opsi.click();
+    // Pekerjaan terpilih (kartu muncul) TAPI kolom cari tetap terpasang.
+    await expect(page.locator("#dr-search")).toHaveCount(1);
+    await expect(page.locator("#dr-search")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Ganti" })).toBeVisible();
+  });
+});
+
+test.describe("konfirmasi lokasi galeri = dialog, bukan catatan kaki", () => {
+  test("dialog muncul dengan dua tombol besar, tanpa paragraf penjelasan", async ({ page }) => {
+    await bukaEditor(page);
+    const galeri = page.getByRole("button", { name: "Galeri" }).first();
+    if ((await galeri.count()) === 0) {
+      test.skip(true, "Penyimpanan foto (R2) tidak aktif di lingkungan ini.");
+      return;
+    }
+    await galeri.click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText("Kamu sedang di lokasi proyek?")).toBeVisible();
+    await expect(dialog.getByRole("button", { name: /Ya, saya di lokasi/ })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Tidak", exact: true })).toBeVisible();
+    // Penjelasan panjang yang dulu ada di situ sengaja dibuang.
+    await expect(dialog.getByText("dipakai sebagai cadangan")).toHaveCount(0);
+  });
+});
+
 test.describe("foto menyusul", () => {
   test('item tanpa foto ditandai "Belum ada foto" dan bisa ditambahi', async ({ page }) => {
     await bukaEditor(page);

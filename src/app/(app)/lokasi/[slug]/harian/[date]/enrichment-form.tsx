@@ -54,17 +54,30 @@ function WeatherAuto({ report }: { report: WorkspaceReport }) {
   const rainHours = hours?.filter((h) => h.category === "Hujan").length ?? 0;
 
   return (
-    <div className="mb-2 space-y-2 rounded-md border border-dashed border-border bg-surface-muted p-2.5">
+    // Satu baris, bukan kotak bergaris putus-putus setinggi lima baris.
+    // Permintaan user 2026-08-02: "ambil cuaca, langsung merusak tampilan
+    // mobile". Penyebabnya paragraf tiga baris yang menjelaskan cara kerja di
+    // sebelah satu tombol — penjelasan yang hanya perlu dibaca sekali seumur
+    // hidup tidak boleh memakan ruang setiap hari. Isinya dipindah ke `title`
+    // tombol dan diringkas jadi satu baris pendek.
+    <div className="mb-2 space-y-2">
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="submit" variant="secondary" size="sm" formAction={formAction} disabled={pending}>
+        <Button
+          type="submit"
+          variant="secondary"
+          size="sm"
+          formAction={formAction}
+          disabled={pending}
+          title="Diambil dari koordinat lokasi, mengikuti TANGGAL laporan ini (bukan hari ini) — laporan yang diisi mundur tetap dapat cuaca tanggalnya."
+        >
           {pending ? "Mengambil…" : hours ? "Muat ulang cuaca" : "Ambil cuaca otomatis"}
         </Button>
-        <span className="text-xs text-ink-muted">
+        <span className="min-w-0 text-xs text-ink-muted">
           {hours
             ? `${hours.length} jam terisi${rainHours > 0 ? ` · ${rainHours} jam hujan` : " · tanpa hujan"}`
-            : "Berdasarkan koordinat lokasi, mengikuti TANGGAL laporan ini (bukan hari ini) — laporan yang diisi mundur tetap dapat cuaca tanggalnya."}
+            : "Sesuai tanggal laporan & koordinat lokasi."}
         </span>
       </div>
       {isManual ? (

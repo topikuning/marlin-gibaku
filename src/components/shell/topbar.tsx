@@ -2,7 +2,7 @@ import { LogOut } from "lucide-react";
 import type { ReactNode } from "react";
 import type { UserRole } from "@/generated/prisma/enums";
 import type { Branding } from "@/lib/branding";
-import { BrandMark } from "@/components/ui/brand-mark";
+import { BrandWordmark } from "@/components/ui/brand-mark";
 import { ROLE_LABEL } from "@/lib/authz";
 
 export interface TopbarUser {
@@ -25,9 +25,8 @@ export function Topbar({ brand, user, logoutAction, children }: TopbarProps) {
     <header className="no-print sticky top-0 z-20 flex h-13 items-center justify-between gap-3 border-b border-border bg-surface px-4 lg:px-6">
       <div className="flex min-w-0 items-center gap-2">
         {/* Brand mini utk mobile (sidebar tersembunyi) */}
-        <span className="flex shrink-0 items-center gap-1.5 lg:hidden">
-          <BrandMark size={20} />
-          <span className="text-sm font-bold tracking-tight text-primary">{brand.appName}</span>
+        <span className="flex shrink-0 items-center lg:hidden">
+          <BrandWordmark tinggi={18} />
         </span>
         <div className="min-w-0 truncate text-sm text-ink-muted">{children}</div>
       </div>

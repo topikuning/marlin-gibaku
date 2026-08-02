@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Branding } from "@/lib/branding";
-import { BrandMark } from "@/components/ui/brand-mark";
+import { BrandWordmark } from "@/components/ui/brand-mark";
 import { cn } from "@/lib/cn";
 import { ICONS, type NavItem } from "./nav-config";
 
@@ -17,17 +17,13 @@ export function Sidebar({ nav, brand }: { nav: NavItem[]; brand: Branding }) {
   const pathname = usePathname();
   return (
     <aside className="no-print fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-border bg-surface lg:flex">
-      <div className="flex items-center gap-2.5 border-b border-border px-4 py-3.5">
-        {/* Ikon resmi menggantikan batang merah polos (DECISIONS 223). */}
-        <BrandMark size={30} className="shrink-0" />
-        <div className="min-w-0">
-          <p className="text-base leading-none font-bold tracking-tight text-primary">
-            {brand.appName}
-          </p>
-          <p className="mt-1 line-clamp-2 text-[11px] leading-tight text-ink-muted">
-            {brand.projectContext}
-          </p>
-        </div>
+      <div className="border-b border-border px-4 py-3.5">
+        {/* Wordmark resmi menggantikan rakitan "ikon + teks" (DECISIONS 227):
+            hurufnya vektor, jadi bentuknya tidak lagi bergantung font UI. */}
+        <BrandWordmark tinggi={26} />
+        <p className="mt-1.5 line-clamp-2 text-[11px] leading-tight text-ink-muted">
+          {brand.projectContext}
+        </p>
       </div>
       <nav aria-label="Navigasi utama" className="flex-1 overflow-y-auto p-2">
         <ul className="space-y-0.5">

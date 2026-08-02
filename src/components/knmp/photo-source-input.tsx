@@ -165,34 +165,36 @@ export function PhotoSourceInput({
   /**
    * Jawab "sedang di lokasi proyek?" lalu buka pemilih berkas (DECISIONS 220).
    *
-   * Kalau YA, posisi perangkat SEKARANG diambil dan dikirim sebagai cadangan —
-   * dipakai hanya bila foto tidak punya GPS sendiri. Kalau TIDAK, tidak ada
-   * koordinat perangkat yang dikirim sama sekali: mengunggah dari kantor lalu
-   * menandai fotonya dengan posisi kantor jauh lebih buruk daripada tidak
-   * menandai apa pun.
+   * Kalau YA, posisi perangkat diambil dan dikirim sebagai cadangan — dipakai
+   * hanya bila foto tidak punya GPS sendiri. Kalau TIDAK, tidak ada koordinat
+   * perangkat yang dikirim sama sekali: mengunggah dari kantor lalu menandai
+   * fotonya dengan posisi kantor jauh lebih buruk daripada tidak menandai apa
+   * pun.
+   *
+   * PEMILIH BERKAS DIBUKA LEBIH DULU, di dalam gestur ketukan — BUKAN di dalam
+   * callback geolokasi. Peramban seluler hanya mengizinkan pemilih berkas
+   * dibuka dari gestur pengguna; menundanya sampai GPS menjawab (bisa 10 detik,
+   * atau tidak pernah) membuat ketukan "Ya, saya di lokasi" tampak tidak
+   * melakukan apa-apa. GPS berjalan PARALEL dan mengisi field tersembunyi
+   * selagi pelapor memilih foto.
    */
   const jawabLokasi = (ya: boolean) => {
     setDiLokasi(ya);
     setTanyaLokasi(false);
     setSource("gallery");
     clearGps();
+    galRef.current?.click();
     if (ya && typeof navigator !== "undefined" && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           if (latRef.current) latRef.current.value = String(pos.coords.latitude);
           if (lngRef.current) lngRef.current.value = String(pos.coords.longitude);
           catat("granted");
-          galRef.current?.click();
         },
-        (err) => {
-          catat(err.code === err.PERMISSION_DENIED ? "denied" : "prompt");
-          galRef.current?.click();
-        },
+        (err) => catat(err.code === err.PERMISSION_DENIED ? "denied" : "prompt"),
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
       );
-      return;
     }
-    galRef.current?.click();
   };
 
   const pickGallery = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -286,31 +288,50 @@ export function PhotoSourceInput({
         />
       </div>
 
-      {/* Konfirmasi sebelum memilih berkas galeri (DECISIONS 220). Pertanyaannya
-          sengaja tentang KEADAAN NYATA pelapor, bukan tentang teknis GPS —
-          "apakah kamu sedang di lokasi" bisa dijawab mandor mana pun. */}
+      {/* Konfirmasi sebelum memilih berkas galeri (DECISIONS 220), sebagai
+          DIALOG — bukan kotak kecil di sela-sela form.
+
+          Permintaan user 2026-08-02: "terlalu kecil … terlalu banyak penjelasan
+          di situ, langsung saja button". Pertanyaan yang menentukan koordinat
+          mana yang menempel di bukti tidak boleh terlihat sebagai catatan kaki,
+          dan penjelasan panjang di atas dua tombol hanya membuat orang menekan
+          yang pertama tanpa membaca. Pertanyaannya sengaja tentang KEADAAN
+          NYATA pelapor, bukan teknis GPS — itu bisa dijawab mandor mana pun. */}
       {tanyaLokasi ? (
-        <div className="rounded-md border border-border bg-surface-muted px-3 py-2.5">
-          <p className="text-sm font-medium text-ink">Kamu sedang berada di lokasi proyek?</p>
-          <p className="mt-0.5 text-xs text-ink-muted">
-            Kalau ya, posisimu sekarang dipakai sebagai cadangan bila foto tidak membawa GPS
-            sendiri. Kalau tidak, foto tanpa GPS akan ditandai titik lokasi proyek.
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => jawabLokasi(true)}
-              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-800"
-            >
-              <MapPin aria-hidden className="size-3.5" /> Ya, saya di lokasi
-            </button>
-            <button
-              type="button"
-              onClick={() => jawabLokasi(false)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-medium text-ink hover:bg-surface-muted"
-            >
-              <MapPinOff aria-hidden className="size-3.5" /> Tidak, unggah dari tempat lain
-            </button>
+        <div
+          className="fixed inset-0 z-[1200] flex items-end justify-center p-4 sm:items-center"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="tanya-lokasi-judul"
+        >
+          <button
+            type="button"
+            aria-label="Batal"
+            className="absolute inset-0 bg-ink/50"
+            onClick={() => setTanyaLokasi(false)}
+            tabIndex={-1}
+          />
+          <div className="relative w-full max-w-sm rounded-xl border border-border bg-surface p-4 shadow-lg">
+            <p id="tanya-lokasi-judul" className="text-center text-base font-semibold text-ink">
+              Kamu sedang di lokasi proyek?
+            </p>
+            <div className="mt-4 space-y-2">
+              <button
+                type="button"
+                autoFocus
+                onClick={() => jawabLokasi(true)}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-base font-semibold text-white hover:bg-primary-800"
+              >
+                <MapPin aria-hidden className="size-5" /> Ya, saya di lokasi
+              </button>
+              <button
+                type="button"
+                onClick={() => jawabLokasi(false)}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-surface px-4 py-3 text-base font-medium text-ink hover:bg-surface-muted"
+              >
+                <MapPinOff aria-hidden className="size-5" /> Tidak
+              </button>
+            </div>
           </div>
         </div>
       ) : null}

@@ -65,6 +65,84 @@ export function markSvgInner(
   );
 }
 
+/* ── Wordmark (ikon + tulisan MARLIN), latar transparan ─────────────────────
+ * Berkas resmi: `public/brand/marlin-wordmark.svg` (user 2026-08-02).
+ * viewBox 1195×300, tanpa plat.
+ *
+ * HURUFNYA VEKTOR, bukan teks. Itu bukan detail sepele: cap foto dulu harus
+ * membenamkan font Montserrat subset hanya untuk menulis "MARLIN", dan subset
+ * itu jadi jebakan (lihat DECISIONS 224). Dengan path, bentuk logo sama persis
+ * di server peraster, di layar, dan di berkas resmi — tanpa font sama sekali.
+ */
+
+export const WORDMARK_W = 1195;
+export const WORDMARK_H = 300;
+
+/** Huruf M-A-R-L-I-N sebagai path (skala & posisi menyusul berkas resmi). */
+const WORDMARK_HURUF: [string, number][] = [
+  ["M47 0H439L536 317H1032L1133 0H1529L1017 1490H544ZM619 587 639 651C688 820 732 1008 777 1209C825 1009 874 821 926 651L946 587Z", 330],
+  ["M116 0H469V513H661L934 0H1321L1010 569C1175 643 1269 789 1269 995C1269 1299 1062 1490 726 1490H116ZM469 792V1204H651C817 1204 903 1134 903 995C903 856 817 792 652 792Z", 543.544],
+  ["M116 0H1092V288H469V1490H116Z", 727.557],
+  ["M469 1490H116V0H469Z", 884.993],
+  ["M116 0H478V617C478 711 468 873 456 1050C539 872 594 760 682 617L1063 0H1452V1490H1090V856C1090 752 1101 581 1111 432C1048 594 986 707 920 817L504 1490H116Z", 965.517],
+];
+
+/** id mask "takik" kurva pada huruf M ikon — harus ada di `<defs>` penyaji. */
+export const WORDMARK_MASK_ID = "ml-wm-notch";
+
+/** Isi `<defs>` yang WAJIB disertakan sekali oleh penyaji wordmark. */
+export const WORDMARK_DEFS =
+  `<mask id="${WORDMARK_MASK_ID}" maskUnits="userSpaceOnUse" x="0" y="0" width="96" height="96">` +
+  `<rect x="0" y="0" width="96" height="96" fill="#fff"/>` +
+  `<path d="${PATH_KURVA}" fill="none" stroke="#000" stroke-width="11" stroke-linecap="round"/>` +
+  `<circle cx="88" cy="18" r="7.5" fill="#000"/>` +
+  `</mask>`;
+
+/**
+ * Rakit wordmark pada lebar tertentu (tinggi mengikuti rasio 1195:300).
+ *
+ * `tinta` mengganti navy resmi — dipakai HANYA bila penyajinya memaksa (mis.
+ * latar gelap pekat). Default memakai warna resmi.
+ *
+ * `halo` menambah garis luar di belakang setiap bentuk. Di cap foto itu bukan
+ * hiasan: navy di atas bayangan malam sama gelapnya dengan latarnya, dan logo
+ * yang lenyap separuh waktu lebih buruk daripada logo yang diberi garis.
+ */
+export function wordmarkSvgInner(
+  x: number,
+  y: number,
+  width: number,
+  opts: { tinta?: string; aksen?: string; halo?: string; haloTebal?: number } = {},
+): string {
+  const s = width / WORDMARK_W;
+  const tinta = opts.tinta ?? BRAND_COLORS.biru;
+  const aksen = opts.aksen ?? BRAND_COLORS.merah;
+  // Huruf dan ikon hidup di RUANG KOORDINAT BERBEDA (huruf diperkecil 0,134×,
+  // ikon diperbesar 3,125×). Satu angka stroke yang sama akan tampil ~23× lebih
+  // tebal di ikon daripada di huruf — jadi tebalnya dihitung per ruang dari satu
+  // faktor relatif.
+  const t = opts.haloTebal ?? 1;
+  const h = opts.halo
+    ? ` paint-order="stroke" stroke="${opts.halo}" stroke-width="${(60 * t).toFixed(1)}" stroke-linejoin="round"`
+    : "";
+  const hIkon = opts.halo
+    ? ` paint-order="stroke" stroke="${opts.halo}" stroke-width="${(3 * t).toFixed(2)}" stroke-linejoin="round"`
+    : "";
+  return (
+    `<g transform="translate(${x},${y}) scale(${s.toFixed(6)})">` +
+    `<g transform="translate(20,-15) scale(3.125)">` +
+    `<path d="${PATH_M}" fill="${tinta}"${hIkon} mask="url(#${WORDMARK_MASK_ID})"/>` +
+    `<path d="${PATH_KURVA}" fill="none" stroke="${aksen}" stroke-width="5.5" stroke-linecap="round"/>` +
+    `<circle cx="88" cy="18" r="4.5" fill="${aksen}"/>` +
+    `</g>` +
+    WORDMARK_HURUF.map(
+      ([d, tx]) =>
+        `<path d="${d}" fill="${tinta}"${h} transform="translate(${tx},260) scale(0.13422819,-0.13422819)"/>`,
+    ).join("") +
+    `</g>`
+  );
+}
+
 /* ── Lockup ringkas latar gelap ─────────────────────────────────────────────
  * Berkas resmi: `public/brand/marlin-lockup-compact-dark.svg` (user 2026-08-02,
  * revisi kedua). Ikon + wordmark + tagline dua baris di atas plat #08152E,

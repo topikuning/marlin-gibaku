@@ -1,6 +1,6 @@
 import { getContrastText } from "@/lib/photo-stamp/format";
 import { MONTSERRAT_800_B64, MONTSERRAT_600_B64 } from "@/lib/logo-font";
-import { lockupSvgInner } from "@/lib/brand-mark";
+import { wordmarkSvgInner, WORDMARK_DEFS, WORDMARK_W, WORDMARK_H } from "@/lib/brand-mark";
 
 /** @font-face Montserrat khusus wordmark logo (family "ML"). Selalu dibenamkan. */
 const LOGO_FONT_FACE =
@@ -12,7 +12,7 @@ const LOGO_FONT_FACE =
 /**
  * Renderer overlay stamp (SVG) — meniru MASTER LAYOUT referensi:
  *   kiri-atas  : panel perusahaan (navy, aksen vertikal, sudut kanan-bawah rounded)
- *   kanan-atas : lockup resmi MARLIN (ikon + wordmark + tagline, DECISIONS 224)
+ *   kanan-atas : wordmark resmi MARLIN (ikon + tulisan vektor, DECISIONS 227)
  *   kiri-bawah : badge kategori → nama lokasi → tanggal → garis → koordinat/pelapor/Photo ID
  *   bawah      : gradient keterbacaan (foto tetap background)
  * Pure & deterministik (tanpa I/O) supaya bisa dipakai server & preview.
@@ -203,41 +203,53 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
     `<rect x="0" y="${h - band}" width="${w}" height="${band}" fill="url(#pg)"/>`,
   );
 
-  // Lebar lockup diikat ke sisi TERPANJANG supaya ukurannya konsisten antara
-  // foto potret dan lanskap — diikat ke lebar saja, lockup di foto potret jadi
-  // kekecilan dan taglinenya tidak terbaca.
-  const lockupW = Math.round(Math.max(w, h) * 0.26);
-  const lockupKiri = w - safeX - lockupW;
+  // ── Baris kepala: panel perusahaan (kiri) ⟷ wordmark MARLIN (kanan) ──
+  //
+  // KEDUANYA MASUK KE DALAM MARJIN AMAN dan berbagi SATU garis tengah —
+  // tata letak yang diminta user 2026-08-02 lewat contoh gambar. Sebelumnya
+  // panel menempel mati di sudut (0,0) sementara wordmark inset, jadi keduanya
+  // tidak pernah sejajar dan jarak ke tepi foto berbeda kiri-kanan.
+  //
+  // Tinggi wordmark diikat ke tinggi panel, bukan ke lebar foto: yang harus
+  // terlihat sepadan adalah logo dengan nama perusahaan di seberangnya, dan
+  // ukuran yang mengikuti lebar foto membuat hubungan itu berubah-ubah antara
+  // potret dan lanskap.
+  const fsCoDasar = fs(0.023, 16);
+  const tinggiPanel = Math.round(fsCoDasar + 2 * Math.round(fsCoDasar * 0.72));
+  const wordmarkH = Math.round(tinggiPanel * 0.95);
+  const wordmarkW = Math.round((wordmarkH * WORDMARK_W) / WORDMARK_H);
+  const logoKiri = w - safeX - wordmarkW;
+  const kepalaTengah = safeY + tinggiPanel / 2;
 
-  // ── Panel perusahaan (kiri-atas) ──
   if (d.companyName?.trim()) {
-    const fsCo0 = fs(0.023, 16);
-    // Panel BERHENTI sebelum lockup. Tanpa batas ini nama perusahaan panjang
-    // menyelinap di bawah lockup lalu keluar tepi kanan foto — dan cap sudah
+    // Panel BERHENTI sebelum wordmark. Tanpa batas ini nama perusahaan panjang
+    // menyelinap di bawah logo lalu keluar tepi kanan foto — dan cap sudah
     // terbakar ke gambar, jadi tidak ada kesempatan kedua memperbaikinya.
-    const maxPanelW = Math.max(w * 0.3, lockupKiri - Math.round(safeX * 0.5));
-    const co = fitPanel(d.companyName.trim(), maxPanelW, fsCo0);
+    const maxPanelW = Math.max(w * 0.3, logoKiri - safeX - Math.round(safeX * 0.6));
+    const co = fitPanel(d.companyName.trim(), maxPanelW, fsCoDasar);
     const company = co.text;
     const fsCo = co.fs;
     const padH = Math.round(fsCo * 0.95);
-    const padV = Math.round(fsCo * 0.72);
     const barW = Math.max(4, Math.round(fsCo * 0.26));
     const gap = Math.round(fsCo * 0.55);
     const panelW = Math.round(panelTextW(company, fsCo) + panelChromeW(fsCo));
-    const panelH = Math.round(fsCo + 2 * padV);
-    const r = Math.round(panelH * 0.3);
+    const panelH = Math.round(fsCo + 2 * Math.round(fsCo * 0.72));
+    const panelY = Math.round(kepalaTengah - panelH / 2);
+    const r = Math.round(panelH * 0.28);
     parts.push(
-      `<path d="M0 0 H${panelW} V${panelH - r} Q${panelW} ${panelH} ${panelW - r} ${panelH} H0 Z" fill="${PANEL_FILL}"/>`,
+      `<rect x="${safeX}" y="${panelY}" width="${panelW}" height="${panelH}" rx="${r}" fill="${PANEL_FILL}"/>`,
     );
     const barH = Math.round(fsCo * 1.05);
-    parts.push(`<rect x="${padH}" y="${Math.round((panelH - barH) / 2)}" width="${barW}" height="${barH}" rx="1" fill="${accent}"/>`);
     parts.push(
-      `<text x="${padH + barW + gap}" y="${Math.round(panelH / 2 + fsCo * 0.35)}" font-family="${ff}" font-weight="700" font-size="${fsCo}" ${halo(fsCo)} fill="${TEXT_WHITE}">${esc(company)}</text>`,
+      `<rect x="${safeX + padH}" y="${Math.round(panelY + (panelH - barH) / 2)}" width="${barW}" height="${barH}" rx="1" fill="${accent}"/>`,
+    );
+    parts.push(
+      `<text x="${safeX + padH + barW + gap}" y="${Math.round(panelY + panelH / 2 + fsCo * 0.35)}" font-family="${ff}" font-weight="700" font-size="${fsCo}" ${halo(fsCo)} fill="${TEXT_WHITE}">${esc(company)}</text>`,
     );
   }
 
-  // ── Lockup resmi MARLIN (kanan-atas) ──
-  parts.push(marlinLogo(w - safeX, safeY, lockupW, opts.fontFamily));
+  // ── Wordmark resmi MARLIN (kanan, segaris dengan panel) ──
+  parts.push(marlinLogo(logoKiri, Math.round(kepalaTengah - wordmarkH / 2), wordmarkW));
 
   // ── Blok info (kiri-bawah) ──
   const maxW = portrait ? w - 2 * safeX : Math.round(w * 0.6);
@@ -372,34 +384,26 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
     `<stop offset="0.68" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="${(a * 0.32).toFixed(3)}"/>` +
     `<stop offset="1" stop-color="rgb(${OVERLAY_RGB})" stop-opacity="0"/>` +
     `</linearGradient>`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><defs>${opts.fontFaceCss}${LOGO_FONT_FACE}${grad}</defs>${parts.join("")}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><defs>${opts.fontFaceCss}${LOGO_FONT_FACE}${grad}${WORDMARK_DEFS}</defs>${parts.join("")}</svg>`;
 }
 
 /**
- * Lockup MARLIN di cap foto — memakai LOCKUP RESMI apa adanya (DECISIONS 224).
+ * Wordmark resmi MARLIN di cap foto — berkas `public/brand/marlin-wordmark.svg`
+ * (user 2026-08-02): "atur supaya di pojok atas, proporsional dengan informasi
+ * nama perusahaan".
  *
- * User mengirim `MARLIN_logo_final_compact_dark.svg` dan meminta SVG itu yang
- * dipakai di bagian ini. Sebelumnya bagian ini digambar ulang dengan tangan
- * ("PROJECT CONTROL" yang tidak pernah ada di logo mana pun), lalu sempat
- * diganti ikon + wordmark rakitan sendiri. Sekarang tata letaknya — posisi
- * ikon, ukuran wordmark, dua baris tagline — diambil persis dari berkas itu.
+ * WARNA RESMI DIPERTAHANKAN (navy + merah). Yang ditambahkan hanya HALO PUTIH:
+ * navy di atas bayangan malam sama gelapnya dengan latarnya, dan logo yang
+ * lenyap separuh waktu lebih buruk daripada logo yang diberi garis luar. Halo
+ * putih — bukan gelap — supaya di foto terang ia praktis tak terlihat dan yang
+ * tampak tetap warna resmi.
  *
- * TANPA PLAT — permintaan user 2026-08-02: "yang aku harapkan itu area
- * background biru itu jadi transparant". Blok pekat di sudut foto memang
- * menutup bukti, dan cap seharusnya menumpang di atas foto, bukan menutupinya.
- *
- * Gantinya bukan sekadar menghapus `<rect>`: tinta putih di atas foto siang
- * lenyap. `lockupSvgInner` dengan `plat: false` memberi halo gelap tipis di
- * sekeliling setiap bentuk dan menaikkan tagline dari abu-muda ke putih —
- * teknik yang sama dipakai seluruh teks cap lain di berkas ini.
- *
- * Lebar 26% sisi terpanjang: cukup besar agar tagline 48px (skala penuh) masih
- * terbaca setelah diperkecil, tanpa memakan sudut foto yang dibutuhkan bukti.
+ * Tidak ada plat, tidak ada tagline. Hurufnya VEKTOR, jadi cap ini tidak lagi
+ * bergantung pada font display yang dibenamkan; jebakan subset DECISIONS 224
+ * hilang dengan sendirinya.
  */
-function marlinLogo(rightX: number, topY: number, lebar: number, fontTeks: string): string {
-  // Wordmark pakai font display "ML"; tagline pakai font teks cap — font display
-  // adalah SUBSET tanpa huruf kecil (lihat catatan di `lockupSvgInner`).
-  return lockupSvgInner(rightX - lebar, topY, lebar, "ML", fontTeks, { plat: false });
+function marlinLogo(x: number, y: number, lebar: number): string {
+  return wordmarkSvgInner(x, y, lebar, { halo: "#FFFFFF" });
 }
 
 /** Puncak alpha gradient dari mode overlay (+ luminance area bawah utk mode auto). */

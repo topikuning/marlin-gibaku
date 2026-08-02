@@ -7224,3 +7224,97 @@ berkas ditolak, item milik laporan lain ditolak, semua-gagal = gagal) · 2 kasus
 E2E browser sungguhan untuk alur fokus & penanda "Belum ada foto" — fokus tidak
 bisa dibuktikan tanpa browser · unit 771/771 ✓ · integrasi 278/278 ✓ · E2E 34
 lulus (16 dilewati sesuai kondisi) ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 227 — Wordmark resmi + kepala cap sejajar + alur isi ponsel (2026-08-02)
+
+Empat permintaan user dalam satu putaran, plus berkas logo baru.
+
+### Wordmark resmi menggantikan lockup — dan jebakan font hilang
+
+User mengirim `marlin-wordmark-transparent-light.svg` (viewBox 1195×300,
+transparan) dan meminta ia dipakai di cap foto DAN di area logo web.
+
+Yang penting bukan cuma bentuknya: **hurufnya PATH, bukan teks**. Cap foto dulu
+harus membenamkan font Montserrat subset hanya untuk menulis "MARLIN", dan subset
+itu jadi jebakan yang hampir lolos (DECISIONS 224 — tagline berhuruf kecil akan
+keluar sebagai kotak kosong). Dengan path, bentuk logo identik di server
+peraster, di layar, dan di berkas resmi, tanpa font sama sekali. Jebakan itu
+sekarang hilang dengan sendirinya.
+
+**Warna resmi dipertahankan** (navy `#1E3A8A` + merah `#D21F2A`). Yang
+ditambahkan hanya HALO PUTIH: navy di atas bayangan malam sama gelapnya dengan
+latarnya. Halo putih — bukan gelap — supaya di foto terang ia praktis tak
+terlihat dan yang tampak tetap warna resmi. Tebal halo dihitung TERPISAH untuk
+huruf dan ikon: keduanya hidup di ruang koordinat berbeda (huruf 0,134×, ikon
+3,125×), jadi satu angka stroke yang sama akan tampil ~23× lebih tebal di ikon.
+
+Di web, `BrandWordmark` menggantikan rakitan "ikon + teks MARLIN" di sidebar,
+topbar ponsel, dan halaman Masuk. Rakitan itu bergantung pada font UI yang
+kebetulan terpasang, jadi jarak huruf & bobotnya tidak pernah persis sama dengan
+logo resmi.
+
+### Kepala cap: panel dan logo berbagi satu garis
+
+User mengirim gambar contoh. Sebelumnya panel perusahaan menempel mati di sudut
+(0,0) sementara logo inset — keduanya tidak pernah sejajar dan jarak ke tepi foto
+berbeda kiri-kanan. Sekarang keduanya masuk ke marjin aman yang sama dan berbagi
+satu garis tengah; tinggi wordmark diikat ke tinggi panel (bukan ke lebar foto),
+supaya hubungan "logo vs nama perusahaan" tidak berubah antara potret dan
+lanskap.
+
+### Konfirmasi lokasi galeri jadi DIALOG
+
+*"terlalu kecil … terlalu banyak penjelasan di situ, langsung saja button."*
+Benar. Pertanyaan yang menentukan koordinat mana yang menempel di bukti tidak
+boleh terlihat sebagai catatan kaki di sela-sela form, dan paragraf di atas dua
+tombol hanya membuat orang menekan yang pertama tanpa membaca. Sekarang: dialog
+modal, satu kalimat pertanyaan, dua tombol setinggi jempol.
+
+Sekalian diperbaiki cacat yang belum sempat terlihat: pemilih berkas dulu dibuka
+DI DALAM callback geolokasi. Peramban seluler hanya mengizinkan pemilih berkas
+dibuka dari gestur pengguna — menundanya sampai GPS menjawab (bisa 10 detik, atau
+tidak pernah) membuat ketukan "Ya, saya di lokasi" tampak tidak melakukan
+apa-apa. Sekarang pemilih dibuka lebih dulu, GPS berjalan paralel dan mengisi
+field tersembunyi selagi pelapor memilih foto.
+
+### Papan ketik: fokus saja tidak cukup
+
+DECISIONS 226 memindahkan fokus kembali ke kolom pekerjaan setelah simpan, tapi
+user melaporkan papan ketik tetap tertutup. Benar, dan sebabnya struktural:
+papan ketik ponsel hanya mau terbuka dari GESTUR pengguna, sedangkan fokus tadi
+dipasang setelah aksi server selesai — jauh di luar gestur.
+
+Kolom cari sekarang **selalu terpasang dan terlihat**, bahkan saat pekerjaan
+sudah dipilih (dulu ia di-unmount, jadi tidak ada yang bisa difokuskan saat
+tombol ditekan). Fokus dipindah SINKRON di dalam ketukan "Simpan Progres",
+sehingga papan ketik tidak pernah sempat menutup. Efek sampingnya bagus: kolom
+cari yang selalu ada juga jadi cara mengganti pekerjaan tanpa menekan "Ganti".
+
+### Ponsel: kepala halaman diringkas di halaman yang tugasnya MENGISI
+
+*"informasi di atas inputan seperti progress dll, di hide saja."* Di layar
+375×812, identitas lokasi + alamat + paket + enam sel statistik + breadcrumb +
+judul panjang memakan ~600px sebelum kolom pertama — dua kali gulir hanya untuk
+mulai bekerja.
+
+Header lokasi disembunyikan di ponsel, diganti SATU BARIS: nama lokasi, status,
+deviasi. Angkanya tidak hilang; semuanya ada di tab Ringkasan dengan kartu
+KPI-nya sendiri. `PageHeader` mendapat `compactMobile` yang menyembunyikan
+breadcrumb/eyebrow/deskripsi dan mengecilkan judul — dipakai halaman laporan
+harian. Hasilnya seluruh form (pekerjaan → volume → foto → catatan → simpan)
+muat di satu layar tanpa gulir.
+
+Blok "Ambil cuaca otomatis" ikut diringkas: kotak bergaris putus-putus dengan
+paragraf tiga baris jadi satu baris tombol + keterangan pendek. Penjelasan cara
+kerjanya pindah ke `title` tombol — yang hanya perlu dibaca sekali seumur hidup
+tidak boleh memakan ruang setiap hari.
+
+**Verifikasi**: 15 kasus unit logo (semua path huruf resmi tertanam, mask takik
+ikut, warna resmi + halo putih, tebal halo dua ruang koordinat, panel & logo
+berbagi garis tengah, logo tidak melewati tepi, nama panjang dipotong) · 4 kasus
+E2E (alur fokus, kolom cari tidak lepas dari DOM, dialog galeri dua tombol tanpa
+paragraf, foto menyusul) · raster nyata diperiksa mata di latar terang/abu/gelap
+· tangkapan ponsel 375px diperiksa: form muat satu layar, tanpa overflow ·
+unit 770/770 ✓ · E2E 34 lulus ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓.
