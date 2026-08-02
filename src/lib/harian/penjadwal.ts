@@ -4,6 +4,7 @@ import { audit } from "@/lib/audit";
 import { jakartaDateKey, formatTanggal, parseDateKey } from "@/lib/format";
 import { canTransitionLocation } from "@/lib/lifecycle";
 import { sendText, isWahaConfigured, getSessionStatus } from "@/lib/waha/client";
+import { normalizeWaTarget } from "@/lib/contacts/model";
 import { pesanPengingat, type LokasiTertagih } from "./pesan";
 
 /**
@@ -14,16 +15,30 @@ import { pesanPengingat, type LokasiTertagih } from "./pesan";
  * Asia/Jakarta", dan keduanya harus aman dipicu berkali-kali.
  */
 
+/** Hasil satu penerima — supaya "berhasil atau tidak" tidak perlu ditebak. */
+export type RincianKirim = {
+  nama: string;
+  /** Tujuan yang benar-benar dipakai (628…@c.us). */
+  tujuan: string;
+  ok: boolean;
+  /** ID pesan dari WAHA. Null = WAHA menerima permintaan tapi tak memberi bukti. */
+  waMessageId: string | null;
+  error?: string;
+};
+
+export type HasilPengingat = {
+  terkirim: number;
+  gagal: number;
+  dilewati: number;
+  /** Status sesi WhatsApp saat itu. INFORMASI, bukan pagar (DECISIONS 207). */
+  sesi: string;
+  rincian: RincianKirim[];
+};
+
 export type HasilHarian = {
   dateKey: string;
   spmk: { diaktifkan: number; paket: string[] };
-  pengingat: {
-    terkirim: number;
-    gagal: number;
-    dilewati: number;
-    /** Status sesi WhatsApp saat itu — "terkirim" tak berarti apa pun tanpa ini. */
-    sesi: string;
-  };
+  pengingat: HasilPengingat;
 };
 
 /* ── 1. Aktivasi SPMK yang jatuh tempo ───────────────────────────────────── */
@@ -185,14 +200,30 @@ export async function kumpulkanPengingat(
  * Kirim pengingat WA ke penanggung jawab lokasi yang laporannya BELUM lengkap
  * hari ini. Yang sudah melapor tidak dikirimi apa pun — pengingat yang datang
  * setiap hari tanpa peduli isinya akan berhenti dibaca dalam seminggu.
+ *
+ * `paksa` membedakan dua pemanggil yang kebutuhannya memang berbeda
+ * (DECISIONS 207):
+ * - **cron** (`paksa: false`) sekali sehari per orang. Penjadwal yang dipicu
+ *   dua kali tidak boleh mengirim pesan kedua ke HP orang lapangan.
+ * - **admin** (`paksa: true`) sebanyak yang ia mau. Orangnya menekan tombol
+ *   sadar, melihat daftar penerimanya lebih dulu, dan tahu kapan pesan pertama
+ *   tidak sampai — mengunci dia sehari penuh berarti sistem memutuskan sesuatu
+ *   yang bukan haknya.
  */
 export async function kirimPengingatHarian(
   now = new Date(),
   orgId?: string,
-): Promise<HasilHarian["pengingat"]> {
+  opts: { paksa?: boolean } = {},
+): Promise<HasilPengingat> {
   const dateKey = jakartaDateKey(now);
   const tanggal = parseDateKey(dateKey)!;
-  const hasil = { terkirim: 0, gagal: 0, dilewati: 0, sesi: "tidak diketahui" };
+  const hasil: HasilPengingat = {
+    terkirim: 0,
+    gagal: 0,
+    dilewati: 0,
+    sesi: "tidak diketahui",
+    rincian: [],
+  };
   // `isWahaConfigured` ASINKRON (baca konfigurasi dari DB). Versi pertama
   // menulisnya `!isWahaConfigured()` — menegasikan Promise selalu false,
   // sehingga pengamannya TIDAK PERNAH aktif: saat WAHA mati, baris pengingat
@@ -203,18 +234,15 @@ export async function kirimPengingatHarian(
     return hasil;
   }
 
-  // Sesi WhatsApp HARUS hidup. WAHA membalas 2xx untuk sendText walau sesinya
-  // belum login — pesannya masuk antrean lalu hilang. Tanpa pemeriksaan ini
-  // sistem melaporkan "7 terkirim" padahal nol yang sampai ke HP orang, dan
-  // UNIQUE (user, hari) membuat percobaan yang benar hari itu ikut terkunci.
-  // Laporan user 2026-08-02 (DECISIONS 206).
+  // Status sesi DICATAT, tidak dipakai sebagai pagar. Ia berguna untuk membaca
+  // hasil ("0 terkirim, sesi SCAN_QR_CODE" langsung menjelaskan dirinya), tapi
+  // menjadikannya syarat berarti satu tebakan kami bisa menghentikan pengiriman
+  // yang sebenarnya sehat — dan itu persis kegagalan yang lebih mahal
+  // (DECISIONS 207).
   try {
-    const sesi = await getSessionStatus();
-    hasil.sesi = sesi.status;
-    if (sesi.status !== "WORKING") return hasil;
+    hasil.sesi = (await getSessionStatus()).status;
   } catch (err) {
     hasil.sesi = `tidak bisa dicek: ${err instanceof Error ? err.message : "gagal"}`;
-    return hasil;
   }
 
   const penerima = await kumpulkanPengingat(now, orgId);
@@ -224,21 +252,74 @@ export async function kirimPengingatHarian(
     const teks = pesanPengingat(e.nama, tanggalTampil, e.lokasi);
     if (!teks) continue;
 
-    // Catat DULU: unique (userId, dateKey) menolak percobaan kedua di hari yang
-    // sama, jadi pesan dobel tercegah walau cron dipicu berkali-kali. Kalau
-    // dibalik (kirim dulu, catat kemudian), kegagalan mencatat = kirim ulang.
+    // Nomor dinormalkan SAAT KIRIM, bukan cuma saat disimpan: baris lama (dan
+    // baris hasil impor) bisa berisi "0812…", dan WAHA menerima bentuk itu
+    // dengan 2xx lalu tidak mengirim apa pun. Gagal karena format harus
+    // tercatat sebagai gagal, bukan menyamar jadi sukses.
+    let tujuan: string;
     try {
-      await db.dailyReminderLog.create({
-        data: { userId, dateKey, locations: e.lokasi.length, status: "sukses" },
+      tujuan = normalizeWaTarget(e.wa);
+    } catch (err) {
+      hasil.gagal++;
+      hasil.rincian.push({
+        nama: e.nama,
+        tujuan: e.wa,
+        ok: false,
+        waMessageId: null,
+        error: err instanceof Error ? err.message : "Nomor WA tidak dikenal.",
       });
-    } catch {
-      hasil.dilewati++; // sudah pernah dikirim hari ini
       continue;
     }
 
+    // Catat DULU, lalu kirim: kalau dibalik, kegagalan mencatat = kirim ulang.
+    // Untuk cron, `create` yang ditolak UNIQUE (user, hari) berarti "sudah
+    // pernah hari ini" → dilewati. Untuk admin, barisnya di-upsert dan
+    // `attempts` bertambah — riwayatnya tumbuh, bukan menghalangi.
+    if (opts.paksa) {
+      await db.dailyReminderLog.upsert({
+        where: { userId_dateKey: { userId, dateKey } },
+        create: {
+          userId,
+          dateKey,
+          locations: e.lokasi.length,
+          status: "sukses",
+          chatId: tujuan,
+          lastSentAt: now,
+        },
+        update: {
+          locations: e.lokasi.length,
+          status: "sukses",
+          chatId: tujuan,
+          attempts: { increment: 1 },
+          lastSentAt: now,
+          // Hasil percobaan LAMA dibersihkan supaya barisnya menggambarkan
+          // percobaan terakhir, bukan campuran dua kejadian.
+          error: null,
+          waMessageId: null,
+        },
+      });
+    } else {
+      try {
+        await db.dailyReminderLog.create({
+          data: {
+            userId,
+            dateKey,
+            locations: e.lokasi.length,
+            status: "sukses",
+            chatId: tujuan,
+            lastSentAt: now,
+          },
+        });
+      } catch {
+        hasil.dilewati++; // sudah pernah dikirim hari ini
+        continue;
+      }
+    }
+
     try {
-      const waMessageId = await sendText(e.wa, teks);
+      const waMessageId = await sendText(tujuan, teks);
       hasil.terkirim++;
+      hasil.rincian.push({ nama: e.nama, tujuan, ok: true, waMessageId });
       // Simpan buktinya supaya "sukses" bisa ditelusuri ke pesan yang nyata.
       if (waMessageId) {
         await db.dailyReminderLog.update({
@@ -247,10 +328,12 @@ export async function kirimPengingatHarian(
         });
       }
     } catch (err) {
+      const pesan = err instanceof Error ? err.message : String(err);
       hasil.gagal++;
+      hasil.rincian.push({ nama: e.nama, tujuan, ok: false, waMessageId: null, error: pesan });
       await db.dailyReminderLog.update({
         where: { userId_dateKey: { userId, dateKey } },
-        data: { status: "gagal", error: err instanceof Error ? err.message : String(err) },
+        data: { status: "gagal", error: pesan },
       });
     }
   }
