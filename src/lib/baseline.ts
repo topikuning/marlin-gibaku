@@ -660,6 +660,12 @@ export async function getScurveSeries(locationId: string): Promise<ScurveSeries>
 
     const rows = await db.dailyReportItem.findMany({
       where: {
+        // Kurva-S realisasi = angka resmi ⇒ HANYA laporan terhadap RAB aktif
+        // (DECISIONS 210/211). Menyaring lineageKey ke revisi aktif saja tidak
+        // cukup: item yang volumenya diubah adendum ADA di kedua revisi, jadi
+        // baris basis draft akan ikut menaikkan kurva realisasi tanpa dasar
+        // kontrak. (`basis` di sini kunci kolom, bukan Map bobot di atas.)
+        basis: "aktif",
         report: { locationId, status: { in: [...COUNTED_REPORT_STATUSES] } },
         lineageKey: { in: [...basis.keys()] },
       },

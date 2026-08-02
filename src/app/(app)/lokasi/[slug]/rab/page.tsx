@@ -129,6 +129,9 @@ export default async function RabPage({
       ? db.dailyReportItem.groupBy({
           by: ["lineageKey"],
           where: {
+            // Target rencana mingguan bersumber dari RAB aktif, jadi
+            // realisasinya pun basis aktif (DECISIONS 211).
+            basis: "aktif",
             report: {
               locationId: location.id,
               status: { in: [...COUNTED_REPORT_STATUSES] },

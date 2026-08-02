@@ -329,7 +329,14 @@ export async function getPeriodReport(
   // Realisasi terhitung (dikirim/disetujui/final), bucketing by reportDate.
   const itemLineages = new Set(itemNodes.map((nd) => nd.lineageKey));
   const realRows = await db.dailyReportItem.findMany({
-    where: { report: { locationId, status: { in: [...COUNTED_REPORT_STATUSES] } } },
+    where: {
+      // Laporan periodik = dokumen resmi ke KKP ⇒ HANYA basis aktif
+      // (DECISIONS 210/211). Filter `itemLineages` di bawah tidak menutup ini:
+      // item yang juga ada di draft adendum lolos filter itu dan akan
+      // menggerakkan bobot realisasi walau adendumnya belum disetujui.
+      basis: "aktif",
+      report: { locationId, status: { in: [...COUNTED_REPORT_STATUSES] } },
+    },
     select: {
       lineageKey: true,
       volumeDone: true,

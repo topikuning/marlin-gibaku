@@ -6377,3 +6377,78 @@ lint ✓ · unit 727 ✓ · integrasi 266 ✓.
 
 **Belum**: laporan periodik/KKP belum punya varian "termasuk pengajuan
 adendum"; yang ada baru ringkasan di halaman Progress.
+
+---
+
+## 211 — Angka resmi disaring basis aktif di SEMUA jalurnya, bukan hanya progres (2026-08-02)
+
+**Permintaan user**: "blanko kkp dan laporan resmi jangan diapa-apakan dulu,
+laporan resmi tetap harus berdasar rab aktif."
+
+DECISIONS 210 menutup tiga tempat (SQL `getLocationsProgress`,
+`cumulativeVolumeByLineage`, uji integrasi). Penyisiran seluruh pembaca
+`DailyReportItem` menemukan empat jalur yang MASIH bocor:
+
+| Jalur | Akibat sebelum ditambal |
+| --- | --- |
+| `baseline.getScurveSeries` | kurva-S realisasi naik atas laporan basis draft |
+| `periodic-report` | bobot realisasi laporan mingguan/bulanan KKP ikut naik |
+| `ai-hub/source` deteksi overrun | temuan palsu "volume melebihi RAB" |
+| halaman RAB (realisasi mingguan) | realisasi ≠ basis target rencananya |
+
+Ketiga yang pertama menyaring lineage ke revisi aktif, dan itulah yang membuat
+kebocorannya tidak kelihatan: item yang **volumenya diubah adendum ada di kedua
+revisi**, jadi ia lolos filter lineage. Yang hanya-ada-di-draft memang
+tersaring; yang berbahaya justru yang beririsan.
+
+Guard volume saat `→ dikirim` (`assertVolumeWithinRab`) juga diperbaiki: dulu
+menjumlahkan semua basis untuk setiap baris, sehingga baris basis AKTIF yang
+sah bisa ditolak gara-gara ada laporan basis draft. Sekarang dikelompokkan per
+basis, sepadan dengan guard di `upsertItem`.
+
+**Tidak diubah**: blanko KKP dan laporan periodik tetap murni RAB aktif — tidak
+diberi varian "termasuk pengajuan adendum". Angka draft hanya hidup di kartu
+halaman Progress.
+
+**Verifikasi**: 2 kasus integrasi baru — kurva-S realisasi tetap 0% walau
+laporan basis draft atas lineage yang beririsan sudah dikirim, lalu bergerak
+tepat 40% begitu dilaporkan lewat basis aktif · typecheck ✓ · lint ✓ · unit 728 ✓.
+
+---
+
+## 212 — Ekspor Excel RAB: Jumlah item angka mati, bukan ROUND(volume×harga) (2026-08-02)
+
+**Laporan user**: "unduh excelmu masih bermasalah, hasil import di layar sudah
+sesuai di excel … apakah perbedaan ini karena di database kamu menggunakan
+harga satuan x volume?"
+
+Ya — dan hanya di ekspor. Berkas unduhan menulis daun sebagai rumus
+`ROUND(volume×harga,0)`; `result`-nya memang angka DB, tapi begitu Excel
+merekalkulasi ia menghitung ulang dari **harga satuan yang sudah dibulatkan 2
+desimal di dokumen sumber**, sementara Jumlah di dokumen berasal dari analisa
+harga satuan yang presisinya lebih panjang. Keduanya tidak sama.
+
+Diukur pada RAB Wonorejo Situbondo rev.1 yang diunggah user:
+
+- 152 dari 1.227 baris item meleset Rp1–Rp4;
+- 118 baris agregat ikut bergeser;
+- nilai pra-PPN 5.891.112.785 → **5.891.116.482** (+Rp3.697) — lalu PPN dan
+  TOTAL dihitung di atas angka yang sudah melenceng.
+
+**Keputusan**: Jumlah item ditulis sebagai angka tersimpan (angka mati). Baris
+induk tetap berumus `F<anak>+F<anak>` karena subtotal tersimpan memang PERSIS Σ
+anak tersimpan — diperiksa atas 218 baris agregat berkas itu, nol selisih —
+sehingga rekalkulasi Excel mendarat tepat di angka dokumen. Kolom volume dan
+harga satuan tetap ditampilkan apa adanya; bahwa vol×harga ≠ Jumlah adalah
+sifat dokumen sumbernya, dan menutupinya berarti mengarang presisi yang tidak
+kita punya (DECISIONS 203).
+
+**Catatan cakupan**: perhitungan di belakang layar TIDAK terpengaruh — progres,
+bobot, kurva-S, dan keuangan semuanya memakai `RabNode.amount` (angka dokumen),
+bukan volume×harga. `DailyReportItem.valueDone` memang disimpan dengan
+round(volume×harga) tapi tidak dibaca satu pun laporan (diverifikasi dengan
+penyisiran: satu-satunya pembaca adalah Prisma Client hasil generate).
+
+**Verifikasi**: uji unit baru memakai angka nyata dari RAB Wonorejo
+(4852,122 × 8.465,19 → dokumen 41.074.131, hasil kali 41.074.135) — ekspor
+wajib menulis 41.074.131 · unit 728 ✓ · typecheck ✓ · lint ✓.

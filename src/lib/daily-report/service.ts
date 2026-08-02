@@ -334,14 +334,21 @@ async function assertVolumeWithinRab(
     where: { reportId: report.id },
     select: {
       lineageKey: true,
+      basis: true,
       volumeDone: true,
       rabNode: { select: { code: true, name: true, unit: true, volume: true } },
     },
   });
   if (items.length === 0) return;
 
+  // Dikelompokkan PER BASIS, bukan hanya per lineage — pembandingnya berbeda
+  // (DECISIONS 210): baris basis aktif diadu dengan volume RAB aktif sehingga
+  // hanya realisasi basis aktif yang boleh ikut dijumlahkan; baris basis draft
+  // diadu dengan volume draft, yang sudah mencakup pekerjaan yang dilaporkan
+  // di basis aktif, jadi KEDUA basis dihitung. Menjumlahkan semua basis untuk
+  // baris aktif akan menolak laporan yang sebetulnya sah.
   const counted = await tx.dailyReportItem.groupBy({
-    by: ["lineageKey"],
+    by: ["lineageKey", "basis"],
     where: {
       lineageKey: { in: items.map((it) => it.lineageKey) },
       report: {
@@ -352,15 +359,23 @@ async function assertVolumeWithinRab(
     },
     _sum: { volumeDone: true },
   });
-  const othersByLineage = new Map(counted.map((c) => [c.lineageKey, Number(c._sum.volumeDone ?? 0)]));
+  const othersByLineageBasis = new Map(
+    counted.map((c) => [`${c.lineageKey}|${c.basis}`, Number(c._sum.volumeDone ?? 0)]),
+  );
+  const othersFor = (lineageKey: string, basis: string) => {
+    const aktif = othersByLineageBasis.get(`${lineageKey}|aktif`) ?? 0;
+    if (basis === "aktif") return aktif;
+    return aktif + (othersByLineageBasis.get(`${lineageKey}|draft_adendum`) ?? 0);
+  };
 
   const offending: string[] = [];
   for (const it of items) {
     const volK = it.rabNode.volume != null ? Number(it.rabNode.volume) : null;
     if (volK == null) continue;
-    const total = (othersByLineage.get(it.lineageKey) ?? 0) + Number(it.volumeDone);
+    const others = othersFor(it.lineageKey, it.basis);
+    const total = others + Number(it.volumeDone);
     if (total > volK + VOLUME_EPSILON) {
-      const sisa = Math.max(0, Math.round((volK - (othersByLineage.get(it.lineageKey) ?? 0)) * 1000) / 1000);
+      const sisa = Math.max(0, Math.round((volK - others) * 1000) / 1000);
       offending.push(
         `${it.rabNode.code} ${it.rabNode.name}: total ${formatNumber(total)} > RAB ${formatNumber(volK)} ${it.rabNode.unit ?? ""} (sisa ${formatNumber(sisa)})`.trim(),
       );

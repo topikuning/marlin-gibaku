@@ -21,6 +21,7 @@ const { upsertItem } = await import("@/lib/daily-report/service");
 const { getLocationProgress, getProgresDraftAdendum, cumulativeVolumeByLineage } = await import(
   "@/lib/progress"
 );
+const { getScurveSeries } = await import("@/lib/baseline");
 
 const suffix = `ba${Date.now().toString(36)}`;
 let orgId = "";
@@ -226,5 +227,56 @@ describe("pagar yang tetap berlaku", () => {
     await expect(
       upsertItem(reportId, { rabNodeId: nodeDraftNaikId, volumeDone: 151 }, userId),
     ).rejects.toThrow(/melebihi sisa RAB/i);
+  });
+});
+
+describe("dokumen resmi lain juga tidak ikut bergerak", () => {
+  it("kurva-S realisasi tetap 0% — item yang lineage-nya ada di KEDUA revisi pun tak bocor", async () => {
+    // LK_NAIK ada di RAB aktif DAN di draft. Menyaring lineage ke revisi aktif
+    // saja tidak menutup kebocoran ini; yang menutup adalah filter basis.
+    // Blok "pagar" mengembalikan laporan ke draft — dikirim lagi supaya baris
+    // basis draft (130 unit) benar-benar ikut terhitung saat diuji.
+    await db.dailyReport.update({ where: { id: reportId }, data: { status: "dikirim" } });
+    await db.baseline.create({
+      data: {
+        locationId,
+        baselineNo: 1,
+        source: "auto",
+        status: "aktif",
+        contractDays: 28,
+        points: {
+          create: [1, 2, 3, 4].map((w) => ({ weekNumber: w, plannedPct: w * 25 })),
+        },
+      },
+    });
+    const series = await getScurveSeries(locationId);
+    expect(series.totalWeeks).toBe(4);
+    // Realisasi terisi (bukan null) untuk minggu berjalan, tapi nilainya nol.
+    const terisi = series.actualPct.filter((v): v is number => v != null);
+    expect(terisi.length).toBeGreaterThan(0);
+    expect(Math.max(...terisi)).toBe(0);
+  });
+
+  it("setelah dilaporkan lewat basis AKTIF, kurva realisasi baru bergerak", async () => {
+    const lain = await db.dailyReport.create({
+      data: {
+        locationId,
+        reportDate: new Date("2026-08-02T00:00:00.000Z"),
+        status: "draft",
+        createdById: userId,
+      },
+      select: { id: true },
+    });
+    // 40 dari volume RAB aktif 100 → 40% × bobot 100% = 40%.
+    await upsertItem(lain.id, { rabNodeId: nodeAktifId, volumeDone: 40 }, userId);
+    await db.dailyReport.update({ where: { id: lain.id }, data: { status: "dikirim" } });
+
+    const series = await getScurveSeries(locationId);
+    const terisi = series.actualPct.filter((v): v is number => v != null);
+    expect(Math.max(...terisi)).toBeCloseTo(40, 1);
+
+    // Angka resmi ikut naik — dan HANYA sebesar yang basis aktif.
+    const resmi = await getLocationProgress(locationId);
+    expect(resmi.realizedPct).toBeCloseTo(40, 1);
   });
 });
