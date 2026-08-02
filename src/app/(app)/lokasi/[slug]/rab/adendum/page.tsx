@@ -10,6 +10,7 @@ import { requireLocationPage } from "../../get-location";
 import { AdendumEditor, type EditorNode } from "./adendum-editor";
 import { CreateDraftForm, type AmendmentOption } from "./create-draft-form";
 import { DraftControls } from "./draft-controls";
+import { ImportForm } from "../import/import-form";
 
 export const metadata: Metadata = { title: "Adendum RAB" };
 export const dynamic = "force-dynamic";
@@ -205,6 +206,19 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
 
   return (
     <div className="space-y-4">
+      {/* Impor Excel LANGSUNG ke draft ini. Sebelumnya satu-satunya jalur impor
+          selalu mengaktifkan revisi, jadi adendum yang masih diajukan terpaksa
+          diperlakukan seolah sudah sah (DECISIONS 209). */}
+      <Card>
+        <CardHeader
+          title="Isi draft dari file Excel"
+          subtitle="Ganti seluruh isi draft dengan file adendum. RAB aktif, progres, kurva-S, dan keuangan tidak tersentuh."
+        />
+        <CardBody>
+          <ImportForm locationId={location.id} modeAwal="draft" />
+        </CardBody>
+      </Card>
+
       <Card>
         <CardHeader
           title={`Draft adendum — revisi #${draft.revisionNo}`}

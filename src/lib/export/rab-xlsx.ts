@@ -51,22 +51,27 @@ const VOL_FMT = "#,##0.000";
  * - `code` di DB bisa membawa suffix dedup internal (`VI#2`, `X.1#2`) hasil
  *   disambiguasi lineageKey saat impor; itu artefak teknis, dilarang tampil
  *   di dokumen ekspor.
- * - Kategori dinomori ULANG berurutan (I, II, III, … sesuai urutan dokumen)
- *   karena file sumber HPS kerap memuat roman ganda/loncat antar bangunan.
  * - Nama dirapikan dari spasi ganda bawaan file sumber.
+ *
+ * KODE KATEGORI DIPAKAI APA ADANYA (DECISIONS 208).
+ *
+ * Versi sebelumnya menomori ulang kategori berurutan (I, II, III, …) dengan
+ * alasan "file sumber kerap memuat roman loncat". Itu keliru dua kali:
+ *
+ * 1. Loncatnya kode BUKAN kesalahan. RAB yang aktif adalah hasil negosiasi
+ *    RESMI; nomor bangunan di sana dirujuk kontrak, adendum, berita acara, dan
+ *    laporan KKP. Menomori ulang membuat dokumen ekspor tidak bisa dicocokkan
+ *    dengan berkas resmi mana pun — dan diam-diam, tanpa pemberitahuan.
+ * 2. Penomoran ulangnya bahkan tidak konsisten: hanya kategori yang diubah,
+ *    sedangkan anak-anaknya tetap membawa kode aslinya. Hasilnya file yang
+ *    bertentangan dengan dirinya sendiri — kategori "II" berisi anak "III.1",
+ *    yang membuat berkasnya tak bisa diimpor ulang (kode anak menunjuk
+ *    kategori yang tak ada).
+ *
+ * Sejalan dengan DECISIONS 203: angka dan kode dari user dipakai apa adanya.
  */
-const displayCode = (code: string) => code.replace(/#\d+$/, "");
+const displayCode = (code: string) => code.replace(/#\d+$/, "").trim();
 const displayName = (name: string) => name.replace(/\s+/g, " ").trim();
-
-const ROMAN: [number, string][] = [
-  [1000, "M"], [900, "CM"], [500, "D"], [400, "CD"], [100, "C"], [90, "XC"],
-  [50, "L"], [40, "XL"], [10, "X"], [9, "IX"], [5, "V"], [4, "IV"], [1, "I"],
-];
-function toRoman(n: number): string {
-  let out = "";
-  for (const [v, s] of ROMAN) while (n >= v) { out += s; n -= v; }
-  return out;
-}
 
 const thin: Partial<ExcelJS.Borders> = {
   top: { style: "thin" },
@@ -108,9 +113,14 @@ export async function buildRabXlsx(input: RabExportInput): Promise<Buffer> {
   }
   const kategoris = byParent.get(null) ?? [];
 
-  /** Nomor roman tampilan per kategori (urut dokumen), dipakai KETIGA sheet. */
+  /**
+   * Kode kategori untuk KETIGA sheet — dari DB, apa adanya (DECISIONS 208).
+   * Kategori tanpa kode sama sekali diberi penanda posisi agar kolom Kode tidak
+   * kosong di dokumen resmi; itu satu-satunya kode yang kami karang, dan hanya
+   * ketika tidak ada yang bisa dipakai.
+   */
   const romanOf = new Map<string, string>();
-  kategoris.forEach((k, i) => romanOf.set(k.id, toRoman(i + 1)));
+  kategoris.forEach((k, i) => romanOf.set(k.id, displayCode(k.code) || `(${i + 1})`));
 
   // Urutan tab: Resume → Sub Resume → Detail RAB (dibuat dulu semua supaya
   // urut, lalu DIISI dari Detail karena dua sheet lain menunjuk ke barisnya).

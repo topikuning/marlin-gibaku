@@ -121,7 +121,7 @@ describe("ekspor RAB 3 sheet ber-formula", () => {
     expect(rumus(res.getCell(rBulat, 3)).formula).toBe(`ROUNDDOWN(C${rTotal},-3)`);
   });
 
-  it("tampilan bersih: suffix dedup #N tak bocor, kategori dinomori ulang roman, tanpa spasi literal", async () => {
+  it("tampilan bersih: suffix dedup #N tak bocor, KODE ASLI dipertahankan, tanpa spasi literal", async () => {
     // Data DB kotor yang nyata terjadi: kategori roman ganda (VI, VI#2 — suffix
     // artefak lineage), kode sub bersuffix, nama berspasi ganda.
     const kotor: RabExportNode[] = [
@@ -140,10 +140,13 @@ describe("ekspor RAB 3 sheet ber-formula", () => {
 
     const res = wb.getWorksheet("Resume")!;
     const det = wb.getWorksheet("Detail RAB")!;
-    // Resume: dua kategori bernomor roman berurutan I, II (bukan VI dan VI#2).
+    // Kode kategori DIPAKAI APA ADANYA (DECISIONS 208) — hanya suffix dedup
+    // internal yang dibuang. Versi lama menomori ulang jadi I, II; itu memutus
+    // kaitan dokumen ekspor dengan nomor bangunan di kontrak/berita acara, dan
+    // membuat berkasnya bertentangan dengan kode anak-anaknya sendiri.
     const rKat1 = barisDengan(res, 2, "PEKERJAAN PONDASI");
-    expect(res.getCell(rKat1, 1).value).toBe("I");
-    expect(res.getCell(rKat1 + 1, 1).value).toBe("II");
+    expect(res.getCell(rKat1, 1).value).toBe("VI");
+    expect(res.getCell(rKat1 + 1, 1).value).toBe("VI");
     // Tidak ada sel BODY tabel (di bawah header baris 5) yang memuat artefak
     // `#N` di ketiga sheet. (Judul "RAB revisi aktif #1" di blok identitas sah.)
     for (const ws of wb.worksheets) {

@@ -7,7 +7,13 @@ import { db } from "@/lib/db";
 import { requireCapability, requireLocationAccess, ForbiddenError } from "@/lib/auth/session";
 import { parseHpsBuffer } from "@/lib/rab/hps-parser";
 import { flattenParsedRab, grandTotal } from "@/lib/rab/flatten";
-import { activateRevision, createRevisionFromParsed, regenerateBaseline } from "@/lib/rab/import";
+import {
+  activateRevision,
+  createRevisionFromParsed,
+  discardDraft,
+  regenerateBaseline,
+} from "@/lib/rab/import";
+import { bandingkanTerhadapAktif, type RingkasBeda } from "@/lib/rab/diff-parsed";
 import { cumulativeVolumeByLineage } from "@/lib/progress";
 import { isR2Configured, r2Put } from "@/lib/r2";
 
@@ -41,9 +47,35 @@ export type ImportPreview = {
   priceSource: "nego" | "penawaran" | "hps";
   warnings: string[];
   categories: { code: string; name: string; total: string }[];
+  mode: ImportMode;
+  /** Draft yang sudah ada di lokasi ini — isinya akan DIGANTI (mode draft). */
+  draftAda: { revisionNo: number; totalValue: string } | null;
+  /** Perbandingan terhadap RAB aktif — apa yang akan berubah, sebelum disimpan. */
+  beda: {
+    totalAktif: string;
+    totalBaru: string;
+    jumlahTetap: number;
+    itemBaru: { code: string; name: string }[];
+    itemHilang: { code: string; name: string; realisasi: number }[];
+    volumeBerubah: { code: string; name: string; dari: number | null; ke: number | null; realisasi: number; dibawahRealisasi: boolean }[];
+  } | null;
   /** Diisi bila file berubah setelah pratinjau — commit ditolak, pratinjau diperbarui. */
   notice?: string;
 };
+
+/**
+ * Tujuan impor (DECISIONS 209).
+ * - `aktifkan` — perilaku lama: revisi baru langsung jadi RAB AKTIF + baseline
+ *   di-regenerate. Dipakai untuk HPS awal dan adendum yang SUDAH resmi.
+ * - `draft` — isi DRAFT adendum saja. RAB aktif, progres, kurva-S, dan
+ *   keuangan tidak tersentuh. Ini yang hilang sebelumnya: satu-satunya jalur
+ *   impor selalu mengaktifkan, jadi adendum yang masih diajukan terpaksa
+ *   diperlakukan seolah sudah sah.
+ */
+export type ImportMode = "aktifkan" | "draft";
+
+/** Ringkasan perubahan terhadap RAB aktif, siap-tampil. */
+export type BedaPratinjau = NonNullable<ImportPreview["beda"]>;
 
 export type ImportState = { error?: string; success?: string; preview?: ImportPreview } | undefined;
 
@@ -128,6 +160,34 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       }
     }
 
+    const mode: ImportMode = formData.get("mode") === "draft" ? "draft" : "aktifkan";
+    const draft = await db.rabRevision.findFirst({
+      where: { locationId: location.id, status: "draft" },
+      select: { id: true, revisionNo: true, totalValue: true, amendmentId: true, note: true },
+    });
+
+    // Perbandingan terhadap RAB aktif — supaya "apa yang berubah" terlihat
+    // SEBELUM ada yang ditulis, bukan sesudah (DECISIONS 209).
+    let beda: RingkasBeda | null = null;
+    if (activeRevision) {
+      const aktifNodes = await db.rabNode.findMany({
+        where: { revisionId: activeRevision.id },
+        select: { lineageKey: true, kind: true, code: true, name: true, volume: true, amount: true },
+      });
+      beda = bandingkanTerhadapAktif(
+        aktifNodes.map((n) => ({
+          lineageKey: n.lineageKey,
+          kind: n.kind,
+          code: n.code,
+          name: n.name,
+          volume: n.volume == null ? null : Number(n.volume),
+          amount: n.amount,
+        })),
+        nodes,
+        await cumulativeVolumeByLineage(location.id),
+      );
+    }
+
     const preview: ImportPreview = {
       fileName: file.name,
       bytes: file.size,
@@ -141,6 +201,25 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       categories: nodes
         .filter((n) => n.kind === "kategori")
         .map((n) => ({ code: n.code, name: n.name, total: n.amount.toString() })),
+      mode,
+      draftAda: draft ? { revisionNo: draft.revisionNo, totalValue: draft.totalValue.toString() } : null,
+      beda: beda
+        ? {
+            totalAktif: beda.totalAktif.toString(),
+            totalBaru: beda.totalBaru.toString(),
+            jumlahTetap: beda.jumlahTetap,
+            itemBaru: beda.itemBaru.map((b) => ({ code: b.code, name: b.name })),
+            itemHilang: beda.itemHilang.map((b) => ({ code: b.code, name: b.name, realisasi: b.realisasi })),
+            volumeBerubah: beda.volumeBerubah.map((b) => ({
+              code: b.code,
+              name: b.name,
+              dari: b.dari,
+              ke: b.ke,
+              realisasi: b.realisasi,
+              dibawahRealisasi: b.dibawahRealisasi,
+            })),
+          }
+        : null,
     };
 
     const confirm = formData.get("confirm") === "1";
@@ -155,9 +234,52 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       };
     }
 
-    // ── Commit: revisi draft → aktif → baseline ─────────────────────────────
+    // ── Commit ──────────────────────────────────────────────────────────────
     const note = String(formData.get("note") ?? "").trim() || null;
-    const source = isAdendum ? ("adendum" as const) : ("hps_awal" as const);
+    const source = isAdendum || mode === "draft" ? ("adendum" as const) : ("hps_awal" as const);
+
+    // Mode DRAFT: isi draft adendum saja. RAB aktif, progres, kurva-S, dan
+    // keuangan tidak tersentuh sedikit pun. Draft yang sudah ada DIGANTI
+    // seluruhnya (pilihan user 2026-08-02) — kaitan ke adendum kontrak (CCO)
+    // dan catatannya dibawa ikut supaya tidak hilang diam-diam.
+    if (mode === "draft") {
+      if (!activeRevision) {
+        return {
+          preview,
+          notice:
+            "Belum ada RAB aktif di lokasi ini — impor draft adendum butuh RAB aktif sebagai pembanding. Impor sebagai RAB aktif dulu.",
+        } as ImportState;
+      }
+      const amendmentId = draft?.amendmentId ?? null;
+      const noteDraft = note ?? draft?.note ?? null;
+      if (draft) await discardDraft(draft.id, user.id);
+      const resDraft = await createRevisionFromParsed(location.id, parsed, {
+        source,
+        note: noteDraft,
+        userId: user.id,
+        amendmentId,
+      });
+      await arsipkanSumber({
+        buffer,
+        file,
+        sha256,
+        location,
+        userId: user.id,
+        revisionId: resDraft.revisionId,
+        revisionNo: resDraft.revisionNo,
+        adendum: true,
+      });
+      revalidatePath(`/lokasi/${location.slug}/rab`);
+      revalidatePath(`/lokasi/${location.slug}/rab/adendum`);
+      return {
+        success:
+          `Draft adendum revisi #${resDraft.revisionNo} terisi dari ${file.name} ` +
+          `(${resDraft.itemCount} item). RAB aktif dan progres TIDAK berubah — ` +
+          `draft ini baru berlaku setelah diaktifkan.` +
+          (draft ? ` Isi draft #${draft.revisionNo} sebelumnya diganti.` : ""),
+      };
+    }
+
     const res = await createRevisionFromParsed(location.id, parsed, {
       source,
       note,
@@ -182,36 +304,16 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       baselineError = e instanceof Error ? e.message : "kesalahan tak dikenal";
     }
 
-    // Arsip file sumber ke R2 + Document — best-effort, kegagalan tidak
-    // membatalkan revisi yang sudah aktif.
-    if (isR2Configured()) {
-      try {
-        const key = `rab-import/${location.id}/${randomUUID()}-${safeName(file.name)}`;
-        await r2Put(key, buffer, file.type || XLSX_MIME[0]);
-        const doc = await db.document.create({
-          data: {
-            orgId: location.package.orgId,
-            packageId: location.packageId,
-            locationId: location.id,
-            phase: isAdendum ? "adendum" : "kontrak",
-            type: "hps",
-            title: `HPS/RAB ${isAdendum ? `adendum (revisi #${res.revisionNo})` : "awal"} — ${location.name}`,
-            r2Key: key,
-            fileName: file.name,
-            mimeType: file.type || XLSX_MIME[0],
-            bytes: file.size,
-            sha256,
-            uploadedById: user.id,
-          },
-        });
-        await db.rabRevision.update({
-          where: { id: res.revisionId },
-          data: { sourceDocumentId: doc.id },
-        });
-      } catch (e) {
-        console.error("[rab-import] arsip R2 gagal (revisi tetap tersimpan):", e);
-      }
-    }
+    await arsipkanSumber({
+      buffer,
+      file,
+      sha256,
+      location,
+      userId: user.id,
+      revisionId: res.revisionId,
+      revisionNo: res.revisionNo,
+      adendum: isAdendum,
+    });
 
     revalidatePath(`/lokasi/${location.slug}`, "layout");
     revalidatePath("/lokasi");
@@ -233,5 +335,46 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };
     return { error: err instanceof Error ? err.message : "Terjadi kesalahan saat impor." };
+  }
+}
+
+/**
+ * Arsipkan file sumber ke R2 + catat sebagai Document, lalu tautkan ke revisi.
+ * BEST-EFFORT: kegagalan arsip tidak boleh membatalkan revisi yang sudah
+ * tersimpan — tapi tetap dicatat ke log server, bukan ditelan diam-diam.
+ */
+async function arsipkanSumber(a: {
+  buffer: Buffer;
+  file: File;
+  sha256: string;
+  location: { id: string; name: string; packageId: string; package: { orgId: string } };
+  userId: string;
+  revisionId: string;
+  revisionNo: number;
+  adendum: boolean;
+}): Promise<void> {
+  if (!isR2Configured()) return;
+  try {
+    const key = `rab-import/${a.location.id}/${randomUUID()}-${safeName(a.file.name)}`;
+    await r2Put(key, a.buffer, a.file.type || XLSX_MIME[0]);
+    const doc = await db.document.create({
+      data: {
+        orgId: a.location.package.orgId,
+        packageId: a.location.packageId,
+        locationId: a.location.id,
+        phase: a.adendum ? "adendum" : "kontrak",
+        type: "hps",
+        title: `HPS/RAB ${a.adendum ? `adendum (revisi #${a.revisionNo})` : "awal"} — ${a.location.name}`,
+        r2Key: key,
+        fileName: a.file.name,
+        mimeType: a.file.type || XLSX_MIME[0],
+        bytes: a.file.size,
+        sha256: a.sha256,
+        uploadedById: a.userId,
+      },
+    });
+    await db.rabRevision.update({ where: { id: a.revisionId }, data: { sourceDocumentId: doc.id } });
+  } catch (e) {
+    console.error("[rab-import] arsip R2 gagal (revisi tetap tersimpan):", e);
   }
 }
