@@ -8193,3 +8193,67 @@ E2E 44 lulus ✓ · build/typecheck/lint ✓.
 > tanpa Java menolak membuka .xlsx, termasuk berkas contoh KKP sendiri), jadi
 > kesesuaian diperiksa atas ISI berkasnya secara terprogram, bukan atas hasil
 > render. Silakan buka di Excel dan kabari bila ada yang perlu digeser.
+
+---
+
+## 242 — Pengaman "sudah terprogres" dibawa ke DALAM berkas Excel (2026-08-03)
+
+Pertanyaan user 2026-08-03: *"bagaimana dengan item yang sudah terlanjur
+dilaporkan, dan terprogres? apakah tidak ada pengamannya di level file excel?"*
+
+**Jawabannya waktu itu: tidak ada.** Server memang menolak —
+`rab/adendum.ts:209` menolak volume di bawah realisasi, `:443` menolak mencabut
+item ber-realisasi, dan pratinjau impor menandai `dibawahRealisasi` serta item
+ber-realisasi yang hilang dari berkas. Tetapi semuanya **baru sesudah berkas
+diunggah balik**, padahal template adendum justru diisi jauh dari aplikasi
+(WhatsApp/email, kerap oleh orang tanpa akses MARLIN) dan dokumen CCO sejak
+DECISIONS 239 memang dimaksudkan diedit lokal. Menunda kabar sampai unggah
+berarti pekerjaan ulang satu berkas penuh — dan pada dokumen CCO lebih buruk:
+menurunkan volume di bawah realisasi menghasilkan dokumen PENGAJUAN yang
+mengusulkan membatalkan pekerjaan yang sudah dikerjakan, tanpa ada apa pun di
+berkasnya yang keberatan.
+
+### Rambu berlapis, bukan gembok
+
+Excel tidak bisa MENCEGAH (validasi bisa ditembus tempel-salin), jadi tiga
+lapis di kedua berkas:
+
+1. **Kolom REALISASI** berisi angka lapangan — nol ditulis eksplisit, karena
+   kosong terbaca "belum diketahui" sedangkan 0 berarti "belum dikerjakan".
+2. **Data validation** pada sel volume: entri di bawah realisasi ditolak dengan
+   pesan yang menyebut ANGKANYA dan satuannya, bukan sekadar "tidak valid".
+3. **Format bersyarat** merah untuk pelanggaran yang lolos validasi; di template
+   juga untuk `HAPUS` atas item ber-realisasi (server melarangnya mutlak).
+
+Item TANPA realisasi sengaja tidak dipagari sama sekali — pagar di mana-mana
+membuat orang terbiasa menembusnya.
+
+### Kolom baru DITARUH DI KANAN, tidak menyisipkan
+
+Parser template mematok indeks kolom 1–11 dan mengenali template dari penanda di
+kolom 11. Menyisipkan kolom akan membuat template yang **sudah terlanjur
+beredar** gagal dikenali lalu diam-diam jatuh ke parser HPS biasa. Jadi
+REALISASI ditaruh di kolom 12 dan baris header tetap 8; petunjuk keempat
+digabung ke baris 7 karena baris 8 adalah header. Diuji.
+
+### Cacat yang ketahuan hanya karena diuji pembaca lain
+
+`errorStyle: "error"` **bukan nilai sah OOXML** — spesifikasi hanya mengenal
+`stop`/`warning`/`information`. ExcelJS menerima nilai apa pun dan menuliskannya
+apa adanya, jadi berkasnya lolos SEMUA uji berbasis ExcelJS tetapi **ditolak
+openpyxl**, dan Excel akan mengeluh "unreadable content" lalu membuang
+validasinya diam-diam — pengaman yang tampak terpasang padahal tidak ada.
+Menguji berkas lewat pustaka yang sama yang menulisnya tidak pernah menangkap
+cacat kelas ini. Sekarang dipatok `stop`, dan ada uji yang mengunci nilainya
+terhadap daftar spesifikasi.
+
+Uji rujukan sel juga dibaca dari **XML mentah**, bukan hasil baca-ulang:
+pembaca ExcelJS memaksa formula validasi bertipe `decimal` jadi angka sehingga
+`$L$10` terbaca `NaN` padahal berkasnya benar.
+
+**Verifikasi**: 30 uji unit (11 template + 19 CCO) · berkas SUNGGUHAN diunduh
+lewat kedua rutenya sesudah tiga item diberi realisasi (20 / 1 / 0,4), lalu
+**dibuka openpyxl — pembaca independen**: template 3 sel ber-validasi (G10–G12)
++ 6 sel ber-sorotan (G & J tiap baris), CCO 3 sel ber-validasi (O11–O13) +
+sorotan per baris, `errorStyle` keduanya `stop` · unit 885/885 ✓ ·
+integrasi 301/301 ✓ · E2E 44 lulus ✓ · build/typecheck/lint ✓.

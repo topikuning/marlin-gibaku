@@ -3,6 +3,7 @@ import { getCurrentUser, hasLocationAccess } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
+import { cumulativeVolumeByLineage } from "@/lib/progress";
 import { buildCcoXlsx } from "@/lib/export/cco-xlsx";
 import type { CcoNode } from "@/lib/rab/cco-rows";
 
@@ -129,6 +130,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     // ditutup diam-diam (DECISIONS 203).
     nilaiTercatatLama: aktif.totalValue,
     nilaiTercatatBaru: draft.totalValue,
+    // Pengaman di level berkas: volume CCO-01 tidak boleh turun di bawah
+    // pekerjaan yang sudah dikerjakan (DECISIONS 242).
+    realisasiByLineage: await cumulativeVolumeByLineage(location.id),
     lama: nodeLama.map(keCcoNode),
     baru: nodeBaru.map(keCcoNode),
   });

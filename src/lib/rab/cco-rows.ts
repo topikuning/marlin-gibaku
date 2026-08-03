@@ -55,6 +55,8 @@ export type CcoRow = {
   volumeBaru: number | null;
   jumlahBaru: bigint;
   ket: CcoKet | null;
+  /** Volume yang SUDAH terealisasi di lapangan (0 bila belum ada). DECISIONS 242. */
+  realisasi: number;
 };
 
 export type CcoRingkasan = {
@@ -87,7 +89,17 @@ function anakDari(nodes: CcoNode[]): Map<string | null, CcoNode[]> {
  * lineageKey induk), jadi tidak pernah menumpuk di ujung berkas terlepas dari
  * kategorinya.
  */
-export function susunBarisCco(lama: CcoNode[], baru: CcoNode[]): CcoRingkasan {
+export function susunBarisCco(
+  lama: CcoNode[],
+  baru: CcoNode[],
+  /**
+   * Volume terealisasi per lineageKey. Dipakai dokumen CCO untuk memasang
+   * pengaman DI BERKASNYA: sejak berkas itu ber-formula dan memang diedit
+   * lokal, menurunkan volume di bawah realisasi menghasilkan dokumen pengajuan
+   * yang mengusulkan membatalkan pekerjaan yang sudah dikerjakan.
+   */
+  realisasiByLineage?: Map<string, number>,
+): CcoRingkasan {
   const baruByLineage = new Map(baru.map((n) => [n.lineageKey, n]));
   const lamaByLineage = new Map(lama.map((n) => [n.lineageKey, n]));
 
@@ -149,6 +161,7 @@ export function susunBarisCco(lama: CcoNode[], baru: CcoNode[]): CcoRingkasan {
       volumeBaru: volB,
       jumlahBaru,
       ket,
+      realisasi: realisasiByLineage?.get((b ?? l)!.lineageKey) ?? 0,
     };
   };
 
@@ -222,6 +235,7 @@ export function susunBarisCco(lama: CcoNode[], baru: CcoNode[]): CcoRingkasan {
     volumeBaru: null,
     jumlahBaru: totalBaru,
     ket: null,
+    realisasi: 0,
   });
 
   return { rows, totalLama, totalTambah, totalKurang, totalBaru };
@@ -244,6 +258,7 @@ function judul(n: CcoNode, depth: number): CcoRow {
     volumeBaru: null,
     jumlahBaru: nol,
     ket: null,
+    realisasi: 0,
   };
 }
 

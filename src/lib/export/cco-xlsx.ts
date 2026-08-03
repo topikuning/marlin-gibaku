@@ -63,6 +63,8 @@ import { susunBarisCco, type CcoNode, type CcoRow } from "@/lib/rab/cco-rows";
 const RUPIAH_FMT = "#,##0";
 const VOL_FMT = "#,##0.000";
 const PCT_FMT = "0.00";
+/** Angka realisasi di dalam pesan validasi — dibaca manusia, bukan sel. */
+const VOL_ID = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 });
 
 const GARIS: Partial<ExcelJS.Borders> = {
   top: { style: "thin" },
@@ -93,6 +95,8 @@ export type CcoXlsxInput = {
    */
   nilaiTercatatLama: bigint;
   nilaiTercatatBaru: bigint;
+  /** Volume terealisasi per lineageKey — pengaman di level berkas (DECISIONS 242). */
+  realisasiByLineage?: Map<string, number>;
   lama: CcoNode[];
   baru: CcoNode[];
 };
@@ -110,6 +114,9 @@ const BLOK: { judul: string; kolom: Kolom[] }[] = [
     judul: "MC - 0",
     kolom: [
       { key: "volumeLama", judul: "VOLUME", lebar: 11, rata: "right", fmt: VOL_FMT },
+      // Realisasi lapangan — dasar pengaman "volume tidak boleh turun di bawah
+      // yang sudah dikerjakan". DECISIONS 242.
+      { key: "realisasi", judul: "REALISASI", lebar: 11, rata: "right", fmt: VOL_FMT },
       { key: "satuan", judul: "SATUAN", lebar: 9, rata: "center" },
       { key: "harga", judul: "HARGA SATUAN (Rp)", lebar: 16, rata: "right", fmt: RUPIAH_FMT },
       { key: "jumlahLama", judul: "JUMLAH HARGA (Rp)", lebar: 18, rata: "right", fmt: RUPIAH_FMT },
@@ -146,10 +153,17 @@ const KOLOM: Kolom[] = [KOL_NO, KOL_URAIAN, ...BLOK.flatMap((b) => b.kolom), KOL
 const nomorKolom = (key: string) => KOLOM.findIndex((k) => k.key === key) + 1; // 1-based
 const TOTAL_KOLOM = KOLOM.length;
 
-/** Huruf kolom Excel dari key — dipakai menyusun formula. */
-const K: Record<string, string> = Object.fromEntries(
+/**
+ * Huruf kolom Excel dari key — dipakai menyusun formula.
+ *
+ * DIEKSPOR untuk pengujian: uji formula sempat mematok huruf kolom sendiri,
+ * jadi menambah satu kolom membuat 15 uji jatuh padahal berkasnya benar.
+ * Menurunkannya dari peta yang sama membuat uji ikut bergeser sendiri.
+ */
+export const KOLOM_CCO: Record<string, string> = Object.fromEntries(
   KOLOM.map((k, i) => [k.key, String.fromCharCode(65 + i)]),
 );
+const K = KOLOM_CCO;
 
 const BARIS_JUDUL = 1;
 const BARIS_IDENTITAS = 3;
@@ -157,7 +171,7 @@ const BARIS_HEADER = 8;
 const BARIS_DATA = 10;
 
 export async function buildCcoXlsx(input: CcoXlsxInput): Promise<Buffer> {
-  const { rows } = susunBarisCco(input.lama, input.baru);
+  const { rows } = susunBarisCco(input.lama, input.baru, input.realisasiByLineage);
   const noCco = String(input.ccoNo).padStart(2, "0");
 
   const wb = new ExcelJS.Workbook();
@@ -191,10 +205,13 @@ export async function buildCcoXlsx(input: CcoXlsxInput): Promise<Buffer> {
   const barisPpn = barisJumlah + 1;
   const barisTotal = barisPpn + 1;
 
-  barisTabel.forEach((row, i) => tulisBaris(ws, BARIS_DATA + i, row, barisJumlah));
+  // Baris yang punya realisasi — dipakai memasang sorotan merah sesudahnya.
+  const barisBerealisasi: number[] = [];
+  barisTabel.forEach((row, i) => tulisBaris(ws, BARIS_DATA + i, row, barisJumlah, barisBerealisasi));
 
   tulisKaki(ws, { barisAkhirData, barisJumlah, barisPpn, barisTotal, ppnPercent: input.ppnPercent });
   sorotBarisBerubah(ws, barisAkhirData);
+  sorotDiBawahRealisasi(ws, barisBerealisasi);
   const barisSesudahRekon = tulisRekonsiliasi(ws, barisTotal + 2, barisJumlah, input);
   tulisCatatanDanTtd(ws, barisSesudahRekon + 1);
 
@@ -283,7 +300,13 @@ const tanpaIsi = (row: CcoRow) =>
   row.jumlahLama === 0n &&
   row.jumlahBaru === 0n;
 
-function tulisBaris(ws: ExcelJS.Worksheet, r: number, row: CcoRow, barisJumlah: number) {
+function tulisBaris(
+  ws: ExcelJS.Worksheet,
+  r: number,
+  row: CcoRow,
+  barisJumlah: number,
+  barisBerealisasi: number[],
+) {
   const judul = row.jenis === "judul" || tanpaIsi(row);
   const baris = ws.getRow(r);
 
@@ -304,11 +327,46 @@ function tulisBaris(ws: ExcelJS.Worksheet, r: number, row: CcoRow, barisJumlah: 
     // formula pembanding tidak menganggapnya sel kosong.
     const isiData: Record<string, number | string | null> = {
       volumeLama: row.volumeLama ?? 0,
+      realisasi: row.realisasi,
       satuan: row.satuan,
       harga: row.hargaLama ?? 0,
       volumeBaru: row.volumeBaru ?? 0,
     };
     for (const [key, nilai] of Object.entries(isiData)) ws.getCell(r, nomorKolom(key)).value = nilai;
+
+    /*
+     * PENGAMAN DI LEVEL BERKAS (DECISIONS 242).
+     *
+     * Berkas ini ber-formula dan MEMANG dimaksudkan diedit lokal, jadi
+     * pengaman server saja tidak cukup: menurunkan volume CCO-01 di bawah
+     * realisasi menghasilkan dokumen PENGAJUAN yang mengusulkan membatalkan
+     * pekerjaan yang sudah dikerjakan — dan tidak ada apa pun di berkasnya yang
+     * keberatan. Excel tidak bisa mencegah (validasi bisa ditembus
+     * tempel-salin), jadi berlapis: entri di bawahnya ditolak dengan pesan, dan
+     * pelanggaran yang lolos tetap menyala merah lewat format bersyarat.
+     */
+    if (row.realisasi > 0) {
+      const selRealisasi = ws.getCell(r, nomorKolom("realisasi"));
+      selRealisasi.font = { size: 9, bold: true };
+      selRealisasi.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEAF6EC" } };
+      ws.getCell(r, nomorKolom("volumeBaru")).dataValidation = {
+        type: "decimal",
+        operator: "greaterThanOrEqual",
+        formulae: [`$${K.realisasi}$${r}`],
+        allowBlank: false,
+        showErrorMessage: true,
+        // "stop", BUKAN "error": OOXML hanya mengenal stop/warning/information.
+        // ExcelJS menerima nilai apa pun dan menuliskannya apa adanya, dan berkas
+        // yang dihasilkan DITOLAK pembaca lain (Excel: "unreadable content").
+        errorStyle: "stop",
+        errorTitle: "Di bawah realisasi",
+        error:
+          `Pekerjaan ini sudah terealisasi ${VOL_ID.format(row.realisasi)}${row.satuan ? ` ${row.satuan}` : ""} ` +
+          `di lapangan (kolom REALISASI). Volume CCO-01 tidak boleh di bawahnya — pekerjaan-kurang atas item ` +
+          `berjalan maksimal sampai volume yang sudah dikerjakan.`,
+      };
+      barisBerealisasi.push(r);
+    }
 
     // TURUNAN — semuanya formula.
     const rumus: Record<string, string> = {
@@ -346,6 +404,30 @@ function tulisBaris(ws: ExcelJS.Worksheet, r: number, row: CcoRow, barisJumlah: 
     if (k.fmt) cell.numFmt = k.fmt;
     if (c !== nomorKolom("uraian")) cell.alignment = { horizontal: k.rata, vertical: "middle" };
     if (judul) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } };
+  }
+}
+
+/**
+ * Sorotan MERAH bila volume CCO-01 jatuh di bawah realisasi — jaring terakhir
+ * untuk pelanggaran yang lolos validasi (tempel-salin, atau berkas dibuka di
+ * aplikasi yang mengabaikan validasi Excel).
+ */
+function sorotDiBawahRealisasi(ws: ExcelJS.Worksheet, baris: number[]) {
+  for (const r of baris) {
+    ws.addConditionalFormatting({
+      ref: `${K.volumeBaru}${r}`,
+      rules: [
+        {
+          type: "expression",
+          formulae: [`$${K.volumeBaru}$${r}<$${K.realisasi}$${r}`],
+          priority: 1,
+          style: {
+            font: { bold: true, color: { argb: "FF9F1239" } },
+            fill: { type: "pattern", pattern: "solid", bgColor: { argb: "FFFDECEC" } },
+          },
+        },
+      ],
+    });
   }
 }
 

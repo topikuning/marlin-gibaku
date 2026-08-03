@@ -14,7 +14,7 @@ import { describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
 import { susunBarisCco, type CcoNode } from "@/lib/rab/cco-rows";
 
-const { buildCcoXlsx } = await import("@/lib/export/cco-xlsx");
+const { buildCcoXlsx, KOLOM_CCO: KOL } = await import("@/lib/export/cco-xlsx");
 
 // ── Penafsir formula seadanya ────────────────────────────────────────────────
 // Cakupannya persis tata bahasa yang ditulis cco-xlsx: rujukan sel (dengan/tanpa
@@ -149,9 +149,18 @@ const MASUKAN = {
   // nol untuk data uji ini; kasus selisih bukan-nol diuji tersendiri di bawah.
   nilaiTercatatLama: LAMA.reduce((a, n) => a + n.amount, 0n),
   nilaiTercatatBaru: BARU.reduce((a, n) => a + n.amount, 0n),
+  // Realisasi lapangan: "Sloof" sudah dikerjakan 2 dari 10 (DECISIONS 242).
+  realisasiByLineage: new Map([["I#B1", 2]]),
   lama: LAMA,
   baru: BARU,
 };
+
+/** XML mentah sheet pertama — untuk hal yang tidak dibaca balik ExcelJS. */
+async function xmlSheet(d = MASUKAN): Promise<string> {
+  const JSZip = (await import("jszip")).default;
+  const zip = await JSZip.loadAsync(await buildCcoXlsx(d));
+  return zip.file("xl/worksheets/sheet1.xml")!.async("string");
+}
 
 async function lembarCco() {
   const wb = new ExcelJS.Workbook();
@@ -180,11 +189,17 @@ describe("HANYA volume & harga satuan yang berupa data", () => {
     const { lembar } = await lembarCco();
     const r = cariBaris(lembar, "Bedeng pekerja");
     // C=vol MC-0, D=satuan, E=harga satuan, N=vol CCO-01 → data
-    for (const kol of ["C", "D", "E", "N"]) {
+    // Kolom DATA (satu-satunya yang diketik), diturunkan dari peta kolom.
+    for (const kol of [KOL.volumeLama, KOL.satuan, KOL.harga, KOL.volumeBaru, KOL.realisasi]) {
       expect(lembar.get(`${kol}${r}`)?.f, `${kol}${r} seharusnya data`).toBeUndefined();
     }
     // F,G,H,I,J,K,L,M,O,P,Q → turunan
-    for (const kol of ["F", "G", "H", "I", "J", "K", "L", "M", "O", "P", "Q"]) {
+    for (const kol of [
+      KOL.jumlahLama, KOL.bobotLama,
+      KOL.volumeTambah, KOL.jumlahTambah, KOL.bobotTambah,
+      KOL.volumeKurang, KOL.jumlahKurang, KOL.bobotKurang,
+      KOL.jumlahBaru, KOL.bobotBaru, KOL.ket,
+    ]) {
       expect(lembar.get(`${kol}${r}`)?.f, `${kol}${r} seharusnya formula`).toBeTypeOf("string");
     }
   });
@@ -193,10 +208,11 @@ describe("HANYA volume & harga satuan yang berupa data", () => {
     const { lembar } = await lembarCco();
     const j = cariKaki(lembar, "JUMLAH");
     const t = cariKaki(lembar, "TOTAL NILAI");
-    for (const kol of ["F", "G", "I", "L", "O", "P"]) {
+    for (const kol of [KOL.jumlahLama, KOL.bobotLama, KOL.jumlahTambah, KOL.jumlahKurang, KOL.jumlahBaru, KOL.bobotBaru]) {
       expect(lembar.get(`${kol}${j}`)?.f, `${kol}${j}`).toContain("SUM(");
     }
-    for (const kol of ["F", "I", "L", "O"]) expect(lembar.get(`${kol}${t}`)?.f).toBeTypeOf("string");
+    for (const kol of [KOL.jumlahLama, KOL.jumlahTambah, KOL.jumlahKurang, KOL.jumlahBaru])
+      expect(lembar.get(`${kol}${t}`)?.f).toBeTypeOf("string");
   });
 });
 
@@ -211,24 +227,26 @@ describe("hasil hitung formula = hasil susunBarisCco", () => {
     const ringkas = susunBarisCco(LAMA, BARU);
     const cocok = (kol: string, nilai: bigint) =>
       expect(Math.round(nilaiSel(`${kol}${cariKaki(lembar, "JUMLAH")}`) as number)).toBe(Number(nilai));
-    cocok("F", ringkas.totalLama);
-    cocok("I", ringkas.totalTambah);
-    cocok("L", ringkas.totalKurang);
-    cocok("O", ringkas.totalBaru);
+    cocok(KOL.jumlahLama!, ringkas.totalLama);
+    cocok(KOL.jumlahTambah!, ringkas.totalTambah);
+    cocok(KOL.jumlahKurang!, ringkas.totalKurang);
+    cocok(KOL.jumlahBaru!, ringkas.totalBaru);
   });
 
   it("INVARIAN MC-0 + tambah − kurang = CCO-01 menutup di dalam berkasnya", async () => {
     const { lembar, nilaiSel } = await lembarCco();
     const j = cariKaki(lembar, "JUMLAH");
-    const [mc0, tambah, kurang, cco] = ["F", "I", "L", "O"].map((k) => nilaiSel(`${k}${j}`) as number);
+    const [mc0, tambah, kurang, cco] = [KOL.jumlahLama, KOL.jumlahTambah, KOL.jumlahKurang, KOL.jumlahBaru].map(
+      (k) => nilaiSel(`${k}${j}`) as number,
+    );
     expect(mc0 + tambah - kurang).toBeCloseTo(cco, 6);
   });
 
   it("bobot MC-0 dan CCO-01 masing-masing berjumlah 100%", async () => {
     const { lembar, nilaiSel } = await lembarCco();
     const j = cariKaki(lembar, "JUMLAH");
-    expect(nilaiSel(`G${j}`)).toBeCloseTo(100, 6);
-    expect(nilaiSel(`P${j}`)).toBeCloseTo(100, 6);
+    expect(nilaiSel(`${KOL.bobotLama}${j}`)).toBeCloseTo(100, 6);
+    expect(nilaiSel(`${KOL.bobotBaru}${j}`)).toBeCloseTo(100, 6);
   });
 
   it("bobot tambah/kurang memakai penyebut MC-0, bukan CCO-01", async () => {
@@ -236,9 +254,9 @@ describe("hasil hitung formula = hasil susunBarisCco", () => {
     // — angka yang dipakai uji batas 10% Perpres (DECISIONS 233).
     const { lembar, nilaiSel } = await lembarCco();
     const j = cariKaki(lembar, "JUMLAH");
-    const mc0 = nilaiSel(`F${j}`) as number;
-    const tambah = nilaiSel(`I${j}`) as number;
-    expect(nilaiSel(`J${j}`)).toBeCloseTo((tambah / mc0) * 100, 6);
+    const mc0 = nilaiSel(`${KOL.jumlahLama}${j}`) as number;
+    const tambah = nilaiSel(`${KOL.jumlahTambah}${j}`) as number;
+    expect(nilaiSel(`${KOL.bobotTambah}${j}`)).toBeCloseTo((tambah / mc0) * 100, 6);
   });
 });
 
@@ -246,46 +264,50 @@ describe("aturan kolom sesuai templat user", () => {
   it("volume tambah = vol CCO − vol MC-0; kurang = vol MC-0 − vol CCO", async () => {
     const { lembar, nilaiSel } = await lembarCco();
     const naik = cariBaris(lembar, "Bedeng pekerja");
-    expect(nilaiSel(`H${naik}`)).toBeCloseTo(80 - 50, 6);
-    expect(nilaiSel(`K${naik}`)).toBe(KOSONG);
+    expect(nilaiSel(`${KOL.volumeTambah}${naik}`)).toBeCloseTo(80 - 50, 6);
+    expect(nilaiSel(`${KOL.volumeKurang}${naik}`)).toBe(KOSONG);
 
     const turun = cariBaris(lembar, "Sloof");
-    expect(nilaiSel(`K${turun}`)).toBeCloseTo(10 - 3, 6);
-    expect(nilaiSel(`H${turun}`)).toBe(KOSONG);
+    expect(nilaiSel(`${KOL.volumeKurang}${turun}`)).toBeCloseTo(10 - 3, 6);
+    expect(nilaiSel(`${KOL.volumeTambah}${turun}`)).toBe(KOSONG);
   });
 
   it("jumlah harga = harga satuan × volume", async () => {
     const { lembar, nilaiSel } = await lembarCco();
     const r = cariBaris(lembar, "Bedeng pekerja");
-    expect(nilaiSel(`F${r}`)).toBeCloseTo(1_573_171.14 * 50, 2);
-    expect(nilaiSel(`I${r}`)).toBeCloseTo(1_573_171.14 * 30, 2);
-    expect(nilaiSel(`O${r}`)).toBeCloseTo(1_573_171.14 * 80, 2);
+    expect(nilaiSel(`${KOL.jumlahLama}${r}`)).toBeCloseTo(1_573_171.14 * 50, 2);
+    expect(nilaiSel(`${KOL.jumlahTambah}${r}`)).toBeCloseTo(1_573_171.14 * 30, 2);
+    expect(nilaiSel(`${KOL.jumlahBaru}${r}`)).toBeCloseTo(1_573_171.14 * 80, 2);
   });
 
   it("baris tak berubah mengosongkan blok tambah & kurang", async () => {
     const { lembar, nilaiSel } = await lembarCco();
     const r = cariBaris(lembar, "Papan nama");
-    for (const kol of ["H", "I", "J", "K", "L", "M"]) expect(nilaiSel(`${kol}${r}`)).toBe(KOSONG);
-    expect(nilaiSel(`Q${r}`)).toBe("TETAP");
+    for (const kol of [
+      KOL.volumeTambah, KOL.jumlahTambah, KOL.bobotTambah,
+      KOL.volumeKurang, KOL.jumlahKurang, KOL.bobotKurang,
+    ])
+      expect(nilaiSel(`${kol}${r}`)).toBe(KOSONG);
+    expect(nilaiSel(`${KOL.ket}${r}`)).toBe("TETAP");
   });
 
   it("KET dihitung formula: TAMBAH / KURANG / BARU / HAPUS", async () => {
     const { lembar, nilaiSel } = await lembarCco();
-    expect(nilaiSel(`Q${cariBaris(lembar, "Bedeng pekerja")}`)).toBe("TAMBAH");
-    expect(nilaiSel(`Q${cariBaris(lembar, "Sloof")}`)).toBe("KURANG");
-    expect(nilaiSel(`Q${cariBaris(lembar, "Balok latei")}`)).toBe("BARU");
-    expect(nilaiSel(`Q${cariBaris(lembar, "Kolom")}`)).toBe("HAPUS");
+    expect(nilaiSel(`${KOL.ket}${cariBaris(lembar, "Bedeng pekerja")}`)).toBe("TAMBAH");
+    expect(nilaiSel(`${KOL.ket}${cariBaris(lembar, "Sloof")}`)).toBe("KURANG");
+    expect(nilaiSel(`${KOL.ket}${cariBaris(lembar, "Balok latei")}`)).toBe("BARU");
+    expect(nilaiSel(`${KOL.ket}${cariBaris(lembar, "Kolom")}`)).toBe("HAPUS");
   });
 
   it("PPN memakai sel persen tersendiri, tidak menanam angkanya di formula", async () => {
     const { lembar, nilaiSel } = await lembarCco();
     const p = cariKaki(lembar, "PPN");
     const j = cariKaki(lembar, "JUMLAH");
-    expect(lembar.get(`E${p}`)?.v).toBeCloseTo(0.11, 10); // selnya, bisa diubah
-    expect(lembar.get(`F${p}`)?.f).toContain(`$E$${p}`); // formulanya menunjuk ke sana
-    expect(nilaiSel(`F${p}`)).toBeCloseTo((nilaiSel(`F${j}`) as number) * 0.11, 4);
+    expect(lembar.get(`${KOL.harga}${p}`)?.v).toBeCloseTo(0.11, 10); // selnya, bisa diubah
+    expect(lembar.get(`${KOL.jumlahLama}${p}`)?.f).toContain(`$${KOL.harga}$${p}`); // formulanya menunjuk ke sana
+    expect(nilaiSel(`${KOL.jumlahLama}${p}`)).toBeCloseTo((nilaiSel(`${KOL.jumlahLama}${j}`) as number) * 0.11, 4);
     const t = cariKaki(lembar, "TOTAL NILAI");
-    expect(nilaiSel(`F${t}`)).toBeCloseTo((nilaiSel(`F${j}`) as number) * 1.11, 4);
+    expect(nilaiSel(`${KOL.jumlahLama}${t}`)).toBeCloseTo((nilaiSel(`${KOL.jumlahLama}${j}`) as number) * 1.11, 4);
   });
 });
 
@@ -299,42 +321,44 @@ describe("UJI POKOK: ubah satu volume, seluruh berkas menyesuaikan", () => {
     const t = cariKaki(lembar, "TOTAL NILAI");
 
     const sebelum = {
-      ket: nilaiSel(`Q${r}`),
-      jumlahBaru: nilaiSel(`O${r}`) as number,
-      totalBaru: nilaiSel(`O${j}`) as number,
-      totalNilai: nilaiSel(`O${t}`) as number,
-      bobot: nilaiSel(`P${r}`) as number,
+      ket: nilaiSel(`${KOL.ket}${r}`),
+      jumlahBaru: nilaiSel(`${KOL.jumlahBaru}${r}`) as number,
+      totalBaru: nilaiSel(`${KOL.jumlahBaru}${j}`) as number,
+      totalNilai: nilaiSel(`${KOL.jumlahBaru}${t}`) as number,
+      bobot: nilaiSel(`${KOL.bobotBaru}${r}`) as number,
     };
     expect(sebelum.ket).toBe("TETAP");
 
     // Persis yang dilakukan user di Excel: ketik volume baru di kolom N.
-    lembar.set(`N${r}`, { v: 4 });
+    lembar.set(`${KOL.volumeBaru}${r}`, { v: 4 });
     bersihkanCache();
 
-    expect(nilaiSel(`Q${r}`), "KET harus ikut berubah").toBe("TAMBAH");
-    expect(nilaiSel(`H${r}`), "volume tambah = 4 − 1").toBeCloseTo(3, 6);
-    expect(nilaiSel(`I${r}`), "jumlah tambah = harga × 3").toBeCloseTo(1_810_352.03 * 3, 2);
-    expect(nilaiSel(`O${r}`), "jumlah CCO-01 naik").toBeCloseTo(sebelum.jumlahBaru * 4, 2);
-    expect(nilaiSel(`O${j}`), "JUMLAH CCO-01 ikut naik").toBeCloseTo(
+    expect(nilaiSel(`${KOL.ket}${r}`), "KET harus ikut berubah").toBe("TAMBAH");
+    expect(nilaiSel(`${KOL.volumeTambah}${r}`), "volume tambah = 4 − 1").toBeCloseTo(3, 6);
+    expect(nilaiSel(`${KOL.jumlahTambah}${r}`), "jumlah tambah = harga × 3").toBeCloseTo(1_810_352.03 * 3, 2);
+    expect(nilaiSel(`${KOL.jumlahBaru}${r}`), "jumlah CCO-01 naik").toBeCloseTo(sebelum.jumlahBaru * 4, 2);
+    expect(nilaiSel(`${KOL.jumlahBaru}${j}`), "JUMLAH CCO-01 ikut naik").toBeCloseTo(
       sebelum.totalBaru + 1_810_352.03 * 3,
       2,
     );
-    expect(nilaiSel(`O${t}`), "TOTAL NILAI ikut naik").toBeGreaterThan(sebelum.totalNilai);
-    expect(nilaiSel(`P${r}`), "bobot ikut naik").toBeGreaterThan(sebelum.bobot);
+    expect(nilaiSel(`${KOL.jumlahBaru}${t}`), "TOTAL NILAI ikut naik").toBeGreaterThan(sebelum.totalNilai);
+    expect(nilaiSel(`${KOL.bobotBaru}${r}`), "bobot ikut naik").toBeGreaterThan(sebelum.bobot);
     // Dan invariannya tetap menutup sesudah diubah.
-    const [mc0, tambah, kurang, cco] = ["F", "I", "L", "O"].map((k) => nilaiSel(`${k}${j}`) as number);
+    const [mc0, tambah, kurang, cco] = [KOL.jumlahLama, KOL.jumlahTambah, KOL.jumlahKurang, KOL.jumlahBaru].map(
+      (k) => nilaiSel(`${k}${j}`) as number,
+    );
     expect(mc0 + tambah - kurang).toBeCloseTo(cco, 6);
-    expect(nilaiSel(`P${j}`), "bobot CCO-01 tetap 100%").toBeCloseTo(100, 6);
+    expect(nilaiSel(`${KOL.bobotBaru}${j}`), "bobot CCO-01 tetap 100%").toBeCloseTo(100, 6);
   });
 
   it("harga satuan diubah → jumlah & bobot ikut, volume tidak", async () => {
     const { lembar, nilaiSel, bersihkanCache } = await lembarCco();
     const r = cariBaris(lembar, "Sloof");
-    lembar.set(`E${r}`, { v: 4_000_000 }); // semula 2.000.000
+    lembar.set(`${KOL.harga}${r}`, { v: 4_000_000 }); // semula 2.000.000
     bersihkanCache();
-    expect(nilaiSel(`F${r}`)).toBeCloseTo(4_000_000 * 10, 2);
-    expect(nilaiSel(`L${r}`), "jumlah kurang = harga baru × 7").toBeCloseTo(4_000_000 * 7, 2);
-    expect(nilaiSel(`K${r}`), "volume kurang tidak terpengaruh harga").toBeCloseTo(7, 6);
+    expect(nilaiSel(`${KOL.jumlahLama}${r}`)).toBeCloseTo(4_000_000 * 10, 2);
+    expect(nilaiSel(`${KOL.jumlahKurang}${r}`), "jumlah kurang = harga baru × 7").toBeCloseTo(4_000_000 * 7, 2);
+    expect(nilaiSel(`${KOL.volumeKurang}${r}`), "volume kurang tidak terpengaruh harga").toBeCloseTo(7, 6);
   });
 });
 
@@ -349,8 +373,8 @@ describe("REKONSILIASI terhadap nilai yang tercatat", () => {
   it("selisih nol saat Σ(harga × volume) = nilai tercatat", async () => {
     const { lembar, nilaiSel } = await lembarCco();
     const r = kaki(lembar, "Selisih Σ(harga × volume) − nilai tercatat");
-    expect(Math.round(nilaiSel(`F${r}`) as number)).toBe(0);
-    expect(Math.round(nilaiSel(`O${r}`) as number)).toBe(0);
+    expect(Math.round(nilaiSel(`${KOL.jumlahLama}${r}`) as number)).toBe(0);
+    expect(Math.round(nilaiSel(`${KOL.jumlahBaru}${r}`) as number)).toBe(0);
   });
 
   it("selisih TERLIHAT saat RAB memuat item ber-harga tapi jumlahnya nol", async () => {
@@ -370,6 +394,73 @@ describe("REKONSILIASI terhadap nilai yang tercatat", () => {
     const { nilaiSel } = buatPenilai(lembar);
     const r = kaki(lembar, "Selisih Σ(harga × volume) − nilai tercatat");
     // Selisihnya persis nilai item yang jumlahnya ditulis nol di RAB.
-    expect(nilaiSel(`F${r}`)).toBeCloseTo(1_810_352.03, 2);
+    expect(nilaiSel(`${KOL.jumlahLama}${r}`)).toBeCloseTo(1_810_352.03, 2);
+  });
+});
+
+describe("PENGAMAN DI LEVEL BERKAS: item yang sudah terprogres", () => {
+  // Server menolak volume di bawah realisasi, tapi baru SESUDAH diunggah.
+  // Berkas CCO ber-formula ini memang diedit lokal, jadi tanpa rambu di
+  // selnya orang bisa menyusun dokumen pengajuan yang mengusulkan membatalkan
+  // pekerjaan yang sudah dikerjakan. DECISIONS 242.
+  it("kolom REALISASI ada dan berisi angka lapangan", async () => {
+    const { lembar } = await lembarCco();
+    const r = cariBaris(lembar, "Sloof"); // realisasi 2 (lihat MASUKAN)
+    expect(lembar.get(`${KOL.realisasi}${r}`)?.v).toBe(2);
+  });
+
+  it("sel volume CCO-01 menolak entri di bawah realisasi", async () => {
+    const { ws, lembar } = await lembarCco();
+    const r = cariBaris(lembar, "Sloof");
+    const dv = ws.getCell(`${KOL.volumeBaru}${r}`).dataValidation;
+    expect(dv, "validasi harus terpasang").toBeDefined();
+    expect(dv?.operator).toBe("greaterThanOrEqual");
+    // Pesannya menyebut angkanya — "tidak valid" saja tidak memberi tahu apa pun.
+    expect(String((dv as { error?: string }).error)).toContain("2");
+
+    /*
+     * Rujukan selnya diperiksa dari XML MENTAH, bukan dari hasil baca-ulang:
+     * pembaca ExcelJS memaksa formula validasi bertipe "decimal" jadi angka,
+     * sehingga `$D$14` terbaca NaN — padahal berkasnya benar. Memeriksa lewat
+     * pembaca yang cacat itu akan mengunci uji ke bug pustaka, bukan ke isi
+     * berkas yang dibuka Excel.
+     */
+    const xml = await xmlSheet();
+    expect(xml).toContain(`sqref="${KOL.volumeBaru}${r}"`);
+    expect(xml).toMatch(
+      new RegExp(`sqref="${KOL.volumeBaru}${r}"[^>]*><formula1>\\$${KOL.realisasi}\\$${r}</formula1>`),
+    );
+  });
+
+  it("item tanpa realisasi TIDAK dipasangi validasi", async () => {
+    // Pagar hanya di tempat yang memang berpagar; validasi di mana-mana
+    // membuat orang terbiasa menembusnya.
+    const { ws, lembar } = await lembarCco();
+    const r = cariBaris(lembar, "Bedeng pekerja");
+    expect(ws.getCell(`${KOL.volumeBaru}${r}`).dataValidation).toBeUndefined();
+  });
+
+  it("pelanggaran yang lolos validasi tetap menyala merah", async () => {
+    // Diperiksa dari XML, sama seperti validasi: tipe ExcelJS tidak mengekspos
+    // `conditionalFormattings`, dan XML adalah yang benar-benar dibuka Excel.
+    const { lembar } = await lembarCco();
+    const r = cariBaris(lembar, "Sloof");
+    const xml = await xmlSheet();
+    expect(xml).toContain(`<conditionalFormatting sqref="${KOL.volumeBaru}${r}">`);
+    // "<" ter-escape jadi &lt; di dalam XML.
+    expect(xml).toContain(`$${KOL.volumeBaru}$${r}&lt;$${KOL.realisasi}$${r}`);
+  });
+});
+
+describe("berkasnya harus SAH menurut OOXML, bukan hanya menurut ExcelJS", () => {
+  it("errorStyle memakai nilai yang dikenal spesifikasi", async () => {
+    // `errorStyle="error"` bukan nilai sah OOXML (hanya stop/warning/
+    // information). ExcelJS menuliskannya apa adanya, jadi berkas lolos uji
+    // berbasis ExcelJS tetapi ditolak pembaca lain dan Excel membuang
+    // validasinya. Lihat catatan panjang di uji template adendum.
+    const xml = await xmlSheet();
+    const gaya = [...xml.matchAll(/errorStyle="([^"]+)"/g)].map((m) => m[1]);
+    expect(gaya.length, "harus ada validasi terpasang").toBeGreaterThan(0);
+    for (const g of gaya) expect(["stop", "warning", "information"]).toContain(g);
   });
 });
