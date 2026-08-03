@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Banner, Card, CardBody, CardHeader } from "@/components/ui";
+import { Banner, ButtonLink, Card, CardBody, CardHeader } from "@/components/ui";
+import { FileSpreadsheet } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { cumulativeVolumeByLineage } from "@/lib/progress";
@@ -325,12 +326,21 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
               "Harga satuan item lama terkunci; volume minimal = realisasi; item ber-realisasi tidak bisa dihapus.")
           }
           action={
-            <Link
-              href={`/lokasi/${slug}/rab`}
-              className="text-[13px] font-medium text-primary hover:underline"
-            >
-              ← Kembali ke RAB
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Dokumen pengajuan CCO format KKP (DECISIONS 236). Butuh RAB
+                  aktif DAN draft sekaligus — MC-0 vs CCO-01 — jadi tombolnya
+                  hanya masuk akal di kartu draft ini. */}
+              <ButtonLink href={`/lokasi/${slug}/rab/adendum/cco`} variant="secondary" size="sm" unduhan>
+                <FileSpreadsheet aria-hidden className="size-3.5" />
+                Unduh CCO (format KKP)
+              </ButtonLink>
+              <Link
+                href={`/lokasi/${slug}/rab`}
+                className="text-[13px] font-medium text-primary hover:underline"
+              >
+                ← Kembali ke RAB
+              </Link>
+            </div>
           }
         />
         <CardBody className="space-y-4">

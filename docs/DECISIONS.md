@@ -7767,3 +7767,76 @@ sungguhan: kartu "Sudah 1 / Belum 6" cocok dengan pin per filter (1 / 6), dan
 lokasi yang sudah lapor tapi deviasi −99,7% memang tampil MERAH — persis keadaan
 yang ditanyakan user · unit 819/819 ✓ · integrasi 301/301 ✓ · E2E 44 lulus ✓ ·
 `pnpm build` ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 236 — Ekspor dokumen CCO format KKP (2026-08-03)
+
+**Permintaan user 2026-08-03** melampirkan `DRAFT_CCO.xlsx`, sheet
+`CCO-01 (BANGUNAN)`: *"ini adalah draft format yang diminta kkp untuk pengajuan
+cco. akomodir ini"*.
+
+### Bentuknya
+
+Satu baris per item dengan EMPAT blok angka berdampingan — MC-0 (kontrak yang
+berlaku), PEKERJAAN TAMBAH, PEKERJAAN KURANG, dan CCO-01 (setelah adendum) —
+plus kolom KET. Posisi kolom B–V disalin persis dari berkas contoh supaya
+pemeriksa KKP membaca dokumen yang sama bentuknya, bukan yang mirip. Kolom G
+dan H dibiarkan kosong seperti di aslinya; menggesernya memindahkan seluruh
+kolom sesudahnya.
+
+**Sumber angkanya dua revisi sekaligus**: revisi RAB AKTIF sebagai MC-0 dan
+draft adendum sebagai CCO-01. Karena itu tombolnya ada di kartu draft adendum —
+tanpa draft, tidak ada yang bisa dibandingkan.
+
+### Dua hal yang sengaja TIDAK disalin
+
+Keputusan user 2026-08-03:
+
+1. **Blok kanan** (X `KET`, Y–AA `CCO-PRC`, AB–AD `CCO-PERENCANA`, AG–AI
+   `BIAYA PELAKSANAAN`) — *"b-v saja"*. Itu kertas kerja konsultan, dan di
+   berkas contoh isinya `#REF!`; mencetaknya berarti menyalin galat.
+2. **Baris identitas** PROGRAM / KEGIATAN / JENIS PENGADAAN / PAGU / SUMBER
+   DANA — *"dihide, abaikan saja dulu"*. Tidak satu pun ada di MARLIN.
+   Mencetak labelnya dengan nilai karangan lebih buruk daripada tidak
+   mencetaknya: ini dokumen pengajuan resmi. Yang dicetak hanya yang MARLIN
+   benar-benar tahu: nama paket, lokasi, penyedia jasa, nomor kontrak.
+
+### Yang menentukan benar-salah: barisnya, bukan bordernya
+
+Baris disusun `src/lib/rab/cco-rows.ts` — modul MURNI, diuji tanpa database.
+Aturannya:
+
+- Baris = **gabungan** kedua revisi. Item yang DICABUT tidak ada di pohon draft
+  tapi wajib muncul (justru itu isi "pekerjaan kurang"); item BARU tidak ada di
+  revisi aktif. Membangun baris dari satu sisi saja menghilangkan separuh
+  perubahan tanpa jejak.
+- Volume tambah/kurang = **selisih**, bukan volume penuh — kolomnya menanyakan
+  "berapa yang bertambah", bukan "berapa jadinya".
+- Pekerjaan kurang ditulis sebagai besaran POSITIF.
+- Item baru disisipkan di dalam kategori induknya (dicocokkan lewat lineageKey
+  induk), tidak ditumpuk di ujung dokumen.
+- Kategori yang seluruhnya baru ikut dirender berikut isinya — **cacat nyata
+  yang tertangkap ujinya saat dibangun**: versi pertama melewatkan item yang
+  induknya juga baru, jadi justru perubahan terbesar yang paling mudah luput.
+
+PPN diambil dari `Contract.ppnPercent`, tidak dipatok 11 walau contohnya 11%.
+
+### Bobot: penyebutnya ditulis
+
+Kolom bobot di format aslinya tidak menyebut pembaginya. Persentase tanpa
+penyebut tidak bisa diperiksa siapa pun, jadi MARLIN mencetak catatan kaki:
+bobot MC-0/tambah/kurang terhadap nilai MC-0, bobot CCO-01 terhadap nilai
+CCO-01, keduanya pra-PPN.
+
+**Verifikasi**: 15 kasus unit mengunci aturan barisnya, termasuk invarian
+`MC-0 + tambah − kurang = CCO-01` · berkasnya benar-benar diunduh lewat rutenya
+di browser lalu dibuka kembali dengan openpyxl: header tiga tingkat pada posisi
+kolom yang sama dengan contoh, item yang volumenya digandakan muncul sebagai
+TAMBAH dengan volume selisih (bukan volume penuh), dan baris JUMLAH menutup
+persis ke `total_value` draft di database (8.672.531.022) · unit 834/834 ✓ ·
+integrasi 301/301 ✓ · E2E 44 lulus ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓.
+
+> **Belum dikerjakan, menunggu keputusan**: baris identitas PROGRAM/KEGIATAN/
+> PAGU/SUMBER DANA masih kosong sesuai permintaan "abaikan saja dulu". Bila
+> nanti diperlukan, pilihannya menambah field di Paket atau mengisinya manual.
