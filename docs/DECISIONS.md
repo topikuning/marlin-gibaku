@@ -7362,3 +7362,74 @@ untuk memakai nilai bawaan", yang persis kebalikan dari perilaku yang diminta.
 keterangan pemilik juga, spasi dihitung kosong, ketik ulang mengembalikan,
 tanpa baris sama sekali memakai bawaan, isian wajib tetap ditambal) ·
 unit 770/770 ✓ · integrasi 284/284 ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 229 — Foto: menambah bukan menimpa, batas 8→25 MB, fokus tidak berbohong (2026-08-02)
+
+Empat laporan user 2026-08-02 di jalur input laporan harian.
+
+### 1. Fokus kembali SEBELUM simpan selesai
+
+*"masih proses simpan fokus memang sudah kembali ke inputan pekerjaan, tapi ini
+menjadi masalah karena proses simpan belum selesai."* Benar — kolom yang terlihat
+siap padahal aksi masih berjalan mengundang pelapor mengetik item berikutnya di
+atas yang belum tersimpan.
+
+Fokusnya sendiri TIDAK boleh ditunda: papan ketik ponsel hanya mau terbuka dari
+gestur, dan menundanya sampai aksi selesai persis mengembalikan keluhan
+sebelumnya (DECISIONS 227). Yang diperbaiki bukan kapan fokus pindah, melainkan
+apa yang ditampilkan sementara itu:
+
+- Kolom cari jadi `readOnly` selama `pending` — **bukan** `disabled`, karena
+  elemen yang di-`disabled` kehilangan fokus dan papan ketik langsung menutup.
+- Placeholder-nya berubah jadi "Menyimpan progres & mengunggah foto…".
+- Daftar hasil pencarian disembunyikan; kartu pekerjaan yang sedang disimpan
+  tetap tampil — itu yang memberi tahu "yang ini sedang diproses".
+
+### 2. Batas 8 MB per foto → 25 MB
+
+Batas 8 MB dipilih dengan alasan "sinyal terbatas di lapangan", tapi itu
+melindungi hal yang salah: server MEMANG mengompres tiap foto sebelum menyimpan,
+jadi batas ini tidak menentukan besar berkas tersimpan — ia hanya menentukan
+foto mana yang **ditolak mentah-mentah**. Dan yang ditolak itu foto normal:
+kamera 48–108 MP di HP kelas menengah menghasilkan JPEG 10–20 MB. Mandor yang
+baru memotret bukti lalu dibilang "foto terlalu besar" tidak punya jalan keluar
+di lapangan — ia tidak akan mengecilkan berkas, ia akan berhenti melampirkan
+bukti.
+
+Batas tetap ada (25 MB) sebagai pagar terhadap berkas yang jelas bukan foto
+lapangan. Angka di pesan penolakan sekarang DIAMBIL dari konstanta; sebelumnya
+tertulis mati "maks 8 MB" — teks seperti itu bertahan setelah batasnya berubah.
+
+### 3–4. Memilih foto lagi MENIMPA yang sebelumnya
+
+*"jika pilih dari galeri satu, lalu berubah pikiran untuk menambah … kenapa foto
+lama ditimpa?"* — dan sama untuk kamera.
+
+Sebabnya perilaku bawaan peramban: `<input type="file">` mengganti SELURUH
+isinya tiap kali pemilih dibuka. Di lapangan satu pekerjaan lazim butuh beberapa
+sudut, jadi ini bukan kasus tepi — dan tidak ada satu pun petunjuk di layar
+bahwa foto sebelumnya baru saja hilang.
+
+Sekarang tombol Kamera & Galeri hanya **pemilih** (tanpa `name`, tidak ikut
+terkirim). Hasil tiap ketukan DITUMPUK di state, lalu ditulis ulang ke satu input
+tersembunyi ber-`name="photos"` lewat `DataTransfer` — satu-satunya cara merakit
+`FileList` sendiri. Kamera dan galeri menumpuk ke daftar yang sama, jadi memotret
+lalu menambah dari galeri (atau sebaliknya) bekerja apa adanya.
+
+Sekaligus:
+- Pratinjau menampilkan **semua** foto terpilih dengan tombol × per foto — salah
+  pilih satu tidak lagi memaksa mengulang seluruh pemilihan.
+- Berkas identik (nama+ukuran+waktu) tidak ditambahkan dua kali.
+- Kelebihan di atas batas per-unggah disebutkan jumlahnya, tidak dibuang diam-diam.
+- Nilai input pemilih dikosongkan setelah dibaca, supaya memotret objek yang sama
+  dua kali tetap memicu `change`.
+- URL pratinjau dibuat sekali di penanganan ketukan dan **dicabut** saat fotonya
+  dibuang — dibuat di effect/render, ia bocor setiap render.
+
+**Verifikasi**: 4 kasus unit batas (label MB diturunkan dari byte, cukup besar
+untuk foto HP masa kini, pesan memakai konstanta, label jumlah tidak ditulis
+mati) · 2 kasus E2E baru (dua kali pilih galeri → 2 foto dan input pengirim
+benar-benar berisi 2; kamera menambah + buang satu-satu → 1) · unit 774/774 ✓ ·
+integrasi 284/284 ✓ · E2E 42 lulus ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓.

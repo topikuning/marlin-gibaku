@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, Images, MapPin, MapPinOff } from "lucide-react";
+import { Camera, Images, MapPin, MapPinOff, X } from "lucide-react";
+import { MAX_PHOTOS_PER_UPLOAD } from "@/lib/photo-limits";
 import { catatIzinPerangkat } from "@/lib/device-permission";
 
 /**
@@ -50,11 +51,22 @@ export function PhotoSourceInput({
 }) {
   const camRef = useRef<HTMLInputElement>(null);
   const galRef = useRef<HTMLInputElement>(null);
+  /** Input yang BENAR-BENAR dikirim — isinya kumpulan dari semua pemilihan. */
+  const berkasRef = useRef<HTMLInputElement>(null);
   const latRef = useRef<HTMLInputElement>(null);
   const lngRef = useRef<HTMLInputElement>(null);
   const [source, setSource] = useState<"camera" | "gallery">("camera");
   const [takenAt, setTakenAt] = useState("");
-  const [previews, setPreviews] = useState<string[]>([]);
+  /**
+   * Foto terpilih, MENUMPUK lintas ketukan Kamera/Galeri (DECISIONS 229).
+   *
+   * URL pratinjau disimpan BERSAMA berkasnya, bukan diturunkan di effect:
+   * `URL.createObjectURL` mengalokasikan blob yang harus dicabut, dan membuatnya
+   * di dalam render/effect berarti alokasi ikut setiap render — bocor perlahan.
+   * Dibuat sekali di penanganan ketukan, dicabut saat fotonya dibuang.
+   */
+  const [berkas, setBerkas] = useState<{ file: File; url: string }[]>([]);
+  const [pesanBatas, setPesanBatas] = useState<string | null>(null);
   // "unknown" = belum diperiksa. Nilai awal sengaja BUKAN "prompt": menebak
   // keadaan izin lalu menampilkan peringatan yang salah lebih buruk daripada
   // diam sebentar.
@@ -124,20 +136,69 @@ export function PhotoSourceInput({
     if (latRef.current) latRef.current.value = "";
     if (lngRef.current) lngRef.current.value = "";
   };
-  const makePreviews = (files: FileList) => {
-    if (compact) return;
-    const urls: string[] = [];
-    for (let i = 0; i < Math.min(files.length, 6); i++) urls.push(URL.createObjectURL(files[i]));
-    setPreviews(urls);
+
+  /**
+   * Tumpuk foto baru ke yang sudah dipilih — JANGAN menimpa (DECISIONS 229).
+   *
+   * `<input type="file">` mengganti seluruh isinya tiap kali pemilih dibuka.
+   * Itu perilaku bawaan peramban, dan akibatnya: memilih satu foto dari galeri
+   * lalu berubah pikiran ingin menambah satu lagi MENGHAPUS yang pertama —
+   * begitu juga memotret kedua kali. Di lapangan satu pekerjaan lazim butuh
+   * beberapa sudut, jadi ini bukan kasus tepi.
+   *
+   * Solusinya: dua tombol di atas hanya PEMILIH (tanpa `name`, jadi tidak ikut
+   * terkirim). Hasilnya ditumpuk di state, lalu ditulis ulang ke satu input
+   * tersembunyi ber-`name="photos"` lewat `DataTransfer` — satu-satunya cara
+   * merakit `FileList` sendiri.
+   */
+  const idBerkas = (f: File) => `${f.name}|${f.size}|${f.lastModified}`;
+
+  const tumpuk = (baru: FileList) => {
+    // Berkas identik (nama+ukuran+waktu) tidak ditambahkan dua kali: memilih
+    // ulang foto yang sama biasanya salah tekan, bukan permintaan duplikat —
+    // dan server memang menolak duplikat byte-identik.
+    const sudah = new Set(berkas.map((b) => idBerkas(b.file)));
+    const tambah = Array.from(baru).filter((f) => !sudah.has(idBerkas(f)));
+    const gabung = [...berkas, ...tambah.map((file) => ({ file, url: URL.createObjectURL(file) }))];
+    const lebih = gabung.length - MAX_PHOTOS_PER_UPLOAD;
+    if (lebih > 0) {
+      for (const b of gabung.slice(MAX_PHOTOS_PER_UPLOAD)) URL.revokeObjectURL(b.url);
+      setPesanBatas(
+        `Maksimal ${MAX_PHOTOS_PER_UPLOAD} foto sekali unggah — ${lebih} foto terakhir tidak ikut.`,
+      );
+    } else {
+      setPesanBatas(null);
+    }
+    setBerkas(gabung.slice(0, MAX_PHOTOS_PER_UPLOAD));
   };
+
+  /** Buang satu foto dari pilihan (bukan dari server — belum terunggah). */
+  const buang = (i: number) => {
+    setPesanBatas(null);
+    const b = berkas[i];
+    if (b) URL.revokeObjectURL(b.url);
+    setBerkas(berkas.filter((_, n) => n !== i));
+  };
+
+  // Tulis ulang isi input pengirim tiap kali daftarnya berubah. Efek, bukan
+  // di dalam handler: state-lah sumber kebenarannya, dan input hanya cerminan.
+  useEffect(() => {
+    const el = berkasRef.current;
+    if (!el) return;
+    const dt = new DataTransfer();
+    for (const b of berkas) dt.items.add(b.file);
+    el.files = dt.files;
+  }, [berkas]);
 
   const pickCamera = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    if (galRef.current) galRef.current.value = "";
     setSource("camera");
     setTakenAt(new Date().toISOString());
-    makePreviews(files);
+    tumpuk(files);
+    // Pemilih dikosongkan supaya memotret objek yang sama dua kali tetap
+    // memicu `change` (nilai yang tidak berubah = tidak ada event).
+    e.target.value = "";
     clearGps();
     if (typeof navigator !== "undefined" && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -200,10 +261,10 @@ export function PhotoSourceInput({
   const pickGallery = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    if (camRef.current) camRef.current.value = "";
     setSource("gallery");
     setTakenAt(new Date().toISOString());
-    makePreviews(files);
+    tumpuk(files);
+    e.target.value = "";
     onPicked?.();
   };
 
@@ -266,7 +327,6 @@ export function PhotoSourceInput({
           <input
             ref={camRef}
             type="file"
-            name="photos"
             accept="image/*"
             capture="environment"
             multiple
@@ -280,12 +340,13 @@ export function PhotoSourceInput({
         <input
           ref={galRef}
           type="file"
-          name="photos"
           accept="image/*"
           multiple
           className="sr-only"
           onChange={pickGallery}
         />
+        {/* SATU-SATUNYA input yang ikut terkirim; isinya dirakit dari state. */}
+        <input ref={berkasRef} type="file" name="photos" multiple className="sr-only" tabIndex={-1} />
       </div>
 
       {/* Konfirmasi sebelum memilih berkas galeri (DECISIONS 220), sebagai
@@ -347,12 +408,32 @@ export function PhotoSourceInput({
         </p>
       ) : null}
 
-      {!compact && previews.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
-          {previews.map((src, i) => (
-            // eslint-disable-next-line @next/next/no-img-element -- pratinjau lokal (objectURL) sebelum unggah
-            <img key={i} src={src} alt="" className="h-16 w-16 rounded-md border border-border object-cover" />
-          ))}
+      {pesanBatas ? <p className="text-xs text-warning">{pesanBatas}</p> : null}
+
+      {!compact && berkas.length > 0 ? (
+        <div className="space-y-1.5">
+          <p className="text-xs text-ink-muted">
+            {berkas.length} foto dipilih (maks {MAX_PHOTOS_PER_UPLOAD}). Ketuk Kamera/Galeri lagi untuk
+            menambah.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {berkas.map((b, i) => (
+              <div key={b.url} className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element -- pratinjau lokal (objectURL) sebelum unggah */}
+                <img src={b.url} alt="" className="h-16 w-16 rounded-md border border-border object-cover" />
+                {/* Salah pilih harus bisa dibatalkan SATU-SATU. Tanpa ini,
+                    satu foto keliru memaksa mengulang seluruh pemilihan. */}
+                <button
+                  type="button"
+                  onClick={() => buang(i)}
+                  aria-label={`Buang foto ${i + 1}`}
+                  className="absolute -top-1.5 -right-1.5 inline-flex size-5 items-center justify-center rounded-full border border-border bg-surface text-ink shadow-xs hover:bg-danger-soft hover:text-danger"
+                >
+                  <X aria-hidden className="size-3" />
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       ) : null}
     </div>

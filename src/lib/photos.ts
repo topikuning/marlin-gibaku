@@ -41,8 +41,8 @@ const THUMB_MAX = 256;
 
 // Batas foto tinggal di modul murni supaya komponen KLIEN bisa memakainya
 // (lihat lib/photo-limits.ts). Di-re-export agar pemanggil lama tidak berubah.
-export { MAX_PHOTO_BYTES, MAX_PHOTOS_PER_UPLOAD, MAX_PHOTOS_PER_ACTIVITY } from "@/lib/photo-limits";
-import { MAX_PHOTO_BYTES } from "@/lib/photo-limits";
+export { MAX_PHOTO_BYTES, MAX_PHOTO_MB, MAX_PHOTOS_PER_UPLOAD, MAX_PHOTOS_PER_ACTIVITY } from "@/lib/photo-limits";
+import { MAX_PHOTO_BYTES, MAX_PHOTO_MB } from "@/lib/photo-limits";
 import { originalExt } from "@/lib/photo-file";
 
 /**
@@ -256,7 +256,11 @@ export async function savePhotoForItem(input: SavePhotoInput) {
   if (!isR2Configured()) throw new PhotoError("Penyimpanan foto belum dikonfigurasi");
   const { file } = input;
   if (file.size === 0) throw new PhotoError("File foto kosong");
-  if (file.size > MAX_PHOTO_BYTES) throw new PhotoError("Foto terlalu besar (maks 8 MB)");
+  // Angka di pesan DIAMBIL dari konstanta — teks mati "8 MB" pernah
+  // bertahan setelah batasnya berubah, dan pesan yang bohong soal batas
+  // membuat orang mengecilkan foto sampai ukuran yang sebenarnya tidak perlu.
+  if (file.size > MAX_PHOTO_BYTES)
+    throw new PhotoError(`Foto terlalu besar (maks ${MAX_PHOTO_MB} MB)`);
   if (!isAllowedImage(file.type, file.name)) throw new PhotoError("Format foto tidak didukung (JPG/PNG/WebP/HEIC)");
 
   const original = Buffer.from(await file.arrayBuffer());

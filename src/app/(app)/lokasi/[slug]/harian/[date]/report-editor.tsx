@@ -240,21 +240,41 @@ function ItemForm({
             aksi server selesai, dan papan ketik tetap tertutup sampai pelapor
             mengetuk sendiri. Sekarang fokus dipindah SINKRON di dalam ketukan
             tombol simpan, sehingga papan ketik tidak pernah sempat menutup. */}
+        {/* SELAMA MENYIMPAN, kolom ini TIDAK boleh terlihat siap dipakai.
+            Laporan user 2026-08-02: fokus sudah kembali padahal simpan + unggah
+            foto belum selesai — pelapor mengira item berikutnya sudah bisa
+            diketik, padahal yang sebelumnya masih berjalan.
+
+            `readOnly` (bukan `disabled`) dipilih dengan sengaja: elemen yang
+            di-`disabled` KEHILANGAN FOKUS, dan begitu fokus lepas papan ketik
+            ponsel menutup — persis masalah yang baru saja diperbaiki. readOnly
+            menahan fokus, menolak ketikan, dan mengganti placeholder jadi
+            keterangan proses. Begitu aksi selesai, kolomnya hidup lagi. */}
         <div className="relative">
           <Search aria-hidden className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-faint" />
           <Input
             id="dr-search"
             ref={cariRef}
-            value={query}
+            value={pending ? "" : query}
             onChange={(e) => setQuery(e.target.value)}
+            readOnly={pending}
+            aria-busy={pending}
             inputMode="search"
-            placeholder={picked ? "Ketik untuk ganti pekerjaan…" : "Ketik nama / kode pekerjaan…"}
-            className="h-11 pl-9 text-base"
+            placeholder={
+              pending
+                ? "Menyimpan progres & mengunggah foto…"
+                : picked
+                  ? "Ketik untuk ganti pekerjaan…"
+                  : "Ketik nama / kode pekerjaan…"
+            }
+            className={`h-11 pl-9 text-base ${pending ? "bg-surface-muted text-ink-faint" : ""}`}
           />
         </div>
         {/* Hasil pencarian menang atas kartu pilihan: begitu pelapor mulai
-            mengetik, yang ingin dilihatnya adalah daftar, bukan pilihan lama. */}
-        {query ? null : picked ? (
+            mengetik, yang ingin dilihatnya adalah daftar, bukan pilihan lama.
+            Selama menyimpan, kartu pekerjaan yang sedang disimpan TETAP
+            tampil — itu yang memberi tahu "yang ini sedang diproses". */}
+        {query && !pending ? null : picked ? (
           <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-primary bg-primary-50 px-4 py-3">
             <div className="min-w-0">
               {picked.category ? (
@@ -293,7 +313,7 @@ function ItemForm({
             </Button>
           </div>
         ) : null}
-        {query ? (
+        {query && !pending ? (
           <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-border bg-surface">
                 {matches.length === 0 ? (
                   <div className="px-4 py-3 text-sm text-ink-muted">Tidak ada yang cocok.</div>

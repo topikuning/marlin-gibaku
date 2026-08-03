@@ -101,6 +101,60 @@ test.describe("konfirmasi lokasi galeri = dialog, bukan catatan kaki", () => {
   });
 });
 
+test.describe("memilih foto lagi MENAMBAH, bukan menimpa", () => {
+  // Laporan user 2026-08-02: "jika pilih dari galeri satu, lalu berubah pikiran
+  // untuk menambah … kenapa foto lama ditimpa?" — dan hal yang sama untuk
+  // kamera. `<input type=file>` memang mengganti seluruh isinya tiap kali
+  // dibuka; di lapangan satu pekerjaan lazim butuh beberapa sudut, jadi ini
+  // bukan kasus tepi.
+  const jpeg = (nama: string, warna: number) => ({
+    name: nama,
+    mimeType: "image/jpeg",
+    // JPEG minimal yang sah cukup untuk menguji perilaku pemilihan.
+    buffer: Buffer.from([0xff, 0xd8, 0xff, 0xdb, warna, 0x00, 0xff, 0xd9]),
+  });
+
+  test("dua kali pilih dari galeri → dua foto, bukan satu", async ({ page }) => {
+    await bukaEditor(page);
+    const galeri = page.getByRole("button", { name: "Galeri" }).first();
+    if ((await galeri.count()) === 0) {
+      test.skip(true, "Penyimpanan foto (R2) tidak aktif di lingkungan ini.");
+      return;
+    }
+    // Input pemilih galeri = input file KEDUA (setelah kamera), tanpa `name`.
+    const pemilih = page.locator('input[type="file"]:not([name])').nth(1);
+    await pemilih.setInputFiles([jpeg("a.jpg", 0x01)]);
+    await expect(page.getByText(/1 foto dipilih/)).toBeVisible();
+
+    await pemilih.setInputFiles([jpeg("b.jpg", 0x02)]);
+    await expect(page.getByText(/2 foto dipilih/)).toBeVisible();
+    // Yang benar-benar dikirim adalah input ber-name; ia harus memuat KEDUANYA.
+    await expect
+      .poll(() => page.locator('input[name="photos"]').evaluate((el) => (el as HTMLInputElement).files?.length ?? 0))
+      .toBe(2);
+  });
+
+  test("kamera juga menambah, dan foto salah pilih bisa dibuang satu-satu", async ({ page }) => {
+    await bukaEditor(page);
+    const kamera = page.getByText("Kamera", { exact: true }).first();
+    if ((await kamera.count()) === 0) {
+      test.skip(true, "Penyimpanan foto (R2) tidak aktif di lingkungan ini.");
+      return;
+    }
+    const pemilihKamera = page.locator('input[type="file"]:not([name])').first();
+    await pemilihKamera.setInputFiles([jpeg("c1.jpg", 0x03)]);
+    await expect(page.getByText(/1 foto dipilih/)).toBeVisible();
+    await pemilihKamera.setInputFiles([jpeg("c2.jpg", 0x04)]);
+    await expect(page.getByText(/2 foto dipilih/)).toBeVisible();
+
+    await page.getByRole("button", { name: "Buang foto 1" }).click();
+    await expect(page.getByText(/1 foto dipilih/)).toBeVisible();
+    await expect
+      .poll(() => page.locator('input[name="photos"]').evaluate((el) => (el as HTMLInputElement).files?.length ?? 0))
+      .toBe(1);
+  });
+});
+
 test.describe("foto menyusul", () => {
   test('item tanpa foto ditandai "Belum ada foto" dan bisa ditambahi', async ({ page }) => {
     await bukaEditor(page);
