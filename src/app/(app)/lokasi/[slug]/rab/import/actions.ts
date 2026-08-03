@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { requireCapability, requireLocationAccess, ForbiddenError } from "@/lib/auth/session";
 import { parseHpsBuffer } from "@/lib/rab/hps-parser";
 import { flattenParsedRab, grandTotal } from "@/lib/rab/flatten";
+import { pastikanBolehAktivasi, PersetujuanError } from "@/lib/rab/persetujuan";
 import {
   activateRevision,
   createRevisionFromNodes,
@@ -415,6 +416,29 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       note,
       userId: user.id,
     });
+    /*
+     * GERBANG EMPAT MATA (DECISIONS 234) — hanya berlaku bila lokasi SUDAH
+     * punya RAB aktif (= ini adendum). HPS awal tidak menggantikan kontrak apa
+     * pun, jadi tidak menuntut dua tanda tangan.
+     *
+     * Revisi yang baru dibuat jelas belum punya persetujuan, jadi impor
+     * "langsung aktifkan" untuk adendum PASTI tertahan di sini. Itu BUKAN
+     * kegagalan impor: berkasnya sudah terbaca dan tersimpan sebagai draft.
+     * Yang tidak terjadi hanyalah aktivasinya — dan itu dikatakan apa adanya,
+     * bukan dilaporkan sebagai error yang membuat orang mengunggah ulang.
+     */
+    try {
+      await pastikanBolehAktivasi(res.revisionId);
+    } catch (e) {
+      if (!(e instanceof PersetujuanError)) throw e;
+      revalidatePath(`/lokasi/${location.slug}`, "layout");
+      return {
+        success:
+          `Revisi #${res.revisionNo} tersimpan sebagai DRAFT (${res.itemCount} item) — belum aktif. ` +
+          `Aktivasi adendum butuh persetujuan Program Director DAN satu Area/Project/Site Manager. ` +
+          `Buka tab Adendum untuk meminta persetujuan lalu mengaktifkannya.`,
+      };
+    }
     await activateRevision(res.revisionId, user.id);
     // Revisi sudah AKTIF di titik ini. Bila regenerate baseline gagal, JANGAN
     // jatuh ke catch generik ("Terjadi kesalahan saat impor") — user akan

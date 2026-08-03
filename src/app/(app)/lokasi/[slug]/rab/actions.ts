@@ -4,8 +4,14 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
-import { requireCapability, requireLocationAccess, ForbiddenError } from "@/lib/auth/session";
+import { requireCapability, requireLocationAccess, requireUser, ForbiddenError } from "@/lib/auth/session";
 import { activateRevision, contractDaysFor, discardDraft, regenerateBaseline } from "@/lib/rab/import";
+import {
+  cabutPersetujuan,
+  pastikanBolehAktivasi,
+  PersetujuanError,
+  setujuiRevisi,
+} from "@/lib/rab/persetujuan";
 import {
   restoreBaseline,
   saveCategorySchedule,
@@ -77,6 +83,10 @@ export async function activateDraftAction(_prev: RabActionState, formData: FormD
       select: { id: true, locationId: true, revisionNo: true, source: true, location: { select: { slug: true } } },
     });
     await requireLocationAccess(user, rev.locationId);
+    // GERBANG EMPAT MATA (DECISIONS 234) — sebelum apa pun berubah. Adendum
+    // mengganti RAB kontrak yang berlaku; tidak ada peran, termasuk Super
+    // Admin, yang boleh melakukannya sendirian.
+    await pastikanBolehAktivasi(rev.id);
     await activateRevision(rev.id, user.id);
     // Revisi sudah aktif — kegagalan regenerate baseline TIDAK boleh tampil
     // sebagai error generik seolah aktivasi batal (audit 2026-07-27, B17).
@@ -618,6 +628,45 @@ export async function removeWeeklyPlanItem(_prev: RabActionState, formData: Form
     revalidatePath(`/lokasi/${item.plan.location.slug}`);
     return { success: "Item rencana dihapus." };
   } catch (err) {
+    return fail(err);
+  }
+}
+
+/**
+ * Setujui / cabut persetujuan aktivasi revisi (DECISIONS 234).
+ *
+ * Sengaja TIDAK memakai `requireCapability("rab.manage")`: yang menentukan hak
+ * di sini JABATAN, bukan kemampuan mengelola RAB. Super admin punya rab.manage
+ * penuh dan tetap tidak boleh menandatangani — kalau gerbangnya capability, ia
+ * lolos.
+ */
+export async function approveRevisionAction(
+  _prev: RabActionState,
+  formData: FormData,
+): Promise<RabActionState> {
+  const parsed = z.uuid().safeParse(formData.get("revisionId"));
+  if (!parsed.success) return { error: "Revisi tidak valid." };
+  const cabut = formData.get("cabut") === "1";
+  try {
+    const user = await requireUser();
+    const rev = await db.rabRevision.findUniqueOrThrow({
+      where: { id: parsed.data },
+      select: { locationId: true, revisionNo: true, location: { select: { slug: true } } },
+    });
+    await requireLocationAccess(user, rev.locationId);
+    if (cabut) {
+      await cabutPersetujuan(parsed.data, user);
+    } else {
+      await setujuiRevisi(parsed.data, user);
+    }
+    revalidateRab(rev.location.slug);
+    return {
+      success: cabut
+        ? `Persetujuan Anda atas revisi #${rev.revisionNo} dicabut.`
+        : `Revisi #${rev.revisionNo} Anda setujui.`,
+    };
+  } catch (err) {
+    if (err instanceof PersetujuanError) return { error: err.message };
     return fail(err);
   }
 }

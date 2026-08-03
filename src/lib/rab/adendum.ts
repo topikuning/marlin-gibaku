@@ -490,7 +490,14 @@ export type RevisionDiff = {
   totalLama: bigint;
   totalBaru: bigint;
   delta: bigint;
-  /** Σ kenaikan nilai per item (pekerjaan tambah) — basis warning 10% Perpres. */
+  /**
+   * Σ kenaikan nilai per item (pekerjaan tambah), KOTOR.
+   *
+   * BUKAN basis batas 10% Perpres 16/2018 Pasal 54 — yang dibatasi di sana
+   * kenaikan NILAI KONTRAK (`delta`), bukan jumlah kotor pekerjaan tambah.
+   * Angka ini dipakai untuk menggambarkan besar pergeseran lingkup, dan untuk
+   * mengisi dokumen adendum. DECISIONS 233.
+   */
   totalTambah: bigint;
   /** Σ penurunan nilai per item (pekerjaan kurang), ≤ 0. */
   totalKurang: bigint;

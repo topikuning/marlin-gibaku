@@ -6,6 +6,10 @@ import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { cumulativeVolumeByLineage } from "@/lib/progress";
 import { withPpn } from "@/lib/money";
 import { diffRevisions, type RevisionDiff } from "@/lib/rab/adendum";
+import { ringkasPersetujuan } from "@/lib/rab/persetujuan";
+import { bolehMenyetujui } from "@/lib/rab/persetujuan-aturan";
+import { ROLE_LABEL } from "@/lib/authz";
+import { formatTanggal } from "@/lib/format";
 import { requireLocationPage } from "../../get-location";
 import { AdendumEditor, type EditorNode } from "./adendum-editor";
 import { CreateDraftForm, type AmendmentOption } from "./create-draft-form";
@@ -174,18 +178,65 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
   walk(null, 0);
 
   const diff = active ? await diffRevisions(active.id, draft.id) : null;
+
+  /*
+   * EMPAT MATA (DECISIONS 234). `null` bila belum ada RAB aktif — itu HPS awal,
+   * bukan adendum: tidak ada kontrak berjalan yang digantikan, jadi tidak ada
+   * yang perlu ditandatangani berdua.
+   */
+  const persetujuan = active
+    ? await (async () => {
+        const r = await ringkasPersetujuan(draft.id);
+        return {
+          lengkap: r.lengkap,
+          kurang: r.kurang,
+          berlaku: r.berlaku.map((v) => ({
+            nama: v.nama,
+            peran: ROLE_LABEL[v.role],
+            waktu: formatTanggal(v.approvedAt, "d MMM yyyy HH.mm"),
+          })),
+          gugur: r.gugur.map((v) => ({ nama: v.nama, peran: ROLE_LABEL[v.role] })),
+          bolehTtd: bolehMenyetujui(user.role),
+          sudahTtd: r.berlaku.some((v) => v.userId === user.id),
+        };
+      })()
+    : null;
   const delta = active ? draft.totalValue - active.totalValue : draft.totalValue;
 
   // ── Peringatan nilai (informasi, bukan penghalang — MARLIN mencatat kenyataan) ──
   const peringatan: string[] = [];
   if (diff && revisiAwal && revisiAwal.totalValue > 0n) {
-    // Perpres 16/2018: pekerjaan tambah maksimal 10% nilai kontrak awal.
+    /*
+     * Batas 10% Perpres 16/2018 Pasal 54 mengukur KENAIKAN NILAI KONTRAK
+     * (nilai akhir vs nilai awal) — BUKAN jumlah kotor pekerjaan tambah.
+     *
+     * Dulu yang diuji `totalTambah` (Σ kenaikan per item). Akibatnya adendum
+     * yang hanya MENUKAR pekerjaan — kurangi sana, tambah sini, nilai total
+     * praktis sama — dituduh melanggar batas 10%. Terjadi nyata (laporan user
+     * 2026-08-03): tambah +Rp 1.044.616.688, kurang −Rp 1.044.616.680, nilai
+     * kontrak naik Rp 8, dan peringatannya tetap berteriak melanggar.
+     *
+     * Peringatan yang menyala pada keadaan yang sah adalah cara tercepat
+     * membuat semua peringatan diabaikan — termasuk yang benar. DECISIONS 233.
+     */
     const batas = revisiAwal.totalValue / 10n;
-    if (diff.totalTambah > batas) {
+    if (delta > batas) {
       peringatan.push(
-        `Pekerjaan tambah ${fmtDelta(diff.totalTambah)} melebihi 10% nilai RAB kontrak awal ` +
-          `(revisi #${revisiAwal.revisionNo} = Rp ${rupiah.format(revisiAwal.totalValue)}; batas Rp ${rupiah.format(batas)}) — ` +
-          `Perpres 16/2018 membatasi pekerjaan tambah 10%. Pastikan dasar hukumnya kuat sebelum aktivasi.`,
+        `Nilai kontrak naik ${fmtDelta(delta)} — melebihi 10% nilai RAB kontrak awal ` +
+          `(revisi #${revisiAwal.revisionNo} = Rp ${rupiah.format(revisiAwal.totalValue)}; batas Rp ${rupiah.format(batas)}). ` +
+          `Perpres 16/2018 Pasal 54 membatasi kenaikan nilai kontrak 10%. Pastikan dasar hukumnya kuat sebelum aktivasi.`,
+      );
+    } else if (diff.totalTambah > batas) {
+      /*
+       * Nilai total aman, tapi isinya berpindah banyak. Ini BUKAN pelanggaran
+       * batas 10% — tetapi tukar-menukar sebesar ini mengubah lingkup yang
+       * disepakati, jadi tetap disebut, dengan nama yang benar.
+       */
+      peringatan.push(
+        `Nilai kontrak hampir tidak berubah (${fmtDelta(delta)}), tetapi lingkupnya banyak bergeser: ` +
+          `pekerjaan tambah ${fmtDelta(diff.totalTambah)} dan pekerjaan kurang ${fmtDelta(diff.totalKurang)}. ` +
+          `Ini bukan pelanggaran batas 10% Perpres 16/2018 (yang dibatasi kenaikan NILAI kontrak), ` +
+          `tetapi perubahan lingkup sebesar ini perlu dasar tertulis di dokumen adendum.`,
       );
     }
   }
@@ -256,7 +307,12 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
             <strong className="text-ink">bukan</strong> item dihapus — untuk mencabut item, tulis{" "}
             <code className="rounded bg-surface-inset px-1">HAPUS</code> di kolom Keterangan.
           </p>
-          <ImportForm locationId={location.id} modeAwal="draft" />
+          {/* adaAktif WAJIB diisi. Halaman ini hanya dirender ketika lokasi punya
+              RAB aktif (draft adendum disalin darinya), tapi ImportForm tidak
+              bisa menebak itu: bawaannya false, dan itu MENGUNCI pilihan "Isi
+              DRAFT adendum" sambil memasang alasan "Belum ada RAB aktif" yang
+              justru terbalik di halaman ini. */}
+          <ImportForm locationId={location.id} adaAktif modeAwal="draft" />
         </CardBody>
       </Card>
 
@@ -307,6 +363,7 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
             revisionNo={draft.revisionNo}
             ringkasan={ringkasan}
             adaPeringatan={peringatan.length > 0}
+            persetujuan={persetujuan}
           />
         </CardBody>
       </Card>

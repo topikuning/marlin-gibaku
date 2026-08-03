@@ -12,13 +12,43 @@ import { importHps, type BedaPratinjau, type ImportMode, type ImportState } from
  */
 export function ImportForm({
   locationId,
-  modeAwal = "aktifkan",
+  adaAktif,
+  modeAwal,
 }: {
   locationId: string;
+  /**
+   * Lokasi sudah punya revisi RAB aktif — menentukan tujuan bawaan & kuncinya.
+   *
+   * WAJIB, tanpa nilai bawaan. Sebelumnya `= false`, dan halaman adendum lupa
+   * mengisinya: pilihan "Isi DRAFT adendum" jadi terkunci dengan alasan "Belum
+   * ada RAB aktif" tepat di halaman yang hanya muncul KARENA ada RAB aktif.
+   * Bawaan yang diam-diam salah lebih buruk daripada tidak ada bawaan.
+   */
+  adaAktif: boolean;
   /** "draft" = halaman adendum: isi draft, JANGAN sentuh RAB aktif. */
   modeAwal?: ImportMode;
 }) {
-  const [mode, setMode] = useState<ImportMode>(modeAwal);
+  /**
+   * Tujuan bawaan MENGIKUTI KEADAAN, bukan konstanta (DECISIONS 232).
+   *
+   * Belum ada RAB aktif → satu-satunya yang masuk akal "Jadikan RAB AKTIF":
+   * draft adendum disalin DARI RAB aktif, jadi tanpa RAB aktif ia tidak punya
+   * dasar apa pun.
+   *
+   * Sudah ada RAB aktif → bawaannya "Isi DRAFT adendum". Dulu bawaannya
+   * "aktifkan" dan itu pilihan yang salah untuk dipasang lebih dulu: satu
+   * ketukan tanpa membaca akan MENGGANTI RAB kontrak yang berlaku dan
+   * me-regenerate kurva-S. Pilihan bawaan yang merusak bukan kenyamanan.
+   */
+  const bawaan: ImportMode = modeAwal ?? (adaAktif ? "draft" : "aktifkan");
+  const [mode, setMode] = useState<ImportMode>(bawaan);
+  /**
+   * Pilihan yang tidak sesuai keadaan DIKUNCI, bukan dihilangkan — permintaan
+   * user 2026-08-03: "jangan dihapus, tapi kamu kunci saja, mungkin suatu saat
+   * aku butuh". Menghapusnya berarti jalan yang sah (mengimpor adendum yang
+   * SUDAH resmi, atau memperbaiki HPS awal yang salah) hilang tanpa jejak.
+   */
+  const [bukaKunci, setBukaKunci] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [note, setNote] = useState("");
   const [inputKey, setInputKey] = useState(0);
@@ -101,24 +131,58 @@ export function ImportForm({
               ["draft", "Isi DRAFT adendum", "RAB aktif, progres, kurva-S, dan keuangan TIDAK berubah. Draft baru berlaku setelah diaktifkan."],
               ["aktifkan", "Jadikan RAB AKTIF sekarang", "Menggantikan RAB aktif dan me-regenerate kurva-S. Untuk HPS awal atau adendum yang SUDAH resmi."],
             ] as const
-          ).map(([nilai, judul, jelas]) => (
-            <label key={nilai} className="flex cursor-pointer items-start gap-2 text-[13px]">
-              <input
-                type="radio"
-                name="mode"
-                className="mt-0.5"
-                checked={mode === nilai}
-                onChange={() => {
-                  setMode(nilai);
-                  setState(undefined); // pratinjau lama menggambarkan tujuan lain
-                }}
-              />
-              <span>
-                <span className="font-medium text-ink">{judul}</span>
-                <span className="block text-ink-muted">{jelas}</span>
-              </span>
-            </label>
-          ))}
+          ).map(([nilai, judul, jelas]) => {
+            // Kunci mengikuti keadaan, dan alasannya SELALU disebut — pilihan
+            // yang mati tanpa keterangan cuma bikin orang menebak.
+            const terkunci =
+              nilai === "draft"
+                ? !adaAktif // tidak ada RAB untuk diadendum
+                : adaAktif && !bukaKunci; // mengganti RAB kontrak yang berlaku
+            const sebab =
+              nilai === "draft"
+                ? "Belum ada RAB aktif — draft adendum disalin dari RAB aktif, jadi belum ada yang bisa diadendum."
+                : "Terkunci karena lokasi ini sudah punya RAB aktif.";
+            return (
+              <label
+                key={nilai}
+                className={`flex items-start gap-2 text-[13px] ${terkunci ? "opacity-60" : "cursor-pointer"}`}
+              >
+                <input
+                  type="radio"
+                  name="mode"
+                  className="mt-0.5"
+                  checked={mode === nilai}
+                  disabled={terkunci}
+                  onChange={() => {
+                    setMode(nilai);
+                    setState(undefined); // pratinjau lama menggambarkan tujuan lain
+                  }}
+                />
+                <span>
+                  <span className="font-medium text-ink">{judul}</span>
+                  <span className="block text-ink-muted">{jelas}</span>
+                  {terkunci ? <span className="mt-0.5 block text-warning">{sebab}</span> : null}
+                </span>
+              </label>
+            );
+          })}
+          {/* Jalan keluarnya ADA, tapi harus disengaja: satu ketukan tambahan
+              plus kalimat yang menyebut akibatnya. */}
+          {adaAktif && !bukaKunci ? (
+            <button
+              type="button"
+              onClick={() => setBukaKunci(true)}
+              className="text-[13px] font-medium text-primary underline-offset-2 hover:underline"
+            >
+              Buka kunci &quot;Jadikan RAB AKTIF sekarang&quot; — untuk adendum yang sudah resmi
+            </button>
+          ) : null}
+          {adaAktif && bukaKunci ? (
+            <p className="text-[13px] text-warning">
+              Kunci dibuka. Menyimpan dengan tujuan ini akan MENGGANTI RAB aktif dan me-regenerate
+              kurva-S. Pakai hanya bila adendumnya memang sudah resmi.
+            </p>
+          ) : null}
         </div>
       </fieldset>
 

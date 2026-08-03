@@ -7551,3 +7551,155 @@ angka) · 1 kasus integrasi (error tak terduga dari satu foto: yang sehat tetap
 masuk, yang rusak dilaporkan, volume tidak terseret) · 1 kasus E2E (fokus pindah
 ke panel, bukan tertinggal di `dr-search`) · unit 785/785 ✓ · integrasi 285/285 ✓
 · E2E 42 lulus ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 232 — Aksi jadi tombol; tujuan impor mengikuti keadaan (2026-08-03)
+
+### `ButtonLink` — primitifnya memang belum ada
+
+*"impor, unduh excel, impor hps kenapa tidak jadi button yang layak?"* Karena
+tidak ada primitif untuk itu. `Button` merender `<button>`; aksi yang HARUS
+berupa `<a>` (unduhan berkas, navigasi) tidak punya padanan, jadi tiap halaman
+menuliskan sendiri `text-primary hover:underline` — dan hasilnya terbaca seperti
+keterangan kartu, bukan seperti sesuatu yang bisa ditekan. Tiga di antaranya
+berjejer di kepala kartu RAB tanpa batas yang jelas.
+
+`buttonClass()` diekstrak dari `Button` dan dipakai bersama `ButtonLink`, jadi
+tombol dan tautan-berbentuk-tombol tidak bisa lagi menyimpang. `ButtonLink`
+punya `unduhan` untuk memakai `<a>` biasa alih-alih `next/link`: prefetch dan
+navigasi klien keduanya salah untuk unduhan berkas.
+
+Kepala RAB sekarang: **Unduh Excel** (sekunder) · **Adendum** (sekunder) ·
+**Impor** (primer), masing-masing ber-ikon.
+
+### Tujuan impor: bawaan mengikuti keadaan, yang tak sesuai DIKUNCI
+
+Bawaannya dulu selalu "Jadikan RAB AKTIF sekarang". Itu pilihan yang salah untuk
+dipasang lebih dulu ketika RAB aktif sudah ada: satu ketukan tanpa membaca akan
+MENGGANTI RAB kontrak yang berlaku dan me-regenerate kurva-S. Pilihan bawaan
+yang merusak bukan kenyamanan.
+
+- Belum ada RAB aktif → bawaan "Jadikan RAB AKTIF"; "Isi DRAFT adendum" dikunci
+  (draft disalin DARI RAB aktif — tanpa itu tidak ada yang bisa diadendum).
+- Sudah ada RAB aktif → bawaan "Isi DRAFT adendum"; "Jadikan RAB AKTIF" dikunci.
+
+**Dikunci, bukan dihapus** — permintaan user: *"jangan dihapus, tapi kamu kunci
+saja, mungkin suatu saat aku butuh"*. Menghapusnya berarti jalan yang sah
+(mengimpor adendum yang SUDAH resmi, memperbaiki HPS awal yang salah) hilang
+tanpa jejak. Kuncinya bisa dibuka lewat satu ketukan tambahan yang menyebut
+akibatnya, dan alasan penguncian selalu ditulis di sebelah pilihannya — pilihan
+mati tanpa keterangan cuma membuat orang menebak.
+
+---
+
+## 233 — Batas 10% Perpres mengukur kenaikan NILAI KONTRAK, bukan pekerjaan tambah kotor (2026-08-03)
+
+**Laporan user 2026-08-03** dengan angka nyata:
+
+```
+Nilai lama Rp 5.891.112.777 · Nilai baru Rp 5.891.112.785 · +Rp 8
+tambah +Rp 1.044.616.688 · kurang −Rp 1.044.616.680
+
+⚠ Pekerjaan tambah +Rp 1.044.616.688 melebihi 10% nilai RAB kontrak awal …
+```
+
+Nilai kontrak naik **Rp 8**, tetapi peringatannya tetap menuduh melanggar batas
+10%. Adendum itu hanya MENUKAR pekerjaan — kurangi sana, tambah sini.
+
+Yang diuji dulu `diff.totalTambah` (Σ kenaikan per item, KOTOR). Perpres 16/2018
+Pasal 54 membatasi **penambahan nilai kontrak akhir** terhadap nilai kontrak
+awal — itu angka BERSIH (`delta`), bukan jumlah kotor pekerjaan tambah.
+
+Sekarang:
+
+- `delta > 10% nilai awal` → peringatan pelanggaran batas, menyebut Pasal 54.
+- Nilai aman tapi `totalTambah > 10%` → peringatan **pergeseran LINGKUP**, dengan
+  kalimat yang menyatakan tegas bahwa ini *bukan* pelanggaran batas 10%. Tukar
+  sebesar itu tetap mengubah lingkup yang disepakati, jadi tetap disebut — yang
+  salah dulu cuma namanya.
+
+Peringatan yang menyala pada keadaan yang sah adalah cara tercepat membuat semua
+peringatan diabaikan, termasuk yang benar.
+
+> **Perlu konfirmasi**: penafsiran "10% = kenaikan nilai kontrak akhir" diambil
+> dari bunyi Pasal 54. Bila di lingkungan KKP dipakai tafsir lain (mis. gross
+> tambah dibatasi terpisah), beri tahu — aturannya satu tempat dan mudah diubah.
+
+**Verifikasi**: 7 kasus unit mengunci aturan, memakai angka kasus nyata (tukar
+Rp 1,04 M dengan selisih Rp 8 → bukan pelanggaran, tapi tetap dilaporkan sebagai
+pergeseran lingkup; tepat di batas belum melanggar; nilai turun tidak pernah
+melanggar; pelanggaran nilai menang atas pesan lingkup) · unit 792/792 ✓ ·
+integrasi 285/285 ✓ · E2E 42 lulus ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 234 — Aktivasi adendum butuh DUA orang; super admin tidak termasuk (2026-08-03)
+
+**Permintaan user 2026-08-03**: *"pengaktifan adendum harus dua orang, program
+director dan satu orang di level yang ditugaskan bisa AM/SM/PM, bahkan super
+admin pun tidak boleh mengaktifkan sendiri, harus ada program director yang juga
+approve."*
+
+Mengaktifkan adendum bukan penyuntingan biasa: ia MENGGANTI RAB kontrak yang
+berlaku dan me-regenerate baseline kurva-S. Nilai kontrak, rencana progres, dan
+dasar termin bergeser sekaligus, dalam satu ketukan.
+
+### Aturannya
+
+Dua tanda tangan dari **dua orang berbeda**:
+
+1. satu **Program Director**, DAN
+2. satu **peran penugasan** — Area Manager (`regional_manager`), Project
+   Manager, atau Site Manager.
+
+- **Super admin tidak boleh mengisi kursi mana pun.** Ia punya seluruh
+  capability, jadi kalau gerbangnya digantung di capability, aturan ini kosong.
+  Karena itu `approveRevisionAction` memakai `requireUser()`, bukan
+  `requireCapability("rab.manage")`: yang menentukan adalah JABATAN, bukan izin.
+  Super admin tetap boleh MENJALANKAN aktivasi setelah dua orang berwenang
+  setuju — yang dilarang adalah menjadi salah satu penandatangannya.
+- **Satu orang = satu tanda tangan.** Dijaga kunci unik `(revisionId, userId)`,
+  bukan sekadar logika aplikasi.
+- **Draft berubah → tanda tangan gugur.** Menyetujui angka lalu mengubah
+  angkanya adalah cara paling sederhana melumpuhkan aturan empat mata: yang
+  diaktifkan bukan lagi yang disetujui. Suara yang lebih tua dari
+  `RabRevision.updatedAt` tidak dihitung, dan yang gugur TETAP DITAMPILKAN
+  sebagai gugur — bukan dihapus diam-diam, supaya jelas siapa perlu menyetujui
+  ulang.
+- **HPS awal dikecualikan.** Belum ada RAB aktif = tidak ada kontrak berjalan
+  yang digantikan, jadi bukan adendum.
+
+### Di mana gerbangnya
+
+`pastikanBolehAktivasi()` dipanggil SEBELUM `activateRevision()` di **setiap**
+jalur: tombol "Aktifkan draft" dan impor "Jadikan RAB AKTIF sekarang". Di jalur
+impor, tertahannya aktivasi dilaporkan sebagai **sukses** ("tersimpan sebagai
+DRAFT, butuh dua persetujuan"), bukan error — berkasnya memang sudah terbaca dan
+tersimpan; melaporkannya sebagai kegagalan hanya membuat orang mengunggah ulang.
+
+Tombol aktivasi yang terkunci selalu menyebut apa yang kurang lewat `title`,
+bukan sekadar mati.
+
+### Perbaikan yang ikut ketahuan
+
+`ImportForm` dipanggil dari halaman adendum tanpa `adaAktif`, sehingga memakai
+bawaan `false`: pilihan "Isi DRAFT adendum" TERKUNCI dengan alasan *"Belum ada
+RAB aktif"* — persis terbalik, di halaman yang hanya ada KARENA RAB aktifnya
+ada. `adaAktif` kini **wajib** (tanpa nilai bawaan) supaya pemanggil tidak bisa
+lupa; bawaan yang diam-diam salah lebih buruk daripada tidak ada bawaan.
+
+Migrasi `20260803010000_persetujuan_adendum` menambah kolom `updated_at` secara
+NULLABLE dulu → backfill hanya baris NULL → baru dikunci NOT NULL. Bentuk
+`NOT NULL DEFAULT now()` + backfill polos memang lolos pemeriksa idempotensi,
+tapi pengulangan migrasi akan MENARIK MUNDUR `updated_at` dan menghidupkan
+kembali persetujuan yang seharusnya sudah gugur — lubang yang justru ditutup
+aturan ini (DECISIONS 167).
+
+**Verifikasi**: 16 kasus unit untuk aturannya · 16 kasus integrasi (termasuk 3
+yang menembak `activateDraftAction` langsung — dibuktikan MERAH saat baris
+`pastikanBolehAktivasi` dihapus) · 5 kasus E2E lintas peran di browser (regresi
+`adaAktif` juga dibuktikan merah tanpa perbaikannya) · idempotensi migrasi diuji
+dengan MENJALANKAN ULANG berkasnya di PostgreSQL sungguhan, memeriksa
+`updated_at` tidak mundur · unit 809/809 ✓ · integrasi 301/301 ✓ · E2E ✓ ·
+`pnpm build` ✓ · typecheck ✓ · lint ✓.
