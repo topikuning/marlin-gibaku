@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1195 300" width="1195" height="300" role="img" aria-label="MARLIN wordmark">
+<defs>
+  <mask id="mask-marlin-wordmark-transparent-light" maskUnits="userSpaceOnUse" x="0" y="0" width="96" height="96">
+    <rect x="0" y="0" width="96" height="96" fill="#fff"/>
+    <path d="M10 80 C28 80 36 66 48 50 C60 34 70 26 88 18" fill="none" stroke="#000" stroke-width="11" stroke-linecap="round"/>
+    <circle cx="88" cy="18" r="7.5" fill="#000"/>
+  </mask>
+</defs>
+
+<g transform="translate(20.000,-15.000) scale(3.12500000)">
+  <path d="M10 88 L10 24 L28 24 L48 50 L68 24 L86 24 L86 88 L70 88 L70 46 L48 74 L26 46 L26 88 Z" fill="#1E3A8A" mask="url(#mask-marlin-wordmark-transparent-light)"/>
+  <path d="M10 80 C28 80 36 66 48 50 C60 34 70 26 88 18" fill="none" stroke="#D21F2A" stroke-width="5.5" stroke-linecap="round"/>
+  <circle cx="88" cy="18" r="4.5" fill="#D21F2A"/>
+</g>
+<path d="M47 0H439L536 317H1032L1133 0H1529L1017 1490H544ZM619 587 639 651C688 820 732 1008 777 1209C825 1009 874 821 926 651L946 587Z" fill="#1E3A8A" transform="translate(330.000,260.000) scale(0.13422819,-0.13422819)"/>
+<path d="M116 0H469V513H661L934 0H1321L1010 569C1175 643 1269 789 1269 995C1269 1299 1062 1490 726 1490H116ZM469 792V1204H651C817 1204 903 1134 903 995C903 856 817 792 652 792Z" fill="#1E3A8A" transform="translate(543.544,260.000) scale(0.13422819,-0.13422819)"/>
+<path d="M116 0H1092V288H469V1490H116Z" fill="#1E3A8A" transform="translate(727.557,260.000) scale(0.13422819,-0.13422819)"/>
+<path d="M469 1490H116V0H469Z" fill="#1E3A8A" transform="translate(884.993,260.000) scale(0.13422819,-0.13422819)"/>
+<path d="M116 0H478V617C478 711 468 873 456 1050C539 872 594 760 682 617L1063 0H1452V1490H1090V856C1090 752 1101 581 1111 432C1048 594 986 707 920 817L504 1490H116Z" fill="#1E3A8A" transform="translate(965.517,260.000) scale(0.13422819,-0.13422819)"/>
+</svg>

@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 640" width="1800" height="640">
+  <rect width="1800" height="640" fill="#08152E"/>
+
+  <!-- Icon -->
+  <g transform="translate(70,110) scale(4.1)">
+    <path d="M10 88 L10 24 L28 24 L48 50 L68 24 L86 24 L86 88 L70 88 L70 46 L48 74 L26 46 L26 88 Z" fill="#FFFFFF"/>
+    <path d="M10 80 C28 80 36 66 48 50 C60 34 70 26 88 18" fill="none" stroke="#08152E" stroke-width="11" stroke-linecap="round"/>
+    <path d="M10 80 C28 80 36 66 48 50 C60 34 70 26 88 18" fill="none" stroke="#EF2330" stroke-width="5.5" stroke-linecap="round"/>
+    <circle cx="88" cy="18" r="7.5" fill="#08152E"/>
+    <circle cx="88" cy="18" r="4.5" fill="#EF2330"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="1140" y="248"
+        text-anchor="middle"
+        font-family="Inter, Arial, Helvetica, sans-serif"
+        font-size="176"
+        font-weight="800"
+        letter-spacing="2"
+        fill="#FFFFFF">MARLIN</text>
+
+  <!-- Tagline -->
+  <text x="1140" y="405"
+        text-anchor="middle"
+        font-family="Inter, Arial, Helvetica, sans-serif"
+        font-size="48"
+        font-weight="400"
+        letter-spacing="0.1"
+        fill="#94A3B8">Monitoring, Analysis, Reporting &amp; Learning</text>
+  <text x="1140" y="480"
+        text-anchor="middle"
+        font-family="Inter, Arial, Helvetica, sans-serif"
+        font-size="48"
+        font-weight="400"
+        letter-spacing="0.1"
+        fill="#94A3B8">for Infrastructure Network</text>
+</svg>

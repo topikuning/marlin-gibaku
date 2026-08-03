@@ -43,11 +43,23 @@ export type BrandingState =
     }
   | undefined;
 
+/**
+ * Isian WAJIB ditolak saat kosong, bukan diam-diam dikembalikan ke bawaan.
+ *
+ * Dulu semuanya boleh kosong dan `getBranding` menambal dengan default — jadi
+ * mengosongkan kolom terlihat "berhasil disimpan" padahal nilainya kembali
+ * seperti semula, tanpa satu pun pesan. Sekarang yang wajib menolak dengan
+ * alasannya, dan yang opsional benar-benar bisa dikosongkan.
+ */
 const brandingSchema = z.object({
-  appName: z.string().trim().max(60, "Nama app maksimal 60 karakter"),
-  tagline: z.string().trim().max(160, "Tagline maksimal 160 karakter"),
+  appName: z.string().trim().min(1, "Nama aplikasi wajib diisi").max(60, "Nama app maksimal 60 karakter"),
+  tagline: z.string().trim().min(1, "Tagline wajib diisi").max(160, "Tagline maksimal 160 karakter"),
   projectContext: z.string().trim().max(160, "Konteks proyek maksimal 160 karakter"),
-  ownerName: z.string().trim().max(120, "Nama pemilik pekerjaan maksimal 120 karakter"),
+  ownerName: z
+    .string()
+    .trim()
+    .min(1, "Nama pemilik pekerjaan wajib diisi")
+    .max(120, "Nama pemilik pekerjaan maksimal 120 karakter"),
   ownerSubtitle: z.string().trim().max(160, "Keterangan pemilik pekerjaan maksimal 160 karakter"),
 });
 

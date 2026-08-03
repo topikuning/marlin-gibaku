@@ -17,6 +17,15 @@ export interface PageHeaderProps {
   actions?: ReactNode;
   breadcrumb?: BreadcrumbItem[];
   className?: string;
+  /**
+   * Di ponsel: sembunyikan breadcrumb + eyebrow + deskripsi, kecilkan judul.
+   *
+   * Untuk halaman yang tugasnya MENGISI, bukan membaca (laporan harian).
+   * Di sana tiap baris kepala menggeser kolom pertama turun satu baris lagi,
+   * dan mandor harus menggulir sebelum bisa mengetik apa pun. Isinya tidak
+   * dihapus dari desktop — cuma tidak dipaksakan ke layar 375px.
+   */
+  compactMobile?: boolean;
 }
 
 export function PageHeader({
@@ -26,11 +35,13 @@ export function PageHeader({
   actions,
   breadcrumb,
   className,
+  compactMobile = false,
 }: PageHeaderProps) {
+  const sembunyiDiPonsel = compactMobile ? "max-sm:hidden" : "";
   return (
-    <div className={cn("mb-5", className)}>
+    <div className={cn(compactMobile ? "mb-3 sm:mb-5" : "mb-5", className)}>
       {breadcrumb && breadcrumb.length > 0 ? (
-        <nav aria-label="Breadcrumb" className="mb-2">
+        <nav aria-label="Breadcrumb" className={cn("mb-2", sembunyiDiPonsel)}>
           <ol className="flex flex-wrap items-center gap-1 text-[13px] text-ink-muted">
             {breadcrumb.map((item, i) => (
               <li key={`${item.label}-${i}`} className="flex items-center gap-1">
@@ -54,13 +65,20 @@ export function PageHeader({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           {eyebrow ? (
-            <p className="text-xs font-medium tracking-wide text-ink-faint uppercase">
+            <p
+              className={cn(
+                "text-xs font-medium tracking-wide text-ink-faint uppercase",
+                sembunyiDiPonsel,
+              )}
+            >
               {eyebrow}
             </p>
           ) : null}
-          <h1 className="text-xl font-semibold text-ink">{title}</h1>
+          <h1 className={cn("font-semibold text-ink", compactMobile ? "text-base sm:text-xl" : "text-xl")}>
+            {title}
+          </h1>
           {description ? (
-            <div className="mt-1 text-sm text-ink-muted">{description}</div>
+            <div className={cn("mt-1 text-sm text-ink-muted", sembunyiDiPonsel)}>{description}</div>
           ) : null}
         </div>
         {/* BUKAN `shrink-0`: itu memerintahkan blok tombol untuk tidak pernah

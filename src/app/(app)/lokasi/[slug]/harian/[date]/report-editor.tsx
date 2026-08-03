@@ -1,10 +1,11 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
-import { Search, Send, Trash2 } from "lucide-react";
+import { ImagePlus, Search, Send, Trash2 } from "lucide-react";
 import { Banner, Button, Input, Label } from "@/components/ui";
 import { formatNumber, formatRupiah } from "@/lib/format";
 import {
+  addItemPhotosAction,
   removeItemAction,
   saveItemAction,
   submitReportAction,
@@ -82,6 +83,7 @@ export function ReportEditor({
         dateKey={dateKey}
         items={items}
         bolehHapusFoto={bolehHapusFoto}
+        photoEnabled={photoEnabled}
       />
       {photosTanpaItem.length > 0 ? (
         <section className="rounded-lg border border-border bg-surface p-3">
@@ -125,11 +127,36 @@ function ItemForm({
   const [volume, setVolume] = useState("");
   const [photoKey, setPhotoKey] = useState(0);
   const formRef = useRef<HTMLFormElement>(null);
+  const cariRef = useRef<HTMLInputElement>(null);
+  const volumeRef = useRef<HTMLInputElement>(null);
+
+  /**
+   * Alur fokus (permintaan user 2026-08-02): buka → kolom pekerjaan · pilih
+   * pekerjaan → kolom volume · simpan → kembali ke kolom pekerjaan.
+   *
+   * Ini bukan kosmetik. Pelapor lapangan mengisi belasan item berturut-turut
+   * dengan satu tangan; tiap kali harus mencari dan menyentuh kolom berikutnya,
+   * itu satu ketukan ekstra dikali belasan, dan alasan orang berhenti mengisi
+   * di tengah jalan.
+   *
+   * `requestAnimationFrame` dipakai karena kolom tujuan baru muncul SESUDAH
+   * render: kolom cari di-unmount saat pekerjaan terpilih dan di-mount lagi saat
+   * dikosongkan — memanggil focus() sebelum itu mengenai elemen yang sudah tidak
+   * ada.
+   */
+  const fokus = (ref: React.RefObject<HTMLInputElement | null>) =>
+    window.requestAnimationFrame(() => ref.current?.focus());
+
+  useEffect(() => {
+    const id = fokus(cariRef);
+    return () => window.cancelAnimationFrame(id);
+  }, []);
 
   // Reset form + hapus draft lokal node ini setelah sukses simpan.
   // setState via callback timeout (bukan sinkron di effect) — patuh react-hooks/set-state-in-effect.
   useEffect(() => {
     if (!state?.success) return;
+    let raf = 0;
     const timer = window.setTimeout(() => {
       setPicked((prev) => {
         if (prev) {
@@ -145,8 +172,12 @@ function ItemForm({
       setVolume("");
       setPhotoKey((k) => k + 1);
       formRef.current?.reset();
+      raf = fokus(cariRef);
     }, 0);
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      window.cancelAnimationFrame(raf);
+    };
   }, [state, slug, dateKey]);
 
   const matches = useMemo(() => {
@@ -167,6 +198,7 @@ function ItemForm({
     } catch {
       setVolume("");
     }
+    fokus(volumeRef);
   }
 
   function onVolumeChange(v: string) {
@@ -200,8 +232,50 @@ function ItemForm({
         <Label htmlFor="dr-search" required>
           1 · Pekerjaan
         </Label>
-        {picked ? (
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-primary bg-primary-50 px-4 py-3">
+        {/* Kolom cari SELALU TERPASANG DAN TERLIHAT, bahkan saat pekerjaan
+            sudah dipilih. Bukan soal tata letak: papan ketik ponsel hanya mau
+            terbuka dari gestur pengguna. Dulu kolom ini di-unmount saat ada
+            pilihan, jadi ketika "Simpan Progres" ditekan tidak ada elemen yang
+            bisa difokuskan di dalam gestur itu — fokus baru dipasang setelah
+            aksi server selesai, dan papan ketik tetap tertutup sampai pelapor
+            mengetuk sendiri. Sekarang fokus dipindah SINKRON di dalam ketukan
+            tombol simpan, sehingga papan ketik tidak pernah sempat menutup. */}
+        {/* SELAMA MENYIMPAN, kolom ini TIDAK boleh terlihat siap dipakai.
+            Laporan user 2026-08-02: fokus sudah kembali padahal simpan + unggah
+            foto belum selesai — pelapor mengira item berikutnya sudah bisa
+            diketik, padahal yang sebelumnya masih berjalan.
+
+            `readOnly` (bukan `disabled`) dipilih dengan sengaja: elemen yang
+            di-`disabled` KEHILANGAN FOKUS, dan begitu fokus lepas papan ketik
+            ponsel menutup — persis masalah yang baru saja diperbaiki. readOnly
+            menahan fokus, menolak ketikan, dan mengganti placeholder jadi
+            keterangan proses. Begitu aksi selesai, kolomnya hidup lagi. */}
+        <div className="relative">
+          <Search aria-hidden className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-faint" />
+          <Input
+            id="dr-search"
+            ref={cariRef}
+            value={pending ? "" : query}
+            onChange={(e) => setQuery(e.target.value)}
+            readOnly={pending}
+            aria-busy={pending}
+            inputMode="search"
+            placeholder={
+              pending
+                ? "Menyimpan progres & mengunggah foto…"
+                : picked
+                  ? "Ketik untuk ganti pekerjaan…"
+                  : "Ketik nama / kode pekerjaan…"
+            }
+            className={`h-11 pl-9 text-base ${pending ? "bg-surface-muted text-ink-faint" : ""}`}
+          />
+        </div>
+        {/* Hasil pencarian menang atas kartu pilihan: begitu pelapor mulai
+            mengetik, yang ingin dilihatnya adalah daftar, bukan pilihan lama.
+            Selama menyimpan, kartu pekerjaan yang sedang disimpan TETAP
+            tampil — itu yang memberi tahu "yang ini sedang diproses". */}
+        {query && !pending ? null : picked ? (
+          <div className="mt-2 flex items-center justify-between gap-3 rounded-lg border border-primary bg-primary-50 px-4 py-3">
             <div className="min-w-0">
               {picked.category ? (
                 <div className="truncate text-[11px] font-medium text-primary">{picked.category}</div>
@@ -226,25 +300,21 @@ function ItemForm({
                 </p>
               ) : null}
             </div>
-            <Button type="button" variant="secondary" size="sm" onClick={() => setPicked(null)}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setPicked(null);
+                fokus(cariRef);
+              }}
+            >
               Ganti
             </Button>
           </div>
-        ) : (
-          <>
-            <div className="relative">
-              <Search aria-hidden className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-ink-faint" />
-              <Input
-                id="dr-search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                inputMode="search"
-                placeholder="Ketik nama / kode pekerjaan…"
-                className="h-11 pl-9 text-base"
-              />
-            </div>
-            {query ? (
-              <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-border bg-surface">
+        ) : null}
+        {query && !pending ? (
+          <div className="mt-2 max-h-64 overflow-y-auto rounded-lg border border-border bg-surface">
                 {matches.length === 0 ? (
                   <div className="px-4 py-3 text-sm text-ink-muted">Tidak ada yang cocok.</div>
                 ) : (
@@ -275,10 +345,8 @@ function ItemForm({
                     </button>
                   ))
                 )}
-              </div>
-            ) : null}
-          </>
-        )}
+          </div>
+        ) : null}
       </div>
 
       {/* 2 · Volume */}
@@ -289,6 +357,7 @@ function ItemForm({
         <div className="relative">
           <Input
             id="dr-volume"
+            ref={volumeRef}
             name="volumeDone"
             type="number"
             inputMode="decimal"
@@ -331,7 +400,16 @@ function ItemForm({
         <Input id="dr-notes" name="notes" maxLength={500} placeholder="mis. cor kolom L2 utara" className="h-11 text-base" />
       </div>
 
-      <Button type="submit" loading={pending} disabled={!picked} className="h-12 w-full text-base">
+      <Button
+        type="submit"
+        loading={pending}
+        disabled={!picked}
+        className="h-12 w-full text-base"
+        // Fokus dipindah SINKRON di dalam ketukan — lihat catatan di kolom cari.
+        // Ini yang membuat papan ketik tetap terbuka dan siap diketik begitu
+        // simpan selesai, bukan sekadar kolomnya bergaris biru.
+        onClick={() => cariRef.current?.focus()}
+      >
         Simpan Progres
       </Button>
       <p className="text-center text-[11px] text-ink-muted">
@@ -343,18 +421,108 @@ function ItemForm({
 
 // ─────────────────────────────────────────────────────────────
 
+/**
+ * Tambah foto MENYUSUL untuk item yang sudah tersimpan (DECISIONS 226).
+ *
+ * Ditutup secara bawaan: yang sudah punya foto tidak perlu melihat form unggah
+ * di tiap baris. Yang BELUM punya foto disebut terang-terangan ("Belum ada
+ * foto") — kalau hanya ada tombol, ketiadaan foto tidak kelihatan sampai
+ * laporan sudah telanjur dikirim.
+ */
+function TambahFoto({ reportId, itemId, sudahAdaFoto }: { reportId: string; itemId: string; sudahAdaFoto: boolean }) {
+  const [state, formAction, pending] = useActionState<DailyActionState, FormData>(addItemPhotosAction, undefined);
+  const [buka, setBuka] = useState(false);
+  const [photoKey, setPhotoKey] = useState(0);
+  const panelRef = useRef<HTMLFormElement>(null);
+
+  /**
+   * Buka panel LALU pindahkan fokus ke dalamnya.
+   *
+   * Tanpa ini fokus tetap tertinggal di kolom pekerjaan jauh di atas — kolom itu
+   * difokuskan saat halaman dibuka dan tidak pernah dilepas — sedangkan tombol
+   * yang baru diketuk lenyap dari DOM (diganti panel). Peramban lalu menarik
+   * pandangan kembali ke elemen berfokus di atas: pelapor menekan "Tambah foto"
+   * di bawah, layarnya melompat ke atas. Laporan user 2026-08-03.
+   *
+   * `preventScroll` supaya perpindahan fokus tidak ikut menggeser pandangan;
+   * panelnya memang sudah berada di tempat jari mengetuk.
+   */
+  const bukaPanel = () => {
+    setBuka(true);
+    window.requestAnimationFrame(() => panelRef.current?.focus({ preventScroll: true }));
+  };
+
+  // Sukses → tutup form & buang pratinjau lama, supaya berkas yang sama tidak
+  // ikut terkirim lagi pada unggahan berikutnya.
+  useEffect(() => {
+    if (!state?.success) return;
+    const timer = window.setTimeout(() => {
+      setBuka(false);
+      setPhotoKey((k) => k + 1);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [state]);
+
+  if (!buka) {
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        {!sudahAdaFoto ? (
+          <span className="inline-flex items-center gap-1 rounded bg-warning-soft px-1.5 py-0.5 text-[11px] font-medium text-warning">
+            <ImagePlus aria-hidden className="size-3" /> Belum ada foto
+          </span>
+        ) : null}
+        {state?.success ? <span className="text-[11px] text-success">{state.success}</span> : null}
+        <Button type="button" variant="ghost" size="sm" onClick={bukaPanel}>
+          <ImagePlus aria-hidden className="size-4" />
+          {sudahAdaFoto ? "Tambah foto" : "Tambahkan foto"}
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <form
+      ref={panelRef}
+      action={formAction}
+      // tabIndex -1: bisa menerima fokus lewat kode, tapi tidak masuk urutan Tab.
+      tabIndex={-1}
+      aria-label="Tambah foto untuk pekerjaan ini"
+      className="space-y-2 rounded-md border border-border bg-surface-muted p-3 outline-none"
+    >
+      <input type="hidden" name="reportId" value={reportId} />
+      <input type="hidden" name="itemId" value={itemId} />
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      {state?.warning ? <Banner tone="warning" title="Sebagian foto gagal" description={state.warning} /> : null}
+      <p className="text-xs text-ink-muted">
+        Foto ditambahkan ke pekerjaan ini. Volume dan catatan yang sudah tersimpan tidak berubah.
+      </p>
+      <PhotoSourceInput key={photoKey} latName="photoLat" lngName="photoLng" />
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" size="sm" loading={pending}>
+          Simpan foto
+        </Button>
+        <Button type="button" variant="secondary" size="sm" onClick={() => setBuka(false)}>
+          Batal
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 function ItemRow({
   reportId,
   slug,
   dateKey,
   item,
   bolehHapusFoto,
+  photoEnabled,
 }: {
   reportId: string | null;
   slug: string;
   dateKey: string;
   item: WorkspaceItem;
   bolehHapusFoto: boolean;
+  photoEnabled: boolean;
 }) {
   const [state, formAction, pending] = useActionState<DailyActionState, FormData>(removeItemAction, undefined);
 
@@ -404,6 +572,12 @@ function ItemRow({
           deleteAction={removeReportPhotoAction}
         />
       ) : null}
+      {/* Foto ketinggalan itu keadaan yang wajar — jalan memperbaikinya harus
+          ada DI SINI, bukan lewat menyimpan ulang item dan mengetik ulang
+          volume yang sudah benar (DECISIONS 226). */}
+      {reportId && bolehHapusFoto && photoEnabled ? (
+        <TambahFoto reportId={reportId} itemId={item.id} sudahAdaFoto={item.photos.length > 0} />
+      ) : null}
     </li>
   );
 }
@@ -414,12 +588,14 @@ function ItemList({
   dateKey,
   items,
   bolehHapusFoto,
+  photoEnabled,
 }: {
   reportId: string | null;
   slug: string;
   dateKey: string;
   items: WorkspaceItem[];
   bolehHapusFoto: boolean;
+  photoEnabled: boolean;
 }) {
   if (items.length === 0) {
     return (
@@ -442,6 +618,7 @@ function ItemList({
             dateKey={dateKey}
             item={it}
             bolehHapusFoto={bolehHapusFoto}
+            photoEnabled={photoEnabled}
           />
         ))}
       </ul>

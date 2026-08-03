@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 260" width="1400" height="260">
+  <g transform="translate(28,28) scale(1.85)">
+  <path d="M10 88 L10 24 L28 24 L48 50 L68 24 L86 24 L86 88 L70 88 L70 46 L48 74 L26 46 L26 88 Z" fill="#1E3A8A"/>
+  <path d="M10 80 C28 80 36 66 48 50 C60 34 70 26 88 18" fill="none" stroke="#FFFFFF" stroke-width="11" stroke-linecap="round"/>
+  <path d="M10 80 C28 80 36 66 48 50 C60 34 70 26 88 18" fill="none" stroke="#D21F2A" stroke-width="5.5" stroke-linecap="round"/>
+  <circle cx="88" cy="18" r="7.5" fill="#FFFFFF"/>
+  <circle cx="88" cy="18" r="4.5" fill="#D21F2A"/>
+</g>
+  <text x="865" y="114" text-anchor="middle" font-family="Inter, Arial, Helvetica, sans-serif" font-size="100" font-weight="800" letter-spacing="2.5" fill="#0F172A">MARLIN</text>
+  <text x="865" y="176" text-anchor="middle" font-family="Inter, Arial, Helvetica, sans-serif" font-size="31" font-weight="400" letter-spacing="0.1" fill="#64748B">Monitoring, Analysis, Reporting &amp; Learning</text>
+  <text x="865" y="218" text-anchor="middle" font-family="Inter, Arial, Helvetica, sans-serif" font-size="31" font-weight="400" letter-spacing="0.1" fill="#64748B">for Infrastructure Network</text>
+</svg>

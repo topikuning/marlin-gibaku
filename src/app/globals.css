@@ -118,3 +118,21 @@
     scroll-behavior: auto !important;
   }
 }
+
+/*
+ * `fieldset` TIDAK BOLEH menolak mengecil.
+ *
+ * Peramban memberi `<fieldset>` `min-inline-size: min-content` bawaan — satu-
+ * satunya elemen umum yang begitu. Akibatnya isi yang lebar (mis. pita cuaca
+ * per jam 07–21) MELEBARKAN fieldset-nya, lalu form, kartu, dan seluruh
+ * halaman — dan `overflow-x-auto` di dalamnya tidak pernah kebagian
+ * kesempatan menggulung, karena induknya memang sudah ikut melebar.
+ *
+ * Cacatnya cuma terlihat pada KEADAAN TERTENTU (cuaca sudah diambil), jadi ia
+ * lolos dari sapuan overflow yang membuka halaman apa adanya. Diperbaiki di
+ * satu tempat, bukan per-fieldset: yang berikutnya dibuat orang lain pun ikut
+ * aman. DECISIONS 230.
+ */
+fieldset {
+  min-inline-size: 0;
+}

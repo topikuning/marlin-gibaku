@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getBranding } from "@/lib/branding";
+import { BrandWordmark } from "@/components/ui/brand-mark";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = { title: "Masuk" };
@@ -14,14 +15,13 @@ export default async function MasukPage() {
     <main className="flex min-h-dvh items-center justify-center bg-slate-100 px-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
-          <div className="text-2xl font-bold tracking-tight text-primary">
-            {brand.appName}
-            <span className="ml-1 inline-block h-2 w-2 rounded-full bg-brand-red align-middle" />
-          </div>
+          <BrandWordmark tinggi={44} className="mx-auto mb-3" />
           {/* Tagline (kepanjangan MARLIN) = identitas utama global. */}
           <p className="mt-1 text-sm font-medium text-ink">{brand.tagline}</p>
           {/* Konteks proyek = tambahan. */}
-          <p className="mt-0.5 text-xs text-ink-muted">{brand.projectContext}</p>
+          {brand.projectContext ? (
+            <p className="mt-0.5 text-xs text-ink-muted">{brand.projectContext}</p>
+          ) : null}
         </div>
         <LoginForm />
       </div>

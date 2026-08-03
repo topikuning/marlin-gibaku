@@ -6940,3 +6940,614 @@ itu tak tersentuh uji unit.
 disebut berikut tempat mengisinya; nonaktif terpisah; nol penugasan → diarahkan
 ke Lokasi bukan Pengguna; lingkup kosong → syarat disebut; keadaan sehat → tidak
 mengarang masalah) · `pnpm build` ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 222 — ID pesan WAHA bukan bukti sampai (2026-08-02)
+
+Log server user, sesudah menekan tombol pengingat:
+
+```
+error 463: account restricted or missing tctoken for contact
+msgId: 3EB052C20C9F6C2394177D  from: 6287776689958@s.whatsapp.net  engine: NOWEB
+```
+
+WhatsApp membatasi nomor pengirim untuk menghubungi nomor **baru** — keadaan di
+sisi akun, bukan cacat kode.
+
+### Yang perlu dikoreksi di sisi MARLIN
+
+DECISIONS 207 menetapkan `msgId` sebagai bukti kirim, dan komentar di
+`harian/actions.ts` menyebutnya "satu-satunya bukti bahwa pesannya benar-benar
+diterima antrean". Log ini membuktikan klaim itu terlalu jauh: **id sudah
+terbit, pesan tidak pernah berangkat.** Penolakan 463 terjadi di dalam mesin
+WAHA, SESUDAH respons API, jadi tidak terlihat sama sekali dari sisi pemanggil.
+
+Kalimat hasil kirim sekarang menyebut batas pengetahuannya sendiri — "WAHA
+MENERIMA permintaannya, bukan jaminan sampai" — dan menunjuk log WAHA berikut
+error 463 bila penerima melapor tidak menerima apa pun. Yang berubah bukan
+angkanya, melainkan klaim yang menempel padanya.
+
+### Koreksi diagnosis sebelumnya
+
+Diagnosis "0 dari 8 user punya nomor WA" (DECISIONS 221) diambil dari **basis
+data uji lokal**, bukan produksi. Di produksi nomornya jelas ada — pesannya
+sampai ke WAHA dan ditolak WhatsApp. Kedua temuan itu nyata, tapi menjelaskan
+kejadian yang berbeda; perbaikan 221 tetap berlaku untuk keadaan "daftar tujuan
+kosong", bukan untuk kejadian yang dilaporkan user ini.
+
+### Yang belum
+
+MARLIN tidak punya cara mengetahui nasib pesan sesudah terkirim. Jalan keluarnya
+menerima webhook status dari WAHA (`message.ack`: sent → delivered → read) dan
+merekonsiliasinya ke `DailyReminderLog`, sehingga "terkirim" bisa naik jadi
+"sampai" atau turun jadi "ditolak". Ditunda: menambah endpoint webhook baru dan
+perlu keputusan user. Dicatat di `OPEN_ISSUES.md` WA-01.
+
+---
+
+## 223 — Logo resmi MARLIN dipasang; cap foto berhenti memakai tiruan (2026-08-02)
+
+User mengirim `logo_Marlin.zip` — lockup, ikon, favicon, dan varian mono —
+dengan permintaan menerapkannya ke seluruh aplikasi, termasuk mengganti logo di
+cap foto.
+
+### Yang paling perlu diperbaiki: cap foto
+
+Logo di cap foto selama ini **digambar ulang dengan tangan**: wordmark
+Montserrat, huruf "A" beraksen oranye, plus baris "PROJECT CONTROL". Itu tiruan
+yang dibuat sebelum berkas resminya ada — dan tiruan yang beredar di ribuan foto
+lapangan adalah cara paling pelan merusak identitas. "PROJECT CONTROL" bahkan
+bukan bagian dari logo mana pun; ia karangan.
+
+Sekarang cap memakai ikon resmi + wordmark. Tagline resmi ("Monitoring,
+Analysis, Reporting & Learning for Infrastructure Network") sengaja **tidak**
+dicap: di foto lapangan ia terlalu kecil untuk terbaca dan hanya memakan ruang
+yang dibutuhkan data bukti.
+
+### Geometri ikon jadi satu sumber
+
+Cap foto dirakit sebagai SATU string SVG lalu diraster sharp — ia tidak bisa
+`<img src>`. Kalau path-nya disalin ke sana, suatu hari berkas resmi dan cap
+akan berbeda, dan yang berbeda itu logo.
+
+Karena itu path ikon ditaruh di `lib/brand-mark.ts` (koordinat mengikuti viewBox
+0 0 96 96 persis seperti berkas aslinya), dipakai BERSAMA oleh cap foto dan
+komponen web `ui/brand-mark.tsx`. Berkas resmi tetap ada di `public/brand/`
+untuk keperluan di luar aplikasi: kop surat, profil WhatsApp, materi cetak.
+
+Varian **putih** dipakai di cap karena cap menumpang di atas foto apa pun;
+kurvanya diberi outline gelap supaya tidak lenyap begitu latarnya kebetulan
+seterang tinta.
+
+### Sisanya
+
+- `src/app/icon.svg` + `apple-icon.png` — favicon & ikon iOS (sebelumnya TIDAK
+  ADA sama sekali).
+- `src/app/manifest.ts` — PWA, supaya MARLIN bisa dipasang di layar depan HP
+  mandor dengan ikon resminya, bukan tangkapan layar halaman. Nama dibaca dari
+  branding (DECISIONS 166), tapi IKONNYA tetap ikon aplikasi: ia identitas
+  produk, bukan identitas pemilik pekerjaan — logo pemilik punya tempatnya
+  sendiri di kop blanko.
+- Sidebar: batang merah polos diganti ikon resmi. Topbar mobile & halaman
+  Masuk: ikon ditambahkan di samping/atas nama aplikasi.
+
+**Verifikasi**: 6 kasus unit baru — path ikon resmi benar-benar tertanam di SVG
+cap, wordmark tetap ada, "PROJECT CONTROL" sudah tidak dicap, varian putih
+ber-outline, varian warna memakai biru/merah resmi, penskalaan lewat `transform`
+(bukan menulis ulang koordinat) · `pnpm build` ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 224 — Cap foto memakai lockup resmi apa adanya; panel perusahaan berhenti sebelum lockup (2026-08-02)
+
+**Konteks**: user mengirim `MARLIN_logo_final_compact_dark.svg` (revisi kedua,
+viewBox 1800×640) dan meminta: "gunakan svg ini untuk bagian itu" — bagian itu =
+logo di kepala cap foto.
+
+### Lockup diambil apa adanya, bukan dirakit ulang
+
+DECISIONS 223 baru saja mengganti logo karangan dengan ikon + wordmark **rakitan
+sendiri**. Itu masih rakitan. Sekarang tata letaknya diambil persis dari berkas:
+ikon di `translate(70,110) scale(4.1)`, wordmark 176/800 di (1140,248), dua baris
+tagline 48 di y=405 & y=480. Angkanya hidup di `lib/brand-mark.ts`
+(`lockupSvgInner`) — satu sumber dengan berkas di `public/brand/`, dijaga uji
+yang membandingkan keduanya.
+
+Tagline yang di 223 sengaja dibuang sekarang **ikut dicap**: pada lebar 26% sisi
+terpanjang ia terbaca, dan ia bagian dari logo yang dikirim.
+
+**Warna revisi dipakai apa adanya**: merah `#EF2330` (paket pertama `#D21F2A`)
+dan tagline `#94A3B8`. Yang lebih baru adalah yang dikirim belakangan;
+menyelaraskan diam-diam ke palet lama berarti mengembalikan revisi yang sudah
+diputuskan user.
+
+### Plat gelap DIBUANG di cap foto — koreksi dalam sesi yang sama
+
+Awalnya plat `#08152E` dipertahankan dengan alasan wordmark putih dan tagline
+abu-muda lenyap di atas foto siang. User menolak: *"hasil stampmu konyol, yang
+aku harapkan itu area background biru itu jadi transparant, kenapa kamu malah
+biarkan itu blok seperti itu"*. Benar — blok pekat di sudut foto menutup bukti,
+dan cap seharusnya menumpang di atas foto, bukan menutupinya.
+
+Masalah keterbacaan itu nyata, tapi plat bukan satu-satunya jawabannya. Yang
+dipakai sekarang teknik yang sudah dipakai SELURUH teks cap lain: halo gelap
+tipis di sekeliling tiap bentuk (`paint-order="stroke"`, `#08152E` @0,6) plus
+tagline dinaikkan dari `#94A3B8` ke putih. Diperiksa pada tiga latar — langit
+terang, beton abu, bayangan gelap — ketiganya terbaca.
+
+`lockupSvgInner` tetap punya varian **berplat** untuk penyaji latar gelap yang
+bukan foto; yang tanpa plat khusus cap.
+
+### Dua keluarga font — jebakan subset
+
+Font display yang dibenamkan cap (family `ML`, Montserrat) adalah **subset**:
+isinya hanya huruf yang dulu dibutuhkan wordmark, tanpa huruf kecil sama sekali.
+Tagline penuh huruf kecil, koma, dan "&"; dirender dengan `ML` ia keluar sebagai
+kotak kosong — dan cacat itu baru ketahuan setelah ribuan foto tercap. Karena itu
+`lockupSvgInner` menerima `fontWordmark` dan `fontTagline` terpisah.
+
+Nama font di berkas ("Inter") **tidak** diteruskan: server peraster tidak punya
+Inter, dan nama font yang tidak ada berarti bentuk logo berubah-ubah per mesin.
+
+Berat tagline di berkas 600, tetapi font teks cap hanya membenamkan 400 & 700.
+Yang ditulis **700** — berat yang memang ada, bukan berat yang harus ditebak
+peraster.
+
+### Panel perusahaan berhenti sebelum lockup
+
+Lockup lebih lebar dari logo lama, dan itu menyingkap cacat yang sudah ada:
+panel perusahaan tidak pernah dibatasi. Nama panjang ("PT. PEMBANGUNAN
+PERUMAHAN NUSANTARA SEJAHTERA ABADI (PERSERO) TBK") menyelinap di bawah lockup
+lalu keluar tepi kanan foto. Cap sudah terbakar ke gambar — tidak ada kesempatan
+kedua memperbaikinya.
+
+Sekarang panel dibatasi sampai tepi kiri lockup: font dikecilkan dulu, baru
+dipotong dengan elipsis (pola `fitBadge`).
+
+Sekalian: lebar teks panel dihitung dengan faktor **terukur**, bukan `estWidth`.
+Merender lima nama perusahaan nyata lalu memangkas tepi tintanya memberi 0,566
+(campuran) sampai 0,695 (kapital penuh) per huruf; `estWidth` memakai 0,60 untuk
+tebal, jadi ia meleset ke bawah untuk nama kapital — dan nama perusahaan hampir
+selalu kapital. Itulah sebabnya teks menyembul keluar panel. Dipakai 0,72:
+kelebihan lebar hanya menyisakan ruang kosong, kekurangan lebar merusak cap.
+
+### Sekalian: uji PDF periodik tidak lagi gagal-hilang-timbul
+
+`tests/unit/pdf-periodik-kkp.test.ts` memakai batas 5 detik bawaan; render PDF
+pertama menarik pdfkit + font-nya sekali, dan di runner sibuk impor dingin itu
+saja bisa lewat. Batasnya dinaikkan ke 30 detik — uji yang kadang merah
+mengajari orang mengabaikan merah.
+
+**Verifikasi**: 16 kasus unit (naik dari 6) — tata letak lockup dibandingkan
+langsung dengan berkas resmi, kedua baris tagline tercap, warna revisi apa
+adanya, plat TIDAK ikut tercap, halo ada di wordmark/tagline/huruf M, tagline
+putih (bukan abu), varian berplat masih utuh untuk penyaji non-foto,
+wordmark/tagline memakai keluarga font berbeda, berat tagline 700, panel berhenti
+sebelum lockup pada 3 rasio foto, nama panjang dipotong elipsis, lockup tidak
+melewati tepi kanan · raster nyata diperiksa mata: lanskap 1600×1200, potret
+1080×1440, dan lockup di atas tiga latar (terang/abu/gelap) — glyph tagline utuh
+tanpa kotak kosong, terbaca di ketiganya · `pnpm vitest run tests/unit` 771/771 ✓
+· `pnpm build` ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 225 — Saklar "foto galeri tanpa GPS →" dibuang (2026-08-02)
+
+**Konteks**: user melihat sisa saklar `Foto galeri tanpa GPS → [pakai titik
+lokasi proyek ▾]` di bawah tombol Kamera/Galeri dan bertanya: *"dengan alur yang
+sudah kita bahas tadi, apakah ini masih relevan?"*
+
+**Tidak.** Saklar itu dibuat SEBELUM ada konfirmasi "kamu sedang berada di lokasi
+proyek?" (DECISIONS 220). Sesudah pertanyaan itu ada, seluruh rantai koordinat
+sudah ditentukan jawaban pelapor:
+
+- Jawab **YA** → EXIF foto → posisi perangkat sekarang → titik lokasi proyek.
+- Jawab **TIDAK** → EXIF foto → titik lokasi proyek (posisi perangkat tidak
+  dikirim sama sekali; menandai foto dengan posisi kantor lebih buruk daripada
+  tidak menandai).
+
+Saklar itu jadi tempat **kedua** untuk menjawab hal yang sama, dan ia bisa
+membatalkan jawaban yang baru saja diberikan. Lebih buruk lagi nilai bawaannya
+— "pakai titik lokasi proyek" — justru perilaku yang sedang diperbaiki
+(*"kebanyakan foto ditag dengan lokasi default"*). Ia juga tampil terus-menerus,
+termasuk saat memakai Kamera, di mana ia tidak berpengaruh apa pun.
+
+Saklar yang bisa membatalkan jawaban barusan bukan keluwesan, itu jebakan.
+
+Gantinya satu kalimat yang muncul **sesudah** dijawab, menyebutkan koordinat mana
+yang akan menempel di foto. Langkah terakhir tetap titik lokasi proyek sesuai
+yang diminta user, selalu ber-penanda `gpsSource = project` sehingga tidak pernah
+terhitung sebagai bukti GPS (DECISIONS 197).
+
+Sisi server tidak berubah: `galleryFallback` masih diterima (kegiatan lapangan
+memakainya) dan defaultnya "project".
+
+---
+
+## 226 — Alur isi cepat laporan harian + foto menyusul (2026-08-02)
+
+Permintaan user 2026-08-02, dua hal yang saling melengkapi: kecepatan mengisi,
+dan jalan keluar saat foto ketinggalan.
+
+### Alur fokus: buka → pekerjaan · pilih → volume · simpan → pekerjaan lagi
+
+*"behaviour ini penting untuk kecepatan dan kemudahan bagi pengguna."*
+
+Ini bukan kosmetik. Pelapor lapangan mengisi belasan item berturut-turut dengan
+satu tangan; tiap kali harus mencari dan menyentuh kolom berikutnya, itu satu
+ketukan ekstra dikali belasan — dan alasan orang berhenti mengisi di tengah
+jalan. Tombol "Ganti" juga mengembalikan fokus ke kolom pekerjaan.
+
+Fokus dipindah lewat `requestAnimationFrame`, bukan langsung: kolom cari
+di-unmount saat pekerjaan terpilih dan di-mount lagi saat dikosongkan, jadi
+memanggil `focus()` sebelum render selesai mengenai elemen yang sudah tidak ada.
+
+`InputProps` sekarang menyebut `ref` secara eksplisit. React 19 mengoper `ref`
+sebagai prop biasa ke komponen fungsi, tetapi `InputHTMLAttributes` tidak
+memuatnya — tanpa itu pemanggil tidak bisa memindahkan fokus sama sekali.
+
+### Foto menyusul untuk item yang sudah tersimpan
+
+*"jika pekerjaan berhasil disimpan, tapi foto belum ada, saat ini belum ada
+kejelasan bagaimana edit/menambahkan foto yang ketinggalan. kamu belum handle
+masalah ini."* — Memang belum.
+
+Foto itu OPSIONAL saat menyimpan, jadi ketinggalan foto adalah keadaan yang
+WAJAR, bukan kasus tepi. Satu-satunya jalan yang tersedia sebelumnya adalah
+memilih ulang pekerjaan yang sama di form atas lalu menyimpan ulang — yang
+memaksa pelapor MENGETIK ULANG volume yang sudah benar. Satu salah ketik di situ
+mengubah angka progres; menambah foto tidak boleh punya risiko itu.
+
+Sekarang tiap baris item punya "Tambahkan foto" sendiri (`addItemPhotosAction`)
+yang TIDAK menyentuh volume maupun catatan. Item yang belum punya foto diberi
+penanda "Belum ada foto" — kalau hanya ada tombol, ketiadaan foto tidak
+kelihatan sampai laporan telanjur dikirim.
+
+Batasnya sama dengan hapus foto: hanya selama laporan masih draft / perlu
+koreksi. Begitu dikirim, foto sudah jadi dasar verifikasi — menambah bukti
+setelah itu bukan koreksi.
+
+Aturan cap foto DISATUKAN di satu fungsi (`unggahFotoItem`) yang dipakai kedua
+jalur. Aturan cap yang diduplikasi berarti foto susulan suatu hari bercap beda
+dari foto yang menyertai itemnya — dan bedanya baru ketahuan dari berkas yang
+sudah terbakar.
+
+Nol foto berhasil dilaporkan sebagai GAGAL, bukan "sukses sebagian": pesan
+sukses atas nol hasil adalah cara paling cepat membuat orang berhenti membaca
+pesan.
+
+**Verifikasi**: 8 kasus integrasi baru (volume & catatan tidak berubah, cap
+menyebut bangunan + pekerjaan, tanggal kerja item bukan tanggal unggah, jawaban
+"di lokasi" diteruskan, laporan terkirim ditolak, perlu-koreksi boleh, tanpa
+berkas ditolak, item milik laporan lain ditolak, semua-gagal = gagal) · 2 kasus
+E2E browser sungguhan untuk alur fokus & penanda "Belum ada foto" — fokus tidak
+bisa dibuktikan tanpa browser · unit 771/771 ✓ · integrasi 278/278 ✓ · E2E 34
+lulus (16 dilewati sesuai kondisi) ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 227 — Wordmark resmi + kepala cap sejajar + alur isi ponsel (2026-08-02)
+
+Empat permintaan user dalam satu putaran, plus berkas logo baru.
+
+### Wordmark resmi menggantikan lockup — dan jebakan font hilang
+
+User mengirim `marlin-wordmark-transparent-light.svg` (viewBox 1195×300,
+transparan) dan meminta ia dipakai di cap foto DAN di area logo web.
+
+Yang penting bukan cuma bentuknya: **hurufnya PATH, bukan teks**. Cap foto dulu
+harus membenamkan font Montserrat subset hanya untuk menulis "MARLIN", dan subset
+itu jadi jebakan yang hampir lolos (DECISIONS 224 — tagline berhuruf kecil akan
+keluar sebagai kotak kosong). Dengan path, bentuk logo identik di server
+peraster, di layar, dan di berkas resmi, tanpa font sama sekali. Jebakan itu
+sekarang hilang dengan sendirinya.
+
+**Warna resmi dipertahankan** (navy `#1E3A8A` + merah `#D21F2A`). Yang
+ditambahkan hanya HALO PUTIH: navy di atas bayangan malam sama gelapnya dengan
+latarnya. Halo putih — bukan gelap — supaya di foto terang ia praktis tak
+terlihat dan yang tampak tetap warna resmi. Tebal halo dihitung TERPISAH untuk
+huruf dan ikon: keduanya hidup di ruang koordinat berbeda (huruf 0,134×, ikon
+3,125×), jadi satu angka stroke yang sama akan tampil ~23× lebih tebal di ikon.
+
+Di web, `BrandWordmark` menggantikan rakitan "ikon + teks MARLIN" di sidebar,
+topbar ponsel, dan halaman Masuk. Rakitan itu bergantung pada font UI yang
+kebetulan terpasang, jadi jarak huruf & bobotnya tidak pernah persis sama dengan
+logo resmi.
+
+### Kepala cap: panel dan logo berbagi satu garis
+
+User mengirim gambar contoh. Sebelumnya panel perusahaan menempel mati di sudut
+(0,0) sementara logo inset — keduanya tidak pernah sejajar dan jarak ke tepi foto
+berbeda kiri-kanan. Sekarang keduanya masuk ke marjin aman yang sama dan berbagi
+satu garis tengah; tinggi wordmark diikat ke tinggi panel (bukan ke lebar foto),
+supaya hubungan "logo vs nama perusahaan" tidak berubah antara potret dan
+lanskap.
+
+### Konfirmasi lokasi galeri jadi DIALOG
+
+*"terlalu kecil … terlalu banyak penjelasan di situ, langsung saja button."*
+Benar. Pertanyaan yang menentukan koordinat mana yang menempel di bukti tidak
+boleh terlihat sebagai catatan kaki di sela-sela form, dan paragraf di atas dua
+tombol hanya membuat orang menekan yang pertama tanpa membaca. Sekarang: dialog
+modal, satu kalimat pertanyaan, dua tombol setinggi jempol.
+
+Sekalian diperbaiki cacat yang belum sempat terlihat: pemilih berkas dulu dibuka
+DI DALAM callback geolokasi. Peramban seluler hanya mengizinkan pemilih berkas
+dibuka dari gestur pengguna — menundanya sampai GPS menjawab (bisa 10 detik, atau
+tidak pernah) membuat ketukan "Ya, saya di lokasi" tampak tidak melakukan
+apa-apa. Sekarang pemilih dibuka lebih dulu, GPS berjalan paralel dan mengisi
+field tersembunyi selagi pelapor memilih foto.
+
+### Papan ketik: fokus saja tidak cukup
+
+DECISIONS 226 memindahkan fokus kembali ke kolom pekerjaan setelah simpan, tapi
+user melaporkan papan ketik tetap tertutup. Benar, dan sebabnya struktural:
+papan ketik ponsel hanya mau terbuka dari GESTUR pengguna, sedangkan fokus tadi
+dipasang setelah aksi server selesai — jauh di luar gestur.
+
+Kolom cari sekarang **selalu terpasang dan terlihat**, bahkan saat pekerjaan
+sudah dipilih (dulu ia di-unmount, jadi tidak ada yang bisa difokuskan saat
+tombol ditekan). Fokus dipindah SINKRON di dalam ketukan "Simpan Progres",
+sehingga papan ketik tidak pernah sempat menutup. Efek sampingnya bagus: kolom
+cari yang selalu ada juga jadi cara mengganti pekerjaan tanpa menekan "Ganti".
+
+### Ponsel: kepala halaman diringkas di halaman yang tugasnya MENGISI
+
+*"informasi di atas inputan seperti progress dll, di hide saja."* Di layar
+375×812, identitas lokasi + alamat + paket + enam sel statistik + breadcrumb +
+judul panjang memakan ~600px sebelum kolom pertama — dua kali gulir hanya untuk
+mulai bekerja.
+
+Header lokasi disembunyikan di ponsel, diganti SATU BARIS: nama lokasi, status,
+deviasi. Angkanya tidak hilang; semuanya ada di tab Ringkasan dengan kartu
+KPI-nya sendiri. `PageHeader` mendapat `compactMobile` yang menyembunyikan
+breadcrumb/eyebrow/deskripsi dan mengecilkan judul — dipakai halaman laporan
+harian. Hasilnya seluruh form (pekerjaan → volume → foto → catatan → simpan)
+muat di satu layar tanpa gulir.
+
+Blok "Ambil cuaca otomatis" ikut diringkas: kotak bergaris putus-putus dengan
+paragraf tiga baris jadi satu baris tombol + keterangan pendek. Penjelasan cara
+kerjanya pindah ke `title` tombol — yang hanya perlu dibaca sekali seumur hidup
+tidak boleh memakan ruang setiap hari.
+
+**Verifikasi**: 15 kasus unit logo (semua path huruf resmi tertanam, mask takik
+ikut, warna resmi + halo putih, tebal halo dua ruang koordinat, panel & logo
+berbagi garis tengah, logo tidak melewati tepi, nama panjang dipotong) · 4 kasus
+E2E (alur fokus, kolom cari tidak lepas dari DOM, dialog galeri dua tombol tanpa
+paragraf, foto menyusul) · raster nyata diperiksa mata di latar terang/abu/gelap
+· tangkapan ponsel 375px diperiksa: form muat satu layar, tanpa overflow ·
+unit 770/770 ✓ · E2E 34 lulus ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 228 — "Sengaja dikosongkan" ≠ "belum diatur" pada branding (2026-08-02)
+
+**Laporan user 2026-08-02**: baris "Pengendalian Proyek Kampung Nelayan Merah
+Putih (KNMP)" di bawah logo sidebar berasal dari kolom **Konteks proyek** di
+menu Sistem — *"kenapa juga … jika kuhapus tanpa kuisi apa pun lalu simpan
+selalu kembali terisi dengan nilai yang sama"*.
+
+Karena `getBranding` memperlakukan nilai kosong sebagai "belum diatur" lalu
+menambalnya dengan `BRAND_DEFAULTS`. Niatnya baik (kosongkan = kembali ke
+bawaan), akibatnya buruk: perintah admin yang jelas **ditolak diam-diam**. Layar
+bilang "tersimpan", nilainya kembali seperti semula, dan tidak ada satu pun
+pesan yang menjelaskan. Sistem yang menolak tanpa memberi tahu lebih buruk
+daripada sistem yang menolak dengan kasar.
+
+### Yang berubah
+
+Baris yang **ADA** di `AppSetting` adalah KEPUTUSAN admin dan dihormati apa
+adanya, termasuk saat isinya kosong. Default hanya dipakai untuk key yang
+**belum pernah** disimpan — itulah arti "belum diatur", dan itu berbeda dari
+"sengaja dikosongkan".
+
+Perlakuannya dipisah dua, sengaja:
+
+- **Wajib** (nama aplikasi, tagline, nama pemilik pekerjaan) — kosong tetap
+  ditambal bawaan di `getBranding`, TAPI sekarang **ditolak di boundary aksi**
+  dengan pesan "wajib diisi". Aplikasi tanpa nama bukan pilihan desain, itu
+  layar rusak; dan kalau memang ditolak, harus terbaca ditolak.
+- **Opsional** (konteks proyek, keterangan pemilik) — kosong berarti benar-benar
+  kosong. Sidebar & halaman Masuk tidak lagi merender paragraf kosong yang
+  menyisakan jarak tanpa isi.
+
+Jalan kembalinya tetap ada dan sederhana: ketik ulang. Teks bawaan tetap muncul
+sebagai `placeholder`, jadi admin tahu apa yang dulu ada di situ.
+
+Kalimat bantuan di form ikut dibetulkan — sebelumnya ia menjanjikan "Kosongkan
+untuk memakai nilai bawaan", yang persis kebalikan dari perilaku yang diminta.
+
+**Verifikasi**: 6 kasus integrasi baru (konteks dikosongkan tetap kosong,
+keterangan pemilik juga, spasi dihitung kosong, ketik ulang mengembalikan,
+tanpa baris sama sekali memakai bawaan, isian wajib tetap ditambal) ·
+unit 770/770 ✓ · integrasi 284/284 ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 229 — Foto: menambah bukan menimpa, batas 8→25 MB, fokus tidak berbohong (2026-08-02)
+
+Empat laporan user 2026-08-02 di jalur input laporan harian.
+
+### 1. Fokus kembali SEBELUM simpan selesai
+
+*"masih proses simpan fokus memang sudah kembali ke inputan pekerjaan, tapi ini
+menjadi masalah karena proses simpan belum selesai."* Benar — kolom yang terlihat
+siap padahal aksi masih berjalan mengundang pelapor mengetik item berikutnya di
+atas yang belum tersimpan.
+
+Fokusnya sendiri TIDAK boleh ditunda: papan ketik ponsel hanya mau terbuka dari
+gestur, dan menundanya sampai aksi selesai persis mengembalikan keluhan
+sebelumnya (DECISIONS 227). Yang diperbaiki bukan kapan fokus pindah, melainkan
+apa yang ditampilkan sementara itu:
+
+- Kolom cari jadi `readOnly` selama `pending` — **bukan** `disabled`, karena
+  elemen yang di-`disabled` kehilangan fokus dan papan ketik langsung menutup.
+- Placeholder-nya berubah jadi "Menyimpan progres & mengunggah foto…".
+- Daftar hasil pencarian disembunyikan; kartu pekerjaan yang sedang disimpan
+  tetap tampil — itu yang memberi tahu "yang ini sedang diproses".
+
+### 2. Batas 8 MB per foto → 25 MB
+
+Batas 8 MB dipilih dengan alasan "sinyal terbatas di lapangan", tapi itu
+melindungi hal yang salah: server MEMANG mengompres tiap foto sebelum menyimpan,
+jadi batas ini tidak menentukan besar berkas tersimpan — ia hanya menentukan
+foto mana yang **ditolak mentah-mentah**. Dan yang ditolak itu foto normal:
+kamera 48–108 MP di HP kelas menengah menghasilkan JPEG 10–20 MB. Mandor yang
+baru memotret bukti lalu dibilang "foto terlalu besar" tidak punya jalan keluar
+di lapangan — ia tidak akan mengecilkan berkas, ia akan berhenti melampirkan
+bukti.
+
+Batas tetap ada (25 MB) sebagai pagar terhadap berkas yang jelas bukan foto
+lapangan. Angka di pesan penolakan sekarang DIAMBIL dari konstanta; sebelumnya
+tertulis mati "maks 8 MB" — teks seperti itu bertahan setelah batasnya berubah.
+
+### 3–4. Memilih foto lagi MENIMPA yang sebelumnya
+
+*"jika pilih dari galeri satu, lalu berubah pikiran untuk menambah … kenapa foto
+lama ditimpa?"* — dan sama untuk kamera.
+
+Sebabnya perilaku bawaan peramban: `<input type="file">` mengganti SELURUH
+isinya tiap kali pemilih dibuka. Di lapangan satu pekerjaan lazim butuh beberapa
+sudut, jadi ini bukan kasus tepi — dan tidak ada satu pun petunjuk di layar
+bahwa foto sebelumnya baru saja hilang.
+
+Sekarang tombol Kamera & Galeri hanya **pemilih** (tanpa `name`, tidak ikut
+terkirim). Hasil tiap ketukan DITUMPUK di state, lalu ditulis ulang ke satu input
+tersembunyi ber-`name="photos"` lewat `DataTransfer` — satu-satunya cara merakit
+`FileList` sendiri. Kamera dan galeri menumpuk ke daftar yang sama, jadi memotret
+lalu menambah dari galeri (atau sebaliknya) bekerja apa adanya.
+
+Sekaligus:
+- Pratinjau menampilkan **semua** foto terpilih dengan tombol × per foto — salah
+  pilih satu tidak lagi memaksa mengulang seluruh pemilihan.
+- Berkas identik (nama+ukuran+waktu) tidak ditambahkan dua kali.
+- Kelebihan di atas batas per-unggah disebutkan jumlahnya, tidak dibuang diam-diam.
+- Nilai input pemilih dikosongkan setelah dibaca, supaya memotret objek yang sama
+  dua kali tetap memicu `change`.
+- URL pratinjau dibuat sekali di penanganan ketukan dan **dicabut** saat fotonya
+  dibuang — dibuat di effect/render, ia bocor setiap render.
+
+**Verifikasi**: 4 kasus unit batas (label MB diturunkan dari byte, cukup besar
+untuk foto HP masa kini, pesan memakai konstanta, label jumlah tidak ditulis
+mati) · 2 kasus E2E baru (dua kali pilih galeri → 2 foto dan input pengirim
+benar-benar berisi 2; kamera menambah + buang satu-satu → 1) · unit 774/774 ✓ ·
+integrasi 284/284 ✓ · E2E 42 lulus ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 230 — `fieldset` melebarkan halaman; sapuan overflow menyapu keadaan termudah (2026-08-02)
+
+**Laporan user 2026-08-02** (dengan tangkapan layar): halaman laporan harian
+melebar ke samping begitu cuaca sudah diambil — pita per jam 07–21 dan banner
+hijaunya menembus keluar kartu, sisa layar putih.
+
+Terukur di 375px: `scrollWidth` **601px**.
+
+### Sebabnya bukan pita cuacanya
+
+Pita itu sudah dibungkus `overflow-x-auto` sejak awal. Yang salah induknya:
+**peramban memberi `<fieldset>` `min-inline-size: min-content` bawaan** —
+satu-satunya elemen umum yang berperilaku begitu. Isi selebar apa pun memaksa
+fieldset ikut melebar, lalu form, kartu, dan seluruh halaman; dan
+`overflow-x-auto` di dalamnya tidak pernah kebagian kesempatan menggulung karena
+induknya memang sudah melebar duluan.
+
+Diperbaiki sekali di `globals.css` (`fieldset { min-inline-size: 0 }`), bukan
+per-fieldset: ada 10+ fieldset di aplikasi ini dan yang berikutnya dibuat orang
+lain pun ikut aman.
+
+### Yang lebih penting: kenapa sapuan overflow tidak menangkapnya
+
+Sapuan mobile (DECISIONS 217) sudah ada dan hijau. Ia gagal menangkap ini karena
+DUA hal, keduanya soal uji yang menyapu keadaan termudah:
+
+1. **Data uji tidak pernah memuat keadaan terlebar.** Seed menulis semua laporan
+   dengan `weatherSource: "manual"` dan tanpa `weatherHourly`, jadi pita 07–21
+   tidak pernah ada saat disapu. Sekarang laporan DRAFT di seed dibuat seolah
+   cuacanya sudah diambil otomatis — bentuk data terlebar yang bisa dirender
+   halaman itu.
+
+2. **Sapuan tidak pernah membuka halaman ISI laporan harian**, hanya daftarnya.
+   Rute `/lokasi/<slug>/harian/<tanggal>` ditambahkan, tanggalnya diambil dari
+   tautan pertama di daftar. Percobaan pertama mengambil `.first()` begitu saja
+   dan mendapat `/harian/import` — menyapu halaman yang salah sambil tetap
+   hijau, persis cara sebuah sapuan berbohong. Sekarang tautannya wajib berakhir
+   dengan pola tanggal.
+
+**Verifikasi — pagar dibuktikan bisa GAGAL**: dengan aturan `fieldset` sengaja
+dimatikan, sapuan halaman-dalam MERAH; dengan aturan dipasang kembali, HIJAU.
+Uji yang tidak pernah diperiksa bisa-gagal-nya bukan pagar, cuma dekorasi.
+Terukur ulang di browser: 601px → **375px** di viewport 375px · unit 774/774 ✓ ·
+integrasi 284/284 ✓ · E2E 42 lulus ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 231 — EXIF cacat menjatuhkan unggahan; fokus melompat saat "Tambah foto" (2026-08-03)
+
+Dua laporan produksi, keduanya dari jalur foto laporan harian.
+
+### 1. `exifGpsLat: "NaN"` → Prisma menolak → SELURUH unggahan gagal
+
+Log produksi:
+
+```
+Invalid value for argument `exifGpsLat`: invalid digit found in string.
+Expected decimal String.   exifGpsLat: "NaN", exifGpsLng: "NaN", gpsSource: "exif"
+```
+
+Sebabnya satu baris:
+
+```ts
+const lat = typeof tags.gps?.Latitude === "number" ? tags.gps.Latitude : null;
+```
+
+**`typeof NaN === "number"` bernilai true.** ExifReader mengembalikan NaN bila
+tag GPS ada tapi rusak/tak lengkap (GPSLatitude tanpa GPSLatitudeRef, atau hasil
+konversi HEIC→JPEG setengah jadi). NaN itu lolos, ditulis `lat.toFixed(7)` =
+`"NaN"` ke kolom `Decimal`, dan Prisma menolaknya.
+
+Yang membuatnya parah: `PrismaClientValidationError` **bukan** `PhotoError`,
+jadi ia dilempar ulang dan melewati seluruh penanganan foto. Volume sudah
+tersimpan, foto lain batal, dan pelapor cuma melihat halaman error tanpa tahu
+apa yang jadi dan apa yang tidak. Foto lain di unggahan yang sama ikut hilang
+gara-gara satu berkas ber-EXIF cacat.
+
+Lebih halus lagi: `gpsSource` sempat ditulis `"exif"` untuk koordinat NaN —
+foto akan tercatat punya bukti GPS yang tidak pernah ada (melanggar DECISIONS
+197).
+
+**Tiga lapis perbaikan**, sengaja rangkap:
+
+1. `lib/photo-koordinat.ts` (modul murni, bisa diuji langsung): `Number.isFinite`
+   **dan** pemeriksaan rentang. Koordinat mustahil (lintang 200°) bukan "kurang
+   akurat" — ia bukan koordinat, dan kalau lolos ia jadi bukti GPS palsu.
+   Sepasang: lintang tanpa bujur tidak menunjuk tempat mana pun, jadi kalau satu
+   gugur keduanya null.
+2. `desimalKoordinat()` sebagai pintu terakhir sebelum kolom `Decimal` — berlaku
+   untuk jalur mana pun, termasuk koordinat perangkat dari klien.
+3. Satu foto gagal tidak lagi menjatuhkan aksi: error non-`PhotoError` DICATAT
+   UTUH ke log server lalu dilaporkan sebagai peringatan per berkas. Yang tidak
+   boleh hilang adalah penyebabnya, bukan permintaannya.
+
+### 2. Ketuk "Tambah foto" → layar melompat ke atas
+
+Fokus tidak pernah lepas dari kolom pekerjaan: kolom itu difokuskan saat halaman
+dibuka (DECISIONS 226) dan tetap begitu sepanjang sesi. Ketika tombol "Tambah
+foto" diketuk, tombolnya lenyap dari DOM (diganti panel) — fokus jatuh ke
+`<body>`, dan peramban menarik pandangan kembali ke elemen berfokus di atas.
+
+Diverifikasi di browser sebelum diperbaiki: sebelum ketukan `activeElement` =
+`dr-search` (padahal pelapor sudah menggulir jauh ke bawah), sesudah = `BODY`.
+
+Panel sekarang menerima fokus sendiri (`tabIndex={-1}` + `focus({ preventScroll:
+true })`). Fokus pindah ke tempat jari mengetuk, bukan tertinggal di atas — dan
+itu juga perilaku yang benar untuk aksesibilitas: membuka panel memindahkan
+fokus ke dalamnya.
+
+**Verifikasi**: 11 kasus unit koordinat (NaN, Infinity, bukan-angka, di luar
+rentang, pasangan setengah, presisi 7 desimal, hasil selalu terbaca sebagai
+angka) · 1 kasus integrasi (error tak terduga dari satu foto: yang sehat tetap
+masuk, yang rusak dilaporkan, volume tidak terseret) · 1 kasus E2E (fokus pindah
+ke panel, bukan tertinggal di `dr-search`) · unit 785/785 ✓ · integrasi 285/285 ✓
+· E2E 42 lulus ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓.

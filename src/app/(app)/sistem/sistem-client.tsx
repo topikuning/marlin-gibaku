@@ -179,15 +179,20 @@ export function BrandingPanel({
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
       <p className="text-sm text-ink-muted">
-        Identitas produk dipakai di halaman masuk & seluruh aplikasi. Konteks proyek bersifat tambahan —
-        ubah bila dipakai untuk proyek lain. Kosongkan untuk memakai nilai bawaan.
+        Identitas produk dipakai di halaman masuk & seluruh aplikasi. Nama aplikasi, tagline, dan nama
+        pemilik pekerjaan wajib diisi. Kolom bertanda <em>tambahan</em> boleh dikosongkan — kalau
+        dikosongkan, barisnya memang hilang dari layar, bukan kembali ke bawaan.
       </p>
       <div>
-        <Label htmlFor="brand-app">Nama aplikasi</Label>
+        <Label htmlFor="brand-app" required>
+          Nama aplikasi
+        </Label>
         <Input id="brand-app" name="appName" defaultValue={v.appName} maxLength={60} placeholder={defaults.appName} />
       </div>
       <div>
-        <Label htmlFor="brand-tagline">Tagline (kepanjangan)</Label>
+        <Label htmlFor="brand-tagline" required>
+          Tagline (kepanjangan)
+        </Label>
         <Input
           id="brand-tagline"
           name="tagline"
@@ -205,6 +210,10 @@ export function BrandingPanel({
           maxLength={160}
           placeholder={defaults.projectContext}
         />
+        <p className="mt-1 text-xs text-ink-muted">
+          Muncul di sidebar & halaman Masuk. Kosongkan bila tidak ingin menampilkannya sama sekali —
+          untuk mengembalikan teks bawaan, ketik ulang.
+        </p>
       </div>
       <div className="mt-4 space-y-3 rounded-md border border-border bg-surface-muted p-3">
         <p className="text-sm font-semibold text-ink">Pemilik Pekerjaan (kop laporan)</p>
@@ -213,7 +222,9 @@ export function BrandingPanel({
           dan periodik. Ubah bila proyek ini bukan milik KKP.
         </p>
         <div>
-          <Label htmlFor="brand-owner">Nama pemilik pekerjaan</Label>
+          <Label htmlFor="brand-owner" required>
+            Nama pemilik pekerjaan
+          </Label>
           <Input
             id="brand-owner"
             name="ownerName"
