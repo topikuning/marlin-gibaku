@@ -461,6 +461,21 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
     take: 6,
   });
 
+  /**
+   * Pita cuaca per jam 07–21 — bentuk data TERLEBAR yang bisa dirender halaman
+   * laporan harian.
+   *
+   * Ada di seed dengan sengaja: cacat "halaman melebar saat cuaca sudah
+   * diambil" (DECISIONS 230) lolos dari sapuan overflow justru karena keadaan
+   * ini tidak pernah ada di data uji — halaman dibuka apa adanya, pitanya belum
+   * muncul, sapuan lewat. Data uji yang hanya memuat keadaan termudah membuat
+   * uji lulus untuk hal yang salah.
+   */
+  const cuacaPerJam = Array.from({ length: 15 }, (_, i) => ({
+    hour: 7 + i,
+    category: i === 9 || i === 11 ? "Mendung" : "Cerah",
+  }));
+
   const mkReport = async (
     day: number,
     status: "draft" | "dikirim" | "disetujui" | "final" | "perlu_koreksi",
@@ -477,7 +492,10 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
         reportDate,
         status,
         weather: "cerah",
-        weatherSource: "manual", // seed = isian tangan, bukan hasil ambil otomatis
+        // Laporan DRAFT dibuat seolah cuacanya sudah diambil otomatis supaya
+        // pita per jam ikut terender di data uji; sisanya isian tangan.
+        weatherSource: status === "draft" ? "otomatis" : "manual",
+        weatherHourly: status === "draft" ? cuacaPerJam : undefined,
         workStart: "07:30",
         workEnd: "16:30",
         createdById: mandorId,

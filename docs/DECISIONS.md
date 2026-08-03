@@ -7433,3 +7433,50 @@ untuk foto HP masa kini, pesan memakai konstanta, label jumlah tidak ditulis
 mati) · 2 kasus E2E baru (dua kali pilih galeri → 2 foto dan input pengirim
 benar-benar berisi 2; kamera menambah + buang satu-satu → 1) · unit 774/774 ✓ ·
 integrasi 284/284 ✓ · E2E 42 lulus ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 230 — `fieldset` melebarkan halaman; sapuan overflow menyapu keadaan termudah (2026-08-02)
+
+**Laporan user 2026-08-02** (dengan tangkapan layar): halaman laporan harian
+melebar ke samping begitu cuaca sudah diambil — pita per jam 07–21 dan banner
+hijaunya menembus keluar kartu, sisa layar putih.
+
+Terukur di 375px: `scrollWidth` **601px**.
+
+### Sebabnya bukan pita cuacanya
+
+Pita itu sudah dibungkus `overflow-x-auto` sejak awal. Yang salah induknya:
+**peramban memberi `<fieldset>` `min-inline-size: min-content` bawaan** —
+satu-satunya elemen umum yang berperilaku begitu. Isi selebar apa pun memaksa
+fieldset ikut melebar, lalu form, kartu, dan seluruh halaman; dan
+`overflow-x-auto` di dalamnya tidak pernah kebagian kesempatan menggulung karena
+induknya memang sudah melebar duluan.
+
+Diperbaiki sekali di `globals.css` (`fieldset { min-inline-size: 0 }`), bukan
+per-fieldset: ada 10+ fieldset di aplikasi ini dan yang berikutnya dibuat orang
+lain pun ikut aman.
+
+### Yang lebih penting: kenapa sapuan overflow tidak menangkapnya
+
+Sapuan mobile (DECISIONS 217) sudah ada dan hijau. Ia gagal menangkap ini karena
+DUA hal, keduanya soal uji yang menyapu keadaan termudah:
+
+1. **Data uji tidak pernah memuat keadaan terlebar.** Seed menulis semua laporan
+   dengan `weatherSource: "manual"` dan tanpa `weatherHourly`, jadi pita 07–21
+   tidak pernah ada saat disapu. Sekarang laporan DRAFT di seed dibuat seolah
+   cuacanya sudah diambil otomatis — bentuk data terlebar yang bisa dirender
+   halaman itu.
+
+2. **Sapuan tidak pernah membuka halaman ISI laporan harian**, hanya daftarnya.
+   Rute `/lokasi/<slug>/harian/<tanggal>` ditambahkan, tanggalnya diambil dari
+   tautan pertama di daftar. Percobaan pertama mengambil `.first()` begitu saja
+   dan mendapat `/harian/import` — menyapu halaman yang salah sambil tetap
+   hijau, persis cara sebuah sapuan berbohong. Sekarang tautannya wajib berakhir
+   dengan pola tanggal.
+
+**Verifikasi — pagar dibuktikan bisa GAGAL**: dengan aturan `fieldset` sengaja
+dimatikan, sapuan halaman-dalam MERAH; dengan aturan dipasang kembali, HIJAU.
+Uji yang tidak pernah diperiksa bisa-gagal-nya bukan pagar, cuma dekorasi.
+Terukur ulang di browser: 601px → **375px** di viewport 375px · unit 774/774 ✓ ·
+integrasi 284/284 ✓ · E2E 42 lulus ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓.

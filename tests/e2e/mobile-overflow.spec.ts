@@ -140,6 +140,23 @@ test.describe("tampilan mobile: halaman tidak boleh melebar ke samping", () => {
       .then((h) => h?.split("/")[2] ?? null)
       .catch(() => null);
 
+    // Halaman ISI laporan harian — bukan cuma daftarnya. Di sinilah pita cuaca
+    // per jam 07–21 berada, dan pita itu pernah MELEBARKAN seluruh halaman
+    // (DECISIONS 230). Tanggalnya diambil dari tautan pertama di daftar supaya
+    // uji tidak terikat tanggal tertentu.
+    await page.goto(`/lokasi/${SLUG}/harian`, { waitUntil: "domcontentloaded" });
+    // Harus berakhir dengan TANGGAL: tautan pertama di halaman itu
+    // `/harian/import`, dan mengambilnya membuat uji ini menyapu halaman yang
+    // salah sambil tetap hijau — persis cara sebuah sapuan berbohong.
+    const harianHref = await page
+      .locator(`a[href^="/lokasi/${SLUG}/harian/"]`)
+      .evaluateAll((els) =>
+        els
+          .map((e) => e.getAttribute("href") ?? "")
+          .find((h) => /\/\d{4}-\d{2}-\d{2}$/.test(h)) ?? null,
+      )
+      .catch(() => null);
+
     const dalam = [
       `/lokasi/${SLUG}`,
       `/lokasi/${SLUG}/rab`,
@@ -147,6 +164,7 @@ test.describe("tampilan mobile: halaman tidak boleh melebar ke samping", () => {
       `/lokasi/${SLUG}/rab/import`,
       `/lokasi/${SLUG}/progress`,
       `/lokasi/${SLUG}/harian`,
+      ...(harianHref ? [harianHref] : []),
       `/lokasi/${SLUG}/keuangan`,
       `/lokasi/${SLUG}/dokumen`,
       ...(paketId && paketId !== "katalog" && paketId !== "baru" && paketId !== "bypass"
