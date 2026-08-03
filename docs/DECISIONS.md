@@ -8257,3 +8257,39 @@ lewat kedua rutenya sesudah tiga item diberi realisasi (20 / 1 / 0,4), lalu
 + 6 sel ber-sorotan (G & J tiap baris), CCO 3 sel ber-validasi (O11–O13) +
 sorotan per baris, `errorStyle` keduanya `stop` · unit 885/885 ✓ ·
 integrasi 301/301 ✓ · E2E 44 lulus ✓ · build/typecheck/lint ✓.
+
+---
+
+## 243 — Nama penanda tangan CCO diisi dari kontrak (2026-08-03)
+
+*"nama-nama pihak kan sudah ada di sistem. kenapa tidak kamu masukkan!"*
+
+Blok tanda tangan dokumen CCO mencetak tiga garis titik-titik, padahal ketiga
+pihak sudah tercatat di `Contract`:
+
+| Blok | Sumber |
+|---|---|
+| PPK Pejabat Penandatangan Kontrak | `ppkName` + `ppkNip` |
+| Konsultan Pengawas | `supervisorName`, instansi `supervisorFirm` |
+| Penyedia Jasa | `contractorSignerName` + `contractorSignerTitle`, perusahaan `vendor.name` |
+
+Blanko harian sudah mengisinya sejak lama; CCO tertinggal karena saya menulis
+placeholder-nya sebagai konstanta. Mencetak garis titik-titik untuk data yang
+sudah diketahui berarti menyuruh orang menulis tangan sesuatu yang ada di
+sistem — dan membuat dokumen pengajuan terlihat belum jadi.
+
+Sekarang tiap kolom tanda tangan memuat: peran → instansi/perusahaan → nama
+dalam kurung (tebal) → NIP (PPK) atau jabatan (pengawas/penyedia).
+
+**Yang KOSONG tetap jadi garis isian.** Field yang belum diisi di kontrak tidak
+ditebak: garis isian jujur menyatakan "belum ada datanya", dan menebak nama
+pejabat pada dokumen pengajuan resmi jauh lebih buruk daripada kolom kosong.
+Diuji tersendiri.
+
+**Verifikasi**: 4 uji unit (nama tercetak, NIP/instansi/jabatan ikut, field
+kosong jadi garis isian sementara yang terisi tetap terisi) · berkas SUNGGUHAN
+diunduh lewat rutenya dengan data dev: `( Ir. Bagus Setiawan, M.T. )` +
+`NIP. 19750812 200212 1 003`, `( Dedi Kurniawan, S.T. )` +
+`CV Konsultan Bahari Nusantara`, `( Hendra Gunawan )` +
+`PT Nusantara Bahari Utama` + `Direktur Utama` · unit 888/888 ✓ ·
+integrasi 301/301 ✓ · E2E 44 lulus ✓ · build/typecheck/lint ✓.

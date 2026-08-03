@@ -97,6 +97,18 @@ export type CcoXlsxInput = {
   nilaiTercatatBaru: bigint;
   /** Volume terealisasi per lineageKey — pengaman di level berkas (DECISIONS 242). */
   realisasiByLineage?: Map<string, number>;
+  /**
+   * Penanda tangan — dari `Contract`, BUKAN garis titik-titik. Ketiga pihak
+   * memang sudah tercatat di sistem; mencetak "( ………… )" berarti menyuruh orang
+   * menulis tangan sesuatu yang sudah diketahui, dan membuat dokumen pengajuan
+   * terlihat belum siap. DECISIONS 243.
+   */
+  ppkName?: string | null;
+  ppkNip?: string | null;
+  supervisorName?: string | null;
+  supervisorFirm?: string | null;
+  contractorSignerName?: string | null;
+  contractorSignerTitle?: string | null;
   lama: CcoNode[];
   baru: CcoNode[];
 };
@@ -213,7 +225,7 @@ export async function buildCcoXlsx(input: CcoXlsxInput): Promise<Buffer> {
   sorotBarisBerubah(ws, barisAkhirData);
   sorotDiBawahRealisasi(ws, barisBerealisasi);
   const barisSesudahRekon = tulisRekonsiliasi(ws, barisTotal + 2, barisJumlah, input);
-  tulisCatatanDanTtd(ws, barisSesudahRekon + 1);
+  tulisCatatanDanTtd(ws, barisSesudahRekon + 1, input);
 
   const buf = await wb.xlsx.writeBuffer();
   return Buffer.from(buf);
@@ -608,7 +620,7 @@ function tulisRekonsiliasi(
   return rCatatan;
 }
 
-function tulisCatatanDanTtd(ws: ExcelJS.Worksheet, baris: number) {
+function tulisCatatanDanTtd(ws: ExcelJS.Worksheet, baris: number, input: CcoXlsxInput) {
   const catatan = ws.getCell(baris, 1);
   catatan.value =
     "Sel berlatar putih pada kolom VOLUME (MC-0 & CCO-01) dan HARGA SATUAN adalah data; kolom lain formula yang ikut menyesuaikan. " +
@@ -618,22 +630,73 @@ function tulisCatatanDanTtd(ws: ExcelJS.Worksheet, baris: number) {
   catatan.alignment = { horizontal: "left", wrapText: true };
   ws.mergeCells(baris, 1, baris, TOTAL_KOLOM);
 
+  /*
+   * TANDA TANGAN — NAMANYA DIISI DARI KONTRAK.
+   *
+   * Ketiga pihak sudah tercatat di `Contract` (`ppkName`/`ppkNip`,
+   * `supervisorName`, `contractorSignerName`), jadi mencetak garis titik-titik
+   * berarti menyuruh orang menulis tangan sesuatu yang sudah diketahui sistem —
+   * dan membuat dokumen pengajuan terlihat belum jadi. Laporan user 2026-08-03:
+   * *"nama-nama pihak kan sudah ada di sistem. kenapa tidak kamu masukkan!"*
+   * DECISIONS 243.
+   *
+   * Yang KOSONG tetap jadi garis isian: field yang belum diisi di kontrak tidak
+   * boleh ditebak, dan garis isian jujur menyatakan "belum ada datanya".
+   */
+  const GARIS_ISIAN = "(.................................................)";
   const r = baris + 2;
-  const ttd: [number, number, string, string][] = [
-    [1, 4, "Disetujui Oleh", "PPK Pejabat Penandatangan Kontrak"],
-    [nomorKolom("volumeTambah"), nomorKolom("bobotTambah"), "Diperiksa Oleh", "Konsultan Pengawas"],
-    [nomorKolom("volumeBaru"), nomorKolom("bobotBaru"), "Dibuat Oleh", "Penyedia Jasa"],
+  const ttd: {
+    dari: number;
+    sampai: number;
+    atas: string;
+    peran: string;
+    /** Baris ketiga: instansi/perusahaan; kosong = tidak dicetak. */
+    firma: string | null;
+    nama: string | null;
+    /** Baris di bawah nama: NIP atau jabatan penanda tangan. */
+    bawah: string | null;
+  }[] = [
+    {
+      dari: 1,
+      sampai: 4,
+      atas: "Disetujui Oleh",
+      peran: "PPK Pejabat Penandatangan Kontrak",
+      firma: null,
+      nama: input.ppkName ?? null,
+      bawah: input.ppkNip ? `NIP. ${input.ppkNip}` : null,
+    },
+    {
+      dari: nomorKolom("volumeTambah"),
+      sampai: nomorKolom("bobotTambah"),
+      atas: "Diperiksa Oleh",
+      peran: "Konsultan Pengawas",
+      firma: input.supervisorFirm ?? null,
+      nama: input.supervisorName ?? null,
+      bawah: input.supervisorName ? "Inspector" : null,
+    },
+    {
+      dari: nomorKolom("volumeBaru"),
+      sampai: nomorKolom("bobotBaru"),
+      atas: "Dibuat Oleh",
+      peran: "Penyedia Jasa",
+      firma: input.vendorName ?? null,
+      nama: input.contractorSignerName ?? null,
+      bawah: input.contractorSignerTitle ?? (input.contractorSignerName ? "Pelaksana" : null),
+    },
   ];
-  for (const [dari, sampai, atas, bawah] of ttd) {
-    const tulis = (b: number, teks: string, tebal = false) => {
-      const cell = ws.getCell(b, dari);
+  for (const t of ttd) {
+    const tulis = (b: number, teks: string, o: { tebal?: boolean; ukuran?: number; warna?: string } = {}) => {
+      const cell = ws.getCell(b, t.dari);
       cell.value = teks;
-      cell.font = { size: 10, bold: tebal };
+      cell.font = { size: o.ukuran ?? 10, bold: o.tebal, color: o.warna ? { argb: o.warna } : undefined };
       cell.alignment = { horizontal: "center" };
-      ws.mergeCells(b, dari, b, sampai);
+      ws.mergeCells(b, t.dari, b, t.sampai);
     };
-    tulis(r, atas);
-    tulis(r + 1, bawah, true);
-    tulis(r + 6, "(.................................................)");
+    tulis(r, t.atas);
+    tulis(r + 1, t.peran, { tebal: true });
+    if (t.firma) tulis(r + 2, t.firma, { ukuran: 9, warna: "FF6B7280" });
+    // Nama digarisbawahi seperti lazimnya tanda tangan dokumen resmi.
+    tulis(r + 6, t.nama ? `( ${t.nama} )` : GARIS_ISIAN, { tebal: !!t.nama });
+    if (t.bawah) tulis(r + 7, t.bawah, { ukuran: 9, warna: "FF6B7280" });
   }
 }

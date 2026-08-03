@@ -81,6 +81,14 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
               contractNumber: true,
               workTitle: true,
               ppnPercent: true,
+              // Penanda tangan: ketiganya sudah tercatat di kontrak, jadi dokumen
+              // tidak perlu mencetak garis titik-titik (DECISIONS 243).
+              ppkName: true,
+              ppkNip: true,
+              supervisorName: true,
+              supervisorFirm: true,
+              contractorSignerName: true,
+              contractorSignerTitle: true,
               vendor: { select: { name: true } },
             },
           },
@@ -133,6 +141,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     // Pengaman di level berkas: volume CCO-01 tidak boleh turun di bawah
     // pekerjaan yang sudah dikerjakan (DECISIONS 242).
     realisasiByLineage: await cumulativeVolumeByLineage(location.id),
+    ppkName: c?.ppkName ?? null,
+    ppkNip: c?.ppkNip ?? null,
+    supervisorName: c?.supervisorName ?? null,
+    supervisorFirm: c?.supervisorFirm ?? null,
+    contractorSignerName: c?.contractorSignerName ?? null,
+    contractorSignerTitle: c?.contractorSignerTitle ?? null,
     lama: nodeLama.map(keCcoNode),
     baru: nodeBaru.map(keCcoNode),
   });

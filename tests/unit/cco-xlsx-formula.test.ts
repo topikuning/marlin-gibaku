@@ -464,3 +464,55 @@ describe("berkasnya harus SAH menurut OOXML, bukan hanya menurut ExcelJS", () =>
     for (const g of gaya) expect(["stop", "warning", "information"]).toContain(g);
   });
 });
+
+describe("TANDA TANGAN: nama pihak diambil dari kontrak", () => {
+  // "nama-nama pihak kan sudah ada di sistem. kenapa tidak kamu masukkan!"
+  // Ketiganya tercatat di `Contract`; mencetak garis titik-titik berarti
+  // menyuruh orang menulis tangan sesuatu yang sudah diketahui. DECISIONS 243.
+  const DENGAN_TTD = {
+    ...MASUKAN,
+    vendorName: "PT Nusantara Bahari Utama",
+    ppkName: "Ir. Slamet Riyadi, M.T.",
+    ppkNip: "196504121990031002",
+    supervisorName: "Andi Wijaya",
+    supervisorFirm: "CV Pengawas Jaya",
+    contractorSignerName: "Rudi Hartono",
+    contractorSignerTitle: "Site Manager",
+  };
+  const teksLembar = async (d: Parameters<typeof buildCcoXlsx>[0]) => {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load((await buildCcoXlsx(d)) as unknown as ArrayBuffer);
+    const out: string[] = [];
+    wb.worksheets[0]!.eachRow((row) =>
+      row.eachCell((c) => {
+        if (typeof c.value === "string") out.push(c.value);
+      }),
+    );
+    return out.join("\n");
+  };
+
+  it("ketiga nama tercetak, bukan garis titik-titik", async () => {
+    const t = await teksLembar(DENGAN_TTD);
+    expect(t).toContain("( Ir. Slamet Riyadi, M.T. )");
+    expect(t).toContain("( Andi Wijaya )");
+    expect(t).toContain("( Rudi Hartono )");
+    expect(t).not.toContain("(.................................................)");
+  });
+
+  it("NIP, instansi, dan jabatan ikut", async () => {
+    const t = await teksLembar(DENGAN_TTD);
+    expect(t).toContain("NIP. 196504121990031002");
+    expect(t).toContain("CV Pengawas Jaya");
+    expect(t).toContain("PT Nusantara Bahari Utama");
+    expect(t).toContain("Site Manager");
+  });
+
+  it("field yang BELUM diisi di kontrak jadi garis isian, tidak ditebak", async () => {
+    // Garis isian jujur menyatakan "belum ada datanya"; menebak nama pejabat
+    // pada dokumen pengajuan jauh lebih buruk daripada kolom kosong.
+    const t = await teksLembar({ ...DENGAN_TTD, ppkName: null, supervisorName: null });
+    expect(t).toContain("(.................................................)");
+    expect(t).not.toContain("( Andi Wijaya )");
+    expect(t).toContain("( Rudi Hartono )"); // yang ada tetap terisi
+  });
+});
