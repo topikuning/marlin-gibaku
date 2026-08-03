@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState, useState } from "react";
 import { Banner, Button, Card, CardBody, CardHeader } from "@/components/ui";
+import { PemilihLokasi } from "@/components/knmp/pemilih-lokasi";
 import { askMarlinAction, type AiHubState } from "@/lib/ai-hub/actions";
 
 const QUICK_QUESTIONS = [
@@ -35,7 +36,7 @@ export function AskClient({
     periodEnd: string;
     messages: Msg[];
   } | null;
-  locations: { id: string; name: string }[];
+  locations: { id: string; name: string; packageName?: string | null }[];
   aiReady: boolean;
 }) {
   const [state, formAction, pending] = useActionState<AiHubState, FormData>(askMarlinAction, undefined);
@@ -93,25 +94,13 @@ export function AskClient({
             ))}
           </div>
         ) : (
-          <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-border p-2">
-            {locations.map((l) => (
-              <label key={l.id} className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={selected.has(l.id)}
-                  onChange={() =>
-                    setSelected((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(l.id)) next.delete(l.id);
-                      else next.add(l.id);
-                      return next;
-                    })
-                  }
-                />
-                <span className="truncate">{l.name}</span>
-              </label>
-            ))}
-          </div>
+          <PemilihLokasi
+            locations={locations}
+            selected={selected}
+            onChange={setSelected}
+            maxTinggi="max-h-56"
+            petunjukKosong="Belum ada lokasi dipilih — pertanyaan dijawab atas seluruh lokasi yang Anda pegang."
+          />
         )}
 
         {state?.error ? <Banner tone="error" title={state.error} /> : null}

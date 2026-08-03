@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Banner, Button, HelpText, Input, Label, Textarea } from "@/components/ui";
+import { KeyRound } from "lucide-react";
+import { Banner, Button, FileInput, HelpText, Label, Textarea } from "@/components/ui";
 import { formatRupiah } from "@/lib/format";
 import { importHps, type BedaPratinjau, type ImportMode, type ImportState } from "./actions";
 
@@ -82,19 +83,12 @@ export function ImportForm({
     });
   }
 
-  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const picked = e.target.files?.[0] ?? null;
-    // Cek ukuran DI KLIEN: file yang melewati bodySizeLimit server action akan
-    // ditolak framework sebelum kode kita jalan → halaman crash. Tolak di sini.
-    const MAX_MB = 15;
-    if (picked && picked.size > MAX_MB * 1024 * 1024) {
-      setFile(null);
-      setInputKey((k) => k + 1); // reset input supaya tak terkirim
-      setState({ error: `File ${(picked.size / 1024 / 1024).toFixed(1)} MB melebihi batas ${MAX_MB} MB.` });
-      return;
-    }
-    setFile(picked);
-    // File baru → buang pratinjau lama; tombol kembali jadi "Pratinjau".
+  function onPilih(files: File[]) {
+    // Batas ukuran diperiksa FileInput (dan pesannya tampil di sana); di sini
+    // cukup mengikuti hasilnya. Berkas ditahan di state karena form ini
+    // menyusun FormData sendiri untuk langkah pratinjau.
+    setFile(files[0] ?? null);
+    // Berkas baru → buang pratinjau lama; tombol kembali jadi "Pratinjau".
     setState(undefined);
   }
 
@@ -106,19 +100,16 @@ export function ImportForm({
 
       <div>
         <Label htmlFor="hps-file" required>File HPS / RAB (.xlsx)</Label>
-        <Input
+        <FileInput
           key={inputKey}
           id="hps-file"
           name="file"
-          type="file"
           accept=".xlsx,.xls"
-          onChange={onFileChange}
-          className="h-auto py-1.5"
+          required
+          maxBytes={15 * 1024 * 1024}
+          onPilih={onPilih}
+          petunjuk={'Sheet "RAB" dibaca otomatis. Maksimal 15 MB.'}
         />
-        <HelpText>
-          Sheet &quot;RAB&quot; dibaca otomatis. Maksimal 15 MB.
-          {file ? <span className="font-medium text-ink"> · dipilih: {file.name}</span> : null}
-        </HelpText>
       </div>
 
       <fieldset className="rounded-md border border-border p-3">
@@ -169,13 +160,16 @@ export function ImportForm({
           {/* Jalan keluarnya ADA, tapi harus disengaja: satu ketukan tambahan
               plus kalimat yang menyebut akibatnya. */}
           {adaAktif && !bukaKunci ? (
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="sm"
               onClick={() => setBukaKunci(true)}
-              className="text-[13px] font-medium text-primary underline-offset-2 hover:underline"
+              className="self-start"
             >
-              Buka kunci &quot;Jadikan RAB AKTIF sekarang&quot; — untuk adendum yang sudah resmi
-            </button>
+              <KeyRound aria-hidden className="size-3.5" />
+              Buka kunci &quot;Jadikan RAB AKTIF sekarang&quot;
+            </Button>
           ) : null}
           {adaAktif && bukaKunci ? (
             <p className="text-[13px] text-warning">

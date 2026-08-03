@@ -36,6 +36,8 @@ import type { RabExportNode } from "./rab-xlsx";
 
 const RUPIAH_FMT = '#,##0;[Red]-#,##0';
 const VOL_FMT = "#,##0.###";
+/** Angka realisasi di dalam pesan validasi — dibaca manusia, bukan sel. */
+const VOL_ID = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 });
 const thin = { style: "thin" as const, color: { argb: "FFBFBFBF" } };
 const border = { top: thin, left: thin, bottom: thin, right: thin };
 
@@ -60,6 +62,14 @@ export type AdendumTemplateInput = {
   revisionNo: number;
   totalValue: bigint;
   nodes: AdendumTemplateNode[];
+  /**
+   * Volume yang SUDAH terealisasi di lapangan per lineageKey. Tanpa ini berkas
+   * template bisu soal pengaman terpenting adendum: volume tidak boleh turun
+   * di bawah pekerjaan yang sudah dikerjakan, dan item ber-realisasi tidak
+   * boleh dicabut. Server memang menolaknya, tapi baru SESUDAH berkas diunggah
+   * balik — padahal berkas ini diisi jauh dari aplikasi. DECISIONS 242.
+   */
+  realisasiByLineage?: Map<string, number>;
 };
 
 export async function buildAdendumTemplateXlsx(input: AdendumTemplateInput): Promise<Buffer> {
@@ -82,6 +92,7 @@ export async function buildAdendumTemplateXlsx(input: AdendumTemplateInput): Pro
     { width: 15 }, // I selisih
     { width: 26 }, // J keterangan
     { width: 1 }, // K lineageKey (disembunyikan)
+    { width: 16 }, // L realisasi tercatat (baca saja)
   ];
   ws.getColumn(11).hidden = true;
 
@@ -106,7 +117,9 @@ export async function buildAdendumTemplateXlsx(input: AdendumTemplateInput): Pro
   );
   judul(
     7,
-    "3. Mencabut item: tulis HAPUS di kolom KETERANGAN. Volume 0 BUKAN penghapusan — artinya item tetap ada dengan volume nol.",
+    "3. Mencabut item: tulis HAPUS di kolom KETERANGAN. Volume 0 BUKAN penghapusan — artinya item tetap ada dengan volume nol. " +
+      "Kolom REALISASI TERCATAT (L) = pekerjaan yang SUDAH dikerjakan: Volume Adendum tidak boleh di bawahnya dan item " +
+      "ber-realisasi tidak bisa di-HAPUS. Sel yang melanggar berubah MERAH dan ditolak saat diunggah.",
   );
   ws.getCell(7, 1).font = { bold: false, size: 10, color: { argb: "FFB00020" } };
 
@@ -122,6 +135,7 @@ export async function buildAdendumTemplateXlsx(input: AdendumTemplateInput): Pro
     "Selisih (Rp)",
     "Keterangan (isi HAPUS untuk mencabut)",
     ADENDUM_TEMPLATE_MARKER,
+    "Realisasi Tercatat",
   ];
   header.forEach((text, i) => {
     const c = ws.getCell(ADENDUM_HEADER_ROW, i + 1);
@@ -140,6 +154,8 @@ export async function buildAdendumTemplateXlsx(input: AdendumTemplateInput): Pro
     byParent.set(n.parentId, arr);
   }
 
+  /** Baris item yang punya realisasi — dipakai memasang sorotan merah. */
+  const barisBerealisasi: number[] = [];
   let row = ADENDUM_HEADER_ROW;
   const tulis = (n: AdendumTemplateNode, depth: number) => {
     row += 1;
@@ -175,6 +191,47 @@ export async function buildAdendumTemplateXlsx(input: AdendumTemplateInput): Pro
       ws.getCell(r, 9).value = { formula: `H${r}-F${r}`, result: 0 };
       ws.getCell(r, 9).numFmt = RUPIAH_FMT;
       ws.getCell(r, 10).protection = { locked: false };
+
+      /*
+       * PENGAMAN DI LEVEL BERKAS (DECISIONS 242).
+       *
+       * Server menolak volume di bawah realisasi dan menolak mencabut item
+       * ber-realisasi — tetapi baru SESUDAH berkas diunggah balik. Berkas ini
+       * diisi jauh dari aplikasi (WhatsApp/email), kerap oleh orang yang tidak
+       * punya akses MARLIN, jadi menunda kabar sampai unggah berarti pekerjaan
+       * ulang satu berkas penuh.
+       *
+       * Excel tidak bisa MENCEGAH (validasi bisa ditembus tempel-salin), jadi
+       * ini rambu berlapis: nilainya ditulis, entri di bawahnya ditolak dengan
+       * pesan, dan pelanggaran yang lolos tetap berubah merah.
+       */
+      const realisasi = input.realisasiByLineage?.get(n.lineageKey) ?? 0;
+      const l = ws.getCell(r, 12);
+      l.value = realisasi;
+      l.numFmt = VOL_FMT;
+      l.font = { size: 9, bold: realisasi > 0 };
+      l.alignment = { horizontal: "right" };
+      l.border = border;
+      if (realisasi > 0) {
+        l.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEAF6EC" } };
+        g.dataValidation = {
+          type: "decimal",
+          operator: "greaterThanOrEqual",
+          formulae: [`$L$${r}`],
+          allowBlank: false,
+          showErrorMessage: true,
+          // "stop", BUKAN "error": OOXML hanya mengenal stop/warning/information.
+          // ExcelJS menerima nilai apa pun dan menuliskannya apa adanya, dan berkas
+          // yang dihasilkan DITOLAK pembaca lain (Excel: "unreadable content").
+          errorStyle: "stop",
+          errorTitle: "Di bawah realisasi",
+          error:
+            `Item ini sudah dikerjakan ${VOL_ID.format(realisasi)}${n.unit ? ` ${n.unit}` : ""} di lapangan ` +
+            `(kolom REALISASI TERCATAT). Volume adendum tidak boleh di bawahnya — pekerjaan-kurang atas item ` +
+            `berjalan maksimal sampai volume yang sudah terealisasi.`,
+        };
+        barisBerealisasi.push(r);
+      }
     } else {
       ws.getRow(r).font = { bold: depth === 0, italic: depth > 0, size: 9 };
       if (n.kind === "kategori") {
@@ -186,12 +243,47 @@ export async function buildAdendumTemplateXlsx(input: AdendumTemplateInput): Pro
       ws.getCell(r, 6).numFmt = RUPIAH_FMT;
       for (const c of byParent.get(n.id) ?? []) tulis(c, depth + 1);
     }
-    for (let c = 1; c <= 10; c++) {
+    for (let c = 1; c <= 12; c++) {
+      if (c === 11) continue; // kolom penanda (disembunyikan)
       ws.getCell(r, c).border = border;
       if (!ws.getCell(r, c).font) ws.getCell(r, c).font = { size: 9 };
     }
   };
   for (const kat of byParent.get(null) ?? []) tulis(kat, 0);
+
+  // Sorotan MERAH untuk pelanggaran yang lolos dari validasi (mis. tempel-salin
+  // dari berkas lain, atau berkas dibuka di aplikasi yang mengabaikan validasi).
+  for (const r of barisBerealisasi) {
+    ws.addConditionalFormatting({
+      ref: `G${r}`,
+      rules: [
+        {
+          type: "expression",
+          formulae: [`$G$${r}<$L$${r}`],
+          priority: 1,
+          style: {
+            font: { bold: true, color: { argb: "FF9F1239" } },
+            fill: { type: "pattern", pattern: "solid", bgColor: { argb: "FFFDECEC" } },
+          },
+        },
+      ],
+    });
+    // HAPUS atas item ber-realisasi: dilarang, apa pun volumenya.
+    ws.addConditionalFormatting({
+      ref: `J${r}`,
+      rules: [
+        {
+          type: "expression",
+          formulae: [`EXACT(UPPER($J$${r}),"HAPUS")`],
+          priority: 1,
+          style: {
+            font: { bold: true, color: { argb: "FF9F1239" } },
+            fill: { type: "pattern", pattern: "solid", bgColor: { argb: "FFFDECEC" } },
+          },
+        },
+      ],
+    });
+  }
 
   // Baris total: pembanding cepat sebelum berkas dikirim balik.
   row += 2;

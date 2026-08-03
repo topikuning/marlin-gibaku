@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Banner, Card, CardBody, CardHeader } from "@/components/ui";
+import { Banner, ButtonLink, Card, CardBody, CardHeader } from "@/components/ui";
+import { ArrowLeft, Download, FileSpreadsheet } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { cumulativeVolumeByLineage } from "@/lib/progress";
@@ -287,12 +288,10 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
           title="Isi draft dari file Excel"
           subtitle="Ganti seluruh isi draft dengan file adendum. RAB aktif, progres, kurva-S, dan keuangan tidak tersentuh."
           action={
-            <a
-              href={`/lokasi/${slug}/rab/adendum/template`}
-              className="text-[13px] font-medium text-primary hover:underline"
-            >
-              Unduh template adendum ↓
-            </a>
+            <ButtonLink href={`/lokasi/${slug}/rab/adendum/template`} variant="secondary" size="sm" unduhan>
+              <Download aria-hidden className="size-3.5" />
+              Unduh template adendum
+            </ButtonLink>
           }
         />
         <CardBody>
@@ -325,12 +324,19 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
               "Harga satuan item lama terkunci; volume minimal = realisasi; item ber-realisasi tidak bisa dihapus.")
           }
           action={
-            <Link
-              href={`/lokasi/${slug}/rab`}
-              className="text-[13px] font-medium text-primary hover:underline"
-            >
-              ← Kembali ke RAB
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Dokumen pengajuan CCO format KKP (DECISIONS 236). Butuh RAB
+                  aktif DAN draft sekaligus — MC-0 vs CCO-01 — jadi tombolnya
+                  hanya masuk akal di kartu draft ini. */}
+              <ButtonLink href={`/lokasi/${slug}/rab/adendum/cco`} variant="secondary" size="sm" unduhan>
+                <FileSpreadsheet aria-hidden className="size-3.5" />
+                Unduh CCO (format KKP)
+              </ButtonLink>
+              <ButtonLink href={`/lokasi/${slug}/rab`} variant="ghost" size="sm">
+                <ArrowLeft aria-hidden className="size-3.5" />
+                Kembali ke RAB
+              </ButtonLink>
+            </div>
           }
         />
         <CardBody className="space-y-4">

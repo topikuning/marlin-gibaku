@@ -36,6 +36,9 @@ function riskLine(x: RiskItem): string {
   return `- [${x.category}/${x.severity} skor=${x.ruleScore}] ${x.locationName}: ${x.title} — ${x.evidence} (sumber: ${x.sourceRefIds.join(",")})`;
 }
 
+/** Risiko teratas yang ikut ke prompt; sisanya disebut jumlahnya, tidak dibuang diam-diam. */
+const MAKS_RISIKO = 25;
+
 /** Payload data pulse/variance/risk — kompak, satu baris per lokasi. */
 export function buildPulsePayload(pulse: PortfolioPulse, opts?: { maxRows?: number }): string {
   const rows = pulse.rows.slice(0, opts?.maxRows ?? 30);
@@ -48,7 +51,12 @@ export function buildPulsePayload(pulse: PortfolioPulse, opts?: { maxRows?: numb
     ...rows.map(rowLine),
     "",
     "RISIKO (skor rule deterministik — jangan diubah):",
-    ...(pulse.risks.length ? pulse.risks.slice(0, 25).map(riskLine) : ["- (tidak ada risiko terdeteksi rule)"]),
+    ...(pulse.risks.length ? pulse.risks.slice(0, MAKS_RISIKO).map(riskLine) : ["- (tidak ada risiko terdeteksi rule)"]),
+    // Pemotongan DISEBUTKAN. Daftar yang diam-diam dipangkas terbaca model (dan
+    // pembaca laporannya) sebagai "cuma segini risikonya".
+    ...(pulse.risks.length > MAKS_RISIKO
+      ? [`- (+${pulse.risks.length - MAKS_RISIKO} risiko lain tidak ditampilkan; daftar dipotong ${MAKS_RISIKO} teratas menurut skor rule)`]
+      : []),
     "",
     "DAFTAR SUMBER (pakai id ini utk sourceRefIds):",
     ...refs,

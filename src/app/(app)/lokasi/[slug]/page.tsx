@@ -1,15 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AlertTriangle, CalendarRange, ClipboardList } from "lucide-react";
-import {
-  Banner,
-  Card,
-  CardBody,
-  CardHeader,
-  EmptyState,
-  KpiCard,
-  StatusPill,
-} from "@/components/ui";
+import { Banner, ButtonLink, Card, CardBody, CardHeader, EmptyState, KpiCard, StatusPill } from "@/components/ui";
 import { DeltaBadge, deviationTone } from "@/components/ui/stat-delta";
 import { ScurveChart } from "@/components/knmp/scurve-chart";
 import { db } from "@/lib/db";
@@ -144,9 +136,9 @@ export default async function LokasiRingkasanPage({
             title="Kurva-S"
             subtitle="Rencana (baseline aktif) vs realisasi (laporan harian terkirim)"
             action={
-              <Link href={`/lokasi/${slug}/progress`} className="text-[13px] text-primary hover:underline">
+              <ButtonLink href={`/lokasi/${slug}/progress`} variant="ghost" size="sm">
                 Detail progress
-              </Link>
+              </ButtonLink>
             }
           />
           <CardBody>
@@ -159,9 +151,9 @@ export default async function LokasiRingkasanPage({
             <CardHeader
               title={`Rencana minggu ${progress.weekNumber}`}
               action={
-                <Link href={`/lokasi/${slug}/rab`} className="text-[13px] text-primary hover:underline">
+                <ButtonLink href={`/lokasi/${slug}/rab`} variant="ghost" size="sm">
                   Kelola
-                </Link>
+                </ButtonLink>
               }
             />
             <CardBody>
@@ -216,9 +208,9 @@ export default async function LokasiRingkasanPage({
           <CardHeader
             title="Kendala terbuka"
             action={
-              <Link href={`/lokasi/${slug}/progress`} className="text-[13px] text-primary hover:underline">
+              <ButtonLink href={`/lokasi/${slug}/progress`} variant="ghost" size="sm">
                 Kelola kendala
-              </Link>
+              </ButtonLink>
             }
           />
           <CardBody>

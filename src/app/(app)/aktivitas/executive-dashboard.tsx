@@ -260,11 +260,24 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
               <Empty icon={<Activity aria-hidden />} text="Belum ada kegiatan lapangan." />
             ) : (
               activity.map((a) => (
-                <div key={a.id} className="flex gap-3 px-4 py-3">
+                /* Butir menaut ke KEGIATANNYA, bukan ke lokasi — dulu orang
+                   harus mencari sendiri kegiatan yang barusan dilihatnya.
+                   DECISIONS 238.
+
+                   Tautannya DIBENTANGKAN lewat `after:absolute inset-0`, bukan
+                   dengan membungkus seluruh baris: galeri foto di kanan berisi
+                   `<button>` pembuka lightbox, dan tombol di dalam anchor itu
+                   HTML tak sah — klik thumbnail akan pindah halaman alih-alih
+                   membuka fotonya. Galeri diangkat ke atas lapisan tautan
+                   dengan `relative z-10`. */
+                <div key={a.id} className="relative flex gap-3 px-4 py-3 transition-colors hover:bg-surface-muted">
                   <span className={`mt-1.5 size-2 shrink-0 rounded-full ${toneDot(a.deviationPct)}`} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <Link href={`/lokasi/${a.locationSlug}`} className="truncate text-sm font-medium text-ink hover:underline">
+                      <Link
+                        href={a.href}
+                        className="truncate text-sm font-medium text-ink after:absolute after:inset-0 hover:underline"
+                      >
                         {a.locationName}
                       </Link>
                       <span className="shrink-0 text-xs text-ink-faint">
@@ -280,7 +293,7 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
                     </div>
                   </div>
                   {a.thumbs.length > 0 ? (
-                    <div className="w-[5.75rem] shrink-0">
+                    <div className="relative z-10 w-[5.75rem] shrink-0">
                       <PhotoGallery photos={a.thumbs} thumbClass="size-[2.6rem]" />
                     </div>
                   ) : null}

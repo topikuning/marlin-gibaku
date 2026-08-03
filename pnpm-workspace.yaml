@@ -9,9 +9,11 @@
 #     lini masing2 (1.1.16 > 1.1.12, 2.1.2 > 2.0.2).
 overrides:
   sharp: 0.35.3
-  fast-uri: '>=3.1.4'
+  fast-uri@3: 3.1.5
   postcss: '>=8.5.12'
-  brace-expansion@5: '>=5.0.8'
+  brace-expansion@1: 1.1.18
+  brace-expansion@2: 2.1.4
+  brace-expansion@5: 5.0.9
 # Audit pnpm memakai rentang datar <=5.0.7 utk advisory ini → ikut menandai salinan v1/v2 yg
 # SUDAH patched (false-positive; tak bisa dikecualikan per-path). Instance rentan sejati (v5)
 # sudah di-override ke 5.0.8 di atas, jadi GHSA ini nyatanya sudah tertutup di pohon dependensi.
@@ -27,6 +29,10 @@ allowBuilds:
   sharp: true
   unrs-resolver: true
 minimumReleaseAgeExclude:
+  - brace-expansion@1.1.18
+  - brace-expansion@2.1.4
+  - brace-expansion@5.0.9
+  - fast-uri@3.1.5
   - '@aws-sdk/client-s3@3.1086.0'
   - '@aws-sdk/credential-provider-node@3.972.67'
   - '@aws-sdk/s3-request-presigner@3.1086.0'

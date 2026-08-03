@@ -2,7 +2,7 @@
 
 import { useActionState, useTransition, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
-import { Banner, Button, Combobox, Input, Label, StatusPill } from "@/components/ui";
+import { Banner, Button, Combobox, FileInput, Input, Label, StatusPill } from "@/components/ui";
 
 /**
  * Tab switcher client-side untuk hub Pengaturan Sistem — ganti panel tanpa
@@ -254,13 +254,7 @@ export function BrandingPanel({
           ) : (
             <p className="mb-2 text-xs text-ink-muted">Belum ada logo — kop memakai teks saja.</p>
           )}
-          <input
-            id="brand-owner-logo"
-            name="ownerLogo"
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            className="block w-full text-sm text-ink file:mr-3 file:rounded-md file:border-0 file:bg-surface-inset file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-ink"
-          />
+          <FileInput id="brand-owner-logo" name="ownerLogo" accept="image/png,image/jpeg,image/webp" />
         </div>
       </div>
       <Button type="submit" loading={pending}>

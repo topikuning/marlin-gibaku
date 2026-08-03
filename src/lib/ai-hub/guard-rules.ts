@@ -1,6 +1,22 @@
 /**
- * Aturan guard AI Hub — MURNI (tanpa DB) supaya unit-testable. Nilai default
- * konservatif; admin dapat mengubah via Sistem → AI (AppSetting). DECISIONS 133.
+ * Aturan guard AI Hub — MURNI (tanpa DB) supaya unit-testable. Admin dapat
+ * mengubahnya via Sistem → AI (AppSetting). DECISIONS 133.
+ *
+ * DEFAULT HARUS MEMUAT SELURUH PORTOFOLIO. Versi pertama memasang
+ * `maxLocationsPerRun: 25` dengan alasan "konservatif", padahal programnya 83
+ * lokasi dan arsitekturnya menargetkan 200+ (PROJECT.md). Akibatnya laporan
+ * portofolio penuh — justru kegunaan utama AI Hub — DITOLAK pada pemakaian
+ * pertama, dengan pesan yang bahkan tidak menyebut bahwa batasnya bisa diubah.
+ * Laporan user 2026-08-03: *"siapa yang membatasi 25 lokasi? bagaimana jika aku
+ * butuh laporan penuh!"* Batas yang menghalangi pemakaian normal bukan
+ * kehati-hatian, melainkan cacat.
+ *
+ * `maxInputChars` ikut dinaikkan, dan itu WAJIB bersamaan: payload ±810 karakter
+ * per lokasi (satu baris data + 4–5 baris sumber), jadi 83 lokasi ≈ 67.000
+ * karakter — sudah melewati batas lama 60.000. Menaikkan batas lokasi saja
+ * hanya memindahkan penolakan ke pesan yang lain. Ongkos tetap terjaga oleh
+ * batas run per user/jam dan per organisasi/hari, yang membatasi pemakaian
+ * tanpa melarang cakupannya.
  */
 
 export type AiGuardConfig = {
@@ -16,8 +32,11 @@ export type AiGuardConfig = {
 export const AI_GUARD_DEFAULTS: AiGuardConfig = {
   maxRunsPerUserPerHour: 20,
   maxRunsPerOrgPerDay: 200,
-  maxLocationsPerRun: 25,
-  maxInputChars: 60_000,
+  // 200 = target arsitektur PROJECT.md; 83 lokasi hari ini muat dengan lapang.
+  maxLocationsPerRun: 200,
+  // 200 lokasi × ±810 karakter ≈ 162 rb, + risiko/narasi/instruksi. 400 rb
+  // (~100 rb token) memberi ruang tanpa melepas pagar sama sekali.
+  maxInputChars: 400_000,
   maxOutputTokens: 4_000,
   maxAskPerConversation: 20,
   timeoutMs: 90_000,
@@ -79,14 +98,21 @@ export function decideAiGuard(cfg: AiGuardConfig, f: GuardFacts): GuardVerdict {
     return {
       ok: false,
       code: "scope_too_big",
-      reason: `Maksimal ${cfg.maxLocationsPerRun} lokasi per analisis — persempit scope.`,
+      // Pesan menyebut ANGKANYA, jumlah yang diminta, DAN tempat mengubahnya —
+      // penolakan tanpa jalan keluar membuat orang mengira ini batas mati.
+      reason:
+        `Scope ${f.locationCount} lokasi melebihi batas ${cfg.maxLocationsPerRun} lokasi per analisis. ` +
+        `Persempit scope, atau naikkan batasnya di Sistem → AI.`,
     };
   }
   if (f.inputChars > cfg.maxInputChars) {
     return {
       ok: false,
       code: "input_too_big",
-      reason: "Data sumber terlalu besar untuk satu analisis — persempit scope atau periode.",
+      reason:
+        `Data sumber ${Math.round(f.inputChars / 1000)} rb karakter melebihi batas ` +
+        `${Math.round(cfg.maxInputChars / 1000)} rb. Persempit scope/periode, atau naikkan ` +
+        `"Maks karakter input" di Sistem → AI.`,
     };
   }
   return { ok: true };

@@ -55,7 +55,9 @@ export default async function AiAskPage({ searchParams }: { searchParams: Promis
 
   const locations = await db.location.findMany({
     where: { id: { in: scope.ids } },
-    select: { id: true, name: true },
+    // Nama paket ikut: pemilih lokasi mengelompokkan per paket dan mencarinya
+    // juga — tanpa ini 83 lokasi menumpuk jadi satu grup "Tanpa paket".
+    select: { id: true, name: true, package: { select: { name: true } } },
     orderBy: { name: "asc" },
   });
   const aiReady = guard.enabled && !!aiCfg && can(user.role, "ai.ask");
@@ -111,7 +113,7 @@ export default async function AiAskPage({ searchParams }: { searchParams: Promis
                 }
               : null
           }
-          locations={locations}
+          locations={locations.map((l) => ({ id: l.id, name: l.name, packageName: l.package?.name ?? null }))}
           aiReady={aiReady}
         />
       </div>

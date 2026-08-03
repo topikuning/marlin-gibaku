@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Camera, ClipboardList, History, Printer, TriangleAlert } from "lucide-react";
-import { Badge, Banner, Card, CardBody, CardHeader, PageHeader, StatusPill } from "@/components/ui";
+import { Badge, Banner, ButtonLink, Card, CardBody, CardHeader, PageHeader, StatusPill } from "@/components/ui";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import { isR2Configured } from "@/lib/r2";
 import { requireUser, hasLocationAccess } from "@/lib/auth/session";
@@ -230,14 +230,15 @@ export default async function HarianWorkspacePage({
       ) : null}
       {report && (status === "dikirim" || status === "disetujui") ? (
         <p className="text-right">
-          <Link
+          <ButtonLink
             href={withBackTo(`/cetak/harian/${slug}/${date}`, `/lokasi/${slug}/harian/${date}`)}
             target="_blank"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+            variant="secondary"
+            size="sm"
           >
-            <Printer aria-hidden className="size-4" />
+            <Printer aria-hidden className="size-3.5" />
             Pratinjau format KKP
-          </Link>
+          </ButtonLink>
         </p>
       ) : null}
 

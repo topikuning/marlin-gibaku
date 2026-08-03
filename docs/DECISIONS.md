@@ -7767,3 +7767,580 @@ sungguhan: kartu "Sudah 1 / Belum 6" cocok dengan pin per filter (1 / 6), dan
 lokasi yang sudah lapor tapi deviasi −99,7% memang tampil MERAH — persis keadaan
 yang ditanyakan user · unit 819/819 ✓ · integrasi 301/301 ✓ · E2E 44 lulus ✓ ·
 `pnpm build` ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 236 — Ekspor dokumen CCO format KKP (2026-08-03)
+
+**Permintaan user 2026-08-03** melampirkan `DRAFT_CCO.xlsx`, sheet
+`CCO-01 (BANGUNAN)`: *"ini adalah draft format yang diminta kkp untuk pengajuan
+cco. akomodir ini"*.
+
+### Bentuknya
+
+Satu baris per item dengan EMPAT blok angka berdampingan — MC-0 (kontrak yang
+berlaku), PEKERJAAN TAMBAH, PEKERJAAN KURANG, dan CCO-01 (setelah adendum) —
+plus kolom KET. Posisi kolom B–V disalin persis dari berkas contoh supaya
+pemeriksa KKP membaca dokumen yang sama bentuknya, bukan yang mirip. Kolom G
+dan H dibiarkan kosong seperti di aslinya; menggesernya memindahkan seluruh
+kolom sesudahnya.
+
+**Sumber angkanya dua revisi sekaligus**: revisi RAB AKTIF sebagai MC-0 dan
+draft adendum sebagai CCO-01. Karena itu tombolnya ada di kartu draft adendum —
+tanpa draft, tidak ada yang bisa dibandingkan.
+
+### Dua hal yang sengaja TIDAK disalin
+
+Keputusan user 2026-08-03:
+
+1. **Blok kanan** (X `KET`, Y–AA `CCO-PRC`, AB–AD `CCO-PERENCANA`, AG–AI
+   `BIAYA PELAKSANAAN`) — *"b-v saja"*. Itu kertas kerja konsultan, dan di
+   berkas contoh isinya `#REF!`; mencetaknya berarti menyalin galat.
+2. **Baris identitas** PROGRAM / KEGIATAN / JENIS PENGADAAN / PAGU / SUMBER
+   DANA — *"dihide, abaikan saja dulu"*. Tidak satu pun ada di MARLIN.
+   Mencetak labelnya dengan nilai karangan lebih buruk daripada tidak
+   mencetaknya: ini dokumen pengajuan resmi. Yang dicetak hanya yang MARLIN
+   benar-benar tahu: nama paket, lokasi, penyedia jasa, nomor kontrak.
+
+### Yang menentukan benar-salah: barisnya, bukan bordernya
+
+Baris disusun `src/lib/rab/cco-rows.ts` — modul MURNI, diuji tanpa database.
+Aturannya:
+
+- Baris = **gabungan** kedua revisi. Item yang DICABUT tidak ada di pohon draft
+  tapi wajib muncul (justru itu isi "pekerjaan kurang"); item BARU tidak ada di
+  revisi aktif. Membangun baris dari satu sisi saja menghilangkan separuh
+  perubahan tanpa jejak.
+- Volume tambah/kurang = **selisih**, bukan volume penuh — kolomnya menanyakan
+  "berapa yang bertambah", bukan "berapa jadinya".
+- Pekerjaan kurang ditulis sebagai besaran POSITIF.
+- Item baru disisipkan di dalam kategori induknya (dicocokkan lewat lineageKey
+  induk), tidak ditumpuk di ujung dokumen.
+- Kategori yang seluruhnya baru ikut dirender berikut isinya — **cacat nyata
+  yang tertangkap ujinya saat dibangun**: versi pertama melewatkan item yang
+  induknya juga baru, jadi justru perubahan terbesar yang paling mudah luput.
+
+PPN diambil dari `Contract.ppnPercent`, tidak dipatok 11 walau contohnya 11%.
+
+### Bobot: penyebutnya ditulis
+
+Kolom bobot di format aslinya tidak menyebut pembaginya. Persentase tanpa
+penyebut tidak bisa diperiksa siapa pun, jadi MARLIN mencetak catatan kaki:
+bobot MC-0/tambah/kurang terhadap nilai MC-0, bobot CCO-01 terhadap nilai
+CCO-01, keduanya pra-PPN.
+
+**Verifikasi**: 15 kasus unit mengunci aturan barisnya, termasuk invarian
+`MC-0 + tambah − kurang = CCO-01` · berkasnya benar-benar diunduh lewat rutenya
+di browser lalu dibuka kembali dengan openpyxl: header tiga tingkat pada posisi
+kolom yang sama dengan contoh, item yang volumenya digandakan muncul sebagai
+TAMBAH dengan volume selisih (bukan volume penuh), dan baris JUMLAH menutup
+persis ke `total_value` draft di database (8.672.531.022) · unit 834/834 ✓ ·
+integrasi 301/301 ✓ · E2E 44 lulus ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓.
+
+> **Belum dikerjakan, menunggu keputusan**: baris identitas PROGRAM/KEGIATAN/
+> PAGU/SUMBER DANA masih kosong sesuai permintaan "abaikan saja dulu". Bila
+> nanti diperlukan, pilihannya menambah field di Paket atau mengisinya manual.
+
+---
+
+## 237 — CCO dirapikan; aksi jadi tombol (lagi) (2026-08-03)
+
+### Tata letak CCO: meniru STRUKTUR, bukan koordinat sel
+
+*"hasil export cco, kenapa berantakan dan banyak ruang terbuang, BUAT YANG
+RAPI"* — dengan tangkapan layar berkas hasil ekspor.
+
+DECISIONS 236 menyalin posisi baris/kolom berkas contoh mentah-mentah dengan
+alasan "supaya pemeriksa membaca dokumen yang sama bentuknya". Alasan itu salah
+sasaran: yang disalin ternyata bukan formatnya, melainkan **sisa kertas kerja**
+di berkas contoh —
+
+| Ditiru dari contoh | Kenyataannya |
+|---|---|
+| judul di baris 13, tabel mulai baris 27 | 12 baris kosong di atas judul |
+| kolom G dan H dipertahankan | kosong di SELURUH baris data contoh |
+| header 4 tingkat | kata terpenggal: "HARGA" / "SATUAN" / "Rp." |
+| kolom D selebar 2,2 | pemisah kosong di dalam URAIAN |
+
+Sekarang yang ditiru **strukturnya** — urutan blok, isi kolom, penamaan — bukan
+koordinat selnya:
+
+- **17 kolom rapat A–Q**, tidak ada kolom kosong (diverifikasi terprogram).
+- Judul baris 1, identitas 3–6, header dua tingkat 8–9, data mulai **baris 10**
+  (dulu 27).
+- Peta kolom jadi **satu sumber** lebar/perataan/format angka; header, baris
+  data, dan kaki semua diturunkan darinya.
+- `freeze` di `C10` — NO + URAIAN tetap terlihat saat menggeser ke blok CCO-01.
+- Header tabel **diulang tiap halaman cetak** (`printTitlesRow`), A4 lanskap
+  `fitToWidth=1`. Dokumen ini puluhan halaman.
+
+### Nol dikosongkan di blok TAMBAH/KURANG
+
+236 menulis `0` di semua baris TETAP dengan alasan "kosong terbaca belum diisi".
+Pada RAB nyata (±1.970 baris, 1.612 di antaranya TETAP) hasilnya **ribuan** "0"
+dan "0,00" yang menenggelamkan empat baris yang benar-benar berubah — persis
+keluhannya. Sekarang kosong; tidak ambigu karena kolom KET menyatakan TETAP dan
+catatan kaki menyebutkannya. Blok MC-0 dan CCO-01 tetap selalu terisi: itu nilai
+sungguhan. Setelah perubahan: **0 sel bernilai nol** tersisa di blok tambah/kurang.
+
+Tambahan: baris yang berubah diberi **latar tipis** (hijau untuk tambah/baru,
+merah untuk kurang/hapus). Di dokumen 2.000 baris, mencari perubahan lewat kolom
+KET saja terlalu lambat.
+
+Baris tanpa isi keuangan sama sekali — tanpa volume, tanpa harga satuan, nol di
+KEDUA sisi — dirender sebagai judul. Di RAB nyata itu sub-judul yang terlanjur
+tersimpan sebagai `item` ("6.6.1. Penyiapan RK3K, terdiri atas :"); mencetak `0`
+dan `TETAP` untuknya hanya derau. Aman: kedua sisi nol, jadi tidak ada perubahan
+yang bisa tersembunyi.
+
+### Aksi jadi tombol — pelanggaran DECISIONS 232 yang terulang
+
+*"aku sudah menegurmu soal tombol, kenapa malah tetap begini lagi!"* Benar, dan
+salah satunya kutulis sendiri di PR yang sama:
+
+| Sebelum | Sesudah |
+|---|---|
+| `<a>` "Unduh template adendum ↓" | `ButtonLink` sekunder + ikon Download |
+| `<Link>` "← Kembali ke RAB" | `ButtonLink` ghost + ikon ArrowLeft |
+| `<button>` ber-`hover:underline` "Buka kunci …" | `Button` sekunder + ikon KeyRound |
+
+232 sudah menetapkan aturannya; yang kurang adalah menerapkannya ke SEMUA aksi,
+bukan hanya ke kepala kartu RAB yang saat itu dikeluhkan.
+
+**Verifikasi**: berkas diunduh lewat rutenya di browser lalu diperiksa
+terprogram — 17 kolom tanpa kolom kosong, tabel mulai baris 10, freeze `C10`,
+header cetak berulang `$8:$9`, 0 sel nol di blok tambah/kurang, dan invarian
+`MC-0 + tambah − kurang = CCO-01` menutup persis ke `total_value` draft
+(8.642.744.102). Ketiga tombol diperiksa di browser sebagai `<a>`/`<button>`
+ber-kelas tombol. Unit 834/834 ✓ · integrasi 301/301 ✓ · build/typecheck/lint ✓.
+
+> **Catatan**: render visual lewat LibreOffice tidak tersedia di lingkungan ini
+> (berkas contoh KKP sendiri pun ditolak, tanpa Java) — pemeriksaan tata letak
+> dilakukan terprogram atas isi berkasnya, bukan atas hasil render Excel.
+
+---
+
+## 238 — Pemilih berkas bergaya sendiri; Activity Centre menaut ke kegiatannya (2026-08-03)
+
+### `FileInput`: kontrol bawaan peramban diganti
+
+*"browse file juga begini, tidak layak"* — tangkapan layar memperlihatkan
+`Browse… No file selected.` di tengah form yang seluruh kontrol lainnya bergaya
+token.
+
+Kontrol `<input type="file">` memang **tidak bisa digaya**: teks dan tombolnya
+dirender peramban, di luar jangkauan CSS. `file:`-variant Tailwind hanya
+menyentuh tombolnya, teks "No file selected" tetap muncul. Jadi input aslinya
+disembunyikan (`sr-only`, BUKAN `hidden` — supaya tetap bisa difokus keyboard
+dan validasi bawaan tetap jalan) dan pemicunya digambar sendiri:
+
+- tombol **Pilih berkas / Ganti berkas** ber-ikon,
+- nama + ukuran berkas terpilih, dengan tombol kosongkan,
+- kotak putus-putus yang menerima **seret & lepas**,
+- `petunjuk` opsional di bawah kotak,
+- validasi ukuran klien dipertahankan (body melewati `bodySizeLimit` ditolak
+  Next SEBELUM kode kita jalan → halaman crash, bukan pesan rapi).
+
+`name`/`accept`/`required` tetap di input aslinya, jadi FormData server action
+tidak berubah. Ditambah `onPilih` untuk form yang menyusun FormData sendiri
+(impor HPS menahan berkasnya untuk langkah pratinjau).
+
+Dipakai ulang di: impor HPS/RAB, dokumen kepatuhan, dokumen paket, dokumen
+umum, logo vendor, logo branding sistem.
+
+### Aksi jadi tombol — sisa DECISIONS 232 dituntaskan
+
+232 hanya menyentuh kepala kartu RAB yang saat itu dikeluhkan; sisanya
+tertinggal. Sekarang seluruh **slot aksi** dan **tautan balik** ikut:
+
+`Kembali ke RAB` (2 tempat) · `Kembali ke Pelaksanaan Harian` ·
+`Buka draft adendum` · `Jelaskan dengan AI` · `Detail progress` · `Kelola` ·
+`Kelola kendala` · `Pratinjau format KKP` · `Lampirkan` (dokumen adendum).
+
+Tautan di **dalam kalimat** sengaja TIDAK diubah — itu memang tautan, bukan
+aksi.
+
+### Activity Centre menaut ke kegiatannya
+
+*"activity centre diklik, seharusnya langsung menuju aktifitas terkait, bukan ke
+lokasi secara umum"*. Butir panel itu adalah `FieldActivity`, tetapi menaut ke
+`/lokasi/{slug}` — orang harus mencari sendiri kegiatan yang barusan
+dilihatnya, di daftar yang bisa panjang.
+
+Sekarang `ActivityCentreItem.href` = `/lokasi/{slug}/kegiatan#keg-{id}`, dan
+kartu kegiatan diberi `id` + `scroll-mt-24` + sorotan `target:ring-2`. Melompat
+tanpa penanda sama saja dengan tidak melompat.
+
+**Tautan dibentangkan `after:absolute inset-0`, bukan dengan membungkus baris
+dengan `<Link>`.** Percobaan pertama membungkusnya — keliru: galeri foto di
+kanan berisi `<button>` pembuka lightbox, dan tombol di dalam anchor itu HTML
+tak sah; klik thumbnail akan pindah halaman alih-alih membuka fotonya. Galeri
+diangkat ke atas lapisan tautan (`relative z-10`).
+
+**Verifikasi di browser sungguhan**: tiga halaman diperiksa tidak menyisakan
+satu pun kontrol file bawaan yang terlihat, sementara pemicu bergaya ada ·
+butir Activity Centre bertaut `…/kegiatan#keg-…`, diklik → mendarat di halaman
+kegiatan, kartu sasaran ada, terlihat di layar, dan `:target` benar-benar
+menyalakan ring (`box-shadow … rgb(30,58,138) 0 0 0 4px`) · unit 834/834 ✓ ·
+integrasi 301/301 ✓ · E2E 44 lulus ✓ · build/typecheck/lint ✓.
+
+---
+
+## 239 — Dokumen CCO jadi berkas HIDUP (formula, bukan angka mati) (2026-08-03)
+
+*"kenapa kamu menggunakan hardcode nilai pada file cco ini? sedangkan aku sudah
+bilang, gunakan rumus, agar ketika file itu diubah di lokal, semua hal
+menyesuaikan."* — teguran berulang; ekspor RAB sudah ber-formula sejak
+DECISIONS 086, CCO tidak.
+
+### Hanya empat kolom yang berisi data
+
+`C` volume MC-0 · `D` satuan · `E` harga satuan · `N` volume CCO-01. Sisanya
+formula. Ubah `C` atau `N` di Excel → volume tambah/kurang, semua jumlah harga,
+semua bobot, keterangan TETAP/TAMBAH/KURANG/BARU/HAPUS, **sorotan barisnya**,
+JUMLAH, PPN, dan TOTAL NILAI menyesuaikan sendiri.
+
+Sorotan baris memakai **format bersyarat** yang membaca kolom KET, bukan warna
+yang dibakar saat ekspor: KET sendiri formula, jadi warna statis akan menyorot
+baris yang sudah tidak berubah lagi. PPN persennya **sel tersendiri** (`E` pada
+baris PPN) yang dirujuk formula — bukan angka yang ditanam di dalam rumus.
+
+### Aturan hitungan — dari templat user, bukan karangan
+
+```
+volume tambah = volume CCO-01 − volume MC-0      (bila positif)
+volume kurang = volume MC-0 − volume CCO-01      (bila positif)
+jumlah harga  = harga satuan × volume            (tiap blok pakai volumenya)
+bobot         = jumlah harga ÷ TOTAL × 100
+```
+
+**Penyebut bobot** (*"coba kamu nalar"*): bobot adalah porsi biaya satu item
+terhadap keseluruhan — dasar pembobotan kurva-S — jadi satu potret RAB harus
+berjumlah 100%. MC-0 dibagi TOTAL MC-0, CCO-01 dibagi TOTAL CCO-01. TAMBAH dan
+KURANG bukan potret melainkan selisih; yang ditanya "seberapa besar perubahan
+ini terhadap kontrak berjalan", jadi penyebutnya TOTAL MC-0 — dan konsekuensinya
+Σ bobot tambah = persentase penambahan nilai kontrak, angka yang dipakai uji
+batas 10% Perpres Pasal 54 (DECISIONS 233). Penyebutnya kini **rujukan sel yang
+kelihatan** (`$F$1981`), bukan klaim.
+
+**Tanpa ROUND per baris**, mengikuti DECISIONS 075: total = round(Σ nilai
+eksak), "PERSIS seperti Excel yang menjumlah nilai penuh lalu membulatkan
+sekali". Membulatkan tiap baris justru membuat `MC-0 + tambah − kurang =
+CCO-01` meleset beberapa rupiah pada baris yang berubah.
+
+### Temuan: Σ(harga × volume) ≠ nilai kontrak — dan itu nyata
+
+Saat diuji pada Batah Timur, JUMLAH MC-0 hasil formula **Rp 8.588.413.352**
+sedangkan nilai kontrak tercatat **Rp 8.587.622.465** — beda **Rp 790.887**,
+bukan pembulatan. Penyebabnya:
+
+1. **Tiga item RAB ber-volume dan ber-harga satuan tetapi JUMLAH-nya nol**:
+   Roolag Bata (Rp 419.014), Plesteran (Rp 200.286), Acian (Rp 162.620) —
+   Rp 781.920. MARLIN menyimpannya apa adanya (DECISIONS 203).
+2. Sisanya (194 item, umumnya ±756) pergeseran apportionment antar sibling
+   (DECISIONS 075) yang saling meniadakan.
+
+Dua jalan yang SAMA-SAMA salah: menutup selisih dengan memaksa angka ke nilai
+tercatat (mengarang jumlah harga yang bukan harga × volume), atau mendiamkannya
+(mengirim dokumen pengajuan yang totalnya membantah nilai kontrak). Jadi
+selisihnya **DITULIS** — baris "Nilai tercatat di MARLIN" + baris "Selisih
+Σ(harga × volume) − nilai tercatat" (formula), disorot bila bukan nol, dengan
+kalimat yang menyebut penyebabnya. Nol berarti aman.
+
+> **Perlu tindakan user**: tiga item itu di RAB kontrak Batah Timur bernilai nol
+> padahal punya volume dan harga satuan. Perlu diperiksa apakah HPS sumbernya
+> memang begitu.
+
+**Verifikasi**: 15 uji unit yang **MENGHITUNG ULANG lembarnya** dengan penafsir
+formula kecil (rujukan sel, SUM, IF, OR, pembanding) lalu membandingkannya
+dengan `susunBarisCco()` — menguji "ada tulisan formula di sel" tidak
+membuktikan apa-apa, formula yang salah tetap berupa formula. Termasuk uji
+pokok: satu volume DIUBAH lalu lembarnya dihitung ulang, dan jumlah, bobot,
+KET, JUMLAH, PPN, TOTAL ikut bergerak · berkas 1.970 baris diunduh lewat
+rutenya dan dihitung ulang dari kolom datanya saja: invarian
+`MC-0 + tambah − kurang = CCO-01` menutup dengan selisih **0,000000** ·
+unit 849/849 ✓ · integrasi 301/301 ✓ · E2E 44 lulus ✓ · build/typecheck/lint ✓.
+
+---
+
+## 240 — Batas 25 lokasi dicabut; pemilih lokasi bisa dipakai pada skala nyata (2026-08-03)
+
+### Batas yang menghalangi pemakaian normal bukan kehati-hatian
+
+*"siapa yang membatasi 25 lokasi? bagaimana jika aku butuh laporan penuh!"*
+
+Yang membatasi: DECISIONS 133, default `maxLocationsPerRun: 25` yang saya pasang
+dengan alasan "konservatif" — padahal programnya **83 lokasi** dan arsitekturnya
+menargetkan **200+** (PROJECT.md). Akibatnya laporan portofolio penuh, justru
+kegunaan utama AI Hub, ditolak pada pemakaian pertama; pesannya bahkan tidak
+menyebut bahwa batas itu bisa diubah.
+
+**Menaikkan batas lokasi saja tidak cukup**, dan itu ketahuan saat diukur:
+payload ±810 karakter per lokasi (satu baris data + 4–5 baris sumber), jadi
+83 lokasi ≈ **67.000 karakter** — sudah melewati `maxInputChars` 60.000. Batas
+kedua itu bahkan **tidak ada di form admin sama sekali**: tak seorang pun bisa
+menaikkannya tanpa deploy.
+
+| | Sebelum | Sesudah |
+|---|---|---|
+| `maxLocationsPerRun` | 25 | **200** (target arsitektur) |
+| `maxInputChars` | 60.000 | **400.000** (~100 rb token) |
+| Batas atas form | 200 | 1000 |
+| `maxInputChars` di form | *tidak ada* | ada |
+
+Ongkos tetap terjaga oleh batas run per user/jam dan per organisasi/hari — itu
+membatasi *pemakaian* tanpa melarang *cakupan*.
+
+Pesan penolakan sekarang menyebut angkanya, jumlah yang diminta, DAN tempat
+mengubahnya ("Sistem → AI"). Penolakan tanpa jalan keluar membuat orang mengira
+batasnya mati.
+
+Sekalian: daftar risiko yang dipotong 25 teratas kini **menyebut sisanya**
+(`+N risiko lain tidak ditampilkan`). Daftar yang menyusut diam-diam terbaca
+"cuma segini risikonya" — oleh model maupun pembaca laporannya.
+
+### Pemilih lokasi: 83 checkbox berurut abjad tidak bisa dipakai
+
+*"bagaimana aku melakukan filter mana yang akan aku pilih, dengan lokasi
+sebanyak itu akan sangat merepotkan"*
+
+Scope AI sebelumnya kotak scroll berisi seluruh lokasi, tanpa pencarian dan
+tanpa pilih-sekaligus: mencari satu nama berarti menggulir, dan memilih satu
+paket berarti mencentang belasan baris satu per satu.
+
+`src/components/knmp/pemilih-lokasi.tsx` (dipakai Report Studio & Ask MARLIN):
+
+- **Pencarian** atas nama lokasi DAN nama paket — orang mengingat salah satu.
+- **Dikelompokkan per paket** dengan centang tingkat paket (indeterminate saat
+  sebagian): satu ketukan untuk seluruh isinya.
+- **Pilih semua / Pilih N hasil / Kosongkan** — "cari lalu pilih semua hasilnya"
+  jadi dua ketukan.
+- **Chip terpilih** yang bisa dilepas satu-satu, supaya pilihan yang tergulir
+  jauh tetap terlihat.
+- Jumlah yang disembunyikan pencarian SELALU disebut.
+
+Ask MARLIN ikut mengambil nama paket dari DB; tanpa itu 83 lokasi menumpuk jadi
+satu grup "Tanpa paket".
+
+**Verifikasi**: dev di-seed ke **83 lokasi / 9 paket** (skala nyata; 7 lokasi
+bawaan tidak membuktikan apa pun), lalu diperiksa di browser — 11 grup paket,
+satu centang paket memilih 11 lokasi sekaligus, cari "Uji 1" → tombol "Pilih 11
+hasil" + keterangan "11 dari 83 lokasi tampil · 72 disembunyikan pencarian",
+"Pilih semua" → 83 lokasi dipilih · uji unit mengunci bahwa default meloloskan
+83 DAN 200 lokasi berikut ukuran payload-nya, dan bahwa pesan penolakan menyebut
+"Sistem → AI" · unit 852/852 ✓ · integrasi 301/301 ✓ · E2E 44 lulus ✓ ·
+build/typecheck/lint ✓.
+
+> **Belum bisa diuji di sini**: tombol Generate Draft dinonaktifkan karena
+> provider AI belum dikonfigurasi di lingkungan dev, jadi guard-nya dibuktikan
+> lewat uji unit, bukan lewat run sungguhan.
+>
+> **Perlu diperiksa di instans Anda**: bila panel Sistem → AI pernah disimpan,
+> nilai 25/60.000 lama ikut TERSIMPAN dan default baru tidak berlaku —
+> naikkan di sana. Nilai tersimpan sengaja tidak ditimpa diam-diam.
+
+---
+
+## 241 — Excel laporan harian mengikuti blanko yang sama dengan PDF (2026-08-03)
+
+*"format excel laporan harianmu belum menyesuaikan format pdf terakhir"*
+
+Ekspor `.xlsx` masih bentuk lama sementara versi cetaknya sudah beberapa kali
+mengikuti blanko resmi KKP. Yang HILANG dari Excel:
+
+| Ada di PDF | Excel sebelumnya |
+|---|---|
+| Kop KONSULTAN PENGAWAS / KONTRAKTOR PELAKSANA + nama perusahaan | tidak ada |
+| Baris PEKERJAAN | tidak ada |
+| Identitas pemberi kerja dari menu Sistem | **dipatok** "Kampung Nelayan Merah Putih (KNMP)" di kode — melanggar DECISIONS 166 |
+| KONDISI CUACA per jam 07.00–21.00 (+ Shop Drawing) | satu baris "Cuaca: Cerah" |
+| RENCANA vs REALISASI berdampingan | tidak ada |
+| Judul bangunan/kategori di kolom realisasi | tidak ada |
+| Catatan pekerjaan basis draft adendum | tidak ada |
+| Blok tanda tangan | tidak ada |
+| Tenaga kerja: SELURUH keahlian termasuk yang nol | hanya yang > 0 |
+| Material: kolom "Ditolak" + baris kosong siap isi | tidak ada |
+
+### Barisnya dipinjam, bukan disusun ulang
+
+`barisRencanaRealisasi()` diekspor dari modul cetak dan dipakai langsung oleh
+penulis Excel. Menyusun baris dua kali persis yang membuat keduanya menyimpang:
+penomoran, judul bangunan, dan teks realisasi kini mustahil berbeda karena
+memang satu fungsi yang sama.
+
+### Kolom sempit + merge, bukan kolom lebar
+
+Grid cuaca butuh 15 kolom jam yang sempit dan seragam; sel teks dibentuk dengan
+`merge`, bukan dengan melebarkan kolomnya. Tanpa itu, satu lembar tidak bisa
+melayani blok bergrid (cuaca) dan blok berteks (uraian) sekaligus.
+
+Blok TAMBAHAN di luar blanko — rincian kemajuan per pekerjaan dalam kolom angka,
+kini berikut kolom Bangunan/Kategori — diletakkan **paling bawah** supaya
+susunan blanko tidak bergeser. Blok itu justru alasan orang meminta Excel
+alih-alih PDF: angkanya bisa disortir dan dijumlah sendiri.
+
+**Verifikasi**: 16 uji unit membangun berkasnya lalu membacanya kembali —
+seluruh judul blok ada DAN urutannya menaik seperti blanko, blok tambahan
+berada sesudah catatan, teks rencana/realisasi dibandingkan langsung dengan
+keluaran `barisRencanaRealisasi()` yang dipakai PDF, judul bangunan
+"I. RUMAH NELAYAN"/"II. DERMAGA" muncul, keahlian bernilai nol tetap terdaftar,
+15 kolom jam lengkap dengan centang mengikuti kondisi PER JAM (jam 13 hujan
+tercentang, jam 07 tidak), nama pemberi kerja dari data dan string KNMP yang
+dulu ditanam TIDAK muncul lagi · unit 868/868 ✓ · integrasi 301/301 ✓ ·
+E2E 44 lulus ✓ · build/typecheck/lint ✓.
+
+> **Catatan**: render visual Excel tidak tersedia di lingkungan ini (LibreOffice
+> tanpa Java menolak membuka .xlsx, termasuk berkas contoh KKP sendiri), jadi
+> kesesuaian diperiksa atas ISI berkasnya secara terprogram, bukan atas hasil
+> render. Silakan buka di Excel dan kabari bila ada yang perlu digeser.
+
+---
+
+## 242 — Pengaman "sudah terprogres" dibawa ke DALAM berkas Excel (2026-08-03)
+
+Pertanyaan user 2026-08-03: *"bagaimana dengan item yang sudah terlanjur
+dilaporkan, dan terprogres? apakah tidak ada pengamannya di level file excel?"*
+
+**Jawabannya waktu itu: tidak ada.** Server memang menolak —
+`rab/adendum.ts:209` menolak volume di bawah realisasi, `:443` menolak mencabut
+item ber-realisasi, dan pratinjau impor menandai `dibawahRealisasi` serta item
+ber-realisasi yang hilang dari berkas. Tetapi semuanya **baru sesudah berkas
+diunggah balik**, padahal template adendum justru diisi jauh dari aplikasi
+(WhatsApp/email, kerap oleh orang tanpa akses MARLIN) dan dokumen CCO sejak
+DECISIONS 239 memang dimaksudkan diedit lokal. Menunda kabar sampai unggah
+berarti pekerjaan ulang satu berkas penuh — dan pada dokumen CCO lebih buruk:
+menurunkan volume di bawah realisasi menghasilkan dokumen PENGAJUAN yang
+mengusulkan membatalkan pekerjaan yang sudah dikerjakan, tanpa ada apa pun di
+berkasnya yang keberatan.
+
+### Rambu berlapis, bukan gembok
+
+Excel tidak bisa MENCEGAH (validasi bisa ditembus tempel-salin), jadi tiga
+lapis di kedua berkas:
+
+1. **Kolom REALISASI** berisi angka lapangan — nol ditulis eksplisit, karena
+   kosong terbaca "belum diketahui" sedangkan 0 berarti "belum dikerjakan".
+2. **Data validation** pada sel volume: entri di bawah realisasi ditolak dengan
+   pesan yang menyebut ANGKANYA dan satuannya, bukan sekadar "tidak valid".
+3. **Format bersyarat** merah untuk pelanggaran yang lolos validasi; di template
+   juga untuk `HAPUS` atas item ber-realisasi (server melarangnya mutlak).
+
+Item TANPA realisasi sengaja tidak dipagari sama sekali — pagar di mana-mana
+membuat orang terbiasa menembusnya.
+
+### Kolom baru DITARUH DI KANAN, tidak menyisipkan
+
+Parser template mematok indeks kolom 1–11 dan mengenali template dari penanda di
+kolom 11. Menyisipkan kolom akan membuat template yang **sudah terlanjur
+beredar** gagal dikenali lalu diam-diam jatuh ke parser HPS biasa. Jadi
+REALISASI ditaruh di kolom 12 dan baris header tetap 8; petunjuk keempat
+digabung ke baris 7 karena baris 8 adalah header. Diuji.
+
+### Cacat yang ketahuan hanya karena diuji pembaca lain
+
+`errorStyle: "error"` **bukan nilai sah OOXML** — spesifikasi hanya mengenal
+`stop`/`warning`/`information`. ExcelJS menerima nilai apa pun dan menuliskannya
+apa adanya, jadi berkasnya lolos SEMUA uji berbasis ExcelJS tetapi **ditolak
+openpyxl**, dan Excel akan mengeluh "unreadable content" lalu membuang
+validasinya diam-diam — pengaman yang tampak terpasang padahal tidak ada.
+Menguji berkas lewat pustaka yang sama yang menulisnya tidak pernah menangkap
+cacat kelas ini. Sekarang dipatok `stop`, dan ada uji yang mengunci nilainya
+terhadap daftar spesifikasi.
+
+Uji rujukan sel juga dibaca dari **XML mentah**, bukan hasil baca-ulang:
+pembaca ExcelJS memaksa formula validasi bertipe `decimal` jadi angka sehingga
+`$L$10` terbaca `NaN` padahal berkasnya benar.
+
+**Verifikasi**: 30 uji unit (11 template + 19 CCO) · berkas SUNGGUHAN diunduh
+lewat kedua rutenya sesudah tiga item diberi realisasi (20 / 1 / 0,4), lalu
+**dibuka openpyxl — pembaca independen**: template 3 sel ber-validasi (G10–G12)
++ 6 sel ber-sorotan (G & J tiap baris), CCO 3 sel ber-validasi (O11–O13) +
+sorotan per baris, `errorStyle` keduanya `stop` · unit 885/885 ✓ ·
+integrasi 301/301 ✓ · E2E 44 lulus ✓ · build/typecheck/lint ✓.
+
+---
+
+## 243 — Nama penanda tangan CCO diisi dari kontrak (2026-08-03)
+
+*"nama-nama pihak kan sudah ada di sistem. kenapa tidak kamu masukkan!"*
+
+Blok tanda tangan dokumen CCO mencetak tiga garis titik-titik, padahal ketiga
+pihak sudah tercatat di `Contract`:
+
+| Blok | Sumber |
+|---|---|
+| PPK Pejabat Penandatangan Kontrak | `ppkName` + `ppkNip` |
+| Konsultan Pengawas | `supervisorName`, instansi `supervisorFirm` |
+| Penyedia Jasa | `contractorSignerName` + `contractorSignerTitle`, perusahaan `vendor.name` |
+
+Blanko harian sudah mengisinya sejak lama; CCO tertinggal karena saya menulis
+placeholder-nya sebagai konstanta. Mencetak garis titik-titik untuk data yang
+sudah diketahui berarti menyuruh orang menulis tangan sesuatu yang ada di
+sistem — dan membuat dokumen pengajuan terlihat belum jadi.
+
+Sekarang tiap kolom tanda tangan memuat: peran → instansi/perusahaan → nama
+dalam kurung (tebal) → NIP (PPK) atau jabatan (pengawas/penyedia).
+
+**Yang KOSONG tetap jadi garis isian.** Field yang belum diisi di kontrak tidak
+ditebak: garis isian jujur menyatakan "belum ada datanya", dan menebak nama
+pejabat pada dokumen pengajuan resmi jauh lebih buruk daripada kolom kosong.
+Diuji tersendiri.
+
+**Verifikasi**: 4 uji unit (nama tercetak, NIP/instansi/jabatan ikut, field
+kosong jadi garis isian sementara yang terisi tetap terisi) · berkas SUNGGUHAN
+diunduh lewat rutenya dengan data dev: `( Ir. Bagus Setiawan, M.T. )` +
+`NIP. 19750812 200212 1 003`, `( Dedi Kurniawan, S.T. )` +
+`CV Konsultan Bahari Nusantara`, `( Hendra Gunawan )` +
+`PT Nusantara Bahari Utama` + `Direktur Utama` · unit 888/888 ✓ ·
+integrasi 301/301 ✓ · E2E 44 lulus ✓ · build/typecheck/lint ✓.
+
+---
+
+## 244 — Advisory keamanan transitif: override PER LINI, bukan rentang terbuka (2026-08-03)
+
+CI job "Lint, typecheck, unit, build" gagal pada `pnpm audit --prod --audit-level
+high` — **bukan karena kode**: dua advisory baru terbit atas dependensi transitif.
+
+### 1. `brace-expansion` — ambangnya bergeser
+
+`GHSA-rgw5-rvv9-x895` (menembus mitigasi CVE-2026-14257) menaikkan ambang jadi
+v1 ≥1.1.18 dan v2 ≥2.1.4; terpasang 1.1.16 dan 2.1.2. Catatan lama di
+`pnpm-workspace.yaml` menyebut kedua lini itu "sudah patched" — benar untuk
+advisory SEBELUMNYA, tidak lagi untuk yang ini. v5 ikut naik ke ≥5.0.9.
+
+### 2. `fast-uri` — override lama justru yang MENARIK MASUK versi rentan
+
+Override lama `fast-uri: '>=3.1.4'` ditulis **tanpa batas atas**. `ajv` meminta
+`^3.0.1`; override mengganti spesifikasinya jadi `>=3.1.4` yang juga memuat 4.x,
+sehingga resolusi melompat ke **4.1.1** — dan lini v4 itulah yang rentan
+`GHSA-7p8r-x3mc-p8w7`. Diperbaiki dengan mengunci ke lini v3: `fast-uri@3: 3.1.5`.
+Menutup advisory lama DAN baru sekaligus, tanpa menaikkan mayor dep Prisma.
+
+### Kesalahan yang hampir lolos: rentang membuat lini kolaps
+
+Percobaan pertama memakai rentang (`brace-expansion@1: '>=1.1.18'`,
+`@2: '>=2.1.4'`). Hasilnya **`minimatch@3` dan `minimatch@5` sama-sama teresolusi
+ke `brace-expansion@5.0.8`** — persis kerusakan yang sudah diperingatkan catatan
+di berkas itu: CJS build v5 memakai named export → `expand is not a function` di
+`minimatch@3`. Ketahuan karena lockfile lama dibandingkan: sebelumnya
+`minimatch@3 → 1.1.16` dan `minimatch@5 → 2.1.2`, sesudahnya keduanya `5.0.8`.
+
+`exceljs → archiver → glob → minimatch` adalah jalur SELURUH ekspor Excel, jadi
+kerusakan itu akan diam sampai ada yang mengunduh berkas.
+
+**Perbaikannya: versi PERSIS, bukan rentang** — `1.1.18` / `2.1.4` / `5.0.9`.
+Resolusi per induk lalu diperiksa langsung di lockfile, bukan diasumsikan.
+
+### Gerbang usia rilis
+
+Versi tambalan (terbit 30–31 Juli) tertahan `minimumReleaseAge`. Ditambahkan ke
+`minimumReleaseAgeExclude` **per versi persis**, bukan per paket: menahan tambalan
+keamanan beberapa hari demi "matang" justru membiarkan kerentanan yang sudah
+diketahui tetap terpasang, sementara rilis berikutnya tetap lewat gerbang biasa.
+
+**Verifikasi**: `pnpm audit --prod --audit-level high` → **exit 0** (sisa 6
+moderate, di bawah ambang) · resolusi per induk diperiksa di lockfile:
+`minimatch@3 → 1.1.18`, `minimatch@5 → 2.1.4` (tetap satu lini) ·
+`pnpm install --frozen-lockfile` lolos (CI memakainya) · prisma generate ✓ ·
+typecheck ✓ · lint ✓ · unit 888/888 ✓ (mencakup seluruh pembangun .xlsx yang
+melewati archiver/minimatch) · build ✓ · integrasi 301/301 ✓.

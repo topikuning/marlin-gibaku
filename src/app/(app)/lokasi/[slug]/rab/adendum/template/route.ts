@@ -3,6 +3,7 @@ import { getCurrentUser, hasLocationAccess } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
+import { cumulativeVolumeByLineage } from "@/lib/progress";
 import { buildAdendumTemplateXlsx, type AdendumTemplateNode } from "@/lib/export/adendum-template-xlsx";
 
 export const dynamic = "force-dynamic";
@@ -69,6 +70,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     vendorName: contract?.vendor.name ?? null,
     revisionNo: active.revisionNo,
     totalValue: active.totalValue,
+    // Realisasi lapangan ikut ke berkas: itu dasar pengaman "volume tidak boleh
+    // turun di bawah yang sudah dikerjakan" — lihat DECISIONS 242.
+    realisasiByLineage: await cumulativeVolumeByLineage(location.id),
     nodes: nodes.map(
       (n): AdendumTemplateNode => ({
         id: n.id,

@@ -458,8 +458,12 @@ export function barisRealisasiKkp(items: KkpDailyItem[]): BarisRealisasi[] {
  *
  * Kedua kolom bernomor SENDIRI-SENDIRI: sejak realisasi memuat judul kategori,
  * nomor baris tabel bukan lagi nomor pekerjaan.
+ *
+ * DIEKSPOR supaya ekspor Excel memakai baris yang SAMA PERSIS, bukan menyusun
+ * ulang sendiri. Blanko harian pernah menyimpang antara PDF dan Excel justru
+ * karena keduanya membangun barisnya masing-masing. DECISIONS 241.
  */
-function barisRencanaRealisasi(
+export function barisRencanaRealisasi(
   d: KkpDailyData,
 ): { rencanaNo: string; rencana: string | null; realisasiNo: string; realisasi: string | null; realisasiKategori: boolean }[] {
   const rencana = (d.rencana ?? []).map((r) =>
