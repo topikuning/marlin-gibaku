@@ -22,8 +22,11 @@ const COUNTED: DailyReportStatus[] = [...COUNTED_REPORT_STATUSES];
 const KRITIS_THRESHOLD = -10; // deviasi (pp) < -10 = kritis (butuh tindakan segera)
 
 // ── Tipe hasil ────────────────────────────────────────────────────────────────
-/** "idle" = lokasi TARGET (belum mulai) — bukan "belum submit hari ini". */
-export type MarkerTone = "success" | "warning" | "danger" | "neutral" | "idle";
+// MarkerTone & StatusLapor tinggal di modul MURNI dashboard-filter.ts supaya
+// aturan filter petanya bisa diuji tanpa database; di sini hanya di-ekspor
+// ulang agar pemanggil lama tidak perlu berubah.
+export type { MarkerTone, StatusLapor } from "./dashboard-filter";
+import type { MarkerTone, StatusLapor } from "./dashboard-filter";
 
 export type DashboardData = {
   updatedAt: Date;
@@ -41,6 +44,8 @@ export type DashboardData = {
     deviasiKritis: number;
   };
   belumSubmit: { id: string; name: string; slug: string; lastReportDate: Date | null }[];
+  /** Lokasi yang SUDAH lapor hari ini — pasangan daftar `belumSubmit`. */
+  sudahSubmit: { id: string; name: string; slug: string; status: DailyReportStatus; submittedAt: Date | null }[];
   perluPerhatian: { id: string; name: string; slug: string; deviationPct: number }[];
   deviasiRanking: { id: string; name: string; slug: string; planPct: number; realizedPct: number; deviationPct: number }[];
   regions: { region: string; count: number }[];
@@ -60,6 +65,16 @@ export type DashboardData = {
   kendalaKritis: number;
   markers: PetaMarker[];
   markerTone: Record<string, MarkerTone>;
+  /**
+   * Status lapor hari ini per marker — TERPISAH dari `markerTone`.
+   *
+   * Warna pin memampatkan dua fakta (lapor & deviasi) jadi satu, dan deviasi
+   * kritis sengaja menang. Karena itu warna TIDAK BOLEH dipakai untuk
+   * menyimpulkan siapa yang sudah lapor: dulu filter "Belum Submit" hanya
+   * mengambil pin abu, sehingga lokasi yang belum lapor DAN kritis (merah)
+   * hilang dari hitungan dan petanya berselisih dengan kartu KPI.
+   */
+  markerSubmit: Record<string, StatusLapor>;
   locationsIndex: { name: string; slug: string }[];
   // Portofolio & administrasi (gabungan dari Command Center).
   finance: { totalContract: bigint; totalRealized: bigint; realizedPct: number };
@@ -100,7 +115,12 @@ export async function getDashboardData(locIds: string[] | null, orgId: string): 
     }),
     db.dailyReport.findMany({
       where: { location: locWhere, reportDate: today, status: { in: COUNTED } },
-      select: { locationId: true },
+      select: {
+        locationId: true,
+        status: true,
+        submittedAt: true,
+        location: { select: { name: true, slug: true } },
+      },
     }),
     db.dailyReport.findMany({
       where: { location: locWhere, reportDate: yesterday, status: { in: COUNTED } },
@@ -138,6 +158,24 @@ export async function getDashboardData(locIds: string[] | null, orgId: string): 
   const notSubmittedToday = Math.max(0, total - submittedToday);
   const notSubmittedYday = Math.max(0, total - submittedYday);
 
+  /*
+   * Daftar yang SUDAH lapor. Dulu hanya "belum" yang didaftar, jadi pertanyaan
+   * "daerah mana saja yang sudah submit hari ini?" tidak punya jawaban di layar
+   * mana pun — satu-satunya cara adalah menyaring peta lalu menebak dari pin.
+   * Angka yang tidak bisa ditelusuri ke daftarnya susah dipercaya.
+   */
+  const sudahSubmit = submittedTodayRows
+    .map((r) => ({
+      id: r.locationId,
+      name: r.location.name,
+      slug: r.location.slug,
+      status: r.status,
+      submittedAt: r.submittedAt,
+    }))
+    // Terbaru di atas; yang jam kirimnya tak tercatat ditaruh belakangan
+    // (jangan mengarang jam — laporan lama bisa saja tak punya submittedAt).
+    .sort((a, b) => (b.submittedAt?.getTime() ?? 0) - (a.submittedAt?.getTime() ?? 0));
+
   const belumSubmit = locations
     .filter((l) => !submittedIds.has(l.id))
     .map((l) => ({ id: l.id, name: l.name, slug: l.slug, lastReportDate: lastReport.get(l.id) ?? null }))
@@ -169,15 +207,22 @@ export async function getDashboardData(locIds: string[] | null, orgId: string): 
 
   // Warna pin peta = status submit + deviasi.
   const markerTone: Record<string, MarkerTone> = {};
+  const markerSubmit: DashboardData["markerSubmit"] = {};
   for (const m of markers) {
     const p = progress.get(m.id);
     // Lokasi belum mulai tidak diminta lapor hari ini — jangan diwarnai
     // "belum submit" seolah menunggak.
     if (!m.isActive) markerTone[m.id] = "idle";
+    // Deviasi kritis MENANG atas status lapor: itu sinyal paling mendesak dan
+    // harus tetap terlihat walau lokasinya belum lapor hari ini. Konsekuensinya
+    // pin merah bisa berarti "belum lapor" ATAU "sudah lapor" — karena itu
+    // status lapor dicatat terpisah di markerSubmit, jangan dibaca dari warna.
     else if (p && p.deviationPct < KRITIS_THRESHOLD) markerTone[m.id] = "danger";
     else if (!submittedIds.has(m.id)) markerTone[m.id] = "neutral";
     else if (p && p.deviationPct < 0) markerTone[m.id] = "warning";
     else markerTone[m.id] = "success";
+
+    markerSubmit[m.id] = !m.isActive ? "belum_mulai" : submittedIds.has(m.id) ? "sudah" : "belum";
   }
 
   // Kendala & solusi tertunda (issue terbuka/ditangani + aksi pemulihan terbaru).
@@ -234,6 +279,7 @@ export async function getDashboardData(locIds: string[] | null, orgId: string): 
       deviasiKritis,
     },
     belumSubmit,
+    sudahSubmit,
     perluPerhatian,
     deviasiRanking,
     regions,
@@ -242,6 +288,7 @@ export async function getDashboardData(locIds: string[] | null, orgId: string): 
     kendalaKritis: kendalaAll.filter((k) => k.severity === "kritis").length,
     markers,
     markerTone,
+    markerSubmit,
     locationsIndex: locations.map((l) => ({ name: l.name, slug: l.slug })),
     finance: { totalContract, totalRealized, realizedPct },
     paketAktif,

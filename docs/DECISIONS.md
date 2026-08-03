@@ -7703,3 +7703,67 @@ yang menembak `activateDraftAction` langsung — dibuktikan MERAH saat baris
 dengan MENJALANKAN ULANG berkasnya di PostgreSQL sungguhan, memeriksa
 `updated_at` tidak mundur · unit 809/809 ✓ · integrasi 301/301 ✓ · E2E ✓ ·
 `pnpm build` ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 235 — Warna pin peta ≠ status lapor; daftar "sudah submit" akhirnya ada (2026-08-03)
+
+**Pertanyaan user 2026-08-03**: *"kenapa ada 2 yang input/submit hari ini dan
+kamu nyatakan begitu di card, tapi kenapa di map tidak ada yang hijau?"* — lalu
+*"lalu dimana aku tahu, daerah mana saja yang sudah submit hari ini?"*
+
+### Hijau memang tidak ada, dan itu benar
+
+Warna pin butuh DUA syarat untuk hijau: sudah lapor **dan** deviasi tidak
+negatif. Dua lokasi yang lapor hari ini deviasinya negatif, jadi oranye — atau
+merah bila di bawah −10 pp. Kartu KPI dan peta sama-sama benar.
+
+### Yang salah: filter menebak status lapor dari WARNA
+
+Urutan penentuan warna menaruh `danger` **sebelum** status lapor, sedangkan
+filter peta menyimpulkan status lapor dari warna:
+
+- "Belum Submit" = pin abu saja → lokasi yang belum lapor **dan** kritis raib.
+- "Sudah Submit" = hijau/oranye/merah → justru menarik masuk yang belum lapor.
+
+Peta jadi berselisih dengan kartu KPI tepat di atasnya. Angka yang bertentangan
+dalam satu layar membuat keduanya berhenti dipercaya — dua-duanya jadi tidak
+berguna, bukan salah satunya.
+
+**Keputusan user**: pin tetap MERAH bila kritis walau belum lapor — deviasi
+kritis adalah sinyal paling mendesak dan tidak boleh disembunyikan status lapor.
+Konsekuensinya warna tidak bisa dipakai membaca status lapor, jadi:
+
+- `DashboardData.markerSubmit` (`sudah`/`belum`/`belum_mulai`) menjadi sumber
+  status lapor, terpisah dari `markerTone`.
+- Aturan filter pindah ke modul MURNI `src/lib/dashboard-filter.ts` supaya bisa
+  diuji tanpa database.
+- Legenda mengaku apa adanya: "Deviasi kritis (lapor atau belum)".
+
+### Daftar "Lokasi Sudah Submit"
+
+Sebelumnya HANYA yang belum lapor yang didaftar. Pertanyaan "daerah mana saja
+yang sudah submit hari ini?" tidak punya jawaban di layar mana pun — satu-satunya
+cara adalah menyaring peta lalu menghitung pin, tepat lewat filter yang rusak
+itu. Sekarang ada daftarnya, berikut jam kirim (status ditulis apa adanya bila
+jamnya tidak tercatat — jangan mengarang jam).
+
+`MiniList` juga berhenti memotong diam-diam: 6 baris dari 50 tanpa keterangan
+terbaca seolah itu seluruhnya. Sisanya disebut jumlahnya + tautan ke daftar
+penuh.
+
+### Seed
+
+Laporan hari ini di seed berstatus `draft` (sengaja, untuk pita cuaca DECISIONS
+230) dan draft tidak terhitung sudah lapor — jadi `submittedToday` SELALU 0 di
+data uji dan daftar barunya tidak akan pernah benar-benar dirender oleh sapuan
+mana pun. Satu lokasi lain kini di-seed dengan laporan `dikirim` hari ini.
+Pelajaran yang sama persis dengan DECISIONS 230: data uji yang hanya memuat
+keadaan termudah membuat uji lulus untuk hal yang salah.
+
+**Verifikasi**: 10 kasus unit mengunci aturan filter — **dibuktikan MERAH** (5
+gagal) saat filter dikembalikan ke versi berbasis warna · ditelusuri di browser
+sungguhan: kartu "Sudah 1 / Belum 6" cocok dengan pin per filter (1 / 6), dan
+lokasi yang sudah lapor tapi deviasi −99,7% memang tampil MERAH — persis keadaan
+yang ditanyakan user · unit 819/819 ✓ · integrasi 301/301 ✓ · E2E 44 lulus ✓ ·
+`pnpm build` ✓ · typecheck ✓ · lint ✓.

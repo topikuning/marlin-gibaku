@@ -557,6 +557,48 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
   await mkReport(1, "dikirim", 3);
   await mkReport(0, "draft", 1);
 
+  /*
+   * Satu lokasi LAIN yang laporannya sudah DIKIRIM hari ini.
+   *
+   * Tanpa ini `submittedToday` selalu 0 di data uji: laporan hari ini milik
+   * Kedung Mutih sengaja berstatus draft (untuk pita cuaca, DECISIONS 230),
+   * dan draft tidak terhitung sudah lapor. Akibatnya daftar "Lokasi Sudah
+   * Submit" di Dashboard Eksekutif selalu kosong, jadi tidak ada satu pun
+   * sapuan yang benar-benar merendernya — pelajaran yang sama dengan pita
+   * cuaca: data uji yang hanya memuat keadaan termudah membuat uji lulus
+   * untuk hal yang salah.
+   */
+  const lokasiSudahLapor = await db.location.findFirst({
+    where: { isActive: true, id: { not: kdm.id } },
+    orderBy: { name: "asc" },
+    select: { id: true },
+  });
+  if (lokasiSudahLapor) {
+    const hariIni = daysAgo(0);
+    const ada = await db.dailyReport.findUnique({
+      where: { locationId_reportDate: { locationId: lokasiSudahLapor.id, reportDate: hariIni } },
+    });
+    if (!ada) {
+      const r = await db.dailyReport.create({
+        data: {
+          locationId: lokasiSudahLapor.id,
+          reportDate: hariIni,
+          status: "dikirim",
+          weather: "cerah",
+          weatherSource: "manual",
+          workStart: "07:30",
+          workEnd: "16:30",
+          createdById: mandorId,
+          submittedById: mandorId,
+          submittedAt: new Date(hariIni.getTime() + 9 * 3600 * 1000),
+        },
+      });
+      await db.dailyReportStatusHistory.create({
+        data: { reportId: r.id, fromStatus: "draft", toStatus: "dikirim", changedById: mandorId },
+      });
+    }
+  }
+
   // Kendala + pemulihan
   const hasIssue = await db.issue.count({ where: { locationId: kdm.id } });
   if (hasIssue === 0) {
