@@ -7840,3 +7840,80 @@ integrasi 301/301 ✓ · E2E 44 lulus ✓ · `pnpm build` ✓ · typecheck ✓ �
 > **Belum dikerjakan, menunggu keputusan**: baris identitas PROGRAM/KEGIATAN/
 > PAGU/SUMBER DANA masih kosong sesuai permintaan "abaikan saja dulu". Bila
 > nanti diperlukan, pilihannya menambah field di Paket atau mengisinya manual.
+
+---
+
+## 237 — CCO dirapikan; aksi jadi tombol (lagi) (2026-08-03)
+
+### Tata letak CCO: meniru STRUKTUR, bukan koordinat sel
+
+*"hasil export cco, kenapa berantakan dan banyak ruang terbuang, BUAT YANG
+RAPI"* — dengan tangkapan layar berkas hasil ekspor.
+
+DECISIONS 236 menyalin posisi baris/kolom berkas contoh mentah-mentah dengan
+alasan "supaya pemeriksa membaca dokumen yang sama bentuknya". Alasan itu salah
+sasaran: yang disalin ternyata bukan formatnya, melainkan **sisa kertas kerja**
+di berkas contoh —
+
+| Ditiru dari contoh | Kenyataannya |
+|---|---|
+| judul di baris 13, tabel mulai baris 27 | 12 baris kosong di atas judul |
+| kolom G dan H dipertahankan | kosong di SELURUH baris data contoh |
+| header 4 tingkat | kata terpenggal: "HARGA" / "SATUAN" / "Rp." |
+| kolom D selebar 2,2 | pemisah kosong di dalam URAIAN |
+
+Sekarang yang ditiru **strukturnya** — urutan blok, isi kolom, penamaan — bukan
+koordinat selnya:
+
+- **17 kolom rapat A–Q**, tidak ada kolom kosong (diverifikasi terprogram).
+- Judul baris 1, identitas 3–6, header dua tingkat 8–9, data mulai **baris 10**
+  (dulu 27).
+- Peta kolom jadi **satu sumber** lebar/perataan/format angka; header, baris
+  data, dan kaki semua diturunkan darinya.
+- `freeze` di `C10` — NO + URAIAN tetap terlihat saat menggeser ke blok CCO-01.
+- Header tabel **diulang tiap halaman cetak** (`printTitlesRow`), A4 lanskap
+  `fitToWidth=1`. Dokumen ini puluhan halaman.
+
+### Nol dikosongkan di blok TAMBAH/KURANG
+
+236 menulis `0` di semua baris TETAP dengan alasan "kosong terbaca belum diisi".
+Pada RAB nyata (±1.970 baris, 1.612 di antaranya TETAP) hasilnya **ribuan** "0"
+dan "0,00" yang menenggelamkan empat baris yang benar-benar berubah — persis
+keluhannya. Sekarang kosong; tidak ambigu karena kolom KET menyatakan TETAP dan
+catatan kaki menyebutkannya. Blok MC-0 dan CCO-01 tetap selalu terisi: itu nilai
+sungguhan. Setelah perubahan: **0 sel bernilai nol** tersisa di blok tambah/kurang.
+
+Tambahan: baris yang berubah diberi **latar tipis** (hijau untuk tambah/baru,
+merah untuk kurang/hapus). Di dokumen 2.000 baris, mencari perubahan lewat kolom
+KET saja terlalu lambat.
+
+Baris tanpa isi keuangan sama sekali — tanpa volume, tanpa harga satuan, nol di
+KEDUA sisi — dirender sebagai judul. Di RAB nyata itu sub-judul yang terlanjur
+tersimpan sebagai `item` ("6.6.1. Penyiapan RK3K, terdiri atas :"); mencetak `0`
+dan `TETAP` untuknya hanya derau. Aman: kedua sisi nol, jadi tidak ada perubahan
+yang bisa tersembunyi.
+
+### Aksi jadi tombol — pelanggaran DECISIONS 232 yang terulang
+
+*"aku sudah menegurmu soal tombol, kenapa malah tetap begini lagi!"* Benar, dan
+salah satunya kutulis sendiri di PR yang sama:
+
+| Sebelum | Sesudah |
+|---|---|
+| `<a>` "Unduh template adendum ↓" | `ButtonLink` sekunder + ikon Download |
+| `<Link>` "← Kembali ke RAB" | `ButtonLink` ghost + ikon ArrowLeft |
+| `<button>` ber-`hover:underline` "Buka kunci …" | `Button` sekunder + ikon KeyRound |
+
+232 sudah menetapkan aturannya; yang kurang adalah menerapkannya ke SEMUA aksi,
+bukan hanya ke kepala kartu RAB yang saat itu dikeluhkan.
+
+**Verifikasi**: berkas diunduh lewat rutenya di browser lalu diperiksa
+terprogram — 17 kolom tanpa kolom kosong, tabel mulai baris 10, freeze `C10`,
+header cetak berulang `$8:$9`, 0 sel nol di blok tambah/kurang, dan invarian
+`MC-0 + tambah − kurang = CCO-01` menutup persis ke `total_value` draft
+(8.642.744.102). Ketiga tombol diperiksa di browser sebagai `<a>`/`<button>`
+ber-kelas tombol. Unit 834/834 ✓ · integrasi 301/301 ✓ · build/typecheck/lint ✓.
+
+> **Catatan**: render visual lewat LibreOffice tidak tersedia di lingkungan ini
+> (berkas contoh KKP sendiri pun ditolak, tanpa Java) — pemeriksaan tata letak
+> dilakukan terprogram atas isi berkasnya, bukan atas hasil render Excel.

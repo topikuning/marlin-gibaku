@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Banner, ButtonLink, Card, CardBody, CardHeader } from "@/components/ui";
-import { FileSpreadsheet } from "lucide-react";
+import { ArrowLeft, Download, FileSpreadsheet } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { cumulativeVolumeByLineage } from "@/lib/progress";
@@ -288,12 +288,10 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
           title="Isi draft dari file Excel"
           subtitle="Ganti seluruh isi draft dengan file adendum. RAB aktif, progres, kurva-S, dan keuangan tidak tersentuh."
           action={
-            <a
-              href={`/lokasi/${slug}/rab/adendum/template`}
-              className="text-[13px] font-medium text-primary hover:underline"
-            >
-              Unduh template adendum ↓
-            </a>
+            <ButtonLink href={`/lokasi/${slug}/rab/adendum/template`} variant="secondary" size="sm" unduhan>
+              <Download aria-hidden className="size-3.5" />
+              Unduh template adendum
+            </ButtonLink>
           }
         />
         <CardBody>
@@ -334,12 +332,10 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
                 <FileSpreadsheet aria-hidden className="size-3.5" />
                 Unduh CCO (format KKP)
               </ButtonLink>
-              <Link
-                href={`/lokasi/${slug}/rab`}
-                className="text-[13px] font-medium text-primary hover:underline"
-              >
-                ← Kembali ke RAB
-              </Link>
+              <ButtonLink href={`/lokasi/${slug}/rab`} variant="ghost" size="sm">
+                <ArrowLeft aria-hidden className="size-3.5" />
+                Kembali ke RAB
+              </ButtonLink>
             </div>
           }
         />

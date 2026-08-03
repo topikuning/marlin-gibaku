@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { KeyRound } from "lucide-react";
 import { Banner, Button, HelpText, Input, Label, Textarea } from "@/components/ui";
 import { formatRupiah } from "@/lib/format";
 import { importHps, type BedaPratinjau, type ImportMode, type ImportState } from "./actions";
@@ -169,13 +170,16 @@ export function ImportForm({
           {/* Jalan keluarnya ADA, tapi harus disengaja: satu ketukan tambahan
               plus kalimat yang menyebut akibatnya. */}
           {adaAktif && !bukaKunci ? (
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="sm"
               onClick={() => setBukaKunci(true)}
-              className="text-[13px] font-medium text-primary underline-offset-2 hover:underline"
+              className="self-start"
             >
-              Buka kunci &quot;Jadikan RAB AKTIF sekarang&quot; — untuk adendum yang sudah resmi
-            </button>
+              <KeyRound aria-hidden className="size-3.5" />
+              Buka kunci &quot;Jadikan RAB AKTIF sekarang&quot;
+            </Button>
           ) : null}
           {adaAktif && bukaKunci ? (
             <p className="text-[13px] text-warning">
