@@ -134,6 +134,42 @@ describe("ai-hub/guard-rules", () => {
     expect(decideAiGuard(cfg, { ...base, locationCount: cfg.maxLocationsPerRun + 1 }).ok).toBe(false);
     expect(decideAiGuard(cfg, { ...base, inputChars: cfg.maxInputChars + 1 }).ok).toBe(false);
   });
+
+  // Laporan portofolio PENUH adalah kegunaan utama AI Hub. Default yang
+  // menolaknya bukan kehati-hatian melainkan cacat — laporan user 2026-08-03:
+  // "siapa yang membatasi 25 lokasi? bagaimana jika aku butuh laporan penuh!".
+  // DECISIONS 240.
+  it("BAWAAN memuat seluruh portofolio, bukan sebagiannya", () => {
+    // 83 lokasi hari ini, 200+ target arsitektur (PROJECT.md).
+    for (const jumlah of [83, 200]) {
+      const v = decideAiGuard(cfg, { ...base, locationCount: jumlah });
+      expect(v, `${jumlah} lokasi harus lolos default`).toEqual({ ok: true });
+    }
+  });
+
+  it("BAWAAN muat payload seluruh portofolio, bukan cuma jumlah lokasinya", () => {
+    // Payload ±810 karakter per lokasi (1 baris data + 4-5 baris sumber).
+    // Menaikkan batas lokasi tanpa menaikkan batas ukuran hanya memindahkan
+    // penolakan ke pesan yang lain.
+    const perLokasi = 810;
+    for (const jumlah of [83, 200]) {
+      const v = decideAiGuard(cfg, { ...base, locationCount: jumlah, inputChars: jumlah * perLokasi });
+      expect(v, `payload ${jumlah} lokasi harus lolos default`).toEqual({ ok: true });
+    }
+  });
+
+  it("penolakan menyebut angkanya DAN tempat mengubahnya", () => {
+    // Penolakan tanpa jalan keluar membuat orang mengira ini batas mati.
+    const scope = decideAiGuard(cfg, { ...base, locationCount: cfg.maxLocationsPerRun + 1 });
+    expect(scope.ok).toBe(false);
+    if (!scope.ok) {
+      expect(scope.reason).toContain(String(cfg.maxLocationsPerRun));
+      expect(scope.reason).toContain("Sistem → AI");
+    }
+    const ukuran = decideAiGuard(cfg, { ...base, inputChars: cfg.maxInputChars + 1 });
+    expect(ukuran.ok).toBe(false);
+    if (!ukuran.ok) expect(ukuran.reason).toContain("Sistem → AI");
+  });
   it("parseGuardConfig: JSON rusak/nilai aneh → default", () => {
     expect(parseGuardConfig("bukan json")).toEqual(AI_GUARD_DEFAULTS);
     expect(parseGuardConfig('{"maxRunsPerUserPerHour":-5}').maxRunsPerUserPerHour).toBe(

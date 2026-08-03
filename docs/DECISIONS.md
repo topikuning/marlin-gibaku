@@ -8060,3 +8060,81 @@ KET, JUMLAH, PPN, TOTAL ikut bergerak · berkas 1.970 baris diunduh lewat
 rutenya dan dihitung ulang dari kolom datanya saja: invarian
 `MC-0 + tambah − kurang = CCO-01` menutup dengan selisih **0,000000** ·
 unit 849/849 ✓ · integrasi 301/301 ✓ · E2E 44 lulus ✓ · build/typecheck/lint ✓.
+
+---
+
+## 240 — Batas 25 lokasi dicabut; pemilih lokasi bisa dipakai pada skala nyata (2026-08-03)
+
+### Batas yang menghalangi pemakaian normal bukan kehati-hatian
+
+*"siapa yang membatasi 25 lokasi? bagaimana jika aku butuh laporan penuh!"*
+
+Yang membatasi: DECISIONS 133, default `maxLocationsPerRun: 25` yang saya pasang
+dengan alasan "konservatif" — padahal programnya **83 lokasi** dan arsitekturnya
+menargetkan **200+** (PROJECT.md). Akibatnya laporan portofolio penuh, justru
+kegunaan utama AI Hub, ditolak pada pemakaian pertama; pesannya bahkan tidak
+menyebut bahwa batas itu bisa diubah.
+
+**Menaikkan batas lokasi saja tidak cukup**, dan itu ketahuan saat diukur:
+payload ±810 karakter per lokasi (satu baris data + 4–5 baris sumber), jadi
+83 lokasi ≈ **67.000 karakter** — sudah melewati `maxInputChars` 60.000. Batas
+kedua itu bahkan **tidak ada di form admin sama sekali**: tak seorang pun bisa
+menaikkannya tanpa deploy.
+
+| | Sebelum | Sesudah |
+|---|---|---|
+| `maxLocationsPerRun` | 25 | **200** (target arsitektur) |
+| `maxInputChars` | 60.000 | **400.000** (~100 rb token) |
+| Batas atas form | 200 | 1000 |
+| `maxInputChars` di form | *tidak ada* | ada |
+
+Ongkos tetap terjaga oleh batas run per user/jam dan per organisasi/hari — itu
+membatasi *pemakaian* tanpa melarang *cakupan*.
+
+Pesan penolakan sekarang menyebut angkanya, jumlah yang diminta, DAN tempat
+mengubahnya ("Sistem → AI"). Penolakan tanpa jalan keluar membuat orang mengira
+batasnya mati.
+
+Sekalian: daftar risiko yang dipotong 25 teratas kini **menyebut sisanya**
+(`+N risiko lain tidak ditampilkan`). Daftar yang menyusut diam-diam terbaca
+"cuma segini risikonya" — oleh model maupun pembaca laporannya.
+
+### Pemilih lokasi: 83 checkbox berurut abjad tidak bisa dipakai
+
+*"bagaimana aku melakukan filter mana yang akan aku pilih, dengan lokasi
+sebanyak itu akan sangat merepotkan"*
+
+Scope AI sebelumnya kotak scroll berisi seluruh lokasi, tanpa pencarian dan
+tanpa pilih-sekaligus: mencari satu nama berarti menggulir, dan memilih satu
+paket berarti mencentang belasan baris satu per satu.
+
+`src/components/knmp/pemilih-lokasi.tsx` (dipakai Report Studio & Ask MARLIN):
+
+- **Pencarian** atas nama lokasi DAN nama paket — orang mengingat salah satu.
+- **Dikelompokkan per paket** dengan centang tingkat paket (indeterminate saat
+  sebagian): satu ketukan untuk seluruh isinya.
+- **Pilih semua / Pilih N hasil / Kosongkan** — "cari lalu pilih semua hasilnya"
+  jadi dua ketukan.
+- **Chip terpilih** yang bisa dilepas satu-satu, supaya pilihan yang tergulir
+  jauh tetap terlihat.
+- Jumlah yang disembunyikan pencarian SELALU disebut.
+
+Ask MARLIN ikut mengambil nama paket dari DB; tanpa itu 83 lokasi menumpuk jadi
+satu grup "Tanpa paket".
+
+**Verifikasi**: dev di-seed ke **83 lokasi / 9 paket** (skala nyata; 7 lokasi
+bawaan tidak membuktikan apa pun), lalu diperiksa di browser — 11 grup paket,
+satu centang paket memilih 11 lokasi sekaligus, cari "Uji 1" → tombol "Pilih 11
+hasil" + keterangan "11 dari 83 lokasi tampil · 72 disembunyikan pencarian",
+"Pilih semua" → 83 lokasi dipilih · uji unit mengunci bahwa default meloloskan
+83 DAN 200 lokasi berikut ukuran payload-nya, dan bahwa pesan penolakan menyebut
+"Sistem → AI" · unit 852/852 ✓ · integrasi 301/301 ✓ · E2E 44 lulus ✓ ·
+build/typecheck/lint ✓.
+
+> **Belum bisa diuji di sini**: tombol Generate Draft dinonaktifkan karena
+> provider AI belum dikonfigurasi di lingkungan dev, jadi guard-nya dibuktikan
+> lewat uji unit, bukan lewat run sungguhan.
+>
+> **Perlu diperiksa di instans Anda**: bila panel Sistem → AI pernah disimpan,
+> nilai 25/60.000 lama ikut TERSIMPAN dan default baru tidak berlaku —
+> naikkan di sana. Nilai tersimpan sengaja tidak ditimpa diam-diam.

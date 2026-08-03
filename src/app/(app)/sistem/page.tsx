@@ -471,6 +471,7 @@ export default async function SistemPage() {
             maxRunsPerUserPerHour={aiGuard.maxRunsPerUserPerHour}
             maxRunsPerOrgPerDay={aiGuard.maxRunsPerOrgPerDay}
             maxLocationsPerRun={aiGuard.maxLocationsPerRun}
+            maxInputChars={aiGuard.maxInputChars}
             maxOutputTokens={aiGuard.maxOutputTokens}
             pricing={aiPricing}
             secretStatus={aiSecretStatus}

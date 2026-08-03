@@ -567,7 +567,10 @@ const guardUpdateSchema = z.object({
   enabled: z.boolean(),
   maxRunsPerUserPerHour: z.coerce.number().int().min(1).max(500),
   maxRunsPerOrgPerDay: z.coerce.number().int().min(1).max(5000),
-  maxLocationsPerRun: z.coerce.number().int().min(1).max(200),
+  // Batas atas 1000, bukan 200: 200 adalah target arsitektur HARI INI, dan
+  // form admin tidak boleh jadi tembok berikutnya saat programnya bertambah.
+  maxLocationsPerRun: z.coerce.number().int().min(1).max(1000),
+  maxInputChars: z.coerce.number().int().min(10_000).max(2_000_000),
   maxOutputTokens: z.coerce.number().int().min(256).max(16000),
   inUsdPerMTok: z.coerce.number().min(0).max(1000).optional(),
   outUsdPerMTok: z.coerce.number().min(0).max(1000).optional(),
@@ -581,6 +584,7 @@ export async function updateAiGuardAction(_prev: AiHubState, formData: FormData)
       maxRunsPerUserPerHour: formData.get("maxRunsPerUserPerHour"),
       maxRunsPerOrgPerDay: formData.get("maxRunsPerOrgPerDay"),
       maxLocationsPerRun: formData.get("maxLocationsPerRun"),
+      maxInputChars: formData.get("maxInputChars"),
       maxOutputTokens: formData.get("maxOutputTokens"),
       inUsdPerMTok: String(formData.get("inUsdPerMTok") ?? "") || undefined,
       outUsdPerMTok: String(formData.get("outUsdPerMTok") ?? "") || undefined,
@@ -593,6 +597,10 @@ export async function updateAiGuardAction(_prev: AiHubState, formData: FormData)
         maxRunsPerUserPerHour: d.maxRunsPerUserPerHour,
         maxRunsPerOrgPerDay: d.maxRunsPerOrgPerDay,
         maxLocationsPerRun: d.maxLocationsPerRun,
+        // Sebelumnya tidak ada di form sama sekali: batas ukuran payload
+        // menolak laporan portofolio penuh dan tak seorang pun bisa
+        // menaikkannya tanpa deploy.
+        maxInputChars: d.maxInputChars,
         maxOutputTokens: d.maxOutputTokens,
       },
       d.enabled,

@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { Banner, Button, Card, CardBody, CardHeader, Combobox } from "@/components/ui";
+import { PemilihLokasi } from "@/components/knmp/pemilih-lokasi";
 import { generateAiReportAction, type AiHubState } from "@/lib/ai-hub/actions";
 import { AI_REPORT_TEMPLATES } from "@/lib/ai-hub/report-templates";
 
@@ -33,14 +34,6 @@ export function ReportStudioClient({
   );
   const [state, formAction, pending] = useActionState<AiHubState, FormData>(generateAiReportAction, undefined);
 
-  const toggle = (id: string) =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-
   return (
     <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
       <Card className="self-start">
@@ -71,17 +64,12 @@ export function ReportStudioClient({
             {[...selected].map((id) => (
               <input key={id} type="hidden" name="locationId" value={id} />
             ))}
-            <div className="max-h-56 space-y-1 overflow-y-auto rounded-md border border-border p-2">
-              {locations.map((l) => (
-                <label key={l.id} className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={selected.has(l.id)} onChange={() => toggle(l.id)} />
-                  <span className="truncate">
-                    {l.name} <span className="text-xs text-ink-muted">· {l.packageName}</span>
-                  </span>
-                </label>
-              ))}
-              {locations.length === 0 ? <p className="text-sm text-ink-muted">Tidak ada lokasi dalam izin Anda.</p> : null}
-            </div>
+            <PemilihLokasi
+              locations={locations}
+              selected={selected}
+              onChange={setSelected}
+              petunjukKosong="Belum ada lokasi dipilih — seluruh lokasi yang Anda pegang akan dipakai."
+            />
             <div className="flex flex-wrap items-center gap-2">
               <label className="text-sm text-ink-muted" htmlFor="ai-report-period">
                 Periode

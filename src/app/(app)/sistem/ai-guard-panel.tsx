@@ -13,6 +13,7 @@ export function AiGuardPanel({
   maxRunsPerUserPerHour,
   maxRunsPerOrgPerDay,
   maxLocationsPerRun,
+  maxInputChars,
   maxOutputTokens,
   pricing,
   secretStatus,
@@ -21,6 +22,7 @@ export function AiGuardPanel({
   maxRunsPerUserPerHour: number;
   maxRunsPerOrgPerDay: number;
   maxLocationsPerRun: number;
+  maxInputChars: number;
   maxOutputTokens: number;
   pricing: { inUsdPerMTok: number; outUsdPerMTok: number } | null;
   secretStatus: { encrypted: boolean; detail: string };
@@ -41,7 +43,7 @@ export function AiGuardPanel({
         Fitur AI aktif (matikan = kill switch global, semua run ditolak & diaudit)
       </label>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <label className="block text-xs text-ink-muted">
           Maks run / user / jam
           <input
@@ -69,6 +71,17 @@ export function AiGuardPanel({
             name="maxLocationsPerRun"
             defaultValue={maxLocationsPerRun}
             min={1}
+            className="mt-1 h-9 w-full rounded-md border border-border bg-surface px-2 text-sm text-ink"
+          />
+        </label>
+        <label className="block text-xs text-ink-muted">
+          Maks karakter input
+          <input
+            type="number"
+            name="maxInputChars"
+            defaultValue={maxInputChars}
+            min={10000}
+            step={10000}
             className="mt-1 h-9 w-full rounded-md border border-border bg-surface px-2 text-sm text-ink"
           />
         </label>
