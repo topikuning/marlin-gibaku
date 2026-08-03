@@ -8293,3 +8293,54 @@ diunduh lewat rutenya dengan data dev: `( Ir. Bagus Setiawan, M.T. )` +
 `CV Konsultan Bahari Nusantara`, `( Hendra Gunawan )` +
 `PT Nusantara Bahari Utama` + `Direktur Utama` · unit 888/888 ✓ ·
 integrasi 301/301 ✓ · E2E 44 lulus ✓ · build/typecheck/lint ✓.
+
+---
+
+## 244 — Advisory keamanan transitif: override PER LINI, bukan rentang terbuka (2026-08-03)
+
+CI job "Lint, typecheck, unit, build" gagal pada `pnpm audit --prod --audit-level
+high` — **bukan karena kode**: dua advisory baru terbit atas dependensi transitif.
+
+### 1. `brace-expansion` — ambangnya bergeser
+
+`GHSA-rgw5-rvv9-x895` (menembus mitigasi CVE-2026-14257) menaikkan ambang jadi
+v1 ≥1.1.18 dan v2 ≥2.1.4; terpasang 1.1.16 dan 2.1.2. Catatan lama di
+`pnpm-workspace.yaml` menyebut kedua lini itu "sudah patched" — benar untuk
+advisory SEBELUMNYA, tidak lagi untuk yang ini. v5 ikut naik ke ≥5.0.9.
+
+### 2. `fast-uri` — override lama justru yang MENARIK MASUK versi rentan
+
+Override lama `fast-uri: '>=3.1.4'` ditulis **tanpa batas atas**. `ajv` meminta
+`^3.0.1`; override mengganti spesifikasinya jadi `>=3.1.4` yang juga memuat 4.x,
+sehingga resolusi melompat ke **4.1.1** — dan lini v4 itulah yang rentan
+`GHSA-7p8r-x3mc-p8w7`. Diperbaiki dengan mengunci ke lini v3: `fast-uri@3: 3.1.5`.
+Menutup advisory lama DAN baru sekaligus, tanpa menaikkan mayor dep Prisma.
+
+### Kesalahan yang hampir lolos: rentang membuat lini kolaps
+
+Percobaan pertama memakai rentang (`brace-expansion@1: '>=1.1.18'`,
+`@2: '>=2.1.4'`). Hasilnya **`minimatch@3` dan `minimatch@5` sama-sama teresolusi
+ke `brace-expansion@5.0.8`** — persis kerusakan yang sudah diperingatkan catatan
+di berkas itu: CJS build v5 memakai named export → `expand is not a function` di
+`minimatch@3`. Ketahuan karena lockfile lama dibandingkan: sebelumnya
+`minimatch@3 → 1.1.16` dan `minimatch@5 → 2.1.2`, sesudahnya keduanya `5.0.8`.
+
+`exceljs → archiver → glob → minimatch` adalah jalur SELURUH ekspor Excel, jadi
+kerusakan itu akan diam sampai ada yang mengunduh berkas.
+
+**Perbaikannya: versi PERSIS, bukan rentang** — `1.1.18` / `2.1.4` / `5.0.9`.
+Resolusi per induk lalu diperiksa langsung di lockfile, bukan diasumsikan.
+
+### Gerbang usia rilis
+
+Versi tambalan (terbit 30–31 Juli) tertahan `minimumReleaseAge`. Ditambahkan ke
+`minimumReleaseAgeExclude` **per versi persis**, bukan per paket: menahan tambalan
+keamanan beberapa hari demi "matang" justru membiarkan kerentanan yang sudah
+diketahui tetap terpasang, sementara rilis berikutnya tetap lewat gerbang biasa.
+
+**Verifikasi**: `pnpm audit --prod --audit-level high` → **exit 0** (sisa 6
+moderate, di bawah ambang) · resolusi per induk diperiksa di lockfile:
+`minimatch@3 → 1.1.18`, `minimatch@5 → 2.1.4` (tetap satu lini) ·
+`pnpm install --frozen-lockfile` lolos (CI memakainya) · prisma generate ✓ ·
+typecheck ✓ · lint ✓ · unit 888/888 ✓ (mencakup seluruh pembangun .xlsx yang
+melewati archiver/minimatch) · build ✓ · integrasi 301/301 ✓.
