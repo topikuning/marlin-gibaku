@@ -7983,3 +7983,80 @@ butir Activity Centre bertaut `…/kegiatan#keg-…`, diklik → mendarat di hal
 kegiatan, kartu sasaran ada, terlihat di layar, dan `:target` benar-benar
 menyalakan ring (`box-shadow … rgb(30,58,138) 0 0 0 4px`) · unit 834/834 ✓ ·
 integrasi 301/301 ✓ · E2E 44 lulus ✓ · build/typecheck/lint ✓.
+
+---
+
+## 239 — Dokumen CCO jadi berkas HIDUP (formula, bukan angka mati) (2026-08-03)
+
+*"kenapa kamu menggunakan hardcode nilai pada file cco ini? sedangkan aku sudah
+bilang, gunakan rumus, agar ketika file itu diubah di lokal, semua hal
+menyesuaikan."* — teguran berulang; ekspor RAB sudah ber-formula sejak
+DECISIONS 086, CCO tidak.
+
+### Hanya empat kolom yang berisi data
+
+`C` volume MC-0 · `D` satuan · `E` harga satuan · `N` volume CCO-01. Sisanya
+formula. Ubah `C` atau `N` di Excel → volume tambah/kurang, semua jumlah harga,
+semua bobot, keterangan TETAP/TAMBAH/KURANG/BARU/HAPUS, **sorotan barisnya**,
+JUMLAH, PPN, dan TOTAL NILAI menyesuaikan sendiri.
+
+Sorotan baris memakai **format bersyarat** yang membaca kolom KET, bukan warna
+yang dibakar saat ekspor: KET sendiri formula, jadi warna statis akan menyorot
+baris yang sudah tidak berubah lagi. PPN persennya **sel tersendiri** (`E` pada
+baris PPN) yang dirujuk formula — bukan angka yang ditanam di dalam rumus.
+
+### Aturan hitungan — dari templat user, bukan karangan
+
+```
+volume tambah = volume CCO-01 − volume MC-0      (bila positif)
+volume kurang = volume MC-0 − volume CCO-01      (bila positif)
+jumlah harga  = harga satuan × volume            (tiap blok pakai volumenya)
+bobot         = jumlah harga ÷ TOTAL × 100
+```
+
+**Penyebut bobot** (*"coba kamu nalar"*): bobot adalah porsi biaya satu item
+terhadap keseluruhan — dasar pembobotan kurva-S — jadi satu potret RAB harus
+berjumlah 100%. MC-0 dibagi TOTAL MC-0, CCO-01 dibagi TOTAL CCO-01. TAMBAH dan
+KURANG bukan potret melainkan selisih; yang ditanya "seberapa besar perubahan
+ini terhadap kontrak berjalan", jadi penyebutnya TOTAL MC-0 — dan konsekuensinya
+Σ bobot tambah = persentase penambahan nilai kontrak, angka yang dipakai uji
+batas 10% Perpres Pasal 54 (DECISIONS 233). Penyebutnya kini **rujukan sel yang
+kelihatan** (`$F$1981`), bukan klaim.
+
+**Tanpa ROUND per baris**, mengikuti DECISIONS 075: total = round(Σ nilai
+eksak), "PERSIS seperti Excel yang menjumlah nilai penuh lalu membulatkan
+sekali". Membulatkan tiap baris justru membuat `MC-0 + tambah − kurang =
+CCO-01` meleset beberapa rupiah pada baris yang berubah.
+
+### Temuan: Σ(harga × volume) ≠ nilai kontrak — dan itu nyata
+
+Saat diuji pada Batah Timur, JUMLAH MC-0 hasil formula **Rp 8.588.413.352**
+sedangkan nilai kontrak tercatat **Rp 8.587.622.465** — beda **Rp 790.887**,
+bukan pembulatan. Penyebabnya:
+
+1. **Tiga item RAB ber-volume dan ber-harga satuan tetapi JUMLAH-nya nol**:
+   Roolag Bata (Rp 419.014), Plesteran (Rp 200.286), Acian (Rp 162.620) —
+   Rp 781.920. MARLIN menyimpannya apa adanya (DECISIONS 203).
+2. Sisanya (194 item, umumnya ±756) pergeseran apportionment antar sibling
+   (DECISIONS 075) yang saling meniadakan.
+
+Dua jalan yang SAMA-SAMA salah: menutup selisih dengan memaksa angka ke nilai
+tercatat (mengarang jumlah harga yang bukan harga × volume), atau mendiamkannya
+(mengirim dokumen pengajuan yang totalnya membantah nilai kontrak). Jadi
+selisihnya **DITULIS** — baris "Nilai tercatat di MARLIN" + baris "Selisih
+Σ(harga × volume) − nilai tercatat" (formula), disorot bila bukan nol, dengan
+kalimat yang menyebut penyebabnya. Nol berarti aman.
+
+> **Perlu tindakan user**: tiga item itu di RAB kontrak Batah Timur bernilai nol
+> padahal punya volume dan harga satuan. Perlu diperiksa apakah HPS sumbernya
+> memang begitu.
+
+**Verifikasi**: 15 uji unit yang **MENGHITUNG ULANG lembarnya** dengan penafsir
+formula kecil (rujukan sel, SUM, IF, OR, pembanding) lalu membandingkannya
+dengan `susunBarisCco()` — menguji "ada tulisan formula di sel" tidak
+membuktikan apa-apa, formula yang salah tetap berupa formula. Termasuk uji
+pokok: satu volume DIUBAH lalu lembarnya dihitung ulang, dan jumlah, bobot,
+KET, JUMLAH, PPN, TOTAL ikut bergerak · berkas 1.970 baris diunduh lewat
+rutenya dan dihitung ulang dari kolom datanya saja: invarian
+`MC-0 + tambah − kurang = CCO-01` menutup dengan selisih **0,000000** ·
+unit 849/849 ✓ · integrasi 301/301 ✓ · E2E 44 lulus ✓ · build/typecheck/lint ✓.

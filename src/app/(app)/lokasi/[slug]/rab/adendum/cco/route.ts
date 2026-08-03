@@ -95,11 +95,11 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const [aktif, draft] = await Promise.all([
     db.rabRevision.findFirst({
       where: { locationId: location.id, status: "aktif" },
-      select: { id: true, revisionNo: true },
+      select: { id: true, revisionNo: true, totalValue: true },
     }),
     db.rabRevision.findFirst({
       where: { locationId: location.id, status: "draft" },
-      select: { id: true, revisionNo: true },
+      select: { id: true, revisionNo: true, totalValue: true },
     }),
   ]);
   if (!aktif) return NextResponse.json({ error: "Belum ada revisi RAB aktif — tidak ada MC-0 untuk dibandingkan" }, { status: 404 });
@@ -124,6 +124,11 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     ppnPercent: c ? Number(c.ppnPercent) : 11,
     // Nomor CCO = nomor revisi draft dikurangi HPS awal: revisi #2 = CCO-01.
     ccoNo: Math.max(1, draft.revisionNo - 1),
+    // Nilai kontrak yang TERCATAT — dokumen memakainya untuk baris rekonsiliasi
+    // terhadap Σ(harga × volume). Selisih bukan-nol harus terlihat, bukan
+    // ditutup diam-diam (DECISIONS 203).
+    nilaiTercatatLama: aktif.totalValue,
+    nilaiTercatatBaru: draft.totalValue,
     lama: nodeLama.map(keCcoNode),
     baru: nodeBaru.map(keCcoNode),
   });
