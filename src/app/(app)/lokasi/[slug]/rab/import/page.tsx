@@ -37,7 +37,7 @@ export default async function RabImportPage({ params }: { params: Promise<{ slug
           }
         />
         <CardBody>
-          <ImportForm locationId={location.id} />
+          <ImportForm locationId={location.id} adaAktif={active != null} />
         </CardBody>
       </Card>
     </div>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Card, CardBody, CardHeader } from "@/components/ui";
+import { Download, FilePen, Upload } from "lucide-react";
+import { ButtonLink, Card, CardBody, CardHeader } from "@/components/ui";
 import { db } from "@/lib/db";
 import { can } from "@/lib/authz";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
@@ -180,29 +181,27 @@ export default async function RabPage({
               : "Belum ada revisi aktif"
           }
           action={
-            <span className="flex items-center gap-3">
+            // Aksi = TOMBOL, bukan teks biru bergaris bawah di sebelah judul.
+            // Yang lama terbaca seperti keterangan kartu, bukan seperti sesuatu
+            // yang bisa ditekan — dan tiga di antaranya berjejer tanpa batas
+            // yang jelas. DECISIONS 232.
+            <span className="flex flex-wrap items-center gap-2">
               {active ? (
-                <a
-                  href={`/lokasi/${slug}/rab/export`}
-                  className="text-[13px] font-medium text-primary hover:underline"
-                >
+                <ButtonLink href={`/lokasi/${slug}/rab/export`} unduhan variant="secondary" size="sm">
+                  <Download aria-hidden className="size-4" />
                   Unduh Excel
-                </a>
+                </ButtonLink>
               ) : null}
               {canManage ? (
                 <>
-                  <Link
-                    href={`/lokasi/${slug}/rab/adendum`}
-                    className="text-[13px] font-medium text-primary hover:underline"
-                  >
-                    Adendum (editor)
-                  </Link>
-                  <Link
-                    href={`/lokasi/${slug}/rab/import`}
-                    className="text-[13px] font-medium text-primary hover:underline"
-                  >
-                    Impor HPS / Adendum
-                  </Link>
+                  <ButtonLink href={`/lokasi/${slug}/rab/adendum`} variant="secondary" size="sm">
+                    <FilePen aria-hidden className="size-4" />
+                    Adendum
+                  </ButtonLink>
+                  <ButtonLink href={`/lokasi/${slug}/rab/import`} variant="primary" size="sm">
+                    <Upload aria-hidden className="size-4" />
+                    Impor
+                  </ButtonLink>
                 </>
               ) : null}
             </span>

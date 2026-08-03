@@ -7551,3 +7551,83 @@ angka) · 1 kasus integrasi (error tak terduga dari satu foto: yang sehat tetap
 masuk, yang rusak dilaporkan, volume tidak terseret) · 1 kasus E2E (fokus pindah
 ke panel, bukan tertinggal di `dr-search`) · unit 785/785 ✓ · integrasi 285/285 ✓
 · E2E 42 lulus ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 232 — Aksi jadi tombol; tujuan impor mengikuti keadaan (2026-08-03)
+
+### `ButtonLink` — primitifnya memang belum ada
+
+*"impor, unduh excel, impor hps kenapa tidak jadi button yang layak?"* Karena
+tidak ada primitif untuk itu. `Button` merender `<button>`; aksi yang HARUS
+berupa `<a>` (unduhan berkas, navigasi) tidak punya padanan, jadi tiap halaman
+menuliskan sendiri `text-primary hover:underline` — dan hasilnya terbaca seperti
+keterangan kartu, bukan seperti sesuatu yang bisa ditekan. Tiga di antaranya
+berjejer di kepala kartu RAB tanpa batas yang jelas.
+
+`buttonClass()` diekstrak dari `Button` dan dipakai bersama `ButtonLink`, jadi
+tombol dan tautan-berbentuk-tombol tidak bisa lagi menyimpang. `ButtonLink`
+punya `unduhan` untuk memakai `<a>` biasa alih-alih `next/link`: prefetch dan
+navigasi klien keduanya salah untuk unduhan berkas.
+
+Kepala RAB sekarang: **Unduh Excel** (sekunder) · **Adendum** (sekunder) ·
+**Impor** (primer), masing-masing ber-ikon.
+
+### Tujuan impor: bawaan mengikuti keadaan, yang tak sesuai DIKUNCI
+
+Bawaannya dulu selalu "Jadikan RAB AKTIF sekarang". Itu pilihan yang salah untuk
+dipasang lebih dulu ketika RAB aktif sudah ada: satu ketukan tanpa membaca akan
+MENGGANTI RAB kontrak yang berlaku dan me-regenerate kurva-S. Pilihan bawaan
+yang merusak bukan kenyamanan.
+
+- Belum ada RAB aktif → bawaan "Jadikan RAB AKTIF"; "Isi DRAFT adendum" dikunci
+  (draft disalin DARI RAB aktif — tanpa itu tidak ada yang bisa diadendum).
+- Sudah ada RAB aktif → bawaan "Isi DRAFT adendum"; "Jadikan RAB AKTIF" dikunci.
+
+**Dikunci, bukan dihapus** — permintaan user: *"jangan dihapus, tapi kamu kunci
+saja, mungkin suatu saat aku butuh"*. Menghapusnya berarti jalan yang sah
+(mengimpor adendum yang SUDAH resmi, memperbaiki HPS awal yang salah) hilang
+tanpa jejak. Kuncinya bisa dibuka lewat satu ketukan tambahan yang menyebut
+akibatnya, dan alasan penguncian selalu ditulis di sebelah pilihannya — pilihan
+mati tanpa keterangan cuma membuat orang menebak.
+
+---
+
+## 233 — Batas 10% Perpres mengukur kenaikan NILAI KONTRAK, bukan pekerjaan tambah kotor (2026-08-03)
+
+**Laporan user 2026-08-03** dengan angka nyata:
+
+```
+Nilai lama Rp 5.891.112.777 · Nilai baru Rp 5.891.112.785 · +Rp 8
+tambah +Rp 1.044.616.688 · kurang −Rp 1.044.616.680
+
+⚠ Pekerjaan tambah +Rp 1.044.616.688 melebihi 10% nilai RAB kontrak awal …
+```
+
+Nilai kontrak naik **Rp 8**, tetapi peringatannya tetap menuduh melanggar batas
+10%. Adendum itu hanya MENUKAR pekerjaan — kurangi sana, tambah sini.
+
+Yang diuji dulu `diff.totalTambah` (Σ kenaikan per item, KOTOR). Perpres 16/2018
+Pasal 54 membatasi **penambahan nilai kontrak akhir** terhadap nilai kontrak
+awal — itu angka BERSIH (`delta`), bukan jumlah kotor pekerjaan tambah.
+
+Sekarang:
+
+- `delta > 10% nilai awal` → peringatan pelanggaran batas, menyebut Pasal 54.
+- Nilai aman tapi `totalTambah > 10%` → peringatan **pergeseran LINGKUP**, dengan
+  kalimat yang menyatakan tegas bahwa ini *bukan* pelanggaran batas 10%. Tukar
+  sebesar itu tetap mengubah lingkup yang disepakati, jadi tetap disebut — yang
+  salah dulu cuma namanya.
+
+Peringatan yang menyala pada keadaan yang sah adalah cara tercepat membuat semua
+peringatan diabaikan, termasuk yang benar.
+
+> **Perlu konfirmasi**: penafsiran "10% = kenaikan nilai kontrak akhir" diambil
+> dari bunyi Pasal 54. Bila di lingkungan KKP dipakai tafsir lain (mis. gross
+> tambah dibatasi terpisah), beri tahu — aturannya satu tempat dan mudah diubah.
+
+**Verifikasi**: 7 kasus unit mengunci aturan, memakai angka kasus nyata (tukar
+Rp 1,04 M dengan selisih Rp 8 → bukan pelanggaran, tapi tetap dilaporkan sebagai
+pergeseran lingkup; tepat di batas belum melanggar; nilai turun tidak pernah
+melanggar; pelanggaran nilai menang atas pesan lingkup) · unit 792/792 ✓ ·
+integrasi 285/285 ✓ · E2E 42 lulus ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓.

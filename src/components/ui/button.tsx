@@ -1,7 +1,8 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import Link from "next/link";
+import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
 export type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
@@ -58,5 +59,64 @@ export function Button({
       {loading ? <Loader2 aria-hidden className="size-4 animate-spin" /> : null}
       {children}
     </button>
+  );
+}
+
+/**
+ * Kelas visual tombol — dipakai bersama `Button` dan `ButtonLink`.
+ *
+ * Diekspor supaya elemen yang HARUS berupa `<a>` (unduhan, navigasi) tetap
+ * tampil identik dengan tombol, tanpa menyalin kelas ke tiap halaman. Sebelum
+ * ini primitifnya tidak ada, jadi aksi seperti "Unduh Excel" dan "Impor HPS"
+ * berakhir sebagai teks biru bergaris bawah di antara judul kartu — kelihatan
+ * seperti keterangan, bukan seperti sesuatu yang bisa ditekan. DECISIONS 232.
+ */
+export function buttonClass(
+  variant: ButtonVariant = "primary",
+  size: ButtonSize = "md",
+  className?: string,
+): string {
+  return cn(
+    "inline-flex items-center justify-center rounded-md font-medium whitespace-nowrap select-none transition-colors disabled:cursor-not-allowed",
+    VARIANT_CLASS[variant],
+    SIZE_CLASS[size],
+    className,
+  );
+}
+
+export interface ButtonLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
+  href: string;
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  children: ReactNode;
+  /**
+   * Unduhan / rute non-Next (mis. route handler yang mengalirkan berkas).
+   * `next/link` mem-prefetch dan menangani navigasi di klien — keduanya salah
+   * untuk unduhan, jadi jalur itu memakai `<a>` biasa.
+   */
+  unduhan?: boolean;
+}
+
+export function ButtonLink({
+  href,
+  variant = "secondary",
+  size = "sm",
+  className,
+  children,
+  unduhan = false,
+  ...rest
+}: ButtonLinkProps) {
+  const kelas = buttonClass(variant, size, className);
+  if (unduhan) {
+    return (
+      <a href={href} className={kelas} {...rest}>
+        {children}
+      </a>
+    );
+  }
+  return (
+    <Link href={href} className={kelas} {...rest}>
+      {children}
+    </Link>
   );
 }

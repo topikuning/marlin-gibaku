@@ -179,13 +179,37 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
   // ── Peringatan nilai (informasi, bukan penghalang — MARLIN mencatat kenyataan) ──
   const peringatan: string[] = [];
   if (diff && revisiAwal && revisiAwal.totalValue > 0n) {
-    // Perpres 16/2018: pekerjaan tambah maksimal 10% nilai kontrak awal.
+    /*
+     * Batas 10% Perpres 16/2018 Pasal 54 mengukur KENAIKAN NILAI KONTRAK
+     * (nilai akhir vs nilai awal) — BUKAN jumlah kotor pekerjaan tambah.
+     *
+     * Dulu yang diuji `totalTambah` (Σ kenaikan per item). Akibatnya adendum
+     * yang hanya MENUKAR pekerjaan — kurangi sana, tambah sini, nilai total
+     * praktis sama — dituduh melanggar batas 10%. Terjadi nyata (laporan user
+     * 2026-08-03): tambah +Rp 1.044.616.688, kurang −Rp 1.044.616.680, nilai
+     * kontrak naik Rp 8, dan peringatannya tetap berteriak melanggar.
+     *
+     * Peringatan yang menyala pada keadaan yang sah adalah cara tercepat
+     * membuat semua peringatan diabaikan — termasuk yang benar. DECISIONS 233.
+     */
     const batas = revisiAwal.totalValue / 10n;
-    if (diff.totalTambah > batas) {
+    if (delta > batas) {
       peringatan.push(
-        `Pekerjaan tambah ${fmtDelta(diff.totalTambah)} melebihi 10% nilai RAB kontrak awal ` +
-          `(revisi #${revisiAwal.revisionNo} = Rp ${rupiah.format(revisiAwal.totalValue)}; batas Rp ${rupiah.format(batas)}) — ` +
-          `Perpres 16/2018 membatasi pekerjaan tambah 10%. Pastikan dasar hukumnya kuat sebelum aktivasi.`,
+        `Nilai kontrak naik ${fmtDelta(delta)} — melebihi 10% nilai RAB kontrak awal ` +
+          `(revisi #${revisiAwal.revisionNo} = Rp ${rupiah.format(revisiAwal.totalValue)}; batas Rp ${rupiah.format(batas)}). ` +
+          `Perpres 16/2018 Pasal 54 membatasi kenaikan nilai kontrak 10%. Pastikan dasar hukumnya kuat sebelum aktivasi.`,
+      );
+    } else if (diff.totalTambah > batas) {
+      /*
+       * Nilai total aman, tapi isinya berpindah banyak. Ini BUKAN pelanggaran
+       * batas 10% — tetapi tukar-menukar sebesar ini mengubah lingkup yang
+       * disepakati, jadi tetap disebut, dengan nama yang benar.
+       */
+      peringatan.push(
+        `Nilai kontrak hampir tidak berubah (${fmtDelta(delta)}), tetapi lingkupnya banyak bergeser: ` +
+          `pekerjaan tambah ${fmtDelta(diff.totalTambah)} dan pekerjaan kurang ${fmtDelta(diff.totalKurang)}. ` +
+          `Ini bukan pelanggaran batas 10% Perpres 16/2018 (yang dibatasi kenaikan NILAI kontrak), ` +
+          `tetapi perubahan lingkup sebesar ini perlu dasar tertulis di dokumen adendum.`,
       );
     }
   }
