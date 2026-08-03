@@ -7917,3 +7917,69 @@ ber-kelas tombol. Unit 834/834 ✓ · integrasi 301/301 ✓ · build/typecheck/l
 > **Catatan**: render visual lewat LibreOffice tidak tersedia di lingkungan ini
 > (berkas contoh KKP sendiri pun ditolak, tanpa Java) — pemeriksaan tata letak
 > dilakukan terprogram atas isi berkasnya, bukan atas hasil render Excel.
+
+---
+
+## 238 — Pemilih berkas bergaya sendiri; Activity Centre menaut ke kegiatannya (2026-08-03)
+
+### `FileInput`: kontrol bawaan peramban diganti
+
+*"browse file juga begini, tidak layak"* — tangkapan layar memperlihatkan
+`Browse… No file selected.` di tengah form yang seluruh kontrol lainnya bergaya
+token.
+
+Kontrol `<input type="file">` memang **tidak bisa digaya**: teks dan tombolnya
+dirender peramban, di luar jangkauan CSS. `file:`-variant Tailwind hanya
+menyentuh tombolnya, teks "No file selected" tetap muncul. Jadi input aslinya
+disembunyikan (`sr-only`, BUKAN `hidden` — supaya tetap bisa difokus keyboard
+dan validasi bawaan tetap jalan) dan pemicunya digambar sendiri:
+
+- tombol **Pilih berkas / Ganti berkas** ber-ikon,
+- nama + ukuran berkas terpilih, dengan tombol kosongkan,
+- kotak putus-putus yang menerima **seret & lepas**,
+- `petunjuk` opsional di bawah kotak,
+- validasi ukuran klien dipertahankan (body melewati `bodySizeLimit` ditolak
+  Next SEBELUM kode kita jalan → halaman crash, bukan pesan rapi).
+
+`name`/`accept`/`required` tetap di input aslinya, jadi FormData server action
+tidak berubah. Ditambah `onPilih` untuk form yang menyusun FormData sendiri
+(impor HPS menahan berkasnya untuk langkah pratinjau).
+
+Dipakai ulang di: impor HPS/RAB, dokumen kepatuhan, dokumen paket, dokumen
+umum, logo vendor, logo branding sistem.
+
+### Aksi jadi tombol — sisa DECISIONS 232 dituntaskan
+
+232 hanya menyentuh kepala kartu RAB yang saat itu dikeluhkan; sisanya
+tertinggal. Sekarang seluruh **slot aksi** dan **tautan balik** ikut:
+
+`Kembali ke RAB` (2 tempat) · `Kembali ke Pelaksanaan Harian` ·
+`Buka draft adendum` · `Jelaskan dengan AI` · `Detail progress` · `Kelola` ·
+`Kelola kendala` · `Pratinjau format KKP` · `Lampirkan` (dokumen adendum).
+
+Tautan di **dalam kalimat** sengaja TIDAK diubah — itu memang tautan, bukan
+aksi.
+
+### Activity Centre menaut ke kegiatannya
+
+*"activity centre diklik, seharusnya langsung menuju aktifitas terkait, bukan ke
+lokasi secara umum"*. Butir panel itu adalah `FieldActivity`, tetapi menaut ke
+`/lokasi/{slug}` — orang harus mencari sendiri kegiatan yang barusan
+dilihatnya, di daftar yang bisa panjang.
+
+Sekarang `ActivityCentreItem.href` = `/lokasi/{slug}/kegiatan#keg-{id}`, dan
+kartu kegiatan diberi `id` + `scroll-mt-24` + sorotan `target:ring-2`. Melompat
+tanpa penanda sama saja dengan tidak melompat.
+
+**Tautan dibentangkan `after:absolute inset-0`, bukan dengan membungkus baris
+dengan `<Link>`.** Percobaan pertama membungkusnya — keliru: galeri foto di
+kanan berisi `<button>` pembuka lightbox, dan tombol di dalam anchor itu HTML
+tak sah; klik thumbnail akan pindah halaman alih-alih membuka fotonya. Galeri
+diangkat ke atas lapisan tautan (`relative z-10`).
+
+**Verifikasi di browser sungguhan**: tiga halaman diperiksa tidak menyisakan
+satu pun kontrol file bawaan yang terlihat, sementara pemicu bergaya ada ·
+butir Activity Centre bertaut `…/kegiatan#keg-…`, diklik → mendarat di halaman
+kegiatan, kartu sasaran ada, terlihat di layar, dan `:target` benar-benar
+menyalakan ring (`box-shadow … rgb(30,58,138) 0 0 0 4px`) · unit 834/834 ✓ ·
+integrasi 301/301 ✓ · E2E 44 lulus ✓ · build/typecheck/lint ✓.

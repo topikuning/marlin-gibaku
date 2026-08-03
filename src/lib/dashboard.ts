@@ -88,6 +88,8 @@ export type ActivityCentreItem = {
   at: Date;
   locationName: string;
   locationSlug: string;
+  /** Tautan ke KEGIATANNYA (bukan ke lokasi) — DECISIONS 238. */
+  href: string;
   type: string;
   typeLabel: string;
   title: string;
@@ -336,6 +338,14 @@ export async function getActivityCentre(locIds: string[] | null, limit = 6): Pro
     at: a.createdAt,
     locationName: a.location.name,
     locationSlug: a.location.slug,
+    /*
+     * Menunjuk KEGIATANNYA, bukan lokasinya. Sebelumnya butir Activity Centre
+     * menaut ke `/lokasi/{slug}` — laporan user 2026-08-03: *"activity centre
+     * diklik, seharusnya langsung menuju aktifitas terkait, bukan ke lokasi
+     * secara umum"*. Membuka halaman lokasi memaksa orang mencari sendiri
+     * kegiatan yang barusan dilihatnya. DECISIONS 238.
+     */
+    href: `/lokasi/${a.location.slug}/kegiatan#keg-${a.id}`,
     type: a.type,
     typeLabel: kindLabels.get(a.type) ?? a.type,
     title: a.title,

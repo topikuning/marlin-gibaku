@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CalendarClock, Sheet } from "lucide-react";
-import { Badge, Card, CardBody, CardHeader, CollapsibleCard, type BadgeTone } from "@/components/ui";
+import { ArrowRight, CalendarClock, Sheet, Sparkles } from "lucide-react";
+import { Badge, ButtonLink, Card, CardBody, CardHeader, CollapsibleCard, type BadgeTone } from "@/components/ui";
 import { DeltaBadge } from "@/components/ui/stat-delta";
 import { ScurveChart } from "@/components/knmp/scurve-chart";
 import { forecastFromSeries, FORECAST_STATUS } from "@/lib/forecast";
@@ -193,12 +193,10 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
             title={`Pantauan internal — progres atas usulan adendum (draft revisi #${draftProg.revisionNo})`}
             subtitle="Laporan sampingan untuk kebutuhan internal. BUKAN angka resmi: termin, kurva-S, laporan periodik, dan blanko KKP tetap memakai RAB kontrak yang berlaku."
             action={
-              <Link
-                href={`/lokasi/${slug}/rab/adendum`}
-                className="text-[13px] font-medium text-primary hover:underline"
-              >
-                Buka draft adendum →
-              </Link>
+              <ButtonLink href={`/lokasi/${slug}/rab/adendum`} variant="secondary" size="sm">
+                Buka draft adendum
+                <ArrowRight aria-hidden className="size-3.5" />
+              </ButtonLink>
             }
           />
           <CardBody>
@@ -325,12 +323,10 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
             subtitle="Proyeksi ke depan dari laju realisasi terkini + kinerja kumulatif (SPI). Estimasi berbasis tren, bukan kepastian."
             action={
               can(user.role, "ai.view") ? (
-                <Link
-                  href={`/ai?scopeIds=${location.id}`}
-                  className="text-xs font-medium text-primary hover:underline"
-                >
-                  Jelaskan dengan AI →
-                </Link>
+                <ButtonLink href={`/ai?scopeIds=${location.id}`} variant="ghost" size="sm">
+                  <Sparkles aria-hidden className="size-3.5" />
+                  Jelaskan dengan AI
+                </ButtonLink>
               ) : null
             }
           />

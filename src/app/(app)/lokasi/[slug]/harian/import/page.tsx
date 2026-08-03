@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { Card, CardBody, CardHeader, PageHeader } from "@/components/ui";
+import { ButtonLink, Card, CardBody, CardHeader, PageHeader } from "@/components/ui";
 import { requireUser, requireLocationAccess } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
@@ -34,9 +34,10 @@ export default async function ImporRekapHarianPage({ params }: { params: Promise
         description={`${location.name} — unggah rekap Excel untuk merekonstruksi laporan harian yang terlewat.`}
       />
 
-      <Link href={`/lokasi/${slug}/harian`} className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
-        <ArrowLeft aria-hidden className="size-4" /> Kembali ke Pelaksanaan Harian
-      </Link>
+      <ButtonLink href={`/lokasi/${slug}/harian`} variant="ghost" size="sm" className="self-start">
+        <ArrowLeft aria-hidden className="size-3.5" />
+        Kembali ke Pelaksanaan Harian
+      </ButtonLink>
 
       <Card>
         <CardHeader title="Cara pakai" />

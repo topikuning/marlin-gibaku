@@ -2,6 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { Paperclip } from "lucide-react";
+import { Button } from "@/components/ui";
 import { uploadDocumentAction, type UploadActionState } from "@/app/(app)/dokumen/actions";
 
 /**
@@ -47,16 +48,17 @@ export function AmendmentDocUpload({
         className="hidden"
         onChange={(e) => onFile(e.target.files?.[0])}
       />
-      <button
+      <Button
         type="button"
-        disabled={pending}
+        variant="ghost"
+        size="sm"
+        loading={pending}
         onClick={() => inputRef.current?.click()}
-        className="inline-flex items-center gap-1 text-[12px] font-medium text-primary hover:underline disabled:opacity-50"
         title={`Unggah dokumen ${ccoNumber}`}
       >
         <Paperclip aria-hidden className="size-3.5" />
-        {pending ? "Mengunggah..." : "Lampirkan"}
-      </button>
+        {pending ? "Mengunggah…" : "Lampirkan"}
+      </Button>
       {state?.error ? <span className="text-[11px] text-danger">{state.error}</span> : null}
     </span>
   );

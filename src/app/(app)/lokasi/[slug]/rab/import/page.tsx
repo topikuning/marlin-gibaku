@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Card, CardBody, CardHeader } from "@/components/ui";
+import { ArrowLeft } from "lucide-react";
+import { ButtonLink, Card, CardBody, CardHeader } from "@/components/ui";
 import { db } from "@/lib/db";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { formatRupiah, formatTanggal } from "@/lib/format";
@@ -31,9 +32,10 @@ export default async function RabImportPage({ params }: { params: Promise<{ slug
               : "Belum ada revisi RAB — file akan jadi revisi #1 dan baseline kurva-S dibuat otomatis."
           }
           action={
-            <Link href={`/lokasi/${slug}/rab`} className="text-[13px] text-primary hover:underline">
+            <ButtonLink href={`/lokasi/${slug}/rab`} variant="ghost" size="sm">
+              <ArrowLeft aria-hidden className="size-3.5" />
               Kembali ke RAB
-            </Link>
+            </ButtonLink>
           }
         />
         <CardBody>

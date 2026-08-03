@@ -2,7 +2,7 @@
 
 import { useActionState, useMemo, useState } from "react";
 import { GitMerge, Trash2, AlertTriangle, Pencil } from "lucide-react";
-import { Banner, Button, Combobox, Input, Label } from "@/components/ui";
+import { Banner, Button, Combobox, FileInput, Input, Label } from "@/components/ui";
 import {
   deleteVendorAction,
   mergeVendorsAction,
@@ -186,12 +186,11 @@ function VendorEditForm({ vendor, onDone }: { vendor: V; onDone: () => void }) {
         </div>
         <div>
           <Label htmlFor={`v-logo-${vendor.id}`}>Logo (PNG/JPG/WebP ≤ 2 MB)</Label>
-          <input
+          <FileInput
             id={`v-logo-${vendor.id}`}
             name="logo"
-            type="file"
             accept="image/png,image/jpeg,image/webp"
-            className="block w-full text-sm text-ink-muted file:mr-2 file:rounded-md file:border file:border-border file:bg-surface file:px-2 file:py-1 file:text-sm"
+            maxBytes={2 * 1024 * 1024}
           />
         </div>
         <div className="sm:col-span-2 lg:col-span-3">

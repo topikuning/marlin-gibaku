@@ -126,7 +126,14 @@ export default async function KegiatanLapanganPage({ params }: { params: Promise
       .toLowerCase();
 
     const node = (
-      <article className="overflow-hidden rounded-xl border border-border bg-surface shadow-xs">
+      /* `id` + `scroll-mt` = sasaran tautan dalam dari Activity Centre
+         (/aktivitas). `target:` menyalakan sorotan sesaat supaya yang diklik
+         benar-benar ketemu — di daftar panjang, melompat tanpa penanda sama
+         saja dengan tidak melompat. DECISIONS 238. */
+      <article
+        id={`keg-${a.id}`}
+        className="overflow-hidden rounded-xl border border-border bg-surface shadow-xs scroll-mt-24 target:ring-2 target:ring-primary target:ring-offset-2"
+      >
         {/* Header: meta + judul + catatan · penulis + cetak/PDF */}
         <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
