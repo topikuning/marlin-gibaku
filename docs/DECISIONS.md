@@ -8138,3 +8138,58 @@ build/typecheck/lint ✓.
 > **Perlu diperiksa di instans Anda**: bila panel Sistem → AI pernah disimpan,
 > nilai 25/60.000 lama ikut TERSIMPAN dan default baru tidak berlaku —
 > naikkan di sana. Nilai tersimpan sengaja tidak ditimpa diam-diam.
+
+---
+
+## 241 — Excel laporan harian mengikuti blanko yang sama dengan PDF (2026-08-03)
+
+*"format excel laporan harianmu belum menyesuaikan format pdf terakhir"*
+
+Ekspor `.xlsx` masih bentuk lama sementara versi cetaknya sudah beberapa kali
+mengikuti blanko resmi KKP. Yang HILANG dari Excel:
+
+| Ada di PDF | Excel sebelumnya |
+|---|---|
+| Kop KONSULTAN PENGAWAS / KONTRAKTOR PELAKSANA + nama perusahaan | tidak ada |
+| Baris PEKERJAAN | tidak ada |
+| Identitas pemberi kerja dari menu Sistem | **dipatok** "Kampung Nelayan Merah Putih (KNMP)" di kode — melanggar DECISIONS 166 |
+| KONDISI CUACA per jam 07.00–21.00 (+ Shop Drawing) | satu baris "Cuaca: Cerah" |
+| RENCANA vs REALISASI berdampingan | tidak ada |
+| Judul bangunan/kategori di kolom realisasi | tidak ada |
+| Catatan pekerjaan basis draft adendum | tidak ada |
+| Blok tanda tangan | tidak ada |
+| Tenaga kerja: SELURUH keahlian termasuk yang nol | hanya yang > 0 |
+| Material: kolom "Ditolak" + baris kosong siap isi | tidak ada |
+
+### Barisnya dipinjam, bukan disusun ulang
+
+`barisRencanaRealisasi()` diekspor dari modul cetak dan dipakai langsung oleh
+penulis Excel. Menyusun baris dua kali persis yang membuat keduanya menyimpang:
+penomoran, judul bangunan, dan teks realisasi kini mustahil berbeda karena
+memang satu fungsi yang sama.
+
+### Kolom sempit + merge, bukan kolom lebar
+
+Grid cuaca butuh 15 kolom jam yang sempit dan seragam; sel teks dibentuk dengan
+`merge`, bukan dengan melebarkan kolomnya. Tanpa itu, satu lembar tidak bisa
+melayani blok bergrid (cuaca) dan blok berteks (uraian) sekaligus.
+
+Blok TAMBAHAN di luar blanko — rincian kemajuan per pekerjaan dalam kolom angka,
+kini berikut kolom Bangunan/Kategori — diletakkan **paling bawah** supaya
+susunan blanko tidak bergeser. Blok itu justru alasan orang meminta Excel
+alih-alih PDF: angkanya bisa disortir dan dijumlah sendiri.
+
+**Verifikasi**: 16 uji unit membangun berkasnya lalu membacanya kembali —
+seluruh judul blok ada DAN urutannya menaik seperti blanko, blok tambahan
+berada sesudah catatan, teks rencana/realisasi dibandingkan langsung dengan
+keluaran `barisRencanaRealisasi()` yang dipakai PDF, judul bangunan
+"I. RUMAH NELAYAN"/"II. DERMAGA" muncul, keahlian bernilai nol tetap terdaftar,
+15 kolom jam lengkap dengan centang mengikuti kondisi PER JAM (jam 13 hujan
+tercentang, jam 07 tidak), nama pemberi kerja dari data dan string KNMP yang
+dulu ditanam TIDAK muncul lagi · unit 868/868 ✓ · integrasi 301/301 ✓ ·
+E2E 44 lulus ✓ · build/typecheck/lint ✓.
+
+> **Catatan**: render visual Excel tidak tersedia di lingkungan ini (LibreOffice
+> tanpa Java menolak membuka .xlsx, termasuk berkas contoh KKP sendiri), jadi
+> kesesuaian diperiksa atas ISI berkasnya secara terprogram, bukan atas hasil
+> render. Silakan buka di Excel dan kabari bila ada yang perlu digeser.
