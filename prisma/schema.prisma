@@ -390,6 +390,7 @@ model User {
   @@index([role])
   @@index([createdById])
   devicePermissions DevicePermission[]
+  rabApprovals      RabRevisionApproval[]
 
   @@map("users")
 }
@@ -737,17 +738,47 @@ model RabRevision {
   sourceDocumentId String?           @map("source_document_id") @db.Uuid
   createdById      String?           @map("created_by_id") @db.Uuid
   createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz
+  /// Disentuh setiap mutasi draft (editor SELALU menulis ulang totalValue) —
+  /// dipakai untuk MENGGUGURKAN persetujuan aktivasi yang diberikan sebelum
+  /// isinya berubah. DECISIONS 234.
+  updatedAt        DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
   supersededAt     DateTime?         @map("superseded_at") @db.Timestamptz
 
-  location       Location           @relation(fields: [locationId], references: [id])
-  amendment      ContractAmendment? @relation(fields: [amendmentId], references: [id])
-  sourceDocument Document?          @relation("rabSourceDoc", fields: [sourceDocumentId], references: [id])
+  location       Location               @relation(fields: [locationId], references: [id])
+  amendment      ContractAmendment?     @relation(fields: [amendmentId], references: [id])
+  sourceDocument Document?              @relation("rabSourceDoc", fields: [sourceDocumentId], references: [id])
   nodes          RabNode[]
   baselines      Baseline[]
+  approvals      RabRevisionApproval[]
 
   @@unique([locationId, revisionNo])
   @@index([locationId, status])
   @@map("rab_revisions")
+}
+
+/// Persetujuan aktivasi revisi RAB — aturan EMPAT MATA (DECISIONS 234).
+///
+/// Mengaktifkan adendum mengganti RAB kontrak yang berlaku dan me-regenerate
+/// kurva-S, jadi tidak boleh bisa dilakukan satu orang. Syaratnya dua orang
+/// BERBEDA: satu Program Director + satu peran penugasan (AM/PM/SM).
+/// Append-only: pencabutan diwakili baris yang dihapus + jejak audit.
+model RabRevisionApproval {
+  id         String   @id @default(uuid()) @db.Uuid
+  revisionId String   @map("revision_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  /// Peran SAAT menyetujui — disnapshot, bukan dibaca ulang saat aktivasi.
+  /// Peran orang bisa berubah; tanda tangan yang sudah diberikan tidak.
+  role       UserRole
+  /// Nilai draft saat disetujui — untuk jejak "menyetujui angka yang mana".
+  totalValue BigInt   @map("total_value")
+  approvedAt DateTime @default(now()) @map("approved_at") @db.Timestamptz
+
+  revision RabRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+  user     User        @relation(fields: [userId], references: [id])
+
+  @@unique([revisionId, userId])
+  @@index([revisionId])
+  @@map("rab_revision_approvals")
 }
 
 /// Pohon RAB satu tabel (kategori → sub → grup → item).

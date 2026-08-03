@@ -7631,3 +7631,75 @@ Rp 1,04 M dengan selisih Rp 8 → bukan pelanggaran, tapi tetap dilaporkan sebag
 pergeseran lingkup; tepat di batas belum melanggar; nilai turun tidak pernah
 melanggar; pelanggaran nilai menang atas pesan lingkup) · unit 792/792 ✓ ·
 integrasi 285/285 ✓ · E2E 42 lulus ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 234 — Aktivasi adendum butuh DUA orang; super admin tidak termasuk (2026-08-03)
+
+**Permintaan user 2026-08-03**: *"pengaktifan adendum harus dua orang, program
+director dan satu orang di level yang ditugaskan bisa AM/SM/PM, bahkan super
+admin pun tidak boleh mengaktifkan sendiri, harus ada program director yang juga
+approve."*
+
+Mengaktifkan adendum bukan penyuntingan biasa: ia MENGGANTI RAB kontrak yang
+berlaku dan me-regenerate baseline kurva-S. Nilai kontrak, rencana progres, dan
+dasar termin bergeser sekaligus, dalam satu ketukan.
+
+### Aturannya
+
+Dua tanda tangan dari **dua orang berbeda**:
+
+1. satu **Program Director**, DAN
+2. satu **peran penugasan** — Area Manager (`regional_manager`), Project
+   Manager, atau Site Manager.
+
+- **Super admin tidak boleh mengisi kursi mana pun.** Ia punya seluruh
+  capability, jadi kalau gerbangnya digantung di capability, aturan ini kosong.
+  Karena itu `approveRevisionAction` memakai `requireUser()`, bukan
+  `requireCapability("rab.manage")`: yang menentukan adalah JABATAN, bukan izin.
+  Super admin tetap boleh MENJALANKAN aktivasi setelah dua orang berwenang
+  setuju — yang dilarang adalah menjadi salah satu penandatangannya.
+- **Satu orang = satu tanda tangan.** Dijaga kunci unik `(revisionId, userId)`,
+  bukan sekadar logika aplikasi.
+- **Draft berubah → tanda tangan gugur.** Menyetujui angka lalu mengubah
+  angkanya adalah cara paling sederhana melumpuhkan aturan empat mata: yang
+  diaktifkan bukan lagi yang disetujui. Suara yang lebih tua dari
+  `RabRevision.updatedAt` tidak dihitung, dan yang gugur TETAP DITAMPILKAN
+  sebagai gugur — bukan dihapus diam-diam, supaya jelas siapa perlu menyetujui
+  ulang.
+- **HPS awal dikecualikan.** Belum ada RAB aktif = tidak ada kontrak berjalan
+  yang digantikan, jadi bukan adendum.
+
+### Di mana gerbangnya
+
+`pastikanBolehAktivasi()` dipanggil SEBELUM `activateRevision()` di **setiap**
+jalur: tombol "Aktifkan draft" dan impor "Jadikan RAB AKTIF sekarang". Di jalur
+impor, tertahannya aktivasi dilaporkan sebagai **sukses** ("tersimpan sebagai
+DRAFT, butuh dua persetujuan"), bukan error — berkasnya memang sudah terbaca dan
+tersimpan; melaporkannya sebagai kegagalan hanya membuat orang mengunggah ulang.
+
+Tombol aktivasi yang terkunci selalu menyebut apa yang kurang lewat `title`,
+bukan sekadar mati.
+
+### Perbaikan yang ikut ketahuan
+
+`ImportForm` dipanggil dari halaman adendum tanpa `adaAktif`, sehingga memakai
+bawaan `false`: pilihan "Isi DRAFT adendum" TERKUNCI dengan alasan *"Belum ada
+RAB aktif"* — persis terbalik, di halaman yang hanya ada KARENA RAB aktifnya
+ada. `adaAktif` kini **wajib** (tanpa nilai bawaan) supaya pemanggil tidak bisa
+lupa; bawaan yang diam-diam salah lebih buruk daripada tidak ada bawaan.
+
+Migrasi `20260803010000_persetujuan_adendum` menambah kolom `updated_at` secara
+NULLABLE dulu → backfill hanya baris NULL → baru dikunci NOT NULL. Bentuk
+`NOT NULL DEFAULT now()` + backfill polos memang lolos pemeriksa idempotensi,
+tapi pengulangan migrasi akan MENARIK MUNDUR `updated_at` dan menghidupkan
+kembali persetujuan yang seharusnya sudah gugur — lubang yang justru ditutup
+aturan ini (DECISIONS 167).
+
+**Verifikasi**: 16 kasus unit untuk aturannya · 16 kasus integrasi (termasuk 3
+yang menembak `activateDraftAction` langsung — dibuktikan MERAH saat baris
+`pastikanBolehAktivasi` dihapus) · 5 kasus E2E lintas peran di browser (regresi
+`adaAktif` juga dibuktikan merah tanpa perbaikannya) · idempotensi migrasi diuji
+dengan MENJALANKAN ULANG berkasnya di PostgreSQL sungguhan, memeriksa
+`updated_at` tidak mundur · unit 809/809 ✓ · integrasi 301/301 ✓ · E2E ✓ ·
+`pnpm build` ✓ · typecheck ✓ · lint ✓.

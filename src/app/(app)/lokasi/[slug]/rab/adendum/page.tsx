@@ -6,6 +6,10 @@ import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { cumulativeVolumeByLineage } from "@/lib/progress";
 import { withPpn } from "@/lib/money";
 import { diffRevisions, type RevisionDiff } from "@/lib/rab/adendum";
+import { ringkasPersetujuan } from "@/lib/rab/persetujuan";
+import { bolehMenyetujui } from "@/lib/rab/persetujuan-aturan";
+import { ROLE_LABEL } from "@/lib/authz";
+import { formatTanggal } from "@/lib/format";
 import { requireLocationPage } from "../../get-location";
 import { AdendumEditor, type EditorNode } from "./adendum-editor";
 import { CreateDraftForm, type AmendmentOption } from "./create-draft-form";
@@ -174,6 +178,29 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
   walk(null, 0);
 
   const diff = active ? await diffRevisions(active.id, draft.id) : null;
+
+  /*
+   * EMPAT MATA (DECISIONS 234). `null` bila belum ada RAB aktif — itu HPS awal,
+   * bukan adendum: tidak ada kontrak berjalan yang digantikan, jadi tidak ada
+   * yang perlu ditandatangani berdua.
+   */
+  const persetujuan = active
+    ? await (async () => {
+        const r = await ringkasPersetujuan(draft.id);
+        return {
+          lengkap: r.lengkap,
+          kurang: r.kurang,
+          berlaku: r.berlaku.map((v) => ({
+            nama: v.nama,
+            peran: ROLE_LABEL[v.role],
+            waktu: formatTanggal(v.approvedAt, "d MMM yyyy HH.mm"),
+          })),
+          gugur: r.gugur.map((v) => ({ nama: v.nama, peran: ROLE_LABEL[v.role] })),
+          bolehTtd: bolehMenyetujui(user.role),
+          sudahTtd: r.berlaku.some((v) => v.userId === user.id),
+        };
+      })()
+    : null;
   const delta = active ? draft.totalValue - active.totalValue : draft.totalValue;
 
   // ── Peringatan nilai (informasi, bukan penghalang — MARLIN mencatat kenyataan) ──
@@ -280,7 +307,12 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
             <strong className="text-ink">bukan</strong> item dihapus — untuk mencabut item, tulis{" "}
             <code className="rounded bg-surface-inset px-1">HAPUS</code> di kolom Keterangan.
           </p>
-          <ImportForm locationId={location.id} modeAwal="draft" />
+          {/* adaAktif WAJIB diisi. Halaman ini hanya dirender ketika lokasi punya
+              RAB aktif (draft adendum disalin darinya), tapi ImportForm tidak
+              bisa menebak itu: bawaannya false, dan itu MENGUNCI pilihan "Isi
+              DRAFT adendum" sambil memasang alasan "Belum ada RAB aktif" yang
+              justru terbalik di halaman ini. */}
+          <ImportForm locationId={location.id} adaAktif modeAwal="draft" />
         </CardBody>
       </Card>
 
@@ -331,6 +363,7 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
             revisionNo={draft.revisionNo}
             ringkasan={ringkasan}
             adaPeringatan={peringatan.length > 0}
+            persetujuan={persetujuan}
           />
         </CardBody>
       </Card>

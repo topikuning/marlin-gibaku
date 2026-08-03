@@ -12,12 +12,19 @@ import { importHps, type BedaPratinjau, type ImportMode, type ImportState } from
  */
 export function ImportForm({
   locationId,
-  adaAktif = false,
+  adaAktif,
   modeAwal,
 }: {
   locationId: string;
-  /** Lokasi sudah punya revisi RAB aktif — menentukan tujuan bawaan & kuncinya. */
-  adaAktif?: boolean;
+  /**
+   * Lokasi sudah punya revisi RAB aktif — menentukan tujuan bawaan & kuncinya.
+   *
+   * WAJIB, tanpa nilai bawaan. Sebelumnya `= false`, dan halaman adendum lupa
+   * mengisinya: pilihan "Isi DRAFT adendum" jadi terkunci dengan alasan "Belum
+   * ada RAB aktif" tepat di halaman yang hanya muncul KARENA ada RAB aktif.
+   * Bawaan yang diam-diam salah lebih buruk daripada tidak ada bawaan.
+   */
+  adaAktif: boolean;
   /** "draft" = halaman adendum: isi draft, JANGAN sentuh RAB aktif. */
   modeAwal?: ImportMode;
 }) {
