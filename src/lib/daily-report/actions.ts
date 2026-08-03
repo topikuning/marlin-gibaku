@@ -245,8 +245,28 @@ async function unggahFotoItem(p: {
         },
       });
     } catch (err) {
-      if (err instanceof PhotoError) photoErrors.push(err.message);
-      else throw err;
+      if (err instanceof PhotoError) {
+        photoErrors.push(err.message);
+        continue;
+      }
+      // SATU foto rusak tidak boleh menjatuhkan seluruh penyimpanan.
+      //
+      // Dulu error non-PhotoError dilempar ulang, dan itu melewati semua
+      // penanganan: volume sudah tersimpan, foto lain batal, dan pelapor cuma
+      // melihat halaman error tanpa tahu apa yang jadi dan apa yang tidak.
+      // Terjadi di produksi 2026-08-03 — EXIF cacat membuat Prisma menolak
+      // koordinat "NaN" (DECISIONS 231).
+      //
+      // Sebabnya tetap DICATAT UTUH ke log server: yang tidak boleh hilang
+      // adalah penyebabnya, bukan permintaannya.
+      console.error("[foto] gagal menyimpan satu berkas", {
+        reportId: p.reportId,
+        itemId: p.itemId,
+        nama: file.name,
+        bytes: file.size,
+        err,
+      });
+      photoErrors.push(`${file.name}: gagal diproses`);
     }
   }
   return photoErrors;

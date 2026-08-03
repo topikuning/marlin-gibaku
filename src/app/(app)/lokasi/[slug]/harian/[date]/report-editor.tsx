@@ -433,6 +433,24 @@ function TambahFoto({ reportId, itemId, sudahAdaFoto }: { reportId: string; item
   const [state, formAction, pending] = useActionState<DailyActionState, FormData>(addItemPhotosAction, undefined);
   const [buka, setBuka] = useState(false);
   const [photoKey, setPhotoKey] = useState(0);
+  const panelRef = useRef<HTMLFormElement>(null);
+
+  /**
+   * Buka panel LALU pindahkan fokus ke dalamnya.
+   *
+   * Tanpa ini fokus tetap tertinggal di kolom pekerjaan jauh di atas — kolom itu
+   * difokuskan saat halaman dibuka dan tidak pernah dilepas — sedangkan tombol
+   * yang baru diketuk lenyap dari DOM (diganti panel). Peramban lalu menarik
+   * pandangan kembali ke elemen berfokus di atas: pelapor menekan "Tambah foto"
+   * di bawah, layarnya melompat ke atas. Laporan user 2026-08-03.
+   *
+   * `preventScroll` supaya perpindahan fokus tidak ikut menggeser pandangan;
+   * panelnya memang sudah berada di tempat jari mengetuk.
+   */
+  const bukaPanel = () => {
+    setBuka(true);
+    window.requestAnimationFrame(() => panelRef.current?.focus({ preventScroll: true }));
+  };
 
   // Sukses → tutup form & buang pratinjau lama, supaya berkas yang sama tidak
   // ikut terkirim lagi pada unggahan berikutnya.
@@ -454,7 +472,7 @@ function TambahFoto({ reportId, itemId, sudahAdaFoto }: { reportId: string; item
           </span>
         ) : null}
         {state?.success ? <span className="text-[11px] text-success">{state.success}</span> : null}
-        <Button type="button" variant="ghost" size="sm" onClick={() => setBuka(true)}>
+        <Button type="button" variant="ghost" size="sm" onClick={bukaPanel}>
           <ImagePlus aria-hidden className="size-4" />
           {sudahAdaFoto ? "Tambah foto" : "Tambahkan foto"}
         </Button>
@@ -463,7 +481,14 @@ function TambahFoto({ reportId, itemId, sudahAdaFoto }: { reportId: string; item
   }
 
   return (
-    <form action={formAction} className="space-y-2 rounded-md border border-border bg-surface-muted p-3">
+    <form
+      ref={panelRef}
+      action={formAction}
+      // tabIndex -1: bisa menerima fokus lewat kode, tapi tidak masuk urutan Tab.
+      tabIndex={-1}
+      aria-label="Tambah foto untuk pekerjaan ini"
+      className="space-y-2 rounded-md border border-border bg-surface-muted p-3 outline-none"
+    >
       <input type="hidden" name="reportId" value={reportId} />
       <input type="hidden" name="itemId" value={itemId} />
       {state?.error ? <Banner tone="error" title={state.error} /> : null}

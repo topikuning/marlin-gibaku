@@ -184,6 +184,14 @@ test.describe("foto menyusul", () => {
     await expect(
       page.getByText("Volume dan catatan yang sudah tersimpan tidak berubah.").first(),
     ).toBeVisible();
+    // Fokus harus PINDAH KE PANEL, bukan tertinggal di kolom pekerjaan jauh di
+    // atas. Kolom itu difokuskan saat halaman dibuka dan tidak pernah dilepas;
+    // tombol yang baru diketuk lenyap dari DOM, dan peramban lalu menarik
+    // pandangan kembali ke atas — laporan user 2026-08-03.
+    await expect
+      .poll(() => page.evaluate(() => document.activeElement?.tagName ?? ""), { timeout: 5_000 })
+      .toBe("FORM");
+    expect(await page.evaluate(() => document.activeElement?.id ?? "")).not.toBe("dr-search");
     // Tanpa berkas, aksi menolak dengan jelas — bukan diam-diam "berhasil".
     await page.getByRole("button", { name: "Simpan foto" }).click();
     await expect(page.getByText("Belum ada foto yang dipilih.")).toBeVisible({ timeout: 15_000 });

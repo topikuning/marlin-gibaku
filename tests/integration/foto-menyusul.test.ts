@@ -244,6 +244,31 @@ describe("gerbang & penolakan", () => {
     expect(panggilan).toHaveLength(0);
   });
 
+  it("error TAK TERDUGA dari satu foto tidak menjatuhkan seluruh aksi", async () => {
+    // Produksi 2026-08-03: EXIF cacat membuat Prisma menolak koordinat "NaN"
+    // dengan PrismaClientValidationError — BUKAN PhotoError. Dulu error seperti
+    // itu dilempar ulang dan melewati semua penanganan: volume tersimpan, foto
+    // lain batal, pelapor cuma melihat halaman error. DECISIONS 231.
+    const asli = gagalkanFoto;
+    gagalkanFoto = null;
+    const sebelum = await isiItem();
+    let n = 0;
+    const patch = vi.spyOn(await import("@/lib/photos"), "savePhotoForItem");
+    patch.mockImplementation(async (input) => {
+      panggilan.push(input);
+      if (++n === 1) throw new TypeError("kolom Decimal menolak NaN");
+      return { id: "ok" } as never;
+    });
+    const hasil = await tambah([berkas("rusak.jpg"), berkas("baik.jpg", "zz")]);
+    patch.mockRestore();
+    gagalkanFoto = asli;
+
+    // Yang sehat tetap masuk, yang rusak dilaporkan — bukan seluruhnya batal.
+    expect(hasil?.success).toBe("1 foto ditambahkan.");
+    expect(hasil?.warning).toMatch(/rusak\.jpg/);
+    expect(await isiItem(), "volume & catatan tidak ikut terseret").toEqual(sebelum);
+  });
+
   it("semua foto gagal = GAGAL, bukan 'sukses sebagian'", async () => {
     gagalkanFoto = "Format tidak didukung";
     const hasil = await tambah([berkas()]);

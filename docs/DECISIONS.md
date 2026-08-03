@@ -7480,3 +7480,74 @@ dimatikan, sapuan halaman-dalam MERAH; dengan aturan dipasang kembali, HIJAU.
 Uji yang tidak pernah diperiksa bisa-gagal-nya bukan pagar, cuma dekorasi.
 Terukur ulang di browser: 601px → **375px** di viewport 375px · unit 774/774 ✓ ·
 integrasi 284/284 ✓ · E2E 42 lulus ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓.
+
+---
+
+## 231 — EXIF cacat menjatuhkan unggahan; fokus melompat saat "Tambah foto" (2026-08-03)
+
+Dua laporan produksi, keduanya dari jalur foto laporan harian.
+
+### 1. `exifGpsLat: "NaN"` → Prisma menolak → SELURUH unggahan gagal
+
+Log produksi:
+
+```
+Invalid value for argument `exifGpsLat`: invalid digit found in string.
+Expected decimal String.   exifGpsLat: "NaN", exifGpsLng: "NaN", gpsSource: "exif"
+```
+
+Sebabnya satu baris:
+
+```ts
+const lat = typeof tags.gps?.Latitude === "number" ? tags.gps.Latitude : null;
+```
+
+**`typeof NaN === "number"` bernilai true.** ExifReader mengembalikan NaN bila
+tag GPS ada tapi rusak/tak lengkap (GPSLatitude tanpa GPSLatitudeRef, atau hasil
+konversi HEIC→JPEG setengah jadi). NaN itu lolos, ditulis `lat.toFixed(7)` =
+`"NaN"` ke kolom `Decimal`, dan Prisma menolaknya.
+
+Yang membuatnya parah: `PrismaClientValidationError` **bukan** `PhotoError`,
+jadi ia dilempar ulang dan melewati seluruh penanganan foto. Volume sudah
+tersimpan, foto lain batal, dan pelapor cuma melihat halaman error tanpa tahu
+apa yang jadi dan apa yang tidak. Foto lain di unggahan yang sama ikut hilang
+gara-gara satu berkas ber-EXIF cacat.
+
+Lebih halus lagi: `gpsSource` sempat ditulis `"exif"` untuk koordinat NaN —
+foto akan tercatat punya bukti GPS yang tidak pernah ada (melanggar DECISIONS
+197).
+
+**Tiga lapis perbaikan**, sengaja rangkap:
+
+1. `lib/photo-koordinat.ts` (modul murni, bisa diuji langsung): `Number.isFinite`
+   **dan** pemeriksaan rentang. Koordinat mustahil (lintang 200°) bukan "kurang
+   akurat" — ia bukan koordinat, dan kalau lolos ia jadi bukti GPS palsu.
+   Sepasang: lintang tanpa bujur tidak menunjuk tempat mana pun, jadi kalau satu
+   gugur keduanya null.
+2. `desimalKoordinat()` sebagai pintu terakhir sebelum kolom `Decimal` — berlaku
+   untuk jalur mana pun, termasuk koordinat perangkat dari klien.
+3. Satu foto gagal tidak lagi menjatuhkan aksi: error non-`PhotoError` DICATAT
+   UTUH ke log server lalu dilaporkan sebagai peringatan per berkas. Yang tidak
+   boleh hilang adalah penyebabnya, bukan permintaannya.
+
+### 2. Ketuk "Tambah foto" → layar melompat ke atas
+
+Fokus tidak pernah lepas dari kolom pekerjaan: kolom itu difokuskan saat halaman
+dibuka (DECISIONS 226) dan tetap begitu sepanjang sesi. Ketika tombol "Tambah
+foto" diketuk, tombolnya lenyap dari DOM (diganti panel) — fokus jatuh ke
+`<body>`, dan peramban menarik pandangan kembali ke elemen berfokus di atas.
+
+Diverifikasi di browser sebelum diperbaiki: sebelum ketukan `activeElement` =
+`dr-search` (padahal pelapor sudah menggulir jauh ke bawah), sesudah = `BODY`.
+
+Panel sekarang menerima fokus sendiri (`tabIndex={-1}` + `focus({ preventScroll:
+true })`). Fokus pindah ke tempat jari mengetuk, bukan tertinggal di atas — dan
+itu juga perilaku yang benar untuk aksesibilitas: membuka panel memindahkan
+fokus ke dalamnya.
+
+**Verifikasi**: 11 kasus unit koordinat (NaN, Infinity, bukan-angka, di luar
+rentang, pasangan setengah, presisi 7 desimal, hasil selalu terbaca sebagai
+angka) · 1 kasus integrasi (error tak terduga dari satu foto: yang sehat tetap
+masuk, yang rusak dilaporkan, volume tidak terseret) · 1 kasus E2E (fokus pindah
+ke panel, bukan tertinggal di `dr-search`) · unit 785/785 ✓ · integrasi 285/285 ✓
+· E2E 42 lulus ✓ · `pnpm build` ✓ · typecheck ✓ · lint ✓.

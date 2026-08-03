@@ -43,6 +43,7 @@ const THUMB_MAX = 256;
 // (lihat lib/photo-limits.ts). Di-re-export agar pemanggil lama tidak berubah.
 export { MAX_PHOTO_BYTES, MAX_PHOTO_MB, MAX_PHOTOS_PER_UPLOAD, MAX_PHOTOS_PER_ACTIVITY } from "@/lib/photo-limits";
 import { MAX_PHOTO_BYTES, MAX_PHOTO_MB } from "@/lib/photo-limits";
+import { desimalKoordinat, pasanganKoordinat } from "@/lib/photo-koordinat";
 import { originalExt } from "@/lib/photo-file";
 
 /**
@@ -113,8 +114,9 @@ function readExif(buffer: Buffer): { takenAt: Date | null; lat: number | null; l
         if (!Number.isNaN(d.getTime())) takenAt = d;
       }
     }
-    const lat = typeof tags.gps?.Latitude === "number" ? tags.gps.Latitude : null;
-    const lng = typeof tags.gps?.Longitude === "number" ? tags.gps.Longitude : null;
+    // Penyaringan koordinat ada di modul terpisah supaya bisa diuji langsung —
+    // NaN dari EXIF cacat pernah menjatuhkan seluruh unggahan (DECISIONS 231).
+    const { lat, lng } = pasanganKoordinat(tags.gps?.Latitude, tags.gps?.Longitude);
     return { takenAt, lat, lng };
   } catch {
     return { takenAt: null, lat: null, lng: null };
@@ -485,8 +487,12 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       heightPx: processed.height,
       exifTakenAt: takenAt,
       stampPhotoId: photoId,
-      exifGpsLat: lat != null ? lat.toFixed(7) : null,
-      exifGpsLng: lng != null ? lng.toFixed(7) : null,
+      // Lapis kedua, sengaja rangkap dengan penyaringan di `readExif`: kolom
+      // Decimal tidak boleh menerima "NaN"/"Infinity" dari jalur mana pun —
+      // termasuk koordinat perangkat yang dikirim klien. Nilai yang bukan
+      // angka berhingga ditulis null, bukan dipaksa masuk.
+      exifGpsLat: desimalKoordinat(lat),
+      exifGpsLng: desimalKoordinat(lng),
       gpsSource,
       verification: "pending",
       metadataSource: timeSource,
