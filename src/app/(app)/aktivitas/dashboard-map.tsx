@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import type { PetaMarker } from "@/lib/peta";
-import type { MarkerTone } from "@/lib/dashboard";
+import { cocokFilter, type FilterPeta, type MarkerTone, type StatusLapor } from "@/lib/dashboard-filter";
 
 // Leaflet client-only (sama seperti /peta) — hindari SSR.
 const PetaMap = dynamic(() => import("../peta/peta-map").then((m) => m.PetaMap), {
@@ -12,46 +12,41 @@ const PetaMap = dynamic(() => import("../peta/peta-map").then((m) => m.PetaMap),
   loading: () => <div className="h-full w-full animate-pulse rounded-md bg-surface-inset" />,
 });
 
-type Filter = "semua" | "submit" | "belum" | "kritis";
-
-const FILTERS: { key: Filter; label: string }[] = [
+const FILTERS: { key: FilterPeta; label: string }[] = [
   { key: "semua", label: "Semua" },
   { key: "submit", label: "Sudah Submit" },
   { key: "belum", label: "Belum Submit" },
   { key: "kritis", label: "Kritis" },
 ];
 
+// Merah sengaja MENANG atas status lapor (keputusan user 2026-08-03), jadi
+// labelnya harus mengaku: pin merah tidak berkata apa pun soal sudah/belum
+// lapor. Legenda yang menyiratkan sebaliknya membuat orang menghitung pin.
 const LEGEND: { tone: MarkerTone; label: string; dot: string }[] = [
-  { tone: "success", label: "Sudah submit & on track", dot: "bg-success" },
-  { tone: "warning", label: "Sudah submit, perlu perhatian", dot: "bg-warning" },
-  { tone: "danger", label: "Deviasi negatif / kendala kritis", dot: "bg-danger" },
-  { tone: "neutral", label: "Belum submit hari ini", dot: "bg-ink-faint" },
+  { tone: "success", label: "Sudah lapor & on track", dot: "bg-success" },
+  { tone: "warning", label: "Sudah lapor, deviasi negatif", dot: "bg-warning" },
+  { tone: "danger", label: "Deviasi kritis (lapor atau belum)", dot: "bg-danger" },
+  { tone: "neutral", label: "Belum lapor hari ini", dot: "bg-ink-faint" },
   { tone: "idle", label: "Belum mulai (target)", dot: "border border-ink-faint bg-surface" },
 ];
 
 export function DashboardMap({
   markers,
   markerTone,
+  markerSubmit,
 }: {
   markers: PetaMarker[];
   markerTone: Record<string, MarkerTone>;
+  markerSubmit: Record<string, StatusLapor>;
 }) {
   const router = useRouter();
-  const [filter, setFilter] = useState<Filter>("semua");
+  const [filter, setFilter] = useState<FilterPeta>("semua");
   const [selected, setSelected] = useState<string | null>(null);
 
   const shown = useMemo(() => {
     if (filter === "semua") return markers;
-    return markers.filter((m) => {
-      const t = markerTone[m.id];
-      // "Belum Submit" hanya untuk lokasi BERJALAN yang belum lapor — lokasi
-      // yang belum mulai tidak masuk hitungan tunggakan.
-      if (filter === "belum") return t === "neutral";
-      if (filter === "submit") return t === "success" || t === "warning" || t === "danger";
-      if (filter === "kritis") return t === "danger";
-      return true;
-    });
-  }, [markers, markerTone, filter]);
+    return markers.filter((m) => cocokFilter(filter, markerTone[m.id]!, markerSubmit[m.id]!));
+  }, [markers, markerTone, markerSubmit, filter]);
 
   const slugById = useMemo(() => new Map(markers.map((m) => [m.id, m.slug])), [markers]);
 

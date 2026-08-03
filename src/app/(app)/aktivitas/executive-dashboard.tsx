@@ -22,6 +22,7 @@ import { DeltaBadge } from "@/components/ui/stat-delta";
 import { accessibleLocationIds, type SessionUser } from "@/lib/auth/session";
 import { getDashboardData, getActivityCentre } from "@/lib/dashboard";
 import { formatPct, formatRupiahShort, formatTanggal } from "@/lib/format";
+import { REPORT_STATUS_LABEL } from "@/lib/lifecycle";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import { ISSUE_SEVERITY_LABEL, ISSUE_SEVERITY_TONE, RECOVERY_STATUS_LABEL, RECOVERY_STATUS_TONE } from "@/app/(app)/lokasi/[slug]/issue-labels";
 import { DashboardMap } from "./dashboard-map";
@@ -142,7 +143,11 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
           </div>
           <div className="flex flex-1 flex-col p-4">
             <div className="min-h-[300px] flex-1">
-              <DashboardMap markers={data.markers} markerTone={data.markerTone} />
+              <DashboardMap
+                markers={data.markers}
+                markerTone={data.markerTone}
+                markerSubmit={data.markerSubmit}
+              />
             </div>
             <div className="mt-3 text-[11px] text-ink-muted">Sebaran seluruh lokasi (termasuk yang belum mulai)</div>
             <div className="mt-1.5 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-7">
@@ -180,10 +185,38 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
               </div>
             </div>
 
+            {/* Pasangan daftar "belum": pertanyaan "daerah mana saja yang SUDAH
+                submit hari ini?" harus punya jawaban langsung, bukan lewat
+                menyaring peta lalu menghitung pin. Jumlah barisnya = angka
+                "Sudah" di bar atas, jadi keduanya saling memeriksa. */}
+            <MiniList
+              dot="bg-success"
+              title="Lokasi Sudah Submit"
+              right="Jam kirim"
+              lebih={
+                data.sudahSubmit.length > 6
+                  ? { jumlah: data.sudahSubmit.length - 6, href: "/laporan" }
+                  : undefined
+              }
+              rows={data.sudahSubmit.slice(0, 6).map((l, i) => ({
+                key: l.id,
+                href: `/lokasi/${l.slug}`,
+                rank: i + 1,
+                label: l.name,
+                // Jam kirim bisa tidak tercatat (laporan lama) — tulis statusnya
+                // saja, jangan mengarang jam.
+                value: l.submittedAt ? formatTanggal(l.submittedAt, "HH.mm") : REPORT_STATUS_LABEL[l.status],
+              }))}
+            />
             <MiniList
               dot="bg-ink-faint"
               title="Lokasi Belum Submit"
               right="Update terakhir"
+              lebih={
+                data.belumSubmit.length > 6
+                  ? { jumlah: data.belumSubmit.length - 6, href: "/laporan" }
+                  : undefined
+              }
               rows={data.belumSubmit.slice(0, 6).map((l, i) => ({
                 key: l.id,
                 href: `/lokasi/${l.slug}`,
@@ -196,6 +229,11 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
               dot="bg-warning"
               title="Perlu Perhatian"
               right="Deviasi"
+              lebih={
+                data.perluPerhatian.length > 6
+                  ? { jumlah: data.perluPerhatian.length - 6, href: "/progress" }
+                  : undefined
+              }
               rows={data.perluPerhatian.slice(0, 6).map((l, i) => ({
                 key: l.id,
                 href: `/lokasi/${l.slug}`,
@@ -396,11 +434,19 @@ function MiniList({
   right,
   dot,
   rows,
+  lebih,
 }: {
   title: string;
   right: string;
   dot: string;
   rows: { key: string; href: string; rank: number; label: string; value: string; danger?: boolean }[];
+  /**
+   * Sisa yang TIDAK ditampilkan. Daftar 6 baris dari 50 tanpa keterangan
+   * terbaca seolah itu seluruhnya — pemotongan diam-diam adalah cara paling
+   * halus membuat layar berbohong. Sebutkan jumlahnya dan beri jalan ke
+   * daftar penuhnya.
+   */
+  lebih?: { jumlah: number; href: string };
 }) {
   return (
     <div>
@@ -426,6 +472,14 @@ function MiniList({
           ))
         )}
       </ul>
+      {lebih && lebih.jumlah > 0 ? (
+        <Link
+          href={lebih.href}
+          className="mt-1 flex items-center gap-1 px-1 text-[11px] font-medium text-primary hover:underline"
+        >
+          +{lebih.jumlah} lainnya <ChevronRight aria-hidden className="size-3" />
+        </Link>
+      ) : null}
     </div>
   );
 }
