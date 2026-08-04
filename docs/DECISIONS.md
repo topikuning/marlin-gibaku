@@ -8655,3 +8655,97 @@ uji tersebut terbukti GAGAL di lokal bila perbaikan CSS-nya dimatikan.
 Perbaikannya satu blok media query untuk `.ag-root-wrapper input/select/textarea`,
 sengaja DI LUAR `@layer` karena aturan AG Grid disuntikkan sebagai CSS biasa
 lewat JS dan selalu menang atas aturan ber-layer.
+
+## 250 · Redesign total UI/UX — fondasi: navigasi enam grup, satu antrean tindakan, satu ambang deviasi (2026-08-04)
+
+Masukan user: PRD MARLIN (PDF) + rancangan Claude Design (13 berkas `.dc.html`
++ `MASTER_PROMPT_TOTAL_UI_UX_REDESIGN_MARLIN.md`). Keduanya meminta rombak
+menyeluruh. Ini fase pertama dari tujuh yang diurutkan rancangan desain sendiri:
+**design system & shell**, dikerjakan lebih dulu karena menyentuh seluruh layar.
+
+### Konflik antar-sumber, dan bagaimana diselesaikan
+
+PRD dan rancangan desain **tidak sepakat soal routing**:
+
+- PRD §4.1 mengusulkan keluarga route baru (`/proyek/...`, `/pengendalian/...`,
+  `/dokumen-laporan/...`, `/administrasi/...`), 55 route → ±26 keluarga.
+- Rancangan Claude Design mengaudit ulang repo dan memilih **mempertahankan URL
+  yang ada**, hanya mengelompokkan menunya, dan menambah satu route baru:
+  `/tindakan`.
+
+Yang dipakai: **PRD untuk STRUKTUR menu (enam grup), rancangan desain untuk URL
+dan tampilan.** Alasannya bukan kompromi malas — migrasi URL menyentuh 104
+berkas dan tidak bisa diverifikasi di lingkungan ini (tanpa basis data), jadi
+menjalankannya bersamaan dengan perubahan visual membuat kegagalan mana pun
+mustahil ditelusuri. Migrasi URL kanonik tetap direncanakan sebagai fase
+tersendiri; alias yang MEMANG cuma alias sudah dibereskan sekarang (di bawah).
+
+Jumlah grup: PRD menyebut enam (Beranda / Proyek / Pelaksanaan / Pengendalian /
+Dokumen & Laporan / Administrasi), rancangan desain menyebut lima (Eksekutif /
+Operasional / Pengendalian / Output & Intelligence / Administrasi). Dipakai
+**enam versi PRD**, karena PRD adalah dokumen yang user minta diakomodir penuh.
+
+### Ambang deviasi: satu aturan yang hidup di tiga tempat
+
+Ditemukan saat menyatukan warna status — bukan dilaporkan:
+
+- `DEVIATION_THRESHOLDS` di `components/ui/stat-delta.tsx` (−1 / −10),
+- konstanta lokal `KRITIS_THRESHOLD = -10` di `lib/dashboard.ts`,
+- literal yang diketik ulang di `progress/page.tsx` dan di titik warna
+  dashboard eksekutif — dan yang terakhir memakai `< 0`, bukan `< -1`.
+
+Akibatnya satu lokasi dengan deviasi −0,4 pp tampil **hijau** di tabel progress
+dan **amber** di peta, pada layar yang sama. Angka yang saling bertentangan di
+satu produk membuat keduanya berhenti dipercaya.
+
+Sekarang satu sumber: `src/lib/deviasi.ts`. **Perubahan perilaku yang
+disengaja**: zona mati 1 pp berlaku seragam, jadi selisih pembulatan tidak lagi
+mendapat bobot visual yang sama dengan lokasi yang tertinggal 9 pp. Daftar
+"perlu perhatian" di dashboard ikut memakai ambang ini, sebelumnya `< 0`.
+
+Ambang pindah dari komponen UI ke `lib/` supaya kode server tidak perlu
+mengimpor komponen React hanya untuk membaca dua angka. Nama lama
+`DEVIATION_THRESHOLDS` dipertahankan sebagai alias.
+
+### `/tindakan` — route baru (K1 pada rancangan desain, gap P0 pada PRD)
+
+"Yang harus dikerjakan" tersebar di tiga tempat yang tidak saling tahu: kartu
+exception di Beranda, antrean di Pusat Laporan, saran di hub AI. Tak satu pun
+bisa menjawab "apa yang menunggu saya, mana yang paling telat".
+
+Antrean baru menormalkan **tujuh sumber yang sudah ada** — verifikasi, koreksi,
+deviasi kritis, kendala, recovery lewat tenggat, dokumen kedaluwarsa, pengajuan
+keuangan — **tanpa tabel baru dan tanpa status sendiri**. Item hilang karena
+keadaan aslinya berubah, bukan karena ditandai sudah dibaca; antrean yang punya
+status sendiri akan cepat berselisih dengan kenyataan.
+
+Lencana lonceng memakai antrean PENUH, bukan beberapa `count()` murah yang
+melewatkan deviasi kritis: lencana yang menunjukkan 6 lalu membuka daftar
+berisi 8 membuat angkanya berhenti dipercaya.
+
+### Pencarian global (gap P0 PRD)
+
+Kotak cari lama hanya ada di Dashboard Eksekutif, hanya mencari lokasi, dan
+bekerja dengan **mengirim indeks lokasi ke klien lalu menyaringnya di memori**.
+Itu membocorkan nama objek di luar scope pengguna walaupun tidak pernah
+ditampilkan. Pencarian baru berjalan di server dengan dua lapis pagar (scope
+lokasi/paket + capability per jenis) dan tersedia di setiap halaman ber-shell.
+
+### Alias lama: 308, bukan 307
+
+`/aktivitas`, `/pengguna`, `/paket/vendor`, `/kontak-wa`, `/laporan-wa` dulu
+berupa `page.tsx` yang memanggil `redirect()` — 307 SEMENTARA, dan tetap
+terhitung sebagai route aplikasi. Itu persis keluhan PRD ("route teknis tetap
+terhitung dan membingungkan dokumentasi/bookmark"). Kini entri `redirects()` di
+`next.config.ts`, permanen, ditangani sebelum React jalan.
+
+`/aktivitas` bukan sekadar alias: ia me-render Dashboard Eksekutif yang SAMA
+dengan `/` — dua URL untuk satu produk. Komponennya pindah ke `(app)/_dashboard/`
+yang tidak menjadi route.
+
+### Yang BELUM dikerjakan (jujur, bukan tersirat)
+
+Fase 2–7 rancangan desain belum disentuh: laporan harian mobile (wizard, loop
+"Simpan & Tambah Lagi", state jaringan), peta operasional, workspace lokasi
+6 tab, keuangan approval-first, Report Studio, dan migrasi URL kanonik PRD.
+Layar-layar itu masih memakai susunan lama; yang berubah baru kerangkanya.
