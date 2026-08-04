@@ -8344,3 +8344,196 @@ moderate, di bawah ambang) · resolusi per induk diperiksa di lockfile:
 `pnpm install --frozen-lockfile` lolos (CI memakainya) · prisma generate ✓ ·
 typecheck ✓ · lint ✓ · unit 888/888 ✓ (mencakup seluruh pembangun .xlsx yang
 melewati archiver/minimatch) · build ✓ · integrasi 301/301 ✓.
+
+---
+
+## 245 · Umpan balik navigasi: yang rusak bukan kecepatannya, tapi diamnya (2026-08-04)
+
+Keluhan user: *"di mobile, seringkali satu menu diklik, sistem seperti stuck
+tidak merespon. ini secara ux membingungkan. aku tidak tau ini kendala jaringan
+lambat atau memang ada masalah di mobile."*
+
+### Pertanyaannya dijawab dengan pengukuran, bukan tebakan
+
+Build produksi, DB dinaikkan ke 84 lokasi (7 lokasi seed tidak membuktikan
+apa-apa untuk portofolio 83):
+
+| Rute | TTFB | Payload RSC (gzip) | @1 Mbps | @400 kbps |
+|---|---|---|---|---|
+| `/` | 54 ms | 19 KB | 152 ms | 381 ms |
+| `/progress` | 51 ms | 38 KB | 306 ms | 765 ms |
+| `/lokasi` | 37 ms | 8 KB | 66 ms | 166 ms |
+| `/sistem` | 56 ms | 40 KB | 319 ms | 798 ms |
+
+**Servernya tidak lambat** — 17–56 ms bahkan pada 84 lokasi. Yang memakan waktu
+adalah memindahkan payload lewat jaringan seluler, ditambah RTT. Jadi jawaban
+untuk user: ini memang jaringan, BUKAN kerusakan di mobile.
+
+Tapi itu belum menjelaskan kenapa terasa *stuck*. Penyebabnya: App Router
+MENAHAN transisi di halaman lama sampai payload tiba, dan MARLIN tidak
+menampilkan apa pun selama itu. 0,5–3 detik tanpa satu piksel pun berubah.
+**Yang diperbaiki karena itu bukan kecepatannya, melainkan diamnya.**
+
+### Tiga lapis, semuanya di sisi umpan balik
+
+1. **Ikon menu berubah jadi pemintal** (`useLinkStatus`, Next 16) — menjawab
+   "yang mana yang saya ketuk" sekaligus "sedang diproses". Cuma tukar elemen,
+   jalan di WebView Android lama.
+2. **Bar tipis di pucuk layar** — jaring untuk navigasi yang BUKAN dari menu
+   (tombol, tautan tabel, breadcrumb). `useLinkStatus` hanya sah di dalam
+   `<Link>`, jadi status per-tautan dikumpulkan ke penyimpanan modul kecil yang
+   dibaca bar lewat `useSyncExternalStore`. Bar merayap ke 92% dan **tidak
+   pernah** menyentuh 100% sendiri — yang menuntaskannya halaman baru; bar yang
+   penuh padahal belum selesai adalah kebohongan yang justru memancing ketukan
+   ulang.
+3. **Sesudah 6 detik**, kalimat "Masih memuat — jaringan sepertinya lambat."
+   Tidak diklaim gagal (permintaannya masih jalan) dan tidak ditawarkan "coba
+   lagi" (mengulang menambah antrean di jaringan yang sudah sesak).
+
+### Cacat mobile yang sebenarnya: laci menutup sebelum halaman berganti
+
+`bottom-nav.tsx` memanggil `setOpen(false)` di `onClick` tiap tautan laci. Laci
+lenyap SEKETIKA saat diketuk — pengguna kembali menatap halaman LAMA yang sama
+persis, lalu diam beberapa detik. Ketukannya terbaca "menutup menu", bukan
+"pindah halaman", jadi wajar kalau lalu diketuk berulang. Sekarang laci
+BERTAHAN dengan pemintal di item yang diketuk, dan hanya menutup ketika
+`pathname` benar-benar berganti. Ditambah state `:active` di seluruh item nav —
+layar sentuh tidak punya hover, jadi tanpa itu ketukan tidak meninggalkan jejak.
+
+### `loading.tsx` DICOBA DAN DITARIK LAGI
+
+Obat bakunya adalah `loading.tsx`. Dipasang, lalu dicabut: dengan
+`(app)/loading.tsx` terpasang, panel persetujuan adendum berhenti merespons —
+`router.refresh()` sesudah server action tidak pernah selesai di balik batas
+Suspense, jadi tombol "Setujui aktivasi" diam >15 detik.
+
+Dibisect per berkas dengan spec penuh sebagai sinyal (uji tunggal menyesatkan —
+lulus walau konfigurasinya rusak): tanpa `loading.tsx` 5/5 tiga kali berturut
+(±23 detik); dengan `loading.tsx` gagal 2–3 dari 5 setiap kali;
+`nav-progress.tsx` sendirian 5/5 dua kali → terbukti bukan penyebabnya.
+
+Itu cacat yang KELASNYA SAMA dengan yang sedang diperbaiki, cuma pindah ke
+layar yang jauh lebih berbahaya. Ditunda ke OPEN_ISSUES UX-01, bukan dikirim.
+
+### Verifikasi
+
+E2E baru men-THROTTLE jaringan (400 kbps / RTT 400 ms lewat CDP) — tanpa itu
+ujinya selalu lulus di CI cepat dan tidak menjaga apa pun, persis kondisi yang
+meloloskan cacat ini sejak awal. Dibuktikan **gagal 4/4 pada kode SEBELUM
+perbaikan** dan lulus 4/4 sesudahnya; uji yang lulus di kedua sisi tidak
+membuktikan apa-apa.
+
+---
+
+## 246 · Tampilan sesudah login terpotong: penyebabnya di halaman SEBELUMNYA (2026-08-04)
+
+Keluhan user: *"tiap kali login pertama kali, tampilan di mobile seperti ini.
+harus zoom out manual supaya tampilannya pas."* — dengan tangkapan layar
+Dashboard Eksekutif yang terpotong di kiri, kanan, dan bawah.
+
+### Yang salah bukan halaman yang terlihat salah
+
+Safari iOS **memperbesar halaman** begitu fokus masuk ke kontrol form yang
+font-nya di bawah 16px, dan zoom itu **tidak dikembalikan** sesudah fokus
+lepas — ia terbawa ke halaman berikutnya. Jadi pemicunya ketukan ke kolom
+username di `/masuk`; dashboard cuma mewarisi zoomnya.
+
+Itu juga yang menjelaskan kenapa keluhannya berbunyi *"tiap kali login PERTAMA
+KALI"*: hanya di situ ada input yang diketuk sebelum mendarat di dashboard.
+Membetulkan tata letak dashboard tidak akan menyelesaikan apa pun.
+
+### Pagar yang terlihat ada, padahal tidak pernah berlaku
+
+`globals.css` sudah memasang, dengan komentar "Cegah auto-zoom iOS":
+
+```css
+@layer base {
+  @media (max-width: 640px) { input, select, textarea { font-size: 16px; } }
+}
+```
+
+Aturan itu ada di `@layer base`, sedangkan `text-sm` pada komponen input adalah
+**utility** — dan di Tailwind 4 utility SELALU menang atas base. Pagarnya tidak
+pernah berlaku untuk Input, PasswordInput, Combobox, maupun kotak cari
+MarlinGrid. **Diukur, bukan disimpulkan dari membaca CSS**: font terhitung
+kolom login di viewport 390px = **14px**.
+
+Pagar yang tampak terpasang padahal mati lebih berbahaya daripada tidak ada
+pagar — ia membuat orang berikutnya berhenti memeriksa.
+
+### Perbaikan
+
+`text-base sm:text-sm` pada seluruh kontrol form: 16px di ponsel, 14px mulai
+≥640px. Disetel di utility supaya menang, bukan diletakkan di base lalu
+berharap. Komentar di `globals.css` diperbaiki agar menyatakan batasnya: aturan
+itu hanya menjaring `<input>` polos tanpa utility `text-*`.
+
+### Verifikasi
+
+`tests/e2e/mobile-zoom-input.spec.ts` mengukur **font-size terhitung** pada
+elemen sungguhan di viewport 390px, bukan mengecek ada-tidaknya aturan CSS.
+Ujinya langsung membuktikan dirinya bergigi: ia **menemukan satu kontrol yang
+terlewat** saat pertama dijalankan (kotak "Cari di tabel" MarlinGrid, 14px)
+yang tidak ikut terpikirkan waktu menambal.
+
+---
+
+## 247 · "Klik lokasi, tidak terjadi apa pun" — tiga cacat menumpuk di satu ketukan (2026-08-04)
+
+Laporan lapangan: *"user buka lokasi lalu klik lokasinya, seperti tidak terjadi
+apa pun, bisa 2-3x klik. ini problem besar, karena akhirnya request
+berulang-ulang tapi user merasa aplikasi tidak merespon."*
+
+Ternyata bukan satu masalah, melainkan tiga — dan yang terbesar bukan
+kecepatan.
+
+### 1. Sasaran ketuknya 2,4% dari baris
+
+Diukur di viewport 390px: satu-satunya yang bisa diketuk adalah tautan nama
+lokasi seluas **75 × 16 px**, sementara barisnya 1200 × 42 px. Ketukan di mana
+pun **selain** di situ tidak memicu apa pun, karena daftar lokasi tidak memasang
+aksi baris sama sekali (padahal daftar paket sudah). Jadi *"seperti tidak
+terjadi apa pun"* itu HARFIAH — memang tidak terjadi apa-apa. Tinggi 16px juga
+jauh di bawah ambang sasaran sentuh 44px.
+
+Perbaikan: `rowLink` di MarlinGrid — ketukan di mana pun pada baris **mengetuk
+tautan yang memang sudah ada di dalam baris itu**, bukan `router.push`.
+Bedanya penting: lewat tautan aslinya, navigasi ikut melewati `<Link>` Next DAN
+pendengar ketukan di shell, sehingga dapat penanda "sedang dibuka", bar progres,
+dan penyaringan ketukan ulang. `router.push` melompati semuanya — jalan, tapi
+senyap, persis penyakit yang sedang diobati. Tautannya sendiri jadi `block
+py-1.5` sehingga mengisi sel (75px → 168px lebar).
+
+### 2. Ketukan yang kena pun tidak terlihat direspons
+
+Bar 2px di pucuk layar (DECISIONS 245) terlalu jauh dari jempol dan mudah luput
+di bawah matahari. Sekarang elemen yang diketuk sendiri berdenyut lewat penanda
+`data-navigating`. Sengaja **tanpa pseudo-element**: pola "stretched link" di
+aplikasi ini memakai `after:absolute inset-0` PADA anchor-nya, jadi `::after`
+akan menimpanya dan mematikan seluruh area kliknya.
+
+### 3. Ketukan berulang → permintaan berlipat
+
+Diukur di peramban pada 400 kbps: **tiga ketukan = tiga permintaan halaman
+penuh**, plus prefetch tab yang ikut berlipat — **sembilan permintaan** berebut
+pipa yang sama. Tiap duplikat mencuri jatah dari permintaan yang hampir selesai,
+jadi makin sering diketuk makin lambat. Itu lingkaran setan yang dilaporkan.
+
+Ketukan ulang ke alamat yang SAMA kini disetop di fase capture sebelum Next
+sempat memulai navigasi kedua. Aman dari terkunci: penanda dilepas begitu
+pathname berganti atau oleh `BATAS_AMAN_MS`.
+
+### Verifikasi
+
+Diuji di browser ber-throttling: 3 ketukan → **1 permintaan** (sebelumnya 3),
+tautan bertanda "sedang dibuka" dalam 250 ms, ketukan di baris di luar teks
+tautan membuka lokasinya. Ujinya dibuktikan bergigi — dengan dedup dimatikan ia
+GAGAL dengan "tiga ketukan menghasilkan 3 permintaan halaman".
+
+**Dua kesalahan ukur yang sempat terjadi dan patut diingat**: (a) titik ketuk
+dihitung dari lebar BARIS (1200px) padahal layarnya 390px, sehingga ketukan
+jatuh di luar layar dan terbaca "tidak menavigasi"; (b) penghitung permintaan
+ikut menghitung **pra-ambil** Next atas seluruh tautan lokasi yang terlihat,
+sehingga 3 ketukan terbaca 11 permintaan. Keduanya menghasilkan angka yang
+tampak meyakinkan tapi salah — dan keduanya baru ketahuan karena angkanya
+diperiksa ulang, bukan diterima apa adanya.

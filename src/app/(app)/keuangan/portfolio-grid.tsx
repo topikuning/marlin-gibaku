@@ -31,7 +31,8 @@ export function PortfolioGrid({ rows }: { rows: PortfolioRow[] }) {
         flex: 1,
         cellRenderer: (p: ICellRendererParams<PortfolioRow>) =>
           p.data ? (
-            <Link href={`/lokasi/${p.data.slug}/keuangan`} className="font-medium text-primary hover:underline">
+            // block py-1.5: sasaran ketuk setinggi sel, bukan seutas teks 16px.
+            <Link href={`/lokasi/${p.data.slug}/keuangan`} className="block py-1.5 font-medium text-primary hover:underline">
               {p.data.name}
             </Link>
           ) : null,
@@ -59,6 +60,9 @@ export function PortfolioGrid({ rows }: { rows: PortfolioRow[] }) {
       csvExport
       persistKey="keuangan-portfolio"
       getRowId={(r) => r.locationId}
+      // Seluruh baris membuka keuangan lokasinya — pola yang sama dengan
+      // daftar lokasi & paket (DECISIONS 247).
+      rowLink
       emptyText="Belum ada data keuangan"
     />
   );

@@ -108,8 +108,11 @@ export function ButtonLink({
 }: ButtonLinkProps) {
   const kelas = buttonClass(variant, size, className);
   if (unduhan) {
+    // `data-unduhan` dibaca bar progres navigasi (shell/nav-progress.tsx).
+    // Mengunduh TIDAK mengganti halaman, jadi tanpa penanda ini barnya menyala
+    // lalu menggantung — tidak ada pergantian pathname yang mematikannya.
     return (
-      <a href={href} className={kelas} {...rest}>
+      <a href={href} data-unduhan="" className={kelas} {...rest}>
         {children}
       </a>
     );

@@ -35,8 +35,23 @@ export function Label({ required, className, children, ...rest }: LabelProps) {
   );
 }
 
+/*
+ * `text-base sm:text-sm` — 16px di ponsel, 14px mulai ≥640px.
+ *
+ * INI BUKAN PILIHAN RASA. Safari iOS MEMPERBESAR halaman begitu fokus masuk ke
+ * kontrol form ber-font di bawah 16px, dan zoom itu TIDAK dikembalikan setelah
+ * fokus lepas — ia ikut terbawa ke halaman berikutnya. Itulah kenapa layar
+ * sesudah login tampil terpotong dan harus di-zoom out manual: yang memicunya
+ * ketukan ke kolom username di /masuk, bukan halaman tujuannya.
+ *
+ * `globals.css` sudah punya aturan 16px untuk `input/select/textarea` di layar
+ * kecil, TAPI aturan itu ada di `@layer base` sementara `text-sm` adalah
+ * utility — di Tailwind 4 utility selalu menang atas base. Jadi pagar itu tidak
+ * pernah berlaku untuk komponen ini; ukurannya harus disetel di utility juga.
+ * DECISIONS 246.
+ */
 const CONTROL_CLASS =
-  "w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-ink " +
+  "w-full rounded-md border border-border bg-surface px-3 py-2 text-base sm:text-sm text-ink " +
   "focus-visible:outline-2 focus-visible:outline-primary-600 " +
   "disabled:cursor-not-allowed disabled:bg-surface-inset disabled:text-ink-faint";
 

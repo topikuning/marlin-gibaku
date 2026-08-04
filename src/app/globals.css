@@ -70,7 +70,19 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Cegah auto-zoom iOS saat fokus ke input di layar kecil */
+  /*
+   * Cegah auto-zoom iOS saat fokus ke input di layar kecil.
+   *
+   * BERLAKU HANYA untuk kontrol TANPA utility `text-*`. Aturan ini ada di
+   * `@layer base`, dan di Tailwind 4 utility SELALU menang atas base — jadi
+   * `text-sm` pada sebuah input membatalkan pagar ini tanpa suara. Itu yang
+   * terjadi pada Input/PasswordInput/Combobox sampai DECISIONS 246: pagarnya
+   * terlihat ada, padahal tidak pernah berlaku di tempat yang paling penting,
+   * yaitu form login.
+   *
+   * Jadi ini jaring untuk `<input>` polos saja. Komponen ber-utility WAJIB
+   * menyetel sendiri `text-base sm:text-sm` — lihat `ui/field.tsx`.
+   */
   @media (max-width: 640px) {
     input,
     select,
@@ -117,6 +129,79 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/*
+ * Bar progres navigasi (components/shell/nav-progress.tsx).
+ *
+ * Kemajuannya TIDAK diketahui — yang ditunggu ada di jaringan — jadi bar ini
+ * merayap melambat ke 92% dan tidak pernah mencapai ujung sendiri; yang
+ * menuntaskannya adalah halaman baru yang muncul lalu melepas barnya. Bar
+ * yang menyentuh 100% padahal belum selesai adalah kebohongan yang persis
+ * memancing ketukan ulang.
+ *
+ * Pakai `transform: scaleX`, bukan `width`: transform tidak memicu layout,
+ * jadi tetap mulus di ponsel Android kelas bawah yang dipakai di lapangan.
+ *
+ * Pada `prefers-reduced-motion`, aturan di atas memangkas durasi jadi 0,01ms
+ * sehingga bar langsung tampil penuh 92% tanpa bergerak. Itu memang yang
+ * diinginkan: umpan baliknya ada pada KEHADIRAN bar, bukan pada geraknya.
+ */
+@keyframes marlin-nav-progress {
+  0% {
+    transform: scaleX(0.02);
+  }
+  25% {
+    transform: scaleX(0.42);
+  }
+  55% {
+    transform: scaleX(0.7);
+  }
+  100% {
+    transform: scaleX(0.92);
+  }
+}
+
+.marlin-nav-progress {
+  transform-origin: 0 50%;
+  animation: marlin-nav-progress 8s cubic-bezier(0.15, 0.85, 0.25, 1) forwards;
+}
+
+/*
+ * Tautan yang SEDANG DIBUKA — penanda dipasang shell/nav-progress.tsx.
+ *
+ * Bar 2px di pucuk layar terlalu jauh dari jempol dan mudah luput di bawah
+ * matahari. Umpan balik yang benar-benar meyakinkan adalah benda yang BARU
+ * SAJA DISENTUH itu sendiri bereaksi — itulah yang membuat orang berhenti
+ * mengetuk ulang, dan ketukan ulang itu yang bikin jaringan makin sesak.
+ *
+ * Sengaja TANPA pseudo-element: pola "stretched link" di aplikasi ini memakai
+ * `after:absolute inset-0` PADA anchor-nya (mis. butir Activity Centre), jadi
+ * `::after` di sini akan menimpanya dan mematikan seluruh area kliknya.
+ * Denyut opacity aman untuk tautan sebaris maupun kartu.
+ *
+ * Pada `prefers-reduced-motion`, aturan global memangkas durasinya sehingga
+ * tautannya cuma meredup dan diam — tetap terbaca "sedang diproses".
+ */
+@keyframes marlin-link-sibuk {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+a[data-navigating] {
+  animation: marlin-link-sibuk 1s ease-in-out infinite;
+  cursor: progress;
+}
+
+/* Baris grid yang tautannya sedang dibuka ikut disorot. Peningkatan bertahap:
+   peramban tanpa `:has()` tetap dapat denyut di tautannya. */
+.ag-row:has(a[data-navigating]) {
+  background-color: var(--color-primary-50);
 }
 
 /*
