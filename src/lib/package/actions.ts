@@ -1026,6 +1026,12 @@ const DAY_MS = 86_400_000;
 const editContractSchema = z.object({
   packageId: z.uuid("ID paket tidak valid"),
   packageName: z.string().trim().min(3, "Nama paket minimal 3 karakter").max(200),
+  // Nomor PAKET (bukan nomor kontrak). Opsional, dan boleh dikosongkan lagi.
+  // Satu-satunya jalan mengisinya sesudah paket berkontrak — form tender
+  // terkunci begitu kontrak ada, dan paket jalur bypass lahir langsung
+  // berkontrak sehingga form itu tidak pernah muncul sekali pun
+  // (DECISIONS 249).
+  packageNumber: z.string().trim().max(100).optional(),
   workTitle: z.string().trim().max(300).optional(),
   contractNumber: z.string().trim().min(3, "Nomor kontrak wajib diisi").max(150),
   ppnPercent: z.preprocess(
@@ -1049,6 +1055,7 @@ export async function editContractAction(
   const parsed = editContractSchema.safeParse({
     packageId: formData.get("packageId"),
     packageName: formData.get("packageName"),
+    packageNumber: optionalText(formData.get("packageNumber"), 100) ?? undefined,
     workTitle: optionalText(formData.get("workTitle"), 300) ?? undefined,
     contractNumber: formData.get("contractNumber"),
     ppnPercent: formData.get("ppnPercent"),
@@ -1089,7 +1096,12 @@ export async function editContractAction(
   const timeChanged = pkg.contract.durationDays !== d.durationDays || prevStart !== newStart;
 
   await db.$transaction(async (tx) => {
-    await tx.package.update({ where: { id: pkg.id }, data: { name: d.packageName } });
+    await tx.package.update({
+      where: { id: pkg.id },
+      // `?? null` disengaja: mengosongkan kolom harus BISA, jadi nilai kosong
+      // ditulis sebagai null, bukan diam-diam mempertahankan yang lama.
+      data: { name: d.packageName, packageNumber: d.packageNumber ?? null },
+    });
     await tx.contract.update({
       where: { id: pkg.contract!.id },
       data: {
@@ -1125,6 +1137,7 @@ export async function editContractAction(
 
   await audit(actor.id, "contract.edit", "package", pkg.id, {
     contractId: pkg.contract.id,
+    packageNumber: d.packageNumber ?? null,
     contractNumber: d.contractNumber,
     contractValue,
     durationDays: d.durationDays,

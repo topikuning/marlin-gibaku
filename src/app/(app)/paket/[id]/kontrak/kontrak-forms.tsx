@@ -24,6 +24,7 @@ const NEW_VENDOR = "__baru__";
 
 export type ContractEditInitial = {
   packageName: string;
+  packageNumber: string;
   workTitle: string;
   contractNumber: string;
   contractValue: string;
@@ -71,6 +72,29 @@ export function EditContractForm({
           <Label htmlFor="ec-number" required>Nomor kontrak</Label>
           <Input id="ec-number" name="contractNumber" required minLength={3} maxLength={150} defaultValue={initial.contractNumber} />
         </div>
+      </div>
+
+      {/*
+        Nomor PAKET — beda dari nomor kontrak di atas, dan di sinilah
+        satu-satunya tempat ia bisa diisi sesudah paket berkontrak: form tender
+        mengunci diri begitu kontrak ada, sedangkan paket jalur cepat (bypass)
+        lahir langsung berkontrak sehingga form itu tidak pernah muncul sekali
+        pun. Tanpa field ini nomornya mustahil dibetulkan lewat UI mana pun
+        (DECISIONS 249).
+      */}
+      <div>
+        <Label htmlFor="ec-pkgnumber">Nomor paket</Label>
+        <Input
+          id="ec-pkgnumber"
+          name="packageNumber"
+          maxLength={100}
+          defaultValue={initial.packageNumber}
+          placeholder="Kosongkan bila paket ini memang tidak bernomor"
+        />
+        <HelpText>
+          Bukan nomor kontrak. Bila dikosongkan, kolom “Nomor” di daftar paket
+          menampilkan nomor kontrak sebagai gantinya.
+        </HelpText>
       </div>
 
       <div>

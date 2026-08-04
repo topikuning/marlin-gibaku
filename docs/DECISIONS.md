@@ -8577,3 +8577,62 @@ Kolomnya berjudul "Nomor", jadi pembaca tidak bisa membedakan mana nomor paket
 dan mana nomor kontrak. Dikerjakan apa adanya sesuai permintaan ("tampilkan
 saja"); kalau nanti perlu dibedakan, penanda kecil atau tooltip bisa
 ditambahkan tanpa mengubah datanya.
+
+---
+
+## 249 · Nomor paket bisa dikoreksi sesudah berkontrak (2026-08-04)
+
+Pertanyaan user: *"nomor itu saat ini bahkan bisa kosong, kenapa di halaman
+paket, nomor tidak ada editnya, apa aku yang terlewat?"*
+
+Tidak terlewat — memang tidak ada.
+
+### Yang ditemukan
+
+Nomor paket hanya bisa diisi di tiga tempat, dan ketiganya menutup diri:
+
+| Tempat | Kapan bisa |
+|---|---|
+| `/paket` (daftar) | tidak pernah — tabel baca-saja |
+| `/paket/baru`, `/paket/bypass` | hanya saat MEMBUAT |
+| `/paket/{id}/tender` | hanya `praKontrak` = belum ada kontrak |
+
+Form tender dipagari `!pkg.contract && stage ∈ {prospek, tender, penetapan}`.
+Begitu kontrak ada, ia berubah jadi daftar baca-saja: *"Paket sudah berkontrak
+— data terkunci."*
+
+Konsekuensi yang tidak disengaja: paket jalur cepat (bypass) dibuat langsung
+`stage: "kontrak"` berikut kontraknya dalam satu transaksi, sehingga
+`praKontrak` bernilai false SEJAK PAKET ITU LAHIR — form tendernya tidak pernah
+muncul sekali pun. Nomor paket yang kosong di situ **mustahil diisi lewat UI
+mana pun**; form edit kontrak super-admin pun tidak memuatnya.
+
+Itu menjelaskan asal keluhan sebelumnya (DECISIONS 248): kolom "Nomor" kosong
+justru pada paket yang sudah berkontrak — persis populasi yang tidak punya jalan
+perbaikan.
+
+### Keputusan
+
+Kuncinya sendiri masuk akal untuk data tender (HPS, kandidat vendor). Tapi nomor
+paket bukan angka yang memengaruhi perhitungan apa pun — ia identitas
+administratif. Menguncinya seumur hidup adalah efek samping aturan yang
+dimaksudkan melindungi angka kontrak, bukan keputusan yang disengaja.
+
+Pilihan user: nomor paket ditambahkan ke **form edit kontrak super-admin**
+(`contract.edit`), bukan membuka kunci form tender untuk peran lain. Kunci
+"sudah berkontrak" tetap utuh bagi semua peran; koreksi nomor lewat satu pintu
+yang sudah ber-audit.
+
+Nilai kosong ditulis sebagai `null`, BUKAN "abaikan": nomor yang terlanjur salah
+ketik harus bisa dicabut. Pola `?? undefined` yang lazim di action lain justru
+akan membuat nilai kosong hilang sehingga nomor lama bertahan diam-diam — form
+tampak tersimpan padahal tidak berubah.
+
+### Verifikasi
+
+6 uji integrasi memakai paket BERKONTRAK tanpa nomor (keadaan yang dikeluhkan):
+mengisi, merapikan spasi tepi, mengosongkan kembali, field tidak dikirim, spasi
+saja, dan jejak audit. Lalu dibuktikan di browser dengan data dev: satu paket
+berkontrak dikosongkan nomornya, field-nya muncul di form kontrak dalam keadaan
+kosong, diisi lewat form sungguhan, tersimpan ke basis data, dan tampil di
+kolom "Nomor" halaman `/paket`. Data seed dikembalikan sesudahnya.

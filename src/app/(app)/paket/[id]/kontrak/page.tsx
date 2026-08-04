@@ -210,6 +210,7 @@ export default async function KontrakPage({
               packageId={pkg.id}
               initial={{
                 packageName: pkg.name,
+                packageNumber: pkg.packageNumber ?? "",
                 workTitle: contract.workTitle ?? "",
                 contractNumber: contract.contractNumber,
                 contractValue: String(contract.contractValue),
