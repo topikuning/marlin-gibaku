@@ -59,7 +59,7 @@ test.describe("otorisasi per peran", () => {
     // Pelaksana (field_supervisor) mendarat langsung di Hari Ini, bukan Beranda.
     await expect(page).toHaveURL("/hari-ini");
     await expect(page.locator("nav").getByRole("link", { name: "Pengguna" })).toHaveCount(0);
-    await page.goto("/pengguna");
+    await page.goto("/master/pengguna");
     await expect(page.getByText(/404|not found/i).first()).toBeVisible();
   });
 
@@ -72,7 +72,33 @@ test.describe("otorisasi per peran", () => {
 
   test("program director bisa buka Pengguna", async ({ page }) => {
     await login(page, "hery");
-    await page.goto("/pengguna");
+    await page.goto("/master/pengguna");
     await expect(page.getByText("Daftar pengguna").first()).toBeVisible();
   });
+});
+
+/**
+ * URL lama harus tetap mendarat di tempat yang benar (DECISIONS 250).
+ *
+ * Alias ini dulu berupa `page.tsx` yang memanggil `redirect()`; sekarang entri
+ * `redirects()` di next.config.ts yang ditangani sebelum React jalan. Pindah
+ * lapisan seperti itu persis jenis perubahan yang diam-diam mematikan bookmark
+ * lama — jadi diuji, bukan diasumsikan.
+ */
+test.describe("alias URL lama", () => {
+  const ALIAS: { dari: string; ke: RegExp }[] = [
+    { dari: "/aktivitas", ke: /\/$/ },
+    { dari: "/pengguna", ke: /\/master\/pengguna$/ },
+    { dari: "/paket/vendor", ke: /\/master\/perusahaan$/ },
+    { dari: "/kontak-wa", ke: /\/master\/kontak$/ },
+    { dari: "/laporan-wa", ke: /\/ai\/reports\?template=wa_update$/ },
+  ];
+
+  for (const { dari, ke } of ALIAS) {
+    test(`${dari} mengalihkan ke tujuan kanoniknya`, async ({ page }) => {
+      await login(page, "hery");
+      await page.goto(dari);
+      await expect(page).toHaveURL(ke);
+    });
+  }
 });

@@ -137,10 +137,15 @@ export function GlobalSearch() {
           aria-controls={listId}
           aria-autocomplete="list"
           aria-label="Pencarian global"
-          placeholder="Cari lokasi, paket, dokumen…"
-          /* text-base di ponsel mencegah Safari iOS memperbesar halaman saat
+          placeholder="Cari…"
+          /* Sempit di ponsel dengan sengaja: topbar 375px harus memuat wordmark,
+             breadcrumb, kotak ini, lonceng dan tombol keluar sekaligus. Melebar
+             sedikit saja membuat seluruh halaman bisa digeser mendatar — persis
+             yang dijaga tests/e2e/mobile-overflow.spec.ts.
+
+             text-base di ponsel mencegah Safari iOS memperbesar halaman saat
              input difokus (DECISIONS 246) — utility SELALU menang atas base. */
-          className="w-32 bg-transparent text-base text-ink placeholder:text-ink-faint focus:outline-none sm:w-52 sm:text-[13px]"
+          className="w-24 bg-transparent text-base text-ink placeholder:text-ink-faint focus:outline-none sm:w-52 sm:text-[13px]"
         />
         <kbd className="hidden shrink-0 rounded border border-border bg-surface px-1.5 py-0.5 text-[10px] font-semibold text-ink-faint lg:inline">
           ⌘K

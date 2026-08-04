@@ -27,7 +27,10 @@ const VIEWPORT = { width: 375, height: 812 };
 
 const RUTE: { path: string; nama: string }[] = [
   { path: "/", nama: "Beranda / command center" },
-  { path: "/aktivitas", nama: "Dashboard eksekutif" },
+  // `/aktivitas` DIHAPUS: dulu me-render Dashboard Eksekutif yang sama persis
+  // dengan `/`, jadi mengukurnya berarti mengukur halaman yang sama dua kali.
+  // Kini 308 ke `/` (DECISIONS 250).
+  { path: "/tindakan", nama: "Perlu Tindakan" },
   { path: "/paket", nama: "Daftar paket" },
   { path: "/lokasi", nama: "Daftar lokasi" },
   { path: "/progress", nama: "Progress portofolio" },
@@ -38,7 +41,7 @@ const RUTE: { path: string; nama: string }[] = [
   { path: "/keuangan", nama: "Keuangan" },
   { path: "/dokumen", nama: "Dokumen" },
   { path: "/peta", nama: "Peta" },
-  { path: "/pengguna", nama: "Pengguna" },
+  { path: "/master/pengguna", nama: "Pengguna" },
 ];
 
 type Pelanggar = { tag: string; cls: string; width: number; right: number; text: string };
