@@ -53,6 +53,59 @@ const nextConfig: NextConfig = {
    * tinggal di `(app)/_dashboard/` — folder ber-awalan garis bawah sengaja,
    * karena App Router tidak menjadikannya route.
    */
+  /**
+   * HEADER KEAMANAN (PRD P2 "Security Hardening").
+   *
+   * CSP sengaja **Report-Only** dulu, bukan menegakkan. Alasannya bukan
+   * setengah hati: CSP yang langsung menegakkan dan ternyata kelewat ketat
+   * akan MEMATIKAN halaman di produksi — peta Leaflet menyuntik style inline,
+   * AG Grid menyuntik CSS lewat JS, dan Next menyisipkan script hidrasi. Yang
+   * benar adalah mengumpulkan pelanggaran nyata dari lalu lintas sungguhan
+   * lebih dulu, baru menaikkannya jadi `Content-Security-Policy`.
+   *
+   * Header lain di bawah sudah menegakkan sejak sekarang karena tidak punya
+   * risiko mematikan tampilan.
+   */
+  async headers() {
+    const cspReportOnly = [
+      "default-src 'self'",
+      // 'unsafe-inline'/'unsafe-eval' MASIH diizinkan di tahap report-only —
+      // menghapusnya sekarang hanya akan membanjiri laporan tanpa memberi
+      // informasi baru. Pengetatannya menyusul setelah pelanggaran nyata
+      // terkumpul.
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline'",
+      // Ubin peta (OSM) + foto dari R2 lewat proxy aplikasi sendiri.
+      "img-src 'self' data: blob: https:",
+      "font-src 'self' data:",
+      "connect-src 'self' https:",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "object-src 'none'",
+    ].join("; ");
+
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "Content-Security-Policy-Report-Only", value: cspReportOnly },
+          // Clickjacking: aplikasi ini tidak pernah dipakai di dalam iframe.
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          // Referrer penuh ke domain lain bisa membocorkan slug lokasi/paket
+          // lewat header; origin saja sudah cukup untuk analitik pihak ketiga.
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          // Aplikasi tidak memakai kamera/mikrofon/geolokasi dari sisi web
+          // (foto lapangan lewat <input capture>, yang tidak butuh izin ini).
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+          },
+        ],
+      },
+    ];
+  },
   async redirects() {
     return [
       // ── Alias lama yang memang cuma alias ──────────────────────────────
