@@ -9,19 +9,23 @@ import {
   ChevronRight,
   ClipboardCheck,
   Clock,
+  Database,
   FileText,
   FileWarning,
   LayoutDashboard,
   MapPin,
   Package as PackageIcon,
+  Siren,
   TrendingUp,
   Wallet,
 } from "lucide-react";
 import { Card, StatusPill } from "@/components/ui";
+import { cn } from "@/lib/cn";
 import { DeltaBadge } from "@/components/ui/stat-delta";
 import { accessibleLocationIds, type SessionUser } from "@/lib/auth/session";
 import { getDashboardData, getActivityCentre } from "@/lib/dashboard";
 import { formatPct, formatRupiahShort, formatTanggal } from "@/lib/format";
+import { getAntreanTindakan, ringkasPerJenis, type JenisTindakan } from "@/lib/tindakan";
 import { tingkatDeviasi } from "@/lib/deviasi";
 import { REPORT_STATUS_LABEL } from "@/lib/lifecycle";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
@@ -38,8 +42,21 @@ import { DashboardSearch } from "./dashboard-search";
 export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
   const locIds = await accessibleLocationIds(user);
 
-  const [data, activity] = await Promise.all([getDashboardData(locIds, user.orgId), getActivityCentre(locIds, 4)]);
+  /*
+   * Antrean tindakan dipakai bersama lonceng topbar dan halaman `/tindakan`.
+   * `getAntreanTindakan` dibungkus `cache()`, jadi ketiganya dirender dari
+   * SATU perhitungan dalam satu pass — bukan tiga hitungan yang bisa saling
+   * berselisih. Itu penting justru di sini: kartu "Pusat Perhatian" yang
+   * menyebut angka berbeda dari lonceng di atasnya akan membuat keduanya
+   * berhenti dipercaya.
+   */
+  const [data, activity, antrean] = await Promise.all([
+    getDashboardData(locIds, user.orgId),
+    getActivityCentre(locIds, 4),
+    getAntreanTindakan(user),
+  ]);
   const { kpi } = data;
+  const perhatian = ringkasPerJenis(antrean);
 
   const jamWIB = new Intl.DateTimeFormat("id-ID", {
     hour: "2-digit",
@@ -65,8 +82,18 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
               Diperbarui <span className="font-medium text-ink">{jamWIB} WIB</span>
             </span>
           </div>
+          {/* "Data s.d." dipisahkan dari "Diperbarui" dengan sengaja: yang satu
+              menjawab kapan halaman ini dimuat, yang lain menjawab sampai
+              tanggal berapa angkanya berlaku. Menggabungkannya membuat angka
+              kemarin terbaca seolah angka hari ini. */}
+          <div className="flex items-center gap-1.5 rounded-md border border-info-border bg-info-soft px-3 py-1.5 text-xs font-medium text-info">
+            <Database aria-hidden className="size-3.5" />
+            <span>Data s.d. {formatTanggal(data.updatedAt, "EEE, d MMM yyyy")}</span>
+          </div>
         </div>
       </header>
+
+      <PusatPerhatian jumlah={perhatian} />
 
       {/* KPI row */}
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
@@ -540,4 +567,70 @@ function Empty({ icon, text }: { icon: ReactNode; text: string }) {
 function toneDot(dev: number | null): string {
   if (dev == null) return "bg-ink-faint";
   return { aman: "bg-success", perhatian: "bg-warning", kritis: "bg-danger" }[tingkatDeviasi(dev)];
+}
+
+/**
+ * PUSAT PERHATIAN EKSEKUTIF (rancangan Claude Design, berkas 01).
+ *
+ * Deretan ubin pengecualian yang SELURUHNYA bisa diketuk — tiap ubin membuka
+ * antrean tindakan yang sudah tersaring ke jenisnya. Ini menjawab pertanyaan
+ * pertama yang dibawa pimpinan ke layar ini: "apa yang harus ditindak hari
+ * ini", sebelum KPI informatif di bawahnya (PRD FR-HOME-01).
+ *
+ * Angkanya berasal dari antrean yang sama dengan lonceng topbar dan halaman
+ * `/tindakan`, jadi tidak mungkin berselisih.
+ *
+ * Ubin bernilai NOL tetap ditampilkan, tidak disembunyikan: "tidak ada yang
+ * kritis" adalah kabar yang ingin dibaca pimpinan, dan ubin yang hilang saat
+ * kosong membuat orang bertanya-tanya apakah datanya belum termuat.
+ */
+function PusatPerhatian({ jumlah }: { jumlah: Record<JenisTindakan, number> }) {
+  const UBIN: { jenis: JenisTindakan; judul: string; nada: "danger" | "warning" | "info" }[] = [
+    { jenis: "deviasi", judul: "Deviasi kritis", nada: "danger" },
+    { jenis: "recovery", judul: "Recovery lewat tenggat", nada: "danger" },
+    { jenis: "koreksi", judul: "Laporan perlu koreksi", nada: "warning" },
+    { jenis: "dokumen", judul: "Dokumen kedaluwarsa", nada: "warning" },
+    { jenis: "kendala", judul: "Kendala terbuka", nada: "warning" },
+    { jenis: "verifikasi", judul: "Menunggu verifikasi", nada: "info" },
+  ];
+
+  const NADA: Record<"danger" | "warning" | "info", string> = {
+    danger: "border-danger-border bg-danger-soft text-danger hover:border-danger",
+    warning: "border-warning-border bg-warning-soft text-warning hover:border-warning",
+    info: "border-info-border bg-info-soft text-info hover:border-info",
+  };
+  const NADA_KOSONG =
+    "border-border bg-surface-muted text-ink-faint hover:border-border-strong";
+
+  const totalAda = UBIN.reduce((n, u) => n + jumlah[u.jenis], 0);
+
+  return (
+    <section className="rounded-lg border border-border bg-surface p-3">
+      <div className="flex items-center gap-2">
+        <Siren aria-hidden className="text-brand-red size-4" />
+        <h2 className="text-sm font-semibold text-ink">Pusat Perhatian Eksekutif</h2>
+        <span className="text-[11.5px] text-ink-muted">
+          {totalAda > 0 ? "ketuk untuk menindak" : "tidak ada yang menunggu tindakan"}
+        </span>
+      </div>
+      <div className="mt-2.5 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+        {UBIN.map((u) => {
+          const n = jumlah[u.jenis];
+          return (
+            <Link
+              key={u.jenis}
+              href={n > 0 ? `/tindakan?jenis=${u.jenis}` : "/tindakan"}
+              className={cn(
+                "flex items-center gap-2.5 rounded-lg border px-3 py-2.5 transition-colors",
+                n > 0 ? NADA[u.nada] : NADA_KOSONG,
+              )}
+            >
+              <span className="text-xl font-bold tabular-nums">{n}</span>
+              <span className="text-[11.5px] leading-tight font-semibold">{u.judul}</span>
+            </Link>
+          );
+        })}
+      </div>
+    </section>
+  );
 }
