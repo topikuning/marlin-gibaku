@@ -72,8 +72,8 @@ Belum:
 - **Wizard longgar 4 langkah** (Pekerjaan & Volume → Kondisi & Sumber Daya →
   Bukti & Kendala → Review & Kirim) — draft aman, bebas mundur. Saat ini
   editornya satu layar.
-- **Checklist kirim** (§8.7) dengan bahasa sederhana: Belum lengkap / Perlu
-  diperiksa / Siap dikirim.
+- ✅ **Checklist kirim** (§8.7) — bahasa sederhana yang menyebut akibat, bukan
+  nama field. Tidak menghalangi pengiriman; kelengkapan tetap dijaga server.
 - **State penyimpanan terlihat**: Online / Menyimpan / Tersimpan / Belum
   tersinkron / Gagal / Coba lagi. Antrean sinkron offline BELUM didukung
   backend — tandai sebagai dependency, jangan berpura-pura ada (K3).
@@ -83,17 +83,21 @@ Belum:
 Aturan bisnis TIDAK berubah: satu record unik lokasi+tanggal, siklus koreksi
 pada record yang sama, kewajiban "Lengkapi KKP" tetap di Site Manager.
 
-## Fase 3 — Dashboard Eksekutif + Peta operasional
+## Fase 3 — Dashboard Eksekutif + Peta operasional ◐ SEBAGIAN
 
-Peta Monitoring **wajib dipertahankan sebagai elemen utama** (Master Prompt §5)
-— bukan dekorasi, bukan dipindah ke halaman sulit ditemukan.
-
-- Marker dapat diklik → side panel: lokasi, paket, progress, deviasi, laporan
-  terakhir, kendala, readiness.
-- Filter marker per status, clustering, fullscreen, toggle Peta/Daftar di
-  mobile.
-- Satu komponen peta dipakai dashboard dan `/peta` (K6).
-- Scope bar (organisasi / paket / provinsi / periode) + "data s.d." eksplisit.
+- ✅ **Pusat Perhatian Eksekutif** — ubin pengecualian yang bisa diketuk,
+  tampil sebelum KPI informatif (FR-HOME-01). Satu sumber dengan lonceng
+  topbar dan `/tindakan` lewat `cache()`.
+- ✅ **Chip "Data s.d."** terpisah dari "Diperbarui".
+- ✅ **Peta operasional**: marker → side panel (lokasi, paket, status lapor,
+  deviasi, tautan workspace) alih-alih langsung pindah halaman · filter status
+  (sudah ada) · toggle Peta/Daftar di layar sempit · layar penuh + Esc.
+- ❌ Belum: **clustering** marker; **scope bar** (organisasi / paket /
+  provinsi / periode).
+- ⏭️ **K6 dilewati dengan sadar**: `/proyek/peta` SUDAH operasional (dua panel,
+  cari, filter provinsi/status, daftar, snapshot lokasi). Yang timpang hanya
+  peta dashboard, dan itu sudah diperbaiki. Menggabungkan keduanya sekarang
+  berisiko meregresi halaman yang sudah bekerja demi keseragaman kode saja.
 
 ## Fase 4 — Workspace lokasi enam tab ◐ SEBAGIAN
 
@@ -173,8 +177,11 @@ migrasi yang jujur.
 
 ### BISA tanpa schema, belum dikerjakan
 
-- Security hardening non-DB: **CSP** dan **rate limit** halaman non-login (P2).
-  RLS terhalang schema.
+- ✅ **Header keamanan** (P2): CSP **report-only** (menegakkan langsung
+  berisiko mematikan halaman — Leaflet/AG Grid/Next menyuntik inline),
+  X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy.
+  ❌ Rate limit non-login butuh penyimpanan tahan-restart → terhalang schema.
+  ❌ RLS terhalang schema.
 - Peta operasional (side panel marker, filter status, fullscreen, Peta/Daftar).
 - Wizard laporan harian 4 langkah + checklist kirim + state penyimpanan.
 - Koreksi inline (komentar reviewer dekat field).
