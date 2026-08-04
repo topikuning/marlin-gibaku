@@ -175,6 +175,11 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
                 markers={data.markers}
                 markerTone={data.markerTone}
                 markerSubmit={data.markerSubmit}
+                /* Deviasi untuk panel detail marker — diambil dari peringkat
+                   yang SAMA dengan tabel di bawah, bukan dihitung ulang. */
+                deviationById={Object.fromEntries(
+                  data.deviasiRanking.map((r) => [r.id, r.deviationPct]),
+                )}
               />
             </div>
             <div className="mt-3 text-[11px] text-ink-muted">Sebaran seluruh lokasi (termasuk yang belum mulai)</div>
