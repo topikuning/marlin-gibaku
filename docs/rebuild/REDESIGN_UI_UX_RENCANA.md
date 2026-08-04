@@ -139,6 +139,61 @@ offline/partial) di seluruh halaman.
   Ini penulisan ulang komposisi halaman, bukan pemindahan berkas.
 - ❌ **Telemetry pemakaian alias** (FR-NAV-03) belum ada.
 
+## Status gap PRD
+
+### P0 — SELESAI seluruhnya
+
+| Gap | Status |
+|---|---|
+| Unified Task & Approval Inbox | ✅ `/tindakan` |
+| Global Search & Context Switcher | ✅ ⌘K server-side + LocationSwitcher |
+| Guided Package Readiness | ✅ `/proyek/paket/[id]/setup` |
+| Package-level Finance | ✅ `/proyek/paket/[id]/keuangan` |
+| Unified Report Lifecycle | ✅ sudah ada sebelumnya — `AiArtifactStatus` draft→direview→disetujui→beku→terkirim (DECISIONS 193/194) |
+| Canonical Route Migration | ✅ keluarga route + 308 (DECISIONS 251) |
+
+### TERHALANG SCHEMA — tidak dikerjakan, dan tidak boleh dipaksakan
+
+User menetapkan **nol perubahan database**. Gap berikut mustahil tanpa tabel
+atau kolom baru; mengerjakannya setengah jalan (mis. menyimpan di JSON blob
+atau menumpang tabel lain) justru menciptakan utang yang lebih mahal daripada
+migrasi yang jujur.
+
+| Gap | Butuh |
+|---|---|
+| Tender Evaluation & bid comparison (P1) | tabel Bidder + Evaluasi |
+| Vendor Performance scorecard (P1) | tabel penilaian lintas paket |
+| Import/Data Quality Centre (P1) | tabel ImportJob + error row |
+| Scheduled Distribution (P1) | tabel jadwal + delivery status |
+| Closure Workspace / Partial PHO (P1/P2) | model serah terima parsial |
+| Auto Termin Readiness (P1) | penyimpanan rule configurable |
+| Cash Forecast UI (P2) | penyimpanan input forecast |
+| Reference Geography BPS (P2) | tabel master wilayah |
+| Progress level "Terverifikasi" (K2) | perubahan calculation layer + kolom |
+
+### BISA tanpa schema, belum dikerjakan
+
+- Security hardening non-DB: **CSP** dan **rate limit** halaman non-login (P2).
+  RLS terhalang schema.
+- Peta operasional (side panel marker, filter status, fullscreen, Peta/Daftar).
+- Wizard laporan harian 4 langkah + checklist kirim + state penyimpanan.
+- Koreksi inline (komentar reviewer dekat field).
+- Baseline & jadwal pindah ke tab Rencana; Progress jadi mode kerja.
+- Keuangan approval-first; dokumen list-first.
+
+### Keputusan teknis: `?tab=` TIDAK dipakai
+
+PRD §4.1 mengusulkan state tampilan lewat query param
+(`/proyek/lokasi/[slug]?tab=…`). **Tidak dikerjakan, dengan alasan.**
+
+Tujuan PRD — mengurangi jumlah KELUARGA route — sudah tercapai lewat migrasi
+keluarga. Mengubah sub-halaman jadi satu halaman ber-`?tab=` justru melawan
+FR-PERF-01 PRD sendiri ("perpindahan tab tidak memuat data yang tidak
+diperlukan"): segmen path memberi code-splitting, streaming, dan `loading`
+per-tab secara otomatis, sedangkan satu halaman ber-query-param memuat
+semuanya dalam satu berkas. Segmen path juga membuat setiap tab punya URL yang
+bisa di-bookmark tanpa bergantung pada parsing query.
+
 ## Keputusan yang masih menunggu user
 
 | # | Soal | Pilihan teraman yang dipakai sekarang |
