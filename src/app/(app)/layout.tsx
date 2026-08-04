@@ -3,7 +3,9 @@ import { filterNav, filterNavGroups, MOBILE_NAV } from "@/components/shell/nav-c
 import { Banner } from "@/components/ui";
 import { accessibleLocationIds, requireUser } from "@/lib/auth/session";
 import { logout } from "@/lib/auth/actions";
+import { can } from "@/lib/authz";
 import { getBranding } from "@/lib/branding";
+import { getAntreanTindakan } from "@/lib/tindakan";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const [user, brand] = await Promise.all([requireUser(), getBranding()]);
@@ -15,6 +17,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const scoped = await accessibleLocationIds(user);
   const tanpaPenugasan = scoped !== null && scoped.length === 0;
 
+  // Lencana lonceng. Akun tanpa penugasan pasti berantrean kosong, jadi
+  // query-nya dilewati — bukan dijalankan untuk memastikan hasilnya nol.
+  const bolehLihatAntrean = can(user.role, "location.view") && !tanpaPenugasan;
+  const jumlahTindakan = bolehLihatAntrean ? (await getAntreanTindakan(user)).length : null;
+
   return (
     <AppShell
       brand={brand}
@@ -22,6 +29,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       navGroups={filterNavGroups(user.role)}
       nav={filterNav(user.role)}
       mobileNav={MOBILE_NAV(user.role)}
+      jumlahTindakan={jumlahTindakan}
       logoutAction={async () => {
         "use server";
         await logout();

@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { db } from "@/lib/db";
 import { can } from "@/lib/authz";
 import { accessibleLocationIds, type SessionUser } from "@/lib/auth/session";
@@ -97,7 +98,20 @@ const KEPARAHAN_DARI_DEVIASI: Record<TingkatDeviasi, Keparahan> = {
  * keuangan. Pagar sesungguhnya tetap di server action masing-masing — ini
  * hanya menjaga antrean tidak menjanjikan pekerjaan yang tak bisa diselesaikan.
  */
-export async function getAntreanTindakan(user: SessionUser): Promise<ItemTindakan[]> {
+export const getAntreanTindakan = cache(_getAntreanTindakan);
+
+/**
+ * Dibungkus `cache()` di atas: shell menghitung lencana lonceng dan halaman
+ * `/tindakan` menyusun daftarnya dari sumber yang sama. Keduanya dirender
+ * dalam satu pass, jadi tanpa dedupe permintaan ini berjalan dua kali persis
+ * pada halaman yang paling sering dibuka untuknya.
+ *
+ * Lencana sengaja memakai antrean PENUH, bukan enam `count()` murah yang
+ * melewatkan deviasi kritis: lencana yang menunjukkan 6 lalu membuka daftar
+ * berisi 8 membuat angkanya berhenti dipercaya, dan deviasi kritis justru
+ * jenis yang paling perlu memanggil orang.
+ */
+async function _getAntreanTindakan(user: SessionUser): Promise<ItemTindakan[]> {
   const locIds = await accessibleLocationIds(user);
   const locWhere = locationScopeWhere(user, locIds);
   const hariIni = jakartaToday();

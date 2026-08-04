@@ -20,6 +20,8 @@ export interface AppShellProps {
   mobileNav?: NavItem[];
   /** Server action logout, diteruskan ke Topbar. */
   logoutAction: (formData: FormData) => Promise<void>;
+  /** Jumlah antrean Perlu Tindakan; `null` = tidak berhak melihat antrean. */
+  jumlahTindakan?: number | null;
   /** Slot topbar kiri: breadcrumb/judul ringkas. */
   topbarContent?: ReactNode;
   children: ReactNode;
@@ -36,6 +38,7 @@ export function AppShell({
   nav,
   mobileNav,
   logoutAction,
+  jumlahTindakan = null,
   topbarContent,
   children,
 }: AppShellProps) {
@@ -47,7 +50,12 @@ export function AppShell({
       <NavProgressBar />
       <Sidebar brand={brand} groups={navGroups} />
       <div className="lg:pl-60">
-        <Topbar brand={brand} user={user} logoutAction={logoutAction}>
+        <Topbar
+          brand={brand}
+          user={user}
+          logoutAction={logoutAction}
+          jumlahTindakan={jumlahTindakan}
+        >
           {topbarContent}
         </Topbar>
         <main className="mx-auto w-full max-w-[1600px] px-4 py-5 pb-20 lg:px-6 lg:pb-8">
