@@ -125,20 +125,37 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Pusat Dokumen", href: "/dokumen-laporan/dokumen", icon: "folderOpen", capability: "document.view" },
       { label: "Pusat Laporan", href: "/dokumen-laporan/laporan", icon: "fileText", capability: "report.export" },
-      // "Laporan → WA" dilebur ke Report Studio (/ai/reports) — DECISIONS
-      // 193/194. Route lama 308 ke sana (next.config.ts); jangan hidupkan lagi
-      // sebagai menu.
+      // "Laporan → WA" dilebur ke Report Studio (/pengendalian/insight/reports)
+      // — DECISIONS 193/194. Route lama 308 ke sana (next.config.ts); jangan
+      // hidupkan lagi sebagai menu.
       { label: "Ringkasan Chat", href: "/dokumen-laporan/distribusi", icon: "messagesSquare", capability: "wa.chat" },
     ],
   },
   {
     label: "Administrasi",
     items: [
+      /*
+       * Butir menyebut HALAMANNYA langsung, bukan "Master Data" yang menunjuk
+       * `/administrasi` lalu memantul lagi ke tab pertama.
+       *
+       * Dua alasan. Pertama, sesudah grupnya sendiri bernama Administrasi,
+       * butir bernama "Master Data" di dalamnya membuat dua istilah untuk satu
+       * tempat. Kedua, tautan yang memantul membuat sorotan menu meleset
+       * sekejap dan tombol "kembali" peramban mendarat di pemantulnya, bukan
+       * di halaman sebelumnya. Rinciannya mengikuti PRD §3.3.
+       */
       {
-        label: "Master Data",
-        href: "/administrasi",
+        label: "Perusahaan & Vendor",
+        href: "/administrasi/perusahaan",
         icon: "database",
-        anyCapability: ["contract.manage", "wa.chat", "user.create"],
+        capability: "contract.manage",
+      },
+      { label: "Kontak WhatsApp", href: "/administrasi/kontak", icon: "send", capability: "wa.chat" },
+      {
+        label: "Master Lokasi",
+        href: "/administrasi/lokasi-master",
+        icon: "mapPin",
+        capability: "package.bypass",
       },
       { label: "Pengguna & Akses", href: "/administrasi/pengguna", icon: "users", capability: "user.create" },
       { label: "Sistem", href: "/administrasi/sistem", icon: "settings", capability: "system.manage" },
