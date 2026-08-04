@@ -8537,3 +8537,43 @@ ikut menghitung **pra-ambil** Next atas seluruh tautan lokasi yang terlihat,
 sehingga 3 ketukan terbaca 11 permintaan. Keduanya menghasilkan angka yang
 tampak meyakinkan tapi salah — dan keduanya baru ketahuan karena angkanya
 diperiksa ulang, bukan diterima apa adanya.
+
+---
+
+## 248 · Kolom "Nomor" di daftar paket jatuh ke nomor kontrak (2026-08-04)
+
+Permintaan user: *"untuk nomor di halaman paket, tampilkan saja nomor
+kontraknya jika nomornya kosong."*
+
+Alasannya nyata: paket yang sudah berkontrak kerap tidak pernah diberi nomor
+paket sendiri, sedangkan nomor kontraknya justru nomor yang dipakai orang
+menyebut paket itu. Kolomnya jadi berisi "—" berderet padahal nomornya ADA,
+cuma tersimpan di kontrak.
+
+### Yang halus: apa artinya "kosong"
+
+Versi lama memakai `p.packageNumber ?? "—"`. `??` hanya menangkap
+null/undefined — string kosong dan string berisi spasi lolos, tampil kosong di
+layar, DAN sekaligus menutup jalan ke nomor kontraknya. Cacat semacam itu tidak
+menimbulkan galat apa pun; kolomnya cuma terlihat kosong, persis seperti
+sebelum diperbaiki. Karena itu nilainya di-trim dulu, dan ketiga bentuk kosong
+(`null`, `""`, `"   "`) diperlakukan sama.
+
+Nomor yang dipakai juga dikembalikan sudah bersih dari spasi tepi. Bila keduanya
+kosong tetap "—", bukan sel kosong: strip menyatakan "memang tidak ada",
+sedangkan sel kosong terbaca "belum dimuat".
+
+### Verifikasi
+
+7 uji unit mengunci ketiga bentuk kosong itu. Lalu dibuktikan di halaman
+sungguhan — data seed semuanya punya nomor paket sehingga cadangannya tidak
+pernah terpicu, jadi tiga paket sengaja dikosongkan dengan tiga cara berbeda
+(`""`, `NULL`, `"   "`); ketiganya menampilkan nomor kontraknya, dan paket yang
+punya nomor sendiri tetap memakai nomornya. Data seed dikembalikan sesudahnya.
+
+### Catatan yang belum diputuskan
+
+Kolomnya berjudul "Nomor", jadi pembaca tidak bisa membedakan mana nomor paket
+dan mana nomor kontrak. Dikerjakan apa adanya sesuai permintaan ("tampilkan
+saja"); kalau nanti perlu dibedakan, penanda kecil atau tooltip bisa
+ditambahkan tanpa mengubah datanya.
