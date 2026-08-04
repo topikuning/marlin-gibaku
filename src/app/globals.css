@@ -120,6 +120,42 @@
 }
 
 /*
+ * Bar progres navigasi (components/shell/nav-progress.tsx).
+ *
+ * Kemajuannya TIDAK diketahui — yang ditunggu ada di jaringan — jadi bar ini
+ * merayap melambat ke 92% dan tidak pernah mencapai ujung sendiri; yang
+ * menuntaskannya adalah halaman baru yang muncul lalu melepas barnya. Bar
+ * yang menyentuh 100% padahal belum selesai adalah kebohongan yang persis
+ * memancing ketukan ulang.
+ *
+ * Pakai `transform: scaleX`, bukan `width`: transform tidak memicu layout,
+ * jadi tetap mulus di ponsel Android kelas bawah yang dipakai di lapangan.
+ *
+ * Pada `prefers-reduced-motion`, aturan di atas memangkas durasi jadi 0,01ms
+ * sehingga bar langsung tampil penuh 92% tanpa bergerak. Itu memang yang
+ * diinginkan: umpan baliknya ada pada KEHADIRAN bar, bukan pada geraknya.
+ */
+@keyframes marlin-nav-progress {
+  0% {
+    transform: scaleX(0.02);
+  }
+  25% {
+    transform: scaleX(0.42);
+  }
+  55% {
+    transform: scaleX(0.7);
+  }
+  100% {
+    transform: scaleX(0.92);
+  }
+}
+
+.marlin-nav-progress {
+  transform-origin: 0 50%;
+  animation: marlin-nav-progress 8s cubic-bezier(0.15, 0.85, 0.25, 1) forwards;
+}
+
+/*
  * `fieldset` TIDAK BOLEH menolak mengecil.
  *
  * Peramban memberi `<fieldset>` `min-inline-size: min-content` bawaan — satu-

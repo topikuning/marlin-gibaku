@@ -6,7 +6,8 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useDismissable } from "@/components/ui";
 import { cn } from "@/lib/cn";
-import { ICONS, type NavItem } from "./nav-config";
+import { NavIcon } from "./nav-progress";
+import { type NavItem } from "./nav-config";
 
 function isActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
@@ -24,8 +25,17 @@ export function BottomNav({ nav, fullNav }: { nav: NavItem[]; fullNav: NavItem[]
   // Escape menutup + fokus kembali ke tombol "Menu" (audit UI 2026-07-27).
   const dismiss = useDismissable(open, () => setOpen(false));
 
-  // Tutup drawer setiap navigasi berhasil (adjust-state-during-render,
-  // bukan effect — hindari render kaskade).
+  // Tutup drawer ketika navigasi BENAR-BENAR selesai — yaitu saat pathname
+  // berganti (adjust-state-during-render, bukan effect: hindari render
+  // kaskade). Ini SATU-SATUNYA pemicu penutupan.
+  //
+  // Dulu ada `onClick={() => setOpen(false)}` di tiap tautan, dan itulah
+  // sumber utama keluhan "diklik, sistem seperti stuck": laci menghilang
+  // SEKETIKA saat diketuk, mengembalikan pengguna ke halaman LAMA yang sama
+  // persis, lalu 0,5-3 detik tidak terjadi apa-apa sementara payload RSC
+  // menyeberang jaringan seluler. Ketukan jadi terbaca "menutup menu", bukan
+  // "pindah halaman" — dan wajar kalau lalu diketuk berulang. Sekarang laci
+  // BERTAHAN dengan pemintal di item yang diketuk sampai halamannya tiba.
   const [prevPath, setPrevPath] = useState(pathname);
   if (prevPath !== pathname) {
     setPrevPath(pathname);
@@ -62,22 +72,24 @@ export function BottomNav({ nav, fullNav }: { nav: NavItem[]; fullNav: NavItem[]
             </div>
             <ul className="grid grid-cols-3 gap-2">
               {fullNav.map((item) => {
-                const Icon = ICONS[item.icon];
                 const active = isActive(pathname, item.href);
                 return (
                   <li key={item.href}>
                     <Link
                       href={item.href}
                       aria-current={active ? "page" : undefined}
-                      onClick={() => setOpen(false)}
                       className={cn(
                         "flex min-h-16 flex-col items-center justify-center gap-1 rounded-lg border px-2 py-2 text-[11px] font-medium",
+                        // Umpan balik sentuh: layar sentuh tidak punya hover,
+                        // jadi tanpa state :active ketukan tidak meninggalkan
+                        // jejak apa pun sebelum halaman berganti.
+                        "transition-colors active:border-primary active:bg-primary-100",
                         active
                           ? "border-primary bg-primary-50 text-primary"
                           : "border-border text-ink-muted hover:bg-surface-muted hover:text-ink",
                       )}
                     >
-                      <Icon aria-hidden className="size-5" />
+                      <NavIcon icon={item.icon} className="size-5" />
                       {item.label}
                     </Link>
                   </li>
@@ -97,7 +109,6 @@ export function BottomNav({ nav, fullNav }: { nav: NavItem[]; fullNav: NavItem[]
           style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
         >
           {shortcuts.map((item) => {
-            const Icon = ICONS[item.icon];
             const active = isActive(pathname, item.href);
             return (
               <li key={item.href}>
@@ -106,10 +117,11 @@ export function BottomNav({ nav, fullNav }: { nav: NavItem[]; fullNav: NavItem[]
                   aria-current={active ? "page" : undefined}
                   className={cn(
                     "flex min-h-12 flex-col items-center justify-center gap-0.5 py-1.5 text-[11px] font-medium",
+                    "transition-colors active:bg-primary-50 active:text-primary",
                     active ? "text-primary" : "text-ink-muted",
                   )}
                 >
-                  <Icon aria-hidden className="size-5" />
+                  <NavIcon icon={item.icon} className="size-5" />
                   {item.label}
                 </Link>
               </li>

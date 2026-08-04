@@ -290,3 +290,37 @@ user karena menambah endpoint webhook baru.
 aplikasi. Yang menyelesaikannya di sisi WhatsApp — nomor pengirim yang sudah
 "hangat" (dipakai wajar, punya riwayat percakapan dua arah), atau penerima
 menyimpan/menghubungi nomor itu lebih dulu.
+
+## UX-01 · `loading.tsx` masih terhalang: `router.refresh()` tidak selesai di balik batas Suspense (DECISIONS 245)
+
+🟡 — menahan perbaikan UX yang sudah terbukti dibutuhkan.
+
+Saat memperbaiki "di mobile menu diklik terasa stuck", obat bakunya adalah
+menambahkan `loading.tsx` supaya App Router punya batas Suspense dan bisa
+menukar layar ke kerangka SEKETIKA (sekaligus membuka pra-ambil cangkang
+statis tiap tautan menu). Sudah dicoba, lalu DITARIK LAGI.
+
+Sebabnya: dengan `src/app/(app)/loading.tsx` terpasang, panel persetujuan
+adendum berhenti merespons. Alurnya di
+`lokasi/[slug]/rab/adendum/draft-controls.tsx` — server action lalu
+`router.refresh()` di dalam `startTransition`. Begitu ada batas Suspense di
+atasnya, refresh itu tidak pernah selesai: sesudah "Setujui aktivasi" ditekan,
+tombolnya tinggal diam >15 detik dan tidak berganti jadi "Cabut persetujuan
+saya".
+
+Terukur, bukan dugaan: `tests/e2e/adendum-empat-mata.spec.ts` lulus 5/5 tiga
+kali berturut-turut (±23 detik) tanpa `loading.tsx`, dan gagal 2-3 dari 5
+setiap kali dengan `loading.tsx` — dibisect per berkas, dan komponen umpan
+balik navigasi (`components/shell/nav-progress.tsx`) terbukti BUKAN
+penyebabnya (5/5 dua kali dengannya, tanpa `loading.tsx`).
+
+Ini cacat yang KELASNYA SAMA dengan yang sedang diperbaiki — layar diam
+sesudah ditekan — hanya pindah dari navigasi ke layar yang jauh lebih
+berbahaya (persetujuan perubahan nilai kontrak). Karena itu yang dikirim hanya
+umpan balik navigasi; kerangka halaman ditunda.
+
+**Untuk dikerjakan**: cari sebab `router.refresh()` menggantung di balik batas
+Suspense (kandidat: refresh dipanggil di dalam transition yang sama dengan
+server action-nya; alternatifnya `revalidatePath` saja tanpa `router.refresh()`,
+atau pindahkan refresh keluar dari `startTransition`). Sesudah itu barulah
+`loading.tsx` bisa dipasang — dan uji adendum di atas yang jadi pagarnya.

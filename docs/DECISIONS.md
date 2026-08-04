@@ -8344,3 +8344,81 @@ moderate, di bawah ambang) · resolusi per induk diperiksa di lockfile:
 `pnpm install --frozen-lockfile` lolos (CI memakainya) · prisma generate ✓ ·
 typecheck ✓ · lint ✓ · unit 888/888 ✓ (mencakup seluruh pembangun .xlsx yang
 melewati archiver/minimatch) · build ✓ · integrasi 301/301 ✓.
+
+---
+
+## 245 · Umpan balik navigasi: yang rusak bukan kecepatannya, tapi diamnya (2026-08-04)
+
+Keluhan user: *"di mobile, seringkali satu menu diklik, sistem seperti stuck
+tidak merespon. ini secara ux membingungkan. aku tidak tau ini kendala jaringan
+lambat atau memang ada masalah di mobile."*
+
+### Pertanyaannya dijawab dengan pengukuran, bukan tebakan
+
+Build produksi, DB dinaikkan ke 84 lokasi (7 lokasi seed tidak membuktikan
+apa-apa untuk portofolio 83):
+
+| Rute | TTFB | Payload RSC (gzip) | @1 Mbps | @400 kbps |
+|---|---|---|---|---|
+| `/` | 54 ms | 19 KB | 152 ms | 381 ms |
+| `/progress` | 51 ms | 38 KB | 306 ms | 765 ms |
+| `/lokasi` | 37 ms | 8 KB | 66 ms | 166 ms |
+| `/sistem` | 56 ms | 40 KB | 319 ms | 798 ms |
+
+**Servernya tidak lambat** — 17–56 ms bahkan pada 84 lokasi. Yang memakan waktu
+adalah memindahkan payload lewat jaringan seluler, ditambah RTT. Jadi jawaban
+untuk user: ini memang jaringan, BUKAN kerusakan di mobile.
+
+Tapi itu belum menjelaskan kenapa terasa *stuck*. Penyebabnya: App Router
+MENAHAN transisi di halaman lama sampai payload tiba, dan MARLIN tidak
+menampilkan apa pun selama itu. 0,5–3 detik tanpa satu piksel pun berubah.
+**Yang diperbaiki karena itu bukan kecepatannya, melainkan diamnya.**
+
+### Tiga lapis, semuanya di sisi umpan balik
+
+1. **Ikon menu berubah jadi pemintal** (`useLinkStatus`, Next 16) — menjawab
+   "yang mana yang saya ketuk" sekaligus "sedang diproses". Cuma tukar elemen,
+   jalan di WebView Android lama.
+2. **Bar tipis di pucuk layar** — jaring untuk navigasi yang BUKAN dari menu
+   (tombol, tautan tabel, breadcrumb). `useLinkStatus` hanya sah di dalam
+   `<Link>`, jadi status per-tautan dikumpulkan ke penyimpanan modul kecil yang
+   dibaca bar lewat `useSyncExternalStore`. Bar merayap ke 92% dan **tidak
+   pernah** menyentuh 100% sendiri — yang menuntaskannya halaman baru; bar yang
+   penuh padahal belum selesai adalah kebohongan yang justru memancing ketukan
+   ulang.
+3. **Sesudah 6 detik**, kalimat "Masih memuat — jaringan sepertinya lambat."
+   Tidak diklaim gagal (permintaannya masih jalan) dan tidak ditawarkan "coba
+   lagi" (mengulang menambah antrean di jaringan yang sudah sesak).
+
+### Cacat mobile yang sebenarnya: laci menutup sebelum halaman berganti
+
+`bottom-nav.tsx` memanggil `setOpen(false)` di `onClick` tiap tautan laci. Laci
+lenyap SEKETIKA saat diketuk — pengguna kembali menatap halaman LAMA yang sama
+persis, lalu diam beberapa detik. Ketukannya terbaca "menutup menu", bukan
+"pindah halaman", jadi wajar kalau lalu diketuk berulang. Sekarang laci
+BERTAHAN dengan pemintal di item yang diketuk, dan hanya menutup ketika
+`pathname` benar-benar berganti. Ditambah state `:active` di seluruh item nav —
+layar sentuh tidak punya hover, jadi tanpa itu ketukan tidak meninggalkan jejak.
+
+### `loading.tsx` DICOBA DAN DITARIK LAGI
+
+Obat bakunya adalah `loading.tsx`. Dipasang, lalu dicabut: dengan
+`(app)/loading.tsx` terpasang, panel persetujuan adendum berhenti merespons —
+`router.refresh()` sesudah server action tidak pernah selesai di balik batas
+Suspense, jadi tombol "Setujui aktivasi" diam >15 detik.
+
+Dibisect per berkas dengan spec penuh sebagai sinyal (uji tunggal menyesatkan —
+lulus walau konfigurasinya rusak): tanpa `loading.tsx` 5/5 tiga kali berturut
+(±23 detik); dengan `loading.tsx` gagal 2–3 dari 5 setiap kali;
+`nav-progress.tsx` sendirian 5/5 dua kali → terbukti bukan penyebabnya.
+
+Itu cacat yang KELASNYA SAMA dengan yang sedang diperbaiki, cuma pindah ke
+layar yang jauh lebih berbahaya. Ditunda ke OPEN_ISSUES UX-01, bukan dikirim.
+
+### Verifikasi
+
+E2E baru men-THROTTLE jaringan (400 kbps / RTT 400 ms lewat CDP) — tanpa itu
+ujinya selalu lulus di CI cepat dan tidak menjaga apa pun, persis kondisi yang
+meloloskan cacat ini sejak awal. Dibuktikan **gagal 4/4 pada kode SEBELUM
+perbaikan** dan lulus 4/4 sesudahnya; uji yang lulus di kedua sisi tidak
+membuktikan apa-apa.

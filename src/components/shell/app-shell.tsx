@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { Branding } from "@/lib/branding";
 import { BottomNav } from "./bottom-nav";
 import type { NavItem } from "./nav-config";
+import { NavProgressBar } from "./nav-progress";
 import { Sidebar } from "./sidebar";
 import { Topbar, type TopbarUser } from "./topbar";
 
@@ -34,6 +35,10 @@ export function AppShell({
 }: AppShellProps) {
   return (
     <div className="min-h-dvh">
+      {/* Umpan balik navigasi untuk SELURUH aplikasi — termasuk perpindahan
+          yang bukan dari menu (tombol, tautan tabel, breadcrumb). Diletakkan
+          paling atas supaya tetap terlihat walau laci menu sudah tertutup. */}
+      <NavProgressBar />
       <Sidebar brand={brand} nav={nav} />
       <div className="lg:pl-60">
         <Topbar brand={brand} user={user} logoutAction={logoutAction}>
