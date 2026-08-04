@@ -45,6 +45,10 @@ export default async function PaketWorkspaceLayout({
   const base = `/proyek/paket/${pkg.id}`;
   const tabs = [
     { label: "Ringkasan", href: base, exact: true },
+    // Kesiapan = checklist terurut lintas tab (PRD §5.2). Ditaruh kedua,
+    // sebelum tab-tab yang memperbaikinya, karena itulah urutan bacanya:
+    // lihat apa yang kurang → buka tab yang memperbaikinya.
+    { label: "Kesiapan", href: `${base}/setup` },
     { label: "Tender & Administrasi", href: `${base}/tender` },
     { label: "Kontrak & Adendum", href: `${base}/kontrak` },
     { label: "Lokasi", href: `${base}/lokasi` },
