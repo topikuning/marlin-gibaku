@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { MapPin, X } from "lucide-react";
 import { StatusPill } from "@/components/ui";
-import { PHOTO_VERIF_LABEL, PHOTO_VERIF_TONE } from "@/lib/photo-verif";
+import { PHOTO_STATUS_LABEL, PHOTO_STATUS_TONE } from "@/lib/photo-status";
 import type { GalleryGroup, GalleryPhoto } from "@/lib/photos-gallery";
 
 const dateFmt = new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Jakarta" });
@@ -67,7 +67,7 @@ export function GalleryGrid({ groups, canRestamp = false }: { groups: GalleryGro
                     <img src={p.thumbUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
                   ) : null}
                   <span className="absolute right-2 top-2">
-                    <StatusPill tone={PHOTO_VERIF_TONE[p.verification]} label={PHOTO_VERIF_LABEL[p.verification]} />
+                    <StatusPill tone={PHOTO_STATUS_TONE[p.status]} label={PHOTO_STATUS_LABEL[p.status]} />
                   </span>
                   <span className="absolute bottom-2 right-2 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white tabular">
                     {p.timeLabel}

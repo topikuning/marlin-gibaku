@@ -1,10 +1,21 @@
 import "server-only";
 import type { Prisma } from "@/generated/prisma/client";
-import type { PhotoVerification } from "@/generated/prisma/enums";
 import { db } from "@/lib/db";
 import { buildPhotoViews } from "@/lib/photos";
 import { jakartaDateKey, parseDateKey, formatTanggal } from "@/lib/format";
-export { PHOTO_VERIF_LABEL, PHOTO_VERIF_TONE, ALL_VERIFICATIONS, type PhotoTone } from "@/lib/photo-verif";
+import {
+  deriveStatusFoto,
+  STATUS_KEGIATAN_TERVERIFIKASI,
+  STATUS_LAPORAN_TERVERIFIKASI,
+  type PhotoStatus,
+} from "@/lib/photo-status";
+export {
+  PHOTO_STATUS_LABEL,
+  PHOTO_STATUS_TONE,
+  PHOTO_STATUS_ORDER,
+  type PhotoStatus,
+  type PhotoStatusTone,
+} from "@/lib/photo-status";
 
 /**
  * Galeri Foto Lapangan lintas lokasi — SATU tempat melihat semua bukti visual
@@ -30,7 +41,8 @@ export type GalleryPhoto = {
   gpsFromProject: boolean;
   /** Ada arsip berkas asli (tanpa cap) yang bisa diunduh. */
   hasOriginal: boolean;
-  verification: PhotoVerification;
+  /** DITURUNKAN dari status laporan/kegiatan induknya — bukan kolom tersimpan. */
+  status: PhotoStatus;
 };
 
 export type GalleryGroup = { key: string; label: string; sublabel: string; photos: GalleryPhoto[] };
@@ -47,11 +59,50 @@ export type GalleryData = {
 
 export type GalleryFilters = {
   locationId?: string;
-  verification?: PhotoVerification;
+  status?: PhotoStatus;
+  /**
+   * Sumbu TERPISAH dari status. Dulu "Tanpa GPS" jadi salah satu nilai
+   * `verification`, sehingga chip-nya menyaring `flagged_gps` — nilai yang
+   * tidak pernah ditulis siapa pun — dan SELALU memberi nol hasil walau kartu
+   * KPI di atasnya menyebut ratusan. Sekarang chip dan kartu memakai definisi
+   * yang sama persis: `gpsSource` bukan exif/device (DECISIONS 250).
+   */
+  tanpaGps?: boolean;
   source?: "laporan" | "kegiatan";
   q?: string;
   page?: number;
 };
+
+/** Foto yang induknya sudah disetujui/final — dipakai filter DAN KPI. */
+const WHERE_TERVERIFIKASI: Prisma.PhotoWhereInput = {
+  OR: [
+    { report: { status: { in: STATUS_LAPORAN_TERVERIFIKASI } } },
+    { AND: [{ reportId: null }, { activity: { status: { in: STATUS_KEGIATAN_TERVERIFIKASI } } }] },
+  ],
+};
+
+/** Definisi TUNGGAL "tanpa GPS" — cadangan titik proyek bukan bukti posisi. */
+const WHERE_TANPA_GPS: Prisma.PhotoWhereInput = { gpsSource: { notIn: ["exif", "device"] } };
+
+function whereStatus(status: PhotoStatus): Prisma.PhotoWhereInput {
+  switch (status) {
+    case "terverifikasi":
+      return WHERE_TERVERIFIKASI;
+    case "menunggu_review":
+      return { report: { status: "dikirim" } };
+    case "perlu_koreksi":
+      return { report: { status: "perlu_koreksi" } };
+    case "draft":
+      return {
+        OR: [
+          { report: { status: "draft" } },
+          { AND: [{ reportId: null }, { activity: { status: "draft" } }] },
+        ],
+      };
+    case "lepas":
+      return { AND: [{ reportId: null }, { activityId: null }] };
+  }
+}
 
 const PAGE_SIZE = 96;
 
@@ -71,7 +122,8 @@ export async function getPhotoGallery(locIds: string[] | null, filters: GalleryF
       OR: [{ report: { locationId: filters.locationId } }, { activity: { locationId: filters.locationId } }],
     });
   }
-  if (filters.verification) and.push({ verification: filters.verification });
+  if (filters.status) and.push(whereStatus(filters.status));
+  if (filters.tanpaGps) and.push(WHERE_TANPA_GPS);
   if (filters.source === "laporan") and.push({ reportId: { not: null } });
   if (filters.source === "kegiatan") and.push({ activityId: { not: null } });
   if (filters.q?.trim()) {
@@ -106,21 +158,24 @@ export async function getPhotoGallery(locIds: string[] | null, filters: GalleryF
         gpsSource: true,
         originalKey: true,
         createdAt: true,
-        verification: true,
         uploadedById: true,
-        report: { select: { location: { select: { name: true, slug: true } } } },
+        report: { select: { status: true, location: { select: { name: true, slug: true } } } },
         reportItem: { select: { rabNode: { select: { name: true } } } },
-        activity: { select: { title: true, location: { select: { name: true, slug: true } } } },
+        activity: {
+          select: { title: true, status: true, location: { select: { name: true, slug: true } } },
+        },
       },
     }),
     db.photo.count({ where }),
     db.photo.count({ where: { AND: [scope, { createdAt: { gte: startToday } }] } }),
-    db.photo.count({ where: { AND: [scope, { createdAt: { gte: startToday } }, { verification: "passed" }] } }),
-    db.photo.count({ where: { AND: [scope, { createdAt: { gte: startToday } }, { verification: "pending" }] } }),
+    db.photo.count({ where: { AND: [scope, { createdAt: { gte: startToday } }, WHERE_TERVERIFIKASI] } }),
+    db.photo.count({
+      where: { AND: [scope, { createdAt: { gte: startToday } }, whereStatus("menunggu_review")] },
+    }),
     db.photo.count({ where: { AND: [scope, { activity: { kendala: { not: null } } }] } }),
     // "Tanpa GPS" = tanpa koordinat ASLI foto; cadangan titik proyek ikut
     // terhitung di sini karena bukan bukti posisi (DECISIONS 197).
-    db.photo.count({ where: { AND: [scope, { gpsSource: { notIn: ["exif", "device"] } }] } }),
+    db.photo.count({ where: { AND: [scope, WHERE_TANPA_GPS] } }),
     db.location.findMany({
       where: locIds === null ? { isActive: true } : { id: { in: locIds }, isActive: true },
       select: { id: true, name: true },
@@ -165,7 +220,10 @@ export async function getPhotoGallery(locIds: string[] | null, filters: GalleryF
       hasGps: r.gpsSource === "exif" || r.gpsSource === "device",
       gpsFromProject: r.gpsSource === "project",
       hasOriginal: r.originalKey != null,
-      verification: r.verification,
+      status: deriveStatusFoto({
+        reportStatus: r.report?.status,
+        activityStatus: r.activity?.status,
+      }),
     };
   });
 

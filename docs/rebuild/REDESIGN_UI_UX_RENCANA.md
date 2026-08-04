@@ -8,7 +8,7 @@ Design adalah **referensi layout dan style saja**. Arsitektur — route, IA,
 lifecycle, permission — mengikuti **PRD**. Kalau keduanya berselisih soal
 struktur, PRD yang menang; kalau berselisih soal tampilan, rancangan desain
 yang menang. Keputusan dan konfliknya di
-[`DECISIONS.md` 250 & 251](../DECISIONS.md).
+[`DECISIONS.md` 251 & 252](../DECISIONS.md).
 
 Urutan fase mengikuti "Urutan implementasi" pada rancangan desain sendiri
 (berkas `00 Mulai — Audit & Rencana`), karena fase 1 menyentuh seluruh layar
@@ -137,7 +137,7 @@ offline/partial) di seluruh halaman.
 
 - ✅ **Keluarga route** dipindah: `/proyek/…`, `/pelaksanaan/…`,
   `/pengendalian/…`, `/dokumen-laporan/…`, `/administrasi/…`. Seluruh URL lama
-  308 permanen ke tujuan kanoniknya, diuji E2E (20 alias). Lihat DECISIONS 251.
+  308 permanen ke tujuan kanoniknya, diuji E2E (20 alias). Lihat DECISIONS 252.
 - ❌ **Konsolidasi `?tab=` / `?view=`** belum: `/proyek?view=paket|lokasi|peta`
   dan `/proyek/lokasi/[slug]?tab=…`. Sub-halaman masih berupa segmen path.
   Ini penulisan ulang komposisi halaman, bukan pemindahan berkas.
@@ -154,7 +154,7 @@ offline/partial) di seluruh halaman.
 | Guided Package Readiness | ✅ `/proyek/paket/[id]/setup` |
 | Package-level Finance | ✅ `/proyek/paket/[id]/keuangan` |
 | Unified Report Lifecycle | ✅ sudah ada sebelumnya — `AiArtifactStatus` draft→direview→disetujui→beku→terkirim (DECISIONS 193/194) |
-| Canonical Route Migration | ✅ keluarga route + 308 (DECISIONS 251) |
+| Canonical Route Migration | ✅ keluarga route + 308 (DECISIONS 252) |
 
 ### TERHALANG SCHEMA — tidak dikerjakan, dan tidak boleh dipaksakan
 
@@ -210,4 +210,4 @@ bisa di-bookmark tanpa bergantung pada parsing query.
 | K4 | Persona Keuangan & Auditor tanpa role khusus | Keuangan = peran ber-`finance.approve`; Auditor = `exec_viewer` + `audit.view` |
 | K8 | Notification center belum ada tabel sendiri | Lonceng memakai antrean `/tindakan`; `Alert` belum dipakai |
 | — | Jumlah grup navigasi: PRD enam vs rancangan desain lima | Dipakai enam (PRD) — desain hanya mengatur tampilan |
-| — | Ambang "perlu perhatian" bergeser dari `< 0` ke `< −1` | Sudah diterapkan seragam; lihat DECISIONS 250 |
+| — | Ambang "perlu perhatian" bergeser dari `< 0` ke `< −1` | Sudah diterapkan seragam; lihat DECISIONS 251 |

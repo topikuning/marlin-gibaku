@@ -10,7 +10,7 @@ import { notFound } from "next/navigation";
  *
  * Dulu layout ini bernama "Master Data" dan hanya membungkus tiga halaman.
  * Sesudah `/sistem` dan `/paket/katalog` pindah ke bawah `/administrasi`
- * (DECISIONS 251), layout ini otomatis ikut membungkus keduanya — dan itu
+ * (DECISIONS 252), layout ini otomatis ikut membungkus keduanya — dan itu
  * MERUSAK dua hal sekaligus kalau dibiarkan apa adanya:
  *
  *   · judulnya berbohong — halaman Sistem tampil di bawah kepala "Master Data"

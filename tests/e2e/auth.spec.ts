@@ -78,7 +78,7 @@ test.describe("otorisasi per peran", () => {
 });
 
 /**
- * URL lama harus tetap mendarat di tempat yang benar (DECISIONS 250).
+ * URL lama harus tetap mendarat di tempat yang benar (DECISIONS 252).
  *
  * Alias ini dulu berupa `page.tsx` yang memanggil `redirect()`; sekarang entri
  * `redirects()` di next.config.ts yang ditangani sebelum React jalan. Pindah

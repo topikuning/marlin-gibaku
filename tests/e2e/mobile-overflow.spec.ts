@@ -29,7 +29,7 @@ const RUTE: { path: string; nama: string }[] = [
   { path: "/", nama: "Beranda / command center" },
   // `/aktivitas` DIHAPUS: dulu me-render Dashboard Eksekutif yang sama persis
   // dengan `/`, jadi mengukurnya berarti mengukur halaman yang sama dua kali.
-  // Kini 308 ke `/` (DECISIONS 250).
+  // Kini 308 ke `/` (DECISIONS 252).
   { path: "/tindakan", nama: "Perlu Tindakan" },
   { path: "/proyek/paket", nama: "Daftar paket" },
   { path: "/proyek/lokasi", nama: "Daftar lokasi" },

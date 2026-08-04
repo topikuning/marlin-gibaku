@@ -205,7 +205,7 @@ test.describe("daftar lokasi: satu ketukan, satu permintaan", () => {
     page.on("request", (r) => {
       const u = new URL(r.url()).pathname;
       // Pola ini WAJIB ber-anchor ke path kanonik lengkap. Sesudah keluarga
-      // route pindah (DECISIONS 251), pola lama `^/lokasi/…` berhenti cocok
+      // route pindah (DECISIONS 252), pola lama `^/lokasi/…` berhenti cocok
       // dengan apa pun — dan penyaring yang tidak pernah cocok membuat uji ini
       // menghitung NOL lalu gagal dengan pesan yang menuduh hal yang salah.
       if (!/^\/proyek\/lokasi\/[^/]+$/.test(u)) return;

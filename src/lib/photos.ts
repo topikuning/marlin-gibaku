@@ -494,7 +494,6 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       exifGpsLat: desimalKoordinat(lat),
       exifGpsLng: desimalKoordinat(lng),
       gpsSource,
-      verification: "pending",
       metadataSource: timeSource,
       uploadedById: input.userId,
     },
