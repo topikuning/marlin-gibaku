@@ -74,6 +74,18 @@ test.describe("kontrol form ≥16px di ponsel", () => {
     await page.waitForURL((u) => !u.pathname.includes("/masuk"), { timeout: 30_000 });
 
     await page.goto("/lokasi", { waitUntil: "domcontentloaded" });
+    /*
+     * TUNGGU GRID SIAP dulu. AG Grid menggambar panel paginasi (berikut kotak
+     * nomor halamannya) SESUDAH mount, jadi mengukur tepat setelah `goto`
+     * berarti mengukur halaman yang kontrolnya belum semua ada — dan uji ini
+     * lulus bukan karena aman, melainkan karena belum melihat.
+     *
+     * Persis itu yang terjadi: di mesin lokal uji ini lulus, sementara CI
+     * menangkap kotak nomor halaman AG Grid pada 13px. Menunggu grid membuat
+     * hasilnya sama di mana pun dijalankan.
+     */
+    await page.locator(".ag-root-wrapper").first().waitFor({ state: "visible", timeout: 30_000 });
+    await page.locator(".ag-paging-panel").first().waitFor({ state: "visible", timeout: 30_000 });
     const kontrol = await ukurFont(page);
     test.skip(kontrol.length === 0, "tidak ada kontrol form di halaman ini");
     expect(laporkan(kontrol), "Kontrol di bawah 16px memicu zoom Safari iOS:").toBe("");

@@ -205,6 +205,30 @@ a[data-navigating] {
 }
 
 /*
+ * KONTROL DI DALAM AG GRID ≥16px DI PONSEL (DECISIONS 246, lanjutan).
+ *
+ * AG Grid menggambar kontrolnya sendiri — kotak nomor halaman di panel
+ * paginasi, editor sel, kotak filter — dan ukurannya datang dari tema
+ * (`marlinTheme` fontSize 13), bukan dari kelas Tailwind. Jadi perbaikan
+ * `text-base sm:text-sm` di komponen `ui/` tidak menjangkaunya sama sekali, dan
+ * Safari iOS tetap memperbesar halaman begitu kotak itu difokus.
+ *
+ * Ditemukan CI, bukan saat menambal: uji font di mesin lokal mengukur sebelum
+ * panel paginasi selesai dirender sehingga kotaknya belum ada. Ujinya kini
+ * menunggu grid siap lebih dulu — kalau tidak, celah ini akan terus lolos.
+ *
+ * Sengaja DI LUAR `@layer`: aturan AG Grid disuntikkan sebagai CSS biasa lewat
+ * JS, sehingga aturan ber-layer selalu kalah darinya.
+ */
+@media (max-width: 640px) {
+  .ag-root-wrapper input,
+  .ag-root-wrapper select,
+  .ag-root-wrapper textarea {
+    font-size: 16px;
+  }
+}
+
+/*
  * `fieldset` TIDAK BOLEH menolak mengecil.
  *
  * Peramban memberi `<fieldset>` `min-inline-size: min-content` bawaan — satu-

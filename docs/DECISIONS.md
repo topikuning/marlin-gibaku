@@ -8636,3 +8636,22 @@ saja, dan jejak audit. Lalu dibuktikan di browser dengan data dev: satu paket
 berkontrak dikosongkan nomornya, field-nya muncul di form kontrak dalam keadaan
 kosong, diisi lewat form sungguhan, tersimpan ke basis data, dan tampil di
 kolom "Nomor" halaman `/paket`. Data seed dikembalikan sesudahnya.
+
+### Lanjutan 246 — kontrol AG Grid ikut terkena (ditemukan CI, 2026-08-04)
+
+Perbaikan `text-base sm:text-sm` di komponen `ui/` TIDAK menjangkau kontrol yang
+digambar AG Grid sendiri: kotak nomor halaman di panel paginasi, editor sel,
+kotak filter. Ukurannya datang dari tema (`marlinTheme` fontSize 13), bukan dari
+kelas Tailwind — jadi 13px, dan Safari iOS tetap memperbesar halaman.
+
+**Yang membuatnya lolos: ujinya sendiri.** `mobile-zoom-input.spec.ts` mengukur
+tepat sesudah `goto`, sementara AG Grid menggambar panel paginasi SESUDAH mount.
+Di mesin lokal kotak itu belum ada saat diukur sehingga uji lulus — bukan karena
+aman, melainkan karena belum melihat. CI kebetulan lebih lambat, kotaknya sempat
+ada, dan gagal. Ujinya kini menunggu `.ag-paging-panel` terlihat lebih dulu,
+sehingga hasilnya sama di mana pun dijalankan; sesudah penantian itu ditambahkan,
+uji tersebut terbukti GAGAL di lokal bila perbaikan CSS-nya dimatikan.
+
+Perbaikannya satu blok media query untuk `.ag-root-wrapper input/select/textarea`,
+sengaja DI LUAR `@layer` karena aturan AG Grid disuntikkan sebagai CSS biasa
+lewat JS dan selalu menang atas aturan ber-layer.
