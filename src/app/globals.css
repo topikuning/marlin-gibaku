@@ -70,7 +70,19 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Cegah auto-zoom iOS saat fokus ke input di layar kecil */
+  /*
+   * Cegah auto-zoom iOS saat fokus ke input di layar kecil.
+   *
+   * BERLAKU HANYA untuk kontrol TANPA utility `text-*`. Aturan ini ada di
+   * `@layer base`, dan di Tailwind 4 utility SELALU menang atas base — jadi
+   * `text-sm` pada sebuah input membatalkan pagar ini tanpa suara. Itu yang
+   * terjadi pada Input/PasswordInput/Combobox sampai DECISIONS 246: pagarnya
+   * terlihat ada, padahal tidak pernah berlaku di tempat yang paling penting,
+   * yaitu form login.
+   *
+   * Jadi ini jaring untuk `<input>` polos saja. Komponen ber-utility WAJIB
+   * menyetel sendiri `text-base sm:text-sm` — lihat `ui/field.tsx`.
+   */
   @media (max-width: 640px) {
     input,
     select,

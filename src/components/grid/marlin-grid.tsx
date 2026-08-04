@@ -224,7 +224,10 @@ export function MarlinGrid<T>({
               onChange={(e) => setQuickFilterText(e.target.value)}
               placeholder="Cari..."
               aria-label="Cari di tabel"
-              className="h-9 w-full max-w-xs rounded-md border border-border bg-surface px-3 text-sm text-ink"
+              // text-base di ponsel: kotak ini diketik, dan kontrol <16px
+              // membuat Safari iOS memperbesar halaman lalu tidak
+              // mengembalikannya (DECISIONS 246).
+              className="h-9 w-full max-w-xs rounded-md border border-border bg-surface px-3 text-base sm:text-sm text-ink"
             />
           ) : (
             <span />

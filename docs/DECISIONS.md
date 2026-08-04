@@ -8422,3 +8422,56 @@ ujinya selalu lulus di CI cepat dan tidak menjaga apa pun, persis kondisi yang
 meloloskan cacat ini sejak awal. Dibuktikan **gagal 4/4 pada kode SEBELUM
 perbaikan** dan lulus 4/4 sesudahnya; uji yang lulus di kedua sisi tidak
 membuktikan apa-apa.
+
+---
+
+## 246 · Tampilan sesudah login terpotong: penyebabnya di halaman SEBELUMNYA (2026-08-04)
+
+Keluhan user: *"tiap kali login pertama kali, tampilan di mobile seperti ini.
+harus zoom out manual supaya tampilannya pas."* — dengan tangkapan layar
+Dashboard Eksekutif yang terpotong di kiri, kanan, dan bawah.
+
+### Yang salah bukan halaman yang terlihat salah
+
+Safari iOS **memperbesar halaman** begitu fokus masuk ke kontrol form yang
+font-nya di bawah 16px, dan zoom itu **tidak dikembalikan** sesudah fokus
+lepas — ia terbawa ke halaman berikutnya. Jadi pemicunya ketukan ke kolom
+username di `/masuk`; dashboard cuma mewarisi zoomnya.
+
+Itu juga yang menjelaskan kenapa keluhannya berbunyi *"tiap kali login PERTAMA
+KALI"*: hanya di situ ada input yang diketuk sebelum mendarat di dashboard.
+Membetulkan tata letak dashboard tidak akan menyelesaikan apa pun.
+
+### Pagar yang terlihat ada, padahal tidak pernah berlaku
+
+`globals.css` sudah memasang, dengan komentar "Cegah auto-zoom iOS":
+
+```css
+@layer base {
+  @media (max-width: 640px) { input, select, textarea { font-size: 16px; } }
+}
+```
+
+Aturan itu ada di `@layer base`, sedangkan `text-sm` pada komponen input adalah
+**utility** — dan di Tailwind 4 utility SELALU menang atas base. Pagarnya tidak
+pernah berlaku untuk Input, PasswordInput, Combobox, maupun kotak cari
+MarlinGrid. **Diukur, bukan disimpulkan dari membaca CSS**: font terhitung
+kolom login di viewport 390px = **14px**.
+
+Pagar yang tampak terpasang padahal mati lebih berbahaya daripada tidak ada
+pagar — ia membuat orang berikutnya berhenti memeriksa.
+
+### Perbaikan
+
+`text-base sm:text-sm` pada seluruh kontrol form: 16px di ponsel, 14px mulai
+≥640px. Disetel di utility supaya menang, bukan diletakkan di base lalu
+berharap. Komentar di `globals.css` diperbaiki agar menyatakan batasnya: aturan
+itu hanya menjaring `<input>` polos tanpa utility `text-*`.
+
+### Verifikasi
+
+`tests/e2e/mobile-zoom-input.spec.ts` mengukur **font-size terhitung** pada
+elemen sungguhan di viewport 390px, bukan mengecek ada-tidaknya aturan CSS.
+Ujinya langsung membuktikan dirinya bergigi: ia **menemukan satu kontrol yang
+terlewat** saat pertama dijalankan (kotak "Cari di tabel" MarlinGrid, 14px)
+yang tidak ikut terpikirkan waktu menambal.

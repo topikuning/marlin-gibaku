@@ -15,7 +15,10 @@ export interface PasswordInputProps extends Omit<InputHTMLAttributes<HTMLInputEl
 }
 
 const CONTROL_CLASS =
-  "h-9 w-full rounded-md border border-border bg-surface pr-10 pl-3 py-2 text-sm text-ink " +
+  // text-base di ponsel: cegah Safari iOS memperbesar halaman saat fokus
+// masuk ke kolom sandi, dan zoom-nya terbawa ke halaman sesudah login
+// (lihat catatan panjang di ui/field.tsx, DECISIONS 246).
+  "h-9 w-full rounded-md border border-border bg-surface pr-10 pl-3 py-2 text-base sm:text-sm text-ink " +
   "focus-visible:outline-2 focus-visible:outline-primary-600 " +
   "disabled:cursor-not-allowed disabled:bg-surface-inset disabled:text-ink-faint";
 
