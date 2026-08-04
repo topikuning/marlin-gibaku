@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Banner, LinkTabs, PageHeader, StatusPill } from "@/components/ui";
 import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
+import { can } from "@/lib/authz";
 import { PACKAGE_STAGE_LABEL, PACKAGE_STAGE_TONE } from "@/lib/lifecycle";
 import { formatRupiah } from "@/lib/format";
 import { contractMismatch, withPpn } from "@/lib/money";
@@ -47,6 +48,10 @@ export default async function PaketWorkspaceLayout({
     { label: "Tender & Administrasi", href: `${base}/tender` },
     { label: "Kontrak & Adendum", href: `${base}/kontrak` },
     { label: "Lokasi", href: `${base}/lokasi` },
+    // Keuangan paket = gap P0 PRD: rantai kontrak → alokasi → komitmen →
+    // realisasi → tagihan sebelumnya terputus antara paket dan lokasi.
+    // Hanya untuk yang boleh melihat angka uang.
+    ...(can(user.role, "finance.view") ? [{ label: "Keuangan", href: `${base}/keuangan` }] : []),
     { label: "Dokumen", href: `${base}/dokumen` },
     { label: "Aktivitas", href: `${base}/aktivitas` },
   ];
