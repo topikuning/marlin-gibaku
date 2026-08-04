@@ -101,6 +101,7 @@ export default async function HarianWorkspacePage({
           dateKey={date}
           reportId={report?.id ?? null}
           nodes={await getLeafNodeOptions(data.location.id)}
+          pintasan={data.pintasan}
           items={report?.items ?? []}
           photosTanpaItem={report?.photosTanpaItem ?? []}
           // Foto hanya bisa dihapus selama laporan masih bisa diedit; siapa yang

@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
-import { ImagePlus, Search, Send, Trash2 } from "lucide-react";
+import { ImagePlus, RotateCcw, Search, Send, Trash2 } from "lucide-react";
 import { Banner, Button, Input, Label } from "@/components/ui";
 import { formatNumber, formatRupiah } from "@/lib/format";
 import {
@@ -11,7 +11,7 @@ import {
   submitReportAction,
   type DailyActionState,
 } from "@/lib/daily-report/actions";
-import type { LeafNodeOption, WorkspaceItem } from "@/lib/daily-report/queries";
+import type { LeafNodeOption, PintasanItem, WorkspaceItem } from "@/lib/daily-report/queries";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import type { PhotoView } from "@/lib/photos";
 import { removeReportPhotoAction } from "@/lib/daily-report/actions";
@@ -48,6 +48,7 @@ export function ReportEditor({
   dateKey,
   reportId,
   nodes,
+  pintasan,
   items,
   correctionReason,
   photoEnabled,
@@ -59,6 +60,7 @@ export function ReportEditor({
   dateKey: string;
   reportId: string | null;
   nodes: LeafNodeOption[];
+  pintasan: PintasanItem;
   items: WorkspaceItem[];
   correctionReason: string | null;
   photoEnabled: boolean;
@@ -76,7 +78,14 @@ export function ReportEditor({
           description={correctionReason}
         />
       ) : null}
-      <ItemForm locationId={locationId} slug={slug} dateKey={dateKey} nodes={nodes} photoEnabled={photoEnabled} />
+      <ItemForm
+        locationId={locationId}
+        slug={slug}
+        dateKey={dateKey}
+        nodes={nodes}
+        pintasan={pintasan}
+        photoEnabled={photoEnabled}
+      />
       <ItemList
         reportId={reportId}
         slug={slug}
@@ -108,17 +117,22 @@ export function ReportEditor({
 
 // ─────────────────────────────────────────────────────────────
 
+/** Lebih dari ini, deretan chip berubah jadi belantara yang harus dibaca. */
+const BATAS_CHIP_PINTASAN = 8;
+
 function ItemForm({
   locationId,
   slug,
   dateKey,
   nodes,
+  pintasan,
   photoEnabled,
 }: {
   locationId: string;
   slug: string;
   dateKey: string;
   nodes: LeafNodeOption[];
+  pintasan: PintasanItem;
   photoEnabled: boolean;
 }) {
   const [state, formAction, pending] = useActionState<DailyActionState, FormData>(saveItemAction, undefined);
@@ -187,6 +201,29 @@ function ItemForm({
       .filter((n) => `${n.code} ${n.name} ${n.category}`.toLowerCase().includes(q))
       .slice(0, 25);
   }, [query, nodes]);
+
+  /**
+   * Chip pintasan: ID dari server dipetakan ke node yang SUDAH ada di klien.
+   *
+   * ID yang tidak ketemu sengaja dibuang tanpa suara — itu terjadi kalau item
+   * pernah dilaporkan lalu hilang dari RAB aktif (revisi/adendum). Menampilkan
+   * chip yang tidak bisa dipilih lebih buruk daripada tidak menampilkannya.
+   */
+  const pintasanNodes = useMemo(() => {
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    const out: { node: LeafNodeOption; dariKemarin: boolean }[] = [];
+    for (const id of pintasan.kemarin) {
+      const node = byId.get(id);
+      if (node) out.push({ node, dariKemarin: true });
+    }
+    for (const id of pintasan.sering) {
+      const node = byId.get(id);
+      if (node) out.push({ node, dariKemarin: false });
+    }
+    return out.slice(0, BATAS_CHIP_PINTASAN);
+  }, [pintasan, nodes]);
+
+  const adaKemarin = pintasanNodes.some((p) => p.dariKemarin);
 
   function pick(node: LeafNodeOption) {
     setPicked(node);
@@ -345,6 +382,51 @@ function ItemForm({
                     </button>
                   ))
                 )}
+          </div>
+        ) : null}
+
+        {/* Pintasan: pekerjaan lapangan berulang, jadi item hari ini hampir
+            selalu sama dengan kemarin. Tanpa ini pelapor mengetik pencarian
+            yang sama belasan kali sehari (Master Prompt §8.3).
+
+            Hanya muncul saat belum ada pilihan dan kotak cari kosong — begitu
+            pelapor mulai mengetik, yang ingin dilihatnya adalah hasil
+            pencarian, bukan tumpukan tombol di bawahnya. */}
+        {!picked && !query && !pending && pintasanNodes.length > 0 ? (
+          <div className="mt-2.5">
+            <p className="text-[11px] font-semibold tracking-wide text-ink-faint uppercase">
+              Sering dipakai di lokasi ini
+            </p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {pintasanNodes.map(({ node, dariKemarin }) => (
+                <button
+                  key={node.id}
+                  type="button"
+                  onClick={() => pick(node)}
+                  /* min-h-9 menjaga target sentuh tetap nyaman untuk jempol —
+                     chip setinggi teks saja terlalu mudah meleset. */
+                  className={`inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 py-1.5 text-left text-[12.5px] font-semibold transition-colors ${
+                    dariKemarin
+                      ? "border-primary-200 bg-primary-50 text-primary active:bg-primary-100"
+                      : "border-border bg-surface text-ink-muted active:bg-surface-muted"
+                  }`}
+                >
+                  {dariKemarin ? <RotateCcw aria-hidden className="size-3.5 shrink-0" /> : null}
+                  <span className="max-w-[11rem] truncate">{node.name}</span>
+                  {node.remaining != null ? (
+                    <span className="shrink-0 text-[11px] font-normal text-ink-faint tabular-nums">
+                      sisa {formatNumber(node.remaining)}
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+            {adaKemarin ? (
+              <p className="mt-1.5 text-[11px] text-ink-muted">
+                Bertanda <RotateCcw aria-hidden className="inline size-3 align-[-1px]" /> = dilaporkan
+                pada laporan terakhir lokasi ini.
+              </p>
+            ) : null}
           </div>
         ) : null}
       </div>
