@@ -324,3 +324,21 @@ Suspense (kandidat: refresh dipanggil di dalam transition yang sama dengan
 server action-nya; alternatifnya `revalidatePath` saja tanpa `router.refresh()`,
 atau pindahkan refresh keluar dari `startTransition`). Sesudah itu barulah
 `loading.tsx` bisa dipasang — dan uji adendum di atas yang jadi pagarnya.
+
+## DATA-02 · Kolom `Photo.verification` usang, tinggal di-drop (DECISIONS 250)
+
+🟢 — sudah tidak berbahaya, tinggal dibersihkan.
+
+Sejak status foto diturunkan dari laporan/kegiatan induknya, kolom
+`Photo.verification` (dan enum `PhotoVerification`) tidak lagi dibaca maupun
+ditulis kode mana pun. Skemanya sudah ditandai USANG supaya tidak dihidupkan
+lagi.
+
+**Belum di-drop** karena isinya di produksi belum diperiksa. Kode hanya pernah
+menulis `pending`, jadi kemungkinan besar seluruh baris bernilai itu — tapi itu
+dugaan, bukan hasil pemeriksaan, dan migrasi drop tidak bisa dibatalkan.
+
+**Langkahnya**: jalankan `select verification, count(*) from photos group by 1`
+di produksi. Bila semuanya `pending`, buat migrasi yang men-drop kolom dan
+enumnya. Bila ADA nilai lain, berarti pernah ada jalur yang menulisnya di luar
+kode saat ini — telusuri dulu sebelum menghapus apa pun.

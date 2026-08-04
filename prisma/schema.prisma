@@ -1123,6 +1123,13 @@ model Photo {
   originalPurgedAt   DateTime? @map("original_purged_at") @db.Timestamptz
   originalPurgedById String?   @map("original_purged_by_id") @db.Uuid
   exifTakenAt    DateTime?           @map("exif_taken_at") @db.Timestamptz
+  /// USANG (DECISIONS 250) — JANGAN DIPAKAI LAGI, dan jangan diisi.
+  /// Kolom ini tidak pernah dinaikkan dari `pending` oleh kode mana pun: tidak
+  /// ada aksi, UI, maupun capability yang menulisnya, sehingga "Terverifikasi"
+  /// di galeri selalu 0 dan chip "Tanpa GPS" (yang menyaring `flagged_gps`)
+  /// selalu nol hasil. Status foto kini DITURUNKAN dari laporan/kegiatan
+  /// induknya — lihat `src/lib/photo-status.ts`. Kolomnya belum di-drop karena
+  /// isinya di produksi belum diperiksa; lihat OPEN_ISSUES.
   verification   PhotoVerification   @default(pending)
   metadataSource PhotoMetadataSource @default(server) @map("metadata_source")
   uploadedById   String?             @map("uploaded_by_id") @db.Uuid
