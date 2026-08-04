@@ -82,7 +82,7 @@ test.describe("mobile: ketukan menu harus terlihat direspons", () => {
 
     // Tepat sesudah ketukan, selagi halaman masih dimuat: laci WAJIB masih ada.
     await expect(laci, "laci menutup sebelum halaman berganti — layar jadi kosong tanpa tanda").toBeVisible();
-    await expect(page).toHaveURL(/\/keuangan/, { timeout: 30_000 });
+    await expect(page).toHaveURL(/\/pengendalian\/keuangan/, { timeout: 30_000 });
     // Dan ketika halamannya benar-benar tiba, laci menutup sendiri.
     await expect(laci).toBeHidden({ timeout: 10_000 });
   });
@@ -109,7 +109,7 @@ test.describe("mobile: ketukan menu harus terlihat direspons", () => {
 
     const jeda = Date.now() - mulai;
     expect(jeda, `umpan balik baru muncul ${jeda}ms sesudah ketukan`).toBeLessThan(AMBANG_UMPAN_BALIK_MS);
-    await expect(page).toHaveURL(/\/progress/, { timeout: 30_000 });
+    await expect(page).toHaveURL(/\/pengendalian\/progress/, { timeout: 30_000 });
   });
 
   test("pintasan nav bawah juga memberi umpan balik", async ({ page }) => {
@@ -192,7 +192,7 @@ test.describe("daftar lokasi: satu ketukan, satu permintaan", () => {
     expect(x, "titik ketuk harus terlihat di layar").toBeLessThan(lebarLayar);
 
     await page.mouse.click(x, baris.y + baris.height / 2);
-    await expect(page).toHaveURL(/\/lokasi\/[^/]+$/, { timeout: 30_000 });
+    await expect(page).toHaveURL(/\/proyek\/lokasi\/[^/]+$/, { timeout: 30_000 });
   });
 
   test("tiga ketukan beruntun tetap SATU permintaan halaman", async ({ page }) => {
@@ -204,7 +204,11 @@ test.describe("daftar lokasi: satu ketukan, satu permintaan", () => {
     const permintaan: string[] = [];
     page.on("request", (r) => {
       const u = new URL(r.url()).pathname;
-      if (!/^\/lokasi\/[^/]+$/.test(u)) return;
+      // Pola ini WAJIB ber-anchor ke path kanonik lengkap. Sesudah keluarga
+      // route pindah (DECISIONS 251), pola lama `^/lokasi/…` berhenti cocok
+      // dengan apa pun — dan penyaring yang tidak pernah cocok membuat uji ini
+      // menghitung NOL lalu gagal dengan pesan yang menuduh hal yang salah.
+      if (!/^\/proyek\/lokasi\/[^/]+$/.test(u)) return;
       // PRA-AMBIL TIDAK DIHITUNG. Next mem-prefetch tiap tautan lokasi yang
       // terlihat di layar, jadi menghitung "semua permintaan ke /lokasi/*"
       // mencampur pra-ambil latar dengan navigasi sungguhan dan menghasilkan
@@ -224,7 +228,7 @@ test.describe("daftar lokasi: satu ketukan, satu permintaan", () => {
     await page.waitForTimeout(200);
     await tautan.click({ force: true }).catch(() => {});
 
-    await expect(page).toHaveURL(/\/lokasi\/[^/]+$/, { timeout: 40_000 });
+    await expect(page).toHaveURL(/\/proyek\/lokasi\/[^/]+$/, { timeout: 40_000 });
     expect(
       permintaan.length,
       `tiga ketukan menghasilkan ${permintaan.length} permintaan halaman: ${permintaan.join(", ")}`,
