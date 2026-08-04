@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { StatusPill } from "@/components/ui";
+import { LinkTabs, StatusPill } from "@/components/ui";
+import { subTabPelaksanaan } from "../tabs";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import { can } from "@/lib/authz";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
@@ -257,6 +258,7 @@ export default async function KegiatanLapanganPage({ params }: { params: Promise
 
   return (
     <div className="space-y-4">
+      <LinkTabs items={subTabPelaksanaan(slug)} />
       {/* Intro + ringkasan */}
       <section className="rounded-xl border border-border bg-surface p-4 shadow-xs sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">

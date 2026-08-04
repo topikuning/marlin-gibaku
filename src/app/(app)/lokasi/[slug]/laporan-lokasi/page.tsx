@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CalendarClock, FileText, Sheet } from "lucide-react";
-import { Card, CardBody, CardHeader, EmptyState } from "@/components/ui";
+import { Card, CardBody, CardHeader, EmptyState, LinkTabs } from "@/components/ui";
+import { subTabAdministrasi } from "../tabs";
 import { KkpPeriodReport } from "@/components/knmp/kkp-period-report";
 import { ScurveKkpSheet } from "@/components/knmp/scurve-kkp-sheet";
 import { PeriodFilter } from "./period-filter";
@@ -81,6 +82,7 @@ export default async function LaporanLokasiPage({
 
   return (
     <div className="space-y-6">
+      <LinkTabs items={subTabAdministrasi(slug)} />
       <Card>
         <CardHeader
           title="Laporan Periodik KKP"

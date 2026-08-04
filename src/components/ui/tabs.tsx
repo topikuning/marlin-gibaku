@@ -9,11 +9,25 @@ export interface LinkTabItem {
   href: string;
   /** Cocokkan path persis (default: prefix match). */
   exact?: boolean;
+  /**
+   * Path lain yang DIMILIKI tab ini, selain `href`.
+   *
+   * Dipakai saat satu tab konseptual menaungi beberapa route — mis.
+   * "Pelaksanaan" menaungi laporan harian DAN kegiatan lapangan. Tanpa ini,
+   * membuka route saudaranya membuat seluruh baris tab kehilangan sorotan,
+   * sehingga pengguna kehilangan jawaban "saya sedang di bagian mana".
+   */
+  juga?: string[];
+}
+
+function cocok(pathname: string, href: string, exact?: boolean): boolean {
+  if (exact) return pathname === href;
+  return pathname === href || pathname.startsWith(`${href}/`);
 }
 
 function isActive(pathname: string, item: LinkTabItem): boolean {
-  if (item.exact) return pathname === item.href;
-  return pathname === item.href || pathname.startsWith(`${item.href}/`);
+  if (cocok(pathname, item.href, item.exact)) return true;
+  return (item.juga ?? []).some((h) => cocok(pathname, h));
 }
 
 /** Tab navigasi berbasis URL (underline style). */

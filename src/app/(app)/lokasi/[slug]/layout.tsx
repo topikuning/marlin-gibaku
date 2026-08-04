@@ -20,18 +20,37 @@ function remainingDaysUntil(endDate: Date): number {
   return Math.ceil((endDate.getTime() - Date.now()) / DAY_MS);
 }
 
+/**
+ * ENAM tab konseptual, bukan delapan (PRD FR-LOC-01, rancangan desain §2).
+ *
+ * Delapan tab datar meluber di ponsel — barisnya harus digeser mendatar untuk
+ * melihat tab terakhir, dan tab yang tidak terlihat sama saja dengan tidak ada.
+ * Dua pasang yang memang satu pekerjaan digabung:
+ *
+ *   Pelaksanaan   = laporan harian + kegiatan lapangan
+ *   Administrasi  = dokumen & kepatuhan + laporan lokasi
+ *
+ * Route-nya TIDAK dipindah — hanya penamaan dan kepemilikan tab yang berubah,
+ * jadi tautan dan bookmark lama tetap hidup. `juga` membuat tab tetap tersorot
+ * saat route saudaranya dibuka; tanpa itu membuka Kegiatan akan memadamkan
+ * seluruh baris tab dan pengguna kehilangan jawaban "saya di bagian mana".
+ *
+ * Sub-navigasi di dalam tab gabungan dibangun oleh halamannya masing-masing.
+ */
 function tabItems(slug: string): LinkTabItem[] {
   const base = `/lokasi/${slug}`;
   return [
     { label: "Ringkasan", href: base, exact: true },
     { label: "Rencana & RAB", href: `${base}/rab` },
     // Tab milik slice lain — link saja, halamannya dibangun terpisah.
-    { label: "Pelaksanaan Harian", href: `${base}/harian` },
-    { label: "Kegiatan Lapangan", href: `${base}/kegiatan` },
+    { label: "Pelaksanaan", href: `${base}/harian`, juga: [`${base}/kegiatan`] },
     { label: "Progress", href: `${base}/progress` },
     { label: "Keuangan", href: `${base}/keuangan` },
-    { label: "Dokumen & Kepatuhan", href: `${base}/dokumen` },
-    { label: "Laporan", href: `${base}/laporan-lokasi` },
+    {
+      label: "Administrasi",
+      href: `${base}/dokumen`,
+      juga: [`${base}/laporan-lokasi`],
+    },
   ];
 }
 

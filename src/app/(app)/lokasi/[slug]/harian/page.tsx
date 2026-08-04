@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Card, CardBody, CardHeader, StatusPill } from "@/components/ui";
+import { Card, CardBody, CardHeader, LinkTabs, StatusPill } from "@/components/ui";
+import { subTabPelaksanaan } from "../tabs";
 import { requireUser, requireLocationAccess } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
@@ -22,6 +23,8 @@ export default async function HarianIndexPage({ params }: { params: Promise<{ sl
   const days = await getRecentDays(location.id, 14, todayKey);
 
   return (
+    <div className="space-y-4">
+      <LinkTabs items={subTabPelaksanaan(slug)} />
     <Card>
       <CardHeader
         title="Pelaksanaan Harian"
@@ -66,7 +69,8 @@ export default async function HarianIndexPage({ params }: { params: Promise<{ sl
             </li>
           ))}
         </ul>
-      </CardBody>
-    </Card>
+        </CardBody>
+      </Card>
+    </div>
   );
 }

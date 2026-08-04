@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FolderOpen } from "lucide-react";
-import { Card, CardBody, CardHeader, CollapsibleCard, EmptyState, ProgressBar, StatusPill } from "@/components/ui";
+import { Card, CardBody, CardHeader, CollapsibleCard, EmptyState, LinkTabs, ProgressBar, StatusPill } from "@/components/ui";
+import { subTabAdministrasi } from "../tabs";
 import { requireUser, requireLocationAccess } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
@@ -52,6 +53,7 @@ export default async function DokumenKepatuhanPage({ params }: { params: Promise
 
   return (
     <div className="space-y-6">
+      <LinkTabs items={subTabAdministrasi(slug)} />
       <CollapsibleCard
         title="Administrasi induk (paket)"
         subtitle={`${indukBoard.done}/${indukBoard.total} selesai — SPPBJ, kontrak, jaminan, SPMK, termin, PHO/FHO. Dikelola di paket; status ikut induk.`}
