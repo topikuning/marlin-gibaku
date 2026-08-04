@@ -45,26 +45,34 @@ dan fase 2 adalah yang berdampak terbesar bagi pengguna sesungguhnya.
 
 ---
 
-## Fase 2 — Laporan harian mobile ⬅ BERIKUTNYA, dampak terbesar
+## Fase 2 — Laporan harian mobile ◐ SEBAGIAN
 
 Pengguna: mandor/pelaksana, sering berumur, satu tangan, di bawah matahari,
 jaringan tidak stabil. Ini fokus utama Master Prompt §8.
 
-- **Hari Ini** sebagai landing: lokasi aktif, tanggal, status laporan,
-  kelengkapan, cuaca, pekerjaan terakhir, jumlah foto, kendala; satu tombol
-  utama `Isi Laporan Hari Ini` + pintasan Tambah Pekerjaan/Foto/Kendala.
+Sudah ada:
+
+- ✅ **Loop input cepat** (§8.3) — pilih item → fokus otomatis ke volume →
+  keypad numerik → simpan → fokus kembali ke pencarian. Sudah ada sejak
+  DECISIONS 2026-08-02; sisa volume kontrak juga sudah tampil inline.
+- ✅ **Pintasan item** — chip "dilaporkan pada laporan terakhir" + item
+  tersering di lokasi itu, diturunkan dari data pemakaian (bukan tabel
+  favorit baru).
+- ✅ **Hari Ini**: pita 7 hari mendatar (bukan tujuh baris menurun yang
+  mendorong tombol lapor ke bawah lipatan) + daftar kendala aktif.
+
+Belum:
+
 - **Wizard longgar 4 langkah** (Pekerjaan & Volume → Kondisi & Sumber Daya →
-  Bukti & Kendala → Review & Kirim) — draft aman, bebas mundur.
-- **Loop input cepat** (§8.3): pilih item → fokus OTOMATIS pindah ke volume →
-  keypad numerik → `Simpan & Tambah Lagi` → fokus kembali ke pencarian item.
-  Konteks tidak ditutup, daftar yang sudah dimasukkan tidak hilang.
-  Sediakan `Ulangi Item Terakhir`, `Item Terakhir`, `Favorit`, sisa volume
-  kontrak inline.
+  Bukti & Kendala → Review & Kirim) — draft aman, bebas mundur. Saat ini
+  editornya satu layar.
+- **Checklist kirim** (§8.7) dengan bahasa sederhana: Belum lengkap / Perlu
+  diperiksa / Siap dikirim.
 - **State penyimpanan terlihat**: Online / Menyimpan / Tersimpan / Belum
   tersinkron / Gagal / Coba lagi. Antrean sinkron offline BELUM didukung
   backend — tandai sebagai dependency, jangan berpura-pura ada (K3).
 - **Koreksi inline**: komentar reviewer muncul dekat field terkait, field
-  bermasalah disorot — bukan di halaman terpisah.
+  bermasalah disorot — bukan hanya sebagai banner di atas halaman.
 
 Aturan bisnis TIDAK berubah: satu record unik lokasi+tanggal, siklus koreksi
 pada record yang sama, kewajiban "Lengkapi KKP" tetap di Site Manager.
@@ -81,12 +89,16 @@ Peta Monitoring **wajib dipertahankan sebagai elemen utama** (Master Prompt §5)
 - Satu komponen peta dipakai dashboard dan `/peta` (K6).
 - Scope bar (organisasi / paket / provinsi / periode) + "data s.d." eksplisit.
 
-## Fase 4 — Workspace lokasi enam tab
+## Fase 4 — Workspace lokasi enam tab ◐ SEBAGIAN
 
-Ringkasan · Rencana & RAB · Pelaksanaan · Progress · Keuangan · Administrasi.
-RAB + revisi + baseline + jadwal + rencana mingguan **digabung ke satu tab
-Rencana** — memisah baseline ke Progress memutus rantai mental biaya → volume →
-waktu → target mingguan (PRD §5.4).
+- ✅ Tab dikurangi dari delapan jadi enam: Ringkasan · Rencana & RAB ·
+  Pelaksanaan · Progress · Keuangan · Administrasi. Route tidak dipindah;
+  halaman yang bernaung di bawah satu tab mendapat sub-tab.
+- ❌ Belum: RAB + revisi + **baseline + jadwal** + rencana mingguan digabung
+  ke tab Rencana. Baseline/editor jadwal masih di Progress, dan memisahnya
+  memutus rantai mental biaya → volume → waktu → target mingguan (PRD §5.4).
+- ❌ Belum: Progress dipisah jadi mode kerja (Monitor · Item tertinggal ·
+  Riwayat) — sekarang masih satu layar campur.
 
 ## Fase 5 — Paket, Progress portfolio, Keuangan portfolio, Dokumen
 
