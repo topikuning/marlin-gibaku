@@ -8655,3 +8655,69 @@ uji tersebut terbukti GAGAL di lokal bila perbaikan CSS-nya dimatikan.
 Perbaikannya satu blok media query untuk `.ag-root-wrapper input/select/textarea`,
 sengaja DI LUAR `@layer` karena aturan AG Grid disuntikkan sebagai CSS biasa
 lewat JS dan selalu menang atas aturan ber-layer.
+
+---
+
+## 250 · Status foto DITURUNKAN dari laporan/kegiatan, bukan kolom sendiri (2026-08-04)
+
+Keluhan user: *"semua foto menunggu review, padahal laporan sudah difinalkan."*
+
+### Alur verifikasi foto tidak pernah dibangun
+
+`Photo.verification` HANYA pernah ditulis satu kali — `pending`, saat unggah
+(`lib/photos.ts`). Tidak ada aksi server, UI, maupun capability yang
+menaikkannya; yang ada hanya `photo.restamp` dan `photo.archive_purge`.
+Finalisasi laporan tidak menyentuh foto sama sekali.
+
+Jadi badge "Menunggu Review", KPI "Terverifikasi", dan chip filternya adalah
+antarmuka untuk alur kerja yang tidak ada. **"Terverifikasi" secara struktural
+selalu 0** — bukan karena laporannya belum final.
+
+### Cacat kedua yang ikut ketahuan
+
+Chip "Tanpa GPS" menyaring `verification = flagged_gps` — nilai yang juga tidak
+pernah ditulis — sehingga SELALU nol hasil, sementara kartu KPI di atasnya
+menghitung dari `gpsSource` dan menyebut ratusan. Satu label, dua definisi, dan
+yang satu mustahil benar.
+
+### Keputusan
+
+Status foto DITURUNKAN dari induknya. Sejalan aturan repo: status hanya berubah
+lewat mesin transisi, dan nilai turunan tidak disimpan sebagai kolom yang bisa
+menyimpang dari sumbernya. Foto adalah LAMPIRAN laporan — ia tidak punya siklus
+persetujuan sendiri, jadi memberinya kolom status sendiri hanya menciptakan dua
+kebenaran yang bisa berbeda.
+
+| Induk | Status foto |
+|---|---|
+| laporan `disetujui` / `final` | Terverifikasi |
+| laporan `dikirim` | Menunggu Review |
+| laporan `perlu_koreksi` | Perlu Koreksi |
+| laporan `draft` | Draft |
+| kegiatan `final` / `draft` | Terverifikasi / Draft |
+| tanpa induk | Tanpa Induk |
+
+`disetujui` ikut Terverifikasi, tidak menunggu `final`: penyetujuan adalah momen
+seseorang berwenang membaca laporan berikut lampirannya; `final` sesudahnya cuma
+penguncian. Bila foto menempel ke laporan DAN kegiatan, laporan yang menang —
+ia punya persetujuan berjenjang, kegiatan hanya draft/final.
+
+**GPS sengaja BUKAN bagian dari status.** Keduanya sumbu berbeda: status
+menjawab "sudah disetujui atau belum", GPS menjawab "posisinya terbukti atau
+tidak". Menggabungkannya membuat ~96% foto lapangan (koordinatnya cadangan titik
+proyek, DECISIONS 197) tidak pernah bisa berstatus apa pun selain bermasalah
+padahal laporannya sah. Chip GPS kini memakai definisi yang SAMA dengan kartu
+KPI-nya.
+
+### Verifikasi
+
+11 uji unit mengunci aturan turunannya, termasuk kasus tepi "laporan menang atas
+kegiatan" dan "tanpa induk tidak disamarkan jadi Draft". Lalu dibuktikan di
+halaman sungguhan: dev tidak punya foto sama sekali, jadi foto sengaja dibuat
+untuk SETIAP status induk. Hasil galeri cocok persis dengan distribusi di basis
+data (3 Terverifikasi, 3 Perlu Koreksi, 3 Menunggu Review, 2 Draft), dan chip
+"Tanpa GPS" memberi 10 foto — sebelumnya selalu nol. Data uji dihapus sesudahnya.
+
+Kolom `Photo.verification` ditandai USANG di skema dan tidak lagi ditulis maupun
+dibaca. Belum di-drop karena isinya di produksi belum diperiksa — lihat
+OPEN_ISSUES.

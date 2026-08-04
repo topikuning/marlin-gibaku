@@ -5,8 +5,7 @@ import { requireUser, accessibleLocationIds } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
 import { getPhotoGallery, type GalleryFilters } from "@/lib/photos-gallery";
-import { PHOTO_VERIF_LABEL, ALL_VERIFICATIONS } from "@/lib/photo-verif";
-import type { PhotoVerification } from "@/generated/prisma/enums";
+import { PHOTO_STATUS_LABEL, PHOTO_STATUS_ORDER, type PhotoStatus } from "@/lib/photo-status";
 import { GalleryGrid } from "./gallery-grid";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +25,9 @@ export default async function FotoLapanganPage({ searchParams }: { searchParams:
   const status = one(sp.status);
   const filters: GalleryFilters = {
     locationId: one(sp.lokasi) || undefined,
-    verification: ALL_VERIFICATIONS.includes(status as PhotoVerification) ? (status as PhotoVerification) : undefined,
+    status: PHOTO_STATUS_ORDER.includes(status as PhotoStatus) ? (status as PhotoStatus) : undefined,
+    // GPS sumbu SENDIRI, bukan salah satu nilai status — lihat photo-status.ts.
+    tanpaGps: one(sp.gps) === "tanpa" || undefined,
     source: one(sp.sumber) === "laporan" ? "laporan" : one(sp.sumber) === "kegiatan" ? "kegiatan" : undefined,
     q: one(sp.q) || undefined,
     page: Number(one(sp.page)) || 1,
@@ -38,7 +39,8 @@ export default async function FotoLapanganPage({ searchParams }: { searchParams:
     const p = new URLSearchParams();
     const base: Record<string, string | undefined> = {
       lokasi: filters.locationId,
-      status: filters.verification,
+      status: filters.status,
+      gps: filters.tanpaGps ? "tanpa" : undefined,
       sumber: filters.source,
       q: filters.q,
     };
@@ -48,10 +50,22 @@ export default async function FotoLapanganPage({ searchParams }: { searchParams:
   };
 
   const chips: { label: string; href: string; active: boolean }[] = [
-    { label: "Semua Foto", href: qs({ status: undefined, sumber: undefined, page: undefined }), active: !filters.verification && !filters.source },
-    { label: "Menunggu Review", href: qs({ status: "pending", page: undefined }), active: filters.verification === "pending" },
-    { label: "Terverifikasi", href: qs({ status: "passed", page: undefined }), active: filters.verification === "passed" },
-    { label: "Tanpa GPS", href: qs({ status: "flagged_gps", page: undefined }), active: filters.verification === "flagged_gps" },
+    {
+      label: "Semua Foto",
+      href: qs({ status: undefined, gps: undefined, sumber: undefined, page: undefined }),
+      active: !filters.status && !filters.tanpaGps && !filters.source,
+    },
+    // Status = turunan laporan/kegiatan induknya (photo-status.ts).
+    ...PHOTO_STATUS_ORDER.map((st) => ({
+      label: PHOTO_STATUS_LABEL[st],
+      href: qs({ status: st, page: undefined }),
+      active: filters.status === st,
+    })),
+    // Sumbu terpisah. Dulu chip ini menyaring `verification = flagged_gps` —
+    // nilai yang tidak pernah ditulis siapa pun — jadi SELALU nol hasil
+    // sementara kartu KPI di atasnya menyebut ratusan. Sekarang keduanya
+    // memakai definisi yang sama.
+    { label: "Tanpa GPS", href: qs({ gps: "tanpa", page: undefined }), active: !!filters.tanpaGps },
     { label: "Laporan Harian", href: qs({ sumber: "laporan", page: undefined }), active: filters.source === "laporan" },
     { label: "Kegiatan Lapangan", href: qs({ sumber: "kegiatan", page: undefined }), active: filters.source === "kegiatan" },
   ];
@@ -90,10 +104,10 @@ export default async function FotoLapanganPage({ searchParams }: { searchParams:
           </Combobox>
         </div>
         <div className="w-52">
-          <Combobox name="status" defaultValue={filters.verification ?? ""} placeholder="Semua Status Verifikasi">
-            <option value="">Semua Status Verifikasi</option>
-            {ALL_VERIFICATIONS.map((v) => (
-              <option key={v} value={v}>{PHOTO_VERIF_LABEL[v]}</option>
+          <Combobox name="status" defaultValue={filters.status ?? ""} placeholder="Semua Status">
+            <option value="">Semua Status</option>
+            {PHOTO_STATUS_ORDER.map((v) => (
+              <option key={v} value={v}>{PHOTO_STATUS_LABEL[v]}</option>
             ))}
           </Combobox>
         </div>
