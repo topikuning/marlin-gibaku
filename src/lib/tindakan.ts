@@ -3,7 +3,7 @@ import { cache } from "react";
 import { db } from "@/lib/db";
 import { can } from "@/lib/authz";
 import { accessibleLocationIds, type SessionUser } from "@/lib/auth/session";
-import { locationScopeWhere } from "@/lib/auth/scope";
+import { locationScopeWhere, packageScopeWhere } from "@/lib/auth/scope";
 import { getLocationsProgress } from "@/lib/progress";
 import { formatPct, jakartaToday } from "@/lib/format";
 import { tingkatDeviasi, type TingkatDeviasi } from "@/lib/deviasi";
@@ -178,11 +178,24 @@ async function _getAntreanTindakan(user: SessionUser): Promise<ItemTindakan[]> {
         ? db.document.findMany({
             where: {
               status: "aktif",
+              // `orgId` WAJIB, bukan pelengkap: cabang `locationId: null` di
+              // bawah tidak menyebut lokasi sama sekali, jadi tanpa pagar
+              // organisasi ia cocok dengan dokumen tingkat-paket milik tenant
+              // MANA PUN. Persis sekelas kebocoran yang ditutup DECISIONS 150.
+              orgId: user.orgId,
               expiryDate: {
                 not: null,
                 lt: new Date(hariIni.getTime() + AMBANG_EXPIRY_HARI * 86_400_000),
               },
-              OR: [{ location: locWhere }, { locationId: null }],
+              OR: [
+                // Dokumen milik lokasi → ikut scope lokasi.
+                { location: locWhere },
+                // Dokumen tingkat paket → paketnya harus dalam scope.
+                { locationId: null, package: packageScopeWhere(user, locIds) },
+                // Dokumen tingkat organisasi (tanpa paket & lokasi) — sudah
+                // dipagari `orgId` di atas.
+                { locationId: null, packageId: null },
+              ],
             },
             select: {
               id: true,

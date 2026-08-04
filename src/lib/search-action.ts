@@ -70,8 +70,21 @@ export async function cariGlobal(kueri: string): Promise<HasilCari[]> {
       ? db.document.findMany({
           where: {
             status: "aktif",
+            // `orgId` WAJIB: cabang `locationId: null` tidak menyebut lokasi,
+            // jadi tanpa pagar organisasi ia cocok dengan dokumen tingkat-paket
+            // milik tenant MANA PUN — dan pencarian adalah tempat paling mudah
+            // untuk memancing keberadaan objek yang tak boleh dilihat.
+            orgId: user.orgId,
             OR: [{ title: cocok }, { docNumber: cocok }],
-            AND: [{ OR: [{ location: locWhere }, { locationId: null }] }],
+            AND: [
+              {
+                OR: [
+                  { location: locWhere },
+                  { locationId: null, package: packageScopeWhere(user, locIds) },
+                  { locationId: null, packageId: null },
+                ],
+              },
+            ],
           },
           select: {
             id: true,
