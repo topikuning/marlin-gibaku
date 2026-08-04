@@ -65,6 +65,11 @@ export async function listPackages(
       driveFolderId: true,
       contract: {
         select: {
+          // Cadangan kolom "Nomor" di daftar paket: paket yang sudah
+          // berkontrak sering tidak punya nomor paket sendiri, sementara
+          // nomor kontraknya justru nomor yang dipakai orang menyebut paket
+          // itu (DECISIONS 248).
+          contractNumber: true,
           vendor: { select: { name: true } },
         },
       },

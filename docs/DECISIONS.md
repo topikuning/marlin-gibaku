@@ -8537,3 +8537,121 @@ ikut menghitung **pra-ambil** Next atas seluruh tautan lokasi yang terlihat,
 sehingga 3 ketukan terbaca 11 permintaan. Keduanya menghasilkan angka yang
 tampak meyakinkan tapi salah — dan keduanya baru ketahuan karena angkanya
 diperiksa ulang, bukan diterima apa adanya.
+
+---
+
+## 248 · Kolom "Nomor" di daftar paket jatuh ke nomor kontrak (2026-08-04)
+
+Permintaan user: *"untuk nomor di halaman paket, tampilkan saja nomor
+kontraknya jika nomornya kosong."*
+
+Alasannya nyata: paket yang sudah berkontrak kerap tidak pernah diberi nomor
+paket sendiri, sedangkan nomor kontraknya justru nomor yang dipakai orang
+menyebut paket itu. Kolomnya jadi berisi "—" berderet padahal nomornya ADA,
+cuma tersimpan di kontrak.
+
+### Yang halus: apa artinya "kosong"
+
+Versi lama memakai `p.packageNumber ?? "—"`. `??` hanya menangkap
+null/undefined — string kosong dan string berisi spasi lolos, tampil kosong di
+layar, DAN sekaligus menutup jalan ke nomor kontraknya. Cacat semacam itu tidak
+menimbulkan galat apa pun; kolomnya cuma terlihat kosong, persis seperti
+sebelum diperbaiki. Karena itu nilainya di-trim dulu, dan ketiga bentuk kosong
+(`null`, `""`, `"   "`) diperlakukan sama.
+
+Nomor yang dipakai juga dikembalikan sudah bersih dari spasi tepi. Bila keduanya
+kosong tetap "—", bukan sel kosong: strip menyatakan "memang tidak ada",
+sedangkan sel kosong terbaca "belum dimuat".
+
+### Verifikasi
+
+7 uji unit mengunci ketiga bentuk kosong itu. Lalu dibuktikan di halaman
+sungguhan — data seed semuanya punya nomor paket sehingga cadangannya tidak
+pernah terpicu, jadi tiga paket sengaja dikosongkan dengan tiga cara berbeda
+(`""`, `NULL`, `"   "`); ketiganya menampilkan nomor kontraknya, dan paket yang
+punya nomor sendiri tetap memakai nomornya. Data seed dikembalikan sesudahnya.
+
+### Catatan yang belum diputuskan
+
+Kolomnya berjudul "Nomor", jadi pembaca tidak bisa membedakan mana nomor paket
+dan mana nomor kontrak. Dikerjakan apa adanya sesuai permintaan ("tampilkan
+saja"); kalau nanti perlu dibedakan, penanda kecil atau tooltip bisa
+ditambahkan tanpa mengubah datanya.
+
+---
+
+## 249 · Nomor paket bisa dikoreksi sesudah berkontrak (2026-08-04)
+
+Pertanyaan user: *"nomor itu saat ini bahkan bisa kosong, kenapa di halaman
+paket, nomor tidak ada editnya, apa aku yang terlewat?"*
+
+Tidak terlewat — memang tidak ada.
+
+### Yang ditemukan
+
+Nomor paket hanya bisa diisi di tiga tempat, dan ketiganya menutup diri:
+
+| Tempat | Kapan bisa |
+|---|---|
+| `/paket` (daftar) | tidak pernah — tabel baca-saja |
+| `/paket/baru`, `/paket/bypass` | hanya saat MEMBUAT |
+| `/paket/{id}/tender` | hanya `praKontrak` = belum ada kontrak |
+
+Form tender dipagari `!pkg.contract && stage ∈ {prospek, tender, penetapan}`.
+Begitu kontrak ada, ia berubah jadi daftar baca-saja: *"Paket sudah berkontrak
+— data terkunci."*
+
+Konsekuensi yang tidak disengaja: paket jalur cepat (bypass) dibuat langsung
+`stage: "kontrak"` berikut kontraknya dalam satu transaksi, sehingga
+`praKontrak` bernilai false SEJAK PAKET ITU LAHIR — form tendernya tidak pernah
+muncul sekali pun. Nomor paket yang kosong di situ **mustahil diisi lewat UI
+mana pun**; form edit kontrak super-admin pun tidak memuatnya.
+
+Itu menjelaskan asal keluhan sebelumnya (DECISIONS 248): kolom "Nomor" kosong
+justru pada paket yang sudah berkontrak — persis populasi yang tidak punya jalan
+perbaikan.
+
+### Keputusan
+
+Kuncinya sendiri masuk akal untuk data tender (HPS, kandidat vendor). Tapi nomor
+paket bukan angka yang memengaruhi perhitungan apa pun — ia identitas
+administratif. Menguncinya seumur hidup adalah efek samping aturan yang
+dimaksudkan melindungi angka kontrak, bukan keputusan yang disengaja.
+
+Pilihan user: nomor paket ditambahkan ke **form edit kontrak super-admin**
+(`contract.edit`), bukan membuka kunci form tender untuk peran lain. Kunci
+"sudah berkontrak" tetap utuh bagi semua peran; koreksi nomor lewat satu pintu
+yang sudah ber-audit.
+
+Nilai kosong ditulis sebagai `null`, BUKAN "abaikan": nomor yang terlanjur salah
+ketik harus bisa dicabut. Pola `?? undefined` yang lazim di action lain justru
+akan membuat nilai kosong hilang sehingga nomor lama bertahan diam-diam — form
+tampak tersimpan padahal tidak berubah.
+
+### Verifikasi
+
+6 uji integrasi memakai paket BERKONTRAK tanpa nomor (keadaan yang dikeluhkan):
+mengisi, merapikan spasi tepi, mengosongkan kembali, field tidak dikirim, spasi
+saja, dan jejak audit. Lalu dibuktikan di browser dengan data dev: satu paket
+berkontrak dikosongkan nomornya, field-nya muncul di form kontrak dalam keadaan
+kosong, diisi lewat form sungguhan, tersimpan ke basis data, dan tampil di
+kolom "Nomor" halaman `/paket`. Data seed dikembalikan sesudahnya.
+
+### Lanjutan 246 — kontrol AG Grid ikut terkena (ditemukan CI, 2026-08-04)
+
+Perbaikan `text-base sm:text-sm` di komponen `ui/` TIDAK menjangkau kontrol yang
+digambar AG Grid sendiri: kotak nomor halaman di panel paginasi, editor sel,
+kotak filter. Ukurannya datang dari tema (`marlinTheme` fontSize 13), bukan dari
+kelas Tailwind — jadi 13px, dan Safari iOS tetap memperbesar halaman.
+
+**Yang membuatnya lolos: ujinya sendiri.** `mobile-zoom-input.spec.ts` mengukur
+tepat sesudah `goto`, sementara AG Grid menggambar panel paginasi SESUDAH mount.
+Di mesin lokal kotak itu belum ada saat diukur sehingga uji lulus — bukan karena
+aman, melainkan karena belum melihat. CI kebetulan lebih lambat, kotaknya sempat
+ada, dan gagal. Ujinya kini menunggu `.ag-paging-panel` terlihat lebih dulu,
+sehingga hasilnya sama di mana pun dijalankan; sesudah penantian itu ditambahkan,
+uji tersebut terbukti GAGAL di lokal bila perbaikan CSS-nya dimatikan.
+
+Perbaikannya satu blok media query untuk `.ag-root-wrapper input/select/textarea`,
+sengaja DI LUAR `@layer` karena aturan AG Grid disuntikkan sebagai CSS biasa
+lewat JS dan selalu menang atas aturan ber-layer.

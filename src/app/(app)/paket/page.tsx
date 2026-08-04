@@ -13,6 +13,7 @@ import {
   type PackageListFilter,
 } from "@/lib/package/queries";
 import type { PackageStage } from "@/generated/prisma/enums";
+import { nomorPaket } from "./nomor";
 import { PaketGrid, type PaketRow } from "./paket-grid";
 
 export const metadata: Metadata = { title: "Paket" };
@@ -27,6 +28,7 @@ function parseFilter(raw: string | undefined): PackageListFilter | undefined {
 function filterLabel(filter: PackageListFilter): string {
   return filter === "berkontrak" ? "Berkontrak" : PACKAGE_STAGE_LABEL[filter];
 }
+
 
 export default async function PaketPage({
   searchParams,
@@ -48,7 +50,7 @@ export default async function PaketPage({
   const rows = bigintToString(
     packages.map((p) => ({
       id: p.id,
-      packageNumber: p.packageNumber ?? "—",
+      packageNumber: nomorPaket(p.packageNumber, p.contract?.contractNumber),
       name: p.name,
       stage: p.stage,
       province: p.province ?? "—",
