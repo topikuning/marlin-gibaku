@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
-import { ImagePlus, RotateCcw, Search, Send, Trash2 } from "lucide-react";
+import { AlertTriangle, Check, ImagePlus, RotateCcw, Search, Send, Trash2 } from "lucide-react";
 import { Banner, Button, Input, Label } from "@/components/ui";
 import { formatNumber, formatRupiah } from "@/lib/format";
 import {
@@ -110,7 +110,15 @@ export function ReportEditor({
           </div>
         </section>
       ) : null}
-      {reportId && items.length > 0 ? <SubmitPanel reportId={reportId} slug={slug} dateKey={dateKey} /> : null}
+      {reportId && items.length > 0 ? (
+        <SubmitPanel
+          reportId={reportId}
+          slug={slug}
+          dateKey={dateKey}
+          jumlahItem={items.length}
+          jumlahFoto={items.reduce((n, it) => n + (it.photos?.length ?? 0), 0) + photosTanpaItem.length}
+        />
+      ) : null}
     </div>
   );
 }
@@ -710,7 +718,31 @@ function ItemList({
 
 // ─────────────────────────────────────────────────────────────
 
-function SubmitPanel({ reportId, slug, dateKey }: { reportId: string; slug: string; dateKey: string }) {
+/**
+ * Checklist sebelum kirim (Master Prompt §8.7).
+ *
+ * Kalimatnya sengaja sederhana dan menyebut AKIBAT, bukan nama field. Pembaca
+ * di sini mandor yang sedang berdiri di lapangan; "Volume valid" tidak
+ * memberitahunya apa pun, "belum ada pekerjaan yang dicatat" memberitahunya.
+ *
+ * Checklist ini TIDAK menghalangi pengiriman. Kelengkapan sesungguhnya dijaga
+ * server (`submitReportAction`) dan kewajiban KKP tetap di Site Manager —
+ * memasang palang kedua di klien hanya menggandakan aturan di tempat yang
+ * lebih mudah meleset dari aturan aslinya.
+ */
+function SubmitPanel({
+  reportId,
+  slug,
+  dateKey,
+  jumlahItem,
+  jumlahFoto,
+}: {
+  reportId: string;
+  slug: string;
+  dateKey: string;
+  jumlahItem: number;
+  jumlahFoto: number;
+}) {
   const [state, formAction, pending] = useActionState<DailyActionState, FormData>(submitReportAction, undefined);
 
   // Kirim sukses → draft lokal (slug,date) tidak relevan lagi.
@@ -718,12 +750,45 @@ function SubmitPanel({ reportId, slug, dateKey }: { reportId: string; slug: stri
     if (state?.success) clearLocalDrafts(slug, dateKey);
   }, [state, slug, dateKey]);
 
+  const cek = [
+    {
+      ok: jumlahItem > 0,
+      teks: jumlahItem > 0 ? `${jumlahItem} pekerjaan dicatat` : "Belum ada pekerjaan dicatat",
+    },
+    {
+      ok: jumlahFoto > 0,
+      teks: jumlahFoto > 0 ? `${jumlahFoto} foto terlampir` : "Belum ada foto — verifikasi bisa lebih lama",
+    },
+  ];
+  const siap = cek.every((c) => c.ok);
+
   return (
     <form action={formAction} className="space-y-2">
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
+
+      <div className="rounded-lg border border-border bg-surface p-3">
+        <p className="text-[13px] font-semibold text-ink">
+          {siap ? "Siap dikirim" : "Perlu diperiksa"}
+        </p>
+        <ul className="mt-1.5 space-y-1">
+          {cek.map((c) => (
+            <li key={c.teks} className="flex items-start gap-2 text-[12.5px]">
+              {/* Bentuk ikon membedakan status, bukan warnanya saja —
+                  di bawah matahari perbedaan warna sering tidak terbaca. */}
+              {c.ok ? (
+                <Check aria-hidden className="mt-0.5 size-4 shrink-0 text-success" />
+              ) : (
+                <AlertTriangle aria-hidden className="mt-0.5 size-4 shrink-0 text-warning" />
+              )}
+              <span className={c.ok ? "text-ink-muted" : "text-ink"}>{c.teks}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
       <input type="hidden" name="reportId" value={reportId} />
-      <Button type="submit" loading={pending} className="h-13 w-full text-base">
+      <Button type="submit" loading={pending} size="lg" className="w-full">
         <Send aria-hidden className="size-4" />
         Kirim Laporan
       </Button>
