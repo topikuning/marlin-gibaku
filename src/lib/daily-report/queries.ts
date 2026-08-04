@@ -459,6 +459,12 @@ export type HariIniLocation = {
   weeklyTargets: WeeklyTarget[];
   weekNumber: number | null;
   last7Days: RecentDay[];
+  /**
+   * Kendala yang masih terbuka di lokasi ini. Ditampilkan di landing lapangan
+   * supaya pelapor tahu apa yang sudah dilaporkan dan sedang ditunggu — tanpa
+   * ini, kendala yang sama dilaporkan berulang kali karena tidak kelihatan.
+   */
+  kendalaAktif: { id: string; title: string; severity: IssueSeverity }[];
 };
 
 /** Ringkasan lapangan per lokasi untuk /hari-ini. */
@@ -471,7 +477,8 @@ export async function getHariIniLocation(locationId: string): Promise<HariIniLoc
   });
   if (!location) return null;
 
-  const [todayReport, correctionReports, weeklyPlan, last7Days, cumulative] = await Promise.all([
+  const [todayReport, correctionReports, weeklyPlan, last7Days, cumulative, kendalaAktif] =
+    await Promise.all([
     db.dailyReport.findUnique({
       where: { locationId_reportDate: { locationId, reportDate: today } },
       select: { status: true, _count: { select: { items: true } } },
@@ -506,10 +513,17 @@ export async function getHariIniLocation(locationId: string): Promise<HariIniLoc
     }),
     getRecentDays(locationId, 7),
     cumulativeVolumeByLineage(locationId),
+    db.issue.findMany({
+      where: { locationId, status: { in: ["terbuka", "ditangani"] } },
+      select: { id: true, title: true, severity: true },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+    }),
   ]);
 
   return {
     ...location,
+    kendalaAktif,
     todayDraftItemCount: todayReport ? todayReport._count.items : null,
     todayStatus: todayReport?.status ?? null,
     corrections: correctionReports.map((r) => ({
