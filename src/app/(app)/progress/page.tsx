@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHeader, KpiCard, Card, CardHeader, CardBody, EmptyState, ProgressBar } from "@/components/ui";
-import { DeltaBadge } from "@/components/ui/stat-delta";
+import { DeltaBadge, deviationTone } from "@/components/ui/stat-delta";
 import { TrendingUp } from "lucide-react";
 import { requireUser, accessibleLocationIds } from "@/lib/auth/session";
 import { locationScopeWhere } from "@/lib/auth/scope";
@@ -70,7 +70,7 @@ export default async function ProgressPage() {
         <KpiCard
           label="Realisasi (tertimbang)"
           value={formatPct(avgActual)}
-          tone={avgActual - avgPlan < -10 ? "danger" : avgActual - avgPlan < -1 ? "warning" : "success"}
+          tone={deviationTone(avgActual - avgPlan)}
           sub={`deviasi ${formatPct(avgActual - avgPlan)}`}
         />
       </section>
@@ -116,7 +116,7 @@ export default async function ProgressPage() {
                       <td className="py-2">
                         <ProgressBar
                           value={l.p.realizedPct}
-                          tone={l.p.deviationPct < -10 ? "danger" : l.p.deviationPct < -1 ? "warning" : "success"}
+                          tone={deviationTone(l.p.deviationPct)}
                         />
                       </td>
                     </tr>

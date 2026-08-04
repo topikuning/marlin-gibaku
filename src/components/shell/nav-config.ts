@@ -6,6 +6,7 @@ import {
   FileText,
   FolderOpen,
   Home,
+  ListChecks,
   Map,
   MapPin,
   Package,
@@ -24,10 +25,25 @@ import { can, type Capability } from "@/lib/authz";
  * Konfigurasi navigasi. NavItem serializable (icon = key string) sehingga
  * aman dilewatkan dari Server Component ke client (sidebar/bottom-nav).
  * Filter capability dilakukan DI SINI — shell tidak tahu authz.
+ *
+ * ENAM GRUP, bukan 15 menu datar (PRD §3.2/§3.3, FR-NAV-01). Menu lama berdiri
+ * sejajar semua — Foto Lapangan, Chat Grup dan Master Data sederajat dengan
+ * Beranda — sehingga urutannya tidak menceritakan apa pun tentang cara kerja.
+ * Pengelompokan di bawah ini mengikuti ALUR KERJA, bukan tabel database:
+ *
+ *   Beranda            apa yang harus saya tindak
+ *   Proyek             objek induk: paket → lokasi (peta = cara melihat, bukan modul)
+ *   Pelaksanaan        pekerjaan harian di lapangan
+ *   Pengendalian       rencana vs realisasi: progress, uang, analisis
+ *   Dokumen & Laporan  bukti masuk dan output keluar
+ *   Administrasi       data referensi, akun, konfigurasi
+ *
+ * TIDAK ADA fungsi yang dibuang — semuanya pindah grup dengan alasan di atas.
  */
 
 export const ICONS = {
   home: Home,
+  listChecks: ListChecks,
   activity: Activity,
   camera: Camera,
   package: Package,
@@ -56,28 +72,78 @@ export type NavItem = {
   anyCapability?: Capability[];
 };
 
-export const MAIN_NAV: NavItem[] = [
-  { label: "Beranda", href: "/", icon: "home" },
-  { label: "Paket", href: "/paket", icon: "package", capability: "package.view" },
-  { label: "Lokasi", href: "/lokasi", icon: "mapPin", capability: "location.view" },
-  { label: "Peta", href: "/peta", icon: "map", capability: "location.view" },
-  { label: "Hari Ini", href: "/hari-ini", icon: "sun", capability: "daily_report.create" },
-  { label: "Foto Lapangan", href: "/foto", icon: "camera", capability: "location.view" },
-  { label: "AI Intelligence", href: "/ai", icon: "sparkles", capability: "ai.view" },
-  { label: "Progress", href: "/progress", icon: "trendingUp", capability: "progress.view" },
-  { label: "Keuangan", href: "/keuangan", icon: "wallet", capability: "finance.view" },
-  { label: "Dokumen", href: "/dokumen", icon: "folderOpen", capability: "document.view" },
-  { label: "Laporan", href: "/laporan", icon: "fileText", capability: "report.export" },
-  // "Laporan → WA" dilebur ke Report Studio (/ai/reports) — DECISIONS 193/194.
-  // Route /laporan-wa dialihkan ke sana; jangan hidupkan lagi sebagai menu.
-  { label: "Chat Grup", href: "/chat-grup", icon: "messagesSquare", capability: "wa.chat" },
+/** Satu grup navigasi = satu cara kerja. Judul tampil sebagai eyebrow caps. */
+export type NavGroup = {
+  label: string;
+  items: NavItem[];
+};
+
+export const NAV_GROUPS: NavGroup[] = [
   {
-    label: "Master Data",
-    href: "/master",
-    icon: "database",
-    anyCapability: ["contract.manage", "wa.chat", "user.create"],
+    label: "Beranda",
+    items: [
+      { label: "Command Center", href: "/", icon: "home" },
+      {
+        label: "Perlu Tindakan",
+        href: "/tindakan",
+        icon: "listChecks",
+        capability: "location.view",
+      },
+    ],
   },
-  { label: "Sistem", href: "/sistem", icon: "settings", capability: "system.manage" },
+  {
+    label: "Proyek",
+    items: [
+      { label: "Paket", href: "/paket", icon: "package", capability: "package.view" },
+      { label: "Lokasi", href: "/lokasi", icon: "mapPin", capability: "location.view" },
+      // Peta = MODE MELIHAT daftar lokasi, bukan proses bisnis tersendiri
+      // (PRD §3.2). Tetap satu butir menu karena itulah pintu masuk yang
+      // dipakai manajemen; workspace lokasi dibuka dari markernya.
+      { label: "Peta Monitoring", href: "/peta", icon: "map", capability: "location.view" },
+    ],
+  },
+  {
+    label: "Pelaksanaan",
+    items: [
+      { label: "Hari Ini", href: "/hari-ini", icon: "sun", capability: "daily_report.create" },
+      // Foto adalah BUKTI dari laporan/kegiatan, bukan modul mandiri — galeri
+      // global hanya view lintas lokasi (PRD §4 "Bukti Foto").
+      { label: "Galeri Foto", href: "/foto", icon: "camera", capability: "location.view" },
+    ],
+  },
+  {
+    label: "Pengendalian",
+    items: [
+      { label: "Progress & Deviasi", href: "/progress", icon: "trendingUp", capability: "progress.view" },
+      { label: "Keuangan", href: "/keuangan", icon: "wallet", capability: "finance.view" },
+      // AI = layanan analisis lintas modul, bukan produk terpisah (PRD §5.11).
+      { label: "Insight & AI", href: "/ai", icon: "sparkles", capability: "ai.view" },
+    ],
+  },
+  {
+    label: "Dokumen & Laporan",
+    items: [
+      { label: "Pusat Dokumen", href: "/dokumen", icon: "folderOpen", capability: "document.view" },
+      { label: "Pusat Laporan", href: "/laporan", icon: "fileText", capability: "report.export" },
+      // "Laporan → WA" dilebur ke Report Studio (/ai/reports) — DECISIONS
+      // 193/194. Route lama 308 ke sana (next.config.ts); jangan hidupkan lagi
+      // sebagai menu.
+      { label: "Ringkasan Chat", href: "/chat-grup", icon: "messagesSquare", capability: "wa.chat" },
+    ],
+  },
+  {
+    label: "Administrasi",
+    items: [
+      {
+        label: "Master Data",
+        href: "/master",
+        icon: "database",
+        anyCapability: ["contract.manage", "wa.chat", "user.create"],
+      },
+      { label: "Pengguna & Akses", href: "/master/pengguna", icon: "users", capability: "user.create" },
+      { label: "Sistem", href: "/sistem", icon: "settings", capability: "system.manage" },
+    ],
+  },
 ];
 
 function allowed(role: UserRole, item: NavItem): boolean {
@@ -85,8 +151,19 @@ function allowed(role: UserRole, item: NavItem): boolean {
   return !item.capability || can(role, item.capability);
 }
 
+/**
+ * Grup yang boleh dilihat role ini. Grup yang seluruh isinya tersaring habis
+ * ikut hilang — judul grup kosong hanya menyisakan ruang tanpa isi.
+ */
+export function filterNavGroups(role: UserRole): NavGroup[] {
+  return NAV_GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => allowed(role, i)) })).filter(
+    (g) => g.items.length > 0,
+  );
+}
+
+/** Daftar rata seluruh menu yang boleh dilihat — untuk laci menu mobile. */
 export function filterNav(role: UserRole): NavItem[] {
-  return MAIN_NAV.filter((item) => allowed(role, item));
+  return filterNavGroups(role).flatMap((g) => g.items);
 }
 
 const FIELD_ROLES: ReadonlySet<UserRole> = new Set([
@@ -96,21 +173,25 @@ const FIELD_ROLES: ReadonlySet<UserRole> = new Set([
 
 /**
  * Pintasan navigasi bawah mobile — maksimal 4 item; BottomNav menambahkan
- * tombol "Menu" (drawer nav lengkap) sehingga menu lain tetap terjangkau.
+ * tombol "Menu" (laci nav lengkap) sehingga menu lain tetap terjangkau.
+ *
+ * Berbeda per peran dengan sengaja: yang dipegang orang lapangan sepanjang
+ * hari bukan yang dibuka manajemen. Pelaksana tidak pernah butuh portfolio;
+ * manajemen tidak pernah mengisi laporan dari jempolnya.
  */
 export function MOBILE_NAV(role: UserRole): NavItem[] {
   const items: NavItem[] = FIELD_ROLES.has(role)
     ? [
         { label: "Hari Ini", href: "/hari-ini", icon: "sun", capability: "daily_report.create" },
-        { label: "Proyek", href: "/lokasi", icon: "mapPin", capability: "location.view" },
+        { label: "Lokasi", href: "/lokasi", icon: "mapPin", capability: "location.view" },
+        { label: "Foto", href: "/foto", icon: "camera", capability: "location.view" },
         { label: "Laporan", href: "/laporan", icon: "fileText", capability: "report.export" },
-        { label: "Beranda", href: "/", icon: "home" },
       ]
     : [
         { label: "Beranda", href: "/", icon: "home" },
-        { label: "Paket", href: "/paket", icon: "package", capability: "package.view" },
         { label: "Lokasi", href: "/lokasi", icon: "mapPin", capability: "location.view" },
         { label: "Progress", href: "/progress", icon: "trendingUp", capability: "progress.view" },
+        { label: "Tindakan", href: "/tindakan", icon: "listChecks", capability: "location.view" },
       ];
   return items.filter((item) => allowed(role, item)).slice(0, 4);
 }

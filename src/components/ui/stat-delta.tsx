@@ -1,23 +1,24 @@
 import { cn } from "@/lib/cn";
 import { formatPct } from "@/lib/format";
+import { tingkatDeviasi, type TingkatDeviasi } from "@/lib/deviasi";
 
 /**
- * SATU-SATUNYA tempat threshold deviasi progress (realisasi - rencana, poin %).
- * ≥ -1 hijau (on track), ≥ -10 amber (perlu perhatian), < -10 merah (kritis).
+ * Ambang deviasi progress (realisasi − rencana, poin %) kini tinggal di
+ * `@/lib/deviasi` — satu tempat yang bisa dibaca kode server maupun client.
+ * Di sini hanya di-ekspor ulang supaya pemanggil lama tidak perlu berubah.
  */
-export const DEVIATION_THRESHOLDS = {
-  /** Deviasi ≥ nilai ini = hijau. */
-  onTrack: -1,
-  /** Deviasi ≥ nilai ini (dan < onTrack) = amber. Di bawahnya = merah. */
-  warning: -10,
-} as const;
+export { DEVIATION_THRESHOLDS } from "@/lib/deviasi";
 
 export type DeviationTone = "success" | "warning" | "danger";
 
+const TONE_DARI_TINGKAT: Record<TingkatDeviasi, DeviationTone> = {
+  aman: "success",
+  perhatian: "warning",
+  kritis: "danger",
+};
+
 export function deviationTone(value: number): DeviationTone {
-  if (value >= DEVIATION_THRESHOLDS.onTrack) return "success";
-  if (value >= DEVIATION_THRESHOLDS.warning) return "warning";
-  return "danger";
+  return TONE_DARI_TINGKAT[tingkatDeviasi(value)];
 }
 
 const TONE_CLASS: Record<DeviationTone, string> = {

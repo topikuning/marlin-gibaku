@@ -22,6 +22,7 @@ import { DeltaBadge } from "@/components/ui/stat-delta";
 import { accessibleLocationIds, type SessionUser } from "@/lib/auth/session";
 import { getDashboardData, getActivityCentre } from "@/lib/dashboard";
 import { formatPct, formatRupiahShort, formatTanggal } from "@/lib/format";
+import { tingkatDeviasi } from "@/lib/deviasi";
 import { REPORT_STATUS_LABEL } from "@/lib/lifecycle";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import { ISSUE_SEVERITY_LABEL, ISSUE_SEVERITY_TONE, RECOVERY_STATUS_LABEL, RECOVERY_STATUS_TONE } from "@/app/(app)/lokasi/[slug]/issue-labels";
@@ -532,9 +533,11 @@ function Empty({ icon, text }: { icon: ReactNode; text: string }) {
   );
 }
 
+/**
+ * Titik warna deviasi. `null` (belum ada baseline) sengaja TIDAK dihijaukan —
+ * "tidak diketahui" bukan "baik-baik saja".
+ */
 function toneDot(dev: number | null): string {
   if (dev == null) return "bg-ink-faint";
-  if (dev < -10) return "bg-danger";
-  if (dev < 0) return "bg-warning";
-  return "bg-success";
+  return { aman: "bg-success", perhatian: "bg-warning", kritis: "bg-danger" }[tingkatDeviasi(dev)];
 }

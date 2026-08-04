@@ -6,10 +6,11 @@ import { DeltaBadge, deviationTone } from "@/components/ui/stat-delta";
 import { requireUser, accessibleLocationIds, type SessionUser } from "@/lib/auth/session";
 import { locationScopeWhere, packageScopeWhere } from "@/lib/auth/scope";
 import { can } from "@/lib/authz";
-import { ExecutiveDashboard } from "@/app/(app)/aktivitas/executive-dashboard";
+import { ExecutiveDashboard } from "@/app/(app)/_dashboard/executive-dashboard";
 import { db } from "@/lib/db";
 import { getLocationsProgress } from "@/lib/progress";
 import { formatRupiahShort, formatTanggal } from "@/lib/format";
+import { tingkatDeviasi } from "@/lib/deviasi";
 import { PACKAGE_STAGE_LABEL, PACKAGE_STAGE_TONE, REPORT_STATUS_LABEL, REPORT_STATUS_TONE } from "@/lib/lifecycle";
 
 export const dynamic = "force-dynamic";
@@ -79,7 +80,7 @@ async function CommandCenter({ user }: { user: SessionUser }) {
   const progress = await getLocationsProgress(locations.map((l) => l.id));
   const critical = locations
     .map((l) => ({ ...l, p: progress.get(l.id) }))
-    .filter((l) => l.p && l.p.deviationPct < -10)
+    .filter((l) => l.p && tingkatDeviasi(l.p.deviationPct) === "kritis")
     .sort((a, b) => (a.p!.deviationPct ?? 0) - (b.p!.deviationPct ?? 0));
 
   let totalContract = 0n;

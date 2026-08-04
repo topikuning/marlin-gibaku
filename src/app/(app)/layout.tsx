@@ -1,5 +1,5 @@
 import { AppShell } from "@/components/shell/app-shell";
-import { filterNav, MOBILE_NAV } from "@/components/shell/nav-config";
+import { filterNav, filterNavGroups, MOBILE_NAV } from "@/components/shell/nav-config";
 import { Banner } from "@/components/ui";
 import { accessibleLocationIds, requireUser } from "@/lib/auth/session";
 import { logout } from "@/lib/auth/actions";
@@ -19,6 +19,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <AppShell
       brand={brand}
       user={{ fullName: user.fullName, role: user.role }}
+      navGroups={filterNavGroups(user.role)}
       nav={filterNav(user.role)}
       mobileNav={MOBILE_NAV(user.role)}
       logoutAction={async () => {

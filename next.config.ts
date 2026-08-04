@@ -36,6 +36,37 @@ const nextConfig: NextConfig = {
       "./node_modules/.pnpm/@img+*/**",
     ],
   },
+  /**
+   * URL LAMA → URL KANONIK, permanen (308). PRD §3.1 baris 7/15/45/46 +
+   * FR-NAV-03: "Alias lama memakai redirect permanen".
+   *
+   * Dipindah ke sini dari `page.tsx` yang memanggil `redirect()`. Bedanya
+   * bukan gaya: `redirect()` di dalam page mengembalikan 307 SEMENTARA dan
+   * tetap menghitung sebagai route aplikasi — persis keluhan PRD bahwa "route
+   * teknis tetap terhitung dan membingungkan dokumentasi/bookmark". Sebagai
+   * entri di sini, alias ditangani sebelum React dijalankan, peramban dan
+   * mesin pencari memperbarui bookmark-nya sendiri, dan jumlah route benar-
+   * benar berkurang.
+   *
+   * `/aktivitas` bukan sekadar alias: dulu ia me-render Dashboard Eksekutif
+   * yang SAMA dengan `/`, jadi ada dua URL untuk satu produk. Komponennya kini
+   * tinggal di `(app)/_dashboard/` — folder ber-awalan garis bawah sengaja,
+   * karena App Router tidak menjadikannya route.
+   */
+  async redirects() {
+    return [
+      { source: "/aktivitas", destination: "/", permanent: true },
+      { source: "/pengguna", destination: "/master/pengguna", permanent: true },
+      { source: "/paket/vendor", destination: "/master/perusahaan", permanent: true },
+      { source: "/kontak-wa", destination: "/master/kontak", permanent: true },
+      // Laporan → WA dilebur ke Report Studio (DECISIONS 193/194).
+      {
+        source: "/laporan-wa",
+        destination: "/ai/reports?template=wa_update",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

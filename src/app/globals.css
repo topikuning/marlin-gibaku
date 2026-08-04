@@ -51,10 +51,23 @@
   --color-ink-muted: #64748b; /* teks sekunder */
   --color-ink-faint: #94a3b8; /* placeholder/eyebrow */
 
-  /* Radius 6–10px */
+  /*
+   * Radius — kelompok TERBATAS, bukan skala bebas (Design System §2):
+   * kontrol kecil 6 · kontrol 8 · kartu/panel 10–12 · pil 999.
+   * `xl` dipakai kartu/section besar; `full` untuk chip status.
+   */
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 10px;
+  --radius-xl: 12px;
+
+  /*
+   * Bayangan: kartu TIDAK memakai shadow (cukup border) — hanya lapisan yang
+   * mengambang di atas halaman (dropdown, panel notifikasi, drawer, modal)
+   * yang butuh, supaya kedalaman benar-benar berarti "melayang".
+   */
+  --shadow-overlay: 0 14px 40px rgba(15, 23, 42, 0.16);
+  --shadow-popover: 0 10px 30px rgba(15, 23, 42, 0.14);
 }
 
 @layer base {
