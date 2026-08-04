@@ -94,41 +94,41 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Proyek",
     items: [
-      { label: "Paket", href: "/paket", icon: "package", capability: "package.view" },
-      { label: "Lokasi", href: "/lokasi", icon: "mapPin", capability: "location.view" },
+      { label: "Paket", href: "/proyek/paket", icon: "package", capability: "package.view" },
+      { label: "Lokasi", href: "/proyek/lokasi", icon: "mapPin", capability: "location.view" },
       // Peta = MODE MELIHAT daftar lokasi, bukan proses bisnis tersendiri
       // (PRD §3.2). Tetap satu butir menu karena itulah pintu masuk yang
       // dipakai manajemen; workspace lokasi dibuka dari markernya.
-      { label: "Peta Monitoring", href: "/peta", icon: "map", capability: "location.view" },
+      { label: "Peta Monitoring", href: "/proyek/peta", icon: "map", capability: "location.view" },
     ],
   },
   {
     label: "Pelaksanaan",
     items: [
-      { label: "Hari Ini", href: "/hari-ini", icon: "sun", capability: "daily_report.create" },
+      { label: "Hari Ini", href: "/pelaksanaan", icon: "sun", capability: "daily_report.create" },
       // Foto adalah BUKTI dari laporan/kegiatan, bukan modul mandiri — galeri
       // global hanya view lintas lokasi (PRD §4 "Bukti Foto").
-      { label: "Galeri Foto", href: "/foto", icon: "camera", capability: "location.view" },
+      { label: "Galeri Foto", href: "/pelaksanaan/bukti", icon: "camera", capability: "location.view" },
     ],
   },
   {
     label: "Pengendalian",
     items: [
-      { label: "Progress & Deviasi", href: "/progress", icon: "trendingUp", capability: "progress.view" },
-      { label: "Keuangan", href: "/keuangan", icon: "wallet", capability: "finance.view" },
+      { label: "Progress & Deviasi", href: "/pengendalian/progress", icon: "trendingUp", capability: "progress.view" },
+      { label: "Keuangan", href: "/pengendalian/keuangan", icon: "wallet", capability: "finance.view" },
       // AI = layanan analisis lintas modul, bukan produk terpisah (PRD §5.11).
-      { label: "Insight & AI", href: "/ai", icon: "sparkles", capability: "ai.view" },
+      { label: "Insight & AI", href: "/pengendalian/insight", icon: "sparkles", capability: "ai.view" },
     ],
   },
   {
     label: "Dokumen & Laporan",
     items: [
-      { label: "Pusat Dokumen", href: "/dokumen", icon: "folderOpen", capability: "document.view" },
-      { label: "Pusat Laporan", href: "/laporan", icon: "fileText", capability: "report.export" },
+      { label: "Pusat Dokumen", href: "/dokumen-laporan/dokumen", icon: "folderOpen", capability: "document.view" },
+      { label: "Pusat Laporan", href: "/dokumen-laporan/laporan", icon: "fileText", capability: "report.export" },
       // "Laporan → WA" dilebur ke Report Studio (/ai/reports) — DECISIONS
       // 193/194. Route lama 308 ke sana (next.config.ts); jangan hidupkan lagi
       // sebagai menu.
-      { label: "Ringkasan Chat", href: "/chat-grup", icon: "messagesSquare", capability: "wa.chat" },
+      { label: "Ringkasan Chat", href: "/dokumen-laporan/distribusi", icon: "messagesSquare", capability: "wa.chat" },
     ],
   },
   {
@@ -136,12 +136,12 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       {
         label: "Master Data",
-        href: "/master",
+        href: "/administrasi",
         icon: "database",
         anyCapability: ["contract.manage", "wa.chat", "user.create"],
       },
-      { label: "Pengguna & Akses", href: "/master/pengguna", icon: "users", capability: "user.create" },
-      { label: "Sistem", href: "/sistem", icon: "settings", capability: "system.manage" },
+      { label: "Pengguna & Akses", href: "/administrasi/pengguna", icon: "users", capability: "user.create" },
+      { label: "Sistem", href: "/administrasi/sistem", icon: "settings", capability: "system.manage" },
     ],
   },
 ];
@@ -182,15 +182,15 @@ const FIELD_ROLES: ReadonlySet<UserRole> = new Set([
 export function MOBILE_NAV(role: UserRole): NavItem[] {
   const items: NavItem[] = FIELD_ROLES.has(role)
     ? [
-        { label: "Hari Ini", href: "/hari-ini", icon: "sun", capability: "daily_report.create" },
-        { label: "Lokasi", href: "/lokasi", icon: "mapPin", capability: "location.view" },
-        { label: "Foto", href: "/foto", icon: "camera", capability: "location.view" },
-        { label: "Laporan", href: "/laporan", icon: "fileText", capability: "report.export" },
+        { label: "Hari Ini", href: "/pelaksanaan", icon: "sun", capability: "daily_report.create" },
+        { label: "Lokasi", href: "/proyek/lokasi", icon: "mapPin", capability: "location.view" },
+        { label: "Foto", href: "/pelaksanaan/bukti", icon: "camera", capability: "location.view" },
+        { label: "Laporan", href: "/dokumen-laporan/laporan", icon: "fileText", capability: "report.export" },
       ]
     : [
         { label: "Beranda", href: "/", icon: "home" },
-        { label: "Lokasi", href: "/lokasi", icon: "mapPin", capability: "location.view" },
-        { label: "Progress", href: "/progress", icon: "trendingUp", capability: "progress.view" },
+        { label: "Lokasi", href: "/proyek/lokasi", icon: "mapPin", capability: "location.view" },
+        { label: "Progress", href: "/pengendalian/progress", icon: "trendingUp", capability: "progress.view" },
         { label: "Tindakan", href: "/tindakan", icon: "listChecks", capability: "location.view" },
       ];
   return items.filter((item) => allowed(role, item)).slice(0, 4);

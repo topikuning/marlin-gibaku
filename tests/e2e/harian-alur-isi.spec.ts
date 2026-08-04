@@ -34,7 +34,7 @@ function hariIniJakarta() {
 
 async function bukaEditor(page: Page) {
   await login(page, "sm-01");
-  await page.goto(`/lokasi/${SLUG}/harian/${hariIniJakarta()}`);
+  await page.goto(`/proyek/lokasi/${SLUG}/harian/${hariIniJakarta()}`);
   await expect(page.getByRole("heading", { name: "Tambah / ubah progres pekerjaan" })).toBeVisible({
     timeout: 15_000,
   });

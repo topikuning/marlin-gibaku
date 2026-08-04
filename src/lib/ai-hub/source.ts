@@ -270,7 +270,7 @@ export async function buildPortfolioPulse(
         entityId: l.id,
         label: `${l.name} — progress`,
         value: `rencana ${facts.planPct.toFixed(1)}% · realisasi ${facts.actualPct.toFixed(1)}% · deviasi ${facts.deviationPp.toFixed(1)} pp (mgg ${facts.currentWeek}/${facts.totalWeeks})`,
-        href: `/lokasi/${l.slug}/progress`,
+        href: `/proyek/lokasi/${l.slug}/progress`,
       },
       {
         id: `${l.slug}:laporan`,
@@ -278,7 +278,7 @@ export async function buildPortfolioPulse(
         entityId: l.id,
         label: `${l.name} — laporan harian`,
         value: `${facts.finalReports}/${facts.expectedReports} final · ${facts.sentReports} proses · ${facts.draftReports} draft`,
-        href: `/lokasi/${l.slug}/laporan`,
+        href: `/proyek/lokasi/${l.slug}/laporan`,
       },
       {
         id: `${l.slug}:kendala`,
@@ -286,7 +286,7 @@ export async function buildPortfolioPulse(
         entityId: l.id,
         label: `${l.name} — kendala & recovery`,
         value: `${facts.openIssues} terbuka (${facts.criticalIssues} kritis) · ${facts.overdueRecoveries} recovery overdue`,
-        href: `/lokasi/${l.slug}/kendala`,
+        href: `/proyek/lokasi/${l.slug}/kendala`,
       },
       {
         id: `${l.slug}:foto`,
@@ -294,7 +294,7 @@ export async function buildPortfolioPulse(
         entityId: l.id,
         label: `${l.name} — dokumentasi`,
         value: `${facts.photoCount} foto · ${facts.activityCount} kegiatan dlm periode`,
-        href: `/lokasi/${l.slug}/kegiatan`,
+        href: `/proyek/lokasi/${l.slug}/kegiatan`,
       },
     );
     if (facts.milestonesNeedFix > 0) {
@@ -304,7 +304,7 @@ export async function buildPortfolioPulse(
         entityId: l.id,
         label: `${l.name} — milestone administrasi`,
         value: `${facts.milestonesNeedFix} perlu perbaikan`,
-        href: `/lokasi/${l.slug}/administrasi`,
+        href: `/proyek/lokasi/${l.slug}/administrasi`,
       });
     }
   }

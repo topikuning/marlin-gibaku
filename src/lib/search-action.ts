@@ -117,7 +117,7 @@ export async function cariGlobal(kueri: string): Promise<HasilCari[]> {
       jenis: "lokasi",
       judul: l.name,
       detail: gabung(l.regency, l.province),
-      href: `/lokasi/${l.slug}`,
+      href: `/proyek/lokasi/${l.slug}`,
     });
   }
 
@@ -127,7 +127,7 @@ export async function cariGlobal(kueri: string): Promise<HasilCari[]> {
       jenis: "paket",
       judul: p.name,
       detail: gabung(p.packageNumber, PACKAGE_STAGE_LABEL[p.stage]),
-      href: `/paket/${p.id}`,
+      href: `/proyek/paket/${p.id}`,
     });
   }
 
@@ -137,7 +137,7 @@ export async function cariGlobal(kueri: string): Promise<HasilCari[]> {
       jenis: "dokumen",
       judul: d.title,
       detail: gabung(d.docNumber, d.location?.name) || "Dokumen",
-      href: `/dokumen/${d.id}`,
+      href: `/dokumen-laporan/dokumen/${d.id}`,
     });
   }
 
@@ -149,7 +149,7 @@ export async function cariGlobal(kueri: string): Promise<HasilCari[]> {
       // detailnya jadi "null" di layar.
       judul: u.fullName,
       detail: gabung(u.username, ROLE_LABEL[u.role]),
-      href: `/master/pengguna`,
+      href: `/administrasi/pengguna`,
     });
   }
 

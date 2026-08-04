@@ -161,8 +161,8 @@ export async function commitMasterImportAction(
       updated,
       vendors: vendorNames.length,
     });
-    revalidatePath("/paket/katalog");
-    revalidatePath("/paket/bypass");
+    revalidatePath("/administrasi/lokasi-master");
+    revalidatePath("/proyek/paket/bypass");
     return {
       success: `Impor selesai: ${created} lokasi baru, ${updated} diperbarui, ${vendorNames.length} vendor diproses.`,
     };

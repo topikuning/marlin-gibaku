@@ -259,7 +259,7 @@ async function _getAntreanTindakan(user: SessionUser): Promise<ItemTindakan[]> {
       keparahan: selisihHari(r.reportDate, hariIni) > 1 ? "perhatian" : "info",
       jatuhTempo: r.reportDate,
       telatHari: selisihHari(r.reportDate, hariIni),
-      href: `/lokasi/${r.location.slug}/harian/${tgl}`,
+      href: `/proyek/lokasi/${r.location.slug}/harian/${tgl}`,
     });
   }
 
@@ -274,7 +274,7 @@ async function _getAntreanTindakan(user: SessionUser): Promise<ItemTindakan[]> {
       keparahan: "perhatian",
       jatuhTempo: r.reportDate,
       telatHari: selisihHari(r.reportDate, hariIni),
-      href: `/lokasi/${r.location.slug}/harian/${tgl}`,
+      href: `/proyek/lokasi/${r.location.slug}/harian/${tgl}`,
     });
   }
 
@@ -288,7 +288,7 @@ async function _getAntreanTindakan(user: SessionUser): Promise<ItemTindakan[]> {
       keparahan: i.severity === "kritis" || i.severity === "tinggi" ? "kritis" : "perhatian",
       jatuhTempo: null,
       telatHari: null,
-      href: `/lokasi/${i.location.slug}/progress`,
+      href: `/proyek/lokasi/${i.location.slug}/progress`,
     });
   }
 
@@ -307,7 +307,7 @@ async function _getAntreanTindakan(user: SessionUser): Promise<ItemTindakan[]> {
       keparahan: "kritis",
       jatuhTempo: a.dueDate,
       telatHari: telat,
-      href: `/lokasi/${a.issue.location.slug}/progress`,
+      href: `/proyek/lokasi/${a.issue.location.slug}/progress`,
     });
   }
 
@@ -326,7 +326,7 @@ async function _getAntreanTindakan(user: SessionUser): Promise<ItemTindakan[]> {
       keparahan: telat > 0 ? "kritis" : "perhatian",
       jatuhTempo: d.expiryDate,
       telatHari: telat,
-      href: `/dokumen/${d.id}`,
+      href: `/dokumen-laporan/dokumen/${d.id}`,
     });
   }
 
@@ -340,7 +340,7 @@ async function _getAntreanTindakan(user: SessionUser): Promise<ItemTindakan[]> {
       keparahan: "perhatian",
       jatuhTempo: null,
       telatHari: null,
-      href: `/lokasi/${k.location.slug}/keuangan`,
+      href: `/proyek/lokasi/${k.location.slug}/keuangan`,
     });
   }
 
@@ -354,7 +354,7 @@ async function _getAntreanTindakan(user: SessionUser): Promise<ItemTindakan[]> {
       keparahan: "perhatian",
       jatuhTempo: null,
       telatHari: null,
-      href: `/lokasi/${e.location.slug}/keuangan`,
+      href: `/proyek/lokasi/${e.location.slug}/keuangan`,
     });
   }
 
@@ -377,7 +377,7 @@ async function _getAntreanTindakan(user: SessionUser): Promise<ItemTindakan[]> {
         keparahan: KEPARAHAN_DARI_DEVIASI[tingkat],
         jatuhTempo: null,
         telatHari: null,
-        href: `/lokasi/${l.slug}/progress`,
+        href: `/proyek/lokasi/${l.slug}/progress`,
       });
     }
   }

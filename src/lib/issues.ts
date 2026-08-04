@@ -29,8 +29,8 @@ async function guard(locationId: string): Promise<{ user: SessionUser; slug: str
 }
 
 function revalidateLocation(slug: string): void {
-  revalidatePath(`/lokasi/${slug}/progress`);
-  revalidatePath(`/lokasi/${slug}`);
+  revalidatePath(`/proyek/lokasi/${slug}/progress`);
+  revalidatePath(`/proyek/lokasi/${slug}`);
 }
 
 function fail(err: unknown): IssueActionState {

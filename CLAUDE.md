@@ -74,9 +74,17 @@ Deploy: Railway + Dockerfile (DILARANG Nixpacks/Railpack).
 ```
 src/
 ├── app/(auth)/masuk, ganti-password
-├── app/(app)/           # semua butuh sesi: / (command center), paket/, lokasi/,
-│                        # hari-ini/, progress/, keuangan/, dokumen/, laporan/,
-│                        # pengguna/, sistem/
+├── app/(app)/           # semua butuh sesi. ENAM keluarga route kanonik
+│                        # (PRD §4.1, DECISIONS 250) — URL lama 308 ke sini:
+│                        #   /                    command center + Dashboard Eksekutif
+│                        #   /tindakan            antrean tugas & persetujuan
+│                        #   /proyek/…            paket, lokasi, peta
+│                        #   /pelaksanaan/…       hari ini, bukti/foto
+│                        #   /pengendalian/…      progress, keuangan, insight (AI)
+│                        #   /dokumen-laporan/…   dokumen, laporan, distribusi
+│                        #   /administrasi/…      pengguna, perusahaan, sistem,
+│                        #                        kontak, lokasi-master
+│                        # _dashboard/ = komponen bersama, BUKAN route
 ├── app/cetak/           # print A4 tanpa shell
 ├── app/api/health, ready, documents/[id]
 ├── lib/                 # db, env (validasi+normalisasi R2), authz (capability),

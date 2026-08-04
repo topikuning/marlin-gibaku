@@ -22,7 +22,7 @@ export function DashboardSearch({ locations }: { locations: { name: string; slug
   const go = (slug: string) => {
     setOpen(false);
     setQ("");
-    router.push(`/lokasi/${slug}`);
+    router.push(`/proyek/lokasi/${slug}`);
   };
 
   return (

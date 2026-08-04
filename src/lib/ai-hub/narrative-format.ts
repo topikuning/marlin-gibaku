@@ -56,7 +56,7 @@ export function toNarrativeSourceRefs(bundle: NarrativeBundle): SourceRef[] {
         entityId: r.id,
         label: `${loc.locationName} — laporan ${r.date}`,
         value: r.notes ?? "(tanpa catatan naratif)",
-        href: `/lokasi/${loc.slug}/harian/${r.date}`,
+        href: `/proyek/lokasi/${loc.slug}/harian/${r.date}`,
       });
     }
     for (const a of loc.activities) {
@@ -66,7 +66,7 @@ export function toNarrativeSourceRefs(bundle: NarrativeBundle): SourceRef[] {
         entityId: a.id,
         label: `${loc.locationName} — ${a.kindLabel} ${a.date}`,
         value: a.notes ?? a.title,
-        href: `/lokasi/${loc.slug}/kegiatan`,
+        href: `/proyek/lokasi/${loc.slug}/kegiatan`,
       });
     }
   }

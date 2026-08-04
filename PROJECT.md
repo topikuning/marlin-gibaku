@@ -150,7 +150,8 @@ pengaman anti-mengarang per slot tidak bisa dihapus lewat halaman itu
 
 ## 6. Alur harian (jantung sistem)
 
-Mandor/SM buka **Hari Ini** → workspace tanggal `/lokasi/[slug]/harian/[date]` →
+Mandor/SM buka **Hari Ini** → workspace tanggal
+`/proyek/lokasi/[slug]/harian/[date]` →
 pilih item RAB (sisa volume tampil) → isi volume + foto (kompresi + EXIF + stamp,
 dedup sha256) + kendala → kirim. SM verifikasi di layar yang sama: kembalikan
 (alasan wajib) atau lengkapi KKP (tenaga/material/alat/cuaca/jam) → setujui →

@@ -41,7 +41,7 @@ vi.mock("@/lib/auth/session", async () => {
 });
 
 const { db } = await import("@/lib/db");
-const { importJadwalAction } = await import("@/app/(app)/lokasi/[slug]/rab/actions");
+const { importJadwalAction } = await import("@/app/(app)/proyek/lokasi/[slug]/rab/actions");
 
 const suffix = `ij${Date.now().toString(36)}`;
 let locId = "";

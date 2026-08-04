@@ -159,13 +159,13 @@ async function mutasiBerjejak<T>(
 }
 
 async function revalidateFinance(locationIds: string[]): Promise<void> {
-  revalidatePath("/keuangan");
+  revalidatePath("/pengendalian/keuangan");
   if (locationIds.length === 0) return;
   const locs = await db.location.findMany({
     where: { id: { in: locationIds } },
     select: { slug: true },
   });
-  for (const l of locs) revalidatePath(`/lokasi/${l.slug}/keuangan`);
+  for (const l of locs) revalidatePath(`/proyek/lokasi/${l.slug}/keuangan`);
 }
 
 /** Helper internal: vendor by name (case-preserving), buat kalau belum ada. */

@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
   // Origin publik, bukan request.nextUrl.origin: di container yang terakhir
   // berisi http://0.0.0.0:8080 dan browser pengguna gagal membukanya.
   const done = (q: string) =>
-    NextResponse.redirect(appUrl(`/sistem?gdrive=${q}`, request.headers, request.nextUrl.origin));
+    NextResponse.redirect(appUrl(`/administrasi/sistem?gdrive=${q}`, request.headers, request.nextUrl.origin));
 
   const user = await getCurrentUser();
   if (!user || !can(user.role, "system.manage")) return done("tanpa-izin");

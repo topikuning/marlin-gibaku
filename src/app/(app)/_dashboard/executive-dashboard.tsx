@@ -25,7 +25,7 @@ import { formatPct, formatRupiahShort, formatTanggal } from "@/lib/format";
 import { tingkatDeviasi } from "@/lib/deviasi";
 import { REPORT_STATUS_LABEL } from "@/lib/lifecycle";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
-import { ISSUE_SEVERITY_LABEL, ISSUE_SEVERITY_TONE, RECOVERY_STATUS_LABEL, RECOVERY_STATUS_TONE } from "@/app/(app)/lokasi/[slug]/issue-labels";
+import { ISSUE_SEVERITY_LABEL, ISSUE_SEVERITY_TONE, RECOVERY_STATUS_LABEL, RECOVERY_STATUS_TONE } from "@/app/(app)/proyek/lokasi/[slug]/issue-labels";
 import { DashboardMap } from "./dashboard-map";
 import { DashboardSearch } from "./dashboard-search";
 
@@ -113,7 +113,7 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
           label="Nilai Kontrak"
           value={formatRupiahShort(data.finance.totalContract)}
           sub="RAB aktif · pra-PPN"
-          href="/progress"
+          href="/pengendalian/progress"
         />
         <StatCard
           icon={<TrendingUp aria-hidden />}
@@ -126,14 +126,14 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
               <Bar value={data.finance.realizedPct} tone="success" />
             </>
           }
-          href="/progress"
+          href="/pengendalian/progress"
         />
-        <StatCard icon={<PackageIcon aria-hidden />} tone="info" label="Paket Aktif" value={data.paketAktif} sub="sedang berjalan" href="/paket" />
+        <StatCard icon={<PackageIcon aria-hidden />} tone="info" label="Paket Aktif" value={data.paketAktif} sub="sedang berjalan" href="/proyek/paket" />
         {/* Tujuan link = DAFTAR laporannya, bukan /laporan. Kartu yang menyebut
             "1 dikembalikan" lalu mendaratkan user di halaman yang tidak memuat
             laporan itu sama saja dengan tidak bisa diklik (DECISIONS 204). */}
-        <StatCard icon={<ClipboardCheck aria-hidden />} tone="warning" label="Menunggu Verifikasi" value={data.menungguVerifikasi} sub="laporan dikirim" href="/laporan/menunggu-verifikasi" />
-        <StatCard icon={<FileWarning aria-hidden />} tone="danger" label="Perlu Koreksi" value={data.perluKoreksi} sub="dikembalikan" href="/laporan/perlu-koreksi" />
+        <StatCard icon={<ClipboardCheck aria-hidden />} tone="warning" label="Menunggu Verifikasi" value={data.menungguVerifikasi} sub="laporan dikirim" href="/dokumen-laporan/laporan/menunggu-verifikasi" />
+        <StatCard icon={<FileWarning aria-hidden />} tone="danger" label="Perlu Koreksi" value={data.perluKoreksi} sub="dikembalikan" href="/dokumen-laporan/laporan/perlu-koreksi" />
       </div>
 
       {/* Peta + Status submit */}
@@ -196,12 +196,12 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
               right="Jam kirim"
               lebih={
                 data.sudahSubmit.length > 6
-                  ? { jumlah: data.sudahSubmit.length - 6, href: "/laporan" }
+                  ? { jumlah: data.sudahSubmit.length - 6, href: "/dokumen-laporan/laporan" }
                   : undefined
               }
               rows={data.sudahSubmit.slice(0, 6).map((l, i) => ({
                 key: l.id,
-                href: `/lokasi/${l.slug}`,
+                href: `/proyek/lokasi/${l.slug}`,
                 rank: i + 1,
                 label: l.name,
                 // Jam kirim bisa tidak tercatat (laporan lama) — tulis statusnya
@@ -215,12 +215,12 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
               right="Update terakhir"
               lebih={
                 data.belumSubmit.length > 6
-                  ? { jumlah: data.belumSubmit.length - 6, href: "/laporan" }
+                  ? { jumlah: data.belumSubmit.length - 6, href: "/dokumen-laporan/laporan" }
                   : undefined
               }
               rows={data.belumSubmit.slice(0, 6).map((l, i) => ({
                 key: l.id,
-                href: `/lokasi/${l.slug}`,
+                href: `/proyek/lokasi/${l.slug}`,
                 rank: i + 1,
                 label: l.name,
                 value: l.lastReportDate ? formatTanggal(l.lastReportDate) : "Belum ada laporan",
@@ -232,19 +232,19 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
               right="Deviasi"
               lebih={
                 data.perluPerhatian.length > 6
-                  ? { jumlah: data.perluPerhatian.length - 6, href: "/progress" }
+                  ? { jumlah: data.perluPerhatian.length - 6, href: "/pengendalian/progress" }
                   : undefined
               }
               rows={data.perluPerhatian.slice(0, 6).map((l, i) => ({
                 key: l.id,
-                href: `/lokasi/${l.slug}`,
+                href: `/proyek/lokasi/${l.slug}`,
                 rank: i + 1,
                 label: l.name,
                 value: formatPct(l.deviationPct),
                 danger: true,
               }))}
             />
-            <Link href="/lokasi" className="flex items-center justify-center gap-1 border-t border-border pt-3 text-xs font-medium text-primary hover:underline">
+            <Link href="/proyek/lokasi" className="flex items-center justify-center gap-1 border-t border-border pt-3 text-xs font-medium text-primary hover:underline">
               Lihat semua lokasi <ChevronRight aria-hidden className="size-3.5" />
             </Link>
           </div>
@@ -255,7 +255,7 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
       <div className="grid items-start gap-4 lg:grid-cols-3">
         {/* Activity Centre */}
         <Card>
-          <PanelHeader title="Activity Centre" href="/hari-ini" hrefLabel="Lihat semua aktivitas" />
+          <PanelHeader title="Activity Centre" href="/pelaksanaan" hrefLabel="Lihat semua aktivitas" />
           <div className="divide-y divide-border">
             {activity.length === 0 ? (
               <Empty icon={<Activity aria-hidden />} text="Belum ada kegiatan lapangan." />
@@ -306,7 +306,7 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
 
         {/* Ringkasan Deviasi */}
         <Card>
-          <PanelHeader title="Ringkasan Deviasi Proyek" href="/progress" hrefLabel="Lihat ranking lengkap" />
+          <PanelHeader title="Ringkasan Deviasi Proyek" href="/pengendalian/progress" hrefLabel="Lihat ranking lengkap" />
           <div className="px-4 pb-3 pt-1">
             <table className="w-full table-fixed text-sm">
               <thead>
@@ -321,7 +321,7 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
                 {data.deviasiRanking.slice(0, 5).map((r) => (
                   <tr key={r.id} className="border-t border-border">
                     <td className="max-w-0 truncate py-2.5 pr-2">
-                      <Link href={`/lokasi/${r.slug}`} className="hover:underline">{r.name}</Link>
+                      <Link href={`/proyek/lokasi/${r.slug}`} className="hover:underline">{r.name}</Link>
                     </td>
                     <td className="tabular py-2.5 text-right text-ink-muted">{formatPct(r.planPct)}</td>
                     <td className="tabular py-2.5 text-right">{formatPct(r.realizedPct)}</td>
@@ -340,7 +340,7 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
         <Card>
           <PanelHeader
             title="Kendala & Solusi Tertunda"
-            href="/lokasi"
+            href="/proyek/lokasi"
             hrefLabel="Lihat semua kendala"
             meta={`${data.kendalaOpen} terbuka · ${data.kendalaKritis} kritis`}
           />
@@ -357,7 +357,7 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
                       <StatusPill tone={ISSUE_SEVERITY_TONE[k.severity]} label={ISSUE_SEVERITY_LABEL[k.severity]} />
                     </div>
                     <p className="truncate text-xs text-ink-muted">
-                      Lokasi: <Link href={`/lokasi/${k.locationSlug}`} className="hover:underline">{k.locationName}</Link>
+                      Lokasi: <Link href={`/proyek/lokasi/${k.locationSlug}`} className="hover:underline">{k.locationName}</Link>
                       {k.pic ? <> · PIC: {k.pic}</> : null}
                     </p>
                     <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
@@ -383,10 +383,10 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
 
       {/* Arah Navigasi */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <NavCard icon={<MapPin aria-hidden />} tone="success" title="Monitoring Lokasi" sub="daftar & detail proyek" href="/lokasi" />
-        <NavCard icon={<TrendingUp aria-hidden />} tone="info" title="Analitik Progres" sub="kurva-S & deviasi" href="/progress" />
-        <NavCard icon={<LayoutDashboard aria-hidden />} tone="primary" title="Peta Sebaran" sub="monitoring geografis" href="/peta" />
-        <NavCard icon={<FileText aria-hidden />} tone="warning" title="Laporan & Export" sub="rekap & unduhan" href="/laporan" />
+        <NavCard icon={<MapPin aria-hidden />} tone="success" title="Monitoring Lokasi" sub="daftar & detail proyek" href="/proyek/lokasi" />
+        <NavCard icon={<TrendingUp aria-hidden />} tone="info" title="Analitik Progres" sub="kurva-S & deviasi" href="/pengendalian/progress" />
+        <NavCard icon={<LayoutDashboard aria-hidden />} tone="primary" title="Peta Sebaran" sub="monitoring geografis" href="/proyek/peta" />
+        <NavCard icon={<FileText aria-hidden />} tone="warning" title="Laporan & Export" sub="rekap & unduhan" href="/dokumen-laporan/laporan" />
       </div>
     </div>
   );

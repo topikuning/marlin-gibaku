@@ -239,8 +239,8 @@ export async function restampPhotoAction(_prev: RestampState, formData: FormData
     await r2Delete(k.r2Key).catch(() => {});
     if (k.thumbnailKey) await r2Delete(k.thumbnailKey).catch(() => {});
 
-    revalidatePath("/foto");
-    if (k.locationSlug) revalidatePath(`/lokasi/${k.locationSlug}`);
+    revalidatePath("/pelaksanaan/bukti");
+    if (k.locationSlug) revalidatePath(`/proyek/lokasi/${k.locationSlug}`);
     return { ok: `Cap diperbaiki (revisi ${revisi}). Nilai yang diketik manual ditandai di foto.` };
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };
@@ -308,8 +308,8 @@ export async function purgeOriginalsAction(_prev: RestampState, formData: FormDa
       terhapus,
       bytes,
     });
-    revalidatePath("/sistem/arsip-foto");
-    revalidatePath("/foto");
+    revalidatePath("/administrasi/sistem/arsip-foto");
+    revalidatePath("/pelaksanaan/bukti");
     const sisa = rows.length - terhapus;
     return {
       ok:
@@ -347,7 +347,7 @@ export async function purgeOneOriginalAction(_prev: RestampState, formData: Form
       bytes: p.originalBytes ?? 0,
       locationId: p.locationId,
     });
-    revalidatePath("/foto");
+    revalidatePath("/pelaksanaan/bukti");
     return { ok: "Arsip asli dihapus. Cap foto ini tidak bisa diperbaiki lagi." };
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };

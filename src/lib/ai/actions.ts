@@ -32,7 +32,7 @@ export async function saveAiProviderAction(
     const apiKey = rawKey === "" ? undefined : rawKey === "-" ? "" : rawKey;
     await setAiProviderConfig(id, { model: model || undefined, apiKey });
     await audit(user.id, "system.ai_config", "app_setting", null, { provider: id });
-    revalidatePath("/sistem");
+    revalidatePath("/administrasi/sistem");
     return { success: `Konfigurasi ${aiProvider(id)?.label ?? id} disimpan.` };
   } catch (err) {
     return fail(err);
@@ -53,7 +53,7 @@ export async function setActiveAiProviderAction(
     }
     await setActiveAiProvider(id);
     await audit(user.id, "system.ai_active", "app_setting", null, { provider: id });
-    revalidatePath("/sistem");
+    revalidatePath("/administrasi/sistem");
     return { success: `Provider AI aktif: ${aiProvider(id)?.label ?? id}.` };
   } catch (err) {
     return fail(err);

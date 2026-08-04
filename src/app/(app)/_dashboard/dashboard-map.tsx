@@ -7,7 +7,7 @@ import type { PetaMarker } from "@/lib/peta";
 import { cocokFilter, type FilterPeta, type MarkerTone, type StatusLapor } from "@/lib/dashboard-filter";
 
 // Leaflet client-only (sama seperti /peta) — hindari SSR.
-const PetaMap = dynamic(() => import("../peta/peta-map").then((m) => m.PetaMap), {
+const PetaMap = dynamic(() => import("@/app/(app)/proyek/peta/peta-map").then((m) => m.PetaMap), {
   ssr: false,
   loading: () => <div className="h-full w-full animate-pulse rounded-md bg-surface-inset" />,
 });
@@ -77,7 +77,7 @@ export function DashboardMap({
           onSelect={(id) => {
             setSelected(id);
             const slug = slugById.get(id);
-            if (slug) router.push(`/lokasi/${slug}`);
+            if (slug) router.push(`/proyek/lokasi/${slug}`);
           }}
         />
         <div className="pointer-events-none absolute bottom-3 left-3 z-[1000] max-w-[15rem] rounded-md border border-border bg-surface/95 p-2.5 text-[11px] shadow-sm">

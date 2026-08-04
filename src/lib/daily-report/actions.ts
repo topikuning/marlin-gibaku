@@ -69,9 +69,9 @@ async function loadReportContext(reportId: string) {
 }
 
 function revalidateReport(slug: string, dateKey: string) {
-  revalidatePath(`/lokasi/${slug}/harian/${dateKey}`);
-  revalidatePath(`/lokasi/${slug}/harian`);
-  revalidatePath("/hari-ini");
+  revalidatePath(`/proyek/lokasi/${slug}/harian/${dateKey}`);
+  revalidatePath(`/proyek/lokasi/${slug}/harian`);
+  revalidatePath("/pelaksanaan");
 }
 
 async function requireReviewOrCreate(): Promise<SessionUser> {

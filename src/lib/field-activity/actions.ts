@@ -28,8 +28,8 @@ function fail(err: unknown): FieldActivityState {
 }
 
 function revalidate(slug: string): void {
-  revalidatePath(`/lokasi/${slug}/kegiatan`);
-  revalidatePath(`/lokasi/${slug}`);
+  revalidatePath(`/proyek/lokasi/${slug}/kegiatan`);
+  revalidatePath(`/proyek/lokasi/${slug}`);
 }
 
 /** Ambil lokasi + nama perusahaan + koordinat (utk cap foto). */

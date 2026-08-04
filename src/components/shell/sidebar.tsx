@@ -12,8 +12,8 @@ import { type NavGroup } from "./nav-config";
  * Menu mana yang sedang terbuka.
  *
  * Pencocokan awalan sengaja TIDAK dipakai untuk butir yang merupakan anak dari
- * butir lain: `/master` dan `/master/pengguna` dua-duanya ada di menu, dan
- * dengan `startsWith` polos keduanya akan menyala bersamaan di `/master/
+ * butir lain: `/administrasi` dan `/administrasi/pengguna` dua-duanya ada di menu, dan
+ * dengan `startsWith` polos keduanya akan menyala bersamaan di `/administrasi/
  * pengguna` — dua sorotan sekaligus membuat "saya di mana" jadi tidak terjawab.
  * Karena itu butir yang lebih spesifik menang: sebuah butir hanya aktif secara
  * awalan bila tidak ada butir lain yang cocok lebih panjang.

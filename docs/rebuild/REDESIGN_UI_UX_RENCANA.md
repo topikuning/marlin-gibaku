@@ -2,7 +2,13 @@
 
 Sumber: **PRD MARLIN** (PDF, lampiran user) + **rancangan Claude Design**
 (13 berkas `.dc.html` + `MASTER_PROMPT_TOTAL_UI_UX_REDESIGN_MARLIN.md`).
-Keputusan dan konfliknya dicatat di [`DECISIONS.md` 250](../DECISIONS.md).
+
+**Pembagian peran kedua sumber** (ditegaskan user 2026-08-04): rancangan Claude
+Design adalah **referensi layout dan style saja**. Arsitektur — route, IA,
+lifecycle, permission — mengikuti **PRD**. Kalau keduanya berselisih soal
+struktur, PRD yang menang; kalau berselisih soal tampilan, rancangan desain
+yang menang. Keputusan dan konfliknya di
+[`DECISIONS.md` 250 & 251](../DECISIONS.md).
 
 Urutan fase mengikuti "Urutan implementasi" pada rancangan desain sendiri
 (berkas `00 Mulai — Audit & Rencana`), karena fase 1 menyentuh seluruh layar
@@ -123,18 +129,15 @@ offline/partial) di seluruh halaman.
 
 ---
 
-## Migrasi URL kanonik (PRD §4.1) — fase tersendiri
+## Migrasi URL kanonik (PRD §4.1) ◐ SEBAGIAN
 
-Belum dikerjakan. PRD mengusulkan `/proyek/...`, `/pengendalian/...`,
-`/dokumen-laporan/...`, `/administrasi/...`; rancangan desain memilih
-mempertahankan URL yang ada.
-
-Menyentuh 104 berkas. Dikerjakan **terpisah dari perubahan visual** supaya
-kegagalannya bisa ditelusuri, dan hanya bila ada lingkungan dengan basis data
-untuk memverifikasinya. Prasyarat: tabel alias → kanonik lengkap, 308 untuk
-semua alias, telemetry pemakaian alias (FR-NAV-03), masa kompatibilitas.
-
----
+- ✅ **Keluarga route** dipindah: `/proyek/…`, `/pelaksanaan/…`,
+  `/pengendalian/…`, `/dokumen-laporan/…`, `/administrasi/…`. Seluruh URL lama
+  308 permanen ke tujuan kanoniknya, diuji E2E (20 alias). Lihat DECISIONS 251.
+- ❌ **Konsolidasi `?tab=` / `?view=`** belum: `/proyek?view=paket|lokasi|peta`
+  dan `/proyek/lokasi/[slug]?tab=…`. Sub-halaman masih berupa segmen path.
+  Ini penulisan ulang komposisi halaman, bukan pemindahan berkas.
+- ❌ **Telemetry pemakaian alias** (FR-NAV-03) belum ada.
 
 ## Keputusan yang masih menunggu user
 
@@ -144,5 +147,5 @@ semua alias, telemetry pemakaian alias (FR-NAV-03), masa kompatibilitas.
 | K3 | Offline queue belum didukung backend | State dirancang penuh di atas draft localStorage; antrean sinkron ditandai dependency |
 | K4 | Persona Keuangan & Auditor tanpa role khusus | Keuangan = peran ber-`finance.approve`; Auditor = `exec_viewer` + `audit.view` |
 | K8 | Notification center belum ada tabel sendiri | Lonceng memakai antrean `/tindakan`; `Alert` belum dipakai |
-| — | Jumlah grup navigasi: PRD enam vs rancangan desain lima | Dipakai enam (PRD) |
+| — | Jumlah grup navigasi: PRD enam vs rancangan desain lima | Dipakai enam (PRD) — desain hanya mengatur tampilan |
 | — | Ambang "perlu perhatian" bergeser dari `< 0` ke `< −1` | Sudah diterapkan seragam; lihat DECISIONS 250 |

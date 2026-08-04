@@ -140,11 +140,11 @@ test.describe("bar progres global", () => {
      */
     test.skip(test.info().project.name !== "mobile", "cukup sekali");
     await login(page);
-    await page.goto("/lokasi");
+    await page.goto("/proyek/lokasi");
     await lambatkan(page);
 
     // Tautan pertama menuju workspace sebuah lokasi — bukan item menu.
-    await page.locator('a[href^="/lokasi/"]').first().click();
+    await page.locator('a[href^="/proyek/lokasi/"]').first().click();
     await expect(
       page.locator('[role="progressbar"][aria-label="Memuat halaman"]'),
     ).toBeVisible({ timeout: AMBANG_UMPAN_BALIK_MS });
@@ -177,8 +177,8 @@ test.describe("daftar lokasi: satu ketukan, satu permintaan", () => {
   });
 
   test("ketukan di baris (di luar teks tautan) membuka lokasinya", async ({ page }) => {
-    await page.goto("/lokasi");
-    const tautan = page.locator('a[href^="/lokasi/"]').first();
+    await page.goto("/proyek/lokasi");
+    const tautan = page.locator('a[href^="/proyek/lokasi/"]').first();
     await tautan.waitFor({ state: "visible", timeout: 30_000 });
     const lb = (await tautan.boundingBox())!;
     const baris = (await page.locator(".ag-row").first().boundingBox())!;
@@ -196,8 +196,8 @@ test.describe("daftar lokasi: satu ketukan, satu permintaan", () => {
   });
 
   test("tiga ketukan beruntun tetap SATU permintaan halaman", async ({ page }) => {
-    await page.goto("/lokasi");
-    const tautan = page.locator('a[href^="/lokasi/"]').first();
+    await page.goto("/proyek/lokasi");
+    const tautan = page.locator('a[href^="/proyek/lokasi/"]').first();
     await tautan.waitFor({ state: "visible", timeout: 30_000 });
     await lambatkan(page);
 

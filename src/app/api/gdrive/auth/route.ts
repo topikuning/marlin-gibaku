@@ -15,11 +15,11 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
   if (!user || !can(user.role, "system.manage")) {
-    return NextResponse.redirect(appUrl("/sistem", request.headers, request.nextUrl.origin));
+    return NextResponse.redirect(appUrl("/administrasi/sistem", request.headers, request.nextUrl.origin));
   }
   const cfg = await getGDriveConfigDisplay();
   if (!cfg.clientId || !cfg.hasClientSecret) {
-    return NextResponse.redirect(appUrl("/sistem?gdrive=belum-konfigurasi", request.headers, request.nextUrl.origin));
+    return NextResponse.redirect(appUrl("/administrasi/sistem?gdrive=belum-konfigurasi", request.headers, request.nextUrl.origin));
   }
 
   const state = randomBytes(16).toString("hex");
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
   // Google menolak redirect URI http untuk domain publik (error 400).
   const redirectUri = driveRedirectUriFrom(request.headers);
   if (!redirectUri)
-    return NextResponse.redirect(appUrl("/sistem?gdrive=host-tak-diketahui", request.headers, request.nextUrl.origin));
+    return NextResponse.redirect(appUrl("/administrasi/sistem?gdrive=host-tak-diketahui", request.headers, request.nextUrl.origin));
   const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
   authUrl.search = new URLSearchParams({
     client_id: cfg.clientId,

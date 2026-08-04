@@ -8749,3 +8749,69 @@ Fase 2–7 rancangan desain belum disentuh: laporan harian mobile (wizard, loop
 "Simpan & Tambah Lagi", state jaringan), peta operasional, workspace lokasi
 6 tab, keuangan approval-first, Report Studio, dan migrasi URL kanonik PRD.
 Layar-layar itu masih memakai susunan lama; yang berubah baru kerangkanya.
+
+## 251 · Migrasi ke keluarga route kanonik PRD (2026-08-04)
+
+Koreksi user atas DECISIONS 250: **"claude design itu cuma referensi layout dan
+style"**. Di 250 aku memperlakukan rancangan Claude Design sebagai ikut mengatur
+routing — karena rancangan itu mengaudit ulang repo dan memilih mempertahankan
+URL yang ada — lalu memakai URL lama dengan struktur menu PRD. Premisnya salah:
+kalau rancangan desain hanya mengatur tampilan, maka PRD berlaku PENUH atas
+arsitektur route, dan §4.1-nya harus dijalankan.
+
+### Yang dikerjakan
+
+Direktori route dipindah fisik ke keluarga kanonik:
+
+```
+/paket, /lokasi, /peta            → /proyek/…
+/hari-ini, /foto                  → /pelaksanaan, /pelaksanaan/bukti
+/progress, /keuangan, /ai         → /pengendalian/…  (ai → insight)
+/dokumen, /laporan, /chat-grup    → /dokumen-laporan/…  (chat-grup → distribusi)
+/master/*, /sistem                → /administrasi/…  (master di-flatten)
+/paket/katalog                    → /administrasi/lokasi-master
+```
+
+Seluruh URL lama tetap hidup lewat 308 permanen di `next.config.ts`. Tiap
+keluarga butuh DUA entri — akar (`/paket`) dan anak (`/paket/:path*`) — karena
+entri ber-`:path*` saja tidak mencakup akarnya, dan justru URL akar itulah yang
+paling sering di-bookmark. Yang lebih spesifik didahulukan: `/paket/katalog`
+pindah ke Administrasi, bukan ke `/proyek/paket/katalog`.
+
+### Tiga kelas rujukan, bukan satu
+
+Penulisan ulang rujukan tidak cukup satu sapuan. Ada tiga bentuk berbeda dan
+dua di antaranya baru ketahuan saat build gagal:
+
+1. **Literal path** (`href="/lokasi/…"`, `revalidatePath`, `redirect`) — 114
+   berkas. Pencocokannya wajib berbatas segmen: prefiks polos `/laporan` ikut
+   memakan `/laporan-lokasi` dan `/api/laporan/…`, dua-duanya salah.
+2. **Impor beralias** (`@/app/(app)/lokasi/[slug]/issue-labels`) — 12 berkas.
+   Tidak berawalan kutip-garis-miring, jadi lolos dari sapuan pertama.
+3. **Impor relatif lintas keluarga** (`../peta/peta-map`,
+   `../../../keuangan/finance-ui`) — 3 berkas. Kedalamannya berubah karena
+   pemindahan; diubah jadi alias `@/` supaya tidak rapuh lagi terhadap
+   pemindahan berikutnya.
+
+`.next/types/validator.ts` hasil build LAMA sempat membuat `typecheck` gagal
+dengan puluhan "cannot find module" yang menunjuk direktori yang memang sudah
+tidak ada. Itu artefak, bukan kesalahan kode — `.next` harus dihapus sesudah
+pemindahan route.
+
+### Yang BELUM: konsolidasi `?tab=` / `?view=`
+
+PRD §4.1 juga meminta state tampilan pindah ke query param —
+`/proyek?view=paket|lokasi|peta` dan
+`/proyek/lokasi/[slug]?tab=…`. Yang dikerjakan sekarang baru KELUARGA route-nya;
+sub-halaman masih berupa segmen path (`/proyek/lokasi/[slug]/rab`). Menggabung
+delapan halaman lokasi jadi satu halaman ber-`?tab=` adalah penulisan ulang
+komposisi halaman, bukan pemindahan berkas, jadi dipisah supaya kegagalannya
+bisa ditelusuri.
+
+### Verifikasi
+
+`pnpm build` bersih (manifest route menunjukkan keluarga baru, tidak ada sisa
+yang lama), `typecheck` bersih, `lint` bersih, 903 uji unit lulus. Uji E2E
+alias diperluas: 20 URL lama diperiksa mendarat di tujuan kanoniknya — termasuk
+`dari` yang sengaja ditulis sebagai URL LAMA apa adanya, karena itulah yang ada
+di bookmark pengguna.

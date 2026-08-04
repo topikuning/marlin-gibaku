@@ -31,17 +31,17 @@ const RUTE: { path: string; nama: string }[] = [
   // dengan `/`, jadi mengukurnya berarti mengukur halaman yang sama dua kali.
   // Kini 308 ke `/` (DECISIONS 250).
   { path: "/tindakan", nama: "Perlu Tindakan" },
-  { path: "/paket", nama: "Daftar paket" },
-  { path: "/lokasi", nama: "Daftar lokasi" },
-  { path: "/progress", nama: "Progress portofolio" },
-  { path: "/hari-ini", nama: "Hari Ini (mandor)" },
-  { path: "/laporan", nama: "Laporan" },
-  { path: "/laporan/menunggu-verifikasi", nama: "Antrean verifikasi" },
-  { path: "/laporan/perlu-koreksi", nama: "Antrean koreksi" },
-  { path: "/keuangan", nama: "Keuangan" },
-  { path: "/dokumen", nama: "Dokumen" },
-  { path: "/peta", nama: "Peta" },
-  { path: "/master/pengguna", nama: "Pengguna" },
+  { path: "/proyek/paket", nama: "Daftar paket" },
+  { path: "/proyek/lokasi", nama: "Daftar lokasi" },
+  { path: "/pengendalian/progress", nama: "Progress portofolio" },
+  { path: "/pelaksanaan", nama: "Hari Ini (mandor)" },
+  { path: "/dokumen-laporan/laporan", nama: "Laporan" },
+  { path: "/dokumen-laporan/laporan/menunggu-verifikasi", nama: "Antrean verifikasi" },
+  { path: "/dokumen-laporan/laporan/perlu-koreksi", nama: "Antrean koreksi" },
+  { path: "/pengendalian/keuangan", nama: "Keuangan" },
+  { path: "/dokumen-laporan/dokumen", nama: "Dokumen" },
+  { path: "/proyek/peta", nama: "Peta" },
+  { path: "/administrasi/pengguna", nama: "Pengguna" },
 ];
 
 type Pelanggar = { tag: string; cls: string; width: number; right: number; text: string };
@@ -133,11 +133,11 @@ test.describe("tampilan mobile: halaman tidak boleh melebar ke samping", () => {
     // dari seed yang deterministik; kalau datanya beda, uji dilewati alih-alih
     // gagal palsu.
     const SLUG = process.env.E2E_SLUG ?? "kedungmutih";
-    const cek = await page.goto(`/lokasi/${SLUG}`, { waitUntil: "domcontentloaded" });
+    const cek = await page.goto(`/proyek/lokasi/${SLUG}`, { waitUntil: "domcontentloaded" });
     test.skip(cek != null && cek.status() >= 400, `lokasi "${SLUG}" tidak ada di data uji`);
     // id paket diambil dari tautan di workspace lokasi (breadcrumb/ringkasan).
     const paketId = await page
-      .locator('a[href^="/paket/"]')
+      .locator('a[href^="/proyek/paket/"]')
       .first()
       .getAttribute("href", { timeout: 5_000 })
       .then((h) => h?.split("/")[2] ?? null)
@@ -147,12 +147,12 @@ test.describe("tampilan mobile: halaman tidak boleh melebar ke samping", () => {
     // per jam 07–21 berada, dan pita itu pernah MELEBARKAN seluruh halaman
     // (DECISIONS 230). Tanggalnya diambil dari tautan pertama di daftar supaya
     // uji tidak terikat tanggal tertentu.
-    await page.goto(`/lokasi/${SLUG}/harian`, { waitUntil: "domcontentloaded" });
+    await page.goto(`/proyek/lokasi/${SLUG}/harian`, { waitUntil: "domcontentloaded" });
     // Harus berakhir dengan TANGGAL: tautan pertama di halaman itu
     // `/harian/import`, dan mengambilnya membuat uji ini menyapu halaman yang
     // salah sambil tetap hijau — persis cara sebuah sapuan berbohong.
     const harianHref = await page
-      .locator(`a[href^="/lokasi/${SLUG}/harian/"]`)
+      .locator(`a[href^="/proyek/lokasi/${SLUG}/harian/"]`)
       .evaluateAll((els) =>
         els
           .map((e) => e.getAttribute("href") ?? "")
@@ -161,17 +161,17 @@ test.describe("tampilan mobile: halaman tidak boleh melebar ke samping", () => {
       .catch(() => null);
 
     const dalam = [
-      `/lokasi/${SLUG}`,
-      `/lokasi/${SLUG}/rab`,
-      `/lokasi/${SLUG}/rab/adendum`,
-      `/lokasi/${SLUG}/rab/import`,
-      `/lokasi/${SLUG}/progress`,
-      `/lokasi/${SLUG}/harian`,
+      `/proyek/lokasi/${SLUG}`,
+      `/proyek/lokasi/${SLUG}/rab`,
+      `/proyek/lokasi/${SLUG}/rab/adendum`,
+      `/proyek/lokasi/${SLUG}/rab/import`,
+      `/proyek/lokasi/${SLUG}/progress`,
+      `/proyek/lokasi/${SLUG}/harian`,
       ...(harianHref ? [harianHref] : []),
-      `/lokasi/${SLUG}/keuangan`,
-      `/lokasi/${SLUG}/dokumen`,
+      `/proyek/lokasi/${SLUG}/keuangan`,
+      `/proyek/lokasi/${SLUG}/dokumen`,
       ...(paketId && paketId !== "katalog" && paketId !== "baru" && paketId !== "bypass"
-        ? [`/paket/${paketId}`, `/paket/${paketId}/kontrak`, `/paket/${paketId}/lokasi`]
+        ? [`/proyek/paket/${paketId}`, `/proyek/paket/${paketId}/kontrak`, `/proyek/paket/${paketId}/lokasi`]
         : []),
     ];
 

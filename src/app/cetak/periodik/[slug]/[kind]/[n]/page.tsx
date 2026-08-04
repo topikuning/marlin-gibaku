@@ -36,7 +36,7 @@ export default async function CetakPeriodikPage({
       <PrintToolbar
         backHref={safeBackPath(
           typeof sp[PRINT_BACK_PARAM] === "string" ? sp[PRINT_BACK_PARAM] : undefined,
-          `/lokasi/${slug}/laporan-lokasi`,
+          `/proyek/lokasi/${slug}/laporan-lokasi`,
         )}
       />
       {/* Landscape utk halaman Kurva-S; tetap A4 potrait utk tabel detail. */}

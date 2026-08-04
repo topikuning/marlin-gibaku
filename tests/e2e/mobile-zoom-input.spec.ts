@@ -73,7 +73,7 @@ test.describe("kontrol form ≥16px di ponsel", () => {
     await page.getByRole("button", { name: /masuk/i }).click();
     await page.waitForURL((u) => !u.pathname.includes("/masuk"), { timeout: 30_000 });
 
-    await page.goto("/lokasi", { waitUntil: "domcontentloaded" });
+    await page.goto("/proyek/lokasi", { waitUntil: "domcontentloaded" });
     /*
      * TUNGGU GRID SIAP dulu. AG Grid menggambar panel paginasi (berikut kotak
      * nomor halamannya) SESUDAH mount, jadi mengukur tepat setelah `goto`

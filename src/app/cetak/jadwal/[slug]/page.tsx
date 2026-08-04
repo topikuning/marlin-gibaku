@@ -34,7 +34,7 @@ export default async function CetakJadwalPage({
 
   return (
     <>
-      <PrintToolbar backHref={`/lokasi/${slug}/progress`} />
+      <PrintToolbar backHref={`/proyek/lokasi/${slug}/progress`} />
       <style>{`@media print { @page { size: A4 landscape; margin: 8mm; } }`}</style>
       <main className="bg-white">
         <section className="mx-auto w-full max-w-[1400px] overflow-x-auto p-6 print:overflow-visible print:p-0">

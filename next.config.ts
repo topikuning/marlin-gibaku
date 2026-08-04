@@ -55,16 +55,65 @@ const nextConfig: NextConfig = {
    */
   async redirects() {
     return [
+      // ── Alias lama yang memang cuma alias ──────────────────────────────
       { source: "/aktivitas", destination: "/", permanent: true },
-      { source: "/pengguna", destination: "/master/pengguna", permanent: true },
-      { source: "/paket/vendor", destination: "/master/perusahaan", permanent: true },
-      { source: "/kontak-wa", destination: "/master/kontak", permanent: true },
+      { source: "/pengguna", destination: "/administrasi/pengguna", permanent: true },
+      { source: "/paket/vendor", destination: "/administrasi/perusahaan", permanent: true },
+      { source: "/kontak-wa", destination: "/administrasi/kontak", permanent: true },
       // Laporan → WA dilebur ke Report Studio (DECISIONS 193/194).
       {
         source: "/laporan-wa",
-        destination: "/ai/reports?template=wa_update",
+        destination: "/pengendalian/insight/reports?template=wa_update",
         permanent: true,
       },
+
+      /*
+       * ── MIGRASI KE KELUARGA ROUTE KANONIK (PRD §4.1) ───────────────────
+       *
+       * Yang lebih SPESIFIK harus lebih dulu: `/paket/katalog` pindah ke
+       * Administrasi, bukan ke `/proyek/paket/katalog`, jadi ia wajib
+       * dicocokkan sebelum aturan `/paket/:path*` di bawahnya.
+       *
+       * Tiap keluarga punya dua entri — satu untuk akar (`/paket`) dan satu
+       * untuk anaknya (`/paket/:path*`). Satu entri ber-`:path*` saja TIDAK
+       * mencakup akarnya, dan justru URL akar itulah yang paling sering
+       * di-bookmark.
+       */
+      { source: "/paket/katalog", destination: "/administrasi/lokasi-master", permanent: true },
+      { source: "/master/pengguna", destination: "/administrasi/pengguna", permanent: true },
+      { source: "/master/perusahaan", destination: "/administrasi/perusahaan", permanent: true },
+      { source: "/master/kontak-wa", destination: "/administrasi/kontak-wa", permanent: true },
+      { source: "/master/kontak", destination: "/administrasi/kontak", permanent: true },
+
+      { source: "/paket", destination: "/proyek/paket", permanent: true },
+      { source: "/paket/:path*", destination: "/proyek/paket/:path*", permanent: true },
+      { source: "/lokasi", destination: "/proyek/lokasi", permanent: true },
+      { source: "/lokasi/:path*", destination: "/proyek/lokasi/:path*", permanent: true },
+      { source: "/peta", destination: "/proyek/peta", permanent: true },
+
+      { source: "/hari-ini", destination: "/pelaksanaan", permanent: true },
+      { source: "/foto", destination: "/pelaksanaan/bukti", permanent: true },
+      { source: "/foto/:path*", destination: "/pelaksanaan/bukti/:path*", permanent: true },
+
+      { source: "/progress", destination: "/pengendalian/progress", permanent: true },
+      { source: "/keuangan", destination: "/pengendalian/keuangan", permanent: true },
+      { source: "/ai", destination: "/pengendalian/insight", permanent: true },
+      { source: "/ai/:path*", destination: "/pengendalian/insight/:path*", permanent: true },
+
+      { source: "/dokumen", destination: "/dokumen-laporan/dokumen", permanent: true },
+      { source: "/dokumen/:path*", destination: "/dokumen-laporan/dokumen/:path*", permanent: true },
+      { source: "/laporan", destination: "/dokumen-laporan/laporan", permanent: true },
+      { source: "/laporan/:path*", destination: "/dokumen-laporan/laporan/:path*", permanent: true },
+      { source: "/chat-grup", destination: "/dokumen-laporan/distribusi", permanent: true },
+      {
+        source: "/chat-grup/:path*",
+        destination: "/dokumen-laporan/distribusi/:path*",
+        permanent: true,
+      },
+
+      { source: "/master", destination: "/administrasi", permanent: true },
+      { source: "/sistem", destination: "/administrasi/sistem", permanent: true },
+      { source: "/sistem/:path*", destination: "/administrasi/sistem/:path*", permanent: true },
     ];
   },
 };
