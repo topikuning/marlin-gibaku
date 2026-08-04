@@ -135,12 +135,22 @@ test.describe("tampilan mobile: halaman tidak boleh melebar ke samping", () => {
     const SLUG = process.env.E2E_SLUG ?? "kedungmutih";
     const cek = await page.goto(`/proyek/lokasi/${SLUG}`, { waitUntil: "domcontentloaded" });
     test.skip(cek != null && cek.status() >= 400, `lokasi "${SLUG}" tidak ada di data uji`);
-    // id paket diambil dari tautan di workspace lokasi (breadcrumb/ringkasan).
+    /*
+     * id paket diambil dari tautan di workspace lokasi (breadcrumb/ringkasan).
+     *
+     * Diurai dengan REGEX, bukan `split("/")[n]`. Indeks posisi diam-diam salah
+     * begitu keluarga route bertambah satu segmen: saat `/paket/<id>` jadi
+     * `/proyek/paket/<id>`, indeks 2 berhenti menunjuk id dan mulai menunjuk
+     * kata "paket" — lalu uji ini menyapu `/proyek/paket/paket`, Postgres
+     * menolaknya sebagai uuid tak sah, dan kegagalannya muncul jauh dari
+     * penyebabnya. Pola ber-anchor menyebut bentuk yang dicari, jadi ia gagal
+     * dengan jujur (null) alih-alih memungut segmen yang salah.
+     */
     const paketId = await page
       .locator('a[href^="/proyek/paket/"]')
       .first()
       .getAttribute("href", { timeout: 5_000 })
-      .then((h) => h?.split("/")[2] ?? null)
+      .then((h) => /^\/proyek\/paket\/([0-9a-f-]{36})(?:\/|$)/i.exec(h ?? "")?.[1] ?? null)
       .catch(() => null);
 
     // Halaman ISI laporan harian — bukan cuma daftarnya. Di sinilah pita cuaca
@@ -170,7 +180,9 @@ test.describe("tampilan mobile: halaman tidak boleh melebar ke samping", () => {
       ...(harianHref ? [harianHref] : []),
       `/proyek/lokasi/${SLUG}/keuangan`,
       `/proyek/lokasi/${SLUG}/dokumen`,
-      ...(paketId && paketId !== "katalog" && paketId !== "baru" && paketId !== "bypass"
+      // Penjaga "bukan katalog/baru/bypass" tidak diperlukan lagi: pola uuid di
+      // atas sudah menolak segmen statis apa pun dengan sendirinya.
+      ...(paketId
         ? [`/proyek/paket/${paketId}`, `/proyek/paket/${paketId}/kontrak`, `/proyek/paket/${paketId}/lokasi`]
         : []),
     ];

@@ -106,7 +106,11 @@ test.describe("alias URL lama", () => {
     { dari: "/dokumen", ke: /\/dokumen-laporan\/dokumen$/ },
     { dari: "/laporan", ke: /\/dokumen-laporan\/laporan$/ },
     { dari: "/chat-grup", ke: /\/dokumen-laporan\/distribusi$/ },
-    { dari: "/master", ke: /\/administrasi$/ },
+    // `/administrasi` adalah dispatcher: ia meneruskan lagi ke tab pertama yang
+    // boleh diakses peran ini. Jadi yang dijanjikan cuma "mendarat di bawah
+    // Administrasi", bukan URL persisnya — mematoknya ke satu tab akan membuat
+    // uji ini gagal begitu hak akses akun uji berubah.
+    { dari: "/master", ke: /\/administrasi(\/|$)/ },
     { dari: "/master/pengguna", ke: /\/administrasi\/pengguna$/ },
     { dari: "/sistem", ke: /\/administrasi\/sistem$/ },
     { dari: "/paket/katalog", ke: /\/administrasi\/lokasi-master$/ },
