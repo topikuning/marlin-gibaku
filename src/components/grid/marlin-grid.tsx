@@ -121,6 +121,15 @@ export interface MarlinGridProps<T> {
    */
   height?: string;
   onRowClicked?: (data: T) => void;
+  /**
+   * Ketukan di MANA PUN pada baris membuka tautan pertama di dalam baris itu.
+   *
+   * Dipakai daftar yang barisnya memang menuju satu halaman. Sebelum ini
+   * satu-satunya sasaran adalah tautan nama — diukur 75x16 px, hanya 2,4% luas
+   * baris — sehingga di ponsel sebagian besar ketukan TIDAK melakukan apa pun
+   * dan terbaca "aplikasi tidak merespon" (DECISIONS 247).
+   */
+  rowLink?: boolean;
   getRowId?: (data: T) => string;
   /** Tombol "Unduh CSV". */
   csvExport?: boolean;
@@ -149,6 +158,7 @@ export function MarlinGrid<T>({
   pageSize = 25,
   height = "auto",
   onRowClicked,
+  rowLink = false,
   getRowId,
   csvExport = false,
   persistKey,
@@ -200,9 +210,34 @@ export function MarlinGrid<T>({
 
   const handleRowClicked = useCallback(
     (e: RowClickedEvent<T>) => {
+      /*
+       * Ketukan yang mendarat di ELEMEN INTERAKTIF di dalam sel (tautan nama
+       * lokasi, tombol aksi) diurus elemen itu sendiri. Tanpa penjagaan ini,
+       * satu ketukan pada tautan memicu DUA navigasi ke alamat yang sama —
+       * tepat perilaku "request berulang" yang sedang diperbaiki, cuma kali
+       * ini dibuat oleh kodenya sendiri, bukan oleh jari pengguna.
+       */
+      const src = e.event?.target;
+      if (src instanceof Element && src.closest("a,button,input,select,textarea,[role='button']")) return;
+
+      /*
+       * `rowLink`: SELURUH BARIS membuka tautan yang memang sudah ada di
+       * dalamnya, dengan cara MENGETUK tautan itu — bukan `router.push`.
+       *
+       * Bedanya penting. Tautan aslinya melewati <Link> Next DAN pendengar
+       * ketukan di shell, jadi barisnya ikut dapat penanda "sedang dibuka",
+       * bar progres menyala, dan ketukan ulang ke alamat yang sama tersaring.
+       * `router.push` melompati semua itu: navigasinya jalan, tapi senyap —
+       * persis penyakit yang sedang diobati.
+       */
+      if (rowLink) {
+        if (!(src instanceof Element)) return;
+        src.closest(".ag-row")?.querySelector<HTMLAnchorElement>("a[href]")?.click();
+        return;
+      }
       if (onRowClicked && e.data != null) onRowClicked(e.data);
     },
-    [onRowClicked],
+    [onRowClicked, rowLink],
   );
 
   const rowIdGetter = useMemo(
@@ -271,8 +306,8 @@ export function MarlinGrid<T>({
             : {})}
           onCellValueChanged={onCellValueChanged}
           onGridReady={onGridReady}
-          onRowClicked={onRowClicked ? handleRowClicked : undefined}
-          rowClass={onRowClicked ? "cursor-pointer" : undefined}
+          onRowClicked={onRowClicked || rowLink ? handleRowClicked : undefined}
+          rowClass={onRowClicked || rowLink ? "cursor-pointer" : undefined}
           onSortChanged={persistKey ? saveColumnState : undefined}
           onColumnMoved={persistKey ? saveColumnState : undefined}
           onColumnResized={persistKey ? saveColumnState : undefined}

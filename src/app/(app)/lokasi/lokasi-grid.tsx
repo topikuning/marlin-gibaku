@@ -30,7 +30,10 @@ const COLUMN_DEFS: ColDef<LokasiRow>[] = [
     flex: 1,
     cellRenderer: (p: ICellRendererParams<LokasiRow>) =>
       p.data ? (
-        <Link href={`/lokasi/${p.data.slug}`} className="font-medium text-primary hover:underline">
+        // `block py-1.5` — tautannya mengisi tinggi sel, bukan seutas teks
+        // setinggi 16px. Sasaran ketuk sekecil itu lebih sering meleset
+        // daripada kena di ponsel (DECISIONS 247).
+        <Link href={`/lokasi/${p.data.slug}`} className="block py-1.5 font-medium text-primary hover:underline">
           {p.data.name}
         </Link>
       ) : null,
@@ -70,6 +73,11 @@ export function LokasiGrid({ rows }: { rows: LokasiRow[] }) {
       csvExport
       persistKey="lokasi-list"
       getRowId={(r) => r.id}
+      // SELURUH BARIS membuka lokasinya. Sebelumnya satu-satunya sasaran
+      // adalah tautan nama seluas 2,4% baris — ketukan di mana pun selain di
+      // situ tidak melakukan APA PUN, dan itulah yang di lapangan terbaca
+      // "aplikasi tidak merespon" lalu diketuk berulang kali (DECISIONS 247).
+      rowLink
       emptyText="Belum ada lokasi yang bisa diakses."
     />
   );

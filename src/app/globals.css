@@ -168,6 +168,43 @@
 }
 
 /*
+ * Tautan yang SEDANG DIBUKA — penanda dipasang shell/nav-progress.tsx.
+ *
+ * Bar 2px di pucuk layar terlalu jauh dari jempol dan mudah luput di bawah
+ * matahari. Umpan balik yang benar-benar meyakinkan adalah benda yang BARU
+ * SAJA DISENTUH itu sendiri bereaksi — itulah yang membuat orang berhenti
+ * mengetuk ulang, dan ketukan ulang itu yang bikin jaringan makin sesak.
+ *
+ * Sengaja TANPA pseudo-element: pola "stretched link" di aplikasi ini memakai
+ * `after:absolute inset-0` PADA anchor-nya (mis. butir Activity Centre), jadi
+ * `::after` di sini akan menimpanya dan mematikan seluruh area kliknya.
+ * Denyut opacity aman untuk tautan sebaris maupun kartu.
+ *
+ * Pada `prefers-reduced-motion`, aturan global memangkas durasinya sehingga
+ * tautannya cuma meredup dan diam — tetap terbaca "sedang diproses".
+ */
+@keyframes marlin-link-sibuk {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+a[data-navigating] {
+  animation: marlin-link-sibuk 1s ease-in-out infinite;
+  cursor: progress;
+}
+
+/* Baris grid yang tautannya sedang dibuka ikut disorot. Peningkatan bertahap:
+   peramban tanpa `:has()` tetap dapat denyut di tautannya. */
+.ag-row:has(a[data-navigating]) {
+  background-color: var(--color-primary-50);
+}
+
+/*
  * `fieldset` TIDAK BOLEH menolak mengecil.
  *
  * Peramban memberi `<fieldset>` `min-inline-size: min-content` bawaan — satu-

@@ -2,7 +2,7 @@
 
 import { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { ICONS, type NavItem } from "./nav-config";
@@ -127,6 +127,13 @@ const BATAS_AMAN_MS = 20_000;
 function useNavigasiDiketuk(): boolean {
   const pathname = usePathname();
   const [aktif, setAktif] = useState(false);
+  /** Alamat yang sedang dituju + elemen yang diketuk (untuk dilepas tandanya). */
+  const tujuan = useRef<{ href: string; el: HTMLAnchorElement } | null>(null);
+
+  const lepas = useCallback(() => {
+    tujuan.current?.el.removeAttribute("data-navigating");
+    tujuan.current = null;
+  }, []);
 
   // Halaman sudah berganti → tugasnya selesai (disetel saat render, bukan effect).
   const [prevPath, setPrevPath] = useState(pathname);
@@ -134,6 +141,10 @@ function useNavigasiDiketuk(): boolean {
     setPrevPath(pathname);
     if (aktif) setAktif(false);
   }
+
+  useEffect(() => {
+    if (!aktif) lepas();
+  }, [aktif, lepas]);
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
@@ -154,6 +165,34 @@ function useNavigasiDiketuk(): boolean {
       if (url.origin !== window.location.origin) return;
       // Jangkar dalam-halaman & URL yang sama persis: tidak ada perjalanan jaringan.
       if (url.pathname === window.location.pathname && url.search === window.location.search) return;
+
+      const href = url.pathname + url.search;
+      /*
+       * KETUKAN ULANG KE ALAMAT YANG SAMA DIHENTIKAN DI SINI.
+       *
+       * Diukur di peramban dengan jaringan 400 kbps: tiga ketukan pada satu
+       * lokasi menghasilkan TIGA permintaan halaman penuh (plus prefetch tab
+       * yang ikut berlipat) — sembilan permintaan berebut pipa yang sama.
+       * Tiap duplikat mencuri jatah dari permintaan yang sebetulnya sudah
+       * hampir selesai, jadi makin sering diketuk makin lambat. Itulah
+       * lingkaran yang dilaporkan dari lapangan.
+       *
+       * Disetop di fase capture supaya Next tidak sempat memulai navigasi
+       * kedua. Aman dari "terkunci selamanya" karena tanda ini dilepas begitu
+       * pathname berganti, atau oleh BATAS_AMAN_MS.
+       */
+      if (tujuan.current?.href === href) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+
+      // Tandai elemen yang diketuk supaya BISA DILIHAT bereaksi. Bar setipis
+      // 2px di pucuk layar terlalu jauh dari jempol dan mudah luput di bawah
+      // matahari; yang paling meyakinkan adalah barisnya sendiri berubah.
+      tujuan.current?.el.removeAttribute("data-navigating");
+      a.setAttribute("data-navigating", "");
+      tujuan.current = { href, el: a };
       setAktif(true);
     }
     /*

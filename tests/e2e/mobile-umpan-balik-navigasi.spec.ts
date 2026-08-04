@@ -150,3 +150,84 @@ test.describe("bar progres global", () => {
     ).toBeVisible({ timeout: AMBANG_UMPAN_BALIK_MS });
   });
 });
+
+/**
+ * KETUKAN DI DAFTAR LOKASI — keluhan lapangan 2026-08-04:
+ * *"user buka lokasi lalu klik lokasinya, seperti tidak terjadi apa pun, bisa
+ * 2-3x klik. ini problem besar, karena akhirnya request berulang-ulang tapi
+ * user merasa aplikasi tidak merespon."*
+ *
+ * Tiga cacat berbeda menumpuk di satu ketukan, dan semuanya terukur:
+ *
+ * 1. SASARAN KETUK. Satu-satunya yang bisa diketuk adalah tautan nama seluas
+ *    75x16 px — 2,4% dari luas baris. Ketukan di mana pun selain di situ tidak
+ *    memicu APA PUN, karena daftar lokasi tidak memasang aksi baris sama
+ *    sekali. Jadi "seperti tidak terjadi apa pun" itu HARFIAH: memang tidak
+ *    terjadi apa-apa.
+ * 2. UMPAN BALIK. Ketika akhirnya kena, tidak ada tanda apa pun di benda yang
+ *    baru disentuh.
+ * 3. PERMINTAAN BERLIPAT. Diukur pada 400 kbps: tiga ketukan menghasilkan tiga
+ *    permintaan halaman penuh + prefetch tab yang ikut berlipat = sembilan
+ *    permintaan berebut pipa yang sama. Makin sering diketuk, makin lambat.
+ */
+test.describe("daftar lokasi: satu ketukan, satu permintaan", () => {
+  test.beforeEach(async ({ page }) => {
+    test.skip(test.info().project.name !== "mobile", "perilaku khusus ponsel");
+    await login(page);
+  });
+
+  test("ketukan di baris (di luar teks tautan) membuka lokasinya", async ({ page }) => {
+    await page.goto("/lokasi");
+    const tautan = page.locator('a[href^="/lokasi/"]').first();
+    await tautan.waitFor({ state: "visible", timeout: 30_000 });
+    const lb = (await tautan.boundingBox())!;
+    const baris = (await page.locator(".ag-row").first().boundingBox())!;
+    const lebarLayar = page.viewportSize()!.width;
+
+    // Titik ketuk WAJIB di dalam viewport. Baris grid jauh lebih lebar daripada
+    // layar ponsel, jadi titik yang dihitung dari lebar baris bisa jatuh di
+    // luar layar — ketukan ke ruang kosong lalu disalahartikan "tidak
+    // menavigasi". Cacat itu sempat terjadi saat uji ini disusun.
+    const x = Math.min(lebarLayar - 20, lb.x + lb.width + 40);
+    expect(x, "titik ketuk harus terlihat di layar").toBeLessThan(lebarLayar);
+
+    await page.mouse.click(x, baris.y + baris.height / 2);
+    await expect(page).toHaveURL(/\/lokasi\/[^/]+$/, { timeout: 30_000 });
+  });
+
+  test("tiga ketukan beruntun tetap SATU permintaan halaman", async ({ page }) => {
+    await page.goto("/lokasi");
+    const tautan = page.locator('a[href^="/lokasi/"]').first();
+    await tautan.waitFor({ state: "visible", timeout: 30_000 });
+    await lambatkan(page);
+
+    const permintaan: string[] = [];
+    page.on("request", (r) => {
+      const u = new URL(r.url()).pathname;
+      if (!/^\/lokasi\/[^/]+$/.test(u)) return;
+      // PRA-AMBIL TIDAK DIHITUNG. Next mem-prefetch tiap tautan lokasi yang
+      // terlihat di layar, jadi menghitung "semua permintaan ke /lokasi/*"
+      // mencampur pra-ambil latar dengan navigasi sungguhan dan menghasilkan
+      // angka yang tidak berarti apa-apa (sempat terbaca 11 untuk 3 ketukan).
+      // Pra-ambil membawa header `Next-Router-Prefetch`.
+      if (r.headers()["next-router-prefetch"]) return;
+      permintaan.push(u);
+    });
+
+    await tautan.click();
+    // Elemen yang diketuk WAJIB terlihat bereaksi — itu yang menghentikan
+    // ketukan ulang, dan ketukan ulang itu yang menyesakkan jaringan.
+    await expect(page.locator("a[data-navigating]")).toHaveCount(1, { timeout: 1000 });
+
+    await page.waitForTimeout(200);
+    await tautan.click({ force: true }).catch(() => {});
+    await page.waitForTimeout(200);
+    await tautan.click({ force: true }).catch(() => {});
+
+    await expect(page).toHaveURL(/\/lokasi\/[^/]+$/, { timeout: 40_000 });
+    expect(
+      permintaan.length,
+      `tiga ketukan menghasilkan ${permintaan.length} permintaan halaman: ${permintaan.join(", ")}`,
+    ).toBe(1);
+  });
+});

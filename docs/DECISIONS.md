@@ -8475,3 +8475,65 @@ elemen sungguhan di viewport 390px, bukan mengecek ada-tidaknya aturan CSS.
 Ujinya langsung membuktikan dirinya bergigi: ia **menemukan satu kontrol yang
 terlewat** saat pertama dijalankan (kotak "Cari di tabel" MarlinGrid, 14px)
 yang tidak ikut terpikirkan waktu menambal.
+
+---
+
+## 247 · "Klik lokasi, tidak terjadi apa pun" — tiga cacat menumpuk di satu ketukan (2026-08-04)
+
+Laporan lapangan: *"user buka lokasi lalu klik lokasinya, seperti tidak terjadi
+apa pun, bisa 2-3x klik. ini problem besar, karena akhirnya request
+berulang-ulang tapi user merasa aplikasi tidak merespon."*
+
+Ternyata bukan satu masalah, melainkan tiga — dan yang terbesar bukan
+kecepatan.
+
+### 1. Sasaran ketuknya 2,4% dari baris
+
+Diukur di viewport 390px: satu-satunya yang bisa diketuk adalah tautan nama
+lokasi seluas **75 × 16 px**, sementara barisnya 1200 × 42 px. Ketukan di mana
+pun **selain** di situ tidak memicu apa pun, karena daftar lokasi tidak memasang
+aksi baris sama sekali (padahal daftar paket sudah). Jadi *"seperti tidak
+terjadi apa pun"* itu HARFIAH — memang tidak terjadi apa-apa. Tinggi 16px juga
+jauh di bawah ambang sasaran sentuh 44px.
+
+Perbaikan: `rowLink` di MarlinGrid — ketukan di mana pun pada baris **mengetuk
+tautan yang memang sudah ada di dalam baris itu**, bukan `router.push`.
+Bedanya penting: lewat tautan aslinya, navigasi ikut melewati `<Link>` Next DAN
+pendengar ketukan di shell, sehingga dapat penanda "sedang dibuka", bar progres,
+dan penyaringan ketukan ulang. `router.push` melompati semuanya — jalan, tapi
+senyap, persis penyakit yang sedang diobati. Tautannya sendiri jadi `block
+py-1.5` sehingga mengisi sel (75px → 168px lebar).
+
+### 2. Ketukan yang kena pun tidak terlihat direspons
+
+Bar 2px di pucuk layar (DECISIONS 245) terlalu jauh dari jempol dan mudah luput
+di bawah matahari. Sekarang elemen yang diketuk sendiri berdenyut lewat penanda
+`data-navigating`. Sengaja **tanpa pseudo-element**: pola "stretched link" di
+aplikasi ini memakai `after:absolute inset-0` PADA anchor-nya, jadi `::after`
+akan menimpanya dan mematikan seluruh area kliknya.
+
+### 3. Ketukan berulang → permintaan berlipat
+
+Diukur di peramban pada 400 kbps: **tiga ketukan = tiga permintaan halaman
+penuh**, plus prefetch tab yang ikut berlipat — **sembilan permintaan** berebut
+pipa yang sama. Tiap duplikat mencuri jatah dari permintaan yang hampir selesai,
+jadi makin sering diketuk makin lambat. Itu lingkaran setan yang dilaporkan.
+
+Ketukan ulang ke alamat yang SAMA kini disetop di fase capture sebelum Next
+sempat memulai navigasi kedua. Aman dari terkunci: penanda dilepas begitu
+pathname berganti atau oleh `BATAS_AMAN_MS`.
+
+### Verifikasi
+
+Diuji di browser ber-throttling: 3 ketukan → **1 permintaan** (sebelumnya 3),
+tautan bertanda "sedang dibuka" dalam 250 ms, ketukan di baris di luar teks
+tautan membuka lokasinya. Ujinya dibuktikan bergigi — dengan dedup dimatikan ia
+GAGAL dengan "tiga ketukan menghasilkan 3 permintaan halaman".
+
+**Dua kesalahan ukur yang sempat terjadi dan patut diingat**: (a) titik ketuk
+dihitung dari lebar BARIS (1200px) padahal layarnya 390px, sehingga ketukan
+jatuh di luar layar dan terbaca "tidak menavigasi"; (b) penghitung permintaan
+ikut menghitung **pra-ambil** Next atas seluruh tautan lokasi yang terlihat,
+sehingga 3 ketukan terbaca 11 permintaan. Keduanya menghasilkan angka yang
+tampak meyakinkan tapi salah — dan keduanya baru ketahuan karena angkanya
+diperiksa ulang, bukan diterima apa adanya.
