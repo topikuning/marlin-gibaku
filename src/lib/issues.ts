@@ -9,7 +9,7 @@ import { requireCapability, requireLocationAccess, ForbiddenError, type SessionU
 /**
  * Server actions kendala (Issue) + aksi pemulihan (RecoveryAction/Update).
  * Semua mutasi: capability issue.manage + scope lokasi + zod + audit +
- * revalidatePath. Dipakai dari halaman /lokasi/[slug]/progress.
+ * revalidatePath. Dipakai dari halaman /proyek/lokasi/[slug]/progress.
  */
 
 export type IssueActionState = { error?: string; success?: string } | undefined;

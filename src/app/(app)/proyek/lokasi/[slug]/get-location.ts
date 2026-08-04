@@ -56,7 +56,7 @@ function findLocation(slug: string) {
 }
 
 /**
- * Guard semua halaman /lokasi/[slug]/**: login + location.view + scope.
+ * Guard semua halaman /proyek/lokasi/[slug]/**: login + location.view + scope.
  * Slug salah ATAU tanpa akses → 404 (tidak membocorkan keberadaan lokasi,
  * konvensi sama dgn page-guard). Di-cache per request (layout + page share).
  */
