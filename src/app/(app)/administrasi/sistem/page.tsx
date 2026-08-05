@@ -27,6 +27,7 @@ import { pratinjauPengingat } from "@/lib/harian/pratinjau";
 import { CAPABILITIES, ROLE_CAPABILITIES, ROLE_LABEL, ALL_ROLES } from "@/lib/authz";
 import { KELOMPOK_KEMAMPUAN, KEMAMPUAN_LABEL } from "@/lib/authz-ringkas";
 import type { UserRole } from "@/generated/prisma/enums";
+import type { Prisma } from "@/generated/prisma/client";
 import {
   R2TestPanel,
   ResetPanel,
@@ -119,6 +120,24 @@ function IntegrationHeader({
  * menggagalkan uji, bukan menghilang diam-diam.
  */
 
+/**
+ * Alasan yang diketik pelaku, kalau aksinya memang meminta alasan.
+ *
+ * `payload` bebas bentuk (Json), dan penulisnya memakai kunci yang berbeda-beda
+ * — `alasan`, `reason`, `catatan`, `note` — karena tersebar di belasan server
+ * action. Menormalkannya di penulis berarti menyentuh semua pemanggil; di sini
+ * cukup satu tempat, dan kunci yang belum terdaftar hanya berarti alasannya
+ * tidak tampil, bukan barisnya hilang.
+ */
+function alasanAudit(payload: Prisma.JsonValue | null | undefined): string | null {
+  if (payload == null || typeof payload !== "object" || Array.isArray(payload)) return null;
+  for (const kunci of ["alasan", "reason", "catatan", "note"]) {
+    const nilai = (payload as Record<string, unknown>)[kunci];
+    if (typeof nilai === "string" && nilai.trim().length > 0) return nilai.trim().slice(0, 200);
+  }
+  return null;
+}
+
 /* ── halaman ─────────────────────────────────────────────────────────────── */
 
 export default async function SistemPage() {
@@ -126,9 +145,30 @@ export default async function SistemPage() {
   requireCapabilityPage(user.role, "system.manage");
 
   const todayStart = jakartaToday();
+
+  /*
+   * PAGAR TENANT untuk audit trail.
+   *
+   * `AuditLog` tidak punya kolom `orgId`, jadi selama ini halaman ini
+   * mengambil 100 entri TERAKHIR SELURUH DATABASE — beserta nama lengkap dan
+   * username pelakunya. Di pemasangan satu organisasi itu tidak kelihatan;
+   * begitu ada organisasi kedua, super_admin organisasi A membaca jejak
+   * organisasi B. Hal yang sama berlaku untuk hitungan sesi aktif, akun aktif,
+   * mutasi hari ini, dan sebaran peran — semuanya tadinya lintas tenant.
+   * Pagarnya lewat relasi `user`, tanpa menyentuh skema.
+   *
+   * `userId: null` (peristiwa sistem: cron, tugas terjadwal) SENGAJA tetap
+   * ikut: entri itu tidak dimiliki tenant mana pun, dan MENYEMBUNYIKANNYA dari
+   * satu-satunya halaman audit yang ada jauh lebih berbahaya daripada
+   * menampilkannya — jejak yang bolong tidak bisa dipakai menelusuri apa pun.
+   */
+  const auditOrg = {
+    OR: [{ user: { orgId: user.orgId } }, { userId: null }],
+  } satisfies Prisma.AuditLogWhereInput;
   const [auditLogs, sessionCount, branding, wahaDisplay, photoStamp, activeUsers, auditToday, roleCounts] =
     await Promise.all([
       db.auditLog.findMany({
+        where: auditOrg,
         orderBy: { createdAt: "desc" },
         take: 100,
         select: {
@@ -137,16 +177,23 @@ export default async function SistemPage() {
           resourceType: true,
           resourceId: true,
           createdAt: true,
+          // Alasan yang DIKETIK pelaku (buka kunci laporan, batalkan dokumen,
+          // perbaiki cap foto) tersimpan di payload. Tanpa menampilkannya, log
+          // ini hanya bisa menjawab "siapa mengubah apa" — bukan "kenapa",
+          // yang justru pertanyaan yang dibawa orang ke halaman audit.
+          payload: true,
           user: { select: { username: true, fullName: true } },
         },
       }),
-      db.session.count({ where: { revokedAt: null, expiresAt: { gt: new Date() } } }),
+      db.session.count({
+        where: { revokedAt: null, expiresAt: { gt: new Date() }, user: { orgId: user.orgId } },
+      }),
       getBranding(),
       getWahaConfigDisplay(),
       getPhotoStampConfig(),
-      db.user.count({ where: { isActive: true } }),
-      db.auditLog.count({ where: { createdAt: { gte: todayStart } } }),
-      db.user.groupBy({ by: ["role"], _count: { _all: true } }),
+      db.user.count({ where: { isActive: true, orgId: user.orgId } }),
+      db.auditLog.count({ where: { ...auditOrg, createdAt: { gte: todayStart } } }),
+      db.user.groupBy({ by: ["role"], where: { orgId: user.orgId }, _count: { _all: true } }),
     ]);
   const activityKinds = await getActivityKinds();
   const policy = await getPolicy();
@@ -578,7 +625,10 @@ export default async function SistemPage() {
   const auditPanel: ReactNode = (
     <div className="space-y-5">
       <Card>
-        <CardHeader title="Log Aktivitas" subtitle="100 mutasi terakhir (append-only)" />
+        <CardHeader
+          title="Log Aktivitas"
+          subtitle="100 mutasi terakhir di organisasi ini (append-only) — beserta alasan yang diketik pelakunya bila aksinya memang meminta alasan"
+        />
         <CardBody>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-sm">
@@ -587,21 +637,35 @@ export default async function SistemPage() {
                   <th className="py-2 pr-3 font-medium">Waktu</th>
                   <th className="py-2 pr-3 font-medium">Pengguna</th>
                   <th className="py-2 pr-3 font-medium">Aksi</th>
-                  <th className="py-2 font-medium">Resource</th>
+                  <th className="py-2 font-medium">Resource &amp; alasan</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {auditLogs.map((l) => (
-                  <tr key={l.id}>
-                    <td className="tabular py-1.5 pr-3 whitespace-nowrap">{formatTanggalWaktu(l.createdAt)}</td>
-                    <td className="py-1.5 pr-3">{l.user ? `${l.user.fullName} (@${l.user.username})` : "—"}</td>
-                    <td className="py-1.5 pr-3 font-mono text-xs">{l.action}</td>
-                    <td className="py-1.5 text-xs text-ink-muted">
-                      {l.resourceType}
-                      {l.resourceId ? ` · ${l.resourceId.slice(0, 8)}` : ""}
-                    </td>
-                  </tr>
-                ))}
+                {auditLogs.map((l) => {
+                  const alasan = alasanAudit(l.payload);
+                  return (
+                    <tr key={l.id}>
+                      <td className="tabular py-1.5 pr-3 whitespace-nowrap">{formatTanggalWaktu(l.createdAt)}</td>
+                      <td className="py-1.5 pr-3">
+                        {l.user ? (
+                          `${l.user.fullName} (@${l.user.username})`
+                        ) : (
+                          // Bukan "—": entri tanpa pelaku BUKAN data hilang,
+                          // melainkan peristiwa yang memang dijalankan sistem.
+                          <span className="text-ink-muted">sistem</span>
+                        )}
+                      </td>
+                      <td className="py-1.5 pr-3 font-mono text-xs">{l.action}</td>
+                      <td className="py-1.5 text-xs text-ink-muted">
+                        {l.resourceType}
+                        {l.resourceId ? ` · ${l.resourceId.slice(0, 8)}` : ""}
+                        {alasan ? (
+                          <span className="mt-0.5 block text-ink italic">“{alasan}”</span>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
