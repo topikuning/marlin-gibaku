@@ -284,12 +284,114 @@ export function UsersTable({
 }) {
   const [open, setOpen] = useState<{ id: string; panel: "assign" | "reset" | "profile" | "role" } | null>(null);
   const allowedRoles = useMemo(() => creatableRoles(actorRole), [actorRole]);
+
+  /*
+   * SARINGAN daftar akun. Arsitektur menargetkan 200+ lokasi, jadi daftar
+   * akunnya bukan belasan melainkan puluhan — dan daftar datar tanpa saringan
+   * memaksa orang menggulir sambil membaca satu per satu. Seluruhnya di sisi
+   * klien: datanya sudah ada di halaman, jadi tidak ada kueri baru.
+   */
+  const [q, setQ] = useState("");
+  const [peran, setPeran] = useState("");
+  const [status, setStatus] = useState<"semua" | "aktif" | "nonaktif" | "belum_login">("semua");
+
+  // Hanya peran yang BENAR-BENAR ada di daftar — pilihan yang selalu
+  // menghasilkan nol hasil bukan pilihan, cuma jebakan.
+  const peranAda = useMemo(() => {
+    const ada = new Set(users.map((u) => u.role));
+    return (Object.keys(ROLE_LABEL) as UserRole[]).filter((r) => ada.has(r));
+  }, [users]);
+
+  const terlihat = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return users.filter((u) => {
+      if (peran && u.role !== peran) return false;
+      if (status === "aktif" && !u.isActive) return false;
+      if (status === "nonaktif" && u.isActive) return false;
+      if (status === "belum_login" && u.lastLoginAt) return false;
+      if (!needle) return true;
+      return [u.fullName, u.username, u.email ?? "", ROLE_LABEL[u.role], ...u.assignments.map((a) => a.name)]
+        .join(" ")
+        .toLowerCase()
+        .includes(needle);
+    });
+  }, [users, q, peran, status]);
+
   if (users.length === 0) {
     return <p className="text-sm text-ink-muted">Belum ada pengguna.</p>;
   }
+
+  const STATUS: { key: typeof status; label: string }[] = [
+    { key: "semua", label: "Semua" },
+    { key: "aktif", label: "Aktif" },
+    { key: "nonaktif", label: "Nonaktif" },
+    { key: "belum_login", label: "Belum pernah masuk" },
+  ];
+
   return (
-    <div className="divide-y divide-border">
-      {users.map((u) => (
+    <div>
+      <div className="mb-3 space-y-2">
+        <div className="flex flex-wrap gap-2">
+          <div className="relative min-w-0 flex-1 basis-48">
+            <Search
+              aria-hidden
+              className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-ink-muted"
+            />
+            <Input
+              type="search"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Cari nama, username, email, atau lokasi…"
+              aria-label="Cari pengguna"
+              className="pl-8"
+            />
+          </div>
+          <div className="w-full sm:w-52">
+            <Combobox
+              value={peran}
+              onChange={setPeran}
+              options={[
+                { value: "", label: "Semua peran" },
+                ...peranAda.map((r) => ({ value: r, label: ROLE_LABEL[r] })),
+              ]}
+            />
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {STATUS.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              onClick={() => setStatus(s.key)}
+              aria-pressed={status === s.key}
+              className={
+                status === s.key
+                  ? "rounded-full border border-primary-600 bg-primary-600 px-2.5 py-1 text-xs font-medium text-white"
+                  : "rounded-full border border-border bg-surface px-2.5 py-1 text-xs text-ink-muted hover:bg-surface-inset"
+              }
+            >
+              {s.label}
+            </button>
+          ))}
+          {/* Jumlah yang DISEMBUNYIKAN ikut disebut, bukan hanya yang tampil:
+              daftar tersaring yang diam membuat "tidak muncul" terbaca sebagai
+              "tidak ada" — dan akun yang dikira tidak ada akan dibuat ulang. */}
+          <span className="ml-auto text-xs text-ink-muted">
+            {terlihat.length === users.length
+              ? `${users.length} akun`
+              : `${terlihat.length} dari ${users.length} akun · ${users.length - terlihat.length} disembunyikan saringan`}
+          </span>
+        </div>
+      </div>
+
+      {terlihat.length === 0 ? (
+        <p className="py-6 text-center text-sm text-ink-muted">
+          Tidak ada akun yang cocok dengan saringan ini.
+        </p>
+      ) : null}
+
+      <div className="divide-y divide-border">
+      {terlihat.map((u) => (
         <div key={u.id} className="py-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             {/* min-w-0: tanpa ini blok identitas memakai lebar max-content —
@@ -374,6 +476,7 @@ export function UsersTable({
           )}
         </div>
       ))}
+      </div>
     </div>
   );
 }
