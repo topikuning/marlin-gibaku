@@ -5,6 +5,7 @@ import { orderCategoriesByRab } from "@/lib/scurve/kkp-sheet";
 import { COUNTED_REPORT_STATUSES, currentWeekNumber } from "@/lib/progress";
 import { bobotPct, distributeWithCaps, itemAchievement, planFractionFromWeekly, prestasiPct } from "@/lib/progress-calc";
 import { jakartaDateKey } from "@/lib/format";
+import type { Prisma } from "@/generated/prisma/client";
 import type {
   IssueSeverity,
   IssueStatus,
@@ -159,6 +160,83 @@ function dateKey(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+/* ── Kop dokumen: SATU tempat pembentukan ────────────────────────────────── */
+
+/**
+ * `select` Prisma untuk kop dokumen KKP, plus pembentuknya.
+ *
+ * Kop yang sama dipakai laporan periodik DAN formulir rencana mingguan
+ * (DECISIONS 258). Dua puluh baris penyalinan field yang identik adalah cara
+ * paling mudah membuat dua dokumen resmi menyebut nomor kontrak atau nama PPK
+ * yang berbeda tanpa ada yang salah input — jadi bentuknya cuma boleh ada satu.
+ */
+export const HEADER_LOCATION_SELECT = {
+  name: true,
+  village: true,
+  district: true,
+  regency: true,
+  province: true,
+  package: {
+    select: {
+      name: true,
+      contract: {
+        select: {
+          contractNumber: true,
+          contractValue: true,
+          workTitle: true,
+          durationDays: true,
+          ppkName: true,
+          ppkNip: true,
+          supervisorName: true,
+          supervisorFirm: true,
+          contractorSignerName: true,
+          contractorSignerTitle: true,
+          vendor: { select: { name: true } },
+        },
+      },
+    },
+  },
+} satisfies Prisma.LocationSelect;
+
+type HeaderLocation = Prisma.LocationGetPayload<{ select: typeof HEADER_LOCATION_SELECT }>;
+
+/**
+ * Susun kop dari hasil query `HEADER_LOCATION_SELECT`.
+ * null bila kontrak belum ada — dokumen resmi tanpa kontrak tidak boleh terbit.
+ */
+export function buildPeriodHeader(
+  location: HeaderLocation,
+  o: { grandTotal: number; startDate: Date; periodeStart: Date; periodeEnd: Date },
+): PeriodHeader | null {
+  const contract = location.package.contract;
+  if (!contract) return null;
+  return {
+    locationName: location.name,
+    village: location.village,
+    district: location.district,
+    regency: location.regency,
+    province: location.province,
+    // Nama resmi pekerjaan (workTitle) untuk dokumen; fallback nama pendek paket.
+    packageName: contract.workTitle?.trim() || location.package.name,
+    contractNumber: contract.contractNumber,
+    vendorName: contract.vendor.name,
+    contractValue: contract.contractValue,
+    // Nilai fisik lokasi ini = Σ RAB aktif (bukan nilai kontrak seluruh paket).
+    locationValue: BigInt(Math.round(o.grandTotal)),
+    masaPelaksanaanHari: Math.max(1, contract.durationDays),
+    tahunAnggaran: o.startDate.getUTCFullYear(),
+    contractStart: o.startDate,
+    periodeStart: o.periodeStart,
+    periodeEnd: o.periodeEnd,
+    ppkName: contract.ppkName,
+    ppkNip: contract.ppkNip,
+    supervisorName: contract.supervisorName,
+    supervisorFirm: contract.supervisorFirm,
+    contractorSignerName: contract.contractorSignerName,
+    contractorSignerTitle: contract.contractorSignerTitle,
+  };
+}
+
 export type PeriodBounds = {
   locationId: string;
   startDate: Date;
@@ -240,36 +318,7 @@ export async function getPeriodReport(
 
   const location = await db.location.findUnique({
     where: { id: locationId },
-    select: {
-      id: true,
-      name: true,
-      village: true,
-      district: true,
-      regency: true,
-      province: true,
-      package: {
-        select: {
-          name: true,
-          contract: {
-            select: {
-              contractNumber: true,
-              contractValue: true,
-              workTitle: true,
-              durationDays: true,
-              startDate: true,
-              endDate: true,
-              ppkName: true,
-              ppkNip: true,
-              supervisorName: true,
-              supervisorFirm: true,
-              contractorSignerName: true,
-              contractorSignerTitle: true,
-              vendor: { select: { name: true } },
-            },
-          },
-        },
-      },
-    },
+    select: HEADER_LOCATION_SELECT,
   });
   if (!location) return null;
   const contract = location.package.contract;
@@ -620,7 +669,8 @@ export async function getPeriodReport(
     return k >= sKey && k <= eKey;
   });
 
-  const masaPelaksanaanHari = Math.max(1, contract.durationDays);
+  const header = buildPeriodHeader(location, { grandTotal, startDate, periodeStart, periodeEnd });
+  if (!header) return null;
 
   return {
     kind,
@@ -628,31 +678,7 @@ export async function getPeriodReport(
     maxN,
     totalWeeks,
     totalMonths,
-    header: {
-      locationName: location.name,
-      village: location.village,
-      district: location.district,
-      regency: location.regency,
-      province: location.province,
-      // Nama resmi pekerjaan (workTitle) untuk dokumen; fallback nama pendek paket.
-      packageName: contract.workTitle?.trim() || location.package.name,
-      contractNumber: contract.contractNumber,
-      vendorName: contract.vendor.name,
-      contractValue: contract.contractValue,
-      // Nilai fisik lokasi ini = Σ RAB aktif (bukan nilai kontrak seluruh paket).
-      locationValue: BigInt(Math.round(grandTotal)),
-      masaPelaksanaanHari,
-      tahunAnggaran: startDate.getUTCFullYear(),
-      contractStart: startDate,
-      periodeStart,
-      periodeEnd,
-      ppkName: contract.ppkName,
-      ppkNip: contract.ppkNip,
-      supervisorName: contract.supervisorName,
-      supervisorFirm: contract.supervisorFirm,
-      contractorSignerName: contract.contractorSignerName,
-      contractorSignerTitle: contract.contractorSignerTitle,
-    },
+    header,
     categories,
     totals: { bobotLalu: totalBobotLalu, bobotIni: totalBobotIni, bobotSd: totalBobotSd, bobotRencana: totalBobotRencana },
     planPct,

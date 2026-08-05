@@ -9351,3 +9351,108 @@ Catatan proses: uji "bertahan melewati muat ulang" awalnya kutulis dengan
 `page.reload()` dalam keadaan benar-benar offline — dan gagal, karena memang
 tidak mungkin tanpa service worker. Ujinya yang salah, bukan kodenya; sekarang
 yang digagalkan unggahannya saja, dan batas sebenarnya ditulis di atas.
+
+---
+
+## 258 · Rencana mingguan punya KELUARAN dan bisa DINILAI sebelum dijalankan (2026-08-05)
+
+### Keberatan
+
+> *"aku sudah buat rencana, lalu apa? mana outputnya? kemana bisa aku laporkan?
+> apa tidak ada form KKP untuk menunjukkan rencana seminggu ke depan. lalu dari
+> apa yang kamu rencanakan, itu berapa persen pencapaiannya jika rencanamu
+> diikuti. apa maksud tulisan merah itu. tujuan sistem ini dibuat untuk
+> memudahkan dan memberikan output untuk diberikan kepada semua orang, bukan
+> cuma berhenti di layar."*
+
+Empat keberatan, satu akar: **rencana ditampilkan tapi tidak pernah dinilai, dan
+tidak pernah keluar dari layar.**
+
+### Keputusan
+
+**1. Rencana mingguan adalah DOKUMEN, bukan layar.** Formulir A4 di
+`/cetak/rencana/[slug]/[n]` + ekspor `.xlsx`, keduanya dari SATU sumber data
+(`lib/plan/rencana-mingguan.ts`). Layar, berkas cetak, dan Excel tidak boleh
+menampilkan angka berbeda — yang beredar ke PPK adalah yang dicetak.
+
+**2. Susunannya mengikuti dua praktik yang sudah mapan, bukan selera:**
+
+- **Earned Value Management** — ringkasan kinerja mendahului rincian, dan
+  rencana tidak pernah disajikan sendirian: selalu bersama realisasi, tuntutan
+  kurva-S, dan deviasinya, dinyatakan dalam BOBOT (% nilai) supaya item besar
+  dan kecil bisa dibandingkan.
+- **Last Planner System** — rencana mingguan adalah KOMITMEN, dan
+  kredibilitasnya ditagih dengan **PPC (Percent Plan Complete)** sebelum
+  komitmen baru diajukan. Tanpa PPC, rencana minggu ini cuma daftar harapan.
+
+Urutan berkas: kop & identitas → **A. posisi & proyeksi** → **B. evaluasi PPC
+minggu lalu** → **C. komitmen minggu ini** → **D. catatan** → tanda tangan
+tiga pihak (disusun / diperiksa / disetujui).
+
+**3. PPC dihitung PER KOMITMEN dan BINER — tuntas atau tidak.** Bukan
+kelalaian: pekerjaan yang baru 80% selesai TIDAK melepaskan penerusnya.
+Menghitungnya tertimbang-volume memberi angka bagus untuk minggu yang justru
+memacetkan seluruh rantai. Pencapaian volume tetap dilaporkan sebagai angka
+KEDUA, dan dibatasi per item supaya kelebihan di satu item tidak menutupi
+item yang nol.
+
+**4. PPC memakai realisasi SELAMA minggu itu**, yaitu kumulatif s/d akhir
+minggu dikurangi kumulatif s/d sehari sebelum minggu itu mulai. Memakai
+kumulatif apa adanya membuat pekerjaan minggu-minggu SEBELUMNYA dihitung
+sebagai pemenuhan janji minggu lalu — PPC-nya tinggi justru untuk minggu yang
+tidak mengerjakan apa pun. Cacat ini senyap: tidak ada galat, layarnya rapi.
+
+**5. Tidak ada rencana minggu lalu ⇒ PPC `null`, BUKAN 0.** 0% berarti
+"berjanji lalu gagal total"; null berarti "tidak berjanji". Menyamakannya
+menghukum lokasi yang baru mulai.
+
+**6. Proyeksi — jawaban atas "berapa persen kalau rencanaku diikuti".**
+`proyeksi = realisasi sekarang + bobot komitmen minggu ini`, dibandingkan
+dengan tuntutan kurva-S. Ini satu-satunya angka yang membuat rencana bisa
+dinilai SEBELUM dijalankan; tanpa dia, tanda tangan persetujuan tidak berarti
+apa-apa. Ambang penanda 0,01 poin — selisih di bawah itu hasil pembulatan, dan
+menandainya merah hanya melatih orang mengabaikan warna.
+
+**7. "Tulisan merah itu" — `(+1.698,24 kejar)` — MENYESATKAN dan dibuang.**
+Tanda `+` mengajak menjumlahkan, padahal kejaran adalah HIMPUNAN BAGIAN dari
+target (`target = min(sisa, tambahan + tertinggal)`, `kejar = min(tertinggal,
+sisa)`). Baris dengan target 1.698,24 dan kejaran 1.698,24 terbaca 3.396,48 —
+dua kali lipat kenyataannya. Angkanya benar; yang salah cara membacanya, dan
+itu ditentukan labelnya. Sekarang: `seluruhnya kejaran` atau
+`termasuk N kejaran`.
+
+**8. Status SELALU berpasangan dengan KATA, tidak pernah warna saja** —
+berkasnya dicetak hitam-putih, difoto, dan dikirim lewat WhatsApp. Ambang
+deviasi: ≥ −5 aman · ≥ −10 perlu perhatian · < −10 kritis.
+
+**9. Satu konvensi angka per dokumen: id-ID, koma desimal.** Mencampur "2,5"
+(volume) dengan "0.38" (bobot) dalam satu baris membuat dokumen resmi terbaca
+seperti tempelan dua sistem. Bobot yang bukan nol tapi membulat ke 0,00 ditulis
+`< 0,01` — mencetak "0,00" untuk item senilai Rp 350.000 membuatnya terbaca
+tidak bernilai.
+
+**10. Kop dokumen KKP hanya boleh dibentuk di SATU tempat**
+(`buildPeriodHeader` + `HEADER_LOCATION_SELECT` di `lib/periodic-report.ts`),
+dipakai laporan periodik maupun formulir rencana. Dua puluh baris penyalinan
+field identik adalah cara termudah membuat dua dokumen resmi menyebut nomor
+kontrak atau nama PPK yang berbeda tanpa ada yang salah input.
+
+### Yang TIDAK berubah
+
+`lib/plan/rencana-mingguan.ts` **tidak memuat satu pun rumus baru**. grandTotal,
+realisasi, dan rencana kurva-S diambil dari `getLocationProgress` +
+`planPctAtWeek` — sumber yang sama persis dengan dashboard dan blanko KKP.
+Bobot lewat `bobotPct`. Penilaian rencana ada di `lib/plan/rencana-format.ts`
+yang murni dan teruji terpisah.
+
+### Uji
+
+- `tests/unit/rencana-format.test.ts` — 15 uji: label kejaran, proyeksi,
+  PPC biner, ambang status.
+- `tests/integration/rencana-mingguan.test.ts` — 8 uji terhadap DB sungguhan:
+  jendela PPC, laporan draft tidak memenuhi komitmen, angka pokok sama dengan
+  calculation layer, minggu di luar masa kontrak ditolak.
+
+Dibuktikan bergigi: mengganti `sdAkhir − sdSebelum` menjadi `sdAkhir` (kembali
+ke kumulatif) membuat **tiga** uji integrasi gagal — PPC melompat dari 0%
+menjadi 50% karena pekerjaan minggu sebelumnya.
