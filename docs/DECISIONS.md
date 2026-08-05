@@ -9121,3 +9121,35 @@ katalog, bukan menulis ulang tabel — aman di tabel laporan yang sudah berisi
 dan di database yang dipakai bersama. Diverifikasi di PostgreSQL 16: seluruh
 migrasi jalan bersih dari nol, `migrate status` sinkron, berkasnya dijalankan
 dua kali tanpa galat.
+
+---
+
+## 257 — Progress lokasi dipecah jadi mode kerja, bukan satu gulungan (2026-08-05)
+
+Halaman Progress lokasi menumpuk tujuh kartu dalam satu gulungan: pantauan
+draft adendum, kurva-S, rencana-vs-realisasi mingguan, prognosa, editor jadwal,
+penyesuaian %-mingguan, item tertinggal, kendala & pemulihan, dan riwayat
+baseline. Semuanya sah — tetapi dipakai untuk **pekerjaan yang berbeda**, dan
+yang datang untuk satu pekerjaan harus menggulir melewati enam yang lain.
+
+Tiga mode, sesuai tiga pertanyaan yang benar-benar dibawa orang ke halaman ini:
+
+| Mode | Pertanyaannya | Isinya |
+|---|---|---|
+| `monitor` (bawaan) | "sekarang bagaimana?" | kurva-S, mingguan, prognosa, pantauan draft |
+| `tertinggal` | "apa yang harus dikejar?" | item tertinggal, kendala & pemulihan |
+| `rencana` | "targetnya benar tidak?" | jadwal per pekerjaan, penyesuaian, riwayat baseline |
+
+**Query param, bukan route baru.** Seluruh data halaman ini datang dari satu
+berkas kueri yang sama; memecahnya jadi tiga route hanya menggandakan
+pengambilan data tanpa satu pun manfaat bagi pembacanya. Nilai `mode` asing
+jatuh ke `monitor`, bukan 404 — tautan yang salah ketik seharusnya mendarat di
+halaman yang berguna.
+
+**`LinkTabs` dapat prop `aktif`.** Pencocokan bawaannya hanya melihat pathname,
+dan ketiga tab ini ber-path sama — tanpa penanda eksplisit, sorotan selamanya
+menempel di tab pertama. Sengaja prop, BUKAN `useSearchParams()` di dalam
+`LinkTabs`: komponen itu dipakai di belasan halaman, dan menambah hook di sana
+memaksa semuanya ikut menanggung syarat render dinamis demi kebutuhan satu
+halaman. Yang tahu mode aktif adalah halamannya sendiri, dan ia sudah
+membacanya di server.

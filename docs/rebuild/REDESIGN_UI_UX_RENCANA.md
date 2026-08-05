@@ -112,11 +112,15 @@ pada record yang sama, kewajiban "Lengkapi KKP" tetap di Site Manager.
 - ✅ Tab dikurangi dari delapan jadi enam: Ringkasan · Rencana & RAB ·
   Pelaksanaan · Progress · Keuangan · Administrasi. Route tidak dipindah;
   halaman yang bernaung di bawah satu tab mendapat sub-tab.
-- ❌ Belum: RAB + revisi + **baseline + jadwal** + rencana mingguan digabung
-  ke tab Rencana. Baseline/editor jadwal masih di Progress, dan memisahnya
-  memutus rantai mental biaya → volume → waktu → target mingguan (PRD §5.4).
-- ❌ Belum: Progress dipisah jadi mode kerja (Monitor · Item tertinggal ·
-  Riwayat) — sekarang masih satu layar campur.
+- ✅ **Progress dipisah jadi mode kerja** (`?mode=`): Monitor · Item tertinggal ·
+  Rencana & baseline. Sebelumnya tujuh kartu untuk pekerjaan yang berbeda-beda
+  ditumpuk dalam satu gulungan, dan yang datang untuk satu pekerjaan harus
+  menggulir melewati enam yang lain. Query param, BUKAN route baru: seluruh
+  datanya datang dari satu berkas kueri yang sama, jadi memecahnya jadi tiga
+  route hanya menggandakan pengambilan data.
+- ◐ Baseline & editor jadwal kini berkumpul di mode **Rencana & baseline** di
+  halaman Progress. Memindahkannya ke tab Rencana & RAB (PRD §5.4) masih
+  tersisa — itu perpindahan route, bukan penataan ulang layar.
 
 ## Fase 5 — Paket, Progress portfolio, Keuangan portfolio, Dokumen
 

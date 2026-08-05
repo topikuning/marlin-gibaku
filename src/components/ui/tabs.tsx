@@ -18,6 +18,19 @@ export interface LinkTabItem {
    * sehingga pengguna kehilangan jawaban "saya sedang di bagian mana".
    */
   juga?: string[];
+  /**
+   * Paksa keadaan aktif, mengabaikan pencocokan path.
+   *
+   * Dipakai tab yang dibedakan QUERY PARAM, bukan path — mis. mode kerja
+   * halaman Progress (`?mode=tertinggal`). Pencocokan di bawah hanya melihat
+   * pathname, jadi tiga tab ber-path sama akan selamanya menyorot yang pertama.
+   *
+   * Sengaja prop, bukan `useSearchParams()` di dalam sini: LinkTabs dipakai di
+   * belasan halaman, dan menambah hook itu memaksa SEMUANYA ikut menanggung
+   * syarat render dinamis demi kebutuhan satu halaman. Yang tahu mode aktif
+   * adalah halamannya sendiri, dan ia sudah membacanya di server.
+   */
+  aktif?: boolean;
 }
 
 function cocok(pathname: string, href: string, exact?: boolean): boolean {
@@ -26,6 +39,7 @@ function cocok(pathname: string, href: string, exact?: boolean): boolean {
 }
 
 function isActive(pathname: string, item: LinkTabItem): boolean {
+  if (item.aktif !== undefined) return item.aktif;
   if (cocok(pathname, item.href, item.exact)) return true;
   return (item.juga ?? []).some((h) => cocok(pathname, h));
 }

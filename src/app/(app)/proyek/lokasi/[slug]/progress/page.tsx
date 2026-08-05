@@ -1,7 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, CalendarClock, Sheet, Sparkles } from "lucide-react";
-import { Badge, ButtonLink, Card, CardBody, CardHeader, CollapsibleCard, type BadgeTone } from "@/components/ui";
+import {
+  Badge,
+  ButtonLink,
+  Card,
+  CardBody,
+  CardHeader,
+  CollapsibleCard,
+  LinkTabs,
+  type BadgeTone,
+} from "@/components/ui";
 import { DeltaBadge } from "@/components/ui/stat-delta";
 import { ScurveChart } from "@/components/knmp/scurve-chart";
 import { forecastFromSeries, FORECAST_STATUS } from "@/lib/forecast";
@@ -44,8 +53,47 @@ const BASELINE_STATUS_TONE: Record<RevisionStatus, BadgeTone> = {
   digantikan: "neutral",
 };
 
-export default async function ProgressLokasiPage({ params }: { params: Promise<{ slug: string }> }) {
+/**
+ * MODE KERJA halaman Progress (fase 4 redesign, PRD §5.4).
+ *
+ * Halaman ini menumpuk tujuh kartu dalam satu gulungan: pantauan draft
+ * adendum, kurva-S, rencana-vs-realisasi mingguan, prognosa, editor jadwal,
+ * item tertinggal, kendala, dan riwayat baseline. Semuanya sah — tetapi
+ * dipakai untuk PEKERJAAN YANG BERBEDA, dan yang datang untuk satu pekerjaan
+ * harus menggulir melewati enam yang lain.
+ *
+ * Tiga mode, sesuai tiga pertanyaan yang benar-benar dibawa orang ke sini:
+ *   monitor    — "sekarang bagaimana?" kurva-S, mingguan, prognosa
+ *   tertinggal — "apa yang harus dikejar?" item tertinggal + kendala
+ *   rencana    — "targetnya benar tidak?" jadwal, penyesuaian, riwayat baseline
+ *
+ * Lewat query param, BUKAN route baru: seluruh data halaman ini datang dari
+ * satu berkas kueri yang sama, jadi memecahnya jadi tiga route hanya akan
+ * menggandakan pengambilan data tanpa satu pun manfaat bagi pembacanya.
+ */
+const MODE_PROGRESS = ["monitor", "tertinggal", "rencana"] as const;
+type ModeProgress = (typeof MODE_PROGRESS)[number];
+
+const LABEL_MODE: Record<ModeProgress, string> = {
+  monitor: "Monitor",
+  tertinggal: "Item tertinggal",
+  rencana: "Rencana & baseline",
+};
+
+export default async function ProgressLokasiPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ mode?: string }>;
+}) {
   const { slug } = await params;
+  const modeParam = (await searchParams).mode;
+  // Nilai asing jatuh ke "monitor", bukan 404: tautan yang salah ketik
+  // seharusnya mendarat di halaman yang berguna, bukan di halaman kosong.
+  const mode: ModeProgress = MODE_PROGRESS.includes(modeParam as ModeProgress)
+    ? (modeParam as ModeProgress)
+    : "monitor";
   const { user, location } = await requireLocationPage(slug);
   requireCapabilityPage(user.role, "progress.view");
   const canManageIssues = can(user.role, "issue.manage");
@@ -187,7 +235,19 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
 
   return (
     <div className="space-y-4">
-      {draftProg ? (
+      <LinkTabs
+        items={MODE_PROGRESS.map((m) => ({
+          label: LABEL_MODE[m],
+          href:
+            m === "monitor"
+              ? `/proyek/lokasi/${slug}/progress`
+              : `/proyek/lokasi/${slug}/progress?mode=${m}`,
+          // Ketiganya ber-path SAMA; tanpa ini sorotan selamanya menempel di
+          // tab pertama karena pencocokan bawaan hanya melihat pathname.
+          aktif: m === mode,
+        }))}
+      />
+      {mode === "monitor" && draftProg ? (
         <Card>
           <CardHeader
             title={`Pantauan internal — progres atas usulan adendum (draft revisi #${draftProg.revisionNo})`}
@@ -236,6 +296,8 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
         </Card>
       ) : null}
 
+      {mode === "monitor" ? (
+      <>
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader
@@ -392,8 +454,10 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
           </CardBody>
         </Card>
       ) : null}
+      </>
+      ) : null}
 
-      {canManageBaseline && schedule ? (
+      {mode === "rencana" && canManageBaseline && schedule ? (
         <CollapsibleCard
           title="Jadwal per pekerjaan (kurva-S)"
           subtitle="Atur rentang minggu tiap pekerjaan — boleh >1 rentang bila terputus (jeda); bobot mengikuti RAB. Klik untuk membuka."
@@ -408,7 +472,7 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
         </CollapsibleCard>
       ) : null}
 
-      {canManageBaseline && activeBaseline && activeBaseline.points.length > 0 ? (
+      {mode === "rencana" && canManageBaseline && activeBaseline && activeBaseline.points.length > 0 ? (
         <CollapsibleCard
           title="Penyesuaian halus %-mingguan"
           subtitle="Koreksi kecil deret %-kumulatif per minggu (mis. menyamakan dengan angka pengawas). Jadwal per pekerjaan ikut menyesuaikan. Klik untuk membuka."
@@ -421,6 +485,8 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
         </CollapsibleCard>
       ) : null}
 
+      {mode === "tertinggal" ? (
+      <>
       <Card>
         <CardHeader
           title="Item tertinggal"
@@ -479,7 +545,10 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
           <IssuesPanel locationId={location.id} issues={issueData} canManage={canManageIssues} />
         </CardBody>
       </Card>
+      </>
+      ) : null}
 
+      {mode === "rencana" ? (
       <Card>
         <CardHeader
           title="Riwayat baseline"
@@ -489,6 +558,7 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
           <BaselineHistory baselines={historyRows} canManage={canManageBaseline} />
         </CardBody>
       </Card>
+      ) : null}
     </div>
   );
 }
