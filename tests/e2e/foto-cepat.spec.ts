@@ -34,22 +34,12 @@ test.describe("Foto Cepat", () => {
     /*
      * TIDAK ADA pemilih lokasi di langkah memotret (DECISIONS 254). Ini bukan
      * detail tampilan: begitu ada satu isian wajib sebelum rana, seluruh alasan
-     * fitur ini ada ikut hilang. Kalau suatu saat pemilihnya kembali, uji inilah
-     * yang menahannya — layarnya sendiri akan tampak baik-baik saja.
+     * fitur ini ada ikut hilang.
      */
     await expect(page.locator("#fc-lokasi")).toHaveCount(0);
-    // Tombolnya harus langsung bisa ditekan, bukan menunggu isian apa pun.
-    await expect(page.getByRole("button", { name: /simpan ke kantong/i })).toBeEnabled();
 
-    /*
-     * KAMERA SAJA (DECISIONS 255). Tombol Galeri tidak boleh ada di sini: foto
-     * galeri tidak bisa menjamin koordinat maupun jam, jadi ia hampir selalu
-     * jatuh ke tumpukan "belum ketahuan lokasinya" — kerja tangan yang justru
-     * hendak dihapus fitur ini. Server juga menolak sumber dari klien (diuji di
-     * tests/integration/foto-cepat.test.ts); yang dijaga di sini pintunya.
-     */
-    await expect(page.getByRole("button", { name: "Galeri" })).toHaveCount(0);
-    await expect(page.getByText("Kamera", { exact: true })).toBeVisible();
+    // Rana ada di dalam aplikasi, sekali ketuk (DECISIONS 256).
+    await expect(page.getByRole("button", { name: /buka kamera/i })).toBeEnabled();
 
     const lebar = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(lebar, "halaman melebar melewati layar ponsel").toBeLessThanOrEqual(
@@ -58,12 +48,29 @@ test.describe("Foto Cepat", () => {
     expect(galat, "ada galat runtime").toEqual([]);
   });
 
-  test("tombol simpan benar-benar tersambung ke server action", async ({ page }) => {
-    // Tanpa ini, form yang tidak tersambung akan tampak normal: ditekan, tidak
-    // terjadi apa-apa, dan tidak ada yang gagal. Isi pesannya sengaja TIDAK
-    // dipatok — yang dijanjikan adalah server MENJAWAB, bukan jawaban tertentu
-    // (lingkungan uji bisa punya/tidak punya penyimpanan foto).
+  test("jalur galeri TIDAK ada, termasuk di dalam cadangan", async ({ page }) => {
+    /*
+     * KAMERA SAJA (DECISIONS 255). Foto galeri tidak bisa menjamin koordinat
+     * maupun jam, jadi ia hampir selalu jatuh ke tumpukan "belum ketahuan
+     * lokasinya" — kerja tangan yang justru hendak dihapus fitur ini.
+     *
+     * Cadangan `<input capture>` sengaja ikut DIBUKA sebelum diperiksa: kalau
+     * hanya melihat layar awal, tombol Galeri yang bersembunyi di dalamnya tidak
+     * akan pernah tertangkap.
+     */
     await page.goto("/foto-cepat", { waitUntil: "domcontentloaded" });
+    await page.getByText(/kamera dalam aplikasi tidak jalan/i).click();
+    await expect(page.getByText("Kamera", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Galeri" })).toHaveCount(0);
+  });
+
+  test("cadangan <input capture> tetap tersambung ke server action", async ({ page }) => {
+    // Jalur cadangan gampang membusuk tanpa ketahuan — ia hanya dipakai saat
+    // kamera dalam aplikasi gagal, yaitu justru saat tidak ada yang sedang
+    // memperhatikannya. Isi pesannya tidak dipatok; yang dijanjikan server
+    // MENJAWAB.
+    await page.goto("/foto-cepat", { waitUntil: "domcontentloaded" });
+    await page.getByText(/kamera dalam aplikasi tidak jalan/i).click();
     await page.getByRole("button", { name: /simpan ke kantong/i }).click();
     await expect(page.locator('[role="alert"], [role="status"]').first()).toBeVisible({
       timeout: 20_000,

@@ -1,9 +1,11 @@
 "use client";
 
-import { useActionState, useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useActionState, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Camera, Images, MapPin, MapPinOff, Trash2 } from "lucide-react";
 import { Banner, Button, Card, Combobox, EmptyState, HelpText, Label } from "@/components/ui";
 import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
+import { KameraLangsung, type PosisiJepret } from "@/components/knmp/kamera-langsung";
 import { labelJarak, urutkanTerdekat, type LokasiBerjarak } from "@/lib/foto-cepat/jarak";
 import type { FotoKantong, PilihanLokasi, TujuanKegiatan, TujuanLaporan } from "@/lib/foto-cepat/queries";
 import {
@@ -86,7 +88,74 @@ function JepretCard({
   terdekat: LokasiBerjarak | null;
   adaPosisi: boolean;
 }) {
+  const router = useRouter();
+  const [kameraBuka, setKameraBuka] = useState(false);
+  /** Riwayat jepretan sesi ini — urutan terbaru di depan. */
+  const [antrean, setAntrean] = useState<Jepretan[]>([]);
   const [state, action, pending] = useActionState(simpanFotoCepatAction, KOSONG);
+  const nomor = useRef(0);
+  const berjalan = antrean.some((j) => j.status === "kirim");
+
+  /**
+   * Satu jepretan = satu unggahan, langsung, tanpa menunggu yang lain.
+   *
+   * SENGAJA tidak diantre berurutan: di lapangan orang memotret beruntun, dan
+   * memaksa yang kedua menunggu yang pertama selesai membuat rana terasa macet
+   * persis saat jaringannya paling lambat. Yang penting bukan urutannya,
+   * melainkan tidak ada jepretan yang hilang.
+   */
+  const kirim = useCallback(
+    (file: File, posisi: PosisiJepret) => {
+      const id = ++nomor.current;
+      const url = URL.createObjectURL(file);
+      setAntrean((a) => [{ id, url, status: "kirim" as const }, ...a].slice(0, 12));
+
+      const fd = new FormData();
+      fd.append("photos", file);
+      fd.set("photoTakenAt", new Date().toISOString());
+      if (posisi) {
+        fd.set("gpsLat", String(posisi.lat));
+        fd.set("gpsLng", String(posisi.lng));
+      }
+      void simpanFotoCepatAction({}, fd)
+        .then((r) => {
+          setAntrean((a) =>
+            a.map((j) =>
+              j.id === id
+                ? {
+                    ...j,
+                    status: r.error ? ("gagal" as const) : ("simpan" as const),
+                    pesan: r.error ?? r.ok ?? r.warning,
+                  }
+                : j,
+            ),
+          );
+        })
+        .catch(() => {
+          setAntrean((a) =>
+            a.map((j) =>
+              j.id === id ? { ...j, status: "gagal" as const, pesan: "Gagal mengirim." } : j,
+            ),
+          );
+        });
+    },
+    [],
+  );
+
+  /**
+   * Kantong di bawah baru disegarkan saat kamera DITUTUP, bukan tiap jepretan.
+   *
+   * Sekali `router.refresh()` berarti sekali muat ulang seluruh payload RSC
+   * halaman. Melakukannya per jepretan akan menyaingi unggahan foto berikutnya
+   * di pipa yang sama — dan di 400 kbps itu terasa persis seperti aplikasi
+   * tersendat (DECISIONS 245).
+   */
+  const tutupKamera = useCallback(() => {
+    setKameraBuka(false);
+    for (const j of antrean) URL.revokeObjectURL(j.url);
+    setAntrean([]);
+    router.refresh();
+  }, [antrean, router]);
 
   return (
     <Card>
@@ -94,58 +163,123 @@ function JepretCard({
         <div>
           <h2 className="text-sm font-semibold text-ink">Jepret sekarang</h2>
           <HelpText>
-            Foto diambil langsung dari kamera — koordinat & jamnya terekam saat rana ditekan.
-            Lokasinya dikenali sendiri; item pekerjaannya menyusul belakangan.
+            Ketuk rana — foto langsung tersimpan, tanpa layar konfirmasi. Koordinat & jamnya
+            terekam saat itu juga; lokasinya dikenali sendiri, itemnya menyusul.
           </HelpText>
         </div>
 
-        {state.error ? <Banner tone="error" title={state.error} /> : null}
-        {state.warning ? <Banner tone="warning" title={state.warning} /> : null}
-        {state.ok ? <Banner tone="success" title={state.ok} /> : null}
+        <p className="text-[13px] text-ink-muted">
+          {adaPosisi
+            ? terdekat?.jarakMeter != null
+              ? `Kamu ada di dekat ${terdekat.name} (${labelJarak(terdekat.jarakMeter)}). Foto yang dijepret di sini akan dikenali ke lokasi itu.`
+              : "Posisi terbaca, tapi belum ada lokasi yang punya titik proyek untuk dibandingkan."
+            : "Posisi belum terbaca. Izinkan akses lokasi — tanpa koordinat, lokasi fotonya harus dipilih manual belakangan."}
+        </p>
 
-        <form action={action} className="space-y-3">
-          {/*
-            Petunjuk, BUKAN pilihan. Yang menentukan tetap koordinat fotonya;
-            kalimat ini cuma memberi tahu pelapor lokasi apa yang ada di dekatnya
-            supaya hasil deteksinya nanti bisa dinilai, bukan diterima buta.
-          */}
-          <p className="text-[13px] text-ink-muted">
-            {adaPosisi
-              ? terdekat?.jarakMeter != null
-                ? `Kamu ada di dekat ${terdekat.name} (${labelJarak(terdekat.jarakMeter)}). Foto yang dijepret di sini akan dikenali ke lokasi itu.`
-                : "Posisi terbaca, tapi belum ada lokasi yang punya titik proyek untuk dibandingkan."
-              : "Posisi belum terbaca. Izinkan akses lokasi — tanpa koordinat, lokasi fotonya harus dipilih manual belakangan."}
-          </p>
+        {wajibGps ? (
+          <Banner
+            tone="info"
+            title="Setelan wajib-GPS menyala"
+            description="Foto tanpa koordinat akan ditolak. Pastikan izin lokasi aktif sebelum memotret."
+          />
+        ) : null}
 
-          {/*
-            KAMERA SAJA (DECISIONS 255). Komponennya sama dengan unggah foto
-            laporan — izin GPS diurus di depan, koordinat perangkat dikirim lewat
-            hidden field — tapi jalur galerinya ditutup: yang dijanjikan Foto
-            Cepat adalah koordinat + jam yang BENAR, dan foto galeri tidak bisa
-            menjaminnya.
-          */}
-          <PhotoSourceInput hanyaKamera />
+        {kameraBuka ? (
+          <>
+            <KameraLangsung onFoto={kirim} onTutup={tutupKamera} sibuk={berjalan} />
+            {antrean.length > 0 ? <StripJepretan antrean={antrean} /> : null}
+          </>
+        ) : (
+          <>
+            <Button type="button" onClick={() => setKameraBuka(true)} className="w-full sm:w-auto">
+              <Camera aria-hidden className="size-4" />
+              Buka kamera
+            </Button>
 
-          {wajibGps ? (
-            <Banner
-              tone="info"
-              title="Setelan wajib-GPS menyala"
-              description="Foto tanpa koordinat akan ditolak. Pastikan izin lokasi aktif sebelum memotret."
-            />
-          ) : (
-            <HelpText>
-              Foto tanpa koordinat tetap disimpan — tapi lokasinya tidak bisa dikenali, jadi harus
-              dipilih manual di kantong. Titik proyek TIDAK dipakai sebagai pengganti.
-            </HelpText>
-          )}
-
-          <Button type="submit" disabled={pending} className="w-full sm:w-auto">
-            <Camera aria-hidden className="size-4" />
-            {pending ? "Menyimpan…" : "Simpan ke kantong"}
-          </Button>
-        </form>
+            {/*
+              CADANGAN, bukan jalur utama. Dipakai kalau kamera dalam aplikasi
+              tidak bisa dinyalakan (izin ditolak, peramban lawas). Di sini
+              layar "Use Photo" dari aplikasi kamera HP memang muncul — itu
+              milik sistem operasi dan tidak bisa dimatikan halaman web.
+            */}
+            <details className="rounded-md border border-border bg-surface-muted p-3">
+              <summary className="cursor-pointer text-[13px] font-medium text-ink">
+                Kamera dalam aplikasi tidak jalan?
+              </summary>
+              <div className="mt-2 space-y-3">
+                {state.error ? <Banner tone="error" title={state.error} /> : null}
+                {state.warning ? <Banner tone="warning" title={state.warning} /> : null}
+                {state.ok ? <Banner tone="success" title={state.ok} /> : null}
+                <HelpText>
+                  Pakai aplikasi kamera HP. Hasilnya sama; bedanya ada satu layar konfirmasi
+                  bawaan HP sebelum fotonya kembali ke MARLIN.
+                </HelpText>
+                <form action={action} className="space-y-3">
+                  <PhotoSourceInput hanyaKamera />
+                  <Button type="submit" disabled={pending}>
+                    {pending ? "Menyimpan…" : "Simpan ke kantong"}
+                  </Button>
+                </form>
+              </div>
+            </details>
+          </>
+        )}
       </div>
     </Card>
+  );
+}
+
+type Jepretan = {
+  id: number;
+  url: string;
+  status: "kirim" | "simpan" | "gagal";
+  pesan?: string;
+};
+
+/**
+ * Strip hasil jepretan — bukti bahwa tiap ketukan benar-benar masuk.
+ *
+ * Tanpa ini, memotret beruntun berarti menekan rana ke ruang hampa: tidak ada
+ * yang menunjukkan foto keberapa yang sudah aman dan mana yang gagal, dan
+ * kegagalan satu foto akan lolos tanpa pernah terlihat.
+ */
+function StripJepretan({ antrean }: { antrean: Jepretan[] }) {
+  const gagal = antrean.filter((j) => j.status === "gagal");
+  return (
+    <div className="space-y-1.5">
+      <ul className="flex gap-2 overflow-x-auto pb-1">
+        {antrean.map((j) => (
+          <li key={j.id} className="relative shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={j.url}
+              alt=""
+              className={`size-14 rounded-md border object-cover ${
+                j.status === "gagal" ? "border-danger opacity-60" : "border-border"
+              }`}
+            />
+            <span
+              className={`absolute inset-x-0 bottom-0 rounded-b-md text-center text-[10px] font-medium text-white ${
+                j.status === "kirim"
+                  ? "bg-ink/70"
+                  : j.status === "gagal"
+                    ? "bg-danger"
+                    : "bg-success"
+              }`}
+            >
+              {j.status === "kirim" ? "kirim…" : j.status === "gagal" ? "gagal" : "aman"}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {gagal.length > 0 ? (
+        <Banner
+          tone="error"
+          title={`${gagal.length} foto gagal tersimpan`}
+          description={gagal[0].pesan ?? "Coba jepret ulang."}
+        />
+      ) : null}
+    </div>
   );
 }
 

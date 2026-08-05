@@ -9166,3 +9166,92 @@ dibaca dari FormData membuat uji itu gagal (`expected 'gallery' to be 'camera'`)
 
 `tests/e2e/foto-cepat.spec.ts` sudah menahan agar pemilih lokasi tidak kembali;
 uji sumber di atas melengkapinya dari sisi server.
+
+---
+
+## 256 · Rana dipindah ke dalam aplikasi — jepret, masuk, jepret lagi (2026-08-05)
+
+Keluhan user: *"saat ini untuk foto, ada konfirmasi use this photo, bukan jepret
+langsung simpan. apakah kamu punya solusi agar pengambilan foto ini bisa native
+dan cepat, jepret, foto ambil, jepret foto masuk"*
+
+### Layar itu bukan milik kita
+
+`<input type="file" capture>` MENYERAHKAN pekerjaan ke aplikasi kamera bawaan
+HP. Aplikasi itu selalu meminta konfirmasi sebelum mengembalikan berkasnya —
+"Use Photo / Retake" di iOS, tanda centang di Android. Tidak ada atribut, opsi,
+atau trik yang bisa mematikannya dari halaman web; ia bagian dari aplikasi lain.
+
+Jadi satu-satunya cara menghilangkannya adalah **tidak menyerahkan pekerjaan
+itu**. Rana dipindah ke dalam halaman: `getUserMedia` menyalakan pratinjau
+langsung, ketukan menyalin bingkai video ke canvas, hasilnya langsung diunggah.
+Tidak ada penyerahan → tidak ada layar konfirmasi.
+
+### Kualitasnya tidak berkurang — ini terukur, bukan klaim
+
+Keberatan yang wajar: tangkapan `getUserMedia` beresolusi video (±1920×1080),
+sedangkan kamera bawaan bisa 12 MP. Tapi pipeline foto MARLIN menyusutkan SEMUA
+gambar ke sisi terpanjang **1920 px** (`MAIN_MAX` di `lib/photos.ts`) lalu
+mengencode WebP q80 sebelum disimpan. Foto 12 MP itu berakhir di ukuran yang
+persis sama. Yang hilang cuma piksel yang memang tidak pernah ikut tersimpan.
+
+### Yang hilang, dan penggantinya lebih baik
+
+Canvas tidak menghasilkan EXIF. Untuk Foto Cepat itu bukan kehilangan:
+
+- **koordinat** datang dari GPS perangkat pada detik rana ditekan;
+- **jam** dari jam perangkat saat itu juga.
+
+Keduanya justru lebih tepat daripada EXIF, karena tidak bergantung pada aplikasi
+kamera menulis metadata dengan benar — hal yang di lapangan sering tidak terjadi.
+
+### Koordinat basi DIBUANG, bukan dipakai
+
+Kamera mengikuti posisi lewat `watchPosition`, yang memberi ARUS pembaruan. Arus
+itu bisa berhenti (masuk bangunan, sinyal hilang) sementara pelapor terus
+berjalan dan terus memotret — dan nilai terakhir tetap terlihat sah. Itu persis
+jebakan `maximumAge: 60000` yang dibuang di DECISIONS 219, lewat pintu lain.
+
+Karena itu umur bacaan diperiksa **pada detik rana ditekan**, dan yang lebih tua
+dari `UMUR_GPS_MAKS_MS` (15 detik) dibuang. Bacaan dari "masa depan" (jam
+perangkat mundur saat sinkronisasi) juga ditolak — umur negatif berarti
+perbandingannya tidak bisa dipercaya. Aturannya di modul murni
+`lib/foto-cepat/gps-segar.ts` supaya bisa diuji langsung.
+
+### Satu jepretan = satu unggahan, langsung
+
+Tiap ketukan mengirim fotonya sendiri tanpa menunggu yang lain. Rana **tidak
+pernah dinonaktifkan** selagi mengirim: di lapangan orang memotret beruntun, dan
+mengunci rana membuat ketukan berikutnya hilang tanpa jejak — kegagalan senyap.
+Strip pratinjau di bawah viewfinder menandai tiap jepretan `kirim… / aman /
+gagal`, jadi foto yang gagal terlihat saat itu juga, bukan saat laporan disusun.
+
+Kantong di bawah baru disegarkan saat kamera DITUTUP, bukan tiap jepretan: satu
+`router.refresh()` = satu muat ulang payload RSC, dan melakukannya per jepretan
+akan menyaingi unggahan berikutnya di pipa yang sama (DECISIONS 245).
+
+### Cadangan tetap ada
+
+Kalau kamera dalam aplikasi tidak bisa dinyalakan — izin ditolak, peramban
+lawas, `getUserMedia` tak didukung — jalur `<input capture>` lama tetap
+tersedia di balik "Kamera dalam aplikasi tidak jalan?", **dengan menyebut apa
+adanya** bahwa di situ layar konfirmasi bawaan HP memang muncul.
+
+### Uji
+
+- `tests/unit/foto-cepat-gps-segar.test.ts` — 7 uji aturan kesegaran GPS,
+  termasuk tepat-di-ambang, jauh-lewat-ambang, dan bacaan masa depan.
+- `tests/e2e/foto-cepat-kamera.spec.ts` — memakai kamera palsu Chromium
+  (`--use-fake-device-for-media-stream`), jadi `getUserMedia` benar-benar
+  dijalankan, bukan di-stub. Dijaga: pratinjau benar-benar hidup
+  (`videoWidth > 0`, terukur 1920), satu ketukan rana = satu POST server action,
+  dan tiga ketukan beruntun = tiga jepretan dengan rana tetap aktif.
+
+Dibuktikan bergigi: mengembalikan halaman ke `<input capture>` membuat kedua uji
+e2e gagal. Itu penting justru karena kemundurannya TIDAK terlihat dari layar —
+yang berubah cuma munculnya satu layar milik sistem operasi.
+
+Catatan proses: percobaan pertama uji e2e membaca "rana tidak mengirim apa pun"
+padahal mengirim. Penyebabnya penghitung POST-ku sendiri ikut menghitung
+pencatatan izin perangkat yang terjadi sebelum rana ditekan. Penghitungnya
+dikosongkan tepat sebelum ketukan.
