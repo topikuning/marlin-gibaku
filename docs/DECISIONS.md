@@ -8783,3 +8783,109 @@ Uji dibuktikan bergigi dengan mengembalikan perilaku lama (kunci = 20 detik):
 2 dari 8 uji gagal. Cacat semacam ini tidak menerbitkan galat apa pun — layarnya
 tetap rapi, ketukannya sekadar hilang — jadi tanpa uji yang menyatakan kapan
 kunci terbuka, ia akan kembali tanpa terlihat.
+
+---
+
+## 252 · Parser RAB: subtotal terhitung sebagai pekerjaan, judul kategori hilang (2026-08-05)
+
+Keluhan user: *"masalah parser rab mu, ada yang aneh, jumlahnya selalu tidak
+cocok di beberapa kategori/bangunan"* — dengan tabel negosiasi Batu Putih NTB
+sebagai pembanding. PEKERJAAN REVETMENT terbaca **131.395.859** padahal
+kontraknya **65.697.930** (tepat dua kali lipat), TANGKI AIR **774.193.096**
+padahal **452.954.093**.
+
+### Rekonsiliasi lebih dulu, bukan tebakan
+
+| Kategori | Sistem (lama) | Negosiasi | Selisih |
+|---|---:|---:|---:|
+| PEKERJAAN REVETMENT | 131.395.859 | 65.697.930 | +65.697.929 |
+| PEKERJAAN BANGUNAN TANGKI AIR DAN SUMUR BOR | 774.193.096 | 452.954.093 | +321.239.003 |
+| PEKERJAAN PENERANGAN KAWASAN | 189.345.601 | 115.860.974 | +73.484.627 |
+| **Grand total** | **2.572.215.775** | **2.111.794.216** | **+460.421.559** |
+
+Ketiga selisih itu berjumlah persis 460.421.559 — sama dengan selisih grand
+total. Jadi seluruh kelebihannya berasal dari tiga baris, bukan dari kesalahan
+pembulatan yang tersebar.
+
+Tiga baris itu ditemukan dengan menyapu sheet RAB mencari baris yang LOLOS dari
+`isSummaryRow` padahal namanya diawali kata rekap:
+
+```
+baris  113  "JUMLAHPEK.  :"                    =  65.697.929,742
+baris 1288  "JUMLAHPENGEBORAN :"               = 321.239.003,125
+baris 1315  "JUMLAHPENERANGAN TIANG T=7m  :"   =  73.484.626,648
+```
+
+### Akar penyebab 1 — `\b` tidak pernah cocok saat spasinya hilang
+
+Pola lama: `/^(jumlah|sub\s*total|total|…)\b/i`. Batas-kata baru terpenuhi bila
+sesudah kata kuncinya ADA yang bukan huruf. Template KKP NTB kehilangan spasi —
+`JUMLAHPEK.`, `JUMLAHPENGEBORAN`, `JUMLAHPENERANGAN` — sehingga ketiganya
+dianggap baris pekerjaan biasa, lalu **nilai subtotalnya dijumlahkan lagi di atas
+rinciannya sendiri**. Salah ketik di Excel memang, tapi angkanya keluar dari
+sistem kita; jadi ini cacat kita.
+
+### Akar penyebab 2 — rekap ditentukan dari NAMA saja
+
+Sisi sebaliknya, sama berbahayanya dan belum pernah kelihatan: butir pekerjaan
+yang namanya kebetulan diawali kata itu — **"Total Station"**, alat ukur yang
+wajar muncul di PEKERJAAN PERSIAPAN — ikut dibuang tanpa suara, dan nilai
+kontrak jadi KURANG. Tidak ada galat, tidak ada peringatan; barisnya lenyap.
+
+Karena itu rekap sekarang ditentukan dari **BENTUK barisnya**: nama diawali kata
+kunci **DAN kolom kode KOSONG**. Diperiksa pada 8 berkas HPS/RAB nyata — 155
+baris rekap, SEMUANYA berkode kosong; dan tidak ada satu pun butir pekerjaan
+berkode yang namanya diawali kata kunci itu. Baris berkode yang menyerupai rekap
+tidak dibuang diam-diam: parser menerbitkan peringatan.
+
+### Akar penyebab 3 — kode romawi bertitik
+
+`isRoman("IV.")` gagal, jadi baris kategori `IV. PEKERJAAN PONDASI PABRIK ES
+PORTABLE` dibuang berikut JUDULNYA; sub-kode `IV.1` di bawahnya lalu memicu
+kategori sisipan berlabel *"judul tidak ada di file"* — padahal judulnya ada,
+cuma satu titik di belakang kodenya. Berkas KKP memakai dua gaya ("III" dan
+"IV.") dalam satu file yang sama.
+
+### Hasil sesudah perbaikan
+
+Kesebelas kategori Batu Putih cocok baris per baris dengan tabel negosiasi;
+grand total 2.111.794.215 (tabel negosiasi 2.111.794.216 — selisih 1 rupiah
+karena tabelnya menjumlahkan angka yang sudah dibulatkan per baris; parser
+menyimpan nilai eksak dan pembulatan terjadi sekali di impor).
+
+Dampak lintas korpus: **8 dari 30 berkas berubah**, semuanya RAB KNMP NTB, semua
+tadinya KELEBIHAN 8–18%:
+
+| Berkas | Lama | Baru |
+|---|---:|---:|
+| KUTA | 3.380.503.848 | 2.864.921.529 |
+| MERTAK | 3.370.918.720 | 2.697.083.693 |
+| SUGIAN | 2.973.020.562 | 2.524.733.683 |
+| BANJAR | 2.847.969.471 | 2.433.801.001 |
+| BUWUN MAS | 2.846.337.205 | 2.422.236.723 |
+| BATU PUTIH | 2.680.225.449 | 2.204.154.642 |
+| LABUHAN MAPIN | 2.652.765.132 | 2.268.394.733 |
+| BATU PUTIH (Salinan 2, nego) | 2.572.215.775 | 2.111.794.215 |
+
+22 berkas lain **tidak berubah sama sekali** — perbaikan ini tidak menggeser RAB
+yang sudah benar.
+
+### Yang TIDAK diperbaiki di sini
+
+Perbaikan parser hanya berlaku untuk impor BARU. RAB yang terlanjur masuk DB
+tetap membawa angka lama dan **harus diimpor ulang** — lihat OPEN_ISSUES
+(DATA-03) berikut kueri deteksinya.
+
+Kategori romawi ganda (Batu Putih memakai "II" dua kali: REVETMENT dan DINDING
+PENAHAN TANAH) sengaja DIBIARKAN tampil sebagai `II` dan `II#8`. Itu memang
+keadaan berkasnya; menyeragamkannya diam-diam berarti mengarang penomoran yang
+tidak ada di dokumen kontrak.
+
+### Uji
+
+`tests/unit/hps-parser.test.ts` — 5 uji baru. Dibuktikan bergigi satu per satu
+dengan mengembalikan tiap perbaikan secara terpisah: `\b` kembali → 2 gagal;
+syarat kode-kosong dilepas → 2 gagal; strip titik romawi dilepas → 1 gagal.
+Cacat kelas ini tidak menerbitkan galat apa pun — RAB tetap terimpor rapi, hanya
+angkanya berbeda — jadi hanya uji yang menyatakan bentuk barisnya yang bisa
+menahannya kembali.

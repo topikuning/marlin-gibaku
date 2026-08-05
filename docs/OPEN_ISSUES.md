@@ -21,6 +21,43 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
   konsisten Σ leaf (`flattenParsedRab`), tapi pembagian kategori tetap mengikuti JSON
   korup. FIX SEBENARNYA: minta file HPS xlsx asli → re-import via UI import RAB
   (parser TS baru), atau perbaiki `scripts/parse_hps.py` + regenerate.
+- 🔴 **DATA-03 — RAB yang terlanjur diimpor sebelum DECISIONS 252 masih membawa angka
+  yang KELEBIHAN.** Parser sudah diperbaiki, tapi perbaikan hanya berlaku untuk impor
+  BARU; baris subtotal yang terlanjur tersimpan sebagai node pekerjaan tidak hilang
+  sendiri. Terukur pada korpus: 8 berkas RAB KNMP **NTB** kelebihan 8–18% (mis. KUTA
+  3,38 M → 2,86 M; MERTAK 3,37 M → 2,70 M). Nilai kontrak, bobot item, kurva-S
+  baseline, dan seluruh persentase progress ikut melenceng karena semuanya diturunkan
+  dari `grandTotal`.
+
+  Jalankan di DB produksi untuk mendaftar yang terdampak — polanya SEMPIT dengan
+  sengaja (kata kunci langsung disambung huruf), karena rekap ber-spasi tidak pernah
+  masuk DB dan melonggarkan polanya justru menjaring "Total Station":
+
+  ```sql
+  SELECT l.name AS lokasi, rr.revision_no, rr.status,
+         count(*) AS baris_rekap, sum(n.amount) AS nilai_berlebih,
+         string_agg(DISTINCT n.name, ' | ') AS contoh
+  FROM rab_nodes n
+  JOIN rab_revisions rr ON rr.id = n.revision_id
+  JOIN locations     l  ON l.id  = rr.location_id
+  WHERE n.name ~* '^(jumlah|subtotal|total|grand *total)[a-z]'
+  GROUP BY 1,2,3 ORDER BY nilai_berlebih DESC;
+
+  -- kategori yang judulnya hilang gara-gara kode romawi bertitik ("IV.", "VII.")
+  SELECT l.name, rr.revision_no, n.code, n.name
+  FROM rab_nodes n
+  JOIN rab_revisions rr ON rr.id = n.revision_id
+  JOIN locations     l  ON l.id  = rr.location_id
+  WHERE n.name LIKE '%judul tidak ada di file%';
+  ```
+
+  Perbaikannya **impor ulang berkas HPS/negosiasi aslinya** lewat UI impor RAB —
+  bukan `UPDATE` manual. Menghapus node rekapnya saja tidak cukup: `lineageKey`,
+  `sortOrder`, dan `total_value` revisi harus konsisten, dan itu tugas jalur impor.
+  Lokasi yang laporan hariannya sudah berjalan perlu diperiksa lebih dulu — impor
+  ulang membuat revisi baru, dan item laporan menempel pada lineage revisi lama.
+  **Butuh keputusan user** untuk lokasi yang sudah punya progress tercatat.
+  (DB dev bersih — 0 baris; ini khusus produksi.)
 - 🟡 **CategoryPhase/TRADES hardcoded** di `src/lib/scurve/generate.ts` (keyword→window).
   Kandidat: tabel konfigurasi effective-dated.
 - 🟢 Province/Regency masih string bebas (belum reference table BPS).
