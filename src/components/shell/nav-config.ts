@@ -72,6 +72,66 @@ export type NavItem = {
   anyCapability?: Capability[];
 };
 
+/**
+ * TAB GRUP ADMINISTRASI — satu daftar, tiga pemakai.
+ *
+ * Urutan halaman Administrasi muncul di TIGA tempat: butir menu di sidebar,
+ * deret tab di `administrasi/layout.tsx`, dan urutan pemantulan di
+ * `administrasi/page.tsx` (yang meneruskan ke tab pertama yang boleh diakses
+ * peran ini). Ketiganya dulu diketik terpisah — dan sudah berselisih: sidebar
+ * menaruh Master Lokasi sebelum Pengguna, sedangkan tab dan pemantulnya
+ * sebaliknya. Akibatnya urutan berubah begitu pengguna berpindah dari sidebar
+ * ke tab, dan yang paling halus: `/administrasi` mendarat di tab yang BUKAN
+ * tab pertama yang terlihat, sehingga sorotan tab terasa meleset seketika.
+ *
+ * Karena itu daftarnya satu. `navLabel` lebih panjang daripada `tabLabel`
+ * dengan sengaja — sidebar punya ruang dan butuh menyebut isinya, deret tab
+ * tidak.
+ */
+export const ADMINISTRASI_TABS = [
+  {
+    navLabel: "Perusahaan & Vendor",
+    tabLabel: "Perusahaan",
+    href: "/administrasi/perusahaan",
+    icon: "database",
+    capability: "contract.manage",
+  },
+  {
+    navLabel: "Kontak WhatsApp",
+    tabLabel: "Kontak",
+    href: "/administrasi/kontak",
+    icon: "send",
+    capability: "wa.chat",
+  },
+  {
+    navLabel: "Pengguna & Akses",
+    tabLabel: "Pengguna",
+    href: "/administrasi/pengguna",
+    icon: "users",
+    capability: "user.create",
+  },
+  {
+    navLabel: "Master Lokasi",
+    tabLabel: "Master Lokasi",
+    href: "/administrasi/lokasi-master",
+    icon: "mapPin",
+    capability: "package.bypass",
+  },
+  {
+    navLabel: "Sistem",
+    tabLabel: "Sistem",
+    href: "/administrasi/sistem",
+    icon: "settings",
+    capability: "system.manage",
+  },
+] as const satisfies readonly {
+  navLabel: string;
+  tabLabel: string;
+  href: string;
+  icon: keyof typeof ICONS;
+  capability: Capability;
+}[];
+
 /** Satu grup navigasi = satu cara kerja. Judul tampil sebagai eyebrow caps. */
 export type NavGroup = {
   label: string;
@@ -144,21 +204,9 @@ export const NAV_GROUPS: NavGroup[] = [
        * sekejap dan tombol "kembali" peramban mendarat di pemantulnya, bukan
        * di halaman sebelumnya. Rinciannya mengikuti PRD §3.3.
        */
-      {
-        label: "Perusahaan & Vendor",
-        href: "/administrasi/perusahaan",
-        icon: "database",
-        capability: "contract.manage",
-      },
-      { label: "Kontak WhatsApp", href: "/administrasi/kontak", icon: "send", capability: "wa.chat" },
-      {
-        label: "Master Lokasi",
-        href: "/administrasi/lokasi-master",
-        icon: "mapPin",
-        capability: "package.bypass",
-      },
-      { label: "Pengguna & Akses", href: "/administrasi/pengguna", icon: "users", capability: "user.create" },
-      { label: "Sistem", href: "/administrasi/sistem", icon: "settings", capability: "system.manage" },
+      ...ADMINISTRASI_TABS.map(
+        (t): NavItem => ({ label: t.navLabel, href: t.href, icon: t.icon, capability: t.capability }),
+      ),
     ],
   },
 ];
