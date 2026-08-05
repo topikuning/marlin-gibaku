@@ -39,6 +39,12 @@ export type HasilPengingat = {
   rincian: RincianKirim[];
   /** Angka pendukung supaya "0 terkirim" bisa menjelaskan dirinya (DECISIONS 221). */
   diagnosa?: DiagnosaPengingat;
+  /**
+   * Penjadwal tidak mengirim apa pun karena SAKELARNYA MATI — bukan karena
+   * tidak ada yang perlu ditagih. Dua keadaan itu sama-sama "0 terkirim" dan
+   * membedakannya adalah satu-satunya cara log cron bisa dibaca.
+   */
+  dimatikan?: boolean;
 };
 
 export type HasilHarian = {
@@ -248,7 +254,19 @@ export async function kumpulkanPengingat(
 export async function kirimPengingatHarian(
   now = new Date(),
   orgId?: string,
-  opts: { paksa?: boolean } = {},
+  opts: {
+    paksa?: boolean;
+    /**
+     * Batasi ke orang-orang ini saja (tombol per orang, permintaan user
+     * 2026-08-05). Kosong/tak diisi = semua yang perlu ditagih.
+     *
+     * Penyaringan dilakukan SESUDAH `kumpulkanPengingat`, bukan lewat query
+     * terpisah: dengan begitu isi pesan, daftar lokasi, dan aturan "yang sudah
+     * lapor tidak ditagih" untuk satu orang PERSIS sama dengan versi massalnya.
+     * Jalur kedua yang menghitung sendiri akan menyimpang cepat atau lambat.
+     */
+    userIds?: string[];
+  } = {},
 ): Promise<HasilPengingat> {
   const dateKey = jakartaDateKey(now);
   const tanggal = parseDateKey(dateKey)!;
@@ -280,8 +298,10 @@ export async function kirimPengingatHarian(
     hasil.sesi = `tidak bisa dicek: ${err instanceof Error ? err.message : "gagal"}`;
   }
 
-  const { penerima, diagnosa } = await kumpulkanPengingat(now, orgId);
+  const { penerima: semua, diagnosa } = await kumpulkanPengingat(now, orgId);
   hasil.diagnosa = diagnosa;
+  const hanya = opts.userIds?.length ? new Set(opts.userIds) : null;
+  const penerima = hanya ? semua.filter((p) => hanya.has(p.userId)) : semua;
   const tanggalTampil = formatTanggal(tanggal);
   for (const e of penerima) {
     const userId = e.userId;
@@ -376,9 +396,35 @@ export async function kirimPengingatHarian(
   return hasil;
 }
 
-/** Satu putaran pekerjaan harian. Urutannya penting: SPMK dulu, baru menagih. */
+/**
+ * Satu putaran pekerjaan harian. Urutannya penting: SPMK dulu, baru menagih.
+ *
+ * Sakelar pengingat (DECISIONS 260) diperiksa DI SINI, bukan di dalam
+ * `kirimPengingatHarian`: yang boleh dimatikan admin adalah PENJADWALNYA, bukan
+ * kemampuan menagih. Tombol manual memanggil fungsi yang sama dan sengaja tidak
+ * lewat pemeriksaan ini.
+ *
+ * Aktivasi SPMK TETAP berjalan walau pengingat mati — ia menumpang putaran yang
+ * sama tetapi bukan pengingat, dan menahannya akan menggeser tanggal mulai
+ * pelaksanaan, yang berarti kurva-S dan seluruh deviasi ikut salah.
+ */
 export async function jalankanTugasHarian(now = new Date()): Promise<HasilHarian> {
   const spmk = await aktifkanSpmkJatuhTempo(now);
+  const { getPengingatAktif } = await import("./setelan");
+  if (!(await getPengingatAktif())) {
+    return {
+      dateKey: jakartaDateKey(now),
+      spmk,
+      pengingat: {
+        terkirim: 0,
+        gagal: 0,
+        dilewati: 0,
+        sesi: "tidak dicek",
+        rincian: [],
+        dimatikan: true,
+      },
+    };
+  }
   const pengingat = await kirimPengingatHarian(now);
   return { dateKey: jakartaDateKey(now), spmk, pengingat };
 }

@@ -4,6 +4,7 @@ import { jakartaDateKey } from "@/lib/format";
 import { isWahaConfigured, getSessionStatus } from "@/lib/waha/client";
 import { normalizeWaTarget } from "@/lib/contacts/model";
 import { kumpulkanPengingat } from "./penjadwal";
+import { getPengingatAktif } from "./setelan";
 
 /**
  * Pratinjau pengingat harian untuk halaman Sistem (DECISIONS 205).
@@ -26,6 +27,12 @@ export type RiwayatHariIni = {
 
 export type PratinjauPengingat = {
   dateKey: string;
+  /**
+   * Sakelar penjadwal (DECISIONS 260). MATI berarti cron tidak menagih —
+   * tombol di halaman ini tetap hidup, jadi keadaannya harus terbaca, bukan
+   * disimpulkan dari "kok tidak ada yang dapat pesan".
+   */
+  otomatisAktif: boolean;
   wahaSiap: boolean;
   /** Status sesi WhatsApp. INFORMASI — tidak memblokir tombol (DECISIONS 207). */
   sesiStatus: string;
@@ -35,6 +42,8 @@ export type PratinjauPengingat = {
    * benar-benar dikirimi; pratinjau yang meleset lebih buruk daripada tidak ada.
    */
   akanDitagih: {
+    /** Dipakai tombol kirim per orang — nama bisa kembar, id tidak. */
+    userId: string;
     nama: string;
     /** Nomor tujuan sebenarnya (628…@c.us) — bukan tebakan dari nama. */
     tujuan: string;
@@ -56,7 +65,10 @@ export type PratinjauPengingat = {
 export async function pratinjauPengingat(orgId: string): Promise<PratinjauPengingat> {
   const now = new Date();
   const dateKey = jakartaDateKey(now);
-  const { penerima } = await kumpulkanPengingat(now, orgId);
+  const [{ penerima }, otomatisAktif] = await Promise.all([
+    kumpulkanPengingat(now, orgId),
+    getPengingatAktif(),
+  ]);
 
   // Status sesi ditarik SEKARANG, bukan diasumsikan. Ini keterangan untuk
   // membaca hasil, BUKAN syarat menekan tombol (DECISIONS 207).
@@ -100,12 +112,14 @@ export async function pratinjauPengingat(orgId: string): Promise<PratinjauPengin
 
   return {
     dateKey,
+    otomatisAktif,
     wahaSiap: siap,
     sesiStatus: sesi,
     // TIDAK disaring oleh log: tombol admin mengirim ke semua orang di daftar
     // ini, termasuk yang sudah dikirimi tadi. Menyembunyikan mereka membuat
     // pratinjau berbohong tentang siapa yang akan menerima (DECISIONS 207).
     akanDitagih: penerima.map((p) => ({
+      userId: p.userId,
       nama: p.nama,
       // Tujuan yang BENAR-BENAR akan dipakai — dinormalkan dengan fungsi yang
       // sama dengan pengirimnya. Menampilkan "0812…" padahal yang dikirim
