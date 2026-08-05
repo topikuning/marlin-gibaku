@@ -8889,3 +8889,114 @@ syarat kode-kosong dilepas → 2 gagal; strip titik romawi dilepas → 1 gagal.
 Cacat kelas ini tidak menerbitkan galat apa pun — RAB tetap terimpor rapi, hanya
 angkanya berbeda — jadi hanya uji yang menyatakan bentuk barisnya yang bisa
 menahannya kembali.
+
+---
+
+## 253 · Foto Cepat — jepret dulu, itemnya belakangan (2026-08-05)
+
+Permintaan user: *"aku butuh satu fitur untuk khusus foto yang disimpan di hp
+maupun di cloud. karena seringnya user itu ambil foto dulu, baru masukkan
+inputan item. jadi seringkali malah tagging lokasi tidak pas. jadi lebih baik
+foto disimpan dulu baru nanti diolah oleh user masing-masing."*
+
+### Yang diluruskan lebih dulu
+
+Permintaannya memuat DUA masalah berbeda, dan hanya satu yang bisa diselesaikan
+dengan "simpan dulu, olah nanti":
+
+| | Masalah | Bisa diperbaiki menunda pemilihan item? |
+|---|---|---|
+| A | Harus pilih item dulu baru bisa memotret → ribet → orang lari ke kamera HP | Ya |
+| B | Foto datang tanpa koordinat → tag jatuh ke titik proyek | **Hanya bila foto masuk MARLIN saat dijepret** |
+
+Foto galeri SUDAH mendahulukan EXIF-nya sendiri di atas posisi saat mengunggah
+(DECISIONS 220), jadi foto ber-EXIF sudah bertag benar hari ini. Yang tidak bisa
+dipulihkan oleh pengolahan mana pun adalah foto yang diambil pakai aplikasi
+kamera HP dengan layanan lokasi mati — posisinya memang tidak pernah terekam.
+Itu sebabnya ~96% foto lapangan jatuh ke titik proyek (DECISIONS 197).
+
+Keputusan user sesudah itu dijelaskan: *"ini fitur tersendiri. jadi benar2 menu
+quick action tanpa tersambung ke menu manapun. cukup kamu simpan di meta foto
+dan databasemu informasi real geo dan waktunya, untuk nanti digunakan lagi di
+laporan kegiatan atau harian, atau manapun di marlin. stamp bisa kamu beri dasar
+waktu dan geo saja, informasi tambahan ditambahkan belakangan."*
+
+### Bentuknya
+
+- **Menu berdiri sendiri** `/foto-cepat`, plus pintasan nav bawah untuk role
+  lapangan. Sengaja TIDAK bersarang di workspace lokasi: tiap langkah yang
+  dipaksakan sebelum rana ditekan adalah satu alasan lagi memakai kamera HP.
+- **Foto naik ke R2 seketika**, tanpa induk (`reportId`/`activityId` null).
+  Pilihan user: server, bukan ditahan di HP — bukti lapangan tidak boleh hidup
+  di satu perangkat yang bisa hilang, rusak, atau cache-nya dibersihkan.
+- **Lokasi dipilih saat memotret**, diurutkan dari yang terdekat dengan jaraknya
+  DITULIS. Sistem tidak memilihkan diam-diam: usulan hanya dipasang bila pelapor
+  belum memilih sendiri, dan angka jaraknya ada supaya tebakan itu bisa dinilai
+  manusia ("terdekat" yang 12 km jauhnya = pelapor belum sampai).
+- **Cap DASAR**: waktu + koordinat (+ pelapor & Photo ID). Nama lokasi,
+  perusahaan, bangunan, dan item pekerjaan dikosongkan — pada detik memotret
+  semua itu memang belum diketahui, dan cap yang menyebut yang belum diketahui
+  adalah bukti palsu.
+- **Dipakai belakangan** → cap dirender ulang dari berkas ASLI dengan informasi
+  lengkap. **Waktu & koordinat TIDAK ikut dihitung ulang**: keduanya direkam
+  pada detik jepret, dan menurunkannya lagi dari induk barunya (tanggal laporan,
+  titik proyek) justru mengembalikan cacat yang membuat fitur ini ada.
+- Akses: siapa pun yang punya akses ke lokasi foto itu (pilihan user), bukan
+  hanya pemotretnya — supaya foto tidak menggantung saat mandor cuti/ganti HP.
+
+### TANPA cadangan titik proyek — ini pagarnya, bukan kelalaian
+
+`locationLat/locationLng` sengaja TIDAK dikirim ke `savePhotoForItem`. Foto tanpa
+koordinat nyata berakhir `gpsSource = none`, bukan diam-diam ditandai titik
+proyek. Seluruh alasan fitur ini ada adalah membawa koordinat NYATA; menyediakan
+cadangan di sini menghidupkan kembali mesin "lokasi default" yang dikeluhkan.
+
+Foto tanpa koordinat tetap DISIMPAN — menolaknya akan memulangkan orang ke
+aplikasi kamera HP — tapi jumlahnya disebutkan di layar saat itu juga, selagi
+pelapor masih di lokasi dan masih bisa memotret ulang dengan GPS menyala.
+
+### Dua keputusan lama yang DIREVISI
+
+**1. Invarian database "tepat satu induk" dilonggarkan** (migrasi
+`20260805090000_foto_tanpa_induk`). DATA-01 dulu menuntut
+`(report_id ada) + (activity_id ada) = 1`; itu benar ketika satu-satunya jalan
+masuk foto memang lewat salah satunya. Sekarang `<= 1`. Yang TIDAK dilonggarkan:
+dua induk sekaligus tetap dilarang, dan `report_item_id` tetap menuntut
+`report_id`. Keduanya dikunci uji integrasi — mengembalikan `= 1` mematikan
+seluruh Foto Cepat, membuangnya sama sekali memperbolehkan foto jadi lampiran
+laporan DAN kegiatan (dua kebenaran yang bisa berbeda).
+
+**2. Status "lepas" berhenti berarti kerusakan.** DECISIONS 250 (kemarin)
+menamainya "Tanpa Induk", memberinya tone `warning`, dan sengaja
+MENGECUALIKANNYA dari chip filter dengan alasan "menawarkannya sebagai filter
+menormalkan keadaan yang tak seharusnya ada". Alasan itu gugur: keadaan itu kini
+disengaja. Namanya jadi **"Belum Dipakai"**, tone `info`, dan justru MASUK chip
+filter — menyembunyikannya sekarang yang berbahaya, karena foto yang sudah
+dijepret tapi belum dipakai tidak akan ketemu dari galeri dan pekerjaan yang
+tertinggal jadi tak terlihat.
+
+Catatan: sebelum ini cabang "lepas" di `deriveStatusFoto` praktis tak
+terjangkau — CHECK constraint di atas membuatnya mustahil. Ia ditulis sebagai
+pagar terhadap data rusak; sekarang ia jalur utama sebuah fitur.
+
+### Yang TIDAK dijanjikan
+
+Foto Cepat tidak memperbaiki foto yang SUDAH terlanjur diambil pakai aplikasi
+kamera HP tanpa GPS. Posisinya tidak pernah terekam dan tidak ada yang bisa
+memulihkannya. Yang bisa: unggah lewat Foto Cepat (EXIF-nya dipakai bila ada),
+atau perbaiki koordinatnya manual lewat perbaikan cap — dan itu tertulis
+`gpsSource = manual`, tidak dihitung sebagai bukti GPS (DECISIONS 198).
+
+### Uji
+
+- `tests/unit/foto-cepat-jarak.test.ts` — 9 uji urutan & label jarak, termasuk
+  "lokasi tanpa titik proyek tidak dibuang" dan "tanpa posisi jangan mengarang
+  urutan terdekat".
+- `tests/integration/foto-cepat.test.ts` — 13 uji: tanpa induk, **tanpa cadangan
+  titik proyek**, cap dasar, foto tanpa koordinat disebut, invarian induk di
+  database (nol boleh, dua ditolak), lokasi silang ditolak, laporan/kegiatan
+  final ditolak, waktu & koordinat tidak berubah saat dipakai, dan kegagalan
+  melengkapi cap tidak membatalkan penautan.
+
+Dibuktikan bergigi: menghidupkan kembali cadangan titik proyek di action
+membuat uji "TIDAK mengirim titik proyek" gagal (`expected -8.4 to be null`).

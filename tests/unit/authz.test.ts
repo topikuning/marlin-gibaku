@@ -15,7 +15,10 @@ describe("authz capability matrix", () => {
     }
   });
 
-  it("field_supervisor hanya view + daily_report.create + field_activity.manage", () => {
+  it("field_supervisor hanya view + lapor harian + kegiatan + foto cepat", () => {
+    // Daftarnya SENGAJA lengkap, bukan "minimal berisi": role paling bawah adalah
+    // tempat kebocoran hak paling mahal, jadi setiap penambahan harus dituliskan
+    // di sini secara sadar — bukan lolos karena ujinya cuma memeriksa sebagian.
     const expected = new Set([
       "location.view",
       "rab.view",
@@ -23,6 +26,9 @@ describe("authz capability matrix", () => {
       "document.view",
       "daily_report.create",
       "field_activity.manage",
+      // Foto Cepat (DECISIONS 253). Dipisah dari daily_report.create karena
+      // justru gunanya memotret TANPA harus punya laporan lebih dulu.
+      "photo.quick",
     ]);
     for (const cap of CAPABILITIES) {
       expect(can("field_supervisor", cap), cap).toBe(expected.has(cap));

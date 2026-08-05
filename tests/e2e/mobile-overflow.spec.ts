@@ -32,6 +32,7 @@ const RUTE: { path: string; nama: string }[] = [
   { path: "/lokasi", nama: "Daftar lokasi" },
   { path: "/progress", nama: "Progress portofolio" },
   { path: "/hari-ini", nama: "Hari Ini (mandor)" },
+  { path: "/foto-cepat", nama: "Foto Cepat" },
   { path: "/laporan", nama: "Laporan" },
   { path: "/laporan/menunggu-verifikasi", nama: "Antrean verifikasi" },
   { path: "/laporan/perlu-koreksi", nama: "Antrean koreksi" },
