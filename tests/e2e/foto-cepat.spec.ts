@@ -41,6 +41,16 @@ test.describe("Foto Cepat", () => {
     // Tombolnya harus langsung bisa ditekan, bukan menunggu isian apa pun.
     await expect(page.getByRole("button", { name: /simpan ke kantong/i })).toBeEnabled();
 
+    /*
+     * KAMERA SAJA (DECISIONS 255). Tombol Galeri tidak boleh ada di sini: foto
+     * galeri tidak bisa menjamin koordinat maupun jam, jadi ia hampir selalu
+     * jatuh ke tumpukan "belum ketahuan lokasinya" — kerja tangan yang justru
+     * hendak dihapus fitur ini. Server juga menolak sumber dari klien (diuji di
+     * tests/integration/foto-cepat.test.ts); yang dijaga di sini pintunya.
+     */
+    await expect(page.getByRole("button", { name: "Galeri" })).toHaveCount(0);
+    await expect(page.getByText("Kamera", { exact: true })).toBeVisible();
+
     const lebar = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(lebar, "halaman melebar melewati layar ponsel").toBeLessThanOrEqual(
       page.viewportSize()!.width + 1,

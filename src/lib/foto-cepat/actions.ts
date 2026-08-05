@@ -45,12 +45,18 @@ export type FotoCepatState = { error?: string; ok?: string; warning?: string };
 /** Batas satu kali proses "pakai" — tiap foto dirender ulang dari arsip aslinya. */
 const MAX_PAKAI_SEKALI = 20;
 
+/**
+ * Foto Cepat menerima KAMERA SAJA (DECISIONS 255).
+ *
+ * `photoSource`/`galleryAtSite` sengaja TIDAK ada di skema ini. Kalau suatu saat
+ * klien mengirimkannya, nilainya diabaikan — bukan dipercaya. Menerima sumber
+ * dari input klien berarti jalur galeri bisa dihidupkan kembali dari luar tanpa
+ * satu baris pun berubah di sini.
+ */
 const simpanSchema = z.object({
   gpsLat: z.coerce.number().min(-90).max(90).optional(),
   gpsLng: z.coerce.number().min(-180).max(180).optional(),
-  photoSource: z.enum(["camera", "gallery"]).default("camera"),
   photoTakenAt: z.string().optional(),
-  galleryAtSite: z.string().optional(),
 });
 
 export async function simpanFotoCepatAction(
@@ -64,9 +70,7 @@ export async function simpanFotoCepatAction(
     const parsed = simpanSchema.safeParse({
       gpsLat: formData.get("gpsLat") || undefined,
       gpsLng: formData.get("gpsLng") || undefined,
-      photoSource: formData.get("photoSource") || undefined,
       photoTakenAt: formData.get("photoTakenAt") || undefined,
-      galleryAtSite: formData.get("galleryAtSite") || undefined,
     });
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const d = parsed.data;
@@ -85,10 +89,9 @@ export async function simpanFotoCepatAction(
     const takenAt = d.photoTakenAt ? new Date(d.photoTakenAt) : null;
     const takenAtValid = takenAt && !Number.isNaN(takenAt.getTime()) ? takenAt : null;
 
-    // Wajib-GPS untuk KAMERA diperiksa di sini (posisi perangkat); untuk GALERI
-    // pemeriksaannya per-berkas di dalam savePhotoForItem, karena EXIF baru
-    // terbaca setelah berkasnya dibuka.
-    if (wajibGps && d.photoSource === "camera" && (d.gpsLat == null || d.gpsLng == null))
+    // Wajib-GPS diperiksa di sini dari posisi perangkat — satu-satunya sumber
+    // koordinat yang mungkin, karena fotonya selalu baru dijepret.
+    if (wajibGps && (d.gpsLat == null || d.gpsLng == null))
       return {
         error:
           "Setelan wajib-GPS menyala tapi posisi perangkat belum didapat. " +
@@ -112,17 +115,18 @@ export async function simpanFotoCepatAction(
          * memaksakan satu lokasi untuk semuanya akan menaruh sebagian di tempat
          * yang salah — persis cacat yang sedang diperbaiki.
          *
-         * Sumber koordinatnya mengikuti aturan yang sama dengan cap: foto baru
-         * pakai GPS perangkat saat rana ditekan, foto galeri pakai EXIF-nya
-         * sendiri (posisi saat MEMOTRET, bukan saat mengunggah).
+         * Sumbernya GPS perangkat pada detik rana ditekan; EXIF berkas dipakai
+         * hanya sebagai cadangan.
          */
         const buf = Buffer.from(await file.arrayBuffer());
         const exif = bacaExifFoto(buf);
         const koordinat =
-          d.photoSource === "camera" && d.gpsLat != null && d.gpsLng != null
+          d.gpsLat != null && d.gpsLng != null
             ? { lat: d.gpsLat, lng: d.gpsLng }
             : exif.lat != null && exif.lng != null
-              ? { lat: exif.lat, lng: exif.lng }
+              ? // Cadangan, bukan jalur galeri: sebagian WebView Android menulis
+                // GPS ke EXIF berkas kamera walau izin lokasi web ditolak.
+                { lat: exif.lat, lng: exif.lng }
               : null;
         const hasil = deteksiLokasi(koordinat, kandidat);
         const lokasi = hasil.status === "cocok" ? hasil.lokasi : null;
@@ -145,14 +149,13 @@ export async function simpanFotoCepatAction(
           locationSlug: lokasi?.slug ?? "_kantong",
           dateKey,
           stamp: {
-            source: d.photoSource,
+            source: "camera",
             requireGps: wajibGps,
-            atSite: d.galleryAtSite === "on" || d.galleryAtSite === "true",
             lat: d.gpsLat ?? null,
             lng: d.gpsLng ?? null,
             takenAt: takenAtValid,
             // locationLat/locationLng SENGAJA tidak dikirim → tanpa cadangan
-            // titik proyek. fallbackMode "none" menegaskannya untuk jalur galeri.
+            // titik proyek.
             fallbackMode: "none",
             reporterName: actor.fullName,
             // Cap DASAR: sisanya menyusul saat fotonya dipakai.
@@ -175,7 +178,7 @@ export async function simpanFotoCepatAction(
     if (sukses > 0)
       await audit(actor.id, "photo.quick_capture", "photo", null, {
         jumlah: sukses,
-        sumber: d.photoSource,
+        sumber: "camera",
         tanpaKoordinat,
         belumTerdeteksi: belumTerdeteksi.length,
         lokasiTerdeteksi: Object.fromEntries(perLokasi),

@@ -94,8 +94,8 @@ function JepretCard({
         <div>
           <h2 className="text-sm font-semibold text-ink">Jepret sekarang</h2>
           <HelpText>
-            Tidak perlu memilih apa pun. Lokasi dikenali dari koordinat fotonya sendiri; item
-            pekerjaannya menyusul belakangan.
+            Foto diambil langsung dari kamera — koordinat & jamnya terekam saat rana ditekan.
+            Lokasinya dikenali sendiri; item pekerjaannya menyusul belakangan.
           </HelpText>
         </div>
 
@@ -118,12 +118,13 @@ function JepretCard({
           </p>
 
           {/*
-            Satu komponen yang sama dengan unggah foto laporan: izin GPS diurus
-            di depan, sumber Kamera/Galeri dibedakan, dan koordinat perangkat
-            dikirim lewat hidden field. Menyalinnya ulang di sini berarti aturan
-            penandaan foto punya dua tempat yang cepat atau lambat berbeda.
+            KAMERA SAJA (DECISIONS 255). Komponennya sama dengan unggah foto
+            laporan — izin GPS diurus di depan, koordinat perangkat dikirim lewat
+            hidden field — tapi jalur galerinya ditutup: yang dijanjikan Foto
+            Cepat adalah koordinat + jam yang BENAR, dan foto galeri tidak bisa
+            menjaminnya.
           */}
-          <PhotoSourceInput />
+          <PhotoSourceInput hanyaKamera />
 
           {wajibGps ? (
             <Banner

@@ -9105,3 +9105,64 @@ dibuang) membuat 3 uji unit + 1 uji integrasi gagal.
 Catatan proses: uji integrasi sempat gagal seluruhnya karena `Location.isActive`
 default **false** — fixture-nya yang salah, bukan kodenya. Ditulis di sini karena
 mudah salah baca sebagai cacat deteksi.
+
+---
+
+## 255 · Foto Cepat KAMERA SAJA — jalur galeri dibuang (2026-08-05)
+
+Keberatan user: *"untuk apa kamu kasih galeri, kebutuhan utamanya cuma ambil
+foto cepat ambil tag lokasi tepat dan waktu sesuai. kalau dari galeri buat apa"*
+
+Benar, dan ini koreksi terhadap keputusanku sendiri di DECISIONS 253 — di sana
+galeri kubawa masuk karena kalimat pembuka permintaannya menyebut *"foto yang
+disimpan di hp maupun di cloud"*. Yang kulewatkan: dua kalimat sesudahnya
+menjelaskan MASALAHNYA, dan masalah itu adalah tag lokasi yang meleset.
+
+### Galeri justru memproduksi pekerjaan yang fitur ini ada untuk menghilangkan
+
+Foto Cepat menjanjikan tepat dua hal: **koordinat yang benar** dan **jam yang
+sesuai**. Foto galeri tidak bisa menjamin keduanya:
+
+- **Koordinat** — kebanyakan foto kamera HP tidak membawa GPS sama sekali
+  (~96% berakhir di titik proyek, DECISIONS 197), dan yang lewat WhatsApp
+  EXIF-nya sudah dibuang.
+- **Jam** — foto galeri bisa berumur berbulan-bulan. Tanpa EXIF, jam yang tersisa
+  cuma waktu unggah, dan itu bukan waktu memotret.
+
+Akibatnya di alur baru: foto galeri hampir selalu jatuh ke tumpukan "belum
+ketahuan lokasinya" dan harus ditetapkan manual satu per satu — yaitu persis
+kerja tangan yang Foto Cepat dibuat untuk menghapus. Menyediakannya bukan
+keluwesan; itu jalan pintas menuju keadaan lama, dengan langkah tambahan.
+
+### Yang berubah
+
+- `PhotoSourceInput` dapat prop `hanyaKamera` — tombol Galeri, input galerinya,
+  dan dialog *"Kamu sedang di lokasi proyek?"* (DECISIONS 220) tidak dirender
+  sama sekali di Foto Cepat.
+- Server **tidak lagi menerima** `photoSource`/`galleryAtSite`. Keduanya dibuang
+  dari skema; sumbernya dipatok `"camera"` di server. Kalau klien tetap
+  mengirimnya, nilainya diabaikan — bukan dipercaya. Membiarkan sumber datang
+  dari input klien berarti jalur galeri bisa dihidupkan lagi dari luar tanpa satu
+  baris pun berubah di server.
+- Koordinat = GPS perangkat saat rana ditekan. EXIF berkas tetap dibaca, tapi
+  hanya sebagai **cadangan**: sebagian WebView Android menulis GPS ke EXIF berkas
+  kamera walau izin lokasi web ditolak. Itu bukan jalur galeri yang masuk lewat
+  pintu belakang — berkasnya tetap baru dijepret.
+
+### Galeri TIDAK dihapus dari MARLIN
+
+Unggah dari galeri tetap ada di **laporan harian**, dan di sana ia menjawab
+kebutuhan yang berbeda: foto yang KETINGGALAN saat item sudah tersimpan
+(DECISIONS 226). Bedanya jelas — di laporan harian, itemnya sudah ada dan
+lokasinya sudah pasti, jadi yang kurang cuma gambarnya. Di Foto Cepat, gambar
+itulah satu-satunya sumber lokasi dan waktu.
+
+### Uji
+
+`tests/integration/foto-cepat.test.ts` — uji baru: kiriman yang mengaku
+`photoSource=gallery` + `galleryAtSite=on` tetap tersimpan sebagai `source:
+"camera"` dengan `atSite` mati. Dibuktikan bergigi: mengembalikan `source` agar
+dibaca dari FormData membuat uji itu gagal (`expected 'gallery' to be 'camera'`).
+
+`tests/e2e/foto-cepat.spec.ts` sudah menahan agar pemilih lokasi tidak kembali;
+uji sumber di atas melengkapinya dari sisi server.

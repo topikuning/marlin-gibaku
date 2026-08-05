@@ -251,7 +251,7 @@ describe("menyimpan ke kantong", () => {
   it("foto masuk TANPA induk", async () => {
     const hasil = await simpanFotoCepatAction(
       {},
-      fd({ photoSource: "camera", gpsLat: dariA(20), gpsLng: "116.0" }, [berkas("a.jpg")]),
+      fd({ gpsLat: dariA(20), gpsLng: "116.0" }, [berkas("a.jpg")]),
     );
     expect(hasil.error).toBeUndefined();
     expect(panggilan).toHaveLength(1);
@@ -264,14 +264,28 @@ describe("menyimpan ke kantong", () => {
     // Pagar terpenting berkas ini. Lokasi uji PUNYA gpsLat/gpsLng, jadi kalau
     // suatu saat kode ini meneruskannya, uji ini yang menangkapnya — bukan
     // pengguna yang menemukan 96% fotonya bertitik sama.
-    await simpanFotoCepatAction({}, fd({ photoSource: "camera", gpsLat: dariA(20), gpsLng: "116.0" }, [berkas("b.jpg")]));
+    await simpanFotoCepatAction({}, fd({ gpsLat: dariA(20), gpsLng: "116.0" }, [berkas("b.jpg")]));
     expect(panggilan[0].stamp?.locationLat ?? null).toBeNull();
     expect(panggilan[0].stamp?.locationLng ?? null).toBeNull();
     expect(panggilan[0].stamp?.fallbackMode).toBe("none");
   });
 
+  it("sumber SELALU kamera — kiriman yang mengaku 'gallery' pun diabaikan", async () => {
+    // Sumber tidak boleh datang dari input klien (DECISIONS 255): kalau dipercaya,
+    // jalur galeri bisa dihidupkan lagi dari luar tanpa satu baris pun berubah
+    // di server, dan seluruh jaminan "koordinat & jam benar" ikut bocor.
+    await simpanFotoCepatAction(
+      {},
+      fd({ photoSource: "gallery", galleryAtSite: "on", gpsLat: dariA(20), gpsLng: "116.0" }, [
+        berkas("nyamar.jpg"),
+      ]),
+    );
+    expect(panggilan[0].stamp?.source).toBe("camera");
+    expect(panggilan[0].stamp?.atSite ?? false).toBe(false);
+  });
+
   it("cap awalnya DASAR — tidak menyebut yang belum diketahui", async () => {
-    await simpanFotoCepatAction({}, fd({ photoSource: "camera", gpsLat: dariA(20), gpsLng: "116.0" }, [berkas("c.jpg")]));
+    await simpanFotoCepatAction({}, fd({ gpsLat: dariA(20), gpsLng: "116.0" }, [berkas("c.jpg")]));
     const s = panggilan[0].stamp!;
     expect(s.locationLabel).toBeNull();
     expect(s.companyName).toBeNull();
@@ -286,14 +300,14 @@ describe("menyimpan ke kantong", () => {
     // membuat cacatnya baru ketahuan saat laporan disusun. Jadi: simpan + sebut.
     const hasil = await simpanFotoCepatAction(
       {},
-      fd({ photoSource: "camera" }, [berkas("d.jpg")]),
+      fd({}, [berkas("d.jpg")]),
     );
     expect(hasil.error).toBeUndefined();
     expect(hasil.warning).toMatch(/TANPA koordinat/i);
   });
 
   it("tanpa berkas ditolak", async () => {
-    const hasil = await simpanFotoCepatAction({}, fd({ photoSource: "camera" }));
+    const hasil = await simpanFotoCepatAction({}, fd({}));
     expect(hasil.error).toBeTruthy();
     expect(panggilan).toHaveLength(0);
   });
@@ -408,7 +422,7 @@ describe("deteksi lokasi dari koordinat foto", () => {
   it("berdiri di lokasi A → foto terdeteksi ke A, tanpa memilih apa pun", async () => {
     const hasil = await simpanFotoCepatAction(
       {},
-      fd({ photoSource: "camera", gpsLat: dariA(30), gpsLng: "116.0" }, [berkas("dekat-a.jpg")]),
+      fd({ gpsLat: dariA(30), gpsLng: "116.0" }, [berkas("dekat-a.jpg")]),
     );
     expect(hasil.error).toBeUndefined();
     expect(panggilan).toHaveLength(1);
@@ -422,7 +436,7 @@ describe("deteksi lokasi dari koordinat foto", () => {
     // Titik tengah pasangan 474 m. Yang benar di sini adalah menolak memutuskan.
     const hasil = await simpanFotoCepatAction(
       {},
-      fd({ photoSource: "camera", gpsLat: dariA(237), gpsLng: "116.0" }, [berkas("ambigu.jpg")]),
+      fd({ gpsLat: dariA(237), gpsLng: "116.0" }, [berkas("ambigu.jpg")]),
     );
     expect(hasil.error).toBeUndefined();
     expect(panggilan[0].locationId).toBeNull();
@@ -433,7 +447,7 @@ describe("deteksi lokasi dari koordinat foto", () => {
   it("jauh dari semua lokasi → tidak terdeteksi, sebabnya disebut", async () => {
     const hasil = await simpanFotoCepatAction(
       {},
-      fd({ photoSource: "camera", gpsLat: "-6.8700000", gpsLng: "112.3" }, [berkas("jauh.jpg")]),
+      fd({ gpsLat: "-6.8700000", gpsLng: "112.3" }, [berkas("jauh.jpg")]),
     );
     expect(panggilan[0].locationId).toBeNull();
     expect(hasil.warning).toMatch(/km/);
@@ -442,7 +456,7 @@ describe("deteksi lokasi dari koordinat foto", () => {
   it("tanpa koordinat → tidak terdeteksi, foto TETAP tersimpan", async () => {
     // Membuang fotonya berarti menghilangkan bukti lapangan hanya karena kita
     // belum tahu nama raknya.
-    const hasil = await simpanFotoCepatAction({}, fd({ photoSource: "camera" }, [berkas("nogps.jpg")]));
+    const hasil = await simpanFotoCepatAction({}, fd({}, [berkas("nogps.jpg")]));
     expect(hasil.error).toBeUndefined();
     expect(panggilan).toHaveLength(1);
     expect(panggilan[0].locationId).toBeNull();
@@ -455,7 +469,7 @@ describe("deteksi lokasi dari koordinat foto", () => {
     // tempat yang salah — persis cacat yang sedang diperbaiki.
     await simpanFotoCepatAction(
       {},
-      fd({ photoSource: "camera", gpsLat: dariA(30), gpsLng: "116.0" }, [
+      fd({ gpsLat: dariA(30), gpsLng: "116.0" }, [
         berkas("satu.jpg"),
         berkas("dua.jpg"),
       ]),
