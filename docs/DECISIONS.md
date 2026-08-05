@@ -8986,3 +8986,71 @@ halamannya tidak terbaca lengkap padahal belum.
 **Yang tidak bisa surut.** Impor yang dilakukan sebelum ini tidak akan muncul —
 datanya memang tidak pernah disimpan. Halaman kosongnya mengatakan itu apa
 adanya alih-alih terlihat seperti "belum ada impor sama sekali".
+---
+
+## 255 — Kunci ketukan ulang navigasi punya UJUNG, bukan 20 detik (2026-08-05)
+
+> **Catatan penomoran.** Entri ini lahir di `dev` dengan nomor **251** pada hari
+> yang sama saat cabang redesign memakai 251–254 untuk hal yang sama sekali
+> berbeda. Dua-duanya belum tergabung, jadi tidak ada nomor yang "lebih dulu";
+> yang dipilih untuk digeser adalah yang paling sedikit dirujuk kode (dua
+> berkas, keduanya ikut diperbarui di commit penggabungan ini). Isinya tidak
+> diubah sedikit pun.
+
+Lanjutan DECISIONS 247. Di sana ketukan ulang ke alamat yang sama ditahan di
+fase capture supaya tiga ketukan tidak jadi tiga permintaan halaman penuh yang
+berebut pipa 400 kbps. Yang tidak diputuskan waktu itu: **berapa lama**
+penahanan itu berlaku.
+
+Jawabannya jatuh ke jaring pengaman bar progres, `BATAS_AMAN_MS` = 20 detik —
+bukan karena dipilih, melainkan karena tanda `data-navigating` (yang juga jadi
+kunci) baru dilepas ketika bar padam.
+
+### Kenapa 20 detik itu keliru
+
+Jaring pengaman itu ada justru untuk kemungkinan **ketukan tidak berujung
+navigasi** — dibatalkan komponen lain, tautan mati, klik yang tertangkap capture
+lalu dicegah di hilir. Persis di kasus itu, selama 20 detik: tidak ada yang
+sedang dimuat, dan ketukan pengguna ditelan tanpa jejak. Itu keluhan asli
+2026-08-04 secara harfiah — *"seperti tidak terjadi apa pun"* — hanya kali ini
+kitalah penyebabnya.
+
+Obat yang menciptakan penyakit yang sama di kasus tepinya sendiri bukan obat.
+
+### Ujungnya: saat pemberitahuan "jaringan lambat" muncul
+
+Kunci dilepas pada `AMBANG_LAMBAT_MS` = 6 detik — angka yang sama dengan
+munculnya kalimat *"Masih memuat — jaringan sepertinya lambat."* Alasannya:
+sesudah pengguna DIBERI TAHU keadaannya, menahan ketukannya tidak lagi
+melindungi siapa pun, ia cuma merampas kendali. Sebelum detik itu layar memang
+tampak diam, dan di situlah penahanan berguna.
+
+Kedua angka datang dari SATU konstanta di `components/shell/nav-kunci-ulang.ts`
+supaya tidak bisa menyimpang diam-diam.
+
+Yang TIDAK berubah: rentang 0–6 detik menampung seluruh burst ketukan yang
+diukur di lapangan (ketukan kedua-ketiga datang dalam ratusan milidetik), jadi
+perlindungan terhadap permintaan berlipat tetap utuh. Sesudah 6 detik pun laju
+maksimalnya satu duplikat per 6 detik, bukan tiga dalam dua detik.
+
+### Dua akibat ikutan
+
+1. Jendela kunci pakai **jam**, bukan `setTimeout`. Pemeriksaannya toh cuma
+   perlu terjadi saat ada ketukan, dan tanpa pengatur waktu tidak ada yang bisa
+   tertinggal hidup sesudah komponennya lepas.
+2. Hitungan mundur `BATAS_AMAN_MS` **disetel ulang tiap ketukan yang diizinkan
+   lewat**. Tanpa itu, navigasi kedua yang dimulai pada detik ke-7 memakai sisa
+   hitungan yang pertama, sehingga barnya padam pada detik ke-20 selagi
+   navigasinya masih berjalan — diam yang sama lagi, lewat pintu lain.
+
+### Invarian yang dijaga uji
+
+`tests/unit/nav-kunci-ulang.test.ts`. Yang terpenting: **kunci tidak boleh hidup
+lebih lama daripada bar progres** (`AMBANG_LAMBAT_MS < BATAS_AMAN_MS`). Kalau
+dilanggar, ada rentang di mana layar sudah diam total sementara ketukan masih
+ditelan — gabungan terburuk kedua cacat sekaligus.
+
+Uji dibuktikan bergigi dengan mengembalikan perilaku lama (kunci = 20 detik):
+2 dari 8 uji gagal. Cacat semacam ini tidak menerbitkan galat apa pun — layarnya
+tetap rapi, ketukannya sekadar hilang — jadi tanpa uji yang menyatakan kapan
+kunci terbuka, ia akan kembali tanpa terlihat.

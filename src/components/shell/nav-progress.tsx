@@ -6,6 +6,13 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { ICONS, type NavItem } from "./nav-config";
+import {
+  AMBANG_LAMBAT_MS,
+  BATAS_AMAN_MS,
+  kunciKetukan,
+  tahanKetukan,
+  type KetukanAktif,
+} from "./nav-kunci-ulang";
 
 /*
  * UMPAN BALIK NAVIGASI — jawaban atas keluhan "diklik, sistem seperti stuck".
@@ -95,25 +102,6 @@ export function NavPendingProbe() {
 }
 
 /**
- * Bar tipis di pucuk layar selama navigasi berjalan.
- *
- * Jaring pengaman untuk navigasi yang BUKAN dari menu — tombol, tautan dalam
- * tabel, breadcrumb — dan satu-satunya petunjuk yang tetap terlihat setelah
- * laci menu tertutup. Sengaja tanpa jeda tampil: menunda demi "menghindari
- * kedip" justru mengembalikan diam yang jadi keluhan aslinya.
- */
-/** Sesudah sekian lama, diam kembali jadi membingungkan — katakan sebabnya. */
-const AMBANG_LAMBAT_MS = 6000;
-
-/**
- * Jaring pengaman: barnya padam sendiri kalau ketukan ternyata tidak berujung
- * navigasi (mis. tautan yang dibatalkan JS). Tanpa ini, satu kasus tepi
- * menyisakan bar menyala selamanya — dan indikator yang berbohong lebih buruk
- * daripada tidak ada indikator.
- */
-const BATAS_AMAN_MS = 20_000;
-
-/**
  * Deteksi navigasi dari KETUKAN TAUTAN, bukan dari `useLinkStatus`.
  *
  * `useLinkStatus` hanya hidup di dalam `<Link>` yang memang kita sisipi probe —
@@ -127,8 +115,12 @@ const BATAS_AMAN_MS = 20_000;
 function useNavigasiDiketuk(): boolean {
   const pathname = usePathname();
   const [aktif, setAktif] = useState(false);
-  /** Alamat yang sedang dituju + elemen yang diketuk (untuk dilepas tandanya). */
-  const tujuan = useRef<{ href: string; el: HTMLAnchorElement } | null>(null);
+  const [ketukanKe, setKetukanKe] = useState(0);
+  /**
+   * Alamat yang sedang dituju + elemen yang diketuk (untuk dilepas tandanya) +
+   * `sampai`: batas waktu ketukan ulang ke alamat itu masih ditahan.
+   */
+  const tujuan = useRef<(KetukanAktif & { el: HTMLAnchorElement }) | null>(null);
 
   const lepas = useCallback(() => {
     tujuan.current?.el.removeAttribute("data-navigating");
@@ -178,10 +170,11 @@ function useNavigasiDiketuk(): boolean {
        * lingkaran yang dilaporkan dari lapangan.
        *
        * Disetop di fase capture supaya Next tidak sempat memulai navigasi
-       * kedua. Aman dari "terkunci selamanya" karena tanda ini dilepas begitu
-       * pathname berganti, atau oleh BATAS_AMAN_MS.
+       * kedua. Penahanannya BERUJUNG di AMBANG_LAMBAT_MS — lihat
+       * nav-kunci-ulang.ts: sesudah pengguna diberi tahu jaringannya lambat,
+       * menahan ketukannya lebih lama cuma merampas kendali.
        */
-      if (tujuan.current?.href === href) {
+      if (tahanKetukan(tujuan.current, href, Date.now())) {
         e.preventDefault();
         e.stopPropagation();
         return;
@@ -192,8 +185,13 @@ function useNavigasiDiketuk(): boolean {
       // matahari; yang paling meyakinkan adalah barisnya sendiri berubah.
       tujuan.current?.el.removeAttribute("data-navigating");
       a.setAttribute("data-navigating", "");
-      tujuan.current = { href, el: a };
+      tujuan.current = { ...kunciKetukan(href, Date.now()), el: a };
       setAktif(true);
+      // Hitungan ketukan ada semata-mata untuk MENYETEL ULANG jaring pengaman
+      // di bawah. Tanpa ini, ketukan kedua yang diizinkan lewat tetap memakai
+      // sisa hitungan mundur ketukan pertama, sehingga barnya bisa padam
+      // selagi navigasi yang baru masih berjalan — diam yang sama lagi.
+      setKetukanKe((n) => n + 1);
     }
     /*
      * FASE CAPTURE, bukan bubble — dan ini bukan detail gaya.
@@ -216,11 +214,19 @@ function useNavigasiDiketuk(): boolean {
     if (!aktif) return;
     const t = setTimeout(() => setAktif(false), BATAS_AMAN_MS);
     return () => clearTimeout(t);
-  }, [aktif]);
+  }, [aktif, ketukanKe]);
 
   return aktif;
 }
 
+/**
+ * Bar tipis di pucuk layar selama navigasi berjalan.
+ *
+ * Jaring pengaman untuk navigasi yang BUKAN dari menu — tombol, tautan dalam
+ * tabel, breadcrumb — dan satu-satunya petunjuk yang tetap terlihat setelah
+ * laci menu tertutup. Sengaja tanpa jeda tampil: menunda demi "menghindari
+ * kedip" justru mengembalikan diam yang jadi keluhan aslinya.
+ */
 export function NavProgressBar() {
   // Dua sumber yang saling menutupi: `useLinkStatus` tahu PERSIS kapan Next
   // selesai (tapi hanya untuk tautan menu), sedangkan pendengar ketukan
