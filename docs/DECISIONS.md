@@ -8881,3 +8881,108 @@ yang lama), `typecheck` bersih, `lint` bersih, 903 uji unit lulus. Uji E2E
 alias diperluas: 20 URL lama diperiksa mendarat di tujuan kanoniknya — termasuk
 `dari` yang sengaja ditulis sebagai URL LAMA apa adanya, karena itulah yang ada
 di bookmark pengguna.
+
+---
+
+## 253 — Perubahan skema DIIZINKAN, tapi hanya yang ADITIF (2026-08-05)
+
+**Konteks.** Sampai kemarin redesign ini berjalan di bawah aturan **nol
+perubahan database** (lihat DECISIONS 251/252 dan
+`docs/rebuild/REDESIGN_UI_UX_RENCANA.md` bagian "TERHALANG SCHEMA"). User
+mengubahnya:
+
+> "kalau kamu memang mengubah database, aku bisa membolehkan, tapi tidak boleh
+> mengganggu data lama, penambahan kolom dan tabel diijinkan. karena saat ini
+> kamu berbagi database dengan pengembangan"
+
+Dua hal penting di kalimat itu, dan yang KEDUA yang menentukan bentuk
+aturannya: databasenya **dipakai bersama** pengembangan lain yang sedang
+berjalan. Artinya migrasi di cabang ini bukan cuma urusan cabang ini — ia
+dijalankan orang lain, di atas data yang sedang mereka pakai.
+
+**Keputusan.** Migrasi hanya boleh ADITIF:
+
+- ✅ `CREATE TABLE` baru.
+- ✅ `ADD COLUMN` yang **nullable** atau punya `DEFAULT`.
+- ✅ Indeks baru, enum value baru (ditambahkan di akhir).
+- ❌ `DROP TABLE` / `DROP COLUMN` / `RENAME` apa pun.
+- ❌ Mengetatkan kolom yang sudah ada (nullable → NOT NULL, pelebaran tipe,
+  penambahan UNIQUE pada kolom berisi).
+- ❌ `UPDATE`/`DELETE` data lama — termasuk backfill "sekadar merapikan".
+  Kolom baru dimulai kosong dan diisi oleh pemakaian, bukan oleh migrasi.
+- ❌ Menghapus atau mengganti nilai enum yang sudah dipakai baris mana pun.
+
+**Alasan aturannya seketat itu.** Migrasi yang mengubah bentuk kolom atau
+menulis ulang baris tidak bisa dibatalkan dengan `git revert` — kodenya kembali,
+datanya tidak. Di database bersama, kegagalannya juga tidak menimpa penulisnya
+sendiri melainkan orang lain yang kebetulan menjalankan `migrate deploy` lebih
+dulu. Aturan aditif membuat kasus terburuk sebuah migrasi hanyalah "ada tabel
+atau kolom yang belum dipakai siapa pun" — bukan kehilangan data.
+
+**Konsekuensi.** Gap PRD yang tadinya ditandai TERHALANG SCHEMA kini boleh
+dikerjakan **sejauh rancangannya aditif**. Yang menuntut perubahan pada bentuk
+data yang sudah ada tetap tidak dikerjakan tanpa persetujuan terpisah; dan
+setiap tabel/kolom baru harus punya pemakai nyata di kode pada commit yang sama
+— skema yang ditambahkan "untuk nanti" adalah utang yang tidak pernah ditagih.
+
+---
+
+## 254 — Pusat Impor & Kualitas Data (2026-08-05)
+
+**Masalah.** MARLIN hidup dari berkas Excel: RAB/HPS, jadwal kurva-S, master
+lokasi. Tetapi hasil setiap impor hanya hidup selama satu render — parser
+mengembalikan `warnings: string[]`, sebuah banner menampilkannya, halaman
+ditutup, selesai. Yang tersisa cuma angkanya, tanpa asal-usulnya.
+
+Akibatnya tiga pertanyaan yang paling sering datang berbulan-bulan kemudian
+tidak punya jawaban sama sekali:
+
+1. angka lokasi ini datang dari berkas yang mana;
+2. siapa yang mengimpornya, kapan;
+3. baris mana yang waktu itu ditolak atau diperingatkan.
+
+Yang paling mahal adalah nomor 3. Di jalur impor RAB, `warnings` memuat dua
+peringatan paling serius yang dimiliki sistem ini — **item ber-realisasi yang
+hilang dari file baru** (progress lokasi bisa turun diam-diam) dan **harga
+satuan item kontrak lama yang bergeser** (nilai kontrak berubah tanpa ada
+pekerjaan bertambah, DECISIONS 213). Keduanya ditampilkan sekali di layar
+pratinjau lalu lenyap, padahal justru itulah yang perlu dibuka lagi saat ada
+yang mempertanyakan nilai kontrak.
+
+**Keputusan.** Dua tabel baru — `import_jobs` (satu unggahan) dan
+`import_issues` (satu masalah pada satu baris) — plus halaman
+`/administrasi/impor`. Aditif sepenuhnya, sesuai DECISIONS 253.
+
+Rincian yang menentukan:
+
+- **Berkasnya TIDAK disimpan, hanya jejaknya.** Menyimpan berkas berarti
+  keputusan retensi & privasi tersendiri; jejaknya sudah cukup menjawab ketiga
+  pertanyaan di atas. (Untuk RAB, berkas sumbernya memang sudah diarsipkan
+  terpisah sebagai `Document` — itu jalur yang berbeda dan tetap berjalan.)
+- **Status DITURUNKAN dari hitungan baris** (`statusDari`), tidak pernah diminta
+  dari pemanggil. Kalau pemanggil yang menentukan, cepat atau lambat akan ada
+  impor berlabel "berhasil" yang berdampingan dengan ratusan baris tertolak —
+  dan label itulah yang dibaca orang, bukan angkanya.
+- **Nilai sel disimpan APA ADANYA** (DECISIONS 203): yang ditunjukkan balik ke
+  pengguna harus persis yang ia tulis, bukan versi yang sudah dirapikan sistem.
+- **Penulisan best-effort.** Gagal mencatat jejak tidak menggagalkan impornya.
+  Jejak yang hilang menyusahkan; impor yang batal karena jejaknya gagal ditulis
+  membuat orang berhenti memakai fiturnya. (Berbeda dari `auditIn` untuk mutasi
+  uang/status, yang justru sehidup-semati dengan transaksinya — di sana yang
+  dijaga adalah bukti perubahan, bukan catatan pekerjaan.)
+- **Masalah dibatasi 200 per pekerjaan, dan pemotongannya DIKATAKAN.** Satu
+  berkas RAB yang kolomnya bergeser bisa menghasilkan ribuan baris bermasalah;
+  daftar yang terpotong tanpa keterangan terbaca sebagai daftar lengkap.
+- **Dua pagar akses**, bukan satu: `orgId` DAN scope lokasi lewat
+  `locationScopeWhere` yang sama dengan seluruh aplikasi. Pekerjaan tanpa lokasi
+  (master lokasi) bersifat seorganisasi dan ikut tampil.
+
+**Yang sudah tersambung:** impor RAB/HPS (jalur aktif dan draft adendum) dan
+impor master lokasi (termasuk yang gagal total — justru impor gagal yang paling
+sering ditanyakan ulang). Jalur jadwal, laporan harian, dan dokumen Drive sudah
+punya nilai enumnya tetapi BELUM menulis jejak; itu disebut di sini supaya
+halamannya tidak terbaca lengkap padahal belum.
+
+**Yang tidak bisa surut.** Impor yang dilakukan sebelum ini tidak akan muncul —
+datanya memang tidak pernah disimpan. Halaman kosongnya mengatakan itu apa
+adanya alih-alih terlihat seperti "belum ada impor sama sekali".

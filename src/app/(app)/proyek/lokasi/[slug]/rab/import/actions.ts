@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireCapability, requireLocationAccess, ForbiddenError } from "@/lib/auth/session";
+import { catatImpor } from "@/lib/import-log/record";
 import { parseHpsBuffer } from "@/lib/rab/hps-parser";
 import { flattenParsedRab, grandTotal } from "@/lib/rab/flatten";
 import { pastikanBolehAktivasi, PersetujuanError } from "@/lib/rab/persetujuan";
@@ -400,6 +401,14 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
         revisionNo: resDraft.revisionNo,
         adendum: true,
       });
+      await catatJejakImpor({
+        location,
+        userId: user.id,
+        file,
+        nodes,
+        warnings,
+        message: `Draft adendum revisi #${resDraft.revisionNo} terisi (${resDraft.itemCount} item). RAB aktif tidak berubah.`,
+      });
       revalidatePath(`/proyek/lokasi/${location.slug}/rab`);
       revalidatePath(`/proyek/lokasi/${location.slug}/rab/adendum`);
       return {
@@ -469,6 +478,17 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
       adendum: isAdendum,
     });
 
+    await catatJejakImpor({
+      location,
+      userId: user.id,
+      file,
+      nodes,
+      warnings,
+      message:
+        `Revisi RAB #${res.revisionNo} (${source === "adendum" ? "adendum" : "HPS awal"}) aktif — ` +
+        `${res.itemCount} item.` +
+        (baselineError ? ` Kurva-S GAGAL di-regenerate: ${baselineError}` : ""),
+    });
     revalidatePath(`/proyek/lokasi/${location.slug}`, "layout");
     revalidatePath("/proyek/lokasi");
     revalidatePath("/pengendalian/progress");
@@ -490,6 +510,45 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     if (err instanceof ForbiddenError) return { error: err.message };
     return { error: err instanceof Error ? err.message : "Terjadi kesalahan saat impor." };
   }
+}
+
+/**
+ * Catat jejak impor RAB (DECISIONS 254).
+ *
+ * `warnings` di sini BUKAN hiasan — di dalamnya ada peringatan paling mahal
+ * yang dimiliki sistem ini: item ber-realisasi yang hilang dari file baru, dan
+ * harga satuan item kontrak lama yang bergeser. Selama ini keduanya cuma tampil
+ * di layar pratinjau lalu lenyap begitu halaman ditutup, padahal justru
+ * itulah yang perlu dibuka lagi berbulan-bulan kemudian saat ada yang
+ * mempertanyakan nilai kontrak. Disimpan sebagai `peringatan` — barisnya tetap
+ * masuk, orangnya sudah memutuskan melanjutkan; yang dicatat adalah bahwa ia
+ * diberi tahu.
+ */
+async function catatJejakImpor(a: {
+  location: { id: string; packageId: string; package: { orgId: string } | null };
+  userId: string;
+  file: File;
+  nodes: { kind: string }[];
+  warnings: string[];
+  message: string;
+}): Promise<void> {
+  const orgId = a.location.package?.orgId;
+  if (!orgId) return;
+  const items = a.nodes.filter((n) => n.kind === "item").length;
+  await catatImpor({
+    orgId,
+    userId: a.userId,
+    locationId: a.location.id,
+    packageId: a.location.packageId,
+    kind: "rab",
+    fileName: a.file.name,
+    fileBytes: a.file.size,
+    rowsRead: a.nodes.length,
+    rowsAccepted: items,
+    rowsRejected: 0,
+    message: a.message,
+    masalah: a.warnings.map((w) => ({ severity: "peringatan" as const, message: w })),
+  });
 }
 
 /**

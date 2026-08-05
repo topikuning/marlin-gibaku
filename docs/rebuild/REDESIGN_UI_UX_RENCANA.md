@@ -187,18 +187,27 @@ mentah), dan sapuan state kosong/gagal per halaman.
 | Unified Report Lifecycle | ✅ sudah ada sebelumnya — `AiArtifactStatus` draft→direview→disetujui→beku→terkirim (DECISIONS 193/194) |
 | Canonical Route Migration | ✅ keluarga route + 308 (DECISIONS 252) |
 
-### TERHALANG SCHEMA — tidak dikerjakan, dan tidak boleh dipaksakan
+### SKEMA: dari TERHALANG jadi BOLEH — tapi hanya yang ADITIF
 
-User menetapkan **nol perubahan database**. Gap berikut mustahil tanpa tabel
-atau kolom baru; mengerjakannya setengah jalan (mis. menyimpan di JSON blob
-atau menumpang tabel lain) justru menciptakan utang yang lebih mahal daripada
-migrasi yang jujur.
+**Diperbarui 2026-08-05 (DECISIONS 253).** Aturan "nol perubahan database"
+DICABUT user: penambahan tabel dan kolom diizinkan, dengan syarat tidak
+mengganggu data lama — databasenya dipakai bersama pengembangan lain. Aturan
+lengkapnya (apa yang boleh, apa yang tidak, dan kenapa) ada di DECISIONS 253.
+
+Sudah dikerjakan di bawah aturan baru:
+
+- ✅ **Import / Data Quality Centre** (P1) — `import_jobs` + `import_issues`,
+  halaman `/administrasi/impor`. Tersambung ke impor RAB/HPS dan master lokasi.
+  DECISIONS 254.
+
+Gap berikut masih menunggu; masing-masing butuh tabel baru dan BELUM dikerjakan.
+Mengerjakannya setengah jalan (mis. menyimpan di JSON blob atau menumpang tabel
+lain) justru menciptakan utang yang lebih mahal daripada migrasi yang jujur.
 
 | Gap | Butuh |
 |---|---|
 | Tender Evaluation & bid comparison (P1) | tabel Bidder + Evaluasi |
 | Vendor Performance scorecard (P1) | tabel penilaian lintas paket |
-| Import/Data Quality Centre (P1) | tabel ImportJob + error row |
 | Scheduled Distribution (P1) | tabel jadwal + delivery status |
 | Closure Workspace / Partial PHO (P1/P2) | model serah terima parsial |
 | Auto Termin Readiness (P1) | penyimpanan rule configurable |

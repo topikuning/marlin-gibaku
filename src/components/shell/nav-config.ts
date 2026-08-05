@@ -118,6 +118,13 @@ export const ADMINISTRASI_TABS = [
     capability: "package.bypass",
   },
   {
+    navLabel: "Impor & Kualitas Data",
+    tabLabel: "Impor",
+    href: "/administrasi/impor",
+    icon: "fileText",
+    capability: "rab.manage",
+  },
+  {
     navLabel: "Sistem",
     tabLabel: "Sistem",
     href: "/administrasi/sistem",
