@@ -1,0 +1,103 @@
+/**
+ * KEBIJAKAN ANTREAN UNGGAH — modul murni (DECISIONS 257).
+ *
+ * Permintaan user: *"lalu perlu solusi juga jika jaringan jelek, atau offline"*.
+ *
+ * Sampai sekarang hasil jepretan hanya ada di MEMORI sampai unggahannya
+ * berhasil. Di kampung nelayan dengan sinyal putus-putus itu berarti: rana
+ * ditekan, foto tampak masuk, lalu halaman ditutup atau sinyal hilang — dan
+ * buktinya lenyap tanpa pernah ada yang tahu. Cacat paling mahal di seluruh
+ * fitur ini, dan paling senyap.
+ *
+ * Karena itu tiap jepretan DISIMPAN DI PERANGKAT lebih dulu, baru diunggah dari
+ * antrean. Berkas ini memuat ATURAN antreannya saja — tanpa IndexedDB, tanpa
+ * jaringan — supaya bisa diuji langsung.
+ */
+
+export type StatusAntrean =
+  /** Belum pernah dicoba, atau menunggu jadwal percobaan berikutnya. */
+  | "menunggu"
+  /** Sedang diunggah. */
+  | "kirim"
+  /** Gagal karena JARINGAN — akan dicoba lagi, selamanya. */
+  | "gagal_jaringan"
+  /** Server MENOLAK (mis. duplikat, wajib-GPS). Berhenti; butuh keputusan orang. */
+  | "ditolak";
+
+export type ItemAntrean = {
+  id: string;
+  percobaan: number;
+  /** Kapan percobaan terakhir dimulai (epoch ms). 0 = belum pernah. */
+  terakhirCoba: number;
+  status: StatusAntrean;
+  pesan?: string;
+};
+
+/**
+ * Jeda sebelum percobaan berikutnya, per jumlah percobaan yang sudah gagal.
+ *
+ * Naik bertahap lalu MENDATAR di 5 menit — tidak pernah menyerah. Menyerah
+ * berarti membuang bukti lapangan hanya karena sinyalnya sedang jelek, dan
+ * sinyal jelek adalah keadaan NORMAL di lokasi KNMP, bukan kasus tepi.
+ */
+const TANGGA_JEDA_MS = [2_000, 5_000, 15_000, 60_000, 300_000];
+
+export function jedaBerikutnya(percobaan: number): number {
+  if (percobaan <= 0) return 0;
+  return TANGGA_JEDA_MS[Math.min(percobaan, TANGGA_JEDA_MS.length) - 1];
+}
+
+/**
+ * Boleh dicoba sekarang?
+ *
+ * `online` ikut diperiksa supaya antrean tidak membakar baterai memanggil
+ * jaringan yang jelas-jelas mati. Tapi `navigator.onLine` TIDAK dipercaya
+ * sebagai bukti ADA jaringan — nilai `true` cuma berarti "ada antarmuka
+ * jaringan", dan di lapangan itu sering berarti terhubung ke menara tanpa data
+ * sama sekali. Jadi ia hanya dipakai untuk MENUNDA, tidak untuk menjamin.
+ */
+export function bolehCoba(item: ItemAntrean, sekarang: number, online: boolean): boolean {
+  if (item.status === "kirim" || item.status === "ditolak") return false;
+  if (!online) return false;
+  if (item.percobaan === 0) return true;
+  return sekarang - item.terakhirCoba >= jedaBerikutnya(item.percobaan);
+}
+
+/**
+ * Apakah kegagalan ini soal JARINGAN (coba lagi) atau KEPUTUSAN SERVER (berhenti)?
+ *
+ * Bedanya menentukan nasib foto. Kegagalan jaringan bersifat sementara —
+ * mencoba lagi akhirnya berhasil. Penolakan server tidak: foto duplikat akan
+ * ditolak seribu kali dengan hasil yang sama, dan mencobanya terus hanya
+ * menghabiskan baterai sambil menyembunyikan sebab sebenarnya dari pelapor.
+ */
+export function statusDariKegagalan(jenis: "jaringan" | "server"): StatusAntrean {
+  return jenis === "jaringan" ? "gagal_jaringan" : "ditolak";
+}
+
+/**
+ * Batas jumlah foto yang boleh menumpuk di perangkat.
+ *
+ * Ada batasnya karena penyimpanan peramban terbatas dan bisa PENUH — dan
+ * penyimpanan penuh yang tidak diberitahukan berarti jepretan berikutnya hilang
+ * diam-diam. Kalau antrean sudah sepanjang ini, pelapor diberi tahu untuk
+ * mencari sinyal dulu, bukan dibiarkan terus memotret ke dalam ember bocor.
+ */
+export const MAKS_ANTREAN = 100;
+
+/**
+ * Ringkasan untuk ditampilkan — satu tempat, supaya kalimatnya tidak beranak.
+ *
+ * Hanya butuh `status`, jadi tipenya sengaja longgar: baris yang ditampilkan UI
+ * membawa URL pratinjau tapi tidak membawa hitungan percobaan, dan memaksanya
+ * menyeret bidang yang tidak dipakai hanya menambah tempat untuk salah.
+ */
+export function ringkasAntrean(items: Pick<ItemAntrean, "status">[]): {
+  menunggu: number;
+  ditolak: number;
+  perluPerhatian: boolean;
+} {
+  const menunggu = items.filter((i) => i.status !== "ditolak").length;
+  const ditolak = items.filter((i) => i.status === "ditolak").length;
+  return { menunggu, ditolak, perluPerhatian: menunggu + ditolak > 0 };
+}

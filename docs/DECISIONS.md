@@ -9255,3 +9255,99 @@ Catatan proses: percobaan pertama uji e2e membaca "rana tidak mengirim apa pun"
 padahal mengirim. Penyebabnya penghitung POST-ku sendiri ikut menghitung
 pencatatan izin perangkat yang terjadi sebelum rana ditekan. Penghitungnya
 dikosongkan tepat sebelum ketukan.
+
+---
+
+## 257 · Foto Cepat tahan sinyal jelek: simpan dulu di HP, kirim dari antrean (2026-08-05)
+
+Permintaan user: *"lalu perlu solusi juga jika jaringan jelek, atau offline"*.
+
+### Cacat yang ditutup — dan ini yang paling mahal di seluruh fitur
+
+Sampai DECISIONS 256, hasil jepretan hanya ada di **memori** sampai unggahannya
+berhasil. Artinya: rana ditekan, foto tampak masuk, lalu sinyal putus / tab
+ditutup / baterai habis / peramban membunuh halaman di latar belakang — dan
+buktinya lenyap **tanpa jejak**. Tidak ada galat, tidak ada baris log, dan tidak
+ada satu orang pun yang akan tahu foto itu pernah ada.
+
+Sinyal putus-putus di kampung nelayan bukan kasus tepi; itu keadaan normal.
+
+### Urutannya dibalik
+
+Dulu: `jepret → kirim → (gagal = hilang)`.
+Sekarang: **`jepret → SIMPAN DI PERANGKAT → kirim dari simpanan → buang dari
+simpanan HANYA setelah server memastikan tersimpan`**.
+
+Langkah terakhir itu penting persis urutannya. Membuang lebih awal (mis. begitu
+permintaan terkirim) berarti kegagalan di tengah jalan menghapus bukti.
+
+IndexedDB, bukan localStorage: localStorage hanya menyimpan string (blob harus
+di-base64, membengkak ~33%) dan kuotanya ±5 MB — habis oleh lima foto.
+
+### Dua sebab kegagalan, dua nasib berbeda
+
+| Sebab | Tanda | Perlakuan |
+|---|---|---|
+| **Jaringan** (permintaan tidak pernah sampai) | `gagal_jaringan` | dicoba lagi **selamanya**, jeda naik bertahap lalu mendatar di 5 menit |
+| **Server menjawab & menolak** (duplikat, wajib-GPS) | `ditolak` | **berhenti**, sebabnya ditulis, keputusan diserahkan ke orang |
+
+Membalik keduanya sama-sama merusak: menyerah pada kegagalan jaringan berarti
+membuang bukti hanya karena sinyal jelek; mencoba terus pada penolakan server
+berarti menghabiskan baterai sambil menyembunyikan sebab sebenarnya. Jedanya
+MENDATAR, tidak berlipat tanpa batas — jeda berjam-jam secara praktis sama
+dengan menyerah, hanya tanpa mengakuinya.
+
+### Pengiriman berurutan, bukan serentak
+
+Di jaringan lemah, mengirim lima foto sekaligus membuat kelimanya sama-sama
+timeout. Satu per satu lebih lambat di atas kertas, tapi jauh lebih sering
+berhasil.
+
+### Antrean ditampilkan terang-terangan
+
+Panel antrean muncul bahkan saat kamera tertutup, menyebut jumlahnya dan keadaan
+jaringan. Antrean yang disembunyikan membuat orang mengira fotonya sudah aman di
+server padahal masih di HP-nya sendiri — dan HP bisa hilang, rusak, atau datanya
+dibersihkan. Kalimatnya menyebut itu apa adanya.
+
+`navigator.onLine` dipakai hanya untuk MENUNDA percobaan, tidak sebagai bukti
+ada jaringan: nilainya `true` cuma berarti "ada antarmuka jaringan", dan di
+lapangan itu sering berarti terhubung ke menara tanpa data sama sekali.
+
+### Batas antrean, disebut bukan didiamkan
+
+Maksimal 100 foto tertunda. Kalau penuh, jepretan berikutnya **ditolak dengan
+pesan** ("cari sinyal dulu"), bukan hilang diam-diam. Penyimpanan penuh yang
+tidak diberitahukan adalah kegagalan paling buruk yang mungkin di sini.
+
+### Yang TIDAK dijanjikan
+
+- **Bukan PWA offline penuh.** Tanpa service worker, halaman `/foto-cepat`
+  tidak bisa DIBUKA dari nol dalam keadaan benar-benar offline. Yang dilindungi
+  adalah foto yang sudah terlanjur dijepret — ia bertahan melewati muat ulang,
+  tab tertutup, dan aplikasi dibuka lagi besok. Membuka aplikasi dari nol saat
+  offline masih ditunda (OPEN_ISSUES, "PWA offline penuh").
+- **Simpanannya melekat ke PERANGKAT + peramban itu.** HP hilang/rusak atau
+  "hapus data situs" berarti antreannya ikut hilang. Itu sebabnya antreannya
+  ditampilkan, bukan disembunyikan.
+- Jalur cadangan `<input capture>` sengaja TIDAK lewat antrean — ia mengirim
+  langsung, sama seperti unggahan foto di laporan harian. Membuat cadangan ikut
+  antre berarti dua mesin pengirim yang harus sama-sama dijaga benar.
+
+### Uji
+
+- `tests/unit/foto-cepat-antrean.test.ts` — 14 uji kebijakan: jeda mendatar,
+  offline menunda, "gagal jaringan 500× tetap dicoba", "ditolak berhenti walau
+  online dan sudah lama".
+- `tests/e2e/foto-cepat-offline.spec.ts` — kamera palsu + `context.setOffline`:
+  jepret saat offline masuk antrean, antrean **bertahan melewati muat ulang**
+  (dibaca ulang dari perangkat, bukan dari memori), dan bergerak sendiri begitu
+  jaringan kembali.
+
+Dibuktikan bergigi: membuat `titip()` melewati simpanan (kembali ke "kirim
+langsung") membuat **ketiga** uji e2e gagal.
+
+Catatan proses: uji "bertahan melewati muat ulang" awalnya kutulis dengan
+`page.reload()` dalam keadaan benar-benar offline — dan gagal, karena memang
+tidak mungkin tanpa service worker. Ujinya yang salah, bukan kodenya; sekarang
+yang digagalkan unggahannya saja, dan batas sebenarnya ditulis di atas.

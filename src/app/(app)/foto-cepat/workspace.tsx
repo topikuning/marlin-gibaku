@@ -6,6 +6,7 @@ import { Camera, Images, MapPin, MapPinOff, Trash2 } from "lucide-react";
 import { Banner, Button, Card, Combobox, EmptyState, HelpText, Label } from "@/components/ui";
 import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
 import { KameraLangsung, type PosisiJepret } from "@/components/knmp/kamera-langsung";
+import { useAntreanFoto, type BarisAntrean } from "./use-antrean";
 import { labelJarak, urutkanTerdekat, type LokasiBerjarak } from "@/lib/foto-cepat/jarak";
 import type { FotoKantong, PilihanLokasi, TujuanKegiatan, TujuanLaporan } from "@/lib/foto-cepat/queries";
 import {
@@ -90,72 +91,32 @@ function JepretCard({
 }) {
   const router = useRouter();
   const [kameraBuka, setKameraBuka] = useState(false);
-  /** Riwayat jepretan sesi ini — urutan terbaru di depan. */
-  const [antrean, setAntrean] = useState<Jepretan[]>([]);
   const [state, action, pending] = useActionState(simpanFotoCepatAction, KOSONG);
-  const nomor = useRef(0);
-  const berjalan = antrean.some((j) => j.status === "kirim");
+  const { baris, ringkas, penuh, online, titip, hapus, kirimSekarang } = useAntreanFoto();
 
   /**
-   * Satu jepretan = satu unggahan, langsung, tanpa menunggu yang lain.
+   * Rana → SIMPAN DI PERANGKAT, bukan → kirim (DECISIONS 257).
    *
-   * SENGAJA tidak diantre berurutan: di lapangan orang memotret beruntun, dan
-   * memaksa yang kedua menunggu yang pertama selesai membuat rana terasa macet
-   * persis saat jaringannya paling lambat. Yang penting bukan urutannya,
-   * melainkan tidak ada jepretan yang hilang.
+   * Pengirimannya urusan antrean. Bedanya menentukan apakah foto selamat saat
+   * sinyal putus di tengah unggahan: yang tersimpan di perangkat akan dicoba
+   * lagi, yang cuma ada di memori hilang bersama halamannya.
    */
   const kirim = useCallback(
     (file: File, posisi: PosisiJepret) => {
-      const id = ++nomor.current;
-      const url = URL.createObjectURL(file);
-      setAntrean((a) => [{ id, url, status: "kirim" as const }, ...a].slice(0, 12));
-
-      const fd = new FormData();
-      fd.append("photos", file);
-      fd.set("photoTakenAt", new Date().toISOString());
-      if (posisi) {
-        fd.set("gpsLat", String(posisi.lat));
-        fd.set("gpsLng", String(posisi.lng));
-      }
-      void simpanFotoCepatAction({}, fd)
-        .then((r) => {
-          setAntrean((a) =>
-            a.map((j) =>
-              j.id === id
-                ? {
-                    ...j,
-                    status: r.error ? ("gagal" as const) : ("simpan" as const),
-                    pesan: r.error ?? r.ok ?? r.warning,
-                  }
-                : j,
-            ),
-          );
-        })
-        .catch(() => {
-          setAntrean((a) =>
-            a.map((j) =>
-              j.id === id ? { ...j, status: "gagal" as const, pesan: "Gagal mengirim." } : j,
-            ),
-          );
-        });
+      void titip(file, posisi);
     },
-    [],
+    [titip],
   );
 
   /**
    * Kantong di bawah baru disegarkan saat kamera DITUTUP, bukan tiap jepretan.
-   *
-   * Sekali `router.refresh()` berarti sekali muat ulang seluruh payload RSC
-   * halaman. Melakukannya per jepretan akan menyaingi unggahan foto berikutnya
-   * di pipa yang sama — dan di 400 kbps itu terasa persis seperti aplikasi
-   * tersendat (DECISIONS 245).
+   * Satu `router.refresh()` = satu muat ulang payload RSC; melakukannya per
+   * jepretan akan menyaingi unggahan berikutnya di pipa yang sama.
    */
   const tutupKamera = useCallback(() => {
     setKameraBuka(false);
-    for (const j of antrean) URL.revokeObjectURL(j.url);
-    setAntrean([]);
     router.refresh();
-  }, [antrean, router]);
+  }, [router]);
 
   return (
     <Card>
@@ -163,8 +124,8 @@ function JepretCard({
         <div>
           <h2 className="text-sm font-semibold text-ink">Jepret sekarang</h2>
           <HelpText>
-            Ketuk rana — foto langsung tersimpan, tanpa layar konfirmasi. Koordinat & jamnya
-            terekam saat itu juga; lokasinya dikenali sendiri, itemnya menyusul.
+            Ketuk rana — foto langsung tersimpan di HP, lalu dikirim sendiri begitu ada sinyal.
+            Koordinat & jamnya terekam saat rana ditekan.
           </HelpText>
         </div>
 
@@ -184,11 +145,18 @@ function JepretCard({
           />
         ) : null}
 
+        {penuh ? <Banner tone="warning" title={penuh} /> : null}
+
+        <PanelAntrean
+          baris={baris}
+          ringkas={ringkas}
+          online={online}
+          onKirim={() => void kirimSekarang()}
+          onHapus={(id) => void hapus(id)}
+        />
+
         {kameraBuka ? (
-          <>
-            <KameraLangsung onFoto={kirim} onTutup={tutupKamera} sibuk={berjalan} />
-            {antrean.length > 0 ? <StripJepretan antrean={antrean} /> : null}
-          </>
+          <KameraLangsung onFoto={kirim} onTutup={tutupKamera} sibuk={ringkas.menunggu > 0} />
         ) : (
           <>
             <Button type="button" onClick={() => setKameraBuka(true)} className="w-full sm:w-auto">
@@ -201,6 +169,10 @@ function JepretCard({
               tidak bisa dinyalakan (izin ditolak, peramban lawas). Di sini
               layar "Use Photo" dari aplikasi kamera HP memang muncul — itu
               milik sistem operasi dan tidak bisa dimatikan halaman web.
+
+              Jalur ini SENGAJA tidak lewat antrean: ia mengirim langsung, sama
+              seperti unggahan foto di laporan harian. Membuat cadangan ikut
+              antre berarti dua mesin pengirim yang harus sama-sama dijaga benar.
             */}
             <details className="rounded-md border border-border bg-surface-muted p-3">
               <summary className="cursor-pointer text-[13px] font-medium text-ink">
@@ -212,7 +184,7 @@ function JepretCard({
                 {state.ok ? <Banner tone="success" title={state.ok} /> : null}
                 <HelpText>
                   Pakai aplikasi kamera HP. Hasilnya sama; bedanya ada satu layar konfirmasi
-                  bawaan HP sebelum fotonya kembali ke MARLIN.
+                  bawaan HP, dan fotonya dikirim saat itu juga (tidak lewat antrean).
                 </HelpText>
                 <form action={action} className="space-y-3">
                   <PhotoSourceInput hanyaKamera />
@@ -229,55 +201,107 @@ function JepretCard({
   );
 }
 
-type Jepretan = {
-  id: number;
-  url: string;
-  status: "kirim" | "simpan" | "gagal";
-  pesan?: string;
-};
-
 /**
- * Strip hasil jepretan — bukti bahwa tiap ketukan benar-benar masuk.
+ * Antrean foto yang belum sampai ke server.
  *
- * Tanpa ini, memotret beruntun berarti menekan rana ke ruang hampa: tidak ada
- * yang menunjukkan foto keberapa yang sudah aman dan mana yang gagal, dan
- * kegagalan satu foto akan lolos tanpa pernah terlihat.
+ * Ditampilkan TERANG-TERANGAN, bahkan saat kamera tertutup. Antrean yang
+ * disembunyikan membuat orang mengira fotonya sudah aman di server padahal
+ * masih di HP-nya sendiri — dan HP bisa hilang, rusak, atau datanya dibersihkan.
  */
-function StripJepretan({ antrean }: { antrean: Jepretan[] }) {
-  const gagal = antrean.filter((j) => j.status === "gagal");
+function PanelAntrean({
+  baris,
+  ringkas,
+  online,
+  onKirim,
+  onHapus,
+}: {
+  baris: BarisAntrean[];
+  ringkas: { menunggu: number; ditolak: number; perluPerhatian: boolean };
+  online: boolean;
+  onKirim: () => void;
+  onHapus: (id: string) => void;
+}) {
+  if (!ringkas.perluPerhatian) return null;
+  const ditolak = baris.filter((b) => b.status === "ditolak");
+
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2 rounded-md border border-border bg-surface-muted p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-ink">
+          {ringkas.menunggu > 0
+            ? `${ringkas.menunggu} foto menunggu terkirim`
+            : "Semua foto sudah terkirim"}
+        </p>
+        <span
+          className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+            online ? "bg-success-soft text-success" : "bg-warning-soft text-warning"
+          }`}
+        >
+          {online ? "jaringan ada" : "tidak ada jaringan"}
+        </span>
+      </div>
+
+      <HelpText>
+        Foto tersimpan di HP dan dikirim sendiri begitu ada sinyal — termasuk kalau halaman ini
+        ditutup dan dibuka lagi nanti. Tapi ia masih di HP ini: jangan hapus data aplikasi sebelum
+        antreannya habis.
+      </HelpText>
+
       <ul className="flex gap-2 overflow-x-auto pb-1">
-        {antrean.map((j) => (
-          <li key={j.id} className="relative shrink-0">
+        {baris.map((b) => (
+          <li key={b.id} className="relative shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={j.url}
+              src={b.url}
               alt=""
               className={`size-14 rounded-md border object-cover ${
-                j.status === "gagal" ? "border-danger opacity-60" : "border-border"
+                b.status === "ditolak" ? "border-danger opacity-60" : "border-border"
               }`}
             />
             <span
               className={`absolute inset-x-0 bottom-0 rounded-b-md text-center text-[10px] font-medium text-white ${
-                j.status === "kirim"
-                  ? "bg-ink/70"
-                  : j.status === "gagal"
+                b.status === "kirim"
+                  ? "bg-primary"
+                  : b.status === "ditolak"
                     ? "bg-danger"
-                    : "bg-success"
+                    : "bg-ink/70"
               }`}
             >
-              {j.status === "kirim" ? "kirim…" : j.status === "gagal" ? "gagal" : "aman"}
+              {b.status === "kirim" ? "kirim…" : b.status === "ditolak" ? "ditolak" : "antre"}
             </span>
           </li>
         ))}
       </ul>
-      {gagal.length > 0 ? (
-        <Banner
-          tone="error"
-          title={`${gagal.length} foto gagal tersimpan`}
-          description={gagal[0].pesan ?? "Coba jepret ulang."}
-        />
+
+      {ringkas.menunggu > 0 ? (
+        <Button type="button" variant="secondary" onClick={onKirim}>
+          Coba kirim sekarang
+        </Button>
+      ) : null}
+
+      {ditolak.length > 0 ? (
+        <div className="space-y-1.5">
+          <Banner
+            tone="error"
+            title={`${ditolak.length} foto ditolak server`}
+            description={
+              // Ditolak BUKAN gagal jaringan: mencoba lagi akan ditolak lagi.
+              // Sebabnya ditulis supaya bisa diputuskan orangnya, bukan diulang
+              // terus oleh mesin.
+              ditolak[0].pesan ?? "Periksa sebabnya, lalu buang atau jepret ulang."
+            }
+          />
+          {ditolak.map((b) => (
+            <button
+              key={b.id}
+              type="button"
+              onClick={() => onHapus(b.id)}
+              className="text-xs font-medium text-danger underline-offset-2 hover:underline"
+            >
+              Buang foto yang ditolak ({b.id.slice(-4)})
+            </button>
+          ))}
+        </div>
       ) : null}
     </div>
   );

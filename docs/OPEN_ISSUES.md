@@ -71,8 +71,11 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
 
 ## Fitur ditunda sadar (lihat docs/rebuild/REBUILD_PLAN.md)
 
-- 🟡 **PWA offline penuh** — sekarang: draft lokal (localStorage) + submit idempotent;
-  belum ada service worker/manifest installable/background sync.
+- 🟡 **PWA offline penuh** — sekarang: draft lokal (localStorage) + submit idempotent,
+  DAN antrean foto di IndexedDB yang bertahan melewati muat ulang (DECISIONS 257).
+  Yang masih kurang: tanpa service worker, halaman TIDAK bisa DIBUKA dari nol saat
+  benar-benar offline — foto yang sudah dijepret selamat, tapi aplikasinya sendiri
+  perlu sekali terbuka lebih dulu. Belum ada manifest installable/background sync.
 - 🟢 PR/PO/receiving granular (kini direpresentasikan Commitment+Expense).
 - 🟢 Intake WA-text mandor (model lama SuggestionSource tidak dibawa).
 - 🟢 Cash forecast otomatis dari baseline (fungsi `cashRequirement` ada; UI input
