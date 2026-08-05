@@ -11,7 +11,13 @@ import { formatTanggal } from "@/lib/format";
 import { requireLocationPage } from "../get-location";
 import { RabTree, type RabNodeRow } from "./rab-tree";
 import { RevisionList, type RevisionRow } from "./revision-list";
-import { WeeklyPlanSection, type LeafOption, type PlanItemRow } from "./weekly-plan";
+import { getRencanaMingguan } from "@/lib/plan/rencana-mingguan";
+import {
+  WeeklyPlanSection,
+  type LeafOption,
+  type PlanItemRow,
+  type RingkasRencana,
+} from "./weekly-plan";
 
 export const metadata: Metadata = { title: "Rencana & RAB" };
 export const dynamic = "force-dynamic";
@@ -166,6 +172,30 @@ export default async function RabPage({
   const weekPeriod =
     weekStart && weekEnd ? `${formatTanggal(weekStart)} – ${formatTanggal(weekEnd)}` : null;
 
+  // Ringkasan + proyeksi: SUMBER YANG SAMA dengan formulir cetak & Excel, supaya
+  // angka di layar tidak pernah berbeda dari berkas yang beredar (DECISIONS 258).
+  // null bila prasyarat dokumen belum ada (SPMK/baseline/RAB aktif) — panelnya
+  // disembunyikan, bukan diisi angka tebakan.
+  const rencana = await getRencanaMingguan(location.id, weekNumber);
+  const ringkas: RingkasRencana | null = rencana
+    ? {
+        actualPct: rencana.actualPct,
+        targetPct: rencana.targetPct,
+        deviationPct: rencana.deviationPct,
+        status: rencana.status,
+        tambahanPct: rencana.proyeksi.tambahanPct,
+        proyeksiPct: rencana.proyeksi.proyeksiPct,
+        selisihPct: rencana.proyeksi.selisihPct,
+        masihTertinggal: rencana.proyeksi.masihTertinggal,
+        totalNilai: rencana.totalNilai,
+        totalBobot: rencana.totalBobot,
+        jumlahKomitmen: rencana.baris.length,
+        ppc: rencana.ppc,
+        cetakHref: `/cetak/rencana/${slug}/${weekNumber}`,
+        excelHref: `/lokasi/${slug}/rab/rencana-export?minggu=${weekNumber}`,
+      }
+    : null;
+
   return (
     <div className="space-y-4">
       <Card>
@@ -234,6 +264,7 @@ export default async function RabPage({
               weekPeriod={weekPeriod}
               items={planItems}
               options={leafOptions}
+              ringkas={ringkas}
               canManage={canPlan}
             />
           ) : (

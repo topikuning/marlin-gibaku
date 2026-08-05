@@ -2,8 +2,11 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useActionState, useMemo, useState } from "react";
-import { Banner, Button, HelpText, Input, Label, Combobox, Textarea } from "@/components/ui";
+import { Download, MessageCircle, Printer } from "lucide-react";
+import { sendRencanaMingguanToWaAction, type WaActionState } from "@/lib/waha/actions";
+import { Banner, Button, ButtonLink, HelpText, Input, Label, Combobox, Textarea } from "@/components/ui";
 import { formatNumber, formatPct, formatRupiah } from "@/lib/format";
+import { LABEL_STATUS, labelKejar, type Ppc, type StatusRencana } from "@/lib/plan/rencana-format";
 import {
   addWeeklyPlanItem,
   applyWeeklySuggestions,
@@ -208,11 +211,18 @@ function SuggestPanel({ locationId, weekNumber }: { locationId: string; weekNumb
                     </td>
                     <td className="tabular py-1.5 pr-3 text-right font-semibold">
                       {formatNumber(s.targetVolume)} {s.unit ?? ""}
-                      {s.catchUpVolume > 0 ? (
-                        <span className="ml-1 text-[11px] text-danger">
-                          (+{formatNumber(s.catchUpVolume)} kejar)
-                        </span>
-                      ) : null}
+                      {/* Notasi lama "(+X kejar)" menyesatkan: tanda + mengajak
+                          MENJUMLAHKAN, padahal bagian itu ada DI DALAM target.
+                          Baris dengan target = ketertinggalan terbaca dua kali
+                          lipat. Lihat labelKejar() di lib/plan/rencana-format.ts. */}
+                      {(() => {
+                        const l = labelKejar(s.targetVolume, s.catchUpVolume, formatNumber, s.unit);
+                        return l ? (
+                          <span className="mt-0.5 block text-[11px] font-normal text-warning">
+                            {l}
+                          </span>
+                        ) : null;
+                      })()}
                     </td>
                     <td className="tabular py-1.5 pr-3 text-right text-ink-muted">{formatRupiah(s.valueTarget)}</td>
                     <td className="tabular py-1.5 pr-3">{s.priority}</td>
@@ -237,6 +247,168 @@ function SuggestPanel({ locationId, weekNumber }: { locationId: string; weekNumb
   );
 }
 
+/**
+ * Ringkasan rencana + jalan keluarnya (DECISIONS 258).
+ *
+ * Menjawab tiga keberatan sekaligus:
+ *  - *"aku sudah buat rencana, lalu apa? mana outputnya?"* → tombol Cetak & Excel.
+ *  - *"berapa persen pencapaiannya jika rencanamu diikuti"* → baris proyeksi.
+ *  - *"apa maksud tulisan merah itu?"* → tiap angka bertanda punya keterangan
+ *    berupa KATA, tidak pernah warna saja.
+ *
+ * Angkanya identik dengan berkas cetak: keduanya dari `getRencanaMingguan`.
+ */
+export type RingkasRencana = {
+  actualPct: number;
+  targetPct: number;
+  deviationPct: number;
+  status: StatusRencana;
+  tambahanPct: number;
+  proyeksiPct: number;
+  selisihPct: number;
+  masihTertinggal: boolean;
+  totalNilai: number;
+  totalBobot: number;
+  jumlahKomitmen: number;
+  ppc: Ppc;
+  cetakHref: string;
+  excelHref: string;
+};
+
+const TONE_STATUS: Record<StatusRencana, string> = {
+  aman: "text-success",
+  perhatian: "text-warning",
+  kritis: "text-danger",
+};
+
+function Angka({
+  label,
+  value,
+  note,
+  tone,
+}: {
+  label: string;
+  value: string;
+  note?: string;
+  tone?: string;
+}) {
+  return (
+    <div className="rounded-md border border-border bg-surface p-2">
+      <p className="text-[11px] leading-tight text-ink-muted">{label}</p>
+      <p className={`tabular text-lg leading-tight font-semibold ${tone ?? "text-ink"}`}>{value}</p>
+      {note ? <p className="text-[11px] leading-tight text-ink-muted">{note}</p> : null}
+    </div>
+  );
+}
+
+/**
+ * Tombol kirim ke WhatsApp. Terpisah supaya punya `useActionState` sendiri —
+ * hasilnya (termasuk kegagalan WAHA) muncul tepat di sebelah tombolnya.
+ */
+function KirimWaButton({ locationId, weekNumber }: { locationId: string; weekNumber: number }) {
+  const [state, action, pending] = useActionState<WaActionState, FormData>(
+    sendRencanaMingguanToWaAction,
+    undefined,
+  );
+  return (
+    <form action={action} className="contents">
+      <input type="hidden" name="locationId" value={locationId} />
+      <input type="hidden" name="weekNumber" value={weekNumber} />
+      <Button type="submit" variant="secondary" size="sm" loading={pending}>
+        <MessageCircle aria-hidden className="size-4" />
+        Kirim ke WhatsApp
+      </Button>
+      {state?.error ? (
+        <span className="basis-full text-xs text-danger">{state.error}</span>
+      ) : state?.success ? (
+        <span className="basis-full text-xs text-success">{state.success}</span>
+      ) : null}
+    </form>
+  );
+}
+
+function RingkasanRencana({
+  r,
+  locationId,
+  weekNumber,
+}: {
+  r: RingkasRencana;
+  locationId: string;
+  weekNumber: number;
+}) {
+  const signed = (n: number) => `${n >= 0 ? "+" : "−"}${formatPct(Math.abs(n), 2)}`;
+  return (
+    <div className="space-y-3 rounded-md border border-border bg-surface-muted p-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold text-ink">Ringkasan rencana minggu {weekNumber}</p>
+          <p className="text-xs text-ink-muted">
+            Angka yang sama dengan formulir cetak — layar dan berkas tidak boleh berbeda.
+          </p>
+        </div>
+        <span className="flex flex-wrap items-center gap-2">
+          <ButtonLink href={r.cetakHref} variant="secondary" size="sm" target="_blank">
+            <Printer aria-hidden className="size-4" />
+            Cetak formulir A4
+          </ButtonLink>
+          <ButtonLink href={r.excelHref} variant="secondary" size="sm">
+            <Download aria-hidden className="size-4" />
+            Unduh Excel
+          </ButtonLink>
+          <KirimWaButton locationId={locationId} weekNumber={weekNumber} />
+        </span>
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <Angka label="Realisasi s/d saat ini" value={formatPct(r.actualPct, 2)} />
+        <Angka label={`Rencana kurva-S s/d minggu ${weekNumber}`} value={formatPct(r.targetPct, 2)} />
+        <Angka
+          label="Deviasi terhadap kurva-S"
+          value={signed(r.deviationPct)}
+          note={LABEL_STATUS[r.status]}
+          tone={TONE_STATUS[r.status]}
+        />
+        <Angka
+          label="Bobot rencana minggu ini"
+          value={signed(r.tambahanPct)}
+          note={`${r.jumlahKomitmen} komitmen · ${formatRupiah(r.totalNilai)}`}
+        />
+      </div>
+
+      {/* Inilah angka yang membuat rencana bisa DINILAI sebelum dijalankan. */}
+      <p className="rounded-md border border-border bg-surface p-2 text-[13px] leading-relaxed text-ink">
+        <b>Kalau rencana ini dikerjakan penuh</b>, realisasi akhir minggu {weekNumber} menjadi{" "}
+        <b className="tabular">{formatPct(r.proyeksiPct, 2)}</b>, sedangkan kurva-S menuntut{" "}
+        <b className="tabular">{formatPct(r.targetPct, 2)}</b> —{" "}
+        {r.masihTertinggal ? (
+          <span className="font-semibold text-danger">
+            masih tertinggal {formatPct(Math.abs(r.selisihPct), 2)}. Rencana ini belum cukup untuk
+            kembali ke jadwal.
+          </span>
+        ) : (
+          <span className="font-semibold text-success">
+            menutup ketertinggalan dengan selisih {signed(r.selisihPct)}.
+          </span>
+        )}
+      </p>
+
+      {r.ppc.pct != null ? (
+        <p className="text-xs text-ink-muted">
+          <b className="text-ink">PPC minggu {weekNumber - 1}: {formatPct(r.ppc.pct, 0)}</b> —{" "}
+          {r.ppc.tuntas} dari {r.ppc.jumlah} komitmen tuntas. Dihitung per komitmen dan biner:
+          pekerjaan 80% selesai tidak melepaskan penerusnya, jadi dihitung belum tuntas. Ambang
+          sehat lapangan ≥ 70%.
+        </p>
+      ) : weekNumber > 1 ? (
+        <p className="text-xs text-ink-muted">
+          Tidak ada rencana tercatat untuk minggu {weekNumber - 1} — tidak ada komitmen yang bisa
+          dievaluasi. Ini bukan nilai 0%.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function WeeklyPlanSection({
   locationId,
   weekNumber,
@@ -245,6 +417,7 @@ export function WeeklyPlanSection({
   weekPeriod,
   items,
   options,
+  ringkas,
   canManage,
 }: {
   locationId: string;
@@ -254,6 +427,7 @@ export function WeeklyPlanSection({
   weekPeriod: string | null;
   items: PlanItemRow[];
   options: LeafOption[];
+  ringkas: RingkasRencana | null;
   canManage: boolean;
 }) {
   const router = useRouter();
@@ -281,6 +455,10 @@ export function WeeklyPlanSection({
         </div>
         {weekPeriod ? <p className="pb-2 text-[13px] text-ink-muted">{weekPeriod}</p> : null}
       </div>
+
+      {ringkas ? (
+        <RingkasanRencana r={ringkas} locationId={locationId} weekNumber={weekNumber} />
+      ) : null}
 
       {canManage ? (
         <>

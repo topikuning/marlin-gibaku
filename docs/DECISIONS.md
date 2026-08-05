@@ -8889,3 +8889,652 @@ syarat kode-kosong dilepas → 2 gagal; strip titik romawi dilepas → 1 gagal.
 Cacat kelas ini tidak menerbitkan galat apa pun — RAB tetap terimpor rapi, hanya
 angkanya berbeda — jadi hanya uji yang menyatakan bentuk barisnya yang bisa
 menahannya kembali.
+
+---
+
+## 253 · Foto Cepat — jepret dulu, itemnya belakangan (2026-08-05)
+
+Permintaan user: *"aku butuh satu fitur untuk khusus foto yang disimpan di hp
+maupun di cloud. karena seringnya user itu ambil foto dulu, baru masukkan
+inputan item. jadi seringkali malah tagging lokasi tidak pas. jadi lebih baik
+foto disimpan dulu baru nanti diolah oleh user masing-masing."*
+
+### Yang diluruskan lebih dulu
+
+Permintaannya memuat DUA masalah berbeda, dan hanya satu yang bisa diselesaikan
+dengan "simpan dulu, olah nanti":
+
+| | Masalah | Bisa diperbaiki menunda pemilihan item? |
+|---|---|---|
+| A | Harus pilih item dulu baru bisa memotret → ribet → orang lari ke kamera HP | Ya |
+| B | Foto datang tanpa koordinat → tag jatuh ke titik proyek | **Hanya bila foto masuk MARLIN saat dijepret** |
+
+Foto galeri SUDAH mendahulukan EXIF-nya sendiri di atas posisi saat mengunggah
+(DECISIONS 220), jadi foto ber-EXIF sudah bertag benar hari ini. Yang tidak bisa
+dipulihkan oleh pengolahan mana pun adalah foto yang diambil pakai aplikasi
+kamera HP dengan layanan lokasi mati — posisinya memang tidak pernah terekam.
+Itu sebabnya ~96% foto lapangan jatuh ke titik proyek (DECISIONS 197).
+
+Keputusan user sesudah itu dijelaskan: *"ini fitur tersendiri. jadi benar2 menu
+quick action tanpa tersambung ke menu manapun. cukup kamu simpan di meta foto
+dan databasemu informasi real geo dan waktunya, untuk nanti digunakan lagi di
+laporan kegiatan atau harian, atau manapun di marlin. stamp bisa kamu beri dasar
+waktu dan geo saja, informasi tambahan ditambahkan belakangan."*
+
+### Bentuknya
+
+- **Menu berdiri sendiri** `/foto-cepat`, plus pintasan nav bawah untuk role
+  lapangan. Sengaja TIDAK bersarang di workspace lokasi: tiap langkah yang
+  dipaksakan sebelum rana ditekan adalah satu alasan lagi memakai kamera HP.
+- **Foto naik ke R2 seketika**, tanpa induk (`reportId`/`activityId` null).
+  Pilihan user: server, bukan ditahan di HP — bukti lapangan tidak boleh hidup
+  di satu perangkat yang bisa hilang, rusak, atau cache-nya dibersihkan.
+- **Lokasi dipilih saat memotret**, diurutkan dari yang terdekat dengan jaraknya
+  DITULIS. Sistem tidak memilihkan diam-diam: usulan hanya dipasang bila pelapor
+  belum memilih sendiri, dan angka jaraknya ada supaya tebakan itu bisa dinilai
+  manusia ("terdekat" yang 12 km jauhnya = pelapor belum sampai).
+- **Cap DASAR**: waktu + koordinat (+ pelapor & Photo ID). Nama lokasi,
+  perusahaan, bangunan, dan item pekerjaan dikosongkan — pada detik memotret
+  semua itu memang belum diketahui, dan cap yang menyebut yang belum diketahui
+  adalah bukti palsu.
+- **Dipakai belakangan** → cap dirender ulang dari berkas ASLI dengan informasi
+  lengkap. **Waktu & koordinat TIDAK ikut dihitung ulang**: keduanya direkam
+  pada detik jepret, dan menurunkannya lagi dari induk barunya (tanggal laporan,
+  titik proyek) justru mengembalikan cacat yang membuat fitur ini ada.
+- Akses: siapa pun yang punya akses ke lokasi foto itu (pilihan user), bukan
+  hanya pemotretnya — supaya foto tidak menggantung saat mandor cuti/ganti HP.
+
+### TANPA cadangan titik proyek — ini pagarnya, bukan kelalaian
+
+`locationLat/locationLng` sengaja TIDAK dikirim ke `savePhotoForItem`. Foto tanpa
+koordinat nyata berakhir `gpsSource = none`, bukan diam-diam ditandai titik
+proyek. Seluruh alasan fitur ini ada adalah membawa koordinat NYATA; menyediakan
+cadangan di sini menghidupkan kembali mesin "lokasi default" yang dikeluhkan.
+
+Foto tanpa koordinat tetap DISIMPAN — menolaknya akan memulangkan orang ke
+aplikasi kamera HP — tapi jumlahnya disebutkan di layar saat itu juga, selagi
+pelapor masih di lokasi dan masih bisa memotret ulang dengan GPS menyala.
+
+### Dua keputusan lama yang DIREVISI
+
+**1. Invarian database "tepat satu induk" dilonggarkan** (migrasi
+`20260805090000_foto_tanpa_induk`). DATA-01 dulu menuntut
+`(report_id ada) + (activity_id ada) = 1`; itu benar ketika satu-satunya jalan
+masuk foto memang lewat salah satunya. Sekarang `<= 1`. Yang TIDAK dilonggarkan:
+dua induk sekaligus tetap dilarang, dan `report_item_id` tetap menuntut
+`report_id`. Keduanya dikunci uji integrasi — mengembalikan `= 1` mematikan
+seluruh Foto Cepat, membuangnya sama sekali memperbolehkan foto jadi lampiran
+laporan DAN kegiatan (dua kebenaran yang bisa berbeda).
+
+**2. Status "lepas" berhenti berarti kerusakan.** DECISIONS 250 (kemarin)
+menamainya "Tanpa Induk", memberinya tone `warning`, dan sengaja
+MENGECUALIKANNYA dari chip filter dengan alasan "menawarkannya sebagai filter
+menormalkan keadaan yang tak seharusnya ada". Alasan itu gugur: keadaan itu kini
+disengaja. Namanya jadi **"Belum Dipakai"**, tone `info`, dan justru MASUK chip
+filter — menyembunyikannya sekarang yang berbahaya, karena foto yang sudah
+dijepret tapi belum dipakai tidak akan ketemu dari galeri dan pekerjaan yang
+tertinggal jadi tak terlihat.
+
+Catatan: sebelum ini cabang "lepas" di `deriveStatusFoto` praktis tak
+terjangkau — CHECK constraint di atas membuatnya mustahil. Ia ditulis sebagai
+pagar terhadap data rusak; sekarang ia jalur utama sebuah fitur.
+
+### Yang TIDAK dijanjikan
+
+Foto Cepat tidak memperbaiki foto yang SUDAH terlanjur diambil pakai aplikasi
+kamera HP tanpa GPS. Posisinya tidak pernah terekam dan tidak ada yang bisa
+memulihkannya. Yang bisa: unggah lewat Foto Cepat (EXIF-nya dipakai bila ada),
+atau perbaiki koordinatnya manual lewat perbaikan cap — dan itu tertulis
+`gpsSource = manual`, tidak dihitung sebagai bukti GPS (DECISIONS 198).
+
+### Uji
+
+- `tests/unit/foto-cepat-jarak.test.ts` — 9 uji urutan & label jarak, termasuk
+  "lokasi tanpa titik proyek tidak dibuang" dan "tanpa posisi jangan mengarang
+  urutan terdekat".
+- `tests/integration/foto-cepat.test.ts` — 13 uji: tanpa induk, **tanpa cadangan
+  titik proyek**, cap dasar, foto tanpa koordinat disebut, invarian induk di
+  database (nol boleh, dua ditolak), lokasi silang ditolak, laporan/kegiatan
+  final ditolak, waktu & koordinat tidak berubah saat dipakai, dan kegagalan
+  melengkapi cap tidak membatalkan penautan.
+
+Dibuktikan bergigi: menghidupkan kembali cadangan titik proyek di action
+membuat uji "TIDAK mengirim titik proyek" gagal (`expected -8.4 to be null`).
+
+---
+
+## 254 · Lokasi foto dideteksi dari geotag — dan MENOLAK menebak (2026-08-05)
+
+Lanjutan langsung DECISIONS 253. Permintaan user: *"bahkan tidak perlu input
+lokasi. kalau bisa kamu deteksi lokasi berdasarkan geotagnya."*
+
+Betul: koordinat foto sudah menjawab "ini di mana", jadi menyuruh pelapor
+menjawabnya lagi adalah kerja dobel di tempat yang paling tidak nyaman untuk
+mengetik. Pemilih lokasi DIBUANG dari langkah memotret.
+
+### Tapi deteksi yang salah lebih buruk daripada tidak ada deteksi
+
+Foto yang mendarat di desa sebelah tidak menerbitkan galat apa pun. Layarnya
+tetap rapi, laporannya tetap tersusun, dan salahnya baru ketahuan berminggu-
+minggu kemudian saat blanko KKP disusun — kalau ketahuan. Jadi aturannya bukan
+"pilih yang terdekat", melainkan "putuskan HANYA bila jelas".
+
+### Ambangnya diukur, bukan ditebak
+
+73 lokasi KNMP berkoordinat (katalog master):
+
+| ukuran | jarak ke tetangga terdekat |
+|---|---:|
+| pasangan paling berdekatan | **474 m** (Kedungmalang Jepara ↔ Kedungmutih Demak) |
+| persentil 5 | 912 m |
+| persentil 25 | 3.400 m |
+| median | 6.693 m |
+
+Angka itu mematikan gagasan "ambang jarak tetap": 2 km terlalu longgar untuk
+pasangan 474 m, sedangkan 300 m terlalu ketat untuk titik proyek yang dipasang
+di ujung desa. Karena itu aturannya RELATIF:
+
+- kandidat terdekat harus dalam **1 km** (`RADIUS_LOKASI_M`), DAN
+- kandidat berikutnya harus **≥2× lebih jauh** (`RASIO_MINIMAL`) **DAN ≥300 m
+  lebih jauh** (`SELISIH_MINIMAL_M`).
+
+Dua syarat margin sekaligus dengan sengaja: rasio saja lolos pada angka kecil
+(30 m vs 70 m = 2,3× padahal selisihnya masih di dalam galat GPS), selisih saja
+lolos pada dua lokasi yang sama-sama jauh. Berdiri di tengah pasangan 474 m →
+**ambigu**, dan itu jawaban yang benar.
+
+### Deteksi PER BERKAS, bukan per kiriman
+
+Unggahan borongan dari galeri/cloud bisa memuat foto dari beberapa lokasi
+sekaligus. Memaksakan satu lokasi untuk seluruh kiriman akan menaruh sebagian di
+tempat yang salah — persis cacat yang sedang diperbaiki. Sumber koordinatnya
+mengikuti aturan cap: foto baru pakai GPS perangkat saat rana ditekan, foto
+galeri pakai EXIF-nya sendiri (posisi saat MEMOTRET, bukan saat mengunggah).
+
+### Kandidat = lokasi yang boleh diakses user
+
+Itu sekaligus otorisasinya: foto tidak akan pernah terdeteksi ke lokasi yang
+bukan haknya, tanpa perlu pemeriksaan terpisah yang bisa terlewat. Hanya lokasi
+`isActive` yang ikut — sama dengan pemilih lokasi di galeri foto.
+
+### Gagal deteksi TIDAK membuang foto
+
+Foto tetap tersimpan dengan `locationId = null` (rak R2 `_kantong`), dan
+sebabnya disebut apa adanya: *"tidak membawa koordinat"*, *"lokasi terdekat
+(Kranji) berjarak 4,2 km"*, *"terlalu berdekatan dengan A (237 m) dan B (237
+m)"*. Membuang fotonya berarti menghilangkan bukti lapangan hanya karena kita
+belum tahu nama raknya.
+
+Konsekuensi yang diterima sadar:
+
+- **Dedup tidak berlaku** selama lokasinya null — di Postgres NULL ≠ NULL, jadi
+  unique `(location, sha256)` tidak mengikat. Menahan foto bukti demi dedup jauh
+  lebih mahal daripada satu-dua foto kembar di kantong, dan duplikatnya tetap
+  tertangkap begitu lokasinya ditetapkan (P2002 ditangkap, disebut alasannya).
+- **Hanya yang memotret yang bisa melihatnya.** Tanpa lokasi tidak ada satu pun
+  batas yang bisa dipakai membatasi akses, dan "semua orang" adalah jawaban yang
+  salah untuk bukti lapangan. Begitu lokasinya ditetapkan, ia langsung ikut
+  aturan akses lokasi biasa.
+- **Belum bisa dipakai di laporan.** Menautkannya akan MENETAPKAN lokasinya
+  diam-diam ke lokasi laporan itu — padahal deteksi tadi justru menolak menebak.
+  Ditolak dengan menyebut sebabnya.
+
+### Yang berhasil pun disebut namanya
+
+Pesan sesudah menyimpan menulis lokasi yang terdeteksi berikut jumlahnya
+("3 foto tersimpan — terdeteksi di Kemantren (2), Kranji (1)"). Deteksi yang
+bekerja diam-diam tidak bisa dipercaya siapa pun; pelapor harus bisa melihat
+fotonya mendarat di desa yang benar saat itu juga, selagi masih bisa diperbaiki.
+
+### Uji
+
+- `tests/unit/foto-cepat-deteksi.test.ts` — 13 uji, memakai jarak NYATA 474 m
+  sebagai fixture. Termasuk: berdiri tepat di titik, satu-satunya kandidat,
+  di tengah dua lokasi (ambigu), selisih besar-rasio kecil (tetap ambigu),
+  tanpa koordinat, semua di luar radius, dan lokasi tanpa titik proyek.
+- `tests/integration/foto-cepat.test.ts` — 20 uji; yang baru: deteksi dipakai
+  jalur simpan, ambigu tidak menebak, jauh menyebut jarak, tanpa koordinat tetap
+  tersimpan ke rak `_kantong`, deteksi per berkas, dan foto tanpa lokasi ditolak
+  saat hendak dipakai sampai lokasinya ditetapkan.
+- `tests/e2e/foto-cepat.spec.ts` — menahan agar pemilih lokasi TIDAK kembali ke
+  langkah memotret dan tombolnya langsung bisa ditekan.
+
+Dibuktikan bergigi: mengubah deteksi jadi "ambil yang terdekat saja" (margin
+dibuang) membuat 3 uji unit + 1 uji integrasi gagal.
+
+Catatan proses: uji integrasi sempat gagal seluruhnya karena `Location.isActive`
+default **false** — fixture-nya yang salah, bukan kodenya. Ditulis di sini karena
+mudah salah baca sebagai cacat deteksi.
+
+---
+
+## 255 · Foto Cepat KAMERA SAJA — jalur galeri dibuang (2026-08-05)
+
+Keberatan user: *"untuk apa kamu kasih galeri, kebutuhan utamanya cuma ambil
+foto cepat ambil tag lokasi tepat dan waktu sesuai. kalau dari galeri buat apa"*
+
+Benar, dan ini koreksi terhadap keputusanku sendiri di DECISIONS 253 — di sana
+galeri kubawa masuk karena kalimat pembuka permintaannya menyebut *"foto yang
+disimpan di hp maupun di cloud"*. Yang kulewatkan: dua kalimat sesudahnya
+menjelaskan MASALAHNYA, dan masalah itu adalah tag lokasi yang meleset.
+
+### Galeri justru memproduksi pekerjaan yang fitur ini ada untuk menghilangkan
+
+Foto Cepat menjanjikan tepat dua hal: **koordinat yang benar** dan **jam yang
+sesuai**. Foto galeri tidak bisa menjamin keduanya:
+
+- **Koordinat** — kebanyakan foto kamera HP tidak membawa GPS sama sekali
+  (~96% berakhir di titik proyek, DECISIONS 197), dan yang lewat WhatsApp
+  EXIF-nya sudah dibuang.
+- **Jam** — foto galeri bisa berumur berbulan-bulan. Tanpa EXIF, jam yang tersisa
+  cuma waktu unggah, dan itu bukan waktu memotret.
+
+Akibatnya di alur baru: foto galeri hampir selalu jatuh ke tumpukan "belum
+ketahuan lokasinya" dan harus ditetapkan manual satu per satu — yaitu persis
+kerja tangan yang Foto Cepat dibuat untuk menghapus. Menyediakannya bukan
+keluwesan; itu jalan pintas menuju keadaan lama, dengan langkah tambahan.
+
+### Yang berubah
+
+- `PhotoSourceInput` dapat prop `hanyaKamera` — tombol Galeri, input galerinya,
+  dan dialog *"Kamu sedang di lokasi proyek?"* (DECISIONS 220) tidak dirender
+  sama sekali di Foto Cepat.
+- Server **tidak lagi menerima** `photoSource`/`galleryAtSite`. Keduanya dibuang
+  dari skema; sumbernya dipatok `"camera"` di server. Kalau klien tetap
+  mengirimnya, nilainya diabaikan — bukan dipercaya. Membiarkan sumber datang
+  dari input klien berarti jalur galeri bisa dihidupkan lagi dari luar tanpa satu
+  baris pun berubah di server.
+- Koordinat = GPS perangkat saat rana ditekan. EXIF berkas tetap dibaca, tapi
+  hanya sebagai **cadangan**: sebagian WebView Android menulis GPS ke EXIF berkas
+  kamera walau izin lokasi web ditolak. Itu bukan jalur galeri yang masuk lewat
+  pintu belakang — berkasnya tetap baru dijepret.
+
+### Galeri TIDAK dihapus dari MARLIN
+
+Unggah dari galeri tetap ada di **laporan harian**, dan di sana ia menjawab
+kebutuhan yang berbeda: foto yang KETINGGALAN saat item sudah tersimpan
+(DECISIONS 226). Bedanya jelas — di laporan harian, itemnya sudah ada dan
+lokasinya sudah pasti, jadi yang kurang cuma gambarnya. Di Foto Cepat, gambar
+itulah satu-satunya sumber lokasi dan waktu.
+
+### Uji
+
+`tests/integration/foto-cepat.test.ts` — uji baru: kiriman yang mengaku
+`photoSource=gallery` + `galleryAtSite=on` tetap tersimpan sebagai `source:
+"camera"` dengan `atSite` mati. Dibuktikan bergigi: mengembalikan `source` agar
+dibaca dari FormData membuat uji itu gagal (`expected 'gallery' to be 'camera'`).
+
+`tests/e2e/foto-cepat.spec.ts` sudah menahan agar pemilih lokasi tidak kembali;
+uji sumber di atas melengkapinya dari sisi server.
+
+---
+
+## 256 · Rana dipindah ke dalam aplikasi — jepret, masuk, jepret lagi (2026-08-05)
+
+Keluhan user: *"saat ini untuk foto, ada konfirmasi use this photo, bukan jepret
+langsung simpan. apakah kamu punya solusi agar pengambilan foto ini bisa native
+dan cepat, jepret, foto ambil, jepret foto masuk"*
+
+### Layar itu bukan milik kita
+
+`<input type="file" capture>` MENYERAHKAN pekerjaan ke aplikasi kamera bawaan
+HP. Aplikasi itu selalu meminta konfirmasi sebelum mengembalikan berkasnya —
+"Use Photo / Retake" di iOS, tanda centang di Android. Tidak ada atribut, opsi,
+atau trik yang bisa mematikannya dari halaman web; ia bagian dari aplikasi lain.
+
+Jadi satu-satunya cara menghilangkannya adalah **tidak menyerahkan pekerjaan
+itu**. Rana dipindah ke dalam halaman: `getUserMedia` menyalakan pratinjau
+langsung, ketukan menyalin bingkai video ke canvas, hasilnya langsung diunggah.
+Tidak ada penyerahan → tidak ada layar konfirmasi.
+
+### Kualitasnya tidak berkurang — ini terukur, bukan klaim
+
+Keberatan yang wajar: tangkapan `getUserMedia` beresolusi video (±1920×1080),
+sedangkan kamera bawaan bisa 12 MP. Tapi pipeline foto MARLIN menyusutkan SEMUA
+gambar ke sisi terpanjang **1920 px** (`MAIN_MAX` di `lib/photos.ts`) lalu
+mengencode WebP q80 sebelum disimpan. Foto 12 MP itu berakhir di ukuran yang
+persis sama. Yang hilang cuma piksel yang memang tidak pernah ikut tersimpan.
+
+### Yang hilang, dan penggantinya lebih baik
+
+Canvas tidak menghasilkan EXIF. Untuk Foto Cepat itu bukan kehilangan:
+
+- **koordinat** datang dari GPS perangkat pada detik rana ditekan;
+- **jam** dari jam perangkat saat itu juga.
+
+Keduanya justru lebih tepat daripada EXIF, karena tidak bergantung pada aplikasi
+kamera menulis metadata dengan benar — hal yang di lapangan sering tidak terjadi.
+
+### Koordinat basi DIBUANG, bukan dipakai
+
+Kamera mengikuti posisi lewat `watchPosition`, yang memberi ARUS pembaruan. Arus
+itu bisa berhenti (masuk bangunan, sinyal hilang) sementara pelapor terus
+berjalan dan terus memotret — dan nilai terakhir tetap terlihat sah. Itu persis
+jebakan `maximumAge: 60000` yang dibuang di DECISIONS 219, lewat pintu lain.
+
+Karena itu umur bacaan diperiksa **pada detik rana ditekan**, dan yang lebih tua
+dari `UMUR_GPS_MAKS_MS` (15 detik) dibuang. Bacaan dari "masa depan" (jam
+perangkat mundur saat sinkronisasi) juga ditolak — umur negatif berarti
+perbandingannya tidak bisa dipercaya. Aturannya di modul murni
+`lib/foto-cepat/gps-segar.ts` supaya bisa diuji langsung.
+
+### Satu jepretan = satu unggahan, langsung
+
+Tiap ketukan mengirim fotonya sendiri tanpa menunggu yang lain. Rana **tidak
+pernah dinonaktifkan** selagi mengirim: di lapangan orang memotret beruntun, dan
+mengunci rana membuat ketukan berikutnya hilang tanpa jejak — kegagalan senyap.
+Strip pratinjau di bawah viewfinder menandai tiap jepretan `kirim… / aman /
+gagal`, jadi foto yang gagal terlihat saat itu juga, bukan saat laporan disusun.
+
+Kantong di bawah baru disegarkan saat kamera DITUTUP, bukan tiap jepretan: satu
+`router.refresh()` = satu muat ulang payload RSC, dan melakukannya per jepretan
+akan menyaingi unggahan berikutnya di pipa yang sama (DECISIONS 245).
+
+### Cadangan tetap ada
+
+Kalau kamera dalam aplikasi tidak bisa dinyalakan — izin ditolak, peramban
+lawas, `getUserMedia` tak didukung — jalur `<input capture>` lama tetap
+tersedia di balik "Kamera dalam aplikasi tidak jalan?", **dengan menyebut apa
+adanya** bahwa di situ layar konfirmasi bawaan HP memang muncul.
+
+### Uji
+
+- `tests/unit/foto-cepat-gps-segar.test.ts` — 7 uji aturan kesegaran GPS,
+  termasuk tepat-di-ambang, jauh-lewat-ambang, dan bacaan masa depan.
+- `tests/e2e/foto-cepat-kamera.spec.ts` — memakai kamera palsu Chromium
+  (`--use-fake-device-for-media-stream`), jadi `getUserMedia` benar-benar
+  dijalankan, bukan di-stub. Dijaga: pratinjau benar-benar hidup
+  (`videoWidth > 0`, terukur 1920), satu ketukan rana = satu POST server action,
+  dan tiga ketukan beruntun = tiga jepretan dengan rana tetap aktif.
+
+Dibuktikan bergigi: mengembalikan halaman ke `<input capture>` membuat kedua uji
+e2e gagal. Itu penting justru karena kemundurannya TIDAK terlihat dari layar —
+yang berubah cuma munculnya satu layar milik sistem operasi.
+
+Catatan proses: percobaan pertama uji e2e membaca "rana tidak mengirim apa pun"
+padahal mengirim. Penyebabnya penghitung POST-ku sendiri ikut menghitung
+pencatatan izin perangkat yang terjadi sebelum rana ditekan. Penghitungnya
+dikosongkan tepat sebelum ketukan.
+
+---
+
+## 257 · Foto Cepat tahan sinyal jelek: simpan dulu di HP, kirim dari antrean (2026-08-05)
+
+Permintaan user: *"lalu perlu solusi juga jika jaringan jelek, atau offline"*.
+
+### Cacat yang ditutup — dan ini yang paling mahal di seluruh fitur
+
+Sampai DECISIONS 256, hasil jepretan hanya ada di **memori** sampai unggahannya
+berhasil. Artinya: rana ditekan, foto tampak masuk, lalu sinyal putus / tab
+ditutup / baterai habis / peramban membunuh halaman di latar belakang — dan
+buktinya lenyap **tanpa jejak**. Tidak ada galat, tidak ada baris log, dan tidak
+ada satu orang pun yang akan tahu foto itu pernah ada.
+
+Sinyal putus-putus di kampung nelayan bukan kasus tepi; itu keadaan normal.
+
+### Urutannya dibalik
+
+Dulu: `jepret → kirim → (gagal = hilang)`.
+Sekarang: **`jepret → SIMPAN DI PERANGKAT → kirim dari simpanan → buang dari
+simpanan HANYA setelah server memastikan tersimpan`**.
+
+Langkah terakhir itu penting persis urutannya. Membuang lebih awal (mis. begitu
+permintaan terkirim) berarti kegagalan di tengah jalan menghapus bukti.
+
+IndexedDB, bukan localStorage: localStorage hanya menyimpan string (blob harus
+di-base64, membengkak ~33%) dan kuotanya ±5 MB — habis oleh lima foto.
+
+### Dua sebab kegagalan, dua nasib berbeda
+
+| Sebab | Tanda | Perlakuan |
+|---|---|---|
+| **Jaringan** (permintaan tidak pernah sampai) | `gagal_jaringan` | dicoba lagi **selamanya**, jeda naik bertahap lalu mendatar di 5 menit |
+| **Server menjawab & menolak** (duplikat, wajib-GPS) | `ditolak` | **berhenti**, sebabnya ditulis, keputusan diserahkan ke orang |
+
+Membalik keduanya sama-sama merusak: menyerah pada kegagalan jaringan berarti
+membuang bukti hanya karena sinyal jelek; mencoba terus pada penolakan server
+berarti menghabiskan baterai sambil menyembunyikan sebab sebenarnya. Jedanya
+MENDATAR, tidak berlipat tanpa batas — jeda berjam-jam secara praktis sama
+dengan menyerah, hanya tanpa mengakuinya.
+
+### Pengiriman berurutan, bukan serentak
+
+Di jaringan lemah, mengirim lima foto sekaligus membuat kelimanya sama-sama
+timeout. Satu per satu lebih lambat di atas kertas, tapi jauh lebih sering
+berhasil.
+
+### Antrean ditampilkan terang-terangan
+
+Panel antrean muncul bahkan saat kamera tertutup, menyebut jumlahnya dan keadaan
+jaringan. Antrean yang disembunyikan membuat orang mengira fotonya sudah aman di
+server padahal masih di HP-nya sendiri — dan HP bisa hilang, rusak, atau datanya
+dibersihkan. Kalimatnya menyebut itu apa adanya.
+
+`navigator.onLine` dipakai hanya untuk MENUNDA percobaan, tidak sebagai bukti
+ada jaringan: nilainya `true` cuma berarti "ada antarmuka jaringan", dan di
+lapangan itu sering berarti terhubung ke menara tanpa data sama sekali.
+
+### Batas antrean, disebut bukan didiamkan
+
+Maksimal 100 foto tertunda. Kalau penuh, jepretan berikutnya **ditolak dengan
+pesan** ("cari sinyal dulu"), bukan hilang diam-diam. Penyimpanan penuh yang
+tidak diberitahukan adalah kegagalan paling buruk yang mungkin di sini.
+
+### Yang TIDAK dijanjikan
+
+- **Bukan PWA offline penuh.** Tanpa service worker, halaman `/foto-cepat`
+  tidak bisa DIBUKA dari nol dalam keadaan benar-benar offline. Yang dilindungi
+  adalah foto yang sudah terlanjur dijepret — ia bertahan melewati muat ulang,
+  tab tertutup, dan aplikasi dibuka lagi besok. Membuka aplikasi dari nol saat
+  offline masih ditunda (OPEN_ISSUES, "PWA offline penuh").
+- **Simpanannya melekat ke PERANGKAT + peramban itu.** HP hilang/rusak atau
+  "hapus data situs" berarti antreannya ikut hilang. Itu sebabnya antreannya
+  ditampilkan, bukan disembunyikan.
+- Jalur cadangan `<input capture>` sengaja TIDAK lewat antrean — ia mengirim
+  langsung, sama seperti unggahan foto di laporan harian. Membuat cadangan ikut
+  antre berarti dua mesin pengirim yang harus sama-sama dijaga benar.
+
+### Uji
+
+- `tests/unit/foto-cepat-antrean.test.ts` — 14 uji kebijakan: jeda mendatar,
+  offline menunda, "gagal jaringan 500× tetap dicoba", "ditolak berhenti walau
+  online dan sudah lama".
+- `tests/e2e/foto-cepat-offline.spec.ts` — kamera palsu + `context.setOffline`:
+  jepret saat offline masuk antrean, antrean **bertahan melewati muat ulang**
+  (dibaca ulang dari perangkat, bukan dari memori), dan bergerak sendiri begitu
+  jaringan kembali.
+
+Dibuktikan bergigi: membuat `titip()` melewati simpanan (kembali ke "kirim
+langsung") membuat **ketiga** uji e2e gagal.
+
+Catatan proses: uji "bertahan melewati muat ulang" awalnya kutulis dengan
+`page.reload()` dalam keadaan benar-benar offline — dan gagal, karena memang
+tidak mungkin tanpa service worker. Ujinya yang salah, bukan kodenya; sekarang
+yang digagalkan unggahannya saja, dan batas sebenarnya ditulis di atas.
+
+---
+
+## 258 · Rencana mingguan punya KELUARAN dan bisa DINILAI sebelum dijalankan (2026-08-05)
+
+### Keberatan
+
+> *"aku sudah buat rencana, lalu apa? mana outputnya? kemana bisa aku laporkan?
+> apa tidak ada form KKP untuk menunjukkan rencana seminggu ke depan. lalu dari
+> apa yang kamu rencanakan, itu berapa persen pencapaiannya jika rencanamu
+> diikuti. apa maksud tulisan merah itu. tujuan sistem ini dibuat untuk
+> memudahkan dan memberikan output untuk diberikan kepada semua orang, bukan
+> cuma berhenti di layar."*
+
+Empat keberatan, satu akar: **rencana ditampilkan tapi tidak pernah dinilai, dan
+tidak pernah keluar dari layar.**
+
+### Keputusan
+
+**1. Rencana mingguan adalah DOKUMEN, bukan layar.** Formulir A4 di
+`/cetak/rencana/[slug]/[n]` + ekspor `.xlsx`, keduanya dari SATU sumber data
+(`lib/plan/rencana-mingguan.ts`). Layar, berkas cetak, dan Excel tidak boleh
+menampilkan angka berbeda — yang beredar ke PPK adalah yang dicetak.
+
+**2. Susunannya mengikuti dua praktik yang sudah mapan, bukan selera:**
+
+- **Earned Value Management** — ringkasan kinerja mendahului rincian, dan
+  rencana tidak pernah disajikan sendirian: selalu bersama realisasi, tuntutan
+  kurva-S, dan deviasinya, dinyatakan dalam BOBOT (% nilai) supaya item besar
+  dan kecil bisa dibandingkan.
+- **Last Planner System** — rencana mingguan adalah KOMITMEN, dan
+  kredibilitasnya ditagih dengan **PPC (Percent Plan Complete)** sebelum
+  komitmen baru diajukan. Tanpa PPC, rencana minggu ini cuma daftar harapan.
+
+Urutan berkas: kop & identitas → **A. posisi & proyeksi** → **B. evaluasi PPC
+minggu lalu** → **C. komitmen minggu ini** → **D. catatan** → tanda tangan
+tiga pihak (disusun / diperiksa / disetujui).
+
+**3. PPC dihitung PER KOMITMEN dan BINER — tuntas atau tidak.** Bukan
+kelalaian: pekerjaan yang baru 80% selesai TIDAK melepaskan penerusnya.
+Menghitungnya tertimbang-volume memberi angka bagus untuk minggu yang justru
+memacetkan seluruh rantai. Pencapaian volume tetap dilaporkan sebagai angka
+KEDUA, dan dibatasi per item supaya kelebihan di satu item tidak menutupi
+item yang nol.
+
+**4. PPC memakai realisasi SELAMA minggu itu**, yaitu kumulatif s/d akhir
+minggu dikurangi kumulatif s/d sehari sebelum minggu itu mulai. Memakai
+kumulatif apa adanya membuat pekerjaan minggu-minggu SEBELUMNYA dihitung
+sebagai pemenuhan janji minggu lalu — PPC-nya tinggi justru untuk minggu yang
+tidak mengerjakan apa pun. Cacat ini senyap: tidak ada galat, layarnya rapi.
+
+**5. Tidak ada rencana minggu lalu ⇒ PPC `null`, BUKAN 0.** 0% berarti
+"berjanji lalu gagal total"; null berarti "tidak berjanji". Menyamakannya
+menghukum lokasi yang baru mulai.
+
+**6. Proyeksi — jawaban atas "berapa persen kalau rencanaku diikuti".**
+`proyeksi = realisasi sekarang + bobot komitmen minggu ini`, dibandingkan
+dengan tuntutan kurva-S. Ini satu-satunya angka yang membuat rencana bisa
+dinilai SEBELUM dijalankan; tanpa dia, tanda tangan persetujuan tidak berarti
+apa-apa. Ambang penanda 0,01 poin — selisih di bawah itu hasil pembulatan, dan
+menandainya merah hanya melatih orang mengabaikan warna.
+
+**7. "Tulisan merah itu" — `(+1.698,24 kejar)` — MENYESATKAN dan dibuang.**
+Tanda `+` mengajak menjumlahkan, padahal kejaran adalah HIMPUNAN BAGIAN dari
+target (`target = min(sisa, tambahan + tertinggal)`, `kejar = min(tertinggal,
+sisa)`). Baris dengan target 1.698,24 dan kejaran 1.698,24 terbaca 3.396,48 —
+dua kali lipat kenyataannya. Angkanya benar; yang salah cara membacanya, dan
+itu ditentukan labelnya. Sekarang: `seluruhnya kejaran` atau
+`termasuk N kejaran`.
+
+**8. Status SELALU berpasangan dengan KATA, tidak pernah warna saja** —
+berkasnya dicetak hitam-putih, difoto, dan dikirim lewat WhatsApp. Ambang
+deviasi: ≥ −5 aman · ≥ −10 perlu perhatian · < −10 kritis.
+
+**9. Satu konvensi angka per dokumen: id-ID, koma desimal.** Mencampur "2,5"
+(volume) dengan "0.38" (bobot) dalam satu baris membuat dokumen resmi terbaca
+seperti tempelan dua sistem. Bobot yang bukan nol tapi membulat ke 0,00 ditulis
+`< 0,01` — mencetak "0,00" untuk item senilai Rp 350.000 membuatnya terbaca
+tidak bernilai.
+
+**10. Kop dokumen KKP hanya boleh dibentuk di SATU tempat**
+(`buildPeriodHeader` + `HEADER_LOCATION_SELECT` di `lib/periodic-report.ts`),
+dipakai laporan periodik maupun formulir rencana. Dua puluh baris penyalinan
+field identik adalah cara termudah membuat dua dokumen resmi menyebut nomor
+kontrak atau nama PPK yang berbeda tanpa ada yang salah input.
+
+### Yang TIDAK berubah
+
+`lib/plan/rencana-mingguan.ts` **tidak memuat satu pun rumus baru**. grandTotal,
+realisasi, dan rencana kurva-S diambil dari `getLocationProgress` +
+`planPctAtWeek` — sumber yang sama persis dengan dashboard dan blanko KKP.
+Bobot lewat `bobotPct`. Penilaian rencana ada di `lib/plan/rencana-format.ts`
+yang murni dan teruji terpisah.
+
+### Uji
+
+- `tests/unit/rencana-format.test.ts` — 15 uji: label kejaran, proyeksi,
+  PPC biner, ambang status.
+- `tests/integration/rencana-mingguan.test.ts` — 8 uji terhadap DB sungguhan:
+  jendela PPC, laporan draft tidak memenuhi komitmen, angka pokok sama dengan
+  calculation layer, minggu di luar masa kontrak ditolak.
+
+Dibuktikan bergigi: mengganti `sdAkhir − sdSebelum` menjadi `sdAkhir` (kembali
+ke kumulatif) membuat **tiga** uji integrasi gagal — PPC melompat dari 0%
+menjadi 50% karena pekerjaan minggu sebelumnya.
+
+---
+
+## 259 · Rencana mingguan dikirim ke WhatsApp — pesannya MEMUAT rencana, bukan cuma lampiran (2026-08-05)
+
+### Permintaan
+
+> *"aku butuh rencana ini juga dikirim ke whatsapp"*
+
+Lanjutan langsung DECISIONS 258: formulirnya sudah ada, tapi masih berhenti di
+unduhan manual.
+
+### Keputusan
+
+**1. SIAPA yang membaca menentukan isinya.** Grup WA paket berisi **PPK,
+dinas terkait, dan pejabat** — bukan mandor, bukan pelaksana. Itu forum
+**pertanggungjawaban**, bukan tempat mengarahkan pekerjaan.
+
+*(Koreksi user 2026-08-05 atas rancangan pertamaku, yang keliru menganggap
+penerimanya mandor di lapangan dan karena itu memuat daftar item beserta nama
+PIC di badan pesan.)*
+
+Yang dikirim ADA DUA:
+
+1. **Teks berisi yang memang hak forum itu** — posisi kemajuan, deviasi
+   terhadap kurva-S, **akibat rencana ini bila dijalankan penuh**,
+   **kredibilitas komitmen minggu lalu (PPC)** beserta yang belum tuntas, dan
+   lingkup minggu ini sebagai **agregat** (jumlah item, bobot, nilai, kelompok
+   pekerjaan). **TANPA daftar item beserta PIC** — menyebut siapa mengerjakan
+   apa di forum pejabat memindahkan pengarahan internal ke ruang pengawasan,
+   dan membuat orang yang belum tentu tahu konteksnya menilai per-orang.
+2. **PDF formulir lengkap** — rincian per item + lembar tanda tangan, di tempat
+   yang memang untuk itu.
+
+**Kenapa dasar penilaian ada di badan pesan, bukan cuma lampiran.** Yang
+menyetujui harus bisa menilai tanpa membuka berkas: deviasi, proyeksi, dan PPC
+adalah alasan seseorang menyetujui atau menahan rencana. Kalau semua itu hanya
+ada di lampiran, forum menyetujui rencana yang belum dibacanya.
+
+**2. PDF, bukan Excel, yang dilampirkan ke WA.** Excel praktis tidak terbaca di
+HP lapangan dan tidak bisa ditandatangani. Excel tetap ada di jalur unduhan
+untuk yang mengolah angkanya. Tata letak PDF cermin komponen layar
+(`KkpWeeklyPlan`), angkanya dari `getRencanaMingguan` yang sama.
+
+**3. Daftar panjang dipotong DENGAN menyebut jumlahnya** (6 kelompok
+pekerjaan, 5 komitmen tak tuntas). Memotong diam-diam membuat yang hilang
+terbaca "tidak ada" — aturan repo yang sama dengan katalog lokasi.
+
+**4. Rencana KOSONG ditolak, tidak dikirim.** Mengirim daftar kosong ke grup
+paket hanya melatih orang mengabaikan pesan dari MARLIN. Pesan galatnya
+menyebut sebabnya dan apa yang harus dilakukan.
+
+**5. Kalimat hasil TIDAK mengaku bukti sampai.** WAHA menerbitkan id pesan
+bahkan ketika WhatsApp menolaknya belakangan (OPEN_ISSUES WA-01, error 463),
+jadi yang dikatakan adalah "diserahkan ke grup", disertai batas
+pengetahuannya — bukan "terkirim" seolah pasti sampai.
+
+**6. Label ketertinggalan: bentuk LABEL, bukan kalimat.** Keputusan user
+2026-08-05 atas `seluruhnya kejaran` yang kutulis di DECISIONS 258: "kejaran"
+adalah bahasa lisan dan tidak pantas di dokumen yang ditandatangani PPK.
+Sekarang `Ketertinggalan: seluruh target ini` / `Ketertinggalan: 142,51 m³` —
+bersatuan, sehingga angkanya tidak telanjang. Warnanya tetap ditandai (pilihan
+user), karena baris kejaran memang perlu terlihat.
+
+### Uji
+
+- `tests/unit/rencana-wa.test.ts` — 10 uji, yang pertama mengunci batas
+  audiens: pesan TIDAK boleh menyebut PIC. Selebihnya: lingkup tersaji sebagai
+  agregat, dasar penilaian (deviasi/proyeksi/PPC) ada di badan pesan, PPC null
+  tidak ditulis 0%, pemotongan menyebut jumlah, angka format Indonesia.
+- `tests/integration/rencana-mingguan.test.ts` — 2 uji tambahan: PDF
+  BENAR-BENAR terbentuk (pdfkit hanya gagal saat dirender, bukan saat
+  typecheck), termasuk jalur kosong (tanpa komitmen, tanpa PPC, catatan null).
+
+Dibuktikan bergigi: menghapus blok proyeksi dari badan pesan membuat uji
+"memuat dasar penilaian" gagal; mengembalikan daftar item ber-PIC membuat uji
+batas audiens gagal.
+
+Diperiksa nyata: PDF dirender dari data dev, dikonversi ke gambar, dan dibaca —
+satu halaman, muat penuh. Satu cacat tata letak ditemukan dan diperbaiki di
+sana: tinggi catatan kaki tabel semula DITEBAK, sehingga menempel ke judul
+bagian D; sekarang diukur dengan `heightOfString`.

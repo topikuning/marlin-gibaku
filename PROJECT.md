@@ -71,6 +71,7 @@ formula ini di modul, komponen, PDF, Excel, atau prompt AI mana pun):
 | `src/lib/progress-calc.ts` | MURNI: `prestasiPct`, `itemAchievement`, `realizedPctFromItems`, `bobotPct` |
 | `src/lib/progress.ts` | akses DB: `grandTotal`, `realized`, `planPct`, `deviationPct`, `COUNTED_REPORT_STATUSES` |
 | `src/lib/finance/calc.ts` | agregat keuangan |
+| `src/lib/plan/rencana-format.ts` | MURNI: penilaian RENCANA — `hitungProyeksi`, `hitungPpc`, `statusDeviasi`, `labelKejar` (DECISIONS 258) |
 
 Formula kanonik:
 
@@ -83,6 +84,14 @@ bobot realisasi = prestasi / 100 × bobot
 realized      = Σ bobot realisasi (BUKAN Σ valueDone — lihat DECISIONS 151)
 deviationPct  = realizedPct − planPct
 valueDone     = round(volume × hargaSatuan)          ← nilai TERSIMPAN per laporan, bukan basis agregat
+
+# Penilaian rencana mingguan (DECISIONS 258) — lib/plan/rencana-format.ts
+proyeksiPct   = realizedPct + bobotPct(Σ nilai komitmen, grandTotal)
+selisihPct    = proyeksiPct − planPct(minggu ini);  tertinggal bila < −0,01
+PPC           = komitmen TUNTAS / komitmen × 100    ← BINER per komitmen, bukan tertimbang volume
+realisasi PPC = kumulatif s/d akhir minggu − kumulatif s/d sehari sebelum minggu mulai
+                                                    ← SELAMA minggu itu; kumulatif apa adanya = PPC palsu
+tanpa rencana minggu lalu ⇒ PPC null (BUKAN 0 — "tidak berjanji" ≠ "gagal total")
 ```
 
 Level status yang dihitung: `COUNTED_REPORT_STATUSES` = dikirim + disetujui +

@@ -743,3 +743,100 @@ export async function sendPeriodReportPdfToWaAction(
     return fail(err);
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Kirim Rencana Kerja Mingguan ke WhatsApp (DECISIONS 259)            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Kirim rencana mingguan ke grup WA paket (atau tujuan bebas).
+ *
+ * Grup WA paket berisi PPK, dinas terkait, dan pejabat — forum
+ * PERTANGGUNGJAWABAN, bukan tempat mengarahkan pekerjaan (koreksi user
+ * 2026-08-05). Karena itu:
+ *
+ *  1. TEKS berisi yang memang hak forum itu: posisi kemajuan, deviasi,
+ *     proyeksi bila rencana dijalankan penuh, kredibilitas komitmen minggu lalu
+ *     (PPC), dan lingkup minggu ini sebagai AGREGAT. TANPA daftar item beserta
+ *     PIC — nama pelaksana per item bukan urusan forum pengawasan.
+ *  2. PDF formulir lengkap — rincian per item + lembar tanda tangan, di tempat
+ *     yang memang untuk itu.
+ */
+export async function sendRencanaMingguanToWaAction(
+  _prev: WaActionState,
+  formData: FormData,
+): Promise<WaActionState> {
+  const schema = z.object({
+    locationId: z.uuid(),
+    weekNumber: z.coerce.number().int().min(1).max(520),
+  });
+  const parsed = schema.safeParse({
+    locationId: formData.get("locationId"),
+    weekNumber: formData.get("weekNumber"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { locationId, weekNumber } = parsed.data;
+
+  try {
+    const user = await requireCapability("report.export");
+    await requireLocationAccess(user, locationId);
+
+    const target = await resolveWaChat(locationId, String(formData.get("destChatId") ?? ""));
+    if ("error" in target) return { error: target.error };
+
+    const { getRencanaMingguan } = await import("@/lib/plan/rencana-mingguan");
+    const rencana = await getRencanaMingguan(locationId, weekNumber);
+    if (!rencana) return { error: "Rencana untuk minggu ini tidak tersedia." };
+    // Rencana kosong TIDAK dikirim: mengirim daftar kosong ke grup paket hanya
+    // melatih orang mengabaikan pesan dari MARLIN.
+    if (rencana.baris.length === 0) {
+      return { error: `Minggu ke-${weekNumber} belum punya komitmen. Isi rencananya dulu sebelum dikirim.` };
+    }
+
+    const { pesanRencanaWa } = await import("@/lib/plan/rencana-wa");
+    const teks = pesanRencanaWa({
+      locationName: rencana.header.locationName,
+      packageName: rencana.header.packageName,
+      weekNumber: rencana.weekNumber,
+      totalWeeks: rencana.totalWeeks,
+      periodeStart: rencana.header.periodeStart,
+      periodeEnd: rencana.header.periodeEnd,
+      actualPct: rencana.actualPct,
+      targetPct: rencana.targetPct,
+      deviationPct: rencana.deviationPct,
+      status: rencana.status,
+      proyeksi: rencana.proyeksi,
+      ppc: rencana.ppc,
+      tidakTuntas: rencana.tidakTuntas,
+      baris: rencana.baris,
+      totalNilai: rencana.totalNilai,
+      totalBobot: rencana.totalBobot,
+      catatan: rencana.catatan,
+      disusunOleh: rencana.disusunOleh,
+    });
+
+    const { buildRencanaKkpPdf } = await import("@/lib/pdf/rencana-kkp");
+    const { getBranding } = await import("@/lib/branding");
+    const branding = await getBranding();
+    const pdf = await buildRencanaKkpPdf(rencana, branding.appName);
+
+    const loc = await groupForLocation(locationId);
+    await sendText(target.chatId, teks);
+    const fileName = `rencana-mingguan-${loc?.slug ?? locationId}-minggu-${weekNumber}.pdf`;
+    await sendFile(target.chatId, toFilePayload(pdf, PDF_MIME, fileName), fileName);
+
+    await audit(user.id, "weekly_plan.wa_send", "location", locationId, {
+      weekNumber,
+      chatId: target.chatId,
+      items: rencana.baris.length,
+      bytes: pdf.length,
+    });
+    // Kalimatnya sengaja TIDAK mengaku bukti sampai — WAHA menerbitkan id pesan
+    // bahkan ketika WhatsApp menolaknya belakangan (OPEN_ISSUES WA-01).
+    return {
+      success: `Rencana minggu ke-${weekNumber} diserahkan ke ${target.label}. Status sampai/terbaca tidak diketahui MARLIN — periksa grupnya bila perlu kepastian.`,
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}

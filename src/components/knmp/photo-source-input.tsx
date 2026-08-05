@@ -6,7 +6,9 @@ import { MAX_PHOTOS_PER_UPLOAD } from "@/lib/photo-limits";
 import { catatIzinPerangkat } from "@/lib/device-permission";
 
 /**
- * Input foto sadar-sumber (Kamera vs Galeri) untuk kontrol tagging lokasi:
+ * Input foto sadar-sumber (Kamera vs Galeri) untuk kontrol tagging lokasi.
+ * `hanyaKamera` menutup jalur galeri sama sekali — lihat propnya.
+ *
  * - Kamera → merekam GPS real-time perangkat + waktu sekarang (foto baru di lokasi).
  * - Galeri → pelapor ditanya dulu "sedang di lokasi proyek?" (DECISIONS 220);
  *   urutan koordinatnya EXIF foto → posisi perangkat (hanya bila menjawab YA) →
@@ -41,6 +43,7 @@ export function PhotoSourceInput({
   lngName = "gpsLng",
   onPicked,
   compact = false,
+  hanyaKamera = false,
 }: {
   latName?: string;
   lngName?: string;
@@ -48,6 +51,19 @@ export function PhotoSourceInput({
   onPicked?: () => void;
   /** true → sembunyikan pratinjau (mode inline auto-submit). */
   compact?: boolean;
+  /**
+   * true → JALUR GALERI DITUTUP; hanya memotret langsung (DECISIONS 255).
+   *
+   * Dipakai Foto Cepat, yang seluruh gunanya adalah koordinat + jam yang BENAR.
+   * Foto galeri tidak bisa menjaminnya: kebanyakan tidak membawa GPS (~96%
+   * berakhir di titik proyek, DECISIONS 197), WhatsApp membuang EXIF-nya, dan
+   * jam yang tercatat bisa berbulan-bulan lalu. Menyediakannya di sana justru
+   * memproduksi pekerjaan yang fiturnya ada untuk menghilangkan.
+   *
+   * Laporan harian TETAP boleh dari galeri — di sana galeri menjawab kebutuhan
+   * lain, yaitu foto yang KETINGGALAN (DECISIONS 226).
+   */
+  hanyaKamera?: boolean;
 }) {
   const camRef = useRef<HTMLInputElement>(null);
   const galRef = useRef<HTMLInputElement>(null);
@@ -334,17 +350,21 @@ export function PhotoSourceInput({
             onChange={pickCamera}
           />
         </label>
-        <button type="button" className={btn} onClick={() => setTanyaLokasi(true)}>
-          <Images aria-hidden className="size-4" /> Galeri
-        </button>
-        <input
-          ref={galRef}
-          type="file"
-          accept="image/*"
-          multiple
-          className="sr-only"
-          onChange={pickGallery}
-        />
+        {hanyaKamera ? null : (
+          <>
+            <button type="button" className={btn} onClick={() => setTanyaLokasi(true)}>
+              <Images aria-hidden className="size-4" /> Galeri
+            </button>
+            <input
+              ref={galRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="sr-only"
+              onChange={pickGallery}
+            />
+          </>
+        )}
         {/* SATU-SATUNYA input yang ikut terkirim; isinya dirakit dari state. */}
         <input ref={berkasRef} type="file" name="photos" multiple className="sr-only" tabIndex={-1} />
       </div>
@@ -413,8 +433,8 @@ export function PhotoSourceInput({
       {!compact && berkas.length > 0 ? (
         <div className="space-y-1.5">
           <p className="text-xs text-ink-muted">
-            {berkas.length} foto dipilih (maks {MAX_PHOTOS_PER_UPLOAD}). Ketuk Kamera/Galeri lagi untuk
-            menambah.
+            {berkas.length} foto dipilih (maks {MAX_PHOTOS_PER_UPLOAD}). Ketuk{" "}
+            {hanyaKamera ? "Kamera" : "Kamera/Galeri"} lagi untuk menambah.
           </p>
           <div className="flex flex-wrap gap-2">
             {berkas.map((b, i) => (

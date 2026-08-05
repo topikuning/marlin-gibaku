@@ -93,15 +93,28 @@ describe("kelengkapan label & tone", () => {
     }
   });
 
-  it("chip filter TIDAK menawarkan 'lepas'", () => {
-    // Bukan pilihan yang berguna bagi pengguna; ia keadaan yang tak seharusnya
-    // ada, dan menawarkannya sebagai filter menormalkannya.
-    expect(PHOTO_STATUS_ORDER).not.toContain("lepas");
+  it("chip filter MENAWARKAN 'lepas' (berubah di DECISIONS 253)", () => {
+    // Dulu sengaja dikecualikan: "menawarkannya sebagai filter menormalkan
+    // keadaan yang tak seharusnya ada". Alasan itu GUGUR sejak Foto Cepat —
+    // foto tanpa induk kini keadaan yang disengaja (sudah tersimpan berikut
+    // koordinat & jamnya, itemnya menyusul). Justru menyembunyikannya yang
+    // berbahaya sekarang: foto yang sudah dijepret tapi belum dipakai tidak
+    // akan ketemu dari galeri, dan pekerjaan yang tertinggal jadi tak terlihat.
+    expect(PHOTO_STATUS_ORDER).toContain("lepas");
     expect(PHOTO_STATUS_ORDER).toEqual([
       "menunggu_review",
       "terverifikasi",
       "perlu_koreksi",
       "draft",
+      "lepas",
     ]);
+  });
+
+  it("'lepas' TIDAK lagi bernama/bernada seperti kerusakan", () => {
+    // Nama lama "Tanpa Induk" + tone "warning" menyatakan ada yang salah.
+    // Setelah Foto Cepat, itu bohong: fotonya baik-baik saja, cuma menunggu
+    // dipakai — dan label yang menakut-nakuti akan membuat pelapor menghapusnya.
+    expect(PHOTO_STATUS_LABEL.lepas).toBe("Belum Dipakai");
+    expect(PHOTO_STATUS_TONE.lepas).not.toBe("warning");
   });
 });

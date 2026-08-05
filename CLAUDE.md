@@ -75,8 +75,8 @@ Deploy: Railway + Dockerfile (DILARANG Nixpacks/Railpack).
 src/
 ├── app/(auth)/masuk, ganti-password
 ├── app/(app)/           # semua butuh sesi: / (command center), paket/, lokasi/,
-│                        # hari-ini/, progress/, keuangan/, dokumen/, laporan/,
-│                        # pengguna/, sistem/
+│                        # hari-ini/, foto-cepat/, foto/, progress/, keuangan/,
+│                        # dokumen/, laporan/, pengguna/, sistem/
 ├── app/cetak/           # print A4 tanpa shell
 ├── app/api/health, ready, documents/[id]
 ├── lib/                 # db, env (validasi+normalisasi R2), authz (capability),
@@ -85,6 +85,8 @@ src/
 │   ├── scurve/          # generate (kurva-S evaluasi kontinu, DECISIONS 052 — jaga properti: mulai 0, akhir 100, monoton, bentuk-S)
 │   │                    # jadwal-verbatim (impor Excel dipakai APA ADANYA, DECISIONS 203)
 │   ├── daily-report/    # actions + queries workflow laporan
+│   ├── foto-cepat/      # jepret dulu, item belakangan (DECISIONS 253) — foto
+│   │                    # tanpa induk + cap dasar, TANPA cadangan titik proyek
 │   ├── finance/         # calc (SATU-satunya tempat formula agregat) + actions
 │   ├── milestones/      # template 45 item KKP + actions
 │   ├── progress.ts      # SATU calculation layer progress

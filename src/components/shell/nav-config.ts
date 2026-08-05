@@ -4,6 +4,7 @@ import {
   MessagesSquare,
   Camera,
   FileText,
+  Images,
   FolderOpen,
   Home,
   Map,
@@ -30,6 +31,7 @@ export const ICONS = {
   home: Home,
   activity: Activity,
   camera: Camera,
+  images: Images,
   package: Package,
   mapPin: MapPin,
   map: Map,
@@ -62,7 +64,10 @@ export const MAIN_NAV: NavItem[] = [
   { label: "Lokasi", href: "/lokasi", icon: "mapPin", capability: "location.view" },
   { label: "Peta", href: "/peta", icon: "map", capability: "location.view" },
   { label: "Hari Ini", href: "/hari-ini", icon: "sun", capability: "daily_report.create" },
-  { label: "Foto Lapangan", href: "/foto", icon: "camera", capability: "location.view" },
+  // Foto Cepat SENGAJA berdiri sendiri di atas galeri: ia aksi lapangan
+  // (jepret sekarang), bukan tempat menelusuri arsip. DECISIONS 253.
+  { label: "Foto Cepat", href: "/foto-cepat", icon: "camera", capability: "photo.quick" },
+  { label: "Foto Lapangan", href: "/foto", icon: "images", capability: "location.view" },
   { label: "AI Intelligence", href: "/ai", icon: "sparkles", capability: "ai.view" },
   { label: "Progress", href: "/progress", icon: "trendingUp", capability: "progress.view" },
   { label: "Keuangan", href: "/keuangan", icon: "wallet", capability: "finance.view" },
@@ -102,8 +107,11 @@ export function MOBILE_NAV(role: UserRole): NavItem[] {
   const items: NavItem[] = FIELD_ROLES.has(role)
     ? [
         { label: "Hari Ini", href: "/hari-ini", icon: "sun", capability: "daily_report.create" },
+        // Satu ketukan dari mana pun — inti Foto Cepat. Kalau ia terkubur di
+        // laci menu, mandor akan tetap memotret pakai aplikasi kamera HP dan
+        // fotonya tetap datang tanpa koordinat. DECISIONS 253.
+        { label: "Foto", href: "/foto-cepat", icon: "camera", capability: "photo.quick" },
         { label: "Proyek", href: "/lokasi", icon: "mapPin", capability: "location.view" },
-        { label: "Laporan", href: "/laporan", icon: "fileText", capability: "report.export" },
         { label: "Beranda", href: "/", icon: "home" },
       ]
     : [

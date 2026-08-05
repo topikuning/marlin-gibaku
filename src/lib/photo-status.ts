@@ -37,9 +37,12 @@ export const PHOTO_STATUS_LABEL: Record<PhotoStatus, string> = {
   menunggu_review: "Menunggu Review",
   perlu_koreksi: "Perlu Koreksi",
   draft: "Draft",
-  // Foto tanpa laporan maupun kegiatan. Tidak seharusnya ada; kalau muncul,
-  // itu data yatim yang perlu ditelusuri — bukan disamarkan jadi "Draft".
-  lepas: "Tanpa Induk",
+  // Foto tanpa laporan maupun kegiatan. Sejak Foto Cepat (DECISIONS 253) ini
+  // keadaan yang SAH dan disengaja: foto sudah tersimpan berikut koordinat &
+  // jamnya, itemnya menyusul. Dulu bernama "Tanpa Induk" dan diperlakukan
+  // sebagai data yatim — nama itu kini keliru dan akan membuat pelapor mengira
+  // fotonya rusak.
+  lepas: "Belum Dipakai",
 };
 
 export const PHOTO_STATUS_TONE: Record<PhotoStatus, PhotoStatusTone> = {
@@ -47,15 +50,26 @@ export const PHOTO_STATUS_TONE: Record<PhotoStatus, PhotoStatusTone> = {
   menunggu_review: "info",
   perlu_koreksi: "warning",
   draft: "neutral",
-  lepas: "warning",
+  // Bukan "warning": tidak ada yang salah dengan foto yang menunggu dipakai.
+  lepas: "info",
 };
 
-/** Urutan chip filter di galeri — sengaja dari yang paling sering dicari. */
+/**
+ * Urutan chip filter di galeri — sengaja dari yang paling sering dicari.
+ *
+ * "lepas" (Belum Dipakai) IKUT sejak DECISIONS 253. Sebelumnya sengaja
+ * dikecualikan karena "menawarkannya sebagai filter menormalkan keadaan yang
+ * tak seharusnya ada" — alasan itu gugur begitu Foto Cepat membuat keadaan itu
+ * disengaja. Justru sekarang menyembunyikannya yang berbahaya: foto yang sudah
+ * dijepret tapi belum dipakai TIDAK akan ketemu dari galeri, dan pekerjaan yang
+ * tertinggal jadi tak terlihat.
+ */
 export const PHOTO_STATUS_ORDER: PhotoStatus[] = [
   "menunggu_review",
   "terverifikasi",
   "perlu_koreksi",
   "draft",
+  "lepas",
 ];
 
 /**

@@ -31,6 +31,10 @@ export const CAPABILITIES = [
   // Buka kunci laporan final untuk koreksi — super_admin SAJA (DECISIONS 149).
   "daily_report.unfinalize",
   "field_activity.manage",
+  // Foto Cepat: jepret/simpan foto DULU (koordinat + jam terekam saat itu),
+  // itemnya dipilih belakangan. Dipisah dari daily_report.create karena justru
+  // gunanya memotret TANPA harus punya laporan lebih dulu. DECISIONS 253.
+  "photo.quick",
   // Perbaiki cap foto dari berkas ASLI yang diarsipkan — SA + PD (DECISIONS 198).
   // Cap dibakar ke gambar, jadi ini menulis ulang bukti: butuh alasan + riwayat.
   "photo.restamp",
@@ -107,6 +111,7 @@ const PELAKSANA: Capability[] = [
   ...VIEW_ALL,
   "daily_report.create",
   "field_activity.manage",
+  "photo.quick",
 ];
 
 const SITE_MANAGER: Capability[] = [
