@@ -10,7 +10,10 @@ import {
   requireLocationAccess,
 } from "@/lib/auth/session";
 import { jakartaDateKey } from "@/lib/format";
-import { MAX_PHOTOS_PER_UPLOAD, PhotoError, savePhotoForItem } from "@/lib/photos";
+import { MAX_PHOTOS_PER_UPLOAD, PhotoError, bacaExifFoto, savePhotoForItem } from "@/lib/photos";
+import { accessibleLocationIds } from "@/lib/auth/session";
+import { alasanDeteksi, deteksiLokasi } from "./deteksi";
+import { getPilihanLokasi } from "./queries";
 import { isR2Configured } from "@/lib/r2";
 import { getPolicy } from "@/lib/policy";
 import { konteksFoto } from "@/lib/photo-restamp/service";
@@ -43,7 +46,6 @@ export type FotoCepatState = { error?: string; ok?: string; warning?: string };
 const MAX_PAKAI_SEKALI = 20;
 
 const simpanSchema = z.object({
-  locationId: z.uuid("Pilih lokasi dulu."),
   gpsLat: z.coerce.number().min(-90).max(90).optional(),
   gpsLng: z.coerce.number().min(-180).max(180).optional(),
   photoSource: z.enum(["camera", "gallery"]).default("camera"),
@@ -60,7 +62,6 @@ export async function simpanFotoCepatAction(
     if (!isR2Configured()) return { error: "Penyimpanan foto belum dikonfigurasi." };
 
     const parsed = simpanSchema.safeParse({
-      locationId: formData.get("locationId"),
       gpsLat: formData.get("gpsLat") || undefined,
       gpsLng: formData.get("gpsLng") || undefined,
       photoSource: formData.get("photoSource") || undefined,
@@ -70,12 +71,10 @@ export async function simpanFotoCepatAction(
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const d = parsed.data;
 
-    await requireLocationAccess(actor, d.locationId);
-    const lokasi = await db.location.findUnique({
-      where: { id: d.locationId },
-      select: { id: true, slug: true, name: true },
-    });
-    if (!lokasi?.slug) return { error: "Lokasi tidak ditemukan." };
+    // Kandidat deteksi = lokasi yang boleh diakses user. Membatasinya di sini
+    // sekaligus jadi otorisasinya: foto tidak akan pernah terdeteksi ke lokasi
+    // yang bukan haknya, tanpa perlu pemeriksaan terpisah yang bisa terlewat.
+    const kandidat = await getPilihanLokasi(actor, await accessibleLocationIds(actor));
 
     const files = formData.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
     if (files.length === 0) return { error: "Belum ada foto yang dipilih." };
@@ -98,20 +97,52 @@ export async function simpanFotoCepatAction(
 
     const dateKey = jakartaDateKey(new Date());
     const gagal: string[] = [];
+    const belumTerdeteksi: string[] = [];
     let sukses = 0;
     let tanpaKoordinat = 0;
+    const perLokasi = new Map<string, number>();
 
     for (const file of files) {
       try {
+        /*
+         * DETEKSI LOKASI DARI KOORDINAT FOTO ITU SENDIRI (DECISIONS 254).
+         *
+         * Per-berkas, bukan sekali untuk seluruh kiriman: unggahan borongan dari
+         * galeri/cloud bisa memuat foto dari beberapa lokasi sekaligus, dan
+         * memaksakan satu lokasi untuk semuanya akan menaruh sebagian di tempat
+         * yang salah — persis cacat yang sedang diperbaiki.
+         *
+         * Sumber koordinatnya mengikuti aturan yang sama dengan cap: foto baru
+         * pakai GPS perangkat saat rana ditekan, foto galeri pakai EXIF-nya
+         * sendiri (posisi saat MEMOTRET, bukan saat mengunggah).
+         */
+        const buf = Buffer.from(await file.arrayBuffer());
+        const exif = bacaExifFoto(buf);
+        const koordinat =
+          d.photoSource === "camera" && d.gpsLat != null && d.gpsLng != null
+            ? { lat: d.gpsLat, lng: d.gpsLng }
+            : exif.lat != null && exif.lng != null
+              ? { lat: exif.lat, lng: exif.lng }
+              : null;
+        const hasil = deteksiLokasi(koordinat, kandidat);
+        const lokasi = hasil.status === "cocok" ? hasil.lokasi : null;
+        if (!lokasi) {
+          const sebab = alasanDeteksi(hasil);
+          if (sebab) belumTerdeteksi.push(sebab);
+        }
+
         const foto = await savePhotoForItem({
-          locationId: lokasi.id,
+          locationId: lokasi?.id ?? null,
           // Tanpa induk — inti Foto Cepat.
           reportId: null,
           reportItemId: null,
           activityId: null,
           file,
           userId: actor.id,
-          locationSlug: lokasi.slug,
+          // Lokasi belum terdeteksi → berkasnya tetap masuk bucket, di rak
+          // tersendiri. Menolak menyimpan berarti membuang bukti lapangan hanya
+          // karena kita belum tahu nama raknya.
+          locationSlug: lokasi?.slug ?? "_kantong",
           dateKey,
           stamp: {
             source: d.photoSource,
@@ -133,6 +164,7 @@ export async function simpanFotoCepatAction(
         });
         sukses++;
         if (foto.gpsSource !== "exif" && foto.gpsSource !== "device") tanpaKoordinat++;
+        if (lokasi) perLokasi.set(lokasi.name, (perLokasi.get(lokasi.name) ?? 0) + 1);
       } catch (err) {
         gagal.push(
           `${file.name}: ${err instanceof PhotoError ? err.message : "gagal diproses"}`,
@@ -141,23 +173,35 @@ export async function simpanFotoCepatAction(
     }
 
     if (sukses > 0)
-      await audit(actor.id, "photo.quick_capture", "location", lokasi.id, {
+      await audit(actor.id, "photo.quick_capture", "photo", null, {
         jumlah: sukses,
         sumber: d.photoSource,
         tanpaKoordinat,
+        belumTerdeteksi: belumTerdeteksi.length,
+        lokasiTerdeteksi: Object.fromEntries(perLokasi),
       });
 
     revalidatePath("/foto-cepat");
     revalidatePath("/foto");
 
     if (sukses === 0) return { error: gagal.join(" · ") || "Tidak ada foto yang tersimpan." };
-    const dasar = `${sukses} foto tersimpan di kantong.`;
+
+    // Lokasi yang BERHASIL terdeteksi disebut namanya. Deteksi yang bekerja diam-
+    // diam tidak bisa dipercaya siapa pun: pelapor harus bisa melihat bahwa
+    // fotonya mendarat di desa yang benar, saat itu juga.
+    const nama = [...perLokasi.entries()].map(([n, j]) => `${n} (${j})`).join(", ");
+    const dasar = nama ? `${sukses} foto tersimpan — terdeteksi di ${nama}.` : `${sukses} foto tersimpan.`;
+    const catatanBelum =
+      belumTerdeteksi.length > 0
+        ? ` ${belumTerdeteksi.length} foto belum ketahuan lokasinya (${[...new Set(belumTerdeteksi)].join("; ")}) — pilih di kantong bawah.`
+        : "";
     // Foto tanpa koordinat TETAP disimpan, tapi tidak dibiarkan lewat diam-diam:
     // pelapor perlu tahu sekarang, selagi masih di lokasi dan masih bisa
     // memotret ulang dengan GPS menyala.
-    const catatan = tanpaKoordinat > 0 ? ` ${tanpaKoordinat} di antaranya TANPA koordinat.` : "";
-    if (gagal.length) return { warning: `${dasar}${catatan} Gagal: ${gagal.join(" · ")}` };
-    return tanpaKoordinat > 0 ? { warning: `${dasar}${catatan}` } : { ok: dasar };
+    const catatanGps = tanpaKoordinat > 0 ? ` ${tanpaKoordinat} TANPA koordinat.` : "";
+    const pesan = `${dasar}${catatanGps}${catatanBelum}`;
+    if (gagal.length) return { warning: `${pesan} Gagal: ${gagal.join(" · ")}` };
+    return tanpaKoordinat > 0 || belumTerdeteksi.length > 0 ? { warning: pesan } : { ok: pesan };
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };
     return { error: err instanceof Error ? err.message : "Gagal menyimpan foto." };
@@ -248,6 +292,14 @@ export async function pakaiFotoAction(
       select: { id: true, locationId: true },
     });
     if (fotos.length === 0) return { error: "Foto tidak ditemukan di kantong (mungkin sudah dipakai)." };
+    // Foto yang lokasinya belum ketahuan tidak boleh diselundupkan lewat sini:
+    // menautkannya ke laporan lokasi X akan MENETAPKAN lokasinya secara diam-diam
+    // ke X, padahal deteksi tadi justru menolak menebak. DECISIONS 254.
+    const tanpaLokasi = fotos.filter((f) => f.locationId == null);
+    if (tanpaLokasi.length > 0)
+      return {
+        error: `${tanpaLokasi.length} foto belum ketahuan lokasinya. Tetapkan lokasinya dulu di kantong, baru bisa dipakai.`,
+      };
     const bedaLokasi = fotos.filter((f) => f.locationId !== tujuanLocationId);
     if (bedaLokasi.length > 0)
       return {
@@ -348,5 +400,87 @@ export async function muatTujuanAction(
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };
     return { error: "Gagal memuat tujuan." };
+  }
+}
+
+
+const tetapkanSchema = z.object({
+  photoIds: z.array(z.uuid()).min(1, "Pilih foto dulu.").max(50),
+  locationId: z.uuid("Pilih lokasinya."),
+});
+
+/**
+ * Tetapkan lokasi untuk foto yang geotag-nya tidak cukup untuk memutuskan.
+ *
+ * Ini SATU-SATUNYA jalan lokasi diisi manusia, dan sengaja terpisah dari
+ * memotret: saat berdiri di lapangan pelapor tidak perlu menjawab apa pun,
+ * sedangkan yang perlu dijawab dikumpulkan untuk dikerjakan sambil duduk.
+ *
+ * Dedup baru berlaku SEKARANG — foto tanpa lokasi lolos dari unique
+ * (location, sha256) karena NULL tidak sama dengan NULL. Kalau ternyata foto
+ * yang sama sudah ada di lokasi itu, penetapannya ditolak dengan menyebut
+ * sebabnya, bukan gagal dengan galat database mentah.
+ */
+export async function tetapkanLokasiAction(
+  _prev: FotoCepatState,
+  formData: FormData,
+): Promise<FotoCepatState> {
+  try {
+    const actor = await requireCapability("photo.quick");
+    const parsed = tetapkanSchema.safeParse({
+      photoIds: formData.getAll("photoIds").map(String),
+      locationId: formData.get("locationId"),
+    });
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    const { photoIds, locationId } = parsed.data;
+
+    await requireLocationAccess(actor, locationId);
+    const lokasi = await db.location.findUnique({
+      where: { id: locationId },
+      select: { id: true, name: true },
+    });
+    if (!lokasi) return { error: "Lokasi tidak ditemukan." };
+
+    // Hanya foto MILIK SENDIRI yang masih tanpa lokasi — sama dengan aturan
+    // siapa yang boleh melihatnya di kantong.
+    const fotos = await db.photo.findMany({
+      where: {
+        id: { in: photoIds },
+        locationId: null,
+        reportId: null,
+        activityId: null,
+        uploadedById: actor.id,
+      },
+      select: { id: true },
+    });
+    if (fotos.length === 0) return { error: "Tidak ada foto yang bisa ditetapkan." };
+
+    let berhasil = 0;
+    const duplikat: string[] = [];
+    for (const f of fotos) {
+      try {
+        await db.$transaction(async (tx) => {
+          await tx.photo.update({ where: { id: f.id }, data: { locationId } });
+          await auditIn(tx, actor.id, "photo.quick_set_location", "photo", f.id, { locationId });
+        });
+        berhasil++;
+      } catch (e) {
+        if (e && typeof e === "object" && "code" in e && (e as { code?: string }).code === "P2002")
+          duplikat.push(f.id);
+        else throw e;
+      }
+    }
+
+    revalidatePath("/foto-cepat");
+    revalidatePath("/foto");
+    if (berhasil === 0)
+      return { error: `Foto itu sudah pernah diunggah di ${lokasi.name} — tidak ditetapkan ulang.` };
+    const dasar = `${berhasil} foto ditetapkan ke ${lokasi.name}.`;
+    return duplikat.length > 0
+      ? { warning: `${dasar} ${duplikat.length} dilewati karena sudah ada di lokasi itu.` }
+      : { ok: dasar };
+  } catch (err) {
+    if (err instanceof ForbiddenError) return { error: err.message };
+    return { error: err instanceof Error ? err.message : "Gagal menetapkan lokasi." };
   }
 }

@@ -9000,3 +9000,108 @@ atau perbaiki koordinatnya manual lewat perbaikan cap — dan itu tertulis
 
 Dibuktikan bergigi: menghidupkan kembali cadangan titik proyek di action
 membuat uji "TIDAK mengirim titik proyek" gagal (`expected -8.4 to be null`).
+
+---
+
+## 254 · Lokasi foto dideteksi dari geotag — dan MENOLAK menebak (2026-08-05)
+
+Lanjutan langsung DECISIONS 253. Permintaan user: *"bahkan tidak perlu input
+lokasi. kalau bisa kamu deteksi lokasi berdasarkan geotagnya."*
+
+Betul: koordinat foto sudah menjawab "ini di mana", jadi menyuruh pelapor
+menjawabnya lagi adalah kerja dobel di tempat yang paling tidak nyaman untuk
+mengetik. Pemilih lokasi DIBUANG dari langkah memotret.
+
+### Tapi deteksi yang salah lebih buruk daripada tidak ada deteksi
+
+Foto yang mendarat di desa sebelah tidak menerbitkan galat apa pun. Layarnya
+tetap rapi, laporannya tetap tersusun, dan salahnya baru ketahuan berminggu-
+minggu kemudian saat blanko KKP disusun — kalau ketahuan. Jadi aturannya bukan
+"pilih yang terdekat", melainkan "putuskan HANYA bila jelas".
+
+### Ambangnya diukur, bukan ditebak
+
+73 lokasi KNMP berkoordinat (katalog master):
+
+| ukuran | jarak ke tetangga terdekat |
+|---|---:|
+| pasangan paling berdekatan | **474 m** (Kedungmalang Jepara ↔ Kedungmutih Demak) |
+| persentil 5 | 912 m |
+| persentil 25 | 3.400 m |
+| median | 6.693 m |
+
+Angka itu mematikan gagasan "ambang jarak tetap": 2 km terlalu longgar untuk
+pasangan 474 m, sedangkan 300 m terlalu ketat untuk titik proyek yang dipasang
+di ujung desa. Karena itu aturannya RELATIF:
+
+- kandidat terdekat harus dalam **1 km** (`RADIUS_LOKASI_M`), DAN
+- kandidat berikutnya harus **≥2× lebih jauh** (`RASIO_MINIMAL`) **DAN ≥300 m
+  lebih jauh** (`SELISIH_MINIMAL_M`).
+
+Dua syarat margin sekaligus dengan sengaja: rasio saja lolos pada angka kecil
+(30 m vs 70 m = 2,3× padahal selisihnya masih di dalam galat GPS), selisih saja
+lolos pada dua lokasi yang sama-sama jauh. Berdiri di tengah pasangan 474 m →
+**ambigu**, dan itu jawaban yang benar.
+
+### Deteksi PER BERKAS, bukan per kiriman
+
+Unggahan borongan dari galeri/cloud bisa memuat foto dari beberapa lokasi
+sekaligus. Memaksakan satu lokasi untuk seluruh kiriman akan menaruh sebagian di
+tempat yang salah — persis cacat yang sedang diperbaiki. Sumber koordinatnya
+mengikuti aturan cap: foto baru pakai GPS perangkat saat rana ditekan, foto
+galeri pakai EXIF-nya sendiri (posisi saat MEMOTRET, bukan saat mengunggah).
+
+### Kandidat = lokasi yang boleh diakses user
+
+Itu sekaligus otorisasinya: foto tidak akan pernah terdeteksi ke lokasi yang
+bukan haknya, tanpa perlu pemeriksaan terpisah yang bisa terlewat. Hanya lokasi
+`isActive` yang ikut — sama dengan pemilih lokasi di galeri foto.
+
+### Gagal deteksi TIDAK membuang foto
+
+Foto tetap tersimpan dengan `locationId = null` (rak R2 `_kantong`), dan
+sebabnya disebut apa adanya: *"tidak membawa koordinat"*, *"lokasi terdekat
+(Kranji) berjarak 4,2 km"*, *"terlalu berdekatan dengan A (237 m) dan B (237
+m)"*. Membuang fotonya berarti menghilangkan bukti lapangan hanya karena kita
+belum tahu nama raknya.
+
+Konsekuensi yang diterima sadar:
+
+- **Dedup tidak berlaku** selama lokasinya null — di Postgres NULL ≠ NULL, jadi
+  unique `(location, sha256)` tidak mengikat. Menahan foto bukti demi dedup jauh
+  lebih mahal daripada satu-dua foto kembar di kantong, dan duplikatnya tetap
+  tertangkap begitu lokasinya ditetapkan (P2002 ditangkap, disebut alasannya).
+- **Hanya yang memotret yang bisa melihatnya.** Tanpa lokasi tidak ada satu pun
+  batas yang bisa dipakai membatasi akses, dan "semua orang" adalah jawaban yang
+  salah untuk bukti lapangan. Begitu lokasinya ditetapkan, ia langsung ikut
+  aturan akses lokasi biasa.
+- **Belum bisa dipakai di laporan.** Menautkannya akan MENETAPKAN lokasinya
+  diam-diam ke lokasi laporan itu — padahal deteksi tadi justru menolak menebak.
+  Ditolak dengan menyebut sebabnya.
+
+### Yang berhasil pun disebut namanya
+
+Pesan sesudah menyimpan menulis lokasi yang terdeteksi berikut jumlahnya
+("3 foto tersimpan — terdeteksi di Kemantren (2), Kranji (1)"). Deteksi yang
+bekerja diam-diam tidak bisa dipercaya siapa pun; pelapor harus bisa melihat
+fotonya mendarat di desa yang benar saat itu juga, selagi masih bisa diperbaiki.
+
+### Uji
+
+- `tests/unit/foto-cepat-deteksi.test.ts` — 13 uji, memakai jarak NYATA 474 m
+  sebagai fixture. Termasuk: berdiri tepat di titik, satu-satunya kandidat,
+  di tengah dua lokasi (ambigu), selisih besar-rasio kecil (tetap ambigu),
+  tanpa koordinat, semua di luar radius, dan lokasi tanpa titik proyek.
+- `tests/integration/foto-cepat.test.ts` — 20 uji; yang baru: deteksi dipakai
+  jalur simpan, ambigu tidak menebak, jauh menyebut jarak, tanpa koordinat tetap
+  tersimpan ke rak `_kantong`, deteksi per berkas, dan foto tanpa lokasi ditolak
+  saat hendak dipakai sampai lokasinya ditetapkan.
+- `tests/e2e/foto-cepat.spec.ts` — menahan agar pemilih lokasi TIDAK kembali ke
+  langkah memotret dan tombolnya langsung bisa ditekan.
+
+Dibuktikan bergigi: mengubah deteksi jadi "ambil yang terdekat saja" (margin
+dibuang) membuat 3 uji unit + 1 uji integrasi gagal.
+
+Catatan proses: uji integrasi sempat gagal seluruhnya karena `Location.isActive`
+default **false** — fixture-nya yang salah, bukan kodenya. Ditulis di sini karena
+mudah salah baca sebagai cacat deteksi.

@@ -45,8 +45,11 @@ export type FotoKantong = {
   bisaDilengkapi: boolean;
 };
 
-/** Lokasi yang boleh dipakai memotret, berikut titik proyeknya. */
-export type PilihanLokasi = LokasiBerkoordinat;
+/** Nama rak untuk foto yang lokasinya belum ketahuan. */
+export const LABEL_TANPA_LOKASI = "Belum ketahuan lokasinya";
+
+/** Lokasi yang boleh dipakai memotret, berikut titik proyek & slug-nya. */
+export type PilihanLokasi = LokasiBerkoordinat & { slug: string };
 
 /**
  * Lokasi dalam scope user + koordinat titik proyeknya.
@@ -62,11 +65,17 @@ export async function getPilihanLokasi(
 ): Promise<PilihanLokasi[]> {
   const rows = await db.location.findMany({
     where: { ...locationScopeWhere(user, locIds), isActive: true },
-    select: { id: true, name: true, gpsLat: true, gpsLng: true },
+    select: { id: true, name: true, slug: true, gpsLat: true, gpsLng: true },
     orderBy: { name: "asc" },
   });
   const num = (v: { toString(): string } | null) => (v == null ? null : Number(v.toString()));
-  return rows.map((r) => ({ id: r.id, name: r.name, lat: num(r.gpsLat), lng: num(r.gpsLng) }));
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    slug: r.slug,
+    lat: num(r.gpsLat),
+    lng: num(r.gpsLng),
+  }));
 }
 
 /** Isi kantong — foto tanpa induk, dibatasi scope lokasi user. */
@@ -80,10 +89,21 @@ export async function getKantong(
       AND: [
         { reportId: null },
         { activityId: null },
-        // Foto kantong SELALU punya locationId (dipilih saat memotret); tanpa itu
-        // tidak ada yang bisa membatasi siapa yang berhak melihatnya.
-        { locationId: { not: null } },
-        locationRelScopeWhere(user, locIds),
+        {
+          OR: [
+            // Sudah ketahuan lokasinya → siapa pun yang berhak atas lokasi itu.
+            { AND: [{ locationId: { not: null } }, locationRelScopeWhere(user, locIds)] },
+            /*
+             * BELUM ketahuan lokasinya (deteksi geotag gagal, DECISIONS 254) →
+             * HANYA yang memotret. Bukan pilihan gaya: tanpa lokasi tidak ada
+             * satu pun batas yang bisa dipakai membatasi siapa yang berhak
+             * melihatnya, dan "semua orang" adalah jawaban yang salah untuk
+             * bukti lapangan. Begitu lokasinya ditetapkan, ia langsung ikut
+             * aturan yang di atas.
+             */
+            { AND: [{ locationId: null }, { uploadedById: user.id }] },
+          ],
+        },
         ...(filter?.locationId ? [{ locationId: filter.locationId }] : []),
       ],
     },
@@ -134,7 +154,7 @@ export async function getKantong(
       takenAtIso: takenAt.toISOString(),
       waktuLabel: fmt.format(takenAt),
       locationId: r.locationId,
-      locationName: r.location?.name ?? "—",
+      locationName: r.location?.name ?? LABEL_TANPA_LOKASI,
       lat: num(r.exifGpsLat),
       lng: num(r.exifGpsLng),
       gpsAsli: r.gpsSource === "exif" || r.gpsSource === "device",

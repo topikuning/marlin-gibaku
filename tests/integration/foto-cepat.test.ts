@@ -63,7 +63,8 @@ vi.mock("@/lib/auth/session", async (importAsli) => {
 });
 
 const { db } = await import("@/lib/db");
-const { simpanFotoCepatAction, pakaiFotoAction } = await import("@/lib/foto-cepat/actions");
+const { simpanFotoCepatAction, pakaiFotoAction, tetapkanLokasiAction } =
+  await import("@/lib/foto-cepat/actions");
 
 const suffix = `fc${Date.now().toString(36)}`;
 let locA = "";
@@ -101,6 +102,13 @@ function fd(entries: Record<string, string | string[]>, files: File[] = []): For
 
 const berkas = (nama: string) => new File([new Uint8Array([1, 2, 3])], nama, { type: "image/jpeg" });
 
+/** Meter per derajat lintang pada jari-jari yang dipakai `jarakMeter`. */
+const M_PER_DEG = (2 * Math.PI * 6_371_000) / 360;
+const LAT_A = -8.4;
+const LAT_B = LAT_A + 474 / M_PER_DEG;
+/** Geser dari A ke utara sejauh `m` meter. */
+const dariA = (m: number) => (LAT_A + m / M_PER_DEG).toString();
+
 /** Foto kantong palsu — dibuat langsung di DB (jalur unggah sudah di-mock). */
 async function buatFotoKantong(locationId: string, kunci: string) {
   return db.photo.create({
@@ -122,23 +130,29 @@ async function buatFotoKantong(locationId: string, kunci: string) {
 beforeAll(async () => {
   const org = await db.organization.create({ data: { name: `Org FC ${suffix}`, slug: `org-${suffix}` } });
   const pkg = await db.package.create({ data: { orgId: org.id, name: `Paket FC ${suffix}` } });
-  const mk = async (n: string) =>
+  // Koordinat uji memakai jarak NYATA: B dipasang 474 m dari A — pasangan
+  // paling berdekatan di katalog KNMP (Kedungmalang ↔ Kedungmutih).
+  const mk = async (n: string, lat: string, lng: string) =>
     (
       await db.location.create({
         data: {
           packageId: pkg.id,
-          name: `Lokasi ${n}`,
+          name: `Lokasi ${n.toUpperCase()}`,
           slug: `lokasi-${n}-${suffix}`,
           village: "Desa",
           regency: "Kab",
           province: "Prov",
-          gpsLat: "-8.4000000",
-          gpsLng: "116.0000000",
+          // Location.isActive default FALSE. Deteksi hanya melirik lokasi aktif
+          // (sama dengan pemilih lokasi di galeri foto) — lokasi yang belum
+          // dijalankan memang tidak boleh jadi tujuan foto lapangan.
+          isActive: true,
+          gpsLat: lat,
+          gpsLng: lng,
         },
       })
     ).id;
-  locA = await mk("a");
-  locB = await mk("b");
+  locA = await mk("a", "-8.4000000", "116.0000000");
+  locB = await mk("b", LAT_B.toFixed(7), "116.0000000");
 
   mandorId = (
     await db.user.create({
@@ -152,6 +166,18 @@ beforeAll(async () => {
     })
   ).id;
   sesi = mandorId;
+
+  // Penugasan lokasi WAJIB ada: kandidat deteksi diambil dari lokasi yang boleh
+  // diakses user, dan itulah sekaligus otorisasinya (foto tidak akan pernah
+  // terdeteksi ke lokasi yang bukan haknya). Tanpa penugasan, daftar kandidat
+  // kosong dan tidak ada yang bisa terdeteksi — perilaku yang benar, tapi bukan
+  // yang sedang diuji di sini.
+  await db.locationAssignment.createMany({
+    data: [
+      { userId: mandorId, locationId: locA },
+      { userId: mandorId, locationId: locB },
+    ],
+  });
 
   const rev = await db.rabRevision.create({
     data: {
@@ -225,7 +251,7 @@ describe("menyimpan ke kantong", () => {
   it("foto masuk TANPA induk", async () => {
     const hasil = await simpanFotoCepatAction(
       {},
-      fd({ locationId: locA, photoSource: "camera", gpsLat: "-8.5", gpsLng: "116.1" }, [berkas("a.jpg")]),
+      fd({ photoSource: "camera", gpsLat: dariA(20), gpsLng: "116.0" }, [berkas("a.jpg")]),
     );
     expect(hasil.error).toBeUndefined();
     expect(panggilan).toHaveLength(1);
@@ -238,14 +264,14 @@ describe("menyimpan ke kantong", () => {
     // Pagar terpenting berkas ini. Lokasi uji PUNYA gpsLat/gpsLng, jadi kalau
     // suatu saat kode ini meneruskannya, uji ini yang menangkapnya — bukan
     // pengguna yang menemukan 96% fotonya bertitik sama.
-    await simpanFotoCepatAction({}, fd({ locationId: locA, photoSource: "camera" }, [berkas("b.jpg")]));
+    await simpanFotoCepatAction({}, fd({ photoSource: "camera", gpsLat: dariA(20), gpsLng: "116.0" }, [berkas("b.jpg")]));
     expect(panggilan[0].stamp?.locationLat ?? null).toBeNull();
     expect(panggilan[0].stamp?.locationLng ?? null).toBeNull();
     expect(panggilan[0].stamp?.fallbackMode).toBe("none");
   });
 
   it("cap awalnya DASAR — tidak menyebut yang belum diketahui", async () => {
-    await simpanFotoCepatAction({}, fd({ locationId: locA, photoSource: "camera" }, [berkas("c.jpg")]));
+    await simpanFotoCepatAction({}, fd({ photoSource: "camera", gpsLat: dariA(20), gpsLng: "116.0" }, [berkas("c.jpg")]));
     const s = panggilan[0].stamp!;
     expect(s.locationLabel).toBeNull();
     expect(s.companyName).toBeNull();
@@ -260,14 +286,14 @@ describe("menyimpan ke kantong", () => {
     // membuat cacatnya baru ketahuan saat laporan disusun. Jadi: simpan + sebut.
     const hasil = await simpanFotoCepatAction(
       {},
-      fd({ locationId: locA, photoSource: "camera" }, [berkas("d.jpg")]),
+      fd({ photoSource: "camera" }, [berkas("d.jpg")]),
     );
     expect(hasil.error).toBeUndefined();
     expect(hasil.warning).toMatch(/TANPA koordinat/i);
   });
 
-  it("tanpa lokasi ditolak", async () => {
-    const hasil = await simpanFotoCepatAction({}, fd({ photoSource: "camera" }, [berkas("e.jpg")]));
+  it("tanpa berkas ditolak", async () => {
+    const hasil = await simpanFotoCepatAction({}, fd({ photoSource: "camera" }));
     expect(hasil.error).toBeTruthy();
     expect(panggilan).toHaveLength(0);
   });
@@ -367,5 +393,120 @@ describe("memakai foto dari kantong", () => {
     expect(hasil.warning).toMatch(/cap dasar/i);
     const sesudah = await db.photo.findUniqueOrThrow({ where: { id: f.id } });
     expect(sesudah.activityId).toBe(kegiatanDraftId);
+  });
+});
+
+/**
+ * DETEKSI LOKASI DARI GEOTAG (DECISIONS 254).
+ *
+ * Aturannya sudah dikunci uji unit; yang dijaga DI SINI adalah bahwa aturan itu
+ * benar-benar dipakai jalur simpan, dan bahwa kegagalan deteksi TIDAK membuang
+ * fotonya. Dua-duanya cacat senyap kalau rusak: foto yang mendarat di desa
+ * sebelah tampak normal, dan foto yang dibuang tidak meninggalkan jejak apa pun.
+ */
+describe("deteksi lokasi dari koordinat foto", () => {
+  it("berdiri di lokasi A → foto terdeteksi ke A, tanpa memilih apa pun", async () => {
+    const hasil = await simpanFotoCepatAction(
+      {},
+      fd({ photoSource: "camera", gpsLat: dariA(30), gpsLng: "116.0" }, [berkas("dekat-a.jpg")]),
+    );
+    expect(hasil.error).toBeUndefined();
+    expect(panggilan).toHaveLength(1);
+    expect(panggilan[0].locationId).toBe(locA);
+    // Nama lokasi yang terdeteksi WAJIB disebut ke pelapor — deteksi diam-diam
+    // tidak bisa dipercaya siapa pun.
+    expect(`${hasil.ok ?? hasil.warning}`).toMatch(/Lokasi A/);
+  });
+
+  it("di antara dua lokasi berdekatan → TIDAK menebak, foto tetap tersimpan", async () => {
+    // Titik tengah pasangan 474 m. Yang benar di sini adalah menolak memutuskan.
+    const hasil = await simpanFotoCepatAction(
+      {},
+      fd({ photoSource: "camera", gpsLat: dariA(237), gpsLng: "116.0" }, [berkas("ambigu.jpg")]),
+    );
+    expect(hasil.error).toBeUndefined();
+    expect(panggilan[0].locationId).toBeNull();
+    expect(hasil.warning).toMatch(/belum ketahuan lokasinya/i);
+    expect(hasil.warning).toMatch(/berdekatan/i);
+  });
+
+  it("jauh dari semua lokasi → tidak terdeteksi, sebabnya disebut", async () => {
+    const hasil = await simpanFotoCepatAction(
+      {},
+      fd({ photoSource: "camera", gpsLat: "-6.8700000", gpsLng: "112.3" }, [berkas("jauh.jpg")]),
+    );
+    expect(panggilan[0].locationId).toBeNull();
+    expect(hasil.warning).toMatch(/km/);
+  });
+
+  it("tanpa koordinat → tidak terdeteksi, foto TETAP tersimpan", async () => {
+    // Membuang fotonya berarti menghilangkan bukti lapangan hanya karena kita
+    // belum tahu nama raknya.
+    const hasil = await simpanFotoCepatAction({}, fd({ photoSource: "camera" }, [berkas("nogps.jpg")]));
+    expect(hasil.error).toBeUndefined();
+    expect(panggilan).toHaveLength(1);
+    expect(panggilan[0].locationId).toBeNull();
+    expect(panggilan[0].locationSlug).toBe("_kantong");
+  });
+
+  it("satu kiriman, dua lokasi berbeda — dideteksi PER BERKAS", async () => {
+    // Unggahan borongan dari galeri/cloud bisa memuat foto dari beberapa lokasi.
+    // Memaksakan satu lokasi untuk seluruh kiriman akan menaruh sebagian di
+    // tempat yang salah — persis cacat yang sedang diperbaiki.
+    await simpanFotoCepatAction(
+      {},
+      fd({ photoSource: "camera", gpsLat: dariA(30), gpsLng: "116.0" }, [
+        berkas("satu.jpg"),
+        berkas("dua.jpg"),
+      ]),
+    );
+    expect(panggilan).toHaveLength(2);
+    expect(panggilan.every((p) => p.locationId === locA)).toBe(true);
+  });
+});
+
+describe("foto tanpa lokasi tidak bisa diselundupkan", () => {
+  it("dipakai di laporan → DITOLAK sebelum lokasinya ditetapkan", async () => {
+    // Menautkannya akan MENETAPKAN lokasinya diam-diam ke lokasi laporan itu,
+    // padahal deteksi tadi justru menolak menebak.
+    const f = await db.photo.create({
+      data: {
+        locationId: null,
+        r2Key: `photos/_kantong/${suffix}-lepas`,
+        sha256: `${suffix}-lepas`,
+        bytes: 10,
+        gpsSource: "none",
+        metadataSource: "server",
+        uploadedById: mandorId,
+      },
+    });
+    const hasil = await pakaiFotoAction(
+      {},
+      fd({ photoIds: [f.id], tujuan: "laporan", reportItemId: itemDraftId }),
+    );
+    expect(hasil.error).toMatch(/belum ketahuan lokasinya/i);
+  });
+
+  it("ditetapkan manual dulu, baru bisa dipakai", async () => {
+    const f = await db.photo.create({
+      data: {
+        locationId: null,
+        r2Key: `photos/_kantong/${suffix}-tetap2`,
+        sha256: `${suffix}-tetap2`,
+        bytes: 10,
+        gpsSource: "none",
+        metadataSource: "server",
+        uploadedById: mandorId,
+      },
+    });
+    const t = await tetapkanLokasiAction({}, fd({ photoIds: [f.id], locationId: locA }));
+    expect(t.error).toBeUndefined();
+    expect((await db.photo.findUniqueOrThrow({ where: { id: f.id } })).locationId).toBe(locA);
+
+    const hasil = await pakaiFotoAction(
+      {},
+      fd({ photoIds: [f.id], tujuan: "kegiatan", kegiatanId: kegiatanDraftId }),
+    );
+    expect(hasil.error).toBeUndefined();
   });
 });

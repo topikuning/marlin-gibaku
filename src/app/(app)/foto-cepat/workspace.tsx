@@ -11,6 +11,7 @@ import {
   muatTujuanAction,
   pakaiFotoAction,
   simpanFotoCepatAction,
+  tetapkanLokasiAction,
   type FotoCepatState,
 } from "@/lib/foto-cepat/actions";
 
@@ -38,11 +39,10 @@ export function FotoCepatWorkspace({
   const [posisi, setPosisi] = useState<{ lat: number; lng: number } | null>(null);
 
   /**
-   * Posisi dibaca SEKALI untuk mengurutkan lokasi terdekat. Ini TIDAK dipakai
-   * sebagai koordinat foto — koordinat foto datang dari `PhotoSourceInput` pada
-   * detik rana ditekan. Dua pembacaan berbeda untuk dua keperluan berbeda;
-   * memakai yang ini sebagai koordinat foto akan menandai foto dengan posisi
-   * saat halaman dibuka, bukan saat memotret.
+   * Posisi dibaca sekali, HANYA untuk memberi tahu pelapor lokasi terdekat
+   * sebelum memotret. Yang menentukan lokasi foto BUKAN ini, melainkan koordinat
+   * foto itu sendiri, dideteksi di server per berkas (DECISIONS 254) — posisi di
+   * sini adalah saat halaman dibuka, dan itu bukan tempat memotret.
    */
   useEffect(() => {
     if (!("geolocation" in navigator)) return;
@@ -60,34 +60,17 @@ export function FotoCepatWorkspace({
   }, []);
 
   const terurut: LokasiBerjarak[] = useMemo(() => urutkanTerdekat(lokasi, posisi), [lokasi, posisi]);
-  const [locationId, setLocationId] = useState(lokasi.length === 1 ? lokasi[0].id : "");
-
-  // Lokasi terdekat diusulkan begitu posisi terbaca — hanya bila pelapor belum
-  // memilih sendiri. Menimpa pilihan manusia dengan tebakan mesin adalah cara
-  // tercepat membuat foto masuk ke lokasi yang salah.
-  const [posisiTerpakai, setPosisiTerpakai] = useState(false);
-  if (posisi && !posisiTerpakai) {
-    setPosisiTerpakai(true);
-    if (!locationId && terurut[0]?.jarakMeter != null) setLocationId(terurut[0].id);
-  }
+  const terdekat = posisi ? (terurut.find((l) => l.jarakMeter != null) ?? null) : null;
 
   const opsiLokasi = terurut.map((l) => ({
     value: l.id,
     label: l.jarakMeter != null ? `${l.name} · ${labelJarak(l.jarakMeter)}` : l.name,
   }));
-  const dipilih = terurut.find((l) => l.id === locationId) ?? null;
 
   return (
     <div className="space-y-4">
-      <JepretCard
-        opsiLokasi={opsiLokasi}
-        locationId={locationId}
-        setLocationId={setLocationId}
-        dipilih={dipilih}
-        wajibGps={wajibGps}
-        adaPosisi={posisi != null}
-      />
-      <KantongCard kantong={kantong} />
+      <JepretCard wajibGps={wajibGps} terdekat={terdekat} adaPosisi={posisi != null} />
+      <KantongCard kantong={kantong} opsiLokasi={opsiLokasi} />
     </div>
   );
 }
@@ -95,18 +78,12 @@ export function FotoCepatWorkspace({
 /* ── 1. Jepret ───────────────────────────────────────────────────────────── */
 
 function JepretCard({
-  opsiLokasi,
-  locationId,
-  setLocationId,
-  dipilih,
   wajibGps,
+  terdekat,
   adaPosisi,
 }: {
-  opsiLokasi: { value: string; label: string }[];
-  locationId: string;
-  setLocationId: (v: string) => void;
-  dipilih: LokasiBerjarak | null;
   wajibGps: boolean;
+  terdekat: LokasiBerjarak | null;
   adaPosisi: boolean;
 }) {
   const [state, action, pending] = useActionState(simpanFotoCepatAction, KOSONG);
@@ -117,8 +94,8 @@ function JepretCard({
         <div>
           <h2 className="text-sm font-semibold text-ink">Jepret sekarang</h2>
           <HelpText>
-            Koordinat & jam direkam pada detik foto diambil. Item pekerjaannya dipilih belakangan —
-            tidak perlu buka laporan dulu.
+            Tidak perlu memilih apa pun. Lokasi dikenali dari koordinat fotonya sendiri; item
+            pekerjaannya menyusul belakangan.
           </HelpText>
         </div>
 
@@ -127,25 +104,18 @@ function JepretCard({
         {state.ok ? <Banner tone="success" title={state.ok} /> : null}
 
         <form action={action} className="space-y-3">
-          <div>
-            <Label htmlFor="fc-lokasi">Lokasi</Label>
-            <Combobox
-              id="fc-lokasi"
-              name="locationId"
-              value={locationId}
-              onChange={setLocationId}
-              options={opsiLokasi}
-              placeholder="Pilih lokasi…"
-              required
-            />
-            <HelpText>
-              {adaPosisi
-                ? dipilih?.jarakMeter != null
-                  ? `Urut dari yang terdekat. "${dipilih.name}" berjarak ${labelJarak(dipilih.jarakMeter)} dari posisimu — pastikan itu memang lokasi yang benar.`
-                  : "Urut dari yang terdekat. Lokasi ini belum punya titik proyek, jadi jaraknya tidak bisa dihitung."
-                : "Posisi belum terbaca — daftar masih urut nama. Izinkan akses lokasi supaya yang terdekat naik ke atas."}
-            </HelpText>
-          </div>
+          {/*
+            Petunjuk, BUKAN pilihan. Yang menentukan tetap koordinat fotonya;
+            kalimat ini cuma memberi tahu pelapor lokasi apa yang ada di dekatnya
+            supaya hasil deteksinya nanti bisa dinilai, bukan diterima buta.
+          */}
+          <p className="text-[13px] text-ink-muted">
+            {adaPosisi
+              ? terdekat?.jarakMeter != null
+                ? `Kamu ada di dekat ${terdekat.name} (${labelJarak(terdekat.jarakMeter)}). Foto yang dijepret di sini akan dikenali ke lokasi itu.`
+                : "Posisi terbaca, tapi belum ada lokasi yang punya titik proyek untuk dibandingkan."
+              : "Posisi belum terbaca. Izinkan akses lokasi — tanpa koordinat, lokasi fotonya harus dipilih manual belakangan."}
+          </p>
 
           {/*
             Satu komponen yang sama dengan unggah foto laporan: izin GPS diurus
@@ -163,12 +133,12 @@ function JepretCard({
             />
           ) : (
             <HelpText>
-              Foto tanpa koordinat tetap disimpan, tapi ditandai jelas — dan TIDAK diberi titik
-              proyek sebagai pengganti.
+              Foto tanpa koordinat tetap disimpan — tapi lokasinya tidak bisa dikenali, jadi harus
+              dipilih manual di kantong. Titik proyek TIDAK dipakai sebagai pengganti.
             </HelpText>
           )}
 
-          <Button type="submit" disabled={pending || !locationId} className="w-full sm:w-auto">
+          <Button type="submit" disabled={pending} className="w-full sm:w-auto">
             <Camera aria-hidden className="size-4" />
             {pending ? "Menyimpan…" : "Simpan ke kantong"}
           </Button>
@@ -180,7 +150,13 @@ function JepretCard({
 
 /* ── 2. Kantong + pakai ──────────────────────────────────────────────────── */
 
-function KantongCard({ kantong }: { kantong: FotoKantong[] }) {
+function KantongCard({
+  kantong,
+  opsiLokasi,
+}: {
+  kantong: FotoKantong[];
+  opsiLokasi: { value: string; label: string }[];
+}) {
   const [terpilih, setTerpilih] = useState<Set<string>>(new Set());
   const [hasil, setHasil] = useState<FotoCepatState | null>(null);
 
@@ -209,9 +185,14 @@ function KantongCard({ kantong }: { kantong: FotoKantong[] }) {
   }, [kantong, terpilih]);
   const satuLokasi = lokasiTerpilih.length === 1 ? (lokasiTerpilih[0] as string | null) : null;
 
+  // Foto yang lokasinya belum ketahuan dipisah ke atas, bukan dicampur ke
+  // daftar biasa: itu satu-satunya kelompok yang MENUNGGU tindakan, dan
+  // menyembunyikannya di tengah daftar berarti ia tidak akan pernah dikerjakan.
+  const belum = useMemo(() => kantong.filter((f) => f.locationId == null), [kantong]);
   const perLokasi = useMemo(() => {
     const m = new Map<string, FotoKantong[]>();
     for (const f of kantong) {
+      if (f.locationId == null) continue;
       const k = f.locationName;
       (m.get(k) ?? m.set(k, []).get(k)!).push(f);
     }
@@ -247,6 +228,10 @@ function KantongCard({ kantong }: { kantong: FotoKantong[] }) {
             </button>
           ) : null}
         </div>
+
+        {belum.length > 0 ? (
+          <PanelTetapkanLokasi fotos={belum} opsiLokasi={opsiLokasi} />
+        ) : null}
 
         {hasil?.error ? <Banner tone="error" title={hasil.error} /> : null}
         {hasil?.warning ? <Banner tone="warning" title={hasil.warning} /> : null}
@@ -330,6 +315,74 @@ function FotoPetak({
         </button>
       </form>
     </li>
+  );
+}
+
+/**
+ * Foto yang geotag-nya tidak cukup untuk memutuskan lokasinya.
+ *
+ * Sengaja ditempatkan PALING ATAS di kantong dan diberi nada peringatan: ini
+ * satu-satunya kelompok yang menghalangi foto dipakai, dan selama lokasinya
+ * kosong foto itu tidak terlihat oleh siapa pun selain yang memotret.
+ */
+function PanelTetapkanLokasi({
+  fotos,
+  opsiLokasi,
+}: {
+  fotos: FotoKantong[];
+  opsiLokasi: { value: string; label: string }[];
+}) {
+  const [state, action, pending] = useActionState(tetapkanLokasiAction, KOSONG);
+  const [locationId, setLocationId] = useState("");
+
+  return (
+    <div className="rounded-md border border-warning-border bg-warning-soft p-3">
+      <p className="text-sm font-semibold text-ink">
+        {fotos.length} foto belum ketahuan lokasinya
+      </p>
+      <HelpText>
+        Koordinatnya tidak ada, terlalu jauh dari semua titik proyek, atau berada di antara dua
+        lokasi yang berdekatan — sistem sengaja tidak menebak. Pilih lokasinya di sini.
+      </HelpText>
+
+      {state.error ? <Banner tone="error" title={state.error} className="mt-2" /> : null}
+      {state.warning ? <Banner tone="warning" title={state.warning} className="mt-2" /> : null}
+      {state.ok ? <Banner tone="success" title={state.ok} className="mt-2" /> : null}
+
+      <ul className="my-2 grid grid-cols-3 gap-2 sm:grid-cols-6">
+        {fotos.map((f) => (
+          <li key={f.id} className="overflow-hidden rounded-md border border-border">
+            <span className="block aspect-square bg-surface-inset">
+              {f.thumbUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={f.thumbUrl} alt="" className="size-full object-cover" loading="lazy" />
+              ) : null}
+            </span>
+            <span className="block px-1.5 py-1 text-[11px] text-ink-muted">{f.waktuLabel}</span>
+          </li>
+        ))}
+      </ul>
+
+      <form action={action} className="space-y-2">
+        {fotos.map((f) => (
+          <input key={f.id} type="hidden" name="photoIds" value={f.id} />
+        ))}
+        <div>
+          <Label htmlFor="fc-tetapkan">Lokasi untuk semua foto di atas</Label>
+          <Combobox
+            id="fc-tetapkan"
+            name="locationId"
+            value={locationId}
+            onChange={setLocationId}
+            options={opsiLokasi}
+            placeholder="Pilih lokasi…"
+          />
+        </div>
+        <Button type="submit" disabled={pending || !locationId}>
+          {pending ? "Menetapkan…" : "Tetapkan lokasi"}
+        </Button>
+      </form>
+    </div>
   );
 }
 

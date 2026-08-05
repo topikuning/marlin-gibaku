@@ -201,13 +201,34 @@ function stampSvg(w: number, h: number, s: PhotoStamp): string {
   return buildStampSvg(w, h, data, { fontFamily: STAMP_FAMILY, fontFaceCss: FONT_FACE_CSS });
 }
 
+/**
+ * Koordinat & waktu di dalam berkas foto — dipakai Foto Cepat untuk MENDETEKSI
+ * lokasi sebelum fotonya disimpan (DECISIONS 254). Diexport dari sini, bukan
+ * disalin, supaya penyaringan koordinat cacat (NaN, di luar rentang bumi) tetap
+ * satu tempat — lihat `photo-koordinat.ts`.
+ */
+export function bacaExifFoto(buffer: Buffer): {
+  takenAt: Date | null;
+  lat: number | null;
+  lng: number | null;
+} {
+  return readExif(buffer);
+}
+
 export type SavePhotoInput = {
   /**
    * Lokasi pemilik foto — SCOPE dedup (STORE-01). Foto byte-identik yang sah
    * dipakai di dua lokasi tidak boleh saling menolak; yang dicegah hanya
    * kirim ulang di lokasi yang SAMA.
+   *
+   * `null` HANYA untuk Foto Cepat yang lokasinya belum terdeteksi dari geotag
+   * (DECISIONS 254). Konsekuensinya dedup TIDAK berlaku — di Postgres NULL tidak
+   * sama dengan NULL apa pun, jadi unique (location, sha256) tidak mengikat.
+   * Itu diterima dengan sadar: menahan foto bukti demi dedup jauh lebih mahal
+   * daripada satu-dua foto kembar di kantong, dan duplikatnya tetap tertangkap
+   * begitu lokasinya ditetapkan.
    */
-  locationId: string;
+  locationId: string | null;
   /** Salah satu wajib diisi: reportId (laporan harian) ATAU activityId (kegiatan lapangan). */
   reportId?: string | null;
   reportItemId?: string | null;
@@ -268,10 +289,12 @@ export async function savePhotoForItem(input: SavePhotoInput) {
   const original = Buffer.from(await file.arrayBuffer());
   // Dedup pakai sha256 sumber ASLI (cap sama foto = tetap dianggap sama).
   const sha256 = createHash("sha256").update(original).digest("hex");
-  const existing = await db.photo.findUnique({
-    where: { locationId_sha256: { locationId: input.locationId, sha256 } },
-    select: { id: true },
-  });
+  const existing = input.locationId
+    ? await db.photo.findUnique({
+        where: { locationId_sha256: { locationId: input.locationId, sha256 } },
+        select: { id: true },
+      })
+    : null;
   if (existing) throw new PhotoError("Foto duplikat (sudah pernah diunggah di lokasi ini)");
 
   const exif = readExif(original);

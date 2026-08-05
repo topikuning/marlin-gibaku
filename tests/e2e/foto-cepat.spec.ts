@@ -23,7 +23,7 @@ test.describe("Foto Cepat", () => {
     await page.waitForURL((u) => !u.pathname.includes("/masuk"), { timeout: 30_000 });
   });
 
-  test("halaman tampil, pemilih lokasi terisi, tidak melebar", async ({ page }) => {
+  test("halaman tampil TANPA menuntut pilih lokasi, dan tidak melebar", async ({ page }) => {
     const galat: string[] = [];
     page.on("pageerror", (e) => galat.push(String(e)));
 
@@ -31,12 +31,15 @@ test.describe("Foto Cepat", () => {
     await expect(page.getByRole("heading", { name: "Foto Cepat" })).toBeVisible({ timeout: 20_000 });
     await expect(page.getByRole("heading", { name: "Jepret sekarang" })).toBeVisible();
 
-    // Pemilih lokasi WAJIB Combobox (bisa diketik-cari), bukan <select> native —
-    // aturan repo, dan di lapangan daftar lokasinya panjang.
-    await page.locator("#fc-lokasi").click();
-    await expect(page.getByRole("option").first()).toBeVisible({ timeout: 10_000 });
-    expect(await page.getByRole("option").count()).toBeGreaterThan(0);
-    await page.keyboard.press("Escape");
+    /*
+     * TIDAK ADA pemilih lokasi di langkah memotret (DECISIONS 254). Ini bukan
+     * detail tampilan: begitu ada satu isian wajib sebelum rana, seluruh alasan
+     * fitur ini ada ikut hilang. Kalau suatu saat pemilihnya kembali, uji inilah
+     * yang menahannya — layarnya sendiri akan tampak baik-baik saja.
+     */
+    await expect(page.locator("#fc-lokasi")).toHaveCount(0);
+    // Tombolnya harus langsung bisa ditekan, bukan menunggu isian apa pun.
+    await expect(page.getByRole("button", { name: /simpan ke kantong/i })).toBeEnabled();
 
     const lebar = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(lebar, "halaman melebar melewati layar ponsel").toBeLessThanOrEqual(
@@ -51,8 +54,6 @@ test.describe("Foto Cepat", () => {
     // dipatok — yang dijanjikan adalah server MENJAWAB, bukan jawaban tertentu
     // (lingkungan uji bisa punya/tidak punya penyimpanan foto).
     await page.goto("/foto-cepat", { waitUntil: "domcontentloaded" });
-    await page.locator("#fc-lokasi").click();
-    await page.getByRole("option").first().click();
     await page.getByRole("button", { name: /simpan ke kantong/i }).click();
     await expect(page.locator('[role="alert"], [role="status"]').first()).toBeVisible({
       timeout: 20_000,
