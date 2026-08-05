@@ -125,6 +125,25 @@ export default async function LokasiKeuanganPage({ params }: { params: Promise<{
     commitmentNumber: e.commitment?.number ?? null,
   }));
 
+  /*
+   * APPROVAL-FIRST (fase 5 redesign, PRD §5.5).
+   *
+   * Halaman ini mengurutkan dirinya menurut struktur data — budget, komitmen,
+   * realisasi, invoice, penagihan — bukan menurut apa yang harus DIPUTUSKAN.
+   * Bagi approver, satu-satunya alasan membuka halaman ini biasanya adalah ada
+   * yang menunggu tanda tangannya, dan itu tersebar di tiga kartu berbeda yang
+   * masing-masing harus digulir dan dibaca statusnya satu per satu.
+   *
+   * Angkanya dihitung dari baris yang SUDAH diambil di atas — tidak ada kueri
+   * tambahan, dan tidak ada formula baru: statusnya sudah ada di datanya.
+   */
+  const menungguKomitmen = commitments.filter((c) => c.status === "diajukan");
+  const menungguBiaya = expenses.filter((e) => e.status === "diajukan");
+  const nilaiMenunggu =
+    menungguKomitmen.reduce((t, c) => t + c.amount, 0n) +
+    menungguBiaya.reduce((t, e) => t + e.amount, 0n);
+  const jumlahMenunggu = menungguKomitmen.length + menungguBiaya.length;
+
   const invoiceRows: InvoiceRowUI[] = invoices.map((i) => ({
     id: i.id,
     number: i.number,
@@ -158,6 +177,57 @@ export default async function LokasiKeuanganPage({ params }: { params: Promise<{
         description={location.province}
         breadcrumb={[{ label: "Keuangan", href: "/pengendalian/keuangan" }, { label: location.name }]}
       />
+
+      {/*
+       * Ditaruh SEBELUM KPI dan seluruh kartu lain: yang menunggu keputusan
+       * adalah satu-satunya hal di halaman ini yang berhenti bergerak sampai
+       * seseorang bertindak. KPI menjelaskan keadaan; ini meminta tindakan.
+       */}
+      {jumlahMenunggu > 0 ? (
+        <Card className="border-warning-border">
+          <CardHeader
+            title={
+              canApprove
+                ? `Menunggu keputusan Anda (${jumlahMenunggu})`
+                : `Menunggu persetujuan (${jumlahMenunggu})`
+            }
+            subtitle={
+              canApprove
+                ? `Total ${formatRupiah(nilaiMenunggu)} tertahan sampai diputuskan. Persetujuannya ada di kartu masing-masing di bawah.`
+                : // Jangan menyuruh orang menekan tombol yang tidak akan muncul
+                  // untuknya — itu membuat halaman terasa rusak, bukan terbatas.
+                  `Total ${formatRupiah(nilaiMenunggu)} menunggu approver. Anda bisa melihatnya, tetapi tidak menyetujuinya.`
+            }
+          />
+          <CardBody>
+            <ul className="space-y-1.5 text-sm">
+              {menungguKomitmen.length > 0 ? (
+                <li className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-ink">
+                    {menungguKomitmen.length} komitmen (PO / kontrak vendor / kasbon)
+                  </span>
+                  <span className="tabular text-ink-muted">
+                    {formatRupiah(menungguKomitmen.reduce((t, c) => t + c.amount, 0n))}
+                  </span>
+                </li>
+              ) : null}
+              {menungguBiaya.length > 0 ? (
+                <li className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-ink">{menungguBiaya.length} realisasi biaya</span>
+                  <span className="tabular text-ink-muted">
+                    {formatRupiah(menungguBiaya.reduce((t, e) => t + e.amount, 0n))}
+                  </span>
+                </li>
+              ) : null}
+            </ul>
+            <p className="mt-2 text-[13px] text-ink-muted">
+              Komitmen yang belum disetujui <strong className="font-medium text-ink">belum</strong>{" "}
+              mengikat available budget, dan biaya yang belum disetujui belum masuk serapan — jadi
+              angka di atas belum tercermin di KPI mana pun.
+            </p>
+          </CardBody>
+        </Card>
+      ) : null}
 
       <section className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6" aria-label="Ringkasan keuangan lokasi">
         <KpiCard label="Budget" value={formatRupiahShort(budgetTotal)} />

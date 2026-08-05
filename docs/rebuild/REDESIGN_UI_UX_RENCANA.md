@@ -124,8 +124,12 @@ pada record yang sama, kewajiban "Lengkapi KKP" tetap di Site Manager.
 
 ## Fase 5 — Paket, Progress portfolio, Keuangan portfolio, Dokumen
 
-- Keuangan **approval-first**: antrean keputusan dulu, input lewat drawer —
-  bukan form permanen menumpuk di layar monitoring.
+- ◐ Keuangan **approval-first**: ✅ panel "Menunggu keputusan Anda" kini tampil
+  di PALING ATAS halaman keuangan lokasi, sebelum KPI — yang menunggu keputusan
+  adalah satu-satunya hal di halaman itu yang berhenti bergerak sampai
+  seseorang bertindak, sementara KPI hanya menjelaskan keadaan. Panelnya juga
+  menyebut bahwa nilai yang menunggu BELUM tercermin di KPI mana pun.
+  ❌ Belum: input lewat drawer (form-nya masih permanen di tiap kartu).
 - Dokumen **list-first**: milestone/kepatuhan → dokumen → status → expiry →
   requirement yang kurang; unggah lewat drawer, versi lama tidak ditimpa.
 - Tab **Keuangan Paket** (gap P0 PRD): kontrak → alokasi lokasi → komitmen →
