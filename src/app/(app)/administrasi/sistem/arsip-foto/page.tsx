@@ -71,6 +71,9 @@ export default async function ArsipFotoPage() {
   return (
     <div className="space-y-4">
       <PageHeader
+        // Halaman DALAM di bawah tab Sistem — remah rotinya menyebut jalan
+        // pulang, karena tab Administrasi di atas tidak menyorot halaman ini.
+        breadcrumb={[{ label: "Sistem", href: "/administrasi/sistem" }, { label: "Arsip Foto Asli" }]}
         title="Arsip Foto Asli"
         description="Berkas asli tanpa cap — dipakai bila cap foto perlu diperbaiki. Tidak pernah dihapus otomatis."
       />

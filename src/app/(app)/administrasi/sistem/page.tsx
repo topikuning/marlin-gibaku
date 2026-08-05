@@ -24,7 +24,8 @@ import { listPrompts } from "@/lib/ai/prompts";
 import { PromptPanel } from "./prompt-panel";
 import { PengingatPanel } from "./pengingat-panel";
 import { pratinjauPengingat } from "@/lib/harian/pratinjau";
-import { CAPABILITIES, ROLE_CAPABILITIES, ROLE_LABEL, ALL_ROLES, type Capability } from "@/lib/authz";
+import { CAPABILITIES, ROLE_CAPABILITIES, ROLE_LABEL, ALL_ROLES } from "@/lib/authz";
+import { KELOMPOK_KEMAMPUAN, KEMAMPUAN_LABEL } from "@/lib/authz-ringkas";
 import type { UserRole } from "@/generated/prisma/enums";
 import {
   R2TestPanel,
@@ -104,16 +105,19 @@ function IntegrationHeader({
   );
 }
 
-/** Kelompok kapabilitas untuk matriks hak akses (read-only). */
-const CAPABILITY_GROUPS: { title: string; match: (c: Capability) => boolean }[] = [
-  { title: "Portofolio & Paket", match: (c) => /^(portfolio|package|prospect|contract|amendment)\./.test(c) },
-  {
-    title: "Lokasi & Pelaksanaan",
-    match: (c) => /^(location|rab|baseline|weekly_plan|daily_report|field_activity|progress|issue)\./.test(c),
-  },
-  { title: "Keuangan & Dokumen", match: (c) => /^(finance|document|compliance|report)\./.test(c) },
-  { title: "Sistem & Akses", match: (c) => /^(wa|user|system|audit)\./.test(c) },
-];
+/*
+ * Pengelompokan kapabilitas dipakai bersama halaman Pengguna
+ * (`src/lib/authz-ringkas.ts`), bukan didefinisikan ulang di sini.
+ *
+ * Versi sebelumnya mencocokkan prefiks dengan REGEX, dan kapabilitas yang tidak
+ * cocok grup mana pun langsung HILANG dari tabel tanpa jejak: `photo.restamp`,
+ * `photo.archive_purge`, `contact.view_all`, dan seluruh enam `ai.*` — sembilan
+ * kapabilitas — tidak pernah muncul di halaman yang subjudulnya sendiri berbunyi
+ * "sumber: src/lib/authz.ts". Tabel yang tampak lengkap padahal bolong lebih
+ * buruk daripada tidak ada tabel. Kini daftarnya dijaga
+ * `tests/unit/authz-ringkas.test.ts`: kapabilitas baru tanpa kelompok
+ * menggagalkan uji, bukan menghilang diam-diam.
+ */
 
 /* ── halaman ─────────────────────────────────────────────────────────────── */
 
@@ -374,7 +378,7 @@ export default async function SistemPage() {
       <Card>
         <CardHeader
           title="Hak Akses per Peran"
-          subtitle="Matriks kapabilitas (read-only) — sumber: src/lib/authz.ts"
+          subtitle={`Matriks kapabilitas (read-only) — ${CAPABILITIES.length} kapabilitas, sumber: src/lib/authz.ts`}
         />
         <CardBody>
           <div className="overflow-x-auto">
@@ -390,21 +394,26 @@ export default async function SistemPage() {
                 </tr>
               </thead>
               <tbody>
-                {CAPABILITY_GROUPS.map((group) => {
-                  const caps = CAPABILITIES.filter(group.match);
+                {KELOMPOK_KEMAMPUAN.map((group) => {
                   return (
-                    <Fragment key={group.title}>
+                    <Fragment key={group.key}>
                       <tr className="bg-surface-inset">
                         <td
                           colSpan={ALL_ROLES.length + 1}
                           className="px-2 py-1.5 text-xs font-semibold text-ink-muted"
                         >
-                          {group.title}
+                          {group.nama} — <span className="font-normal">{group.arti}</span>
                         </td>
                       </tr>
-                      {caps.map((cap) => (
+                      {group.kemampuan.map((cap) => (
                         <tr key={cap} className="border-b border-border">
-                          <td className="py-1.5 pr-3 font-mono text-[13px]">{cap}</td>
+                          {/* Nama teknisnya tetap ditampilkan — halaman ini
+                              dibaca saat menelusuri penolakan otorisasi, dan
+                              yang tertulis di log adalah nama itu. */}
+                          <td className="py-1.5 pr-3">
+                            <span className="block text-[13px] text-ink">{KEMAMPUAN_LABEL[cap]}</span>
+                            <span className="block font-mono text-[11px] text-ink-faint">{cap}</span>
+                          </td>
                           {ALL_ROLES.map((role) => (
                             <td key={role} className="px-2 py-1.5 text-center">
                               {ROLE_CAPABILITIES[role].has(cap) ? (

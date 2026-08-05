@@ -6,6 +6,7 @@ import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can, creatableRoles, ROLE_LABEL } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { UserForm, UsersTable } from "./pengguna-client";
+import { KebijakanAkun, MatriksPeran } from "./matriks-peran";
 
 export const metadata: Metadata = { title: "Pengguna" };
 export const dynamic = "force-dynamic";
@@ -98,17 +99,30 @@ export default async function PenggunaPage() {
             />
           </CardBody>
         </Card>
-        <Card>
-          <CardHeader title="Pengguna baru" />
-          <CardBody>
-            {allowedRoles.length === 0 ? (
-              <p className="text-sm text-ink-muted">Anda tidak berwenang membuat pengguna.</p>
-            ) : (
-              <UserForm locations={locationOptions} roles={allowedRoles} />
-            )}
-          </CardBody>
-        </Card>
+        <div className="min-w-0 space-y-6">
+          <Card>
+            <CardHeader title="Pengguna baru" />
+            <CardBody>
+              {allowedRoles.length === 0 ? (
+                <p className="text-sm text-ink-muted">Anda tidak berwenang membuat pengguna.</p>
+              ) : (
+                <UserForm locations={locationOptions} roles={allowedRoles} />
+              )}
+            </CardBody>
+          </Card>
+          {/* Aturannya dibaca di sebelah formulirnya, bukan di halaman bantuan
+              terpisah yang tidak akan pernah dibuka. */}
+          <KebijakanAkun actorRole={user.role} />
+        </div>
       </div>
+      {/*
+       * Matriks peran ditaruh SESUDAH daftar & formulir: ia menjawab pertanyaan
+       * yang muncul saat memilih peran ("kalau saya beri peran ini, dia bisa
+       * apa?"), jadi tempatnya di jalur baca yang sama — bukan di halaman lain.
+       * Baris peran yang boleh dibuat akun ini disorot supaya pilihan di
+       * formulir dan barisnya di tabel terbaca sebagai satu hal.
+       */}
+      <MatriksPeran highlight={allowedRoles} />
     </div>
   );
 }

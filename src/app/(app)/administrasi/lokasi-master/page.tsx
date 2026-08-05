@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { Card, CardBody, CardHeader, KpiCard, PageHeader, StatusPill } from "@/components/ui";
+import { ButtonLink, Card, CardBody, CardHeader, KpiCard, StatusPill } from "@/components/ui";
 import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
@@ -46,19 +45,21 @@ export default async function KatalogPage() {
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        breadcrumb={[{ label: "Paket", href: "/proyek/paket" }, { label: "Katalog Lokasi" }]}
-        title="Katalog Lokasi (Master)"
-        description="Daftar lokasi belum berpaket yang bisa dipetakan ke proyek lewat jalur cepat (bypass). Impor batch dari file Excel."
-        actions={
-          <Link
-            href="/proyek/paket/bypass"
-            className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-white hover:bg-primary-800"
-          >
-            Buat Proyek (Bypass)
-          </Link>
-        }
-      />
+      {/*
+       * TANPA `PageHeader` sendiri: halaman ini sebuah TAB di bawah layout
+       * Administrasi yang sudah memasang kepala halaman. Sesudah `/paket/katalog`
+       * pindah ke sini (DECISIONS 252) kepala lamanya jadi kepala KEDUA yang
+       * menumpuk — lengkap dengan remah roti "Paket" yang menunjuk ke keluarga
+       * route tempat halaman ini sudah tidak berada lagi.
+       */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <p className="max-w-2xl text-sm text-ink-muted">
+          Daftar lokasi belum berpaket yang bisa dipetakan ke proyek lewat jalur cepat (bypass).
+          Impor batch dari file Excel; entri yang sudah terpakai tetap ditampilkan agar terlihat ke
+          mana perginya.
+        </p>
+        <ButtonLink href="/proyek/paket/bypass">Buat Proyek (Bypass)</ButtonLink>
+      </div>
 
       <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <KpiCard label="Total katalog" value={total} />

@@ -126,10 +126,41 @@ Lifecycle: Draft → In Review → Approved → Frozen → Distributed. Satu str
 report jadi sumber untuk layar, PDF, Excel, dan WhatsApp — **tidak pernah empat
 sumber angka berbeda**.
 
-## Fase 7 — Administrasi, sistem, audit, pola state menyeluruh
+## Fase 7 — Administrasi, sistem, audit, pola state menyeluruh ◐ BERJALAN
 
 Termasuk QA aksesibilitas dan kelengkapan state (loading/empty/error/denied/
 offline/partial) di seluruh halaman.
+
+Sudah dikerjakan:
+
+- ✅ **Matriks peran → kemampuan inti** di `/administrasi/pengguna`. 49
+  capability dikelompokkan jadi 10 kemampuan berbahasa Indonesia
+  (`src/lib/authz-ringkas.ts`), dihitung dari `ROLE_CAPABILITIES` — bukan
+  ditulis tangan seperti mock desain, yang isinya sudah tidak cocok dengan
+  `authz.ts`. Tiap sel menyebut penuh / n-per-N / tidak ada, dengan rincian
+  kemampuan pada hover.
+- ✅ **Kebijakan akun** ditulis di sebelah formulir pembuatan akun: tanpa
+  self-register, reset password ⇒ alur ganti password, nonaktifkan ≠ hapus,
+  penugasan menentukan cakupan data, dan peran apa saja yang boleh dibuat akun
+  ini. (Sumber: layar "09 Administrasi & Sistem" + PRD "Administrasi harus
+  menyatakan dampak dan izin setiap aksi".)
+- ✅ **Bug matriks Sistem diperbaiki**: `/administrasi/sistem` mengelompokkan
+  capability lewat regex prefiks, dan sembilan capability yang tidak cocok grup
+  mana pun (`photo.restamp`, `photo.archive_purge`, `contact.view_all`, dan
+  seluruh enam `ai.*`) HILANG dari tabel yang subjudulnya berbunyi "sumber:
+  src/lib/authz.ts". Kini memakai kelompok yang sama dengan halaman Pengguna,
+  dijaga `tests/unit/authz-ringkas.test.ts`.
+- ✅ **Kepala halaman ganda** di `/administrasi/lokasi-master` dihapus — sesudah
+  `/paket/katalog` pindah (DECISIONS 252) halaman itu memasang `PageHeader`
+  kedua lengkap dengan remah roti "Paket" yang sudah salah. Sub-halaman
+  `sistem/arsip-foto` justru DIBERI remah roti, karena ia memang halaman dalam.
+- ✅ **Identitas organisasi** di `/administrasi/perusahaan`: halaman bernama
+  "Perusahaan" tapi hanya memuat vendor. Kini menyebut organisasi pemakai
+  MARLIN beserta isinya (paket, akun, vendor, katalog lokasi) dan menegaskan
+  pemisahan organisasi vs vendor.
+
+Belum: audit log dengan alasan tercatat sebagai penelusuran (bukan daftar
+mentah), dan sapuan state kosong/gagal per halaman.
 
 ---
 
