@@ -379,3 +379,100 @@ describe("slimRabWorkbook: file raksasa multi-sheet + defined names → ramping 
     expect(parsed.total).toBe(1_000_000);
   });
 });
+
+/**
+ * BARIS REKAP TANPA SPASI & KODE KATEGORI BERTITIK (DECISIONS 252).
+ *
+ * Keluhan user 2026-08-05: *"masalah parser rab mu, ada yang aneh, jumlahnya
+ * selalu tidak cocok di beberapa kategori/bangunan"* — dengan tabel negosiasi
+ * Batu Putih NTB sebagai pembanding. PEKERJAAN REVETMENT terbaca 131.395.859
+ * padahal kontraknya 65.697.930 (tepat dua kali lipat), dan TANGKI AIR terbaca
+ * 774.193.096 padahal 452.954.093.
+ *
+ * Penyebabnya baris rekap yang lolos dari penyaring, lalu ikut dijumlahkan DI
+ * ATAS rinciannya sendiri. Cacat seperti ini tidak menerbitkan galat apa pun —
+ * RAB tetap terimpor rapi, hanya angkanya lebih besar — jadi satu-satunya yang
+ * bisa menahannya kembali adalah uji yang menyatakan bentuk barisnya.
+ */
+describe("baris rekap: kata kunci menempel ke huruf berikutnya", () => {
+  it('"JUMLAHPEK. :" (spasi hilang) TIDAK ikut dihitung', async () => {
+    // Bentuk asli baris 113 template KKP NTB. Dulu `\b` sesudah "jumlah" tidak
+    // pernah cocok karena huruf "P" menempel, sehingga 900 dihitung dua kali.
+    const { parsed } = await parseHpsBuffer(
+      await xlsxFromRows([
+        ["II", "PEKERJAAN REVETMENT", null, null, null, null, null, null, null],
+        ["1", "Galian tanah", null, null, 1, "m3", 400, 400, 1],
+        ["2", "Batu kosong", null, null, 1, "m3", 500, 500, 1],
+        ["", "JUMLAHPEK.  :", null, null, null, null, null, 900, null],
+      ]),
+    );
+    expect(Math.round(parsed.categories[0].total_value)).toBe(900);
+  });
+
+  it('"JUMLAHPENGEBORAN :" dan "JUMLAHPENERANGAN TIANG T=7m  :" juga', async () => {
+    // Dua varian lain yang nyata di berkas yang sama; ketiganya harus tertangkap
+    // oleh SATU aturan, bukan didaftar satu per satu.
+    const { parsed } = await parseHpsBuffer(
+      await xlsxFromRows([
+        ["VI", "PEKERJAAN TANGKI AIR", null, null, null, null, null, null, null],
+        ["1", "Pengeboran", null, null, 1, "ls", 700, 700, 1],
+        ["", "JUMLAHPENGEBORAN :", null, null, null, null, null, 700, null],
+        ["VII", "PEKERJAAN PENERANGAN", null, null, null, null, null, null, null],
+        ["1", "Tiang lampu", null, null, 1, "ls", 300, 300, 1],
+        ["", "JUMLAHPENERANGAN TIANG T=7m  :", null, null, null, null, null, 300, null],
+      ]),
+    );
+    expect(Math.round(parsed.categories[0].total_value)).toBe(700);
+    expect(Math.round(parsed.categories[1].total_value)).toBe(300);
+  });
+
+  it("butir pekerjaan BERKODE yang namanya diawali kata rekap TIDAK dibuang", async () => {
+    // Sisi sebaliknya, dan sama pentingnya: "Total Station" adalah alat ukur yang
+    // wajar muncul di PEKERJAAN PERSIAPAN. Menentukan rekap dari nama saja
+    // membuatnya lenyap tanpa suara — nilai kontrak jadi KURANG, tanpa galat.
+    // Karena itu rekap = nama berkata-kunci DAN kolom kode kosong.
+    const { parsed } = await parseHpsBuffer(
+      await xlsxFromRows([
+        ["I", "PEKERJAAN PERSIAPAN", null, null, null, null, null, null, null],
+        ["1", "Total Station (sewa alat ukur)", null, null, 1, "unit", 5000, 5000, 1],
+        ["2", "Jumlah Titik Bantu Survei", null, null, 2, "ttk", 100, 200, 1],
+        ["", "JUMLAH :", null, null, null, null, null, 5200, null],
+      ]),
+    );
+    expect(Math.round(parsed.categories[0].total_value)).toBe(5200);
+    expect(isSummaryRow("Total Station (sewa alat ukur)", "1")).toBe(false);
+    expect(isSummaryRow("JUMLAH :", "")).toBe(true);
+  });
+
+  it("baris berkode yang menyerupai rekap DISEBUT di peringatan, tidak diam-diam", async () => {
+    const { warnings } = await parseHpsBuffer(
+      await xlsxFromRows([
+        ["I", "PEKERJAAN PERSIAPAN", null, null, null, null, null, null, null],
+        ["1", "Total Station (sewa alat ukur)", null, null, 1, "unit", 5000, 5000, 1],
+      ]),
+    );
+    expect(warnings.some((w) => /Total Station/.test(w))).toBe(true);
+  });
+});
+
+describe("kode kategori dengan titik di ujung (IV., VII.)", () => {
+  it("dikenali sebagai kategori — judulnya TIDAK hilang", async () => {
+    // Berkas KKP memakai dua gaya dalam satu file: "III" dan "IV.". Dulu yang
+    // bertitik dibuang, judulnya ikut hilang, lalu sub-kodenya memicu kategori
+    // sisipan "judul tidak ada di file" — padahal judulnya ada.
+    const { parsed, warnings } = await parseHpsBuffer(
+      await xlsxFromRows([
+        ["III", "PEKERJAAN SHELTER", null, null, null, null, null, null, null],
+        ["1", "Item III", null, null, 1, "ls", 100, 100, 1],
+        ["IV.", "PEKERJAAN PONDASI PABRIK ES PORTABLE", null, null, null, null, null, null, null],
+        ["IV.1", "Pekerjaan Struktural", null, null, null, null, null, null, null],
+        ["1", "Item IV", null, null, 1, "ls", 900, 900, 1],
+      ]),
+    );
+    expect(parsed.categories.map((c) => c.roman)).toEqual(["III", "IV"]);
+    expect(parsed.categories[1].name).toBe("PEKERJAAN PONDASI PABRIK ES PORTABLE");
+    expect(warnings.some((w) => /judul tidak ada/i.test(w))).toBe(false);
+    expect(Math.round(parsed.categories[0].total_value)).toBe(100);
+    expect(Math.round(parsed.categories[1].total_value)).toBe(900);
+  });
+});

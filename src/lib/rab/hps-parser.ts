@@ -62,8 +62,23 @@ function num(v: unknown): number | null {
   const n = typeof v === "number" ? v : Number(String(v).replace(/[^\d.-]/g, ""));
   return Number.isFinite(n) ? n : null;
 }
+/**
+ * Kode romawi kategori — titik di ujung DIABAIKAN.
+ *
+ * File KKP menulis kategori dua gaya dalam satu berkas yang sama: "IV" dan
+ * "IV.". Dulu yang bertitik tidak dikenali, jadi barisnya (berikut JUDULNYA)
+ * dibuang, lalu sub-kode "IV.1" di bawahnya memicu kategori sisipan berlabel
+ * "judul tidak ada di file" — padahal judulnya ADA, cuma satu titik di
+ * belakang kodenya. Di Batu Putih itu terjadi pada PEKERJAAN PONDASI PABRIK ES
+ * PORTABLE dan PEKERJAAN PENERANGAN KAWASAN. DECISIONS 252.
+ */
 export function isRoman(s: string): boolean {
-  return s.length > 0 && ROMAN.test(s);
+  const t = s.replace(/\.$/, "");
+  return t.length > 0 && ROMAN.test(t);
+}
+/** Kode kategori tanpa titik ujung — dipakai sebagai identitas kategori. */
+export function romanCode(s: string): string {
+  return s.replace(/\.$/, "");
 }
 
 /** Klasifikasi baris berdasarkan pola kode + nama — diexport untuk testability. */
@@ -78,9 +93,38 @@ export function classifyRow(code: string, name: string): RowKind {
   return "other";
 }
 
-/** Baris rekap ("JUMLAH", "SUB TOTAL", …) — tidak masuk pohon. */
-export function isSummaryRow(name: string): boolean {
-  return /^(jumlah|sub\s*total|total|grand\s*total|rekapitulasi)\b/i.test(name);
+/** Kata pembuka baris rekap. Sengaja TANPA `\b` di ujung — lihat isSummaryRow. */
+const SUMMARY_PREFIX = /^(jumlah|sub\s*total|subtotal|total|grand\s*total|rekapitulasi)/i;
+
+/**
+ * Baris rekap ("JUMLAH", "SUB TOTAL", …) — tidak masuk pohon.
+ *
+ * DUA hal yang salah sebelum DECISIONS 252, keduanya membuat subtotal
+ * TERHITUNG SEBAGAI PEKERJAAN sehingga kategorinya menggelembung:
+ *
+ * 1. Pola lama diakhiri `\b`. Batas-kata baru terpenuhi kalau sesudah kata
+ *    kuncinya ADA yang bukan huruf. Template KKP NTB memuat spasi yang hilang
+ *    — "JUMLAHPEK. :", "JUMLAHPENGEBORAN :", "JUMLAHPENERANGAN TIANG T=7m :" —
+ *    sehingga ketiganya lolos dan nilainya dijumlahkan lagi di atas rinciannya.
+ *    Di Batu Putih itu menggandakan PEKERJAAN REVETMENT (65,7 jt → 131,4 jt),
+ *    menambah 321,2 jt ke TANGKI AIR, dan 73,5 jt ke PENERANGAN. Salah ketik di
+ *    Excel memang, tapi angkanya keluar dari sistem kita, jadi ini cacat kita.
+ *
+ * 2. Penentuannya HANYA dari nama. Artinya butir pekerjaan yang namanya kebetulan
+ *    diawali kata itu — "Total Station" (alat ukur) yang wajar muncul di
+ *    PEKERJAAN PERSIAPAN — ikut dibuang tanpa suara, dan nilai kontrak jadi
+ *    KURANG. Tidak ada galat, tidak ada peringatan; barisnya sekadar lenyap.
+ *
+ * Karena itu rekap sekarang ditentukan dari BENTUK barisnya, bukan namanya saja:
+ * nama diawali kata kunci DAN kolom kode KOSONG. Dicek pada 8 berkas HPS/RAB
+ * nyata: 155 baris rekap, SEMUANYA berkode kosong; dan tidak ada satu pun butir
+ * pekerjaan berkode yang namanya diawali kata kunci itu.
+ *
+ * Baris berkode yang namanya menyerupai rekap tidak dibuang diam-diam — parser
+ * menerbitkan peringatan supaya keputusannya terlihat, bukan ditebak.
+ */
+export function isSummaryRow(name: string, code = ""): boolean {
+  return SUMMARY_PREFIX.test(name.trim()) && code.trim() === "";
 }
 
 /** Peta kolom nilai (1-indexed) hasil deteksi header. */
@@ -437,11 +481,18 @@ export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
     if (!code && !name) return;
 
     // Baris rekap/subtotal ("JUMLAH", "SUB TOTAL", "TOTAL", dll) — JANGAN masuk pohon.
-    if (isSummaryRow(name)) return;
+    if (isSummaryRow(name, code)) return;
+    // Berkode TAPI bernama seperti rekap: diperlakukan sebagai pekerjaan biasa.
+    // Disebutkan supaya keputusannya terlihat — kalau ternyata ini memang baris
+    // rekap yang kebetulan berkode, penggelembungannya ketahuan sejak pratinjau.
+    if (SUMMARY_PREFIX.test(name.trim()))
+      warnings.push(
+        `Baris ${row.number} "${name}" berkode "${code}" — namanya menyerupai baris rekap, tapi karena berkode ia DIHITUNG sebagai pekerjaan. Periksa bila totalnya terasa berlebih.`,
+      );
 
     // Kategori (roman + nama diawali "PEKERJAAN")
     if (isRoman(code) && /^PEKERJAAN/i.test(name)) {
-      cat = { roman: code, name, total_value: 0, subcategories: [], direct_items: [] };
+      cat = { roman: romanCode(code), name, total_value: 0, subcategories: [], direct_items: [] };
       categories.push(cat);
       sub = null;
       itemL1 = null;
