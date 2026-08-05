@@ -152,11 +152,21 @@ function DaftarKartu<T>({
 }) {
   const [batas, setBatas] = useState(30);
   if (rows.length === 0) {
-    return <p className="py-6 text-center text-sm text-ink-muted">{emptyText ?? "Tidak ada data"}</p>;
+    // Penanda yang SAMA dipasang di keadaan kosong: tanpa itu, uji yang
+    // menunggu daftar akan menggantung justru pada kasus "tidak ada data" —
+    // gagal karena datanya kosong, tapi melapor seolah halamannya rusak.
+    return (
+      <p data-uji="kartu-daftar" className="py-6 text-center text-sm text-ink-muted">
+        {emptyText ?? "Tidak ada data"}
+      </p>
+    );
   }
   const tampil = rows.slice(0, batas);
   return (
-    <div className="space-y-2">
+    // `data-uji`: uji E2E perlu satu penanda yang mengatakan "daftarnya sudah
+    // dirender" tanpa bergantung pada kelas AG Grid, yang justru TIDAK ada
+    // dalam bentuk kartu.
+    <div className="space-y-2" data-uji="kartu-daftar">
       {tampil.map((row, i) => {
         const k = kartu(row);
         const isi = (

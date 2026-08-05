@@ -36,7 +36,7 @@ dan fase 2 adalah yang berdampak terbesar bagi pengguna sesungguhnya.
    dan keuangan portofolio). Diberikan per-pemakaian karena hanya pemakainya
    yang tahu tiga-empat hal penting dari dua belas kolomnya; tanpa prop itu
    gridnya tampil apa adanya, jadi tidak ada halaman yang berubah tanpa
-   diminta.
+   diminta. DECISIONS 258.
 
 ---
 

@@ -75,17 +75,31 @@ test.describe("kontrol form ≥16px di ponsel", () => {
 
     await page.goto("/proyek/lokasi", { waitUntil: "domcontentloaded" });
     /*
-     * TUNGGU GRID SIAP dulu. AG Grid menggambar panel paginasi (berikut kotak
-     * nomor halamannya) SESUDAH mount, jadi mengukur tepat setelah `goto`
-     * berarti mengukur halaman yang kontrolnya belum semua ada — dan uji ini
-     * lulus bukan karena aman, melainkan karena belum melihat.
+     * TUNGGU DAFTARNYA SIAP dulu — apa pun bentuknya.
      *
-     * Persis itu yang terjadi: di mesin lokal uji ini lulus, sementara CI
-     * menangkap kotak nomor halaman AG Grid pada 13px. Menunggu grid membuat
-     * hasilnya sama di mana pun dijalankan.
+     * Aslinya di sini menunggu `.ag-root-wrapper` + `.ag-paging-panel`, karena
+     * AG Grid menggambar panel paginasi (berikut kotak nomor halamannya)
+     * SESUDAH mount: mengukur tepat setelah `goto` berarti mengukur halaman
+     * yang kontrolnya belum semua ada, dan uji lulus bukan karena aman
+     * melainkan karena belum melihat. Persis itu yang dulu terjadi — lokal
+     * hijau, CI menangkap kotak nomor halaman AG Grid pada 13px.
+     *
+     * Sejak daftar ini jadi KARTU di bawah 1024px (DECISIONS 258), di lebar
+     * ponsel AG Grid memang tidak dirender sama sekali, jadi menunggunya
+     * berarti menunggu selamanya. Yang ditunggu sekarang: mana pun yang muncul.
+     * Kotak "Cari..." milik toolbar tetap ada di kedua bentuk, dan itulah
+     * kontrol yang paling sering diketuk di halaman ini.
      */
-    await page.locator(".ag-root-wrapper").first().waitFor({ state: "visible", timeout: 30_000 });
-    await page.locator(".ag-paging-panel").first().waitFor({ state: "visible", timeout: 30_000 });
+    await Promise.race([
+      page.locator("[data-uji='kartu-daftar']").first().waitFor({ state: "visible", timeout: 30_000 }),
+      page.locator(".ag-root-wrapper").first().waitFor({ state: "visible", timeout: 30_000 }),
+    ]);
+    // Panel paginasi hanya ada pada bentuk grid; tunggu bila memang dirender.
+    await page
+      .locator(".ag-paging-panel")
+      .first()
+      .waitFor({ state: "visible", timeout: 5_000 })
+      .catch(() => {});
     const kontrol = await ukurFont(page);
     test.skip(kontrol.length === 0, "tidak ada kontrol form di halaman ini");
     expect(laporkan(kontrol), "Kontrol di bawah 16px memicu zoom Safari iOS:").toBe("");

@@ -9153,3 +9153,52 @@ menempel di tab pertama. Sengaja prop, BUKAN `useSearchParams()` di dalam
 memaksa semuanya ikut menanggung syarat render dinamis demi kebutuhan satu
 halaman. Yang tahu mode aktif adalah halamannya sendiri, dan ia sudah
 membacanya di server.
+
+---
+
+## 258 — Tabel jadi KARTU di bawah 1024px (2026-08-05)
+
+"Mobile bukan desktop yang dikecilkan" (Master Prompt §5). Di bawah 1024px tabel
+berkolom banyak berhenti jadi tabel: isinya digeser ke samping satu layar demi
+satu layar, dan membandingkan dua baris berarti mengingat kolom yang sudah
+keluar layar. Mandor dan Site Manager membuka daftar ini dari ponsel.
+
+Prop `kartu` pada `MarlinGrid`, diberikan **per-pemakaian** — hanya pemakainya
+yang tahu tiga sampai empat hal yang benar-benar penting dari dua belas
+kolomnya. Tanpa prop itu gridnya tampil apa adanya, jadi tidak ada halaman yang
+berubah tanpa diminta.
+
+Yang dipilih tiap daftar, dan yang sengaja DIBUANG:
+
+- **Lokasi**: status, rencana, realisasi, deviasi. Nilai RAB tidak ikut — angka
+  sembilan digit memakan lebar yang lebih berguna untuk deviasi.
+- **Paket**: tahap, nilai HPS, jumlah lokasi. Penanda WA/Drive tidak ikut —
+  keduanya keadaan pengaturan, bukan alasan membuka paket dari ponsel.
+- **Keuangan portofolio**: pagu, realisasi, komitmen, sisa. Delapan kolom rupiah
+  berdampingan mustahil dibaca di ponsel.
+
+Detail yang menentukan:
+
+- `useSyncExternalStore` + `matchMedia`, potret server `false` — HTML dari server
+  selalu berupa tabel, jadi tidak ada ketidakcocokan hidrasi.
+- Mode `serverSide` DIKECUALIKAN: barisnya dimuat bertahap AG Grid, jadi tidak
+  ada `rowData` utuh; memaksakannya menampilkan daftar yang diam-diam cuma
+  memuat halaman pertama.
+- Batas render 30 kartu, dan batas itu DIKATAKAN lewat tombol "Tampilkan lebih
+  banyak" — bukan dipotong diam-diam.
+
+### Dua uji E2E ikut berubah, dan itu memang seharusnya
+
+Keduanya menunggu kelas AG Grid di lebar ponsel, tempat gridnya kini tidak
+dirender sama sekali — jadi keduanya menggantung sampai batas waktu:
+
+- `mobile-umpan-balik-navigasi`: menunggu `.ag-row` untuk menghitung titik
+  ketuk. Invarian yang sebenarnya dijaga uji itu adalah **sasaran ketuk yang
+  lebar**, bukan keberadaan `.ag-row` — dan dalam bentuk kartu seluruh kartu
+  adalah tautan, jadi invariannya justru lebih kuat. Kini diukur dari kotak
+  tautannya sendiri, sehingga berlaku untuk dua-duanya.
+- `mobile-zoom-input`: menunggu `.ag-root-wrapper` + `.ag-paging-panel` sebagai
+  tanda "halaman siap diukur" (kotak nomor halaman AG Grid pernah tertangkap
+  13px di CI). Kini menunggu mana pun yang muncul; penanda `data-uji` dipasang
+  pada daftar kartu — termasuk pada keadaan KOSONG, karena tanpa itu uji akan
+  menggantung justru saat datanya kosong lalu melapor seolah halamannya rusak.

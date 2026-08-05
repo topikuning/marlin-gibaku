@@ -176,22 +176,31 @@ test.describe("daftar lokasi: satu ketukan, satu permintaan", () => {
     await login(page);
   });
 
-  test("ketukan di baris (di luar teks tautan) membuka lokasinya", async ({ page }) => {
+  test("ketukan di luar teks tautan tetap membuka lokasinya", async ({ page }) => {
     await page.goto("/proyek/lokasi");
     const tautan = page.locator('a[href^="/proyek/lokasi/"]').first();
     await tautan.waitFor({ state: "visible", timeout: 30_000 });
+
+    /*
+     * INVARIANNYA sasaran ketuk yang lebar — BUKAN keberadaan `.ag-row`.
+     *
+     * Di ponsel daftar ini kini berupa KARTU, bukan AG Grid (DECISIONS 258),
+     * jadi menunggu `.ag-row` berarti menunggu sesuatu yang memang sudah tidak
+     * ada dan uji menggantung sampai batas waktu. Yang harus tetap benar sama
+     * seperti dulu: mengetuk BUKAN di atas teks judul tetap membuka lokasinya.
+     *
+     * Diukur dari kotak tautan itu sendiri supaya berlaku untuk dua-duanya —
+     * kartu (seluruh kartu adalah tautan) maupun baris grid di layar lebar.
+     */
     const lb = (await tautan.boundingBox())!;
-    const baris = (await page.locator(".ag-row").first().boundingBox())!;
     const lebarLayar = page.viewportSize()!.width;
 
-    // Titik ketuk WAJIB di dalam viewport. Baris grid jauh lebih lebar daripada
-    // layar ponsel, jadi titik yang dihitung dari lebar baris bisa jatuh di
-    // luar layar — ketukan ke ruang kosong lalu disalahartikan "tidak
-    // menavigasi". Cacat itu sempat terjadi saat uji ini disusun.
-    const x = Math.min(lebarLayar - 20, lb.x + lb.width + 40);
+    // Titik ketuk WAJIB di dalam viewport; kalau sasarannya selebar layar,
+    // ambil titik di dalamnya yang jelas BUKAN awal teks judul.
+    const x = Math.min(lebarLayar - 20, lb.x + lb.width - 12);
     expect(x, "titik ketuk harus terlihat di layar").toBeLessThan(lebarLayar);
 
-    await page.mouse.click(x, baris.y + baris.height / 2);
+    await page.mouse.click(x, lb.y + lb.height / 2);
     await expect(page).toHaveURL(/\/proyek\/lokasi\/[^/]+$/, { timeout: 30_000 });
   });
 
