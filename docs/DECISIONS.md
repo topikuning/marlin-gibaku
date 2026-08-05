@@ -8721,3 +8721,484 @@ data (3 Terverifikasi, 3 Perlu Koreksi, 3 Menunggu Review, 2 Draft), dan chip
 Kolom `Photo.verification` ditandai USANG di skema dan tidak lagi ditulis maupun
 dibaca. Belum di-drop karena isinya di produksi belum diperiksa — lihat
 OPEN_ISSUES.
+
+## 251 · Redesign total UI/UX — fondasi: navigasi enam grup, satu antrean tindakan, satu ambang deviasi (2026-08-04)
+
+Masukan user: PRD MARLIN (PDF) + rancangan Claude Design (13 berkas `.dc.html`
++ `MASTER_PROMPT_TOTAL_UI_UX_REDESIGN_MARLIN.md`). Keduanya meminta rombak
+menyeluruh. Ini fase pertama dari tujuh yang diurutkan rancangan desain sendiri:
+**design system & shell**, dikerjakan lebih dulu karena menyentuh seluruh layar.
+
+### Konflik antar-sumber, dan bagaimana diselesaikan
+
+PRD dan rancangan desain **tidak sepakat soal routing**:
+
+- PRD §4.1 mengusulkan keluarga route baru (`/proyek/...`, `/pengendalian/...`,
+  `/dokumen-laporan/...`, `/administrasi/...`), 55 route → ±26 keluarga.
+- Rancangan Claude Design mengaudit ulang repo dan memilih **mempertahankan URL
+  yang ada**, hanya mengelompokkan menunya, dan menambah satu route baru:
+  `/tindakan`.
+
+Yang dipakai: **PRD untuk STRUKTUR menu (enam grup), rancangan desain untuk URL
+dan tampilan.** Alasannya bukan kompromi malas — migrasi URL menyentuh 104
+berkas dan tidak bisa diverifikasi di lingkungan ini (tanpa basis data), jadi
+menjalankannya bersamaan dengan perubahan visual membuat kegagalan mana pun
+mustahil ditelusuri. Migrasi URL kanonik tetap direncanakan sebagai fase
+tersendiri; alias yang MEMANG cuma alias sudah dibereskan sekarang (di bawah).
+
+Jumlah grup: PRD menyebut enam (Beranda / Proyek / Pelaksanaan / Pengendalian /
+Dokumen & Laporan / Administrasi), rancangan desain menyebut lima (Eksekutif /
+Operasional / Pengendalian / Output & Intelligence / Administrasi). Dipakai
+**enam versi PRD**, karena PRD adalah dokumen yang user minta diakomodir penuh.
+
+### Ambang deviasi: satu aturan yang hidup di tiga tempat
+
+Ditemukan saat menyatukan warna status — bukan dilaporkan:
+
+- `DEVIATION_THRESHOLDS` di `components/ui/stat-delta.tsx` (−1 / −10),
+- konstanta lokal `KRITIS_THRESHOLD = -10` di `lib/dashboard.ts`,
+- literal yang diketik ulang di `progress/page.tsx` dan di titik warna
+  dashboard eksekutif — dan yang terakhir memakai `< 0`, bukan `< -1`.
+
+Akibatnya satu lokasi dengan deviasi −0,4 pp tampil **hijau** di tabel progress
+dan **amber** di peta, pada layar yang sama. Angka yang saling bertentangan di
+satu produk membuat keduanya berhenti dipercaya.
+
+Sekarang satu sumber: `src/lib/deviasi.ts`. **Perubahan perilaku yang
+disengaja**: zona mati 1 pp berlaku seragam, jadi selisih pembulatan tidak lagi
+mendapat bobot visual yang sama dengan lokasi yang tertinggal 9 pp. Daftar
+"perlu perhatian" di dashboard ikut memakai ambang ini, sebelumnya `< 0`.
+
+Ambang pindah dari komponen UI ke `lib/` supaya kode server tidak perlu
+mengimpor komponen React hanya untuk membaca dua angka. Nama lama
+`DEVIATION_THRESHOLDS` dipertahankan sebagai alias.
+
+### `/tindakan` — route baru (K1 pada rancangan desain, gap P0 pada PRD)
+
+"Yang harus dikerjakan" tersebar di tiga tempat yang tidak saling tahu: kartu
+exception di Beranda, antrean di Pusat Laporan, saran di hub AI. Tak satu pun
+bisa menjawab "apa yang menunggu saya, mana yang paling telat".
+
+Antrean baru menormalkan **tujuh sumber yang sudah ada** — verifikasi, koreksi,
+deviasi kritis, kendala, recovery lewat tenggat, dokumen kedaluwarsa, pengajuan
+keuangan — **tanpa tabel baru dan tanpa status sendiri**. Item hilang karena
+keadaan aslinya berubah, bukan karena ditandai sudah dibaca; antrean yang punya
+status sendiri akan cepat berselisih dengan kenyataan.
+
+Lencana lonceng memakai antrean PENUH, bukan beberapa `count()` murah yang
+melewatkan deviasi kritis: lencana yang menunjukkan 6 lalu membuka daftar
+berisi 8 membuat angkanya berhenti dipercaya.
+
+### Pencarian global (gap P0 PRD)
+
+Kotak cari lama hanya ada di Dashboard Eksekutif, hanya mencari lokasi, dan
+bekerja dengan **mengirim indeks lokasi ke klien lalu menyaringnya di memori**.
+Itu membocorkan nama objek di luar scope pengguna walaupun tidak pernah
+ditampilkan. Pencarian baru berjalan di server dengan dua lapis pagar (scope
+lokasi/paket + capability per jenis) dan tersedia di setiap halaman ber-shell.
+
+### Alias lama: 308, bukan 307
+
+`/aktivitas`, `/pengguna`, `/paket/vendor`, `/kontak-wa`, `/laporan-wa` dulu
+berupa `page.tsx` yang memanggil `redirect()` — 307 SEMENTARA, dan tetap
+terhitung sebagai route aplikasi. Itu persis keluhan PRD ("route teknis tetap
+terhitung dan membingungkan dokumentasi/bookmark"). Kini entri `redirects()` di
+`next.config.ts`, permanen, ditangani sebelum React jalan.
+
+`/aktivitas` bukan sekadar alias: ia me-render Dashboard Eksekutif yang SAMA
+dengan `/` — dua URL untuk satu produk. Komponennya pindah ke `(app)/_dashboard/`
+yang tidak menjadi route.
+
+### Yang BELUM dikerjakan (jujur, bukan tersirat)
+
+Fase 2–7 rancangan desain belum disentuh: laporan harian mobile (wizard, loop
+"Simpan & Tambah Lagi", state jaringan), peta operasional, workspace lokasi
+6 tab, keuangan approval-first, Report Studio, dan migrasi URL kanonik PRD.
+Layar-layar itu masih memakai susunan lama; yang berubah baru kerangkanya.
+
+## 252 · Migrasi ke keluarga route kanonik PRD (2026-08-04)
+
+Koreksi user atas DECISIONS 251: **"claude design itu cuma referensi layout dan
+style"**. Di 250 aku memperlakukan rancangan Claude Design sebagai ikut mengatur
+routing — karena rancangan itu mengaudit ulang repo dan memilih mempertahankan
+URL yang ada — lalu memakai URL lama dengan struktur menu PRD. Premisnya salah:
+kalau rancangan desain hanya mengatur tampilan, maka PRD berlaku PENUH atas
+arsitektur route, dan §4.1-nya harus dijalankan.
+
+### Yang dikerjakan
+
+Direktori route dipindah fisik ke keluarga kanonik:
+
+```
+/paket, /lokasi, /peta            → /proyek/…
+/hari-ini, /foto                  → /pelaksanaan, /pelaksanaan/bukti
+/progress, /keuangan, /ai         → /pengendalian/…  (ai → insight)
+/dokumen, /laporan, /chat-grup    → /dokumen-laporan/…  (chat-grup → distribusi)
+/master/*, /sistem                → /administrasi/…  (master di-flatten)
+/paket/katalog                    → /administrasi/lokasi-master
+```
+
+Seluruh URL lama tetap hidup lewat 308 permanen di `next.config.ts`. Tiap
+keluarga butuh DUA entri — akar (`/paket`) dan anak (`/paket/:path*`) — karena
+entri ber-`:path*` saja tidak mencakup akarnya, dan justru URL akar itulah yang
+paling sering di-bookmark. Yang lebih spesifik didahulukan: `/paket/katalog`
+pindah ke Administrasi, bukan ke `/proyek/paket/katalog`.
+
+### Tiga kelas rujukan, bukan satu
+
+Penulisan ulang rujukan tidak cukup satu sapuan. Ada tiga bentuk berbeda dan
+dua di antaranya baru ketahuan saat build gagal:
+
+1. **Literal path** (`href="/lokasi/…"`, `revalidatePath`, `redirect`) — 114
+   berkas. Pencocokannya wajib berbatas segmen: prefiks polos `/laporan` ikut
+   memakan `/laporan-lokasi` dan `/api/laporan/…`, dua-duanya salah.
+2. **Impor beralias** (`@/app/(app)/lokasi/[slug]/issue-labels`) — 12 berkas.
+   Tidak berawalan kutip-garis-miring, jadi lolos dari sapuan pertama.
+3. **Impor relatif lintas keluarga** (`../peta/peta-map`,
+   `../../../keuangan/finance-ui`) — 3 berkas. Kedalamannya berubah karena
+   pemindahan; diubah jadi alias `@/` supaya tidak rapuh lagi terhadap
+   pemindahan berikutnya.
+
+`.next/types/validator.ts` hasil build LAMA sempat membuat `typecheck` gagal
+dengan puluhan "cannot find module" yang menunjuk direktori yang memang sudah
+tidak ada. Itu artefak, bukan kesalahan kode — `.next` harus dihapus sesudah
+pemindahan route.
+
+### Yang BELUM: konsolidasi `?tab=` / `?view=`
+
+PRD §4.1 juga meminta state tampilan pindah ke query param —
+`/proyek?view=paket|lokasi|peta` dan
+`/proyek/lokasi/[slug]?tab=…`. Yang dikerjakan sekarang baru KELUARGA route-nya;
+sub-halaman masih berupa segmen path (`/proyek/lokasi/[slug]/rab`). Menggabung
+delapan halaman lokasi jadi satu halaman ber-`?tab=` adalah penulisan ulang
+komposisi halaman, bukan pemindahan berkas, jadi dipisah supaya kegagalannya
+bisa ditelusuri.
+
+### Verifikasi
+
+`pnpm build` bersih (manifest route menunjukkan keluarga baru, tidak ada sisa
+yang lama), `typecheck` bersih, `lint` bersih, 903 uji unit lulus. Uji E2E
+alias diperluas: 20 URL lama diperiksa mendarat di tujuan kanoniknya — termasuk
+`dari` yang sengaja ditulis sebagai URL LAMA apa adanya, karena itulah yang ada
+di bookmark pengguna.
+
+---
+
+## 253 — Perubahan skema DIIZINKAN, tapi hanya yang ADITIF (2026-08-05)
+
+**Konteks.** Sampai kemarin redesign ini berjalan di bawah aturan **nol
+perubahan database** (lihat DECISIONS 251/252 dan
+`docs/rebuild/REDESIGN_UI_UX_RENCANA.md` bagian "TERHALANG SCHEMA"). User
+mengubahnya:
+
+> "kalau kamu memang mengubah database, aku bisa membolehkan, tapi tidak boleh
+> mengganggu data lama, penambahan kolom dan tabel diijinkan. karena saat ini
+> kamu berbagi database dengan pengembangan"
+
+Dua hal penting di kalimat itu, dan yang KEDUA yang menentukan bentuk
+aturannya: databasenya **dipakai bersama** pengembangan lain yang sedang
+berjalan. Artinya migrasi di cabang ini bukan cuma urusan cabang ini — ia
+dijalankan orang lain, di atas data yang sedang mereka pakai.
+
+**Keputusan.** Migrasi hanya boleh ADITIF:
+
+- ✅ `CREATE TABLE` baru.
+- ✅ `ADD COLUMN` yang **nullable** atau punya `DEFAULT`.
+- ✅ Indeks baru, enum value baru (ditambahkan di akhir).
+- ❌ `DROP TABLE` / `DROP COLUMN` / `RENAME` apa pun.
+- ❌ Mengetatkan kolom yang sudah ada (nullable → NOT NULL, pelebaran tipe,
+  penambahan UNIQUE pada kolom berisi).
+- ❌ `UPDATE`/`DELETE` data lama — termasuk backfill "sekadar merapikan".
+  Kolom baru dimulai kosong dan diisi oleh pemakaian, bukan oleh migrasi.
+- ❌ Menghapus atau mengganti nilai enum yang sudah dipakai baris mana pun.
+
+**Alasan aturannya seketat itu.** Migrasi yang mengubah bentuk kolom atau
+menulis ulang baris tidak bisa dibatalkan dengan `git revert` — kodenya kembali,
+datanya tidak. Di database bersama, kegagalannya juga tidak menimpa penulisnya
+sendiri melainkan orang lain yang kebetulan menjalankan `migrate deploy` lebih
+dulu. Aturan aditif membuat kasus terburuk sebuah migrasi hanyalah "ada tabel
+atau kolom yang belum dipakai siapa pun" — bukan kehilangan data.
+
+**Konsekuensi.** Gap PRD yang tadinya ditandai TERHALANG SCHEMA kini boleh
+dikerjakan **sejauh rancangannya aditif**. Yang menuntut perubahan pada bentuk
+data yang sudah ada tetap tidak dikerjakan tanpa persetujuan terpisah; dan
+setiap tabel/kolom baru harus punya pemakai nyata di kode pada commit yang sama
+— skema yang ditambahkan "untuk nanti" adalah utang yang tidak pernah ditagih.
+
+---
+
+## 254 — Pusat Impor & Kualitas Data (2026-08-05)
+
+**Masalah.** MARLIN hidup dari berkas Excel: RAB/HPS, jadwal kurva-S, master
+lokasi. Tetapi hasil setiap impor hanya hidup selama satu render — parser
+mengembalikan `warnings: string[]`, sebuah banner menampilkannya, halaman
+ditutup, selesai. Yang tersisa cuma angkanya, tanpa asal-usulnya.
+
+Akibatnya tiga pertanyaan yang paling sering datang berbulan-bulan kemudian
+tidak punya jawaban sama sekali:
+
+1. angka lokasi ini datang dari berkas yang mana;
+2. siapa yang mengimpornya, kapan;
+3. baris mana yang waktu itu ditolak atau diperingatkan.
+
+Yang paling mahal adalah nomor 3. Di jalur impor RAB, `warnings` memuat dua
+peringatan paling serius yang dimiliki sistem ini — **item ber-realisasi yang
+hilang dari file baru** (progress lokasi bisa turun diam-diam) dan **harga
+satuan item kontrak lama yang bergeser** (nilai kontrak berubah tanpa ada
+pekerjaan bertambah, DECISIONS 213). Keduanya ditampilkan sekali di layar
+pratinjau lalu lenyap, padahal justru itulah yang perlu dibuka lagi saat ada
+yang mempertanyakan nilai kontrak.
+
+**Keputusan.** Dua tabel baru — `import_jobs` (satu unggahan) dan
+`import_issues` (satu masalah pada satu baris) — plus halaman
+`/administrasi/impor`. Aditif sepenuhnya, sesuai DECISIONS 253.
+
+Rincian yang menentukan:
+
+- **Berkasnya TIDAK disimpan, hanya jejaknya.** Menyimpan berkas berarti
+  keputusan retensi & privasi tersendiri; jejaknya sudah cukup menjawab ketiga
+  pertanyaan di atas. (Untuk RAB, berkas sumbernya memang sudah diarsipkan
+  terpisah sebagai `Document` — itu jalur yang berbeda dan tetap berjalan.)
+- **Status DITURUNKAN dari hitungan baris** (`statusDari`), tidak pernah diminta
+  dari pemanggil. Kalau pemanggil yang menentukan, cepat atau lambat akan ada
+  impor berlabel "berhasil" yang berdampingan dengan ratusan baris tertolak —
+  dan label itulah yang dibaca orang, bukan angkanya.
+- **Nilai sel disimpan APA ADANYA** (DECISIONS 203): yang ditunjukkan balik ke
+  pengguna harus persis yang ia tulis, bukan versi yang sudah dirapikan sistem.
+- **Penulisan best-effort.** Gagal mencatat jejak tidak menggagalkan impornya.
+  Jejak yang hilang menyusahkan; impor yang batal karena jejaknya gagal ditulis
+  membuat orang berhenti memakai fiturnya. (Berbeda dari `auditIn` untuk mutasi
+  uang/status, yang justru sehidup-semati dengan transaksinya — di sana yang
+  dijaga adalah bukti perubahan, bukan catatan pekerjaan.)
+- **Masalah dibatasi 200 per pekerjaan, dan pemotongannya DIKATAKAN.** Satu
+  berkas RAB yang kolomnya bergeser bisa menghasilkan ribuan baris bermasalah;
+  daftar yang terpotong tanpa keterangan terbaca sebagai daftar lengkap.
+- **Dua pagar akses**, bukan satu: `orgId` DAN scope lokasi lewat
+  `locationScopeWhere` yang sama dengan seluruh aplikasi. Pekerjaan tanpa lokasi
+  (master lokasi) bersifat seorganisasi dan ikut tampil.
+
+**Yang sudah tersambung:** impor RAB/HPS (jalur aktif dan draft adendum) dan
+impor master lokasi (termasuk yang gagal total — justru impor gagal yang paling
+sering ditanyakan ulang). Jalur jadwal, laporan harian, dan dokumen Drive sudah
+punya nilai enumnya tetapi BELUM menulis jejak; itu disebut di sini supaya
+halamannya tidak terbaca lengkap padahal belum.
+
+**Yang tidak bisa surut.** Impor yang dilakukan sebelum ini tidak akan muncul —
+datanya memang tidak pernah disimpan. Halaman kosongnya mengatakan itu apa
+adanya alih-alih terlihat seperti "belum ada impor sama sekali".
+---
+
+## 255 — Kunci ketukan ulang navigasi punya UJUNG, bukan 20 detik (2026-08-05)
+
+> **Catatan penomoran.** Entri ini lahir di `dev` dengan nomor **251** pada hari
+> yang sama saat cabang redesign memakai 251–254 untuk hal yang sama sekali
+> berbeda. Dua-duanya belum tergabung, jadi tidak ada nomor yang "lebih dulu";
+> yang dipilih untuk digeser adalah yang paling sedikit dirujuk kode (dua
+> berkas, keduanya ikut diperbarui di commit penggabungan ini). Isinya tidak
+> diubah sedikit pun.
+
+Lanjutan DECISIONS 247. Di sana ketukan ulang ke alamat yang sama ditahan di
+fase capture supaya tiga ketukan tidak jadi tiga permintaan halaman penuh yang
+berebut pipa 400 kbps. Yang tidak diputuskan waktu itu: **berapa lama**
+penahanan itu berlaku.
+
+Jawabannya jatuh ke jaring pengaman bar progres, `BATAS_AMAN_MS` = 20 detik —
+bukan karena dipilih, melainkan karena tanda `data-navigating` (yang juga jadi
+kunci) baru dilepas ketika bar padam.
+
+### Kenapa 20 detik itu keliru
+
+Jaring pengaman itu ada justru untuk kemungkinan **ketukan tidak berujung
+navigasi** — dibatalkan komponen lain, tautan mati, klik yang tertangkap capture
+lalu dicegah di hilir. Persis di kasus itu, selama 20 detik: tidak ada yang
+sedang dimuat, dan ketukan pengguna ditelan tanpa jejak. Itu keluhan asli
+2026-08-04 secara harfiah — *"seperti tidak terjadi apa pun"* — hanya kali ini
+kitalah penyebabnya.
+
+Obat yang menciptakan penyakit yang sama di kasus tepinya sendiri bukan obat.
+
+### Ujungnya: saat pemberitahuan "jaringan lambat" muncul
+
+Kunci dilepas pada `AMBANG_LAMBAT_MS` = 6 detik — angka yang sama dengan
+munculnya kalimat *"Masih memuat — jaringan sepertinya lambat."* Alasannya:
+sesudah pengguna DIBERI TAHU keadaannya, menahan ketukannya tidak lagi
+melindungi siapa pun, ia cuma merampas kendali. Sebelum detik itu layar memang
+tampak diam, dan di situlah penahanan berguna.
+
+Kedua angka datang dari SATU konstanta di `components/shell/nav-kunci-ulang.ts`
+supaya tidak bisa menyimpang diam-diam.
+
+Yang TIDAK berubah: rentang 0–6 detik menampung seluruh burst ketukan yang
+diukur di lapangan (ketukan kedua-ketiga datang dalam ratusan milidetik), jadi
+perlindungan terhadap permintaan berlipat tetap utuh. Sesudah 6 detik pun laju
+maksimalnya satu duplikat per 6 detik, bukan tiga dalam dua detik.
+
+### Dua akibat ikutan
+
+1. Jendela kunci pakai **jam**, bukan `setTimeout`. Pemeriksaannya toh cuma
+   perlu terjadi saat ada ketukan, dan tanpa pengatur waktu tidak ada yang bisa
+   tertinggal hidup sesudah komponennya lepas.
+2. Hitungan mundur `BATAS_AMAN_MS` **disetel ulang tiap ketukan yang diizinkan
+   lewat**. Tanpa itu, navigasi kedua yang dimulai pada detik ke-7 memakai sisa
+   hitungan yang pertama, sehingga barnya padam pada detik ke-20 selagi
+   navigasinya masih berjalan — diam yang sama lagi, lewat pintu lain.
+
+### Invarian yang dijaga uji
+
+`tests/unit/nav-kunci-ulang.test.ts`. Yang terpenting: **kunci tidak boleh hidup
+lebih lama daripada bar progres** (`AMBANG_LAMBAT_MS < BATAS_AMAN_MS`). Kalau
+dilanggar, ada rentang di mana layar sudah diam total sementara ketukan masih
+ditelan — gabungan terburuk kedua cacat sekaligus.
+
+Uji dibuktikan bergigi dengan mengembalikan perilaku lama (kunci = 20 detik):
+2 dari 8 uji gagal. Cacat semacam ini tidak menerbitkan galat apa pun — layarnya
+tetap rapi, ketukannya sekadar hilang — jadi tanpa uji yang menyatakan kapan
+kunci terbuka, ia akan kembali tanpa terlihat.
+
+---
+
+## 256 — Laporan harian: status penyimpanan terlihat, dan catatan koreksi menempel pada bagiannya (2026-08-05)
+
+Fase 2 redesign (PRD §8). Penggunanya mandor: satu tangan, layar di bawah
+matahari, sinyal naik-turun.
+
+### A. Pita status penyimpanan
+
+Editor laporan menyimpan lewat **belasan server action terpisah** — satu per
+item, per foto, per pelengkap — dan masing-masing hanya memberi umpan balik di
+dalam formnya sendiri, sebuah banner kecil yang lewat begitu saja. Dari luar
+tidak pernah ada jawaban untuk pertanyaan yang menentukan apakah orang berani
+menutup halaman: **yang tadi saya ketik sudah masuk atau belum.**
+
+Pita `sticky` di puncak editor kini menyatakannya: Online · Menyimpan… ·
+Tersimpan 14:03 · Gagal menyimpan · Offline.
+
+**Yang SENGAJA tidak ada: "Belum tersinkron".** Rancangan desain memintanya,
+tetapi MARLIN tidak punya antrean offline — tidak ada service worker, tidak ada
+penyimpanan lokal, tidak ada pengiriman ulang. Menampilkannya berarti
+menjanjikan bahwa ketikan yang gagal terkirim masih tersimpan di suatu tempat
+dan akan menyusul sendiri; mandor yang percaya itu akan menutup halaman, dan
+pekerjaan seharian benar-benar hilang. Jadi saat offline yang dikatakan adalah
+yang sebenarnya terjadi: perubahan TIDAK tersimpan, jangan tutup halaman.
+Kabar buruk yang benar lebih berguna daripada kabar baik yang palsu.
+
+Teknis: store modul + `useSyncExternalStore`, bukan context. Dengan begitu form
+pelapor tidak pernah memanggil `setState` komponen lain dari dalam effect —
+pola yang dilarang lint React Compiler dan memang rawan render bertingkat.
+
+### B. Catatan koreksi menempel pada bagiannya
+
+Pengembalian laporan hanya membawa satu kalimat bebas, dan kalimat itu tampil
+sebagai spanduk di puncak halaman — jauh dari hal yang dimaksudnya. Mandor lalu
+menggulir seluruh editor sambil menebak bagian mana yang dimaksud "cek ulang
+zona B", dan yang paling sering terjadi bukan salah memperbaiki melainkan
+mengirim ulang tanpa memperbaiki apa pun.
+
+Kolom baru `daily_reports.correction_areas` (`CorrectionArea[]`, default `{}`)
+menyimpan bagian mana yang diminta diperbaiki. Reviewer mencentangnya saat
+mengembalikan; editor menampilkan catatannya **di sebelah bagian itu**.
+
+- **Tidak wajib.** Reviewer yang tidak memilih tetap boleh mengembalikan
+  laporan — memaksa memilih hanya melahirkan pilihan asal supaya tombolnya
+  hidup.
+- **Nilainya nama BAGIAN LAYAR**, bukan nama kolom database: yang membaca orang
+  lapangan, dan "Volume pekerjaan" berarti sesuatu baginya sementara
+  `daily_report_items.volume` tidak. Dijaga uji unit.
+- **Daftarnya pendek (6, termasuk "Lainnya").** Daftar panjang tidak membuat
+  reviewer lebih teliti; ia membuat semua orang memilih "Lainnya".
+- **Dibersihkan saat dikirim ulang.** Kalau tidak, "perbaiki volume" tetap
+  menempel sesudah volumenya dibetulkan — menuduh isi yang sudah benar, dan
+  pada putaran koreksi berikutnya bercampur dengan permintaan baru. Alasannya
+  tetap utuh di riwayat status; yang dihapus hanya penunjuk "sedang diminta".
+- **Laporan lama ber-array kosong**, artinya "dikembalikan tanpa penunjuk
+  bagian". Itu memang keadaan sebenarnya; mengarang bagian untuk data lama
+  membuat riwayat berbohong. Tidak ada backfill (DECISIONS 253).
+
+### Catatan migrasi
+
+Menambah kolom dengan DEFAULT non-volatile di PostgreSQL 11+ hanya mengubah
+katalog, bukan menulis ulang tabel — aman di tabel laporan yang sudah berisi
+dan di database yang dipakai bersama. Diverifikasi di PostgreSQL 16: seluruh
+migrasi jalan bersih dari nol, `migrate status` sinkron, berkasnya dijalankan
+dua kali tanpa galat.
+
+---
+
+## 257 — Progress lokasi dipecah jadi mode kerja, bukan satu gulungan (2026-08-05)
+
+Halaman Progress lokasi menumpuk tujuh kartu dalam satu gulungan: pantauan
+draft adendum, kurva-S, rencana-vs-realisasi mingguan, prognosa, editor jadwal,
+penyesuaian %-mingguan, item tertinggal, kendala & pemulihan, dan riwayat
+baseline. Semuanya sah — tetapi dipakai untuk **pekerjaan yang berbeda**, dan
+yang datang untuk satu pekerjaan harus menggulir melewati enam yang lain.
+
+Tiga mode, sesuai tiga pertanyaan yang benar-benar dibawa orang ke halaman ini:
+
+| Mode | Pertanyaannya | Isinya |
+|---|---|---|
+| `monitor` (bawaan) | "sekarang bagaimana?" | kurva-S, mingguan, prognosa, pantauan draft |
+| `tertinggal` | "apa yang harus dikejar?" | item tertinggal, kendala & pemulihan |
+| `rencana` | "targetnya benar tidak?" | jadwal per pekerjaan, penyesuaian, riwayat baseline |
+
+**Query param, bukan route baru.** Seluruh data halaman ini datang dari satu
+berkas kueri yang sama; memecahnya jadi tiga route hanya menggandakan
+pengambilan data tanpa satu pun manfaat bagi pembacanya. Nilai `mode` asing
+jatuh ke `monitor`, bukan 404 — tautan yang salah ketik seharusnya mendarat di
+halaman yang berguna.
+
+**`LinkTabs` dapat prop `aktif`.** Pencocokan bawaannya hanya melihat pathname,
+dan ketiga tab ini ber-path sama — tanpa penanda eksplisit, sorotan selamanya
+menempel di tab pertama. Sengaja prop, BUKAN `useSearchParams()` di dalam
+`LinkTabs`: komponen itu dipakai di belasan halaman, dan menambah hook di sana
+memaksa semuanya ikut menanggung syarat render dinamis demi kebutuhan satu
+halaman. Yang tahu mode aktif adalah halamannya sendiri, dan ia sudah
+membacanya di server.
+
+---
+
+## 258 — Tabel jadi KARTU di bawah 1024px (2026-08-05)
+
+"Mobile bukan desktop yang dikecilkan" (Master Prompt §5). Di bawah 1024px tabel
+berkolom banyak berhenti jadi tabel: isinya digeser ke samping satu layar demi
+satu layar, dan membandingkan dua baris berarti mengingat kolom yang sudah
+keluar layar. Mandor dan Site Manager membuka daftar ini dari ponsel.
+
+Prop `kartu` pada `MarlinGrid`, diberikan **per-pemakaian** — hanya pemakainya
+yang tahu tiga sampai empat hal yang benar-benar penting dari dua belas
+kolomnya. Tanpa prop itu gridnya tampil apa adanya, jadi tidak ada halaman yang
+berubah tanpa diminta.
+
+Yang dipilih tiap daftar, dan yang sengaja DIBUANG:
+
+- **Lokasi**: status, rencana, realisasi, deviasi. Nilai RAB tidak ikut — angka
+  sembilan digit memakan lebar yang lebih berguna untuk deviasi.
+- **Paket**: tahap, nilai HPS, jumlah lokasi. Penanda WA/Drive tidak ikut —
+  keduanya keadaan pengaturan, bukan alasan membuka paket dari ponsel.
+- **Keuangan portofolio**: pagu, realisasi, komitmen, sisa. Delapan kolom rupiah
+  berdampingan mustahil dibaca di ponsel.
+
+Detail yang menentukan:
+
+- `useSyncExternalStore` + `matchMedia`, potret server `false` — HTML dari server
+  selalu berupa tabel, jadi tidak ada ketidakcocokan hidrasi.
+- Mode `serverSide` DIKECUALIKAN: barisnya dimuat bertahap AG Grid, jadi tidak
+  ada `rowData` utuh; memaksakannya menampilkan daftar yang diam-diam cuma
+  memuat halaman pertama.
+- Batas render 30 kartu, dan batas itu DIKATAKAN lewat tombol "Tampilkan lebih
+  banyak" — bukan dipotong diam-diam.
+
+### Dua uji E2E ikut berubah, dan itu memang seharusnya
+
+Keduanya menunggu kelas AG Grid di lebar ponsel, tempat gridnya kini tidak
+dirender sama sekali — jadi keduanya menggantung sampai batas waktu:
+
+- `mobile-umpan-balik-navigasi`: menunggu `.ag-row` untuk menghitung titik
+  ketuk. Invarian yang sebenarnya dijaga uji itu adalah **sasaran ketuk yang
+  lebar**, bukan keberadaan `.ag-row` — dan dalam bentuk kartu seluruh kartu
+  adalah tautan, jadi invariannya justru lebih kuat. Kini diukur dari kotak
+  tautannya sendiri, sehingga berlaku untuk dua-duanya.
+- `mobile-zoom-input`: menunggu `.ag-root-wrapper` + `.ag-paging-panel` sebagai
+  tanda "halaman siap diukur" (kotak nomor halaman AG Grid pernah tertangkap
+  13px di CI). Kini menunggu mana pun yang muncul; penanda `data-uji` dipasang
+  pada daftar kartu — termasuk pada keadaan KOSONG, karena tanpa itu uji akan
+  menggantung justru saat datanya kosong lalu melapor seolah halamannya rusak.

@@ -149,8 +149,8 @@ export async function createPackage(
     name: d.name,
     hpsValue,
   });
-  revalidatePath("/paket");
-  redirect(`/paket/${pkg.id}`);
+  revalidatePath("/proyek/paket");
+  redirect(`/proyek/paket/${pkg.id}`);
 }
 
 const updatePackageSchema = createPackageSchema.extend({
@@ -199,8 +199,8 @@ export async function updatePackage(
     name: d.name,
     hpsValue,
   });
-  revalidatePath("/paket");
-  revalidatePath(`/paket/${d.packageId}`, "layout");
+  revalidatePath("/proyek/paket");
+  revalidatePath(`/proyek/paket/${d.packageId}`, "layout");
   return { success: "Data paket diperbarui." };
 }
 
@@ -278,8 +278,8 @@ export async function advanceStage(
     toStage,
     ...(reason ? { note: reason } : {}),
   });
-  revalidatePath("/paket");
-  revalidatePath(`/paket/${id.data}`, "layout");
+  revalidatePath("/proyek/paket");
+  revalidatePath(`/proyek/paket/${id.data}`, "layout");
   return {
     success:
       toStage === "batal"
@@ -334,8 +334,8 @@ export async function revertStage(
     toStage: result.target,
     note,
   });
-  revalidatePath("/paket");
-  revalidatePath(`/paket/${id.data}`, "layout");
+  revalidatePath("/proyek/paket");
+  revalidatePath(`/proyek/paket/${id.data}`, "layout");
   return { success: `Stage dimundurkan ke ${PACKAGE_STAGE_LABEL[result.target]}.` };
 }
 
@@ -423,7 +423,7 @@ export async function addTargetLocation(
     slug: result.loc.slug,
     name: d.name,
   });
-  revalidatePath(`/paket/${d.packageId}`, "layout");
+  revalidatePath(`/proyek/paket/${d.packageId}`, "layout");
   return { success: `Lokasi target "${d.name}" ditambahkan.` };
 }
 
@@ -514,7 +514,7 @@ export async function addTargetLocationsFromCatalog(
     count: result.count,
     masterLocationIds: ids.data,
   });
-  revalidatePath(`/paket/${pid.data}`, "layout");
+  revalidatePath(`/proyek/paket/${pid.data}`, "layout");
   return { success: `${result.count} lokasi target ditambahkan dari katalog.` };
 }
 
@@ -552,7 +552,7 @@ export async function removeTargetLocation(locationId: string): Promise<PackageA
     locationId: result.loc.id,
     name: result.loc.name,
   });
-  revalidatePath(`/paket/${result.loc.packageId}`, "layout");
+  revalidatePath(`/proyek/paket/${result.loc.packageId}`, "layout");
   return { success: `Lokasi target "${result.loc.name}" dihapus.` };
 }
 
@@ -584,9 +584,9 @@ export async function renameLocation(_prev: PackageActionState, formData: FormDa
 
   await db.location.update({ where: { id: locationId }, data: { name } });
   await audit(actor.id, "location.rename", "location", locationId, { from: loc.name, to: name });
-  revalidatePath(`/lokasi/${loc.slug}`, "layout");
-  revalidatePath(`/paket/${loc.packageId}`, "layout");
-  revalidatePath("/lokasi");
+  revalidatePath(`/proyek/lokasi/${loc.slug}`, "layout");
+  revalidatePath(`/proyek/paket/${loc.packageId}`, "layout");
+  revalidatePath("/proyek/lokasi");
   return { success: "Nama lokasi diperbarui." };
 }
 
@@ -786,8 +786,8 @@ export async function convertToContract(
     contractValue,
     locationCount: result.locationCount,
   });
-  revalidatePath("/paket");
-  revalidatePath(`/paket/${d.packageId}`, "layout");
+  revalidatePath("/proyek/paket");
+  revalidatePath(`/proyek/paket/${d.packageId}`, "layout");
   return {
     success: `Kontrak ${d.contractNumber} tercatat. ${result.locationCount} lokasi diaktifkan — lanjut import RAB per lokasi.`,
   };
@@ -1011,8 +1011,8 @@ export async function createDirectProject(
     contractValue,
     locationCount: result.locationCount,
   });
-  revalidatePath("/paket");
-  redirect(`/paket/${result.packageId}`);
+  revalidatePath("/proyek/paket");
+  redirect(`/proyek/paket/${result.packageId}`);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1145,8 +1145,8 @@ export async function editContractAction(
     timeChanged,
     baselinesRecomputed: recomputed,
   });
-  revalidatePath("/paket");
-  revalidatePath(`/paket/${pkg.id}`, "layout");
+  revalidatePath("/proyek/paket");
+  revalidatePath(`/proyek/paket/${pkg.id}`, "layout");
   return {
     success: timeChanged
       ? `Kontrak dikoreksi. Waktu berubah → ${recomputed} kurva-S lokasi dihitung ulang.`
@@ -1210,7 +1210,7 @@ export async function updateContractSignatories(
     supervisorName: d.supervisorName ?? null,
     contractorSignerName: d.contractorSignerName ?? null,
   });
-  revalidatePath(`/paket/${contract.packageId}`, "layout");
+  revalidatePath(`/proyek/paket/${contract.packageId}`, "layout");
   return { success: "Penanda tangan kontrak diperbarui." };
 }
 
@@ -1296,8 +1296,8 @@ export async function startPelaksanaan(
 
   if ("terjadwal" in result) {
     await audit(actor.id, "package.spmk_scheduled", "package", id.data, { spmkDate: spmkDateStr });
-    revalidatePath("/paket");
-    revalidatePath(`/paket/${id.data}`, "layout");
+    revalidatePath("/proyek/paket");
+    revalidatePath(`/proyek/paket/${id.data}`, "layout");
     return {
       success:
         `SPMK ${spmkDateStr} dicatat. Pelaksanaan BELUM dimulai — status paket & lokasi ` +
@@ -1310,8 +1310,8 @@ export async function startPelaksanaan(
     locationsStarted: result.started,
     spmkDate: spmkDateStr,
   });
-  revalidatePath("/paket");
-  revalidatePath(`/paket/${id.data}`, "layout");
+  revalidatePath("/proyek/paket");
+  revalidatePath(`/proyek/paket/${id.data}`, "layout");
   return { success: `Pelaksanaan dimulai (SPMK ${spmkDateStr}) — ${result.started} lokasi berstatus Berjalan.` };
 }
 
@@ -1386,8 +1386,8 @@ export async function addAmendment(
     valueDelta,
     endDateDelta: d.endDateDelta,
   });
-  revalidatePath("/paket");
-  revalidatePath(`/paket/${result.packageId}`, "layout");
+  revalidatePath("/proyek/paket");
+  revalidatePath(`/proyek/paket/${result.packageId}`, "layout");
   return {
     success: `Adendum ${d.ccoNumber} tercatat. Revisi RAB lokasi (bila nilai berubah) dilakukan di modul RAB.`,
   };
@@ -1423,7 +1423,7 @@ export async function createVendor(
     select: { id: true },
   });
   await audit(actor.id, "vendor.upsert", "vendor", vendor.id, { name: d.name });
-  revalidatePath("/paket");
+  revalidatePath("/proyek/paket");
   return { success: `Vendor "${d.name}" tersimpan.` };
 }
 
@@ -1618,8 +1618,8 @@ export async function correctAddLocationAction(
   });
   if ("error" in result) return { error: result.error };
 
-  revalidatePath(`/paket/${d.packageId}`, "layout");
-  revalidatePath("/lokasi");
+  revalidatePath(`/proyek/paket/${d.packageId}`, "layout");
+  revalidatePath("/proyek/lokasi");
   return {
     success: `Lokasi "${result.loc.name}" ditambahkan sebagai koreksi data. Nilai kontrak TIDAK diubah.`,
     warning:

@@ -36,6 +36,139 @@ const nextConfig: NextConfig = {
       "./node_modules/.pnpm/@img+*/**",
     ],
   },
+  /**
+   * URL LAMA → URL KANONIK, permanen (308). PRD §3.1 baris 7/15/45/46 +
+   * FR-NAV-03: "Alias lama memakai redirect permanen".
+   *
+   * Dipindah ke sini dari `page.tsx` yang memanggil `redirect()`. Bedanya
+   * bukan gaya: `redirect()` di dalam page mengembalikan 307 SEMENTARA dan
+   * tetap menghitung sebagai route aplikasi — persis keluhan PRD bahwa "route
+   * teknis tetap terhitung dan membingungkan dokumentasi/bookmark". Sebagai
+   * entri di sini, alias ditangani sebelum React dijalankan, peramban dan
+   * mesin pencari memperbarui bookmark-nya sendiri, dan jumlah route benar-
+   * benar berkurang.
+   *
+   * `/aktivitas` bukan sekadar alias: dulu ia me-render Dashboard Eksekutif
+   * yang SAMA dengan `/`, jadi ada dua URL untuk satu produk. Komponennya kini
+   * tinggal di `(app)/_dashboard/` — folder ber-awalan garis bawah sengaja,
+   * karena App Router tidak menjadikannya route.
+   */
+  /**
+   * HEADER KEAMANAN (PRD P2 "Security Hardening").
+   *
+   * CSP sengaja **Report-Only** dulu, bukan menegakkan. Alasannya bukan
+   * setengah hati: CSP yang langsung menegakkan dan ternyata kelewat ketat
+   * akan MEMATIKAN halaman di produksi — peta Leaflet menyuntik style inline,
+   * AG Grid menyuntik CSS lewat JS, dan Next menyisipkan script hidrasi. Yang
+   * benar adalah mengumpulkan pelanggaran nyata dari lalu lintas sungguhan
+   * lebih dulu, baru menaikkannya jadi `Content-Security-Policy`.
+   *
+   * Header lain di bawah sudah menegakkan sejak sekarang karena tidak punya
+   * risiko mematikan tampilan.
+   */
+  async headers() {
+    const cspReportOnly = [
+      "default-src 'self'",
+      // 'unsafe-inline'/'unsafe-eval' MASIH diizinkan di tahap report-only —
+      // menghapusnya sekarang hanya akan membanjiri laporan tanpa memberi
+      // informasi baru. Pengetatannya menyusul setelah pelanggaran nyata
+      // terkumpul.
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline'",
+      // Ubin peta (OSM) + foto dari R2 lewat proxy aplikasi sendiri.
+      "img-src 'self' data: blob: https:",
+      "font-src 'self' data:",
+      "connect-src 'self' https:",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "object-src 'none'",
+    ].join("; ");
+
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "Content-Security-Policy-Report-Only", value: cspReportOnly },
+          // Clickjacking: aplikasi ini tidak pernah dipakai di dalam iframe.
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          // Referrer penuh ke domain lain bisa membocorkan slug lokasi/paket
+          // lewat header; origin saja sudah cukup untuk analitik pihak ketiga.
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          // Aplikasi tidak memakai kamera/mikrofon/geolokasi dari sisi web
+          // (foto lapangan lewat <input capture>, yang tidak butuh izin ini).
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+          },
+        ],
+      },
+    ];
+  },
+  async redirects() {
+    return [
+      // ── Alias lama yang memang cuma alias ──────────────────────────────
+      { source: "/aktivitas", destination: "/", permanent: true },
+      { source: "/pengguna", destination: "/administrasi/pengguna", permanent: true },
+      { source: "/paket/vendor", destination: "/administrasi/perusahaan", permanent: true },
+      { source: "/kontak-wa", destination: "/administrasi/kontak", permanent: true },
+      // Laporan → WA dilebur ke Report Studio (DECISIONS 193/194).
+      {
+        source: "/laporan-wa",
+        destination: "/pengendalian/insight/reports?template=wa_update",
+        permanent: true,
+      },
+
+      /*
+       * ── MIGRASI KE KELUARGA ROUTE KANONIK (PRD §4.1) ───────────────────
+       *
+       * Yang lebih SPESIFIK harus lebih dulu: `/paket/katalog` pindah ke
+       * Administrasi, bukan ke `/proyek/paket/katalog`, jadi ia wajib
+       * dicocokkan sebelum aturan `/paket/:path*` di bawahnya.
+       *
+       * Tiap keluarga punya dua entri — satu untuk akar (`/paket`) dan satu
+       * untuk anaknya (`/paket/:path*`). Satu entri ber-`:path*` saja TIDAK
+       * mencakup akarnya, dan justru URL akar itulah yang paling sering
+       * di-bookmark.
+       */
+      { source: "/paket/katalog", destination: "/administrasi/lokasi-master", permanent: true },
+      { source: "/master/pengguna", destination: "/administrasi/pengguna", permanent: true },
+      { source: "/master/perusahaan", destination: "/administrasi/perusahaan", permanent: true },
+      { source: "/master/kontak-wa", destination: "/administrasi/kontak-wa", permanent: true },
+      { source: "/master/kontak", destination: "/administrasi/kontak", permanent: true },
+
+      { source: "/paket", destination: "/proyek/paket", permanent: true },
+      { source: "/paket/:path*", destination: "/proyek/paket/:path*", permanent: true },
+      { source: "/lokasi", destination: "/proyek/lokasi", permanent: true },
+      { source: "/lokasi/:path*", destination: "/proyek/lokasi/:path*", permanent: true },
+      { source: "/peta", destination: "/proyek/peta", permanent: true },
+
+      { source: "/hari-ini", destination: "/pelaksanaan", permanent: true },
+      { source: "/foto", destination: "/pelaksanaan/bukti", permanent: true },
+      { source: "/foto/:path*", destination: "/pelaksanaan/bukti/:path*", permanent: true },
+
+      { source: "/progress", destination: "/pengendalian/progress", permanent: true },
+      { source: "/keuangan", destination: "/pengendalian/keuangan", permanent: true },
+      { source: "/ai", destination: "/pengendalian/insight", permanent: true },
+      { source: "/ai/:path*", destination: "/pengendalian/insight/:path*", permanent: true },
+
+      { source: "/dokumen", destination: "/dokumen-laporan/dokumen", permanent: true },
+      { source: "/dokumen/:path*", destination: "/dokumen-laporan/dokumen/:path*", permanent: true },
+      { source: "/laporan", destination: "/dokumen-laporan/laporan", permanent: true },
+      { source: "/laporan/:path*", destination: "/dokumen-laporan/laporan/:path*", permanent: true },
+      { source: "/chat-grup", destination: "/dokumen-laporan/distribusi", permanent: true },
+      {
+        source: "/chat-grup/:path*",
+        destination: "/dokumen-laporan/distribusi/:path*",
+        permanent: true,
+      },
+
+      { source: "/master", destination: "/administrasi", permanent: true },
+      { source: "/sistem", destination: "/administrasi/sistem", permanent: true },
+      { source: "/sistem/:path*", destination: "/administrasi/sistem/:path*", permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;

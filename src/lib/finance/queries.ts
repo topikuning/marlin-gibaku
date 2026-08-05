@@ -5,7 +5,7 @@ import { getLocationsProgress } from "@/lib/progress";
 import type { CostCategory } from "@/generated/prisma/enums";
 
 /**
- * Query layer keuangan — read-only, dipakai halaman /keuangan dan /lokasi/[slug]/keuangan.
+ * Query layer keuangan — read-only, dipakai halaman /pengendalian/keuangan dan /proyek/lokasi/[slug]/keuangan.
  * Agregat (available budget, outstanding, dst.) TIDAK dihitung di sini —
  * itu tugas calc layer (@/lib/finance/calc). File ini hanya menyusun data baris.
  */

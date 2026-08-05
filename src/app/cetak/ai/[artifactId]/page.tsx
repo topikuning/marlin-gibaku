@@ -39,7 +39,7 @@ export default async function CetakAiPage({ params }: { params: Promise<{ artifa
 
   return (
     <>
-      <PrintToolbar backHref={artifact.runId ? `/ai/run/${artifact.runId}` : "/ai/reports"} />
+      <PrintToolbar backHref={artifact.runId ? `/pengendalian/insight/run/${artifact.runId}` : "/pengendalian/insight/reports"} />
       <main className="mx-auto max-w-[900px] bg-white p-6 print:p-0">
         {artifact.status === "draft" || artifact.status === "direview" ? (
           <p className="no-print mb-3 rounded-md border border-warning bg-warning-soft px-3 py-2 text-sm">

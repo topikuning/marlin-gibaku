@@ -27,18 +27,21 @@ const VIEWPORT = { width: 375, height: 812 };
 
 const RUTE: { path: string; nama: string }[] = [
   { path: "/", nama: "Beranda / command center" },
-  { path: "/aktivitas", nama: "Dashboard eksekutif" },
-  { path: "/paket", nama: "Daftar paket" },
-  { path: "/lokasi", nama: "Daftar lokasi" },
-  { path: "/progress", nama: "Progress portofolio" },
-  { path: "/hari-ini", nama: "Hari Ini (mandor)" },
-  { path: "/laporan", nama: "Laporan" },
-  { path: "/laporan/menunggu-verifikasi", nama: "Antrean verifikasi" },
-  { path: "/laporan/perlu-koreksi", nama: "Antrean koreksi" },
-  { path: "/keuangan", nama: "Keuangan" },
-  { path: "/dokumen", nama: "Dokumen" },
-  { path: "/peta", nama: "Peta" },
-  { path: "/pengguna", nama: "Pengguna" },
+  // `/aktivitas` DIHAPUS: dulu me-render Dashboard Eksekutif yang sama persis
+  // dengan `/`, jadi mengukurnya berarti mengukur halaman yang sama dua kali.
+  // Kini 308 ke `/` (DECISIONS 252).
+  { path: "/tindakan", nama: "Perlu Tindakan" },
+  { path: "/proyek/paket", nama: "Daftar paket" },
+  { path: "/proyek/lokasi", nama: "Daftar lokasi" },
+  { path: "/pengendalian/progress", nama: "Progress portofolio" },
+  { path: "/pelaksanaan", nama: "Hari Ini (mandor)" },
+  { path: "/dokumen-laporan/laporan", nama: "Laporan" },
+  { path: "/dokumen-laporan/laporan/menunggu-verifikasi", nama: "Antrean verifikasi" },
+  { path: "/dokumen-laporan/laporan/perlu-koreksi", nama: "Antrean koreksi" },
+  { path: "/pengendalian/keuangan", nama: "Keuangan" },
+  { path: "/dokumen-laporan/dokumen", nama: "Dokumen" },
+  { path: "/proyek/peta", nama: "Peta" },
+  { path: "/administrasi/pengguna", nama: "Pengguna" },
 ];
 
 type Pelanggar = { tag: string; cls: string; width: number; right: number; text: string };
@@ -130,26 +133,36 @@ test.describe("tampilan mobile: halaman tidak boleh melebar ke samping", () => {
     // dari seed yang deterministik; kalau datanya beda, uji dilewati alih-alih
     // gagal palsu.
     const SLUG = process.env.E2E_SLUG ?? "kedungmutih";
-    const cek = await page.goto(`/lokasi/${SLUG}`, { waitUntil: "domcontentloaded" });
+    const cek = await page.goto(`/proyek/lokasi/${SLUG}`, { waitUntil: "domcontentloaded" });
     test.skip(cek != null && cek.status() >= 400, `lokasi "${SLUG}" tidak ada di data uji`);
-    // id paket diambil dari tautan di workspace lokasi (breadcrumb/ringkasan).
+    /*
+     * id paket diambil dari tautan di workspace lokasi (breadcrumb/ringkasan).
+     *
+     * Diurai dengan REGEX, bukan `split("/")[n]`. Indeks posisi diam-diam salah
+     * begitu keluarga route bertambah satu segmen: saat `/paket/<id>` jadi
+     * `/proyek/paket/<id>`, indeks 2 berhenti menunjuk id dan mulai menunjuk
+     * kata "paket" — lalu uji ini menyapu `/proyek/paket/paket`, Postgres
+     * menolaknya sebagai uuid tak sah, dan kegagalannya muncul jauh dari
+     * penyebabnya. Pola ber-anchor menyebut bentuk yang dicari, jadi ia gagal
+     * dengan jujur (null) alih-alih memungut segmen yang salah.
+     */
     const paketId = await page
-      .locator('a[href^="/paket/"]')
+      .locator('a[href^="/proyek/paket/"]')
       .first()
       .getAttribute("href", { timeout: 5_000 })
-      .then((h) => h?.split("/")[2] ?? null)
+      .then((h) => /^\/proyek\/paket\/([0-9a-f-]{36})(?:\/|$)/i.exec(h ?? "")?.[1] ?? null)
       .catch(() => null);
 
     // Halaman ISI laporan harian — bukan cuma daftarnya. Di sinilah pita cuaca
     // per jam 07–21 berada, dan pita itu pernah MELEBARKAN seluruh halaman
     // (DECISIONS 230). Tanggalnya diambil dari tautan pertama di daftar supaya
     // uji tidak terikat tanggal tertentu.
-    await page.goto(`/lokasi/${SLUG}/harian`, { waitUntil: "domcontentloaded" });
+    await page.goto(`/proyek/lokasi/${SLUG}/harian`, { waitUntil: "domcontentloaded" });
     // Harus berakhir dengan TANGGAL: tautan pertama di halaman itu
     // `/harian/import`, dan mengambilnya membuat uji ini menyapu halaman yang
     // salah sambil tetap hijau — persis cara sebuah sapuan berbohong.
     const harianHref = await page
-      .locator(`a[href^="/lokasi/${SLUG}/harian/"]`)
+      .locator(`a[href^="/proyek/lokasi/${SLUG}/harian/"]`)
       .evaluateAll((els) =>
         els
           .map((e) => e.getAttribute("href") ?? "")
@@ -158,17 +171,19 @@ test.describe("tampilan mobile: halaman tidak boleh melebar ke samping", () => {
       .catch(() => null);
 
     const dalam = [
-      `/lokasi/${SLUG}`,
-      `/lokasi/${SLUG}/rab`,
-      `/lokasi/${SLUG}/rab/adendum`,
-      `/lokasi/${SLUG}/rab/import`,
-      `/lokasi/${SLUG}/progress`,
-      `/lokasi/${SLUG}/harian`,
+      `/proyek/lokasi/${SLUG}`,
+      `/proyek/lokasi/${SLUG}/rab`,
+      `/proyek/lokasi/${SLUG}/rab/adendum`,
+      `/proyek/lokasi/${SLUG}/rab/import`,
+      `/proyek/lokasi/${SLUG}/progress`,
+      `/proyek/lokasi/${SLUG}/harian`,
       ...(harianHref ? [harianHref] : []),
-      `/lokasi/${SLUG}/keuangan`,
-      `/lokasi/${SLUG}/dokumen`,
-      ...(paketId && paketId !== "katalog" && paketId !== "baru" && paketId !== "bypass"
-        ? [`/paket/${paketId}`, `/paket/${paketId}/kontrak`, `/paket/${paketId}/lokasi`]
+      `/proyek/lokasi/${SLUG}/keuangan`,
+      `/proyek/lokasi/${SLUG}/dokumen`,
+      // Penjaga "bukan katalog/baru/bypass" tidak diperlukan lagi: pola uuid di
+      // atas sudah menolak segmen statis apa pun dengan sendirinya.
+      ...(paketId
+        ? [`/proyek/paket/${paketId}`, `/proyek/paket/${paketId}/kontrak`, `/proyek/paket/${paketId}/lokasi`]
         : []),
     ];
 

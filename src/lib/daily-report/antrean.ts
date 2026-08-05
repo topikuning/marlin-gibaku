@@ -8,7 +8,7 @@ import type { SessionUser } from "@/lib/auth/session";
  * Antrean laporan harian yang MENUNGGU TINDAKAN (DECISIONS 204).
  *
  * Dashboard eksekutif punya dua kartu — "Perlu Koreksi" dan "Menunggu
- * Verifikasi" — yang keduanya menunjuk `/laporan`. Halaman itu berisi daftar
+ * Verifikasi" — yang keduanya menunjuk `/dokumen-laporan/laporan`. Halaman itu berisi daftar
  * lokasi dan 20 laporan FINAL terakhir; laporan yang dikembalikan atau yang
  * sedang menunggu verifikasi tidak ada di sana sama sekali. Angkanya jadi
  * pemberitahuan tanpa jalan ke barangnya: user tahu ada 1 yang dikembalikan,

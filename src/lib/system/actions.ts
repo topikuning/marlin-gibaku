@@ -205,7 +205,7 @@ export async function saveActivityKindAction(_prev: ActivityKindState, formData:
       label: d.label,
       isActive: d.isActive,
     });
-    revalidatePath("/sistem");
+    revalidatePath("/administrasi/sistem");
     return { success: `Jenis "${d.label}" diperbarui.` };
   }
 
@@ -222,7 +222,7 @@ export async function saveActivityKindAction(_prev: ActivityKindState, formData:
     data: { key, label: d.label, isActive: true, sortOrder: maxOrder + 10 },
   });
   await audit(actor.id, "system.activity_kind_create", "field_activity_kind", created.id, { key, label: d.label });
-  revalidatePath("/sistem");
+  revalidatePath("/administrasi/sistem");
   return { success: `Jenis "${d.label}" ditambahkan.` };
 }
 
@@ -320,7 +320,7 @@ export async function savePolicyAction(_prev: PolicyState, formData: FormData): 
   await setPolicy(baru);
   const berubah = (Object.keys(baru) as (keyof typeof baru)[]).filter((k) => baru[k] !== sebelum[k]);
   await audit(actor.id, "system.policy_update", "system", null, { sebelum, baru, berubah });
-  revalidatePath("/sistem");
+  revalidatePath("/administrasi/sistem");
   return {
     success:
       berubah.length === 0

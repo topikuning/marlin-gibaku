@@ -68,7 +68,7 @@ export async function saveWahaConfigAction(
     const apiKey = d.apiKey.trim() === "" ? undefined : d.apiKey.trim() === "-" ? "" : d.apiKey;
     await setWahaConfig({ baseUrl: d.baseUrl, apiKey, session: d.session });
     await audit(user.id, "system.waha_config", "app_setting", null, {});
-    revalidatePath("/sistem");
+    revalidatePath("/administrasi/sistem");
     return { success: "Konfigurasi WhatsApp disimpan." };
   } catch (err) {
     return fail(err);
@@ -85,7 +85,7 @@ export async function generateWahaWebhookSecretAction(): Promise<WaActionState> 
     const secret = randomBytes(24).toString("base64url");
     await setWahaConfig({ webhookSecret: secret });
     await audit(user.id, "system.waha_webhook_secret", "app_setting", null, {});
-    revalidatePath("/sistem");
+    revalidatePath("/administrasi/sistem");
     return { success: "Secret webhook baru dibuat — salin URL webhook ke WAHA." };
   } catch (err) {
     return fail(err);
@@ -126,7 +126,7 @@ export async function testWahaCaptureAction(): Promise<WaActionState> {
       },
     };
     const result = await ingestWaEvent(event);
-    revalidatePath("/sistem");
+    revalidatePath("/administrasi/sistem");
     await audit(user.id, "system.waha_selftest", "app_setting", null, { stored: result.stored });
     if (result.stored) {
       return {
@@ -205,7 +205,7 @@ export async function setPackageWaGroupAction(
       waGroupName: groupName,
       terverifikasi: groupId ? verifikasi === null : null,
     });
-    revalidatePath(`/paket/${pkg.id}`);
+    revalidatePath(`/proyek/paket/${pkg.id}`);
     if (!groupId) return { success: "Grup WhatsApp paket dilepas." };
     return verifikasi
       ? { success: "Grup WhatsApp paket disimpan.", warning: verifikasi }
@@ -395,7 +395,7 @@ export async function sendActivityToWaAction(
       photos: activity.photos.length,
       attachments: activity.attachments.length,
     });
-    revalidatePath(`/lokasi/${activity.location.slug}/kegiatan`);
+    revalidatePath(`/proyek/lokasi/${activity.location.slug}/kegiatan`);
 
     const sentCount = 1 + (activity.photos.length - errors.filter((e) => e.startsWith("foto-")).length) + activity.attachments.length;
     if (errors.length) {
@@ -495,7 +495,7 @@ export async function sendActivityPdfToWaAction(
       chatId,
       bytes: result.buffer.length,
     });
-    revalidatePath(`/lokasi/${activity.location.slug}/kegiatan`);
+    revalidatePath(`/proyek/lokasi/${activity.location.slug}/kegiatan`);
     return { success: `Laporan PDF terkirim ke ${destLabel}.` };
   } catch (err) {
     return fail(err);
@@ -618,7 +618,7 @@ export async function sendDailyReportToWaAction(
       })
       .catch(() => {});
     await audit(user.id, "report.wa_send", "daily_report", null, { locationId: locBasic.id, dateKey });
-    revalidatePath(`/lokasi/${slug}/laporan-lokasi`);
+    revalidatePath(`/proyek/lokasi/${slug}/laporan-lokasi`);
     return { success: "Laporan harian terkirim ke grup WhatsApp." };
   } catch (err) {
     return fail(err);
@@ -690,7 +690,7 @@ export async function sendDailyReportPdfToWaAction(
       })
       .catch(() => {});
     await audit(user.id, "report.wa_send_pdf", "daily_report", null, { locationId: locBasic.id, dateKey, chatId: target.chatId });
-    revalidatePath(`/lokasi/${slug}/laporan-lokasi`);
+    revalidatePath(`/proyek/lokasi/${slug}/laporan-lokasi`);
     return { success: `Laporan harian (PDF) terkirim ke ${target.label}.` };
   } catch (err) {
     return fail(err);

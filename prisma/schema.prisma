@@ -77,6 +77,20 @@ enum BaselineSource {
   manual
 }
 
+/// Bagian laporan yang diminta diperbaiki reviewer (DECISIONS 256).
+///
+/// Nilainya sengaja BAGIAN LAYAR, bukan nama kolom database: yang membaca ini
+/// mandor di lapangan, dan "volume" berarti sesuatu baginya sementara
+/// `daily_report_items.volume` tidak.
+enum CorrectionArea {
+  volume
+  foto
+  cuaca
+  tenaga_material
+  kendala
+  lainnya
+}
+
 /// Workflow laporan harian terpadu
 enum DailyReportStatus {
   draft
@@ -326,6 +340,7 @@ model Organization {
   documents       Document[]
   masterLocations MasterLocation[]
   waSenderAliases WaSenderAlias[]
+  importJobs      ImportJob[]
 
   @@map("organizations")
 }
@@ -391,6 +406,7 @@ model User {
   @@index([createdById])
   devicePermissions DevicePermission[]
   rabApprovals      RabRevisionApproval[]
+  importJobs        ImportJob[]
 
   @@map("users")
 }
@@ -479,6 +495,7 @@ model Package {
   waMessages      WaMessage[]
   waChatSummaries WaChatSummary[]
   gdriveUploads   GDriveUpload[]
+  importJobs      ImportJob[]
 
   @@index([orgId, stage])
   @@map("packages")
@@ -697,6 +714,7 @@ model Location {
   photos              Photo[]
   weatherObservations WeatherObservation[]
   masterLocation      MasterLocation?
+  importJobs          ImportJob[]
 
   @@index([packageId])
   @@index([province])
@@ -929,6 +947,10 @@ model DailyReport {
   finalizedById    String?           @map("finalized_by_id") @db.Uuid
   finalizedAt      DateTime?         @map("finalized_at") @db.Timestamptz
   finalSnapshot    Json?             @map("final_snapshot")
+  /// Bagian mana yang diminta diperbaiki saat laporan dikembalikan (DECISIONS
+  /// 256). Kosong = pengembalian tanpa penunjuk bagian — termasuk SELURUH
+  /// laporan lama, yang memang tidak punya data ini dan tidak boleh dikarang.
+  correctionAreas  CorrectionArea[]  @default([]) @map("correction_areas")
   // Penanda kiriman laporan ke grup WhatsApp (info "sudah dikirim").
   waSentAt         DateTime?         @map("wa_sent_at") @db.Timestamptz
   waSentById       String?           @map("wa_sent_by_id") @db.Uuid
@@ -1835,4 +1857,99 @@ model DevicePermission {
 
   @@index([userId, kind, recordedAt])
   @@map("device_permissions")
+}
+
+// ─────────────────────────────────────────────────────────────
+// IMPOR & KUALITAS DATA (PRD FR-IMP) — DECISIONS 253/254
+// ─────────────────────────────────────────────────────────────
+
+/// Jenis berkas yang diimpor. Sengaja enum, bukan string bebas: daftar ini
+/// dipakai menyaring riwayat, dan string bebas membuat "rab" dan "RAB" jadi
+/// dua jalur impor yang berbeda di mata pengguna.
+enum ImportKind {
+  rab
+  jadwal
+  master_lokasi
+  laporan_harian
+  dokumen_drive
+}
+
+enum ImportStatus {
+  diproses
+  berhasil
+  /// Sebagian baris diterima, sebagian ditolak — dan yang ditolak PUNYA alasan
+  /// per baris di `ImportIssue`. Ini status yang paling sering terjadi dan
+  /// paling sering hilang: tanpa tabel ini ia cuma banner yang menutup diri.
+  sebagian
+  gagal
+}
+
+enum ImportIssueSeverity {
+  /// Barisnya TIDAK masuk.
+  tolak
+  /// Barisnya masuk, tapi ada yang perlu diketahui (mis. kolom kosong ditebak).
+  peringatan
+}
+
+/// Satu kali unggah berkas: siapa, kapan, berkas apa, dan berapa yang masuk.
+///
+/// Sebelum ini hasil impor hanya hidup selama satu render — parser
+/// mengembalikan `warnings: string[]`, banner menampilkannya, lalu hilang saat
+/// halaman ditutup. Akibatnya pertanyaan yang paling sering muncul justru tidak
+/// bisa dijawab: "RAB lokasi ini diimpor dari file mana, oleh siapa, dan baris
+/// mana yang waktu itu ditolak?"
+///
+/// Tabel ini TIDAK menyimpan berkasnya, hanya jejaknya. Menyimpan berkas
+/// berarti keputusan retensi & privasi tersendiri; jejaknya sudah cukup untuk
+/// menjawab pertanyaan di atas.
+model ImportJob {
+  id           String       @id @default(uuid()) @db.Uuid
+  orgId        String       @map("org_id") @db.Uuid
+  /// Null bila dijalankan proses terjadwal, bukan orang.
+  userId       String?      @map("user_id") @db.Uuid
+  locationId   String?      @map("location_id") @db.Uuid
+  packageId    String?      @map("package_id") @db.Uuid
+  kind         ImportKind
+  status       ImportStatus @default(diproses)
+  fileName     String       @map("file_name")
+  fileBytes    Int          @default(0) @map("file_bytes")
+  rowsRead     Int          @default(0) @map("rows_read")
+  rowsAccepted Int          @default(0) @map("rows_accepted")
+  rowsRejected Int          @default(0) @map("rows_rejected")
+  /// Ringkasan sekalimat untuk daftar — rinciannya di `issues`.
+  message      String?      @db.Text
+  startedAt    DateTime     @default(now()) @map("started_at") @db.Timestamptz
+  finishedAt   DateTime?    @map("finished_at") @db.Timestamptz
+
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user     User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  location Location?    @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  package  Package?     @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  issues   ImportIssue[]
+
+  @@index([orgId, startedAt])
+  @@index([kind, startedAt])
+  @@index([locationId, startedAt])
+  @@map("import_jobs")
+}
+
+/// Satu masalah pada satu baris. Nomor baris + kolom + nilai apa adanya, supaya
+/// pengguna bisa membuka file aslinya dan langsung menuju barisnya — bukan
+/// disuruh mencari sendiri apa yang salah dari pesan yang menyebut jumlah saja.
+model ImportIssue {
+  id        String              @id @default(uuid()) @db.Uuid
+  jobId     String              @map("job_id") @db.Uuid
+  severity  ImportIssueSeverity
+  /// Nomor baris di berkas ASLI (1-based, termasuk header) — bukan indeks array.
+  rowNumber Int?                @map("row_number")
+  column    String?
+  /// Nilai apa adanya dari sel, tanpa dinormalkan. DECISIONS 203: yang
+  /// ditampilkan balik ke pengguna harus persis yang ia tulis.
+  value     String?             @db.Text
+  message   String              @db.Text
+
+  job ImportJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, severity])
+  @@map("import_issues")
 }

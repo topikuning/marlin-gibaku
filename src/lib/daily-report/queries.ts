@@ -5,6 +5,7 @@ import { COUNTED_REPORT_STATUSES, cumulativeVolumeByLineage } from "@/lib/progre
 import { jakartaDateKey, parseDateKey } from "@/lib/format";
 import { buildPhotoViews, type PhotoView } from "@/lib/photos";
 import type {
+  CorrectionArea,
   DailyReportStatus,
   IssueSeverity,
   IssueStatus,
@@ -186,6 +187,8 @@ export type WorkspaceReport = {
   photosTanpaItem: PhotoView[];
   /** Alasan pengembalian terakhir (transisi → perlu_koreksi paling baru). */
   lastCorrectionReason: string | null;
+  /** Bagian yang diminta diperbaiki reviewer (DECISIONS 256); kosong = tanpa penunjuk. */
+  correctionAreas: CorrectionArea[];
   isFinal: boolean;
 };
 
@@ -200,7 +203,69 @@ export type WorkspaceData = {
   dateKey: string;
   report: WorkspaceReport | null;
   recentDays: RecentDay[];
+  pintasan: PintasanItem;
 };
+
+/**
+ * Pintasan pemilihan item — hanya ID, karena editor sudah memegang seluruh
+ * `LeafNodeOption`. Mengirim ulang datanya cuma menggandakan payload di
+ * jaringan yang justru paling buruk di tempat ini dipakai.
+ */
+export type PintasanItem = {
+  /** Item pada laporan terakhir SEBELUM tanggal ini — "ulangi pekerjaan kemarin". */
+  kemarin: string[];
+  /** Item yang paling sering dilaporkan di lokasi ini, di luar `kemarin`. */
+  sering: string[];
+};
+
+/** Berapa banyak chip "sering dipakai" yang layak muncul sebelum jadi belantara. */
+const BATAS_SERING = 6;
+
+/**
+ * Pintasan item untuk pengisian cepat (Master Prompt §8.3).
+ *
+ * Pekerjaan lapangan berulang: item yang dilaporkan hari ini hampir selalu
+ * sama dengan kemarin. Tanpa pintasan, pelapor mengetik ulang pencarian yang
+ * sama belasan kali sehari — dan itu alasan orang berhenti mengisi di tengah.
+ *
+ * "Favorit" pada rancangan sengaja DITURUNKAN dari data pemakaian, bukan
+ * disimpan sebagai tabel preferensi baru: menandai favorit adalah pekerjaan
+ * tambahan yang justru dibebankan ke pengguna yang paling tidak punya waktu,
+ * dan daftar favorit yang lupa diperbarui cepat jadi menyesatkan.
+ */
+export async function getPintasanItem(
+  locationId: string,
+  reportDate: Date,
+): Promise<PintasanItem> {
+  const [laporanSebelumnya, sering] = await Promise.all([
+    db.dailyReport.findFirst({
+      where: { locationId, reportDate: { lt: reportDate } },
+      orderBy: { reportDate: "desc" },
+      select: {
+        items: { select: { rabNodeId: true }, orderBy: { rabNode: { sortOrder: "asc" } } },
+      },
+    }),
+    db.dailyReportItem.groupBy({
+      by: ["rabNodeId"],
+      where: { report: { locationId, reportDate: { lt: reportDate } } },
+      _count: { rabNodeId: true },
+      orderBy: { _count: { rabNodeId: "desc" } },
+      take: BATAS_SERING * 3,
+    }),
+  ]);
+
+  const kemarin = laporanSebelumnya?.items.map((i) => i.rabNodeId) ?? [];
+  const sudah = new Set(kemarin);
+  return {
+    kemarin,
+    // Yang sudah muncul sebagai "kemarin" tidak diulang jadi chip kedua —
+    // dua tombol yang membuka item sama hanya memperlambat memilih.
+    sering: sering
+      .map((s) => s.rabNodeId)
+      .filter((id) => !sudah.has(id))
+      .slice(0, BATAS_SERING),
+  };
+}
 
 /** Daftar N hari terakhir (termasuk dateKey acuan) + status laporan per hari. */
 export async function getRecentDays(locationId: string, days: number, endKey?: string): Promise<RecentDay[]> {
@@ -231,7 +296,7 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
   });
   if (!location) return null;
 
-  const [report, recentDays] = await Promise.all([
+  const [report, recentDays, pintasan] = await Promise.all([
     db.dailyReport.findUnique({
       where: { locationId_reportDate: { locationId: location.id, reportDate } },
       include: {
@@ -246,9 +311,10 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
       },
     }),
     getRecentDays(location.id, 14, dateKey),
+    getPintasanItem(location.id, reportDate),
   ]);
 
-  if (!report) return { location, dateKey, report: null, recentDays };
+  if (!report) return { location, dateKey, report: null, recentDays, pintasan };
 
   // Kumulatif "s/d tanggal laporan ini" — laporan tanggal sesudahnya TIDAK ikut
   // dihitung, supaya angka kumulatif hari ini tidak tampak menghitung volume
@@ -322,6 +388,7 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
     location,
     dateKey,
     recentDays,
+    pintasan,
     report: {
       id: report.id,
       status: report.status,
@@ -360,6 +427,7 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
       photos: photoViews,
       photosTanpaItem,
       lastCorrectionReason: lastCorrection?.reason ?? null,
+      correctionAreas: report.correctionAreas,
       isFinal: report.status === "final",
     },
   };
@@ -395,6 +463,12 @@ export type HariIniLocation = {
   weeklyTargets: WeeklyTarget[];
   weekNumber: number | null;
   last7Days: RecentDay[];
+  /**
+   * Kendala yang masih terbuka di lokasi ini. Ditampilkan di landing lapangan
+   * supaya pelapor tahu apa yang sudah dilaporkan dan sedang ditunggu — tanpa
+   * ini, kendala yang sama dilaporkan berulang kali karena tidak kelihatan.
+   */
+  kendalaAktif: { id: string; title: string; severity: IssueSeverity }[];
 };
 
 /** Ringkasan lapangan per lokasi untuk /hari-ini. */
@@ -407,7 +481,8 @@ export async function getHariIniLocation(locationId: string): Promise<HariIniLoc
   });
   if (!location) return null;
 
-  const [todayReport, correctionReports, weeklyPlan, last7Days, cumulative] = await Promise.all([
+  const [todayReport, correctionReports, weeklyPlan, last7Days, cumulative, kendalaAktif] =
+    await Promise.all([
     db.dailyReport.findUnique({
       where: { locationId_reportDate: { locationId, reportDate: today } },
       select: { status: true, _count: { select: { items: true } } },
@@ -442,10 +517,17 @@ export async function getHariIniLocation(locationId: string): Promise<HariIniLoc
     }),
     getRecentDays(locationId, 7),
     cumulativeVolumeByLineage(locationId),
+    db.issue.findMany({
+      where: { locationId, status: { in: ["terbuka", "ditangani"] } },
+      select: { id: true, title: true, severity: true },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+    }),
   ]);
 
   return {
     ...location,
+    kendalaAktif,
     todayDraftItemCount: todayReport ? todayReport._count.items : null,
     todayStatus: todayReport?.status ?? null,
     corrections: correctionReports.map((r) => ({

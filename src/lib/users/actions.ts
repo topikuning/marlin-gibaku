@@ -93,7 +93,7 @@ export async function createUser(_prev: UserActionState, formData: FormData): Pr
     });
   }
   await audit(actor.id, "user.create", "user", user.id, { role: targetRole, locations: locationIds.length });
-  revalidatePath("/master/pengguna");
+  revalidatePath("/administrasi/pengguna");
   return { success: `Pengguna ${d.username} (${ROLE_LABEL[targetRole]}) dibuat. Password harus diganti saat login pertama.` };
 }
 
@@ -131,7 +131,7 @@ export async function updateUserProfile(_prev: UserActionState, formData: FormDa
     fullName: d.fullName,
     waDiisi: !!waNumber,
   });
-  revalidatePath("/master/pengguna");
+  revalidatePath("/administrasi/pengguna");
   return { success: "Data pengguna diperbarui." };
 }
 
@@ -192,7 +192,7 @@ export async function setUserActive(userId: string, isActive: boolean): Promise<
   await db.user.update({ where: { id: userId }, data: { isActive } });
   if (!isActive) await revokeAllSessions(userId); // sesi langsung mati
   await audit(actor.id, isActive ? "user.activate" : "user.deactivate", "user", userId);
-  revalidatePath("/master/pengguna");
+  revalidatePath("/administrasi/pengguna");
 }
 
 export async function resetUserPassword(_prev: UserActionState, formData: FormData): Promise<UserActionState> {
@@ -208,7 +208,7 @@ export async function resetUserPassword(_prev: UserActionState, formData: FormDa
   });
   await revokeAllSessions(userId);
   await audit(actor.id, "user.reset_password", "user", userId);
-  revalidatePath("/master/pengguna");
+  revalidatePath("/administrasi/pengguna");
   return { success: "Password direset. Pengguna wajib menggantinya saat login." };
 }
 
@@ -240,7 +240,7 @@ export async function setAssignments(_prev: UserActionState, formData: FormData)
     }
   });
   await audit(actor.id, "user.set_assignments", "user", userId, { count: locationIds.length });
-  revalidatePath("/master/pengguna");
+  revalidatePath("/administrasi/pengguna");
   return { success: "Penugasan lokasi diperbarui." };
 }
 
@@ -301,7 +301,7 @@ export async function setUserRole(_prev: UserActionState, formData: FormData): P
     throw err;
   }
 
-  revalidatePath("/master/pengguna");
+  revalidatePath("/administrasi/pengguna");
   revalidatePath("/pengguna");
   // Penugasan lokasi TIDAK ikut dihapus: peran menentukan APA yang boleh
   // dilakukan, penugasan menentukan DI MANA. Kalau peran barunya lintas-lokasi

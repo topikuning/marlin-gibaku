@@ -24,7 +24,7 @@ vi.mock("@/lib/auth/session", async () => {
 
 const { db } = await import("@/lib/db");
 const { getAntreanLaporan, menungguHariSejak } = await import("@/lib/daily-report/antrean");
-const { getSiblingLocations } = await import("@/app/(app)/lokasi/[slug]/get-location");
+const { getSiblingLocations } = await import("@/app/(app)/proyek/lokasi/[slug]/get-location");
 
 const suffix = `nb${Date.now().toString(36)}`;
 let orgId = "";
@@ -136,7 +136,7 @@ describe("KASUS INTI: angka di kartu punya jalan ke laporannya", () => {
     expect(r.olehNama).toBe("Slamet Riyadi");
     expect(r.pelaporNama).toBe("Paijo Sutrisno");
     // Link tujuan = laporannya sendiri, bukan halaman daftar.
-    expect(`/lokasi/${r.locationSlug}/harian/${r.dateKey}`).toContain("/harian/2026-07-26");
+    expect(`/proyek/lokasi/${r.locationSlug}/harian/${r.dateKey}`).toContain("/harian/2026-07-26");
   });
 
   it("menunggu-verifikasi hanya berisi yang DIKIRIM — final tidak ikut", async () => {

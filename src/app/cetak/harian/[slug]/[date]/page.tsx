@@ -35,7 +35,7 @@ export default async function CetakHarianPage({
           typeof sp[PRINT_BACK_PARAM] === "string" ? sp[PRINT_BACK_PARAM] : undefined,
           // Cadangan: laporan harian tanggal itu sendiri — BUKAN daftar laporan
           // lokasi (di sana ada laporan mingguan, terasa nyasar).
-          `/lokasi/${slug}/harian/${date}`,
+          `/proyek/lokasi/${slug}/harian/${date}`,
         )}
       />
       <main className="mx-auto max-w-[900px] bg-white p-6 print:p-0">

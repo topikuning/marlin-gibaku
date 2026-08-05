@@ -9,7 +9,7 @@ import { requireCapability, requireLocationAccess, ForbiddenError, type SessionU
 /**
  * Server actions kendala (Issue) + aksi pemulihan (RecoveryAction/Update).
  * Semua mutasi: capability issue.manage + scope lokasi + zod + audit +
- * revalidatePath. Dipakai dari halaman /lokasi/[slug]/progress.
+ * revalidatePath. Dipakai dari halaman /proyek/lokasi/[slug]/progress.
  */
 
 export type IssueActionState = { error?: string; success?: string } | undefined;
@@ -29,8 +29,8 @@ async function guard(locationId: string): Promise<{ user: SessionUser; slug: str
 }
 
 function revalidateLocation(slug: string): void {
-  revalidatePath(`/lokasi/${slug}/progress`);
-  revalidatePath(`/lokasi/${slug}`);
+  revalidatePath(`/proyek/lokasi/${slug}/progress`);
+  revalidatePath(`/proyek/lokasi/${slug}`);
 }
 
 function fail(err: unknown): IssueActionState {

@@ -124,6 +124,6 @@ await db.\$disconnect();
 | Pre-deploy gagal `Cannot find module 'prisma/config'` | prisma.config harus .js polos tanpa import paket `prisma` (CLI global di container) — sudah diperbaiki |
 | Pre-deploy gagal ~3 dtk TANPA log | preDeployCommand di-exec TANPA shell oleh Railway — tidak boleh mengandung `cd`/`&&`/pipe; harus satu perintah polos (`prisma migrate deploy`) |
 | `prisma migrate deploy` gagal di pre-deploy | migrasi konflik — cek log deploy; jangan pernah reset di production |
-| `/hari-ini` atau halaman lain 500 `sharp module` | binari native sharp tidak ter-trace — sudah diperbaiki (lazy-load + npm install sharp di runner); pakai commit terbaru |
+| `/pelaksanaan` atau halaman lain 500 `sharp module` | binari native sharp tidak ter-trace — sudah diperbaiki (lazy-load + npm install sharp di runner); pakai commit terbaru |
 | Upload foto/dokumen error "belum dikonfigurasi" | Env R2 kosong — isi 4 variabel R2 lalu redeploy |
 | Tes R2 gagal di menu Sistem | Baca step yang merah: DNS = endpoint salah; Signature = secret salah; NoSuchBucket = nama bucket; AccessDenied = permission token |

@@ -49,7 +49,7 @@ export async function saveGDriveClientAction(
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     await saveGDriveClient(parsed.data.clientId, parsed.data.clientSecret || null);
     await audit(user.id, "gdrive.config", "app_setting", null, { clientId: parsed.data.clientId });
-    revalidatePath("/sistem");
+    revalidatePath("/administrasi/sistem");
     return { success: "Konfigurasi Google tersimpan. Lanjutkan dengan “Hubungkan akun Google”." };
   } catch (err) {
     return fail(err);
@@ -61,7 +61,7 @@ export async function disconnectGDriveAction(): Promise<GDriveActionState> {
     const user = await requireCapability("system.manage");
     await clearGDriveToken();
     await audit(user.id, "gdrive.disconnect", "app_setting", null, {});
-    revalidatePath("/sistem");
+    revalidatePath("/administrasi/sistem");
     return { success: "Akun Google diputus." };
   } catch (err) {
     return fail(err);
@@ -103,7 +103,7 @@ export async function setPackageDriveFolderAction(
     if (!folder) {
       await db.package.update({ where: { id: packageId }, data: { driveFolderId: null } });
       await audit(user.id, "gdrive.folder.hapus", "package", packageId, {});
-      revalidatePath(`/paket/${packageId}`);
+      revalidatePath(`/proyek/paket/${packageId}`);
       return { success: "Folder Drive paket dihapus." };
     }
 
@@ -121,7 +121,7 @@ export async function setPackageDriveFolderAction(
     }
     await db.package.update({ where: { id: packageId }, data: { driveFolderId: folderId } });
     await audit(user.id, "gdrive.folder.simpan", "package", packageId, { folderId, folderName });
-    revalidatePath(`/paket/${packageId}`);
+    revalidatePath(`/proyek/paket/${packageId}`);
     return {
       success: folderName
         ? `Folder Drive tersimpan: “${folderName}”.`
@@ -229,7 +229,7 @@ export async function uploadDailyReportToDriveAction(
       files: outcomes.reduce((s, o) => s + o.ok, 0),
       photos: photos.length,
     });
-    revalidatePath(`/lokasi/${slug}/laporan-lokasi`);
+    revalidatePath(`/proyek/lokasi/${slug}/laporan-lokasi`);
     const err = outcomes.find((o) => o.firstError)?.firstError;
     const msg = summarize("Laporan harian", outcomes, skipped);
     return err ? { error: `${msg} Penyebab: ${err}` } : { success: msg };
@@ -291,7 +291,7 @@ export async function uploadPeriodReportToDriveAction(
     ]);
 
     await audit(user.id, "gdrive.upload", "location", locationId, { kind, n, files: outcome.ok });
-    revalidatePath(`/lokasi/${c.slug}/laporan-lokasi`);
+    revalidatePath(`/proyek/lokasi/${c.slug}/laporan-lokasi`);
     const msg = summarize(`Laporan ${kind} ${label}`, [outcome]);
     return outcome.firstError ? { error: `${msg} Penyebab: ${outcome.firstError}` } : { success: msg };
   } catch (err) {
@@ -355,7 +355,7 @@ export async function uploadActivityToDriveAction(
       files: outcomes.reduce((s, o) => s + o.ok, 0),
       photos: act.photos.length,
     });
-    revalidatePath(`/lokasi/${act.location.slug}/kegiatan`);
+    revalidatePath(`/proyek/lokasi/${act.location.slug}/kegiatan`);
     const err = outcomes.find((o) => o.firstError)?.firstError;
     const msg = summarize("Kegiatan lapangan", outcomes, skipped);
     return err ? { error: `${msg} Penyebab: ${err}` } : { success: msg };
@@ -440,7 +440,7 @@ export async function uploadDocumentToDriveAction(
       folder: path[0],
       ok: outcome.ok,
     });
-    revalidatePath("/dokumen");
+    revalidatePath("/dokumen-laporan/dokumen");
     const msg = summarize(`Dokumen “${doc.title}”`, [outcome]);
     return outcome.firstError ? { error: `${msg} Penyebab: ${outcome.firstError}` } : { success: msg };
   } catch (err) {

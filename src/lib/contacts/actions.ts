@@ -10,7 +10,7 @@ import { normalizeWaTarget } from "./model";
 
 /**
  * Server action Manajemen Kontak (DECISIONS 150). Semua bermuara di satu
- * halaman `/master/kontak`.
+ * halaman `/administrasi/kontak`.
  *
  * Aturan kepemilikan yang dipaksakan tiap action:
  * - Kontak tujuan: menambah SELALU untuk diri sendiri; menyunting/menghapus
@@ -30,8 +30,8 @@ function fail(err: unknown): ContactState {
 
 /** Halaman yang menampilkan kontak — semuanya perlu disegarkan. */
 function revalidateContacts() {
-  revalidatePath("/master/kontak");
-  revalidatePath("/chat-grup");
+  revalidatePath("/administrasi/kontak");
+  revalidatePath("/dokumen-laporan/distribusi");
 }
 
 /* ── Kontak tujuan kirim ─────────────────────────────────────────────────── */

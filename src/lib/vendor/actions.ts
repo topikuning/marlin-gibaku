@@ -50,8 +50,8 @@ export async function mergeVendorsAction(_prev: VendorActionState, formData: For
       movedContracts: result.contracts,
       movedCommitments: result.commitments,
     });
-    revalidatePath("/master/perusahaan");
-    revalidatePath("/paket");
+    revalidatePath("/administrasi/perusahaan");
+    revalidatePath("/proyek/paket");
     return {
       success: `"${from.name}" digabung ke "${to.name}" — ${result.contracts} kontrak & ${result.commitments} komitmen dialihkan.`,
     };
@@ -76,7 +76,7 @@ export async function deleteVendorAction(_prev: VendorActionState, formData: For
     }
     await db.vendor.delete({ where: { id: vendor.id } });
     await audit(actor.id, "vendor.delete", "vendor", vendor.id, { name: vendor.name });
-    revalidatePath("/master/perusahaan");
+    revalidatePath("/administrasi/perusahaan");
     return { success: `Vendor "${vendor.name}" dihapus.` };
   } catch (err) {
     return fail(err);
@@ -187,7 +187,7 @@ export async function updateVendorAction(_prev: VendorActionState, formData: For
       logoChanged: logoKey !== vendor.logoKey,
       kopChanged: kopKey !== vendor.kopKey,
     });
-    revalidatePath("/master/perusahaan");
+    revalidatePath("/administrasi/perusahaan");
     return { success: `Master data "${d.name}" tersimpan.` };
   } catch (err) {
     return fail(err);

@@ -50,8 +50,8 @@ export async function generateChatSummaryAction(
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const r = await generateChatSummary(user, parsed.data.packageId, parsed.data.dateKey);
     if (!r.ok) return { error: r.error };
-    revalidatePath("/chat-grup");
-    revalidatePath("/chat-grup/global");
+    revalidatePath("/dokumen-laporan/distribusi");
+    revalidatePath("/dokumen-laporan/distribusi/global");
     return { success: "Ringkasan tersimpan." };
   } catch (err) {
     return fail(err);
@@ -120,8 +120,8 @@ export async function saveSummaryDraftAction(
       to: gate.status,
       textChanged: changed,
     });
-    revalidatePath("/chat-grup");
-    revalidatePath("/chat-grup/global");
+    revalidatePath("/dokumen-laporan/distribusi");
+    revalidatePath("/dokumen-laporan/distribusi/global");
     return {
       success: gate.status === "final" ? "Ringkasan difinalkan — siap dikirim." : "Editan tersimpan.",
     };
@@ -191,8 +191,8 @@ export async function sendChatSummaryAction(
       dateKey,
       target: contact.name,
     });
-    revalidatePath("/chat-grup");
-    revalidatePath("/chat-grup/global");
+    revalidatePath("/dokumen-laporan/distribusi");
+    revalidatePath("/dokumen-laporan/distribusi/global");
     return { success: `Ringkasan terkirim ke ${contact.name}.` };
   } catch (err) {
     return fail(err);
@@ -268,8 +268,8 @@ export async function sendGlobalSummaryAction(
       target: contact.name,
       withOverview: overview != null,
     });
-    revalidatePath("/chat-grup");
-    revalidatePath("/chat-grup/global");
+    revalidatePath("/dokumen-laporan/distribusi");
+    revalidatePath("/dokumen-laporan/distribusi/global");
     const skipped = all.length - rows.length;
     return {
       success:
@@ -321,7 +321,7 @@ export async function saveSenderAliasAction(
       senderKey,
       displayName: parsed.data.displayName,
     });
-    revalidatePath("/chat-grup");
+    revalidatePath("/dokumen-laporan/distribusi");
     return { success: `Pengirim dikenali sebagai "${parsed.data.displayName}".` };
   } catch (err) {
     return fail(err);

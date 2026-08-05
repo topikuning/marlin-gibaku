@@ -9,7 +9,7 @@
 // menutup jalan ke nomor kontraknya. Cacat seperti itu tidak menimbulkan galat
 // apa pun — kolomnya cuma terlihat kosong, persis seperti sebelum diperbaiki.
 import { describe, expect, it } from "vitest";
-import { nomorPaket } from "@/app/(app)/paket/nomor";
+import { nomorPaket } from "@/app/(app)/proyek/paket/nomor";
 
 describe("nomorPaket", () => {
   it("memakai nomor paket bila ada", () => {

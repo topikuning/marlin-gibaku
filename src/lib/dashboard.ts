@@ -5,6 +5,7 @@ import { weightedRealizedPct } from "@/lib/progress-calc";
 import { getPetaMarkers, type PetaMarker } from "@/lib/peta";
 import { buildPhotoViews, type PhotoView } from "@/lib/photos";
 import { jakartaDateKey, parseDateKey } from "@/lib/format";
+import { tingkatDeviasi } from "@/lib/deviasi";
 import { REGION_ORDER, REGION_OTHER, regionOf } from "@/lib/region";
 import { getActivityKindLabelMap } from "@/lib/field-activity/kinds";
 import type { IssueSeverity, IssueStatus, RecoveryStatus, DailyReportStatus } from "@/generated/prisma/enums";
@@ -19,7 +20,6 @@ import type { IssueSeverity, IssueStatus, RecoveryStatus, DailyReportStatus } fr
 // Level status progress TUNGGAL — jangan pernah ditulis ulang sebagai literal
 // di modul mana pun (Calculation Integrity Protocol, DECISIONS 152).
 const COUNTED: DailyReportStatus[] = [...COUNTED_REPORT_STATUSES];
-const KRITIS_THRESHOLD = -10; // deviasi (pp) < -10 = kritis (butuh tindakan segera)
 
 // ── Tipe hasil ────────────────────────────────────────────────────────────────
 // MarkerTone & StatusLapor tinggal di modul MURNI dashboard-filter.ts supaya
@@ -188,11 +188,16 @@ export async function getDashboardData(locIds: string[] | null, orgId: string): 
     .filter((x) => x.p)
     .map((x) => ({ id: x.l.id, name: x.l.name, slug: x.l.slug, planPct: x.p!.planPct, realizedPct: x.p!.realizedPct, deviationPct: x.p!.deviationPct }));
 
+  // "Perlu perhatian" memakai ambang baku, bukan "< 0": lokasi yang meleset
+  // 0,3 pp adalah selisih pembulatan, dan mendaftarkannya di sini membuat
+  // daftar ini panjang oleh hal yang tak perlu ditindak siapa pun.
   const perluPerhatian = withDev
-    .filter((x) => x.deviationPct < 0)
+    .filter((x) => tingkatDeviasi(x.deviationPct) !== "aman")
     .sort((a, b) => a.deviationPct - b.deviationPct);
   const deviasiRanking = [...withDev].sort((a, b) => a.deviationPct - b.deviationPct);
-  const deviasiKritis = withDev.filter((x) => x.deviationPct < KRITIS_THRESHOLD).length;
+  const deviasiKritis = withDev.filter(
+    (x) => tingkatDeviasi(x.deviationPct) === "kritis",
+  ).length;
 
   // Sebaran region — SEMUA lokasi (bukan hanya yg punya GPS / yg sudah berjalan).
   const regionCount = new Map<string, number>();
@@ -219,9 +224,9 @@ export async function getDashboardData(locIds: string[] | null, orgId: string): 
     // harus tetap terlihat walau lokasinya belum lapor hari ini. Konsekuensinya
     // pin merah bisa berarti "belum lapor" ATAU "sudah lapor" — karena itu
     // status lapor dicatat terpisah di markerSubmit, jangan dibaca dari warna.
-    else if (p && p.deviationPct < KRITIS_THRESHOLD) markerTone[m.id] = "danger";
+    else if (p && tingkatDeviasi(p.deviationPct) === "kritis") markerTone[m.id] = "danger";
     else if (!submittedIds.has(m.id)) markerTone[m.id] = "neutral";
-    else if (p && p.deviationPct < 0) markerTone[m.id] = "warning";
+    else if (p && tingkatDeviasi(p.deviationPct) === "perhatian") markerTone[m.id] = "warning";
     else markerTone[m.id] = "success";
 
     markerSubmit[m.id] = !m.isActive ? "belum_mulai" : submittedIds.has(m.id) ? "sudah" : "belum";
@@ -340,12 +345,12 @@ export async function getActivityCentre(locIds: string[] | null, limit = 6): Pro
     locationSlug: a.location.slug,
     /*
      * Menunjuk KEGIATANNYA, bukan lokasinya. Sebelumnya butir Activity Centre
-     * menaut ke `/lokasi/{slug}` — laporan user 2026-08-03: *"activity centre
+     * menaut ke `/proyek/lokasi/{slug}` — laporan user 2026-08-03: *"activity centre
      * diklik, seharusnya langsung menuju aktifitas terkait, bukan ke lokasi
      * secara umum"*. Membuka halaman lokasi memaksa orang mencari sendiri
      * kegiatan yang barusan dilihatnya. DECISIONS 238.
      */
-    href: `/lokasi/${a.location.slug}/kegiatan#keg-${a.id}`,
+    href: `/proyek/lokasi/${a.location.slug}/kegiatan#keg-${a.id}`,
     type: a.type,
     typeLabel: kindLabels.get(a.type) ?? a.type,
     title: a.title,

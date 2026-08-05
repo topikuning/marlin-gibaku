@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { ForbiddenError, requireCapability } from "@/lib/auth/session";
+import { catatImpor, catatImporGagal } from "@/lib/import-log/record";
 import { parseMasterLocationXlsx, type ParsedMasterRow } from "./import";
 import { existingLocationIndex, locationKey } from "./queries";
 
@@ -33,12 +34,17 @@ function dedupe(rows: ParsedMasterRow[]): Map<string, ParsedMasterRow> {
   return map;
 }
 
-async function readFile(formData: FormData): Promise<{ buffer: Buffer } | { error: string }> {
+async function readFile(
+  formData: FormData,
+): Promise<{ buffer: Buffer; name: string; bytes: number } | { error: string }> {
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) return { error: "Pilih file xlsx dulu." };
   if (file.size > 5 * 1024 * 1024) return { error: "File terlalu besar (maks 5 MB)." };
   if (!/\.xlsx$/i.test(file.name)) return { error: "Format harus .xlsx" };
-  return { buffer: Buffer.from(await file.arrayBuffer()) };
+  // Nama & ukuran ikut dibawa: jejak impor tanpa nama berkas tidak bisa
+  // dipakai menjawab "diimpor dari file mana" — pertanyaan yang justru
+  // menjadi alasan jejak itu ada (DECISIONS 254).
+  return { buffer: Buffer.from(await file.arrayBuffer()), name: file.name, bytes: file.size };
 }
 
 /** Pratinjau: parse + ringkasan, TANPA menulis DB. */
@@ -108,8 +114,21 @@ export async function commitMasterImportAction(
     const read = await readFile(formData);
     if ("error" in read) return { error: read.error };
 
-    const { rows } = await parseMasterLocationXlsx(read.buffer);
-    if (rows.length === 0) return { error: "Tidak ada baris valid untuk disimpan." };
+    const { rows, warnings } = await parseMasterLocationXlsx(read.buffer);
+    if (rows.length === 0) {
+      // Impor yang gagal TOTAL tetap dicatat. Justru yang gagal inilah yang
+      // paling sering ditanyakan ulang ("kemarin sudah saya unggah kok"), dan
+      // tanpa jejaknya tidak ada apa pun yang bisa ditunjukkan.
+      await catatImporGagal({
+        orgId: actor.orgId,
+        userId: actor.id,
+        kind: "master_lokasi",
+        fileName: read.name,
+        fileBytes: read.bytes,
+        alasan: warnings.join(" ") || "Tidak ada baris valid untuk disimpan.",
+      });
+      return { error: "Tidak ada baris valid untuk disimpan." };
+    }
     const uniq = dedupe(rows);
 
     // Vendor unik → master (upsert by orgId+name).
@@ -161,8 +180,34 @@ export async function commitMasterImportAction(
       updated,
       vendors: vendorNames.length,
     });
-    revalidatePath("/paket/katalog");
-    revalidatePath("/paket/bypass");
+    // Baris yang dibuang dedupe BUKAN kegagalan — file memang boleh memuat
+    // desa yang sama dua kali. Dicatat sebagai peringatan supaya selisih
+    // "dibaca 120, masuk 118" punya penjelasan, bukan jadi teka-teki.
+    const terduplikasi = rows.length - uniq.size;
+    await catatImpor({
+      orgId: actor.orgId,
+      userId: actor.id,
+      kind: "master_lokasi",
+      fileName: read.name,
+      fileBytes: read.bytes,
+      rowsRead: rows.length,
+      rowsAccepted: uniq.size,
+      rowsRejected: 0,
+      message: `${created} lokasi baru, ${updated} diperbarui, ${vendorNames.length} vendor diproses.`,
+      masalah: [
+        ...warnings.map((w) => ({ severity: "peringatan" as const, message: w })),
+        ...(terduplikasi > 0
+          ? [
+              {
+                severity: "peringatan" as const,
+                message: `${terduplikasi} baris berisi desa yang sama dengan baris lain; yang dipakai adalah baris TERAKHIR untuk tiap desa.`,
+              },
+            ]
+          : []),
+      ],
+    });
+    revalidatePath("/administrasi/lokasi-master");
+    revalidatePath("/proyek/paket/bypass");
     return {
       success: `Impor selesai: ${created} lokasi baru, ${updated} diperbarui, ${vendorNames.length} vendor diproses.`,
     };

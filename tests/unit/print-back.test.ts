@@ -8,14 +8,14 @@ import { PRINT_BACK_PARAM, safeBackPath, withBackTo } from "@/lib/print-back";
  * karena query bisa diisi siapa saja, isinya harus disaring.
  */
 
-const FALLBACK = "/lokasi/kedungrejo/harian/2026-05-12";
+const FALLBACK = "/proyek/lokasi/kedungrejo/harian/2026-05-12";
 
 describe("safeBackPath", () => {
   it("path internal dipakai apa adanya", () => {
-    expect(safeBackPath("/lokasi/kedungrejo/harian/2026-05-12", FALLBACK)).toBe(
-      "/lokasi/kedungrejo/harian/2026-05-12",
+    expect(safeBackPath("/proyek/lokasi/kedungrejo/harian/2026-05-12", FALLBACK)).toBe(
+      "/proyek/lokasi/kedungrejo/harian/2026-05-12",
     );
-    expect(safeBackPath("/laporan", FALLBACK)).toBe("/laporan");
+    expect(safeBackPath("/dokumen-laporan/laporan", FALLBACK)).toBe("/dokumen-laporan/laporan");
   });
 
   it("kosong / tidak ada → cadangan", () => {
@@ -34,20 +34,20 @@ describe("safeBackPath", () => {
   });
 
   it("menolak path yang memuat '..'", () => {
-    expect(safeBackPath("/lokasi/../../etc", FALLBACK)).toBe(FALLBACK);
+    expect(safeBackPath("/proyek/lokasi/../../etc", FALLBACK)).toBe(FALLBACK);
   });
 });
 
 describe("withBackTo", () => {
   it("menyisipkan asal halaman & meng-encode-nya", () => {
-    const href = withBackTo("/cetak/harian/kedungrejo/2026-05-12", "/lokasi/kedungrejo/harian/2026-05-12");
+    const href = withBackTo("/cetak/harian/kedungrejo/2026-05-12", "/proyek/lokasi/kedungrejo/harian/2026-05-12");
     expect(href).toContain(`${PRINT_BACK_PARAM}=`);
     const url = new URL(href, "https://x.test");
-    expect(url.searchParams.get(PRINT_BACK_PARAM)).toBe("/lokasi/kedungrejo/harian/2026-05-12");
+    expect(url.searchParams.get(PRINT_BACK_PARAM)).toBe("/proyek/lokasi/kedungrejo/harian/2026-05-12");
   });
 
   it("pulang-pergi: hasil withBackTo lolos safeBackPath", () => {
-    const asal = "/laporan?periode=mingguan";
+    const asal = "/dokumen-laporan/laporan?periode=mingguan";
     const href = withBackTo("/cetak/harian/a/2026-05-12", asal);
     const url = new URL(href, "https://x.test");
     expect(safeBackPath(url.searchParams.get(PRINT_BACK_PARAM), FALLBACK)).toBe(asal);

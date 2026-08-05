@@ -17,7 +17,8 @@ import {
 } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
 import { Download, Loader2 } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import Link from "next/link";
 import { formatPct, formatRupiah, formatTanggal } from "@/lib/format";
 
 // Registrasi module sekali (module-level), bukan per-render.
@@ -107,6 +108,117 @@ function storageKey(persistKey: string): string {
   return `marlin-grid:${persistKey}`;
 }
 
+/**
+ * Apakah layarnya sempit (< 1024px)?
+ *
+ * `useSyncExternalStore`, bukan `useState` + effect: potret server-nya `false`
+ * sehingga HTML yang dikirim server selalu berupa TABEL, dan tidak ada
+ * ketidakcocokan hidrasi. Di ponsel kartunya menggantikan tabel pada render
+ * pertama sesudah hidrasi — satu kedipan, ditukar dengan tidak adanya cabang
+ * `typeof window` yang tersebar di seluruh komponen.
+ */
+const KUERI_SEMPIT = "(max-width: 1023.98px)";
+
+function langgananLebar(f: () => void) {
+  const mq = window.matchMedia(KUERI_SEMPIT);
+  mq.addEventListener("change", f);
+  return () => mq.removeEventListener("change", f);
+}
+
+function useLayarSempit(): boolean {
+  return useSyncExternalStore(
+    langgananLebar,
+    () => window.matchMedia(KUERI_SEMPIT).matches,
+    () => false,
+  );
+}
+
+/**
+ * Daftar kartu — pengganti tabel di layar sempit.
+ *
+ * Sengaja TANPA paginasi AG Grid: di ponsel orang menggulir, dan tombol
+ * "halaman berikutnya" di bawah daftar panjang adalah kontrol yang hampir tidak
+ * pernah tersentuh. Yang dibatasi jumlah yang dirender sekaligus, dan batas itu
+ * DIKATAKAN lewat tombol "Tampilkan lebih banyak" — bukan dipotong diam-diam.
+ */
+function DaftarKartu<T>({
+  rows,
+  kartu,
+  emptyText,
+}: {
+  rows: T[];
+  kartu: (row: T) => KartuBaris;
+  emptyText?: string;
+}) {
+  const [batas, setBatas] = useState(30);
+  if (rows.length === 0) {
+    // Penanda yang SAMA dipasang di keadaan kosong: tanpa itu, uji yang
+    // menunggu daftar akan menggantung justru pada kasus "tidak ada data" —
+    // gagal karena datanya kosong, tapi melapor seolah halamannya rusak.
+    return (
+      <p data-uji="kartu-daftar" className="py-6 text-center text-sm text-ink-muted">
+        {emptyText ?? "Tidak ada data"}
+      </p>
+    );
+  }
+  const tampil = rows.slice(0, batas);
+  return (
+    // `data-uji`: uji E2E perlu satu penanda yang mengatakan "daftarnya sudah
+    // dirender" tanpa bergantung pada kelas AG Grid, yang justru TIDAK ada
+    // dalam bentuk kartu.
+    <div className="space-y-2" data-uji="kartu-daftar">
+      {tampil.map((row, i) => {
+        const k = kartu(row);
+        const isi = (
+          <>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-ink">{k.judul}</p>
+                {k.subjudul ? (
+                  <p className="mt-0.5 truncate text-xs text-ink-muted">{k.subjudul}</p>
+                ) : null}
+              </div>
+              {k.lencana ? <div className="shrink-0">{k.lencana}</div> : null}
+            </div>
+            {k.rinci && k.rinci.length > 0 ? (
+              <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
+                {k.rinci.map((r) => (
+                  <div key={r.label} className="min-w-0">
+                    <dt className="text-[11px] text-ink-faint">{r.label}</dt>
+                    <dd className="tabular truncate text-[13px] text-ink">{r.nilai}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : null}
+          </>
+        );
+        // `min-h-11` = target sentuh 44px (Master Prompt §5), berlaku juga untuk
+        // kartu tanpa tautan supaya tinggi barisnya tidak berubah-ubah.
+        const kelas =
+          "block min-h-11 rounded-lg border border-border bg-surface p-3 shadow-xs";
+        return k.href ? (
+          <Link key={i} href={k.href} className={`${kelas} hover:bg-surface-muted`}>
+            {isi}
+          </Link>
+        ) : (
+          <div key={i} className={kelas}>
+            {isi}
+          </div>
+        );
+      })}
+      {rows.length > batas ? (
+        <button
+          type="button"
+          onClick={() => setBatas((b) => b + 30)}
+          className="h-11 w-full rounded-lg border border-border bg-surface text-sm font-medium text-primary-700"
+        >
+          Tampilkan lebih banyak ({rows.length - batas} lagi)
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export interface MarlinGridProps<T> {
   rowData?: T[] | null;
   columnDefs: ColDef<T>[];
@@ -148,6 +260,34 @@ export interface MarlinGridProps<T> {
   editMode?: boolean;
   onCellValueChanged?: (e: CellValueChangedEvent<T>) => void;
   rowClassRules?: RowClassRules<T>;
+  /**
+   * KARTU untuk layar sempit (< 1024px).
+   *
+   * Di bawah lebar ini, tabel berkolom banyak berhenti jadi tabel: isinya
+   * digeser ke samping satu layar demi satu layar, dan membandingkan dua baris
+   * berarti mengingat kolom yang sudah keluar layar. Mandor dan Site Manager
+   * membuka daftar ini dari ponsel — jadi bentuknya berubah, bukan dikecilkan
+   * (Master Prompt §5: "Mobile bukan desktop yang dikecilkan").
+   *
+   * Diberikan per-pemakaian karena hanya pemakainya yang tahu tiga sampai empat
+   * hal yang benar-benar penting dari dua belas kolomnya. Tanpa prop ini,
+   * gridnya tampil apa adanya seperti sebelumnya — tidak ada halaman yang
+   * berubah tanpa diminta.
+   */
+  kartu?: (row: T) => KartuBaris;
+}
+
+/** Satu baris dalam bentuk kartu. */
+export type KartuBaris = {
+  judul: ReactNode;
+  /** Baris kedua: konteks singkat (paket, provinsi, tanggal). */
+  subjudul?: ReactNode;
+  /** Kanan atas — biasanya StatusPill. */
+  lencana?: ReactNode;
+  /** Pasangan label→nilai yang ditampilkan sebagai kisi kecil. */
+  rinci?: { label: string; nilai: ReactNode }[];
+  /** Kalau ada, seluruh kartu jadi tautan. */
+  href?: string;
 }
 
 export function MarlinGrid<T>({
@@ -169,7 +309,9 @@ export function MarlinGrid<T>({
   editMode = false,
   onCellValueChanged,
   rowClassRules,
+  kartu,
 }: MarlinGridProps<T>) {
+  const sempit = useLayarSempit();
   const apiRef = useRef<GridApi<T> | null>(null);
   const [quickFilterText, setQuickFilterText] = useState("");
 
@@ -279,6 +421,19 @@ export function MarlinGrid<T>({
           ) : null}
         </div>
       ) : null}
+      {/*
+       * KARTU di layar sempit. `serverSide` dikecualikan: barisnya dimuat
+       * bertahap oleh AG Grid sendiri, jadi tidak ada `rowData` utuh yang bisa
+       * dijadikan kartu — memaksakannya akan menampilkan daftar yang diam-diam
+       * cuma memuat halaman pertama.
+       */}
+      {kartu && sempit && !serverSide ? (
+        <DaftarKartu
+          rows={rowData ?? []}
+          kartu={kartu}
+          emptyText={emptyText}
+        />
+      ) : (
       <div style={autoHeight ? undefined : { height: fixedHeight }}>
         <AgGridReact<T>
           theme={marlinTheme}
@@ -321,6 +476,7 @@ export function MarlinGrid<T>({
             : { rowData: rowData ?? [] })}
         />
       </div>
+      )}
     </div>
   );
 }

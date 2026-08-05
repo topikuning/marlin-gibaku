@@ -57,22 +57,70 @@ test.describe("otorisasi per peran", () => {
   test("mandor tidak melihat menu Pengguna/Keuangan dan ditolak akses halaman", async ({ page }) => {
     await login(page, "mandor-01");
     // Pelaksana (field_supervisor) mendarat langsung di Hari Ini, bukan Beranda.
-    await expect(page).toHaveURL("/hari-ini");
+    await expect(page).toHaveURL("/pelaksanaan");
     await expect(page.locator("nav").getByRole("link", { name: "Pengguna" })).toHaveCount(0);
-    await page.goto("/pengguna");
+    await page.goto("/administrasi/pengguna");
     await expect(page.getByText(/404|not found/i).first()).toBeVisible();
   });
 
   test("exec viewer bisa lihat progress tapi tidak ada menu Sistem", async ({ page }) => {
     await login(page, "kkp-viewer");
-    await page.goto("/progress");
+    await page.goto("/pengendalian/progress");
     await expect(page.getByRole("heading", { name: "Progress Portfolio" })).toBeVisible();
     await expect(page.locator("nav").getByRole("link", { name: "Sistem" })).toHaveCount(0);
   });
 
   test("program director bisa buka Pengguna", async ({ page }) => {
     await login(page, "hery");
-    await page.goto("/pengguna");
+    await page.goto("/administrasi/pengguna");
     await expect(page.getByText("Daftar pengguna").first()).toBeVisible();
   });
+});
+
+/**
+ * URL lama harus tetap mendarat di tempat yang benar (DECISIONS 252).
+ *
+ * Alias ini dulu berupa `page.tsx` yang memanggil `redirect()`; sekarang entri
+ * `redirects()` di next.config.ts yang ditangani sebelum React jalan. Pindah
+ * lapisan seperti itu persis jenis perubahan yang diam-diam mematikan bookmark
+ * lama — jadi diuji, bukan diasumsikan.
+ */
+test.describe("alias URL lama", () => {
+  // `dari` sengaja URL LAMA apa adanya — inilah yang tersimpan di bookmark
+  // pengguna dan yang harus tetap mendarat di tempat benar sesudah migrasi.
+  const ALIAS: { dari: string; ke: RegExp }[] = [
+    { dari: "/aktivitas", ke: /\/$/ },
+    { dari: "/pengguna", ke: /\/administrasi\/pengguna$/ },
+    { dari: "/paket/vendor", ke: /\/administrasi\/perusahaan$/ },
+    { dari: "/kontak-wa", ke: /\/administrasi\/kontak$/ },
+    { dari: "/laporan-wa", ke: /\/pengendalian\/insight\/reports\?template=wa_update$/ },
+    // Keluarga route kanonik baru (PRD §4.1) — URL lama tetap hidup.
+    { dari: "/paket", ke: /\/proyek\/paket$/ },
+    { dari: "/lokasi", ke: /\/proyek\/lokasi$/ },
+    { dari: "/peta", ke: /\/proyek\/peta$/ },
+    { dari: "/hari-ini", ke: /\/pelaksanaan$/ },
+    { dari: "/foto", ke: /\/pelaksanaan\/bukti$/ },
+    { dari: "/progress", ke: /\/pengendalian\/progress$/ },
+    { dari: "/keuangan", ke: /\/pengendalian\/keuangan$/ },
+    { dari: "/ai", ke: /\/pengendalian\/insight$/ },
+    { dari: "/dokumen", ke: /\/dokumen-laporan\/dokumen$/ },
+    { dari: "/laporan", ke: /\/dokumen-laporan\/laporan$/ },
+    { dari: "/chat-grup", ke: /\/dokumen-laporan\/distribusi$/ },
+    // `/administrasi` adalah dispatcher: ia meneruskan lagi ke tab pertama yang
+    // boleh diakses peran ini. Jadi yang dijanjikan cuma "mendarat di bawah
+    // Administrasi", bukan URL persisnya — mematoknya ke satu tab akan membuat
+    // uji ini gagal begitu hak akses akun uji berubah.
+    { dari: "/master", ke: /\/administrasi(\/|$)/ },
+    { dari: "/master/pengguna", ke: /\/administrasi\/pengguna$/ },
+    { dari: "/sistem", ke: /\/administrasi\/sistem$/ },
+    { dari: "/paket/katalog", ke: /\/administrasi\/lokasi-master$/ },
+  ];
+
+  for (const { dari, ke } of ALIAS) {
+    test(`${dari} mengalihkan ke tujuan kanoniknya`, async ({ page }) => {
+      await login(page, "hery");
+      await page.goto(dari);
+      await expect(page).toHaveURL(ke);
+    });
+  }
 });

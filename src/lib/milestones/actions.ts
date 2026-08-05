@@ -335,8 +335,8 @@ export async function updateMilestoneAction(
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Gagal memperbarui milestone" };
   }
-  if (d.slug) revalidatePath(`/lokasi/${d.slug}/dokumen`);
-  if (d.packageId) revalidatePath(`/paket/${d.packageId}/dokumen`);
+  if (d.slug) revalidatePath(`/proyek/lokasi/${d.slug}/dokumen`);
+  if (d.packageId) revalidatePath(`/proyek/paket/${d.packageId}/dokumen`);
   return { success: hasFile ? "Dokumen terunggah & item diperbarui." : "Item diperbarui." };
 }
 
@@ -445,7 +445,7 @@ export async function syncComplianceAction(
   if (typeof packageId !== "string" || !packageId) return { error: "Paket tidak valid" };
   try {
     const { linked, advanced } = await syncComplianceFromDocuments(packageId);
-    revalidatePath(`/paket/${packageId}/dokumen`);
+    revalidatePath(`/proyek/paket/${packageId}/dokumen`);
     if (linked === 0) return { success: "Semua dokumen sudah tersambung — tidak ada perubahan." };
     return {
       success:
@@ -479,7 +479,7 @@ export async function verifyMilestoneAction(
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Gagal memverifikasi milestone" };
   }
-  if (parsed.data.slug) revalidatePath(`/lokasi/${parsed.data.slug}/dokumen`);
-  if (parsed.data.packageId) revalidatePath(`/paket/${parsed.data.packageId}/dokumen`);
+  if (parsed.data.slug) revalidatePath(`/proyek/lokasi/${parsed.data.slug}/dokumen`);
+  if (parsed.data.packageId) revalidatePath(`/proyek/paket/${parsed.data.packageId}/dokumen`);
   return { success: "Milestone diverifikasi & selesai." };
 }

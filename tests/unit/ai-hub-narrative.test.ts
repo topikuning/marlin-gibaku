@@ -71,10 +71,10 @@ describe("ai-hub/narrative — toNarrativeSourceRefs", () => {
     const refs = toNarrativeSourceRefs(bundle());
     expect(refs).toHaveLength(2);
     const lap = refs.find((r) => r.id === "tengket:laporan:2026-07-20")!;
-    expect(lap.href).toBe("/lokasi/tengket/harian/2026-07-20");
+    expect(lap.href).toBe("/proyek/lokasi/tengket/harian/2026-07-20");
     expect(lap.value).toContain("Pengecoran lantai selesai");
     const keg = refs.find((r) => r.id === "tengket:kegiatan:a1")!;
-    expect(keg.href).toBe("/lokasi/tengket/kegiatan");
+    expect(keg.href).toBe("/proyek/lokasi/tengket/kegiatan");
     expect(keg.entityType).toBe("field_activity");
   });
 

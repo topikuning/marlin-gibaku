@@ -15,7 +15,7 @@
 export const PRINT_BACK_PARAM = "dari";
 
 /**
- * Terima HANYA path internal absolut ("/lokasi/..."). Menolak URL absolut,
+ * Terima HANYA path internal absolut ("/proyek/lokasi/..."). Menolak URL absolut,
  * protocol-relative ("//jahat.example"), dan backslash — supaya parameter ini
  * tidak bisa dipakai melempar pengguna ke situs luar (open redirect).
  */

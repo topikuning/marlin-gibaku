@@ -54,7 +54,7 @@ export async function kirimPengingatSekarangAction(
       // ditelusuri ke nomornya, bukan cuma jumlahnya.
       tujuan: hasil.rincian.map((r) => r.tujuan),
     });
-    revalidatePath("/sistem");
+    revalidatePath("/administrasi/sistem");
 
     if (hasil.terkirim === 0 && hasil.gagal === 0) {
       // Dulu di sini selalu kalimat HIJAU "tidak ada yang perlu ditagih" —

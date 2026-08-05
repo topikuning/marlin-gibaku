@@ -6,10 +6,11 @@ import { DeltaBadge, deviationTone } from "@/components/ui/stat-delta";
 import { requireUser, accessibleLocationIds, type SessionUser } from "@/lib/auth/session";
 import { locationScopeWhere, packageScopeWhere } from "@/lib/auth/scope";
 import { can } from "@/lib/authz";
-import { ExecutiveDashboard } from "@/app/(app)/aktivitas/executive-dashboard";
+import { ExecutiveDashboard } from "@/app/(app)/_dashboard/executive-dashboard";
 import { db } from "@/lib/db";
 import { getLocationsProgress } from "@/lib/progress";
 import { formatRupiahShort, formatTanggal } from "@/lib/format";
+import { tingkatDeviasi } from "@/lib/deviasi";
 import { PACKAGE_STAGE_LABEL, PACKAGE_STAGE_TONE, REPORT_STATUS_LABEL, REPORT_STATUS_TONE } from "@/lib/lifecycle";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +24,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function HomePage() {
   const user = await requireUser();
-  if (user.role === "field_supervisor") redirect("/hari-ini");
+  if (user.role === "field_supervisor") redirect("/pelaksanaan");
   if (can(user.role, "portfolio.view")) return <ExecutiveDashboard user={user} />;
   return <CommandCenter user={user} />;
 }
@@ -79,7 +80,7 @@ async function CommandCenter({ user }: { user: SessionUser }) {
   const progress = await getLocationsProgress(locations.map((l) => l.id));
   const critical = locations
     .map((l) => ({ ...l, p: progress.get(l.id) }))
-    .filter((l) => l.p && l.p.deviationPct < -10)
+    .filter((l) => l.p && tingkatDeviasi(l.p.deviationPct) === "kritis")
     .sort((a, b) => (a.p!.deviationPct ?? 0) - (b.p!.deviationPct ?? 0));
 
   let totalContract = 0n;
@@ -109,7 +110,7 @@ async function CommandCenter({ user }: { user: SessionUser }) {
                 {pendingReports.map((r) => (
                   <li key={r.id}>
                     <Link
-                      href={`/lokasi/${r.location.slug}/harian/${r.reportDate.toISOString().slice(0, 10)}`}
+                      href={`/proyek/lokasi/${r.location.slug}/harian/${r.reportDate.toISOString().slice(0, 10)}`}
                       className="flex items-center justify-between gap-2 py-2 hover:bg-surface-muted"
                     >
                       <span className="text-sm">
@@ -132,7 +133,7 @@ async function CommandCenter({ user }: { user: SessionUser }) {
                 {correctionReports.map((r) => (
                   <li key={r.id}>
                     <Link
-                      href={`/lokasi/${r.location.slug}/harian/${r.reportDate.toISOString().slice(0, 10)}`}
+                      href={`/proyek/lokasi/${r.location.slug}/harian/${r.reportDate.toISOString().slice(0, 10)}`}
                       className="flex items-center justify-between gap-2 py-2 hover:bg-surface-muted"
                     >
                       <span className="text-sm">
@@ -154,7 +155,7 @@ async function CommandCenter({ user }: { user: SessionUser }) {
               <ul className="divide-y divide-border">
                 {critical.slice(0, 8).map((l) => (
                   <li key={l.id}>
-                    <Link href={`/lokasi/${l.slug}`} className="flex items-center justify-between gap-2 py-2 hover:bg-surface-muted">
+                    <Link href={`/proyek/lokasi/${l.slug}`} className="flex items-center justify-between gap-2 py-2 hover:bg-surface-muted">
                       <span className="text-sm">{l.name}</span>
                       <DeltaBadge value={l.p!.deviationPct} />
                     </Link>
@@ -171,7 +172,7 @@ async function CommandCenter({ user }: { user: SessionUser }) {
               <ul className="divide-y divide-border">
                 {openIssues.map((i) => (
                   <li key={i.id}>
-                    <Link href={`/lokasi/${i.location.slug}/progress`} className="flex items-center justify-between gap-2 py-2 hover:bg-surface-muted">
+                    <Link href={`/proyek/lokasi/${i.location.slug}/progress`} className="flex items-center justify-between gap-2 py-2 hover:bg-surface-muted">
                       <span className="text-sm">
                         {i.title}
                         <span className="ml-2 text-ink-muted">{i.location.name}</span>
@@ -200,10 +201,10 @@ async function CommandCenter({ user }: { user: SessionUser }) {
 
       {/* ── KPI (klik-tembus) ── */}
       <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <KpiCard label="Paket aktif" value={String(activePackages.length)} href="/paket" />
-        <KpiCard label="Lokasi aktif" value={String(locations.length)} href="/lokasi" />
-        <KpiCard label="Nilai RAB aktif" value={formatRupiahShort(totalContract)} sub="pra-PPN" href="/progress" />
-        <KpiCard label="Nilai terpasang" value={formatRupiahShort(totalRealized)} href="/progress" />
+        <KpiCard label="Paket aktif" value={String(activePackages.length)} href="/proyek/paket" />
+        <KpiCard label="Lokasi aktif" value={String(locations.length)} href="/proyek/lokasi" />
+        <KpiCard label="Nilai RAB aktif" value={formatRupiahShort(totalContract)} sub="pra-PPN" href="/pengendalian/progress" />
+        <KpiCard label="Nilai terpasang" value={formatRupiahShort(totalRealized)} href="/pengendalian/progress" />
       </section>
 
       {/* ── Ringkasan portfolio ── */}
@@ -214,7 +215,7 @@ async function CommandCenter({ user }: { user: SessionUser }) {
             <CardHeader
               title="Paket terbaru"
               action={
-                <Link href="/paket" className="text-sm font-medium text-primary hover:underline">
+                <Link href="/proyek/paket" className="text-sm font-medium text-primary hover:underline">
                   Semua paket
                 </Link>
               }
@@ -226,7 +227,7 @@ async function CommandCenter({ user }: { user: SessionUser }) {
                 <ul className="divide-y divide-border">
                   {activePackages.slice(0, 6).map((p) => (
                     <li key={p.id}>
-                      <Link href={`/paket/${p.id}`} className="flex items-center justify-between gap-2 py-2 hover:bg-surface-muted">
+                      <Link href={`/proyek/paket/${p.id}`} className="flex items-center justify-between gap-2 py-2 hover:bg-surface-muted">
                         <span className="min-w-0 flex-1 truncate text-sm">{p.name}</span>
                         <StatusPill tone={PACKAGE_STAGE_TONE[p.stage]} label={PACKAGE_STAGE_LABEL[p.stage]} />
                       </Link>
@@ -241,7 +242,7 @@ async function CommandCenter({ user }: { user: SessionUser }) {
           <CardHeader
             title="Kinerja lokasi"
             action={
-              <Link href="/lokasi" className="text-sm font-medium text-primary hover:underline">
+              <Link href="/proyek/lokasi" className="text-sm font-medium text-primary hover:underline">
                 Semua lokasi
               </Link>
             }
@@ -259,7 +260,7 @@ async function CommandCenter({ user }: { user: SessionUser }) {
                   const p = progress.get(l.id);
                   return (
                     <li key={l.id}>
-                      <Link href={`/lokasi/${l.slug}`} className="flex items-center justify-between gap-2 py-2 hover:bg-surface-muted">
+                      <Link href={`/proyek/lokasi/${l.slug}`} className="flex items-center justify-between gap-2 py-2 hover:bg-surface-muted">
                         <span className="min-w-0 flex-1 truncate text-sm">
                           {l.name}
                           <span className="ml-2 text-ink-muted">{l.province}</span>

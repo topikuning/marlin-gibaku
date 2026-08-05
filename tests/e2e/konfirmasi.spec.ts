@@ -28,7 +28,7 @@ async function loginAdmin(page: Page) {
 test.describe("dialog konfirmasi", () => {
   test('menekan "Ya" benar-benar mengirim form, bukan sekadar menutup dialog', async ({ page }) => {
     await loginAdmin(page);
-    await page.goto("/sistem");
+    await page.goto("/administrasi/sistem");
     await page.getByText("Pekerjaan Harian", { exact: true }).first().click();
 
     const pemicu = page.getByRole("button", { name: /Kirim (ulang )?pengingat/ }).first();

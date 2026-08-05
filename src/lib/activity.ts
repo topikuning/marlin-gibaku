@@ -149,7 +149,7 @@ export async function getActivityFeed(locIds: string[] | null, limit = 40): Prom
       actor: nameOf(r.changedById),
       summary,
       tone: KIND_TONE.laporan,
-      href: `/lokasi/${loc.slug}`,
+      href: `/proyek/lokasi/${loc.slug}`,
     });
   }
 
@@ -163,7 +163,7 @@ export async function getActivityFeed(locIds: string[] | null, limit = 40): Prom
       actor: nameOf(a.createdById),
       summary: `Kegiatan lapangan: ${a.title} (${kindLabels.get(a.type) ?? a.type})`,
       tone: KIND_TONE.kegiatan,
-      href: `/lokasi/${a.location.slug}`,
+      href: `/proyek/lokasi/${a.location.slug}`,
     });
     if (a.finalizedAt) {
       events.push({
@@ -175,7 +175,7 @@ export async function getActivityFeed(locIds: string[] | null, limit = 40): Prom
         actor: nameOf(a.finalizedById),
         summary: `Finalkan kegiatan: ${a.title}`,
         tone: KIND_TONE.kegiatan,
-        href: `/lokasi/${a.location.slug}`,
+        href: `/proyek/lokasi/${a.location.slug}`,
       });
     }
   }
@@ -190,7 +190,7 @@ export async function getActivityFeed(locIds: string[] | null, limit = 40): Prom
       actor: nameOf(b.createdById),
       summary: `${BASELINE_SOURCE_VERB[b.source]} jadwal/kurva-S (baseline #${b.baselineNo})`,
       tone: KIND_TONE.jadwal,
-      href: `/lokasi/${b.location.slug}/progress`,
+      href: `/proyek/lokasi/${b.location.slug}/progress`,
     });
   }
 
@@ -204,7 +204,7 @@ export async function getActivityFeed(locIds: string[] | null, limit = 40): Prom
       actor: nameOf(i.raisedById),
       summary: `Kendala: ${i.title} (${i.severity})`,
       tone: KIND_TONE.kendala,
-      href: `/lokasi/${i.location.slug}`,
+      href: `/proyek/lokasi/${i.location.slug}`,
     });
   }
 

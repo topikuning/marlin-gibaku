@@ -15,7 +15,7 @@ import { test, expect, type Cookie, type Page } from "@playwright/test";
  */
 
 const SLUG = process.env.E2E_SLUG_ADENDUM ?? "batah-timur";
-const URL = `/lokasi/${SLUG}/rab/adendum`;
+const URL = `/proyek/lokasi/${SLUG}/rab/adendum`;
 
 /**
  * Sesi di-CACHE per pengguna, bukan login ulang tiap ganti peran.

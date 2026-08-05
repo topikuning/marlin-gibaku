@@ -96,7 +96,7 @@ export async function runAnalysisAction(_prev: AiHubState, formData: FormData): 
   } catch (err) {
     return fail(err);
   }
-  redirect(`/ai/run/${runId}`);
+  redirect(`/pengendalian/insight/run/${runId}`);
 }
 
 /* ── Report Studio: generate draf laporan + artefak ─────────────────────── */
@@ -152,7 +152,7 @@ export async function generateAiReportAction(_prev: AiHubState, formData: FormDa
   } catch (err) {
     return fail(err);
   }
-  redirect(`/ai/run/${runId}`);
+  redirect(`/pengendalian/insight/run/${runId}`);
 }
 
 /* ── Perlu Tindakan: simpan saran sebagai draft artefak (non-eksekusi) ──── */
@@ -198,7 +198,7 @@ export async function saveSuggestionAction(_prev: AiHubState, formData: FormData
       suggestKind: s.suggestKind,
       locationId: s.locationId,
     });
-    revalidatePath("/ai/actions");
+    revalidatePath("/pengendalian/insight/actions");
     return {
       ok: `Draft ${s.suggestKind === "recovery" ? "recovery" : "action"} tersimpan — TIDAK mengubah data domain; eksekusi tetap manual di modul Kendala.`,
     };
@@ -301,9 +301,9 @@ export async function terapkanSaranAction(_prev: AiHubState, formData: FormData)
       return { issueId: issue.id };
     });
 
-    revalidatePath("/ai/actions");
-    revalidatePath(`/lokasi/${loc.slug}`);
-    revalidatePath(`/lokasi/${loc.slug}/progress`);
+    revalidatePath("/pengendalian/insight/actions");
+    revalidatePath(`/proyek/lokasi/${loc.slug}`);
+    revalidatePath(`/proyek/lokasi/${loc.slug}/progress`);
     return {
       ok: buatRecovery
         ? `Kendala + aksi pemulihan dibuat di lokasi — buka workspace lokasi untuk memantau (issue ${issueId.slice(0, 8)}).`
@@ -365,8 +365,8 @@ export async function transitionArtifactAction(_prev: AiHubState, formData: Form
     }
     await db.aiArtifact.update({ where: { id: artifact.id }, data: data as never });
     await audit(user.id, `ai.artifact.${to}`, "ai_artifact", artifact.id, { from: artifact.status });
-    if (artifact.runId) revalidatePath(`/ai/run/${artifact.runId}`);
-    revalidatePath("/ai/reports");
+    if (artifact.runId) revalidatePath(`/pengendalian/insight/run/${artifact.runId}`);
+    revalidatePath("/pengendalian/insight/reports");
     return { ok: `Status artefak → ${to}.` };
   } catch (err) {
     return fail(err);
@@ -412,7 +412,7 @@ export async function editArtifactAction(_prev: AiHubState, formData: FormData):
       },
     });
     await audit(user.id, "ai.artifact.edit", "ai_artifact", artifact.id, { note: parsed.data.note });
-    if (artifact.runId) revalidatePath(`/ai/run/${artifact.runId}`);
+    if (artifact.runId) revalidatePath(`/pengendalian/insight/run/${artifact.runId}`);
     return { ok: "Perubahan tersimpan." };
   } catch (err) {
     return fail(err);
@@ -472,7 +472,7 @@ export async function distributeArtifactAction(_prev: AiHubState, formData: Form
       data: { status: "terkirim", distributions: JSON.parse(JSON.stringify(dist)) },
     });
     await audit(user.id, "ai.artifact.distribusi", "ai_artifact", artifact.id, { target: target.name, chatId: target.chatId });
-    if (artifact.runId) revalidatePath(`/ai/run/${artifact.runId}`);
+    if (artifact.runId) revalidatePath(`/pengendalian/insight/run/${artifact.runId}`);
     return { ok: `Terkirim ke ${target.name}.` };
   } catch (err) {
     return fail(err);
@@ -558,7 +558,7 @@ export async function askMarlinAction(_prev: AiHubState, formData: FormData): Pr
   } catch (err) {
     return fail(err);
   }
-  redirect(`/ai/ask?c=${conversationId}`);
+  redirect(`/pengendalian/insight/ask?c=${conversationId}`);
 }
 
 /* ── Pengaturan AI Hub (Sistem → AI; system.manage) ─────────────────────── */
@@ -613,7 +613,7 @@ export async function updateAiGuardAction(_prev: AiHubState, formData: FormData)
       maxRunsPerUserPerHour: d.maxRunsPerUserPerHour,
       maxRunsPerOrgPerDay: d.maxRunsPerOrgPerDay,
     });
-    revalidatePath("/sistem");
+    revalidatePath("/administrasi/sistem");
     return { ok: "Pengaturan AI tersimpan." };
   } catch (err) {
     return fail(err);

@@ -36,7 +36,7 @@ vi.mock("@/lib/auth/session", async (importAsli) => {
 const { db } = await import("@/lib/db");
 const { pastikanBolehAktivasi, setujuiRevisi, cabutPersetujuan, ringkasPersetujuan, PersetujuanError } =
   await import("@/lib/rab/persetujuan");
-const { activateDraftAction } = await import("@/app/(app)/lokasi/[slug]/rab/actions");
+const { activateDraftAction } = await import("@/app/(app)/proyek/lokasi/[slug]/rab/actions");
 
 const suffix = `em${Date.now().toString(36)}`;
 let locationId: string;
