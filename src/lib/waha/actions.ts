@@ -751,14 +751,16 @@ export async function sendPeriodReportPdfToWaAction(
 /**
  * Kirim rencana mingguan ke grup WA paket (atau tujuan bebas).
  *
- * Dikirim DUA hal, dan urutannya disengaja:
- *  1. TEKS berisi rencananya — ringkasan posisi, proyeksi, PPC minggu lalu, dan
- *     daftar komitmen. Ini yang benar-benar dibaca mandor di lokasi; lampiran
- *     kerap tidak diunduh di sinyal jelek.
- *  2. PDF formulir lengkap — dokumen resmi yang bisa ditandatangani/diarsipkan.
+ * Grup WA paket berisi PPK, dinas terkait, dan pejabat — forum
+ * PERTANGGUNGJAWABAN, bukan tempat mengarahkan pekerjaan (koreksi user
+ * 2026-08-05). Karena itu:
  *
- * Mengirim lampiran saja berarti "rencana sudah dikirim" tanpa ada yang tahu
- * harus mengerjakan apa.
+ *  1. TEKS berisi yang memang hak forum itu: posisi kemajuan, deviasi,
+ *     proyeksi bila rencana dijalankan penuh, kredibilitas komitmen minggu lalu
+ *     (PPC), dan lingkup minggu ini sebagai AGREGAT. TANPA daftar item beserta
+ *     PIC — nama pelaksana per item bukan urusan forum pengawasan.
+ *  2. PDF formulir lengkap — rincian per item + lembar tanda tangan, di tempat
+ *     yang memang untuk itu.
  */
 export async function sendRencanaMingguanToWaAction(
   _prev: WaActionState,
@@ -796,6 +798,7 @@ export async function sendRencanaMingguanToWaAction(
       locationName: rencana.header.locationName,
       packageName: rencana.header.packageName,
       weekNumber: rencana.weekNumber,
+      totalWeeks: rencana.totalWeeks,
       periodeStart: rencana.header.periodeStart,
       periodeEnd: rencana.header.periodeEnd,
       actualPct: rencana.actualPct,

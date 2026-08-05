@@ -3,20 +3,28 @@ import { LABEL_STATUS, type Ppc, type Proyeksi, type StatusRencana } from "./ren
 /**
  * PESAN WHATSAPP RENCANA KERJA MINGGUAN — modul MURNI (DECISIONS 259).
  *
- * Pesannya sengaja MEMUAT rencananya, bukan sekadar sampul lampiran.
+ * ### Siapa yang membaca menentukan isinya
  *
- * Alasannya lapangan, bukan selera: penerima grup WA paket adalah mandor dan
- * pelaksana yang membuka HP di lokasi. Berkas PDF/Excel bisa gagal diunduh di
- * sinyal 1 bar, dan kerap tidak dibuka sama sekali. Kalau isi rencananya hanya
- * ada di lampiran, "rencana sudah dikirim" tetap berarti tidak ada yang tahu
- * harus mengerjakan apa — persis keluhan "berhenti di layar" yang memindah
- * tempat saja.
+ * Grup WA paket berisi **PPK, dinas terkait, dan pejabat** — BUKAN mandor atau
+ * pelaksana. Itu forum **pertanggungjawaban**, bukan tempat mengarahkan
+ * pekerjaan.
  *
- * Karena itu: ringkasan + daftar komitmen ada di BADAN pesan; lampiran adalah
- * dokumen resmi untuk yang perlu menandatangani atau mengarsipkan.
+ * Akibatnya pada isi pesan, dan ini bukan soal panjang-pendek:
  *
- * Format WhatsApp: `*tebal*`, `_miring_`. TIDAK ada tabel — jadi angka ditulis
- * berlabel, bukan berkolom.
+ * - **Tidak ada daftar item beserta PIC.** Menyebut siapa mengerjakan apa di
+ *   forum pejabat memindahkan pengarahan internal ke ruang pengawasan, dan
+ *   membuat orang yang belum tentu tahu konteksnya menilai per-orang.
+ * - Yang disajikan adalah yang memang **hak forum itu**: posisi kemajuan,
+ *   deviasi terhadap kurva-S, **akibat rencana ini bila dijalankan penuh**, dan
+ *   **kredibilitas komitmen minggu lalu (PPC)**. Itulah alasan seseorang
+ *   menyetujui atau menahan rencana — kalau semuanya hanya ada di lampiran,
+ *   forum menyetujui rencana yang belum dibacanya.
+ * - Lingkup minggu ini disebut sebagai **agregat** (jumlah item, bobot, nilai,
+ *   kelompok pekerjaan) — cukup untuk menilai, tanpa menjadi perintah kerja.
+ * - Rincian per item dan lembar tanda tangan ada di **berkas terlampir**,
+ *   tempat yang memang untuk itu.
+ *
+ * Format WhatsApp: `*tebal*`, `_miring_`. Tanpa tabel — angka ditulis berlabel.
  */
 
 /** Bentuk minimal yang dibutuhkan pesan — sengaja BUKAN `RencanaMingguan`
@@ -25,6 +33,7 @@ export type IsiPesanRencana = {
   locationName: string;
   packageName: string;
   weekNumber: number;
+  totalWeeks: number;
   periodeStart: Date;
   periodeEnd: Date;
   actualPct: number;
@@ -34,7 +43,8 @@ export type IsiPesanRencana = {
   proyeksi: Proyeksi;
   ppc: Ppc;
   tidakTuntas: { code: string; name: string; unit: string | null; target: number; realisasi: number }[];
-  baris: { code: string; name: string; unit: string | null; target: number; picName: string | null }[];
+  /** Dipakai untuk AGREGAT saja — jumlah item & kelompok pekerjaan. */
+  baris: { categoryName: string }[];
   totalNilai: number;
   totalBobot: number;
   catatan: string | null;
@@ -42,11 +52,10 @@ export type IsiPesanRencana = {
 };
 
 /**
- * Batas daftar di badan pesan. Pesan WA yang harus di-scroll berlayar-layar
- * tidak dibaca; sisanya ada di lampiran — dan JUMLAHNYA disebut, supaya
- * "tidak muncul" tidak terbaca "tidak ada".
+ * Batas daftar di badan pesan. Yang disembunyikan SELALU disebut jumlahnya,
+ * supaya "tidak muncul" tidak terbaca "tidak ada".
  */
-export const MAKS_KOMITMEN_TAMPIL = 12;
+export const MAKS_KELOMPOK_TAMPIL = 6;
 export const MAKS_TIDAK_TUNTAS_TAMPIL = 5;
 
 const volFmt = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 });
@@ -64,46 +73,44 @@ export function pesanRencanaWa(r: IsiPesanRencana): string {
 
   bagian.push(
     [
-      `*RENCANA KERJA MINGGUAN — Minggu ke-${r.weekNumber}*`,
-      `📅 ${tgl(r.periodeStart)} – ${tgl(r.periodeEnd)}`,
-      `📍 ${r.locationName}`,
-      `🏗️ ${r.packageName}`,
+      `*RENCANA KERJA MINGGUAN — Minggu ke-${r.weekNumber} dari ${r.totalWeeks}*`,
+      r.packageName,
+      `Lokasi: ${r.locationName}`,
+      `Periode: ${tgl(r.periodeStart)} – ${tgl(r.periodeEnd)}`,
     ].join("\n"),
   );
 
   bagian.push(
     [
-      `*Posisi saat ini*`,
-      `• Realisasi: ${p2(r.actualPct)}`,
-      `• Rencana kurva-S: ${p2(r.targetPct)}`,
-      `• Deviasi: ${signed(r.deviationPct)} — ${LABEL_STATUS[r.status]}`,
+      `*Posisi kemajuan*`,
+      `Realisasi s/d saat ini: ${p2(r.actualPct)}`,
+      `Rencana kurva-S: ${p2(r.targetPct)}`,
+      `Deviasi: ${signed(r.deviationPct)} — ${LABEL_STATUS[r.status]}`,
     ].join("\n"),
   );
 
-  // Angka yang membuat rencana bisa dinilai SEBELUM dijalankan. Ia ditulis
-  // sebagai kalimat, bukan angka telanjang, supaya tetap berarti bagi yang
-  // membaca sambil berdiri di lokasi.
+  // Inti bagi forum ini: rencana bisa DINILAI sebelum disetujui.
   bagian.push(
     [
-      `*Kalau rencana ini dikerjakan penuh*`,
-      `Realisasi akhir minggu ke-${r.weekNumber} menjadi *${p2(r.proyeksi.proyeksiPct)}*, sedangkan kurva-S menuntut ${p2(r.proyeksi.targetPct)}.`,
+      `*Proyeksi akhir minggu ini*`,
+      `Bila rencana ini dikerjakan penuh, realisasi menjadi *${p2(r.proyeksi.proyeksiPct)}*, sedangkan kurva-S menuntut ${p2(r.proyeksi.targetPct)}.`,
       r.proyeksi.masihTertinggal
-        ? `⚠️ Masih tertinggal ${p2(Math.abs(r.proyeksi.selisihPct))} — rencana ini belum cukup untuk kembali ke jadwal.`
-        : `✅ Menutup ketertinggalan dengan selisih ${signed(r.proyeksi.selisihPct)}.`,
+        ? `Masih tertinggal ${p2(Math.abs(r.proyeksi.selisihPct))} — rencana ini belum cukup untuk kembali ke jadwal.`
+        : `Menutup ketertinggalan dengan selisih ${signed(r.proyeksi.selisihPct)}.`,
     ].join("\n"),
   );
 
-  // Evaluasi janji minggu lalu MENDAHULUI janji baru (Last Planner System).
+  // Pertanggungjawaban janji lama MENDAHULUI janji baru (Last Planner System).
   if (r.ppc.pct == null) {
     if (r.weekNumber > 1) {
       bagian.push(
-        `*Evaluasi minggu ke-${r.weekNumber - 1}*\nTidak ada rencana tercatat — tidak ada komitmen yang bisa dievaluasi (bukan nilai 0%).`,
+        `*Kredibilitas rencana minggu ke-${r.weekNumber - 1}*\nTidak ada rencana tercatat — tidak ada komitmen yang bisa dievaluasi (bukan nilai 0%).`,
       );
     }
   } else {
     const baris = [
-      `*Evaluasi minggu ke-${r.weekNumber - 1} — PPC ${p2(r.ppc.pct)}*`,
-      `${r.ppc.tuntas} dari ${r.ppc.jumlah} komitmen tuntas.`,
+      `*Kredibilitas rencana minggu ke-${r.weekNumber - 1}*`,
+      `PPC ${p2(r.ppc.pct)} — ${r.ppc.tuntas} dari ${r.ppc.jumlah} komitmen tuntas.`,
     ];
     if (r.tidakTuntas.length > 0) {
       baris.push("Belum tuntas:");
@@ -116,28 +123,40 @@ export function pesanRencanaWa(r: IsiPesanRencana): string {
     bagian.push(baris.join("\n"));
   }
 
-  const kepala =
-    r.baris.length === 0
-      ? `*Komitmen minggu ke-${r.weekNumber}*`
-      : `*Komitmen minggu ke-${r.weekNumber}* (${r.baris.length} item · ${p2(r.totalBobot)} · ${rupiah(r.totalNilai)})`;
-  const komitmen = [kepala];
+  // Lingkup: AGREGAT, bukan perintah kerja. Cukup untuk menilai "pekerjaan apa
+  // dan sebesar apa", tanpa menyebut siapa mengerjakan apa.
   if (r.baris.length === 0) {
-    komitmen.push("_Belum ada komitmen yang dimasukkan untuk minggu ini._");
+    bagian.push(`*Lingkup komitmen minggu ini*\n_Belum ada komitmen yang dimasukkan untuk minggu ini._`);
   } else {
-    r.baris.slice(0, MAKS_KOMITMEN_TAMPIL).forEach((b, i) => {
-      const pic = b.picName?.trim() ? ` — ${b.picName.trim()}` : "";
-      komitmen.push(`${i + 1}. ${b.code} · ${b.name}: *${vol(b.target, b.unit)}*${pic}`);
-    });
-    const sisa = r.baris.length - MAKS_KOMITMEN_TAMPIL;
-    if (sisa > 0) komitmen.push(`_…dan ${sisa} item lain, ada di berkas terlampir._`);
+    const lingkup = [
+      `*Lingkup komitmen minggu ini*`,
+      `${r.baris.length} item pekerjaan · bobot ${p2(r.totalBobot)} · ${rupiah(r.totalNilai)}`,
+    ];
+    const kelompok = ringkasKelompok(r.baris);
+    for (const k of kelompok.slice(0, MAKS_KELOMPOK_TAMPIL)) {
+      lingkup.push(`• ${k.name} (${k.jumlah} item)`);
+    }
+    const sisa = kelompok.length - MAKS_KELOMPOK_TAMPIL;
+    if (sisa > 0) lingkup.push(`_…dan ${sisa} kelompok pekerjaan lain._`);
+    bagian.push(lingkup.join("\n"));
   }
-  bagian.push(komitmen.join("\n"));
 
   if (r.catatan?.trim()) bagian.push(`*Catatan*\n${r.catatan.trim()}`);
 
-  const penutup = ["_Formulir lengkap (siap tanda tangan) ada di berkas PDF terlampir._"];
+  const penutup = ["_Rincian per item dan lembar tanda tangan ada pada berkas terlampir._"];
   if (r.disusunOleh) penutup.push(`_Disusun oleh: ${r.disusunOleh}._`);
   bagian.push(penutup.join("\n"));
 
   return bagian.join("\n\n");
+}
+
+/** Kelompok pekerjaan + jumlah item, URUTAN KEMUNCULAN dipertahankan (urutan RAB). */
+function ringkasKelompok(baris: { categoryName: string }[]): { name: string; jumlah: number }[] {
+  const out: { name: string; jumlah: number }[] = [];
+  for (const b of baris) {
+    const ada = out.find((k) => k.name === b.categoryName);
+    if (ada) ada.jumlah += 1;
+    else out.push({ name: b.categoryName, jumlah: 1 });
+  }
+  return out;
 }

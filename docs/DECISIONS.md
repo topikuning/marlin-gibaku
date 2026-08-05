@@ -9470,28 +9470,39 @@ unduhan manual.
 
 ### Keputusan
 
-**1. Yang dikirim ADA DUA, dan urutannya disengaja:**
+**1. SIAPA yang membaca menentukan isinya.** Grup WA paket berisi **PPK,
+dinas terkait, dan pejabat** — bukan mandor, bukan pelaksana. Itu forum
+**pertanggungjawaban**, bukan tempat mengarahkan pekerjaan.
 
-1. **Teks berisi rencananya** — posisi, proyeksi, PPC minggu lalu beserta
-   komitmen yang belum tuntas, dan daftar komitmen minggu ini lengkap dengan
-   PIC-nya.
-2. **PDF formulir lengkap** — dokumen resmi siap tanda tangan / arsip.
+*(Koreksi user 2026-08-05 atas rancangan pertamaku, yang keliru menganggap
+penerimanya mandor di lapangan dan karena itu memuat daftar item beserta nama
+PIC di badan pesan.)*
 
-**Kenapa isinya di badan pesan, bukan cuma lampiran.** Penerima grup WA paket
-adalah mandor dan pelaksana yang membuka HP di lokasi. Lampiran bisa gagal
-diunduh di sinyal 1 bar, dan sering tidak dibuka sama sekali. Kalau isi
-rencananya hanya ada di lampiran, "rencana sudah dikirim" tetap berarti tidak
-ada yang tahu harus mengerjakan apa — keluhan *"berhenti di layar"* cuma pindah
-tempat.
+Yang dikirim ADA DUA:
+
+1. **Teks berisi yang memang hak forum itu** — posisi kemajuan, deviasi
+   terhadap kurva-S, **akibat rencana ini bila dijalankan penuh**,
+   **kredibilitas komitmen minggu lalu (PPC)** beserta yang belum tuntas, dan
+   lingkup minggu ini sebagai **agregat** (jumlah item, bobot, nilai, kelompok
+   pekerjaan). **TANPA daftar item beserta PIC** — menyebut siapa mengerjakan
+   apa di forum pejabat memindahkan pengarahan internal ke ruang pengawasan,
+   dan membuat orang yang belum tentu tahu konteksnya menilai per-orang.
+2. **PDF formulir lengkap** — rincian per item + lembar tanda tangan, di tempat
+   yang memang untuk itu.
+
+**Kenapa dasar penilaian ada di badan pesan, bukan cuma lampiran.** Yang
+menyetujui harus bisa menilai tanpa membuka berkas: deviasi, proyeksi, dan PPC
+adalah alasan seseorang menyetujui atau menahan rencana. Kalau semua itu hanya
+ada di lampiran, forum menyetujui rencana yang belum dibacanya.
 
 **2. PDF, bukan Excel, yang dilampirkan ke WA.** Excel praktis tidak terbaca di
 HP lapangan dan tidak bisa ditandatangani. Excel tetap ada di jalur unduhan
 untuk yang mengolah angkanya. Tata letak PDF cermin komponen layar
 (`KkpWeeklyPlan`), angkanya dari `getRencanaMingguan` yang sama.
 
-**3. Daftar panjang dipotong DENGAN menyebut jumlahnya** (12 komitmen, 5
-komitmen tak tuntas). Memotong diam-diam membuat item yang hilang terbaca
-"tidak ada" — aturan repo yang sama dengan katalog lokasi.
+**3. Daftar panjang dipotong DENGAN menyebut jumlahnya** (6 kelompok
+pekerjaan, 5 komitmen tak tuntas). Memotong diam-diam membuat yang hilang
+terbaca "tidak ada" — aturan repo yang sama dengan katalog lokasi.
 
 **4. Rencana KOSONG ditolak, tidak dikirim.** Mengirim daftar kosong ke grup
 paket hanya melatih orang mengabaikan pesan dari MARLIN. Pesan galatnya
@@ -9511,15 +9522,17 @@ user), karena baris kejaran memang perlu terlihat.
 
 ### Uji
 
-- `tests/unit/rencana-wa.test.ts` — 9 uji: isi rencana ada di badan pesan,
-  proyeksi terbawa, PPC null tidak ditulis 0%, pemotongan menyebut jumlah,
-  angka format Indonesia.
+- `tests/unit/rencana-wa.test.ts` — 10 uji, yang pertama mengunci batas
+  audiens: pesan TIDAK boleh menyebut PIC. Selebihnya: lingkup tersaji sebagai
+  agregat, dasar penilaian (deviasi/proyeksi/PPC) ada di badan pesan, PPC null
+  tidak ditulis 0%, pemotongan menyebut jumlah, angka format Indonesia.
 - `tests/integration/rencana-mingguan.test.ts` — 2 uji tambahan: PDF
   BENAR-BENAR terbentuk (pdfkit hanya gagal saat dirender, bukan saat
   typecheck), termasuk jalur kosong (tanpa komitmen, tanpa PPC, catatan null).
 
-Dibuktikan bergigi: mengganti daftar komitmen di badan pesan menjadi "rincian
-ada di berkas terlampir" membuat **dua** uji gagal.
+Dibuktikan bergigi: menghapus blok proyeksi dari badan pesan membuat uji
+"memuat dasar penilaian" gagal; mengembalikan daftar item ber-PIC membuat uji
+batas audiens gagal.
 
 Diperiksa nyata: PDF dirender dari data dev, dikonversi ke gambar, dan dibaca —
 satu halaman, muat penuh. Satu cacat tata letak ditemukan dan diperbaiki di
