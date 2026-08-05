@@ -26,31 +26,37 @@ import { bobotPct } from "@/lib/progress-calc";
 /* ── 1. Label "kejar" ────────────────────────────────────────────────────── */
 
 /**
- * Penjelasan bagian target yang bersifat mengejar ketertinggalan.
+ * Penjelasan bagian target yang bersifat menutup ketertinggalan jadwal.
  *
  * Notasi lama `(+1.698,24 kejar)` MENYESATKAN. Tanda `+` membacanya sebagai
- * tambahan DI ATAS target, padahal kejaran adalah BAGIAN DARI target:
+ * tambahan DI ATAS target, padahal bagian itu ada DI DALAM target:
  *
  * ```
  * targetVolume  = min(sisa, tambahan minggu ini + tertinggal)
  * catchUpVolume = min(tertinggal, sisa)      ← himpunan bagian
  * ```
  *
- * Akibatnya baris dengan target 1.698,24 dan kejaran 1.698,24 terbaca 3.396,48,
- * padahal artinya "seluruh target ini kejaran — item belum tersentuh sama
- * sekali". Angka di layar benar; yang salah cara membacanya, dan itu ditentukan
- * oleh labelnya.
+ * Akibatnya baris dengan target 1.698,24 dan ketertinggalan 1.698,24 terbaca
+ * 3.396,48, padahal artinya "seluruh target ini menutup ketertinggalan — item
+ * belum tersentuh sama sekali". Angka di layar benar; yang salah cara
+ * membacanya, dan itu ditentukan oleh labelnya.
+ *
+ * Bentuknya LABEL (`Ketertinggalan: …`), bukan kalimat. "kejaran" adalah bahasa
+ * lisan dan tidak pantas di dokumen yang ditandatangani PPK; "ketertinggalan"
+ * adalah istilah baku yang sudah dipakai di seluruh sistem ini.
  */
 export function labelKejar(
   targetVolume: number,
   catchUpVolume: number,
   fmt: (n: number) => string,
+  unit?: string | null,
 ): string | null {
   const EPS = 1e-6;
   if (catchUpVolume <= EPS) return null;
-  // Seluruh target = kejaran: tidak ada gunanya mengulang angkanya.
-  if (catchUpVolume >= targetVolume - EPS) return "seluruhnya kejaran";
-  return `termasuk ${fmt(catchUpVolume)} kejaran`;
+  // Seluruh target = ketertinggalan: mengulang angkanya tidak menambah apa pun,
+  // dan justru berisiko dibaca sebagai angka kedua.
+  if (catchUpVolume >= targetVolume - EPS) return "Ketertinggalan: seluruh target ini";
+  return `Ketertinggalan: ${fmt(catchUpVolume)}${unit ? ` ${unit}` : ""}`;
 }
 
 /* ── 2. Proyeksi: "kalau rencana ini diikuti, sampai di mana?" ───────────── */

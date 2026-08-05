@@ -397,14 +397,9 @@ Tidak diperbaiki sepihak: mengubah format angka pada blanko yang sudah beredar
 ke PPK adalah keputusan user, bukan keputusan teknis. Perbaikannya kecil (dua
 fungsi formatter `p1`/`p2` per berkas) dan bisa dikerjakan begitu diputuskan.
 
-## 🟢 PLAN-01 · Formulir rencana mingguan belum masuk jalur distribusi (DECISIONS 258)
+## 🟢 PLAN-01 · Rencana mingguan belum masuk arsip Google Drive (DECISIONS 258/259)
 
-Formulir sudah bisa dicetak (`/cetak/rencana/[slug]/[n]`) dan diunduh sebagai
-Excel, tapi belum tersambung ke dua jalur yang sudah ada untuk laporan harian &
-periodik:
-
-- unggah ke folder Google Drive paket (`lib/drive`, DECISIONS 137/138);
-- kirim sebagai lampiran/ringkasan lewat Report Studio → WhatsApp.
-
-Selama belum tersambung, "memberikan output kepada semua orang" masih berhenti
-di unduhan manual.
+WhatsApp SUDAH tersambung (DECISIONS 259: teks berisi rencana + PDF formulir
+ke grup WA paket). Yang belum: unggah otomatis/manual ke folder Google Drive
+paket seperti laporan harian & periodik (`lib/drive`, DECISIONS 137/138),
+sehingga rencana mingguan tidak ikut terarsip di struktur 9 folder KKP.

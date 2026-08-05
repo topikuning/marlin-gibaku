@@ -24,6 +24,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 const { db } = await import("@/lib/db");
 const { getRencanaMingguan } = await import("@/lib/plan/rencana-mingguan");
+const { buildRencanaKkpPdf } = await import("@/lib/pdf/rencana-kkp");
 const { getLocationProgress } = await import("@/lib/progress");
 const { getOrCreateDraft, upsertItem, submitReport } = await import("@/lib/daily-report/service");
 
@@ -240,5 +241,24 @@ describe("formulir rencana mingguan", () => {
   it("minggu di luar masa kontrak ditolak, tidak dikarang", async () => {
     expect(await getRencanaMingguan(locationId, 99)).toBeNull();
     expect(await getRencanaMingguan(locationId, 0)).toBeNull();
+  });
+
+  // PDF hanya gagal saat DIRENDER, tidak saat typecheck: kolom yang jumlahnya
+  // tak cocok, span melebihi kolom, atau teks yang tak muat membuat pdfkit
+  // melempar — dan itu baru ketahuan saat seseorang menekan "Kirim ke WhatsApp".
+  it("PDF formulir benar-benar terbentuk (bukan cuma lolos typecheck)", async () => {
+    const r = await getRencanaMingguan(locationId, 3);
+    const buf = await buildRencanaKkpPdf(r!, "MARLIN");
+    expect(buf.subarray(0, 5).toString("latin1")).toBe("%PDF-");
+    expect(buf.length).toBeGreaterThan(5_000);
+  });
+
+  it("PDF tetap terbentuk untuk minggu tanpa komitmen & tanpa PPC", async () => {
+    // Jalur kosong justru yang paling sering dilewatkan: tabel tanpa baris,
+    // catatan null, PPC null. Semuanya harus tetap menghasilkan formulir.
+    const r = await getRencanaMingguan(locationId, 1);
+    expect(r!.baris).toHaveLength(0);
+    const buf = await buildRencanaKkpPdf(r!, "MARLIN");
+    expect(buf.subarray(0, 5).toString("latin1")).toBe("%PDF-");
   });
 });

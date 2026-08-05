@@ -23,27 +23,32 @@ import {
 
 const fmt = (n: number) => n.toFixed(2);
 
-describe("label kejaran", () => {
-  it("tanpa kejaran → tidak ada label sama sekali", () => {
+describe("label ketertinggalan", () => {
+  it("tanpa ketertinggalan → tidak ada label sama sekali", () => {
     expect(labelKejar(100, 0, fmt)).toBeNull();
   });
 
-  it("SELURUH target adalah kejaran → dikatakan, bukan diulang angkanya", () => {
-    // Kasus di layar user: target 1.698,24 dengan kejaran 1.698,24. Notasi lama
-    // "(+1.698,24 kejar)" terbaca 3.396,48 — dua kali lipat kenyataannya.
-    expect(labelKejar(1698.24, 1698.24, fmt)).toBe("seluruhnya kejaran");
+  it("SELURUH target adalah ketertinggalan → dikatakan, bukan diulang angkanya", () => {
+    // Kasus di layar user: target 1.698,24 dengan ketertinggalan 1.698,24.
+    // Notasi lama "(+1.698,24 kejar)" terbaca 3.396,48 — dua kali lipat.
+    expect(labelKejar(1698.24, 1698.24, fmt)).toBe("Ketertinggalan: seluruh target ini");
   });
 
-  it("sebagian kejaran → disebut BAGIAN, bukan tambahan", () => {
-    // Kata "termasuk" yang menentukan. "+142,51" mengajak menjumlahkan;
-    // "termasuk 142,51" mengajak membaginya.
-    expect(labelKejar(275.32, 142.51, fmt)).toBe("termasuk 142.51 kejaran");
+  it("sebagian ketertinggalan → angkanya disebut BERSATUAN, bukan telanjang", () => {
+    // Bentuk label, bukan kalimat: "kejaran" bahasa lisan dan tidak pantas di
+    // dokumen yang ditandatangani PPK (keputusan user 2026-08-05).
+    expect(labelKejar(275.32, 142.51, fmt, "m³")).toBe("Ketertinggalan: 142.51 m³");
   });
 
-  it("kejaran melebihi target (pembulatan) tetap dibaca seluruhnya", () => {
-    // Bisa terjadi karena `min(sisa, …)` memotong target tapi tidak kejarannya.
+  it("tanpa satuan tetap terbaca, tidak menempelkan spasi menggantung", () => {
+    expect(labelKejar(275.32, 142.51, fmt)).toBe("Ketertinggalan: 142.51");
+    expect(labelKejar(275.32, 142.51, fmt, null)).toBe("Ketertinggalan: 142.51");
+  });
+
+  it("ketertinggalan melebihi target (pembulatan) tetap dibaca seluruhnya", () => {
+    // Bisa terjadi karena `min(sisa, …)` memotong target tapi tidak bagiannya.
     // Yang dilarang: menampilkan angka yang lebih besar daripada targetnya.
-    expect(labelKejar(100, 100.0000001, fmt)).toBe("seluruhnya kejaran");
+    expect(labelKejar(100, 100.0000001, fmt)).toBe("Ketertinggalan: seluruh target ini");
   });
 });
 

@@ -2,7 +2,8 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { useActionState, useMemo, useState } from "react";
-import { Download, Printer } from "lucide-react";
+import { Download, MessageCircle, Printer } from "lucide-react";
+import { sendRencanaMingguanToWaAction, type WaActionState } from "@/lib/waha/actions";
 import { Banner, Button, ButtonLink, HelpText, Input, Label, Combobox, Textarea } from "@/components/ui";
 import { formatNumber, formatPct, formatRupiah } from "@/lib/format";
 import { LABEL_STATUS, labelKejar, type Ppc, type StatusRencana } from "@/lib/plan/rencana-format";
@@ -211,14 +212,17 @@ function SuggestPanel({ locationId, weekNumber }: { locationId: string; weekNumb
                     <td className="tabular py-1.5 pr-3 text-right font-semibold">
                       {formatNumber(s.targetVolume)} {s.unit ?? ""}
                       {/* Notasi lama "(+X kejar)" menyesatkan: tanda + mengajak
-                          MENJUMLAHKAN, padahal kejaran adalah BAGIAN DARI target.
-                          Baris dengan target = kejaran terbaca dua kali lipat.
-                          Lihat labelKejar() di lib/plan/rencana-format.ts. */}
-                      {labelKejar(s.targetVolume, s.catchUpVolume, formatNumber) ? (
-                        <span className="ml-1 block text-[11px] font-normal text-warning">
-                          {labelKejar(s.targetVolume, s.catchUpVolume, formatNumber)}
-                        </span>
-                      ) : null}
+                          MENJUMLAHKAN, padahal bagian itu ada DI DALAM target.
+                          Baris dengan target = ketertinggalan terbaca dua kali
+                          lipat. Lihat labelKejar() di lib/plan/rencana-format.ts. */}
+                      {(() => {
+                        const l = labelKejar(s.targetVolume, s.catchUpVolume, formatNumber, s.unit);
+                        return l ? (
+                          <span className="mt-0.5 block text-[11px] font-normal text-warning">
+                            {l}
+                          </span>
+                        ) : null;
+                      })()}
                     </td>
                     <td className="tabular py-1.5 pr-3 text-right text-ink-muted">{formatRupiah(s.valueTarget)}</td>
                     <td className="tabular py-1.5 pr-3">{s.priority}</td>
@@ -297,7 +301,41 @@ function Angka({
   );
 }
 
-function RingkasanRencana({ r, weekNumber }: { r: RingkasRencana; weekNumber: number }) {
+/**
+ * Tombol kirim ke WhatsApp. Terpisah supaya punya `useActionState` sendiri —
+ * hasilnya (termasuk kegagalan WAHA) muncul tepat di sebelah tombolnya.
+ */
+function KirimWaButton({ locationId, weekNumber }: { locationId: string; weekNumber: number }) {
+  const [state, action, pending] = useActionState<WaActionState, FormData>(
+    sendRencanaMingguanToWaAction,
+    undefined,
+  );
+  return (
+    <form action={action} className="contents">
+      <input type="hidden" name="locationId" value={locationId} />
+      <input type="hidden" name="weekNumber" value={weekNumber} />
+      <Button type="submit" variant="secondary" size="sm" loading={pending}>
+        <MessageCircle aria-hidden className="size-4" />
+        Kirim ke WhatsApp
+      </Button>
+      {state?.error ? (
+        <span className="basis-full text-xs text-danger">{state.error}</span>
+      ) : state?.success ? (
+        <span className="basis-full text-xs text-success">{state.success}</span>
+      ) : null}
+    </form>
+  );
+}
+
+function RingkasanRencana({
+  r,
+  locationId,
+  weekNumber,
+}: {
+  r: RingkasRencana;
+  locationId: string;
+  weekNumber: number;
+}) {
   const signed = (n: number) => `${n >= 0 ? "+" : "−"}${formatPct(Math.abs(n), 2)}`;
   return (
     <div className="space-y-3 rounded-md border border-border bg-surface-muted p-3">
@@ -308,7 +346,7 @@ function RingkasanRencana({ r, weekNumber }: { r: RingkasRencana; weekNumber: nu
             Angka yang sama dengan formulir cetak — layar dan berkas tidak boleh berbeda.
           </p>
         </div>
-        <span className="flex flex-wrap gap-2">
+        <span className="flex flex-wrap items-center gap-2">
           <ButtonLink href={r.cetakHref} variant="secondary" size="sm" target="_blank">
             <Printer aria-hidden className="size-4" />
             Cetak formulir A4
@@ -317,6 +355,7 @@ function RingkasanRencana({ r, weekNumber }: { r: RingkasRencana; weekNumber: nu
             <Download aria-hidden className="size-4" />
             Unduh Excel
           </ButtonLink>
+          <KirimWaButton locationId={locationId} weekNumber={weekNumber} />
         </span>
       </div>
 
@@ -417,7 +456,9 @@ export function WeeklyPlanSection({
         {weekPeriod ? <p className="pb-2 text-[13px] text-ink-muted">{weekPeriod}</p> : null}
       </div>
 
-      {ringkas ? <RingkasanRencana r={ringkas} weekNumber={weekNumber} /> : null}
+      {ringkas ? (
+        <RingkasanRencana r={ringkas} locationId={locationId} weekNumber={weekNumber} />
+      ) : null}
 
       {canManage ? (
         <>

@@ -9456,3 +9456,72 @@ yang murni dan teruji terpisah.
 Dibuktikan bergigi: mengganti `sdAkhir − sdSebelum` menjadi `sdAkhir` (kembali
 ke kumulatif) membuat **tiga** uji integrasi gagal — PPC melompat dari 0%
 menjadi 50% karena pekerjaan minggu sebelumnya.
+
+---
+
+## 259 · Rencana mingguan dikirim ke WhatsApp — pesannya MEMUAT rencana, bukan cuma lampiran (2026-08-05)
+
+### Permintaan
+
+> *"aku butuh rencana ini juga dikirim ke whatsapp"*
+
+Lanjutan langsung DECISIONS 258: formulirnya sudah ada, tapi masih berhenti di
+unduhan manual.
+
+### Keputusan
+
+**1. Yang dikirim ADA DUA, dan urutannya disengaja:**
+
+1. **Teks berisi rencananya** — posisi, proyeksi, PPC minggu lalu beserta
+   komitmen yang belum tuntas, dan daftar komitmen minggu ini lengkap dengan
+   PIC-nya.
+2. **PDF formulir lengkap** — dokumen resmi siap tanda tangan / arsip.
+
+**Kenapa isinya di badan pesan, bukan cuma lampiran.** Penerima grup WA paket
+adalah mandor dan pelaksana yang membuka HP di lokasi. Lampiran bisa gagal
+diunduh di sinyal 1 bar, dan sering tidak dibuka sama sekali. Kalau isi
+rencananya hanya ada di lampiran, "rencana sudah dikirim" tetap berarti tidak
+ada yang tahu harus mengerjakan apa — keluhan *"berhenti di layar"* cuma pindah
+tempat.
+
+**2. PDF, bukan Excel, yang dilampirkan ke WA.** Excel praktis tidak terbaca di
+HP lapangan dan tidak bisa ditandatangani. Excel tetap ada di jalur unduhan
+untuk yang mengolah angkanya. Tata letak PDF cermin komponen layar
+(`KkpWeeklyPlan`), angkanya dari `getRencanaMingguan` yang sama.
+
+**3. Daftar panjang dipotong DENGAN menyebut jumlahnya** (12 komitmen, 5
+komitmen tak tuntas). Memotong diam-diam membuat item yang hilang terbaca
+"tidak ada" — aturan repo yang sama dengan katalog lokasi.
+
+**4. Rencana KOSONG ditolak, tidak dikirim.** Mengirim daftar kosong ke grup
+paket hanya melatih orang mengabaikan pesan dari MARLIN. Pesan galatnya
+menyebut sebabnya dan apa yang harus dilakukan.
+
+**5. Kalimat hasil TIDAK mengaku bukti sampai.** WAHA menerbitkan id pesan
+bahkan ketika WhatsApp menolaknya belakangan (OPEN_ISSUES WA-01, error 463),
+jadi yang dikatakan adalah "diserahkan ke grup", disertai batas
+pengetahuannya — bukan "terkirim" seolah pasti sampai.
+
+**6. Label ketertinggalan: bentuk LABEL, bukan kalimat.** Keputusan user
+2026-08-05 atas `seluruhnya kejaran` yang kutulis di DECISIONS 258: "kejaran"
+adalah bahasa lisan dan tidak pantas di dokumen yang ditandatangani PPK.
+Sekarang `Ketertinggalan: seluruh target ini` / `Ketertinggalan: 142,51 m³` —
+bersatuan, sehingga angkanya tidak telanjang. Warnanya tetap ditandai (pilihan
+user), karena baris kejaran memang perlu terlihat.
+
+### Uji
+
+- `tests/unit/rencana-wa.test.ts` — 9 uji: isi rencana ada di badan pesan,
+  proyeksi terbawa, PPC null tidak ditulis 0%, pemotongan menyebut jumlah,
+  angka format Indonesia.
+- `tests/integration/rencana-mingguan.test.ts` — 2 uji tambahan: PDF
+  BENAR-BENAR terbentuk (pdfkit hanya gagal saat dirender, bukan saat
+  typecheck), termasuk jalur kosong (tanpa komitmen, tanpa PPC, catatan null).
+
+Dibuktikan bergigi: mengganti daftar komitmen di badan pesan menjadi "rincian
+ada di berkas terlampir" membuat **dua** uji gagal.
+
+Diperiksa nyata: PDF dirender dari data dev, dikonversi ke gambar, dan dibaca —
+satu halaman, muat penuh. Satu cacat tata letak ditemukan dan diperbaiki di
+sana: tinggi catatan kaki tabel semula DITEBAK, sehingga menempel ke judul
+bagian D; sekarang diukur dengan `heightOfString`.
