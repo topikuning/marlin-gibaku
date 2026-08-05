@@ -7,6 +7,7 @@ import { useMemo } from "react";
 import { MarlinGrid, dateCol, rupiahCol } from "@/components/grid/marlin-grid";
 import { StatusPill } from "@/components/ui";
 import { PACKAGE_STAGE_LABEL, PACKAGE_STAGE_TONE } from "@/lib/lifecycle";
+import { formatRupiah } from "@/lib/format";
 import type { PackageStage } from "@/generated/prisma/enums";
 
 export type PaketRow = {
@@ -130,6 +131,22 @@ export function PaketGrid({ rows }: { rows: PaketRow[] }) {
       persistKey="paket-list"
       getRowId={(r) => r.id}
       onRowClicked={(r) => router.push(`/proyek/paket/${r.id}`)}
+      /*
+       * Kartu di layar sempit. Yang dipertahankan adalah yang dipakai memilih
+       * paket: nomor + nama, tahapnya, nilai HPS, dan berapa lokasi di
+       * dalamnya. Penanda WA/Drive tidak ikut — keduanya keadaan pengaturan,
+       * bukan alasan seseorang membuka paket dari ponsel.
+       */
+      kartu={(r) => ({
+        judul: r.name,
+        subjudul: `${r.packageNumber} · ${r.vendorName || "vendor belum diisi"} · ${r.province}`,
+        lencana: <StatusPill tone={PACKAGE_STAGE_TONE[r.stage]} label={PACKAGE_STAGE_LABEL[r.stage]} />,
+        rinci: [
+          { label: "Nilai HPS", nilai: formatRupiah(BigInt(Math.round(r.hpsValue))) },
+          { label: "Lokasi", nilai: `${r.locationCount}` },
+        ],
+        href: `/proyek/paket/${r.id}`,
+      })}
       emptyText="Belum ada paket."
     />
   );

@@ -6,6 +6,7 @@ import { MarlinGrid, pctCol, rupiahCol } from "@/components/grid/marlin-grid";
 import { StatusPill } from "@/components/ui";
 import { DeltaBadge } from "@/components/ui/stat-delta";
 import { LOCATION_STATUS_LABEL, LOCATION_STATUS_TONE } from "@/lib/lifecycle";
+import { formatPct } from "@/lib/format";
 import type { LocationStatus } from "@/generated/prisma/enums";
 
 export type LokasiRow = {
@@ -78,6 +79,26 @@ export function LokasiGrid({ rows }: { rows: LokasiRow[] }) {
       // situ tidak melakukan APA PUN, dan itulah yang di lapangan terbaca
       // "aplikasi tidak merespon" lalu diketuk berulang kali (DECISIONS 247).
       rowLink
+      /*
+       * Kartu di layar sempit. Dari delapan kolom, yang benar-benar menentukan
+       * langkah berikutnya cuma empat: statusnya, seberapa jauh dari rencana,
+       * dan realisasinya. Nilai RAB sengaja TIDAK ikut — di ponsel angka
+       * sembilan digit memakan lebar yang lebih berguna untuk deviasi, dan
+       * pembacanya bisa membukanya di halaman lokasi.
+       */
+      kartu={(r) => ({
+        judul: r.name,
+        subjudul: `${r.paket} · ${r.wilayah}`,
+        lencana: (
+          <StatusPill tone={LOCATION_STATUS_TONE[r.status]} label={LOCATION_STATUS_LABEL[r.status]} />
+        ),
+        rinci: [
+          { label: "Rencana", nilai: formatPct(r.planPct) },
+          { label: "Realisasi", nilai: formatPct(r.realizedPct) },
+          { label: "Deviasi", nilai: <DeltaBadge value={r.deviationPct} /> },
+        ],
+        href: `/proyek/lokasi/${r.slug}`,
+      })}
       emptyText="Belum ada lokasi yang bisa diakses."
     />
   );

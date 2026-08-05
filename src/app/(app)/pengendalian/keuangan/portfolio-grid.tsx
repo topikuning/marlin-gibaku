@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { formatRupiah } from "@/lib/format";
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
 import { useMemo } from "react";
 import { MarlinGrid, rupiahCol } from "@/components/grid/marlin-grid";
@@ -63,6 +64,22 @@ export function PortfolioGrid({ rows }: { rows: PortfolioRow[] }) {
       // Seluruh baris membuka keuangan lokasinya — pola yang sama dengan
       // daftar lokasi & paket (DECISIONS 247).
       rowLink
+      /*
+       * Kartu di layar sempit. Delapan kolom rupiah berdampingan mustahil
+       * dibaca di ponsel; yang dipertahankan empat yang menjawab "masih ada
+       * uangnya atau tidak": pagu, realisasi, komitmen, dan sisa.
+       */
+      kartu={(r) => ({
+        judul: r.name,
+        subjudul: r.province,
+        rinci: [
+          { label: "Pagu", nilai: formatRupiah(BigInt(Math.round(r.budget))) },
+          { label: "Realisasi", nilai: formatRupiah(BigInt(Math.round(r.realisasi))) },
+          { label: "Komitmen", nilai: formatRupiah(BigInt(Math.round(r.komitmen))) },
+          { label: "Sisa pagu", nilai: formatRupiah(BigInt(Math.round(r.available))) },
+        ],
+        href: `/proyek/lokasi/${r.slug}/keuangan`,
+      })}
       emptyText="Belum ada data keuangan"
     />
   );

@@ -32,6 +32,11 @@ dan fase 2 adalah yang berdampak terbesar bagi pengguna sesungguhnya.
    label/ikon pendamping.
 5. **Mobile bukan desktop yang dikecilkan.** Tabel kritis jadi kartu di
    < 1024px; aksi utama tetap terlihat; target sentuh ≥ 44px.
+   ✅ Dikerjakan sebagai prop `kartu` pada `MarlinGrid` (daftar lokasi, paket,
+   dan keuangan portofolio). Diberikan per-pemakaian karena hanya pemakainya
+   yang tahu tiga-empat hal penting dari dua belas kolomnya; tanpa prop itu
+   gridnya tampil apa adanya, jadi tidak ada halaman yang berubah tanpa
+   diminta.
 
 ---
 
@@ -74,11 +79,14 @@ Belum:
   editornya satu layar.
 - ✅ **Checklist kirim** (§8.7) — bahasa sederhana yang menyebut akibat, bukan
   nama field. Tidak menghalangi pengiriman; kelengkapan tetap dijaga server.
-- **State penyimpanan terlihat**: Online / Menyimpan / Tersimpan / Belum
-  tersinkron / Gagal / Coba lagi. Antrean sinkron offline BELUM didukung
-  backend — tandai sebagai dependency, jangan berpura-pura ada (K3).
-- **Koreksi inline**: komentar reviewer muncul dekat field terkait, field
-  bermasalah disorot — bukan hanya sebagai banner di atas halaman.
+- ✅ **State penyimpanan terlihat** — pita `sticky` di puncak editor: Online ·
+  Menyimpan… · Tersimpan 14:03 · Gagal · Offline. **"Belum tersinkron" SENGAJA
+  tidak ada**: MARLIN tidak punya antrean offline, dan menjanjikannya membuat
+  mandor menutup halaman lalu kehilangan pekerjaan seharian (K3, DECISIONS 256).
+- ✅ **Koreksi inline** — reviewer mencentang BAGIAN mana yang salah saat
+  mengembalikan (kolom baru `correction_areas`), catatannya muncul di sebelah
+  bagian itu di editor, dan dibersihkan saat laporan dikirim ulang.
+  DECISIONS 256.
 
 Aturan bisnis TIDAK berubah: satu record unik lokasi+tanggal, siklus koreksi
 pada record yang sama, kewajiban "Lengkapi KKP" tetap di Site Manager.
