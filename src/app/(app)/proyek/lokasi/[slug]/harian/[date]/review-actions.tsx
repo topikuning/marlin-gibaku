@@ -5,6 +5,11 @@ import Link from "next/link";
 import { CheckCircle2, Printer, Undo2 } from "lucide-react";
 import { Banner, Button, Label, Textarea } from "@/components/ui";
 import {
+  AREA_KOREKSI,
+  ARTI_AREA_KOREKSI,
+  LABEL_AREA_KOREKSI,
+} from "@/lib/daily-report/area-koreksi";
+import {
   addIssueAction,
   approveReportAction,
   finalizeReportAction,
@@ -84,6 +89,35 @@ export function ReviewActions({
       {showReturn ? (
         <form action={returnAction} className="space-y-2 rounded-md border border-warning-border bg-warning-soft p-3">
           <input type="hidden" name="reportId" value={reportId} />
+          {/*
+           * Bagian mana yang salah (DECISIONS 256). Tanpa ini catatan reviewer
+           * hanya bisa tampil sebagai spanduk di puncak halaman, dan mandor
+           * menggulir seluruh editor sambil menebak apa yang dimaksud "cek
+           * ulang zona B". Tidak wajib — memaksa memilih hanya melahirkan
+           * pilihan asal supaya tombolnya hidup.
+           */}
+          <fieldset>
+            <legend className="mb-1 text-sm font-medium text-ink">
+              Bagian yang perlu diperbaiki{" "}
+              <span className="font-normal text-ink-muted">(boleh lebih dari satu)</span>
+            </legend>
+            <div className="grid gap-1 sm:grid-cols-2">
+              {AREA_KOREKSI.map((a) => (
+                <label key={a} className="flex items-start gap-2 text-[13px]">
+                  <input
+                    type="checkbox"
+                    name="areas"
+                    value={a}
+                    className="mt-0.5 rounded border-border"
+                  />
+                  <span className="min-w-0">
+                    <span className="font-medium text-ink">{LABEL_AREA_KOREKSI[a]}</span>
+                    <span className="block text-[11px] text-ink-muted">{ARTI_AREA_KOREKSI[a]}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
           <div>
             <Label htmlFor="rv-reason" required>
               Alasan pengembalian (dibaca SM di lapangan)

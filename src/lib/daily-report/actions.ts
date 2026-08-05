@@ -16,6 +16,7 @@ import { MAX_PHOTOS_PER_UPLOAD, PhotoError, savePhotoForItem } from "@/lib/photo
 import { isR2Configured, r2Delete } from "@/lib/r2";
 import { audit } from "@/lib/audit";
 import { applyWeatherToReport, WeatherError, WeatherFetchError } from "@/lib/weather/service";
+import { AREA_KOREKSI } from "./area-koreksi";
 import type { UserRole, WeatherCode, WorkerRole } from "@/generated/prisma/enums";
 import { WEATHER_ORDER, WORKER_ROLE_ORDER } from "./constants";
 import {
@@ -659,9 +660,20 @@ export async function returnReportAction(_prev: DailyActionState, formData: Form
       .max(1000)
       .safeParse(formData.get("reason"));
     if (!reason.success) return { error: reason.error.issues[0].message };
+    /*
+     * Bagian yang diminta diperbaiki (DECISIONS 256). Tidak wajib: reviewer
+     * yang tidak memilih tetap boleh mengembalikan laporan — memaksanya memilih
+     * hanya melahirkan pilihan asal supaya tombolnya hidup. Nilai asing
+     * dibuang diam-diam lewat enum zod, bukan menggagalkan pengembalian:
+     * kegagalan di sini berarti laporan yang jelas salah tetap menggantung.
+     */
+    const areas = z
+      .array(z.enum(AREA_KOREKSI))
+      .safeParse(formData.getAll("areas").map(String))
+      .data ?? [];
     const ctx = await loadReportContext(reportId);
     await requireLocationAccess(user, ctx.locationId);
-    await returnReport(reportId, reason.data, user.id);
+    await returnReport(reportId, reason.data, user.id, [...new Set(areas)]);
     revalidateReport(ctx.slug, ctx.dateKey);
     return { success: "Laporan dikembalikan untuk koreksi." };
   } catch (err) {

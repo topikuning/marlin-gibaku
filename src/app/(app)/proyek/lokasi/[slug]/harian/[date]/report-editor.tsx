@@ -3,6 +3,10 @@
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Check, ImagePlus, RotateCcw, Search, Send, Trash2 } from "lucide-react";
 import { Banner, Button, Input, Label } from "@/components/ui";
+import { StatusSimpan, useLaporSimpan } from "@/components/knmp/status-simpan";
+import { CatatanKoreksi } from "@/components/knmp/catatan-koreksi";
+import { LABEL_AREA_KOREKSI } from "@/lib/daily-report/area-koreksi";
+import type { CorrectionArea } from "@/generated/prisma/enums";
 import { formatNumber, formatRupiah } from "@/lib/format";
 import {
   addItemPhotosAction,
@@ -51,6 +55,7 @@ export function ReportEditor({
   pintasan,
   items,
   correctionReason,
+  correctionAreas,
   photoEnabled,
   photosTanpaItem,
   bolehHapusFoto,
@@ -63,6 +68,8 @@ export function ReportEditor({
   pintasan: PintasanItem;
   items: WorkspaceItem[];
   correctionReason: string | null;
+  /** Bagian yang diminta diperbaiki reviewer; kosong = tanpa penunjuk bagian. */
+  correctionAreas: readonly CorrectionArea[];
   photoEnabled: boolean;
   /** Foto yang item-nya sudah dihapus — ditampilkan supaya bisa dibersihkan. */
   photosTanpaItem: PhotoView[];
@@ -71,13 +78,31 @@ export function ReportEditor({
 }) {
   return (
     <div className="space-y-4">
+      {/*
+       * Pita status penyimpanan di paling atas dan `sticky`: editor ini
+       * menyimpan lewat belasan server action terpisah yang masing-masing hanya
+       * beri kabar di dalam formnya sendiri, jadi dari luar tidak pernah ada
+       * jawaban untuk "yang tadi saya ketik sudah masuk atau belum" — pertanyaan
+       * yang menentukan apakah mandor berani menutup halaman.
+       */}
+      <StatusSimpan />
       {correctionReason ? (
         <Banner
           tone="warning"
           title="Laporan dikembalikan — perlu koreksi"
-          description={correctionReason}
+          description={
+            correctionAreas.length > 0
+              ? // Sebutkan bagiannya di sini JUGA, bukan hanya inline: spanduk
+                // ini yang pertama terbaca, dan tanpa daftar bagian orang tidak
+                // tahu harus menggulir ke mana untuk menemukan catatannya.
+                `${correctionReason} — bagian yang perlu diperbaiki: ${correctionAreas
+                  .map((a) => LABEL_AREA_KOREKSI[a])
+                  .join(", ")}. Catatannya juga muncul di sebelah tiap bagian di bawah.`
+              : correctionReason
+          }
         />
       ) : null}
+      <CatatanKoreksi area="volume" areas={correctionAreas} reason={correctionReason} />
       <ItemForm
         locationId={locationId}
         slug={slug}
@@ -86,6 +111,7 @@ export function ReportEditor({
         pintasan={pintasan}
         photoEnabled={photoEnabled}
       />
+      <CatatanKoreksi area="foto" areas={correctionAreas} reason={correctionReason} />
       <ItemList
         reportId={reportId}
         slug={slug}
@@ -144,6 +170,7 @@ function ItemForm({
   photoEnabled: boolean;
 }) {
   const [state, formAction, pending] = useActionState<DailyActionState, FormData>(saveItemAction, undefined);
+  useLaporSimpan(pending, state);
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<LeafNodeOption | null>(null);
   const [volume, setVolume] = useState("");
@@ -521,6 +548,7 @@ function ItemForm({
  */
 function TambahFoto({ reportId, itemId, sudahAdaFoto }: { reportId: string; itemId: string; sudahAdaFoto: boolean }) {
   const [state, formAction, pending] = useActionState<DailyActionState, FormData>(addItemPhotosAction, undefined);
+  useLaporSimpan(pending, state);
   const [buka, setBuka] = useState(false);
   const [photoKey, setPhotoKey] = useState(0);
   const panelRef = useRef<HTMLFormElement>(null);
@@ -615,6 +643,7 @@ function ItemRow({
   photoEnabled: boolean;
 }) {
   const [state, formAction, pending] = useActionState<DailyActionState, FormData>(removeItemAction, undefined);
+  useLaporSimpan(pending, state);
 
   // Setelah item dihapus: buang draft lokal volume untuk node ini supaya saat
   // pekerjaan yang sama dipilih ulang di form, kolom volume TIDAK terisi angka
@@ -744,6 +773,7 @@ function SubmitPanel({
   jumlahFoto: number;
 }) {
   const [state, formAction, pending] = useActionState<DailyActionState, FormData>(submitReportAction, undefined);
+  useLaporSimpan(pending, state);
 
   // Kirim sukses → draft lokal (slug,date) tidak relevan lagi.
   useEffect(() => {

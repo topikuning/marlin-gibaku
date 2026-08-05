@@ -9054,3 +9054,70 @@ Uji dibuktikan bergigi dengan mengembalikan perilaku lama (kunci = 20 detik):
 2 dari 8 uji gagal. Cacat semacam ini tidak menerbitkan galat apa pun — layarnya
 tetap rapi, ketukannya sekadar hilang — jadi tanpa uji yang menyatakan kapan
 kunci terbuka, ia akan kembali tanpa terlihat.
+
+---
+
+## 256 — Laporan harian: status penyimpanan terlihat, dan catatan koreksi menempel pada bagiannya (2026-08-05)
+
+Fase 2 redesign (PRD §8). Penggunanya mandor: satu tangan, layar di bawah
+matahari, sinyal naik-turun.
+
+### A. Pita status penyimpanan
+
+Editor laporan menyimpan lewat **belasan server action terpisah** — satu per
+item, per foto, per pelengkap — dan masing-masing hanya memberi umpan balik di
+dalam formnya sendiri, sebuah banner kecil yang lewat begitu saja. Dari luar
+tidak pernah ada jawaban untuk pertanyaan yang menentukan apakah orang berani
+menutup halaman: **yang tadi saya ketik sudah masuk atau belum.**
+
+Pita `sticky` di puncak editor kini menyatakannya: Online · Menyimpan… ·
+Tersimpan 14:03 · Gagal menyimpan · Offline.
+
+**Yang SENGAJA tidak ada: "Belum tersinkron".** Rancangan desain memintanya,
+tetapi MARLIN tidak punya antrean offline — tidak ada service worker, tidak ada
+penyimpanan lokal, tidak ada pengiriman ulang. Menampilkannya berarti
+menjanjikan bahwa ketikan yang gagal terkirim masih tersimpan di suatu tempat
+dan akan menyusul sendiri; mandor yang percaya itu akan menutup halaman, dan
+pekerjaan seharian benar-benar hilang. Jadi saat offline yang dikatakan adalah
+yang sebenarnya terjadi: perubahan TIDAK tersimpan, jangan tutup halaman.
+Kabar buruk yang benar lebih berguna daripada kabar baik yang palsu.
+
+Teknis: store modul + `useSyncExternalStore`, bukan context. Dengan begitu form
+pelapor tidak pernah memanggil `setState` komponen lain dari dalam effect —
+pola yang dilarang lint React Compiler dan memang rawan render bertingkat.
+
+### B. Catatan koreksi menempel pada bagiannya
+
+Pengembalian laporan hanya membawa satu kalimat bebas, dan kalimat itu tampil
+sebagai spanduk di puncak halaman — jauh dari hal yang dimaksudnya. Mandor lalu
+menggulir seluruh editor sambil menebak bagian mana yang dimaksud "cek ulang
+zona B", dan yang paling sering terjadi bukan salah memperbaiki melainkan
+mengirim ulang tanpa memperbaiki apa pun.
+
+Kolom baru `daily_reports.correction_areas` (`CorrectionArea[]`, default `{}`)
+menyimpan bagian mana yang diminta diperbaiki. Reviewer mencentangnya saat
+mengembalikan; editor menampilkan catatannya **di sebelah bagian itu**.
+
+- **Tidak wajib.** Reviewer yang tidak memilih tetap boleh mengembalikan
+  laporan — memaksa memilih hanya melahirkan pilihan asal supaya tombolnya
+  hidup.
+- **Nilainya nama BAGIAN LAYAR**, bukan nama kolom database: yang membaca orang
+  lapangan, dan "Volume pekerjaan" berarti sesuatu baginya sementara
+  `daily_report_items.volume` tidak. Dijaga uji unit.
+- **Daftarnya pendek (6, termasuk "Lainnya").** Daftar panjang tidak membuat
+  reviewer lebih teliti; ia membuat semua orang memilih "Lainnya".
+- **Dibersihkan saat dikirim ulang.** Kalau tidak, "perbaiki volume" tetap
+  menempel sesudah volumenya dibetulkan — menuduh isi yang sudah benar, dan
+  pada putaran koreksi berikutnya bercampur dengan permintaan baru. Alasannya
+  tetap utuh di riwayat status; yang dihapus hanya penunjuk "sedang diminta".
+- **Laporan lama ber-array kosong**, artinya "dikembalikan tanpa penunjuk
+  bagian". Itu memang keadaan sebenarnya; mengarang bagian untuk data lama
+  membuat riwayat berbohong. Tidak ada backfill (DECISIONS 253).
+
+### Catatan migrasi
+
+Menambah kolom dengan DEFAULT non-volatile di PostgreSQL 11+ hanya mengubah
+katalog, bukan menulis ulang tabel — aman di tabel laporan yang sudah berisi
+dan di database yang dipakai bersama. Diverifikasi di PostgreSQL 16: seluruh
+migrasi jalan bersih dari nol, `migrate status` sinkron, berkasnya dijalankan
+dua kali tanpa galat.

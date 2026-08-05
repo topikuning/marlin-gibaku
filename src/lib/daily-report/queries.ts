@@ -5,6 +5,7 @@ import { COUNTED_REPORT_STATUSES, cumulativeVolumeByLineage } from "@/lib/progre
 import { jakartaDateKey, parseDateKey } from "@/lib/format";
 import { buildPhotoViews, type PhotoView } from "@/lib/photos";
 import type {
+  CorrectionArea,
   DailyReportStatus,
   IssueSeverity,
   IssueStatus,
@@ -186,6 +187,8 @@ export type WorkspaceReport = {
   photosTanpaItem: PhotoView[];
   /** Alasan pengembalian terakhir (transisi → perlu_koreksi paling baru). */
   lastCorrectionReason: string | null;
+  /** Bagian yang diminta diperbaiki reviewer (DECISIONS 256); kosong = tanpa penunjuk. */
+  correctionAreas: CorrectionArea[];
   isFinal: boolean;
 };
 
@@ -424,6 +427,7 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
       photos: photoViews,
       photosTanpaItem,
       lastCorrectionReason: lastCorrection?.reason ?? null,
+      correctionAreas: report.correctionAreas,
       isFinal: report.status === "final",
     },
   };

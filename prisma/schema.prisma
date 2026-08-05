@@ -77,6 +77,20 @@ enum BaselineSource {
   manual
 }
 
+/// Bagian laporan yang diminta diperbaiki reviewer (DECISIONS 256).
+///
+/// Nilainya sengaja BAGIAN LAYAR, bukan nama kolom database: yang membaca ini
+/// mandor di lapangan, dan "volume" berarti sesuatu baginya sementara
+/// `daily_report_items.volume` tidak.
+enum CorrectionArea {
+  volume
+  foto
+  cuaca
+  tenaga_material
+  kendala
+  lainnya
+}
+
 /// Workflow laporan harian terpadu
 enum DailyReportStatus {
   draft
@@ -933,6 +947,10 @@ model DailyReport {
   finalizedById    String?           @map("finalized_by_id") @db.Uuid
   finalizedAt      DateTime?         @map("finalized_at") @db.Timestamptz
   finalSnapshot    Json?             @map("final_snapshot")
+  /// Bagian mana yang diminta diperbaiki saat laporan dikembalikan (DECISIONS
+  /// 256). Kosong = pengembalian tanpa penunjuk bagian — termasuk SELURUH
+  /// laporan lama, yang memang tidak punya data ini dan tidak boleh dikarang.
+  correctionAreas  CorrectionArea[]  @default([]) @map("correction_areas")
   // Penanda kiriman laporan ke grup WhatsApp (info "sudah dikirim").
   waSentAt         DateTime?         @map("wa_sent_at") @db.Timestamptz
   waSentById       String?           @map("wa_sent_by_id") @db.Uuid

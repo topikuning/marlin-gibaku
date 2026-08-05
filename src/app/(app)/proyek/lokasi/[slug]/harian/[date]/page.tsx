@@ -108,6 +108,7 @@ export default async function HarianWorkspacePage({
           // boleh (pengunggah / Site Manager / Super Admin) ditegakkan di server.
           bolehHapusFoto={editable}
           correctionReason={status === "perlu_koreksi" ? report?.lastCorrectionReason ?? null : null}
+          correctionAreas={status === "perlu_koreksi" ? (report?.correctionAreas ?? []) : []}
           photoEnabled={isR2Configured()}
         />
       ) : null}

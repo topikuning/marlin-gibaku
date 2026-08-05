@@ -3,6 +3,8 @@
 import { useActionState, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { Banner, Button, Input, Label, Textarea } from "@/components/ui";
+import { useLaporSimpan } from "@/components/knmp/status-simpan";
+import { CatatanKoreksi } from "@/components/knmp/catatan-koreksi";
 import {
   fetchWeatherAction,
   saveEnrichmentAction,
@@ -49,6 +51,7 @@ function WeatherAuto({ report }: { report: WorkspaceReport }) {
     fetchWeatherAction,
     undefined,
   );
+  useLaporSimpan(pending, state);
   const hours = report.weatherHourly;
   const isManual = report.weatherSource === "manual";
   const rainHours = hours?.filter((h) => h.category === "Hujan").length ?? 0;
@@ -112,7 +115,12 @@ export function EnrichmentForm({ report }: { report: WorkspaceReport }) {
     saveEnrichmentAction,
     undefined,
   );
+  useLaporSimpan(pending, state);
   const workerMap = new Map(report.workers.map((w) => [w.role, w.count]));
+  // Catatan reviewer hanya relevan selama laporan MEMANG sedang diminta
+  // diperbaiki; sesudah dikirim ulang, menampilkannya berarti menuduh isi yang
+  // sudah dibetulkan. DECISIONS 256.
+  const areaKoreksi = report.status === "perlu_koreksi" ? report.correctionAreas : [];
   const [materials, setMaterials] = useState<Row[]>(
     report.materials.length
       ? report.materials.map((m) => ({ key: rowSeq++, name: m.name, a: m.unit ?? "", b: m.qty != null ? String(m.qty) : "" }))
@@ -131,6 +139,7 @@ export function EnrichmentForm({ report }: { report: WorkspaceReport }) {
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
       <input type="hidden" name="reportId" value={report.id} />
 
+      <CatatanKoreksi area="cuaca" areas={areaKoreksi} reason={report.lastCorrectionReason} />
       {/* Cuaca */}
       <fieldset>
         <legend className="mb-1.5 text-[13px] font-medium text-ink">Cuaca</legend>
@@ -172,6 +181,11 @@ export function EnrichmentForm({ report }: { report: WorkspaceReport }) {
         </div>
       </div>
 
+      <CatatanKoreksi
+        area="tenaga_material"
+        areas={areaKoreksi}
+        reason={report.lastCorrectionReason}
+      />
       {/* Tenaga per keahlian */}
       <fieldset>
         <legend className="mb-1.5 text-[13px] font-medium text-ink">Tenaga kerja (per keahlian)</legend>

@@ -41,15 +41,24 @@ test.describe("kunci ketukan ulang", () => {
   });
 
   test("ditahan saat masih baru, DILEPAS sesudah pemberitahuan lambat muncul", async ({ page }) => {
-    await page.goto("/lokasi");
-    const tautan = page.locator('a[href^="/lokasi/"]').first();
+    /*
+     * URL KANONIK `/proyek/lokasi` (DECISIONS 252), bukan `/lokasi`.
+     *
+     * Uji ini lahir di cabang `dev` sebelum keluarga route dipindah. `/lokasi`
+     * sendiri tetap hidup — ia 308 ke sini — tetapi TAUTAN di dalam halaman
+     * sudah memakai bentuk baru, sehingga pemilih `a[href^="/lokasi/"]` tidak
+     * mencocoki apa pun dan uji menggantung sampai batas waktu. Kegagalannya
+     * menunjuk `waitFor`, jauh dari sebabnya.
+     */
+    await page.goto("/proyek/lokasi");
+    const tautan = page.locator('a[href^="/proyek/lokasi/"]').first();
     await tautan.waitFor({ state: "visible", timeout: 30_000 });
 
     // Gantung navigasinya. Pra-ambil dibiarkan lewat — ia bukan navigasi, dan
     // menahannya hanya membuat halaman terasa aneh tanpa menambah apa pun.
     const navigasi: number[] = [];
     const mulai = Date.now();
-    await page.route(/\/lokasi\/[^/]+(\?|$)/, async (route) => {
+    await page.route(/\/proyek\/lokasi\/[^/]+(\?|$)/, async (route) => {
       if (route.request().headers()["next-router-prefetch"]) return route.continue();
       navigasi.push(Date.now() - mulai);
       await new Promise((r) => setTimeout(r, TAHAN_MS));

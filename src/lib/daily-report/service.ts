@@ -9,6 +9,7 @@ import { formatNumber, jakartaDateKey, parseDateKey } from "@/lib/format";
 import { dominantWeatherCode, parseHourlyWeather, type HourlyWeather } from "@/lib/weather/hourly";
 import { Prisma } from "@/generated/prisma/client";
 import type {
+  CorrectionArea,
   DailyReportStatus,
   IssueSeverity,
   WeatherCode,
@@ -452,14 +453,36 @@ export async function submitReport(reportId: string, userId: string) {
     reportId,
     "dikirim",
     userId,
-    { submittedById: userId, submittedAt: new Date() },
+    /*
+     * Penunjuk bagian koreksi DIBERSIHKAN saat dikirim ulang (DECISIONS 256).
+     *
+     * Kalau tidak, catatan "perbaiki volume" tetap menempel di editor sesudah
+     * volumenya dibetulkan — menuduh isi yang sudah benar, dan pada putaran
+     * koreksi berikutnya bercampur dengan permintaan yang baru. Alasannya
+     * sendiri tetap utuh di riwayat status; yang dihapus hanya penunjuk
+     * "sedang diminta diperbaiki", karena memang sudah tidak diminta.
+     */
+    { submittedById: userId, submittedAt: new Date(), correctionAreas: { set: [] } },
     { action: "daily_report.submit", payload: { items: itemCount } },
   );
   return updated;
 }
 
-/** dikirim → perlu_koreksi. Alasan WAJIB — SM lapangan harus tahu apa yang salah. */
-export async function returnReport(reportId: string, reason: string, userId: string) {
+/**
+ * dikirim → perlu_koreksi. Alasan WAJIB — SM lapangan harus tahu apa yang salah.
+ *
+ * `areas` menyebut BAGIAN mana yang diminta diperbaiki (DECISIONS 256), supaya
+ * catatan reviewer bisa muncul di sebelah bagiannya di editor alih-alih hanya
+ * sebagai spanduk di puncak halaman. Boleh kosong: reviewer yang tidak memilih
+ * bagian tetap bisa mengembalikan laporan — memaksanya memilih hanya akan
+ * melahirkan pilihan asal supaya tombolnya hidup.
+ */
+export async function returnReport(
+  reportId: string,
+  reason: string,
+  userId: string,
+  areas: CorrectionArea[] = [],
+) {
   if (!reason || reason.trim().length === 0) {
     throw new DailyReportError("Alasan pengembalian wajib diisi");
   }
@@ -467,8 +490,8 @@ export async function returnReport(reportId: string, reason: string, userId: str
     reportId,
     "perlu_koreksi",
     userId,
-    {},
-    { action: "daily_report.return", payload: { reason: reason.trim() } },
+    { correctionAreas: { set: areas } },
+    { action: "daily_report.return", payload: { reason: reason.trim(), areas } },
     reason,
   );
   return updated;
