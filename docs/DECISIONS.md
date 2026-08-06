@@ -10646,3 +10646,98 @@ gugur. Luapan diukur langsung di peramban sebelum & sesudah: 526px → 390px,
 dan rutenya kini dijaga uji e2e (16/16 lulus di 375px, termasuk rute baru ini).
 Saringan dicoba di peramban ponsel: ketik "Kedung" di pemilih lokasi → 1 opsi →
 "Menampilkan 1 dari 7 lokasi".
+
+---
+
+## 277 · Papan status harian jadi GRID; tandanya sendiri yang jadi tombol (2026-08-06)
+
+**Menggantikan bilah saring dari DECISIONS 276.** Teguran user 2026-08-06,
+beruntun, dan semuanya benar:
+
+> *"status laporan harianmu sungguh tidak nyaman, kenapa tidak kamu model grid
+> saja, yang per kolomnya tombol. tidak perlu keterangan panjang... lalu tiap
+> kolom sortable... kamu ini terlalu rumit!"*
+>
+> *"lalu mana tombol untuk kirim ke wa, drive, dsb?! kolom itu ya otomatis juga
+> jadi ada button"*
+>
+> *"gak penting itu nama paket!"*
+>
+> *"status, belum ada, apanya yang belum ada"*
+
+**Keputusan.**
+
+1. **Daftar kartu → `MarlinGrid`.** Ini data tabular: 83 baris berkolom sama
+   persis. Kartu memaksa mata memindai kalimat untuk membandingkan dua lokasi,
+   padahal yang ditanyakan cuma "mana yang sudah, mana yang belum". Aturan repo
+   pun sudah menyebutnya (tabel data → MarlinGrid); 276 melanggarnya.
+
+2. **Bilah saring buatan sendiri DIBUANG** — beserta modul `status-harian-filter.ts`
+   dan ujinya. AG Grid sudah memberi sortir + saring per kolom, pencarian cepat,
+   dan ekspor CSV. Membangun lapisan saringan di atasnya cuma menggandakan cara
+   melakukan hal yang sama. Yang tersisa di halaman hanyalah pemilih TANGGAL,
+   karena tanggal menentukan data apa yang diambil dari server.
+   *Yang hilang dan disadari:* saringan tidak lagi punya alamat URL yang bisa
+   dibagikan. Sortir/saring kolom tersimpan per pengguna lewat `persistKey`.
+
+3. **Kalimat prasyarat → TANDA.** "Paket belum punya folder Drive" jadi silang
+   merah dengan kalimat lengkapnya di `title`.
+
+4. **Tandanya SEKALIGUS tombol.** Ini usul user, dan lebih baik dari rancangan
+   awalku: tombol memang sudah ada, tapi ditumpuk di kolom "Aksi" paling kanan
+   yang justru tergeser dari pandangan. Kini silang merah di kolom "Drive"
+   bukan cuma memberi tahu belum naik — ia juga yang menaikkannya. Satu kolom
+   menjawab DAN mengerjakan. Yang tidak bisa ditindak (belum punya folder/grup,
+   atau memang tak ada isinya) tetap menampilkan tandanya sebagai teks mati,
+   bukan tombol yang menjanjikan lalu gagal.
+
+5. **Kolom "Paket" dibuang**, lebarnya dipakai kolom Lokasi. Kolom "Status"
+   jadi **"Laporan"** dan nilai kosongnya **"Belum lapor"** — di kolom bernama
+   "Status", kata "Belum ada" tidak menyebut APA yang belum ada.
+
+6. **Saring dimatikan di kolom sempit** (angka & tanda); sortir tetap. Ikon
+   saring memakan lebar sampai judul kolomnya sendiri terpotong.
+
+**Ukuran, bukan kira-kira.** Di 1440px lebar isi grid = 1150px dan jumlah kolom
+= 1150px: muat pas, tanpa geser. Di 390px gridnya bergeser DI DALAM
+kontainernya (DECISIONS 010) sementara halamannya sendiri tetap 390 = 390.
+
+**Bukti.** `tests/unit/status-harian-tabel.test.ts` (8 uji) mengunci pemipihan
+yang membuat sortir mungkin — terutama bahwa `diDrive` bernilai TIGA ("Sudah" /
+"Belum" / "Gagal"), karena "gagal" menuntut tindakan berbeda dari "belum
+dicoba", dan bahwa prasyarat (`punyaFolderDrive`) adalah kolom terpisah dari
+hasil (`diDrive`) — itulah yang membuat "punya folder TAPI belum naik" bisa
+dijawab dengan dua kali klik kepala kolom.
+
+---
+
+## 278 · Tautan "Buka Drive" menunjuk BLANKO laporan, bukan berkas terakhir (2026-08-06)
+
+**Konteks.** Keluhan user 2026-08-06: *"lalu unggah ke drive, kenapa cuma foto,
+blanko laporannya tidak ikut ke drive"*.
+
+**Temuan: blankonya IKUT naik.** `uploadDailyReportToDriveAction` merender
+`renderHarianKkpPdf` lalu mengunggahnya sebagai
+`Laporan Harian - <Lokasi> - <tanggal>.pdf` ke
+`3. LAPORAN HARIAN/<Lokasi>/<bulan>/`, BARU kemudian fotonya ke subfolder
+`.../Foto/`. Kalau PDF-nya gagal, action mengembalikan galat — jadi kegagalan
+senyap tidak mungkin.
+
+**Yang salah adalah TAUTANNYA.** Papan status mengambil `webLink` dari baris
+log Drive TERBARU. Karena foto diunggah SESUDAH PDF, baris terbaru hampir selalu
+foto — sehingga tombol "Buka Drive" membuka sebuah FOTO di dalam subfolder
+`Foto`. Dari situ wajar sekali disimpulkan blankonya tidak ikut naik.
+
+Ini bukan cacat kosmetik: tautan yang menyesatkan membuat orang percaya dokumen
+resminya hilang, lalu mengunggah ulang berkali-kali untuk sesuatu yang sudah ada
+di sana.
+
+**Keputusan.** Pemilihan tautan mendahulukan berkas yang namanya diawali
+"Laporan Harian"; foto hanya dipakai bila blankonya sama sekali tidak
+bertautan, supaya tombolnya tidak jadi mati.
+
+**Batas yang diketahui:** pemilihannya berdasarkan NAMA BERKAS, karena tabel log
+tidak menyimpan jenis berkas. Kalau kelak penamaan PDF harian diubah, pemilihan
+ini ikut meleset — dan kegagalannya senyap. Menambah kolom `jenis` pada
+`GDriveUpload` akan menutupnya; belum dikerjakan agar perubahan ini tetap kecil,
+dan dicatat di `docs/OPEN_ISSUES.md`.

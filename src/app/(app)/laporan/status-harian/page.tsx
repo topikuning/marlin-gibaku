@@ -1,44 +1,38 @@
 import type { Metadata } from "next";
-import { CalendarDays, SearchX } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, EmptyState, KpiCard, PageHeader } from "@/components/ui";
 import { accessibleLocationIds, requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { getStatusHarian } from "@/lib/daily-report/status-harian";
-import {
-  adaFilterAktif,
-  bacaFilter,
-  saringBaris,
-} from "@/lib/daily-report/status-harian-filter";
 import { formatTanggal, jakartaDateKey, parseDateKey } from "@/lib/format";
-import { BarisStatus } from "./baris-status";
-import { BilahSaring } from "./bilah-saring";
+import { TabelStatus } from "./tabel-status";
 
 export const metadata: Metadata = { title: "Status Laporan Harian" };
 export const dynamic = "force-dynamic";
 
 /**
- * PAPAN STATUS LAPORAN HARIAN (DECISIONS 262).
+ * PAPAN STATUS LAPORAN HARIAN (DECISIONS 262; dirombak jadi grid — 277).
  *
- * Permintaan user 2026-08-05: *"satu halaman khusus untuk melihat status
- * laporan harian (final/draft/pengajuan) dan apakah sudah diupload ke google
- * drive (beserta tombol google drive)."*
+ * Satu tanggal, semua lokasi yang boleh dilihat pengguna, dalam GRID: satu
+ * baris per lokasi, satu kolom per pertanyaan, tombolnya di kolom aksi.
  *
- * Satu tanggal, semua lokasi yang boleh dilihat pengguna, dengan tindakannya
- * menempel di barisnya sendiri — bukan daftar yang cuma bisa dibaca lalu
- * memaksa pindah halaman untuk bertindak.
+ * Halaman ini sengaja TIDAK punya bilah saring buatan sendiri lagi. Sortir &
+ * saring per kolom sudah disediakan grid; menambah lapisan saringan di atasnya
+ * cuma menggandakan cara melakukan hal yang sama — teguran user 2026-08-06:
+ * *"kamu ini terlalu rumit!"*. Yang tersisa hanyalah pemilih TANGGAL, karena
+ * tanggal menentukan data apa yang diambil dari server, bukan cara
+ * menampilkannya.
  */
 export default async function StatusHarianPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tanggal?: string; lokasi?: string; drive?: string; wa?: string }>;
+  searchParams: Promise<{ tanggal?: string }>;
 }) {
   const user = await requireUser();
   requireCapabilityPage(user.role, "report.export");
   const scoped = await accessibleLocationIds(user);
 
-  const sp = await searchParams;
-  const { tanggal } = sp;
-  const filter = bacaFilter(sp);
+  const { tanggal } = await searchParams;
   // Tanggal yang tidak dikenal TIDAK diam-diam diganti hari ini tanpa jejak —
   // ia jatuh ke hari ini DAN alamatnya ikut menunjukkan tanggal itu, sehingga
   // apa yang dibaca selalu cocok dengan apa yang tertulis di kolom tanggal.
@@ -46,16 +40,10 @@ export default async function StatusHarianPage({
   const data = await getStatusHarian(user, scoped, dateKey);
   const hari = parseDateKey(dateKey)!;
 
-  const tersaring = saringBaris(data?.rows ?? [], filter);
-
   const geser = (n: number) => {
     const d = new Date(`${dateKey}T00:00:00.000Z`);
     d.setUTCDate(d.getUTCDate() + n);
-    const q = new URLSearchParams({ tanggal: d.toISOString().slice(0, 10) });
-    if (filter.lokasi) q.set("lokasi", filter.lokasi);
-    if (filter.drive !== "semua") q.set("drive", filter.drive);
-    if (filter.wa !== "semua") q.set("wa", filter.wa);
-    return `/laporan/status-harian?${q.toString()}`;
+    return `/laporan/status-harian?tanggal=${d.toISOString().slice(0, 10)}`;
   };
 
   return (
@@ -63,22 +51,46 @@ export default async function StatusHarianPage({
       <PageHeader
         breadcrumb={[{ label: "Laporan", href: "/laporan" }, { label: "Status Harian" }]}
         title="Status Laporan Harian"
-        description="Satu tanggal, semua lokasi: sudah melapor atau belum, sampai tahap apa, dan apakah berkasnya sudah naik ke Google Drive."
+        description="Satu baris per lokasi. Ketuk kepala kolom untuk menyortir — mis. urutkan “Folder Drive” lalu “Di Drive” untuk menemukan yang punya folder tapi belum naik."
       />
 
-      <BilahSaring
-        dateKey={dateKey}
-        filter={filter}
-        opsiLokasi={(data?.rows ?? []).map((r) => ({
-          value: r.slug,
-          // Kabupaten ikut: nama desa berulang antar kabupaten di daftar KNMP,
-          // jadi "Wonorejo" saja tidak cukup untuk memilih yang benar.
-          label: `${r.locationName} · ${r.regency}`,
-        }))}
-        hariLabel={formatTanggal(hari, "EEEE, d MMMM yyyy")}
-        hariSebelum={geser(-1)}
-        hariSesudah={geser(1)}
-      />
+      <Card className="p-3">
+        <form method="get" className="flex flex-wrap items-center gap-2">
+          <a
+            href={geser(-1)}
+            aria-label="Hari sebelumnya"
+            className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border text-ink-muted transition-colors hover:bg-surface-muted"
+          >
+            <ChevronLeft aria-hidden className="size-4" />
+          </a>
+          <div className="flex min-w-0 items-center gap-2">
+            <CalendarDays aria-hidden className="size-4 shrink-0 text-ink-faint" />
+            <input
+              type="date"
+              name="tanggal"
+              defaultValue={dateKey}
+              aria-label="Tanggal"
+              className="h-8 min-w-0 rounded-md border border-border bg-surface px-2 text-[13px] text-ink"
+            />
+          </div>
+          <a
+            href={geser(1)}
+            aria-label="Hari berikutnya"
+            className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border text-ink-muted transition-colors hover:bg-surface-muted"
+          >
+            <ChevronRight aria-hidden className="size-4" />
+          </a>
+          <button
+            type="submit"
+            className="h-8 shrink-0 rounded-md border border-border bg-surface px-3 text-[13px] font-medium text-ink transition-colors hover:bg-surface-muted"
+          >
+            Tampilkan
+          </button>
+          <span className="text-[13px] text-ink-muted">
+            {formatTanggal(hari, "EEEE, d MMMM yyyy")}
+          </span>
+        </form>
+      </Card>
 
       {!data || data.total === 0 ? (
         <EmptyState
@@ -88,9 +100,8 @@ export default async function StatusHarianPage({
         />
       ) : (
         <>
-          {/* Dua kolom sejak layar paling sempit: lima kartu satu-per-baris
-              mendorong daftar lokasinya — isi sebenarnya halaman ini — sampai
-              lima layar ke bawah di ponsel. */}
+          {/* Dua kolom sejak layar tersempit: lima kartu satu-per-baris
+              mendorong gridnya — isi sebenarnya halaman ini — jauh ke bawah. */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
             <KpiCard label="Lokasi aktif" value={String(data.total)} />
             {/* "Belum ada laporan" TIDAK diberi nada bahaya: hari libur dan
@@ -102,30 +113,7 @@ export default async function StatusHarianPage({
             <KpiCard label="Sudah di Drive" value={`${data.sudahDrive} / ${data.total}`} />
           </div>
 
-          {/* Angka pita di atas SELALU untuk seluruh hari itu, bukan hasil
-              saringan: gunanya menjawab "sejauh mana hari ini", dan angka yang
-              ikut menyusut saat disaring justru menjawab pertanyaan lain.
-              Karena itu jumlah yang sedang ditampilkan disebut terpisah. */}
-          {adaFilterAktif(filter) ? (
-            <p className="text-[13px] text-ink-muted">
-              Menampilkan <span className="font-semibold text-ink">{tersaring.length}</span> dari{" "}
-              {data.total} lokasi.
-            </p>
-          ) : null}
-
-          {tersaring.length === 0 ? (
-            <EmptyState
-              icon={SearchX}
-              title="Tidak ada lokasi yang cocok"
-              description="Saringan yang aktif tidak menyisakan satu lokasi pun. Longgarkan saringannya, atau bersihkan lewat tautan di atas."
-            />
-          ) : (
-            <Card className="divide-y divide-border p-0">
-              {tersaring.map((r) => (
-                <BarisStatus key={r.locationId} row={r} dateKey={dateKey} />
-              ))}
-            </Card>
-          )}
+          <TabelStatus rows={data.rows} dateKey={dateKey} />
         </>
       )}
     </div>
