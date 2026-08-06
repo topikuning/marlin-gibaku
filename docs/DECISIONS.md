@@ -10613,9 +10613,36 @@ ke `BilahSaring` yang client — halaman balas **500**. Dicatat karena
 pengukuran overflow SEMPAT terbaca "390 = 390, aman" padahal yang diukur adalah
 halaman galat. Alamatnya kini dihitung di server dan dioper sebagai string.
 
+### 4. Bonus yang ditemukan penjaganya: prefetch memicu pembuatan PDF
+
+Begitu rutenya didaftarkan, uji overflow justru GAGAL — tapi bukan karena
+luapan, melainkan **kehabisan waktu 60 detik**: halaman ini TIDAK PERNAH
+mencapai `networkidle`. Diukur lokal, permintaan yang menggantung adalah
+
+```
+/api/laporan/harian/<slug>/<tanggal>/ringkas?_rsc=…
+```
+
+Tombol "Ringkasan PDF" memakai `next/link`, dan `next/link` **mem-prefetch
+tautan internal begitu masuk viewport**. Alamat itu bukan halaman melainkan
+endpoint yang MEMBANGKITKAN PDF: menyusun dokumen, menarik foto dari R2, lalu
+merender. Artinya sekadar menggulung papan status diam-diam memicu pembuatan
+PDF untuk SETIAP baris yang terlihat — pekerjaan berat yang tidak diminta
+siapa pun, dikalikan jumlah lokasi, tiap kali halaman dibuka.
+
+Ini cacat PRODUKSI, bukan rewel uji. Tidak ada yang melaporkannya karena
+gejalanya cuma "halaman terasa berat"; yang menemukannya justru penjaga tata
+letak yang baru didaftarkan. Diperbaiki dengan mengembalikannya ke `<a>` biasa
+(begitu juga "Buka Drive", yang memang tautan eksternal). Sesudahnya
+`networkidle` tercapai dalam **716 ms** — sebelumnya tidak pernah.
+
+Pelajaran yang layak dibawa: alamat `/api/**` yang membangkitkan berkas TIDAK
+boleh dipasang dengan `next/link`.
+
 **Bukti.** `tests/unit/status-harian-filter.test.ts` (15 uji). Uji gigi:
 membuat "belum naik" mengeluarkan yang gagal → 1 uji gugur; membuat saringan
 "gagal terbuka" (mengembalikan semua baris saat tak ada yang cocok) → 1 uji
 gugur. Luapan diukur langsung di peramban sebelum & sesudah: 526px → 390px,
-dan rutenya kini dijaga uji e2e. Saringan dicoba di peramban ponsel: ketik
-"Kedung" di pemilih lokasi → 1 opsi → "Menampilkan 1 dari 7 lokasi".
+dan rutenya kini dijaga uji e2e (16/16 lulus di 375px, termasuk rute baru ini).
+Saringan dicoba di peramban ponsel: ketik "Kedung" di pemilih lokasi → 1 opsi →
+"Menampilkan 1 dari 7 lokasi".

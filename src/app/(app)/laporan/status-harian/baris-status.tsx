@@ -106,7 +106,22 @@ export function BarisStatus({ row, dateKey }: { row: StatusHarianRow; dateKey: s
         </div>
 
         <div className="flex min-w-0 basis-full flex-wrap items-center gap-2 sm:basis-auto">
-          <Link
+          {/*
+            `<a>` BIASA, bukan `<Link>` — dan ini bukan soal gaya.
+
+            `next/link` MEM-PREFETCH tautan internal begitu masuk viewport.
+            Alamat ini bukan halaman, melainkan endpoint yang MEMBANGKITKAN PDF:
+            menyusun dokumen, menarik fotonya dari R2, lalu merendernya. Dengan
+            `<Link>`, sekadar menggulung papan ini diam-diam memicu pembuatan
+            PDF untuk SETIAP baris yang terlihat — pekerjaan berat yang tidak
+            diminta siapa pun, dikalikan jumlah lokasi.
+
+            Terungkap lewat uji overflow mobile yang baru: halaman ini TIDAK
+            PERNAH mencapai `networkidle` karena permintaan prefetch itu
+            menggantung, sehingga ujinya kehabisan waktu 60 detik. Ujinya
+            menemukan cacat produksi, bukan sekadar rewel soal tata letak.
+          */}
+          <a
             href={`/api/laporan/harian/${row.slug}/${dateKey}/ringkas`}
             target="_blank"
             rel="noopener"
@@ -114,10 +129,10 @@ export function BarisStatus({ row, dateKey }: { row: StatusHarianRow; dateKey: s
           >
             <FileText aria-hidden className="size-3.5" />
             Ringkasan PDF
-          </Link>
+          </a>
 
           {row.drive.webLink ? (
-            <Link
+            <a
               href={row.drive.webLink}
               target="_blank"
               rel="noopener noreferrer"
@@ -125,7 +140,7 @@ export function BarisStatus({ row, dateKey }: { row: StatusHarianRow; dateKey: s
             >
               <ExternalLink aria-hidden className="size-3.5" />
               Buka Drive
-            </Link>
+            </a>
           ) : null}
 
           <form action={aksiDrive}>
