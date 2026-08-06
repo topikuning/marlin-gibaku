@@ -1,4 +1,6 @@
 import "server-only";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import sharp from "sharp";
 import { isR2Configured, r2GetBuffer } from "@/lib/r2";
 import { getRingkasHarian, type RingkasFoto, type RingkasHarian } from "@/lib/daily-report/ringkas";
@@ -109,12 +111,16 @@ function deviasiTone(d: number): string {
  * Susun PDF dari data siap-render. MURNI: tidak menyentuh DB/R2, sehingga tata
  * letaknya bisa diuji tanpa infrastruktur.
  */
-export function buildHarianRingkasPdf(d: RingkasHarian, foto: FotoTertanam[]): Promise<Buffer> {
+export function buildHarianRingkasPdf(
+  d: RingkasHarian,
+  foto: FotoTertanam[],
+  opts: { logoPerusahaan?: Buffer | null } = {},
+): Promise<Buffer> {
   const doc = createA4Doc({
-    title: `Laporan Harian Ringkas — ${d.locationName} — ${d.dateKey}`,
+    title: `Ringkasan Pelaksanaan Harian — ${d.locationName} — ${d.dateKey}`,
   });
 
-  kop(doc, d);
+  kop(doc, d, opts.logoPerusahaan ?? null);
   pitaStatus(doc, d);
   identitas(doc, d);
   pitaKinerja(doc, d);
@@ -124,14 +130,23 @@ export function buildHarianRingkasPdf(d: RingkasHarian, foto: FotoTertanam[]): P
   bagianKondisiKerja(doc, d);
   bagianFoto(doc, d, foto);
 
-  stampFooters(
-    doc,
-    sanitizeText(
-      // Wilayah ikut di KAKI karena halaman kedua dan seterusnya (galeri foto)
-      // tidak memuat blok identitas — di sana nama desa berdiri sendiri.
-      `${d.appName} · ${lokasiDenganWilayah(d.locationName, d.regency, d.province)} · ${d.tanggalFull} · dibuat ${formatTanggalWaktu(new Date())}`,
-    ),
-  );
+  // Kaki halaman DIPIMPIN identitas pekerjaan & perusahaannya, bukan MARLIN.
+  // Wilayah ikut karena halaman kedua dan seterusnya (galeri foto) tidak memuat
+  // blok identitas — di sana nama desa berdiri sendiri. MARLIN disebut terakhir,
+  // sebagai alat pembuatnya (permintaan user 2026-08-06).
+  // Provinsi SENGAJA tidak ikut di kaki: yang diminta adalah kabupatennya, dan
+  // barisnya harus muat satu baris — versi dengan provinsi membungkus ke baris
+  // kedua dan menabrak batas halaman. Provinsi tetap ada di blok identitas.
+  // Waktu pembuatan TIDAK dicetak di kaki: barisnya jadi lewat satu baris, dan
+  // PDF sudah menyimpannya sendiri di `CreationDate` — terbaca dari properti
+  // berkas, jadi tidak ada provenance yang hilang.
+  const kaki = [
+    lokasiDenganWilayah(d.locationName, d.regency),
+    d.tanggalFull,
+    d.vendorName,
+    `dibuat dengan ${d.appName}`,
+  ].filter(Boolean);
+  stampFooters(doc, sanitizeText(kaki.join(" · ")));
   return docToBuffer(doc);
 }
 
@@ -175,8 +190,22 @@ export async function renderHarianRingkasPdf(
     fotoDisembunyikan: d.fotoDisembunyikan + gagal,
   };
 
+  // Logo perusahaan pelaksana — best-effort. Gagal diambil berarti kop memakai
+  // NAMA perusahaan sebagai ganti, bukan dokumen yang batal terbentuk.
+  let logoPerusahaan: Buffer | null = null;
+  if (isR2Configured() && d.vendorLogoKey) {
+    try {
+      logoPerusahaan = await sharp(await r2GetBuffer(d.vendorLogoKey))
+        .resize({ width: 400, height: 160, fit: "inside", withoutEnlargement: true })
+        .png()
+        .toBuffer();
+    } catch {
+      logoPerusahaan = null;
+    }
+  }
+
   return {
-    buffer: await buildHarianRingkasPdf(data, foto),
+    buffer: await buildHarianRingkasPdf(data, foto, { logoPerusahaan }),
     locationId: d.locationId,
     locationName: d.locationName,
     dateKey: d.dateKey,
@@ -203,47 +232,128 @@ function subFoto(p: RingkasFoto): string | null {
 
 /* ── Bagian-bagian dokumen ───────────────────────────────────────────────── */
 
-function kop(doc: PdfDoc, d: RingkasHarian): void {
+/**
+ * KOP: logo perusahaan (kiri) · judul + tanggal (tengah) · MARLIN kecil (kanan).
+ *
+ * Susunan ini keputusan user 2026-08-06, dan intinya bukan tata letak melainkan
+ * KEPEMILIKAN: *"jangan terlalu menonjolkan marlin di laporan-laporanmu … dengan
+ * mindset laporan ini dibuat DENGAN marlin OLEH perusahaan."*
+ *
+ * Jadi yang memimpin halaman adalah **logo perusahaan pelaksana** — merekalah
+ * yang bertanggung jawab atas isinya dan yang menyerahkannya ke PPK. MARLIN
+ * turun jadi keterangan kecil di sudut kanan: alat yang dipakai, bukan penerbit
+ * dokumen. Versi sebelumnya menaruh "MARLIN" tebal di kiri atas, dan itu
+ * membaca seolah laporan ini terbitan MARLIN.
+ *
+ * Nama paket dibuang dari kop dan dari blok identitas (permintaan user yang
+ * sama): pembaca dokumen ini butuh tahu LOKASI dan PEKERJAANNYA; nama paket
+ * internal hanya menambah baris tanpa menambah keterangan.
+ */
+function kop(doc: PdfDoc, d: RingkasHarian, logoPerusahaan: Buffer | null): void {
   const top = PAGE_MARGIN;
-  const kiriW = CONTENT_WIDTH * 0.52;
-  const kananX = PAGE_MARGIN + kiriW + 10;
-  const kananW = CONTENT_WIDTH - kiriW - 10;
+  const blokW = 104; // lebar blok kiri & kanan; tengah memakai sisanya
+  const tinggiKop = 28;
 
-  doc
-    .font(PDF_FONT.bold)
-    .fontSize(8)
-    .fillColor(PDF_COLORS.inkMuted)
-    .text(sanitizeText(d.appName).toUpperCase(), PAGE_MARGIN, top, {
-      characterSpacing: 1,
-      width: kiriW,
+  /* Kiri — logo perusahaan, atau namanya bila logo belum diunggah. */
+  if (logoPerusahaan) {
+    doc.image(`data:image/png;base64,${logoPerusahaan.toString("base64")}`, PAGE_MARGIN, top, {
+      fit: [blokW, tinggiKop],
+      valign: "center",
     });
-  doc
-    .font(PDF_FONT.regular)
-    .fontSize(7)
-    .fillColor(PDF_COLORS.inkMuted)
-    .text(sanitizeText(d.projectContext), PAGE_MARGIN, doc.y + 1, { width: kiriW });
-  const kiriBawah = doc.y;
+  } else if (d.vendorName) {
+    doc
+      .font(PDF_FONT.bold)
+      .fontSize(8)
+      .fillColor(PDF_COLORS.ink)
+      .text(sanitizeText(d.vendorName), PAGE_MARGIN, top + 6, { width: blokW });
+  }
 
+  /* Tengah — judul dokumen + tanggalnya. Inilah yang dicari mata lebih dulu. */
+  const tengahX = PAGE_MARGIN + blokW + 6;
+  const tengahW = CONTENT_WIDTH - (blokW + 6) * 2;
+  const judulTeks = "RINGKASAN PELAKSANAAN HARIAN";
+  // Ukuran judul DIUKUR terhadap ruang yang tersedia, tidak dipatok. Judul yang
+  // membungkus ke baris kedua menabrak baris tanggal di bawahnya — persis yang
+  // terjadi pada percobaan pertama.
+  let judulSize = 11.5;
+  doc.font(PDF_FONT.bold);
+  while (judulSize > 8 && doc.fontSize(judulSize).widthOfString(judulTeks) > tengahW - 2) {
+    judulSize -= 0.25;
+  }
   doc
-    .font(PDF_FONT.bold)
-    .fontSize(13)
+    .fontSize(judulSize)
     .fillColor(PDF_COLORS.primary)
-    .text("LAPORAN HARIAN", kananX, top, { width: kananW, align: "right" });
+    .text(judulTeks, tengahX, top + 4, {
+      width: tengahW,
+      align: "center",
+      lineBreak: false,
+    });
   doc
     .font(PDF_FONT.regular)
     .fontSize(7.5)
     .fillColor(PDF_COLORS.inkMuted)
-    .text("Ringkasan pelaksanaan", kananX, doc.y + 1, { width: kananW, align: "right" });
+    .text(`${d.hari}, ${d.tanggalFull}`, tengahX, top + 5 + judulSize + 3, {
+      width: tengahW,
+      align: "center",
+      lineBreak: false,
+    });
 
-  const lineY = Math.max(kiriBawah, doc.y, top + 26) + 4;
+  /* Kanan — MARLIN, sekecil keterangan alat. */
+  const kananX = PAGE_MARGIN + CONTENT_WIDTH - blokW;
+  doc
+    .font(PDF_FONT.regular)
+    .fontSize(5.5)
+    .fillColor(PDF_COLORS.inkFaint)
+    .text("DIBUAT DENGAN", kananX, top + 4, {
+      width: blokW,
+      align: "right",
+      characterSpacing: 0.4,
+      lineBreak: false,
+    });
+  // Wordmark ditulis sebagai TEKS, bukan gambar lockup: lockup penuh memuat
+  // ikon + nama + tagline, dan pada ukuran sekecil ini taglinenya jadi bubur —
+  // menonjol karena buram, bukan karena penting. Ikonnya saja yang dipakai.
+  doc.font(PDF_FONT.bold).fontSize(8.5);
+  const namaW = doc.widthOfString(sanitizeText(d.appName));
+  const ikon = ikonMarlin();
+  const ikonW = ikon ? 11 : 0;
+  const barisX = kananX + blokW - namaW - (ikon ? ikonW + 3 : 0);
+  if (ikon) {
+    doc.image(`data:image/png;base64,${ikon.toString("base64")}`, barisX, top + 13, {
+      fit: [ikonW, 11],
+    });
+  }
+  doc
+    .fillColor(PDF_COLORS.inkMuted)
+    .text(sanitizeText(d.appName), barisX + (ikon ? ikonW + 3 : 0), top + 14.5, {
+      lineBreak: false,
+    });
+
+  const lineY = top + tinggiKop + 3;
   doc
     .moveTo(PAGE_MARGIN, lineY)
     .lineTo(PAGE_MARGIN + CONTENT_WIDTH, lineY)
-    .lineWidth(2.5)
+    .lineWidth(1.6)
     .strokeColor(PDF_COLORS.primary)
     .stroke();
-  doc.y = lineY + 8;
+  doc.y = lineY + 7;
   doc.x = PAGE_MARGIN;
+}
+
+/**
+ * Ikon MARLIN dari `public/brand/` (dibawa image Docker, lihat Dockerfile).
+ * Dibaca sekali lalu disimpan; gagal baca = kop memakai teks saja, bukan gagal
+ * render — logo yang hilang tidak boleh membatalkan laporan.
+ */
+let ikonCache: Buffer | null | undefined;
+function ikonMarlin(): Buffer | null {
+  if (ikonCache !== undefined) return ikonCache;
+  try {
+    ikonCache = readFileSync(path.join(process.cwd(), "public", "brand", "marlin-icon-192.png"));
+  } catch {
+    ikonCache = null;
+  }
+  return ikonCache;
 }
 
 /**
@@ -310,12 +420,7 @@ function identitas(doc: PdfDoc, d: RingkasHarian): void {
   };
 
   baris([
-    ["Paket", d.packageName],
     ["Lokasi", d.locationName],
-    ["Hari / Tanggal", `${d.hari}, ${d.tanggalFull}`],
-  ]);
-  baris([
-    ["Penyedia", d.vendorName ?? "—"],
     ["Wilayah", `${d.regency}, ${d.province}`],
     [
       "Minggu ke",

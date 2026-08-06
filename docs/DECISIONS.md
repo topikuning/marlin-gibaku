@@ -9831,3 +9831,44 @@ Judul dokumen 15→13, nilai KPI 13→11,5, label kisi 6,5→5,8, isi tabel 8→
 kondisi kerja 8,5→7,5, keterangan foto 7,5→7. Hasilnya: kasus nyata user
 (Tengket/Bangkalan — tanpa laporan harian, satu kegiatan, dua foto) yang tadinya
 dua halaman kini **muat satu halaman penuh** berikut galeri fotonya.
+
+---
+
+## 264 · Kop laporan: milik PERUSAHAAN, MARLIN cuma alatnya (2026-08-06)
+
+Permintaan user 2026-08-06, beserta sketsa kop: *"kamu jangan terlalu menonjolkan
+marlin di laporan-laporanmu, kamu harus lebih jelas, dengan mindset laporan ini
+dibuat DENGAN marlin OLEH perusahaan."*
+
+Ini bukan soal tata letak melainkan **kepemilikan dokumen**. Versi sebelumnya
+menaruh "MARLIN" tebal di kiri atas — posisi kop surat — sehingga laporan
+membaca seolah terbitan MARLIN. Padahal yang bertanggung jawab atas isinya, dan
+yang menyerahkannya ke PPK, adalah perusahaan pelaksana.
+
+Susunan kop sekarang, mengikuti sketsa user:
+
+- **Kiri: logo perusahaan pelaksana** (`Vendor.logoKey` dari R2). Belum diunggah
+  → NAMA perusahaan sebagai gantinya; gagal diambil → juga nama, bukan dokumen
+  yang batal terbentuk.
+- **Tengah: "RINGKASAN PELAKSANAAN HARIAN" + hari/tanggal.** Ukuran judulnya
+  DIUKUR terhadap ruang yang tersisa (menyusut sampai muat), karena percobaan
+  pertama membungkus ke baris kedua dan menabrak baris tanggal.
+- **Kanan: "DIBUAT DENGAN" + ikon & wordmark MARLIN**, sekecil keterangan alat.
+
+Wordmark ditulis sebagai **teks**, bukan gambar lockup: lockup penuh memuat ikon
++ nama + tagline, dan pada ukuran sekecil ini taglinenya jadi bubur — menonjol
+karena buram, bukan karena penting.
+
+**Kaki halaman ikut dibalik**: dipimpin lokasi + tanggal + nama perusahaan,
+MARLIN disebut terakhir sebagai alat. Waktu pembuatan tidak lagi dicetak di sana
+(barisnya jadi lewat satu baris); PDF sudah menyimpannya di `CreationDate`,
+terbaca dari properti berkas, jadi tidak ada provenance yang hilang.
+
+**Nama paket dibuang** dari kop dan dari blok identitas, atas permintaan yang
+sama. Pembaca dokumen ini butuh LOKASI dan PEKERJAANNYA; nama paket internal
+hanya menambah baris tanpa menambah keterangan. Medan `projectContext` yang
+tidak lagi dipakai ikut dihapus dari `RingkasHarian` daripada dibiarkan jadi
+data mati.
+
+Skala font diturunkan satu tingkat lagi mengikuti keluhan "fontmu masih terlalu
+besar".

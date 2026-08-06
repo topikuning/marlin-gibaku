@@ -78,7 +78,6 @@ export type RingkasFoto = {
 export type RingkasHarian = {
   /* Identitas */
   appName: string;
-  projectContext: string;
   slug: string;
   locationId: string;
   locationName: string;
@@ -87,6 +86,8 @@ export type RingkasHarian = {
   packageName: string;
   workTitle: string | null;
   vendorName: string | null;
+  /** Key R2 logo perusahaan pelaksana — kop laporan dipimpin logo MEREKA. */
+  vendorLogoKey: string | null;
   contractNumber: string | null;
   dateKey: string;
   hari: string;
@@ -163,7 +164,7 @@ export async function getRingkasHarian(
             select: {
               workTitle: true,
               contractNumber: true,
-              vendor: { select: { name: true } },
+              vendor: { select: { name: true, logoKey: true } },
             },
           },
         },
@@ -302,7 +303,6 @@ export async function getRingkasHarian(
 
   return {
     appName: branding.appName,
-    projectContext: branding.projectContext,
     slug,
     locationId: location.id,
     locationName: location.name,
@@ -314,6 +314,7 @@ export async function getRingkasHarian(
       location.package.contract?.vendor?.name?.trim() ||
       location.package.candidateVendorName?.trim() ||
       null,
+    vendorLogoKey: location.package.contract?.vendor?.logoKey ?? null,
     contractNumber: location.package.contract?.contractNumber ?? null,
     dateKey,
     hari: formatTanggal(reportDate, "EEEE"),
