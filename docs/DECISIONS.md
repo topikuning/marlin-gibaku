@@ -10361,3 +10361,47 @@ laporan & ke kegiatan draft berhasil; foto lokasi lain dan foto tanpa lokasi
 DITOLAK dengan menyebut sebabnya. Diperiksa juga ujung-ke-ujung di peramban:
 dari layar laporan harian, satu foto berpindah dari kantong ke item laporan dan
 foto satunya tidak tersentuh.
+
+---
+
+## 273 · Baris aksi foto di laporan harian: satu baris, warna dibawa TITIK (2026-08-06)
+
+**Konteks.** Permintaan user 2026-08-06 atas baris item laporan harian:
+*"rapikan, bisa jadi satu baris, dengan penanda warna yang tegas dan rapi."*
+
+Sebelumnya baris itu menumpuk tiga hal di dua baris: chip "Belum ada foto",
+tombol "Tambahkan foto", lalu — di baris kedua — "Ambil dari Foto Cepat". Dua
+akibatnya:
+
+1. jalur Foto Cepat terbaca sebagai aksi kelas dua, padahal justru foto kantong
+   yang koordinatnya paling benar (DECISIONS 253/272);
+2. chip-nya hanya muncul saat foto belum ada, jadi saat foto sudah ada tidak ada
+   apa pun yang mengatakan berapa — harus dihitung sendiri dari galeri.
+
+**Keputusan.**
+
+- **Satu baris**: penanda + "Tambah foto" + "Foto Cepat", `flex-wrap` tetap
+  dipertahankan sebagai jaring pengaman (melipat, bukan menembus tepi kartu).
+- **Warna dibawa TITIK, bukan teks.** Teks berwarna di atas latar berwarna
+  gampang jatuh di bawah ambang kontras AA pada ukuran 11px — hijau `#16a34a`
+  di atas `#f0fdf4` hanya **3,2:1**, di bawah 4,5:1. Titik penuh
+  (`bg-success` / `bg-warning`) justru terbaca tegas dari jarak pandang ponsel
+  di bawah matahari, sementara tulisannya tetap `text-ink`. Latar & garis pill
+  yang memberi nada.
+- **Penanda tampil di KEDUA keadaan**: `● Tanpa foto` (amber) / `● 3 foto`
+  (hijau).
+- **"Tanpa foto", bukan "Perlu foto"** — foto memang OPSIONAL saat menyimpan
+  progres, jadi kata "perlu" akan mengarang kewajiban yang tidak ada. Nada amber
+  sudah cukup mengatakan ini yang belum beres.
+- **Pemicu Foto Cepat dipisah dari panelnya** (`TombolAmbilDariKantong` vs
+  `AmbilDariKantong`). Panelnya berisi petak-petak foto dan butuh lebar penuh;
+  kalau keduanya satu komponen, panel ikut jadi anak baris flex dan petaknya
+  terjepit di sisa lebar satu baris tombol. Saat panel terbuka, tombolnya
+  DITANDAI (`secondary` + `aria-expanded`), bukan disembunyikan — supaya jelas
+  panel di bawah itu miliknya.
+
+**Anggarannya diukur, bukan ditebak.** Lebar isi kartu item pada layar 390px
+(ukuran audit mobile repo ini) = **324px**. Pengukuran di peramban: penanda 109
++ "Tambah foto" 126 + "Foto Cepat" 116 + 2 jarak = 367px → melipat. Setelah
+"Belum ada foto"→"Tanpa foto", `px-2` pada kedua tombol, dan jarak 1.5, ketiganya
+duduk pada sumbu-y yang SAMA di 390px maupun 1280px.

@@ -39,15 +39,48 @@ type Tujuan =
 
 const KOSONG: FotoCepatState = {};
 
+/**
+ * Pemicunya DIPISAH dari panelnya, dan sengaja.
+ *
+ * Panel ini berisi petak-petak foto: ia butuh lebar penuh. Tombolnya sebaliknya
+ * — tempatnya sebaris dengan aksi foto lain, supaya "ambil yang sudah dijepret"
+ * dan "potret baru" terbaca sebagai dua pilihan setara, bukan dua lapis menu.
+ * Kalau keduanya satu komponen, panelnya ikut jadi anak baris flex dan petaknya
+ * terjepit di sisa lebar satu baris tombol.
+ */
+export function TombolAmbilDariKantong({
+  onClick,
+  aktif,
+}: {
+  onClick: () => void;
+  /** Panelnya sedang terbuka — tombolnya ditandai, bukan disembunyikan. */
+  aktif?: boolean;
+}) {
+  return (
+    <Button
+      type="button"
+      variant={aktif ? "secondary" : "ghost"}
+      size="sm"
+      className="px-2"
+      onClick={onClick}
+      aria-expanded={aktif ?? false}
+    >
+      <Images aria-hidden className="size-4" />
+      Foto Cepat
+    </Button>
+  );
+}
+
 export function AmbilDariKantong({
   locationId,
   target,
+  onTutup,
 }: {
   locationId: string;
   target: Tujuan;
+  onTutup: () => void;
 }) {
   const router = useRouter();
-  const [buka, setBuka] = useState(false);
   const [fotos, setFotos] = useState<FotoKantong[] | null>(null);
   const [galat, setGalat] = useState<string | null>(null);
   const [terpilih, setTerpilih] = useState<Set<string>>(new Set());
@@ -68,8 +101,8 @@ export function AmbilDariKantong({
   }, [locationId]);
 
   useEffect(() => {
-    if (buka && fotos == null && !memuat) muat();
-  }, [buka, fotos, memuat, muat]);
+    if (fotos == null && !memuat) muat();
+  }, [fotos, memuat, muat]);
 
   /**
    * Foto yang berpindah HILANG dari kantong. Daftar di sini adalah salinan yang
@@ -101,22 +134,13 @@ export function AmbilDariKantong({
   const jumlah = fotos?.length ?? 0;
   const ids = useMemo(() => [...terpilih], [terpilih]);
 
-  if (!buka) {
-    return (
-      <Button type="button" variant="ghost" size="sm" onClick={() => setBuka(true)}>
-        <Images aria-hidden className="size-4" />
-        Ambil dari Foto Cepat
-      </Button>
-    );
-  }
-
   return (
     <div className="space-y-2 rounded-md border border-border bg-surface-muted p-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-[13px] font-medium text-ink">Foto di kantong lokasi ini</span>
         <button
           type="button"
-          onClick={() => setBuka(false)}
+          onClick={onTutup}
           className="text-[12px] font-medium text-ink-muted hover:underline"
         >
           Tutup

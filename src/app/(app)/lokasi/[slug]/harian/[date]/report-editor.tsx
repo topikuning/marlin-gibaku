@@ -16,7 +16,7 @@ import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import type { PhotoView } from "@/lib/photos";
 import { removeReportPhotoAction } from "@/lib/daily-report/actions";
 import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
-import { AmbilDariKantong } from "@/components/knmp/ambil-dari-kantong";
+import { AmbilDariKantong, TombolAmbilDariKantong } from "@/components/knmp/ambil-dari-kantong";
 
 /**
  * Editor laporan (draft/perlu_koreksi) — MOBILE-FIRST untuk SM/pelaksana:
@@ -431,19 +431,54 @@ function ItemForm({
  * foto") — kalau hanya ada tombol, ketiadaan foto tidak kelihatan sampai
  * laporan sudah telanjur dikirim.
  */
+/**
+ * Penanda keadaan foto satu pekerjaan.
+ *
+ * Warnanya dibawa TITIK, bukan teksnya. Teks berwarna di atas latar berwarna
+ * gampang jatuh di bawah ambang kontras AA pada ukuran 11px (hijau `#16a34a`
+ * di atas `#f0fdf4` hanya 3,2:1) — sedangkan titik penuh justru terbaca tegas
+ * dari jarak pandang ponsel di bawah matahari. Latar & garisnya yang memberi
+ * nada; tulisannya tetap `text-ink`.
+ *
+ * Ditampilkan di KEDUA keadaan, bukan hanya saat foto belum ada: baris yang
+ * kosong saat sudah ada foto membuat jumlahnya harus dihitung sendiri dari
+ * galeri di atasnya.
+ *
+ * "Tanpa foto", bukan "Perlu foto": foto memang OPSIONAL saat menyimpan
+ * progres, jadi kata "perlu" akan mengarang kewajiban yang tidak ada. Nada
+ * amber sudah cukup mengatakan ini yang belum beres.
+ */
+function PenandaFoto({ jumlah }: { jumlah: number }) {
+  const ada = jumlah > 0;
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium text-ink ${
+        ada ? "border-success-border bg-success-soft" : "border-warning-border bg-warning-soft"
+      }`}
+    >
+      <span
+        aria-hidden
+        className={`size-1.5 shrink-0 rounded-full ${ada ? "bg-success" : "bg-warning"}`}
+      />
+      {ada ? `${jumlah} foto` : "Tanpa foto"}
+    </span>
+  );
+}
+
 function TambahFoto({
   reportId,
   itemId,
   locationId,
-  sudahAdaFoto,
+  jumlahFoto,
 }: {
   reportId: string;
   itemId: string;
   locationId: string;
-  sudahAdaFoto: boolean;
+  jumlahFoto: number;
 }) {
   const [state, formAction, pending] = useActionState<DailyActionState, FormData>(addItemPhotosAction, undefined);
   const [buka, setBuka] = useState(false);
+  const [ambil, setAmbil] = useState(false);
   const [photoKey, setPhotoKey] = useState(0);
   const panelRef = useRef<HTMLFormElement>(null);
 
@@ -478,28 +513,34 @@ function TambahFoto({
   if (!buka) {
     return (
       <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          {!sudahAdaFoto ? (
-            <span className="inline-flex items-center gap-1 rounded bg-warning-soft px-1.5 py-0.5 text-[11px] font-medium text-warning">
-              <ImagePlus aria-hidden className="size-3" /> Belum ada foto
-            </span>
-          ) : null}
-          {state?.success ? <span className="text-[11px] text-success">{state.success}</span> : null}
-          <Button type="button" variant="ghost" size="sm" onClick={bukaPanel}>
+        {/*
+          SATU BARIS: penanda keadaan + dua jalur foto yang setara (potret baru /
+          ambil dari kantong Foto Cepat). Sebelumnya tersebar dua baris dan
+          jalur Foto Cepat terbaca seperti aksi kelas dua — padahal foto kantong
+          justru yang koordinatnya paling benar. `flex-wrap` dipertahankan
+          sebagai jaring pengaman: di layar sangat sempit ia melipat, bukan
+          menembus tepi kartu.
+        */}
+        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5">
+          <PenandaFoto jumlah={jumlahFoto} />
+          {/* `px-2`: tiga elemen harus muat di 324px — lebar isi kartu item pada
+              layar 390px, ukuran ponsel lapangan yang dipakai audit repo ini. */}
+          <Button type="button" variant="ghost" size="sm" className="px-2" onClick={bukaPanel}>
             <ImagePlus aria-hidden className="size-4" />
-            {sudahAdaFoto ? "Tambah foto" : "Tambahkan foto"}
+            Tambah foto
           </Button>
+          <TombolAmbilDariKantong onClick={() => setAmbil(true)} aktif={ambil} />
+          {state?.success ? (
+            <span className="text-[11px] text-success">{state.success}</span>
+          ) : null}
         </div>
-        {/* Foto yang sudah dijepret lewat Foto Cepat justru koordinatnya paling
-            benar — jalan memakainya harus ada DI SINI, sejajar dengan memotret
-            baru, bukan cuma di menu lain (keluhan user 2026-08-06). Panelnya
-            dibiarkan melebar penuh, bukan diselipkan sebagai item baris flex:
-            isinya petak-petak foto, dan lebar sisa satu baris tombol bukan
-            tempat untuk memilihnya. */}
-        <AmbilDariKantong
-          locationId={locationId}
-          target={{ tujuan: "laporan", reportItemId: itemId }}
-        />
+        {ambil ? (
+          <AmbilDariKantong
+            locationId={locationId}
+            target={{ tujuan: "laporan", reportItemId: itemId }}
+            onTutup={() => setAmbil(false)}
+          />
+        ) : null}
       </div>
     );
   }
@@ -606,7 +647,7 @@ function ItemRow({
           reportId={reportId}
           itemId={item.id}
           locationId={locationId}
-          sudahAdaFoto={item.photos.length > 0}
+          jumlahFoto={item.photos.length}
         />
       ) : null}
     </li>

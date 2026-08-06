@@ -4,7 +4,7 @@ import { useActionState, useEffect, useRef, useState, useTransition } from "reac
 import { CheckCircle2, Download, FileText, MessageCircle, Paperclip, Pencil, RotateCcw, Trash2, Plus } from "lucide-react";
 import { Banner, Button, Input, Label, Combobox, Textarea } from "@/components/ui";
 import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
-import { AmbilDariKantong } from "@/components/knmp/ambil-dari-kantong";
+import { AmbilDariKantong, TombolAmbilDariKantong } from "@/components/knmp/ambil-dari-kantong";
 import { FinalizePanel } from "./finalize-panel";
 import type { FieldActivityAttachmentView } from "@/lib/field-activity/queries";
 
@@ -494,6 +494,7 @@ function AddPhotoPanel({
 }) {
   const [state, action, pending] = useActionState<FieldActivityState, FormData>(addActivityPhotosAction, undefined);
   const formRef = useRef<HTMLFormElement>(null);
+  const [ambil, setAmbil] = useState(false);
   useEffect(() => {
     if (state?.success) onDone();
   }, [state?.success, onDone]);
@@ -516,11 +517,15 @@ function AddPhotoPanel({
       {/* Foto lapangan yang sudah dijepret lewat Foto Cepat justru koordinatnya
           paling benar — jalan memakainya harus ada di sini, sejajar dengan
           memotret baru (keluhan user 2026-08-06). */}
-      <div className="border-t border-border pt-3">
-        <AmbilDariKantong
-          locationId={locationId}
-          target={{ tujuan: "kegiatan", kegiatanId: activityId }}
-        />
+      <div className="space-y-2 border-t border-border pt-3">
+        <TombolAmbilDariKantong onClick={() => setAmbil(true)} aktif={ambil} />
+        {ambil ? (
+          <AmbilDariKantong
+            locationId={locationId}
+            target={{ tujuan: "kegiatan", kegiatanId: activityId }}
+            onTutup={() => setAmbil(false)}
+          />
+        ) : null}
       </div>
     </div>
   );
