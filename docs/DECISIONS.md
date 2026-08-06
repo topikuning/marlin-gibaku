@@ -10186,3 +10186,66 @@ nol gambar; rasio tiap logo utuh; sisi yang logonya null hanya dilewati. Ditamba
 ditulis, sheet "Kurva S" menunjuk TEPAT SATU drawing, dan drawing itu memuat
 `<c:chart>` sekaligus dua `<xdr:pic>`. Dikembalikan ke perilaku lama penyisip,
 dua uji itu gagal.
+
+## 270 · Foto Cepat: kamera jadi SATU LAYAR PENUH, tanpa gulir (2026-08-06)
+
+**Keluhan user**: *"user harus scroll dulu saat kamera aktif, saat menyimpan
+harus naik turun itu viewportnya, tidak nyaman, fokuskan saja pada tampilan
+kamera dan jepret dalam satu layar tanpa scroll. begitu di klik pengaktifan
+kameranya langsung posisi yang nyaman tanpa berubah-ubah naik turun kena div
+atau apapun."*
+
+Cacat yang TIDAK bisa ditangkap uji unit mana pun: kameranya jalan, fotonya
+tersimpan, semua tombol ADA. Yang salah cuma **di mana** mereka berada saat
+jempol sedang memegang HP di lapangan.
+
+### Sebabnya
+
+`KameraLangsung` dirender INLINE di tengah kartu — di bawah judul, keterangan,
+spanduk wajib-GPS, dan panel antrean. Akibatnya dua hal:
+
+1. rana ada di bawah lipatan → harus digulir dulu;
+2. panel antrean ada **di atas** kamera dan tumbuh satu baris tiap jepretan →
+   pratinjau & rana melorot turun sedikit demi sedikit, jadi orang memotret
+   sambil mengejar tombol yang berpindah.
+
+### Perbaikan
+
+Kamera kini **lapisan layar penuh** (`fixed inset-0`), di-portal ke `<body>`.
+Susunan halaman di belakangnya TIDAK berubah lagi saat kamera dibuka/ditutup —
+tombol "Buka kamera" tetap di tempatnya, jadi menutup kamera tidak memindahkan
+apa pun.
+
+Rincian yang menentukan, semuanya sebab-akibat bukan selera:
+
+- **`100dvh`, bukan `100vh`** — bilah alamat peramban HP menyusut & muncul
+  kembali; `vh` mengunci ke tinggi TERBESAR, jadi rana melorot ke luar layar.
+- **Di-portal ke `<body>`** — `position: fixed` diukur terhadap ancestor
+  terdekat yang punya `transform`/`filter`/`contain`. Satu utility semacam itu
+  di kartu mana pun akan diam-diam mengurung lapisan ini di dalam kartu, dan
+  keluhan "harus scroll" balik lagi.
+- **Gulir badan dikunci + `overscroll-contain`** — tanpa itu, seretan di atas
+  pratinjau menggulir halaman di baliknya, dan "tarik untuk muat ulang" bisa
+  memuat ulang halaman di tengah pemotretan.
+- **`object-contain`, bukan `cover`** — pratinjau harus memperlihatkan PERSIS
+  yang tersimpan. `cover` memenuhi layar tapi memotong tepi bingkai di layar
+  padahal kanvas tetap menyalin bingkai penuh: yang dilihat bukan yang didapat.
+  Sisa ruang hitam adalah harga kejujuran itu.
+- **Padding area aman** (`env(safe-area-inset-*)`) — poni & bilah gestur iOS.
+- **Jumlah antrean ditempel di lapisan kamera** — supaya "berapa foto yang belum
+  terkirim" tetap terlihat tanpa menutup kamera; itulah satu-satunya informasi
+  dari panel di bawah yang benar-benar dibutuhkan saat memotret.
+- **Layar galat pun layar penuh** — kalau izin ditolak, posisinya tidak
+  melompat-lompat dibanding keadaan normal.
+
+### Bukti
+
+Uji e2e `foto-cepat-satu-layar.spec.ts` (kamera palsu Chromium, profil ponsel)
+mengunci empat janji: rana terlihat tanpa `scrollY` bergerak; lapisan seukuran
+layar; seretan tidak menggulir halaman di belakang; dan **posisi rana tidak
+bergeser setelah memotret** (menunggu antrean benar-benar tumbuh dulu, supaya
+tidak lulus hanya karena belum ada yang sempat berubah). Ditambah satu penjaga
+kunci-gulir dilepas saat kamera ditutup — kunci yang lupa dilepas membuat
+SELURUH halaman macet setelahnya.
+
+Dikembalikan ke render inline, tiga dari lima uji itu gagal.

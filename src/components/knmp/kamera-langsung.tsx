@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import type React from "react";
 import { Camera, CameraOff, MapPin, MapPinOff, X } from "lucide-react";
 import { posisiJepret, type PosisiJepret } from "@/lib/foto-cepat/gps-segar";
 
@@ -37,6 +39,31 @@ export type { PosisiJepret };
  * koordinat datang dari GPS perangkat pada detik rana ditekan, dan jamnya dari
  * jam perangkat saat itu juga — dua-duanya justru lebih tepat daripada EXIF,
  * karena tidak bergantung pada aplikasi kamera menulis metadata dengan benar.
+ *
+ * ### SATU LAYAR PENUH, tanpa gulir (keluhan user 2026-08-06)
+ *
+ * *"user harus scroll dulu saat kamera aktif, saat menyimpan harus naik turun
+ * itu viewportnya, tidak nyaman"*. Dulu kamera dirender INLINE di tengah
+ * halaman: di bawah judul, keterangan, spanduk, dan panel antrean. Di HP itu
+ * berarti (a) harus menggulir dulu untuk melihat rananya, dan (b) tiap jepretan
+ * mengubah tinggi panel antrean DI ATASNYA, sehingga pratinjau ikut bergeser —
+ * memotret sambil mengejar tombol yang berpindah.
+ *
+ * Sekarang lapisan LAYAR PENUH (`fixed inset-0`): begitu kamera dibuka, tidak
+ * ada lagi yang bisa mendorongnya. Yang dipakai:
+ *
+ * - **`100dvh`, bukan `100vh`** — bilah alamat peramban HP menyusut/muncul saat
+ *   digulir; `vh` mengunci ke tinggi TERBESAR, jadi rana melorot ke bawah layar.
+ * - **gulir badan dikunci** selama kamera terbuka, plus `overscroll-contain` —
+ *   tanpa itu, gerakan menyeret di atas pratinjau menggulir halaman di baliknya
+ *   dan efek "pull to refresh" bisa memuat ulang halaman di tengah pemotretan.
+ * - **`object-contain`, bukan `cover`** — pratinjau harus memperlihatkan PERSIS
+ *   yang tersimpan. `cover` memotong tepi bingkai di layar padahal kanvas tetap
+ *   menyalin bingkai penuh: yang dilihat bukan yang didapat.
+ * - **padding aman (`env(safe-area-inset-*)`)** — poni & bilah gestur iOS.
+ *
+ * Keadaan antrean ikut ditempel di lapisan ini supaya jumlah foto yang belum
+ * terkirim tetap terlihat TANPA menutup kamera.
  */
 
 /** Jeda minimal antar ketukan rana — mencegah satu ketukan terbaca dua kali. */
@@ -47,13 +74,13 @@ type KeadaanKamera = "belum" | "meminta" | "hidup" | "ditolak" | "tak_didukung" 
 export function KameraLangsung({
   onFoto,
   onTutup,
-  sibuk = false,
+  menunggu = 0,
 }: {
   /** Dipanggil tiap kali rana ditekan. Pengunggahan urusan pemanggil. */
   onFoto: (file: File, posisi: PosisiJepret) => void;
   onTutup: () => void;
-  /** true → ada unggahan berjalan; rana tetap boleh ditekan (antre di pemanggil). */
-  sibuk?: boolean;
+  /** Jumlah foto di antrean yang belum sampai server — ditempel di layar kamera. */
+  menunggu?: number;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -132,6 +159,21 @@ export function KameraLangsung({
     return () => navigator.geolocation.clearWatch(id);
   }, []);
 
+  // ── Kunci gulir badan selama kamera terbuka ──
+  // Tanpa ini, menyeret di atas pratinjau menggulir halaman di baliknya dan
+  // "pull to refresh" bisa memuat ulang halaman di tengah pemotretan.
+  useEffect(() => {
+    const el = document.body;
+    const gulirLama = el.style.overflow;
+    const overscrollLama = el.style.overscrollBehavior;
+    el.style.overflow = "hidden";
+    el.style.overscrollBehavior = "none";
+    return () => {
+      el.style.overflow = gulirLama;
+      el.style.overscrollBehavior = overscrollLama;
+    };
+  }, []);
+
   const jepret = useCallback(() => {
     const sekarang = Date.now();
     if (sekarang - ranaTerakhir.current < JEDA_RANA_MS) return;
@@ -167,56 +209,53 @@ export function KameraLangsung({
 
   if (keadaan === "tak_didukung" || keadaan === "ditolak" || keadaan === "gagal") {
     return (
-      <div className="rounded-md border border-warning-border bg-warning-soft p-3">
-        <p className="flex items-center gap-1.5 text-sm font-semibold text-ink">
-          <CameraOff aria-hidden className="size-4" />
-          {keadaan === "ditolak"
-            ? "Izin kamera ditolak"
-            : keadaan === "tak_didukung"
-              ? "Peramban ini tidak mendukung kamera langsung"
-              : "Kamera tidak bisa dinyalakan"}
-        </p>
-        <p className="mt-1 text-[13px] text-ink-muted">
-          {keadaan === "ditolak"
-            ? "Buka setelan situs di peramban (ikon di kiri address bar) → izinkan Kamera, lalu muat ulang halaman."
-            : "Pakai tombol Kamera di bawah — hasilnya sama, hanya ada satu layar konfirmasi dari aplikasi kamera HP."}
-        </p>
-        <button
-          type="button"
-          onClick={onTutup}
-          className="mt-2 rounded-md border border-border bg-surface px-3 py-1.5 text-xs font-medium text-ink"
-        >
-          Tutup
-        </button>
-      </div>
+      <Lapisan>
+        <div className="flex h-full items-center justify-center p-6">
+          <div className="w-full max-w-sm rounded-md border border-warning-border bg-warning-soft p-4">
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+              <CameraOff aria-hidden className="size-4" />
+              {keadaan === "ditolak"
+                ? "Izin kamera ditolak"
+                : keadaan === "tak_didukung"
+                  ? "Peramban ini tidak mendukung kamera langsung"
+                  : "Kamera tidak bisa dinyalakan"}
+            </p>
+            <p className="mt-1 text-[13px] text-ink-muted">
+              {keadaan === "ditolak"
+                ? "Buka setelan situs di peramban (ikon di kiri address bar) → izinkan Kamera, lalu muat ulang halaman."
+                : "Tutup layar ini, lalu pakai jalur cadangan “Kamera dalam aplikasi tidak jalan?” — hasilnya sama, hanya ada satu layar konfirmasi dari aplikasi kamera HP."}
+            </p>
+            <button
+              type="button"
+              onClick={onTutup}
+              className="mt-3 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium text-ink"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
+      </Lapisan>
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border bg-ink">
-      <div className="relative">
-        <video
-          ref={videoRef}
-          playsInline
-          muted
-          autoPlay
-          aria-label="Pratinjau kamera"
-          className="block max-h-[60vh] w-full bg-ink object-contain"
-        />
-        {/* Kilat putih singkat = tanda rana benar-benar terpicu. Tanpa ini,
-            memotret cepat terasa seperti tidak terjadi apa-apa. */}
-        {kilat ? <div aria-hidden className="absolute inset-0 bg-white/70" /> : null}
+    <Lapisan>
+      {/* Pratinjau memenuhi layar. `object-contain`: yang terlihat = yang tersimpan. */}
+      <video
+        ref={videoRef}
+        playsInline
+        muted
+        autoPlay
+        aria-label="Pratinjau kamera"
+        className="absolute inset-0 size-full bg-ink object-contain"
+      />
+      {/* Kilat putih singkat = tanda rana benar-benar terpicu. Tanpa ini,
+          memotret cepat terasa seperti tidak terjadi apa-apa. */}
+      {kilat ? <div aria-hidden className="absolute inset-0 bg-white/70" /> : null}
 
-        <button
-          type="button"
-          onClick={onTutup}
-          aria-label="Tutup kamera"
-          className="absolute right-2 top-2 rounded-full bg-ink/60 p-2 text-white"
-        >
-          <X aria-hidden className="size-4" />
-        </button>
-
-        <p className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-ink/60 px-2 py-1 text-[11px] font-medium text-white">
+      {/* Bilah atas — di dalam area aman (poni). */}
+      <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <p className="flex items-center gap-1 rounded-full bg-ink/60 px-2.5 py-1.5 text-[11px] font-medium text-white">
           {gpsSegar ? (
             <>
               <MapPin aria-hidden className="size-3" /> GPS aktif
@@ -227,15 +266,27 @@ export function KameraLangsung({
             </>
           )}
         </p>
-
-        {keadaan !== "hidup" ? (
-          <p className="absolute inset-x-0 bottom-1/2 text-center text-sm text-white">
-            Menyalakan kamera…
-          </p>
-        ) : null}
+        <button
+          type="button"
+          onClick={onTutup}
+          aria-label="Tutup kamera"
+          className="rounded-full bg-ink/60 p-2.5 text-white"
+        >
+          <X aria-hidden className="size-5" />
+        </button>
       </div>
 
-      <div className="flex items-center justify-center gap-4 bg-ink px-4 py-4">
+      {keadaan !== "hidup" ? (
+        <p className="absolute inset-x-0 top-1/2 text-center text-sm text-white">Menyalakan kamera…</p>
+      ) : null}
+
+      {/* Bilah bawah — rana + keadaan antrean, di dalam area aman (bilah gestur). */}
+      <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 bg-gradient-to-t from-ink/85 to-transparent px-4 pt-8 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        <p aria-live="polite" className="text-center text-[11px] text-white/80">
+          {menunggu > 0
+            ? `${menunggu} foto menunggu kirim — aman tersimpan di HP.`
+            : "Ketuk untuk memotret. Foto langsung tersimpan — tanpa konfirmasi."}
+        </p>
         {/*
           Rana SENGAJA tetap aktif selagi unggahan berjalan: menonaktifkannya
           membuat ketukan berikutnya hilang tanpa jejak, dan di lapangan orang
@@ -246,15 +297,41 @@ export function KameraLangsung({
           onClick={jepret}
           disabled={keadaan !== "hidup"}
           aria-label="Jepret"
-          className="flex size-16 items-center justify-center rounded-full border-4 border-white bg-white/20 active:bg-white/50 disabled:opacity-40"
+          className="flex size-18 items-center justify-center rounded-full border-4 border-white bg-white/20 active:bg-white/50 disabled:opacity-40"
         >
-          <Camera aria-hidden className="size-7 text-white" />
+          <Camera aria-hidden className="size-8 text-white" />
         </button>
       </div>
+    </Lapisan>
+  );
+}
 
-      <p className="bg-ink px-4 pb-3 text-center text-[11px] text-white/70">
-        {sibuk ? "Mengirim foto…" : "Ketuk untuk memotret. Foto langsung tersimpan — tanpa konfirmasi."}
-      </p>
-    </div>
+/**
+ * Lapisan layar penuh untuk kamera.
+ *
+ * `100dvh` (bukan `100vh`): bilah alamat peramban HP menyusut & muncul kembali,
+ * dan `vh` mengunci ke tinggi TERBESAR — rana akan melorot ke luar layar.
+ * `overscroll-contain` menahan gerakan seret supaya tidak merembet menggulir
+ * halaman di belakangnya.
+ */
+function Lapisan({ children }: { children: React.ReactNode }) {
+  // DI-PORTAL ke <body>: `position: fixed` diukur terhadap ancestor terdekat
+  // yang punya `transform`/`filter`/`contain` — satu utility Tailwind semacam
+  // itu di kartu mana pun akan diam-diam mengurung lapisan ini di dalam kartu,
+  // dan keluhan "harus scroll" balik lagi.
+  // Komponen ini hanya dipasang setelah user menekan "Buka kamera", jadi tidak
+  // pernah dirender di server; penjaga ini murni supaya tidak meledak kalau
+  // suatu saat dipakai di jalur yang ikut SSR.
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Kamera"
+      className="no-print fixed inset-0 z-60 h-[100dvh] w-screen overflow-hidden overscroll-contain bg-ink"
+    >
+      {children}
+    </div>,
+    document.body,
   );
 }
