@@ -429,3 +429,19 @@ yang persis sudah dibuang.
 Yang masih perlu diperiksa terpisah: apakah pembatasan LAPORAN menurut periode
 (`report_date` dalam rentang periode) sudah benar di seluruh jalur laporan
 periodik — itu soal waktu, bukan soal versi, dan tidak ikut terjawab oleh 275.
+
+## 🟡 GDRV-01 · Pemilihan tautan Drive bergantung pada NAMA berkas (DECISIONS 278)
+
+Papan status harian memilih tautan "Buka Drive" dengan memeriksa apakah nama
+berkasnya diawali "Laporan Harian" — supaya tombolnya membuka blanko laporan,
+bukan foto yang kebetulan diunggah paling akhir.
+
+Bergantung pada nama berkas itu rapuh: kalau format penamaan PDF harian diubah
+(mis. diberi awalan nomor paket), pemilihannya meleset dan tombolnya kembali
+membuka foto — **tanpa galat apa pun**, persis kegagalan senyap yang baru saja
+diperbaiki.
+
+**Perbaikan yang benar**: tambahkan kolom `jenis` (mis. `laporan` | `foto` |
+`dokumen`) pada `GDriveUpload`, isi saat mengunggah, dan pilih tautan
+berdasarkan kolom itu. Butuh migrasi + backfill (baris lama bisa ditebak dari
+`fileName` sekali saja), karena itu tidak digabung ke perubahan kecil ini.

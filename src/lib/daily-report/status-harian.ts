@@ -118,30 +118,62 @@ export async function getStatusHarian(
             webLink: true,
             error: true,
             createdAt: true,
+            // Nama berkas dipakai memilih tautan yang BENAR — lihat di bawah.
+            fileName: true,
           },
           orderBy: { createdAt: "desc" },
         });
 
+  /**
+   * Tautan "Buka Drive" harus menunjuk BLANKO LAPORANNYA, bukan berkas terakhir.
+   *
+   * Satu unggahan menghasilkan banyak baris log: satu PDF blanko harian lalu
+   * foto-fotonya. Karena log diurut terbaru-dulu, baris pertama hampir selalu
+   * FOTO — sehingga tombolnya membuka sebuah foto di dalam subfolder `Foto`,
+   * dan pembacanya menyimpulkan blankonya tidak ikut naik. Padahal naik: PDF
+   * masuk ke `3. LAPORAN HARIAN/<Lokasi>/<bulan>/`, fotonya ke `.../Foto/`.
+   *
+   * Keluhan user 2026-08-06: *"kenapa cuma foto, blanko laporannya tidak ikut
+   * ke drive"*. Yang salah bukan pengunggahnya, melainkan tautan yang
+   * ditawarkan papan ini — dan itu tetap salah, karena membuat orang percaya
+   * dokumen resminya hilang.
+   */
+  const namaBlanko = (n: string) => n.toLowerCase().startsWith("laporan harian");
+
+  /** Tautan dipilih SESUDAH semua baris dibaca: blanko diutamakan, lalu apa pun. */
+  const tautan = new Map<string, { blanko: string | null; lain: string | null }>();
   const perRef = new Map<string, JejakDrive>();
+
   for (const u of uploads) {
+    const t = tautan.get(u.refKey) ?? { blanko: null, lain: null };
+    if (u.status === "sukses" && u.webLink) {
+      if (namaBlanko(u.fileName)) t.blanko ??= u.webLink;
+      else t.lain ??= u.webLink;
+    }
+    tautan.set(u.refKey, t);
+
     const ada = perRef.get(u.refKey);
     if (!ada) {
       // Baris pertama = percobaan TERBARU (query sudah diurut menurun).
       perRef.set(u.refKey, {
         status: u.status === "sukses" ? "sukses" : "gagal",
-        webLink: u.webLink,
+        // Diisi belakangan; di sini belum semua baris terbaca.
+        webLink: null,
         at: u.createdAt,
         error: u.error,
         fileSukses: u.status === "sukses" ? 1 : 0,
       });
       continue;
     }
-    if (u.status === "sukses") {
-      ada.fileSukses += 1;
-      // Tautan diambil dari percobaan sukses mana pun yang punya — percobaan
-      // terbaru bisa saja gagal dan tak berlink, padahal berkasnya sudah ada.
-      ada.webLink ??= u.webLink;
-    }
+    if (u.status === "sukses") ada.fileSukses += 1;
+  }
+
+  for (const [ref, jejak] of perRef) {
+    const t = tautan.get(ref);
+    // Blanko diutamakan; kalau memang tidak ada yang bernama begitu, tautan
+    // sukses mana pun tetap dipakai — tombol yang mati lebih buruk daripada
+    // tombol yang membuka berkas pendamping.
+    jejak.webLink = t?.blanko ?? t?.lain ?? null;
   }
 
   const rows: StatusHarianRow[] = locations.map((l) => {

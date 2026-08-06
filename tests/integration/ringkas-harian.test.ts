@@ -493,6 +493,37 @@ describe("papan status harian", () => {
     }
   });
 
+  it("tautan Drive menunjuk BLANKO laporan, bukan foto yang diunggah paling akhir", async () => {
+    // Keluhan user 2026-08-06: *"kenapa cuma foto, blanko laporannya tidak ikut
+    // ke drive"*. Blankonya IKUT naik — yang salah tautannya. Satu unggahan
+    // menghasilkan banyak baris log (PDF lalu foto-fotonya); karena log diurut
+    // terbaru-dulu, baris pertama hampir selalu FOTO, sehingga tombolnya
+    // membuka sebuah foto di subfolder `Foto` dan pembacanya menyimpulkan
+    // dokumen resminya hilang. DECISIONS 278.
+    const pkgId = (
+      await db.location.findUniqueOrThrow({ where: { id: locationId }, select: { packageId: true } })
+    ).packageId;
+    const dasar = { packageId: pkgId, locationId, kind: "laporan_harian", refKey: `${slug}:${HARI}`, status: "sukses" };
+    // PDF blanko lebih DULU, fotonya SESUDAHNYA — persis urutan nyata.
+    const pdf = await db.gDriveUpload.create({
+      data: { ...dasar, fileName: `Laporan Harian - Uji - ${HARI}.pdf`, webLink: "https://drive/blanko", fileId: "P" },
+      select: { id: true },
+    });
+    const foto = await db.gDriveUpload.create({
+      data: { ...dasar, fileName: "IMG-001.jpg", webLink: "https://drive/foto", fileId: "F" },
+      select: { id: true },
+    });
+    try {
+      const s = await getStatusHarian(user(), null, HARI);
+      const baris = s!.rows.find((r) => r.slug === slug)!;
+      expect(baris.drive.webLink).toBe("https://drive/blanko");
+      expect(baris.drive.webLink).not.toBe("https://drive/foto");
+      expect(baris.drive.fileSukses).toBe(2);
+    } finally {
+      await db.gDriveUpload.deleteMany({ where: { id: { in: [pdf.id, foto.id] } } });
+    }
+  });
+
   it("tanggal ngawur → null, bukan diam-diam jatuh ke hari ini", async () => {
     expect(await getStatusHarian(user(), null, "bukan-tanggal")).toBeNull();
   });
