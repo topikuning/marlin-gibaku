@@ -1,7 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { pct } from "@/lib/money";
-import { akhirHariKerja } from "@/lib/format";
 
 /**
  * Calculation layer progress — SATU sumber untuk dashboard, workspace, laporan, export.
@@ -62,9 +61,10 @@ export function planPctAtWeek(points: number[], weekNumber: number): number {
  *
  * `asOf` = hitung posisi PADA tanggal itu, bukan posisi hari ini:
  *  - hanya laporan dengan `reportDate <= asOf` yang dihitung;
- *  - revisi RAB & baseline yang dipakai adalah yang EFEKTIF pada tanggal itu
- *    (dibuat sebelum/pada `asOf` dan belum digantikan saat itu);
  *  - minggu rencana dihitung terhadap `asOf`, bukan jam dinding.
+ *
+ * `asOf` TIDAK memilih versi. Revisi RAB & baseline kurva-S yang dipakai selalu
+ * yang berstatus `aktif` — keputusan user 2026-08-06, lihat DECISIONS 275.
  *
  * Dipakai `finalSnapshot` laporan harian supaya dokumen resmi bertanggal 1 Juli
  * tidak memuat realisasi 20 Juli hanya karena difinalkan terlambat (audit Codex
@@ -82,36 +82,40 @@ export async function getLocationsProgress(
   if (locationIds.length === 0) return result;
   const asOf = opts.asOf;
   /**
-   * Batas "efektif pada tanggal itu" = AKHIR hari kerjanya, bukan awalnya.
+   * Dasar perhitungan SELALU versi yang berstatus `aktif` — revisi RAB maupun
+   * baseline kurva-S. Keputusan user 2026-08-06:
    *
-   * `asOf` datang dari kolom tanggal kerja `@db.Date` yang tersimpan sebagai
-   * UTC-midnight — di Jakarta itu pukul **07:00 WIB**. Memakainya apa adanya
-   * memotong hari kerja pada jam tujuh pagi: baseline atau revisi yang
-   * diaktifkan siang itu punya `createdAt` lebih besar dari batas, jadi gugur;
-   * sementara versi lama yang `supersededAt`-nya siang itu justru lolos syarat
-   * `supersededAt > asOf`. Akibatnya dokumen resmi HARI INI mencetak jadwal
-   * yang tadi siang baru saja diganti, sedangkan layar workspace — yang membaca
-   * baseline berstatus `aktif` — menampilkan jadwal barunya. Dua angka rencana
-   * berbeda untuk tanggal yang sama, tanpa satu kata pun yang menjelaskannya
-   * (laporan user 2026-08-06: rencana 23,30% di PDF vs 1,7% di layar).
+   *   *"intinya kalau baseline kurva-s aktif yang mana, itu yang dipakai
+   *   dasar."*
    *
-   * Maksud `asOf` (CALC-01) adalah versi yang EFEKTIF pada tanggal itu.
-   * Baseline yang diaktifkan pukul 14:30 pada 6 Agustus jelas efektif pada
-   * 6 Agustus. Jadi batas benarnya akhir hari, dan itulah yang dipakai di sini.
+   * Sebelumnya `asOf` juga memilih VERSI yang berlaku pada tanggal itu. Aturan
+   * itu dibuang, dan dua hal ikut beres sekaligus:
    *
-   * Arah sebaliknya tetap dijaga: perubahan yang dibuat BESOK punya `createdAt`
-   * di atas batas ini, jadi dokumen hari ini tidak ikut berubah — justru inilah
-   * yang membuat cap "FINAL — ANGKA TERKUNCI" jadi benar.
+   * 1. **Dua angka rencana untuk tanggal yang sama.** Layar workspace membaca
+   *    baseline `aktif`, dokumen harian membaca baseline "yang berlaku pada
+   *    tanggal laporan" — dan karena tanggal kerja `@db.Date` tersimpan sebagai
+   *    tengah malam UTC (= 07:00 WIB), jadwal yang diganti siang hari gugur
+   *    sedangkan jadwal lama yang baru saja digantikan justru lolos. Dokumen
+   *    resmi mencetak rencana 23,30% sementara layar menulis 1,7%.
+   *
+   * 2. **Basis pembilang & penyebut yang tidak sepadan.** `realized` di SQL di
+   *    bawah SELALU mengikat revisi `aktif` (`rr.status = 'aktif'`), sedangkan
+   *    `grandTotal` dulu memakai revisi hasil pemilihan `asOf`. Untuk laporan
+   *    lampau yang dilewati adendum, rasionya menjadi
+   *    realisasi(revisi baru) ÷ total(revisi lama) — pecahan yang penyebut dan
+   *    pembilangnya bukan dari dokumen yang sama. Cacat ini SENYAP: tidak ada
+   *    galat, angkanya cuma salah.
+   *
+   * `asOf` tetap ada dan tetap berarti, tapi hanya untuk hal yang memang soal
+   * WAKTU, bukan soal versi: laporan mana yang ikut dihitung
+   * (`report_date <= asOf`) dan minggu ke berapa tanggal itu jatuh. Itulah inti
+   * CALC-01 — dokumen bertanggal 1 Juli tidak boleh memuat realisasi 20 Juli.
+   *
+   * Konsekuensi yang DISENGAJA: mengubah kurva-S menggeser deviasi pada seluruh
+   * dokumen, termasuk yang bertanggal lampau, karena deviasi memang diukur
+   * terhadap rencana yang BERLAKU. Lihat DECISIONS 275.
    */
-  const batasEfektif = asOf ? akhirHariKerja(asOf) : null;
-  // Versi yang efektif pada `asOf`: dibuat ≤ batas dan belum digantikan saat itu.
-  // Tanpa asOf: versi yang berstatus aktif sekarang.
-  const efektif = batasEfektif
-    ? {
-        createdAt: { lte: batasEfektif },
-        OR: [{ supersededAt: null }, { supersededAt: { gt: batasEfektif } }],
-      }
-    : { status: "aktif" as const };
+  const efektif = { status: "aktif" as const };
 
   const [revisions, baselines, contracts] = await Promise.all([
     db.rabRevision.findMany({

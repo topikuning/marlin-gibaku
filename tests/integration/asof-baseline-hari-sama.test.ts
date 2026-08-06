@@ -1,4 +1,4 @@
-// BATAS `asOf` DI HARI YANG SAMA — kenapa layar & PDF menampilkan rencana beda.
+// DASAR PERHITUNGAN = BASELINE YANG AKTIF, di layar mana pun.
 //
 // Laporan user 2026-08-06: workspace lokasi menulis Rencana 1,7% / Deviasi
 // +2,7%, sedangkan PDF "Ringkasan Pelaksanaan Harian" tanggal SAMA menulis
@@ -7,22 +7,19 @@
 // jadwal kurva-S memang baru diubah.
 //
 // Sebabnya bukan dua rumus. Keduanya memanggil `getLocationProgress` yang sama.
-// Yang berbeda adalah BASELINE MANA yang dianggap berlaku:
+// Yang berbeda adalah BASELINE MANA yang dianggap berlaku: layar membaca
+// baseline berstatus `aktif`, sedangkan dokumen harian dulu memilih baseline
+// "yang berlaku pada tanggal laporan" — dan karena tanggal kerja `@db.Date`
+// tersimpan sebagai TENGAH MALAM UTC (= 07:00 WIB), jadwal yang diganti siang
+// hari gugur sementara jadwal lama yang baru saja digantikan justru lolos.
 //
-//   - layar workspace  → tanpa `asOf` → baseline berstatus `aktif` (yang BARU);
-//   - PDF harian       → `asOf = reportDate`.
+// Keputusan user 2026-08-06 menutup soal ini di akarnya:
 //
-// `reportDate` berasal dari kolom tanggal kerja `@db.Date`, jadi nilainya
-// TENGAH MALAM UTC = 07:00 WIB. Baseline yang diaktifkan siang hari punya
-// `createdAt` LEBIH BESAR dari batas itu, sehingga gugur oleh syarat
-// `createdAt <= asOf` — dan baseline lama yang `supersededAt`-nya juga siang itu
-// justru lolos syarat `supersededAt > asOf`. Hasilnya: dokumen resmi hari ini
-// memakai jadwal yang tadi pagi baru saja diganti, tanpa satu kata pun di
-// dokumen yang mengatakannya.
+//   *"intinya kalau baseline kurva-s aktif yang mana, itu yang dipakai dasar."*
 //
-// Maksud `asOf` (CALC-01) adalah "revisi & baseline yang EFEKTIF pada tanggal
-// itu". Baseline yang diaktifkan pukul 14:00 pada 6 Agustus JELAS efektif pada
-// 6 Agustus. Jadi batas yang benar adalah AKHIR hari kerja itu, bukan awalnya.
+// Jadi pemilihan versi berdasarkan tanggal DIBUANG. `asOf` tetap berarti untuk
+// hal yang memang soal waktu — laporan mana yang dihitung dan minggu ke berapa
+// — tapi dasar rencananya selalu baseline aktif. DECISIONS 275.
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 process.env.APP_ENV ??= "test";
@@ -107,6 +104,73 @@ beforeAll(async () => {
     },
   });
 
+  // RAB aktif + satu laporan BERTANGGAL HARI INI (bukan 30 Juli) — dipakai
+  // membuktikan bahwa `asOf` tetap membatasi laporan yang dihitung.
+  const rab = await db.rabRevision.create({
+    data: { locationId: locId, revisionNo: 1, status: "aktif", source: "hps_awal", totalValue: 0n },
+    select: { id: true },
+  });
+  const kategori = await db.rabNode.create({
+    data: {
+      revisionId: rab.id,
+      kind: "kategori",
+      lineageKey: `kat-${suffix}`,
+      code: "1",
+      name: "Pekerjaan Persiapan",
+      sortOrder: 1,
+      amount: 100_000_000n,
+    },
+    select: { id: true },
+  });
+  await db.rabNode.create({
+    data: {
+      revisionId: rab.id,
+      parentId: kategori.id,
+      kind: "item",
+      lineageKey: `itm-${suffix}`,
+      code: "1.1",
+      name: "Bulldozer",
+      sortOrder: 2,
+      unit: "unit",
+      volume: 10,
+      unitPrice: 10_000_000,
+      amount: 100_000_000n,
+    },
+  });
+  const pelapor = await db.user.create({
+    data: {
+      orgId,
+      username: `sm-${suffix}`,
+      email: `sm-${suffix}@contoh.id`,
+      fullName: "SM Uji",
+      role: "site_manager",
+      passwordHash: "x",
+    },
+    select: { id: true },
+  });
+  const laporan = await db.dailyReport.create({
+    data: {
+      locationId: locId,
+      reportDate: parseDateKey(HARI_INI)!,
+      status: "dikirim",
+      createdById: pelapor.id,
+    },
+    select: { id: true },
+  });
+  await db.dailyReportItem.create({
+    data: {
+      reportId: laporan.id,
+      rabNodeId: (await db.rabNode.findFirstOrThrow({
+        where: { revisionId: rab.id, kind: "item" },
+        select: { id: true },
+      })).id,
+      lineageKey: `itm-${suffix}`,
+      basis: "aktif",
+      volumeDone: 1,
+      valueDone: 10_000_000n,
+    },
+  });
+
   // Baseline LAMA dibuat sebelum hari ini, digantikan SIANG ini.
   await buatBaseline(1, KURVA_LAMA, new Date("2026-07-27T02:00:00.000Z"), SAAT_GANTI);
   // Baseline BARU dibuat SIANG ini — sesudah tengah malam UTC hari ini.
@@ -118,7 +182,7 @@ afterAll(async () => {
   await db.$disconnect();
 });
 
-describe("asOf pada hari yang sama dengan pergantian baseline", () => {
+describe("dasar rencana = baseline aktif", () => {
   it("minggunya sama-sama 2 — jadi selisihnya memang bukan soal minggu", async () => {
     const layar = await getLocationProgress(locId);
     const dokumen = await getLocationProgress(locId, { asOf: ASOF });
@@ -131,19 +195,31 @@ describe("asOf pada hari yang sama dengan pergantian baseline", () => {
     expect(layar.planPct).toBeCloseTo(1.7, 5);
   });
 
-  it("dokumen hari INI harus memakai baseline yang berlaku hari ini juga", async () => {
-    // Inilah cacatnya. Batas `asOf` = tengah malam UTC (07:00 WIB), sedangkan
-    // jadwalnya diganti pukul 14:30 WIB — jadi baseline baru gugur dan dokumen
-    // resmi mencetak rencana yang sudah dibatalkan pagi tadi.
+  it("dokumen hari ini memakai baseline aktif — sama dengan layar", async () => {
+    // Inilah keluhan aslinya: dokumen mencetak 23,30% (jadwal yang sudah
+    // dibatalkan siang tadi) sementara layar menulis 1,7%.
     const dokumen = await getLocationProgress(locId, { asOf: ASOF });
     expect(dokumen.planPct).toBeCloseTo(1.7, 5);
   });
 
-  it("laporan BACKDATED tetap memakai baseline yang berlaku saat itu", async () => {
-    // Pagar arah sebaliknya: perbaikan batas hari ini TIDAK boleh membuat
-    // dokumen lama ikut memakai jadwal yang baru (CALC-01). 30 Juli = minggu 1.
+  it("laporan BACKDATED juga memakai baseline aktif", async () => {
+    // Konsekuensi yang DISENGAJA dari keputusan user: ganti kurva-S, maka
+    // deviasi di seluruh dokumen ikut bergeser — termasuk yang bertanggal
+    // lampau — karena deviasi diukur terhadap rencana yang BERLAKU, bukan
+    // terhadap rencana yang sudah dibatalkan. 30 Juli = minggu 1 → kurva BARU.
     const lampau = await getLocationProgress(locId, { asOf: parseDateKey("2026-07-30")! });
     expect(lampau.weekNumber).toBe(1);
-    expect(lampau.planPct).toBeCloseTo(11.5, 5);
+    expect(lampau.planPct).toBeCloseTo(0.8, 5);
+    expect(lampau.planPct).not.toBeCloseTo(11.5, 5); // bukan kurva lama
+  });
+
+  it("`asOf` tetap membatasi LAPORAN yang dihitung — itu inti CALC-01", async () => {
+    // Yang dibuang cuma pemilihan VERSI. Batas waktu laporan tidak ikut
+    // dibuang: dokumen bertanggal 30 Juli tidak boleh memuat realisasi 6
+    // Agustus hanya karena dicetak hari ini.
+    const lampau = await getLocationProgress(locId, { asOf: parseDateKey("2026-07-30")! });
+    const kini = await getLocationProgress(locId);
+    expect(lampau.realizedValue).toBe(0n);
+    expect(kini.realizedValue).toBeGreaterThan(0n);
   });
 });

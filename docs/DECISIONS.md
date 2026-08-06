@@ -10472,3 +10472,70 @@ backdated tetap memakai baseline yang berlaku saat itu**.
    `status = "aktif"` tanpa `asOf` sama sekali — laporan mingguan periode lampau
    memakai kurva-S yang berlaku SEKARANG. Perilaku itu tidak diubah di sini;
    dicatat supaya tidak terbaca sebagai kelalaian.
+
+---
+
+## 275 · Dasar rencana SELALU baseline yang aktif — `asOf` tidak lagi memilih versi (2026-08-06)
+
+**Menggantikan bagian pemilihan-versi pada DECISIONS 274.** Keputusan user
+2026-08-06, sesudah membaca diagnosis 274:
+
+> *"intinya kalau baseline kurva-s aktif yang mana, itu yang dipakai dasar."*
+
+274 memperbaiki BATAS pemilihan versi (awal hari → akhir hari kerja WIB).
+Keputusan ini membuang pemilihan versinya sama sekali: revisi RAB dan baseline
+kurva-S yang dipakai **selalu yang berstatus `aktif`**, di layar mana pun dan
+di dokumen mana pun. Aturan yang bisa diucapkan dalam satu kalimat, dan tidak
+punya kasus tepi jam tujuh pagi.
+
+**Dua cacat selesai sekaligus.**
+
+1. **Dua angka rencana untuk tanggal yang sama** — keluhan aslinya. Layar
+   workspace membaca baseline `aktif`, dokumen harian membaca "yang berlaku pada
+   tanggal laporan". Karena tanggal kerja `@db.Date` tersimpan sebagai tengah
+   malam UTC (= 07:00 WIB), jadwal yang diganti siang hari gugur sementara
+   jadwal lama yang baru saja digantikan justru lolos. Rencana 23,30% di PDF
+   vs 1,7% di layar.
+
+2. **Pembilang dan penyebut dari dokumen berbeda** — cacat yang baru ketahuan
+   saat menelusuri yang pertama, dan tidak pernah dilaporkan siapa pun karena
+   memang tidak menerbitkan galat apa pun. SQL `realized` di `progress.ts`
+   SELALU mengikat revisi `aktif` (`rr.status = 'aktif'`), sedangkan
+   `grandTotal` memakai revisi hasil pemilihan `asOf`. Untuk laporan lampau yang
+   dilewati adendum, `realizedPct` menjadi
+   **realisasi(revisi baru) ÷ total(revisi lama)** — pecahan yang penyebut dan
+   pembilangnya bukan dari dokumen yang sama. Dengan aturan baru, keduanya
+   revisi aktif; rasionya sepadan lagi.
+
+**`asOf` tetap ada, dan tetap penting.** Yang dibuang hanya pemilihan VERSI.
+Yang memang soal WAKTU tidak disentuh dan tetap diuji:
+
+- laporan mana yang ikut dihitung (`report_date <= asOf`);
+- minggu ke berapa tanggal itu jatuh.
+
+Itulah inti CALC-01 — dokumen bertanggal 30 Juli tidak boleh memuat realisasi
+6 Agustus hanya karena dicetak hari ini. Bagian itu utuh.
+
+**Konsekuensi yang DISENGAJA, dan harus disebut terang-terangan:** mengganti
+kurva-S menggeser angka rencana & deviasi di SELURUH dokumen, termasuk yang
+bertanggal lampau dan yang sudah berstatus final. Itu memang arti dari
+"baseline aktif jadi dasar": deviasi diukur terhadap rencana yang BERLAKU,
+bukan terhadap rencana yang sudah dibatalkan. Yang tidak ikut bergeser adalah
+realisasinya — itu tetap terkunci pada laporan s/d tanggal dokumen.
+
+**Akibat pada cap "FINAL — ANGKA TERKUNCI".** Cap itu benar untuk yang memang
+dibekukan: item pekerjaan, volume, nilai hari itu, realisasi s/d tanggal itu
+(`finalSnapshot`). Ia TIDAK berlaku untuk rencana & deviasi, yang kini secara
+sadar mengikuti baseline aktif. Ketidakcocokan label ini dicatat di
+`docs/OPEN_ISSUES.md`; memperbaikinya adalah soal kata-kata di dokumen, bukan
+soal angka.
+
+**Bukti.** `tests/integration/asof-baseline-hari-sama.test.ts` (5 uji): minggu
+sama-sama 2 (jadi selisihnya bukan soal minggu); layar memakai baseline aktif;
+dokumen hari ini memakai baseline aktif juga; **laporan backdated pun memakai
+baseline aktif** (0,8% dari kurva baru, BUKAN 11,5% dari kurva lama — pagar
+eksplisit terhadap arah sebaliknya); dan `asOf` tetap membatasi laporan yang
+dihitung (`realizedValue` = 0 pada 30 Juli, > 0 pada hari ini).
+
+`akhirHariKerja()` yang diperkenalkan 274 ikut dibuang — tidak ada lagi
+pemakainya, dan helper tak terpakai hanya mengundang pemakaian yang salah.
