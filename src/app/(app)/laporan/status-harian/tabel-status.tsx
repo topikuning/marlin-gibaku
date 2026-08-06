@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { ColDef, ICellRendererParams } from "ag-grid-community";
-import { AlertTriangle, Check, ExternalLink, FileText, Loader2, X } from "lucide-react";
+import { AlertTriangle, Check, ExternalLink, FileText, Loader2, Send, Upload, X } from "lucide-react";
 import { Banner } from "@/components/ui";
 import { MarlinGrid } from "@/components/grid/marlin-grid";
 import { uploadDailyReportToDriveAction } from "@/lib/gdrive/actions";
@@ -15,28 +15,30 @@ import { barisTabel, type BarisTabel } from "@/lib/daily-report/status-harian-ta
 /**
  * PAPAN STATUS HARIAN SEBAGAI GRID.
  *
- * Teguran user 2026-08-06:
+ * Teguran user 2026-08-06 (putaran kedua):
  *
- *   *"status laporan harianmu sungguh tidak nyaman, kenapa tidak kamu model
- *   grid saja, yang per kolomnya tombol. tidak perlu keterangan panjang, kalau
- *   memang belum punya folder drive, kasih aja seperti tombol atau symbol X
- *   warna merah... lalu tiap kolom sortable... kamu ini terlalu rumit!"*
+ *   *"mana tombol uploadnya? lalu buat apa unduh csv? filter laporan belum dan
+ *   sudah/final saja kenapa harus ketik2 manual. buat yang simple"*
  *
- * Benar, dan tegurannya mengenai dua kesalahan sekaligus:
+ * Ketiganya benar, dan ketiganya kesalahanku:
  *
- * 1. **Bentuknya salah.** Ini data tabular: 83 baris dengan kolom yang sama
- *    persis. Daftar kartu memaksa mata memindai kalimat untuk membandingkan
- *    dua lokasi, padahal yang ditanyakan cuma "mana yang sudah, mana yang
- *    belum". Aturan repo pun sudah menyebutnya: tabel data → `MarlinGrid`.
- * 2. **Saringannya buatan sendiri.** Aku membangun bilah saring dengan chip &
- *    Combobox, padahal AG Grid sudah memberi sortir + saring PER KOLOM gratis.
- *    Menyortir kolom "Folder Drive" langsung mengelompokkan yang punya dan yang
- *    tidak; kombinasi "punya folder TAPI belum naik" tinggal dua kali klik —
- *    tanpa satu baris kode saringan pun.
+ * 1. **Tombolnya tidak terbaca sebagai tombol.** Aku memakai ikon 16px polos —
+ *    bentuk yang PERSIS sama dengan kolom "Folder" dan "Grup" yang justru mati.
+ *    Kalau yang bisa diketuk dan yang tidak digambar sama, tak ada yang bisa
+ *    menebak mana yang mana. Sekarang aksinya bertuliskan kata kerjanya sendiri
+ *    — **Unggah** / **Kirim** — berkotak dan berwarna.
+ * 2. **Kolom prasyarat dilebur.** "Folder" dan "Grup" tidak pernah bisa
+ *    ditindak; ia cuma alasan kenapa unggahan mustahil. Alasan itu kini tampil
+ *    DI TOMBOLNYA ("Tanpa folder"), jadi dua kolom hilang tanpa satu pun
+ *    informasi hilang.
+ * 3. **Unduh CSV dibuang.** Papan ini dipakai untuk MENINDAK hari ini, bukan
+ *    untuk diarsipkan; berkas ekspor yang tak pernah dibuka cuma menambah
+ *    tombol yang harus dilewati mata.
  *
- * Kalimat prasyarat yang panjang ("Paket belum punya folder Drive") diganti
- * **tanda**: centang hijau atau silang merah, dengan kalimat lengkapnya pindah
- * ke `title` supaya tetap bisa dibaca saat dibutuhkan tanpa memakan kolom.
+ * Menyaring BUKAN urusan komponen ini. Bilah saring (`bilah-saring.tsx`)
+ * dikembalikan sesudah teguran *"kamu di awal sudah benar... kenapa malah
+ * berubah semua"* — saringannya di alamat halaman, jadi hasilnya bisa dikirim
+ * ke orang lain lewat WA. Grid di sini cuma menampilkan apa yang diberikan.
  */
 
 type Props = { rows: StatusHarianRow[]; dateKey: string };
@@ -57,7 +59,7 @@ export function TabelStatus({ rows, dateKey }: Props) {
    * Di dalam sel grid, hasil per baris tidak punya tempat untuk ditampilkan —
    * dan menaruh spanduk di dalam sel akan merusak tinggi barisnya. Jadi
    * hasilnya diangkat ke SATU spanduk di atas grid, sementara keberhasilannya
-   * terlihat dari tandanya sendiri yang berubah sesudah `router.refresh()`.
+   * terlihat dari tombolnya sendiri yang berubah sesudah `router.refresh()`.
    */
   const jalankan = useCallback(
     (
@@ -114,6 +116,10 @@ export function TabelStatus({ rows, dateKey }: Props) {
         // tidak menyebut APA yang belum ada.
         headerName: "Laporan",
         width: 110,
+        // Saringnya sudah jadi chip di atas grid — menu saring per kolom cuma
+        // cara KEDUA untuk hal yang sama, dan dua cara berarti dua tempat untuk
+        // salah paham.
+        filter: false,
         valueFormatter: (p) =>
           p.value === "belum"
             ? "Belum lapor"
@@ -123,41 +129,29 @@ export function TabelStatus({ rows, dateKey }: Props) {
       { field: "foto", headerName: "Foto", type: "numericColumn", width: 84, filter: false },
       { field: "kegiatan", headerName: "Keg.", type: "numericColumn", width: 84, filter: false },
       {
-        field: "punyaFolderDrive",
-        headerName: "Folder",
-        width: 92,
-        filter: false,
-        cellRenderer: (p: ICellRendererParams<BarisTabel>) => (
-          <TombolTanda
-            keadaan={p.value === true ? "ya" : "tidak"}
-            bisa={false}
-            sibuk={false}
-            judul={
-              p.value === true
-                ? "Paket punya folder Google Drive"
-                : "Paket BELUM punya folder Google Drive — unggahan tidak akan berhasil"
-            }
-            onClick={() => {}}
-          />
-        ),
-      },
-      {
         field: "diDrive",
         headerName: "Drive",
-        width: 92,
+        width: 124,
         filter: false,
         cellRenderer: (p: ICellRendererParams<BarisTabel>) => {
           const d = p.data;
           if (!d) return null;
+          const halangan = !d.punyaFolderDrive
+            ? "Tanpa folder"
+            : !d.adaIsi
+              ? "Kosong"
+              : null;
           return (
-            <TombolTanda
+            <TombolAksi
               keadaan={d.diDrive === "Sudah" ? "ya" : d.diDrive === "Gagal" ? "gagal" : "tidak"}
-              bisa={d.punyaFolderDrive && d.adaIsi}
+              halangan={halangan}
               sibuk={sibuk === `${d.slug}-drive`}
+              ikon={Upload}
+              label={d.diDrive === "Sudah" ? "Sudah" : d.diDrive === "Gagal" ? "Ulangi" : "Unggah"}
               judul={
-                !d.punyaFolderDrive
-                  ? "Paket belum punya folder Drive — tidak bisa diunggah"
-                  : !d.adaIsi
+                halangan === "Tanpa folder"
+                  ? "Paket belum punya folder Google Drive — tidak bisa diunggah"
+                  : halangan === "Kosong"
                     ? "Belum ada isi yang bisa diunggah"
                     : d.diDrive === "Sudah"
                       ? `${d.driveKeterangan} · klik untuk unggah ulang`
@@ -171,41 +165,25 @@ export function TabelStatus({ rows, dateKey }: Props) {
         },
       },
       {
-        field: "punyaGrupWa",
-        headerName: "Grup",
-        width: 84,
-        filter: false,
-        cellRenderer: (p: ICellRendererParams<BarisTabel>) => (
-          <TombolTanda
-            keadaan={p.value === true ? "ya" : "tidak"}
-            bisa={false}
-            sibuk={false}
-            judul={
-              p.value === true
-                ? "Paket punya grup WhatsApp"
-                : "Paket BELUM punya grup WhatsApp — pengiriman tidak akan berhasil"
-            }
-            onClick={() => {}}
-          />
-        ),
-      },
-      {
         field: "waTerkirim",
-        headerName: "WA",
-        width: 72,
+        headerName: "WhatsApp",
+        width: 116,
         filter: false,
         cellRenderer: (p: ICellRendererParams<BarisTabel>) => {
           const d = p.data;
           if (!d) return null;
+          const halangan = !d.punyaGrupWa ? "Tanpa grup" : !d.adaIsi ? "Kosong" : null;
           return (
-            <TombolTanda
+            <TombolAksi
               keadaan={d.waTerkirim ? "ya" : "tidak"}
-              bisa={d.punyaGrupWa && d.adaIsi}
+              halangan={halangan}
               sibuk={sibuk === `${d.slug}-wa`}
+              ikon={Send}
+              label={d.waTerkirim ? "Sudah" : "Kirim"}
               judul={
-                !d.punyaGrupWa
-                  ? "Paket belum punya grup WA — tidak bisa dikirim"
-                  : !d.adaIsi
+                halangan === "Tanpa grup"
+                  ? "Paket belum punya grup WhatsApp — tidak bisa dikirim"
+                  : halangan === "Kosong"
                     ? "Belum ada yang bisa dikirim"
                     : d.waTerkirim
                       ? `${d.waKeterangan} · klik untuk kirim ulang`
@@ -281,81 +259,92 @@ export function TabelStatus({ rows, dateKey }: Props) {
   return (
     <div className="space-y-2">
       {pesan ? <Banner tone={pesan.tone} title={pesan.teks} /> : null}
+
       <MarlinGrid<BarisTabel>
         rowData={data}
         columnDefs={columnDefs}
-        quickFilter
-        csvExport
         pageSize={50}
         persistKey="status-harian"
         getRowId={(d) => d.slug}
-        emptyText="Tidak ada lokasi aktif untuk tanggal ini."
+        emptyText="Tidak ada lokasi yang cocok dengan saringan ini."
+        className="min-w-0"
       />
     </div>
   );
 }
 
 /**
- * TANDA YANG SEKALIGUS TOMBOL.
+ * TOMBOL AKSI YANG BERTULISKAN KATA KERJANYA.
  *
- * Teguran user 2026-08-06: *"lalu mana tombol untuk kirim ke wa, drive, dsb?!
- * kolom itu ya otomatis juga jadi ada button"*.
+ * Teguran user 2026-08-06: *"mana tombol uploadnya?"* — pertanyaan yang tidak
+ * mungkin muncul kalau tombolnya kelihatan. Sebelumnya aksinya cuma ikon 16px
+ * tanpa kotak, seukuran dan sebentuk dengan tanda status yang justru MATI di
+ * kolom sebelahnya. Tidak ada yang bisa menebak mana yang bisa diketuk.
  *
- * Benar — dan usulnya lebih baik daripada rancanganku. Tombolnya tadinya ada,
- * tapi ditumpuk di kolom "Aksi" paling kanan yang justru tergeser dari
- * pandangan. Sekarang TANDANYA SENDIRI yang jadi tombol: silang merah di kolom
- * "Di Drive" bukan cuma memberi tahu belum naik, ia juga yang menaikkannya.
- * Satu kolom menjawab DAN mengerjakan, jadi tidak ada lagi kolom terpisah yang
- * harus dicari.
+ * Sekarang: berkotak, berwarna sesuai keadaan, dan **bertuliskan apa yang akan
+ * terjadi** — "Unggah", "Kirim", "Ulangi". Yang sudah beres tetap bisa diketuk
+ * (unggah/kirim ulang) tapi bernada tenang, supaya mata langsung jatuh ke yang
+ * merah.
  *
- * Yang tidak bisa ditindak (paket belum punya folder/grup, atau memang tidak
- * ada isinya) tetap menampilkan tandanya, tapi sebagai teks mati — bukan tombol
- * yang menjanjikan sesuatu lalu gagal. Sebabnya ada di `title`.
+ * Yang terhalang (paket belum punya folder/grup, atau memang tidak ada isinya)
+ * BUKAN tombol — ia teks mati bersilang merah yang menyebut halangannya, karena
+ * tombol yang menjanjikan lalu gagal lebih buruk daripada tidak ada tombol.
  */
-function TombolTanda({
+function TombolAksi({
   keadaan,
-  bisa,
+  halangan,
   sibuk,
+  ikon: Ikon,
+  label,
   judul,
   onClick,
 }: {
   keadaan: "ya" | "tidak" | "gagal";
-  bisa: boolean;
+  halangan: string | null;
   sibuk: boolean;
+  ikon: typeof Upload;
+  label: string;
   judul: string;
   onClick: () => void;
 }) {
-  const isi = sibuk ? (
-    <Loader2 aria-hidden className="size-4 animate-spin" />
-  ) : keadaan === "ya" ? (
-    <Check aria-hidden className="size-4" strokeWidth={3} />
-  ) : keadaan === "gagal" ? (
-    <AlertTriangle aria-hidden className="size-4" />
-  ) : (
-    <X aria-hidden className="size-4" strokeWidth={3} />
-  );
-  const warna =
-    keadaan === "ya" ? "text-success" : keadaan === "gagal" ? "text-warning" : "text-danger";
-  const label = keadaan === "ya" ? "Sudah" : keadaan === "gagal" ? "Gagal" : "Belum";
-
-  if (!bisa) {
+  if (halangan) {
     return (
-      <span title={judul} className={`inline-flex items-center opacity-50 ${warna}`}>
-        {isi}
-        <span className="sr-only">{label} — tidak bisa ditindak</span>
+      <span
+        title={judul}
+        className="inline-flex items-center gap-1 text-[12px] text-danger opacity-70"
+      >
+        <X aria-hidden className="size-3.5 shrink-0" strokeWidth={3} />
+        {halangan}
       </span>
     );
   }
+
+  const nada =
+    keadaan === "ya"
+      ? "border-success-border bg-success-soft text-success"
+      : keadaan === "gagal"
+        ? "border-warning-border bg-warning-soft text-warning"
+        : "border-danger-border bg-danger-soft text-danger";
+
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={sibuk}
       title={judul}
-      className={`inline-flex items-center rounded p-1 transition-colors hover:bg-surface-muted ${warna}`}
+      className={`inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[12px] font-semibold transition-opacity hover:opacity-80 disabled:opacity-50 ${nada}`}
     >
-      {isi}
-      <span className="sr-only">{judul}</span>
+      {sibuk ? (
+        <Loader2 aria-hidden className="size-3.5 shrink-0 animate-spin" />
+      ) : keadaan === "ya" ? (
+        <Check aria-hidden className="size-3.5 shrink-0" strokeWidth={3} />
+      ) : keadaan === "gagal" ? (
+        <AlertTriangle aria-hidden className="size-3.5 shrink-0" />
+      ) : (
+        <Ikon aria-hidden className="size-3.5 shrink-0" />
+      )}
+      {label}
+      <span className="sr-only"> — {judul}</span>
     </button>
   );
 }
