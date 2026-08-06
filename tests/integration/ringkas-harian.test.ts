@@ -20,6 +20,12 @@ process.env.SESSION_SECRET ??= "test-secret-0123456789abcdef-0123456789abcdef";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+// Aksi WA memanggil `getRequestOrigin()` (→ next/headers) untuk menautkan foto
+// PDF ke gambar penuh di cloud. Di luar request scope Next melempar, jadi
+// header disediakan di sini — bukan dengan menelan galatnya di produksi.
+vi.mock("next/headers", () => ({
+  headers: async () => new Headers({ host: "marlin.uji", "x-forwarded-proto": "https" }),
+}));
 
 const terkirim: { chatId: string; text?: string; fileName?: string }[] = [];
 vi.mock("@/lib/waha/client", async () => {
@@ -393,6 +399,34 @@ describe("PDF benar-benar terbentuk (bukan cuma lolos typecheck)", () => {
     const buf = await buildHarianRingkasPdf(d!, []);
     expect(buf.subarray(0, 5).toString("latin1")).toBe("%PDF-");
     expect(buf.length).toBeGreaterThan(3_000);
+  });
+
+  it("foto DITAUTKAN ke gambar penuh di cloud — bukti yang dipangkas harus punya jalan pulang", async () => {
+    // Keluhan user 2026-08-06: PDF kegiatan lapangan menautkan fotonya ke
+    // cloud, ringkasan ini tidak. Fotonya DIPANGKAS ke kotak 4:3; memangkas
+    // bukti tanpa menyisakan jalan ke aslinya berarti menghilangkan bagian
+    // gambar tanpa ada yang bisa memeriksanya (DECISIONS 125).
+    const sharp = (await import("sharp")).default;
+    const jpeg = await sharp({
+      create: { width: 60, height: 40, channels: 3, background: "#334155" },
+    })
+      .jpeg()
+      .toBuffer();
+
+    const d = await getRingkasHarian(slug, HARI);
+    const url = "https://marlin.uji/api/foto/TOKENUJI";
+    const buf = await buildHarianRingkasPdf(d!, [
+      { jpeg, sumber: "Pekerjaan harian", sub: null, link: url },
+    ]);
+    // Teks PDF terkompresi, jadi yang bisa dicari di buffer mentah adalah
+    // ANOTASI tautannya — dan justru itu yang menentukan foto bisa diketuk.
+    expect(buf.toString("latin1")).toContain(url);
+
+    // Tanpa link (origin tak diketahui) → TIDAK mengarang URL.
+    const tanpa = await buildHarianRingkasPdf(d!, [
+      { jpeg, sumber: "Pekerjaan harian", sub: null, link: null },
+    ]);
+    expect(tanpa.toString("latin1")).not.toContain("/api/foto/");
   });
 
   it("hari KOSONG → PDF tetap terbentuk", async () => {

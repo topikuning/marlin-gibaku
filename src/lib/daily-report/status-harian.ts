@@ -35,6 +35,8 @@ export type JejakDrive = {
 export type StatusHarianRow = {
   locationId: string;
   locationName: string;
+  /** Kabupaten/kota — baris daftar ini tidak punya kolom wilayah sendiri. */
+  regency: string;
   slug: string;
   packageName: string;
   /** null = paket belum punya folder Drive; tombol unggah tidak akan berhasil. */
@@ -83,6 +85,7 @@ export async function getStatusHarian(
     select: {
       id: true,
       name: true,
+      regency: true,
       slug: true,
       package: { select: { id: true, name: true, driveFolderId: true, waGroupId: true } },
       dailyReports: {
@@ -146,6 +149,7 @@ export async function getStatusHarian(
     return {
       locationId: l.id,
       locationName: l.name,
+      regency: l.regency,
       slug: l.slug,
       packageName: l.package.name,
       driveFolderId: l.package.driveFolderId,

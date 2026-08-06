@@ -1,3 +1,4 @@
+import { lokasiDenganWilayah } from "@/lib/format";
 import { LABEL_STATUS, type Ppc, type Proyeksi, type StatusRencana } from "./rencana-format";
 
 /**
@@ -31,6 +32,9 @@ import { LABEL_STATUS, type Ppc, type Proyeksi, type StatusRencana } from "./ren
  *  supaya modul ini bebas dari `server-only` dan bisa diuji langsung. */
 export type IsiPesanRencana = {
   locationName: string;
+  /** Kabupaten/kota & provinsi — pesan ini tidak punya baris "Wilayah". */
+  regency: string;
+  province: string;
   packageName: string;
   weekNumber: number;
   totalWeeks: number;
@@ -75,7 +79,7 @@ export function pesanRencanaWa(r: IsiPesanRencana): string {
     [
       `*RENCANA KERJA MINGGUAN — Minggu ke-${r.weekNumber} dari ${r.totalWeeks}*`,
       r.packageName,
-      `Lokasi: ${r.locationName}`,
+      `Lokasi: ${lokasiDenganWilayah(r.locationName, r.regency, r.province)}`,
       `Periode: ${tgl(r.periodeStart)} – ${tgl(r.periodeEnd)}`,
     ].join("\n"),
   );

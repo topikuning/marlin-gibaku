@@ -18,6 +18,8 @@ import {
 
 const dasar: IsiPesanRingkas = {
   locationName: "Kedung Mutih",
+  regency: "Demak",
+  province: "Jawa Tengah",
   packageName: "Paket KNMP Demak — Kedungmutih",
   hari: "Rabu",
   tanggalFull: "5 Agustus 2026",
@@ -50,6 +52,13 @@ describe("pesan ringkasan harian (forum PPK/dinas)", () => {
     expect(kalimatStatus("perlu_koreksi")).toMatch(/belum bisa dipakai/i);
     expect(kalimatStatus("draft")).toMatch(/masih bisa berubah/i);
     expect(kalimatStatus(null)).toMatch(/belum ada laporan/i);
+  });
+
+  it("nama lokasi LENGKAP dengan kabupatennya — pesan ini tidak punya baris Wilayah", () => {
+    // Permintaan user 2026-08-06. Nama desa berulang antar kabupaten; pembaca
+    // grup yang memegang banyak paket tidak bisa tahu ini yang mana.
+    const t = pesanRingkasHarianWa(dasar);
+    expect(t).toContain("Kedung Mutih — Demak, Jawa Tengah");
   });
 
   it("TIDAK menyebut pelaksana per item — forum ini pengawasan, bukan pengarahan", () => {

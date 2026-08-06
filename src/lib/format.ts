@@ -59,3 +59,27 @@ export function parseDateKey(key: string): Date | null {
   const d = new Date(`${key}T00:00:00.000Z`);
   return Number.isNaN(d.getTime()) ? null : d;
 }
+
+/**
+ * Nama lokasi BESERTA wilayahnya — permintaan user 2026-08-06:
+ * *"penyebutan lokasi, lengkapi dengan kabupatennya (kotanya) jika di satu
+ * halaman itu sama sekali tidak tersebut khusus kabupaten/kotanya."*
+ *
+ * Alasannya nyata: nama desa berulang antar kabupaten (ada "Wonorejo" di
+ * beberapa provinsi sekaligus di daftar KNMP), dan pembaca grup yang memegang
+ * banyak paket tidak bisa tahu ini yang mana. Di dokumen yang SUDAH memuat
+ * baris "Wilayah", nama lokasi boleh berdiri sendiri — helper ini untuk tempat
+ * yang tidak punya baris itu: pesan WhatsApp, kaki halaman, daftar ringkas.
+ *
+ * SENGAJA tidak menuliskan "Kabupaten" atau "Kota": basis data hanya menyimpan
+ * namanya, dan memilih salah satu berarti dokumen menyatakan yang tidak
+ * diketahuinya.
+ */
+export function lokasiDenganWilayah(
+  name: string,
+  regency?: string | null,
+  province?: string | null,
+): string {
+  const wilayah = [regency?.trim(), province?.trim()].filter(Boolean).join(", ");
+  return wilayah ? `${name} — ${wilayah}` : name;
+}

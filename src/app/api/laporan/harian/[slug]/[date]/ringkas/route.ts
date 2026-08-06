@@ -4,6 +4,7 @@ import { getCurrentUser, hasLocationAccess } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
 import { parseDateKey } from "@/lib/format";
 import { renderHarianRingkasPdf } from "@/lib/pdf/harian-ringkas";
+import { getRequestOrigin } from "@/lib/http";
 
 /**
  * Unduh Laporan Harian RINGKAS — dokumen bacaan untuk grup WhatsApp, bukan
@@ -29,7 +30,9 @@ export async function GET(_req: Request, ctx: { params: Promise<{ slug: string; 
     return NextResponse.json({ error: "Tidak punya akses ke laporan ini" }, { status: 403 });
   }
 
-  const result = await renderHarianRingkasPdf(slug, date);
+  // Origin diteruskan supaya foto di PDF bisa ditautkan ke gambar penuh di
+  // cloud — fotonya dipangkas, jadi jalan ke aslinya wajib ada (DECISIONS 125).
+  const result = await renderHarianRingkasPdf(slug, date, { baseUrl: await getRequestOrigin() });
   // Tidak seperti blanko, ringkasan TETAP terbentuk walau laporan hariannya
   // belum ada — kegiatan lapangan hari itu bisa saja ada, dan "belum ada
   // laporan" adalah keterangan yang berguna. null di sini hanya berarti

@@ -2,9 +2,10 @@ import "server-only";
 import sharp from "sharp";
 import { isR2Configured, r2GetBuffer } from "@/lib/r2";
 import { getRingkasHarian, type RingkasFoto, type RingkasHarian } from "@/lib/daily-report/ringkas";
-import { formatRupiah, formatTanggalWaktu } from "@/lib/format";
+import { formatRupiah, formatTanggalWaktu, lokasiDenganWilayah } from "@/lib/format";
 import { REPORT_STATUS_LABEL } from "@/lib/lifecycle";
 import { formatCoordinate } from "@/lib/photo-stamp/format";
+import { signPhotoToken } from "@/lib/pdf/photo-token";
 import {
   A4,
   CONTENT_BOTTOM,
@@ -55,8 +56,21 @@ export type HarianRingkasPdfResult = {
   dateKey: string;
 };
 
-/** Foto siap-tanam (murni, tanpa I/O saat menggambar). */
-export type FotoTertanam = { jpeg: Buffer; sumber: string; sub: string | null };
+/**
+ * Foto siap-tanam (murni, tanpa I/O saat menggambar).
+ *
+ * `link` = URL publik MARLIN ke gambar PENUH (tak ter-crop). Wajib ada bila
+ * origin-nya diketahui: foto di dokumen ini DIPANGKAS ke kotak 4:3, dan
+ * memangkas bukti tanpa menyediakan jalan ke aslinya berarti menghilangkan
+ * bagian gambar tanpa ada yang bisa memeriksanya. Pola dan tokennya sama persis
+ * dengan PDF kegiatan lapangan (DECISIONS 125).
+ */
+export type FotoTertanam = {
+  jpeg: Buffer;
+  sumber: string;
+  sub: string | null;
+  link?: string | null;
+};
 
 const nf0 = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 });
 const nf2 = new Intl.NumberFormat("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -113,7 +127,9 @@ export function buildHarianRingkasPdf(d: RingkasHarian, foto: FotoTertanam[]): P
   stampFooters(
     doc,
     sanitizeText(
-      `${d.appName} · ${d.locationName} · ${d.tanggalFull} · dibuat ${formatTanggalWaktu(new Date())}`,
+      // Wilayah ikut di KAKI karena halaman kedua dan seterusnya (galeri foto)
+      // tidak memuat blok identitas — di sana nama desa berdiri sendiri.
+      `${d.appName} · ${lokasiDenganWilayah(d.locationName, d.regency, d.province)} · ${d.tanggalFull} · dibuat ${formatTanggalWaktu(new Date())}`,
     ),
   );
   return docToBuffer(doc);
@@ -126,6 +142,7 @@ export function buildHarianRingkasPdf(d: RingkasHarian, foto: FotoTertanam[]): P
 export async function renderHarianRingkasPdf(
   slug: string,
   dateKey: string,
+  opts?: { baseUrl?: string | null },
 ): Promise<HarianRingkasPdfResult | null> {
   const d = await getRingkasHarian(slug, dateKey);
   if (!d) return null;
@@ -134,10 +151,18 @@ export async function renderHarianRingkasPdf(
   // Laporan tanpa satu foto masih berguna; laporan yang gagal total tidak.
   const foto: FotoTertanam[] = [];
   let gagal = 0;
+  const baseUrl = opts?.baseUrl?.replace(/\/+$/, "") || null;
   if (isR2Configured()) {
     for (const p of d.foto) {
       try {
-        foto.push({ jpeg: await normalisasiFoto(p.r2Key), sumber: p.sumber, sub: subFoto(p) });
+        foto.push({
+          jpeg: await normalisasiFoto(p.r2Key),
+          sumber: p.sumber,
+          sub: subFoto(p),
+          // Tanpa origin yang diketahui, link TIDAK dikarang — URL yang salah
+          // lebih buruk daripada tidak ada link.
+          link: baseUrl ? `${baseUrl}/api/foto/${signPhotoToken(p.id)}` : null,
+        });
       } catch {
         gagal++;
       }
@@ -210,14 +235,14 @@ function kop(doc: PdfDoc, d: RingkasHarian): void {
     .fillColor(PDF_COLORS.inkMuted)
     .text("Ringkasan pelaksanaan", kananX, doc.y + 1, { width: kananW, align: "right" });
 
-  const lineY = Math.max(kiriBawah, doc.y, top + 34) + 5;
+  const lineY = Math.max(kiriBawah, doc.y, top + 30) + 4;
   doc
     .moveTo(PAGE_MARGIN, lineY)
     .lineTo(PAGE_MARGIN + CONTENT_WIDTH, lineY)
     .lineWidth(2.5)
     .strokeColor(PDF_COLORS.primary)
     .stroke();
-  doc.y = lineY + 10;
+  doc.y = lineY + 8;
   doc.x = PAGE_MARGIN;
 }
 
@@ -227,14 +252,14 @@ function kop(doc: PdfDoc, d: RingkasHarian): void {
  */
 function pitaStatus(doc: PdfDoc, d: RingkasHarian): void {
   const t = statusTone(d.status);
-  const h = 22;
+  const h = 17;
   const y = doc.y;
   doc.roundedRect(PAGE_MARGIN, y, CONTENT_WIDTH, h, 4).fill(t.bg);
   doc
     .font(PDF_FONT.bold)
     .fontSize(9)
     .fillColor(t.fg)
-    .text(sanitizeText(t.label), PAGE_MARGIN + 10, y + 6.5, {
+    .text(sanitizeText(t.label), PAGE_MARGIN + 9, y + 4.8, {
       width: CONTENT_WIDTH - 20,
       characterSpacing: 0.5,
       lineBreak: false,
@@ -243,61 +268,84 @@ function pitaStatus(doc: PdfDoc, d: RingkasHarian): void {
   doc.x = PAGE_MARGIN;
 }
 
+/**
+ * Blok identitas — KISI 3 KOLOM dengan label di ATAS nilainya.
+ *
+ * Versi pertama memakai dua kolom "label : nilai" bersebelahan, dan itu boros
+ * pada dua arah sekaligus: kolom label memakan ~74pt lebar di tiap sisi,
+ * sedangkan nama pekerjaan resmi (yang panjangnya wajar 100+ karakter) terpaksa
+ * membungkus jadi lima baris di kolom setengah lebar — sementara kolom kanan
+ * yang isinya pendek-pendek dibiarkan kosong sejajar dengannya.
+ *
+ * Sekarang: label kecil di atas nilai (tanpa kolom label), enam medan pendek
+ * dalam kisi 3 kolom, dan nama pekerjaan mendapat barisnya sendiri selebar
+ * halaman sehingga cukup dua baris.
+ */
 function identitas(doc: PdfDoc, d: RingkasHarian): void {
-  const kiri: [string, string][] = [
+  const pad = 7;
+  const gap = 10;
+  const kolomW = (CONTENT_WIDTH - pad * 2 - gap * 2) / 3;
+  const startY = doc.y;
+  let y = startY + pad;
+
+  const sel = (label: string, value: string, x: number, yy: number, w: number): number => {
+    const val = sanitizeText(value || "—");
+    doc
+      .font(PDF_FONT.regular)
+      .fontSize(6.5)
+      .fillColor(PDF_COLORS.inkFaint)
+      .text(sanitizeText(label).toUpperCase(), x, yy, { width: w, characterSpacing: 0.3, lineBreak: false });
+    const h = doc.font(PDF_FONT.bold).fontSize(8.5).heightOfString(val, { width: w });
+    doc.fillColor(PDF_COLORS.ink).text(val, x, yy + 8, { width: w });
+    return yy + 8 + Math.max(10, h);
+  };
+
+  const baris = (kolom: [string, string][]): void => {
+    let bawah = y;
+    kolom.forEach(([label, value], i) => {
+      const x = PAGE_MARGIN + pad + i * (kolomW + gap);
+      bawah = Math.max(bawah, sel(label, value, x, y, kolomW));
+    });
+    y = bawah + 5;
+  };
+
+  baris([
     ["Paket", d.packageName],
-    ["Pekerjaan", d.workTitle ?? "—"],
-    ["Penyedia", d.vendorName ?? "—"],
-    ["No. Kontrak", d.contractNumber ?? "—"],
-  ];
-  const kanan: [string, string][] = [
     ["Lokasi", d.locationName],
-    ["Wilayah", `${d.regency}, ${d.province}`],
     ["Hari / Tanggal", `${d.hari}, ${d.tanggalFull}`],
+  ]);
+  baris([
+    ["Penyedia", d.vendorName ?? "—"],
+    ["Wilayah", `${d.regency}, ${d.province}`],
     [
       "Minggu ke",
-      d.totalWeeks > 0
-        ? `${d.weekNumber} dari ${d.totalWeeks}`
-        : "belum ada baseline kurva-S",
+      d.totalWeeks > 0 ? `${d.weekNumber} dari ${d.totalWeeks}` : "belum ada baseline kurva-S",
     ],
-  ];
+  ]);
+  // Nama pekerjaan & nomor kontrak berbagi satu baris terakhir: pekerjaan
+  // mengambil sisa lebar (ia yang panjang), nomor kontrak kolom tetap di kanan.
+  // Keduanya digambar dari y yang SAMA, lalu y turun ke yang paling bawah.
+  const yBaris = y;
+  const lebarKontrak = 150;
+  const lebarPekerjaan = CONTENT_WIDTH - pad * 2 - lebarKontrak - gap;
+  const bawahPekerjaan = sel("Pekerjaan", d.workTitle ?? "—", PAGE_MARGIN + pad, yBaris, lebarPekerjaan);
+  const bawahKontrak = sel(
+    "No. Kontrak",
+    d.contractNumber ?? "—",
+    PAGE_MARGIN + pad + lebarPekerjaan + gap,
+    yBaris,
+    lebarKontrak,
+  );
+  y = Math.max(bawahPekerjaan, bawahKontrak);
 
-  const startY = doc.y;
-  const kolomW = (CONTENT_WIDTH - 16) / 2;
-  const yKiri = barisIdentitas(doc, kiri, PAGE_MARGIN + 10, startY + 9, kolomW - 10);
-  const yKanan = barisIdentitas(doc, kanan, PAGE_MARGIN + kolomW + 16, startY + 9, kolomW - 20);
-  const boxH = Math.max(yKiri, yKanan) - startY + 5;
+  const boxH = y - startY + pad - 2;
   doc
-    .roundedRect(PAGE_MARGIN, startY, CONTENT_WIDTH, boxH, 5)
+    .roundedRect(PAGE_MARGIN, startY, CONTENT_WIDTH, boxH, 4)
     .lineWidth(0.8)
     .strokeColor(PDF_COLORS.border)
     .stroke();
-  doc.y = startY + boxH + 12;
+  doc.y = startY + boxH + 8;
   doc.x = PAGE_MARGIN;
-}
-
-function barisIdentitas(
-  doc: PdfDoc,
-  rows: [string, string][],
-  x: number,
-  y0: number,
-  width: number,
-): number {
-  const labelW = 74;
-  let y = y0;
-  for (const [label, value] of rows) {
-    const val = sanitizeText(value);
-    doc
-      .font(PDF_FONT.regular)
-      .fontSize(8)
-      .fillColor(PDF_COLORS.inkFaint)
-      .text(sanitizeText(label), x, y + 0.5, { width: labelW, lineBreak: false });
-    const valW = width - labelW - 6;
-    const h = doc.font(PDF_FONT.bold).fontSize(8.5).heightOfString(val, { width: valW });
-    doc.fillColor(PDF_COLORS.ink).text(val, x + labelW + 6, y, { width: valW });
-    y += Math.max(11, h) + 3.5;
-  }
-  return y;
 }
 
 /**
@@ -309,17 +357,25 @@ function barisIdentitas(
  */
 function pitaKinerja(doc: PdfDoc, d: RingkasHarian): void {
   const startY = doc.y;
-  const gap = 8;
-  const kartuW = (CONTENT_WIDTH - gap * 3) / 4;
-  const kartuH = 46;
+  const pitaH = 34;
+  const selW = CONTENT_WIDTH / 4;
 
-  const kartu: { label: string; nilai: string; warna: string }[] = [
+  // Tanpa baseline, rencana & deviasi BUKAN nol — melainkan tidak diketahui.
+  // Mencetak "0,00%" dan "+0,00%" berwarna hijau membuat lokasi tanpa kurva-S
+  // terbaca "tepat jadwal", dan itu kebohongan yang tidak kelihatan.
+  const adaBaseline = d.totalWeeks > 0;
+
+  const sel: { label: string; nilai: string; warna: string }[] = [
     { label: "Realisasi s/d hari ini", nilai: pct(d.realizedPct), warna: PDF_COLORS.ink },
-    { label: "Rencana kurva-S", nilai: pct(d.planPct), warna: PDF_COLORS.ink },
+    {
+      label: "Rencana kurva-S",
+      nilai: adaBaseline ? pct(d.planPct) : "—",
+      warna: adaBaseline ? PDF_COLORS.ink : PDF_COLORS.inkFaint,
+    },
     {
       label: "Deviasi",
-      nilai: signedPct(d.deviationPct),
-      warna: deviasiTone(d.deviationPct),
+      nilai: adaBaseline ? signedPct(d.deviationPct) : "—",
+      warna: adaBaseline ? deviasiTone(d.deviationPct) : PDF_COLORS.inkFaint,
     },
     {
       label: "Kemajuan hari ini",
@@ -328,64 +384,78 @@ function pitaKinerja(doc: PdfDoc, d: RingkasHarian): void {
     },
   ];
 
-  kartu.forEach((k, i) => {
-    const x = PAGE_MARGIN + i * (kartuW + gap);
-    doc.roundedRect(x, startY, kartuW, kartuH, 5).lineWidth(0.8).strokeColor(PDF_COLORS.border).stroke();
+  // SATU pita dengan pemisah tipis, bukan empat kotak berjarak: empat angka
+  // pendek tidak memerlukan empat bingkai beserta paddingnya masing-masing.
+  doc.roundedRect(PAGE_MARGIN, startY, CONTENT_WIDTH, pitaH, 4).lineWidth(0.8).strokeColor(PDF_COLORS.border).stroke();
+  sel.forEach((k, i) => {
+    const x = PAGE_MARGIN + i * selW;
+    if (i > 0) {
+      doc
+        .moveTo(x, startY + 5)
+        .lineTo(x, startY + pitaH - 5)
+        .lineWidth(0.6)
+        .strokeColor(PDF_COLORS.border)
+        .stroke();
+    }
     doc
       .font(PDF_FONT.regular)
-      .fontSize(7.5)
+      .fontSize(6.5)
       .fillColor(PDF_COLORS.inkFaint)
-      .text(sanitizeText(k.label), x + 8, startY + 8, { width: kartuW - 16, lineBreak: false });
+      .text(sanitizeText(k.label).toUpperCase(), x + 8, startY + 6, {
+        width: selW - 16,
+        characterSpacing: 0.3,
+        lineBreak: false,
+      });
     doc
       .font(PDF_FONT.bold)
-      .fontSize(16)
+      .fontSize(13)
       .fillColor(k.warna)
-      .text(k.nilai, x + 8, startY + 21, { width: kartuW - 16, lineBreak: false });
+      .text(k.nilai, x + 8, startY + 15, { width: selW - 16, lineBreak: false });
   });
 
-  let y = startY + kartuH + 10;
+  let y = startY + pitaH + 6;
 
-  // Batang perbandingan: realisasi di atas rencana, skala sama, jadi jaraknya
-  // TERLIHAT — bukan cuma dua angka yang harus dikurangkan sendiri oleh pembaca.
-  const barW = CONTENT_WIDTH;
-  const barH = 7;
-  const skala = Math.max(100, d.realizedPct, d.planPct);
-  const gambarBar = (label: string, nilai: number, warna: string, yy: number) => {
-    doc
-      .font(PDF_FONT.regular)
-      .fontSize(7.5)
-      .fillColor(PDF_COLORS.inkMuted)
-      .text(sanitizeText(label), PAGE_MARGIN, yy - 1, { width: 74, lineBreak: false });
-    const x0 = PAGE_MARGIN + 78;
-    const w = barW - 78 - 46;
-    doc.roundedRect(x0, yy, w, barH, 3).fill("#eef2f7");
-    const isi = Math.max(0, Math.min(1, nilai / skala)) * w;
-    if (isi > 0.5) doc.roundedRect(x0, yy, isi, barH, 3).fill(warna);
-    doc
-      .font(PDF_FONT.bold)
-      .fontSize(7.5)
-      .fillColor(PDF_COLORS.ink)
-      .text(pct(nilai), x0 + w + 6, yy - 1, { width: 40, align: "right", lineBreak: false });
-  };
-  gambarBar("Realisasi", d.realizedPct, PDF_COLORS.primary600, y);
-  y += barH + 6;
-  gambarBar("Rencana", d.planPct, "#94a3b8", y);
-  y += barH + 8;
+  // Batang perbandingan hanya berarti bila ADA yang dibandingkan. Tanpa
+  // baseline, dua batang kosong sepanjang halaman cuma memakan ruang.
+  if (adaBaseline) {
+    const barH = 6;
+    const skala = Math.max(100, d.realizedPct, d.planPct);
+    const gambarBar = (label: string, nilai: number, warna: string, yy: number) => {
+      doc
+        .font(PDF_FONT.regular)
+        .fontSize(7)
+        .fillColor(PDF_COLORS.inkMuted)
+        .text(sanitizeText(label), PAGE_MARGIN, yy - 1, { width: 52, lineBreak: false });
+      const x0 = PAGE_MARGIN + 56;
+      const w = CONTENT_WIDTH - 56 - 42;
+      doc.roundedRect(x0, yy, w, barH, 3).fill("#eef2f7");
+      const isi = Math.max(0, Math.min(1, nilai / skala)) * w;
+      if (isi > 0.5) doc.roundedRect(x0, yy, isi, barH, 3).fill(warna);
+      doc
+        .font(PDF_FONT.bold)
+        .fontSize(7)
+        .fillColor(PDF_COLORS.ink)
+        .text(pct(nilai), x0 + w + 5, yy - 1, { width: 37, align: "right", lineBreak: false });
+    };
+    gambarBar("Realisasi", d.realizedPct, PDF_COLORS.primary600, y);
+    y += barH + 4;
+    gambarBar("Rencana", d.planPct, "#94a3b8", y);
+    y += barH + 5;
+  }
 
-  // Kalimat penutup pita: apa artinya deviasi itu.
-  const kalimat =
-    d.totalWeeks === 0
-      ? "Baseline kurva-S belum ada, jadi rencana dan deviasi belum bisa dibandingkan."
-      : d.deviationPct >= 0
-        ? `Realisasi berada ${signedPct(d.deviationPct)} terhadap rencana kurva-S minggu ke-${d.weekNumber}.`
-        : `Realisasi tertinggal ${nf2.format(Math.abs(d.deviationPct))}% dari rencana kurva-S minggu ke-${d.weekNumber}.`;
+  // Kalimat penutup pita: apa artinya angka-angka itu.
+  const kalimat = !adaBaseline
+    ? "Baseline kurva-S belum ada, jadi rencana dan deviasi belum bisa dihitung — bukan bernilai nol."
+    : d.deviationPct >= 0
+      ? `Realisasi berada ${signedPct(d.deviationPct)} terhadap rencana kurva-S minggu ke-${d.weekNumber}.`
+      : `Realisasi tertinggal ${nf2.format(Math.abs(d.deviationPct))}% dari rencana kurva-S minggu ke-${d.weekNumber}.`;
   doc
     .font(PDF_FONT.regular)
-    .fontSize(8)
+    .fontSize(7.5)
     .fillColor(PDF_COLORS.inkMuted)
     .text(sanitizeText(kalimat), PAGE_MARGIN, y, { width: CONTENT_WIDTH });
 
-  doc.y = doc.y + 12;
+  doc.y = doc.y + 9;
   doc.x = PAGE_MARGIN;
 }
 
@@ -413,14 +483,14 @@ function judul(doc: PdfDoc, teks: string, catatan?: string): void {
         lineBreak: false,
       });
   }
-  const lineY = y + 13;
+  const lineY = y + 12;
   doc
     .moveTo(PAGE_MARGIN, lineY)
     .lineTo(PAGE_MARGIN + CONTENT_WIDTH, lineY)
     .lineWidth(1)
     .strokeColor(PDF_COLORS.primary600)
     .stroke();
-  doc.y = lineY + 7;
+  doc.y = lineY + 6;
   doc.x = PAGE_MARGIN;
 }
 
@@ -463,17 +533,17 @@ function bagianPekerjaan(doc: PdfDoc, d: RingkasHarian): void {
 
     const barisHead = () => {
       const y = doc.y;
-      doc.rect(PAGE_MARGIN, y, CONTENT_WIDTH, 15).fill("#f1f5f9");
+      doc.rect(PAGE_MARGIN, y, CONTENT_WIDTH, 13).fill("#f1f5f9");
       let x = PAGE_MARGIN;
       head.forEach((h, i) => {
         doc
           .font(PDF_FONT.bold)
           .fontSize(7.5)
           .fillColor(PDF_COLORS.inkMuted)
-          .text(h, x + 4, y + 4.5, { width: cols[i] - 8, align: align[i], lineBreak: false });
+          .text(h, x + 4, y + 3.5, { width: cols[i] - 8, align: align[i], lineBreak: false });
         x += cols[i];
       });
-      doc.y = y + 15;
+      doc.y = y + 13;
     };
     ensureSpace(doc, 40);
     barisHead();
@@ -492,7 +562,7 @@ function bagianPekerjaan(doc: PdfDoc, d: RingkasHarian): void {
         .font(PDF_FONT.regular)
         .fontSize(8)
         .heightOfString(sanitizeText(p.name), { width: cols[1] - 8 });
-      const h = Math.max(15, hUraian + 7);
+      const h = Math.max(13, hUraian + 5);
       if (doc.y + h > CONTENT_BOTTOM) {
         doc.addPage();
         barisHead();
@@ -504,7 +574,7 @@ function bagianPekerjaan(doc: PdfDoc, d: RingkasHarian): void {
           .font(i === 4 ? PDF_FONT.bold : PDF_FONT.regular)
           .fontSize(8)
           .fillColor(PDF_COLORS.ink)
-          .text(sanitizeText(s), x + 4, y + 3.5, {
+          .text(sanitizeText(s), x + 4, y + 2.5, {
             width: cols[i] - 8,
             align: align[i],
             lineBreak: i === 1,
@@ -523,16 +593,16 @@ function bagianPekerjaan(doc: PdfDoc, d: RingkasHarian): void {
     // Jumlah — dicetak tebal, karena inilah yang dicocokkan pembaca dengan
     // "kemajuan hari ini" di pita atas.
     const y = doc.y;
-    doc.rect(PAGE_MARGIN, y, CONTENT_WIDTH, 17).fill("#f8fafc");
+    doc.rect(PAGE_MARGIN, y, CONTENT_WIDTH, 15).fill("#f8fafc");
     doc
       .font(PDF_FONT.bold)
       .fontSize(8)
       .fillColor(PDF_COLORS.ink)
-      .text("JUMLAH HARI INI", PAGE_MARGIN + 4, y + 5, {
+      .text("JUMLAH HARI INI", PAGE_MARGIN + 4, y + 4, {
         width: cols[0] + cols[1] + cols[2] + cols[3] - 8,
         lineBreak: false,
       });
-    doc.text(pct(d.bobotHariIni), PAGE_MARGIN + cols[0] + cols[1] + cols[2] + cols[3] + 4, y + 5, {
+    doc.text(pct(d.bobotHariIni), PAGE_MARGIN + cols[0] + cols[1] + cols[2] + cols[3] + 4, y + 4, {
       width: cols[4] - 8,
       align: "right",
       lineBreak: false,
@@ -540,10 +610,10 @@ function bagianPekerjaan(doc: PdfDoc, d: RingkasHarian): void {
     doc.text(
       formatRupiah(d.nilaiHariIni),
       PAGE_MARGIN + cols[0] + cols[1] + cols[2] + cols[3] + cols[4] + 4,
-      y + 5,
+      y + 4,
       { width: cols[5] - 8, align: "right", lineBreak: false },
     );
-    doc.y = y + 17 + 4;
+    doc.y = y + 15 + 3;
   }
 
   // Baris draft adendum TIDAK dihitung — tapi disebut. Penghilangan yang diam
@@ -563,7 +633,7 @@ function bagianPekerjaan(doc: PdfDoc, d: RingkasHarian): void {
         { width: CONTENT_WIDTH },
       );
   }
-  doc.y += 12;
+  doc.y += 8;
   doc.x = PAGE_MARGIN;
 }
 
@@ -639,7 +709,7 @@ function bagianKendala(doc: PdfDoc, d: RingkasHarian): void {
       );
     doc.y += 2;
   }
-  doc.y += 10;
+  doc.y += 7;
   doc.x = PAGE_MARGIN;
 }
 
@@ -688,15 +758,28 @@ function bagianKondisiKerja(doc: PdfDoc, d: RingkasHarian): void {
       .fontSize(8.5)
       .fillColor(PDF_COLORS.ink)
       .text(val, PAGE_MARGIN + 96, y, { width: valW });
-    doc.y = y + Math.max(11, h) + 3;
+    doc.y = y + Math.max(10, h) + 2;
   }
-  doc.y += 10;
+  doc.y += 7;
   doc.x = PAGE_MARGIN;
 }
 
 function bagianFoto(doc: PdfDoc, d: RingkasHarian, foto: FotoTertanam[]): void {
   const catatan =
     d.fotoDisembunyikan > 0 ? `${foto.length} dimuat · ${d.fotoDisembunyikan} tidak dimuat` : undefined;
+
+  const gap = 10;
+  const w = (CONTENT_WIDTH - gap) / 2;
+  const boxH = w * 0.66;
+
+  // Judul HARUS menempel pada baris foto pertamanya. Tanpa ini, judul yang
+  // muat di sisa halaman membuat fotonya pindah halaman sendirian — dan
+  // menyisakan sepertiga halaman kosong persis di bawah judul.
+  if (foto.length > 0) {
+    // 46 = judul + catatan "ketuk foto…"; 30 = keterangan bawah foto.
+    ensureSpace(doc, 46 + boxH + 30);
+  }
+
   judul(doc, "Dokumentasi foto", catatan);
 
   if (foto.length === 0) {
@@ -709,9 +792,25 @@ function bagianFoto(doc: PdfDoc, d: RingkasHarian, foto: FotoTertanam[]): void {
     return;
   }
 
-  const gap = 10;
-  const w = (CONTENT_WIDTH - gap) / 2;
-  const boxH = w * 0.72;
+  // Foto DIPANGKAS ke kotak 4:3 supaya galerinya rapi. Karena itu jalan ke
+  // gambar penuh wajib disediakan — memangkas bukti tanpa menyisakan jalan ke
+  // aslinya berarti menghilangkan bagian gambar tanpa ada yang bisa memeriksa
+  // (DECISIONS 125, sama seperti PDF kegiatan lapangan).
+  if (foto.some((p) => p.link)) {
+    doc
+      .font(PDF_FONT.regular)
+      .fontSize(7)
+      .fillColor(PDF_COLORS.inkMuted)
+      .text(
+        sanitizeText(
+          "Foto dipangkas agar rapi — ketuk foto untuk membuka gambar penuh (tak ter-crop) di cloud.",
+        ),
+        PAGE_MARGIN,
+        doc.y,
+        { width: CONTENT_WIDTH },
+      );
+    doc.y += 3;
+  }
 
   /**
    * Tinggi keterangan DIUKUR, tidak ditebak.
@@ -748,6 +847,21 @@ function bagianFoto(doc: PdfDoc, d: RingkasHarian, foto: FotoTertanam[]): void {
       doc.image(dataUri, x, y, { cover: [w, boxH], align: "center", valign: "center" });
       doc.restore();
       doc.roundedRect(x, y, w, boxH, 4).lineWidth(0.6).strokeColor(PDF_COLORS.border).stroke();
+
+      // Chip "Lihat penuh" + seluruh sel jadi tautan. Chipnya perlu: tanpa
+      // penanda kasatmata, tidak ada yang tahu gambarnya bisa diketuk.
+      if (p.link) {
+        const label = "Lihat penuh";
+        doc.font(PDF_FONT.bold).fontSize(6.5);
+        const chipPad = 4;
+        const chipH = 12;
+        const chipW = doc.widthOfString(label) + chipPad * 2;
+        const chipX = x + w - chipW - 5;
+        const chipY = y + 5;
+        doc.roundedRect(chipX, chipY, chipW, chipH, 3).fill(PDF_COLORS.primary);
+        doc.fillColor(PDF_COLORS.white).text(label, chipX + chipPad, chipY + 3, { lineBreak: false });
+        doc.link(x, y, w, boxH + ukuran[c].total, p.link);
+      }
 
       doc
         .font(PDF_FONT.bold)

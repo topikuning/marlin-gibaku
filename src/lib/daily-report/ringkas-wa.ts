@@ -1,3 +1,4 @@
+import { lokasiDenganWilayah } from "@/lib/format";
 import { REPORT_STATUS_LABEL } from "@/lib/lifecycle";
 import type { DailyReportStatus } from "@/generated/prisma/enums";
 
@@ -20,6 +21,9 @@ import type { DailyReportStatus } from "@/generated/prisma/enums";
 
 export type IsiPesanRingkas = {
   locationName: string;
+  /** Kabupaten/kota & provinsi — pesan ini tidak punya baris "Wilayah". */
+  regency: string;
+  province: string;
   packageName: string;
   hari: string;
   tanggalFull: string;
@@ -76,7 +80,7 @@ export function pesanRingkasHarianWa(r: IsiPesanRingkas): string {
     [
       `*LAPORAN HARIAN — ${r.hari}, ${r.tanggalFull}*`,
       r.packageName,
-      `Lokasi: ${r.locationName}`,
+      `Lokasi: ${lokasiDenganWilayah(r.locationName, r.regency, r.province)}`,
     ].join("\n"),
   );
 

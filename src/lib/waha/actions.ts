@@ -796,6 +796,8 @@ export async function sendRencanaMingguanToWaAction(
     const { pesanRencanaWa } = await import("@/lib/plan/rencana-wa");
     const teks = pesanRencanaWa({
       locationName: rencana.header.locationName,
+      regency: rencana.header.regency,
+      province: rencana.header.province,
       packageName: rencana.header.packageName,
       weekNumber: rencana.weekNumber,
       totalWeeks: rencana.totalWeeks,
@@ -895,6 +897,8 @@ export async function sendDailyRingkasToWaAction(
     const { pesanRingkasHarianWa } = await import("@/lib/daily-report/ringkas-wa");
     const teks = pesanRingkasHarianWa({
       locationName: d.locationName,
+      regency: d.regency,
+      province: d.province,
       packageName: d.packageName,
       hari: d.hari,
       tanggalFull: d.tanggalFull,
@@ -913,7 +917,10 @@ export async function sendDailyRingkasToWaAction(
     });
 
     const { renderHarianRingkasPdf } = await import("@/lib/pdf/harian-ringkas");
-    const pdf = await renderHarianRingkasPdf(slug, dateKey);
+    const { getRequestOrigin } = await import("@/lib/http");
+    // Yang dikirim ke grup adalah berkas yang fotonya DIPANGKAS. Tanpa origin,
+    // penerima kehilangan jalan ke gambar penuh (DECISIONS 125).
+    const pdf = await renderHarianRingkasPdf(slug, dateKey, { baseUrl: await getRequestOrigin() });
     if (!pdf) return { error: "Lokasi tidak ditemukan." };
 
     await sendText(target.chatId, teks);

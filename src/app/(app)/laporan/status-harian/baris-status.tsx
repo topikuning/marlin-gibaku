@@ -63,7 +63,11 @@ export function BarisStatus({ row, dateKey }: { row: StatusHarianRow; dateKey: s
               <StatusPill tone="neutral" label="Belum ada laporan" />
             )}
           </div>
-          <p className="mt-0.5 truncate text-[13px] text-ink-muted">{row.packageName}</p>
+          {/* Kabupaten ikut: nama desa berulang antar kabupaten, dan baris ini
+              tidak punya kolom wilayah sendiri (permintaan user 2026-08-06). */}
+          <p className="mt-0.5 truncate text-[13px] text-ink-muted">
+            {row.regency} · {row.packageName}
+          </p>
           <p className="mt-1 text-xs text-ink-faint">
             {isi.length > 0 ? isi.join(" · ") : "belum ada isi yang dicatat"}
           </p>

@@ -9729,3 +9729,79 @@ di bawah judul tanggal lain.
 `tests/integration/ringkas-harian.test.ts` bagian papan status — termasuk bahwa
 jejak Drive TIDAK tertukar antar lokasi. Bergigi: membuat semua baris mewarisi
 jejak upload pertama menjatuhkan uji itu.
+
+---
+
+## 263 · Ringkasan harian dirapatkan, fotonya ditautkan, lokasi disebut lengkap (2026-08-06)
+
+Tiga koreksi user atas DECISIONS 261, semuanya dari melihat dokumen yang sudah
+terisi data nyata.
+
+### 1. "terlalu banyak space terbuang"
+
+Blok kepala memakan lebih dari separuh halaman pertama padahal isinya delapan
+medan identitas dan empat angka. Penyebabnya spesifik, bukan sekadar "padding
+besar":
+
+- **Identitas dua kolom "label : nilai"** boros pada dua arah sekaligus. Kolom
+  label memakan ±74pt di TIAP sisi, sedangkan nama pekerjaan resmi (100+
+  karakter, wajar untuk paket KKP) terpaksa membungkus jadi lima baris di kolom
+  setengah lebar — sementara kolom kanan yang isinya pendek-pendek dibiarkan
+  kosong sejajar dengannya. Sekarang: **kisi 3 kolom, label kecil di ATAS
+  nilai** (tanpa kolom label), dan nama pekerjaan mendapat baris selebar
+  halaman sehingga cukup dua baris.
+- **Empat kartu KPI berbingkai** → **satu pita dengan pemisah tipis**. Empat
+  angka pendek tidak memerlukan empat bingkai beserta paddingnya masing-masing.
+- **Batang perbandingan hanya digambar bila ADA baseline.** Tanpa kurva-S, dua
+  batang kosong selebar halaman tidak menyampaikan apa pun.
+- **Judul "Dokumentasi foto" dijaga menempel pada baris foto pertamanya.** Judul
+  yang muat di sisa halaman membuat fotonya pindah halaman sendirian, dan
+  menyisakan sepertiga halaman kosong persis di bawah judul.
+
+Sekalian diperbaiki satu kebohongan yang terlihat di dokumen user: lokasi tanpa
+baseline mencetak "Rencana 0,00%" dan "Deviasi **+0,00%** berwarna hijau" —
+terbaca *tepat jadwal* padahal rencananya belum ada. Sekarang keduanya "—",
+dan kalimat di bawahnya menyebut "belum bisa dihitung — bukan bernilai nol".
+
+### 2. Foto tidak tersambung ke cloud
+
+Keluhan user: *"fotomu sebelumnya kamu buat seperti ini, tersambung ke cloud,
+kenapa sekarang tidak!"* — merujuk PDF kegiatan lapangan (DECISIONS 125).
+
+Ini kelalaian, bukan pilihan. Foto di ringkasan **dipangkas** ke kotak 4:3 agar
+galerinya rapi; memangkas bukti tanpa menyisakan jalan ke aslinya berarti
+menghilangkan bagian gambar tanpa ada yang bisa memeriksanya. Sekarang memakai
+mekanisme yang sama persis: token HMAC `signPhotoToken` → `/api/foto/<token>`,
+chip "Lihat penuh" di sudut foto, dan seluruh sel jadi tautan. Origin diteruskan
+dari rute API maupun aksi kirim WA lewat `getRequestOrigin()`.
+
+Bila origin tidak diketahui, link **tidak dikarang** — URL yang salah lebih
+buruk daripada tidak ada link.
+
+### 3. Penyebutan lokasi harus lengkap dengan kabupatennya
+
+Permintaan user: lengkapi nama lokasi dengan kabupaten/kota **bila di halaman
+itu kabupatennya tidak tersebut sama sekali**. Alasannya nyata: nama desa
+berulang antar kabupaten, dan pembaca grup yang memegang banyak paket tidak bisa
+tahu ini yang mana.
+
+Helper murni `lokasiDenganWilayah()` di `src/lib/format.ts`, dipakai di tempat
+yang TIDAK punya baris "Wilayah": pesan WA harian, pesan WA rencana mingguan,
+kaki halaman PDF (halaman galeri foto tidak memuat blok identitas), dan baris
+papan status harian. Blok identitas PDF sudah punya baris "Wilayah" sendiri,
+jadi di sana nama lokasi tetap berdiri sendiri.
+
+SENGAJA tidak menuliskan "Kabupaten" atau "Kota": basis data hanya menyimpan
+namanya, dan memilih salah satu berarti dokumen menyatakan yang tidak
+diketahuinya.
+
+### Uji
+
+Dua uji baru yang mengunci koreksi ini, keduanya dibuktikan bergigi:
+membuang `doc.link` menjatuhkan uji tautan foto; mengembalikan `Lokasi: ${nama}`
+polos menjatuhkan uji kabupaten.
+
+Batas yang jujur: teks di dalam PDF TERKOMPRESI, jadi yang bisa diperiksa dari
+buffer mentah hanyalah **anotasi tautannya** — dan justru itu yang menentukan
+foto bisa diketuk. Kelengkapan teks lain diperiksa dengan merender dokumen ke
+gambar lalu membacanya.
