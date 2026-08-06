@@ -16,6 +16,7 @@ import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import type { PhotoView } from "@/lib/photos";
 import { removeReportPhotoAction } from "@/lib/daily-report/actions";
 import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
+import { AmbilDariKantong } from "@/components/knmp/ambil-dari-kantong";
 
 /**
  * Editor laporan (draft/perlu_koreksi) — MOBILE-FIRST untuk SM/pelaksana:
@@ -79,6 +80,7 @@ export function ReportEditor({
       <ItemForm locationId={locationId} slug={slug} dateKey={dateKey} nodes={nodes} photoEnabled={photoEnabled} />
       <ItemList
         reportId={reportId}
+        locationId={locationId}
         slug={slug}
         dateKey={dateKey}
         items={items}
@@ -429,7 +431,17 @@ function ItemForm({
  * foto") — kalau hanya ada tombol, ketiadaan foto tidak kelihatan sampai
  * laporan sudah telanjur dikirim.
  */
-function TambahFoto({ reportId, itemId, sudahAdaFoto }: { reportId: string; itemId: string; sudahAdaFoto: boolean }) {
+function TambahFoto({
+  reportId,
+  itemId,
+  locationId,
+  sudahAdaFoto,
+}: {
+  reportId: string;
+  itemId: string;
+  locationId: string;
+  sudahAdaFoto: boolean;
+}) {
   const [state, formAction, pending] = useActionState<DailyActionState, FormData>(addItemPhotosAction, undefined);
   const [buka, setBuka] = useState(false);
   const [photoKey, setPhotoKey] = useState(0);
@@ -465,17 +477,29 @@ function TambahFoto({ reportId, itemId, sudahAdaFoto }: { reportId: string; item
 
   if (!buka) {
     return (
-      <div className="flex flex-wrap items-center gap-2">
-        {!sudahAdaFoto ? (
-          <span className="inline-flex items-center gap-1 rounded bg-warning-soft px-1.5 py-0.5 text-[11px] font-medium text-warning">
-            <ImagePlus aria-hidden className="size-3" /> Belum ada foto
-          </span>
-        ) : null}
-        {state?.success ? <span className="text-[11px] text-success">{state.success}</span> : null}
-        <Button type="button" variant="ghost" size="sm" onClick={bukaPanel}>
-          <ImagePlus aria-hidden className="size-4" />
-          {sudahAdaFoto ? "Tambah foto" : "Tambahkan foto"}
-        </Button>
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {!sudahAdaFoto ? (
+            <span className="inline-flex items-center gap-1 rounded bg-warning-soft px-1.5 py-0.5 text-[11px] font-medium text-warning">
+              <ImagePlus aria-hidden className="size-3" /> Belum ada foto
+            </span>
+          ) : null}
+          {state?.success ? <span className="text-[11px] text-success">{state.success}</span> : null}
+          <Button type="button" variant="ghost" size="sm" onClick={bukaPanel}>
+            <ImagePlus aria-hidden className="size-4" />
+            {sudahAdaFoto ? "Tambah foto" : "Tambahkan foto"}
+          </Button>
+        </div>
+        {/* Foto yang sudah dijepret lewat Foto Cepat justru koordinatnya paling
+            benar — jalan memakainya harus ada DI SINI, sejajar dengan memotret
+            baru, bukan cuma di menu lain (keluhan user 2026-08-06). Panelnya
+            dibiarkan melebar penuh, bukan diselipkan sebagai item baris flex:
+            isinya petak-petak foto, dan lebar sisa satu baris tombol bukan
+            tempat untuk memilihnya. */}
+        <AmbilDariKantong
+          locationId={locationId}
+          target={{ tujuan: "laporan", reportItemId: itemId }}
+        />
       </div>
     );
   }
@@ -511,6 +535,7 @@ function TambahFoto({ reportId, itemId, sudahAdaFoto }: { reportId: string; item
 
 function ItemRow({
   reportId,
+  locationId,
   slug,
   dateKey,
   item,
@@ -518,6 +543,7 @@ function ItemRow({
   photoEnabled,
 }: {
   reportId: string | null;
+  locationId: string;
   slug: string;
   dateKey: string;
   item: WorkspaceItem;
@@ -576,7 +602,12 @@ function ItemRow({
           ada DI SINI, bukan lewat menyimpan ulang item dan mengetik ulang
           volume yang sudah benar (DECISIONS 226). */}
       {reportId && bolehHapusFoto && photoEnabled ? (
-        <TambahFoto reportId={reportId} itemId={item.id} sudahAdaFoto={item.photos.length > 0} />
+        <TambahFoto
+          reportId={reportId}
+          itemId={item.id}
+          locationId={locationId}
+          sudahAdaFoto={item.photos.length > 0}
+        />
       ) : null}
     </li>
   );
@@ -584,6 +615,7 @@ function ItemRow({
 
 function ItemList({
   reportId,
+  locationId,
   slug,
   dateKey,
   items,
@@ -591,6 +623,7 @@ function ItemList({
   photoEnabled,
 }: {
   reportId: string | null;
+  locationId: string;
   slug: string;
   dateKey: string;
   items: WorkspaceItem[];
@@ -614,6 +647,7 @@ function ItemList({
           <ItemRow
             key={it.id}
             reportId={reportId}
+            locationId={locationId}
             slug={slug}
             dateKey={dateKey}
             item={it}

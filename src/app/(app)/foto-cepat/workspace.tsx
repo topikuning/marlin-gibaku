@@ -2,13 +2,23 @@
 
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Images, MapPin, MapPinOff, Trash2 } from "lucide-react";
+import { Camera, Check, Images, MapPin, MapPinOff, Trash2 } from "lucide-react";
 import { Banner, Button, Card, Combobox, EmptyState, HelpText, Label } from "@/components/ui";
 import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
 import { KameraLangsung, type PosisiJepret } from "@/components/knmp/kamera-langsung";
 import { useAntreanFoto, type BarisAntrean } from "./use-antrean";
 import { labelJarak, urutkanTerdekat, type LokasiBerjarak } from "@/lib/foto-cepat/jarak";
-import type { FotoKantong, PilihanLokasi, TujuanKegiatan, TujuanLaporan } from "@/lib/foto-cepat/queries";
+import type {
+  FotoKantong,
+  PilihanLokasi,
+  TujuanKegiatan,
+  TujuanLaporan,
+} from "@/lib/foto-cepat/queries";
+import {
+  kelompokkanKantong,
+  pangkasPilihan,
+  tindakanKantong,
+} from "@/lib/foto-cepat/kantong-pilihan";
 import {
   hapusFotoCepatAction,
   muatTujuanAction,
@@ -314,6 +324,29 @@ function PanelAntrean({
 
 /* ── 2. Kantong + pakai ──────────────────────────────────────────────────── */
 
+/**
+ * Kantong: SEMUA foto bisa dipilih, dan tindakannya mengikuti pilihan.
+ *
+ * Dua cacat yang diperbaiki di sini (laporan user 2026-08-06):
+ *
+ * 1. *"satu foto diklik tidak terjadi apa-apa."* Betul — dan bukan karena
+ *    ketukannya meleset. Foto yang lokasinya belum ketahuan dulu dirender di
+ *    panel kuning sebagai gambar mati, BUKAN tombol; hanya foto yang lokasinya
+ *    sudah terdeteksi yang bisa dipilih. Pelapor yang geotag-nya gagal —
+ *    justru keadaan yang paling lazim di lapangan — mengetuk foto demi foto
+ *    tanpa satu pun bereaksi, dan tidak ada apa pun di layar yang menjelaskan
+ *    sebabnya. Sekarang setiap foto di kantong adalah tombol.
+ *
+ * 2. *"terlalu memaksakan untuk beberapa foto yang diambil diberi tag lokasi
+ *    yang sama."* Betul juga: panel penetapan lokasi menerima SELURUH foto
+ *    tanpa lokasi sekaligus dengan satu Combobox. Satu perjalanan lapangan
+ *    lazimnya melewati beberapa desa, jadi memaksa satu jawaban untuk semuanya
+ *    membuat penetapan yang benar mustahil — yang tersisa cuma memilih mana
+ *    yang salah. Sekarang yang ditetapkan HANYA yang sedang dipilih.
+ *
+ * "Pilih semua" per kelompok mempertahankan kemudahan lama (satu ketukan untuk
+ * seluruh isi kelompok) tanpa menjadikannya satu-satunya pilihan.
+ */
 function KantongCard({
   kantong,
   opsiLokasi,
@@ -323,6 +356,21 @@ function KantongCard({
 }) {
   const [terpilih, setTerpilih] = useState<Set<string>>(new Set());
   const [hasil, setHasil] = useState<FotoCepatState | null>(null);
+
+  /**
+   * Buang id yang sudah tidak ada di kantong (baru dipakai / dibuang).
+   *
+   * Tanpa ini tombolnya menghitung foto hantu: "Pakai 5 foto" padahal 3 di
+   * antaranya sudah pindah ke laporan, dan server menolak sebagian tanpa
+   * pelapor tahu foto mana. Disetel SAAT RENDER (pola yang sama dipakai
+   * `PanelPakai`) — lint repo ini melarang setState di badan effect.
+   */
+  const kunciIsi = kantong.map((f) => f.id).join(",");
+  const [prevKunci, setPrevKunci] = useState(kunciIsi);
+  if (prevKunci !== kunciIsi) {
+    setPrevKunci(kunciIsi);
+    setTerpilih((s) => pangkasPilihan(kantong, s) as Set<string>);
+  }
 
   const selesai = useCallback((s: FotoCepatState) => {
     setHasil(s);
@@ -340,28 +388,27 @@ function KantongCard({
     });
   }, []);
 
-  // Foto hanya boleh dipakai bersama bila berasal dari LOKASI YANG SAMA —
-  // aturan yang sama dijaga ulang di server. Di sini gunanya supaya pelapor
-  // melihat sebabnya sebelum menekan tombol, bukan sesudah ditolak.
-  const lokasiTerpilih = useMemo(() => {
-    const ids = new Set(kantong.filter((f) => terpilih.has(f.id)).map((f) => f.locationId));
-    return [...ids];
-  }, [kantong, terpilih]);
-  const satuLokasi = lokasiTerpilih.length === 1 ? (lokasiTerpilih[0] as string | null) : null;
+  const pilihBanyak = useCallback((ids: string[], jadikan: boolean) => {
+    setTerpilih((s) => {
+      const n = new Set(s);
+      for (const id of ids) {
+        if (jadikan) n.add(id);
+        else n.delete(id);
+      }
+      return n;
+    });
+  }, []);
 
-  // Foto yang lokasinya belum ketahuan dipisah ke atas, bukan dicampur ke
-  // daftar biasa: itu satu-satunya kelompok yang MENUNGGU tindakan, dan
-  // menyembunyikannya di tengah daftar berarti ia tidak akan pernah dikerjakan.
-  const belum = useMemo(() => kantong.filter((f) => f.locationId == null), [kantong]);
-  const perLokasi = useMemo(() => {
-    const m = new Map<string, FotoKantong[]>();
-    for (const f of kantong) {
-      if (f.locationId == null) continue;
-      const k = f.locationName;
-      (m.get(k) ?? m.set(k, []).get(k)!).push(f);
-    }
-    return [...m.entries()];
-  }, [kantong]);
+  /**
+   * Kelompok tampilan. Yang belum ketahuan lokasinya SELALU di atas: itu
+   * satu-satunya kelompok yang menghalangi foto dipakai, dan menyelipkannya di
+   * tengah daftar berarti ia tidak akan pernah dikerjakan.
+   */
+  const kelompok = useMemo(() => kelompokkanKantong(kantong), [kantong]);
+  // Aturan "boleh diapakan" tinggal di modul murni `kantong-pilihan.ts`, bukan
+  // di sini — termasuk pagar bahwa foto tanpa lokasi tidak boleh dipakai
+  // sebelum lokasinya ditetapkan (DECISIONS 254).
+  const tindakan = useMemo(() => tindakanKantong(kantong, terpilih), [kantong, terpilih]);
 
   if (kantong.length === 0) {
     return (
@@ -393,36 +440,73 @@ function KantongCard({
           ) : null}
         </div>
 
-        {belum.length > 0 ? (
-          <PanelTetapkanLokasi fotos={belum} opsiLokasi={opsiLokasi} />
-        ) : null}
+        {/* Tanpa kalimat ini, "bisa dipilih" harus ditebak: petaknya tidak
+            bertombol, dan satu-satunya ikon yang menonjol justru tong sampah. */}
+        <HelpText>
+          Ketuk foto untuk memilihnya — pilihannya boleh berapa pun dan boleh dari kelompok mana
+          pun. Tindakan yang bisa dilakukan muncul di bawah, mengikuti apa yang kamu pilih.
+        </HelpText>
 
         {hasil?.error ? <Banner tone="error" title={hasil.error} /> : null}
         {hasil?.warning ? <Banner tone="warning" title={hasil.warning} /> : null}
         {hasil?.ok ? <Banner tone="success" title={hasil.ok} /> : null}
 
-        {perLokasi.map(([nama, fotos]) => (
-          <div key={nama} className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-ink-faint">{nama}</p>
-            <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
-              {fotos.map((f) => (
-                <FotoPetak key={f.id} foto={f} dipilih={terpilih.has(f.id)} onToggle={toggle} />
-              ))}
-            </ul>
-          </div>
-        ))}
+        {kelompok.map((g) => {
+          const ids = g.fotos.map((f) => f.id);
+          const semua = ids.every((id) => terpilih.has(id));
+          return (
+            <div key={g.nama} className="space-y-2">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <p
+                  className={`text-xs font-semibold uppercase tracking-wide ${
+                    g.tanpaLokasi ? "text-warning" : "text-ink-faint"
+                  }`}
+                >
+                  {g.nama} · {g.fotos.length}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => pilihBanyak(ids, !semua)}
+                  className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+                >
+                  {semua ? "Batal pilih kelompok" : "Pilih semua"}
+                </button>
+              </div>
+              {g.tanpaLokasi ? (
+                <HelpText>
+                  Koordinatnya tidak ada, terlalu jauh dari semua titik proyek, atau berada di
+                  antara dua lokasi yang berdekatan — sistem sengaja tidak menebak. Pilih foto yang
+                  lokasinya sama, tetapkan lokasinya, lalu ulangi untuk kelompok berikutnya.
+                </HelpText>
+              ) : null}
+              <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+                {g.fotos.map((f) => (
+                  <FotoPetak key={f.id} foto={f} dipilih={terpilih.has(f.id)} onToggle={toggle} />
+                ))}
+              </ul>
+            </div>
+          );
+        })}
 
-        {terpilih.size > 0 ? (
-          lokasiTerpilih.length > 1 ? (
-            <Banner
-              tone="warning"
-              title="Foto dari lebih dari satu lokasi terpilih"
-              description="Foto hanya bisa dipakai di lokasi tempat ia dipotret. Pilih foto dari satu lokasi saja."
-            />
-          ) : satuLokasi ? (
-            <PanelPakai locationId={satuLokasi} photoIds={[...terpilih]} onHasil={selesai} />
-          ) : null
-        ) : null}
+        {tindakan.jenis === "kosong" ? null : tindakan.jenis === "tetapkan" ? (
+          <PanelTetapkanLokasi
+            fotos={tindakan.fotos}
+            opsiLokasi={opsiLokasi}
+            diabaikan={tindakan.diabaikan}
+          />
+        ) : tindakan.jenis === "campur_lokasi" ? (
+          <Banner
+            tone="warning"
+            title="Foto dari lebih dari satu lokasi terpilih"
+            description="Foto hanya bisa dipakai di lokasi tempat ia dipotret. Pilih foto dari satu lokasi saja."
+          />
+        ) : (
+          <PanelPakai
+            locationId={tindakan.locationId}
+            photoIds={tindakan.photoIds}
+            onHasil={selesai}
+          />
+        )}
       </div>
     </Card>
   );
@@ -444,10 +528,22 @@ function FotoPetak({
         type="button"
         onClick={() => onToggle(foto.id)}
         aria-pressed={dipilih}
+        aria-label={`${dipilih ? "Batal pilih" : "Pilih"} foto ${foto.waktuLabel}`}
         className={`block w-full overflow-hidden rounded-md border text-left transition ${
           dipilih ? "border-primary ring-2 ring-primary" : "border-border"
         }`}
       >
+        {/* Lingkaran centang: "bisa dipilih" harus terlihat SEBELUM diketuk.
+            Cincin biru saja hanya menjawab sesudahnya, dan itu terlambat bagi
+            orang yang belum tahu petaknya bisa diketuk sama sekali. */}
+        <span
+          aria-hidden
+          className={`absolute left-1 top-1 z-10 grid size-5 place-items-center rounded-full border shadow ${
+            dipilih ? "border-primary bg-primary text-white" : "border-border bg-surface/90 text-transparent"
+          }`}
+        >
+          <Check className="size-3" strokeWidth={3} />
+        </span>
         <span className="block aspect-square bg-surface-inset">
           {foto.thumbUrl ? (
             // Foto R2 ber-presigned URL: next/image tidak dipakai di seluruh
@@ -483,18 +579,22 @@ function FotoPetak({
 }
 
 /**
- * Foto yang geotag-nya tidak cukup untuk memutuskan lokasinya.
+ * Tetapkan lokasi untuk foto TERPILIH yang geotag-nya tidak cukup memutuskan.
  *
- * Sengaja ditempatkan PALING ATAS di kantong dan diberi nada peringatan: ini
- * satu-satunya kelompok yang menghalangi foto dipakai, dan selama lokasinya
- * kosong foto itu tidak terlihat oleh siapa pun selain yang memotret.
+ * Yang ditetapkan hanya yang sedang dipilih, bukan seluruh isi kelompok. Satu
+ * perjalanan lapangan lazim melewati beberapa desa; memaksa satu jawaban untuk
+ * semua foto tanpa lokasi membuat penetapan yang benar mustahil — yang tersisa
+ * cuma memilih mana yang salah. Keluhan user 2026-08-06.
  */
 function PanelTetapkanLokasi({
   fotos,
   opsiLokasi,
+  diabaikan,
 }: {
   fotos: FotoKantong[];
   opsiLokasi: { value: string; label: string }[];
+  /** Foto terpilih yang lokasinya SUDAH diketahui — tidak ikut di langkah ini. */
+  diabaikan: number;
 }) {
   const [state, action, pending] = useActionState(tetapkanLokasiAction, KOSONG);
   const [locationId, setLocationId] = useState("");
@@ -502,11 +602,14 @@ function PanelTetapkanLokasi({
   return (
     <div className="rounded-md border border-warning-border bg-warning-soft p-3">
       <p className="text-sm font-semibold text-ink">
-        {fotos.length} foto belum ketahuan lokasinya
+        Tetapkan lokasi untuk {fotos.length} foto terpilih
       </p>
       <HelpText>
-        Koordinatnya tidak ada, terlalu jauh dari semua titik proyek, atau berada di antara dua
-        lokasi yang berdekatan — sistem sengaja tidak menebak. Pilih lokasinya di sini.
+        Hanya foto yang kamu pilih yang ditetapkan. Foto lain di kelompok ini tidak tersentuh, jadi
+        satu perjalanan yang melewati beberapa desa bisa dikerjakan sekelompok demi sekelompok.
+        {diabaikan > 0
+          ? ` ${diabaikan} foto terpilih lainnya sudah punya lokasi dan dilewati di langkah ini.`
+          : ""}
       </HelpText>
 
       {state.error ? <Banner tone="error" title={state.error} className="mt-2" /> : null}
@@ -532,7 +635,7 @@ function PanelTetapkanLokasi({
           <input key={f.id} type="hidden" name="photoIds" value={f.id} />
         ))}
         <div>
-          <Label htmlFor="fc-tetapkan">Lokasi untuk semua foto di atas</Label>
+          <Label htmlFor="fc-tetapkan">Lokasi untuk {fotos.length} foto terpilih</Label>
           <Combobox
             id="fc-tetapkan"
             name="locationId"

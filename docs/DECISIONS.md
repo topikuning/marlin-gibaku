@@ -10249,3 +10249,115 @@ kunci-gulir dilepas saat kamera ditutup — kunci yang lupa dilepas membuat
 SELURUH halaman macet setelahnya.
 
 Dikembalikan ke render inline, tiga dari lima uji itu gagal.
+
+---
+
+## 271 · Kantong Foto Cepat: SETIAP foto bisa dipilih, dan lokasi ditetapkan per-pilihan (2026-08-06)
+
+**Konteks.** Laporan user 2026-08-06:
+
+> *"halaman foto cepat terlalu memaksakan untuk beberapa foto yang diambil
+> diberi tag lokasi yang sama. satu foto diklik tidak terjadi apa-apa. apa yang
+> kamu jelaskan itu sama sekali tidak terjadi."*
+
+Kalimat terakhir itu penting: penjelasan sebelumnya ("ketuk foto → panel
+tindakan muncul") memang benar untuk foto yang lokasinya SUDAH terdeteksi, dan
+sama sekali salah untuk sisanya.
+
+**Sebabnya.** `KantongCard` merender dua hal yang berbeda dengan cara berbeda:
+
+- foto yang lokasinya terdeteksi → `<button aria-pressed>` di dalam grid, bisa
+  dipilih;
+- foto yang lokasinya BELUM ketahuan → `<li>` berisi `<img>` mati di dalam panel
+  penetapan lokasi. Bukan tombol. Diketuk berapa kali pun tidak terjadi apa-apa.
+
+Di lapangan, geotag gagal adalah keadaan yang LAZIM (tanpa koordinat, terlalu
+jauh dari semua titik proyek, atau di antara dua lokasi berdekatan —
+DECISIONS 254). Jadi bagi pelapor yang justru paling butuh mengolah kantongnya,
+TIDAK ADA satu pun foto yang bisa disentuh, dan layarnya tidak menjelaskan
+apa-apa. Ditambah satu-satunya ikon yang menonjol di tiap petak adalah tong
+sampah: yang paling terlihat adalah cara membuang, bukan cara memakai.
+
+Cacat kedua satu paket dengan yang pertama: panel penetapan lokasi menerima
+`fotos={belum}` — SELURUH foto tanpa lokasi — dengan satu Combobox berlabel
+*"Lokasi untuk semua foto di atas"*. Satu perjalanan lapangan lazim melewati
+beberapa desa, jadi memaksa satu jawaban untuk semuanya membuat penetapan yang
+benar mustahil; yang tersisa cuma memilih mana yang salah.
+
+**Keputusan.**
+
+1. **Setiap foto di kantong adalah tombol**, termasuk yang lokasinya belum
+   ketahuan. Kelompok "belum ketahuan lokasinya" tetap di urutan paling atas dan
+   tetap bernada peringatan, tapi ia sekarang kelompok biasa di dalam grid —
+   bukan wilayah mati di luar daftar pilihan.
+2. **Tindakan mengikuti pilihan, bukan sebaliknya.** Aturannya tinggal di modul
+   murni `src/lib/foto-cepat/kantong-pilihan.ts` (`tindakanKantong`), bukan
+   tersebar di JSX: kosong → tak ada tindakan; ada yang tanpa lokasi → tetapkan
+   lokasi (untuk yang DIPILIH saja, sambil menyebut berapa foto terpilih lain
+   yang dilewati); satu lokasi → pakai; lebih dari satu lokasi → tolak dengan
+   sebabnya.
+3. **Lingkaran centang di tiap petak + kalimat pengarah di kepala kantong.**
+   Cincin biru saja hanya menjawab SESUDAH diketuk — terlambat bagi orang yang
+   belum tahu petaknya bisa diketuk sama sekali.
+4. **"Pilih semua" per kelompok** mempertahankan kemudahan lama (satu ketukan
+   untuk seluruh isi kelompok) tanpa menjadikannya satu-satunya pilihan.
+
+Pagar DECISIONS 254 tidak dilonggarkan sedikit pun: selama ada foto tanpa lokasi
+di dalam pilihan, "pakai" bukan tindakan yang sah — karena menautkannya ke
+laporan lokasi X sama saja MENETAPKAN lokasinya ke X secara diam-diam.
+
+**Bukti.** `tests/unit/foto-cepat-kantong-pilihan.test.ts` (13 uji). Uji gigi:
+mengembalikan penetapan lokasi ke perilaku memborong → 2 uji gugur;
+mengeluarkan lagi foto tanpa lokasi dari daftar kelompok → 2 uji gugur.
+Diperiksa juga di peramban (profil ponsel 390×844): 6 dari 6 petak
+`aria-pressed`, ketukan pada satu foto tanpa lokasi memunculkan panel
+*"Tetapkan lokasi untuk 1 foto terpilih"*.
+
+---
+
+## 272 · Foto kantong bisa diambil DARI layar laporan harian & kegiatan lapangan (2026-08-06)
+
+**Konteks.** Lanjutan laporan yang sama:
+
+> *"di sisi inputan laporan harian maupun kegiatan lapangan pun, perlu untuk
+> bisa mengambil dari hasil foto cepat ini, kalau tidak, akan percuma fitur
+> ini."*
+
+Betul, dan "percuma" bukan hiperbola. Sebelumnya satu-satunya jalan memakai foto
+kantong adalah dari halaman `/foto-cepat`. Arah itu benar untuk orang yang baru
+pulang dari lapangan dengan sekantong foto, tapi salah untuk orang yang sedang
+MENGISI laporan: dia harus meninggalkan formulir yang belum tersimpan, mencari
+fotonya, memilih ulang tanggal + item yang barusan terbuka di layar sebelumnya,
+lalu kembali dan mencari lagi sampai mana tadi. Yang benar-benar terjadi bukan
+itu — melainkan memotret ulang dari layar laporan (dengan koordinat seadanya),
+sementara foto yang koordinatnya justru benar menumpuk tak terpakai.
+
+**Keputusan.** Komponen `AmbilDariKantong` dipasang di dua tempat:
+
+- **Laporan harian** — di baris aksi tiap item, sejajar dengan "Tambah foto";
+- **Kegiatan lapangan** — di panel tambah foto kegiatan draft.
+
+Keduanya memanggil **`pakaiFotoAction` yang SAMA** dengan halaman `/foto-cepat`,
+bukan jalur penautan kedua. Ini yang menentukan: seluruh pagarnya (lokasi harus
+cocok, laporan harus masih `draft`/`perlu_koreksi`, kegiatan harus `draft`,
+foto tanpa lokasi ditolak, cap dilengkapi otomatis) berlaku apa adanya karena
+memang cuma ditulis di satu tempat. Jalur penautan kedua akan berarti dua mesin
+yang harus sama-sama dijaga benar — dan yang kedua selalu ketinggalan.
+
+Pemuat daftarnya, `muatKantongLokasiAction`, sengaja hanya mengembalikan foto
+yang lokasinya SUDAH ketahuan. Menawarkan foto tanpa lokasi di layar laporan
+lokasi X berarti memakainya = menetapkan lokasinya ke X tanpa ada yang
+memutuskan itu. Penetapan lokasi tetap kerja sadar di menu Foto Cepat.
+
+Daftarnya dimuat saat panel dibuka (bukan ikut payload RSC halaman laporan):
+pelapor lazim punya banyak lokasi, dan mengirim seluruh isi kantong untuk
+lokasi yang belum tentu dipakai membengkakkan payload persis di jaringan
+lapangan — alasan yang sama dengan DECISIONS 245.
+
+**Bukti.** `tests/integration/foto-cepat-pakai.test.ts` (11 uji) mengunci sisi
+servernya: pemuat hanya mengembalikan lokasi yang diminta, tidak menawarkan foto
+tanpa lokasi, dan foto yang sudah dipakai lenyap dari kantong; penautan ke item
+laporan & ke kegiatan draft berhasil; foto lokasi lain dan foto tanpa lokasi
+DITOLAK dengan menyebut sebabnya. Diperiksa juga ujung-ke-ujung di peramban:
+dari layar laporan harian, satu foto berpindah dari kantong ke item laporan dan
+foto satunya tidak tersentuh.

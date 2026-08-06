@@ -6,6 +6,7 @@ import { buildPhotoViews } from "@/lib/photos";
 import { formatTanggal, jakartaDateKey, parseDateKey } from "@/lib/format";
 import { EDITABLE_STATUSES } from "@/lib/daily-report/service";
 import type { LokasiBerkoordinat } from "./jarak";
+import { LABEL_TANPA_LOKASI, type FotoKantong } from "./kantong-pilihan";
 
 /**
  * FOTO CEPAT — kantong foto lapangan yang BELUM punya induk.
@@ -27,26 +28,10 @@ import type { LokasiBerkoordinat } from "./jarak";
  * "Belum Dipakai". DECISIONS 253.
  */
 
-export type FotoKantong = {
-  id: string;
-  thumbUrl?: string;
-  fullUrl?: string;
-  takenAtIso: string;
-  waktuLabel: string;
-  locationId: string | null;
-  locationName: string;
-  /** Koordinat NYATA foto (perangkat saat jepret / EXIF). null = tidak ada. */
-  lat: number | null;
-  lng: number | null;
-  /** true = koordinatnya bukti alat (exif/device), bukan cadangan/ketikan. */
-  gpsAsli: boolean;
-  reporterName: string;
-  /** Arsip berkas asli ada → cap masih bisa dilengkapi saat foto dipakai. */
-  bisaDilengkapi: boolean;
-};
-
-/** Nama rak untuk foto yang lokasinya belum ketahuan. */
-export const LABEL_TANPA_LOKASI = "Belum ketahuan lokasinya";
+// Bentuk data & label raknya tinggal di `kantong-pilihan.ts` — modul murni,
+// supaya aturan pilihan di kantong bisa diuji tanpa memuat koneksi database.
+// Diekspor ulang di sini agar pemanggil lama tidak perlu tahu perpindahannya.
+export { LABEL_TANPA_LOKASI, type FotoKantong };
 
 /** Lokasi yang boleh dipakai memotret, berikut titik proyek & slug-nya. */
 export type PilihanLokasi = LokasiBerkoordinat & { slug: string };
