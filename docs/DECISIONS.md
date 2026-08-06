@@ -10090,3 +10090,63 @@ fixture yang persis keadaan data user (cuplikan nama usang pada baseline, judul
 sudah diperbaiki di RAB). Dikembalikan ke pencocokan by-name, tiga uji gagal
 sekaligus: nomor romawi hilang, judul usang muncul, dan `subtotalBobotRencana`
 kategori yang belum boleh mulai jadi bukan-nol.
+
+## 269 · Kop laporan Excel berlogo: pemilik pekerjaan & kontraktor (2026-08-06)
+
+**Koreksi user**: *"aku sudah berikan contoh bahwa itu ada logo KKP (Pemilik
+Pekerjaan) dan kontraktor. kenapa itu kamu hilangkan? paling penting terutama di
+bagian sheet COV-BQ."*
+
+Benar — berkas acuan memasangnya dan versi pertamaku tidak. Sampul tanpa logo
+kedua pihak terbaca sebagai cetakan internal, bukan dokumen resmi kontrak.
+
+### Sumbernya sudah ada, tidak diduplikasi
+
+Logo pemilik dari branding (`brand.owner_logo_key`, diatur di menu Sistem —
+DECISIONS 166, supaya satu basis kode melayani pemberi kerja mana pun, bukan
+hardcode "KKP"); logo kontraktor dari `Vendor.logoKey`. Keduanya sudah dipakai
+kop PDF harian. Pemuatnya satu tempat: `lib/export/logo-laporan.ts`.
+
+- **WAJIB dikonversi ke PNG.** Logo diunggah sebagai WebP; penulis XLSX hanya
+  menerima png/jpeg/gif. Tanpa konversi logonya hilang DIAM-DIAM di berkas
+  ekspor padahal di layar normal — kelas kegagalan yang sudah pernah terjadi di
+  jalur PDF (28 Juli 2026).
+- **Rasio dijaga**: tinggi ditetapkan, lebar mengikuti. Meregangkan logo
+  perusahaan ke kotak seragam adalah cara tercepat membuat dokumen resmi
+  terlihat asal jadi.
+- **Logo yang belum diunggah hanya dilewati** — tanpa kotak kosong, tanpa teks
+  pengganti. Sisi yang kosong memang berarti logonya belum ada.
+- Kegagalan apa pun (R2 mati, key basi, berkas rusak) → `null`, tidak pernah
+  melempar. Laporan tanpa logo masih berguna; laporan yang gagal terbit tidak.
+- Logo disejajarkan ke **blok isi**, bukan tepi kertas: pada sampul judul &
+  identitas dimerge di kolom tengah, dan logo yang rata tepi terlihat lepas.
+
+`buildPeriodReportXlsx` tetap MURNI — ia menerima buffer lewat `opts.logo` dan
+tidak menyentuh basis data (importnya type-only). Pemuatan dilakukan pemanggil.
+
+### Cacat yang ketahuan karenanya: penyisip grafik menimpa gambar
+
+Aturan OOXML: **satu worksheet hanya boleh menunjuk SATU drawing part**. Begitu
+exceljs menulis gambar, ia membuat `xl/drawings/drawingN.xml` sendiri. Penyisip
+grafik kurva-S (`xlsx-chart.ts`) selama ini **menulis paksa `drawing1.xml`**
+beserta rels-nya, sehingga:
+
+- drawing milik sheet lain (sampul) TERTIMPA → logonya hilang, dan sheet itu
+  malah menunjuk gambar grafik;
+- kalau sheet kurva-S sendiri sudah punya drawing, penyisipan dilewati karena
+  penjaganya `wsXml.includes("<drawing ")` → grafiknya yang hilang.
+
+Keduanya gagal senyap: berkasnya tetap terbuka dan seluruh angkanya benar.
+Sekarang penyisip: memakai nomor `chartN`/`drawingN` yang masih bebas, dan bila
+worksheet sudah punya drawing, anchor grafik **disisipkan ke dalam drawing itu**
+(rId & id shape baru) alih-alih membuat part kedua.
+
+### Bukti
+
+Uji unit memasang sepasang logo dengan rasio sengaja berbeda (240×120 dan
+100×200) lalu memeriksa berkas hasilnya: kedua gambar ada di keempat sheet,
+rasionya utuh, pemilik di kiri & kontraktor di kanan, dan sisi yang logonya null
+hanya dilewati. Ditambah pemeriksaan langsung ke isi zip: part grafik tetap
+ditulis, sheet "Kurva S" menunjuk TEPAT SATU drawing, dan drawing itu memuat
+`<c:chart>` sekaligus dua `<xdr:pic>`. Dikembalikan ke perilaku lama penyisip,
+dua uji itu gagal.

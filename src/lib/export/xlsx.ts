@@ -3,6 +3,9 @@ import ExcelJS from "exceljs";
 import type { PeriodReport } from "@/lib/periodic-report";
 import { buildKurvaSheet } from "@/lib/scurve/kkp-sheet";
 import { addLineChartToXlsx, colLetter, type LineChartSpec } from "@/lib/export/xlsx-chart";
+// TYPE-ONLY: `logo-laporan` menarik db + R2 (pemuatnya), sedangkan berkas ini
+// harus tetap murni — penulis workbook TIDAK boleh menyentuh basis data.
+import type { LogoLaporan } from "@/lib/export/logo-laporan";
 import {
   FMT_ANGKA,
   FMT_PERSEN,
@@ -13,6 +16,7 @@ import {
   blokTandaTangan,
   gayaKepala,
   isi,
+  pasangLogoKop,
 } from "@/lib/export/xlsx-gaya";
 import { formatTanggal } from "@/lib/format";
 
@@ -94,7 +98,7 @@ type KurvaSheetResult = {
 async function addKurvaSheet(
   wb: ExcelJS.Workbook,
   r: PeriodReport,
-  opts?: { sheetName?: string },
+  opts?: { sheetName?: string; logo?: LogoLaporan },
 ): Promise<KurvaSheetResult> {
   const sheet = buildKurvaSheet({
     categories: r.kurvaSchedule,
@@ -133,6 +137,10 @@ async function addKurvaSheet(
     row.getCell(1).font = { bold, size, color: { argb: warna } };
     row.getCell(1).alignment = { horizontal: "center" };
   };
+  // Pita logo: pemilik pekerjaan kiri, kontraktor kanan (koreksi user 2026-08-06).
+  const pitaLogo = ws.addRow([]);
+  pitaLogo.height = 34;
+  pasangLogoKop(wb, ws, opts?.logo, { rowAtas: pitaLogo.number, tinggiPx: 40, kolomKiri: 1, kolomKanan: lastTableCol });
   banner(`KURVA S — ${r.kind === "mingguan" ? `MINGGU KE-${r.n}` : `BULAN KE-${r.n}`}`, true, 12, WARNA.kepala);
   banner(`${r.header.packageName} — ${r.header.village}, ${r.header.regency}`, false, 10, WARNA.teksRedup);
   ws.addRow([]);
@@ -437,7 +445,7 @@ const labelPeriode = (r: PeriodReport): string =>
  * ada di REKAP; sampul yang ikut menyebut angka jadi tempat kedua yang bisa
  * basi tanpa ketahuan.
  */
-function addCoverSheet(wb: ExcelJS.Workbook, r: PeriodReport): void {
+function addCoverSheet(wb: ExcelJS.Workbook, r: PeriodReport, logo?: LogoLaporan): void {
   const h = r.header;
   const LAST = 8;
   const ws = wb.addWorksheet("COV-BQ", {
@@ -475,7 +483,18 @@ function addCoverSheet(wb: ExcelJS.Workbook, r: PeriodReport): void {
     ws.addRow([]);
   };
 
-  for (let i = 0; i < 3; i++) ws.addRow([]);
+  // PITA LOGO — logo pemilik pekerjaan (kiri) & kontraktor pelaksana (kanan),
+  // seperti sampul berkas acuan KKP. Inilah yang membedakan sampul dokumen
+  // kontrak dari cetakan internal (koreksi user 2026-08-06).
+  const pitaLogo = ws.addRow([]);
+  pitaLogo.height = 74;
+  pasangLogoKop(wb, ws, logo, { rowAtas: pitaLogo.number, tinggiPx: 92, kolomKiri: 2, kolomKanan: LAST - 1 });
+  // Garis pemisah di bawah pita logo — kop resmi, bukan gambar mengambang.
+  const garisKop = ws.addRow([]);
+  for (let c = 2; c <= LAST - 1; c++) {
+    garisKop.getCell(c).border = { bottom: { style: "thin", color: { argb: WARNA.garis } } };
+  }
+  ws.addRow([]);
   baris("LAPORAN PROGRES PEKERJAAN", { size: 20, bold: true, color: WARNA.kepala, tinggi: 28 });
   baris(labelPeriode(r), { size: 16, bold: true, color: WARNA.kepalaSub, tinggi: 24, garisBawah: true });
   ws.addRow([]);
@@ -512,7 +531,7 @@ function addCoverSheet(wb: ExcelJS.Workbook, r: PeriodReport): void {
  * (permintaan user 2026-08-06: "hanya fokus pada bagian yang tidak dihidden").
  * Rincian rupiah tetap ada, tempatnya di sheet "Laporan".
  */
-function addRekapSheet(wb: ExcelJS.Workbook, r: PeriodReport): void {
+function addRekapSheet(wb: ExcelJS.Workbook, r: PeriodReport, logo?: LogoLaporan): void {
   const h = r.header;
   const LAST = 6;
   const periodeLabel = r.kind === "mingguan" ? "Minggu" : "Bulan";
@@ -527,6 +546,9 @@ function addRekapSheet(wb: ExcelJS.Workbook, r: PeriodReport): void {
     row.getCell(1).font = { bold: true, size, color: { argb: warna } };
     row.getCell(1).alignment = { horizontal: "center" };
   };
+  const pitaLogo = ws.addRow([]);
+  pitaLogo.height = 34;
+  pasangLogoKop(wb, ws, logo, { rowAtas: pitaLogo.number, tinggiPx: 40, kolomKiri: 1, kolomKanan: LAST });
   judul("REKAPITULASI PROGRES PEKERJAAN", 14, WARNA.kepala);
   judul(labelPeriode(r), 11, WARNA.kepalaSub);
   ws.addRow([]);
@@ -685,11 +707,11 @@ function addRekapSheet(wb: ExcelJS.Workbook, r: PeriodReport): void {
  * kategori × minggu (bobot) + kumulatif rencana/realisasi + GRAFIK NATIVE Excel.
  * Format menyerupai time schedule sipil (contoh TS vendor).
  */
-export async function buildJadwalXlsx(r: PeriodReport): Promise<Buffer> {
+export async function buildJadwalXlsx(r: PeriodReport, opts?: { logo?: LogoLaporan }): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "MARLIN";
   wb.created = new Date();
-  const { chart } = await addKurvaSheet(wb, r, { sheetName: "Time Schedule" });
+  const { chart } = await addKurvaSheet(wb, r, { sheetName: "Time Schedule", logo: opts?.logo });
   const buf = Buffer.from(await wb.xlsx.writeBuffer());
   try {
     return await addLineChartToXlsx(buf, chart);
@@ -698,14 +720,18 @@ export async function buildJadwalXlsx(r: PeriodReport): Promise<Buffer> {
   }
 }
 
-export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
+export async function buildPeriodReportXlsx(
+  r: PeriodReport,
+  opts?: { logo?: LogoLaporan },
+): Promise<Buffer> {
+  const logo = opts?.logo;
   const wb = new ExcelJS.Workbook();
   wb.creator = "MARLIN";
   wb.created = new Date();
   // Urutan sheet mengikuti dokumen cetak KKP: sampul → rekap → kurva-S → rincian.
-  addCoverSheet(wb, r);
-  addRekapSheet(wb, r);
-  const kurva = await addKurvaSheet(wb, r);
+  addCoverSheet(wb, r, logo);
+  addRekapSheet(wb, r, logo);
+  const kurva = await addKurvaSheet(wb, r, { logo });
   const ws = wb.addWorksheet("Laporan", {
     pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   });
@@ -722,6 +748,9 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
     row.getCell(1).font = { bold, size, color: { argb: warna } };
     row.getCell(1).alignment = { horizontal: "center" };
   };
+  const pitaLogo = ws.addRow([]);
+  pitaLogo.height = 34;
+  pasangLogoKop(wb, ws, logo, { rowAtas: pitaLogo.number, tinggiPx: 40, kolomKiri: 1, kolomKanan: COL_COUNT });
   title(judul);
   title(ke, true, 11);
   title(

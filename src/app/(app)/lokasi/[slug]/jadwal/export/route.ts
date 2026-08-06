@@ -4,6 +4,7 @@ import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { getPeriodBounds, getPeriodReport } from "@/lib/periodic-report";
 import { buildJadwalXlsx } from "@/lib/export/xlsx";
+import { muatLogoLaporan } from "@/lib/export/logo-laporan";
 import { audit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const report = await getPeriodReport(location.id, "mingguan", bounds.currentWeek, { assume: true });
   if (!report) return NextResponse.json({ error: "Jadwal tidak tersedia" }, { status: 404 });
 
-  const buffer = await buildJadwalXlsx(report);
+  const buffer = await buildJadwalXlsx(report, { logo: await muatLogoLaporan(location.id) });
   await audit(user.id, "report.export_jadwal_xlsx", "location", location.id, { week: bounds.currentWeek });
 
   return new NextResponse(new Uint8Array(buffer), {

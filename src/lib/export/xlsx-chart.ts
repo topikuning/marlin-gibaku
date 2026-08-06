@@ -107,16 +107,15 @@ function chartXml(spec: LineChartSpec): string {
 </c:chartSpace>`;
 }
 
-function drawingXml(spec: LineChartSpec, relId: string): string {
+/** Satu anchor grafik — potongan yang bisa berdiri sendiri ATAU disisipkan. */
+function chartAnchorXml(spec: LineChartSpec, relId: string, shapeId: number): string {
   const a = spec.anchor;
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<xdr:wsDr xmlns:xdr="${XDR}" xmlns:a="${A}" xmlns:c="${C}" xmlns:r="${R}">
-  <xdr:twoCellAnchor editAs="oneCell">
+  return `<xdr:twoCellAnchor editAs="oneCell">
     <xdr:from><xdr:col>${a.fromCol}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${a.fromRow}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>
     <xdr:to><xdr:col>${a.toCol}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>${a.toRow}</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>
     <xdr:graphicFrame macro="">
       <xdr:nvGraphicFramePr>
-        <xdr:cNvPr id="2" name="Kurva S"/>
+        <xdr:cNvPr id="${shapeId}" name="Kurva S"/>
         <xdr:cNvGraphicFramePr/>
       </xdr:nvGraphicFramePr>
       <xdr:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/></xdr:xfrm>
@@ -127,7 +126,13 @@ function drawingXml(spec: LineChartSpec, relId: string): string {
       </a:graphic>
     </xdr:graphicFrame>
     <xdr:clientData/>
-  </xdr:twoCellAnchor>
+  </xdr:twoCellAnchor>`;
+}
+
+function drawingXml(spec: LineChartSpec, relId: string): string {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<xdr:wsDr xmlns:xdr="${XDR}" xmlns:a="${A}" xmlns:c="${C}" xmlns:r="${R}">
+  ${chartAnchorXml(spec, relId, 2)}
 </xdr:wsDr>`;
 }
 
@@ -144,6 +149,30 @@ async function resolveSheetPath(zip: JSZip, sheetName: string): Promise<string |
   return target.startsWith("/") ? target.slice(1) : `xl/${target}`;
 }
 
+/** rId bebas berikutnya dalam satu berkas .rels. */
+function ridBerikutnya(relsXml: string): string {
+  const ids = [...relsXml.matchAll(/\bId="rId(\d+)"/g)].map((m) => Number(m[1]));
+  return `rId${(ids.length ? Math.max(...ids) : 0) + 1}`;
+}
+
+/**
+ * Sisipkan grafik kurva-S ke workbook yang SUDAH ditulis exceljs.
+ *
+ * Aturan OOXML yang menentukan bentuk fungsi ini: **satu worksheet hanya boleh
+ * menunjuk SATU drawing part**. Sejak kop laporan memasang logo (DECISIONS 269),
+ * exceljs sudah membuat `xl/drawings/drawingN.xml` sendiri untuk sheet-sheet
+ * yang berlogo. Versi lama fungsi ini menulis paksa `drawing1.xml` beserta
+ * rels-nya, sehingga:
+ *
+ *  - drawing milik sheet lain (sampul) TERTIMPA → logonya hilang, dan sheet itu
+ *    malah menunjuk gambar grafik;
+ *  - kalau sheet kurva-S sendiri sudah punya drawing, blok penyisipan dilewati
+ *    (`includes("<drawing ")`) → grafiknya yang hilang.
+ *
+ * Keduanya gagal DIAM-DIAM: berkasnya tetap terbuka dan seluruh angkanya benar.
+ * Sekarang: kalau sheet sudah punya drawing, anchor grafik DISISIPKAN ke dalam
+ * drawing itu; kalau belum, dibuat part baru dengan nomor yang masih bebas.
+ */
 export async function addLineChartToXlsx(buffer: Buffer, spec: LineChartSpec): Promise<Buffer> {
   const zip = await JSZip.loadAsync(buffer);
   const sheetPath = await resolveSheetPath(zip, spec.sheetName);
@@ -151,58 +180,94 @@ export async function addLineChartToXlsx(buffer: Buffer, spec: LineChartSpec): P
 
   const sheetFile = sheetPath.slice(sheetPath.lastIndexOf("/") + 1);
   const sheetRelsPath = `xl/worksheets/_rels/${sheetFile}.rels`;
+  const sheetRels = (await zip.file(sheetRelsPath)?.async("string")) ?? "";
 
-  // 1) chart + drawing parts.
-  zip.file("xl/charts/chart1.xml", chartXml(spec));
-  zip.file("xl/drawings/drawing1.xml", drawingXml(spec, "rId1"));
-  zip.file(
-    "xl/drawings/_rels/drawing1.xml.rels",
-    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="${R}/chart" Target="../charts/chart1.xml"/>
-</Relationships>`,
-  );
+  // Nomor chart yang masih bebas — jangan menimpa chart lain.
+  const chartNo =
+    Math.max(0, ...Object.keys(zip.files).map((f) => Number(/^xl\/charts\/chart(\d+)\.xml$/.exec(f)?.[1] ?? 0))) + 1;
+  const chartPath = `xl/charts/chart${chartNo}.xml`;
+  zip.file(chartPath, chartXml(spec));
 
-  // 2) worksheet rels → drawing (buat/append; hindari tabrakan rId).
-  const existingRels = await zip.file(sheetRelsPath)?.async("string");
-  let drawingRid = "rId1";
-  if (existingRels) {
-    const ids = [...existingRels.matchAll(/\bId="rId(\d+)"/g)].map((m) => Number(m[1]));
-    drawingRid = `rId${(ids.length ? Math.max(...ids) : 0) + 1}`;
+  // Apakah worksheet ini SUDAH punya drawing (mis. dari logo kop)?
+  const drawingRelEl = /<Relationship\b[^>]*\bType="[^"]*\/drawing"[^>]*\/?>/.exec(sheetRels)?.[0];
+  const drawingTarget = drawingRelEl ? /\bTarget="([^"]+)"/.exec(drawingRelEl)?.[1] : null;
+  const drawingPath = drawingTarget
+    ? drawingTarget.startsWith("/")
+      ? drawingTarget.slice(1)
+      : `xl/drawings/${drawingTarget.replace(/^\.\.\/drawings\//, "")}`
+    : null;
+  const drawingLama = drawingPath ? await zip.file(drawingPath)?.async("string") : undefined;
+
+  if (drawingPath && drawingLama) {
+    // ── Sisipkan ke drawing yang sudah ada (jangan bikin part kedua). ──
+    const drawingRelsPath = drawingPath.replace(/([^/]+)$/, "_rels/$1.rels");
+    const relsLama =
+      (await zip.file(drawingRelsPath)?.async("string")) ??
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>`;
+    const chartRid = ridBerikutnya(relsLama);
     zip.file(
-      sheetRelsPath,
-      existingRels.replace(
+      drawingRelsPath,
+      relsLama.replace(
         "</Relationships>",
-        `<Relationship Id="${drawingRid}" Type="${R}/drawing" Target="../drawings/drawing1.xml"/></Relationships>`,
+        `<Relationship Id="${chartRid}" Type="${R}/chart" Target="../charts/chart${chartNo}.xml"/></Relationships>`,
       ),
     );
+    // id shape harus unik dalam satu drawing.
+    const idMaks = Math.max(1, ...[...drawingLama.matchAll(/<xdr:cNvPr\b[^>]*\bid="(\d+)"/g)].map((m) => Number(m[1])));
+    let isi = drawingLama.replace("</xdr:wsDr>", `${chartAnchorXml(spec, chartRid, idMaks + 1)}</xdr:wsDr>`);
+    // Namespace c: mungkin belum dideklarasikan pada drawing bikinan exceljs.
+    if (!/xmlns:c=/.test(isi)) isi = isi.replace("<xdr:wsDr ", `<xdr:wsDr xmlns:c="${C}" `);
+    zip.file(drawingPath, isi);
   } else {
+    // ── Belum ada drawing: buat part baru dengan nomor yang masih bebas. ──
+    const drawingNo =
+      Math.max(0, ...Object.keys(zip.files).map((f) => Number(/^xl\/drawings\/drawing(\d+)\.xml$/.exec(f)?.[1] ?? 0))) + 1;
+    const baru = `xl/drawings/drawing${drawingNo}.xml`;
+    zip.file(baru, drawingXml(spec, "rId1"));
     zip.file(
-      sheetRelsPath,
+      `xl/drawings/_rels/drawing${drawingNo}.xml.rels`,
       `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="${R}/drawing" Target="../drawings/drawing1.xml"/>
+  <Relationship Id="rId1" Type="${R}/chart" Target="../charts/chart${chartNo}.xml"/>
 </Relationships>`,
     );
+    const drawingRid = sheetRels ? ridBerikutnya(sheetRels) : "rId1";
+    zip.file(
+      sheetRelsPath,
+      sheetRels
+        ? sheetRels.replace(
+            "</Relationships>",
+            `<Relationship Id="${drawingRid}" Type="${R}/drawing" Target="../drawings/drawing${drawingNo}.xml"/></Relationships>`,
+          )
+        : `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="${R}/drawing" Target="../drawings/drawing${drawingNo}.xml"/>
+</Relationships>`,
+    );
+    const wsXml = (await zip.file(sheetPath)?.async("string")) ?? "";
+    zip.file(sheetPath, wsXml.replace(/(<\/worksheet>\s*)$/, `<drawing r:id="${drawingRid}"/>$1`));
+    // content-types utk drawing baru.
+    const ctPath = "[Content_Types].xml";
+    let ct = (await zip.file(ctPath)?.async("string")) ?? "";
+    if (!ct.includes(`PartName="/${baru}"`)) {
+      ct = ct.replace(
+        "</Types>",
+        `<Override PartName="/${baru}" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/></Types>`,
+      );
+      zip.file(ctPath, ct);
+    }
   }
 
-  // 3) sematkan <drawing> di worksheet (sebelum </worksheet>, sesudah pageSetup).
-  const wsXml = (await zip.file(sheetPath)?.async("string")) ?? "";
-  const withDrawing = wsXml.includes("<drawing ")
-    ? wsXml
-    : wsXml.replace(/(<\/worksheet>\s*)$/, `<drawing r:id="${drawingRid}"/>$1`);
-  zip.file(sheetPath, withDrawing);
-
-  // 4) content-types: override chart + drawing.
+  // content-types utk chart (selalu part baru).
   const ctPath = "[Content_Types].xml";
   let ct = (await zip.file(ctPath)?.async("string")) ?? "";
-  const add: string[] = [];
-  if (!ct.includes('PartName="/xl/drawings/drawing1.xml"'))
-    add.push(`<Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>`);
-  if (!ct.includes('PartName="/xl/charts/chart1.xml"'))
-    add.push(`<Override PartName="/xl/charts/chart1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/>`);
-  if (add.length) ct = ct.replace("</Types>", `${add.join("")}</Types>`);
-  zip.file(ctPath, ct);
+  if (!ct.includes(`PartName="/${chartPath}"`)) {
+    ct = ct.replace(
+      "</Types>",
+      `<Override PartName="/${chartPath}" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"/></Types>`,
+    );
+    zip.file(ctPath, ct);
+  }
 
   return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
 }

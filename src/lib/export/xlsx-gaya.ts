@@ -1,5 +1,6 @@
 import type ExcelJS from "exceljs";
 import type { PeriodHeader } from "@/lib/periodic-report";
+import type { LogoGambar, LogoLaporan } from "@/lib/export/logo-laporan";
 import { formatTanggal } from "@/lib/format";
 
 /**
@@ -77,6 +78,83 @@ export function gayaKepala(cell: ExcelJS.Cell, opts?: { sub?: boolean; size?: nu
   cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
   cell.fill = isi(opts?.sub ? WARNA.kepalaSub : WARNA.kepala);
   cell.border = KOTAK;
+}
+
+/* ── Logo kop ─────────────────────────────────────────────────────────────── */
+
+/** Lebar kolom Excel → piksel (aproksimasi Calibri 11 yang dipakai penampil). */
+const kolomPx = (width: number | undefined): number => Math.round((width ?? 8.43) * 7 + 5);
+
+/**
+ * Kolom pecahan tempat sebuah gambar harus ditempel agar tepi KIRI-nya jatuh di
+ * `xPx`. Gambar XLSX ditempel pada koordinat kolom/baris, bukan piksel, jadi
+ * posisinya harus dihitung dari lebar kolom sheet yang bersangkutan.
+ */
+function kolomDiX(ws: ExcelJS.Worksheet, xPx: number, kolomTerakhir: number): number {
+  let x = 0;
+  for (let c = 1; c <= kolomTerakhir; c++) {
+    const w = kolomPx(ws.getColumn(c).width);
+    if (xPx < x + w) return c - 1 + (xPx - x) / w;
+    x += w;
+  }
+  return kolomTerakhir;
+}
+
+/** Total lebar piksel kolom 1..`kolomTerakhir`. */
+function lebarPx(ws: ExcelJS.Worksheet, kolomTerakhir: number): number {
+  let x = 0;
+  for (let c = 1; c <= kolomTerakhir; c++) x += kolomPx(ws.getColumn(c).width);
+  return x;
+}
+
+/**
+ * KOP BERLOGO: pemilik pekerjaan di kiri, kontraktor pelaksana di kanan —
+ * mengikuti berkas acuan KKP (koreksi user 2026-08-06).
+ *
+ * Rasio gambar DIJAGA: logo dimuat beserta ukuran aslinya lalu dimuat-paskan ke
+ * kotak setinggi `tinggiPx`. Meregangkan logo perusahaan ke kotak tetap adalah
+ * cara paling cepat membuat dokumen resmi terlihat asal jadi.
+ *
+ * Logo yang tidak ada hanya dilewati — tidak ada kotak kosong, tidak ada teks
+ * pengganti. Sisi yang kosong memang berarti logonya belum diunggah.
+ */
+export function pasangLogoKop(
+  wb: ExcelJS.Workbook,
+  ws: ExcelJS.Worksheet,
+  logo: LogoLaporan | undefined,
+  o: {
+    rowAtas: number;
+    tinggiPx: number;
+    /** Blok kolom tempat logo disejajarkan (1-based, inklusif). */
+    kolomKiri: number;
+    kolomKanan: number;
+  },
+): void {
+  if (!logo?.pemilik && !logo?.kontraktor) return;
+  // Disejajarkan ke BLOK ISI, bukan ke tepi sheet: pada sampul, judul & seluruh
+  // identitas dimerge di kolom tengah, dan logo yang rata tepi kertas terlihat
+  // lepas dari kopnya.
+  const xKiri = lebarPx(ws, o.kolomKiri - 1);
+  const xKanan = lebarPx(ws, o.kolomKanan);
+  // `rowAtas` 1-based (nomor baris Excel) → koordinat gambar 0-based.
+  const row = Math.max(0, o.rowAtas - 1);
+
+  const tempel = (g: LogoGambar, kiri: number) => {
+    const w = Math.round(g.width * (o.tinggiPx / g.height));
+    const id = wb.addImage({ buffer: g.buffer as unknown as ExcelJS.Buffer, extension: "png" });
+    ws.addImage(id, {
+      tl: { col: kolomDiX(ws, kiri, o.kolomKanan), row },
+      ext: { width: w, height: o.tinggiPx },
+      editAs: "oneCell",
+    });
+    return w;
+  };
+
+  if (logo.pemilik) tempel(logo.pemilik, xKiri);
+  if (logo.kontraktor) {
+    const w = Math.round(logo.kontraktor.width * (o.tinggiPx / logo.kontraktor.height));
+    tempel(logo.kontraktor, Math.max(xKiri, xKanan - w));
+  }
 }
 
 /**

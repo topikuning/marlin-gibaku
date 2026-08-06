@@ -18,7 +18,9 @@
 //  5. blok tanda tangan hilang → dokumen tidak bisa disahkan.
 import { describe, expect, it } from "vitest";
 import ExcelJS from "exceljs";
+import JSZip from "jszip";
 import { buildPeriodReportXlsx } from "@/lib/export/xlsx";
+import type { LogoLaporan } from "@/lib/export/logo-laporan";
 import type { PeriodItemRow, PeriodReport } from "@/lib/periodic-report";
 
 const item = (over: Partial<PeriodItemRow> & { no: number; name: string }): PeriodItemRow => ({
@@ -109,11 +111,28 @@ function fixture(over?: Partial<PeriodReport>): PeriodReport {
   };
 }
 
-async function book(over?: Partial<PeriodReport>) {
+async function book(over?: Partial<PeriodReport>, logo?: LogoLaporan) {
   const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load((await buildPeriodReportXlsx(fixture(over))) as unknown as ArrayBuffer);
+  await wb.xlsx.load((await buildPeriodReportXlsx(fixture(over), { logo })) as unknown as ArrayBuffer);
   return wb;
 }
+
+/**
+ * PNG 1×1 sungguhan — cukup untuk membuktikan gambarnya benar-benar ditulis ke
+ * berkas. Ukuran width/height sengaja BERBEDA antar logo supaya kalau rasio
+ * diregangkan paksa, hasilnya kelihatan.
+ */
+const PNG_1PX = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64",
+);
+const LOGO: LogoLaporan = {
+  pemilik: { buffer: PNG_1PX, width: 240, height: 120 },
+  kontraktor: { buffer: PNG_1PX, width: 100, height: 200 },
+};
+
+/** Gambar yang benar-benar tertanam pada satu sheet. */
+const gambar = (ws: ExcelJS.Worksheet) => ws.getImages();
 
 const teks = (v: ExcelJS.CellValue): string =>
   typeof v === "string"
@@ -330,5 +349,99 @@ describe("blok tanda tangan", () => {
     const t = semuaTeks(wb.getWorksheet("Laporan")!);
     expect(t).toContain("( ……………………………………… )");
     expect(t).not.toContain("( null )");
+  });
+});
+
+describe("logo kop — pemilik pekerjaan & kontraktor pelaksana", () => {
+  // Koreksi user 2026-08-06: "aku sudah berikan contoh bahwa itu ada logo KKP
+  // (Pemilik Pekerjaan) dan kontraktor. kenapa itu kamu hilangkan? paling
+  // penting terutama di bagian sheet COV-BQ."
+  //
+  // Cacatnya SENYAP: berkasnya terbuka normal dan seluruh angkanya benar — yang
+  // hilang adalah tanda bahwa ini dokumen resmi kontrak, bukan cetakan internal.
+
+  it("COV-BQ memuat KEDUA logo", async () => {
+    const wb = await book(undefined, LOGO);
+    expect(gambar(wb.getWorksheet("COV-BQ")!)).toHaveLength(2);
+  });
+
+  it("keempat sheet berlogo — dokumen yang sama dari sampul sampai rincian", async () => {
+    const wb = await book(undefined, LOGO);
+    for (const nama of ["COV-BQ", "REKAP", "Kurva S", "Laporan"]) {
+      expect(gambar(wb.getWorksheet(nama)!), nama).toHaveLength(2);
+    }
+  });
+
+  it("RASIO gambar dijaga — logo tidak diregangkan ke kotak seragam", async () => {
+    // pemilik 240×120 (2:1) dan kontraktor 100×200 (1:2). Kalau keduanya
+    // dipaksa ke kotak yang sama, logo perusahaan jadi gepeng/melar dan dokumen
+    // resmi terlihat asal jadi.
+    const wb = await book(undefined, LOGO);
+    const img = gambar(wb.getWorksheet("COV-BQ")!);
+    const rasio = img.map((i) => {
+      const ext = (i.range as { ext?: { width: number; height: number } }).ext!;
+      return ext.width / ext.height;
+    });
+    expect(rasio[0]).toBeCloseTo(240 / 120, 2);
+    expect(rasio[1]).toBeCloseTo(100 / 200, 2);
+  });
+
+  it("logo pemilik di KIRI, kontraktor di KANAN", async () => {
+    const wb = await book(undefined, LOGO);
+    const img = gambar(wb.getWorksheet("COV-BQ")!);
+    const kolom = img.map((i) => (i.range as { tl: { nativeCol: number } }).tl.nativeCol);
+    expect(kolom[0]).toBeLessThan(kolom[1]);
+  });
+
+  it("logo yang BELUM diunggah hanya dilewati — berkas tetap terbit", async () => {
+    // Kotak kosong atau teks pengganti lebih buruk daripada tidak ada apa-apa:
+    // sisi yang kosong memang berarti logonya belum diunggah.
+    const wb = await book(undefined, { pemilik: LOGO.pemilik, kontraktor: null });
+    expect(gambar(wb.getWorksheet("COV-BQ")!)).toHaveLength(1);
+  });
+
+  it("tanpa logo sama sekali, seluruh sheet tetap terbentuk", async () => {
+    const wb = await book();
+    expect(wb.worksheets.map((w) => w.name)).toEqual(["COV-BQ", "REKAP", "Kurva S", "Laporan"]);
+    expect(gambar(wb.getWorksheet("COV-BQ")!)).toHaveLength(0);
+  });
+});
+
+describe("grafik kurva-S hidup berdampingan dengan logo", () => {
+  // Satu worksheet HANYA boleh menunjuk SATU drawing part (OOXML). Penyisip
+  // grafik dulu menulis paksa `drawing1.xml`, yang begitu ada logo berarti:
+  // logo sampul tertimpa, ATAU grafiknya yang tidak jadi disisipkan. Dua-duanya
+  // gagal senyap — berkasnya tetap terbuka, angkanya tetap benar.
+  const zipDari = async (logo?: LogoLaporan) =>
+    JSZip.loadAsync(await buildPeriodReportXlsx(fixture(), { logo }));
+
+  it("part grafik tetap ditulis walau semua sheet berlogo", async () => {
+    const zip = await zipDari(LOGO);
+    expect(Object.keys(zip.files).filter((f) => /^xl\/charts\/chart\d+\.xml$/.test(f))).toHaveLength(1);
+  });
+
+  it("sheet Kurva S menunjuk SATU drawing yang memuat grafik DAN logo", async () => {
+    const zip = await zipDari(LOGO);
+    const wbXml = await zip.file("xl/workbook.xml")!.async("string");
+    const rels = await zip.file("xl/_rels/workbook.xml.rels")!.async("string");
+    const rid = /<sheet\b[^>]*name="Kurva S"[^>]*r:id="([^"]+)"/.exec(wbXml)![1];
+    const target = new RegExp(`Id="${rid}"[^>]*Target="([^"]+)"`).exec(rels)![1];
+    const sheetFile = target.slice(target.lastIndexOf("/") + 1);
+    const sheetXml = await zip.file(`xl/worksheets/${sheetFile}`)!.async("string");
+    // Tepat satu <drawing> — bukan dua, bukan nol.
+    expect(sheetXml.match(/<drawing\b/g) ?? []).toHaveLength(1);
+
+    const sheetRels = await zip.file(`xl/worksheets/_rels/${sheetFile}.rels`)!.async("string");
+    const drawRid = /<drawing r:id="([^"]+)"/.exec(sheetXml)![1];
+    const drawTarget = new RegExp(`Id="${drawRid}"[^>]*Target="([^"]+)"`).exec(sheetRels)![1];
+    const drawPath = `xl/drawings/${drawTarget.replace(/^\.\.\/drawings\//, "")}`;
+    const drawXml = await zip.file(drawPath)!.async("string");
+    expect(drawXml, "grafik").toContain("<c:chart");
+    expect(drawXml.match(/<xdr:pic>/g) ?? [], "logo").toHaveLength(2);
+  });
+
+  it("tanpa logo, grafiknya tetap terpasang seperti sebelumnya", async () => {
+    const zip = await zipDari();
+    expect(Object.keys(zip.files).filter((f) => /^xl\/charts\/chart\d+\.xml$/.test(f))).toHaveLength(1);
   });
 });

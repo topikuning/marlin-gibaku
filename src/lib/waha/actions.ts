@@ -11,6 +11,7 @@ import { formatTanggal } from "@/lib/format";
 import { getActivityKindLabelMap } from "@/lib/field-activity/kinds";
 import { getPeriodReport, type PeriodKind } from "@/lib/periodic-report";
 import { buildPeriodReportXlsx } from "@/lib/export/xlsx";
+import { muatLogoLaporan } from "@/lib/export/logo-laporan";
 import { getKkpDailyData } from "@/lib/daily-report/queries";
 import { buildDailyReportXlsx } from "@/lib/export/daily-xlsx";
 import {
@@ -547,7 +548,7 @@ export async function sendPeriodReportToWaAction(
 
     const report = await getPeriodReport(locationId, kind as PeriodKind, n);
     if (!report) return { error: "Laporan untuk periode ini tidak tersedia." };
-    const buf = await buildPeriodReportXlsx(report);
+    const buf = await buildPeriodReportXlsx(report, { logo: await muatLogoLaporan(locationId) });
 
     const periodeLabel = kind === "mingguan" ? `Minggu ke-${n}` : `Bulan ke-${n}`;
     const caption = [
