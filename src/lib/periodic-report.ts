@@ -41,6 +41,14 @@ export type PeriodItemRow = {
   name: string;
   volK: number;
   unit: string;
+  /**
+   * Harga satuan & harga total kontrak item ini (RAB aktif). Ditambahkan untuk
+   * kolom "HARGA SATUAN"/"HARGA TOTAL" pada blanko laporan KKP — kolom yang
+   * memang terlihat di berkas resmi, sementara kolom HPS & penawaran di sana
+   * disembunyikan (permintaan user 2026-08-06).
+   */
+  unitPrice: number;
+  amount: number;
   bobot: number;
   volLalu: number;
   prestasiLalu: number;
@@ -65,6 +73,8 @@ export type PeriodCategory = {
   code: string;
   name: string;
   rows: PeriodItemRow[];
+  /** Σ harga total item — pasangan nilai bagi subtotal bobot. */
+  subtotalAmount: number;
   subtotalBobot: number;
   subtotalBobotLalu: number;
   subtotalBobotIni: number;
@@ -414,6 +424,7 @@ export async function getPeriodReport(
         code: catNode?.code ?? root,
         name: catNode?.name ?? "PEKERJAAN LAIN-LAIN",
         rows: [],
+        subtotalAmount: 0,
         subtotalBobot: 0,
         subtotalBobotLalu: 0,
         subtotalBobotIni: 0,
@@ -449,6 +460,7 @@ export async function getPeriodReport(
     totalBobotLalu += bobotLalu;
     totalBobotIni += bobotIni;
     totalBobotSd += bobotSd;
+    cat.subtotalAmount += Number(it.amount);
     cat.subtotalBobot += bobot;
     cat.subtotalBobotLalu += bobotLalu;
     cat.subtotalBobotIni += bobotIni;
@@ -459,6 +471,8 @@ export async function getPeriodReport(
       name: it.name,
       volK: vk,
       unit: it.unit ?? "",
+      unitPrice: Number(it.unitPrice ?? 0),
+      amount: Number(it.amount),
       bobot,
       volLalu,
       prestasiLalu,
