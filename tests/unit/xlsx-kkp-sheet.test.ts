@@ -81,6 +81,7 @@ function fixture(over?: Partial<PeriodReport>): PeriodReport {
     },
     categories: [
       {
+        lineageKey: "I",
         code: "I",
         name: "PEKERJAAN PERSIAPAN",
         rows,
@@ -98,7 +99,7 @@ function fixture(over?: Partial<PeriodReport>): PeriodReport {
     actualPct: 5,
     deviationPct: -1,
     scurve: { planPct: [2.5, 6], actualPct: [2, 5], currentWeek: 2 },
-    kurvaSchedule: [{ code: "I", name: "PEKERJAAN PERSIAPAN", weekly: Array.from({ length: 20 }, () => 1) }],
+    kurvaSchedule: [{ lineageKey: "I", code: "I", name: "PEKERJAAN PERSIAPAN", weekly: Array.from({ length: 20 }, () => 1) }],
     tenaga: [],
     material: [],
     alat: [],

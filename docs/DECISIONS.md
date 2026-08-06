@@ -10019,3 +10019,74 @@ Bila penanda tangan belum diisi di kontrak, blok tanda tangan menampilkan garis
 titik-titik — BUKAN diisi nama operator sebagai pengganti. Kolom kosong yang
 jujur bisa ditandatangani manual; kolom yang diisi orang yang salah tidak bisa
 dibatalkan setelah dokumennya beredar.
+
+## 268 · Kategori kurva-S dijodohkan lewat `lineageKey`, bukan nama (2026-08-06)
+
+**Temuan user** dari berkas ekspor kurva-S: satu kategori muncul **tanpa nomor
+romawi**, dengan judul lama `PEKERJAAN (kategori VIII — judul tidak ada di
+file)`, dan **terlempar ke baris paling bawah** — padahal di RAB kategori itu
+sudah bernama "PEKERJAAN PLUMBING DISTRIBUSI AIR BERSIH DAN SUMUR BOR".
+Bobotnya benar (6,44), jadi yang rusak bukan angkanya melainkan pasangannya.
+
+### Sebabnya
+
+`periodic-report.ts` menjodohkan jadwal tersimpan pada baseline
+(`BaselineScheduleItem`) dengan kategori RAB **berdasar NAMA**:
+
+```ts
+const codeByName = new Map(kategoriNodes.map((nd) => [nd.name, nd.code ?? ""]));
+kurvaSchedule = storedSched.map((s) => ({ code: codeByName.get(s.name) ?? "", name: s.name, … }));
+```
+
+Nama kategori BISA berubah — itu justru fitur ("ganti judul kategori", dibuat
+untuk memperbaiki kategori yang di berkas HPS tidak punya baris judul). Begitu
+judulnya diganti, baris jadwalnya kehilangan pasangan: kodenya kosong, judulnya
+tetap nama lama, dan `orderCategoriesByRab` (yang juga mengurutkan by-name)
+melemparnya ke belakang daftar. CALC-04 sudah menetapkan `lineageKey` sebagai
+identitas kategori; jalur ini satu-satunya yang tertinggal.
+
+### Yang lebih penting: angkanya ikut salah
+
+Pencocokan by-name yang sama dipakai untuk kolom **"Bobot Rencana"**:
+
+```ts
+const weeklyByCatName = new Map(kurvaSchedule.map((s) => [s.name, s.weekly]));
+const weekly = weeklyByCatName.get(cat.name);
+const frac = weekly ? planFractionFromWeekly(weekly, planWeek) : locPlanFrac;
+```
+
+Kategori yang tak berpasangan jatuh ke **fallback fraksi rencana LOKASI**.
+Artinya kategori yang menurut jadwalnya belum boleh mulai tetap kebagian
+rencana, dan kategori lain kekurangan sebanyak itu — sementara TOTAL kolomnya
+tetap sama dengan rencana resmi kurva (`distributeWithCaps` menskala ke
+`planPct`). Tidak ada satu pun total yang terlihat janggal. Cacat senyap yang
+sempurna: yang beredar ke PPK adalah pembagian rencana per kategori yang salah.
+
+### Perbaikan
+
+- `PeriodCategory` kini membawa `lineageKey`; `kurvaSchedule` juga.
+- Jadwal tersimpan dijodohkan lewat `lineageKey`. **Kode & judul selalu diambil
+  dari RAB aktif** — di sanalah judul kategori diubah. Cuplikan nama pada
+  baseline hanya dipakai bila kategorinya memang sudah tidak ada di revisi aktif
+  (mis. dibuang lewat adendum); kalau begitu kodenya memang kosong, dan itu
+  keadaan yang BENAR untuk ditampilkan — bukan sesuatu yang ditutupi dengan
+  menebak kode.
+- `orderCategoriesByRab` sekarang menerima pengambil identitas (`keyOf`) dan
+  diberi daftar `lineageKey`, bukan daftar nama.
+- `weeklyByCatName` → `weeklyByCatKey`.
+- Aksi "ganti judul kategori" ikut menyegarkan cuplikan nama pada
+  `BaselineScheduleItem` lokasi itu (satu transaksi dengan rename-nya) supaya
+  riwayat baseline tidak menyebut judul yang sudah tidak ada. Ini kerapian, BUKAN
+  penopang kebenaran: laporan tetap benar walau cuplikan itu tertinggal, karena
+  penjodohannya tidak lagi memakai nama.
+
+Tidak ada migrasi data: nama & kode diselesaikan saat baca, jadi baseline lama
+yang cuplikan namanya usang langsung pulih sendiri.
+
+### Bukti
+
+Uji integrasi `tests/integration/kurva-kategori-ganti-judul.test.ts` memakai
+fixture yang persis keadaan data user (cuplikan nama usang pada baseline, judul
+sudah diperbaiki di RAB). Dikembalikan ke pencocokan by-name, tiga uji gagal
+sekaligus: nomor romawi hilang, judul usang muncul, dan `subtotalBobotRencana`
+kategori yang belum boleh mulai jadi bukan-nol.

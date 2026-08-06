@@ -71,6 +71,7 @@ function fixture(kind: "mingguan" | "bulanan"): PeriodReport {
       contractorSignerTitle: "Direktur Utama",
     },
     categories: CATS.map((name, ci) => ({
+      lineageKey: CODES[ci],
       code: CODES[ci],
       name,
       rows: Array.from({ length: 6 }, (_, i) => item(ci * 6 + i + 1, `${name} — butir ${i + 1}`)),
@@ -92,6 +93,7 @@ function fixture(kind: "mingguan" | "bulanan"): PeriodReport {
       currentWeek: 6,
     },
     kurvaSchedule: CATS.map((name, ci) => ({
+      lineageKey: CODES[ci],
       code: CODES[ci],
       name,
       weekly: Array.from({ length: N }, (_, w) => (w >= ci * 4 && w < ci * 4 + 8 ? 25 / 8 : 0)),

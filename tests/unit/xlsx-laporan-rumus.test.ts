@@ -73,6 +73,7 @@ function fixture(): PeriodReport {
     },
     categories: [
       {
+        lineageKey: "I",
         code: "I",
         name: "PEKERJAAN PERSIAPAN",
         rows,
@@ -90,7 +91,7 @@ function fixture(): PeriodReport {
     actualPct: 5,
     deviationPct: -1,
     scurve: { planPct: [6], actualPct: [5], currentWeek: 1 },
-    kurvaSchedule: [{ code: "I", name: "PEKERJAAN PERSIAPAN", weekly: Array.from({ length: 20 }, () => 5) }],
+    kurvaSchedule: [{ lineageKey: "I", code: "I", name: "PEKERJAAN PERSIAPAN", weekly: Array.from({ length: 20 }, () => 5) }],
     tenaga: [],
     material: [],
     alat: [],

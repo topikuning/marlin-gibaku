@@ -61,9 +61,9 @@ function fixture(): PeriodReport {
     },
     // Angka yang tidak habis dibagi — memaksa pembulatan per sel.
     kurvaSchedule: [
-      { code: "I", name: "PEKERJAAN PERSIAPAN", weekly: spread(4.33, [0, 1, 2, 3, 4, 5, 6]) },
-      { code: "II", name: "PEKERJAAN TAMBATAN PERAHU", weekly: spread(11.19, [2, 3, 4]) },
-      { code: "III", name: "PEKERJAAN KANTOR PENGELOLA", weekly: spread(84.48, [1, 2, 3, 4, 5, 6]) },
+      { lineageKey: "I", code: "I", name: "PEKERJAAN PERSIAPAN", weekly: spread(4.33, [0, 1, 2, 3, 4, 5, 6]) },
+      { lineageKey: "II", code: "II", name: "PEKERJAAN TAMBATAN PERAHU", weekly: spread(11.19, [2, 3, 4]) },
+      { lineageKey: "III", code: "III", name: "PEKERJAAN KANTOR PENGELOLA", weekly: spread(84.48, [1, 2, 3, 4, 5, 6]) },
     ],
     tenaga: [],
     material: [],

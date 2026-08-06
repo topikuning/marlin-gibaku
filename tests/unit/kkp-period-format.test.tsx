@@ -67,6 +67,7 @@ function fixture(): PeriodReport {
     },
     categories: [
       {
+        lineageKey: "I",
         code: "I",
         name: "PEKERJAAN PERSIAPAN",
         rows: [item({ no: 1, name: "Pembersihan lahan" })],
