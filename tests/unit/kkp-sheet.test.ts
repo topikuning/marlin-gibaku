@@ -165,51 +165,58 @@ describe("angka tampil — properti bertahan di 300 jadwal acak (LCG determinist
 describe("orderCategoriesByRab", () => {
   // Kasus nyata: jadwal tersimpan datang dalam urutan penyimpanan, sehingga
   // nomor romawi di tabel KKP meloncat (XIV, XV, … lalu I, II).
-  const rab = [
-    "PEKERJAAN PERSIAPAN", // I
-    "PEKERJAAN REVETMENT", // II
-    "PEKERJAAN TAMBATAN PERAHU", // III
-    "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN", // IV
-    "PEKERJAAN LANDSKAPING KAWASAN", // V
-  ];
+  //
+  // Identitasnya `lineageKey`, BUKAN nama — nama kategori bisa diganti user
+  // ("ganti judul kategori"), dan pengurutan by-name membuat kategori yang baru
+  // diganti judulnya terlempar ke belakang seolah bukan bagian RAB
+  // (temuan user 2026-08-06).
+  const rab = ["I", "II", "III", "IV", "V"];
+  const key = (c: { lineageKey: string }) => c.lineageKey;
 
   it("mengembalikan urutan RAB, bukan urutan penyimpanan", () => {
     const stored = [
-      { name: "PEKERJAAN JALAN LINGKUNGAN DAN SALURAN" },
-      { name: "PEKERJAAN LANDSKAPING KAWASAN" },
-      { name: "PEKERJAAN PERSIAPAN" },
-      { name: "PEKERJAAN REVETMENT" },
-      { name: "PEKERJAAN TAMBATAN PERAHU" },
+      { lineageKey: "IV" },
+      { lineageKey: "V" },
+      { lineageKey: "I" },
+      { lineageKey: "II" },
+      { lineageKey: "III" },
     ];
-    expect(orderCategoriesByRab(stored, rab).map((c) => c.name)).toEqual(rab);
+    expect(orderCategoriesByRab(stored, rab, key).map(key)).toEqual(rab);
+  });
+
+  it("judul kategori yang DIGANTI tetap di tempatnya", () => {
+    // Inti temuannya: dulu baris ini kehilangan pasangannya dan jatuh ke
+    // belakang daftar karena namanya tidak lagi cocok dengan RAB.
+    const stored = [
+      { lineageKey: "II", name: "PEKERJAAN REVETMENT" },
+      { lineageKey: "I", name: "PEKERJAAN (kategori I — judul tidak ada di file)" },
+      { lineageKey: "III", name: "PEKERJAAN TAMBATAN PERAHU" },
+    ];
+    expect(orderCategoriesByRab(stored, rab, key).map(key)).toEqual(["I", "II", "III"]);
   });
 
   it("kategori di luar daftar RAB ditaruh di belakang, urutan relatifnya utuh", () => {
     const stored = [
-      { name: "PEKERJAAN TAMBAHAN B" },
-      { name: "PEKERJAAN REVETMENT" },
-      { name: "PEKERJAAN TAMBAHAN A" },
-      { name: "PEKERJAAN PERSIAPAN" },
+      { lineageKey: "XB" },
+      { lineageKey: "II" },
+      { lineageKey: "XA" },
+      { lineageKey: "I" },
     ];
-    expect(orderCategoriesByRab(stored, rab).map((c) => c.name)).toEqual([
-      "PEKERJAAN PERSIAPAN",
-      "PEKERJAAN REVETMENT",
-      "PEKERJAAN TAMBAHAN B",
-      "PEKERJAAN TAMBAHAN A",
-    ]);
+    expect(orderCategoriesByRab(stored, rab, key).map(key)).toEqual(["I", "II", "XB", "XA"]);
   });
 
   it("tidak membuang/menggandakan baris & tidak mengubah array asal", () => {
-    const stored = rab.map((name) => ({ name, weekly: [1] }));
-    const before = stored.map((c) => c.name);
-    const out = orderCategoriesByRab(stored, [...rab].reverse());
+    const stored = rab.map((lineageKey) => ({ lineageKey, weekly: [1] }));
+    const before = stored.map(key);
+    const out = orderCategoriesByRab(stored, [...rab].reverse(), key);
     expect(out).toHaveLength(stored.length);
-    expect(new Set(out.map((c) => c.name)).size).toBe(stored.length);
-    expect(stored.map((c) => c.name)).toEqual(before);
+    expect(new Set(out.map(key)).size).toBe(stored.length);
+    expect(stored.map(key)).toEqual(before);
   });
 
-  it("nama kembar di RAB memakai kemunculan pertama; daftar RAB kosong = urutan tetap", () => {
-    expect(orderCategoriesByRab([{ name: "A" }, { name: "B" }], ["B", "A", "B"]).map((c) => c.name)).toEqual(["B", "A"]);
-    expect(orderCategoriesByRab([{ name: "A" }, { name: "B" }], []).map((c) => c.name)).toEqual(["A", "B"]);
+  it("kunci kembar di RAB memakai kemunculan pertama; daftar RAB kosong = urutan tetap", () => {
+    const dua = [{ lineageKey: "A" }, { lineageKey: "B" }];
+    expect(orderCategoriesByRab(dua, ["B", "A", "B"], key).map(key)).toEqual(["B", "A"]);
+    expect(orderCategoriesByRab(dua, [], key).map(key)).toEqual(["A", "B"]);
   });
 });

@@ -2,6 +2,7 @@ import "server-only";
 import ExcelJS from "exceljs";
 import { LABEL_STATUS } from "@/lib/plan/rencana-format";
 import type { RencanaMingguan } from "@/lib/plan/rencana-mingguan";
+import { jejakPenyusun, pihakTandaTanganRencana } from "@/lib/plan/rencana-ttd";
 import { formatTanggal } from "@/lib/format";
 
 /**
@@ -279,11 +280,7 @@ export async function buildRencanaMingguanXlsx(r: RencanaMingguan): Promise<Buff
     [5, 7],
     [9, COL_COUNT],
   ];
-  const ttd = [
-    { title: "Disusun Oleh,", role: `Penyedia Jasa — ${h.vendorName}`, name: r.disusunOleh ?? h.contractorSignerName, sub: h.contractorSignerTitle },
-    { title: "Diperiksa,", role: "Konsultan Pengawas", name: h.supervisorName, sub: h.supervisorFirm },
-    { title: "Disetujui,", role: "Pejabat Pembuat Komitmen", name: h.ppkName, sub: h.ppkNip ? `NIP. ${h.ppkNip}` : null },
-  ];
+  const ttd = pihakTandaTanganRencana(r);
   const ttdBaris = (
     row: ExcelJS.Row,
     ambil: (t: (typeof ttd)[number]) => string | null,
@@ -306,7 +303,8 @@ export async function buildRencanaMingguanXlsx(r: RencanaMingguan): Promise<Buff
   /* ── Jejak penyusunan ── */
   ws.addRow([]);
   const jejak = ws.addRow([
-    `Dicetak dari MARLIN${r.disusunPada ? ` · rencana disusun ${formatTanggal(r.disusunPada, "d MMMM yyyy")}` : ""}` +
+    `Dicetak dari MARLIN` +
+      ((p) => (p ? ` · rencana ${p}` : ""))(jejakPenyusun(r, (d) => formatTanggal(d, "d MMMM yyyy"))) +
       ` · deviasi ${signed(r.deviationPct)} (${LABEL_STATUS[r.status]})`,
   ]);
   jejak.getCell(1).font = { size: 8, italic: true, color: { argb: "FF64748B" } };

@@ -155,47 +155,52 @@ function JepretCard({
           onHapus={(id) => void hapus(id)}
         />
 
+        {/*
+          Kamera dirender sebagai LAPISAN LAYAR PENUH (kamera-langsung.tsx), jadi
+          susunan halaman ini TIDAK berubah saat kamera dibuka/ditutup. Dulu ia
+          menggantikan tombol di tengah kartu: tingginya berbeda, panel antrean
+          di atasnya ikut tumbuh tiap jepretan, dan pratinjaunya bergeser
+          naik-turun — keluhan user 2026-08-06.
+        */}
         {kameraBuka ? (
-          <KameraLangsung onFoto={kirim} onTutup={tutupKamera} sibuk={ringkas.menunggu > 0} />
-        ) : (
-          <>
-            <Button type="button" onClick={() => setKameraBuka(true)} className="w-full sm:w-auto">
-              <Camera aria-hidden className="size-4" />
-              Buka kamera
-            </Button>
+          <KameraLangsung onFoto={kirim} onTutup={tutupKamera} menunggu={ringkas.menunggu} />
+        ) : null}
 
-            {/*
-              CADANGAN, bukan jalur utama. Dipakai kalau kamera dalam aplikasi
-              tidak bisa dinyalakan (izin ditolak, peramban lawas). Di sini
-              layar "Use Photo" dari aplikasi kamera HP memang muncul — itu
-              milik sistem operasi dan tidak bisa dimatikan halaman web.
+        <Button type="button" onClick={() => setKameraBuka(true)} className="w-full sm:w-auto">
+          <Camera aria-hidden className="size-4" />
+          {ringkas.menunggu > 0 ? "Buka kamera — lanjut memotret" : "Buka kamera"}
+        </Button>
 
-              Jalur ini SENGAJA tidak lewat antrean: ia mengirim langsung, sama
-              seperti unggahan foto di laporan harian. Membuat cadangan ikut
-              antre berarti dua mesin pengirim yang harus sama-sama dijaga benar.
-            */}
-            <details className="rounded-md border border-border bg-surface-muted p-3">
-              <summary className="cursor-pointer text-[13px] font-medium text-ink">
-                Kamera dalam aplikasi tidak jalan?
-              </summary>
-              <div className="mt-2 space-y-3">
-                {state.error ? <Banner tone="error" title={state.error} /> : null}
-                {state.warning ? <Banner tone="warning" title={state.warning} /> : null}
-                {state.ok ? <Banner tone="success" title={state.ok} /> : null}
-                <HelpText>
-                  Pakai aplikasi kamera HP. Hasilnya sama; bedanya ada satu layar konfirmasi
-                  bawaan HP, dan fotonya dikirim saat itu juga (tidak lewat antrean).
-                </HelpText>
-                <form action={action} className="space-y-3">
-                  <PhotoSourceInput hanyaKamera />
-                  <Button type="submit" disabled={pending}>
-                    {pending ? "Menyimpan…" : "Simpan ke kantong"}
-                  </Button>
-                </form>
-              </div>
-            </details>
-          </>
-        )}
+        {/*
+          CADANGAN, bukan jalur utama. Dipakai kalau kamera dalam aplikasi tidak
+          bisa dinyalakan (izin ditolak, peramban lawas). Di sini layar "Use
+          Photo" dari aplikasi kamera HP memang muncul — itu milik sistem operasi
+          dan tidak bisa dimatikan halaman web.
+
+          Jalur ini SENGAJA tidak lewat antrean: ia mengirim langsung, sama
+          seperti unggahan foto di laporan harian. Membuat cadangan ikut antre
+          berarti dua mesin pengirim yang harus sama-sama dijaga benar.
+        */}
+        <details className="rounded-md border border-border bg-surface-muted p-3">
+          <summary className="cursor-pointer text-[13px] font-medium text-ink">
+            Kamera dalam aplikasi tidak jalan?
+          </summary>
+          <div className="mt-2 space-y-3">
+            {state.error ? <Banner tone="error" title={state.error} /> : null}
+            {state.warning ? <Banner tone="warning" title={state.warning} /> : null}
+            {state.ok ? <Banner tone="success" title={state.ok} /> : null}
+            <HelpText>
+              Pakai aplikasi kamera HP. Hasilnya sama; bedanya ada satu layar konfirmasi bawaan
+              HP, dan fotonya dikirim saat itu juga (tidak lewat antrean).
+            </HelpText>
+            <form action={action} className="space-y-3">
+              <PhotoSourceInput hanyaKamera />
+              <Button type="submit" disabled={pending}>
+                {pending ? "Menyimpan…" : "Simpan ke kantong"}
+              </Button>
+            </form>
+          </div>
+        </details>
       </div>
     </Card>
   );

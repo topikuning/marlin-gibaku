@@ -44,7 +44,13 @@ function revalidateRab(slug: string): void {
 /**
  * Ganti judul KATEGORI RAB — mis. memperbaiki kategori yang di file tak punya
  * baris judul (placeholder "PEKERJAAN (kategori … judul tidak ada di file)").
- * Hanya metadata nama; tak menyentuh nilai/lineage → baseline tak berubah.
+ *
+ * Nilai & `lineageKey` tidak disentuh, jadi ANGKA baseline tidak berubah. Yang
+ * ikut disegarkan hanyalah CUPLIKAN nama pada `BaselineScheduleItem` — kolom itu
+ * hanya salinan untuk keperluan tampilan riwayat; membiarkannya usang membuat
+ * daftar baseline lama menyebut judul yang sudah tidak ada di RAB mana pun.
+ * (Penjodohan kategori sendiri memakai `lineageKey`, bukan nama — CALC-04 —
+ * jadi laporan tetap benar walau cuplikan ini tertinggal.)
  */
 export async function renameRabCategoryAction(_prev: RabActionState, formData: FormData): Promise<RabActionState> {
   const parsedId = z.uuid().safeParse(formData.get("nodeId"));
@@ -58,13 +64,23 @@ export async function renameRabCategoryAction(_prev: RabActionState, formData: F
       select: {
         id: true,
         kind: true,
+        lineageKey: true,
         revision: { select: { locationId: true, location: { select: { slug: true } } } },
       },
     });
     if (node.kind !== "kategori") return { error: "Hanya judul kategori yang bisa diganti di sini." };
     await requireLocationAccess(user, node.revision.locationId);
-    await db.rabNode.update({ where: { id: node.id }, data: { name: name.slice(0, 200) } });
-    await audit(user.id, "rab.rename_category", "rab_node", node.id, { name: name.slice(0, 200) });
+    const judul = name.slice(0, 200);
+    await db.$transaction([
+      db.rabNode.update({ where: { id: node.id }, data: { name: judul } }),
+      // Cuplikan nama pada jadwal baseline lokasi ini — disegarkan agar riwayat
+      // baseline tidak menyebut judul yang sudah tidak ada.
+      db.baselineScheduleItem.updateMany({
+        where: { lineageKey: node.lineageKey, baseline: { locationId: node.revision.locationId } },
+        data: { name: judul },
+      }),
+    ]);
+    await audit(user.id, "rab.rename_category", "rab_node", node.id, { name: judul });
     revalidateRab(node.revision.location.slug);
     return { success: "Judul kategori diperbarui." };
   } catch (err) {

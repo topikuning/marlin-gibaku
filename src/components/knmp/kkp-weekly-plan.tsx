@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { LABEL_STATUS } from "@/lib/plan/rencana-format";
 import type { BarisRencana, RencanaMingguan } from "@/lib/plan/rencana-mingguan";
+import { jejakPenyusun, pihakTandaTanganRencana } from "@/lib/plan/rencana-ttd";
 
 /**
  * FORMULIR RENCANA KERJA MINGGUAN — A4 portrait (DECISIONS 258).
@@ -60,6 +61,7 @@ const bobot = (n: number) => (n <= 0 ? "–" : n < 0.005 ? "< 0,01" : pctFmt.for
 export function KkpWeeklyPlan({ r }: { r: RencanaMingguan }) {
   const h = r.header;
   const byCategory = groupByCategory(r.baris);
+  const jejak = jejakPenyusun(r, (d) => dFmt.format(d));
 
   return (
     <div className="mx-auto min-w-[720px] max-w-[820px] bg-white p-2 text-[11px] text-slate-900">
@@ -251,25 +253,15 @@ export function KkpWeeklyPlan({ r }: { r: RencanaMingguan }) {
 
       {/* ── TTD ── */}
       <div className="mt-6 grid grid-cols-3 gap-4 text-center text-[10px]">
-        <Sign
-          title="Disusun Oleh"
-          role={`Penyedia Jasa — ${h.vendorName}`}
-          name={r.disusunOleh ?? h.contractorSignerName}
-          sub={r.disusunPada ? `Disusun ${dFmt.format(r.disusunPada)}` : h.contractorSignerTitle}
-        />
-        <Sign
-          title="Diperiksa"
-          role="Konsultan Pengawas"
-          name={h.supervisorName}
-          sub={h.supervisorFirm}
-        />
-        <Sign
-          title="Disetujui"
-          role="Pejabat Pembuat Komitmen"
-          name={h.ppkName}
-          sub={h.ppkNip ? `NIP. ${h.ppkNip}` : null}
-        />
+        {/* Isi blok TTD dari SATU sumber bersama dengan PDF & Excel
+            (lib/plan/rencana-ttd.ts) — tiga salinan yang disusun sendiri-sendiri
+            adalah asal cacat "Administrator / Direktur". */}
+        {pihakTandaTanganRencana(r).map((t) => (
+          <Sign key={t.title} title={t.title.replace(/,$/, "")} role={t.role} name={t.name} sub={t.sub} />
+        ))}
       </div>
+
+      {jejak ? <p className="mt-3 text-[9px] text-slate-500">Rencana {jejak} dalam sistem.</p> : null}
     </div>
   );
 }

@@ -43,18 +43,25 @@ export type KurvaSheetCategory = {
  * (mis. XIV, XV, …, lalu I, II). Kategori yang tidak ada di daftar RAB
  * diletakkan di belakang dengan urutan relatifnya dipertahankan. MURNI.
  */
-export function orderCategoriesByRab<T extends { name: string }>(
+export function orderCategoriesByRab<T>(
   categories: T[],
-  /** Nama kategori RAB urut `sortOrder` (indeksnya = urutan romawi). */
+  /**
+   * Identitas kategori RAB urut `sortOrder` (indeksnya = urutan romawi).
+   * Pakai `lineageKey`, BUKAN nama: nama kategori bisa diganti (fitur "ganti
+   * judul kategori"), dan mengurutkan berdasar nama membuat kategori yang
+   * baru diganti judulnya terlempar ke belakang seolah bukan bagian RAB.
+   */
   rabOrder: string[],
+  /** Pengambil identitas dari tiap kategori — harus sejenis dgn `rabOrder`. */
+  keyOf: (c: T) => string,
 ): T[] {
   const rank = new Map<string, number>();
-  rabOrder.forEach((name, i) => {
-    if (!rank.has(name)) rank.set(name, i);
+  rabOrder.forEach((key, i) => {
+    if (!rank.has(key)) rank.set(key, i);
   });
   const last = rabOrder.length;
   return categories
-    .map((c, i) => ({ c, i, r: rank.get(c.name) ?? last }))
+    .map((c, i) => ({ c, i, r: rank.get(keyOf(c)) ?? last }))
     .sort((a, b) => (a.r !== b.r ? a.r - b.r : a.i - b.i))
     .map((x) => x.c);
 }

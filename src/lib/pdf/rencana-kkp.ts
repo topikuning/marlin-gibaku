@@ -2,6 +2,7 @@ import "server-only";
 import { getBranding } from "@/lib/branding";
 import { LABEL_STATUS } from "@/lib/plan/rencana-format";
 import { getRencanaMingguan, type RencanaMingguan } from "@/lib/plan/rencana-mingguan";
+import { jejakPenyusun, pihakTandaTanganRencana } from "@/lib/plan/rencana-ttd";
 import { PDF_COLORS, PDF_FONT, docToBuffer, createFormA4Doc, FORM_MARGIN } from "./document";
 import { colWidths, gridRow, gridRowHeight, type GridCell, type GridOptions } from "./grid";
 
@@ -304,21 +305,7 @@ export async function buildRencanaKkpPdf(r: RencanaMingguan, appName: string): P
   y += 14;
 
   /* ── Tanda tangan ── */
-  const ttd = [
-    {
-      title: "Disusun Oleh,",
-      role: `Penyedia Jasa — ${h.vendorName}`,
-      name: r.disusunOleh ?? h.contractorSignerName,
-      sub: h.contractorSignerTitle,
-    },
-    { title: "Diperiksa,", role: "Konsultan Pengawas", name: h.supervisorName, sub: h.supervisorFirm },
-    {
-      title: "Disetujui,",
-      role: "Pejabat Pembuat Komitmen",
-      name: h.ppkName,
-      sub: h.ppkNip ? `NIP. ${h.ppkNip}` : null,
-    },
-  ];
+  const ttd = pihakTandaTanganRencana(r);
   fit(96);
   const kolom = width / 3;
   const atasTtd = y;
@@ -353,9 +340,10 @@ export async function buildRencanaKkpPdf(r: RencanaMingguan, appName: string): P
     doc.switchToPage(i);
     doc.page.margins.bottom = 0;
     doc.font(PDF_FONT.regular).fontSize(6.5).fillColor(PDF_COLORS.inkFaint);
+    const penyusun = jejakPenyusun(r, tgl);
     const jejak =
       `${appName} · ${h.locationName} · Rencana minggu ke-${r.weekNumber}` +
-      (r.disusunPada ? ` · disusun ${tgl(r.disusunPada)}` : "");
+      (penyusun ? ` · ${penyusun}` : "");
     doc.text(jejak, FORM_MARGIN, doc.page.height - FORM_MARGIN + 2, {
       width,
       lineBreak: false,

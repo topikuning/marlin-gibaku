@@ -9872,3 +9872,380 @@ data mati.
 
 Skala font diturunkan satu tingkat lagi mengikuti keluhan "fontmu masih terlalu
 besar".
+
+## 265 · Workbook laporan periodik mengikuti berkas KKP: COV-BQ, REKAP, harga, tanda tangan (2026-08-06)
+
+**Permintaan user** (dengan lampiran `1._LAPORAN_MINGGU_1__MUARAREJA.xlsx`):
+"ini adalah format laporan mingguan dan bulanan versi KKP … aku ingin kamu buat
+versi excelnya persis seperti ini. sheet Kurva S itu mirip dengan sheet TS,
+sheet Laporan mirip dengan sheet RAB. yang kurang dari sheet laporanmu hanyalah
+informasi harga satuan dan harga total. jadi jangan ubah apa pun dari struktur
+lama sheet laporan, cukup tambahkan informasi harganya saja dan mungkin tanda
+tangan. untuk kurva s juga … cukup kasih tambahan tanda tangan. yang perlu kamu
+buat baru cuma sheet COV-BQ dan REKAP. pemilihan warna kamu tidak perlu ikuti
+file itu, gunakan komposisi warna yang menurutmu enak dilihat mata dan
+profesional." Lalu, setelah berkas acuan diperiksa: **"hanya fokus pada bagian
+yang tidak dihidden."**
+
+### Apa yang benar-benar berlaku di berkas acuan
+
+Kalimat terakhir itu yang menentukan bentuknya, dan jawabannya didapat dengan
+membuka baris/kolom tersembunyi berkas acuan — bukan dengan menebak:
+
+- **RAB**: kolom 7–10 (HPS + penawaran) disembunyikan. Yang terlihat hanya
+  pasangan **Harga Satuan + Harga Total**.
+- **REKAP**: kolom Nilai HPS / Penawaran / Negosiasi semuanya disembunyikan,
+  begitu pula baris JUMLAH–PPN–TOTAL–DIBULATKAN. Jadi REKAP yang berlaku
+  **murni bobot, tanpa rupiah sama sekali**.
+
+Karena itu kolom rupiah hanya ditambahkan di sheet "Laporan"; REKAP sengaja
+tidak punya satu pun. Menambahkannya "supaya lengkap" berarti menampilkan angka
+yang pada dokumen resminya justru ditutup.
+
+### Yang berubah
+
+- **Sheet "Laporan"** — dua kolom baru **Harga Satuan (Rp)** dan **Harga Total
+  (Rp)** tepat setelah "Satuan"; seluruh kolom lama bergeser dua ke kanan
+  (17 → 19 kolom), strukturnya tidak diubah. Indeks kolom dipusatkan di konstanta
+  `KOL` supaya rumus & merge tidak bisa meleset diam-diam. Harga Total ditulis
+  sebagai **rumus** `volume × harga satuan` (cache = `amount` RAB aktif), dan
+  ikut menjumlah ke subtotal kategori + JUMLAH — sehingga JUMLAH-nya sama dengan
+  "Nilai Fisik Lokasi" di kop dan bisa ditelusuri pemeriksa.
+- **Sheet "Kurva S"** — blok tanda tangan di bawah tabel.
+- **Sheet "COV-BQ"** (baru) — sampul: judul + periode, KEGIATAN, SATUAN KERJA /
+  PEMBERI TUGAS (`Package.ownerAgency`, kini ikut di `PeriodHeader`), LOKASI
+  PEKERJAAN, PERIODE, TAHUN ANGGARAN, blok KONTRAKTOR PELAKSANA. Tanpa angka
+  progres: sampul yang ikut menyebut angka jadi tempat kedua yang bisa basi
+  tanpa ketahuan.
+- **Sheet "REKAP"** (baru) — identitas paket, tabel NO / JENIS PEKERJAAN /
+  BOBOT PEKERJAAN / BOBOT PERIODE LALU / BOBOT PERIODE INI / BOBOT KOMULATIF +
+  TOTAL, lalu blok PROGRES RENCANA, AKUMULASI RENCANA, REALISASI, AKUMULASI
+  REALISASI, DEVIASI, lalu tanda tangan. Bobot komulatif = rumus (lalu + ini);
+  TOTAL = SUM; realisasi & deviasi TERTAUT ke baris TOTAL.
+- **Urutan sheet** kini COV-BQ → REKAP → Kurva S → Laporan, seperti dokumen
+  cetaknya. Semua pembaca workbook memilih sheet berdasarkan NAMA, bukan indeks,
+  jadi impor Time Schedule tidak terpengaruh.
+
+### Dua hal yang tidak boleh dihitung di lapisan penyaji
+
+- **`PeriodReport.planPrevPct`** ditambahkan di `periodic-report.ts`. Baris
+  "PROGRES RENCANA periode ini" = `planPct − planPrevPct`; kalau selisih itu
+  dihitung di xlsx.ts, ia jadi formula angka di luar lapisan kalkulasi. Tanpa
+  medan ini, godaannya adalah menulis `planPct` saja — dan rencana mingguan akan
+  terbaca sebesar kumulatifnya.
+- **Deviasi negatif diberi kata**: "DEVIASI — TERLAMBAT". Angka minus tanpa kata
+  rutin dibaca "kurang sedikit" oleh pembaca non-teknis.
+
+### Warna
+
+Palet sendiri (`lib/export/xlsx-gaya.ts`): satu navy identitas untuk kepala
+tabel, turunannya makin pucat untuk hierarki baris (kategori → subtotal →
+jumlah), dan warna semantik HANYA pada baris deviasi. Tidak ada warna dekoratif.
+Batang skala KETERANGAN di Kurva S ikut memakai navy, bukan hitam pekat.
+
+Blok tanda tangan dipakai bersama tiga sheet. Penanda tangan yang belum diisi di
+kontrak ditulis sebagai garis titik-titik, bukan dikosongkan — dokumen cetak
+tetap bisa ditandatangani manual dan pembaca tahu kolomnya memang belum terisi.
+Tanggal yang tidak diketahui (Time Schedule berdiri sendiri, sebelum ada periode
+laporan) ditulis sebagai tempat saja: tidak ditebak jadi hari ini, dan tidak
+menggagalkan seluruh ekspor.
+
+## 266 · FMT-01 selesai: satu konvensi desimal untuk seluruh blanko (2026-08-06)
+
+User: *"aku sudah lelah menjawab soal fmt-01 mu, aku sudah bilang bereskan
+dengan best practice standart profesional."* Keputusannya: **id-ID di semua
+angka dokumen**, tanpa opsi dan tanpa sakelar.
+
+`kkp-period-report.tsx` sebelumnya mencampur dua konvensi dalam SATU halaman —
+rupiah & volume lewat `Intl.NumberFormat("id-ID")` ("1.234,56") sementara
+bobot/prestasi lewat `Number.prototype.toFixed` ("12.40", locale C). Pembaca
+Indonesia membaca "12.40" sebagai dua belas ribu empat ratus. Semua `toFixed`
+di berkas itu diganti formatter id-ID; `kkp-daily-report.tsx` diperiksa dan
+ternyata sudah seluruhnya id-ID sejak awal, jadi tidak diubah.
+
+Di Excel konvensinya berbeda tapi seasas: angka ditulis sebagai **angka + numFmt**,
+tidak pernah sebagai teks yang sudah diformat — supaya kolomnya tetap bisa
+dijumlah pemeriksa dan tampilannya mengikuti locale Excel pembukanya.
+
+Penjaganya bukan daftar sel, melainkan satu tes yang me-render blanko lalu
+menolak **semua** desimal bertitik di seluruh halaman (pemisah ribuan id-ID
+dikecualikan karena selalu diikuti tepat tiga digit). `toFixed` baru yang
+diselipkan di kolom mana pun akan tertangkap, bukan hanya yang diperbaiki hari
+ini. `photo-gallery.tsx` dan `scurve-kkp-sheet.tsx` tetap memakai `toFixed`
+dengan sengaja: yang pertama untuk koordinat, yang kedua untuk koordinat SVG —
+keduanya bukan angka dokumen.
+
+## 267 · Yang menandatangani rencana mingguan adalah penanda tangan KONTRAK, bukan operator aplikasi (2026-08-06)
+
+User, dengan tangkapan layar berkasnya: *"ini rencana mingguan kenapa
+administrator, kan seharusnya direktur"*.
+
+Blok "Disusun Oleh" pada formulir rencana mingguan mengambil nama dari
+`disusunOleh` — yaitu `User.fullName` pengguna aplikasi yang menyimpan rencana —
+sementara baris jabatan di bawahnya tetap dari `Contract.contractorSignerTitle`.
+Hasilnya satu blok tanda tangan yang menggabungkan DUA orang berbeda menjadi
+satu pernyataan: "Administrator" di atas, "Direktur" di bawahnya. Dokumen resmi
+ke PPK jadi menyatakan bahwa operator sistem adalah direktur perusahaan.
+
+**Aturannya sekarang**: nama penanda tangan penyedia jasa SELALU
+`Contract.contractorSignerName` + `contractorSignerTitle`. Siapa yang mengetikkan
+rencana ke sistem adalah **provenansi**, bukan kewenangan menandatangani —
+tempatnya kaki dokumen ("… disusun 11 Mei 2026 oleh Administrator"), bukan garis
+tanda tangan. Jejaknya tidak dibuang: kalau `disusunOleh` cuma dihapus, sistem
+kehilangan siapa yang menyusun.
+
+**Perbaikannya bukan menambal tiga tempat, tapi menghapus alasan tiga tempat
+bisa berbeda.** Blok TTD ditarik keluar jadi satu modul MURNI
+`lib/plan/rencana-ttd.ts` (`pihakTandaTanganRencana` + `jejakPenyusun`); PDF
+(`lib/pdf/rencana-kkp.ts`), Excel (`lib/export/rencana-xlsx.ts`), dan layar/cetak
+(`components/knmp/kkp-weekly-plan.tsx`) sekarang hanya MENUANGKAN hasilnya.
+Ketiganya dulu menyusun blok yang sama sendiri-sendiri dari medan yang sama —
+itulah yang memungkinkan cacat ini ada dan bertahan.
+
+Tipe masukannya (`SumberTtdRencana`) sengaja hanya memuat medan kop kontrak.
+`disusunOleh` bukan sekadar "diingat supaya jangan dipakai": ia TIDAK TERSEDIA
+di tempat blok itu dibentuk.
+
+Ujinya menembak modul murni itu langsung, plus keluaran Excel sebagai bukti
+penyaji benar-benar memakainya. **Uji tidak membaca teks PDF**: pdfkit
+menyertakan font tersubset, jadi aliran isinya berisi ID glyph — bukan huruf —
+dan percobaan memakai `pdftotext` hijau di mesin sendiri tapi merah di CI
+(runner tidak punya poppler). Uji yang hanya hijau di satu mesin bukan penjaga.
+
+Blanko lain diperiksa dan sudah benar: laporan harian dan laporan periodik
+memang sudah memakai `contractorSignerName`. Yang salah hanya rencana mingguan.
+
+Bila penanda tangan belum diisi di kontrak, blok tanda tangan menampilkan garis
+titik-titik — BUKAN diisi nama operator sebagai pengganti. Kolom kosong yang
+jujur bisa ditandatangani manual; kolom yang diisi orang yang salah tidak bisa
+dibatalkan setelah dokumennya beredar.
+
+## 268 · Kategori kurva-S dijodohkan lewat `lineageKey`, bukan nama (2026-08-06)
+
+**Temuan user** dari berkas ekspor kurva-S: satu kategori muncul **tanpa nomor
+romawi**, dengan judul lama `PEKERJAAN (kategori VIII — judul tidak ada di
+file)`, dan **terlempar ke baris paling bawah** — padahal di RAB kategori itu
+sudah bernama "PEKERJAAN PLUMBING DISTRIBUSI AIR BERSIH DAN SUMUR BOR".
+Bobotnya benar (6,44), jadi yang rusak bukan angkanya melainkan pasangannya.
+
+### Sebabnya
+
+`periodic-report.ts` menjodohkan jadwal tersimpan pada baseline
+(`BaselineScheduleItem`) dengan kategori RAB **berdasar NAMA**:
+
+```ts
+const codeByName = new Map(kategoriNodes.map((nd) => [nd.name, nd.code ?? ""]));
+kurvaSchedule = storedSched.map((s) => ({ code: codeByName.get(s.name) ?? "", name: s.name, … }));
+```
+
+Nama kategori BISA berubah — itu justru fitur ("ganti judul kategori", dibuat
+untuk memperbaiki kategori yang di berkas HPS tidak punya baris judul). Begitu
+judulnya diganti, baris jadwalnya kehilangan pasangan: kodenya kosong, judulnya
+tetap nama lama, dan `orderCategoriesByRab` (yang juga mengurutkan by-name)
+melemparnya ke belakang daftar. CALC-04 sudah menetapkan `lineageKey` sebagai
+identitas kategori; jalur ini satu-satunya yang tertinggal.
+
+### Yang lebih penting: angkanya ikut salah
+
+Pencocokan by-name yang sama dipakai untuk kolom **"Bobot Rencana"**:
+
+```ts
+const weeklyByCatName = new Map(kurvaSchedule.map((s) => [s.name, s.weekly]));
+const weekly = weeklyByCatName.get(cat.name);
+const frac = weekly ? planFractionFromWeekly(weekly, planWeek) : locPlanFrac;
+```
+
+Kategori yang tak berpasangan jatuh ke **fallback fraksi rencana LOKASI**.
+Artinya kategori yang menurut jadwalnya belum boleh mulai tetap kebagian
+rencana, dan kategori lain kekurangan sebanyak itu — sementara TOTAL kolomnya
+tetap sama dengan rencana resmi kurva (`distributeWithCaps` menskala ke
+`planPct`). Tidak ada satu pun total yang terlihat janggal. Cacat senyap yang
+sempurna: yang beredar ke PPK adalah pembagian rencana per kategori yang salah.
+
+### Perbaikan
+
+- `PeriodCategory` kini membawa `lineageKey`; `kurvaSchedule` juga.
+- Jadwal tersimpan dijodohkan lewat `lineageKey`. **Kode & judul selalu diambil
+  dari RAB aktif** — di sanalah judul kategori diubah. Cuplikan nama pada
+  baseline hanya dipakai bila kategorinya memang sudah tidak ada di revisi aktif
+  (mis. dibuang lewat adendum); kalau begitu kodenya memang kosong, dan itu
+  keadaan yang BENAR untuk ditampilkan — bukan sesuatu yang ditutupi dengan
+  menebak kode.
+- `orderCategoriesByRab` sekarang menerima pengambil identitas (`keyOf`) dan
+  diberi daftar `lineageKey`, bukan daftar nama.
+- `weeklyByCatName` → `weeklyByCatKey`.
+- Aksi "ganti judul kategori" ikut menyegarkan cuplikan nama pada
+  `BaselineScheduleItem` lokasi itu (satu transaksi dengan rename-nya) supaya
+  riwayat baseline tidak menyebut judul yang sudah tidak ada. Ini kerapian, BUKAN
+  penopang kebenaran: laporan tetap benar walau cuplikan itu tertinggal, karena
+  penjodohannya tidak lagi memakai nama.
+
+Tidak ada migrasi data: nama & kode diselesaikan saat baca, jadi baseline lama
+yang cuplikan namanya usang langsung pulih sendiri.
+
+### Bukti
+
+Uji integrasi `tests/integration/kurva-kategori-ganti-judul.test.ts` memakai
+fixture yang persis keadaan data user (cuplikan nama usang pada baseline, judul
+sudah diperbaiki di RAB). Dikembalikan ke pencocokan by-name, tiga uji gagal
+sekaligus: nomor romawi hilang, judul usang muncul, dan `subtotalBobotRencana`
+kategori yang belum boleh mulai jadi bukan-nol.
+
+## 269 · Kop laporan Excel berlogo: pemilik pekerjaan & kontraktor (2026-08-06)
+
+**Koreksi user**: *"aku sudah berikan contoh bahwa itu ada logo KKP (Pemilik
+Pekerjaan) dan kontraktor. kenapa itu kamu hilangkan? paling penting terutama di
+bagian sheet COV-BQ."*
+
+Benar — berkas acuan memasangnya dan versi pertamaku tidak. Sampul tanpa logo
+kedua pihak terbaca sebagai cetakan internal, bukan dokumen resmi kontrak.
+
+### Sumbernya sudah ada, tidak diduplikasi
+
+Logo pemilik dari branding (`brand.owner_logo_key`, diatur di menu Sistem —
+DECISIONS 166, supaya satu basis kode melayani pemberi kerja mana pun, bukan
+hardcode "KKP"); logo kontraktor dari `Vendor.logoKey`. Keduanya sudah dipakai
+kop PDF harian. Pemuatnya satu tempat: `lib/export/logo-laporan.ts`.
+
+- **WAJIB dikonversi ke PNG.** Logo diunggah sebagai WebP; penulis XLSX hanya
+  menerima png/jpeg/gif. Tanpa konversi logonya hilang DIAM-DIAM di berkas
+  ekspor padahal di layar normal — kelas kegagalan yang sudah pernah terjadi di
+  jalur PDF (28 Juli 2026).
+- **Rasio dijaga**: tinggi ditetapkan, lebar mengikuti. Meregangkan logo
+  perusahaan ke kotak seragam adalah cara tercepat membuat dokumen resmi
+  terlihat asal jadi.
+- **Logo yang belum diunggah hanya dilewati** — tanpa kotak kosong, tanpa teks
+  pengganti. Sisi yang kosong memang berarti logonya belum ada.
+- Kegagalan apa pun (R2 mati, key basi, berkas rusak) → `null`, tidak pernah
+  melempar. Laporan tanpa logo masih berguna; laporan yang gagal terbit tidak.
+- Logo disejajarkan ke **blok isi**, bukan tepi kertas: pada sampul judul &
+  identitas dimerge di kolom tengah, dan logo yang rata tepi terlihat lepas.
+
+`buildPeriodReportXlsx` tetap MURNI — ia menerima buffer lewat `opts.logo` dan
+tidak menyentuh basis data (importnya type-only). Pemuatan dilakukan pemanggil.
+
+### Cacat yang ketahuan karenanya: penyisip grafik menimpa gambar
+
+Aturan OOXML: **satu worksheet hanya boleh menunjuk SATU drawing part**. Begitu
+exceljs menulis gambar, ia membuat `xl/drawings/drawingN.xml` sendiri. Penyisip
+grafik kurva-S (`xlsx-chart.ts`) selama ini **menulis paksa `drawing1.xml`**
+beserta rels-nya, sehingga:
+
+- drawing milik sheet lain (sampul) TERTIMPA → logonya hilang, dan sheet itu
+  malah menunjuk gambar grafik;
+- kalau sheet kurva-S sendiri sudah punya drawing, penyisipan dilewati karena
+  penjaganya `wsXml.includes("<drawing ")` → grafiknya yang hilang.
+
+Keduanya gagal senyap: berkasnya tetap terbuka dan seluruh angkanya benar.
+Sekarang penyisip: memakai nomor `chartN`/`drawingN` yang masih bebas, dan bila
+worksheet sudah punya drawing, anchor grafik **disisipkan ke dalam drawing itu**
+(rId & id shape baru) alih-alih membuat part kedua.
+
+### Koreksi lanjutan hari yang sama: TATA LETAKNYA SUDAH ADA DI CONTOH
+
+User, setelah melihat hasil pertama: *"SIAPA YANG MENYURUHMU TARUH DI ATAS KANAN
+DAN KIRI. DI CONTOH SUDAH ADA SEMUA TATA LETAKNYA."* Benar — aku memasang kedua
+logo kiri–kanan di keempat sheet, padahal berkas acuan punya susunan yang
+berbeda per sheet. Yang BERLAKU sekarang, diambil dari berkas acuan:
+
+| Sheet | Tata letak logo |
+|---|---|
+| **COV-BQ** | pemilik pekerjaan **di puncak, terpusat**; kontraktor **terpusat**, tepat di atas keterangan "KONTRAKTOR PELAKSANA" |
+| **REKAP** | pasangan logo **berjajar di KANAN** blok identitas |
+| **Kurva S** | pasangan logo **berjajar di KANAN**, sejajar judul |
+| **Laporan** (RAB) | **TANPA logo** — di berkas acuan sheet RAB pun tidak berkop |
+
+Sampulnya ikut disusun ulang mengikuti contoh: logo pemilik → pita judul
+"LAPORAN PROGRES <PERIODE>" → SATUAN KERJA + instansi → nama kegiatan → PERIODE
+& TAHUN → LOKASI PEKERJAAN + alamat → logo kontraktor → "KONTRAKTOR PELAKSANA".
+Sheet REKAP memakai judul "REKAPITULASI LAPORAN MINGGUAN/BULANAN" dengan label
+identitas berhuruf besar + titik dua, dan nilainya dibatasi sampai kolom D —
+kolom E–F sengaja dikosongkan karena di situlah logonya berjajar.
+
+Nama kontraktor TETAP ditulis di sampul walau di berkas acuan pelaksana hanya
+dikenali dari logonya: tanpa baris itu, sampul milik vendor yang belum mengunggah
+logo tidak menyebut pelaksananya sama sekali.
+
+### Cacat kedua yang ketahuan: koordinat kolom PECAHAN exceljs tidak bisa dipakai
+
+Logo yang seharusnya di tengah mendarat jauh di kiri. Sebabnya ada di
+`exceljs/doc/anchor.js`: penyetel `col` pecahan menghitung
+`nativeColOff = (pecahan) × (lebarKolom × 10000)`, padahal Excel membaca
+`nativeColOff` sebagai **EMU** (1 px = 9525 EMU). Kolom selebar 14 karakter
+(±103 px) diperlakukan seakan 140000 EMU (±14,7 px) — jadi pecahan 0,85 hanya
+menggeser gambar ±12 px, bukan ±88 px. Penempatan kini menulis
+`{ nativeCol, nativeColOff }` sendiri dalam EMU, melewati konversi itu.
+
+### Bukti
+
+Uji unit memasang sepasang logo dengan rasio sengaja berbeda (240×120 dan
+100×200) lalu memeriksa berkas hasilnya: sampul menyusunnya ATAS–BAWAH dan
+keduanya terpusat pada blok isi (dihitung dari lebar kolom, bukan dikira-kira);
+REKAP & Kurva S menyusunnya berjajar (baris sama, kolom menaik); sheet Laporan
+nol gambar; rasio tiap logo utuh; sisi yang logonya null hanya dilewati. Ditambah pemeriksaan langsung ke isi zip: part grafik tetap
+ditulis, sheet "Kurva S" menunjuk TEPAT SATU drawing, dan drawing itu memuat
+`<c:chart>` sekaligus dua `<xdr:pic>`. Dikembalikan ke perilaku lama penyisip,
+dua uji itu gagal.
+
+## 270 · Foto Cepat: kamera jadi SATU LAYAR PENUH, tanpa gulir (2026-08-06)
+
+**Keluhan user**: *"user harus scroll dulu saat kamera aktif, saat menyimpan
+harus naik turun itu viewportnya, tidak nyaman, fokuskan saja pada tampilan
+kamera dan jepret dalam satu layar tanpa scroll. begitu di klik pengaktifan
+kameranya langsung posisi yang nyaman tanpa berubah-ubah naik turun kena div
+atau apapun."*
+
+Cacat yang TIDAK bisa ditangkap uji unit mana pun: kameranya jalan, fotonya
+tersimpan, semua tombol ADA. Yang salah cuma **di mana** mereka berada saat
+jempol sedang memegang HP di lapangan.
+
+### Sebabnya
+
+`KameraLangsung` dirender INLINE di tengah kartu — di bawah judul, keterangan,
+spanduk wajib-GPS, dan panel antrean. Akibatnya dua hal:
+
+1. rana ada di bawah lipatan → harus digulir dulu;
+2. panel antrean ada **di atas** kamera dan tumbuh satu baris tiap jepretan →
+   pratinjau & rana melorot turun sedikit demi sedikit, jadi orang memotret
+   sambil mengejar tombol yang berpindah.
+
+### Perbaikan
+
+Kamera kini **lapisan layar penuh** (`fixed inset-0`), di-portal ke `<body>`.
+Susunan halaman di belakangnya TIDAK berubah lagi saat kamera dibuka/ditutup —
+tombol "Buka kamera" tetap di tempatnya, jadi menutup kamera tidak memindahkan
+apa pun.
+
+Rincian yang menentukan, semuanya sebab-akibat bukan selera:
+
+- **`100dvh`, bukan `100vh`** — bilah alamat peramban HP menyusut & muncul
+  kembali; `vh` mengunci ke tinggi TERBESAR, jadi rana melorot ke luar layar.
+- **Di-portal ke `<body>`** — `position: fixed` diukur terhadap ancestor
+  terdekat yang punya `transform`/`filter`/`contain`. Satu utility semacam itu
+  di kartu mana pun akan diam-diam mengurung lapisan ini di dalam kartu, dan
+  keluhan "harus scroll" balik lagi.
+- **Gulir badan dikunci + `overscroll-contain`** — tanpa itu, seretan di atas
+  pratinjau menggulir halaman di baliknya, dan "tarik untuk muat ulang" bisa
+  memuat ulang halaman di tengah pemotretan.
+- **`object-contain`, bukan `cover`** — pratinjau harus memperlihatkan PERSIS
+  yang tersimpan. `cover` memenuhi layar tapi memotong tepi bingkai di layar
+  padahal kanvas tetap menyalin bingkai penuh: yang dilihat bukan yang didapat.
+  Sisa ruang hitam adalah harga kejujuran itu.
+- **Padding area aman** (`env(safe-area-inset-*)`) — poni & bilah gestur iOS.
+- **Jumlah antrean ditempel di lapisan kamera** — supaya "berapa foto yang belum
+  terkirim" tetap terlihat tanpa menutup kamera; itulah satu-satunya informasi
+  dari panel di bawah yang benar-benar dibutuhkan saat memotret.
+- **Layar galat pun layar penuh** — kalau izin ditolak, posisinya tidak
+  melompat-lompat dibanding keadaan normal.
+
+### Bukti
+
+Uji e2e `foto-cepat-satu-layar.spec.ts` (kamera palsu Chromium, profil ponsel)
+mengunci empat janji: rana terlihat tanpa `scrollY` bergerak; lapisan seukuran
+layar; seretan tidak menggulir halaman di belakang; dan **posisi rana tidak
+bergeser setelah memotret** (menunggu antrean benar-benar tumbuh dulu, supaya
+tidak lulus hanya karena belum ada yang sempat berubah). Ditambah satu penjaga
+kunci-gulir dilepas saat kamera ditutup — kunci yang lupa dilepas membuat
+SELURUH halaman macet setelahnya.
+
+Dikembalikan ke render inline, tiga dari lima uji itu gagal.

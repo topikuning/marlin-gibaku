@@ -41,6 +41,14 @@ export type PeriodItemRow = {
   name: string;
   volK: number;
   unit: string;
+  /**
+   * Harga satuan & harga total kontrak item ini (RAB aktif). Ditambahkan untuk
+   * kolom "HARGA SATUAN"/"HARGA TOTAL" pada blanko laporan KKP — kolom yang
+   * memang terlihat di berkas resmi, sementara kolom HPS & penawaran di sana
+   * disembunyikan (permintaan user 2026-08-06).
+   */
+  unitPrice: number;
+  amount: number;
   bobot: number;
   volLalu: number;
   prestasiLalu: number;
@@ -62,9 +70,18 @@ export type PeriodItemRow = {
 };
 
 export type PeriodCategory = {
+  /**
+   * Identitas kategori = akar `lineageKey` (CALC-04). Nama BISA diganti lewat
+   * "ganti judul kategori"; kode romawi bisa bergeser saat kategori disisipkan.
+   * Hanya lineageKey yang bertahan, jadi hanya dia yang boleh dipakai menjodohkan
+   * kategori dengan jadwal kurva-S tersimpan.
+   */
+  lineageKey: string;
   code: string;
   name: string;
   rows: PeriodItemRow[];
+  /** Σ harga total item — pasangan nilai bagi subtotal bobot. */
+  subtotalAmount: number;
   subtotalBobot: number;
   subtotalBobotLalu: number;
   subtotalBobotIni: number;
@@ -79,6 +96,11 @@ export type PeriodHeader = {
   regency: string;
   province: string;
   packageName: string;
+  /**
+   * Instansi pemberi tugas (`Package.ownerAgency`, default "KKP") — baris
+   * "SATUAN KERJA / PEMBERI TUGAS" pada sampul laporan progres KKP.
+   */
+  ownerAgency: string;
   contractNumber: string;
   vendorName: string;
   /** Nilai kontrak paket (seluruh lokasi) — dipakai bila perlu konteks paket. */
@@ -110,11 +132,19 @@ export type PeriodReport = {
   categories: PeriodCategory[];
   totals: { bobotLalu: number; bobotIni: number; bobotSd: number; bobotRencana: number };
   planPct: number;
+  /**
+   * Rencana KUMULATIF s/d akhir periode SEBELUMNYA (0 pada periode pertama).
+   * Dipakai sheet REKAP untuk baris "Progres Rencana periode ini" = `planPct −
+   * planPrevPct`. Diturunkan di sini supaya selisihnya tidak dihitung ulang di
+   * lapisan penyaji (aturan repo: formula angka tidak boleh keluar dari lapisan
+   * kalkulasi).
+   */
+  planPrevPct: number;
   actualPct: number;
   deviationPct: number;
   scurve: { planPct: number[]; actualPct: (number | null)[]; currentWeek: number };
   /** Jadwal per kategori untuk tabel KKP (bobot + jendela minggu) — sumber tunggal. */
-  kurvaSchedule: { code: string; name: string; weekly: number[] }[];
+  kurvaSchedule: { lineageKey: string; code: string; name: string; weekly: number[] }[];
   tenaga: { role: WorkerRole; label: string; count: number }[];
   material: { name: string; unit: string | null; qty: number }[];
   alat: { name: string; count: number }[];
@@ -179,6 +209,7 @@ export const HEADER_LOCATION_SELECT = {
   package: {
     select: {
       name: true,
+      ownerAgency: true,
       contract: {
         select: {
           contractNumber: true,
@@ -218,6 +249,7 @@ export function buildPeriodHeader(
     province: location.province,
     // Nama resmi pekerjaan (workTitle) untuk dokumen; fallback nama pendek paket.
     packageName: contract.workTitle?.trim() || location.package.name,
+    ownerAgency: location.package.ownerAgency,
     contractNumber: contract.contractNumber,
     vendorName: contract.vendor.name,
     contractValue: contract.contractValue,
@@ -411,9 +443,11 @@ export async function getPeriodReport(
     if (!cat) {
       const catNode = catByRoot.get(root);
       cat = {
+        lineageKey: root,
         code: catNode?.code ?? root,
         name: catNode?.name ?? "PEKERJAAN LAIN-LAIN",
         rows: [],
+        subtotalAmount: 0,
         subtotalBobot: 0,
         subtotalBobotLalu: 0,
         subtotalBobotIni: 0,
@@ -449,6 +483,7 @@ export async function getPeriodReport(
     totalBobotLalu += bobotLalu;
     totalBobotIni += bobotIni;
     totalBobotSd += bobotSd;
+    cat.subtotalAmount += Number(it.amount);
     cat.subtotalBobot += bobot;
     cat.subtotalBobotLalu += bobotLalu;
     cat.subtotalBobotIni += bobotIni;
@@ -459,6 +494,8 @@ export async function getPeriodReport(
       name: it.name,
       volK: vk,
       unit: it.unit ?? "",
+      unitPrice: Number(it.unitPrice ?? 0),
+      amount: Number(it.amount),
       bobot,
       volLalu,
       prestasiLalu,
@@ -492,10 +529,22 @@ export async function getPeriodReport(
   // (bentuk kanonik, DECISIONS 103) — ikut editan manual & bisa berjeda. Sumber
   // tunggal → sinkron dgn grafik/deviasi. Fallback (matriks belum ada / durasi
   // berubah): turunkan lagi dari jadwal berbasis item + jendela auto.
-  const codeByName = new Map(kategoriNodes.map((nd) => [nd.name, nd.code ?? ""]));
+  // KATEGORI DIJODOHKAN LEWAT `lineageKey`, BUKAN NAMA (CALC-04).
+  //
+  // Versi lama mencocokkan jadwal tersimpan dengan RAB berdasar NAMA. Nama
+  // kategori bisa diganti ("ganti judul kategori", mis. memperbaiki placeholder
+  // "PEKERJAAN (kategori VIII — judul tidak ada di file)"), dan begitu diganti,
+  // baris jadwalnya kehilangan pasangan: nomor romawinya jadi kosong, judulnya
+  // tetap nama lama, dan urutannya terlempar ke belakang daftar. Lebih buruk
+  // lagi, kolom "Bobot Rencana" item di kategori itu jatuh ke fallback fraksi
+  // rencana LOKASI — jadi angkanya ikut salah, bukan cuma labelnya.
+  // (Temuan user 2026-08-06 pada berkas ekspor kurva-S.)
+  const catByRootNode = new Map(kategoriNodes.map((nd) => [nd.lineageKey, nd]));
   const catNameByRoot = new Map(kategoriNodes.map((nd) => [nd.lineageKey, nd.name]));
   const storedSched = (baseline?.scheduleItems ?? []).map((s) => ({
-    name: s.name,
+    lineageKey: s.lineageKey,
+    /** Nama pada baseline = cuplikan saat baseline dibuat; bisa sudah usang. */
+    namaTersimpan: s.name,
     weekly: Array.isArray(s.weekly)
       ? (s.weekly as unknown[]).map((x) => (typeof x === "number" && Number.isFinite(x) ? x : 0))
       : [],
@@ -503,12 +552,22 @@ export async function getPeriodReport(
   const usableStored =
     storedSched.length > 0 && storedSched.every((s) => s.weekly.length === totalWeeks && s.weekly.some((v) => v > 0));
 
-  let kurvaSchedule: { code: string; name: string; weekly: number[] }[];
+  let kurvaSchedule: { lineageKey: string; code: string; name: string; weekly: number[] }[];
   if (usableStored) {
-    kurvaSchedule = storedSched.map((s) => ({ code: codeByName.get(s.name) ?? "", name: s.name, weekly: s.weekly }));
+    kurvaSchedule = storedSched.map((s) => {
+      // Nama & kode SELALU dari RAB aktif — di sanalah judul kategori diubah.
+      // Cuplikan pada baseline hanya dipakai bila kategorinya memang sudah
+      // tidak ada di revisi aktif (mis. dihapus lewat adendum); kalau begitu
+      // kodenya memang kosong, dan itu keadaan yang benar untuk ditampilkan.
+      const nd = catByRootNode.get(s.lineageKey);
+      return {
+        lineageKey: s.lineageKey,
+        code: nd?.code ?? "",
+        name: nd?.name ?? s.namaTersimpan,
+        weekly: s.weekly,
+      };
+    });
   } else {
-    // Kategori dikenali lewat lineageKey akarnya (CALC-04), bukan nama.
-    const codeByKey = new Map(kategoriNodes.map((nd) => [nd.lineageKey, nd.code ?? ""]));
     const schedItems = itemNodes
       .filter((nd) => nd.amount > 0n)
       .map((nd) => {
@@ -517,7 +576,8 @@ export async function getPeriodReport(
       });
     const winFrac = (name: string): [number, number] => autoCategoryWindowFrac(name);
     kurvaSchedule = scheduleFromItems(schedItems, totalWeeks * 7, winFrac).categories.map((c) => ({
-      code: codeByKey.get(c.categoryKey) ?? "",
+      lineageKey: c.categoryKey,
+      code: catByRootNode.get(c.categoryKey)?.code ?? "",
       name: c.categoryName,
       weekly: c.weekly,
     }));
@@ -526,7 +586,8 @@ export async function getPeriodReport(
   // urutan RAB — tanpa ini nomor romawi di tabel KKP meloncat (XIV… lalu I…).
   kurvaSchedule = orderCategoriesByRab(
     kurvaSchedule,
-    kategoriNodes.map((nd) => nd.name),
+    kategoriNodes.map((nd) => nd.lineageKey),
+    (c) => c.lineageKey,
   );
   const seriesLen = Math.max(planSeries.length, totalWeeks);
   const today = new Date(`${jakartaDateKey(new Date())}T00:00:00.000Z`);
@@ -581,6 +642,18 @@ export async function getPeriodReport(
 
   const planIdx = Math.min(Math.max(planSeries.length, 1), Math.max(1, weekIndex)) - 1;
   const planPct = planSeries[planIdx] ?? 0;
+  // Rencana kumulatif s/d akhir periode SEBELUMNYA. Minggu acuannya = minggu
+  // yang memuat hari terakhir sebelum periode ini dimulai; periode pertama
+  // tidak punya pendahulu ⇒ 0 (bukan planSeries[0] — itu akan membuat "rencana
+  // minggu ini" pada minggu-1 tertulis nol padahal ada rencananya).
+  const prevWeekIndex =
+    kind === "mingguan"
+      ? n - 1
+      : Math.floor((periodeStart.getTime() - DAY - startDate.getTime()) / (7 * DAY)) + 1;
+  const planPrevPct =
+    prevWeekIndex < 1
+      ? 0
+      : (planSeries[Math.min(Math.max(planSeries.length, 1), prevWeekIndex) - 1] ?? 0);
   // Angka realisasi laporan = total kolom "bobot s/d" tabel. Satu perhitungan,
   // satu angka — tabel, kurva, dan deviasi tidak mungkin lagi berselisih.
   const actualPct = totalBobotSd;
@@ -596,11 +669,14 @@ export async function getPeriodReport(
   // sehingga JUMLAH "Bobot Rencana" == planPct resmi; bentuk antar-kategori
   // tetap mengikuti matriks. Per item di-clamp ke bobotnya.
   const planWeek = Math.max(1, Math.min(seriesLen, weekIndex));
-  const weeklyByCatName = new Map(kurvaSchedule.map((s) => [s.name, s.weekly]));
+  // Dijodohkan lewat lineageKey — lihat catatan di atas. Pencocokan by-name
+  // membuat kategori yang judulnya pernah diganti kehilangan jadwalnya dan
+  // memakai fraksi rencana lokasi, sehingga "Bobot Rencana"-nya salah diam-diam.
+  const weeklyByCatKey = new Map(kurvaSchedule.map((s) => [s.lineageKey, s.weekly]));
   const locPlanFrac = Math.min(1, Math.max(0, planPct / 100));
   const flatRows = categories.flatMap((cat) => cat.rows.map((row) => ({ cat, row })));
   const rawWeights = flatRows.map(({ cat, row }) => {
-    const weekly = weeklyByCatName.get(cat.name);
+    const weekly = weeklyByCatKey.get(cat.lineageKey);
     const frac = weekly ? planFractionFromWeekly(weekly, planWeek) : locPlanFrac;
     return row.bobot * frac;
   });
@@ -682,6 +758,7 @@ export async function getPeriodReport(
     categories,
     totals: { bobotLalu: totalBobotLalu, bobotIni: totalBobotIni, bobotSd: totalBobotSd, bobotRencana: totalBobotRencana },
     planPct,
+    planPrevPct,
     actualPct,
     deviationPct: actualPct - planPct,
     scurve: { planPct: planSeries, actualPct: actualSeries, currentWeek: cutoffWeek },

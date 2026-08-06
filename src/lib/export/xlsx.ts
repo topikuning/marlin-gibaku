@@ -3,23 +3,80 @@ import ExcelJS from "exceljs";
 import type { PeriodReport } from "@/lib/periodic-report";
 import { buildKurvaSheet } from "@/lib/scurve/kkp-sheet";
 import { addLineChartToXlsx, colLetter, type LineChartSpec } from "@/lib/export/xlsx-chart";
+// TYPE-ONLY: `logo-laporan` menarik db + R2 (pemuatnya), sedangkan berkas ini
+// harus tetap murni — penulis workbook TIDAK boleh menyentuh basis data.
+import type { LogoLaporan } from "@/lib/export/logo-laporan";
+import {
+  FMT_ANGKA,
+  FMT_PERSEN,
+  FMT_RUPIAH,
+  KOTAK,
+  KOTAK_HALUS,
+  WARNA,
+  blokTandaTangan,
+  gayaKepala,
+  isi,
+  logoPasanganKanan,
+  logoTengah,
+} from "@/lib/export/xlsx-gaya";
 import { formatTanggal } from "@/lib/format";
 
 /**
  * Export laporan periodik ke .xlsx (exceljs, server-side — BUKAN AG Grid export).
- * Sheet-1 "Kurva S": tabel bobot kategori × minggu + baris prestasi + GAMBAR grafik
- * kurva-S (setara halaman-1 PDF). Sheet-2 "Laporan": header identitas → tabel item
- * per kategori → totals. Format angka #,##0.00 agar konsisten di Excel Indonesia.
+ *
+ * Empat sheet, mengikuti berkas resmi KKP (permintaan user 2026-08-06 —
+ * DECISIONS 265), urut seperti dokumen cetaknya:
+ *
+ *  1. "COV-BQ"  — halaman sampul laporan progres.
+ *  2. "REKAP"   — rekapitulasi bobot per kelompok pekerjaan + progres & deviasi.
+ *                 Kolom rupiah SENGAJA tidak ada: pada berkas KKP kolom Nilai
+ *                 HPS/Penawaran/Negosiasi di sheet REKAP semuanya di-hidden,
+ *                 jadi yang berlaku memang murni bobot.
+ *  3. "Kurva S" — tabel bobot kategori × minggu + baris prestasi + grafik kurva-S.
+ *  4. "Laporan" — rincian item per kategori (setara sheet "RAB" berkas KKP).
+ *
+ * Format angka #,##0.00 agar konsisten di Excel Indonesia. Angka ditulis sebagai
+ * ANGKA + numFmt, tidak pernah sebagai teks yang sudah diformat — supaya tetap
+ * bisa dijumlah pemeriksa dan mengikuti locale pembukanya.
  */
 
-const NUM_FMT = "#,##0.00";
+const NUM_FMT = FMT_ANGKA;
 
 // Lebar kolom tabel rincian — header blanko KKP (3 baris, berkelompok):
-// No | Uraian | Volume Kontrak | Satuan | Bobot |
+// No | Uraian | Volume Kontrak | Satuan | Harga Satuan | Harga Total | Bobot |
 // Realisasi Pekerjaan { Lalu / Ini / S-d × Volume, Prestasi, Bobot } |
 // Bobot Rencana | Sisa Pekerjaan { Prestasi, Volume }.
-const COL_WIDTHS = [5, 48, 12, 8, 9, 11, 9, 9, 11, 9, 9, 11, 9, 9, 11, 9, 11] as const;
-const COL_COUNT = COL_WIDTHS.length; // 17
+//
+// "Harga Satuan" & "Harga Total" ditambahkan 2026-08-06 (kolom yang memang
+// TERLIHAT pada sheet RAB berkas KKP; kolom HPS/penawaran/negosiasi di sana
+// disembunyikan, jadi tidak ikut dibuat). Struktur kolom lama TIDAK diubah —
+// hanya bergeser ke kanan dua kolom.
+const COL_WIDTHS = [5, 48, 12, 8, 14, 17, 9, 11, 9, 9, 11, 9, 9, 11, 9, 9, 11, 9, 11] as const;
+const COL_COUNT = COL_WIDTHS.length; // 19
+
+/** Indeks kolom sheet "Laporan" — satu tempat, supaya rumus & merge tidak meleset. */
+const KOL = {
+  no: 1,
+  uraian: 2,
+  volK: 3,
+  satuan: 4,
+  hargaSatuan: 5,
+  hargaTotal: 6,
+  bobot: 7,
+  realisasi: 8, // blok 8..16
+  volLalu: 8,
+  prestasiLalu: 9,
+  bobotLalu: 10,
+  volIni: 11,
+  prestasiIni: 12,
+  bobotIni: 13,
+  volSd: 14,
+  prestasiSd: 15,
+  bobotSd: 16,
+  bobotRencana: 17,
+  sisaPrestasi: 18,
+  sisaVol: 19,
+} as const;
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -42,7 +99,7 @@ type KurvaSheetResult = {
 async function addKurvaSheet(
   wb: ExcelJS.Workbook,
   r: PeriodReport,
-  opts?: { sheetName?: string },
+  opts?: { sheetName?: string; logo?: LogoLaporan },
 ): Promise<KurvaSheetResult> {
   const sheet = buildKurvaSheet({
     categories: r.kurvaSchedule,
@@ -73,17 +130,31 @@ async function addKurvaSheet(
     { width: 6 },
   ];
 
-  const thin = { style: "thin" as const };
-  const box = { top: thin, bottom: thin, left: thin, right: thin };
+  const box = KOTAK;
 
-  const banner = (text: string, bold: boolean, size: number) => {
+  const banner = (text: string, bold: boolean, size: number, warna: string = WARNA.teks) => {
     const row = ws.addRow([text]);
     ws.mergeCells(row.number, 1, row.number, lastTableCol);
-    row.getCell(1).font = { bold, size };
+    row.getCell(1).font = { bold, size, color: { argb: warna } };
     row.getCell(1).alignment = { horizontal: "center" };
+    return row;
   };
-  banner(`KURVA S — ${r.kind === "mingguan" ? `MINGGU KE-${r.n}` : `BULAN KE-${r.n}`}`, true, 12);
-  banner(`${r.header.packageName} — ${r.header.village}, ${r.header.regency}`, false, 10);
+  const barisJudul = banner(
+    `KURVA S — ${r.kind === "mingguan" ? `MINGGU KE-${r.n}` : `BULAN KE-${r.n}`}`,
+    true,
+    12,
+    WARNA.kepala,
+  );
+  banner(`${r.header.packageName} — ${r.header.village}, ${r.header.regency}`, false, 10, WARNA.teksRedup);
+  // Tata letak berkas acuan (Time Schedule): identitas di kiri, PASANGAN logo
+  // pemilik + kontraktor BERJAJAR DI KANAN — bukan kiri-kanan terpisah.
+  ws.getRow(barisJudul.number + 1).height = 34;
+  logoPasanganKanan(wb, ws, opts?.logo, {
+    rowAtas: barisJudul.number,
+    tinggiPx: 44,
+    kolomKiri: 1,
+    kolomKanan: lastTableCol,
+  });
   ws.addRow([]);
 
   // Header 2 baris: kelompok bulan (merge) + minggu.
@@ -107,10 +178,7 @@ async function addKurvaSheet(
   for (const row of [monthRow, weekRow]) {
     row.eachCell({ includeEmpty: true }, (cell, col) => {
       if (col > lastTableCol) return;
-      cell.font = { bold: true, size: 8 };
-      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
-      cell.border = box;
+      gayaKepala(cell, { sub: row === weekRow, size: 8 });
     });
   }
 
@@ -188,11 +256,14 @@ async function addKurvaSheet(
     else if (def.kind === "kumRencana") kumRencanaRow = row.number;
     else if (def.kind === "realisasi") realisasiRow = row.number;
     else if (def.kind === "kumRealisasi") kumRealisasiRow = row.number;
+    const latar = def.bold ? WARNA.total : WARNA.subtotal;
     row.getCell(1).value = def.label;
     ws.mergeCells(row.number, 1, row.number, 2); // label A:B — kolom C tetap kolom bobot
     row.getCell(1).alignment = { horizontal: "right" };
     row.getCell(1).font = { size: 8, bold: def.bold };
     row.getCell(1).border = box;
+    row.getCell(1).fill = isi(latar);
+    row.getCell(2).fill = isi(latar);
     // Total kolom bobot (baris kumulatif rencana) = RUMUS Σ bobot kategori,
     // sejajar dengan tampilan layar/PDF. Ikut hidup bila baris kategori diedit.
     const totalCell = row.getCell(3);
@@ -206,6 +277,7 @@ async function addKurvaSheet(
     totalCell.alignment = { horizontal: "center" };
     totalCell.font = { size: 8, bold: def.bold };
     totalCell.border = box;
+    totalCell.fill = isi(latar);
     for (let i = 0; i < N; i++) {
       const cell = row.getCell(FIRST + i);
       const val = def.arr[i] == null ? null : round2(def.arr[i] as number);
@@ -247,8 +319,17 @@ async function addKurvaSheet(
       }
       cell.numFmt = "#,##0.00";
       cell.alignment = { horizontal: "right" };
-      cell.font = { size: 8, bold: def.bold };
+      // Deviasi diberi warna semantik: satu-satunya baris yang punya arti
+      // baik/buruk. Baris lain tetap netral supaya warnanya tidak jadi hiasan.
+      const warnaTeks =
+        def.kind === "deviasi" && typeof val === "number" && val !== 0
+          ? val < 0
+            ? WARNA.negatif
+            : WARNA.positif
+          : WARNA.teks;
+      cell.font = { size: 8, bold: def.bold, color: { argb: warnaTeks } };
       cell.border = box;
+      cell.fill = isi(latar);
     }
     for (const kc of [scaleA, scaleB, ketLabel]) row.getCell(kc).border = box; // KET berpetak
   }
@@ -258,7 +339,7 @@ async function addKurvaSheet(
   const M = catRowNums.length;
   if (M > 0) {
     const fillC = (argb: string) => ({ type: "pattern" as const, pattern: "solid" as const, fgColor: { argb } });
-    const BLACK = "FF000000";
+    const BLACK = WARNA.kepala; // batang skala memakai navy identitas, bukan hitam pekat
     const WHITE = "FFFFFFFF";
     catRowNums.forEach((rowN, i) => {
       const row = ws.getRow(rowN);
@@ -330,6 +411,12 @@ async function addKurvaSheet(
     ],
     anchor: { fromCol: FIRST - 1, fromRow: firstCatRow - 1, toCol: lastCol, toRow: lastCatRow },
   };
+
+  // Blok tanda tangan (permintaan user 2026-08-06): kurva-S ikut ditandatangani
+  // seperti blanko KKP. Diletakkan di bawah baris helper tersembunyi supaya
+  // tidak mengganggu rentang data grafik.
+  blokTandaTangan(ws, { lastCol: lastTableCol, h: r.header });
+
   return {
     chart,
     linkRealisasi: (week, formula) => {
@@ -341,16 +428,330 @@ async function addKurvaSheet(
   };
 }
 
+/* ── Sheet "COV-BQ": halaman sampul ───────────────────────────────────────── */
+
+/**
+ * Nama lokasi + wilayahnya. Nama desa yang SAMA dengan nama lokasi tidak
+ * diulang — banyak lokasi KNMP dinamai persis desanya, dan "Pasar Banggi —
+ * Pasar Banggi, Rembang" terbaca seperti salah tempel, bukan seperti alamat.
+ */
+const lokasiLengkap = (h: PeriodReport["header"]): string => {
+  const wilayah = [
+    h.village.trim() === h.locationName.trim() ? null : h.village,
+    h.district ? `Kec. ${h.district}` : null,
+    h.regency,
+    h.province,
+  ].filter(Boolean);
+  return `${h.locationName} — ${wilayah.join(", ")}`;
+};
+
+const labelPeriode = (r: PeriodReport): string =>
+  r.kind === "mingguan" ? `MINGGU KE-${r.n}` : `BULAN KE-${r.n}`;
+
+/**
+ * Halaman sampul laporan progres — setara sheet "COV-BQ" berkas KKP.
+ *
+ * Sengaja BUKAN tabel: sampul dibaca sekali sebelum dokumen dibuka, jadi
+ * bentuknya blok terpusat (judul → identitas berpasangan label/isi → pelaksana),
+ * sama seperti sampul laporan konsultan. Tidak ada angka progres di sini — angka
+ * ada di REKAP; sampul yang ikut menyebut angka jadi tempat kedua yang bisa
+ * basi tanpa ketahuan.
+ */
+function addCoverSheet(wb: ExcelJS.Workbook, r: PeriodReport, logo?: LogoLaporan): void {
+  const h = r.header;
+  const LAST = 8;
+  const ws = wb.addWorksheet("COV-BQ", {
+    pageSetup: { orientation: "portrait", fitToPage: true, fitToWidth: 1, fitToHeight: 1 },
+  });
+  ws.columns = [{ width: 4 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 14 }, { width: 4 }];
+
+  const baris = (
+    teks: string | null,
+    gaya: { size?: number; bold?: boolean; color?: string; tinggi?: number; pita?: boolean } = {},
+  ) => {
+    const row = ws.addRow([]);
+    const cell = row.getCell(2);
+    cell.value = teks;
+    cell.font = {
+      size: gaya.size ?? 10,
+      bold: gaya.bold ?? false,
+      color: { argb: gaya.color ?? WARNA.teks },
+    };
+    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    ws.mergeCells(row.number, 2, row.number, LAST - 1);
+    if (gaya.tinggi) row.height = gaya.tinggi;
+    if (gaya.pita) for (let c = 1; c <= LAST; c++) row.getCell(c).fill = isi(WARNA.kategori);
+    return row;
+  };
+
+  /** Label kecil di atas isinya — bentuk sampul, bukan tabel. */
+  const pasangan = (label: string, isiTeks: string, besar = 12) => {
+    baris(label, { size: 9, bold: true, color: WARNA.teksRedup });
+    baris(isiTeks, { size: besar, bold: true, tinggi: besar > 11 ? 20 : 16 });
+    ws.addRow([]);
+  };
+
+  const kosong = (n: number) => {
+    for (let i = 0; i < n; i++) ws.addRow([]);
+  };
+
+  // ── LOGO PEMILIK PEKERJAAN: DI PUNCAK, DI TENGAH ──
+  // Tata letaknya diambil dari berkas acuan, bukan dikarang (koreksi user
+  // 2026-08-06: "SIAPA YANG MENYURUHMU TARUH DI ATAS KANAN DAN KIRI. DI CONTOH
+  // SUDAH ADA SEMUA TATA LETAKNYA").
+  kosong(1);
+  const pitaPemilik = ws.addRow([]);
+  pitaPemilik.height = 96; // > tinggi logo (118 px ≈ 89 pt)
+  logoTengah(wb, ws, logo?.pemilik ?? null, {
+    rowAtas: pitaPemilik.number,
+    tinggiPx: 118,
+    kolomKiri: 2,
+    kolomKanan: LAST - 1,
+  });
+  kosong(1);
+
+  // ── Pita judul ──
+  baris(`LAPORAN PROGRES ${labelPeriode(r)}`, {
+    size: 16,
+    bold: true,
+    color: WARNA.kepala,
+    tinggi: 26,
+    pita: true,
+  });
+  kosong(3);
+
+  // ── Identitas ──
+  pasangan("SATUAN KERJA", h.ownerAgency.toUpperCase(), 12);
+  kosong(1);
+  baris(h.packageName.toUpperCase(), { size: 13, bold: true, tinggi: 22 });
+  kosong(2);
+  baris(
+    `PERIODE ${formatTanggal(h.periodeStart, "d MMMM yyyy").toUpperCase()} S/D ${formatTanggal(h.periodeEnd, "d MMMM yyyy").toUpperCase()}`,
+    { size: 10, bold: true },
+  );
+  baris(`TAHUN ${h.tahunAnggaran}`, { size: 10, bold: true });
+  kosong(3);
+
+  baris("LOKASI PEKERJAAN", { size: 9, bold: true, color: WARNA.teksRedup });
+  baris(lokasiLengkap(h).toUpperCase(), { size: 11, bold: true, tinggi: 18 });
+  kosong(1);
+
+  // ── LOGO KONTRAKTOR: DI TENGAH, TEPAT DI ATAS KETERANGANNYA ──
+  const pitaKontraktor = ws.addRow([]);
+  pitaKontraktor.height = 66; // > tinggi logo (74 px ≈ 55 pt) supaya keterangannya tidak tertutup
+  logoTengah(wb, ws, logo?.kontraktor ?? null, {
+    rowAtas: pitaKontraktor.number,
+    tinggiPx: 74,
+    kolomKiri: 2,
+    kolomKanan: LAST - 1,
+  });
+  baris("KONTRAKTOR PELAKSANA", { size: 10, bold: true });
+  // Nama perusahaan TETAP ditulis: kalau logonya belum diunggah, sampul tanpa
+  // baris ini tidak menyebut pelaksananya sama sekali.
+  baris(h.vendorName, { size: 12, bold: true, color: WARNA.kepala, tinggi: 18 });
+  baris(`Nomor Kontrak: ${h.contractNumber}`, { size: 9, color: WARNA.teksRedup });
+}
+
+/* ── Sheet "REKAP": rekapitulasi bobot per kelompok pekerjaan ─────────────── */
+
+/**
+ * Rekapitulasi — setara sheet "REKAP" berkas KKP.
+ *
+ * MURNI BOBOT, tanpa kolom rupiah. Bukan penyederhanaan: pada berkas resmi
+ * kolom Nilai HPS / Penawaran / Negosiasi dan baris JUMLAH–PPN–TOTAL di sheet
+ * itu semuanya di-hidden, jadi yang benar-benar berlaku memang hanya bobot
+ * (permintaan user 2026-08-06: "hanya fokus pada bagian yang tidak dihidden").
+ * Rincian rupiah tetap ada, tempatnya di sheet "Laporan".
+ */
+function addRekapSheet(wb: ExcelJS.Workbook, r: PeriodReport, logo?: LogoLaporan): void {
+  const h = r.header;
+  const LAST = 6;
+  const periodeLabel = r.kind === "mingguan" ? "Minggu" : "Bulan";
+  const ws = wb.addWorksheet("REKAP", {
+    pageSetup: { orientation: "portrait", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+  });
+  ws.columns = [{ width: 5 }, { width: 46 }, { width: 14 }, { width: 15 }, { width: 15 }, { width: 16 }];
+
+  const judul = (teks: string, size: number, warna: string) => {
+    const row = ws.addRow([teks]);
+    ws.mergeCells(row.number, 1, row.number, LAST);
+    row.getCell(1).font = { bold: true, size, color: { argb: warna } };
+    row.getCell(1).alignment = { horizontal: "center" };
+  };
+  judul(`REKAPITULASI LAPORAN ${r.kind === "mingguan" ? "MINGGUAN" : "BULANAN"}`, 14, WARNA.kepala);
+  judul(labelPeriode(r), 11, WARNA.kepalaSub);
+  ws.addRow([]);
+
+  // Identitas: label (A:B) + ":" + isi (C:D). Kolom E–F SENGAJA dibiarkan kosong
+  // — di situlah PASANGAN LOGO berjajar, persis tata letak berkas acuan
+  // (koreksi user 2026-08-06). Nilai identitas tidak boleh melebar ke sana.
+  const kv = (k: string, v: string) => {
+    const row = ws.addRow([]);
+    row.getCell(1).value = k.toUpperCase();
+    row.getCell(1).font = { bold: true, size: 9, color: { argb: WARNA.kepala } };
+    row.getCell(1).alignment = { vertical: "middle" };
+    ws.mergeCells(row.number, 1, row.number, 2);
+    const cell = row.getCell(3);
+    cell.value = `:  ${v}`;
+    cell.font = { size: 9, color: { argb: WARNA.teks } };
+    const baris = Math.max(1, Math.ceil(v.length / 42));
+    cell.alignment = { vertical: "middle", wrapText: baris > 1 };
+    ws.mergeCells(row.number, 3, row.number, 4);
+    row.height = baris > 1 ? baris * 12.5 : 15;
+    return row;
+  };
+  const barisIdentitasPertama = kv("Kegiatan", h.packageName).number;
+  kv("Tahun Anggaran", String(h.tahunAnggaran));
+  kv("Pemberi Tugas", h.ownerAgency);
+  kv("Kontraktor", h.vendorName);
+  kv("Konsultan Pengawas", h.supervisorFirm?.trim() || h.supervisorName?.trim() || "—");
+  kv("Alamat", lokasiLengkap(h));
+  kv(`${periodeLabel} ke`, `${r.n} dari ${r.maxN}`);
+  kv(
+    "Periode",
+    `${formatTanggal(h.periodeStart, "d MMMM yyyy")} s/d ${formatTanggal(h.periodeEnd, "d MMMM yyyy")}`,
+  );
+  // PASANGAN logo berjajar di KANAN blok identitas — pemilik lalu kontraktor.
+  logoPasanganKanan(wb, ws, logo, {
+    rowAtas: barisIdentitasPertama,
+    tinggiPx: 62,
+    kolomKiri: 5,
+    kolomKanan: LAST,
+  });
+  ws.addRow([]);
+
+  // Kepala tabel.
+  const head = ws.addRow([
+    "NO",
+    "JENIS PEKERJAAN",
+    "BOBOT PEKERJAAN (%)",
+    `BOBOT ${periodeLabel.toUpperCase()} LALU (%)`,
+    `BOBOT ${periodeLabel.toUpperCase()} INI (%)`,
+    "BOBOT KOMULATIF (%)",
+  ]);
+  head.height = 32;
+  for (let c = 1; c <= LAST; c++) gayaKepala(head.getCell(c), { size: 9 });
+
+  const gayaBaris = (row: ExcelJS.Row, opts?: { bold?: boolean; fill?: string }) => {
+    for (let c = 1; c <= LAST; c++) {
+      const cell = row.getCell(c);
+      cell.border = KOTAK;
+      cell.font = { size: 9, bold: opts?.bold ?? false, color: { argb: WARNA.teks } };
+      if (opts?.fill) cell.fill = isi(opts.fill);
+      if (c === 1) cell.alignment = { horizontal: "center" };
+      if (c >= 3) {
+        cell.alignment = { horizontal: "right" };
+        cell.numFmt = FMT_ANGKA;
+      }
+    }
+  };
+
+  const rowNums: number[] = [];
+  r.categories.forEach((c, i) => {
+    const row = ws.addRow([
+      c.code || String(i + 1),
+      c.name,
+      c.subtotalBobot,
+      c.subtotalBobotLalu,
+      c.subtotalBobotIni,
+      null,
+    ]);
+    // Bobot komulatif = lalu + ini. RUMUS, bukan angka tempelan: tiga kolom di
+    // satu baris tidak boleh bisa saling berselisih di tangan pembaca.
+    row.getCell(6).value = {
+      formula: `D${row.number}+E${row.number}`,
+      result: round2(c.subtotalBobotSd),
+    };
+    rowNums.push(row.number);
+    gayaBaris(row);
+  });
+
+  const totalRow = ws.addRow([null, "TOTAL"]);
+  for (const c of [3, 4, 5, 6]) {
+    const L = colLetter(c);
+    const nilai =
+      c === 3
+        ? r.categories.reduce((s, k) => s + k.subtotalBobot, 0)
+        : c === 4
+          ? r.totals.bobotLalu
+          : c === 5
+            ? r.totals.bobotIni
+            : r.totals.bobotSd;
+    totalRow.getCell(c).value =
+      rowNums.length > 0
+        ? { formula: `SUM(${L}${rowNums[0]}:${L}${rowNums[rowNums.length - 1]})`, result: round2(nilai) }
+        : round2(nilai);
+  }
+  gayaBaris(totalRow, { bold: true, fill: WARNA.total });
+  ws.addRow([]);
+
+  // Blok progres & deviasi. Realisasi TERTAUT ke baris TOTAL tabel di atas;
+  // rencana datang dari kurva-S resmi (baseline) — sumbernya memang bukan tabel
+  // ini, jadi ditulis sebagai angka dengan keterangan asalnya di bawah.
+  const rencanaIni = round2(r.planPct - r.planPrevPct);
+  const blok = (label: string, isiNilai: number | ExcelJS.CellFormulaValue, tebal = false) => {
+    const row = ws.addRow([]);
+    row.getCell(1).value = label;
+    row.getCell(1).font = { size: 9, bold: tebal, color: { argb: WARNA.teks } };
+    ws.mergeCells(row.number, 1, row.number, 4);
+    const cell = row.getCell(5);
+    cell.value = isiNilai;
+    cell.numFmt = FMT_PERSEN;
+    cell.alignment = { horizontal: "right" };
+    cell.font = { size: 9, bold: tebal, color: { argb: WARNA.teks } };
+    ws.mergeCells(row.number, 5, row.number, LAST);
+    for (let c = 1; c <= LAST; c++) {
+      row.getCell(c).border = KOTAK;
+      if (tebal) row.getCell(c).fill = isi(WARNA.total);
+      else row.getCell(c).fill = isi(WARNA.subtotal);
+    }
+    return row;
+  };
+  blok(`PROGRES RENCANA ${periodeLabel.toUpperCase()} INI`, rencanaIni);
+  const rowRencanaKum = blok("AKUMULASI PROGRES RENCANA", round2(r.planPct));
+  blok(`REALISASI PROGRES ${periodeLabel.toUpperCase()} INI`, {
+    formula: `E${totalRow.number}`,
+    result: round2(r.totals.bobotIni),
+  });
+  const rowRealKum = blok("AKUMULASI REALISASI PROGRES", {
+    formula: `F${totalRow.number}`,
+    result: round2(r.totals.bobotSd),
+  });
+  const rowDev = blok(
+    "DEVIASI",
+    { formula: `E${rowRealKum.number}-E${rowRencanaKum.number}`, result: round2(r.deviationPct) },
+    true,
+  );
+  // Deviasi diberi warna & keterangan — angka negatif tanpa kata "terlambat"
+  // rutin dibaca sebagai "kurang sedikit" oleh pembaca non-teknis.
+  const dev = r.deviationPct;
+  const ket = dev < -0.005 ? "TERLAMBAT" : dev > 0.005 ? "LEBIH CEPAT" : "SESUAI RENCANA";
+  const warnaDev = dev < -0.005 ? WARNA.negatif : dev > 0.005 ? WARNA.positif : WARNA.teks;
+  rowDev.getCell(5).font = { size: 9, bold: true, color: { argb: warnaDev } };
+  rowDev.getCell(1).value = `DEVIASI — ${ket}`;
+  rowDev.getCell(1).font = { size: 9, bold: true, color: { argb: warnaDev } };
+
+  const catatan = ws.addRow([
+    'Progres rencana bersumber dari baseline kurva-S aktif (sheet "Kurva S"); realisasi bersumber dari rincian item (sheet "Laporan").',
+  ]);
+  ws.mergeCells(catatan.number, 1, catatan.number, LAST);
+  catatan.getCell(1).font = { size: 8, italic: true, color: { argb: WARNA.teksRedup } };
+  catatan.getCell(1).alignment = { wrapText: true, vertical: "top" };
+  catatan.height = 24;
+
+  blokTandaTangan(ws, { lastCol: LAST, h });
+}
+
 /**
  * Time Schedule (Kurva-S) berdiri sendiri sebagai .xlsx — satu sheet tabel
  * kategori × minggu (bobot) + kumulatif rencana/realisasi + GRAFIK NATIVE Excel.
  * Format menyerupai time schedule sipil (contoh TS vendor).
  */
-export async function buildJadwalXlsx(r: PeriodReport): Promise<Buffer> {
+export async function buildJadwalXlsx(r: PeriodReport, opts?: { logo?: LogoLaporan }): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "MARLIN";
   wb.created = new Date();
-  const { chart } = await addKurvaSheet(wb, r, { sheetName: "Time Schedule" });
+  const { chart } = await addKurvaSheet(wb, r, { sheetName: "Time Schedule", logo: opts?.logo });
   const buf = Buffer.from(await wb.xlsx.writeBuffer());
   try {
     return await addLineChartToXlsx(buf, chart);
@@ -359,11 +760,18 @@ export async function buildJadwalXlsx(r: PeriodReport): Promise<Buffer> {
   }
 }
 
-export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
+export async function buildPeriodReportXlsx(
+  r: PeriodReport,
+  opts?: { logo?: LogoLaporan },
+): Promise<Buffer> {
+  const logo = opts?.logo;
   const wb = new ExcelJS.Workbook();
   wb.creator = "MARLIN";
   wb.created = new Date();
-  const kurva = await addKurvaSheet(wb, r);
+  // Urutan sheet mengikuti dokumen cetak KKP: sampul → rekap → kurva-S → rincian.
+  addCoverSheet(wb, r, logo);
+  addRekapSheet(wb, r, logo);
+  const kurva = await addKurvaSheet(wb, r, { logo });
   const ws = wb.addWorksheet("Laporan", {
     pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   });
@@ -374,15 +782,22 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
   const ke = r.kind === "mingguan" ? `Minggu Ke-${r.n}` : `Bulan Ke-${r.n}`;
   const h = r.header;
 
-  const title = (text: string, bold = true, size = 12) => {
+  const title = (text: string, bold = true, size = 12, warna: string = WARNA.kepala) => {
     const row = ws.addRow([text]);
     ws.mergeCells(row.number, 1, row.number, COL_COUNT);
-    row.getCell(1).font = { bold, size };
+    row.getCell(1).font = { bold, size, color: { argb: warna } };
     row.getCell(1).alignment = { horizontal: "center" };
   };
+  // Sheet rincian (setara "RAB" berkas acuan) SENGAJA tanpa logo — di berkas
+  // resmi pun hanya sampul, rekap, dan time schedule yang berkop.
   title(judul);
   title(ke, true, 11);
-  title(`Periode ${formatTanggal(h.periodeStart, "d MMMM yyyy")} s/d ${formatTanggal(h.periodeEnd, "d MMMM yyyy")}`, false, 10);
+  title(
+    `Periode ${formatTanggal(h.periodeStart, "d MMMM yyyy")} s/d ${formatTanggal(h.periodeEnd, "d MMMM yyyy")}`,
+    false,
+    10,
+    WARNA.teksRedup,
+  );
   ws.addRow([]);
 
   // Blok identitas: label (merge A:B) + nilai (merge C..kolom terakhir tabel).
@@ -396,12 +811,12 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
     const row = ws.addRow([]);
     const label = row.getCell(1);
     label.value = k;
-    label.font = { bold: true, size: 9 };
+    label.font = { bold: true, size: 9, color: { argb: WARNA.kepala } };
     label.alignment = { horizontal: "left", vertical: "middle" };
     ws.mergeCells(row.number, 1, row.number, 2);
     const value = row.getCell(3);
     value.value = v;
-    value.font = { size: 9 };
+    value.font = { size: 9, color: { argb: WARNA.teks } };
     if (numFmt) value.numFmt = numFmt;
     ws.mergeCells(row.number, 3, row.number, VALUE_LAST);
     const lines = Math.max(1, Math.ceil(String(v).length / Math.max(10, VALUE_WIDTH - 2)));
@@ -424,93 +839,107 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
   ws.addRow([]);
 
   // Header tabel — 3 baris berkelompok, mengikuti blanko KKP.
-  const thinBox = {
-    top: { style: "thin" as const },
-    bottom: { style: "thin" as const },
-    left: { style: "thin" as const },
-    right: { style: "thin" as const },
-  };
   const h1 = ws.addRow([]);
   const h2 = ws.addRow([]);
   const h3 = ws.addRow([]);
   const setHead = (row: ExcelJS.Row, col: number, text: string) => {
     row.getCell(col).value = text;
   };
-  setHead(h1, 1, "No");
-  setHead(h1, 2, "Uraian Pekerjaan");
-  setHead(h1, 3, "Volume Kontrak");
-  setHead(h1, 4, "Satuan");
-  setHead(h1, 5, "Bobot");
-  setHead(h1, 6, "Realisasi Pekerjaan");
-  setHead(h1, 15, "Bobot Rencana");
-  setHead(h1, 16, "Sisa Pekerjaan");
-  setHead(h2, 6, `${periodeLabel} Lalu`);
-  setHead(h2, 9, `${periodeLabel} ini`);
-  setHead(h2, 12, `S/d ${periodeLabel} ini`);
-  setHead(h2, 16, `S/d ${periodeLabel} ini`);
-  for (const base of [6, 9, 12]) {
+  setHead(h1, KOL.no, "No");
+  setHead(h1, KOL.uraian, "Uraian Pekerjaan");
+  setHead(h1, KOL.volK, "Volume Kontrak");
+  setHead(h1, KOL.satuan, "Satuan");
+  setHead(h1, KOL.hargaSatuan, "Harga Satuan (Rp)");
+  setHead(h1, KOL.hargaTotal, "Harga Total (Rp)");
+  setHead(h1, KOL.bobot, "Bobot");
+  setHead(h1, KOL.realisasi, "Realisasi Pekerjaan");
+  setHead(h1, KOL.bobotRencana, "Bobot Rencana");
+  setHead(h1, KOL.sisaPrestasi, "Sisa Pekerjaan");
+  setHead(h2, KOL.volLalu, `${periodeLabel} Lalu`);
+  setHead(h2, KOL.volIni, `${periodeLabel} ini`);
+  setHead(h2, KOL.volSd, `S/d ${periodeLabel} ini`);
+  setHead(h2, KOL.sisaPrestasi, `S/d ${periodeLabel} ini`);
+  for (const base of [KOL.volLalu, KOL.volIni, KOL.volSd]) {
     setHead(h3, base, "Volume");
     setHead(h3, base + 1, "Prestasi");
     setHead(h3, base + 2, "Bobot");
   }
-  setHead(h3, 16, "Prestasi");
-  setHead(h3, 17, "Volume");
-  for (const col of [1, 2, 3, 4, 5, 15]) ws.mergeCells(h1.number, col, h3.number, col);
-  ws.mergeCells(h1.number, 6, h1.number, 14); // "Realisasi Pekerjaan"
-  ws.mergeCells(h1.number, 16, h1.number, 17); // "Sisa Pekerjaan"
-  ws.mergeCells(h2.number, 6, h2.number, 8);
-  ws.mergeCells(h2.number, 9, h2.number, 11);
-  ws.mergeCells(h2.number, 12, h2.number, 14);
-  ws.mergeCells(h2.number, 16, h2.number, 17);
+  setHead(h3, KOL.sisaPrestasi, "Prestasi");
+  setHead(h3, KOL.sisaVol, "Volume");
+  for (const col of [KOL.no, KOL.uraian, KOL.volK, KOL.satuan, KOL.hargaSatuan, KOL.hargaTotal, KOL.bobot, KOL.bobotRencana]) {
+    ws.mergeCells(h1.number, col, h3.number, col);
+  }
+  ws.mergeCells(h1.number, KOL.realisasi, h1.number, KOL.bobotSd); // "Realisasi Pekerjaan"
+  ws.mergeCells(h1.number, KOL.sisaPrestasi, h1.number, KOL.sisaVol); // "Sisa Pekerjaan"
+  ws.mergeCells(h2.number, KOL.volLalu, h2.number, KOL.bobotLalu);
+  ws.mergeCells(h2.number, KOL.volIni, h2.number, KOL.bobotIni);
+  ws.mergeCells(h2.number, KOL.volSd, h2.number, KOL.bobotSd);
+  ws.mergeCells(h2.number, KOL.sisaPrestasi, h2.number, KOL.sisaVol);
   for (const row of [h1, h2, h3]) {
     row.eachCell({ includeEmpty: true }, (cell, col) => {
       if (col > COL_COUNT) return;
-      cell.font = { bold: true, size: 9 };
-      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
-      cell.border = thinBox;
+      gayaKepala(cell, { sub: row !== h1, size: 9 });
     });
   }
 
-  const numericCols = [3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
+  const numericCols: number[] = [
+    KOL.volK,
+    KOL.hargaSatuan,
+    KOL.hargaTotal,
+    KOL.bobot,
+    KOL.volLalu,
+    KOL.prestasiLalu,
+    KOL.bobotLalu,
+    KOL.volIni,
+    KOL.prestasiIni,
+    KOL.bobotIni,
+    KOL.volSd,
+    KOL.prestasiSd,
+    KOL.bobotSd,
+    KOL.bobotRencana,
+    KOL.sisaPrestasi,
+    KOL.sisaVol,
+  ];
+  /** Kolom rupiah: bulat, tanpa desimal — nilai kontrak selalu rupiah penuh. */
+  const rupiahCols: number[] = [KOL.hargaSatuan, KOL.hargaTotal];
+  // Menyusuri kolom 1..COL_COUNT secara eksplisit, BUKAN `eachCell` — eachCell
+  // berhenti di sel terakhir yang punya nilai, sehingga baris judul kategori
+  // (hanya 2 sel terisi) dulu kehilangan garis & latar di sisa kolomnya.
   const styleDataRow = (row: ExcelJS.Row, opts?: { bold?: boolean; fill?: string }) => {
-    row.eachCell({ includeEmpty: true }, (cell, col) => {
-      if (col > COL_COUNT) return;
-      cell.border = {
-        top: { style: "hair" },
-        bottom: { style: "hair" },
-        left: { style: "hair" },
-        right: { style: "hair" },
-      };
-      if (opts?.bold) cell.font = { bold: true, size: 9 };
-      else cell.font = { size: 9 };
-      if (opts?.fill) {
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: opts.fill } };
-      }
+    for (let col = 1; col <= COL_COUNT; col++) {
+      const cell = row.getCell(col);
+      cell.border = KOTAK_HALUS;
+      if (opts?.bold) cell.font = { bold: true, size: 9, color: { argb: WARNA.teks } };
+      else cell.font = { size: 9, color: { argb: WARNA.teks } };
+      if (opts?.fill) cell.fill = isi(opts.fill);
       if (numericCols.includes(col)) {
         cell.alignment = { horizontal: "right" };
-        cell.numFmt = NUM_FMT;
+        cell.numFmt = rupiahCols.includes(col) ? FMT_RUPIAH : NUM_FMT;
       }
-      if (col === 4) cell.alignment = { horizontal: "center" };
-    });
+      if (col === KOL.satuan) cell.alignment = { horizontal: "center" };
+    }
   };
 
-  // Kolom bobot yang MENJUMLAH: E=Bobot, H=Bobot Lalu, K=Bobot Ini,
-  // N=Bobot S/d, O=Bobot Rencana. Subtotal kategori = rumus SUM atas baris
-  // item; JUMLAH = penjumlahan sel subtotal — angka agregat TERTAUT ke rincian
-  // (kebiasaan pemeriksa KKP menelusuri link), nilai cache = angka resmi.
+  // Kolom yang MENJUMLAH: Harga Total (F), Bobot (G), Bobot Lalu (J), Bobot Ini
+  // (M), Bobot S/d (P), Bobot Rencana (Q). Subtotal kategori = rumus SUM atas
+  // baris item; JUMLAH = penjumlahan sel subtotal — angka agregat TERTAUT ke
+  // rincian (kebiasaan pemeriksa KKP menelusuri link), nilai cache = angka resmi.
+  //
+  // "Harga Total" ikut menjumlah supaya JUMLAH-nya = nilai fisik lokasi di kop —
+  // pemeriksa bisa mencocokkan angka kontrak dengan rincian tanpa kalkulator.
+  type Cat = (typeof r.categories)[number];
   const SUM_COLS = [
-    { col: 5, sub: (c: (typeof r.categories)[number]) => c.subtotalBobot, total: () => r.categories.reduce((s, c) => s + c.subtotalBobot, 0) },
-    { col: 8, sub: (c: (typeof r.categories)[number]) => c.subtotalBobotLalu, total: () => r.totals.bobotLalu },
-    { col: 11, sub: (c: (typeof r.categories)[number]) => c.subtotalBobotIni, total: () => r.totals.bobotIni },
-    { col: 14, sub: (c: (typeof r.categories)[number]) => c.subtotalBobotSd, total: () => r.totals.bobotSd },
-    { col: 15, sub: (c: (typeof r.categories)[number]) => c.subtotalBobotRencana, total: () => r.totals.bobotRencana },
+    { col: KOL.hargaTotal, sub: (c: Cat) => c.subtotalAmount, total: () => r.categories.reduce((s, c) => s + c.subtotalAmount, 0) },
+    { col: KOL.bobot, sub: (c: Cat) => c.subtotalBobot, total: () => r.categories.reduce((s, c) => s + c.subtotalBobot, 0) },
+    { col: KOL.bobotLalu, sub: (c: Cat) => c.subtotalBobotLalu, total: () => r.totals.bobotLalu },
+    { col: KOL.bobotIni, sub: (c: Cat) => c.subtotalBobotIni, total: () => r.totals.bobotIni },
+    { col: KOL.bobotSd, sub: (c: Cat) => c.subtotalBobotSd, total: () => r.totals.bobotSd },
+    { col: KOL.bobotRencana, sub: (c: Cat) => c.subtotalBobotRencana, total: () => r.totals.bobotRencana },
   ] as const;
   const subRowNums: number[] = [];
 
   for (const cat of r.categories) {
-    const catRow = ws.addRow([cat.code, cat.name, null, null, cat.subtotalBobot]);
-    styleDataRow(catRow, { bold: true, fill: "FFF1F5F9" });
+    const catRow = ws.addRow([cat.code, cat.name]);
     let firstItemRow = 0;
     let lastItemRow = 0;
     for (const it of cat.rows) {
@@ -519,6 +948,8 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
         it.name,
         it.volK,
         it.unit,
+        it.unitPrice,
+        null, // Harga Total = rumus volume × harga satuan (di bawah)
         it.bobot,
         it.volLalu,
         it.prestasiLalu,
@@ -531,16 +962,23 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
         it.bobotSd,
         it.bobotRencana,
       ]);
+      const rn = row.number;
+      // Harga Total = Volume Kontrak × Harga Satuan — rumus, supaya pemeriksa
+      // bisa menelusuri (dan mengedit harga satuan) tanpa angka jadi bohong.
+      // Cache = `amount` RAB aktif, sumber resmi bobotnya.
+      row.getCell(KOL.hargaTotal).value = {
+        formula: `${colLetter(KOL.volK)}${rn}*${colLetter(KOL.hargaSatuan)}${rn}`,
+        result: it.amount,
+      };
       // Kolom "Sisa Pekerjaan" = PERHITUNGAN, bukan angka tempelan — persis
       // formula kanonik (periodic-report §sisa): sisa prestasi = 100 − prestasi
       // s/d, sisa volume = volume kontrak − volume s/d, keduanya dibatasi ≥ 0.
-      const rn = row.number;
-      row.getCell(16).value = {
-        formula: `MAX(0,100-${colLetter(13)}${rn})`,
+      row.getCell(KOL.sisaPrestasi).value = {
+        formula: `MAX(0,100-${colLetter(KOL.prestasiSd)}${rn})`,
         result: round2(it.sisaPrestasi),
       };
-      row.getCell(17).value = {
-        formula: `MAX(0,${colLetter(3)}${rn}-${colLetter(12)}${rn})`,
+      row.getCell(KOL.sisaVol).value = {
+        formula: `MAX(0,${colLetter(KOL.volK)}${rn}-${colLetter(KOL.volSd)}${rn})`,
         result: it.sisaVol,
       };
       if (!firstItemRow) firstItemRow = row.number;
@@ -558,7 +996,10 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
       catRow.getCell(col).value = { formula: `${L}${subRow.number}`, result: sub(cat) };
     }
     subRowNums.push(subRow.number);
-    styleDataRow(subRow, { bold: true });
+    // Gaya dipasang SETELAH semua nilai terisi — supaya kolom yang baru diisi
+    // lewat SUM_COLS ikut ber-format angka, bukan tampil polos.
+    styleDataRow(catRow, { bold: true, fill: WARNA.kategori });
+    styleDataRow(subRow, { bold: true, fill: WARNA.subtotal });
   }
 
   const totalRow = ws.addRow([null, "JUMLAH"]);
@@ -569,7 +1010,7 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
         ? { formula: subRowNums.map((n2) => `${L}${n2}`).join("+"), result: total() }
         : total();
   }
-  styleDataRow(totalRow, { bold: true, fill: "FFE2E8F0" });
+  styleDataRow(totalRow, { bold: true, fill: WARNA.total });
 
   // Ringkasan di kepala dokumen TERTAUT ke JUMLAH tabel — bukan angka tempelan:
   // Rencana = JUMLAH kolom "Bobot Rencana", Realisasi = JUMLAH kolom "Bobot S/d"
@@ -577,8 +1018,14 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
   // Deviasi = Realisasi − Rencana (formula kanonik progress.ts). Jadi pemeriksa
   // bisa klik dari angka ringkasan sampai ke baris item pembentuknya.
   const valueCol = colLetter(3);
-  sumRencana.cell.value = { formula: `${colLetter(15)}${totalRow.number}`, result: round2(r.planPct) };
-  sumRealisasi.cell.value = { formula: `${colLetter(14)}${totalRow.number}`, result: round2(r.actualPct) };
+  sumRencana.cell.value = {
+    formula: `${colLetter(KOL.bobotRencana)}${totalRow.number}`,
+    result: round2(r.planPct),
+  };
+  sumRealisasi.cell.value = {
+    formula: `${colLetter(KOL.bobotSd)}${totalRow.number}`,
+    result: round2(r.actualPct),
+  };
   sumDeviasi.cell.value = {
     formula: `${valueCol}${sumRealisasi.row}-${valueCol}${sumRencana.row}`,
     result: round2(r.deviationPct),
@@ -590,14 +1037,14 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
   // menjalar sampai kurva. Hanya utk laporan mingguan (bulanan mencakup >1
   // kolom minggu — tak bisa dipetakan ke satu sel).
   if (r.kind === "mingguan") {
-    kurva.linkRealisasi(r.n, `Laporan!${colLetter(11)}${totalRow.number}`);
+    kurva.linkRealisasi(r.n, `Laporan!${colLetter(KOL.bobotIni)}${totalRow.number}`);
   }
 
   // Ringkasan sumber daya + kendala.
   ws.addRow([]);
   const section = (text: string) => {
     const row = ws.addRow([text]);
-    row.getCell(1).font = { bold: true, size: 10 };
+    row.getCell(1).font = { bold: true, size: 10, color: { argb: WARNA.kepala } };
     ws.mergeCells(row.number, 1, row.number, 8);
   };
   section("Tenaga Kerja (orang-hari, agregat periode)");
@@ -614,6 +1061,8 @@ export async function buildPeriodReportXlsx(r: PeriodReport): Promise<Buffer> {
   } else {
     for (const k of r.kendala) kv(formatTanggal(k.createdAt), `${k.title} (${k.severity}, ${k.status})`);
   }
+
+  blokTandaTangan(ws, { lastCol: COL_COUNT, h });
 
   const buf = Buffer.from(await wb.xlsx.writeBuffer());
   // Sisipkan grafik kurva-S NATIVE ke sheet "Kurva S" (exceljs tak bisa; kita

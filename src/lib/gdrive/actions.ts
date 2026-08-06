@@ -271,17 +271,19 @@ export async function uploadPeriodReportToDriveAction(
     // PDF yang disetor ke Drive WAJIB blanko resmi KKP (halaman kurva-S +
     // rincian), sama dengan halaman cetak — bukan PDF ringkasan yang dipakai
     // kiriman WhatsApp (DECISIONS 161).
-    const [{ renderPeriodikKkpPdf }, { getPeriodReport }, { buildPeriodReportXlsx }] = await Promise.all([
-      import("@/lib/pdf/periodik-kkp"),
-      import("@/lib/periodic-report"),
-      import("@/lib/export/xlsx"),
-    ]);
+    const [{ renderPeriodikKkpPdf }, { getPeriodReport }, { buildPeriodReportXlsx }, { muatLogoLaporan }] =
+      await Promise.all([
+        import("@/lib/pdf/periodik-kkp"),
+        import("@/lib/periodic-report"),
+        import("@/lib/export/xlsx"),
+        import("@/lib/export/logo-laporan"),
+      ]);
     const [pdf, report] = await Promise.all([
       renderPeriodikKkpPdf(locationId, kind, n),
       getPeriodReport(locationId, kind, n),
     ]);
     if (!pdf || !report) return { error: "Laporan untuk periode ini tidak tersedia." };
-    const xlsx = await buildPeriodReportXlsx(report);
+    const xlsx = await buildPeriodReportXlsx(report, { logo: await muatLogoLaporan(locationId) });
 
     const label = kind === "mingguan" ? `Minggu ke-${n}` : `Bulan ke-${n}`;
     const base = `Laporan ${kind === "mingguan" ? "Mingguan" : "Bulanan"} ${label} - ${c.locationName}`;
