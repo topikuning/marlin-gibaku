@@ -383,20 +383,6 @@ di produksi. Bila semuanya `pending`, buat migrasi yang men-drop kolom dan
 enumnya. Bila ADA nilai lain, berarti pernah ada jalur yang menulisnya di luar
 kode saat ini — telusuri dulu sebelum menghapus apa pun.
 
-## 🟢 FMT-01 · Pemisah desimal bercampur di laporan periodik KKP (DECISIONS 258)
-
-`src/components/knmp/kkp-period-report.tsx` memakai dua konvensi angka dalam
-satu dokumen: volume lewat `Intl.NumberFormat("id-ID")` (koma desimal — "2,5")
-sedangkan prestasi/bobot lewat `toFixed(2)` (titik desimal — "0.38"). Dalam satu
-baris tabel, keduanya berdampingan. Hal yang sama ada di `kkp-daily-report.tsx`.
-
-Formulir Rencana Mingguan yang baru sudah seluruhnya id-ID (DECISIONS 258 poin
-9), jadi sekarang justru ADA dua gaya antar dokumen resmi dari sistem yang sama.
-
-Tidak diperbaiki sepihak: mengubah format angka pada blanko yang sudah beredar
-ke PPK adalah keputusan user, bukan keputusan teknis. Perbaikannya kecil (dua
-fungsi formatter `p1`/`p2` per berkas) dan bisa dikerjakan begitu diputuskan.
-
 ## 🟢 PLAN-01 · Rencana mingguan belum masuk arsip Google Drive (DECISIONS 258/259)
 
 WhatsApp SUDAH tersambung (DECISIONS 259: teks berisi rencana + PDF formulir

@@ -53,6 +53,7 @@ function fixture(kind: "mingguan" | "bulanan"): PeriodReport {
       regency: "Rembang",
       province: "Jawa Tengah",
       packageName: "Pekerjaan Konstruksi Pembangunan Kampung Nelayan Merah Putih di Provinsi Jawa Tengah",
+      ownerAgency: "KKP",
       contractNumber: "B.17105/DJPT.6/PI.420/PPK/VI/2026",
       vendorName: "PT Kurnia Alam Sentosa",
       contractValue: 5_872_342_857n,
@@ -82,6 +83,7 @@ function fixture(kind: "mingguan" | "bulanan"): PeriodReport {
     })),
     totals: { bobotLalu: 4.8, bobotIni: 7.2, bobotSd: 12, bobotRencana: 18.4 },
     planPct: 18.4,
+    planPrevPct: 12.1,
     actualPct: 12,
     deviationPct: -6.4,
     scurve: {

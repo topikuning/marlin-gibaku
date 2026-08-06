@@ -89,6 +89,11 @@ export type PeriodHeader = {
   regency: string;
   province: string;
   packageName: string;
+  /**
+   * Instansi pemberi tugas (`Package.ownerAgency`, default "KKP") — baris
+   * "SATUAN KERJA / PEMBERI TUGAS" pada sampul laporan progres KKP.
+   */
+  ownerAgency: string;
   contractNumber: string;
   vendorName: string;
   /** Nilai kontrak paket (seluruh lokasi) — dipakai bila perlu konteks paket. */
@@ -120,6 +125,14 @@ export type PeriodReport = {
   categories: PeriodCategory[];
   totals: { bobotLalu: number; bobotIni: number; bobotSd: number; bobotRencana: number };
   planPct: number;
+  /**
+   * Rencana KUMULATIF s/d akhir periode SEBELUMNYA (0 pada periode pertama).
+   * Dipakai sheet REKAP untuk baris "Progres Rencana periode ini" = `planPct −
+   * planPrevPct`. Diturunkan di sini supaya selisihnya tidak dihitung ulang di
+   * lapisan penyaji (aturan repo: formula angka tidak boleh keluar dari lapisan
+   * kalkulasi).
+   */
+  planPrevPct: number;
   actualPct: number;
   deviationPct: number;
   scurve: { planPct: number[]; actualPct: (number | null)[]; currentWeek: number };
@@ -189,6 +202,7 @@ export const HEADER_LOCATION_SELECT = {
   package: {
     select: {
       name: true,
+      ownerAgency: true,
       contract: {
         select: {
           contractNumber: true,
@@ -228,6 +242,7 @@ export function buildPeriodHeader(
     province: location.province,
     // Nama resmi pekerjaan (workTitle) untuk dokumen; fallback nama pendek paket.
     packageName: contract.workTitle?.trim() || location.package.name,
+    ownerAgency: location.package.ownerAgency,
     contractNumber: contract.contractNumber,
     vendorName: contract.vendor.name,
     contractValue: contract.contractValue,
@@ -595,6 +610,18 @@ export async function getPeriodReport(
 
   const planIdx = Math.min(Math.max(planSeries.length, 1), Math.max(1, weekIndex)) - 1;
   const planPct = planSeries[planIdx] ?? 0;
+  // Rencana kumulatif s/d akhir periode SEBELUMNYA. Minggu acuannya = minggu
+  // yang memuat hari terakhir sebelum periode ini dimulai; periode pertama
+  // tidak punya pendahulu ⇒ 0 (bukan planSeries[0] — itu akan membuat "rencana
+  // minggu ini" pada minggu-1 tertulis nol padahal ada rencananya).
+  const prevWeekIndex =
+    kind === "mingguan"
+      ? n - 1
+      : Math.floor((periodeStart.getTime() - DAY - startDate.getTime()) / (7 * DAY)) + 1;
+  const planPrevPct =
+    prevWeekIndex < 1
+      ? 0
+      : (planSeries[Math.min(Math.max(planSeries.length, 1), prevWeekIndex) - 1] ?? 0);
   // Angka realisasi laporan = total kolom "bobot s/d" tabel. Satu perhitungan,
   // satu angka — tabel, kurva, dan deviasi tidak mungkin lagi berselisih.
   const actualPct = totalBobotSd;
@@ -696,6 +723,7 @@ export async function getPeriodReport(
     categories,
     totals: { bobotLalu: totalBobotLalu, bobotIni: totalBobotIni, bobotSd: totalBobotSd, bobotRencana: totalBobotRencana },
     planPct,
+    planPrevPct,
     actualPct,
     deviationPct: actualPct - planPct,
     scurve: { planPct: planSeries, actualPct: actualSeries, currentWeek: cutoffWeek },

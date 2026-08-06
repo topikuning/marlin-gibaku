@@ -11,7 +11,9 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["tests/unit/**/*.test.ts", "tests/integration/**/*.test.ts"],
+    // .tsx ikut: blanko KKP adalah komponen React, dan penjaga formatnya
+    // (FMT-01) hanya berarti kalau diuji dari hasil render, bukan dari sumber.
+    include: ["tests/unit/**/*.test.ts", "tests/unit/**/*.test.tsx", "tests/integration/**/*.test.ts"],
     environment: "node",
     globals: false,
     // Tes integrasi berbagi SATU database dan tiap file membersihkannya dengan

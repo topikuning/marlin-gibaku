@@ -31,6 +31,7 @@ function fixture(): PeriodReport {
       regency: "Brebes",
       province: "Jawa Tengah",
       packageName: "Paket Uji KNMP",
+      ownerAgency: "KKP",
       contractNumber: "001/KNMP/2026",
       vendorName: "CV Uji",
       contractValue: 1_000_000_000n,
@@ -50,6 +51,7 @@ function fixture(): PeriodReport {
     categories: [],
     totals: { bobotLalu: 0, bobotIni: 0, bobotSd: 0, bobotRencana: 0 },
     planPct: 20,
+    planPrevPct: 12,
     actualPct: 15,
     deviationPct: -5,
     scurve: {

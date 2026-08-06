@@ -9872,3 +9872,105 @@ data mati.
 
 Skala font diturunkan satu tingkat lagi mengikuti keluhan "fontmu masih terlalu
 besar".
+
+## 265 · Workbook laporan periodik mengikuti berkas KKP: COV-BQ, REKAP, harga, tanda tangan (2026-08-06)
+
+**Permintaan user** (dengan lampiran `1._LAPORAN_MINGGU_1__MUARAREJA.xlsx`):
+"ini adalah format laporan mingguan dan bulanan versi KKP … aku ingin kamu buat
+versi excelnya persis seperti ini. sheet Kurva S itu mirip dengan sheet TS,
+sheet Laporan mirip dengan sheet RAB. yang kurang dari sheet laporanmu hanyalah
+informasi harga satuan dan harga total. jadi jangan ubah apa pun dari struktur
+lama sheet laporan, cukup tambahkan informasi harganya saja dan mungkin tanda
+tangan. untuk kurva s juga … cukup kasih tambahan tanda tangan. yang perlu kamu
+buat baru cuma sheet COV-BQ dan REKAP. pemilihan warna kamu tidak perlu ikuti
+file itu, gunakan komposisi warna yang menurutmu enak dilihat mata dan
+profesional." Lalu, setelah berkas acuan diperiksa: **"hanya fokus pada bagian
+yang tidak dihidden."**
+
+### Apa yang benar-benar berlaku di berkas acuan
+
+Kalimat terakhir itu yang menentukan bentuknya, dan jawabannya didapat dengan
+membuka baris/kolom tersembunyi berkas acuan — bukan dengan menebak:
+
+- **RAB**: kolom 7–10 (HPS + penawaran) disembunyikan. Yang terlihat hanya
+  pasangan **Harga Satuan + Harga Total**.
+- **REKAP**: kolom Nilai HPS / Penawaran / Negosiasi semuanya disembunyikan,
+  begitu pula baris JUMLAH–PPN–TOTAL–DIBULATKAN. Jadi REKAP yang berlaku
+  **murni bobot, tanpa rupiah sama sekali**.
+
+Karena itu kolom rupiah hanya ditambahkan di sheet "Laporan"; REKAP sengaja
+tidak punya satu pun. Menambahkannya "supaya lengkap" berarti menampilkan angka
+yang pada dokumen resminya justru ditutup.
+
+### Yang berubah
+
+- **Sheet "Laporan"** — dua kolom baru **Harga Satuan (Rp)** dan **Harga Total
+  (Rp)** tepat setelah "Satuan"; seluruh kolom lama bergeser dua ke kanan
+  (17 → 19 kolom), strukturnya tidak diubah. Indeks kolom dipusatkan di konstanta
+  `KOL` supaya rumus & merge tidak bisa meleset diam-diam. Harga Total ditulis
+  sebagai **rumus** `volume × harga satuan` (cache = `amount` RAB aktif), dan
+  ikut menjumlah ke subtotal kategori + JUMLAH — sehingga JUMLAH-nya sama dengan
+  "Nilai Fisik Lokasi" di kop dan bisa ditelusuri pemeriksa.
+- **Sheet "Kurva S"** — blok tanda tangan di bawah tabel.
+- **Sheet "COV-BQ"** (baru) — sampul: judul + periode, KEGIATAN, SATUAN KERJA /
+  PEMBERI TUGAS (`Package.ownerAgency`, kini ikut di `PeriodHeader`), LOKASI
+  PEKERJAAN, PERIODE, TAHUN ANGGARAN, blok KONTRAKTOR PELAKSANA. Tanpa angka
+  progres: sampul yang ikut menyebut angka jadi tempat kedua yang bisa basi
+  tanpa ketahuan.
+- **Sheet "REKAP"** (baru) — identitas paket, tabel NO / JENIS PEKERJAAN /
+  BOBOT PEKERJAAN / BOBOT PERIODE LALU / BOBOT PERIODE INI / BOBOT KOMULATIF +
+  TOTAL, lalu blok PROGRES RENCANA, AKUMULASI RENCANA, REALISASI, AKUMULASI
+  REALISASI, DEVIASI, lalu tanda tangan. Bobot komulatif = rumus (lalu + ini);
+  TOTAL = SUM; realisasi & deviasi TERTAUT ke baris TOTAL.
+- **Urutan sheet** kini COV-BQ → REKAP → Kurva S → Laporan, seperti dokumen
+  cetaknya. Semua pembaca workbook memilih sheet berdasarkan NAMA, bukan indeks,
+  jadi impor Time Schedule tidak terpengaruh.
+
+### Dua hal yang tidak boleh dihitung di lapisan penyaji
+
+- **`PeriodReport.planPrevPct`** ditambahkan di `periodic-report.ts`. Baris
+  "PROGRES RENCANA periode ini" = `planPct − planPrevPct`; kalau selisih itu
+  dihitung di xlsx.ts, ia jadi formula angka di luar lapisan kalkulasi. Tanpa
+  medan ini, godaannya adalah menulis `planPct` saja — dan rencana mingguan akan
+  terbaca sebesar kumulatifnya.
+- **Deviasi negatif diberi kata**: "DEVIASI — TERLAMBAT". Angka minus tanpa kata
+  rutin dibaca "kurang sedikit" oleh pembaca non-teknis.
+
+### Warna
+
+Palet sendiri (`lib/export/xlsx-gaya.ts`): satu navy identitas untuk kepala
+tabel, turunannya makin pucat untuk hierarki baris (kategori → subtotal →
+jumlah), dan warna semantik HANYA pada baris deviasi. Tidak ada warna dekoratif.
+Batang skala KETERANGAN di Kurva S ikut memakai navy, bukan hitam pekat.
+
+Blok tanda tangan dipakai bersama tiga sheet. Penanda tangan yang belum diisi di
+kontrak ditulis sebagai garis titik-titik, bukan dikosongkan — dokumen cetak
+tetap bisa ditandatangani manual dan pembaca tahu kolomnya memang belum terisi.
+Tanggal yang tidak diketahui (Time Schedule berdiri sendiri, sebelum ada periode
+laporan) ditulis sebagai tempat saja: tidak ditebak jadi hari ini, dan tidak
+menggagalkan seluruh ekspor.
+
+## 266 · FMT-01 selesai: satu konvensi desimal untuk seluruh blanko (2026-08-06)
+
+User: *"aku sudah lelah menjawab soal fmt-01 mu, aku sudah bilang bereskan
+dengan best practice standart profesional."* Keputusannya: **id-ID di semua
+angka dokumen**, tanpa opsi dan tanpa sakelar.
+
+`kkp-period-report.tsx` sebelumnya mencampur dua konvensi dalam SATU halaman —
+rupiah & volume lewat `Intl.NumberFormat("id-ID")` ("1.234,56") sementara
+bobot/prestasi lewat `Number.prototype.toFixed` ("12.40", locale C). Pembaca
+Indonesia membaca "12.40" sebagai dua belas ribu empat ratus. Semua `toFixed`
+di berkas itu diganti formatter id-ID; `kkp-daily-report.tsx` diperiksa dan
+ternyata sudah seluruhnya id-ID sejak awal, jadi tidak diubah.
+
+Di Excel konvensinya berbeda tapi seasas: angka ditulis sebagai **angka + numFmt**,
+tidak pernah sebagai teks yang sudah diformat — supaya kolomnya tetap bisa
+dijumlah pemeriksa dan tampilannya mengikuti locale Excel pembukanya.
+
+Penjaganya bukan daftar sel, melainkan satu tes yang me-render blanko lalu
+menolak **semua** desimal bertitik di seluruh halaman (pemisah ribuan id-ID
+dikecualikan karena selalu diikuti tepat tiga digit). `toFixed` baru yang
+diselipkan di kolom mana pun akan tertangkap, bukan hanya yang diperbaiki hari
+ini. `photo-gallery.tsx` dan `scurve-kkp-sheet.tsx` tetap memakai `toFixed`
+dengan sengaja: yang pertama untuk koordinat, yang kedua untuk koordinat SVG —
+keduanya bukan angka dokumen.

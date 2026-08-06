@@ -54,6 +54,7 @@ function fixture(): PeriodReport {
       regency: "Rembang",
       province: "Jawa Tengah",
       packageName: PAKET,
+      ownerAgency: "KKP",
       contractNumber: "B.17105/DJPT.6/PI.420/PPK/VI/2026",
       vendorName: "PT Kurnia Alam Sentosa",
       contractValue: 5_872_342_857n,
@@ -85,6 +86,7 @@ function fixture(): PeriodReport {
     ],
     totals: { bobotLalu: 2, bobotIni: 3, bobotSd: 5, bobotRencana: 6 },
     planPct: 6,
+    planPrevPct: 0,
     actualPct: 5,
     deviationPct: -1,
     scurve: { planPct: [6], actualPct: [5], currentWeek: 1 },
@@ -123,9 +125,9 @@ describe("sheet Laporan — identitas tidak terpotong", () => {
     expect(r).toBeGreaterThan(0);
     // Teks tersimpan utuh — tidak dipotong saat menulis.
     expect(cellText(ws.getRow(r).getCell(3).value)).toBe(PAKET);
-    // Sel gabungan membentang sampai kolom terakhir tabel (Q = 17), bukan H.
+    // Sel gabungan membentang sampai kolom terakhir tabel (S = 19), bukan H.
     const merges = (ws.model as unknown as { merges: string[] }).merges ?? [];
-    expect(merges, "merge blok identitas").toContain(`C${r}:Q${r}`);
+    expect(merges, "merge blok identitas").toContain(`C${r}:S${r}`);
   });
 });
 
@@ -140,15 +142,15 @@ describe("sheet Laporan — angka terhitung memakai rumus", () => {
     expect(itemRows.length).toBe(2);
 
     for (const r of itemRows) {
-      const prestasi = ws.getRow(r).getCell(16).value as { formula?: string; result?: number };
-      const volume = ws.getRow(r).getCell(17).value as { formula?: string; result?: number };
-      expect(prestasi.formula, `sisa prestasi baris ${r}`).toBe(`MAX(0,100-M${r})`);
-      expect(volume.formula, `sisa volume baris ${r}`).toBe(`MAX(0,C${r}-L${r})`);
+      const prestasi = ws.getRow(r).getCell(18).value as { formula?: string; result?: number };
+      const volume = ws.getRow(r).getCell(19).value as { formula?: string; result?: number };
+      expect(prestasi.formula, `sisa prestasi baris ${r}`).toBe(`MAX(0,100-O${r})`);
+      expect(volume.formula, `sisa volume baris ${r}`).toBe(`MAX(0,C${r}-N${r})`);
 
       // Rumus tidak berbohong: hitung ulang dari sel yang benar-benar ditulis.
       const volK = Number(ws.getRow(r).getCell(3).value);
-      const volSd = Number(ws.getRow(r).getCell(12).value);
-      const prestasiSd = Number(ws.getRow(r).getCell(13).value);
+      const volSd = Number(ws.getRow(r).getCell(14).value);
+      const prestasiSd = Number(ws.getRow(r).getCell(15).value);
       // exceljs tidak menulis cache saat hasilnya 0 — nilai hilang = 0.
       expect(prestasi.result ?? 0).toBeCloseTo(Math.max(0, 100 - prestasiSd), 6);
       expect(volume.result ?? 0).toBeCloseTo(Math.max(0, volK - volSd), 6);
@@ -171,8 +173,8 @@ describe("sheet Laporan — angka terhitung memakai rumus", () => {
     const fReal = ws.getRow(rReal).getCell(3).value as { formula?: string; result?: number };
     const fDev = ws.getRow(rDev).getCell(3).value as { formula?: string; result?: number };
 
-    expect(fRencana.formula).toBe(`O${jumlahRow}`); // JUMLAH kolom Bobot Rencana
-    expect(fReal.formula).toBe(`N${jumlahRow}`); // JUMLAH kolom Bobot S/d
+    expect(fRencana.formula).toBe(`Q${jumlahRow}`); // JUMLAH kolom Bobot Rencana
+    expect(fReal.formula).toBe(`P${jumlahRow}`); // JUMLAH kolom Bobot S/d
     expect(fDev.formula).toBe(`C${rReal}-C${rRencana}`);
     expect(fDev.result).toBeCloseTo((fReal.result as number) - (fRencana.result as number), 6);
   });
@@ -187,7 +189,7 @@ describe("sheet Laporan — angka terhitung memakai rumus", () => {
     });
     expect(judul).toBeGreaterThan(0);
     expect(subtotal).toBeGreaterThan(judul);
-    const bobot = ws.getRow(judul).getCell(5).value as { formula?: string };
-    expect(bobot.formula).toBe(`E${subtotal}`);
+    const bobot = ws.getRow(judul).getCell(7).value as { formula?: string };
+    expect(bobot.formula).toBe(`G${subtotal}`);
   });
 });

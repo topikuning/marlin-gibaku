@@ -16,8 +16,24 @@ const rupiahFmt = new Intl.NumberFormat("id-ID", {
   maximumFractionDigits: 0,
 });
 const dFmt = new Intl.DateTimeFormat("id-ID", { dateStyle: "long", timeZone: "Asia/Jakarta" });
-const p1 = (n: number) => `${n.toFixed(1)}%`;
-const p2 = (n: number) => `${n.toFixed(2)}%`;
+/**
+ * FMT-01 (OPEN_ISSUES) — SATU konvensi desimal untuk seluruh blanko.
+ *
+ * Dokumen ini beredar ke PPK & dinas bersama laporan harian yang sudah memakai
+ * `Intl.NumberFormat("id-ID")`. `Number.prototype.toFixed` selalu memakai titik
+ * desimal (locale C), sehingga blanko lama mencampur "1.234,56" (rupiah/volume,
+ * id-ID) dengan "12.40%" (bobot, toFixed) di satu halaman — pembaca Indonesia
+ * membaca "12.40" sebagai dua belas ribu empat ratus. Semua angka dokumen di
+ * bawah ini WAJIB lewat formatter id-ID; `toFixed` dilarang di berkas blanko.
+ */
+const desimalFmt = (d: number) =>
+  new Intl.NumberFormat("id-ID", { minimumFractionDigits: d, maximumFractionDigits: d });
+const d1Fmt = desimalFmt(1);
+const d2Fmt = desimalFmt(2);
+const d1 = (n: number) => d1Fmt.format(n);
+const d2 = (n: number) => d2Fmt.format(n);
+const p1 = (n: number) => `${d1(n)}%`;
+const p2 = (n: number) => `${d2(n)}%`;
 const dash = (n: number) => (n > 0 ? volFmt.format(n) : "–");
 
 export function KkpPeriodReport({ r }: { r: PeriodReport }) {
@@ -175,17 +191,17 @@ function CategoryBlock({ c }: { c: PeriodCategory }) {
           <Td>{it.name}</Td>
           <Td align="right">{volFmt.format(it.volK)}</Td>
           <Td align="center">{it.unit}</Td>
-          <Td align="right">{it.bobot.toFixed(2)}</Td>
+          <Td align="right">{d2(it.bobot)}</Td>
           <Td align="right">{dash(it.volLalu)}</Td>
           <Td align="right">{it.prestasiLalu > 0 ? p1(it.prestasiLalu) : "–"}</Td>
-          <Td align="right">{it.bobotLalu > 0 ? it.bobotLalu.toFixed(2) : "–"}</Td>
+          <Td align="right">{it.bobotLalu > 0 ? d2(it.bobotLalu) : "–"}</Td>
           <Td align="right">{dash(it.volIni)}</Td>
           <Td align="right">{it.prestasiIni > 0 ? p1(it.prestasiIni) : "–"}</Td>
-          <Td align="right">{it.bobotIni > 0 ? it.bobotIni.toFixed(2) : "–"}</Td>
+          <Td align="right">{it.bobotIni > 0 ? d2(it.bobotIni) : "–"}</Td>
           <Td align="right">{dash(it.volSd)}</Td>
           <Td align="right">{it.prestasiSd > 0 ? p1(it.prestasiSd) : "–"}</Td>
-          <Td align="right">{it.bobotSd > 0 ? it.bobotSd.toFixed(2) : "–"}</Td>
-          <Td align="right">{it.bobotRencana > 0 ? it.bobotRencana.toFixed(2) : "–"}</Td>
+          <Td align="right">{it.bobotSd > 0 ? d2(it.bobotSd) : "–"}</Td>
+          <Td align="right">{it.bobotRencana > 0 ? d2(it.bobotRencana) : "–"}</Td>
           <Td align="right">{it.sisaPrestasi > 0 ? p1(it.sisaPrestasi) : "–"}</Td>
           <Td align="right">{dash(it.sisaVol)}</Td>
         </tr>
@@ -236,7 +252,7 @@ function ScurveTable({
             <th className="border border-slate-200 bg-slate-100 px-1 py-0.5 text-left whitespace-nowrap">Rencana %</th>
             {weeks.map((w) => (
               <td key={w} className="border border-slate-200 px-1 py-0.5 text-right tabular-nums">
-                {planPct[w - 1] != null ? planPct[w - 1].toFixed(1) : "–"}
+                {planPct[w - 1] != null ? d1(planPct[w - 1]) : "–"}
               </td>
             ))}
           </tr>
@@ -246,7 +262,7 @@ function ScurveTable({
               const v = actualPct[w - 1];
               return (
                 <td key={w} className="border border-slate-200 px-1 py-0.5 text-right font-medium tabular-nums">
-                  {v == null ? "–" : v.toFixed(1)}
+                  {v == null ? "–" : d1(v)}
                 </td>
               );
             })}
