@@ -9538,3 +9538,337 @@ Diperiksa nyata: PDF dirender dari data dev, dikonversi ke gambar, dan dibaca �
 satu halaman, muat penuh. Satu cacat tata letak ditemukan dan diperbaiki di
 sana: tinggi catatan kaki tabel semula DITEBAK, sehingga menempel ke judul
 bagian D; sekarang diukur dengan `heightOfString`.
+
+---
+
+## 260 · Pengingat harian punya SAKELAR, dan sakelarnya berhenti di batas yang benar (2026-08-06)
+
+Permintaan user 2026-08-05: *"aku perlu flag disable dan enable pengingat
+harian, lalu tombol per orang untuk pengingat manual."*
+
+Disimpan di `AppSetting` (`reminder.daily_enabled`, ber-tanggal-berlaku) —
+pola yang sama dengan WAHA, branding, dan kebijakan pengendalian, jadi
+perubahannya punya jejak waktu.
+
+**1. Default NYALA.** Sebelum sakelar ini ada, pengingat memang selalu berjalan.
+Setelan yang belum pernah disentuh harus berarti "seperti kemarin"; default MATI
+akan menghentikan tagihan ke seluruh lapangan pada saat deploy, tanpa ada yang
+memutuskannya.
+
+**2. Yang dimatikan hanya PENJADWAL.** Tombol manual — massal maupun per orang —
+tetap hidup walau sakelarnya mati. Admin yang mematikan pengingat otomatis
+karena libur bersama tetap harus bisa menagih lokasi yang jalan terus; mengunci
+itu berarti sakelar memutuskan sesuatu yang bukan haknya. Karena itu
+pemeriksaannya ada di `jalankanTugasHarian`, BUKAN di dalam
+`kirimPengingatHarian`.
+
+**3. Aktivasi SPMK jatuh tempo TIDAK ikut mati.** Ia menumpang putaran cron yang
+sama tetapi bukan pengingat. Menahannya membuat paket tidak naik ke
+`pelaksanaan` pada tanggalnya — dan begitu tanggal mulai bergeser, kurva-S,
+deviasi, dan seluruh laporan ikut salah. Sakelar pengingat tidak boleh punya
+kekuasaan sebesar itu.
+
+**4. "0 terkirim" karena sakelar mati diberi penanda** `dimatikan`. Nol pesan
+punya dua arti berlawanan — tidak ada yang perlu ditagih, ATAU penjadwalnya
+mati — dan tanpa penanda ini log cron tidak bisa dibaca.
+
+### Tombol pengingat PER ORANG
+
+Alasannya nyata: yang gagal biasanya satu-dua orang, bukan semuanya. Tanpa ini,
+menagih ulang satu mandor berarti mengirim pesan kedua ke semua orang yang sudah
+menerima — dan pengingat yang datang berkali-kali tanpa sebab akan berhenti
+dibaca dalam seminggu.
+
+Memakai mesin yang SAMA (`kirimPengingatHarian` + filter `userIds`), bukan query
+sendiri: isi pesan dan aturan "yang sudah lapor tidak ditagih" tidak boleh
+menyimpang antara dua tombol. Ter-scope organisasi di SERVER — server action
+bisa dipanggil siapa pun yang tahu id-nya, jadi userId asing menghasilkan daftar
+kosong, bukan kiriman.
+
+Panel Sistem dipecah dari satu `<form>` menjadi tiga (sakelar · massal · per
+orang): form HTML tidak boleh bersarang, dan hasilnya dipisah supaya "sakelar
+tersimpan" tidak terbaca seperti "pesan terkirim".
+
+### Uji
+
+`tests/integration/pengingat-manual.test.ts` — 13 uji baru. Bergigi: mengabaikan
+sakelar menjatuhkan uji "MATI → penjadwal tidak mengirim apa pun"; mengabaikan
+filter per-orang menjatuhkan uji kasus inti dan uji tenancy.
+
+Nomor WA di berkas uji itu dibuat unik per jalan. Berkas itu tidak melakukan
+TRUNCATE di `afterAll`, sehingga pengguna dari jalan sebelumnya masih ada di DB
+uji; dengan nomor konstan, `jalankanTugasHarian()` (yang sengaja
+lintas-organisasi) ikut menghitung mereka dan jumlah pesan meleset tanpa ada
+yang benar-benar rusak.
+
+---
+
+## 261 · Laporan harian RINGKAS — dokumen bacaan untuk grup WA, bukan blanko KKP (2026-08-06)
+
+Permintaan user 2026-08-05: *"aku butuh format laporan harian dalam satu file
+format pdf untuk langsung kamu kirim ke group WA … berisi rangkuman pekerjaan
+hari ini baik pekerjaan harian maupun kegiatan lapangan, khusus di hari itu
+beserta foto pendukungnya. summary saja, bukan format blanko kkp. per lokasi."*
+
+**Blanko KKP tetap ada dan tidak diubah.** Keduanya hidup berdampingan karena
+kegunaannya memang berbeda: blanko adalah formulir resmi (kotaknya tetap,
+barisnya dicetak walau kosong, susunannya ditentukan pemberi kerja); yang baru
+adalah dokumen bacaan (hanya memuat yang benar-benar terjadi). Mengganti blanko
+dengan ringkasan akan membuat setoran resmi tidak sah.
+
+### Susunan halaman, dan alasannya
+
+Mengikuti kebiasaan laporan pemantauan proyek internasional (site supervision
+daily report ala Bank Dunia/ADB, catatan harian FIDIC):
+
+1. **Identitas lengkap di muka** — paket, pekerjaan, penyedia, nomor kontrak,
+   lokasi, hari, minggu ke berapa. Dokumen yang beredar di grup harus bisa
+   diarsipkan tanpa bertanya "ini punya paket mana".
+2. **Pita keadaan dokumen**, berwarna, di atas segalanya. Lihat butir gerbang
+   di bawah.
+3. **Kinerja mendahului rincian** (kebiasaan Earned Value): realisasi kumulatif,
+   rencana kurva-S, deviasi, dan sumbangan hari itu — lengkap dengan batang
+   perbandingan berskala sama, supaya jaraknya TERLIHAT dan bukan dua angka yang
+   harus dikurangkan sendiri oleh pembaca.
+4. **Pekerjaan hari itu** sebagai tabel bervolume, berbobot, dan bernilai.
+5. **Kegiatan lapangan hari itu** beserta kendala & tindak lanjutnya.
+6. **Kondisi kerja** ringkas: cuaca, jam, tenaga, material, alat.
+7. **Dokumentasi foto** dengan asal-usul tiap foto.
+
+### Gerbang status: TIDAK ADA — tapi dokumennya tidak boleh menipu
+
+User memilih "tanpa gerbang" (2026-08-05): draf pun boleh dikirim. Yang dijaga
+bukan haknya mengirim, melainkan kejujuran dokumennya:
+
+- pita status di kepala PDF menyebut apa yang BELUM terjadi, bukan sekadar nama
+  statusnya — "Dikirim" saja tidak memberi tahu bahwa belum ada yang memeriksa;
+- badan pesan WA mengulanginya, supaya pembaca yang tidak membuka lampiran tetap
+  tahu;
+- dialog konfirmasi di layar menyebutkan statusnya, supaya mengirim draf ke grup
+  PPK adalah pilihan sadar.
+
+Yang TETAP ditolak: hari yang benar-benar kosong (tanpa pekerjaan, tanpa
+kegiatan, tanpa foto). Itu bukan soal status melainkan soal isi — mengirim
+dokumen kosong ke grup pejabat hanya melatih orang mengabaikan pesan MARLIN.
+
+### Aturan angka & bukti
+
+- **Tidak ada formula baru.** Posisi dari `getLocationProgress` dengan
+  **`asOf` = tanggal laporan**, bukan hari ini: dokumen bertanggal 1 Juli tidak
+  boleh memuat realisasi 20 Juli hanya karena dicetak terlambat (CALC-01).
+  Bobot dari `bobotPct` (`progress-calc.ts`).
+- **Hanya baris `basis: "aktif"`** yang masuk angka; baris atas usulan adendum
+  belum punya dasar kontrak. Tapi JUMLAHNYA dicetak — penghilangan yang diam
+  adalah cara dokumen berbohong (DECISIONS 210/215).
+- **Foto menyebut asal-usulnya** (pekerjaan harian / kegiatan apa), waktunya,
+  dan koordinatnya — dengan penanda eksplisit bila koordinatnya CADANGAN titik
+  proyek, bukan GPS perangkat (DECISIONS 197).
+- Foto yang gagal diambil dari R2 **ditambahkan** ke hitungan "tidak dimuat",
+  sehingga galeri yang lebih pendek dari kenyataan selalu mengatakan kurangnya.
+
+### Pesan WhatsApp pengiringnya
+
+Aturan audiens yang sama dengan rencana mingguan (DECISIONS 259): penerimanya
+PPK, dinas, pejabat — jadi **tanpa nama pelaksana per item**, lingkup disajikan
+sebagai agregat, dan dasar penilaian ada di badan pesan.
+
+### Uji
+
+- `tests/unit/ringkas-harian-wa.test.ts` — 12 uji (keadaan dokumen dinyatakan,
+  tanpa PIC, pemotongan menyebut jumlah, hari kosong dikatakan kosong).
+- `tests/integration/ringkas-harian.test.ts` — bagian ringkasan & pengiriman.
+
+Bergigi: membuang `asOf`, menghitung baris adendum, menghapus penanda GPS
+cadangan, dan membuang tolakan hari-kosong masing-masing menjatuhkan uji.
+
+Diperiksa nyata: PDF dirender dengan data kaya, dikonversi ke gambar, dan
+dibaca. Satu cacat tata letak ditemukan di sana dan diperbaiki — tinggi
+keterangan foto semula DITEBAK (satu angka tetap), sehingga judul foto kegiatan
+yang membungkus ke dua baris ditimpa baris waktunya; sekarang diukur dengan
+`heightOfString` per pasangan foto.
+
+---
+
+## 262 · Papan status laporan harian — satu tanggal, semua lokasi, beserta jejak Drive (2026-08-06)
+
+Permintaan user 2026-08-05: *"satu halaman khusus untuk melihat status laporan
+harian (final/draft/pengajuan) dan apakah sudah diupload ke google drive
+(beserta tombol google drive)."*
+
+`/laporan/status-harian?tanggal=YYYY-MM-DD`. Sebelum ini jawabannya harus
+dikumpulkan sendiri dari beberapa halaman — status di workspace lokasi, jejak
+Drive di panel kelengkapan paket. Untuk 83 lokasi itu bukan pekerjaan yang masuk
+akal.
+
+**Tindakan menempel di barisnya sendiri**: unggah ke Drive, kirim ringkasan ke
+grup WA, buka PDF ringkas, buka berkas di Drive. Daftar yang cuma bisa dibaca
+lalu memaksa pindah halaman untuk bertindak hanya memindahkan pekerjaannya.
+
+**Prasyarat yang belum terpenuhi dikatakan di tempat tombolnya**: paket tanpa
+folder Drive atau tanpa grup WA menampilkan kalimatnya, bukan tombol yang gagal
+sesudah diklik.
+
+**Jejak Drive dibaca dari `GDriveUpload`** dengan `refKey = "<slug>:<dateKey>"`
+— konvensi yang sama dengan `uploadDailyReportToDriveAction`, satu query untuk
+semua lokasi (bukan N+1). Percobaan TERBARU yang menentukan status; tautan
+diambil dari percobaan sukses mana pun yang punya, karena percobaan terakhir
+bisa saja gagal padahal berkasnya sudah ada.
+
+**Yang TIDAK dilakukan halaman ini: menyimpulkan dari ketiadaan.** "Belum ada
+laporan" ditulis apa adanya dan KPI-nya tidak diberi nada bahaya — hari libur,
+lokasi yang belum SPMK, dan kelalaian menghasilkan keadaan yang sama di tabel,
+dan hanya dua yang terakhir perlu ditindak. Angkanya disajikan, penilaiannya
+tidak.
+
+Tanggal yang tidak dikenal jatuh ke hari ini, dan `getStatusHarian`
+mengembalikan `null` untuk tanggal ngawur — bukan diam-diam menampilkan hari ini
+di bawah judul tanggal lain.
+
+### Uji
+
+`tests/integration/ringkas-harian.test.ts` bagian papan status — termasuk bahwa
+jejak Drive TIDAK tertukar antar lokasi. Bergigi: membuat semua baris mewarisi
+jejak upload pertama menjatuhkan uji itu.
+
+---
+
+## 263 · Ringkasan harian dirapatkan, fotonya ditautkan, lokasi disebut lengkap (2026-08-06)
+
+Tiga koreksi user atas DECISIONS 261, semuanya dari melihat dokumen yang sudah
+terisi data nyata.
+
+### 1. "terlalu banyak space terbuang"
+
+Blok kepala memakan lebih dari separuh halaman pertama padahal isinya delapan
+medan identitas dan empat angka. Penyebabnya spesifik, bukan sekadar "padding
+besar":
+
+- **Identitas dua kolom "label : nilai"** boros pada dua arah sekaligus. Kolom
+  label memakan ±74pt di TIAP sisi, sedangkan nama pekerjaan resmi (100+
+  karakter, wajar untuk paket KKP) terpaksa membungkus jadi lima baris di kolom
+  setengah lebar — sementara kolom kanan yang isinya pendek-pendek dibiarkan
+  kosong sejajar dengannya. Sekarang: **kisi 3 kolom, label kecil di ATAS
+  nilai** (tanpa kolom label), dan nama pekerjaan mendapat baris selebar
+  halaman sehingga cukup dua baris.
+- **Empat kartu KPI berbingkai** → **satu pita dengan pemisah tipis**. Empat
+  angka pendek tidak memerlukan empat bingkai beserta paddingnya masing-masing.
+- **Batang perbandingan hanya digambar bila ADA baseline.** Tanpa kurva-S, dua
+  batang kosong selebar halaman tidak menyampaikan apa pun.
+- **Judul "Dokumentasi foto" dijaga menempel pada baris foto pertamanya.** Judul
+  yang muat di sisa halaman membuat fotonya pindah halaman sendirian, dan
+  menyisakan sepertiga halaman kosong persis di bawah judul.
+
+Sekalian diperbaiki satu kebohongan yang terlihat di dokumen user: lokasi tanpa
+baseline mencetak "Rencana 0,00%" dan "Deviasi **+0,00%** berwarna hijau" —
+terbaca *tepat jadwal* padahal rencananya belum ada. Sekarang keduanya "—",
+dan kalimat di bawahnya menyebut "belum bisa dihitung — bukan bernilai nol".
+
+### 2. Foto tidak tersambung ke cloud
+
+Keluhan user: *"fotomu sebelumnya kamu buat seperti ini, tersambung ke cloud,
+kenapa sekarang tidak!"* — merujuk PDF kegiatan lapangan (DECISIONS 125).
+
+Ini kelalaian, bukan pilihan. Foto di ringkasan **dipangkas** ke kotak 4:3 agar
+galerinya rapi; memangkas bukti tanpa menyisakan jalan ke aslinya berarti
+menghilangkan bagian gambar tanpa ada yang bisa memeriksanya. Sekarang memakai
+mekanisme yang sama persis: token HMAC `signPhotoToken` → `/api/foto/<token>`,
+chip "Lihat penuh" di sudut foto, dan seluruh sel jadi tautan. Origin diteruskan
+dari rute API maupun aksi kirim WA lewat `getRequestOrigin()`.
+
+Bila origin tidak diketahui, link **tidak dikarang** — URL yang salah lebih
+buruk daripada tidak ada link.
+
+### 3. Penyebutan lokasi harus lengkap dengan kabupatennya
+
+Permintaan user: lengkapi nama lokasi dengan kabupaten/kota **bila di halaman
+itu kabupatennya tidak tersebut sama sekali**. Alasannya nyata: nama desa
+berulang antar kabupaten, dan pembaca grup yang memegang banyak paket tidak bisa
+tahu ini yang mana.
+
+Helper murni `lokasiDenganWilayah()` di `src/lib/format.ts`, dipakai di tempat
+yang TIDAK punya baris "Wilayah": pesan WA harian, pesan WA rencana mingguan,
+kaki halaman PDF (halaman galeri foto tidak memuat blok identitas), dan baris
+papan status harian. Blok identitas PDF sudah punya baris "Wilayah" sendiri,
+jadi di sana nama lokasi tetap berdiri sendiri.
+
+SENGAJA tidak menuliskan "Kabupaten" atau "Kota": basis data hanya menyimpan
+namanya, dan memilih salah satu berarti dokumen menyatakan yang tidak
+diketahuinya.
+
+### Uji
+
+Dua uji baru yang mengunci koreksi ini, keduanya dibuktikan bergigi:
+membuang `doc.link` menjatuhkan uji tautan foto; mengembalikan `Lokasi: ${nama}`
+polos menjatuhkan uji kabupaten.
+
+Batas yang jujur: teks di dalam PDF TERKOMPRESI, jadi yang bisa diperiksa dari
+buffer mentah hanyalah **anotasi tautannya** — dan justru itu yang menentukan
+foto bisa diketuk. Kelengkapan teks lain diperiksa dengan merender dokumen ke
+gambar lalu membacanya.
+
+### 4. Perbandingan realisasi–rencana jadi SATU baris (bullet chart)
+
+Koreksi lanjutan user: *"realisasi dan rencana kenapa harus 2 baris, satu baris
+saja cukup, mainkan warnanya … standar monev big player."*
+
+Dua batang sejajar memaksa mata membandingkan dua panjang di dua baris berbeda.
+Diganti **bullet chart** (Stephen Few) — bentuk yang memang dipakai dashboard
+pemantauan proyek serius: SATU batang berisi realisasi (biru), dengan **penanda
+tegak merah** pada posisi rencana. Keduanya berdiri di sumbu yang sama,
+sehingga jaraknya terbaca sebagai satu gambar, bukan sebagai selisih yang harus
+dihitung sendiri pembaca.
+
+Penandanya sengaja MELEWATI tinggi batang (atas dan bawah) supaya tetap terlihat
+ketika posisinya persis berimpit dengan ujung isian.
+
+Label kanannya diberi ruang yang DIUKUR untuk muat satu baris ("12,40%" +
+"rencana 90,18%"); versi pertama terlalu sempit sehingga kata "rencana" dan
+angkanya patah ke dua baris — persis kesalahan yang sedang diperbaiki.
+
+### 5. Skala font diturunkan menyeluruh
+
+Judul dokumen 15→13, nilai KPI 13→11,5, label kisi 6,5→5,8, isi tabel 8→7,2,
+kondisi kerja 8,5→7,5, keterangan foto 7,5→7. Hasilnya: kasus nyata user
+(Tengket/Bangkalan — tanpa laporan harian, satu kegiatan, dua foto) yang tadinya
+dua halaman kini **muat satu halaman penuh** berikut galeri fotonya.
+
+---
+
+## 264 · Kop laporan: milik PERUSAHAAN, MARLIN cuma alatnya (2026-08-06)
+
+Permintaan user 2026-08-06, beserta sketsa kop: *"kamu jangan terlalu menonjolkan
+marlin di laporan-laporanmu, kamu harus lebih jelas, dengan mindset laporan ini
+dibuat DENGAN marlin OLEH perusahaan."*
+
+Ini bukan soal tata letak melainkan **kepemilikan dokumen**. Versi sebelumnya
+menaruh "MARLIN" tebal di kiri atas — posisi kop surat — sehingga laporan
+membaca seolah terbitan MARLIN. Padahal yang bertanggung jawab atas isinya, dan
+yang menyerahkannya ke PPK, adalah perusahaan pelaksana.
+
+Susunan kop sekarang, mengikuti sketsa user:
+
+- **Kiri: logo perusahaan pelaksana** (`Vendor.logoKey` dari R2). Belum diunggah
+  → NAMA perusahaan sebagai gantinya; gagal diambil → juga nama, bukan dokumen
+  yang batal terbentuk.
+- **Tengah: "RINGKASAN PELAKSANAAN HARIAN" + hari/tanggal.** Ukuran judulnya
+  DIUKUR terhadap ruang yang tersisa (menyusut sampai muat), karena percobaan
+  pertama membungkus ke baris kedua dan menabrak baris tanggal.
+- **Kanan: "DIBUAT DENGAN" + ikon & wordmark MARLIN**, sekecil keterangan alat.
+
+Wordmark ditulis sebagai **teks**, bukan gambar lockup: lockup penuh memuat ikon
++ nama + tagline, dan pada ukuran sekecil ini taglinenya jadi bubur — menonjol
+karena buram, bukan karena penting.
+
+**Kaki halaman ikut dibalik**: dipimpin lokasi + tanggal + nama perusahaan,
+MARLIN disebut terakhir sebagai alat. Waktu pembuatan tidak lagi dicetak di sana
+(barisnya jadi lewat satu baris); PDF sudah menyimpannya di `CreationDate`,
+terbaca dari properti berkas, jadi tidak ada provenance yang hilang.
+
+**Nama paket dibuang** dari kop dan dari blok identitas, atas permintaan yang
+sama. Pembaca dokumen ini butuh LOKASI dan PEKERJAANNYA; nama paket internal
+hanya menambah baris tanpa menambah keterangan. Medan `projectContext` yang
+tidak lagi dipakai ikut dihapus dari `RingkasHarian` daripada dibiarkan jadi
+data mati.
+
+Skala font diturunkan satu tingkat lagi mengikuti keluhan "fontmu masih terlalu
+besar".

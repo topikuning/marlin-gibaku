@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronRight, FileText, Printer } from "lucide-react";
+import { CalendarCheck, ChevronRight, FileText, Printer } from "lucide-react";
 import { Card, CardBody, CardHeader, EmptyState, PageHeader } from "@/components/ui";
 import { requireUser, accessibleLocationIds } from "@/lib/auth/session";
 import { locationRelScopeWhere, locationScopeWhere } from "@/lib/auth/scope";
@@ -58,6 +58,24 @@ export default async function LaporanPage() {
           tone="info"
         />
       </div>
+
+      {/* Papan status harian: satu tanggal, semua lokasi, beserta jejak Drive.
+          Ditempatkan sesudah antrean karena ia PEMANTAUAN, bukan antrean kerja
+          — tapi sebelum arsip, karena yang dipantau adalah hari ini. */}
+      <Link
+        href="/laporan/status-harian"
+        className="flex items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3 transition-colors hover:bg-surface-muted"
+      >
+        <CalendarCheck aria-hidden className="size-5 shrink-0 text-primary" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-ink">Status laporan harian</p>
+          <p className="text-[13px] text-ink-muted">
+            Per tanggal: lokasi mana yang sudah melapor, sampai tahap apa, dan apakah berkasnya
+            sudah naik ke Google Drive.
+          </p>
+        </div>
+        <ChevronRight aria-hidden className="size-4 shrink-0 text-ink-faint" />
+      </Link>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>

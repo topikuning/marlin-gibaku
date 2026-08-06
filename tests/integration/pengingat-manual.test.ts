@@ -53,12 +53,24 @@ vi.mock("@/lib/auth/session", async () => {
 });
 
 const { db } = await import("@/lib/db");
-const { kirimPengingatSekarangAction } = await import("@/lib/harian/actions");
+const {
+  kirimPengingatSekarangAction,
+  kirimPengingatSatuOrangAction,
+  setPengingatAktifAction,
+} = await import("@/lib/harian/actions");
+const { jalankanTugasHarian } = await import("@/lib/harian/penjadwal");
+const { getPengingatAktif, setPengingatAktif, PENGINGAT_KEY } = await import(
+  "@/lib/harian/setelan"
+);
 const { pratinjauPengingat } = await import("@/lib/harian/pratinjau");
 const { jakartaDateKey } = await import("@/lib/format");
 
 const suffix = `pm${Date.now().toString(36)}`;
-const NOMOR = "628999000111";
+// Nomor WA UNIK per jalannya berkas ini. Berkas ini tidak melakukan TRUNCATE di
+// `afterAll`, jadi pengguna dari jalan sebelumnya masih ada di DB uji; dengan
+// nomor konstan, `jalankanTugasHarian()` (yang sengaja lintas-organisasi)
+// menghitung mereka juga dan jumlah pesan jadi meleset tanpa ada yang rusak.
+const NOMOR = `62899${Date.now().toString().slice(-9)}`;
 let orgId = "";
 let mandorId = "";
 let tanpaNomorId = "";
@@ -312,5 +324,284 @@ describe("pratinjau menunjukkan yang SAMA dengan yang akan dikirim", () => {
     } finally {
       await db.dailyReport.delete({ where: { id: laporan.id } });
     }
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SAKELAR PENGINGAT OTOMATIS (DECISIONS 260)
+   Permintaan user 2026-08-05: "aku perlu flag disable dan enable pengingat
+   harian, lalu tombol per orang untuk pengingat manual".
+
+   Yang dikunci di sini adalah BATAS kekuasaan sakelar itu. Sakelar yang
+   mematikan lebih banyak daripada namanya adalah cacat senyap: tidak ada
+   pesan error, cuma angka yang diam-diam salah beberapa minggu kemudian.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+describe("sakelar pengingat: mematikan PENJADWAL, bukan kemampuan menagih", () => {
+  let paketSpmkId = "";
+
+  beforeAll(async () => {
+    // Paket yang SPMK-nya sudah tiba tetapi masih berstatus `kontrak` —
+    // dipakai membuktikan aktivasi SPMK tidak ikut mati.
+    const vendor = await db.vendor.create({
+      data: { orgId, name: `CV SPMK ${suffix}` },
+      select: { id: true },
+    });
+    const pkg = await db.package.create({
+      data: { orgId, name: `Paket SPMK ${suffix}`, stage: "kontrak" },
+      select: { id: true },
+    });
+    paketSpmkId = pkg.id;
+    await db.contract.create({
+      data: {
+        package: { connect: { id: pkg.id } },
+        vendor: { connect: { id: vendor.id } },
+        contractNumber: `KS-${suffix}`,
+        contractValue: 500_000n,
+        signedDate: new Date("2026-01-01"),
+        durationDays: 100,
+        startDate: new Date("2026-01-10"), // sudah lewat
+        endDate: new Date("2026-12-31"),
+      },
+    });
+  });
+
+  afterAll(async () => {
+    // Setelan ini GLOBAL (AppSetting tanpa orgId). Ia WAJIB dikembalikan,
+    // kalau tidak berkas uji berikutnya berjalan dengan pengingat mati.
+    await db.appSetting.deleteMany({ where: { key: PENGINGAT_KEY } });
+  });
+
+  beforeEach(async () => {
+    await db.appSetting.deleteMany({ where: { key: PENGINGAT_KEY } });
+    // Tiap `jalankanTugasHarian` di suite ini ikut menaikkan paket SPMK, jadi
+    // statusnya dikembalikan supaya uji aktivasi menguji aktivasi — bukan
+    // menemukan pekerjaan yang sudah dilakukan uji sebelumnya.
+    await db.package.update({ where: { id: paketSpmkId }, data: { stage: "kontrak" } });
+  });
+
+  it("belum pernah disetel = NYALA — setelan kosong tidak boleh diam-diam mematikan tagihan", async () => {
+    expect(await getPengingatAktif()).toBe(true);
+  });
+
+  it("MATI → penjadwal tidak mengirim apa pun, dan mengatakan sebabnya", async () => {
+    await setPengingatAktif(false);
+    const hasil = await jalankanTugasHarian();
+    expect(punyaKita()).toHaveLength(0);
+    // "0 terkirim" punya dua arti berlawanan: tidak ada yang perlu ditagih,
+    // ATAU sakelarnya mati. Tanpa penanda ini log cron tidak bisa dibaca.
+    expect(hasil.pengingat.dimatikan).toBe(true);
+    expect(hasil.pengingat.terkirim).toBe(0);
+  });
+
+  it("MATI → tombol manual TETAP mengirim (inti keputusannya)", async () => {
+    // Admin yang mematikan pengingat otomatis karena libur bersama tetap harus
+    // bisa menagih lokasi yang jalan terus. Sakelar ini mematikan cron, bukan
+    // hak admin menagih.
+    await setPengingatAktif(false);
+    const res = await kirimPengingatSekarangAction(undefined, new FormData());
+    expect(res?.error).toBeUndefined();
+    expect(punyaKita()).toHaveLength(1);
+  });
+
+  it("MATI → aktivasi SPMK jatuh tempo TETAP berjalan", async () => {
+    // Kalau ini ikut mati, paket tidak naik ke `pelaksanaan` pada tanggalnya,
+    // dan seluruh kurva-S + deviasi ikut salah. Sakelar pengingat tidak boleh
+    // punya kekuasaan sebesar itu.
+    await setPengingatAktif(false);
+    const hasil = await jalankanTugasHarian();
+    expect(hasil.spmk.diaktifkan).toBeGreaterThanOrEqual(1);
+    const kini = await db.package.findUniqueOrThrow({
+      where: { id: paketSpmkId },
+      select: { stage: true },
+    });
+    expect(kini.stage).toBe("pelaksanaan");
+  });
+
+  it("NYALA lagi → penjadwal menagih seperti biasa", async () => {
+    await setPengingatAktif(true);
+    const hasil = await jalankanTugasHarian();
+    expect(hasil.pengingat.dimatikan).toBeUndefined();
+    expect(punyaKita()).toHaveLength(1);
+  });
+
+  it("hanya pengelola sistem yang boleh menggeser sakelarnya", async () => {
+    for (const r of ["project_manager", "site_manager", "field_supervisor", "wakil_ppk"]) {
+      role = r;
+      const fd = new FormData();
+      fd.set("aktif", "0");
+      const res = await setPengingatAktifAction(undefined, fd);
+      expect(res?.error).toMatch(/izin/i);
+      expect(await getPengingatAktif()).toBe(true); // tetap default
+    }
+  });
+
+  it("perubahannya tercatat di audit — mematikan tagihan lapangan harus ada pelakunya", async () => {
+    const fd = new FormData();
+    fd.set("aktif", "0");
+    const res = await setPengingatAktifAction(undefined, fd);
+    expect(res?.success).toMatch(/dimatikan/i);
+    const log = await db.auditLog.findFirst({
+      where: { action: "reminder.toggle", userId: sessionUserId },
+      orderBy: { createdAt: "desc" },
+      select: { payload: true },
+    });
+    expect(log).not.toBeNull();
+    expect((log!.payload as { aktif?: boolean }).aktif).toBe(false);
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TOMBOL PENGINGAT PER ORANG
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+describe("pengingat per orang: menagih satu, bukan mengganggu semua", () => {
+  const NOMOR2 = `62877${Date.now().toString().slice(-9)}`;
+  const TUJUAN2 = `${NOMOR2}@c.us`;
+  const punyaOrangKedua = () => terkirim.filter((t) => t.chatId === TUJUAN2);
+  let mandor2Id = "";
+  let orangOrgLainId = "";
+  let orgLainId = "";
+
+  beforeAll(async () => {
+    mandor2Id = (
+      await db.user.create({
+        data: {
+          orgId,
+          username: `md2-${suffix}`,
+          fullName: "Sukarno Hatta",
+          role: "field_supervisor",
+          passwordHash: "x",
+          waNumber: NOMOR2,
+        },
+        select: { id: true },
+      })
+    ).id;
+    await db.locationAssignment.create({ data: { userId: mandor2Id, locationId: lokasiId } });
+
+    const lain = await db.organization.create({
+      data: { name: `Org Lain ${suffix}`, slug: `ol-${suffix}` },
+      select: { id: true },
+    });
+    orgLainId = lain.id;
+    orangOrgLainId = (
+      await db.user.create({
+        data: {
+          orgId: orgLainId,
+          username: `asing-${suffix}`,
+          fullName: "Orang Organisasi Lain",
+          role: "field_supervisor",
+          passwordHash: "x",
+          waNumber: `62866${Date.now().toString().slice(-9)}`,
+        },
+        select: { id: true },
+      })
+    ).id;
+  });
+
+  beforeEach(async () => {
+    await db.dailyReminderLog.deleteMany({ where: { userId: { in: [mandor2Id, orangOrgLainId] } } });
+  });
+
+  const kirimKe = (userId: string) => {
+    const fd = new FormData();
+    fd.set("userId", userId);
+    return kirimPengingatSatuOrangAction(undefined, fd);
+  };
+
+  it("KASUS INTI: hanya orang yang dipilih yang menerima pesan", async () => {
+    // Tanpa ini, menagih ulang satu mandor berarti mengirimi ulang semua orang
+    // yang sudah menerima — dan pengingat yang datang berkali-kali tanpa sebab
+    // akan berhenti dibaca.
+    const res = await kirimKe(mandor2Id);
+    expect(res?.error).toBeUndefined();
+    expect(res?.success).toMatch(/Sukarno Hatta/);
+    expect(punyaOrangKedua()).toHaveLength(1);
+    expect(punyaKita()).toHaveLength(0); // mandor pertama TIDAK diganggu
+  });
+
+  it("isi pesannya sama persis dengan versi massal — bukan jalur kedua yang menyimpang", async () => {
+    await kirimKe(mandor2Id);
+    const satuan = punyaOrangKedua()[0].text;
+    terkirim.length = 0;
+    await kirimPengingatSekarangAction(undefined, new FormData());
+    const massal = punyaOrangKedua()[0].text;
+    expect(satuan).toBe(massal);
+  });
+
+  it("jejaknya tercatat per orang, dan boleh diulang", async () => {
+    await kirimKe(mandor2Id);
+    await kirimKe(mandor2Id);
+    expect(punyaOrangKedua()).toHaveLength(2);
+    const log = await db.dailyReminderLog.findFirstOrThrow({
+      where: { userId: mandor2Id, dateKey: hariIni },
+      select: { attempts: true, chatId: true },
+    });
+    expect(log.attempts).toBe(2);
+    expect(log.chatId).toBe(TUJUAN2);
+  });
+
+  it("TENANCY: userId organisasi lain tidak menerima apa pun", async () => {
+    // Endpoint server action bisa dipanggil siapa pun yang tahu id-nya.
+    // Penyaringan organisasi harus ada di SERVER, bukan di daftar yang dirender.
+    const res = await kirimKe(orangOrgLainId);
+    expect(terkirim).toHaveLength(0);
+    expect(res?.success).toBeUndefined();
+    expect(res?.error).toMatch(/tidak ada yang dikirim/i);
+    expect(
+      await db.dailyReminderLog.count({ where: { userId: orangOrgLainId, dateKey: hariIni } }),
+    ).toBe(0);
+  });
+
+  it("orang yang sudah melapor → dikatakan tidak perlu ditagih, BUKAN 'terkirim'", async () => {
+    const laporan = await db.dailyReport.create({
+      data: {
+        locationId: lokasiId,
+        reportDate: new Date(`${hariIni}T00:00:00.000Z`),
+        status: "dikirim",
+        createdById: mandor2Id,
+        submittedById: mandor2Id,
+        submittedAt: new Date(),
+      },
+      select: { id: true },
+    });
+    try {
+      const res = await kirimKe(mandor2Id);
+      expect(punyaOrangKedua()).toHaveLength(0);
+      expect(res?.success).toBeUndefined();
+      expect(res?.error).toMatch(/tidak ada yang dikirim/i);
+    } finally {
+      await db.dailyReport.delete({ where: { id: laporan.id } });
+    }
+  });
+
+  it("2xx tanpa ID pesan TIDAK dinyatakan berhasil", async () => {
+    tanpaIdPesan = true;
+    const res = await kirimKe(mandor2Id);
+    expect(punyaOrangKedua()).toHaveLength(1);
+    expect(res?.success).toBeUndefined();
+    expect(res?.error).toMatch(/tanpa id pesan/i);
+  });
+
+  it("hanya pengelola sistem yang boleh menekannya", async () => {
+    for (const r of ["project_manager", "site_manager", "field_supervisor", "wakil_ppk"]) {
+      role = r;
+      const res = await kirimKe(mandor2Id);
+      expect(res?.error).toMatch(/izin/i);
+      expect(terkirim).toHaveLength(0);
+    }
+  });
+
+  it("tercatat di audit BESERTA orang yang dituju", async () => {
+    await kirimKe(mandor2Id);
+    const log = await db.auditLog.findFirst({
+      where: { action: "reminder.manual_send_one", userId: sessionUserId },
+      orderBy: { createdAt: "desc" },
+      select: { resourceId: true, resourceType: true, payload: true },
+    });
+    expect(log).not.toBeNull();
+    expect(log!.resourceType).toBe("user");
+    expect(log!.resourceId).toBe(mandor2Id);
+    expect((log!.payload as { tujuan?: string[] }).tujuan).toContain(TUJUAN2);
   });
 });

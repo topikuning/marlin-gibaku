@@ -2,15 +2,20 @@
 
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
-import { AlertTriangle, CheckCircle2, RefreshCw, Send } from "lucide-react";
-import { Banner, ConfirmSubmit, StatusPill } from "@/components/ui";
-import { kirimPengingatSekarangAction, type PengingatState } from "@/lib/harian/actions";
+import { AlertTriangle, BellOff, BellRing, CheckCircle2, RefreshCw, Send } from "lucide-react";
+import { Banner, Button, ConfirmSubmit, StatusPill } from "@/components/ui";
+import {
+  kirimPengingatSatuOrangAction,
+  kirimPengingatSekarangAction,
+  setPengingatAktifAction,
+  type PengingatState,
+} from "@/lib/harian/actions";
 import type { PratinjauPengingat } from "@/lib/harian/pratinjau";
 
 /**
- * Kirim pengingat laporan harian SEKARANG (DECISIONS 205/207).
+ * Kirim pengingat laporan harian SEKARANG (DECISIONS 205/207/260).
  *
- * Tombol ini mengirim WhatsApp ke HP orang lapangan — tindakan keluar yang
+ * Tombol di sini mengirim WhatsApp ke HP orang lapangan — tindakan keluar yang
  * tidak bisa ditarik. Yang dicegah adalah pengiriman yang TIDAK DISENGAJA:
  * daftar penerimanya (beserta nomor tujuannya) tampil lebih dulu, dan
  * konfirmasinya menyebut berapa orang akan menerima pesan kedua hari ini.
@@ -18,10 +23,25 @@ import type { PratinjauPengingat } from "@/lib/harian/pratinjau";
  * Yang TIDAK dicegah adalah admin mengirim ulang. Pesan pertama yang tidak
  * sampai adalah keadaan nyata; halaman yang menjawab "sudah dikirim hari ini"
  * pada keadaan itu memutuskan sesuatu yang bukan haknya (DECISIONS 207).
+ *
+ * ### Kenapa bukan satu `<form>` lagi
+ *
+ * Versi sebelumnya membungkus seluruh panel dalam satu form. Sekarang ada tiga
+ * tindakan berbeda — sakelar, kirim massal, kirim per orang — dan form HTML
+ * tidak boleh bersarang. Masing-masing punya formnya sendiri, dan hasilnya
+ * dipisah supaya "sakelar tersimpan" tidak terbaca seperti "pesan terkirim".
  */
 export function PengingatPanel({ pratinjau }: { pratinjau: PratinjauPengingat }) {
-  const [state, action] = useActionState<PengingatState, FormData>(
+  const [sakelar, aksiSakelar] = useActionState<PengingatState, FormData>(
+    setPengingatAktifAction,
+    undefined,
+  );
+  const [massal, aksiMassal] = useActionState<PengingatState, FormData>(
     kirimPengingatSekarangAction,
+    undefined,
+  );
+  const [satuan, aksiSatuan] = useActionState<PengingatState, FormData>(
+    kirimPengingatSatuOrangAction,
     undefined,
   );
 
@@ -30,49 +50,25 @@ export function PengingatPanel({ pratinjau }: { pratinjau: PratinjauPengingat })
   const ulang = pratinjau.akanDitagih.filter((p) => p.riwayat).length;
 
   return (
-    <form action={action} className="space-y-4">
-      {state?.error ? <Banner tone="error" title={state.error} /> : null}
-      {state?.success ? <Banner tone="success" title={state.success} /> : null}
+    <div className="space-y-4">
+      <SakelarOtomatis aktif={pratinjau.otomatisAktif} aksi={aksiSakelar} state={sakelar} />
+
+      {massal?.error ? <Banner tone="error" title={massal.error} /> : null}
+      {massal?.success ? <Banner tone="success" title={massal.success} /> : null}
+      {satuan?.error ? <Banner tone="error" title={satuan.error} /> : null}
+      {satuan?.success ? <Banner tone="success" title={satuan.success} /> : null}
 
       {/* Hasil per orang: "berhasil atau tidak" dijawab dengan ID pesan dari
           WhatsApp, bukan dengan kata "sukses". */}
-      {state?.rincian?.length ? (
-        <div className="overflow-hidden rounded-lg border border-border">
-          <div className="border-b border-border bg-surface-muted px-4 py-2 text-[13px] font-medium text-ink">
-            Hasil pengiriman barusan
-          </div>
-          <ul className="divide-y divide-border">
-            {state.rincian.map((r, i) => (
-              <li key={`${r.nama}-${i}`} className="px-4 py-2.5 text-[13px]">
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <span className="font-medium text-ink">{r.nama}</span>
-                  <span className="tabular text-ink-faint">{r.tujuan}</span>
-                  {r.ok && r.waMessageId ? (
-                    <StatusPill tone="success" label="terkirim + ID pesan" />
-                  ) : r.ok ? (
-                    <StatusPill tone="warning" label="tanpa ID pesan" />
-                  ) : (
-                    <StatusPill tone="danger" label="gagal" />
-                  )}
-                </div>
-                {r.error ? <p className="mt-1 text-danger">{r.error}</p> : null}
-                {r.ok && !r.waMessageId ? (
-                  <p className="mt-1 text-ink-muted">
-                    WAHA menerima permintaannya tetapi tidak memberi ID pesan — tidak bisa
-                    dipastikan sampai.
-                  </p>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </div>
+      {(massal?.rincian?.length ?? 0) > 0 ? (
+        <HasilKirim rincian={massal!.rincian!} />
       ) : null}
 
       {!pratinjau.wahaSiap ? (
         <Banner
           tone="warning"
           title="WhatsApp (WAHA) belum dikonfigurasi"
-          description="Tanpa itu tidak ada pesan yang bisa dikirim — baik oleh penjadwal maupun tombol ini. Atur di tab Integrasi."
+          description="Tanpa itu tidak ada pesan yang bisa dikirim — baik oleh penjadwal maupun tombol di halaman ini. Atur di tab Integrasi."
         />
       ) : pratinjau.sesiStatus !== "WORKING" ? (
         /* Keterangan, BUKAN pagar. Status sesi berguna untuk membaca hasil,
@@ -114,34 +110,48 @@ export function PengingatPanel({ pratinjau }: { pratinjau: PratinjauPengingat })
           </div>
           <ul className="divide-y divide-border">
             {pratinjau.akanDitagih.map((p) => (
-              <li key={p.nama} className="px-4 py-2.5">
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <span className="text-sm font-medium text-ink">{p.nama}</span>
-                  {/* Nomor tujuan ditampilkan: "terkirim tapi tidak sampai"
-                      paling sering berarti nomornya, dan itu hanya kelihatan
-                      kalau nomornya ikut ditulis. */}
-                  <span className="tabular text-[13px] text-ink-faint">{p.tujuan}</span>
-                  {p.riwayat ? (
-                    <StatusPill
-                      tone={p.riwayat.status === "gagal" ? "danger" : "neutral"}
-                      label={
-                        p.riwayat.status === "gagal"
-                          ? `${p.riwayat.attempts}× hari ini · GAGAL`
-                          : p.riwayat.adaBukti
-                            ? `${p.riwayat.attempts}× hari ini · ada ID pesan`
-                            : `${p.riwayat.attempts}× hari ini · tanpa ID pesan`
-                      }
-                    />
-                  ) : null}
+              <li key={p.userId} className="px-4 py-2.5">
+                <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="text-sm font-medium text-ink">{p.nama}</span>
+                      {/* Nomor tujuan ditampilkan: "terkirim tapi tidak sampai"
+                          paling sering berarti nomornya, dan itu hanya kelihatan
+                          kalau nomornya ikut ditulis. */}
+                      <span className="tabular text-[13px] text-ink-faint">{p.tujuan}</span>
+                      {p.riwayat ? (
+                        <StatusPill
+                          tone={p.riwayat.status === "gagal" ? "danger" : "neutral"}
+                          label={
+                            p.riwayat.status === "gagal"
+                              ? `${p.riwayat.attempts}× hari ini · GAGAL`
+                              : p.riwayat.adaBukti
+                                ? `${p.riwayat.attempts}× hari ini · ada ID pesan`
+                                : `${p.riwayat.attempts}× hari ini · tanpa ID pesan`
+                          }
+                        />
+                      ) : null}
+                    </div>
+                    <p className="mt-0.5 text-[13px] text-ink-muted">
+                      {p.lokasi
+                        .map((l, i) => `${l} (${p.adaDraft[i] ? "masih draf" : "belum ada laporan"})`)
+                        .join(" · ")}
+                    </p>
+                    {p.riwayat?.error ? (
+                      <p className="mt-1 text-[13px] text-danger">{p.riwayat.error}</p>
+                    ) : null}
+                  </div>
+                  {/* Tombol per orang (permintaan user 2026-08-05): yang gagal
+                      biasanya satu-dua orang. Tanpa ini, menagih ulang satu
+                      mandor berarti mengirimi ulang semua orang. */}
+                  <TombolSatuOrang
+                    aksi={aksiSatuan}
+                    userId={p.userId}
+                    nama={p.nama}
+                    tujuan={p.tujuan}
+                    sudah={p.riwayat?.attempts ?? 0}
+                  />
                 </div>
-                <p className="mt-0.5 text-[13px] text-ink-muted">
-                  {p.lokasi
-                    .map((l, i) => `${l} (${p.adaDraft[i] ? "masih draf" : "belum ada laporan"})`)
-                    .join(" · ")}
-                </p>
-                {p.riwayat?.error ? (
-                  <p className="mt-1 text-[13px] text-danger">{p.riwayat.error}</p>
-                ) : null}
               </li>
             ))}
           </ul>
@@ -185,8 +195,164 @@ export function PengingatPanel({ pratinjau }: { pratinjau: PratinjauPengingat })
         </details>
       ) : null}
 
-      <TombolKirim jumlah={jumlah} ulang={ulang} />
+      <form action={aksiMassal}>
+        <TombolKirim jumlah={jumlah} ulang={ulang} />
+      </form>
+    </div>
+  );
+}
+
+/**
+ * Sakelar penjadwal (DECISIONS 260).
+ *
+ * Keadaannya ditulis sebagai KALIMAT, bukan cuma warna: admin yang membuka
+ * halaman ini setelah dua minggu harus bisa tahu kenapa lapangan tidak
+ * ditagih tanpa membaca kode atau log cron.
+ */
+function SakelarOtomatis({
+  aktif,
+  aksi,
+  state,
+}: {
+  aktif: boolean;
+  aksi: (payload: FormData) => void;
+  state: PengingatState;
+}) {
+  return (
+    <div className="space-y-3">
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      {state?.success ? <Banner tone="success" title={state.success} /> : null}
+      <div
+        className={
+          aktif
+            ? "flex flex-wrap items-start justify-between gap-3 rounded-lg border border-success-border bg-success-soft px-4 py-3"
+            : "flex flex-wrap items-start justify-between gap-3 rounded-lg border border-warning-border bg-warning-soft px-4 py-3"
+        }
+      >
+        <div className="flex min-w-0 flex-1 items-start gap-2.5">
+          {aktif ? (
+            <BellRing aria-hidden className="mt-0.5 size-4 shrink-0 text-success" />
+          ) : (
+            <BellOff aria-hidden className="mt-0.5 size-4 shrink-0 text-warning" />
+          )}
+          <div className="min-w-0 text-sm">
+            <p className="font-medium text-ink">
+              Pengingat harian otomatis: {aktif ? "NYALA" : "MATI"}
+            </p>
+            <p className="mt-0.5 text-[13px] text-ink-muted">
+              {aktif
+                ? "Penjadwal menagih penanggung jawab sekali sehari. Mematikannya menghentikan penjadwal saja — tombol kirim di halaman ini tetap bisa dipakai."
+                : "Penjadwal tidak mengirim apa pun. Tombol kirim di halaman ini TETAP bekerja, dan aktivasi SPMK jatuh tempo juga tetap berjalan."}
+            </p>
+          </div>
+        </div>
+        <form action={aksi} className="shrink-0">
+          <input type="hidden" name="aktif" value={aktif ? "0" : "1"} />
+          <TombolSakelar aktif={aktif} />
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function TombolSakelar({ aktif }: { aktif: boolean }) {
+  const { pending } = useFormStatus();
+  // Mematikan = menghentikan tagihan ke seluruh lapangan. Itu pantas
+  // dikonfirmasi; menyalakannya kembali tidak.
+  if (aktif) {
+    return (
+      <ConfirmSubmit
+        label="Matikan"
+        variant="secondary"
+        confirmVariant="danger"
+        title="Matikan pengingat harian otomatis?"
+        description="Penjadwal berhenti menagih laporan harian ke seluruh lapangan sampai dinyalakan lagi. Tombol kirim manual di halaman ini tetap bisa dipakai, dan aktivasi SPMK jatuh tempo tidak terpengaruh."
+        confirmLabel="Ya, matikan"
+        loading={pending}
+      />
+    );
+  }
+  return (
+    <Button type="submit" size="sm" loading={pending}>
+      Nyalakan
+    </Button>
+  );
+}
+
+function TombolSatuOrang({
+  aksi,
+  userId,
+  nama,
+  tujuan,
+  sudah,
+}: {
+  aksi: (payload: FormData) => void;
+  userId: string;
+  nama: string;
+  tujuan: string;
+  sudah: number;
+}) {
+  return (
+    <form action={aksi} className="shrink-0">
+      <input type="hidden" name="userId" value={userId} />
+      <KirimSatu nama={nama} tujuan={tujuan} sudah={sudah} />
     </form>
+  );
+}
+
+function KirimSatu({ nama, tujuan, sudah }: { nama: string; tujuan: string; sudah: number }) {
+  const { pending } = useFormStatus();
+  return (
+    <ConfirmSubmit
+      label={sudah > 0 ? "Kirim ulang" : "Kirim"}
+      variant="secondary"
+      title={`Kirim pengingat ke ${nama}?`}
+      description={
+        sudah > 0
+          ? `Pesan WhatsApp langsung masuk ke ${tujuan} dan tidak bisa ditarik kembali. Orang ini SUDAH menerima ${sudah}× pengingat hari ini.`
+          : `Pesan WhatsApp langsung masuk ke ${tujuan} dan tidak bisa ditarik kembali.`
+      }
+      confirmLabel={`Ya, kirim ke ${nama}`}
+      loading={pending}
+    />
+  );
+}
+
+function HasilKirim({
+  rincian,
+}: {
+  rincian: { nama: string; tujuan: string; ok: boolean; waMessageId: string | null; error?: string }[];
+}) {
+  return (
+    <div className="overflow-hidden rounded-lg border border-border">
+      <div className="border-b border-border bg-surface-muted px-4 py-2 text-[13px] font-medium text-ink">
+        Hasil pengiriman barusan
+      </div>
+      <ul className="divide-y divide-border">
+        {rincian.map((r, i) => (
+          <li key={`${r.nama}-${i}`} className="px-4 py-2.5 text-[13px]">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="font-medium text-ink">{r.nama}</span>
+              <span className="tabular text-ink-faint">{r.tujuan}</span>
+              {r.ok && r.waMessageId ? (
+                <StatusPill tone="success" label="terkirim + ID pesan" />
+              ) : r.ok ? (
+                <StatusPill tone="warning" label="tanpa ID pesan" />
+              ) : (
+                <StatusPill tone="danger" label="gagal" />
+              )}
+            </div>
+            {r.error ? <p className="mt-1 text-danger">{r.error}</p> : null}
+            {r.ok && !r.waMessageId ? (
+              <p className="mt-1 text-ink-muted">
+                WAHA menerima permintaannya tetapi tidak memberi ID pesan — tidak bisa dipastikan
+                sampai.
+              </p>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -196,9 +362,7 @@ function TombolKirim({ jumlah, ulang }: { jumlah: number; ulang: number }) {
     // Tombol yang tidak akan mengirim apa pun sengaja tidak dipasang: menekan
     // tombol lalu tidak terjadi apa-apa terbaca seperti sistem rusak.
     return (
-      <p className="text-[13px] text-ink-faint">
-        Tombol kirim muncul saat ada yang perlu ditagih.
-      </p>
+      <p className="text-[13px] text-ink-faint">Tombol kirim muncul saat ada yang perlu ditagih.</p>
     );
   }
   // Kirim ulang BUKAN kesalahan — tapi harus disebut, supaya menekan tombol
@@ -207,7 +371,7 @@ function TombolKirim({ jumlah, ulang }: { jumlah: number; ulang: number }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <ConfirmSubmit
-        label={adaUlang ? "Kirim ulang pengingat" : "Kirim pengingat sekarang"}
+        label={adaUlang ? "Kirim ulang ke semua" : "Kirim ke semua sekarang"}
         title={`Kirim pengingat ke ${jumlah} orang sekarang?`}
         description={
           adaUlang
