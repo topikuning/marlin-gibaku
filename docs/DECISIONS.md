@@ -10539,3 +10539,83 @@ dihitung (`realizedValue` = 0 pada 30 Juli, > 0 pada hari ini).
 
 `akhirHariKerja()` yang diperkenalkan 274 ikut dibuang — tidak ada lagi
 pemakainya, dan helper tak terpakai hanya mengundang pemakaian yang salah.
+
+---
+
+## 276 · Papan status harian: saringan lokasi/Drive/WA + perbaikan luapan mobile (2026-08-06)
+
+**Konteks.** Laporan user 2026-08-06, disertai tangkapan layar ponsel yang
+halamannya tergeser ke samping sampai nama lokasi terpotong di kiri:
+
+> *"cek ulang halaman status laporan harian yang kamu buat terakhir. dimana
+> filter kalau aku ingin langsung ke lokasi tertentu, aku ingin tahu mana yang
+> belum upload ke drive, mana yang sudah laporan wa. cek bagaimana itu tampilan
+> di mobile."*
+
+Tiga temuan, semuanya nyata.
+
+### 1. Halaman MELUAP di ponsel — dan tidak ada yang menjaganya
+
+Diukur di peramban pada 390px: `scrollWidth` **526** vs `clientWidth` **390**.
+Biangnya kolom aksi tiap baris, `flex shrink-0`, yang memuat kalimat prasyarat
+panjang ("Paket belum punya folder Drive", "Paket belum punya grup WA"):
+`shrink-0` menolak menyempit, kalimatnya menentukan lebar, dan seluruh halaman
+ikut melebar.
+
+Yang lebih penting dari cacatnya: **`/laporan/status-harian` tidak pernah ada di
+daftar rute `tests/e2e/mobile-overflow.spec.ts`.** Penjaganya sudah dibangun
+sejak audit overflow 390px, tapi halaman ini lahir sesudahnya dan tidak pernah
+didaftarkan — jadi penjaganya hijau sementara halamannya rusak. Rutenya kini
+ditambahkan; itu perbaikan yang lebih berharga daripada satu kelas CSS.
+
+Perbaikannya: kolom aksi tidak lagi `shrink-0`, `basis-full` di ponsel
+(turun ke barisnya sendiri, selebar penuh) dan `sm:basis-auto` di layar lebar.
+Kartu KPI juga jadi 2 kolom sejak layar tersempit — lima kartu satu-per-baris
+mendorong daftar lokasinya, isi sebenarnya halaman ini, lima layar ke bawah.
+
+### 2. Tidak ada saringan sama sekali
+
+Papan ini menampilkan SELURUH lokasi aktif. Jejak Drive & WA sudah tertulis di
+tiap baris sejak DECISIONS 262, tapi pada 83 lokasi "mana yang belum naik ke
+Drive" berarti membaca 83 baris dan mengingat-ingat — persis pekerjaan yang
+hendak dihapus papan ini.
+
+Ditambahkan tiga saringan, dan bentuknya dipilih dengan alasan:
+
+- **Lokasi → `Combobox`** (diketik-cari). 83 lokasi tidak bisa dipilih dengan
+  menggulung; label memuat kabupaten karena nama desa berulang antar kabupaten.
+  Sesuai aturan repo: tidak pernah `<select>` native (DECISIONS 094/115/174).
+- **Drive & WA → deretan TAUTAN, bukan dropdown.** Pilihannya 2–4 dan inilah
+  pertanyaan yang paling sering diajukan ke papan ini: satu ketukan, jalan tanpa
+  JavaScript, dan hasilnya punya ALAMAT sendiri sehingga bisa dikirim ke orang
+  lain lewat WhatsApp — cara kerja tim ini sehari-hari.
+
+Aturan saringnya tinggal di modul murni
+`src/lib/daily-report/status-harian-filter.ts`, bukan di JSX: saringan yang
+keliru tidak menerbitkan galat apa pun, ia hanya menyembunyikan lokasi yang
+seharusnya ditindak — dan di papan pengawasan itu kegagalan yang paling mahal,
+karena layar yang menyembunyikan justru terbaca "semua sudah beres".
+
+Dua keputusan isi yang layak disebut:
+
+- **"Belum naik" mencakup yang BELUM DICOBA maupun yang GAGAL.** Keduanya sama
+  saja: berkasnya tidak ada di Drive. Kalau yang gagal dikeluarkan, ia lenyap
+  dari pandangan justru karena bermasalah. Yang gagal tetap bisa dipisahkan
+  lewat saringan "Gagal" tersendiri, karena tindak lanjutnya berbeda.
+- **Angka KPI di pita atas TETAP untuk seluruh hari**, tidak ikut menyusut saat
+  disaring — gunanya menjawab "sejauh mana hari ini". Jumlah yang sedang
+  ditampilkan disebut terpisah ("Menampilkan 1 dari 7 lokasi").
+
+### 3. Fungsi tidak bisa menyeberang batas RSC
+
+Selama pengerjaan, `geser(n)` sempat dioper sebagai prop dari Server Component
+ke `BilahSaring` yang client — halaman balas **500**. Dicatat karena
+pengukuran overflow SEMPAT terbaca "390 = 390, aman" padahal yang diukur adalah
+halaman galat. Alamatnya kini dihitung di server dan dioper sebagai string.
+
+**Bukti.** `tests/unit/status-harian-filter.test.ts` (15 uji). Uji gigi:
+membuat "belum naik" mengeluarkan yang gagal → 1 uji gugur; membuat saringan
+"gagal terbuka" (mengembalikan semua baris saat tak ada yang cocok) → 1 uji
+gugur. Luapan diukur langsung di peramban sebelum & sesudah: 526px → 390px,
+dan rutenya kini dijaga uji e2e. Saringan dicoba di peramban ponsel: ketik
+"Kedung" di pemilih lokasi → 1 opsi → "Menampilkan 1 dari 7 lokasi".

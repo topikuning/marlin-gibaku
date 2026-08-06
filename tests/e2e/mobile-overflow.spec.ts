@@ -36,6 +36,9 @@ const RUTE: { path: string; nama: string }[] = [
   { path: "/laporan", nama: "Laporan" },
   { path: "/laporan/menunggu-verifikasi", nama: "Antrean verifikasi" },
   { path: "/laporan/perlu-koreksi", nama: "Antrean koreksi" },
+  // Ditambahkan 2026-08-06: papan ini MELUAP ke 526px di layar 390px dan tidak
+  // tertangkap siapa pun karena rutenya memang tidak pernah ada di daftar ini.
+  { path: "/laporan/status-harian", nama: "Status laporan harian" },
   { path: "/keuangan", nama: "Keuangan" },
   { path: "/dokumen", nama: "Dokumen" },
   { path: "/peta", nama: "Peta" },
