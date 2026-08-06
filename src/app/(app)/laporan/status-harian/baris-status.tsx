@@ -45,8 +45,17 @@ export function BarisStatus({ row, dateKey }: { row: StatusHarianRow; dateKey: s
 
   return (
     <div className="px-4 py-3">
+      {/*
+        `min-w-0` di KEDUA kolom, dan kolom aksi TIDAK `shrink-0`.
+        Sebelumnya kolom aksi memakai `shrink-0` sambil memuat kalimat panjang
+        ("Paket belum punya folder Drive", "Paket belum punya grup WA"), jadi ia
+        menolak menyempit dan mendorong SELURUH halaman jadi 526px di layar
+        390px — halaman bisa digeser ke samping dan nama lokasinya terpotong di
+        kiri (laporan user 2026-08-06). Di ponsel kolom aksi turun ke barisnya
+        sendiri selebar penuh; di layar lebar ia kembali ke kanan.
+      */}
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 basis-full sm:basis-0">
           <div className="flex flex-wrap items-center gap-2">
             <Link
               href={`/lokasi/${row.slug}/harian/${dateKey}`}
@@ -96,8 +105,23 @@ export function BarisStatus({ row, dateKey }: { row: StatusHarianRow; dateKey: s
           </div>
         </div>
 
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <Link
+        <div className="flex min-w-0 basis-full flex-wrap items-center gap-2 sm:basis-auto">
+          {/*
+            `<a>` BIASA, bukan `<Link>` — dan ini bukan soal gaya.
+
+            `next/link` MEM-PREFETCH tautan internal begitu masuk viewport.
+            Alamat ini bukan halaman, melainkan endpoint yang MEMBANGKITKAN PDF:
+            menyusun dokumen, menarik fotonya dari R2, lalu merendernya. Dengan
+            `<Link>`, sekadar menggulung papan ini diam-diam memicu pembuatan
+            PDF untuk SETIAP baris yang terlihat — pekerjaan berat yang tidak
+            diminta siapa pun, dikalikan jumlah lokasi.
+
+            Terungkap lewat uji overflow mobile yang baru: halaman ini TIDAK
+            PERNAH mencapai `networkidle` karena permintaan prefetch itu
+            menggantung, sehingga ujinya kehabisan waktu 60 detik. Ujinya
+            menemukan cacat produksi, bukan sekadar rewel soal tata letak.
+          */}
+          <a
             href={`/api/laporan/harian/${row.slug}/${dateKey}/ringkas`}
             target="_blank"
             rel="noopener"
@@ -105,10 +129,10 @@ export function BarisStatus({ row, dateKey }: { row: StatusHarianRow; dateKey: s
           >
             <FileText aria-hidden className="size-3.5" />
             Ringkasan PDF
-          </Link>
+          </a>
 
           {row.drive.webLink ? (
-            <Link
+            <a
               href={row.drive.webLink}
               target="_blank"
               rel="noopener noreferrer"
@@ -116,7 +140,7 @@ export function BarisStatus({ row, dateKey }: { row: StatusHarianRow; dateKey: s
             >
               <ExternalLink aria-hidden className="size-3.5" />
               Buka Drive
-            </Link>
+            </a>
           ) : null}
 
           <form action={aksiDrive}>
@@ -159,9 +183,7 @@ function TombolDrive({
   const { pending } = useFormStatus();
   if (!siap) {
     return (
-      <span className="text-xs text-ink-faint">
-        Paket belum punya folder Drive
-      </span>
+      <span className="min-w-0 text-xs text-ink-faint">Paket belum punya folder Drive</span>
     );
   }
   return (
@@ -187,10 +209,10 @@ function TombolWa({
 }) {
   const { pending } = useFormStatus();
   if (!siap) {
-    return <span className="text-xs text-ink-faint">Paket belum punya grup WA</span>;
+    return <span className="min-w-0 text-xs text-ink-faint">Paket belum punya grup WA</span>;
   }
   if (!adaIsi) {
-    return <span className="text-xs text-ink-faint">Belum ada yang bisa dikirim</span>;
+    return <span className="min-w-0 text-xs text-ink-faint">Belum ada yang bisa dikirim</span>;
   }
   // Status BUKAN pagar (keputusan user 2026-08-05) — tapi konfirmasinya
   // menyebutkannya, supaya mengirim draf ke grup PPK adalah pilihan sadar.
