@@ -251,11 +251,14 @@ export function KkpWeeklyPlan({ r }: { r: RencanaMingguan }) {
 
       {/* ── TTD ── */}
       <div className="mt-6 grid grid-cols-3 gap-4 text-center text-[10px]">
+        {/* Nama = penanda tangan yang DITUNJUK KONTRAK, bukan pengguna aplikasi
+            yang menyusun rencananya (lihat lib/pdf/rencana-kkp.ts). Jejak
+            penyusun pindah ke catatan kaki di bawah blok tanda tangan. */}
         <Sign
           title="Disusun Oleh"
           role={`Penyedia Jasa — ${h.vendorName}`}
-          name={r.disusunOleh ?? h.contractorSignerName}
-          sub={r.disusunPada ? `Disusun ${dFmt.format(r.disusunPada)}` : h.contractorSignerTitle}
+          name={h.contractorSignerName}
+          sub={h.contractorSignerTitle}
         />
         <Sign
           title="Diperiksa"
@@ -270,6 +273,14 @@ export function KkpWeeklyPlan({ r }: { r: RencanaMingguan }) {
           sub={h.ppkNip ? `NIP. ${h.ppkNip}` : null}
         />
       </div>
+
+      {r.disusunPada || r.disusunOleh ? (
+        <p className="mt-3 text-[9px] text-slate-500">
+          Rencana disusun dalam sistem
+          {r.disusunPada ? ` ${dFmt.format(r.disusunPada)}` : ""}
+          {r.disusunOleh ? ` oleh ${r.disusunOleh}` : ""}.
+        </p>
+      ) : null}
     </div>
   );
 }

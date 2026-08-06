@@ -9974,3 +9974,36 @@ diselipkan di kolom mana pun akan tertangkap, bukan hanya yang diperbaiki hari
 ini. `photo-gallery.tsx` dan `scurve-kkp-sheet.tsx` tetap memakai `toFixed`
 dengan sengaja: yang pertama untuk koordinat, yang kedua untuk koordinat SVG —
 keduanya bukan angka dokumen.
+
+## 267 · Yang menandatangani rencana mingguan adalah penanda tangan KONTRAK, bukan operator aplikasi (2026-08-06)
+
+User, dengan tangkapan layar berkasnya: *"ini rencana mingguan kenapa
+administrator, kan seharusnya direktur"*.
+
+Blok "Disusun Oleh" pada formulir rencana mingguan mengambil nama dari
+`disusunOleh` — yaitu `User.fullName` pengguna aplikasi yang menyimpan rencana —
+sementara baris jabatan di bawahnya tetap dari `Contract.contractorSignerTitle`.
+Hasilnya satu blok tanda tangan yang menggabungkan DUA orang berbeda menjadi
+satu pernyataan: "Administrator" di atas, "Direktur" di bawahnya. Dokumen resmi
+ke PPK jadi menyatakan bahwa operator sistem adalah direktur perusahaan.
+
+**Aturannya sekarang**: nama penanda tangan penyedia jasa SELALU
+`Contract.contractorSignerName` + `contractorSignerTitle`. Siapa yang mengetikkan
+rencana ke sistem adalah **provenansi**, bukan kewenangan menandatangani —
+tempatnya kaki dokumen ("… disusun 11 Mei 2026 oleh Administrator"), bukan garis
+tanda tangan. Jejaknya tidak dibuang: kalau `disusunOleh` cuma dihapus, sistem
+kehilangan siapa yang menyusun.
+
+Diperbaiki di ketiga penyaji sekaligus — PDF (`lib/pdf/rencana-kkp.ts`), Excel
+(`lib/export/rencana-xlsx.ts`), dan layar/cetak
+(`components/knmp/kkp-weekly-plan.tsx`) — karena ketiganya menyalin bentuk yang
+sama, dan memperbaiki satu saja akan membuat berkas yang beredar berbeda dari
+layar yang menyetujuinya.
+
+Blanko lain diperiksa dan sudah benar: laporan harian dan laporan periodik
+memang sudah memakai `contractorSignerName`. Yang salah hanya rencana mingguan.
+
+Bila penanda tangan belum diisi di kontrak, blok tanda tangan menampilkan garis
+titik-titik — BUKAN diisi nama operator sebagai pengganti. Kolom kosong yang
+jujur bisa ditandatangani manual; kolom yang diisi orang yang salah tidak bisa
+dibatalkan setelah dokumennya beredar.

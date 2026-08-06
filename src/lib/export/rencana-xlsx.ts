@@ -280,7 +280,10 @@ export async function buildRencanaMingguanXlsx(r: RencanaMingguan): Promise<Buff
     [9, COL_COUNT],
   ];
   const ttd = [
-    { title: "Disusun Oleh,", role: `Penyedia Jasa — ${h.vendorName}`, name: r.disusunOleh ?? h.contractorSignerName, sub: h.contractorSignerTitle },
+    // Penanda tangan penyedia jasa = yang DITUNJUK KONTRAK, bukan pengguna
+    // aplikasi yang menyusun rencananya (lihat pdf/rencana-kkp.ts). Jejak
+    // penyusun ada di baris "Dicetak dari …" di bawah.
+    { title: "Disusun Oleh,", role: `Penyedia Jasa — ${h.vendorName}`, name: h.contractorSignerName, sub: h.contractorSignerTitle },
     { title: "Diperiksa,", role: "Konsultan Pengawas", name: h.supervisorName, sub: h.supervisorFirm },
     { title: "Disetujui,", role: "Pejabat Pembuat Komitmen", name: h.ppkName, sub: h.ppkNip ? `NIP. ${h.ppkNip}` : null },
   ];
@@ -307,6 +310,7 @@ export async function buildRencanaMingguanXlsx(r: RencanaMingguan): Promise<Buff
   ws.addRow([]);
   const jejak = ws.addRow([
     `Dicetak dari MARLIN${r.disusunPada ? ` · rencana disusun ${formatTanggal(r.disusunPada, "d MMMM yyyy")}` : ""}` +
+      (r.disusunOleh ? ` oleh ${r.disusunOleh}` : "") +
       ` · deviasi ${signed(r.deviationPct)} (${LABEL_STATUS[r.status]})`,
   ]);
   jejak.getCell(1).font = { size: 8, italic: true, color: { argb: "FF64748B" } };
