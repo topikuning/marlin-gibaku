@@ -9994,11 +9994,23 @@ tempatnya kaki dokumen ("… disusun 11 Mei 2026 oleh Administrator"), bukan gar
 tanda tangan. Jejaknya tidak dibuang: kalau `disusunOleh` cuma dihapus, sistem
 kehilangan siapa yang menyusun.
 
-Diperbaiki di ketiga penyaji sekaligus — PDF (`lib/pdf/rencana-kkp.ts`), Excel
-(`lib/export/rencana-xlsx.ts`), dan layar/cetak
-(`components/knmp/kkp-weekly-plan.tsx`) — karena ketiganya menyalin bentuk yang
-sama, dan memperbaiki satu saja akan membuat berkas yang beredar berbeda dari
-layar yang menyetujuinya.
+**Perbaikannya bukan menambal tiga tempat, tapi menghapus alasan tiga tempat
+bisa berbeda.** Blok TTD ditarik keluar jadi satu modul MURNI
+`lib/plan/rencana-ttd.ts` (`pihakTandaTanganRencana` + `jejakPenyusun`); PDF
+(`lib/pdf/rencana-kkp.ts`), Excel (`lib/export/rencana-xlsx.ts`), dan layar/cetak
+(`components/knmp/kkp-weekly-plan.tsx`) sekarang hanya MENUANGKAN hasilnya.
+Ketiganya dulu menyusun blok yang sama sendiri-sendiri dari medan yang sama —
+itulah yang memungkinkan cacat ini ada dan bertahan.
+
+Tipe masukannya (`SumberTtdRencana`) sengaja hanya memuat medan kop kontrak.
+`disusunOleh` bukan sekadar "diingat supaya jangan dipakai": ia TIDAK TERSEDIA
+di tempat blok itu dibentuk.
+
+Ujinya menembak modul murni itu langsung, plus keluaran Excel sebagai bukti
+penyaji benar-benar memakainya. **Uji tidak membaca teks PDF**: pdfkit
+menyertakan font tersubset, jadi aliran isinya berisi ID glyph — bukan huruf —
+dan percobaan memakai `pdftotext` hijau di mesin sendiri tapi merah di CI
+(runner tidak punya poppler). Uji yang hanya hijau di satu mesin bukan penjaga.
 
 Blanko lain diperiksa dan sudah benar: laporan harian dan laporan periodik
 memang sudah memakai `contractorSignerName`. Yang salah hanya rencana mingguan.
