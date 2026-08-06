@@ -85,19 +85,28 @@ export function gayaKepala(cell: ExcelJS.Cell, opts?: { sub?: boolean; size?: nu
 /** Lebar kolom Excel → piksel (aproksimasi Calibri 11 yang dipakai penampil). */
 const kolomPx = (width: number | undefined): number => Math.round((width ?? 8.43) * 7 + 5);
 
+/** 1 piksel = 9525 EMU (satuan panjang OOXML). */
+const EMU_PER_PX = 9525;
+
 /**
- * Kolom pecahan tempat sebuah gambar harus ditempel agar tepi KIRI-nya jatuh di
- * `xPx`. Gambar XLSX ditempel pada koordinat kolom/baris, bukan piksel, jadi
- * posisinya harus dihitung dari lebar kolom sheet yang bersangkutan.
+ * Titik jangkar gambar untuk tepi KIRI di `xPx`, dinyatakan sebagai kolom
+ * 0-based + simpangan EMU.
+ *
+ * SENGAJA tidak memakai koordinat kolom PECAHAN yang disediakan exceljs:
+ * konversinya (`anchor.js`) memakai `lebarKolom × 10000` sebagai penyebut,
+ * padahal `nativeColOff` dibaca Excel sebagai EMU. Kolom selebar 14 karakter
+ * (±103 px) jadi diperlakukan seakan 140000 EMU (±14,7 px), sehingga pecahan
+ * 0,85 hanya menggeser gambar ±12 px — logo yang seharusnya di tengah mendarat
+ * jauh di kiri. Menulis `nativeColOff` sendiri melewati konversi itu.
  */
-function kolomDiX(ws: ExcelJS.Worksheet, xPx: number, kolomTerakhir: number): number {
+function jangkarX(ws: ExcelJS.Worksheet, xPx: number, kolomTerakhir: number): { col: number; offEmu: number } {
   let x = 0;
   for (let c = 1; c <= kolomTerakhir; c++) {
     const w = kolomPx(ws.getColumn(c).width);
-    if (xPx < x + w) return c - 1 + (xPx - x) / w;
+    if (xPx < x + w) return { col: c - 1, offEmu: Math.max(0, Math.round((xPx - x) * EMU_PER_PX)) };
     x += w;
   }
-  return kolomTerakhir;
+  return { col: kolomTerakhir, offEmu: 0 };
 }
 
 /** Total lebar piksel kolom 1..`kolomTerakhir`. */
@@ -107,54 +116,83 @@ function lebarPx(ws: ExcelJS.Worksheet, kolomTerakhir: number): number {
   return x;
 }
 
+/** Penempatan logo di dalam satu blok kolom. */
+export type PosisiLogo = {
+  /** Nomor baris Excel (1-based) tempat sisi atas gambar diletakkan. */
+  rowAtas: number;
+  tinggiPx: number;
+  /** Blok kolom acuan (1-based, inklusif) — logo disejajarkan ke blok INI. */
+  kolomKiri: number;
+  kolomKanan: number;
+};
+
 /**
- * KOP BERLOGO: pemilik pekerjaan di kiri, kontraktor pelaksana di kanan —
- * mengikuti berkas acuan KKP (koreksi user 2026-08-06).
- *
- * Rasio gambar DIJAGA: logo dimuat beserta ukuran aslinya lalu dimuat-paskan ke
- * kotak setinggi `tinggiPx`. Meregangkan logo perusahaan ke kotak tetap adalah
- * cara paling cepat membuat dokumen resmi terlihat asal jadi.
- *
- * Logo yang tidak ada hanya dilewati — tidak ada kotak kosong, tidak ada teks
- * pengganti. Sisi yang kosong memang berarti logonya belum diunggah.
+ * Rasio gambar DIJAGA: tinggi ditetapkan, lebar mengikuti. Meregangkan logo
+ * perusahaan ke kotak seragam adalah cara tercepat membuat dokumen resmi
+ * terlihat asal jadi.
  */
-export function pasangLogoKop(
+function tempelLogo(
+  wb: ExcelJS.Workbook,
+  ws: ExcelJS.Worksheet,
+  g: LogoGambar,
+  o: { row: number; tinggiPx: number; xKiri: number; kolomKanan: number },
+): void {
+  const w = lebarLogo(g, o.tinggiPx);
+  const { col, offEmu } = jangkarX(ws, Math.max(0, o.xKiri), o.kolomKanan);
+  const id = wb.addImage({ buffer: g.buffer as unknown as ExcelJS.Buffer, extension: "png" });
+  ws.addImage(id, {
+    tl: { nativeCol: col, nativeColOff: offEmu, nativeRow: Math.max(0, o.row - 1), nativeRowOff: 0 },
+    ext: { width: w, height: o.tinggiPx },
+    editAs: "oneCell",
+  } as unknown as Parameters<ExcelJS.Worksheet["addImage"]>[1]);
+}
+
+const lebarLogo = (g: LogoGambar, tinggiPx: number): number => Math.round(g.width * (tinggiPx / g.height));
+
+/**
+ * SATU logo di TENGAH blok — tata letak sampul berkas acuan KKP: logo pemilik
+ * pekerjaan di puncak halaman, logo kontraktor di atas keterangannya, keduanya
+ * terpusat. (Koreksi user 2026-08-06: tata letaknya sudah ada di contoh; jangan
+ * dikarang sendiri jadi kiri–kanan.)
+ */
+export function logoTengah(
+  wb: ExcelJS.Workbook,
+  ws: ExcelJS.Worksheet,
+  g: LogoGambar | null,
+  o: PosisiLogo,
+): void {
+  if (!g) return; // Logo yang belum diunggah dilewati — tanpa kotak kosong.
+  const xKiri = lebarPx(ws, o.kolomKiri - 1);
+  const xKanan = lebarPx(ws, o.kolomKanan);
+  tempelLogo(wb, ws, g, {
+    row: o.rowAtas,
+    tinggiPx: o.tinggiPx,
+    xKiri: xKiri + (xKanan - xKiri - lebarLogo(g, o.tinggiPx)) / 2,
+    kolomKanan: o.kolomKanan,
+  });
+}
+
+/**
+ * SEPASANG logo BERJAJAR di sisi KANAN blok — tata letak sheet rekap berkas
+ * acuan: identitas paket di kiri, logo pemilik & kontraktor berdampingan di
+ * kanan. Urutannya pemilik dulu, lalu kontraktor.
+ */
+export function logoPasanganKanan(
   wb: ExcelJS.Workbook,
   ws: ExcelJS.Worksheet,
   logo: LogoLaporan | undefined,
-  o: {
-    rowAtas: number;
-    tinggiPx: number;
-    /** Blok kolom tempat logo disejajarkan (1-based, inklusif). */
-    kolomKiri: number;
-    kolomKanan: number;
-  },
+  o: PosisiLogo & { jarakPx?: number },
 ): void {
-  if (!logo?.pemilik && !logo?.kontraktor) return;
-  // Disejajarkan ke BLOK ISI, bukan ke tepi sheet: pada sampul, judul & seluruh
-  // identitas dimerge di kolom tengah, dan logo yang rata tepi kertas terlihat
-  // lepas dari kopnya.
-  const xKiri = lebarPx(ws, o.kolomKiri - 1);
-  const xKanan = lebarPx(ws, o.kolomKanan);
-  // `rowAtas` 1-based (nomor baris Excel) → koordinat gambar 0-based.
-  const row = Math.max(0, o.rowAtas - 1);
-
-  const tempel = (g: LogoGambar, kiri: number) => {
-    const w = Math.round(g.width * (o.tinggiPx / g.height));
-    const id = wb.addImage({ buffer: g.buffer as unknown as ExcelJS.Buffer, extension: "png" });
-    ws.addImage(id, {
-      tl: { col: kolomDiX(ws, kiri, o.kolomKanan), row },
-      ext: { width: w, height: o.tinggiPx },
-      editAs: "oneCell",
-    });
-    return w;
-  };
-
-  if (logo.pemilik) tempel(logo.pemilik, xKiri);
-  if (logo.kontraktor) {
-    const w = Math.round(logo.kontraktor.width * (o.tinggiPx / logo.kontraktor.height));
-    tempel(logo.kontraktor, Math.max(xKiri, xKanan - w));
-  }
+  const daftar = [logo?.pemilik, logo?.kontraktor].filter((g): g is LogoGambar => !!g);
+  if (daftar.length === 0) return;
+  const jarak = o.jarakPx ?? 14;
+  const lebar = daftar.map((g) => lebarLogo(g, o.tinggiPx));
+  const total = lebar.reduce((a, b) => a + b, 0) + jarak * (daftar.length - 1);
+  let x = Math.max(lebarPx(ws, o.kolomKiri - 1), lebarPx(ws, o.kolomKanan) - total);
+  daftar.forEach((g, i) => {
+    tempelLogo(wb, ws, g, { row: o.rowAtas, tinggiPx: o.tinggiPx, xKiri: x, kolomKanan: o.kolomKanan });
+    x += lebar[i] + jarak;
+  });
 }
 
 /**

@@ -10141,12 +10141,48 @@ Sekarang penyisip: memakai nomor `chartN`/`drawingN` yang masih bebas, dan bila
 worksheet sudah punya drawing, anchor grafik **disisipkan ke dalam drawing itu**
 (rId & id shape baru) alih-alih membuat part kedua.
 
+### Koreksi lanjutan hari yang sama: TATA LETAKNYA SUDAH ADA DI CONTOH
+
+User, setelah melihat hasil pertama: *"SIAPA YANG MENYURUHMU TARUH DI ATAS KANAN
+DAN KIRI. DI CONTOH SUDAH ADA SEMUA TATA LETAKNYA."* Benar — aku memasang kedua
+logo kiri–kanan di keempat sheet, padahal berkas acuan punya susunan yang
+berbeda per sheet. Yang BERLAKU sekarang, diambil dari berkas acuan:
+
+| Sheet | Tata letak logo |
+|---|---|
+| **COV-BQ** | pemilik pekerjaan **di puncak, terpusat**; kontraktor **terpusat**, tepat di atas keterangan "KONTRAKTOR PELAKSANA" |
+| **REKAP** | pasangan logo **berjajar di KANAN** blok identitas |
+| **Kurva S** | pasangan logo **berjajar di KANAN**, sejajar judul |
+| **Laporan** (RAB) | **TANPA logo** — di berkas acuan sheet RAB pun tidak berkop |
+
+Sampulnya ikut disusun ulang mengikuti contoh: logo pemilik → pita judul
+"LAPORAN PROGRES <PERIODE>" → SATUAN KERJA + instansi → nama kegiatan → PERIODE
+& TAHUN → LOKASI PEKERJAAN + alamat → logo kontraktor → "KONTRAKTOR PELAKSANA".
+Sheet REKAP memakai judul "REKAPITULASI LAPORAN MINGGUAN/BULANAN" dengan label
+identitas berhuruf besar + titik dua, dan nilainya dibatasi sampai kolom D —
+kolom E–F sengaja dikosongkan karena di situlah logonya berjajar.
+
+Nama kontraktor TETAP ditulis di sampul walau di berkas acuan pelaksana hanya
+dikenali dari logonya: tanpa baris itu, sampul milik vendor yang belum mengunggah
+logo tidak menyebut pelaksananya sama sekali.
+
+### Cacat kedua yang ketahuan: koordinat kolom PECAHAN exceljs tidak bisa dipakai
+
+Logo yang seharusnya di tengah mendarat jauh di kiri. Sebabnya ada di
+`exceljs/doc/anchor.js`: penyetel `col` pecahan menghitung
+`nativeColOff = (pecahan) × (lebarKolom × 10000)`, padahal Excel membaca
+`nativeColOff` sebagai **EMU** (1 px = 9525 EMU). Kolom selebar 14 karakter
+(±103 px) diperlakukan seakan 140000 EMU (±14,7 px) — jadi pecahan 0,85 hanya
+menggeser gambar ±12 px, bukan ±88 px. Penempatan kini menulis
+`{ nativeCol, nativeColOff }` sendiri dalam EMU, melewati konversi itu.
+
 ### Bukti
 
 Uji unit memasang sepasang logo dengan rasio sengaja berbeda (240×120 dan
-100×200) lalu memeriksa berkas hasilnya: kedua gambar ada di keempat sheet,
-rasionya utuh, pemilik di kiri & kontraktor di kanan, dan sisi yang logonya null
-hanya dilewati. Ditambah pemeriksaan langsung ke isi zip: part grafik tetap
+100×200) lalu memeriksa berkas hasilnya: sampul menyusunnya ATAS–BAWAH dan
+keduanya terpusat pada blok isi (dihitung dari lebar kolom, bukan dikira-kira);
+REKAP & Kurva S menyusunnya berjajar (baris sama, kolom menaik); sheet Laporan
+nol gambar; rasio tiap logo utuh; sisi yang logonya null hanya dilewati. Ditambah pemeriksaan langsung ke isi zip: part grafik tetap
 ditulis, sheet "Kurva S" menunjuk TEPAT SATU drawing, dan drawing itu memuat
 `<c:chart>` sekaligus dua `<xdr:pic>`. Dikembalikan ke perilaku lama penyisip,
 dua uji itu gagal.

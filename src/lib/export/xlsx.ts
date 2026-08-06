@@ -16,7 +16,8 @@ import {
   blokTandaTangan,
   gayaKepala,
   isi,
-  pasangLogoKop,
+  logoPasanganKanan,
+  logoTengah,
 } from "@/lib/export/xlsx-gaya";
 import { formatTanggal } from "@/lib/format";
 
@@ -136,13 +137,24 @@ async function addKurvaSheet(
     ws.mergeCells(row.number, 1, row.number, lastTableCol);
     row.getCell(1).font = { bold, size, color: { argb: warna } };
     row.getCell(1).alignment = { horizontal: "center" };
+    return row;
   };
-  // Pita logo: pemilik pekerjaan kiri, kontraktor kanan (koreksi user 2026-08-06).
-  const pitaLogo = ws.addRow([]);
-  pitaLogo.height = 34;
-  pasangLogoKop(wb, ws, opts?.logo, { rowAtas: pitaLogo.number, tinggiPx: 40, kolomKiri: 1, kolomKanan: lastTableCol });
-  banner(`KURVA S — ${r.kind === "mingguan" ? `MINGGU KE-${r.n}` : `BULAN KE-${r.n}`}`, true, 12, WARNA.kepala);
+  const barisJudul = banner(
+    `KURVA S — ${r.kind === "mingguan" ? `MINGGU KE-${r.n}` : `BULAN KE-${r.n}`}`,
+    true,
+    12,
+    WARNA.kepala,
+  );
   banner(`${r.header.packageName} — ${r.header.village}, ${r.header.regency}`, false, 10, WARNA.teksRedup);
+  // Tata letak berkas acuan (Time Schedule): identitas di kiri, PASANGAN logo
+  // pemilik + kontraktor BERJAJAR DI KANAN — bukan kiri-kanan terpisah.
+  ws.getRow(barisJudul.number + 1).height = 34;
+  logoPasanganKanan(wb, ws, opts?.logo, {
+    rowAtas: barisJudul.number,
+    tinggiPx: 44,
+    kolomKiri: 1,
+    kolomKanan: lastTableCol,
+  });
   ws.addRow([]);
 
   // Header 2 baris: kelompok bulan (merge) + minggu.
@@ -455,7 +467,7 @@ function addCoverSheet(wb: ExcelJS.Workbook, r: PeriodReport, logo?: LogoLaporan
 
   const baris = (
     teks: string | null,
-    gaya: { size?: number; bold?: boolean; color?: string; tinggi?: number; garisBawah?: boolean } = {},
+    gaya: { size?: number; bold?: boolean; color?: string; tinggi?: number; pita?: boolean } = {},
   ) => {
     const row = ws.addRow([]);
     const cell = row.getCell(2);
@@ -468,56 +480,76 @@ function addCoverSheet(wb: ExcelJS.Workbook, r: PeriodReport, logo?: LogoLaporan
     cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
     ws.mergeCells(row.number, 2, row.number, LAST - 1);
     if (gaya.tinggi) row.height = gaya.tinggi;
-    if (gaya.garisBawah) {
-      for (let c = 2; c <= LAST - 1; c++) {
-        row.getCell(c).border = { bottom: { style: "medium", color: { argb: WARNA.garisTegas } } };
-      }
-    }
+    if (gaya.pita) for (let c = 1; c <= LAST; c++) row.getCell(c).fill = isi(WARNA.kategori);
     return row;
   };
 
-  /** Pasangan label kecil di atas isinya — bentuk sampul, bukan tabel. */
+  /** Label kecil di atas isinya — bentuk sampul, bukan tabel. */
   const pasangan = (label: string, isiTeks: string, besar = 12) => {
     baris(label, { size: 9, bold: true, color: WARNA.teksRedup });
     baris(isiTeks, { size: besar, bold: true, tinggi: besar > 11 ? 20 : 16 });
     ws.addRow([]);
   };
 
-  // PITA LOGO — logo pemilik pekerjaan (kiri) & kontraktor pelaksana (kanan),
-  // seperti sampul berkas acuan KKP. Inilah yang membedakan sampul dokumen
-  // kontrak dari cetakan internal (koreksi user 2026-08-06).
-  const pitaLogo = ws.addRow([]);
-  pitaLogo.height = 74;
-  pasangLogoKop(wb, ws, logo, { rowAtas: pitaLogo.number, tinggiPx: 92, kolomKiri: 2, kolomKanan: LAST - 1 });
-  // Garis pemisah di bawah pita logo — kop resmi, bukan gambar mengambang.
-  const garisKop = ws.addRow([]);
-  for (let c = 2; c <= LAST - 1; c++) {
-    garisKop.getCell(c).border = { bottom: { style: "thin", color: { argb: WARNA.garis } } };
-  }
-  ws.addRow([]);
-  baris("LAPORAN PROGRES PEKERJAAN", { size: 20, bold: true, color: WARNA.kepala, tinggi: 28 });
-  baris(labelPeriode(r), { size: 16, bold: true, color: WARNA.kepalaSub, tinggi: 24, garisBawah: true });
-  ws.addRow([]);
-  ws.addRow([]);
+  const kosong = (n: number) => {
+    for (let i = 0; i < n; i++) ws.addRow([]);
+  };
 
-  pasangan("KEGIATAN", h.packageName, 12);
-  pasangan("SATUAN KERJA / PEMBERI TUGAS", h.ownerAgency, 12);
-  pasangan("LOKASI PEKERJAAN", lokasiLengkap(h), 12);
-  pasangan(
-    "PERIODE",
-    `${formatTanggal(h.periodeStart, "d MMMM yyyy")} s/d ${formatTanggal(h.periodeEnd, "d MMMM yyyy")}`,
-    11,
-  );
-  pasangan("TAHUN ANGGARAN", String(h.tahunAnggaran), 11);
+  // ── LOGO PEMILIK PEKERJAAN: DI PUNCAK, DI TENGAH ──
+  // Tata letaknya diambil dari berkas acuan, bukan dikarang (koreksi user
+  // 2026-08-06: "SIAPA YANG MENYURUHMU TARUH DI ATAS KANAN DAN KIRI. DI CONTOH
+  // SUDAH ADA SEMUA TATA LETAKNYA").
+  kosong(1);
+  const pitaPemilik = ws.addRow([]);
+  pitaPemilik.height = 96; // > tinggi logo (118 px ≈ 89 pt)
+  logoTengah(wb, ws, logo?.pemilik ?? null, {
+    rowAtas: pitaPemilik.number,
+    tinggiPx: 118,
+    kolomKiri: 2,
+    kolomKanan: LAST - 1,
+  });
+  kosong(1);
 
-  ws.addRow([]);
-  baris("KONTRAKTOR PELAKSANA", { size: 9, bold: true, color: WARNA.teksRedup });
-  baris(h.vendorName, { size: 14, bold: true, color: WARNA.kepala, tinggi: 22 });
-  baris(`Nomor Kontrak: ${h.contractNumber}`, { size: 9, color: WARNA.teksRedup });
+  // ── Pita judul ──
+  baris(`LAPORAN PROGRES ${labelPeriode(r)}`, {
+    size: 16,
+    bold: true,
+    color: WARNA.kepala,
+    tinggi: 26,
+    pita: true,
+  });
+  kosong(3);
+
+  // ── Identitas ──
+  pasangan("SATUAN KERJA", h.ownerAgency.toUpperCase(), 12);
+  kosong(1);
+  baris(h.packageName.toUpperCase(), { size: 13, bold: true, tinggi: 22 });
+  kosong(2);
   baris(
-    `Nilai Fisik Lokasi: Rp ${new Intl.NumberFormat("id-ID").format(Number(h.locationValue))} · Masa Pelaksanaan ${h.masaPelaksanaanHari} Hari Kalender`,
-    { size: 9, color: WARNA.teksRedup },
+    `PERIODE ${formatTanggal(h.periodeStart, "d MMMM yyyy").toUpperCase()} S/D ${formatTanggal(h.periodeEnd, "d MMMM yyyy").toUpperCase()}`,
+    { size: 10, bold: true },
   );
+  baris(`TAHUN ${h.tahunAnggaran}`, { size: 10, bold: true });
+  kosong(3);
+
+  baris("LOKASI PEKERJAAN", { size: 9, bold: true, color: WARNA.teksRedup });
+  baris(lokasiLengkap(h).toUpperCase(), { size: 11, bold: true, tinggi: 18 });
+  kosong(1);
+
+  // ── LOGO KONTRAKTOR: DI TENGAH, TEPAT DI ATAS KETERANGANNYA ──
+  const pitaKontraktor = ws.addRow([]);
+  pitaKontraktor.height = 66; // > tinggi logo (74 px ≈ 55 pt) supaya keterangannya tidak tertutup
+  logoTengah(wb, ws, logo?.kontraktor ?? null, {
+    rowAtas: pitaKontraktor.number,
+    tinggiPx: 74,
+    kolomKiri: 2,
+    kolomKanan: LAST - 1,
+  });
+  baris("KONTRAKTOR PELAKSANA", { size: 10, bold: true });
+  // Nama perusahaan TETAP ditulis: kalau logonya belum diunggah, sampul tanpa
+  // baris ini tidak menyebut pelaksananya sama sekali.
+  baris(h.vendorName, { size: 12, bold: true, color: WARNA.kepala, tinggi: 18 });
+  baris(`Nomor Kontrak: ${h.contractNumber}`, { size: 9, color: WARNA.teksRedup });
 }
 
 /* ── Sheet "REKAP": rekapitulasi bobot per kelompok pekerjaan ─────────────── */
@@ -546,38 +578,46 @@ function addRekapSheet(wb: ExcelJS.Workbook, r: PeriodReport, logo?: LogoLaporan
     row.getCell(1).font = { bold: true, size, color: { argb: warna } };
     row.getCell(1).alignment = { horizontal: "center" };
   };
-  const pitaLogo = ws.addRow([]);
-  pitaLogo.height = 34;
-  pasangLogoKop(wb, ws, logo, { rowAtas: pitaLogo.number, tinggiPx: 40, kolomKiri: 1, kolomKanan: LAST });
-  judul("REKAPITULASI PROGRES PEKERJAAN", 14, WARNA.kepala);
+  judul(`REKAPITULASI LAPORAN ${r.kind === "mingguan" ? "MINGGUAN" : "BULANAN"}`, 14, WARNA.kepala);
   judul(labelPeriode(r), 11, WARNA.kepalaSub);
   ws.addRow([]);
 
-  // Identitas: label (A:B) + isi (C..F).
+  // Identitas: label (A:B) + ":" + isi (C:D). Kolom E–F SENGAJA dibiarkan kosong
+  // — di situlah PASANGAN LOGO berjajar, persis tata letak berkas acuan
+  // (koreksi user 2026-08-06). Nilai identitas tidak boleh melebar ke sana.
   const kv = (k: string, v: string) => {
     const row = ws.addRow([]);
-    row.getCell(1).value = k;
+    row.getCell(1).value = k.toUpperCase();
     row.getCell(1).font = { bold: true, size: 9, color: { argb: WARNA.kepala } };
     row.getCell(1).alignment = { vertical: "middle" };
     ws.mergeCells(row.number, 1, row.number, 2);
     const cell = row.getCell(3);
-    cell.value = v;
+    cell.value = `:  ${v}`;
     cell.font = { size: 9, color: { argb: WARNA.teks } };
-    cell.alignment = { vertical: "middle", wrapText: v.length > 60 };
-    ws.mergeCells(row.number, 3, row.number, LAST);
-    if (v.length > 60) row.height = 26;
+    const baris = Math.max(1, Math.ceil(v.length / 42));
+    cell.alignment = { vertical: "middle", wrapText: baris > 1 };
+    ws.mergeCells(row.number, 3, row.number, 4);
+    row.height = baris > 1 ? baris * 12.5 : 15;
+    return row;
   };
-  kv("Kegiatan", h.packageName);
+  const barisIdentitasPertama = kv("Kegiatan", h.packageName).number;
   kv("Tahun Anggaran", String(h.tahunAnggaran));
   kv("Pemberi Tugas", h.ownerAgency);
-  kv("Kontraktor Pelaksana", h.vendorName);
+  kv("Kontraktor", h.vendorName);
   kv("Konsultan Pengawas", h.supervisorFirm?.trim() || h.supervisorName?.trim() || "—");
-  kv("Lokasi / Alamat", lokasiLengkap(h));
+  kv("Alamat", lokasiLengkap(h));
   kv(`${periodeLabel} ke`, `${r.n} dari ${r.maxN}`);
   kv(
     "Periode",
     `${formatTanggal(h.periodeStart, "d MMMM yyyy")} s/d ${formatTanggal(h.periodeEnd, "d MMMM yyyy")}`,
   );
+  // PASANGAN logo berjajar di KANAN blok identitas — pemilik lalu kontraktor.
+  logoPasanganKanan(wb, ws, logo, {
+    rowAtas: barisIdentitasPertama,
+    tinggiPx: 62,
+    kolomKiri: 5,
+    kolomKanan: LAST,
+  });
   ws.addRow([]);
 
   // Kepala tabel.
@@ -748,9 +788,8 @@ export async function buildPeriodReportXlsx(
     row.getCell(1).font = { bold, size, color: { argb: warna } };
     row.getCell(1).alignment = { horizontal: "center" };
   };
-  const pitaLogo = ws.addRow([]);
-  pitaLogo.height = 34;
-  pasangLogoKop(wb, ws, logo, { rowAtas: pitaLogo.number, tinggiPx: 40, kolomKiri: 1, kolomKanan: COL_COUNT });
+  // Sheet rincian (setara "RAB" berkas acuan) SENGAJA tanpa logo — di berkas
+  // resmi pun hanya sampul, rekap, dan time schedule yang berkop.
   title(judul);
   title(ke, true, 11);
   title(

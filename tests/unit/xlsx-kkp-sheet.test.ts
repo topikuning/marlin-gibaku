@@ -168,17 +168,14 @@ describe("urutan & kelengkapan sheet", () => {
 describe("sheet COV-BQ (sampul)", () => {
   it("menyebut periode, kegiatan, pemberi tugas, lokasi, tahun, dan pelaksana", async () => {
     const t = semuaTeks((await book()).getWorksheet("COV-BQ")!);
-    expect(t).toContain("LAPORAN PROGRES PEKERJAAN");
-    expect(t).toContain("MINGGU KE-2");
-    expect(t).toContain("KEGIATAN");
-    expect(t).toContain("Pembangunan Kampung Nelayan Merah Putih — Pasar Banggi");
-    expect(t).toContain("SATUAN KERJA / PEMBERI TUGAS");
-    expect(t).toContain("Kementerian Kelautan dan Perikanan");
+    expect(t).toContain("LAPORAN PROGRES MINGGU KE-2");
+    expect(t).toContain("SATUAN KERJA");
+    expect(t).toContain("PEMBANGUNAN KAMPUNG NELAYAN MERAH PUTIH — PASAR BANGGI");
+    expect(t).toContain("KEMENTERIAN KELAUTAN DAN PERIKANAN");
     expect(t).toContain("LOKASI PEKERJAAN");
     // Nama desa yang sama dengan nama lokasi tidak diulang.
-    expect(t).toContain("Pasar Banggi — Kec. Rembang, Rembang, Jawa Tengah");
-    expect(t).toContain("TAHUN ANGGARAN");
-    expect(t).toContain("2026");
+    expect(t).toContain("PASAR BANGGI — KEC. REMBANG, REMBANG, JAWA TENGAH");
+    expect(t).toContain("TAHUN 2026");
     expect(t).toContain("KONTRAKTOR PELAKSANA");
     expect(t).toContain("PT Kurnia Alam Sentosa");
     expect(t).toContain("B.17105/DJPT.6/PI.420/PPK/VI/2026");
@@ -186,7 +183,7 @@ describe("sheet COV-BQ (sampul)", () => {
 
   it("judul laporan bulanan menyebut BULAN, bukan minggu", async () => {
     const t = semuaTeks((await book({ kind: "bulanan", n: 3 })).getWorksheet("COV-BQ")!);
-    expect(t).toContain("BULAN KE-3");
+    expect(t).toContain("LAPORAN PROGRES BULAN KE-3");
     expect(t).not.toContain("MINGGU KE-");
   });
 });
@@ -352,58 +349,101 @@ describe("blok tanda tangan", () => {
   });
 });
 
-describe("logo kop — pemilik pekerjaan & kontraktor pelaksana", () => {
-  // Koreksi user 2026-08-06: "aku sudah berikan contoh bahwa itu ada logo KKP
-  // (Pemilik Pekerjaan) dan kontraktor. kenapa itu kamu hilangkan? paling
-  // penting terutama di bagian sheet COV-BQ."
+describe("logo kop — TATA LETAK dari berkas acuan", () => {
+  // Koreksi user 2026-08-06, dua kali. Pertama: "aku sudah berikan contoh bahwa
+  // itu ada logo KKP (Pemilik Pekerjaan) dan kontraktor. kenapa itu kamu
+  // hilangkan?" Lalu, setelah kupasang kiri–kanan: "SIAPA YANG MENYURUHMU TARUH
+  // DI ATAS KANAN DAN KIRI. DI CONTOH SUDAH ADA SEMUA TATA LETAKNYA."
   //
-  // Cacatnya SENYAP: berkasnya terbuka normal dan seluruh angkanya benar — yang
-  // hilang adalah tanda bahwa ini dokumen resmi kontrak, bukan cetakan internal.
+  // Tata letak yang BERLAKU, dari berkas acuan:
+  //   COV-BQ    → logo pemilik di puncak (tengah); logo kontraktor di tengah,
+  //               tepat di atas keterangan "KONTRAKTOR PELAKSANA";
+  //   REKAP     → pasangan logo BERJAJAR di kanan blok identitas;
+  //   Kurva S   → pasangan logo BERJAJAR di kanan, sejajar judul;
+  //   Laporan   → TANPA logo (di berkas acuan sheet RAB pun tidak berkop).
 
-  it("COV-BQ memuat KEDUA logo", async () => {
-    const wb = await book(undefined, LOGO);
-    expect(gambar(wb.getWorksheet("COV-BQ")!)).toHaveLength(2);
+  const posisi = (ws: ExcelJS.Worksheet) =>
+    ws.getImages().map((i) => {
+      const tl = i.range.tl as unknown as { nativeCol: number; nativeRow: number };
+      const ext = (i.range as { ext?: { width: number; height: number } }).ext!;
+      return { col: tl.nativeCol, row: tl.nativeRow, w: ext.width, h: ext.height };
+    });
+
+  it("COV-BQ memuat KEDUA logo, TERSUSUN ATAS–BAWAH (bukan kiri–kanan)", async () => {
+    const p = posisi((await book(undefined, LOGO)).getWorksheet("COV-BQ")!);
+    expect(p).toHaveLength(2);
+    // Pemilik jauh di atas kontraktor — itulah yang membedakan tata letak sampul
+    // dari susunan kiri-kanan yang kukarang sebelumnya.
+    expect(p[0].row).toBeLessThan(p[1].row);
   });
 
-  it("keempat sheet berlogo — dokumen yang sama dari sampul sampai rincian", async () => {
-    const wb = await book(undefined, LOGO);
-    for (const nama of ["COV-BQ", "REKAP", "Kurva S", "Laporan"]) {
-      expect(gambar(wb.getWorksheet(nama)!), nama).toHaveLength(2);
+  it("kedua logo sampul TERPUSAT pada blok isi", async () => {
+    const ws = (await book(undefined, LOGO)).getWorksheet("COV-BQ")!;
+    // Blok isi sampul = kolom 2..7. Titik tengahnya dihitung dari lebar kolom.
+    const px = (c: number) => Math.round((ws.getColumn(c).width ?? 8.43) * 7 + 5);
+    let xBlokKiri = 0;
+    for (let c = 1; c < 2; c++) xBlokKiri += px(c);
+    let xBlokKanan = 0;
+    for (let c = 1; c <= 7; c++) xBlokKanan += px(c);
+    const tengahBlok = (xBlokKiri + xBlokKanan) / 2;
+
+    for (const img of ws.getImages()) {
+      const tl = img.range.tl as unknown as { nativeCol: number; nativeColOff: number };
+      const ext = (img.range as unknown as { ext: { width: number } }).ext;
+      let x = 0;
+      for (let c = 1; c <= tl.nativeCol; c++) x += px(c);
+      x += (tl.nativeColOff ?? 0) / 9525;
+      expect(x + ext.width / 2, "titik tengah logo").toBeCloseTo(tengahBlok, -1);
     }
+  });
+
+  it("REKAP: pasangan logo BERJAJAR di kanan — baris sama, kolom berbeda", async () => {
+    const p = posisi((await book(undefined, LOGO)).getWorksheet("REKAP")!);
+    expect(p).toHaveLength(2);
+    expect(p[0].row).toBe(p[1].row);
+    expect(p[0].col).toBeLessThan(p[1].col);
+  });
+
+  it("Kurva S: pasangan logo BERJAJAR di kanan", async () => {
+    const p = posisi((await book(undefined, LOGO)).getWorksheet("Kurva S")!);
+    expect(p).toHaveLength(2);
+    expect(p[0].row).toBe(p[1].row);
+    expect(p[0].col).toBeLessThan(p[1].col);
+  });
+
+  it("sheet Laporan (RAB) TANPA logo — berkas acuan pun begitu", async () => {
+    expect(posisi((await book(undefined, LOGO)).getWorksheet("Laporan")!)).toHaveLength(0);
   });
 
   it("RASIO gambar dijaga — logo tidak diregangkan ke kotak seragam", async () => {
     // pemilik 240×120 (2:1) dan kontraktor 100×200 (1:2). Kalau keduanya
-    // dipaksa ke kotak yang sama, logo perusahaan jadi gepeng/melar dan dokumen
-    // resmi terlihat asal jadi.
-    const wb = await book(undefined, LOGO);
-    const img = gambar(wb.getWorksheet("COV-BQ")!);
-    const rasio = img.map((i) => {
-      const ext = (i.range as { ext?: { width: number; height: number } }).ext!;
-      return ext.width / ext.height;
-    });
-    expect(rasio[0]).toBeCloseTo(240 / 120, 2);
-    expect(rasio[1]).toBeCloseTo(100 / 200, 2);
-  });
-
-  it("logo pemilik di KIRI, kontraktor di KANAN", async () => {
-    const wb = await book(undefined, LOGO);
-    const img = gambar(wb.getWorksheet("COV-BQ")!);
-    const kolom = img.map((i) => (i.range as { tl: { nativeCol: number } }).tl.nativeCol);
-    expect(kolom[0]).toBeLessThan(kolom[1]);
+    // dipaksa ke kotak yang sama, logo perusahaan jadi gepeng/melar.
+    const p = posisi((await book(undefined, LOGO)).getWorksheet("REKAP")!);
+    expect(p[0].w / p[0].h).toBeCloseTo(240 / 120, 2);
+    expect(p[1].w / p[1].h).toBeCloseTo(100 / 200, 2);
   });
 
   it("logo yang BELUM diunggah hanya dilewati — berkas tetap terbit", async () => {
     // Kotak kosong atau teks pengganti lebih buruk daripada tidak ada apa-apa:
     // sisi yang kosong memang berarti logonya belum diunggah.
     const wb = await book(undefined, { pemilik: LOGO.pemilik, kontraktor: null });
-    expect(gambar(wb.getWorksheet("COV-BQ")!)).toHaveLength(1);
+    expect(posisi(wb.getWorksheet("COV-BQ")!)).toHaveLength(1);
+    expect(posisi(wb.getWorksheet("REKAP")!)).toHaveLength(1);
+  });
+
+  it("nama kontraktor tetap tertulis di sampul walau logonya belum ada", async () => {
+    // Di berkas acuan pelaksana dikenali dari logonya. Tanpa baris nama, sampul
+    // tanpa logo tidak menyebut pelaksananya sama sekali.
+    const wb = await book(undefined, { pemilik: LOGO.pemilik, kontraktor: null });
+    const t = semuaTeks(wb.getWorksheet("COV-BQ")!);
+    expect(t).toContain("KONTRAKTOR PELAKSANA");
+    expect(t).toContain("PT Kurnia Alam Sentosa");
   });
 
   it("tanpa logo sama sekali, seluruh sheet tetap terbentuk", async () => {
     const wb = await book();
     expect(wb.worksheets.map((w) => w.name)).toEqual(["COV-BQ", "REKAP", "Kurva S", "Laporan"]);
-    expect(gambar(wb.getWorksheet("COV-BQ")!)).toHaveLength(0);
+    expect(posisi(wb.getWorksheet("COV-BQ")!)).toHaveLength(0);
   });
 });
 
