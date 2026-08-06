@@ -1,6 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { pct } from "@/lib/money";
+import { akhirHariKerja } from "@/lib/format";
 
 /**
  * Calculation layer progress — SATU sumber untuk dashboard, workspace, laporan, export.
@@ -80,10 +81,36 @@ export async function getLocationsProgress(
   const result = new Map<string, LocationProgress>();
   if (locationIds.length === 0) return result;
   const asOf = opts.asOf;
-  // Versi yang efektif pada `asOf`: dibuat ≤ asOf dan belum digantikan saat itu.
+  /**
+   * Batas "efektif pada tanggal itu" = AKHIR hari kerjanya, bukan awalnya.
+   *
+   * `asOf` datang dari kolom tanggal kerja `@db.Date` yang tersimpan sebagai
+   * UTC-midnight — di Jakarta itu pukul **07:00 WIB**. Memakainya apa adanya
+   * memotong hari kerja pada jam tujuh pagi: baseline atau revisi yang
+   * diaktifkan siang itu punya `createdAt` lebih besar dari batas, jadi gugur;
+   * sementara versi lama yang `supersededAt`-nya siang itu justru lolos syarat
+   * `supersededAt > asOf`. Akibatnya dokumen resmi HARI INI mencetak jadwal
+   * yang tadi siang baru saja diganti, sedangkan layar workspace — yang membaca
+   * baseline berstatus `aktif` — menampilkan jadwal barunya. Dua angka rencana
+   * berbeda untuk tanggal yang sama, tanpa satu kata pun yang menjelaskannya
+   * (laporan user 2026-08-06: rencana 23,30% di PDF vs 1,7% di layar).
+   *
+   * Maksud `asOf` (CALC-01) adalah versi yang EFEKTIF pada tanggal itu.
+   * Baseline yang diaktifkan pukul 14:30 pada 6 Agustus jelas efektif pada
+   * 6 Agustus. Jadi batas benarnya akhir hari, dan itulah yang dipakai di sini.
+   *
+   * Arah sebaliknya tetap dijaga: perubahan yang dibuat BESOK punya `createdAt`
+   * di atas batas ini, jadi dokumen hari ini tidak ikut berubah — justru inilah
+   * yang membuat cap "FINAL — ANGKA TERKUNCI" jadi benar.
+   */
+  const batasEfektif = asOf ? akhirHariKerja(asOf) : null;
+  // Versi yang efektif pada `asOf`: dibuat ≤ batas dan belum digantikan saat itu.
   // Tanpa asOf: versi yang berstatus aktif sekarang.
-  const efektif = asOf
-    ? { createdAt: { lte: asOf }, OR: [{ supersededAt: null }, { supersededAt: { gt: asOf } }] }
+  const efektif = batasEfektif
+    ? {
+        createdAt: { lte: batasEfektif },
+        OR: [{ supersededAt: null }, { supersededAt: { gt: batasEfektif } }],
+      }
     : { status: "aktif" as const };
 
   const [revisions, baselines, contracts] = await Promise.all([

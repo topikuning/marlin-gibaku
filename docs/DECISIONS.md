@@ -10405,3 +10405,70 @@ akibatnya:
 + "Tambah foto" 126 + "Foto Cepat" 116 + 2 jarak = 367px → melipat. Setelah
 "Belum ada foto"→"Tanpa foto", `px-2` pada kedua tombol, dan jarak 1.5, ketiganya
 duduk pada sumbu-y yang SAMA di 390px maupun 1280px.
+
+---
+
+## 274 · Batas `asOf` = AKHIR hari kerja, bukan awalnya (2026-08-06)
+
+**Konteks.** Laporan user 2026-08-06: workspace lokasi Pasir menulis
+**Rencana 1,7% · Deviasi +2,7%**, sedangkan PDF *Ringkasan Pelaksanaan Harian*
+untuk tanggal yang SAMA menulis **Rencana kurva-S 23,30% · Deviasi −18,91%**.
+Realisasinya cocok (4,4% vs 4,39%), minggunya cocok (2 dari 20). Hari itu jadwal
+kurva-S memang baru diubah.
+
+**Sebabnya bukan dua rumus.** Keduanya memanggil `getLocationProgress` yang
+sama. Yang berbeda adalah BASELINE MANA yang dianggap berlaku:
+
+| Pemakai | Pemilihan versi | Hasil |
+|---|---|---|
+| Workspace lokasi | tanpa `asOf` → `status = "aktif"` | baseline BARU → 1,7% |
+| PDF harian | `asOf = reportDate` | baseline LAMA → 23,30% |
+
+`reportDate` berasal dari kolom tanggal kerja `@db.Date`, yang tersimpan sebagai
+**UTC-midnight** — di Jakarta itu pukul **07:00 WIB**. Filternya berbunyi
+`createdAt <= asOf AND (supersededAt IS NULL OR supersededAt > asOf)`, jadi:
+
+- baseline BARU (`createdAt` = siang itu) **gugur** — dianggap belum ada;
+- baseline LAMA (`supersededAt` = siang itu, yaitu `> 07:00`) **lolos**.
+
+Hasilnya dokumen resmi hari itu mencetak jadwal yang beberapa jam sebelumnya
+baru saja dibatalkan — dan tidak ada satu kata pun di dokumen yang
+mengatakannya. Ini persis kelas cacat yang diperingatkan CLAUDE.md: *"kolom
+tanggal kerja `@db.Date` = tengah malam UTC = 07:00 WIB kalau diformat lengkap —
+itu bukan data."* Di sini ia bukan cuma salah tampil, melainkan **memilih versi
+yang salah**.
+
+**Keputusan.** Batas "efektif pada tanggal itu" memakai **akhir hari kerja di
+Asia/Jakarta** (`akhirHariKerja()` di `lib/format.ts` = UTC-midnight + 17 jam
+− 1 ms), bukan awalnya. Baseline yang diaktifkan pukul 14:30 pada 6 Agustus
+memang efektif pada 6 Agustus; itu bacaan yang jujur atas maksud `asOf`
+(CALC-01), sedangkan awal-hari adalah artefak penyimpanan.
+
+Konvensi ini bukan baru di repo: penyaring arsip foto
+(`photo-restamp/service.ts`) sudah memakai `T23:59:59+07:00` untuk hal yang
+sama. Sekarang keduanya sepakat.
+
+**Yang TIDAK berubah:** arah sebaliknya tetap dijaga. Perubahan jadwal yang
+dibuat BESOK punya `createdAt` di atas batas hari ini, jadi dokumen hari ini
+tidak ikut bergeser — justru perbaikan inilah yang membuat cap
+**"FINAL — ANGKA TERKUNCI"** menjadi benar, bukan sekadar tertulis.
+
+**Bukti.** `tests/integration/asof-baseline-hari-sama.test.ts` mereproduksi
+kejadiannya dengan angka yang sama persis (kurva lama minggu-2 = 23,3; kurva
+baru = 1,7). Sebelum perbaikan, uji "dokumen hari INI" gagal dengan
+`expected 23.3 to be close to 1.7` — selisih 21,6 poin, sebanding dengan yang
+dilihat user. Empat uji: minggu sama-sama 2 (jadi bukan soal minggu), layar
+memakai baseline aktif, dokumen hari ini ikut baseline hari ini, dan **laporan
+backdated tetap memakai baseline yang berlaku saat itu**.
+
+**Batas yang diketahui (belum diputuskan).**
+
+1. Dalam HARI yang sama, dokumen masih ikut berubah bila jadwal diganti lagi
+   sore harinya. Membekukan `planPct`/`deviationPct` ke `finalSnapshot` saat
+   finalisasi akan menutup celah ini — tapi itu keputusan bisnis (apakah angka
+   rencana pada dokumen final boleh berbeda dari kurva-S yang berlaku sekarang),
+   jadi tidak diambil sendiri.
+2. Laporan periodik KKP (`periodic-report.ts`) memilih baseline dengan
+   `status = "aktif"` tanpa `asOf` sama sekali — laporan mingguan periode lampau
+   memakai kurva-S yang berlaku SEKARANG. Perilaku itu tidak diubah di sini;
+   dicatat supaya tidak terbaca sebagai kelalaian.

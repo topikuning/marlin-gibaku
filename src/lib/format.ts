@@ -53,6 +53,22 @@ export function jakartaToday(): Date {
   return new Date(`${jakartaDateKey(new Date())}T00:00:00.000Z`);
 }
 
+/**
+ * Akhir hari kerja itu, sebagai titik waktu absolut.
+ *
+ * Kolom tanggal kerja `@db.Date` disimpan sebagai UTC-midnight, jadi nilainya
+ * menunjuk **awal** hari — dan di Jakarta itu pukul 07:00 WIB, bukan pukul 00:00.
+ * Memakainya sebagai batas "sampai kapan" berarti memotong hari kerja pada jam
+ * tujuh pagi: apa pun yang terjadi sesudah itu, pada hari itu juga, dianggap
+ * belum terjadi. Itu bukan aturan bisnis; itu artefak penyimpanan.
+ *
+ * Yang dikembalikan: milidetik terakhir hari kerja tsb di Asia/Jakarta
+ * (= UTC-midnight + 17 jam − 1 ms). WIB tidak ber-DST, jadi pergeserannya tetap.
+ */
+export function akhirHariKerja(dateOnly: Date): Date {
+  return new Date(dateOnly.getTime() + 17 * 3600 * 1000 - 1);
+}
+
 /** Parse "YYYY-MM-DD" ke Date UTC-midnight; null bila tidak valid. */
 export function parseDateKey(key: string): Date | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return null;
