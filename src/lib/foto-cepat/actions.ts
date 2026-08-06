@@ -19,7 +19,13 @@ import { getPolicy } from "@/lib/policy";
 import { konteksFoto } from "@/lib/photo-restamp/service";
 import { EDITABLE_STATUSES } from "@/lib/daily-report/service";
 import { hapusFotoKantong, lengkapiCap } from "./service";
-import { getTujuan, type TujuanKegiatan, type TujuanLaporan } from "./queries";
+import {
+  getKantong,
+  getTujuan,
+  type FotoKantong,
+  type TujuanKegiatan,
+  type TujuanLaporan,
+} from "./queries";
 
 /**
  * Server actions FOTO CEPAT (DECISIONS 253).
@@ -406,6 +412,38 @@ export async function muatTujuanAction(
   }
 }
 
+
+/**
+ * Isi kantong di SATU lokasi — dipakai dari sisi laporan harian & kegiatan.
+ *
+ * Keluhan user 2026-08-06: *"di sisi inputan laporan harian maupun kegiatan
+ * lapangan pun, perlu untuk bisa mengambil dari hasil foto cepat ini, kalau
+ * tidak, akan percuma fitur ini."* Benar. Sebelumnya satu-satunya jalan memakai
+ * foto adalah dari halaman /foto-cepat, sedangkan yang MENGISI laporan sedang
+ * berada di layar laporan. Meninggalkan halaman yang sedang diisi untuk mencari
+ * foto — lalu kembali dan mencari lagi sampai mana tadi — bukan alur yang akan
+ * ditempuh orang; yang akan terjadi adalah memotret ulang dari layar laporan,
+ * dan foto di kantong menumpuk tak terpakai.
+ *
+ * Hanya foto yang lokasinya SUDAH ketahuan yang dikembalikan: tujuannya sudah
+ * pasti satu lokasi, dan foto tanpa lokasi tidak boleh ditetapkan diam-diam
+ * lewat penautan (DECISIONS 254) — itu tetap dikerjakan sadar di /foto-cepat.
+ */
+export async function muatKantongLokasiAction(
+  locationId: string,
+): Promise<{ fotos: FotoKantong[] } | { error: string }> {
+  try {
+    const actor = await requireCapability("photo.quick");
+    if (!z.uuid().safeParse(locationId).success) return { error: "Lokasi tidak dikenali." };
+    await requireLocationAccess(actor, locationId);
+    const locIds = await accessibleLocationIds(actor);
+    const fotos = await getKantong(actor, locIds, { locationId });
+    return { fotos: fotos.filter((f) => f.locationId != null) };
+  } catch (err) {
+    if (err instanceof ForbiddenError) return { error: err.message };
+    return { error: "Gagal memuat kantong foto." };
+  }
+}
 
 const tetapkanSchema = z.object({
   photoIds: z.array(z.uuid()).min(1, "Pilih foto dulu.").max(50),

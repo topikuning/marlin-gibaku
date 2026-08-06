@@ -10249,3 +10249,293 @@ kunci-gulir dilepas saat kamera ditutup — kunci yang lupa dilepas membuat
 SELURUH halaman macet setelahnya.
 
 Dikembalikan ke render inline, tiga dari lima uji itu gagal.
+
+---
+
+## 271 · Kantong Foto Cepat: SETIAP foto bisa dipilih, dan lokasi ditetapkan per-pilihan (2026-08-06)
+
+**Konteks.** Laporan user 2026-08-06:
+
+> *"halaman foto cepat terlalu memaksakan untuk beberapa foto yang diambil
+> diberi tag lokasi yang sama. satu foto diklik tidak terjadi apa-apa. apa yang
+> kamu jelaskan itu sama sekali tidak terjadi."*
+
+Kalimat terakhir itu penting: penjelasan sebelumnya ("ketuk foto → panel
+tindakan muncul") memang benar untuk foto yang lokasinya SUDAH terdeteksi, dan
+sama sekali salah untuk sisanya.
+
+**Sebabnya.** `KantongCard` merender dua hal yang berbeda dengan cara berbeda:
+
+- foto yang lokasinya terdeteksi → `<button aria-pressed>` di dalam grid, bisa
+  dipilih;
+- foto yang lokasinya BELUM ketahuan → `<li>` berisi `<img>` mati di dalam panel
+  penetapan lokasi. Bukan tombol. Diketuk berapa kali pun tidak terjadi apa-apa.
+
+Di lapangan, geotag gagal adalah keadaan yang LAZIM (tanpa koordinat, terlalu
+jauh dari semua titik proyek, atau di antara dua lokasi berdekatan —
+DECISIONS 254). Jadi bagi pelapor yang justru paling butuh mengolah kantongnya,
+TIDAK ADA satu pun foto yang bisa disentuh, dan layarnya tidak menjelaskan
+apa-apa. Ditambah satu-satunya ikon yang menonjol di tiap petak adalah tong
+sampah: yang paling terlihat adalah cara membuang, bukan cara memakai.
+
+Cacat kedua satu paket dengan yang pertama: panel penetapan lokasi menerima
+`fotos={belum}` — SELURUH foto tanpa lokasi — dengan satu Combobox berlabel
+*"Lokasi untuk semua foto di atas"*. Satu perjalanan lapangan lazim melewati
+beberapa desa, jadi memaksa satu jawaban untuk semuanya membuat penetapan yang
+benar mustahil; yang tersisa cuma memilih mana yang salah.
+
+**Keputusan.**
+
+1. **Setiap foto di kantong adalah tombol**, termasuk yang lokasinya belum
+   ketahuan. Kelompok "belum ketahuan lokasinya" tetap di urutan paling atas dan
+   tetap bernada peringatan, tapi ia sekarang kelompok biasa di dalam grid —
+   bukan wilayah mati di luar daftar pilihan.
+2. **Tindakan mengikuti pilihan, bukan sebaliknya.** Aturannya tinggal di modul
+   murni `src/lib/foto-cepat/kantong-pilihan.ts` (`tindakanKantong`), bukan
+   tersebar di JSX: kosong → tak ada tindakan; ada yang tanpa lokasi → tetapkan
+   lokasi (untuk yang DIPILIH saja, sambil menyebut berapa foto terpilih lain
+   yang dilewati); satu lokasi → pakai; lebih dari satu lokasi → tolak dengan
+   sebabnya.
+3. **Lingkaran centang di tiap petak + kalimat pengarah di kepala kantong.**
+   Cincin biru saja hanya menjawab SESUDAH diketuk — terlambat bagi orang yang
+   belum tahu petaknya bisa diketuk sama sekali.
+4. **"Pilih semua" per kelompok** mempertahankan kemudahan lama (satu ketukan
+   untuk seluruh isi kelompok) tanpa menjadikannya satu-satunya pilihan.
+
+Pagar DECISIONS 254 tidak dilonggarkan sedikit pun: selama ada foto tanpa lokasi
+di dalam pilihan, "pakai" bukan tindakan yang sah — karena menautkannya ke
+laporan lokasi X sama saja MENETAPKAN lokasinya ke X secara diam-diam.
+
+**Bukti.** `tests/unit/foto-cepat-kantong-pilihan.test.ts` (13 uji). Uji gigi:
+mengembalikan penetapan lokasi ke perilaku memborong → 2 uji gugur;
+mengeluarkan lagi foto tanpa lokasi dari daftar kelompok → 2 uji gugur.
+Diperiksa juga di peramban (profil ponsel 390×844): 6 dari 6 petak
+`aria-pressed`, ketukan pada satu foto tanpa lokasi memunculkan panel
+*"Tetapkan lokasi untuk 1 foto terpilih"*.
+
+---
+
+## 272 · Foto kantong bisa diambil DARI layar laporan harian & kegiatan lapangan (2026-08-06)
+
+**Konteks.** Lanjutan laporan yang sama:
+
+> *"di sisi inputan laporan harian maupun kegiatan lapangan pun, perlu untuk
+> bisa mengambil dari hasil foto cepat ini, kalau tidak, akan percuma fitur
+> ini."*
+
+Betul, dan "percuma" bukan hiperbola. Sebelumnya satu-satunya jalan memakai foto
+kantong adalah dari halaman `/foto-cepat`. Arah itu benar untuk orang yang baru
+pulang dari lapangan dengan sekantong foto, tapi salah untuk orang yang sedang
+MENGISI laporan: dia harus meninggalkan formulir yang belum tersimpan, mencari
+fotonya, memilih ulang tanggal + item yang barusan terbuka di layar sebelumnya,
+lalu kembali dan mencari lagi sampai mana tadi. Yang benar-benar terjadi bukan
+itu — melainkan memotret ulang dari layar laporan (dengan koordinat seadanya),
+sementara foto yang koordinatnya justru benar menumpuk tak terpakai.
+
+**Keputusan.** Komponen `AmbilDariKantong` dipasang di dua tempat:
+
+- **Laporan harian** — di baris aksi tiap item, sejajar dengan "Tambah foto";
+- **Kegiatan lapangan** — di panel tambah foto kegiatan draft.
+
+Keduanya memanggil **`pakaiFotoAction` yang SAMA** dengan halaman `/foto-cepat`,
+bukan jalur penautan kedua. Ini yang menentukan: seluruh pagarnya (lokasi harus
+cocok, laporan harus masih `draft`/`perlu_koreksi`, kegiatan harus `draft`,
+foto tanpa lokasi ditolak, cap dilengkapi otomatis) berlaku apa adanya karena
+memang cuma ditulis di satu tempat. Jalur penautan kedua akan berarti dua mesin
+yang harus sama-sama dijaga benar — dan yang kedua selalu ketinggalan.
+
+Pemuat daftarnya, `muatKantongLokasiAction`, sengaja hanya mengembalikan foto
+yang lokasinya SUDAH ketahuan. Menawarkan foto tanpa lokasi di layar laporan
+lokasi X berarti memakainya = menetapkan lokasinya ke X tanpa ada yang
+memutuskan itu. Penetapan lokasi tetap kerja sadar di menu Foto Cepat.
+
+Daftarnya dimuat saat panel dibuka (bukan ikut payload RSC halaman laporan):
+pelapor lazim punya banyak lokasi, dan mengirim seluruh isi kantong untuk
+lokasi yang belum tentu dipakai membengkakkan payload persis di jaringan
+lapangan — alasan yang sama dengan DECISIONS 245.
+
+**Bukti.** `tests/integration/foto-cepat-pakai.test.ts` (11 uji) mengunci sisi
+servernya: pemuat hanya mengembalikan lokasi yang diminta, tidak menawarkan foto
+tanpa lokasi, dan foto yang sudah dipakai lenyap dari kantong; penautan ke item
+laporan & ke kegiatan draft berhasil; foto lokasi lain dan foto tanpa lokasi
+DITOLAK dengan menyebut sebabnya. Diperiksa juga ujung-ke-ujung di peramban:
+dari layar laporan harian, satu foto berpindah dari kantong ke item laporan dan
+foto satunya tidak tersentuh.
+
+---
+
+## 273 · Baris aksi foto di laporan harian: satu baris, warna dibawa TITIK (2026-08-06)
+
+**Konteks.** Permintaan user 2026-08-06 atas baris item laporan harian:
+*"rapikan, bisa jadi satu baris, dengan penanda warna yang tegas dan rapi."*
+
+Sebelumnya baris itu menumpuk tiga hal di dua baris: chip "Belum ada foto",
+tombol "Tambahkan foto", lalu — di baris kedua — "Ambil dari Foto Cepat". Dua
+akibatnya:
+
+1. jalur Foto Cepat terbaca sebagai aksi kelas dua, padahal justru foto kantong
+   yang koordinatnya paling benar (DECISIONS 253/272);
+2. chip-nya hanya muncul saat foto belum ada, jadi saat foto sudah ada tidak ada
+   apa pun yang mengatakan berapa — harus dihitung sendiri dari galeri.
+
+**Keputusan.**
+
+- **Satu baris**: penanda + "Tambah foto" + "Foto Cepat", `flex-wrap` tetap
+  dipertahankan sebagai jaring pengaman (melipat, bukan menembus tepi kartu).
+- **Warna dibawa TITIK, bukan teks.** Teks berwarna di atas latar berwarna
+  gampang jatuh di bawah ambang kontras AA pada ukuran 11px — hijau `#16a34a`
+  di atas `#f0fdf4` hanya **3,2:1**, di bawah 4,5:1. Titik penuh
+  (`bg-success` / `bg-warning`) justru terbaca tegas dari jarak pandang ponsel
+  di bawah matahari, sementara tulisannya tetap `text-ink`. Latar & garis pill
+  yang memberi nada.
+- **Penanda tampil di KEDUA keadaan**: `● Tanpa foto` (amber) / `● 3 foto`
+  (hijau).
+- **"Tanpa foto", bukan "Perlu foto"** — foto memang OPSIONAL saat menyimpan
+  progres, jadi kata "perlu" akan mengarang kewajiban yang tidak ada. Nada amber
+  sudah cukup mengatakan ini yang belum beres.
+- **Pemicu Foto Cepat dipisah dari panelnya** (`TombolAmbilDariKantong` vs
+  `AmbilDariKantong`). Panelnya berisi petak-petak foto dan butuh lebar penuh;
+  kalau keduanya satu komponen, panel ikut jadi anak baris flex dan petaknya
+  terjepit di sisa lebar satu baris tombol. Saat panel terbuka, tombolnya
+  DITANDAI (`secondary` + `aria-expanded`), bukan disembunyikan — supaya jelas
+  panel di bawah itu miliknya.
+
+**Anggarannya diukur, bukan ditebak.** Lebar isi kartu item pada layar 390px
+(ukuran audit mobile repo ini) = **324px**. Pengukuran di peramban: penanda 109
++ "Tambah foto" 126 + "Foto Cepat" 116 + 2 jarak = 367px → melipat. Setelah
+"Belum ada foto"→"Tanpa foto", `px-2` pada kedua tombol, dan jarak 1.5, ketiganya
+duduk pada sumbu-y yang SAMA di 390px maupun 1280px.
+
+---
+
+## 274 · Batas `asOf` = AKHIR hari kerja, bukan awalnya (2026-08-06)
+
+**Konteks.** Laporan user 2026-08-06: workspace lokasi Pasir menulis
+**Rencana 1,7% · Deviasi +2,7%**, sedangkan PDF *Ringkasan Pelaksanaan Harian*
+untuk tanggal yang SAMA menulis **Rencana kurva-S 23,30% · Deviasi −18,91%**.
+Realisasinya cocok (4,4% vs 4,39%), minggunya cocok (2 dari 20). Hari itu jadwal
+kurva-S memang baru diubah.
+
+**Sebabnya bukan dua rumus.** Keduanya memanggil `getLocationProgress` yang
+sama. Yang berbeda adalah BASELINE MANA yang dianggap berlaku:
+
+| Pemakai | Pemilihan versi | Hasil |
+|---|---|---|
+| Workspace lokasi | tanpa `asOf` → `status = "aktif"` | baseline BARU → 1,7% |
+| PDF harian | `asOf = reportDate` | baseline LAMA → 23,30% |
+
+`reportDate` berasal dari kolom tanggal kerja `@db.Date`, yang tersimpan sebagai
+**UTC-midnight** — di Jakarta itu pukul **07:00 WIB**. Filternya berbunyi
+`createdAt <= asOf AND (supersededAt IS NULL OR supersededAt > asOf)`, jadi:
+
+- baseline BARU (`createdAt` = siang itu) **gugur** — dianggap belum ada;
+- baseline LAMA (`supersededAt` = siang itu, yaitu `> 07:00`) **lolos**.
+
+Hasilnya dokumen resmi hari itu mencetak jadwal yang beberapa jam sebelumnya
+baru saja dibatalkan — dan tidak ada satu kata pun di dokumen yang
+mengatakannya. Ini persis kelas cacat yang diperingatkan CLAUDE.md: *"kolom
+tanggal kerja `@db.Date` = tengah malam UTC = 07:00 WIB kalau diformat lengkap —
+itu bukan data."* Di sini ia bukan cuma salah tampil, melainkan **memilih versi
+yang salah**.
+
+**Keputusan.** Batas "efektif pada tanggal itu" memakai **akhir hari kerja di
+Asia/Jakarta** (`akhirHariKerja()` di `lib/format.ts` = UTC-midnight + 17 jam
+− 1 ms), bukan awalnya. Baseline yang diaktifkan pukul 14:30 pada 6 Agustus
+memang efektif pada 6 Agustus; itu bacaan yang jujur atas maksud `asOf`
+(CALC-01), sedangkan awal-hari adalah artefak penyimpanan.
+
+Konvensi ini bukan baru di repo: penyaring arsip foto
+(`photo-restamp/service.ts`) sudah memakai `T23:59:59+07:00` untuk hal yang
+sama. Sekarang keduanya sepakat.
+
+**Yang TIDAK berubah:** arah sebaliknya tetap dijaga. Perubahan jadwal yang
+dibuat BESOK punya `createdAt` di atas batas hari ini, jadi dokumen hari ini
+tidak ikut bergeser — justru perbaikan inilah yang membuat cap
+**"FINAL — ANGKA TERKUNCI"** menjadi benar, bukan sekadar tertulis.
+
+**Bukti.** `tests/integration/asof-baseline-hari-sama.test.ts` mereproduksi
+kejadiannya dengan angka yang sama persis (kurva lama minggu-2 = 23,3; kurva
+baru = 1,7). Sebelum perbaikan, uji "dokumen hari INI" gagal dengan
+`expected 23.3 to be close to 1.7` — selisih 21,6 poin, sebanding dengan yang
+dilihat user. Empat uji: minggu sama-sama 2 (jadi bukan soal minggu), layar
+memakai baseline aktif, dokumen hari ini ikut baseline hari ini, dan **laporan
+backdated tetap memakai baseline yang berlaku saat itu**.
+
+**Batas yang diketahui (belum diputuskan).**
+
+1. Dalam HARI yang sama, dokumen masih ikut berubah bila jadwal diganti lagi
+   sore harinya. Membekukan `planPct`/`deviationPct` ke `finalSnapshot` saat
+   finalisasi akan menutup celah ini — tapi itu keputusan bisnis (apakah angka
+   rencana pada dokumen final boleh berbeda dari kurva-S yang berlaku sekarang),
+   jadi tidak diambil sendiri.
+2. Laporan periodik KKP (`periodic-report.ts`) memilih baseline dengan
+   `status = "aktif"` tanpa `asOf` sama sekali — laporan mingguan periode lampau
+   memakai kurva-S yang berlaku SEKARANG. Perilaku itu tidak diubah di sini;
+   dicatat supaya tidak terbaca sebagai kelalaian.
+
+---
+
+## 275 · Dasar rencana SELALU baseline yang aktif — `asOf` tidak lagi memilih versi (2026-08-06)
+
+**Menggantikan bagian pemilihan-versi pada DECISIONS 274.** Keputusan user
+2026-08-06, sesudah membaca diagnosis 274:
+
+> *"intinya kalau baseline kurva-s aktif yang mana, itu yang dipakai dasar."*
+
+274 memperbaiki BATAS pemilihan versi (awal hari → akhir hari kerja WIB).
+Keputusan ini membuang pemilihan versinya sama sekali: revisi RAB dan baseline
+kurva-S yang dipakai **selalu yang berstatus `aktif`**, di layar mana pun dan
+di dokumen mana pun. Aturan yang bisa diucapkan dalam satu kalimat, dan tidak
+punya kasus tepi jam tujuh pagi.
+
+**Dua cacat selesai sekaligus.**
+
+1. **Dua angka rencana untuk tanggal yang sama** — keluhan aslinya. Layar
+   workspace membaca baseline `aktif`, dokumen harian membaca "yang berlaku pada
+   tanggal laporan". Karena tanggal kerja `@db.Date` tersimpan sebagai tengah
+   malam UTC (= 07:00 WIB), jadwal yang diganti siang hari gugur sementara
+   jadwal lama yang baru saja digantikan justru lolos. Rencana 23,30% di PDF
+   vs 1,7% di layar.
+
+2. **Pembilang dan penyebut dari dokumen berbeda** — cacat yang baru ketahuan
+   saat menelusuri yang pertama, dan tidak pernah dilaporkan siapa pun karena
+   memang tidak menerbitkan galat apa pun. SQL `realized` di `progress.ts`
+   SELALU mengikat revisi `aktif` (`rr.status = 'aktif'`), sedangkan
+   `grandTotal` memakai revisi hasil pemilihan `asOf`. Untuk laporan lampau yang
+   dilewati adendum, `realizedPct` menjadi
+   **realisasi(revisi baru) ÷ total(revisi lama)** — pecahan yang penyebut dan
+   pembilangnya bukan dari dokumen yang sama. Dengan aturan baru, keduanya
+   revisi aktif; rasionya sepadan lagi.
+
+**`asOf` tetap ada, dan tetap penting.** Yang dibuang hanya pemilihan VERSI.
+Yang memang soal WAKTU tidak disentuh dan tetap diuji:
+
+- laporan mana yang ikut dihitung (`report_date <= asOf`);
+- minggu ke berapa tanggal itu jatuh.
+
+Itulah inti CALC-01 — dokumen bertanggal 30 Juli tidak boleh memuat realisasi
+6 Agustus hanya karena dicetak hari ini. Bagian itu utuh.
+
+**Konsekuensi yang DISENGAJA, dan harus disebut terang-terangan:** mengganti
+kurva-S menggeser angka rencana & deviasi di SELURUH dokumen, termasuk yang
+bertanggal lampau dan yang sudah berstatus final. Itu memang arti dari
+"baseline aktif jadi dasar": deviasi diukur terhadap rencana yang BERLAKU,
+bukan terhadap rencana yang sudah dibatalkan. Yang tidak ikut bergeser adalah
+realisasinya — itu tetap terkunci pada laporan s/d tanggal dokumen.
+
+**Akibat pada cap "FINAL — ANGKA TERKUNCI".** Cap itu benar untuk yang memang
+dibekukan: item pekerjaan, volume, nilai hari itu, realisasi s/d tanggal itu
+(`finalSnapshot`). Ia TIDAK berlaku untuk rencana & deviasi, yang kini secara
+sadar mengikuti baseline aktif. Ketidakcocokan label ini dicatat di
+`docs/OPEN_ISSUES.md`; memperbaikinya adalah soal kata-kata di dokumen, bukan
+soal angka.
+
+**Bukti.** `tests/integration/asof-baseline-hari-sama.test.ts` (5 uji): minggu
+sama-sama 2 (jadi selisihnya bukan soal minggu); layar memakai baseline aktif;
+dokumen hari ini memakai baseline aktif juga; **laporan backdated pun memakai
+baseline aktif** (0,8% dari kurva baru, BUKAN 11,5% dari kurva lama — pagar
+eksplisit terhadap arah sebaliknya); dan `asOf` tetap membatasi laporan yang
+dihitung (`realizedValue` = 0 pada 30 Juli, > 0 pada hari ini).
+
+`akhirHariKerja()` yang diperkenalkan 274 ikut dibuang — tidak ada lagi
+pemakainya, dan helper tak terpakai hanya mengundang pemakaian yang salah.

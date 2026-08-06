@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState, useTransition } from "reac
 import { CheckCircle2, Download, FileText, MessageCircle, Paperclip, Pencil, RotateCcw, Trash2, Plus } from "lucide-react";
 import { Banner, Button, Input, Label, Combobox, Textarea } from "@/components/ui";
 import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
+import { AmbilDariKantong, TombolAmbilDariKantong } from "@/components/knmp/ambil-dari-kantong";
 import { FinalizePanel } from "./finalize-panel";
 import type { FieldActivityAttachmentView } from "@/lib/field-activity/queries";
 
@@ -300,7 +301,13 @@ export function DraftActions({ activity, kinds }: { activity: EditableActivity; 
           <DeleteButton activityId={activity.id} />
         </div>
       </div>
-      {addingPhoto ? <AddPhotoPanel activityId={activity.id} onDone={() => setAddingPhoto(false)} /> : null}
+      {addingPhoto ? (
+        <AddPhotoPanel
+          activityId={activity.id}
+          locationId={activity.locationId}
+          onDone={() => setAddingPhoto(false)}
+        />
+      ) : null}
       {editing ? <EditActivityForm activity={activity} kinds={kinds} onDone={() => setEditing(false)} /> : null}
     </div>
   );
@@ -476,25 +483,51 @@ export function ActivityAttachments({
 
 /** Panel tambah foto (muncul di bawah baris aksi) — Kamera/Galeri + opsi GPS
  * tertata rapi dalam kotak, auto-unggah saat foto dipilih, menutup bila sukses. */
-function AddPhotoPanel({ activityId, onDone }: { activityId: string; onDone: () => void }) {
+function AddPhotoPanel({
+  activityId,
+  locationId,
+  onDone,
+}: {
+  activityId: string;
+  locationId: string;
+  onDone: () => void;
+}) {
   const [state, action, pending] = useActionState<FieldActivityState, FormData>(addActivityPhotosAction, undefined);
   const formRef = useRef<HTMLFormElement>(null);
+  const [ambil, setAmbil] = useState(false);
   useEffect(() => {
     if (state?.success) onDone();
   }, [state?.success, onDone]);
   return (
-    <form ref={formRef} action={action} className="mt-3 rounded-md border border-border bg-surface-muted p-3">
-      <input type="hidden" name="activityId" value={activityId} />
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="text-[13px] font-medium text-ink">Tambah foto{pending ? " — mengunggah…" : ""}</span>
-        <button type="button" onClick={onDone} className="text-[12px] font-medium text-ink-muted hover:underline">
-          Tutup
-        </button>
+    // Dua jalur, satu kotak. `AmbilDariKantong` punya <form> sendiri, jadi ia
+    // WAJIB bersaudara dengan form unggah — bukan bersarang di dalamnya.
+    <div className="mt-3 space-y-3 rounded-md border border-border bg-surface-muted p-3">
+      <form ref={formRef} action={action}>
+        <input type="hidden" name="activityId" value={activityId} />
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <span className="text-[13px] font-medium text-ink">Tambah foto{pending ? " — mengunggah…" : ""}</span>
+          <button type="button" onClick={onDone} className="text-[12px] font-medium text-ink-muted hover:underline">
+            Tutup
+          </button>
+        </div>
+        <PhotoSourceInput onPicked={() => formRef.current?.requestSubmit()} />
+        {state?.error ? <div className="mt-2"><Banner tone="error" title={state.error} /></div> : null}
+        {state?.warning ? <div className="mt-2"><Banner tone="warning" title="Sebagian foto gagal" description={state.warning} /></div> : null}
+      </form>
+      {/* Foto lapangan yang sudah dijepret lewat Foto Cepat justru koordinatnya
+          paling benar — jalan memakainya harus ada di sini, sejajar dengan
+          memotret baru (keluhan user 2026-08-06). */}
+      <div className="space-y-2 border-t border-border pt-3">
+        <TombolAmbilDariKantong onClick={() => setAmbil(true)} aktif={ambil} />
+        {ambil ? (
+          <AmbilDariKantong
+            locationId={locationId}
+            target={{ tujuan: "kegiatan", kegiatanId: activityId }}
+            onTutup={() => setAmbil(false)}
+          />
+        ) : null}
       </div>
-      <PhotoSourceInput onPicked={() => formRef.current?.requestSubmit()} />
-      {state?.error ? <div className="mt-2"><Banner tone="error" title={state.error} /></div> : null}
-      {state?.warning ? <div className="mt-2"><Banner tone="warning" title="Sebagian foto gagal" description={state.warning} /></div> : null}
-    </form>
+    </div>
   );
 }
 

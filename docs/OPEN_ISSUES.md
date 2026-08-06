@@ -389,3 +389,43 @@ WhatsApp SUDAH tersambung (DECISIONS 259: teks berisi rencana + PDF formulir
 ke grup WA paket). Yang belum: unggah otomatis/manual ke folder Google Drive
 paket seperti laporan harian & periodik (`lib/drive`, DECISIONS 137/138),
 sehingga rencana mingguan tidak ikut terarsip di struktur 9 folder KKP.
+
+## 🟡 LBL-01 · Cap "FINAL — ANGKA TERKUNCI" mencakup angka yang TIDAK terkunci (DECISIONS 275)
+
+PDF *Ringkasan Pelaksanaan Harian* memasang spanduk **"FINAL — ANGKA TERKUNCI"**
+di atas seluruh halaman. Untuk sebagian besar isinya cap itu benar: item
+pekerjaan, volume, nilai hari itu, dan realisasi s/d tanggal dokumen memang
+dibekukan ke `finalSnapshot` saat finalisasi.
+
+Tapi **Rencana kurva-S dan Deviasi tidak dibekukan**. Sejak DECISIONS 275,
+keduanya sengaja mengikuti baseline yang berstatus `aktif` — jadi mengganti
+kurva-S akan menggeser dua angka itu pada dokumen yang sudah final, sementara
+spanduk di atasnya menyatakan seluruh angka terkunci.
+
+Ini soal KATA-KATA, bukan angka: perilaku angkanya sudah diputuskan dan
+dibenarkan user ("baseline kurva-s aktif yang mana, itu yang dipakai dasar").
+Yang salah adalah cap yang menjanjikan lebih dari yang dijamin sistem.
+
+**Pilihan perbaikan** (butuh keputusan user):
+
+1. Persempit capnya — mis. "FINAL — realisasi terkunci", lalu beri catatan kecil
+   pada baris rencana/deviasi bahwa keduanya mengikuti kurva-S yang berlaku.
+2. Bekukan juga `planPct`/`deviationPct` ke `finalSnapshot` — tapi ini berlawanan
+   dengan DECISIONS 275, karena dokumen final lalu bisa memuat rencana yang
+   berbeda dari kurva-S yang berlaku sekarang.
+
+Rekomendasi: **opsi 1**. Yang dibekukan adalah apa yang dilaporkan lapangan;
+rencana adalah tolok ukur yang memang boleh direvisi, dan justru itu gunanya
+revisi baseline.
+
+## 🟡 CALC-05 · Laporan periodik KKP tidak membatasi laporan menurut periode versi (DECISIONS 275)
+
+`periodic-report.ts` memilih baseline dengan `status: "aktif"` tanpa `asOf` sama
+sekali. Sejak DECISIONS 275 itu justru SESUAI aturan yang berlaku (dasar =
+baseline aktif), jadi bukan lagi ketidakkonsistenan — dicatat di sini supaya
+tidak "diperbaiki" oleh pembaca berikutnya menjadi pemilihan versi per tanggal,
+yang persis sudah dibuang.
+
+Yang masih perlu diperiksa terpisah: apakah pembatasan LAPORAN menurut periode
+(`report_date` dalam rentang periode) sudah benar di seluruh jalur laporan
+periodik — itu soal waktu, bukan soal versi, dan tidak ikut terjawab oleh 275.
