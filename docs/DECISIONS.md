@@ -9805,3 +9805,29 @@ Batas yang jujur: teks di dalam PDF TERKOMPRESI, jadi yang bisa diperiksa dari
 buffer mentah hanyalah **anotasi tautannya** — dan justru itu yang menentukan
 foto bisa diketuk. Kelengkapan teks lain diperiksa dengan merender dokumen ke
 gambar lalu membacanya.
+
+### 4. Perbandingan realisasi–rencana jadi SATU baris (bullet chart)
+
+Koreksi lanjutan user: *"realisasi dan rencana kenapa harus 2 baris, satu baris
+saja cukup, mainkan warnanya … standar monev big player."*
+
+Dua batang sejajar memaksa mata membandingkan dua panjang di dua baris berbeda.
+Diganti **bullet chart** (Stephen Few) — bentuk yang memang dipakai dashboard
+pemantauan proyek serius: SATU batang berisi realisasi (biru), dengan **penanda
+tegak merah** pada posisi rencana. Keduanya berdiri di sumbu yang sama,
+sehingga jaraknya terbaca sebagai satu gambar, bukan sebagai selisih yang harus
+dihitung sendiri pembaca.
+
+Penandanya sengaja MELEWATI tinggi batang (atas dan bawah) supaya tetap terlihat
+ketika posisinya persis berimpit dengan ujung isian.
+
+Label kanannya diberi ruang yang DIUKUR untuk muat satu baris ("12,40%" +
+"rencana 90,18%"); versi pertama terlalu sempit sehingga kata "rencana" dan
+angkanya patah ke dua baris — persis kesalahan yang sedang diperbaiki.
+
+### 5. Skala font diturunkan menyeluruh
+
+Judul dokumen 15→13, nilai KPI 13→11,5, label kisi 6,5→5,8, isi tabel 8→7,2,
+kondisi kerja 8,5→7,5, keterangan foto 7,5→7. Hasilnya: kasus nyata user
+(Tengket/Bangkalan — tanpa laporan harian, satu kegiatan, dua foto) yang tadinya
+dua halaman kini **muat satu halaman penuh** berikut galeri fotonya.
