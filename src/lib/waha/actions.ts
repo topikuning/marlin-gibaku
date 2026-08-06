@@ -840,3 +840,124 @@ export async function sendRencanaMingguanToWaAction(
     return fail(err);
   }
 }
+
+/**
+ * Kirim LAPORAN HARIAN RINGKAS (PDF format monev) ke grup WA paket.
+ * Permintaan user 2026-08-05. DECISIONS 261.
+ *
+ * Beda dari `sendDailyReportPdfToWaAction` yang mengirim BLANKO KKP: yang ini
+ * dokumen bacaan — ringkasan kinerja, pekerjaan hari itu, kegiatan lapangan,
+ * dan foto pendukungnya. Keduanya dipertahankan karena kegunaannya memang
+ * berbeda: blanko untuk setoran resmi, ringkasan untuk dibaca.
+ *
+ * TANPA gerbang status (keputusan user 2026-08-05): draf pun boleh dikirim.
+ * Yang dijaga bukan haknya mengirim, melainkan kejujuran dokumennya — status
+ * dicetak besar di kepala PDF DAN disebut di badan pesan, sehingga pembaca di
+ * grup pejabat tidak bisa mengira angka draf sudah diverifikasi.
+ */
+export async function sendDailyRingkasToWaAction(
+  _prev: WaActionState,
+  formData: FormData,
+): Promise<WaActionState> {
+  const schema = z.object({
+    slug: z.string().trim().min(1),
+    dateKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal tidak valid"),
+  });
+  const parsed = schema.safeParse({ slug: formData.get("slug"), dateKey: formData.get("dateKey") });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { slug, dateKey } = parsed.data;
+
+  try {
+    const user = await requireCapability("report.export");
+    const locBasic = await db.location.findUnique({ where: { slug }, select: { id: true } });
+    if (!locBasic) return { error: "Lokasi tidak ditemukan." };
+    await requireLocationAccess(user, locBasic.id);
+
+    const target = await resolveWaChat(locBasic.id, String(formData.get("destChatId") ?? ""));
+    if ("error" in target) return { error: target.error };
+
+    const { getRingkasHarian } = await import("@/lib/daily-report/ringkas");
+    const d = await getRingkasHarian(slug, dateKey);
+    if (!d) return { error: "Lokasi tidak ditemukan." };
+
+    // Hari yang benar-benar KOSONG tidak dikirim. Bukan soal status — laporan
+    // draf yang berisi tetap boleh berangkat — melainkan soal isi: mengirim
+    // dokumen tanpa satu pun pekerjaan, kegiatan, maupun foto ke grup pejabat
+    // hanya melatih orang mengabaikan pesan dari MARLIN.
+    if (d.pekerjaan.length === 0 && d.kegiatan.length === 0 && d.foto.length === 0) {
+      return {
+        error:
+          `Tidak ada yang bisa dilaporkan untuk ${dateKey}: belum ada pekerjaan, kegiatan lapangan, ` +
+          "maupun foto pada tanggal itu.",
+      };
+    }
+
+    const { pesanRingkasHarianWa } = await import("@/lib/daily-report/ringkas-wa");
+    const teks = pesanRingkasHarianWa({
+      locationName: d.locationName,
+      packageName: d.packageName,
+      hari: d.hari,
+      tanggalFull: d.tanggalFull,
+      status: d.status,
+      weekNumber: d.weekNumber,
+      totalWeeks: d.totalWeeks,
+      realizedPct: d.realizedPct,
+      planPct: d.planPct,
+      deviationPct: d.deviationPct,
+      bobotHariIni: d.bobotHariIni,
+      nilaiHariIni: d.nilaiHariIni,
+      jumlahPekerjaan: d.pekerjaan.length,
+      jumlahKegiatan: d.kegiatan.length,
+      jumlahFoto: d.foto.length + d.fotoDisembunyikan,
+      kendala: d.kendala,
+    });
+
+    const { renderHarianRingkasPdf } = await import("@/lib/pdf/harian-ringkas");
+    const pdf = await renderHarianRingkasPdf(slug, dateKey);
+    if (!pdf) return { error: "Lokasi tidak ditemukan." };
+
+    await sendText(target.chatId, teks);
+    const fileName = `laporan-harian-${slug}-${dateKey}.pdf`;
+    await sendFile(target.chatId, toFilePayload(pdf.buffer, PDF_MIME, fileName), fileName);
+
+    // Penanda "sudah dikirim" hanya ditulis bila barisnya memang ada. Hari
+    // tanpa laporan harian tetap boleh dikirim (kegiatan lapangannya nyata),
+    // dan itu bukan alasan membuat baris laporan kosong.
+    await db.dailyReport
+      .update({
+        where: {
+          locationId_reportDate: {
+            locationId: locBasic.id,
+            reportDate: new Date(`${dateKey}T00:00:00.000Z`),
+          },
+        },
+        data: { waSentAt: new Date(), waSentById: user.id },
+      })
+      .catch(() => {});
+
+    await audit(user.id, "report.wa_send_ringkas", "daily_report", null, {
+      locationId: locBasic.id,
+      dateKey,
+      chatId: target.chatId,
+      status: d.status,
+      items: d.pekerjaan.length,
+      kegiatan: d.kegiatan.length,
+      foto: d.foto.length,
+      bytes: pdf.buffer.length,
+    });
+    revalidatePath(`/lokasi/${slug}/laporan-lokasi`);
+    revalidatePath("/laporan/status-harian");
+
+    // Tidak mengaku bukti sampai — WAHA menerbitkan id pesan bahkan ketika
+    // WhatsApp menolaknya belakangan (OPEN_ISSUES WA-01).
+    const catatanStatus =
+      d.status === "final"
+        ? ""
+        : ` Dokumen ini berstatus ${d.status ? `"${d.status}"` : "tanpa laporan harian"} dan itu tercetak di halaman pertamanya.`;
+    return {
+      success: `Laporan harian ringkas ${dateKey} diserahkan ke ${target.label}.${catatanStatus} Status sampai/terbaca tidak diketahui MARLIN — periksa grupnya bila perlu kepastian.`,
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
