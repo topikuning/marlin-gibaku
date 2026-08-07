@@ -10741,3 +10741,58 @@ tidak menyimpan jenis berkas. Kalau kelak penamaan PDF harian diubah, pemilihan
 ini ikut meleset — dan kegagalannya senyap. Menambah kolom `jenis` pada
 `GDriveUpload` akan menutupnya; belum dikerjakan agar perubahan ini tetap kecil,
 dan dicatat di `docs/OPEN_ISSUES.md`.
+
+## 279 · Papan status harian: saringan DIKEMBALIKAN, grid tinggal jadi tabelnya (2026-08-06)
+
+**Konteks.** Teguran user, tiga pesan berturut-turut:
+
+> *"mana tombol uploadnya? lalu buat apa unduh csv? filter laporan belum dan
+> sudah/final saja kenapa harus ketik2 manual. buat yang simple"*
+
+lalu, yang paling menentukan:
+
+> *"Kamu di awal sudah benar, mauku kamu adaptasi, hanya tidak rapi, kusuruh
+> jadi grid agar rapi, tapi kenapa malah berubah semua, gak berguna."*
+
+**Kesalahan yang diakui.** Perintah "jadikan grid" kubaca sebagai izin merombak
+seluruh halaman. Padahal yang tidak rapi adalah TABELNYA; bilah saringnya
+(DECISIONS 276) sudah benar dan baru sehari umurnya. Di 277 aku menghapusnya
+dengan alasan "AG Grid sudah memberi saring per kolom gratis" — alasan yang
+benar secara teknis dan salah secara guna: saring per kolom AG Grid menuntut
+membuka menu lalu MENGETIK, sedangkan pertanyaan di papan ini cuma tiga dan
+layak dijawab satu ketukan. Membuang isi yang sudah bekerja demi bentuk yang
+baru adalah kemunduran, bukan penyederhanaan.
+
+**Keputusan.**
+
+1. **Bilah saring kembali** (`bilah-saring.tsx`, `status-harian-filter.ts`) —
+   lengkap dengan tanggal, `Combobox` lokasi, dan deret Drive/WA.
+2. **Dimensi baru "Laporan"**: Semua / Belum lapor / Belum final / Final. Nilai
+   `proses` mencakup SEMUA status antara (draft, dikirim, perlu_koreksi,
+   disetujui) — bagi yang mengawasi semuanya sama: sudah ada laporannya, belum
+   tuntas. `final` TIDAK ikut menyeret `disetujui`, karena "disetujui" belum
+   terkunci dan menyebutnya final membuat pekerjaan yang belum selesai terbaca
+   selesai.
+3. **Grid tetap**, tapi tugasnya hanya MENAMPILKAN dan MENYORTIR. Menyaring
+   terjadi di alamat halaman, sehingga hasilnya punya URL dan bisa dikirim ke
+   orang lain lewat WhatsApp — cara kerja tim ini sehari-hari.
+4. **Tanda menjadi tombol beneran.** Di 277 aksinya cuma ikon 16px tanpa kotak —
+   bentuk yang PERSIS sama dengan kolom prasyarat yang justru mati. Kalau yang
+   bisa diketuk dan yang tidak digambar sama, tak ada yang bisa menebak mana
+   yang mana; pertanyaan *"mana tombol uploadnya?"* adalah buktinya. Sekarang
+   berkotak, berwarna, dan bertuliskan kata kerjanya: **Unggah** / **Kirim** /
+   **Ulangi**.
+5. **Kolom "Folder" & "Grup" dilebur ke tombolnya.** Keduanya tidak pernah bisa
+   ditindak; ia cuma alasan kenapa unggahan mustahil. Alasan itu kini tampil di
+   tempat tombolnya ("Tanpa folder", "Tanpa grup", "Kosong") — dua kolom hilang,
+   nol informasi hilang.
+6. **"Unduh CSV" dibuang.** Papan ini dipakai untuk menindak hari ini, bukan
+   diarsipkan.
+
+**Uji.** `tests/unit/status-harian-filter.test.ts` kembali (18 uji, 3 di
+antaranya untuk dimensi "Laporan"). Uji gigi: membuat `proses` hanya mencakup
+`draft` → 1 uji gugur; membuat `final` ikut menyeret `disetujui` → 1 uji gugur.
+
+**Diperiksa di peramban.** Desktop 1440: 1440 = 1440, tombol **Unggah** dan
+**Kirim** terbaca sebagai tombol merah berkotak pada baris yang ada isinya.
+Ponsel 390: 390 = 390, gridnya menggulir di dalam wadahnya sendiri.
