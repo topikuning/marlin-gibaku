@@ -5,7 +5,11 @@ import { tahanGagalKirim } from "@/lib/aksi-klien";
 import { CheckCircle2, Download, FileText, MessageCircle, Paperclip, Pencil, RotateCcw, Trash2, Plus } from "lucide-react";
 import { Banner, Button, Input, Label, Combobox, Textarea } from "@/components/ui";
 import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
-import { AmbilDariKantong, TombolAmbilDariKantong } from "@/components/knmp/ambil-dari-kantong";
+import {
+  AmbilDariKantong,
+  PemilihKantong,
+  TombolAmbilDariKantong,
+} from "@/components/knmp/ambil-dari-kantong";
 import { FinalizePanel } from "./finalize-panel";
 import type { FieldActivityAttachmentView } from "@/lib/field-activity/queries";
 
@@ -190,6 +194,9 @@ export function CreateActivityForm({
   const formRef = useRef<HTMLFormElement>(null);
   const [photoKey, setPhotoKey] = useState(0);
   const [showOptional, setShowOptional] = useState(false);
+  /** Foto kantong yang dipilih sebelum kegiatannya ada (DECISIONS 298). */
+  const [kantong, setKantong] = useState<ReadonlySet<string>>(new Set());
+  const [bukaKantong, setBukaKantong] = useState(false);
 
   useEffect(() => {
     if (!state?.success) return;
@@ -197,6 +204,10 @@ export function CreateActivityForm({
     const t = window.setTimeout(() => {
       formRef.current?.reset();
       setPhotoKey((k) => k + 1); // remount PhotoSourceInput → bersihkan pratinjau/pilihan
+      // Kantong ikut dikosongkan: fotonya sudah TERPAKAI, memilihnya lagi
+      // hanya akan gagal dan membuat pelapor mengira ada yang salah.
+      setKantong(new Set());
+      setBukaKantong(false);
     }, 0);
     return () => window.clearTimeout(t);
   }, [state?.success]);
@@ -204,6 +215,8 @@ export function CreateActivityForm({
   const resetForm = () => {
     formRef.current?.reset();
     setPhotoKey((k) => k + 1);
+    setKantong(new Set());
+    setBukaKantong(false);
   };
 
   return (
@@ -271,6 +284,40 @@ export function CreateActivityForm({
       <div className="rounded-lg border border-border bg-surface-inset/40 p-3">
         <Label>Foto dokumentasi (maks {MAX_PHOTOS_PER_ACTIVITY})</Label>
         <PhotoSourceInput key={photoKey} />
+        {/* KANTONG FOTO CEPAT — sejajar dengan Kamera & Galeri.
+            Pertanyaan user 2026-08-07 di form ini: *"mana foto cepatnya?"*.
+            Jalannya dulu cuma ada setelah kegiatan tersimpan, karena penautan
+            butuh id kegiatan. Padahal urutan kerja di lapangan justru terbalik:
+            fotonya dijepret dulu lewat Foto Cepat, kegiatannya ditulis
+            belakangan. Fotonya TIDAK bisa ditautkan sekarang, tapi bisa
+            DIPILIH sekarang dan ditautkan tepat sesudah kegiatannya tersimpan —
+            lihat `kantongPhotoIds` di createActivityAction. Dari sisi pelapor
+            hasilnya sama. */}
+        <div className="mt-2 space-y-2 border-t border-border pt-2">
+          {[...kantong].map((id) => (
+            <input key={id} type="hidden" name="kantongPhotoIds" value={id} />
+          ))}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <TombolAmbilDariKantong
+              onClick={() => setBukaKantong((v) => !v)}
+              aktif={bukaKantong}
+              jumlahTerpilih={kantong.size}
+            />
+            {kantong.size > 0 && !bukaKantong ? (
+              <span className="text-[11px] text-ink-muted">ikut tersimpan bersama kegiatan ini</span>
+            ) : null}
+          </div>
+          {bukaKantong ? (
+            <div className="rounded-md border border-border bg-surface-muted p-3">
+              <PemilihKantong
+                locationId={locationId}
+                terpilih={kantong}
+                onUbah={setKantong}
+                muatUlangKunci={photoKey}
+              />
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <div className="flex items-center justify-between gap-2 border-t border-border pt-3">

@@ -11887,3 +11887,46 @@ berkas rusak → daftar kosong (bukan melempar), sheet ber-hide DILEWATI sementa
 sheet terlihat bernama asing DIPAKAI, penipisan menghasilkan tepat satu sheet,
 dan penjagaan struktural: pemeriksaan nama harus berada SEBELUM `xlsx.load` dan
 membungkusnya. Dicek bergigi: melepas penjagaan → uji itu merah.
+
+---
+
+## 298 — Combobox tidak boleh memotong pilihan, dan Foto Cepat ada di form kegiatan (2026-08-07)
+
+Dua keluhan user pada satu layar (form Kegiatan Lapangan).
+
+### 1. *"comboboxmu tidak nyaman, apa teks panjang tidak terbaca"*
+
+Panel pilihan dikunci `w-full` — selebar tombolnya. Akibatnya pilihan panjang
+terpotong: `Rapat Persiapan ...`, `Pengukuran / Uit...`, `Mutual Check a...`,
+`Dokumentasi ko...` — dan justru **bagian yang membedakan pilihanlah yang
+hilang**. "Mutual Check a..." bisa berarti MC awal atau MC akhir; itu bukan
+daftar pilihan, itu tebakan.
+
+Panel sekarang `w-max min-w-full` dengan batas `min(32rem, lebar layar − 2rem)`,
+dan label pilihan tidak lagi `truncate` — teks panjang turun baris. Lebih baik
+satu pilihan memakan dua baris daripada dua pilihan tampak sama karena ekornya
+sama-sama hilang.
+
+Diukur di peramban (tombol 167 px): sebelum → panel 167 px, **3 pilihan
+terpotong**; sesudah → panel 256 px, **0 terpotong**, dan seluruh label utuh
+(`Rapat Persiapan (PCM)`, `Pengukuran / Uitzet`, `Mutual Check awal (MC-0)`,
+`Dokumentasi kondisi 0%`).
+
+### 2. *"mana foto cepatnya?"*
+
+Ada — tapi hanya di form foto kegiatan yang **sudah tersimpan**, sebab penautan
+butuh id kegiatan. Urutan kerja di lapangan justru terbalik: fotonya dijepret
+dulu lewat Foto Cepat, kegiatannya ditulis belakangan. Jadi di form BUAT,
+kantong memang tidak kelihatan sama sekali — dan pelapor wajar mengira fitur itu
+tidak berlaku di sini.
+
+Polanya sudah ada dan terbukti di laporan harian (DECISIONS 253): fotonya tidak
+bisa DITAUTKAN sebelum induknya ada, tapi bisa **DIPILIH** sekarang lalu
+ditautkan tepat sesudah induknya tersimpan. Itu yang dipasang:
+`PemilihKantong` + `kantongPhotoIds` di form buat, dan `createActivityAction`
+menautkannya sesudah kegiatannya dibuat.
+
+Kegagalan penautan **tidak** membatalkan kegiatannya — catatannya sudah
+tersimpan dan itu isi laporannya; yang gagal disebutkan sebagai peringatan dan
+fotonya tetap utuh di kantong. Sesudah sukses, pilihan kantong dikosongkan:
+fotonya sudah terpakai, memilihnya lagi hanya akan gagal.

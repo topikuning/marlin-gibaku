@@ -144,6 +144,18 @@ const createSchema = z.object({
   solusi: z.string().trim().max(2000).optional(),
   gpsLat: z.coerce.number().min(-90).max(90).optional(),
   gpsLng: z.coerce.number().min(-180).max(180).optional(),
+  /**
+   * Foto kantong Foto Cepat yang dipilih DI FORMULIR, sebelum kegiatan ini ada.
+   *
+   * Pertanyaan user 2026-08-07 di form kegiatan: *"mana foto cepatnya?"*.
+   * Jalannya memang cuma ada di form foto kegiatan yang SUDAH tersimpan, sebab
+   * penautan butuh id kegiatan. Tapi urutan kerja di lapangan justru terbalik:
+   * fotonya dijepret lebih dulu lewat Foto Cepat, kegiatannya ditulis
+   * belakangan — jadi kantong harus bisa dipilih di sini juga, sejajar dengan
+   * Kamera dan Galeri. Penautannya menyusul tepat sesudah kegiatannya ada,
+   * sama seperti `kantongPhotoIds` di laporan harian (DECISIONS 253/298).
+   */
+  kantongPhotoIds: z.array(z.uuid()).max(MAX_PHOTOS_PER_ACTIVITY).optional(),
 });
 
 /** Buat kegiatan lapangan baru (status draft) + unggah foto awal (opsional). */
@@ -162,6 +174,7 @@ export async function createActivityAction(
     solusi: formData.get("solusi") || undefined,
     gpsLat: formData.get("gpsLat") || undefined,
     gpsLng: formData.get("gpsLng") || undefined,
+    kantongPhotoIds: formData.getAll("kantongPhotoIds").map(String),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
@@ -213,6 +226,26 @@ export async function createActivityAction(
       limit: MAX_PHOTOS_PER_ACTIVITY,
     });
 
+    /*
+     * Foto kantong ditautkan SESUDAH kegiatannya ada. Kegagalan di sini TIDAK
+     * membatalkan kegiatannya: catatannya sudah tersimpan dan itu isi
+     * laporannya. Yang gagal DISEBUTKAN, dan fotonya tetap utuh di kantong
+     * sehingga bisa dicoba lagi dari daftar kegiatan.
+     */
+    let kantongGagal: string | undefined;
+    if (d.kantongPhotoIds && d.kantongPhotoIds.length > 0) {
+      const { pakaiFotoKeTujuan } = await import("@/lib/foto-cepat/pakai");
+      const hasil = await pakaiFotoKeTujuan(user, d.kantongPhotoIds, {
+        tujuan: "kegiatan",
+        kegiatanId: activity.id,
+      });
+      if ("error" in hasil) kantongGagal = `Foto kantong tidak terpakai: ${hasil.error}`;
+      else if (hasil.gagalCap.length > 0)
+        kantongGagal =
+          `${hasil.gagalCap.length} foto kantong memakai cap dasar ` +
+          `(${[...new Set(hasil.gagalCap)].join(", ")}) — foto & datanya tetap utuh.`;
+    }
+
     await audit(user.id, "field_activity.create", "field_activity", activity.id, {
       locationId: d.locationId,
       type: d.type,
@@ -220,6 +253,7 @@ export async function createActivityAction(
     revalidate(location.slug);
     const warnings = [...new Set(photoErrors)];
     if (overLimit > 0) warnings.push(`${overLimit} foto tidak disimpan — maksimal ${MAX_PHOTOS_PER_ACTIVITY} foto per kegiatan.`);
+    if (kantongGagal) warnings.push(kantongGagal);
     return {
       success: "Kegiatan tersimpan (draft).",
       warning: warnings.length ? warnings.join("; ") : undefined,
