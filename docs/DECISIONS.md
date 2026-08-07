@@ -11930,3 +11930,62 @@ Kegagalan penautan **tidak** membatalkan kegiatannya — catatannya sudah
 tersimpan dan itu isi laporannya; yang gagal disebutkan sebagai peringatan dan
 fotonya tetap utuh di kantong. Sesudah sukses, pilihan kantong dikosongkan:
 fotonya sudah terpakai, memilihnya lagi hanya akan gagal.
+
+---
+
+## 299 — Laporan harian KKP: sampul + halaman dokumentasi pekerjaan (2026-08-07)
+
+**Konteks.** User mengirim contoh terbitan konsultan pengawas di lapangan dan
+menetapkan bentuk yang diharapkan:
+
+> halaman 1: cover (belum ada) · halaman 2: seperti blanko apa adanya saat ini
+> (jadi kamu tidak perlu ubah apa pun) · halaman selanjutnya: dokumentasi
+> pekerjaan … kamu ikuti layoutnya, tapi buat lebih rapi dan profesional.
+
+**Keputusan.** `src/lib/pdf/harian-kkp-lampiran.ts` — modul terpisah, sengaja:
+`harian-kkp.ts` memuat seluruh blanko resmi dan **tidak boleh ikut berubah**
+setiap kali sampul dipoles.
+
+1. **Sampul**: kop pemilik pekerjaan (dari menu Sistem, bukan hardcode KKP —
+   DECISIONS 166), judul, MINGGU KE-n berikut terbilangnya, lalu identitas
+   kontrak (periode · nomor · tanggal · pekerjaan · lokasi · tahun anggaran),
+   dan dua blok tanda tangan di kaki halaman.
+2. **Blanko tidak disentuh** — persis permintaannya.
+3. **Dokumentasi**: kartu dua kolom, tiap kartu berisi kop perusahaan
+   pelaksana, judul DOKUMENTASI PEKERJAAN, baris Pekerjaan/Bangunan, lalu
+   maksimal 3 foto masing-masing dengan judul + kolom **Bobot (%)**.
+
+**Lebih rapi, bukan sekadar meniru.** Contohnya memakai garis putus-putus,
+kotak logo yang menempel seenaknya, dan baris identitas dengan jarak tab tak
+konsisten. Di sini: bingkai garis tipis penuh, label rata kanan pada satu sumbu
+dan isi rata kiri pada sumbu lain, tinggi kotak gambar dan kotak bobot dibuat
+SAMA supaya garisnya bertemu, dan garis tanda tangan kedua kolom pada
+ketinggian yang sama (di contoh keduanya melayang beda tinggi mengikuti panjang
+teks). Kolom Bobot (%) **diisi** — contoh KKP membiarkannya kosong untuk
+ditulis tangan, padahal angkanya sudah ada; mengosongkannya menyuruh orang
+menghitung ulang yang sudah dihitung.
+
+**Dua cacat yang tertangkap saat memeriksa hasil cetak sungguhan:**
+
+1. Baris identitas maju tetap 20 pt, jadi judul pekerjaan yang turun ke baris
+   kedua **ditabrak** baris LOKASI. Nama kontrak KKP memang selalu panjang, jadi
+   ini bukan kasus tepi. Sekarang maju setinggi teks yang benar-benar tergambar.
+2. **Bundel pdfkit yang di-vendor menolak `Buffer` Node.** Bundelnya membawa
+   polyfill `Buffer` sendiri, sehingga `Buffer.isBuffer()` di dalamnya menolak
+   Buffer asli; pdfkit lalu mengira masukannya sebuah PATH dan jatuh ke
+   `fs.readFileSync` — yang juga tidak ada di bundel. Diuji langsung terhadap
+   `assets/pdfkit-standalone.cjs`: **Buffer GAGAL, Uint8Array GAGAL, ArrayBuffer
+   BERHASIL, data-URI berhasil.** Modul ini memakai ArrayBuffer (tanpa biaya
+   base64). Tanpa penjagaan try/catch, gambarnya akan hilang DIAM-DIAM.
+
+**Angka tidak dihitung ulang di lapisan PDF** (CLAUDE.md butir 7): bobot per
+item diambil lewat `bobotPct` di `queries.ts`, periode minggu diturunkan dari
+tanggal SPMK + nomor minggu yang SUDAH dipakai blanko — jadi sampul dan blanko
+mustahil menyebut minggu yang berbeda.
+
+**Bukti.** PDF dicetak sungguhan lalu tiap halaman dirender jadi gambar dan
+diperiksa: sampul (tanpa tumpang tindih), blanko (tidak berubah), dan halaman
+dokumentasi dengan foto ter-embed, judul pekerjaan, serta bobot 0,42 / 0,03.
+
+**Yang belum.** Logo konsultan pengawas belum ada di data — kotaknya disiapkan
+dan diisi nama perusahaannya saja. Logo pelaksana dipakai bila vendornya punya.

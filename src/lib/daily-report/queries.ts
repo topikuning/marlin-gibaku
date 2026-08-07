@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { prestasiPct } from "@/lib/progress-calc";
-import { COUNTED_REPORT_STATUSES, cumulativeVolumeByLineage } from "@/lib/progress";
+import { bobotPct, prestasiPct } from "@/lib/progress-calc";
+import { COUNTED_REPORT_STATUSES, cumulativeVolumeByLineage, getLocationProgress } from "@/lib/progress";
 import { jakartaDateKey, parseDateKey } from "@/lib/format";
 import { buildPhotoViews, type PhotoView } from "@/lib/photos";
 import type {
@@ -558,11 +558,13 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
             select: {
               startDate: true,
               workTitle: true,
+              contractNumber: true,
+              signedDate: true,
               supervisorName: true,
               supervisorFirm: true,
               contractorSignerName: true,
               contractorSignerTitle: true,
-              vendor: { select: { name: true } },
+              vendor: { select: { name: true, logoKey: true, address: true } },
             },
           },
         },
@@ -615,6 +617,15 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
       workers: true,
       materials: { orderBy: { name: "asc" } },
       equipment: { orderBy: { name: "asc" } },
+      // Halaman DOKUMENTASI PEKERJAAN (DECISIONS 299) — foto beserta item RAB
+      // yang dibuktikannya. Tautannya sudah ada; tinggal diambil.
+      photos: {
+        select: {
+          r2Key: true,
+          reportItem: { select: { rabNode: { select: { name: true, lineageKey: true } } } },
+        },
+        orderBy: { createdAt: "asc" },
+      },
     },
   });
 
@@ -666,6 +677,23 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
     ? Math.max(1, Math.floor((reportDate.getTime() - startDate.getTime()) / (7 * 86_400_000)) + 1)
     : null;
 
+  /**
+   * Bobot hari ini per item — kolom "Bobot (%)" di halaman dokumentasi.
+   *
+   * Memakai `bobotPct` dari progress-calc; TIDAK ada rumus baru di sini
+   * (CLAUDE.md butir 7). Grand total nol → tidak diisi sama sekali: "belum
+   * diketahui" berbeda dari "nol persen".
+   */
+  const bobotPerLineage = new Map<string, number>();
+  {
+    const { grandTotal } = await getLocationProgress(location.id, { asOf: reportDate });
+    if (grandTotal > 0n)
+      for (const it of report?.items ?? []) {
+        if (it.basis !== "aktif") continue;
+        bobotPerLineage.set(it.lineageKey, bobotPct(Number(it.valueDone), Number(grandTotal)));
+      }
+  }
+
   const workerMap: Partial<Record<WorkerRole, number>> = {};
   for (const w of report?.workers ?? []) workerMap[w.role] = w.count;
 
@@ -678,6 +706,32 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
     hari: hariFmt.format(reportDate),
     tanggalFull: tanggalFullFmt.format(reportDate),
     weekNo,
+    /* ── Sampul & dokumentasi (PDF saja, DECISIONS 299) ───────────────── */
+    contractNumber: contract?.contractNumber ?? null,
+    contractDate: contract?.signedDate ? tanggalFullFmt.format(contract.signedDate) : null,
+    // Periode minggu berjalan: diturunkan dari tanggal SPMK + nomor minggu yang
+    // SUDAH dipakai blanko — satu sumber, jadi sampul dan blanko tidak bisa
+    // menyebut minggu yang berbeda.
+    periodStart:
+      startDate && weekNo
+        ? tanggalFullFmt.format(new Date(startDate.getTime() + (weekNo - 1) * 7 * 86_400_000))
+        : null,
+    periodEnd:
+      startDate && weekNo
+        ? tanggalFullFmt.format(new Date(startDate.getTime() + (weekNo * 7 - 1) * 86_400_000))
+        : null,
+    contractorAddress: contract?.vendor?.address ?? null,
+    vendorLogoKey: contract?.vendor?.logoKey ?? null,
+    photos: (report?.photos ?? []).map((ph) => {
+      const kunci = ph.reportItem?.rabNode?.lineageKey ?? null;
+      return {
+        r2Key: ph.r2Key,
+        pekerjaan: ph.reportItem?.rabNode?.name ?? null,
+        kategori: kunci ? (kategoriByRoot(kunci).categoryName ?? null) : null,
+        // Bobot DIAMBIL dari baris laporannya, tidak dihitung ulang di PDF.
+        bobot: kunci ? (bobotPerLineage.get(kunci) ?? null) : null,
+      };
+    }),
     tahunAnggaran: (startDate ?? reportDate).getUTCFullYear(),
     workerMap,
     totalWorkers: (report?.workers ?? []).reduce((n, w) => n + w.count, 0),

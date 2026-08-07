@@ -98,6 +98,33 @@ export type KkpDailyData = {
   /** Nama perusahaan pengawas & pelaksana (di blanko: kotak "logo perusahaan"). */
   supervisorFirm?: string | null;
   contractorFirm?: string | null;
+
+  /* ── Hanya dipakai PDF: halaman SAMPUL & DOKUMENTASI (DECISIONS 299) ────
+     Blanko di layar tidak berubah sedikit pun — field ini opsional dan
+     komponen web mengabaikannya. */
+
+  /** Sampul: "NOMOR KONTRAK : …" + "TANGGAL : …". */
+  contractNumber?: string | null;
+  contractDate?: string | null;
+  /** Sampul: "PERIODE : <mulai> S/D <selesai>" — rentang minggu berjalan. */
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  /** Kop perusahaan di sampul & tiap kartu dokumentasi. */
+  contractorAddress?: string | null;
+  vendorLogoKey?: string | null;
+  /**
+   * Foto bukti hari itu untuk halaman DOKUMENTASI PEKERJAAN.
+   *
+   * `pekerjaan` = nama item RAB yang dibuktikan foto ini; `bobot` = bobot
+   * hari itu untuk item tersebut. Keduanya DIAMBIL, bukan dihitung ulang di
+   * lapisan PDF (CLAUDE.md butir 7).
+   */
+  photos?: {
+    r2Key: string;
+    pekerjaan: string | null;
+    kategori: string | null;
+    bobot: number | null;
+  }[];
 };
 
 export function KkpDailyReport({ d }: { d: KkpDailyData }) {
