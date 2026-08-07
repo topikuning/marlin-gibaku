@@ -46,8 +46,51 @@ describe("KASUS INTI: atasan memiliki semua kapabilitas bawahannya", () => {
   it("atasan tetap punya yang khas dirinya — jenjang bukan sekadar salinan", () => {
     expect(ROLE_CAPABILITIES.regional_manager.has("finance.approve")).toBe(true);
     expect(ROLE_CAPABILITIES.project_manager.has("finance.approve")).toBe(false);
-    expect(ROLE_CAPABILITIES.project_manager.has("rab.manage")).toBe(true);
-    expect(ROLE_CAPABILITIES.site_manager.has("rab.manage")).toBe(false);
+    expect(ROLE_CAPABILITIES.project_manager.has("location.manage")).toBe(true);
+    expect(ROLE_CAPABILITIES.site_manager.has("location.manage")).toBe(false);
+  });
+});
+
+// PENYETUJU ADENDUM HARUS BISA MASUK KE HALAMANNYA (DECISIONS 302).
+//
+// Pertanyaan user 2026-08-07: "project manager dan site manager kenapa tidak
+// ada menu pengajuan adendumnya?"
+//
+// Yang ditemukan bukan soal menu, tapi janji yang dikunci sendiri:
+// `bolehMenyetujui()` menyebut Site Manager sebagai penyetuju yang sah — pesan
+// galatnya bahkan menuliskannya — sedangkan tombol setujunya ada di
+// `/lokasi/[slug]/rab/adendum`, halaman yang dijaga `rab.manage` yang saat itu
+// TIDAK dimiliki SM. Paket yang mengandalkan pasangan Program Director + Site
+// Manager tidak akan pernah bisa mengaktifkan adendumnya, dan galatnya
+// menyesatkan.
+//
+// Diuji sebagai INVARIAN, bukan daftar peran: siapa pun yang aturannya akui
+// sebagai penyetuju wajib bisa membuka halaman tempat menyetujui. Menambah
+// peran penyetuju baru tanpa membuka pintunya akan langsung tertangkap di sini.
+describe("penyetuju adendum vs pintu halamannya", () => {
+  it("setiap peran yang boleh menyetujui juga boleh membuka halaman adendum", async () => {
+    const { bolehMenyetujui } = await import("@/lib/rab/persetujuan-aturan");
+    const { ALL_ROLES } = await import("@/lib/authz");
+    const terkunci = ALL_ROLES.filter(
+      (r) => bolehMenyetujui(r) && !ROLE_CAPABILITIES[r].has("rab.manage"),
+    );
+    expect(terkunci, `peran ini boleh menyetujui tapi tidak bisa masuk: ${terkunci}`).toEqual([]);
+  });
+
+  it("bukan berarti semua orang boleh masuk — pagar tetap ada", () => {
+    // Batas yang penting: memperbaiki kontradiksi di atas tidak boleh berubah
+    // jadi membuka RAB untuk siapa saja.
+    expect(ROLE_CAPABILITIES.field_supervisor.has("rab.manage")).toBe(false);
+    expect(ROLE_CAPABILITIES.exec_viewer.has("rab.manage")).toBe(false);
+    expect(ROLE_CAPABILITIES.wakil_ppk.has("rab.manage")).toBe(false);
+  });
+
+  it("adendum SISI KONTRAK tetap tertutup — SM & PM bukan penandatangan", () => {
+    // `amendment.manage` (nomor CCO, perubahan waktu di halaman Kontrak) TIDAK
+    // ikut terbuka. Menyusun draft RAB berbeda dari mengesahkan kontraknya.
+    for (const r of ["site_manager", "project_manager", "regional_manager"] as const) {
+      expect(ROLE_CAPABILITIES[r].has("amendment.manage"), r).toBe(false);
+    }
   });
 });
 
