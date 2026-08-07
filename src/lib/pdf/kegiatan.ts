@@ -6,7 +6,7 @@ import { getBranding } from "@/lib/branding";
 import { getActivityKindLabelMap } from "@/lib/field-activity/kinds";
 import { FIELD_ACTIVITY_STATUS_LABEL } from "@/lib/field-activity/labels";
 import { formatTanggal, formatTanggalWaktu } from "@/lib/format";
-import { formatCoordinate } from "@/lib/photo-stamp/format";
+import { formatCoordinate, jamTakDiketahui } from "@/lib/photo-stamp/format";
 import { signPhotoToken } from "@/lib/pdf/photo-token";
 import {
   CONTENT_WIDTH,
@@ -167,7 +167,17 @@ export async function renderKegiatanPdf(
         },
       },
       photos: {
-        select: { id: true, r2Key: true, exifTakenAt: true, exifGpsLat: true, exifGpsLng: true },
+        select: {
+          id: true,
+          r2Key: true,
+          exifTakenAt: true,
+          exifGpsLat: true,
+          exifGpsLng: true,
+          // Dua penanda ini yang membedakan bukti dari klaim (DECISIONS 197):
+          // apakah jamnya diketahui, dan apakah koordinatnya dari perangkat.
+          gpsSource: true,
+          metadataSource: true,
+        },
         orderBy: { createdAt: "asc" },
       },
     },
@@ -193,7 +203,17 @@ export async function renderKegiatanPdf(
         const lat = p.exifGpsLat != null ? Number(p.exifGpsLat) : null;
         const lng = p.exifGpsLng != null ? Number(p.exifGpsLng) : null;
         const koord = formatCoordinate(lat, lng);
-        const sub = [p.exifTakenAt ? formatTanggalWaktu(p.exifTakenAt) : null, koord].filter(Boolean).join("  ·  ");
+        // Jam hanya dicetak bila memang diketahui; koordinat cadangan titik
+        // proyek WAJIB ditandai — mengakuinya sebagai bukti GPS adalah
+        // kebohongan yang tidak kelihatan (DECISIONS 197).
+        const waktu = p.exifTakenAt
+          ? jamTakDiketahui(p.metadataSource, p.exifTakenAt)
+            ? formatTanggal(p.exifTakenAt)
+            : formatTanggalWaktu(p.exifTakenAt)
+          : null;
+        const koordTeks =
+          koord && p.gpsSource === "project" ? `${koord} (titik proyek, bukan GPS perangkat)` : koord;
+        const sub = [waktu, koordTeks].filter(Boolean).join("  ·  ");
         // Link publik MARLIN ke gambar PENUH (tak ter-crop) — hanya bila origin diketahui.
         const link = baseUrl ? `${baseUrl}/api/foto/${signPhotoToken(p.id)}` : null;
         photos.push({ jpeg, caption: `Foto ${i}`, sub: sub || null, link });

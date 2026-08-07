@@ -11633,3 +11633,66 @@ kalimatnya (nama kelas internal Next bisa berubah antar versi), pesannya
 menyuruh memuat ulang dan TIDAK menyuruh mencoba lagi, serta batas penting:
 kegagalan transport biasa tidak ikut disebut deploy — kalau ikut, orang akan
 membuang isiannya tanpa alasan.
+
+---
+
+## 293 — Judul foto = pekerjaan yang dibuktikannya (2026-08-07)
+
+**Konteks.** User atas PDF ringkas laporan harian: *"kenapa judul fotonya
+begini? bukannya akan lebih rapi jika menyesuaikan pekerjaan realnya?!"* —
+seluruh foto laporan berjudul **"Pekerjaan harian"**.
+
+Itu konstanta mati di `ringkas.ts`, padahal tiap foto SUDAH tertaut ke item
+RAB-nya lewat `Photo.reportItemId`; kuerinya saja yang tidak pernah mengambil
+relasinya. Foto kegiatan sejak awal memakai `Kegiatan: <judul>`, jadi
+ketimpangannya ada di dalam satu dokumen yang sama.
+
+Akibatnya bukan soal rapi. Halaman dokumentasi berisi belasan foto berjudul
+sama persis, sehingga pemeriksa PPK tidak bisa tahu foto mana membuktikan
+pekerjaan mana — padahal itulah satu-satunya guna lampiran foto.
+
+**Keputusan.** Judul = `kode · nama` item RAB-nya. Label umum "Pekerjaan
+harian" HANYA tersisa untuk foto yang memang tidak tertaut item mana pun
+(foto yang item-nya sudah dihapus): di sana label umum itu jujur, sedangkan
+menebak pekerjaannya tidak.
+
+---
+
+## 294 — "07.00" bukan jam, dan koordinat cadangan bukan bukti (2026-08-07)
+
+**Temuan menyusul, TIDAK diminta user.** Di baris keterangan foto yang sama
+tertulis `4 Agt 2026 07.00`. Angka itu bukan data: foto galeri tanpa EXIF
+mengambil waktunya dari TANGGAL KERJA — kolom `@db.Date`, yaitu tengah malam
+UTC, yang diformat lengkap berbunyi 07.00 WIB.
+
+Aturannya sudah ada dan tegas (DECISIONS 197, CLAUDE.md): *"jam yang tak
+diketahui → tulis tanggal saja"*. Cap di gambar menghormatinya; **lapisan PDF
+tertinggal** dan tetap mencetak jam karangan. Komentar di `photos.ts` bahkan
+sudah menerangkan jebakan 07.00 ini — perbaikannya dulu berhenti di cap.
+
+Pemeriksaan lanjutan menemukan pelanggaran KEDUA di PDF kegiatan lapangan
+(`pdf/kegiatan.ts`): koordinat dicetak tanpa penanda, sehingga titik proyek
+cadangan terbaca sebagai bukti GPS perangkat. Kuerinya tidak mengambil
+`gpsSource` sama sekali.
+
+**Keputusan.**
+
+1. Jam hanya dicetak bila memang diketahui; selain itu tanggal saja.
+2. Koordinat ber-`gpsSource = project` ditandai di SEMUA dokumen, bukan hanya
+   di ringkas harian.
+3. Aturannya ditaruh di modul bersama (`photo-stamp/format.ts`) sebagai
+   `jamTakDiketahui()` — supaya penulis dokumen berikutnya tidak perlu
+   menemukan jebakan yang sama sendiri. Dua PDF sudah menemukannya terpisah;
+   yang ketiga tidak boleh mengulanginya.
+
+**Tanpa kolom baru.** Penandanya bisa dibaca pasti dari nilainya: hanya jalur
+tanggal-kerja yang menghasilkan `metadataSource = "server"` TEPAT di tengah
+malam UTC. Jalur "server" satunya (waktu unggah) memakai `new Date()`, yang
+praktis mustahil jatuh persis di `00:00:00.000`. Migrasi + backfill untuk
+sesuatu yang sudah tersimpan jelas adalah biaya tanpa manfaat.
+
+**Uji.** `tests/unit/photo-stamp-format.test.ts` (helper, termasuk batas
+"waktu unggah sungguhan TIDAK ikut ditandai" — menandainya akan menyembunyikan
+jam yang sah) + `tests/integration/ringkas-harian.test.ts` (judul dari item
+RAB, fallback foto tanpa item, dan kedua kasus jam). Dicek bergigi:
+mengembalikan `ringkas.ts` ke perilaku lama → 2 uji merah.

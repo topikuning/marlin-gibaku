@@ -4,7 +4,7 @@ import path from "node:path";
 import sharp from "sharp";
 import { isR2Configured, r2GetBuffer } from "@/lib/r2";
 import { getRingkasHarian, type RingkasFoto, type RingkasHarian } from "@/lib/daily-report/ringkas";
-import { formatRupiah, formatTanggalWaktu, lokasiDenganWilayah } from "@/lib/format";
+import { formatRupiah, formatTanggal, formatTanggalWaktu, lokasiDenganWilayah } from "@/lib/format";
 import { REPORT_STATUS_LABEL } from "@/lib/lifecycle";
 import { formatCoordinate } from "@/lib/photo-stamp/format";
 import { signPhotoToken } from "@/lib/pdf/photo-token";
@@ -221,10 +221,19 @@ async function normalisasiFoto(r2Key: string): Promise<Buffer> {
     .toBuffer();
 }
 
-/** Keterangan bawah foto: waktu + koordinat, dengan penanda GPS cadangan. */
+/**
+ * Keterangan bawah foto: waktu + koordinat, dengan penanda GPS cadangan.
+ *
+ * Jam hanya dicetak bila jamnya MEMANG diketahui. Foto galeri tanpa EXIF cuma
+ * membawa tanggal kerjanya; memformatnya lengkap menghasilkan "07.00" — jam
+ * yang tidak pernah ada, dan di dokumen bukti itu bukan ketidakrapian
+ * melainkan keterangan palsu (DECISIONS 197).
+ */
 function subFoto(p: RingkasFoto): string | null {
   const bagian: string[] = [];
-  if (p.takenAt) bagian.push(formatTanggalWaktu(p.takenAt));
+  if (p.takenAt) {
+    bagian.push(p.jamTidakDiketahui ? formatTanggal(p.takenAt) : formatTanggalWaktu(p.takenAt));
+  }
   const koord = formatCoordinate(p.lat, p.lng);
   if (koord) bagian.push(p.gpsCadangan ? `${koord} (titik proyek, bukan GPS perangkat)` : koord);
   return bagian.length > 0 ? bagian.join("  ·  ") : null;
