@@ -83,6 +83,17 @@ export function PhotoSourceInput({
    */
   const [berkas, setBerkas] = useState<{ file: File; url: string }[]>([]);
   const [pesanBatas, setPesanBatas] = useState<string | null>(null);
+  /**
+   * Berisi nama galat bila perakitan `DataTransfer` tidak bisa dipakai di
+   * peramban ini. Bukan sekadar penanda: pesannya ditampilkan apa adanya,
+   * karena pelapor memakai ponsel dan tidak bisa membuka console.
+   *
+   * Bukan null → JALUR CADANGAN: pemilih kamera/galeri sendiri yang ber-`name`
+   * dan terkirim langsung. Fitur menumpuk pilihan hilang (DECISIONS 229),
+   * unggahnya tetap jalan. Fitur yang berkurang jauh lebih baik daripada
+   * halaman yang runtuh.
+   */
+  const [rakitGagal, setRakitGagal] = useState<string | null>(null);
   // "unknown" = belum diperiksa. Nilai awal sengaja BUKAN "prompt": menebak
   // keadaan izin lalu menampilkan peringatan yang salah lebih buruk daripada
   // diam sebentar.
@@ -170,12 +181,17 @@ export function PhotoSourceInput({
   const idBerkas = (f: File) => `${f.name}|${f.size}|${f.lastModified}`;
 
   const tumpuk = (baru: FileList) => {
+    // Saat perakitan tidak bisa dipakai, pilihan TIDAK boleh menumpuk: yang
+    // benar-benar terkirim cuma isi pemilih terakhir, jadi pratinjau yang
+    // menumpuk akan berbohong tentang apa yang akan terunggah.
+    const dasar = rakitGagal ? [] : berkas;
+    if (rakitGagal) for (const b of berkas) URL.revokeObjectURL(b.url);
     // Berkas identik (nama+ukuran+waktu) tidak ditambahkan dua kali: memilih
     // ulang foto yang sama biasanya salah tekan, bukan permintaan duplikat —
     // dan server memang menolak duplikat byte-identik.
-    const sudah = new Set(berkas.map((b) => idBerkas(b.file)));
+    const sudah = new Set(dasar.map((b) => idBerkas(b.file)));
     const tambah = Array.from(baru).filter((f) => !sudah.has(idBerkas(f)));
-    const gabung = [...berkas, ...tambah.map((file) => ({ file, url: URL.createObjectURL(file) }))];
+    const gabung = [...dasar, ...tambah.map((file) => ({ file, url: URL.createObjectURL(file) }))];
     const lebih = gabung.length - MAX_PHOTOS_PER_UPLOAD;
     if (lebih > 0) {
       for (const b of gabung.slice(MAX_PHOTOS_PER_UPLOAD)) URL.revokeObjectURL(b.url);
@@ -196,15 +212,38 @@ export function PhotoSourceInput({
     setBerkas(berkas.filter((_, n) => n !== i));
   };
 
-  // Tulis ulang isi input pengirim tiap kali daftarnya berubah. Efek, bukan
-  // di dalam handler: state-lah sumber kebenarannya, dan input hanya cerminan.
+  /**
+   * Tulis ulang isi input pengirim tiap kali daftarnya berubah. Efek, bukan
+   * di dalam handler: state-lah sumber kebenarannya, dan input hanya cerminan.
+   *
+   * SELURUHNYA DIJAGA, karena tiga langkah di bawah ini semuanya bergantung
+   * pada dukungan peramban yang tidak merata di ponsel: `new DataTransfer()`,
+   * `items.add()` (di beberapa peramban daftarnya read-only kalau bukan dari
+   * peristiwa seret), dan penugasan ke `input.files`. Berkas ini modul ES —
+   * mode ketat — jadi penugasan yang ditolak MELEMPAR, bukan diam. Sebelum
+   * dijaga, lemparan itu menjatuhkan seluruh halaman tanpa menyebut apa pun
+   * dan tanpa jejak di server (tidak ada permintaan yang pernah dikirim).
+   *
+   * Hasilnya juga DIPERIKSA, bukan cuma "tidak melempar": peramban yang
+   * menerima penugasan lalu mengabaikannya akan mengirim form tanpa foto —
+   * gagal diam-diam, jenis kegagalan terburuk untuk bukti lapangan.
+   */
   useEffect(() => {
     const el = berkasRef.current;
-    if (!el) return;
-    const dt = new DataTransfer();
-    for (const b of berkas) dt.items.add(b.file);
-    el.files = dt.files;
-  }, [berkas]);
+    if (!el || rakitGagal) return;
+    try {
+      const dt = new DataTransfer();
+      for (const b of berkas) dt.items.add(b.file);
+      el.files = dt.files;
+      if (el.files.length !== berkas.length) {
+        throw new Error(`input file hanya menerima ${el.files.length} dari ${berkas.length} berkas`);
+      }
+    } catch (e) {
+      const nama = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+      // Ditunda ke microtask supaya tidak menyetel state saat efek berjalan.
+      queueMicrotask(() => setRakitGagal(nama));
+    }
+  }, [berkas, rakitGagal]);
 
   const pickCamera = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -213,8 +252,13 @@ export function PhotoSourceInput({
     setTakenAt(new Date().toISOString());
     tumpuk(files);
     // Pemilih dikosongkan supaya memotret objek yang sama dua kali tetap
-    // memicu `change` (nilai yang tidak berubah = tidak ada event).
-    e.target.value = "";
+    // memicu `change` (nilai yang tidak berubah = tidak ada event). Di jalur
+    // cadangan justru TIDAK boleh dikosongkan — pemilih inilah yang terkirim.
+    if (rakitGagal) {
+      if (galRef.current) galRef.current.value = "";
+    } else {
+      e.target.value = "";
+    }
     clearGps();
     if (typeof navigator !== "undefined" && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -280,7 +324,11 @@ export function PhotoSourceInput({
     setSource("gallery");
     setTakenAt(new Date().toISOString());
     tumpuk(files);
-    e.target.value = "";
+    if (rakitGagal) {
+      if (camRef.current) camRef.current.value = "";
+    } else {
+      e.target.value = "";
+    }
     onPicked?.();
   };
 
@@ -346,6 +394,7 @@ export function PhotoSourceInput({
             accept="image/*"
             capture="environment"
             multiple
+            name={rakitGagal ? "photos" : undefined}
             className="sr-only"
             onChange={pickCamera}
           />
@@ -360,13 +409,23 @@ export function PhotoSourceInput({
               type="file"
               accept="image/*"
               multiple
+              name={rakitGagal ? "photos" : undefined}
               className="sr-only"
               onChange={pickGallery}
             />
           </>
         )}
-        {/* SATU-SATUNYA input yang ikut terkirim; isinya dirakit dari state. */}
-        <input ref={berkasRef} type="file" name="photos" multiple className="sr-only" tabIndex={-1} />
+        {/* Input yang ikut terkirim; isinya dirakit dari state. Di jalur
+            cadangan `name`-nya dilepas supaya tidak mengirim daftar kosong
+            yang menimpa pilihan asli dari pemilih. */}
+        <input
+          ref={berkasRef}
+          type="file"
+          name={rakitGagal ? undefined : "photos"}
+          multiple
+          className="sr-only"
+          tabIndex={-1}
+        />
       </div>
 
       {/* Konfirmasi sebelum memilih berkas galeri (DECISIONS 220), sebagai
@@ -430,11 +489,29 @@ export function PhotoSourceInput({
 
       {pesanBatas ? <p className="text-xs text-warning">{pesanBatas}</p> : null}
 
+      {/* Jalur cadangan disebut TERANG-TERANGAN. Pelapor yang terbiasa
+          menumpuk pilihan harus tahu di perangkat ini caranya berbeda —
+          kalau tidak, ia mengira foto pertamanya ikut padahal tidak. */}
+      {rakitGagal ? (
+        <div className="rounded-md border border-warning-border bg-warning-soft px-3 py-2">
+          <p className="text-xs font-medium text-warning">
+            Perangkat ini tidak bisa menggabungkan beberapa kali pemilihan foto
+          </p>
+          <p className="mt-0.5 text-xs text-ink-muted">
+            Pilih SEMUA foto sekaligus dalam satu ketukan — yang terkirim hanya pemilihan terakhir.
+            Unggahnya tetap jalan.
+          </p>
+          <p className="mt-1 text-[11px] break-words text-ink-muted">{rakitGagal}</p>
+        </div>
+      ) : null}
+
       {!compact && berkas.length > 0 ? (
         <div className="space-y-1.5">
           <p className="text-xs text-ink-muted">
-            {berkas.length} foto dipilih (maks {MAX_PHOTOS_PER_UPLOAD}). Ketuk{" "}
-            {hanyaKamera ? "Kamera" : "Kamera/Galeri"} lagi untuk menambah.
+            {berkas.length} foto dipilih (maks {MAX_PHOTOS_PER_UPLOAD}).{" "}
+            {rakitGagal
+              ? "Ketuk lagi = mengganti pilihan, bukan menambah."
+              : `Ketuk ${hanyaKamera ? "Kamera" : "Kamera/Galeri"} lagi untuk menambah.`}
           </p>
           <div className="flex flex-wrap gap-2">
             {berkas.map((b, i) => (

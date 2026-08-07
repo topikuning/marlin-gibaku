@@ -11429,3 +11429,66 @@ tanpa cap alih-alih melempar galat mentah.
 **Yang masih terbuka.** Sebab galat di perangkat user belum diketahui. Bedanya
 dengan kemarin: sekarang layarnya akan **menyebutkan nama galatnya**, jadi
 laporan berikutnya membawa fakta, bukan gejala.
+
+---
+
+## 290 — Halaman yang runtuh di sisi peramban harus menyebut nama galatnya (2026-08-07)
+
+**Konteks.** Lanjutan 289. User: *"error terjadi sepertinya sebelum browser
+kirim request, bahkan di server tidak ada log"*. Itu mematahkan diagnosis 289:
+kalau tidak ada permintaan yang pernah dikirim, `errState` di server memang
+tidak pernah ikut bermain. Galatnya di KLIEN.
+
+Dan di klien aplikasi ini tidak punya **satu pun** error boundary. Akibatnya
+setiap lemparan di peramban mengganti seluruh halaman dengan layar bawaan Next
+("application error, reload") — tanpa nama, tanpa pesan, tanpa jejak server.
+Pelapor kami bekerja dengan ponsel: tidak ada console, tidak ada inspect
+element. Gabungan itu = kegagalan yang mustahil didiagnosis, dan sudah terbukti
+memakan berhari-hari di saga antrean Foto Cepat (DECISIONS 284–287).
+
+**Keputusan.**
+
+1. **Batas galat dipasang**: `src/app/(app)/error.tsx` (semua halaman ber-sesi)
+   dan `src/app/global-error.tsx` (jaring terakhir, menggambar `<html>`/`<body>`
+   sendiri). Keduanya memakai `components/shell/panel-galat.tsx`, yang menulis
+   **nama + pesan galat, digest, alamat halaman, dan identitas peramban** apa
+   adanya, plus tombol salin. Identitas peramban ikut dengan sengaja: galat yang
+   hanya muncul di satu merek/versi mustahil dipersempit tanpa itu, dan menebak
+   perangkat pelapor sudah terbukti membuang waktu.
+2. **Perakitan `DataTransfer` di `photo-source-input.tsx` dijaga.** Itu
+   satu-satunya API DOM rapuh di jalur yang dilaporkan, baru berumur empat hari
+   (DECISIONS 229, commit 2026-08-03), dan ketiga langkahnya —
+   `new DataTransfer()`, `items.add()`, penugasan ke `input.files` — dukungannya
+   tidak merata di ponsel. Berkas ini modul ES (mode ketat), jadi penugasan yang
+   ditolak MELEMPAR, bukan diam. Hasilnya juga diperiksa, bukan sekadar "tidak
+   melempar": peramban yang menerima penugasan lalu mengabaikannya akan
+   mengirim form tanpa foto — gagal diam-diam, yang terburuk untuk bukti.
+3. **Jalur cadangan, bukan kegagalan.** Saat perakitan tidak bisa dipakai,
+   pemilih kamera/galeri sendiri yang ber-`name="photos"` dan terkirim langsung.
+   Menumpuk pilihan hilang; unggah tetap jalan. Perbedaannya **dikatakan di
+   layar** berikut nama galatnya — pelapor yang terbiasa menumpuk harus tahu di
+   perangkat ini caranya berbeda, kalau tidak ia mengira foto pertamanya ikut
+   padahal tidak.
+
+**Bukti (peramban nyata, bukan penalaran).** Dengan `DataTransfer` sengaja
+dirusak di halaman:
+
+| | tanpa penjagaan | dengan penjagaan |
+|---|---|---|
+| form pekerjaan | mati | hidup |
+| yang tampil | PanelGalat + `TypeError: Failed to set the 'files' property on 'HTMLInputElement'` + URL + UA | panel cadangan + nama galat yang sama |
+| `input[name=photos]` | — | berisi 1 foto |
+
+Jalur normal (DataTransfer utuh) tidak berubah: 1 foto, tanpa panel apa pun.
+
+**Yang TIDAK diklaim.** Belum terbukti bahwa inilah galat yang menimpa
+perangkat user — itu tidak bisa dibuktikan tanpa pesan dari perangkatnya.
+Yang sudah pasti: jalur ini memang bisa meruntuhkan halaman persis seperti yang
+dilaporkan, sekarang tidak bisa lagi, dan kalau ternyata sebabnya lain,
+layarnya akan menyebutkan namanya.
+
+**Uji.** `tests/unit/galat-klien.test.ts` — mengunci keberadaan batas galat,
+isi panel (nama+pesan, digest, URL, userAgent), penjagaan try/catch yang
+MEMBUNGKUS baris `new DataTransfer()`, pemeriksaan hasil penugasan, dan
+pengikatan `name` jalur cadangan. Dicek bergigi: mengembalikan
+`photo-source-input.tsx` ke versi lama → 4 dari 7 uji merah.
