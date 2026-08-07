@@ -48,10 +48,13 @@ let reportId: string;
 let itemId: string;
 let rabNodeId: string;
 
-/** Berkas ASLI dari laporan user — bukan gambar 8×8 buatan uji. */
-const BERKAS = readFileSync(
-  "/root/.claude/uploads/8722fcf2-b52f-575a-8412-f960ef37ca07/6f9e60ca-IMG20260801WA0035.jpg",
-);
+/**
+ * Berkas ASLI dari laporan user — bukan gambar 8×8 buatan uji, dan sengaja
+ * ikut disimpan di repo (`tests/fixtures/`) supaya uji ini jalan di mana pun,
+ * termasuk CI. Jangan diganti gambar sintetis: justru ketiadaan EXIF, ukuran
+ * 1600×901 progressive, dan nama bergaya WhatsApp itulah bahan ujinya.
+ */
+const BERKAS = readFileSync(new URL("../fixtures/IMG20260801WA0035.jpg", import.meta.url));
 
 beforeAll(async () => {
   const org = await db.organization.create({
