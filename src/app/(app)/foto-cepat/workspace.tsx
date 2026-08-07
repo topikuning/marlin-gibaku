@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { tahanGagalKirim } from "@/lib/aksi-klien";
 import { useRouter } from "next/navigation";
 import { Camera, Check, Images, MapPin, MapPinOff, Trash2, X } from "lucide-react";
 import { Banner, Button, Card, Combobox, EmptyState, HelpText, Label } from "@/components/ui";
@@ -39,6 +40,16 @@ import {
  */
 
 const KOSONG: FotoCepatState = {};
+
+/**
+ * Aksi dibungkus supaya POST yang gagal (unggahan foto besar) jadi PESAN di
+ * layar, bukan halaman mati yang menghapus jepretan yang belum tersimpan
+ * (DECISIONS 291).
+ */
+const simpanFotoCepat = tahanGagalKirim(simpanFotoCepatAction);
+const hapusFotoCepat = tahanGagalKirim(hapusFotoCepatAction);
+const tetapkanLokasi = tahanGagalKirim(tetapkanLokasiAction);
+const pakaiFoto = tahanGagalKirim(pakaiFotoAction);
 
 export function FotoCepatWorkspace({
   lokasi,
@@ -101,7 +112,7 @@ function JepretCard({
 }) {
   const router = useRouter();
   const [kameraBuka, setKameraBuka] = useState(false);
-  const [state, action, pending] = useActionState(simpanFotoCepatAction, KOSONG);
+  const [state, action, pending] = useActionState(simpanFotoCepat, KOSONG);
   const { baris, ringkas, penuh, galat, kuota, online, titip, hapus, kirimSekarang } =
     useAntreanFoto();
 
@@ -621,7 +632,7 @@ function FotoPetak({
   dipilih: boolean;
   onToggle: (id: string) => void;
 }) {
-  const [state, action, pending] = useActionState(hapusFotoCepatAction, KOSONG);
+  const [state, action, pending] = useActionState(hapusFotoCepat, KOSONG);
   return (
     <li className="relative">
       <button
@@ -696,7 +707,7 @@ function PanelTetapkanLokasi({
   /** Foto terpilih yang lokasinya SUDAH diketahui — tidak ikut di langkah ini. */
   diabaikan: number;
 }) {
-  const [state, action, pending] = useActionState(tetapkanLokasiAction, KOSONG);
+  const [state, action, pending] = useActionState(tetapkanLokasi, KOSONG);
   const [locationId, setLocationId] = useState("");
 
   return (
@@ -762,7 +773,7 @@ function PanelPakai({
   photoIds: string[];
   onHasil: (s: FotoCepatState) => void;
 }) {
-  const [state, action, pending] = useActionState(pakaiFotoAction, KOSONG);
+  const [state, action, pending] = useActionState(pakaiFoto, KOSONG);
   const [tujuan, setTujuan] = useState<"kegiatan" | "laporan">("laporan");
   const [kegiatanId, setKegiatanId] = useState("");
   const [reportId, setReportId] = useState("");

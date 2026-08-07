@@ -11492,3 +11492,71 @@ isi panel (nama+pesan, digest, URL, userAgent), penjagaan try/catch yang
 MEMBUNGKUS baris `new DataTransfer()`, pemeriksaan hasil penugasan, dan
 pengikatan `name` jalur cadangan. Dicek bergigi: mengembalikan
 `photo-source-input.tsx` ke versi lama → 4 dari 7 uji merah.
+
+---
+
+## 291 — Pengiriman yang gagal harus bisa diulang, bukan menghapus isian (2026-08-07)
+
+**Konteks.** Layar galat dari 290 langsung membayar dirinya. Laporan user:
+
+```
+Error: An unexpected response was received from the server.
+/lokasi/kranji-kranji/harian/2026-08-01
+Mozilla/5.0 (Macintosh …) Chrome/151.0.0.0
+```
+
+Tiga fakta sekaligus, yang sebelumnya semuanya gelap:
+
+1. **Kalimatnya milik Next, bukan aplikasi ini.** Dilempar di
+   `server-action-reducer` ketika balasan POST bukan `text/x-component`.
+   Artinya permintaannya **terkirim**, servernya **menjawab**, tapi yang
+   dijawab halaman galat — bukan hasil server action. Aksinya sendiri tidak
+   pernah jalan, jadi `errState` (DECISIONS 289) memang tidak ikut bermain.
+2. **Perangkatnya Chrome desktop di macOS**, bukan ponsel. Dugaan `DataTransfer`
+   di 290 **tidak berlaku untuk kasus ini** — penjagaannya tetap benar untuk
+   yang dijaganya, tapi bukan ini sebabnya.
+3. Ukuran bukan sebabnya: fotonya 274 KB, sementara `bodySizeLimit` dan
+   `proxyClientMaxBodySize` keduanya 30 MB.
+
+**Keputusan.** `src/lib/aksi-klien.ts` — `tahanGagalKirim()` membungkus server
+action di sisi klien: kegagalan **transport** jadi state galat di form yang
+sama, bukan lemparan yang lolos ke batas galat.
+
+Alasannya bukan kosmetik. Batas galat mengganti SELURUH halaman; untuk sebuah
+form laporan itu hasil terburuk yang mungkin — volume yang sudah diketik,
+pekerjaan yang sudah dipilih, dan foto yang sudah dilampirkan hilang semua
+gara-gara satu POST gagal. Pengiriman yang gagal harusnya **diulang**, bukan
+memaksa mengetik ulang.
+
+Pesannya menyebut nama galat aslinya (supaya laporan tetap membawa fakta),
+menyatakan isian tidak hilang (itu yang menentukan orang menekan lagi atau
+menyerah), dan **membedakan server-hidup-tapi-menolak dari server-tak-
+terjangkau** lewat satu ping ke `/api/health` — dua kegagalan yang di layar
+terlihat sama persis tapi jalan keluarnya berbeda.
+
+`redirect()`/`notFound()` tetap dilewatkan (digest `NEXT_`), sama seperti di
+sisi server.
+
+**Cakupan.** Dipasang di jalur yang membawa unggahan besar + pemrosesan gambar
+native — di situlah kegagalan transport benar-benar terjadi: editor laporan
+harian, kegiatan lapangan, dan Foto Cepat. Form lain **belum** dibungkus; itu
+disebut di sini supaya tidak terbaca sudah selesai.
+
+**Bukti (peramban nyata).** POST server action dipaksa menjawab 502 HTML —
+persis bentuk kegagalan user:
+
+| | tanpa pembungkus | dengan pembungkus |
+|---|---|---|
+| halaman | mati (PanelGalat) | hidup |
+| volume yang diketik | hilang | `7.5` tetap ada |
+| foto terlampir | hilang | tetap ada |
+| pesan | — | "Gagal mengirim — server menolak permintaan ini. Isian di layar TIDAK hilang…" |
+
+**Yang masih terbuka — dan hanya user yang bisa menutupnya.** Sebab servernya
+menjawab halaman galat belum diketahui. Dugaan terkuat yang tersisa: proses
+mati/di-restart saat memproses gambar (sharp/libvips di image standalone —
+kegagalan native tidak meninggalkan log JS, cocok dengan "di server tidak ada
+log"), atau galat platform 502/504. Yang memisahkannya satu fakta: **status
+HTTP** POST itu. Chrome desktop bisa membacanya di DevTools → Network. Tanpa
+itu, langkah berikutnya jadi tebakan lagi — dan tebakan sudah dua kali salah
+di saga ini.
