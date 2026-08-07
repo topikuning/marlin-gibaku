@@ -17,9 +17,12 @@
 import { describe, expect, it } from "vitest";
 import {
   BATAS_KIRIM_MACET_MS,
+  BATAS_PUTARAN_MS,
+  BATAS_SATU_KIRIM_MS,
   MAKS_ANTREAN,
   bolehCoba,
   kirimMacet,
+  putaranDitinggalkan,
   jedaBerikutnya,
   ringkasAntrean,
   statusDariKegagalan,
@@ -169,5 +172,39 @@ describe("kirimMacet — baris yang kehilangan halamannya", () => {
     // yang menurunkan statusnya lebih dulu. Kalau `bolehCoba` sendiri yang
     // dilonggarkan, foto yang SUNGGUH sedang diunggah ikut dikirim ulang.
     expect(bolehCoba(kirimSejak(3_600_000), 1_000_000, true)).toBe(false);
+  });
+});
+
+describe("putaranDitinggalkan — kunci yang pemegangnya sudah tidak ada", () => {
+  // Laporan lanjutan user 2026-08-07: foto TETAP stuck sesudah perbaikan
+  // pembebasan baris macet naik ke server. Sebabnya satu lapis lebih dalam:
+  // tidak ada satu pun batas waktu di jalur itu. Kalau yang ditunggu tidak
+  // pernah menjawab, `finally` yang melepas kunci antrean tidak pernah jalan —
+  // antreannya mati diam-diam, layarnya membeku pada label terakhir, dan "Coba
+  // kirim sekarang" pun tidak berbuat apa-apa karena kuncinya masih dipegang.
+
+  it("menganggur (null) tidak pernah dianggap ditinggalkan", () => {
+    expect(putaranDitinggalkan(null, 1_000_000)).toBe(false);
+  });
+
+  it("putaran yang masih wajar tidak diambil alih", () => {
+    // Putaran sehat boleh lama — ia mengirim beberapa foto berturut-turut.
+    // Mengambil alih terlalu cepat berarti dua putaran berjalan bersamaan dan
+    // foto yang sama dikirim dua kali.
+    expect(putaranDitinggalkan(1_000_000 - 1_000, 1_000_000)).toBe(false);
+    expect(putaranDitinggalkan(1_000_000 - (BATAS_PUTARAN_MS - 1), 1_000_000)).toBe(false);
+  });
+
+  it("putaran yang lewat batas DIAMBIL ALIH", () => {
+    expect(putaranDitinggalkan(1_000_000 - BATAS_PUTARAN_MS, 1_000_000)).toBe(true);
+    expect(putaranDitinggalkan(1_000_000 - 3_600_000, 1_000_000)).toBe(true);
+  });
+
+  it("batas satu kirim lebih pendek daripada batas putaran", () => {
+    // Urutan ini yang membuat kegagalan tertangkap di tempat yang benar: satu
+    // pengiriman menyerah lebih dulu (dan barisnya dapat pesan yang menjelaskan),
+    // baru sesudahnya kunci putaran dianggap ditinggalkan. Kalau terbalik,
+    // pengambilalihan kunci terjadi SELAGI pengiriman masih sah berjalan.
+    expect(BATAS_SATU_KIRIM_MS).toBeLessThan(BATAS_PUTARAN_MS);
   });
 });

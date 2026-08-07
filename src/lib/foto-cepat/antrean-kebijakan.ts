@@ -95,6 +95,44 @@ export function kirimMacet(item: ItemAntrean, sekarang: number): boolean {
 }
 
 /**
+ * Batas waktu SATU percobaan unggah.
+ *
+ * Perbaikan pertama (membebaskan baris "kirim" yang macet) ternyata belum cukup:
+ * user melaporkan foto tetap tersangkut SESUDAH versi itu naik. Sebabnya ada di
+ * lapis yang lebih dalam — **tidak ada satu pun batas waktu di sepanjang jalur
+ * itu**. Kalau `await` pengiriman tidak pernah selesai (permintaan menggantung
+ * di jaringan seluler yang setengah hidup, atau IndexedDB iOS yang berhenti
+ * menjawab sesudah halaman kembali dari latar belakang), maka:
+ *
+ * - status tidak pernah turun dari "kirim", DAN
+ * - `finally` yang melepas kunci antrean tidak pernah dijalankan.
+ *
+ * Antreannya berhenti total, layarnya membeku pada label terakhir, dan "Coba
+ * kirim sekarang" tidak berbuat apa-apa karena kuncinya masih dipegang. Persis
+ * yang terlihat: tiga baris "kirim…" yang tidak berubah sama sekali selama
+ * sejam.
+ *
+ * `Promise` yang menggantung tidak bisa dibatalkan, tapi bisa DIABAIKAN. Dua
+ * batas di bawah memastikan tidak ada keadaan yang bertahan selamanya.
+ */
+export const BATAS_SATU_KIRIM_MS = 60_000;
+
+/**
+ * Batas satu putaran antrean sebelum kuncinya dianggap ditinggalkan.
+ *
+ * Sengaja lebih longgar dari `BATAS_SATU_KIRIM_MS`: putaran yang sehat memang
+ * boleh lebih lama dari satu pengiriman (ia mengirim beberapa foto berturut-
+ * turut). Yang dijaga di sini cuma satu hal — kunci yang pemegangnya sudah
+ * tidak ada tidak boleh menyandera antrean selamanya.
+ */
+export const BATAS_PUTARAN_MS = 180_000;
+
+export function putaranDitinggalkan(mulai: number | null, sekarang: number): boolean {
+  if (mulai == null) return false;
+  return sekarang - mulai >= BATAS_PUTARAN_MS;
+}
+
+/**
  * Apakah kegagalan ini soal JARINGAN (coba lagi) atau KEPUTUSAN SERVER (berhenti)?
  *
  * Bedanya menentukan nasib foto. Kegagalan jaringan bersifat sementara —

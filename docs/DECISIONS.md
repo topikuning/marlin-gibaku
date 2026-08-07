@@ -10993,3 +10993,63 @@ untuk `"kirim"` → 2 uji gugur.
 perbaikan, sesudah muat ulang tetap `["kirim","kirim","kirim"]` dan 3× label
 "kirim…" di layar. Sesudah perbaikan: ketiganya bergerak dan mendapat jawaban
 server, 0× "kirim…".
+
+## 283 · Antrean foto: tidak ada batas waktu di mana pun — antreannya bisa mati diam-diam (2026-08-07)
+
+**Konteks.** Sesudah DECISIONS 282 naik ke server (deploy sukses 10:48 WIB), user
+melaporkan pukul 11:32: *"foto tetap stuck"* — tiga baris "kirim…" yang sama,
+tidak bergerak sedikit pun.
+
+**Pengakuan.** Diagnosis 282 benar tapi TIDAK LENGKAP. Membebaskan baris yang
+tersangkut di "kirim" memang perlu, tapi ia mengobati gejala di satu lapis di
+atas sebabnya. Sebab yang sebenarnya: **tidak ada satu pun batas waktu di
+sepanjang jalur antrean**.
+
+Kalau yang di-`await` tidak pernah menjawab — permintaan menggantung di seluler
+yang setengah hidup, atau IndexedDB iOS yang berhenti merespons sesudah halaman
+kembali dari latar belakang — maka:
+
+1. status tidak pernah turun dari "kirim", DAN
+2. `finally` yang melepas kunci antrean **tidak pernah dijalankan**.
+
+Akibat (2) itulah yang membuat perbaikan 282 tak terlihat hasilnya: pembebasan
+baris macet ada di DALAM `proses()`, dan `proses()` berhenti di baris pertama
+karena kuncinya masih dipegang oleh putaran yang pemegangnya sudah tidak ada.
+Antreannya mati diam-diam, layarnya membeku pada label terakhir, dan "Coba
+kirim sekarang" pun tidak berbuat apa-apa.
+
+**Keputusan.** `Promise` yang menggantung tidak bisa dibatalkan — tapi bisa
+DIABAIKAN. Tiga batas dipasang supaya tidak ada keadaan yang bertahan selamanya:
+
+| Batas | Nilai | Yang dijaga |
+|---|---|---|
+| `BATAS_SATU_KIRIM_MS` | 60 dtk | satu pengiriman menyerah, barisnya jadi `gagal_jaringan` dan dicoba lagi |
+| `BATAS_PUTARAN_MS` | 180 dtk | kunci antrean diambil alih kalau pemegangnya sudah tidak ada |
+| `BATAS_SIMPANAN_MS` | 10 dtk | pembacaan IndexedDB yang berhenti menjawab tidak membekukan putaran |
+
+Urutannya disengaja dan diuji: **satu pengiriman menyerah lebih dulu, baru
+kuncinya dianggap ditinggalkan.** Kalau terbalik, pengambilalihan kunci terjadi
+SELAGI pengiriman masih sah berjalan, dan foto yang sama dikirim dua kali.
+
+Kunci antrean berubah dari boolean jadi **cap waktu mulai**: boolean tidak bisa
+membedakan "sedang jalan" dari "pemegangnya sudah tidak ada", dan bedanya persis
+yang menentukan antrean hidup atau mati.
+
+Baris antrean juga menyebutkan **sebab percobaan terakhir**. Tanpa itu, label
+"antre" tidak membedakan "belum pernah dicoba" dari "sudah dicoba dan jaringan
+tidak menjawab" — dan orang di lapangan tidak punya apa pun untuk dilaporkan
+selain "stuck".
+
+**Uji.** 4 uji unit baru (`putaranDitinggalkan`, termasuk yang mengunci urutan
+`BATAS_SATU_KIRIM_MS < BATAS_PUTARAN_MS`).
+
+**Diperiksa di peramban dengan MENIRU keadaan HP user**: permintaan Server
+Action ditahan di level jaringan sehingga promise-nya benar-benar menggantung.
+
+```
+tanpa batas waktu →  t+8s ["kirim/0",...]   t+68s ["kirim/0",...]      ← beku
+dengan batas waktu →  t+8s ["kirim/0",...]   t+68s ["gagal_jaringan/1", "kirim/0", ...]
+```
+
+Antreannya jalan lagi dan pindah ke foto berikutnya. Itu uji giginya sekaligus:
+membuang `berbatasWaktu` mengembalikan pembekuannya persis.

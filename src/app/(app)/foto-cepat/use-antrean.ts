@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  BATAS_SATU_KIRIM_MS,
   bolehCoba,
   kirimMacet,
+  putaranDitinggalkan,
   ringkasAntrean,
   statusDariKegagalan,
   type ItemAntrean,
@@ -45,6 +47,43 @@ export type BarisAntrean = {
  *  untuk tidak membangunkan radio terus-menerus saat memang tidak ada sinyal. */
 const SELANG_PERIKSA_MS = 3_000;
 
+/**
+ * Batas waktu satu operasi simpanan lokal.
+ *
+ * Membaca IndexedDB semestinya seketika — jadi 10 detik sudah sangat longgar.
+ * Batas ini ada karena di iOS ia bisa BERHENTI MENJAWAB sama sekali (lazim
+ * sesudah halaman kembali dari latar belakang), dan tanpa batas, satu pembacaan
+ * yang menggantung membekukan seluruh antrean tanpa satu pun tanda di layar.
+ */
+const BATAS_SIMPANAN_MS = 10_000;
+
+/**
+ * Jalankan `p`, tapi JANGAN menunggunya selamanya.
+ *
+ * `Promise` yang menggantung tidak bisa dibatalkan — tapi bisa diabaikan.
+ * Tanpa ini, satu permintaan yang tidak pernah dijawab (jaringan seluler
+ * setengah hidup, atau IndexedDB iOS yang berhenti menjawab sesudah halaman
+ * kembali dari latar belakang) menghentikan SELURUH antrean: statusnya tidak
+ * pernah turun dari "kirim", dan `finally` yang melepas kuncinya tidak pernah
+ * dijalankan. Laporan user 2026-08-07 — tiga baris "kirim…" yang tidak bergerak
+ * sejam pun.
+ */
+function berbatasWaktu<T>(p: Promise<T>, ms: number, pesan: string): Promise<T> {
+  return new Promise<T>((selesai, gagal) => {
+    const t = window.setTimeout(() => gagal(new Error(pesan)), ms);
+    p.then(
+      (v) => {
+        window.clearTimeout(t);
+        selesai(v);
+      },
+      (e) => {
+        window.clearTimeout(t);
+        gagal(e);
+      },
+    );
+  });
+}
+
 export function useAntreanFoto() {
   const [baris, setBaris] = useState<BarisAntrean[]>([]);
   const [penuh, setPenuh] = useState<string | null>(null);
@@ -60,7 +99,15 @@ export function useAntreanFoto() {
   const [online, setOnline] = useState(true);
   /** URL objek yang sedang dipakai pratinjau — dicabut saat barisnya hilang. */
   const urlRef = useRef(new Map<string, string>());
-  const sedangJalan = useRef(false);
+  /**
+   * Kapan putaran antrean yang sedang berjalan dimulai — `null` bila menganggur.
+   *
+   * Dulu ini boolean. Boolean tidak bisa membedakan "sedang jalan" dari
+   * "pemegang kuncinya sudah tidak ada", dan bedanya menentukan apakah antrean
+   * hidup atau mati: `finally` yang melepas kunci tidak pernah jalan kalau yang
+   * ditunggu tidak pernah menjawab.
+   */
+  const mulaiPutaran = useRef<number | null>(null);
 
   const urlUntuk = useCallback((id: string, blob: Blob) => {
     const ada = urlRef.current.get(id);
@@ -72,7 +119,7 @@ export function useAntreanFoto() {
 
   const muat = useCallback(async () => {
     if (!simpananTersedia()) return;
-    const rows = await semua();
+    const rows = await berbatasWaktu(semua(), BATAS_SIMPANAN_MS, "simpanan lambat");
     const hidup = new Set(rows.map((r) => r.id));
     for (const [id, u] of urlRef.current) {
       if (!hidup.has(id)) {
@@ -105,7 +152,11 @@ export function useAntreanFoto() {
       }
 
       try {
-        const hasil = await simpanFotoCepatAction({}, fd);
+        const hasil = await berbatasWaktu(
+          simpanFotoCepatAction({}, fd),
+          BATAS_SATU_KIRIM_MS,
+          "batas waktu",
+        );
         if (hasil.error) {
           // Server MENJAWAB dan menolak — mencoba lagi akan ditolak lagi.
           await perbarui(r.id, {
@@ -119,12 +170,16 @@ export function useAntreanFoto() {
           // berarti kegagalan di tengah jalan menghapus bukti.
           await buang(r.id);
         }
-      } catch {
-        // Melempar = permintaannya tidak pernah sampai (jaringan). Ini yang
-        // dicoba lagi selamanya.
+      } catch (e) {
+        // Melempar = permintaannya tidak pernah sampai, ATAU tidak pernah
+        // dijawab sampai batas waktu. Keduanya soal jaringan, dan keduanya
+        // dicoba lagi — selamanya.
+        const habisWaktu = e instanceof Error && e.message === "batas waktu";
         await perbarui(r.id, {
           status: statusDariKegagalan("jaringan"),
-          pesan: "Belum ada jaringan — akan dicoba lagi otomatis.",
+          pesan: habisWaktu
+            ? "Jaringan tidak menjawab sampai batas waktu — akan dicoba lagi otomatis."
+            : "Belum ada jaringan — akan dicoba lagi otomatis.",
           percobaan: r.percobaan + 1,
         });
       }
@@ -137,11 +192,23 @@ export function useAntreanFoto() {
    * @param paksa Ketukan "Coba kirim sekarang". Semua baris yang tersangkut di
    *   status "kirim" dibebaskan tanpa menunggu ambang macet — orangnya sedang
    *   menatap layar, dan di tab INI tidak ada unggahan yang sedang berjalan
-   *   (kalau ada, `sedangJalan` sudah menghentikan kita di baris pertama).
+   *   (kalau ada, penjaga putaran sudah menghentikan kita di atas).
    */
   const proses = useCallback(async (paksa = false) => {
-    if (sedangJalan.current || !simpananTersedia()) return;
-    sedangJalan.current = true;
+    if (!simpananTersedia()) return;
+    /*
+     * Kunci yang pemegangnya sudah tidak ada TIDAK boleh menyandera antrean.
+     *
+     * Kalau putaran sebelumnya menggantung di sesuatu yang tak pernah menjawab,
+     * `finally` di bawah tidak pernah jalan dan kuncinya dipegang selamanya —
+     * antreannya mati diam-diam, layarnya membeku pada label terakhir, dan
+     * "Coba kirim sekarang" pun tidak berbuat apa-apa. Sesudah `BATAS_PUTARAN_MS`
+     * kuncinya diambil alih.
+     */
+    if (mulaiPutaran.current != null && !putaranDitinggalkan(mulaiPutaran.current, Date.now())) {
+      return;
+    }
+    mulaiPutaran.current = Date.now();
     try {
       /*
        * BEBASKAN yang macet dulu.
@@ -156,7 +223,7 @@ export function useAntreanFoto() {
        * ditolak, ia cuma kehilangan halamannya. Menaikkannya akan mendorongnya
        * ke jeda 5 menit tanpa sebab.
        */
-      const awal = await semua();
+      const awal = await berbatasWaktu(semua(), BATAS_SIMPANAN_MS, "simpanan lambat");
       const kini = Date.now();
       for (const r of awal) {
         if (r.status !== "kirim") continue;
@@ -164,7 +231,7 @@ export function useAntreanFoto() {
         await perbarui(r.id, { status: "menunggu", terakhirCoba: 0 });
       }
 
-      const rows = await semua();
+      const rows = await berbatasWaktu(semua(), BATAS_SIMPANAN_MS, "simpanan lambat");
       const sekarang = Date.now();
       const daring = typeof navigator === "undefined" ? true : navigator.onLine;
       for (const r of rows) {
@@ -175,7 +242,7 @@ export function useAntreanFoto() {
         await kirimSatu(r);
       }
     } finally {
-      sedangJalan.current = false;
+      mulaiPutaran.current = null;
     }
   }, [kirimSatu]);
 
@@ -203,27 +270,32 @@ export function useAntreanFoto() {
         return false;
       }
       setPenuh(null);
-      await muat();
-      void proses();
+      await muat().catch(() => {});
+      void proses().catch(() => {});
       return true;
     },
     [muat, proses],
   );
 
   // Muat antrean yang tertinggal dari sesi sebelumnya, lalu jalan.
+  //
+  // Kegagalan di sini SENGAJA ditelan: `muat` cuma menyegarkan tampilan, dan
+  // simpanan yang sesaat tidak menjawab bukan alasan untuk melempar galat yang
+  // tidak ada yang menangkap. Denyut di bawah akan mencobanya lagi 3 detik lagi
+  // — foto yang tersimpan tidak ke mana-mana.
   useEffect(() => {
     void (async () => {
-      await muat();
-      void proses();
+      await muat().catch(() => {});
+      void proses().catch(() => {});
     })();
   }, [muat, proses]);
 
   // Denyut pemeriksaan + reaksi saat jaringan kembali.
   useEffect(() => {
-    const t = window.setInterval(() => void proses(), SELANG_PERIKSA_MS);
+    const t = window.setInterval(() => void proses().catch(() => {}), SELANG_PERIKSA_MS);
     const naik = () => {
       setOnline(true);
-      void proses();
+      void proses().catch(() => {});
     };
     const turun = () => setOnline(false);
     window.addEventListener("online", naik);

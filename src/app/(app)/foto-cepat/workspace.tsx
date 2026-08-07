@@ -238,6 +238,7 @@ function PanelAntrean({
 }) {
   if (!ringkas.perluPerhatian) return null;
   const ditolak = baris.filter((b) => b.status === "ditolak");
+  const sebabTerakhir = baris.find((b) => b.status !== "ditolak" && b.pesan)?.pesan;
 
   return (
     <div className="space-y-2 rounded-md border border-border bg-surface-muted p-3">
@@ -287,6 +288,13 @@ function PanelAntrean({
           </li>
         ))}
       </ul>
+
+      {/* Sebab percobaan terakhir — untuk baris yang BUKAN ditolak (yang ditolak
+          sudah punya spanduknya sendiri di bawah). Tanpa ini, "antre" tidak
+          membedakan "belum pernah dicoba" dari "sudah dicoba dan jaringannya
+          tidak menjawab", dan orang di lapangan tidak punya apa pun untuk
+          dilaporkan selain "stuck". */}
+      {sebabTerakhir ? <p className="text-xs text-ink-muted">{sebabTerakhir}</p> : null}
 
       {ringkas.menunggu > 0 ? (
         <Button type="button" variant="secondary" onClick={onKirim}>
