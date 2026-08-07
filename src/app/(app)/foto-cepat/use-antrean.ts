@@ -12,7 +12,10 @@ import {
 } from "@/lib/foto-cepat/antrean-kebijakan";
 import {
   SimpananPenuh,
+  SimpananTakTerbaca,
   ambilBerkas,
+  kuotaSimpanan,
+  mintaSimpananTetap,
   buang,
   perbarui,
   pindahkanWarisan,
@@ -114,6 +117,23 @@ export function useAntreanFoto() {
    * ditunggu tidak pernah menjawab.
    */
   const mulaiPutaran = useRef<number | null>(null);
+  /**
+   * Salinan SEGAR tiap jepretan, di memori halaman ini.
+   *
+   * Pertanyaan user 2026-08-07: *"berarti saat ambil foto cepat hal ini rentan
+   * terjadi. bagaimana mengatasinya?"*
+   *
+   * Ini lapis yang paling mengurangi peluangnya. Selama halaman masih hidup,
+   * pengiriman memakai salinan yang JELAS UTUH — yang baru saja keluar dari
+   * kamera — bukan hasil membaca ulang simpanan. Simpanan tetap ditulis lebih
+   * dulu (itu yang menyelamatkan foto kalau halamannya mati), tapi ia turun
+   * pangkat jadi CADANGAN: dibaca hanya kalau halamannya sempat tertutup.
+   *
+   * Bukti yang mendukung ini datang dari user sendiri: foto yang langsung
+   * terkirim tidak pernah rusak; yang rusak selalu yang menunggu di antrean.
+   */
+  const segarRef = useRef(new Map<string, Blob>());
+  const [kuota, setKuota] = useState<string | null>(null);
 
   /**
    * Pratinjau dibuat SEKALI per foto, dari byte di simpanan.
@@ -161,7 +181,8 @@ export function useAntreanFoto() {
   /** Coba kirim satu foto. Sebab kegagalan DIBEDAKAN — lihat antrean-kebijakan. */
   const kirimSatu = useCallback(
     async (r: FotoTertunda) => {
-      const berkas = await ambilBerkas(r.id, r.tipe);
+      // Salinan segar dulu (kalau halamannya masih yang sama), simpanan belakangan.
+      const berkas = segarRef.current.get(r.id) ?? (await ambilBerkas(r.id, r.tipe));
       // Ukuran nol = tidak ada yang bisa dikirim. Membiarkannya lewat berarti
       // mengirim badan kosong, dan kegagalannya nanti terbaca seperti masalah
       // jaringan — persis salah-tuduh yang sedang diberantas di berkas ini.
@@ -211,6 +232,7 @@ export function useAntreanFoto() {
           // menyimpannya. Membuangnya lebih awal (mis. saat permintaan terkirim)
           // berarti kegagalan di tengah jalan menghapus bukti.
           await buang(r.id);
+          segarRef.current.delete(r.id);
         }
       } catch (e) {
         /*
@@ -317,6 +339,7 @@ export function useAntreanFoto() {
       }
       const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       try {
+        segarRef.current.set(id, file);
         await simpan(
           {
             id,
@@ -330,7 +353,14 @@ export function useAntreanFoto() {
           file,
         );
       } catch (e) {
-        setPenuh(e instanceof SimpananPenuh ? e.message : "Gagal menyimpan foto di perangkat.");
+        segarRef.current.delete(id);
+        setPenuh(
+          e instanceof SimpananPenuh || e instanceof SimpananTakTerbaca
+            ? e.message
+            : e instanceof Error
+              ? `Gagal menyimpan foto di HP — ${e.message}`
+              : "Gagal menyimpan foto di perangkat.",
+        );
         return false;
       }
       setPenuh(null);
@@ -352,6 +382,15 @@ export function useAntreanFoto() {
       // Baris lama (yang masih menyimpan Blob) dipindah ke bentuk byte lebih
       // dulu — termasuk menandai yang bytenya sudah tidak terbaca sebagai
       // `rusak`. Tanpa langkah ini, antrean warisan tidak akan pernah bergerak.
+      // Minta peramban tidak membuang simpanan ini saat ruang menipis, lalu
+      // catat kuotanya supaya "penuh" bisa jadi ANGKA, bukan tebakan.
+      void mintaSimpananTetap();
+      void kuotaSimpanan().then((k) => {
+        if (!k) return;
+        setKuota(
+          `${Math.round(k.pakai / 1024 / 1024)} MB dipakai dari ${Math.round(k.kuota / 1024 / 1024)} MB`,
+        );
+      });
       await pindahkanWarisan().catch(() => {});
       await muat().catch(() => {});
       void proses().catch(() => {});
@@ -395,5 +434,5 @@ export function useAntreanFoto() {
   const ringkas = ringkasAntrean(baris);
   const kirimSekarang = useCallback(() => proses(true), [proses]);
 
-  return { baris, ringkas, penuh, galat, online, titip, hapus, kirimSekarang };
+  return { baris, ringkas, penuh, galat, kuota, online, titip, hapus, kirimSekarang };
 }

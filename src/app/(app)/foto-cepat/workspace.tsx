@@ -102,7 +102,8 @@ function JepretCard({
   const router = useRouter();
   const [kameraBuka, setKameraBuka] = useState(false);
   const [state, action, pending] = useActionState(simpanFotoCepatAction, KOSONG);
-  const { baris, ringkas, penuh, galat, online, titip, hapus, kirimSekarang } = useAntreanFoto();
+  const { baris, ringkas, penuh, galat, kuota, online, titip, hapus, kirimSekarang } =
+    useAntreanFoto();
 
   /**
    * Rana → SIMPAN DI PERANGKAT, bukan → kirim (DECISIONS 257).
@@ -161,6 +162,7 @@ function JepretCard({
           baris={baris}
           ringkas={ringkas}
           galat={galat}
+          kuota={kuota}
           online={online}
           onKirim={() => void kirimSekarang()}
           onHapus={(id) => void hapus(id)}
@@ -228,6 +230,7 @@ function PanelAntrean({
   baris,
   ringkas,
   galat,
+  kuota,
   online,
   onKirim,
   onHapus,
@@ -236,6 +239,8 @@ function PanelAntrean({
   ringkas: { menunggu: number; ditolak: number; rusak: number; perluPerhatian: boolean };
   /** Galat antrean terakhir — ditampilkan, karena diam membuat ini mustahil didiagnosis. */
   galat: string | null;
+  /** Pemakaian penyimpanan — supaya "penuh" jadi ANGKA, bukan tebakan. */
+  kuota: string | null;
   online: boolean;
   onKirim: () => void;
   onHapus: (id: string) => void;
@@ -370,7 +375,8 @@ function PanelAntrean({
           Rincian teknis (untuk dilaporkan)
         </summary>
         <pre className="mt-1.5 overflow-x-auto whitespace-pre-wrap break-all text-[10px] leading-relaxed text-ink">
-{`antrean v7 · ${baris.length} baris · jaringan: ${online ? "ada" : "tidak"}
+{`antrean v8 · ${baris.length} baris · jaringan: ${online ? "ada" : "tidak"}
+simpanan: ${kuota ?? "-"}
 galat: ${galat ?? "-"}
 ` +
             baris

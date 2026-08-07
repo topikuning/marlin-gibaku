@@ -11310,3 +11310,70 @@ tetap `true`. Layar menulis
 ```
 
 Tidak ada lagi kalimat "Belum ada jaringan" saat jaringannya ada.
+
+## 288 · Foto Cepat: empat lapis supaya byte yang hilang tidak lagi berarti bukti hilang (2026-08-07)
+
+**Konteks.** Pertanyaan user sesudah sebabnya diketahui:
+
+> *"jika memang dari awal ini disebabkan oleh file rusak, berarti saat ambil
+> foto cepat hal ini rentan terjadi. bagaimana mengatasinya?"*
+
+Pertanyaan yang tepat, dan jawaban jujurnya: DECISIONS 286 menghapus sebab yang
+TERBUKTI (Blob di IndexedDB + penulisan ulang berkali-kali), tapi ia tidak
+membuktikan byte tak akan pernah hilang lagi. Peramban tetap boleh membersihkan
+simpanan, dan penulisan yang "sukses" ternyata bukan jaminan bisa dibaca lagi.
+Jadi risikonya diserang dari empat sisi.
+
+### 1 · Kirim dari salinan SEGAR di memori — simpanan turun pangkat jadi cadangan
+
+Lapis yang paling menentukan. Selama halaman masih hidup, pengiriman memakai
+blob yang baru keluar dari kamera — yang jelas utuh — bukan hasil membaca ulang
+simpanan. Simpanan tetap ditulis LEBIH DULU (itu yang menyelamatkan foto kalau
+halamannya mati), tapi ia hanya dibaca kalau halamannya sempat tertutup.
+
+Buktinya datang dari user sendiri: foto yang langsung terkirim tidak pernah
+rusak; yang rusak selalu yang menunggu di antrean.
+
+### 2 · Baca ulang SEKARANG sesudah menulis
+
+`simpan()` membaca kembali bytenya dan membandingkan ukurannya. Kalau gagal,
+barisnya dibuang dan pelapor diberi tahu **saat itu juga**:
+
+> "Foto tersimpan tapi TIDAK bisa dibaca kembali dari HP ini — jangan
+> diandalkan. Potret ulang sekarang selagi masih di lokasi."
+
+Bedanya besar: kegagalan yang ketahuan saat rana ditekan bisa diperbaiki dalam
+dua detik — orangnya masih berdiri di titik yang benar, kamera masih di tangan.
+Kegagalan yang sama kalau baru ketahuan sejam kemudian berarti buktinya hilang
+untuk selamanya.
+
+### 3 · Minta penyimpanan TETAP
+
+`navigator.storage.persist()`. Tanpa izin ini IndexedDB tergolong "best effort":
+peramban boleh membersihkannya kapan saja tanpa memberi tahu siapa pun — dan
+yang dibersihkan adalah bukti lapangan yang belum terkirim. Ditolak pun tidak
+apa-apa; ini permintaan, bukan syarat.
+
+### 4 · Kuota jadi ANGKA di panel rincian
+
+`navigator.storage.estimate()` ditulis apa adanya (`x MB dipakai dari y MB`).
+Sesudah pernah menuduh "ruang penyimpanan mungkin penuh" tanpa dasar dan
+dibantah user dalam satu kalimat, klaim soal penuh harus bisa dibaca dari layar,
+bukan dikarang.
+
+**Diperiksa di peramban dengan kamera palsu — rana ditekan sungguhan** (jalur
+`titip` yang asli), pengiriman ditahan supaya urutannya pasti, lalu byte-nya
+DIHAPUS dari simpanan sebelum jaringan dibuka:
+
+```
+dengan salinan segar : baris "ditolak"  · permintaan berisi foto: 1  ← fotonya SAMPAI
+tanpa salinan segar  : baris "rusak"    · permintaan berisi foto: 0  ← fotonya HILANG
+```
+
+Itu uji giginya sekaligus: melepas salinan segar mengembalikan kehilangannya
+persis.
+
+**Yang tetap TIDAK dijanjikan.** Kalau halaman tertutup sebelum sempat terkirim
+DAN peramban membuang simpanannya, fotonya hilang — tidak ada lapis yang bisa
+menutup itu dari sisi klien. Yang bisa dijamin: keadaan itu akan **terlihat**
+(status `rusak` dengan sebabnya), bukan menyamar jadi "menunggu terkirim".

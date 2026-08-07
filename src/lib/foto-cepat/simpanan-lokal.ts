@@ -232,6 +232,22 @@ export function simpananTersedia(): boolean {
   return typeof indexedDB !== "undefined";
 }
 
+/**
+ * Ditulis, TAPI tidak terbaca kembali. Bukan "mungkin gagal" — sudah pasti.
+ *
+ * Dilempar oleh `simpan()` sesudah pemeriksaan baca-ulang. Bedanya dengan galat
+ * lain: ini terjadi SAAT rana ditekan, selagi orangnya masih berdiri di titik
+ * yang benar dan masih bisa memotret ulang. Kegagalan yang sama kalau baru
+ * ketahuan sejam kemudian berarti bukti lapangannya hilang untuk selamanya.
+ */
+export class SimpananTakTerbaca extends Error {
+  constructor() {
+    super(
+      "Foto tersimpan tapi TIDAK bisa dibaca kembali dari HP ini — jangan diandalkan. Potret ulang sekarang selagi masih di lokasi.",
+    );
+  }
+}
+
 export class SimpananPenuh extends Error {
   constructor() {
     super(
@@ -266,6 +282,53 @@ export async function simpan(
     b.onerror = () => gagal(b.error);
     b.onsuccess = () => selesai(undefined);
   });
+
+  /*
+   * BACA ULANG SEKARANG JUGA.
+   *
+   * Pertanyaan user 2026-08-07: *"berarti saat ambil foto cepat hal ini rentan
+   * terjadi. bagaimana mengatasinya?"* — dan inilah lapis yang paling menjawab.
+   *
+   * Penulisan yang "sukses" ternyata tidak menjamin datanya bisa dibaca lagi;
+   * itu pelajaran dari perkara ini. Yang bisa dijamin cuma satu: membacanya
+   * KEMBALI. Kalau gagal, orangnya tahu SEKARANG — selagi masih berdiri di
+   * titik yang benar, kamera masih di tangan, dan memotret ulang cuma perlu
+   * dua detik. Ketahuan sejam kemudian berarti buktinya hilang.
+   */
+  const kembali = await ambilBerkas(item.id, berkas.type || "image/jpeg");
+  if (!kembali || kembali.size !== buf.byteLength) {
+    await buang(item.id).catch(() => {});
+    throw new SimpananTakTerbaca();
+  }
+}
+
+/**
+ * Minta peramban TIDAK membuang simpanan ini saat ruang menipis.
+ *
+ * Tanpa izin ini, IndexedDB tergolong "best effort": peramban boleh
+ * membersihkannya kapan saja tanpa memberi tahu siapa pun — dan yang dibersihkan
+ * di sini adalah bukti lapangan yang belum sempat terkirim. Ditolak pun tidak
+ * apa-apa; ini permintaan, bukan syarat.
+ */
+export async function mintaSimpananTetap(): Promise<boolean> {
+  try {
+    if (!navigator.storage?.persist) return false;
+    if (await navigator.storage.persisted()) return true;
+    return await navigator.storage.persist();
+  } catch {
+    return false;
+  }
+}
+
+/** Kuota & pemakaian penyimpanan — supaya "penuh" jadi ANGKA, bukan tebakan. */
+export async function kuotaSimpanan(): Promise<{ pakai: number; kuota: number } | null> {
+  try {
+    if (!navigator.storage?.estimate) return null;
+    const e = await navigator.storage.estimate();
+    return { pakai: e.usage ?? 0, kuota: e.quota ?? 0 };
+  } catch {
+    return null;
+  }
 }
 
 /** Keterangan semua antrean — RINGAN, tidak menyeret isi fotonya. */
