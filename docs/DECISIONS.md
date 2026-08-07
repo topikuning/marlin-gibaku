@@ -11696,3 +11696,56 @@ sesuatu yang sudah tersimpan jelas adalah biaya tanpa manfaat.
 jam yang sah) + `tests/integration/ringkas-harian.test.ts` (judul dari item
 RAB, fallback foto tanpa item, dan kedua kasus jam). Dicek bergigi:
 mengembalikan `ringkas.ts` ke perilaku lama → 2 uji merah.
+
+---
+
+## 295 — Form impor RAB ikut dijaga, dan berkas salah disebut namanya (2026-08-07)
+
+**Konteks.** User mengimpor `CCO01_<lokasi>.xlsx` ke draft adendum di
+`/lokasi/…/rab/adendum`, dan halamannya runtuh dengan
+`An unexpected response was received from the server.`
+
+Dua cacat terpisah bertumpuk di satu layar.
+
+**1 — Celah yang memang ditinggalkan terbuka (DECISIONS 291).** Cakupan
+`tahanGagalKirim` waktu itu hanya jalur foto; form impor RAB tidak ikut, dan
+itu disebut di catatannya. Ternyata form ini bahkan tidak memakai
+`useActionState` — ia memanggil `importHps(undefined, fd)` **telanjang** di
+dalam `startTransition`. Jadi kegagalan MENGIRIM (bukan kegagalan impor)
+melempar keluar dari transisi dan meruntuhkan seluruh halaman: berkas yang
+sudah dipilih, catatan yang sudah diketik, dan pratinjau yang sudah dihitung
+ikut hilang. Sekarang dibungkus.
+
+**2 — Pesan galat yang tidak bisa ditindaklanjuti.** Setelah kegagalan
+transportnya jadi pesan, isi pesannya sendiri masih salah sasaran: *"Sheet RAB
+tidak ditemukan di file HPS"*. Berkas yang diunggah itu **terbitan MARLIN
+sendiri** — dokumen CCO hasil ekspor. Orang yang baru saja mengunduhnya DARI
+MARLIN wajar mengira itulah berkas yang harus dikembalikan.
+
+Dokumen CCO adalah KELUARAN untuk pemeriksa (MC-0 · tambah · kurang · CCO-01,
+angkanya sudah terkunci). Yang bisa diimpor kembali adalah **Template
+Adendum**, yang punya kolom isian + `lineageKey` per baris. Sekarang sheet
+ber-nama `CCO-<n>` dikenali dan pesannya menyebut jalan keluarnya. Untuk berkas
+asing lain, pesannya menyebutkan **sheet apa saja yang ADA** — supaya user
+tidak menebak berkas mana yang salah.
+
+**Bukti (peramban nyata, halaman adendum sungguhan).**
+
+| | berkas CCO diunggah | POST dipaksa 502 |
+|---|---|---|
+| halaman | hidup | hidup |
+| form impor | tetap ada | tetap ada |
+| pesan | "dokumen CCO terbitan MARLIN … pakai Template Adendum" | "Gagal mengirim …" |
+
+Dicek bergigi: membuka pembungkusnya → halaman mati dan form impor lenyap.
+
+**Uji.** `tests/unit/impor-berkas-salah.test.ts` — diuji dari BENTUKNYA (nama
+sheet), bukan dari berkas contoh, supaya dokumen kontrak asli tidak perlu ikut
+tersimpan di repo. Termasuk batas: sheet bernama "RAB" TIDAK boleh ikut
+tertolak — pesan yang bagus tidak ada gunanya kalau berkas yang sah ikut
+ditolak.
+
+**Masih terbuka.** Membaca berkas MC-0/CCO KKP sebagai sumber volume adendum
+(pertanyaan user sebelumnya) belum dikerjakan — menunggu keputusan blok mana
+yang jadi sumber volume. Sampai itu diputuskan, berkas semacam itu DITOLAK
+dengan pesan yang jelas, bukan diterima dengan tebakan.

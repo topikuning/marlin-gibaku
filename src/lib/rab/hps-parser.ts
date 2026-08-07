@@ -346,10 +346,37 @@ export async function parseHpsBuffer(buf: Buffer | ArrayBuffer): Promise<ParseHp
   return parseHpsWorkbook(wb);
 }
 
+/**
+ * Pesan saat sheet "RAB" tidak ada — MENYEBUT berkas apa yang diberikan.
+ *
+ * Laporan user 2026-08-07: mengimpor `CCO01_<lokasi>.xlsx` ke draft adendum.
+ * Berkas itu **terbitan MARLIN sendiri** — dokumen CCO hasil ekspor, bukan
+ * bahan impor. Pesan lama, *"Sheet RAB tidak ditemukan di file HPS"*, benar
+ * secara teknis tapi tidak bisa ditindaklanjuti: orang yang baru saja mengunduh
+ * berkas itu DARI MARLIN wajar mengira berkas itulah yang harus dikembalikan.
+ *
+ * Dokumen CCO adalah KELUARAN untuk pemeriksa (MC-0 · tambah · kurang ·
+ * CCO-01, semuanya sudah terkunci angka). Yang bisa diimpor kembali adalah
+ * Template Adendum, yang memang punya kolom isian + `lineageKey` per baris.
+ * Membedakan keduanya di pesan galat jauh lebih murah daripada membiarkan
+ * orang menebak berkas mana yang salah.
+ */
+function pesanSheetTakAda(wb: ExcelJS.Workbook): string {
+  const nama = wb.worksheets.map((w) => w.name);
+  if (nama.some((n) => /^\s*CCO\s*-?\s*\d+/i.test(n))) {
+    return (
+      "Berkas ini dokumen CCO terbitan MARLIN (keluaran untuk pemeriksa), bukan berkas yang bisa diimpor. " +
+      "Untuk mengisi draft adendum, unduh dulu Template Adendum di halaman ini, isi kolom Volume Adendum, lalu unggah kembali berkas template itu."
+    );
+  }
+  const daftar = nama.slice(0, 6).join(", ") || "(tidak ada sheet)";
+  return `Sheet "RAB" tidak ditemukan. Sheet yang ada di berkas ini: ${daftar}.`;
+}
+
 export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
   const warnings: string[] = [];
   const ws = wb.getWorksheet("RAB") ?? wb.worksheets.find((w) => /rab/i.test(w.name));
-  if (!ws) throw new Error('Sheet "RAB" tidak ditemukan di file HPS.');
+  if (!ws) throw new Error(pesanSheetTakAda(wb));
 
   // Nilai kontrak = harga akhir (NEGOSIASI > PENAWARAN > HPS). HPS cuma pagu.
   const { col, priceSource } = detectColumns(ws);

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { KeyRound } from "lucide-react";
 import { Banner, Button, FileInput, HelpText, Label, Textarea } from "@/components/ui";
+import { tahanGagalKirim } from "@/lib/aksi-klien";
 import { formatRupiah } from "@/lib/format";
 import { importHps, type BedaPratinjau, type ImportMode, type ImportState } from "./actions";
 
@@ -72,7 +73,12 @@ export function ImportForm({
       fd.set("previewSha", preview.sha256);
     }
     startTransition(async () => {
-      const res = await importHps(undefined, fd);
+      // DIBUNGKUS: aksi ini dipanggil telanjang, jadi kegagalan MENGIRIM
+      // (bukan kegagalan impor) melempar keluar dari transisi dan meruntuhkan
+      // seluruh halaman — berkas yang sudah dipilih, catatan yang sudah
+      // diketik, dan pratinjau yang sudah dihitung ikut hilang. Laporan user
+      // 2026-08-07 di /rab/adendum persis begitu. DECISIONS 295.
+      const res = await tahanGagalKirim(importHps)(undefined, fd);
       setState(res);
       // Sukses simpan → bersihkan agar tidak tersimpan dobel.
       if (res?.success) {
