@@ -233,7 +233,7 @@ function PanelAntrean({
   onHapus,
 }: {
   baris: BarisAntrean[];
-  ringkas: { menunggu: number; ditolak: number; perluPerhatian: boolean };
+  ringkas: { menunggu: number; ditolak: number; rusak: number; perluPerhatian: boolean };
   /** Galat antrean terakhir — ditampilkan, karena diam membuat ini mustahil didiagnosis. */
   galat: string | null;
   online: boolean;
@@ -243,6 +243,7 @@ function PanelAntrean({
   if (!ringkas.perluPerhatian) return null;
   const ditolak = baris.filter((b) => b.status === "ditolak");
   const sebabTerakhir = baris.find((b) => b.status !== "ditolak" && b.pesan)?.pesan;
+  const rusak = baris.filter((b) => b.status === "rusak");
 
   return (
     <div className="space-y-2 rounded-md border border-border bg-surface-muted p-3">
@@ -275,19 +276,27 @@ function PanelAntrean({
               src={b.url}
               alt=""
               className={`size-14 rounded-md border object-cover ${
-                b.status === "ditolak" ? "border-danger opacity-60" : "border-border"
+                b.status === "ditolak" || b.status === "rusak"
+                  ? "border-danger opacity-60"
+                  : "border-border"
               }`}
             />
             <span
               className={`absolute inset-x-0 bottom-0 rounded-b-md text-center text-[10px] font-medium text-white ${
                 b.status === "kirim"
                   ? "bg-primary"
-                  : b.status === "ditolak"
+                  : b.status === "ditolak" || b.status === "rusak"
                     ? "bg-danger"
                     : "bg-ink/70"
               }`}
             >
-              {b.status === "kirim" ? "kirim…" : b.status === "ditolak" ? "ditolak" : "antre"}
+              {b.status === "kirim"
+                ? "kirim…"
+                : b.status === "ditolak"
+                  ? "ditolak"
+                  : b.status === "rusak"
+                    ? "rusak"
+                    : "antre"}
             </span>
             {/* Buang per foto — untuk SEMUA baris, bukan hanya yang ditolak.
                 Foto yang tidak mau terkirim membuat orang tersandera: tidak bisa
@@ -318,6 +327,20 @@ function PanelAntrean({
           Ini yang dulu sepenuhnya bisu. */}
       {galat ? <Banner tone="error" title="Antrean tersendat" description={galat} /> : null}
 
+      {/* Foto yang bytenya hilang dari simpanan HP. Disebut TERANG-TERANGAN:
+          menahannya di daftar "menunggu terkirim" berarti berbohong tentang
+          foto yang tidak akan pernah terkirim. */}
+      {rusak.length > 0 ? (
+        <Banner
+          tone="error"
+          title={`${rusak.length} foto rusak di simpanan HP`}
+          description={
+            rusak[0].pesan ??
+            "Isi fotonya hilang dari simpanan HP — tidak bisa dikirim. Buang saja lalu potret ulang."
+          }
+        />
+      ) : null}
+
       {/*
         PENANDA VERSI — kecil, tapi ia yang menjawab pertanyaan pertama saat ada
         laporan "tidak berubah sama sekali": apakah HP itu benar-benar
@@ -347,7 +370,7 @@ function PanelAntrean({
           Rincian teknis (untuk dilaporkan)
         </summary>
         <pre className="mt-1.5 overflow-x-auto whitespace-pre-wrap break-all text-[10px] leading-relaxed text-ink">
-{`antrean v5 · ${baris.length} baris · jaringan: ${online ? "ada" : "tidak"}
+{`antrean v6 · ${baris.length} baris · jaringan: ${online ? "ada" : "tidak"}
 galat: ${galat ?? "-"}
 ` +
             baris

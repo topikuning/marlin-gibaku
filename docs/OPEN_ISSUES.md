@@ -445,35 +445,3 @@ diperbaiki.
 `dokumen`) pada `GDriveUpload`, isi saat mengunggah, dan pilih tautan
 berdasarkan kolom itu. Butuh migrasi + backfill (baris lama bisa ditebak dari
 `fileName` sekali saja), karena itu tidak digabung ke perubahan kecil ini.
-
-## FOTO-01 · Antrean foto tersangkut saat memotret cepat — SEBAB BELUM DIKETAHUI
-
-**Gejala** (user, 2026-08-07): beberapa foto tersangkut di status "kirim…" dan
-tidak pernah bergerak, sementara foto baru terkirim lancar dan jaringan normal.
-Petunjuk terakhir: *"ini terjadi saat ambil foto dengan cepat"*.
-
-**Yang sudah dikerjakan dan TIDAK menyelesaikannya** (masing-masing memperbaiki
-cacat nyata, dibuktikan di peramban, tapi tak satu pun terbukti sebagai sebab di
-perangkat user): DECISIONS 282 (baris "kirim" yang kehilangan halamannya
-dibebaskan), 283 (batas waktu pengiriman + kunci putaran yang bisa diambil
-alih), 284 (kegagalan simpanan bersuara + tombol buang + penanda versi).
-
-**Perkembangan 2026-08-07 (DECISIONS 285).** Penanda versi memastikan perangkat
-user menjalankan kode baru, dan spanduk galat memastikan yang gagal adalah
-TRANSAKSI IndexedDB — bukan jaringan, bukan server. Hipotesis terkuat sekarang:
-`Blob` yang dibaca dari IndexedDB mati begitu koneksinya ditutup (perilaku
-WebKit), dan versi lama menutup koneksi tiap operasi. Sudah diperbaiki (satu
-koneksi seumur halaman), TAPI belum direproduksi — WebKit tidak ada di
-lingkungan uji ini. Panel "Rincian teknis" kini menyebutkan nama DOMException-nya
-supaya laporan berikutnya bisa memastikan.
-
-**Langkah berikutnya — jangan menebak lagi.** Butuh SATU dari ini sebelum
-perbaikan keempat:
-1. Tangkapan layar sesudah versi "antrean v4" benar-benar termuat (penanda versi
-   ada di panel antrean) — memastikan perangkatnya menjalankan kode baru.
-2. Isi spanduk "Antrean tersendat" bila muncul.
-3. Reproduksi memotret cepat (≥5 jepretan berturut-turut) di peramban dengan
-   jaringan dicekik, untuk melihat apakah ada kondisi balapan antara `titip`
-   (menulis baris baru) dan `kirimSatu` (memperbarui baris yang sedang dikirim)
-   — keduanya memakai `perbarui` yang baca-lalu-tulis TANPA transaksi tunggal,
-   jadi pembaruan bisa saling menimpa.

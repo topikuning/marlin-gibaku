@@ -208,3 +208,38 @@ describe("putaranDitinggalkan — kunci yang pemegangnya sudah tidak ada", () =>
     expect(BATAS_SATU_KIRIM_MS).toBeLessThan(BATAS_PUTARAN_MS);
   });
 });
+
+describe("status 'rusak' — isi fotonya hilang dari simpanan", () => {
+  // Bukti dari perangkat user 2026-08-07, dua peramban sekaligus:
+  //   UnknownError: Error preparing Blob/File data to be stored in object store
+  // dan di peramban kedua, pratinjaunya muncul sebagai ikon gambar rusak.
+  // Artinya bytenya memang tidak ada lagi — bukan jaringan, bukan server.
+
+  const rusak = (): ItemAntrean => ({
+    id: "x",
+    percobaan: 0,
+    terakhirCoba: 0,
+    status: "rusak",
+  });
+
+  it("TIDAK pernah dicoba lagi", () => {
+    // Mencoba mengirim sesuatu yang bytenya tidak ada hanya membakar baterai
+    // sambil menyembunyikan kenyataan dari pemiliknya.
+    expect(bolehCoba(rusak(), 1_000_000, true)).toBe(false);
+  });
+
+  it("TIDAK dihitung sebagai 'menunggu terkirim'", () => {
+    // "3 foto menunggu terkirim" untuk foto yang tak akan pernah terkirim
+    // adalah kebohongan yang membuat orang menunggu sia-sia.
+    const r = ringkasAntrean([{ status: "rusak" }, { status: "menunggu" }, { status: "ditolak" }]);
+    expect(r.menunggu).toBe(1);
+    expect(r.rusak).toBe(1);
+    expect(r.ditolak).toBe(1);
+  });
+
+  it("tetap menuntut perhatian — bukan disembunyikan", () => {
+    // Foto yang hilang harus terlihat supaya bisa dibuang lalu dipotret ulang;
+    // menyembunyikannya berarti pemiliknya mengira buktinya masih ada.
+    expect(ringkasAntrean([{ status: "rusak" }]).perluPerhatian).toBe(true);
+  });
+});

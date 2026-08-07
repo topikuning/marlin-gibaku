@@ -12,8 +12,10 @@ import {
 } from "@/lib/foto-cepat/antrean-kebijakan";
 import {
   SimpananPenuh,
+  ambilBerkas,
   buang,
   perbarui,
+  pindahkanWarisan,
   semua,
   simpan,
   simpananTersedia,
@@ -113,9 +115,18 @@ export function useAntreanFoto() {
    */
   const mulaiPutaran = useRef<number | null>(null);
 
-  const urlUntuk = useCallback((id: string, blob: Blob) => {
+  /**
+   * Pratinjau dibuat SEKALI per foto, dari byte di simpanan.
+   *
+   * Dulu tiap `muat()` menyeret seluruh isi antrean — ratusan KB per foto,
+   * setiap 3 detik — hanya untuk menggambar petak 56px. Sekarang `semua()`
+   * hanya membawa keterangannya, dan bytenya diambil sekali saja di sini.
+   */
+  const pinjamUrl = useCallback(async (id: string, tipe: string) => {
     const ada = urlRef.current.get(id);
     if (ada) return ada;
+    const blob = await ambilBerkas(id, tipe);
+    if (!blob) return "";
     const u = URL.createObjectURL(blob);
     urlRef.current.set(id, u);
     return u;
@@ -132,27 +143,47 @@ export function useAntreanFoto() {
       }
     }
     const kini = Date.now();
-    setBaris(
-      rows.map((r) => ({
+    const siap: BarisAntrean[] = [];
+    for (const r of rows) {
+      siap.push({
         id: r.id,
-        url: urlUntuk(r.id, r.blob),
+        url: await pinjamUrl(r.id, r.tipe),
         status: r.status,
         pesan: r.pesan,
         percobaan: r.percobaan,
-        bytes: r.blob?.size ?? 0,
+        bytes: r.ukuran ?? 0,
         umurMs: kini - (r.dibuat ?? kini),
-      })),
-    );
-  }, [urlUntuk]);
+      });
+    }
+    setBaris(siap);
+  }, [pinjamUrl]);
 
   /** Coba kirim satu foto. Sebab kegagalan DIBEDAKAN — lihat antrean-kebijakan. */
   const kirimSatu = useCallback(
     async (r: FotoTertunda) => {
+      const berkas = await ambilBerkas(r.id, r.tipe);
+      if (!berkas) {
+        /*
+         * Bytenya tidak ada lagi. Ini BUKAN kegagalan jaringan dan bukan
+         * penolakan server — tidak ada apa pun untuk dikirim, dan mencobanya
+         * seribu kali tidak akan mengubah itu. Ditandai `rusak` supaya
+         * pemiliknya tahu fotonya memang hilang dan bisa membuangnya, bukan
+         * menunggu selamanya sesuatu yang tak akan pernah terkirim.
+         */
+        await perbarui(r.id, {
+          status: "rusak",
+          pesan:
+            "Isi fotonya hilang dari simpanan HP (peramban melepas berkasnya) — tidak bisa dikirim. Buang saja lalu potret ulang.",
+        });
+        await muat();
+        return;
+      }
+
       await perbarui(r.id, { status: "kirim", terakhirCoba: Date.now() });
       await muat();
 
       const fd = new FormData();
-      fd.append("photos", new File([r.blob], `${r.id}.jpg`, { type: "image/jpeg" }));
+      fd.append("photos", new File([berkas], `${r.id}.jpg`, { type: r.tipe || "image/jpeg" }));
       fd.set("photoTakenAt", r.takenAt);
       if (r.lat != null && r.lng != null) {
         fd.set("gpsLat", String(r.lat));
@@ -266,16 +297,18 @@ export function useAntreanFoto() {
       }
       const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       try {
-        await simpan({
-          id,
-          blob: file,
-          lat: posisi?.lat ?? null,
-          lng: posisi?.lng ?? null,
-          takenAt: new Date().toISOString(),
-          percobaan: 0,
-          terakhirCoba: 0,
-          status: "menunggu",
-        });
+        await simpan(
+          {
+            id,
+            lat: posisi?.lat ?? null,
+            lng: posisi?.lng ?? null,
+            takenAt: new Date().toISOString(),
+            percobaan: 0,
+            terakhirCoba: 0,
+            status: "menunggu",
+          },
+          file,
+        );
       } catch (e) {
         setPenuh(e instanceof SimpananPenuh ? e.message : "Gagal menyimpan foto di perangkat.");
         return false;
@@ -296,6 +329,10 @@ export function useAntreanFoto() {
   // — foto yang tersimpan tidak ke mana-mana.
   useEffect(() => {
     void (async () => {
+      // Baris lama (yang masih menyimpan Blob) dipindah ke bentuk byte lebih
+      // dulu — termasuk menandai yang bytenya sudah tidak terbaca sebagai
+      // `rusak`. Tanpa langkah ini, antrean warisan tidak akan pernah bergerak.
+      await pindahkanWarisan().catch(() => {});
       await muat().catch(() => {});
       void proses().catch(() => {});
     })();

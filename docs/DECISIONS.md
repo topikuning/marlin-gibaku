@@ -11183,3 +11183,76 @@ semua gejala (foto baru lancar, foto antre macet, penyimpanan tidak penuh,
 jaringan lancar, muncul saat memotret cepat) tapi **belum direproduksi** — WebKit
 tidak tersedia di lingkungan uji ini. Tetap terbuka sampai ada bukti dari
 perangkat.
+
+## 286 · Antrean foto: simpan BYTE, bukan Blob — sebabnya akhirnya diketahui (2026-08-07)
+
+**Bukti.** Dua tangkapan layar dari dua peramban di HP yang sama menutup perkara
+ini. Panel rincian (DECISIONS 285) bekerja persis seperti maksudnya.
+
+Peramban A:
+
+```
+antrean v5 · 2 baris · jaringan: ada
+galat: Simpanan foto di HP gagal — tahap: permintaan;
+       galat: UnknownError: Error preparing Blob/File data to be stored in object store
+1. kirim · coba 0× · 430 KB · umur 1734 dtk
+2. kirim · coba 0× · 421 KB · umur 1733 dtk
+```
+
+Peramban B: pratinjaunya muncul sebagai **ikon gambar rusak**, dan unggahannya
+gagal 4× dengan alasan "jaringan" — padahal jaringan ada.
+
+**Sebabnya, satu, dan menjelaskan semuanya.** `Blob` yang disimpan di IndexedDB
+disokong berkas terpisah di dalam peramban, dan sokongan itu bisa lepas. Sekali
+lepas, blob-nya **tidak bisa ditulis ulang** (peramban A), **tidak bisa
+ditampilkan** (peramban B), dan **tidak bisa dikirim** (badan permintaannya
+kosong → tampak seperti kegagalan jaringan).
+
+Yang membuatnya fatal: `perbarui()` menulis ulang SELURUH baris — berikut
+fotonya yang ratusan KB — hanya untuk mengubah satu kolom status. Jadi setiap
+perubahan status mempertaruhkan seluruh antrean pada penulisan ulang blob yang
+bisa gagal. Sekali gagal, transaksinya gugur, putarannya mati, dan barisnya
+tinggal di "kirim…" selamanya.
+
+Dan inilah jawaban petunjuk user *"terjadi saat ambil foto dengan cepat"*: foto
+yang langsung terkirim ditulis SEKALI lalu dibuang — tidak pernah ditulis ulang.
+Foto yang menumpuk di antrean ditulis ulang berkali-kali. Bukan soal jumlah
+fotonya, melainkan soal berapa kali barisnya disentuh.
+
+**Keputusan.**
+
+1. **Yang disimpan adalah `ArrayBuffer`, bukan `Blob`/`File`.** Data biasa,
+   ikut aturan structured clone, tanpa berkas sokongan yang bisa lepas.
+2. **Dua toko: `antrean` (keterangan) dan `berkas` (byte).** Perubahan status
+   tidak pernah menyentuh isi fotonya. Sebagai bonus, `semua()` — yang dipanggil
+   tiap 3 detik — berhenti menyeret ratusan KB per foto hanya untuk menggambar
+   petak 56px.
+3. **Status baru `rusak`** untuk baris yang bytenya memang sudah tidak ada.
+   Bukan `gagal_jaringan` (mencoba lagi tidak akan mengubah apa pun) dan bukan
+   `ditolak` (server tidak pernah melihatnya). Ia TIDAK dihitung sebagai
+   "menunggu terkirim" — menghitungnya berarti berbohong tentang foto yang tak
+   akan pernah terkirim — tapi tetap ditampilkan dengan spanduk sendiri supaya
+   bisa dibuang lalu dipotret ulang.
+4. **Pemindahan warisan** (`pindahkanWarisan`) berjalan sekali tiap halaman
+   dibuka: baris lama ber-blob diubah jadi byte; yang blob-nya sudah tidak
+   terbaca ditandai `rusak` dengan sebab yang disebutkan. Sengaja BUKAN di
+   `onupgradeneeded` — mengubah blob jadi byte itu asinkron, sedangkan transaksi
+   pemutakhiran versi tidak boleh menunggu.
+
+**Diperiksa di peramban** dengan meniru keadaan HP user: basis data versi LAMA
+berisi baris ber-blob, plus satu baris yang bytenya hilang.
+
+```
+sebelum: v1, 3 baris, semua "kirim…", tidak bergerak
+sesudah: v2 · toko `berkas` dibuat · tidak ada baris yang masih memegang blob
+         hilang: rusak   ← "Isi fotonya hilang dari simpanan HP… Buang saja lalu potret ulang."
+         sehat:  ditolak ← alasan dari server, disebutkan
+         mati:   ditolak
+```
+
+Tidak ada lagi yang tersangkut "kirim…", dan tiap baris menyebutkan nasibnya.
+
+**Pelajaran yang layak dicatat.** Empat putaran perbaikan dikerjakan dari
+membaca kode; yang menyelesaikannya adalah SATU baris pesan galat dari perangkat
+yang sebenarnya. Alat diagnosis di layar bukan pelengkap — pada aplikasi
+lapangan yang tidak punya inspect element, ia bagian dari fiturnya.

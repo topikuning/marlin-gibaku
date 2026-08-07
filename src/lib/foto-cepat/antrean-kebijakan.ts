@@ -22,7 +22,17 @@ export type StatusAntrean =
   /** Gagal karena JARINGAN — akan dicoba lagi, selamanya. */
   | "gagal_jaringan"
   /** Server MENOLAK (mis. duplikat, wajib-GPS). Berhenti; butuh keputusan orang. */
-  | "ditolak";
+  | "ditolak"
+  /**
+   * Isi fotonya HILANG dari simpanan perangkat — tidak ada yang bisa dikirim.
+   *
+   * Bukan kegagalan yang bisa dicoba lagi, dan bukan penolakan server: bytenya
+   * memang tidak ada lagi. Dibedakan supaya pemiliknya tahu fotonya benar-benar
+   * hilang dan bisa membuangnya, bukan menunggu selamanya sesuatu yang tak akan
+   * pernah terkirim. Bukti dari perangkat user, 2026-08-07:
+   * `UnknownError: Error preparing Blob/File data to be stored in object store`.
+   */
+  | "rusak";
 
 export type ItemAntrean = {
   id: string;
@@ -57,7 +67,7 @@ export function jedaBerikutnya(percobaan: number): number {
  * sama sekali. Jadi ia hanya dipakai untuk MENUNDA, tidak untuk menjamin.
  */
 export function bolehCoba(item: ItemAntrean, sekarang: number, online: boolean): boolean {
-  if (item.status === "kirim" || item.status === "ditolak") return false;
+  if (item.status === "kirim" || item.status === "ditolak" || item.status === "rusak") return false;
   if (!online) return false;
   if (item.percobaan === 0) return true;
   return sekarang - item.terakhirCoba >= jedaBerikutnya(item.percobaan);
@@ -164,9 +174,14 @@ export const MAKS_ANTREAN = 100;
 export function ringkasAntrean(items: Pick<ItemAntrean, "status">[]): {
   menunggu: number;
   ditolak: number;
+  rusak: number;
   perluPerhatian: boolean;
 } {
-  const menunggu = items.filter((i) => i.status !== "ditolak").length;
+  // "rusak" TIDAK ikut dihitung menunggu: ia tidak sedang menunggu apa pun.
+  // Menghitungnya membuat "3 foto menunggu terkirim" berbohong tentang tiga
+  // foto yang tidak akan pernah terkirim.
+  const menunggu = items.filter((i) => i.status !== "ditolak" && i.status !== "rusak").length;
   const ditolak = items.filter((i) => i.status === "ditolak").length;
-  return { menunggu, ditolak, perluPerhatian: menunggu + ditolak > 0 };
+  const rusak = items.filter((i) => i.status === "rusak").length;
+  return { menunggu, ditolak, rusak, perluPerhatian: menunggu + ditolak + rusak > 0 };
 }

@@ -1,33 +1,54 @@
 import { MAKS_ANTREAN, type StatusAntrean } from "./antrean-kebijakan";
 
 /**
- * SIMPANAN FOTO DI PERANGKAT — IndexedDB (DECISIONS 257).
+ * SIMPANAN FOTO DI PERANGKAT — IndexedDB (DECISIONS 257; dirombak 286).
  *
  * Tiap jepretan ditulis KE SINI LEBIH DULU, sebelum satu byte pun dikirim.
  * Urutannya bukan detail teknis: selama foto hanya ada di memori, menutup tab,
  * kehabisan baterai, atau peramban membunuh halaman di latar belakang berarti
- * bukti lapangan hilang tanpa jejak — dan tidak ada yang akan tahu foto itu
- * pernah ada.
+ * bukti lapangan hilang tanpa jejak.
  *
- * IndexedDB, bukan localStorage: localStorage hanya menyimpan string (blob
- * harus di-base64, membengkak ~33%) dan kuotanya ±5 MB — habis oleh lima foto.
+ * ### Kenapa BYTE, bukan Blob (DECISIONS 286)
+ *
+ * Versi sebelumnya menyimpan objek `Blob`/`File` apa adanya. Itu sah menurut
+ * spesifikasi, tapi di lapangan gagal — dan perangkat user sendiri yang
+ * menuliskan sebabnya:
+ *
+ *     UnknownError: Error preparing Blob/File data to be stored in object store
+ *
+ * Blob di IndexedDB disokong berkas terpisah di dalam peramban, dan sokongan itu
+ * bisa lepas. Sekali lepas, blob-nya tidak bisa ditulis ulang, tidak bisa
+ * dibaca, bahkan tidak bisa ditampilkan — di peramban kedua, pratinjaunya
+ * muncul sebagai ikon gambar rusak. Karena itu yang disimpan sekarang adalah
+ * **`ArrayBuffer`**: data biasa, ikut aturan structured clone, tanpa berkas
+ * sokongan yang bisa lepas.
+ *
+ * ### Kenapa DUA toko
+ *
+ * `antrean` menyimpan keterangannya saja (status, percobaan, koordinat, waktu);
+ * `berkas` menyimpan bytenya. Pemisahan ini yang membuat perubahan status TIDAK
+ * pernah menulis ulang isi fotonya. Versi lama menulis ulang seluruh baris —
+ * berikut fotonya yang ratusan KB — hanya untuk mengubah satu kolom status,
+ * dan justru penulisan ulang itulah yang gagal.
+ *
+ * Itu juga menjelaskan petunjuk user *"terjadi saat ambil foto dengan cepat"*:
+ * foto yang langsung terkirim ditulis sekali lalu dibuang, sedangkan foto yang
+ * menumpuk di antrean ditulis ulang berkali-kali.
  *
  * ### Yang TIDAK dijanjikan
  *
  * Simpanan ini melekat pada PERANGKAT + peramban itu. HP hilang, rusak, atau
- * "hapus data situs" berarti antreannya ikut hilang. Ia melindungi dari sinyal
- * jelek dan halaman tertutup — bukan dari kehilangan perangkat. Karena itu
- * antreannya ditampilkan terang-terangan supaya tidak ada yang menganggapnya
- * sudah aman di server padahal belum.
+ * "hapus data situs" berarti antreannya ikut hilang.
  */
 
 const DB = "marlin-foto-cepat";
 const TOKO = "antrean";
-const VERSI = 1;
+const TOKO_BERKAS = "berkas";
+const VERSI = 2;
 
+/** Keterangan satu jepretan — TANPA isi fotonya. */
 export type FotoTertunda = {
   id: string;
-  blob: Blob;
   /** Koordinat saat rana ditekan; null = tidak diketahui (jangan ditebak). */
   lat: number | null;
   lng: number | null;
@@ -38,37 +59,25 @@ export type FotoTertunda = {
   status: StatusAntrean;
   pesan?: string;
   dibuat: number;
+  /** Ukuran byte fotonya — supaya UI tak perlu memuat isinya hanya untuk ini. */
+  ukuran: number;
+  tipe: string;
 };
 
-/**
- * Batas waktu SATU operasi simpanan.
- *
- * Membaca/menulis IndexedDB semestinya seketika, jadi 10 detik sudah sangat
- * longgar. Batas ini ada karena IndexedDB bisa **berhenti menjawab sama sekali**
- * — tidak melempar galat, tidak memanggil `onerror`, hanya diam. Di iOS itu
- * lazim terjadi sesudah halaman kembali dari latar belakang, dan pada peramban
- * mana pun ia terjadi saat transaksi digugurkan tanpa `onerror` menyala.
- *
- * Tanpa batas ini, satu operasi yang diam membekukan seluruh antrean tanpa satu
- * pun tanda di layar — tiga putaran perbaikan (DECISIONS 282, 283) tidak
- * terlihat hasilnya karena SEMUA jalur kegagalan di sini bisu.
- */
 const BATAS_OPERASI_MS = 10_000;
 
 /**
  * Galat simpanan yang PANTAS DIBACA orang — DAN menyebutkan nama aslinya.
  *
  * Versi sebelumnya menutup nama galat IndexedDB-nya lalu menambahkan tebakan
- * *"Ruang penyimpanan HP mungkin penuh."*. Tebakan itu SALAH dan user
- * menunjukkannya dalam satu kalimat: kalau memang penuh, foto baru pun tidak
- * akan bisa tersimpan — padahal foto baru lancar. Pesan yang mengarang sebab
- * lebih buruk daripada pesan yang cuma menyebut fakta: ia mengirim orang ke
- * arah yang salah.
+ * *"Ruang penyimpanan HP mungkin penuh."*. Tebakan itu salah, dan user
+ * membantahnya dalam satu kalimat: kalau memang penuh, foto baru pun tidak akan
+ * bisa tersimpan. Pesan yang mengarang sebab lebih buruk daripada pesan yang
+ * hanya menyebut fakta — ia mengirim orang ke arah yang salah.
  *
- * Sekarang yang ditulis hanya yang benar-benar diketahui: TAHAP mana yang gagal
- * dan NAMA galat dari peramban (`QuotaExceededError`, `DataCloneError`,
- * `UnknownError`, …). Nama itulah yang menentukan perbaikannya, dan ia harus
- * bisa dibaca dari tangkapan layar — di HP tidak ada inspect element.
+ * Nama galat inilah yang akhirnya menyelesaikan perkara ini: begitu layar
+ * menuliskan `UnknownError: Error preparing Blob/File data…`, sebabnya berhenti
+ * jadi tebakan.
  */
 export class SimpananGagal extends Error {
   constructor(
@@ -107,19 +116,10 @@ function berbatas<T>(p: Promise<T>): Promise<T> {
 }
 
 /**
- * SATU koneksi untuk seumur halaman — TIDAK dibuka-tutup tiap operasi.
+ * SATU koneksi untuk seumur halaman — tidak dibuka-tutup tiap operasi.
  *
- * Ini bukan penghematan; ini perbaikan cacat. Di WebKit (Safari iOS), `Blob`
- * yang dibaca dari IndexedDB **berhenti bisa dipakai begitu koneksi yang
- * menghasilkannya ditutup**. Versi sebelumnya membuka koneksi baru tiap operasi
- * dan menutupnya di `tx.oncomplete` — jadi tiap `semua()` mengembalikan baris
- * yang blob-nya sudah mati sebelum sempat dipakai. Menulis baris itu kembali
- * (yang dilakukan `perbarui` setiap kali status berubah) berarti menulis blob
- * mati: permintaannya gagal, transaksinya ikut gugur, dan antreannya berhenti.
- *
- * Itu juga menjelaskan kenapa gejalanya muncul saat MEMOTRET CEPAT: foto yang
- * dikirim seketika masih memakai blob segar dari memori, sedangkan foto yang
- * menumpuk di antrean harus dibaca ulang dari simpanan lebih dulu.
+ * `onclose`/`onversionchange` melupakan pegangannya supaya operasi berikutnya
+ * membuka koneksi baru, bukan memakai pegangan mati selamanya.
  */
 let koneksi: Promise<IDBDatabase> | null = null;
 
@@ -130,12 +130,11 @@ function buka(): Promise<IDBDatabase> {
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(TOKO)) db.createObjectStore(TOKO, { keyPath: "id" });
+      if (!db.objectStoreNames.contains(TOKO_BERKAS))
+        db.createObjectStore(TOKO_BERKAS, { keyPath: "id" });
     };
     req.onsuccess = () => {
       const db = req.result;
-      // Koneksi yang tertutup dari luar (peramban membersihkan, tab lain minta
-      // naik versi) harus dilupakan supaya operasi berikutnya membuka lagi —
-      // bukan memakai pegangan mati selamanya.
       db.onclose = () => {
         koneksi = null;
       };
@@ -158,21 +157,19 @@ function buka(): Promise<IDBDatabase> {
 }
 
 /**
- * Jalankan satu transaksi.
+ * Jalankan satu transaksi pada satu atau beberapa toko.
  *
- * `fn` boleh memakai beberapa permintaan dalam SATU transaksi — itu yang
- * dipakai `perbarui` untuk baca-lalu-tulis tanpa celah balapan.
- *
- * Tiga jalur kegagalan dipasang semuanya, dan masing-masing menyebut namanya:
- * permintaan (`req.onerror`), transaksi (`tx.onerror`), dan penggugurannya
- * (`tx.onabort`). Versi sebelumnya membuang `req.onerror` — sehingga galat yang
- * SEBENARNYA (nama DOMException-nya) hilang dan yang sampai ke layar hanya
- * "transaksi" tanpa sebab. Itu membuat tangkapan layar dari lapangan tidak bisa
- * dipakai, padahal cuma itu alat yang ada.
+ * Tiga jalur kegagalan dipasang semuanya dan masing-masing menyebut namanya:
+ * permintaan (`req.onerror`), transaksi (`tx.onerror`), penggugurannya
+ * (`tx.onabort`). Satu putaran perbaikan sempat membuang `req.onerror` —
+ * sehingga nama DOMException yang SEBENARNYA hilang dan layar cuma menulis
+ * "transaksi". Itu membuat tangkapan layar dari lapangan tidak bisa dipakai,
+ * padahal cuma itu alat yang ada.
  */
 function jalankan<T>(
+  toko: string | string[],
   mode: IDBTransactionMode,
-  fn: (t: IDBObjectStore, selesai: (v: T) => void, gagal: (e: unknown) => void) => void,
+  fn: (tx: IDBTransaction, selesai: (v: T) => void, gagal: (e: unknown) => void) => void,
 ): Promise<T> {
   return berbatas(
     buka().then(
@@ -189,17 +186,15 @@ function jalankan<T>(
 
           let tx: IDBTransaction;
           try {
-            tx = db.transaction(TOKO, mode);
+            tx = db.transaction(toko, mode);
           } catch (e) {
-            // `InvalidStateError` di sini = koneksinya sudah tertutup. Lupakan
-            // pegangannya supaya operasi berikutnya membuka yang baru.
-            koneksi = null;
+            koneksi = null; // koneksinya sudah tertutup — buka lagi lain kali
             gagal(e);
             return;
           }
 
           fn(
-            tx.objectStore(TOKO),
+            tx,
             (v) => {
               hasil = v;
               dapat = true;
@@ -220,12 +215,13 @@ function jalankan<T>(
 }
 
 /** Bungkus satu permintaan tunggal — pola yang paling sering dipakai. */
-function satuPermintaan<T>(
+function satu<T>(
+  toko: string,
   mode: IDBTransactionMode,
   buatReq: (t: IDBObjectStore) => IDBRequest<T>,
 ): Promise<T> {
-  return jalankan<T>(mode, (toko, selesai, gagal) => {
-    const req = buatReq(toko);
+  return jalankan<T>(toko, mode, (tx, selesai, gagal) => {
+    const req = buatReq(tx.objectStore(toko));
     req.onsuccess = () => selesai(req.result);
     req.onerror = () => gagal(req.error);
   });
@@ -245,34 +241,69 @@ export class SimpananPenuh extends Error {
 }
 
 /**
- * Simpan satu jepretan. Melempar `SimpananPenuh` bila antrean sudah penuh —
- * DILEMPAR, bukan didiamkan: jepretan yang hilang karena kuota penuh adalah
- * kegagalan paling buruk yang mungkin terjadi di sini.
+ * Simpan satu jepretan: byte ke toko `berkas`, keterangannya ke toko `antrean`
+ * — dalam SATU transaksi, supaya tidak pernah ada keterangan tanpa berkas
+ * maupun sebaliknya.
  */
-export async function simpan(item: Omit<FotoTertunda, "dibuat">): Promise<void> {
-  const jumlah = await satuPermintaan<number>("readonly", (t) => t.count());
+export async function simpan(
+  item: Omit<FotoTertunda, "dibuat" | "ukuran" | "tipe">,
+  berkas: Blob,
+): Promise<void> {
+  const jumlah = await satu<number>(TOKO, "readonly", (t) => t.count());
   if (jumlah >= MAKS_ANTREAN) throw new SimpananPenuh();
-  await satuPermintaan("readwrite", (t) => t.put({ ...item, dibuat: Date.now() }));
+
+  // `ArrayBuffer`, bukan Blob — lihat catatan kepala berkas ini.
+  const buf = await berkas.arrayBuffer();
+  await jalankan<void>([TOKO, TOKO_BERKAS], "readwrite", (tx, selesai, gagal) => {
+    const a = tx.objectStore(TOKO_BERKAS).put({ id: item.id, buf });
+    a.onerror = () => gagal(a.error);
+    const b = tx.objectStore(TOKO).put({
+      ...item,
+      dibuat: Date.now(),
+      ukuran: buf.byteLength,
+      tipe: berkas.type || "image/jpeg",
+    });
+    b.onerror = () => gagal(b.error);
+    b.onsuccess = () => selesai(undefined);
+  });
 }
 
+/** Keterangan semua antrean — RINGAN, tidak menyeret isi fotonya. */
 export async function semua(): Promise<FotoTertunda[]> {
-  const rows = await satuPermintaan<FotoTertunda[]>("readonly", (t) => t.getAll());
+  const rows = await satu<FotoTertunda[]>(TOKO, "readonly", (t) => t.getAll());
   return rows.sort((a, b) => a.dibuat - b.dibuat);
 }
 
 /**
- * Perbarui metadata satu baris — baca-lalu-tulis di SATU transaksi.
+ * Ambil isi foto sebagai Blob. `null` = datanya tidak ada / tidak terbaca.
  *
- * Dulu ini dua transaksi terpisah (`getAll` lalu `put`), dengan celah di
- * antaranya. Saat memotret cepat, dua pembaruan bisa saling menimpa: yang satu
- * menulis kembali salinan yang sudah usang, mengembalikan status yang barusan
- * berubah. Satu transaksi menutup celah itu.
+ * Pemanggil WAJIB menangani `null`, bukan menganggapnya mustahil: inilah
+ * keadaan yang menimpa antrean user — bytenya lenyap dari peramban sementara
+ * keterangannya masih ada.
+ */
+export async function ambilBerkas(id: string, tipe = "image/jpeg"): Promise<Blob | null> {
+  const row = await satu<{ id: string; buf: ArrayBuffer } | undefined>(
+    TOKO_BERKAS,
+    "readonly",
+    (t) => t.get(id),
+  );
+  if (!row?.buf || row.buf.byteLength === 0) return null;
+  return new Blob([row.buf], { type: tipe });
+}
+
+/**
+ * Perbarui KETERANGAN satu baris — baca-lalu-tulis dalam SATU transaksi, dan
+ * TIDAK PERNAH menyentuh isi fotonya.
  *
- * `get(id)`, bukan `getAll()`: tidak ada gunanya menarik SELURUH antrean —
- * berikut semua blob-nya — hanya untuk mengubah satu kolom status.
+ * Dua cacat sekaligus yang ditutup di sini. Pertama, dulu ini dua transaksi
+ * terpisah (`getAll` lalu `put`) dengan celah di antaranya: saat memotret cepat,
+ * dua pembaruan bisa saling menimpa. Kedua — dan ini yang mematikan — barisnya
+ * dulu memuat blob, jadi tiap perubahan status menulis ulang seluruh foto. Itu
+ * penulisan ulang yang gagal dengan `Error preparing Blob/File data`.
  */
 export async function perbarui(id: string, patch: Partial<FotoTertunda>): Promise<void> {
-  await jalankan<void>("readwrite", (toko, selesai, gagal) => {
+  await jalankan<void>(TOKO, "readwrite", (tx, selesai, gagal) => {
+    const toko = tx.objectStore(TOKO);
     const baca = toko.get(id);
     baca.onerror = () => gagal(baca.error);
     baca.onsuccess = () => {
@@ -287,5 +318,70 @@ export async function perbarui(id: string, patch: Partial<FotoTertunda>): Promis
 
 /** Buang dari simpanan — HANYA setelah server memastikan fotonya tersimpan. */
 export async function buang(id: string): Promise<void> {
-  await satuPermintaan("readwrite", (t) => t.delete(id));
+  await jalankan<void>([TOKO, TOKO_BERKAS], "readwrite", (tx, selesai, gagal) => {
+    const a = tx.objectStore(TOKO_BERKAS).delete(id);
+    a.onerror = () => gagal(a.error);
+    const b = tx.objectStore(TOKO).delete(id);
+    b.onerror = () => gagal(b.error);
+    b.onsuccess = () => selesai(undefined);
+  });
+}
+
+/**
+ * Pindahkan baris warisan (yang masih menyimpan `Blob`) ke bentuk baru.
+ *
+ * Dijalankan sekali tiap halaman dibuka, dan sengaja TIDAK di
+ * `onupgradeneeded`: mengubah Blob jadi byte itu asinkron, sedangkan transaksi
+ * pemutakhiran versi tidak boleh menunggu.
+ *
+ * Blob yang sudah TIDAK TERBACA tidak bisa diselamatkan — itu kenyataan, bukan
+ * kegagalan yang bisa dicoba lagi. Barisnya ditandai `rusak` dengan sebab yang
+ * disebutkan, supaya pemiliknya tahu fotonya memang hilang dan bisa
+ * membuangnya, bukan menunggu selamanya sesuatu yang tak akan pernah terkirim.
+ */
+export async function pindahkanWarisan(): Promise<{ pindah: number; rusak: number }> {
+  const rows = await satu<(FotoTertunda & { blob?: Blob })[]>(TOKO, "readonly", (t) => t.getAll());
+  let pindah = 0;
+  let rusak = 0;
+  for (const r of rows) {
+    if (!r.blob) continue;
+    let buf: ArrayBuffer | null = null;
+    try {
+      const b = await r.blob.arrayBuffer();
+      if (b.byteLength > 0) buf = b;
+    } catch {
+      buf = null;
+    }
+    if (buf) {
+      await jalankan<void>([TOKO, TOKO_BERKAS], "readwrite", (tx, selesai, gagal) => {
+        const a = tx.objectStore(TOKO_BERKAS).put({ id: r.id, buf });
+        a.onerror = () => gagal(a.error);
+        const { blob: _buang, ...tanpaBlob } = r;
+        const b = tx.objectStore(TOKO).put({
+          ...tanpaBlob,
+          ukuran: buf.byteLength,
+          tipe: r.tipe || "image/jpeg",
+        });
+        b.onerror = () => gagal(b.error);
+        b.onsuccess = () => selesai(undefined);
+      });
+      pindah++;
+    } else {
+      await jalankan<void>(TOKO, "readwrite", (tx, selesai, gagal) => {
+        const { blob: _buang, ...tanpaBlob } = r;
+        const req = tx.objectStore(TOKO).put({
+          ...tanpaBlob,
+          status: "rusak" as StatusAntrean,
+          pesan:
+            "Isi fotonya hilang dari simpanan HP (peramban melepas berkasnya) — tidak bisa dikirim. Buang saja lalu potret ulang.",
+          ukuran: 0,
+          tipe: r.tipe || "image/jpeg",
+        });
+        req.onerror = () => gagal(req.error);
+        req.onsuccess = () => selesai(undefined);
+      });
+      rusak++;
+    }
+  }
+  return { pindah, rusak };
 }
