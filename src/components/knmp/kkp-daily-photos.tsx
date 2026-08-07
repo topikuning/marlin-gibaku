@@ -44,6 +44,20 @@ export type FotoCetak = {
   pekerjaan: string | null;
   kategori: string | null;
   bobot: number | null;
+  /**
+   * Tautan ke gambar PENUH di cloud (`/api/foto/<token>`, DECISIONS 125).
+   *
+   * Permintaan user 2026-08-07: *"fotonya harusnya juga bisa diklik ke ukuran
+   * yang lebih besar/cloud. tapi tidak perlu di crop, apa adanya seperti
+   * sekarang, hanya beri link ke gambar yang lebih besar."* — gambarnya TIDAK
+   * disentuh; yang ditambah hanya pembungkus yang bisa diklik.
+   *
+   * Sengaja tautan `/api/foto/<token>` yang SAMA dengan PDF, bukan URL
+   * presigned R2 yang kebetulan sudah ada di halaman: presigned kedaluwarsa
+   * dalam hitungan menit, dan tautan yang mati di dokumen resmi lebih buruk
+   * daripada tidak ada tautan. null = origin tidak diketahui → tidak dikarang.
+   */
+  link?: string | null;
 };
 
 export function KkpDailyPhotos({ d, foto }: { d: KkpDailyData; foto: FotoCetak[] }) {
@@ -133,8 +147,10 @@ function FotoBaris({ f }: { f: FotoCetak }) {
       </tr>
       <tr>
         <Sel colSpan={2} tengah className="text-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={f.url} alt="" className="mx-auto max-h-[46mm] w-auto max-w-full object-contain" />
+          {/* Gambarnya sama persis dengan/tanpa tautan — pembungkusnya yang
+              berubah, bukan ukurannya. `print:hidden` pada penanda kecilnya:
+              di kertas, panah "buka" tidak ada gunanya. */}
+          <Gambar url={f.url} link={f.link} />
         </Sel>
         {/* Bobot DIISI bila diketahui — angkanya sudah ada di sistem, jadi
             mengosongkannya justru menyuruh orang menghitung ulang. */}
@@ -152,6 +168,27 @@ function FotoBaris({ f }: { f: FotoCetak }) {
  * penulisannya di atribut class, melainkan urutan di stylesheet — menumpuk
  * keduanya berarti menyerahkan hasilnya pada kebetulan.
  */
+/**
+ * Foto apa adanya; kalau ada tautannya, dibungkus anchor ke gambar penuh.
+ * TIDAK di-crop dan tidak diubah ukurannya — permintaan user eksplisit.
+ */
+function Gambar({ url, link }: { url: string; link?: string | null }) {
+  // eslint-disable-next-line @next/next/no-img-element
+  const img = <img src={url} alt="" className="mx-auto max-h-[46mm] w-auto max-w-full object-contain" />;
+  if (!link) return img;
+  return (
+    <a
+      href={link}
+      target="_blank"
+      rel="noopener noreferrer"
+      title="Buka foto ukuran penuh"
+      className="block"
+    >
+      {img}
+    </a>
+  );
+}
+
 function Sel({
   children,
   colSpan,

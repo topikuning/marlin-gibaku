@@ -54,6 +54,7 @@ const foto = (over: Partial<FotoCetak> = {}): FotoCetak => ({
   pekerjaan: "Pasangan batu",
   kategori: "DERMAGA",
   bobot: 1.25,
+  link: "https://marlin.uji/api/foto/tok123",
   ...over,
 });
 
@@ -154,6 +155,39 @@ describe("halaman dokumentasi cetak HTML", () => {
     const html = renderToStaticMarkup(<KkpDailyPhotos d={data()} foto={[foto()]} />);
     const barisFoto = html.slice(html.indexOf("Bobot (%)") - 400);
     expect((barisFoto.match(/colspan="2"/gi) ?? []).length).toBeGreaterThanOrEqual(2);
+  });
+
+  // FOTO BISA DIKLIK KE GAMBAR PENUH, TANPA DIUBAH SEDIKIT PUN.
+  //
+  // Permintaan user 2026-08-07: *"fotonya harusnya juga bisa diklik ke ukuran
+  // yang lebih besar/cloud. tapi tidak perlu di crop, apa adanya seperti
+  // sekarang, hanya beri link ke gambar yang lebih besar."*
+  //
+  // Batas yang dijaga di sini justru kata "apa adanya": menambah tautan tidak
+  // boleh diam-diam mengubah ukuran, kerangka, atau pemotongan gambarnya.
+  describe("tautan ke gambar penuh", () => {
+    it("gambar dibungkus anchor yang membuka tab baru", () => {
+      const html = renderToStaticMarkup(<KkpDailyPhotos d={data()} foto={[foto()]} />);
+      expect(html).toContain('href="https://marlin.uji/api/foto/tok123"');
+      expect(html).toContain('target="_blank"');
+      expect(html).toContain('rel="noopener noreferrer"');
+    });
+
+    it("gambarnya SAMA PERSIS dengan atau tanpa tautan — tidak di-crop, tidak diubah", () => {
+      const tag = (h: string) => h.match(/<img[^>]*>/)?.[0] ?? "";
+      const dengan = tag(renderToStaticMarkup(<KkpDailyPhotos d={data()} foto={[foto()]} />));
+      const tanpa = tag(renderToStaticMarkup(<KkpDailyPhotos d={data()} foto={[foto({ link: null })]} />));
+      expect(dengan).toBe(tanpa);
+      expect(dengan).toContain("object-contain"); // bukan object-cover = tidak dipotong
+    });
+
+    it("tanpa tautan, fotonya tetap tampil — bukan hilang", () => {
+      // origin tidak diketahui (mis. render di luar request) tidak boleh
+      // membuat bukti ikut lenyap; cukup tidak bisa diklik.
+      const html = renderToStaticMarkup(<KkpDailyPhotos d={data()} foto={[foto({ link: null })]} />);
+      expect(html).toContain("https://contoh/1.webp");
+      expect(html).not.toContain("<a ");
+    });
   });
 
   it("tiap halaman dokumentasi mulai di halaman kertas baru", () => {

@@ -12132,3 +12132,46 @@ yang `bolehMenyetujui()` akui wajib punya `rab.manage`. Menambah peran penyetuju
 baru tanpa membuka pintunya akan langsung tertangkap — kontradiksi yang sama
 tidak bisa lahir dua kali. Diuji giginya: `rab.manage` dicabut dari SM → uji
 merah.
+
+---
+
+## 303 — Foto dokumentasi bisa diklik ke gambar penuh, tanpa gambarnya disentuh (2026-08-07)
+
+**Permintaan user.** *"untuk foto format kkp, fotonya harusnya juga bisa diklik
+ke ukuran yang lebih besar/cloud. tapi tidak perlu di crop, apa adanya seperti
+sekarang, hanya beri link ke gambar yang lebih besar."*
+
+Kalimat "apa adanya" itu yang menentukan bentuk pekerjaannya: yang ditambah
+**hanya area klik**, bukan ukuran, kerangka, atau pemotongan gambarnya. Kotak
+foto di kartu dokumentasi tetap persis seperti sebelumnya.
+
+**Mekanismenya sudah ada, tinggal dipakai.** `/api/foto/<token>` (DECISIONS 125)
+sudah melayani PDF harian-ringkas dan PDF kegiatan: token HMAC atas `photoId`,
+permanen, bisa dibuka tanpa login, dan tiap akses meregenerasi presigned R2
+pendek. Jadi tautannya dipakai ulang, bukan dibuat jalur baru.
+
+**Kenapa BUKAN URL presigned yang sudah ada di halaman cetak.** Halaman
+`/cetak/harian` sudah memegang presigned R2 untuk menampilkan fotonya, dan itu
+tampak seperti tautan yang gratis. Tapi presigned habis dalam hitungan menit:
+dokumen resmi yang disimpan/diteruskan akan membawa tautan yang mati. Tautan
+mati di dokumen yang sudah beredar lebih buruk daripada tidak ada tautan. Kedua
+permukaan karena itu memakai `/api/foto/<token>` yang SAMA.
+
+**Origin tidak dikarang.** Tanpa `getRequestOrigin()` yang diketahui — mis.
+render dipanggil dari cron di luar request — `link` bernilai null dan fotonya
+cukup tidak bisa diklik. URL yang salah akan membuka halaman galat di depan
+pemberi kerja; itu lebih buruk daripada kotak yang diam.
+
+**Di PDF, `doc.link()` dipanggil DI LUAR `try` gambarnya.** Foto yang gagal
+ditempel pun tetap ditautkan — justru di situ orang paling butuh melihat
+aslinya. Kalau tautannya ikut di dalam try, kasus itu kehilangan tautannya
+diam-diam.
+
+**Diuji sampai ke byte PDF.** Tautan di PDF bukan markup yang terlihat sepintas,
+melainkan anotasi terpisah dari gambarnya: kalau `doc.link()` tidak terpanggil,
+dokumennya tetap terbit, fotonya tetap tampak normal, dan tidak ada satu pun
+tanda bahwa kotaknya mati. Uji barunya memeriksa `/Link` dan URL-nya benar-benar
+ada di berkas hasil render, termasuk kasus foto rusak dan kasus tanpa tautan.
+Di sisi HTML, satu uji membandingkan tag `<img>` dengan dan tanpa tautan dan
+menuntut keduanya **identik** — itu penjaga langsung atas kata "apa adanya".
+Keduanya dicek giginya.

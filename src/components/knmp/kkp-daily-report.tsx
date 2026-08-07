@@ -124,6 +124,8 @@ export type KkpDailyData = {
    * lapisan PDF (CLAUDE.md butir 7).
    */
   photos?: {
+    /** Dipakai menyusun tautan `/api/foto/<token>` ke gambar penuh (DECISIONS 125). */
+    id: string;
     r2Key: string;
     pekerjaan: string | null;
     kategori: string | null;

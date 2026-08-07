@@ -622,6 +622,7 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
       // yang dibuktikannya. Tautannya sudah ada; tinggal diambil.
       photos: {
         select: {
+          id: true,
           r2Key: true,
           reportItem: { select: { rabNode: { select: { name: true, lineageKey: true } } } },
         },
@@ -713,6 +714,7 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
     photos: (report?.photos ?? []).map((ph) => {
       const kunci = ph.reportItem?.rabNode?.lineageKey ?? null;
       return {
+        id: ph.id,
         r2Key: ph.r2Key,
         pekerjaan: ph.reportItem?.rabNode?.name ?? null,
         kategori: kunci ? (kategoriByRoot(kunci).categoryName ?? null) : null,
