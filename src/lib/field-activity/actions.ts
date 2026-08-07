@@ -99,8 +99,18 @@ async function uploadPhotos(opts: {
         },
       });
     } catch (err) {
-      if (err instanceof PhotoError) errors.push(err.message);
-      else throw err;
+      if (err instanceof PhotoError) {
+        errors.push(err.message);
+        continue;
+      }
+      // SATU foto rusak tidak boleh menjatuhkan seluruh halaman.
+      //
+      // Dulu galat non-PhotoError dilempar ulang, dan lemparan dari server
+      // action menjatuhkan halaman jadi "Application error — reload": foto lain
+      // batal, dan pelapor tidak diberi tahu apa pun. Aturan yang sama sudah
+      // berlaku di laporan harian (DECISIONS 231); di sini ia tertinggal.
+      console.error("[kegiatan] gagal menyimpan satu berkas", { nama: file.name, err });
+      errors.push(`${file.name}: gagal diproses`);
     }
   }
   return errors;

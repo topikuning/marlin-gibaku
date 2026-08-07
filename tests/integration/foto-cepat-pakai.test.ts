@@ -58,6 +58,8 @@ const { db } = await import("@/lib/db");
 const { muatKantongLokasiAction, pakaiFotoAction, tetapkanLokasiAction } = await import(
   "@/lib/foto-cepat/actions"
 );
+const { removeItemAction, removeReportPhotoAction, returnPhotoToKantongAction, saveItemAction } =
+  await import("@/lib/daily-report/actions");
 
 const suffix = `fcp${Date.now().toString(36)}`;
 let orgId: string;
@@ -65,6 +67,7 @@ let locA: string;
 let locB: string;
 let mandorId: string;
 let reportItemId: string;
+let nodeId: string;
 let kegiatanId: string;
 
 async function pengguna(id: string) {
@@ -159,6 +162,7 @@ beforeAll(async () => {
     },
     select: { id: true },
   });
+  nodeId = node.id;
   const report = await db.dailyReport.create({
     data: { locationId: locA, reportDate: new Date("2026-08-06"), status: "draft", createdById: mandorId },
     select: { id: true },
@@ -346,5 +350,211 @@ describe("tetapkanLokasiAction — hanya menyentuh foto yang dipilih", () => {
       (await db.photo.findUniqueOrThrow({ where: { id: keB }, select: { locationId: true } }))
         .locationId,
     ).toBe(locB);
+  });
+});
+
+describe("saveItemAction — foto kantong dipilih SEBELUM itemnya ada", () => {
+  // Permintaan user 2026-08-07: *"seharusnya di tampilan utama pilih pekerjaan,
+  // selain kamera, galeri, kantong harusnya langsung bisa dipilih sebelum
+  // simpan item. atau ini tidak memungkinkan karena item belum tersimpan?"*
+  //
+  // Menautkan lebih dulu memang mustahil — penautan butuh id item. Yang
+  // dilakukan: memilih dulu, menautkan tepat sesudah itemnya tersimpan. Karena
+  // penautannya terjadi DI DALAM aksi simpan, pagar lokasinya tidak lagi
+  // terlihat oleh pemakai — jadi harus dikunci di sini.
+
+  it("foto kantong ikut tertaut ke item yang baru tersimpan", async () => {
+    const id = await buatFoto(locA, "s1");
+    const hasil = await saveItemAction(
+      undefined,
+      fd({
+        locationId: locA,
+        dateKey: "2026-08-03",
+        rabNodeId: nodeId,
+        volumeDone: "2",
+        kantongPhotoIds: id,
+      }),
+    );
+    expect(hasil?.error).toBeUndefined();
+    expect(hasil?.success).toBeTruthy();
+
+    const foto = await db.photo.findUniqueOrThrow({
+      where: { id },
+      select: { reportItemId: true, reportId: true },
+    });
+    expect(foto.reportItemId).not.toBeNull();
+    expect(foto.reportId).not.toBeNull();
+  });
+
+  it("foto dari lokasi LAIN ditolak — tapi progresnya tetap tersimpan, dan penolakannya DISEBUT", async () => {
+    // Dua hal yang sama pentingnya. Membatalkan simpan karena satu lampiran
+    // bermasalah akan menghapus volume yang sudah benar — angka yang masuk ke
+    // kurva-S — demi foto yang statusnya opsional. Sebaliknya, menelan
+    // kegagalannya diam-diam membuat pelapor mengira fotonya sudah terlampir.
+    const asing = await buatFoto(locB, "s2");
+    const hasil = await saveItemAction(
+      undefined,
+      fd({
+        locationId: locA,
+        dateKey: "2026-08-04",
+        rabNodeId: nodeId,
+        volumeDone: "3",
+        kantongPhotoIds: asing,
+      }),
+    );
+    expect(hasil?.success).toBeTruthy();
+    expect(hasil?.warning).toContain("lokasi lain");
+
+    const foto = await db.photo.findUniqueOrThrow({
+      where: { id: asing },
+      select: { reportItemId: true },
+    });
+    expect(foto.reportItemId).toBeNull();
+
+    // Progresnya benar-benar ada, bukan sekadar pesan sukses.
+    const item = await db.dailyReportItem.findFirst({
+      where: { report: { locationId: locA, reportDate: new Date("2026-08-04") } },
+      select: { volumeDone: true },
+    });
+    expect(Number(item?.volumeDone)).toBe(3);
+  });
+
+  it("foto TANPA lokasi tidak bisa diselundupkan lewat jalur simpan item", async () => {
+    // Pagar DECISIONS 254 harus berlaku sama di jalur baru ini: menautkannya
+    // ke laporan lokasi A sama saja menetapkan lokasinya ke A diam-diam.
+    const buta = await buatFoto(null, "s3");
+    const hasil = await saveItemAction(
+      undefined,
+      fd({
+        locationId: locA,
+        dateKey: "2026-08-05",
+        rabNodeId: nodeId,
+        volumeDone: "1",
+        kantongPhotoIds: buta,
+      }),
+    );
+    expect(hasil?.success).toBeTruthy();
+    expect(hasil?.warning).toContain("belum ketahuan lokasinya");
+    const foto = await db.photo.findUniqueOrThrow({
+      where: { id: buta },
+      select: { reportItemId: true, locationId: true },
+    });
+    expect(foto.reportItemId).toBeNull();
+    expect(foto.locationId).toBeNull();
+  });
+});
+
+describe("foto YATIM — bekas item yang dihapus", () => {
+  // Laporan user 2026-08-07: *"item pekerjaan dihapus, foto jadi orphan. tapi
+  // dihapus juga error. kalau mau dipakai lagi bagaimana"* — dan menyusul:
+  // *"itu dari foto cepat yang disambungkan ke item, lalu itemnya dihapus"*.
+  //
+  // Dua cacat berbeda dalam satu layar: foto ber-riwayat cap MUSTAHIL dihapus
+  // (trigger append-only vs ON DELETE CASCADE saling bertabrakan), dan foto
+  // yatim tidak punya jalan kembali sama sekali.
+
+  /** Foto kantong → dipakai di item → itemnya dihapus. Persis jalur user. */
+  async function fotoYatim(tanda: string) {
+    const id = await buatFoto(locA, tanda);
+    const simpan = await saveItemAction(
+      undefined,
+      fd({
+        locationId: locA,
+        dateKey: "2026-08-02",
+        rabNodeId: nodeId,
+        volumeDone: "1",
+        kantongPhotoIds: id,
+      }),
+    );
+    expect(simpan?.error).toBeUndefined();
+    const item = await db.dailyReportItem.findFirstOrThrow({
+      where: { report: { locationId: locA, reportDate: new Date("2026-08-02") } },
+      select: { id: true, reportId: true },
+    });
+    // Riwayat cap: inilah yang dulu membuat foto mustahil dihapus. Dibuat
+    // eksplisit karena `lengkapiCap` di-mock mati di berkas uji ini.
+    await db.photoStampRevision.create({
+      data: {
+        photoId: id,
+        revision: 1,
+        reason: "lengkapi cap",
+        before: {},
+        after: {},
+        changedById: mandorId,
+      },
+    });
+    await removeItemAction(undefined, fd({ reportId: item.reportId, itemId: item.id }));
+    const foto = await db.photo.findUniqueOrThrow({
+      where: { id },
+      select: { reportId: true, reportItemId: true },
+    });
+    expect(foto.reportItemId).toBeNull();
+    expect(foto.reportId).not.toBeNull();
+    return id;
+  }
+
+  it("bisa DIHAPUS meski capnya punya riwayat", async () => {
+    // Sebelum perbaikan: cascade ke photo_stamp_revisions ditolak trigger
+    // append-only → P0001 → "A server error occurred", fotonya tetap ada.
+    const id = await fotoYatim("y1");
+    const hasil = await removeReportPhotoAction(undefined, fd({ photoId: id }));
+    expect(hasil?.error).toBeUndefined();
+    expect(await db.photo.findUnique({ where: { id } })).toBeNull();
+  });
+
+  it("riwayat cap TETAP tak bisa dihapus selama fotonya masih ada", async () => {
+    // Batas yang dijaga: "append-only" tidak boleh ikut longgar. Menghapus
+    // riwayat cap foto yang MASIH ADA berarti menghapus satu-satunya catatan
+    // apa yang dulu tertulis di foto itu.
+    const id = await fotoYatim("y2");
+    await expect(
+      db.photoStampRevision.deleteMany({ where: { photoId: id } }),
+    ).rejects.toThrow(/append-only/);
+    expect(await db.photoStampRevision.count({ where: { photoId: id } })).toBe(1);
+  });
+
+  it("bisa DIKEMBALIKAN ke kantong untuk dipakai lagi", async () => {
+    const id = await fotoYatim("y3");
+    const hasil = await returnPhotoToKantongAction(undefined, fd({ photoId: id }));
+    expect(hasil?.error).toBeUndefined();
+    expect(hasil?.success).toContain("kantong");
+
+    const foto = await db.photo.findUniqueOrThrow({
+      where: { id },
+      select: { reportId: true, reportItemId: true, locationId: true },
+    });
+    expect(foto.reportId).toBeNull();
+    expect(foto.reportItemId).toBeNull();
+    expect(foto.locationId).toBe(locA);
+
+    // Dan benar-benar muncul lagi di kantong lokasi itu — bukan sekadar kolom
+    // dikosongkan lalu foto lenyap dari semua layar.
+    const kantong = await muatKantongLokasiAction(locA);
+    expect("error" in kantong).toBe(false);
+    if ("error" in kantong) return;
+    expect(kantong.fotos.map((f) => f.id)).toContain(id);
+  });
+
+  it("foto yang MASIH menempel di pekerjaan tidak bisa dikembalikan lewat sini", async () => {
+    // Melepasnya diam-diam = mencabut bukti dari satu pekerjaan tanpa
+    // mengatakannya kepada siapa pun.
+    const id = await buatFoto(locA, "y4");
+    await saveItemAction(
+      undefined,
+      fd({
+        locationId: locA,
+        dateKey: "2026-08-01",
+        rabNodeId: nodeId,
+        volumeDone: "1",
+        kantongPhotoIds: id,
+      }),
+    );
+    const hasil = await returnPhotoToKantongAction(undefined, fd({ photoId: id }));
+    expect(hasil?.error).toContain("masih menempel");
+    const foto = await db.photo.findUniqueOrThrow({
+      where: { id },
+      select: { reportItemId: true },
+    });
+    expect(foto.reportItemId).not.toBeNull();
   });
 });

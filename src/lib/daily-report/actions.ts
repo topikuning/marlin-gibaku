@@ -14,7 +14,7 @@ import { can } from "@/lib/authz";
 import { jakartaDateKey } from "@/lib/format";
 import { MAX_PHOTOS_PER_UPLOAD, PhotoError, savePhotoForItem } from "@/lib/photos";
 import { isR2Configured, r2Delete } from "@/lib/r2";
-import { audit } from "@/lib/audit";
+import { audit, auditIn } from "@/lib/audit";
 import { applyWeatherToReport, WeatherError, WeatherFetchError } from "@/lib/weather/service";
 import type { UserRole, WeatherCode, WorkerRole } from "@/generated/prisma/enums";
 import { WEATHER_ORDER, WORKER_ROLE_ORDER } from "./constants";
@@ -45,11 +45,38 @@ export type DailyActionState =
   | { error?: string; success?: string; warning?: string }
   | undefined;
 
+/**
+ * Ubah galat jadi PESAN, bukan jadi halaman mati.
+ *
+ * Laporan user 2026-08-07: *"masukkan foto ini dari galeri, pilih tidak di
+ * lokasi proyek, langsung muncul halaman error minta reload"*.
+ *
+ * Apa pun galat yang menyebabkannya, MEKANISME yang mengubahnya jadi layar mati
+ * ada di sini: dulu galat yang tidak masuk daftar putih dilempar ulang, dan
+ * lemparan dari server action menjatuhkan seluruh halaman jadi "Application
+ * error — reload". Yang hilang bukan cuma tampilan, melainkan satu-satunya
+ * kesempatan memberi tahu APA yang salah — persis pelajaran mahal dari antrean
+ * Foto Cepat (DECISIONS 284–287): layar yang diam saat gagal membuat perbaikan
+ * jadi tebakan.
+ *
+ * Sekarang galat tak terduga tetap menghentikan aksinya, tapi:
+ * - sebabnya DISEBUT di layar berikut nama galatnya, bisa difoto & dilaporkan;
+ * - galat utuhnya tetap masuk log server — yang tidak boleh hilang adalah
+ *   penyebabnya, bukan permintaannya.
+ *
+ * `redirect()`/`notFound()` Next bekerja DENGAN cara melempar; lemparan itu
+ * harus tetap lewat, kalau tidak navigasinya rusak.
+ */
 function errState(err: unknown): DailyActionState {
   if (err instanceof DailyReportError || err instanceof PhotoError || err instanceof ForbiddenError) {
     return { error: err.message };
   }
-  throw err;
+  const digest = (err as { digest?: unknown } | null)?.digest;
+  if (typeof digest === "string" && digest.startsWith("NEXT_")) throw err;
+
+  console.error("[laporan-harian] galat tak terduga", err);
+  const nama = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+  return { error: `Gagal diproses — ${nama}. Salin pesan ini saat melapor.` };
 }
 
 /** Ambil report + slug/dateKey untuk otorisasi & revalidate. */
@@ -278,6 +305,17 @@ const saveItemSchema = z.object({
   rabNodeId: z.uuid("Pilih item pekerjaan dulu"),
   volumeDone: z.coerce.number().positive("Volume harus lebih dari 0"),
   notes: z.string().trim().max(500).optional(),
+  /**
+   * Foto kantong Foto Cepat yang dipilih DI FORMULIR, sebelum item ini ada.
+   *
+   * Permintaan user 2026-08-07: *"seharusnya di tampilan utama pilih pekerjaan,
+   * selain kamera, galeri, kantong harusnya langsung bisa dipilih sebelum
+   * simpan item... ini default paling nyaman"*. Memang tidak mungkin
+   * MENAUTKANNYA lebih dulu — penautan butuh item yang sudah punya id. Yang
+   * mungkin: memilihnya lebih dulu, lalu menautkan tepat sesudah itemnya
+   * tersimpan. Dari sisi pelapor hasilnya sama, dan itu yang penting.
+   */
+  kantongPhotoIds: z.array(z.uuid()).max(20).optional(),
   ...photoFieldsShape,
 });
 
@@ -290,6 +328,7 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
       rabNodeId: formData.get("rabNodeId"),
       volumeDone: formData.get("volumeDone"),
       notes: formData.get("notes") ?? undefined,
+      kantongPhotoIds: formData.getAll("kantongPhotoIds").map(String),
       ...photoFieldsFrom(formData),
     });
     if (!parsed.success) return { error: parsed.error.issues[0].message };
@@ -318,10 +357,37 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
       foto: d,
     });
 
+    /*
+     * Foto kantong yang dipilih di formulir ditautkan SESUDAH itemnya ada.
+     *
+     * Kegagalan di sini TIDAK membatalkan progresnya: volume sudah tersimpan
+     * dan itu angka yang masuk ke kurva-S. Membatalkannya karena satu foto
+     * bermasalah akan menghapus pekerjaan yang benar demi lampiran yang
+     * opsional. Yang gagal DISEBUTKAN, dan fotonya tetap utuh di kantong
+     * sehingga bisa dicoba lagi dari daftar pekerjaan.
+     */
+    let kantongGagal: string | undefined;
+    if (d.kantongPhotoIds && d.kantongPhotoIds.length > 0) {
+      const { pakaiFotoKeTujuan } = await import("@/lib/foto-cepat/pakai");
+      const hasil = await pakaiFotoKeTujuan(user, d.kantongPhotoIds, {
+        tujuan: "laporan",
+        reportItemId: item.id,
+      });
+      if ("error" in hasil) kantongGagal = `Foto kantong tidak terpakai: ${hasil.error}`;
+      else if (hasil.gagalCap.length > 0)
+        kantongGagal =
+          `${hasil.gagalCap.length} foto kantong memakai cap dasar ` +
+          `(${[...new Set(hasil.gagalCap)].join(", ")}) — foto & datanya tetap utuh.`;
+    }
+
     revalidateReport(location.slug, d.dateKey);
+    const peringatan = [
+      photoErrors.length ? `Sebagian foto gagal: ${[...new Set(photoErrors)].join("; ")}` : null,
+      kantongGagal ?? null,
+    ].filter(Boolean);
     return {
       success: "Progres tersimpan.",
-      warning: photoErrors.length ? `Sebagian foto gagal: ${[...new Set(photoErrors)].join("; ")}` : undefined,
+      warning: peringatan.length ? peringatan.join(" · ") : undefined,
     };
   } catch (err) {
     return errState(err);
@@ -502,6 +568,105 @@ export async function removeReportPhotoAction(
 
     revalidateReport(photo.report.location.slug, jakartaDateKey(photo.report.reportDate));
     return { success: "Foto dihapus." };
+  } catch (err) {
+    return errState(err);
+  }
+}
+
+/**
+ * Kembalikan foto YATIM ke kantong Foto Cepat supaya bisa dipakai lagi.
+ *
+ * Pertanyaan user 2026-08-07: *"item pekerjaan dihapus, foto jadi orphan...
+ * kalau mau dipakai lagi bagaimana"*.
+ *
+ * Sebelum ini jawabannya: tidak bisa. Satu-satunya aksi yang ditawarkan pada
+ * foto yatim adalah HAPUS — padahal foto itu bukti lapangan yang koordinat dan
+ * waktunya benar; yang salah cuma pekerjaan yang ditempelinya. Menyuruh orang
+ * membuangnya lalu memotret ulang adalah menyuruh membuat bukti yang lebih
+ * buruk (dipotret belakangan, dari tempat lain).
+ *
+ * Yang dilakukan: melepas fotonya dari laporan (`reportId = null`) sehingga ia
+ * kembali muncul di kantong lokasi itu dan bisa dipilih untuk pekerjaan mana pun
+ * lewat jalur "Foto Cepat" yang sudah ada — bukan jalur penautan baru.
+ *
+ * Batas yang dijaga:
+ * - Hanya foto YATIM. Foto yang masih menempel pada satu pekerjaan tidak boleh
+ *   dilepas lewat sini: itu akan mencabut bukti dari item tanpa mengatakannya.
+ * - Jendela sunting & peran sama persis dengan hapus foto.
+ * - Kalau lokasinya belum tercatat, diisi dari LOKASI LAPORAN tempat foto itu
+ *   menempel — bukan tebakan: fotonya memang terlampir di laporan lokasi itu.
+ *   Tetap disebutkan di pesan hasilnya, tidak diam-diam.
+ */
+export async function returnPhotoToKantongAction(
+  _prev: DailyActionState,
+  formData: FormData,
+): Promise<DailyActionState> {
+  try {
+    const user = await requireCapability("daily_report.create");
+    const parsed = photoIdSchema.safeParse({ photoId: formData.get("photoId") });
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+    const photo = await db.photo.findUnique({
+      where: { id: parsed.data.photoId },
+      select: {
+        id: true,
+        uploadedById: true,
+        locationId: true,
+        reportItemId: true,
+        report: {
+          select: {
+            id: true,
+            status: true,
+            locationId: true,
+            reportDate: true,
+            location: { select: { slug: true } },
+          },
+        },
+      },
+    });
+    if (!photo?.report) return { error: "Foto laporan tidak ditemukan." };
+    await requireLocationAccess(user, photo.report.locationId);
+
+    if (photo.reportItemId) {
+      return {
+        error:
+          "Foto ini masih menempel pada satu pekerjaan. Hapus dulu fotonya dari pekerjaan itu kalau memang mau dipindah.",
+      };
+    }
+    if (!EDITABLE_STATUSES.includes(photo.report.status)) {
+      return { error: "Hanya bisa saat laporan berstatus Draft atau Perlu Koreksi." };
+    }
+    const miliknyaSendiri = photo.uploadedById !== null && photo.uploadedById === user.id;
+    if (!miliknyaSendiri && !PERAN_BOLEH_HAPUS_FOTO_ORANG_LAIN.includes(user.role)) {
+      return {
+        error: "Hanya pengunggah foto, Site Manager, atau Super Admin yang bisa memindahkan foto ini.",
+      };
+    }
+
+    const lokasiDiisi = photo.locationId == null;
+    await db.$transaction(async (tx) => {
+      await tx.photo.update({
+        where: { id: photo.id },
+        data: {
+          reportId: null,
+          reportItemId: null,
+          locationId: photo.locationId ?? photo.report!.locationId,
+        },
+      });
+      await auditIn(tx, user.id, "daily_report.photo_to_kantong", "photo", photo.id, {
+        reportId: photo.report!.id,
+        locationId: photo.locationId ?? photo.report!.locationId,
+        lokasiDiisiDariLaporan: lokasiDiisi,
+      });
+    });
+
+    revalidateReport(photo.report.location.slug, jakartaDateKey(photo.report.reportDate));
+    revalidatePath("/foto-cepat");
+    return {
+      success: lokasiDiisi
+        ? "Foto kembali ke kantong Foto Cepat; lokasinya diisi dari lokasi laporan ini. Pilih lewat tombol “Foto Cepat” di pekerjaan yang dituju."
+        : "Foto kembali ke kantong Foto Cepat. Pilih lewat tombol “Foto Cepat” di pekerjaan yang dituju.",
+    };
   } catch (err) {
     return errState(err);
   }

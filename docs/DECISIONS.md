@@ -10796,3 +10796,699 @@ antaranya untuk dimensi "Laporan"). Uji gigi: membuat `proses` hanya mencakup
 **Diperiksa di peramban.** Desktop 1440: 1440 = 1440, tombol **Unggah** dan
 **Kirim** terbaca sebagai tombol merah berkotak pada baris yang ada isinya.
 Ponsel 390: 390 = 390, gridnya menggulir di dalam wadahnya sendiri.
+
+## 280 · Foto Cepat di laporan harian: panel menutup, kantong bisa dipilih sebelum item ada (2026-08-07)
+
+**Konteks.** Tiga laporan user sekaligus, semuanya di editor laporan harian.
+
+### 1 · Panel kantong yang tertinggal terbuka menautkan foto ke pekerjaan yang SALAH
+
+> *"saat kemudian user input item pekerjaan baru, lalu berhasil, tampilan
+> pilihan dari kantong harusnya menutup... dialog foto di item lain tidak
+> menutup, dan masih ada tampilan foto yang belum dipilih, padahal sudah dipilih
+> di item lain."*
+
+Dua cacat, dan yang kedua **diam**:
+
+1. Beberapa panel bisa terbuka bersamaan, masing-masing memegang SALINAN kantong
+   dari saat ia dibuka. Foto yang sudah terpakai di panel A tetap terlihat
+   tersedia di panel B.
+2. Panel yang tertinggal terbuka terikat pada item **lama**. Pelapor yang baru
+   menyimpan pekerjaan baru memakai panel terdekat yang kebetulan masih terbuka
+   — dan fotonya mendarat di pekerjaan yang salah **tanpa satu pun pesan galat**,
+   karena menurut aturan penautannya memang sah.
+
+**Keputusan.** Keadaan "panel mana yang terbuka" diangkat ke `ItemList` sebagai
+SATU id, jadi mustahil ada dua panel terbuka. Id itu dilepas ketika daftar item
+berubah (item baru tersimpan / ada yang dihapus). Selain itu `AmbilDariKantong`
+menutup dirinya sendiri begitu penautan berhasil, bukan menyisakan panel dengan
+sisa fotonya.
+
+### 2 · Kantong kini bisa dipilih SEBELUM item disimpan
+
+> *"seharusnya di tampilan utama pilih pekerjaan, selain kamera, galeri, kantong
+> harusnya langsung bisa dipilih sebelum simpan item. atau ini tidak
+> memungkinkan karena item belum tersimpan? seharusnya ini default paling
+> nyaman."*
+
+Menautkannya lebih dulu memang **tidak mungkin** — penautan butuh id item. Yang
+mungkin: **memilih** lebih dulu, lalu menautkan tepat sesudah itemnya tersimpan.
+Dari sisi pelapor hasilnya sama, dan itu yang menentukan.
+
+- `saveItemAction` menerima `kantongPhotoIds`; sesudah `upsertItem` ia memanggil
+  aturan penautan yang sama.
+- Badan aturan "pakai foto" dipindah ke modul sendiri `src/lib/foto-cepat/pakai.ts`
+  supaya **dua jalur, satu aturan**. Kalau badannya disalin, pagarnya akan
+  bergeser diam-diam di salah satu salinan — dan pagar yang dijaga bukan pagar
+  remeh (foto tanpa lokasi, foto lokasi lain — DECISIONS 254).
+- **Kegagalan lampiran TIDAK membatalkan progresnya.** Volume sudah tersimpan dan
+  itu angka yang masuk ke kurva-S; membatalkannya karena satu foto bermasalah
+  akan menghapus pekerjaan yang benar demi lampiran yang opsional. Yang gagal
+  DISEBUTKAN di peringatan, dan fotonya tetap utuh di kantong.
+- Komponennya dipecah: `PemilihKantong` (petak saja, tanpa `<form>`) dipakai di
+  dalam formulir item — form tidak boleh bersarang — sedangkan `AmbilDariKantong`
+  tetap membungkusnya dengan form untuk item yang sudah tersimpan.
+
+### 3 · Catatan tidak lagi menonjol
+
+> *"inputan catatan (optional) pada inputan harian sebaiknya tidak terlalu
+> menonjol"*
+
+Betul: tiga langkah bernomor di atasnya yang menentukan angka progres, sedangkan
+catatan hanya keterangan. Dengan `Label` bernomor, ia terbaca sebagai langkah
+keempat yang wajib. Sekarang label kecil bernada rendah + kolom `h-10`, tapi
+TETAP terlihat (bukan disembunyikan di balik tombol) supaya tidak perlu dicari.
+
+**Uji.** 3 uji integrasi baru di `tests/integration/foto-cepat-pakai.test.ts`:
+foto kantong tertaut ke item yang baru tersimpan; foto lokasi LAIN ditolak tapi
+progresnya tetap tersimpan DAN penolakannya disebut; foto tanpa lokasi tidak
+bisa diselundupkan lewat jalur simpan item. Uji gigi: menelan kegagalan penautan
+diam-diam → 2 uji gugur.
+
+**Diperiksa di peramban** (390px): tombol "Foto Cepat" muncul sebagai jalur
+ketiga di bagian foto formulir, panelnya terbuka di tempat, halaman 390 = 390.
+
+## 281 · Foto yatim: bisa dihapus (bug trigger), dan bisa dipakai lagi (2026-08-07)
+
+**Konteks.** Laporan user 2026-08-07: *"item pekerjaan dihapus, foto jadi
+orphan. tapi dihapus juga error. kalau mau dipakai lagi bagaimana"*, disusul
+*"itu dari foto cepat yang disambungkan ke item, lalu itemnya dihapus"*.
+
+### Cacat 1 · Dua aturan yang saling bertabrakan
+
+Migrasi `20260801060000_photo_restamp_and_archive_purge` memasang dua hal yang
+tidak bisa hidup bersama, **hanya berjarak enam baris**:
+
+```sql
+photo_stamp_revisions_photo_id_fkey ... ON DELETE CASCADE
+CREATE TRIGGER photo_stamp_revisions_append_only BEFORE UPDATE OR DELETE ...
+```
+
+Menghapus foto memicu cascade ke baris revisi cap; trigger menolak DELETE; aksi
+meledak dengan `P0001` yang muncul di layar sebagai **"A server error occurred"**
+— bukan pesan yang bisa dibaca, dan fotonya tetap ada. Yang kena persis foto yang
+capnya PERNAH DILENGKAPI: foto Foto Cepat yang ditautkan ke item lalu itemnya
+dihapus. Foto begitu jadi yatim, tidak bisa dipakai, tidak bisa dihapus.
+
+**Keputusan.** Trigger diganti penjaga yang membedakan dua hal:
+
+- **UPDATE tetap dilarang selamanya.** Itu inti "append-only": koreksi cap =
+  INSERT revisi baru, bukan menimpa yang lama. Kalau baris lama bisa ditulis
+  ulang, catatan apa yang dulu tertera di foto jadi tak bisa dipercaya.
+- **DELETE hanya sah sebagai ikutan terhapusnya foto induk.** Selama fotonya
+  masih ada, riwayat capnya tidak bisa dihapus — jaminan yang sama seperti
+  sebelumnya. Begitu fotonya sendiri hilang (hanya saat laporan draft/perlu
+  koreksi, hanya oleh pengunggah/SM/SA, dan tercatat di `audit_logs`), riwayat
+  cap sebuah foto yang tidak ada lagi tidak menjaga apa pun.
+
+Pembedanya dibaca dari kenyataan, bukan dari flag sesi: saat cascade berjalan,
+baris induk di `photos` SUDAH terhapus dalam transaksi yang sama, sehingga
+`EXISTS (SELECT 1 FROM photos WHERE id = OLD.photo_id)` bernilai false. DELETE
+langsung ke tabel revisi (fotonya masih ada) tetap ditolak.
+
+### Cacat 2 · Foto yatim tidak punya jalan kembali
+
+Satu-satunya aksi yang ditawarkan adalah HAPUS. Padahal fotonya bukti lapangan
+yang waktu & koordinatnya benar; yang salah cuma pekerjaan yang ditempelinya.
+Menyuruh membuangnya lalu memotret ulang = menyuruh membuat bukti yang **lebih
+buruk** (dipotret belakangan, dari tempat lain).
+
+**Keputusan.** `returnPhotoToKantongAction` melepas foto dari laporan
+(`reportId = null`) sehingga ia kembali muncul di kantong lokasi itu dan bisa
+dipilih untuk pekerjaan mana pun lewat jalur "Foto Cepat" yang sudah ada — bukan
+jalur penautan baru. Batasnya:
+
+- **Hanya foto YATIM.** Foto yang masih menempel pada satu pekerjaan tidak boleh
+  dilepas lewat sini: itu mencabut bukti dari item tanpa mengatakannya.
+- Jendela sunting & peran **sama persis** dengan hapus foto.
+- Kalau lokasinya belum tercatat, diisi dari **lokasi laporan** tempat foto itu
+  menempel — bukan tebakan, dan tetap disebutkan di pesan hasilnya.
+
+**Uji.** 4 uji integrasi baru di `tests/integration/foto-cepat-pakai.test.ts`,
+semuanya lewat jalur asli user (kantong → item → item dihapus). Uji gigi:
+mengembalikan trigger lama membuat uji "bisa DIHAPUS meski capnya punya riwayat"
+gugur; `deleteMany` langsung ke riwayat cap foto yang masih ada tetap ditolak.
+
+**Diperiksa di peramban** (390px, sm-01): 2 foto yatim → hapus satu (tanpa galat
+server, 2 → 1) → kembalikan satu ke kantong (1 → 0), dan barisnya benar-benar
+muncul lagi dengan `report_id` kosong.
+
+## 282 · Antrean foto: baris yang kehilangan halamannya tersangkut selamanya (2026-08-07)
+
+**Konteks.** Laporan user 2026-08-07: *"stuck. ini ambil banyak data, ada
+beberapa yang terupload. tapi ada yg stuck. sudah coba logout, ganti user, tetap
+muncul di hp awal. coba ambil foto berhasil terupload langsung, tapi foto yang
+gantung ini stuck"* — tiga foto bertuliskan "kirim…" dengan tanda "jaringan ada".
+
+**Sebabnya.** `"kirim"` adalah SATU-SATUNYA status yang hanya bisa diturunkan
+oleh halaman yang menyetelnya:
+
+```ts
+await perbarui(r.id, { status: "kirim", ... });   // sebelum unggah
+// ...
+if (item.status === "kirim") return false;        // bolehCoba menolak menyentuhnya
+```
+
+Penjagaan itu sendiri benar — ia mencegah satu foto dikirim dua kali bersamaan.
+Yang tidak pernah dipikirkan: **halaman bisa mati di tengah unggahan.** Tab
+ditutup, HP terkunci, peramban membunuh halaman latar belakang, aplikasi
+di-swipe. Begitu itu terjadi, tidak ada lagi yang menurunkan statusnya. Barisnya
+tinggal di IndexedDB bertuliskan "kirim…" selamanya, dan tiap denyut pemeriksaan
+melewatinya.
+
+Tiga gejala yang dilaporkan user cocok persis dengan sebab ini, dan tidak dengan
+sebab lain:
+
+| Gejala | Kenapa |
+|---|---|
+| logout & ganti user tidak menolong | antreannya milik **perangkat** (IndexedDB), bukan sesi |
+| foto baru lancar terkirim | foto baru masuk berstatus `"menunggu"`, bukan `"kirim"` |
+| "Coba kirim sekarang" tidak berbuat apa-apa | tombol itu memanggil `proses()`, dan `bolehCoba` menolak baris `"kirim"` |
+
+**Keputusan.** Baris `"kirim"` yang **terlalu lama** dianggap MACET dan
+diturunkan kembali ke `"menunggu"` sebelum antrean diproses.
+
+- Ambangnya **2 menit** (`BATAS_KIRIM_MACET_MS`) — jauh lebih lama daripada
+  unggahan satu foto di sinyal jelek, jadi ia tidak memotong unggahan yang
+  sungguh masih berjalan (mis. di tab lain).
+- **"Coba kirim sekarang" membebaskan TANPA menunggu ambang.** Orangnya sedang
+  menatap layar, dan di tab itu tidak ada unggahan yang sedang berjalan —
+  `sedangJalan` sudah menghentikan `proses` di baris pertama kalau ada.
+- **`percobaan` TIDAK dinaikkan.** Baris ini belum pernah benar-benar ditolak,
+  ia cuma kehilangan halamannya; menaikkannya akan mendorongnya ke jeda 5 menit
+  tanpa sebab.
+- **`bolehCoba` TIDAK dilonggarkan.** Dua aturan ini sengaja terpisah: yang satu
+  menjaga foto tidak dikirim dua kali bersamaan, yang lain membebaskan yang
+  macet dengan menurunkan statusnya lebih dulu. Melonggarkan `bolehCoba` akan
+  ikut mengirim ulang foto yang SUNGGUH sedang diunggah.
+- `"ditolak"` tidak ikut dibebaskan otomatis: itu keputusan server yang butuh
+  orang, dan mengulanginya hanya menghasilkan penolakan yang sama.
+
+**Uji.** 4 uji unit baru di `tests/unit/foto-cepat-antrean.test.ts`. Uji gigi:
+membuat `kirimMacet` mengabaikan status → 1 uji gugur; melonggarkan `bolehCoba`
+untuk `"kirim"` → 2 uji gugur.
+
+**Diperiksa di peramban** (390px): tiga baris ditanam ke IndexedDB berstatus
+`"kirim"` dengan `terakhirCoba` sejam lalu — persis keadaan di HP user. Sebelum
+perbaikan, sesudah muat ulang tetap `["kirim","kirim","kirim"]` dan 3× label
+"kirim…" di layar. Sesudah perbaikan: ketiganya bergerak dan mendapat jawaban
+server, 0× "kirim…".
+
+## 283 · Antrean foto: tidak ada batas waktu di mana pun — antreannya bisa mati diam-diam (2026-08-07)
+
+**Konteks.** Sesudah DECISIONS 282 naik ke server (deploy sukses 10:48 WIB), user
+melaporkan pukul 11:32: *"foto tetap stuck"* — tiga baris "kirim…" yang sama,
+tidak bergerak sedikit pun.
+
+**Pengakuan.** Diagnosis 282 benar tapi TIDAK LENGKAP. Membebaskan baris yang
+tersangkut di "kirim" memang perlu, tapi ia mengobati gejala di satu lapis di
+atas sebabnya. Sebab yang sebenarnya: **tidak ada satu pun batas waktu di
+sepanjang jalur antrean**.
+
+Kalau yang di-`await` tidak pernah menjawab — permintaan menggantung di seluler
+yang setengah hidup, atau IndexedDB iOS yang berhenti merespons sesudah halaman
+kembali dari latar belakang — maka:
+
+1. status tidak pernah turun dari "kirim", DAN
+2. `finally` yang melepas kunci antrean **tidak pernah dijalankan**.
+
+Akibat (2) itulah yang membuat perbaikan 282 tak terlihat hasilnya: pembebasan
+baris macet ada di DALAM `proses()`, dan `proses()` berhenti di baris pertama
+karena kuncinya masih dipegang oleh putaran yang pemegangnya sudah tidak ada.
+Antreannya mati diam-diam, layarnya membeku pada label terakhir, dan "Coba
+kirim sekarang" pun tidak berbuat apa-apa.
+
+**Keputusan.** `Promise` yang menggantung tidak bisa dibatalkan — tapi bisa
+DIABAIKAN. Tiga batas dipasang supaya tidak ada keadaan yang bertahan selamanya:
+
+| Batas | Nilai | Yang dijaga |
+|---|---|---|
+| `BATAS_SATU_KIRIM_MS` | 60 dtk | satu pengiriman menyerah, barisnya jadi `gagal_jaringan` dan dicoba lagi |
+| `BATAS_PUTARAN_MS` | 180 dtk | kunci antrean diambil alih kalau pemegangnya sudah tidak ada |
+| `BATAS_SIMPANAN_MS` | 10 dtk | pembacaan IndexedDB yang berhenti menjawab tidak membekukan putaran |
+
+Urutannya disengaja dan diuji: **satu pengiriman menyerah lebih dulu, baru
+kuncinya dianggap ditinggalkan.** Kalau terbalik, pengambilalihan kunci terjadi
+SELAGI pengiriman masih sah berjalan, dan foto yang sama dikirim dua kali.
+
+Kunci antrean berubah dari boolean jadi **cap waktu mulai**: boolean tidak bisa
+membedakan "sedang jalan" dari "pemegangnya sudah tidak ada", dan bedanya persis
+yang menentukan antrean hidup atau mati.
+
+Baris antrean juga menyebutkan **sebab percobaan terakhir**. Tanpa itu, label
+"antre" tidak membedakan "belum pernah dicoba" dari "sudah dicoba dan jaringan
+tidak menjawab" — dan orang di lapangan tidak punya apa pun untuk dilaporkan
+selain "stuck".
+
+**Uji.** 4 uji unit baru (`putaranDitinggalkan`, termasuk yang mengunci urutan
+`BATAS_SATU_KIRIM_MS < BATAS_PUTARAN_MS`).
+
+**Diperiksa di peramban dengan MENIRU keadaan HP user**: permintaan Server
+Action ditahan di level jaringan sehingga promise-nya benar-benar menggantung.
+
+```
+tanpa batas waktu →  t+8s ["kirim/0",...]   t+68s ["kirim/0",...]      ← beku
+dengan batas waktu →  t+8s ["kirim/0",...]   t+68s ["gagal_jaringan/1", "kirim/0", ...]
+```
+
+Antreannya jalan lagi dan pindah ke foto berikutnya. Itu uji giginya sekaligus:
+membuang `berbatasWaktu` mengembalikan pembekuannya persis.
+
+## 284 · Antrean foto: hentikan menebak — simpanan yang gagal harus BERSUARA (2026-08-07)
+
+**Konteks.** Sesudah DECISIONS 283 naik (deploy sukses 11:49 WIB), user melapor:
+*"tampilan masih sama persis, tidak ada perubahan sama sekali"*, lalu
+*"harus ada kejelasan ini kenapa, ini terjadi saat ambil foto dengan cepat, ini
+terjadi lagi stuck, padahal jaringan lancar"*.
+
+**Pengakuan.** Dua putaran perbaikan (282, 283) dibuat dari diagnosis yang
+disusun dari kode, bukan dari bukti perangkatnya. Keduanya memperbaiki cacat
+NYATA — dibuktikan di peramban — tapi keduanya belum tentu cacat yang dialami
+user, dan tidak ada satu pun cara untuk tahu. Itu bukan kebetulan: **setiap
+jalur kegagalan di jalur ini bisu.**
+
+- `jalankan()` menyelesaikan janji pada `req.onsuccess` dan tidak pernah
+  memasang `tx.onerror` / `tx.onabort`. Transaksi yang GUGUR (kuota habis) tidak
+  pernah menolak janjinya — ia cuma diam. Lebih buruk: penulisan dianggap
+  berhasil sebelum transaksinya tuntas, padahal transaksi masih bisa gugur
+  SESUDAH permintaannya sukses.
+- `indexedDB.open()` tanpa `onblocked`: koneksi yang ditahan tab lain membuatnya
+  diam, tanpa galat.
+- Semua pemanggil di `use-antrean.ts` memakai `.catch(() => {})`.
+- Tidak ada satu pun keadaan gagal yang punya tempat di layar.
+
+Layar yang diam saat gagal membuat perbaikan jadi tebakan — dan tebakan yang
+dikirim ke lapangan membuang waktu orang yang sedang bekerja.
+
+**Keputusan.**
+
+1. **Batas waktu turun ke lapis simpanan.** Setiap operasi IndexedDB (buka +
+   transaksi) dibatasi 10 detik. Sebelumnya hanya `semua()` yang dibungkus di
+   `use-antrean.ts`, sehingga `perbarui`/`buang`/`simpan` masih bisa
+   menggantung — dan `perbarui` justru yang dipanggil paling sering.
+2. **Diselesaikan pada TRANSAKSI, bukan pada permintaan**, dengan `tx.onerror`
+   dan `tx.onabort` yang menolak. Plus `onblocked` saat membuka.
+3. **`SimpananGagal` berisi kalimat yang bisa dibaca orang lapangan** ("Ruang
+   penyimpanan HP mungkin penuh", "tutup tab lain yang membuka MARLIN"), dan
+   ditampilkan sebagai spanduk **"Antrean tersendat"** — bukan ditelan.
+4. **Tiap foto antre bisa dibuang** (dengan konfirmasi yang menyebut fotonya
+   akan hilang dan TIDAK terkirim). Sebelumnya hanya yang berstatus "ditolak"
+   yang punya tombol buang, sehingga foto yang tidak mau terkirim menyandera
+   pemakainya: tidak bisa dikirim, tidak bisa dihilangkan.
+5. **Penanda versi "antrean v4"** di panel antrean. Peramban ponsel menyimpan
+   berkas program dengan gigih; tab yang dibuka sejak sebelum penerapan versi
+   baru terus menjalankan kode LAMA sampai dimuat ulang — dan dari luar itu
+   TIDAK bisa dibedakan dari "perbaikannya tidak jalan". Penanda ini yang
+   menjawab pertanyaan pertama pada laporan berikutnya.
+
+**Yang MASIH belum diketahui.** Petunjuk terakhir user — *"terjadi saat ambil
+foto dengan cepat"* — belum bisa dipertanggungjawabkan sebagai sebab. Ia belum
+direproduksi. Dicatat sebagai FOTO-01 di `docs/OPEN_ISSUES.md`, bukan
+diselesaikan dengan tebakan ketiga.
+
+**Diperiksa di peramban** dengan menggugurkan setiap penulisan IndexedDB (tiruan
+kuota penuh): layar kini menampilkan **"Antrean tersendat — Simpanan foto di HP
+menolak (transaksi). Ruang penyimpanan HP mungkin penuh."** dan 3 tombol buang
+per foto. Sebelumnya: tidak ada apa pun.
+
+**Catatan jujur soal uji gigi.** Uji gigi untuk poin 2 TIDAK menggigit:
+mengembalikan penyelesaian-pada-permintaan tetap memunculkan spanduknya (jalur
+penolakannya datang dari transaksi lain di putaran yang sama). Jadi yang
+terbukti adalah PERILAKUNYA — kegagalan yang dulu bisu sekarang bersuara —
+bukan bahwa tiap baris penjagaannya menanggung beban sendiri-sendiri.
+
+## 285 · Antrean foto: satu koneksi IndexedDB, nama galat apa adanya, panel rincian di layar (2026-08-07)
+
+**Konteks.** Penanda versi bekerja: user mengirim tangkapan layar yang
+menampilkan **"antrean v4"** — jadi perangkatnya memang menjalankan kode baru —
+beserta spanduk *"Simpanan foto di HP menolak (transaksi). Ruang penyimpanan HP
+mungkin penuh."* dengan 2 foto tersangkut. Tanggapannya tegas dan benar:
+
+> *"alasanmu tidak masuk akal, kalau memang penuh seharusnya foto lagi tidak
+> bisa terkirim. coba buat debug yang lebih jelas dilayar biar kukirim
+> masalahnya ke kamu. karena tidak bisa inspect element di hp"*
+
+**Tiga kesalahan yang diakui.**
+
+1. **Pesannya mengarang sebab.** "Ruang penyimpanan HP mungkin penuh" adalah
+   tebakan yang ditempelkan ke fakta, dan tebakan itu salah — foto baru tersimpan
+   lancar. Pesan yang mengarang sebab lebih buruk daripada pesan yang hanya
+   menyebut fakta: ia mengirim orang ke arah yang salah.
+2. **Nama galat aslinya justru saya buang.** Saat memasang `tx.onerror` di
+   DECISIONS 284, `req.onerror` ikut dihapus — sehingga `DOMException` yang
+   sebenarnya (namanya!) hilang dan yang sampai ke layar hanya kata "transaksi".
+   Diagnostiknya diperburuk tepat di tempat yang paling membutuhkannya.
+3. **Tidak ada alat lapor dari perangkat.** Tiga putaran perbaikan dikerjakan
+   tanpa satu pun fakta dari HP-nya, padahal di ponsel tidak ada inspect element.
+
+**Keputusan.**
+
+- **SATU koneksi IndexedDB untuk seumur halaman.** Ini bukan penghematan,
+  melainkan perbaikan cacat: di WebKit, `Blob` yang dibaca dari IndexedDB
+  berhenti bisa dipakai begitu koneksi yang menghasilkannya DITUTUP. Versi lama
+  membuka koneksi baru tiap operasi dan menutupnya di `tx.oncomplete`, jadi tiap
+  `semua()` mengembalikan baris ber-blob mati; menulisnya kembali (yang dilakukan
+  `perbarui` setiap kali status berubah) berarti menulis blob mati → permintaan
+  gagal → transaksi gugur → antrean berhenti. Ini juga menjelaskan petunjuk
+  user *"terjadi saat ambil foto dengan cepat"*: foto yang langsung terkirim
+  masih memakai blob segar dari memori, sedangkan yang menumpuk di antrean harus
+  dibaca ulang dari simpanan lebih dulu. `onclose`/`onversionchange` melupakan
+  pegangannya supaya operasi berikutnya membuka koneksi baru.
+- **`perbarui` jadi SATU transaksi** (`get` lalu `put`), bukan dua transaksi
+  terpisah `getAll`+`put`. Menutup celah balapan saat memotret cepat — dua
+  pembaruan bisa saling menimpa — sekaligus berhenti menarik seluruh antrean
+  berikut semua blob-nya hanya untuk mengubah satu kolom status.
+- **Galat ditulis apa adanya**: `tahap: <buka|permintaan|transaksi>; galat:
+  <NamaDOMException>: <pesan>`. Tanpa tafsiran, tanpa tebakan. Nama itulah yang
+  menentukan perbaikannya.
+- **Panel "Rincian teknis (untuk dilaporkan)"** di panel antrean: versi, jumlah
+  baris, keadaan jaringan, galat terakhir, dan per baris — status, jumlah
+  percobaan, ukuran, umur, pesan. Teks apa adanya supaya terbaca utuh di
+  tangkapan layar; tertutup secara bawaan.
+
+**Diperiksa di peramban** dengan menggugurkan penulisan IndexedDB: panelnya
+menampilkan
+
+```
+antrean v5 · 3 baris · jaringan: ada
+galat: Simpanan foto di HP gagal — tahap: permintaan; galat: AbortError: The transaction was aborted, so the request cannot be fulfilled.
+1. kirim · coba 0× · 1 KB · umur 1 dtk
+```
+
+Bandingkan dengan sebelumnya: *"menolak (transaksi). Ruang penyimpanan HP mungkin
+penuh."* — nama galatnya hilang, sebabnya dikarang.
+
+**Status FOTO-01.** Hipotesis blob-mati-sesudah-koneksi-ditutup COCOK dengan
+semua gejala (foto baru lancar, foto antre macet, penyimpanan tidak penuh,
+jaringan lancar, muncul saat memotret cepat) tapi **belum direproduksi** — WebKit
+tidak tersedia di lingkungan uji ini. Tetap terbuka sampai ada bukti dari
+perangkat.
+
+## 286 · Antrean foto: simpan BYTE, bukan Blob — sebabnya akhirnya diketahui (2026-08-07)
+
+**Bukti.** Dua tangkapan layar dari dua peramban di HP yang sama menutup perkara
+ini. Panel rincian (DECISIONS 285) bekerja persis seperti maksudnya.
+
+Peramban A:
+
+```
+antrean v5 · 2 baris · jaringan: ada
+galat: Simpanan foto di HP gagal — tahap: permintaan;
+       galat: UnknownError: Error preparing Blob/File data to be stored in object store
+1. kirim · coba 0× · 430 KB · umur 1734 dtk
+2. kirim · coba 0× · 421 KB · umur 1733 dtk
+```
+
+Peramban B: pratinjaunya muncul sebagai **ikon gambar rusak**, dan unggahannya
+gagal 4× dengan alasan "jaringan" — padahal jaringan ada.
+
+**Sebabnya, satu, dan menjelaskan semuanya.** `Blob` yang disimpan di IndexedDB
+disokong berkas terpisah di dalam peramban, dan sokongan itu bisa lepas. Sekali
+lepas, blob-nya **tidak bisa ditulis ulang** (peramban A), **tidak bisa
+ditampilkan** (peramban B), dan **tidak bisa dikirim** (badan permintaannya
+kosong → tampak seperti kegagalan jaringan).
+
+Yang membuatnya fatal: `perbarui()` menulis ulang SELURUH baris — berikut
+fotonya yang ratusan KB — hanya untuk mengubah satu kolom status. Jadi setiap
+perubahan status mempertaruhkan seluruh antrean pada penulisan ulang blob yang
+bisa gagal. Sekali gagal, transaksinya gugur, putarannya mati, dan barisnya
+tinggal di "kirim…" selamanya.
+
+Dan inilah jawaban petunjuk user *"terjadi saat ambil foto dengan cepat"*: foto
+yang langsung terkirim ditulis SEKALI lalu dibuang — tidak pernah ditulis ulang.
+Foto yang menumpuk di antrean ditulis ulang berkali-kali. Bukan soal jumlah
+fotonya, melainkan soal berapa kali barisnya disentuh.
+
+**Keputusan.**
+
+1. **Yang disimpan adalah `ArrayBuffer`, bukan `Blob`/`File`.** Data biasa,
+   ikut aturan structured clone, tanpa berkas sokongan yang bisa lepas.
+2. **Dua toko: `antrean` (keterangan) dan `berkas` (byte).** Perubahan status
+   tidak pernah menyentuh isi fotonya. Sebagai bonus, `semua()` — yang dipanggil
+   tiap 3 detik — berhenti menyeret ratusan KB per foto hanya untuk menggambar
+   petak 56px.
+3. **Status baru `rusak`** untuk baris yang bytenya memang sudah tidak ada.
+   Bukan `gagal_jaringan` (mencoba lagi tidak akan mengubah apa pun) dan bukan
+   `ditolak` (server tidak pernah melihatnya). Ia TIDAK dihitung sebagai
+   "menunggu terkirim" — menghitungnya berarti berbohong tentang foto yang tak
+   akan pernah terkirim — tapi tetap ditampilkan dengan spanduk sendiri supaya
+   bisa dibuang lalu dipotret ulang.
+4. **Pemindahan warisan** (`pindahkanWarisan`) berjalan sekali tiap halaman
+   dibuka: baris lama ber-blob diubah jadi byte; yang blob-nya sudah tidak
+   terbaca ditandai `rusak` dengan sebab yang disebutkan. Sengaja BUKAN di
+   `onupgradeneeded` — mengubah blob jadi byte itu asinkron, sedangkan transaksi
+   pemutakhiran versi tidak boleh menunggu.
+
+**Diperiksa di peramban** dengan meniru keadaan HP user: basis data versi LAMA
+berisi baris ber-blob, plus satu baris yang bytenya hilang.
+
+```
+sebelum: v1, 3 baris, semua "kirim…", tidak bergerak
+sesudah: v2 · toko `berkas` dibuat · tidak ada baris yang masih memegang blob
+         hilang: rusak   ← "Isi fotonya hilang dari simpanan HP… Buang saja lalu potret ulang."
+         sehat:  ditolak ← alasan dari server, disebutkan
+         mati:   ditolak
+```
+
+Tidak ada lagi yang tersangkut "kirim…", dan tiap baris menyebutkan nasibnya.
+
+**Pelajaran yang layak dicatat.** Empat putaran perbaikan dikerjakan dari
+membaca kode; yang menyelesaikannya adalah SATU baris pesan galat dari perangkat
+yang sebenarnya. Alat diagnosis di layar bukan pelengkap — pada aplikasi
+lapangan yang tidak punya inspect element, ia bagian dari fiturnya.
+
+## 287 · Antrean foto: berhenti menuduh jaringan tanpa bukti (2026-08-07)
+
+**Konteks.** Sesudah sebabnya ditemukan (DECISIONS 286), user menunjuk satu hal
+yang MASIH salah — dan sudah dua kali ia katakan:
+
+> *"padahal jaringan jelas ada, foto baru bisa upload"*
+
+Memang ada. Yang gagal adalah pengirimannya, karena isi fotonya tidak terbaca.
+Tapi kodenya melabeli **setiap** lemparan di jalur kirim sebagai kegagalan
+jaringan:
+
+```ts
+} catch {
+  await perbarui(r.id, {
+    status: statusDariKegagalan("jaringan"),
+    pesan: "Belum ada jaringan — akan dicoba lagi otomatis.",
+  });
+}
+```
+
+Itu `catch` tanpa syarat yang menuduh satu-satunya hal yang justru baik-baik
+saja. Akibatnya nyata dan mahal: orang di lapangan mencari sinyal, memindah HP,
+menunggu — semuanya sia-sia, karena aplikasi menunjuk arah yang salah.
+
+**Keputusan.** "Belum ada jaringan" HANYA boleh ditulis kalau perangkatnya
+sendiri menyatakan tidak ada jaringan (`navigator.onLine === false`). Selain itu
+yang ditulis adalah apa yang benar-benar terjadi, **berikut nama galatnya**:
+
+| Keadaan | Yang ditulis |
+|---|---|
+| habis batas waktu | "Server tidak menjawab sampai 60 detik — akan dicoba lagi otomatis." |
+| `navigator.onLine === false` | "Belum ada jaringan — akan dicoba lagi otomatis." |
+| selain itu | "Pengiriman gagal padahal jaringan TERDETEKSI ADA — `<NamaGalat>`. Akan dicoba lagi otomatis." |
+
+Ditambah satu penjagaan di hulunya: berkas berukuran **0 byte** tidak
+dikirimkan sama sekali (ditandai `rusak`). Membiarkannya lewat berarti mengirim
+badan kosong, dan kegagalannya nanti terbaca seperti masalah jaringan — persis
+salah-tuduh yang sedang diberantas.
+
+**Prinsip yang ditegakkan.** Pesan yang menyalahkan hal yang keliru lebih buruk
+daripada pesan yang mengaku tidak tahu. Yang pertama mengirim orang bekerja
+sia-sia; yang kedua setidaknya jujur.
+
+**Diperiksa di peramban**: koneksi POST diputus sementara `navigator.onLine`
+tetap `true`. Layar menulis
+
+```
+1. gagal_jaringan · coba 2× · 1 KB · umur 5 dtk
+   Pengiriman gagal padahal jaringan TERDETEKSI ADA — TypeError: Failed to fetch.
+   Akan dicoba lagi otomatis.
+```
+
+Tidak ada lagi kalimat "Belum ada jaringan" saat jaringannya ada.
+
+## 288 · Foto Cepat: empat lapis supaya byte yang hilang tidak lagi berarti bukti hilang (2026-08-07)
+
+**Konteks.** Pertanyaan user sesudah sebabnya diketahui:
+
+> *"jika memang dari awal ini disebabkan oleh file rusak, berarti saat ambil
+> foto cepat hal ini rentan terjadi. bagaimana mengatasinya?"*
+
+Pertanyaan yang tepat, dan jawaban jujurnya: DECISIONS 286 menghapus sebab yang
+TERBUKTI (Blob di IndexedDB + penulisan ulang berkali-kali), tapi ia tidak
+membuktikan byte tak akan pernah hilang lagi. Peramban tetap boleh membersihkan
+simpanan, dan penulisan yang "sukses" ternyata bukan jaminan bisa dibaca lagi.
+Jadi risikonya diserang dari empat sisi.
+
+### 1 · Kirim dari salinan SEGAR di memori — simpanan turun pangkat jadi cadangan
+
+Lapis yang paling menentukan. Selama halaman masih hidup, pengiriman memakai
+blob yang baru keluar dari kamera — yang jelas utuh — bukan hasil membaca ulang
+simpanan. Simpanan tetap ditulis LEBIH DULU (itu yang menyelamatkan foto kalau
+halamannya mati), tapi ia hanya dibaca kalau halamannya sempat tertutup.
+
+Buktinya datang dari user sendiri: foto yang langsung terkirim tidak pernah
+rusak; yang rusak selalu yang menunggu di antrean.
+
+### 2 · Baca ulang SEKARANG sesudah menulis
+
+`simpan()` membaca kembali bytenya dan membandingkan ukurannya. Kalau gagal,
+barisnya dibuang dan pelapor diberi tahu **saat itu juga**:
+
+> "Foto tersimpan tapi TIDAK bisa dibaca kembali dari HP ini — jangan
+> diandalkan. Potret ulang sekarang selagi masih di lokasi."
+
+Bedanya besar: kegagalan yang ketahuan saat rana ditekan bisa diperbaiki dalam
+dua detik — orangnya masih berdiri di titik yang benar, kamera masih di tangan.
+Kegagalan yang sama kalau baru ketahuan sejam kemudian berarti buktinya hilang
+untuk selamanya.
+
+### 3 · Minta penyimpanan TETAP
+
+`navigator.storage.persist()`. Tanpa izin ini IndexedDB tergolong "best effort":
+peramban boleh membersihkannya kapan saja tanpa memberi tahu siapa pun — dan
+yang dibersihkan adalah bukti lapangan yang belum terkirim. Ditolak pun tidak
+apa-apa; ini permintaan, bukan syarat.
+
+### 4 · Kuota jadi ANGKA di panel rincian
+
+`navigator.storage.estimate()` ditulis apa adanya (`x MB dipakai dari y MB`).
+Sesudah pernah menuduh "ruang penyimpanan mungkin penuh" tanpa dasar dan
+dibantah user dalam satu kalimat, klaim soal penuh harus bisa dibaca dari layar,
+bukan dikarang.
+
+**Diperiksa di peramban dengan kamera palsu — rana ditekan sungguhan** (jalur
+`titip` yang asli), pengiriman ditahan supaya urutannya pasti, lalu byte-nya
+DIHAPUS dari simpanan sebelum jaringan dibuka:
+
+```
+dengan salinan segar : baris "ditolak"  · permintaan berisi foto: 1  ← fotonya SAMPAI
+tanpa salinan segar  : baris "rusak"    · permintaan berisi foto: 0  ← fotonya HILANG
+```
+
+Itu uji giginya sekaligus: melepas salinan segar mengembalikan kehilangannya
+persis.
+
+**Yang tetap TIDAK dijanjikan.** Kalau halaman tertutup sebelum sempat terkirim
+DAN peramban membuang simpanannya, fotonya hilang — tidak ada lapis yang bisa
+menutup itu dari sisi klien. Yang bisa dijamin: keadaan itu akan **terlihat**
+(status `rusak` dengan sebabnya), bukan menyamar jadi "menunggu terkirim".
+
+## 289 · Galat server action tidak boleh menjatuhkan halaman (2026-08-07)
+
+**Konteks.** Laporan user 2026-08-07: *"laporan harian, masukkan foto ini dari
+galeri, pilih tidak di lokasi proyek, langsung muncul halaman error minta
+reload"*, dengan berkas nyata `IMG20260801WA0035.jpg` (274 KB, tanpa EXIF).
+
+**Yang BERHASIL direproduksi, dan yang tidak.** Kombinasi persisnya diuji dengan
+berkas aslinya — galeri, tanpa EXIF, pelapor menjawab TIDAK di lokasi, nama
+berkas bergaya WhatsApp, jam jepret tak diketahui — dan fotonya **tersimpan
+normal** (`gpsSource: "project"`, arsip asli terbentuk). Jadi sebab galatnya
+BELUM diketahui; jujur dicatat begitu, bukan ditebak.
+
+**Yang ditemukan dan diperbaiki: MEKANISME-nya.** Apa pun galat yang
+menyebabkannya, yang mengubahnya menjadi layar mati ada di satu baris:
+
+```ts
+function errState(err: unknown): DailyActionState {
+  if (err instanceof DailyReportError || …) return { error: err.message };
+  throw err;                       // ← galat apa pun di luar daftar putih
+}
+```
+
+Lemparan dari server action menjatuhkan seluruh halaman jadi "Application error
+— reload". Yang hilang bukan cuma tampilan, melainkan **satu-satunya kesempatan
+memberi tahu apa yang salah** — pelajaran yang baru saja dibayar mahal di
+antrean Foto Cepat (DECISIONS 284–287): layar yang diam saat gagal membuat
+perbaikan jadi tebakan, dan tebakan yang dikirim ke lapangan membuang waktu
+orang yang sedang bekerja.
+
+**Keputusan.**
+
+1. `errState` **berhenti melempar ulang**. Galat tak terduga tetap menghentikan
+   aksinya, tapi sebabnya disebut di layar berikut nama galatnya
+   (`Gagal diproses — NamaGalat: pesan. Salin pesan ini saat melapor.`), dan
+   galat utuhnya tetap masuk log server.
+2. Lemparan `redirect()`/`notFound()` Next **tetap dilewatkan** (dikenali dari
+   `digest` berawalan `NEXT_`) — keduanya bekerja DENGAN cara melempar, dan
+   menelannya akan merusak navigasi.
+3. Aturan yang sama dipasang di **kegiatan lapangan**, yang masih memakai
+   `else throw err` saat menyimpan foto. Di laporan harian aturan ini sudah ada
+   sejak DECISIONS 231; di sini ia tertinggal.
+
+**Uji.** `tests/integration/foto-galeri-tanpa-gps.test.ts` — memakai BERKAS
+ASLI dari laporan user, bukan gambar 8×8 buatan uji. Mengunci: fotonya tersimpan,
+koordinatnya bertanda `project` (bukan menyamar sebagai bukti GPS — DECISIONS
+197), arsip aslinya terbentuk; dan berkas yang bukan gambar pun tetap tersimpan
+tanpa cap alih-alih melempar galat mentah.
+
+**Yang masih terbuka.** Sebab galat di perangkat user belum diketahui. Bedanya
+dengan kemarin: sekarang layarnya akan **menyebutkan nama galatnya**, jadi
+laporan berikutnya membawa fakta, bukan gejala.
+
+---
+
+## 290 — Halaman yang runtuh di sisi peramban harus menyebut nama galatnya (2026-08-07)
+
+**Konteks.** Lanjutan 289. User: *"error terjadi sepertinya sebelum browser
+kirim request, bahkan di server tidak ada log"*. Itu mematahkan diagnosis 289:
+kalau tidak ada permintaan yang pernah dikirim, `errState` di server memang
+tidak pernah ikut bermain. Galatnya di KLIEN.
+
+Dan di klien aplikasi ini tidak punya **satu pun** error boundary. Akibatnya
+setiap lemparan di peramban mengganti seluruh halaman dengan layar bawaan Next
+("application error, reload") — tanpa nama, tanpa pesan, tanpa jejak server.
+Pelapor kami bekerja dengan ponsel: tidak ada console, tidak ada inspect
+element. Gabungan itu = kegagalan yang mustahil didiagnosis, dan sudah terbukti
+memakan berhari-hari di saga antrean Foto Cepat (DECISIONS 284–287).
+
+**Keputusan.**
+
+1. **Batas galat dipasang**: `src/app/(app)/error.tsx` (semua halaman ber-sesi)
+   dan `src/app/global-error.tsx` (jaring terakhir, menggambar `<html>`/`<body>`
+   sendiri). Keduanya memakai `components/shell/panel-galat.tsx`, yang menulis
+   **nama + pesan galat, digest, alamat halaman, dan identitas peramban** apa
+   adanya, plus tombol salin. Identitas peramban ikut dengan sengaja: galat yang
+   hanya muncul di satu merek/versi mustahil dipersempit tanpa itu, dan menebak
+   perangkat pelapor sudah terbukti membuang waktu.
+2. **Perakitan `DataTransfer` di `photo-source-input.tsx` dijaga.** Itu
+   satu-satunya API DOM rapuh di jalur yang dilaporkan, baru berumur empat hari
+   (DECISIONS 229, commit 2026-08-03), dan ketiga langkahnya —
+   `new DataTransfer()`, `items.add()`, penugasan ke `input.files` — dukungannya
+   tidak merata di ponsel. Berkas ini modul ES (mode ketat), jadi penugasan yang
+   ditolak MELEMPAR, bukan diam. Hasilnya juga diperiksa, bukan sekadar "tidak
+   melempar": peramban yang menerima penugasan lalu mengabaikannya akan
+   mengirim form tanpa foto — gagal diam-diam, yang terburuk untuk bukti.
+3. **Jalur cadangan, bukan kegagalan.** Saat perakitan tidak bisa dipakai,
+   pemilih kamera/galeri sendiri yang ber-`name="photos"` dan terkirim langsung.
+   Menumpuk pilihan hilang; unggah tetap jalan. Perbedaannya **dikatakan di
+   layar** berikut nama galatnya — pelapor yang terbiasa menumpuk harus tahu di
+   perangkat ini caranya berbeda, kalau tidak ia mengira foto pertamanya ikut
+   padahal tidak.
+
+**Bukti (peramban nyata, bukan penalaran).** Dengan `DataTransfer` sengaja
+dirusak di halaman:
+
+| | tanpa penjagaan | dengan penjagaan |
+|---|---|---|
+| form pekerjaan | mati | hidup |
+| yang tampil | PanelGalat + `TypeError: Failed to set the 'files' property on 'HTMLInputElement'` + URL + UA | panel cadangan + nama galat yang sama |
+| `input[name=photos]` | — | berisi 1 foto |
+
+Jalur normal (DataTransfer utuh) tidak berubah: 1 foto, tanpa panel apa pun.
+
+**Yang TIDAK diklaim.** Belum terbukti bahwa inilah galat yang menimpa
+perangkat user — itu tidak bisa dibuktikan tanpa pesan dari perangkatnya.
+Yang sudah pasti: jalur ini memang bisa meruntuhkan halaman persis seperti yang
+dilaporkan, sekarang tidak bisa lagi, dan kalau ternyata sebabnya lain,
+layarnya akan menyebutkan namanya.
+
+**Uji.** `tests/unit/galat-klien.test.ts` — mengunci keberadaan batas galat,
+isi panel (nama+pesan, digest, URL, userAgent), penjagaan try/catch yang
+MEMBUNGKUS baris `new DataTransfer()`, pemeriksaan hasil penugasan, dan
+pengikatan `name` jalur cadangan. Dicek bergigi: mengembalikan
+`photo-source-input.tsx` ke versi lama → 4 dari 7 uji merah.

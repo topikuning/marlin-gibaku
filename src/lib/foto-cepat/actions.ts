@@ -19,6 +19,7 @@ import { getPolicy } from "@/lib/policy";
 import { konteksFoto } from "@/lib/photo-restamp/service";
 import { EDITABLE_STATUSES } from "@/lib/daily-report/service";
 import { hapusFotoKantong, lengkapiCap } from "./service";
+import { pakaiFotoKeTujuan } from "./pakai";
 import {
   getKantong,
   getTujuan,
@@ -254,94 +255,15 @@ export async function pakaiFotoAction(
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const d = parsed.data;
 
-    // ── Tujuan: harus ada, masih boleh disunting, dan lokasinya harus cocok ──
-    let tujuanLocationId: string;
-    let reportId: string | null = null;
-    let reportItemId: string | null = null;
-    let activityId: string | null = null;
-    let labelTujuan: string;
-
-    if (d.tujuan === "kegiatan") {
-      const keg = await db.fieldActivity.findUnique({
-        where: { id: d.kegiatanId! },
-        select: { id: true, locationId: true, status: true, title: true },
-      });
-      if (!keg) return { error: "Kegiatan tidak ditemukan." };
-      if (keg.status !== "draft")
-        return { error: "Kegiatan itu sudah difinalkan — fotonya tidak bisa ditambah lagi." };
-      tujuanLocationId = keg.locationId;
-      activityId = keg.id;
-      labelTujuan = `kegiatan "${keg.title}"`;
-    } else {
-      const item = await db.dailyReportItem.findUnique({
-        where: { id: d.reportItemId! },
-        select: {
-          id: true,
-          reportId: true,
-          report: { select: { locationId: true, status: true } },
-          rabNode: { select: { name: true } },
-        },
-      });
-      if (!item) return { error: "Item laporan tidak ditemukan." };
-      if (!EDITABLE_STATUSES.includes(item.report.status))
-        return {
-          error:
-            "Laporan itu sudah dikirim/disetujui — lampirannya tidak bisa diubah dari sini.",
-        };
-      tujuanLocationId = item.report.locationId;
-      reportId = item.reportId;
-      reportItemId = item.id;
-      labelTujuan = `item "${item.rabNode.name}"`;
-    }
-    await requireLocationAccess(actor, tujuanLocationId);
-
-    // ── Foto: harus masih di kantong DAN lokasinya sama dengan tujuan ──
-    const fotos = await db.photo.findMany({
-      where: { id: { in: d.photoIds }, reportId: null, activityId: null },
-      select: { id: true, locationId: true },
-    });
-    if (fotos.length === 0) return { error: "Foto tidak ditemukan di kantong (mungkin sudah dipakai)." };
-    // Foto yang lokasinya belum ketahuan tidak boleh diselundupkan lewat sini:
-    // menautkannya ke laporan lokasi X akan MENETAPKAN lokasinya secara diam-diam
-    // ke X, padahal deteksi tadi justru menolak menebak. DECISIONS 254.
-    const tanpaLokasi = fotos.filter((f) => f.locationId == null);
-    if (tanpaLokasi.length > 0)
-      return {
-        error: `${tanpaLokasi.length} foto belum ketahuan lokasinya. Tetapkan lokasinya dulu di kantong, baru bisa dipakai.`,
-      };
-    const bedaLokasi = fotos.filter((f) => f.locationId !== tujuanLocationId);
-    if (bedaLokasi.length > 0)
-      return {
-        error: `${bedaLokasi.length} foto berasal dari lokasi lain. Foto hanya boleh dipakai di lokasi tempat ia dipotret.`,
-      };
-
-    const gagalCap: string[] = [];
-    let dipakai = 0;
-    for (const f of fotos) {
-      // Nilai cap SEBELUM ditautkan — sesudahnya `konteksFoto` sudah membaca
-      // induk barunya, jadi tidak lagi bisa dipakai sebagai pembanding.
-      const sebelum = await konteksFoto(f.id);
-      await db.$transaction(async (tx) => {
-        await tx.photo.update({
-          where: { id: f.id },
-          data: { reportId, reportItemId, activityId },
-        });
-        await auditIn(tx, actor.id, "photo.quick_attach", "photo", f.id, {
-          tujuan: d.tujuan,
-          reportItemId,
-          activityId,
-          locationId: tujuanLocationId,
-        });
-      });
-      dipakai++;
-      if (!sebelum) continue;
-      try {
-        const hasil = await lengkapiCap(f.id, sebelum, actor.id);
-        if (!hasil.ok) gagalCap.push(hasil.alasan);
-      } catch {
-        gagalCap.push("render cap gagal");
-      }
-    }
+    const hasil = await pakaiFotoKeTujuan(
+      actor,
+      d.photoIds,
+      d.tujuan === "kegiatan"
+        ? { tujuan: "kegiatan", kegiatanId: d.kegiatanId! }
+        : { tujuan: "laporan", reportItemId: d.reportItemId! },
+    );
+    if ("error" in hasil) return { error: hasil.error };
+    const { dipakai, labelTujuan, gagalCap } = hasil;
 
     revalidatePath("/foto-cepat");
     revalidatePath("/foto");

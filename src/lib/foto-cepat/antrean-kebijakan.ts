@@ -22,7 +22,17 @@ export type StatusAntrean =
   /** Gagal karena JARINGAN — akan dicoba lagi, selamanya. */
   | "gagal_jaringan"
   /** Server MENOLAK (mis. duplikat, wajib-GPS). Berhenti; butuh keputusan orang. */
-  | "ditolak";
+  | "ditolak"
+  /**
+   * Isi fotonya HILANG dari simpanan perangkat — tidak ada yang bisa dikirim.
+   *
+   * Bukan kegagalan yang bisa dicoba lagi, dan bukan penolakan server: bytenya
+   * memang tidak ada lagi. Dibedakan supaya pemiliknya tahu fotonya benar-benar
+   * hilang dan bisa membuangnya, bukan menunggu selamanya sesuatu yang tak akan
+   * pernah terkirim. Bukti dari perangkat user, 2026-08-07:
+   * `UnknownError: Error preparing Blob/File data to be stored in object store`.
+   */
+  | "rusak";
 
 export type ItemAntrean = {
   id: string;
@@ -57,10 +67,79 @@ export function jedaBerikutnya(percobaan: number): number {
  * sama sekali. Jadi ia hanya dipakai untuk MENUNDA, tidak untuk menjamin.
  */
 export function bolehCoba(item: ItemAntrean, sekarang: number, online: boolean): boolean {
-  if (item.status === "kirim" || item.status === "ditolak") return false;
+  if (item.status === "kirim" || item.status === "ditolak" || item.status === "rusak") return false;
   if (!online) return false;
   if (item.percobaan === 0) return true;
   return sekarang - item.terakhirCoba >= jedaBerikutnya(item.percobaan);
+}
+
+/**
+ * Berapa lama status "kirim" boleh bertahan sebelum dianggap MACET.
+ *
+ * Laporan user 2026-08-07: *"ini ambil banyak data, ada beberapa yang
+ * terupload. tapi ada yg stuck. sudah coba logout, ganti user, tetap muncul di
+ * hp awal. coba ambil foto berhasil terupload langsung, tapi foto yang gantung
+ * ini stuck"*.
+ *
+ * Sebabnya persis ini: "kirim" adalah satu-satunya status yang HANYA bisa
+ * dibereskan oleh halaman yang menyetelnya. `bolehCoba` menolak mencoba baris
+ * ber-status "kirim" (benar — supaya satu foto tidak dikirim dua kali
+ * bersamaan), tapi kalau halamannya mati di tengah unggahan — tab ditutup,
+ * peramban membunuh halaman latar belakang, HP terkunci, aplikasi di-swipe —
+ * tidak ada lagi yang menurunkan statusnya. Barisnya tinggal di IndexedDB
+ * bertuliskan "kirim…" SELAMANYA.
+ *
+ * Itu juga sebabnya logout dan ganti user tidak menolong: antreannya milik
+ * PERANGKAT, bukan milik sesi. Dan sebabnya foto baru tetap lancar: foto baru
+ * masuk dengan status "menunggu", bukan "kirim".
+ *
+ * Ambangnya 2 menit — jauh lebih lama daripada unggahan satu foto di sinyal
+ * jelek, jadi ia tidak akan memotong unggahan yang sungguh masih berjalan (mis.
+ * di tab lain), tapi cukup pendek untuk membereskan diri sendiri tanpa siapa
+ * pun perlu tahu apa itu IndexedDB.
+ */
+export const BATAS_KIRIM_MACET_MS = 120_000;
+
+export function kirimMacet(item: ItemAntrean, sekarang: number): boolean {
+  return item.status === "kirim" && sekarang - item.terakhirCoba >= BATAS_KIRIM_MACET_MS;
+}
+
+/**
+ * Batas waktu SATU percobaan unggah.
+ *
+ * Perbaikan pertama (membebaskan baris "kirim" yang macet) ternyata belum cukup:
+ * user melaporkan foto tetap tersangkut SESUDAH versi itu naik. Sebabnya ada di
+ * lapis yang lebih dalam — **tidak ada satu pun batas waktu di sepanjang jalur
+ * itu**. Kalau `await` pengiriman tidak pernah selesai (permintaan menggantung
+ * di jaringan seluler yang setengah hidup, atau IndexedDB iOS yang berhenti
+ * menjawab sesudah halaman kembali dari latar belakang), maka:
+ *
+ * - status tidak pernah turun dari "kirim", DAN
+ * - `finally` yang melepas kunci antrean tidak pernah dijalankan.
+ *
+ * Antreannya berhenti total, layarnya membeku pada label terakhir, dan "Coba
+ * kirim sekarang" tidak berbuat apa-apa karena kuncinya masih dipegang. Persis
+ * yang terlihat: tiga baris "kirim…" yang tidak berubah sama sekali selama
+ * sejam.
+ *
+ * `Promise` yang menggantung tidak bisa dibatalkan, tapi bisa DIABAIKAN. Dua
+ * batas di bawah memastikan tidak ada keadaan yang bertahan selamanya.
+ */
+export const BATAS_SATU_KIRIM_MS = 60_000;
+
+/**
+ * Batas satu putaran antrean sebelum kuncinya dianggap ditinggalkan.
+ *
+ * Sengaja lebih longgar dari `BATAS_SATU_KIRIM_MS`: putaran yang sehat memang
+ * boleh lebih lama dari satu pengiriman (ia mengirim beberapa foto berturut-
+ * turut). Yang dijaga di sini cuma satu hal — kunci yang pemegangnya sudah
+ * tidak ada tidak boleh menyandera antrean selamanya.
+ */
+export const BATAS_PUTARAN_MS = 180_000;
+
+export function putaranDitinggalkan(mulai: number | null, sekarang: number): boolean {
+  if (mulai == null) return false;
+  return sekarang - mulai >= BATAS_PUTARAN_MS;
 }
 
 /**
@@ -95,9 +174,14 @@ export const MAKS_ANTREAN = 100;
 export function ringkasAntrean(items: Pick<ItemAntrean, "status">[]): {
   menunggu: number;
   ditolak: number;
+  rusak: number;
   perluPerhatian: boolean;
 } {
-  const menunggu = items.filter((i) => i.status !== "ditolak").length;
+  // "rusak" TIDAK ikut dihitung menunggu: ia tidak sedang menunggu apa pun.
+  // Menghitungnya membuat "3 foto menunggu terkirim" berbohong tentang tiga
+  // foto yang tidak akan pernah terkirim.
+  const menunggu = items.filter((i) => i.status !== "ditolak" && i.status !== "rusak").length;
   const ditolak = items.filter((i) => i.status === "ditolak").length;
-  return { menunggu, ditolak, perluPerhatian: menunggu + ditolak > 0 };
+  const rusak = items.filter((i) => i.status === "rusak").length;
+  return { menunggu, ditolak, rusak, perluPerhatian: menunggu + ditolak + rusak > 0 };
 }

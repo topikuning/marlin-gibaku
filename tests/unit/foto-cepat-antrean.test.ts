@@ -16,8 +16,13 @@
 // berubah, hanya foto yang tidak pernah sampai.
 import { describe, expect, it } from "vitest";
 import {
+  BATAS_KIRIM_MACET_MS,
+  BATAS_PUTARAN_MS,
+  BATAS_SATU_KIRIM_MS,
   MAKS_ANTREAN,
   bolehCoba,
+  kirimMacet,
+  putaranDitinggalkan,
   jedaBerikutnya,
   ringkasAntrean,
   statusDariKegagalan,
@@ -120,5 +125,121 @@ describe("batas antrean", () => {
     // diam-diam saat kuota penuh — kegagalan paling buruk yang mungkin di sini.
     expect(MAKS_ANTREAN).toBeGreaterThanOrEqual(50);
     expect(MAKS_ANTREAN).toBeLessThanOrEqual(500);
+  });
+});
+
+describe("kirimMacet — baris yang kehilangan halamannya", () => {
+  // Laporan user 2026-08-07: *"ada yg stuck. sudah coba logout, ganti user,
+  // tetap muncul di hp awal. coba ambil foto berhasil terupload langsung, tapi
+  // foto yang gantung ini stuck"*.
+  //
+  // "kirim" adalah SATU-SATUNYA status yang hanya bisa diturunkan oleh halaman
+  // yang menyetelnya. Halaman mati di tengah unggahan (tab ditutup, HP
+  // terkunci, peramban membunuh halaman latar) → barisnya tinggal bertuliskan
+  // "kirim…" selamanya, dan `bolehCoba` menolak menyentuhnya. Logout tidak
+  // menolong karena antreannya milik PERANGKAT, bukan sesi.
+
+  const kirimSejak = (lalu: number): ItemAntrean => ({
+    id: "x",
+    percobaan: 0,
+    terakhirCoba: 1_000_000 - lalu,
+    status: "kirim",
+  });
+
+  it("baris 'kirim' yang masih baru BUKAN macet", () => {
+    // Unggahan satu foto di sinyal jelek boleh lama. Membebaskannya terlalu
+    // cepat berarti mengirim foto yang sama dua kali.
+    expect(kirimMacet(kirimSejak(5_000), 1_000_000)).toBe(false);
+    expect(kirimMacet(kirimSejak(BATAS_KIRIM_MACET_MS - 1), 1_000_000)).toBe(false);
+  });
+
+  it("baris 'kirim' yang lewat ambang DINYATAKAN macet", () => {
+    expect(kirimMacet(kirimSejak(BATAS_KIRIM_MACET_MS), 1_000_000)).toBe(true);
+    expect(kirimMacet(kirimSejak(3_600_000), 1_000_000)).toBe(true);
+  });
+
+  it("status selain 'kirim' tidak pernah dianggap macet", () => {
+    // "ditolak" berhenti karena keputusan server dan butuh orang; membebaskannya
+    // otomatis akan mengulang penolakan yang sama tanpa henti.
+    for (const status of ["menunggu", "gagal_jaringan", "ditolak"] as const) {
+      expect(kirimMacet({ ...kirimSejak(3_600_000), status }, 1_000_000)).toBe(false);
+    }
+  });
+
+  it("baris macet tetap DITOLAK `bolehCoba` — pembebasannya harus disengaja", () => {
+    // Kedua aturan ini sengaja terpisah. `bolehCoba` menjaga satu foto tidak
+    // dikirim dua kali bersamaan; membebaskan yang macet adalah tindakan lain
+    // yang menurunkan statusnya lebih dulu. Kalau `bolehCoba` sendiri yang
+    // dilonggarkan, foto yang SUNGGUH sedang diunggah ikut dikirim ulang.
+    expect(bolehCoba(kirimSejak(3_600_000), 1_000_000, true)).toBe(false);
+  });
+});
+
+describe("putaranDitinggalkan — kunci yang pemegangnya sudah tidak ada", () => {
+  // Laporan lanjutan user 2026-08-07: foto TETAP stuck sesudah perbaikan
+  // pembebasan baris macet naik ke server. Sebabnya satu lapis lebih dalam:
+  // tidak ada satu pun batas waktu di jalur itu. Kalau yang ditunggu tidak
+  // pernah menjawab, `finally` yang melepas kunci antrean tidak pernah jalan —
+  // antreannya mati diam-diam, layarnya membeku pada label terakhir, dan "Coba
+  // kirim sekarang" pun tidak berbuat apa-apa karena kuncinya masih dipegang.
+
+  it("menganggur (null) tidak pernah dianggap ditinggalkan", () => {
+    expect(putaranDitinggalkan(null, 1_000_000)).toBe(false);
+  });
+
+  it("putaran yang masih wajar tidak diambil alih", () => {
+    // Putaran sehat boleh lama — ia mengirim beberapa foto berturut-turut.
+    // Mengambil alih terlalu cepat berarti dua putaran berjalan bersamaan dan
+    // foto yang sama dikirim dua kali.
+    expect(putaranDitinggalkan(1_000_000 - 1_000, 1_000_000)).toBe(false);
+    expect(putaranDitinggalkan(1_000_000 - (BATAS_PUTARAN_MS - 1), 1_000_000)).toBe(false);
+  });
+
+  it("putaran yang lewat batas DIAMBIL ALIH", () => {
+    expect(putaranDitinggalkan(1_000_000 - BATAS_PUTARAN_MS, 1_000_000)).toBe(true);
+    expect(putaranDitinggalkan(1_000_000 - 3_600_000, 1_000_000)).toBe(true);
+  });
+
+  it("batas satu kirim lebih pendek daripada batas putaran", () => {
+    // Urutan ini yang membuat kegagalan tertangkap di tempat yang benar: satu
+    // pengiriman menyerah lebih dulu (dan barisnya dapat pesan yang menjelaskan),
+    // baru sesudahnya kunci putaran dianggap ditinggalkan. Kalau terbalik,
+    // pengambilalihan kunci terjadi SELAGI pengiriman masih sah berjalan.
+    expect(BATAS_SATU_KIRIM_MS).toBeLessThan(BATAS_PUTARAN_MS);
+  });
+});
+
+describe("status 'rusak' — isi fotonya hilang dari simpanan", () => {
+  // Bukti dari perangkat user 2026-08-07, dua peramban sekaligus:
+  //   UnknownError: Error preparing Blob/File data to be stored in object store
+  // dan di peramban kedua, pratinjaunya muncul sebagai ikon gambar rusak.
+  // Artinya bytenya memang tidak ada lagi — bukan jaringan, bukan server.
+
+  const rusak = (): ItemAntrean => ({
+    id: "x",
+    percobaan: 0,
+    terakhirCoba: 0,
+    status: "rusak",
+  });
+
+  it("TIDAK pernah dicoba lagi", () => {
+    // Mencoba mengirim sesuatu yang bytenya tidak ada hanya membakar baterai
+    // sambil menyembunyikan kenyataan dari pemiliknya.
+    expect(bolehCoba(rusak(), 1_000_000, true)).toBe(false);
+  });
+
+  it("TIDAK dihitung sebagai 'menunggu terkirim'", () => {
+    // "3 foto menunggu terkirim" untuk foto yang tak akan pernah terkirim
+    // adalah kebohongan yang membuat orang menunggu sia-sia.
+    const r = ringkasAntrean([{ status: "rusak" }, { status: "menunggu" }, { status: "ditolak" }]);
+    expect(r.menunggu).toBe(1);
+    expect(r.rusak).toBe(1);
+    expect(r.ditolak).toBe(1);
+  });
+
+  it("tetap menuntut perhatian — bukan disembunyikan", () => {
+    // Foto yang hilang harus terlihat supaya bisa dibuang lalu dipotret ulang;
+    // menyembunyikannya berarti pemiliknya mengira buktinya masih ada.
+    expect(ringkasAntrean([{ status: "rusak" }]).perluPerhatian).toBe(true);
   });
 });

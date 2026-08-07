@@ -2,7 +2,7 @@
 
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Check, Images, MapPin, MapPinOff, Trash2 } from "lucide-react";
+import { Camera, Check, Images, MapPin, MapPinOff, Trash2, X } from "lucide-react";
 import { Banner, Button, Card, Combobox, EmptyState, HelpText, Label } from "@/components/ui";
 import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
 import { KameraLangsung, type PosisiJepret } from "@/components/knmp/kamera-langsung";
@@ -102,7 +102,8 @@ function JepretCard({
   const router = useRouter();
   const [kameraBuka, setKameraBuka] = useState(false);
   const [state, action, pending] = useActionState(simpanFotoCepatAction, KOSONG);
-  const { baris, ringkas, penuh, online, titip, hapus, kirimSekarang } = useAntreanFoto();
+  const { baris, ringkas, penuh, galat, kuota, online, titip, hapus, kirimSekarang } =
+    useAntreanFoto();
 
   /**
    * Rana → SIMPAN DI PERANGKAT, bukan → kirim (DECISIONS 257).
@@ -160,6 +161,8 @@ function JepretCard({
         <PanelAntrean
           baris={baris}
           ringkas={ringkas}
+          galat={galat}
+          kuota={kuota}
           online={online}
           onKirim={() => void kirimSekarang()}
           onHapus={(id) => void hapus(id)}
@@ -226,18 +229,26 @@ function JepretCard({
 function PanelAntrean({
   baris,
   ringkas,
+  galat,
+  kuota,
   online,
   onKirim,
   onHapus,
 }: {
   baris: BarisAntrean[];
-  ringkas: { menunggu: number; ditolak: number; perluPerhatian: boolean };
+  ringkas: { menunggu: number; ditolak: number; rusak: number; perluPerhatian: boolean };
+  /** Galat antrean terakhir — ditampilkan, karena diam membuat ini mustahil didiagnosis. */
+  galat: string | null;
+  /** Pemakaian penyimpanan — supaya "penuh" jadi ANGKA, bukan tebakan. */
+  kuota: string | null;
   online: boolean;
   onKirim: () => void;
   onHapus: (id: string) => void;
 }) {
   if (!ringkas.perluPerhatian) return null;
   const ditolak = baris.filter((b) => b.status === "ditolak");
+  const sebabTerakhir = baris.find((b) => b.status !== "ditolak" && b.pesan)?.pesan;
+  const rusak = baris.filter((b) => b.status === "rusak");
 
   return (
     <div className="space-y-2 rounded-md border border-border bg-surface-muted p-3">
@@ -270,23 +281,112 @@ function PanelAntrean({
               src={b.url}
               alt=""
               className={`size-14 rounded-md border object-cover ${
-                b.status === "ditolak" ? "border-danger opacity-60" : "border-border"
+                b.status === "ditolak" || b.status === "rusak"
+                  ? "border-danger opacity-60"
+                  : "border-border"
               }`}
             />
             <span
               className={`absolute inset-x-0 bottom-0 rounded-b-md text-center text-[10px] font-medium text-white ${
                 b.status === "kirim"
                   ? "bg-primary"
-                  : b.status === "ditolak"
+                  : b.status === "ditolak" || b.status === "rusak"
                     ? "bg-danger"
                     : "bg-ink/70"
               }`}
             >
-              {b.status === "kirim" ? "kirim…" : b.status === "ditolak" ? "ditolak" : "antre"}
+              {b.status === "kirim"
+                ? "kirim…"
+                : b.status === "ditolak"
+                  ? "ditolak"
+                  : b.status === "rusak"
+                    ? "rusak"
+                    : "antre"}
             </span>
+            {/* Buang per foto — untuk SEMUA baris, bukan hanya yang ditolak.
+                Foto yang tidak mau terkirim membuat orang tersandera: tidak bisa
+                dikirim, tidak bisa dihilangkan dari layar. */}
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm("Buang foto ini dari antrean? Fotonya hilang dari HP dan TIDAK terkirim.")) onHapus(b.id);
+              }}
+              aria-label="Buang foto dari antrean"
+              title="Buang foto dari antrean"
+              className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full border border-border bg-surface text-ink-muted shadow hover:text-danger"
+            >
+              <X aria-hidden className="size-3" />
+            </button>
           </li>
         ))}
       </ul>
+
+      {/* Sebab percobaan terakhir — untuk baris yang BUKAN ditolak (yang ditolak
+          sudah punya spanduknya sendiri di bawah). Tanpa ini, "antre" tidak
+          membedakan "belum pernah dicoba" dari "sudah dicoba dan jaringannya
+          tidak menjawab", dan orang di lapangan tidak punya apa pun untuk
+          dilaporkan selain "stuck". */}
+      {sebabTerakhir ? <p className="text-xs text-ink-muted">{sebabTerakhir}</p> : null}
+
+      {/* Kegagalan antrean itu sendiri (simpanan HP menolak / tidak menjawab).
+          Ini yang dulu sepenuhnya bisu. */}
+      {galat ? <Banner tone="error" title="Antrean tersendat" description={galat} /> : null}
+
+      {/* Foto yang bytenya hilang dari simpanan HP. Disebut TERANG-TERANGAN:
+          menahannya di daftar "menunggu terkirim" berarti berbohong tentang
+          foto yang tidak akan pernah terkirim. */}
+      {rusak.length > 0 ? (
+        <Banner
+          tone="error"
+          title={`${rusak.length} foto rusak di simpanan HP`}
+          description={
+            rusak[0].pesan ??
+            "Isi fotonya hilang dari simpanan HP — tidak bisa dikirim. Buang saja lalu potret ulang."
+          }
+        />
+      ) : null}
+
+      {/*
+        PENANDA VERSI — kecil, tapi ia yang menjawab pertanyaan pertama saat ada
+        laporan "tidak berubah sama sekali": apakah HP itu benar-benar
+        menjalankan kode yang baru?
+
+        Peramban ponsel menyimpan berkas program dengan gigih. Tab yang sudah
+        dibuka sejak sebelum penerapan versi baru akan terus menjalankan kode
+        LAMA sampai halamannya benar-benar dimuat ulang — dan dari luar, itu
+        tidak bisa dibedakan dari "perbaikannya tidak jalan". Tanpa penanda ini,
+        satu-satunya cara memastikannya adalah menebak.
+
+        Naikkan angkanya setiap kali logika antrean berubah.
+      */}
+      {/*
+        PANEL RINCIAN TEKNIS — permintaan user 2026-08-07: *"coba buat debug
+        yang lebih jelas dilayar biar kukirim masalahnya ke kamu. karena tidak
+        bisa inspect element di hp"*.
+
+        Betul, dan itu memang alat yang hilang selama ini: tiga putaran
+        perbaikan dikerjakan tanpa satu pun fakta dari perangkatnya. Isinya
+        sengaja teks apa adanya (bukan ikon, bukan warna) supaya terbaca utuh
+        di tangkapan layar, dan tertutup secara bawaan supaya tidak mengganggu
+        yang tidak membutuhkannya.
+      */}
+      <details className="rounded-md border border-border bg-surface-muted px-2 py-1.5">
+        <summary className="cursor-pointer text-[11px] font-medium text-ink-muted">
+          Rincian teknis (untuk dilaporkan)
+        </summary>
+        <pre className="mt-1.5 overflow-x-auto whitespace-pre-wrap break-all text-[10px] leading-relaxed text-ink">
+{`antrean v8 · ${baris.length} baris · jaringan: ${online ? "ada" : "tidak"}
+simpanan: ${kuota ?? "-"}
+galat: ${galat ?? "-"}
+` +
+            baris
+              .map(
+                (b, i) =>
+                  `${i + 1}. ${b.status} · coba ${b.percobaan}× · ${Math.round(b.bytes / 1024)} KB · umur ${Math.round(b.umurMs / 1000)} dtk\n   ${b.pesan ?? "(tanpa pesan)"}`,
+              )
+              .join("\n")}
+        </pre>
+      </details>
 
       {ringkas.menunggu > 0 ? (
         <Button type="button" variant="secondary" onClick={onKirim}>

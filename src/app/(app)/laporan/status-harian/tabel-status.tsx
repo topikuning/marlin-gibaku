@@ -159,7 +159,27 @@ export function TabelStatus({ rows, dateKey }: Props) {
                         ? `${d.driveKeterangan} · klik untuk coba lagi`
                         : "Belum diunggah · klik untuk unggah ke Drive"
               }
-              onClick={() => jalankan(`${d.slug}-drive`, uploadDailyReportToDriveAction, d.slug)}
+              onClick={() => {
+                // Yang SUDAH naik wajib dikonfirmasi dulu. Permintaan user
+                // 2026-08-07: *"kalau sudah ternyata diklik upload ulang,
+                // harusnya ada dialog konfirmasi. supaya tidak makan resource
+                // tidak perlu kalau terklik tidak sengaja."*
+                //
+                // Betul, dan biayanya nyata: mengunggah ulang MEMBUAT ULANG
+                // PDF-nya dan menarik SETIAP foto dari penyimpanan untuk
+                // dinaikkan lagi. Berkasnya sendiri tidak menumpuk — yang
+                // senama diganti — jadi yang dijaga di sini murni pekerjaan
+                // sia-sia, bukan kerusakan data. Karena itu konfirmasi cukup,
+                // bukan tombolnya dimatikan.
+                if (
+                  d.diDrive === "Sudah" &&
+                  !window.confirm(
+                    `Unggah ulang ${d.lokasi} ke Google Drive?\n\nSudah pernah diunggah — ${d.driveKeterangan}.\n\nBerkas dengan nama sama akan diganti (tidak menumpuk), tapi PDF-nya dibuat ulang dan semua fotonya ditarik ulang dari penyimpanan lalu dinaikkan lagi. Kalau tidak ada yang berubah, tidak perlu diulang.`,
+                  )
+                )
+                  return;
+                jalankan(`${d.slug}-drive`, uploadDailyReportToDriveAction, d.slug);
+              }}
             />
           );
         },
@@ -176,6 +196,7 @@ export function TabelStatus({ rows, dateKey }: Props) {
           return (
             <TombolAksi
               keadaan={d.waTerkirim ? "ya" : "tidak"}
+              belumNada="info"
               halangan={halangan}
               sibuk={sibuk === `${d.slug}-wa`}
               ikon={Send}
@@ -292,6 +313,7 @@ export function TabelStatus({ rows, dateKey }: Props) {
  */
 function TombolAksi({
   keadaan,
+  belumNada = "danger",
   halangan,
   sibuk,
   ikon: Ikon,
@@ -300,6 +322,17 @@ function TombolAksi({
   onClick,
 }: {
   keadaan: "ya" | "tidak" | "gagal";
+  /**
+   * Nada saat BELUM dikerjakan.
+   *
+   * Merah dipakai untuk yang memang tertinggal — berkas belum ada di Drive
+   * berarti bukti hari itu belum terarsip, dan itu memang perlu dikejar.
+   * "Kirim ke WA" beda: mengirim ke grup PPK adalah keputusan sadar yang boleh
+   * saja belum diambil (laporannya belum final, misalnya), bukan kelalaian.
+   * Mewarnainya merah menuduh sesuatu yang belum tentu salah — permintaan user
+   * 2026-08-07: *"untuk button kirim sharusnya bukan merah, tapi biru"*.
+   */
+  belumNada?: "danger" | "info";
   halangan: string | null;
   sibuk: boolean;
   ikon: typeof Upload;
@@ -324,7 +357,9 @@ function TombolAksi({
       ? "border-success-border bg-success-soft text-success"
       : keadaan === "gagal"
         ? "border-warning-border bg-warning-soft text-warning"
-        : "border-danger-border bg-danger-soft text-danger";
+        : belumNada === "info"
+          ? "border-info-border bg-info-soft text-info"
+          : "border-danger-border bg-danger-soft text-danger";
 
   return (
     <button
