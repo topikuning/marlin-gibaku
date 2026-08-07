@@ -11560,3 +11560,76 @@ log"), atau galat platform 502/504. Yang memisahkannya satu fakta: **status
 HTTP** POST itu. Chrome desktop bisa membacanya di DevTools → Network. Tanpa
 itu, langkah berikutnya jadi tebakan lagi — dan tebakan sudah dua kali salah
 di saga ini.
+
+---
+
+## 292 — Tab yang lebih tua daripada servernya (2026-08-07)
+
+**Konteks — dan penutup saga 289–291.** User melaporkan dua galat:
+
+```
+Error: An unexpected response was received from the server.
+/lokasi/kranji-kranji/harian/2026-08-01        Chrome 151 / macOS
+
+UnrecognizedActionError: Server Action "602cf4e1eca363…" was not found
+on the server.
+/lokasi/sugihwaras-sugihwaras/rab/adendum      Firefox 153 / macOS
+```
+
+Yang kedua menamai sebab keduanya. Di sumber Next (`server-action-reducer`),
+`UnrecognizedActionError` dilempar saat server membalas header
+`x-nextjs-action-not-found: 1` — **ID server action tidak ada di build yang
+sedang berjalan**. ID itu di-hash PER BUILD. Jadi sesudah deploy, setiap halaman
+yang sudah telanjur terbuka membawa ID yang tidak dikenal lagi, dan setiap
+pengiriman dari tab itu ditolak. Pemeriksaan `content-type` yang menghasilkan
+pesan generik ada di fungsi yang SAMA, beberapa baris di bawahnya.
+
+Ini menjelaskan seluruh hal yang membingungkan berhari-hari:
+
+| pengamatan | penjelasan |
+|---|---|
+| hanya production | di dev tidak ada deploy yang menyalip tab |
+| "foto ini bermasalah, foto lain tidak" | bukan fotonya — TABNYA. Foto lain diunggah dari halaman yang baru dimuat |
+| "di server tidak ada log" | aksinya tidak pernah jalan; Next menolak sebelum kode aplikasi |
+| lolos semua uji lokal | memang tidak ada yang salah dengan foto, ukuran, dedup, sharp, atau DataTransfer |
+
+Hari itu ada dua deploy (15:16 dan 16:13 WIB) — persis jendela pengujian user.
+
+**Yang salah dari perilaku lama.** Kegagalan ini muncul di DETIK TERAKHIR, saat
+pelapor sudah mengetik volume dan melampirkan foto. Dan satu-satunya jalan
+keluar — muat ulang — justru menghapus semua itu. Di lapangan tab dibuka
+berjam-jam, jadi ini bukan kasus tepi.
+
+**Keputusan.**
+
+1. **Peringatan proaktif.** `MARLIN_BUILD_ID` dibekukan saat build dan ikut
+   ter-inline ke bundel klien; `/api/versi` melaporkan build yang sedang jalan.
+   `PengawasVersi` di AppShell membandingkannya saat halaman dibuka, saat tab
+   kembali difokuskan, dan tiap 5 menit — lalu memasang spanduk berikut tombol
+   **Muat ulang**. Diberi tahu SEBELUM mulai mengisi, bukan sesudah.
+2. **TIDAK PERNAH memuat ulang sendiri.** Muat ulang otomatis di tengah
+   pengisian persis kerusakan yang sedang dicegah. Keputusannya milik pelapor,
+   dan spanduknya menyebut terus terang bahwa isian yang belum disimpan hilang.
+3. **Pesan saat telanjur gagal diperbaiki.** Dulu `tahanGagalKirim` (291)
+   menyebutnya "server menolak permintaan ini… coba tekan lagi" — dua-duanya
+   keliru di sini: servernya sehat, dan menekan lagi TIDAK AKAN PERNAH berhasil.
+   Sekarang jalur ini dikenali tersendiri dan menyuruh memuat ulang.
+4. `/api/versi` sengaja **tidak menyentuh database** (beda dari `/api/health`):
+   ia dipanggil berkala oleh setiap tab yang terbuka.
+
+**Bukti (peramban nyata).**
+
+| | build sama | server sudah di-deploy ulang |
+|---|---|---|
+| spanduk "sudah diperbarui" | tidak muncul | muncul |
+| tombol "Muat ulang" | — | ada |
+| halaman | hidup | hidup |
+
+Tidak ada peringatan palsu saat build sama — itu setengah dari nilainya;
+peringatan yang sering salah akan diabaikan justru saat benar.
+
+**Uji.** `tests/unit/aksi-klien.test.ts` — pengenalan dari nama galat DAN dari
+kalimatnya (nama kelas internal Next bisa berubah antar versi), pesannya
+menyuruh memuat ulang dan TIDAK menyuruh mencoba lagi, serta batas penting:
+kegagalan transport biasa tidak ikut disebut deploy — kalau ikut, orang akan
+membuang isiannya tanpa alasan.
