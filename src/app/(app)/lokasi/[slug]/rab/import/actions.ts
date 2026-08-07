@@ -175,13 +175,24 @@ export async function importHps(_prev: ImportState, formData: FormData): Promise
     const mode: ImportMode = formData.get("mode") === "draft" ? "draft" : "aktifkan";
     let templateAdendum: Awaited<ReturnType<typeof bacaTemplateAdendum>> | null = null;
     if (mode === "draft") {
+      // Nama sheet DULU, isinya belakangan. Memuat seluruh workbook cuma untuk
+      // mengintip satu sel penanda berharga 180 MB heap + 25 detik pada berkas
+      // KKP 45-sheet — dan itulah yang mematikan proses di kontainer 512 MB
+      // (DECISIONS 297). Penanda template mustahil ada bila sheet-nya tidak
+      // ada, jadi pemeriksaan murah ini menutup seluruh jalur mahalnya.
+      const { namaSheetXlsx } = await import("@/lib/rab/xlsx-slim");
+      const { ADENDUM_TEMPLATE_SHEET } = await import("@/lib/export/adendum-template-xlsx");
+      const mungkinTemplate = (await namaSheetXlsx(buffer)).some((x) => x.nama === ADENDUM_TEMPLATE_SHEET && !x.tersembunyi);
+
       const ExcelJS = (await import("exceljs")).default;
       const probe = new ExcelJS.Workbook();
       let cocok = false;
       try {
-        await probe.xlsx.load(buffer as unknown as ArrayBuffer);
-        const { isAdendumTemplate } = await import("@/lib/rab/adendum-template-parse");
-        cocok = isAdendumTemplate(probe);
+        if (mungkinTemplate) {
+          await probe.xlsx.load(buffer as unknown as ArrayBuffer);
+          const { isAdendumTemplate } = await import("@/lib/rab/adendum-template-parse");
+          cocok = isAdendumTemplate(probe);
+        }
       } catch {
         // Gagal dibuka sebagai workbook → biar jalur HPS yang melaporkannya,
         // dengan pesan galat yang sudah dikenal user.

@@ -11822,3 +11822,68 @@ jebakan intinya: blok berlabel "MC - 0" di posisi DASAR tidak boleh ikut
 terambil, kolom REALISASI tidak boleh tertukar jadi volume/harga, dan bentuk
 yang benar tapi angkanya tidak terbukti harus mengembalikan null. 1131 uji unit
 + 410 uji integration hijau — korpus 15 RAB biasa tidak tersentuh.
+
+---
+
+## 297 — Baca sheet yang diperlukan saja, dan yang tidak disembunyikan (2026-08-07)
+
+**Konteks.** Laporan user dari production (kontainer **512 MB RAM / 0,5 CPU**):
+
+```
+FATAL ERROR: Reached heap limit — Allocation failed
+Mark-Compact 252.1 (257.2) -> 252.0 (258.2) MB … allocation failure
+```
+
+*"sepertinya ini terjadi saat load data mc 0 sugihwaras."*
+
+Ini sekaligus menutup dugaan yang sengaja dibiarkan terbuka di DECISIONS 291:
+sebab non-RSC response yang tidak meninggalkan log server memang **proses yang
+mati** — sekarang ada jejaknya.
+
+**Diukur, bukan ditebak** (berkas KKP 3 MB / 45 sheet):
+
+| tahap | puncak heap | waktu |
+|---|---|---|
+| probe `xlsx.load` seluruh workbook | **+180 MB** | **25 detik** |
+| `slimRabWorkbook` | +11 MB | 263 ms |
+| parse sesungguhnya (slim + walk) | +69 MB | 486 ms |
+
+Probe itu ada **hanya untuk mengintip satu sel penanda** template adendum — dan
+hanya berjalan di mode draft, persis jalur adendum yang user pakai. Komentar di
+kodenya bahkan sudah mencemaskan biaya membuka workbook dua kali, tapi
+mitigasinya (batasi ke mode draft) justru melindungi jalur yang salah. Di heap
+~256 MB, 180 + 69 = mati.
+
+**Keputusan.**
+
+1. **Nama sheet dibaca dari zip, isinya tidak.** `namaSheetXlsx` hanya membuka
+   `xl/workbook.xml` (beberapa KB). Penanda template mustahil ada bila
+   sheet-nya tidak ada, jadi pemeriksaan murah ini menutup seluruh jalur mahal.
+2. **Sheet tersembunyi tidak pernah dibaca** (permintaan user: *"kamu kan cuma
+   perlu baca sheet tertentu saja, dan yang tidak dihide"*). Sheet yang di-hide
+   di berkas KKP itu sisa kerja, arsip, atau lembar bantu.
+3. **Satu sheet per pemuatan.** `parseHpsBuffer` menyusun daftar kandidat dari
+   nama (RAB → /rab/i → CCO-n → sisanya yang terlihat, maks 8), lalu untuk tiap
+   kandidat berkasnya ditipiskan ke SATU sheet sebelum dimuat. Yang tidak
+   menghasilkan baris dilepas sebelum kandidat berikutnya dimuat — puncaknya
+   tetap satu-sheet berapa pun banyak sheet di berkasnya.
+4. Karena kandidat dipilih sengaja, workbook satu-sheet **diterima apa pun
+   namanya**. Berkas KKP nyata memakai "Lampiran", "BQ", "RAB Revisi"; memaksa
+   nama "RAB" berarti menolak pekerjaan yang isinya sudah benar hanya karena
+   judul tabnya.
+
+**Hasil pada berkas asli user:**
+
+| berkas | sebelum | sesudah |
+|---|---|---|
+| MC-0 (3 MB, 45 sheet) | ±249 MB · ~25,5 detik | **25 MB · 621 ms** |
+| CCO-01 (0,3 MB) | ±69 MB | **50 MB · 360 ms** |
+
+Keduanya kini nyaman di bawah heap kontainer 512 MB, dan 25 detik yang juga
+mengancam batas waktu permintaan hilang.
+
+**Uji.** `tests/unit/xlsx-nama-sheet.test.ts` — nama sheet + status tersembunyi,
+berkas rusak → daftar kosong (bukan melempar), sheet ber-hide DILEWATI sementara
+sheet terlihat bernama asing DIPAKAI, penipisan menghasilkan tepat satu sheet,
+dan penjagaan struktural: pemeriksaan nama harus berada SEBELUM `xlsx.load` dan
+membungkusnya. Dicek bergigi: melepas penjagaan → uji itu merah.
