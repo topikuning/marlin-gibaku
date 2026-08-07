@@ -118,6 +118,27 @@ const SITE_MANAGER: Capability[] = [
   ...PELAKSANA,
   "package.view",
   "weekly_plan.manage",
+  /**
+   * ADENDUM: Site Manager ikut menyusun draft RAB adendum (DECISIONS 302).
+   *
+   * Sebelum ini SM tidak punya `rab.manage`, dan itu bertabrakan dengan
+   * aturannya sendiri: `bolehMenyetujui()` (persetujuan empat mata, DECISIONS
+   * 234) MENYEBUT Site Manager sebagai penyetuju yang sah — pesan galatnya
+   * bahkan menuliskannya — padahal tombol setujunya ada di
+   * `/lokasi/[slug]/rab/adendum`, halaman yang dijaga `rab.manage`. Jadi
+   * sistem menjanjikan suara yang pintunya ia kunci sendiri: paket yang
+   * mengandalkan pasangan Program Director + Site Manager TIDAK PERNAH bisa
+   * mengaktifkan adendumnya, dan galatnya menyesatkan karena menyebut SM
+   * berhak.
+   *
+   * Pilihan user 2026-08-07: beri SM `rab.manage` penuh. Konsekuensinya
+   * disebut apa adanya — SM sekalian bisa mengedit RAB dan mengimpor HPS,
+   * bukan sekadar ikut menyetujui. Yang TIDAK ikut terbuka: aktivasi revisi
+   * tetap menuntut dua orang berbeda (satu di antaranya Program Director), dan
+   * pencatatan adendum di sisi kontrak tetap `amendment.manage` (super_admin &
+   * Program Director saja).
+   */
+  "rab.manage",
   "daily_report.review",
   "daily_report.finalize",
   "issue.manage",
@@ -139,7 +160,9 @@ const PROJECT_MANAGER: Capability[] = [
   ...SITE_MANAGER,
   "portfolio.view",
   "location.manage",
-  "rab.manage",
+  // `rab.manage` kini datang dari SITE_MANAGER (DECISIONS 302) — tidak
+  // didaftar ulang di sini supaya jelas ia hak yang DIWARISI, bukan hak khas
+  // Project Manager yang kebetulan sama namanya.
   "baseline.manage",
   "finance.view",
   "document.verify",

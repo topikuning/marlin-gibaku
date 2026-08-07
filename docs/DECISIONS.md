@@ -12075,3 +12075,60 @@ untuk kartu dokumentasi. Uji mengunci `pdf.susunKartu === murni.susunKartu`.
 
 **Masih terbuka:** logo konsultan pengawas belum punya tempat penyimpanan
 (lihat 300); kotak kop-nya terisi nama perusahaan, slot logonya kosong.
+
+---
+
+## 302 — Site Manager bisa masuk ke halaman adendum yang aturannya sudah menunjuk dia (2026-08-07)
+
+**Pertanyaan user.** *"project manager dan site manager kenapa tidak ada menu
+pengajuan adendumnya?"*
+
+**Jawaban atas pertanyaannya: memang tidak ada menunya, untuk peran mana pun.**
+Adendum bukan item navigasi. Satu-satunya pintu masuk adalah tombol "Adendum"
+di dalam tab **Rencana & RAB** sebuah lokasi, plus tombol "Buka draft adendum"
+di tab Progress yang baru muncul SETELAH draftnya ada. Project Manager
+sebenarnya sudah bisa — ia punya `rab.manage`; letak tombolnya saja yang di
+dalam tab, bukan di navigasi atas. User memilih **membiarkan pintu masuknya apa
+adanya**: adendum jarang terjadi, tidak perlu ruang navigasi permanen.
+
+**Yang ditemukan sambil menjawab, dan ini cacat sungguhan.** `bolehMenyetujui()`
+(persetujuan empat mata, DECISIONS 234) MENYEBUT Site Manager sebagai penyetuju
+yang sah — pesan galatnya bahkan menuliskannya: *"Yang berhak: Program
+Director, Area Manager, Project Manager, atau Site Manager."* Sementara tombol
+setujunya ada di `/lokasi/[slug]/rab/adendum`, halaman yang dijaga
+`rab.manage`, yang tidak dimiliki Site Manager.
+
+Sistem menjanjikan suara yang pintunya ia kunci sendiri. Akibatnya: paket yang
+pasangan penyetujunya **Program Director + Site Manager** tidak akan pernah bisa
+mengaktifkan adendumnya, dan galat yang muncul justru menyesatkan karena
+menyebut SM berhak.
+
+**Keputusan user: beri Site Manager `rab.manage` penuh.** Dua pilihan lain
+(halaman dibuka untuk SM tapi hanya boleh menyetujui; atau SM dicabut dari
+daftar penyetuju) ditawarkan dan ditolak.
+
+Konsekuensinya disebut apa adanya, bukan dihaluskan: Site Manager sekalian bisa
+**mengedit RAB dan mengimpor HPS**, bukan sekadar ikut menyetujui.
+
+**Yang TIDAK ikut terbuka, dan sudah diperiksa di kode, bukan diasumsikan:**
+
+- **Aktivasi adendum tetap butuh dua orang berbeda.** Kedua jalur aktivasi
+  (`rab/actions.ts` dan `rab/import/actions.ts`) melewati
+  `pastikanBolehAktivasi()` lebih dulu, dan jalur impor bahkan menolak
+  mengaktifkan adendum secara otomatis — ia berhenti di draft sambil menyebut
+  syarat persetujuannya. Jadi SM tidak bisa mengganti RAB kontrak sendirian.
+- **Adendum sisi KONTRAK tetap tertutup.** `amendment.manage` (nomor CCO,
+  perubahan waktu) tetap super_admin & Program Director saja. Menyusun draft
+  RAB berbeda dari mengesahkan kontraknya.
+- **Cakupan lokasi tidak berubah** — SM tetap hanya lokasi yang ditugaskan
+  lewat `requireLocationAccess`.
+
+`rab.manage` juga DICABUT dari daftar Project Manager karena kini diwarisi dari
+SITE_MANAGER — jenjang peran memang disusun bertingkat (DECISIONS 218), dan
+mendaftarnya dua kali menyamarkan dari mana hak itu datang.
+
+**Dijaga sebagai INVARIAN, bukan daftar peran.** Uji barunya berbunyi: siapa pun
+yang `bolehMenyetujui()` akui wajib punya `rab.manage`. Menambah peran penyetuju
+baru tanpa membuka pintunya akan langsung tertangkap — kontradiksi yang sama
+tidak bisa lahir dua kali. Diuji giginya: `rab.manage` dicabut dari SM → uji
+merah.
