@@ -45,11 +45,38 @@ export type DailyActionState =
   | { error?: string; success?: string; warning?: string }
   | undefined;
 
+/**
+ * Ubah galat jadi PESAN, bukan jadi halaman mati.
+ *
+ * Laporan user 2026-08-07: *"masukkan foto ini dari galeri, pilih tidak di
+ * lokasi proyek, langsung muncul halaman error minta reload"*.
+ *
+ * Apa pun galat yang menyebabkannya, MEKANISME yang mengubahnya jadi layar mati
+ * ada di sini: dulu galat yang tidak masuk daftar putih dilempar ulang, dan
+ * lemparan dari server action menjatuhkan seluruh halaman jadi "Application
+ * error — reload". Yang hilang bukan cuma tampilan, melainkan satu-satunya
+ * kesempatan memberi tahu APA yang salah — persis pelajaran mahal dari antrean
+ * Foto Cepat (DECISIONS 284–287): layar yang diam saat gagal membuat perbaikan
+ * jadi tebakan.
+ *
+ * Sekarang galat tak terduga tetap menghentikan aksinya, tapi:
+ * - sebabnya DISEBUT di layar berikut nama galatnya, bisa difoto & dilaporkan;
+ * - galat utuhnya tetap masuk log server — yang tidak boleh hilang adalah
+ *   penyebabnya, bukan permintaannya.
+ *
+ * `redirect()`/`notFound()` Next bekerja DENGAN cara melempar; lemparan itu
+ * harus tetap lewat, kalau tidak navigasinya rusak.
+ */
 function errState(err: unknown): DailyActionState {
   if (err instanceof DailyReportError || err instanceof PhotoError || err instanceof ForbiddenError) {
     return { error: err.message };
   }
-  throw err;
+  const digest = (err as { digest?: unknown } | null)?.digest;
+  if (typeof digest === "string" && digest.startsWith("NEXT_")) throw err;
+
+  console.error("[laporan-harian] galat tak terduga", err);
+  const nama = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+  return { error: `Gagal diproses — ${nama}. Salin pesan ini saat melapor.` };
 }
 
 /** Ambil report + slug/dateKey untuk otorisasi & revalidate. */

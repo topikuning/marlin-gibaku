@@ -11377,3 +11377,55 @@ persis.
 DAN peramban membuang simpanannya, fotonya hilang — tidak ada lapis yang bisa
 menutup itu dari sisi klien. Yang bisa dijamin: keadaan itu akan **terlihat**
 (status `rusak` dengan sebabnya), bukan menyamar jadi "menunggu terkirim".
+
+## 289 · Galat server action tidak boleh menjatuhkan halaman (2026-08-07)
+
+**Konteks.** Laporan user 2026-08-07: *"laporan harian, masukkan foto ini dari
+galeri, pilih tidak di lokasi proyek, langsung muncul halaman error minta
+reload"*, dengan berkas nyata `IMG20260801WA0035.jpg` (274 KB, tanpa EXIF).
+
+**Yang BERHASIL direproduksi, dan yang tidak.** Kombinasi persisnya diuji dengan
+berkas aslinya — galeri, tanpa EXIF, pelapor menjawab TIDAK di lokasi, nama
+berkas bergaya WhatsApp, jam jepret tak diketahui — dan fotonya **tersimpan
+normal** (`gpsSource: "project"`, arsip asli terbentuk). Jadi sebab galatnya
+BELUM diketahui; jujur dicatat begitu, bukan ditebak.
+
+**Yang ditemukan dan diperbaiki: MEKANISME-nya.** Apa pun galat yang
+menyebabkannya, yang mengubahnya menjadi layar mati ada di satu baris:
+
+```ts
+function errState(err: unknown): DailyActionState {
+  if (err instanceof DailyReportError || …) return { error: err.message };
+  throw err;                       // ← galat apa pun di luar daftar putih
+}
+```
+
+Lemparan dari server action menjatuhkan seluruh halaman jadi "Application error
+— reload". Yang hilang bukan cuma tampilan, melainkan **satu-satunya kesempatan
+memberi tahu apa yang salah** — pelajaran yang baru saja dibayar mahal di
+antrean Foto Cepat (DECISIONS 284–287): layar yang diam saat gagal membuat
+perbaikan jadi tebakan, dan tebakan yang dikirim ke lapangan membuang waktu
+orang yang sedang bekerja.
+
+**Keputusan.**
+
+1. `errState` **berhenti melempar ulang**. Galat tak terduga tetap menghentikan
+   aksinya, tapi sebabnya disebut di layar berikut nama galatnya
+   (`Gagal diproses — NamaGalat: pesan. Salin pesan ini saat melapor.`), dan
+   galat utuhnya tetap masuk log server.
+2. Lemparan `redirect()`/`notFound()` Next **tetap dilewatkan** (dikenali dari
+   `digest` berawalan `NEXT_`) — keduanya bekerja DENGAN cara melempar, dan
+   menelannya akan merusak navigasi.
+3. Aturan yang sama dipasang di **kegiatan lapangan**, yang masih memakai
+   `else throw err` saat menyimpan foto. Di laporan harian aturan ini sudah ada
+   sejak DECISIONS 231; di sini ia tertinggal.
+
+**Uji.** `tests/integration/foto-galeri-tanpa-gps.test.ts` — memakai BERKAS
+ASLI dari laporan user, bukan gambar 8×8 buatan uji. Mengunci: fotonya tersimpan,
+koordinatnya bertanda `project` (bukan menyamar sebagai bukti GPS — DECISIONS
+197), arsip aslinya terbentuk; dan berkas yang bukan gambar pun tetap tersimpan
+tanpa cap alih-alih melempar galat mentah.
+
+**Yang masih terbuka.** Sebab galat di perangkat user belum diketahui. Bedanya
+dengan kemarin: sekarang layarnya akan **menyebutkan nama galatnya**, jadi
+laporan berikutnya membawa fakta, bukan gejala.
