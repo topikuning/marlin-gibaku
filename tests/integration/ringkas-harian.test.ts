@@ -602,3 +602,129 @@ describe("kirim ringkasan ke grup WA", () => {
     expect(p.items).toBe(1);
   });
 });
+
+describe("judul foto = pekerjaan yang dibuktikannya, bukan label seragam", () => {
+  it("foto bertaut item RAB memakai kode + nama pekerjaannya", async () => {
+    // Pertanyaan user 2026-08-07 atas PDF ringkas: *"kenapa judul fotonya
+    // begini? bukannya akan lebih rapi jika menyesuaikan pekerjaan realnya?"*
+    // Dulu SEMUA foto laporan berjudul "Pekerjaan harian" padahal tautannya
+    // sudah ada — halaman dokumentasi jadi belasan foto berjudul sama, dan
+    // pemeriksa tidak bisa tahu foto mana membuktikan pekerjaan mana.
+    const lap = await db.dailyReport.findFirstOrThrow({
+      where: { locationId, reportDate: new Date(`${HARI}T00:00:00.000Z`) },
+      select: { id: true, items: { select: { id: true, rabNode: { select: { code: true, name: true } } } } },
+    });
+    const item = lap.items[0];
+    expect(item).toBeDefined();
+
+    const foto = await db.photo.create({
+      data: {
+        locationId,
+        reportId: lap.id,
+        reportItemId: item.id,
+        r2Key: `uji/${suffix}/item.jpg`,
+        sha256: `${suffix}item`,
+        bytes: 10,
+        gpsSource: "exif",
+        exifTakenAt: new Date(`${HARI}T02:15:00.000Z`),
+        metadataSource: "exif",
+      },
+      select: { id: true },
+    });
+    try {
+      const d = await getRingkasHarian(slug, HARI);
+      const f = d!.foto.find((x) => x.sumber.includes(item.rabNode.name));
+      expect(f).toBeDefined();
+      expect(f!.sumber).toBe(`${item.rabNode.code} · ${item.rabNode.name}`);
+      expect(f!.sumber).not.toBe("Pekerjaan harian");
+      // Jamnya dari EXIF = diketahui → boleh dicetak lengkap.
+      expect(f!.jamTidakDiketahui).toBe(false);
+    } finally {
+      await db.photo.deleteMany({ where: { id: foto.id } });
+    }
+  });
+
+  it("foto tanpa item TETAP berlabel umum — menebak pekerjaannya lebih buruk", async () => {
+    const lap = await db.dailyReport.findFirstOrThrow({
+      where: { locationId, reportDate: new Date(`${HARI}T00:00:00.000Z`) },
+      select: { id: true },
+    });
+    const foto = await db.photo.create({
+      data: {
+        locationId,
+        reportId: lap.id,
+        r2Key: `uji/${suffix}/lepas.jpg`,
+        sha256: `${suffix}lepas`,
+        bytes: 10,
+        gpsSource: "none",
+      },
+      select: { id: true },
+    });
+    try {
+      const d = await getRingkasHarian(slug, HARI);
+      expect(d!.foto.some((x) => x.sumber === "Pekerjaan harian")).toBe(true);
+    } finally {
+      await db.photo.deleteMany({ where: { id: foto.id } });
+    }
+  });
+});
+
+describe("jam yang tidak diketahui tidak boleh dicetak sebagai jam", () => {
+  it("waktu dari TANGGAL KERJA ditandai — bukan dicetak '07.00'", async () => {
+    // Kolom tanggal kerja = DATE = tengah malam UTC. Diformat lengkap ia
+    // berbunyi 07.00 WIB: tanggalnya benar, jamnya karangan (DECISIONS 197).
+    const lap = await db.dailyReport.findFirstOrThrow({
+      where: { locationId, reportDate: new Date(`${HARI}T00:00:00.000Z`) },
+      select: { id: true },
+    });
+    const foto = await db.photo.create({
+      data: {
+        locationId,
+        reportId: lap.id,
+        r2Key: `uji/${suffix}/tanpa-jam.jpg`,
+        sha256: `${suffix}tanpajam`,
+        bytes: 10,
+        gpsSource: "project",
+        exifTakenAt: new Date(`${HARI}T00:00:00.000Z`),
+        metadataSource: "server",
+      },
+      select: { id: true },
+    });
+    try {
+      const d = await getRingkasHarian(slug, HARI);
+      const f = d!.foto.find((x) => x.id === foto.id);
+      expect(f!.jamTidakDiketahui).toBe(true);
+    } finally {
+      await db.photo.deleteMany({ where: { id: foto.id } });
+    }
+  });
+
+  it("waktu unggah sungguhan TIDAK ikut ditandai", async () => {
+    // Batas yang penting: jalur 'server' satunya (waktu unggah) memakai
+    // new Date(). Menandainya juga akan menyembunyikan jam yang SAH.
+    const lap = await db.dailyReport.findFirstOrThrow({
+      where: { locationId, reportDate: new Date(`${HARI}T00:00:00.000Z`) },
+      select: { id: true },
+    });
+    const foto = await db.photo.create({
+      data: {
+        locationId,
+        reportId: lap.id,
+        r2Key: `uji/${suffix}/unggah.jpg`,
+        sha256: `${suffix}unggah`,
+        bytes: 10,
+        gpsSource: "none",
+        exifTakenAt: new Date(`${HARI}T04:37:12.345Z`),
+        metadataSource: "server",
+      },
+      select: { id: true },
+    });
+    try {
+      const d = await getRingkasHarian(slug, HARI);
+      const f = d!.foto.find((x) => x.id === foto.id);
+      expect(f!.jamTidakDiketahui).toBe(false);
+    } finally {
+      await db.photo.deleteMany({ where: { id: foto.id } });
+    }
+  });
+});

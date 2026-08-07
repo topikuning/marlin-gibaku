@@ -7,6 +7,7 @@ import {
   locationCodeFromName,
   normalizeHex,
   relativeLuminance,
+  jamTakDiketahui,
 } from "@/lib/photo-stamp/format";
 
 const SABTU = new Date("2026-07-25T16:15:00+07:00"); // Sabtu 25 Juli 2026, 16:15 WIB
@@ -88,5 +89,30 @@ describe("locationCodeFromName", () => {
     expect(locationCodeFromName("Purwahamba")).toBe("PUR");
     expect(locationCodeFromName("KNMP Tengket")).toBe("KNM");
     expect(locationCodeFromName("")).toBe("LOK");
+  });
+});
+
+// JAM YANG TIDAK DIKETAHUI TIDAK BOLEH DICETAK SEBAGAI JAM (DECISIONS 197).
+//
+// Pertanyaan user 2026-08-07 atas PDF ringkas menampilkan "4 Agt 2026 07.00".
+// Angka itu bukan data: kolom tanggal kerja bertipe DATE = tengah malam UTC,
+// yang diformat lengkap berbunyi 07.00 WIB.
+describe("jamTakDiketahui", () => {
+  it("waktu dari tanggal kerja (tengah malam UTC + sumber server) → tidak diketahui", () => {
+    expect(jamTakDiketahui("server", new Date("2026-08-04T00:00:00.000Z"))).toBe(true);
+  });
+
+  it("waktu unggah sungguhan TIDAK ikut ditandai", () => {
+    // Batas yang penting: menandainya juga akan menyembunyikan jam yang SAH.
+    expect(jamTakDiketahui("server", new Date("2026-08-04T04:37:12.345Z"))).toBe(false);
+  });
+
+  it("EXIF & nama berkas selalu dianggap diketahui", () => {
+    expect(jamTakDiketahui("exif", new Date("2026-08-04T00:00:00.000Z"))).toBe(false);
+    expect(jamTakDiketahui("filename", new Date("2026-08-04T00:00:00.000Z"))).toBe(false);
+  });
+
+  it("tanpa waktu → bukan urusannya", () => {
+    expect(jamTakDiketahui("server", null)).toBe(false);
   });
 });

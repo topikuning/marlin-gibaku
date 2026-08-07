@@ -140,3 +140,32 @@ export function generatePhotoId(
   const code = (locationCode || "LOK").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6) || "LOK";
   return `${code}-${ymd}-${hm}-${String(Math.max(1, sequence)).padStart(3, "0")}`;
 }
+
+/**
+ * Apakah jam pada `exifTakenAt` cuma artefak kolom tanggal, bukan jam jepret?
+ *
+ * Saat foto galeri tak membawa EXIF maupun jam di nama berkasnya, `photos.ts`
+ * mengisi waktunya dari TANGGAL KERJA — kolom DATE, yang di Postgres berarti
+ * tengah malam UTC alias **07.00 WIB**. Tanggalnya benar, jamnya karangan.
+ *
+ * Cap di gambar sudah menghormati ini sejak DECISIONS 197, tapi lapisan PDF
+ * tertinggal dan tetap mencetak "07.00" di bawah foto. Di dokumen bukti itu
+ * bukan soal kerapian: menyebut jam yang tidak diketahui adalah keterangan
+ * palsu. Karena itu aturannya ditaruh di modul bersama — supaya penulis
+ * dokumen berikutnya tidak perlu menemukannya lagi sendiri.
+ *
+ * Tidak ada kolom penanda, dan menambahnya berarti migrasi + backfill untuk
+ * sesuatu yang bisa dibaca pasti dari nilainya: hanya jalur itu yang
+ * menghasilkan `metadataSource = "server"` TEPAT di tengah malam UTC. Jalur
+ * "server" satunya (waktu unggah) memakai `new Date()`, yang praktis mustahil
+ * jatuh persis di 00:00:00.000.
+ */
+export function jamTakDiketahui(metadataSource: string, takenAt: Date | null): boolean {
+  if (!takenAt || metadataSource !== "server") return false;
+  return (
+    takenAt.getUTCHours() === 0 &&
+    takenAt.getUTCMinutes() === 0 &&
+    takenAt.getUTCSeconds() === 0 &&
+    takenAt.getUTCMilliseconds() === 0
+  );
+}

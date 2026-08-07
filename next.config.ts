@@ -1,7 +1,24 @@
 import type { NextConfig } from "next";
 
+/**
+ * Penanda build, dibekukan saat kompilasi dan ikut ter-inline ke bundel klien.
+ *
+ * Dipakai mendeteksi tab yang lebih tua dari servernya. ID server action
+ * di-hash per build: sesudah deploy, halaman yang sudah terbuka membawa ID yang
+ * TIDAK ADA LAGI di server, dan setiap pengiriman dari tab itu ditolak dengan
+ * `UnrecognizedActionError` — kerja yang sudah diketik hilang di detik terakhir
+ * (DECISIONS 292).
+ *
+ * SHA commit dipakai bila platform menyediakannya supaya nilainya stabil untuk
+ * build yang sama; kalau tidak ada, cap waktu build sudah cukup — yang
+ * dibutuhkan cuma "berubah setiap build".
+ */
+const BUILD_ID =
+  process.env.RAILWAY_GIT_COMMIT_SHA ?? process.env.MARLIN_BUILD_ID ?? String(Date.now());
+
 const nextConfig: NextConfig = {
   output: "standalone",
+  env: { MARLIN_BUILD_ID: BUILD_ID },
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,

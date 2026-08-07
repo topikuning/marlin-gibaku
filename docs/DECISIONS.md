@@ -11560,3 +11560,139 @@ log"), atau galat platform 502/504. Yang memisahkannya satu fakta: **status
 HTTP** POST itu. Chrome desktop bisa membacanya di DevTools → Network. Tanpa
 itu, langkah berikutnya jadi tebakan lagi — dan tebakan sudah dua kali salah
 di saga ini.
+
+---
+
+## 292 — Tab yang lebih tua daripada servernya (2026-08-07)
+
+**Konteks — dan penutup saga 289–291.** User melaporkan dua galat:
+
+```
+Error: An unexpected response was received from the server.
+/lokasi/kranji-kranji/harian/2026-08-01        Chrome 151 / macOS
+
+UnrecognizedActionError: Server Action "602cf4e1eca363…" was not found
+on the server.
+/lokasi/sugihwaras-sugihwaras/rab/adendum      Firefox 153 / macOS
+```
+
+Yang kedua menamai sebab keduanya. Di sumber Next (`server-action-reducer`),
+`UnrecognizedActionError` dilempar saat server membalas header
+`x-nextjs-action-not-found: 1` — **ID server action tidak ada di build yang
+sedang berjalan**. ID itu di-hash PER BUILD. Jadi sesudah deploy, setiap halaman
+yang sudah telanjur terbuka membawa ID yang tidak dikenal lagi, dan setiap
+pengiriman dari tab itu ditolak. Pemeriksaan `content-type` yang menghasilkan
+pesan generik ada di fungsi yang SAMA, beberapa baris di bawahnya.
+
+Ini menjelaskan seluruh hal yang membingungkan berhari-hari:
+
+| pengamatan | penjelasan |
+|---|---|
+| hanya production | di dev tidak ada deploy yang menyalip tab |
+| "foto ini bermasalah, foto lain tidak" | bukan fotonya — TABNYA. Foto lain diunggah dari halaman yang baru dimuat |
+| "di server tidak ada log" | aksinya tidak pernah jalan; Next menolak sebelum kode aplikasi |
+| lolos semua uji lokal | memang tidak ada yang salah dengan foto, ukuran, dedup, sharp, atau DataTransfer |
+
+Hari itu ada dua deploy (15:16 dan 16:13 WIB) — persis jendela pengujian user.
+
+**Yang salah dari perilaku lama.** Kegagalan ini muncul di DETIK TERAKHIR, saat
+pelapor sudah mengetik volume dan melampirkan foto. Dan satu-satunya jalan
+keluar — muat ulang — justru menghapus semua itu. Di lapangan tab dibuka
+berjam-jam, jadi ini bukan kasus tepi.
+
+**Keputusan.**
+
+1. **Peringatan proaktif.** `MARLIN_BUILD_ID` dibekukan saat build dan ikut
+   ter-inline ke bundel klien; `/api/versi` melaporkan build yang sedang jalan.
+   `PengawasVersi` di AppShell membandingkannya saat halaman dibuka, saat tab
+   kembali difokuskan, dan tiap 5 menit — lalu memasang spanduk berikut tombol
+   **Muat ulang**. Diberi tahu SEBELUM mulai mengisi, bukan sesudah.
+2. **TIDAK PERNAH memuat ulang sendiri.** Muat ulang otomatis di tengah
+   pengisian persis kerusakan yang sedang dicegah. Keputusannya milik pelapor,
+   dan spanduknya menyebut terus terang bahwa isian yang belum disimpan hilang.
+3. **Pesan saat telanjur gagal diperbaiki.** Dulu `tahanGagalKirim` (291)
+   menyebutnya "server menolak permintaan ini… coba tekan lagi" — dua-duanya
+   keliru di sini: servernya sehat, dan menekan lagi TIDAK AKAN PERNAH berhasil.
+   Sekarang jalur ini dikenali tersendiri dan menyuruh memuat ulang.
+4. `/api/versi` sengaja **tidak menyentuh database** (beda dari `/api/health`):
+   ia dipanggil berkala oleh setiap tab yang terbuka.
+
+**Bukti (peramban nyata).**
+
+| | build sama | server sudah di-deploy ulang |
+|---|---|---|
+| spanduk "sudah diperbarui" | tidak muncul | muncul |
+| tombol "Muat ulang" | — | ada |
+| halaman | hidup | hidup |
+
+Tidak ada peringatan palsu saat build sama — itu setengah dari nilainya;
+peringatan yang sering salah akan diabaikan justru saat benar.
+
+**Uji.** `tests/unit/aksi-klien.test.ts` — pengenalan dari nama galat DAN dari
+kalimatnya (nama kelas internal Next bisa berubah antar versi), pesannya
+menyuruh memuat ulang dan TIDAK menyuruh mencoba lagi, serta batas penting:
+kegagalan transport biasa tidak ikut disebut deploy — kalau ikut, orang akan
+membuang isiannya tanpa alasan.
+
+---
+
+## 293 — Judul foto = pekerjaan yang dibuktikannya (2026-08-07)
+
+**Konteks.** User atas PDF ringkas laporan harian: *"kenapa judul fotonya
+begini? bukannya akan lebih rapi jika menyesuaikan pekerjaan realnya?!"* —
+seluruh foto laporan berjudul **"Pekerjaan harian"**.
+
+Itu konstanta mati di `ringkas.ts`, padahal tiap foto SUDAH tertaut ke item
+RAB-nya lewat `Photo.reportItemId`; kuerinya saja yang tidak pernah mengambil
+relasinya. Foto kegiatan sejak awal memakai `Kegiatan: <judul>`, jadi
+ketimpangannya ada di dalam satu dokumen yang sama.
+
+Akibatnya bukan soal rapi. Halaman dokumentasi berisi belasan foto berjudul
+sama persis, sehingga pemeriksa PPK tidak bisa tahu foto mana membuktikan
+pekerjaan mana — padahal itulah satu-satunya guna lampiran foto.
+
+**Keputusan.** Judul = `kode · nama` item RAB-nya. Label umum "Pekerjaan
+harian" HANYA tersisa untuk foto yang memang tidak tertaut item mana pun
+(foto yang item-nya sudah dihapus): di sana label umum itu jujur, sedangkan
+menebak pekerjaannya tidak.
+
+---
+
+## 294 — "07.00" bukan jam, dan koordinat cadangan bukan bukti (2026-08-07)
+
+**Temuan menyusul, TIDAK diminta user.** Di baris keterangan foto yang sama
+tertulis `4 Agt 2026 07.00`. Angka itu bukan data: foto galeri tanpa EXIF
+mengambil waktunya dari TANGGAL KERJA — kolom `@db.Date`, yaitu tengah malam
+UTC, yang diformat lengkap berbunyi 07.00 WIB.
+
+Aturannya sudah ada dan tegas (DECISIONS 197, CLAUDE.md): *"jam yang tak
+diketahui → tulis tanggal saja"*. Cap di gambar menghormatinya; **lapisan PDF
+tertinggal** dan tetap mencetak jam karangan. Komentar di `photos.ts` bahkan
+sudah menerangkan jebakan 07.00 ini — perbaikannya dulu berhenti di cap.
+
+Pemeriksaan lanjutan menemukan pelanggaran KEDUA di PDF kegiatan lapangan
+(`pdf/kegiatan.ts`): koordinat dicetak tanpa penanda, sehingga titik proyek
+cadangan terbaca sebagai bukti GPS perangkat. Kuerinya tidak mengambil
+`gpsSource` sama sekali.
+
+**Keputusan.**
+
+1. Jam hanya dicetak bila memang diketahui; selain itu tanggal saja.
+2. Koordinat ber-`gpsSource = project` ditandai di SEMUA dokumen, bukan hanya
+   di ringkas harian.
+3. Aturannya ditaruh di modul bersama (`photo-stamp/format.ts`) sebagai
+   `jamTakDiketahui()` — supaya penulis dokumen berikutnya tidak perlu
+   menemukan jebakan yang sama sendiri. Dua PDF sudah menemukannya terpisah;
+   yang ketiga tidak boleh mengulanginya.
+
+**Tanpa kolom baru.** Penandanya bisa dibaca pasti dari nilainya: hanya jalur
+tanggal-kerja yang menghasilkan `metadataSource = "server"` TEPAT di tengah
+malam UTC. Jalur "server" satunya (waktu unggah) memakai `new Date()`, yang
+praktis mustahil jatuh persis di `00:00:00.000`. Migrasi + backfill untuk
+sesuatu yang sudah tersimpan jelas adalah biaya tanpa manfaat.
+
+**Uji.** `tests/unit/photo-stamp-format.test.ts` (helper, termasuk batas
+"waktu unggah sungguhan TIDAK ikut ditandai" — menandainya akan menyembunyikan
+jam yang sah) + `tests/integration/ringkas-harian.test.ts` (judul dari item
+RAB, fallback foto tanpa item, dan kedua kasus jam). Dicek bergigi:
+mengembalikan `ringkas.ts` ke perilaku lama → 2 uji merah.

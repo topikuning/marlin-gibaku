@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getBranding } from "@/lib/branding";
 import { getActivityKindLabelMap } from "@/lib/field-activity/kinds";
 import { formatTanggal, parseDateKey } from "@/lib/format";
+import { jamTakDiketahui } from "@/lib/photo-stamp/format";
 import { bobotPct } from "@/lib/progress-calc";
 import { getLocationProgress } from "@/lib/progress";
 import { WORKER_ROLE_LABEL, WORKER_ROLE_ORDER } from "./constants";
@@ -62,9 +63,27 @@ export type RingkasKegiatan = {
 export type RingkasFoto = {
   id: string;
   r2Key: string;
-  /** "Pekerjaan" atau "Kegiatan: <judul>" — pembaca harus tahu foto ini bukti apa. */
+  /**
+   * Bukti INI untuk pekerjaan apa — nama item RAB-nya, bukan label seragam.
+   *
+   * Dulu SELURUH foto laporan diberi judul mati "Pekerjaan harian" padahal
+   * tiap foto sudah tertaut ke item RAB lewat `reportItemId`. Akibatnya
+   * halaman dokumentasi berisi belasan foto berjudul sama persis, dan
+   * pemeriksa PPK tidak bisa tahu foto mana membuktikan pekerjaan mana —
+   * padahal itulah satu-satunya guna lampiran foto.
+   */
   sumber: string;
   takenAt: Date | null;
+  /**
+   * Jam jepretnya TIDAK DIKETAHUI; `takenAt` cuma membawa tanggal kerjanya.
+   *
+   * Kolom tanggal kerja berjenis DATE = tengah malam UTC; diformat lengkap ia
+   * berbunyi "07.00" WIB — angka yang tidak pernah ada di dunia nyata. Cap di
+   * gambar sudah menghormati ini sejak DECISIONS 197; PDF-nya tertinggal dan
+   * tetap mencetak jam palsu. Bukti yang menyebut jam yang tidak diketahui
+   * lebih buruk daripada bukti yang diam soal jam.
+   */
+  jamTidakDiketahui: boolean;
   lat: number | null;
   lng: number | null;
   /**
@@ -209,6 +228,10 @@ export async function getRingkasHarian(
             exifGpsLat: true,
             exifGpsLng: true,
             gpsSource: true,
+            metadataSource: true,
+            // Foto SUDAH tertaut ke item RAB-nya; judulnya tinggal dibaca dari
+            // sini, tidak perlu ditebak dan tidak boleh diseragamkan.
+            reportItem: { select: { rabNode: { select: { code: true, name: true } } } },
           },
           orderBy: { createdAt: "asc" },
         },
@@ -232,6 +255,7 @@ export async function getRingkasHarian(
             exifGpsLat: true,
             exifGpsLng: true,
             gpsSource: true,
+            metadataSource: true,
           },
           orderBy: { createdAt: "asc" },
         },
@@ -279,21 +303,29 @@ export async function getRingkasHarian(
   // Foto laporan lebih dulu, lalu foto kegiatan — urutan bacaan yang sama
   // dengan urutan bagian di dokumennya.
   const semuaFoto: RingkasFoto[] = [
-    ...(report?.photos ?? []).map((p) => ({
-      id: p.id,
-      r2Key: p.r2Key,
-      sumber: "Pekerjaan harian",
-      takenAt: p.exifTakenAt,
-      lat: p.exifGpsLat != null ? Number(p.exifGpsLat) : null,
-      lng: p.exifGpsLng != null ? Number(p.exifGpsLng) : null,
-      gpsCadangan: p.gpsSource === "project",
-    })),
+    ...(report?.photos ?? []).map((p) => {
+      const node = p.reportItem?.rabNode;
+      return {
+        id: p.id,
+        r2Key: p.r2Key,
+        // Nama pekerjaan yang SEBENARNYA. "Pekerjaan harian" hanya tersisa
+        // untuk foto yang memang tidak tertaut item mana pun — di sana label
+        // umum itu jujur, sedangkan menebak pekerjaannya tidak.
+        sumber: node ? [node.code, node.name].filter(Boolean).join(" · ") : "Pekerjaan harian",
+        takenAt: p.exifTakenAt,
+        jamTidakDiketahui: jamTakDiketahui(p.metadataSource, p.exifTakenAt),
+        lat: p.exifGpsLat != null ? Number(p.exifGpsLat) : null,
+        lng: p.exifGpsLng != null ? Number(p.exifGpsLng) : null,
+        gpsCadangan: p.gpsSource === "project",
+      };
+    }),
     ...kegiatanRows.flatMap((k) =>
       k.photos.map((p) => ({
         id: p.id,
         r2Key: p.r2Key,
         sumber: `Kegiatan: ${k.title}`,
         takenAt: p.exifTakenAt,
+        jamTidakDiketahui: jamTakDiketahui(p.metadataSource, p.exifTakenAt),
         lat: p.exifGpsLat != null ? Number(p.exifGpsLat) : null,
         lng: p.exifGpsLng != null ? Number(p.exifGpsLng) : null,
         gpsCadangan: p.gpsSource === "project",

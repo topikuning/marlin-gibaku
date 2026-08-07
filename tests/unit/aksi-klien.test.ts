@@ -67,3 +67,47 @@ describe("tahanGagalKirim", () => {
     await expect(aksi(undefined, new FormData())).rejects.toThrow("redirect");
   });
 });
+
+// TAB LEBIH TUA DARIPADA SERVERNYA (DECISIONS 292).
+//
+// Laporan user 2026-08-07: `UnrecognizedActionError: Server Action "602cf4e1…"
+// was not found on the server.` di /lokasi/…/rab/adendum. ID server action
+// di-hash per build; sesudah deploy, halaman yang sudah terbuka membawa ID yang
+// tidak ada lagi. Servernya sehat — tabnya yang usang.
+describe("tab basi karena deploy", () => {
+  const pesanDeploy = async (err: Error) => {
+    pasangFetch(true);
+    const hasil = await tahanGagalKirim<AksiState>(async () => {
+      throw err;
+    })(undefined, new FormData());
+    return hasil?.error ?? "";
+  };
+
+  it("dikenali dari nama galat Next", async () => {
+    const err = new Error('Server Action "602cf4e1" was not found on the server.');
+    err.name = "UnrecognizedActionError";
+    expect(await pesanDeploy(err)).toContain("MARLIN sudah diperbarui");
+  });
+
+  it("dikenali dari kalimatnya walau namanya berubah antar versi Next", async () => {
+    expect(await pesanDeploy(new Error("Failed to find Server Action \"abc\"."))).toContain(
+      "MARLIN sudah diperbarui",
+    );
+  });
+
+  it("TIDAK menyuruh mencoba lagi — menekan tombol lagi tidak akan pernah berhasil", async () => {
+    const err = new Error("Server Action \"x\" was not found on the server.");
+    err.name = "UnrecognizedActionError";
+    const pesan = await pesanDeploy(err);
+    expect(pesan).toContain("Muat ulang");
+    expect(pesan).not.toContain("coba tekan lagi");
+  });
+
+  it("kegagalan transport biasa TIDAK ikut disebut deploy", async () => {
+    // Batas yang penting: pesan "muat ulang" untuk gangguan sesaat akan
+    // membuang isian orang tanpa alasan.
+    const pesan = await pesanDeploy(new Error("An unexpected response was received from the server."));
+    expect(pesan).not.toContain("MARLIN sudah diperbarui");
+    expect(pesan).toContain("TIDAK hilang");
+  });
+});

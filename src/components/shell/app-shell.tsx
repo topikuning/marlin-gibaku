@@ -3,6 +3,7 @@ import type { Branding } from "@/lib/branding";
 import { BottomNav } from "./bottom-nav";
 import type { NavItem } from "./nav-config";
 import { NavProgressBar } from "./nav-progress";
+import { PengawasVersi } from "./pengawas-versi";
 import { Sidebar } from "./sidebar";
 import { Topbar, type TopbarUser } from "./topbar";
 
@@ -39,6 +40,9 @@ export function AppShell({
           yang bukan dari menu (tombol, tautan tabel, breadcrumb). Diletakkan
           paling atas supaya tetap terlihat walau laci menu sudah tertutup. */}
       <NavProgressBar />
+      {/* Peringatan tab-lebih-tua-dari-server (DECISIONS 292). Di atas segalanya:
+          kalau muncul, semua pengiriman dari halaman ini akan ditolak. */}
+      <PengawasVersi />
       <Sidebar brand={brand} nav={nav} />
       <div className="lg:pl-60">
         <Topbar brand={brand} user={user} logoutAction={logoutAction}>
