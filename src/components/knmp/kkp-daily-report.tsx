@@ -101,9 +101,11 @@ export type KkpDailyData = {
   supervisorFirm?: string | null;
   contractorFirm?: string | null;
 
-  /* ── Hanya dipakai PDF: halaman SAMPUL & DOKUMENTASI (DECISIONS 299) ────
-     Blanko di layar tidak berubah sedikit pun — field ini opsional dan
-     komponen web mengabaikannya. */
+  /* ── Halaman SAMPUL & DOKUMENTASI (DECISIONS 299) ──────────────────────
+     Dipakai PDF (`lib/pdf/harian-kkp-lampiran.ts`) DAN halaman cetak HTML
+     (`kkp-daily-cover.tsx` + `kkp-daily-photos.tsx`). Blanko di bawah ini
+     tidak menyentuhnya sama sekali — field ini opsional dan komponen blanko
+     mengabaikannya. */
 
   /** Sampul: "NOMOR KONTRAK : …" + "TANGGAL : …". */
   contractNumber?: string | null;

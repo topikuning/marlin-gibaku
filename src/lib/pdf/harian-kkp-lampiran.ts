@@ -1,5 +1,6 @@
 import "server-only";
 import type { KkpDailyData } from "@/components/knmp/kkp-daily-report";
+import { susunKartu, terbilang } from "@/lib/daily-report/kkp-lampiran-susun";
 import { PDF_COLORS, PDF_FONT, FORM_MARGIN, type PdfDoc } from "./document";
 import { colWidths, gridRow, gridRowHeight, type GridCell, type GridOptions } from "./grid";
 
@@ -25,23 +26,13 @@ import { colWidths, gridRow, gridRowHeight, type GridCell, type GridOptions } fr
 
 const R = PDF_COLORS;
 
-/** Angka minggu jadi terbilang: "MINGGU KE-2 (DUA)" seperti contoh KKP. */
-const TERBILANG = [
-  "NOL", "SATU", "DUA", "TIGA", "EMPAT", "LIMA", "ENAM", "TUJUH", "DELAPAN",
-  "SEMBILAN", "SEPULUH", "SEBELAS", "DUA BELAS", "TIGA BELAS", "EMPAT BELAS",
-  "LIMA BELAS", "ENAM BELAS", "TUJUH BELAS", "DELAPAN BELAS", "SEMBILAN BELAS",
-  "DUA PULUH",
-];
-export function terbilang(n: number): string | null {
-  if (!Number.isInteger(n) || n < 0) return null;
-  if (n <= 20) return TERBILANG[n];
-  if (n < 100) {
-    const p = Math.floor(n / 10);
-    const s = n % 10;
-    return `${TERBILANG[p]} PULUH${s ? ` ${TERBILANG[s]}` : ""}`;
-  }
-  return null; // di atas 99 tidak pernah terjadi untuk nomor minggu proyek
-}
+/**
+ * Terbilang & pengelompokan kartu tinggal di modul MURNI
+ * (`lib/daily-report/kkp-lampiran-susun.ts`) supaya halaman cetak HTML memakai
+ * susunan yang sama persis tanpa ikut menarik pdfkit. Di-re-export agar
+ * pemanggil lama tidak berubah.
+ */
+export { susunKartu, terbilang };
 
 /**
  * Bundel pdfkit yang di-vendor TIDAK mengenali `Buffer` Node.
@@ -226,29 +217,7 @@ export type FotoDok = {
   bobot: number | null;
 };
 
-/** Maksimal foto per kartu — 3 seperti contoh, supaya tiap foto masih terbaca. */
-const FOTO_PER_KARTU = 3;
 const pctFmt = new Intl.NumberFormat("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-/**
- * Kelompokkan foto per PEKERJAAN, lalu pecah tiap kelompok jadi kartu berisi
- * maksimal 3 foto. Foto tanpa item tetap dicetak di kartu tersendiri — bukti
- * yang tidak tertaut pekerjaan tetap bukti, dan menghilangkannya diam-diam
- * membuat orang mengira fotonya tidak terunggah.
- */
-export function susunKartu(foto: FotoDok[]): FotoDok[][] {
-  const grup = new Map<string, FotoDok[]>();
-  for (const f of foto) {
-    const kunci = f.pekerjaan ?? " tanpa-item";
-    const arr = grup.get(kunci) ?? [];
-    arr.push(f);
-    grup.set(kunci, arr);
-  }
-  const kartu: FotoDok[][] = [];
-  for (const arr of grup.values())
-    for (let i = 0; i < arr.length; i += FOTO_PER_KARTU) kartu.push(arr.slice(i, i + FOTO_PER_KARTU));
-  return kartu;
-}
 
 /** Gambar satu kartu dokumentasi; kembalikan tinggi terpakai. */
 function gambarKartu(

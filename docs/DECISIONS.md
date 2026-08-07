@@ -12027,6 +12027,51 @@ sampul + blanko + dokumentasi tanpa perubahan lain.
 - **Logo konsultan pengawas** belum punya tempat penyimpanan. Kotak kop-nya
   sudah ada dan terisi nama perusahaan; slot logonya menunggu keputusan: field
   di `Contract` atau konsultan dicatat sebagai `Company` seperti vendor.
-- **Halaman cetak HTML** (`app/cetak/harian`) masih blanko saja. Itu tumpukan
-  render yang berbeda (React/print CSS), bukan PDF — mengubahnya pekerjaan
-  tersendiri, bukan penyesuaian sepintas.
+- ~~**Halaman cetak HTML** (`app/cetak/harian`) masih blanko saja.~~ Selesai di
+  DECISIONS 301.
+
+---
+
+## 301 — Cetak harian LENGKAP di kedua jalur, dan final tidak lagi kehilangan fotonya (2026-08-07)
+
+**Konteks.** Dua laporan user berturut-turut, keduanya menunjuk cacat yang sama
+dari sisi berbeda:
+
+1. *"kenapa pratinjau dan cetak laporan kkp di halaman harian masih satu
+   halaman blanko saja?"*
+2. *"cetak harian final juga, halaman fotonya tidak ada"*
+
+**Temuan 1 — halaman cetak HTML.** Format resmi (sampul + blanko + dokumentasi)
+dipasang DECISIONS 299/300 hanya di jalur PDF. `/cetak/harian` — yang di-Ctrl+P
+dari layar — adalah tumpukan render lain (React + print CSS) dan masih memuat
+blanko saja. Dokumen resmi tidak boleh berbeda tergantung tombol mana yang
+ditekan, jadi halaman itu kini merender sampul → blanko → dokumentasi dengan
+`break-before-page` di tiap batas. Diverifikasi: cetak ke PDF dari browser
+menghasilkan 4 halaman (sampul, blanko, 2 halaman dokumentasi).
+
+**Temuan 2 — dan ini yang lebih berbahaya.** `getKkpDailyData` merakit blok
+sampul & dokumentasi HANYA di cabang pratinjau. Begitu laporan difinalisasi,
+cabangnya berpindah ke `finalSnapshot` — dan snapshot itu memang tidak pernah
+memuat foto. Akibatnya laporan FINAL kehilangan nomor kontrak, periode, alamat
+pelaksana, dan SELURUH halaman dokumentasi, di ketiga keluaran sekaligus
+(unduh, WhatsApp, Google Drive).
+
+Yang membuatnya lolos sampai sekarang: **pratinjau terlihat sempurna**. Yang
+cacat justru versi final — satu-satunya yang benar-benar dikirim ke KKP, dan
+yang baru diperiksa orang setelah terkirim. Blok itu kini dirakit di LUAR
+percabangan, jadi tidak ada lagi jalur yang bisa kehilangannya diam-diam.
+
+**Batas yang dijaga.** Angka blanko TETAP dari snapshot beku. Yang diambil dari
+data hidup hanya foto, identitas kontrak, dan bobot kartu foto — bobot memang
+tidak pernah dibekukan ke snapshot, jadi tidak ada angka beku yang dilanggar
+(alasan yang sama dengan kategori/bangunan, DECISIONS 215). Uji integrasi
+mengubah RAB SESUDAH finalisasi dan menuntut volume di blanko tidak bergeser.
+
+**Susunan dipakai bersama.** `terbilang` + `susunKartu` pindah ke modul murni
+`lib/daily-report/kkp-lampiran-susun.ts`; PDF meng-import-nya, bukan menyalin.
+Blanko harian pernah menyimpang antara PDF dan Excel justru karena keduanya
+menyusun barisnya sendiri-sendiri (DECISIONS 241) — kesalahan itu tidak diulang
+untuk kartu dokumentasi. Uji mengunci `pdf.susunKartu === murni.susunKartu`.
+
+**Masih terbuka:** logo konsultan pengawas belum punya tempat penyimpanan
+(lihat 300); kotak kop-nya terisi nama perusahaan, slot logonya kosong.
