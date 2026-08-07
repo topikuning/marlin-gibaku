@@ -11053,3 +11053,66 @@ dengan batas waktu →  t+8s ["kirim/0",...]   t+68s ["gagal_jaringan/1", "kirim
 
 Antreannya jalan lagi dan pindah ke foto berikutnya. Itu uji giginya sekaligus:
 membuang `berbatasWaktu` mengembalikan pembekuannya persis.
+
+## 284 · Antrean foto: hentikan menebak — simpanan yang gagal harus BERSUARA (2026-08-07)
+
+**Konteks.** Sesudah DECISIONS 283 naik (deploy sukses 11:49 WIB), user melapor:
+*"tampilan masih sama persis, tidak ada perubahan sama sekali"*, lalu
+*"harus ada kejelasan ini kenapa, ini terjadi saat ambil foto dengan cepat, ini
+terjadi lagi stuck, padahal jaringan lancar"*.
+
+**Pengakuan.** Dua putaran perbaikan (282, 283) dibuat dari diagnosis yang
+disusun dari kode, bukan dari bukti perangkatnya. Keduanya memperbaiki cacat
+NYATA — dibuktikan di peramban — tapi keduanya belum tentu cacat yang dialami
+user, dan tidak ada satu pun cara untuk tahu. Itu bukan kebetulan: **setiap
+jalur kegagalan di jalur ini bisu.**
+
+- `jalankan()` menyelesaikan janji pada `req.onsuccess` dan tidak pernah
+  memasang `tx.onerror` / `tx.onabort`. Transaksi yang GUGUR (kuota habis) tidak
+  pernah menolak janjinya — ia cuma diam. Lebih buruk: penulisan dianggap
+  berhasil sebelum transaksinya tuntas, padahal transaksi masih bisa gugur
+  SESUDAH permintaannya sukses.
+- `indexedDB.open()` tanpa `onblocked`: koneksi yang ditahan tab lain membuatnya
+  diam, tanpa galat.
+- Semua pemanggil di `use-antrean.ts` memakai `.catch(() => {})`.
+- Tidak ada satu pun keadaan gagal yang punya tempat di layar.
+
+Layar yang diam saat gagal membuat perbaikan jadi tebakan — dan tebakan yang
+dikirim ke lapangan membuang waktu orang yang sedang bekerja.
+
+**Keputusan.**
+
+1. **Batas waktu turun ke lapis simpanan.** Setiap operasi IndexedDB (buka +
+   transaksi) dibatasi 10 detik. Sebelumnya hanya `semua()` yang dibungkus di
+   `use-antrean.ts`, sehingga `perbarui`/`buang`/`simpan` masih bisa
+   menggantung — dan `perbarui` justru yang dipanggil paling sering.
+2. **Diselesaikan pada TRANSAKSI, bukan pada permintaan**, dengan `tx.onerror`
+   dan `tx.onabort` yang menolak. Plus `onblocked` saat membuka.
+3. **`SimpananGagal` berisi kalimat yang bisa dibaca orang lapangan** ("Ruang
+   penyimpanan HP mungkin penuh", "tutup tab lain yang membuka MARLIN"), dan
+   ditampilkan sebagai spanduk **"Antrean tersendat"** — bukan ditelan.
+4. **Tiap foto antre bisa dibuang** (dengan konfirmasi yang menyebut fotonya
+   akan hilang dan TIDAK terkirim). Sebelumnya hanya yang berstatus "ditolak"
+   yang punya tombol buang, sehingga foto yang tidak mau terkirim menyandera
+   pemakainya: tidak bisa dikirim, tidak bisa dihilangkan.
+5. **Penanda versi "antrean v4"** di panel antrean. Peramban ponsel menyimpan
+   berkas program dengan gigih; tab yang dibuka sejak sebelum penerapan versi
+   baru terus menjalankan kode LAMA sampai dimuat ulang — dan dari luar itu
+   TIDAK bisa dibedakan dari "perbaikannya tidak jalan". Penanda ini yang
+   menjawab pertanyaan pertama pada laporan berikutnya.
+
+**Yang MASIH belum diketahui.** Petunjuk terakhir user — *"terjadi saat ambil
+foto dengan cepat"* — belum bisa dipertanggungjawabkan sebagai sebab. Ia belum
+direproduksi. Dicatat sebagai FOTO-01 di `docs/OPEN_ISSUES.md`, bukan
+diselesaikan dengan tebakan ketiga.
+
+**Diperiksa di peramban** dengan menggugurkan setiap penulisan IndexedDB (tiruan
+kuota penuh): layar kini menampilkan **"Antrean tersendat — Simpanan foto di HP
+menolak (transaksi). Ruang penyimpanan HP mungkin penuh."** dan 3 tombol buang
+per foto. Sebelumnya: tidak ada apa pun.
+
+**Catatan jujur soal uji gigi.** Uji gigi untuk poin 2 TIDAK menggigit:
+mengembalikan penyelesaian-pada-permintaan tetap memunculkan spanduknya (jalur
+penolakannya datang dari transaksi lain di putaran yang sama). Jadi yang
+terbukti adalah PERILAKUNYA — kegagalan yang dulu bisu sekarang bersuara —
+bukan bahwa tiap baris penjagaannya menanggung beban sendiri-sendiri.

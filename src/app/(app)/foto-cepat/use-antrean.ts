@@ -48,16 +48,6 @@ export type BarisAntrean = {
 const SELANG_PERIKSA_MS = 3_000;
 
 /**
- * Batas waktu satu operasi simpanan lokal.
- *
- * Membaca IndexedDB semestinya seketika — jadi 10 detik sudah sangat longgar.
- * Batas ini ada karena di iOS ia bisa BERHENTI MENJAWAB sama sekali (lazim
- * sesudah halaman kembali dari latar belakang), dan tanpa batas, satu pembacaan
- * yang menggantung membekukan seluruh antrean tanpa satu pun tanda di layar.
- */
-const BATAS_SIMPANAN_MS = 10_000;
-
-/**
  * Jalankan `p`, tapi JANGAN menunggunya selamanya.
  *
  * `Promise` yang menggantung tidak bisa dibatalkan — tapi bisa diabaikan.
@@ -87,6 +77,16 @@ function berbatasWaktu<T>(p: Promise<T>, ms: number, pesan: string): Promise<T> 
 export function useAntreanFoto() {
   const [baris, setBaris] = useState<BarisAntrean[]>([]);
   const [penuh, setPenuh] = useState<string | null>(null);
+  /**
+   * Galat terakhir dari antrean — DITAMPILKAN, bukan ditelan.
+   *
+   * Sebelumnya tiap jalur kegagalan di sini bisu: `.catch(() => {})` di semua
+   * pemanggil, dan tidak satu pun keadaan gagal punya tempat di layar. Itulah
+   * kenapa tiga putaran perbaikan (DECISIONS 282, 283) tidak terlihat hasilnya
+   * dari lapangan — yang bisa dilaporkan cuma "stuck", tanpa satu kata pun
+   * tentang sebabnya. Layar yang diam saat gagal membuat perbaikan jadi tebakan.
+   */
+  const [galat, setGalat] = useState<string | null>(null);
   /**
    * Nilai awal `true` dengan sengaja, BUKAN `navigator.onLine`.
    *
@@ -119,7 +119,7 @@ export function useAntreanFoto() {
 
   const muat = useCallback(async () => {
     if (!simpananTersedia()) return;
-    const rows = await berbatasWaktu(semua(), BATAS_SIMPANAN_MS, "simpanan lambat");
+    const rows = await semua();
     const hidup = new Set(rows.map((r) => r.id));
     for (const [id, u] of urlRef.current) {
       if (!hidup.has(id)) {
@@ -223,7 +223,8 @@ export function useAntreanFoto() {
        * ditolak, ia cuma kehilangan halamannya. Menaikkannya akan mendorongnya
        * ke jeda 5 menit tanpa sebab.
        */
-      const awal = await berbatasWaktu(semua(), BATAS_SIMPANAN_MS, "simpanan lambat");
+      setGalat(null);
+      const awal = await semua();
       const kini = Date.now();
       for (const r of awal) {
         if (r.status !== "kirim") continue;
@@ -231,7 +232,7 @@ export function useAntreanFoto() {
         await perbarui(r.id, { status: "menunggu", terakhirCoba: 0 });
       }
 
-      const rows = await berbatasWaktu(semua(), BATAS_SIMPANAN_MS, "simpanan lambat");
+      const rows = await semua();
       const sekarang = Date.now();
       const daring = typeof navigator === "undefined" ? true : navigator.onLine;
       for (const r of rows) {
@@ -241,6 +242,8 @@ export function useAntreanFoto() {
         // lambat di atas kertas, tapi jauh lebih sering berhasil.
         await kirimSatu(r);
       }
+    } catch (e) {
+      setGalat(e instanceof Error ? e.message : "Antrean gagal diproses.");
     } finally {
       mulaiPutaran.current = null;
     }
@@ -314,8 +317,12 @@ export function useAntreanFoto() {
 
   const hapus = useCallback(
     async (id: string) => {
-      await buang(id);
-      await muat();
+      try {
+        await buang(id);
+        await muat();
+      } catch (e) {
+        setGalat(e instanceof Error ? e.message : "Gagal membuang foto dari antrean.");
+      }
     },
     [muat],
   );
@@ -323,5 +330,5 @@ export function useAntreanFoto() {
   const ringkas = ringkasAntrean(baris);
   const kirimSekarang = useCallback(() => proses(true), [proses]);
 
-  return { baris, ringkas, penuh, online, titip, hapus, kirimSekarang };
+  return { baris, ringkas, penuh, galat, online, titip, hapus, kirimSekarang };
 }

@@ -40,6 +40,51 @@ export type FotoTertunda = {
   dibuat: number;
 };
 
+/**
+ * Batas waktu SATU operasi simpanan.
+ *
+ * Membaca/menulis IndexedDB semestinya seketika, jadi 10 detik sudah sangat
+ * longgar. Batas ini ada karena IndexedDB bisa **berhenti menjawab sama sekali**
+ * — tidak melempar galat, tidak memanggil `onerror`, hanya diam. Di iOS itu
+ * lazim terjadi sesudah halaman kembali dari latar belakang, dan pada peramban
+ * mana pun ia terjadi saat transaksi digugurkan tanpa `onerror` menyala.
+ *
+ * Tanpa batas ini, satu operasi yang diam membekukan seluruh antrean tanpa satu
+ * pun tanda di layar — tiga putaran perbaikan (DECISIONS 282, 283) tidak
+ * terlihat hasilnya karena SEMUA jalur kegagalan di sini bisu.
+ */
+const BATAS_OPERASI_MS = 10_000;
+
+/** Galat simpanan yang PANTAS DIBACA orang, bukan sekadar dilempar ke konsol. */
+export class SimpananGagal extends Error {
+  constructor(
+    readonly tahap: "buka" | "transaksi" | "batas waktu",
+    sebab?: unknown,
+  ) {
+    super(
+      tahap === "batas waktu"
+        ? "Simpanan foto di HP tidak menjawab (10 detik). Tutup lalu buka lagi halaman ini; kalau tetap begitu, tutup tab lain yang membuka MARLIN."
+        : `Simpanan foto di HP menolak (${tahap}${sebab instanceof Error ? `: ${sebab.message}` : ""}). Ruang penyimpanan HP mungkin penuh.`,
+    );
+  }
+}
+
+function berbatas<T>(p: Promise<T>): Promise<T> {
+  return new Promise<T>((selesai, gagal) => {
+    const t = setTimeout(() => gagal(new SimpananGagal("batas waktu")), BATAS_OPERASI_MS);
+    p.then(
+      (v) => {
+        clearTimeout(t);
+        selesai(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        gagal(e);
+      },
+    );
+  });
+}
+
 function buka(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB, VERSI);
@@ -48,20 +93,60 @@ function buka(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(TOKO)) db.createObjectStore(TOKO, { keyPath: "id" });
     };
     req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    req.onerror = () => reject(new SimpananGagal("buka", req.error));
+    // `onblocked` menyala saat koneksi lain menahan basis data ini. Tanpa
+    // penanganan, `open` hanya DIAM — dan diam itulah yang mustahil didiagnosis
+    // dari lapangan.
+    req.onblocked = () => reject(new SimpananGagal("buka", new Error("dipakai tab lain")));
   });
 }
 
 function jalankan<T>(mode: IDBTransactionMode, fn: (t: IDBObjectStore) => IDBRequest<T>): Promise<T> {
-  return buka().then(
-    (db) =>
-      new Promise<T>((resolve, reject) => {
-        const tx = db.transaction(TOKO, mode);
-        const req = fn(tx.objectStore(TOKO));
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-        tx.oncomplete = () => db.close();
-      }),
+  return berbatas(
+    buka().then(
+      (db) =>
+        new Promise<T>((resolve, reject) => {
+          let hasil: T;
+          let dapat = false;
+          const tutup = () => {
+            try {
+              db.close();
+            } catch {
+              /* sudah tertutup */
+            }
+          };
+          const tx = db.transaction(TOKO, mode);
+          const req = fn(tx.objectStore(TOKO));
+          req.onsuccess = () => {
+            hasil = req.result;
+            dapat = true;
+          };
+          /*
+           * Diselesaikan pada TRANSAKSI, bukan pada permintaan.
+           *
+           * Dulu `resolve` dipanggil di `req.onsuccess` dan koneksinya ditutup
+           * di `tx.oncomplete` — dua cacat sekaligus. Pertama, penulisan
+           * dianggap berhasil sebelum transaksinya benar-benar tuntas, padahal
+           * transaksi masih bisa gugur (kuota habis) SESUDAH permintaannya
+           * sukses. Kedua, dan ini yang mematikan: kalau transaksinya gugur atau
+           * galat, `req.onerror` tidak selalu menyala — sehingga janjinya tidak
+           * pernah selesai dan tidak pernah gagal. Ia cuma DIAM.
+           */
+          tx.oncomplete = () => {
+            tutup();
+            if (dapat) resolve(hasil);
+            else reject(new SimpananGagal("transaksi", new Error("tanpa hasil")));
+          };
+          tx.onerror = () => {
+            tutup();
+            reject(new SimpananGagal("transaksi", tx.error));
+          };
+          tx.onabort = () => {
+            tutup();
+            reject(new SimpananGagal("transaksi", tx.error ?? new Error("digugurkan")));
+          };
+        }),
+    ),
   );
 }
 

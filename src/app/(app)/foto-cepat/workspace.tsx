@@ -2,7 +2,7 @@
 
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Camera, Check, Images, MapPin, MapPinOff, Trash2 } from "lucide-react";
+import { Camera, Check, Images, MapPin, MapPinOff, Trash2, X } from "lucide-react";
 import { Banner, Button, Card, Combobox, EmptyState, HelpText, Label } from "@/components/ui";
 import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
 import { KameraLangsung, type PosisiJepret } from "@/components/knmp/kamera-langsung";
@@ -102,7 +102,7 @@ function JepretCard({
   const router = useRouter();
   const [kameraBuka, setKameraBuka] = useState(false);
   const [state, action, pending] = useActionState(simpanFotoCepatAction, KOSONG);
-  const { baris, ringkas, penuh, online, titip, hapus, kirimSekarang } = useAntreanFoto();
+  const { baris, ringkas, penuh, galat, online, titip, hapus, kirimSekarang } = useAntreanFoto();
 
   /**
    * Rana → SIMPAN DI PERANGKAT, bukan → kirim (DECISIONS 257).
@@ -160,6 +160,7 @@ function JepretCard({
         <PanelAntrean
           baris={baris}
           ringkas={ringkas}
+          galat={galat}
           online={online}
           onKirim={() => void kirimSekarang()}
           onHapus={(id) => void hapus(id)}
@@ -226,12 +227,15 @@ function JepretCard({
 function PanelAntrean({
   baris,
   ringkas,
+  galat,
   online,
   onKirim,
   onHapus,
 }: {
   baris: BarisAntrean[];
   ringkas: { menunggu: number; ditolak: number; perluPerhatian: boolean };
+  /** Galat antrean terakhir — ditampilkan, karena diam membuat ini mustahil didiagnosis. */
+  galat: string | null;
   online: boolean;
   onKirim: () => void;
   onHapus: (id: string) => void;
@@ -285,6 +289,20 @@ function PanelAntrean({
             >
               {b.status === "kirim" ? "kirim…" : b.status === "ditolak" ? "ditolak" : "antre"}
             </span>
+            {/* Buang per foto — untuk SEMUA baris, bukan hanya yang ditolak.
+                Foto yang tidak mau terkirim membuat orang tersandera: tidak bisa
+                dikirim, tidak bisa dihilangkan dari layar. */}
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm("Buang foto ini dari antrean? Fotonya hilang dari HP dan TIDAK terkirim.")) onHapus(b.id);
+              }}
+              aria-label="Buang foto dari antrean"
+              title="Buang foto dari antrean"
+              className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full border border-border bg-surface text-ink-muted shadow hover:text-danger"
+            >
+              <X aria-hidden className="size-3" />
+            </button>
           </li>
         ))}
       </ul>
@@ -295,6 +313,25 @@ function PanelAntrean({
           tidak menjawab", dan orang di lapangan tidak punya apa pun untuk
           dilaporkan selain "stuck". */}
       {sebabTerakhir ? <p className="text-xs text-ink-muted">{sebabTerakhir}</p> : null}
+
+      {/* Kegagalan antrean itu sendiri (simpanan HP menolak / tidak menjawab).
+          Ini yang dulu sepenuhnya bisu. */}
+      {galat ? <Banner tone="error" title="Antrean tersendat" description={galat} /> : null}
+
+      {/*
+        PENANDA VERSI — kecil, tapi ia yang menjawab pertanyaan pertama saat ada
+        laporan "tidak berubah sama sekali": apakah HP itu benar-benar
+        menjalankan kode yang baru?
+
+        Peramban ponsel menyimpan berkas program dengan gigih. Tab yang sudah
+        dibuka sejak sebelum penerapan versi baru akan terus menjalankan kode
+        LAMA sampai halamannya benar-benar dimuat ulang — dan dari luar, itu
+        tidak bisa dibedakan dari "perbaikannya tidak jalan". Tanpa penanda ini,
+        satu-satunya cara memastikannya adalah menebak.
+
+        Naikkan angkanya setiap kali logika antrean berubah.
+      */}
+      <p className="text-[10px] text-ink-faint">antrean v4</p>
 
       {ringkas.menunggu > 0 ? (
         <Button type="button" variant="secondary" onClick={onKirim}>
