@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   bolehCoba,
+  kirimMacet,
   ringkasAntrean,
   statusDariKegagalan,
   type ItemAntrean,
@@ -132,10 +133,37 @@ export function useAntreanFoto() {
     [muat],
   );
 
-  const proses = useCallback(async () => {
+  /**
+   * @param paksa Ketukan "Coba kirim sekarang". Semua baris yang tersangkut di
+   *   status "kirim" dibebaskan tanpa menunggu ambang macet — orangnya sedang
+   *   menatap layar, dan di tab INI tidak ada unggahan yang sedang berjalan
+   *   (kalau ada, `sedangJalan` sudah menghentikan kita di baris pertama).
+   */
+  const proses = useCallback(async (paksa = false) => {
     if (sedangJalan.current || !simpananTersedia()) return;
     sedangJalan.current = true;
     try {
+      /*
+       * BEBASKAN yang macet dulu.
+       *
+       * "kirim" hanya bisa diturunkan oleh halaman yang menyetelnya. Kalau
+       * halaman itu mati di tengah unggahan, barisnya tinggal bertuliskan
+       * "kirim…" selamanya dan `bolehCoba` menolak menyentuhnya — persis
+       * keluhan user 2026-08-07 yang tidak sembuh oleh logout maupun ganti
+       * user, karena antreannya milik PERANGKAT, bukan sesi.
+       *
+       * Percobaannya TIDAK dinaikkan: baris ini belum pernah benar-benar
+       * ditolak, ia cuma kehilangan halamannya. Menaikkannya akan mendorongnya
+       * ke jeda 5 menit tanpa sebab.
+       */
+      const awal = await semua();
+      const kini = Date.now();
+      for (const r of awal) {
+        if (r.status !== "kirim") continue;
+        if (!paksa && !kirimMacet(r, kini)) continue;
+        await perbarui(r.id, { status: "menunggu", terakhirCoba: 0 });
+      }
+
       const rows = await semua();
       const sekarang = Date.now();
       const daring = typeof navigator === "undefined" ? true : navigator.onLine;
@@ -221,5 +249,7 @@ export function useAntreanFoto() {
   );
 
   const ringkas = ringkasAntrean(baris);
-  return { baris, ringkas, penuh, online, titip, hapus, kirimSekarang: proses };
+  const kirimSekarang = useCallback(() => proses(true), [proses]);
+
+  return { baris, ringkas, penuh, online, titip, hapus, kirimSekarang };
 }

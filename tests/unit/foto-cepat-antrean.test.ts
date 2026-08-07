@@ -16,8 +16,10 @@
 // berubah, hanya foto yang tidak pernah sampai.
 import { describe, expect, it } from "vitest";
 import {
+  BATAS_KIRIM_MACET_MS,
   MAKS_ANTREAN,
   bolehCoba,
+  kirimMacet,
   jedaBerikutnya,
   ringkasAntrean,
   statusDariKegagalan,
@@ -120,5 +122,52 @@ describe("batas antrean", () => {
     // diam-diam saat kuota penuh — kegagalan paling buruk yang mungkin di sini.
     expect(MAKS_ANTREAN).toBeGreaterThanOrEqual(50);
     expect(MAKS_ANTREAN).toBeLessThanOrEqual(500);
+  });
+});
+
+describe("kirimMacet — baris yang kehilangan halamannya", () => {
+  // Laporan user 2026-08-07: *"ada yg stuck. sudah coba logout, ganti user,
+  // tetap muncul di hp awal. coba ambil foto berhasil terupload langsung, tapi
+  // foto yang gantung ini stuck"*.
+  //
+  // "kirim" adalah SATU-SATUNYA status yang hanya bisa diturunkan oleh halaman
+  // yang menyetelnya. Halaman mati di tengah unggahan (tab ditutup, HP
+  // terkunci, peramban membunuh halaman latar) → barisnya tinggal bertuliskan
+  // "kirim…" selamanya, dan `bolehCoba` menolak menyentuhnya. Logout tidak
+  // menolong karena antreannya milik PERANGKAT, bukan sesi.
+
+  const kirimSejak = (lalu: number): ItemAntrean => ({
+    id: "x",
+    percobaan: 0,
+    terakhirCoba: 1_000_000 - lalu,
+    status: "kirim",
+  });
+
+  it("baris 'kirim' yang masih baru BUKAN macet", () => {
+    // Unggahan satu foto di sinyal jelek boleh lama. Membebaskannya terlalu
+    // cepat berarti mengirim foto yang sama dua kali.
+    expect(kirimMacet(kirimSejak(5_000), 1_000_000)).toBe(false);
+    expect(kirimMacet(kirimSejak(BATAS_KIRIM_MACET_MS - 1), 1_000_000)).toBe(false);
+  });
+
+  it("baris 'kirim' yang lewat ambang DINYATAKAN macet", () => {
+    expect(kirimMacet(kirimSejak(BATAS_KIRIM_MACET_MS), 1_000_000)).toBe(true);
+    expect(kirimMacet(kirimSejak(3_600_000), 1_000_000)).toBe(true);
+  });
+
+  it("status selain 'kirim' tidak pernah dianggap macet", () => {
+    // "ditolak" berhenti karena keputusan server dan butuh orang; membebaskannya
+    // otomatis akan mengulang penolakan yang sama tanpa henti.
+    for (const status of ["menunggu", "gagal_jaringan", "ditolak"] as const) {
+      expect(kirimMacet({ ...kirimSejak(3_600_000), status }, 1_000_000)).toBe(false);
+    }
+  });
+
+  it("baris macet tetap DITOLAK `bolehCoba` — pembebasannya harus disengaja", () => {
+    // Kedua aturan ini sengaja terpisah. `bolehCoba` menjaga satu foto tidak
+    // dikirim dua kali bersamaan; membebaskan yang macet adalah tindakan lain
+    // yang menurunkan statusnya lebih dulu. Kalau `bolehCoba` sendiri yang
+    // dilonggarkan, foto yang SUNGGUH sedang diunggah ikut dikirim ulang.
+    expect(bolehCoba(kirimSejak(3_600_000), 1_000_000, true)).toBe(false);
   });
 });

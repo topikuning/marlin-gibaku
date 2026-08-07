@@ -10932,3 +10932,64 @@ gugur; `deleteMany` langsung ke riwayat cap foto yang masih ada tetap ditolak.
 **Diperiksa di peramban** (390px, sm-01): 2 foto yatim → hapus satu (tanpa galat
 server, 2 → 1) → kembalikan satu ke kantong (1 → 0), dan barisnya benar-benar
 muncul lagi dengan `report_id` kosong.
+
+## 282 · Antrean foto: baris yang kehilangan halamannya tersangkut selamanya (2026-08-07)
+
+**Konteks.** Laporan user 2026-08-07: *"stuck. ini ambil banyak data, ada
+beberapa yang terupload. tapi ada yg stuck. sudah coba logout, ganti user, tetap
+muncul di hp awal. coba ambil foto berhasil terupload langsung, tapi foto yang
+gantung ini stuck"* — tiga foto bertuliskan "kirim…" dengan tanda "jaringan ada".
+
+**Sebabnya.** `"kirim"` adalah SATU-SATUNYA status yang hanya bisa diturunkan
+oleh halaman yang menyetelnya:
+
+```ts
+await perbarui(r.id, { status: "kirim", ... });   // sebelum unggah
+// ...
+if (item.status === "kirim") return false;        // bolehCoba menolak menyentuhnya
+```
+
+Penjagaan itu sendiri benar — ia mencegah satu foto dikirim dua kali bersamaan.
+Yang tidak pernah dipikirkan: **halaman bisa mati di tengah unggahan.** Tab
+ditutup, HP terkunci, peramban membunuh halaman latar belakang, aplikasi
+di-swipe. Begitu itu terjadi, tidak ada lagi yang menurunkan statusnya. Barisnya
+tinggal di IndexedDB bertuliskan "kirim…" selamanya, dan tiap denyut pemeriksaan
+melewatinya.
+
+Tiga gejala yang dilaporkan user cocok persis dengan sebab ini, dan tidak dengan
+sebab lain:
+
+| Gejala | Kenapa |
+|---|---|
+| logout & ganti user tidak menolong | antreannya milik **perangkat** (IndexedDB), bukan sesi |
+| foto baru lancar terkirim | foto baru masuk berstatus `"menunggu"`, bukan `"kirim"` |
+| "Coba kirim sekarang" tidak berbuat apa-apa | tombol itu memanggil `proses()`, dan `bolehCoba` menolak baris `"kirim"` |
+
+**Keputusan.** Baris `"kirim"` yang **terlalu lama** dianggap MACET dan
+diturunkan kembali ke `"menunggu"` sebelum antrean diproses.
+
+- Ambangnya **2 menit** (`BATAS_KIRIM_MACET_MS`) — jauh lebih lama daripada
+  unggahan satu foto di sinyal jelek, jadi ia tidak memotong unggahan yang
+  sungguh masih berjalan (mis. di tab lain).
+- **"Coba kirim sekarang" membebaskan TANPA menunggu ambang.** Orangnya sedang
+  menatap layar, dan di tab itu tidak ada unggahan yang sedang berjalan —
+  `sedangJalan` sudah menghentikan `proses` di baris pertama kalau ada.
+- **`percobaan` TIDAK dinaikkan.** Baris ini belum pernah benar-benar ditolak,
+  ia cuma kehilangan halamannya; menaikkannya akan mendorongnya ke jeda 5 menit
+  tanpa sebab.
+- **`bolehCoba` TIDAK dilonggarkan.** Dua aturan ini sengaja terpisah: yang satu
+  menjaga foto tidak dikirim dua kali bersamaan, yang lain membebaskan yang
+  macet dengan menurunkan statusnya lebih dulu. Melonggarkan `bolehCoba` akan
+  ikut mengirim ulang foto yang SUNGGUH sedang diunggah.
+- `"ditolak"` tidak ikut dibebaskan otomatis: itu keputusan server yang butuh
+  orang, dan mengulanginya hanya menghasilkan penolakan yang sama.
+
+**Uji.** 4 uji unit baru di `tests/unit/foto-cepat-antrean.test.ts`. Uji gigi:
+membuat `kirimMacet` mengabaikan status → 1 uji gugur; melonggarkan `bolehCoba`
+untuk `"kirim"` → 2 uji gugur.
+
+**Diperiksa di peramban** (390px): tiga baris ditanam ke IndexedDB berstatus
+`"kirim"` dengan `terakhirCoba` sejam lalu — persis keadaan di HP user. Sebelum
+perbaikan, sesudah muat ulang tetap `["kirim","kirim","kirim"]` dan 3× label
+"kirim…" di layar. Sesudah perbaikan: ketiganya bergerak dan mendapat jawaban
+server, 0× "kirim…".

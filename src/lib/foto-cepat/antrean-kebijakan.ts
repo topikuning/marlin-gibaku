@@ -64,6 +64,37 @@ export function bolehCoba(item: ItemAntrean, sekarang: number, online: boolean):
 }
 
 /**
+ * Berapa lama status "kirim" boleh bertahan sebelum dianggap MACET.
+ *
+ * Laporan user 2026-08-07: *"ini ambil banyak data, ada beberapa yang
+ * terupload. tapi ada yg stuck. sudah coba logout, ganti user, tetap muncul di
+ * hp awal. coba ambil foto berhasil terupload langsung, tapi foto yang gantung
+ * ini stuck"*.
+ *
+ * Sebabnya persis ini: "kirim" adalah satu-satunya status yang HANYA bisa
+ * dibereskan oleh halaman yang menyetelnya. `bolehCoba` menolak mencoba baris
+ * ber-status "kirim" (benar — supaya satu foto tidak dikirim dua kali
+ * bersamaan), tapi kalau halamannya mati di tengah unggahan — tab ditutup,
+ * peramban membunuh halaman latar belakang, HP terkunci, aplikasi di-swipe —
+ * tidak ada lagi yang menurunkan statusnya. Barisnya tinggal di IndexedDB
+ * bertuliskan "kirim…" SELAMANYA.
+ *
+ * Itu juga sebabnya logout dan ganti user tidak menolong: antreannya milik
+ * PERANGKAT, bukan milik sesi. Dan sebabnya foto baru tetap lancar: foto baru
+ * masuk dengan status "menunggu", bukan "kirim".
+ *
+ * Ambangnya 2 menit — jauh lebih lama daripada unggahan satu foto di sinyal
+ * jelek, jadi ia tidak akan memotong unggahan yang sungguh masih berjalan (mis.
+ * di tab lain), tapi cukup pendek untuk membereskan diri sendiri tanpa siapa
+ * pun perlu tahu apa itu IndexedDB.
+ */
+export const BATAS_KIRIM_MACET_MS = 120_000;
+
+export function kirimMacet(item: ItemAntrean, sekarang: number): boolean {
+  return item.status === "kirim" && sekarang - item.terakhirCoba >= BATAS_KIRIM_MACET_MS;
+}
+
+/**
  * Apakah kegagalan ini soal JARINGAN (coba lagi) atau KEPUTUSAN SERVER (berhenti)?
  *
  * Bedanya menentukan nasib foto. Kegagalan jaringan bersifat sementara —
