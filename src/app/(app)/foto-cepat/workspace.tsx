@@ -370,7 +370,7 @@ function PanelAntrean({
           Rincian teknis (untuk dilaporkan)
         </summary>
         <pre className="mt-1.5 overflow-x-auto whitespace-pre-wrap break-all text-[10px] leading-relaxed text-ink">
-{`antrean v6 · ${baris.length} baris · jaringan: ${online ? "ada" : "tidak"}
+{`antrean v7 · ${baris.length} baris · jaringan: ${online ? "ada" : "tidak"}
 galat: ${galat ?? "-"}
 ` +
             baris

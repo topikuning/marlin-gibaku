@@ -162,7 +162,10 @@ export function useAntreanFoto() {
   const kirimSatu = useCallback(
     async (r: FotoTertunda) => {
       const berkas = await ambilBerkas(r.id, r.tipe);
-      if (!berkas) {
+      // Ukuran nol = tidak ada yang bisa dikirim. Membiarkannya lewat berarti
+      // mengirim badan kosong, dan kegagalannya nanti terbaca seperti masalah
+      // jaringan — persis salah-tuduh yang sedang diberantas di berkas ini.
+      if (!berkas || berkas.size === 0) {
         /*
          * Bytenya tidak ada lagi. Ini BUKAN kegagalan jaringan dan bukan
          * penolakan server — tidak ada apa pun untuk dikirim, dan mencobanya
@@ -210,15 +213,32 @@ export function useAntreanFoto() {
           await buang(r.id);
         }
       } catch (e) {
-        // Melempar = permintaannya tidak pernah sampai, ATAU tidak pernah
-        // dijawab sampai batas waktu. Keduanya soal jaringan, dan keduanya
-        // dicoba lagi — selamanya.
+        /*
+         * JANGAN menuduh jaringan tanpa bukti.
+         *
+         * Dulu SEMUA lemparan di sini dilabeli "Belum ada jaringan — akan
+         * dicoba lagi otomatis." Itu keliru, dan user menunjukkannya dua kali:
+         * *"padahal jaringan jelas ada, foto baru bisa upload"*. Memang ada.
+         * Yang gagal adalah pengirimannya, karena isi fotonya tak terbaca —
+         * dan aplikasi menutupi sebab itu dengan tuduhan yang salah. Pesan
+         * yang menyalahkan hal yang keliru lebih buruk daripada pesan yang
+         * mengaku tidak tahu: ia membuat orang mencari sinyal, memindah HP,
+         * menunggu — semuanya sia-sia.
+         *
+         * Sekarang: "belum ada jaringan" HANYA ditulis kalau perangkatnya
+         * memang menyatakan tidak ada jaringan. Selain itu yang ditulis adalah
+         * apa yang benar-benar terjadi, berikut nama galatnya.
+         */
         const habisWaktu = e instanceof Error && e.message === "batas waktu";
+        const daring = typeof navigator === "undefined" ? true : navigator.onLine;
+        const nama = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
         await perbarui(r.id, {
           status: statusDariKegagalan("jaringan"),
           pesan: habisWaktu
-            ? "Jaringan tidak menjawab sampai batas waktu — akan dicoba lagi otomatis."
-            : "Belum ada jaringan — akan dicoba lagi otomatis.",
+            ? "Server tidak menjawab sampai 60 detik — akan dicoba lagi otomatis."
+            : !daring
+              ? "Belum ada jaringan — akan dicoba lagi otomatis."
+              : `Pengiriman gagal padahal jaringan TERDETEKSI ADA — ${nama}. Akan dicoba lagi otomatis.`,
           percobaan: r.percobaan + 1,
         });
       }

@@ -11256,3 +11256,57 @@ Tidak ada lagi yang tersangkut "kirim…", dan tiap baris menyebutkan nasibnya.
 membaca kode; yang menyelesaikannya adalah SATU baris pesan galat dari perangkat
 yang sebenarnya. Alat diagnosis di layar bukan pelengkap — pada aplikasi
 lapangan yang tidak punya inspect element, ia bagian dari fiturnya.
+
+## 287 · Antrean foto: berhenti menuduh jaringan tanpa bukti (2026-08-07)
+
+**Konteks.** Sesudah sebabnya ditemukan (DECISIONS 286), user menunjuk satu hal
+yang MASIH salah — dan sudah dua kali ia katakan:
+
+> *"padahal jaringan jelas ada, foto baru bisa upload"*
+
+Memang ada. Yang gagal adalah pengirimannya, karena isi fotonya tidak terbaca.
+Tapi kodenya melabeli **setiap** lemparan di jalur kirim sebagai kegagalan
+jaringan:
+
+```ts
+} catch {
+  await perbarui(r.id, {
+    status: statusDariKegagalan("jaringan"),
+    pesan: "Belum ada jaringan — akan dicoba lagi otomatis.",
+  });
+}
+```
+
+Itu `catch` tanpa syarat yang menuduh satu-satunya hal yang justru baik-baik
+saja. Akibatnya nyata dan mahal: orang di lapangan mencari sinyal, memindah HP,
+menunggu — semuanya sia-sia, karena aplikasi menunjuk arah yang salah.
+
+**Keputusan.** "Belum ada jaringan" HANYA boleh ditulis kalau perangkatnya
+sendiri menyatakan tidak ada jaringan (`navigator.onLine === false`). Selain itu
+yang ditulis adalah apa yang benar-benar terjadi, **berikut nama galatnya**:
+
+| Keadaan | Yang ditulis |
+|---|---|
+| habis batas waktu | "Server tidak menjawab sampai 60 detik — akan dicoba lagi otomatis." |
+| `navigator.onLine === false` | "Belum ada jaringan — akan dicoba lagi otomatis." |
+| selain itu | "Pengiriman gagal padahal jaringan TERDETEKSI ADA — `<NamaGalat>`. Akan dicoba lagi otomatis." |
+
+Ditambah satu penjagaan di hulunya: berkas berukuran **0 byte** tidak
+dikirimkan sama sekali (ditandai `rusak`). Membiarkannya lewat berarti mengirim
+badan kosong, dan kegagalannya nanti terbaca seperti masalah jaringan — persis
+salah-tuduh yang sedang diberantas.
+
+**Prinsip yang ditegakkan.** Pesan yang menyalahkan hal yang keliru lebih buruk
+daripada pesan yang mengaku tidak tahu. Yang pertama mengirim orang bekerja
+sia-sia; yang kedua setidaknya jujur.
+
+**Diperiksa di peramban**: koneksi POST diputus sementara `navigator.onLine`
+tetap `true`. Layar menulis
+
+```
+1. gagal_jaringan · coba 2× · 1 KB · umur 5 dtk
+   Pengiriman gagal padahal jaringan TERDETEKSI ADA — TypeError: Failed to fetch.
+   Akan dicoba lagi otomatis.
+```
+
+Tidak ada lagi kalimat "Belum ada jaringan" saat jaringannya ada.
