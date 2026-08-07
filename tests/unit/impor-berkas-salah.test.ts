@@ -1,8 +1,8 @@
 // BERKAS SALAH HARUS DITOLAK DENGAN PESAN YANG BISA DITINDAKLANJUTI.
 //
 // Laporan user 2026-08-07: mengimpor `CCO01_<lokasi>.xlsx` ke draft adendum.
-// Berkas itu terbitan MARLIN sendiri — dokumen CCO hasil ekspor, bukan bahan
-// impor. Pesan lama, "Sheet RAB tidak ditemukan di file HPS", benar secara
+// Berkas tambah/kurang KKP kini DITERIMA (DECISIONS 296); pesan ini tersisa
+// untuk berkas yang bentuknya mirip tapi angkanya tidak terbukti. Pesan lama, "Sheet RAB tidak ditemukan di file HPS", benar secara
 // teknis tapi tidak bisa ditindaklanjuti: orang yang baru saja mengunduh
 // berkas itu DARI MARLIN wajar mengira itulah yang harus dikembalikan.
 //
@@ -22,14 +22,14 @@ function workbookDenganSheet(...nama: string[]): ExcelJS.Workbook {
 describe("sheet RAB tidak ada", () => {
   it("dokumen CCO terbitan MARLIN dikenali dan diarahkan ke Template Adendum", () => {
     const wb = workbookDenganSheet("CCO-01");
-    expect(() => parseHpsWorkbook(wb)).toThrow(/dokumen CCO terbitan MARLIN/);
+    expect(() => parseHpsWorkbook(wb)).toThrow(/volume × harga satuan tidak sama dengan jumlah harga/);
     // Pesannya harus menyebut JALAN KELUARNYA, bukan cuma menyalahkan berkas.
     expect(() => parseHpsWorkbook(wb)).toThrow(/Template Adendum/);
   });
 
   it("variasi penulisan nomor CCO tetap dikenali", () => {
     for (const n of ["CCO - 01", "CCO01", "cco-2"]) {
-      expect(() => parseHpsWorkbook(workbookDenganSheet(n))).toThrow(/dokumen CCO/);
+      expect(() => parseHpsWorkbook(workbookDenganSheet(n))).toThrow(/berbentuk dokumen CCO/);
     }
   });
 

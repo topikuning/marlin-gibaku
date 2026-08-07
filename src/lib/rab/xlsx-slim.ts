@@ -16,6 +16,15 @@ import JSZip from "jszip";
  */
 
 const RAB_RE = /^rab$/i;
+/**
+ * Sheet CCO KKP ("CCO-01", "CCO - 1") ikut dianggap sheet isi (DECISIONS 296).
+ *
+ * Tim lapangan mengerjakan adendum di berkas KKP, dan berkas itu bisa sama
+ * gemuknya dengan HPS aslinya — 40+ sheet volume. Tanpa baris ini penipisan
+ * dilewati dan seluruh workbook ikut dimuat, yang justru masalah yang modul ini
+ * ada untuk mencegahnya.
+ */
+const CCO_RE = /^cco\s*-?\s*\d+$/i;
 
 /** Resolve path relatif (Target di file .rels) terhadap folder part pemiliknya. */
 function resolveRelTarget(ownerPath: string, target: string): string {
@@ -70,7 +79,10 @@ export async function slimRabWorkbook(buf: Buffer | ArrayBuffer): Promise<Buffer
     const rid = /\br:id="([^"]*)"/.exec(el)?.[1] ?? "";
     sheets.push({ el, name, rid });
   }
-  const chosen = sheets.find((s) => s.name === "RAB") ?? sheets.find((s) => RAB_RE.test(s.name.trim()));
+  const chosen =
+    sheets.find((s) => s.name === "RAB") ??
+    sheets.find((s) => RAB_RE.test(s.name.trim())) ??
+    sheets.find((s) => CCO_RE.test(s.name.trim()));
   if (!chosen || !chosen.rid) return toBuffer(buf);
   const chosenTarget = relTargets.get(chosen.rid);
   if (!chosenTarget) return toBuffer(buf);

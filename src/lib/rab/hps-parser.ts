@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import { slimRabWorkbook } from "@/lib/rab/xlsx-slim";
+import { deteksiCco, hitungPerubahan } from "@/lib/rab/cco-import";
 import type {
   ParsedRab,
   ParsedRabCategory,
@@ -347,40 +348,68 @@ export async function parseHpsBuffer(buf: Buffer | ArrayBuffer): Promise<ParseHp
 }
 
 /**
- * Pesan saat sheet "RAB" tidak ada — MENYEBUT berkas apa yang diberikan.
+ * Pesan saat tidak ada sheet yang bisa dibaca — MENYEBUT berkas apa yang datang.
  *
- * Laporan user 2026-08-07: mengimpor `CCO01_<lokasi>.xlsx` ke draft adendum.
- * Berkas itu **terbitan MARLIN sendiri** — dokumen CCO hasil ekspor, bukan
- * bahan impor. Pesan lama, *"Sheet RAB tidak ditemukan di file HPS"*, benar
- * secara teknis tapi tidak bisa ditindaklanjuti: orang yang baru saja mengunduh
- * berkas itu DARI MARLIN wajar mengira berkas itulah yang harus dikembalikan.
+ * Pesan lama, *"Sheet RAB tidak ditemukan di file HPS"*, benar secara teknis
+ * tapi tidak bisa ditindaklanjuti: orang tidak tahu berkasnya salah yang mana.
  *
- * Dokumen CCO adalah KELUARAN untuk pemeriksa (MC-0 · tambah · kurang ·
- * CCO-01, semuanya sudah terkunci angka). Yang bisa diimpor kembali adalah
- * Template Adendum, yang memang punya kolom isian + `lineageKey` per baris.
- * Membedakan keduanya di pesan galat jauh lebih murah daripada membiarkan
- * orang menebak berkas mana yang salah.
+ * Berkas tambah/kurang KKP sendiri SUDAH diterima (DECISIONS 296) — jadi sampai
+ * di sini berarti bentuknya memang tak dikenali, atau angkanya tidak terbukti.
+ * Keduanya dibedakan, karena jalan keluarnya berbeda.
  */
 function pesanSheetTakAda(wb: ExcelJS.Workbook): string {
   const nama = wb.worksheets.map((w) => w.name);
   if (nama.some((n) => /^\s*CCO\s*-?\s*\d+/i.test(n))) {
     return (
-      "Berkas ini dokumen CCO terbitan MARLIN (keluaran untuk pemeriksa), bukan berkas yang bisa diimpor. " +
-      "Untuk mengisi draft adendum, unduh dulu Template Adendum di halaman ini, isi kolom Volume Adendum, lalu unggah kembali berkas template itu."
+      "Berkas ini berbentuk dokumen CCO, tapi kolom volume/harga/jumlah-nya tidak bisa dipastikan — " +
+      "pada baris contoh, volume × harga satuan tidak sama dengan jumlah harga. " +
+      "Periksa apakah susunan kolomnya berubah atau angkanya belum lengkap; kalau ragu, pakai Template Adendum dari halaman ini."
     );
   }
   const daftar = nama.slice(0, 6).join(", ") || "(tidak ada sheet)";
-  return `Sheet "RAB" tidak ditemukan. Sheet yang ada di berkas ini: ${daftar}.`;
+  return `Sheet "RAB" tidak ditemukan, dan tidak ada sheet berformat tambah/kurang KKP. Sheet yang ada di berkas ini: ${daftar}.`;
 }
 
 export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
   const warnings: string[] = [];
-  const ws = wb.getWorksheet("RAB") ?? wb.worksheets.find((w) => /rab/i.test(w.name));
+  // Sheet RAB dulu; kalau tidak ada, sheet mana pun yang berbentuk
+  // tambah/kurang KKP (berkas CCO/MC-0 yang dikerjakan tim di luar MARLIN).
+  const ws =
+    wb.getWorksheet("RAB") ??
+    wb.worksheets.find((w) => /rab/i.test(w.name)) ??
+    wb.worksheets.find((w) => deteksiCco(w) !== null);
   if (!ws) throw new Error(pesanSheetTakAda(wb));
 
-  // Nilai kontrak = harga akhir (NEGOSIASI > PENAWARAN > HPS). HPS cuma pagu.
-  const { col, priceSource } = detectColumns(ws);
-  const priceColumn = priceColumnInfo(priceSource, col);
+  /**
+   * Berkas tambah/kurang KKP dibaca APA ADANYA (DECISIONS 296).
+   *
+   * Volume diambil dari blok HASIL — keadaan SESUDAH adendum — sedangkan
+   * satuan dan harga satuan dari blok DASAR, karena adendum mengubah volume,
+   * bukan harga satuan. Peran blok ditentukan dari POSISI + pembuktian
+   * `volume × harga ≈ jumlah`, tidak pernah dari namanya: label "MC-0" berarti
+   * HASIL di satu berkas dan KEADAAN AWAL di berkas lain.
+   */
+  const peta = deteksiCco(ws);
+  const { col, priceSource } = peta
+    ? { col: peta.col, priceSource: "hps" as const }
+    : detectColumns(ws);
+  const priceColumn = peta
+    ? {
+        source: "hps" as const,
+        label: `CCO KKP — volume dari blok "${peta.blokHasil.label}" (kolom ${colLetter(peta.col.vol)}), harga satuan dari blok "${peta.blokDasar.label}" (kolom ${colLetter(peta.col.price)})`,
+      }
+    : priceColumnInfo(priceSource, col);
+  if (peta) {
+    const { berubah, total } = hitungPerubahan(ws, peta);
+    warnings.push(
+      `Berkas berformat tambah/kurang KKP. Volume diambil dari blok "${peta.blokHasil.label}" ` +
+        `(kolom ${colLetter(peta.col.vol)}) — keadaan SESUDAH adendum; satuan & harga satuan dari blok ` +
+        `"${peta.blokDasar.label}". ${berubah} dari ${total} item volumenya berbeda dari blok "${peta.blokDasar.label}".`,
+    );
+    // Nilai total kedua blok bisa SAMA PERSIS sementara ratusan item berbeda
+    // (adendum yang netral nilai). Tanpa kalimat di atas, salah-baca blok tidak
+    // akan pernah tertangkap lewat pemeriksaan total.
+  }
   if (priceSource === "nego")
     warnings.push(
       `File punya kolom HARGA NEGOSIASI — nilai kontrak diambil dari kolom ${colLetter(col.price)}/${colLetter(col.amount)} (bukan HPS).`,

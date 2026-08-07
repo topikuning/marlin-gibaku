@@ -11749,3 +11749,76 @@ ditolak.
 (pertanyaan user sebelumnya) belum dikerjakan — menunggu keputusan blok mana
 yang jadi sumber volume. Sampai itu diputuskan, berkas semacam itu DITOLAK
 dengan pesan yang jelas, bukan diterima dengan tebakan.
+
+---
+
+## 296 — Berkas tambah/kurang KKP dibaca apa adanya (2026-08-07)
+
+**Konteks.** Permintaan user, setelah berkas CCO-nya ditolak: *"itu adalah
+format dari kkp, bisa jadi tim terlanjur mengerjakan di file seperti itu, lalu
+baru masuk ke sistem, jadi kamu harus lebih luwes. jangan terlalu kaku hanya
+format darimu yang bisa kamu akomodir."*
+
+Benar, dan penolakan sebelumnya keliru arah. Tim mengerjakan adendum di berkas
+KKP; menyuruh mereka menyalin ulang ke template MARLIN memindahkan pekerjaan
+tanpa menambah kebenaran — malah menambah peluang salah salin di 1.000+ baris.
+
+**Bentuknya sama, NAMANYA yang menipu.** Dua berkas nyata dari paket yang sama:
+
+| berkas | blok 1 | blok 2 | blok 3 | blok 4 |
+|---|---|---|---|---|
+| `MC_0_*.xlsx` (sheet RAB) | **RAB** | TAMBAH | KURANG | **MC 0** |
+| `CCO01_*.xlsx` (sheet CCO-01) | **MC - 0** | TAMBAH | KURANG | **CCO - 01** |
+
+"MC-0" adalah **hasil** di berkas pertama dan **keadaan awal** di berkas kedua.
+Menyimpulkan peran blok dari namanya pasti salah di salah satunya — itulah
+kenapa pertanyaan awal user ("masih baca dari MC-0 dan bukan CCO?") tidak bisa
+dijawab dengan memilih nama kolom.
+
+**Keputusan — posisi + aritmetika, bukan label.**
+
+1. Baris grup dikenali dari adanya blok TAMBAH **dan** KURANG.
+2. Blok DASAR = blok terakhir sebelum "tambah"; blok HASIL = blok terakhir
+   sesudah "kurang". Urutan kolom stabil di semua varian; penamaannya tidak.
+3. Kolom di dalam blok ditentukan dengan **membuktikan `volume × harga ≈
+   jumlah`** pada baris contoh. Header tidak dipercaya: pada `MC_0_*` sel
+   header ter-merge menggeser labelnya satu kolom terhadap data, dan deteksi
+   berbasis label memang salah membaca SATUAN sebagai harga (satuannya terbaca
+   `"1200000"`, bukan `m²`). Angka tidak bisa bergeser diam-diam; label bisa.
+4. **Volume diambil dari blok HASIL** (keadaan sesudah adendum); satuan dan
+   harga satuan dari blok DASAR — adendum mengubah volume, bukan harga satuan.
+5. Tidak terbukti → **null**, dan berkasnya ditolak dengan menyebut sebabnya.
+   Menebak diam-diam pada dokumen kontrak tidak boleh jadi pilihan.
+
+**Blok yang dipakai DISEBUT di pratinjau**, berikut berapa item yang berubah:
+
+> Berkas berformat tambah/kurang KKP. Volume diambil dari blok "CCO - 01"
+> (kolom O) — keadaan SESUDAH adendum; satuan & harga satuan dari blok
+> "MC - 0". 209 dari 1032 item volumenya berbeda dari blok "MC - 0".
+
+Kalimat terakhir itu bukan hiasan. Adendum bisa **netral nilai**: pada
+`MC_0_*`, total blok RAB dan blok MC 0 SAMA PERSIS (Rp 5.891.112.790, tambah =
+kurang = Rp 3.080.829.942) sementara 205 dari 1032 item berbeda. Pemeriksaan
+total tidak akan pernah menangkap salah-baca blok; jumlah item yang berubah
+menangkapnya.
+
+**Hasil pada berkas asli user (lewat UI sungguhan, bukan uji unit saja).**
+
+| berkas | blok volume | item berubah | nilai draft |
+|---|---|---|---|
+| `MC_0_*` | "MC 0" (kolom P) | 205 / 1032 | Rp 5.891.112.790 |
+| `CCO01_*` | "CCO - 01" (kolom O) | 209 / 1032 | Rp 5.848.720.593 |
+
+Satuan kini terbaca benar (`m²`, `bln`, `bh`) — cacat yang dilaporkan di
+pemeriksaan sebelumnya ikut hilang karena sumbernya sama.
+
+**Kecepatan diukur, bukan ditebak:** 755 ms untuk berkas 45-sheet 3 MB, 248 ms
+untuk CCO 1-sheet. Penipis xlsx (`xlsx-slim`) diperluas supaya sheet `CCO-<n>`
+ikut dikenali sebagai sheet isi — tanpa itu berkas CCO gemuk lolos dari
+penipisan dan seluruh workbook ikut dimuat.
+
+**Uji.** `tests/unit/cco-import.test.ts` — 8 uji dari BENTUK berkas, termasuk
+jebakan intinya: blok berlabel "MC - 0" di posisi DASAR tidak boleh ikut
+terambil, kolom REALISASI tidak boleh tertukar jadi volume/harga, dan bentuk
+yang benar tapi angkanya tidak terbukti harus mengembalikan null. 1131 uji unit
++ 410 uji integration hijau — korpus 15 RAB biasa tidak tersentuh.
