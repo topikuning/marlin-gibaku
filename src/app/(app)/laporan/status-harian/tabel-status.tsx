@@ -159,7 +159,27 @@ export function TabelStatus({ rows, dateKey }: Props) {
                         ? `${d.driveKeterangan} · klik untuk coba lagi`
                         : "Belum diunggah · klik untuk unggah ke Drive"
               }
-              onClick={() => jalankan(`${d.slug}-drive`, uploadDailyReportToDriveAction, d.slug)}
+              onClick={() => {
+                // Yang SUDAH naik wajib dikonfirmasi dulu. Permintaan user
+                // 2026-08-07: *"kalau sudah ternyata diklik upload ulang,
+                // harusnya ada dialog konfirmasi. supaya tidak makan resource
+                // tidak perlu kalau terklik tidak sengaja."*
+                //
+                // Betul, dan biayanya nyata: mengunggah ulang MEMBUAT ULANG
+                // PDF-nya dan menarik SETIAP foto dari penyimpanan untuk
+                // dinaikkan lagi. Berkasnya sendiri tidak menumpuk — yang
+                // senama diganti — jadi yang dijaga di sini murni pekerjaan
+                // sia-sia, bukan kerusakan data. Karena itu konfirmasi cukup,
+                // bukan tombolnya dimatikan.
+                if (
+                  d.diDrive === "Sudah" &&
+                  !window.confirm(
+                    `Unggah ulang ${d.lokasi} ke Google Drive?\n\nSudah pernah diunggah — ${d.driveKeterangan}.\n\nBerkas dengan nama sama akan diganti (tidak menumpuk), tapi PDF-nya dibuat ulang dan semua fotonya ditarik ulang dari penyimpanan lalu dinaikkan lagi. Kalau tidak ada yang berubah, tidak perlu diulang.`,
+                  )
+                )
+                  return;
+                jalankan(`${d.slug}-drive`, uploadDailyReportToDriveAction, d.slug);
+              }}
             />
           );
         },
