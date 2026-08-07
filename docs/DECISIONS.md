@@ -10796,3 +10796,74 @@ antaranya untuk dimensi "Laporan"). Uji gigi: membuat `proses` hanya mencakup
 **Diperiksa di peramban.** Desktop 1440: 1440 = 1440, tombol **Unggah** dan
 **Kirim** terbaca sebagai tombol merah berkotak pada baris yang ada isinya.
 Ponsel 390: 390 = 390, gridnya menggulir di dalam wadahnya sendiri.
+
+## 280 · Foto Cepat di laporan harian: panel menutup, kantong bisa dipilih sebelum item ada (2026-08-07)
+
+**Konteks.** Tiga laporan user sekaligus, semuanya di editor laporan harian.
+
+### 1 · Panel kantong yang tertinggal terbuka menautkan foto ke pekerjaan yang SALAH
+
+> *"saat kemudian user input item pekerjaan baru, lalu berhasil, tampilan
+> pilihan dari kantong harusnya menutup... dialog foto di item lain tidak
+> menutup, dan masih ada tampilan foto yang belum dipilih, padahal sudah dipilih
+> di item lain."*
+
+Dua cacat, dan yang kedua **diam**:
+
+1. Beberapa panel bisa terbuka bersamaan, masing-masing memegang SALINAN kantong
+   dari saat ia dibuka. Foto yang sudah terpakai di panel A tetap terlihat
+   tersedia di panel B.
+2. Panel yang tertinggal terbuka terikat pada item **lama**. Pelapor yang baru
+   menyimpan pekerjaan baru memakai panel terdekat yang kebetulan masih terbuka
+   — dan fotonya mendarat di pekerjaan yang salah **tanpa satu pun pesan galat**,
+   karena menurut aturan penautannya memang sah.
+
+**Keputusan.** Keadaan "panel mana yang terbuka" diangkat ke `ItemList` sebagai
+SATU id, jadi mustahil ada dua panel terbuka. Id itu dilepas ketika daftar item
+berubah (item baru tersimpan / ada yang dihapus). Selain itu `AmbilDariKantong`
+menutup dirinya sendiri begitu penautan berhasil, bukan menyisakan panel dengan
+sisa fotonya.
+
+### 2 · Kantong kini bisa dipilih SEBELUM item disimpan
+
+> *"seharusnya di tampilan utama pilih pekerjaan, selain kamera, galeri, kantong
+> harusnya langsung bisa dipilih sebelum simpan item. atau ini tidak
+> memungkinkan karena item belum tersimpan? seharusnya ini default paling
+> nyaman."*
+
+Menautkannya lebih dulu memang **tidak mungkin** — penautan butuh id item. Yang
+mungkin: **memilih** lebih dulu, lalu menautkan tepat sesudah itemnya tersimpan.
+Dari sisi pelapor hasilnya sama, dan itu yang menentukan.
+
+- `saveItemAction` menerima `kantongPhotoIds`; sesudah `upsertItem` ia memanggil
+  aturan penautan yang sama.
+- Badan aturan "pakai foto" dipindah ke modul sendiri `src/lib/foto-cepat/pakai.ts`
+  supaya **dua jalur, satu aturan**. Kalau badannya disalin, pagarnya akan
+  bergeser diam-diam di salah satu salinan — dan pagar yang dijaga bukan pagar
+  remeh (foto tanpa lokasi, foto lokasi lain — DECISIONS 254).
+- **Kegagalan lampiran TIDAK membatalkan progresnya.** Volume sudah tersimpan dan
+  itu angka yang masuk ke kurva-S; membatalkannya karena satu foto bermasalah
+  akan menghapus pekerjaan yang benar demi lampiran yang opsional. Yang gagal
+  DISEBUTKAN di peringatan, dan fotonya tetap utuh di kantong.
+- Komponennya dipecah: `PemilihKantong` (petak saja, tanpa `<form>`) dipakai di
+  dalam formulir item — form tidak boleh bersarang — sedangkan `AmbilDariKantong`
+  tetap membungkusnya dengan form untuk item yang sudah tersimpan.
+
+### 3 · Catatan tidak lagi menonjol
+
+> *"inputan catatan (optional) pada inputan harian sebaiknya tidak terlalu
+> menonjol"*
+
+Betul: tiga langkah bernomor di atasnya yang menentukan angka progres, sedangkan
+catatan hanya keterangan. Dengan `Label` bernomor, ia terbaca sebagai langkah
+keempat yang wajib. Sekarang label kecil bernada rendah + kolom `h-10`, tapi
+TETAP terlihat (bukan disembunyikan di balik tombol) supaya tidak perlu dicari.
+
+**Uji.** 3 uji integrasi baru di `tests/integration/foto-cepat-pakai.test.ts`:
+foto kantong tertaut ke item yang baru tersimpan; foto lokasi LAIN ditolak tapi
+progresnya tetap tersimpan DAN penolakannya disebut; foto tanpa lokasi tidak
+bisa diselundupkan lewat jalur simpan item. Uji gigi: menelan kegagalan penautan
+diam-diam → 2 uji gugur.
+
+**Diperiksa di peramban** (390px): tombol "Foto Cepat" muncul sebagai jalur
+ketiga di bagian foto formulir, panelnya terbuka di tempat, halaman 390 = 390.

@@ -278,6 +278,17 @@ const saveItemSchema = z.object({
   rabNodeId: z.uuid("Pilih item pekerjaan dulu"),
   volumeDone: z.coerce.number().positive("Volume harus lebih dari 0"),
   notes: z.string().trim().max(500).optional(),
+  /**
+   * Foto kantong Foto Cepat yang dipilih DI FORMULIR, sebelum item ini ada.
+   *
+   * Permintaan user 2026-08-07: *"seharusnya di tampilan utama pilih pekerjaan,
+   * selain kamera, galeri, kantong harusnya langsung bisa dipilih sebelum
+   * simpan item... ini default paling nyaman"*. Memang tidak mungkin
+   * MENAUTKANNYA lebih dulu — penautan butuh item yang sudah punya id. Yang
+   * mungkin: memilihnya lebih dulu, lalu menautkan tepat sesudah itemnya
+   * tersimpan. Dari sisi pelapor hasilnya sama, dan itu yang penting.
+   */
+  kantongPhotoIds: z.array(z.uuid()).max(20).optional(),
   ...photoFieldsShape,
 });
 
@@ -290,6 +301,7 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
       rabNodeId: formData.get("rabNodeId"),
       volumeDone: formData.get("volumeDone"),
       notes: formData.get("notes") ?? undefined,
+      kantongPhotoIds: formData.getAll("kantongPhotoIds").map(String),
       ...photoFieldsFrom(formData),
     });
     if (!parsed.success) return { error: parsed.error.issues[0].message };
@@ -318,10 +330,37 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
       foto: d,
     });
 
+    /*
+     * Foto kantong yang dipilih di formulir ditautkan SESUDAH itemnya ada.
+     *
+     * Kegagalan di sini TIDAK membatalkan progresnya: volume sudah tersimpan
+     * dan itu angka yang masuk ke kurva-S. Membatalkannya karena satu foto
+     * bermasalah akan menghapus pekerjaan yang benar demi lampiran yang
+     * opsional. Yang gagal DISEBUTKAN, dan fotonya tetap utuh di kantong
+     * sehingga bisa dicoba lagi dari daftar pekerjaan.
+     */
+    let kantongGagal: string | undefined;
+    if (d.kantongPhotoIds && d.kantongPhotoIds.length > 0) {
+      const { pakaiFotoKeTujuan } = await import("@/lib/foto-cepat/pakai");
+      const hasil = await pakaiFotoKeTujuan(user, d.kantongPhotoIds, {
+        tujuan: "laporan",
+        reportItemId: item.id,
+      });
+      if ("error" in hasil) kantongGagal = `Foto kantong tidak terpakai: ${hasil.error}`;
+      else if (hasil.gagalCap.length > 0)
+        kantongGagal =
+          `${hasil.gagalCap.length} foto kantong memakai cap dasar ` +
+          `(${[...new Set(hasil.gagalCap)].join(", ")}) — foto & datanya tetap utuh.`;
+    }
+
     revalidateReport(location.slug, d.dateKey);
+    const peringatan = [
+      photoErrors.length ? `Sebagian foto gagal: ${[...new Set(photoErrors)].join("; ")}` : null,
+      kantongGagal ?? null,
+    ].filter(Boolean);
     return {
       success: "Progres tersimpan.",
-      warning: photoErrors.length ? `Sebagian foto gagal: ${[...new Set(photoErrors)].join("; ")}` : undefined,
+      warning: peringatan.length ? peringatan.join(" · ") : undefined,
     };
   } catch (err) {
     return errState(err);

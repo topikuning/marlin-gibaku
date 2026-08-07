@@ -16,7 +16,11 @@ import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import type { PhotoView } from "@/lib/photos";
 import { removeReportPhotoAction } from "@/lib/daily-report/actions";
 import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
-import { AmbilDariKantong, TombolAmbilDariKantong } from "@/components/knmp/ambil-dari-kantong";
+import {
+  AmbilDariKantong,
+  PemilihKantong,
+  TombolAmbilDariKantong,
+} from "@/components/knmp/ambil-dari-kantong";
 
 /**
  * Editor laporan (draft/perlu_koreksi) — MOBILE-FIRST untuk SM/pelaksana:
@@ -128,6 +132,8 @@ function ItemForm({
   const [picked, setPicked] = useState<LeafNodeOption | null>(null);
   const [volume, setVolume] = useState("");
   const [photoKey, setPhotoKey] = useState(0);
+  const [kantong, setKantong] = useState<ReadonlySet<string>>(new Set());
+  const [bukaKantong, setBukaKantong] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const cariRef = useRef<HTMLInputElement>(null);
   const volumeRef = useRef<HTMLInputElement>(null);
@@ -172,6 +178,12 @@ function ItemForm({
       });
       setQuery("");
       setVolume("");
+      // Pilihan kantong DIBUANG dan panelnya ditutup: fotonya sudah terpakai di
+      // item barusan, jadi membiarkannya terpilih akan membuat item BERIKUTNYA
+      // mengirim id foto yang tidak lagi ada di kantong. `photoKey` naik →
+      // `PemilihKantong` menarik ulang daftarnya, tidak memakai salinan basi.
+      setKantong(new Set());
+      setBukaKantong(false);
       setPhotoKey((k) => k + 1);
       formRef.current?.reset();
       raf = fokus(cariRef);
@@ -392,14 +404,67 @@ function ItemForm({
             Volume tetap bisa disimpan. Hubungi admin untuk mengaktifkan (menu Sistem → tes R2).
           </p>
         ) : (
-          <PhotoSourceInput key={photoKey} latName="photoLat" lngName="photoLng" />
+          <div className="space-y-2">
+            <PhotoSourceInput key={photoKey} latName="photoLat" lngName="photoLng" />
+            {/*
+              JALUR KETIGA, SETARA dengan kamera & galeri — permintaan user
+              2026-08-07: *"selain kamera, galeri, kantong harusnya langsung
+              bisa dipilih sebelum simpan item... ini default paling nyaman"*.
+
+              Fotonya tidak bisa DITAUTKAN sekarang (penautan butuh id item yang
+              belum ada), tapi bisa DIPILIH sekarang dan ditautkan tepat sesudah
+              itemnya tersimpan — lihat `kantongPhotoIds` di saveItemAction.
+              Dari sisi pelapor hasilnya sama.
+            */}
+            {[...kantong].map((id) => (
+              <input key={id} type="hidden" name="kantongPhotoIds" value={id} />
+            ))}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <TombolAmbilDariKantong
+                onClick={() => setBukaKantong((v) => !v)}
+                aktif={bukaKantong}
+                jumlahTerpilih={kantong.size}
+              />
+              {kantong.size > 0 && !bukaKantong ? (
+                <span className="text-[11px] text-ink-muted">
+                  ikut tersimpan bersama pekerjaan ini
+                </span>
+              ) : null}
+            </div>
+            {bukaKantong ? (
+              <div className="rounded-md border border-border bg-surface-muted p-3">
+                <PemilihKantong
+                  locationId={locationId}
+                  terpilih={kantong}
+                  onUbah={setKantong}
+                  muatUlangKunci={photoKey}
+                />
+              </div>
+            ) : null}
+          </div>
         )}
       </div>
 
-      {/* Catatan */}
+      {/*
+        Catatan sengaja BERNADA RENDAH — permintaan user 2026-08-07:
+        *"inputan catatan (optional) pada inputan harian sebaiknya tidak terlalu
+        menonjol"*. Ia memang bukan langkah: tiga langkah bernomor di atas yang
+        menentukan angka progres, sedangkan catatan hanya keterangan. Diberi
+        `Label` bernomor seperti tadi, ia terbaca sebagai langkah keempat yang
+        wajib diisi. Tetap terlihat (bukan disembunyikan di balik tombol) supaya
+        tidak perlu dicari, hanya tidak lagi menuntut perhatian.
+      */}
       <div>
-        <Label htmlFor="dr-notes">Catatan (opsional)</Label>
-        <Input id="dr-notes" name="notes" maxLength={500} placeholder="mis. cor kolom L2 utara" className="h-11 text-base" />
+        <label htmlFor="dr-notes" className="text-[12px] text-ink-muted">
+          Catatan (opsional)
+        </label>
+        <Input
+          id="dr-notes"
+          name="notes"
+          maxLength={500}
+          placeholder="mis. cor kolom L2 utara"
+          className="mt-1 h-10 text-base sm:text-sm"
+        />
       </div>
 
       <Button
@@ -470,15 +535,20 @@ function TambahFoto({
   itemId,
   locationId,
   jumlahFoto,
+  kantongTerbuka,
+  onToggleKantong,
+  onTutupKantong,
 }: {
   reportId: string;
   itemId: string;
   locationId: string;
   jumlahFoto: number;
+  kantongTerbuka: boolean;
+  onToggleKantong: () => void;
+  onTutupKantong: () => void;
 }) {
   const [state, formAction, pending] = useActionState<DailyActionState, FormData>(addItemPhotosAction, undefined);
   const [buka, setBuka] = useState(false);
-  const [ambil, setAmbil] = useState(false);
   const [photoKey, setPhotoKey] = useState(0);
   const panelRef = useRef<HTMLFormElement>(null);
 
@@ -529,16 +599,16 @@ function TambahFoto({
             <ImagePlus aria-hidden className="size-4" />
             Tambah foto
           </Button>
-          <TombolAmbilDariKantong onClick={() => setAmbil(true)} aktif={ambil} />
+          <TombolAmbilDariKantong onClick={onToggleKantong} aktif={kantongTerbuka} />
           {state?.success ? (
             <span className="text-[11px] text-success">{state.success}</span>
           ) : null}
         </div>
-        {ambil ? (
+        {kantongTerbuka ? (
           <AmbilDariKantong
             locationId={locationId}
             target={{ tujuan: "laporan", reportItemId: itemId }}
-            onTutup={() => setAmbil(false)}
+            onTutup={onTutupKantong}
           />
         ) : null}
       </div>
@@ -582,6 +652,9 @@ function ItemRow({
   item,
   bolehHapusFoto,
   photoEnabled,
+  kantongTerbuka,
+  onToggleKantong,
+  onTutupKantong,
 }: {
   reportId: string | null;
   locationId: string;
@@ -590,6 +663,10 @@ function ItemRow({
   item: WorkspaceItem;
   bolehHapusFoto: boolean;
   photoEnabled: boolean;
+  /** Keadaan panel kantong DIANGKAT ke ItemList — lihat catatan di sana. */
+  kantongTerbuka: boolean;
+  onToggleKantong: () => void;
+  onTutupKantong: () => void;
 }) {
   const [state, formAction, pending] = useActionState<DailyActionState, FormData>(removeItemAction, undefined);
 
@@ -648,6 +725,9 @@ function ItemRow({
           itemId={item.id}
           locationId={locationId}
           jumlahFoto={item.photos.length}
+          kantongTerbuka={kantongTerbuka}
+          onToggleKantong={onToggleKantong}
+          onTutupKantong={onTutupKantong}
         />
       ) : null}
     </li>
@@ -671,6 +751,38 @@ function ItemList({
   bolehHapusFoto: boolean;
   photoEnabled: boolean;
 }) {
+  /**
+   * HANYA SATU panel kantong yang boleh terbuka, dan ia menutup sendiri saat
+   * daftar pekerjaan berubah.
+   *
+   * Keluhan user 2026-08-07: *"saat kemudian user input item pekerjaan baru,
+   * lalu berhasil, tampilan pilihan dari kantong harusnya menutup... dialog
+   * foto di item lain tidak menutup, dan masih ada tampilan foto yang belum
+   * dipilih, padahal sudah dipilih di item lain."*
+   *
+   * Dua cacat sekaligus, dan yang kedua diam:
+   *
+   * 1. Beberapa panel bisa terbuka bersamaan, masing-masing memegang SALINAN
+   *    kantong dari saat ia dibuka. Foto yang sudah terpakai di panel A tetap
+   *    terlihat tersedia di panel B.
+   * 2. Panel yang tertinggal terbuka terikat pada item LAMA. Pelapor yang baru
+   *    menyimpan pekerjaan baru akan memakai panel terdekat yang kebetulan
+   *    masih terbuka — dan fotonya mendarat di pekerjaan yang salah, tanpa satu
+   *    pun pesan galat, karena penautannya memang sah menurut aturan.
+   *
+   * Keadaannya diangkat ke sini: satu id, jadi mustahil ada dua panel terbuka.
+   * `dipilihnya` disamakan dengan id item; saat `items` berganti (item baru
+   * tersimpan, atau ada yang dihapus), id itu dilepas.
+   */
+  const [kantongUntuk, setKantongUntuk] = useState<string | null>(null);
+  const tandaItem = items.map((i) => i.id).join(",");
+  useEffect(() => {
+    // Lewat timeout, bukan sinkron di badan effect — patuh
+    // react-hooks/set-state-in-effect.
+    const t = window.setTimeout(() => setKantongUntuk(null), 0);
+    return () => window.clearTimeout(t);
+  }, [tandaItem]);
+
   if (items.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-border bg-surface px-4 py-6 text-center text-sm text-ink-muted">
@@ -694,6 +806,9 @@ function ItemList({
             item={it}
             bolehHapusFoto={bolehHapusFoto}
             photoEnabled={photoEnabled}
+            kantongTerbuka={kantongUntuk === it.id}
+            onToggleKantong={() => setKantongUntuk((k) => (k === it.id ? null : it.id))}
+            onTutupKantong={() => setKantongUntuk(null)}
           />
         ))}
       </ul>

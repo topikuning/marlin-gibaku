@@ -58,6 +58,7 @@ const { db } = await import("@/lib/db");
 const { muatKantongLokasiAction, pakaiFotoAction, tetapkanLokasiAction } = await import(
   "@/lib/foto-cepat/actions"
 );
+const { saveItemAction } = await import("@/lib/daily-report/actions");
 
 const suffix = `fcp${Date.now().toString(36)}`;
 let orgId: string;
@@ -65,6 +66,7 @@ let locA: string;
 let locB: string;
 let mandorId: string;
 let reportItemId: string;
+let nodeId: string;
 let kegiatanId: string;
 
 async function pengguna(id: string) {
@@ -159,6 +161,7 @@ beforeAll(async () => {
     },
     select: { id: true },
   });
+  nodeId = node.id;
   const report = await db.dailyReport.create({
     data: { locationId: locA, reportDate: new Date("2026-08-06"), status: "draft", createdById: mandorId },
     select: { id: true },
@@ -346,5 +349,96 @@ describe("tetapkanLokasiAction — hanya menyentuh foto yang dipilih", () => {
       (await db.photo.findUniqueOrThrow({ where: { id: keB }, select: { locationId: true } }))
         .locationId,
     ).toBe(locB);
+  });
+});
+
+describe("saveItemAction — foto kantong dipilih SEBELUM itemnya ada", () => {
+  // Permintaan user 2026-08-07: *"seharusnya di tampilan utama pilih pekerjaan,
+  // selain kamera, galeri, kantong harusnya langsung bisa dipilih sebelum
+  // simpan item. atau ini tidak memungkinkan karena item belum tersimpan?"*
+  //
+  // Menautkan lebih dulu memang mustahil — penautan butuh id item. Yang
+  // dilakukan: memilih dulu, menautkan tepat sesudah itemnya tersimpan. Karena
+  // penautannya terjadi DI DALAM aksi simpan, pagar lokasinya tidak lagi
+  // terlihat oleh pemakai — jadi harus dikunci di sini.
+
+  it("foto kantong ikut tertaut ke item yang baru tersimpan", async () => {
+    const id = await buatFoto(locA, "s1");
+    const hasil = await saveItemAction(
+      undefined,
+      fd({
+        locationId: locA,
+        dateKey: "2026-08-03",
+        rabNodeId: nodeId,
+        volumeDone: "2",
+        kantongPhotoIds: id,
+      }),
+    );
+    expect(hasil?.error).toBeUndefined();
+    expect(hasil?.success).toBeTruthy();
+
+    const foto = await db.photo.findUniqueOrThrow({
+      where: { id },
+      select: { reportItemId: true, reportId: true },
+    });
+    expect(foto.reportItemId).not.toBeNull();
+    expect(foto.reportId).not.toBeNull();
+  });
+
+  it("foto dari lokasi LAIN ditolak — tapi progresnya tetap tersimpan, dan penolakannya DISEBUT", async () => {
+    // Dua hal yang sama pentingnya. Membatalkan simpan karena satu lampiran
+    // bermasalah akan menghapus volume yang sudah benar — angka yang masuk ke
+    // kurva-S — demi foto yang statusnya opsional. Sebaliknya, menelan
+    // kegagalannya diam-diam membuat pelapor mengira fotonya sudah terlampir.
+    const asing = await buatFoto(locB, "s2");
+    const hasil = await saveItemAction(
+      undefined,
+      fd({
+        locationId: locA,
+        dateKey: "2026-08-04",
+        rabNodeId: nodeId,
+        volumeDone: "3",
+        kantongPhotoIds: asing,
+      }),
+    );
+    expect(hasil?.success).toBeTruthy();
+    expect(hasil?.warning).toContain("lokasi lain");
+
+    const foto = await db.photo.findUniqueOrThrow({
+      where: { id: asing },
+      select: { reportItemId: true },
+    });
+    expect(foto.reportItemId).toBeNull();
+
+    // Progresnya benar-benar ada, bukan sekadar pesan sukses.
+    const item = await db.dailyReportItem.findFirst({
+      where: { report: { locationId: locA, reportDate: new Date("2026-08-04") } },
+      select: { volumeDone: true },
+    });
+    expect(Number(item?.volumeDone)).toBe(3);
+  });
+
+  it("foto TANPA lokasi tidak bisa diselundupkan lewat jalur simpan item", async () => {
+    // Pagar DECISIONS 254 harus berlaku sama di jalur baru ini: menautkannya
+    // ke laporan lokasi A sama saja menetapkan lokasinya ke A diam-diam.
+    const buta = await buatFoto(null, "s3");
+    const hasil = await saveItemAction(
+      undefined,
+      fd({
+        locationId: locA,
+        dateKey: "2026-08-05",
+        rabNodeId: nodeId,
+        volumeDone: "1",
+        kantongPhotoIds: buta,
+      }),
+    );
+    expect(hasil?.success).toBeTruthy();
+    expect(hasil?.warning).toContain("belum ketahuan lokasinya");
+    const foto = await db.photo.findUniqueOrThrow({
+      where: { id: buta },
+      select: { reportItemId: true, locationId: true },
+    });
+    expect(foto.reportItemId).toBeNull();
+    expect(foto.locationId).toBeNull();
   });
 });

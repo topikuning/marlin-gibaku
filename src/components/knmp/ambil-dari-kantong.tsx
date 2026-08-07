@@ -1,6 +1,14 @@
 "use client";
 
-import { useActionState, useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import {
+  useActionState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { useRouter } from "next/navigation";
 import { Check, Images, MapPin, MapPinOff } from "lucide-react";
 import { Banner, Button, HelpText } from "@/components/ui";
@@ -27,10 +35,15 @@ import type { FotoKantong } from "@/lib/foto-cepat/queries";
  * layar laporan, dengan koordinat seadanya, sementara foto yang koordinatnya
  * justru benar menumpuk tak terpakai di kantong.
  *
- * Komponen ini memakai `pakaiFotoAction` yang SAMA dengan halaman /foto-cepat —
- * bukan jalur penautan kedua. Semua pagarnya (lokasi harus cocok, laporan harus
- * masih bisa disunting, kegiatan harus draft, cap dilengkapi otomatis) berlaku
- * apa adanya, karena memang satu-satunya tempat aturan itu ditulis.
+ * Berkasnya berisi TIGA bagian yang sengaja terpisah:
+ *
+ * - `TombolAmbilDariKantong` — pemicunya, sebaris dengan aksi foto lain.
+ * - `PemilihKantong` — petak fotonya saja, TANPA form. Ini yang membuatnya bisa
+ *   dipakai di dalam formulir item yang belum disimpan (form tidak boleh
+ *   bersarang), sehingga foto kantong bisa dipilih SEBELUM item ada.
+ * - `AmbilDariKantong` — pembungkus form + tombol kirim, untuk item yang SUDAH
+ *   tersimpan. Memakai `pakaiFotoAction` yang SAMA dengan halaman /foto-cepat —
+ *   bukan jalur penautan kedua.
  */
 
 type Tujuan =
@@ -51,15 +64,18 @@ const KOSONG: FotoCepatState = {};
 export function TombolAmbilDariKantong({
   onClick,
   aktif,
+  jumlahTerpilih,
 }: {
   onClick: () => void;
   /** Panelnya sedang terbuka — tombolnya ditandai, bukan disembunyikan. */
   aktif?: boolean;
+  /** Sudah ada yang dipilih tapi panelnya ditutup — jumlahnya tetap terbaca. */
+  jumlahTerpilih?: number;
 }) {
   return (
     <Button
       type="button"
-      variant={aktif ? "secondary" : "ghost"}
+      variant={aktif || (jumlahTerpilih ?? 0) > 0 ? "secondary" : "ghost"}
       size="sm"
       className="px-2"
       onClick={onClick}
@@ -67,25 +83,32 @@ export function TombolAmbilDariKantong({
     >
       <Images aria-hidden className="size-4" />
       Foto Cepat
+      {(jumlahTerpilih ?? 0) > 0 ? ` (${jumlahTerpilih})` : ""}
     </Button>
   );
 }
 
-export function AmbilDariKantong({
+/**
+ * PETAK PEMILIH — tanpa form, tanpa tombol kirim.
+ *
+ * Pemuatan kantong dipicu ulang lewat `muatUlangKunci`: nilainya berubah →
+ * daftarnya ditarik lagi dari server. Itu yang dipakai pemanggil untuk
+ * memastikan daftar tidak basi sesudah sebagian fotonya terpakai di tempat lain.
+ */
+export function PemilihKantong({
   locationId,
-  target,
-  onTutup,
+  terpilih,
+  onUbah,
+  muatUlangKunci,
 }: {
   locationId: string;
-  target: Tujuan;
-  onTutup: () => void;
+  terpilih: ReadonlySet<string>;
+  onUbah: (ids: ReadonlySet<string>) => void;
+  muatUlangKunci?: number;
 }) {
-  const router = useRouter();
   const [fotos, setFotos] = useState<FotoKantong[] | null>(null);
   const [galat, setGalat] = useState<string | null>(null);
-  const [terpilih, setTerpilih] = useState<Set<string>>(new Set());
   const [memuat, mulaiMuat] = useTransition();
-  const [state, action, pending] = useActionState(pakaiFotoAction, KOSONG);
 
   const muat = useCallback(() => {
     mulaiMuat(async () => {
@@ -104,34 +127,135 @@ export function AmbilDariKantong({
     if (fotos == null && !memuat) muat();
   }, [fotos, memuat, muat]);
 
+  // Kunci berubah → paksa muat ulang. Lewat timeout, bukan sinkron di badan
+  // effect: lint repo ini melarang setState sinkron di effect.
+  useEffect(() => {
+    if (muatUlangKunci == null) return;
+    const t = window.setTimeout(() => setFotos(null), 0);
+    return () => window.clearTimeout(t);
+  }, [muatUlangKunci]);
+
+  const toggle = (id: string) => {
+    const n = new Set(terpilih);
+    if (n.has(id)) n.delete(id);
+    else n.add(id);
+    onUbah(n);
+  };
+
+  if (galat) return <Banner tone="error" title={galat} />;
+  if (memuat && fotos == null) return <p className="text-sm text-ink-muted">Memuat kantong…</p>;
+  if ((fotos?.length ?? 0) === 0)
+    return (
+      <HelpText>
+        Belum ada foto kantong untuk lokasi ini. Foto yang lokasinya belum ketahuan tidak ditawarkan
+        di sini — tetapkan lokasinya dulu di menu Foto Cepat.
+      </HelpText>
+    );
+
+  return (
+    <ul className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+      {fotos!.map((f) => {
+        const dipilih = terpilih.has(f.id);
+        return (
+          <li key={f.id}>
+            <button
+              type="button"
+              onClick={() => toggle(f.id)}
+              aria-pressed={dipilih}
+              aria-label={`${dipilih ? "Batal pilih" : "Pilih"} foto ${f.waktuLabel}`}
+              className={`relative block w-full overflow-hidden rounded-md border text-left transition ${
+                dipilih ? "border-primary ring-2 ring-primary" : "border-border"
+              }`}
+            >
+              <span
+                aria-hidden
+                className={`absolute left-1 top-1 z-10 grid size-5 place-items-center rounded-full border shadow ${
+                  dipilih
+                    ? "border-primary bg-primary text-white"
+                    : "border-border bg-surface/90 text-transparent"
+                }`}
+              >
+                <Check className="size-3" strokeWidth={3} />
+              </span>
+              <span className="block aspect-square bg-surface-inset">
+                {f.thumbUrl ? (
+                  // Foto R2 ber-presigned URL berumur pendek — next/image tidak
+                  // dipakai di seluruh aplikasi ini karena hostnya berganti tiap
+                  // deploy.
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={f.thumbUrl} alt="" className="size-full object-cover" loading="lazy" />
+                ) : null}
+              </span>
+              <span className="flex items-center gap-1 px-1.5 py-1 text-[11px] text-ink-muted">
+                {f.gpsAsli ? (
+                  <MapPin aria-hidden className="size-3 shrink-0 text-success" />
+                ) : (
+                  <MapPinOff aria-hidden className="size-3 shrink-0 text-warning" />
+                )}
+                <span className="truncate">{f.waktuLabel}</span>
+              </span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+export function AmbilDariKantong({
+  locationId,
+  target,
+  onTutup,
+}: {
+  locationId: string;
+  target: Tujuan;
+  onTutup: () => void;
+}) {
+  const router = useRouter();
+  const [terpilih, setTerpilih] = useState<ReadonlySet<string>>(new Set());
+  const [state, action, pending] = useActionState(pakaiFotoAction, KOSONG);
+
+  /*
+   * `onTutup` disimpan di ref, TIDAK dijadikan dependensi effect.
+   *
+   * Pemanggil lazim mengopernya sebagai arrow inline, jadi identitasnya berubah
+   * tiap render. Kalau ia jadi dependensi, effect di bawah dijadwal ulang tiap
+   * render — dan karena effect itu memanggil `router.refresh()` yang MEMICU
+   * render, jadwal ulangnya bisa memicu penyegaran berkali-kali untuk satu
+   * keberhasilan.
+   */
+  const tutupRef = useRef(onTutup);
+  useEffect(() => {
+    tutupRef.current = onTutup;
+  }, [onTutup]);
+
   /**
-   * Foto yang berpindah HILANG dari kantong. Daftar di sini adalah salinan yang
-   * dimuat sebelum penautan, jadi ia harus dimuat ulang — kalau tidak, foto yang
-   * sudah dipakai tetap terlihat tersedia dan dicoba lagi sampai ditolak server.
+   * Berhasil → panelnya DITUTUP, bukan dibiarkan terbuka dengan sisa fotonya.
+   *
+   * Keluhan user 2026-08-07: *"saat kemudian user input item pekerjaan baru,
+   * lalu berhasil, tampilan pilihan dari kantong harusnya menutup. karena jika
+   * tidak, user kemudian memilih foto untuk item pekerjaan dari sisa foto yang
+   * sebelumnya... padahal sudah dipilih di item lain."*
+   *
+   * Betul, dan bahayanya bukan sekadar berantakan: panel yang tetap terbuka itu
+   * terikat pada item LAMA. Pelapor yang baru saja menyimpan pekerjaan baru
+   * akan memakai panel terdekat yang kebetulan masih terbuka, dan fotonya
+   * mendarat di pekerjaan yang salah — tanpa satu pun pesan galat, karena
+   * secara aturan penautannya memang sah.
+   *
    * `router.refresh()` mengurus galeri item di halaman ini; `pakaiFotoAction`
    * sendiri hanya merevalidasi /foto-cepat dan /foto.
    */
   useEffect(() => {
     if (!state.ok && !state.warning) return;
-    // Lewat timeout, bukan sinkron di badan effect: lint repo ini melarang
-    // setState sinkron di effect karena memicu render kaskade.
     const t = window.setTimeout(() => {
       setTerpilih(new Set());
-      setFotos(null);
       router.refresh();
+      tutupRef.current();
     }, 0);
     return () => window.clearTimeout(t);
   }, [state.ok, state.warning, router]);
 
-  const toggle = (id: string) =>
-    setTerpilih((s) => {
-      const n = new Set(s);
-      if (n.has(id)) n.delete(id);
-      else n.add(id);
-      return n;
-    });
-
-  const jumlah = fotos?.length ?? 0;
   const ids = useMemo(() => [...terpilih], [terpilih]);
 
   return (
@@ -147,91 +271,30 @@ export function AmbilDariKantong({
         </button>
       </div>
 
-      {galat ? <Banner tone="error" title={galat} /> : null}
       {state.error ? <Banner tone="error" title={state.error} /> : null}
       {state.warning ? <Banner tone="warning" title={state.warning} /> : null}
-      {state.ok ? <Banner tone="success" title={state.ok} /> : null}
 
-      {memuat && fotos == null ? (
-        <p className="text-sm text-ink-muted">Memuat kantong…</p>
-      ) : jumlah === 0 ? (
+      <form action={action} className="space-y-2">
+        {ids.map((id) => (
+          <input key={id} type="hidden" name="photoIds" value={id} />
+        ))}
+        <input type="hidden" name="tujuan" value={target.tujuan} />
+        {target.tujuan === "laporan" ? (
+          <input type="hidden" name="reportItemId" value={target.reportItemId} />
+        ) : (
+          <input type="hidden" name="kegiatanId" value={target.kegiatanId} />
+        )}
+
+        <PemilihKantong locationId={locationId} terpilih={terpilih} onUbah={setTerpilih} />
+
+        <Button type="submit" size="sm" loading={pending} disabled={ids.length === 0}>
+          {ids.length === 0 ? "Pilih foto dulu" : `Pakai ${ids.length} foto`}
+        </Button>
         <HelpText>
-          Belum ada foto kantong untuk lokasi ini. Foto yang lokasinya belum ketahuan tidak
-          ditawarkan di sini — tetapkan lokasinya dulu di menu Foto Cepat.
+          Waktu & koordinat foto TIDAK berubah — yang ditambahkan hanya nama lokasi, perusahaan,
+          bangunan, dan item pekerjaannya ke capnya.
         </HelpText>
-      ) : (
-        <form action={action} className="space-y-2">
-          {ids.map((id) => (
-            <input key={id} type="hidden" name="photoIds" value={id} />
-          ))}
-          <input type="hidden" name="tujuan" value={target.tujuan} />
-          {target.tujuan === "laporan" ? (
-            <input type="hidden" name="reportItemId" value={target.reportItemId} />
-          ) : (
-            <input type="hidden" name="kegiatanId" value={target.kegiatanId} />
-          )}
-
-          <ul className="grid grid-cols-4 gap-2 sm:grid-cols-6">
-            {fotos!.map((f) => {
-              const dipilih = terpilih.has(f.id);
-              return (
-                <li key={f.id}>
-                  <button
-                    type="button"
-                    onClick={() => toggle(f.id)}
-                    aria-pressed={dipilih}
-                    aria-label={`${dipilih ? "Batal pilih" : "Pilih"} foto ${f.waktuLabel}`}
-                    className={`relative block w-full overflow-hidden rounded-md border text-left transition ${
-                      dipilih ? "border-primary ring-2 ring-primary" : "border-border"
-                    }`}
-                  >
-                    <span
-                      aria-hidden
-                      className={`absolute left-1 top-1 z-10 grid size-5 place-items-center rounded-full border shadow ${
-                        dipilih
-                          ? "border-primary bg-primary text-white"
-                          : "border-border bg-surface/90 text-transparent"
-                      }`}
-                    >
-                      <Check className="size-3" strokeWidth={3} />
-                    </span>
-                    <span className="block aspect-square bg-surface-inset">
-                      {f.thumbUrl ? (
-                        // Foto R2 ber-presigned URL berumur pendek — next/image
-                        // tidak dipakai di seluruh aplikasi ini karena hostnya
-                        // berganti tiap deploy.
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={f.thumbUrl}
-                          alt=""
-                          className="size-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : null}
-                    </span>
-                    <span className="flex items-center gap-1 px-1.5 py-1 text-[11px] text-ink-muted">
-                      {f.gpsAsli ? (
-                        <MapPin aria-hidden className="size-3 shrink-0 text-success" />
-                      ) : (
-                        <MapPinOff aria-hidden className="size-3 shrink-0 text-warning" />
-                      )}
-                      <span className="truncate">{f.waktuLabel}</span>
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-
-          <Button type="submit" size="sm" loading={pending} disabled={ids.length === 0}>
-            {ids.length === 0 ? "Pilih foto dulu" : `Pakai ${ids.length} foto`}
-          </Button>
-          <HelpText>
-            Waktu & koordinat foto TIDAK berubah — yang ditambahkan hanya nama lokasi, perusahaan,
-            bangunan, dan item pekerjaannya ke capnya.
-          </HelpText>
-        </form>
-      )}
+      </form>
     </div>
   );
 }
