@@ -11989,3 +11989,44 @@ dokumentasi dengan foto ter-embed, judul pekerjaan, serta bobot 0,42 / 0,03.
 
 **Yang belum.** Logo konsultan pengawas belum ada di data — kotaknya disiapkan
 dan diisi nama perusahaannya saja. Logo pelaksana dipakai bila vendornya punya.
+
+---
+
+## 300 — Kop sampul: terang, lengkap, dan berlogo di kedua pihak (2026-08-07)
+
+Tiga koreksi user atas sampul yang baru dibuat (DECISIONS 299).
+
+**1. *"warnamu terlalu gelap, tabrakan dengan logo."*** Pita kop memakai navy
+pekat, dan lambang instansi umumnya gelap/emas — jadi logonya tenggelam. Kop
+asli KKP pun biru muda dengan tulisan hitam. Sekarang pita TERANG
+(`primary50`) dengan teks gelap: aman untuk logo klien mana pun, yang memang
+tidak bisa kita atur.
+
+**2. *"dimana semua informasi ini?"*** Kop KKP memuat alamat, kota + kode pos,
+telepon/faksimile, laman, dan surel — dan tidak ada satu pun tempat
+menyimpannya. Ditambah `Branding.ownerAddress`: **satu kolom multi-baris**,
+dicetak apa adanya. Bukan lima kolom terpisah (alamat/kota/telepon/faks/surel):
+tiap instansi menyusun kopnya sendiri-sendiri, dan memaksakan lima kolom
+berarti memaksa mereka membuang baris yang ada atau mengarang baris yang tidak
+ada. Kosong = kop cukup nama + keterangan; tidak dikarang isinya.
+
+**3. *"aku sudah beri kamu contoh layoutnya, penempatan logo kenapa kamu ganti
+ttd."*** Benar. Di contoh, kaki sampul berisi **kop perusahaan berlogo** tiap
+pihak, dengan garis paraf di bawahnya. Versi pertama hanya menulis NAMA
+perusahaan di atas garis — itu mengganti kop dengan tanda tangan. Sekarang
+keduanya kotak kop: logo di kiri, nama + alamat di kanan, garis paraf di bawah,
+pada ketinggian yang SAMA di kedua kolom.
+
+**Berlaku untuk SEMUA cetakan blanko harian**, sesuai penegasan user bahwa ini
+format resmi KKP: ketiga keluaran — unduh PDF, kiriman WhatsApp, dan unggahan
+Google Drive — memakai `renderHarianKkpPdf` yang sama, jadi ketiganya membawa
+sampul + blanko + dokumentasi tanpa perubahan lain.
+
+**Yang masih terbuka, dan disebut supaya tidak terbaca selesai:**
+
+- **Logo konsultan pengawas** belum punya tempat penyimpanan. Kotak kop-nya
+  sudah ada dan terisi nama perusahaan; slot logonya menunggu keputusan: field
+  di `Contract` atau konsultan dicatat sebagai `Company` seperti vendor.
+- **Halaman cetak HTML** (`app/cetak/harian`) masih blanko saja. Itu tumpukan
+  render yang berbeda (React/print CSS), bukan PDF — mengubahnya pekerjaan
+  tersendiri, bukan penyesuaian sepintas.

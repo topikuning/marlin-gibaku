@@ -88,6 +88,8 @@ export type KkpDailyData = {
    */
   ownerName?: string;
   ownerSubtitle?: string;
+  /** Baris alamat & kontak pemilik untuk kop SAMPUL (bebas baris). */
+  ownerAddress?: string;
   /** URL logo pemilik (presigned, opsional). */
   ownerLogoUrl?: string | null;
   /** Penanda tangan (dari kontrak, current — null = baris kosong). */

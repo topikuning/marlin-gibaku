@@ -601,6 +601,7 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
   const owner = {
     ownerName: brand.ownerName,
     ownerSubtitle: brand.ownerSubtitle,
+    ownerAddress: brand.ownerAddress,
     ownerLogoUrl,
     pekerjaan: contract?.workTitle ?? null,
   };

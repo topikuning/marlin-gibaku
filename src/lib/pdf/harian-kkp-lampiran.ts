@@ -71,7 +71,13 @@ function logoDiKotak(doc: PdfDoc, buf: Buffer, x: number, y: number, w: number, 
 
 /* ────────────────────────────── SAMPUL ────────────────────────────────── */
 
-export function gambarSampul(doc: PdfDoc, d: KkpDailyData, logoPemilik: Buffer | null, logoVendor: Buffer | null) {
+export function gambarSampul(
+  doc: PdfDoc,
+  d: KkpDailyData,
+  logoPemilik: Buffer | null,
+  logoVendor: Buffer | null,
+  logoPengawas: Buffer | null = null,
+) {
   const x = FORM_MARGIN;
   const width = doc.page.width - FORM_MARGIN * 2;
   const bawah = doc.page.height - FORM_MARGIN;
@@ -86,23 +92,42 @@ export function gambarSampul(doc: PdfDoc, d: KkpDailyData, logoPemilik: Buffer |
 
   /* ── Kop pemilik pekerjaan ────────────────────────────────────────────
      Identitasnya dari menu Sistem, BUKAN hardcode KKP — satu basis kode
-     melayani klien mana pun (DECISIONS 166). */
-  const tinggiKop = 58;
-  doc.save().rect(dalam, y, lebarDalam, tinggiKop).fill(R.primary).restore();
-  if (logoPemilik) logoDiKotak(doc, logoPemilik, dalam + 10, y + 7, 44, 44);
-  const xTeks = dalam + (logoPemilik ? 62 : 10);
-  const wTeks = lebarDalam - (logoPemilik ? 72 : 20);
-  doc
-    .font(PDF_FONT.bold)
-    .fontSize(11)
-    .fillColor(R.white)
-    .text((d.ownerName ?? "").toUpperCase(), xTeks, y + 14, { width: wTeks, align: "center", lineBreak: false });
-  if (d.ownerSubtitle)
-    doc
-      .font(PDF_FONT.regular)
-      .fontSize(8.5)
-      .fillColor(R.white)
-      .text(d.ownerSubtitle.toUpperCase(), xTeks, y + 30, { width: wTeks, align: "center", lineBreak: false });
+     melayani klien mana pun (DECISIONS 166).
+
+     PITA TERANG, teks gelap. Versi pertama memakai navy pekat dan user
+     langsung menolaknya: *"warnamu terlalu gelap, tabrakan dengan logo"* —
+     betul, lambang instansi umumnya berwarna gelap/emas dan hilang di atas
+     latar pekat. Kop asli KKP pun biru muda dengan tulisan hitam. Latar
+     terang juga aman untuk logo klien mana pun, yang tidak bisa kita atur.
+
+     Alamat & kontak dicetak APA ADANYA dari `ownerAddress`, baris per baris.
+     Sebelumnya kop cuma memuat nama + keterangan, dan seluruh baris alamat,
+     telepon, laman, surel tidak punya tempat sama sekali. */
+  const barisAlamat = (d.ownerAddress ?? "")
+    .split(/\r?\n/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const tinggiKop = Math.max(64, 40 + barisAlamat.length * 11 + (d.ownerSubtitle ? 13 : 0));
+  doc.save().rect(dalam, y, lebarDalam, tinggiKop).fill(R.primary50).restore();
+  doc.lineWidth(0.6).strokeColor(R.border).rect(dalam, y, lebarDalam, tinggiKop).stroke();
+  const sisiLogo = Math.min(tinggiKop - 12, 52);
+  if (logoPemilik) logoDiKotak(doc, logoPemilik, dalam + 10, y + (tinggiKop - sisiLogo) / 2, sisiLogo, sisiLogo);
+  const xTeks = dalam + (logoPemilik ? sisiLogo + 20 : 10);
+  const wTeks = lebarDalam - (xTeks - dalam) - 10;
+  let ky = y + 9;
+  doc.font(PDF_FONT.bold).fontSize(12).fillColor(R.ink)
+    .text((d.ownerName ?? "").toUpperCase(), xTeks, ky, { width: wTeks, align: "center", lineBreak: false });
+  ky += 16;
+  if (d.ownerSubtitle) {
+    doc.font(PDF_FONT.regular).fontSize(9.5).fillColor(R.ink)
+      .text(d.ownerSubtitle.toUpperCase(), xTeks, ky, { width: wTeks, align: "center", lineBreak: false });
+    ky += 13;
+  }
+  for (const t of barisAlamat) {
+    doc.font(PDF_FONT.regular).fontSize(7.5).fillColor(R.inkMuted)
+      .text(t.toUpperCase(), xTeks, ky, { width: wTeks, align: "center", lineBreak: false });
+    ky += 11;
+  }
   y += tinggiKop + 46;
 
   /* ── Judul ────────────────────────────────────────────────────────── */
@@ -150,31 +175,45 @@ export function gambarSampul(doc: PdfDoc, d: KkpDailyData, logoPemilik: Buffer |
   baris("LOKASI", `${d.locationName} — ${d.regency}, ${d.province}`);
   baris("TAHUN ANGGARAN", String(d.tahunAnggaran));
 
-  /* ── Tanda tangan dua pihak, menempel di kaki halaman ─────────────── */
-  const tinggiTtd = 118;
-  const yTtd = bawah - 16 - tinggiTtd;
+  /* ── Dua pihak di kaki halaman: KOP BERLOGO + garis tanda tangan ──────
+     Mengikuti contoh user: tiap pihak tampil sebagai KOP PERUSAHAAN (logo di
+     kiri, nama + alamat di kanan, dalam kotak), lalu garis tanda tangan di
+     bawahnya. Versi pertama hanya menulis NAMA perusahaan di atas garis —
+     itu mengganti kop dengan tanda tangan, dan user langsung menegurnya.
+     Kop-nya yang menyatakan siapa pihaknya; garisnya cuma tempat paraf. */
+  const tinggiKotak = 40;
+  const tinggiBlok = 100;
+  const yTtd = bawah - 16 - tinggiBlok;
   const wKolom = lebarDalam / 2;
-  const kolom = (kx: number, judul: string, firma: string | null | undefined, logo: Buffer | null, alamat?: string | null) => {
+  const kolom = (
+    kx: number,
+    judul: string,
+    firma: string | null | undefined,
+    logo: Buffer | null,
+    alamat?: string | null,
+  ) => {
+    const w = wKolom - 16;
     doc.font(PDF_FONT.bold).fontSize(9.5).fillColor(R.ink)
-      .text(judul, kx, yTtd, { width: wKolom - 12, align: "center", lineBreak: false });
-    let ky = yTtd + 18;
-    if (logo) {
-      logoDiKotak(doc, logo, kx + (wKolom - 12) / 2 - 26, ky, 52, 26);
-      ky += 30;
-    }
-    doc.font(PDF_FONT.bold).fontSize(9).fillColor(R.ink)
-      .text(firma || "……………………………………", kx, ky, { width: wKolom - 12, align: "center" });
-    ky = doc.y + 2;
+      .text(judul, kx, yTtd, { width: w, align: "center", lineBreak: false });
+
+    const yk = yTtd + 16;
+    doc.lineWidth(0.6).strokeColor(R.inkMuted).rect(kx, yk, w, tinggiKotak).stroke();
+    if (logo) logoDiKotak(doc, logo, kx + 4, yk + 4, 40, tinggiKotak - 8);
+    const xn = kx + (logo ? 50 : 8);
+    const wn = w - (xn - kx) - 8;
+    doc.font(PDF_FONT.bold).fontSize(7.5).fillColor(R.ink)
+      .text((firma || "……………………………………").toUpperCase(), xn, yk + 7, { width: wn, lineBreak: false });
     if (alamat)
-      doc.font(PDF_FONT.regular).fontSize(6.5).fillColor(R.inkMuted)
-        .text(alamat, kx + 10, ky, { width: wKolom - 32, align: "center" });
-    // Garis tanda tangan selalu di ketinggian yang SAMA di kedua kolom —
-    // di contoh keduanya melayang beda tinggi karena mengikuti panjang teks.
-    const yGaris = yTtd + tinggiTtd - 16;
+      doc.font(PDF_FONT.regular).fontSize(5.5).fillColor(R.inkMuted)
+        .text(alamat, xn, yk + 18, { width: wn, height: tinggiKotak - 22 });
+
+    // Garis paraf pada ketinggian yang SAMA di kedua kolom — di contoh
+    // keduanya melayang beda tinggi mengikuti panjang teks.
+    const yGaris = yTtd + tinggiBlok - 4;
     doc.lineWidth(0.6).strokeColor(R.inkMuted)
-      .moveTo(kx + (wKolom - 12) / 2 - 55, yGaris).lineTo(kx + (wKolom - 12) / 2 + 55, yGaris).stroke();
+      .moveTo(kx + w / 2 - 58, yGaris).lineTo(kx + w / 2 + 58, yGaris).stroke();
   };
-  kolom(dalam, "KONSULTAN PENGAWAS", d.supervisorFirm ?? d.supervisorSub, null);
+  kolom(dalam, "KONSULTAN PENGAWAS", d.supervisorFirm ?? d.supervisorSub, logoPengawas);
   kolom(dalam + wKolom, "KONTRAKTOR PELAKSANA", d.contractorFirm, logoVendor, d.contractorAddress);
 }
 
