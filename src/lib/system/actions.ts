@@ -39,7 +39,7 @@ export type BrandingState =
   | {
       error?: string;
       success?: string;
-      values?: { appName: string; tagline: string; projectContext: string; ownerName: string; ownerSubtitle: string };
+      values?: { appName: string; tagline: string; projectContext: string; ownerName: string; ownerSubtitle: string; ownerAddress: string };
     }
   | undefined;
 
@@ -61,6 +61,7 @@ const brandingSchema = z.object({
     .min(1, "Nama pemilik pekerjaan wajib diisi")
     .max(120, "Nama pemilik pekerjaan maksimal 120 karakter"),
   ownerSubtitle: z.string().trim().max(160, "Keterangan pemilik pekerjaan maksimal 160 karakter"),
+  ownerAddress: z.string().trim().max(400, "Alamat & kontak maksimal 400 karakter"),
 });
 
 /** Batas & format logo pemilik pekerjaan — sama dengan logo perusahaan. */
@@ -74,6 +75,7 @@ export async function saveBranding(_prev: BrandingState, formData: FormData): Pr
     projectContext: formData.get("projectContext") ?? "",
     ownerName: formData.get("ownerName") ?? "",
     ownerSubtitle: formData.get("ownerSubtitle") ?? "",
+    ownerAddress: formData.get("ownerAddress") ?? "",
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 

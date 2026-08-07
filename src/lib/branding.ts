@@ -21,6 +21,11 @@ export const BRAND_DEFAULTS = {
   // klien mana pun (DECISIONS 166).
   ownerName: "Kementerian Kelautan dan Perikanan",
   ownerSubtitle: "Pembangunan Kampung Nelayan Merah Putih (KNMP)",
+  /**
+   * Baris alamat & kontak untuk kop sampul. Kosong = kop hanya nama +
+   * keterangan; TIDAK dikarang isinya.
+   */
+  ownerAddress: "",
 } as const;
 
 export type Branding = {
@@ -29,6 +34,16 @@ export type Branding = {
   projectContext: string;
   ownerName: string;
   ownerSubtitle: string;
+  /**
+   * Alamat & kontak pemilik pekerjaan — BEBAS BARIS, dicetak apa adanya di kop
+   * sampul laporan.
+   *
+   * Satu kolom multi-baris, bukan lima kolom terpisah (alamat, kota, telepon,
+   * faksimile, surel): tiap instansi menyusun kopnya sendiri-sendiri, dan
+   * memaksakan lima kolom berarti memaksa mereka membuang baris yang ada atau
+   * mengarang baris yang tidak ada. Yang diketik admin itulah yang tercetak.
+   */
+  ownerAddress: string;
   /** Key R2 logo pemilik pekerjaan (null = belum diunggah → kop tanpa logo). */
   ownerLogoKey: string | null;
 };
@@ -39,6 +54,7 @@ export const BRAND_KEYS = {
   projectContext: "brand.project_context",
   ownerName: "brand.owner_name",
   ownerSubtitle: "brand.owner_subtitle",
+  ownerAddress: "brand.owner_address",
   ownerLogoKey: "brand.owner_logo_key",
 } as const;
 
@@ -82,6 +98,7 @@ export async function getBranding(): Promise<Branding> {
     projectContext: opsional(BRAND_KEYS.projectContext, BRAND_DEFAULTS.projectContext),
     ownerName: wajib(BRAND_KEYS.ownerName, BRAND_DEFAULTS.ownerName),
     ownerSubtitle: opsional(BRAND_KEYS.ownerSubtitle, BRAND_DEFAULTS.ownerSubtitle),
+    ownerAddress: opsional(BRAND_KEYS.ownerAddress, BRAND_DEFAULTS.ownerAddress),
     ownerLogoKey: latest.get(BRAND_KEYS.ownerLogoKey)?.trim() || null,
   };
 }
@@ -98,6 +115,7 @@ export async function setBranding(input: Partial<Branding>): Promise<void> {
     [BRAND_KEYS.appName, input.appName],
     [BRAND_KEYS.tagline, input.tagline],
     [BRAND_KEYS.projectContext, input.projectContext],
+    [BRAND_KEYS.ownerAddress, input.ownerAddress],
     [BRAND_KEYS.ownerName, input.ownerName],
     [BRAND_KEYS.ownerSubtitle, input.ownerSubtitle],
     [BRAND_KEYS.ownerLogoKey, input.ownerLogoKey ?? undefined],

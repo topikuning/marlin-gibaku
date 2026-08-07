@@ -179,7 +179,21 @@ export function Combobox({
       </button>
 
       {open ? (
-        <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-md border border-border bg-surface shadow-lg">
+        <div
+          /**
+           * Panel BOLEH lebih lebar daripada pemicunya.
+           *
+           * Dulu `w-full` mengunci lebarnya ke lebar tombol, jadi pilihan
+           * panjang terpotong jadi "Rapat Persiapan ...", "Pengukuran / Uit...",
+           * "Mutual Check a..." — dan justru bagian yang membedakan pilihanlah
+           * yang hilang. Daftar pilihan yang tidak terbaca bukan daftar pilihan.
+           *
+           * `w-max` menumbuhkannya seukuran isi terpanjang, `min-w-full` menjaga
+           * tetap serapi tombolnya, dan batas atasnya mengikuti lebar layar
+           * supaya di ponsel tidak keluar tepi.
+           */
+          className="absolute z-50 mt-1 w-max min-w-full max-w-[min(32rem,calc(100vw-2rem))] overflow-hidden rounded-md border border-border bg-surface shadow-lg"
+        >
           {showSearch ? (
             <div className="flex items-center gap-2 border-b border-border px-2.5">
               <Search aria-hidden className="size-4 shrink-0 text-ink-muted" />
@@ -212,12 +226,15 @@ export function Combobox({
                       onMouseEnter={() => setActive(i)}
                       onClick={() => commit(o.value)}
                       className={cn(
-                        "flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm text-ink",
+                        "flex w-full items-start justify-between gap-2 px-3 py-2 text-left text-sm text-ink",
                         i === active && "bg-surface-muted",
                         o.disabled && "cursor-not-allowed text-ink-faint",
                       )}
                     >
-                      <span className="truncate">{o.label}</span>
+                      {/* Label TIDAK dipotong: teks panjang dibiarkan turun baris. Lebih
+                          baik satu pilihan memakan dua baris daripada dua pilihan
+                          tampak sama karena ekornya sama-sama hilang. */}
+                      <span className="break-words whitespace-normal">{o.label}</span>
                       {isSel ? <Check aria-hidden className="size-4 shrink-0 text-primary-600" /> : null}
                     </button>
                   </li>

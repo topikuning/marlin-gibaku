@@ -15,7 +15,19 @@ import JSZip from "jszip";
  * reader exceljs yang membuang hidden).
  */
 
+/** Nama sheet + apakah disembunyikan di Excel. */
+export type SheetInfo = { nama: string; tersembunyi: boolean };
+
 const RAB_RE = /^rab$/i;
+/**
+ * Sheet CCO KKP ("CCO-01", "CCO - 1") ikut dianggap sheet isi (DECISIONS 296).
+ *
+ * Tim lapangan mengerjakan adendum di berkas KKP, dan berkas itu bisa sama
+ * gemuknya dengan HPS aslinya — 40+ sheet volume. Tanpa baris ini penipisan
+ * dilewati dan seluruh workbook ikut dimuat, yang justru masalah yang modul ini
+ * ada untuk mencegahnya.
+ */
+const CCO_RE = /^cco\s*-?\s*\d+$/i;
 
 /** Resolve path relatif (Target di file .rels) terhadap folder part pemiliknya. */
 function resolveRelTarget(ownerPath: string, target: string): string {
@@ -44,7 +56,10 @@ function relsPathFor(partPath: string): string {
  * tanpa defined names. Bila tak ada sheet mirip "RAB" atau struktur tak terduga,
  * kembalikan buffer asli (biarkan parser menangani/erroring seperti biasa).
  */
-export async function slimRabWorkbook(buf: Buffer | ArrayBuffer): Promise<Buffer> {
+export async function slimRabWorkbook(
+  buf: Buffer | ArrayBuffer,
+  pilihan?: string,
+): Promise<Buffer> {
   const zip = await JSZip.loadAsync(buf);
   const wbFile = zip.file("xl/workbook.xml");
   const relsFile = zip.file("xl/_rels/workbook.xml.rels");
@@ -70,7 +85,18 @@ export async function slimRabWorkbook(buf: Buffer | ArrayBuffer): Promise<Buffer
     const rid = /\br:id="([^"]*)"/.exec(el)?.[1] ?? "";
     sheets.push({ el, name, rid });
   }
-  const chosen = sheets.find((s) => s.name === "RAB") ?? sheets.find((s) => RAB_RE.test(s.name.trim()));
+  /**
+   * Sheet TERSEMBUNYI tidak pernah dipilih (permintaan user 2026-08-07:
+   * *"kamu kan cuma perlu baca sheet tertentu saja, dan yang tidak dihide"*).
+   * Sheet yang di-hide di berkas KKP itu sisa kerja, arsip, atau lembar bantu —
+   * bukan yang sedang dipakai tim.
+   */
+  const terlihat = sheets.filter((s) => !/\bstate="(hidden|veryHidden)"/i.test(s.el));
+  const chosen = pilihan
+    ? terlihat.find((s) => s.name === pilihan)
+    : (terlihat.find((s) => s.name === "RAB") ??
+      terlihat.find((s) => RAB_RE.test(s.name.trim())) ??
+      terlihat.find((s) => CCO_RE.test(s.name.trim())));
   if (!chosen || !chosen.rid) return toBuffer(buf);
   const chosenTarget = relTargets.get(chosen.rid);
   if (!chosenTarget) return toBuffer(buf);
@@ -144,4 +170,45 @@ export async function slimRabWorkbook(buf: Buffer | ArrayBuffer): Promise<Buffer
 
 function toBuffer(buf: Buffer | ArrayBuffer): Buffer {
   return Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
+}
+
+/**
+ * Nama sheet saja — TANPA memuat isinya.
+ *
+ * Hanya `xl/workbook.xml` yang dibuka (beberapa KB), jadi biayanya tetap kecil
+ * berapa pun besarnya berkas.
+ *
+ * Ada untuk menghentikan pemborosan yang nyata. Impor mode draft dulu memuat
+ * SELURUH workbook cuma untuk mengintip satu sel penanda template adendum.
+ * Pada berkas KKP 3 MB / 45 sheet, sekali intip itu berharga **180 MB heap dan
+ * 25 detik** — sementara parse yang sesungguhnya (sesudah penipisan) hanya
+ * 69 MB dan 0,5 detik. Di kontainer 512 MB, itulah yang mematikan prosesnya
+ * (DECISIONS 297).
+ *
+ * Nama sheet sudah cukup: penanda template hanya mungkin ada bila sheet-nya
+ * ada. Berkas gagal dibaca → daftar kosong, dan pemanggilnya memperlakukan itu
+ * sebagai "bukan template" — jalur berikutnya yang akan melaporkan galatnya
+ * dengan pesan yang sudah dikenal user.
+ */
+export async function namaSheetXlsx(buf: Buffer | ArrayBuffer): Promise<SheetInfo[]> {
+  try {
+    const zip = await JSZip.loadAsync(buf);
+    const wbFile = zip.file("xl/workbook.xml");
+    if (!wbFile) return [];
+    const xml = await wbFile.async("string");
+    const out: SheetInfo[] = [];
+    for (const m of xml.matchAll(/<sheet\b[^>]*\/>/g)) {
+      const nama = /\bname="([^"]*)"/.exec(m[0])?.[1];
+      if (!nama) continue;
+      // state="hidden" / "veryHidden" → sheet kerja lama, arsip, atau bantuan.
+      const state = /\bstate="([^"]*)"/.exec(m[0])?.[1] ?? "visible";
+      out.push({
+        nama: nama.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">"),
+        tersembunyi: state !== "visible",
+      });
+    }
+    return out;
+  } catch {
+    return [];
+  }
 }

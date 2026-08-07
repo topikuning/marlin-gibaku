@@ -88,6 +88,8 @@ export type KkpDailyData = {
    */
   ownerName?: string;
   ownerSubtitle?: string;
+  /** Baris alamat & kontak pemilik untuk kop SAMPUL (bebas baris). */
+  ownerAddress?: string;
   /** URL logo pemilik (presigned, opsional). */
   ownerLogoUrl?: string | null;
   /** Penanda tangan (dari kontrak, current — null = baris kosong). */
@@ -98,6 +100,35 @@ export type KkpDailyData = {
   /** Nama perusahaan pengawas & pelaksana (di blanko: kotak "logo perusahaan"). */
   supervisorFirm?: string | null;
   contractorFirm?: string | null;
+
+  /* ── Halaman SAMPUL & DOKUMENTASI (DECISIONS 299) ──────────────────────
+     Dipakai PDF (`lib/pdf/harian-kkp-lampiran.ts`) DAN halaman cetak HTML
+     (`kkp-daily-cover.tsx` + `kkp-daily-photos.tsx`). Blanko di bawah ini
+     tidak menyentuhnya sama sekali — field ini opsional dan komponen blanko
+     mengabaikannya. */
+
+  /** Sampul: "NOMOR KONTRAK : …" + "TANGGAL : …". */
+  contractNumber?: string | null;
+  contractDate?: string | null;
+  /** Sampul: "PERIODE : <mulai> S/D <selesai>" — rentang minggu berjalan. */
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  /** Kop perusahaan di sampul & tiap kartu dokumentasi. */
+  contractorAddress?: string | null;
+  vendorLogoKey?: string | null;
+  /**
+   * Foto bukti hari itu untuk halaman DOKUMENTASI PEKERJAAN.
+   *
+   * `pekerjaan` = nama item RAB yang dibuktikan foto ini; `bobot` = bobot
+   * hari itu untuk item tersebut. Keduanya DIAMBIL, bukan dihitung ulang di
+   * lapisan PDF (CLAUDE.md butir 7).
+   */
+  photos?: {
+    r2Key: string;
+    pekerjaan: string | null;
+    kategori: string | null;
+    bobot: number | null;
+  }[];
 };
 
 export function KkpDailyReport({ d }: { d: KkpDailyData }) {

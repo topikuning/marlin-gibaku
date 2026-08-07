@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
-import { slimRabWorkbook } from "@/lib/rab/xlsx-slim";
+import { namaSheetXlsx, slimRabWorkbook } from "@/lib/rab/xlsx-slim";
+import { deteksiCco, hitungPerubahan } from "@/lib/rab/cco-import";
 import type {
   ParsedRab,
   ParsedRabCategory,
@@ -330,30 +331,129 @@ export type ParseHpsResult = {
   priceColumn: PriceColumnInfo;
 };
 
-export async function parseHpsBuffer(buf: Buffer | ArrayBuffer): Promise<ParseHpsResult> {
-  // Rampingkan dulu ke sheet RAB saja (buang 40+ sheet volume & ribuan defined
-  // names sampah) agar exceljs tak OOM pada file HPS/Negosiasi raksasa. Bila file
-  // tak cocok pola, slimRabWorkbook mengembalikan buffer asli (aman).
-  let loadBuf: Buffer;
-  try {
-    loadBuf = await slimRabWorkbook(buf);
-  } catch {
-    loadBuf = Buffer.isBuffer(buf) ? buf : Buffer.from(buf);
+/**
+ * Baca berkas → pohon RAB, dengan HANYA sheet yang diperlukan yang dimuat.
+ *
+ * Permintaan user 2026-08-07: *"kamu kan cuma perlu baca sheet tertentu saja,
+ * dan yang tidak dihide."* Betul, dan itu menutup lubang terakhir: sebelum ini,
+ * bila tak ada sheet bernama RAB/CCO, penipisan MENYERAH dan seluruh workbook
+ * ikut dimuat — jalur 180 MB yang sama yang mematikan proses (DECISIONS 297).
+ *
+ * Sekarang sheet dipilih dari daftar nama di dalam zip (beberapa KB), lalu
+ * berkasnya ditipiskan ke SATU sheet itu sebelum dimuat. Kandidat dicoba
+ * berurutan; yang tidak menghasilkan baris apa pun dilepas sebelum kandidat
+ * berikutnya dimuat, jadi puncak memorinya tetap satu-sheet berapa pun banyak
+ * sheet di berkasnya.
+ *
+ * Sheet TERSEMBUNYI tidak pernah dicoba: di berkas KKP itu sisa kerja, arsip,
+ * atau lembar bantu — bukan yang sedang dipakai tim.
+ */
+/**
+ * Pesan saat tidak ada sheet yang bisa dibaca — MENYEBUT isi berkasnya.
+ *
+ * Pesan lama, *"Sheet RAB tidak ditemukan di file HPS"*, benar secara teknis
+ * tapi tidak bisa ditindaklanjuti: orang tidak tahu berkasnya salah yang mana.
+ * Berkas tambah/kurang KKP sendiri SUDAH diterima (DECISIONS 296), jadi sampai
+ * di sini berarti bentuknya tak dikenali atau angkanya tidak terbukti.
+ */
+function pesanSheetTakAdaDariNama(nama: string[]): string {
+  if (nama.some((n) => /^\s*CCO\s*-?\s*\d+/i.test(n))) {
+    return (
+      "Berkas ini berbentuk dokumen CCO, tapi kolom volume/harga/jumlah-nya tidak bisa dipastikan — " +
+      "pada baris contoh, volume × harga satuan tidak sama dengan jumlah harga. " +
+      "Periksa apakah susunan kolomnya berubah atau angkanya belum lengkap; kalau ragu, pakai Template Adendum dari halaman ini."
+    );
   }
-  const wb = new ExcelJS.Workbook();
-  // Tipe Buffer ExcelJS lebih tua dari @types/node generic Buffer — cast di sini.
-  await wb.xlsx.load(loadBuf as unknown as ArrayBuffer);
-  return parseHpsWorkbook(wb);
+  const daftar = nama.slice(0, 6).join(", ") || "(tidak ada sheet terlihat)";
+  return `Sheet "RAB" tidak ditemukan, dan tidak ada sheet berformat tambah/kurang KKP. Sheet yang ada di berkas ini: ${daftar}.`;
+}
+
+function pesanSheetTakAda(wb: ExcelJS.Workbook): string {
+  return pesanSheetTakAdaDariNama(wb.worksheets.map((w) => w.name));
+}
+
+export async function parseHpsBuffer(buf: Buffer | ArrayBuffer): Promise<ParseHpsResult> {
+  const sheets = (await namaSheetXlsx(buf)).filter((s) => !s.tersembunyi);
+  // Urutan kandidat: nama pasti dulu, lalu bentuk CCO, lalu sisanya. Dibatasi
+  // supaya berkas dengan puluhan sheet tidak berubah jadi puluhan pemuatan.
+  const skor = (n: string) =>
+    n === "RAB" ? 0 : /^rab$/i.test(n.trim()) ? 1 : /^cco\s*-?\s*\d+$/i.test(n.trim()) ? 2 : 3;
+  const kandidat = sheets
+    .map((s) => s.nama)
+    .sort((a, b) => skor(a) - skor(b))
+    .slice(0, 8);
+
+  let terakhir: unknown = null;
+  for (const nama of kandidat) {
+    let wb: ExcelJS.Workbook;
+    try {
+      const slim = await slimRabWorkbook(buf, nama);
+      wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(slim as unknown as ArrayBuffer);
+    } catch (e) {
+      terakhir = e;
+      continue;
+    }
+    try {
+      const hasil = parseHpsWorkbook(wb);
+      // Sheet yang bukan RAB (Resume, Analisa, …) terbaca tanpa satu pun baris.
+      // Itu bukan galat — cukup lanjut ke kandidat berikutnya.
+      if (hasil.parsed.categories.some((c) => c.direct_items.length > 0 || c.subcategories.length > 0))
+        return hasil;
+    } catch (e) {
+      terakhir = e;
+    }
+  }
+  // Tidak ada kandidat yang berisi: laporkan dengan menyebut isi berkasnya.
+  if (terakhir instanceof Error) throw terakhir;
+  throw new Error(pesanSheetTakAdaDariNama(sheets.map((s) => s.nama)));
 }
 
 export function parseHpsWorkbook(wb: ExcelJS.Workbook): ParseHpsResult {
   const warnings: string[] = [];
-  const ws = wb.getWorksheet("RAB") ?? wb.worksheets.find((w) => /rab/i.test(w.name));
-  if (!ws) throw new Error('Sheet "RAB" tidak ditemukan di file HPS.');
+  // Sheet RAB dulu; kalau tidak ada, sheet mana pun yang berbentuk
+  // tambah/kurang KKP (berkas CCO/MC-0 yang dikerjakan tim di luar MARLIN).
+  const ws =
+    wb.getWorksheet("RAB") ??
+    wb.worksheets.find((w) => /rab/i.test(w.name)) ??
+    wb.worksheets.find((w) => deteksiCco(w) !== null) ??
+    // Workbook satu-sheet = sudah ditipiskan ke kandidat pilihan oleh
+    // `parseHpsBuffer`; namanya boleh apa saja. Berkas KKP nyata memakai
+    // "Lampiran", "BQ", "RAB Revisi" — memaksa nama "RAB" berarti menolak
+    // pekerjaan yang isinya sudah benar hanya karena judul tabnya.
+    (wb.worksheets.length === 1 ? wb.worksheets[0] : undefined);
+  if (!ws) throw new Error(pesanSheetTakAda(wb));
 
-  // Nilai kontrak = harga akhir (NEGOSIASI > PENAWARAN > HPS). HPS cuma pagu.
-  const { col, priceSource } = detectColumns(ws);
-  const priceColumn = priceColumnInfo(priceSource, col);
+  /**
+   * Berkas tambah/kurang KKP dibaca APA ADANYA (DECISIONS 296).
+   *
+   * Volume diambil dari blok HASIL — keadaan SESUDAH adendum — sedangkan
+   * satuan dan harga satuan dari blok DASAR, karena adendum mengubah volume,
+   * bukan harga satuan. Peran blok ditentukan dari POSISI + pembuktian
+   * `volume × harga ≈ jumlah`, tidak pernah dari namanya: label "MC-0" berarti
+   * HASIL di satu berkas dan KEADAAN AWAL di berkas lain.
+   */
+  const peta = deteksiCco(ws);
+  const { col, priceSource } = peta
+    ? { col: peta.col, priceSource: "hps" as const }
+    : detectColumns(ws);
+  const priceColumn = peta
+    ? {
+        source: "hps" as const,
+        label: `CCO KKP — volume dari blok "${peta.blokHasil.label}" (kolom ${colLetter(peta.col.vol)}), harga satuan dari blok "${peta.blokDasar.label}" (kolom ${colLetter(peta.col.price)})`,
+      }
+    : priceColumnInfo(priceSource, col);
+  if (peta) {
+    const { berubah, total } = hitungPerubahan(ws, peta);
+    warnings.push(
+      `Berkas berformat tambah/kurang KKP. Volume diambil dari blok "${peta.blokHasil.label}" ` +
+        `(kolom ${colLetter(peta.col.vol)}) — keadaan SESUDAH adendum; satuan & harga satuan dari blok ` +
+        `"${peta.blokDasar.label}". ${berubah} dari ${total} item volumenya berbeda dari blok "${peta.blokDasar.label}".`,
+    );
+    // Nilai total kedua blok bisa SAMA PERSIS sementara ratusan item berbeda
+    // (adendum yang netral nilai). Tanpa kalimat di atas, salah-baca blok tidak
+    // akan pernah tertangkap lewat pemeriksaan total.
+  }
   if (priceSource === "nego")
     warnings.push(
       `File punya kolom HARGA NEGOSIASI — nilai kontrak diambil dari kolom ${colLetter(col.price)}/${colLetter(col.amount)} (bukan HPS).`,

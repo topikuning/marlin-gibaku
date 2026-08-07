@@ -11696,3 +11696,382 @@ sesuatu yang sudah tersimpan jelas adalah biaya tanpa manfaat.
 jam yang sah) + `tests/integration/ringkas-harian.test.ts` (judul dari item
 RAB, fallback foto tanpa item, dan kedua kasus jam). Dicek bergigi:
 mengembalikan `ringkas.ts` ke perilaku lama → 2 uji merah.
+
+---
+
+## 295 — Form impor RAB ikut dijaga, dan berkas salah disebut namanya (2026-08-07)
+
+**Konteks.** User mengimpor `CCO01_<lokasi>.xlsx` ke draft adendum di
+`/lokasi/…/rab/adendum`, dan halamannya runtuh dengan
+`An unexpected response was received from the server.`
+
+Dua cacat terpisah bertumpuk di satu layar.
+
+**1 — Celah yang memang ditinggalkan terbuka (DECISIONS 291).** Cakupan
+`tahanGagalKirim` waktu itu hanya jalur foto; form impor RAB tidak ikut, dan
+itu disebut di catatannya. Ternyata form ini bahkan tidak memakai
+`useActionState` — ia memanggil `importHps(undefined, fd)` **telanjang** di
+dalam `startTransition`. Jadi kegagalan MENGIRIM (bukan kegagalan impor)
+melempar keluar dari transisi dan meruntuhkan seluruh halaman: berkas yang
+sudah dipilih, catatan yang sudah diketik, dan pratinjau yang sudah dihitung
+ikut hilang. Sekarang dibungkus.
+
+**2 — Pesan galat yang tidak bisa ditindaklanjuti.** Setelah kegagalan
+transportnya jadi pesan, isi pesannya sendiri masih salah sasaran: *"Sheet RAB
+tidak ditemukan di file HPS"*. Berkas yang diunggah itu **terbitan MARLIN
+sendiri** — dokumen CCO hasil ekspor. Orang yang baru saja mengunduhnya DARI
+MARLIN wajar mengira itulah berkas yang harus dikembalikan.
+
+Dokumen CCO adalah KELUARAN untuk pemeriksa (MC-0 · tambah · kurang · CCO-01,
+angkanya sudah terkunci). Yang bisa diimpor kembali adalah **Template
+Adendum**, yang punya kolom isian + `lineageKey` per baris. Sekarang sheet
+ber-nama `CCO-<n>` dikenali dan pesannya menyebut jalan keluarnya. Untuk berkas
+asing lain, pesannya menyebutkan **sheet apa saja yang ADA** — supaya user
+tidak menebak berkas mana yang salah.
+
+**Bukti (peramban nyata, halaman adendum sungguhan).**
+
+| | berkas CCO diunggah | POST dipaksa 502 |
+|---|---|---|
+| halaman | hidup | hidup |
+| form impor | tetap ada | tetap ada |
+| pesan | "dokumen CCO terbitan MARLIN … pakai Template Adendum" | "Gagal mengirim …" |
+
+Dicek bergigi: membuka pembungkusnya → halaman mati dan form impor lenyap.
+
+**Uji.** `tests/unit/impor-berkas-salah.test.ts` — diuji dari BENTUKNYA (nama
+sheet), bukan dari berkas contoh, supaya dokumen kontrak asli tidak perlu ikut
+tersimpan di repo. Termasuk batas: sheet bernama "RAB" TIDAK boleh ikut
+tertolak — pesan yang bagus tidak ada gunanya kalau berkas yang sah ikut
+ditolak.
+
+**Masih terbuka.** Membaca berkas MC-0/CCO KKP sebagai sumber volume adendum
+(pertanyaan user sebelumnya) belum dikerjakan — menunggu keputusan blok mana
+yang jadi sumber volume. Sampai itu diputuskan, berkas semacam itu DITOLAK
+dengan pesan yang jelas, bukan diterima dengan tebakan.
+
+---
+
+## 296 — Berkas tambah/kurang KKP dibaca apa adanya (2026-08-07)
+
+**Konteks.** Permintaan user, setelah berkas CCO-nya ditolak: *"itu adalah
+format dari kkp, bisa jadi tim terlanjur mengerjakan di file seperti itu, lalu
+baru masuk ke sistem, jadi kamu harus lebih luwes. jangan terlalu kaku hanya
+format darimu yang bisa kamu akomodir."*
+
+Benar, dan penolakan sebelumnya keliru arah. Tim mengerjakan adendum di berkas
+KKP; menyuruh mereka menyalin ulang ke template MARLIN memindahkan pekerjaan
+tanpa menambah kebenaran — malah menambah peluang salah salin di 1.000+ baris.
+
+**Bentuknya sama, NAMANYA yang menipu.** Dua berkas nyata dari paket yang sama:
+
+| berkas | blok 1 | blok 2 | blok 3 | blok 4 |
+|---|---|---|---|---|
+| `MC_0_*.xlsx` (sheet RAB) | **RAB** | TAMBAH | KURANG | **MC 0** |
+| `CCO01_*.xlsx` (sheet CCO-01) | **MC - 0** | TAMBAH | KURANG | **CCO - 01** |
+
+"MC-0" adalah **hasil** di berkas pertama dan **keadaan awal** di berkas kedua.
+Menyimpulkan peran blok dari namanya pasti salah di salah satunya — itulah
+kenapa pertanyaan awal user ("masih baca dari MC-0 dan bukan CCO?") tidak bisa
+dijawab dengan memilih nama kolom.
+
+**Keputusan — posisi + aritmetika, bukan label.**
+
+1. Baris grup dikenali dari adanya blok TAMBAH **dan** KURANG.
+2. Blok DASAR = blok terakhir sebelum "tambah"; blok HASIL = blok terakhir
+   sesudah "kurang". Urutan kolom stabil di semua varian; penamaannya tidak.
+3. Kolom di dalam blok ditentukan dengan **membuktikan `volume × harga ≈
+   jumlah`** pada baris contoh. Header tidak dipercaya: pada `MC_0_*` sel
+   header ter-merge menggeser labelnya satu kolom terhadap data, dan deteksi
+   berbasis label memang salah membaca SATUAN sebagai harga (satuannya terbaca
+   `"1200000"`, bukan `m²`). Angka tidak bisa bergeser diam-diam; label bisa.
+4. **Volume diambil dari blok HASIL** (keadaan sesudah adendum); satuan dan
+   harga satuan dari blok DASAR — adendum mengubah volume, bukan harga satuan.
+5. Tidak terbukti → **null**, dan berkasnya ditolak dengan menyebut sebabnya.
+   Menebak diam-diam pada dokumen kontrak tidak boleh jadi pilihan.
+
+**Blok yang dipakai DISEBUT di pratinjau**, berikut berapa item yang berubah:
+
+> Berkas berformat tambah/kurang KKP. Volume diambil dari blok "CCO - 01"
+> (kolom O) — keadaan SESUDAH adendum; satuan & harga satuan dari blok
+> "MC - 0". 209 dari 1032 item volumenya berbeda dari blok "MC - 0".
+
+Kalimat terakhir itu bukan hiasan. Adendum bisa **netral nilai**: pada
+`MC_0_*`, total blok RAB dan blok MC 0 SAMA PERSIS (Rp 5.891.112.790, tambah =
+kurang = Rp 3.080.829.942) sementara 205 dari 1032 item berbeda. Pemeriksaan
+total tidak akan pernah menangkap salah-baca blok; jumlah item yang berubah
+menangkapnya.
+
+**Hasil pada berkas asli user (lewat UI sungguhan, bukan uji unit saja).**
+
+| berkas | blok volume | item berubah | nilai draft |
+|---|---|---|---|
+| `MC_0_*` | "MC 0" (kolom P) | 205 / 1032 | Rp 5.891.112.790 |
+| `CCO01_*` | "CCO - 01" (kolom O) | 209 / 1032 | Rp 5.848.720.593 |
+
+Satuan kini terbaca benar (`m²`, `bln`, `bh`) — cacat yang dilaporkan di
+pemeriksaan sebelumnya ikut hilang karena sumbernya sama.
+
+**Kecepatan diukur, bukan ditebak:** 755 ms untuk berkas 45-sheet 3 MB, 248 ms
+untuk CCO 1-sheet. Penipis xlsx (`xlsx-slim`) diperluas supaya sheet `CCO-<n>`
+ikut dikenali sebagai sheet isi — tanpa itu berkas CCO gemuk lolos dari
+penipisan dan seluruh workbook ikut dimuat.
+
+**Uji.** `tests/unit/cco-import.test.ts` — 8 uji dari BENTUK berkas, termasuk
+jebakan intinya: blok berlabel "MC - 0" di posisi DASAR tidak boleh ikut
+terambil, kolom REALISASI tidak boleh tertukar jadi volume/harga, dan bentuk
+yang benar tapi angkanya tidak terbukti harus mengembalikan null. 1131 uji unit
++ 410 uji integration hijau — korpus 15 RAB biasa tidak tersentuh.
+
+---
+
+## 297 — Baca sheet yang diperlukan saja, dan yang tidak disembunyikan (2026-08-07)
+
+**Konteks.** Laporan user dari production (kontainer **512 MB RAM / 0,5 CPU**):
+
+```
+FATAL ERROR: Reached heap limit — Allocation failed
+Mark-Compact 252.1 (257.2) -> 252.0 (258.2) MB … allocation failure
+```
+
+*"sepertinya ini terjadi saat load data mc 0 sugihwaras."*
+
+Ini sekaligus menutup dugaan yang sengaja dibiarkan terbuka di DECISIONS 291:
+sebab non-RSC response yang tidak meninggalkan log server memang **proses yang
+mati** — sekarang ada jejaknya.
+
+**Diukur, bukan ditebak** (berkas KKP 3 MB / 45 sheet):
+
+| tahap | puncak heap | waktu |
+|---|---|---|
+| probe `xlsx.load` seluruh workbook | **+180 MB** | **25 detik** |
+| `slimRabWorkbook` | +11 MB | 263 ms |
+| parse sesungguhnya (slim + walk) | +69 MB | 486 ms |
+
+Probe itu ada **hanya untuk mengintip satu sel penanda** template adendum — dan
+hanya berjalan di mode draft, persis jalur adendum yang user pakai. Komentar di
+kodenya bahkan sudah mencemaskan biaya membuka workbook dua kali, tapi
+mitigasinya (batasi ke mode draft) justru melindungi jalur yang salah. Di heap
+~256 MB, 180 + 69 = mati.
+
+**Keputusan.**
+
+1. **Nama sheet dibaca dari zip, isinya tidak.** `namaSheetXlsx` hanya membuka
+   `xl/workbook.xml` (beberapa KB). Penanda template mustahil ada bila
+   sheet-nya tidak ada, jadi pemeriksaan murah ini menutup seluruh jalur mahal.
+2. **Sheet tersembunyi tidak pernah dibaca** (permintaan user: *"kamu kan cuma
+   perlu baca sheet tertentu saja, dan yang tidak dihide"*). Sheet yang di-hide
+   di berkas KKP itu sisa kerja, arsip, atau lembar bantu.
+3. **Satu sheet per pemuatan.** `parseHpsBuffer` menyusun daftar kandidat dari
+   nama (RAB → /rab/i → CCO-n → sisanya yang terlihat, maks 8), lalu untuk tiap
+   kandidat berkasnya ditipiskan ke SATU sheet sebelum dimuat. Yang tidak
+   menghasilkan baris dilepas sebelum kandidat berikutnya dimuat — puncaknya
+   tetap satu-sheet berapa pun banyak sheet di berkasnya.
+4. Karena kandidat dipilih sengaja, workbook satu-sheet **diterima apa pun
+   namanya**. Berkas KKP nyata memakai "Lampiran", "BQ", "RAB Revisi"; memaksa
+   nama "RAB" berarti menolak pekerjaan yang isinya sudah benar hanya karena
+   judul tabnya.
+
+**Hasil pada berkas asli user:**
+
+| berkas | sebelum | sesudah |
+|---|---|---|
+| MC-0 (3 MB, 45 sheet) | ±249 MB · ~25,5 detik | **25 MB · 621 ms** |
+| CCO-01 (0,3 MB) | ±69 MB | **50 MB · 360 ms** |
+
+Keduanya kini nyaman di bawah heap kontainer 512 MB, dan 25 detik yang juga
+mengancam batas waktu permintaan hilang.
+
+**Uji.** `tests/unit/xlsx-nama-sheet.test.ts` — nama sheet + status tersembunyi,
+berkas rusak → daftar kosong (bukan melempar), sheet ber-hide DILEWATI sementara
+sheet terlihat bernama asing DIPAKAI, penipisan menghasilkan tepat satu sheet,
+dan penjagaan struktural: pemeriksaan nama harus berada SEBELUM `xlsx.load` dan
+membungkusnya. Dicek bergigi: melepas penjagaan → uji itu merah.
+
+---
+
+## 298 — Combobox tidak boleh memotong pilihan, dan Foto Cepat ada di form kegiatan (2026-08-07)
+
+Dua keluhan user pada satu layar (form Kegiatan Lapangan).
+
+### 1. *"comboboxmu tidak nyaman, apa teks panjang tidak terbaca"*
+
+Panel pilihan dikunci `w-full` — selebar tombolnya. Akibatnya pilihan panjang
+terpotong: `Rapat Persiapan ...`, `Pengukuran / Uit...`, `Mutual Check a...`,
+`Dokumentasi ko...` — dan justru **bagian yang membedakan pilihanlah yang
+hilang**. "Mutual Check a..." bisa berarti MC awal atau MC akhir; itu bukan
+daftar pilihan, itu tebakan.
+
+Panel sekarang `w-max min-w-full` dengan batas `min(32rem, lebar layar − 2rem)`,
+dan label pilihan tidak lagi `truncate` — teks panjang turun baris. Lebih baik
+satu pilihan memakan dua baris daripada dua pilihan tampak sama karena ekornya
+sama-sama hilang.
+
+Diukur di peramban (tombol 167 px): sebelum → panel 167 px, **3 pilihan
+terpotong**; sesudah → panel 256 px, **0 terpotong**, dan seluruh label utuh
+(`Rapat Persiapan (PCM)`, `Pengukuran / Uitzet`, `Mutual Check awal (MC-0)`,
+`Dokumentasi kondisi 0%`).
+
+### 2. *"mana foto cepatnya?"*
+
+Ada — tapi hanya di form foto kegiatan yang **sudah tersimpan**, sebab penautan
+butuh id kegiatan. Urutan kerja di lapangan justru terbalik: fotonya dijepret
+dulu lewat Foto Cepat, kegiatannya ditulis belakangan. Jadi di form BUAT,
+kantong memang tidak kelihatan sama sekali — dan pelapor wajar mengira fitur itu
+tidak berlaku di sini.
+
+Polanya sudah ada dan terbukti di laporan harian (DECISIONS 253): fotonya tidak
+bisa DITAUTKAN sebelum induknya ada, tapi bisa **DIPILIH** sekarang lalu
+ditautkan tepat sesudah induknya tersimpan. Itu yang dipasang:
+`PemilihKantong` + `kantongPhotoIds` di form buat, dan `createActivityAction`
+menautkannya sesudah kegiatannya dibuat.
+
+Kegagalan penautan **tidak** membatalkan kegiatannya — catatannya sudah
+tersimpan dan itu isi laporannya; yang gagal disebutkan sebagai peringatan dan
+fotonya tetap utuh di kantong. Sesudah sukses, pilihan kantong dikosongkan:
+fotonya sudah terpakai, memilihnya lagi hanya akan gagal.
+
+---
+
+## 299 — Laporan harian KKP: sampul + halaman dokumentasi pekerjaan (2026-08-07)
+
+**Konteks.** User mengirim contoh terbitan konsultan pengawas di lapangan dan
+menetapkan bentuk yang diharapkan:
+
+> halaman 1: cover (belum ada) · halaman 2: seperti blanko apa adanya saat ini
+> (jadi kamu tidak perlu ubah apa pun) · halaman selanjutnya: dokumentasi
+> pekerjaan … kamu ikuti layoutnya, tapi buat lebih rapi dan profesional.
+
+**Keputusan.** `src/lib/pdf/harian-kkp-lampiran.ts` — modul terpisah, sengaja:
+`harian-kkp.ts` memuat seluruh blanko resmi dan **tidak boleh ikut berubah**
+setiap kali sampul dipoles.
+
+1. **Sampul**: kop pemilik pekerjaan (dari menu Sistem, bukan hardcode KKP —
+   DECISIONS 166), judul, MINGGU KE-n berikut terbilangnya, lalu identitas
+   kontrak (periode · nomor · tanggal · pekerjaan · lokasi · tahun anggaran),
+   dan dua blok tanda tangan di kaki halaman.
+2. **Blanko tidak disentuh** — persis permintaannya.
+3. **Dokumentasi**: kartu dua kolom, tiap kartu berisi kop perusahaan
+   pelaksana, judul DOKUMENTASI PEKERJAAN, baris Pekerjaan/Bangunan, lalu
+   maksimal 3 foto masing-masing dengan judul + kolom **Bobot (%)**.
+
+**Lebih rapi, bukan sekadar meniru.** Contohnya memakai garis putus-putus,
+kotak logo yang menempel seenaknya, dan baris identitas dengan jarak tab tak
+konsisten. Di sini: bingkai garis tipis penuh, label rata kanan pada satu sumbu
+dan isi rata kiri pada sumbu lain, tinggi kotak gambar dan kotak bobot dibuat
+SAMA supaya garisnya bertemu, dan garis tanda tangan kedua kolom pada
+ketinggian yang sama (di contoh keduanya melayang beda tinggi mengikuti panjang
+teks). Kolom Bobot (%) **diisi** — contoh KKP membiarkannya kosong untuk
+ditulis tangan, padahal angkanya sudah ada; mengosongkannya menyuruh orang
+menghitung ulang yang sudah dihitung.
+
+**Dua cacat yang tertangkap saat memeriksa hasil cetak sungguhan:**
+
+1. Baris identitas maju tetap 20 pt, jadi judul pekerjaan yang turun ke baris
+   kedua **ditabrak** baris LOKASI. Nama kontrak KKP memang selalu panjang, jadi
+   ini bukan kasus tepi. Sekarang maju setinggi teks yang benar-benar tergambar.
+2. **Bundel pdfkit yang di-vendor menolak `Buffer` Node.** Bundelnya membawa
+   polyfill `Buffer` sendiri, sehingga `Buffer.isBuffer()` di dalamnya menolak
+   Buffer asli; pdfkit lalu mengira masukannya sebuah PATH dan jatuh ke
+   `fs.readFileSync` — yang juga tidak ada di bundel. Diuji langsung terhadap
+   `assets/pdfkit-standalone.cjs`: **Buffer GAGAL, Uint8Array GAGAL, ArrayBuffer
+   BERHASIL, data-URI berhasil.** Modul ini memakai ArrayBuffer (tanpa biaya
+   base64). Tanpa penjagaan try/catch, gambarnya akan hilang DIAM-DIAM.
+
+**Angka tidak dihitung ulang di lapisan PDF** (CLAUDE.md butir 7): bobot per
+item diambil lewat `bobotPct` di `queries.ts`, periode minggu diturunkan dari
+tanggal SPMK + nomor minggu yang SUDAH dipakai blanko — jadi sampul dan blanko
+mustahil menyebut minggu yang berbeda.
+
+**Bukti.** PDF dicetak sungguhan lalu tiap halaman dirender jadi gambar dan
+diperiksa: sampul (tanpa tumpang tindih), blanko (tidak berubah), dan halaman
+dokumentasi dengan foto ter-embed, judul pekerjaan, serta bobot 0,42 / 0,03.
+
+**Yang belum.** Logo konsultan pengawas belum ada di data — kotaknya disiapkan
+dan diisi nama perusahaannya saja. Logo pelaksana dipakai bila vendornya punya.
+
+---
+
+## 300 — Kop sampul: terang, lengkap, dan berlogo di kedua pihak (2026-08-07)
+
+Tiga koreksi user atas sampul yang baru dibuat (DECISIONS 299).
+
+**1. *"warnamu terlalu gelap, tabrakan dengan logo."*** Pita kop memakai navy
+pekat, dan lambang instansi umumnya gelap/emas — jadi logonya tenggelam. Kop
+asli KKP pun biru muda dengan tulisan hitam. Sekarang pita TERANG
+(`primary50`) dengan teks gelap: aman untuk logo klien mana pun, yang memang
+tidak bisa kita atur.
+
+**2. *"dimana semua informasi ini?"*** Kop KKP memuat alamat, kota + kode pos,
+telepon/faksimile, laman, dan surel — dan tidak ada satu pun tempat
+menyimpannya. Ditambah `Branding.ownerAddress`: **satu kolom multi-baris**,
+dicetak apa adanya. Bukan lima kolom terpisah (alamat/kota/telepon/faks/surel):
+tiap instansi menyusun kopnya sendiri-sendiri, dan memaksakan lima kolom
+berarti memaksa mereka membuang baris yang ada atau mengarang baris yang tidak
+ada. Kosong = kop cukup nama + keterangan; tidak dikarang isinya.
+
+**3. *"aku sudah beri kamu contoh layoutnya, penempatan logo kenapa kamu ganti
+ttd."*** Benar. Di contoh, kaki sampul berisi **kop perusahaan berlogo** tiap
+pihak, dengan garis paraf di bawahnya. Versi pertama hanya menulis NAMA
+perusahaan di atas garis — itu mengganti kop dengan tanda tangan. Sekarang
+keduanya kotak kop: logo di kiri, nama + alamat di kanan, garis paraf di bawah,
+pada ketinggian yang SAMA di kedua kolom.
+
+**Berlaku untuk SEMUA cetakan blanko harian**, sesuai penegasan user bahwa ini
+format resmi KKP: ketiga keluaran — unduh PDF, kiriman WhatsApp, dan unggahan
+Google Drive — memakai `renderHarianKkpPdf` yang sama, jadi ketiganya membawa
+sampul + blanko + dokumentasi tanpa perubahan lain.
+
+**Yang masih terbuka, dan disebut supaya tidak terbaca selesai:**
+
+- **Logo konsultan pengawas** belum punya tempat penyimpanan. Kotak kop-nya
+  sudah ada dan terisi nama perusahaan; slot logonya menunggu keputusan: field
+  di `Contract` atau konsultan dicatat sebagai `Company` seperti vendor.
+- ~~**Halaman cetak HTML** (`app/cetak/harian`) masih blanko saja.~~ Selesai di
+  DECISIONS 301.
+
+---
+
+## 301 — Cetak harian LENGKAP di kedua jalur, dan final tidak lagi kehilangan fotonya (2026-08-07)
+
+**Konteks.** Dua laporan user berturut-turut, keduanya menunjuk cacat yang sama
+dari sisi berbeda:
+
+1. *"kenapa pratinjau dan cetak laporan kkp di halaman harian masih satu
+   halaman blanko saja?"*
+2. *"cetak harian final juga, halaman fotonya tidak ada"*
+
+**Temuan 1 — halaman cetak HTML.** Format resmi (sampul + blanko + dokumentasi)
+dipasang DECISIONS 299/300 hanya di jalur PDF. `/cetak/harian` — yang di-Ctrl+P
+dari layar — adalah tumpukan render lain (React + print CSS) dan masih memuat
+blanko saja. Dokumen resmi tidak boleh berbeda tergantung tombol mana yang
+ditekan, jadi halaman itu kini merender sampul → blanko → dokumentasi dengan
+`break-before-page` di tiap batas. Diverifikasi: cetak ke PDF dari browser
+menghasilkan 4 halaman (sampul, blanko, 2 halaman dokumentasi).
+
+**Temuan 2 — dan ini yang lebih berbahaya.** `getKkpDailyData` merakit blok
+sampul & dokumentasi HANYA di cabang pratinjau. Begitu laporan difinalisasi,
+cabangnya berpindah ke `finalSnapshot` — dan snapshot itu memang tidak pernah
+memuat foto. Akibatnya laporan FINAL kehilangan nomor kontrak, periode, alamat
+pelaksana, dan SELURUH halaman dokumentasi, di ketiga keluaran sekaligus
+(unduh, WhatsApp, Google Drive).
+
+Yang membuatnya lolos sampai sekarang: **pratinjau terlihat sempurna**. Yang
+cacat justru versi final — satu-satunya yang benar-benar dikirim ke KKP, dan
+yang baru diperiksa orang setelah terkirim. Blok itu kini dirakit di LUAR
+percabangan, jadi tidak ada lagi jalur yang bisa kehilangannya diam-diam.
+
+**Batas yang dijaga.** Angka blanko TETAP dari snapshot beku. Yang diambil dari
+data hidup hanya foto, identitas kontrak, dan bobot kartu foto — bobot memang
+tidak pernah dibekukan ke snapshot, jadi tidak ada angka beku yang dilanggar
+(alasan yang sama dengan kategori/bangunan, DECISIONS 215). Uji integrasi
+mengubah RAB SESUDAH finalisasi dan menuntut volume di blanko tidak bergeser.
+
+**Susunan dipakai bersama.** `terbilang` + `susunKartu` pindah ke modul murni
+`lib/daily-report/kkp-lampiran-susun.ts`; PDF meng-import-nya, bukan menyalin.
+Blanko harian pernah menyimpang antara PDF dan Excel justru karena keduanya
+menyusun barisnya sendiri-sendiri (DECISIONS 241) — kesalahan itu tidak diulang
+untuk kartu dokumentasi. Uji mengunci `pdf.susunKartu === murni.susunKartu`.
+
+**Masih terbuka:** logo konsultan pengawas belum punya tempat penyimpanan
+(lihat 300); kotak kop-nya terisi nama perusahaan, slot logonya kosong.

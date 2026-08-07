@@ -7,6 +7,7 @@ import { barisRealisasiKkp, type KkpDailyData } from "@/components/knmp/kkp-dail
 import { KKP_WEATHER_HOURS } from "@/lib/weather/hourly";
 import { PDF_COLORS, PDF_FONT, docToBuffer, createFormA4Doc, FORM_MARGIN } from "./document";
 import { colWidths, gridRow, gridRowHeight, type GridCell, type GridOptions } from "./grid";
+import { gambarDokumentasi, gambarSampul, type FotoDok } from "./harian-kkp-lampiran";
 
 /**
  * Laporan Harian format KKP — BLANKO RESMI, urutan blok PERSIS contoh KKP:
@@ -31,8 +32,21 @@ const MIN_RR_ROWS = 6;
 
 export type HarianKkpPdfResult = { buffer: Buffer; locationId: string };
 
-export async function buildHarianKkpPdf(d: KkpDailyData, appName: string, logo?: Buffer | null): Promise<Buffer> {
+export async function buildHarianKkpPdf(
+  d: KkpDailyData,
+  appName: string,
+  logo?: Buffer | null,
+  lampiran?: { logoVendor: Buffer | null; foto: FotoDok[] },
+): Promise<Buffer> {
   const doc = createFormA4Doc({ title: `Laporan Harian KKP — ${d.locationName}` });
+
+  /* ── Halaman 1: SAMPUL ─────────────────────────────────────────────────
+     Blanko di halaman berikutnya TIDAK berubah sedikit pun (permintaan user
+     2026-08-07: *"halaman 2: seperti blanko apa adanya saat ini"*). */
+  doc.page.margins.bottom = 0;
+  gambarSampul(doc, d, logo ?? null, lampiran?.logoVendor ?? null);
+  doc.addPage();
+
   const x = FORM_MARGIN;
   const width = doc.page.width - FORM_MARGIN * 2;
   const bottom = doc.page.height - FORM_MARGIN - 12;
@@ -348,6 +362,12 @@ export async function buildHarianKkpPdf(d: KkpDailyData, appName: string, logo?:
     ttd,
   );
 
+  /* ── Halaman 3+: DOKUMENTASI PEKERJAAN ────────────────────────────── */
+  gambarDokumentasi(doc, d, lampiran?.foto ?? [], () => {
+    doc.addPage();
+    noAutoBreak();
+  });
+
   /* ── Catatan kaki tiap halaman ─────────────────────────────────────── */
   const range = doc.bufferedPageRange();
   for (let i = range.start; i < range.start + range.count; i++) {
@@ -399,5 +419,47 @@ export async function renderHarianKkpPdf(slug: string, dateKey: string): Promise
       logo = null;
     }
   }
-  return { buffer: await buildHarianKkpPdf(data, branding.appName, logo), locationId: loc.id };
+  /*
+   * Aset lampiran: logo pelaksana + foto bukti. Keduanya BEST-EFFORT —
+   * kegagalan R2/sharp tidak boleh menggagalkan laporan resminya; halaman
+   * dokumentasi cuma ikut kosong dan itu terlihat, bukan diam-diam salah.
+   *
+   * Foto dikecilkan dulu: satu laporan bisa membawa belasan foto kamera 3–8
+   * MB, dan menempelkannya mentah ke PDF meledakkan memori di kontainer kecil
+   * (pelajaran DECISIONS 297).
+   */
+  let logoVendor: Buffer | null = null;
+  const foto: FotoDok[] = [];
+  try {
+    const { isR2Configured, r2GetBuffer } = await import("@/lib/r2");
+    if (isR2Configured()) {
+      const sharp = (await import("sharp")).default;
+      if (data.vendorLogoKey) {
+        try {
+          logoVendor = await sharp(await r2GetBuffer(data.vendorLogoKey)).png().toBuffer();
+        } catch {
+          logoVendor = null;
+        }
+      }
+      for (const p of data.photos ?? []) {
+        try {
+          const kecil = await sharp(await r2GetBuffer(p.r2Key))
+            .rotate()
+            .resize(900, 900, { fit: "inside", withoutEnlargement: true })
+            .jpeg({ quality: 72 })
+            .toBuffer();
+          foto.push({ buf: kecil, pekerjaan: p.pekerjaan, kategori: p.kategori, bobot: p.bobot });
+        } catch {
+          /* satu foto gagal tidak menggagalkan sisanya */
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[laporan-harian] lampiran dokumentasi gagal disiapkan:", err);
+  }
+
+  return {
+    buffer: await buildHarianKkpPdf(data, branding.appName, logo, { logoVendor, foto }),
+    locationId: loc.id,
+  };
 }

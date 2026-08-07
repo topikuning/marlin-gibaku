@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { prestasiPct } from "@/lib/progress-calc";
-import { COUNTED_REPORT_STATUSES, cumulativeVolumeByLineage } from "@/lib/progress";
+import { bobotPct, prestasiPct } from "@/lib/progress-calc";
+import { COUNTED_REPORT_STATUSES, cumulativeVolumeByLineage, getLocationProgress } from "@/lib/progress";
 import { jakartaDateKey, parseDateKey } from "@/lib/format";
 import { buildPhotoViews, type PhotoView } from "@/lib/photos";
 import type {
@@ -558,11 +558,13 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
             select: {
               startDate: true,
               workTitle: true,
+              contractNumber: true,
+              signedDate: true,
               supervisorName: true,
               supervisorFirm: true,
               contractorSignerName: true,
               contractorSignerTitle: true,
-              vendor: { select: { name: true } },
+              vendor: { select: { name: true, logoKey: true, address: true } },
             },
           },
         },
@@ -599,6 +601,7 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
   const owner = {
     ownerName: brand.ownerName,
     ownerSubtitle: brand.ownerSubtitle,
+    ownerAddress: brand.ownerAddress,
     ownerLogoUrl,
     pekerjaan: contract?.workTitle ?? null,
   };
@@ -615,6 +618,15 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
       workers: true,
       materials: { orderBy: { name: "asc" } },
       equipment: { orderBy: { name: "asc" } },
+      // Halaman DOKUMENTASI PEKERJAAN (DECISIONS 299) — foto beserta item RAB
+      // yang dibuktikannya. Tautannya sudah ada; tinggal diambil.
+      photos: {
+        select: {
+          r2Key: true,
+          reportItem: { select: { rabNode: { select: { name: true, lineageKey: true } } } },
+        },
+        orderBy: { createdAt: "asc" },
+      },
     },
   });
 
@@ -639,6 +651,77 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
     (report?.items ?? []).filter((it) => it.basis !== "aktif").map((it) => it.lineageKey),
   );
 
+  const startDate = location.package.contract?.startDate ?? null;
+  const weekNo = startDate
+    ? Math.max(1, Math.floor((reportDate.getTime() - startDate.getTime()) / (7 * 86_400_000)) + 1)
+    : null;
+
+  /**
+   * Bobot hari ini per item — kolom "Bobot (%)" di halaman dokumentasi.
+   *
+   * Memakai `bobotPct` dari progress-calc; TIDAK ada rumus baru di sini
+   * (CLAUDE.md butir 7). Grand total nol → tidak diisi sama sekali: "belum
+   * diketahui" berbeda dari "nol persen".
+   *
+   * Diturunkan dari baris laporan yang tersimpan, BUKAN dari finalSnapshot:
+   * snapshot tidak pernah membekukan bobot sama sekali, jadi tidak ada angka
+   * beku yang bisa dilanggar di sini. Sama seperti kategori (lihat di atas),
+   * ini keterangan di kartu foto — bukan angka volume yang dibekukan.
+   */
+  const bobotPerLineage = new Map<string, number>();
+  {
+    const { grandTotal } = await getLocationProgress(location.id, { asOf: reportDate });
+    if (grandTotal > 0n)
+      for (const it of report?.items ?? []) {
+        if (it.basis !== "aktif") continue;
+        bobotPerLineage.set(it.lineageKey, bobotPct(Number(it.valueDone), Number(grandTotal)));
+      }
+  }
+
+  /*
+   * ── Sampul & dokumentasi (DECISIONS 299) ────────────────────────────────
+   *
+   * DI LUAR percabangan final/pratinjau, dan itu memang inti perbaikannya.
+   * Sebelumnya blok ini hanya ada di cabang pratinjau, sehingga laporan yang
+   * SUDAH final — satu-satunya yang benar-benar dikirim ke KKP — kehilangan
+   * nomor kontrak, periode, dan SELURUH halaman dokumentasi fotonya. Bug itu
+   * tidak terlihat saat menguji pratinjau, karena di sana semuanya lengkap
+   * (laporan user 2026-08-07: "cetak harian final juga, halaman fotonya tidak
+   * ada").
+   *
+   * Foto & identitas kontrak bukan angka progres, jadi mengambilnya dari data
+   * hidup tidak menyentuh keimutabelan snapshot.
+   */
+  const periode = (w: number | null) => ({
+    // Periode minggu berjalan: diturunkan dari tanggal SPMK + nomor minggu yang
+    // SUDAH dipakai blanko — satu sumber, jadi sampul dan blanko tidak bisa
+    // menyebut minggu yang berbeda.
+    periodStart:
+      startDate && w
+        ? tanggalFullFmt.format(new Date(startDate.getTime() + (w - 1) * 7 * 86_400_000))
+        : null,
+    periodEnd:
+      startDate && w
+        ? tanggalFullFmt.format(new Date(startDate.getTime() + (w * 7 - 1) * 86_400_000))
+        : null,
+  });
+  const lampiran = {
+    contractNumber: contract?.contractNumber ?? null,
+    contractDate: contract?.signedDate ? tanggalFullFmt.format(contract.signedDate) : null,
+    contractorAddress: contract?.vendor?.address ?? null,
+    vendorLogoKey: contract?.vendor?.logoKey ?? null,
+    photos: (report?.photos ?? []).map((ph) => {
+      const kunci = ph.reportItem?.rabNode?.lineageKey ?? null;
+      return {
+        r2Key: ph.r2Key,
+        pekerjaan: ph.reportItem?.rabNode?.name ?? null,
+        kategori: kunci ? (kategoriByRoot(kunci).categoryName ?? null) : null,
+        // Bobot DIAMBIL dari baris laporannya, tidak dihitung ulang di PDF.
+        bobot: kunci ? (bobotPerLineage.get(kunci) ?? null) : null,
+      };
+    }),
+  };
+
   if (report?.status === "final" && report.finalSnapshot) {
     const snap = report.finalSnapshot as unknown as FinalSnapshot;
     const base = snapshotToKkp(snap);
@@ -654,6 +737,10 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
       ...signatories,
       ...owner,
       rencana,
+      ...lampiran,
+      // Nomor minggu yang DIBEKUKAN snapshot, bukan hitungan ulang — supaya
+      // sampul menyebut minggu yang sama dengan blanko di halaman berikutnya.
+      ...periode(base.weekNo),
     };
   }
 
@@ -661,10 +748,6 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
   const counted = report
     ? (COUNTED_REPORT_STATUSES as readonly string[]).includes(report.status)
     : false;
-  const startDate = location.package.contract?.startDate ?? null;
-  const weekNo = startDate
-    ? Math.max(1, Math.floor((reportDate.getTime() - startDate.getTime()) / (7 * 86_400_000)) + 1)
-    : null;
 
   const workerMap: Partial<Record<WorkerRole, number>> = {};
   for (const w of report?.workers ?? []) workerMap[w.role] = w.count;
@@ -678,6 +761,8 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
     hari: hariFmt.format(reportDate),
     tanggalFull: tanggalFullFmt.format(reportDate),
     weekNo,
+    ...lampiran,
+    ...periode(weekNo),
     tahunAnggaran: (startDate ?? reportDate).getUTCFullYear(),
     workerMap,
     totalWorkers: (report?.workers ?? []).reduce((n, w) => n + w.count, 0),

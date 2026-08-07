@@ -2,7 +2,7 @@
 
 import { useActionState, useTransition, useState, type ReactNode } from "react";
 import { cn } from "@/lib/cn";
-import { Banner, Button, Combobox, FileInput, Input, Label, StatusPill } from "@/components/ui";
+import { Banner, Button, Combobox, FileInput, HelpText, Input, Label, StatusPill, Textarea } from "@/components/ui";
 
 /**
  * Tab switcher client-side untuk hub Pengaturan Sistem — ganti panel tanpa
@@ -167,8 +167,8 @@ export function BrandingPanel({
   defaults,
   ownerLogoUrl,
 }: {
-  initial: { appName: string; tagline: string; projectContext: string; ownerName: string; ownerSubtitle: string };
-  defaults: { appName: string; tagline: string; projectContext: string; ownerName: string; ownerSubtitle: string };
+  initial: { appName: string; tagline: string; projectContext: string; ownerName: string; ownerSubtitle: string; ownerAddress: string };
+  defaults: { appName: string; tagline: string; projectContext: string; ownerName: string; ownerSubtitle: string; ownerAddress: string };
   ownerLogoUrl?: string | null;
 }) {
   const [state, action, pending] = useActionState<BrandingState, FormData>(saveBranding, undefined);
@@ -242,6 +242,22 @@ export function BrandingPanel({
             maxLength={160}
             placeholder={defaults.ownerSubtitle}
           />
+        </div>
+        <div>
+          <Label htmlFor="brand-owner-address">Alamat & kontak (untuk kop sampul laporan)</Label>
+          {/* Multi-baris dan dicetak APA ADANYA. Tiap instansi menyusun kopnya
+              sendiri-sendiri; memaksa kolom terpisah (alamat/kota/telepon/faks/
+              surel) berarti memaksa mereka membuang baris yang ada atau
+              mengarang baris yang tidak ada. */}
+          <Textarea
+            id="brand-owner-address"
+            name="ownerAddress"
+            rows={4}
+            defaultValue={v.ownerAddress}
+            maxLength={400}
+            placeholder={"JALAN MERDEKA TIMUR NOMOR 16\nJAKARTA 10110 KOTAK POS 4130 JKP 10041\nTELEPON (021) 3519070, FAKSIMILE (021) 3521782\nLAMAN www.kkp.go.id  SUREL djpt@kkp.go.id"}
+          />
+          <HelpText>Satu baris per baris cetak. Kosongkan bila kop cukup nama + keterangan.</HelpText>
         </div>
         <div>
           <Label htmlFor="brand-owner-logo">Logo pemilik pekerjaan (PNG/JPG/WebP, maks 2 MB)</Label>
