@@ -16,6 +16,7 @@ import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import type { PhotoView } from "@/lib/photos";
 import { removeReportPhotoAction, returnPhotoToKantongAction } from "@/lib/daily-report/actions";
 import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
+import { tahanGagalKirim } from "@/lib/aksi-klien";
 import {
   AmbilDariKantong,
   PemilihKantong,
@@ -28,6 +29,16 @@ import {
  * Draft lokal: volume tersimpan di localStorage per (slug,date,nodeId),
  * dihapus setelah kirim laporan sukses.
  */
+
+/**
+ * Aksi dibungkus supaya POST yang gagal jadi PESAN, bukan halaman mati
+ * (DECISIONS 291). Dibungkus di tingkat modul, bukan di dalam komponen: identitas
+ * fungsinya harus tetap sama antar render.
+ */
+const simpanItem = tahanGagalKirim(saveItemAction);
+const tambahFoto = tahanGagalKirim(addItemPhotosAction);
+const hapusItem = tahanGagalKirim(removeItemAction);
+const kirimLaporan = tahanGagalKirim(submitReportAction);
 
 const draftPrefix = (slug: string, dateKey: string) => `marlin.harian.${slug}.${dateKey}.`;
 const draftKey = (slug: string, dateKey: string, nodeId: string) =>
@@ -142,7 +153,7 @@ function ItemForm({
   nodes: LeafNodeOption[];
   photoEnabled: boolean;
 }) {
-  const [state, formAction, pending] = useActionState<DailyActionState, FormData>(saveItemAction, undefined);
+  const [state, formAction, pending] = useActionState<DailyActionState, FormData>(simpanItem, undefined);
   const [query, setQuery] = useState("");
   const [picked, setPicked] = useState<LeafNodeOption | null>(null);
   const [volume, setVolume] = useState("");
@@ -562,7 +573,7 @@ function TambahFoto({
   onToggleKantong: () => void;
   onTutupKantong: () => void;
 }) {
-  const [state, formAction, pending] = useActionState<DailyActionState, FormData>(addItemPhotosAction, undefined);
+  const [state, formAction, pending] = useActionState<DailyActionState, FormData>(tambahFoto, undefined);
   const [buka, setBuka] = useState(false);
   const [photoKey, setPhotoKey] = useState(0);
   const panelRef = useRef<HTMLFormElement>(null);
@@ -683,7 +694,7 @@ function ItemRow({
   onToggleKantong: () => void;
   onTutupKantong: () => void;
 }) {
-  const [state, formAction, pending] = useActionState<DailyActionState, FormData>(removeItemAction, undefined);
+  const [state, formAction, pending] = useActionState<DailyActionState, FormData>(hapusItem, undefined);
 
   // Setelah item dihapus: buang draft lokal volume untuk node ini supaya saat
   // pekerjaan yang sama dipilih ulang di form, kolom volume TIDAK terisi angka
@@ -834,7 +845,7 @@ function ItemList({
 // ─────────────────────────────────────────────────────────────
 
 function SubmitPanel({ reportId, slug, dateKey }: { reportId: string; slug: string; dateKey: string }) {
-  const [state, formAction, pending] = useActionState<DailyActionState, FormData>(submitReportAction, undefined);
+  const [state, formAction, pending] = useActionState<DailyActionState, FormData>(kirimLaporan, undefined);
 
   // Kirim sukses → draft lokal (slug,date) tidak relevan lagi.
   useEffect(() => {
