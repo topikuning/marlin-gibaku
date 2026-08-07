@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
-import { MapPin, Trash2 } from "lucide-react";
+import { MapPin, Trash2, Undo2 } from "lucide-react";
 import type { PhotoView } from "@/lib/photos";
 
 type PhotoDeleteAction = (prev: undefined, fd: FormData) => Promise<{ error?: string } | undefined>;
@@ -22,12 +22,22 @@ export function PhotoGallery({
   thumbClass = "h-20 w-20",
   canDelete = false,
   deleteAction,
+  reuse,
 }: {
   photos: PhotoView[];
   thumbClass?: string;
   /** Tampilkan tombol hapus per foto (butuh deleteAction). */
   canDelete?: boolean;
   deleteAction?: PhotoDeleteAction;
+  /**
+   * Aksi kedua per foto — dipakai foto YATIM: "pakai lagi".
+   *
+   * Tanpa ini, satu-satunya aksi pada foto yang pekerjaannya terhapus adalah
+   * HAPUS. Padahal fotonya bukti yang koordinat & waktunya benar; yang salah
+   * cuma pekerjaan yang ditempelinya. Menyuruh membuangnya lalu memotret ulang
+   * = menyuruh membuat bukti yang lebih buruk.
+   */
+  reuse?: { label: string; run: PhotoDeleteAction; confirm?: string };
 }) {
   const [open, setOpen] = useState<number | null>(null);
   const [pending, startTransition] = useTransition();
@@ -39,6 +49,16 @@ export function PhotoGallery({
     fd.set("photoId", photoId);
     startTransition(async () => {
       await deleteAction?.(undefined, fd);
+      setOpen(null);
+    });
+  };
+
+  const pakaiLagi = (photoId: string) => {
+    if (reuse?.confirm && typeof window !== "undefined" && !window.confirm(reuse.confirm)) return;
+    const fd = new FormData();
+    fd.set("photoId", photoId);
+    startTransition(async () => {
+      await reuse?.run(undefined, fd);
       setOpen(null);
     });
   };
@@ -99,6 +119,18 @@ export function PhotoGallery({
                 className="absolute top-0.5 right-0.5 grid place-items-center rounded bg-danger/90 p-1 text-white hover:bg-danger disabled:opacity-50"
               >
                 <Trash2 aria-hidden className="size-3.5" />
+              </button>
+            )}
+            {reuse && (
+              <button
+                type="button"
+                onClick={() => pakaiLagi(p.id)}
+                disabled={pending}
+                aria-label={reuse.label}
+                title={reuse.label}
+                className="absolute bottom-0.5 left-0.5 grid place-items-center rounded bg-primary/90 p-1 text-white hover:bg-primary disabled:opacity-50"
+              >
+                <Undo2 aria-hidden className="size-3.5" />
               </button>
             )}
           </div>

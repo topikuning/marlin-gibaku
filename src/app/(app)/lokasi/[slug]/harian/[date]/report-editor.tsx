@@ -14,7 +14,7 @@ import {
 import type { LeafNodeOption, WorkspaceItem } from "@/lib/daily-report/queries";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import type { PhotoView } from "@/lib/photos";
-import { removeReportPhotoAction } from "@/lib/daily-report/actions";
+import { removeReportPhotoAction, returnPhotoToKantongAction } from "@/lib/daily-report/actions";
 import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
 import {
   AmbilDariKantong,
@@ -94,8 +94,15 @@ export function ReportEditor({
       {photosTanpaItem.length > 0 ? (
         <section className="rounded-lg border border-border bg-surface p-3">
           <h3 className="text-sm font-semibold">Foto tanpa pekerjaan</h3>
+          {/* Dulu di sini cuma tertulis "Hapus bila tidak dipakai" — dan hapus
+              memang satu-satunya yang bisa dilakukan. Padahal fotonya bukti yang
+              waktu & koordinatnya benar; yang salah cuma pekerjaan yang
+              ditempelinya. Pertanyaan user 2026-08-07: *"kalau mau dipakai lagi
+              bagaimana"*. Sekarang ada jawabannya, dan disebut lebih dulu. */}
           <p className="mt-0.5 text-xs text-muted">
-            Foto ini ikut terlepas saat pekerjaannya dihapus. Hapus bila tidak dipakai.
+            Foto ini ikut terlepas saat pekerjaannya dihapus. Ketuk panah untuk mengembalikannya ke
+            kantong Foto Cepat — dari sana bisa dipakai untuk pekerjaan mana pun. Hapus hanya bila
+            memang tidak terpakai.
           </p>
           <div className="mt-2">
             <PhotoGallery
@@ -103,6 +110,14 @@ export function ReportEditor({
               thumbClass="h-14 w-14"
               canDelete={bolehHapusFoto}
               deleteAction={removeReportPhotoAction}
+              reuse={
+                bolehHapusFoto
+                  ? {
+                      label: "Kembalikan ke kantong Foto Cepat",
+                      run: returnPhotoToKantongAction,
+                    }
+                  : undefined
+              }
             />
           </div>
         </section>

@@ -10867,3 +10867,68 @@ diam-diam → 2 uji gugur.
 
 **Diperiksa di peramban** (390px): tombol "Foto Cepat" muncul sebagai jalur
 ketiga di bagian foto formulir, panelnya terbuka di tempat, halaman 390 = 390.
+
+## 281 · Foto yatim: bisa dihapus (bug trigger), dan bisa dipakai lagi (2026-08-07)
+
+**Konteks.** Laporan user 2026-08-07: *"item pekerjaan dihapus, foto jadi
+orphan. tapi dihapus juga error. kalau mau dipakai lagi bagaimana"*, disusul
+*"itu dari foto cepat yang disambungkan ke item, lalu itemnya dihapus"*.
+
+### Cacat 1 · Dua aturan yang saling bertabrakan
+
+Migrasi `20260801060000_photo_restamp_and_archive_purge` memasang dua hal yang
+tidak bisa hidup bersama, **hanya berjarak enam baris**:
+
+```sql
+photo_stamp_revisions_photo_id_fkey ... ON DELETE CASCADE
+CREATE TRIGGER photo_stamp_revisions_append_only BEFORE UPDATE OR DELETE ...
+```
+
+Menghapus foto memicu cascade ke baris revisi cap; trigger menolak DELETE; aksi
+meledak dengan `P0001` yang muncul di layar sebagai **"A server error occurred"**
+— bukan pesan yang bisa dibaca, dan fotonya tetap ada. Yang kena persis foto yang
+capnya PERNAH DILENGKAPI: foto Foto Cepat yang ditautkan ke item lalu itemnya
+dihapus. Foto begitu jadi yatim, tidak bisa dipakai, tidak bisa dihapus.
+
+**Keputusan.** Trigger diganti penjaga yang membedakan dua hal:
+
+- **UPDATE tetap dilarang selamanya.** Itu inti "append-only": koreksi cap =
+  INSERT revisi baru, bukan menimpa yang lama. Kalau baris lama bisa ditulis
+  ulang, catatan apa yang dulu tertera di foto jadi tak bisa dipercaya.
+- **DELETE hanya sah sebagai ikutan terhapusnya foto induk.** Selama fotonya
+  masih ada, riwayat capnya tidak bisa dihapus — jaminan yang sama seperti
+  sebelumnya. Begitu fotonya sendiri hilang (hanya saat laporan draft/perlu
+  koreksi, hanya oleh pengunggah/SM/SA, dan tercatat di `audit_logs`), riwayat
+  cap sebuah foto yang tidak ada lagi tidak menjaga apa pun.
+
+Pembedanya dibaca dari kenyataan, bukan dari flag sesi: saat cascade berjalan,
+baris induk di `photos` SUDAH terhapus dalam transaksi yang sama, sehingga
+`EXISTS (SELECT 1 FROM photos WHERE id = OLD.photo_id)` bernilai false. DELETE
+langsung ke tabel revisi (fotonya masih ada) tetap ditolak.
+
+### Cacat 2 · Foto yatim tidak punya jalan kembali
+
+Satu-satunya aksi yang ditawarkan adalah HAPUS. Padahal fotonya bukti lapangan
+yang waktu & koordinatnya benar; yang salah cuma pekerjaan yang ditempelinya.
+Menyuruh membuangnya lalu memotret ulang = menyuruh membuat bukti yang **lebih
+buruk** (dipotret belakangan, dari tempat lain).
+
+**Keputusan.** `returnPhotoToKantongAction` melepas foto dari laporan
+(`reportId = null`) sehingga ia kembali muncul di kantong lokasi itu dan bisa
+dipilih untuk pekerjaan mana pun lewat jalur "Foto Cepat" yang sudah ada — bukan
+jalur penautan baru. Batasnya:
+
+- **Hanya foto YATIM.** Foto yang masih menempel pada satu pekerjaan tidak boleh
+  dilepas lewat sini: itu mencabut bukti dari item tanpa mengatakannya.
+- Jendela sunting & peran **sama persis** dengan hapus foto.
+- Kalau lokasinya belum tercatat, diisi dari **lokasi laporan** tempat foto itu
+  menempel — bukan tebakan, dan tetap disebutkan di pesan hasilnya.
+
+**Uji.** 4 uji integrasi baru di `tests/integration/foto-cepat-pakai.test.ts`,
+semuanya lewat jalur asli user (kantong → item → item dihapus). Uji gigi:
+mengembalikan trigger lama membuat uji "bisa DIHAPUS meski capnya punya riwayat"
+gugur; `deleteMany` langsung ke riwayat cap foto yang masih ada tetap ditolak.
+
+**Diperiksa di peramban** (390px, sm-01): 2 foto yatim → hapus satu (tanpa galat
+server, 2 → 1) → kembalikan satu ke kantong (1 → 0), dan barisnya benar-benar
+muncul lagi dengan `report_id` kosong.
