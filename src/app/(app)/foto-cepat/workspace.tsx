@@ -331,7 +331,33 @@ function PanelAntrean({
 
         Naikkan angkanya setiap kali logika antrean berubah.
       */}
-      <p className="text-[10px] text-ink-faint">antrean v4</p>
+      {/*
+        PANEL RINCIAN TEKNIS — permintaan user 2026-08-07: *"coba buat debug
+        yang lebih jelas dilayar biar kukirim masalahnya ke kamu. karena tidak
+        bisa inspect element di hp"*.
+
+        Betul, dan itu memang alat yang hilang selama ini: tiga putaran
+        perbaikan dikerjakan tanpa satu pun fakta dari perangkatnya. Isinya
+        sengaja teks apa adanya (bukan ikon, bukan warna) supaya terbaca utuh
+        di tangkapan layar, dan tertutup secara bawaan supaya tidak mengganggu
+        yang tidak membutuhkannya.
+      */}
+      <details className="rounded-md border border-border bg-surface-muted px-2 py-1.5">
+        <summary className="cursor-pointer text-[11px] font-medium text-ink-muted">
+          Rincian teknis (untuk dilaporkan)
+        </summary>
+        <pre className="mt-1.5 overflow-x-auto whitespace-pre-wrap break-all text-[10px] leading-relaxed text-ink">
+{`antrean v5 · ${baris.length} baris · jaringan: ${online ? "ada" : "tidak"}
+galat: ${galat ?? "-"}
+` +
+            baris
+              .map(
+                (b, i) =>
+                  `${i + 1}. ${b.status} · coba ${b.percobaan}× · ${Math.round(b.bytes / 1024)} KB · umur ${Math.round(b.umurMs / 1000)} dtk\n   ${b.pesan ?? "(tanpa pesan)"}`,
+              )
+              .join("\n")}
+        </pre>
+      </details>
 
       {ringkas.menunggu > 0 ? (
         <Button type="button" variant="secondary" onClick={onKirim}>

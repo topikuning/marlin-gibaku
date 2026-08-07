@@ -458,6 +458,15 @@ perangkat user): DECISIONS 282 (baris "kirim" yang kehilangan halamannya
 dibebaskan), 283 (batas waktu pengiriman + kunci putaran yang bisa diambil
 alih), 284 (kegagalan simpanan bersuara + tombol buang + penanda versi).
 
+**Perkembangan 2026-08-07 (DECISIONS 285).** Penanda versi memastikan perangkat
+user menjalankan kode baru, dan spanduk galat memastikan yang gagal adalah
+TRANSAKSI IndexedDB — bukan jaringan, bukan server. Hipotesis terkuat sekarang:
+`Blob` yang dibaca dari IndexedDB mati begitu koneksinya ditutup (perilaku
+WebKit), dan versi lama menutup koneksi tiap operasi. Sudah diperbaiki (satu
+koneksi seumur halaman), TAPI belum direproduksi — WebKit tidak ada di
+lingkungan uji ini. Panel "Rincian teknis" kini menyebutkan nama DOMException-nya
+supaya laporan berikutnya bisa memastikan.
+
 **Langkah berikutnya — jangan menebak lagi.** Butuh SATU dari ini sebelum
 perbaikan keempat:
 1. Tangkapan layar sesudah versi "antrean v4" benar-benar termuat (penanda versi

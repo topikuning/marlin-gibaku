@@ -11116,3 +11116,70 @@ mengembalikan penyelesaian-pada-permintaan tetap memunculkan spanduknya (jalur
 penolakannya datang dari transaksi lain di putaran yang sama). Jadi yang
 terbukti adalah PERILAKUNYA — kegagalan yang dulu bisu sekarang bersuara —
 bukan bahwa tiap baris penjagaannya menanggung beban sendiri-sendiri.
+
+## 285 · Antrean foto: satu koneksi IndexedDB, nama galat apa adanya, panel rincian di layar (2026-08-07)
+
+**Konteks.** Penanda versi bekerja: user mengirim tangkapan layar yang
+menampilkan **"antrean v4"** — jadi perangkatnya memang menjalankan kode baru —
+beserta spanduk *"Simpanan foto di HP menolak (transaksi). Ruang penyimpanan HP
+mungkin penuh."* dengan 2 foto tersangkut. Tanggapannya tegas dan benar:
+
+> *"alasanmu tidak masuk akal, kalau memang penuh seharusnya foto lagi tidak
+> bisa terkirim. coba buat debug yang lebih jelas dilayar biar kukirim
+> masalahnya ke kamu. karena tidak bisa inspect element di hp"*
+
+**Tiga kesalahan yang diakui.**
+
+1. **Pesannya mengarang sebab.** "Ruang penyimpanan HP mungkin penuh" adalah
+   tebakan yang ditempelkan ke fakta, dan tebakan itu salah — foto baru tersimpan
+   lancar. Pesan yang mengarang sebab lebih buruk daripada pesan yang hanya
+   menyebut fakta: ia mengirim orang ke arah yang salah.
+2. **Nama galat aslinya justru saya buang.** Saat memasang `tx.onerror` di
+   DECISIONS 284, `req.onerror` ikut dihapus — sehingga `DOMException` yang
+   sebenarnya (namanya!) hilang dan yang sampai ke layar hanya kata "transaksi".
+   Diagnostiknya diperburuk tepat di tempat yang paling membutuhkannya.
+3. **Tidak ada alat lapor dari perangkat.** Tiga putaran perbaikan dikerjakan
+   tanpa satu pun fakta dari HP-nya, padahal di ponsel tidak ada inspect element.
+
+**Keputusan.**
+
+- **SATU koneksi IndexedDB untuk seumur halaman.** Ini bukan penghematan,
+  melainkan perbaikan cacat: di WebKit, `Blob` yang dibaca dari IndexedDB
+  berhenti bisa dipakai begitu koneksi yang menghasilkannya DITUTUP. Versi lama
+  membuka koneksi baru tiap operasi dan menutupnya di `tx.oncomplete`, jadi tiap
+  `semua()` mengembalikan baris ber-blob mati; menulisnya kembali (yang dilakukan
+  `perbarui` setiap kali status berubah) berarti menulis blob mati → permintaan
+  gagal → transaksi gugur → antrean berhenti. Ini juga menjelaskan petunjuk
+  user *"terjadi saat ambil foto dengan cepat"*: foto yang langsung terkirim
+  masih memakai blob segar dari memori, sedangkan yang menumpuk di antrean harus
+  dibaca ulang dari simpanan lebih dulu. `onclose`/`onversionchange` melupakan
+  pegangannya supaya operasi berikutnya membuka koneksi baru.
+- **`perbarui` jadi SATU transaksi** (`get` lalu `put`), bukan dua transaksi
+  terpisah `getAll`+`put`. Menutup celah balapan saat memotret cepat — dua
+  pembaruan bisa saling menimpa — sekaligus berhenti menarik seluruh antrean
+  berikut semua blob-nya hanya untuk mengubah satu kolom status.
+- **Galat ditulis apa adanya**: `tahap: <buka|permintaan|transaksi>; galat:
+  <NamaDOMException>: <pesan>`. Tanpa tafsiran, tanpa tebakan. Nama itulah yang
+  menentukan perbaikannya.
+- **Panel "Rincian teknis (untuk dilaporkan)"** di panel antrean: versi, jumlah
+  baris, keadaan jaringan, galat terakhir, dan per baris — status, jumlah
+  percobaan, ukuran, umur, pesan. Teks apa adanya supaya terbaca utuh di
+  tangkapan layar; tertutup secara bawaan.
+
+**Diperiksa di peramban** dengan menggugurkan penulisan IndexedDB: panelnya
+menampilkan
+
+```
+antrean v5 · 3 baris · jaringan: ada
+galat: Simpanan foto di HP gagal — tahap: permintaan; galat: AbortError: The transaction was aborted, so the request cannot be fulfilled.
+1. kirim · coba 0× · 1 KB · umur 1 dtk
+```
+
+Bandingkan dengan sebelumnya: *"menolak (transaksi). Ruang penyimpanan HP mungkin
+penuh."* — nama galatnya hilang, sebabnya dikarang.
+
+**Status FOTO-01.** Hipotesis blob-mati-sesudah-koneksi-ditutup COCOK dengan
+semua gejala (foto baru lancar, foto antre macet, penyimpanan tidak penuh,
+jaringan lancar, muncul saat memotret cepat) tapi **belum direproduksi** — WebKit
+tidak tersedia di lingkungan uji ini. Tetap terbuka sampai ada bukti dari
+perangkat.

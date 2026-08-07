@@ -41,6 +41,10 @@ export type BarisAntrean = {
   status: ItemAntrean["status"];
   pesan?: string;
   lokasi?: string;
+  /** Rincian teknis — dibaca dari LAYAR, karena di HP tidak ada inspect element. */
+  percobaan: number;
+  bytes: number;
+  umurMs: number;
 };
 
 /** Selang pemeriksaan antrean. Cukup sering untuk terasa hidup, cukup jarang
@@ -127,12 +131,16 @@ export function useAntreanFoto() {
         urlRef.current.delete(id);
       }
     }
+    const kini = Date.now();
     setBaris(
       rows.map((r) => ({
         id: r.id,
         url: urlUntuk(r.id, r.blob),
         status: r.status,
         pesan: r.pesan,
+        percobaan: r.percobaan,
+        bytes: r.blob?.size ?? 0,
+        umurMs: kini - (r.dibuat ?? kini),
       })),
     );
   }, [urlUntuk]);
