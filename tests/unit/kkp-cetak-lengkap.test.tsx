@@ -125,6 +125,37 @@ describe("halaman dokumentasi cetak HTML", () => {
     expect(renderToStaticMarkup(<KkpDailyPhotos d={data()} foto={[]} />)).toBe("");
   });
 
+  // GARIS KOLOM WAJIB BERTEMU ANTAR BARIS.
+  //
+  // Teguran user 2026-08-07: *"kamu bikin garis antara kolom gambar dan bobot
+  // saja tidak lurus."* Versi pertama menyusun tiap baris sebagai `flex`
+  // tersendiri dengan rasio yang sama (4,2 : 1). Rasionya sama, tapi flex
+  // membagi SISA ruang, dan sisa ruang tiap baris berbeda mengikuti padding
+  // serta lebar-minimum isinya. Terukur di browser: batas baris judul 506,27px
+  // vs baris foto 505,50px — meleset 0,77px, dan pada dokumen bergaris itu
+  // langsung terlihat.
+  //
+  // Obatnya struktural: SATU tabel `table-fixed` dengan SATU `colgroup`, jadi
+  // batas kolom dihitung sekali untuk seluruh kartu. Uji ini menjaga
+  // strukturnya, bukan angkanya — begitu ada baris yang menghitung lebarnya
+  // sendiri lagi, cacat yang sama kembali.
+  it("satu kartu = satu tabel table-fixed dengan satu colgroup", () => {
+    const html = renderToStaticMarkup(<KkpDailyPhotos d={data()} foto={[foto()]} />);
+    expect(html.match(/<table/g) ?? []).toHaveLength(1);
+    expect(html).toContain("table-fixed");
+    expect(html.match(/<colgroup/g) ?? []).toHaveLength(1);
+    // Tidak ada lagi rasio flex yang dihitung per baris.
+    expect(html).not.toContain("flex-[4.2]");
+  });
+
+  it("sel judul foto & sel gambar berakhir di batas kolom yang SAMA", () => {
+    // Keduanya membentang 2 dari 3 kolom, jadi tepi kanannya batas kolom yang
+    // sama persis — bukan dua hasil hitungan yang kebetulan mirip.
+    const html = renderToStaticMarkup(<KkpDailyPhotos d={data()} foto={[foto()]} />);
+    const barisFoto = html.slice(html.indexOf("Bobot (%)") - 400);
+    expect((barisFoto.match(/colspan="2"/gi) ?? []).length).toBeGreaterThanOrEqual(2);
+  });
+
   it("tiap halaman dokumentasi mulai di halaman kertas baru", () => {
     // Tanpa ini, kartu dokumentasi menempel di ekor blanko dan hasil Ctrl+P
     // tidak lagi menyerupai PDF-nya.
