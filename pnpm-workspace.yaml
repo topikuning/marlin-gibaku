@@ -7,6 +7,10 @@
 #     (minimatch@3, mis. eslint) & v2 (minimatch@5) TAK boleh dipaksa ke v5: CJS build v5 memakai
 #     named export → `expand is not a function` di minimatch@3 (rusak). Keduanya sudah patched di
 #     lini masing2 (1.1.16 > 1.1.12, 2.1.2 > 2.0.2).
+#   nanoid@3 — patch custom generator yg bisa berputar tanpa henti saat size 0
+#     (GHSA-2v37-7h3g-55p8, <3.3.17). Transitif lewat postcss, yang dipakai Next,
+#     Tailwind, DAN Vite sekaligus. Dinaikkan HANYA di lini v3 — rentang postcss
+#     (^3.3.x) tetap terpenuhi, jadi tidak ada perubahan mayor yang diselundupkan.
 overrides:
   sharp: 0.35.3
   fast-uri@3: 3.1.5
@@ -14,6 +18,7 @@ overrides:
   brace-expansion@1: 1.1.18
   brace-expansion@2: 2.1.4
   brace-expansion@5: 5.0.9
+  nanoid@3: 3.3.18
 # Audit pnpm memakai rentang datar <=5.0.7 utk advisory ini → ikut menandai salinan v1/v2 yg
 # SUDAH patched (false-positive; tak bisa dikecualikan per-path). Instance rentan sejati (v5)
 # sudah di-override ke 5.0.8 di atas, jadi GHSA ini nyatanya sudah tertutup di pohon dependensi.
@@ -32,6 +37,7 @@ minimumReleaseAgeExclude:
   - brace-expansion@1.1.18
   - brace-expansion@2.1.4
   - brace-expansion@5.0.9
+  - nanoid@3.3.18
   - fast-uri@3.1.5
   - '@aws-sdk/client-s3@3.1086.0'
   - '@aws-sdk/credential-provider-node@3.972.67'
