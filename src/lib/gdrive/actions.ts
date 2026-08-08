@@ -190,7 +190,8 @@ export async function uploadDailyReportToDriveAction(
     await requireLocationAccess(user, c.target.locationId!);
 
     const { renderHarianKkpPdf } = await import("@/lib/pdf/harian-kkp");
-    const pdf = await renderHarianKkpPdf(slug, dateKey);
+    const { getRequestOrigin } = await import("@/lib/http");
+    const pdf = await renderHarianKkpPdf(slug, dateKey, { baseUrl: await getRequestOrigin() });
     if (!pdf) return { error: "Laporan harian tidak ditemukan." };
 
     const report = await db.dailyReport.findUnique({

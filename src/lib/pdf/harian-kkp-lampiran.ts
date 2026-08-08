@@ -215,6 +215,19 @@ export type FotoDok = {
   pekerjaan: string | null;
   kategori: string | null;
   bobot: number | null;
+  /**
+   * Tautan ke gambar PENUH di cloud (`/api/foto/<token>`, DECISIONS 125).
+   *
+   * Permintaan user 2026-08-07: *"fotonya harusnya juga bisa diklik ke ukuran
+   * yang lebih besar/cloud. tapi tidak perlu di crop, apa adanya seperti
+   * sekarang, hanya beri link ke gambar yang lebih besar."* — jadi gambarnya
+   * TIDAK disentuh sama sekali; yang ditambah hanya area klik di atasnya.
+   *
+   * null = origin publik tidak diketahui (mis. dipanggil dari cron tanpa
+   * request). URL yang dikarang lebih buruk daripada tidak ada tautan, jadi
+   * kotaknya cukup tidak bisa diklik.
+   */
+  link?: string | null;
 };
 
 const pctFmt = new Intl.NumberFormat("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -275,6 +288,10 @@ function gambarKartu(
       doc.font(PDF_FONT.regular).fontSize(6).fillColor(R.inkFaint)
         .text("foto tidak dapat dimuat", x + 4, y + tinggiFoto / 2 - 4, { width: kolomFoto[0] - 8, align: "center" });
     }
+    // Seluruh kotak gambar jadi area klik ke versi penuh di cloud. Dipasang
+    // SESUDAH gambarnya, dan di luar try: foto yang gagal ditempel pun tetap
+    // layak ditautkan — justru di situ orang paling butuh melihat aslinya.
+    if (f.link) doc.link(x, y, kolomFoto[0], tinggiFoto, f.link);
     // Bobot DIISI bila diketahui. Contoh KKP membiarkannya kosong untuk
     // ditulis tangan; angkanya sudah ada di sistem, jadi mengosongkannya
     // justru menyuruh orang menghitung ulang yang sudah dihitung.

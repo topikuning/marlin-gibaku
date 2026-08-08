@@ -8,6 +8,8 @@ import { db } from "@/lib/db";
 import { getKkpDailyData } from "@/lib/daily-report/queries";
 import { parseDateKey } from "@/lib/format";
 import { presignKeys } from "@/lib/photos";
+import { getRequestOrigin } from "@/lib/http";
+import { signPhotoToken } from "@/lib/pdf/photo-token";
 import { PRINT_BACK_PARAM, safeBackPath } from "@/lib/print-back";
 
 export const dynamic = "force-dynamic";
@@ -45,6 +47,7 @@ export default async function CetakHarianPage({
    * bertanda tangan. Kegagalan R2 TIDAK boleh menggagalkan cetakan — blankonya
    * tetap tercetak, halaman dokumentasi yang ikut kosong, dan itu terlihat.
    */
+  const origin = await getRequestOrigin();
   let fotoCetak: FotoCetak[] = [];
   let logoVendorUrl: string | null = null;
   try {
@@ -56,7 +59,20 @@ export default async function CetakHarianPage({
       const url = await presignKeys(kunci, 900);
       fotoCetak = (data.photos ?? []).flatMap((p) => {
         const u = url.get(p.r2Key);
-        return u ? [{ url: u, pekerjaan: p.pekerjaan, kategori: p.kategori, bobot: p.bobot }] : [];
+        if (!u) return [];
+        return [
+          {
+            url: u,
+            pekerjaan: p.pekerjaan,
+            kategori: p.kategori,
+            bobot: p.bobot,
+            // Tautan yang SAMA dengan PDF-nya (DECISIONS 125) — permanen dan
+            // bisa dibuka tanpa login, tidak seperti URL presigned di atas yang
+            // habis dalam hitungan menit. Tanpa origin yang diketahui, tautannya
+            // tidak dikarang.
+            link: origin ? `${origin}/api/foto/${signPhotoToken(p.id)}` : null,
+          },
+        ];
       });
       logoVendorUrl = data.vendorLogoKey ? (url.get(data.vendorLogoKey) ?? null) : null;
     }

@@ -4,6 +4,7 @@ import { getCurrentUser, hasLocationAccess } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
 import { parseDateKey } from "@/lib/format";
 import { renderHarianKkpPdf } from "@/lib/pdf/harian-kkp";
+import { getRequestOrigin } from "@/lib/http";
 
 /** Unduh Laporan Harian — blanko resmi KKP, sama dengan yang disetor ke Drive
  *  & halaman cetak (DECISIONS 162). Auth → akses lokasi. */
@@ -26,7 +27,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ slug: string; 
     return NextResponse.json({ error: "Tidak punya akses ke laporan ini" }, { status: 403 });
   }
 
-  const result = await renderHarianKkpPdf(slug, date);
+  const result = await renderHarianKkpPdf(slug, date, { baseUrl: await getRequestOrigin() });
   if (!result) return NextResponse.json({ error: "Laporan harian tidak ditemukan" }, { status: 404 });
 
   return new NextResponse(new Uint8Array(result.buffer), {

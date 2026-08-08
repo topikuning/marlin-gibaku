@@ -8,6 +8,7 @@ import { KKP_WEATHER_HOURS } from "@/lib/weather/hourly";
 import { PDF_COLORS, PDF_FONT, docToBuffer, createFormA4Doc, FORM_MARGIN } from "./document";
 import { colWidths, gridRow, gridRowHeight, type GridCell, type GridOptions } from "./grid";
 import { gambarDokumentasi, gambarSampul, type FotoDok } from "./harian-kkp-lampiran";
+import { signPhotoToken } from "./photo-token";
 
 /**
  * Laporan Harian format KKP — BLANKO RESMI, urutan blok PERSIS contoh KKP:
@@ -392,8 +393,21 @@ export async function buildHarianKkpPdf(
   return docToBuffer(doc);
 }
 
-/** Muat data harian + render PDF format KKP. Null bila tak ada. TANPA otorisasi (pemanggil gate). */
-export async function renderHarianKkpPdf(slug: string, dateKey: string): Promise<HarianKkpPdfResult | null> {
+/**
+ * Muat data harian + render PDF format KKP. Null bila tak ada. TANPA otorisasi
+ * (pemanggil gate).
+ *
+ * `baseUrl` = origin publik MARLIN, dipakai menautkan tiap foto dokumentasi ke
+ * gambar PENUH di cloud (`/api/foto/<token>`, DECISIONS 125). Tanpa origin yang
+ * diketahui — mis. dipanggil dari cron di luar request — tautannya TIDAK
+ * dikarang; fotonya cuma tidak bisa diklik.
+ */
+export async function renderHarianKkpPdf(
+  slug: string,
+  dateKey: string,
+  opts?: { baseUrl?: string | null },
+): Promise<HarianKkpPdfResult | null> {
+  const baseUrl = opts?.baseUrl?.replace(/\/+$/, "") || null;
   const [data, branding, loc] = await Promise.all([
     getKkpDailyData(slug, dateKey),
     getBranding(),
@@ -448,7 +462,13 @@ export async function renderHarianKkpPdf(slug: string, dateKey: string): Promise
             .resize(900, 900, { fit: "inside", withoutEnlargement: true })
             .jpeg({ quality: 72 })
             .toBuffer();
-          foto.push({ buf: kecil, pekerjaan: p.pekerjaan, kategori: p.kategori, bobot: p.bobot });
+          foto.push({
+            buf: kecil,
+            pekerjaan: p.pekerjaan,
+            kategori: p.kategori,
+            bobot: p.bobot,
+            link: baseUrl ? `${baseUrl}/api/foto/${signPhotoToken(p.id)}` : null,
+          });
         } catch {
           /* satu foto gagal tidak menggagalkan sisanya */
         }

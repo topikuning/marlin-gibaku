@@ -669,7 +669,8 @@ export async function sendDailyReportPdfToWaAction(
     if ("error" in target) return { error: target.error };
 
     const { renderHarianKkpPdf } = await import("@/lib/pdf/harian-kkp");
-    const result = await renderHarianKkpPdf(slug, dateKey);
+    const { getRequestOrigin } = await import("@/lib/http");
+    const result = await renderHarianKkpPdf(slug, dateKey, { baseUrl: await getRequestOrigin() });
     if (!result) return { error: "Laporan harian tidak ditemukan." };
 
     const data = await getKkpDailyData(slug, dateKey);
