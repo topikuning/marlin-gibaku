@@ -12355,3 +12355,40 @@ ini. Sudah diuji giginya: mengembalikan `key` ke `page.tsx` membuatnya merah.
 Ditambah `tests/integration/pelengkap-larik-sejajar.test.ts` yang masuk lewat
 FormData sungguhan (uji material/alat yang lama memanggil `setEnrichment`
 langsung sehingga melompati penguraian larik sejajar itu).
+
+---
+
+## 307 · Uji tidak boleh menunggu keadaan yang dirancang untuk lenyap (2026-08-08)
+
+Uji E2E *"posisi rana TIDAK bergeser setelah memotret"* menunggu tulisan
+**"N foto menunggu kirim"** sebagai bukti antrean benar-benar tumbuh. Niatnya
+benar — tanpa itu ujinya lulus hanya karena belum ada yang sempat berubah.
+
+Tapi keadaan itu memang **dirancang untuk lenyap**. Pengiriman yang berhasil
+MENGHAPUS barisnya dari IndexedDB (`buang`, `use-antrean.ts`), dan baris yang
+DITOLAK server tidak ikut dihitung `menunggu` sama sekali (`ringkasAntrean`).
+Jadi jendelanya cuma selebar satu perjalanan jaringan. Di mesin sendiri jendela
+itu lebar dan ujinya lulus — 4× berturut-turut, termasuk dengan `CI=true`. Di
+runner CI ia bisa tertutup sebelum pemeriksaan pertama.
+
+Sekarang ujinya **offline dulu, baru memotret**. Pengiriman jadi mustahil,
+barisnya menetap, dan keadaan yang ditunggu menjadi pasti — bukan diperlombakan.
+Ini tidak melemahkan yang diuji: yang dijanjikan adalah rana tidak bergeser saat
+antrean tumbuh, dan justru offline-lah yang membuat antrean paling panjang di
+lapangan.
+
+**Koreksi atas DECISIONS 305.** Di sana saya menulis bahwa rana-sebelum-kamera-
+siap adalah "sebab CI merah". **Itu keliru.** `bukaKamera` di uji ini sudah
+menunggu `videoWidth > 0` DAN rana `toBeEnabled` sebelum mengetuk, jadi cacat
+itu tidak pernah bisa menjadi sebab kegagalan uji ini. Perbaikan kamera tetap
+sah — ketukan yang hilang diam-diam itu nyata di lapangan — tapi ia bukan
+perbaikan kegagalan CI, dan CI membuktikannya dengan gagal lagi sesudahnya.
+
+**Cacat kedua yang terungkap: CI tidak menyimpan bukti apa pun.** Unggahan
+artefak menunjuk `playwright-report/`, padahal di CI reporter-nya `github`
+sehingga laporan HTML tidak pernah dibuat — setiap kegagalan E2E selama ini
+berakhir *"No files were found"*. Yang berguna ada di `test-results/`:
+`trace.zip` dan `error-context.md` berisi cuplikan ARIA layar pada detik
+kegagalan. Sekarang keduanya diunggah. Tanpa itu, kegagalan yang tidak bisa
+ditirukan di mesin sendiri hanya bisa ditebak-tebak — persis yang terjadi hari
+ini.
