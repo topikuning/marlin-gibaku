@@ -147,9 +147,8 @@ function FotoBaris({ f }: { f: FotoCetak }) {
       </tr>
       <tr>
         <Sel colSpan={2} tengah className="text-center">
-          {/* Gambarnya sama persis dengan/tanpa tautan — pembungkusnya yang
-              berubah, bukan ukurannya. `print:hidden` pada penanda kecilnya:
-              di kertas, panah "buka" tidak ada gunanya. */}
+          {/* Gambarnya sama persis dengan/tanpa tautan — yang berubah hanya
+              pembungkusnya, bukan ukuran atau pemotongannya. */}
           <Gambar url={f.url} link={f.link} />
         </Sel>
         {/* Bobot DIISI bila diketahui — angkanya sudah ada di sistem, jadi
@@ -162,12 +161,6 @@ function FotoBaris({ f }: { f: FotoCetak }) {
   );
 }
 
-/**
- * `tengah` memilih `align-middle`, bukan menumpuknya di atas `align-top`.
- * Dua utility Tailwind untuk properti yang sama tidak ditentukan urutan
- * penulisannya di atribut class, melainkan urutan di stylesheet — menumpuk
- * keduanya berarti menyerahkan hasilnya pada kebetulan.
- */
 /**
  * Foto apa adanya; kalau ada tautannya, dibungkus anchor ke gambar penuh.
  * TIDAK di-crop dan tidak diubah ukurannya — permintaan user eksplisit.
@@ -189,6 +182,12 @@ function Gambar({ url, link }: { url: string; link?: string | null }) {
   );
 }
 
+/**
+ * `tengah` MEMILIH `align-middle`, bukan menumpuknya di atas `align-top`.
+ * Dua utility Tailwind untuk properti yang sama tidak ditentukan urutan
+ * penulisannya di atribut class, melainkan urutan di stylesheet — menumpuk
+ * keduanya berarti menyerahkan hasilnya pada kebetulan.
+ */
 function Sel({
   children,
   colSpan,
