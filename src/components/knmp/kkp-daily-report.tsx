@@ -47,6 +47,15 @@ export type KkpDailyItem = {
   pctCumulative: number | null;
 };
 
+/** Satu foto bukti material / alat: nama barangnya + keterangan jumlahnya. */
+export type BuktiPelengkap = {
+  id: string;
+  r2Key: string;
+  nama: string;
+  /** Jumlah apa adanya ("40 zak", "2 unit"); null = tidak diisi, tidak dikarang. */
+  keterangan: string | null;
+};
+
 export type KkpDailyData = {
   locationName: string;
   regency: string;
@@ -131,6 +140,17 @@ export type KkpDailyData = {
     kategori: string | null;
     bobot: number | null;
   }[];
+  /**
+   * Bukti MATERIAL MASUK & PERALATAN (DECISIONS 304) — halaman sendiri-sendiri
+   * SESUDAH dokumentasi pekerjaan.
+   *
+   * Terpisah dari `photos` bukan sekadar demi tata letak: foto material bukan
+   * bukti pekerjaan. Kalau dicampur, ia akan tercetak di halaman pekerjaan
+   * berlabel "(tanpa item pekerjaan)" — terbaca seperti foto yang lupa
+   * ditautkan, padahal memang bukan foto pekerjaan.
+   */
+  materialPhotos?: BuktiPelengkap[];
+  equipmentPhotos?: BuktiPelengkap[];
 };
 
 export function KkpDailyReport({ d }: { d: KkpDailyData }) {

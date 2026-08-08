@@ -236,14 +236,27 @@ export type EnrichmentInput = {
   workEnd: string | null;
   notes: string | null;
   workers: { role: WorkerRole; count: number }[];
-  materials: { name: string; unit: string | null; qty: number | null }[];
-  equipment: { name: string; count: number }[];
+  /**
+   * `id` = baris yang SUDAH ada (dari form); kosong/null = baris baru.
+   *
+   * Identitas baris material & alat WAJIB bertahan sejak foto bisa ditempel
+   * padanya (DECISIONS 304). Sebelum itu blok ini memakai hapus-semua lalu
+   * buat-ulang, jadi ID berganti tiap kali form pelengkap disimpan — bahkan
+   * saat yang diubah cuma cuaca. Dengan foto tertaut, pola itu akan MELEPAS
+   * bukti setiap penyimpanan berikutnya, dan hilangnya baru terasa besok.
+   */
+  materials: { id?: string | null; name: string; unit: string | null; qty: number | null }[];
+  equipment: { id?: string | null; name: string; count: number }[];
 };
 
 /**
- * Simpan pelengkap KKP (cuaca, jam kerja, tenaga, material, alat).
- * Wipe + recreate anak dalam satu $transaction. Boleh saat
- * draft/perlu_koreksi/dikirim (SM melengkapi saat verifikasi).
+ * Simpan pelengkap KKP (cuaca, jam kerja, tenaga, material, alat) dalam satu
+ * $transaction. Boleh saat draft/perlu_koreksi/dikirim (SM melengkapi saat
+ * verifikasi).
+ *
+ * Tenaga kerja masih wipe+recreate — barisnya diturunkan dari daftar peran
+ * tetap, tidak ada yang menempel padanya. Material & alat TIDAK boleh begitu
+ * lagi sejak foto bisa ditempel per baris; lihat catatan di dalam transaksi.
  */
 export async function setEnrichment(reportId: string, input: EnrichmentInput, userId: string) {
   const report = await getReportOrThrow(reportId);
@@ -288,22 +301,65 @@ export async function setEnrichment(reportId: string, input: EnrichmentInput, us
         data: workers.map((w) => ({ reportId, role: w.role, count: Math.round(w.count) })),
       });
     }
-    await tx.dailyReportMaterial.deleteMany({ where: { reportId } });
-    if (materials.length) {
-      await tx.dailyReportMaterial.createMany({
-        data: materials.map((m) => ({
-          reportId,
-          name: m.name.trim(),
-          unit: m.unit?.trim() || null,
-          qtyReceived: m.qty != null && Number.isFinite(m.qty) ? Math.round(m.qty * 1000) / 1000 : null,
-        })),
-      });
+    /*
+     * Material & alat: baris yang sudah ada DIPERBARUI di tempat, bukan
+     * dihapus lalu dibuat ulang (DECISIONS 304) — foto menempel pada ID-nya.
+     *
+     * ID dari form TIDAK dipercaya begitu saja: hanya yang benar-benar milik
+     * laporan ini yang dianggap baris lama. ID asing diperlakukan sebagai
+     * baris BARU, bukan diabaikan — mengabaikannya akan membuang isian orang
+     * tanpa sepatah kata pun.
+     */
+    const milikMaterial = new Set(
+      (await tx.dailyReportMaterial.findMany({ where: { reportId }, select: { id: true } })).map(
+        (r) => r.id,
+      ),
+    );
+    const barisMaterial = materials.map((m) => ({
+      id: m.id && milikMaterial.has(m.id) ? m.id : null,
+      name: m.name.trim(),
+      unit: m.unit?.trim() || null,
+      qtyReceived: m.qty != null && Number.isFinite(m.qty) ? Math.round(m.qty * 1000) / 1000 : null,
+    }));
+    const simpanMaterial = barisMaterial.map((m) => m.id).filter((x): x is string => x != null);
+    await tx.dailyReportMaterial.deleteMany({
+      // Tanpa daftar yang dipertahankan, `notIn: []` ambigu antar versi Prisma —
+      // jadi cabangnya ditulis eksplisit, bukan diserahkan pada perilaku default.
+      where: { reportId, ...(simpanMaterial.length ? { id: { notIn: simpanMaterial } } : {}) },
+    });
+    for (const m of barisMaterial) {
+      if (m.id) {
+        await tx.dailyReportMaterial.update({
+          where: { id: m.id },
+          data: { name: m.name, unit: m.unit, qtyReceived: m.qtyReceived },
+        });
+      } else {
+        await tx.dailyReportMaterial.create({
+          data: { reportId, name: m.name, unit: m.unit, qtyReceived: m.qtyReceived },
+        });
+      }
     }
-    await tx.dailyReportEquipment.deleteMany({ where: { reportId } });
-    if (equipment.length) {
-      await tx.dailyReportEquipment.createMany({
-        data: equipment.map((e) => ({ reportId, name: e.name.trim(), count: Math.round(e.count) })),
-      });
+
+    const milikAlat = new Set(
+      (await tx.dailyReportEquipment.findMany({ where: { reportId }, select: { id: true } })).map(
+        (r) => r.id,
+      ),
+    );
+    const barisAlat = equipment.map((e) => ({
+      id: e.id && milikAlat.has(e.id) ? e.id : null,
+      name: e.name.trim(),
+      count: Math.round(e.count),
+    }));
+    const simpanAlat = barisAlat.map((e) => e.id).filter((x): x is string => x != null);
+    await tx.dailyReportEquipment.deleteMany({
+      where: { reportId, ...(simpanAlat.length ? { id: { notIn: simpanAlat } } : {}) },
+    });
+    for (const e of barisAlat) {
+      if (e.id) {
+        await tx.dailyReportEquipment.update({ where: { id: e.id }, data: { name: e.name, count: e.count } });
+      } else {
+        await tx.dailyReportEquipment.create({ data: { reportId, name: e.name, count: e.count } });
+      }
     }
   });
   await audit(userId, "daily_report.enrich", "daily_report", reportId, {
@@ -442,18 +498,44 @@ async function transition(
   return { report, updated };
 }
 
-/** draft | perlu_koreksi → dikirim. Wajib ≥1 item. */
+/**
+ * draft | perlu_koreksi → dikirim.
+ *
+ * Wajib berisi SESUATU: minimal satu item pekerjaan, ATAU satu material, ATAU
+ * satu alat.
+ *
+ * Dulu syaratnya ≥1 item pekerjaan. Kebutuhan lapangan user 2026-08-08:
+ * *"kadang ada hari dimana tidak ada kegiatan yang berhubungan dengan item
+ * pekerjaan (RAB), tapi ada material masuk. saat ini kondisi tersebut tidak
+ * bisa diinput."* Betul — dan akibatnya bukan sekadar merepotkan: kedatangan
+ * material jadi TIDAK TERCATAT sama sekali di hari itu, padahal itu kejadian
+ * yang perlu dibuktikan.
+ *
+ * Pagarnya dilonggarkan, BUKAN dibuang: laporan yang benar-benar kosong tetap
+ * ditolak, supaya laporan hampa tidak masuk antrean verifikasi dan memakan
+ * waktu orang yang memeriksanya.
+ *
+ * Hari nol-item TIDAK menggerakkan progres apa pun — tidak ada baris item
+ * berarti tidak ada nilai yang dihitung. Itu memang yang diinginkan; angkanya
+ * tetap jujur.
+ */
 export async function submitReport(reportId: string, userId: string) {
-  const itemCount = await db.dailyReportItem.count({ where: { reportId } });
-  if (itemCount === 0) {
-    throw new DailyReportError("Laporan belum punya item pekerjaan — tambah minimal satu");
+  const [itemCount, materialCount, equipmentCount] = await Promise.all([
+    db.dailyReportItem.count({ where: { reportId } }),
+    db.dailyReportMaterial.count({ where: { reportId } }),
+    db.dailyReportEquipment.count({ where: { reportId } }),
+  ]);
+  if (itemCount === 0 && materialCount === 0 && equipmentCount === 0) {
+    throw new DailyReportError(
+      "Laporan masih kosong — isi minimal satu item pekerjaan, material masuk, atau alat.",
+    );
   }
   const { updated } = await transition(
     reportId,
     "dikirim",
     userId,
     { submittedById: userId, submittedAt: new Date() },
-    { action: "daily_report.submit", payload: { items: itemCount } },
+    { action: "daily_report.submit", payload: { items: itemCount, materials: materialCount, equipment: equipmentCount } },
   );
   return updated;
 }

@@ -177,8 +177,8 @@ export type WorkspaceReport = {
   items: WorkspaceItem[];
   totalValueToday: string; // BigInt string
   workers: { role: WorkerRole; count: number }[];
-  materials: { id: string; name: string; unit: string | null; qty: number | null }[];
-  equipment: { id: string; name: string; count: number }[];
+  materials: { id: string; name: string; unit: string | null; qty: number | null; photos: PhotoView[] }[];
+  equipment: { id: string; name: string; count: number; photos: PhotoView[] }[];
   history: WorkspaceHistoryRow[];
   issues: WorkspaceIssue[];
   photos: PhotoView[];
@@ -263,8 +263,30 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
   // terlihat dan bisa dihapus. Statusnya DITURUNKAN (reportItemId kosong),
   // bukan disimpan sebagai flag yang bisa melenceng dari kenyataan.
   const photoByItem = new Map<string, PhotoView[]>();
+  const photoByMaterial = new Map<string, PhotoView[]>();
+  const photoByEquipment = new Map<string, PhotoView[]>();
   const photosTanpaItem: PhotoView[] = [];
   for (const p of photoViews) {
+    /*
+     * Bukti MATERIAL / ALAT bukan foto yatim (DECISIONS 304).
+     *
+     * "Yatim" diturunkan dari `reportItemId` yang kosong — dan foto material
+     * memang TIDAK PERNAH punya reportItemId. Tanpa cabang ini, ia mendarat di
+     * panel "Foto tanpa pekerjaan" yang mengajak orang membersihkannya:
+     * sistem akan menyuruh menghapus bukti yang justru sah.
+     */
+    if (p.reportMaterialId) {
+      const arr = photoByMaterial.get(p.reportMaterialId) ?? [];
+      arr.push(p);
+      photoByMaterial.set(p.reportMaterialId, arr);
+      continue;
+    }
+    if (p.reportEquipmentId) {
+      const arr = photoByEquipment.get(p.reportEquipmentId) ?? [];
+      arr.push(p);
+      photoByEquipment.set(p.reportEquipmentId, arr);
+      continue;
+    }
     if (!p.reportItemId) {
       photosTanpaItem.push(p);
       continue;
@@ -336,12 +358,14 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
       totalValueToday: totalValueToday.toString(),
       workers: report.workers.map((w) => ({ role: w.role, count: w.count })),
       materials: report.materials.map((m) => ({
+      photos: photoByMaterial.get(m.id) ?? [],
         id: m.id,
         name: m.name,
         unit: m.unit,
         qty: m.qtyReceived != null ? Number(m.qtyReceived) : null,
       })),
-      equipment: report.equipment.map((e) => ({ id: e.id, name: e.name, count: e.count })),
+      equipment: report.equipment.map((e) => ({
+      photos: photoByEquipment.get(e.id) ?? [], id: e.id, name: e.name, count: e.count })),
       history: report.statusHistory.map((h) => ({
         id: h.id,
         fromStatus: h.fromStatus,
@@ -476,6 +500,8 @@ const hariFmt = new Intl.DateTimeFormat("id-ID", { weekday: "long", timeZone: "A
 // "Hari: Minggu" lalu "Tanggal: Minggu, 26 Juli 2026", dan caption WhatsApp
 // bahkan "Minggu, Minggu, 26 Juli 2026" (temuan user 2026-07-27).
 const tanggalFullFmt = new Intl.DateTimeFormat("id-ID", { dateStyle: "long", timeZone: "Asia/Jakarta" });
+// Jumlah material di keterangan foto — konvensi id-ID, sama dengan blanko (FMT-01).
+const volFmt = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 });
 
 function snapshotToKkp(snap: FinalSnapshot): KkpDailyData {
   const d = parseDateKey(snap.reportDate)!;
@@ -625,6 +651,10 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
           id: true,
           r2Key: true,
           reportItem: { select: { rabNode: { select: { name: true, lineageKey: true } } } },
+          // Bukti material & alat (DECISIONS 304) — dicetak di halamannya
+          // sendiri, bukan dicampur ke foto pekerjaan.
+          reportMaterial: { select: { name: true, unit: true, qtyReceived: true } },
+          reportEquipment: { select: { name: true, count: true } },
         },
         orderBy: { createdAt: "asc" },
       },
@@ -711,17 +741,48 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
     contractDate: contract?.signedDate ? tanggalFullFmt.format(contract.signedDate) : null,
     contractorAddress: contract?.vendor?.address ?? null,
     vendorLogoKey: contract?.vendor?.logoKey ?? null,
-    photos: (report?.photos ?? []).map((ph) => {
-      const kunci = ph.reportItem?.rabNode?.lineageKey ?? null;
-      return {
+    /*
+     * Foto DIPILAH menurut apa yang dibuktikannya (DECISIONS 304).
+     *
+     * `photos` sengaja hanya memuat bukti PEKERJAAN. Kalau foto material ikut
+     * masuk ke sini, ia akan tercetak di halaman dokumentasi pekerjaan dengan
+     * label "(tanpa item pekerjaan)" — terbaca seperti foto yang lupa
+     * ditautkan, padahal ia memang bukan foto pekerjaan.
+     */
+    photos: (report?.photos ?? [])
+      .filter((ph) => ph.reportMaterial == null && ph.reportEquipment == null)
+      .map((ph) => {
+        const kunci = ph.reportItem?.rabNode?.lineageKey ?? null;
+        return {
+          id: ph.id,
+          r2Key: ph.r2Key,
+          pekerjaan: ph.reportItem?.rabNode?.name ?? null,
+          kategori: kunci ? (kategoriByRoot(kunci).categoryName ?? null) : null,
+          // Bobot DIAMBIL dari baris laporannya, tidak dihitung ulang di PDF.
+          bobot: kunci ? (bobotPerLineage.get(kunci) ?? null) : null,
+        };
+      }),
+    materialPhotos: (report?.photos ?? [])
+      .filter((ph) => ph.reportMaterial != null)
+      .map((ph) => ({
         id: ph.id,
         r2Key: ph.r2Key,
-        pekerjaan: ph.reportItem?.rabNode?.name ?? null,
-        kategori: kunci ? (kategoriByRoot(kunci).categoryName ?? null) : null,
-        // Bobot DIAMBIL dari baris laporannya, tidak dihitung ulang di PDF.
-        bobot: kunci ? (bobotPerLineage.get(kunci) ?? null) : null,
-      };
-    }),
+        nama: ph.reportMaterial!.name,
+        // Keterangan jumlah ditulis APA ADANYA dari baris materialnya; kalau
+        // jumlahnya tidak diisi, tidak dikarang jadi nol.
+        keterangan:
+          ph.reportMaterial!.qtyReceived != null
+            ? `${volFmt.format(Number(ph.reportMaterial!.qtyReceived))}${ph.reportMaterial!.unit ? ` ${ph.reportMaterial!.unit}` : ""}`
+            : null,
+      })),
+    equipmentPhotos: (report?.photos ?? [])
+      .filter((ph) => ph.reportEquipment != null)
+      .map((ph) => ({
+        id: ph.id,
+        r2Key: ph.r2Key,
+        nama: ph.reportEquipment!.name,
+        keterangan: `${ph.reportEquipment!.count} unit`,
+      })),
   };
 
   if (report?.status === "final" && report.finalSnapshot) {

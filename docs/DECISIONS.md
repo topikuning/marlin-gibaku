@@ -12175,3 +12175,220 @@ ada di berkas hasil render, termasuk kasus foto rusak dan kasus tanpa tautan.
 Di sisi HTML, satu uji membandingkan tag `<img>` dengan dan tanpa tautan dan
 menuntut keduanya **identik** — itu penjaga langsung atas kata "apa adanya".
 Keduanya dicek giginya.
+
+---
+
+## 304 — Material & alat: foto per baris, halaman cetak sendiri, dan hari tanpa item pekerjaan (2026-08-08)
+
+**Kebutuhan lapangan user.** *"ternyata laporan harian selain item, juga ada
+material dan alat. inputan sudah ada di sistem pelaporan harian, tapi gambar itu
+masing-masing … foto material dan alat juga perlu disendirikan / start halaman
+tersendiri setelah data foto-foto pekerjaan. dan kadang, ada hari dimana tidak
+ada kegiatan yang berhubungan dengan item pekerjaan (RAB), tapi ada material
+masuk. saat ini kondisi tersebut tidak bisa diinput."*
+
+Pilihan user atas tiga pertanyaan: foto **per baris** (tiap material, tiap
+alat); material dan alat **masing-masing mulai halaman baru**; syarat kirim
+**minimal salah satu dari item / material / alat**.
+
+### Temuan yang menghalangi, dan yang menentukan bentuk pekerjaannya
+
+`setEnrichment` memakai **hapus-semua lalu buat-ulang** untuk material & alat.
+Artinya ID barisnya berganti SETIAP KALI form pelengkap disimpan — bahkan saat
+yang diubah hanya cuaca atau jam kerja. Dengan foto tertaut ke ID itu, polanya
+akan **melepas bukti pada penyimpanan berikutnya**.
+
+Cacatnya senyap dan tertunda: saat diuji tangan semuanya benar — lampirkan foto,
+buka laporan, fotonya ada. Hilangnya baru terjadi besok, saat orang menyunting
+hal lain yang sama sekali tidak berhubungan.
+
+Jadi pekerjaan pertama bukan "tambah kolom foto", melainkan membuat baris
+material & alat punya identitas yang bertahan: baris ber-ID diperbarui di
+tempat, baris tanpa ID dibuat, dan hanya yang benar-benar dibuang yang dihapus.
+ID dari form tidak dipercaya begitu saja — yang bukan milik laporan itu
+diperlakukan sebagai baris BARU, bukan diabaikan (mengabaikannya membuang isian
+orang tanpa sepatah kata pun).
+
+Diuji giginya: mengembalikan wipe+recreate → uji "foto tetap ada sesudah
+pelengkap disimpan ulang" langsung MERAH. Bahayanya nyata, bukan teoretis.
+
+### Cacat kedua yang nyaris lolos
+
+Pengelompokan foto di workspace memutuskan "yatim" dari `reportItemId` yang
+kosong — dan foto material memang **tidak pernah** punya `reportItemId`. Tanpa
+cabang khusus, foto material mendarat di panel **"Foto tanpa pekerjaan"** yang
+mengajak orang membersihkannya: sistem akan menyuruh menghapus bukti yang justru
+sah. Ditutup dengan membawa `reportMaterialId`/`reportEquipmentId` ke
+`PhotoView` dan memilahnya lebih dulu.
+
+Alasan yang sama membuat `photos` untuk halaman cetak DISARING: foto material
+yang ikut ke halaman dokumentasi pekerjaan akan tercetak berlabel "(tanpa item
+pekerjaan)" — terbaca seperti foto yang lupa ditautkan.
+
+### Syarat kirim dilonggarkan, bukan dibuang
+
+`submitReport` dulu menuntut ≥1 item pekerjaan, sehingga hari "material masuk,
+belum ada pekerjaan" TIDAK BISA dilaporkan sama sekali — kedatangan material
+tidak tercatat di hari itu. Sekarang: minimal satu dari item/material/alat.
+Laporan yang benar-benar kosong tetap ditolak, supaya laporan hampa tidak masuk
+antrean verifikasi dan memakan waktu pemeriksanya. Hari nol-item tidak
+menggerakkan progres apa pun — tidak ada baris item berarti tidak ada nilai;
+angkanya tetap jujur.
+
+### Cetak
+
+Sesudah dokumentasi pekerjaan: **MATERIAL** mulai halaman baru, lalu
+**PERALATAN** mulai halaman baru lagi. Di PDF dan di halaman cetak HTML, dengan
+kerangka tabel & pengelompokan kartu yang SAMA (`susunKartu`) — bukan penyusun
+kedua yang cepat atau lambat menyimpang (pelajaran DECISIONS 241/301). Tautan ke
+gambar penuh ikut terpasang seperti DECISIONS 303. Jumlah yang tidak diisi
+ditulis "—", bukan 0: "belum diisi" berbeda dari "nol".
+
+### Panel foto berdiri sendiri
+
+Tombol foto per baris TIDAK bisa diletakkan di dalam form pelengkap — `<form>`
+di dalam `<form>` bukan HTML yang sah dan tombolnya akan diam saja saat ditekan.
+Panelnya jadi blok tersendiri di bawahnya, memuat HANYA baris yang sudah
+tersimpan (ID-nya memang baru ada sesudah disimpan). Batasan itu dikatakan di
+layar, bukan dibiarkan jadi teka-teki.
+
+### Migrasi
+
+Migrasi ditulis tangan agar berisi **hanya** kolom, indeks, dan FK fitur ini.
+`prisma migrate dev` sempat ikut menyeret drift lama yang tidak berhubungan
+(DROP DEFAULT di `device_permissions`/`rab_revision_approvals`, pembuatan ulang
+FK, rename indeks `documents_*`). Drift itu SUDAH ADA di main sebelum perubahan
+ini dan akan muncul lagi di migrasi berikutnya siapa pun pembuatnya —
+membundelnya diam-diam ke migrasi fitur membuat radius ledakan sebuah deploy
+tidak sesuai dengan judul commit-nya. Ditinggalkan apa adanya untuk diputuskan
+tersendiri.
+
+`ON DELETE SET NULL`, sama seperti `report_item_id`: baris material yang dihapus
+TIDAK ikut menghapus fotonya — fotonya jadi yatim yang masih bisa dilihat dan
+dibersihkan, bukan lenyap diam-diam.
+
+
+---
+
+## 305 — Rana Foto Cepat tidak lagi aktif sebelum kameranya benar-benar siap (2026-08-08)
+
+**Ditemukan saat menelusuri CI merah**, bukan dari permintaan fitur — tapi
+cacatnya nyata di lapangan, bukan sekadar soal uji.
+
+`kamera-langsung.tsx` mengumumkan keadaan `hidup` (yang mengaktifkan rana)
+begitu `getUserMedia` selesai. Padahal `getUserMedia` yang resolve TIDAK berarti
+gambarnya sudah ada: `<video>.videoWidth` masih 0 selama beberapa saat
+sesudahnya. Sementara `jepret()` membuang ketukan saat `videoWidth` nol —
+**diam-diam**: tanpa kilat, tanpa pesan, tanpa masuk antrean.
+
+Artinya ada jendela waktu di mana rana terlihat aktif, bisa ditekan, dan
+ketukannya hilang tanpa jejak. Orang lapangan menekan rana begitu kamera
+terbuka, merasa sudah memotret, dan tidak ada apa pun yang tersimpan. Bukti yang
+hilang seperti ini tidak pernah ketahuan pada saat kejadian — baru terasa saat
+laporan disusun dan fotonya tidak ada.
+
+`hidup` kini baru diumumkan setelah video punya dimensi (`loadedmetadata` DAN
+`resize` — sebagian peramban baru mengisi `videoWidth` sesudah `loadedmetadata`,
+jadi menunggu satu event saja bisa menggantung). Selama itu keterangannya
+berbunyi "Menyiapkan kamera... rana aktif begitu gambar muncul", bukan "Ketuk
+untuk memotret" yang berbohong. Hasilnya: **rana yang bisa ditekan selalu
+menghasilkan foto.**
+
+**Kenapa ini muncul sebagai CI merah.** Uji E2E "posisi rana TIDAK bergeser
+setelah memotret" menekan rana lalu menunggu antrean tumbuh. Di runner yang
+lambat, kamera palsu belum menghasilkan frame saat rana ditekan sehingga
+ketukannya hilang, antrean tidak pernah tumbuh, dan uji gagal dengan pesan
+"element not found" yang tidak menyebut sebab sebenarnya. Gagal dua kali
+berturut-turut (termasuk retry) — justru menandakan ini bukan sekadar flaky.
+
+**Catatan cara kerja, supaya tidak terulang:** perbaikan pertama sempat terlihat
+mematahkan 10 uji Foto Cepat sekaligus. Itu KELIRU dibaca — `pnpm start` gagal
+(port masih dipakai server lama) sementara `.next` sudah dibangun ulang di
+bawahnya, jadi ujinya menembak server basi. Sesudah dijalankan bersih: 10/10
+lulus, dan seluruh suite E2E 68 lulus / 48 skip. Pelajarannya: baca baris
+pertama keluaran sebelum menyimpulkan kodenya yang salah.
+
+---
+
+## 306 · Kabar "tersimpan" tidak boleh dibunuh oleh pemasangan ulang form (2026-08-08)
+
+**Keluhan lapangan:** "aku sudah input material dan alat, tapi sama sekali tidak
+muncul apa pun, bahkan ini malah merusak proses sebelumnya."
+
+Datanya SEBENARNYA masuk. Yang tidak ada adalah kabarnya — dan tanpa kabar,
+menekan tombol Simpan tidak dapat dibedakan dari tidak menekan apa-apa.
+
+**Sebabnya.** Badan form pelengkap sengaja dipasang ulang saat tanda-tangan
+isinya berubah (`key` berisi daftar id material & alat), supaya id baris yang
+baru dibuat server masuk ke input tersembunyi. Tanpa itu penyimpanan berikutnya
+mengirim id kosong, barisnya dibuat ulang, dan fotonya lepas (DECISIONS 304).
+Tapi pemasangan ulang juga MENGHAPUS state `useActionState` — jadi kotak
+"Pelengkap laporan tersimpan." musnah pada tik yang sama ia lahir.
+
+**Kenapa lolos semua pengujian sebelumnya.** Daftar id hanya berubah saat baris
+DITAMBAH atau DIHAPUS. Menyimpan untuk kedua kalinya — id sudah sama —
+memunculkan kabarnya dengan normal. Artinya bug ini menyerang tepat pada
+pengisian material/alat yang PERTAMA, yaitu satu-satunya kali yang tidak pernah
+diulang saat menguji dengan tangan. Diukur di build produksi: sebelum perbaikan
+kabar tidak pernah muncul sama sekali (dipantau tiap 200 ms selama 6 detik);
+sesudahnya muncul dan menetap.
+
+**Perbaikannya.** `useActionState` dipindah ke komponen luar yang TIDAK ikut
+dipasang ulang; `key` pindah dari `page.tsx` ke dalam `EnrichmentForm`, hanya
+membungkus badan formnya. Pemasangan ulang tetap berjalan (id tetap masuk),
+kabarnya selamat.
+
+Kabar juga DIULANG tepat di atas tombol Simpan. Formulir ini panjang: di ponsel
+tombolnya ada di dasar layar sementara kotak kabar di puncaknya belasan layar ke
+atas — kabar yang benar tapi tak terlihat sama saja dengan tidak ada.
+
+**Yang TIDAK ditemukan:** tidak ada kehilangan data. Ditelusuri di build
+produksi lokal dengan peran admin dan site_manager, pada laporan berstatus
+`draft` maupun `dikirim`: material & alat tersimpan, item pekerjaan yang sudah
+ada tetap utuh, dan keduanya tercetak di blanko KKP. Keluhan "merusak proses
+sebelumnya" tidak terbukti sebagai kerusakan data — yang rusak adalah
+kepercayaan, karena sistem diam saat seharusnya menjawab.
+
+**Penjaga:** `tests/e2e/harian-pelengkap-umpan-balik.spec.ts` — WAJIB menambah
+baris BARU dan menyimpan SEKALI, karena penyimpanan kedua menyembunyikan bug
+ini. Sudah diuji giginya: mengembalikan `key` ke `page.tsx` membuatnya merah.
+Ditambah `tests/integration/pelengkap-larik-sejajar.test.ts` yang masuk lewat
+FormData sungguhan (uji material/alat yang lama memanggil `setEnrichment`
+langsung sehingga melompati penguraian larik sejajar itu).
+
+---
+
+## 307 · Uji tidak boleh menunggu keadaan yang dirancang untuk lenyap (2026-08-08)
+
+Uji E2E *"posisi rana TIDAK bergeser setelah memotret"* menunggu tulisan
+**"N foto menunggu kirim"** sebagai bukti antrean benar-benar tumbuh. Niatnya
+benar — tanpa itu ujinya lulus hanya karena belum ada yang sempat berubah.
+
+Tapi keadaan itu memang **dirancang untuk lenyap**. Pengiriman yang berhasil
+MENGHAPUS barisnya dari IndexedDB (`buang`, `use-antrean.ts`), dan baris yang
+DITOLAK server tidak ikut dihitung `menunggu` sama sekali (`ringkasAntrean`).
+Jadi jendelanya cuma selebar satu perjalanan jaringan. Di mesin sendiri jendela
+itu lebar dan ujinya lulus — 4× berturut-turut, termasuk dengan `CI=true`. Di
+runner CI ia bisa tertutup sebelum pemeriksaan pertama.
+
+Sekarang ujinya **offline dulu, baru memotret**. Pengiriman jadi mustahil,
+barisnya menetap, dan keadaan yang ditunggu menjadi pasti — bukan diperlombakan.
+Ini tidak melemahkan yang diuji: yang dijanjikan adalah rana tidak bergeser saat
+antrean tumbuh, dan justru offline-lah yang membuat antrean paling panjang di
+lapangan.
+
+**Koreksi atas DECISIONS 305.** Di sana saya menulis bahwa rana-sebelum-kamera-
+siap adalah "sebab CI merah". **Itu keliru.** `bukaKamera` di uji ini sudah
+menunggu `videoWidth > 0` DAN rana `toBeEnabled` sebelum mengetuk, jadi cacat
+itu tidak pernah bisa menjadi sebab kegagalan uji ini. Perbaikan kamera tetap
+sah — ketukan yang hilang diam-diam itu nyata di lapangan — tapi ia bukan
+perbaikan kegagalan CI, dan CI membuktikannya dengan gagal lagi sesudahnya.
+
+**Cacat kedua yang terungkap: CI tidak menyimpan bukti apa pun.** Unggahan
+artefak menunjuk `playwright-report/`, padahal di CI reporter-nya `github`
+sehingga laporan HTML tidak pernah dibuat — setiap kegagalan E2E selama ini
+berakhir *"No files were found"*. Yang berguna ada di `test-results/`:
+`trace.zip` dan `error-context.md` berisi cuplikan ARIA layar pada detik
+kegagalan. Sekarang keduanya diunggah. Tanpa itu, kegagalan yang tidak bisa
+ditirukan di mesin sendiri hanya bisa ditebak-tebak — persis yang terjadi hari
+ini.

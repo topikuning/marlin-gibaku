@@ -13,6 +13,7 @@ import { getLeafNodeOptions, getWorkspaceData } from "@/lib/daily-report/queries
 import { ISSUE_SEVERITY_LABEL, WEATHER_LABEL, WORKER_ROLE_LABEL } from "@/lib/daily-report/constants";
 import { ReportEditor } from "./report-editor";
 import { EnrichmentForm } from "./enrichment-form";
+import { SupplyPhotos } from "./supply-photos";
 import { FinalizePanel, IssueForm, ReviewActions } from "./review-actions";
 import { withBackTo } from "@/lib/print-back";
 
@@ -176,14 +177,18 @@ export default async function HarianWorkspacePage({
       ) : null}
 
       {/* Pelengkap KKP.
-          key = tanda-tangan isi pelengkap: setEnrichment membuat ulang baris dgn
-          id baru tiap simpan, jadi key berubah → form remount & menampilkan data
-          tersimpan yang terbaru (memperbaiki desync state klien setelah aksi). */}
+          TANPA `key` di sini — sengaja. Pemasangan ulang tetap dibutuhkan agar
+          id baris material/alat yang baru dibuat server masuk ke form, tapi
+          sekarang diurus DI DALAM EnrichmentForm supaya kabar "tersimpan"
+          tidak ikut musnah bersamanya (lihat catatan di berkas itu). */}
       {report && enrichable ? (
-        <EnrichmentForm
-          key={[report.weather, report.workStart, report.workEnd, ...report.materials.map((m) => m.id), ...report.equipment.map((e) => e.id)].join("|")}
-          report={report}
-        />
+        <>
+          <EnrichmentForm report={report} />
+          {/* Panel foto berdiri SENDIRI, bukan di dalam form pelengkap: form di
+              dalam form bukan HTML yang sah, dan tombolnya akan diam saja saat
+              ditekan. DECISIONS 304. */}
+          <SupplyPhotos report={report} photoEnabled={isR2Configured()} />
+        </>
       ) : report && (report.weather || report.workers.length || report.materials.length || report.equipment.length || report.workStart) ? (
         <Card>
           <CardHeader title="Pelengkap laporan KKP" />

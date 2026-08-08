@@ -7,7 +7,13 @@ import { barisRealisasiKkp, type KkpDailyData } from "@/components/knmp/kkp-dail
 import { KKP_WEATHER_HOURS } from "@/lib/weather/hourly";
 import { PDF_COLORS, PDF_FONT, docToBuffer, createFormA4Doc, FORM_MARGIN } from "./document";
 import { colWidths, gridRow, gridRowHeight, type GridCell, type GridOptions } from "./grid";
-import { gambarDokumentasi, gambarSampul, type FotoDok } from "./harian-kkp-lampiran";
+import {
+  gambarDokumentasi,
+  gambarDokumentasiPelengkap,
+  gambarSampul,
+  type FotoDok,
+  type FotoPelengkapDok,
+} from "./harian-kkp-lampiran";
 import { signPhotoToken } from "./photo-token";
 
 /**
@@ -37,7 +43,13 @@ export async function buildHarianKkpPdf(
   d: KkpDailyData,
   appName: string,
   logo?: Buffer | null,
-  lampiran?: { logoVendor: Buffer | null; foto: FotoDok[] },
+  lampiran?: {
+    logoVendor: Buffer | null;
+    foto: FotoDok[];
+    /** Bukti material & alat — halamannya sendiri-sendiri (DECISIONS 304). */
+    fotoMaterial?: FotoPelengkapDok[];
+    fotoAlat?: FotoPelengkapDok[];
+  },
 ): Promise<Buffer> {
   const doc = createFormA4Doc({ title: `Laporan Harian KKP — ${d.locationName}` });
 
@@ -364,10 +376,21 @@ export async function buildHarianKkpPdf(
   );
 
   /* ── Halaman 3+: DOKUMENTASI PEKERJAAN ────────────────────────────── */
-  gambarDokumentasi(doc, d, lampiran?.foto ?? [], () => {
+  const halamanBaru = () => {
     doc.addPage();
     noAutoBreak();
-  });
+  };
+  gambarDokumentasi(doc, d, lampiran?.foto ?? [], halamanBaru);
+
+  /* ── Lalu MATERIAL, lalu ALAT — masing-masing mulai halaman baru ─────
+     Urutannya ditentukan user 2026-08-08: sesudah foto pekerjaan, material
+     dan alat disendirikan, masing-masing di halamannya sendiri. */
+  gambarDokumentasiPelengkap(
+    doc, d, lampiran?.fotoMaterial ?? [], "Dokumentasi Material Masuk", "Material", halamanBaru,
+  );
+  gambarDokumentasiPelengkap(
+    doc, d, lampiran?.fotoAlat ?? [], "Dokumentasi Peralatan", "Alat", halamanBaru,
+  );
 
   /* ── Catatan kaki tiap halaman ─────────────────────────────────────── */
   const range = doc.bufferedPageRange();
@@ -444,6 +467,8 @@ export async function renderHarianKkpPdf(
    */
   let logoVendor: Buffer | null = null;
   const foto: FotoDok[] = [];
+  const fotoMaterial: FotoPelengkapDok[] = [];
+  const fotoAlat: FotoPelengkapDok[] = [];
   try {
     const { isR2Configured, r2GetBuffer } = await import("@/lib/r2");
     if (isR2Configured()) {
@@ -473,13 +498,42 @@ export async function renderHarianKkpPdf(
           /* satu foto gagal tidak menggagalkan sisanya */
         }
       }
+      // Bukti material & alat (DECISIONS 304) — perlakuan identik: dikecilkan
+      // dulu, satu yang gagal tidak menjatuhkan sisanya.
+      for (const [rows, keranjang] of [
+        [data.materialPhotos ?? [], fotoMaterial],
+        [data.equipmentPhotos ?? [], fotoAlat],
+      ] as const) {
+        for (const p of rows) {
+          try {
+            const kecil = await sharp(await r2GetBuffer(p.r2Key))
+              .rotate()
+              .resize(900, 900, { fit: "inside", withoutEnlargement: true })
+              .jpeg({ quality: 72 })
+              .toBuffer();
+            keranjang.push({
+              buf: kecil,
+              nama: p.nama,
+              keterangan: p.keterangan,
+              link: baseUrl ? `${baseUrl}/api/foto/${signPhotoToken(p.id)}` : null,
+            });
+          } catch {
+            /* satu foto gagal tidak menggagalkan sisanya */
+          }
+        }
+      }
     }
   } catch (err) {
     console.error("[laporan-harian] lampiran dokumentasi gagal disiapkan:", err);
   }
 
   return {
-    buffer: await buildHarianKkpPdf(data, branding.appName, logo, { logoVendor, foto }),
+    buffer: await buildHarianKkpPdf(data, branding.appName, logo, {
+      logoVendor,
+      foto,
+      fotoMaterial,
+      fotoAlat,
+    }),
     locationId: loc.id,
   };
 }

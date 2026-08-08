@@ -168,9 +168,19 @@ jobs:
         run: pnpm build
       - name: E2E
         run: pnpm test:e2e
+      # `test-results/` — BUKAN `playwright-report/`. Di CI reporter-nya
+      # "github" (lihat playwright.config.ts), jadi laporan HTML tidak pernah
+      # dibuat dan unggahan lama selalu berakhir "No files were found": setiap
+      # kegagalan E2E di CI selama ini tidak meninggalkan bukti apa pun. Yang
+      # berguna justru ada di `test-results/`: jejak (trace.zip) dan
+      # `error-context.md` berisi cuplikan ARIA layar pada detik kegagalan —
+      # satu-satunya cara menyelidiki kegagalan yang tidak bisa ditirukan di
+      # mesin sendiri.
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-report
-          path: playwright-report/
+          name: playwright-hasil
+          path: |
+            test-results/
+            playwright-report/
           retention-days: 7
