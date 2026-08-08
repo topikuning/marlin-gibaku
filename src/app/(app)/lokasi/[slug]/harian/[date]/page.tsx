@@ -177,15 +177,13 @@ export default async function HarianWorkspacePage({
       ) : null}
 
       {/* Pelengkap KKP.
-          key = tanda-tangan isi pelengkap: setEnrichment membuat ulang baris dgn
-          id baru tiap simpan, jadi key berubah → form remount & menampilkan data
-          tersimpan yang terbaru (memperbaiki desync state klien setelah aksi). */}
+          TANPA `key` di sini — sengaja. Pemasangan ulang tetap dibutuhkan agar
+          id baris material/alat yang baru dibuat server masuk ke form, tapi
+          sekarang diurus DI DALAM EnrichmentForm supaya kabar "tersimpan"
+          tidak ikut musnah bersamanya (lihat catatan di berkas itu). */}
       {report && enrichable ? (
         <>
-          <EnrichmentForm
-            key={[report.weather, report.workStart, report.workEnd, ...report.materials.map((m) => m.id), ...report.equipment.map((e) => e.id)].join("|")}
-            report={report}
-          />
+          <EnrichmentForm report={report} />
           {/* Panel foto berdiri SENDIRI, bukan di dalam form pelengkap: form di
               dalam form bukan HTML yang sah, dan tombolnya akan diam saja saat
               ditekan. DECISIONS 304. */}

@@ -12307,3 +12307,51 @@ mematahkan 10 uji Foto Cepat sekaligus. Itu KELIRU dibaca — `pnpm start` gagal
 bawahnya, jadi ujinya menembak server basi. Sesudah dijalankan bersih: 10/10
 lulus, dan seluruh suite E2E 68 lulus / 48 skip. Pelajarannya: baca baris
 pertama keluaran sebelum menyimpulkan kodenya yang salah.
+
+---
+
+## 306 · Kabar "tersimpan" tidak boleh dibunuh oleh pemasangan ulang form (2026-08-08)
+
+**Keluhan lapangan:** "aku sudah input material dan alat, tapi sama sekali tidak
+muncul apa pun, bahkan ini malah merusak proses sebelumnya."
+
+Datanya SEBENARNYA masuk. Yang tidak ada adalah kabarnya — dan tanpa kabar,
+menekan tombol Simpan tidak dapat dibedakan dari tidak menekan apa-apa.
+
+**Sebabnya.** Badan form pelengkap sengaja dipasang ulang saat tanda-tangan
+isinya berubah (`key` berisi daftar id material & alat), supaya id baris yang
+baru dibuat server masuk ke input tersembunyi. Tanpa itu penyimpanan berikutnya
+mengirim id kosong, barisnya dibuat ulang, dan fotonya lepas (DECISIONS 304).
+Tapi pemasangan ulang juga MENGHAPUS state `useActionState` — jadi kotak
+"Pelengkap laporan tersimpan." musnah pada tik yang sama ia lahir.
+
+**Kenapa lolos semua pengujian sebelumnya.** Daftar id hanya berubah saat baris
+DITAMBAH atau DIHAPUS. Menyimpan untuk kedua kalinya — id sudah sama —
+memunculkan kabarnya dengan normal. Artinya bug ini menyerang tepat pada
+pengisian material/alat yang PERTAMA, yaitu satu-satunya kali yang tidak pernah
+diulang saat menguji dengan tangan. Diukur di build produksi: sebelum perbaikan
+kabar tidak pernah muncul sama sekali (dipantau tiap 200 ms selama 6 detik);
+sesudahnya muncul dan menetap.
+
+**Perbaikannya.** `useActionState` dipindah ke komponen luar yang TIDAK ikut
+dipasang ulang; `key` pindah dari `page.tsx` ke dalam `EnrichmentForm`, hanya
+membungkus badan formnya. Pemasangan ulang tetap berjalan (id tetap masuk),
+kabarnya selamat.
+
+Kabar juga DIULANG tepat di atas tombol Simpan. Formulir ini panjang: di ponsel
+tombolnya ada di dasar layar sementara kotak kabar di puncaknya belasan layar ke
+atas — kabar yang benar tapi tak terlihat sama saja dengan tidak ada.
+
+**Yang TIDAK ditemukan:** tidak ada kehilangan data. Ditelusuri di build
+produksi lokal dengan peran admin dan site_manager, pada laporan berstatus
+`draft` maupun `dikirim`: material & alat tersimpan, item pekerjaan yang sudah
+ada tetap utuh, dan keduanya tercetak di blanko KKP. Keluhan "merusak proses
+sebelumnya" tidak terbukti sebagai kerusakan data — yang rusak adalah
+kepercayaan, karena sistem diam saat seharusnya menjawab.
+
+**Penjaga:** `tests/e2e/harian-pelengkap-umpan-balik.spec.ts` — WAJIB menambah
+baris BARU dan menyimpan SEKALI, karena penyimpanan kedua menyembunyikan bug
+ini. Sudah diuji giginya: mengembalikan `key` ke `page.tsx` membuatnya merah.
+Ditambah `tests/integration/pelengkap-larik-sejajar.test.ts` yang masuk lewat
+FormData sungguhan (uji material/alat yang lama memanggil `setEnrichment`
+langsung sehingga melompati penguraian larik sejajar itu).
