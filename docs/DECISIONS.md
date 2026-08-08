@@ -12266,3 +12266,44 @@ tersendiri.
 `ON DELETE SET NULL`, sama seperti `report_item_id`: baris material yang dihapus
 TIDAK ikut menghapus fotonya — fotonya jadi yatim yang masih bisa dilihat dan
 dibersihkan, bukan lenyap diam-diam.
+
+
+---
+
+## 305 — Rana Foto Cepat tidak lagi aktif sebelum kameranya benar-benar siap (2026-08-08)
+
+**Ditemukan saat menelusuri CI merah**, bukan dari permintaan fitur — tapi
+cacatnya nyata di lapangan, bukan sekadar soal uji.
+
+`kamera-langsung.tsx` mengumumkan keadaan `hidup` (yang mengaktifkan rana)
+begitu `getUserMedia` selesai. Padahal `getUserMedia` yang resolve TIDAK berarti
+gambarnya sudah ada: `<video>.videoWidth` masih 0 selama beberapa saat
+sesudahnya. Sementara `jepret()` membuang ketukan saat `videoWidth` nol —
+**diam-diam**: tanpa kilat, tanpa pesan, tanpa masuk antrean.
+
+Artinya ada jendela waktu di mana rana terlihat aktif, bisa ditekan, dan
+ketukannya hilang tanpa jejak. Orang lapangan menekan rana begitu kamera
+terbuka, merasa sudah memotret, dan tidak ada apa pun yang tersimpan. Bukti yang
+hilang seperti ini tidak pernah ketahuan pada saat kejadian — baru terasa saat
+laporan disusun dan fotonya tidak ada.
+
+`hidup` kini baru diumumkan setelah video punya dimensi (`loadedmetadata` DAN
+`resize` — sebagian peramban baru mengisi `videoWidth` sesudah `loadedmetadata`,
+jadi menunggu satu event saja bisa menggantung). Selama itu keterangannya
+berbunyi "Menyiapkan kamera... rana aktif begitu gambar muncul", bukan "Ketuk
+untuk memotret" yang berbohong. Hasilnya: **rana yang bisa ditekan selalu
+menghasilkan foto.**
+
+**Kenapa ini muncul sebagai CI merah.** Uji E2E "posisi rana TIDAK bergeser
+setelah memotret" menekan rana lalu menunggu antrean tumbuh. Di runner yang
+lambat, kamera palsu belum menghasilkan frame saat rana ditekan sehingga
+ketukannya hilang, antrean tidak pernah tumbuh, dan uji gagal dengan pesan
+"element not found" yang tidak menyebut sebab sebenarnya. Gagal dua kali
+berturut-turut (termasuk retry) — justru menandakan ini bukan sekadar flaky.
+
+**Catatan cara kerja, supaya tidak terulang:** perbaikan pertama sempat terlihat
+mematahkan 10 uji Foto Cepat sekaligus. Itu KELIRU dibaca — `pnpm start` gagal
+(port masih dipakai server lama) sementara `.next` sudah dibangun ulang di
+bawahnya, jadi ujinya menembak server basi. Sesudah dijalankan bersih: 10/10
+lulus, dan seluruh suite E2E 68 lulus / 48 skip. Pelajarannya: baca baris
+pertama keluaran sebelum menyimpulkan kodenya yang salah.
