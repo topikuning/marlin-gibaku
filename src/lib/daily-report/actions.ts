@@ -181,6 +181,101 @@ async function muatLokasiCap(locationId: string) {
  *
  * Gagal satu foto ≠ gagal seluruhnya: pesannya dikembalikan sebagai peringatan.
  */
+/**
+ * Unggah foto untuk baris MATERIAL / ALAT (DECISIONS 304).
+ *
+ * Memakai pipeline cap yang SAMA dengan foto pekerjaan — kompresi, arsip
+ * berkas asli, dedup, dan cap yang dibakar ke gambar. Yang berbeda hanya
+ * ISI capnya: badge = MATERIAL / PERALATAN, barisnya = nama barangnya.
+ *
+ * Aturan cap DECISIONS 197 tetap berlaku apa adanya: koordinat cadangan titik
+ * proyek tetap ber-penanda, dan jam yang tidak diketahui tidak dikarang. Tidak
+ * ada pengecualian untuk foto material — bukti tetap bukti.
+ */
+async function unggahFotoPelengkap(p: {
+  user: SessionUser;
+  location: Awaited<ReturnType<typeof muatLokasiCap>>["location"];
+  companyName: string | null;
+  reportId: string;
+  jenis: "material" | "alat";
+  barisId: string;
+  namaBaris: string;
+  dateKey: string;
+  files: File[];
+  foto: PhotoFields;
+}): Promise<string[]> {
+  const { files, foto, location, user } = p;
+  const photoErrors: string[] = [];
+  let takenAt: Date | null = null;
+  if (foto.photoTakenAt) {
+    const t = new Date(foto.photoTakenAt);
+    if (!Number.isNaN(t.getTime())) takenAt = t;
+  }
+  const source = foto.photoSource ?? "camera";
+  const fallbackMode = foto.galleryFallback ?? "project";
+  const wajibGps =
+    files.length > 0 ? (await (await import("@/lib/policy")).getPolicy()).requirePhotoGps : false;
+  if (wajibGps && source === "camera" && (foto.photoLat == null || foto.photoLng == null)) {
+    throw new DailyReportError(
+      "Foto kamera wajib membawa titik GPS, tapi perangkat tidak mengirimkannya. " +
+        "Izinkan akses lokasi di browser, lalu foto ulang.",
+    );
+  }
+  const locLat = location.gpsLat != null ? Number(location.gpsLat) : null;
+  const locLng = location.gpsLng != null ? Number(location.gpsLng) : null;
+  const workDate = new Date(`${p.dateKey}T00:00:00.000Z`);
+  const badge = p.jenis === "material" ? "MATERIAL MASUK" : "PERALATAN";
+
+  for (const file of files) {
+    try {
+      await savePhotoForItem({
+        locationId: location.id,
+        reportId: p.reportId,
+        reportMaterialId: p.jenis === "material" ? p.barisId : null,
+        reportEquipmentId: p.jenis === "alat" ? p.barisId : null,
+        file,
+        userId: user.id,
+        locationSlug: location.slug,
+        dateKey: p.dateKey,
+        stamp: {
+          source,
+          fallbackMode,
+          requireGps: wajibGps,
+          atSite: foto.galleryAtSite === "1",
+          lat: foto.photoLat ?? null,
+          lng: foto.photoLng ?? null,
+          locationLat: locLat,
+          locationLng: locLng,
+          takenAt,
+          workDate,
+          locationLabel: location.name,
+          companyName: p.companyName,
+          reporterName: user.fullName,
+          categoryName: badge,
+          workName: p.namaBaris,
+        },
+      });
+    } catch (err) {
+      if (err instanceof PhotoError) {
+        photoErrors.push(err.message);
+        continue;
+      }
+      // Sama seperti foto pekerjaan: satu berkas rusak tidak menjatuhkan
+      // sisanya, dan penyebab aslinya tetap utuh di log server.
+      console.error("[foto] gagal menyimpan satu berkas pelengkap", {
+        reportId: p.reportId,
+        jenis: p.jenis,
+        barisId: p.barisId,
+        nama: file.name,
+        bytes: file.size,
+        err,
+      });
+      photoErrors.push(`${file.name}: gagal diproses`);
+    }
+  }
+  return photoErrors;
+}
+
 async function unggahFotoItem(p: {
   user: SessionUser;
   location: Awaited<ReturnType<typeof muatLokasiCap>>["location"];
@@ -465,6 +560,96 @@ export async function addItemPhotosAction(
     }
     return {
       success: `${berhasil} foto ditambahkan.`,
+      warning: photoErrors.length
+        ? `Sebagian foto gagal: ${[...new Set(photoErrors)].join("; ")}`
+        : undefined,
+    };
+  } catch (err) {
+    return errState(err);
+  }
+}
+
+/**
+ * Foto bukti untuk satu baris MATERIAL / ALAT (DECISIONS 304).
+ *
+ * Kebutuhan lapangan user 2026-08-08: laporan harian bukan hanya item
+ * pekerjaan — material masuk dan alat juga perlu dibuktikan, masing-masing
+ * barisnya sendiri.
+ *
+ * Barisnya harus SUDAH tersimpan sebelum bisa difoto: ID-nya baru ada setelah
+ * pelengkap disimpan. Itu batasan nyata, dan dikatakan di layar — bukan
+ * dibiarkan jadi tombol yang diam saja saat ditekan.
+ */
+const addSupplyPhotosSchema = z.object({
+  reportId: z.uuid(),
+  jenis: z.enum(["material", "alat"]),
+  barisId: z.uuid(),
+  ...photoFieldsShape,
+});
+
+export async function addSupplyPhotosAction(
+  _prev: DailyActionState,
+  formData: FormData,
+): Promise<DailyActionState> {
+  try {
+    const user = await requireCapability("daily_report.create");
+    const parsed = addSupplyPhotosSchema.safeParse({
+      reportId: formData.get("reportId"),
+      jenis: formData.get("jenis"),
+      barisId: formData.get("barisId"),
+      ...photoFieldsFrom(formData),
+    });
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    const d = parsed.data;
+
+    const ctx = await loadReportContext(d.reportId);
+    await requireLocationAccess(user, ctx.locationId);
+    // Batas yang sama dengan foto pekerjaan: begitu laporan dikirim, fotonya
+    // sudah jadi dasar verifikasi — menambah bukti setelah itu bukan koreksi.
+    if (!EDITABLE_STATUSES.includes(ctx.status)) {
+      return { error: "Laporan sudah dikirim — foto tidak bisa ditambah lagi." };
+    }
+
+    // Baris DICARI dengan reportId ikut disaring: id dari form tidak boleh
+    // bisa menempelkan foto ke laporan milik orang lain.
+    const baris =
+      d.jenis === "material"
+        ? await db.dailyReportMaterial.findFirst({
+            where: { id: d.barisId, reportId: ctx.id },
+            select: { id: true, name: true, unit: true, qtyReceived: true },
+          })
+        : await db.dailyReportEquipment.findFirst({
+            where: { id: d.barisId, reportId: ctx.id },
+            select: { id: true, name: true, count: true },
+          });
+    if (!baris) {
+      return { error: "Baris tidak ditemukan di laporan ini — simpan pelengkap dulu, lalu foto." };
+    }
+
+    const files = fotoDariForm(formData);
+    if (files.length === 0) return { error: "Belum ada foto yang dipilih." };
+
+    const { location, companyName } = await muatLokasiCap(ctx.locationId);
+    const photoErrors = await unggahFotoPelengkap({
+      user,
+      location,
+      companyName,
+      reportId: ctx.id,
+      jenis: d.jenis,
+      barisId: baris.id,
+      namaBaris: baris.name,
+      dateKey: ctx.dateKey,
+      files,
+      foto: d,
+    });
+
+    const berhasil = files.length - photoErrors.length;
+    revalidateReport(ctx.slug, ctx.dateKey);
+    if (berhasil === 0) {
+      return { error: `Foto tidak tersimpan: ${[...new Set(photoErrors)].join("; ")}` };
+    }
+    return {
+      success: `${berhasil} foto ${d.jenis === "material" ? "material" : "alat"} ditambahkan.`,
       warning: photoErrors.length
         ? `Sebagian foto gagal: ${[...new Set(photoErrors)].join("; ")}`
         : undefined,
@@ -760,17 +945,27 @@ export async function saveEnrichmentAction(_prev: DailyActionState, formData: Fo
       role,
       count: Math.max(0, Math.trunc(Number(formData.get(`worker_${role}`) ?? 0)) || 0),
     }));
+    /*
+     * `materialId` / `equipmentId` ikut dikirim per baris supaya identitas
+     * barisnya BERTAHAN (DECISIONS 304) — foto menempel padanya. Kosong =
+     * baris baru. Larik-larik ini sejajar per indeks, jadi form WAJIB
+     * memancarkan keempat field untuk setiap baris, termasuk yang kosong.
+     */
+    const materialIds = formData.getAll("materialId").map(String);
     const materialNames = formData.getAll("materialName").map(String);
     const materialUnits = formData.getAll("materialUnit").map(String);
     const materialQtys = formData.getAll("materialQty").map(String);
     const materials = materialNames.map((name, i) => ({
+      id: materialIds[i] || null,
       name,
       unit: materialUnits[i] || null,
       qty: materialQtys[i] ? Number(materialQtys[i]) : null,
     }));
+    const equipmentIds = formData.getAll("equipmentId").map(String);
     const equipmentNames = formData.getAll("equipmentName").map(String);
     const equipmentCounts = formData.getAll("equipmentCount").map(String);
     const equipment = equipmentNames.map((name, i) => ({
+      id: equipmentIds[i] || null,
       name,
       count: Math.max(1, Math.trunc(Number(equipmentCounts[i] ?? 1)) || 1),
     }));

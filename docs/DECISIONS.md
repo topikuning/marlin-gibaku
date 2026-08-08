@@ -12175,3 +12175,94 @@ ada di berkas hasil render, termasuk kasus foto rusak dan kasus tanpa tautan.
 Di sisi HTML, satu uji membandingkan tag `<img>` dengan dan tanpa tautan dan
 menuntut keduanya **identik** — itu penjaga langsung atas kata "apa adanya".
 Keduanya dicek giginya.
+
+---
+
+## 304 — Material & alat: foto per baris, halaman cetak sendiri, dan hari tanpa item pekerjaan (2026-08-08)
+
+**Kebutuhan lapangan user.** *"ternyata laporan harian selain item, juga ada
+material dan alat. inputan sudah ada di sistem pelaporan harian, tapi gambar itu
+masing-masing … foto material dan alat juga perlu disendirikan / start halaman
+tersendiri setelah data foto-foto pekerjaan. dan kadang, ada hari dimana tidak
+ada kegiatan yang berhubungan dengan item pekerjaan (RAB), tapi ada material
+masuk. saat ini kondisi tersebut tidak bisa diinput."*
+
+Pilihan user atas tiga pertanyaan: foto **per baris** (tiap material, tiap
+alat); material dan alat **masing-masing mulai halaman baru**; syarat kirim
+**minimal salah satu dari item / material / alat**.
+
+### Temuan yang menghalangi, dan yang menentukan bentuk pekerjaannya
+
+`setEnrichment` memakai **hapus-semua lalu buat-ulang** untuk material & alat.
+Artinya ID barisnya berganti SETIAP KALI form pelengkap disimpan — bahkan saat
+yang diubah hanya cuaca atau jam kerja. Dengan foto tertaut ke ID itu, polanya
+akan **melepas bukti pada penyimpanan berikutnya**.
+
+Cacatnya senyap dan tertunda: saat diuji tangan semuanya benar — lampirkan foto,
+buka laporan, fotonya ada. Hilangnya baru terjadi besok, saat orang menyunting
+hal lain yang sama sekali tidak berhubungan.
+
+Jadi pekerjaan pertama bukan "tambah kolom foto", melainkan membuat baris
+material & alat punya identitas yang bertahan: baris ber-ID diperbarui di
+tempat, baris tanpa ID dibuat, dan hanya yang benar-benar dibuang yang dihapus.
+ID dari form tidak dipercaya begitu saja — yang bukan milik laporan itu
+diperlakukan sebagai baris BARU, bukan diabaikan (mengabaikannya membuang isian
+orang tanpa sepatah kata pun).
+
+Diuji giginya: mengembalikan wipe+recreate → uji "foto tetap ada sesudah
+pelengkap disimpan ulang" langsung MERAH. Bahayanya nyata, bukan teoretis.
+
+### Cacat kedua yang nyaris lolos
+
+Pengelompokan foto di workspace memutuskan "yatim" dari `reportItemId` yang
+kosong — dan foto material memang **tidak pernah** punya `reportItemId`. Tanpa
+cabang khusus, foto material mendarat di panel **"Foto tanpa pekerjaan"** yang
+mengajak orang membersihkannya: sistem akan menyuruh menghapus bukti yang justru
+sah. Ditutup dengan membawa `reportMaterialId`/`reportEquipmentId` ke
+`PhotoView` dan memilahnya lebih dulu.
+
+Alasan yang sama membuat `photos` untuk halaman cetak DISARING: foto material
+yang ikut ke halaman dokumentasi pekerjaan akan tercetak berlabel "(tanpa item
+pekerjaan)" — terbaca seperti foto yang lupa ditautkan.
+
+### Syarat kirim dilonggarkan, bukan dibuang
+
+`submitReport` dulu menuntut ≥1 item pekerjaan, sehingga hari "material masuk,
+belum ada pekerjaan" TIDAK BISA dilaporkan sama sekali — kedatangan material
+tidak tercatat di hari itu. Sekarang: minimal satu dari item/material/alat.
+Laporan yang benar-benar kosong tetap ditolak, supaya laporan hampa tidak masuk
+antrean verifikasi dan memakan waktu pemeriksanya. Hari nol-item tidak
+menggerakkan progres apa pun — tidak ada baris item berarti tidak ada nilai;
+angkanya tetap jujur.
+
+### Cetak
+
+Sesudah dokumentasi pekerjaan: **MATERIAL** mulai halaman baru, lalu
+**PERALATAN** mulai halaman baru lagi. Di PDF dan di halaman cetak HTML, dengan
+kerangka tabel & pengelompokan kartu yang SAMA (`susunKartu`) — bukan penyusun
+kedua yang cepat atau lambat menyimpang (pelajaran DECISIONS 241/301). Tautan ke
+gambar penuh ikut terpasang seperti DECISIONS 303. Jumlah yang tidak diisi
+ditulis "—", bukan 0: "belum diisi" berbeda dari "nol".
+
+### Panel foto berdiri sendiri
+
+Tombol foto per baris TIDAK bisa diletakkan di dalam form pelengkap — `<form>`
+di dalam `<form>` bukan HTML yang sah dan tombolnya akan diam saja saat ditekan.
+Panelnya jadi blok tersendiri di bawahnya, memuat HANYA baris yang sudah
+tersimpan (ID-nya memang baru ada sesudah disimpan). Batasan itu dikatakan di
+layar, bukan dibiarkan jadi teka-teki.
+
+### Migrasi
+
+Migrasi ditulis tangan agar berisi **hanya** kolom, indeks, dan FK fitur ini.
+`prisma migrate dev` sempat ikut menyeret drift lama yang tidak berhubungan
+(DROP DEFAULT di `device_permissions`/`rab_revision_approvals`, pembuatan ulang
+FK, rename indeks `documents_*`). Drift itu SUDAH ADA di main sebelum perubahan
+ini dan akan muncul lagi di migrasi berikutnya siapa pun pembuatnya —
+membundelnya diam-diam ke migrasi fitur membuat radius ledakan sebuah deploy
+tidak sesuai dengan judul commit-nya. Ditinggalkan apa adanya untuk diputuskan
+tersendiri.
+
+`ON DELETE SET NULL`, sama seperti `report_item_id`: baris material yang dihapus
+TIDAK ikut menghapus fotonya — fotonya jadi yatim yang masih bisa dilihat dan
+dibersihkan, bukan lenyap diam-diam.

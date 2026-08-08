@@ -26,7 +26,14 @@ import type { WorkspaceReport } from "@/lib/daily-report/queries";
  * Diisi SM saat verifikasi (status dikirim) atau saat menyusun draft.
  */
 
-type Row = { key: number; name: string; a: string; b: string };
+/**
+ * `key` = identitas React (baris baru pun perlu key stabil saat diurut ulang).
+ * `id` = identitas BASIS DATA; kosong untuk baris yang belum tersimpan.
+ * Keduanya tidak boleh disatukan: `id` ikut terkirim ke server supaya barisnya
+ * diperbarui di tempat, bukan dibuat ulang — foto menempel pada `id` itu
+ * (DECISIONS 304).
+ */
+type Row = { key: number; id: string; name: string; a: string; b: string };
 let rowSeq = 1;
 
 const CATEGORY_TONE: Record<KkpWeatherCategory, string> = {
@@ -115,13 +122,13 @@ export function EnrichmentForm({ report }: { report: WorkspaceReport }) {
   const workerMap = new Map(report.workers.map((w) => [w.role, w.count]));
   const [materials, setMaterials] = useState<Row[]>(
     report.materials.length
-      ? report.materials.map((m) => ({ key: rowSeq++, name: m.name, a: m.unit ?? "", b: m.qty != null ? String(m.qty) : "" }))
-      : [{ key: rowSeq++, name: "", a: "", b: "" }],
+      ? report.materials.map((m) => ({ key: rowSeq++, id: m.id, name: m.name, a: m.unit ?? "", b: m.qty != null ? String(m.qty) : "" }))
+      : [{ key: rowSeq++, id: "", name: "", a: "", b: "" }],
   );
   const [equipment, setEquipment] = useState<Row[]>(
     report.equipment.length
-      ? report.equipment.map((e) => ({ key: rowSeq++, name: e.name, a: String(e.count), b: "" }))
-      : [{ key: rowSeq++, name: "", a: "1", b: "" }],
+      ? report.equipment.map((e) => ({ key: rowSeq++, id: e.id, name: e.name, a: String(e.count), b: "" }))
+      : [{ key: rowSeq++, id: "", name: "", a: "1", b: "" }],
   );
 
   return (
@@ -201,6 +208,9 @@ export function EnrichmentForm({ report }: { report: WorkspaceReport }) {
         <div className="space-y-2">
           {materials.map((row, idx) => (
             <div key={row.key} className="flex items-end gap-2">
+              {/* Larik di server sejajar per INDEKS, jadi tiap baris wajib
+                  memancarkan id-nya — termasuk yang kosong (baris baru). */}
+              <input type="hidden" name="materialId" value={row.id} />
               <div className="min-w-0 flex-1">
                 {idx === 0 ? <Label className="text-xs font-normal text-ink-muted">Nama</Label> : null}
                 <Input name="materialName" defaultValue={row.name} placeholder="mis. Semen 50kg" />
@@ -228,7 +238,7 @@ export function EnrichmentForm({ report }: { report: WorkspaceReport }) {
             type="button"
             variant="secondary"
             size="sm"
-            onClick={() => setMaterials((rows) => [...rows, { key: rowSeq++, name: "", a: "", b: "" }])}
+            onClick={() => setMaterials((rows) => [...rows, { key: rowSeq++, id: "", name: "", a: "", b: "" }])}
           >
             <Plus aria-hidden className="size-4" />
             Tambah material
@@ -242,6 +252,7 @@ export function EnrichmentForm({ report }: { report: WorkspaceReport }) {
         <div className="space-y-2">
           {equipment.map((row, idx) => (
             <div key={row.key} className="flex items-end gap-2">
+              <input type="hidden" name="equipmentId" value={row.id} />
               <div className="min-w-0 flex-1">
                 {idx === 0 ? <Label className="text-xs font-normal text-ink-muted">Nama alat</Label> : null}
                 <Input name="equipmentName" defaultValue={row.name} placeholder="mis. Molen beton" />
@@ -265,7 +276,7 @@ export function EnrichmentForm({ report }: { report: WorkspaceReport }) {
             type="button"
             variant="secondary"
             size="sm"
-            onClick={() => setEquipment((rows) => [...rows, { key: rowSeq++, name: "", a: "1", b: "" }])}
+            onClick={() => setEquipment((rows) => [...rows, { key: rowSeq++, id: "", name: "", a: "1", b: "" }])}
           >
             <Plus aria-hidden className="size-4" />
             Tambah alat

@@ -336,5 +336,104 @@ export function gambarDokumentasi(doc: PdfDoc, d: KkpDailyData, foto: FotoDok[],
   }
 }
 
+/* ───────────── DOKUMENTASI MATERIAL / PERALATAN (DECISIONS 304) ────────── */
+
+export type FotoPelengkapDok = {
+  buf: Buffer;
+  nama: string;
+  /** "40 zak", "2 unit" — apa adanya; null = tidak diisi, tidak dikarang. */
+  keterangan: string | null;
+  link?: string | null;
+};
+
+/**
+ * Halaman dokumentasi MATERIAL atau PERALATAN — selalu mulai di halaman BARU,
+ * sesudah dokumentasi pekerjaan.
+ *
+ * Permintaan user 2026-08-08: *"foto material dan alat juga perlu disendirikan
+ * / start halaman tersendiri setelah data foto-foto pekerjaan"*, material dan
+ * alat masing-masing halamannya sendiri.
+ *
+ * Tidak menggambar apa pun bila tidak ada foto — halaman berjudul tanpa isi
+ * hanya membuat pembaca mengira fotonya hilang, alasan yang sama dengan
+ * dokumentasi pekerjaan.
+ */
+export function gambarDokumentasiPelengkap(
+  doc: PdfDoc,
+  d: KkpDailyData,
+  foto: FotoPelengkapDok[],
+  judul: string,
+  labelBaris: string,
+  mulaiHalamanBaru: () => void,
+) {
+  const kartu = susunKartu(foto.map((f) => ({ ...f, pekerjaan: f.nama })));
+  if (kartu.length === 0) return;
+
+  const x = FORM_MARGIN;
+  const width = doc.page.width - FORM_MARGIN * 2;
+  const gap = 14;
+  const wKartu = (width - gap) / 2;
+  const bawah = doc.page.height - FORM_MARGIN - 12;
+
+  for (let i = 0; i < kartu.length; i += 2) {
+    mulaiHalamanBaru();
+    const y = FORM_MARGIN;
+    const terbanyak = Math.max(kartu[i].length, kartu[i + 1]?.length ?? 0);
+    const sisa = bawah - y - 30 /* kop */ - 3 * 14 /* judul + 2 baris identitas */;
+    const tinggiFoto = Math.max(90, Math.min(150, Math.floor(sisa / terbanyak)));
+    gambarKartuPelengkap(doc, kartu[i], x, y, wKartu, d, judul, labelBaris, tinggiFoto);
+    if (kartu[i + 1])
+      gambarKartuPelengkap(doc, kartu[i + 1], x + wKartu + gap, y, wKartu, d, judul, labelBaris, tinggiFoto);
+  }
+}
+
+function gambarKartuPelengkap(
+  doc: PdfDoc,
+  kartu: FotoPelengkapDok[],
+  x: number,
+  y: number,
+  w: number,
+  d: KkpDailyData,
+  judul: string,
+  labelBaris: string,
+  tinggiFoto: number,
+) {
+  const opsi = (cols: number[], fontSize = 7): GridOptions => ({ x, width: w, cols, fontSize });
+
+  const hKop = 30;
+  doc.lineWidth(0.6).strokeColor(R.inkMuted).rect(x, y, w, hKop).stroke();
+  doc.font(PDF_FONT.bold).fontSize(7).fillColor(R.ink)
+    .text((d.contractorFirm ?? "").toUpperCase(), x + 6, y + 6, { width: w - 12, lineBreak: false });
+  if (d.contractorAddress)
+    doc.font(PDF_FONT.regular).fontSize(5.5).fillColor(R.inkMuted)
+      .text(d.contractorAddress, x + 6, y + 15, { width: w - 12, height: 12 });
+  y += hKop;
+
+  y = gridRow(doc, y, [{ text: judul.toUpperCase(), head: true, align: "center" }], opsi([w], 9));
+  const label = colWidths(w, [1.1, 3.4]);
+  y = gridRow(doc, y, [{ text: labelBaris }, { text: kartu[0]?.nama ?? "—", bold: true }], opsi(label));
+  // "—" untuk jumlah yang tidak diisi; 0 akan MENGARANG angka yang tak pernah
+  // dilaporkan siapa pun.
+  y = gridRow(doc, y, [{ text: "Jumlah" }, { text: kartu[0]?.keterangan ?? "—" }], opsi(label));
+
+  for (const f of kartu) {
+    doc.lineWidth(0.6).strokeColor(R.inkMuted).rect(x, y, w, tinggiFoto).stroke();
+    try {
+      doc.image(sebagaiArrayBuffer(f.buf), x + 2, y + 2, {
+        fit: [w - 4, tinggiFoto - 4],
+        align: "center",
+        valign: "center",
+      });
+    } catch (e) {
+      console.error("[kkp-lampiran] foto pelengkap gagal ditempel:", (e as Error).message);
+      doc.font(PDF_FONT.regular).fontSize(6).fillColor(R.inkFaint)
+        .text("foto tidak dapat dimuat", x + 4, y + tinggiFoto / 2 - 4, { width: w - 8, align: "center" });
+    }
+    // Di LUAR try, alasan yang sama dengan foto pekerjaan (DECISIONS 303).
+    if (f.link) doc.link(x, y, w, tinggiFoto, f.link);
+    y += tinggiFoto;
+  }
+}
+
 /** Dipakai uji: tinggi baris grid (re-export supaya modul uji tak menyentuh grid). */
 export { gridRowHeight };

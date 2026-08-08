@@ -1,5 +1,5 @@
 import { susunKartu } from "@/lib/daily-report/kkp-lampiran-susun";
-import type { KkpDailyData } from "./kkp-daily-report";
+import type { BuktiPelengkap, KkpDailyData } from "./kkp-daily-report";
 
 /**
  * DOKUMENTASI PEKERJAAN — versi HTML dari `lib/pdf/harian-kkp-lampiran.ts`.
@@ -80,6 +80,98 @@ export function KkpDailyPhotos({ d, foto }: { d: KkpDailyData; foto: FotoCetak[]
               kartu={k}
               vendor={{ nama: d.contractorFirm, alamat: d.contractorAddress }}
             />
+          ))}
+        </section>
+      ))}
+    </>
+  );
+}
+
+/**
+ * DOKUMENTASI MATERIAL / PERALATAN (DECISIONS 304) — halaman SENDIRI, sesudah
+ * dokumentasi pekerjaan.
+ *
+ * Permintaan user 2026-08-08: *"foto material dan alat juga perlu disendirikan
+ * / start halaman tersendiri setelah data foto-foto pekerjaan"*, dan
+ * masing-masing (material sendiri, alat sendiri) mulai di halaman baru.
+ *
+ * Pengelompokan kartunya memakai `susunKartu` YANG SAMA dengan foto pekerjaan
+ * — kuncinya cuma dipetakan dari `nama` ke `pekerjaan`. Menyalin logikanya ke
+ * sini akan mengulang kesalahan yang sudah dua kali dicatat (DECISIONS
+ * 241/301): dua penyusun yang berbeda cepat atau lambat menyimpang.
+ */
+export function KkpDailyPelengkapPhotos({
+  d,
+  foto,
+  judul,
+  labelBaris,
+}: {
+  d: KkpDailyData;
+  foto: (BuktiPelengkap & { url: string; link?: string | null })[];
+  judul: string;
+  labelBaris: string;
+}) {
+  if (foto.length === 0) return null;
+  const kartu = susunKartu(foto.map((f) => ({ ...f, pekerjaan: f.nama })));
+  const halaman: (typeof kartu)[] = [];
+  for (let i = 0; i < kartu.length; i += 2) halaman.push(kartu.slice(i, i + 2));
+
+  return (
+    <>
+      {halaman.map((pasangan, i) => (
+        <section
+          key={`${judul}-${i}`}
+          className="mt-6 grid grid-cols-2 items-start gap-4 break-before-page text-slate-900"
+        >
+          {pasangan.map((k, j) => (
+            <table
+              key={`${judul}-${i}-${j}`}
+              className="w-full table-fixed border-collapse break-inside-avoid text-[9px]"
+            >
+              <colgroup>
+                {KOL.map((w) => (
+                  <col key={w} style={{ width: w }} />
+                ))}
+              </colgroup>
+              <tbody>
+                <tr>
+                  <Sel colSpan={3} tengah className="h-[34px]">
+                    <div className="text-[8px] leading-tight font-bold uppercase">
+                      {d.contractorFirm ?? ""}
+                    </div>
+                    {d.contractorAddress ? (
+                      <div className="text-[6.5px] leading-tight text-ink-muted">
+                        {d.contractorAddress}
+                      </div>
+                    ) : null}
+                  </Sel>
+                </tr>
+                <tr>
+                  <Sel colSpan={3} className="bg-slate-50 text-center text-[10px] font-bold uppercase">
+                    {judul}
+                  </Sel>
+                </tr>
+                <tr>
+                  <Sel>{labelBaris}</Sel>
+                  <Sel colSpan={2} className="font-semibold">
+                    {k[0]?.nama}
+                  </Sel>
+                </tr>
+                <tr>
+                  <Sel>Jumlah</Sel>
+                  {/* Jumlah yang TIDAK diisi ditulis "—", bukan 0: "belum
+                      diisi" berbeda dari "nol". */}
+                  <Sel colSpan={2}>{k[0]?.keterangan ?? "—"}</Sel>
+                </tr>
+                {k.map((f, n) => (
+                  <tr key={`${f.id}-${n}`}>
+                    <Sel colSpan={3} tengah className="text-center">
+                      <Gambar url={f.url} link={f.link} />
+                    </Sel>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           ))}
         </section>
       ))}

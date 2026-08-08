@@ -2,7 +2,12 @@ import { notFound } from "next/navigation";
 import { PrintToolbar } from "@/components/print/print-toolbar";
 import { KkpDailyReport } from "@/components/knmp/kkp-daily-report";
 import { KkpDailyCover } from "@/components/knmp/kkp-daily-cover";
-import { KkpDailyPhotos, type FotoCetak } from "@/components/knmp/kkp-daily-photos";
+import {
+  KkpDailyPelengkapPhotos,
+  KkpDailyPhotos,
+  type FotoCetak,
+} from "@/components/knmp/kkp-daily-photos";
+import type { BuktiPelengkap } from "@/components/knmp/kkp-daily-report";
 import { requireUser, requireLocationAccess } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { getKkpDailyData } from "@/lib/daily-report/queries";
@@ -48,11 +53,18 @@ export default async function CetakHarianPage({
    * tetap tercetak, halaman dokumentasi yang ikut kosong, dan itu terlihat.
    */
   const origin = await getRequestOrigin();
+  const tautan = (id: string) => (origin ? `${origin}/api/foto/${signPhotoToken(id)}` : null);
   let fotoCetak: FotoCetak[] = [];
+  /** Bukti material & alat (DECISIONS 304) — halamannya sendiri-sendiri. */
+  type FotoPelengkap = BuktiPelengkap & { url: string; link?: string | null };
+  let fotoMaterial: FotoPelengkap[] = [];
+  let fotoAlat: FotoPelengkap[] = [];
   let logoVendorUrl: string | null = null;
   try {
     const kunci = [
       ...(data.photos ?? []).map((p) => p.r2Key),
+      ...(data.materialPhotos ?? []).map((p) => p.r2Key),
+      ...(data.equipmentPhotos ?? []).map((p) => p.r2Key),
       ...(data.vendorLogoKey ? [data.vendorLogoKey] : []),
     ];
     if (kunci.length > 0) {
@@ -70,10 +82,17 @@ export default async function CetakHarianPage({
             // bisa dibuka tanpa login, tidak seperti URL presigned di atas yang
             // habis dalam hitungan menit. Tanpa origin yang diketahui, tautannya
             // tidak dikarang.
-            link: origin ? `${origin}/api/foto/${signPhotoToken(p.id)}` : null,
+            link: tautan(p.id),
           },
         ];
       });
+      const pelengkap = (rows: BuktiPelengkap[]): FotoPelengkap[] =>
+        rows.flatMap((p) => {
+          const u = url.get(p.r2Key);
+          return u ? [{ ...p, url: u, link: tautan(p.id) }] : [];
+        });
+      fotoMaterial = pelengkap(data.materialPhotos ?? []);
+      fotoAlat = pelengkap(data.equipmentPhotos ?? []);
       logoVendorUrl = data.vendorLogoKey ? (url.get(data.vendorLogoKey) ?? null) : null;
     }
   } catch (err) {
@@ -104,6 +123,19 @@ export default async function CetakHarianPage({
             <KkpDailyReport d={data} />
           </div>
           <KkpDailyPhotos d={data} foto={fotoCetak} />
+          {/* Masing-masing mulai di halaman baru — permintaan user 2026-08-08. */}
+          <KkpDailyPelengkapPhotos
+            d={data}
+            foto={fotoMaterial}
+            judul="Dokumentasi Material Masuk"
+            labelBaris="Material"
+          />
+          <KkpDailyPelengkapPhotos
+            d={data}
+            foto={fotoAlat}
+            judul="Dokumentasi Peralatan"
+            labelBaris="Alat"
+          />
         </div>
       </div>
       </main>

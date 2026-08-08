@@ -11,7 +11,11 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { KkpDailyCover } from "@/components/knmp/kkp-daily-cover";
-import { KkpDailyPhotos, type FotoCetak } from "@/components/knmp/kkp-daily-photos";
+import {
+  KkpDailyPelengkapPhotos,
+  KkpDailyPhotos,
+  type FotoCetak,
+} from "@/components/knmp/kkp-daily-photos";
 import type { KkpDailyData } from "@/components/knmp/kkp-daily-report";
 
 function data(over: Partial<KkpDailyData> = {}): KkpDailyData {
@@ -197,5 +201,67 @@ describe("halaman dokumentasi cetak HTML", () => {
     const html = renderToStaticMarkup(<KkpDailyPhotos d={data()} foto={banyak} />);
     // 5 pekerjaan berbeda = 5 kartu = 3 halaman (2 kartu per halaman).
     expect(html.match(/break-before-page/g) ?? []).toHaveLength(3);
+  });
+});
+
+// HALAMAN MATERIAL & ALAT — SENDIRI-SENDIRI, SESUDAH FOTO PEKERJAAN.
+//
+// Kebutuhan lapangan user 2026-08-08: *"foto material dan alat juga perlu
+// disendirikan / start halaman tersendiri setelah data foto-foto pekerjaan"*.
+describe("halaman dokumentasi material & peralatan", () => {
+  const bukti = (over = {}) => ({
+    id: "p1",
+    r2Key: "k1",
+    nama: "Semen PCC 50kg",
+    keterangan: "40 zak",
+    url: "https://contoh/m1.webp",
+    link: "https://marlin.uji/api/foto/tokM",
+    ...over,
+  });
+
+  it("memuat nama barang & jumlahnya, dan bisa diklik ke gambar penuh", () => {
+    const html = renderToStaticMarkup(
+      <KkpDailyPelengkapPhotos d={data()} foto={[bukti()]} judul="Dokumentasi Material Masuk" labelBaris="Material" />,
+    );
+    expect(html).toContain("Dokumentasi Material Masuk");
+    expect(html).toContain("Semen PCC 50kg");
+    expect(html).toContain("40 zak");
+    expect(html).toContain('href="https://marlin.uji/api/foto/tokM"');
+  });
+
+  it("jumlah yang TIDAK diisi ditulis \u2014, bukan 0", () => {
+    // "belum diisi" berbeda dari "nol"; menulis 0 mengarang angka yang tidak
+    // pernah dilaporkan siapa pun.
+    const html = renderToStaticMarkup(
+      <KkpDailyPelengkapPhotos d={data()} foto={[bukti({ keterangan: null })]} judul="Dokumentasi Peralatan" labelBaris="Alat" />,
+    );
+    expect(html).toContain("\u2014");
+    expect(html).not.toContain(">0<");
+  });
+
+  it("tanpa foto TIDAK menerbitkan halaman kosong", () => {
+    expect(
+      renderToStaticMarkup(
+        <KkpDailyPelengkapPhotos d={data()} foto={[]} judul="Dokumentasi Material Masuk" labelBaris="Material" />,
+      ),
+    ).toBe("");
+  });
+
+  it("mulai di halaman kertas BARU", () => {
+    const html = renderToStaticMarkup(
+      <KkpDailyPelengkapPhotos d={data()} foto={[bukti()]} judul="Dokumentasi Material Masuk" labelBaris="Material" />,
+    );
+    expect(html).toContain("break-before-page");
+  });
+
+  it("memakai kerangka tabel yang SAMA dengan foto pekerjaan", () => {
+    // Kalau halaman ini menyusun kolomnya sendiri, garisnya akan meleset dari
+    // halaman pekerjaan — cacat yang sudah ditegur sekali (DECISIONS 301).
+    const html = renderToStaticMarkup(
+      <KkpDailyPelengkapPhotos d={data()} foto={[bukti()]} judul="Dokumentasi Material Masuk" labelBaris="Material" />,
+    );
+    expect(html).toContain("table-fixed");
+    expect(html.match(/<colgroup/g) ?? []).toHaveLength(1);
+    expect(html).toContain("24.444%");
   });
 });
