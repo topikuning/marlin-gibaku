@@ -12449,3 +12449,39 @@ dibiarkan kosong — sistem yang menghitungnya saat impor.
 **Diuji giginya** keempat-empatnya: mengecilkan `KOLOM_TERBUKA` kembali ke
 `[7, 10]` memerahkan dua uji kolom; mengembalikan `continue` dan membuang
 pemeriksaan identitas ganda memerahkan dua uji impor.
+
+---
+
+## 309 · Uji yang mematok tanggal skenario wajib mematok jamnya juga (2026-08-08 → 2026-08-12)
+
+`asof-baseline-hari-sama.test.ts` memerahkan CI empat hari sesudah lulus, tanpa
+ada yang menyentuh kodenya. Bukan flaky — **busuk menurut kalender**.
+
+Seluruh skenarionya bertanggal 6 Agustus 2026: kontrak mulai 27 Juli, jadwal
+kurva-S diganti siang 6 Agustus, dan angka yang dibandingkan (minggu ke-2,
+rencana 1,7%) hanya berarti pada hari itu. Tapi yang diuji justru
+`getLocationProgress(locId)` **tanpa `asOf`** — persis cara layar workspace
+memanggilnya — dan panggilan itu membaca jam sungguhan. Jadi nomor minggunya
+merayap: tanggal 6 minggu ke-2 (rencana 1,7%), tanggal 12 sudah minggu ke-3
+(rencana 3,2%). Uji itu lulus persis satu minggu.
+
+Yang paling merugikan bukan merahnya, melainkan **kepada siapa merahnya jatuh**:
+ia memerahkan PR orang yang sedang mengerjakan hal yang sama sekali tidak
+berhubungan (waktu itu: template adendum), sehingga waktu habis untuk menyelidiki
+kegagalan yang bukan miliknya.
+
+**Aturannya sekarang:** uji yang mematok TANGGAL skenario harus mematok JAM-nya
+juga — `vi.useFakeTimers({ toFake: ["Date"] })` + `vi.setSystemTime(...)`, hanya
+`Date` yang dipalsukan supaya Prisma dan jaringannya tetap normal, dan
+`vi.useRealTimers()` di `afterAll`. Dengan begitu yang diuji tinggal yang memang
+ingin diuji — di berkas ini: dasar rencananya baseline AKTIF, bukan baseline
+"yang berlaku pada tanggal laporan" (DECISIONS 275).
+
+**Cara mengenali pola yang sama:** berkas uji memuat tanggal keras
+(`2026-xx-xx`) DAN memanggil fungsi yang membaca jam bila argumen waktunya
+dikosongkan (`getLocationProgress` tanpa `asOf`, `jakartaToday()`,
+`currentWeekNumber` tanpa `now`). Sisa berkas yang cocok pola ini sudah
+diperiksa satu per satu: semuanya menegaskan HUBUNGAN antar angka
+(`deviationPct ≈ actualPct − planPct`) atau memakai nomor minggu eksplisit
+(`getRencanaMingguan(loc, 3)`), jadi tidak bergantung pada kalender. Yang busuk
+memang hanya satu — tapi polanya akan terulang, dan sekarang ada namanya.
