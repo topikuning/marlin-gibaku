@@ -232,6 +232,15 @@ export type SavePhotoInput = {
   /** Salah satu wajib diisi: reportId (laporan harian) ATAU activityId (kegiatan lapangan). */
   reportId?: string | null;
   reportItemId?: string | null;
+  /**
+   * Bukti untuk satu baris MATERIAL / ALAT laporan harian (DECISIONS 304).
+   * Saling eksklusif dengan `reportItemId` dalam praktiknya — satu foto
+   * membuktikan satu hal — tapi tidak dipaksakan di sini: yang menentukan
+   * tujuannya adalah pemanggil, dan memaksa di lapisan ini hanya memindahkan
+   * galat ke tempat yang tidak tahu konteksnya.
+   */
+  reportMaterialId?: string | null;
+  reportEquipmentId?: string | null;
   activityId?: string | null;
   file: File;
   userId: string;
@@ -499,6 +508,8 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       locationId: input.locationId,
       reportId: input.reportId ?? null,
       reportItemId: input.reportItemId ?? null,
+      reportMaterialId: input.reportMaterialId ?? null,
+      reportEquipmentId: input.reportEquipmentId ?? null,
       activityId: input.activityId ?? null,
       r2Key: key,
       thumbnailKey,
@@ -704,6 +715,15 @@ export async function sharpSelfTest(): Promise<{ ok: boolean; detail: string; sa
 export type PhotoView = {
   id: string;
   reportItemId?: string | null;
+  /**
+   * Bukti MATERIAL / ALAT (DECISIONS 304). Ikut dibawa karena tanpa ini foto
+   * material terbaca sebagai foto YATIM: pengelompokan di workspace memutuskan
+   * "yatim" dari `reportItemId` yang kosong, dan foto material memang tidak
+   * pernah punya reportItemId. Akibatnya ia akan muncul di panel "Foto tanpa
+   * pekerjaan" — mengajak orang membersihkan bukti yang justru sah.
+   */
+  reportMaterialId?: string | null;
+  reportEquipmentId?: string | null;
   /** Pengunggah — dipakai UI untuk memutuskan siapa boleh menghapus. */
   uploadedById?: string | null;
   thumbUrl?: string;
@@ -718,6 +738,8 @@ type PhotoRow = {
   r2Key: string;
   thumbnailKey?: string | null;
   reportItemId?: string | null;
+  reportMaterialId?: string | null;
+  reportEquipmentId?: string | null;
   uploadedById?: string | null;
   exifTakenAt?: Date | null;
   exifGpsLat?: { toString(): string } | null;
@@ -758,6 +780,8 @@ export async function buildPhotoViews(photos: PhotoRow[], expiresIn = 300): Prom
     return {
       id: p.id,
       reportItemId: p.reportItemId ?? null,
+      reportMaterialId: p.reportMaterialId ?? null,
+      reportEquipmentId: p.reportEquipmentId ?? null,
       uploadedById: p.uploadedById ?? null,
       thumbUrl: thumbUrl ?? fullUrl,
       fullUrl,

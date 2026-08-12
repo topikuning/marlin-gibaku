@@ -86,6 +86,8 @@ export function KameraLangsung({
   const streamRef = useRef<MediaStream | null>(null);
   const [keadaan, setKeadaan] = useState<KeadaanKamera>("belum");
   const [kilat, setKilat] = useState(false);
+  /** Pelepas listener kesiapan video — dipanggil saat kamera dimatikan. */
+  const lepasSiap = useRef<(() => void) | null>(null);
   const ranaTerakhir = useRef(0);
 
   /** Bacaan GPS terakhir + kapan diterima — umurnya diperiksa saat rana ditekan. */
@@ -121,11 +123,40 @@ export function KameraLangsung({
           return;
         }
         streamRef.current = s;
-        if (videoRef.current) {
-          videoRef.current.srcObject = s;
-          void videoRef.current.play().catch(() => {});
-        }
-        setKeadaan("hidup");
+        const v = videoRef.current;
+        if (!v) return;
+        v.srcObject = s;
+        void v.play().catch(() => {});
+        /*
+         * "hidup" BARU diumumkan setelah video benar-benar punya frame.
+         *
+         * `getUserMedia` yang selesai TIDAK berarti gambarnya sudah ada:
+         * `videoWidth` masih 0 selama beberapa saat sesudahnya. Dulu rana
+         * langsung diaktifkan di titik ini, padahal `jepret()` membuang
+         * ketukan saat `videoWidth` nol — DIAM-DIAM, tanpa kilat, tanpa
+         * pesan, tanpa masuk antrean.
+         *
+         * Di lapangan itu berarti orang menekan rana begitu kamera terbuka,
+         * merasa sudah memotret, dan tidak ada apa pun yang tersimpan. Bukti
+         * yang hilang tidak pernah ketahuan pada saat kejadian.
+         *
+         * Dengan menunda "hidup" sampai ada dimensi, rana NONAKTIF tepat
+         * selama ketukan akan hilang — jadi ketukan yang bisa ditekan selalu
+         * menghasilkan foto.
+         */
+        const siap = () => {
+          if (batal) return;
+          if (v.videoWidth > 0 && v.videoHeight > 0) setKeadaan("hidup");
+        };
+        // `resize` ikut didengar: sebagian peramban baru mengisi videoWidth
+        // sesudah loadedmetadata, dan menunggu satu event saja bisa menggantung.
+        v.addEventListener("loadedmetadata", siap);
+        v.addEventListener("resize", siap);
+        lepasSiap.current = () => {
+          v.removeEventListener("loadedmetadata", siap);
+          v.removeEventListener("resize", siap);
+        };
+        siap();
       })
       .catch((err: unknown) => {
         if (batal) return;
@@ -135,6 +166,8 @@ export function KameraLangsung({
     })();
     return () => {
       batal = true;
+      lepasSiap.current?.();
+      lepasSiap.current = null;
       const s = streamRef.current;
       // Trek WAJIB dihentikan: kalau tidak, lampu kamera tetap menyala dan
       // baterai terus terkuras walau halamannya sudah ditinggalkan.
@@ -283,9 +316,11 @@ export function KameraLangsung({
       {/* Bilah bawah — rana + keadaan antrean, di dalam area aman (bilah gestur). */}
       <div className="absolute inset-x-0 bottom-0 flex flex-col items-center gap-2 bg-gradient-to-t from-ink/85 to-transparent px-4 pt-8 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <p aria-live="polite" className="text-center text-[11px] text-white/80">
-          {menunggu > 0
-            ? `${menunggu} foto menunggu kirim — aman tersimpan di HP.`
-            : "Ketuk untuk memotret. Foto langsung tersimpan — tanpa konfirmasi."}
+          {keadaan !== "hidup"
+            ? "Menyiapkan kamera… rana aktif begitu gambar muncul."
+            : menunggu > 0
+              ? `${menunggu} foto menunggu kirim — aman tersimpan di HP.`
+              : "Ketuk untuk memotret. Foto langsung tersimpan — tanpa konfirmasi."}
         </p>
         {/*
           Rana SENGAJA tetap aktif selagi unggahan berjalan: menonaktifkannya

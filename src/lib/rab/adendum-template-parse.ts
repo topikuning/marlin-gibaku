@@ -80,6 +80,8 @@ export function parseAdendumTemplate(wb: ExcelJS.Workbook): HasilTemplateAdendum
   let indukBerjalan: string | null = null;
   /** Berapa item baru sudah disisipkan di bawah satu induk — untuk lineageKey. */
   const barisBaruPerInduk = new Map<string, number>();
+  /** lineageKey → nomor baris pertama yang memakainya (deteksi baris disalin). */
+  const barisPerLineage = new Map<string, number>();
   let sortOrder = 0;
 
   for (let r = ADENDUM_HEADER_ROW + 1; r <= ws.rowCount; r++) {
@@ -98,6 +100,27 @@ export function parseAdendumTemplate(wb: ExcelJS.Workbook): HasilTemplateAdendum
     const adaAngkaItem = volKontrak != null || volAdendum != null || harga != null;
 
     if (lineageKey) {
+      /*
+       * IDENTITAS HARUS TUNGGAL.
+       *
+       * Cara tercepat membuat baris item baru — dan yang paling sering dipakai
+       * orang — adalah MENYALIN baris lama supaya format dan rumusnya ikut.
+       * Salinan itu membawa serta lineageKey di kolom tersembunyi, jadi dua
+       * baris mengaku sebagai item kontrak yang sama. Tanpa penjagaan, yang
+       * belakangan menimpa yang duluan diam-diam: satu item hilang dari RAB
+       * hasil adendum tanpa sepatah kata pun, dan realisasi lapangannya ikut
+       * menggantung. Disebutkan sekarang, dengan nomor barisnya.
+       */
+      const sebelumnya = barisPerLineage.get(lineageKey);
+      if (sebelumnya != null) {
+        throw new AdendumTemplateError(
+          `Baris ${r} ("${nama || kode}") memakai identitas item yang sama dengan baris ${sebelumnya}. ` +
+            `Ini terjadi kalau baris lama DISALIN untuk membuat item baru. Hapus baris ${r}, lalu sisipkan ` +
+            `baris KOSONG (klik kanan nomor baris → Insert) dan ketik isinya.`,
+        );
+      }
+      barisPerLineage.set(lineageKey, r);
+
       // ── Baris kontrak yang sudah ada ──────────────────────────────────
       const depth = lineageKey.split("#").length - 1;
       // Item dikenali dari kolom KONTRAK (volume/harga), bukan dari kolom
@@ -168,7 +191,24 @@ export function parseAdendumTemplate(wb: ExcelJS.Workbook): HasilTemplateAdendum
     }
 
     // ── Baris TANPA lineageKey = item baru yang disisipkan user ─────────
-    if (!adaAngkaItem) continue; // baris catatan/kosong, bukan pekerjaan
+    /*
+     * Baris bertulisan TAPI tanpa satu angka pun DITOLAK, tidak dilewati.
+     *
+     * Dulu baris begini dianggap "catatan" dan dilewati diam-diam. Padahal
+     * bentuk itu jauh lebih sering berarti item baru yang belum selesai diketik
+     * — orang mengisi Uraian, tertunda, lalu mengirim berkasnya. Melewatinya
+     * berarti pekerjaan yang sudah dituliskan orang lenyap dari adendum tanpa
+     * ada yang memberi tahu, dan barunya ketahuan saat nilai kontrak tidak
+     * cocok. Baris yang benar-benar kosong (tanpa kode DAN tanpa uraian) sudah
+     * dilewati di atas, jadi yang sampai ke sini memang ada tulisannya.
+     */
+    if (!adaAngkaItem) {
+      throw new AdendumTemplateError(
+        `Baris ${r} ("${nama || kode}") ada tulisannya tapi tanpa angka sama sekali — ` +
+          `Volume Adendum dan Harga Satuan dua-duanya kosong. Kalau ini item baru, lengkapi ` +
+          `Harga Satuan dan VOLUME ADENDUM; kalau bukan, kosongkan barisnya.`,
+      );
+    }
     const induk = indukBerjalan ?? kategoriBerjalan?.lineageKey ?? null;
     if (!induk) {
       throw new AdendumTemplateError(

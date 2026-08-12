@@ -1071,6 +1071,7 @@ model DailyReportMaterial {
   qtyReceived Decimal? @map("qty_received") @db.Decimal(15, 3)
 
   report DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  photos Photo[]
 
   @@index([reportId])
   @@map("daily_report_materials")
@@ -1083,6 +1084,7 @@ model DailyReportEquipment {
   count    Int    @default(1)
 
   report DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  photos Photo[]
 
   @@index([reportId])
   @@map("daily_report_equipment")
@@ -1096,6 +1098,14 @@ model Photo {
   locationId     String?             @map("location_id") @db.Uuid
   reportId       String?             @map("report_id") @db.Uuid
   reportItemId   String?             @map("report_item_id") @db.Uuid
+  /// Bukti untuk satu baris MATERIAL / ALAT di laporan harian (DECISIONS 304).
+  /// Terpisah dari `reportItemId` karena bukan pekerjaan RAB: tidak menggerakkan
+  /// progres, dan di blanko KKP dicetak di halaman sendiri.
+  /// onDelete = SetNull (default relasi opsional), sama seperti `reportItemId`:
+  /// baris yang dihapus TIDAK ikut menghapus fotonya — fotonya jadi yatim yang
+  /// masih bisa dilihat & dibersihkan, bukan lenyap diam-diam.
+  reportMaterialId  String?          @map("report_material_id") @db.Uuid
+  reportEquipmentId String?          @map("report_equipment_id") @db.Uuid
   activityId     String?             @map("activity_id") @db.Uuid
   r2Key          String              @unique @map("r2_key")
   thumbnailKey   String?             @map("thumbnail_key")
@@ -1138,6 +1148,8 @@ model Photo {
   location   Location?        @relation(fields: [locationId], references: [id])
   report     DailyReport?     @relation(fields: [reportId], references: [id])
   reportItem DailyReportItem? @relation(fields: [reportItemId], references: [id])
+  reportMaterial  DailyReportMaterial?  @relation(fields: [reportMaterialId], references: [id])
+  reportEquipment DailyReportEquipment? @relation(fields: [reportEquipmentId], references: [id])
   activity   FieldActivity?   @relation(fields: [activityId], references: [id])
 
   stampRevisions PhotoStampRevision[]
@@ -1145,6 +1157,8 @@ model Photo {
   @@unique([locationId, sha256])
   @@index([reportId])
   @@index([reportItemId])
+  @@index([reportMaterialId])
+  @@index([reportEquipmentId])
   @@index([activityId])
   @@index([locationId])
   @@index([gpsSource])

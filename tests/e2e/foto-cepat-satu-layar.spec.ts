@@ -87,16 +87,36 @@ test.describe("Foto Cepat — satu layar, tanpa gulir", () => {
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
   });
 
-  test("posisi rana TIDAK bergeser setelah memotret", async ({ page }) => {
+  test("posisi rana TIDAK bergeser setelah memotret", async ({ page, context }) => {
     // Inti keluhannya: antrean tumbuh tiap jepretan. Dulu antrean itu ada DI
     // ATAS kamera, jadi rana ikut melorot dan jempol harus mengejar.
     const rana = await bukaKamera(page);
     const sebelum = (await rana.boundingBox())!;
 
+    /*
+     * OFFLINE dulu, baru memotret — bukan gaya-gayaan.
+     *
+     * Ujinya menunggu "N foto menunggu kirim" sebagai bukti antrean benar-benar
+     * tumbuh. Padahal keadaan itu memang DIRANCANG untuk lenyap: pengiriman yang
+     * berhasil MENGHAPUS barisnya dari IndexedDB (`buang`, use-antrean.ts), dan
+     * baris yang DITOLAK server tidak ikut dihitung `menunggu` sama sekali
+     * (`ringkasAntrean`). Jadi jendelanya cuma selebar satu perjalanan jaringan.
+     *
+     * Di mesin sendiri jendela itu cukup lebar sehingga ujinya lulus; di runner
+     * CI ia bisa tertutup sebelum pemeriksaan pertama, dan ujinya merah dengan
+     * "element not found" yang tidak menyebut sebab apa pun. Gagal 3× hari ini,
+     * termasuk retry, tanpa satu pun cacat produk di baliknya.
+     *
+     * Offline membuat pengiriman mustahil, jadi barisnya MENETAP di antrean —
+     * keadaan yang ditunggu jadi pasti, bukan diperlombakan. Ini juga tidak
+     * melemahkan yang diuji: yang dijanjikan adalah rana tidak bergeser saat
+     * antrean tumbuh, dan justru offline-lah yang membuat antrean paling panjang
+     * di lapangan.
+     */
+    await context.setOffline(true);
     await rana.click();
-    // Tunggu sampai antrean benar-benar tumbuh — kalau tidak, ujinya lulus
-    // hanya karena belum ada yang sempat berubah.
     await expect(page.getByText(/foto menunggu kirim/i)).toBeVisible({ timeout: 20_000 });
+    await context.setOffline(false);
 
     const sesudah = (await rana.boundingBox())!;
     expect(sesudah.y).toBeCloseTo(sebelum.y, 0);

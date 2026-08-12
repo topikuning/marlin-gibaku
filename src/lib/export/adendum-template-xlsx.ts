@@ -14,11 +14,13 @@ import type { RabExportNode } from "./rab-xlsx";
  *
  * Tiga keputusan yang membentuk berkas ini (DECISIONS 216):
  *
- * 1. HARGA SATUAN ITEM KONTRAK LAMA TERKUNCI (DECISIONS 213). Sheet
- *    diproteksi; hanya VOLUME ADENDUM dan blok item baru yang bisa diketik.
+ * 1. YANG TERKUNCI ADALAH REKAMAN DAN TURUNANNYA, bukan sebanyak-banyaknya
+ *    kolom. Volume Kontrak & Jumlah Kontrak (rekaman kontrak berjalan), Jumlah
+ *    Adendum & Selisih (rumus), lineageKey & Realisasi Tercatat (identitas dan
+ *    fakta lapangan) terkunci; sisanya terbuka — lihat `KOLOM_TERBUKA`.
  *    Proteksi Excel tanpa sandi memang bisa dibuka siapa saja — itu memang
  *    tujuannya: ia rambu, bukan gembok. Gembok sebenarnya ada di impor, yang
- *    tetap menandai harga item lama yang bergeser.
+ *    tetap menandai harga item lama yang bergeser (DECISIONS 213).
  *
  * 2. IDENTITAS ITEM = `lineageKey`, ditulis di kolom terakhir dan disembunyikan.
  *    Baris BER-lineageKey = item kontrak yang sudah ada. Baris TANPA lineageKey
@@ -33,6 +35,38 @@ import type { RabExportNode } from "./rab-xlsx";
  *    lewat kolom KETERANGAN diisi `HAPUS`. Menebak maksud user dari angka nol
  *    adalah cara paling mudah menghilangkan pekerjaan yang sudah dikerjakan.
  */
+
+/**
+ * KOLOM MANA YANG BOLEH DIKETIK — ditentukan PER KOLOM, bukan per baris.
+ *
+ * Ini perbaikan atas skema lama yang membuka hanya G (Volume Adendum) dan J
+ * (Keterangan). Skema itu bertentangan dengan petunjuk di berkasnya sendiri:
+ * baris 6 menyuruh "sisipkan baris, isi Kode/Uraian/Satuan/Harga Satuan",
+ * padahal keempat kolom itu terkunci. Menyisipkan baris memang berhasil —
+ * Excel menyalin FORMAT baris di atasnya ke baris baru, dan format itu
+ * termasuk status terkunci — jadi begitu diketik muncul "the cell you're
+ * trying to change is on a protected sheet". Laporan user 2026-08-08.
+ *
+ * Karena baris sisipan mewarisi format tetangganya, "boleh diketik" TIDAK BOLEH
+ * bergantung pada baris: kalau ia bergantung pada baris, hasilnya berubah-ubah
+ * menurut di mana orang kebetulan menyisipkan. Maka aturannya per kolom, sama
+ * untuk seluruh tabel:
+ *
+ *   TERBUKA  A Kode · B Uraian · D Sat · E Harga Satuan · G VOLUME ADENDUM ·
+ *            J Keterangan   → identitas + isian; persis yang dibutuhkan
+ *                             sebuah baris item baru.
+ *   TERKUNCI C Volume Kontrak · F Jumlah Kontrak → REKAMAN kontrak berjalan;
+ *            H Jumlah Adendum · I Selisih        → TURUNAN (rumus);
+ *            K lineageKey · L Realisasi Tercatat → identitas & fakta lapangan.
+ *
+ * Harga Satuan (E) ikut terbuka meski harga item lama seharusnya tetap
+ * (DECISIONS 213): baris item baru WAJIB berharga, dan baris sisipan mewarisi
+ * kunci tetangganya. Yang hilang cuma rambunya, bukan penjaganya — impor tetap
+ * melaporkan harga item lama yang bergeser lewat `diff-parsed.hargaBerubah`.
+ * Proteksi di sini memang rambu, bukan gembok (tanpa sandi, siapa pun bisa
+ * membukanya); gembok sebenarnya selalu ada di impor.
+ */
+const KOLOM_TERBUKA: readonly number[] = [1, 2, 4, 5, 7, 10];
 
 const RUPIAH_FMT = '#,##0;[Red]-#,##0';
 const VOL_FMT = "#,##0.###";
@@ -113,7 +147,9 @@ export async function buildAdendumTemplateXlsx(input: AdendumTemplateInput): Pro
   judul(5, "1. Isi kolom VOLUME ADENDUM (kolom G) — itu volume SETELAH adendum, bukan selisihnya.");
   judul(
     6,
-    "2. Item baru: sisipkan baris di dalam kategori yang sesuai, isi Kode/Uraian/Volume Adendum/Satuan/Harga Satuan. Kolom paling kanan biarkan kosong.",
+    "2. Item baru: SISIPKAN BARIS KOSONG di dalam kategori yang sesuai (klik kanan nomor baris → Insert), lalu isi Kode/Uraian/Sat/Harga Satuan/VOLUME ADENDUM. " +
+      "Jangan MENYALIN baris lama — salinan ikut membawa identitas item itu dan akan ditolak saat diunggah. " +
+      "Kolom Jumlah Adendum & Selisih pada baris baru biarkan kosong: sistem yang menghitungnya saat impor.",
   );
   judul(
     7,
@@ -184,13 +220,11 @@ export async function buildAdendumTemplateXlsx(input: AdendumTemplateInput): Pro
       const g = ws.getCell(r, 7);
       g.value = n.volume ?? 0;
       g.numFmt = VOL_FMT;
-      g.protection = { locked: false };
       g.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF9E6" } };
       ws.getCell(r, 8).value = { formula: `ROUND(G${r}*E${r},0)`, result: Number(n.amount) };
       ws.getCell(r, 8).numFmt = RUPIAH_FMT;
       ws.getCell(r, 9).value = { formula: `H${r}-F${r}`, result: 0 };
       ws.getCell(r, 9).numFmt = RUPIAH_FMT;
-      ws.getCell(r, 10).protection = { locked: false };
 
       /*
        * PENGAMAN DI LEVEL BERKAS (DECISIONS 242).
@@ -244,6 +278,11 @@ export async function buildAdendumTemplateXlsx(input: AdendumTemplateInput): Pro
       for (const c of byParent.get(n.id) ?? []) tulis(c, depth + 1);
     }
     for (let c = 1; c <= 12; c++) {
+      // Kunci ditulis EKSPLISIT untuk kedua keadaan, bukan hanya yang dibuka.
+      // Sel yang dibiarkan tanpa pernyataan mewarisi bawaan Excel (terkunci),
+      // dan "terkunci karena lupa" tidak bisa dibedakan dari "terkunci karena
+      // memang harus" saat berkas ini dibaca ulang setahun lagi.
+      ws.getCell(r, c).protection = { locked: !KOLOM_TERBUKA.includes(c) };
       if (c === 11) continue; // kolom penanda (disembunyikan)
       ws.getCell(r, c).border = border;
       if (!ws.getCell(r, c).font) ws.getCell(r, c).font = { size: 9 };

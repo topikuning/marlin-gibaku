@@ -175,9 +175,33 @@ beforeAll(async () => {
   await buatBaseline(1, KURVA_LAMA, new Date("2026-07-27T02:00:00.000Z"), SAAT_GANTI);
   // Baseline BARU dibuat SIANG ini — sesudah tengah malam UTC hari ini.
   await buatBaseline(2, KURVA_BARU, SAAT_GANTI, null);
+
+  /*
+   * JAM DIBEKUKAN DI TANGGAL KEJADIAN — bukan kerapian, tapi syarat sahnya uji.
+   *
+   * Seluruh skenario ini bertanggal 6 Agustus 2026: kontrak mulai 27 Juli,
+   * jadwal diganti siang 6 Agustus, dan angka yang dibandingkan (minggu ke-2,
+   * rencana 1,7%) hanya berarti pada hari itu. Tapi `getLocationProgress(locId)`
+   * TANPA `asOf` — yaitu persis cara layar workspace memanggilnya, dan justru
+   * itu yang sedang diuji — membaca jam sungguhan. Jadi nomor minggunya ikut
+   * merayap tiap pekan: tanggal 6 ia minggu ke-2, tanggal 12 sudah minggu ke-3
+   * dan rencananya 3,2%.
+   *
+   * Uji ini karena itu lulus persis satu minggu lalu memerah sendiri tanpa ada
+   * yang menyentuh kodenya — memerahkan CI orang lain untuk kesalahan yang
+   * bukan miliknya. Membekukan jamnya membuat yang diuji tinggal yang memang
+   * ingin diuji: DASAR rencananya baseline aktif, bukan baseline "yang berlaku
+   * pada tanggal laporan" (DECISIONS 275).
+   *
+   * Hanya `Date` yang dipalsukan; timer lain dibiarkan asli supaya Prisma dan
+   * jaringannya tetap berjalan normal.
+   */
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(SAAT_GANTI);
 });
 
 afterAll(async () => {
+  vi.useRealTimers();
   await db.$executeRawUnsafe('TRUNCATE TABLE "organizations" RESTART IDENTITY CASCADE');
   await db.$disconnect();
 });
