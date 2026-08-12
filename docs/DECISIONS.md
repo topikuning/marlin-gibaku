@@ -12639,3 +12639,38 @@ ditumpuk, target kosong) dan `tests/integration/laporan-mingguan-wa.test.ts`
 (kapan berbunyi + tidak dobel kirim, lewat Postgres sungguhan). Sudah diuji
 giginya: membuang penjagaan "sudah pernah sukses" memerahkan uji dobel-kirim;
 melonggarkan `hari % 7 === 6` memerahkan tiga uji jadwal sekaligus.
+
+### Susulan hari yang sama: kabupaten/provinsi + angka gabungan paket
+
+User: *"perlu nama kabupaten dan provinsi. lalu perlu info global juga. jadi
+dari semua lokasi atas paket itu berapa persen progress dan deviasinya"*.
+
+Tiap blok desa kini membawa baris `Kabupaten/Provinsi`, dan di kaki pesan ada
+blok `TOTAL PAKET`.
+
+**Angka paket = rata-rata TERTIMBANG nilai kontrak**, memakai `weightedPct` dan
+`weightedRealizedPct` dari `progress-calc` (formula kanonik B13). Tidak ada
+rata-rata baru yang ditulis di modul mingguan. Bedanya bukan akademis: lokasi
+Rp 9 M dengan rencana 10% dan lokasi Rp 1 M dengan rencana 50% menghasilkan 14%
+secara tertimbang, tetapi **30%** kalau dirata-ratakan biasa — dan 30% itu akan
+dikirim ke grup PPK sebagai posisi resmi paket.
+
+Deviasi paket = realisasi tertimbang − target tertimbang, **bukan** rata-rata
+deviasi per lokasi. Keduanya angka yang berbeda; yang benar untuk sebuah paket
+adalah yang pertama.
+
+**Lokasi tanpa kurva-S DIKELUARKAN dari angka gabungan**, bukan dihitung sebagai
+target 0% — memasukkannya menyeret target paket ke bawah dan membuat paket
+terbaca mendahului jadwal, kebohongan yang sama persis dengan yang sudah
+dihindari di tingkat lokasi. Jumlah yang dikeluarkan DISEBUT di pesannya
+("2 dari 3 lokasi — 1 lokasi belum ada kurva-S"), karena "2 lokasi" dan "2 dari
+3 lokasi" adalah dua pernyataan yang berbeda jauh.
+
+Blok TOTAL ditaruh di BAWAH rincian (rangkuman yang mendahului isinya membuat
+pembaca menakar angka gabungan sebelum tahu isinya), dan **tidak muncul sama
+sekali pada paket satu lokasi** — angkanya akan sama persis dengan blok di
+atasnya.
+
+Penjaga tambahan: `tests/unit/mingguan-rekap.test.ts`. Diuji giginya —
+mengganti `weightedPct` dengan rata-rata biasa memerahkan uji target dan uji
+deviasi sekaligus.
