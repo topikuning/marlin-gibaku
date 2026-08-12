@@ -29,6 +29,7 @@ import {
 } from "./stage-actions";
 import { WaGroupForm } from "./wa-group-form";
 import { DriveFolderForm } from "./drive-folder-form";
+import { LaporanMingguanWa } from "./laporan-mingguan-wa";
 import { getGDriveConfigDisplay } from "@/lib/gdrive/config";
 import { getDriveCoverage } from "@/lib/gdrive/coverage";
 
@@ -134,6 +135,7 @@ export default async function RingkasanPaketPage({
   const canProspect = can(user.role, "prospect.manage");
   const canContract = can(user.role, "contract.manage");
   const canWaConfigure = can(user.role, "wa.configure");
+  const canKirimLaporan = can(user.role, "ai.report_send");
 
   const nextAction = (() => {
     switch (pkg.stage) {
@@ -384,6 +386,18 @@ export default async function RingkasanPaketPage({
               currentGroupName={pkg.waGroupName}
               wahaConfigured={await isWahaConfigured()}
             />
+          </CardBody>
+        </Card>
+      ) : null}
+
+      {canKirimLaporan && pkg.stage === "pelaksanaan" ? (
+        <Card>
+          <CardHeader
+            title="Laporan progres mingguan → grup WA"
+            subtitle="Semua lokasi paket ini dalam satu pesan. Otomatis pada hari terakhir tiap minggu kontrak (sesuai tanggal SPMK) bila sakelarnya menyala di Sistem — tombol di bawah tetap bisa dipakai kapan saja."
+          />
+          <CardBody>
+            <LaporanMingguanWa packageId={pkg.id} punyaGrup={Boolean(pkg.waGroupId)} />
           </CardBody>
         </Card>
       ) : null}

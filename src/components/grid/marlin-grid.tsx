@@ -7,6 +7,7 @@ import {
   type CellValueChangedEvent,
   type ColDef,
   type ColDefField,
+  type ColumnState,
   type GetRowIdParams,
   type GridApi,
   type GridReadyEvent,
@@ -148,6 +149,16 @@ export interface MarlinGridProps<T> {
   editMode?: boolean;
   onCellValueChanged?: (e: CellValueChangedEvent<T>) => void;
   rowClassRules?: RowClassRules<T>;
+  /**
+   * Tinggi baris tetap (px). Dipakai grid yang selnya memuat DUA baris teks.
+   *
+   * Sengaja tinggi TETAP, bukan `autoHeight` per kolom: dengan `autoHeight`,
+   * tinggi total grid (domLayout "autoHeight") sempat dihitung memakai tinggi
+   * baris bawaan sebelum sel yang dua baris sempat memuai — dan baris terakhir
+   * terpotong separuh. Diukur di peramban: baris ke-7 dari 7 tertimpa bilah
+   * pagination. Angka yang dipatok tidak punya perlombaan itu.
+   */
+  rowHeight?: number;
 }
 
 export function MarlinGrid<T>({
@@ -169,6 +180,7 @@ export function MarlinGrid<T>({
   editMode = false,
   onCellValueChanged,
   rowClassRules,
+  rowHeight,
 }: MarlinGridProps<T>) {
   const apiRef = useRef<GridApi<T> | null>(null);
   const [quickFilterText, setQuickFilterText] = useState("");
@@ -199,7 +211,24 @@ export function MarlinGrid<T>({
       try {
         const raw = localStorage.getItem(storageKey(persistKey));
         if (raw) {
-          e.api.applyColumnState({ state: JSON.parse(raw), applyOrder: true });
+          /*
+           * `pinned` DIBUANG dari state tersimpan — kolom yang dikunci selalu
+           * mengikuti kode, bukan simpanan peramban.
+           *
+           * `getColumnState()` ikut menyimpan `pinned`, termasuk `null` untuk
+           * kolom yang saat itu memang belum dikunci. Tanpa pembuangan ini,
+           * setiap orang yang PERNAH membuka daftar ini sebelum kuncinya
+           * dipasang akan membawa `pinned: null` selamanya: di layar mereka
+           * kolomnya tidak terkunci, sementara di layar orang baru terkunci —
+           * dan tidak ada satu pun tombol yang bisa menjelaskan bedanya.
+           *
+           * Yang tetap disimpan justru yang memang milik pengguna: urutan,
+           * lebar, sortir, dan kolom yang disembunyikan.
+           */
+          const state = (JSON.parse(raw) as ColumnState[]).map(
+            ({ pinned: _abaikan, ...sisa }) => sisa,
+          );
+          e.api.applyColumnState({ state, applyOrder: true });
         }
       } catch {
         // State korup — abaikan, pakai default.
@@ -296,6 +325,7 @@ export function MarlinGrid<T>({
           noRowsOverlayComponentParams={{ emptyText }}
           getRowId={rowIdGetter}
           rowClassRules={rowClassRules}
+          rowHeight={rowHeight}
           {...(editMode
             ? {
                 singleClickEdit: true,
