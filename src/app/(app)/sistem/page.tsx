@@ -23,6 +23,8 @@ import { AiGuardPanel } from "./ai-guard-panel";
 import { listPrompts } from "@/lib/ai/prompts";
 import { PromptPanel } from "./prompt-panel";
 import { PengingatPanel } from "./pengingat-panel";
+import { MingguanPanel } from "./mingguan-panel";
+import { getMingguanAktif } from "@/lib/mingguan/setelan";
 import { pratinjauPengingat } from "@/lib/harian/pratinjau";
 import { CAPABILITIES, ROLE_CAPABILITIES, ROLE_LABEL, ALL_ROLES, type Capability } from "@/lib/authz";
 import type { UserRole } from "@/generated/prisma/enums";
@@ -534,6 +536,15 @@ export default async function SistemPage() {
         />
         <CardBody>
           <PengingatPanel pratinjau={pratinjau} />
+        </CardBody>
+      </Card>
+      <Card>
+        <CardHeader
+          title="Laporan progres mingguan → grup WA"
+          subtitle="Dikirim pada hari terakhir minggu kontrak tiap paket, mengikuti tanggal SPMK-nya sendiri"
+        />
+        <CardBody>
+          <MingguanPanel aktif={await getMingguanAktif()} />
         </CardBody>
       </Card>
       <Card>

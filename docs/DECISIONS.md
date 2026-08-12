@@ -12543,3 +12543,99 @@ permintaan.
 lalu memeriksa apa yang terlihat. Uji unit tidak bisa membuktikan ini: kolom
 yang "dikunci" menurut definisi kolom belum tentu tetap terkunci menurut AG
 Grid, dan justru di situ cacatnya.
+
+---
+
+## 311 · Laporan Progres Mingguan otomatis + manual ke grup WhatsApp (2026-08-12)
+
+**Permintaan user:** *"aku butuh marlin mengirim rutin laporan mingguan secara
+otomatis maupun ada trigger manual untuk kirim ke group whatsapp"*, dengan
+format yang selama ini diketik tangan:
+
+```
+Laporan Progres Mingguan
+Nama Pelaksana : CV. ALKOMBER KARYA
+Nama Desa/KNMP: Pasir
+Minggu Ke : 3
+Target : 6.178%
+Realisasi : 10.048 %
+Deviasi  3.869% ( Mendahului)
+```
+
+Empat hal ditanyakan lebih dulu karena jawabannya mengubah bentuk pekerjaan,
+bukan cuma detailnya — dan jawabannya menentukan seluruh rancangan di bawah.
+
+### Keputusan user
+
+| pertanyaan | jawaban |
+|---|---|
+| pemisah desimal | **koma**, ikut id-ID (DECISIONS 107) — tiga desimal dipertahankan |
+| paket dengan banyak lokasi | **satu pesan**, blok desa ditumpuk |
+| jadwal | **akhir minggu kontrak tiap paket**, mengikuti tanggal SPMK |
+| pemicu | **keduanya** — cron dinyalakan + tombol manual |
+
+Contoh user memakai titik; ia memilih koma saat ditanya. Angkanya tetap tiga
+desimal persis seperti contohnya.
+
+### Kenapa "akhir minggu kontrak" dan "satu pesan" tidak bertabrakan
+
+`Contract.packageId` **unik** — satu paket punya tepat satu kontrak, dan
+`progress.ts` memberi SEMUA lokasi paket itu `startDate` yang sama. Jadi batas
+minggu satu paket seragam untuk seluruh lokasinya: satu SPMK ⇒ satu nomor
+minggu ⇒ satu pesan. Kalau kontrak per lokasi, keduanya mustahil dipenuhi
+sekaligus.
+
+Penjadwalnya **menumpang putaran cron harian** yang sudah ada, bukan cron kedua:
+karena tanggal SPMK tiap paket berbeda, hari jatuh temponya juga berbeda, jadi
+yang mungkin adalah memeriksa tiap hari lalu mengirim untuk paket yang minggu
+kontraknya memang berakhir hari itu (`hari % 7 === 6`).
+
+### Yang dijaga
+
+1. **Satu minggu diumumkan SEKALI.** UNIQUE `(package_id, week_number)` di
+   Postgres — bukan sebuah `if`. Cron berjalan tiap hari dan aman dipicu
+   berulang justru karena batasan itu. Tanpa ini, satu minggu bisa diumumkan
+   tujuh kali berturut-turut ke grup pemberi kerja, dan pesan WhatsApp tidak
+   bisa ditarik kembali.
+2. **Percobaan yang GAGAL tidak mengunci minggu itu.** Yang tidak boleh
+   berulang adalah pesan yang benar-benar sampai, bukan percobaan yang kandas
+   karena WAHA mati lima menit.
+3. **Angka tidak dihitung ulang.** Target/Realisasi/Deviasi datang apa adanya
+   dari `getLocationProgress` — satu-satunya lapisan perhitungan progres
+   (CLAUDE.md). Modul pesan hanya memformat.
+4. **Nomor minggu TIDAK di-clamp ke panjang kurva-S.** `getLocationProgress`
+   membatasi `weekNumber` ke jumlah minggu baseline; dipakai apa adanya, kontrak
+   yang molor akan selamanya melaporkan "Minggu Ke : 20" padahal sudah 27.
+   Nomor minggu adalah sifat KONTRAK, jadi diturunkan langsung dari SPMK.
+5. **Lokasi tanpa baseline tidak dicetak "Target : 0,000%".** Nol berarti
+   rencananya memang nol; kalau kurva-S-nya belum ada, yang benar adalah mengaku
+   belum tahu — dan deviasi terhadap target yang tidak ada akan terbaca sebagai
+   prestasi di grup pemberi kerja.
+6. **Pratinjau terpisah dari kirim.** Tombol tunggal berarti satu ketukan salah
+   langsung jadi laporan resmi yang keliru di depan PPK. Pratinjau memakai
+   fungsi penyusun yang SAMA, jadi yang dibaca di layar memang yang berangkat.
+7. **Teks yang dikirim disimpan apa adanya** (`weekly_wa_logs.body`). Laporan
+   resmi harus bisa dibuktikan isinya bulan depan; menyusunnya ulang dari angka
+   hari ini akan menghasilkan teks lain, karena angkanya sudah bergerak.
+
+### Sakelar sendiri, dan DEFAULT-nya MATI
+
+Terpisah dari sakelar pengingat harian, dan dipanggil SEBELUM cabang sakelar itu
+di `jalankanTugasHarian`. Keduanya menumpang cron yang sama tapi menagih hal
+berbeda ke orang berbeda: pengingat harian mengejar Site Manager yang belum
+mengisi, laporan mingguan melapor ke grup berisi PPK dan konsultan. Mematikan
+tagihan internal karena libur bersama tidak boleh diam-diam ikut menghentikan
+laporan resmi ke pemberi kerja.
+
+Default-nya **mati** — berbeda dari pengingat harian yang default-nya nyala.
+Pengingat harian sudah berjalan sebelum sakelarnya ada, jadi "belum pernah
+disentuh" berarti "seperti kemarin". Laporan mingguan ini baru; menyalakannya
+diam-diam berarti pesan tiba-tiba muncul di grup pemberi kerja tanpa ada yang
+pernah memutuskan begitu. Karena itu pula yang dikonfirmasi di layar adalah
+MENYALAKAN, kebalikan dari sakelar harian.
+
+**Penjaga:** `tests/unit/mingguan-pesan.test.ts` (bentuk teks, koma, blok
+ditumpuk, target kosong) dan `tests/integration/laporan-mingguan-wa.test.ts`
+(kapan berbunyi + tidak dobel kirim, lewat Postgres sungguhan). Sudah diuji
+giginya: membuang penjagaan "sudah pernah sukses" memerahkan uji dobel-kirim;
+melonggarkan `hari % 7 === 6` memerahkan tiga uji jadwal sekaligus.

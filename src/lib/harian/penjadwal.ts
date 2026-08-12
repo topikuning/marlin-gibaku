@@ -7,6 +7,10 @@ import { sendText, isWahaConfigured, getSessionStatus } from "@/lib/waha/client"
 import { normalizeWaTarget } from "@/lib/contacts/model";
 import { pesanPengingat, type LokasiTertagih } from "./pesan";
 import type { DiagnosaPengingat } from "./diagnosa";
+import {
+  kirimLaporanMingguanTerjadwal,
+  type HasilMingguan,
+} from "@/lib/mingguan/penjadwal";
 
 /**
  * Pekerjaan harian MARLIN (DECISIONS 202) — dijalankan penjadwal luar lewat
@@ -51,6 +55,8 @@ export type HasilHarian = {
   dateKey: string;
   spmk: { diaktifkan: number; paket: string[] };
   pengingat: HasilPengingat;
+  /** Laporan progres mingguan ke grup WA — DECISIONS 311. */
+  mingguan: HasilMingguan;
 };
 
 /* ── 1. Aktivasi SPMK yang jatuh tempo ───────────────────────────────────── */
@@ -410,11 +416,24 @@ export async function kirimPengingatHarian(
  */
 export async function jalankanTugasHarian(now = new Date()): Promise<HasilHarian> {
   const spmk = await aktifkanSpmkJatuhTempo(now);
+
+  /*
+   * Laporan mingguan dijalankan SEBELUM cabang sakelar pengingat, dan itu
+   * disengaja: keduanya punya sakelar sendiri-sendiri (DECISIONS 311).
+   * Pengingat harian menagih Site Manager yang belum mengisi; laporan mingguan
+   * melapor ke grup berisi PPK dan konsultan. Mematikan tagihan internal karena
+   * libur bersama tidak boleh diam-diam ikut menghentikan laporan resmi ke
+   * pemberi kerja — dan itu persis yang terjadi kalau ia ikut menumpang di
+   * bawah `return` di bawah ini.
+   */
+  const mingguan = await kirimLaporanMingguanTerjadwal(now);
+
   const { getPengingatAktif } = await import("./setelan");
   if (!(await getPengingatAktif())) {
     return {
       dateKey: jakartaDateKey(now),
       spmk,
+      mingguan,
       pengingat: {
         terkirim: 0,
         gagal: 0,
@@ -426,5 +445,5 @@ export async function jalankanTugasHarian(now = new Date()): Promise<HasilHarian
     };
   }
   const pengingat = await kirimPengingatHarian(now);
-  return { dateKey: jakartaDateKey(now), spmk, pengingat };
+  return { dateKey: jakartaDateKey(now), spmk, pengingat, mingguan };
 }
