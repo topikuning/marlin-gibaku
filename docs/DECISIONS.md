@@ -12392,3 +12392,60 @@ berakhir *"No files were found"*. Yang berguna ada di `test-results/`:
 kegagalan. Sekarang keduanya diunggah. Tanpa itu, kegagalan yang tidak bisa
 ditirukan di mesin sendiri hanya bisa ditebak-tebak — persis yang terjadi hari
 ini.
+
+---
+
+## 308 · Template adendum: "boleh diketik" adalah sifat KOLOM, bukan sifat baris (2026-08-08)
+
+**Laporan user:** *"template adendum, tambah item, misal itu di baris 479,
+insert berhasil, tapi ketika input pekerjaan jadi tidak bisa. kamu harus
+pikirkan skema yang lebih masuk akal."*
+
+Berkasnya bertentangan dengan dirinya sendiri. Baris petunjuk nomor 2 menyuruh
+*"sisipkan baris di dalam kategori yang sesuai, isi Kode/Uraian/Volume
+Adendum/Satuan/Harga Satuan"* — padahal yang dibuka hanya kolom G (Volume
+Adendum) dan J (Keterangan). Menyisipkan baris memang berhasil (proteksi
+mengizinkan `insertRows`), tapi baris sisipan **mewarisi FORMAT baris di
+atasnya**, dan status terkunci adalah bagian dari format. Jadi jalur yang
+diperintahkan berkas itu buntu tepat di langkah kedua, dengan pesan Excel yang
+tidak menyebut-nyebut item baru: *"the cell you're trying to change is on a
+protected sheet"*.
+
+**Skema barunya.** Karena baris sisipan mewarisi tetangganya, "boleh diketik"
+tidak boleh bergantung pada BARIS — kalau bergantung, hasilnya berubah-ubah
+menurut di mana orang kebetulan menyisipkan, dan itu tidak bisa dijelaskan
+kepada siapa pun. Aturannya sekarang per KOLOM, seragam untuk seluruh tabel
+(`KOLOM_TERBUKA`):
+
+| | kolom | alasan |
+|---|---|---|
+| **terbuka** | A Kode · B Uraian · D Sat · E Harga Satuan · G VOLUME ADENDUM · J Keterangan | identitas + isian — persis yang dibutuhkan satu baris item baru |
+| **terkunci** | C Volume Kontrak · F Jumlah Kontrak | REKAMAN kontrak berjalan |
+| **terkunci** | H Jumlah Adendum · I Selisih | TURUNAN (rumus) |
+| **terkunci** | K lineageKey · L Realisasi Tercatat | identitas & fakta lapangan |
+
+Harga Satuan ikut terbuka meski harga item lama seharusnya tetap (DECISIONS
+213). Yang hilang cuma rambunya, bukan penjaganya: impor tetap melaporkan harga
+item lama yang bergeser lewat `diff-parsed.hargaBerubah`. Proteksi di berkas ini
+memang rambu, bukan gembok — tanpa sandi, siapa pun bisa membukanya; gembok
+sebenarnya selalu ada di impor.
+
+**Dua lubang senyap yang ikut ditutup**, karena skema baru justru memperbesar
+keduanya:
+
+1. **Baris bertulisan tanpa satu angka pun** dulu dilewati diam-diam sebagai
+   "catatan". Bentuk itu jauh lebih sering berarti item baru yang belum selesai
+   diketik — orang mengisi Uraian, tertunda, lalu mengirim berkasnya. Sekarang
+   DITOLAK dengan menyebut nomor baris dan isinya.
+2. **Baris lama yang DISALIN** (cara tercepat mendapat format + rumus) ikut
+   membawa `lineageKey` di kolom tersembunyi, sehingga dua baris mengaku item
+   kontrak yang sama dan satu di antaranya tertimpa tanpa sepatah kata.
+   Sekarang ditolak, menyebut kedua nomor barisnya sekaligus cara benarnya.
+
+Petunjuk di berkas diperbaiki agar sesuai kenyataan: sisipkan baris KOSONG
+(bukan menyalin), dan kolom Jumlah Adendum & Selisih pada baris baru memang
+dibiarkan kosong — sistem yang menghitungnya saat impor.
+
+**Diuji giginya** keempat-empatnya: mengecilkan `KOLOM_TERBUKA` kembali ke
+`[7, 10]` memerahkan dua uji kolom; mengembalikan `continue` dan membuang
+pemeriksaan identitas ganda memerahkan dua uji impor.
