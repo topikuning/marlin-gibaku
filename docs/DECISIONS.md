@@ -12485,3 +12485,61 @@ diperiksa satu per satu: semuanya menegaskan HUBUNGAN antar angka
 (`deviationPct ≈ actualPct − planPct`) atau memakai nomor minggu eksplisit
 (`getRencanaMingguan(loc, 3)`), jadi tidak bergantung pada kalender. Yang busuk
 memang hanya satu — tapi polanya akan terulang, dan sekarang ada namanya.
+
+---
+
+## 310 · Identitas baris dikunci di kiri pada daftar lokasi (2026-08-12)
+
+**Permintaan user:** *"tampilan lokasi, perlu ada kunci nama lokasi dan kabupaten
+(wilayah) — untuk nama paket perlu tapi tidak perlu freeze, karena ketika scroll
+ke kanan/kiri, tidak tahu itu data progress lokasi mana."*
+
+Tabelnya lebih lebar dari satu layar. Digulir ke kanan, yang tersisa cuma
+deretan angka tanpa pemiliknya — dan angka progres tanpa nama lokasi bukan
+sekadar tidak berguna, tapi berbahaya: paling gampang dibaca sebagai milik
+lokasi yang salah.
+
+### Nama + wilayah dikunci dalam SATU kolom, bukan dua kolom berdampingan
+
+Cara yang paling harfiah — mengunci kolom Lokasi dan kolom Wilayah bersebelahan
+(190 + 150 = 340 px) — sudah dicoba dan **diukur di peramban sungguhan**. Pada
+viewport 390 px AG Grid menolak menahan area terkunci selebar itu, lalu MELEPAS
+kuncinya sendiri; yang dilepas justru kolom **Lokasi**. Hasilnya kebalikan dari
+yang diminta: Wilayah menempel di kiri, nama lokasi hanyut ke kanan. Diam-diam,
+tanpa peringatan apa pun. Di desktop 1440 px tidak terlihat sama sekali — cacat
+yang hanya muncul di layar yang paling banyak dipakai orang lapangan.
+
+Menyempitkan keduanya sampai muat juga bukan jawaban: di 390 px, dua kolom
+terkunci menyisakan ~110 px untuk menggulir — persis ruang yang sedang
+dikeluhkan. Ditumpuk dalam satu kolom, keduanya terbaca penuh dan ruang gulirnya
+kira-kira dua kali lipat. Pola yang sama sudah dipakai tabel "Per lokasi" di
+halaman Progress.
+
+Kolom **Wilayah tersendiri tetap ada** (tidak dikunci) — ia yang menyediakan
+pengurutan, penyaringan, dan kolomnya di CSV. Yang di sel terkunci adalah
+keterangan, bukan penggantinya. Nama paket sengaja tidak dikunci, sesuai
+permintaan.
+
+### Dua jebakan yang ikut ditutup
+
+1. **`pinned` dibuang dari state kolom tersimpan.** `getColumnState()` ikut
+   menyimpan `pinned` — termasuk `null` untuk kolom yang saat itu belum dikunci.
+   Tanpa pembuangan ini, setiap orang yang PERNAH membuka daftar ini sebelum
+   kuncinya dipasang akan membawa `pinned: null` di localStorage selamanya: di
+   layar mereka tidak terkunci, di layar orang baru terkunci, dan tidak ada satu
+   pun tombol yang bisa menjelaskan bedanya. Yang tetap disimpan justru yang
+   memang milik pengguna: urutan, lebar, sortir, kolom tersembunyi.
+
+2. **Tinggi baris dipatok 60 px, bukan `autoHeight`.** Isi sel dua baris setinggi
+   44 px. AG Grid menaruh lajur penggulir mendatarnya (16 px) MENUMPANG di dasar
+   badan grid, jadi ia menutupi 16 px terakhir **baris terakhir** — hanya baris
+   terakhir, hanya kalau tabelnya bisa digulir mendatar, yaitu persis keadaan
+   yang sedang diperbaiki. Diukur: baris ke-7 kehilangan ekor huruf pada baris
+   wilayahnya. `autoHeight` per kolom tidak menolong — tinggi total grid
+   (`domLayout: "autoHeight"`) sempat dihitung memakai tinggi baris bawaan
+   sebelum selnya memuai. 44 + 16 = 60 tidak punya perlombaan itu.
+
+**Penjaga:** `tests/e2e/lokasi-identitas-terkunci.spec.ts` — MENGGULIR sungguhan
+lalu memeriksa apa yang terlihat. Uji unit tidak bisa membuktikan ini: kolom
+yang "dikunci" menurut definisi kolom belum tentu tetap terkunci menurut AG
+Grid, dan justru di situ cacatnya.
