@@ -45,12 +45,29 @@ export function LocationSwitcher({
   siblings,
   hiddenCount,
   packageName,
+  compact = false,
 }: {
   current: SiblingLocation;
   siblings: SiblingLocation[];
   /** Lokasi sepaket yang TIDAK boleh diakses user ini. */
   hiddenCount: number;
   packageName: string;
+  /**
+   * Varian baris ringkas PONSEL (permintaan user 2026-08-13: *"lokasi di mobile
+   * kenapa tidak bisa ada pilihan pindah ke lokasi lain?"*).
+   *
+   * Bedanya bukan sekadar ukuran:
+   *
+   * - **Bukan `<h1>`.** Header desktop dan baris ponsel sama-sama ADA di DOM —
+   *   yang memilih cuma CSS breakpoint — jadi menaikkannya jadi judul akan
+   *   membuat dua `<h1>` di satu halaman.
+   * - **Tanpa panah urut.** Di baris yang sama masih harus muat status dan
+   *   deviasi; dua tombol panah memaksa nama lokasi terpotong jadi "Karang…",
+   *   dan mengorbankan "saya sedang di lokasi mana" demi jalan pintas menyapu
+   *   adalah pertukaran yang salah di layar selebar 390px. Daftarnya sendiri
+   *   tetap satu ketukan dan menampilkan semua lokasi beserta deviasinya.
+   */
+  compact?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -110,45 +127,63 @@ export function LocationSwitcher({
   // Satu lokasi saja (atau tak ada yang lain yang boleh diakses) → tidak ada
   // yang bisa dituju; tampilkan judul biasa, jangan kontrol yang tak berguna.
   if (siblings.length <= 1) {
-    return <h1 className="text-xl font-semibold text-ink">{current.name}</h1>;
+    return compact ? (
+      <span className="min-w-0 truncate text-sm font-semibold text-ink">{current.name}</span>
+    ) : (
+      <h1 className="text-xl font-semibold text-ink">{current.name}</h1>
+    );
   }
 
+  const pemicu = (
+    <button
+      type="button"
+      onClick={() => setOpen((v) => !v)}
+      aria-haspopup="listbox"
+      aria-expanded={open}
+      title={`Pindah ke lokasi lain di ${packageName}`}
+      // Kotaknya PERMANEN, bukan muncul saat hover: ini kontrol utama baris
+      // ini, dan kontrol yang baru kelihatan setelah disentuh tidak akan
+      // pernah ditemukan orang yang belum tahu ada fiturnya. Panah di
+      // sebelahnya sengaja lebih ringan supaya hierarkinya tidak terbalik.
+      className={cn(
+        "inline-flex items-center rounded-lg border border-border bg-surface font-semibold text-ink hover:border-border-strong hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-primary-600",
+        compact
+          ? // min-h-9 supaya tetap bisa diketuk jempol; max-w menyisakan ruang
+            // untuk status + deviasi yang berbagi baris yang sama.
+            "min-h-9 max-w-[55vw] min-w-0 gap-1.5 px-2 py-1 text-sm"
+          : "max-w-[70vw] gap-2 px-2.5 py-1 text-xl sm:max-w-none",
+      )}
+    >
+      <span className="truncate">{current.name}</span>
+      <ChevronDown aria-hidden className="size-4 shrink-0 text-ink-muted" />
+    </button>
+  );
+
   return (
-    <div ref={rootRef} className="relative inline-flex items-center gap-1">
-      <h1 className="contents">
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          aria-haspopup="listbox"
-          aria-expanded={open}
-          title={`Pindah ke lokasi lain di ${packageName}`}
-          // Kotaknya PERMANEN, bukan muncul saat hover: ini kontrol utama baris
-          // ini, dan kontrol yang baru kelihatan setelah disentuh tidak akan
-          // pernah ditemukan orang yang belum tahu ada fiturnya. Panah di
-          // sebelahnya sengaja lebih ringan supaya hierarkinya tidak terbalik.
-          className="inline-flex max-w-[70vw] items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-1 text-xl font-semibold text-ink hover:border-border-strong hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-primary-600 sm:max-w-none"
-        >
-          <span className="truncate">{current.name}</span>
-          <ChevronDown aria-hidden className="size-4 shrink-0 text-ink-muted" />
-        </button>
-      </h1>
+    <div ref={rootRef} className={cn("relative inline-flex items-center gap-1", compact && "min-w-0")}>
+      {compact ? pemicu : <h1 className="contents">{pemicu}</h1>}
 
       {/* Panah urut: saat menyapu semua lokasi, tak perlu mengingat mana yang
-          sudah dibuka — cukup tekan berikutnya sampai habis. */}
-      <StepButton
-        label="Lokasi sebelumnya"
-        disabled={idx <= 0}
-        onClick={() => idx > 0 && pindah(siblings[idx - 1].slug)}
-      >
-        <ChevronLeft aria-hidden className="size-4" />
-      </StepButton>
-      <StepButton
-        label="Lokasi berikutnya"
-        disabled={idx < 0 || idx >= siblings.length - 1}
-        onClick={() => idx >= 0 && idx < siblings.length - 1 && pindah(siblings[idx + 1].slug)}
-      >
-        <ChevronRight aria-hidden className="size-4" />
-      </StepButton>
+          sudah dibuka — cukup tekan berikutnya sampai habis. Di ponsel panah
+          ini sengaja tidak ada — lihat catatan pada prop `compact`. */}
+      {compact ? null : (
+        <>
+          <StepButton
+            label="Lokasi sebelumnya"
+            disabled={idx <= 0}
+            onClick={() => idx > 0 && pindah(siblings[idx - 1].slug)}
+          >
+            <ChevronLeft aria-hidden className="size-4" />
+          </StepButton>
+          <StepButton
+            label="Lokasi berikutnya"
+            disabled={idx < 0 || idx >= siblings.length - 1}
+            onClick={() => idx >= 0 && idx < siblings.length - 1 && pindah(siblings[idx + 1].slug)}
+          >
+            <ChevronRight aria-hidden className="size-4" />
+          </StepButton>
+        </>
+      )}
 
       {open ? (
         <div

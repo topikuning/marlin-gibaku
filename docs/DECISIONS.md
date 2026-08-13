@@ -12674,3 +12674,49 @@ atasnya.
 Penjaga tambahan: `tests/unit/mingguan-rekap.test.ts`. Diuji giginya —
 mengganti `weightedPct` dengan rata-rata biasa memerahkan uji target dan uji
 deviasi sekaligus.
+
+---
+
+## 312 · Pemilih lokasi ikut dipasang di baris identitas ponsel (2026-08-13)
+
+**Keluhan user:** *"lokasi di mobile kenapa tidak bisa ada pilihan pindah ke
+lokasi lain?"*
+
+Karena memang tidak ada. Pemilih lokasi (DECISIONS 204) dipasang di dalam
+`<header className="max-sm:hidden">` — header desktop yang di ponsel
+disembunyikan utuh (DECISIONS 219). Baris ringkas penggantinya cuma mencetak
+nama lokasi sebagai `<span>` mati. Jadi fiturnya ADA di kode dan TIDAK ADA di
+layar orang yang paling sering memakainya: mandor dan site manager bekerja dari
+HP, dan di ponsel satu-satunya jalan pindah lokasi adalah kembali ke daftar lalu
+mencari dari awal — persis ongkos yang DECISIONS 204 dibuat untuk menghapus.
+
+Ini bentuk regresi yang paling gampang lolos: tidak ada yang rusak, tidak ada
+yang error, dan di layar developer semuanya benar. Yang salah cuma di sisi lain
+sebuah breakpoint.
+
+### Varian ponsel bukan sekadar versi kecil
+
+Dua perbedaan sengaja, keduanya bukan soal ukuran:
+
+1. **Bukan `<h1>`.** Header desktop dan baris ponsel sama-sama ada di DOM —
+   yang memilih hanya CSS. Menaikkan versi ponselnya jadi judul berarti setiap
+   halaman lokasi punya dua `<h1>`.
+2. **Tanpa panah urut.** Baris itu masih harus memuat status dan deviasi. Dua
+   tombol panah memaksa nama lokasi terpotong jadi "Karang…" — mengorbankan
+   *"saya sedang di lokasi mana"* demi jalan pintas menyapu adalah pertukaran
+   yang salah di layar 390 px. Daftarnya sendiri tetap satu ketukan, dan tiap
+   barisnya membawa wilayah, status, dan deviasinya masing-masing.
+
+Sisanya sama persis, termasuk yang paling berharga: **sub-halaman yang sedang
+dibuka ikut terbawa**. Justru di ponsel itu yang paling mahal — tab-nya digulir
+mendatar, jadi mendarat di Ringkasan berarti mencarinya lagi.
+
+Paket berisi satu lokasi tetap tidak diberi pemicu apa pun: kontrol yang membuka
+daftar berisi dirinya sendiri hanya mengajari orang bahwa menekannya percuma.
+
+**Penjaga:** `tests/e2e/lokasi-pindah-ponsel.spec.ts` — di peramban sungguhan,
+dan setiap pemeriksaannya memakai `:visible`. Mencari elemennya di DOM adalah
+pemeriksaan yang justru tidak membuktikan apa pun pada bug jenis ini; uji unit
+yang me-render komponennya akan lulus dengan gembira. Diuji giginya:
+mengembalikan `<span>` mati memerahkan dua uji ponsel, dan memakai `<h1>` di
+varian ringkas memerahkan uji desktop dengan "Expected 1, Received 2".

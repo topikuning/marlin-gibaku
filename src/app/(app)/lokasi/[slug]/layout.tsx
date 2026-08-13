@@ -160,9 +160,21 @@ export default async function LokasiLayout({
         </dl>
       </header>
 
-      {/* Baris ringkas pengganti header di ponsel — satu baris, bukan blok. */}
+      {/* Baris ringkas pengganti header di ponsel — satu baris, bukan blok.
+
+          Nama lokasinya IKUT merangkap pemilih lokasi sepaket, sama seperti di
+          desktop (permintaan user 2026-08-13). Sebelumnya baris ini cuma teks
+          mati, jadi di ponsel satu-satunya jalan pindah lokasi adalah kembali
+          ke daftar dan mencari dari awal — padahal justru di ponsel, di mana
+          tab-tab-nya digulir mendatar, kehilangan konteks itu paling mahal. */}
       <div className="flex items-center gap-2 sm:hidden">
-        <span className="min-w-0 truncate text-sm font-semibold text-ink">{location.name}</span>
+        <LocationSwitcher
+          compact
+          current={current}
+          siblings={siblings}
+          hiddenCount={hiddenCount}
+          packageName={location.package.name}
+        />
         <StatusPill
           tone={LOCATION_STATUS_TONE[location.status]}
           label={LOCATION_STATUS_LABEL[location.status]}
