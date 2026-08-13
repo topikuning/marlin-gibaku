@@ -141,6 +141,14 @@ export type UploadOutcome = {
   updated: number;
   /** Pesan error pertama — ditampilkan ke user. */
   firstError: string | null;
+  /**
+   * Status HTTP di balik `firstError`, bila galatnya datang dari Drive. Antrean
+   * otomatis memakainya untuk membedakan tertahan laju vs salah beneran
+   * (DECISIONS 313); banner di layar tidak memakainya.
+   */
+  firstErrorStatus?: number | null;
+  /** Header `Retry-After` yang menyertai galat itu, bila ada. */
+  firstRetryAfter?: string | null;
   webLink: string | null;
 };
 

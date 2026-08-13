@@ -17,6 +17,12 @@ import {
   safeFileName,
 } from "./folders";
 import { documentItem, photoItems, summarize, uploadBatch, type UploadTarget } from "./upload";
+import {
+  adalahBatal,
+  adalahTerhalang,
+  unggahLaporanHarian,
+  unggahLaporanPeriodik,
+} from "./kirim";
 
 /** Server action integrasi Google Drive (upload manual laporan). DECISIONS 141. */
 
@@ -73,6 +79,87 @@ export async function testGDriveAction(): Promise<GDriveActionState> {
     await requireCapability("system.manage");
     const about = await driveAbout();
     return { success: `Terhubung sebagai ${about.email ?? about.name ?? "akun Google"}.` };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/* ── Unggah otomatis (sakelar + putaran manual) ─────────────────────────── */
+
+/**
+ * Nyalakan/matikan PENJADWAL unggah otomatis ke Drive KKP (DECISIONS 313).
+ * Yang dimatikan hanya penjadwalnya — tombol unggah manual tetap hidup.
+ */
+export async function setGDriveOtomatisAktifAction(
+  _prev: GDriveActionState,
+  formData: FormData,
+): Promise<GDriveActionState> {
+  const parsed = z.object({ aktif: z.enum(["1", "0"]) }).safeParse({ aktif: formData.get("aktif") });
+  if (!parsed.success) return { error: "Nilai sakelar tidak dikenal." };
+  const aktif = parsed.data.aktif === "1";
+
+  try {
+    const user = await requireCapability("system.manage");
+    const { setGDriveOtomatisAktif } = await import("./setelan");
+    await setGDriveOtomatisAktif(aktif);
+    await audit(user.id, "gdrive.auto.toggle", "system", null, { aktif });
+    revalidatePath("/sistem");
+    return {
+      success: aktif
+        ? "Unggah otomatis DINYALAKAN. Laporan harian yang final dan laporan mingguan yang minggunya sudah tuntas akan naik sendiri, dicicil supaya tidak diblok Google."
+        : "Unggah otomatis DIMATIKAN. Penjadwal tidak menaikkan apa pun — tombol unggah manual tetap bisa dipakai.",
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Jalankan satu putaran antrean sekarang, di luar jadwal. */
+export async function jalankanAntreanDriveAction(): Promise<GDriveActionState> {
+  try {
+    const user = await requireCapability("system.manage");
+    const { jalankanAntreanDrive } = await import("./antrean");
+    const h = await jalankanAntreanDrive();
+    await audit(user.id, "gdrive.auto.putaran", "system", null, {
+      dikerjakan: h.dikerjakan,
+      sukses: h.sukses,
+      gagal: h.gagal,
+    });
+    revalidatePath("/sistem");
+
+    if (!h.aktif) return { error: "Unggah otomatis sedang MATI — nyalakan dulu sakelarnya." };
+    if (!h.terhubung) return { error: "Akun Google belum terhubung." };
+
+    const bagian = [
+      `${h.diantre.harian + h.diantre.mingguan} baru diantre`,
+      `${h.sukses} naik`,
+    ];
+    if (h.ditahan > 0) bagian.push(`${h.ditahan} ditahan Google (dicoba lagi nanti)`);
+    if (h.gagal > 0) bagian.push(`${h.gagal} gagal`);
+    if (h.menyerah > 0) bagian.push(`${h.menyerah} menyerah`);
+    if (h.batal > 0) bagian.push(`${h.batal} batal`);
+    bagian.push(`${h.sisa} masih menunggu`);
+    const ekor = h.berhenti ? ` ${h.berhenti}` : "";
+    return { success: `Putaran selesai: ${bagian.join(", ")}.${ekor}` };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** Kembalikan pekerjaan yang MENYERAH ke antrean setelah penyebabnya dibereskan. */
+export async function ulangiAntreanDriveAction(): Promise<GDriveActionState> {
+  try {
+    const user = await requireCapability("system.manage");
+    const { ulangiYangMenyerah } = await import("./antrean");
+    const n = await ulangiYangMenyerah();
+    await audit(user.id, "gdrive.auto.ulangi", "system", null, { jumlah: n });
+    revalidatePath("/sistem");
+    return {
+      success:
+        n > 0
+          ? `${n} pekerjaan dikembalikan ke antrean.`
+          : "Tidak ada pekerjaan yang menyerah — antrean bersih.",
+    };
   } catch (err) {
     return fail(err);
   }
@@ -185,55 +272,29 @@ export async function uploadDailyReportToDriveAction(
 
   try {
     const user = await requireCapability("report.export");
-    const c = await ctxFor({ slug }, "laporan_harian", `${slug}:${dateKey}`, user.id);
-    if ("error" in c) return { error: c.error };
-    await requireLocationAccess(user, c.target.locationId!);
+    const loc = await db.location.findFirst({ where: { slug }, select: { id: true } });
+    if (!loc) return { error: "Lokasi tidak ditemukan." };
+    await requireLocationAccess(user, loc.id);
 
-    const { renderHarianKkpPdf } = await import("@/lib/pdf/harian-kkp");
     const { getRequestOrigin } = await import("@/lib/http");
-    const pdf = await renderHarianKkpPdf(slug, dateKey, { baseUrl: await getRequestOrigin() });
-    if (!pdf) return { error: "Laporan harian tidak ditemukan." };
-
-    const report = await db.dailyReport.findUnique({
-      where: {
-        locationId_reportDate: {
-          locationId: c.target.locationId!,
-          reportDate: new Date(`${dateKey}T00:00:00.000Z`),
-        },
-      },
-      select: { photos: { select: { r2Key: true }, orderBy: { createdAt: "asc" } } },
+    const hasil = await unggahLaporanHarian({
+      slug,
+      dateKey,
+      byId: user.id,
+      baseUrl: await getRequestOrigin(),
     });
-
-    const outcomes = [
-      await uploadBatch(c.target, dailyReportPath({ locationName: c.locationName, dateKey }), [
-        {
-          fileName: safeFileName(`Laporan Harian - ${c.locationName} - ${dateKey}.pdf`),
-          mime: PDF_MIME,
-          data: pdf.buffer,
-        },
-      ]),
-    ];
-
-    let skipped = 0;
-    const photos = report?.photos ?? [];
-    if (photos.length > 0) {
-      const got = await photoItems(photos, { dateKey, locationName: c.locationName });
-      skipped = got.skipped;
-      outcomes.push(
-        await uploadBatch(c.target, dailyPhotoPath({ locationName: c.locationName, dateKey }), got.items),
-      );
-    }
+    if (adalahTerhalang(hasil)) return { error: hasil.error };
+    if (adalahBatal(hasil)) return { error: hasil.batal };
 
     await audit(user.id, "gdrive.upload", "daily_report", null, {
-      locationId: c.target.locationId,
+      locationId: loc.id,
       dateKey,
-      files: outcomes.reduce((s, o) => s + o.ok, 0),
-      photos: photos.length,
+      files: hasil.outcomes.reduce((s, o) => s + o.ok, 0),
     });
     revalidatePath(`/lokasi/${slug}/laporan-lokasi`);
-    const err = outcomes.find((o) => o.firstError)?.firstError;
-    const msg = summarize("Laporan harian", outcomes, skipped);
-    return err ? { error: `${msg} Penyebab: ${err}` } : { success: msg };
+    return hasil.galat
+      ? { error: `${hasil.ringkas} Penyebab: ${hasil.galat.pesan}` }
+      : { success: hasil.ringkas };
   } catch (err) {
     return fail(err);
   }
@@ -260,43 +321,22 @@ export async function uploadPeriodReportToDriveAction(
 
   try {
     const user = await requireCapability("report.export");
-    const c = await ctxFor(
-      { locationId },
-      kind === "mingguan" ? "laporan_mingguan" : "laporan_bulanan",
-      `${locationId}:${kind}-${n}`,
-      user.id,
-    );
-    if ("error" in c) return { error: c.error };
     await requireLocationAccess(user, locationId);
+    const loc = await db.location.findUnique({ where: { id: locationId }, select: { slug: true } });
 
-    // PDF yang disetor ke Drive WAJIB blanko resmi KKP (halaman kurva-S +
-    // rincian), sama dengan halaman cetak — bukan PDF ringkasan yang dipakai
-    // kiriman WhatsApp (DECISIONS 161).
-    const [{ renderPeriodikKkpPdf }, { getPeriodReport }, { buildPeriodReportXlsx }, { muatLogoLaporan }] =
-      await Promise.all([
-        import("@/lib/pdf/periodik-kkp"),
-        import("@/lib/periodic-report"),
-        import("@/lib/export/xlsx"),
-        import("@/lib/export/logo-laporan"),
-      ]);
-    const [pdf, report] = await Promise.all([
-      renderPeriodikKkpPdf(locationId, kind, n),
-      getPeriodReport(locationId, kind, n),
-    ]);
-    if (!pdf || !report) return { error: "Laporan untuk periode ini tidak tersedia." };
-    const xlsx = await buildPeriodReportXlsx(report, { logo: await muatLogoLaporan(locationId) });
+    const hasil = await unggahLaporanPeriodik({ locationId, kind, n, byId: user.id });
+    if (adalahTerhalang(hasil)) return { error: hasil.error };
+    if (adalahBatal(hasil)) return { error: hasil.batal };
 
-    const label = kind === "mingguan" ? `Minggu ke-${n}` : `Bulan ke-${n}`;
-    const base = `Laporan ${kind === "mingguan" ? "Mingguan" : "Bulanan"} ${label} - ${c.locationName}`;
-    const outcome = await uploadBatch(c.target, periodReportPath(kind, c.locationName), [
-      { fileName: safeFileName(`${base}.pdf`), mime: PDF_MIME, data: pdf.buffer },
-      { fileName: safeFileName(`${base}.xlsx`), mime: XLSX_MIME, data: xlsx },
-    ]);
-
-    await audit(user.id, "gdrive.upload", "location", locationId, { kind, n, files: outcome.ok });
-    revalidatePath(`/lokasi/${c.slug}/laporan-lokasi`);
-    const msg = summarize(`Laporan ${kind} ${label}`, [outcome]);
-    return outcome.firstError ? { error: `${msg} Penyebab: ${outcome.firstError}` } : { success: msg };
+    await audit(user.id, "gdrive.upload", "location", locationId, {
+      kind,
+      n,
+      files: hasil.outcomes.reduce((s, o) => s + o.ok, 0),
+    });
+    if (loc) revalidatePath(`/lokasi/${loc.slug}/laporan-lokasi`);
+    return hasil.galat
+      ? { error: `${hasil.ringkas} Penyebab: ${hasil.galat.pesan}` }
+      : { success: hasil.ringkas };
   } catch (err) {
     return fail(err);
   }

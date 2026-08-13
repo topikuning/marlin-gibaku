@@ -478,6 +478,7 @@ model Package {
   waMessages      WaMessage[]
   waChatSummaries WaChatSummary[]
   gdriveUploads   GDriveUpload[]
+  gdriveJobs      GDriveJob[]
   weeklyWaLogs    WeeklyWaLog[]
 
   @@index([orgId, stage])
@@ -508,6 +509,55 @@ model GDriveUpload {
 
   @@index([packageId, kind, refKey, createdAt])
   @@map("gdrive_uploads")
+}
+
+/// Antrean unggah OTOMATIS ke Drive KKP (DECISIONS 313). Satu baris = satu
+/// keluaran yang WAJIB ada di Drive: laporan harian yang sudah final, atau
+/// laporan mingguan KKP satu lokasi yang minggu kontraknya sudah tuntas.
+///
+/// Antrean ini ada supaya unggahan tidak pernah meledak sekaligus. Kuota Drive
+/// dilanggar oleh LEDAKAN, bukan oleh jumlah total: 83 lokasi yang difinalisasi
+/// beruntun bisa mengirim ribuan berkas dalam semenit kalau diunggah langsung
+/// di tempat. Dengan antrean, penjadwal hanya menarik sedikit pekerjaan per
+/// putaran, memberi jeda antar berkas, dan mundur bertahap saat Google menolak.
+///
+/// Baris ini adalah NIAT ("ini harus ada di Drive"), sedangkan `GDriveUpload`
+/// tetap jejak per berkas. Keduanya memakai `refKey` yang sama persis supaya
+/// bisa disandingkan tanpa menebak.
+model GDriveJob {
+  id            String    @id @default(uuid()) @db.Uuid
+  /// laporan_harian | laporan_mingguan — sama dengan GDriveUpload.kind.
+  kind          String
+  /// "<slug>:<YYYY-MM-DD>" (harian) atau "<locationId>:mingguan-<n>" (mingguan).
+  refKey        String    @map("ref_key")
+  /// Periode yang dikerjakan, TERPISAH dari `refKey`: "YYYY-MM-DD" untuk harian,
+  /// nomor minggu untuk mingguan. Ada supaya penjadwal tidak perlu MENGURAI
+  /// kembali `refKey` — kunci itu bentuknya ditentukan oleh kebutuhan pencocokan
+  /// dengan `GDriveUpload`, bukan oleh kebutuhan menjalankan pekerjaannya.
+  periode       String
+  packageId     String    @map("package_id") @db.Uuid
+  locationId    String    @map("location_id") @db.Uuid
+  /// menunggu | jalan | sukses | menyerah | batal
+  /// `batal` = prasyaratnya hilang sebelum sempat naik (mis. laporan dibuka
+  /// kembali dari final); bukan kegagalan, jadi tidak perlu ditindak orang.
+  status        String    @default("menunggu")
+  attempts      Int       @default(0)
+  lastError     String?   @map("last_error")
+  /// Paling cepat boleh dicoba lagi kapan — mundur bertahap tiap kegagalan.
+  nextAttemptAt DateTime  @default(now()) @map("next_attempt_at") @db.Timestamptz
+  /// Ditandai saat sebuah putaran mengambil baris ini; dipakai membebaskan
+  /// pekerjaan yang menggantung karena proses mati di tengah jalan.
+  claimedAt     DateTime? @map("claimed_at") @db.Timestamptz
+  finishedAt    DateTime? @map("finished_at") @db.Timestamptz
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  package  Package  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([kind, refKey])
+  @@index([status, nextAttemptAt])
+  @@map("gdrive_jobs")
 }
 
 /// Pesan grup WhatsApp yang tertangkap via webhook WAHA (inbound). Fondasi
@@ -697,6 +747,7 @@ model Location {
   photos              Photo[]
   weatherObservations WeatherObservation[]
   masterLocation      MasterLocation?
+  gdriveJobs          GDriveJob[]
 
   @@index([packageId])
   @@index([province])

@@ -29,11 +29,32 @@ import { formatPct } from "@/lib/format";
 /** Satu desa/KNMP di dalam pesan. Semua angka sudah jadi, tinggal dicetak. */
 export type BarisLokasiMingguan = {
   nama: string;
+  /** "Bangkalan, Jawa Timur" — kabupaten & provinsi, permintaan user 2026-08-12. */
+  wilayah: string;
   /** Rencana kurva-S pada minggu ini (%). `null` = lokasi belum punya baseline. */
   targetPct: number | null;
   realisasiPct: number;
   /** realisasi − target. Positif = mendahului. */
   deviasiPct: number;
+};
+
+/**
+ * Angka SELURUH paket — rata-rata TERTIMBANG nilai kontrak, bukan rata-rata
+ * biasa. Sudah dihitung di hulu oleh `progress-calc` (formula kanonik); di sini
+ * hanya dicetak.
+ */
+export type RekapPaket = {
+  targetPct: number;
+  realisasiPct: number;
+  deviasiPct: number;
+  /** Berapa lokasi yang IKUT dihitung. */
+  lokasiDihitung: number;
+  /**
+   * Lokasi yang DIKELUARKAN karena belum punya kurva-S. Disebut jumlahnya, tidak
+   * disembunyikan: "2 dari 3 lokasi" adalah keterangan yang berbeda jauh dari
+   * "2 lokasi", dan pembacanya berhak tahu angka ini belum mencakup semuanya.
+   */
+  lokasiTanpaKurva: number;
 };
 
 export type IsiPesanMingguan = {
@@ -42,6 +63,12 @@ export type IsiPesanMingguan = {
   /** Minggu ke berapa sejak SPMK — sifat KONTRAK, sama untuk semua lokasinya. */
   mingguKe: number;
   lokasi: BarisLokasiMingguan[];
+  /**
+   * Rekap seluruh paket. `null` bila tidak ada yang bisa dihitung — dan SENGAJA
+   * dilewati saat paketnya cuma punya satu lokasi: rekapnya akan mengulang
+   * angka yang sama persis dengan blok di atasnya.
+   */
+  rekap?: RekapPaket | null;
 };
 
 /**
@@ -79,6 +106,7 @@ export function susunPesanMingguan(isi: IsiPesanMingguan): string | null {
     if (l.targetPct == null) {
       return [
         `Nama Desa/KNMP : ${l.nama}`,
+        `Kabupaten/Provinsi : ${l.wilayah}`,
         "Target : belum ada kurva-S",
         `Realisasi : ${formatPct(l.realisasiPct, 3)}`,
         "Deviasi : belum bisa dihitung",
@@ -86,17 +114,44 @@ export function susunPesanMingguan(isi: IsiPesanMingguan): string | null {
     }
     return [
       `Nama Desa/KNMP : ${l.nama}`,
+      `Kabupaten/Provinsi : ${l.wilayah}`,
       `Target : ${formatPct(l.targetPct, 3)}`,
       `Realisasi : ${formatPct(l.realisasiPct, 3)}`,
       `Deviasi : ${formatPct(l.deviasiPct, 3)} (${labelDeviasi(l.deviasiPct)})`,
     ].join("\n");
   });
 
-  return [
+  const bagian = [
     "Laporan Progres Mingguan",
     `Nama Pelaksana : ${isi.pelaksana}`,
     `Minggu Ke : ${isi.mingguKe}`,
     "",
     blok.join("\n\n"),
-  ].join("\n");
+  ];
+
+  /*
+   * REKAP paket ditaruh di BAWAH, sesudah rinciannya.
+   *
+   * Ia rangkuman, dan rangkuman yang mendahului hal yang dirangkumnya membuat
+   * pembaca menakar angka gabungan sebelum tahu isinya. Untuk paket satu lokasi
+   * bagian ini tidak muncul sama sekali — angkanya akan sama persis dengan blok
+   * di atasnya, dan mengulanginya hanya membuat pesan lebih panjang tanpa
+   * menambah satu pun keterangan baru.
+   */
+  const r = isi.rekap;
+  if (r && isi.lokasi.length > 1) {
+    const cakupan =
+      r.lokasiTanpaKurva > 0
+        ? `${r.lokasiDihitung} dari ${r.lokasiDihitung + r.lokasiTanpaKurva} lokasi — ${r.lokasiTanpaKurva} lokasi belum ada kurva-S`
+        : `${r.lokasiDihitung} lokasi`;
+    bagian.push(
+      "",
+      `TOTAL PAKET (${cakupan})`,
+      `Target : ${formatPct(r.targetPct, 3)}`,
+      `Realisasi : ${formatPct(r.realisasiPct, 3)}`,
+      `Deviasi : ${formatPct(r.deviasiPct, 3)} (${labelDeviasi(r.deviasiPct)})`,
+    );
+  }
+
+  return bagian.join("\n");
 }

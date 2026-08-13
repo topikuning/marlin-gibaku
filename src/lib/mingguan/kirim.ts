@@ -1,8 +1,9 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { getLocationProgress } from "@/lib/progress";
+import { getLocationProgress, type LocationProgress } from "@/lib/progress";
+import { weightedPct, weightedRealizedPct } from "@/lib/progress-calc";
 import { isWahaConfigured, sendText } from "@/lib/waha/client";
-import { susunPesanMingguan, type BarisLokasiMingguan } from "./pesan";
+import { susunPesanMingguan, type BarisLokasiMingguan, type RekapPaket } from "./pesan";
 
 /**
  * Pengirim LAPORAN PROGRES MINGGUAN ke grup WhatsApp paket (DECISIONS 311).
@@ -51,6 +52,35 @@ function tengahMalam(d: Date): number {
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }
 
+/**
+ * Angka SELURUH paket — rata-rata TERTIMBANG nilai kontrak tiap lokasi, memakai
+ * `weightedPct`/`weightedRealizedPct` dari `progress-calc` (formula kanonik,
+ * B13). Tidak ada rata-rata baru yang ditulis di sini: lokasi Rp 12 M dan
+ * lokasi Rp 3 M tidak boleh dihitung sama berat, dan rata-rata biasa akan
+ * membuat paket tampak lebih maju daripada kenyataannya.
+ *
+ * Deviasinya = realisasi tertimbang − target tertimbang, BUKAN rata-rata dari
+ * deviasi per lokasi. Keduanya angka yang berbeda, dan yang benar untuk sebuah
+ * paket adalah yang pertama.
+ *
+ * Lokasi tanpa kurva-S DIKELUARKAN, bukan dihitung sebagai target 0%.
+ * Memasukkannya akan menyeret target paket ke bawah dan membuat paket terbaca
+ * mendahului jadwal — kebohongan yang sama persis dengan yang sudah dihindari
+ * di tingkat lokasi. Jumlah yang dikeluarkan ikut disebut di pesan.
+ */
+export function rekapPaket(berkurva: LocationProgress[], tanpaKurva: number): RekapPaket | null {
+  if (berkurva.length === 0) return null;
+  const targetPct = weightedPct(berkurva.map((p) => ({ grandTotal: p.grandTotal, pct: p.planPct })));
+  const realisasiPct = weightedRealizedPct(berkurva);
+  return {
+    targetPct,
+    realisasiPct,
+    deviasiPct: realisasiPct - targetPct,
+    lokasiDihitung: berkurva.length,
+    lokasiTanpaKurva: tanpaKurva,
+  };
+}
+
 export type HasilKirimMingguan =
   | { ok: true; mingguKe: number; lokasi: number; body: string; waMessageId: string | null }
   | { ok: false; alasan: string; body?: string };
@@ -67,7 +97,7 @@ async function muatPaket(packageId: string) {
       locations: {
         where: { isActive: true },
         orderBy: { name: "asc" },
-        select: { id: true, name: true },
+        select: { id: true, name: true, regency: true, province: true },
       },
     },
   });
@@ -92,13 +122,20 @@ export async function pratinjauMingguan(
 
   const mingguKe = mingguKontrak(pkg.contract.startDate, now);
   const baris: BarisLokasiMingguan[] = [];
+  /** Hanya yang punya kurva-S yang boleh ikut rekap — lihat `rekapPaket`. */
+  const berkurva: LocationProgress[] = [];
+  let tanpaKurva = 0;
+
   for (const l of pkg.locations) {
     // Angkanya DITERIMA dari calculation layer, tidak dihitung ulang di sini
     // (CLAUDE.md). `totalWeeks === 0` = lokasi belum punya baseline sama sekali.
     const p = await getLocationProgress(l.id);
     const belumAdaKurva = p.totalWeeks === 0;
+    if (belumAdaKurva) tanpaKurva += 1;
+    else berkurva.push(p);
     baris.push({
       nama: l.name,
+      wilayah: [l.regency, l.province].filter(Boolean).join(", "),
       targetPct: belumAdaKurva ? null : p.planPct,
       realisasiPct: p.realizedPct,
       deviasiPct: p.deviationPct,
@@ -109,6 +146,7 @@ export async function pratinjauMingguan(
     pelaksana: pkg.contract.vendor.name,
     mingguKe,
     lokasi: baris,
+    rekap: rekapPaket(berkurva, tanpaKurva),
   });
   if (!body) return { alasan: "Tidak ada lokasi yang bisa dilaporkan." };
   return { body, mingguKe, lokasi: baris.length };

@@ -823,6 +823,13 @@ export async function finalizeReport(reportId: string, userId: string) {
       payload: { items: snapshot.items.length, totalValueToday: snapshot.totalValueToday },
     },
   );
+
+  // Laporan final = dokumen yang memang harus ada di Drive KKP, jadi niat itu
+  // dicatat di sini — di SATU tempat yang dilewati semua jalur finalisasi.
+  // Hanya MENGANTRE, tidak mengunggah: finalisasi tidak boleh ikut gagal atau
+  // menggantung karena Google sedang lambat (DECISIONS 313).
+  const { antrekanLaporanHarian } = await import("@/lib/gdrive/antrean");
+  await antrekanLaporanHarian(updated.id);
   return updated;
 }
 

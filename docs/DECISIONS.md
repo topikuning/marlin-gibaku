@@ -12639,3 +12639,261 @@ ditumpuk, target kosong) dan `tests/integration/laporan-mingguan-wa.test.ts`
 (kapan berbunyi + tidak dobel kirim, lewat Postgres sungguhan). Sudah diuji
 giginya: membuang penjagaan "sudah pernah sukses" memerahkan uji dobel-kirim;
 melonggarkan `hari % 7 === 6` memerahkan tiga uji jadwal sekaligus.
+
+### Susulan hari yang sama: kabupaten/provinsi + angka gabungan paket
+
+User: *"perlu nama kabupaten dan provinsi. lalu perlu info global juga. jadi
+dari semua lokasi atas paket itu berapa persen progress dan deviasinya"*.
+
+Tiap blok desa kini membawa baris `Kabupaten/Provinsi`, dan di kaki pesan ada
+blok `TOTAL PAKET`.
+
+**Angka paket = rata-rata TERTIMBANG nilai kontrak**, memakai `weightedPct` dan
+`weightedRealizedPct` dari `progress-calc` (formula kanonik B13). Tidak ada
+rata-rata baru yang ditulis di modul mingguan. Bedanya bukan akademis: lokasi
+Rp 9 M dengan rencana 10% dan lokasi Rp 1 M dengan rencana 50% menghasilkan 14%
+secara tertimbang, tetapi **30%** kalau dirata-ratakan biasa — dan 30% itu akan
+dikirim ke grup PPK sebagai posisi resmi paket.
+
+Deviasi paket = realisasi tertimbang − target tertimbang, **bukan** rata-rata
+deviasi per lokasi. Keduanya angka yang berbeda; yang benar untuk sebuah paket
+adalah yang pertama.
+
+**Lokasi tanpa kurva-S DIKELUARKAN dari angka gabungan**, bukan dihitung sebagai
+target 0% — memasukkannya menyeret target paket ke bawah dan membuat paket
+terbaca mendahului jadwal, kebohongan yang sama persis dengan yang sudah
+dihindari di tingkat lokasi. Jumlah yang dikeluarkan DISEBUT di pesannya
+("2 dari 3 lokasi — 1 lokasi belum ada kurva-S"), karena "2 lokasi" dan "2 dari
+3 lokasi" adalah dua pernyataan yang berbeda jauh.
+
+Blok TOTAL ditaruh di BAWAH rincian (rangkuman yang mendahului isinya membuat
+pembaca menakar angka gabungan sebelum tahu isinya), dan **tidak muncul sama
+sekali pada paket satu lokasi** — angkanya akan sama persis dengan blok di
+atasnya.
+
+Penjaga tambahan: `tests/unit/mingguan-rekap.test.ts`. Diuji giginya —
+mengganti `weightedPct` dengan rata-rata biasa memerahkan uji target dan uji
+deviasi sekaligus.
+
+---
+
+## 312 · Pemilih lokasi ikut dipasang di baris identitas ponsel (2026-08-13)
+
+**Keluhan user:** *"lokasi di mobile kenapa tidak bisa ada pilihan pindah ke
+lokasi lain?"*
+
+Karena memang tidak ada. Pemilih lokasi (DECISIONS 204) dipasang di dalam
+`<header className="max-sm:hidden">` — header desktop yang di ponsel
+disembunyikan utuh (DECISIONS 219). Baris ringkas penggantinya cuma mencetak
+nama lokasi sebagai `<span>` mati. Jadi fiturnya ADA di kode dan TIDAK ADA di
+layar orang yang paling sering memakainya: mandor dan site manager bekerja dari
+HP, dan di ponsel satu-satunya jalan pindah lokasi adalah kembali ke daftar lalu
+mencari dari awal — persis ongkos yang DECISIONS 204 dibuat untuk menghapus.
+
+Ini bentuk regresi yang paling gampang lolos: tidak ada yang rusak, tidak ada
+yang error, dan di layar developer semuanya benar. Yang salah cuma di sisi lain
+sebuah breakpoint.
+
+### Varian ponsel bukan sekadar versi kecil
+
+Dua perbedaan sengaja, keduanya bukan soal ukuran:
+
+1. **Bukan `<h1>`.** Header desktop dan baris ponsel sama-sama ada di DOM —
+   yang memilih hanya CSS. Menaikkan versi ponselnya jadi judul berarti setiap
+   halaman lokasi punya dua `<h1>`.
+2. **Tanpa panah urut.** Baris itu masih harus memuat status dan deviasi. Dua
+   tombol panah memaksa nama lokasi terpotong jadi "Karang…" — mengorbankan
+   *"saya sedang di lokasi mana"* demi jalan pintas menyapu adalah pertukaran
+   yang salah di layar 390 px. Daftarnya sendiri tetap satu ketukan, dan tiap
+   barisnya membawa wilayah, status, dan deviasinya masing-masing.
+
+Sisanya sama persis, termasuk yang paling berharga: **sub-halaman yang sedang
+dibuka ikut terbawa**. Justru di ponsel itu yang paling mahal — tab-nya digulir
+mendatar, jadi mendarat di Ringkasan berarti mencarinya lagi.
+
+Paket berisi satu lokasi tetap tidak diberi pemicu apa pun: kontrol yang membuka
+daftar berisi dirinya sendiri hanya mengajari orang bahwa menekannya percuma.
+
+**Penjaga:** `tests/e2e/lokasi-pindah-ponsel.spec.ts` — di peramban sungguhan,
+dan setiap pemeriksaannya memakai `:visible`. Mencari elemennya di DOM adalah
+pemeriksaan yang justru tidak membuktikan apa pun pada bug jenis ini; uji unit
+yang me-render komponennya akan lulus dengan gembira. Diuji giginya:
+mengembalikan `<span>` mati memerahkan dua uji ponsel, dan memakai `<h1>` di
+varian ringkas memerahkan uji desktop dengan "Expected 1, Received 2".
+
+---
+
+## 313 · Unggah OTOMATIS laporan ke Drive KKP lewat antrean berlaju (2026-08-13)
+
+Permintaan user 2026-08-13:
+
+> *"aku butuh fitur untuk auto kirim laporan harian yang sudah final ke google
+> drive. selain itu laporan mingguan yang auto juga perlu otomatis dikirim ke
+> google drive"*
+
+Ditanyakan tiga hal sebelum menulis kode, dan jawabannya membentuk seluruh
+rancangan:
+
+1. **"Laporan mingguan" yang mana** — MARLIN punya dua benda bernama mirip:
+   Laporan Mingguan KKP per LOKASI (PDF blanko + Excel, DECISIONS 161) dan
+   Laporan Progres Mingguan per PAKET yang masuk grup WA (DECISIONS 311).
+   Jawaban: **yang KKP per lokasi**. Yang ke WA adalah pesan, bukan dokumen.
+2. **Backlog** → *"cek semua yang belum naik, lalu upload ke drive. semua
+   teknik upload jangan terlalu masiv, agar tidak diblok google"*.
+3. **Foto** → ikut, sama persis dengan tombol manual.
+
+Kalimat kedua itu yang paling menentukan, dan bukan sekadar preferensi:
+melanggarnya berarti akun Google yang jadi editor folder KKP bisa diblok —
+satu-satunya akun yang MARLIN punya untuk menyetor dokumen ke pemberi kerja.
+
+### Yang ternyata sudah ada, dan yang sebenarnya kurang
+
+Seluruh bahannya sudah terpasang sejak DECISIONS 141/143/145: struktur 9 folder
+KKP, path per jenis keluaran, render PDF blanko, pencatatan `GDriveUpload`, dan
+dua server action yang sudah bekerja. Yang tidak ada cuma **pemicunya** —
+keduanya hanya bergerak kalau ada orang menekan tombol.
+
+Jadi ini bukan fitur unggah baru. Yang ditambahkan adalah cara MENJADWALKAN
+unggahan yang sudah ada, dan justru di situ seluruh kesulitannya.
+
+### Antrean, bukan unggah di tempat
+
+Unggah langsung saat finalisasi adalah rancangan yang paling gampang ditulis dan
+paling cepat menghancurkan akunnya. 83 lokasi yang difinalisasi beruntun sore
+hari, masing-masing PDF + belasan foto, berarti ribuan permintaan dalam hitungan
+menit. Yang sama persis dicicil sepanjang hari tidak menyentuh batas mana pun.
+
+Karena itu `GDriveJob`: satu baris = satu keluaran yang HARUS ada di Drive.
+Dua tahap sengaja dipisah — **pindai** (boleh melihat seluruh riwayat, murah,
+hanya menulis baris) dan **kerjakan** (menarik sedikit, memberi jeda antar
+berkas, mencatat hasil). Kalau keduanya menyatu, putaran pertama akan mencoba
+mengunggah seluruh backlog sekaligus.
+
+**Pemindai wajib KONVERGEN, dan versi pertamanya tidak.** Mengambil "300
+laporan final terbaru" lalu menyerahkan penyaringan ke `skipDuplicates` terlihat
+benar dan lulus uji sederhana: sekali jalan, 300 baris masuk. Putaran
+berikutnya mengambil 300 yang SAMA dan menyisipkan nol — laporan yang lebih tua
+tidak akan pernah tersentuh, tanpa satu pun tanda bahwa ada yang tertinggal.
+Persis permintaan "cek semua yang belum naik" yang gagal diam-diam. Sekarang
+"belum punya baris" ikut ke dalam kueri (`NOT EXISTS` untuk harian; penyaringan
+sebelum batas untuk mingguan, karena 83 lokasi × puluhan minggu jauh melewati
+jatah satu putaran).
+
+Cacat berbentuk sama sempat lolos sekali lagi di tempat lain: pindai mingguan
+membatasi **jumlah LOKASI** per putaran ("120 teratas menurut nama"). Pada 83
+lokasi hari ini batas itu tidak pernah terasa — pada 200+ yang jadi target
+arsitektur, lokasi ke-121 dan seterusnya tidak akan pernah dipindai sama sekali.
+Batasnya dihapus: yang dibatasi cukup CALON yang dihasilkan, karena lokasi yang
+sudah beres dilewati tanpa memakan jatah. Pelajarannya bukan soal angka
+tertentu, melainkan bentuknya — **setiap "ambil N teratas" yang urutannya tetap
+dan tidak menyaring yang sudah selesai adalah antrean yang tidak akan pernah
+habis.**
+
+Pengendali lajunya dikumpulkan di `lib/gdrive/laju.ts` sebagai modul MURNI
+supaya bisa diuji tanpa menyentuh Drive: jeda 350 ms antar berkas, 240 berkas &
+40 pekerjaan per putaran, anggaran waktu 3 menit (rute cron `maxDuration` 300 s).
+
+**Finalisasi hanya MENGANTRE, tidak mengunggah.** Menekan "Finalisasi" tidak
+boleh gagal, tertahan, atau menggantung karena Google sedang lambat. Yang
+mendorong unggahannya adalah `after()` — sesudah responsnya terkirim, dengan
+jatah kecil dan tanpa pindai — supaya laporan yang baru difinalisasi tetap
+terasa langsung sampai tanpa memikul backlog di punggung satu penekanan tombol.
+
+### Pembedaan yang paling penting: ditahan laju vs gagal beneran
+
+Ini bagian yang paling mudah salah, dan salahnya tidak kelihatan sampai
+terlambat.
+
+- **Ditahan laju** (429, 403 `rateLimitExceeded`, 5xx) — bukan salah
+  pekerjaannya. Didorong mundur **tanpa menambah hitungan percobaan**, dan
+  putaran itu langsung berhenti (meneruskan hanya menambah tekanan pada kuota
+  yang baru saja menolak). `Retry-After` dari Google didahulukan atas tebakan
+  sendiri — ia tahu kapan kuotanya pulih, kita tidak.
+- **Gagal beneran** (folder tidak ada, token dicabut) — mengulang tidak
+  menyembuhkan. Percobaan naik, mundurnya memanjang 15 mnt → 24 j, dan setelah 5
+  kali **menyerah** supaya berhenti membebani antrean dan MUNCUL sebagai sesuatu
+  yang harus diperbaiki orang.
+
+Kalau keduanya diperlakukan sama, satu sore sibuk akan menghanguskan laporan
+yang sebenarnya sehat. Karena itu `GDriveError` kini membawa `status` HTTP-nya,
+bukan cuma pesan: menebak jenis kegagalan dari teks pesan itu rapuh.
+
+Yang menentukan adalah STATUS HTTP, dan kegagalan **tanpa status sama sekali**
+(paket belum punya folder, R2 tak terbaca, render PDF melempar, jaringan putus)
+dihitung **gagal beneran**. Rancangan pertama menggolongkannya "ditahan laju"
+dengan alasan yang terdengar masuk akal — penyebabnya mungkin sesaat — dan itu
+keliru dua kali sekaligus: percobaannya tidak pernah bertambah sehingga ia tidak
+akan PERNAH menyerah dan tidak pernah muncul sebagai macet, sambil menghentikan
+sisa putaran setiap kali. Satu paket yang salah setelan folder akan menahan
+seluruh antrean, diam-diam, selamanya. Gangguan jaringan sesaat tetap pulih
+sendiri: 5 percobaan terbentang lebih dari sehari lewat mundur bertahap.
+
+Alasan yang sama membuat **akun Google yang belum terhubung tidak dihitung
+sebagai kegagalan** — kalau dihitung, seluruh antrean bisa menyerah permanen
+hanya karena token belum dipasang.
+
+### Status laporan diperiksa ULANG tepat sebelum naik
+
+Antrean bisa baru sempat menaikkan laporan beberapa jam setelah difinalisasi,
+dan dalam sela itu laporannya bisa dibuka kembali untuk dikoreksi (DECISIONS
+149). Menaikkan angka yang sudah dicabut ke folder pemberi kerja lebih buruk
+daripada terlambat, jadi statusnya diperiksa saat AKAN diunggah — bukan hanya
+saat diantre. Yang prasyaratnya hilang ditandai `batal`, bukan `gagal`: itu
+bukan sesuatu yang perlu ditindak orang.
+
+### Minggu ke-N naik setelah minggunya LEWAT, bukan pada hari terakhirnya
+
+Berbeda dari laporan mingguan WA (DECISIONS 311) yang dikirim pada hari terakhir
+minggu kontrak. Penjadwal berjalan 16:00 WIB dan laporan harian hari itu sering
+belum difinalisasi — dokumen yang disusun pada hari terakhir akan membekukan
+minggu yang datanya belum lengkap, ke folder pemberi kerja pula. Efek
+sampingnya bagus: pemicu dan backlog jadi memakai SATU aturan, tanpa cabang
+khusus "hari ini kebetulan hari terakhir".
+
+### Sakelar DEFAULT MATI
+
+Alasannya sama persis dengan DECISIONS 311: folder tujuannya bukan milik MARLIN,
+itu Drive pemberi kerja. Menyalakannya diam-diam saat deploy berarti berkas
+bermunculan di folder KKP tanpa ada yang pernah memutuskan begitu. Yang
+dimatikan hanya penjadwalnya — tombol unggah manual tetap hidup.
+
+Aman dinyalakan-dimatikan berulang: berkas bernama sama DIPERBARUI sebagai
+revisi, bukan digandakan (DECISIONS 146), dan pindai tidak menghidupkan kembali
+pekerjaan yang sudah menyerah — itu urusan tombol "coba lagi", supaya kegagalan
+yang butuh tangan manusia tidak berputar diam-diam selamanya.
+
+### Kegagalan yang diam adalah bahaya sebenarnya
+
+Unggahan yang gagal tanpa suara lebih berbahaya daripada yang gagal berisik:
+semua orang mengira laporan sudah ada di folder pemberi kerja, padahal tidak,
+dan tidak ada satu pun layar yang akan memberi tahu. Karena itu panel Sistem
+menampilkan angka antrean apa adanya — termasuk yang macet, beserta lokasi,
+periode, dan penyebabnya — plus tombol "jalankan satu putaran" dan "coba lagi
+yang macet".
+
+### Rute cron terpisah
+
+`/api/cron/gdrive` (tiap jam) di samping `/api/cron/harian` (sekali sehari).
+Bukan pemborosan: karena antrean sengaja menahan diri tiap putaran, tunggakan
+besar hanya habis lewat putaran yang LEBIH SERING — bukan lewat putaran yang
+lebih rakus. Menaikkan jatah per putaran akan mengembalikan persis masalah yang
+antrean ini dibuat untuk menghindarinya. Tanpa jadwal itu pun antrean tetap
+jalan, hanya sekali sehari menumpang putaran harian.
+
+### Tidak dilakukan
+
+- **Laporan bulanan** tidak diunggah otomatis — tidak diminta. Fungsinya sudah
+  digeneralisasi (`unggahLaporanPeriodik`), jadi menambahkannya nanti kecil.
+- **Rencana mingguan** ke Drive tetap terbuka (OPEN_ISSUES PLAN-01).
+- **Menghapus berkas kembar** yang terlanjur ada — sama seperti DECISIONS 146,
+  menghapus otomatis di Drive milik KKP terlalu berisiko.
+
+**Penjaga.** `tests/unit/gdrive-antrean-laju.test.ts` (21 uji, aturan laju
+murni) + `tests/integration/gdrive-antrean-otomatis.test.ts` (17 uji di atas
+PostgreSQL sungguhan, klien Drive di-mock). Yang paling banyak diuji adalah
+JALUR GAGAL. Diuji giginya: memperlakukan 429 sebagai gagal beneran memerahkan
+uji unit dan uji integrasi sekaligus; menghapus pemeriksaan-ulang status final
+memerahkan uji "laporan dibuka kembali"; menganggap minggu berjalan sudah tuntas
+memerahkan empat uji batas minggu; dan mengembalikan pemindai ke bentuk
+"ambil N terbaru + skipDuplicates" memerahkan lima uji, termasuk dua uji
+konvergensi backlog yang sengaja ditulis untuk cacat itu.

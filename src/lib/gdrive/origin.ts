@@ -27,6 +27,19 @@ export function publicOriginFrom(headers: Headers): string | null {
 }
 
 /**
+ * Origin publik TANPA request — untuk pekerjaan LATAR (penjadwal, antrean
+ * unggah) yang tidak punya header sama sekali. Hanya bersandar pada env, jadi
+ * bisa null di deploy yang belum mengisi `APP_PUBLIC_URL`; pemanggil harus
+ * memperlakukan null sebagai "tak tahu alamat sendiri", bukan menebak.
+ */
+export function publicOriginFromEnv(): string | null {
+  return publicOrigin({
+    envUrl: process.env.APP_PUBLIC_URL ?? null,
+    railwayDomain: process.env.RAILWAY_PUBLIC_DOMAIN ?? null,
+  });
+}
+
+/**
  * URL absolut ke halaman MARLIN untuk redirect balik dari OAuth. WAJIB memakai
  * origin publik: `request.nextUrl.origin` di container berisi alamat bind
  * (`http://0.0.0.0:8080`) sehingga browser pengguna tidak bisa membukanya.
