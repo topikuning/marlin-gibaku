@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { r2GetBuffer } from "@/lib/r2";
-import { ensureFolderPath, uploadToDrive } from "./client";
+import { ensureFolderPath, GDriveError, uploadToDrive } from "./client";
 import { photoFileName, photoMimeFromKey, safeFileName } from "./folders";
 import { type GDriveUploadKind, type UploadOutcome } from "./parse";
 
@@ -49,25 +49,66 @@ async function log(
     .catch(() => {});
 }
 
-/** Upload sekumpulan file ke SATU folder (path relatif terhadap folder paket). */
+/** Detail galat Drive (status HTTP + Retry-After) bila galatnya memang dari Drive. */
+function rinciGalat(err: unknown): { pesan: string; status: number | null; retryAfter: string | null } {
+  if (err instanceof GDriveError) {
+    return { pesan: err.message, status: err.status, retryAfter: err.retryAfter };
+  }
+  return {
+    pesan: err instanceof Error ? err.message : "Upload gagal.",
+    status: null,
+    retryAfter: null,
+  };
+}
+
+/**
+ * Upload sekumpulan file ke SATU folder (path relatif terhadap folder paket).
+ *
+ * `jedaMs` memberi jeda antar berkas. Jalur MANUAL memakai 0 — ada orang yang
+ * menunggu di depan layar, dan belasan foto × jeda berarti menahannya tanpa
+ * alasan untuk satu unggahan yang tidak akan menyentuh batas apa pun. Jalur
+ * OTOMATIS mengisinya (DECISIONS 313): di sanalah ledakan bisa terjadi, dan
+ * tidak ada yang menunggu.
+ */
 export async function uploadBatch(
   target: UploadTarget,
   path: string[],
   items: UploadItem[],
+  opts: { jedaMs?: number } = {},
 ): Promise<UploadOutcome> {
-  const out: UploadOutcome = { ok: 0, failed: 0, updated: 0, firstError: null, webLink: null };
+  const out: UploadOutcome = {
+    ok: 0,
+    failed: 0,
+    updated: 0,
+    firstError: null,
+    firstErrorStatus: null,
+    firstRetryAfter: null,
+    webLink: null,
+  };
   if (items.length === 0) return out;
 
   let folderId: string;
   try {
     folderId = await ensureFolderPath(target.rootFolderId, path);
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Gagal menyiapkan folder.";
-    for (const it of items) await log(target, it.fileName, "gagal", { error: msg });
-    return { ok: 0, failed: items.length, updated: 0, firstError: msg, webLink: null };
+    const g = rinciGalat(err);
+    for (const it of items) await log(target, it.fileName, "gagal", { error: g.pesan });
+    return {
+      ok: 0,
+      failed: items.length,
+      updated: 0,
+      firstError: g.pesan,
+      firstErrorStatus: g.status,
+      firstRetryAfter: g.retryAfter,
+      webLink: null,
+    };
   }
 
+  const jeda = Math.max(0, opts.jedaMs ?? 0);
+  let pertama = true;
   for (const it of items) {
+    if (!pertama && jeda > 0) await tidur(jeda);
+    pertama = false;
     try {
       const file = await uploadToDrive({
         folderId,
@@ -80,13 +121,21 @@ export async function uploadBatch(
       out.webLink ??= file.webViewLink;
       await log(target, it.fileName, "sukses", { fileId: file.id, webLink: file.webViewLink });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Upload gagal.";
+      const g = rinciGalat(err);
       out.failed++;
-      out.firstError ??= msg;
-      await log(target, it.fileName, "gagal", { error: msg });
+      if (out.firstError == null) {
+        out.firstError = g.pesan;
+        out.firstErrorStatus = g.status;
+        out.firstRetryAfter = g.retryAfter;
+      }
+      await log(target, it.fileName, "gagal", { error: g.pesan });
     }
   }
   return out;
+}
+
+function tidur(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 /**

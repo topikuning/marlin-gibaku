@@ -10,6 +10,9 @@ import { getWahaConfigDisplay, getWahaHits } from "@/lib/waha/config";
 import { getGDriveConfigDisplay } from "@/lib/gdrive/config";
 import { driveRedirectUriFrom } from "@/lib/gdrive/origin";
 import { GDrivePanel } from "./gdrive-panel";
+import { GDriveOtomatisPanel } from "./gdrive-otomatis-panel";
+import { getGDriveOtomatisAktif } from "@/lib/gdrive/setelan";
+import { ringkasAntrean } from "@/lib/gdrive/antrean";
 import { db } from "@/lib/db";
 import { formatTanggalWaktu, jakartaToday } from "@/lib/format";
 import { getBranding, BRAND_DEFAULTS } from "@/lib/branding";
@@ -321,6 +324,20 @@ export default async function SistemPage() {
       </Card>
 
       <Card>
+        <CardHeader
+          title="Unggah otomatis ke Drive KKP"
+          subtitle="Laporan harian final & laporan mingguan tiap lokasi naik sendiri — dicicil berlaju supaya tidak diblok Google"
+        />
+        <CardBody>
+          <GDriveOtomatisPanel
+            aktif={await getGDriveOtomatisAktif()}
+            terhubung={gdriveDisplay.connected}
+            antrean={await ringkasAntrean()}
+          />
+        </CardBody>
+      </Card>
+
+      <Card>
         <CardHeader title="PostgreSQL Database" subtitle="Dikelola di Railway" />
         <CardBody>
           <IntegrationHeader
@@ -548,7 +565,7 @@ export default async function SistemPage() {
         </CardBody>
       </Card>
       <Card>
-        <CardHeader title="Penjadwal otomatis" subtitle="Dipicu dari luar, sekali sehari" />
+        <CardHeader title="Penjadwal otomatis" subtitle="Dipicu dari luar — harian, plus antrean Drive tiap jam" />
         <CardBody className="space-y-3 text-[13px] text-ink-muted">
           <p>
             Pekerjaan harian (aktivasi SPMK yang jatuh tempo + pengingat WA) dijalankan penjadwal
@@ -557,6 +574,15 @@ export default async function SistemPage() {
             Repo ini menyertakan workflow GitHub Actions{" "}
             <code className="rounded bg-surface-inset px-1 py-0.5">.github/workflows/cron-harian.yml</code>{" "}
             yang berjalan tiap hari 09.00 UTC (16.00 WIB).
+          </p>
+          <p>
+            Antrean unggah Drive punya rute sendiri —{" "}
+            <code className="rounded bg-surface-inset px-1 py-0.5">POST /api/cron/gdrive</code>{" "}
+            (<code className="rounded bg-surface-inset px-1 py-0.5">.github/workflows/cron-gdrive.yml</code>,
+            tiap jam). Bukan pemborosan: tiap putaran sengaja menahan diri supaya akun Google tidak
+            diblok, jadi tunggakan besar habis lewat putaran yang lebih SERING, bukan yang lebih
+            rakus. Tanpa jadwal itu antrean tetap jalan — hanya sekali sehari, menumpang putaran
+            harian.
           </p>
           <HealthRow
             label="CRON_SECRET"
