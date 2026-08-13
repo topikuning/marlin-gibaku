@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import {
@@ -1043,6 +1044,29 @@ export async function approveReportAction(_prev: DailyActionState, formData: For
   }
 }
 
+/**
+ * Dorong antrean unggah Drive SESUDAH respons finalisasi terkirim.
+ *
+ * `after()` dipakai supaya orang yang menekan "Finalisasi" tidak menunggui
+ * unggahan PDF + belasan foto ke Google. Yang didorong hanya SEDIKIT pekerjaan
+ * dan TANPA pindai: tujuannya membuat laporan yang baru saja difinalisasi
+ * terasa langsung sampai, bukan menyapu seluruh backlog di punggung satu
+ * penekanan tombol — itu tugas penjadwal (DECISIONS 313).
+ *
+ * Gagal menjadwalkan bukan masalah: barisnya sudah tercatat di antrean, dan
+ * putaran cron berikutnya akan mengambilnya.
+ */
+function dorongAntreanDrive(): void {
+  try {
+    after(async () => {
+      const { jalankanAntreanDrive } = await import("@/lib/gdrive/antrean");
+      await jalankanAntreanDrive({ pindai: false, maksPekerjaan: 3 });
+    });
+  } catch (err) {
+    console.error("[daily-report] gagal menjadwalkan unggah Drive:", err);
+  }
+}
+
 export async function finalizeReportAction(_prev: DailyActionState, formData: FormData): Promise<DailyActionState> {
   try {
     const user = await requireCapability("daily_report.finalize");
@@ -1051,6 +1075,7 @@ export async function finalizeReportAction(_prev: DailyActionState, formData: Fo
     await requireLocationAccess(user, ctx.locationId);
     await finalizeReport(reportId, user.id);
     revalidateReport(ctx.slug, ctx.dateKey);
+    dorongAntreanDrive();
     return { success: "Laporan difinalisasi — siap dicetak." };
   } catch (err) {
     return errState(err);

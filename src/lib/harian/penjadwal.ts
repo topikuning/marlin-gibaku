@@ -11,6 +11,7 @@ import {
   kirimLaporanMingguanTerjadwal,
   type HasilMingguan,
 } from "@/lib/mingguan/penjadwal";
+import type { HasilPutaran } from "@/lib/gdrive/antrean";
 
 /**
  * Pekerjaan harian MARLIN (DECISIONS 202) — dijalankan penjadwal luar lewat
@@ -57,6 +58,8 @@ export type HasilHarian = {
   pengingat: HasilPengingat;
   /** Laporan progres mingguan ke grup WA — DECISIONS 311. */
   mingguan: HasilMingguan;
+  /** Antrean unggah laporan ke Drive KKP — DECISIONS 313. */
+  drive: HasilPutaran;
 };
 
 /* ── 1. Aktivasi SPMK yang jatuh tempo ───────────────────────────────────── */
@@ -428,12 +431,23 @@ export async function jalankanTugasHarian(now = new Date()): Promise<HasilHarian
    */
   const mingguan = await kirimLaporanMingguanTerjadwal(now);
 
+  /*
+   * Antrean Drive ikut di sini dengan alasan yang sama seperti laporan
+   * mingguan: sakelarnya sendiri, jadi mematikan pengingat harian tidak boleh
+   * diam-diam menghentikan setoran dokumen ke pemberi kerja. Satu putaran
+   * memang tidak menghabiskan backlog — itu disengaja (DECISIONS 313); operator
+   * yang punya tunggakan besar menambah jadwal ke `/api/cron/gdrive`.
+   */
+  const { jalankanAntreanDrive } = await import("@/lib/gdrive/antrean");
+  const drive = await jalankanAntreanDrive({ now });
+
   const { getPengingatAktif } = await import("./setelan");
   if (!(await getPengingatAktif())) {
     return {
       dateKey: jakartaDateKey(now),
       spmk,
       mingguan,
+      drive,
       pengingat: {
         terkirim: 0,
         gagal: 0,
@@ -445,5 +459,5 @@ export async function jalankanTugasHarian(now = new Date()): Promise<HasilHarian
     };
   }
   const pengingat = await kirimPengingatHarian(now);
-  return { dateKey: jakartaDateKey(now), spmk, pengingat, mingguan };
+  return { dateKey: jakartaDateKey(now), spmk, pengingat, mingguan, drive };
 }

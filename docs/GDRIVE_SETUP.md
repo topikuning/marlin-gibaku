@@ -120,3 +120,56 @@ menyimpannya sebagai **revisi**:
 Catatan: file kembar yang terlanjur dibuat SEBELUM perbaikan ini tidak dihapus
 otomatis — hapus manual salah satunya di Drive. Setelah itu upload berikutnya
 akan memperbarui file yang tersisa.
+
+## Unggah otomatis (opsional, DEFAULT MATI)
+
+Setelah akun terhubung dan folder paket terisi, MARLIN bisa menaikkan sendiri:
+
+- **Laporan harian** begitu difinalisasi — PDF blanko KKP + semua fotonya,
+  isinya sama persis dengan tombol manual.
+- **Laporan mingguan KKP per lokasi** (PDF + Excel) setelah minggu kontraknya
+  LEWAT. Bukan pada hari terakhir minggu itu: penjadwal berjalan sore dan
+  laporan harian hari itu sering belum final, jadi dokumen yang disusun terlalu
+  cepat akan membekukan minggu yang datanya belum lengkap.
+
+### Menyalakannya
+
+**Sistem → Unggah otomatis ke Drive KKP → Nyalakan.** Default-nya MATI dengan
+sengaja: folder tujuannya milik pemberi kerja, dan berkas yang sudah mendarat di
+sana tidak bisa ditarik diam-diam. Yang menaruh dokumen resmi di tempat KKP
+harus manusia yang menekan sakelarnya.
+
+Sekali dinyalakan, MARLIN juga menjaring yang **sudah terlanjur menumpuk**
+(laporan final yang belum pernah naik, minggu-minggu yang sudah lewat) — dicicil
+sedikit demi sedikit, bukan diguyur.
+
+### Kenapa dicicil, dan kenapa jangan dipercepat
+
+Google memblokir **ledakan**, bukan jumlah total. Tiap putaran karena itu
+dibatasi: jeda antar berkas, batas jumlah berkas, batas waktu, dan mundur
+bertahap kalau Google menolak. Konsekuensinya tunggakan besar butuh beberapa
+putaran — itu memang harganya.
+
+Kalau ingin lebih cepat, **tambah frekuensi putarannya, jangan besarkan
+jatahnya**: pasang jadwal yang memanggil `POST /api/cron/gdrive` (header
+`x-cron-secret`) tiap jam. Repo ini menyertakan
+`.github/workflows/cron-gdrive.yml` yang sudah melakukannya. Tanpa jadwal itu
+antrean tetap jalan — hanya sekali sehari, menumpang putaran harian.
+
+Untuk mendorong sekali saja tanpa menunggu jadwal: tombol **"Jalankan satu
+putaran sekarang"** di panel yang sama.
+
+### Kalau ada yang macet
+
+Panel Sistem menampilkan angka antrean apa adanya: menunggu, sudah naik, macet,
+batal. Yang **macet** sudah berhenti dicoba setelah 5 kegagalan nyata dan
+disebutkan lokasi, periode, serta penyebabnya — biasanya folder paket salah atau
+akun kehilangan hak editor. Perbaiki penyebabnya lalu tekan **"Coba lagi yang
+macet"**.
+
+Yang **batal** bukan kegagalan: prasyaratnya hilang sebelum sempat naik —
+paling sering laporan dibuka kembali dari final untuk dikoreksi. Begitu
+difinalisasi lagi, ia otomatis masuk antrean lagi.
+
+Catatan: "ditahan Google" (kuota) TIDAK dihitung sebagai kegagalan dan tidak
+akan pernah membuat pekerjaan menyerah — ia hanya dijadwalkan mundur.

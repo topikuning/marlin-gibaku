@@ -9,7 +9,22 @@ import { buildMultipartBody } from "./parse";
  * jalan. DECISIONS 141.
  */
 
-export class GDriveError extends Error {}
+/**
+ * Galat Drive. `status` & `retryAfter` DIBAWA SERTA (bukan cuma pesan) karena
+ * antrean unggah otomatis harus bisa membedakan "Google menyuruh pelan-pelan"
+ * dari "folder tidak ada" — dua hal yang penanganannya berlawanan (DECISIONS
+ * 312). Menebaknya dari teks pesan rapuh; status HTTP-nya tidak.
+ */
+export class GDriveError extends Error {
+  readonly status: number | null;
+  readonly retryAfter: string | null;
+
+  constructor(message: string, opts?: { status?: number | null; retryAfter?: string | null }) {
+    super(message);
+    this.status = opts?.status ?? null;
+    this.retryAfter = opts?.retryAfter ?? null;
+  }
+}
 
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const UPLOAD_URL =
@@ -204,6 +219,7 @@ export async function uploadToDrive(input: {
       res.status === 404
         ? "Folder Drive tidak ditemukan / akun tidak punya akses. Cek ID folder di paket & hak editor akun."
         : `${existingId ? "Memperbarui" : "Upload"} file di Drive gagal: ${msg}`,
+      { status: res.status, retryAfter: res.headers.get("retry-after") },
     );
   }
   const j = (await res.json()) as { id: string; name: string; webViewLink?: string };

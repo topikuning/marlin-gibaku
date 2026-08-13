@@ -1,0 +1,86 @@
+name: Antrean unggah Drive MARLIN
+
+# Satu putaran antrean unggah laporan ke folder Google Drive KKP
+# (DECISIONS 313).
+#
+# TIAP JAM, bukan sekali sehari — dan itu bukan pemborosan. Antrean sengaja
+# MENAHAN diri tiap putaran (jeda antar berkas + batas jatah + mundur bertahap
+# saat Google menolak) supaya akun tidak diblok. Konsekuensinya: tunggakan
+# besar hanya habis lewat putaran yang LEBIH SERING, bukan lewat putaran yang
+# lebih rakus. Menaikkan jatah per putaran akan mengembalikan persis masalah
+# yang antrean ini dibuat untuk menghindarinya.
+#
+# Putaran harian tetap ada di `cron-harian.yml`; workflow ini melengkapinya,
+# bukan menggantikannya. Kalau workflow ini dimatikan, antrean tetap jalan —
+# hanya sekali sehari.
+#
+# Aman dipicu berkali-kali dan bersamaan: pekerjaan diambil secara atomik di
+# database (`menunggu` → `jalan`), jadi dua putaran tidak bisa mengunggah benda
+# yang sama. Sakelar MATI = putaran ini tidak melakukan apa-apa.
+#
+# Perilaku GitHub yang perlu diketahui (sama dengan cron-harian): scheduled
+# workflow sering telat 5–20 menit, sesekali dilewati, dan DIMATIKAN diam-diam
+# bila repo tidak menerima commit selama 60 hari.
+
+on:
+  schedule:
+    - cron: "20 * * * *"
+  # Tombol "Run workflow" di tab Actions — untuk mendorong antrean tanpa
+  # menunggu putaran berikutnya.
+  workflow_dispatch:
+
+# Putaran sebelumnya masih jalan? Jangan menumpuk — dua putaran bersamaan cuma
+# menambah tekanan ke kuota Drive.
+concurrency:
+  group: cron-gdrive
+  cancel-in-progress: false
+
+jobs:
+  jalankan:
+    name: Panggil /api/cron/gdrive
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Periksa konfigurasi
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$APP_URL" ]; then
+            echo "::error::Variable APP_URL belum diisi. Settings → Secrets and variables → Actions → Variables, isi APP_URL = https://<host-produksi> (TANPA garis miring di akhir)."
+            exit 1
+          fi
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::Secret CRON_SECRET belum diisi. Nilainya harus SAMA PERSIS dengan CRON_SECRET di environment aplikasi."
+            exit 1
+          fi
+
+      - name: Jalankan satu putaran antrean
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          # --fail-with-body: badan respons tetap dicetak walau status error,
+          # supaya penyebabnya terbaca di log. Rahasianya hanya ada di header,
+          # tidak pernah ikut tercetak.
+          status=0
+          body=$(curl --fail-with-body -sS -X POST \
+            --retry 3 --retry-delay 20 --retry-all-errors \
+            --max-time 300 \
+            -H "x-cron-secret: ${CRON_SECRET}" \
+            "${APP_URL%/}/api/cron/gdrive") || status=$?
+
+          echo "Respons: ${body}"
+          if [ "$status" -ne 0 ]; then
+            echo "::error::Pemanggilan gagal (curl exit ${status}). Status 404 hampir selalu berarti CRON_SECRET di sini BERBEDA dengan yang ada di aplikasi — endpoint sengaja menjawab 404, bukan 401, supaya keberadaannya tidak bisa dipetakan dari luar."
+            exit "$status"
+          fi
+
+          {
+            echo "### Antrean unggah Drive"
+            echo ""
+            echo '```json'
+            echo "${body}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
