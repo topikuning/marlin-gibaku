@@ -10,6 +10,12 @@ const baseSchema = z.object({
   APP_ENV: z.enum(["development", "test", "production"]).default("development"),
   DATABASE_URL: z.string().min(1, "DATABASE_URL wajib diisi"),
   SESSION_SECRET: z.string().min(32, "SESSION_SECRET minimal 32 karakter"),
+  /**
+   * Username super admin UTAMA (akar), dipisah koma. Opsional — kosong berarti
+   * tidak ada akar, dan proteksi akun berperilaku seperti sebelumnya (sesama
+   * super admin tidak bisa saling menyentuh). Lihat `lib/akar.ts`.
+   */
+  SUPER_ADMIN_UTAMA: z.string().optional(),
 });
 
 const r2Schema = z.object({

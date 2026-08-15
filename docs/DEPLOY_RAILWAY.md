@@ -64,8 +64,24 @@ atau reset di production.
      `[bootstrap] admin 'admin' berhasil dibuat`). Aman: hanya membuat bila belum
      ada, tidak pernah menimpa user/password yang sudah ada.
    - Login `admin` + password tadi → dipaksa ganti password.
+   - **Isi `SUPER_ADMIN_UTAMA`** = username admin tadi (mis. `admin`). Ini
+     variabel yang BERBEDA dan sifatnya PERMANEN — jangan dihapus. Tanpa ini,
+     akun super admin jadi pintu satu arah: bisa dibuat, tidak bisa
+     dinonaktifkan atau diturunkan oleh siapa pun (DECISIONS 315).
    - **Setelah berhasil login, HAPUS** `BOOTSTRAP_ADMIN_PASSWORD` (& `_USERNAME`)
      dari Variables lalu redeploy — supaya tidak tertinggal sebagai konfigurasi.
+     `BOOTSTRAP_ADMIN_USERNAME` mati sendiri tanpa passwordnya, jadi
+     meninggalkannya tidak berguna; yang berbahaya adalah passwordnya:
+
+     - itu password SUPER ADMIN dalam bentuk terbaca, tersimpan di dashboard
+       selama proyek hidup, terlihat siapa pun yang bisa membaca Variables;
+     - nilainya sudah BASI begitu Anda ganti password saat login pertama
+       (`mustChangePassword`), jadi ia tidak membeli apa pun;
+     - kalau suatu saat database di-restore kosong atau dikloning ke staging,
+       boot berikutnya membuat ulang super admin dengan password itu — diam-diam,
+       memakai kredensial yang mungkin sudah lama beredar di grup chat.
+
+     Halaman **Sistem** menandainya bila masih tertinggal.
    Alternatif (dari mesin dev): script di §7.
 5. (Opsional — deployment UJI COBA) Muat **data contoh** (7 lokasi riil, ~14k item
    RAB, laporan demo, keuangan demo): tambah env `BOOTSTRAP_DEMO_DATA=true` →

@@ -103,6 +103,8 @@ type UserRow = {
   mustChangePassword: boolean;
   lastLoginAt: string | null;
   createdByName: string | null;
+  /** Super admin UTAMA — ditetapkan di env, tidak bisa disentuh dari UI (DECISIONS 315). */
+  akar: boolean;
   assignments: { id: string; name: string }[];
 };
 
@@ -284,6 +286,13 @@ export function UsersTable({
 }) {
   const [open, setOpen] = useState<{ id: string; panel: "assign" | "reset" | "profile" | "role" } | null>(null);
   const allowedRoles = useMemo(() => creatableRoles(actorRole), [actorRole]);
+  // Hasil "Nonaktifkan/Aktifkan" per BARIS. Aksi ini tidak punya formulir
+  // sendiri, jadi tanpa ini penolakannya tidak punya tempat untuk muncul —
+  // dan sebelumnya memang tidak muncul sama sekali: ia jatuh ke error boundary
+  // sebagai layar putih (laporan produksi 2026-08-15).
+  const [aktifMsg, setAktifMsg] = useState<{ id: string; tone: "success" | "error"; text: string } | null>(
+    null,
+  );
   if (users.length === 0) {
     return <p className="text-sm text-ink-muted">Belum ada pengguna.</p>;
   }
@@ -303,6 +312,11 @@ export function UsersTable({
               </div>
               <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
                 <StatusPill tone="info" label={ROLE_LABEL[u.role]} />
+                {u.akar && (
+                  <span title="Ditetapkan lewat SUPER_ADMIN_UTAMA. Akun ini tidak bisa dinonaktifkan, diturunkan, atau direset dari layar mana pun — ubah variabel lingkungannya lebih dulu.">
+                    <StatusPill tone="success" label="Super admin utama" />
+                  </span>
+                )}
                 {!u.isActive && <StatusPill tone="danger" label="Nonaktif" />}
                 {u.mustChangePassword && <StatusPill tone="warning" label="Wajib ganti password" />}
                 <span>
@@ -350,7 +364,10 @@ export function UsersTable({
                 </Button>
                 <form
                   action={async () => {
-                    await setUserActive(u.id, !u.isActive);
+                    setAktifMsg(null);
+                    const r = await setUserActive(u.id, !u.isActive);
+                    if (r?.error) setAktifMsg({ id: u.id, tone: "error", text: r.error });
+                    else if (r?.success) setAktifMsg({ id: u.id, tone: "success", text: r.success });
                   }}
                 >
                   <Button size="sm" variant={u.isActive ? "danger" : "primary"} type="submit">
@@ -360,6 +377,11 @@ export function UsersTable({
               </div>
             )}
           </div>
+          {aktifMsg?.id === u.id && (
+            <div className="mt-2">
+              <Banner tone={aktifMsg.tone} title={aktifMsg.text} />
+            </div>
+          )}
           {canManage && open?.id === u.id && open.panel === "profile" && (
             <EditProfile user={u} onClose={() => setOpen(null)} />
           )}

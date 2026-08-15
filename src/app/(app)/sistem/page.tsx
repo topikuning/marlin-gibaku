@@ -9,6 +9,7 @@ import { isR2Configured } from "@/lib/r2";
 import { getWahaConfigDisplay, getWahaHits } from "@/lib/waha/config";
 import { getGDriveConfigDisplay } from "@/lib/gdrive/config";
 import { driveRedirectUriFrom } from "@/lib/gdrive/origin";
+import { parseAkar } from "@/lib/akar";
 import { GDrivePanel } from "./gdrive-panel";
 import { GDriveOtomatisPanel } from "./gdrive-otomatis-panel";
 import { getGDriveOtomatisAktif } from "@/lib/gdrive/setelan";
@@ -185,6 +186,46 @@ export default async function SistemPage() {
   const pratinjau = await pratinjauPengingat(user.orgId);
   const cronSecretSiap = (process.env.CRON_SECRET ?? "").length > 0;
 
+  /*
+   * Keadaan SUPER_ADMIN_UTAMA (DECISIONS 315). Yang dibedakan bukan cuma
+   * "diisi / tidak", tapi juga nama yang DICANTUMKAN TAPI AKUNNYA BELUM ADA —
+   * itu kursi kosong: siapa pun yang bisa membuat super admin akan ditolak saat
+   * memakai nama itu, dan tanpa baris ini penolakannya terbaca seperti bug.
+   */
+  // Password bootstrap yang tertinggal tidak pernah memberi tahu dirinya
+  // sendiri — ia cuma duduk di Variables. Lihat DEPLOY_RAILWAY §5.4.
+  const bootstrapTertinggal = (process.env.BOOTSTRAP_ADMIN_PASSWORD ?? "").length > 0;
+
+  const daftarAkar = parseAkar(env.SUPER_ADMIN_UTAMA);
+  const akarAda =
+    daftarAkar.length === 0
+      ? []
+      : await db.user.findMany({
+          where: { username: { in: daftarAkar }, role: "super_admin", orgId: user.orgId },
+          select: { username: true, isActive: true },
+        });
+  const akarKosong = daftarAkar.filter((u) => !akarAda.some((a) => a.username === u));
+  const akarInfo =
+    daftarAkar.length === 0
+      ? {
+          tone: "warning" as const,
+          status: "Belum diatur",
+          detail:
+            "Tanpa ini, akun super admin jadi pintu satu arah: bisa dibuat, tidak bisa dinonaktifkan atau diturunkan oleh siapa pun. Isi SUPER_ADMIN_UTAMA dengan username-nya (boleh lebih dari satu, dipisah koma).",
+        }
+      : akarKosong.length > 0
+        ? {
+            tone: "warning" as const,
+            status: `${akarAda.length} aktif, ${akarKosong.length} belum ada`,
+            detail: `Tercantum tapi belum punya akun super admin: ${akarKosong.join(", ")}. Kursi itu hanya boleh diisi oleh super admin utama yang sudah ada.`,
+          }
+        : {
+            tone: "success" as const,
+            status: akarAda.map((a) => a.username).join(", "),
+            detail:
+              "Ditetapkan dari variabel lingkungan, jadi akun yang bocor tidak bisa mengangkat dirinya sendiri. Akun ini tidak bisa disentuh dari layar mana pun — ubah variabelnya lebih dulu.",
+          };
+
   const roleCountMap = new Map<UserRole, number>(roleCounts.map((r) => [r.role, r._count._all]));
   const securityLogs = auditLogs
     .filter((l) => /^(user|auth|session|system)\./.test(l.action) || /password|login|masuk/i.test(l.action))
@@ -215,6 +256,20 @@ export default async function SistemPage() {
             tone={wahaConfigured ? "success" : "neutral"}
             status={wahaConfigured ? "Terkonfigurasi" : "Belum diatur"}
           />
+          <HealthRow
+            label="Super admin utama"
+            detail={akarInfo.detail}
+            tone={akarInfo.tone}
+            status={akarInfo.status}
+          />
+          {bootstrapTertinggal && (
+            <HealthRow
+              label="BOOTSTRAP_ADMIN_PASSWORD"
+              detail="Password super admin dalam bentuk terbaca masih tersimpan di Variables. Nilainya sudah basi begitu password diganti saat login pertama — jadi ia tidak membeli apa pun, tapi tetap terlihat siapa pun yang bisa membaca konfigurasi, dan akan membuat ulang super admin dengan password itu bila database pernah kosong (mis. kloning staging). HAPUS lalu redeploy."
+              tone="warning"
+              status="Masih terpasang"
+            />
+          )}
           <HealthRow label="Sesi aktif" detail="Login pengguna berjalan" tone="neutral" status={String(sessionCount)} />
         </CardBody>
       </Card>

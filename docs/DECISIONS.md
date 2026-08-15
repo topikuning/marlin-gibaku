@@ -12897,3 +12897,207 @@ memerahkan uji "laporan dibuka kembali"; menganggap minggu berjalan sudah tuntas
 memerahkan empat uji batas minggu; dan mengembalikan pemindai ke bentuk
 "ambil N terbaru + skipDuplicates" memerahkan lima uji, termasuk dua uji
 konvergensi backlog yang sengaja ditulis untuk cacat itu.
+
+---
+
+## 314 · Penolakan proteksi akun jadi PESAN, bukan layar error (2026-08-15)
+
+Laporan produksi user 2026-08-15: super admin menekan **Nonaktifkan** atau
+**Reset password** pada super admin LAIN dan mendapat
+
+> *An error occurred in the Server Components render* — digest `1953120346`,
+> di `/master/pengguna`.
+
+### Yang sebenarnya terjadi
+
+Pagarnya **benar dan memang disengaja**. `outranks` menolak akun SETINGKAT
+(DECISIONS 165), dan `ROLE_RANK[super_admin] < ROLE_RANK[super_admin]` = false,
+jadi super admin memang tidak boleh menyentuh super admin lain.
+
+Yang salah cara menolaknya. `ForbiddenError` dilempar dari server action yang
+tidak menangkapnya, sehingga Next melemparnya ke error boundary. Bedanya besar
+bagi yang memakai: *"tidak boleh, ini alasannya"* bisa ditindaklanjuti; layar
+error tidak bisa dibedakan dari sistem rusak — orang mengulanginya, lalu
+melapor bahwa aplikasinya error, dan **tidak ada satu pun petunjuk bahwa yang
+terjadi justru pengamanan bekerja**.
+
+`setUserRole` sudah benar sejak awal — ia punya `try/catch` dengan komentar yang
+menjelaskan persis alasan ini. Saudara-saudaranya terlewat: `setUserActive`,
+`resetUserPassword`, `setAssignments`. Satu helper `tolakDenganPesan()` kini
+dipakai semuanya; HANYA `ForbiddenError` yang diterjemahkan, galat lain tetap
+dilempar (kegagalan database tidak boleh menyamar jadi banner sopan).
+
+`setUserActive` juga berubah dari `Promise<void>` jadi mengembalikan
+`UserActionState`. Ia dipanggil dari `<form action={async () => …}>` tanpa
+`useActionState`, jadi sebelumnya penolakannya **tidak punya tempat untuk
+muncul** sama sekali — daftar penggunanya kini menyimpan pesan per-baris.
+
+### Lubang yang ditemukan sambil memperbaiki
+
+`updateUserProfile` tidak punya pagar peringkat sama sekali — hanya cek satu
+organisasi. Padahal login menerima **username ATAU email** (`auth/actions.ts`).
+Artinya admin yang dilarang mereset password seorang peer tetap bisa mengganti
+email peer itu: mencabut satu jalan masuk ke akun yang tidak boleh ia sentuh,
+lewat pintu yang kebetulan tidak dijaga. Pagar yang bisa diputari lewat pintu
+sebelah bukan pagar. `requireOutranks` dipasang, dengan pengecualian akun
+sendiri yang sudah ada di helper itu.
+
+### Yang TIDAK diubah — dan perlu keputusan user
+
+Kebijakannya sendiri dibiarkan utuh, tapi konsekuensinya perlu disebut terang:
+
+- `ROLE_CREATE_MATRIX` memperbolehkan super admin **MEMBUAT** super admin lain.
+- `outranks` melarang siapa pun **menonaktifkan, menurunkan peran, atau mereset**
+  super admin — termasuk yang membuatnya.
+
+Jadi akun super admin adalah **pintu satu arah**: bisa dicetak bebas, tidak bisa
+dibatalkan lewat UI oleh siapa pun. Satu-satunya pemulihan adalah SQL langsung
+ke database produksi. Itu aman terhadap akun bocor, tapi menjadi jebakan
+operasional biasa — orang keluar dari perusahaan dan akunnya tidak bisa
+dimatikan. Ditinggalkan apa adanya karena mengubahnya adalah keputusan
+kebijakan, bukan perbaikan bug; menunggu keputusan user.
+
+**Penjaga.** `tests/integration/proteksi-akun-setingkat.test.ts` (14 uji) —
+menutup utang yang sudah disebut sendiri di `tests/unit/authz-proteksi-akun.test.ts`
+("penegakannya di `users/actions.ts` butuh database"). Diuji giginya:
+mengembalikan `throw err` tanpa menerjemahkan `ForbiddenError` memerahkan 9 uji;
+mencabut `requireOutranks` dari `updateUserProfile` memerahkan uji email.
+Uji ini juga menjaga sisi sebaliknya — bawahan TETAP bisa dinonaktifkan/direset,
+dan MENGAKTIFKAN kembali tidak menuntut peringkat (memulihkan akses bukan
+menyerangnya) — supaya perbaikan ini tidak diam-diam mengunci hal yang wajar.
+
+---
+
+## 315 · Super admin UTAMA ditetapkan dari variabel lingkungan (2026-08-15)
+
+Usulan user 2026-08-15, menjawab pintu satu arah yang disebut di DECISIONS 314:
+
+> *"seharusnya ada set super admin utama di .env atau di variabel railway"*
+
+Ini rancangan yang lebih baik daripada tiga pilihan yang kutawarkan (biarkan /
+izinkan sesama super admin saling mematikan / jalur turun-peran), dan alasannya
+satu: **akar kewenangan ditaruh di luar jangkauan aplikasi.** Apa pun yang bisa
+diubah dari dalam bisa diubah oleh akun yang bocor. Yang di env tidak —
+mengubahnya menuntut akses deploy, kendali yang berbeda dan lebih sedikit
+orangnya.
+
+### Aturannya
+
+`SUPER_ADMIN_UTAMA` = daftar **username**, dipisah koma. Akun yang namanya
+tercantum DAN berperan `super_admin` menjadi **akar**:
+
+1. **Akar mengungguli siapa pun.** Inilah jalan keluar dari pintu satu arah:
+   super admin biasa akhirnya bisa dinonaktifkan, diturunkan, dan direset — oleh
+   akar, bukan oleh sesamanya.
+2. **Akar tidak bisa disentuh siapa pun, termasuk akar lain.** Daftarnya di env
+   yang menentukan, bukan siapa yang menekan tombol lebih dulu. Mencabut
+   kewenangan seorang akar = keluarkan namanya dari env lalu redeploy; sesudah
+   itu ia super admin biasa dan bisa ditangani lewat jalur normal.
+3. Kebijakan lama tetap berlaku untuk yang bukan akar — sesama super admin biasa
+   tetap tidak bisa saling menyentuh. Env memberi SATU jalan keluar, bukan
+   membuka pagarnya untuk semua orang.
+
+Akar tetap tidak bisa menonaktifkan dirinya sendiri, dan proteksi "admin aktif
+terakhir" tetap berlaku.
+
+### Kenapa USERNAME, bukan email atau ID
+
+`username` adalah satu-satunya identitas akun yang **tidak bisa diubah dari
+dalam aplikasi** — ia hanya diisi saat akun dibuat, dan tidak ada satu pun aksi
+yang menyentuhnya. Email bisa diganti lewat "Edit nama" (dan diterima sebagai
+identifier login), jadi memakainya berarti pagar ini bisa dipindahkan oleh orang
+yang seharusnya dijaga olehnya. UUID aman tetapi tidak layak diketik manusia ke
+dashboard Railway, dan salah ketiknya tidak terbaca.
+
+### Yang paling penting: akar TIDAK BISA DICETAK DARI DALAM APLIKASI
+
+Ini bagian yang gampang terlewat dan membatalkan seluruh gagasannya kalau
+lolos. `SUPER_ADMIN_UTAMA` bisa memuat username yang **akunnya belum ada** —
+salah ketik, atau nama yang disiapkan lebih dulu. Tanpa pagar, super admin mana
+pun tinggal:
+
+- **membuat** akun dengan username itu (`createUser`), atau
+- **mempromosikan** akun yang sudah ada ke `super_admin` (`setUserRole`),
+
+dan seketika jadi akar. Kedua jalur kini menolak kecuali pelakunya sendiri akar.
+
+Syarat kedua yang menutup arah sebaliknya: **peran wajib `super_admin`.** Env
+menunjuk siapa DI ANTARA para super admin yang jadi akar — ia bukan alat
+pengangkatan. Tanpa syarat itu, satu salah ketik di dashboard Railway yang
+kebetulan cocok dengan username seorang mandor berubah jadi eskalasi wewenang
+diam-diam.
+
+### Terlihat, bukan gaib
+
+Aturan otorisasi yang tidak muncul di layar akan dibaca sebagai bug. Karena itu:
+
+- daftar pengguna menandai akun akar dengan pil **"Super admin utama"** beserta
+  penjelasannya di `title`;
+- halaman Sistem menampilkan keadaannya, dan membedakan tiga hal — belum diatur
+  (dengan sebab kenapa itu berisiko), terisi dan cocok, serta **tercantum tapi
+  akunnya belum ada** (kursi kosong). Yang ketiga penting: tanpa baris itu,
+  penolakan saat seseorang mencoba memakai nama tersebut terbaca seperti bug.
+
+Kosong = perilaku persis seperti sebelumnya (tidak ada akar, sesama super admin
+tidak bisa saling menyentuh). Fitur ini menambah jalan keluar, bukan mengubah
+default.
+
+**Penjaga.** `tests/unit/akar-super-admin.test.ts` (10) +
+`tests/integration/akar-super-admin.test.ts` (16). Diuji giginya: mencabut
+proteksi target-akar memerahkan 12 uji; mencabut pagar `createUser` memerahkan
+uji kursi kosong; membuang syarat "peran wajib super_admin" memerahkan uji
+eskalasi lewat salah ketik.
+
+### 315a · Kenapa BUKAN memakai ulang `BOOTSTRAP_ADMIN_USERNAME` (susulan 2026-08-15)
+
+Pertanyaan user setelah 315 dibuat:
+
+> *"bukankah di sistemmu sudah ada env BOOTSTRAP_ADMIN_USERNAME? kenapa bukan
+> itu saja yang jadi utama, lalu ada BOOTSTRAP_ADMIN_PASSWORD apa itu perlu
+> dihapus?"*
+
+Variabelnya memang ada (`src/instrumentation-node.ts`) — dan memakainya ulang
+justru merusak, karena **umur keduanya berlawanan**.
+
+`BOOTSTRAP_ADMIN_USERNAME` sekali pakai: `DEPLOY_RAILWAY.md` menyuruh
+MENGHAPUSNYA setelah login pertama. Kalau ia juga menandai akar, mengikuti
+langkah pembersihan yang sudah didokumentasikan itu **diam-diam mencabut
+akarnya** — dan tidak ada yang tahu sampai hari seseorang perlu menonaktifkan
+super admin, yaitu persis jebakan yang 315 dibuat untuk menutupnya.
+
+Dua alasan lain, masing-masing sudah cukup sendirian:
+
+- **Ia mati tanpa passwordnya.** `bootstrapAdmin()` berhenti lebih dulu bila
+  `BOOTSTRAP_ADMIN_PASSWORD` kosong. Menandai kewenangan tertinggi dengan
+  variabel yang hanya berarti selama ada password mentah di sebelahnya adalah
+  kebalikan dari yang diinginkan.
+- **Ia punya default `"admin"`.** Masuk akal untuk "buatkan user bernama admin";
+  bencana untuk "siapa pun pemilik username admin adalah akar" — pada deploy
+  yang variabelnya tidak diisi, akar berpindah diam-diam ke akun yang bisa
+  dibuat orang lain lebih dulu. `SUPER_ADMIN_UTAMA` karena itu TIDAK punya
+  default: kosong berarti tidak ada akar, bukan menebak siapa.
+
+### `BOOTSTRAP_ADMIN_PASSWORD` memang harus dihapus
+
+Ya — dan dokumen deploy sudah menyuruhnya. Yang belum ada: alasannya, dan
+sesuatu yang mengingatkan. Bahayanya bukan penimpaan (bootstrap melewati
+username yang sudah ada, dan tidak ada aksi hapus-user di aplikasi), melainkan:
+
+1. password SUPER ADMIN dalam bentuk terbaca, tersimpan selama proyek hidup,
+   terlihat siapa pun yang bisa membaca Variables;
+2. nilainya **sudah basi** begitu password diganti saat login pertama
+   (`mustChangePassword: true`) — jadi ia tidak membeli apa pun;
+3. bila database pernah kosong lagi — restore, environment baru, kloning ke
+   staging — boot berikutnya **membuat ulang super admin dengan password itu**,
+   diam-diam, memakai kredensial yang mungkin sudah lama beredar di grup chat.
+
+`BOOTSTRAP_ADMIN_USERNAME` sendiri tidak berbahaya (mati tanpa passwordnya),
+tapi tidak berguna juga — hapus sekalian.
+
+**Yang ditambahkan.** Dua celah yang muncul dari pertanyaan ini, keduanya berupa
+"benar tapi tidak ada yang memberi tahu": (a) `DEPLOY_RAILWAY.md` tidak pernah
+menyuruh mengisi `SUPER_ADMIN_UTAMA`, sehingga deployment baru berakhir tanpa
+akar sama sekali — kini jadi langkah tersendiri, dengan penegasan bahwa ia
+PERMANEN, tepat di sebelah langkah yang menyuruh menghapus variabel bootstrap;
+(b) halaman Sistem kini menandai bila `BOOTSTRAP_ADMIN_PASSWORD` masih
+terpasang. Password yang tertinggal tidak pernah memberi tahu dirinya sendiri.

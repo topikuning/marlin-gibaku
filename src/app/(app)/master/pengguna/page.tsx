@@ -5,6 +5,8 @@ import { locationScopeWhere } from "@/lib/auth/scope";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can, creatableRoles, ROLE_LABEL } from "@/lib/authz";
 import { db } from "@/lib/db";
+import { adalahAkar, parseAkar } from "@/lib/akar";
+import { env } from "@/lib/env";
 import { UserForm, UsersTable } from "./pengguna-client";
 
 export const metadata: Metadata = { title: "Pengguna" };
@@ -66,6 +68,11 @@ export default async function PenggunaPage() {
     company: l.package?.contract?.vendor?.name ?? l.package?.organization?.name ?? null,
   }));
 
+  // Siapa yang jadi AKAR ditetapkan di env (DECISIONS 315). Ditandai di daftar
+  // supaya aturannya terlihat: tanpa penanda, "kenapa akun ini tidak bisa
+  // dinonaktifkan" jadi misteri yang cuma terbaca di kode.
+  const daftarAkar = parseAkar(env.SUPER_ADMIN_UTAMA);
+
   const listTitle = fullManage ? "Daftar pengguna" : "Pengguna yang saya buat";
   const description = fullManage
     ? "Akun, peran, dan penugasan lokasi. Password baru selalu wajib diganti saat login pertama."
@@ -92,6 +99,7 @@ export default async function PenggunaPage() {
                 mustChangePassword: u.mustChangePassword,
                 lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
                 createdByName: u.creator?.fullName ?? null,
+                akar: adalahAkar(u, daftarAkar),
                 assignments: u.assignments.map((a) => ({ id: a.locationId, name: a.location.name })),
               }))}
               locations={locationOptions}
