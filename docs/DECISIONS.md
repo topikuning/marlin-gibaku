@@ -12965,3 +12965,85 @@ mencabut `requireOutranks` dari `updateUserProfile` memerahkan uji email.
 Uji ini juga menjaga sisi sebaliknya — bawahan TETAP bisa dinonaktifkan/direset,
 dan MENGAKTIFKAN kembali tidak menuntut peringkat (memulihkan akses bukan
 menyerangnya) — supaya perbaikan ini tidak diam-diam mengunci hal yang wajar.
+
+---
+
+## 315 · Super admin UTAMA ditetapkan dari variabel lingkungan (2026-08-15)
+
+Usulan user 2026-08-15, menjawab pintu satu arah yang disebut di DECISIONS 314:
+
+> *"seharusnya ada set super admin utama di .env atau di variabel railway"*
+
+Ini rancangan yang lebih baik daripada tiga pilihan yang kutawarkan (biarkan /
+izinkan sesama super admin saling mematikan / jalur turun-peran), dan alasannya
+satu: **akar kewenangan ditaruh di luar jangkauan aplikasi.** Apa pun yang bisa
+diubah dari dalam bisa diubah oleh akun yang bocor. Yang di env tidak —
+mengubahnya menuntut akses deploy, kendali yang berbeda dan lebih sedikit
+orangnya.
+
+### Aturannya
+
+`SUPER_ADMIN_UTAMA` = daftar **username**, dipisah koma. Akun yang namanya
+tercantum DAN berperan `super_admin` menjadi **akar**:
+
+1. **Akar mengungguli siapa pun.** Inilah jalan keluar dari pintu satu arah:
+   super admin biasa akhirnya bisa dinonaktifkan, diturunkan, dan direset — oleh
+   akar, bukan oleh sesamanya.
+2. **Akar tidak bisa disentuh siapa pun, termasuk akar lain.** Daftarnya di env
+   yang menentukan, bukan siapa yang menekan tombol lebih dulu. Mencabut
+   kewenangan seorang akar = keluarkan namanya dari env lalu redeploy; sesudah
+   itu ia super admin biasa dan bisa ditangani lewat jalur normal.
+3. Kebijakan lama tetap berlaku untuk yang bukan akar — sesama super admin biasa
+   tetap tidak bisa saling menyentuh. Env memberi SATU jalan keluar, bukan
+   membuka pagarnya untuk semua orang.
+
+Akar tetap tidak bisa menonaktifkan dirinya sendiri, dan proteksi "admin aktif
+terakhir" tetap berlaku.
+
+### Kenapa USERNAME, bukan email atau ID
+
+`username` adalah satu-satunya identitas akun yang **tidak bisa diubah dari
+dalam aplikasi** — ia hanya diisi saat akun dibuat, dan tidak ada satu pun aksi
+yang menyentuhnya. Email bisa diganti lewat "Edit nama" (dan diterima sebagai
+identifier login), jadi memakainya berarti pagar ini bisa dipindahkan oleh orang
+yang seharusnya dijaga olehnya. UUID aman tetapi tidak layak diketik manusia ke
+dashboard Railway, dan salah ketiknya tidak terbaca.
+
+### Yang paling penting: akar TIDAK BISA DICETAK DARI DALAM APLIKASI
+
+Ini bagian yang gampang terlewat dan membatalkan seluruh gagasannya kalau
+lolos. `SUPER_ADMIN_UTAMA` bisa memuat username yang **akunnya belum ada** —
+salah ketik, atau nama yang disiapkan lebih dulu. Tanpa pagar, super admin mana
+pun tinggal:
+
+- **membuat** akun dengan username itu (`createUser`), atau
+- **mempromosikan** akun yang sudah ada ke `super_admin` (`setUserRole`),
+
+dan seketika jadi akar. Kedua jalur kini menolak kecuali pelakunya sendiri akar.
+
+Syarat kedua yang menutup arah sebaliknya: **peran wajib `super_admin`.** Env
+menunjuk siapa DI ANTARA para super admin yang jadi akar — ia bukan alat
+pengangkatan. Tanpa syarat itu, satu salah ketik di dashboard Railway yang
+kebetulan cocok dengan username seorang mandor berubah jadi eskalasi wewenang
+diam-diam.
+
+### Terlihat, bukan gaib
+
+Aturan otorisasi yang tidak muncul di layar akan dibaca sebagai bug. Karena itu:
+
+- daftar pengguna menandai akun akar dengan pil **"Super admin utama"** beserta
+  penjelasannya di `title`;
+- halaman Sistem menampilkan keadaannya, dan membedakan tiga hal — belum diatur
+  (dengan sebab kenapa itu berisiko), terisi dan cocok, serta **tercantum tapi
+  akunnya belum ada** (kursi kosong). Yang ketiga penting: tanpa baris itu,
+  penolakan saat seseorang mencoba memakai nama tersebut terbaca seperti bug.
+
+Kosong = perilaku persis seperti sebelumnya (tidak ada akar, sesama super admin
+tidak bisa saling menyentuh). Fitur ini menambah jalan keluar, bukan mengubah
+default.
+
+**Penjaga.** `tests/unit/akar-super-admin.test.ts` (10) +
+`tests/integration/akar-super-admin.test.ts` (16). Diuji giginya: mencabut
+proteksi target-akar memerahkan 12 uji; mencabut pagar `createUser` memerahkan
+uji kursi kosong; membuang syarat "peran wajib super_admin" memerahkan uji
+eskalasi lewat salah ketik.

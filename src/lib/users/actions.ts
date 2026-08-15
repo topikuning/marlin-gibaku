@@ -13,6 +13,8 @@ import {
   type SessionUser,
 } from "@/lib/auth/session";
 import { ADMIN_ROLES, ALL_ROLES, ROLE_LABEL, can, canCreateRole, outranks } from "@/lib/authz";
+import { adalahAkar, parseAkar } from "@/lib/akar";
+import { env } from "@/lib/env";
 import { normalizeWaTarget } from "@/lib/contacts/model";
 import type { UserRole } from "@/generated/prisma/enums";
 
@@ -81,6 +83,22 @@ export async function createUser(_prev: UserActionState, formData: FormData): Pr
   const targetRole = d.role as UserRole;
   if (!canCreateRole(actor.role, targetRole)) {
     return { error: `Anda tidak berwenang membuat akun peran ${ROLE_LABEL[targetRole]}.` };
+  }
+
+  /*
+   * AKAR TIDAK BOLEH DICETAK DARI DALAM APLIKASI (DECISIONS 315).
+   *
+   * `SUPER_ADMIN_UTAMA` bisa memuat username yang akunnya BELUM ADA — salah
+   * ketik, atau nama yang disiapkan lebih dulu. Tanpa pagar ini, super admin
+   * mana pun tinggal membuat akun dengan username itu dan langsung jadi akar:
+   * seluruh gagasan "akarnya ditetapkan dari luar database" batal oleh satu
+   * formulir. Hanya akar yang boleh mengisi kursi yang namanya sudah tercantum.
+   */
+  const daftar = daftarAkar();
+  if (adalahAkar({ username: d.username, role: targetRole }, daftar) && !adalahAkar(actor, daftar)) {
+    return {
+      error: "Username itu terdaftar sebagai super admin utama — hanya super admin utama yang boleh membuat akunnya.",
+    };
   }
 
   // Pembuat terbatas (bukan user.manage): hanya boleh menugaskan lokasi yang
@@ -187,11 +205,16 @@ export async function updateUserProfile(_prev: UserActionState, formData: FormDa
 async function requireSameOrgUser(actor: SessionUser, targetId: string) {
   const target = await db.user.findFirst({
     where: { id: targetId, orgId: actor.orgId },
-    select: { id: true, role: true, isActive: true, fullName: true },
+    select: { id: true, role: true, isActive: true, fullName: true, username: true },
   });
   // Pesan "tidak ditemukan" disengaja: jangan bocorkan keberadaan akun tenant lain.
   if (!target) throw new ForbiddenError("Pengguna tidak ditemukan.");
   return target;
+}
+
+/** Daftar username super admin utama dari env (lihat `lib/akar.ts`). */
+function daftarAkar(): string[] {
+  return parseAkar(env.SUPER_ADMIN_UTAMA);
 }
 
 /**
@@ -199,9 +222,32 @@ async function requireSameOrgUser(actor: SessionUser, targetId: string) {
  * admin yang bocor bisa mereset password seluruh admin lain dan mengunci
  * pemilik sistem dari sistemnya sendiri (DECISIONS 165). Akun sendiri
  * dikecualikan — mengganti password sendiri memang haknya.
+ *
+ * SUPER ADMIN UTAMA (DECISIONS 315) menambahkan dua aturan di atasnya, dan
+ * URUTANNYA penting:
+ *
+ * 1. Akun akar TIDAK BISA disentuh siapa pun — termasuk akar lain. Daftarnya
+ *    ada di env, jadi cara mencabut kewenangan seorang akar adalah mengeluarkan
+ *    namanya dari sana lalu redeploy; sesudah itu ia jadi super admin biasa dan
+ *    bisa ditangani lewat jalur normal. Membiarkan sesama akar saling mematikan
+ *    berarti pemenangnya ditentukan siapa yang menekan tombol lebih dulu.
+ * 2. Akar mengungguli akun lain APA PUN perannya. Inilah yang membuka jalan
+ *    keluar dari pintu satu arah: super admin biasa akhirnya bisa dinonaktifkan
+ *    atau diturunkan — oleh akar, bukan oleh sesamanya.
  */
-function requireOutranks(actor: SessionUser, target: { id: string; role: UserRole }, aksi: string): void {
+function requireOutranks(
+  actor: SessionUser,
+  target: { id: string; role: UserRole; username: string | null },
+  aksi: string,
+): void {
   if (target.id === actor.id) return;
+  const daftar = daftarAkar();
+  if (adalahAkar(target, daftar)) {
+    throw new ForbiddenError(
+      `Tidak bisa ${aksi} akun super admin utama — keluarkan namanya dari SUPER_ADMIN_UTAMA lebih dulu.`,
+    );
+  }
+  if (adalahAkar(actor, daftar)) return;
   if (!outranks(actor.role, target.role)) {
     throw new ForbiddenError(`Tidak bisa ${aksi} akun dengan peran setingkat atau lebih tinggi.`);
   }
@@ -329,6 +375,9 @@ export async function setAssignments(_prev: UserActionState, formData: FormData)
  *    yang dia sendiri tidak boleh membuatnya (PM tidak bisa mengangkat PD).
  * 5. Menurunkan admin aktif terakhir DITOLAK — sama seperti menonaktifkannya,
  *    hasilnya organisasi terkunci dari sistemnya sendiri.
+ * 6. MENGANGKAT seseorang menjadi akar hanya boleh oleh akar (DECISIONS 315) —
+ *    kalau tidak, promosi jadi jalan memutar untuk mencetak akar dari dalam
+ *    aplikasi, persis yang ditutup di `createUser`.
  *
  * Setelah peran berubah, SEMUA sesi akun itu dicabut: sesi lama membawa role
  * lama, dan capability dibaca dari sesi. Tanpa pencabutan, penurunan peran baru
@@ -352,6 +401,15 @@ export async function setUserRole(_prev: UserActionState, formData: FormData): P
     requireOutranks(actor, target, "mengganti peran");
     if (!canCreateRole(actor.role, role)) {
       return { error: `Anda tidak berwenang memberikan peran ${ROLE_LABEL[role]}.` };
+    }
+    // Peran BARU akan menjadikannya akar? Hanya akar yang boleh — tanpa ini,
+    // promosi adalah jalan memutar ke kursi yang sengaja ditaruh di luar
+    // database (DECISIONS 315).
+    const daftar = daftarAkar();
+    if (adalahAkar({ username: target.username, role }, daftar) && !adalahAkar(actor, daftar)) {
+      return {
+        error: "Akun itu terdaftar sebagai super admin utama — hanya super admin utama yang boleh mengangkatnya.",
+      };
     }
     // Turun dari admin → pastikan masih ada admin lain yang aktif.
     if (ADMIN_ROLES.includes(target.role) && !ADMIN_ROLES.includes(role)) {

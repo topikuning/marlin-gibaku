@@ -103,6 +103,8 @@ type UserRow = {
   mustChangePassword: boolean;
   lastLoginAt: string | null;
   createdByName: string | null;
+  /** Super admin UTAMA — ditetapkan di env, tidak bisa disentuh dari UI (DECISIONS 315). */
+  akar: boolean;
   assignments: { id: string; name: string }[];
 };
 
@@ -310,6 +312,11 @@ export function UsersTable({
               </div>
               <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
                 <StatusPill tone="info" label={ROLE_LABEL[u.role]} />
+                {u.akar && (
+                  <span title="Ditetapkan lewat SUPER_ADMIN_UTAMA. Akun ini tidak bisa dinonaktifkan, diturunkan, atau direset dari layar mana pun — ubah variabel lingkungannya lebih dulu.">
+                    <StatusPill tone="success" label="Super admin utama" />
+                  </span>
+                )}
                 {!u.isActive && <StatusPill tone="danger" label="Nonaktif" />}
                 {u.mustChangePassword && <StatusPill tone="warning" label="Wajib ganti password" />}
                 <span>
