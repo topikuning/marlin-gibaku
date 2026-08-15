@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarClock, FileText, Sheet } from "lucide-react";
+import { CalendarClock, FileText, ListTree, Sheet } from "lucide-react";
 import { Card, CardBody, CardHeader, EmptyState } from "@/components/ui";
 import { KkpPeriodReport } from "@/components/knmp/kkp-period-report";
 import { ScurveKkpSheet } from "@/components/knmp/scurve-kkp-sheet";
@@ -87,7 +87,9 @@ export default async function LaporanLokasiPage({
           subtitle="Mingguan / bulanan — dihitung dari laporan harian terkirim (satu calculation layer)."
           action={
             scheduleBounds ? (
-              <div className="flex items-center gap-2">
+              // flex-wrap: tiga tombol berjejer melebihi 375px dan akan
+              // MELEBARKAN halaman di ponsel (DECISIONS 217).
+              <div className="flex flex-wrap items-center gap-2">
                 <Link
                   href={withBackTo(`/cetak/jadwal/${slug}`, `/lokasi/${slug}/laporan-lokasi`)}
                   className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-4 text-sm font-medium text-ink transition-colors hover:bg-surface-muted hover:border-border-strong"
@@ -99,6 +101,13 @@ export default async function LaporanLokasiPage({
                   className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-4 text-sm font-medium text-ink transition-colors hover:bg-surface-muted hover:border-border-strong"
                 >
                   <Sheet aria-hidden className="size-4" /> Unduh Excel
+                </a>
+                <a
+                  href={`/lokasi/${slug}/jadwal/rincian`}
+                  title="Rincian sampai uraian item: volume, harga satuan, jumlah, dan bobot tiap baris. Kolom jadwalnya adalah jadwal KATEGORI induk — sistem tidak menyimpan jadwal per item."
+                  className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-4 text-sm font-medium text-ink transition-colors hover:bg-surface-muted hover:border-border-strong"
+                >
+                  <ListTree aria-hidden className="size-4" /> Rincian Item
                 </a>
               </div>
             ) : undefined

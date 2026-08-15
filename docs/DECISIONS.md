@@ -13101,3 +13101,86 @@ akar sama sekali — kini jadi langkah tersendiri, dengan penegasan bahwa ia
 PERMANEN, tepat di sebelah langkah yang menyuruh menghapus variabel bootstrap;
 (b) halaman Sistem kini menandai bila `BOOTSTRAP_ADMIN_PASSWORD` masih
 terpasang. Password yang tertinggal tidak pernah memberi tahu dirinya sendiri.
+
+---
+
+## 316 · Rincian Time Schedule sampai level ITEM (2026-08-15)
+
+Permintaan user 2026-08-15:
+
+> *"saat ini jika kurva-s/time schedule didownload, hanya dibreakdown di level
+> kategori, apa bisa ada fitur export untuk data lebih detail, mulai dari sub
+> kategori hingga ke detail item untuk rincian besaran time schedule per item"*
+
+### Fakta yang menentukan bentuknya: jadwal per item TIDAK ADA
+
+Baseline menyimpan matriks mingguan berkunci lineageKey **KATEGORI**
+(`BaselineScheduleItem`). Impor Excel (`susunJadwalApaAdanya`) juga memetakan ke
+kategori. `autoCategorySchedule` menyatakannya sendiri: *"jadwal per-KATEGORI …
+bukan tahap absolut per-item"*. Tidak ada satu pun tempat di sistem yang
+menyatakan "item X dikerjakan minggu 5–8".
+
+Jadi yang diminta terbelah dua:
+
+- **Bobot per item = FAKTA.** RAB menyimpan volume, satuan, harga satuan, dan
+  jumlah tiap item; porsinya terhadap nilai pekerjaan bisa dihitung tepat.
+- **Waktu per item = TIDAK ADA.** Menghadirkannya berarti mengarang.
+
+### Keputusan user: bobot rinci, waktu DIWARISI kategori
+
+Ditawarkan tiga jalan, user memilih yang pertama:
+
+1. **Bobot rinci + waktu diwarisi kategori** (dipilih) — tidak ada satu angka
+   pun yang dikarang.
+2. Ditambah sebaran mingguan per item, proporsional terhadap nilai di dalam
+   jendela kategorinya. Jumlahnya tetap persis sama dengan kategori dan total
+   100% — tapi ia menyelundupkan asumsi bahwa semua item dalam satu kategori
+   bergerak dengan laju yang sama, padahal galian selesai duluan dan finishing
+   belakangan.
+3. Jadwal per item yang sungguhan (user menjadwalkan sendiri). Ditolak untuk
+   sekarang karena skalanya: satu lokasi seed nyata berisi **1.657 item**;
+   menjadwalkan segitu × 83 lokasi bukan pekerjaan yang akan ada yang pelihara.
+
+Kolom waktunya karena itu berjudul **"Jadwal (minggu kategori)"** dan tiap baris
+membawa kolom "Kategori induk". Jeda ditulis terpisah (`M5–M8, M11–M14`) —
+menggabungkannya jadi `M5–M14` akan menyatakan minggu 9–10 dikerjakan padahal
+jadwalnya memang kosong di situ.
+
+### Peringatan sebagai ISI, bukan catatan kaki
+
+Kalimat "sistem tidak menyimpan jadwal per item, jadi kolom itu TIDAK menyatakan
+kapan item tersebut dikerjakan" ditaruh **sebelum tabel** dan diberi latar.
+Ditaruh di bawah, setelah 1.977 baris, ia tidak akan pernah ditemukan — dan
+dokumen yang disetorkan ke pemberi kerja akan terbaca sebagai pernyataan yang
+tidak pernah dibuat siapa pun. Uji berkasnya mengunci posisi itu, bukan sekadar
+keberadaannya.
+
+### Pembagi bobot = Σ KATEGORI
+
+Definisi yang sama dengan `lib/progress.ts`. Menjumlahkan seluruh simpul akan
+menghitung ganda (kategori + anaknya) dan menghasilkan 200%+; menjumlahkan item
+saja bisa meleset dari total kategori karena pembulatan. Baris TOTAL karena itu
+juga hanya menjumlah kategori, dan diberi label "TOTAL (Σ kategori)" supaya
+pembaca tahu kenapa 1.977 baris berjumlah 100%.
+
+### Bentuk & tempat
+
+Berkop resmi + blok tanda tangan tiga pihak (pilihan user: untuk setoran KKP),
+mengikuti tata letak sheet Time Schedule. Rute `/lokasi/[slug]/jadwal/rincian`,
+tombol **"Rincian Item"** bersebelahan dengan "Unduh Excel" di halaman Progress
+dan Laporan lokasi. Tersedia sebelum SPMK (`assume: true`) sama seperti ekspor
+jadwal — bobot & urutan pekerjaan sudah berarti sejak kontrak ada.
+
+Baris tombol di Laporan lokasi diberi `flex-wrap`: tiga tombol berjejer melebihi
+375px dan akan melebarkan halaman di ponsel (DECISIONS 217).
+
+Jadwalnya diambil dari `deriveCategorySchedule` — lapisan yang SAMA dengan editor
+jadwal dan kurva-S. Kalau berkas ini menghitung jadwalnya sendiri, rincian dan
+kurva bisa bercerita beda tentang minggu yang sama.
+
+**Penjaga.** `tests/unit/rincian-jadwal.test.ts` (14, penyusun murni) +
+`tests/unit/rincian-jadwal-xlsx.test.ts` (7, membaca balik workbook). Diuji
+giginya: menghapus kalimat peringatan memerahkan 2 uji; membuat TOTAL menjumlah
+semua baris memerahkan 2 uji. Diverifikasi pada data seed sungguhan (Kedung
+Mutih): 1.977 baris — 17 kategori, 54 sub, 249 grup, 1.657 item — Σ bobot
+kategori 100,0000%, berkas 133 KB dalam 287 ms.
