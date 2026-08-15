@@ -33,6 +33,34 @@ const createUserSchema = z.object({
 
 export type UserActionState = { error?: string; success?: string } | undefined;
 
+/**
+ * Jalankan mutasi akun dan ubah PENOLAKAN IZIN jadi pesan, bukan halaman error.
+ *
+ * Laporan produksi 2026-08-15: super admin menonaktifkan / mereset password
+ * super admin LAIN dan mendapat layar "An error occurred in the Server
+ * Components render". Pagarnya benar dan memang disengaja (`outranks` menolak
+ * akun SETINGKAT, DECISIONS 165) — yang salah cara menolaknya: `ForbiddenError`
+ * dilempar dari server action yang tidak menangkapnya, jadi Next melemparnya ke
+ * error boundary.
+ *
+ * Bedanya besar bagi yang memakai. "Tidak boleh, ini alasannya" bisa
+ * ditindaklanjuti; layar error tidak bisa dibedakan dari sistem yang rusak —
+ * orang akan mengulanginya, lalu melapor bahwa aplikasinya error, dan tidak ada
+ * satu pun petunjuk bahwa yang terjadi justru pengamanan bekerja.
+ *
+ * HANYA `ForbiddenError` yang diterjemahkan. Galat lain tetap dilempar: kalau
+ * database yang bermasalah, menampilkannya sebagai banner sopan di formulir
+ * akan menyembunyikan kegagalan nyata.
+ */
+async function tolakDenganPesan(fn: () => Promise<UserActionState>): Promise<UserActionState> {
+  try {
+    return await fn();
+  } catch (err) {
+    if (err instanceof ForbiddenError) return { error: err.message };
+    throw err;
+  }
+}
+
 export async function createUser(_prev: UserActionState, formData: FormData): Promise<UserActionState> {
   // Pembuatan user berjenjang (PM → SM/Pelaksana, SM → Pelaksana). Peran manajemen
   // penuh (user.manage) juga punya user.create.
@@ -104,9 +132,18 @@ const updateProfileSchema = z.object({
   waNumber: z.string().optional(),
 });
 
-/** Ubah nama (& email) pengguna. Username & peran tidak diubah di sini. */
+/**
+ * Ubah nama (& email) pengguna. Username & peran tidak diubah di sini.
+ *
+ * Ikut dijaga `requireOutranks` seperti reset password & nonaktifkan, dan itu
+ * BUKAN kehati-hatian berlebih: login menerima username ATAU email
+ * (`auth/actions.ts`). Tanpa pagar ini, admin yang dilarang mereset password
+ * seorang peer tetap bisa mengganti email peer itu — mencabut satu jalan masuk
+ * ke akun yang tidak boleh ia sentuh, lewat pintu yang kebetulan tidak dijaga.
+ * Pagar yang bisa diputari lewat pintu sebelah bukan pagar (DECISIONS 165).
+ * Akun sendiri tetap boleh diubah — `requireOutranks` mengecualikannya.
+ */
 export async function updateUserProfile(_prev: UserActionState, formData: FormData): Promise<UserActionState> {
-  const actor = await requireCapability("user.manage");
   const parsed = updateProfileSchema.safeParse({
     userId: formData.get("userId"),
     fullName: formData.get("fullName"),
@@ -116,23 +153,29 @@ export async function updateUserProfile(_prev: UserActionState, formData: FormDa
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
 
-  const target = await db.user.findUnique({ where: { id: d.userId }, select: { id: true, orgId: true } });
-  if (!target || target.orgId !== actor.orgId) return { error: "Pengguna tidak ditemukan." };
+  return tolakDenganPesan(async () => {
+    const actor = await requireCapability("user.manage");
+    const target = await requireSameOrgUser(actor, d.userId);
+    requireOutranks(actor, target, "mengubah data");
 
-  const email = d.email ? d.email.toLowerCase() : null;
-  if (email) {
-    const clash = await db.user.findFirst({ where: { email, id: { not: d.userId } }, select: { id: true } });
-    if (clash) return { error: "Email sudah dipakai pengguna lain." };
-  }
+    const email = d.email ? d.email.toLowerCase() : null;
+    if (email) {
+      const clash = await db.user.findFirst({
+        where: { email, id: { not: d.userId } },
+        select: { id: true },
+      });
+      if (clash) return { error: "Email sudah dipakai pengguna lain." };
+    }
 
-  const waNumber = d.waNumber?.trim() ? normalizeWaTarget(d.waNumber) : null;
-  await db.user.update({ where: { id: d.userId }, data: { fullName: d.fullName, email, waNumber } });
-  await audit(actor.id, "user.update_profile", "user", d.userId, {
-    fullName: d.fullName,
-    waDiisi: !!waNumber,
+    const waNumber = d.waNumber?.trim() ? normalizeWaTarget(d.waNumber) : null;
+    await db.user.update({ where: { id: d.userId }, data: { fullName: d.fullName, email, waNumber } });
+    await audit(actor.id, "user.update_profile", "user", d.userId, {
+      fullName: d.fullName,
+      waDiisi: !!waNumber,
+    });
+    revalidatePath("/master/pengguna");
+    return { success: "Data pengguna diperbarui." };
   });
-  revalidatePath("/master/pengguna");
-  return { success: "Data pengguna diperbarui." };
 }
 
 /**
@@ -181,67 +224,93 @@ async function assertBukanAdminTerakhir(actor: SessionUser, targetId: string): P
   }
 }
 
-export async function setUserActive(userId: string, isActive: boolean): Promise<void> {
-  const actor = await requireCapability("user.manage");
-  if (actor.id === userId && !isActive) throw new ForbiddenError("Tidak bisa menonaktifkan akun sendiri");
-  const target = await requireSameOrgUser(actor, userId);
-  if (!isActive) {
-    requireOutranks(actor, target, "menonaktifkan");
-    if (ADMIN_ROLES.includes(target.role)) await assertBukanAdminTerakhir(actor, userId);
-  }
-  await db.user.update({ where: { id: userId }, data: { isActive } });
-  if (!isActive) await revokeAllSessions(userId); // sesi langsung mati
-  await audit(actor.id, isActive ? "user.activate" : "user.deactivate", "user", userId);
-  revalidatePath("/master/pengguna");
+/**
+ * Nonaktifkan / aktifkan akun.
+ *
+ * MENGAKTIFKAN sengaja tidak menuntut peringkat: memulihkan akses orang bukan
+ * menyerangnya, dan menuntut peringkat di sini berarti akun setingkat yang
+ * terlanjur nonaktif tidak bisa dihidupkan siapa pun.
+ */
+export async function setUserActive(userId: string, isActive: boolean): Promise<UserActionState> {
+  return tolakDenganPesan(async () => {
+    const actor = await requireCapability("user.manage");
+    if (actor.id === userId && !isActive) {
+      throw new ForbiddenError("Tidak bisa menonaktifkan akun sendiri.");
+    }
+    const target = await requireSameOrgUser(actor, userId);
+    if (!isActive) {
+      requireOutranks(actor, target, "menonaktifkan");
+      if (ADMIN_ROLES.includes(target.role)) await assertBukanAdminTerakhir(actor, userId);
+    }
+    await db.user.update({ where: { id: userId }, data: { isActive } });
+    if (!isActive) await revokeAllSessions(userId); // sesi langsung mati
+    await audit(actor.id, isActive ? "user.activate" : "user.deactivate", "user", userId);
+    revalidatePath("/master/pengguna");
+    return {
+      success: isActive
+        ? `${target.fullName} diaktifkan kembali.`
+        : `${target.fullName} dinonaktifkan — sesinya langsung dicabut.`,
+    };
+  });
 }
 
 export async function resetUserPassword(_prev: UserActionState, formData: FormData): Promise<UserActionState> {
-  const actor = await requireCapability("user.manage");
-  const userId = z.uuid().parse(formData.get("userId"));
-  const target = await requireSameOrgUser(actor, userId);
-  requireOutranks(actor, target, "mereset password");
-  const password = z.string().min(8, "Password minimal 8 karakter").safeParse(formData.get("password"));
-  if (!password.success) return { error: password.error.issues[0].message };
-  await db.user.update({
-    where: { id: userId },
-    data: { passwordHash: await hashPassword(password.data), mustChangePassword: true },
+  const id = z.uuid().safeParse(formData.get("userId"));
+  if (!id.success) return { error: "Pengguna tidak dikenali." };
+  const userId = id.data;
+  return tolakDenganPesan(async () => {
+    const actor = await requireCapability("user.manage");
+    const target = await requireSameOrgUser(actor, userId);
+    requireOutranks(actor, target, "mereset password");
+    const password = z.string().min(8, "Password minimal 8 karakter").safeParse(formData.get("password"));
+    if (!password.success) return { error: password.error.issues[0].message };
+    await db.user.update({
+      where: { id: userId },
+      data: { passwordHash: await hashPassword(password.data), mustChangePassword: true },
+    });
+    await revokeAllSessions(userId);
+    await audit(actor.id, "user.reset_password", "user", userId);
+    revalidatePath("/master/pengguna");
+    return { success: "Password direset. Pengguna wajib menggantinya saat login." };
   });
-  await revokeAllSessions(userId);
-  await audit(actor.id, "user.reset_password", "user", userId);
-  revalidatePath("/master/pengguna");
-  return { success: "Password direset. Pengguna wajib menggantinya saat login." };
 }
 
 export async function setAssignments(_prev: UserActionState, formData: FormData): Promise<UserActionState> {
-  const actor = await requireCapability("user.manage");
-  const userId = z.uuid().parse(formData.get("userId"));
-  await requireSameOrgUser(actor, userId);
-  const locationIds = formData.getAll("locationIds").map(String).filter(Boolean);
-  // Lokasi tujuan juga wajib satu organisasi — tanpa ini, user organisasi A
-  // bisa ditugaskan ke lokasi organisasi B (AUTH-03).
-  if (locationIds.length > 0) {
-    const sah = await db.location.count({
-      where: { id: { in: locationIds }, package: { orgId: actor.orgId } },
-    });
-    if (sah !== locationIds.length) return { error: "Ada lokasi yang tidak ditemukan di organisasi ini." };
-  }
-  const now = new Date();
-  await db.$transaction(async (tx) => {
-    await tx.locationAssignment.updateMany({
-      where: { userId, unassignedAt: null, locationId: { notIn: locationIds } },
-      data: { unassignedAt: now },
-    });
-    for (const locationId of locationIds) {
-      await tx.locationAssignment.upsert({
-        where: { userId_locationId: { userId, locationId } },
-        update: { unassignedAt: null },
-        create: { userId, locationId },
+  const id = z.uuid().safeParse(formData.get("userId"));
+  if (!id.success) return { error: "Pengguna tidak dikenali." };
+  const userId = id.data;
+  return tolakDenganPesan(async () => {
+    const actor = await requireCapability("user.manage");
+    await requireSameOrgUser(actor, userId);
+    const locationIds = formData.getAll("locationIds").map(String).filter(Boolean);
+    // Lokasi tujuan juga wajib satu organisasi — tanpa ini, user organisasi A
+    // bisa ditugaskan ke lokasi organisasi B (AUTH-03).
+    if (locationIds.length > 0) {
+      const sah = await db.location.count({
+        where: { id: { in: locationIds }, package: { orgId: actor.orgId } },
       });
+      if (sah !== locationIds.length) {
+        return { error: "Ada lokasi yang tidak ditemukan di organisasi ini." };
+      }
     }
+    const now = new Date();
+    await db.$transaction(async (tx) => {
+      await tx.locationAssignment.updateMany({
+        where: { userId, unassignedAt: null, locationId: { notIn: locationIds } },
+        data: { unassignedAt: now },
+      });
+      for (const locationId of locationIds) {
+        await tx.locationAssignment.upsert({
+          where: { userId_locationId: { userId, locationId } },
+          update: { unassignedAt: null },
+          create: { userId, locationId },
+        });
+      }
+    });
+    await audit(actor.id, "user.set_assignments", "user", userId, { count: locationIds.length });
+    revalidatePath("/master/pengguna");
+    return { success: "Penugasan lokasi diperbarui." };
   });
-  await audit(actor.id, "user.set_assignments", "user", userId, { count: locationIds.length });
-  revalidatePath("/master/pengguna");
-  return { success: "Penugasan lokasi diperbarui." };
 }
 
 /**

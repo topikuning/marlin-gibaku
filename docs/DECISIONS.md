@@ -12897,3 +12897,71 @@ memerahkan uji "laporan dibuka kembali"; menganggap minggu berjalan sudah tuntas
 memerahkan empat uji batas minggu; dan mengembalikan pemindai ke bentuk
 "ambil N terbaru + skipDuplicates" memerahkan lima uji, termasuk dua uji
 konvergensi backlog yang sengaja ditulis untuk cacat itu.
+
+---
+
+## 314 · Penolakan proteksi akun jadi PESAN, bukan layar error (2026-08-15)
+
+Laporan produksi user 2026-08-15: super admin menekan **Nonaktifkan** atau
+**Reset password** pada super admin LAIN dan mendapat
+
+> *An error occurred in the Server Components render* — digest `1953120346`,
+> di `/master/pengguna`.
+
+### Yang sebenarnya terjadi
+
+Pagarnya **benar dan memang disengaja**. `outranks` menolak akun SETINGKAT
+(DECISIONS 165), dan `ROLE_RANK[super_admin] < ROLE_RANK[super_admin]` = false,
+jadi super admin memang tidak boleh menyentuh super admin lain.
+
+Yang salah cara menolaknya. `ForbiddenError` dilempar dari server action yang
+tidak menangkapnya, sehingga Next melemparnya ke error boundary. Bedanya besar
+bagi yang memakai: *"tidak boleh, ini alasannya"* bisa ditindaklanjuti; layar
+error tidak bisa dibedakan dari sistem rusak — orang mengulanginya, lalu
+melapor bahwa aplikasinya error, dan **tidak ada satu pun petunjuk bahwa yang
+terjadi justru pengamanan bekerja**.
+
+`setUserRole` sudah benar sejak awal — ia punya `try/catch` dengan komentar yang
+menjelaskan persis alasan ini. Saudara-saudaranya terlewat: `setUserActive`,
+`resetUserPassword`, `setAssignments`. Satu helper `tolakDenganPesan()` kini
+dipakai semuanya; HANYA `ForbiddenError` yang diterjemahkan, galat lain tetap
+dilempar (kegagalan database tidak boleh menyamar jadi banner sopan).
+
+`setUserActive` juga berubah dari `Promise<void>` jadi mengembalikan
+`UserActionState`. Ia dipanggil dari `<form action={async () => …}>` tanpa
+`useActionState`, jadi sebelumnya penolakannya **tidak punya tempat untuk
+muncul** sama sekali — daftar penggunanya kini menyimpan pesan per-baris.
+
+### Lubang yang ditemukan sambil memperbaiki
+
+`updateUserProfile` tidak punya pagar peringkat sama sekali — hanya cek satu
+organisasi. Padahal login menerima **username ATAU email** (`auth/actions.ts`).
+Artinya admin yang dilarang mereset password seorang peer tetap bisa mengganti
+email peer itu: mencabut satu jalan masuk ke akun yang tidak boleh ia sentuh,
+lewat pintu yang kebetulan tidak dijaga. Pagar yang bisa diputari lewat pintu
+sebelah bukan pagar. `requireOutranks` dipasang, dengan pengecualian akun
+sendiri yang sudah ada di helper itu.
+
+### Yang TIDAK diubah — dan perlu keputusan user
+
+Kebijakannya sendiri dibiarkan utuh, tapi konsekuensinya perlu disebut terang:
+
+- `ROLE_CREATE_MATRIX` memperbolehkan super admin **MEMBUAT** super admin lain.
+- `outranks` melarang siapa pun **menonaktifkan, menurunkan peran, atau mereset**
+  super admin — termasuk yang membuatnya.
+
+Jadi akun super admin adalah **pintu satu arah**: bisa dicetak bebas, tidak bisa
+dibatalkan lewat UI oleh siapa pun. Satu-satunya pemulihan adalah SQL langsung
+ke database produksi. Itu aman terhadap akun bocor, tapi menjadi jebakan
+operasional biasa — orang keluar dari perusahaan dan akunnya tidak bisa
+dimatikan. Ditinggalkan apa adanya karena mengubahnya adalah keputusan
+kebijakan, bukan perbaikan bug; menunggu keputusan user.
+
+**Penjaga.** `tests/integration/proteksi-akun-setingkat.test.ts` (14 uji) —
+menutup utang yang sudah disebut sendiri di `tests/unit/authz-proteksi-akun.test.ts`
+("penegakannya di `users/actions.ts` butuh database"). Diuji giginya:
+mengembalikan `throw err` tanpa menerjemahkan `ForbiddenError` memerahkan 9 uji;
+mencabut `requireOutranks` dari `updateUserProfile` memerahkan uji email.
+Uji ini juga menjaga sisi sebaliknya — bawahan TETAP bisa dinonaktifkan/direset,
+dan MENGAKTIFKAN kembali tidak menuntut peringkat (memulihkan akses bukan
+menyerangnya) — supaya perbaikan ini tidak diam-diam mengunci hal yang wajar.
