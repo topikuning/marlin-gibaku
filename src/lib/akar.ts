@@ -24,6 +24,32 @@
  * "Edit nama", jadi memakainya berarti pagar ini bisa dipindahkan oleh orang
  * yang seharusnya dijaga olehnya. ID bisa saja dipakai, tapi UUID tidak layak
  * diketik manusia ke dashboard Railway dan salah ketiknya tak terbaca.
+ *
+ * ### Kenapa BUKAN memakai ulang `BOOTSTRAP_ADMIN_USERNAME`
+ *
+ * Pertanyaan wajar (user 2026-08-15), dan jawabannya: keduanya punya UMUR yang
+ * berlawanan.
+ *
+ * `BOOTSTRAP_ADMIN_USERNAME` adalah variabel SEKALI PAKAI —
+ * `docs/DEPLOY_RAILWAY.md` menyuruh MENGHAPUSNYA setelah login pertama. Kalau
+ * ia juga menandai akar, mengikuti langkah pembersihan yang sudah
+ * didokumentasikan itu diam-diam mencabut akarnya, dan tidak ada yang tahu
+ * sampai hari seseorang perlu menonaktifkan super admin — persis jebakan yang
+ * fitur ini dibuat untuk menutupnya.
+ *
+ * Dua alasan lain, dan keduanya sendirian sudah cukup:
+ *
+ *  - Ia MATI tanpa `BOOTSTRAP_ADMIN_PASSWORD`: `bootstrapAdmin()` berhenti
+ *    lebih dulu bila passwordnya kosong. Menandai kewenangan tertinggi dengan
+ *    variabel yang baru berarti saat ada password mentah di sebelahnya adalah
+ *    kebalikan dari yang kita mau.
+ *  - Ia punya DEFAULT (`"admin"`). Default masuk akal untuk "buatkan user
+ *    bernama admin", tapi jadi bencana untuk "siapa pun pemilik username admin
+ *    adalah akar": pada deploy mana pun yang variabelnya tidak diisi, akar
+ *    berpindah diam-diam ke akun yang bisa dibuat orang lain lebih dulu.
+ *
+ * Karena itu variabelnya sengaja TERPISAH, dan `SUPER_ADMIN_UTAMA` tidak punya
+ * default sama sekali: kosong berarti tidak ada akar, bukan menebak siapa.
  */
 
 /**

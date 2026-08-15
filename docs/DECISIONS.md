@@ -13047,3 +13047,57 @@ default.
 proteksi target-akar memerahkan 12 uji; mencabut pagar `createUser` memerahkan
 uji kursi kosong; membuang syarat "peran wajib super_admin" memerahkan uji
 eskalasi lewat salah ketik.
+
+### 315a · Kenapa BUKAN memakai ulang `BOOTSTRAP_ADMIN_USERNAME` (susulan 2026-08-15)
+
+Pertanyaan user setelah 315 dibuat:
+
+> *"bukankah di sistemmu sudah ada env BOOTSTRAP_ADMIN_USERNAME? kenapa bukan
+> itu saja yang jadi utama, lalu ada BOOTSTRAP_ADMIN_PASSWORD apa itu perlu
+> dihapus?"*
+
+Variabelnya memang ada (`src/instrumentation-node.ts`) — dan memakainya ulang
+justru merusak, karena **umur keduanya berlawanan**.
+
+`BOOTSTRAP_ADMIN_USERNAME` sekali pakai: `DEPLOY_RAILWAY.md` menyuruh
+MENGHAPUSNYA setelah login pertama. Kalau ia juga menandai akar, mengikuti
+langkah pembersihan yang sudah didokumentasikan itu **diam-diam mencabut
+akarnya** — dan tidak ada yang tahu sampai hari seseorang perlu menonaktifkan
+super admin, yaitu persis jebakan yang 315 dibuat untuk menutupnya.
+
+Dua alasan lain, masing-masing sudah cukup sendirian:
+
+- **Ia mati tanpa passwordnya.** `bootstrapAdmin()` berhenti lebih dulu bila
+  `BOOTSTRAP_ADMIN_PASSWORD` kosong. Menandai kewenangan tertinggi dengan
+  variabel yang hanya berarti selama ada password mentah di sebelahnya adalah
+  kebalikan dari yang diinginkan.
+- **Ia punya default `"admin"`.** Masuk akal untuk "buatkan user bernama admin";
+  bencana untuk "siapa pun pemilik username admin adalah akar" — pada deploy
+  yang variabelnya tidak diisi, akar berpindah diam-diam ke akun yang bisa
+  dibuat orang lain lebih dulu. `SUPER_ADMIN_UTAMA` karena itu TIDAK punya
+  default: kosong berarti tidak ada akar, bukan menebak siapa.
+
+### `BOOTSTRAP_ADMIN_PASSWORD` memang harus dihapus
+
+Ya — dan dokumen deploy sudah menyuruhnya. Yang belum ada: alasannya, dan
+sesuatu yang mengingatkan. Bahayanya bukan penimpaan (bootstrap melewati
+username yang sudah ada, dan tidak ada aksi hapus-user di aplikasi), melainkan:
+
+1. password SUPER ADMIN dalam bentuk terbaca, tersimpan selama proyek hidup,
+   terlihat siapa pun yang bisa membaca Variables;
+2. nilainya **sudah basi** begitu password diganti saat login pertama
+   (`mustChangePassword: true`) — jadi ia tidak membeli apa pun;
+3. bila database pernah kosong lagi — restore, environment baru, kloning ke
+   staging — boot berikutnya **membuat ulang super admin dengan password itu**,
+   diam-diam, memakai kredensial yang mungkin sudah lama beredar di grup chat.
+
+`BOOTSTRAP_ADMIN_USERNAME` sendiri tidak berbahaya (mati tanpa passwordnya),
+tapi tidak berguna juga — hapus sekalian.
+
+**Yang ditambahkan.** Dua celah yang muncul dari pertanyaan ini, keduanya berupa
+"benar tapi tidak ada yang memberi tahu": (a) `DEPLOY_RAILWAY.md` tidak pernah
+menyuruh mengisi `SUPER_ADMIN_UTAMA`, sehingga deployment baru berakhir tanpa
+akar sama sekali — kini jadi langkah tersendiri, dengan penegasan bahwa ia
+PERMANEN, tepat di sebelah langkah yang menyuruh menghapus variabel bootstrap;
+(b) halaman Sistem kini menandai bila `BOOTSTRAP_ADMIN_PASSWORD` masih
+terpasang. Password yang tertinggal tidak pernah memberi tahu dirinya sendiri.

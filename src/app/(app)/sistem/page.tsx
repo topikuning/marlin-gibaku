@@ -192,6 +192,10 @@ export default async function SistemPage() {
    * itu kursi kosong: siapa pun yang bisa membuat super admin akan ditolak saat
    * memakai nama itu, dan tanpa baris ini penolakannya terbaca seperti bug.
    */
+  // Password bootstrap yang tertinggal tidak pernah memberi tahu dirinya
+  // sendiri — ia cuma duduk di Variables. Lihat DEPLOY_RAILWAY §5.4.
+  const bootstrapTertinggal = (process.env.BOOTSTRAP_ADMIN_PASSWORD ?? "").length > 0;
+
   const daftarAkar = parseAkar(env.SUPER_ADMIN_UTAMA);
   const akarAda =
     daftarAkar.length === 0
@@ -258,6 +262,14 @@ export default async function SistemPage() {
             tone={akarInfo.tone}
             status={akarInfo.status}
           />
+          {bootstrapTertinggal && (
+            <HealthRow
+              label="BOOTSTRAP_ADMIN_PASSWORD"
+              detail="Password super admin dalam bentuk terbaca masih tersimpan di Variables. Nilainya sudah basi begitu password diganti saat login pertama — jadi ia tidak membeli apa pun, tapi tetap terlihat siapa pun yang bisa membaca konfigurasi, dan akan membuat ulang super admin dengan password itu bila database pernah kosong (mis. kloning staging). HAPUS lalu redeploy."
+              tone="warning"
+              status="Masih terpasang"
+            />
+          )}
           <HealthRow label="Sesi aktif" detail="Login pengguna berjalan" tone="neutral" status={String(sessionCount)} />
         </CardBody>
       </Card>
