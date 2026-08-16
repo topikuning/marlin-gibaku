@@ -125,7 +125,9 @@ describe("pemilihan kunci gambar", () => {
   });
 });
 
-const { NISBAH_TTD, ukuranTtd: ukuran } = await import("@/lib/export/ttd-ukuran");
+const { NISBAH_STEMPEL, NISBAH_TTD, ukuranTtd: ukuran } = await import(
+  "@/lib/export/ttd-ukuran"
+);
 
 describe("ukuran gambar proporsional di semua dokumen", () => {
   // Tinggi ruang tanda tangan SETIAP dokumen, apa adanya dari penyajinya.
@@ -149,22 +151,22 @@ describe("ukuran gambar proporsional di semua dokumen", () => {
     }
   });
 
-  it("stempel tidak pernah melebihi tinggi ruangnya", () => {
-    // Kalau melebihi, ia akan menabrak baris jabatan di atasnya — dan pada
-    // lembar kurva-S yang paling sempit itulah yang pertama terjadi.
+  it("stempel lebih kecil daripada ruangnya — user: \u201cjangan terlalu besar\u201d", () => {
+    // Setinggi PENUH ruangnya adalah versi yang dikoreksi user: tidak menyisakan
+    // tempat untuk diangkat, sehingga stempelnya menabrak garis nama di bawah.
     for (const d of DOKUMEN) {
-      expect(ukuran(d.tinggi).stempel.tinggi, d.nama).toBeLessThanOrEqual(d.tinggi);
+      expect(ukuran(d.tinggi).stempel.tinggi, d.nama).toBeLessThan(d.tinggi);
     }
   });
 
-  it("perbandingan tanda tangan : stempel sama persis di keempat dokumen", () => {
-    const nisbah = DOKUMEN.map((d) => {
+  it("perbandingan tanda tangan : stempel sama di SEMUA dokumen", () => {
+    const acuan = NISBAH_TTD / NISBAH_STEMPEL;
+    for (const d of DOKUMEN) {
       const u = ukuran(d.tinggi);
-      return u.ttd.tinggi / u.stempel.tinggi;
-    });
-    // Pembulatan ke piksel bulat menyisakan selisih < 0,01 — itu yang ditoleransi,
-    // bukan perbedaan ukuran yang sengaja.
-    for (const n of nisbah) expect(Math.abs(n - NISBAH_TTD)).toBeLessThan(0.01);
+      // Pembulatan ke piksel/poin bulat menyisakan selisih kecil — itu yang
+      // ditoleransi, bukan perbedaan ukuran yang sengaja.
+      expect(Math.abs(u.ttd.tinggi / u.stempel.tinggi - acuan), d.nama).toBeLessThan(0.03);
+    }
   });
 
   it("tanda tangan lebih lebar daripada tinggi — coretan, bukan bujur sangkar", () => {
@@ -194,6 +196,67 @@ describe("ukuran gambar proporsional di semua dokumen", () => {
       // …dan harus lebih besar dari nol, kalau tidak keduanya bertumpuk persis
       // di tengah dan tanda tangannya tertutup.
       expect(u.geser, d.nama).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("letak: menimpa teks di atas, menjauh dari garis nama (DECISIONS 329)", () => {
+  const DOKUMEN = [
+    { nama: "html: lembar kurva-S", tinggi: 40 },
+    { nama: "html: laporan harian", tinggi: 48 },
+    { nama: "html: laporan periodik", tinggi: 48 },
+    { nama: "html: rencana mingguan", tinggi: 56 },
+    { nama: "pdf: laporan periodik", tinggi: 32 },
+    { nama: "pdf: laporan harian", tinggi: 34 },
+    { nama: "pdf: rencana mingguan", tinggi: 40 },
+  ];
+
+  it("pasangan DIANGKAT dari garis pijaknya, tidak duduk rapat di atas garis nama", () => {
+    // Versi yang dikoreksi user memakai naik = 0: gambarnya duduk persis di atas
+    // garis nama dan menyenggolnya. Foto dokumen asli menunjukkan sebaliknya.
+    for (const d of DOKUMEN) {
+      expect(ukuran(d.tinggi).naik, d.nama).toBeGreaterThan(0);
+    }
+  });
+
+  it("sisi ATAS stempel melewati batas ruang — jadi ia MENIMPA teks di atasnya", () => {
+    // Inti koreksi user: *"seakan-akan ada yang di atas teks"*. Kalau tinggi +
+    // angkatan masih muat di dalam ruangnya, stempel hanya mengambang di ruang
+    // kosong — persis yang dikeluhkan.
+    for (const d of DOKUMEN) {
+      const u = ukuran(d.tinggi);
+      expect(u.stempel.tinggi + u.naik, d.nama).toBeGreaterThan(d.tinggi);
+    }
+  });
+
+  it("tapi limpahannya kecil — tidak menelan baris teks di atasnya", () => {
+    // Batas atas dari sisi lain: *"tapi jangan terlalu besar."* Limpahan lebih
+    // dari sepertiga tinggi ruang akan menutupi baris jabatan, bukan menimpanya.
+    for (const d of DOKUMEN) {
+      const u = ukuran(d.tinggi);
+      const limpah = u.stempel.tinggi + u.naik - d.tinggi;
+      expect(limpah, d.nama).toBeLessThan(d.tinggi / 3);
+    }
+  });
+
+  it("sisi BAWAH stempel benar-benar menjauh dari garis nama", () => {
+    // Jarak bawah = angkatan. Harus ada, kalau tidak stempelnya kembali
+    // menyentuh garis "( ……… )" seperti pada tangkapan layar user.
+    for (const d of DOKUMEN) {
+      const u = ukuran(d.tinggi);
+      expect(u.naik, d.nama).toBeGreaterThanOrEqual(Math.max(2, d.tinggi * 0.1));
+    }
+  });
+
+  it("yang melimpah HANYA stempel — coretan tanda tangan tetap di dalam ruangnya", () => {
+    // Pembagian tugas yang ditunjukkan dokumen asli: stempel boleh menimpa
+    // baris teks di atasnya, tapi coretan tanda tangan harus tetap berada di
+    // ruang tanda tangan, sejajar dengan baris nama yang ditandatanganinya.
+    // Kalau coretannya ikut melimpah, ia mendarat di baris jabatan dan yang
+    // terbaca adalah nama perusahaan yang dicoret-coret.
+    for (const d of DOKUMEN) {
+      const u = ukuran(d.tinggi);
+      expect(u.ttd.tinggi + u.naik, d.nama).toBeLessThanOrEqual(d.tinggi);
     }
   });
 });

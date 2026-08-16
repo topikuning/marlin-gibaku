@@ -14310,3 +14310,54 @@ vendor bocor ke tanda tangan → 1 merah; pihak dicocokkan lewat urutan → 3 me
 stempel dibuat lebih kecil dari tanda tangan → 2 merah; geseran dibuat jauh → 2
 merah; geseran dinolkan (stempel menutupi tanda tangan) → 1 merah; tanda tangan
 dibuat bujur sangkar → 1 merah.
+
+---
+
+## 329 — Letak stempel dikoreksi: menimpa teks, bukan mengambang di ruang kosong (2026-08-16)
+
+User mengoreksi hasil 328 dengan **dua foto berdampingan**: keluaran MARLIN
+(dilingkari merah) dan dokumen asli di lapangan (dilingkari biru).
+
+> *"aku ingin ukuranmu itu menjadi proporsional, seakan-akan ada yang di atas
+> teks, tapi jangan terlalu besar."*
+
+### Yang salah, dan itu bukan soal ukuran saja
+
+Pada 328 stempel dibuat **setinggi PENUH ruang tanda tangan** dan berpijak tepat
+di garis nama. Akibatnya ia mengambang rapi di tengah ruang kosong lalu
+menyenggol garis `( ……… )` di bawahnya — terbaca sebagai **gambar yang ditempel**,
+bukan stempel yang dibubuhkan.
+
+Dokumen asli menunjukkan yang sebaliknya: stempel dicap **di atas baris teks** —
+tintanya menutupi nama perusahaan dan nama penanda tangan, hurufnya tetap
+terbaca menembus tinta — dan justru menjauh dari garis nama.
+
+### Yang diubah
+
+| | 328 | 329 |
+|---|---|---|
+| Tinggi stempel | 1,00 × ruang | **0,84** × ruang |
+| Tinggi coretan | 0,82 × ruang | **0,68** × ruang |
+| Geser kiri | 0,38 | 0,32 |
+| Angkat dari garis pijak | — | **0,22** × ruang |
+
+`NAIK` itulah inti koreksinya. Karena stempel tidak lagi setinggi penuh, ia
+punya tempat untuk diangkat: sisi ATASnya melewati batas ruang dan jatuh menimpa
+baris nama perusahaan/jabatan, sisi BAWAHnya menjauh dari garis nama. Yang
+membuat huruf tetap terbaca di bawahnya adalah `mix-blend-multiply` yang sudah
+dipakai sejak 328 — tinta di atas tinta, bukan kotak putih yang menutup.
+
+**Pembagian tugas antara stempel dan coretan.** Hanya stempel yang boleh
+melimpah. Coretan tanda tangan tetap di dalam ruangnya, sejajar dengan baris
+nama yang ditandatanganinya — kalau ikut melimpah, ia mendarat di baris jabatan
+dan yang terbaca adalah nama perusahaan yang dicoret-coret.
+
+Perubahannya cuma di `lib/export/ttd-ukuran.ts` + dua penyaji, jadi ketujuh
+dokumen (empat HTML, tiga PDF) ikut berubah sekaligus — itu memang gunanya satu
+sumber ukuran pada 328.
+
+**Penjaga.** `tests/unit/ttd-stempel-cetak.test.ts` naik jadi 19. Uji gigi:
+kembali ke perilaku 328 (stempel penuh, tanpa diangkat) → **4 merah**; stempel
+mengecil sampai tidak lagi menimpa teks → 2 merah; stempel dibesarkan sampai
+menelan baris teks → 2 merah; coretan ikut melimpah → 2 merah; angkatan
+dikecilkan sampai menyenggol garis nama lagi → 2 merah.

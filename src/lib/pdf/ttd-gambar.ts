@@ -122,17 +122,21 @@ export function gambarTtdPdf(
 ): void {
   const { xTengah, yDasar, tinggi } = opsi;
   const u = ukuranTtd(tinggi);
+  // Diangkat `u.naik` dari garis pijak (y mengecil ke ATAS di pdfkit) supaya
+  // sisi atasnya menimpa baris teks di atasnya — seperti stempel yang dicap di
+  // kertas, bukan gambar yang ditempel rapi di ruang kosong. DECISIONS 329.
+  const dasar = yDasar - u.naik;
   try {
     if (berkas.stempel) {
       doc.image(
         berkas.stempel,
         xTengah - u.stempel.lebar / 2 - u.geser,
-        yDasar - u.stempel.tinggi,
+        dasar - u.stempel.tinggi,
         { fit: [u.stempel.lebar, u.stempel.tinggi], align: "center", valign: "bottom" },
       );
     }
     if (berkas.ttd) {
-      doc.image(berkas.ttd, xTengah - u.ttd.lebarMaks / 2, yDasar - u.ttd.tinggi, {
+      doc.image(berkas.ttd, xTengah - u.ttd.lebarMaks / 2, dasar - u.ttd.tinggi, {
         fit: [u.ttd.lebarMaks, u.ttd.tinggi],
         align: "center",
         valign: "bottom",

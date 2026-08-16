@@ -61,15 +61,19 @@ export function RuangTtd({
   const u = ukuranTtd(tinggi);
 
   return (
-    <div className="relative" style={{ height: tinggi }}>
+    <div className="relative overflow-visible" style={{ height: tinggi }}>
       {stempel ? (
         // eslint-disable-next-line @next/next/no-img-element -- URL presigned R2 sementara
         <img
           src={stempel.url}
           alt=""
           aria-hidden
-          className="absolute bottom-0 left-1/2 object-contain"
+          className="absolute left-1/2 object-contain"
           style={{
+            // `bottom: naik` — diangkat dari garis pijak supaya sisi ATASnya
+            // menimpa baris teks di atasnya, seperti stempel yang dicap di
+            // kertas. Lihat catatan `NAIK` di lib/export/ttd-ukuran.
+            bottom: u.naik,
             height: u.stempel.tinggi,
             width: u.stempel.lebar,
             transform: `translateX(calc(-50% - ${u.geser}px))`,
@@ -86,8 +90,9 @@ export function RuangTtd({
           src={ttd.url}
           alt=""
           aria-hidden
-          className="absolute bottom-0 left-1/2 -translate-x-1/2 object-contain"
+          className="absolute left-1/2 -translate-x-1/2 object-contain"
           style={{
+            bottom: u.naik,
             height: u.ttd.tinggi,
             maxWidth: u.ttd.lebarMaks,
             mixBlendMode: "multiply",
