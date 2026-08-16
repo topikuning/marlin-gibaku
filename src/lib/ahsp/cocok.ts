@@ -44,6 +44,27 @@ export function normalisasiSatuan(raw: string | null | undefined): string {
 }
 
 /**
+ * Tanda tangan satu baris RAB: uraian + satuan, dinormalkan seadanya.
+ *
+ * Dipakai sebagai KUNCI padanan yang tersimpan, sehingga satu koreksi manusia
+ * berlaku untuk semua lokasi yang uraiannya persis sama (83 lokasi KNMP memakai
+ * templat RAB yang sebagian besar identik).
+ *
+ * Sengaja BUKAN token pencocokan: tokenisasi membuang satuan ukur, sehingga
+ * "t = 10 cm" dan "t = 10 mm" akan bertabrakan jadi satu tanda. Ketebalan 10 cm
+ * dan 10 mm bukan variasi penulisan. Yang dibuang di sini hanya beda tanda baca,
+ * spasi ganda, dan besar-kecil huruf — hal-hal yang memang cuma cara mengetik.
+ */
+export function tandaItem(uraian: string, satuan: string | null | undefined): string {
+  const u = uraian
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return `${u}|${normalisasiSatuan(satuan)}`;
+}
+
+/**
  * Kata yang muncul di hampir semua uraian sehingga tidak membedakan apa pun.
  * Membiarkannya ikut membuat dua pekerjaan yang tidak berhubungan tampak mirip
  * hanya karena sama-sama diawali "Pekerjaan".
@@ -206,6 +227,31 @@ export function usulkanPadanan(item: ItemRab, kandidat: KandidatAhsp[]): Usulan 
   if (terbaik.k.perluVerifikasi) bagian.push("analisa perlu verifikasi");
   if (!terbaik.k.punyaKomponen) bagian.push("analisa belum punya koefisien terstruktur");
   return { kandidat: terbaik.k, skor: terbaik.s, meyakinkan, alasan: bagian.join("; ") };
+}
+
+/**
+ * Beberapa kandidat teratas, untuk DIPILIH manusia saat mengoreksi.
+ *
+ * Beda tujuan dengan `usulkanPadanan`: yang itu memutuskan sendiri dan diam
+ * kalau ragu; yang ini justru dipanggil ketika sudah ada yang memeriksa, jadi
+ * ambangnya lebih longgar (`AMBANG_LIHAT`) — kandidat 30% yang ternyata benar
+ * lebih berguna di layar daripada disembunyikan.
+ */
+export const AMBANG_LIHAT = 0.15;
+
+export function peringkatPadanan(
+  item: ItemRab,
+  kandidat: KandidatAhsp[],
+  batas = 8,
+): { kandidat: KandidatAhsp; skor: number }[] {
+  const token = tokenisasi(item.uraian);
+  if (token.kata.length === 0) return [];
+  const satuan = normalisasiSatuan(item.satuan);
+  return kandidat
+    .map((k) => ({ kandidat: k, skor: skorCocok(token, satuan, k) }))
+    .filter((x) => x.skor >= AMBANG_LIHAT)
+    .sort((a, b) => b.skor - a.skor)
+    .slice(0, batas);
 }
 
 /** Siapkan kandidat sekali, dipakai untuk ribuan item (token di-precompute). */

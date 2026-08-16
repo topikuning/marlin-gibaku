@@ -13373,3 +13373,104 @@ bukan oleh pagar itu, sehingga pagarnya belum teruji sama sekali. Kasus baru
 dibuat khusus untuk memisahkan keduanya (kemiripan kata 0,33 + angka cocok vs
 kemiripan kata 0,50 tanpa angka), dan barulah pagarnya benar-benar dijaga.
 Tanpa uji gigi, pagar itu akan lolos sebagai hiasan.
+
+---
+
+## 319 · Pemetaan RAB → AHSP tersimpan: mesin memetakan, manusia memperbaiki (2026-08-16)
+
+Lanjutan 317 (basis data AHSP) dan 318 (mesin pencocokan).
+Pencocoknya sudah ada tapi hasilnya menguap setiap kali dijalankan; RAPL butuh
+pemetaan yang **tersimpan, bisa diperbaiki, dan bisa dipertanggungjawabkan**.
+Arahan user: *"sistem memetakan otomatis dan perbaiki yang salah"*.
+
+### Kunci pemetaan GLOBAL, bukan per lokasi
+
+`AhspPadanan.tanda` = tanda tangan teks uraian + satuan, unik di seluruh sistem.
+
+Alasannya bukan penghematan tabel: AHSP adalah analisa NASIONAL. "Pekerjaan
+Urugan Sirtu t = 10 cm" menganalisa pekerjaan yang sama entah di Demak atau
+Sumenep — yang berbeda per lokasi adalah **harga satuan dasarnya**, bukan
+komposisi pekerjaannya. Karena 83 lokasi KNMP memakai templat RAB yang sebagian
+besar sama, satu koreksi manusia langsung membetulkan semua lokasi yang
+uraiannya persis sama. Kalau dikunci per lokasi, orang harus mengulang koreksi
+yang sama 83 kali — dan pasti tidak akan dilakukan.
+
+Diukur pada RAB Kedung Mutih: **1.620 baris kerja hanya menghasilkan 480 tanda
+unik**. Beban pemetaannya 3,4× lebih kecil daripada cacah barisnya, dan itu baru
+satu lokasi.
+
+`tanda` sengaja dibangun dari TEKS apa adanya (huruf + angka + satuan
+dinormalkan), BUKAN dari token pencocokan. Token membuang satuan ukur, jadi
+"t = 10 cm" dan "t = 10 mm" akan bertabrakan jadi satu padanan. Ketebalan 10 cm
+dan 10 mm bukan variasi penulisan.
+
+### Tiga keadaan, dan mesin cuma boleh menulis satu
+
+| keadaan | arti |
+| --- | --- |
+| baris tidak ada | belum pernah diperiksa |
+| `entryId` terisi | punya padanan (`otomatis` atau `koreksi`) |
+| `entryId` null + `koreksi` | manusia MENYATAKAN memang tidak ada padanannya |
+
+Mesin **tidak pernah** menulis "tidak ada padanan": kalau ia ragu ia diam, dan
+barisnya tetap terlihat sebagai lubang yang bisa dikerjakan. Menyatakan sebuah
+pekerjaan memang tak punya analisa AHSP adalah keputusan yang menutup pintu —
+itu hak manusia, dan tercatat sebagai keputusan, bukan sebagai kekosongan.
+
+Pemetaan ulang **melewati** baris yang sudah ada, termasuk hasil koreksi.
+Matcher-nya akan terus diperbaiki, jadi tombol "petakan otomatis" akan ditekan
+lagi; kalau ia menimpa, satu klik menghapus pekerjaan orang tanpa jejak.
+
+### Baris judul tidak ikut dipetakan
+
+RAB lapangan memuat baris seperti "Fasilitas Sarana Kesehatan, terdiri atas :" —
+tersimpan sebagai daun karena begitulah berkas asalnya, tapi tanpa satuan, tanpa
+volume, bernilai nol. **37 dari 1.657 baris** di Kedung Mutih. Sebelum dijaga,
+baris itu menang MEYAKINKAN 50% ke analisa bernama "Fasilitas" — pekerjaan yang
+tidak ada, ikut menghitung cakupan. Sekarang dikeluarkan dari pemetaan maupun
+dari penyebut cakupan.
+
+### Cakupan dilaporkan dalam NILAI, bukan cuma cacah baris
+
+"80% item terpetakan" bisa berarti 30% nilai kalau yang belum justru pekerjaan
+besar. Yang menentukan seberapa berguna estimasi RAPL-nya adalah nilai.
+
+Angka nyata (RAB Kedung Mutih, 1.657 item vs 5.550 analisa, ~1 detik):
+
+```
+baris kerja        1.620   (37 baris judul dikeluarkan)
+tanda unik           480
+terpetakan         1.084   66,9% baris — 75,8% NILAI
+  meyakinkan         255
+  perlu diperiksa    829   (beda tipis dengan kandidat lain)
+belum ada padanan    536   senilai Rp1,89 M dari Rp7,82 M
+```
+
+**829 dari 1.084 padanan berstatus "perlu diperiksa"** — itu angka yang jujur
+dan tidak enak: mesin sudah memilih, tapi hanya seperempatnya yang unggul cukup
+jauh dari kandidat kedua. Halaman RAPL karena itu membuka pada saringan "perlu
+dikerjakan", bukan pada daftar penuh yang tampak sudah selesai.
+
+Lubang terbesarnya juga bukan kebetulan — PJU oktagonal, pompa submersible
+ex.Grundfos, sambungan daya 41,5 kVA: pengadaan barang spesifik merek yang
+memang tidak dianalisa AHSP. Untuk baris seperti itu, "tidak ada padanan" adalah
+jawaban yang benar, bukan kegagalan.
+
+### Capability
+
+`rab.manage` (bukan capability baru): pemetaan ini menentukan koefisien
+bahan/upah yang dipakai memperkirakan biaya pelaksanaan, jadi bobotnya setara
+mengubah RAB. Setiap mutasi memanggil `requireCapability` + `requireLocationAccess`
++ `audit()`.
+
+**Penjaga.** `tests/integration/ahsp-padanan.test.ts` (7) terhadap basis AHSP
+sungguhan: idempoten, koreksi tidak ditimpa, koreksi merembet ke lokasi lain,
+mesin diam pada yang tak beranalisa, "tidak ada" tercatat sebagai keputusan,
+baris judul dikeluarkan. Uji gigi: mengganti `createMany({skipDuplicates})` jadi
+upsert yang menimpa → 3 uji memerah; mencabut penjaga baris judul → 1 memerah.
+`tests/unit/ahsp-cocok.test.ts` bertambah 6 (tanda + peringkat kandidat).
+
+**Belum dikerjakan** (RAPL tahap berikutnya): harga satuan dasar per lokasi
+dengan rekomendasi dari kabupaten/paket yang sama, agregasi kebutuhan
+bahan/upah/alat (`koefisien × volume`), dan perbandingan biaya total RAPL vs
+nilai kontrak.

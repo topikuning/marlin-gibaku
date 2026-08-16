@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   normalisasiSatuan,
+  peringkatPadanan,
   siapkanKandidat,
+  tandaItem,
   tokenisasi,
   usulkanPadanan,
 } from "@/lib/ahsp/cocok";
@@ -165,5 +167,62 @@ describe("usulkanPadanan", () => {
   it("uraian tanpa kata berarti tidak dipaksakan cocok", () => {
     const k = kandidat([["Z.1", "Galian tanah biasa", "m3"]]);
     expect(usulkanPadanan({ uraian: "Pekerjaan dengan biaya", satuan: "m³" }, k)).toBeNull();
+  });
+});
+
+describe("tandaItem", () => {
+  it("menyamakan yang cuma beda cara mengetik", () => {
+    // Ini yang bikin satu koreksi berlaku untuk semua lokasi: 83 lokasi KNMP
+    // memakai templat RAB yang sama, tapi spasi/tanda baca/huruf besarnya tidak
+    // pernah persis seragam.
+    expect(tandaItem("Pekerjaan  Urugan Sirtu, t = 10 cm", "m³")).toBe(
+      tandaItem("pekerjaan urugan sirtu t 10 cm", "m3"),
+    );
+  });
+
+  it("TIDAK menyamakan ketebalan yang berbeda", () => {
+    // Kalau tanda dibangun dari token pencocokan, "cm"/"mm" ikut dibuang dan
+    // kedua baris ini jatuh ke padanan yang sama. 10 cm dan 10 mm bukan variasi
+    // penulisan — satu koreksi tidak boleh merembet ke pekerjaan lain.
+    expect(tandaItem("Urugan Sirtu t = 10 cm", "m3")).not.toBe(
+      tandaItem("Urugan Sirtu t = 10 mm", "m3"),
+    );
+  });
+
+  it("satuan ikut jadi kunci — pekerjaan sama nama beda satuan bukan satu hal", () => {
+    expect(tandaItem("Pembesian besi beton", "kg")).not.toBe(
+      tandaItem("Pembesian besi beton", "m3"),
+    );
+  });
+});
+
+describe("peringkatPadanan", () => {
+  it("memberi beberapa pilihan saat manusia mengoreksi, bukan cuma juaranya", () => {
+    // Ambangnya lebih longgar dari usulkanPadanan: kalau sudah ada yang
+    // memeriksa, kandidat 30% yang ternyata benar lebih berguna di layar
+    // daripada disembunyikan.
+    const k = kandidat([
+      ["T.1", "Timbunan dan Pemadatan Sirtu secara manual", "m3"],
+      ["T.2", "Timbunan dan Pemadatan Sirtu secara mekanis", "m3"],
+      ["T.3", "Galian tanah biasa sedalam 1 m", "m3"],
+    ]);
+    const hasil = peringkatPadanan({ uraian: "Pekerjaan Pemadatan Sirtu", satuan: "m³" }, k);
+    expect(hasil.length).toBe(2);
+    expect(hasil[0].skor).toBeGreaterThanOrEqual(hasil[1].skor);
+    expect(hasil.map((h) => h.kandidat.kode)).not.toContain("T.3");
+  });
+
+  it("menghormati batas jumlah — daftar koreksi bukan tumpahan 5.550 baris", () => {
+    const k = kandidat([
+      ["A.1", "Timbunan Sirtu manual", "m3"],
+      ["A.2", "Timbunan Sirtu mekanis", "m3"],
+      ["A.3", "Timbunan Sirtu padat", "m3"],
+    ]);
+    expect(peringkatPadanan({ uraian: "Timbunan Sirtu", satuan: "m³" }, k, 2)).toHaveLength(2);
+  });
+
+  it("uraian tanpa kata berarti tidak menghasilkan pilihan apa pun", () => {
+    const k = kandidat([["Z.1", "Galian tanah biasa", "m3"]]);
+    expect(peringkatPadanan({ uraian: "Pekerjaan dengan biaya", satuan: "m³" }, k)).toEqual([]);
   });
 });

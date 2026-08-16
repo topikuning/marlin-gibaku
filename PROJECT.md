@@ -55,6 +55,9 @@ Location → RabRevision (draft|aktif|digantikan) → RabNode (pohon 1 tabel;
 Contract → OwnerBilling (termin) → Disbursement                    (penagihan owner)
 Package/Location → AdminMilestone (template KKP 45 item) → Document (FK nyata ke semua
            entitas; version chain supersedesId; append-only by convention)
+AHSP    → AhspSource (SE DJBK 47/2026, sha256 berkas) → AhspEntry → AhspComponent
+           (koefisien upah/bahan/alat) · AhspPadanan (kunci GLOBAL = tanda uraian+satuan;
+           pemetaan item RAB → analisa, `otomatis` vs `koreksi` manusia)
 Sistem  → AuditLog (append-only, ditulis semua mutasi) · Alert · AppSetting effective-dated
 Akses   → User (mustChangePassword, tokenVersion) · Session (DB, revocable) ·
            LoginAttempt (rate limit) · LocationAssignment (scope)
@@ -121,7 +124,7 @@ RLS TIDAK diklaim (lihat OPEN_ISSUES).
 Lihat docs/rebuild/TARGET_INFORMATION_ARCHITECTURE.md. Menu: Beranda (Command
 Center exception-first) · Paket (workspace tab: Ringkasan/Tender/Kontrak &
 Adendum/Lokasi/Dokumen/Aktivitas) · Lokasi (workspace tab: Ringkasan/Rencana &
-RAB/Pelaksanaan Harian/Progress/Keuangan/Dokumen & Kepatuhan/Laporan) ·
+RAB/RAPL/Pelaksanaan Harian/Progress/Keuangan/Dokumen & Kepatuhan/Laporan) ·
 Hari Ini (landing lapangan mobile) · Progress · Keuangan · Dokumen · Laporan ·
 Pengguna · Sistem. Cetak KKP di `/cetak/*` tanpa shell. Mobile bottom-nav ≤5
 tujuan per role.

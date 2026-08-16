@@ -387,6 +387,7 @@ model User {
   waAliases         WaSenderAlias[]       @relation("WaSenderAliasCreator")
   devicePermissions DevicePermission[]
   rabApprovals      RabRevisionApproval[]
+  ahspPadanan       AhspPadanan[]         @relation("AhspPadananDecider")
 
   @@index([orgId])
   @@index([role])
@@ -569,6 +570,7 @@ model AhspEntry {
 
   source     AhspSource      @relation(fields: [sourceId], references: [id], onDelete: Cascade)
   components AhspComponent[]
+  padanan    AhspPadanan[]
 
   @@unique([sourceId, externalId])
   @@index([sourceId, bidang])
@@ -2028,4 +2030,52 @@ model DevicePermission {
 
   @@index([userId, kind, recordedAt])
   @@map("device_permissions")
+}
+
+/// PADANAN item RAB → analisa AHSP (DECISIONS 319).
+///
+/// Kuncinya `tanda` = tanda tangan teks uraian + satuan yang sudah dinormalkan,
+/// dan itu GLOBAL, bukan per lokasi. Alasannya: AHSP adalah analisa NASIONAL —
+/// "Pekerjaan Urugan Sirtu t = 10 cm" menganalisa pekerjaan yang sama entah di
+/// Demak atau di Sumenep; yang berbeda per lokasi adalah HARGA satuan dasarnya,
+/// bukan komposisi pekerjaannya. Karena 83 lokasi KNMP memakai templat RAB yang
+/// sebagian besar sama, satu koreksi manusia di sini langsung membetulkan semua
+/// lokasi yang uraiannya persis sama — itu yang diminta ("sistem memetakan
+/// otomatis dan perbaiki yang salah").
+///
+/// `tanda` sengaja dibangun dari teks apa adanya (huruf + angka), BUKAN dari
+/// token pencocokan: token membuang satuan ukur, sehingga "t = 10 cm" dan
+/// "t = 10 mm" akan bertabrakan jadi satu padanan. Ketebalan 10 cm dan 10 mm
+/// bukan variasi penulisan.
+///
+/// Keadaan yang bisa terjadi:
+///   - baris TIDAK ADA          → belum pernah diperiksa
+///   - entryId terisi           → punya padanan (otomatis atau hasil koreksi)
+///   - entryId null + koreksi   → manusia MENYATAKAN tidak ada padanannya
+/// Mesin tidak pernah menulis baris "tidak ada padanan": kalau ia ragu, ia
+/// diam, supaya barisnya tetap terlihat sebagai lubang yang bisa dikerjakan.
+model AhspPadanan {
+  id           String   @id @default(uuid()) @db.Uuid
+  tanda        String   @unique
+  /// Uraian RAB apa adanya (contoh pertama yang terlihat) — untuk ditampilkan.
+  uraianContoh String   @map("uraian_contoh")
+  satuan       String
+  entryId      String?  @map("entry_id") @db.Uuid
+  /// otomatis | koreksi
+  metode       String
+  /// Skor mesin saat dipetakan otomatis (0..1). null untuk koreksi manusia.
+  skor         Decimal? @db.Decimal(5, 4)
+  /// true = mesin unggul cukup jauh dari kandidat kedua.
+  meyakinkan   Boolean  @default(false)
+  catatan      String?
+  decidedById  String?  @map("decided_by_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  entry     AhspEntry? @relation(fields: [entryId], references: [id], onDelete: SetNull)
+  decidedBy User?      @relation("AhspPadananDecider", fields: [decidedById], references: [id])
+
+  @@index([entryId])
+  @@index([metode])
+  @@map("ahsp_padanan")
 }
