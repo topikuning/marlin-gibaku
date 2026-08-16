@@ -5,6 +5,7 @@ import { buildKurvaSheet } from "@/lib/scurve/kkp-sheet";
 import { formatTanggal } from "@/lib/format";
 import { PDF_COLORS, PDF_FONT, docToBuffer, createLandscapeA4Doc, LANDSCAPE_MARGIN, type PdfDoc } from "./document";
 import { colWidths, gridRow, gridRowHeight, type GridCell, type GridOptions } from "./grid";
+import { gambarTtdPdf, muatTtdPdf, TANPA_TTD_PDF, type TtdPdf } from "./ttd-gambar";
 
 /**
  * Laporan Mingguan/Bulanan format KKP — BLANKO RESMI, bukan ringkasan naratif.
@@ -33,7 +34,12 @@ const dash = (n: number) => (n > 0 ? volFmt.format(n) : "–");
 
 export type PeriodikKkpPdfResult = { buffer: Buffer };
 
-export async function buildPeriodikKkpPdf(r: PeriodReport, appName: string): Promise<Buffer> {
+export async function buildPeriodikKkpPdf(
+  r: PeriodReport,
+  appName: string,
+  /** Gambar tanda tangan & stempel (DECISIONS 328); null = ruang kosong. */
+  gambarTtd?: TtdPdf | null,
+): Promise<Buffer> {
   const kindLabel = r.kind === "mingguan" ? "MINGGU" : "BULAN";
   const periodeLabel = r.kind === "mingguan" ? "Minggu" : "Bulan";
   const doc = createLandscapeA4Doc({ title: `Laporan ${periodeLabel} ke-${r.n} — ${r.header.locationName}` });
@@ -205,7 +211,7 @@ export async function buildPeriodikKkpPdf(r: PeriodReport, appName: string): Pro
   });
 
   y += 8;
-  signatureBlock(doc, { x, width, y, h, fit: (need) => fit(need), setY: (v) => (y = v) });
+  signatureBlock(doc, { x, width, y, h, fit: (need) => fit(need), setY: (v) => (y = v), gambarTtd });
 
   /* ═════ HALAMAN 2+ — BLANKO RINCIAN ════════════════════════════════════ */
   newPage();
@@ -439,7 +445,7 @@ export async function buildPeriodikKkpPdf(r: PeriodReport, appName: string): Pro
   }
 
   y += 10;
-  signatureBlock(doc, { x, width, y, h, fit: (need) => fit(need), setY: (v) => (y = v) });
+  signatureBlock(doc, { x, width, y, h, fit: (need) => fit(need), setY: (v) => (y = v), gambarTtd });
 
   /* ── Catatan kaki tiap halaman ──────────────────────────────────────── */
   const range = doc.bufferedPageRange();
@@ -481,6 +487,7 @@ function signatureBlock(
     h: PeriodReport["header"];
     fit: (need: number) => void;
     setY: (v: number) => void;
+    gambarTtd?: TtdPdf | null;
   },
 ): void {
   const opt: GridOptions = {
@@ -512,6 +519,23 @@ function signatureBlock(
     ],
     opt,
   );
+
+  /* Tempel gambar tanda tangan & stempel (DECISIONS 328). Urutan kolomnya
+     tetap: PPK · pengawas · penyedia — sama dengan teks di atas. Baris nama
+     "( … )" ada di baris ke-5 blok; coretan berpijak tepat di atasnya. */
+  if (o.gambarTtd) {
+    const lebarKolom = o.width / 3;
+    const yDasar = o.y + 44;
+    const urut = ["ppk", "pengawas", "penyedia"] as const;
+    urut.forEach((pihak, i) => {
+      gambarTtdPdf(doc, o.gambarTtd![pihak], {
+        xTengah: o.x + i * lebarKolom + lebarKolom / 2,
+        yDasar,
+        tinggi: 32,
+      });
+    });
+  }
+
   o.setY(y);
 }
 
@@ -593,5 +617,8 @@ export async function renderPeriodikKkpPdf(
 ): Promise<PeriodikKkpPdfResult | null> {
   const [report, branding] = await Promise.all([getPeriodReport(locationId, kind, n), getBranding()]);
   if (!report) return null;
-  return { buffer: await buildPeriodikKkpPdf(report, branding.appName) };
+  // Best-effort, sama dengan logo: kegagalannya menghasilkan ruang kosong,
+  // bukan PDF yang gagal terbit.
+  const gambarTtd = await muatTtdPdf(locationId).catch(() => TANPA_TTD_PDF);
+  return { buffer: await buildPeriodikKkpPdf(report, branding.appName, gambarTtd) };
 }

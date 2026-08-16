@@ -205,7 +205,14 @@ export default async function RaplPage({ params }: { params: Promise<{ slug: str
           </Kenapa>
           <div className="mt-3">
             <SimulasiKebutuhan
-              kebutuhan={rapl.kebutuhan}
+              kebutuhan={rapl.kebutuhan.map((k) => ({
+                kategori: k.kategori,
+                nama: k.nama,
+                satuan: k.satuan,
+                jumlah: k.jumlah,
+                dariBaris: k.dariBaris,
+                janggal: k.janggal,
+              }))}
               dilewat={rapl.dilewat.map((d) => ({
                 code: d.code,
                 uraian: d.uraian,

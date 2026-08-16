@@ -5,6 +5,7 @@ import { requireUser, requireLocationAccess } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { getRencanaMingguan } from "@/lib/plan/rencana-mingguan";
 import { PRINT_BACK_PARAM, safeBackPath } from "@/lib/print-back";
+import { muatTtdLaporan } from "@/lib/export/ttd-laporan";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,7 @@ export default async function CetakRencanaPage({
   const location = await db.location.findUnique({ where: { slug }, select: { id: true } });
   if (!location) notFound();
   await requireLocationAccess(user, location.id);
+  const ttd = await muatTtdLaporan(location.id);
 
   const rencana = await getRencanaMingguan(location.id, minggu);
   if (!rencana) notFound();
@@ -42,7 +44,7 @@ export default async function CetakRencanaPage({
         {/* Dokumen fixed-layout: di layar sempit di-scroll horizontal,
             saat dicetak tetap utuh. */}
         <section className="mx-auto w-full max-w-[860px] overflow-x-auto p-6 print:overflow-visible print:p-0">
-          <KkpWeeklyPlan r={rencana} />
+          <KkpWeeklyPlan r={rencana} ttd={ttd} />
         </section>
       </main>
     </>

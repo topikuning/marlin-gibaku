@@ -1,17 +1,28 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
-import { Banner, Button, Input } from "@/components/ui";
+import { useMemo, useState, useTransition } from "react";
+import type {
+  CellClassParams,
+  CellValueChangedEvent,
+  ColDef,
+  ValueFormatterParams,
+} from "ag-grid-community";
+import { Banner } from "@/components/ui";
+import { MarlinGrid, rupiahCol } from "@/components/grid/marlin-grid";
 import { cn } from "@/lib/cn";
 import { formatNumber, formatPct, formatRupiah, formatRupiahShort } from "@/lib/format";
-import { simpanHargaAction, type HargaActionState } from "@/lib/ahsp/hsd-actions";
+import { simpanHargaSel } from "@/lib/ahsp/hsd-actions";
 
 /**
- * Pengisian HARGA SATUAN DASAR + biaya RAPL (DECISIONS 327).
+ * Pengisian HARGA SATUAN DASAR memakai MarlinGrid (DECISIONS 328).
  *
- * Diurut dari KEBUTUHAN TERBESAR yang belum berharga: mengisi 20 harga teratas
- * biasanya sudah menutup sebagian besar nilai, dan daftar 300 baris tanpa urutan
- * membuat orang berhenti di baris kesepuluh.
+ * Versi sebelumnya menyusun 300 formulir kecil dengan tangan — melanggar aturan
+ * repo yang sudah tertulis ("Tabel data → MarlinGrid") dan, lebih buruk,
+ * membuat pengisian 300 harga jadi 300 kali klik-simpan. Grid memberi yang
+ * memang dibutuhkan orang yang mengisi harga: ketik → Enter → turun ke baris
+ * berikutnya, seperti Excel, plus saring & urut bawaan.
+ *
+ * Kolom `harga` DIEDIT langsung; setiap sel yang berubah langsung disimpan.
  */
 
 export type BarisHargaRow = {
@@ -19,10 +30,11 @@ export type BarisHargaRow = {
   nama: string;
   satuan: string;
   jumlah: number;
-  /** BigInt diserialisasi. */
+  /** BigInt diserialisasi; null = belum berharga. */
   harga: string | null;
   biaya: string | null;
   sumber: string | null;
+  /** Harga sumber daya yang sama di lokasi lain — bahan pertimbangan. */
   rekomendasi: { harga: string; lokasi: string; kabupaten: string; seKabupaten: boolean }[];
 };
 
@@ -31,6 +43,13 @@ const LABEL: Record<string, string> = {
   upah: "Upah",
   alat: "Alat",
   fasilitas: "Fasilitas",
+};
+
+type Baris = BarisHargaRow & {
+  /** Angka polos untuk grid — AG Grid tidak mengurut string rupiah. */
+  hargaNum: number | null;
+  biayaNum: number | null;
+  rekomendasiTeks: string;
 };
 
 export function HargaPanel({
@@ -44,174 +63,143 @@ export function HargaPanel({
   rows: BarisHargaRow[];
   canInput: boolean;
 }) {
-  const [state, action, pending] = useActionState<HargaActionState, FormData>(
-    simpanHargaAction,
-    undefined,
+  const [pesan, setPesan] = useState<{ tone: "success" | "error"; teks: string } | null>(null);
+  const [, mulai] = useTransition();
+  const [data, setData] = useState<BarisHargaRow[]>(rows);
+
+  const baris: Baris[] = useMemo(
+    () =>
+      data.map((r) => ({
+        ...r,
+        hargaNum: r.harga === null ? null : Number(r.harga),
+        biayaNum: r.biaya === null ? null : Number(r.biaya),
+        rekomendasiTeks: r.rekomendasi
+          .map((k) => `${formatRupiahShort(BigInt(k.harga))} · ${k.lokasi}${k.seKabupaten ? " (sekab.)" : ""}`)
+          .join("  |  "),
+      })),
+    [data],
   );
-  const [cari, setCari] = useState("");
-  const [hanyaKosong, setHanyaKosong] = useState(true);
 
-  const tampil = useMemo(() => {
-    const q = cari.trim().toLowerCase();
-    return rows
-      .filter((r) => (hanyaKosong ? r.harga === null : true))
-      .filter((r) => q === "" || r.nama.toLowerCase().includes(q))
-      .slice(0, 300);
-  }, [rows, cari, hanyaKosong]);
+  const kolom: ColDef<Baris>[] = useMemo(
+    () => [
+      {
+        field: "nama",
+        headerName: "Sumber daya",
+        flex: 2,
+        minWidth: 240,
+        filter: true,
+        cellClass: (p: CellClassParams<Baris>) => (p.data?.harga === null ? "text-ink-muted" : ""),
+      },
+      {
+        field: "kategori",
+        headerName: "Kategori",
+        width: 110,
+        filter: true,
+        valueFormatter: (p: ValueFormatterParams<Baris>) => LABEL[String(p.value)] ?? String(p.value),
+      },
+      {
+        field: "jumlah",
+        headerName: "Kebutuhan",
+        width: 130,
+        type: "numericColumn",
+        valueFormatter: (p: ValueFormatterParams<Baris>) =>
+          p.value == null ? "" : formatNumber(Number(p.value)),
+        cellClass: "tabular text-right",
+      },
+      { field: "satuan", headerName: "Satuan", width: 90 },
+      {
+        ...rupiahCol<Baris>("hargaNum", "Harga satuan"),
+        width: 150,
+        // Inilah satu-satunya kolom yang boleh diedit. Sisanya turunan.
+        editable: canInput,
+        cellClass: () => cn("tabular text-right", canInput && "bg-[var(--color-surface-muted)]"),
+      },
+      { ...rupiahCol<Baris>("biayaNum", "Biaya"), width: 160 },
+      {
+        field: "rekomendasiTeks",
+        headerName: "Harga di lokasi lain",
+        flex: 1,
+        minWidth: 220,
+        cellClass: "text-ink-muted",
+        tooltipField: "rekomendasiTeks",
+      },
+    ],
+    [canInput],
+  );
 
-  const kosong = rows.filter((r) => r.harga === null).length;
+  const belum = data.filter((r) => r.harga === null).length;
 
   return (
     <div className="space-y-3">
-      {state?.error ? <Banner tone="error" title={state.error} /> : null}
-      {state?.success ? <Banner tone="success" title={state.success} /> : null}
+      {pesan ? <Banner tone={pesan.tone} title={pesan.teks} /> : null}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setHanyaKosong(true)}
-          className={cn(
-            "rounded-full border px-3 py-1 text-[13px]",
-            hanyaKosong
-              ? "border-brand bg-brand-soft font-medium text-brand"
-              : "border-line text-ink-muted hover:bg-surface-inset",
-          )}
-        >
-          Belum berharga <span className="tabular">({kosong})</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setHanyaKosong(false)}
-          className={cn(
-            "rounded-full border px-3 py-1 text-[13px]",
-            !hanyaKosong
-              ? "border-brand bg-brand-soft font-medium text-brand"
-              : "border-line text-ink-muted hover:bg-surface-inset",
-          )}
-        >
-          Semua <span className="tabular">({rows.length})</span>
-        </button>
-        <Input
-          value={cari}
-          onChange={(e) => setCari(e.target.value)}
-          placeholder="Cari sumber daya…"
-          className="ms-auto w-56"
-        />
-      </div>
-
-      {tampil.length === 0 ? (
-        <p className="py-8 text-center text-sm text-ink-muted">
-          {kosong === 0 && hanyaKosong
-            ? "Semua sumber daya sudah berharga."
-            : "Tidak ada baris pada saringan ini."}
-        </p>
-      ) : (
-        <div className="divide-y divide-line rounded-lg border border-line">
-          {tampil.map((r) => (
-            <BarisHarga
-              key={`${r.kategori}|${r.nama}|${r.satuan}`}
-              r={r}
-              locationId={locationId}
-              slug={slug}
-              canInput={canInput}
-              action={action}
-              pending={pending}
-            />
-          ))}
-        </div>
-      )}
-
-      <p className="text-[12px] text-ink-muted">
-        Diurut dari kebutuhan terbesar. Harga dari lokasi lain hanya ditawarkan sebagai bahan
-        pertimbangan — tidak pernah dipakai sendiri.
-      </p>
-    </div>
-  );
-}
-
-function BarisHarga({
-  r,
-  locationId,
-  slug,
-  canInput,
-  action,
-  pending,
-}: {
-  r: BarisHargaRow;
-  locationId: string;
-  slug: string;
-  canInput: boolean;
-  action: (formData: FormData) => void;
-  pending: boolean;
-}) {
-  const [nilai, setNilai] = useState(r.harga ?? "");
-  const [sumber, setSumber] = useState(r.sumber ?? "");
-
-  return (
-    <div className="px-3 py-2.5">
-      <div className="flex flex-wrap items-start gap-x-3 gap-y-2">
-        <div className="min-w-[14rem] flex-1">
-          <p className="text-sm font-medium text-ink">{r.nama}</p>
-          <p className="tabular mt-0.5 text-[12px] text-ink-muted">
-            {LABEL[r.kategori] ?? r.kategori} · butuh {formatNumber(r.jumlah)} {r.satuan || "—"}
-            {r.biaya ? (
-              <span className="ms-2 font-medium text-ink">= {formatRupiah(BigInt(r.biaya))}</span>
-            ) : null}
-          </p>
-        </div>
-
-        {canInput ? (
-          <form action={action} className="flex flex-wrap items-center gap-2">
-            <input type="hidden" name="locationId" value={locationId} />
-            <input type="hidden" name="slug" value={slug} />
-            <input type="hidden" name="kategori" value={r.kategori} />
-            <input type="hidden" name="nama" value={r.nama} />
-            <input type="hidden" name="satuan" value={r.satuan} />
-            <Input
-              name="harga"
-              value={nilai}
-              onChange={(e) => setNilai(e.target.value)}
-              inputMode="numeric"
-              placeholder="Rp / satuan"
-              className="w-32 text-end"
-              aria-label={`Harga ${r.nama}`}
-            />
-            <Input
-              name="sumber"
-              value={sumber}
-              onChange={(e) => setSumber(e.target.value)}
-              placeholder="asal harga"
-              className="w-36"
-              aria-label={`Asal harga ${r.nama}`}
-            />
-            <Button type="submit" size="sm" variant="secondary" loading={pending}>
-              Simpan
-            </Button>
-          </form>
-        ) : r.harga ? (
-          <p className="tabular text-sm text-ink">{formatRupiah(BigInt(r.harga))}</p>
-        ) : (
-          <p className="text-[13px] text-ink-muted">belum berharga</p>
-        )}
-      </div>
-
-      {r.rekomendasi.length > 0 && r.harga === null ? (
-        <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-ink-muted">
-          <span>Di lokasi lain:</span>
-          {r.rekomendasi.map((k) => (
-            <button
-              key={`${k.lokasi}|${k.harga}`}
-              type="button"
-              onClick={() => setNilai(k.harga)}
-              className="rounded border border-line px-1.5 py-0.5 hover:border-brand hover:text-brand"
-              title={`Pakai harga dari ${k.lokasi} (${k.kabupaten})`}
-            >
-              <span className="tabular">{formatRupiahShort(BigInt(k.harga))}</span> · {k.lokasi}
-              {k.seKabupaten ? " (sekabupaten)" : ""}
-            </button>
-          ))}
+      {canInput ? (
+        <p className="text-[13px] text-ink-muted">
+          Klik sel <strong>Harga satuan</strong> lalu ketik angkanya — Enter pindah ke baris
+          berikutnya, seperti Excel. Kosongkan selnya untuk menghapus harga.
         </p>
       ) : null}
+
+      <MarlinGrid<Baris>
+        rowData={baris}
+        columnDefs={kolom}
+        quickFilter
+        csvExport
+        pageSize={50}
+        height="60vh"
+        persistKey="rapl-harga"
+        editMode={canInput}
+        getRowId={(d: Baris) => `${d.kategori}|${d.nama}|${d.satuan}`}
+        emptyText="Belum ada kebutuhan — setujui padanan AHSP lebih dulu."
+        onCellValueChanged={(e: CellValueChangedEvent<Baris>) => {
+          if (e.colDef.field !== "hargaNum") return;
+          const d = e.data;
+          const teks = e.newValue == null || e.newValue === "" ? "" : String(e.newValue);
+          setPesan(null);
+          mulai(async () => {
+            const hasil = await simpanHargaSel({
+              locationId,
+              slug,
+              kategori: d.kategori,
+              nama: d.nama,
+              satuan: d.satuan,
+              harga: teks,
+            });
+            if (!hasil.ok) {
+              setPesan({ tone: "error", teks: hasil.error });
+              return;
+            }
+            // Perbarui baris di tempat supaya kolom Biaya ikut benar tanpa
+            // memuat ulang seluruh halaman.
+            setData((lama) =>
+              lama.map((r) =>
+                r.kategori === d.kategori && r.nama === d.nama && r.satuan === d.satuan
+                  ? {
+                      ...r,
+                      harga: hasil.harga,
+                      biaya:
+                        hasil.harga === null
+                          ? null
+                          : String(Math.round(r.jumlah * Number(hasil.harga))),
+                    }
+                  : r,
+              ),
+            );
+            setPesan({
+              tone: "success",
+              teks:
+                hasil.harga === null
+                  ? `Harga "${d.nama}" dikosongkan.`
+                  : `Harga "${d.nama}" disimpan.`,
+            });
+          });
+        }}
+      />
+
+      <p className="text-[12px] text-ink-muted">
+        {belum} dari {data.length} sumber daya belum berharga. Kolom &ldquo;Harga di lokasi
+        lain&rdquo; hanya bahan pertimbangan — sekabupaten disebut lebih dulu.
+      </p>
     </div>
   );
 }

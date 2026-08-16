@@ -5,6 +5,7 @@ import { getRencanaMingguan, type RencanaMingguan } from "@/lib/plan/rencana-min
 import { jejakPenyusun, pihakTandaTanganRencana } from "@/lib/plan/rencana-ttd";
 import { PDF_COLORS, PDF_FONT, docToBuffer, createFormA4Doc, FORM_MARGIN } from "./document";
 import { colWidths, gridRow, gridRowHeight, type GridCell, type GridOptions } from "./grid";
+import { gambarTtdPdf, muatTtdPdf, TANPA_TTD_PDF, type TtdPdf } from "./ttd-gambar";
 
 /**
  * FORMULIR RENCANA KERJA MINGGUAN — PDF A4 potret (DECISIONS 258).
@@ -33,7 +34,12 @@ const satuan = (n: number, unit: string | null) => `${volFmt.format(n)}${unit ? 
 
 export type RencanaKkpPdfResult = { buffer: Buffer; locationId: string };
 
-export async function buildRencanaKkpPdf(r: RencanaMingguan, appName: string): Promise<Buffer> {
+export async function buildRencanaKkpPdf(
+  r: RencanaMingguan,
+  appName: string,
+  /** Gambar tanda tangan & stempel (DECISIONS 328); null = ruang kosong. */
+  gambarTtd?: TtdPdf | null,
+): Promise<Buffer> {
   const doc = createFormA4Doc({
     title: `Rencana Kerja Mingguan — Minggu ke-${r.weekNumber} — ${r.header.locationName}`,
   });
@@ -318,6 +324,14 @@ export async function buildRencanaKkpPdf(r: RencanaMingguan, appName: string): P
     doc.font(PDF_FONT.bold).fillColor(PDF_COLORS.ink);
     doc.text(t.role, cx, cy, { width: kolom, align: "center" });
     cy += 48; // ruang tanda tangan basah
+    // Tempel gambar tanda tangan & stempel di ruang itu (DECISIONS 328).
+    // Pihaknya dibaca dari `t.pihak`, BUKAN dari indeks `i`: kalau urutan blok
+    // diubah, mencocokkan lewat indeks akan menempelkan stempel PPK di kolom
+    // penyedia — dan itu baru ketahuan setelah dokumennya beredar.
+    if (gambarTtd) {
+      // 40 poin ≈ 1,4 cm; muat di ruang 48 poin di atas garisnya.
+      gambarTtdPdf(doc, gambarTtd[t.pihak], { xTengah: cx + kolom / 2, yDasar: cy, tinggi: 40 });
+    }
     doc
       .moveTo(cx + kolom * 0.12, cy)
       .lineTo(cx + kolom * 0.88, cy)
@@ -380,5 +394,11 @@ export async function renderRencanaKkpPdf(
     getBranding(),
   ]);
   if (!rencana) return null;
-  return { buffer: await buildRencanaKkpPdf(rencana, branding.appName), locationId };
+  // Best-effort, sama dengan logo: kegagalannya menghasilkan ruang kosong,
+  // bukan PDF yang gagal terbit.
+  const gambarTtd = await muatTtdPdf(locationId).catch(() => TANPA_TTD_PDF);
+  return {
+    buffer: await buildRencanaKkpPdf(rencana, branding.appName, gambarTtd),
+    locationId,
+  };
 }

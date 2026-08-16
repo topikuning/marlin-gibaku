@@ -15,7 +15,7 @@ export default async function VendorPage() {
 
   const vendors = await listVendorsWithUsage(user.orgId);
   const imageUrls = await presignKeys(
-    vendors.flatMap((v) => [v.logoKey, v.kopKey]).filter((k): k is string => !!k),
+    vendors.flatMap((v) => [v.logoKey, v.kopKey, v.stempelKey]).filter((k): k is string => !!k),
   );
   const groups = duplicateGroups(vendors);
   const dupCount = groups.reduce((s, g) => s + g.length, 0);
@@ -46,6 +46,7 @@ export default async function VendorPage() {
               email: v.email,
               logoUrl: v.logoKey ? (imageUrls.get(v.logoKey) ?? null) : null,
               kopUrl: v.kopKey ? (imageUrls.get(v.kopKey) ?? null) : null,
+              stempelUrl: v.stempelKey ? (imageUrls.get(v.stempelKey) ?? null) : null,
               contractCount: v.contractCount,
               commitmentCount: v.commitmentCount,
               normKey: v.normKey,

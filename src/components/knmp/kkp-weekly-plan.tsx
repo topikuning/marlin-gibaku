@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { LABEL_STATUS } from "@/lib/plan/rencana-format";
 import type { BarisRencana, RencanaMingguan } from "@/lib/plan/rencana-mingguan";
 import { jejakPenyusun, pihakTandaTanganRencana } from "@/lib/plan/rencana-ttd";
+import { RuangTtd, gambarPihak, type TtdLaporan } from "./blok-ttd";
 
 /**
  * FORMULIR RENCANA KERJA MINGGUAN — A4 portrait (DECISIONS 258).
@@ -58,7 +59,7 @@ const vol = (n: number, unit: string | null) => `${volFmt.format(n)}${unit ? ` $
  */
 const bobot = (n: number) => (n <= 0 ? "–" : n < 0.005 ? "< 0,01" : pctFmt.format(n));
 
-export function KkpWeeklyPlan({ r }: { r: RencanaMingguan }) {
+export function KkpWeeklyPlan({ r, ttd }: { r: RencanaMingguan; ttd?: TtdLaporan | null }) {
   const h = r.header;
   const byCategory = groupByCategory(r.baris);
   const jejak = jejakPenyusun(r, (d) => dFmt.format(d));
@@ -257,7 +258,14 @@ export function KkpWeeklyPlan({ r }: { r: RencanaMingguan }) {
             (lib/plan/rencana-ttd.ts) — tiga salinan yang disusun sendiri-sendiri
             adalah asal cacat "Administrator / Direktur". */}
         {pihakTandaTanganRencana(r).map((t) => (
-          <Sign key={t.title} title={t.title.replace(/,$/, "")} role={t.role} name={t.name} sub={t.sub} />
+          <Sign
+            key={t.title}
+            title={t.title.replace(/,$/, "")}
+            role={t.role}
+            name={t.name}
+            sub={t.sub}
+            {...gambarPihak(ttd, t.pihak)}
+          />
         ))}
       </div>
 
@@ -433,17 +441,23 @@ function Sign({
   role,
   name,
   sub,
+  ttd,
+  stempel,
 }: {
   title: string;
   role: string;
   name: string | null;
   sub: string | null;
+  ttd?: { url: string } | null;
+  stempel?: { url: string } | null;
 }) {
   return (
     <div>
       <div className="text-slate-600">{title},</div>
       <div className="font-medium">{role}</div>
-      <div className="h-14" />
+      {/* 56px = `h-14` yang dulu dipakai — tata letak tidak bergeser saat
+          gambar tanda tangan belum ada. */}
+      <RuangTtd tinggi={56} ttd={ttd} stempel={stempel} />
       <div className="border-t border-slate-400 pt-0.5 font-semibold">{name ?? "(………………………)"}</div>
       {sub ? <div className="text-[9px] text-slate-500">{sub}</div> : null}
     </div>

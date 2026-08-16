@@ -445,3 +445,30 @@ diperbaiki.
 `dokumen`) pada `GDriveUpload`, isi saat mengunggah, dan pilih tautan
 berdasarkan kolom itu. Butuh migrasi + backfill (baris lama bisa ditebak dari
 `fileName` sekali saja), karena itu tidak digabung ke perubahan kecil ini.
+
+## 🟡 TTD-01 · Gambar tanda tangan ditempel tanpa memeriksa status dokumen (DECISIONS 328)
+
+`muatTtdLaporan` / `muatTtdPdf` menempelkan gambar pada SETIAP dokumen yang
+dicetak, termasuk pratinjau laporan harian yang **belum difinalisasi** (halaman
+cetak harian sudah menandainya dengan spanduk "Pratinjau", tapi tanda tangannya
+tetap tercetak).
+
+Yang seharusnya: pemanggil memutuskan, dan dokumen yang belum berstatus final /
+disetujui keluar dengan ruang kosong. Komponen penempelnya sudah dirancang untuk
+itu — ia hanya menggambar apa yang diberikan — jadi perbaikannya ada di sisi
+pemanggil, bukan di komponen.
+
+Belum dikerjakan karena aturannya berbeda per dokumen (harian punya
+`isFinal`; rencana mingguan & periodik tidak punya padanannya yang setara) dan
+itu keputusan user, bukan tebakan.
+
+## 🟡 TTD-02 · Posisi gambar di PDF dipatok dari tinggi baris, bukan dari posisi baris nama
+
+Di PDF, koordinat tempat gambar dijatuhkan (`yTtd + 46` di harian, `o.y + 44` di
+periodik) dihitung dari tinggi blok, bukan dari posisi baris nama yang
+sesungguhnya — pdfkit tidak mengembalikan posisi baris di dalam sel `gridRow`.
+
+Kalau nama penanda tangan panjang sampai membungkus dua baris, blok memanjang ke
+bawah sementara gambarnya tetap di tempat lama, sehingga coretan bisa menumpuk
+teks. Belum terlihat pada nama-nama yang ada sekarang. Perbaikan yang benar:
+`gridRow` mengembalikan posisi tiap baris teks, bukan hanya `y` akhir.

@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import {
   Banner,
   Button,
+  FileInput,
   HelpText,
   Input,
   Label,
@@ -15,6 +16,7 @@ import {
   convertToContract,
   editContractAction,
   updateContractSignatories,
+  updateContractSignatureImages,
   type PackageActionState,
 } from "@/lib/package/actions";
 
@@ -421,5 +423,165 @@ export function AmendmentForm({ contractId }: { contractId: string }) {
         Catat Adendum
       </Button>
     </form>
+  );
+}
+
+export type GambarTtdKontrak = {
+  ppkTtdUrl: string | null;
+  ppkStempelUrl: string | null;
+  supervisorTtdUrl: string | null;
+  supervisorStempelUrl: string | null;
+  contractorTtdUrl: string | null;
+  contractorStempelUrl: string | null;
+  /** Stempel dari master perusahaan — cadangan bila kontrak tidak punya sendiri. */
+  vendorStempelUrl: string | null;
+  vendorName: string;
+};
+
+/**
+ * Unggah gambar tanda tangan & stempel untuk laporan CETAK (DECISIONS 328).
+ *
+ * Bentuknya sengaja per-pihak, bukan satu daftar enam berkas: yang mengunggah
+ * berpikir "punya pak PPK yang mana", bukan "medan keenam". Tiap pihak
+ * menampilkan gambar yang sedang berlaku supaya ketahuan kalau salah tempel —
+ * kesalahan tempel baru terlihat setelah dokumennya beredar.
+ */
+export function TtdStempelForm({
+  contractId,
+  gambar,
+}: {
+  contractId: string;
+  gambar: GambarTtdKontrak;
+}) {
+  const [state, action, pending] = useActionState<PackageActionState, FormData>(
+    updateContractSignatureImages,
+    undefined,
+  );
+
+  return (
+    <form action={action} className="space-y-4">
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      {state?.success ? <Banner tone="success" title={state.success} /> : null}
+      <input type="hidden" name="contractId" value={contractId} />
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <PihakTtdFields
+          judul="Pejabat Pembuat Komitmen"
+          medanTtd="ppkTtdKey"
+          medanStempel="ppkStempelKey"
+          ttdUrl={gambar.ppkTtdUrl}
+          stempelUrl={gambar.ppkStempelUrl}
+        />
+        <PihakTtdFields
+          judul="Konsultan Pengawas"
+          medanTtd="supervisorTtdKey"
+          medanStempel="supervisorStempelKey"
+          ttdUrl={gambar.supervisorTtdUrl}
+          stempelUrl={gambar.supervisorStempelUrl}
+        />
+        <PihakTtdFields
+          judul={`Penyedia Jasa — ${gambar.vendorName}`}
+          medanTtd="contractorTtdKey"
+          medanStempel="contractorStempelKey"
+          ttdUrl={gambar.contractorTtdUrl}
+          stempelUrl={gambar.contractorStempelUrl}
+          stempelCadanganUrl={gambar.vendorStempelUrl}
+        />
+      </div>
+
+      <HelpText>
+        Pindai di kertas PUTIH POLOS, tanpa garis. Latar putihnya tidak akan menutupi apa pun saat
+        ditempel, tapi kertas bergaris atau berbayang akan ikut tercetak. PNG/JPG/WebP maks 2 MB;
+        gambar dikecilkan otomatis ke 800px.
+      </HelpText>
+      <Button type="submit" loading={pending}>
+        Simpan tanda tangan &amp; stempel
+      </Button>
+    </form>
+  );
+}
+
+function PihakTtdFields({
+  judul,
+  medanTtd,
+  medanStempel,
+  ttdUrl,
+  stempelUrl,
+  stempelCadanganUrl,
+}: {
+  judul: string;
+  medanTtd: string;
+  medanStempel: string;
+  ttdUrl: string | null;
+  stempelUrl: string | null;
+  stempelCadanganUrl?: string | null;
+}) {
+  return (
+    <div className="space-y-3 rounded-md border border-border p-3">
+      <p className="text-sm font-medium text-ink">{judul}</p>
+
+      <BerkasTtd
+        id={`f-${medanTtd}`}
+        medan={medanTtd}
+        label="Tanda tangan"
+        url={ttdUrl}
+        // Coretan tanda tangan lebih lebar daripada tinggi — kotak pratinjaunya
+        // mengikuti bentuk itu, bukan bujur sangkar.
+        kelasPratinjau="h-12 w-full"
+      />
+      <BerkasTtd
+        id={`f-${medanStempel}`}
+        medan={medanStempel}
+        label="Stempel"
+        url={stempelUrl}
+        kelasPratinjau="size-16"
+        catatan={
+          !stempelUrl && stempelCadanganUrl
+            ? "Kosong — memakai stempel dari master perusahaan."
+            : null
+        }
+        urlCadangan={!stempelUrl ? stempelCadanganUrl : null}
+      />
+    </div>
+  );
+}
+
+function BerkasTtd({
+  id,
+  medan,
+  label,
+  url,
+  kelasPratinjau,
+  catatan,
+  urlCadangan,
+}: {
+  id: string;
+  medan: string;
+  label: string;
+  url: string | null;
+  kelasPratinjau: string;
+  catatan?: string | null;
+  urlCadangan?: string | null;
+}) {
+  const tampil = url ?? urlCadangan ?? null;
+  return (
+    <div>
+      <Label htmlFor={id}>{label}</Label>
+      {tampil ? (
+        // eslint-disable-next-line @next/next/no-img-element -- URL presigned R2 sementara
+        <img
+          src={tampil}
+          alt={`${label} saat ini`}
+          className={`mb-1.5 rounded border border-border bg-white object-contain ${kelasPratinjau} ${url ? "" : "opacity-60"}`}
+        />
+      ) : null}
+      <FileInput id={id} name={medan} accept="image/png,image/jpeg,image/webp" maxBytes={2 * 1024 * 1024} />
+      {catatan ? <p className="mt-0.5 text-xs text-ink-faint">{catatan}</p> : null}
+      {url ? (
+        <label className="mt-1 flex items-center gap-1.5 text-xs text-ink-muted">
+          <input type="checkbox" name={`hapus_${medan}`} value="1" /> Lepas {label.toLowerCase()}
+        </label>
+      ) : null}
+    </div>
   );
 }

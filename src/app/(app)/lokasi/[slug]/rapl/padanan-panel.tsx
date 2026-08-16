@@ -1,8 +1,10 @@
 "use client";
 
-import { useActionState, useMemo, useState, useTransition } from "react";
-import { AlertTriangle, Check, CheckCheck, ChevronRight, RefreshCw, Search, X } from "lucide-react";
+import { useActionState, useCallback, useMemo, useState, useTransition } from "react";
+import type { CellClassParams, ColDef, ValueFormatterParams } from "ag-grid-community";
+import { AlertTriangle, Check, CheckCheck, RefreshCw, Search, X } from "lucide-react";
 import { Badge, Banner, Button, Input } from "@/components/ui";
+import { MarlinGrid, rupiahCol } from "@/components/grid/marlin-grid";
 import { cn } from "@/lib/cn";
 import { formatPct, formatRupiah, formatRupiahShort } from "@/lib/format";
 import type { KeadaanUraian } from "@/lib/ahsp/kelompok";
@@ -15,13 +17,23 @@ import {
 } from "@/lib/ahsp/padanan-actions";
 
 /**
- * Daftar PEMETAAN, satu baris per URAIAN (DECISIONS 326).
+ * Daftar PEMETAAN, satu baris per URAIAN (DECISIONS 326), disajikan dengan
+ * MarlinGrid (DECISIONS 328).
  *
- * Versi sebelumnya menampilkan satu baris per baris RAB: 1.616 baris untuk 480
- * keputusan, dengan uraian yang sama berulang-ulang. Keputusannya memang per
- * uraian — dan karena kunci padanan global, satu keputusan bahkan berlaku di
- * lokasi lain. Yang hilang saat digabung (berapa baris & berapa rupiah yang
- * bergantung padanya) dikembalikan sebagai kolom, dan dipakai mengurutkan.
+ * Versi sebelumnya menyusun daftar `<div>` bertumpuk dengan tangan. Aturan repo
+ * sudah menyebutnya sejak awal — "Tabel data → MarlinGrid" — dan melanggarnya
+ * bukan cuma soal rupa: daftar buatan sendiri itu kehilangan urut per kolom,
+ * saring per kolom, dan unduh CSV, padahal isinya 480 baris keputusan yang
+ * memang perlu diurut dari nilai terbesar dan disaring per keadaan.
+ *
+ * Yang dipertahankan dari versi lama karena memang BUKAN tabel:
+ *
+ * - **Tombol saringan berhitung** di atas grid. Angkanya ("Perlu dikerjakan
+ *   (312)") harus terbaca SEBELUM tabel; saringan kolom AG Grid menyembunyikan
+ *   jumlahnya di balik menu.
+ * - **Panel kandidat** di bawah grid. AG Grid Community tidak punya
+ *   master/detail (itu Enterprise), dan memaksakannya ke dalam sel akan
+ *   memampatkan pencarian AHSP ke lebar satu kolom.
  */
 
 export type BarisUraianRow = {
@@ -87,25 +99,46 @@ function lolosSaring(b: BarisUraianRow, s: SaringKey): boolean {
   }
 }
 
-function LencanaKeadaan({ b }: { b: BarisUraianRow }) {
-  if (b.keadaan === "putus") return <Badge tone="danger">Tautan putus</Badge>;
-  if (b.keadaan === "belum") return <Badge tone="danger">Belum ada padanan</Badge>;
-  if (b.keadaan === "tidak_ada") return <Badge tone="neutral">Dinyatakan tidak ada</Badge>;
-  if (b.keadaan === "koreksi") return <Badge tone="success">Dikoreksi</Badge>;
-  if (b.keadaan === "disetujui") {
-    // Skor tetap ditampilkan setelah disetujui: "sudah disetujui" tidak boleh
-    // menghapus jejak bahwa yang disetujui itu tebakan 45% yang beda tipis.
-    return (
-      <Badge tone="success">Disetujui {b.skor != null ? formatPct(b.skor * 100, 0) : ""}</Badge>
-    );
+/**
+ * Teks keadaan untuk SEL grid — sengaja teks, bukan komponen lencana.
+ *
+ * Sel yang berisi teks polos ikut terurut, tersaring, dan terbawa ke CSV;
+ * lencana ber-JSX tidak. Warnanya dibawa `cellClass`, dan katanya tetap ditulis
+ * penuh supaya arti barisnya tidak bergantung pada warna saja.
+ */
+function keadaanTeks(b: BarisUraianRow): string {
+  const skor = b.skor != null ? ` ${formatPct(b.skor * 100, 0)}` : "";
+  switch (b.keadaan) {
+    case "putus":
+      return "Tautan putus";
+    case "belum":
+      return "Belum ada padanan";
+    case "tidak_ada":
+      return "Dinyatakan tidak ada";
+    case "koreksi":
+      return "Dikoreksi";
+    case "disetujui":
+      // Skor tetap ditulis setelah disetujui: "sudah disetujui" tidak boleh
+      // menghapus jejak bahwa yang disetujui itu tebakan 45% yang beda tipis.
+      return `Disetujui${skor}`;
+    default:
+      return b.meyakinkan ? `Usulan${skor}` : `Beda tipis${skor}`;
   }
-  return b.meyakinkan ? (
-    <Badge tone="info">Usulan {b.skor != null ? formatPct(b.skor * 100, 0) : ""}</Badge>
-  ) : (
-    <Badge tone="warning">
-      Beda tipis {b.skor != null ? formatPct(b.skor * 100, 0) : ""}
-    </Badge>
-  );
+}
+
+function keadaanKelas(b: BarisUraianRow): string {
+  switch (b.keadaan) {
+    case "putus":
+    case "belum":
+      return "text-danger";
+    case "tidak_ada":
+      return "text-ink-muted";
+    case "koreksi":
+    case "disetujui":
+      return "text-success";
+    default:
+      return b.meyakinkan ? "text-info" : "text-warning";
+  }
 }
 
 export function PadananPanel({
@@ -125,9 +158,32 @@ export function PadananPanel({
   saringAwal: SaringKey;
 }) {
   const [saring, setSaring] = useState<SaringKey>(saringAwal);
-  const [cari, setCari] = useState("");
-  const [terbuka, setTerbuka] = useState<string | null>(null);
-  const [pilih, setPilih] = useState<Set<string>>(new Set());
+  const [terbuka, setTerbuka] = useState<BarisUraianRow | null>(null);
+  const [terpilih, setTerpilih] = useState<BarisUraianRow[]>([]);
+
+  // Kandidat AHSP dipegang DI SINI, bukan di panel rincian, supaya
+  // pengambilannya terjadi di penangan ketukan baris — tempat yang benar untuk
+  // efek samping. Memuat di dalam `useEffect` panel akan memicu render
+  // beruntun setiap kali baris lain diketuk.
+  const [kandidat, setKandidat] = useState<Kandidat[] | null>(null);
+  const [galat, setGalat] = useState<string | null>(null);
+  const [memuat, mulai] = useTransition();
+
+  const ambil = useCallback(
+    (b: BarisUraianRow, kueri: string) => {
+      setGalat(null);
+      mulai(async () => {
+        try {
+          setKandidat(
+            await cariPadananAction({ locationId, uraian: b.uraian, satuan: b.unit, kueri }),
+          );
+        } catch (e) {
+          setGalat(e instanceof Error ? e.message : "Gagal mengambil kandidat.");
+        }
+      });
+    },
+    [locationId],
+  );
 
   const [petaState, petaAction, petaPending] = useActionState<PadananActionState, FormData>(
     petakanRabAction,
@@ -151,26 +207,78 @@ export function PadananPanel({
     return h;
   }, [rows]);
 
-  const tampil = useMemo(() => {
-    const q = cari.trim().toLowerCase();
-    return rows.filter(
-      (b) =>
-        lolosSaring(b, saring) &&
-        (q === "" ||
-          b.uraian.toLowerCase().includes(q) ||
-          b.kodeContoh.toLowerCase().includes(q) ||
-          (b.ahspUraian ?? "").toLowerCase().includes(q)),
-    );
-  }, [rows, saring, cari]);
+  const tampil = useMemo(() => rows.filter((b) => lolosSaring(b, saring)), [rows, saring]);
 
-  const tandaTampil = useMemo(
-    () => tampil.filter((b) => b.keadaan === "usulan").map((b) => b.tanda),
-    [tampil],
+  // Hanya usulan yang bisa disetujui borongan; yang sudah diputuskan tidak
+  // boleh ikut terpilih diam-diam saat "pilih semua" ditekan.
+  const bisaDipilih = useCallback((b: BarisUraianRow) => b.keadaan === "usulan", []);
+  const usulanTampil = tampil.filter(bisaDipilih).length;
+  const nilaiTerpilih = terpilih.reduce((a, b) => a + BigInt(b.nilai), 0n);
+
+  const kolom: ColDef<BarisUraianRow>[] = useMemo(
+    () => [
+      {
+        field: "uraian",
+        headerName: "Uraian pekerjaan (RAB)",
+        flex: 2,
+        minWidth: 260,
+        filter: true,
+        tooltipField: "uraian",
+      },
+      {
+        field: "ahspUraian",
+        headerName: "Padanan AHSP",
+        flex: 2,
+        minWidth: 240,
+        filter: true,
+        valueGetter: (p) =>
+          p.data?.ahspUraian ? `[${p.data.ahspKode}] ${p.data.ahspUraian}` : "",
+        cellClass: (p: CellClassParams<BarisUraianRow>) =>
+          p.data?.ahspTanpaKomponen ? "text-warning" : "",
+        tooltipValueGetter: (p) =>
+          p.data?.ahspTanpaKomponen
+            ? "Analisa ini belum punya koefisien — tidak bisa dipakai menghitung kebutuhan."
+            : (p.value as string),
+      },
+      {
+        colId: "keadaan",
+        headerName: "Keadaan",
+        width: 170,
+        filter: true,
+        valueGetter: (p) => (p.data ? keadaanTeks(p.data) : ""),
+        cellClass: (p: CellClassParams<BarisUraianRow>) =>
+          p.data ? `font-medium ${keadaanKelas(p.data)}` : "",
+      },
+      {
+        ...rupiahCol<BarisUraianRow>("nilai", "Nilai RAB"),
+        width: 160,
+        sort: "desc",
+        // Nilai datang sebagai string BigInt: tanpa ini AG Grid mengurutnya
+        // seperti teks dan "9.000.000" naik di atas "80.000.000".
+        valueGetter: (p) => (p.data ? Number(p.data.nilai) : 0),
+      },
+      {
+        field: "jumlahBaris",
+        headerName: "Baris RAB",
+        width: 110,
+        type: "numericColumn",
+        cellClass: "tabular text-right",
+      },
+      {
+        field: "volume",
+        headerName: "Volume",
+        width: 130,
+        type: "numericColumn",
+        cellClass: "tabular text-right",
+        valueFormatter: (p: ValueFormatterParams<BarisUraianRow>) =>
+          p.value == null
+            ? "—"
+            : `${Number(p.value).toLocaleString("id-ID")}${p.data?.unit ? ` ${p.data.unit}` : ""}`,
+      },
+      { field: "kodeContoh", headerName: "Kode", width: 110, hide: true },
+    ],
+    [],
   );
-  const terpilih = tandaTampil.filter((t) => pilih.has(t));
-  const nilaiTerpilih = tampil
-    .filter((b) => pilih.has(b.tanda) && b.keadaan === "usulan")
-    .reduce((a, b) => a + BigInt(b.nilai), 0n);
 
   const kirimSetuju = (daftar: string[]) => {
     if (daftar.length === 0) return;
@@ -179,7 +287,7 @@ export function PadananPanel({
     fd.set("slug", slug);
     fd.set("tanda", JSON.stringify(daftar));
     setujuAction(fd);
-    setPilih(new Set());
+    setTerpilih([]);
   };
 
   return (
@@ -196,7 +304,11 @@ export function PadananPanel({
           <button
             key={s.key}
             type="button"
-            onClick={() => setSaring(s.key)}
+            onClick={() => {
+              setSaring(s.key);
+              setTerpilih([]);
+              setTerbuka(null);
+            }}
             disabled={hitung[s.key] === 0 && s.key !== saring}
             className={cn(
               "rounded-full border px-3 py-1 text-[13px] transition",
@@ -210,44 +322,36 @@ export function PadananPanel({
             {s.label} <span className="tabular">({hitung[s.key]})</span>
           </button>
         ))}
-        <div className="ms-auto flex items-center gap-2">
-          <Input
-            value={cari}
-            onChange={(e) => setCari(e.target.value)}
-            placeholder="Cari uraian…"
-            className="w-52"
-          />
-          {canManage ? (
-            <form action={petaAction}>
-              <input type="hidden" name="locationId" value={locationId} />
-              <input type="hidden" name="slug" value={slug} />
-              <Button type="submit" variant="secondary" size="sm" loading={petaPending} disabled={!basisAda}>
-                <RefreshCw aria-hidden className="size-3.5" />
-                Petakan otomatis
-              </Button>
-            </form>
-          ) : null}
-        </div>
+        {canManage ? (
+          <form action={petaAction} className="ms-auto">
+            <input type="hidden" name="locationId" value={locationId} />
+            <input type="hidden" name="slug" value={slug} />
+            <Button
+              type="submit"
+              variant="secondary"
+              size="sm"
+              loading={petaPending}
+              disabled={!basisAda}
+            >
+              <RefreshCw aria-hidden className="size-3.5" />
+              Petakan otomatis
+            </Button>
+          </form>
+        ) : null}
       </div>
 
-      {canManage && tandaTampil.length > 0 ? (
+      {canManage && usulanTampil > 0 ? (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-line bg-surface-inset px-3 py-2">
-          <label className="flex items-center gap-2 text-[13px] text-ink">
-            <input
-              type="checkbox"
-              className="size-4 accent-[var(--brand)]"
-              checked={terpilih.length === tandaTampil.length}
-              onChange={(e) => setPilih(e.target.checked ? new Set(tandaTampil) : new Set())}
-            />
-            Pilih semua yang tampil ({tandaTampil.length})
-          </label>
+          <p className="text-[13px] text-ink-muted">
+            Centang baris di grid — {usulanTampil} usulan menunggu keputusan pada saringan ini.
+          </p>
           <Button
             type="button"
             size="sm"
             className="ms-auto"
             loading={setujuPending}
             disabled={terpilih.length === 0}
-            onClick={() => kirimSetuju(terpilih)}
+            onClick={() => kirimSetuju(terpilih.map((b) => b.tanda))}
           >
             <CheckCheck aria-hidden className="size-3.5" />
             Setujui {terpilih.length} uraian
@@ -256,166 +360,66 @@ export function PadananPanel({
         </div>
       ) : null}
 
-      {tampil.length === 0 ? (
-        <p className="py-10 text-center text-sm text-ink-muted">
-          Tidak ada uraian pada saringan ini.
-        </p>
-      ) : (
-        <div className="divide-y divide-line rounded-lg border border-line">
-          {tampil.map((b) => (
-            <BarisUraianItem
-              key={b.tanda}
-              b={b}
-              locationId={locationId}
-              slug={slug}
-              canManage={canManage}
-              dipilih={pilih.has(b.tanda)}
-              onPilih={() =>
-                setPilih((lama) => {
-                  const baru = new Set(lama);
-                  if (baru.has(b.tanda)) baru.delete(b.tanda);
-                  else baru.add(b.tanda);
-                  return baru;
-                })
-              }
-              terbuka={terbuka === b.tanda}
-              onToggle={() => setTerbuka(terbuka === b.tanda ? null : b.tanda)}
-              koreksiAction={koreksiAction}
-              koreksiPending={koreksiPending}
-            />
-          ))}
-        </div>
-      )}
+      <MarlinGrid<BarisUraianRow>
+        rowData={tampil}
+        columnDefs={kolom}
+        quickFilter
+        csvExport
+        pageSize={50}
+        height="55vh"
+        persistKey="rapl-padanan"
+        getRowId={(b: BarisUraianRow) => b.tanda}
+        rowSelection={canManage ? "multi" : undefined}
+        isRowSelectable={bisaDipilih}
+        onSelectionChanged={setTerpilih}
+        onRowClicked={(b: BarisUraianRow) => {
+          if (terbuka?.tanda === b.tanda) {
+            setTerbuka(null);
+            return;
+          }
+          setTerbuka(b);
+          setKandidat(null);
+          if (canManage) ambil(b, "");
+        }}
+        emptyText="Tidak ada uraian pada saringan ini."
+      />
 
-      {tampil.length > 0 ? (
-        <p className="text-[12px] text-ink-muted">
-          {tampil.length} dari {rows.length} uraian · diurut dari nilai terbesar.
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-function BarisUraianItem({
-  b,
-  locationId,
-  slug,
-  canManage,
-  dipilih,
-  onPilih,
-  terbuka,
-  onToggle,
-  koreksiAction,
-  koreksiPending,
-}: {
-  b: BarisUraianRow;
-  locationId: string;
-  slug: string;
-  canManage: boolean;
-  dipilih: boolean;
-  onPilih: () => void;
-  terbuka: boolean;
-  onToggle: () => void;
-  koreksiAction: (formData: FormData) => void;
-  koreksiPending: boolean;
-}) {
-  const [kandidat, setKandidat] = useState<Kandidat[] | null>(null);
-  const [galat, setGalat] = useState<string | null>(null);
-  const [memuat, mulai] = useTransition();
-
-  const ambil = (q: string) => {
-    setGalat(null);
-    mulai(async () => {
-      try {
-        setKandidat(
-          await cariPadananAction({ locationId, uraian: b.uraian, satuan: b.unit, kueri: q }),
-        );
-      } catch (e) {
-        setGalat(e instanceof Error ? e.message : "Gagal mengambil kandidat.");
-      }
-    });
-  };
-
-  const buka = () => {
-    if (!terbuka && canManage && kandidat === null) ambil("");
-    onToggle();
-  };
-
-  return (
-    <div className="flex items-start gap-2.5 px-3 py-2.5">
-      {canManage && b.keadaan === "usulan" ? (
-        <input
-          type="checkbox"
-          className="mt-1 size-4 shrink-0 accent-[var(--brand)]"
-          checked={dipilih}
-          onChange={onPilih}
-          aria-label={`Pilih ${b.uraian}`}
-        />
-      ) : (
-        <span className="mt-1 size-4 shrink-0" />
-      )}
-
-      <div className="min-w-0 flex-1">
-        <button
-          type="button"
-          onClick={buka}
-          className="flex w-full items-start gap-3 text-start"
-          aria-expanded={terbuka}
-        >
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-ink">{b.uraian}</p>
-            <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-ink-muted">
-              <span className="tabular font-medium text-ink">{formatRupiah(BigInt(b.nilai))}</span>
-              <span>·</span>
-              <span>
-                {b.jumlahBaris} baris RAB
-                {b.volume != null ? ` · ${b.volume.toLocaleString("id-ID")} ${b.unit ?? ""}` : ""}
-              </span>
-            </p>
-            {b.ahspUraian ? (
-              <p className="mt-1 text-[13px] text-ink">
-                <ChevronRight aria-hidden className="inline size-3 text-ink-muted" />{" "}
-                <span className="tabular text-ink-muted">[{b.ahspKode}]</span> {b.ahspUraian}
-              </p>
-            ) : null}
-            {b.petunjuk ? (
-              <p className="mt-0.5 text-[12px] text-ink-muted">{b.petunjuk}</p>
-            ) : null}
-            {b.ahspTanpaKomponen ? (
-              <p className="mt-0.5 flex items-center gap-1 text-[12px] text-warning">
-                <AlertTriangle aria-hidden className="size-3.5" />
-                Analisa ini belum punya koefisien — tidak bisa dipakai menghitung kebutuhan.
-              </p>
-            ) : null}
-          </div>
-          <div className="shrink-0">
-            <LencanaKeadaan b={b} />
-          </div>
-        </button>
-
-        {terbuka && canManage ? (
+      {terbuka ? (
+        canManage ? (
           <PemilihPadanan
-            b={b}
+            key={terbuka.tanda}
+            b={terbuka}
             locationId={locationId}
             slug={slug}
             kandidat={kandidat}
             memuat={memuat}
             galat={galat}
-            ambil={ambil}
+            ambil={(kueri) => ambil(terbuka, kueri)}
+            onTutup={() => setTerbuka(null)}
             koreksiAction={koreksiAction}
             koreksiPending={koreksiPending}
           />
-        ) : null}
-        {terbuka && !canManage ? (
-          <p className="mt-2 text-[13px] text-ink-muted">
-            {b.catatan ?? "Belum ada catatan pemetaan."} Mengubah padanan butuh hak kelola RAB.
-          </p>
-        ) : null}
-      </div>
+        ) : (
+          <div className="rounded-lg border border-line bg-surface-inset p-3 text-[13px] text-ink-muted">
+            <strong className="text-ink">{terbuka.uraian}</strong> —{" "}
+            {terbuka.catatan ?? "belum ada catatan pemetaan."} Mengubah padanan butuh hak kelola RAB.
+          </div>
+        )
+      ) : (
+        <p className="text-[12px] text-ink-muted">
+          {tampil.length} dari {rows.length} uraian. Ketuk satu baris untuk mengganti padanan
+          AHSP-nya.
+        </p>
+      )}
     </div>
   );
 }
 
+/**
+ * Panel kandidat untuk SATU uraian — muncul di bawah grid saat barisnya diketuk.
+ * Bukan di dalam sel: pencarian AHSP butuh lebar penuh, dan master/detail AG
+ * Grid hanya ada di edisi Enterprise yang dilarang repo ini.
+ */
 function PemilihPadanan({
   b,
   locationId,
@@ -424,6 +428,7 @@ function PemilihPadanan({
   memuat,
   galat,
   ambil,
+  onTutup,
   koreksiAction,
   koreksiPending,
 }: {
@@ -434,6 +439,7 @@ function PemilihPadanan({
   memuat: boolean;
   galat: string | null;
   ambil: (kueri: string) => void;
+  onTutup: () => void;
   koreksiAction: (formData: FormData) => void;
   koreksiPending: boolean;
 }) {
@@ -448,15 +454,33 @@ function PemilihPadanan({
     fd.set("satuan", b.unit ?? "");
     fd.set("entryId", entryId);
     koreksiAction(fd);
+    onTutup();
   };
 
   return (
-    <div className="mt-3 rounded-lg border border-line bg-surface-inset p-3">
-      <p className="mb-2 text-[12px] text-ink-muted">
-        Keputusan ini berlaku untuk <strong>{b.jumlahBaris} baris RAB</strong> di lokasi ini, dan
-        untuk semua lokasi lain yang uraiannya persis sama.
-        {b.catatan ? ` ${b.catatan}` : ""}
-      </p>
+    <div className="rounded-lg border border-brand bg-surface-inset p-3">
+      <div className="mb-2 flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-ink">{b.uraian}</p>
+          <p className="text-[12px] text-ink-muted">
+            {formatRupiah(BigInt(b.nilai))} · keputusan ini berlaku untuk{" "}
+            <strong>{b.jumlahBaris} baris RAB</strong> di lokasi ini, dan untuk semua lokasi lain
+            yang uraiannya persis sama.
+            {b.catatan ? ` ${b.catatan}` : ""}
+            {b.petunjuk ? ` ${b.petunjuk}` : ""}
+          </p>
+          {b.ahspTanpaKomponen ? (
+            <p className="mt-1 flex items-center gap-1 text-[12px] text-warning">
+              <AlertTriangle aria-hidden className="size-3.5" />
+              Analisa yang terpasang belum punya koefisien — tidak bisa dipakai menghitung kebutuhan.
+            </p>
+          ) : null}
+        </div>
+        <Button type="button" variant="ghost" size="sm" onClick={onTutup}>
+          <X aria-hidden className="size-3.5" />
+          Tutup
+        </Button>
+      </div>
 
       <div className="mb-2 flex items-center gap-2">
         <Input
@@ -465,7 +489,13 @@ function PemilihPadanan({
           placeholder="Cari analisa AHSP lain (min. 3 huruf)…"
           className="flex-1"
         />
-        <Button type="button" variant="secondary" size="sm" loading={memuat} onClick={() => ambil(kueri)}>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          loading={memuat}
+          onClick={() => ambil(kueri)}
+        >
           <Search aria-hidden className="size-3.5" />
           Cari
         </Button>
@@ -507,11 +537,27 @@ function PemilihPadanan({
       </ul>
 
       <div className="mt-2 border-t border-line pt-2">
-        <Button type="button" variant="ghost" size="sm" disabled={koreksiPending} onClick={() => kirim("")}>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={koreksiPending}
+          onClick={() => kirim("")}
+        >
           <X aria-hidden className="size-3.5" />
           Tidak ada analisa AHSP yang cocok untuk pekerjaan ini
         </Button>
       </div>
     </div>
   );
+}
+
+/** Lencana keadaan — dipakai ringkasan di luar grid. */
+export function LencanaKeadaan({ b }: { b: BarisUraianRow }) {
+  const teks = keadaanTeks(b);
+  if (b.keadaan === "putus" || b.keadaan === "belum") return <Badge tone="danger">{teks}</Badge>;
+  if (b.keadaan === "tidak_ada") return <Badge tone="neutral">{teks}</Badge>;
+  if (b.keadaan === "koreksi" || b.keadaan === "disetujui")
+    return <Badge tone="success">{teks}</Badge>;
+  return <Badge tone={b.meyakinkan ? "info" : "warning"}>{teks}</Badge>;
 }

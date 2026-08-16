@@ -16,6 +16,7 @@ import { presignKeys } from "@/lib/photos";
 import { getRequestOrigin } from "@/lib/http";
 import { signPhotoToken } from "@/lib/pdf/photo-token";
 import { PRINT_BACK_PARAM, safeBackPath } from "@/lib/print-back";
+import { muatTtdLaporan } from "@/lib/export/ttd-laporan";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,7 @@ export default async function CetakHarianPage({
   const location = await db.location.findUnique({ where: { slug }, select: { id: true } });
   if (!location) notFound();
   await requireLocationAccess(user, location.id);
+  const ttd = await muatTtdLaporan(location.id);
 
   const data = await getKkpDailyData(slug, date);
   if (!data) notFound();
@@ -120,7 +122,7 @@ export default async function CetakHarianPage({
         <div className="min-w-[720px]">
           <KkpDailyCover d={data} logoVendorUrl={logoVendorUrl} />
           <div className="mt-6 break-before-page">
-            <KkpDailyReport d={data} />
+            <KkpDailyReport d={data} ttd={ttd} />
           </div>
           <KkpDailyPhotos d={data} foto={fotoCetak} />
           {/* Masing-masing mulai di halaman baru — permintaan user 2026-08-08. */}

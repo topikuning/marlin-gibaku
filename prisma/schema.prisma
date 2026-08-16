@@ -742,6 +742,9 @@ model Vendor {
   email     String?
   logoKey   String?  @map("logo_key") // key R2 logo perusahaan
   kopKey    String?  @map("kop_key") // key R2 gambar kop surat (desain jadi milik perusahaan)
+  /// Stempel perusahaan — cadangan bila kontrak belum mengunggah stempelnya
+  /// sendiri. Satu perusahaan satu stempel; itu memang benda fisik yang sama.
+  stempelKey String? @map("stempel_key")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -781,6 +784,19 @@ model Contract {
   supervisorFirm        String?   @map("supervisor_firm")
   contractorSignerName  String?   @map("contractor_signer_name")
   contractorSignerTitle String?   @map("contractor_signer_title")
+  /// GAMBAR tanda tangan & stempel ketiga pihak — key R2 (DECISIONS 328).
+  ///
+  /// Ditaruh di KONTRAK, bukan di master perusahaan, karena penanda tangannya
+  /// memang melekat pada kontrak: nama PPK/pengawas/penyedia sudah di sini, dan
+  /// pergantian personel di satu paket tidak boleh mengubah dokumen paket lain.
+  /// Stempel penyedia BOLEH kosong — sistem jatuh ke stempel perusahaan di
+  /// master vendor, supaya tidak perlu diunggah ulang tiap kontrak.
+  ppkTtdKey             String?   @map("ppk_ttd_key")
+  ppkStempelKey         String?   @map("ppk_stempel_key")
+  supervisorTtdKey      String?   @map("supervisor_ttd_key")
+  supervisorStempelKey  String?   @map("supervisor_stempel_key")
+  contractorTtdKey      String?   @map("contractor_ttd_key")
+  contractorStempelKey  String?   @map("contractor_stempel_key")
   createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 

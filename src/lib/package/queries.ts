@@ -163,7 +163,14 @@ export const getPackageWorkspace = cache(async (id: string) => {
           supervisorFirm: true,
           contractorSignerName: true,
           contractorSignerTitle: true,
-          vendor: { select: { id: true, name: true } },
+          // Gambar tanda tangan & stempel utk laporan cetak (DECISIONS 328).
+          ppkTtdKey: true,
+          ppkStempelKey: true,
+          supervisorTtdKey: true,
+          supervisorStempelKey: true,
+          contractorTtdKey: true,
+          contractorStempelKey: true,
+          vendor: { select: { id: true, name: true, stempelKey: true } },
           amendments: {
             orderBy: { effectiveDate: "asc" },
             select: {

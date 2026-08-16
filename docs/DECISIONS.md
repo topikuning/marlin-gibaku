@@ -14206,3 +14206,107 @@ RAPL belum masuk **Report Studio**, belum bisa dikirim **WhatsApp**, belum ikut
 sistem ini (`AiArtifact` lifecycle, `ReportDispatch`, `GDriveJob`) dan RAPL
 tinggal disambungkan — tapi belum dikerjakan. Disebut di sini supaya tidak
 terbaca sebagai sudah beres.
+
+---
+
+## 328 — Tabel RAPL pindah ke MarlinGrid; tanda tangan & stempel ditempel di dokumen cetak (2026-08-16)
+
+Dua keberatan user dalam satu pesan, keduanya sah.
+
+### (a) Melanggar aturan repo sendiri: tabel dibuat dengan tangan
+
+> *"kita ini sudah pakai aggrid dan lain sebagainya, kenapa tampilanmu jadul dan
+> memalukan. apa kamu tidak baca aturan sebelum buat ui/ux ini!"*
+
+`CLAUDE.md` sudah menuliskannya sejak awal — **"Tabel data → `MarlinGrid`"** —
+dan tiga layar RAPL justru menyusun `<table>` / daftar `<div>` sendiri. Ini bukan
+soal rupa. Yang hilang karena melanggarnya:
+
+| Layar | Isi | Yang hilang |
+|---|---|---|
+| `padanan-panel` | 480 uraian | urut & saring per kolom, unduh CSV |
+| `simulasi-kebutuhan` | ±300 sumber daya + baris dilewat | urut dari kebutuhan terbesar, cari satu bahan |
+| `harga-panel` | ±300 formulir harga | **300 kali klik-simpan** |
+
+Ketiganya sekarang MarlinGrid. Yang paling terasa di lapangan adalah harga:
+sebelumnya 300 formulir kecil satu-satu, sekarang ketik → Enter → turun ke baris
+berikutnya seperti Excel (`editMode`), tiap sel langsung tersimpan lewat
+`simpanHargaSel` — pemeriksaan izinnya sama persis dengan jalur FormData
+(`finance.input` + `requireLocationAccess` + `audit`), yang berbeda hanya cara
+datanya sampai.
+
+**Pilihan baris diserahkan ke AG Grid**, bukan kolom kotak centang buatan
+sendiri. Alasannya satu dan menentukan: hanya dengan begitu "pilih semua"
+mengikuti saringan & pencarian yang sedang aktif. Kotak centang buatan sendiri
+akan memilih baris yang sedang tidak terlihat — cacat yang baru ketahuan sesudah
+tombol "Setujui 300 uraian" ditekan. `MarlinGrid` karenanya menerima
+`rowSelection="multi"` + `isRowSelectable` (hanya `usulan` yang boleh dipilih)
+dengan `selectAll: "filtered"`.
+
+Yang TETAP di luar grid, karena memang bukan data tabel: tombol saringan
+berhitung ("Perlu dikerjakan (312)") — angkanya harus terbaca SEBELUM tabelnya;
+pernyataan cakupan; dan panel kandidat AHSP. Panel kandidat tidak bisa jadi
+master/detail AG Grid karena itu fitur **Enterprise**, yang dilarang repo ini.
+
+### (b) Laporan cetak butuh tanda tangan & stempel yang ditempel
+
+> *"untuk laporan harian dan mingguan, aku butuh tanda tangan dan stempel
+> perusahaan, untuk ditempel. atur itu harus aku masukkan dimana… orang lapangan
+> kuno dan konservatif, tetap minta untuk laporan di tanda tangan manual dan
+> dicetak / orang lapangan dari pengawas dan kkp"*
+
+Lalu, menyusul: *"pastikan semua dokumen itu stempel dan ttdnya proporsional di
+posisinya"*.
+
+**Di mana diunggah.** Gambarnya menempel pada **kontrak**, bukan pada pengguna
+aplikasi — `/paket/{id}/kontrak`, kartu "Tanda tangan & stempel untuk laporan
+cetak", tepat di bawah kartu nama penanda tangan. Alasannya sama dengan
+DECISIONS 267: yang menandatangani laporan KKP adalah tiga jabatan yang DITUNJUK
+KONTRAK, dan nama-namanya sudah di situ. Menaruh gambarnya di profil pengguna
+akan memisahkan gambar dari nama — persis cacat "Administrator di atas Direktur"
+yang sudah pernah diperbaiki. Ganti personel ⇒ ganti nama DAN gambar di satu
+tempat yang sama.
+
+**Stempel perusahaan punya cadangan di master.** `/master/perusahaan` →
+`Vendor.stempelKey`. Satu perusahaan satu stempel; itu benda fisik yang sama di
+semua kontraknya, dan memaksa mengunggah ulang tiap kontrak berarti berkas
+identik × 83 lokasi — yang pertama terlewat justru yang paling sering dicetak.
+Cadangan ini **hanya untuk stempel**. Tanda tangan tidak punya cadangan: coretan
+tanda tangan milik ORANG, dan orangnya ditunjuk per kontrak.
+
+**Ukurannya satu sumber, dipakai kertas dan layar.** `lib/export/ttd-ukuran.ts`
+menurunkan semua ukuran dari SATU angka — tinggi ruang tanda tangan — memakai
+perbandingan benda aslinya (stempel bundar ±4 cm, coretan ±3 cm × 5–6 cm):
+stempel setinggi ruang, tanda tangan 0,82 dari itu dengan lebar maksimum 2,4×
+tingginya, stempel digeser 0,38 tinggi ke kiri supaya MENIMPA seperti dicap
+tangan. Tujuh penyaji memakai tinggi ruang yang berbeda-beda — HTML 40/48/48/56
+px, PDF 32/34/40 pt — dan perbandingannya tetap sama di ketujuhnya. Kalau tiap
+penyaji memilih ukurannya sendiri, "stempel lebih besar dari tanda tangan" hanya
+akan benar di satu tempat.
+
+**PDF ikut, bukan hanya halaman web.** PDF-lah berkas yang benar-benar beredar
+lewat WhatsApp ke pengawas dan KKP; menempel tanda tangan hanya di halaman web
+berarti melewatkan jalur yang paling banyak dipakai. `lib/pdf/ttd-gambar.ts`
+memuatnya sebagai PNG (pdfkit tidak menerima WebP — pelajaran yang sama yang
+pernah menghilangkan logo diam-diam) dan menggambarnya dengan perbandingan yang
+sama.
+
+**Pihaknya dibawa DATA, bukan urutan larik.** `PihakTtd` bertambah medan
+`pihak: "penyedia" | "pengawas" | "ppk"`. Blok tanda tangan disusun sebagai larik
+tiga elemen; mencocokkan gambar lewat indeks berarti mengubah urutan blok akan
+menempelkan stempel PPK di kolom penyedia — dan itu baru ketahuan setelah
+dokumennya beredar dan ditandatangani.
+
+**Yang TIDAK dilakukan.** Latar pindaian tidak dibuat transparan otomatis:
+menebak mana "kertas" dan mana "tinta" bisa memakan garis stempelnya sendiri;
+penempelan memakai `mix-blend-multiply` yang tidak merusak berkas aslinya.
+Berkas lama tidak dihapus dari R2 saat gambar dilepas — dokumen yang sudah
+tercetak memakainya. Dan komponen penempel tidak memutuskan BOLEH TIDAKNYA
+sebuah dokumen ditandatangani; ia hanya menggambar yang diberikan. Tanpa gambar,
+hasilnya persis seperti sebelum fitur ini ada: ruang kosong untuk pena.
+
+**Penjaga.** `tests/unit/ttd-stempel-cetak.test.ts` (14). Uji gigi: cadangan
+vendor bocor ke tanda tangan → 1 merah; pihak dicocokkan lewat urutan → 3 merah;
+stempel dibuat lebih kecil dari tanda tangan → 2 merah; geseran dibuat jauh → 2
+merah; geseran dinolkan (stempel menutupi tanda tangan) → 1 merah; tanda tangan
+dibuat bujur sangkar → 1 merah.

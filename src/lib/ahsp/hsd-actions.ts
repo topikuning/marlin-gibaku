@@ -90,3 +90,51 @@ export async function simpanHargaAction(
     return { error: err instanceof Error ? err.message : "Gagal menyimpan harga." };
   }
 }
+
+/**
+ * Simpan harga dari GRID (edit sel gaya Excel) — DECISIONS 328.
+ *
+ * Dipisah dari jalur FormData karena bentuk masukannya memang beda: grid
+ * mengirim satu sel yang baru diubah, bukan satu formulir. Pemeriksaan
+ * izinnya sama persis; yang berbeda hanya cara datanya sampai.
+ */
+export async function simpanHargaSel(args: {
+  locationId: string;
+  slug: string;
+  kategori: string;
+  nama: string;
+  satuan: string;
+  /** Teks apa adanya dari sel; "" atau nol berarti kosongkan. */
+  harga: string;
+}): Promise<{ ok: true; harga: string | null } | { ok: false; error: string }> {
+  const harga = bacaRupiah(args.harga);
+  if (harga === "salah") {
+    return { ok: false, error: `"${args.harga}" tidak terbaca sebagai angka rupiah.` };
+  }
+  try {
+    const user = await requireCapability("finance.input");
+    await requireLocationAccess(user, args.locationId);
+    const { simpanHarga } = await import("./hsd");
+    await simpanHarga({
+      locationId: args.locationId,
+      kategori: args.kategori,
+      nama: args.nama,
+      satuan: args.satuan,
+      harga,
+      sumber: null,
+      userId: user.id,
+    });
+    await audit(user.id, harga === null ? "hsd.hapus" : "hsd.simpan", "location", args.locationId, {
+      kategori: args.kategori,
+      nama: args.nama,
+      satuan: args.satuan,
+      harga: harga === null ? null : harga.toString(),
+      lewat: "grid",
+    });
+    revalidatePath(`/lokasi/${args.slug}/rapl`);
+    return { ok: true, harga: harga === null ? null : harga.toString() };
+  } catch (err) {
+    if (err instanceof ForbiddenError) return { ok: false, error: err.message };
+    return { ok: false, error: err instanceof Error ? err.message : "Gagal menyimpan harga." };
+  }
+}
