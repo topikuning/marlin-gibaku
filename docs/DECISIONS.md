@@ -13681,3 +13681,83 @@ disebut → 2 uji merah.
 **Belum dikerjakan.** `attributes` per record baru ada di 40 dari 5.007 analisa,
 jadi jalur aturan masih terbatas pada penulangan. Bidang lain (beton mutu,
 lapis pondasi, aspal) masih memakai kemiripan nama + satuan.
+
+---
+
+## 322 · Unduh kebutuhan RAPL: berkasnya membawa cakupannya sendiri (2026-08-16)
+
+Pertanyaan user: *"dimana aku bisa download kebutuhan material dan sebagainya
+saat ini?"* — jawabannya waktu itu: belum ada. Simulasi 320 cuma tampil di
+layar. Sekarang ada di `/lokasi/[slug]/rapl/kebutuhan` (.xlsx), tombolnya di
+kartu Simulasi kebutuhan.
+
+### Kenapa lembar "Tidak masuk hitungan" wajib ikut
+
+Berkas ini akan dibawa ke rapat, dikirim ke suplier, dipakai menawar. Begitu ia
+keluar dari layar MARLIN, semua peringatan di halaman RAPL hilang — yang
+tersisa cuma angka. Daftar kebutuhan bahan yang menutup 72,5% nilai RAB dan
+tidak mengaku demikian akan dibaca sebagai kebutuhan SELURUH proyek, dan
+kekurangannya baru ketahuan di lapangan.
+
+Karena itu tiga hal dibawa di dalam berkasnya sendiri, bukan diucapkan di UI:
+
+1. **Lembar Ringkasan** — nilai RAB yang masuk hitungan vs seluruhnya, persen
+   cakupan, dan rincian yang dikeluarkan per sebab beserta rupiahnya.
+2. **Lembar Tidak masuk hitungan** — satu baris per item RAB yang dilewat,
+   diurut dari NILAI TERBESAR (lubang yang paling mahal dikerjakan lebih dulu,
+   bukan yang kebetulan paling atas di RAB), lengkap dengan sebabnya.
+3. **Penanda `kategori janggal`** pada baris kebutuhan yang kategorinya
+   meragukan menurut data sumber (DECISIONS 320).
+
+Ditambah identitas versi: nama sumber AHSP + **sha256 berkasnya** di lembar
+pertama. Angka kebutuhan bahan yang beredar tanpa penyebutan versi analisanya
+tidak bisa direkonsiliasi enam bulan kemudian.
+
+### "Belum disetujui" dipecah jadi dua
+
+Versi pertama menulis sebab yang sama untuk **534 baris**: "padanan AHSP belum
+disetujui" — di kolom SEBAB dan diulang lagi di kolom KETERANGAN. Tidak berguna,
+dan lebih buruk: ia menyuruh 534 baris dikerjakan dengan cara yang sama padahal
+pekerjaannya berbeda. Sekarang dibedakan:
+
+- *"usulan mesin sudah ada — tinggal diperiksa lalu disetujui"*
+- *"belum ada padanan sama sekali — perlu dicarikan analisanya"*
+
+Yang pertama pekerjaan lima detik; yang kedua perlu mencari analisa. Berkas yang
+tidak membedakannya tidak bisa dipakai membagi tugas.
+
+### Capability
+
+`report.export`, bukan `rab.manage`: ini keluaran BACA. Yang berhak melihat
+angka proyek berhak membawanya keluar; yang butuh hak kelola adalah menyetujui
+padanan. Route tetap `requireCapability` + `hasLocationAccess` + `audit()`,
+dan jejak auditnya mencatat cakupan saat diunduh — supaya berkas yang beredar
+bisa dicocokkan dengan keadaan sistem saat itu.
+
+Berkasnya tetap bisa diunduh SELAGI KOSONG (belum ada padanan disetujui):
+lembar Kebutuhan berisi kalimat yang menjelaskan keadaannya. Menolak mengunduh
+membuat orang mengira fiturnya rusak; berkas yang jujur berkata "belum ada yang
+disetujui" lebih berguna daripada tombol yang diam.
+
+### Hasil nyata (RAB Kedung Mutih, semua usulan disetujui)
+
+```
+cakupan            72,5% nilai RAB  (Rp5,67 M dari Rp7,82 M) · 1.072/1.620 baris
+sumber daya          311  (bahan 216 · upah 33 · alat 62) · 9 bertanda janggal
+  Agregat Kasar    204.004,28 kg   dari 34 baris
+  Pasir Beton      173.028,88 kg   dari 35 baris
+  Semen Portland   117.991,04 kg   dari 103 baris
+dikeluarkan
+  belum disetujui      534 baris · Rp2.063.350.501
+  tanpa koefisien        5 baris · Rp77.407.278
+  satuan tak sepadan     9 baris · Rp6.444.644
+```
+
+**Penjaga.** `tests/unit/rapl-calc.test.ts` bertambah 1 (pemisahan dua sebab
+"belum disetujui"). Berkas hasilnya diperiksa langsung dari data Kedung Mutih
+sungguhan sebelum dilepas, bukan dari fixture.
+
+**Belum dikerjakan.** Kolom harga: berkas ini VOLUME kebutuhan, bukan biaya.
+Harga satuan dasar per lokasi + perbandingan RAPL vs kontrak masih langkah
+berikutnya, dan selama cakupan 72,5% perbandingan itu wajib tampil bersama
+angka cakupannya.

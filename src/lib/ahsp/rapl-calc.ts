@@ -43,6 +43,14 @@ export type ItemUntukRapl = {
   satuanNorm: string;
   volume: number | null;
   amount: bigint;
+  /**
+   * true = mesin SUDAH mengusulkan padanan, tinggal disetujui orang.
+   * Dibedakan dari "belum ada padanan sama sekali" karena pekerjaannya beda:
+   * yang satu tinggal diperiksa lalu diklik, yang satu lagi harus dicarikan
+   * analisanya. "Belum disetujui" tanpa perbedaan ini menyuruh 534 baris
+   * dikerjakan dengan cara yang sama padahal tidak.
+   */
+  adaUsulan?: boolean;
   analisa: {
     kode: string;
     uraian: string;
@@ -154,7 +162,13 @@ export function agregasiKebutuhan(items: ItemUntukRapl[]): HasilRapl {
 
   for (const it of items) {
     if (!it.analisa) {
-      lewat(it, "belum_disetujui", "padanan AHSP belum disetujui");
+      lewat(
+        it,
+        "belum_disetujui",
+        it.adaUsulan
+          ? "usulan mesin sudah ada — tinggal diperiksa lalu disetujui"
+          : "belum ada padanan sama sekali — perlu dicarikan analisanya",
+      );
       continue;
     }
     if (it.analisa.komponen.length === 0) {

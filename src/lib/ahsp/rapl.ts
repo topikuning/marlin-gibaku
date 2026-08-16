@@ -46,6 +46,9 @@ export async function simulasiRapl(locationId: string): Promise<SimulasiRapl> {
   const peta = new Map(
     padanan.filter((p) => metodeDisetujui(p.metode)).map((p) => [p.tanda, p.entry!]),
   );
+  // Usulan mesin yang MASIH menunggu — bukan dipakai menghitung, hanya untuk
+  // memberi tahu bahwa barisnya tinggal disetujui, bukan perlu dicari.
+  const menunggu = new Set(padanan.filter((p) => p.metode === "otomatis").map((p) => p.tanda));
 
   const untukHitung: ItemUntukRapl[] = items.map((it) => {
     const e = peta.get(it.tanda);
@@ -56,6 +59,7 @@ export async function simulasiRapl(locationId: string): Promise<SimulasiRapl> {
       satuanNorm: normalisasiSatuan(it.unit),
       volume: it.volume,
       amount: it.amount,
+      adaUsulan: menunggu.has(it.tanda),
       analisa: e
         ? {
             kode: e.kode,

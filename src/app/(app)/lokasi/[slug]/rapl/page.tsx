@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Banner, Card, CardBody, CardHeader, KpiCard } from "@/components/ui";
+import { Download } from "lucide-react";
+import { Banner, ButtonLink, Card, CardBody, CardHeader, KpiCard } from "@/components/ui";
 import { can } from "@/lib/authz";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { formatPct, formatRupiah, formatRupiahShort } from "@/lib/format";
@@ -28,6 +29,7 @@ export default async function RaplPage({ params }: { params: Promise<{ slug: str
   const { user, location } = await requireLocationPage(slug);
   requireCapabilityPage(user.role, "rab.view");
   const canManage = can(user.role, "rab.manage");
+  const canExport = can(user.role, "report.export");
 
   const [basis, { baris, cakupan }, rapl] = await Promise.all([
     ringkasAhsp(),
@@ -134,6 +136,19 @@ export default async function RaplPage({ params }: { params: Promise<{ slug: str
         <CardHeader
           title="Simulasi kebutuhan sumber daya"
           subtitle="Kebutuhan = Σ (koefisien analisa × volume item), HANYA dari padanan yang sudah disetujui. Usulan mesin yang belum disetujui tidak ikut dihitung."
+          action={
+            canExport ? (
+              <ButtonLink
+                href={`/lokasi/${slug}/rapl/kebutuhan`}
+                variant="secondary"
+                size="sm"
+                unduhan
+              >
+                <Download aria-hidden className="size-3.5" />
+                Unduh Excel
+              </ButtonLink>
+            ) : null
+          }
         />
         <CardBody>
           <SimulasiKebutuhan

@@ -16,6 +16,7 @@ function item(over: Partial<ItemUntukRapl> = {}): ItemUntukRapl {
     satuanNorm: over.satuanNorm ?? "m3",
     volume: over.volume === undefined ? 10 : over.volume,
     amount: over.amount ?? 1_000_000n,
+    adaUsulan: over.adaUsulan ?? false,
     analisa:
       over.analisa === undefined
         ? {
@@ -97,6 +98,19 @@ describe("agregasiKebutuhan", () => {
     expect(h.kebutuhan).toEqual([]);
     expect(h.dilewat[0].alasan).toBe("belum_disetujui");
     expect(h.dipakai.baris).toBe(0);
+  });
+
+  it('"tinggal disetujui" dibedakan dari "belum ada padanan sama sekali"', () => {
+    // Pekerjaannya memang beda: yang satu diperiksa lalu diklik, yang satu
+    // harus dicarikan analisanya. Diukur pada RAB Kedung Mutih, 534 baris
+    // masuk kelompok ini — menyuruh semuanya dikerjakan dengan cara yang sama
+    // membuat berkas unduhannya tidak bisa dipakai membagi tugas.
+    const h = agregasiKebutuhan([
+      item({ lineageKey: "a", analisa: null, adaUsulan: true }),
+      item({ lineageKey: "b", analisa: null, adaUsulan: false }),
+    ]);
+    expect(h.dilewat[0].rinci).toMatch(/tinggal diperiksa lalu disetujui/i);
+    expect(h.dilewat[1].rinci).toMatch(/perlu dicarikan analisanya/i);
   });
 
   it("nilai yang dilewat dilaporkan per alasan — supaya lubangnya terukur", () => {
