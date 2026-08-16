@@ -1,0 +1,502 @@
+{
+  "sourceCode": "SE_DJBK_47_2026",
+  "fileSha256": "3cf72187ad41dba2ed443d881a13b58261dc3a0dfa12437ccd237a7df3c4105f",
+  "masterFile": "ahsp-se-djbk-47-2026.json",
+  "sumber": {
+    "code": "SE_DJBK_47_2026",
+    "name": "Surat Edaran Direktur Jenderal Bina Konstruksi Nomor 47/SE/Dk/2026",
+    "subject": "Tata Cara Penyusunan Perkiraan Biaya Pekerjaan Konstruksi Bidang Pekerjaan Umum",
+    "schemaVersion": "5.0.0-universal",
+    "generatedAt": "2026-08-16T06:35:00.000Z",
+    "documents": {
+      "lampiran_ii": {
+        "filename": "Lampiran-II-SE-DJBK-No-47-Tahun-2026-Acuan-dalam-Penyusunan-AHSP(1).pdf",
+        "pdf_pages": 85,
+        "sha256": "f7d4cd6d28ea9a9e879dbcdd2efae9a0c89a8754f932da7ee6bd6c33a1afbe8f"
+      },
+      "lampiran_iii": {
+        "filename": "Lampiran-III-SE-DJBK-No-47-Tahun-2026-Biaya-Penerapan-SMKK_rth_nv_20260218-1.pdf",
+        "pdf_pages": 74,
+        "sha256": "48e6a02a7d2dacd9d837dc91e7843e5c8eac76b718eff9596f91ed6f7f3ab956"
+      },
+      "lampiran_iv": {
+        "filename": "Lampiran-IV-SE-DJBK-No-47-Tahun-2026-AHSP-Bidang-Sumber-Daya-Air(1).pdf",
+        "pdf_pages": 1689,
+        "sha256": "e8e3c17f3509fe24ba593db94318914185abe4571dad0edbe22dd59dcbccab1b"
+      },
+      "lampiran_v": {
+        "filename": "5.-Lampiran-V-Bidang-Bina-Marga-ok(1).pdf",
+        "pdf_pages": 3125,
+        "sha256": "78e391305aded09a0b156711b7c7f0d7ce1e314317c87744808cadff36b036c0"
+      },
+      "lampiran_vi": {
+        "filename": "Lampiran-VI-SE-DJBK-No-47-Tahun-2026-AHSP-Bidang-Cipta-Karya-2.pdf",
+        "pdf_pages": 1563,
+        "sha256": "6264a803dfb8fe858db8932ed9188256458b3cfea46c3ac85dec0f6936384d71"
+      }
+    },
+    "matchingEngine": {
+      "version": "3.0.0",
+      "purpose": "Mencocokkan uraian BOQ/tender yang memakai istilah lapangan dengan AHSP kanonik tanpa mengubah koefisien resmi.",
+      "mandatory_sequence": [
+        "Normalisasi ejaan, simbol diameter, satuan, dan tanda baca pada uraian tender.",
+        "Ekstrak objek pekerjaan, elemen struktur, material, mutu/kelas, diameter/ukuran, metode, satuan, dan kondisi khusus.",
+        "Ekspansi istilah hanya memakai terminology_aliases dan rules yang tersedia; jangan menciptakan ekuivalensi teknis baru.",
+        "Cari kandidat di records menggunakan kode, uraian, search.search_text, search.aliases, search.keywords, dan search.attributes.",
+        "Saring kandidat berdasarkan spesifikasi teknis dan satuan. Kemiripan nama saja tidak cukup.",
+        "Jika terdapat lebih dari satu kandidat teknis yang sah karena konteks BOQ kurang lengkap, tampilkan kandidat dan tandai needs_context; jangan memilih secara paksa.",
+        "Setelah record dipilih, gunakan components resmi apa adanya. Harga dasar tetap berasal dari dokumen/lokasi/waktu tender."
+      ],
+      "terminology_aliases": {
+        "penulangan": [
+          "penulangan",
+          "pembesian",
+          "besi beton",
+          "tulangan",
+          "rebar",
+          "reinforcement"
+        ],
+        "bjts": [
+          "bjts",
+          "baja tulangan sirip",
+          "besi ulir",
+          "besi deform",
+          "deformed bar"
+        ],
+        "bjtp": [
+          "bjtp",
+          "baja tulangan polos",
+          "besi polos",
+          "plain bar"
+        ],
+        "slab": [
+          "slab",
+          "pelat",
+          "plat",
+          "pelat lantai",
+          "plat lantai"
+        ],
+        "ring balk": [
+          "ring balk",
+          "ring balok",
+          "ringbalk"
+        ],
+        "shearwall": [
+          "shearwall",
+          "shear wall",
+          "dinding geser"
+        ],
+        "bekisting": [
+          "bekisting",
+          "formwork",
+          "cetakan beton"
+        ],
+        "timbunan": [
+          "timbunan",
+          "urugan",
+          "pengurugan"
+        ],
+        "galian": [
+          "galian",
+          "penggalian"
+        ],
+        "pasangan batu": [
+          "pasangan batu",
+          "pasangan batu kali",
+          "masonry batu"
+        ],
+        "plesteran": [
+          "plesteran",
+          "plester"
+        ],
+        "acian": [
+          "acian",
+          "aci"
+        ],
+        "paving block": [
+          "paving block",
+          "paving",
+          "conblock",
+          "con block"
+        ],
+        "beton pracetak": [
+          "beton pracetak",
+          "precast",
+          "beton precast"
+        ],
+        "tiang pancang": [
+          "tiang pancang",
+          "pile",
+          "pemancangan"
+        ],
+        "turap": [
+          "turap",
+          "sheet pile",
+          "sheetpile"
+        ],
+        "gorong-gorong": [
+          "gorong-gorong",
+          "gorong gorong",
+          "culvert"
+        ],
+        "saluran": [
+          "saluran",
+          "drainase",
+          "drain"
+        ],
+        "aspal": [
+          "aspal",
+          "hotmix",
+          "hot mix"
+        ],
+        "lapis pondasi agregat": [
+          "lapis pondasi agregat",
+          "lpa",
+          "base course"
+        ],
+        "beton": [
+          "beton",
+          "concrete"
+        ],
+        "pipa": [
+          "pipa",
+          "pipe"
+        ],
+        "pengecatan": [
+          "pengecatan",
+          "cat",
+          "painting"
+        ],
+        "bongkar": [
+          "bongkar",
+          "pembongkaran",
+          "demolition"
+        ],
+        "pembersihan": [
+          "pembersihan",
+          "clearing",
+          "land clearing"
+        ]
+      },
+      "normalization_rules": [
+        {
+          "pattern": "8 D 10 mm / 8D10 / 8-D10",
+          "meaning": "8 batang baja tulangan berdiameter 10 mm; angka pertama adalah jumlah batang, angka kedua diameter. Notasi D merupakan sinyal kuat baja tulangan sirip/deformed (BjTS), kecuali spesifikasi tender menyatakan lain."
+        },
+        {
+          "pattern": "D10, D13, D16, dst.",
+          "meaning": "Notasi diameter baja tulangan sirip/deformed; ambil angka setelah D sebagai diameter nominal mm."
+        },
+        {
+          "pattern": "Ø10 / ∅10 / phi 10",
+          "meaning": "Diameter 10 mm. Jangan otomatis menentukan BjTP atau BjTS hanya dari simbol diameter; lihat spesifikasi/material."
+        },
+        {
+          "pattern": "m1 / m' / meter lari",
+          "meaning": "normalisasi ke meter panjang bila konteks item memang panjang."
+        },
+        {
+          "pattern": "m2 / m²",
+          "meaning": "meter persegi."
+        },
+        {
+          "pattern": "m3 / m³",
+          "meaning": "meter kubik."
+        }
+      ],
+      "reinforcement_matching": {
+        "synonyms": [
+          "penulangan",
+          "pembesian",
+          "besi beton",
+          "tulangan",
+          "rebar",
+          "reinforcement"
+        ],
+        "steel_type_rules": [
+          {
+            "signal": "BjTS / baja tulangan sirip / besi ulir / deformed / notasi Dxx",
+            "map_to": "BjTS",
+            "confidence": "high",
+            "exception": "Jika dokumen tender secara eksplisit menyebut material lain, ikuti dokumen tender."
+          },
+          {
+            "signal": "BjTP / baja tulangan polos / besi polos / plain bar",
+            "map_to": "BjTP",
+            "confidence": "high"
+          },
+          {
+            "signal": "Øxx tanpa kata polos/sirip",
+            "map_to": "unknown",
+            "confidence": "insufficient",
+            "action": "lihat spesifikasi atau konteks, jangan menebak jenis baja"
+          }
+        ],
+        "diameter_rules": [
+          {
+            "diameter_mm": "<12",
+            "candidate_class": "diameter < 12 mm"
+          },
+          {
+            "diameter_mm": ">=12",
+            "candidate_class": "diameter ≥ 12 mm"
+          }
+        ],
+        "element_rules": [
+          {
+            "signals": [
+              "slab",
+              "pelat",
+              "plat",
+              "pelat lantai",
+              "plat lantai"
+            ],
+            "element_group": "slab"
+          },
+          {
+            "signals": [
+              "kolom",
+              "balok",
+              "ring balk",
+              "ring balok",
+              "ringbalk",
+              "sloof"
+            ],
+            "element_group": "frame"
+          },
+          {
+            "signals": [
+              "shearwall",
+              "shear wall",
+              "dinding geser"
+            ],
+            "element_group": "frame_ge12_in_current_ahsp"
+          }
+        ],
+        "important_note": "Jumlah batang seperti 8 pada 8D10 bukan koefisien AHSP dan bukan bagian pemilihan kelas diameter. AHSP penulangan bersatuan kg; volume BOQ perlu dikonversi/diambil dari quantity take-off dalam kg.",
+        "ambiguity_rule": "Jika uraian hanya menyebut pembesian/besi beton dan diameter tanpa elemen struktur, jangan pilih antara AHSP slab dan AHSP kolom/balok/ring balk/sloof. Periksa heading, parent item, gambar, atau baris BOQ sekitar.",
+        "verified_records": {
+          "slab_BjTP_lt12": "2.2.1.1.1",
+          "slab_BjTS_lt12": "2.2.1.1.1.a",
+          "slab_BjTP_ge12": "2.2.1.1.2",
+          "slab_BjTS_ge12": "2.2.1.1.2.a",
+          "frame_BjTP_lt12": "2.2.1.1.3",
+          "frame_BjTS_lt12": "2.2.1.1.3.a",
+          "frame_BjTP_ge12": "2.2.1.1.4",
+          "frame_BjTS_ge12": "2.2.1.1.4.a"
+        },
+        "examples": [
+          {
+            "query": "Pekerjaan Pembesian Besi Beton 8 D 10 mm",
+            "parsed": {
+              "quantity_bars": 8,
+              "diameter_mm": 10,
+              "steel_type": "BjTS",
+              "element": "unknown"
+            },
+            "expected": "needs_context",
+            "candidates": [
+              "2.2.1.1.1.a",
+              "2.2.1.1.3.a"
+            ]
+          },
+          {
+            "query": "Pembesian pelat 8D10",
+            "parsed": {
+              "diameter_mm": 10,
+              "steel_type": "BjTS",
+              "element": "slab"
+            },
+            "expected_code": "2.2.1.1.1.a"
+          },
+          {
+            "query": "Pembesian kolom 8D10",
+            "parsed": {
+              "diameter_mm": 10,
+              "steel_type": "BjTS",
+              "element": "kolom"
+            },
+            "expected_code": "2.2.1.1.3.a"
+          },
+          {
+            "query": "Penulangan balok D16",
+            "parsed": {
+              "diameter_mm": 16,
+              "steel_type": "BjTS",
+              "element": "balok"
+            },
+            "expected_code": "2.2.1.1.4.a"
+          },
+          {
+            "query": "Penulangan slab D16",
+            "parsed": {
+              "diameter_mm": 16,
+              "steel_type": "BjTS",
+              "element": "slab"
+            },
+            "expected_code": "2.2.1.1.2.a"
+          }
+        ]
+      },
+      "scoring_guidance": {
+        "exact_code": 100,
+        "material_and_grade_match": 35,
+        "diameter_or_size_match": 30,
+        "structural_element_match": 30,
+        "method_match": 20,
+        "unit_match": 20,
+        "alias_or_synonym_match": 10,
+        "name_similarity_only_max": 15,
+        "hard_reject": [
+          "jenis material bertentangan",
+          "kelas diameter bertentangan",
+          "satuan fundamental bertentangan tanpa konversi yang sah",
+          "elemen/metode yang secara teknis berbeda dan berpengaruh pada koefisien"
+        ]
+      },
+      "boq_normalization": {
+        "principle": "Map tender/field language to technical attributes first, then rank official AHSP records. Never require literal title equality.",
+        "parse_dimensions": [
+          "D10",
+          "Ø10",
+          "dia 10 mm",
+          "8D10",
+          "10x20",
+          "t=10 cm",
+          "DN100"
+        ],
+        "parse_material_classes": [
+          "BjTP",
+          "BjTS",
+          "K-225",
+          "K-250",
+          "fc'20 MPa",
+          "AC-WC",
+          "AC-BC",
+          "LFA Kelas A",
+          "wiremesh M6-M12"
+        ],
+        "parse_elements": [
+          "slab/pelat/plat",
+          "kolom",
+          "balok",
+          "ring balk/ring balok",
+          "sloof",
+          "dinding",
+          "pondasi",
+          "saluran",
+          "revetment",
+          "drainase"
+        ],
+        "parse_methods": [
+          "manual",
+          "semi mekanis",
+          "mekanis",
+          "precast/pracetak",
+          "cast in situ",
+          "ready mix"
+        ],
+        "unit_compatibility_required": true,
+        "parent_heading_context_required_when_item_is_ambiguous": true,
+        "fallback": "Return ranked candidates with missing discriminators instead of NO_MATCH when technically plausible records exist."
+      },
+      "field_alias_lexicon": {
+        "pembesian": [
+          "penulangan",
+          "besi beton",
+          "rebar",
+          "tulangan"
+        ],
+        "pelat": [
+          "plat",
+          "slab"
+        ],
+        "ring balk": [
+          "ring balok",
+          "ringbeam"
+        ],
+        "sengkang": [
+          "begel",
+          "stirrup"
+        ],
+        "urugan": [
+          "timbunan",
+          "backfill",
+          "pengurugan"
+        ],
+        "lantai kerja": [
+          "lean concrete",
+          "beton kurus"
+        ],
+        "pasangan batu": [
+          "pasangan batu kali",
+          "masonry stone"
+        ],
+        "bekisting": [
+          "formwork",
+          "cetakan beton"
+        ],
+        "galian": [
+          "penggalian",
+          "excavation"
+        ],
+        "aspal": [
+          "hotmix",
+          "hot mix"
+        ],
+        "saluran u": [
+          "u-ditch",
+          "uditch",
+          "u ditch"
+        ],
+        "gorong-gorong": [
+          "culvert"
+        ],
+        "paving block": [
+          "paving",
+          "conblock"
+        ],
+        "plesteran": [
+          "plester"
+        ],
+        "acian": [
+          "skim coat"
+        ]
+      },
+      "ranking_priority": [
+        "exact_code",
+        "technical_attributes",
+        "element_and_material",
+        "method",
+        "unit",
+        "normalized_alias_similarity",
+        "parent_context"
+      ],
+      "no_match_policy": "NO_MATCH only after alias normalization + technical attribute parsing + parent BOQ context + cross-terminology candidates are exhausted."
+    }
+  },
+  "ringkas": {
+    "total": 5560,
+    "kanonik": 5015,
+    "perluVerifikasi": 545,
+    "tanpaKomponen": 410,
+    "punyaAlias": 2688,
+    "komponen": {
+      "upah": 13164,
+      "bahan": 9777,
+      "alat": 6742
+    },
+    "kategoriLain": {
+      "fasilitas": 6
+    },
+    "bidang": {
+      "sumber_daya_air": 1564,
+      "bina_marga": 1130,
+      "cipta_karya": 2866
+    }
+  },
+  "jumlah": {
+    "entri": 5560,
+    "komponen": 29689
+  }
+}

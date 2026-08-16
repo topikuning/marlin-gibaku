@@ -13947,3 +13947,102 @@ ke mana.
 dilaporkan). Uji gigi: mengembalikan daftar putih kategori → 1 merah. Angka
 acuan `tests/integration/ahsp-import.test.ts` diperbarui ke terbitan 5.0
 (5.560 / 29.683 / 2.688 / `fasilitas: 6`).
+
+---
+
+## 325 · Impor AHSP kehabisan memori di server 512 MB — dan diam-diam mengaku sukses (2026-08-16)
+
+Laporan user dari `/sistem`: *"saat proses periksa dan segarkan ahsp selalu
+terjadi [An unexpected response was received from the server], lalu kalau diklik
+lagi ada pernyataan berhasil"*. Spesifikasi server: **0,5 vCPU / 512 MB**.
+
+Bagian kedua kalimat itu yang paling berbahaya. "Diklik lagi berhasil" bukan
+tanda pulih — itu tanda sistem **berbohong**.
+
+### Tiga cacat bertumpuk
+
+**1. Memori.** `JSON.parse` berkas master 14,6 MB memuncakkan RSS **184 MB**
+(diukur). Next.js sendiri sudah memakan ratusan MB, jadi impor lewat jalur itu
+menabrak batas 512 MB dan prosesnya dibunuh kernel. Yang sampai ke browser cuma
+"unexpected response" — koneksi putus di tengah, tanpa pesan yang berarti.
+
+**2. Sumber setengah jadi mengaku mutakhir.** `fileSha256` dipasang saat baris
+sumber DIBUAT, sebelum satu pun entri ditulis. Impor yang mati di tengah
+meninggalkan sumber yang MENGAKU sha berkas itu padahal isinya separuh. Klik
+berikutnya membaca sha-nya sama → jalur pintas → *"Basis AHSP sudah mutakhir"*.
+Basis yang bolong menetap selamanya sambil terlihat benar, dan semua angka
+kebutuhan bahan di atasnya salah tanpa satu pun tanda.
+
+**3. Penyambungan padanan satu per satu.** `sambungUlangPadanan` (DECISIONS 323)
+mengirim satu `UPDATE` per padanan. Seribu padanan = seribu perjalanan bolak-
+balik ke database yang ada di seberang jaringan.
+
+### Perbaikan
+
+**Dialirkan, bukan dimuat sekaligus.** `pnpm ahsp:siapkan` (dijalankan sekali di
+mesin pengembang, hasilnya di-commit) memecah master jadi `seed-data/ahsp/`:
+`manifest.json` (metadata + `matching_engine` + **sha256 berkas master**) dan
+`entri.ndjson` (satu baris per analisa). Impor membacanya baris demi baris.
+Berkas masternya TETAP di repo — ia sumber yang sah, dipakai `pnpm audit:ahsp`,
+dan sha-nya yang dicatat supaya versi yang dipakai menghitung uang tetap bisa
+dibuktikan ke dokumen aslinya, bukan ke hasil olahan.
+
+**Ukuran potongan dipilih dari pengukuran, bukan perasaan.** Puncak RSS impor
+penuh:
+
+```
+potongan 2000 → 518 MB      potongan 250 → 344 MB
+potongan 1000 → 444 MB      potongan 100 → 307 MB
+waktu: 7,0 s → 7,5 s (praktis rata)
+```
+
+Yang memakan memori ternyata bukan tumpukan JS melainkan buffer native driver:
+satu `createMany` 2.000 baris berisi dua kolom `text[]` menjadi satu perintah SQL
+raksasa. Dipilih **100**: tambahan waktu setengah detik, margin ratusan megabyte.
+
+**sha256 dipasang PALING AKHIR**, setelah seluruh entri + komponen tertulis DAN
+jumlahnya dicocokkan dengan manifest. Sumber yang belum tuntas membawa penanda
+`impor-belum-selesai` yang tidak akan pernah cocok dengan sha berkas mana pun —
+jadi impor yang terputus SELALU diulang, tidak pernah dianggap selesai. Layar
+Sistem menampilkannya merah: *"Impor basis AHSP TERPUTUS — isinya belum lengkap"*.
+
+**Penyambungan padanan jadi satu perintah** (`UPDATE … FROM unnest`).
+
+Efek sampingan yang besar: jalur "tidak ada yang berubah" — yang dipakai tombol
+sehari-hari — dulu mem-parse 14,6 MB (184 MB RSS) hanya untuk menyimpulkan
+"tidak ada yang berubah". Sekarang cukup membaca manifest: **2 ms**.
+
+### Catatan proses: uji gigi yang gagal, LAGI
+
+Versi pertama uji regresi memalsukan keadaan akhirnya — menyetel `fileSha256`
+ke penanda "belum selesai" dengan tangan, lalu memeriksa akibatnya. Uji gigi
+membuktikannya hiasan: mengembalikan cacat aslinya (sha dipasang di awal)
+membuat semuanya **tetap hijau**, karena yang diuji adalah keadaan yang
+dikarang uji itu sendiri, bukan keadaan yang ditinggalkan kode.
+
+Versi keduanya benar-benar MEMUTUS impor di tengah (`createMany` komponen
+dilempar setelah beberapa potongan), lalu memeriksa apa yang tertinggal di
+database. Barulah uji giginya menggigit: cacat 1 → 3 merah, cacat 2 → 2 merah.
+
+Pelajarannya sama dengan 318 dan 320, dan ini ketiga kalinya: **uji yang
+menyiapkan sendiri keadaan yang mau dibuktikannya tidak membuktikan apa pun.**
+Yang harus dipicu adalah jalurnya, bukan hasilnya.
+
+### Yang MASIH berisiko
+
+Waktu impor 7,5 detik itu diukur di mesin uji dengan CPU longgar dan database
+satu kotak. Di **0,5 vCPU** dengan database seberang jaringan, ~850 perintah
+tulis bisa memakan puluhan detik, dan permintaan HTTP bisa terpotong lagi —
+kali ini tanpa merusak apa pun (basisnya tetap bertanda belum selesai dan bisa
+diulang), tapi tetap tidak nyaman.
+
+Tempat yang benar untuk pekerjaan ini sebenarnya `preDeployCommand` di
+`railway.json` — proses terpisah, memori penuh, tanpa batas waktu permintaan.
+Itu butuh entry mandiri yang tidak lewat Next (`server-only` + alias `@/`),
+dan sengaja BELUM dikerjakan di sini supaya perbaikan yang sudah terukur bisa
+segera dipakai. Catat sebagai langkah berikutnya, bukan sebagai selesai.
+
+**Penjaga.** `tests/integration/ahsp-impor-terputus.test.ts` (4): impor yang
+mati di tengah tidak mengaku mutakhir dan diulang penuh, penulisan yang
+diam-diam bolong ditolak, jalur "tidak berubah" selesai di bawah 2 detik, dan
+jumlah tersimpan sama persis dengan manifest.

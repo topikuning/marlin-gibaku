@@ -58,6 +58,9 @@ pnpm db:migrate          # migration dev
 pnpm db:seed             # seed dev (idempotent; password semua user: marlin123)
 pnpm db:reset            # guarded (tolak production / DB non-dev)
 pnpm docs:permission     # regenerate docs/rebuild/PERMISSION_MATRIX.md dari authz.ts
+pnpm ahsp:siapkan        # master AHSP → seed-data/ahsp/ (NDJSON siap-alir); WAJIB
+                         # dijalankan + di-commit tiap berkas master diganti
+pnpm audit:ahsp          # daftar temuan janggal basis AHSP → xlsx
 
 docker build --no-cache -t marlin:test .   # verifikasi deploy
 ```
