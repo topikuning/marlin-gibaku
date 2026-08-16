@@ -61,6 +61,8 @@ AHSP    → AhspSource (SE DJBK 47/2026 terbitan 5.0-universal, sha256 + matchin
            (koefisien upah/bahan/alat) · AhspPadanan (kunci GLOBAL = tanda uraian+satuan;
            pemetaan item RAB → analisa; `otomatis` = usulan mesin, `disetujui`/`koreksi`
            = keputusan manusia — HANYA yang terakhir dipakai menghitung RAPL)
+Location → HargaSatuanDasar (HSD per lokasi; kunci kategori+nama+satuan sama persis
+           dengan kunci kebutuhan RAPL. Harga lokasi lain = rekomendasi, tak pernah dipakai sendiri)
 Sistem  → AuditLog (append-only, ditulis semua mutasi) · Alert · AppSetting effective-dated
 Akses   → User (mustChangePassword, tokenVersion) · Session (DB, revocable) ·
            LoginAttempt (rate limit) · LocationAssignment (scope)
@@ -127,7 +129,7 @@ RLS TIDAK diklaim (lihat OPEN_ISSUES).
 Lihat docs/rebuild/TARGET_INFORMATION_ARCHITECTURE.md. Menu: Beranda (Command
 Center exception-first) · Paket (workspace tab: Ringkasan/Tender/Kontrak &
 Adendum/Lokasi/Dokumen/Aktivitas) · Lokasi (workspace tab: Ringkasan/Rencana &
-RAB/RAPL/Pelaksanaan Harian/Progress/Keuangan/Dokumen & Kepatuhan/Laporan) ·
+RAB/RAPL (Petakan→Setujui→Kebutuhan→Harga; cetak A4 `/cetak/rapl/[slug]` + unduh xlsx)/Pelaksanaan Harian/Progress/Keuangan/Dokumen & Kepatuhan/Laporan) ·
 Hari Ini (landing lapangan mobile) · Progress · Keuangan · Dokumen · Laporan ·
 Pengguna · Sistem. Cetak KKP di `/cetak/*` tanpa shell. Mobile bottom-nav ≤5
 tujuan per role.

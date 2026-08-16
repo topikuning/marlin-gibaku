@@ -3,6 +3,7 @@ import ExcelJS from "exceljs";
 import type { LogoLaporan } from "@/lib/export/logo-laporan";
 import { FMT_ANGKA, FMT_PERSEN, FMT_RUPIAH, KOTAK, WARNA, gayaKepala, isi, logoPasanganKanan } from "@/lib/export/xlsx-gaya";
 import type { SimulasiRapl } from "@/lib/ahsp/rapl";
+import type { KeadaanHarga } from "@/lib/ahsp/hsd";
 
 /**
  * Unduhan KEBUTUHAN SUMBER DAYA (RAPL) — DECISIONS 322.
@@ -80,14 +81,14 @@ function tanggal(d: Date): string {
 export async function buildRaplXlsx(
   rapl: SimulasiRapl,
   kepala: KepalaRapl,
-  opsi: { logo?: LogoLaporan } = {},
+  opsi: { logo?: LogoLaporan; harga?: KeadaanHarga } = {},
 ): Promise<ArrayBuffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "MARLIN";
   wb.created = kepala.dicetakPada;
 
-  tulisRingkasan(wb, rapl, kepala, opsi.logo);
-  tulisKebutuhan(wb, rapl);
+  tulisRingkasan(wb, rapl, kepala, opsi.logo, opsi.harga);
+  tulisKebutuhan(wb, rapl, opsi.harga);
   tulisDilewat(wb, rapl);
 
   return wb.xlsx.writeBuffer();
@@ -100,6 +101,7 @@ function tulisRingkasan(
   rapl: SimulasiRapl,
   kepala: KepalaRapl,
   logo?: LogoLaporan,
+  harga?: KeadaanHarga,
 ): void {
   const ws = wb.addWorksheet("Ringkasan");
   ws.columns = [{ width: 34 }, { width: 30 }, { width: 22 }, { width: 58 }];
@@ -210,6 +212,53 @@ function tulisRingkasan(
     }
   }
 
+  if (harga) {
+    r += 1;
+    ws.mergeCells(r, 1, r, 4);
+    const j4 = ws.getCell(r, 1);
+    j4.value = "BIAYA PELAKSANAAN (RAPL) DAN PERBANDINGANNYA";
+    gayaKepala(j4, { sub: true, size: 10 });
+    r += 1;
+
+    const p = harga.perbandingan;
+    const barisBiaya: [string, number, string, string][] = [
+      [
+        "Biaya RAPL (yang sudah berharga)",
+        Number(harga.totalBiaya),
+        "rupiah",
+        `${harga.berharga} dari ${harga.baris.length} sumber daya sudah berharga`,
+      ],
+    ];
+    if (p) {
+      barisBiaya.push(
+        ["Nilai kontrak", Number(p.nilaiKontrak), "rupiah", "pembanding"],
+        [
+          "Selisih (kontrak − RAPL)",
+          Number(p.selisih),
+          "rupiah",
+          p.keandalan.utuh
+            ? "Seluruh nilai RAB masuk hitungan dan seluruh sumber daya sudah berharga."
+            : `BELUM bisa dibaca sebagai keuntungan: dihitung dari ${p.keandalan.cakupanNilai.toFixed(1)}% nilai RAB dan ${p.keandalan.cakupanHarga.toFixed(1)}% sumber daya berharga. Biaya yang belum masuk akan MENGECILKAN selisih ini.`,
+        ],
+      );
+    }
+    for (const [nama, nilai, satuan, ket] of barisBiaya) {
+      ws.getCell(r, 1).value = nama;
+      ws.getCell(r, 1).font = { bold: true, size: 10 };
+      const c = ws.getCell(r, 2);
+      c.value = nilai;
+      c.numFmt = FMT_RUPIAH;
+      c.font = { bold: true, size: 10 };
+      ws.getCell(r, 3).value = satuan;
+      ws.getCell(r, 3).font = { size: 10, color: { argb: WARNA.teksRedup } };
+      ws.getCell(r, 4).value = ket;
+      ws.getCell(r, 4).alignment = { wrapText: true, vertical: "top" };
+      ws.getCell(r, 4).font = { size: 10, color: { argb: WARNA.teksRedup } };
+      for (let c2 = 1; c2 <= 4; c2 += 1) ws.getCell(r, c2).border = KOTAK;
+      r += 1;
+    }
+  }
+
   r += 1;
   ws.mergeCells(r, 1, r + 3, 4);
   const catatan = ws.getCell(r, 1);
@@ -226,30 +275,49 @@ function tulisRingkasan(
 
 /* --------------------------------------------------------------- kebutuhan */
 
-function tulisKebutuhan(wb: ExcelJS.Workbook, rapl: SimulasiRapl): void {
+function tulisKebutuhan(wb: ExcelJS.Workbook, rapl: SimulasiRapl, harga?: KeadaanHarga): void {
   const ws = wb.addWorksheet("Kebutuhan");
   ws.columns = [
     { width: 6 },
-    { width: 52 },
-    { width: 16 },
-    { width: 12 },
-    { width: 13 },
-    { width: 30 },
+    { width: 48 },
+    { width: 15 },
+    { width: 11 },
+    { width: 18 },
+    { width: 20 },
+    { width: 11 },
+    { width: 28 },
   ];
 
-  const kepala = ["NO", "URAIAN SUMBER DAYA", "KEBUTUHAN", "SATUAN", "DARI BARIS", "CATATAN"];
+  // Peta harga dikunci sama persis dengan kunci pengelompokan kebutuhan.
+  const petaHarga = new Map(
+    (harga?.baris ?? []).map((b) => [
+      `${b.kategori}|${b.nama}|${b.satuan.trim().toLowerCase()}`,
+      b,
+    ]),
+  );
+
+  const kepala = [
+    "NO",
+    "URAIAN SUMBER DAYA",
+    "KEBUTUHAN",
+    "SATUAN",
+    "HARGA SATUAN",
+    "BIAYA",
+    "DARI BARIS",
+    "CATATAN",
+  ];
   ws.addRow(kepala);
   ws.getRow(1).eachCell((c) => gayaKepala(c, { size: 10 }));
   ws.getRow(1).height = 22;
   ws.views = [{ state: "frozen", ySplit: 1 }];
-  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 6 } };
+  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 8 } };
 
   let r = 2;
   for (const kat of urutKategori(rapl.kebutuhan)) {
     const baris = rapl.kebutuhan.filter((k) => k.kategori === kat);
     if (baris.length === 0) continue;
 
-    ws.mergeCells(r, 1, r, 6);
+    ws.mergeCells(r, 1, r, 8);
     const jc = ws.getCell(r, 1);
     jc.value = JUDUL_KATEGORI[kat] ?? kat.toUpperCase();
     jc.font = { bold: true, size: 10, color: { argb: WARNA.teks } };
@@ -265,29 +333,48 @@ function tulisKebutuhan(wb: ExcelJS.Workbook, rapl: SimulasiRapl): void {
       jum.value = k.jumlah;
       jum.numFmt = FMT_ANGKA;
       ws.getCell(r, 4).value = k.satuan || "—";
-      ws.getCell(r, 5).value = k.dariBaris;
-      ws.getCell(r, 6).value = k.janggal
+
+      const h = petaHarga.get(`${k.kategori}|${k.nama}|${k.satuan.trim().toLowerCase()}`);
+      // Sel harga dibiarkan KOSONG kalau belum diisi — bukan nol. Nol berarti
+      // gratis dan akan diam-diam mengecilkan total di sel BIAYA.
+      if (h?.harga != null) {
+        const ch = ws.getCell(r, 5);
+        ch.value = Number(h.harga);
+        ch.numFmt = FMT_RUPIAH;
+        const cb = ws.getCell(r, 6);
+        // Rumus hidup: berkas ini diedit orang, dan mengubah harga harus
+        // langsung memperbarui biayanya.
+        cb.value = { formula: `C${r}*E${r}` };
+        cb.numFmt = FMT_RUPIAH;
+      } else {
+        ws.getCell(r, 5).value = "";
+        ws.getCell(r, 6).value = harga ? "belum berharga" : "";
+        ws.getCell(r, 6).font = { size: 9, italic: true, color: { argb: WARNA.teksRedup } };
+      }
+
+      ws.getCell(r, 7).value = k.dariBaris;
+      ws.getCell(r, 8).value = k.janggal
         ? "kategori janggal — terdaftar sebagai upah di berkas AHSP padahal satuannya satuan bahan"
         : "";
       if (k.janggal) {
-        ws.getCell(r, 6).font = { size: 9, color: { argb: WARNA.negatif } };
+        ws.getCell(r, 8).font = { size: 9, color: { argb: WARNA.negatif } };
         ws.getCell(r, 2).font = { size: 10, color: { argb: WARNA.negatif } };
       }
-      ws.getCell(r, 6).alignment = { wrapText: true, vertical: "top" };
-      for (let c = 1; c <= 6; c += 1) {
+      ws.getCell(r, 8).alignment = { wrapText: true, vertical: "top" };
+      for (let c = 1; c <= 8; c += 1) {
         ws.getCell(r, c).border = KOTAK;
         if (ws.getCell(r, c).font === undefined) ws.getCell(r, c).font = { size: 10 };
       }
       ws.getCell(r, 1).alignment = { horizontal: "center" };
       ws.getCell(r, 4).alignment = { horizontal: "center" };
-      ws.getCell(r, 5).alignment = { horizontal: "center" };
+      ws.getCell(r, 7).alignment = { horizontal: "center" };
       no += 1;
       r += 1;
     }
   }
 
   if (rapl.kebutuhan.length === 0) {
-    ws.mergeCells(r, 1, r, 6);
+    ws.mergeCells(r, 1, r, 8);
     ws.getCell(r, 1).value =
       "Belum ada padanan AHSP yang disetujui, jadi belum ada kebutuhan yang bisa diturunkan. Setujui padanan di halaman RAPL lebih dulu.";
     ws.getCell(r, 1).alignment = { wrapText: true };

@@ -244,3 +244,152 @@ export function agregasiKebutuhan(items: ItemUntukRapl[]): HasilRapl {
     nilaiDilewat,
   };
 }
+
+/* ------------------------------------------------------------------ BIAYA */
+
+/**
+ * Harga satuan dasar yang sudah diisi orang, dikunci sama persis dengan kunci
+ * pengelompokan kebutuhan: kategori + nama + satuan (huruf kecil).
+ */
+export type HargaSatuan = {
+  kategori: string;
+  nama: string;
+  satuan: string;
+  /** Rupiah per satuan. */
+  harga: bigint;
+};
+
+export type BarisBiaya = Kebutuhan & {
+  /** null = harganya belum diisi. */
+  harga: bigint | null;
+  /** null selama harganya belum diisi — BUKAN nol. */
+  biaya: bigint | null;
+};
+
+export type HasilBiaya = {
+  baris: BarisBiaya[];
+  /** Total biaya sumber daya yang SUDAH berharga. */
+  totalBiaya: bigint;
+  perKategori: { kategori: string; biaya: bigint; berharga: number; total: number }[];
+  /** Berapa jenis sumber daya yang sudah/belum berharga. */
+  berharga: number;
+  belumBerharga: number;
+};
+
+/** Kunci penjodohan harga ↔ kebutuhan. Satu tempat, supaya tidak pernah beda. */
+export function kunciSumberDaya(kategori: string, nama: string, satuan: string): string {
+  return JSON.stringify([kategori, nama, satuan.trim().toLowerCase()]);
+}
+
+/**
+ * Kalikan kebutuhan dengan harga satuan dasar.
+ *
+ *     biaya(sumber daya) = kebutuhan × harga satuan
+ *
+ * Sumber daya yang BELUM berharga bernilai `null`, bukan nol. Nol berarti
+ * "gratis" dan akan diam-diam mengecilkan total; null berarti "belum diketahui"
+ * dan memaksa angkanya dilaporkan sebagai belum lengkap. Ini pembeda yang sama
+ * dengan volume kosong di atas, dan alasannya sama: total yang terlihat rapi
+ * padahal separuh isinya belum berharga adalah cara paling mudah salah menawar.
+ */
+export function hitungBiaya(kebutuhan: Kebutuhan[], harga: HargaSatuan[]): HasilBiaya {
+  const peta = new Map(harga.map((h) => [kunciSumberDaya(h.kategori, h.nama, h.satuan), h.harga]));
+
+  const baris: BarisBiaya[] = kebutuhan.map((k) => {
+    const h = peta.get(kunciSumberDaya(k.kategori, k.nama, k.satuan)) ?? null;
+    return {
+      ...k,
+      harga: h,
+      // Dibulatkan ke rupiah penuh: uang di sistem ini BigInt, dan pecahan
+      // rupiah tidak pernah ada di penawaran.
+      biaya: h === null ? null : BigInt(Math.round(k.jumlah * Number(h))),
+    };
+  });
+
+  const perKategoriPeta = new Map<string, { biaya: bigint; berharga: number; total: number }>();
+  let totalBiaya = 0n;
+  let berharga = 0;
+  for (const b of baris) {
+    const a = perKategoriPeta.get(b.kategori) ?? { biaya: 0n, berharga: 0, total: 0 };
+    a.total += 1;
+    if (b.biaya !== null) {
+      a.biaya += b.biaya;
+      a.berharga += 1;
+      totalBiaya += b.biaya;
+      berharga += 1;
+    }
+    perKategoriPeta.set(b.kategori, a);
+  }
+
+  return {
+    baris,
+    totalBiaya,
+    perKategori: [...perKategoriPeta.entries()]
+      .map(([kategori, v]) => ({ kategori, ...v }))
+      .sort(
+        (a, b) =>
+          (URUTAN_KATEGORI[a.kategori] ?? 9) - (URUTAN_KATEGORI[b.kategori] ?? 9) ||
+          a.kategori.localeCompare(b.kategori, "id"),
+      ),
+    berharga,
+    belumBerharga: baris.length - berharga,
+  };
+}
+
+export type Perbandingan = {
+  /** Total biaya pelaksanaan menurut RAPL (hanya yang sudah berharga). */
+  biayaRapl: bigint;
+  /** Nilai kontrak / HPS yang dibandingkan. */
+  nilaiKontrak: bigint;
+  /** kontrak − RAPL. Positif = kontrak lebih besar. */
+  selisih: bigint;
+  /** selisih ÷ kontrak × 100. */
+  selisihPersen: number;
+  /**
+   * Seberapa boleh dipercaya perbandingan ini: hasil kali cakupan pemetaan dan
+   * cakupan harga. Perbandingan tanpa angka ini adalah angka yang menyesatkan.
+   */
+  keandalan: {
+    /** % nilai RAB yang masuk hitungan kebutuhan. */
+    cakupanNilai: number;
+    /** % jenis sumber daya yang sudah berharga. */
+    cakupanHarga: number;
+    /** true = kedua cakupan penuh; hanya saat itu selisihnya berarti apa adanya. */
+    utuh: boolean;
+  };
+};
+
+/**
+ * Bandingkan biaya RAPL dengan nilai kontrak.
+ *
+ * Yang dikembalikan SELALU membawa `keandalan`. Selisih Rp1,5 M yang dihitung
+ * dari 72% nilai RAB dan 40% sumber daya berharga BUKAN keuntungan Rp1,5 M —
+ * ia angka setengah jadi, dan menyajikannya telanjang adalah cara sistem ini
+ * bisa menyebabkan orang salah menawar.
+ */
+export function bandingkanDenganKontrak(args: {
+  biayaRapl: bigint;
+  nilaiKontrak: bigint;
+  nilaiRabTerhitung: bigint;
+  nilaiRabTotal: bigint;
+  sumberDayaBerharga: number;
+  sumberDayaTotal: number;
+}): Perbandingan {
+  const selisih = args.nilaiKontrak - args.biayaRapl;
+  const cakupanNilai =
+    args.nilaiRabTotal > 0n ? (Number(args.nilaiRabTerhitung) / Number(args.nilaiRabTotal)) * 100 : 0;
+  const cakupanHarga =
+    args.sumberDayaTotal > 0 ? (args.sumberDayaBerharga / args.sumberDayaTotal) * 100 : 0;
+  return {
+    biayaRapl: args.biayaRapl,
+    nilaiKontrak: args.nilaiKontrak,
+    selisih,
+    selisihPersen:
+      args.nilaiKontrak > 0n ? (Number(selisih) / Number(args.nilaiKontrak)) * 100 : 0,
+    keandalan: {
+      cakupanNilai,
+      cakupanHarga,
+      utuh: cakupanNilai >= 99.95 && cakupanHarga >= 99.95,
+    },
+  };
+}

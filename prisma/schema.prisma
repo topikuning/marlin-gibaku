@@ -388,6 +388,7 @@ model User {
   devicePermissions DevicePermission[]
   rabApprovals      RabRevisionApproval[]
   ahspPadanan       AhspPadanan[]         @relation("AhspPadananDecider")
+  hsdDiubah         HargaSatuanDasar[]    @relation("HsdUpdater")
 
   @@index([orgId])
   @@index([role])
@@ -830,6 +831,7 @@ model Location {
   updatedAt DateTime       @updatedAt @map("updated_at") @db.Timestamptz
 
   package             Package                 @relation(fields: [packageId], references: [id])
+  hargaSatuanDasar    HargaSatuanDasar[]
   statusHistory       LocationStatusHistory[]
   assignments         LocationAssignment[]
   rabRevisions        RabRevision[]
@@ -2099,4 +2101,42 @@ model AhspPadanan {
   @@index([entryId])
   @@index([metode])
   @@map("ahsp_padanan")
+}
+
+/// HARGA SATUAN DASAR (HSD) per lokasi — DECISIONS 327.
+///
+/// Kunci `(locationId, kategori, nama, satuan)` sengaja SAMA PERSIS dengan kunci
+/// pengelompokan kebutuhan di `rapl-calc.ts`. Harga yang tidak bisa dijodohkan
+/// dengan barisnya sendiri tidak ada gunanya, dan menjodohkan lewat nama yang
+/// "mirip" adalah cara paling cepat memasang harga semen pada besi.
+///
+/// PER LOKASI, bukan per paket atau nasional: harga pasir di Demak dan di
+/// Sumenep memang berbeda, dan itu justru yang membuat RAPL berguna. Harga dari
+/// lokasi lain hanya ditawarkan sebagai REKOMENDASI yang harus dipilih orang —
+/// tidak pernah dipakai diam-diam.
+model HargaSatuanDasar {
+  id         String   @id @default(uuid()) @db.Uuid
+  locationId String   @map("location_id") @db.Uuid
+  /// upah | bahan | alat | fasilitas — apa adanya dari komponen AHSP.
+  kategori   String
+  /// Nama sumber daya PERSIS seperti pada komponen AHSP.
+  nama       String
+  satuan     String
+  /// Rupiah per satuan. BigInt seperti seluruh uang di sistem ini.
+  harga      BigInt
+  /// Dari mana harganya: survei toko, penawaran suplier, kontrak sebelumnya.
+  /// Bukan hiasan — harga tanpa asal tidak bisa dipertahankan saat diperiksa.
+  sumber     String?
+  catatan    String?
+  updatedById String? @map("updated_by_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  location  Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  updatedBy User?    @relation("HsdUpdater", fields: [updatedById], references: [id])
+
+  @@unique([locationId, kategori, nama, satuan])
+  @@index([locationId])
+  @@index([kategori, nama, satuan])
+  @@map("harga_satuan_dasar")
 }

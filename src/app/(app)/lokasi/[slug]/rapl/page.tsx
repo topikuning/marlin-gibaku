@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Download } from "lucide-react";
+import { Download, Printer } from "lucide-react";
 import { Banner, ButtonLink, Card, CardBody, CardHeader } from "@/components/ui";
 import { can } from "@/lib/authz";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
@@ -8,10 +8,12 @@ import { ringkasAhsp } from "@/lib/ahsp/import";
 import { keadaanPadanan } from "@/lib/ahsp/padanan";
 import { hitungTahap, kelompokkanPerUraian } from "@/lib/ahsp/kelompok";
 import { simulasiRapl } from "@/lib/ahsp/rapl";
+import { keadaanHarga } from "@/lib/ahsp/hsd";
 import { requireLocationPage } from "../get-location";
 import { PadananPanel, type BarisUraianRow } from "./padanan-panel";
 import { SimulasiKebutuhan } from "./simulasi-kebutuhan";
 import { Stepper, type TahapView } from "./stepper";
+import { HargaPanel, RingkasBiaya, type BarisHargaRow } from "./harga-panel";
 import { Kenapa } from "./kenapa";
 
 export const metadata: Metadata = { title: "RAPL" };
@@ -37,10 +39,13 @@ export default async function RaplPage({ params }: { params: Promise<{ slug: str
   const canManage = can(user.role, "rab.manage");
   const canExport = can(user.role, "report.export");
 
-  const [basis, { baris, cakupan }, rapl] = await Promise.all([
+  const canInput = can(user.role, "finance.input");
+
+  const [basis, { baris, cakupan }, rapl, harga] = await Promise.all([
     ringkasAhsp(),
     keadaanPadanan(location.id),
     simulasiRapl(location.id),
+    keadaanHarga(location.id),
   ]);
 
   const uraian = kelompokkanPerUraian(baris);
@@ -76,6 +81,32 @@ export default async function RaplPage({ params }: { params: Promise<{ slug: str
     ahspTanpaKomponen: u.ahsp ? u.ahsp.jumlahKomponen === 0 : false,
     ahspPerluVerifikasi: u.ahsp?.perluVerifikasi ?? false,
   }));
+
+  /*
+   * Urutan pengisian harga: yang BELUM berharga lebih dulu, lalu dari kebutuhan
+   * terbesar. Mengisi 20 baris teratas biasanya sudah menutup sebagian besar
+   * nilai; daftar tanpa urutan membuat orang berhenti di baris kesepuluh.
+   */
+  const barisHarga: BarisHargaRow[] = [...harga.baris]
+    .sort(
+      (a, b) =>
+        Number(a.harga !== null) - Number(b.harga !== null) || b.jumlah - a.jumlah,
+    )
+    .map((h) => ({
+      kategori: h.kategori,
+      nama: h.nama,
+      satuan: h.satuan,
+      jumlah: h.jumlah,
+      harga: h.harga === null ? null : h.harga.toString(),
+      biaya: h.biaya === null ? null : h.biaya.toString(),
+      sumber: h.sumber,
+      rekomendasi: h.rekomendasi.map((r) => ({
+        harga: r.harga.toString(),
+        lokasi: r.lokasi,
+        kabupaten: r.kabupaten,
+        seKabupaten: r.seKabupaten,
+      })),
+    }));
 
   // Saringan pembuka mengikuti tahap yang sedang aktif — bukan tebakan yang
   // sering membuka ke daftar kosong.
@@ -151,12 +182,18 @@ export default async function RaplPage({ params }: { params: Promise<{ slug: str
           title="3 · Kebutuhan sumber daya"
           subtitle={`Dari padanan yang sudah disetujui — menutup ${formatPct(pctNilai, 1)} nilai RAB (${formatRupiah(cakupan.nilaiDisetujui)}).`}
           action={
-            canExport ? (
-              <ButtonLink href={`/lokasi/${slug}/rapl/kebutuhan`} variant="secondary" size="sm" unduhan>
-                <Download aria-hidden className="size-3.5" />
-                Unduh Excel
+            <div className="flex flex-wrap items-center gap-2">
+              <ButtonLink href={`/cetak/rapl/${slug}?dari=/lokasi/${slug}/rapl`} variant="secondary" size="sm">
+                <Printer aria-hidden className="size-3.5" />
+                Cetak A4
               </ButtonLink>
-            ) : null
+              {canExport ? (
+                <ButtonLink href={`/lokasi/${slug}/rapl/kebutuhan`} variant="secondary" size="sm" unduhan>
+                  <Download aria-hidden className="size-3.5" />
+                  Unduh Excel
+                </ButtonLink>
+              ) : null}
+            </div>
           }
         />
         <CardBody>
@@ -187,16 +224,49 @@ export default async function RaplPage({ params }: { params: Promise<{ slug: str
 
       <Card>
         <CardHeader
-          title="4 · Harga"
-          subtitle="Belum dikerjakan — harga satuan dasar per lokasi dan perbandingan biaya RAPL vs nilai kontrak."
+          title="4 · Harga satuan dasar & biaya"
+          subtitle={`${harga.berharga} dari ${harga.baris.length} sumber daya sudah berharga · biaya RAPL ${formatRupiah(harga.totalBiaya)}.`}
         />
         <CardBody>
-          <p className="text-[13px] text-ink-muted">
-            Angka di tahap 3 masih VOLUME kebutuhan, belum biaya. Setelah harga satuan dasar per
-            lokasi bisa diisi, tahap ini akan membandingkan total biaya pelaksanaan dengan nilai
-            kontrak — dan perbandingan itu akan selalu ditampilkan bersama angka cakupannya, tidak
-            pernah sebagai total yang seolah lengkap.
-          </p>
+          <Kenapa judul="Kenapa harganya per lokasi, dan kenapa selisihnya belum boleh disebut untung?">
+            Harga pasir di Demak dan di Sumenep memang berbeda — itu justru yang membuat RAPL
+            berguna. Harga dari lokasi lain hanya ditawarkan sebagai bahan pertimbangan, tidak
+            pernah dipakai sendiri. Dan selisih terhadap nilai kontrak baru berarti apa adanya
+            kalau DUA cakupan penuh: seluruh nilai RAB masuk hitungan kebutuhan, dan seluruh sumber
+            daya sudah berharga. Selama belum, biaya yang belum masuk akan mengecilkan selisihnya.
+          </Kenapa>
+
+          <div className="mt-3 space-y-4">
+            <RingkasBiaya
+              totalBiaya={harga.totalBiaya.toString()}
+              berharga={harga.berharga}
+              belumBerharga={harga.belumBerharga}
+              perKategori={harga.perKategori.map((k) => ({
+                kategori: k.kategori,
+                biaya: k.biaya.toString(),
+                berharga: k.berharga,
+                total: k.total,
+              }))}
+              perbandingan={
+                harga.perbandingan
+                  ? {
+                      nilaiKontrak: harga.perbandingan.nilaiKontrak.toString(),
+                      selisih: harga.perbandingan.selisih.toString(),
+                      selisihPersen: harga.perbandingan.selisihPersen,
+                      cakupanNilai: harga.perbandingan.keandalan.cakupanNilai,
+                      cakupanHarga: harga.perbandingan.keandalan.cakupanHarga,
+                      utuh: harga.perbandingan.keandalan.utuh,
+                    }
+                  : null
+              }
+            />
+            <HargaPanel
+              locationId={location.id}
+              slug={slug}
+              canInput={canInput}
+              rows={barisHarga}
+            />
+          </div>
         </CardBody>
       </Card>
     </div>

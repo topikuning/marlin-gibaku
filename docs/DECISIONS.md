@@ -14124,3 +14124,85 @@ manusia, bukan tempelan otomatis.
 membawa jumlah baris + rupiah, urutan dari nilai terbesar, volume kosong tidak
 dipalsukan, tahap aktif = terawal yang bersisa, baris `putus` masuk tahap
 petakan (bukan dianggap selesai), dan daftar kosong tidak mengaku selesai.
+
+---
+
+## 327 · Harga Satuan Dasar, biaya RAPL, dan RAPL yang keluar dari layar (2026-08-16)
+
+Teguran user: *"kita bahas soal input harga material, bahas soal laporan rapl
+ini bukan hanya di layar? mana semua itu? bahkan aku tidak bisa manfaatkan apa
+pun di layar, cetak atau apapun, atau kirim ke manapun. apa sebenarnya yang
+sudah kamu buat?"*
+
+Teguran itu benar. Yang sudah dibangun 317–326 adalah MESINNYA — basis AHSP,
+pencocokan, penurunan kebutuhan — dan berhenti tepat sebelum bagian yang membuat
+mesin itu berguna: harga, dan pintu keluar. Salah urutan; catatan ini menutupnya.
+
+### Harga Satuan Dasar per lokasi
+
+`HargaSatuanDasar` dikunci `(locationId, kategori, nama, satuan)` — **sama persis**
+dengan kunci pengelompokan kebutuhan di `rapl-calc.ts`. Harga yang tidak bisa
+dijodohkan dengan barisnya sendiri tidak ada gunanya, dan menjodohkan lewat nama
+yang "mirip" adalah cara paling cepat memasang harga zak semen pada kilogram.
+
+PER LOKASI, sesuai keputusan user sebelumnya: harga pasir Demak dan Sumenep
+memang berbeda, dan itu justru yang membuat RAPL berguna. Harga dari lokasi lain
+ditawarkan sebagai **rekomendasi yang harus diklik** — sekabupaten lebih dulu,
+lalu sepaket — tidak pernah dipakai diam-diam.
+
+Capability `finance.input`, bukan `rab.manage`: ini memasukkan angka uang yang
+dipakai membandingkan biaya dengan nilai kontrak.
+
+### Yang belum berharga bernilai `null`, bukan nol
+
+Nol berarti "gratis" dan diam-diam mengecilkan total; null berarti "belum
+diketahui" dan memaksa angkanya dilaporkan belum lengkap. Pembeda yang sama
+dengan volume kosong (DECISIONS 320), dan taruhannya lebih besar: di sinilah
+RAPL pertama kali menghasilkan angka yang dipakai orang MENAWAR.
+
+### Perbandingan dengan kontrak SELALU membawa keandalannya
+
+`bandingkanDenganKontrak` tidak pernah mengembalikan selisih telanjang. Ia
+mengembalikan dua cakupan sekaligus — % nilai RAB yang masuk hitungan, dan %
+sumber daya yang sudah berharga — plus penanda `utuh` yang hanya benar bila
+keduanya penuh.
+
+Diukur pada Kedung Mutih dengan 10 harga contoh terisi:
+
+```
+sumber daya        305 · berharga 10 (3,3%)
+cakupan nilai RAB  72,6%
+biaya RAPL         Rp10,14 M
+nilai kontrak      Rp 8,68 M
+selisih            −Rp1,46 M   ← dan ini BUKAN kerugian
+```
+
+Selisih negatif itu justru buktinya: 10 harga contoh dipasang serampangan pada
+sumber daya berkebutuhan terbesar, dan hasilnya langsung melampaui kontrak.
+Angka seperti ini, disajikan telanjang, akan membuat orang membatalkan penawaran
+yang sebenarnya sehat. Karena itu layar dan lembar cetak keduanya menolak
+menyebutnya keuntungan/kerugian selama `utuh` masih false.
+
+### RAPL akhirnya keluar dari layar
+
+- **Cetak A4** `/cetak/rapl/[slug]` — kop, identitas, tabel per kategori, blok
+  tanda tangan tiga pihak. Cakupan ditaruh di ATAS, bukan catatan kaki: lembar
+  ini hidup sendiri setelah keluar dari MARLIN, semua peringatan di layar hilang,
+  dan yang tersisa cuma angka di kertas. Baris yang tak muat (di atas 60 per
+  kategori) DISEBUTKAN jumlahnya, bukan dihilangkan diam-diam.
+- **Unduhan Excel** bertambah kolom HARGA SATUAN dan BIAYA, dengan rumus hidup
+  `C*E` supaya berkas yang diedit orang tetap benar, plus blok biaya +
+  perbandingan di lembar Ringkasan. Sel harga yang belum diisi dibiarkan KOSONG
+  — bukan nol.
+
+**Penjaga.** `tests/unit/rapl-biaya.test.ts` (11). Uji gigi: harga kosong
+dianggap nol → 4 merah; `utuh` selalu true → 2 merah; penjodohan harga lewat
+nama saja → 2 merah.
+
+### Yang MASIH belum ada, dan jangan dianggap selesai
+
+RAPL belum masuk **Report Studio**, belum bisa dikirim **WhatsApp**, belum ikut
+**unggah Drive** otomatis. Tiga pintu keluar itu sudah punya jalurnya sendiri di
+sistem ini (`AiArtifact` lifecycle, `ReportDispatch`, `GDriveJob`) dan RAPL
+tinggal disambungkan — tapi belum dikerjakan. Disebut di sini supaya tidak
+terbaca sebagai sudah beres.

@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { ringkasAhsp } from "@/lib/ahsp/import";
 import { simulasiRapl } from "@/lib/ahsp/rapl";
+import { keadaanHarga } from "@/lib/ahsp/hsd";
 import { buildRaplXlsx } from "@/lib/export/rapl-xlsx";
 import { muatLogoLaporan } from "@/lib/export/logo-laporan";
 
@@ -52,10 +53,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "Tidak punya akses lokasi" }, { status: 403 });
   }
 
-  const [rapl, basis, logo] = await Promise.all([
+  const [rapl, basis, logo, harga] = await Promise.all([
     simulasiRapl(location.id),
     ringkasAhsp(),
     muatLogoLaporan(location.id),
+    keadaanHarga(location.id),
   ]);
   if (!basis) {
     return NextResponse.json(
@@ -78,7 +80,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       dicetakPada: new Date(),
       dicetakOleh: user.fullName,
     },
-    { logo },
+    { logo, harga },
   );
 
   await audit(user.id, "report.export_rapl_xlsx", "location", location.id, {
@@ -87,6 +89,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     barisRab: rapl.barisRab,
     nilaiDipakai: rapl.dipakai.nilai.toString(),
     nilaiRab: rapl.nilaiRab.toString(),
+    biayaRapl: harga.totalBiaya.toString(),
+    sumberDayaBerharga: harga.berharga,
   });
 
   return new NextResponse(new Uint8Array(buffer), {

@@ -38,7 +38,7 @@ lebih dulu — protokol itu wajib, bukan anjuran.
    dicoret); keputusan baru → append `docs/DECISIONS.md`.
 7. **Formula angka hanya boleh ditulis di `src/lib/progress-calc.ts` +
    `src/lib/progress.ts` + `src/lib/finance/calc.ts` +
-   `src/lib/ahsp/rapl-calc.ts` (kebutuhan RAPL, DECISIONS 320).** Komponen,
+   `src/lib/ahsp/rapl-calc.ts` (kebutuhan + biaya RAPL, DECISIONS 320/327).** Komponen,
    PDF, Excel, dan prompt AI dilarang menghitung ulang.
 
 ## Commands
