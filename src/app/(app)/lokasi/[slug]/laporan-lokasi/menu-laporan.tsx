@@ -7,11 +7,13 @@ import {
   sendDailyReportPdfToWaAction,
   sendPeriodReportToWaAction,
   sendPeriodReportPdfToWaAction,
+  sendWeeklyBundleToWaAction,
   type WaActionState,
 } from "@/lib/waha/actions";
 import {
   uploadDailyReportToDriveAction,
   uploadPeriodReportToDriveAction,
+  uploadWeeklyBundleToDriveAction,
   type GDriveActionState,
 } from "@/lib/gdrive/actions";
 
@@ -55,6 +57,15 @@ export function MenuLaporanPeriodik({
   const [waPdf, kirimWaPdf, waPdfPending] = useActionState<WaActionState, FormData>(sendPeriodReportPdfToWaAction, undefined);
   const [waXls, kirimWaXls, waXlsPending] = useActionState<WaActionState, FormData>(sendPeriodReportToWaAction, undefined);
   const [drive, kirimDrive, drivePending] = useActionState<GDriveActionState, FormData>(uploadPeriodReportToDriveAction, undefined);
+  const [waBundel, kirimWaBundel, waBundelPending] = useActionState<WaActionState, FormData>(sendWeeklyBundleToWaAction, undefined);
+  const [driveBundel, kirimDriveBundel, driveBundelPending] = useActionState<GDriveActionState, FormData>(uploadWeeklyBundleToDriveAction, undefined);
+
+  const fdBundel = () => {
+    const f = new FormData();
+    f.set("locationId", locationId);
+    f.set("minggu", String(n));
+    return f;
+  };
 
   const fd = () => {
     const f = new FormData();
@@ -71,7 +82,7 @@ export function MenuLaporanPeriodik({
       ? "Paket belum punya folder Drive"
       : null;
 
-  const pesan = waPdf ?? waXls ?? drive;
+  const pesan = waPdf ?? waXls ?? drive ?? waBundel ?? driveBundel;
 
   const pdf: PilihanBerkas[] = [
     {
@@ -106,7 +117,7 @@ export function MenuLaporanPeriodik({
     {
       label: "Unduh",
       icon: <Download aria-hidden className="size-3.5" />,
-      href: `/api/laporan/periodik/${slug}/${kind}/${n}/xlsx`,
+      href: `/lokasi/${slug}/laporan-lokasi/export?kind=${kind}&n=${n}`,
     },
     {
       label: "Kirim ke WhatsApp",
@@ -154,12 +165,16 @@ export function MenuLaporanPeriodik({
               {
                 label: "Kirim ke WhatsApp",
                 icon: <MessageCircle aria-hidden className="size-3.5" />,
-                disabledReason: "Belum tersedia untuk berkas mingguan",
+                onSelect: () => kirimWaBundel(fdBundel()),
+                disabledReason: alasanWa,
+                loading: waBundelPending,
               },
               {
                 label: "Upload ke Drive",
                 icon: <HardDriveUpload aria-hidden className="size-3.5" />,
-                disabledReason: "Belum tersedia untuk berkas mingguan",
+                onSelect: () => kirimDriveBundel(fdBundel()),
+                disabledReason: alasanDrive,
+                loading: driveBundelPending,
               },
             ]}
           />

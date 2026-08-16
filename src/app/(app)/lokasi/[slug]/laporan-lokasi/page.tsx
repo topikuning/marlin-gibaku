@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarClock, FileText, ListTree, Sheet } from "lucide-react";
+import { CalendarClock, FileText, ListTree, Printer, Sheet } from "lucide-react";
 import { Card, CardBody, CardHeader, EmptyState } from "@/components/ui";
 import { KkpPeriodReport } from "@/components/knmp/kkp-period-report";
 import { ScurveKkpSheet } from "@/components/knmp/scurve-kkp-sheet";
 import { PeriodFilter } from "./period-filter";
+import { MenuBerkas } from "@/components/ui";
 import { MenuLaporanHarian, MenuLaporanPeriodik } from "./menu-laporan";
 import { requireUser, requireLocationAccess } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
@@ -86,29 +87,35 @@ export default async function LaporanLokasiPage({
           subtitle="Mingguan / bulanan — dihitung dari laporan harian terkirim (satu calculation layer)."
           action={
             scheduleBounds ? (
-              // flex-wrap: tiga tombol berjejer melebihi 375px dan akan
-              // MELEBARKAN halaman di ponsel (DECISIONS 217).
-              <div className="flex flex-wrap items-center gap-2">
-                <Link
-                  href={withBackTo(`/cetak/jadwal/${slug}`, `/lokasi/${slug}/laporan-lokasi`)}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-4 text-sm font-medium text-ink transition-colors hover:bg-surface-muted hover:border-border-strong"
-                >
-                  <CalendarClock aria-hidden className="size-4" /> Cetak Jadwal
-                </Link>
-                <a
-                  href={`/lokasi/${slug}/jadwal/export`}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-4 text-sm font-medium text-ink transition-colors hover:bg-surface-muted hover:border-border-strong"
-                >
-                  <Sheet aria-hidden className="size-4" /> Unduh Excel
-                </a>
-                <a
-                  href={`/lokasi/${slug}/jadwal/rincian`}
-                  title="Rincian sampai uraian item: volume, harga satuan, jumlah, dan bobot tiap baris. Kolom jadwalnya adalah jadwal KATEGORI induk — sistem tidak menyimpan jadwal per item."
-                  className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-4 text-sm font-medium text-ink transition-colors hover:bg-surface-muted hover:border-border-strong"
-                >
-                  <ListTree aria-hidden className="size-4" /> Rincian Item
-                </a>
-              </div>
+              // Satu tombol untuk JADWAL, isinya bentuk-bentuknya (DECISIONS 334).
+              // Sebelumnya tiga tombol sejajar, salah satunya berlabel "Unduh
+              // Excel" — persis sama dengan tombol Excel LAPORAN di bawahnya,
+              // padahal isinya jadwal. Label yang sama untuk dua berkas berbeda
+              // adalah cara tercepat orang mengirim yang salah ke PPK.
+              <MenuBerkas
+                label="Jadwal / Time Schedule"
+                icon={<CalendarClock aria-hidden className="size-4" />}
+                pilihan={[
+                  {
+                    label: "Buka untuk dicetak",
+                    icon: <Printer aria-hidden className="size-3.5" />,
+                    href: withBackTo(`/cetak/jadwal/${slug}`, `/lokasi/${slug}/laporan-lokasi`),
+                    hint: "Kurva-S seluruh masa kontrak",
+                  },
+                  {
+                    label: "Unduh Excel",
+                    icon: <Sheet aria-hidden className="size-3.5" />,
+                    href: `/lokasi/${slug}/jadwal/export`,
+                    hint: "Bobot per kategori × minggu",
+                  },
+                  {
+                    label: "Unduh Excel — rincian item",
+                    icon: <ListTree aria-hidden className="size-3.5" />,
+                    href: `/lokasi/${slug}/jadwal/rincian`,
+                    hint: "Sampai uraian item: volume, harga satuan, bobot. Kolom jadwalnya tetap jadwal KATEGORI induk — sistem tidak menyimpan jadwal per item.",
+                  },
+                ]}
+              />
             ) : undefined
           }
         />

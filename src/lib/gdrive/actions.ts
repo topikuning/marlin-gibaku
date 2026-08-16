@@ -301,6 +301,45 @@ export async function uploadDailyReportToDriveAction(
 }
 
 /** Laporan mingguan/bulanan → "4./5. …/<Lokasi>": PDF + Excel. */
+/**
+ * Unggah BERKAS MINGGUAN (sampul + tujuh laporan harian) ke Drive
+ * (DECISIONS 335). Metodenya sama persis dengan laporan periodik; yang berbeda
+ * hanya berkas yang diunggah.
+ */
+export async function uploadWeeklyBundleToDriveAction(
+  _prev: GDriveActionState,
+  formData: FormData,
+): Promise<GDriveActionState> {
+  const parsed = z
+    .object({ locationId: z.uuid(), minggu: z.coerce.number().int().min(1).max(520) })
+    .safeParse({ locationId: formData.get("locationId"), minggu: formData.get("minggu") });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { locationId, minggu } = parsed.data;
+
+  try {
+    const user = await requireCapability("report.export");
+    await requireLocationAccess(user, locationId);
+    const loc = await db.location.findUnique({ where: { id: locationId }, select: { slug: true } });
+
+    const { unggahBerkasMingguan } = await import("./kirim");
+    const hasil = await unggahBerkasMingguan({ locationId, minggu, byId: user.id });
+    if (adalahTerhalang(hasil)) return { error: hasil.error };
+    if (adalahBatal(hasil)) return { error: hasil.batal };
+
+    await audit(user.id, "gdrive.upload", "location", locationId, {
+      kind: "berkas_mingguan",
+      minggu,
+      files: hasil.outcomes.reduce((s, o) => s + o.ok, 0),
+    });
+    if (loc) revalidatePath(`/lokasi/${loc.slug}/laporan-lokasi`);
+    return hasil.galat
+      ? { error: `${hasil.ringkas} Penyebab: ${hasil.galat.pesan}` }
+      : { success: hasil.ringkas };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
 export async function uploadPeriodReportToDriveAction(
   _prev: GDriveActionState,
   formData: FormData,

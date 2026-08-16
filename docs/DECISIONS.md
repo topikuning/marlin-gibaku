@@ -14671,14 +14671,17 @@ benar tanpa satu baris JS pun.
 "Paket belum punya grup WA", "Google Drive belum terhubung". Tombol redup tanpa
 keterangan membuat orang mengira aplikasinya rusak, bukan syaratnya kurang.
 
-### Lubang yang baru ketahuan karena perapian ini
+### ~~Lubang~~ yang ternyata bukan lubang — dan duplikat yang saya buat sendiri
 
-Excel laporan periodik **tidak punya cara diunduh sama sekali** — ia hanya bisa
-keluar lewat kirim-WhatsApp atau unggah-Drive. Berkasnya sudah lama dibangun
-`buildPeriodReportXlsx`; yang tidak ada cuma pintunya. Begitu tiap berkas
-ditanya "mau diapakan?", lubangnya langsung terlihat. Ditambahkan
-`/api/laporan/periodik/[slug]/[kind]/[n]/xlsx`, gerbangnya sama dengan unduhan
-PDF (`report.export` ditegakkan di route, bukan cuma menyembunyikan tombol).
+Saya sempat menyimpulkan Excel laporan periodik tidak punya cara diunduh, lalu
+membuat rute `/api/laporan/periodik/[slug]/[kind]/[n]/xlsx`. **Salah**: rutenya
+sudah ada sejak lama di `/lokasi/[slug]/laporan-lokasi/export?kind=&n=`, dipakai
+tombol "Unduh Excel" di baris saringan. Rute baru itu **dibatalkan dan dihapus**;
+menu menunjuk yang sudah ada.
+
+Pelajarannya: sebelum menambah pintu, cari dulu pintunya. Keberatan user
+2026-08-16: *"begitu pula excel, kalau memang sudah ada, kenapa harus ada double
+seperti itu."*
 
 ### Pertanyaan user: cetak vs unduh PDF menghasilkan hal yang sama?
 
@@ -14694,3 +14697,59 @@ Untuk sekarang keduanya tetap ada, dan menu menyebutkan hubungannya apa adanya
 ("Versi layar dokumen yang sama — lalu Ctrl+P"). Menyatukannya (cetak = buka PDF)
 adalah perubahan yang benar tapi bukan perubahan kecil, dan itu keputusan user —
 dicatat di OPEN_ISSUES sebagai CETAK-01, bukan dikerjakan diam-diam.
+
+---
+
+## 335 — Berkas mingguan ikut jalur WhatsApp & Drive; tombol ganda dibersihkan (2026-08-16)
+
+Dua teguran user, keduanya menunjuk pemborosan saya sendiri.
+
+### (a) "ngapain perlu tambahan, itu kan metode yang sama hanya filenya yang berbeda"
+
+Saya menandai Kirim-WA dan Upload-Drive untuk berkas mingguan sebagai "belum
+tersedia" **tanpa memeriksa dulu**. Setelah diperiksa: benar, pipanya memang
+generik. `sendPeriodReportPdfToWaAction` hanya merangkai `resolveWaChat` →
+`sendFile` → `audit`; `unggahLaporanPeriodik` hanya `konteksUnggah` →
+`uploadBatch` → `rangkum`. Yang berbeda cuma penyaji dan nama berkasnya, dan
+`GDriveUploadKind` ternyata union TS biasa — bukan enum DB, jadi tidak ada
+migrasi sama sekali.
+
+Total tambahannya ~90 baris yang seluruhnya meniru yang sudah ada. Menandainya
+"belum tersedia" jauh lebih mahal daripada mengerjakannya.
+
+Dua hal yang SENGAJA dibedakan dari laporan periodik:
+
+1. **`refKey` Drive berbeda** (`…:berkas-harian-minggu-N`). Keduanya "mingguan
+   ke-n" untuk lokasi yang sama, dan refKey itulah kunci idempotensi unggahan —
+   kalau disamakan, mengunggah salah satu akan terbaca sebagai unggahan yang
+   lain sudah selesai.
+2. **Namanya diawali "Laporan Harian"**, karena isinya memang tujuh laporan
+   HARIAN. Dua berkas berbeda bernama mirip dalam satu folder adalah cara
+   tercepat orang mengirim yang salah ke PPK.
+
+Kekurangan berkas (hari kosong, foto terpotong) ikut **disebut di keterangan
+WhatsApp**, bukan hanya tercetak di kaki halaman: yang menerima di WA membaca
+keterangan lebih dulu.
+
+### (b) "kenapa kamu double, rapikan"
+
+Perapian 334 menambahkan menu tapi **membiarkan tombol lamanya**. Hasilnya
+justru lebih buruk daripada sebelumnya:
+
+| berkas | jalur ganda |
+|---|---|
+| cetak laporan periodik | tombol "Cetak" di baris saringan **dan** "Buka untuk dicetak" di menu |
+| Excel laporan periodik | tombol "Unduh Excel" di baris saringan **dan** "Unduh" di menu Excel |
+| Excel laporan periodik | ditambah lagi rute `/api/…/xlsx` yang saya buat, padahal `/laporan-lokasi/export` sudah ada |
+
+Ketiganya dibersihkan: tombol di baris saringan dihapus, rute duplikat dihapus,
+menu menunjuk rute yang sudah ada. Sekarang **tepat satu jalur per berkas** di
+layar itu.
+
+Tiga tombol jadwal di kepala kartu juga disatukan jadi satu menu
+"Jadwal / Time Schedule". Salah satunya berlabel "Unduh Excel" — persis sama
+dengan tombol Excel LAPORAN di bawahnya, padahal isinya jadwal. Label yang sama
+untuk dua berkas berbeda adalah kesalahan kirim yang menunggu terjadi.
+
+**Pelajarannya, dan ini yang mahal**: perapian yang menambah tanpa membuang
+bukan perapian. Dan sebelum menambah pintu, cari dulu pintunya.
