@@ -1,4 +1,5 @@
 import type { WeekSegment } from "@/lib/scurve/generate";
+import { allocateRounded } from "@/lib/round-alloc";
 
 /**
  * RINCIAN TIME SCHEDULE sampai level ITEM — penyusun barisnya, MURNI (tanpa db,
@@ -59,6 +60,8 @@ export type BarisRincian = {
   bobotPct: number;
   /** Kategori induk (untuk kolom keterangan). Kategori sendiri = namanya. */
   kategori: string;
+  /** lineageKey kategori induk — kunci penyebaran mingguan. */
+  kategoriKey: string | null;
   /** WARISAN dari kategori induk — bukan jadwal item ini sendiri. */
   segments: WeekSegment[];
   /** "M5–M12" / "M5–M8, M11–M14" / "—" bila kategorinya belum dijadwalkan. */
@@ -128,6 +131,7 @@ export function susunRincian(
       amount: n.amount,
       bobotPct: (n.amount / grandTotal) * 100,
       kategori: kat?.name ?? "—",
+      kategoriKey: kat?.lineageKey ?? null,
       segments,
       jadwal: labelJadwal(segments),
     };
@@ -146,4 +150,72 @@ export function totalBobotKategori(rows: BarisRincian[]): number {
 /** Nilai total dari baris kategori — pasangan `totalBobotKategori` untuk kolom Jumlah. */
 export function totalNilaiKategori(rows: BarisRincian[]): number {
   return rows.filter((r) => r.kind === "kategori").reduce((s, r) => s + r.amount, 0);
+}
+
+/** Desimal sel mingguan — sama dengan kolom bobot pada berkas acuan. */
+export const DESIMAL_MINGGU = 4;
+
+/**
+ * Sebarkan bobot tiap ITEM ke kolom minggu, mengikuti profil mingguan KATEGORI
+ * induknya dan sebanding nilainya.
+ *
+ * ### Yang dijamin, dan kenapa itu yang membuat sebaran ini boleh ada
+ *
+ * Σ seluruh item dalam satu kategori pada minggu w = **persis** profil mingguan
+ * kategori itu — dijaga `allocateRounded`, bukan sekadar dibulatkan
+ * sendiri-sendiri. Akibatnya baris RENCANA di kaki berkas, yang di Excel berupa
+ * `=SUM(kolom item)`, menghasilkan kurva-S RESMI yang sama persis dengan
+ * baseline MARLIN. Rinciannya baru; angka yang dipertanggungjawabkan tidak
+ * berubah sedikit pun.
+ *
+ * ### Yang TIDAK dijamin — dan wajib disebut di berkasnya
+ *
+ * Sebaran DI DALAM satu kategori adalah TURUNAN, bukan rencana yang disusun
+ * orang: tiap item dianggap bergerak sebanding nilainya sepanjang jendela
+ * kategorinya. Kenyataannya galian selesai duluan dan finishing belakangan.
+ * Sistem tidak menyimpan jadwal per item (baseline berkunci kategori), jadi
+ * ini satu-satunya sebaran yang bisa diturunkan tanpa mengarang urutan kerja.
+ * DECISIONS 316.
+ *
+ * Pembaginya = Σ item DI BAWAH kategori itu, bukan nilai kategorinya: keduanya
+ * biasanya sama, tapi kalau RAB punya selisih pembulatan, memakai nilai
+ * kategori membuat kolomnya tidak pas.
+ */
+export function sebarMingguan(
+  rows: BarisRincian[],
+  weeklyKategori: Map<string, number[]>,
+  totalWeeks: number,
+): number[][] {
+  const n = Math.max(0, Math.floor(totalWeeks));
+  const kosong = (): number[] => new Array<number>(n).fill(0);
+  const hasil: number[][] = rows.map(() => kosong());
+  if (n === 0) return hasil;
+
+  const perKategori = new Map<string, number[]>();
+  rows.forEach((r, i) => {
+    if (r.kind !== "item" || !r.kategoriKey) return;
+    const arr = perKategori.get(r.kategoriKey) ?? [];
+    arr.push(i);
+    perKategori.set(r.kategoriKey, arr);
+  });
+
+  const skala = 10 ** DESIMAL_MINGGU;
+  for (const [key, idxs] of perKategori) {
+    const profil = weeklyKategori.get(key);
+    if (!profil) continue;
+    const nilai = idxs.map((i) => rows[i].amount);
+    const jumlahNilai = nilai.reduce((s, v) => s + v, 0);
+    if (jumlahNilai <= 0) continue;
+
+    for (let w = 0; w < n; w++) {
+      const target = profil[w] ?? 0;
+      if (target <= 0) continue; // jeda tetap kosong
+      const mentah = nilai.map((v) => (target * v) / jumlahNilai);
+      const dibagi = allocateRounded(mentah, target, skala);
+      idxs.forEach((rowIdx, k) => {
+        hasil[rowIdx][w] = dibagi[k];
+      });
+    }
+  }
+  return hasil;
 }

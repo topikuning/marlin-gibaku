@@ -35,13 +35,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const report = await getPeriodReport(location.id, "mingguan", bounds.currentWeek, { assume: true });
   if (!report) return NextResponse.json({ error: "Jadwal tidak tersedia" }, { status: 404 });
 
-  const rincian = await muatRincianJadwal(location.id);
+  const rincian = await muatRincianJadwal(location.id, report);
   if (!rincian) return NextResponse.json({ error: "RAB aktif belum ada" }, { status: 404 });
 
   const buffer = await buildRincianJadwalXlsx(rincian.rows, report.header, {
     logo: await muatLogoLaporan(location.id),
-    totalWeeks: rincian.totalWeeks,
-    origin: rincian.origin,
+    sheet: rincian.sheet,
+    mingguan: rincian.mingguan,
   });
   await audit(user.id, "report.export_rincian_jadwal_xlsx", "location", location.id, {
     baris: rincian.rows.length,

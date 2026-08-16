@@ -13184,3 +13184,57 @@ giginya: menghapus kalimat peringatan memerahkan 2 uji; membuat TOTAL menjumlah
 semua baris memerahkan 2 uji. Diverifikasi pada data seed sungguhan (Kedung
 Mutih): 1.977 baris — 17 kategori, 54 sub, 249 grup, 1.657 item — Σ bobot
 kategori 100,0000%, berkas 133 KB dalam 287 ms.
+
+### 316a · Tata letak mengikuti BERKAS ACUAN user, dan sebaran per item masuk (2026-08-16)
+
+User mengirim berkas acuan **TIME SCHEDULE PASEBAN** dengan catatan: *"ini adalah
+konsep yang aku maksud, kamu sudah punya format yang bagus, tinggal menyesuaikan
+saja"*.
+
+Berkas itu menjawab pertanyaan yang sebelumnya kutanyakan dan mengubah satu
+keputusan 316: **acuan memang memuat sebaran mingguan PER ITEM.** Kolom
+waktu-nya bukan rentang kategori — tiap item punya angkanya sendiri (ada yang
+dibagi 2 minggu, ada yang rata 20 minggu, ada yang tumpah di satu minggu). Jadi
+pilihan "waktu diwarisi kategori" tadi diambil tanpa acuan ini; setelah melihat
+konsepnya, yang diminta adalah matriksnya.
+
+**Tata letak diambil dari acuan, bukan dikarang:**
+
+```
+A: NO · B–D (gabung): JENIS PEKERJAAN · E: VOL · F: SAT · G: HARGA SATUAN
+H: JUMLAH HARGA · I: BOBOT · J…: minggu, dikelompokkan per BULAN
+```
+
+…lalu baris JUMLAH, dan enam baris kaki RENCANA/REALISASI/DEVIASI ×
+(KEMAJUAN, KUMULATIF) — persis seperti acuan, termasuk font Verdana 10 dan
+format Rupiah/`0.00`.
+
+**Sel berupa RUMUS, seperti acuan.** `JUMLAH HARGA = VOL × HARGA SATUAN`,
+`BOBOT = JUMLAH ÷ $H$total × 100`, `RENCANA = SUM(kolom item)`, kumulatif =
+akumulasi baris rencana. Alasannya bukan gaya: berkas ini DIEDIT orang sipil,
+dan menggeser sebaran satu item harus langsung memperbarui bobot, rencana, dan
+kurvanya. Kalau semuanya angka beku, berkas yang sudah diedit menampilkan kurva
+lama sambil terlihat benar.
+
+**Sebaran per item = turunan, dengan satu jaminan keras.** Tiap item disebar
+sebanding nilainya mengikuti profil mingguan kategorinya, memakai
+`allocateRounded` (largest remainder) sehingga **Σ item dalam satu kategori pada
+minggu w = persis profil kategori itu**. Akibatnya baris RENCANA — yang berupa
+`SUM` kolom item — menghasilkan kurva-S yang sama dengan baseline resmi.
+Rinciannya baru; angka yang dipertanggungjawabkan tidak bergeser. Yang tetap
+TURUNAN dan disebut di kaki berkas: urutan kerja di DALAM satu kategori (galian
+selesai duluan, finishing belakangan) — sistem tidak menyimpannya, jadi sebaran
+sebanding-nilai adalah satu-satunya yang bisa diturunkan tanpa mengarang.
+
+**Nilai simpan baris RENCANA diambil dari sel yang BENAR-BENAR DITULIS**, bukan
+dari kurva resmi — aturan yang sama dengan sheet Time Schedule (DECISIONS 158).
+Sel mingguan dibulatkan 4 desimal; memakai kurva resmi sebagai nilai simpan
+sementara rumusnya `SUM(...)` berarti berkas menampilkan satu angka sebelum
+Excel menghitung ulang dan angka lain sesudahnya. Diukur pada RAB sungguhan:
+selisih per minggu ≤ 0,01 pp terhadap kurva resmi (beda pembulatan yang memang
+sudah ada antara Σ sel kategori dan kurva resmi, bukan dibawa sebaran ini), dan
+**kumulatif akhir keduanya 100,0000%**.
+
+**Verifikasi ulang** pada data seed sungguhan (Kedung Mutih): 1.977 baris ×
+22 minggu, berkas 298 KB dalam 902 ms.
+
