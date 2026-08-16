@@ -60,6 +60,7 @@ export default async function RaplPage({ params }: { params: Promise<{ slug: str
     skor: b.skor,
     meyakinkan: b.meyakinkan,
     catatan: b.catatan,
+    petunjuk: b.petunjuk,
   }));
 
   return (

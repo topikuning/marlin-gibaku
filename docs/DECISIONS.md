@@ -13581,3 +13581,103 @@ akhirnya keluarannya: sebelum disetujui, `kebutuhan` harus KOSONG.
 kabupaten/paket yang sama) dan perbandingan biaya total RAPL vs nilai kontrak.
 Selama cakupan masih 74,7%, perbandingan itu wajib ditampilkan bersama angka
 cakupannya — bukan sebagai total.
+
+---
+
+## 321 · Lapisan istilah AHSP: aturan pencocokan datang dari berkasnya (2026-08-16)
+
+User mengunggah `ahsp_se_djbk_47_2026_master_synced_matching_v2.json` (skema
+2.1.0) — isi koefisiennya nyaris sama dengan v1, tapi ia membawa **lapisan
+pencocokan** yang sebelumnya tidak ada: `search.aliases` + `search.keywords` per
+analisa, dan `matching_engine` berisi padanan istilah, aturan normalisasi,
+aturan penulangan, serta panduan skor.
+
+### Aturannya milik BERKAS, bukan milik MARLIN
+
+Semua padanan disimpan dan dibaca dari berkasnya (`AhspSource.matchingEngine`),
+bukan ditulis sebagai daftar di kode. Berkas itu memerintahkan hal yang sama:
+*"Ekspansi istilah hanya memakai terminology_aliases dan rules yang tersedia;
+jangan menciptakan ekuivalensi teknis baru."* Konsekuensinya disengaja — kalau
+berkasnya diperbarui, aturannya ikut berubah, dan tiap padanan bisa ditelusuri
+ke sumbernya. Terbitan tanpa `matching_engine` menghasilkan aturan KOSONG:
+pencocokan turun mutunya, bukan jatuh ke daftar karangan sendiri.
+
+### Penulangan: tabel keputusan, bukan kemiripan nama
+
+Ini temuan terpentingnya. RAB KNMP memuat **309 baris pembesian senilai
+Rp733,7 juta (9,4% nilai RAB)**, dan sebelum ini pencocok kata memilih:
+
+```
+"Pembesian Besi Beton D13-150 mm secara semi mekanis"  (kg)
+   →  "1 kg Pekerjaan baja pelat secara semi mekanis"   45%
+```
+
+Pekerjaan yang sama sekali berbeda, menang karena kata "baja"/"pelat"/"semi
+mekanis". **56 baris tercocok begitu** — dan sebagai teks, hasilnya tampak
+masuk akal.
+
+Analisa penulangan dibedakan oleh tiga sumbu yang tidak terbaca oleh kemiripan
+nama: elemen struktur, jenis baja, kelas diameter. Berkasnya membawa tabel
+delapan analisa terverifikasi untuk kombinasi itu, jadi keputusannya sekarang
+DITURUNKAN, bukan ditebak. Aturannya diambil apa adanya:
+
+- Notasi `D13` = sinyal BjTS. Simbol `Ø` **tidak menentukan apa pun** —
+  berkasnya: *"jangan menebak jenis baja"* dari simbol diameter.
+- Kelas diameter, bukan diameter persis: AHSP hanya membedakan < 12 mm dan
+  ≥ 12 mm, jadi D10 vs D8 bukan pertentangan, D10 vs D13 baru pertentangan.
+  Kelas yang berlawanan = `hard_reject`, skor nol.
+- Jumlah batang pada "8D10" diabaikan — berkasnya menyebutnya bukan bagian
+  pemilihan kelas diameter.
+- Elemen tak disebut → **tidak memilih**. Berkasnya: *"jangan pilih antara AHSP
+  slab dan AHSP kolom/balok/ring balk/sloof. Periksa heading, parent item,
+  gambar, atau baris BOQ sekitar."*
+
+Hasilnya pada 77 uraian pembesian unik di Kedung Mutih: **77 dari 77 dapat
+kandidat resmi dari tabel** (1 tunggal → dipetakan otomatis, 76 perlu konteks
+dengan 2–4 kandidat yang benar). Barisnya tidak lagi menampilkan padanan salah;
+ia menampilkan sebabnya dan kandidat yang tepat di urutan teratas.
+
+### Kemiripan nama saja tidak boleh disebut meyakinkan
+
+Panduan skor berkasnya memberi kemiripan nama pagu terendah dari semua sinyal
+(`name_similarity_only_max: 15`; satuan 20, ukuran 30, material+mutu 35).
+Diterjemahkan bukan sebagai penolakan melainkan larangan menyebutnya
+MEYAKINKAN: padanan tanpa satu pun bukti teknis (satuan, angka, istilah
+kanonik, kelas diameter) tetap muncul sebagai usulan, tapi tidak pernah lolos
+ke daftar "sudah pasti" tanpa dilihat orang.
+
+### Angkanya TURUN, dan itu memang yang benar
+
+```
+                              terpetakan   % baris   % nilai
+v1 + pencocok kata                 1.084     66,9%     75,8%
+v2 + lapisan alias saja            1.140     70,4%     76,0%
+v2 + alias + aturan penulangan     1.086     67,0%     73,6%
+```
+
+Baris ketiga lebih rendah dari yang kedua karena **56 padanan pembesian yang
+salah sekarang ditolak**. Menaikkan angka dengan mempertahankannya berarti
+menukar 2,4% angka cakupan dengan Rp733 juta pekerjaan yang koefisiennya
+diambil dari analisa yang salah. Cakupan bukan tujuan; ia cuma penanda.
+
+Yang v2 tambahkan dan bertahan: alias menaikkan padanan non-pembesian
+(1.084 → 1.086 setelah pembesian dikeluarkan dari hitungan lama), dan
+**1.945 analisa** kini membawa lapisan pencocokan.
+
+### Yang tidak berubah
+
+v2 **tidak** memperbaiki dua cacat data yang dicatat DECISIONS 320: 334
+komponen bersatuan bahan masih berkategori `upah`, dan 433 analisa masih tanpa
+koefisien terstruktur. Penanda `janggal` tetap berlaku.
+
+**Penjaga.** `tests/unit/ahsp-istilah.test.ts` (17) memakai potongan
+`matching_engine` yang SEBENARNYA, supaya perubahan bentuk berkas memerahkan
+uji alih-alih diam. Termasuk satu uji yang merekam salah-cocok lamanya: tanpa
+aturan istilah, kasus D13 memang jatuh ke "Pekerjaan baja pelat".
+
+Uji gigi: menebak `Ø` jadi BjTP → 2 uji merah; memaksa memilih walau elemen tak
+disebut → 2 uji merah.
+
+**Belum dikerjakan.** `attributes` per record baru ada di 40 dari 5.007 analisa,
+jadi jalur aturan masih terbatas pada penulangan. Bidang lain (beton mutu,
+lapis pondasi, aspal) masih memakai kemiripan nama + satuan.

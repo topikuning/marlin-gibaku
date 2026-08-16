@@ -70,6 +70,7 @@ export async function imporAhspDariSeed(userId: string | null): Promise<HasilImp
       schemaVersion: master.sumber.schemaVersion,
       generatedAt: master.sumber.generatedAt,
       documents: master.sumber.documents as never,
+      matchingEngine: master.sumber.matchingEngine as never,
       fileSha256,
       importedById: userId,
     },
@@ -101,6 +102,8 @@ async function tulisEntri(sourceId: string, entries: EntriAhsp[]): Promise<void>
         tocPdfPage: e.tocPdfPage,
         analysisPdfPage: e.analysisPdfPage,
         excerptId: e.excerptId,
+        aliases: e.aliases,
+        keywords: e.keywords,
       })),
     });
   }
@@ -140,16 +143,19 @@ export type RingkasAhsp = {
   entri: number;
   perluVerifikasi: number;
   komponen: number;
+  /** Analisa yang membawa lapisan pencocokan dari berkasnya (DECISIONS 321). */
+  punyaAlias: number;
 };
 
 /** Keadaan basis AHSP untuk layar Sistem. Null-safe: belum diimpor = `ada:false`. */
 export async function ringkasAhsp(): Promise<RingkasAhsp | null> {
   const s = await db.ahspSource.findUnique({ where: { code: AHSP_SOURCE_CODE } });
   if (!s) return null;
-  const [entri, perluVerifikasi, komponen] = await Promise.all([
+  const [entri, perluVerifikasi, komponen, punyaAlias] = await Promise.all([
     db.ahspEntry.count({ where: { sourceId: s.id } }),
     db.ahspEntry.count({ where: { sourceId: s.id, perluVerifikasi: true } }),
     db.ahspComponent.count({ where: { entry: { sourceId: s.id } } }),
+    db.ahspEntry.count({ where: { sourceId: s.id, NOT: { aliases: { isEmpty: true } } } }),
   ]);
   return {
     ada: true,
@@ -162,5 +168,6 @@ export async function ringkasAhsp(): Promise<RingkasAhsp | null> {
     entri,
     perluVerifikasi,
     komponen,
+    punyaAlias,
   };
 }

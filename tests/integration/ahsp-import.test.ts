@@ -31,14 +31,18 @@ describe("impor AHSP dari seed-data", () => {
     // Angka acuan dari berkas terbitan ini. Kalau berkasnya diganti dan
     // jumlahnya berubah, uji ini SENGAJA memerah — basis perhitungan uang tidak
     // boleh berganti diam-diam.
-    expect(h.total).toBe(5550);
-    expect(h.kanonik).toBe(5003);
-    expect(h.perluVerifikasi).toBe(547);
-    expect(h.komponen.upah + h.komponen.bahan + h.komponen.alat).toBe(29494);
+    expect(h.total).toBe(5552);
+    expect(h.kanonik).toBe(5007);
+    expect(h.perluVerifikasi).toBe(545);
+    expect(h.komponen.upah + h.komponen.bahan + h.komponen.alat).toBe(29522);
+    // Lapisan pencocokan hanya melekat pada records kanonik yang memang
+    // membawanya; supplemental TIDAK ditambal sendiri (DECISIONS 321).
+    expect(h.punyaAlias).toBe(1945);
 
     const r = await ringkasAhsp();
-    expect(r?.entri).toBe(5550);
-    expect(r?.komponen).toBe(29494);
+    expect(r?.entri).toBe(5552);
+    expect(r?.komponen).toBe(29522);
+    expect(r?.punyaAlias).toBe(1945);
     expect(r?.fileSha256).toHaveLength(64);
   }, 300000);
 

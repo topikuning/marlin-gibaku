@@ -7,6 +7,8 @@ import {
   usulkanPadanan,
   type KandidatAhsp,
 } from "./cocok";
+import { bacaAturanIstilah, bacaPenulangan, ATURAN_KOSONG, type AturanIstilah } from "./istilah";
+import { tokenisasiLengkap } from "./cocok";
 
 /**
  * Pemetaan item RAB → analisa AHSP yang TERSIMPAN (DECISIONS 319).
@@ -93,29 +95,45 @@ export async function itemRabAktif(locationId: string): Promise<ItemRabRingkas[]
  * Sekali muat dipakai untuk ribuan item; token-nya di-precompute di
  * `siapkanKandidat`. 5.550 analisa — cukup untuk ditahan di memori satu proses.
  */
-export async function muatKandidat(): Promise<KandidatAhsp[]> {
-  const rows = await db.ahspEntry.findMany({
-    select: {
-      id: true,
-      kode: true,
-      uraian: true,
-      satuan: true,
-      bidang: true,
-      perluVerifikasi: true,
-      _count: { select: { components: true } },
-    },
-  });
-  return siapkanKandidat(
-    rows.map((r) => ({
-      id: r.id,
-      kode: r.kode,
-      uraian: r.uraian,
-      satuan: r.satuan,
-      bidang: r.bidang,
-      perluVerifikasi: r.perluVerifikasi,
-      jumlahKomponen: r._count.components,
-    })),
-  );
+export async function muatKandidat(): Promise<{
+  kandidat: KandidatAhsp[];
+  aturan: AturanIstilah;
+}> {
+  const [rows, sumber] = await Promise.all([
+    db.ahspEntry.findMany({
+      select: {
+        id: true,
+        kode: true,
+        uraian: true,
+        satuan: true,
+        bidang: true,
+        perluVerifikasi: true,
+        aliases: true,
+        _count: { select: { components: true } },
+      },
+    }),
+    // Aturan istilah ikut berkasnya (DECISIONS 321) — kalau terbitannya tidak
+    // membawa `matching_engine`, pencocokan jalan tanpa ekspansi istilah, bukan
+    // dengan daftar padanan karangan MARLIN.
+    db.ahspSource.findFirst({ select: { matchingEngine: true } }),
+  ]);
+  const aturan = sumber?.matchingEngine ? bacaAturanIstilah(sumber.matchingEngine) : ATURAN_KOSONG;
+  return {
+    aturan,
+    kandidat: siapkanKandidat(
+      rows.map((r) => ({
+        id: r.id,
+        kode: r.kode,
+        uraian: r.uraian,
+        satuan: r.satuan,
+        bidang: r.bidang,
+        perluVerifikasi: r.perluVerifikasi,
+        jumlahKomponen: r._count.components,
+        aliases: r.aliases,
+      })),
+      aturan,
+    ),
+  };
 }
 
 export type HasilPemetaan = {
@@ -174,7 +192,7 @@ export async function petakanLokasi(
     return { ...kosong, sudahAda: sudah.size, dijagaKoreksi, belumKetemu: 0 };
   }
 
-  const kandidat = await muatKandidat();
+  const { kandidat, aturan } = await muatKandidat();
   const barisBaru: {
     tanda: string;
     uraianContoh: string;
@@ -189,7 +207,7 @@ export async function petakanLokasi(
   let belumKetemu = 0;
 
   for (const it of perlu) {
-    const u = usulkanPadanan({ uraian: it.name, satuan: it.unit }, kandidat);
+    const u = usulkanPadanan({ uraian: it.name, satuan: it.unit }, kandidat, aturan);
     if (!u) {
       belumKetemu += 1;
       continue;
@@ -268,6 +286,13 @@ export type BarisPadanan = {
   skor: number | null;
   meyakinkan: boolean;
   catatan: string | null;
+  /**
+   * Untuk baris yang BELUM berpadanan: kenapa mesin tidak memutuskan sendiri,
+   * dan apa yang perlu dilihat orang. "Tidak ada padanan" tanpa sebab hanya
+   * memindahkan kebuntuan; dengan sebabnya ia jadi pekerjaan yang bisa
+   * diselesaikan. DECISIONS 321.
+   */
+  petunjuk: string | null;
 };
 
 export type CakupanPadanan = {
@@ -300,6 +325,9 @@ export async function keadaanPadanan(
 ): Promise<{ baris: BarisPadanan[]; cakupan: CakupanPadanan }> {
   const items = await itemRabAktif(locationId);
   const tanda = [...new Set(items.map((i) => i.tanda))];
+
+  const sumber = await db.ahspSource.findFirst({ select: { matchingEngine: true } });
+  const aturan = sumber?.matchingEngine ? bacaAturanIstilah(sumber.matchingEngine) : ATURAN_KOSONG;
 
   const padanan = tanda.length
     ? await db.ahspPadanan.findMany({
@@ -357,6 +385,7 @@ export async function keadaanPadanan(
       skor: p?.skor == null ? null : Number(p.skor),
       meyakinkan: p?.meyakinkan ?? false,
       catatan: p?.catatan ?? null,
+      petunjuk: ahsp ? null : petunjukBaris(it.name, aturan),
     };
   });
 
@@ -396,10 +425,33 @@ export async function keadaanPadanan(
   return { baris, cakupan };
 }
 
+/**
+ * Kenapa satu baris belum berpadanan — sejauh yang benar-benar bisa dikatakan.
+ *
+ * Sekarang baru menjawab untuk pekerjaan penulangan, karena di situlah sebabnya
+ * pasti dan berulang: analisa AHSP membedakan elemen struktur, jenis baja, dan
+ * kelas diameter, sementara uraian RAB lazim hanya menyebut sebagian. Itu fakta
+ * tentang RAB-nya, bukan kegagalan pencocok — dan yang dibutuhkan orang adalah
+ * tahu HARUS MELIHAT APA, bukan sekadar diberi tahu "tidak ketemu".
+ */
+function petunjukBaris(uraian: string, aturan: AturanIstilah): string | null {
+  const t = tokenisasiLengkap(uraian, aturan);
+  const rein = bacaPenulangan(uraian, aturan, {
+    teks: "",
+    istilah: t.istilah,
+    elemen: t.elemen,
+    kelasDiameter: t.kelasDiameter,
+  });
+  if (!rein || rein.kodeKandidat.length === 0) return null;
+  const daftar = rein.kodeKandidat.join(", ");
+  if (!rein.perluKonteks) return `Analisa penulangan yang cocok: ${daftar}.`;
+  return `Pekerjaan penulangan — ${rein.alasan.join("; ")}. Kandidat resmi: ${daftar}. Pilih setelah memastikan konteksnya.`;
+}
+
 /** Kandidat alternatif untuk satu baris — bahan pilihan saat mengoreksi. */
 export async function alternatifPadanan(uraian: string, satuan: string | null) {
-  const kandidat = await muatKandidat();
-  return peringkatPadanan({ uraian, satuan }, kandidat).map((x) => ({
+  const { kandidat, aturan } = await muatKandidat();
+  return peringkatPadanan({ uraian, satuan }, kandidat, 8, aturan).map((x) => ({
     id: x.kandidat.id,
     kode: x.kandidat.kode,
     uraian: x.kandidat.uraian,

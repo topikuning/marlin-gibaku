@@ -41,6 +41,7 @@ export type BarisPadananRow = {
   skor: number | null;
   meyakinkan: boolean;
   catatan: string | null;
+  petunjuk: string | null;
 };
 
 type Kandidat = {
@@ -386,6 +387,9 @@ function BarisPadanan({
               Analisa ini belum punya koefisien terstruktur — tidak bisa dipakai menghitung
               kebutuhan bahan.
             </p>
+          ) : null}
+          {b.petunjuk ? (
+            <p className="mt-0.5 text-[12px] text-ink-muted">{b.petunjuk}</p>
           ) : null}
           {b.ahspPerluVerifikasi ? (
             <p className="mt-0.5 text-[12px] text-warning">

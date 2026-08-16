@@ -14,11 +14,16 @@
  *    itu diam-diam.
  *  - **Rujukan halaman ikut disimpan.** Koefisien tanpa jejak ke halaman
  *    dokumen resminya tidak bisa dipertanggungjawabkan saat diperiksa auditor.
- *  - **Koefisien TIDAK dikarang.** 435 analisa resmi belum punya komponen
+ *  - **Koefisien TIDAK dikarang.** 433 analisa resmi belum punya komponen
  *    terstruktur; semuanya membawa `analysis_excerpt_id`. Yang begini disimpan
  *    TANPA komponen dan ditandai lewat `excerptId` — bukan diisi angka tebakan.
+ *  - **Lapisan pencocokan ikut dibaca** (skema 2.1.0, DECISIONS 321):
+ *    `search.aliases` + `search.keywords` per analisa, dan `matching_engine`
+ *    milik berkas. Aturan padanan istilah ("pembesian = penulangan = besi
+ *    beton") datang DARI berkasnya, bukan dikarang MARLIN — jadi ia ikut
+ *    berganti saat berkasnya diperbarui, dan bisa ditelusuri ke sumbernya.
  *
- * DECISIONS 317.
+ * DECISIONS 317, 321.
  */
 
 export type KomponenAhsp = {
@@ -44,6 +49,10 @@ export type EntriAhsp = {
   tocPdfPage: number | null;
   analysisPdfPage: number | null;
   excerptId: string | null;
+  /** `search.aliases` — istilah lapangan yang menunjuk pekerjaan ini. */
+  aliases: string[];
+  /** `search.keywords` — kata kunci yang sudah dipecah oleh berkasnya. */
+  keywords: string[];
   components: KomponenAhsp[];
 };
 
@@ -54,6 +63,12 @@ export type SumberAhsp = {
   schemaVersion: string;
   generatedAt: Date;
   documents: unknown;
+  /**
+   * `matching_engine` apa adanya: padanan istilah, aturan normalisasi, aturan
+   * penulangan, dan panduan skor. Disimpan supaya aturan pencocokan selalu
+   * seumur dengan berkas koefisiennya — bukan aturan MARLIN yang menua sendiri.
+   */
+  matchingEngine: unknown;
 };
 
 export type MasterAhsp = {
@@ -65,6 +80,8 @@ export type MasterAhsp = {
     kanonik: number;
     perluVerifikasi: number;
     tanpaKomponen: number;
+    /** Berapa analisa yang membawa lapisan pencocokan dari berkasnya. */
+    punyaAlias: number;
     komponen: { upah: number; bahan: number; alat: number };
     bidang: Record<string, number>;
   };
@@ -82,6 +99,17 @@ function teks(v: unknown): string | null {
 
 function bilangan(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+/** Daftar string dari berkas, dibersihkan tanpa menambah apa pun. */
+function daftarTeks(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  const out: string[] = [];
+  for (const x of v) {
+    const t = teks(x);
+    if (t) out.push(t);
+  }
+  return [...new Set(out)];
 }
 
 function bacaKomponen(raw: unknown, urutanCadangan: number): KomponenAhsp | null {
@@ -114,6 +142,12 @@ function bacaEntri(raw: unknown, perluVerifikasi: boolean): EntriAhsp | null {
     string,
     unknown
   >;
+  // `search` hanya ada pada records kanonik; supplemental memang tidak punya
+  // dan itu dibiarkan kosong, bukan ditambal dari uraiannya sendiri.
+  const cari = (typeof o.search === "object" && o.search !== null ? o.search : {}) as Record<
+    string,
+    unknown
+  >;
   const komponenMentah = Array.isArray(o.components) ? o.components : [];
   const components = komponenMentah
     .map((c, i) => bacaKomponen(c, i + 1))
@@ -132,6 +166,8 @@ function bacaEntri(raw: unknown, perluVerifikasi: boolean): EntriAhsp | null {
     divisi: teks(o.divisi),
     notes: teks(o.notes),
     perluVerifikasi,
+    aliases: daftarTeks(cari.aliases),
+    keywords: daftarTeks(cari.keywords),
     lampiran: teks(src.lampiran),
     tocPdfPage: bilangan(src.toc_pdf_page),
     analysisPdfPage: bilangan(src.analysis_pdf_page),
@@ -200,6 +236,7 @@ export function bacaMasterAhsp(raw: unknown, code: string): MasterAhsp {
       schemaVersion: teks(meta.schema_version) ?? "—",
       generatedAt: Number.isNaN(waktu.getTime()) ? new Date() : waktu,
       documents: meta.source_documents ?? {},
+      matchingEngine: o.matching_engine ?? null,
     },
     entries: unik,
     ringkas: {
@@ -207,6 +244,7 @@ export function bacaMasterAhsp(raw: unknown, code: string): MasterAhsp {
       kanonik: unik.filter((e) => !e.perluVerifikasi).length,
       perluVerifikasi: unik.filter((e) => e.perluVerifikasi).length,
       tanpaKomponen,
+      punyaAlias: unik.filter((e) => e.aliases.length > 0).length,
       komponen,
       bidang,
     },

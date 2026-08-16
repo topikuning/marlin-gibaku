@@ -50,6 +50,10 @@ export function AhspPanel({ ringkas }: { ringkas: RingkasAhsp | null }) {
               <dt className="text-[12px]">Perlu verifikasi</dt>
               <dd className="font-medium text-ink">{ringkas.perluVerifikasi.toLocaleString("id-ID")}</dd>
             </div>
+            <div>
+              <dt className="text-[12px]">Punya lapisan pencocokan</dt>
+              <dd className="font-medium text-ink">{ringkas.punyaAlias.toLocaleString("id-ID")}</dd>
+            </div>
           </dl>
           <p className="mt-2 break-all text-[12px] text-ink-muted">
             Versi berkas (sha256): <code className="rounded bg-surface-inset px-1">{ringkas.fileSha256}</code>

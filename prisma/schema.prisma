@@ -530,6 +530,10 @@ model AhspSource {
   documents     Json
   /// sha256 berkas JSON yang benar-benar diimpor.
   fileSha256    String   @map("file_sha256")
+  /// `matching_engine` berkas apa adanya (padanan istilah, aturan penulangan,
+  /// panduan skor). Disimpan supaya aturan pencocokan selalu seumur dengan
+  /// berkas koefisiennya — bukan aturan MARLIN yang menua sendiri. DECISIONS 321.
+  matchingEngine Json?   @map("matching_engine")
   importedAt    DateTime @default(now()) @map("imported_at") @db.Timestamptz
   importedById  String?  @map("imported_by_id") @db.Uuid
 
@@ -567,6 +571,12 @@ model AhspEntry {
   analysisPdfPage Int?    @map("analysis_pdf_page")
   /// Kunci teks halaman sumber — dipakai bila komponennya belum terstruktur.
   excerptId       String? @map("excerpt_id")
+  /// Lapisan pencocokan dari berkasnya (`search.aliases` / `search.keywords`):
+  /// istilah lapangan yang menunjuk pekerjaan ini. Kosong untuk analisa
+  /// supplemental — berkasnya memang tidak memberi, dan itu tidak ditambal
+  /// sendiri. DECISIONS 321.
+  aliases         String[] @default([])
+  keywords        String[] @default([])
 
   source     AhspSource      @relation(fields: [sourceId], references: [id], onDelete: Cascade)
   components AhspComponent[]

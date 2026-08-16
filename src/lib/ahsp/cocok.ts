@@ -24,6 +24,15 @@
  * padanan harus terlihat sebagai lubang, supaya ada yang memperbaikinya.
  */
 
+import {
+  bacaIstilah,
+  bacaPenulangan,
+  ATURAN_KOSONG,
+  type AturanIstilah,
+  type Bacaan,
+  type BacaanPenulangan,
+} from "./istilah";
+
 /** Satuan dinormalkan: RAB memakai m³/m²/m¹, AHSP memakai m3/m2/m'. */
 const SATUAN_KANONIK: Record<string, string> = {
   "m³": "m3", m3: "m3", "meter kubik": "m3", kubik: "m3",
@@ -83,6 +92,46 @@ const KATA_UMUM = new Set([
 
 export type Token = { kata: string[]; angka: string[] };
 
+/** Token + hasil pembacaan istilah (alias, elemen, kelas diameter). */
+export type TokenLengkap = Token & {
+  istilah: Set<string>;
+  elemen: Set<string>;
+  kelasDiameter: string | null;
+};
+
+/**
+ * Tokenisasi yang MELEWATI lapisan istilah dulu (DECISIONS 321).
+ *
+ * "Pekerjaan Pembesian" dan "Penulangan 1 kg" tidak beririsan sebagai teks;
+ * setelah alias berkasnya diterapkan, keduanya sama-sama membawa istilah
+ * kanonik `penulangan`. Alias milik analisa (`search.aliases`) ikut disatukan
+ * supaya istilah lapangan pada sisi AHSP juga terbaca.
+ */
+export function tokenisasiLengkap(
+  raw: string,
+  aturan: AturanIstilah,
+  aliasTambahan: string[] = [],
+): TokenLengkap {
+  const bacaan: Bacaan = bacaIstilah(raw, aturan);
+  const dasar = tokenisasi(raw);
+  const istilah = new Set(bacaan.istilah);
+  for (const a of aliasTambahan) {
+    for (const [frasa, kanonik] of aturan.padanan) {
+      if (a.toLowerCase().includes(frasa)) istilah.add(kanonik);
+    }
+  }
+  // Istilah kanonik ikut jadi token kata: dua uraian yang cuma sepakat lewat
+  // alias tetap punya irisan yang bisa diukur.
+  const kata = [...new Set([...dasar.kata, ...[...istilah].map((i) => i.replace(/ /g, ""))])];
+  return {
+    kata,
+    angka: dasar.angka,
+    istilah,
+    elemen: bacaan.elemen,
+    kelasDiameter: bacaan.kelasDiameter,
+  };
+}
+
 /**
  * Pecah uraian jadi token kata + token ANGKA (dipisah, karena bobotnya beda).
  *
@@ -129,7 +178,7 @@ export type KandidatAhsp = {
   bidang: string;
   perluVerifikasi: boolean;
   punyaKomponen: boolean;
-  token: Token;
+  token: TokenLengkap;
   satuanNorm: string;
 };
 
@@ -154,12 +203,85 @@ export type Usulan = {
 };
 
 /**
+ * Jalur ATURAN untuk pekerjaan penulangan (DECISIONS 321).
+ *
+ * Analisa penulangan dibedakan oleh elemen struktur + jenis baja + kelas
+ * diameter, dan tak satu pun terbaca oleh kemiripan nama. Berkas masternya
+ * membawa tabel delapan analisa yang sudah diverifikasi untuk kombinasi itu —
+ * jadi di sini keputusannya DITURUNKAN dari tabel, bukan ditebak dari teks.
+ *
+ * Diukur pada RAB Kedung Mutih sebelum jalur ini ada: "Pembesian Besi Beton
+ * D13-150 mm secara semi mekanis" menang ke "1 kg Pekerjaan baja pelat secara
+ * semi mekanis" — pekerjaan yang sama sekali lain.
+ */
+function usulkanLewatAturanPenulangan(
+  item: ItemRab,
+  token: TokenLengkap,
+  kandidat: KandidatAhsp[],
+  aturan: AturanIstilah,
+): { usulan: Usulan | null; kodeKandidat: string[] } | null {
+  const rein: BacaanPenulangan | null = bacaPenulangan(item.uraian, aturan, {
+    teks: "",
+    istilah: token.istilah,
+    elemen: token.elemen,
+    kelasDiameter: token.kelasDiameter,
+  });
+  if (!rein || rein.kodeKandidat.length === 0) return null;
+
+  const satuan = normalisasiSatuan(item.satuan);
+  const perKode = new Map(kandidat.map((k) => [k.kode, k]));
+  const cocok = rein.kodeKandidat.map((kode) => perKode.get(kode)).filter((k): k is KandidatAhsp => !!k);
+  if (cocok.length === 0) return null;
+
+  /*
+   * SATUAN tetap menentukan. Analisa penulangan bersatuan kg — berkasnya
+   * mengingatkan sendiri bahwa "volume BOQ perlu dikonversi/diambil dari
+   * quantity take-off dalam kg". Item RAB bersatuan batang atau m' tidak boleh
+   * langsung dikalikan koefisien per kg.
+   */
+  const satuanCocok = cocok.filter((k) => satuan !== "" && satuan === k.satuanNorm);
+  const dipakai = satuanCocok.length > 0 ? satuanCocok : cocok;
+
+  if (rein.perluKonteks || dipakai.length !== 1) {
+    // Berkasnya menyuruh menampilkan kandidat dan menandai `needs_context` —
+    // bukan memilih paksa. Jadi TIDAK ada usulan otomatis; kandidatnya tetap
+    // dikembalikan supaya muncul paling atas saat orang mengoreksi.
+    return { usulan: null, kodeKandidat: dipakai.map((k) => k.kode) };
+  }
+
+  const k = dipakai[0];
+  const bagian = [
+    `padanan penulangan dari tabel terverifikasi berkas AHSP (${rein.elemen}/${rein.jenisBaja}/${rein.kelasDiameter})`,
+  ];
+  if (satuanCocok.length === 0) bagian.push(`satuan item ${satuan || "kosong"} ≠ analisa ${k.satuanNorm}`);
+  return {
+    usulan: {
+      kandidat: k,
+      skor: 0.95,
+      meyakinkan: satuanCocok.length > 0,
+      alasan: bagian.join("; "),
+    },
+    kodeKandidat: [k.kode],
+  };
+}
+
+/**
  * Skor 0..1 antara satu item RAB dan satu analisa AHSP.
  *
  * Bobotnya sengaja timpang: kecocokan ANGKA dan SATUAN bisa menjatuhkan skor
  * jauh, karena keduanya yang membedakan pekerjaan yang teksnya nyaris sama.
  */
-export function skorCocok(item: Token, satuanItem: string, k: KandidatAhsp): number {
+export function skorCocok(item: TokenLengkap, satuanItem: string, k: KandidatAhsp): number {
+  /*
+   * TOLAKAN KERAS — panduan berkasnya menyebutnya `hard_reject`: "kelas
+   * diameter bertentangan". AHSP penulangan hanya membedakan < 12 mm dan
+   * ≥ 12 mm, dan kedua kelas itu berbeda koefisien. Kalau dua-duanya menyebut
+   * kelas dan kelasnya berlawanan, tidak ada skor yang boleh menyelamatkannya.
+   */
+  if (item.kelasDiameter && k.token.kelasDiameter && item.kelasDiameter !== k.token.kelasDiameter) {
+    return 0;
+  }
+
   const skorKata = dice(item.kata, k.token.kata);
   if (skorKata === 0) return 0;
   let skor = skorKata;
@@ -190,6 +312,18 @@ export function skorCocok(item: Token, satuanItem: string, k: KandidatAhsp): num
     else skor *= 0.55;
   }
 
+  // Kelas diameter yang SEPAKAT adalah bukti teknis, bukan kemiripan nama —
+  // panduan berkasnya memberinya bobot besar (`diameter_or_size_match`).
+  if (item.kelasDiameter && k.token.kelasDiameter && item.kelasDiameter === k.token.kelasDiameter) {
+    skor = Math.min(1, skor + 0.1);
+  }
+  // Elemen struktur yang bertentangan (slab vs frame) bukan variasi penulisan:
+  // koefisiennya memang berbeda analisa.
+  if (item.elemen.size > 0 && k.token.elemen.size > 0) {
+    const sama = [...item.elemen].some((e) => k.token.elemen.has(e));
+    skor = sama ? Math.min(1, skor + 0.08) : skor * 0.5;
+  }
+
   // Analisa yang menurut sumbernya sendiri perlu diverifikasi tidak boleh
   // menang tipis dari analisa kanonik.
   if (k.perluVerifikasi) skor *= 0.85;
@@ -203,27 +337,90 @@ export function skorCocok(item: Token, satuanItem: string, k: KandidatAhsp): num
  * Usulkan padanan terbaik. `null` = tidak ada yang cukup meyakinkan — dan itu
  * jawaban yang sah, lihat catatan di kepala berkas.
  */
-export function usulkanPadanan(item: ItemRab, kandidat: KandidatAhsp[]): Usulan | null {
-  const token = tokenisasi(item.uraian);
+export function usulkanPadanan(
+  item: ItemRab,
+  kandidat: KandidatAhsp[],
+  aturan: AturanIstilah = ATURAN_KOSONG,
+): Usulan | null {
+  const token = tokenisasiLengkap(item.uraian, aturan);
   if (token.kata.length === 0) return null;
+
+  // Jalur aturan lebih dulu: kalau berkasnya sudah memberi tabel keputusan,
+  // kemiripan nama tidak berhak ikut bicara.
+  const lewatAturan = usulkanLewatAturanPenulangan(item, token, kandidat, aturan);
+  if (lewatAturan) return lewatAturan.usulan;
+
   const satuan = normalisasiSatuan(item.satuan);
 
   let terbaik: { k: KandidatAhsp; s: number } | null = null;
   let kedua = 0;
+  let keduaK: KandidatAhsp | null = null;
   for (const k of kandidat) {
     const s = skorCocok(token, satuan, k);
     if (!terbaik || s > terbaik.s) {
-      if (terbaik) kedua = terbaik.s;
+      if (terbaik) {
+        kedua = terbaik.s;
+        keduaK = terbaik.k;
+      }
       terbaik = { k, s };
     } else if (s > kedua) {
       kedua = s;
+      keduaK = k;
     }
   }
   if (!terbaik || terbaik.s < AMBANG_COCOK) return null;
 
-  const meyakinkan = terbaik.s - kedua >= AMBANG_YAKIN;
   const bagian = [`skor ${(terbaik.s * 100).toFixed(0)}%`];
+  let meyakinkan = terbaik.s - kedua >= AMBANG_YAKIN;
   if (!meyakinkan) bagian.push("beda tipis dengan kandidat lain — perlu diperiksa");
+
+  /*
+   * KEMIRIPAN NAMA SAJA TIDAK CUKUP.
+   *
+   * Panduan berkasnya memberi kemiripan nama pagu skor terendah dari semua
+   * sinyal (`name_similarity_only_max: 15`, sementara satuan 20, ukuran 30,
+   * material+mutu 35) dan menegaskan: *"Saring kandidat berdasarkan
+   * spesifikasi teknis dan satuan. Kemiripan nama saja tidak cukup."*
+   *
+   * Di sini itu diterjemahkan bukan sebagai penolakan — melainkan sebagai
+   * larangan menyebutnya MEYAKINKAN. Padanan tanpa satu pun bukti teknis
+   * (satuan, angka, istilah kanonik, kelas diameter) tetap ditampilkan sebagai
+   * usulan, tapi tidak boleh lolos ke daftar "sudah pasti" tanpa dilihat orang.
+   */
+  const buktiTeknis =
+    (satuan !== "" && satuan === terbaik.k.satuanNorm) ||
+    (token.angka.length > 0 && terbaik.k.token.angka.some((a) => token.angka.includes(a))) ||
+    [...token.istilah].some((i) => terbaik!.k.token.istilah.has(i)) ||
+    (token.kelasDiameter !== null && token.kelasDiameter === terbaik.k.token.kelasDiameter);
+  if (!buktiTeknis) {
+    meyakinkan = false;
+    bagian.push("cocok dari kemiripan nama saja — tanpa bukti satuan/ukuran/istilah");
+  }
+
+  /*
+   * ATURAN AMBIGUITAS PENULANGAN, langsung dari berkasnya: *"Jika uraian hanya
+   * menyebut pembesian/besi beton dan diameter tanpa elemen struktur, jangan
+   * pilih antara AHSP slab dan AHSP kolom/balok/ring balk/sloof."* Pekerjaan
+   * pembesian pelat dan pembesian kolom memakai analisa berbeda; RAB yang tidak
+   * menyebut elemennya tidak bisa diputuskan dari teksnya sendiri.
+   */
+  const soalPenulangan = [...token.istilah].some((i) => aturan.penulangan.has(i));
+  if (soalPenulangan && token.elemen.size === 0) {
+    const bedaElemen =
+      terbaik.k.token.elemen.size > 0 &&
+      keduaK !== null &&
+      keduaK.token.elemen.size > 0 &&
+      ![...terbaik.k.token.elemen].some((e) => keduaK!.token.elemen.has(e));
+    if (terbaik.k.token.elemen.size > 0) {
+      meyakinkan = false;
+      bagian.push(
+        bedaElemen
+          ? "uraian tidak menyebut elemen struktur, kandidatnya beda elemen — periksa gambar/parent item"
+          : "uraian tidak menyebut elemen struktur — periksa gambar/parent item",
+      );
+    }
+  }
+
   if (terbaik.k.perluVerifikasi) bagian.push("analisa perlu verifikasi");
   if (!terbaik.k.punyaKomponen) bagian.push("analisa belum punya koefisien terstruktur");
   return { kandidat: terbaik.k, skor: terbaik.s, meyakinkan, alasan: bagian.join("; ") };
@@ -243,15 +440,27 @@ export function peringkatPadanan(
   item: ItemRab,
   kandidat: KandidatAhsp[],
   batas = 8,
+  aturan: AturanIstilah = ATURAN_KOSONG,
 ): { kandidat: KandidatAhsp; skor: number }[] {
-  const token = tokenisasi(item.uraian);
+  const token = tokenisasiLengkap(item.uraian, aturan);
   if (token.kata.length === 0) return [];
   const satuan = normalisasiSatuan(item.satuan);
-  return kandidat
-    .map((k) => ({ kandidat: k, skor: skorCocok(token, satuan, k) }))
-    .filter((x) => x.skor >= AMBANG_LIHAT)
-    .sort((a, b) => b.skor - a.skor)
-    .slice(0, batas);
+
+  // Kandidat dari tabel terverifikasi ditaruh PALING ATAS: saat orang mengoreksi
+  // pembesian, dua-tiga analisa yang benar harus terlihat lebih dulu, bukan
+  // terkubur di bawah kemiripan nama yang kebetulan tinggi.
+  const lewatAturan = usulkanLewatAturanPenulangan(item, token, kandidat, aturan);
+  const kodeUtama = new Set(lewatAturan?.kodeKandidat ?? []);
+
+  const semua = kandidat
+    .map((k) => ({ kandidat: k, skor: kodeUtama.has(k.kode) ? 0.95 : skorCocok(token, satuan, k) }))
+    .filter((x) => kodeUtama.has(x.kandidat.kode) || x.skor >= AMBANG_LIHAT)
+    .sort(
+      (a, b) =>
+        Number(kodeUtama.has(b.kandidat.kode)) - Number(kodeUtama.has(a.kandidat.kode)) ||
+        b.skor - a.skor,
+    );
+  return semua.slice(0, Math.max(batas, kodeUtama.size));
 }
 
 /** Siapkan kandidat sekali, dipakai untuk ribuan item (token di-precompute). */
@@ -264,7 +473,10 @@ export function siapkanKandidat(
     bidang: string;
     perluVerifikasi: boolean;
     jumlahKomponen: number;
+    /** `search.aliases` dari berkasnya; kosong untuk analisa supplemental. */
+    aliases?: string[];
   }[],
+  aturan: AturanIstilah = ATURAN_KOSONG,
 ): KandidatAhsp[] {
   return rows.map((r) => ({
     id: r.id,
@@ -274,7 +486,7 @@ export function siapkanKandidat(
     bidang: r.bidang,
     perluVerifikasi: r.perluVerifikasi,
     punyaKomponen: r.jumlahKomponen > 0,
-    token: tokenisasi(r.uraian),
+    token: tokenisasiLengkap(r.uraian, aturan, r.aliases ?? []),
     satuanNorm: normalisasiSatuan(r.satuan),
   }));
 }
