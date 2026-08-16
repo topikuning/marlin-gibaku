@@ -14435,3 +14435,49 @@ walau stempel disetel selebar penuh kolom, karena pada ketujuh dokumen nyata rem
 selalu memotong lebih dulu sehingga aturan lebarnya tidak pernah teruji di sana.
 Diperbaiki dengan menambahkan kasus kolom sangat sempit — baru kemudian ia
 merah.
+
+---
+
+## 331 — Tanda tangan tidak pernah sampai ke PDF: `Buffer` vs `ArrayBuffer` (2026-08-16)
+
+Ditemukan sesaat setelah 328–330 ter-merge ke `main`, saat menyiapkan pengukuran
+lain. **Cacat saya sendiri, dan kelas cacat yang modul itu sendiri sudah
+memperingatkannya.**
+
+`gambarTtdPdf` menyerahkan `Buffer` ke `doc.image()`. pdfkit yang di-vendor
+(`assets/pdfkit-standalone.cjs`) menyangka argumen semacam itu **nama berkas**
+lalu memanggil `fs.readFileSync`, yang di bundel itu sengaja dikosongkan:
+
+```
+doc.image(<Buffer>)      → TypeError: fs.readFileSync is not a function
+doc.image(<ArrayBuffer>) → berhasil
+```
+
+`try/catch` di `gambarTtdPdf` menelan lemparannya (memang disengaja: satu gambar
+rusak tidak boleh menggagalkan laporan), jadi **tanda tangan & stempel tidak
+pernah muncul di satu pun PDF** — tanpa galat yang terlihat pengguna.
+
+Ini persis kegagalan yang pernah menghilangkan logo dari semua keluaran PDF, dan
+`harian-kkp-lampiran.ts` sudah punya helper `sebagaiArrayBuffer` untuk itu.
+Saya menulis modul baru tanpa memakainya.
+
+### Kenapa 19 uji tidak menangkapnya
+
+`ttd-stempel-cetak.test.ts` menguji **aritmetika ukuran**: 19 uji, semuanya
+hijau, semuanya benar — dan tidak satu pun membuktikan gambarnya sampai ke
+kertas. Angka yang dihitung dengan benar lalu diserahkan ke pemanggil yang
+membuangnya tetap menghasilkan uji hijau.
+
+Dibuktikan: dengan bug-nya dikembalikan, `ttd-stempel-cetak` tetap **19 hijau**,
+sementara uji baru **3 merah**.
+
+### Penjaga yang benar
+
+`tests/unit/ttd-pdf-tertempel.test.ts` (5) tidak memeriksa satu angka pun. Ia
+merender PDF sungguhan lewat `createFormA4Doc` yang dipakai produksi, lalu
+menghitung penanda `/Subtype /Image` di berkas hasilnya — penanda yang hanya
+ditulis pdfkit kalau gambarnya benar-benar diproses.
+
+**Pelajarannya untuk penyaji berikutnya**: uji yang memeriksa masukan sebuah
+fungsi tidak menggantikan uji yang memeriksa keluarannya. Untuk PDF, satu-satunya
+keluaran yang berarti adalah berkas PDF-nya.

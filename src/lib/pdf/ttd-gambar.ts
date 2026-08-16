@@ -116,6 +116,21 @@ export async function muatTtdPdf(locationId: string): Promise<TtdPdf> {
  * Stempel digambar LEBIH DULU supaya coretan berada di atasnya — urutan yang
  * sama dengan penyaji HTML.
  */
+/**
+ * pdfkit yang di-vendor (`assets/pdfkit-standalone.cjs`) TIDAK menerima
+ * `Buffer` — ia menyangka argumennya nama berkas lalu memanggil
+ * `fs.readFileSync`, yang di bundel itu sengaja dikosongkan. Hasilnya
+ * `TypeError` yang ditelan `try/catch` di bawah, dan gambarnya hilang DIAM-DIAM.
+ *
+ * Persis kegagalan senyap yang sudah pernah menghilangkan logo dari semua
+ * keluaran PDF, dan yang sudah diperingatkan di catatan modul ini sendiri —
+ * lalu tetap terulang di sini. Konversinya nol-salinan, sama seperti helper
+ * `sebagaiArrayBuffer` di `harian-kkp-lampiran.ts`.
+ */
+function sebagaiArrayBuffer(b: Buffer): ArrayBuffer {
+  return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
+}
+
 export function gambarTtdPdf(
   doc: PdfDoc,
   berkas: BerkasTtd,
@@ -128,7 +143,7 @@ export function gambarTtdPdf(
       // Turun sedikit melewati garis pijak supaya menimpa baris nama; sisanya
       // melimpah ke atas menutupi baris nama perusahaan.
       doc.image(
-        berkas.stempel,
+        sebagaiArrayBuffer(berkas.stempel),
         xTengah - u.stempel.lebar / 2 - u.geser,
         yDasar + u.turun - u.stempel.tinggi,
         { fit: [u.stempel.lebar, u.stempel.tinggi], align: "center", valign: "bottom" },
@@ -136,7 +151,7 @@ export function gambarTtdPdf(
     }
     if (berkas.ttd) {
       // Coretan berpijak PERSIS di garis nama.
-      doc.image(berkas.ttd, xTengah - u.ttd.lebar / 2, yDasar - u.ttd.tinggi, {
+      doc.image(sebagaiArrayBuffer(berkas.ttd), xTengah - u.ttd.lebar / 2, yDasar - u.ttd.tinggi, {
         fit: [u.ttd.lebar, u.ttd.tinggi],
         align: "center",
         valign: "bottom",
