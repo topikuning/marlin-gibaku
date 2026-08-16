@@ -34,17 +34,26 @@ export const PERSEN_STEMPEL = 56;
 export const PERSEN_TTD = 66;
 
 /**
- * Batas atas terhadap TINGGI celah. Bukan penentu ukuran, hanya rem — tapi rem
- * yang memang sering menggigit: kolom tanda tangan di layar jauh lebih lebar
- * (relatif terhadap ukuran hurufnya) daripada kolom 6–7 cm di kertas A4, jadi
- * aturan persen-lebar sendirian akan melar.
+ * Batas atas terhadap RUANG BLOK TANDA TANGAN — 1,0, alias tidak boleh melebihi
+ * ruangnya sama sekali (DECISIONS 333).
  *
- * Angkanya disetel dari foto dokumen asli: di sana garis tengah stempel ≈ 11×
- * tinggi huruf. 2,3 × celah menghasilkan kira-kira itu pada ketujuh dokumen.
+ * Versi 330 memakai 2,3 × tinggi celah, dan itu cacat: stempel jadi lebih
+ * tinggi daripada blok tanda tangannya sendiri, lalu melimpah ke ATAS menembus
+ * tabel di atasnya. Keberatan user, dengan tangkapan layar: *"stempelmu jangan
+ * melebihi areanya tandatangannya, itu memakan tabel juga."*
+ *
+ * Yang benar: stempel boleh menimpa teks DI DALAM blok tanda tangan (nama
+ * perusahaan, jabatan) — memang begitu dokumen aslinya — tapi tidak boleh
+ * keluar dari blok itu. Karena itu pemanggil menyerahkan `ruangDiAtasNama`,
+ * yaitu jarak dari tepi ATAS blok sampai garis nama, dan stempel dibatasi
+ * tepat sebesar itu.
+ *
+ * Supaya stempelnya tetap sebesar dokumen asli, yang diperbesar adalah BLOKNYA
+ * (lihat penyaji masing-masing), bukan stempel yang dibiarkan melimpah.
  */
-export const BATAS_STEMPEL = 2.3;
+export const BATAS_STEMPEL = 1.0;
 /** Coretan lebih rendah daripada stempel — bandingkan tinggi benda aslinya. */
-export const BATAS_TTD = 1.2;
+export const BATAS_TTD = 0.62;
 
 /** Nisbah lebar : tinggi coretan tanda tangan. Memanjang, bukan bujur sangkar. */
 export const BENTUK_TTD = 2.0;
@@ -80,14 +89,16 @@ export type UkuranTtd = {
  * Turunkan ukuran gambar dari LEBAR kolom tanda tangan, direm tinggi celahnya.
  *
  * @param lebarKolom lebar kolom tanda tangan (px untuk HTML, poin untuk PDF)
- * @param tinggiCelah tinggi ruang tanda tangan — hanya batas atas
+ * @param ruangDiAtasNama jarak dari tepi ATAS blok tanda tangan sampai garis
+ *   nama. Stempel TIDAK PERNAH melebihi ini — itu yang menjaganya tidak
+ *   menembus tabel di atasnya.
  */
-export function ukuranTtd(lebarKolom: number, tinggiCelah: number): UkuranTtd {
+export function ukuranTtd(lebarKolom: number, ruangDiAtasNama: number): UkuranTtd {
   const stempel = Math.round(
-    Math.min((lebarKolom * PERSEN_STEMPEL) / 100, tinggiCelah * BATAS_STEMPEL),
+    Math.min((lebarKolom * PERSEN_STEMPEL) / 100, ruangDiAtasNama * BATAS_STEMPEL),
   );
   const ttdTinggi = Math.round(
-    Math.min((lebarKolom * PERSEN_TTD) / 100 / BENTUK_TTD, tinggiCelah * BATAS_TTD),
+    Math.min((lebarKolom * PERSEN_TTD) / 100 / BENTUK_TTD, ruangDiAtasNama * BATAS_TTD),
   );
   return {
     // Stempel bundar: lebar = tinggi.

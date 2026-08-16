@@ -472,3 +472,19 @@ Kalau nama penanda tangan panjang sampai membungkus dua baris, blok memanjang ke
 bawah sementara gambarnya tetap di tempat lama, sehingga coretan bisa menumpuk
 teks. Belum terlihat pada nama-nama yang ada sekarang. Perbaikan yang benar:
 `gridRow` mengembalikan posisi tiap baris teks, bukan hanya `y` akhir.
+
+## 🟡 CETAK-01 · Dua penyaji untuk satu dokumen: halaman cetak HTML vs PDF (DECISIONS 334)
+
+Laporan periodik, harian, dan rencana mingguan masing-masing punya DUA penyaji
+yang menghasilkan dokumen yang sama: komponen React di `/cetak/...` (di-Ctrl+P
+dari peramban) dan pembangun pdfkit di `lib/pdf/...`. Kodenya sendiri menyebut
+yang kedua *"cermin komponen layar"*.
+
+Risikonya sudah terbukti nyata di repo ini: dua penyaji untuk satu dokumen
+selalu menyimpang (DECISIONS 241, 267), dan yang ketahuan belakangan justru
+sesudah dokumennya dikirim ke PPK.
+
+**Perbaikan yang benar**: tombol "Cetak" cukup membuka PDF-nya, lalu penyaji
+HTML dihapus — satu sumber, mustahil menyimpang. Belum dikerjakan karena
+halaman `/cetak/...` juga dipakai sebagai PRATINJAU di layar (dan pratinjau PDF
+di peramban ponsel lapangan belum dipastikan bisa diandalkan). Keputusan user.

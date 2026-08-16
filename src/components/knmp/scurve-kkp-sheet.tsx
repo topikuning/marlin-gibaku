@@ -287,7 +287,7 @@ function SignBlock({
       {/* 40px = `mt-10` yang dulu dipakai; lembar ini berhuruf 8,5px sehingga
           ruangnya paling sempit — perbandingan stempel:ttd tetap sama karena
           keduanya diturunkan dari angka ini. */}
-      <RuangTtd tinggi={40} ttd={ttd} stempel={stempel} />
+      <RuangTtd tinggi={72} ttd={ttd} stempel={stempel} />
       <div className="font-semibold underline">{name ? `( ${name} )` : "( ................................ )"}</div>
       {sub ? <div>{sub}</div> : null}
     </div>

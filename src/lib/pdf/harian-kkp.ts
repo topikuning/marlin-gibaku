@@ -375,9 +375,9 @@ export function tulisBadanHarian(
   draw([{ text: "CATATAN / KETERANGAN", head: true }], catatan);
   draw([{ text: d.notes || " " }], { ...catatan, minRowHeight: 34 });
 
-  const ttd: GridOptions = { x, width, cols: colWidths(width, [1, 1]), fontSize: 7, minRowHeight: 70 };
+  const ttd: GridOptions = { x, width, cols: colWidths(width, [1, 1]), fontSize: 7, minRowHeight: 94 };
   const blokTtd = (judul: string, peran: string, firm: string | null | undefined, nama: string | null | undefined, sub: string) =>
-    `${judul}\n${peran}${firm ? `\n${firm}` : ""}\n\n\n( ${nama ?? "……………………"} )\n${sub}`;
+    `${judul}\n${peran}${firm ? `\n${firm}` : ""}\n\n\n\n\n( ${nama ?? "……………………"} )\n${sub}`;
   const yTtd = y;
   y = gridRow(
     doc,
@@ -402,19 +402,21 @@ export function tulisBadanHarian(
   const gbr = lampiran?.ttd;
   if (gbr) {
     const [kolomKiri, kolomKanan] = colWidths(width, [1, 1]);
-    const CELAH_TTD_PDF = 34; // poin — rem, bukan penentu ukuran
-    const yDasar = yTtd + 46; // tepat di atas baris nama
+    // Ruang dari tepi ATAS blok sampai garis nama; stempel dibatasi tepat
+    // sebesar ini supaya tidak melimpah keluar blok (DECISIONS 333).
+    const RUANG_TTD_PDF = 70;
+    const yDasar = yTtd + RUANG_TTD_PDF;
     gambarTtdPdf(doc, gbr.pengawas, {
       xTengah: x + kolomKiri / 2,
       yDasar,
       lebarKolom: kolomKiri,
-      tinggiCelah: CELAH_TTD_PDF,
+      ruangDiAtasNama: RUANG_TTD_PDF,
     });
     gambarTtdPdf(doc, gbr.penyedia, {
       xTengah: x + kolomKiri + kolomKanan / 2,
       yDasar,
       lebarKolom: kolomKanan,
-      tinggiCelah: CELAH_TTD_PDF,
+      ruangDiAtasNama: RUANG_TTD_PDF,
     });
   }
 

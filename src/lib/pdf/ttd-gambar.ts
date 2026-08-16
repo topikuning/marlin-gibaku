@@ -108,7 +108,8 @@ export async function muatTtdPdf(locationId: string): Promise<TtdPdf> {
  * Gambar tanda tangan + stempel di TENGAH sebuah kolom tanda tangan.
  *
  * `lebarKolom` yang menentukan ukurannya (lihat lib/export/ttd-ukuran);
- * `tinggiCelah` hanya rem supaya stempel tidak menelan blok di atasnya.
+ * `ruangDiAtasNama` = jarak tepi ATAS blok ke garis nama; stempel tidak
+ * pernah melebihinya, sehingga mustahil menembus tabel di atas blok.
  * `xTengah` = titik tengah kolom, `yDasar` = garis tempat coretan berpijak
  * (tepat di atas baris nama). Semua dalam poin PDF; y tumbuh ke BAWAH, jadi
  * gambar digambar di ATAS `yDasar`.
@@ -134,10 +135,10 @@ function sebagaiArrayBuffer(b: Buffer): ArrayBuffer {
 export function gambarTtdPdf(
   doc: PdfDoc,
   berkas: BerkasTtd,
-  opsi: { xTengah: number; yDasar: number; lebarKolom: number; tinggiCelah: number },
+  opsi: { xTengah: number; yDasar: number; lebarKolom: number; ruangDiAtasNama: number },
 ): void {
-  const { xTengah, yDasar, lebarKolom, tinggiCelah } = opsi;
-  const u = ukuranTtd(lebarKolom, tinggiCelah);
+  const { xTengah, yDasar, lebarKolom, ruangDiAtasNama } = opsi;
+  const u = ukuranTtd(lebarKolom, ruangDiAtasNama);
   try {
     if (berkas.stempel) {
       // Turun sedikit melewati garis pijak supaya menimpa baris nama; sisanya

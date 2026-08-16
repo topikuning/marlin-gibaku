@@ -14588,3 +14588,109 @@ murni `statusBerkasMingguan` dan diuji terpisah.
 **Uji gigi**: sampul dicetak tiap hari (perilaku lama) → 2 merah; hari kosong
 dilewati → 2 merah; nomor minggu digeser satu → 2 merah integrasi + 4 merah unit;
 tanpa SPMK tetap terbit dengan tanggal karangan → 1 merah.
+
+---
+
+## 333 — Stempel dikurung di dalam blok tanda tangannya (2026-08-16)
+
+Keberatan user, dengan tangkapan layar lembar kurva-S:
+
+> *"stempelmu jangan melebihi areanya tandatangannya, itu memakan tabel juga."*
+
+Benar, dan itu akibat langsung dari 330. Di sana stempel dibatasi **2,3 × tinggi
+celah** demi mengejar ukuran foto dokumen asli — artinya ia sengaja dibuat lebih
+tinggi daripada blok tanda tangannya sendiri, lalu melimpah ke ATAS menembus
+tabel di atasnya. Pada PDF periodik: ruang blok 44 pt, stempel 74 pt → 30 pt
+masuk ke tabel.
+
+### Yang benar
+
+Stempel boleh menimpa teks **di dalam** blok tanda tangan (nama perusahaan,
+jabatan) — memang begitu dokumen aslinya — tapi tidak boleh keluar dari blok itu.
+
+```
+stempel = min(56% lebar kolom, ruangDiAtasNama)
+```
+
+`ruangDiAtasNama` = jarak dari tepi ATAS blok sampai garis nama, diserahkan
+pemanggil. `BATAS_STEMPEL` turun 2,3 → **1,0**: tidak boleh melebihi ruangnya
+sama sekali.
+
+### Supaya tetap sebesar dokumen asli, BLOKNYA yang diperbesar
+
+Bukan stempel yang dibiarkan melimpah:
+
+| penyaji | blok lama | blok baru | stempel | ×huruf |
+|---|---|---|---|---|
+| pdf periodik | 66 pt (nama +44) | 90 pt (nama +68) | 68 | 9,1 |
+| pdf harian | 70 pt (nama +46) | 94 pt (nama +70) | 70 | 10,0 |
+| pdf rencana | ruang 48 pt | ruang 72 pt | 72 | 9,6 |
+| html kurva-S | 40 px | 72 px | 72 | 8,5 |
+| html harian | 48 px | 84 px | 84 | 8,4 |
+| html periodik | 48 px | 84 px | 84 | 8,4 |
+| html mingguan | 56 px | 88 px | 88 | 8,8 |
+
+Foto dokumen aslinya 10,8 × tinggi huruf; ketujuhnya kini 8,4–10,0× **dan tidak
+ada yang melimpah**. Ini pertukaran yang benar: sedikit lebih kecil daripada
+foto, tapi tidak pernah memakan tabel.
+
+**Penjaga.** `tests/unit/ttd-stempel-cetak.test.ts` (20). Invarian utamanya
+sekarang `stempel.tinggi ≤ ruangDiAtasNama` untuk ketujuh penyaji, juga untuk
+kolom yang sangat lebar. Uji gigi: kembali ke 2,3 × ruang → 5 merah; melebihi
+1,05 × saja → 2 merah.
+
+---
+
+## 334 — Satu tombol per BERKAS, tujuannya di dalam menu (2026-08-16)
+
+> *"laporan 7 harian itu seharusnya satu tombol nanti muncul 3 opsi, kirim wa,
+> kirim google drive, download. itu lebih ringkas. pola itu di tombol lain juga
+> sepertinya lebih oke."*
+
+### Kenapa barisan tombol yang lama memang salah
+
+Bukan sekadar padat — ia menyusun **dua sumbu jadi satu deret**:
+
+```
+Kirim ke WhatsApp (PDF) · Excel · Unduh PDF · 7 Laporan Harian · Upload ke Drive (PDF + Excel)
+        tujuan            berkas    tujuan        berkas               tujuan
+```
+
+Lima tombol yang tidak sejajar artinya. Pembaca harus membaca satu per satu
+untuk tahu mana berkas dan mana tujuan, dan tiap berkas baru menambah tombol
+sebanyak tujuannya.
+
+Sekarang: **judul tombol = berkasnya, isi menu = tujuannya.** Menambah tujuan
+tidak lagi menambah tombol.
+
+`components/ui/menu-berkas.tsx` sengaja memakai `<details>`, bukan popover
+buatan sendiri: Esc, klik-di-luar, fokus papan ketik, dan pembaca layar sudah
+benar tanpa satu baris JS pun.
+
+**Syarat yang belum terpenuhi DITULIS**, bukan sekadar tombolnya diredupkan —
+"Paket belum punya grup WA", "Google Drive belum terhubung". Tombol redup tanpa
+keterangan membuat orang mengira aplikasinya rusak, bukan syaratnya kurang.
+
+### Lubang yang baru ketahuan karena perapian ini
+
+Excel laporan periodik **tidak punya cara diunduh sama sekali** — ia hanya bisa
+keluar lewat kirim-WhatsApp atau unggah-Drive. Berkasnya sudah lama dibangun
+`buildPeriodReportXlsx`; yang tidak ada cuma pintunya. Begitu tiap berkas
+ditanya "mau diapakan?", lubangnya langsung terlihat. Ditambahkan
+`/api/laporan/periodik/[slug]/[kind]/[n]/xlsx`, gerbangnya sama dengan unduhan
+PDF (`report.export` ditegakkan di route, bukan cuma menyembunyikan tombol).
+
+### Pertanyaan user: cetak vs unduh PDF menghasilkan hal yang sama?
+
+> *"di laporan mingguan, unduh pdf dan cetak bukannya menghasilkan sesuatu yang
+> sama? metodenya saja kan yang berbeda"*
+
+**Ya, dan itu memang dua penyaji berbeda untuk satu dokumen** — kodenya
+mengakuinya sendiri: `lib/pdf/periodik-kkp.ts` ditulis sebagai *"cermin komponen
+layar `ScurveKkpSheet`"*. Halaman `/cetak/...` adalah HTML yang di-Ctrl+P;
+`/api/.../pdf` adalah pdfkit.
+
+Untuk sekarang keduanya tetap ada, dan menu menyebutkan hubungannya apa adanya
+("Versi layar dokumen yang sama — lalu Ctrl+P"). Menyatukannya (cetak = buka PDF)
+adalah perubahan yang benar tapi bukan perubahan kecil, dan itu keputusan user —
+dicatat di OPEN_ISSUES sebagai CETAK-01, bukan dikerjakan diam-diam.

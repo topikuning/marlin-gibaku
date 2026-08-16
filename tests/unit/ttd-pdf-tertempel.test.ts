@@ -50,7 +50,7 @@ async function render(berkas: { ttd: Buffer | null; stempel: Buffer | null }) {
     xTengah: 200,
     yDasar: 400,
     lebarKolom: 260,
-    tinggiCelah: 34,
+    ruangDiAtasNama: 70,
   });
   return docToBuffer(doc);
 }
