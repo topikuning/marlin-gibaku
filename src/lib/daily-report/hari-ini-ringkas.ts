@@ -2,22 +2,32 @@ import type { DailyReportStatus } from "@/generated/prisma/enums";
 import type { HariIniLocation } from "./queries";
 
 /**
- * Ringkasan halaman /hari-ini — MURNI, tanpa I/O dan tanpa React, supaya bisa
- * diuji langsung (DECISIONS 336).
+ * Ringkasan pelaporan harian — MURNI, tanpa I/O dan tanpa React, supaya bisa
+ * diuji langsung (DECISIONS 336, dikoreksi 337).
  *
- * ### Dua pengguna, satu halaman
+ * ### Dua halaman, dua tugas — dan /hari-ini BUKAN papan pemantauan
  *
- * Halaman ini dipakai dua orang yang kebutuhannya berlawanan:
+ * Koreksi user 2026-08-17: *"fokus halaman hari ini tetap adalah langsung klik
+ * hari ini atau tanggal yang mau dilaporkan. filter ini dan lain2 lebih baik di
+ * halaman lokasi → pelaksanaan harian. fokus site manager dan pelaksana beda,
+ * hari ini fokus pelaksana."*
  *
- * - **Mandor**: satu lokasi, di luar ruangan, sering gaptek. Yang ia butuh satu
- *   tombol besar — "lapor hari ini". Apa pun yang mengecilkan tombol itu
- *   memperburuk pekerjaannya.
- * - **Site Manager**: belasan lokasi. Yang ia butuh menjawab "siapa yang
- *   tertinggal" tanpa membuka satu per satu.
+ * Benar, dan itu membatalkan sebagian DECISIONS 336. Di sana saya menulis
+ * sendiri bahwa mandor dan Site Manager butuh hal berbeda — lalu tetap menaruh
+ * ringkasan, saringan, dan matriks di /hari-ini, cuma dipagari `banyakLokasi`.
+ * Pagar itu tidak menolong: Site Manager dengan DUA lokasi tetap disambut
+ * dinding angka sebelum sampai ke tombolnya.
  *
- * Karena itu bentuk halaman ditentukan `banyakLokasi`, bukan peran: orang yang
- * lingkupnya satu lokasi mendapat tombol besar, yang lingkupnya banyak mendapat
- * strip + matriks. Peran bisa sama sementara lingkupnya berbeda.
+ * Pembagiannya sekarang tegas:
+ *
+ * - `/hari-ini` — alat kerja PELAKSANA. Tombol besar + strip 7 hari untuk
+ *   menekan tanggal yang mau dilaporkan. Tidak ada ringkasan, saringan, atau
+ *   matriks — semuanya hanya menunda tombolnya.
+ * - `/lokasi/{slug}/harian` — pemantauan SATU lokasi: ringkasan berpenyebut
+ *   + saringan status.
+ * - `/laporan/status-harian` — pemantauan LINTAS lokasi. Halaman itu sudah
+ *   ada sejak DECISIONS 262 dan memang pemiliknya; membuat papan lintas-lokasi
+ *   kedua di /hari-ini adalah duplikasi.
  *
  * ### Status TIDAK PERNAH hanya warna
  *
@@ -86,50 +96,74 @@ export function hurufUnik(): boolean {
 /* Ringkasan lintas lokasi                                             */
 /* ------------------------------------------------------------------ */
 
-export type RingkasKepatuhan = {
-  /** Jumlah sel hari yang diperiksa = lokasi × 7. PENYEBUT setiap angka lain. */
-  totalSel: number;
-  lokasi: number;
+export type RingkasHari = {
+  /** Jumlah hari yang diperiksa. PENYEBUT setiap angka lain. */
+  total: number;
   perluKoreksi: number;
   belumAda: number;
   draft: number;
   dikirim: number;
   selesai: number;
-  /** Lokasi yang butuh tindakan hari ini (koreksi / draft / belum ada). */
-  lokasiPerluTindakan: number;
 };
 
 /**
- * Hitung ringkasan 7 hari lintas lokasi.
+ * Cacah status sederet hari — dipakai halaman Pelaksanaan Harian satu lokasi.
  *
- * **Selalu membawa penyebutnya.** Konsep yang diusulkan menulis "Final/Setuju
- * 51" tanpa menyebut dari berapa — 51 dari 84 dan 51 dari 51 adalah dua kabar
- * yang sangat berbeda, dan yang membaca tidak punya cara membedakannya. Aturan
- * yang sama sudah dipakai di RAPL (DECISIONS 327).
+ * **Selalu membawa penyebutnya.** "8" sendirian tidak bisa ditindaklanjuti: 8
+ * dari 14 dan 8 dari 8 adalah dua kabar yang sangat berbeda, dan pembacanya
+ * tidak punya cara membedakannya. Aturan yang sama dengan cakupan RAPL
+ * (DECISIONS 327).
  */
-export function ringkasKepatuhan(lokasi: HariIniLocation[]): RingkasKepatuhan {
-  const r: RingkasKepatuhan = {
-    totalSel: 0,
-    lokasi: lokasi.length,
+export function ringkasHari(hari: { status: DailyReportStatus | null }[]): RingkasHari {
+  const r: RingkasHari = {
+    total: hari.length,
     perluKoreksi: 0,
     belumAda: 0,
     draft: 0,
     dikirim: 0,
     selesai: 0,
-    lokasiPerluTindakan: 0,
   };
-  for (const l of lokasi) {
-    for (const d of l.last7Days) {
-      r.totalSel += 1;
-      if (d.status === null) r.belumAda += 1;
-      else if (d.status === "perlu_koreksi") r.perluKoreksi += 1;
-      else if (d.status === "draft") r.draft += 1;
-      else if (d.status === "dikirim") r.dikirim += 1;
-      else r.selesai += 1;
-    }
-    if (perluTindakan(l)) r.lokasiPerluTindakan += 1;
+  for (const d of hari) {
+    if (d.status === null) r.belumAda += 1;
+    else if (d.status === "perlu_koreksi") r.perluKoreksi += 1;
+    else if (d.status === "draft") r.draft += 1;
+    else if (d.status === "dikirim") r.dikirim += 1;
+    else r.selesai += 1;
   }
   return r;
+}
+
+/** Saringan status pada daftar harian satu lokasi. */
+export type SaringHarian = "semua" | "perlu_tindakan" | "belum" | "draft" | "koreksi" | "selesai";
+
+export function bacaSaringHarian(raw: string | undefined): SaringHarian {
+  const sah: SaringHarian[] = ["semua", "perlu_tindakan", "belum", "draft", "koreksi", "selesai"];
+  return (sah as string[]).includes(raw ?? "") ? (raw as SaringHarian) : "semua";
+}
+
+/**
+ * Lolos saringan?
+ *
+ * "Perlu tindakan" di SINI berbeda artinya dengan `perluTindakan(lokasi)`: ini
+ * daftar riwayat, jadi hari lampau yang kosong memang relevan — orang membuka
+ * halaman ini justru untuk menambalnya. Perbedaannya disengaja, bukan
+ * ketidakkonsistenan.
+ */
+export function lolosSaringHarian(status: DailyReportStatus | null, s: SaringHarian): boolean {
+  switch (s) {
+    case "perlu_tindakan":
+      return status === null || status === "draft" || status === "perlu_koreksi";
+    case "belum":
+      return status === null;
+    case "draft":
+      return status === "draft";
+    case "koreksi":
+      return status === "perlu_koreksi";
+    case "selesai":
+      return status === "dikirim" || status === "disetujui" || status === "final";
+    default:
+      return true;
+  }
 }
 
 /**

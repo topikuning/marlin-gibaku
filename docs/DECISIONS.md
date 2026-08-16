@@ -14758,6 +14758,11 @@ bukan perapian. Dan sebelum menambah pintu, cari dulu pintunya.
 
 ## 336 — /hari-ini: strip 7 hari, matriks, dan dua bentuk untuk dua pengguna (2026-08-16)
 
+> **SEBAGIAN DIBATALKAN oleh DECISIONS 337.** Ringkasan, saringan, dan matriks
+> DIPINDAH dari /hari-ini. Yang masih berlaku dari sini: strip 7 hari, urutan
+> menurut masalah, status berkata (bukan warna saja), huruf yang tidak kembar,
+> dan angka yang selalu berpenyebut.
+
 User mengirim rancangan HTML halaman /hari-ini dan bertanya pendapat. Idenya
 benar dan sebagian besar diambil — tapi tidak seluruhnya, dan alasannya penting.
 
@@ -14842,3 +14847,88 @@ Rute matriks & "perlu tindakan" **ditambahkan ke pagar overflow mobile**
 (DECISIONS 217) — matriks adalah elemen terlebar di halaman itu, dan pola
 "scroll di dalam kontainer" persis yang dulu meleset. Uji gigi di peramban
 sungguhan: kontainer scroll dilepas → e2e 375px MERAH, dipulihkan → 18 hijau.
+
+---
+
+## 337 — /hari-ini dikembalikan jadi alat kerja pelaksana (2026-08-17)
+
+Koreksi user 2026-08-17, dengan tangkapan layar ponsel:
+
+> *"fokus halaman hari ini tetap adalah langsung klik hari ini atau tanggal yang
+> mau dilaporkan. filter ini dan lain2 lebih baik di halaman lokasi →
+> pelaksanaan harian. sesuai katamu, fokus site manager dan pelaksana beda,
+> hari ini fokus pelaksana."*
+
+### Saya melanggar prinsip yang saya tulis sendiri
+
+Di DECISIONS 336 saya menulis panjang bahwa mandor dan Site Manager butuh hal
+berbeda — lalu **tetap** menaruh ringkasan angka, saringan, dan matriks di
+/hari-ini, cuma dipagari `banyakLokasi > 1`.
+
+Pagar itu tidak menolong, dan layar user membuktikannya: **Site Manager dengan
+DUA lokasi** disambut empat kotak angka + spanduk + tiga tab + keterangan
+status, sebelum tombol pertamanya. Halaman yang seharusnya "tekan, lalu kerja"
+berubah jadi laporan yang harus dibaca dulu.
+
+Ambang "lebih dari satu" itu sendiri yang keliru. Yang menentukan bukan berapa
+lokasinya, melainkan **untuk apa halaman itu dibuka**.
+
+### Pembagian yang sekarang tegas
+
+| halaman | tugas |
+|---|---|
+| `/hari-ini` | **mengerjakan** — tombol besar + strip 7 hari untuk menekan tanggal |
+| `/lokasi/{slug}/harian` | memeriksa **satu** lokasi — ringkasan + saringan |
+| `/laporan/status-harian` | memeriksa **lintas** lokasi (sudah ada, DECISIONS 262) |
+
+Tiga tempat, tiga tugas, tanpa tumpang tindih.
+
+**Matriks lokasi × 7 hari DIHAPUS**, bukan dipindah. `/laporan/status-harian`
+sudah memiliki pemantauan lintas-lokasi sejak DECISIONS 262; menaruh papan
+kedua di tempat lain adalah persis duplikasi yang baru dibersihkan
+(DECISIONS 334/335). Kalau kelak sudut pandang 7-hari memang dibutuhkan, ia
+menjadi tampilan tambahan DI HALAMAN ITU — bukan halaman baru.
+
+### Yang tetap di /hari-ini, dan kenapa
+
+Strip 7 hari **tinggal** — tapi artinya berubah. Ia bukan pemantauan, melainkan
+**pemilih tanggal**: justru itu yang diminta user ("klik hari ini atau tanggal
+yang mau dilaporkan"). Judulnya ikut berubah jadi "Laporkan tanggal lain", dan
+di bawahnya ada tautan ke Pelaksanaan Harian untuk yang butuh rentang lebih
+panjang.
+
+Tombol utama kini **selalu** besar dan penuh lebar — berapa pun jumlah
+lokasinya. Tidak ada lagi percabangan bentuk.
+
+### Pemantauan satu lokasi, di tempatnya
+
+`/lokasi/{slug}/harian` bertambah ringkasan 14 hari **berpenyebut** ("8 / 14
+hari") dan bilah saringan (semua · perlu tindakan · belum ada · draft · koreksi
+· selesai). Saringannya hidup di **alamat halaman**, bukan state komponen —
+hasilnya punya URL sendiri dan bisa dikirim lewat WhatsApp, cara kerja tim ini
+sehari-hari (alasan yang sama dengan DECISIONS 279).
+
+Yang disaring **disebut jumlahnya** ("Menampilkan 5 dari 14 hari — 9
+disembunyikan saringan"): "tidak muncul" tidak boleh terbaca "tidak ada".
+
+**Satu perbedaan yang disengaja**: "perlu tindakan" pada LOKASI (`perluTindakan`,
+dipakai mengurutkan /hari-ini) hanya melihat hari ini + koreksi tertunda,
+sedangkan pada DAFTAR RIWAYAT (`lolosSaringHarian`) ia juga meloloskan hari
+lampau yang kosong. Bukan ketidakkonsistenan: mandor tidak bisa mengisi hari
+lampau dari /hari-ini, tapi halaman riwayat justru dibuka untuk menambalnya.
+
+**Penjaga.** `tests/unit/hari-ini-ringkas.test.ts` naik ke 24. Yang baru
+mengunci saringan: nilai tak dikenal jatuh ke "semua" (alamat salah ketik tidak
+boleh menghasilkan halaman kosong yang terbaca "tidak ada laporan"), tiap
+saringan sempit adalah himpunan bagian "semua", dan saringan sempit
+bersama-sama menutupi SELURUH status — kalau ada status yang tercecer, ia hanya
+bisa ditemukan lewat "Semua" dan orang tidak akan tahu ia ada.
+
+Uji gigi: saringan tak dikenal menyembunyikan semuanya → 1 merah; satu status
+tercecer dari semua saringan → 2 merah; penyebut hilang → 1 merah; "perlu
+tindakan" riwayat melewatkan hari kosong → 1 merah.
+
+Rute tersaring ikut ke pagar overflow mobile — dan sengaja ditaruh di uji
+DINAMIS yang slug-nya dari `E2E_SLUG`, bukan daftar statis. Percobaan pertama
+saya mengeraskan `kedung-mutih` padahal seed memakai `kedungmutih`: rutenya 404,
+dan uji melewatinya dengan `status() >= 400` — hijau tanpa memeriksa apa pun.

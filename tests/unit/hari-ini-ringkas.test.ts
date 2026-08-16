@@ -1,19 +1,23 @@
-// RINGKASAN HALAMAN /hari-ini (DECISIONS 336).
+// PELAPORAN HARIAN: strip, saringan, dan ringkasan (DECISIONS 336, dikoreksi 337).
 //
-// Berkas ini mengunci empat janji yang semuanya berasal dari kritik atas konsep
-// yang diusulkan user — dan tiga di antaranya adalah cacat SENYAP: halamannya
+// Lapisan murni ini melayani DUA halaman dengan tugas berbeda — /hari-ini
+// (alat kerja pelaksana) dan /lokasi/{slug}/harian (pemantauan satu lokasi).
+// Janji yang dikunci di sini, semuanya cacat SENYAP kalau dilanggar: halamannya
 // tetap tampil rapi, angkanya tetap keluar, hanya artinya yang salah.
 //
-//  1. Angka ringkasan SELALU membawa penyebutnya. "51" sendirian tidak bisa
-//     ditindaklanjuti; 51 dari 84 dan 51 dari 51 dua kabar berbeda.
-//  2. Tidak ada dua status yang huruf matriksnya kembar. Konsepnya memakai "F"
-//     untuk Final dan "S" untuk Setuju sambil MEWARNAI keduanya sama, sehingga
-//     di matriks keduanya tak terbedakan sama sekali.
+//  1. Angka ringkasan SELALU membawa penyebutnya. "8" sendirian tidak bisa
+//     ditindaklanjuti; 8 dari 14 dan 8 dari 8 dua kabar berbeda.
+//  2. Tidak ada dua status yang kata atau hurufnya kembar. Konsep yang
+//     diusulkan user memakai "F" untuk Final dan "S" untuk Setuju sambil
+//     MEWARNAI keduanya sama, sehingga keduanya tak terbedakan sama sekali.
 //  3. Status selalu punya KATA, tidak pernah warna saja — HP murah di bawah
 //     matahari, dan buta warna merah-hijau ada pada ±8% laki-laki.
-//  4. "Perlu tindakan" hanya melihat HARI INI + koreksi tertunda. Hari kemarin
-//     yang kosong tidak bisa diperbaiki mandor lagi; menandainya setiap hari
-//     membuat penandanya kehilangan arti.
+//  4. Saringan yang tidak dikenal jatuh ke "semua", tidak menyembunyikan
+//     semuanya; dan saringan sempit bersama-sama menutupi seluruh status.
+//  5. "Perlu tindakan" pada LOKASI hanya melihat hari ini + koreksi tertunda,
+//     sedangkan pada DAFTAR RIWAYAT ia juga melihat hari lampau. Perbedaan itu
+//     disengaja: mandor tidak bisa mengisi hari yang sudah lewat dari /hari-ini,
+//     tapi halaman riwayat justru dibuka untuk menambalnya.
 import { describe, expect, it, vi } from "vitest";
 import type { DailyReportStatus } from "@/generated/prisma/enums";
 
@@ -23,10 +27,12 @@ vi.hoisted(() => {
 });
 
 const {
+  bacaSaringHarian,
   hurufUnik,
   kalimatTindakan,
+  lolosSaringHarian,
   perluTindakan,
-  ringkasKepatuhan,
+  ringkasHari,
   selHari,
   urutkanLokasi,
 } = await import("@/lib/daily-report/hari-ini-ringkas");
@@ -68,22 +74,18 @@ function lok(
 const F: DailyReportStatus = "final";
 
 describe("angka ringkasan selalu membawa penyebutnya", () => {
-  it("totalSel = lokasi × 7, dan seluruh sel terhitung tepat sekali", () => {
-    const data = [
-      lok("A", [F, F, F, F, F, "draft", null]),
-      lok("B", [F, "perlu_koreksi", null, F, "dikirim", F, F]),
-      lok("C", [null, null, null, null, null, null, null]),
-    ];
-    const r = ringkasKepatuhan(data);
-    expect(r.totalSel).toBe(21);
-    expect(r.lokasi).toBe(3);
-    // Tidak ada sel yang hilang atau dihitung dua kali — inilah yang membuat
+  const hari = (...s: (DailyReportStatus | null)[]) => s.map((status) => ({ status }));
+
+  it("total = jumlah hari, dan seluruh hari terhitung tepat sekali", () => {
+    const r = ringkasHari(hari(F, F, "draft", null, "perlu_koreksi", "dikirim", "disetujui"));
+    expect(r.total).toBe(7);
+    // Tidak ada hari yang hilang atau dihitung dua kali — inilah yang membuat
     // penyebutnya bisa dipercaya.
-    expect(r.perluKoreksi + r.belumAda + r.draft + r.dikirim + r.selesai).toBe(r.totalSel);
+    expect(r.perluKoreksi + r.belumAda + r.draft + r.dikirim + r.selesai).toBe(r.total);
   });
 
   it("mencacah tiap status ke lajurnya sendiri", () => {
-    const r = ringkasKepatuhan([lok("A", [F, "disetujui", "dikirim", "draft", "perlu_koreksi", null, F])]);
+    const r = ringkasHari(hari(F, "disetujui", "dikirim", "draft", "perlu_koreksi", null, F));
     expect(r.selesai).toBe(3); // final ×2 + disetujui
     expect(r.dikirim).toBe(1);
     expect(r.draft).toBe(1);
@@ -91,11 +93,68 @@ describe("angka ringkasan selalu membawa penyebutnya", () => {
     expect(r.belumAda).toBe(1);
   });
 
-  it("tanpa lokasi, penyebutnya nol — bukan angka karangan", () => {
-    const r = ringkasKepatuhan([]);
-    expect(r.totalSel).toBe(0);
-    expect(r.lokasi).toBe(0);
-    expect(r.lokasiPerluTindakan).toBe(0);
+  it("tanpa hari, penyebutnya nol — bukan angka karangan", () => {
+    const r = ringkasHari([]);
+    expect(r.total).toBe(0);
+    expect(r.selesai).toBe(0);
+  });
+});
+
+describe("saringan daftar harian satu lokasi", () => {
+  it("nilai saringan yang tidak dikenal jatuh ke 'semua', bukan menyembunyikan semuanya", () => {
+    // Alamat yang diketik salah tidak boleh menghasilkan halaman kosong yang
+    // terbaca "tidak ada laporan".
+    expect(bacaSaringHarian(undefined)).toBe("semua");
+    expect(bacaSaringHarian("ngawur")).toBe("semua");
+    expect(bacaSaringHarian("draft")).toBe("draft");
+  });
+
+  it("'semua' meloloskan setiap status", () => {
+    for (const s of [...SEMUA_STATUS, null]) {
+      expect(lolosSaringHarian(s, "semua"), String(s)).toBe(true);
+    }
+  });
+
+  it("'perlu tindakan' = belum ada, draft, atau koreksi", () => {
+    // Sengaja BERBEDA dengan perluTindakan(lokasi): ini daftar riwayat, jadi
+    // hari lampau yang kosong memang relevan — halaman ini dibuka justru untuk
+    // menambalnya.
+    expect(lolosSaringHarian(null, "perlu_tindakan")).toBe(true);
+    expect(lolosSaringHarian("draft", "perlu_tindakan")).toBe(true);
+    expect(lolosSaringHarian("perlu_koreksi", "perlu_tindakan")).toBe(true);
+    expect(lolosSaringHarian("final", "perlu_tindakan")).toBe(false);
+    expect(lolosSaringHarian("dikirim", "perlu_tindakan")).toBe(false);
+  });
+
+  it("'selesai' mencakup dikirim, disetujui, dan final", () => {
+    expect(lolosSaringHarian("dikirim", "selesai")).toBe(true);
+    expect(lolosSaringHarian("disetujui", "selesai")).toBe(true);
+    expect(lolosSaringHarian("final", "selesai")).toBe(true);
+    expect(lolosSaringHarian("draft", "selesai")).toBe(false);
+    expect(lolosSaringHarian(null, "selesai")).toBe(false);
+  });
+
+  it("setiap saringan sempit adalah HIMPUNAN BAGIAN dari 'semua'", () => {
+    // Menjamin tidak ada saringan yang meloloskan sesuatu yang bahkan tidak
+    // ada di daftar penuh — cacat yang membuat cacah di tombol tidak cocok
+    // dengan isi daftarnya.
+    const sempit = ["perlu_tindakan", "belum", "draft", "koreksi", "selesai"] as const;
+    for (const s of sempit) {
+      for (const st of [...SEMUA_STATUS, null]) {
+        if (lolosSaringHarian(st, s)) expect(lolosSaringHarian(st, "semua"), `${s}/${st}`).toBe(true);
+      }
+    }
+  });
+
+  it("saringan sempit bersama-sama menutupi seluruh status, tanpa ada yang tercecer", () => {
+    // Kalau ada status yang tidak masuk saringan mana pun, ia hanya bisa
+    // ditemukan lewat "Semua" — dan orang tidak akan tahu ia ada.
+    for (const st of [...SEMUA_STATUS, null]) {
+      const masuk = (["belum", "draft", "koreksi", "selesai"] as const).some((s) =>
+        lolosSaringHarian(st, s),
+      );
+      expect(masuk, String(st)).toBe(true);
+    }
   });
 });
 

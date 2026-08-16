@@ -76,88 +76,9 @@ export function Strip7Hari({
 }
 
 /**
- * MATRIKS: semua lokasi × 7 hari dalam satu layar.
- *
- * Ini yang tidak bisa dijawab bentuk lama sama sekali — "lokasi mana yang
- * tertinggal" memerlukan menggulir seluruh halaman. Sengaja bukan MarlinGrid:
- * isinya bukan data tabular yang diurut/disaring/diunduh, melainkan satu
- * gambar kepatuhan yang dibaca sekali pandang. Kolomnya pun tanggal, bukan
- * medan.
+ * Keterangan kata & warna. Wajib ada di mana pun strip dipakai: warna
+ * mempercepat, kata yang menentukan (lihat catatan di kepala berkas).
  */
-export function Matriks7Hari({
-  lokasi,
-  todayKey,
-}: {
-  lokasi: { slug: string; name: string; last7Days: RecentDay[] }[];
-  todayKey: string;
-}) {
-  const kolom = lokasi[0]?.last7Days ?? [];
-  return (
-    <div className="overflow-x-auto rounded-lg border border-border">
-      <table className="w-full min-w-[520px] border-collapse text-sm">
-        <thead>
-          <tr className="border-b border-border bg-surface-muted">
-            <th className="sticky left-0 z-10 bg-surface-muted px-3 py-2 text-start text-[11px] font-semibold tracking-wide text-ink-muted uppercase">
-              Lokasi
-            </th>
-            {kolom.map((d) => {
-              const t = new Date(`${d.dateKey}T00:00:00Z`);
-              return (
-                <th
-                  key={d.dateKey}
-                  className={cn(
-                    "px-1 py-2 text-[11px] font-semibold text-ink-muted",
-                    d.dateKey === todayKey && "text-primary",
-                  )}
-                >
-                  {formatTanggal(t, "EEE")}
-                  <span className="tabular block text-[12px] text-ink">{formatTanggal(t, "d")}</span>
-                </th>
-              );
-            })}
-          </tr>
-        </thead>
-        <tbody>
-          {lokasi.map((l) => (
-            <tr key={l.slug} className="border-b border-border last:border-b-0">
-              <td className="sticky left-0 z-10 bg-surface px-3 py-1.5">
-                <Link href={`/lokasi/${l.slug}`} className="font-medium text-ink hover:underline">
-                  {l.name}
-                </Link>
-              </td>
-              {l.last7Days.map((d) => {
-                const sel = selHari(
-                  d.dateKey,
-                  d.status,
-                  formatTanggal(new Date(`${d.dateKey}T00:00:00Z`), "EEEE, d MMM"),
-                );
-                return (
-                  <td key={d.dateKey} className="px-1 py-1.5 text-center">
-                    <Link
-                      href={`/lokasi/${l.slug}/harian/${d.dateKey}`}
-                      title={`${l.name} · ${sel.judul}`}
-                      aria-label={`${l.name} · ${sel.judul}`}
-                      className={cn(
-                        "tabular mx-auto grid size-7 place-items-center rounded border text-[11px] font-bold",
-                        NADA_SEL[sel.nada],
-                      )}
-                    >
-                      {/* Huruf, bukan warna saja — dan tidak ada huruf yang
-                          kembar antar status (lihat hari-ini-ringkas). */}
-                      {sel.huruf}
-                    </Link>
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-/** Keterangan huruf & warna — matriks tidak berarti apa-apa tanpa ini. */
 export function KeteranganStatus() {
   const contoh: { kata: string; huruf: string; nada: SelHari["nada"] }[] = [
     { kata: "Final", huruf: "F", nada: "success" },
@@ -165,7 +86,7 @@ export function KeteranganStatus() {
     { kata: "Dikirim", huruf: "K", nada: "info" },
     { kata: "Draft", huruf: "D", nada: "warning" },
     { kata: "Perlu koreksi", huruf: "!", nada: "danger" },
-    { kata: "Belum ada", huruf: "—", nada: "neutral" },
+    { kata: "Belum ada", huruf: "\u2014", nada: "neutral" },
   ];
   return (
     <ul className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[12px] text-ink-muted">

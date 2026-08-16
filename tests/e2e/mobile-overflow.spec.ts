@@ -32,12 +32,6 @@ const RUTE: { path: string; nama: string }[] = [
   { path: "/lokasi", nama: "Daftar lokasi" },
   { path: "/progress", nama: "Progress portofolio" },
   { path: "/hari-ini", nama: "Hari Ini (mandor)" },
-  // Ditambahkan 2026-08-16 (DECISIONS 336): matriks lokasi × 7 hari adalah
-  // elemen LEBAR yang baru. Ia memang ber-scroll di dalam kontainernya sendiri
-  // — tapi persis pola itulah yang dulu meleset dan melebarkan halaman, jadi
-  // rutenya harus ada di daftar ini, bukan dipercaya begitu saja.
-  { path: "/hari-ini?tampil=matriks", nama: "Hari Ini — matriks 7 hari" },
-  { path: "/hari-ini?tampil=masalah", nama: "Hari Ini — perlu tindakan" },
   { path: "/foto-cepat", nama: "Foto Cepat" },
   { path: "/laporan", nama: "Laporan" },
   { path: "/laporan/menunggu-verifikasi", nama: "Antrean verifikasi" },
@@ -174,6 +168,11 @@ test.describe("tampilan mobile: halaman tidak boleh melebar ke samping", () => {
       `/lokasi/${SLUG}/rab/import`,
       `/lokasi/${SLUG}/progress`,
       `/lokasi/${SLUG}/harian`,
+      // Ditambahkan 2026-08-17 (DECISIONS 337): pemantauan harian pindah ke
+      // sini dari /hari-ini, membawa ringkasan berpenyebut + bilah saringan —
+      // elemen baru yang bisa melebar. Slug-nya ikut yang dinamis di atas
+      // supaya uji tidak terikat data seed tertentu.
+      `/lokasi/${SLUG}/harian?saring=perlu_tindakan`,
       ...(harianHref ? [harianHref] : []),
       `/lokasi/${SLUG}/keuangan`,
       `/lokasi/${SLUG}/dokumen`,
