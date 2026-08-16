@@ -17,6 +17,7 @@ import { WORKER_ROLE_LABEL, WORKER_ROLE_ORDER } from "@/lib/daily-report/constan
  */
 
 import { KKP_WEATHER_HOURS, type KkpWeatherCategory } from "@/lib/weather/hourly";
+import { RuangTtd, gambarPihak, type TtdLaporan } from "./blok-ttd";
 
 const volFmt = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 });
 const orgFmt = new Intl.NumberFormat("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -153,7 +154,14 @@ export type KkpDailyData = {
   equipmentPhotos?: BuktiPelengkap[];
 };
 
-export function KkpDailyReport({ d }: { d: KkpDailyData }) {
+/**
+ * Tinggi ruang tanda tangan lembar harian: 48px — sama dengan `mt-12` yang dulu
+ * dipakai, supaya tata letak blanko tidak bergeser sedikit pun saat gambar
+ * tanda tangan belum diunggah. DECISIONS 328.
+ */
+const RUANG_TTD_HARIAN = 48;
+
+export function KkpDailyReport({ d, ttd }: { d: KkpDailyData; ttd?: TtdLaporan | null }) {
   const rr = barisRencanaRealisasi(d);
   const materialRows = Math.max(MIN_MATERIAL_ROWS, d.materials.length);
   const equipmentRows = Math.max(MIN_EQUIPMENT_ROWS, d.equipment.length);
@@ -437,7 +445,8 @@ export function KkpDailyReport({ d }: { d: KkpDailyData }) {
           <div className="text-[10px] text-slate-600">Disetujui Oleh;</div>
           <div className="text-[10px] text-slate-600">Konsultan Pengawas</div>
           <div className="text-[10px] text-slate-500">{d.supervisorFirm ?? d.supervisorSub ?? ""}</div>
-          <div className="mt-12 border-t border-slate-400 pt-1 font-semibold text-slate-900">
+          <RuangTtd tinggi={RUANG_TTD_HARIAN} {...gambarPihak(ttd, "pengawas")} />
+          <div className="border-t border-slate-400 pt-1 font-semibold text-slate-900">
             {d.supervisorName ? `( ${d.supervisorName} )` : <span className="font-normal text-slate-500">( …………………… )</span>}
           </div>
           <div className="text-[9px] text-slate-500 italic">Inspector</div>
@@ -446,7 +455,8 @@ export function KkpDailyReport({ d }: { d: KkpDailyData }) {
           <div className="text-[10px] text-slate-600">Dibuat Oleh :</div>
           <div className="text-[10px] text-slate-600">Kontraktor Pelaksana</div>
           <div className="text-[10px] text-slate-500">{d.contractorFirm ?? ""}</div>
-          <div className="mt-12 border-t border-slate-400 pt-1 font-semibold text-slate-900">
+          <RuangTtd tinggi={RUANG_TTD_HARIAN} {...gambarPihak(ttd, "penyedia")} />
+          <div className="border-t border-slate-400 pt-1 font-semibold text-slate-900">
             {d.contractorName ? `( ${d.contractorName} )` : <span className="font-normal text-slate-500">( …………………… )</span>}
           </div>
           <div className="text-[9px] text-slate-500 italic">{d.contractorSub || "Pelaksana"}</div>

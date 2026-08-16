@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, CalendarClock, Sheet, Sparkles } from "lucide-react";
+import { ArrowRight, CalendarClock, ListTree, Sheet, Sparkles } from "lucide-react";
 import { Badge, ButtonLink, Card, CardBody, CardHeader, CollapsibleCard, type BadgeTone } from "@/components/ui";
 import { DeltaBadge } from "@/components/ui/stat-delta";
 import { ScurveChart } from "@/components/knmp/scurve-chart";
@@ -256,6 +256,13 @@ export default async function ProgressLokasiPage({ params }: { params: Promise<{
                       className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-muted hover:border-border-strong"
                     >
                       <Sheet aria-hidden className="size-4" /> Unduh Excel
+                    </a>
+                    <a
+                      href={`/lokasi/${slug}/jadwal/rincian`}
+                      title="Rincian sampai uraian item: volume, harga satuan, jumlah, dan bobot tiap baris. Kolom jadwalnya adalah jadwal KATEGORI induk — sistem tidak menyimpan jadwal per item."
+                      className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink transition-colors hover:bg-surface-muted hover:border-border-strong"
+                    >
+                      <ListTree aria-hidden className="size-4" /> Rincian Item
                     </a>
                   </>
                 ) : null}

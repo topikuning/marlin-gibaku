@@ -14,6 +14,8 @@ import {
   type IDatasource,
   type RowClassRules,
   type RowClickedEvent,
+  type RowSelectionOptions,
+  type SelectionChangedEvent,
   type ValueFormatterParams,
 } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
@@ -159,6 +161,21 @@ export interface MarlinGridProps<T> {
    * pagination. Angka yang dipatok tidak punya perlombaan itu.
    */
   rowHeight?: number;
+  /**
+   * Pilih banyak baris dengan kotak centang (DECISIONS 328).
+   *
+   * Dipakai daftar yang keputusannya BORONGAN — mis. menyetujui 300 padanan
+   * AHSP sekaligus. Sengaja memakai pilihan baris AG Grid, bukan kolom kotak
+   * centang buatan sendiri: hanya dengan itu "pilih semua" mengikuti hasil
+   * saringan & pencarian yang sedang aktif. Kotak centang buatan sendiri akan
+   * memilih baris yang sedang tidak terlihat — cacat yang baru ketahuan
+   * sesudah tombolnya ditekan.
+   */
+  rowSelection?: "multi";
+  /** Dipanggil tiap pilihan berubah; menerima data baris terpilih. */
+  onSelectionChanged?: (dipilih: T[]) => void;
+  /** Baris mana yang BOLEH dipilih — mis. hanya yang berstatus usulan. */
+  isRowSelectable?: (data: T) => boolean;
 }
 
 export function MarlinGrid<T>({
@@ -181,6 +198,9 @@ export function MarlinGrid<T>({
   onCellValueChanged,
   rowClassRules,
   rowHeight,
+  rowSelection,
+  onSelectionChanged,
+  isRowSelectable,
 }: MarlinGridProps<T>) {
   const apiRef = useRef<GridApi<T> | null>(null);
   const [quickFilterText, setQuickFilterText] = useState("");
@@ -275,6 +295,24 @@ export function MarlinGrid<T>({
     [getRowId],
   );
 
+  const selectionOptions = useMemo<RowSelectionOptions<T> | undefined>(() => {
+    if (rowSelection !== "multi") return undefined;
+    return {
+      mode: "multiRow",
+      checkboxes: true,
+      // Kotak centang kepala memilih SEMUA yang lolos saringan — itulah
+      // sebabnya pilihan diserahkan ke grid; lihat catatan pada prop.
+      headerCheckbox: true,
+      selectAll: "filtered",
+      // Ketukan pada baris membuka rinciannya, BUKAN memilihnya: dua makna
+      // untuk satu ketukan membuat orang tak sengaja membatalkan pilihannya.
+      enableClickSelection: false,
+      isRowSelectable: isRowSelectable
+        ? (node) => (node.data == null ? false : isRowSelectable(node.data))
+        : undefined,
+    };
+  }, [rowSelection, isRowSelectable]);
+
   const showToolbar = quickFilter || csvExport;
 
   return (
@@ -326,6 +364,12 @@ export function MarlinGrid<T>({
           getRowId={rowIdGetter}
           rowClassRules={rowClassRules}
           rowHeight={rowHeight}
+          rowSelection={selectionOptions}
+          onSelectionChanged={
+            onSelectionChanged
+              ? (e: SelectionChangedEvent<T>) => onSelectionChanged(e.api.getSelectedRows())
+              : undefined
+          }
           {...(editMode
             ? {
                 singleClickEdit: true,

@@ -1,6 +1,7 @@
 import { buildKurvaSheet } from "@/lib/scurve/kkp-sheet";
 import { formatRupiah, formatTanggal } from "@/lib/format";
 import type { PeriodReport } from "@/lib/periodic-report";
+import { RuangTtd, gambarPihak, type TtdLaporan } from "./blok-ttd";
 
 /**
  * Halaman-1 laporan periodik: sheet "KURVA S" resmi KKP (landscape A4).
@@ -24,12 +25,15 @@ export function ScurveKkpSheet({
   r,
   titleOverride,
   periodeOverride,
+  ttd,
 }: {
   r: PeriodReport;
   /** Judul dokumen (default: "KURVA S MINGGU/BULAN KE-N"). Utk dokumen jadwal berdiri sendiri. */
   titleOverride?: string;
   /** Rentang periode di subjudul (default: periode laporan). Utk jadwal = seluruh masa kontrak. */
   periodeOverride?: { start: Date; end: Date };
+  /** Gambar tanda tangan & stempel; null = ruang kosong utk tanda tangan pena. */
+  ttd?: TtdLaporan | null;
 }) {
   const sheet = buildKurvaSheet({
     categories: r.kurvaSchedule,
@@ -239,18 +243,21 @@ export function ScurveKkpSheet({
           role="PEJABAT PEMBUAT KOMITMEN"
           name={hdr.ppkName}
           sub={hdr.ppkNip ? `NIP. ${hdr.ppkNip}` : null}
+          {...gambarPihak(ttd, "ppk")}
         />
         <SignBlock
           title="DIPERIKSA :"
           role="KONSULTAN PENGAWAS"
           name={hdr.supervisorName}
           sub={hdr.supervisorFirm}
+          {...gambarPihak(ttd, "pengawas")}
         />
         <SignBlock
           title="DIBUAT OLEH :"
           role={`PENYEDIA JASA — ${hdr.vendorName}`}
           name={hdr.contractorSignerName}
           sub={hdr.contractorSignerTitle}
+          {...gambarPihak(ttd, "penyedia")}
         />
       </div>
     </div>
@@ -263,17 +270,25 @@ function SignBlock({
   role,
   name,
   sub,
+  ttd,
+  stempel,
 }: {
   title: string;
   role: string;
   name: string | null;
   sub: string | null;
+  ttd?: { url: string } | null;
+  stempel?: { url: string } | null;
 }) {
   return (
     <div>
       <div className="font-semibold">{title}</div>
       <div className="font-semibold">{role}</div>
-      <div className="mt-10 font-semibold underline">{name ? `( ${name} )` : "( ................................ )"}</div>
+      {/* 40px = `mt-10` yang dulu dipakai; lembar ini berhuruf 8,5px sehingga
+          ruangnya paling sempit — perbandingan stempel:ttd tetap sama karena
+          keduanya diturunkan dari angka ini. */}
+      <RuangTtd tinggi={40} ttd={ttd} stempel={stempel} />
+      <div className="font-semibold underline">{name ? `( ${name} )` : "( ................................ )"}</div>
       {sub ? <div>{sub}</div> : null}
     </div>
   );

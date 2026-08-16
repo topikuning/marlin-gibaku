@@ -387,6 +387,8 @@ model User {
   waAliases         WaSenderAlias[]       @relation("WaSenderAliasCreator")
   devicePermissions DevicePermission[]
   rabApprovals      RabRevisionApproval[]
+  ahspPadanan       AhspPadanan[]         @relation("AhspPadananDecider")
+  hsdDiubah         HargaSatuanDasar[]    @relation("HsdUpdater")
 
   @@index([orgId])
   @@index([role])
@@ -509,6 +511,106 @@ model GDriveUpload {
 
   @@index([packageId, kind, refKey, createdAt])
   @@map("gdrive_uploads")
+}
+
+/// SUMBER AHSP — satu baris per terbitan regulasi (mis. SE DJBK 47/2026).
+/// Ada supaya tiap koefisien bisa ditelusuri ke dokumen resminya: nama lampiran,
+/// jumlah halaman, dan sha256 berkas PDF-nya ikut disimpan apa adanya dari
+/// berkas master. Tanpa jejak ini, angka analisa cuma "kata sistem".
+/// DECISIONS 317.
+model AhspSource {
+  id            String   @id @default(uuid()) @db.Uuid
+  /// Kunci stabil, mis. "SE_DJBK_47_2026" — dipakai impor ulang (idempoten).
+  code          String   @unique
+  name          String
+  subject       String?
+  schemaVersion String   @map("schema_version")
+  /// Kapan berkas master itu dibangkitkan (dari metadata-nya, bukan jam impor).
+  generatedAt   DateTime @map("generated_at") @db.Timestamptz
+  /// metadata.source_documents apa adanya: nama berkas, jumlah halaman, sha256.
+  documents     Json
+  /// sha256 berkas JSON yang benar-benar diimpor.
+  fileSha256    String   @map("file_sha256")
+  /// `matching_engine` berkas apa adanya (padanan istilah, aturan penulangan,
+  /// panduan skor). Disimpan supaya aturan pencocokan selalu seumur dengan
+  /// berkas koefisiennya — bukan aturan MARLIN yang menua sendiri. DECISIONS 321.
+  matchingEngine Json?   @map("matching_engine")
+  importedAt    DateTime @default(now()) @map("imported_at") @db.Timestamptz
+  importedById  String?  @map("imported_by_id") @db.Uuid
+
+  entries AhspEntry[]
+
+  @@map("ahsp_sources")
+}
+
+/// Satu ANALISA HARGA SATUAN PEKERJAAN.
+///
+/// Kunci alaminya `externalId` (id dari berkas master), BUKAN `kode`: berkas
+/// resminya sendiri memuat kode duplikat (11 kode dipakai beberapa analisa yang
+/// uraian/satuannya berbeda), dan panduannya menyuruh memakai id + uraian +
+/// satuan. Memakai kode sebagai kunci akan menggabungkan analisa yang berbeda.
+model AhspEntry {
+  id         String  @id @default(uuid()) @db.Uuid
+  sourceId   String  @map("source_id") @db.Uuid
+  externalId String  @map("external_id")
+  kode       String
+  uraian     String
+  satuan     String
+  /// sumber_daya_air | bina_marga | cipta_karya
+  bidang     String
+  /// Normatif | Informatif
+  ahspType   String  @map("ahsp_type")
+  workGroup  String? @map("work_group")
+  divisi     String?
+  notes      String?
+  /// true = dari `supplemental_records`: TIDAK punya padanan resmi yang pasti
+  /// dan menurut panduan berkasnya hanya boleh dipakai setelah diverifikasi.
+  perluVerifikasi Boolean @default(false) @map("perlu_verifikasi")
+  /// Rujukan dokumen: lampiran + halaman PDF daftar isi & halaman analisanya.
+  lampiran        String?
+  tocPdfPage      Int?    @map("toc_pdf_page")
+  analysisPdfPage Int?    @map("analysis_pdf_page")
+  /// Kunci teks halaman sumber — dipakai bila komponennya belum terstruktur.
+  excerptId       String? @map("excerpt_id")
+  /// `legacy.id` — id analisa yang SAMA pada terbitan berkas sebelumnya.
+  /// Dipakai menyambung ulang padanan saat basis AHSP diganti (DECISIONS 323).
+  legacyId        String? @map("legacy_id")
+  /// Lapisan pencocokan dari berkasnya (`search.aliases` / `search.keywords`):
+  /// istilah lapangan yang menunjuk pekerjaan ini. Kosong untuk analisa
+  /// supplemental — berkasnya memang tidak memberi, dan itu tidak ditambal
+  /// sendiri. DECISIONS 321.
+  aliases         String[] @default([])
+  keywords        String[] @default([])
+
+  source     AhspSource      @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  components AhspComponent[]
+  padanan    AhspPadanan[]
+
+  @@unique([sourceId, externalId])
+  @@index([sourceId, bidang])
+  @@index([sourceId, kode])
+  @@map("ahsp_entries")
+}
+
+/// Komponen koefisien satu AHSP: upah / bahan / alat.
+///
+/// `koefisien` Decimal(18,8) — koefisien AHSP lazim sampai 6–7 desimal
+/// (mis. 0.0543 jam alat berat); float akan menggeser hasil kali volume besar.
+model AhspComponent {
+  id        String  @id @default(uuid()) @db.Uuid
+  entryId   String  @map("entry_id") @db.Uuid
+  /// upah | bahan | alat
+  kategori  String
+  nama      String
+  satuan    String?
+  koefisien Decimal @db.Decimal(18, 8)
+  urutan    Int
+
+  entry AhspEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@index([entryId, urutan])
+  @@index([kategori, nama])
+  @@map("ahsp_components")
 }
 
 /// Antrean unggah OTOMATIS ke Drive KKP (DECISIONS 313). Satu baris = satu
@@ -640,6 +742,9 @@ model Vendor {
   email     String?
   logoKey   String?  @map("logo_key") // key R2 logo perusahaan
   kopKey    String?  @map("kop_key") // key R2 gambar kop surat (desain jadi milik perusahaan)
+  /// Stempel perusahaan — cadangan bila kontrak belum mengunggah stempelnya
+  /// sendiri. Satu perusahaan satu stempel; itu memang benda fisik yang sama.
+  stempelKey String? @map("stempel_key")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -679,6 +784,19 @@ model Contract {
   supervisorFirm        String?   @map("supervisor_firm")
   contractorSignerName  String?   @map("contractor_signer_name")
   contractorSignerTitle String?   @map("contractor_signer_title")
+  /// GAMBAR tanda tangan & stempel ketiga pihak — key R2 (DECISIONS 328).
+  ///
+  /// Ditaruh di KONTRAK, bukan di master perusahaan, karena penanda tangannya
+  /// memang melekat pada kontrak: nama PPK/pengawas/penyedia sudah di sini, dan
+  /// pergantian personel di satu paket tidak boleh mengubah dokumen paket lain.
+  /// Stempel penyedia BOLEH kosong — sistem jatuh ke stempel perusahaan di
+  /// master vendor, supaya tidak perlu diunggah ulang tiap kontrak.
+  ppkTtdKey             String?   @map("ppk_ttd_key")
+  ppkStempelKey         String?   @map("ppk_stempel_key")
+  supervisorTtdKey      String?   @map("supervisor_ttd_key")
+  supervisorStempelKey  String?   @map("supervisor_stempel_key")
+  contractorTtdKey      String?   @map("contractor_ttd_key")
+  contractorStempelKey  String?   @map("contractor_stempel_key")
   createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -729,6 +847,7 @@ model Location {
   updatedAt DateTime       @updatedAt @map("updated_at") @db.Timestamptz
 
   package             Package                 @relation(fields: [packageId], references: [id])
+  hargaSatuanDasar    HargaSatuanDasar[]
   statusHistory       LocationStatusHistory[]
   assignments         LocationAssignment[]
   rabRevisions        RabRevision[]
@@ -1942,4 +2061,98 @@ model DevicePermission {
 
   @@index([userId, kind, recordedAt])
   @@map("device_permissions")
+}
+
+/// PADANAN item RAB → analisa AHSP (DECISIONS 319).
+///
+/// Kuncinya `tanda` = tanda tangan teks uraian + satuan yang sudah dinormalkan,
+/// dan itu GLOBAL, bukan per lokasi. Alasannya: AHSP adalah analisa NASIONAL —
+/// "Pekerjaan Urugan Sirtu t = 10 cm" menganalisa pekerjaan yang sama entah di
+/// Demak atau di Sumenep; yang berbeda per lokasi adalah HARGA satuan dasarnya,
+/// bukan komposisi pekerjaannya. Karena 83 lokasi KNMP memakai templat RAB yang
+/// sebagian besar sama, satu koreksi manusia di sini langsung membetulkan semua
+/// lokasi yang uraiannya persis sama — itu yang diminta ("sistem memetakan
+/// otomatis dan perbaiki yang salah").
+///
+/// `tanda` sengaja dibangun dari teks apa adanya (huruf + angka), BUKAN dari
+/// token pencocokan: token membuang satuan ukur, sehingga "t = 10 cm" dan
+/// "t = 10 mm" akan bertabrakan jadi satu padanan. Ketebalan 10 cm dan 10 mm
+/// bukan variasi penulisan.
+///
+/// Keadaan yang bisa terjadi:
+///   - baris TIDAK ADA          → belum pernah diperiksa
+///   - entryId terisi           → punya padanan (otomatis atau hasil koreksi)
+///   - entryId null + koreksi   → manusia MENYATAKAN tidak ada padanannya
+/// Mesin tidak pernah menulis baris "tidak ada padanan": kalau ia ragu, ia
+/// diam, supaya barisnya tetap terlihat sebagai lubang yang bisa dikerjakan.
+model AhspPadanan {
+  id           String   @id @default(uuid()) @db.Uuid
+  tanda        String   @unique
+  /// Uraian RAB apa adanya (contoh pertama yang terlihat) — untuk ditampilkan.
+  uraianContoh String   @map("uraian_contoh")
+  satuan       String
+  entryId      String?  @map("entry_id") @db.Uuid
+  /// true = manusia MENYATAKAN pekerjaan ini memang tak punya analisa AHSP.
+  ///
+  /// Disimpan POSITIF, tidak disimpulkan dari `entryId` yang kosong. Dulu
+  /// disimpulkan, dan akibatnya fatal: sekali basis AHSP diimpor ulang, seluruh
+  /// tautan putus (`ON DELETE SET NULL`) dan 1.086 padanan yang sudah disetujui
+  /// berubah jadi "dinyatakan tidak ada" — keputusan yang tidak pernah diambil
+  /// siapa pun, dan barisnya hilang dari daftar pekerjaan. DECISIONS 323.
+  tidakAda     Boolean  @default(false) @map("tidak_ada")
+  /// otomatis | disetujui | koreksi
+  metode       String
+  /// Skor mesin saat dipetakan otomatis (0..1). null untuk koreksi manusia.
+  skor         Decimal? @db.Decimal(5, 4)
+  /// true = mesin unggul cukup jauh dari kandidat kedua.
+  meyakinkan   Boolean  @default(false)
+  catatan      String?
+  decidedById  String?  @map("decided_by_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  entry     AhspEntry? @relation(fields: [entryId], references: [id], onDelete: SetNull)
+  decidedBy User?      @relation("AhspPadananDecider", fields: [decidedById], references: [id])
+
+  @@index([entryId])
+  @@index([metode])
+  @@map("ahsp_padanan")
+}
+
+/// HARGA SATUAN DASAR (HSD) per lokasi — DECISIONS 327.
+///
+/// Kunci `(locationId, kategori, nama, satuan)` sengaja SAMA PERSIS dengan kunci
+/// pengelompokan kebutuhan di `rapl-calc.ts`. Harga yang tidak bisa dijodohkan
+/// dengan barisnya sendiri tidak ada gunanya, dan menjodohkan lewat nama yang
+/// "mirip" adalah cara paling cepat memasang harga semen pada besi.
+///
+/// PER LOKASI, bukan per paket atau nasional: harga pasir di Demak dan di
+/// Sumenep memang berbeda, dan itu justru yang membuat RAPL berguna. Harga dari
+/// lokasi lain hanya ditawarkan sebagai REKOMENDASI yang harus dipilih orang —
+/// tidak pernah dipakai diam-diam.
+model HargaSatuanDasar {
+  id         String   @id @default(uuid()) @db.Uuid
+  locationId String   @map("location_id") @db.Uuid
+  /// upah | bahan | alat | fasilitas — apa adanya dari komponen AHSP.
+  kategori   String
+  /// Nama sumber daya PERSIS seperti pada komponen AHSP.
+  nama       String
+  satuan     String
+  /// Rupiah per satuan. BigInt seperti seluruh uang di sistem ini.
+  harga      BigInt
+  /// Dari mana harganya: survei toko, penawaran suplier, kontrak sebelumnya.
+  /// Bukan hiasan — harga tanpa asal tidak bisa dipertahankan saat diperiksa.
+  sumber     String?
+  catatan    String?
+  updatedById String? @map("updated_by_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  location  Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  updatedBy User?    @relation("HsdUpdater", fields: [updatedById], references: [id])
+
+  @@unique([locationId, kategori, nama, satuan])
+  @@index([locationId])
+  @@index([kategori, nama, satuan])
+  @@map("harga_satuan_dasar")
 }

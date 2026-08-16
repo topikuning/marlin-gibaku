@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { PeriodCategory, PeriodReport } from "@/lib/periodic-report";
+import { RuangTtd, gambarPihak, type TtdLaporan } from "./blok-ttd";
 
 /**
  * Laporan Mingguan/Bulanan format KKP — layout tabel besar A4 landscape-friendly.
@@ -36,7 +37,7 @@ const p1 = (n: number) => `${d1(n)}%`;
 const p2 = (n: number) => `${d2(n)}%`;
 const dash = (n: number) => (n > 0 ? volFmt.format(n) : "–");
 
-export function KkpPeriodReport({ r }: { r: PeriodReport }) {
+export function KkpPeriodReport({ r, ttd }: { r: PeriodReport; ttd?: TtdLaporan | null }) {
   const judul = r.kind === "mingguan" ? "LAPORAN MINGGUAN PEKERJAAN" : "LAPORAN BULANAN PEKERJAAN";
   const ke = r.kind === "mingguan" ? `Minggu Ke-${r.n}` : `Bulan Ke-${r.n}`;
   const periodeLabel = r.kind === "mingguan" ? "Minggu" : "Bulan";
@@ -168,9 +169,9 @@ export function KkpPeriodReport({ r }: { r: PeriodReport }) {
 
       {/* ── TTD ── */}
       <div className="mt-8 grid grid-cols-3 gap-4 text-center text-[10px]">
-        <Sign title="Mengetahui" role="Pejabat Pembuat Komitmen" name={h.ppkName} sub={h.ppkNip ? `NIP. ${h.ppkNip}` : null} />
-        <Sign title="Diperiksa" role="Konsultan Pengawas" name={h.supervisorName} sub={h.supervisorFirm} />
-        <Sign title="Dibuat Oleh" role={`Penyedia Jasa — ${h.vendorName}`} name={h.contractorSignerName} sub={h.contractorSignerTitle} />
+        <Sign title="Mengetahui" role="Pejabat Pembuat Komitmen" name={h.ppkName} sub={h.ppkNip ? `NIP. ${h.ppkNip}` : null} {...gambarPihak(ttd, "ppk")} />
+        <Sign title="Diperiksa" role="Konsultan Pengawas" name={h.supervisorName} sub={h.supervisorFirm} {...gambarPihak(ttd, "pengawas")} />
+        <Sign title="Dibuat Oleh" role={`Penyedia Jasa — ${h.vendorName}`} name={h.contractorSignerName} sub={h.contractorSignerTitle} {...gambarPihak(ttd, "penyedia")} />
       </div>
     </div>
   );
@@ -400,17 +401,23 @@ function Sign({
   role,
   name,
   sub,
+  ttd,
+  stempel,
 }: {
   title: string;
   role: string;
   name?: string | null;
   sub?: string | null;
+  ttd?: { url: string } | null;
+  stempel?: { url: string } | null;
 }) {
   return (
     <div>
       <div className="text-[9px] text-slate-500 uppercase">{title}</div>
       <div className="font-semibold">{role}</div>
-      <div className="mt-12 border-t border-slate-400 pt-1 font-semibold text-ink">
+      {/* 48px = `mt-12` yang dulu dipakai. */}
+      <RuangTtd tinggi={48} ttd={ttd} stempel={stempel} />
+      <div className="border-t border-slate-400 pt-1 font-semibold text-ink">
         {name ? `( ${name} )` : <span className="font-normal text-slate-500">( …………………………… )</span>}
       </div>
       {sub ? <div className="text-[9px] text-slate-500">{sub}</div> : null}

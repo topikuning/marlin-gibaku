@@ -40,3 +40,6 @@ yarn-error.log*
 # prisma generated client
 /src/generated/
 .fontcache/
+
+# Keluaran audit AHSP — dibangkitkan `pnpm audit:ahsp`, bukan sumber.
+AUDIT_AHSP_JANGGAL.xlsx

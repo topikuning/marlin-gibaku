@@ -118,7 +118,7 @@ export async function updateVendorAction(_prev: VendorActionState, formData: For
     const actor = await requireCapability("contract.manage");
     const vendor = await db.vendor.findFirst({
       where: { id: d.id, orgId: actor.orgId },
-      select: { id: true, name: true, logoKey: true, kopKey: true },
+      select: { id: true, name: true, logoKey: true, kopKey: true, stempelKey: true },
     });
     if (!vendor) return { error: "Vendor tidak ditemukan." };
 
@@ -169,6 +169,21 @@ export async function updateVendorAction(_prev: VendorActionState, formData: For
     }
     if (formData.get("removeKop") === "1") kopKey = null;
 
+    // Stempel perusahaan (DECISIONS 328). Satu perusahaan satu stempel — itu
+    // benda fisik yang sama di semua kontrak, jadi tempatnya di master vendor,
+    // bukan diunggah ulang tiap kontrak. Kontrak boleh menimpanya bila memang
+    // ada stempel khusus. Latar TIDAK dibuat transparan otomatis: menebak mana
+    // "kertas" dan mana "tinta" pada pindaian bisa memakan garis stempelnya
+    // sendiri; penempelan pakai mix-blend-multiply yang tidak merusak berkas.
+    let stempelKey = vendor.stempelKey;
+    const stempelFile = formData.get("stempel");
+    if (stempelFile instanceof File && stempelFile.size > 0) {
+      const r = await processImage(stempelFile, 600, 600, `vendors/${vendor.id}/stempel.webp`, "stempel");
+      if ("error" in r) return { error: r.error };
+      stempelKey = r.key;
+    }
+    if (formData.get("removeStempel") === "1") stempelKey = null;
+
     await db.vendor.update({
       where: { id: vendor.id },
       data: {
@@ -180,12 +195,14 @@ export async function updateVendorAction(_prev: VendorActionState, formData: For
         email: d.email || null,
         logoKey,
         kopKey,
+        stempelKey,
       },
     });
     await audit(actor.id, "vendor.update", "vendor", vendor.id, {
       name: d.name,
       logoChanged: logoKey !== vendor.logoKey,
       kopChanged: kopKey !== vendor.kopKey,
+      stempelChanged: stempelKey !== vendor.stempelKey,
     });
     revalidatePath("/master/perusahaan");
     return { success: `Master data "${d.name}" tersimpan.` };

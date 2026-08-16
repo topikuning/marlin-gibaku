@@ -14,7 +14,14 @@ import {
   runningEndDate,
 } from "@/lib/package/queries";
 import { StartPelaksanaanButton } from "../stage-actions";
-import { AmendmentForm, ConvertContractForm, EditContractForm, SignatoriesForm } from "./kontrak-forms";
+import {
+  AmendmentForm,
+  ConvertContractForm,
+  EditContractForm,
+  SignatoriesForm,
+  TtdStempelForm,
+} from "./kontrak-forms";
+import { presignKeys } from "@/lib/photos";
 import { AmendmentDocUpload } from "./amendment-doc-upload";
 
 export const metadata: Metadata = { title: "Kontrak & Adendum" };
@@ -94,6 +101,20 @@ export default async function KontrakPage({
   /* ---------- Kontrak sudah ada ---------- */
   const running = runningContractValue(contract.contractValue, contract.amendments);
   const endRunning = runningEndDate(contract.endDate, contract.amendments);
+
+  // Pratinjau tanda tangan & stempel (DECISIONS 328). Satu kali presign untuk
+  // tujuh kunci sekaligus; yang belum diunggah tidak ikut diminta.
+  const kunciTtd = [
+    contract.ppkTtdKey,
+    contract.ppkStempelKey,
+    contract.supervisorTtdKey,
+    contract.supervisorStempelKey,
+    contract.contractorTtdKey,
+    contract.contractorStempelKey,
+    contract.vendor.stempelKey,
+  ].filter((k): k is string => !!k);
+  const urlsTtd = kunciTtd.length > 0 ? await presignKeys(kunciTtd) : new Map<string, string>();
+  const urlTtd = (k: string | null) => (k ? (urlsTtd.get(k) ?? null) : null);
 
   return (
     <div className="space-y-6">
@@ -260,6 +281,34 @@ export default async function KontrakPage({
                 {contract.contractorSignerTitle ? <dd className="text-xs text-ink-muted">{contract.contractorSignerTitle}</dd> : null}
               </div>
             </dl>
+          )}
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Tanda tangan & stempel untuk laporan cetak"
+          subtitle="Ditempel otomatis pada laporan harian, rencana mingguan, laporan periodik & lembar kurva-S yang dicetak. Kosongkan bila laporan tetap ditandatangani dengan pena."
+        />
+        <CardBody>
+          {canContract ? (
+            <TtdStempelForm
+              contractId={contract.id}
+              gambar={{
+                ppkTtdUrl: urlTtd(contract.ppkTtdKey),
+                ppkStempelUrl: urlTtd(contract.ppkStempelKey),
+                supervisorTtdUrl: urlTtd(contract.supervisorTtdKey),
+                supervisorStempelUrl: urlTtd(contract.supervisorStempelKey),
+                contractorTtdUrl: urlTtd(contract.contractorTtdKey),
+                contractorStempelUrl: urlTtd(contract.contractorStempelKey),
+                vendorStempelUrl: urlTtd(contract.vendor.stempelKey),
+                vendorName: contract.vendor.name,
+              }}
+            />
+          ) : (
+            <p className="text-sm text-ink-muted">
+              Hanya pengelola kontrak yang boleh mengunggah gambar tanda tangan &amp; stempel.
+            </p>
           )}
         </CardBody>
       </Card>

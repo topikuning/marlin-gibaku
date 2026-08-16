@@ -20,6 +20,14 @@ import type { PeriodHeader } from "@/lib/periodic-report";
  */
 
 export type PihakTtd = {
+  /**
+   * Pihak mana blok ini — dipakai penyaji cetak untuk mengambil gambar tanda
+   * tangan & stempel yang benar (DECISIONS 328). Ditaruh DI SINI, bukan
+   * disimpulkan dari urutan larik di penyaji: urutan blok bisa berubah kalau
+   * formatnya diubah, dan menempelkan stempel PPK di kolom penyedia adalah
+   * cacat yang tidak akan terlihat sampai dokumennya sudah beredar.
+   */
+  pihak: "penyedia" | "pengawas" | "ppk";
   /** Baris kecil di atas: "Disusun Oleh,". */
   title: string;
   /** Peran/instansi — tebal. */
@@ -48,6 +56,7 @@ export function pihakTandaTanganRencana(r: SumberTtdRencana): [PihakTtd, PihakTt
   const h = r.header;
   return [
     {
+      pihak: "penyedia",
       title: "Disusun Oleh,",
       role: `Penyedia Jasa — ${h.vendorName}`,
       // BUKAN `disusunOleh`. Lihat catatan modul.
@@ -55,12 +64,14 @@ export function pihakTandaTanganRencana(r: SumberTtdRencana): [PihakTtd, PihakTt
       sub: h.contractorSignerTitle?.trim() || null,
     },
     {
+      pihak: "pengawas",
       title: "Diperiksa,",
       role: "Konsultan Pengawas",
       name: h.supervisorName?.trim() || null,
       sub: h.supervisorFirm?.trim() || null,
     },
     {
+      pihak: "ppk",
       title: "Disetujui,",
       role: "Pejabat Pembuat Komitmen",
       name: h.ppkName?.trim() || null,

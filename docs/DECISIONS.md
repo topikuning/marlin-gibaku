@@ -13101,3 +13101,1337 @@ akar sama sekali — kini jadi langkah tersendiri, dengan penegasan bahwa ia
 PERMANEN, tepat di sebelah langkah yang menyuruh menghapus variabel bootstrap;
 (b) halaman Sistem kini menandai bila `BOOTSTRAP_ADMIN_PASSWORD` masih
 terpasang. Password yang tertinggal tidak pernah memberi tahu dirinya sendiri.
+
+---
+
+## 316 · Rincian Time Schedule sampai level ITEM (2026-08-15)
+
+Permintaan user 2026-08-15:
+
+> *"saat ini jika kurva-s/time schedule didownload, hanya dibreakdown di level
+> kategori, apa bisa ada fitur export untuk data lebih detail, mulai dari sub
+> kategori hingga ke detail item untuk rincian besaran time schedule per item"*
+
+### Fakta yang menentukan bentuknya: jadwal per item TIDAK ADA
+
+Baseline menyimpan matriks mingguan berkunci lineageKey **KATEGORI**
+(`BaselineScheduleItem`). Impor Excel (`susunJadwalApaAdanya`) juga memetakan ke
+kategori. `autoCategorySchedule` menyatakannya sendiri: *"jadwal per-KATEGORI …
+bukan tahap absolut per-item"*. Tidak ada satu pun tempat di sistem yang
+menyatakan "item X dikerjakan minggu 5–8".
+
+Jadi yang diminta terbelah dua:
+
+- **Bobot per item = FAKTA.** RAB menyimpan volume, satuan, harga satuan, dan
+  jumlah tiap item; porsinya terhadap nilai pekerjaan bisa dihitung tepat.
+- **Waktu per item = TIDAK ADA.** Menghadirkannya berarti mengarang.
+
+### Keputusan user: bobot rinci, waktu DIWARISI kategori
+
+Ditawarkan tiga jalan, user memilih yang pertama:
+
+1. **Bobot rinci + waktu diwarisi kategori** (dipilih) — tidak ada satu angka
+   pun yang dikarang.
+2. Ditambah sebaran mingguan per item, proporsional terhadap nilai di dalam
+   jendela kategorinya. Jumlahnya tetap persis sama dengan kategori dan total
+   100% — tapi ia menyelundupkan asumsi bahwa semua item dalam satu kategori
+   bergerak dengan laju yang sama, padahal galian selesai duluan dan finishing
+   belakangan.
+3. Jadwal per item yang sungguhan (user menjadwalkan sendiri). Ditolak untuk
+   sekarang karena skalanya: satu lokasi seed nyata berisi **1.657 item**;
+   menjadwalkan segitu × 83 lokasi bukan pekerjaan yang akan ada yang pelihara.
+
+Kolom waktunya karena itu berjudul **"Jadwal (minggu kategori)"** dan tiap baris
+membawa kolom "Kategori induk". Jeda ditulis terpisah (`M5–M8, M11–M14`) —
+menggabungkannya jadi `M5–M14` akan menyatakan minggu 9–10 dikerjakan padahal
+jadwalnya memang kosong di situ.
+
+### Peringatan sebagai ISI, bukan catatan kaki
+
+Kalimat "sistem tidak menyimpan jadwal per item, jadi kolom itu TIDAK menyatakan
+kapan item tersebut dikerjakan" ditaruh **sebelum tabel** dan diberi latar.
+Ditaruh di bawah, setelah 1.977 baris, ia tidak akan pernah ditemukan — dan
+dokumen yang disetorkan ke pemberi kerja akan terbaca sebagai pernyataan yang
+tidak pernah dibuat siapa pun. Uji berkasnya mengunci posisi itu, bukan sekadar
+keberadaannya.
+
+### Pembagi bobot = Σ KATEGORI
+
+Definisi yang sama dengan `lib/progress.ts`. Menjumlahkan seluruh simpul akan
+menghitung ganda (kategori + anaknya) dan menghasilkan 200%+; menjumlahkan item
+saja bisa meleset dari total kategori karena pembulatan. Baris TOTAL karena itu
+juga hanya menjumlah kategori, dan diberi label "TOTAL (Σ kategori)" supaya
+pembaca tahu kenapa 1.977 baris berjumlah 100%.
+
+### Bentuk & tempat
+
+Berkop resmi + blok tanda tangan tiga pihak (pilihan user: untuk setoran KKP),
+mengikuti tata letak sheet Time Schedule. Rute `/lokasi/[slug]/jadwal/rincian`,
+tombol **"Rincian Item"** bersebelahan dengan "Unduh Excel" di halaman Progress
+dan Laporan lokasi. Tersedia sebelum SPMK (`assume: true`) sama seperti ekspor
+jadwal — bobot & urutan pekerjaan sudah berarti sejak kontrak ada.
+
+Baris tombol di Laporan lokasi diberi `flex-wrap`: tiga tombol berjejer melebihi
+375px dan akan melebarkan halaman di ponsel (DECISIONS 217).
+
+Jadwalnya diambil dari `deriveCategorySchedule` — lapisan yang SAMA dengan editor
+jadwal dan kurva-S. Kalau berkas ini menghitung jadwalnya sendiri, rincian dan
+kurva bisa bercerita beda tentang minggu yang sama.
+
+**Penjaga.** `tests/unit/rincian-jadwal.test.ts` (14, penyusun murni) +
+`tests/unit/rincian-jadwal-xlsx.test.ts` (7, membaca balik workbook). Diuji
+giginya: menghapus kalimat peringatan memerahkan 2 uji; membuat TOTAL menjumlah
+semua baris memerahkan 2 uji. Diverifikasi pada data seed sungguhan (Kedung
+Mutih): 1.977 baris — 17 kategori, 54 sub, 249 grup, 1.657 item — Σ bobot
+kategori 100,0000%, berkas 133 KB dalam 287 ms.
+
+### 316a · Tata letak mengikuti BERKAS ACUAN user, dan sebaran per item masuk (2026-08-16)
+
+User mengirim berkas acuan **TIME SCHEDULE PASEBAN** dengan catatan: *"ini adalah
+konsep yang aku maksud, kamu sudah punya format yang bagus, tinggal menyesuaikan
+saja"*.
+
+Berkas itu menjawab pertanyaan yang sebelumnya kutanyakan dan mengubah satu
+keputusan 316: **acuan memang memuat sebaran mingguan PER ITEM.** Kolom
+waktu-nya bukan rentang kategori — tiap item punya angkanya sendiri (ada yang
+dibagi 2 minggu, ada yang rata 20 minggu, ada yang tumpah di satu minggu). Jadi
+pilihan "waktu diwarisi kategori" tadi diambil tanpa acuan ini; setelah melihat
+konsepnya, yang diminta adalah matriksnya.
+
+**Tata letak diambil dari acuan, bukan dikarang:**
+
+```
+A: NO · B–D (gabung): JENIS PEKERJAAN · E: VOL · F: SAT · G: HARGA SATUAN
+H: JUMLAH HARGA · I: BOBOT · J…: minggu, dikelompokkan per BULAN
+```
+
+…lalu baris JUMLAH, dan enam baris kaki RENCANA/REALISASI/DEVIASI ×
+(KEMAJUAN, KUMULATIF) — persis seperti acuan, termasuk font Verdana 10 dan
+format Rupiah/`0.00`.
+
+**Sel berupa RUMUS, seperti acuan.** `JUMLAH HARGA = VOL × HARGA SATUAN`,
+`BOBOT = JUMLAH ÷ $H$total × 100`, `RENCANA = SUM(kolom item)`, kumulatif =
+akumulasi baris rencana. Alasannya bukan gaya: berkas ini DIEDIT orang sipil,
+dan menggeser sebaran satu item harus langsung memperbarui bobot, rencana, dan
+kurvanya. Kalau semuanya angka beku, berkas yang sudah diedit menampilkan kurva
+lama sambil terlihat benar.
+
+**Sebaran per item = turunan, dengan satu jaminan keras.** Tiap item disebar
+sebanding nilainya mengikuti profil mingguan kategorinya, memakai
+`allocateRounded` (largest remainder) sehingga **Σ item dalam satu kategori pada
+minggu w = persis profil kategori itu**. Akibatnya baris RENCANA — yang berupa
+`SUM` kolom item — menghasilkan kurva-S yang sama dengan baseline resmi.
+Rinciannya baru; angka yang dipertanggungjawabkan tidak bergeser. Yang tetap
+TURUNAN dan disebut di kaki berkas: urutan kerja di DALAM satu kategori (galian
+selesai duluan, finishing belakangan) — sistem tidak menyimpannya, jadi sebaran
+sebanding-nilai adalah satu-satunya yang bisa diturunkan tanpa mengarang.
+
+**Nilai simpan baris RENCANA diambil dari sel yang BENAR-BENAR DITULIS**, bukan
+dari kurva resmi — aturan yang sama dengan sheet Time Schedule (DECISIONS 158).
+Sel mingguan dibulatkan 4 desimal; memakai kurva resmi sebagai nilai simpan
+sementara rumusnya `SUM(...)` berarti berkas menampilkan satu angka sebelum
+Excel menghitung ulang dan angka lain sesudahnya. Diukur pada RAB sungguhan:
+selisih per minggu ≤ 0,01 pp terhadap kurva resmi (beda pembulatan yang memang
+sudah ada antara Σ sel kategori dan kurva resmi, bukan dibawa sebaran ini), dan
+**kumulatif akhir keduanya 100,0000%**.
+
+**Verifikasi ulang** pada data seed sungguhan (Kedung Mutih): 1.977 baris ×
+22 minggu, berkas 298 KB dalam 902 ms.
+
+
+---
+
+## 317 · Basis data AHSP SE DJBK 47/2026 sebagai sumber koefisien (2026-08-16)
+
+Permintaan user 2026-08-16: menerapkan berkas master AHSP sebagai basis data di
+MARLIN, karena *"analisa, resume analisa dan upah bahan belum ada"* dan
+*"suatu saat sistem bisa mereverse berdasarkan sumber yang baik dan dapat
+dipertanggungjawabkan"* — lalu di atasnya dibangun RAPL.
+
+### Apa isi berkasnya (diperiksa, bukan diasumsikan)
+
+5.550 analisa (5.003 kanonik + 547 supplemental) dari tiga bidang: Cipta Karya
+2.318, SDA 1.555, Bina Marga 1.130. 29.494 komponen koefisien — 13.381 upah,
+9.448 bahan, 6.665 alat. Nol koefisien null, nol negatif, `formula_modifier`
+tidak pernah dipakai. Kualitasnya bagus untuk dipakai menghitung.
+
+Yang perlu diketahui sebelum mempercayainya bulat-bulat:
+
+- **435 analisa resmi BELUM punya koefisien terstruktur** — semuanya membawa
+  `analysis_excerpt_id` ke halaman PDF-nya. Disimpan tanpa komponen, dengan
+  rujukan halamannya; TIDAK diisi tebakan.
+- **547 `supplemental_records`** adalah data v1 tanpa padanan resmi yang pasti.
+  Panduan berkasnya sendiri: *"hanya boleh dipakai … setelah verifikasi"* →
+  ditandai `perluVerifikasi` supaya peringatan itu ikut tersimpan.
+- **Kode BISA duplikat** (11 kode dipakai beberapa analisa beruraian berbeda),
+  jadi kunci alaminya `id`, bukan `kode`. Panduannya menyuruh persis itu.
+- Nama material membawa artefak parsing PDF (`"a tanah subur : 75 %"`,
+  `"25 ton Trailer 10-20 ton (lebar T.34"`) dan satuan tidak konsisten kapital
+  (`kg`/`Kg`). Ini penting untuk RAPL nanti — 3.977 nama material/alat unik itu
+  BELUM master yang bersih.
+
+### Yang dibangun sekarang
+
+Tiga tabel: `AhspSource` (satu baris per terbitan regulasi, memuat sha256 tiap
+lampiran PDF + sha256 berkas JSON yang benar-benar diimpor), `AhspEntry`,
+`AhspComponent` (koefisien `Decimal(18,8)` — float akan menggeser hasil kali
+volume besar).
+
+Berkasnya ikut di repo (`seed-data/`, pola yang sama dengan data demo) dan
+impornya idempoten: berkas dengan sha256 identik tidak ditulis ulang sama sekali
+(7,3 detik untuk impor pertama, 260 ms untuk pemeriksaan ulang). Berkas BARU
+dengan kode sumber yang sama MENGGANTI isinya utuh — dua terbitan regulasi yang
+tercampur menghasilkan koefisien yang tidak bisa dijelaskan asalnya.
+
+Panel Sistem menampilkan **sha256 berkasnya**. Analisa harga yang dipakai
+memperkirakan uang harus bisa dibuktikan versinya; "entah berkas yang mana"
+bukan jawaban yang boleh muncul saat auditor bertanya.
+
+### Yang BELUM dibangun, dan kenapa perlu keputusan dulu
+
+"Reverse dari RAB" tidak bisa otomatis penuh, dan panduan berkasnya sendiri
+melarangnya: *"jangan memilih hanya dari kemiripan nama"*. Item RAB MARLIN
+berkode bebas (`1`, `a`, `6.1.`) dengan uraian bebas — tidak ada kode AHSP di
+sana. Pemetaan yang jujur karena itu harus **diusulkan sistem, dikonfirmasi
+manusia, lalu disimpan** per lineageKey supaya sekali dipetakan terpakai
+seterusnya dan bisa diaudit. Itu yang membuat hasilnya "dapat
+dipertanggungjawabkan" — bukan kemiripan teks.
+
+**Penjaga.** `tests/unit/ahsp-parse.test.ts` (10) +
+`tests/integration/ahsp-import.test.ts` (5, terhadap berkas 8,4 MB sungguhan).
+Diuji giginya: menghapus tanda `perluVerifikasi` pada supplemental memerahkan
+1 uji; membiarkan komponen tanpa koefisien lolos sebagai 0 memerahkan 1 uji.
+Uji integrasi mematok jumlah (5.550 / 29.494) dengan sengaja — basis
+perhitungan uang tidak boleh berganti diam-diam saat berkasnya ditukar.
+
+---
+
+## 318 · Pencocokan RAB → AHSP: otomatis, tapi mengaku saat ragu (2026-08-16)
+
+Keputusan user 2026-08-16 atas tiga pertanyaan DECISIONS 317:
+
+1. *"sistem memetakan otomatis dan perbaiki yang salah"*
+2. HSD **per lokasi**, dengan rekomendasi bila daerah/paket yang sama sudah terisi
+3. Belum bicara profit — yang dibandingkan **HPS/kontrak vs total biaya RAPL**
+
+Yang dibangun di tahap ini: mesin pencocokannya, MURNI dan terukur.
+
+### Angka sesungguhnya, diukur bukan diklaim
+
+RAB KNMP nyata (Kedung Mutih, 1.657 item) melawan 5.550 analisa, 2,3 detik:
+
+| | |
+|---|---|
+| Item dapat padanan | **1.098 / 1.657 (66,3%)** |
+| Cakupan NILAI RAB | **75,8%** |
+| Padanan "meyakinkan" (unggul jauh dari kandidat kedua) | **260** |
+
+Artinya: sepertiga item tidak dapat padanan, dan dari yang dapat, hanya
+seperempatnya yang unggul telak. Itu bukan kegagalan yang disembunyikan — itu
+bentuk sebenarnya dari masalah ini, dan layar RAPL nanti WAJIB menampilkannya.
+
+### Angka MENAJAMKAN, tidak MENYELAMATKAN
+
+Aturan terpenting di mesin ini, dan lahir dari salah-cocok yang benar-benar
+terjadi saat diukur:
+
+```
+RAB : "Pekerjaan Urugan Sirtu t = 10 cm"
+salah → "Shotcrete Dengan Wiremesh M10 (t = 10 cm)"   65%
+benar → "1 m3 Timbunan dan Pemadatan Sirtu secara manual"
+```
+
+Ia menang karena token `cm` dan angka `10` — dua hal yang tidak ada
+hubungannya dengan jenis pekerjaannya. Dua perbaikan: satuan ukur (`cm`, `mm`)
+masuk daftar kata umum, dan **kecocokan angka hanya boleh menaikkan skor bila
+kemiripan KATANYA sudah melewati ambang**. Angka tetap penentu di tempat yang
+memang membutuhkannya — `fc 25` vs `fc 10` adalah mutu, komposisi, dan harga
+yang berbeda.
+
+### `null` adalah jawaban yang sah
+
+Di bawah ambang, mesin mengembalikan "tidak ada padanan" — bukan kandidat
+terbaik seadanya. Pemetaan yang memaksakan padanan pada setiap baris akan
+membuat kolom kebutuhan bahan terisi penuh dan tampak meyakinkan padahal
+sebagiannya karangan. Lubang harus terlihat sebagai lubang.
+
+Pengurang skor lain: analisa `perluVerifikasi` (×0,85) dan analisa tanpa
+koefisien terstruktur (×0,8) — yang kedua bahkan tidak bisa dipakai menghitung
+apa pun, jadi tidak boleh menang tipis dari yang bisa.
+
+Satuan dinormalkan lebih dulu: RAB memakai `m³/m²/m¹`, AHSP memakai `m3/m2/m'`
+dan `Meter Kubik`. Tanpa itu, satuan yang sebenarnya sama terbaca sebagai bukti
+pekerjaan yang berbeda.
+
+**Penjaga.** `tests/unit/ahsp-cocok.test.ts` (15) — kasusnya diambil dari
+pengukuran nyata, termasuk dua salah-cocok yang benar-benar terjadi.
+
+Satu catatan proses yang layak disimpan: uji gigi pertama untuk pagar
+"angka tidak menyelamatkan" **tidak menggigit** — 14 uji tetap hijau walau
+pagarnya dicabut. Ternyata kasus Sirtu diselamatkan oleh pembuangan token `cm`,
+bukan oleh pagar itu, sehingga pagarnya belum teruji sama sekali. Kasus baru
+dibuat khusus untuk memisahkan keduanya (kemiripan kata 0,33 + angka cocok vs
+kemiripan kata 0,50 tanpa angka), dan barulah pagarnya benar-benar dijaga.
+Tanpa uji gigi, pagar itu akan lolos sebagai hiasan.
+
+---
+
+## 319 · Pemetaan RAB → AHSP tersimpan: mesin memetakan, manusia memperbaiki (2026-08-16)
+
+Lanjutan 317 (basis data AHSP) dan 318 (mesin pencocokan).
+Pencocoknya sudah ada tapi hasilnya menguap setiap kali dijalankan; RAPL butuh
+pemetaan yang **tersimpan, bisa diperbaiki, dan bisa dipertanggungjawabkan**.
+Arahan user: *"sistem memetakan otomatis dan perbaiki yang salah"*.
+
+### Kunci pemetaan GLOBAL, bukan per lokasi
+
+`AhspPadanan.tanda` = tanda tangan teks uraian + satuan, unik di seluruh sistem.
+
+Alasannya bukan penghematan tabel: AHSP adalah analisa NASIONAL. "Pekerjaan
+Urugan Sirtu t = 10 cm" menganalisa pekerjaan yang sama entah di Demak atau
+Sumenep — yang berbeda per lokasi adalah **harga satuan dasarnya**, bukan
+komposisi pekerjaannya. Karena 83 lokasi KNMP memakai templat RAB yang sebagian
+besar sama, satu koreksi manusia langsung membetulkan semua lokasi yang
+uraiannya persis sama. Kalau dikunci per lokasi, orang harus mengulang koreksi
+yang sama 83 kali — dan pasti tidak akan dilakukan.
+
+Diukur pada RAB Kedung Mutih: **1.620 baris kerja hanya menghasilkan 480 tanda
+unik**. Beban pemetaannya 3,4× lebih kecil daripada cacah barisnya, dan itu baru
+satu lokasi.
+
+`tanda` sengaja dibangun dari TEKS apa adanya (huruf + angka + satuan
+dinormalkan), BUKAN dari token pencocokan. Token membuang satuan ukur, jadi
+"t = 10 cm" dan "t = 10 mm" akan bertabrakan jadi satu padanan. Ketebalan 10 cm
+dan 10 mm bukan variasi penulisan.
+
+### Tiga keadaan, dan mesin cuma boleh menulis satu
+
+| keadaan | arti |
+| --- | --- |
+| baris tidak ada | belum pernah diperiksa |
+| `entryId` terisi | punya padanan (`otomatis` atau `koreksi`) |
+| `entryId` null + `koreksi` | manusia MENYATAKAN memang tidak ada padanannya |
+
+Mesin **tidak pernah** menulis "tidak ada padanan": kalau ia ragu ia diam, dan
+barisnya tetap terlihat sebagai lubang yang bisa dikerjakan. Menyatakan sebuah
+pekerjaan memang tak punya analisa AHSP adalah keputusan yang menutup pintu —
+itu hak manusia, dan tercatat sebagai keputusan, bukan sebagai kekosongan.
+
+Pemetaan ulang **melewati** baris yang sudah ada, termasuk hasil koreksi.
+Matcher-nya akan terus diperbaiki, jadi tombol "petakan otomatis" akan ditekan
+lagi; kalau ia menimpa, satu klik menghapus pekerjaan orang tanpa jejak.
+
+### Baris judul tidak ikut dipetakan
+
+RAB lapangan memuat baris seperti "Fasilitas Sarana Kesehatan, terdiri atas :" —
+tersimpan sebagai daun karena begitulah berkas asalnya, tapi tanpa satuan, tanpa
+volume, bernilai nol. **37 dari 1.657 baris** di Kedung Mutih. Sebelum dijaga,
+baris itu menang MEYAKINKAN 50% ke analisa bernama "Fasilitas" — pekerjaan yang
+tidak ada, ikut menghitung cakupan. Sekarang dikeluarkan dari pemetaan maupun
+dari penyebut cakupan.
+
+### Cakupan dilaporkan dalam NILAI, bukan cuma cacah baris
+
+"80% item terpetakan" bisa berarti 30% nilai kalau yang belum justru pekerjaan
+besar. Yang menentukan seberapa berguna estimasi RAPL-nya adalah nilai.
+
+Angka nyata (RAB Kedung Mutih, 1.657 item vs 5.550 analisa, ~1 detik):
+
+```
+baris kerja        1.620   (37 baris judul dikeluarkan)
+tanda unik           480
+terpetakan         1.084   66,9% baris — 75,8% NILAI
+  meyakinkan         255
+  perlu diperiksa    829   (beda tipis dengan kandidat lain)
+belum ada padanan    536   senilai Rp1,89 M dari Rp7,82 M
+```
+
+**829 dari 1.084 padanan berstatus "perlu diperiksa"** — itu angka yang jujur
+dan tidak enak: mesin sudah memilih, tapi hanya seperempatnya yang unggul cukup
+jauh dari kandidat kedua. Halaman RAPL karena itu membuka pada saringan "perlu
+dikerjakan", bukan pada daftar penuh yang tampak sudah selesai.
+
+Lubang terbesarnya juga bukan kebetulan — PJU oktagonal, pompa submersible
+ex.Grundfos, sambungan daya 41,5 kVA: pengadaan barang spesifik merek yang
+memang tidak dianalisa AHSP. Untuk baris seperti itu, "tidak ada padanan" adalah
+jawaban yang benar, bukan kegagalan.
+
+### Capability
+
+`rab.manage` (bukan capability baru): pemetaan ini menentukan koefisien
+bahan/upah yang dipakai memperkirakan biaya pelaksanaan, jadi bobotnya setara
+mengubah RAB. Setiap mutasi memanggil `requireCapability` + `requireLocationAccess`
++ `audit()`.
+
+**Penjaga.** `tests/integration/ahsp-padanan.test.ts` (7) terhadap basis AHSP
+sungguhan: idempoten, koreksi tidak ditimpa, koreksi merembet ke lokasi lain,
+mesin diam pada yang tak beranalisa, "tidak ada" tercatat sebagai keputusan,
+baris judul dikeluarkan. Uji gigi: mengganti `createMany({skipDuplicates})` jadi
+upsert yang menimpa → 3 uji memerah; mencabut penjaga baris judul → 1 memerah.
+`tests/unit/ahsp-cocok.test.ts` bertambah 6 (tanda + peringkat kandidat).
+
+**Belum dikerjakan** (RAPL tahap berikutnya): harga satuan dasar per lokasi
+dengan rekomendasi dari kabupaten/paket yang sama, agregasi kebutuhan
+bahan/upah/alat (`koefisien × volume`), dan perbandingan biaya total RAPL vs
+nilai kontrak.
+
+---
+
+## 320 · Persetujuan borongan + simulasi kebutuhan RAPL (2026-08-16)
+
+Lanjutan 319. Permintaan user: *"kalau sudah dipetakan otomatis, tidak perlu
+disetujui satu-satu bisa saja setujui semua atau atas pilihan, dari situ paling
+tidak buatkan simulasi rapl/kebutuhan material berdasar yang sudah di approve"*.
+
+### Tiga tingkat, bukan dua
+
+`AhspPadanan.metode` bertambah satu nilai: `otomatis` (usulan mesin) →
+`disetujui` (orang menerima pilihan mesin apa adanya) → `koreksi` (orang
+mengganti pilihan mesin). Yang menjadi angka RAPL **hanya dua yang terakhir**.
+
+Ini batas terpenting seluruh jalur RAPL, dan alasannya ada di angka sendiri: di
+Kedung Mutih, **829 dari 1.084 padanan otomatis berstatus "beda tipis"** — tiga
+dari empat. Kalau usulan ikut dihitung, tabel kebutuhan bahan lahir dari tebakan
+yang belum dilihat siapa pun, dan ia tetap terlihat rapi.
+
+### Kenapa borongan tetap boleh
+
+Yang diperiksa orang bukan baris RAB melainkan URAIAN. 1.620 baris kerja hanya
+507→480 uraian unik, dan persetujuannya berlaku lintas lokasi karena kuncinya
+global (319). Melarang borongan tidak membuat orang lebih teliti — ia membuat
+pekerjaannya mustahil, dan yang mustahil akan dilewati. Yang dilarang bukan
+borongannya, melainkan **memakai usulan yang belum ada yang menyetujui**.
+
+`skor` dan `meyakinkan` DIPERTAHANKAN setelah disetujui, dan tetap ditampilkan:
+"sudah disetujui" tidak boleh menghapus jejak bahwa yang disetujui itu tebakan
+45% yang beda tipis. Baris `koreksi` tidak tersentuh persetujuan borongan.
+
+### Rumusnya sepele, syaratnya tidak
+
+    kebutuhan(sumber daya) = Σ koefisien(analisa, sumber daya) × volume(item)
+
+`src/lib/ahsp/rapl-calc.ts` jadi tempat KEEMPAT yang boleh memuat formula angka
+(CLAUDE.md aturan 7 diperbarui). Empat syarat yang menentukan jujur-tidaknya
+hasilnya, semuanya melaporkan baris + nilai rupiah yang dikeluarkan:
+
+1. **Satuan harus sepadan.** Analisa berbunyi "1 m3 Timbunan…" — koefisiennya
+   per SATU METER KUBIK. Mengalikannya dengan volume item bersatuan m² memberi
+   angka yang rapi dan tanpa arti. Ini bug paling berbahaya di jalur ini karena
+   hasilnya **tidak terlihat salah**. Di Kedung Mutih: 16 baris (Rp6,9 jt),
+   umumnya `buah` vs `unit` dan `set` vs `buah`. Sengaja TIDAK disamakan
+   diam-diam — `set` bisa berisi beberapa buah.
+2. **Analisa harus punya koefisien terstruktur** (5 baris, Rp77,4 jt).
+3. **Volume harus ada.** Nol berarti "tidak butuh"; kosong berarti "tak ada yang
+   tahu". Menyamakannya membuat kebutuhan proyek tampak lebih kecil.
+4. **Padanan harus sudah disetujui** (536 baris, Rp1,89 M).
+
+### Dua cacat yang ketahuan saat diukur pada data nyata
+
+**a. Satuan pecah karena besar-kecil huruf.** Kunci pengelompokan semula memakai
+satuan apa adanya, sehingga "Semen (PC) Kg" dan "Semen (PC) kg" jadi dua baris
+berjumlah separuh — pembacanya menyimpulkan kebutuhannya lebih kecil dari yang
+sebenarnya. Kunci sekarang memakai satuan huruf kecil. Nama TETAP tidak
+disatukan ("Semen PC" vs "Semen Portland" tetap dua baris): itu keputusan
+kurasi, bukan tugas pengurut daftar.
+
+**b. Berkas SE DJBK 47/2026 salah mengategorikan 334 komponen.** Analisa
+[2.3.(21a)] "Saluran U Pracetak Tipe DS 1" mendaftarkan "Semen (Kg)" dan "Besi
+Beton M57a (Kg)" sebagai **upah**; total 334 komponen di 62 analisa bersatuan
+kg/m3/m2/buah/liter di bawah kategori upah.
+
+MARLIN **tidak memindahkannya sendiri**. Menebak maksud dokumen resmi lalu
+menyajikannya sebagai fakta adalah cara paling halus membuat angka yang tak bisa
+dipertanggungjawabkan — dan setiap analisa di sini membawa nomor halaman PDF-nya
+justru supaya manusia bisa memeriksa. Barisnya muncul apa adanya, ditandai
+`janggal` (satuan upah yang sah: OH/jam/hari/org), dan jumlahnya dilaporkan di
+layar. Di Kedung Mutih: 9 baris tertandai.
+
+### Hasil nyata (RAB Kedung Mutih, semua usulan disetujui)
+
+```
+persetujuan borongan   257 uraian, 9 ms
+baris dipakai        1.063 dari 1.620   →  74,7% NILAI RAB (Rp5,84 M / Rp7,82 M)
+sumber daya            300  (upah 32 · bahan 201 · alat 67)
+  Agregat Kasar      204.004,28 kg   dari 34 baris
+  Pasir Beton        173.028,88 kg   dari 35 baris
+  Semen Portland     146.638,89 kg   dari 128 baris
+  Pekerja              5.166,50 OH
+dikeluarkan
+  belum disetujui        536 baris · Rp1.892.816.894
+  satuan tak sepadan      16 baris · Rp6.947.226
+  tanpa koefisien          5 baris · Rp77.407.278
+```
+
+Perhatikan 75,8% (nilai disetujui) vs 74,7% (nilai yang benar-benar terhitung):
+selisihnya justru syarat 1–3 di atas. Angka itu ditampilkan terpisah supaya
+lubangnya tidak tersamar oleh angka persetujuan.
+
+**Penjaga.** `tests/unit/rapl-calc.test.ts` (12) untuk seluruh syarat + dua
+cacat di atas; `tests/integration/ahsp-padanan.test.ts` bertambah 4 (usulan tak
+terpakai sebelum disetujui, borongan memunculkan kebutuhan, koreksi tidak
+tertimpa, persetujuan idempoten).
+
+Catatan proses — untuk KEDUA kalinya uji gigi menyelamatkan uji yang tampak
+benar: versi pertama "usulan tidak dipakai simulasi" menguji *"ada baris
+ber-alasan belum_disetujui"*, dan itu tetap HIJAU walau pagarnya dicabut, karena
+baris yang memang tak berpadanan menghasilkan alasan yang sama. Yang mengunci
+akhirnya keluarannya: sebelum disetujui, `kebutuhan` harus KOSONG.
+
+**Belum dikerjakan**: harga satuan dasar per lokasi (dengan rekomendasi dari
+kabupaten/paket yang sama) dan perbandingan biaya total RAPL vs nilai kontrak.
+Selama cakupan masih 74,7%, perbandingan itu wajib ditampilkan bersama angka
+cakupannya — bukan sebagai total.
+
+---
+
+## 321 · Lapisan istilah AHSP: aturan pencocokan datang dari berkasnya (2026-08-16)
+
+User mengunggah `ahsp_se_djbk_47_2026_master_synced_matching_v2.json` (skema
+2.1.0) — isi koefisiennya nyaris sama dengan v1, tapi ia membawa **lapisan
+pencocokan** yang sebelumnya tidak ada: `search.aliases` + `search.keywords` per
+analisa, dan `matching_engine` berisi padanan istilah, aturan normalisasi,
+aturan penulangan, serta panduan skor.
+
+### Aturannya milik BERKAS, bukan milik MARLIN
+
+Semua padanan disimpan dan dibaca dari berkasnya (`AhspSource.matchingEngine`),
+bukan ditulis sebagai daftar di kode. Berkas itu memerintahkan hal yang sama:
+*"Ekspansi istilah hanya memakai terminology_aliases dan rules yang tersedia;
+jangan menciptakan ekuivalensi teknis baru."* Konsekuensinya disengaja — kalau
+berkasnya diperbarui, aturannya ikut berubah, dan tiap padanan bisa ditelusuri
+ke sumbernya. Terbitan tanpa `matching_engine` menghasilkan aturan KOSONG:
+pencocokan turun mutunya, bukan jatuh ke daftar karangan sendiri.
+
+### Penulangan: tabel keputusan, bukan kemiripan nama
+
+Ini temuan terpentingnya. RAB KNMP memuat **309 baris pembesian senilai
+Rp733,7 juta (9,4% nilai RAB)**, dan sebelum ini pencocok kata memilih:
+
+```
+"Pembesian Besi Beton D13-150 mm secara semi mekanis"  (kg)
+   →  "1 kg Pekerjaan baja pelat secara semi mekanis"   45%
+```
+
+Pekerjaan yang sama sekali berbeda, menang karena kata "baja"/"pelat"/"semi
+mekanis". **56 baris tercocok begitu** — dan sebagai teks, hasilnya tampak
+masuk akal.
+
+Analisa penulangan dibedakan oleh tiga sumbu yang tidak terbaca oleh kemiripan
+nama: elemen struktur, jenis baja, kelas diameter. Berkasnya membawa tabel
+delapan analisa terverifikasi untuk kombinasi itu, jadi keputusannya sekarang
+DITURUNKAN, bukan ditebak. Aturannya diambil apa adanya:
+
+- Notasi `D13` = sinyal BjTS. Simbol `Ø` **tidak menentukan apa pun** —
+  berkasnya: *"jangan menebak jenis baja"* dari simbol diameter.
+- Kelas diameter, bukan diameter persis: AHSP hanya membedakan < 12 mm dan
+  ≥ 12 mm, jadi D10 vs D8 bukan pertentangan, D10 vs D13 baru pertentangan.
+  Kelas yang berlawanan = `hard_reject`, skor nol.
+- Jumlah batang pada "8D10" diabaikan — berkasnya menyebutnya bukan bagian
+  pemilihan kelas diameter.
+- Elemen tak disebut → **tidak memilih**. Berkasnya: *"jangan pilih antara AHSP
+  slab dan AHSP kolom/balok/ring balk/sloof. Periksa heading, parent item,
+  gambar, atau baris BOQ sekitar."*
+
+Hasilnya pada 77 uraian pembesian unik di Kedung Mutih: **77 dari 77 dapat
+kandidat resmi dari tabel** (1 tunggal → dipetakan otomatis, 76 perlu konteks
+dengan 2–4 kandidat yang benar). Barisnya tidak lagi menampilkan padanan salah;
+ia menampilkan sebabnya dan kandidat yang tepat di urutan teratas.
+
+### Kemiripan nama saja tidak boleh disebut meyakinkan
+
+Panduan skor berkasnya memberi kemiripan nama pagu terendah dari semua sinyal
+(`name_similarity_only_max: 15`; satuan 20, ukuran 30, material+mutu 35).
+Diterjemahkan bukan sebagai penolakan melainkan larangan menyebutnya
+MEYAKINKAN: padanan tanpa satu pun bukti teknis (satuan, angka, istilah
+kanonik, kelas diameter) tetap muncul sebagai usulan, tapi tidak pernah lolos
+ke daftar "sudah pasti" tanpa dilihat orang.
+
+### Angkanya TURUN, dan itu memang yang benar
+
+```
+                              terpetakan   % baris   % nilai
+v1 + pencocok kata                 1.084     66,9%     75,8%
+v2 + lapisan alias saja            1.140     70,4%     76,0%
+v2 + alias + aturan penulangan     1.086     67,0%     73,6%
+```
+
+Baris ketiga lebih rendah dari yang kedua karena **56 padanan pembesian yang
+salah sekarang ditolak**. Menaikkan angka dengan mempertahankannya berarti
+menukar 2,4% angka cakupan dengan Rp733 juta pekerjaan yang koefisiennya
+diambil dari analisa yang salah. Cakupan bukan tujuan; ia cuma penanda.
+
+Yang v2 tambahkan dan bertahan: alias menaikkan padanan non-pembesian
+(1.084 → 1.086 setelah pembesian dikeluarkan dari hitungan lama), dan
+**1.945 analisa** kini membawa lapisan pencocokan.
+
+### Yang tidak berubah
+
+v2 **tidak** memperbaiki dua cacat data yang dicatat DECISIONS 320: 334
+komponen bersatuan bahan masih berkategori `upah`, dan 433 analisa masih tanpa
+koefisien terstruktur. Penanda `janggal` tetap berlaku.
+
+**Penjaga.** `tests/unit/ahsp-istilah.test.ts` (17) memakai potongan
+`matching_engine` yang SEBENARNYA, supaya perubahan bentuk berkas memerahkan
+uji alih-alih diam. Termasuk satu uji yang merekam salah-cocok lamanya: tanpa
+aturan istilah, kasus D13 memang jatuh ke "Pekerjaan baja pelat".
+
+Uji gigi: menebak `Ø` jadi BjTP → 2 uji merah; memaksa memilih walau elemen tak
+disebut → 2 uji merah.
+
+**Belum dikerjakan.** `attributes` per record baru ada di 40 dari 5.007 analisa,
+jadi jalur aturan masih terbatas pada penulangan. Bidang lain (beton mutu,
+lapis pondasi, aspal) masih memakai kemiripan nama + satuan.
+
+---
+
+## 322 · Unduh kebutuhan RAPL: berkasnya membawa cakupannya sendiri (2026-08-16)
+
+Pertanyaan user: *"dimana aku bisa download kebutuhan material dan sebagainya
+saat ini?"* — jawabannya waktu itu: belum ada. Simulasi 320 cuma tampil di
+layar. Sekarang ada di `/lokasi/[slug]/rapl/kebutuhan` (.xlsx), tombolnya di
+kartu Simulasi kebutuhan.
+
+### Kenapa lembar "Tidak masuk hitungan" wajib ikut
+
+Berkas ini akan dibawa ke rapat, dikirim ke suplier, dipakai menawar. Begitu ia
+keluar dari layar MARLIN, semua peringatan di halaman RAPL hilang — yang
+tersisa cuma angka. Daftar kebutuhan bahan yang menutup 72,5% nilai RAB dan
+tidak mengaku demikian akan dibaca sebagai kebutuhan SELURUH proyek, dan
+kekurangannya baru ketahuan di lapangan.
+
+Karena itu tiga hal dibawa di dalam berkasnya sendiri, bukan diucapkan di UI:
+
+1. **Lembar Ringkasan** — nilai RAB yang masuk hitungan vs seluruhnya, persen
+   cakupan, dan rincian yang dikeluarkan per sebab beserta rupiahnya.
+2. **Lembar Tidak masuk hitungan** — satu baris per item RAB yang dilewat,
+   diurut dari NILAI TERBESAR (lubang yang paling mahal dikerjakan lebih dulu,
+   bukan yang kebetulan paling atas di RAB), lengkap dengan sebabnya.
+3. **Penanda `kategori janggal`** pada baris kebutuhan yang kategorinya
+   meragukan menurut data sumber (DECISIONS 320).
+
+Ditambah identitas versi: nama sumber AHSP + **sha256 berkasnya** di lembar
+pertama. Angka kebutuhan bahan yang beredar tanpa penyebutan versi analisanya
+tidak bisa direkonsiliasi enam bulan kemudian.
+
+### "Belum disetujui" dipecah jadi dua
+
+Versi pertama menulis sebab yang sama untuk **534 baris**: "padanan AHSP belum
+disetujui" — di kolom SEBAB dan diulang lagi di kolom KETERANGAN. Tidak berguna,
+dan lebih buruk: ia menyuruh 534 baris dikerjakan dengan cara yang sama padahal
+pekerjaannya berbeda. Sekarang dibedakan:
+
+- *"usulan mesin sudah ada — tinggal diperiksa lalu disetujui"*
+- *"belum ada padanan sama sekali — perlu dicarikan analisanya"*
+
+Yang pertama pekerjaan lima detik; yang kedua perlu mencari analisa. Berkas yang
+tidak membedakannya tidak bisa dipakai membagi tugas.
+
+### Capability
+
+`report.export`, bukan `rab.manage`: ini keluaran BACA. Yang berhak melihat
+angka proyek berhak membawanya keluar; yang butuh hak kelola adalah menyetujui
+padanan. Route tetap `requireCapability` + `hasLocationAccess` + `audit()`,
+dan jejak auditnya mencatat cakupan saat diunduh — supaya berkas yang beredar
+bisa dicocokkan dengan keadaan sistem saat itu.
+
+Berkasnya tetap bisa diunduh SELAGI KOSONG (belum ada padanan disetujui):
+lembar Kebutuhan berisi kalimat yang menjelaskan keadaannya. Menolak mengunduh
+membuat orang mengira fiturnya rusak; berkas yang jujur berkata "belum ada yang
+disetujui" lebih berguna daripada tombol yang diam.
+
+### Hasil nyata (RAB Kedung Mutih, semua usulan disetujui)
+
+```
+cakupan            72,5% nilai RAB  (Rp5,67 M dari Rp7,82 M) · 1.072/1.620 baris
+sumber daya          311  (bahan 216 · upah 33 · alat 62) · 9 bertanda janggal
+  Agregat Kasar    204.004,28 kg   dari 34 baris
+  Pasir Beton      173.028,88 kg   dari 35 baris
+  Semen Portland   117.991,04 kg   dari 103 baris
+dikeluarkan
+  belum disetujui      534 baris · Rp2.063.350.501
+  tanpa koefisien        5 baris · Rp77.407.278
+  satuan tak sepadan     9 baris · Rp6.444.644
+```
+
+**Penjaga.** `tests/unit/rapl-calc.test.ts` bertambah 1 (pemisahan dua sebab
+"belum disetujui"). Berkas hasilnya diperiksa langsung dari data Kedung Mutih
+sungguhan sebelum dilepas, bukan dari fixture.
+
+**Belum dikerjakan.** Kolom harga: berkas ini VOLUME kebutuhan, bukan biaya.
+Harga satuan dasar per lokasi + perbandingan RAPL vs kontrak masih langkah
+berikutnya, dan selama cakupan 72,5% perbandingan itu wajib tampil bersama
+angka cakupannya.
+
+---
+
+## 323 · Ganti terbitan AHSP menghapus 954 pemetaan secara senyap — BUG (2026-08-16)
+
+Temuan user dari layar RAPL sungguhan: *"954 baris sudah dinyatakan memang tidak
+punya analisa AHSP"* — padahal tidak seorang pun pernah menyatakan itu. Baris
+seperti "Papan Nama Proyek" dan "Pekerjaan Pagar Sementara" (yang jelas-jelas
+punya analisa, dan sempat terpetakan) berlencana **"Dinyatakan tidak ada"**.
+
+### Sebabnya
+
+Rantai tiga keputusan yang masing-masing tampak benar sendiri-sendiri:
+
+1. `imporAhspDariSeed` MENGGANTI UTUH: `AhspSource` dihapus, cascade ke
+   `ahsp_entries` (DECISIONS 317 — supaya dua terbitan tak tercampur).
+2. `ahsp_padanan.entry_id` ber-`ON DELETE SET NULL`, dipilih sengaja supaya
+   koreksi manusia tidak ikut terhapus (DECISIONS 319).
+3. `keadaanPadanan` MENYIMPULKAN "tidak ada padanan" dari `entryId` yang kosong.
+
+Gabungannya: satu klik "Periksa & segarkan basis AHSP" mengubah **seluruh**
+padanan yang sudah disetujui menjadi keputusan yang tidak pernah diambil.
+Direproduksi persis di lokal: **1.086 disetujui → 1.086 "dinyatakan tidak ada",
+`entryId` NULL semua, `metode` masih `disetujui`.**
+
+Cacatnya **memburuk sendiri**, dan itu bagian terburuknya:
+
+- baris "dinyatakan tidak ada" masuk kelompok *sudah diputuskan*, jadi HILANG
+  dari daftar pekerjaan — tidak ada yang akan menemukannya;
+- `petakanLokasi` melewati tanda yang barisnya sudah ada. Baris putus PUNYA
+  baris, cuma kosong — jadi "Petakan otomatis" tidak berbuat apa-apa dan
+  keadaannya macet selamanya;
+- simulasi RAPL ikut kosong tanpa ada yang mengubah RAB maupun mencabut
+  persetujuan; laporan yang kemarin benar hari ini nol.
+
+### Tiga perbaikan
+
+**1. "Tidak ada padanan" disimpan POSITIF.** Kolom baru `tidakAda`. Sebelumnya
+keadaan itu disimpulkan dari kolom kosong — dan kolom kosong bisa muncul karena
+sebab lain. Aturan umumnya: keputusan manusia tidak boleh direkonstruksi dari
+ketiadaan data; ia harus punya tempat penyimpanan sendiri.
+
+**2. Padanan disambung ulang saat terbitan diganti.** Sebelum sumber lama
+dihapus, identitas alami analisa yang ditunjuk dicatat; sesudah terbitan baru
+ditulis, padanannya disambungkan lewat tiga jalur berurutan: `externalId` sama →
+`legacyId` terbitan baru menunjuk id lama → `kode` + `uraian` sama. Jalur kedua
+memakai afordansi berkasnya sendiri (tiap record v2 membawa `legacy.id` = id
+v1-nya), jadi perpindahan terbitan mengikuti pemetaan resmi penyusun berkas,
+bukan tebakan MARLIN. Hasilnya dilaporkan di pesan impor — nasib pemetaan
+manusia tidak boleh ketahuan sendiri saat orang membuka RAPL dan mendapati
+kerjanya hilang.
+
+**3. Keadaan baru `putus`.** Padanan tanpa tautan yang TIDAK dinyatakan siapa
+pun bukan keputusan, melainkan kerusakan: ia muncul sebagai pekerjaan (saringan
+"Tautan putus"), membawa penjelasan sebabnya, dan `petakanLokasi` sekarang
+sengaja MEMETAKAN ULANG baris seperti ini alih-alih melewatinya.
+
+### Data yang sudah terlanjur rusak
+
+Tidak bisa dipulihkan sepenuhnya: analisa yang dulu ditunjuk sudah terhapus
+bersama sumbernya, jadi "manusia menyatakan tidak ada" dan "tautannya putus"
+tidak bisa dibedakan lagi dari sisa datanya. Yang bisa dipilih tinggal arah
+salahnya. Migrasi memilih menganggap SEMUANYA putus:
+
+- dianggap keputusan → 954 baris hilang dari daftar pekerjaan, senyap;
+- dianggap putus → beberapa pernyataan asli perlu diulang, sisanya dipetakan
+  ulang mesin dengan satu klik.
+
+Salah yang menimbulkan pekerjaan jauh lebih murah daripada salah yang
+menyembunyikan pekerjaan.
+
+### Kenapa ini lolos sampai ke layar user
+
+Uji integrasi 319–322 semuanya memakai basis AHSP yang **sudah ada** dan tidak
+pernah menggantinya. Skenario "ganti terbitan" tidak diuji sama sekali — padahal
+justru itu yang saya lakukan sendiri sehari sebelumnya waktu memasang berkas v2
+(DECISIONS 321). Saya menguji hasil impornya (jumlah analisa, jumlah komponen),
+tapi tidak menguji APA YANG TERJADI PADA DATA YANG SUDAH ADA saat impor itu
+jalan. Migrasi data selalu punya dua sisi, dan saya cuma menguji satu.
+
+**Penjaga.** `tests/integration/ahsp-ganti-terbitan.test.ts` (4): padanan
+bertahan setelah impor ulang, simulasi RAPL tidak kosong, pernyataan "memang
+tidak ada" tidak tersapu, dan baris putus bisa dipetakan ulang.
+
+Uji gigi: menghapus penyambungan ulang → 3 merah; menganggap baris putus "sudah
+ada" → 1 merah; menyimpulkan "tidak ada" dari entryId kosong lagi → 1 merah.
+
+---
+
+## 324 · Basis AHSP terbitan 5.0-universal: diperiksa dulu, baru dipakai (2026-08-16)
+
+User mengunggah `ahsp_se_djbk_47_2026_universal_master_v5.json` dengan pesan
+*"periksa basis ini, gunakan jika tidak ada masalah"*. Diperiksa, satu masalah
+ditemukan **di kode MARLIN** (bukan di berkasnya), diperbaiki, lalu dipakai.
+
+### Berkasnya memperbaiki temuan audit 320
+
+| temuan (audit `pnpm audit:ahsp`) | v2 | v5 |
+| --- | ---: | ---: |
+| Komponen UPAH bersatuan bahan | 334 | **0** |
+| Komponen BAHAN bersatuan waktu | 49 | **2** |
+| Analisa tanpa koefisien terstruktur | 433 | **410** |
+| Koefisien nol | 35 | 35 |
+| Komponen kembar dalam satu analisa | 30 | 30 |
+| Satuan analisa tidak terbaca | 30 | 30 |
+
+Yang 334 diperbaiki dengan cara yang benar: Base Camp, Barak, Gudang pada
+analisa "Fasilitas" TIDAK dipindah paksa ke `bahan`, melainkan diberi kategori
+sendiri — **`fasilitas`**. Dan komponen kembar ternyata memang disengaja:
+panduan v5 melarang menggabungkannya (*"Do not deduplicate repeated components
+when they have different operational roles in the official source"*), jadi
+catatan auditnya diperbaiki — didaftarkan untuk dipastikan, bukan karena diduga
+salah.
+
+### Masalahnya ada di MARLIN: daftar putih kategori
+
+`parse.ts` menyaring kategori komponen dengan daftar putih `{upah, bahan, alat}`.
+Kategori di luar itu **dibuang diam-diam**. Artinya 6 komponen resmi `fasilitas`
+akan lenyap tanpa suara — dan kategori apa pun pada terbitan berikutnya akan
+lenyap dengan cara yang sama, tanpa ada yang tahu.
+
+Ini pola cacat yang sama dengan DECISIONS 323, cuma di tempat lain: **kode yang
+mengasumsikan bentuk data tidak akan berubah, lalu diam saat asumsinya salah.**
+
+Perbaikannya bukan "tambahkan `fasilitas` ke daftar":
+
+- kategori apa pun diterima (syaratnya tetap: ada nama + ada koefisien —
+  komponen yang tidak bisa dipakai menghitung tetap dibuang);
+- kategori di luar `{upah, bahan, alat}` **dihitung dan dilaporkan** di hasil
+  impor (`kategoriLain`), supaya kemunculannya terlihat;
+- daftar tampil di layar RAPL dan di berkas unduhan Excel sekarang **diturunkan
+  dari data**, bukan dari daftar tetap. Kategori yang belum punya label muncul
+  dengan namanya sendiri, bukan hilang.
+
+Nilai yang dipakai berpindah dari "yang saya tahu" ke "yang benar-benar ada".
+
+### Yang ikut diadopsi
+
+- **`field_alias_lexicon`** (baru di 5.0) dibaca bersama `terminology_aliases`:
+  menambah "sengkang/begel/stirrup", "lantai kerja/lean concrete", "saluran u/
+  u-ditch", dll. Analisa yang membawa lapisan pencocokan naik **1.945 → 2.688**.
+- **8 analisa resmi hasil QA** (`qa_recovered_official_records`): saklar tunggal/
+  ganda/triple, downlight LED, lampu TL, closet duduk/jongkok — persis jenis
+  item yang dulu masuk daftar "satuan tidak sepadan"/"tidak ada padanan".
+- **id record STABIL**: seluruh 5.007 id v2 ada di v5 (+8 baru). Artinya jalur
+  penyambungan ulang DECISIONS 323 bekerja penuh — mengganti terbitan tidak
+  memutus satu pun pemetaan manusia.
+
+### Hasil nyata (RAB Kedung Mutih)
+
+```
+impor        5.560 analisa · 29.689 komponen · 2.688 beralias
+             kategoriLain: { fasilitas: 6 }   ← dulu hilang tanpa suara
+pemetaan     1.087 dari 1.620 baris (67,1%)
+simulasi     1.073 baris · 72,6% nilai RAB · 305 sumber daya
+             (bahan 224 · upah 24 · alat 57) · 0 bertanda janggal
+```
+
+Angka cakupan praktis tidak berubah dari v2 (72,5% → 72,6%); yang berubah
+adalah **kebersihannya** — penanda `janggal` yang dulu menyala 9 kali sekarang
+nol, karena sumbernya sendiri sudah dibetulkan.
+
+### Yang TERSEDIA di berkas tapi BELUM dipakai
+
+v5 membawa kerangka yang lebih luas daripada yang dipakai MARLIN sekarang, dan
+menyebutnya di sini supaya tidak terlupakan:
+
+- `universal_boq_mapping_framework.status_semantics` — tujuh status
+  (MATCHED_WITH_ASSUMPTION, CUSTOM_REQUIRED, MAPPED_EXTERNAL, CONTEXT_ONLY, …)
+  yang lebih kaya daripada keadaan MARLIN sekarang;
+- `unresolved_action_catalog` — daftar `required_inputs` per item yang belum
+  terpetakan ("tebal_dinding", "mutu_mortar", "jenis_baja"): ini bisa jadi
+  pertanyaan konkret di layar, bukan sekadar "belum ada padanan";
+- `external_technical_reference_catalog` (17 rujukan: SNI, PUIL, PLN, NIDI,
+  SLO) — menjawab tepat lubang terbesar RAB KNMP: sambungan daya PLN, pompa
+  submersible, PJU. Item begini memang **bukan** urusan AHSP, dan berkasnya
+  menyediakan status `MAPPED_EXTERNAL` untuk itu.
+
+Yang terakhir itu langkah berikutnya yang paling berharga: mengubah "Rp1,89 M
+belum ada padanan" dari lubang menjadi daftar pekerjaan yang tahu harus melihat
+ke mana.
+
+**Penjaga.** `tests/unit/ahsp-parse.test.ts` +1 (kategori baru disimpan dan
+dilaporkan). Uji gigi: mengembalikan daftar putih kategori → 1 merah. Angka
+acuan `tests/integration/ahsp-import.test.ts` diperbarui ke terbitan 5.0
+(5.560 / 29.683 / 2.688 / `fasilitas: 6`).
+
+---
+
+## 325 · Impor AHSP kehabisan memori di server 512 MB — dan diam-diam mengaku sukses (2026-08-16)
+
+Laporan user dari `/sistem`: *"saat proses periksa dan segarkan ahsp selalu
+terjadi [An unexpected response was received from the server], lalu kalau diklik
+lagi ada pernyataan berhasil"*. Spesifikasi server: **0,5 vCPU / 512 MB**.
+
+Bagian kedua kalimat itu yang paling berbahaya. "Diklik lagi berhasil" bukan
+tanda pulih — itu tanda sistem **berbohong**.
+
+### Tiga cacat bertumpuk
+
+**1. Memori.** `JSON.parse` berkas master 14,6 MB memuncakkan RSS **184 MB**
+(diukur). Next.js sendiri sudah memakan ratusan MB, jadi impor lewat jalur itu
+menabrak batas 512 MB dan prosesnya dibunuh kernel. Yang sampai ke browser cuma
+"unexpected response" — koneksi putus di tengah, tanpa pesan yang berarti.
+
+**2. Sumber setengah jadi mengaku mutakhir.** `fileSha256` dipasang saat baris
+sumber DIBUAT, sebelum satu pun entri ditulis. Impor yang mati di tengah
+meninggalkan sumber yang MENGAKU sha berkas itu padahal isinya separuh. Klik
+berikutnya membaca sha-nya sama → jalur pintas → *"Basis AHSP sudah mutakhir"*.
+Basis yang bolong menetap selamanya sambil terlihat benar, dan semua angka
+kebutuhan bahan di atasnya salah tanpa satu pun tanda.
+
+**3. Penyambungan padanan satu per satu.** `sambungUlangPadanan` (DECISIONS 323)
+mengirim satu `UPDATE` per padanan. Seribu padanan = seribu perjalanan bolak-
+balik ke database yang ada di seberang jaringan.
+
+### Perbaikan
+
+**Dialirkan, bukan dimuat sekaligus.** `pnpm ahsp:siapkan` (dijalankan sekali di
+mesin pengembang, hasilnya di-commit) memecah master jadi `seed-data/ahsp/`:
+`manifest.json` (metadata + `matching_engine` + **sha256 berkas master**) dan
+`entri.ndjson` (satu baris per analisa). Impor membacanya baris demi baris.
+Berkas masternya TETAP di repo — ia sumber yang sah, dipakai `pnpm audit:ahsp`,
+dan sha-nya yang dicatat supaya versi yang dipakai menghitung uang tetap bisa
+dibuktikan ke dokumen aslinya, bukan ke hasil olahan.
+
+**Ukuran potongan dipilih dari pengukuran, bukan perasaan.** Puncak RSS impor
+penuh:
+
+```
+potongan 2000 → 518 MB      potongan 250 → 344 MB
+potongan 1000 → 444 MB      potongan 100 → 307 MB
+waktu: 7,0 s → 7,5 s (praktis rata)
+```
+
+Yang memakan memori ternyata bukan tumpukan JS melainkan buffer native driver:
+satu `createMany` 2.000 baris berisi dua kolom `text[]` menjadi satu perintah SQL
+raksasa. Dipilih **100**: tambahan waktu setengah detik, margin ratusan megabyte.
+
+**sha256 dipasang PALING AKHIR**, setelah seluruh entri + komponen tertulis DAN
+jumlahnya dicocokkan dengan manifest. Sumber yang belum tuntas membawa penanda
+`impor-belum-selesai` yang tidak akan pernah cocok dengan sha berkas mana pun —
+jadi impor yang terputus SELALU diulang, tidak pernah dianggap selesai. Layar
+Sistem menampilkannya merah: *"Impor basis AHSP TERPUTUS — isinya belum lengkap"*.
+
+**Penyambungan padanan jadi satu perintah** (`UPDATE … FROM unnest`).
+
+Efek sampingan yang besar: jalur "tidak ada yang berubah" — yang dipakai tombol
+sehari-hari — dulu mem-parse 14,6 MB (184 MB RSS) hanya untuk menyimpulkan
+"tidak ada yang berubah". Sekarang cukup membaca manifest: **2 ms**.
+
+### Catatan proses: uji gigi yang gagal, LAGI
+
+Versi pertama uji regresi memalsukan keadaan akhirnya — menyetel `fileSha256`
+ke penanda "belum selesai" dengan tangan, lalu memeriksa akibatnya. Uji gigi
+membuktikannya hiasan: mengembalikan cacat aslinya (sha dipasang di awal)
+membuat semuanya **tetap hijau**, karena yang diuji adalah keadaan yang
+dikarang uji itu sendiri, bukan keadaan yang ditinggalkan kode.
+
+Versi keduanya benar-benar MEMUTUS impor di tengah (`createMany` komponen
+dilempar setelah beberapa potongan), lalu memeriksa apa yang tertinggal di
+database. Barulah uji giginya menggigit: cacat 1 → 3 merah, cacat 2 → 2 merah.
+
+Pelajarannya sama dengan 318 dan 320, dan ini ketiga kalinya: **uji yang
+menyiapkan sendiri keadaan yang mau dibuktikannya tidak membuktikan apa pun.**
+Yang harus dipicu adalah jalurnya, bukan hasilnya.
+
+### Yang MASIH berisiko
+
+Waktu impor 7,5 detik itu diukur di mesin uji dengan CPU longgar dan database
+satu kotak. Di **0,5 vCPU** dengan database seberang jaringan, ~850 perintah
+tulis bisa memakan puluhan detik, dan permintaan HTTP bisa terpotong lagi —
+kali ini tanpa merusak apa pun (basisnya tetap bertanda belum selesai dan bisa
+diulang), tapi tetap tidak nyaman.
+
+Tempat yang benar untuk pekerjaan ini sebenarnya `preDeployCommand` di
+`railway.json` — proses terpisah, memori penuh, tanpa batas waktu permintaan.
+Itu butuh entry mandiri yang tidak lewat Next (`server-only` + alias `@/`),
+dan sengaja BELUM dikerjakan di sini supaya perbaikan yang sudah terukur bisa
+segera dipakai. Catat sebagai langkah berikutnya, bukan sebagai selesai.
+
+**Penjaga.** `tests/integration/ahsp-impor-terputus.test.ts` (4): impor yang
+mati di tengah tidak mengaku mutakhir dan diulang penuh, penulisan yang
+diam-diam bolong ditolak, jalur "tidak berubah" selesai di bawah 2 detik, dan
+jumlah tersimpan sama persis dengan manifest.
+
+---
+
+## 326 · RAPL disusun ulang: per URAIAN, bertahap (2026-08-16)
+
+Keluhan user: *"caramu menyajikan RAPL ini tidak ui/ux friendly."* Sah, dan
+cacat terbesarnya bukan selera.
+
+### Cacatnya: 1.616 baris untuk 480 keputusan
+
+Daftar pemetaan menampilkan satu baris per BARIS RAB. Padahal keputusannya per
+URAIAN: satu uraian yang muncul di 34 baris RAB adalah SATU pilihan, bukan 34 —
+dan karena kunci padanan global (DECISIONS 319), pilihan itu bahkan berlaku di
+lokasi lain. Diukur pada Kedung Mutih: **1.620 baris → 480 uraian, 3,4× lebih
+sedikit**, dengan uraian yang sama berulang-ulang di antaranya.
+
+Tiga cacat lain yang menyertainya:
+
+- satu halaman menumpuk empat hal (KPI, pemetaan, kebutuhan, yang dikeluarkan)
+  tanpa memberi tahu harus mulai dari mana;
+- saringan bawaannya "Menunggu persetujuan" — yang sering **0**, jadi yang
+  pertama terlihat adalah daftar kosong;
+- penjelasan panjang ditempel inline di setiap sudut, menutupi pekerjaannya.
+
+### Yang berubah
+
+**Daftar jadi per uraian.** Yang HILANG saat digabung — berapa baris dan berapa
+rupiah yang bergantung pada satu keputusan — dikembalikan sebagai kolom, dan
+dipakai **mengurutkan dari nilai terbesar**. Daftar pekerjaan yang berguna
+dimulai dari yang paling menentukan uang, bukan dari yang kebetulan paling atas
+di dokumen. Baris teratas Kedung Mutih: *"Pekerjaan beton semi mekanis setara
+fc = 25"* — 34 baris RAB, Rp365 juta, satu keputusan.
+
+**Tahapan yang terlihat: Petakan → Setujui → Kebutuhan → Harga.** Tiap tahap
+membawa dua angka yang berarti: berapa uraian tersisa DAN berapa rupiah yang
+tertahan di situ. Tahap AKTIF adalah tahap terawal yang masih bersisa — bukan
+yang kebetulan dibuka — dan saringan daftar mengikuti tahap aktif itu, sehingga
+halaman tidak pernah membuka ke daftar kosong.
+
+**Volume digabung hanya bila semua barisnya bervolume.** Satu baris tanpa volume
+membuat jumlahnya tidak berarti, dan angka yang tidak berarti lebih buruk
+daripada kolom kosong.
+
+**Chip saringan yang isinya nol dimatikan**, bukan dibiarkan mengundang klik ke
+kekosongan.
+
+**Penjelasan dilipat di balik "Kenapa begini?"** — tetap ada (angka RAPL memang
+perlu dijelaskan: cakupan 72%, "beda tipis", satuan tak sepadan), tapi satu
+ketukan jauhnya alih-alih menghalangi.
+
+### Soal AI — ditanyakan, dan JAWABANNYA TIDAK
+
+Pertanyaan user: bisakah AI dipakai menarik kebutuhan untuk pekerjaan yang tak
+punya padanan AHSP? Secara teknis bisa, dan berkas v5 menyediakan tempatnya
+(`CUSTOM_REQUIRED`, `anomaly_resolution_policy`). Tapi itu berarti mengubah
+doktrin DECISIONS 193 — *"AI bukan sumber angka; semua angka dari calc layer"* —
+jadi ditanyakan lebih dulu, dan user memilih **belum**.
+
+Dicatat di sini supaya tidak dikerjakan diam-diam nanti: kalau suatu saat
+dipakai, syaratnya sudah disepakati bentuknya — draf AI wajib berstatus
+tersendiri, wajib disetujui orang seperti padanan AHSP, dan angkanya DIPISAH di
+layar maupun Excel antara "dari AHSP resmi" dan "dari analisa mandiri".
+
+### Rujukan eksternal v5: BELUM bisa ditempel per item
+
+Opsi tanpa-AI menyebut rujukan eksternal (PLN/SNI/NIDI) untuk item yang tak
+berpadanan. Setelah diperiksa: `unresolved_action_catalog` berisi **60 entri
+kategori situasi** (`custom_pump_package`, `external_regulatory`, …) tanpa satu
+pun kunci yang menghubungkannya ke uraian BOQ tertentu. Menempelkannya otomatis
+berarti menebak item mana yang masuk kategori mana — persis jenis tebakan yang
+dilarang di seluruh jalur ini. Jadi tidak dikerjakan sekarang; bentuk yang jujur
+untuk data seperti itu adalah pustaka rujukan yang bisa dibuka dan dicari
+manusia, bukan tempelan otomatis.
+
+**Penjaga.** `tests/unit/ahsp-kelompok.test.ts` (9): penggabungan per uraian
+membawa jumlah baris + rupiah, urutan dari nilai terbesar, volume kosong tidak
+dipalsukan, tahap aktif = terawal yang bersisa, baris `putus` masuk tahap
+petakan (bukan dianggap selesai), dan daftar kosong tidak mengaku selesai.
+
+---
+
+## 327 · Harga Satuan Dasar, biaya RAPL, dan RAPL yang keluar dari layar (2026-08-16)
+
+Teguran user: *"kita bahas soal input harga material, bahas soal laporan rapl
+ini bukan hanya di layar? mana semua itu? bahkan aku tidak bisa manfaatkan apa
+pun di layar, cetak atau apapun, atau kirim ke manapun. apa sebenarnya yang
+sudah kamu buat?"*
+
+Teguran itu benar. Yang sudah dibangun 317–326 adalah MESINNYA — basis AHSP,
+pencocokan, penurunan kebutuhan — dan berhenti tepat sebelum bagian yang membuat
+mesin itu berguna: harga, dan pintu keluar. Salah urutan; catatan ini menutupnya.
+
+### Harga Satuan Dasar per lokasi
+
+`HargaSatuanDasar` dikunci `(locationId, kategori, nama, satuan)` — **sama persis**
+dengan kunci pengelompokan kebutuhan di `rapl-calc.ts`. Harga yang tidak bisa
+dijodohkan dengan barisnya sendiri tidak ada gunanya, dan menjodohkan lewat nama
+yang "mirip" adalah cara paling cepat memasang harga zak semen pada kilogram.
+
+PER LOKASI, sesuai keputusan user sebelumnya: harga pasir Demak dan Sumenep
+memang berbeda, dan itu justru yang membuat RAPL berguna. Harga dari lokasi lain
+ditawarkan sebagai **rekomendasi yang harus diklik** — sekabupaten lebih dulu,
+lalu sepaket — tidak pernah dipakai diam-diam.
+
+Capability `finance.input`, bukan `rab.manage`: ini memasukkan angka uang yang
+dipakai membandingkan biaya dengan nilai kontrak.
+
+### Yang belum berharga bernilai `null`, bukan nol
+
+Nol berarti "gratis" dan diam-diam mengecilkan total; null berarti "belum
+diketahui" dan memaksa angkanya dilaporkan belum lengkap. Pembeda yang sama
+dengan volume kosong (DECISIONS 320), dan taruhannya lebih besar: di sinilah
+RAPL pertama kali menghasilkan angka yang dipakai orang MENAWAR.
+
+### Perbandingan dengan kontrak SELALU membawa keandalannya
+
+`bandingkanDenganKontrak` tidak pernah mengembalikan selisih telanjang. Ia
+mengembalikan dua cakupan sekaligus — % nilai RAB yang masuk hitungan, dan %
+sumber daya yang sudah berharga — plus penanda `utuh` yang hanya benar bila
+keduanya penuh.
+
+Diukur pada Kedung Mutih dengan 10 harga contoh terisi:
+
+```
+sumber daya        305 · berharga 10 (3,3%)
+cakupan nilai RAB  72,6%
+biaya RAPL         Rp10,14 M
+nilai kontrak      Rp 8,68 M
+selisih            −Rp1,46 M   ← dan ini BUKAN kerugian
+```
+
+Selisih negatif itu justru buktinya: 10 harga contoh dipasang serampangan pada
+sumber daya berkebutuhan terbesar, dan hasilnya langsung melampaui kontrak.
+Angka seperti ini, disajikan telanjang, akan membuat orang membatalkan penawaran
+yang sebenarnya sehat. Karena itu layar dan lembar cetak keduanya menolak
+menyebutnya keuntungan/kerugian selama `utuh` masih false.
+
+### RAPL akhirnya keluar dari layar
+
+- **Cetak A4** `/cetak/rapl/[slug]` — kop, identitas, tabel per kategori, blok
+  tanda tangan tiga pihak. Cakupan ditaruh di ATAS, bukan catatan kaki: lembar
+  ini hidup sendiri setelah keluar dari MARLIN, semua peringatan di layar hilang,
+  dan yang tersisa cuma angka di kertas. Baris yang tak muat (di atas 60 per
+  kategori) DISEBUTKAN jumlahnya, bukan dihilangkan diam-diam.
+- **Unduhan Excel** bertambah kolom HARGA SATUAN dan BIAYA, dengan rumus hidup
+  `C*E` supaya berkas yang diedit orang tetap benar, plus blok biaya +
+  perbandingan di lembar Ringkasan. Sel harga yang belum diisi dibiarkan KOSONG
+  — bukan nol.
+
+**Penjaga.** `tests/unit/rapl-biaya.test.ts` (11). Uji gigi: harga kosong
+dianggap nol → 4 merah; `utuh` selalu true → 2 merah; penjodohan harga lewat
+nama saja → 2 merah.
+
+### Yang MASIH belum ada, dan jangan dianggap selesai
+
+RAPL belum masuk **Report Studio**, belum bisa dikirim **WhatsApp**, belum ikut
+**unggah Drive** otomatis. Tiga pintu keluar itu sudah punya jalurnya sendiri di
+sistem ini (`AiArtifact` lifecycle, `ReportDispatch`, `GDriveJob`) dan RAPL
+tinggal disambungkan — tapi belum dikerjakan. Disebut di sini supaya tidak
+terbaca sebagai sudah beres.
+
+---
+
+## 328 — Tabel RAPL pindah ke MarlinGrid; tanda tangan & stempel ditempel di dokumen cetak (2026-08-16)
+
+Dua keberatan user dalam satu pesan, keduanya sah.
+
+### (a) Melanggar aturan repo sendiri: tabel dibuat dengan tangan
+
+> *"kita ini sudah pakai aggrid dan lain sebagainya, kenapa tampilanmu jadul dan
+> memalukan. apa kamu tidak baca aturan sebelum buat ui/ux ini!"*
+
+`CLAUDE.md` sudah menuliskannya sejak awal — **"Tabel data → `MarlinGrid`"** —
+dan tiga layar RAPL justru menyusun `<table>` / daftar `<div>` sendiri. Ini bukan
+soal rupa. Yang hilang karena melanggarnya:
+
+| Layar | Isi | Yang hilang |
+|---|---|---|
+| `padanan-panel` | 480 uraian | urut & saring per kolom, unduh CSV |
+| `simulasi-kebutuhan` | ±300 sumber daya + baris dilewat | urut dari kebutuhan terbesar, cari satu bahan |
+| `harga-panel` | ±300 formulir harga | **300 kali klik-simpan** |
+
+Ketiganya sekarang MarlinGrid. Yang paling terasa di lapangan adalah harga:
+sebelumnya 300 formulir kecil satu-satu, sekarang ketik → Enter → turun ke baris
+berikutnya seperti Excel (`editMode`), tiap sel langsung tersimpan lewat
+`simpanHargaSel` — pemeriksaan izinnya sama persis dengan jalur FormData
+(`finance.input` + `requireLocationAccess` + `audit`), yang berbeda hanya cara
+datanya sampai.
+
+**Pilihan baris diserahkan ke AG Grid**, bukan kolom kotak centang buatan
+sendiri. Alasannya satu dan menentukan: hanya dengan begitu "pilih semua"
+mengikuti saringan & pencarian yang sedang aktif. Kotak centang buatan sendiri
+akan memilih baris yang sedang tidak terlihat — cacat yang baru ketahuan sesudah
+tombol "Setujui 300 uraian" ditekan. `MarlinGrid` karenanya menerima
+`rowSelection="multi"` + `isRowSelectable` (hanya `usulan` yang boleh dipilih)
+dengan `selectAll: "filtered"`.
+
+Yang TETAP di luar grid, karena memang bukan data tabel: tombol saringan
+berhitung ("Perlu dikerjakan (312)") — angkanya harus terbaca SEBELUM tabelnya;
+pernyataan cakupan; dan panel kandidat AHSP. Panel kandidat tidak bisa jadi
+master/detail AG Grid karena itu fitur **Enterprise**, yang dilarang repo ini.
+
+### (b) Laporan cetak butuh tanda tangan & stempel yang ditempel
+
+> *"untuk laporan harian dan mingguan, aku butuh tanda tangan dan stempel
+> perusahaan, untuk ditempel. atur itu harus aku masukkan dimana… orang lapangan
+> kuno dan konservatif, tetap minta untuk laporan di tanda tangan manual dan
+> dicetak / orang lapangan dari pengawas dan kkp"*
+
+Lalu, menyusul: *"pastikan semua dokumen itu stempel dan ttdnya proporsional di
+posisinya"*.
+
+**Di mana diunggah.** Gambarnya menempel pada **kontrak**, bukan pada pengguna
+aplikasi — `/paket/{id}/kontrak`, kartu "Tanda tangan & stempel untuk laporan
+cetak", tepat di bawah kartu nama penanda tangan. Alasannya sama dengan
+DECISIONS 267: yang menandatangani laporan KKP adalah tiga jabatan yang DITUNJUK
+KONTRAK, dan nama-namanya sudah di situ. Menaruh gambarnya di profil pengguna
+akan memisahkan gambar dari nama — persis cacat "Administrator di atas Direktur"
+yang sudah pernah diperbaiki. Ganti personel ⇒ ganti nama DAN gambar di satu
+tempat yang sama.
+
+**Stempel perusahaan punya cadangan di master.** `/master/perusahaan` →
+`Vendor.stempelKey`. Satu perusahaan satu stempel; itu benda fisik yang sama di
+semua kontraknya, dan memaksa mengunggah ulang tiap kontrak berarti berkas
+identik × 83 lokasi — yang pertama terlewat justru yang paling sering dicetak.
+Cadangan ini **hanya untuk stempel**. Tanda tangan tidak punya cadangan: coretan
+tanda tangan milik ORANG, dan orangnya ditunjuk per kontrak.
+
+**Ukurannya satu sumber, dipakai kertas dan layar.** `lib/export/ttd-ukuran.ts`
+menurunkan semua ukuran dari SATU angka — tinggi ruang tanda tangan — memakai
+perbandingan benda aslinya (stempel bundar ±4 cm, coretan ±3 cm × 5–6 cm):
+stempel setinggi ruang, tanda tangan 0,82 dari itu dengan lebar maksimum 2,4×
+tingginya, stempel digeser 0,38 tinggi ke kiri supaya MENIMPA seperti dicap
+tangan. Tujuh penyaji memakai tinggi ruang yang berbeda-beda — HTML 40/48/48/56
+px, PDF 32/34/40 pt — dan perbandingannya tetap sama di ketujuhnya. Kalau tiap
+penyaji memilih ukurannya sendiri, "stempel lebih besar dari tanda tangan" hanya
+akan benar di satu tempat.
+
+**PDF ikut, bukan hanya halaman web.** PDF-lah berkas yang benar-benar beredar
+lewat WhatsApp ke pengawas dan KKP; menempel tanda tangan hanya di halaman web
+berarti melewatkan jalur yang paling banyak dipakai. `lib/pdf/ttd-gambar.ts`
+memuatnya sebagai PNG (pdfkit tidak menerima WebP — pelajaran yang sama yang
+pernah menghilangkan logo diam-diam) dan menggambarnya dengan perbandingan yang
+sama.
+
+**Pihaknya dibawa DATA, bukan urutan larik.** `PihakTtd` bertambah medan
+`pihak: "penyedia" | "pengawas" | "ppk"`. Blok tanda tangan disusun sebagai larik
+tiga elemen; mencocokkan gambar lewat indeks berarti mengubah urutan blok akan
+menempelkan stempel PPK di kolom penyedia — dan itu baru ketahuan setelah
+dokumennya beredar dan ditandatangani.
+
+**Yang TIDAK dilakukan.** Latar pindaian tidak dibuat transparan otomatis:
+menebak mana "kertas" dan mana "tinta" bisa memakan garis stempelnya sendiri;
+penempelan memakai `mix-blend-multiply` yang tidak merusak berkas aslinya.
+Berkas lama tidak dihapus dari R2 saat gambar dilepas — dokumen yang sudah
+tercetak memakainya. Dan komponen penempel tidak memutuskan BOLEH TIDAKNYA
+sebuah dokumen ditandatangani; ia hanya menggambar yang diberikan. Tanpa gambar,
+hasilnya persis seperti sebelum fitur ini ada: ruang kosong untuk pena.
+
+**Penjaga.** `tests/unit/ttd-stempel-cetak.test.ts` (14). Uji gigi: cadangan
+vendor bocor ke tanda tangan → 1 merah; pihak dicocokkan lewat urutan → 3 merah;
+stempel dibuat lebih kecil dari tanda tangan → 2 merah; geseran dibuat jauh → 2
+merah; geseran dinolkan (stempel menutupi tanda tangan) → 1 merah; tanda tangan
+dibuat bujur sangkar → 1 merah.
+
+---
+
+## 329 — Letak stempel dikoreksi: menimpa teks, bukan mengambang di ruang kosong (2026-08-16)
+
+User mengoreksi hasil 328 dengan **dua foto berdampingan**: keluaran MARLIN
+(dilingkari merah) dan dokumen asli di lapangan (dilingkari biru).
+
+> *"aku ingin ukuranmu itu menjadi proporsional, seakan-akan ada yang di atas
+> teks, tapi jangan terlalu besar."*
+
+### Yang salah, dan itu bukan soal ukuran saja
+
+Pada 328 stempel dibuat **setinggi PENUH ruang tanda tangan** dan berpijak tepat
+di garis nama. Akibatnya ia mengambang rapi di tengah ruang kosong lalu
+menyenggol garis `( ……… )` di bawahnya — terbaca sebagai **gambar yang ditempel**,
+bukan stempel yang dibubuhkan.
+
+Dokumen asli menunjukkan yang sebaliknya: stempel dicap **di atas baris teks** —
+tintanya menutupi nama perusahaan dan nama penanda tangan, hurufnya tetap
+terbaca menembus tinta — dan justru menjauh dari garis nama.
+
+### Yang diubah
+
+| | 328 | 329 |
+|---|---|---|
+| Tinggi stempel | 1,00 × ruang | **0,84** × ruang |
+| Tinggi coretan | 0,82 × ruang | **0,68** × ruang |
+| Geser kiri | 0,38 | 0,32 |
+| Angkat dari garis pijak | — | **0,22** × ruang |
+
+`NAIK` itulah inti koreksinya. Karena stempel tidak lagi setinggi penuh, ia
+punya tempat untuk diangkat: sisi ATASnya melewati batas ruang dan jatuh menimpa
+baris nama perusahaan/jabatan, sisi BAWAHnya menjauh dari garis nama. Yang
+membuat huruf tetap terbaca di bawahnya adalah `mix-blend-multiply` yang sudah
+dipakai sejak 328 — tinta di atas tinta, bukan kotak putih yang menutup.
+
+**Pembagian tugas antara stempel dan coretan.** Hanya stempel yang boleh
+melimpah. Coretan tanda tangan tetap di dalam ruangnya, sejajar dengan baris
+nama yang ditandatanganinya — kalau ikut melimpah, ia mendarat di baris jabatan
+dan yang terbaca adalah nama perusahaan yang dicoret-coret.
+
+Perubahannya cuma di `lib/export/ttd-ukuran.ts` + dua penyaji, jadi ketujuh
+dokumen (empat HTML, tiga PDF) ikut berubah sekaligus — itu memang gunanya satu
+sumber ukuran pada 328.
+
+**Penjaga.** `tests/unit/ttd-stempel-cetak.test.ts` naik jadi 19. Uji gigi:
+kembali ke perilaku 328 (stempel penuh, tanpa diangkat) → **4 merah**; stempel
+mengecil sampai tidak lagi menimpa teks → 2 merah; stempel dibesarkan sampai
+menelan baris teks → 2 merah; coretan ikut melimpah → 2 merah; angkatan
+dikecilkan sampai menyenggol garis nama lagi → 2 merah.
+
+---
+
+## 330 — Acuan ukuran stempel salah sejak awal: lebar kolom, bukan tinggi celah (2026-08-16)
+
+Koreksi kedua user, atas hasil 329:
+
+> *"kenapa makin kecil, bukan makin mengikuti contoh!"*
+
+Benar, dan penyebabnya bukan angka yang kurang pas — **acuannya yang salah sejak
+328**.
+
+### Cacat akarnya
+
+328 dan 329 menskalakan seluruh gambar dari **tinggi celah tanda tangan**
+(40–56 px). Celah itu kecil, dan karena stempel dinyatakan sebagai pecahan
+darinya, stempel SELALU lebih kecil daripada celahnya. 329 malah mengecilkannya
+lagi (1,00 → 0,84 × celah) demi memberi ruang untuk mengangkatnya — jadi upaya
+memperbaiki letak justru memperburuk ukuran.
+
+Foto dokumen asli menunjukkan acuan yang benar: **garis tengah stempel ≈ selebar
+baris nama perusahaan** — ±11× tinggi huruf, dan jauh MELEBIHI celahnya. Memang
+begitu benda aslinya: stempel bundar ±4 cm pada kolom tanda tangan ±7 cm, jadi
+ia memakan ±56% LEBAR kolom dan dengan sendirinya melimpah ke atas menimpa baris
+teks. Celahnya yang mengalah pada stempel, bukan sebaliknya.
+
+### Aturan sekarang
+
+```
+ukuran = min(persen lebar kolom, kelipatan tinggi celah)
+```
+
+Lebar kolom yang menentukan; tinggi celah **hanya rem**. Remnya memang sering
+menggigit dan itu disengaja: kolom tanda tangan di layar jauh lebih lebar
+relatif terhadap ukuran hurufnya daripada kolom 6–7 cm di kertas A4, jadi aturan
+persen-lebar sendirian akan melar.
+
+Hasilnya, diukur pada ketujuh penyaji:
+
+```
+dokumen           kolom celah | 328  329  330  | ×huruf
+html kurva-S       200    40  |  40   34   92  |  10,8
+html harian        350    48  |  48   40  110  |  11,0
+html periodik      280    48  |  48   40  110  |  11,0
+html mingguan      280    56  |  56   47  129  |  12,9
+pdf periodik       256    32  |  32   27   74  |   9,9
+pdf harian         265    34  |  34   29   78  |  11,1
+pdf mingguan       176    40  |  40   34   92  |  12,3
+```
+
+Kolom `×huruf` itu angka yang membuat "mengikuti contoh" bisa diuji, bukan soal
+selera: foto aslinya 10,8×, dan ketujuhnya kini jatuh di 9,9–12,9×.
+
+HTML tidak tahu lebar kolomnya saat render (grid/flex), jadi ia memakai `min()`
+CSS dengan **dua angka yang persis sama** dengan yang dipakai PDF. Kertas dan
+layar tetap tidak bisa berbeda.
+
+### Pembagian tugas antara stempel dan coretan
+
+Hanya stempel yang melimpah dan turun menimpa baris nama. Coretan tanda tangan
+berpijak PERSIS di garis nama — ia yang menandatangani baris itu; kalau ikut
+melimpah, ia mendarat di baris jabatan.
+
+**Penjaga.** `tests/unit/ttd-stempel-cetak.test.ts` (19). Uji gigi: kembali ke
+acuan tinggi-celah (perilaku 329) → **5 merah**; rem dilepas → 3 merah; rem
+dikencangkan sampai stempel mengecil lagi → 4 merah; stempel selebar penuh
+kolom → 1 merah; stempel tak lagi turun menimpa nama → 1 merah; coretan dibuat
+lebih sempit dari stempel → 1 merah.
+
+Satu uji sempat **TIDAK menggigit**: "stempel tidak melebihi lebar kolom" lolos
+walau stempel disetel selebar penuh kolom, karena pada ketujuh dokumen nyata rem
+selalu memotong lebih dulu sehingga aturan lebarnya tidak pernah teruji di sana.
+Diperbaiki dengan menambahkan kasus kolom sangat sempit — baru kemudian ia
+merah.

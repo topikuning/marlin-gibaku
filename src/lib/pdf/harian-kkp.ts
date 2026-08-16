@@ -15,6 +15,7 @@ import {
   type FotoPelengkapDok,
 } from "./harian-kkp-lampiran";
 import { signPhotoToken } from "./photo-token";
+import { gambarTtdPdf, muatTtdPdf, TANPA_TTD_PDF, type TtdPdf } from "./ttd-gambar";
 
 /**
  * Laporan Harian format KKP — BLANKO RESMI, urutan blok PERSIS contoh KKP:
@@ -49,6 +50,8 @@ export async function buildHarianKkpPdf(
     /** Bukti material & alat — halamannya sendiri-sendiri (DECISIONS 304). */
     fotoMaterial?: FotoPelengkapDok[];
     fotoAlat?: FotoPelengkapDok[];
+    /** Gambar tanda tangan & stempel (DECISIONS 328); null = ruang kosong. */
+    ttd?: TtdPdf | null;
   },
 ): Promise<Buffer> {
   const doc = createFormA4Doc({ title: `Laporan Harian KKP — ${d.locationName}` });
@@ -359,6 +362,7 @@ export async function buildHarianKkpPdf(
   const ttd: GridOptions = { x, width, cols: colWidths(width, [1, 1]), fontSize: 7, minRowHeight: 70 };
   const blokTtd = (judul: string, peran: string, firm: string | null | undefined, nama: string | null | undefined, sub: string) =>
     `${judul}\n${peran}${firm ? `\n${firm}` : ""}\n\n\n( ${nama ?? "……………………"} )\n${sub}`;
+  const yTtd = y;
   y = gridRow(
     doc,
     y,
@@ -374,6 +378,29 @@ export async function buildHarianKkpPdf(
     ],
     ttd,
   );
+
+  /* Tempel gambar tanda tangan & stempel DI ATAS blok yang baru digambar
+     (DECISIONS 328). Baris nama "( … )" berada di baris ke-6 blok; coretan
+     berpijak tepat di atasnya. Kolomnya dua sama lebar: pengawas kiri,
+     penyedia kanan — urutan yang sama dengan teksnya. */
+  const gbr = lampiran?.ttd;
+  if (gbr) {
+    const [kolomKiri, kolomKanan] = colWidths(width, [1, 1]);
+    const CELAH_TTD_PDF = 34; // poin — rem, bukan penentu ukuran
+    const yDasar = yTtd + 46; // tepat di atas baris nama
+    gambarTtdPdf(doc, gbr.pengawas, {
+      xTengah: x + kolomKiri / 2,
+      yDasar,
+      lebarKolom: kolomKiri,
+      tinggiCelah: CELAH_TTD_PDF,
+    });
+    gambarTtdPdf(doc, gbr.penyedia, {
+      xTengah: x + kolomKiri + kolomKanan / 2,
+      yDasar,
+      lebarKolom: kolomKanan,
+      tinggiCelah: CELAH_TTD_PDF,
+    });
+  }
 
   /* ── Halaman 3+: DOKUMENTASI PEKERJAAN ────────────────────────────── */
   const halamanBaru = () => {
@@ -527,12 +554,16 @@ export async function renderHarianKkpPdf(
     console.error("[laporan-harian] lampiran dokumentasi gagal disiapkan:", err);
   }
 
+  // Tanda tangan & stempel (DECISIONS 328) — best-effort, sama dengan logo.
+  const gambarTtd = await muatTtdPdf(loc.id).catch(() => TANPA_TTD_PDF);
+
   return {
     buffer: await buildHarianKkpPdf(data, branding.appName, logo, {
       logoVendor,
       foto,
       fotoMaterial,
       fotoAlat,
+      ttd: gambarTtd,
     }),
     locationId: loc.id,
   };

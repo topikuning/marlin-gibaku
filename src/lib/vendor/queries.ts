@@ -11,6 +11,7 @@ export type VendorRow = {
   email: string | null;
   logoKey: string | null;
   kopKey: string | null;
+  stempelKey: string | null;
   contractCount: number;
   commitmentCount: number;
   /** Kunci ternormalisasi utk mendeteksi kemungkinan duplikat (CV./PT/spasi/titik dibuang). */
@@ -39,6 +40,7 @@ export async function listVendorsWithUsage(orgId: string): Promise<VendorRow[]> 
       email: true,
       logoKey: true,
       kopKey: true,
+      stempelKey: true,
       _count: { select: { contracts: true, commitments: true } },
     },
   });
@@ -52,6 +54,7 @@ export async function listVendorsWithUsage(orgId: string): Promise<VendorRow[]> 
     email: v.email,
     logoKey: v.logoKey,
     kopKey: v.kopKey,
+    stempelKey: v.stempelKey,
     contractCount: v._count.contracts,
     commitmentCount: v._count.commitments,
     normKey: normalizeVendorName(v.name),

@@ -10,6 +10,8 @@ import { getWahaConfigDisplay, getWahaHits } from "@/lib/waha/config";
 import { getGDriveConfigDisplay } from "@/lib/gdrive/config";
 import { driveRedirectUriFrom } from "@/lib/gdrive/origin";
 import { parseAkar } from "@/lib/akar";
+import { AhspPanel } from "./ahsp-panel";
+import { ringkasAhsp } from "@/lib/ahsp/import";
 import { GDrivePanel } from "./gdrive-panel";
 import { GDriveOtomatisPanel } from "./gdrive-otomatis-panel";
 import { getGDriveOtomatisAktif } from "@/lib/gdrive/setelan";
@@ -375,6 +377,16 @@ export default async function SistemPage() {
             status={gdriveDisplay.connected ? "Terhubung" : "Belum terhubung"}
           />
           <GDrivePanel initial={gdriveDisplay} redirectUri={driveRedirectUriFrom(h)} />
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Basis data AHSP"
+          subtitle="Analisa Harga Satuan Pekerjaan SE DJBK 47/2026 — dasar penurunan kebutuhan bahan, upah, dan alat dari RAB"
+        />
+        <CardBody>
+          <AhspPanel ringkas={await ringkasAhsp()} />
         </CardBody>
       </Card>
 

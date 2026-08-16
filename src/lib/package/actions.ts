@@ -1626,3 +1626,122 @@ export async function correctAddLocationAction(
       "Koreksi belum selesai: lokasi baru belum punya RAB & baseline, jadi total nilai RAB paket masih timpang terhadap nilai kontrak sampai RAB lokasi ini diimpor. Impor RAB pertamanya tercatat sebagai HPS awal, bukan adendum.",
   };
 }
+
+/* ------------------------------------------------------------------ */
+/* Gambar tanda tangan & stempel kontrak (DECISIONS 328)               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Kenapa gambar tanda tangan menempel pada KONTRAK, bukan pada pengguna.
+ *
+ * Permintaan user: *"orang lapangan kuno dan konservatif, tetap minta untuk
+ * laporan di tanda tangan manual dan dicetak / orang lapangan dari pengawas dan
+ * kkp"*. Yang menandatangani laporan KKP bukan pengguna aplikasi, melainkan
+ * tiga jabatan yang DITUNJUK KONTRAK — nama-namanya sudah ada di kontrak
+ * (`ppkName`, `supervisorName`, `contractorSignerName`). Menaruh gambarnya di
+ * profil pengguna akan memisahkan gambar dari nama, cacat yang sama persis
+ * dengan yang diperbaiki DECISIONS 267 ("Administrator" di atas "Direktur").
+ *
+ * Ganti personel ⇒ ganti nama DAN gambarnya di satu tempat yang sama.
+ *
+ * Stempel penyedia boleh dikosongkan di sini: pembacanya
+ * (`lib/export/ttd-laporan.ts`) jatuh ke `Vendor.stempelKey`.
+ */
+
+const BERKAS_TTD_MAKS = 2 * 1024 * 1024;
+
+/** Enam medan kontrak yang bisa diisi gambar; nama medan = nama field form. */
+const MEDAN_TTD = [
+  "ppkTtdKey",
+  "ppkStempelKey",
+  "supervisorTtdKey",
+  "supervisorStempelKey",
+  "contractorTtdKey",
+  "contractorStempelKey",
+] as const;
+
+type MedanTtd = (typeof MEDAN_TTD)[number];
+
+const LABEL_TTD: Record<MedanTtd, string> = {
+  ppkTtdKey: "tanda tangan PPK",
+  ppkStempelKey: "stempel PPK",
+  supervisorTtdKey: "tanda tangan konsultan pengawas",
+  supervisorStempelKey: "stempel konsultan pengawas",
+  contractorTtdKey: "tanda tangan penyedia",
+  contractorStempelKey: "stempel penyedia",
+};
+
+/** Unggah/hapus gambar tanda tangan & stempel pada kontrak. */
+export async function updateContractSignatureImages(
+  _prev: PackageActionState,
+  formData: FormData,
+): Promise<PackageActionState> {
+  const actor = await requireCapability("contract.manage");
+  const contractId = String(formData.get("contractId") ?? "");
+  if (!z.uuid().safeParse(contractId).success) return { error: "ID kontrak tidak valid." };
+
+  const contract = await db.contract.findFirst({
+    where: { id: contractId, package: { orgId: actor.orgId } },
+    select: {
+      id: true,
+      packageId: true,
+      ppkTtdKey: true,
+      ppkStempelKey: true,
+      supervisorTtdKey: true,
+      supervisorStempelKey: true,
+      contractorTtdKey: true,
+      contractorStempelKey: true,
+    },
+  });
+  if (!contract) return { error: "Kontrak tidak ditemukan." };
+
+  const { isR2Configured, r2Put } = await import("@/lib/r2");
+  const data: Partial<Record<MedanTtd, string | null>> = {};
+  const berubah: string[] = [];
+
+  for (const medan of MEDAN_TTD) {
+    if (formData.get(`hapus_${medan}`) === "1") {
+      // Berkas lama TIDAK dihapus dari R2 — jejak dokumen yang sudah tercetak
+      // memakai gambar itu; yang dilepas hanya kaitannya ke kontrak.
+      if (contract[medan] !== null) {
+        data[medan] = null;
+        berubah.push(`${LABEL_TTD[medan]} dilepas`);
+      }
+      continue;
+    }
+    const berkas = formData.get(medan);
+    if (!(berkas instanceof File) || berkas.size === 0) continue;
+    if (berkas.size > BERKAS_TTD_MAKS) {
+      return { error: `Berkas ${LABEL_TTD[medan]} terlalu besar (maks 2 MB).` };
+    }
+    if (!/^image\/(png|jpe?g|webp)$/i.test(berkas.type)) {
+      return { error: `Format ${LABEL_TTD[medan]} harus PNG/JPG/WebP.` };
+    }
+    if (!isR2Configured()) {
+      return { error: "Penyimpanan berkas (R2) belum dikonfigurasi — gambar tidak dapat diunggah." };
+    }
+    const sharp = (await import("sharp")).default;
+    // 800px sisi terpanjang: cukup tajam untuk cetak A4 pada ruang ±2 cm,
+    // masih ringan untuk dimuat di halaman cetak yang berisi 3 blok.
+    const buf = await sharp(Buffer.from(await berkas.arrayBuffer()), { failOn: "none" })
+      .resize(800, 800, { fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 92 })
+      .toBuffer();
+    const key = `kontrak/${contract.id}/${medan}.webp`;
+    await r2Put(key, buf, "image/webp");
+    data[medan] = key;
+    berubah.push(`${LABEL_TTD[medan]} diperbarui`);
+  }
+
+  if (berubah.length === 0) {
+    return { error: "Tidak ada berkas yang dipilih — pilih gambar atau centang “lepas”." };
+  }
+
+  await db.contract.update({ where: { id: contract.id }, data });
+  await audit(actor.id, "contract.ttd", "package", contract.packageId, {
+    contractId: contract.id,
+    berubah,
+  });
+  revalidatePath(`/paket/${contract.packageId}`, "layout");
+  return { success: `${berubah.join("; ")}.` };
+}

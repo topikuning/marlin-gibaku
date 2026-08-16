@@ -20,6 +20,7 @@ type V = {
   email: string | null;
   logoUrl: string | null;
   kopUrl: string | null;
+  stempelUrl: string | null;
   contractCount: number;
   commitmentCount: number;
   normKey: string;
@@ -193,6 +194,27 @@ function VendorEditForm({ vendor, onDone }: { vendor: V; onDone: () => void }) {
             maxBytes={2 * 1024 * 1024}
           />
         </div>
+        <div>
+          <Label htmlFor={`v-stempel-${vendor.id}`}>Stempel perusahaan (PNG/JPG/WebP ≤ 2 MB)</Label>
+          {vendor.stempelUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- URL presigned R2 sementara
+            <img
+              src={vendor.stempelUrl}
+              alt="Stempel perusahaan saat ini"
+              className="mb-1.5 size-16 rounded border border-border bg-white object-contain"
+            />
+          ) : null}
+          <FileInput
+            id={`v-stempel-${vendor.id}`}
+            name="stempel"
+            accept="image/png,image/jpeg,image/webp"
+            maxBytes={2 * 1024 * 1024}
+          />
+          <p className="mt-0.5 text-xs text-ink-faint">
+            Dipakai di blok tanda tangan laporan harian, mingguan &amp; periodik yang dicetak. Pindai
+            stempel di kertas putih polos; latar putihnya tidak akan menutupi tanda tangan.
+          </p>
+        </div>
         <div className="sm:col-span-2 lg:col-span-3">
           <Label htmlFor={`v-addr-${vendor.id}`}>Alamat (untuk kop surat)</Label>
           <Input id={`v-addr-${vendor.id}`} name="address" defaultValue={vendor.address ?? ""} placeholder="Jl. … , Kab/Kota, Provinsi" />
@@ -225,6 +247,11 @@ function VendorEditForm({ vendor, onDone }: { vendor: V; onDone: () => void }) {
         {vendor.kopUrl ? (
           <label className="flex items-center gap-1.5 text-xs text-ink-muted">
             <input type="checkbox" name="removeKop" value="1" /> Hapus kop
+          </label>
+        ) : null}
+        {vendor.stempelUrl ? (
+          <label className="flex items-center gap-1.5 text-xs text-ink-muted">
+            <input type="checkbox" name="removeStempel" value="1" /> Hapus stempel
           </label>
         ) : null}
         <Button type="button" size="sm" variant="ghost" onClick={onDone}>
