@@ -27,7 +27,8 @@
  */
 
 export type KomponenAhsp = {
-  kategori: "upah" | "bahan" | "alat";
+  /** upah | bahan | alat | fasilitas | … — apa adanya dari berkasnya. */
+  kategori: string;
   nama: string;
   satuan: string | null;
   koefisien: number;
@@ -85,13 +86,27 @@ export type MasterAhsp = {
     /** Berapa analisa yang membawa lapisan pencocokan dari berkasnya. */
     punyaAlias: number;
     komponen: { upah: number; bahan: number; alat: number };
+    /** Kategori komponen di luar upah/bahan/alat — dilaporkan, bukan dibuang. */
+    kategoriLain: Record<string, number>;
     bidang: Record<string, number>;
   };
 };
 
 export class AhspParseError extends Error {}
 
-const KATEGORI = new Set(["upah", "bahan", "alat"]);
+/**
+ * Kategori komponen yang SUDAH DIKENAL. Bukan daftar putih.
+ *
+ * Dulu ini saringan: kategori di luar daftar dibuang. Terbitan 5.0 menambahkan
+ * `fasilitas` (Base Camp, Barak, Gudang pada analisa "Fasilitas") — dan dengan
+ * saringan itu, 6 komponen resmi lenyap tanpa suara. Kategori baru pada terbitan
+ * berikutnya akan lenyap dengan cara yang sama.
+ *
+ * Sekarang kategori apa pun diterima; yang di luar daftar ini DIHITUNG dan
+ * dilaporkan ke layar Sistem supaya kemunculannya terlihat, bukan didiamkan.
+ * DECISIONS 324.
+ */
+const KATEGORI_DIKENAL = new Set(["upah", "bahan", "alat"]);
 
 function teks(v: unknown): string | null {
   if (typeof v !== "string") return null;
@@ -123,9 +138,9 @@ function bacaKomponen(raw: unknown, urutanCadangan: number): KomponenAhsp | null
   // Komponen tanpa kategori/nama/koefisien tidak bisa dipakai menghitung apa
   // pun. Dibuang di sini, dan jumlah yang dibuang ikut dilaporkan — bukan
   // diselundupkan sebagai baris berkoefisien 0.
-  if (!kategori || !KATEGORI.has(kategori) || !nama || koef === null) return null;
+  if (!kategori || !nama || koef === null) return null;
   return {
-    kategori: kategori as KomponenAhsp["kategori"],
+    kategori,
     nama,
     satuan: teks(o.satuan),
     koefisien: koef,
@@ -226,12 +241,19 @@ export function bacaMasterAhsp(raw: unknown, code: string): MasterAhsp {
   }
 
   const komponen = { upah: 0, bahan: 0, alat: 0 };
+  const kategoriLain: Record<string, number> = {};
   const bidang: Record<string, number> = {};
   let tanpaKomponen = 0;
   for (const e of unik) {
     bidang[e.bidang] = (bidang[e.bidang] ?? 0) + 1;
     if (e.components.length === 0) tanpaKomponen += 1;
-    for (const c of e.components) komponen[c.kategori] += 1;
+    for (const c of e.components) {
+      if (KATEGORI_DIKENAL.has(c.kategori)) {
+        komponen[c.kategori as "upah" | "bahan" | "alat"] += 1;
+      } else {
+        kategoriLain[c.kategori] = (kategoriLain[c.kategori] ?? 0) + 1;
+      }
+    }
   }
 
   const dibangkitkan = teks(meta.generated_at);
@@ -255,6 +277,7 @@ export function bacaMasterAhsp(raw: unknown, code: string): MasterAhsp {
       tanpaKomponen,
       punyaAlias: unik.filter((e) => e.aliases.length > 0).length,
       komponen,
+      kategoriLain,
       bidang,
     },
   };

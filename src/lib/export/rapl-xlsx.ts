@@ -26,11 +26,28 @@ import type { SimulasiRapl } from "@/lib/ahsp/rapl";
  * 7). Berkas ini hanya menata.
  */
 
-const KATEGORI: { kunci: string; judul: string }[] = [
-  { kunci: "bahan", judul: "BAHAN" },
-  { kunci: "upah", judul: "UPAH / TENAGA KERJA" },
-  { kunci: "alat", judul: "PERALATAN" },
-];
+/**
+ * Judul kategori yang sudah dikenal. Kategori LAIN tetap dicetak dengan namanya
+ * sendiri — daftar tetap membuat kategori baru (mis. `fasilitas` pada terbitan
+ * AHSP 5.0) hilang dari berkas unduhan tanpa ada yang tahu. DECISIONS 324.
+ */
+const JUDUL_KATEGORI: Record<string, string> = {
+  bahan: "BAHAN",
+  upah: "UPAH / TENAGA KERJA",
+  alat: "PERALATAN",
+  fasilitas: "FASILITAS",
+};
+const URUTAN_KATEGORI = ["bahan", "upah", "alat", "fasilitas"];
+
+function urutKategori(kebutuhan: { kategori: string }[]): string[] {
+  const ada = [...new Set(kebutuhan.map((k) => k.kategori))];
+  return ada.sort(
+    (a, b) =>
+      (URUTAN_KATEGORI.indexOf(a) < 0 ? 99 : URUTAN_KATEGORI.indexOf(a)) -
+        (URUTAN_KATEGORI.indexOf(b) < 0 ? 99 : URUTAN_KATEGORI.indexOf(b)) ||
+      a.localeCompare(b, "id"),
+  );
+}
 
 const ALASAN_JUDUL: Record<string, string> = {
   belum_disetujui: "Padanan AHSP belum disetujui",
@@ -141,7 +158,9 @@ function tulisRingkasan(
       "Jenis sumber daya",
       rapl.kebutuhan.length,
       "baris",
-      `bahan ${rapl.kebutuhan.filter((k) => k.kategori === "bahan").length} · upah ${rapl.kebutuhan.filter((k) => k.kategori === "upah").length} · alat ${rapl.kebutuhan.filter((k) => k.kategori === "alat").length}`,
+      urutKategori(rapl.kebutuhan)
+        .map((k) => `${k} ${rapl.kebutuhan.filter((x) => x.kategori === k).length}`)
+        .join(" · "),
     ],
   ];
   for (const [nama, nilai, satuan, ket] of angka) {
@@ -226,13 +245,13 @@ function tulisKebutuhan(wb: ExcelJS.Workbook, rapl: SimulasiRapl): void {
   ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 6 } };
 
   let r = 2;
-  for (const kat of KATEGORI) {
-    const baris = rapl.kebutuhan.filter((k) => k.kategori === kat.kunci);
+  for (const kat of urutKategori(rapl.kebutuhan)) {
+    const baris = rapl.kebutuhan.filter((k) => k.kategori === kat);
     if (baris.length === 0) continue;
 
     ws.mergeCells(r, 1, r, 6);
     const jc = ws.getCell(r, 1);
-    jc.value = kat.judul;
+    jc.value = JUDUL_KATEGORI[kat] ?? kat.toUpperCase();
     jc.font = { bold: true, size: 10, color: { argb: WARNA.teks } };
     jc.fill = isi(WARNA.kategori);
     jc.border = KOTAK;

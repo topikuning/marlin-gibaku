@@ -81,13 +81,21 @@ export function bacaAturanIstilah(matchingEngine: unknown): AturanIstilah {
   const padanan = new Map<string, string>();
   const elemen = new Map<string, string>();
 
-  for (const [kanonikMentah, daftar] of Object.entries(objek(me.terminology_aliases))) {
-    const kanonik = rapikan(kanonikMentah);
-    if (!kanonik) continue;
-    padanan.set(kanonik, kanonik);
-    for (const a of daftarString(daftar)) {
-      const k = rapikan(a);
-      if (k) padanan.set(k, kanonik);
+  // `terminology_aliases` (sejak 2.1.0) dan `field_alias_lexicon` (sejak 5.0)
+  // bentuknya sama: kanonik → daftar padanan. Keduanya dibaca; yang belakangan
+  // menambah istilah lapangan seperti "sengkang/begel/stirrup" dan
+  // "lantai kerja/lean concrete".
+  for (const sumber of [me.terminology_aliases, me.field_alias_lexicon]) {
+    for (const [kanonikMentah, daftar] of Object.entries(objek(sumber))) {
+      const kanonik = rapikan(kanonikMentah);
+      if (!kanonik) continue;
+      if (!padanan.has(kanonik)) padanan.set(kanonik, kanonik);
+      for (const a of daftarString(daftar)) {
+        const k = rapikan(a);
+        // Yang lebih dulu menang: `terminology_aliases` tetap jadi rujukan
+        // kanonik kalau kedua daftar menyebut istilah yang sama.
+        if (k && !padanan.has(k)) padanan.set(k, kanonik);
+      }
     }
   }
 

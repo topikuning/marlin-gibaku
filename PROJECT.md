@@ -55,8 +55,9 @@ Location → RabRevision (draft|aktif|digantikan) → RabNode (pohon 1 tabel;
 Contract → OwnerBilling (termin) → Disbursement                    (penagihan owner)
 Package/Location → AdminMilestone (template KKP 45 item) → Document (FK nyata ke semua
            entitas; version chain supersedesId; append-only by convention)
-AHSP    → AhspSource (SE DJBK 47/2026, sha256 berkas + matchingEngine) → AhspEntry
-           (+aliases/keywords dari berkas) → AhspComponent
+AHSP    → AhspSource (SE DJBK 47/2026 terbitan 5.0-universal, sha256 + matchingEngine)
+           → AhspEntry (+aliases/keywords/legacyId dari berkas) → AhspComponent
+           (kategori APA ADANYA dari berkas: upah|bahan|alat|fasilitas|…)
            (koefisien upah/bahan/alat) · AhspPadanan (kunci GLOBAL = tanda uraian+satuan;
            pemetaan item RAB → analisa; `otomatis` = usulan mesin, `disetujui`/`koreksi`
            = keputusan manusia — HANYA yang terakhir dipakai menghitung RAPL)

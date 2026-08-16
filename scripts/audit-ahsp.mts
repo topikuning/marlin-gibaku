@@ -179,7 +179,7 @@ async function main() {
         komponen: nama,
         satuanKomponen: sat || "—",
         koefisien: String(total),
-        catatan: `${asal}; MUNCUL ${jumlah}× dalam satu analisa — koefisien di kolom ini sudah dijumlahkan; pastikan memang dua baris, bukan salah salin`,
+        catatan: `${asal}; MUNCUL ${jumlah}× dalam satu analisa — koefisien di kolom ini sudah dijumlahkan. Panduan berkas terbitan 5.0 menyatakan pengulangan seperti ini SENGAJA ("jangan gabungkan komponen berulang yang perannya berbeda di sumber resmi"), jadi kemungkinan besar sah; tetap didaftarkan supaya bisa dipastikan`,
       });
     }
   }
@@ -213,7 +213,7 @@ async function main() {
     [
       "Komponen kembar dalam satu analisa",
       kembar.length,
-      "Kombinasi kategori + nama + satuan yang sama muncul lebih dari sekali pada satu analisa. Bisa sah (dua baris berbeda ukuran) atau salah salin. MARLIN menjumlahkannya; kalau salah salin, hasilnya jadi dobel.",
+      "Kombinasi kategori + nama + satuan yang sama muncul lebih dari sekali pada satu analisa. Panduan berkas terbitan 5.0 menyatakan pengulangan begini SENGAJA (perannya berbeda di sumber resmi) dan melarang menggabungkannya — jadi kemungkinan besar sah. MARLIN menjumlahkannya untuk kebutuhan total; didaftarkan di sini supaya bisa dipastikan, bukan karena diduga salah.",
     ],
     [
       "Analisa tanpa koefisien terstruktur",

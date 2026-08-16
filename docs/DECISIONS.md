@@ -13847,3 +13847,103 @@ tidak ada" tidak tersapu, dan baris putus bisa dipetakan ulang.
 
 Uji gigi: menghapus penyambungan ulang → 3 merah; menganggap baris putus "sudah
 ada" → 1 merah; menyimpulkan "tidak ada" dari entryId kosong lagi → 1 merah.
+
+---
+
+## 324 · Basis AHSP terbitan 5.0-universal: diperiksa dulu, baru dipakai (2026-08-16)
+
+User mengunggah `ahsp_se_djbk_47_2026_universal_master_v5.json` dengan pesan
+*"periksa basis ini, gunakan jika tidak ada masalah"*. Diperiksa, satu masalah
+ditemukan **di kode MARLIN** (bukan di berkasnya), diperbaiki, lalu dipakai.
+
+### Berkasnya memperbaiki temuan audit 320
+
+| temuan (audit `pnpm audit:ahsp`) | v2 | v5 |
+| --- | ---: | ---: |
+| Komponen UPAH bersatuan bahan | 334 | **0** |
+| Komponen BAHAN bersatuan waktu | 49 | **2** |
+| Analisa tanpa koefisien terstruktur | 433 | **410** |
+| Koefisien nol | 35 | 35 |
+| Komponen kembar dalam satu analisa | 30 | 30 |
+| Satuan analisa tidak terbaca | 30 | 30 |
+
+Yang 334 diperbaiki dengan cara yang benar: Base Camp, Barak, Gudang pada
+analisa "Fasilitas" TIDAK dipindah paksa ke `bahan`, melainkan diberi kategori
+sendiri — **`fasilitas`**. Dan komponen kembar ternyata memang disengaja:
+panduan v5 melarang menggabungkannya (*"Do not deduplicate repeated components
+when they have different operational roles in the official source"*), jadi
+catatan auditnya diperbaiki — didaftarkan untuk dipastikan, bukan karena diduga
+salah.
+
+### Masalahnya ada di MARLIN: daftar putih kategori
+
+`parse.ts` menyaring kategori komponen dengan daftar putih `{upah, bahan, alat}`.
+Kategori di luar itu **dibuang diam-diam**. Artinya 6 komponen resmi `fasilitas`
+akan lenyap tanpa suara — dan kategori apa pun pada terbitan berikutnya akan
+lenyap dengan cara yang sama, tanpa ada yang tahu.
+
+Ini pola cacat yang sama dengan DECISIONS 323, cuma di tempat lain: **kode yang
+mengasumsikan bentuk data tidak akan berubah, lalu diam saat asumsinya salah.**
+
+Perbaikannya bukan "tambahkan `fasilitas` ke daftar":
+
+- kategori apa pun diterima (syaratnya tetap: ada nama + ada koefisien —
+  komponen yang tidak bisa dipakai menghitung tetap dibuang);
+- kategori di luar `{upah, bahan, alat}` **dihitung dan dilaporkan** di hasil
+  impor (`kategoriLain`), supaya kemunculannya terlihat;
+- daftar tampil di layar RAPL dan di berkas unduhan Excel sekarang **diturunkan
+  dari data**, bukan dari daftar tetap. Kategori yang belum punya label muncul
+  dengan namanya sendiri, bukan hilang.
+
+Nilai yang dipakai berpindah dari "yang saya tahu" ke "yang benar-benar ada".
+
+### Yang ikut diadopsi
+
+- **`field_alias_lexicon`** (baru di 5.0) dibaca bersama `terminology_aliases`:
+  menambah "sengkang/begel/stirrup", "lantai kerja/lean concrete", "saluran u/
+  u-ditch", dll. Analisa yang membawa lapisan pencocokan naik **1.945 → 2.688**.
+- **8 analisa resmi hasil QA** (`qa_recovered_official_records`): saklar tunggal/
+  ganda/triple, downlight LED, lampu TL, closet duduk/jongkok — persis jenis
+  item yang dulu masuk daftar "satuan tidak sepadan"/"tidak ada padanan".
+- **id record STABIL**: seluruh 5.007 id v2 ada di v5 (+8 baru). Artinya jalur
+  penyambungan ulang DECISIONS 323 bekerja penuh — mengganti terbitan tidak
+  memutus satu pun pemetaan manusia.
+
+### Hasil nyata (RAB Kedung Mutih)
+
+```
+impor        5.560 analisa · 29.689 komponen · 2.688 beralias
+             kategoriLain: { fasilitas: 6 }   ← dulu hilang tanpa suara
+pemetaan     1.087 dari 1.620 baris (67,1%)
+simulasi     1.073 baris · 72,6% nilai RAB · 305 sumber daya
+             (bahan 224 · upah 24 · alat 57) · 0 bertanda janggal
+```
+
+Angka cakupan praktis tidak berubah dari v2 (72,5% → 72,6%); yang berubah
+adalah **kebersihannya** — penanda `janggal` yang dulu menyala 9 kali sekarang
+nol, karena sumbernya sendiri sudah dibetulkan.
+
+### Yang TERSEDIA di berkas tapi BELUM dipakai
+
+v5 membawa kerangka yang lebih luas daripada yang dipakai MARLIN sekarang, dan
+menyebutnya di sini supaya tidak terlupakan:
+
+- `universal_boq_mapping_framework.status_semantics` — tujuh status
+  (MATCHED_WITH_ASSUMPTION, CUSTOM_REQUIRED, MAPPED_EXTERNAL, CONTEXT_ONLY, …)
+  yang lebih kaya daripada keadaan MARLIN sekarang;
+- `unresolved_action_catalog` — daftar `required_inputs` per item yang belum
+  terpetakan ("tebal_dinding", "mutu_mortar", "jenis_baja"): ini bisa jadi
+  pertanyaan konkret di layar, bukan sekadar "belum ada padanan";
+- `external_technical_reference_catalog` (17 rujukan: SNI, PUIL, PLN, NIDI,
+  SLO) — menjawab tepat lubang terbesar RAB KNMP: sambungan daya PLN, pompa
+  submersible, PJU. Item begini memang **bukan** urusan AHSP, dan berkasnya
+  menyediakan status `MAPPED_EXTERNAL` untuk itu.
+
+Yang terakhir itu langkah berikutnya yang paling berharga: mengubah "Rp1,89 M
+belum ada padanan" dari lubang menjadi daftar pekerjaan yang tahu harus melihat
+ke mana.
+
+**Penjaga.** `tests/unit/ahsp-parse.test.ts` +1 (kategori baru disimpan dan
+dilaporkan). Uji gigi: mengembalikan daftar putih kategori → 1 merah. Angka
+acuan `tests/integration/ahsp-import.test.ts` diperbarui ke terbitan 5.0
+(5.560 / 29.683 / 2.688 / `fasilitas: 6`).

@@ -158,16 +158,50 @@ describe("bacaMasterAhsp", () => {
             components: [
               { kategori: "bahan", nama_material: "Semen", koefisien: 2, satuan: "kg", urutan: 1 },
               { kategori: "bahan", nama_material: "Tanpa koefisien", koefisien: null, satuan: "kg", urutan: 2 },
-              { kategori: "entah", nama_material: "Kategori asing", koefisien: 1, urutan: 3 },
-              { kategori: "upah", nama_material: "   ", koefisien: 1, urutan: 4 },
+              { kategori: "upah", nama_material: "   ", koefisien: 1, urutan: 3 },
             ],
           },
         ],
       }),
       "X",
     );
+    // Yang dibuang HANYA yang tidak bisa dipakai menghitung: tanpa koefisien,
+    // tanpa nama. Kategori TIDAK termasuk syarat — lihat uji berikutnya.
     expect(m.entries[0].components).toHaveLength(1);
     expect(m.entries[0].components[0].nama).toBe("Semen");
+  });
+
+  it("kategori BARU disimpan dan dilaporkan, TIDAK dibuang", () => {
+    /*
+     * Dulu kategori disaring daftar putih {upah, bahan, alat}. Terbitan AHSP 5.0
+     * menambahkan `fasilitas` (Base Camp, Barak, Gudang pada analisa
+     * "Fasilitas") — dan dengan saringan itu 6 komponen RESMI lenyap tanpa
+     * suara. Kategori pada terbitan berikutnya akan lenyap dengan cara yang
+     * sama, dan tidak ada yang akan tahu. DECISIONS 324.
+     */
+    const m = bacaMasterAhsp(
+      master({
+        records: [
+          {
+            id: "baru",
+            kode: "A.1.08.2a",
+            uraian: "Fasilitas",
+            satuan: "m2",
+            bidang: "sumber_daya_air",
+            components: [
+              { kategori: "bahan", nama_material: "Semen", koefisien: 2, satuan: "kg", urutan: 1 },
+              { kategori: "fasilitas", nama_material: "Base Camp", koefisien: 12, satuan: "m2", urutan: 2 },
+            ],
+          },
+        ],
+      }),
+      "X",
+    );
+    expect(m.entries[0].components).toHaveLength(2);
+    expect(m.entries[0].components[1].kategori).toBe("fasilitas");
+    // Dilaporkan supaya kemunculannya TERLIHAT, bukan cuma diam-diam diterima.
+    expect(m.ringkas.kategoriLain).toEqual({ fasilitas: 1 });
+    expect(m.ringkas.komponen).toEqual({ upah: 0, bahan: 1, alat: 0 });
   });
 
   it("satuan '-' dipertahankan apa adanya — itu penanda 'belum terbaca'", () => {

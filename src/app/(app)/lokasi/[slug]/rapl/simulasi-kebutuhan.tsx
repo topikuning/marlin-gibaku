@@ -31,11 +31,22 @@ export type BarisDilewatRow = {
   rinci: string;
 };
 
-const KATEGORI = [
-  { key: "bahan", label: "Bahan" },
-  { key: "upah", label: "Upah" },
-  { key: "alat", label: "Alat" },
-] as const;
+/**
+ * Label kategori yang sudah dikenal. Kategori LAIN tetap ditampilkan dengan
+ * namanya sendiri — daftar tetap membuat kategori baru (mis. `fasilitas` pada
+ * terbitan AHSP 5.0) lenyap dari layar tanpa ada yang tahu. DECISIONS 324.
+ */
+const LABEL_KATEGORI: Record<string, string> = {
+  bahan: "Bahan",
+  upah: "Upah",
+  alat: "Alat",
+  fasilitas: "Fasilitas",
+};
+const URUTAN = ["bahan", "upah", "alat", "fasilitas"];
+
+function labelKategori(k: string): string {
+  return LABEL_KATEGORI[k] ?? k.charAt(0).toUpperCase() + k.slice(1);
+}
 
 const ALASAN_LABEL: Record<string, string> = {
   belum_disetujui: "Padanan belum disetujui",
@@ -59,7 +70,7 @@ export function SimulasiKebutuhan({
   nilaiRab: string;
   barisRab: number;
 }) {
-  const [tab, setTab] = useState<(typeof KATEGORI)[number]["key"]>("bahan");
+  const [tab, setTab] = useState<string>("bahan");
   const [cari, setCari] = useState("");
   const [bukaLewat, setBukaLewat] = useState(false);
 
@@ -69,17 +80,30 @@ export function SimulasiKebutuhan({
 
   const perKategori = useMemo(() => {
     const q = cari.trim().toLowerCase();
+    const aktif = kebutuhan.some((k) => k.kategori === tab)
+      ? tab
+      : (kebutuhan[0]?.kategori ?? tab);
     return kebutuhan.filter(
-      (k) => k.kategori === tab && (q === "" || k.nama.toLowerCase().includes(q)),
+      (k) => k.kategori === aktif && (q === "" || k.nama.toLowerCase().includes(q)),
     );
   }, [kebutuhan, tab, cari]);
 
   const janggal = useMemo(() => kebutuhan.filter((k) => k.janggal), [kebutuhan]);
 
   const jumlahPerKategori = useMemo(() => {
-    const h: Record<string, number> = { bahan: 0, upah: 0, alat: 0 };
+    const h: Record<string, number> = {};
     for (const k of kebutuhan) h[k.kategori] = (h[k.kategori] ?? 0) + 1;
     return h;
+  }, [kebutuhan]);
+
+  /** Kategori yang BENAR-BENAR ada di data, diurutkan yang dikenal lebih dulu. */
+  const kategoriAda = useMemo(() => {
+    const ada = [...new Set(kebutuhan.map((k) => k.kategori))];
+    return ada.sort(
+      (a, b) =>
+        (URUTAN.indexOf(a) < 0 ? 99 : URUTAN.indexOf(a)) -
+          (URUTAN.indexOf(b) < 0 ? 99 : URUTAN.indexOf(b)) || a.localeCompare(b, "id"),
+    );
   }, [kebutuhan]);
 
   const ringkasLewat = useMemo(() => {
@@ -112,19 +136,19 @@ export function SimulasiKebutuhan({
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        {KATEGORI.map((k) => (
+        {kategoriAda.map((k) => (
           <button
-            key={k.key}
+            key={k}
             type="button"
-            onClick={() => setTab(k.key)}
+            onClick={() => setTab(k)}
             className={cn(
               "rounded-full border px-3 py-1 text-[13px] transition",
-              tab === k.key
+              tab === k
                 ? "border-brand bg-brand-soft font-medium text-brand"
                 : "border-line text-ink-muted hover:bg-surface-inset",
             )}
           >
-            {k.label} <span className="tabular">({jumlahPerKategori[k.key] ?? 0})</span>
+            {labelKategori(k)} <span className="tabular">({jumlahPerKategori[k] ?? 0})</span>
           </button>
         ))}
         <Input

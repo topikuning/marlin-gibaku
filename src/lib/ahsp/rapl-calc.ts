@@ -133,7 +133,12 @@ export type HasilRapl = {
 export const DESIMAL_KEBUTUHAN = 6;
 const SKALA = 10 ** DESIMAL_KEBUTUHAN;
 
-const URUTAN_KATEGORI: Record<string, number> = { upah: 0, bahan: 1, alat: 2 };
+/**
+ * Urutan tampil. Kategori yang TIDAK terdaftar tetap muncul (di paling belakang),
+ * bukan hilang — terbitan berkas bisa menambah kategori kapan saja, dan yang
+ * pertama kali terjadi (`fasilitas`, terbitan 5.0) nyaris lolos tanpa terlihat.
+ */
+const URUTAN_KATEGORI: Record<string, number> = { upah: 0, bahan: 1, alat: 2, fasilitas: 3 };
 
 /** Turunkan kebutuhan sumber daya dari item RAB yang padanannya sudah disetujui. */
 export function agregasiKebutuhan(items: ItemUntukRapl[]): HasilRapl {
