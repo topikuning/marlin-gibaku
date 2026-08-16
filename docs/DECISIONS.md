@@ -14046,3 +14046,81 @@ segera dipakai. Catat sebagai langkah berikutnya, bukan sebagai selesai.
 mati di tengah tidak mengaku mutakhir dan diulang penuh, penulisan yang
 diam-diam bolong ditolak, jalur "tidak berubah" selesai di bawah 2 detik, dan
 jumlah tersimpan sama persis dengan manifest.
+
+---
+
+## 326 · RAPL disusun ulang: per URAIAN, bertahap (2026-08-16)
+
+Keluhan user: *"caramu menyajikan RAPL ini tidak ui/ux friendly."* Sah, dan
+cacat terbesarnya bukan selera.
+
+### Cacatnya: 1.616 baris untuk 480 keputusan
+
+Daftar pemetaan menampilkan satu baris per BARIS RAB. Padahal keputusannya per
+URAIAN: satu uraian yang muncul di 34 baris RAB adalah SATU pilihan, bukan 34 —
+dan karena kunci padanan global (DECISIONS 319), pilihan itu bahkan berlaku di
+lokasi lain. Diukur pada Kedung Mutih: **1.620 baris → 480 uraian, 3,4× lebih
+sedikit**, dengan uraian yang sama berulang-ulang di antaranya.
+
+Tiga cacat lain yang menyertainya:
+
+- satu halaman menumpuk empat hal (KPI, pemetaan, kebutuhan, yang dikeluarkan)
+  tanpa memberi tahu harus mulai dari mana;
+- saringan bawaannya "Menunggu persetujuan" — yang sering **0**, jadi yang
+  pertama terlihat adalah daftar kosong;
+- penjelasan panjang ditempel inline di setiap sudut, menutupi pekerjaannya.
+
+### Yang berubah
+
+**Daftar jadi per uraian.** Yang HILANG saat digabung — berapa baris dan berapa
+rupiah yang bergantung pada satu keputusan — dikembalikan sebagai kolom, dan
+dipakai **mengurutkan dari nilai terbesar**. Daftar pekerjaan yang berguna
+dimulai dari yang paling menentukan uang, bukan dari yang kebetulan paling atas
+di dokumen. Baris teratas Kedung Mutih: *"Pekerjaan beton semi mekanis setara
+fc = 25"* — 34 baris RAB, Rp365 juta, satu keputusan.
+
+**Tahapan yang terlihat: Petakan → Setujui → Kebutuhan → Harga.** Tiap tahap
+membawa dua angka yang berarti: berapa uraian tersisa DAN berapa rupiah yang
+tertahan di situ. Tahap AKTIF adalah tahap terawal yang masih bersisa — bukan
+yang kebetulan dibuka — dan saringan daftar mengikuti tahap aktif itu, sehingga
+halaman tidak pernah membuka ke daftar kosong.
+
+**Volume digabung hanya bila semua barisnya bervolume.** Satu baris tanpa volume
+membuat jumlahnya tidak berarti, dan angka yang tidak berarti lebih buruk
+daripada kolom kosong.
+
+**Chip saringan yang isinya nol dimatikan**, bukan dibiarkan mengundang klik ke
+kekosongan.
+
+**Penjelasan dilipat di balik "Kenapa begini?"** — tetap ada (angka RAPL memang
+perlu dijelaskan: cakupan 72%, "beda tipis", satuan tak sepadan), tapi satu
+ketukan jauhnya alih-alih menghalangi.
+
+### Soal AI — ditanyakan, dan JAWABANNYA TIDAK
+
+Pertanyaan user: bisakah AI dipakai menarik kebutuhan untuk pekerjaan yang tak
+punya padanan AHSP? Secara teknis bisa, dan berkas v5 menyediakan tempatnya
+(`CUSTOM_REQUIRED`, `anomaly_resolution_policy`). Tapi itu berarti mengubah
+doktrin DECISIONS 193 — *"AI bukan sumber angka; semua angka dari calc layer"* —
+jadi ditanyakan lebih dulu, dan user memilih **belum**.
+
+Dicatat di sini supaya tidak dikerjakan diam-diam nanti: kalau suatu saat
+dipakai, syaratnya sudah disepakati bentuknya — draf AI wajib berstatus
+tersendiri, wajib disetujui orang seperti padanan AHSP, dan angkanya DIPISAH di
+layar maupun Excel antara "dari AHSP resmi" dan "dari analisa mandiri".
+
+### Rujukan eksternal v5: BELUM bisa ditempel per item
+
+Opsi tanpa-AI menyebut rujukan eksternal (PLN/SNI/NIDI) untuk item yang tak
+berpadanan. Setelah diperiksa: `unresolved_action_catalog` berisi **60 entri
+kategori situasi** (`custom_pump_package`, `external_regulatory`, …) tanpa satu
+pun kunci yang menghubungkannya ke uraian BOQ tertentu. Menempelkannya otomatis
+berarti menebak item mana yang masuk kategori mana — persis jenis tebakan yang
+dilarang di seluruh jalur ini. Jadi tidak dikerjakan sekarang; bentuk yang jujur
+untuk data seperti itu adalah pustaka rujukan yang bisa dibuka dan dicari
+manusia, bukan tempelan otomatis.
+
+**Penjaga.** `tests/unit/ahsp-kelompok.test.ts` (9): penggabungan per uraian
+membawa jumlah baris + rupiah, urutan dari nilai terbesar, volume kosong tidak
+dipalsukan, tahap aktif = terawal yang bersisa, baris `putus` masuk tahap
+petakan (bukan dianggap selesai), dan daftar kosong tidak mengaku selesai.
