@@ -13303,3 +13303,73 @@ Diuji giginya: menghapus tanda `perluVerifikasi` pada supplemental memerahkan
 1 uji; membiarkan komponen tanpa koefisien lolos sebagai 0 memerahkan 1 uji.
 Uji integrasi mematok jumlah (5.550 / 29.494) dengan sengaja — basis
 perhitungan uang tidak boleh berganti diam-diam saat berkasnya ditukar.
+
+---
+
+## 318 · Pencocokan RAB → AHSP: otomatis, tapi mengaku saat ragu (2026-08-16)
+
+Keputusan user 2026-08-16 atas tiga pertanyaan DECISIONS 317:
+
+1. *"sistem memetakan otomatis dan perbaiki yang salah"*
+2. HSD **per lokasi**, dengan rekomendasi bila daerah/paket yang sama sudah terisi
+3. Belum bicara profit — yang dibandingkan **HPS/kontrak vs total biaya RAPL**
+
+Yang dibangun di tahap ini: mesin pencocokannya, MURNI dan terukur.
+
+### Angka sesungguhnya, diukur bukan diklaim
+
+RAB KNMP nyata (Kedung Mutih, 1.657 item) melawan 5.550 analisa, 2,3 detik:
+
+| | |
+|---|---|
+| Item dapat padanan | **1.098 / 1.657 (66,3%)** |
+| Cakupan NILAI RAB | **75,8%** |
+| Padanan "meyakinkan" (unggul jauh dari kandidat kedua) | **260** |
+
+Artinya: sepertiga item tidak dapat padanan, dan dari yang dapat, hanya
+seperempatnya yang unggul telak. Itu bukan kegagalan yang disembunyikan — itu
+bentuk sebenarnya dari masalah ini, dan layar RAPL nanti WAJIB menampilkannya.
+
+### Angka MENAJAMKAN, tidak MENYELAMATKAN
+
+Aturan terpenting di mesin ini, dan lahir dari salah-cocok yang benar-benar
+terjadi saat diukur:
+
+```
+RAB : "Pekerjaan Urugan Sirtu t = 10 cm"
+salah → "Shotcrete Dengan Wiremesh M10 (t = 10 cm)"   65%
+benar → "1 m3 Timbunan dan Pemadatan Sirtu secara manual"
+```
+
+Ia menang karena token `cm` dan angka `10` — dua hal yang tidak ada
+hubungannya dengan jenis pekerjaannya. Dua perbaikan: satuan ukur (`cm`, `mm`)
+masuk daftar kata umum, dan **kecocokan angka hanya boleh menaikkan skor bila
+kemiripan KATANYA sudah melewati ambang**. Angka tetap penentu di tempat yang
+memang membutuhkannya — `fc 25` vs `fc 10` adalah mutu, komposisi, dan harga
+yang berbeda.
+
+### `null` adalah jawaban yang sah
+
+Di bawah ambang, mesin mengembalikan "tidak ada padanan" — bukan kandidat
+terbaik seadanya. Pemetaan yang memaksakan padanan pada setiap baris akan
+membuat kolom kebutuhan bahan terisi penuh dan tampak meyakinkan padahal
+sebagiannya karangan. Lubang harus terlihat sebagai lubang.
+
+Pengurang skor lain: analisa `perluVerifikasi` (×0,85) dan analisa tanpa
+koefisien terstruktur (×0,8) — yang kedua bahkan tidak bisa dipakai menghitung
+apa pun, jadi tidak boleh menang tipis dari yang bisa.
+
+Satuan dinormalkan lebih dulu: RAB memakai `m³/m²/m¹`, AHSP memakai `m3/m2/m'`
+dan `Meter Kubik`. Tanpa itu, satuan yang sebenarnya sama terbaca sebagai bukti
+pekerjaan yang berbeda.
+
+**Penjaga.** `tests/unit/ahsp-cocok.test.ts` (15) — kasusnya diambil dari
+pengukuran nyata, termasuk dua salah-cocok yang benar-benar terjadi.
+
+Satu catatan proses yang layak disimpan: uji gigi pertama untuk pagar
+"angka tidak menyelamatkan" **tidak menggigit** — 14 uji tetap hijau walau
+pagarnya dicabut. Ternyata kasus Sirtu diselamatkan oleh pembuangan token `cm`,
+bukan oleh pagar itu, sehingga pagarnya belum teruji sama sekali. Kasus baru
+dibuat khusus untuk memisahkan keduanya (kemiripan kata 0,33 + angka cocok vs
+kemiripan kata 0,50 tanpa angka), dan barulah pagarnya benar-benar dijaga.
+Tanpa uji gigi, pagar itu akan lolos sebagai hiasan.
