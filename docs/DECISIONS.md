@@ -14481,3 +14481,110 @@ ditulis pdfkit kalau gambarnya benar-benar diproses.
 **Pelajarannya untuk penyaji berikutnya**: uji yang memeriksa masukan sebuah
 fungsi tidak menggantikan uji yang memeriksa keluarannya. Untuk PDF, satu-satunya
 keluaran yang berarti adalah berkas PDF-nya.
+
+---
+
+## 332 — Berkas mingguan: satu sampul, tujuh laporan harian (2026-08-16)
+
+Keterangan user 2026-08-16:
+
+> *"laporan harian selalu ada sampul, ternyata sampul itu dibutuhkan untuk
+> mengumpulkan beberapa laporan harian dalam periode mingguan. jadi satu sampul
+> untuk 7 laporan harian."*
+
+### Yang ini bukan fitur baru, tapi sampul yang salah tempat
+
+Sampulnya SUDAH bertuliskan "MINGGU KE-n" beserta terbilangnya, dan `weekNo`
+sudah dihitung dari SPMK. Ia memang sampul MINGGUAN sejak dibuat — yang keliru
+perilakunya: tercetak ulang pada setiap laporan harian, tujuh kali untuk minggu
+yang sama.
+
+### Satu penyusun, dua keluaran
+
+`buildHarianKkpPdf` dipecah:
+
+```
+tulisBadanHarian(doc, d, lampiran)   ← blanko + dokumentasi, ke doc yang SUDAH ada
+kakiHalaman(doc, appName, status)    ← "Halaman i dari n" MENERUS seluruh berkas
+
+harian   = doc → sampul → badan(1 hari)      → kaki → buffer
+mingguan = doc → sampul → badan × 7 hari     → kaki → buffer
+```
+
+Berkas mingguan TIDAK menggambar blanko sendiri. Kalau keduanya menyusun
+blankonya masing-masing, cepat atau lambat keduanya menyimpang — aturan yang
+sama dengan DECISIONS 241, dan yang ketahuan belakangan justru setelah dokumennya
+dikirim ke PPK.
+
+Alamatnya `/api/laporan/mingguan/[slug]/[minggu]/pdf`, memakai NOMOR MINGGU
+seperti `/cetak/rencana/[slug]/[n]` dan `/cetak/periodik/...`. Cetak harian
+bertambah `?sampul=0` untuk yang sudah memegang berkas mingguannya.
+
+### Hari tanpa laporan
+
+Keputusan user: **blanko kosong tanpa isian pekerjaan**, halamannya tetap ada.
+`getKkpDailyData` memang sudah mengembalikan blanko kosong untuk tanggal yang
+belum berlaporan, jadi tidak ada cabang khusus — satu jalur data, satu bentuk
+keluaran.
+
+Yang TIDAK boleh: menghilangkannya diam-diam. Jumlah hari kosong dicetak di kaki
+tiap halaman (`statusBerkasMingguan`), bukan cuma dikembalikan fungsi — berkasnya
+hidup sendiri sesudah keluar dari MARLIN.
+
+**Hari kosong ditanyakan ke basis data**, bukan disimpulkan dari `items.length`:
+blanko kosong dihasilkan baik oleh "belum ada laporan" maupun "laporan ada tapi
+belum diisi", dan menyamakan keduanya adalah kebohongan kecil yang tercetak.
+
+### Tanpa SPMK tidak terbit
+
+"Minggu ke-n" tidak punya tanggal tanpa SPMK. Menerbitkan dokumen resmi atas
+tanggal tebakan jauh lebih buruk daripada tidak terbit; route menjawab dengan
+menyebutkan sebabnya, bukan 404 telanjang.
+
+### Memori — DIUKUR, bukan ditebak
+
+`createFormA4Doc` memakai `bufferPages: true`: seluruh dokumen ditahan di RAM
+sampai selesai. Puncak RSS terukur (foto kamera 4000×3000 lewat pipeline 900px
+q72, proses node terisolasi):
+
+```
+1 hari,  15 foto → 212 MB        7 hari, 105 foto → 304 MB
+7 hari,  70 foto → 255 MB        7 hari, 175 foto → 358 MB
+```
+
+Ukuran BERKASNYA kecil (2–4 MB) — yang mahal memorinya, bukan hasilnya. Dua
+akibatnya:
+
+1. Foto dimuat **per hari, tepat sebelum digambar**, bukan tujuh hari sekaligus.
+2. `BATAS_FOTO_MINGGUAN = 120`, di bawah titik 358 MB, menyisakan ruang untuk
+   server Next yang sudah residen. Yang terpotong **disebutkan di kaki halaman**.
+
+Jebakan yang sama sudah membunuh impor AHSP bulan ini (DECISIONS 325); kali ini
+diukur lebih dulu.
+
+### Penjaga, dan kenapa bentuknya begitu
+
+- `tests/unit/mingguan-tanggal.test.ts` (12) — uji utamanya bukan "tanggalnya
+  benar" melainkan **kedua rumus saling membalik**: `tanggalMinggu` di sini dan
+  `weekNo` di `queries`. Kalau tidak, sampul menulis "MINGGU KE-3" di atas
+  hari-hari minggu ke-4 — dan tidak ada yang tahu sampai dokumennya sudah
+  ditandatangani.
+- `tests/integration/mingguan-berkas.test.ts` (7) — pada PDF SUNGGUHAN, sesuai
+  pelajaran DECISIONS 331.
+
+**Yang tidak bisa diuji, dan diakui:** PDF ini memakai font subset, sehingga bita
+string di dalamnya adalah ID glyph — mencari kata "LAPORAN HARIAN" di berkas
+hasilnya SELALU nihil. Uji yang mencari begitu akan hijau/merah karena alasan
+yang salah. Karena itu pembuktiannya struktural:
+
+```
+halaman(mingguan) === 1 + Σ halaman(harian tanpa sampul)
+halaman(mingguan) === Σ halaman(harian bersampul) − 6
+```
+
+Enam sampul yang hilang itulah intinya. Kalimat statusnya dipisah ke fungsi
+murni `statusBerkasMingguan` dan diuji terpisah.
+
+**Uji gigi**: sampul dicetak tiap hari (perilaku lama) → 2 merah; hari kosong
+dilewati → 2 merah; nomor minggu digeser satu → 2 merah integrasi + 4 merah unit;
+tanpa SPMK tetap terbit dengan tanggal karangan → 1 merah.

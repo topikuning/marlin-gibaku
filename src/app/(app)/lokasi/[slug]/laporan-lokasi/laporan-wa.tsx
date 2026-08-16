@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { FileText, MessageCircle } from "lucide-react";
+import { FileText, Files, MessageCircle } from "lucide-react";
 import { Banner, Button } from "@/components/ui";
 import {
   sendDailyReportToWaAction,
@@ -58,6 +58,20 @@ export function SendPeriodReportWaButton({
         >
           <FileText aria-hidden className="size-3.5" /> Unduh PDF
         </a>
+        {/* Berkas mingguan (DECISIONS 332): satu sampul + tujuh laporan
+            harian. Hanya untuk periode MINGGUAN — "tujuh laporan harian"
+            tidak punya arti pada periode bulanan. */}
+        {kind === "mingguan" ? (
+          <a
+            href={`/api/laporan/mingguan/${slug}/${n}/pdf`}
+            target="_blank"
+            rel="noopener"
+            title="Satu berkas PDF: sampul minggu ke-N + tujuh laporan harian. Hari yang belum ada laporannya tetap dapat halaman blanko kosong."
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-[13px] font-medium text-ink hover:border-border-strong hover:bg-surface-muted"
+          >
+            <Files aria-hidden className="size-3.5" /> 7 Laporan Harian (1 berkas)
+          </a>
+        ) : null}
         {!hasGroup ? <span className="text-[12px] text-ink-muted">Paket belum punya grup WA.</span> : null}
       </div>
     </div>
