@@ -14753,3 +14753,92 @@ untuk dua berkas berbeda adalah kesalahan kirim yang menunggu terjadi.
 
 **Pelajarannya, dan ini yang mahal**: perapian yang menambah tanpa membuang
 bukan perapian. Dan sebelum menambah pintu, cari dulu pintunya.
+
+---
+
+## 336 — /hari-ini: strip 7 hari, matriks, dan dua bentuk untuk dua pengguna (2026-08-16)
+
+User mengirim rancangan HTML halaman /hari-ini dan bertanya pendapat. Idenya
+benar dan sebagian besar diambil — tapi tidak seluruhnya, dan alasannya penting.
+
+### Yang diambil
+
+**Strip 7 hari.** Bentuk lama menampilkan tujuh hari sebagai daftar tujuh baris
+vertikal PER LOKASI. Untuk Site Manager dengan 12 lokasi itu **84 baris untuk
+digulir** hanya demi melihat kelengkapan. Sekarang satu baris per lokasi.
+Datanya sudah ada (`getHariIniLocation.last7Days`), jadi ini murni penyajian.
+
+**Matriks lokasi × 7 hari** dan saringan **"Perlu Tindakan"**. Halaman lama
+TIDAK BISA menjawab "lokasi mana yang tertinggal" tanpa menggulir semuanya.
+
+**Ringkasan berangka di atas** — tapi lihat di bawah.
+
+**Urutan menurut masalah**, bukan abjad. Halaman ini dibuka untuk MENGERJAKAN
+sesuatu; mengurut menurut nama membuat lokasi bermasalah terkubur di bawah
+sepuluh lokasi yang sudah beres.
+
+### Yang TIDAK diambil, dan kenapa
+
+**1. Tombol lapor yang mengecil.** Di rancangan, tombol utama jadi tombol 36 px
+di pojok kartu. Untuk mandor — satu lokasi, di luar ruangan, sering gaptek —
+itu lebih buruk daripada sekarang.
+
+Ini inti persoalannya: **rancangan itu diam-diam mengganti penggunanya.** Ia
+pandangan MANAJER, sementara halaman lama pandangan MANDOR. Keduanya benar
+untuk penggunanya masing-masing.
+
+Jalan keluarnya: satu halaman, **dua bentuk**, ditentukan **lingkup lokasi**
+(bukan peran — peran bisa sama sementara lingkupnya berbeda). Satu lokasi →
+tombol besar penuh lebar tetap menang, tanpa ringkasan yang menundanya. Banyak
+lokasi → strip, ringkasan, matriks.
+
+**2. "Target minggu ini" dibuang.** Rancangan menghapusnya. Itu **satu-satunya
+bagian halaman yang melihat KE DEPAN** — yang memberi tahu mandor apa yang
+harus dikerjakan, bukan cuma apakah ia sudah melapor. Dipertahankan.
+
+**3. Navigasi bawah lima tombol.** `AppShell` sudah punya nav yang disaring per
+capability. Nav kedua adalah persis duplikasi yang baru dibersihkan
+(DECISIONS 335).
+
+**4. Drawer yang meringkas ulang laporan** ("Pekerjaan 3 item · Tenaga 18 orang
+· Alat 4 unit"). Itu pembacaan kedua atas laporan harian di tempat lain — pola
+yang sudah dua kali menggigit repo ini (DECISIONS 241, 267). Tiap sel langsung
+menaut ke laporannya.
+
+### Dua cacat pada rancangan yang diperbaiki, bukan disalin
+
+**Status berbasis warna saja.** Sel harinya mengandalkan warna + teks 8 px.
+Aturan repo sudah menuliskannya di `kkp-weekly-plan.tsx` (*"Semua penanda status
+ditulis DENGAN KATA, tidak pernah warna saja"*), dan alasannya sama kuat di
+layar: HP murah di bawah matahari, dan buta warna merah-hijau ada pada ±8%
+laki-laki. Tiap sel kini membawa KATA; matriks membawa HURUF.
+
+**Huruf matriks kembar.** Rancangannya memakai `F` untuk Final dan `S` untuk
+Setuju sambil **mewarnai keduanya dengan kelas yang sama** (`cell final` dipakai
+untuk "S"), sehingga di matriks kedua status itu tidak bisa dibedakan sama
+sekali. Sekarang F/S/K/D/!/— masing-masing satu status, dan keunikannya diuji —
+bukan diandalkan pada kehati-hatian penulis berikutnya.
+
+**Angka tanpa penyebut.** Rancangannya menulis "Final/Setuju **51**". 51 dari
+84 dan 51 dari 51 adalah dua kabar yang sangat berbeda, dan pembacanya tidak
+punya cara membedakannya. Setiap angka kini "n / m hari" — aturan yang sama
+dengan cakupan RAPL (DECISIONS 327).
+
+### Satu keputusan yang tidak kentara
+
+**"Perlu tindakan" hanya melihat HARI INI + koreksi tertunda**, bukan seluruh
+tujuh hari. Hari kemarin yang kosong tidak bisa diisi mandor lagi; menandainya
+setiap hari membuat penandanya selalu menyala dan kehilangan arti. Hari kosong
+yang sudah lewat tetap DILAPORKAN, hanya di tempat lain (ringkasan), dan
+spanduk "tidak ada yang perlu dikerjakan" menyebutkannya supaya tidak terbaca
+"semuanya sempurna".
+
+**Penjaga.** `tests/unit/hari-ini-ringkas.test.ts` (18) atas lapisan murni. Uji
+gigi: Final & Setuju dibuat berhuruf sama (cacat rancangan) → 1 merah; kata
+dihapus → 1 merah; penyebut hilang → 1 merah; perlu-tindakan melihat 7 hari →
+2 merah; urutan kembali ke abjad → 1 merah.
+
+Rute matriks & "perlu tindakan" **ditambahkan ke pagar overflow mobile**
+(DECISIONS 217) — matriks adalah elemen terlebar di halaman itu, dan pola
+"scroll di dalam kontainer" persis yang dulu meleset. Uji gigi di peramban
+sungguhan: kontainer scroll dilepas → e2e 375px MERAH, dipulihkan → 18 hijau.
