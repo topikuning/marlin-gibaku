@@ -57,7 +57,8 @@ Package/Location → AdminMilestone (template KKP 45 item) → Document (FK nyat
            entitas; version chain supersedesId; append-only by convention)
 AHSP    → AhspSource (SE DJBK 47/2026, sha256 berkas) → AhspEntry → AhspComponent
            (koefisien upah/bahan/alat) · AhspPadanan (kunci GLOBAL = tanda uraian+satuan;
-           pemetaan item RAB → analisa, `otomatis` vs `koreksi` manusia)
+           pemetaan item RAB → analisa; `otomatis` = usulan mesin, `disetujui`/`koreksi`
+           = keputusan manusia — HANYA yang terakhir dipakai menghitung RAPL)
 Sistem  → AuditLog (append-only, ditulis semua mutasi) · Alert · AppSetting effective-dated
 Akses   → User (mustChangePassword, tokenVersion) · Session (DB, revocable) ·
            LoginAttempt (rate limit) · LocationAssignment (scope)

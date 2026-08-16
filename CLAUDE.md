@@ -37,8 +37,9 @@ lebih dulu — protokol itu wajib, bukan anjuran.
 6. Bug baru → `docs/OPEN_ISSUES.md` (yang SELESAI dihapus dari sana, bukan
    dicoret); keputusan baru → append `docs/DECISIONS.md`.
 7. **Formula angka hanya boleh ditulis di `src/lib/progress-calc.ts` +
-   `src/lib/progress.ts` + `src/lib/finance/calc.ts`.** Komponen, PDF, Excel,
-   dan prompt AI dilarang menghitung ulang.
+   `src/lib/progress.ts` + `src/lib/finance/calc.ts` +
+   `src/lib/ahsp/rapl-calc.ts` (kebutuhan RAPL, DECISIONS 320).** Komponen,
+   PDF, Excel, dan prompt AI dilarang menghitung ulang.
 
 ## Commands
 

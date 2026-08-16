@@ -6,8 +6,10 @@ import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { formatPct, formatRupiah, formatRupiahShort } from "@/lib/format";
 import { ringkasAhsp } from "@/lib/ahsp/import";
 import { keadaanPadanan } from "@/lib/ahsp/padanan";
+import { simulasiRapl } from "@/lib/ahsp/rapl";
 import { requireLocationPage } from "../get-location";
 import { PadananPanel, type BarisPadananRow } from "./padanan-panel";
+import { SimulasiKebutuhan } from "./simulasi-kebutuhan";
 
 export const metadata: Metadata = { title: "RAPL" };
 export const dynamic = "force-dynamic";
@@ -27,15 +29,18 @@ export default async function RaplPage({ params }: { params: Promise<{ slug: str
   requireCapabilityPage(user.role, "rab.view");
   const canManage = can(user.role, "rab.manage");
 
-  const [basis, { baris, cakupan }] = await Promise.all([
+  const [basis, { baris, cakupan }, rapl] = await Promise.all([
     ringkasAhsp(),
     keadaanPadanan(location.id),
+    simulasiRapl(location.id),
   ]);
 
   const pctItem = cakupan.item > 0 ? (cakupan.terpetakan / cakupan.item) * 100 : 0;
+  // Yang menentukan kualitas simulasi bukan yang TERPETAKAN, melainkan yang
+  // sudah DISETUJUI — itu yang benar-benar masuk hitungan kebutuhan bahan.
   const pctNilai =
     cakupan.nilaiTotal > 0n
-      ? (Number(cakupan.nilaiTerpetakan) / Number(cakupan.nilaiTotal)) * 100
+      ? (Number(cakupan.nilaiDisetujui) / Number(cakupan.nilaiTotal)) * 100
       : 0;
 
   const rows: BarisPadananRow[] = baris.map((b) => ({
@@ -83,16 +88,16 @@ export default async function RaplPage({ params }: { params: Promise<{ slug: str
           tone={pctItem >= 80 ? "success" : pctItem >= 50 ? "warning" : "danger"}
         />
         <KpiCard
-          label="Nilai RAB terpetakan"
+          label="Nilai RAB disetujui"
           value={formatPct(pctNilai, 1)}
-          sub={`${formatRupiahShort(cakupan.nilaiTerpetakan)} dari ${formatRupiahShort(cakupan.nilaiTotal)}`}
+          sub={`${formatRupiahShort(cakupan.nilaiDisetujui)} dari ${formatRupiahShort(cakupan.nilaiTotal)} — inilah yang dipakai simulasi`}
           tone={pctNilai >= 80 ? "success" : pctNilai >= 50 ? "warning" : "danger"}
         />
         <KpiCard
-          label="Perlu diperiksa"
-          value={cakupan.perluDiperiksa}
-          sub="padanan mesin yang beda tipis dengan kandidat lain"
-          tone={cakupan.perluDiperiksa > 0 ? "warning" : "success"}
+          label="Menunggu persetujuan"
+          value={cakupan.menunggu}
+          sub={`${cakupan.perluDiperiksa} di antaranya beda tipis dengan kandidat lain`}
+          tone={cakupan.menunggu > 0 ? "warning" : "success"}
         />
         <KpiCard
           label="Belum ada padanan"
@@ -120,6 +125,29 @@ export default async function RaplPage({ params }: { params: Promise<{ slug: str
             rows={rows}
             canManage={canManage}
             basisAda={basis !== null}
+          />
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Simulasi kebutuhan sumber daya"
+          subtitle="Kebutuhan = Σ (koefisien analisa × volume item), HANYA dari padanan yang sudah disetujui. Usulan mesin yang belum disetujui tidak ikut dihitung."
+        />
+        <CardBody>
+          <SimulasiKebutuhan
+            kebutuhan={rapl.kebutuhan}
+            dilewat={rapl.dilewat.map((d) => ({
+              code: d.code,
+              uraian: d.uraian,
+              amount: d.amount.toString(),
+              alasan: d.alasan,
+              rinci: d.rinci,
+            }))}
+            nilaiDipakai={rapl.dipakai.nilai.toString()}
+            barisDipakai={rapl.dipakai.baris}
+            nilaiRab={rapl.nilaiRab.toString()}
+            barisRab={rapl.barisRab}
           />
         </CardBody>
       </Card>

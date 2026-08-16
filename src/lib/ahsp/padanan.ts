@@ -125,7 +125,7 @@ export type HasilPemetaan = {
   tandaUnik: number;
   /** Sudah ada padanannya sebelum dijalankan (otomatis maupun koreksi). */
   sudahAda: number;
-  /** Dilewati karena sudah dikoreksi manusia. */
+  /** Dilewati karena sudah diputuskan manusia (disetujui atau dikoreksi). */
   dijagaKoreksi: number;
   /** Padanan baru yang ditulis mesin kali ini. */
   baru: number;
@@ -169,7 +169,7 @@ export async function petakanLokasi(
   // mesin sebelumnya. Memetakan ulang yang sudah dipetakan hanya akan menukar
   // padanan tanpa ada yang meminta.
   const perlu = [...perTanda.values()].filter((it) => !sudah.has(it.tanda));
-  const dijagaKoreksi = tersimpan.filter((p) => p.metode === "koreksi").length;
+  const dijagaKoreksi = tersimpan.filter((p) => p.metode !== "otomatis").length;
   if (perlu.length === 0) {
     return { ...kosong, sudahAda: sudah.size, dijagaKoreksi, belumKetemu: 0 };
   }
@@ -225,6 +225,22 @@ export async function petakanLokasi(
   };
 }
 
+/**
+ * Padanan yang boleh dipakai menghitung RAPL.
+ *
+ * Usulan mesin TIDAK termasuk — sekalipun skornya tinggi. Batas ini yang
+ * membedakan "mesin menebak" dari "orang bertanggung jawab": angka kebutuhan
+ * bahan hanya lahir dari padanan yang sudah ada yang menyetujuinya.
+ */
+export function sudahDisetujui(keadaan: BarisPadanan["keadaan"]): boolean {
+  return keadaan === "disetujui" || keadaan === "koreksi";
+}
+
+/** Bentuk yang sama, dibaca dari kolom `metode` — dipakai jalur RAPL. */
+export function metodeDisetujui(metode: string): boolean {
+  return metode === "disetujui" || metode === "koreksi";
+}
+
 export type BarisPadanan = {
   lineageKey: string;
   code: string;
@@ -241,8 +257,14 @@ export type BarisPadanan = {
     jumlahKomponen: number;
     perluVerifikasi: boolean;
   } | null;
-  /** null = belum diperiksa; "otomatis" | "koreksi" | "tidak_ada". */
-  keadaan: "belum" | "otomatis" | "koreksi" | "tidak_ada";
+  /**
+   * belum        — belum pernah diperiksa
+   * usulan       — mesin sudah memilih, MANUSIA BELUM menyetujui
+   * disetujui    — manusia menerima pilihan mesin apa adanya
+   * koreksi      — manusia mengganti pilihan mesin
+   * tidak_ada    — manusia menyatakan memang tak ada analisanya
+   */
+  keadaan: "belum" | "usulan" | "disetujui" | "koreksi" | "tidak_ada";
   skor: number | null;
   meyakinkan: boolean;
   catatan: string | null;
@@ -251,12 +273,17 @@ export type BarisPadanan = {
 export type CakupanPadanan = {
   item: number;
   terpetakan: number;
-  meyakinkan: number;
+  /** Sudah dipakai RAPL: disetujui manusia atau hasil koreksi manusia. */
+  disetujui: number;
+  /** Usulan mesin yang masih menunggu persetujuan — TIDAK dipakai RAPL. */
+  menunggu: number;
+  /** Dari `menunggu`, yang beda tipis dengan kandidat lain. */
   perluDiperiksa: number;
   dinyatakanTidakAda: number;
   belum: number;
   nilaiTotal: bigint;
   nilaiTerpetakan: bigint;
+  nilaiDisetujui: bigint;
   nilaiBelum: bigint;
 };
 
@@ -311,7 +338,12 @@ export async function keadaanPadanan(
         }
       : null;
     let keadaan: BarisPadanan["keadaan"] = "belum";
-    if (p) keadaan = ahsp ? (p.metode === "koreksi" ? "koreksi" : "otomatis") : "tidak_ada";
+    if (p) {
+      if (!ahsp) keadaan = "tidak_ada";
+      else if (p.metode === "koreksi") keadaan = "koreksi";
+      else if (p.metode === "disetujui") keadaan = "disetujui";
+      else keadaan = "usulan";
+    }
     return {
       lineageKey: it.lineageKey,
       code: it.code,
@@ -331,12 +363,14 @@ export async function keadaanPadanan(
   const cakupan: CakupanPadanan = {
     item: baris.length,
     terpetakan: 0,
-    meyakinkan: 0,
+    disetujui: 0,
+    menunggu: 0,
     perluDiperiksa: 0,
     dinyatakanTidakAda: 0,
     belum: 0,
     nilaiTotal: 0n,
     nilaiTerpetakan: 0n,
+    nilaiDisetujui: 0n,
     nilaiBelum: 0n,
   };
   for (const b of baris) {
@@ -344,9 +378,13 @@ export async function keadaanPadanan(
     if (b.ahsp) {
       cakupan.terpetakan += 1;
       cakupan.nilaiTerpetakan += b.amount;
-      // Koreksi manusia dianggap pasti; hasil mesin hanya kalau ia unggul jauh.
-      if (b.keadaan === "koreksi" || b.meyakinkan) cakupan.meyakinkan += 1;
-      else cakupan.perluDiperiksa += 1;
+      if (sudahDisetujui(b.keadaan)) {
+        cakupan.disetujui += 1;
+        cakupan.nilaiDisetujui += b.amount;
+      } else {
+        cakupan.menunggu += 1;
+        if (!b.meyakinkan) cakupan.perluDiperiksa += 1;
+      }
     } else if (b.keadaan === "tidak_ada") {
       cakupan.dinyatakanTidakAda += 1;
       cakupan.nilaiBelum += b.amount;
@@ -454,4 +492,46 @@ export async function koreksiPadanan(args: {
     barisKena: cocok.length,
     lokasiKena: new Set(cocok.map((n) => n.revision.locationId)).size,
   };
+}
+
+/**
+ * Setujui usulan mesin secara BORONGAN.
+ *
+ * Kenapa persetujuan borongan diperbolehkan padahal padanan menentukan angka
+ * uang: yang diperiksa orang bukan satu-satu baris RAB melainkan satu-satu
+ * URAIAN. Di Kedung Mutih, 1.620 baris kerja cuma 480 uraian unik, dan seorang
+ * pelaksana yang memandangi daftar "Rambu Petunjuk → Rambu Petunjuk Jurusan"
+ * bisa membenarkan puluhan sekaligus tanpa kehilangan makna. Yang dilarang
+ * bukan borongannya, melainkan memakai usulan yang BELUM ada yang menyetujui.
+ *
+ * Hanya baris `otomatis` yang berpadanan yang tersentuh:
+ *  - `koreksi` tidak ditimpa — orang sudah memilih sesuatu yang lain;
+ *  - baris tanpa `entryId` ("memang tidak ada") tidak ikut disetujui, karena
+ *    menyetujui ketiadaan bukan hal yang sama dengan menyetujui padanan.
+ *
+ * `skor` dan `meyakinkan` DIPERTAHANKAN apa adanya: jejak "yang disetujui itu
+ * tebakan 45% yang beda tipis" harus tetap terbaca setelah disetujui.
+ */
+export async function setujuiPadanan(args: {
+  tanda: string[];
+  userId: string;
+}): Promise<{ disetujui: number }> {
+  if (args.tanda.length === 0) return { disetujui: 0 };
+  const r = await db.ahspPadanan.updateMany({
+    where: { tanda: { in: args.tanda }, metode: "otomatis", entryId: { not: null } },
+    data: { metode: "disetujui", decidedById: args.userId },
+  });
+  return { disetujui: r.count };
+}
+
+/** Tanda usulan mesin yang masih menunggu persetujuan di satu lokasi. */
+export async function tandaMenunggu(locationId: string): Promise<string[]> {
+  const items = await itemRabAktif(locationId);
+  const tanda = [...new Set(items.map((i) => i.tanda))];
+  if (tanda.length === 0) return [];
+  const rows = await db.ahspPadanan.findMany({
+    where: { tanda: { in: tanda }, metode: "otomatis", entryId: { not: null } },
+    select: { tanda: true },
+  });
+  return rows.map((r) => r.tanda);
 }

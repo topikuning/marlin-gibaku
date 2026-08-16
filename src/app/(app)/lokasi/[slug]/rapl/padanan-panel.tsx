@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useState, useTransition } from "react";
-import { AlertTriangle, Check, RefreshCw, Search, X } from "lucide-react";
+import { AlertTriangle, Check, CheckCheck, RefreshCw, Search, X } from "lucide-react";
 import { Badge, Banner, Button, Input } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { formatPct, formatRupiah } from "@/lib/format";
@@ -9,6 +9,7 @@ import {
   cariPadananAction,
   koreksiPadananAction,
   petakanRabAction,
+  setujuiPadananAction,
   type PadananActionState,
 } from "@/lib/ahsp/padanan-actions";
 
@@ -20,7 +21,7 @@ import {
  * membuka pada "perlu dikerjakan", bukan pada semua baris.
  */
 
-export type KeadaanPadanan = "belum" | "otomatis" | "koreksi" | "tidak_ada";
+export type KeadaanPadanan = "belum" | "usulan" | "disetujui" | "koreksi" | "tidak_ada";
 
 export type BarisPadananRow = {
   lineageKey: string;
@@ -54,25 +55,29 @@ type Kandidat = {
 };
 
 const SARING = [
-  { key: "kerja", label: "Perlu dikerjakan" },
+  { key: "menunggu", label: "Menunggu persetujuan" },
+  { key: "periksa", label: "Beda tipis" },
   { key: "belum", label: "Belum ada padanan" },
-  { key: "periksa", label: "Perlu diperiksa" },
-  { key: "beres", label: "Sudah pasti" },
+  { key: "beres", label: "Sudah diputuskan" },
   { key: "semua", label: "Semua" },
 ] as const;
 type SaringKey = (typeof SARING)[number]["key"];
 
+/** Sudah ada yang memutuskan — inilah yang dipakai simulasi RAPL. */
+function diputuskan(b: BarisPadananRow): boolean {
+  return b.keadaan === "disetujui" || b.keadaan === "koreksi" || b.keadaan === "tidak_ada";
+}
+
 function lolosSaring(b: BarisPadananRow, s: SaringKey): boolean {
-  const pasti = b.keadaan === "koreksi" || b.keadaan === "tidak_ada" || b.meyakinkan;
   switch (s) {
     case "belum":
       return b.keadaan === "belum";
+    case "menunggu":
+      return b.keadaan === "usulan";
     case "periksa":
-      return b.keadaan === "otomatis" && !b.meyakinkan;
+      return b.keadaan === "usulan" && !b.meyakinkan;
     case "beres":
-      return pasti;
-    case "kerja":
-      return !pasti;
+      return diputuskan(b);
     default:
       return true;
   }
@@ -81,12 +86,19 @@ function lolosSaring(b: BarisPadananRow, s: SaringKey): boolean {
 function LencanaKeadaan({ b }: { b: BarisPadananRow }) {
   if (b.keadaan === "belum") return <Badge tone="danger">Belum ada padanan</Badge>;
   if (b.keadaan === "tidak_ada") return <Badge tone="neutral">Dinyatakan tidak ada</Badge>;
-  if (b.keadaan === "koreksi") return <Badge tone="success">Dikoreksi manusia</Badge>;
+  if (b.keadaan === "koreksi") return <Badge tone="success">Dikoreksi</Badge>;
+  if (b.keadaan === "disetujui") {
+    // Skor tetap ditampilkan setelah disetujui: "sudah disetujui" tidak boleh
+    // menghapus jejak bahwa yang disetujui itu tebakan 45% yang beda tipis.
+    return (
+      <Badge tone="success">Disetujui {b.skor != null ? formatPct(b.skor * 100, 0) : ""}</Badge>
+    );
+  }
   return b.meyakinkan ? (
-    <Badge tone="info">Otomatis {b.skor != null ? formatPct(b.skor * 100, 0) : ""}</Badge>
+    <Badge tone="info">Usulan {b.skor != null ? formatPct(b.skor * 100, 0) : ""}</Badge>
   ) : (
     <Badge tone="warning">
-      Perlu diperiksa {b.skor != null ? formatPct(b.skor * 100, 0) : ""}
+      Usulan beda tipis {b.skor != null ? formatPct(b.skor * 100, 0) : ""}
     </Badge>
   );
 }
@@ -104,9 +116,11 @@ export function PadananPanel({
   canManage: boolean;
   basisAda: boolean;
 }) {
-  const [saring, setSaring] = useState<SaringKey>("kerja");
+  const [saring, setSaring] = useState<SaringKey>("menunggu");
   const [cari, setCari] = useState("");
   const [terbuka, setTerbuka] = useState<string | null>(null);
+  /** Tanda (bukan lineageKey) yang dicentang — satu tanda mewakili semua baris beruraian sama. */
+  const [pilih, setPilih] = useState<Set<string>>(new Set());
 
   const [petaState, petaAction, petaPending] = useActionState<PadananActionState, FormData>(
     petakanRabAction,
@@ -116,9 +130,19 @@ export function PadananPanel({
     koreksiPadananAction,
     undefined,
   );
+  const [setujuState, setujuAction, setujuPending] = useActionState<PadananActionState, FormData>(
+    setujuiPadananAction,
+    undefined,
+  );
 
   const hitung = useMemo(() => {
-    const h: Record<SaringKey, number> = { kerja: 0, belum: 0, periksa: 0, beres: 0, semua: rows.length };
+    const h: Record<SaringKey, number> = {
+      menunggu: 0,
+      periksa: 0,
+      belum: 0,
+      beres: 0,
+      semua: rows.length,
+    };
     for (const b of rows) for (const s of SARING) if (s.key !== "semua" && lolosSaring(b, s.key)) h[s.key] += 1;
     return h;
   }, [rows]);
@@ -135,12 +159,46 @@ export function PadananPanel({
     );
   }, [rows, saring, cari]);
 
+  /*
+   * Yang bisa disetujui adalah TANDA, bukan baris. Satu uraian yang muncul di
+   * 12 baris RAB adalah satu keputusan, bukan 12 — dan menyetujuinya di sini
+   * juga berlaku di lokasi lain yang uraiannya sama. Angka di tombol karena itu
+   * menyebut keduanya.
+   */
+  const tandaTampil = useMemo(
+    () => [...new Set(tampil.filter((b) => b.keadaan === "usulan").map((b) => b.tanda))],
+    [tampil],
+  );
+  const tandaTerpilih = tandaTampil.filter((t) => pilih.has(t));
+  const barisTerpilih = tampil.filter((b) => b.keadaan === "usulan" && pilih.has(b.tanda)).length;
+
+  const kirimSetuju = (daftar: string[]) => {
+    if (daftar.length === 0) return;
+    const fd = new FormData();
+    fd.set("locationId", locationId);
+    fd.set("slug", slug);
+    fd.set("tanda", JSON.stringify(daftar));
+    setujuAction(fd);
+    setPilih(new Set());
+  };
+
+  const togglePilih = (tanda: string) => {
+    setPilih((lama) => {
+      const baru = new Set(lama);
+      if (baru.has(tanda)) baru.delete(tanda);
+      else baru.add(tanda);
+      return baru;
+    });
+  };
+
   return (
     <div className="space-y-3">
       {petaState?.error ? <Banner tone="error" title={petaState.error} /> : null}
       {petaState?.success ? <Banner tone="success" title={petaState.success} /> : null}
       {koreksiState?.error ? <Banner tone="error" title={koreksiState.error} /> : null}
       {koreksiState?.success ? <Banner tone="success" title={koreksiState.success} /> : null}
+      {setujuState?.error ? <Banner tone="error" title={setujuState.error} /> : null}
+      {setujuState?.success ? <Banner tone="success" title={setujuState.success} /> : null}
 
       <div className="flex flex-wrap items-center gap-2">
         {SARING.map((s) => (
@@ -178,6 +236,32 @@ export function PadananPanel({
         </div>
       </div>
 
+      {canManage && tandaTampil.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-surface-inset px-3 py-2">
+          <label className="flex items-center gap-2 text-[13px] text-ink">
+            <input
+              type="checkbox"
+              className="size-4 accent-[var(--brand)]"
+              checked={tandaTerpilih.length === tandaTampil.length && tandaTampil.length > 0}
+              onChange={(e) => setPilih(e.target.checked ? new Set(tandaTampil) : new Set())}
+            />
+            Pilih semua usulan yang tampil ({tandaTampil.length} uraian)
+          </label>
+          <div className="ms-auto flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              loading={setujuPending}
+              disabled={tandaTerpilih.length === 0}
+              onClick={() => kirimSetuju(tandaTerpilih)}
+            >
+              <CheckCheck aria-hidden className="size-3.5" />
+              Setujui terpilih ({tandaTerpilih.length} uraian · {barisTerpilih} baris)
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       {tampil.length === 0 ? (
         <p className="py-8 text-center text-sm text-ink-muted">
           Tidak ada baris pada saringan ini.
@@ -191,6 +275,8 @@ export function PadananPanel({
               locationId={locationId}
               slug={slug}
               canManage={canManage}
+              dipilih={pilih.has(b.tanda)}
+              onPilih={() => togglePilih(b.tanda)}
               terbuka={terbuka === b.lineageKey}
               onToggle={() => setTerbuka(terbuka === b.lineageKey ? null : b.lineageKey)}
               koreksiAction={koreksiAction}
@@ -214,6 +300,8 @@ function BarisPadanan({
   locationId,
   slug,
   canManage,
+  dipilih,
+  onPilih,
   terbuka,
   onToggle,
   koreksiAction,
@@ -223,6 +311,8 @@ function BarisPadanan({
   locationId: string;
   slug: string;
   canManage: boolean;
+  dipilih: boolean;
+  onPilih: () => void;
   terbuka: boolean;
   onToggle: () => void;
   koreksiAction: (formData: FormData) => void;
@@ -257,7 +347,19 @@ function BarisPadanan({
   };
 
   return (
-    <div className="px-3 py-2.5">
+    <div className="flex items-start gap-2 px-3 py-2.5">
+      {canManage && b.keadaan === "usulan" ? (
+        <input
+          type="checkbox"
+          className="mt-1 size-4 shrink-0 accent-[var(--brand)]"
+          checked={dipilih}
+          onChange={onPilih}
+          aria-label={`Pilih usulan untuk ${b.uraian}`}
+        />
+      ) : (
+        <span className="mt-1 size-4 shrink-0" />
+      )}
+      <div className="min-w-0 flex-1">
       <button
         type="button"
         onClick={buka}
@@ -314,6 +416,7 @@ function BarisPadanan({
           {b.catatan ?? "Belum ada catatan pemetaan."} Mengubah padanan butuh hak kelola RAB.
         </p>
       ) : null}
+      </div>
     </div>
   );
 }

@@ -13474,3 +13474,110 @@ upsert yang menimpa → 3 uji memerah; mencabut penjaga baris judul → 1 memera
 dengan rekomendasi dari kabupaten/paket yang sama, agregasi kebutuhan
 bahan/upah/alat (`koefisien × volume`), dan perbandingan biaya total RAPL vs
 nilai kontrak.
+
+---
+
+## 320 · Persetujuan borongan + simulasi kebutuhan RAPL (2026-08-16)
+
+Lanjutan 319. Permintaan user: *"kalau sudah dipetakan otomatis, tidak perlu
+disetujui satu-satu bisa saja setujui semua atau atas pilihan, dari situ paling
+tidak buatkan simulasi rapl/kebutuhan material berdasar yang sudah di approve"*.
+
+### Tiga tingkat, bukan dua
+
+`AhspPadanan.metode` bertambah satu nilai: `otomatis` (usulan mesin) →
+`disetujui` (orang menerima pilihan mesin apa adanya) → `koreksi` (orang
+mengganti pilihan mesin). Yang menjadi angka RAPL **hanya dua yang terakhir**.
+
+Ini batas terpenting seluruh jalur RAPL, dan alasannya ada di angka sendiri: di
+Kedung Mutih, **829 dari 1.084 padanan otomatis berstatus "beda tipis"** — tiga
+dari empat. Kalau usulan ikut dihitung, tabel kebutuhan bahan lahir dari tebakan
+yang belum dilihat siapa pun, dan ia tetap terlihat rapi.
+
+### Kenapa borongan tetap boleh
+
+Yang diperiksa orang bukan baris RAB melainkan URAIAN. 1.620 baris kerja hanya
+507→480 uraian unik, dan persetujuannya berlaku lintas lokasi karena kuncinya
+global (319). Melarang borongan tidak membuat orang lebih teliti — ia membuat
+pekerjaannya mustahil, dan yang mustahil akan dilewati. Yang dilarang bukan
+borongannya, melainkan **memakai usulan yang belum ada yang menyetujui**.
+
+`skor` dan `meyakinkan` DIPERTAHANKAN setelah disetujui, dan tetap ditampilkan:
+"sudah disetujui" tidak boleh menghapus jejak bahwa yang disetujui itu tebakan
+45% yang beda tipis. Baris `koreksi` tidak tersentuh persetujuan borongan.
+
+### Rumusnya sepele, syaratnya tidak
+
+    kebutuhan(sumber daya) = Σ koefisien(analisa, sumber daya) × volume(item)
+
+`src/lib/ahsp/rapl-calc.ts` jadi tempat KEEMPAT yang boleh memuat formula angka
+(CLAUDE.md aturan 7 diperbarui). Empat syarat yang menentukan jujur-tidaknya
+hasilnya, semuanya melaporkan baris + nilai rupiah yang dikeluarkan:
+
+1. **Satuan harus sepadan.** Analisa berbunyi "1 m3 Timbunan…" — koefisiennya
+   per SATU METER KUBIK. Mengalikannya dengan volume item bersatuan m² memberi
+   angka yang rapi dan tanpa arti. Ini bug paling berbahaya di jalur ini karena
+   hasilnya **tidak terlihat salah**. Di Kedung Mutih: 16 baris (Rp6,9 jt),
+   umumnya `buah` vs `unit` dan `set` vs `buah`. Sengaja TIDAK disamakan
+   diam-diam — `set` bisa berisi beberapa buah.
+2. **Analisa harus punya koefisien terstruktur** (5 baris, Rp77,4 jt).
+3. **Volume harus ada.** Nol berarti "tidak butuh"; kosong berarti "tak ada yang
+   tahu". Menyamakannya membuat kebutuhan proyek tampak lebih kecil.
+4. **Padanan harus sudah disetujui** (536 baris, Rp1,89 M).
+
+### Dua cacat yang ketahuan saat diukur pada data nyata
+
+**a. Satuan pecah karena besar-kecil huruf.** Kunci pengelompokan semula memakai
+satuan apa adanya, sehingga "Semen (PC) Kg" dan "Semen (PC) kg" jadi dua baris
+berjumlah separuh — pembacanya menyimpulkan kebutuhannya lebih kecil dari yang
+sebenarnya. Kunci sekarang memakai satuan huruf kecil. Nama TETAP tidak
+disatukan ("Semen PC" vs "Semen Portland" tetap dua baris): itu keputusan
+kurasi, bukan tugas pengurut daftar.
+
+**b. Berkas SE DJBK 47/2026 salah mengategorikan 334 komponen.** Analisa
+[2.3.(21a)] "Saluran U Pracetak Tipe DS 1" mendaftarkan "Semen (Kg)" dan "Besi
+Beton M57a (Kg)" sebagai **upah**; total 334 komponen di 62 analisa bersatuan
+kg/m3/m2/buah/liter di bawah kategori upah.
+
+MARLIN **tidak memindahkannya sendiri**. Menebak maksud dokumen resmi lalu
+menyajikannya sebagai fakta adalah cara paling halus membuat angka yang tak bisa
+dipertanggungjawabkan — dan setiap analisa di sini membawa nomor halaman PDF-nya
+justru supaya manusia bisa memeriksa. Barisnya muncul apa adanya, ditandai
+`janggal` (satuan upah yang sah: OH/jam/hari/org), dan jumlahnya dilaporkan di
+layar. Di Kedung Mutih: 9 baris tertandai.
+
+### Hasil nyata (RAB Kedung Mutih, semua usulan disetujui)
+
+```
+persetujuan borongan   257 uraian, 9 ms
+baris dipakai        1.063 dari 1.620   →  74,7% NILAI RAB (Rp5,84 M / Rp7,82 M)
+sumber daya            300  (upah 32 · bahan 201 · alat 67)
+  Agregat Kasar      204.004,28 kg   dari 34 baris
+  Pasir Beton        173.028,88 kg   dari 35 baris
+  Semen Portland     146.638,89 kg   dari 128 baris
+  Pekerja              5.166,50 OH
+dikeluarkan
+  belum disetujui        536 baris · Rp1.892.816.894
+  satuan tak sepadan      16 baris · Rp6.947.226
+  tanpa koefisien          5 baris · Rp77.407.278
+```
+
+Perhatikan 75,8% (nilai disetujui) vs 74,7% (nilai yang benar-benar terhitung):
+selisihnya justru syarat 1–3 di atas. Angka itu ditampilkan terpisah supaya
+lubangnya tidak tersamar oleh angka persetujuan.
+
+**Penjaga.** `tests/unit/rapl-calc.test.ts` (12) untuk seluruh syarat + dua
+cacat di atas; `tests/integration/ahsp-padanan.test.ts` bertambah 4 (usulan tak
+terpakai sebelum disetujui, borongan memunculkan kebutuhan, koreksi tidak
+tertimpa, persetujuan idempoten).
+
+Catatan proses — untuk KEDUA kalinya uji gigi menyelamatkan uji yang tampak
+benar: versi pertama "usulan tidak dipakai simulasi" menguji *"ada baris
+ber-alasan belum_disetujui"*, dan itu tetap HIJAU walau pagarnya dicabut, karena
+baris yang memang tak berpadanan menghasilkan alasan yang sama. Yang mengunci
+akhirnya keluarannya: sebelum disetujui, `kebutuhan` harus KOSONG.
+
+**Belum dikerjakan**: harga satuan dasar per lokasi (dengan rekomendasi dari
+kabupaten/paket yang sama) dan perbandingan biaya total RAPL vs nilai kontrak.
+Selama cakupan masih 74,7%, perbandingan itu wajib ditampilkan bersama angka
+cakupannya — bukan sebagai total.

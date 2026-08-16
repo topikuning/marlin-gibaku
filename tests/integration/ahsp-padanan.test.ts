@@ -22,7 +22,9 @@ vi.mock("server-only", () => ({}));
 
 const { db } = await import("@/lib/db");
 const { imporAhspDariSeed, AHSP_SOURCE_CODE } = await import("@/lib/ahsp/import");
-const { keadaanPadanan, koreksiPadanan, petakanLokasi } = await import("@/lib/ahsp/padanan");
+const { keadaanPadanan, koreksiPadanan, petakanLokasi, setujuiPadanan, tandaMenunggu } =
+  await import("@/lib/ahsp/padanan");
+const { simulasiRapl } = await import("@/lib/ahsp/rapl");
 const { tandaItem } = await import("@/lib/ahsp/cocok");
 
 const suffix = Date.now().toString(36);
@@ -37,6 +39,9 @@ const ITEM: [kode: string, nama: string, unit: string, amount: bigint][] = [
   ["1", "Pekerjaan Galian Tanah Biasa", "m³", 300_000_000n],
   ["2", "Pekerjaan Pembesian dengan besi beton polos", "kg", 600_000_000n],
   ["3", "Sewa Rumah untuk Direksi Keet dan Gudang", "bln", 100_000_000n],
+  // Satuannya sengaja m³ dan padanannya beranalisa "1 m3 Beton…": inilah baris
+  // yang benar-benar bisa diturunkan jadi kebutuhan bahan setelah disetujui.
+  ["4", "Pekerjaan Beton Mutu Rendah fc 10 Mpa", "m³", 800_000_000n],
 ];
 const GRAND = ITEM.reduce((a, [, , , amt]) => a + amt, 0n);
 
@@ -156,14 +161,14 @@ afterAll(async () => {
 describe("pemetaan otomatis RAB → AHSP", () => {
   it("memetakan yang jelas, DIAM pada yang tidak ada analisanya", async () => {
     const h = await petakanLokasi(lokasiA, userId);
-    expect(h.itemRab).toBe(3);
-    expect(h.tandaUnik).toBe(3);
+    expect(h.itemRab).toBe(ITEM.length);
+    expect(h.tandaUnik).toBe(ITEM.length);
     expect(h.baru).toBeGreaterThan(0);
     // "Sewa Rumah untuk Direksi Keet" memang tidak dianalisa AHSP. Kalau angka
     // ini 0, artinya mesin memaksakan padanan pada baris yang tidak punya —
     // persis yang bikin tabel kebutuhan bahan tampak lengkap padahal karangan.
     expect(h.belumKetemu).toBeGreaterThan(0);
-    expect(h.baru + h.belumKetemu).toBe(3);
+    expect(h.baru + h.belumKetemu).toBe(ITEM.length);
 
     const { baris } = await keadaanPadanan(lokasiA);
     const sewa = baris.find((b) => b.code === "3")!;
@@ -181,7 +186,7 @@ describe("pemetaan otomatis RAB → AHSP", () => {
 
   it("cakupan dilaporkan dalam NILAI, bukan cuma cacah baris", async () => {
     const { cakupan } = await keadaanPadanan(lokasiA);
-    expect(cakupan.item).toBe(3);
+    expect(cakupan.item).toBe(ITEM.length);
     expect(cakupan.nilaiTotal).toBe(GRAND);
     // Baris yang belum terpetakan (sewa direksi, Rp100 jt) harus muncul di
     // nilaiBelum. "2 dari 3 baris" saja menyembunyikan seberapa besar lubangnya.
@@ -282,5 +287,74 @@ describe("baris judul", () => {
     const { baris, cakupan } = await keadaanPadanan(lokasiB);
     expect(baris.some((b) => b.code === "9")).toBe(false);
     expect(cakupan.item).toBe(ITEM.length);
+  }, 120000);
+});
+
+describe("persetujuan borongan → simulasi RAPL", () => {
+  it("usulan mesin TIDAK dipakai simulasi sebelum ada yang menyetujui", async () => {
+    /*
+     * Batas terpenting seluruh jalur RAPL. Usulan mesin boleh salah — 3 dari 4
+     * padanan otomatis di data nyata berstatus "beda tipis". Kalau usulan ikut
+     * dihitung, angka kebutuhan bahan lahir dari tebakan yang belum dilihat
+     * siapa pun, dan tabelnya tetap terlihat rapi.
+     */
+    const menunggu = await tandaMenunggu(lokasiB);
+    expect(menunggu.length).toBeGreaterThan(0);
+
+    const sebelum = await simulasiRapl(lokasiB);
+    // Baris beton (kode 4) SUDAH punya padanan otomatis beranalisa lengkap dan
+    // satuannya sepadan — satu-satunya alasan ia tidak menghasilkan kebutuhan
+    // adalah karena belum ada yang menyetujuinya. Menguji lewat "ada baris
+    // ber-alasan belum_disetujui" saja TIDAK cukup: baris "Sewa Rumah" yang
+    // memang tak berpadanan juga ber-alasan sama, sehingga ujinya lolos walau
+    // pagarnya dicabut. Karena itu yang dikunci di sini keluarannya: sebelum
+    // disetujui, tidak boleh ada SATU pun angka kebutuhan.
+    expect(sebelum.kebutuhan).toEqual([]);
+    expect(sebelum.dipakai.baris).toBe(0);
+    expect(sebelum.dilewat.some((d) => d.code === "4" && d.alasan === "belum_disetujui")).toBe(
+      true,
+    );
+  }, 120000);
+
+  it("menyetujui borongan membuat kebutuhan bahan muncul", async () => {
+    const menunggu = await tandaMenunggu(lokasiB);
+    const h = await setujuiPadanan({ tanda: menunggu, userId });
+    expect(h.disetujui).toBe(menunggu.length);
+
+    const { cakupan } = await keadaanPadanan(lokasiB);
+    expect(cakupan.menunggu).toBe(0);
+    expect(cakupan.disetujui).toBeGreaterThan(0);
+    expect(cakupan.nilaiDisetujui).toBeGreaterThan(0n);
+
+    const sesudah = await simulasiRapl(lokasiB);
+    expect(sesudah.kebutuhan.length).toBeGreaterThan(0);
+    expect(sesudah.dipakai.baris).toBeGreaterThan(0);
+    // Kebutuhan yang muncul harus punya satuan dan jumlah, bukan baris kosong.
+    for (const k of sesudah.kebutuhan) {
+      expect(k.jumlah).toBeGreaterThan(0);
+      expect(["upah", "bahan", "alat"]).toContain(k.kategori);
+    }
+    // Tidak ada nilai yang menguap.
+    const totalLewat = Object.values(sesudah.nilaiDilewat).reduce((a, b) => a + b, 0n);
+    expect(sesudah.dipakai.nilai + totalLewat).toBe(sesudah.nilaiRab);
+  }, 120000);
+
+  it("persetujuan TIDAK menimpa koreksi manusia", async () => {
+    // lokasiA sudah punya koreksi pada ITEM[0] (dipasang uji sebelumnya).
+    const sebelum = await keadaanPadanan(lokasiA);
+    const galianSebelum = sebelum.baris.find((b) => b.code === ITEM[0][0])!;
+    expect(galianSebelum.keadaan).toBe("koreksi");
+
+    await setujuiPadanan({ tanda: [galianSebelum.tanda], userId });
+
+    const sesudah = await keadaanPadanan(lokasiA);
+    const galian = sesudah.baris.find((b) => b.code === ITEM[0][0])!;
+    expect(galian.keadaan).toBe("koreksi");
+    expect(galian.ahsp?.id).toBe(galianSebelum.ahsp?.id);
+  }, 120000);
+
+  it("menyetujui ulang tidak menambah apa-apa — idempoten", async () => {
+    const h = await setujuiPadanan({ tanda: await tandaMenunggu(lokasiB), userId });
+    expect(h.disetujui).toBe(0);
   }, 120000);
 });

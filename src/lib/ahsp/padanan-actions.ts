@@ -132,3 +132,69 @@ export async function cariPadananAction(args: {
   const q = (args.kueri ?? "").trim();
   return q.length >= 3 ? cariAhsp(q) : alternatifPadanan(args.uraian, args.satuan);
 }
+
+const setujuiSchema = z.object({
+  locationId: z.uuid(),
+  slug: z.string().min(1),
+  /** Daftar tanda dalam JSON — bisa ratusan, terlalu panjang untuk query string. */
+  tanda: z.string().min(2),
+});
+
+/**
+ * Setujui usulan mesin secara borongan.
+ *
+ * Yang disetujui adalah URAIAN (tanda), bukan baris: satu uraian yang muncul di
+ * 12 baris RAB adalah satu keputusan. Karena kuncinya global, persetujuan ini
+ * ikut berlaku di lokasi lain yang uraiannya persis sama — dan itu dikatakan di
+ * pesan hasilnya, bukan dibiarkan jadi kejutan.
+ */
+export async function setujuiPadananAction(
+  _prev: PadananActionState,
+  formData: FormData,
+): Promise<PadananActionState> {
+  const parsed = setujuiSchema.safeParse({
+    locationId: formData.get("locationId"),
+    slug: formData.get("slug"),
+    tanda: formData.get("tanda"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+  let daftar: unknown;
+  try {
+    daftar = JSON.parse(parsed.data.tanda);
+  } catch {
+    return { error: "Daftar uraian yang dipilih tidak terbaca." };
+  }
+  if (!Array.isArray(daftar) || daftar.some((t) => typeof t !== "string")) {
+    return { error: "Daftar uraian yang dipilih tidak terbaca." };
+  }
+  const tanda = [...new Set(daftar as string[])];
+  if (tanda.length === 0) return { error: "Belum ada usulan yang dipilih." };
+
+  try {
+    const user = await requireCapability("rab.manage");
+    await requireLocationAccess(user, parsed.data.locationId);
+    const { setujuiPadanan } = await import("./padanan");
+    const h = await setujuiPadanan({ tanda, userId: user.id });
+    await audit(user.id, "ahsp.padanan.setujui", "location", parsed.data.locationId, {
+      diminta: tanda.length,
+      disetujui: h.disetujui,
+    });
+    revalidatePath(`/lokasi/${parsed.data.slug}/rapl`);
+
+    if (h.disetujui === 0) {
+      return { error: "Tidak ada yang disetujui — pilihannya sudah diputuskan orang lain lebih dulu." };
+    }
+    const selisih =
+      h.disetujui < tanda.length
+        ? ` ${tanda.length - h.disetujui} sisanya sudah diputuskan orang lain lebih dulu dan tidak ditimpa.`
+        : "";
+    return {
+      success:
+        `${h.disetujui} uraian disetujui dan sekarang dipakai simulasi RAPL — berlaku juga di lokasi lain yang uraiannya sama.${selisih}`,
+    };
+  } catch (err) {
+    if (err instanceof ForbiddenError) return { error: err.message };
+    return { error: err instanceof Error ? err.message : "Gagal menyetujui padanan." };
+  }
+}
