@@ -151,6 +151,8 @@ export type HasilPemetaan = {
   baruMeyakinkan: number;
   /** Tanda yang tetap tanpa padanan setelah dijalankan. */
   belumKetemu: number;
+  /** Padanan yang tautannya putus dan dipetakan ulang kali ini. */
+  dipulihkan: number;
 };
 
 /**
@@ -174,20 +176,35 @@ export async function petakanLokasi(
     baru: 0,
     baruMeyakinkan: 0,
     belumKetemu: 0,
+    dipulihkan: 0,
   };
   if (perTanda.size === 0) return kosong;
 
   const tersimpan = await db.ahspPadanan.findMany({
     where: { tanda: { in: [...perTanda.keys()] } },
-    select: { tanda: true, metode: true },
+    select: { tanda: true, metode: true, entryId: true, tidakAda: true },
   });
-  const sudah = new Map(tersimpan.map((p) => [p.tanda, p.metode]));
+  /*
+   * Baris yang PUTUS (pernah berpadanan, analisanya hilang saat basis AHSP
+   * diganti) sengaja TIDAK dianggap "sudah ada": justru itu yang harus
+   * dipetakan ulang. Tanpa pengecualian ini, satu penggantian terbitan membuat
+   * ribuan baris macet selamanya — tombol "Petakan otomatis" akan melewatinya
+   * karena barisnya memang ada, cuma isinya kosong. DECISIONS 323.
+   */
+  const putus = new Set(
+    tersimpan.filter((p) => p.entryId === null && !p.tidakAda).map((p) => p.tanda),
+  );
+  const sudah = new Map(
+    tersimpan.filter((p) => !putus.has(p.tanda)).map((p) => [p.tanda, p.metode]),
+  );
 
-  // Yang sudah ada TIDAK disentuh — baik hasil koreksi manusia maupun hasil
-  // mesin sebelumnya. Memetakan ulang yang sudah dipetakan hanya akan menukar
-  // padanan tanpa ada yang meminta.
+  // Selain yang putus, yang sudah ada TIDAK disentuh — baik hasil koreksi
+  // manusia maupun hasil mesin sebelumnya. Memetakan ulang yang sudah dipetakan
+  // hanya akan menukar padanan tanpa ada yang meminta.
   const perlu = [...perTanda.values()].filter((it) => !sudah.has(it.tanda));
-  const dijagaKoreksi = tersimpan.filter((p) => p.metode !== "otomatis").length;
+  const dijagaKoreksi = tersimpan.filter(
+    (p) => p.metode !== "otomatis" && !putus.has(p.tanda),
+  ).length;
   if (perlu.length === 0) {
     return { ...kosong, sudahAda: sudah.size, dijagaKoreksi, belumKetemu: 0 };
   }
@@ -228,8 +245,17 @@ export async function petakanLokasi(
   }
 
   if (barisBaru.length > 0) {
+    // Baris PUTUS sudah ada di tabel, jadi harus ditimpa; sisanya disisipkan.
     // skipDuplicates: dua lokasi bisa dipetakan bersamaan dan berbagi tanda.
-    await db.ahspPadanan.createMany({ data: barisBaru, skipDuplicates: true });
+    const timpa = barisBaru.filter((b) => putus.has(b.tanda));
+    const sisip = barisBaru.filter((b) => !putus.has(b.tanda));
+    if (sisip.length > 0) await db.ahspPadanan.createMany({ data: sisip, skipDuplicates: true });
+    for (const b of timpa) {
+      await db.ahspPadanan.update({
+        where: { tanda: b.tanda },
+        data: { ...b, tidakAda: false },
+      });
+    }
   }
 
   return {
@@ -240,6 +266,7 @@ export async function petakanLokasi(
     baru: barisBaru.length,
     baruMeyakinkan: barisBaru.filter((b) => b.meyakinkan).length,
     belumKetemu,
+    dipulihkan: barisBaru.filter((b) => putus.has(b.tanda)).length,
   };
 }
 
@@ -281,8 +308,11 @@ export type BarisPadanan = {
    * disetujui    — manusia menerima pilihan mesin apa adanya
    * koreksi      — manusia mengganti pilihan mesin
    * tidak_ada    — manusia menyatakan memang tak ada analisanya
+   * putus        — pernah berpadanan, tapi analisanya HILANG saat basis AHSP
+   *                diganti. Bukan keputusan siapa pun; barisnya perlu
+   *                dipetakan ulang. DECISIONS 323.
    */
-  keadaan: "belum" | "usulan" | "disetujui" | "koreksi" | "tidak_ada";
+  keadaan: "belum" | "usulan" | "disetujui" | "koreksi" | "tidak_ada" | "putus";
   skor: number | null;
   meyakinkan: boolean;
   catatan: string | null;
@@ -305,6 +335,8 @@ export type CakupanPadanan = {
   /** Dari `menunggu`, yang beda tipis dengan kandidat lain. */
   perluDiperiksa: number;
   dinyatakanTidakAda: number;
+  /** Padanan yang tautannya putus saat basis AHSP diganti — perlu dipetakan ulang. */
+  putus: number;
   belum: number;
   nilaiTotal: bigint;
   nilaiTerpetakan: bigint;
@@ -335,6 +367,7 @@ export async function keadaanPadanan(
         select: {
           tanda: true,
           metode: true,
+          tidakAda: true,
           skor: true,
           meyakinkan: true,
           catatan: true,
@@ -367,7 +400,9 @@ export async function keadaanPadanan(
       : null;
     let keadaan: BarisPadanan["keadaan"] = "belum";
     if (p) {
-      if (!ahsp) keadaan = "tidak_ada";
+      // "Tidak ada padanan" HANYA kalau manusia menyatakannya (`tidakAda`).
+      // Baris tanpa tautan yang tidak dinyatakan siapa pun = tautannya putus.
+      if (!ahsp) keadaan = p.tidakAda ? "tidak_ada" : "putus";
       else if (p.metode === "koreksi") keadaan = "koreksi";
       else if (p.metode === "disetujui") keadaan = "disetujui";
       else keadaan = "usulan";
@@ -385,7 +420,11 @@ export async function keadaanPadanan(
       skor: p?.skor == null ? null : Number(p.skor),
       meyakinkan: p?.meyakinkan ?? false,
       catatan: p?.catatan ?? null,
-      petunjuk: ahsp ? null : petunjukBaris(it.name, aturan),
+      petunjuk: ahsp
+        ? null
+        : p && !p.tidakAda
+          ? "Padanan sebelumnya hilang saat basis AHSP diganti — tekan “Petakan otomatis” untuk menyambungnya kembali, atau pilih sendiri."
+          : petunjukBaris(it.name, aturan),
     };
   });
 
@@ -396,6 +435,7 @@ export async function keadaanPadanan(
     menunggu: 0,
     perluDiperiksa: 0,
     dinyatakanTidakAda: 0,
+    putus: 0,
     belum: 0,
     nilaiTotal: 0n,
     nilaiTerpetakan: 0n,
@@ -416,6 +456,9 @@ export async function keadaanPadanan(
       }
     } else if (b.keadaan === "tidak_ada") {
       cakupan.dinyatakanTidakAda += 1;
+      cakupan.nilaiBelum += b.amount;
+    } else if (b.keadaan === "putus") {
+      cakupan.putus += 1;
       cakupan.nilaiBelum += b.amount;
     } else {
       cakupan.belum += 1;
@@ -514,6 +557,9 @@ export async function koreksiPadanan(args: {
     uraianContoh: args.uraianContoh,
     satuan: args.satuan,
     entryId: args.entryId,
+    // Disimpan POSITIF: "tidak ada padanan" adalah pernyataan manusia, bukan
+    // sesuatu yang boleh disimpulkan dari kolom kosong. DECISIONS 323.
+    tidakAda: args.entryId === null,
     metode: "koreksi",
     skor: null,
     meyakinkan: true,

@@ -49,6 +49,8 @@ export type EntriAhsp = {
   tocPdfPage: number | null;
   analysisPdfPage: number | null;
   excerptId: string | null;
+  /** `legacy.id` — id analisa yang sama pada terbitan sebelumnya (DECISIONS 323). */
+  legacyId: string | null;
   /** `search.aliases` — istilah lapangan yang menunjuk pekerjaan ini. */
   aliases: string[];
   /** `search.keywords` — kata kunci yang sudah dipecah oleh berkasnya. */
@@ -148,6 +150,12 @@ function bacaEntri(raw: unknown, perluVerifikasi: boolean): EntriAhsp | null {
     string,
     unknown
   >;
+  // `legacy` = jejak ke terbitan sebelumnya. Inilah yang memungkinkan padanan
+  // manusia tetap tersambung saat basis AHSP diganti (DECISIONS 323); berkas
+  // supplemental memakai `legacy_id` datar.
+  const lawas = (typeof o.legacy === "object" && o.legacy !== null
+    ? (o.legacy as Record<string, unknown>)
+    : { id: o.legacy_id }) as Record<string, unknown>;
   const komponenMentah = Array.isArray(o.components) ? o.components : [];
   const components = komponenMentah
     .map((c, i) => bacaKomponen(c, i + 1))
@@ -166,6 +174,7 @@ function bacaEntri(raw: unknown, perluVerifikasi: boolean): EntriAhsp | null {
     divisi: teks(o.divisi),
     notes: teks(o.notes),
     perluVerifikasi,
+    legacyId: teks(lawas.id),
     aliases: daftarTeks(cari.aliases),
     keywords: daftarTeks(cari.keywords),
     lampiran: teks(src.lampiran),

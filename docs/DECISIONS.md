@@ -13761,3 +13761,89 @@ sungguhan sebelum dilepas, bukan dari fixture.
 Harga satuan dasar per lokasi + perbandingan RAPL vs kontrak masih langkah
 berikutnya, dan selama cakupan 72,5% perbandingan itu wajib tampil bersama
 angka cakupannya.
+
+---
+
+## 323 · Ganti terbitan AHSP menghapus 954 pemetaan secara senyap — BUG (2026-08-16)
+
+Temuan user dari layar RAPL sungguhan: *"954 baris sudah dinyatakan memang tidak
+punya analisa AHSP"* — padahal tidak seorang pun pernah menyatakan itu. Baris
+seperti "Papan Nama Proyek" dan "Pekerjaan Pagar Sementara" (yang jelas-jelas
+punya analisa, dan sempat terpetakan) berlencana **"Dinyatakan tidak ada"**.
+
+### Sebabnya
+
+Rantai tiga keputusan yang masing-masing tampak benar sendiri-sendiri:
+
+1. `imporAhspDariSeed` MENGGANTI UTUH: `AhspSource` dihapus, cascade ke
+   `ahsp_entries` (DECISIONS 317 — supaya dua terbitan tak tercampur).
+2. `ahsp_padanan.entry_id` ber-`ON DELETE SET NULL`, dipilih sengaja supaya
+   koreksi manusia tidak ikut terhapus (DECISIONS 319).
+3. `keadaanPadanan` MENYIMPULKAN "tidak ada padanan" dari `entryId` yang kosong.
+
+Gabungannya: satu klik "Periksa & segarkan basis AHSP" mengubah **seluruh**
+padanan yang sudah disetujui menjadi keputusan yang tidak pernah diambil.
+Direproduksi persis di lokal: **1.086 disetujui → 1.086 "dinyatakan tidak ada",
+`entryId` NULL semua, `metode` masih `disetujui`.**
+
+Cacatnya **memburuk sendiri**, dan itu bagian terburuknya:
+
+- baris "dinyatakan tidak ada" masuk kelompok *sudah diputuskan*, jadi HILANG
+  dari daftar pekerjaan — tidak ada yang akan menemukannya;
+- `petakanLokasi` melewati tanda yang barisnya sudah ada. Baris putus PUNYA
+  baris, cuma kosong — jadi "Petakan otomatis" tidak berbuat apa-apa dan
+  keadaannya macet selamanya;
+- simulasi RAPL ikut kosong tanpa ada yang mengubah RAB maupun mencabut
+  persetujuan; laporan yang kemarin benar hari ini nol.
+
+### Tiga perbaikan
+
+**1. "Tidak ada padanan" disimpan POSITIF.** Kolom baru `tidakAda`. Sebelumnya
+keadaan itu disimpulkan dari kolom kosong — dan kolom kosong bisa muncul karena
+sebab lain. Aturan umumnya: keputusan manusia tidak boleh direkonstruksi dari
+ketiadaan data; ia harus punya tempat penyimpanan sendiri.
+
+**2. Padanan disambung ulang saat terbitan diganti.** Sebelum sumber lama
+dihapus, identitas alami analisa yang ditunjuk dicatat; sesudah terbitan baru
+ditulis, padanannya disambungkan lewat tiga jalur berurutan: `externalId` sama →
+`legacyId` terbitan baru menunjuk id lama → `kode` + `uraian` sama. Jalur kedua
+memakai afordansi berkasnya sendiri (tiap record v2 membawa `legacy.id` = id
+v1-nya), jadi perpindahan terbitan mengikuti pemetaan resmi penyusun berkas,
+bukan tebakan MARLIN. Hasilnya dilaporkan di pesan impor — nasib pemetaan
+manusia tidak boleh ketahuan sendiri saat orang membuka RAPL dan mendapati
+kerjanya hilang.
+
+**3. Keadaan baru `putus`.** Padanan tanpa tautan yang TIDAK dinyatakan siapa
+pun bukan keputusan, melainkan kerusakan: ia muncul sebagai pekerjaan (saringan
+"Tautan putus"), membawa penjelasan sebabnya, dan `petakanLokasi` sekarang
+sengaja MEMETAKAN ULANG baris seperti ini alih-alih melewatinya.
+
+### Data yang sudah terlanjur rusak
+
+Tidak bisa dipulihkan sepenuhnya: analisa yang dulu ditunjuk sudah terhapus
+bersama sumbernya, jadi "manusia menyatakan tidak ada" dan "tautannya putus"
+tidak bisa dibedakan lagi dari sisa datanya. Yang bisa dipilih tinggal arah
+salahnya. Migrasi memilih menganggap SEMUANYA putus:
+
+- dianggap keputusan → 954 baris hilang dari daftar pekerjaan, senyap;
+- dianggap putus → beberapa pernyataan asli perlu diulang, sisanya dipetakan
+  ulang mesin dengan satu klik.
+
+Salah yang menimbulkan pekerjaan jauh lebih murah daripada salah yang
+menyembunyikan pekerjaan.
+
+### Kenapa ini lolos sampai ke layar user
+
+Uji integrasi 319–322 semuanya memakai basis AHSP yang **sudah ada** dan tidak
+pernah menggantinya. Skenario "ganti terbitan" tidak diuji sama sekali — padahal
+justru itu yang saya lakukan sendiri sehari sebelumnya waktu memasang berkas v2
+(DECISIONS 321). Saya menguji hasil impornya (jumlah analisa, jumlah komponen),
+tapi tidak menguji APA YANG TERJADI PADA DATA YANG SUDAH ADA saat impor itu
+jalan. Migrasi data selalu punya dua sisi, dan saya cuma menguji satu.
+
+**Penjaga.** `tests/integration/ahsp-ganti-terbitan.test.ts` (4): padanan
+bertahan setelah impor ulang, simulasi RAPL tidak kosong, pernyataan "memang
+tidak ada" tidak tersapu, dan baris putus bisa dipetakan ulang.
+
+Uji gigi: menghapus penyambungan ulang → 3 merah; menganggap baris putus "sudah
+ada" → 1 merah; menyimpulkan "tidak ada" dari entryId kosong lagi → 1 merah.

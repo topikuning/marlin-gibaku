@@ -37,6 +37,10 @@ export type HasilImporAhsp = MasterAhsp["ringkas"] & {
   fileSha256: string;
   /** true = isi identik dengan yang sudah tersimpan, tidak ada yang ditulis. */
   takBerubah: boolean;
+  /** Padanan manusia yang berhasil disambungkan ke terbitan baru. */
+  padananTersambung: number;
+  /** Padanan manusia yang analisanya TIDAK ADA lagi di terbitan baru. */
+  padananPutus: number;
 };
 
 /** Sisipkan komponen per potongan — 26 ribu baris tidak muat satu perintah. */
@@ -55,8 +59,35 @@ export async function imporAhspDariSeed(userId: string | null): Promise<HasilImp
   });
   if (lama?.fileSha256 === fileSha256) {
     // Berkas yang sama persis: tidak ada gunanya menulis ulang 26 ribu baris.
-    return { ...master.ringkas, sourceCode: AHSP_SOURCE_CODE, fileSha256, takBerubah: true };
+    return {
+      ...master.ringkas,
+      sourceCode: AHSP_SOURCE_CODE,
+      fileSha256,
+      takBerubah: true,
+      padananTersambung: 0,
+      padananPutus: 0,
+    };
   }
+
+  /*
+   * SEBELUM sumber lama dihapus: catat padanan manusia beserta IDENTITAS ALAMI
+   * analisa yang ditunjuknya (externalId + kode + uraian).
+   *
+   * Tanpa ini, mengganti terbitan AHSP menghancurkan seluruh pemetaan secara
+   * senyap: `ahsp_padanan.entry_id` ber-ON DELETE SET NULL, jadi begitu
+   * analisanya ikut terhapus, 1.086 padanan yang sudah disetujui berubah jadi
+   * baris tanpa tautan — dan dulu terbaca sebagai "manusia menyatakan tidak ada
+   * padanan". Keputusan yang tidak pernah diambil siapa pun. DECISIONS 323.
+   */
+  const sebelum = lama
+    ? await db.ahspPadanan.findMany({
+        where: { entryId: { not: null } },
+        select: {
+          tanda: true,
+          entry: { select: { externalId: true, kode: true, uraian: true } },
+        },
+      })
+    : [];
 
   // Ganti utuh, bukan tambal: dua terbitan yang tercampur menghasilkan koefisien
   // yang tidak bisa dijelaskan asalnya.
@@ -78,8 +109,15 @@ export async function imporAhspDariSeed(userId: string | null): Promise<HasilImp
   });
 
   await tulisEntri(source.id, master.entries);
+  const sambung = await sambungUlangPadanan(source.id, sebelum);
 
-  return { ...master.ringkas, sourceCode: AHSP_SOURCE_CODE, fileSha256, takBerubah: false };
+  return {
+    ...master.ringkas,
+    sourceCode: AHSP_SOURCE_CODE,
+    fileSha256,
+    takBerubah: false,
+    ...sambung,
+  };
 }
 
 async function tulisEntri(sourceId: string, entries: EntriAhsp[]): Promise<void> {
@@ -102,6 +140,7 @@ async function tulisEntri(sourceId: string, entries: EntriAhsp[]): Promise<void>
         tocPdfPage: e.tocPdfPage,
         analysisPdfPage: e.analysisPdfPage,
         excerptId: e.excerptId,
+        legacyId: e.legacyId,
         aliases: e.aliases,
         keywords: e.keywords,
       })),
@@ -170,4 +209,55 @@ export async function ringkasAhsp(): Promise<RingkasAhsp | null> {
     komponen,
     punyaAlias,
   };
+}
+
+/**
+ * Sambungkan ulang padanan manusia ke analisa pada terbitan BARU (DECISIONS 323).
+ *
+ * Tiga jalur, dicoba berurutan dari yang paling pasti:
+ *
+ *  1. `externalId` sama — terbitan yang idnya tidak berubah.
+ *  2. `legacyId` analisa baru menunjuk `externalId` lama. Ini afordansi berkasnya
+ *     sendiri: setiap record v2 membawa `legacy.id` = id v1-nya. Memakainya
+ *     berarti perpindahan terbitan mengikuti pemetaan resmi penyusun berkas,
+ *     bukan tebakan MARLIN.
+ *  3. `kode` + `uraian` persis sama.
+ *
+ * Yang tidak tersambung DIBIARKAN `entryId` kosong dengan `tidakAda` tetap
+ * false — artinya "tautannya putus, perlu dipetakan ulang", dan barisnya muncul
+ * lagi sebagai pekerjaan. Yang dilarang keras adalah menyulapnya jadi keputusan
+ * "memang tidak ada".
+ */
+async function sambungUlangPadanan(
+  sourceId: string,
+  sebelum: { tanda: string; entry: { externalId: string; kode: string; uraian: string } | null }[],
+): Promise<{ padananTersambung: number; padananPutus: number }> {
+  const perlu = sebelum.filter((p) => p.entry !== null);
+  if (perlu.length === 0) return { padananTersambung: 0, padananPutus: 0 };
+
+  const baru = await db.ahspEntry.findMany({
+    where: { sourceId },
+    select: { id: true, externalId: true, legacyId: true, kode: true, uraian: true },
+  });
+  const perExternal = new Map(baru.map((e) => [e.externalId, e.id]));
+  const perLegacy = new Map<string, string>();
+  for (const e of baru) if (e.legacyId && !perLegacy.has(e.legacyId)) perLegacy.set(e.legacyId, e.id);
+  const perKodeUraian = new Map<string, string>();
+  for (const e of baru) {
+    const k = `${e.kode} ${e.uraian}`;
+    if (!perKodeUraian.has(k)) perKodeUraian.set(k, e.id);
+  }
+
+  let tersambung = 0;
+  for (const p of perlu) {
+    const e = p.entry!;
+    const id =
+      perExternal.get(e.externalId) ??
+      perLegacy.get(e.externalId) ??
+      perKodeUraian.get(`${e.kode} ${e.uraian}`);
+    if (!id) continue;
+    await db.ahspPadanan.update({ where: { tanda: p.tanda }, data: { entryId: id } });
+    tersambung += 1;
+  }
+  return { padananTersambung: tersambung, padananPutus: perlu.length - tersambung };
 }

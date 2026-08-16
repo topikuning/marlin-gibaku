@@ -571,6 +571,9 @@ model AhspEntry {
   analysisPdfPage Int?    @map("analysis_pdf_page")
   /// Kunci teks halaman sumber — dipakai bila komponennya belum terstruktur.
   excerptId       String? @map("excerpt_id")
+  /// `legacy.id` — id analisa yang SAMA pada terbitan berkas sebelumnya.
+  /// Dipakai menyambung ulang padanan saat basis AHSP diganti (DECISIONS 323).
+  legacyId        String? @map("legacy_id")
   /// Lapisan pencocokan dari berkasnya (`search.aliases` / `search.keywords`):
   /// istilah lapangan yang menunjuk pekerjaan ini. Kosong untuk analisa
   /// supplemental — berkasnya memang tidak memberi, dan itu tidak ditambal
@@ -2071,7 +2074,15 @@ model AhspPadanan {
   uraianContoh String   @map("uraian_contoh")
   satuan       String
   entryId      String?  @map("entry_id") @db.Uuid
-  /// otomatis | koreksi
+  /// true = manusia MENYATAKAN pekerjaan ini memang tak punya analisa AHSP.
+  ///
+  /// Disimpan POSITIF, tidak disimpulkan dari `entryId` yang kosong. Dulu
+  /// disimpulkan, dan akibatnya fatal: sekali basis AHSP diimpor ulang, seluruh
+  /// tautan putus (`ON DELETE SET NULL`) dan 1.086 padanan yang sudah disetujui
+  /// berubah jadi "dinyatakan tidak ada" — keputusan yang tidak pernah diambil
+  /// siapa pun, dan barisnya hilang dari daftar pekerjaan. DECISIONS 323.
+  tidakAda     Boolean  @default(false) @map("tidak_ada")
+  /// otomatis | disetujui | koreksi
   metode       String
   /// Skor mesin saat dipetakan otomatis (0..1). null untuk koreksi manusia.
   skor         Decimal? @db.Decimal(5, 4)

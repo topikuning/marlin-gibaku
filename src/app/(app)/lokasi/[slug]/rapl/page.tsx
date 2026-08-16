@@ -116,6 +116,14 @@ export default async function RaplPage({ params }: { params: Promise<{ slug: str
           subtitle="Mesin memetakan otomatis dan mengaku saat ragu; kamu memperbaiki yang salah. Satu koreksi berlaku untuk semua lokasi yang uraiannya persis sama."
         />
         <CardBody>
+          {cakupan.putus > 0 ? (
+            <Banner
+              tone="warning"
+              className="mb-3"
+              title={`${cakupan.putus} baris kehilangan padanannya saat basis AHSP diganti`}
+              description="Ini BUKAN keputusan siapa pun — analisa yang dulu dipilih tidak ada lagi di terbitan berkas yang sekarang. Tekan “Petakan otomatis” untuk menyambungnya kembali, lalu setujui seperti biasa."
+            />
+          ) : null}
           {cakupan.dinyatakanTidakAda > 0 ? (
             <p className="mb-3 text-[13px] text-ink-muted">
               {cakupan.dinyatakanTidakAda} baris sudah dinyatakan memang tidak punya analisa AHSP —

@@ -21,7 +21,13 @@ import {
  * membuka pada "perlu dikerjakan", bukan pada semua baris.
  */
 
-export type KeadaanPadanan = "belum" | "usulan" | "disetujui" | "koreksi" | "tidak_ada";
+export type KeadaanPadanan =
+  | "belum"
+  | "usulan"
+  | "disetujui"
+  | "koreksi"
+  | "tidak_ada"
+  | "putus";
 
 export type BarisPadananRow = {
   lineageKey: string;
@@ -58,6 +64,7 @@ type Kandidat = {
 const SARING = [
   { key: "menunggu", label: "Menunggu persetujuan" },
   { key: "periksa", label: "Beda tipis" },
+  { key: "putus", label: "Tautan putus" },
   { key: "belum", label: "Belum ada padanan" },
   { key: "beres", label: "Sudah diputuskan" },
   { key: "semua", label: "Semua" },
@@ -71,6 +78,8 @@ function diputuskan(b: BarisPadananRow): boolean {
 
 function lolosSaring(b: BarisPadananRow, s: SaringKey): boolean {
   switch (s) {
+    case "putus":
+      return b.keadaan === "putus";
     case "belum":
       return b.keadaan === "belum";
     case "menunggu":
@@ -85,6 +94,7 @@ function lolosSaring(b: BarisPadananRow, s: SaringKey): boolean {
 }
 
 function LencanaKeadaan({ b }: { b: BarisPadananRow }) {
+  if (b.keadaan === "putus") return <Badge tone="danger">Tautan putus</Badge>;
   if (b.keadaan === "belum") return <Badge tone="danger">Belum ada padanan</Badge>;
   if (b.keadaan === "tidak_ada") return <Badge tone="neutral">Dinyatakan tidak ada</Badge>;
   if (b.keadaan === "koreksi") return <Badge tone="success">Dikoreksi</Badge>;
@@ -140,6 +150,7 @@ export function PadananPanel({
     const h: Record<SaringKey, number> = {
       menunggu: 0,
       periksa: 0,
+      putus: 0,
       belum: 0,
       beres: 0,
       semua: rows.length,

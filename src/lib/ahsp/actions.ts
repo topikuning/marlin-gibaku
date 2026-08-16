@@ -40,6 +40,16 @@ export async function imporAhspAction(): Promise<AhspActionState> {
       `${h.total.toLocaleString("id-ID")} analisa (${h.kanonik.toLocaleString("id-ID")} kanonik, ${h.perluVerifikasi} perlu verifikasi)`,
       `${komponen.toLocaleString("id-ID")} komponen`,
     ];
+    // Nasib pemetaan manusia dilaporkan di sini, bukan dibiarkan ketahuan
+    // sendiri saat orang membuka halaman RAPL dan mendapati kerjanya hilang.
+    if (h.padananTersambung > 0) {
+      bagian.push(`${h.padananTersambung} padanan RAB tersambung ulang ke terbitan baru`);
+    }
+    if (h.padananPutus > 0) {
+      bagian.push(
+        `${h.padananPutus} padanan TIDAK punya analisa padanannya lagi — barisnya muncul lagi sebagai pekerjaan di halaman RAPL`,
+      );
+    }
     if (h.tanpaKomponen > 0) {
       bagian.push(`${h.tanpaKomponen} analisa belum punya koefisien terstruktur (rujuk halaman sumbernya)`);
     }

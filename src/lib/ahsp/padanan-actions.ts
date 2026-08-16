@@ -50,6 +50,11 @@ export async function petakanRabAction(
     const bagian = [
       `${h.baru} uraian dipetakan (${h.baruMeyakinkan} meyakinkan, ${h.baru - h.baruMeyakinkan} beda tipis — perlu diperiksa)`,
     ];
+    if (h.dipulihkan > 0) {
+      bagian.push(
+        `${h.dipulihkan} di antaranya memulihkan padanan yang tautannya putus saat basis AHSP diganti`,
+      );
+    }
     if (h.belumKetemu > 0) bagian.push(`${h.belumKetemu} uraian belum ketemu padanannya`);
     if (h.dijagaKoreksi > 0) bagian.push(`${h.dijagaKoreksi} koreksi manusia tidak disentuh`);
     return { success: `${bagian.join("; ")}.` };
