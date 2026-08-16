@@ -531,7 +531,8 @@ function signatureBlock(
       gambarTtdPdf(doc, o.gambarTtd![pihak], {
         xTengah: o.x + i * lebarKolom + lebarKolom / 2,
         yDasar,
-        tinggi: 32,
+        lebarKolom,
+        tinggiCelah: 32,
       });
     });
   }

@@ -1,82 +1,99 @@
 /**
  * UKURAN tanda tangan & stempel pada dokumen cetak — SATU sumber untuk penyaji
  * HTML (`components/knmp/blok-ttd.tsx`) dan penyaji PDF (`lib/pdf/ttd-gambar.ts`).
- * DECISIONS 328, disetel ulang atas koreksi user (DECISIONS 329).
+ * DECISIONS 328 → 329 → **330**.
  *
- * Semua ukuran diturunkan dari SATU angka — tinggi ruang tanda tangan — supaya
- * tujuh penyaji (empat HTML, tiga PDF) dengan tinggi ruang 32–56 tidak bisa
- * berbeda perbandingan.
+ * ### Acuan ukurannya sempat SALAH, dan itu akar dua koreksi user
  *
- * ### Yang dikoreksi user, dengan foto pembanding
+ * Versi 328/329 menskalakan semuanya dari **tinggi celah tanda tangan** (40–56
+ * px). Celah itu kecil, jadi stempelnya ikut kecil — user mengoreksi dua kali,
+ * yang kedua: *"kenapa makin kecil, bukan makin mengikuti contoh!"*
  *
- * User menunjukkan dua gambar: hasil MARLIN (dilingkari merah) dan dokumen asli
- * di lapangan (dilingkari biru). Bedanya dua hal, dan keduanya soal LETAK,
- * bukan cuma ukuran:
+ * Foto dokumen aslinya menunjukkan acuan yang benar: **garis tengah stempel ≈
+ * selebar baris nama perusahaan**, bukan setinggi celah. Memang begitu benda
+ * aslinya — stempel bundar ±4 cm pada kolom tanda tangan ±6–7 cm, jadi ia
+ * memakan sekitar 55–60% LEBAR kolomnya dan dengan sendirinya melimpah jauh ke
+ * atas menimpa baris teks. Celahnya yang mengalah pada stempel, bukan
+ * sebaliknya.
  *
- * 1. **Yang asli MENIMPA teks.** Di kertas sungguhan, stempel dicap di atas
- *    baris nama perusahaan dan nama penanda tangan — tintanya menutupi huruf,
- *    dan hurufnya tetap terbaca menembus tinta. Punya MARLIN justru mengambang
- *    rapi di ruang kosong lalu menyenggol garis nama di bawahnya. Itu terbaca
- *    seperti gambar yang ditempel, bukan stempel yang dibubuhkan.
- * 2. **Terlalu besar.** *"tapi jangan terlalu besar."*
+ * Karena itu ukuran sekarang diturunkan dari **lebar kolom**, dengan tinggi
+ * celah hanya sebagai BATAS ATAS supaya pada dokumen bertulisan kecil (lembar
+ * kurva-S) stempelnya tidak menelan blok di atasnya.
  *
- * Karena itu: stempel TIDAK lagi setinggi penuh ruangnya, dan seluruh pasangan
- * (stempel + coretan) DIANGKAT sehingga sisi atasnya melewati batas ruang dan
- * jatuh di atas baris teks, sementara sisi bawahnya justru menjauh dari garis
- * nama. Persis susunan yang ditunjukkan foto asli.
+ *   ukuran = min(persentase lebar kolom, kelipatan tinggi celah)
  *
- * Perbandingan benda aslinya tetap jadi acuan: stempel bundar ±4 cm garis
- * tengah, coretan tanda tangan ±3 cm tinggi dan ±5–6 cm lebar.
+ * HTML memakai `min()` CSS dengan dua angka yang sama persis, sehingga tidak
+ * perlu tahu lebar kolomnya saat render.
  *
  * Modul ini MURNI (tanpa I/O, tanpa React) supaya bisa diuji langsung.
  */
 
+/** Garis tengah stempel, % LEBAR kolom tanda tangan. Stempel ±4 cm di kolom ±7 cm. */
+export const PERSEN_STEMPEL = 56;
+/** Lebar coretan tanda tangan, % lebar kolom. Coretan ±5–6 cm — lebih lebar dari stempel. */
+export const PERSEN_TTD = 66;
+
 /**
- * Tinggi stempel terhadap tinggi ruang. Sengaja DI BAWAH 1: stempel setinggi
- * penuh ruangnya tidak menyisakan tempat untuk diangkat, dan itulah yang
- * membuatnya menabrak garis nama pada versi sebelumnya.
- */
-export const NISBAH_STEMPEL = 0.84;
-/** Tinggi coretan tanda tangan terhadap tinggi ruang — selalu lebih kecil dari stempel. */
-export const NISBAH_TTD = 0.68;
-/** Lebar maksimum tanda tangan terhadap TINGGINYA sendiri (coretan itu memanjang). */
-export const NISBAH_LEBAR_TTD = 2.4;
-/**
- * Geseran stempel ke kiri terhadap tinggi ruang. Meniru cara orang
- * membubuhkannya: stempel dicap MENIMPA sisi kiri tanda tangan, bukan berdiri
- * terpisah di sebelahnya.
- */
-export const GESER_STEMPEL = 0.32;
-/**
- * Angkat seluruh pasangan ke ATAS terhadap tinggi ruang.
+ * Batas atas terhadap TINGGI celah. Bukan penentu ukuran, hanya rem — tapi rem
+ * yang memang sering menggigit: kolom tanda tangan di layar jauh lebih lebar
+ * (relatif terhadap ukuran hurufnya) daripada kolom 6–7 cm di kertas A4, jadi
+ * aturan persen-lebar sendirian akan melar.
  *
- * Inilah yang membuat stempel jatuh DI ATAS teks seperti dokumen asli: sisi
- * atas stempel melewati batas ruang dan menimpa baris nama perusahaan/jabatan
- * di atasnya, sementara sisi bawahnya menjauh dari garis nama penanda tangan.
- * Huruf yang tertimpa tetap terbaca karena penempelannya `mix-blend-multiply`
- * (HTML) — tinta di atas tinta, bukan kotak putih yang menutup.
+ * Angkanya disetel dari foto dokumen asli: di sana garis tengah stempel ≈ 11×
+ * tinggi huruf. 2,3 × celah menghasilkan kira-kira itu pada ketujuh dokumen.
  */
-export const NAIK = 0.22;
+export const BATAS_STEMPEL = 2.3;
+/** Coretan lebih rendah daripada stempel — bandingkan tinggi benda aslinya. */
+export const BATAS_TTD = 1.2;
+
+/** Nisbah lebar : tinggi coretan tanda tangan. Memanjang, bukan bujur sangkar. */
+export const BENTUK_TTD = 2.0;
+
+/**
+ * Geseran stempel ke kiri, terhadap LEBAR STEMPEL SENDIRI. Meniru cara orang
+ * membubuhkannya: dicap menimpa sisi kiri coretan, bukan berdiri terpisah.
+ * Dinyatakan terhadap dirinya sendiri supaya di HTML bisa jadi persen `transform`
+ * (persen `translateX` memang relatif ke elemen itu sendiri).
+ */
+export const GESER_STEMPEL = 0.2;
+
+/**
+ * Stempel TURUN menimpa baris nama, terhadap tinggi stempel sendiri.
+ *
+ * Di dokumen asli stempel membentang dari baris nama perusahaan sampai menimpa
+ * nama penanda tangan di bawahnya — jadi sisi bawahnya memang melewati garis
+ * pijak sedikit. Yang membuat nama tetap terbaca adalah `mix-blend-multiply`:
+ * tinta di atas tinta, bukan kotak putih yang menutup.
+ */
+export const TURUN_STEMPEL = 0.06;
 
 export type UkuranTtd = {
-  stempel: { tinggi: number; lebar: number };
-  ttd: { tinggi: number; lebarMaks: number };
-  /** Piksel/poin geseran stempel ke KIRI dari titik tengah. */
+  stempel: { lebar: number; tinggi: number };
+  ttd: { lebar: number; tinggi: number };
+  /** Geseran stempel ke KIRI dari titik tengah kolom. */
   geser: number;
-  /** Piksel/poin seluruh pasangan diangkat dari garis pijaknya. */
-  naik: number;
+  /** Stempel turun sekian dari garis pijak (menimpa baris nama). */
+  turun: number;
 };
 
-/** Turunkan seluruh ukuran gambar dari tinggi ruang tanda tangan. */
-export function ukuranTtd(tinggi: number): UkuranTtd {
-  const stempel = Math.round(tinggi * NISBAH_STEMPEL);
+/**
+ * Turunkan ukuran gambar dari LEBAR kolom tanda tangan, direm tinggi celahnya.
+ *
+ * @param lebarKolom lebar kolom tanda tangan (px untuk HTML, poin untuk PDF)
+ * @param tinggiCelah tinggi ruang tanda tangan — hanya batas atas
+ */
+export function ukuranTtd(lebarKolom: number, tinggiCelah: number): UkuranTtd {
+  const stempel = Math.round(
+    Math.min((lebarKolom * PERSEN_STEMPEL) / 100, tinggiCelah * BATAS_STEMPEL),
+  );
+  const ttdTinggi = Math.round(
+    Math.min((lebarKolom * PERSEN_TTD) / 100 / BENTUK_TTD, tinggiCelah * BATAS_TTD),
+  );
   return {
-    stempel: { tinggi: stempel, lebar: stempel },
-    ttd: {
-      tinggi: Math.round(tinggi * NISBAH_TTD),
-      lebarMaks: Math.round(tinggi * NISBAH_TTD * NISBAH_LEBAR_TTD),
-    },
-    geser: Math.round(tinggi * GESER_STEMPEL),
-    naik: Math.round(tinggi * NAIK),
+    // Stempel bundar: lebar = tinggi.
+    stempel: { lebar: stempel, tinggi: stempel },
+    ttd: { lebar: Math.round(ttdTinggi * BENTUK_TTD), tinggi: ttdTinggi },
+    geser: Math.round(stempel * GESER_STEMPEL),
+    turun: Math.round(stempel * TURUN_STEMPEL),
   };
 }

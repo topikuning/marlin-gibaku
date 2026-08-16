@@ -330,7 +330,12 @@ export async function buildRencanaKkpPdf(
     // penyedia — dan itu baru ketahuan setelah dokumennya beredar.
     if (gambarTtd) {
       // 40 poin ≈ 1,4 cm; muat di ruang 48 poin di atas garisnya.
-      gambarTtdPdf(doc, gambarTtd[t.pihak], { xTengah: cx + kolom / 2, yDasar: cy, tinggi: 40 });
+      gambarTtdPdf(doc, gambarTtd[t.pihak], {
+        xTengah: cx + kolom / 2,
+        yDasar: cy,
+        lebarKolom: kolom,
+        tinggiCelah: 40,
+      });
     }
     doc
       .moveTo(cx + kolom * 0.12, cy)

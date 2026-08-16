@@ -14361,3 +14361,77 @@ kembali ke perilaku 328 (stempel penuh, tanpa diangkat) → **4 merah**; stempel
 mengecil sampai tidak lagi menimpa teks → 2 merah; stempel dibesarkan sampai
 menelan baris teks → 2 merah; coretan ikut melimpah → 2 merah; angkatan
 dikecilkan sampai menyenggol garis nama lagi → 2 merah.
+
+---
+
+## 330 — Acuan ukuran stempel salah sejak awal: lebar kolom, bukan tinggi celah (2026-08-16)
+
+Koreksi kedua user, atas hasil 329:
+
+> *"kenapa makin kecil, bukan makin mengikuti contoh!"*
+
+Benar, dan penyebabnya bukan angka yang kurang pas — **acuannya yang salah sejak
+328**.
+
+### Cacat akarnya
+
+328 dan 329 menskalakan seluruh gambar dari **tinggi celah tanda tangan**
+(40–56 px). Celah itu kecil, dan karena stempel dinyatakan sebagai pecahan
+darinya, stempel SELALU lebih kecil daripada celahnya. 329 malah mengecilkannya
+lagi (1,00 → 0,84 × celah) demi memberi ruang untuk mengangkatnya — jadi upaya
+memperbaiki letak justru memperburuk ukuran.
+
+Foto dokumen asli menunjukkan acuan yang benar: **garis tengah stempel ≈ selebar
+baris nama perusahaan** — ±11× tinggi huruf, dan jauh MELEBIHI celahnya. Memang
+begitu benda aslinya: stempel bundar ±4 cm pada kolom tanda tangan ±7 cm, jadi
+ia memakan ±56% LEBAR kolom dan dengan sendirinya melimpah ke atas menimpa baris
+teks. Celahnya yang mengalah pada stempel, bukan sebaliknya.
+
+### Aturan sekarang
+
+```
+ukuran = min(persen lebar kolom, kelipatan tinggi celah)
+```
+
+Lebar kolom yang menentukan; tinggi celah **hanya rem**. Remnya memang sering
+menggigit dan itu disengaja: kolom tanda tangan di layar jauh lebih lebar
+relatif terhadap ukuran hurufnya daripada kolom 6–7 cm di kertas A4, jadi aturan
+persen-lebar sendirian akan melar.
+
+Hasilnya, diukur pada ketujuh penyaji:
+
+```
+dokumen           kolom celah | 328  329  330  | ×huruf
+html kurva-S       200    40  |  40   34   92  |  10,8
+html harian        350    48  |  48   40  110  |  11,0
+html periodik      280    48  |  48   40  110  |  11,0
+html mingguan      280    56  |  56   47  129  |  12,9
+pdf periodik       256    32  |  32   27   74  |   9,9
+pdf harian         265    34  |  34   29   78  |  11,1
+pdf mingguan       176    40  |  40   34   92  |  12,3
+```
+
+Kolom `×huruf` itu angka yang membuat "mengikuti contoh" bisa diuji, bukan soal
+selera: foto aslinya 10,8×, dan ketujuhnya kini jatuh di 9,9–12,9×.
+
+HTML tidak tahu lebar kolomnya saat render (grid/flex), jadi ia memakai `min()`
+CSS dengan **dua angka yang persis sama** dengan yang dipakai PDF. Kertas dan
+layar tetap tidak bisa berbeda.
+
+### Pembagian tugas antara stempel dan coretan
+
+Hanya stempel yang melimpah dan turun menimpa baris nama. Coretan tanda tangan
+berpijak PERSIS di garis nama — ia yang menandatangani baris itu; kalau ikut
+melimpah, ia mendarat di baris jabatan.
+
+**Penjaga.** `tests/unit/ttd-stempel-cetak.test.ts` (19). Uji gigi: kembali ke
+acuan tinggi-celah (perilaku 329) → **5 merah**; rem dilepas → 3 merah; rem
+dikencangkan sampai stempel mengecil lagi → 4 merah; stempel selebar penuh
+kolom → 1 merah; stempel tak lagi turun menimpa nama → 1 merah; coretan dibuat
+lebih sempit dari stempel → 1 merah.
+
+Satu uji sempat **TIDAK menggigit**: "stempel tidak melebihi lebar kolom" lolos
+walau stempel disetel selebar penuh kolom, karena pada ketujuh dokumen nyata rem
+selalu memotong lebih dulu sehingga aturan lebarnya tidak pernah teruji di sana.
+Diperbaiki dengan menambahkan kasus kolom sangat sempit — baru kemudian ia
+merah.

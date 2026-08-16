@@ -105,39 +105,39 @@ export async function muatTtdPdf(locationId: string): Promise<TtdPdf> {
 }
 
 /**
- * Gambar tanda tangan + stempel di TENGAH sebuah kotak.
+ * Gambar tanda tangan + stempel di TENGAH sebuah kolom tanda tangan.
  *
- * `xTengah` = titik tengah kolom tanda tangan, `yDasar` = garis tempat coretan
- * berpijak (biasanya tepat di atas baris nama). Keduanya dalam poin PDF, sistem
- * koordinat pdfkit (y tumbuh ke BAWAH), sehingga gambar digambar di ATAS
- * `yDasar`.
+ * `lebarKolom` yang menentukan ukurannya (lihat lib/export/ttd-ukuran);
+ * `tinggiCelah` hanya rem supaya stempel tidak menelan blok di atasnya.
+ * `xTengah` = titik tengah kolom, `yDasar` = garis tempat coretan berpijak
+ * (tepat di atas baris nama). Semua dalam poin PDF; y tumbuh ke BAWAH, jadi
+ * gambar digambar di ATAS `yDasar`.
  *
- * Stempel digambar LEBIH DULU supaya tanda tangan berada di atasnya — urutan
- * yang sama dengan penyaji HTML.
+ * Stempel digambar LEBIH DULU supaya coretan berada di atasnya — urutan yang
+ * sama dengan penyaji HTML.
  */
 export function gambarTtdPdf(
   doc: PdfDoc,
   berkas: BerkasTtd,
-  opsi: { xTengah: number; yDasar: number; tinggi: number },
+  opsi: { xTengah: number; yDasar: number; lebarKolom: number; tinggiCelah: number },
 ): void {
-  const { xTengah, yDasar, tinggi } = opsi;
-  const u = ukuranTtd(tinggi);
-  // Diangkat `u.naik` dari garis pijak (y mengecil ke ATAS di pdfkit) supaya
-  // sisi atasnya menimpa baris teks di atasnya — seperti stempel yang dicap di
-  // kertas, bukan gambar yang ditempel rapi di ruang kosong. DECISIONS 329.
-  const dasar = yDasar - u.naik;
+  const { xTengah, yDasar, lebarKolom, tinggiCelah } = opsi;
+  const u = ukuranTtd(lebarKolom, tinggiCelah);
   try {
     if (berkas.stempel) {
+      // Turun sedikit melewati garis pijak supaya menimpa baris nama; sisanya
+      // melimpah ke atas menutupi baris nama perusahaan.
       doc.image(
         berkas.stempel,
         xTengah - u.stempel.lebar / 2 - u.geser,
-        dasar - u.stempel.tinggi,
+        yDasar + u.turun - u.stempel.tinggi,
         { fit: [u.stempel.lebar, u.stempel.tinggi], align: "center", valign: "bottom" },
       );
     }
     if (berkas.ttd) {
-      doc.image(berkas.ttd, xTengah - u.ttd.lebarMaks / 2, dasar - u.ttd.tinggi, {
-        fit: [u.ttd.lebarMaks, u.ttd.tinggi],
+      // Coretan berpijak PERSIS di garis nama.
+      doc.image(berkas.ttd, xTengah - u.ttd.lebar / 2, yDasar - u.ttd.tinggi, {
+        fit: [u.ttd.lebar, u.ttd.tinggi],
         align: "center",
         valign: "bottom",
       });

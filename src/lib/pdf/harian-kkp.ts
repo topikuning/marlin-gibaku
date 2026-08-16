@@ -386,17 +386,19 @@ export async function buildHarianKkpPdf(
   const gbr = lampiran?.ttd;
   if (gbr) {
     const [kolomKiri, kolomKanan] = colWidths(width, [1, 1]);
-    const TINGGI_TTD_PDF = 34; // poin; ±1,2 cm — muat di ruang 70pt blok ini
+    const CELAH_TTD_PDF = 34; // poin — rem, bukan penentu ukuran
     const yDasar = yTtd + 46; // tepat di atas baris nama
     gambarTtdPdf(doc, gbr.pengawas, {
       xTengah: x + kolomKiri / 2,
       yDasar,
-      tinggi: TINGGI_TTD_PDF,
+      lebarKolom: kolomKiri,
+      tinggiCelah: CELAH_TTD_PDF,
     });
     gambarTtdPdf(doc, gbr.penyedia, {
       xTengah: x + kolomKiri + kolomKanan / 2,
       yDasar,
-      tinggi: TINGGI_TTD_PDF,
+      lebarKolom: kolomKanan,
+      tinggiCelah: CELAH_TTD_PDF,
     });
   }
 

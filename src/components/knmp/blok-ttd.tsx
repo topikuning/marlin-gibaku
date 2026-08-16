@@ -1,5 +1,13 @@
 import type { TtdLaporan, TtdPihak } from "@/lib/export/ttd-laporan";
-import { ukuranTtd } from "@/lib/export/ttd-ukuran";
+import {
+  BATAS_STEMPEL,
+  BATAS_TTD,
+  BENTUK_TTD,
+  GESER_STEMPEL,
+  PERSEN_STEMPEL,
+  PERSEN_TTD,
+  TURUN_STEMPEL,
+} from "@/lib/export/ttd-ukuran";
 
 /**
  * RUANG TANDA TANGAN + STEMPEL pada dokumen cetak (DECISIONS 328).
@@ -47,7 +55,7 @@ export function RuangTtd({
   ttd,
   stempel,
 }: {
-  /** Tinggi ruang tanda tangan dalam piksel CSS — semua ukuran lain turunannya. */
+  /** Tinggi ruang tanda tangan (px). Bukan penentu ukuran gambar — hanya rem. */
   tinggi: number;
   ttd?: { url: string } | null;
   stempel?: { url: string } | null;
@@ -56,9 +64,11 @@ export function RuangTtd({
   // dokumennya harus terlihat sama persis dengan sebelum fitur ini ada.
   if (!ttd && !stempel) return <div style={{ height: tinggi }} />;
 
-  // Perbandingannya milik `lib/export/ttd-ukuran` — dipakai bersama penyaji PDF
-  // supaya kertas dan layar tidak bisa berbeda ukuran.
-  const u = ukuranTtd(tinggi);
+  // Lebar kolomnya tidak diketahui saat render (grid/flex), jadi persentasenya
+  // diserahkan ke CSS `min()` — angka yang persis sama dengan yang dipakai
+  // `ukuranTtd` untuk PDF, supaya kertas dan layar tidak bisa berbeda.
+  const lebarStempel = `min(${PERSEN_STEMPEL}%, ${Math.round(tinggi * BATAS_STEMPEL)}px)`;
+  const lebarTtd = `min(${PERSEN_TTD}%, ${Math.round(tinggi * BATAS_TTD * BENTUK_TTD)}px)`;
 
   return (
     <div className="relative overflow-visible" style={{ height: tinggi }}>
@@ -70,13 +80,15 @@ export function RuangTtd({
           aria-hidden
           className="absolute left-1/2 object-contain"
           style={{
-            // `bottom: naik` — diangkat dari garis pijak supaya sisi ATASnya
-            // menimpa baris teks di atasnya, seperti stempel yang dicap di
-            // kertas. Lihat catatan `NAIK` di lib/export/ttd-ukuran.
-            bottom: u.naik,
-            height: u.stempel.tinggi,
-            width: u.stempel.lebar,
-            transform: `translateX(calc(-50% - ${u.geser}px))`,
+            // Sisi bawah TURUN sedikit melewati garis pijak supaya menimpa
+            // baris nama, seperti stempel yang dicap di kertas. Sisanya
+            // melimpah ke ATAS menutupi baris nama perusahaan — memang begitu
+            // dokumen aslinya. Lihat lib/export/ttd-ukuran.
+            bottom: `calc(-1 * ${lebarStempel} * ${TURUN_STEMPEL})`,
+            width: lebarStempel,
+            // Bundar: tinggi mengikuti lebar.
+            aspectRatio: "1 / 1",
+            transform: `translateX(calc(-50% - ${GESER_STEMPEL * 100}%))`,
             mixBlendMode: "multiply",
             // Tanpa ini Chrome membuang gambar latar saat mencetak.
             printColorAdjust: "exact",
@@ -90,11 +102,12 @@ export function RuangTtd({
           src={ttd.url}
           alt=""
           aria-hidden
-          className="absolute left-1/2 -translate-x-1/2 object-contain"
+          className="absolute bottom-0 left-1/2 -translate-x-1/2 object-contain"
           style={{
-            bottom: u.naik,
-            height: u.ttd.tinggi,
-            maxWidth: u.ttd.lebarMaks,
+            // Coretan berpijak PERSIS di garis nama — ia yang menandatangani
+            // baris itu; hanya stempel yang boleh turun menimpanya.
+            width: lebarTtd,
+            aspectRatio: `${BENTUK_TTD} / 1`,
             mixBlendMode: "multiply",
             printColorAdjust: "exact",
             WebkitPrintColorAdjust: "exact",
