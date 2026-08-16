@@ -13238,3 +13238,68 @@ sudah ada antara Σ sel kategori dan kurva resmi, bukan dibawa sebaran ini), dan
 **Verifikasi ulang** pada data seed sungguhan (Kedung Mutih): 1.977 baris ×
 22 minggu, berkas 298 KB dalam 902 ms.
 
+
+---
+
+## 317 · Basis data AHSP SE DJBK 47/2026 sebagai sumber koefisien (2026-08-16)
+
+Permintaan user 2026-08-16: menerapkan berkas master AHSP sebagai basis data di
+MARLIN, karena *"analisa, resume analisa dan upah bahan belum ada"* dan
+*"suatu saat sistem bisa mereverse berdasarkan sumber yang baik dan dapat
+dipertanggungjawabkan"* — lalu di atasnya dibangun RAPL.
+
+### Apa isi berkasnya (diperiksa, bukan diasumsikan)
+
+5.550 analisa (5.003 kanonik + 547 supplemental) dari tiga bidang: Cipta Karya
+2.318, SDA 1.555, Bina Marga 1.130. 29.494 komponen koefisien — 13.381 upah,
+9.448 bahan, 6.665 alat. Nol koefisien null, nol negatif, `formula_modifier`
+tidak pernah dipakai. Kualitasnya bagus untuk dipakai menghitung.
+
+Yang perlu diketahui sebelum mempercayainya bulat-bulat:
+
+- **435 analisa resmi BELUM punya koefisien terstruktur** — semuanya membawa
+  `analysis_excerpt_id` ke halaman PDF-nya. Disimpan tanpa komponen, dengan
+  rujukan halamannya; TIDAK diisi tebakan.
+- **547 `supplemental_records`** adalah data v1 tanpa padanan resmi yang pasti.
+  Panduan berkasnya sendiri: *"hanya boleh dipakai … setelah verifikasi"* →
+  ditandai `perluVerifikasi` supaya peringatan itu ikut tersimpan.
+- **Kode BISA duplikat** (11 kode dipakai beberapa analisa beruraian berbeda),
+  jadi kunci alaminya `id`, bukan `kode`. Panduannya menyuruh persis itu.
+- Nama material membawa artefak parsing PDF (`"a tanah subur : 75 %"`,
+  `"25 ton Trailer 10-20 ton (lebar T.34"`) dan satuan tidak konsisten kapital
+  (`kg`/`Kg`). Ini penting untuk RAPL nanti — 3.977 nama material/alat unik itu
+  BELUM master yang bersih.
+
+### Yang dibangun sekarang
+
+Tiga tabel: `AhspSource` (satu baris per terbitan regulasi, memuat sha256 tiap
+lampiran PDF + sha256 berkas JSON yang benar-benar diimpor), `AhspEntry`,
+`AhspComponent` (koefisien `Decimal(18,8)` — float akan menggeser hasil kali
+volume besar).
+
+Berkasnya ikut di repo (`seed-data/`, pola yang sama dengan data demo) dan
+impornya idempoten: berkas dengan sha256 identik tidak ditulis ulang sama sekali
+(7,3 detik untuk impor pertama, 260 ms untuk pemeriksaan ulang). Berkas BARU
+dengan kode sumber yang sama MENGGANTI isinya utuh — dua terbitan regulasi yang
+tercampur menghasilkan koefisien yang tidak bisa dijelaskan asalnya.
+
+Panel Sistem menampilkan **sha256 berkasnya**. Analisa harga yang dipakai
+memperkirakan uang harus bisa dibuktikan versinya; "entah berkas yang mana"
+bukan jawaban yang boleh muncul saat auditor bertanya.
+
+### Yang BELUM dibangun, dan kenapa perlu keputusan dulu
+
+"Reverse dari RAB" tidak bisa otomatis penuh, dan panduan berkasnya sendiri
+melarangnya: *"jangan memilih hanya dari kemiripan nama"*. Item RAB MARLIN
+berkode bebas (`1`, `a`, `6.1.`) dengan uraian bebas — tidak ada kode AHSP di
+sana. Pemetaan yang jujur karena itu harus **diusulkan sistem, dikonfirmasi
+manusia, lalu disimpan** per lineageKey supaya sekali dipetakan terpakai
+seterusnya dan bisa diaudit. Itu yang membuat hasilnya "dapat
+dipertanggungjawabkan" — bukan kemiripan teks.
+
+**Penjaga.** `tests/unit/ahsp-parse.test.ts` (10) +
+`tests/integration/ahsp-import.test.ts` (5, terhadap berkas 8,4 MB sungguhan).
+Diuji giginya: menghapus tanda `perluVerifikasi` pada supplemental memerahkan
+1 uji; membiarkan komponen tanpa koefisien lolos sebagai 0 memerahkan 1 uji.
+Uji integrasi mematok jumlah (5.550 / 29.494) dengan sengaja — basis
+perhitungan uang tidak boleh berganti diam-diam saat berkasnya ditukar.
