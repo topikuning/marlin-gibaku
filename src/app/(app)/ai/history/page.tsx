@@ -46,6 +46,7 @@ export default async function AiHistoryPage() {
       periodStart: true,
       periodEnd: true,
       userId: true,
+      waChatId: true,
       provider: true,
       model: true,
       promptVersion: true,
@@ -64,7 +65,8 @@ export default async function AiHistoryPage() {
   const accessible = await accessibleLocationIds(user);
   const runs = allRuns.filter((r) => scopeCoveredBy(accessible, r.scopeIds)).slice(0, 50);
   const users = await db.user.findMany({
-    where: { id: { in: [...new Set(runs.map((r) => r.userId))] } },
+    // userId nullable sejak DECISIONS 351 (tanya-jawab grup tanpa pengguna).
+    where: { id: { in: [...new Set(runs.map((r) => r.userId).filter((id) => id !== null))] } },
     select: { id: true, fullName: true },
   });
   const nameOf = new Map(users.map((u) => [u.id, u.fullName]));
@@ -104,7 +106,15 @@ export default async function AiHistoryPage() {
                       {(r.scopeIds as string[]).length} lokasi · {r.periodStart.toISOString().slice(0, 10)}–
                       {r.periodEnd.toISOString().slice(0, 10)}
                     </td>
-                    <td className="px-3 py-2">{nameOf.get(r.userId) ?? "—"}</td>
+                    <td className="px-3 py-2">
+                      {/* Penanya grup WhatsApp tidak punya pengguna — dikatakan
+                          apa adanya, bukan "—" yang terbaca seperti data hilang. */}
+                      {r.userId
+                        ? (nameOf.get(r.userId) ?? "—")
+                        : r.waChatId
+                          ? "Grup WhatsApp"
+                          : "—"}
+                    </td>
                     <td className="px-3 py-2">
                       <Badge tone={AI_RUN_STATUS_TONE[r.status]} label={AI_RUN_STATUS_LABEL[r.status]} />
                     </td>

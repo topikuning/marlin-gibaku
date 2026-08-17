@@ -75,28 +75,62 @@ export class AiGuardError extends Error {
 }
 
 /**
+ * Siapa yang memakai AI — dan bukan selalu seorang pengguna (DECISIONS 351).
+ *
+ * Tanya-jawab di grup WhatsApp dijawab tanpa menuntut pengirimnya terdaftar,
+ * jadi ada pemakaian AI yang sah TANPA pengguna. Yang tidak boleh dilakukan:
+ * mengarang pengguna agar kolomnya terisi — audit yang menunjuk orang yang
+ * tidak melakukan apa-apa lebih buruk daripada kolom kosong, dan kuota
+ * per-pengguna jadi salah orang.
+ *
+ * Pembatas lajunya tetap ada, hanya kuncinya yang berbeda: per-CHAT untuk grup.
+ * Tanpa itu satu grup ramai bisa menghabiskan anggaran AI sepanjang hari.
+ */
+export type PemakaiAi =
+  | SessionUser
+  | { jenis: "grup"; orgId: string; chatId: string };
+
+function bacaPemakai(p: PemakaiAi): {
+  orgId: string;
+  userId: string | null;
+  chatId: string | null;
+} {
+  return "jenis" in p
+    ? { orgId: p.orgId, userId: null, chatId: p.chatId }
+    : { orgId: p.orgId, userId: p.id, chatId: null };
+}
+
+/**
  * Cek guard SEBELUM memanggil provider. Lempar AiGuardError bila ditolak
  * (ditulis ke audit — provider TIDAK dipanggil).
  */
 export async function checkAiGuard(
-  user: SessionUser,
+  pemakai: PemakaiAi,
   input: { kind: string; locationCount: number; inputChars?: number },
 ): Promise<AiGuardConfig & { enabled: boolean }> {
+  const { orgId, userId, chatId } = bacaPemakai(pemakai);
   const cfg = await getAiGuardConfig();
   const now = Date.now();
   // "Hari" = hari kerja Asia/Jakarta, bukan midnight server (audit B18) —
   // kalau server UTC, kuota lama ter-reset jam 07:00 WIB.
   const jakartaMidnight = new Date(`${jakartaDateKey(new Date())}T00:00:00+07:00`);
-  // AiRun tidak punya relasi ke User (hanya userId skalar) — filter org lewat
-  // daftar user organisasi. Kuota org tanpa filter ini bocor lintas tenant (B18).
-  const orgUserIds = (
-    await db.user.findMany({ where: { orgId: user.orgId }, select: { id: true } })
-  ).map((u) => u.id);
+  const sejam = new Date(now - 3600_000);
   const [userLastHour, orgToday] = await Promise.all([
-    db.aiRun.count({ where: { userId: user.id, createdAt: { gte: new Date(now - 3600_000) } } }),
+    // Kunci pembatas laju: pengguna, atau — untuk grup — chat-nya.
     db.aiRun.count({
-      where: { userId: { in: orgUserIds }, createdAt: { gte: jakartaMidnight } },
+      where: userId
+        ? { userId, createdAt: { gte: sejam } }
+        : { waChatId: chatId, createdAt: { gte: sejam } },
     }),
+    /*
+     * Kuota organisasi dihitung lewat kolom `orgId` (DECISIONS 351).
+     *
+     * Sebelumnya diturunkan dari daftar id pengguna organisasi (`userId IN
+     * (…)`). Cara itu punya dua cacat: run TANPA pengguna tidak terhitung sama
+     * sekali — jadi jawaban grup akan memakai anggaran tanpa pernah menyentuh
+     * kuota — dan daftarnya memanjang seiring jumlah akun.
+     */
+    db.aiRun.count({ where: { orgId, createdAt: { gte: jakartaMidnight } } }),
   ]);
   const verdict = decideAiGuard(cfg, {
     enabled: cfg.enabled,
@@ -106,10 +140,11 @@ export async function checkAiGuard(
     inputChars: input.inputChars ?? 0,
   });
   if (!verdict.ok) {
-    await audit(user.id, "ai.guard.tolak", "ai_run", null, {
+    await audit(userId, "ai.guard.tolak", "ai_run", null, {
       kind: input.kind,
       code: verdict.code,
       reason: verdict.reason,
+      ...(chatId ? { chatId } : {}),
     });
     throw new AiGuardError(verdict.code, verdict.reason);
   }

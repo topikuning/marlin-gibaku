@@ -16188,3 +16188,95 @@ UTUH — chat pribadi dijawab tanpa pemetaan apa pun, grup tidak lagi menjawab
 Uji gigi: daftar nama tebakan dikembalikan → 4 unit + 2 integrasi merah; nilai
 ber-`@lid` tidak ditolak → 2 merah; pola diganti nama tunggal → 5 unit + 3
 integrasi merah. Semuanya dipulihkan → hijau.
+
+---
+
+## 351 — Di grup, penanya tidak perlu terdaftar: lingkup ditentukan GRUPNYA (2026-08-17)
+
+Instruksi user 2026-08-17, sesudah tanya-jawab WhatsApp akhirnya hidup:
+
+> *"untuk mention di group nomor yang mention tidak perlu terdaftar. selama itu
+> chat di dalam group, jawab sesuai paket group itu"*
+
+Sebelumnya, pengirim tak terdaftar di grup dibalas *"Maaf, nomor Anda belum
+terdaftar sebagai pengguna MARLIN"* — yang memblokir mandor lapangan dari data
+paketnya sendiri, di grup paketnya sendiri.
+
+### Ini pembetulan SUMBU, bukan pelonggaran
+
+**Balasannya dikirim ke GRUP.** Seluruh anggota membacanya, siapa pun yang
+mengetik. Jadi memotong jawaban menurut izin si pengetik tidak pernah melindungi
+siapa pun — ia hanya membuat isi jawaban berubah-ubah tergantung siapa yang
+kebetulan bertanya, di depan audiens yang sama persis.
+
+Yang benar-benar menentukan siapa boleh membaca adalah **penautan grup↔paket**,
+dan itu dilakukan admin secara sadar di Paket → Grup WhatsApp. Karena itu:
+
+```
+chat pribadi → lingkup PENANYA      (tidak berubah)
+grup         → lingkup PAKET GRUP   (identitas penanya tidak ikut memotong)
+```
+
+Grup TANPA tautan paket tetap ditolak sepenuhnya. Kelonggaran ini berhenti
+persis di situ: tanpa tautan tidak ada dasar memutuskan apa yang pantas dibaca
+anggotanya.
+
+Chat pribadi juga tidak ikut longgar — nomor tak dikenal tetap **DIDIAMKAN**,
+karena balasan apa pun mengkonfirmasi bahwa nomor ini milik sistem proyek.
+
+### Pembalikan yang ikut hilang
+
+Aturan lama meng-irisan lokasi grup dengan izin penanya. Digabung dengan
+kebijakan baru, itu menghasilkan keadaan yang tak bisa dipertahankan: orang
+**tak terdaftar** di grup mendapat data paket, sementara pengguna **terdaftar**
+yang kebetulan tidak ditugaskan ke paket itu ditolak — di grup yang sama.
+Terdaftar membuat seseorang melihat LEBIH SEDIKIT.
+
+### Penyaring organisasi grup: dilepas, dan justru mengencang
+
+`paketGrup()` dulu disaring dengan `orgId` penanya, karena izin super admin
+"tanpa batas" akan melahap lokasi grup asing lewat irisan. Sejak lingkup grup
+ditentukan paket grupnya, syarat itu tidak diperlukan — dan tidak mungkin lagi,
+karena penanya boleh tidak terdaftar. Penggantinya lebih kuat: satu grup tertaut
+tepat satu paket, milik tepat satu organisasi; jawabannya berisi data paket itu
+dan dikirim ke grup itu. Yang diuji sekarang adalah arah yang berbahaya — data
+organisasi KITA tidak pernah muncul di grup tenant lain.
+
+### Pemakaian AI tanpa pengguna
+
+Jawaban grup kini bisa terjadi tanpa pengguna, jadi `ai_runs.user_id` dibuat
+NULLABLE. Yang TIDAK dilakukan: mengarang pengguna agar kolomnya terisi — audit
+yang menunjuk orang yang tidak melakukan apa-apa lebih buruk daripada kolom
+kosong, dan kuota per-pengguna jadi salah orang.
+
+Dua kolom baru menggantikannya:
+
+- `org_id` — kuota harian organisasi. Sebelumnya diturunkan dari daftar id
+  pengguna organisasi (`userId IN (…)`), yang **tidak bisa menghitung run tanpa
+  pengguna** (jawaban grup akan memakai anggaran tanpa pernah menyentuh kuota)
+  dan memanjang seiring jumlah akun. Baris lama di-backfill di migrasi.
+- `wa_chat_id` — kunci pembatas laju untuk penanya tak terdaftar. Tanpa itu satu
+  grup ramai bisa menghabiskan anggaran AI sepanjang hari.
+
+### Aturan yang dijaga di DUA tempat hanya dijaga di satu
+
+Versi pertama perbaikan ini menaruh aturannya dua kali: `tanya.ts` mengirim
+`lokasiPengguna: null` untuk grup, DAN `lingkupJawaban` mengabaikannya. Uji gigi
+membongkarnya — melanggar aturan di `lingkupJawaban` tidak membuat satu uji
+integrasi pun merah, karena lapisan kedua menutupinya.
+
+Sekarang izin penanya diteruskan APA ADANYA dan `lingkupJawaban` satu-satunya
+yang memutuskan. Sesudah itu pelanggaran yang sama membuat 3 uji unit dan 2 uji
+integrasi merah.
+
+**Penjaga.** `tests/unit/waha-tanya-izin.test.ts`: dua uji kebijakan lama
+DIBALIK dengan alasannya ditulis di tempat, +2 (lingkup grup selalu persis paket
+grupnya — tidak kurang tidak lebih; pembalikan terdaftar-vs-tak-terdaftar).
+`tests/integration/waha-tanya-jawab.test.ts` +9, termasuk fixture baru
+`SmPaketB` — pengguna terdaftar di luar penugasan paket grup, satu-satunya kasus
+yang benar-benar membedakan kebijakan lama dan baru lewat basis data. Uji lintas
+organisasi ditulis ulang ke invarian yang lebih ketat.
+
+Uji gigi: irisan izin penanya dikembalikan → 3 unit + 2 integrasi merah; chat
+pribadi ikut dilonggarkan → 5 integrasi merah; grup tanpa tautan paket ikut
+dijawab → 1 unit merah. Semuanya dipulihkan → hijau.

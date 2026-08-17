@@ -1795,7 +1795,18 @@ enum AiArtifactStatus {
 /// tabel terpisah tidak memberi nilai). sourcesJson = SourceRef[] utk drawer sumber.
 model AiRun {
   id               String      @id @default(uuid()) @db.Uuid
-  userId           String      @map("user_id") @db.Uuid
+  /// Nullable sejak DECISIONS 351: tanya-jawab GRUP WhatsApp dijawab tanpa
+  /// pengirim terdaftar, jadi pemakaian AI-nya tidak punya pengguna. Jangan
+  /// diisi pengguna karangan — audit yang menunjuk orang yang tidak melakukan
+  /// apa-apa lebih buruk daripada kolom kosong.
+  userId           String?     @map("user_id") @db.Uuid
+  /// Organisasi pemilik pemakaian ini. Dipakai kuota harian organisasi —
+  /// sebelumnya diturunkan lewat daftar id pengguna organisasi, yang tidak bisa
+  /// menghitung run tanpa pengguna (dan melebar seiring jumlah akun).
+  orgId            String?     @map("org_id") @db.Uuid
+  /// Chat WhatsApp asal, bila run ini dipicu dari grup. Kunci pembatas laju
+  /// untuk penanya yang tidak terdaftar (DECISIONS 351).
+  waChatId         String?     @map("wa_chat_id")
   runKind          AiRunKind   @map("run_kind")
   status           AiRunStatus @default(berjalan)
   scopeType        String      @map("scope_type") // location | package | all
@@ -1826,6 +1837,8 @@ model AiRun {
   messages  AiMessage[]
 
   @@index([userId, createdAt])
+  @@index([orgId, createdAt])
+  @@index([waChatId, createdAt])
   @@index([runKind, createdAt])
   @@index([status, createdAt])
   @@map("ai_runs")

@@ -73,6 +73,7 @@ let lokA1 = "";
 let lokA2 = "";
 let lokB1 = "";
 let nomorSM = "6285700000001";
+const nomorSmB = "6285700000009";
 let nomorAdmin = "6285700000002";
 
 async function buatPaket(oid: string, nama: string, waGroupId: string | null) {
@@ -165,6 +166,11 @@ beforeAll(async () => {
   await buatUser(orgId, "SuperAdmin", "super_admin", nomorAdmin);
   // Orang organisasi LAIN — dipakai menguji pemetaan @lid lintas organisasi.
   await buatUser(orgLainId, "OrangOrgLain", "site_manager", null);
+  // Pengguna TERDAFTAR yang ditugaskan HANYA ke paket B — dipakai membuktikan
+  // pembalikan DECISIONS 351: dulu ia ditolak di grup paket A, sementara orang
+  // tak terdaftar justru dilayani di grup yang sama.
+  const smB = await buatUser(orgId, "SmPaketB", "site_manager", nomorSmB);
+  await db.locationAssignment.create({ data: { userId: smB, locationId: lokB1 } });
 });
 
 afterAll(async () => {
@@ -285,11 +291,22 @@ describe("apa yang boleh bocor ke grup", () => {
     expect(teks).not.toContain("Tengket");
   });
 
-  it("grup milik ORGANISASI LAIN: ditolak, bukan dijawab dengan data mereka", async () => {
-    // Grup ini tertaut paket — tapi paket tenant lain. Super admin kita tidak
-    // boleh menjadi pintu masuk ke sana hanya karena izinnya "tanpa batas".
+  it("grup ORGANISASI LAIN: dijawab dengan data GRUPNYA, tak pernah data kita", async () => {
+    /*
+     * DIBALIK OLEH DECISIONS 351 — dan justru mengencang.
+     *
+     * Versi lama menolak seluruhnya, karena `paketGrup` disaring dengan orgId
+     * penanya: lingkup grup di-irisan dengan izin penanya, dan izin super admin
+     * "tanpa batas" akan melahap lokasi grup asing.
+     *
+     * Sejak lingkup grup ditentukan PAKET GRUPNYA, syarat itu tidak diperlukan
+     * — dan tidak mungkin lagi, karena penanya boleh tidak terdaftar. Yang
+     * menggantikannya lebih kuat dan diuji di sini: apa pun organisasi
+     * penanyanya, jawaban di grup ini berisi data paket GRUP INI, dan lokasi
+     * organisasi KITA tidak pernah ikut.
+     */
     niatPalsu = { niat: "kelengkapan", lokasiDisebut: [], periode: "hari_ini" };
-    await jawabPertanyaanWa(
+    const r = await jawabPertanyaanWa(
       event({
         chatId: GRUP_LAIN_ORG,
         dari: nomorAdmin,
@@ -297,9 +314,14 @@ describe("apa yang boleh bocor ke grup", () => {
         mention: [`${NOMOR_MARLIN}@c.us`],
       }),
     );
+    expect(r.dijawab, `tidak dijawab: ${r.alasan}`).toBe(true);
     const teks = terkirim[0]?.teks ?? "";
-    expect(teks).not.toContain("Batah Timur");
-    expect(teks.toLowerCase()).toContain("belum tertaut paket");
+    // Arah yang benar-benar berbahaya: data KITA muncul di grup tenant lain.
+    expect(teks).not.toContain("Kedung Mutih");
+    expect(teks).not.toContain("Kedungmalang");
+    expect(teks).not.toContain("Tengket");
+    // Dan jawabannya memang dipotong ke paket grup itu, bukan melebar.
+    expect(teks).toContain("Paket Tetangga");
   });
 });
 
@@ -637,5 +659,211 @@ describe("payload ASLI dari lapangan: @lid + key.remoteJidAlt (DECISIONS 350)", 
     // lain (0 lokasi) — pembeda yang benar-benar ada di teks balasannya.
     expect(terkirim[0].teks).toContain("3 yang saya periksa");
     await db.user.updateMany({ where: { fullName: "OrangOrgLain" }, data: { waLid: null } });
+  });
+});
+
+describe("di grup, pengirim TIDAK perlu terdaftar (DECISIONS 351)", () => {
+  /*
+   * Instruksi user 2026-08-17: *"untuk mention di group nomor yang mention
+   * tidak perlu terdaftar. selama itu chat di dalam group, jawab sesuai paket
+   * group itu."*
+   *
+   * Sebelumnya balasannya: "Maaf, nomor Anda belum terdaftar sebagai pengguna
+   * MARLIN" — yang memblokir mandor lapangan dari data paketnya sendiri, di
+   * grup paketnya sendiri.
+   */
+  const ORANG_ASING = "6289876543210";
+
+  it("nomor tak terdaftar di grup tertaut: DIJAWAB dengan data paket grup", async () => {
+    niatPalsu = { niat: "kelengkapan", lokasiDisebut: [], periode: "hari_ini" };
+    const r = await jawabPertanyaanWa(
+      event({
+        chatId: GRUP_A,
+        dari: ORANG_ASING,
+        teks: "siapa yang belum lapor",
+        mention: [`${NOMOR_MARLIN}@c.us`],
+      }),
+    );
+    expect(r.dijawab, `tidak dijawab: ${r.alasan}`).toBe(true);
+    const teks = terkirim[0]?.teks ?? "";
+    expect(teks).not.toContain("belum terdaftar");
+    // Lingkupnya paket grup — dan HANYA itu.
+    expect(teks).toContain("Paket A");
+    expect(teks).not.toContain("Tengket");
+  });
+
+  it("pengirim ber-@lid tanpa nomor pasangan pun dijawab di grup", async () => {
+    // Gabungan dua keadaan yang dulu masing-masing mematikan jawaban.
+    niatPalsu = { niat: "kelengkapan", lokasiDisebut: [], periode: "hari_ini" };
+    const r = await jawabPertanyaanWa({
+      event: "message",
+      payload: {
+        id: `lid-grup-${Math.random().toString(36).slice(2)}`,
+        timestamp: Math.floor(Date.now() / 1000),
+        from: GRUP_A,
+        author: "99900000000001@lid",
+        body: "siapa yang belum lapor",
+        mentionedIds: [`${NOMOR_MARLIN}@c.us`],
+      },
+    });
+    expect(r.dijawab, `tidak dijawab: ${r.alasan}`).toBe(true);
+    expect(terkirim[0]?.teks ?? "").not.toContain("belum terdaftar");
+  });
+
+  it("CHAT PRIBADI tidak ikut longgar — nomor tak dikenal tetap DIDIAMKAN", async () => {
+    /*
+     * Pagar yang tidak boleh ikut terbuka. Di chat pribadi tidak ada grup yang
+     * membatasi apa pun, jadi identitas penanya satu-satunya dasar. Balasan apa
+     * pun — termasuk penolakan — mengkonfirmasi bahwa nomor ini milik sistem
+     * proyek dan mengundang percobaan berikutnya.
+     */
+    const r = await jawabPertanyaanWa(
+      event({ chatId: `${ORANG_ASING}@c.us`, dari: ORANG_ASING, teks: "progress hari ini" }),
+    );
+    expect(r.dijawab).toBe(false);
+    expect(terkirim).toHaveLength(0);
+  });
+
+  it("grup TANPA tautan paket tetap ditolak, dan alasannya bisa ditindak", async () => {
+    // Tanpa tautan tidak ada dasar memutuskan apa yang pantas dibaca anggotanya
+    // — kelonggaran ini berhenti persis di situ.
+    const r = await jawabPertanyaanWa(
+      event({
+        chatId: "12036399999999999@g.us",
+        dari: ORANG_ASING,
+        teks: "siapa yang belum lapor",
+        mention: [`${NOMOR_MARLIN}@c.us`],
+      }),
+    );
+    expect(r.dijawab).toBe(true);
+    expect(terkirim[0]?.teks.toLowerCase() ?? "").toContain("belum tertaut paket");
+  });
+
+  it("jawaban grup SAMA persis, siapa pun yang bertanya", async () => {
+    /*
+     * Inti pembetulan sumbu: balasannya dikirim ke grup, dibaca semua anggota.
+     * Kalau isinya berubah tergantung siapa mengetik, itu bukan perlindungan —
+     * hanya ketidakkonsistenan di depan audiens yang sama persis.
+     */
+    niatPalsu = { niat: "kelengkapan", lokasiDisebut: [], periode: "hari_ini" };
+    const tanya = async (dari: string) => {
+      // Uji-uji sebelumnya di berkas ini sudah memakai kuota AI per jam milik
+      // SiteManager, jadi tanpa pembersihan ini yang terbandingkan adalah
+      // penolakan guard — bukan isi jawabannya.
+      await db.aiRun.deleteMany({});
+      terkirim.length = 0;
+      await jawabPertanyaanWa(
+        event({
+          chatId: GRUP_A,
+          dari,
+          teks: "siapa yang belum lapor",
+          mention: [`${NOMOR_MARLIN}@c.us`],
+        }),
+      );
+      return terkirim[0]?.teks ?? "";
+    };
+    const olehSM = await tanya(nomorSM);
+    const olehAsing = await tanya(ORANG_ASING);
+    expect(olehAsing).toBe(olehSM);
+  });
+
+  it("pemakaian AI penanya tak terdaftar TETAP tercatat — kuota tidak bocor", async () => {
+    /*
+     * Tanpa ini, satu grup ramai bisa menghabiskan anggaran AI sepanjang hari
+     * sementara panel AI Hub melaporkan nol pemakaian. `userId` null, tapi
+     * `orgId` dan `waChatId` terisi — itu yang dihitung guard.
+     */
+    niatPalsu = { niat: "kelengkapan", lokasiDisebut: [], periode: "hari_ini" };
+    const sebelum = await db.aiRun.count({ where: { waChatId: GRUP_A } });
+    await jawabPertanyaanWa(
+      event({
+        chatId: GRUP_A,
+        dari: ORANG_ASING,
+        teks: "siapa yang belum lapor",
+        mention: [`${NOMOR_MARLIN}@c.us`],
+      }),
+    );
+    const baris = await db.aiRun.findFirst({
+      where: { waChatId: GRUP_A },
+      orderBy: { createdAt: "desc" },
+      select: { userId: true, orgId: true, waChatId: true },
+    });
+    expect(await db.aiRun.count({ where: { waChatId: GRUP_A } })).toBe(sebelum + 1);
+    // Pengguna KARANGAN akan mencemari audit dan kuota per-pengguna orang lain.
+    expect(baris?.userId).toBeNull();
+    expect(baris?.orgId).toBe(orgId);
+  });
+});
+
+describe("pembalikan yang dihilangkan DECISIONS 351", () => {
+  /*
+   * Kasus yang membedakan kebijakan lama dan baru, dan satu-satunya yang
+   * membuktikannya lewat basis data.
+   *
+   * SmPaketB adalah pengguna TERDAFTAR, ditugaskan hanya ke Paket B. Ia
+   * bertanya di grup Paket A.
+   *
+   *   aturan lama : irisan [Tengket] ∩ [Kedung*] = kosong → "Anda tidak punya
+   *                 akses ke lokasi paket ini"
+   *   aturan baru : lingkup = paket grup → dijawab, sama seperti anggota lain
+   *
+   * Digabung dengan kebijakan baru, aturan lama menghasilkan keadaan yang tak
+   * bisa dipertahankan: orang TAK TERDAFTAR di grup itu dilayani, sementara
+   * pengguna TERDAFTAR ini ditolak — terdaftar membuat seseorang melihat LEBIH
+   * SEDIKIT, di grup yang sama.
+   */
+  it("pengguna terdaftar di luar penugasan paket grup: DIJAWAB, bukan ditolak", async () => {
+    await db.aiRun.deleteMany({});
+    niatPalsu = { niat: "kelengkapan", lokasiDisebut: [], periode: "hari_ini" };
+    const r = await jawabPertanyaanWa(
+      event({
+        chatId: GRUP_A,
+        dari: nomorSmB,
+        teks: "siapa yang belum lapor",
+        mention: [`${NOMOR_MARLIN}@c.us`],
+      }),
+    );
+    expect(r.dijawab, `tidak dijawab: ${r.alasan}`).toBe(true);
+    const teks = terkirim[0]?.teks ?? "";
+    expect(teks).not.toContain("tidak punya akses");
+    expect(teks).toContain("Kedung Mutih");
+    // Tetap dipotong ke paket grup: Tengket miliknya sendiri pun tidak ikut.
+    expect(teks).not.toContain("Tengket");
+  });
+
+  it("jawabannya identik dengan yang diterima orang tak terdaftar", async () => {
+    // Kalau kedua jalur ini berbeda, berarti izin penanya masih ikut memotong.
+    niatPalsu = { niat: "kelengkapan", lokasiDisebut: [], periode: "hari_ini" };
+    const tanya = async (dari: string) => {
+      await db.aiRun.deleteMany({});
+      terkirim.length = 0;
+      await jawabPertanyaanWa(
+        event({
+          chatId: GRUP_A,
+          dari,
+          teks: "siapa yang belum lapor",
+          mention: [`${NOMOR_MARLIN}@c.us`],
+        }),
+      );
+      return terkirim[0]?.teks ?? "";
+    };
+    expect(await tanya(nomorSmB)).toBe(await tanya("6289876543210"));
+  });
+
+  it("CHAT PRIBADI-nya tetap dipotong ke penugasannya sendiri", async () => {
+    /*
+     * Pembeda yang membuktikan kelonggaran ini berhenti di grup: orang yang
+     * sama, pertanyaan yang sama, lewat chat pribadi → hanya lokasinya sendiri.
+     */
+    await db.aiRun.deleteMany({});
+    niatPalsu = { niat: "kelengkapan", lokasiDisebut: [], periode: "hari_ini" };
+    terkirim.length = 0;
+    const r = await jawabPertanyaanWa(
+      event({ chatId: `${nomorSmB}@c.us`, dari: nomorSmB, teks: "siapa yang belum lapor" }),
+    );
+    expect(r.dijawab, `tidak dijawab: ${r.alasan}`).toBe(true);
+    const teks = terkirim[0]?.teks ?? "";
+    expect(teks).toContain("Tengket");
+    expect(teks).not.toContain("Kedung Mutih");
   });
 });

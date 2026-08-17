@@ -175,23 +175,57 @@ describe("apa yang boleh disebut — TIDAK selesai oleh mention", () => {
     }
   });
 
-  it("penanya tanpa akses ke paket grup: ditolak, bukan dijawab sebagian", () => {
+  /*
+   * DUA UJI DI BAWAH INI DIBALIK OLEH DECISIONS 351 — sengaja, bukan karena
+   * pagarnya melemah.
+   *
+   * Versi lama meng-irisan lokasi grup dengan izin penanya, dan menuntut
+   * penanya terdaftar. Instruksi user 2026-08-17: *"untuk mention di group
+   * nomor yang mention tidak perlu terdaftar. selama itu chat di dalam group,
+   * jawab sesuai paket group itu."*
+   *
+   * Alasannya kuat: BALASANNYA DIKIRIM KE GRUP. Seluruh anggota membacanya,
+   * siapa pun yang mengetik — jadi memotong menurut izin si pengetik tidak
+   * pernah melindungi siapa pun, ia hanya membuat isi jawaban berubah-ubah di
+   * depan audiens yang sama persis.
+   */
+  it("izin penanya TIDAK memotong jawaban grup", () => {
     const l = lingkupJawaban({
       grup: true,
-      lokasiPengguna: ["z"],
+      lokasiPengguna: ["z"], // sama sekali tidak beririsan dengan paket grup
       lokasiGrup: ["a", "b"],
       namaPaketGrup: "Paket X",
     });
-    expect(l.boleh).toBe(false);
+    expect(l.boleh).toBe(true);
+    expect(l.boleh && l.lokasiIds).toEqual(["a", "b"]);
   });
 
-  it("lingkup akhir SELALU himpunan bagian dari izin penanya", () => {
-    // Invarian yang paling penting: tiap lapis boleh MEMPERSEMPIT, tidak pernah
-    // melebarkan. Diuji atas banyak kombinasi sekaligus.
+  it("penanya TAK TERDAFTAR (tanpa izin apa pun) tetap dijawab sesuai paket grup", () => {
+    const l = lingkupJawaban({
+      grup: true,
+      lokasiPengguna: null,
+      lokasiGrup: ["a", "b"],
+      namaPaketGrup: "Paket X",
+    });
+    expect(l.boleh && l.lokasiIds).toEqual(["a", "b"]);
+  });
+
+  it("lingkup grup SELALU persis paket grupnya — tidak kurang, tidak lebih", () => {
+    /*
+     * Invarian pengganti. Yang lama ("selalu himpunan bagian dari izin
+     * penanya") kini salah arah; yang tetap benar dan justru lebih ketat:
+     * jawaban di grup tidak pernah memuat lokasi di luar paket grup itu, dan
+     * tidak pernah kehilangan lokasi yang ada di dalamnya.
+     *
+     * Sisi "tidak lebih" itu yang menahan kebocoran antar paket — dan ia tidak
+     * bergantung sama sekali pada siapa yang bertanya.
+     */
     const kombinasi = [
       { pengguna: ["a", "b"], grupL: ["b", "c"] },
       { pengguna: ["a"], grupL: ["a"] },
       { pengguna: ["a", "b", "c"], grupL: ["a"] },
+      { pengguna: null, grupL: ["a", "b"] },
+      { pengguna: [], grupL: ["a"] },
     ];
     for (const k of kombinasi) {
       const l = lingkupJawaban({
@@ -200,13 +234,32 @@ describe("apa yang boleh disebut — TIDAK selesai oleh mention", () => {
         lokasiGrup: k.grupL,
         namaPaketGrup: "P",
       });
-      if (l.boleh && l.lokasiIds) {
-        for (const id of l.lokasiIds) {
-          expect(k.pengguna).toContain(id);
-          expect(k.grupL).toContain(id);
-        }
-      }
+      expect(l.boleh, JSON.stringify(k)).toBe(true);
+      expect(l.boleh && l.lokasiIds, JSON.stringify(k)).toEqual(k.grupL);
     }
+  });
+
+  it("pembalikan yang dihilangkan: terdaftar tidak boleh melihat LEBIH SEDIKIT", () => {
+    /*
+     * Digabung dengan kebijakan baru, aturan irisan lama menghasilkan keadaan
+     * yang tak bisa dipertahankan: orang tak terdaftar di grup mendapat data
+     * paket, sementara pengguna terdaftar yang tidak ditugaskan ke paket itu
+     * ditolak — di grup yang SAMA. Terdaftar membuat seseorang melihat lebih
+     * sedikit.
+     */
+    const takTerdaftar = lingkupJawaban({
+      grup: true,
+      lokasiPengguna: null,
+      lokasiGrup: ["a", "b"],
+      namaPaketGrup: "P",
+    });
+    const terdaftarTanpaTugas = lingkupJawaban({
+      grup: true,
+      lokasiPengguna: ["z"],
+      lokasiGrup: ["a", "b"],
+      namaPaketGrup: "P",
+    });
+    expect(terdaftarTanpaTugas).toEqual(takTerdaftar);
   });
 });
 

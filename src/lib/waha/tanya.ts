@@ -5,7 +5,13 @@ import { jakartaDateKey, jakartaToday, formatTanggal } from "@/lib/format";
 import type { SessionUser } from "@/lib/auth/session";
 import { accessibleLocationIds } from "@/lib/auth/session";
 import { aiStructured } from "@/lib/ai/structured";
-import { AiGuardError, checkAiGuard, estimateCostUsd, getAiPricing } from "@/lib/ai-hub/guard";
+import {
+  AiGuardError,
+  checkAiGuard,
+  estimateCostUsd,
+  getAiPricing,
+  type PemakaiAi,
+} from "@/lib/ai-hub/guard";
 import { getIdentitasMarlin, sendText } from "./client";
 import { medanJidPayload, parseWaEvent, varianChatId, type ParsedWaMessage } from "./ingest-parse";
 import {
@@ -149,31 +155,61 @@ async function cariPengguna(
 /* Lingkup grup                                                        */
 /* ------------------------------------------------------------------ */
 
-type PaketGrup = { id: string; nama: string; lokasiIds: string[] } | null;
+type PaketGrup = { id: string; nama: string; orgId: string; lokasiIds: string[] } | null;
 
 /**
- * Paket yang tertaut grup ini — dan HANYA bila paketnya seorganisasi dengan
- * penanya.
+ * Paket yang tertaut grup ini — GRUPNYA yang menentukan, termasuk organisasinya
+ * (DECISIONS 351).
  *
- * Tanpa syarat organisasi, seorang super admin yang di-mention di grup milik
- * tenant lain akan dilayani dengan data tenant itu: `lingkupJawaban` hanya
- * meng-irisan lokasi grup dengan izin penanya, dan izin super admin adalah
- * "tanpa batas" — irisannya jadi seluruh lokasi grup asing.
+ * Versi sebelumnya menyaring dengan `orgId` penanya, karena lingkup jawaban
+ * di-irisan dengan izin penanya dan izin super admin "tanpa batas" akan
+ * melahap seluruh lokasi grup asing. Sejak lingkup grup ditentukan PAKET
+ * GRUPNYA (bukan penanya), syarat itu tidak lagi diperlukan — dan tidak lagi
+ * mungkin, karena penanya boleh tidak terdaftar sama sekali.
+ *
+ * Yang menggantikannya lebih kuat: satu grup tertaut ke tepat satu paket, dan
+ * paket itu milik tepat satu organisasi. Jawabannya berisi data paket itu, dan
+ * dikirim ke grup itu — data tenant tidak pernah keluar dari grup tenant itu.
  */
-async function paketGrup(chatId: string, orgId: string): Promise<PaketGrup> {
+async function paketGrup(chatId: string): Promise<PaketGrup> {
   const p = await db.package.findFirst({
     // Seluruh varian tulisan, sama seperti ingest (DECISIONS 348) — kalau di
     // sini hanya bentuk kanonik, grup yang pesannya TERSIMPAN tetap dianggap
     // "tidak tertaut" saat menjawab, dan jawabannya dipangkas jadi kosong.
-    where: { waGroupId: { in: varianChatId(chatId) }, orgId },
+    where: { waGroupId: { in: varianChatId(chatId) } },
     select: {
       id: true,
       name: true,
+      orgId: true,
       locations: { where: { isActive: true }, select: { id: true } },
     },
   });
   if (!p) return null;
-  return { id: p.id, nama: p.name, lokasiIds: p.locations.map((l) => l.id) };
+  return { id: p.id, nama: p.name, orgId: p.orgId, lokasiIds: p.locations.map((l) => l.id) };
+}
+
+/**
+ * Penanya yang dipakai lapisan data — SEBAGAI PENYARING LINGKUP, bukan identitas.
+ *
+ * Fungsi data (`katalogLokasi`, `getStatusHarian`) menerima `SessionUser` dan
+ * meneruskannya ke `locationScopeWhere`, yang hanya membaca `orgId` — dan itu
+ * pun HANYA ketika daftar lokasinya `null`. Untuk jawaban grup daftarnya tidak
+ * pernah null (selalu lokasi paket grup), jadi nilai ini murni penyaring.
+ *
+ * Sengaja TIDAK disimpan ke audit atau `ai_runs`: di sana penanya tak terdaftar
+ * dicatat sebagai null + chatId-nya. Pengguna karangan di jejak audit menunjuk
+ * orang yang tidak melakukan apa-apa.
+ */
+function penyaringGrup(orgId: string): SessionUser {
+  return {
+    id: "00000000-0000-0000-0000-000000000000",
+    orgId,
+    fullName: "Anggota grup WhatsApp",
+    username: null,
+    email: null,
+    role: "field_supervisor",
+    mustChangePassword: false,
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -238,13 +274,37 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
     !user && m.senderLid && !m.fromNumber
       ? `${alasanNomor0} · medan payload: ${medanJidPayload(body).slice(0, 300) || "(tidak ada medan berbentuk JID)"}`
       : alasanNomor0;
-  if (!user) {
-    if (!grup) return DIAM(`didiamkan — ${alasanNomor}`);
+
+  /*
+   * Di GRUP, pengirim TIDAK perlu terdaftar (DECISIONS 351).
+   *
+   * Instruksi user 2026-08-17. Alasannya kuat: balasannya dikirim ke GRUP, dan
+   * seluruh anggota membacanya siapa pun yang mengetik — jadi identitas si
+   * pengetik tidak pernah menentukan siapa yang melihat jawabannya. Yang
+   * menentukan adalah penautan grup↔paket, dan itu dilakukan admin dengan
+   * sadar. Menuntut pendaftaran hanya memblokir mandor lapangan dari data
+   * paketnya sendiri, di grup paketnya sendiri.
+   *
+   * Chat PRIBADI tidak berubah: di sana tidak ada grup yang membatasi apa pun,
+   * jadi identitas penanya satu-satunya dasar — dan nomor tak dikenal tetap
+   * DIDIAMKAN (balasan apa pun mengkonfirmasi bahwa nomor ini milik sistem).
+   */
+  if (!user && !grup) return DIAM(`didiamkan — ${alasanNomor}`);
+
+  // (6) Apa yang boleh disebut DI SANA — dihitung sebelum katalog nama dibuat.
+  const pkg = grup ? await paketGrup(m.chatId) : null;
+  if (grup && !pkg) {
     await sendText(
       m.chatId,
-      "Maaf, nomor Anda belum terdaftar sebagai pengguna MARLIN, jadi saya belum boleh menjawab pertanyaan data. Hubungi admin untuk mendaftarkan nomor WhatsApp Anda.",
+      balasDitolak(
+        "Grup ini belum tertaut paket mana pun, jadi saya tidak tahu data apa yang pantas dibagikan di sini. Minta admin menautkannya di Paket → Grup WhatsApp.",
+      ),
     );
-    return { dijawab: true, alasan: `nomor tidak terdaftar — ${alasanNomor}` };
+    await audit(user?.id ?? null, "waha.tanya.tolak", "wa_message", m.waMessageId, {
+      chatId: m.chatId,
+      alasan: "grup tidak tertaut paket",
+    });
+    return { dijawab: true, alasan: "grup tidak tertaut paket" };
   }
 
   if (!teks) {
@@ -252,9 +312,25 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
     return { dijawab: true, alasan: "mention tanpa pertanyaan" };
   }
 
-  // (6) Apa yang boleh disebut DI SANA — dihitung sebelum katalog nama dibuat.
-  const pkg = grup ? await paketGrup(m.chatId, user.orgId) : null;
-  const lokasiPengguna = await accessibleLocationIds(user);
+  /*
+   * Penyaring lingkup untuk lapisan data. Di grup ia berasal dari PAKET GRUP,
+   * bukan dari penanya — termasuk ketika penanyanya justru pengguna terdaftar,
+   * supaya jawaban di satu grup tidak berubah-ubah tergantung siapa mengetik.
+   */
+  const penyaring: SessionUser = pkg ? penyaringGrup(pkg.orgId) : user!;
+  /*
+   * Izin penanya dihitung dan diteruskan APA ADANYA, termasuk di grup —
+   * `lingkupJawaban` yang memutuskan bahwa di grup ia tidak memotong apa pun
+   * (DECISIONS 351).
+   *
+   * Sengaja BUKAN dinolkan di sini. Versi pertama perbaikan ini menaruh
+   * aturannya di dua tempat sekaligus (mengirim `null` untuk grup DAN
+   * mengabaikannya di `lingkupJawaban`), dan hasilnya: melanggar aturan di
+   * `lingkupJawaban` tidak membuat satu uji pun merah, karena lapisan kedua
+   * menutupinya. Aturan yang dijaga di dua tempat hanya benar-benar dijaga di
+   * satu — dan yang satunya lagi diam-diam berhenti diuji.
+   */
+  const lokasiPengguna = user ? await accessibleLocationIds(user) : null;
   const lingkup: LingkupJawaban = lingkupJawaban({
     grup,
     lokasiPengguna,
@@ -263,18 +339,21 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
   });
   if (!lingkup.boleh) {
     await sendText(m.chatId, balasDitolak(lingkup.alasan));
-    await audit(user.id, "waha.tanya.tolak", "wa_message", m.waMessageId, {
+    await audit(user?.id ?? null, "waha.tanya.tolak", "wa_message", m.waMessageId, {
       chatId: m.chatId,
       alasan: lingkup.alasan,
     });
     return { dijawab: true, alasan: "lingkup ditolak" };
   }
 
-  const katalog = await katalogLokasi(user, lingkup.lokasiIds);
+  const katalog = await katalogLokasi(penyaring, lingkup.lokasiIds);
 
-  // (4) Guard AI — kill-switch & kuota, SEBELUM provider dipanggil.
+  // (4) Guard AI — kill-switch & kuota, SEBELUM provider dipanggil. Untuk
+  // penanya tak terdaftar, kuncinya CHAT-nya: satu grup ramai tidak boleh
+  // menghabiskan anggaran AI sepanjang hari (DECISIONS 351).
+  const pemakaiAi: PemakaiAi = user ?? { jenis: "grup", orgId: pkg!.orgId, chatId: m.chatId };
   try {
-    await checkAiGuard(user, {
+    await checkAiGuard(pemakaiAi, {
       kind: "waha.tanya",
       locationCount: katalog.length,
       inputChars: teks.length,
@@ -296,7 +375,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
     maxTokens: 300,
     timeoutMs: 25_000,
   });
-  await catatRun(user, katalog, hasil, Date.now() - mulai);
+  await catatRun(pemakaiAi, katalog, hasil, Date.now() - mulai);
 
   if (!hasil.ok) {
     await sendText(
@@ -356,7 +435,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
       { ...opts, catatanBatas: d.catatanBatas },
     );
   } else {
-    const d = await dataKelengkapan(user, sasaran.map((l) => l.id), dateKey);
+    const d = await dataKelengkapan(penyaring, sasaran.map((l) => l.id), dateKey);
     balasan = balasKelengkapan(
       { tanggal, perlu: d.perlu, total: d.total },
       { ...opts, catatanBatas: d.catatanBatas },
@@ -364,9 +443,11 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
   }
 
   await sendText(m.chatId, balasan);
-  await audit(user.id, "waha.tanya", "wa_message", m.waMessageId, {
+  await audit(user?.id ?? null, "waha.tanya", "wa_message", m.waMessageId, {
     chatId: m.chatId,
     grup,
+    // Penanya tak terdaftar dicatat apa adanya — bukan diisi pengguna karangan.
+    penanyaTerdaftar: !!user,
     niat: niat.niat,
     lokasiDisebut: niat.lokasiDisebut,
     lokasiDijawab: sasaran.length,
@@ -383,7 +464,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
  * dan panel AI Hub tetap melaporkan nol pemakaian.
  */
 async function catatRun(
-  user: SessionUser,
+  pemakai: PemakaiAi,
   katalog: LokasiKatalog[],
   hasil: Awaited<ReturnType<typeof aiStructured<unknown>>>,
   latencyMs: number,
@@ -391,9 +472,15 @@ async function catatRun(
   try {
     const hariIni = jakartaToday();
     const usage = hasil.meta && hasil.meta.ok ? hasil.meta.usage : null;
+    // Penanya grup tak terdaftar: userId null + chatId-nya (DECISIONS 351).
+    // Kolom `orgId` yang membuat pemakaian ini tetap terhitung kuota harian
+    // organisasi — dulu kuota itu diturunkan dari daftar id pengguna.
+    const grup = "jenis" in pemakai ? pemakai : null;
     await db.aiRun.create({
       data: {
-        userId: user.id,
+        userId: "jenis" in pemakai ? null : pemakai.id,
+        orgId: pemakai.orgId,
+        waChatId: grup?.chatId ?? null,
         runKind: "tanya",
         status: hasil.ok ? "siap" : "gagal",
         scopeType: "all",
