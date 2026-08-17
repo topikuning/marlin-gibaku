@@ -15886,3 +15886,78 @@ Tanpa akhiran `· tanya:`, perbaikan DECISIONS 345 belum sampai ke server itu.
 **Penjaga.** `tests/unit/waha-tanya-izin.test.ts` +4: sufiks dibuang untuk tiga
 bentuk alamat, bolak-balik aman, id grup utuh, dan penjaga silang bahwa bentuk
 tampilan tetap bisa dicocokkan ke pengirimnya.
+
+---
+
+## 347 — Chat pribadi ber-identitas `@lid` tidak pernah terjawab (2026-08-17)
+
+Sesudah DECISIONS 345 & 346, user melapor lagi dan mengirim log **Sistem →
+WhatsApp** apa adanya:
+
+```
+diabaikan — chat pribadi (tidak diarsipkan) · tanya: diam — didiamkan —
+nomor ? tidak cocok dengan pengguna mana pun
+143026840146095@lid
+```
+
+Akhiran `· tanya:` membuktikan DECISIONS 345 sudah berjalan di server itu, dan
+webhook-nya sampai. Yang gagal bukan pencocokan nomor: **nomornya tidak pernah
+dikirim**. WhatsApp menyampaikan chat itu dengan JID `…@lid` — identitas privasi
+— dan `bareNumber()` memang sengaja mengembalikan `null` untuknya. Karena itu
+tertulis `nomor ?`, dan chat pribadi dari pengirim tak dikenal memang
+DIDIAMKAN. Sistemnya bekerja persis seperti ditulis; yang belum ada adalah
+kemampuan mengenali bentuk identitas ini.
+
+### Angka di dalam `@lid` BUKAN nomor telepon
+
+Ini pagar yang paling penting, dan yang paling menggoda untuk dilanggar karena
+"kelihatan seperti nomor". Kalau `143026840146095@lid` diperlakukan sebagai
+nomor, MARLIN akan menjawab siapa pun yang kebetulan bernomor sama — mengirim
+angka kontrak ke orang yang salah, lewat saluran yang di-screenshot dan
+diteruskan. Diam jauh lebih baik daripada salah orang. Jadi LID punya kolomnya
+sendiri (`User.waLid`) dan dicocokkan hanya lewat kolom itu.
+
+### Tiga lapis, sekali pasang
+
+Dokumentasi WAHA tidak terjangkau dari lingkungan kerja ini (egress diblokir),
+dan nama medan yang membawa nomor pasangan LID berbeda antar rilis & engine.
+Menebak satu nama medan per rilis berarti satu percobaan per pesan asli — satu
+per hari. Karena itu ketiganya dipasang sekaligus:
+
+1. **`nomorDariLid()`** — baca nomor pasangan secara DEFENSIF dari daftar
+   kandidat (`senderPn`, `participantPn`, `authorPn`, `participantAlt`, …,
+   termasuk di `_data`), persis konvensi yang sudah dipakai `fromName`. Nilai
+   yang isinya `@lid` lagi ditolak. Kalau ada, admin tidak perlu berbuat apa-apa.
+2. **`medanJidPayload()`** — bila tetap tidak ketemu, log hit mencatat NAMA
+   MEDAN + nilai yang berbentuk JID yang benar-benar ada di payload. Isi pesan
+   tidak pernah ikut: log itu dibaca admin lain, dan diagnosa tidak boleh
+   berubah jadi penyadapan.
+3. **`User.waLid`** — pemetaan eksplisit oleh admin, dicoba SESUDAH nomor.
+   Nomor lebih dipercaya karena ia dinormalkan sistem; LID hanya sekuat ketikan
+   admin.
+
+Kolomnya disimpan sebagai angka saja (`rapikanLid`): admin MENYALIN nilai itu
+dari layar, dan salinan manusia datang dengan/tanpa sufiks, kadang berspasi.
+Membandingkannya sebagai teks akan mengulang persis cacat DECISIONS 345.
+
+### Kolom yang tak seorang pun tahu cara mengisinya = tidak ada
+
+Formulir pengguna (buat & sunting) mendapat **ID WhatsApp (@lid)** dengan
+keterangan yang menyebut ALAMAT mencarinya: *Sistem → WhatsApp, baris log
+berakhiran `@lid`*. Dan log itu sendiri kini menyebutkan LID-nya beserta
+instruksinya, jadi jalannya ketemu dari dua arah.
+
+**Penjaga.** `tests/unit/waha-tanya-izin.test.ts` +8 (LID cocok lewat kolomnya,
+salinan tangan dirapikan, **LID tidak pernah dicocokkan ke kolom nomor**, nomor
+diutamakan atas LID, LID ganda tidak dijawab, LID pendek/kosong diabaikan).
+`tests/unit/wa-ingest-parse.test.ts` +9 (LID direkam terpisah & tidak jadi
+nomor, empat medan pasangan, `_data`, medan yang isinya `@lid` ditolak;
+`medanJidPayload` menyebut medan tapi tidak pernah isi pesan).
+`tests/integration/waha-tanya-jawab.test.ts` +5, menempuh jalur webhook yang
+sama dengan pesan asli — termasuk pemetaan lintas organisasi yang dijawab
+sebagai dirinya sendiri tanpa menyebut lokasi kita.
+
+Uji gigi: pencocokan LID ke kolom nomor dibuka → 1 merah; normalisasi LID
+dimatikan → 3 merah; penolakan nilai `@lid` di `nomorDariLid` dicabut → 1
+merah; parameter LID dilepas dari `cariPengguna` → 2 merah di integrasi.
+Semuanya dipulihkan → 39 / 17 / 23 hijau.

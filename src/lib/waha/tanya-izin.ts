@@ -161,7 +161,13 @@ export function niatLintasLokasi(lokasiDiminta: string[] | null): boolean {
 /* Mencocokkan nomor pengirim ke pengguna MARLIN                       */
 /* ------------------------------------------------------------------ */
 
-export type CalonPengguna = { id: string; waNumber: string | null; phone: string | null };
+export type CalonPengguna = {
+  id: string;
+  waNumber: string | null;
+  phone: string | null;
+  /** Identitas privasi WhatsApp (`…@lid`) yang dipetakan admin (DECISIONS 347). */
+  waLid?: string | null;
+};
 
 export type HasilCocokNomor =
   | { jenis: "tepat"; id: string }
@@ -198,13 +204,39 @@ export type HasilCocokNomor =
 export function cocokkanNomorPengguna(
   daftar: CalonPengguna[],
   nomorPengirim: string | null,
+  /**
+   * JID `…@lid` pengirim, bila chat-nya memakai identitas privasi WhatsApp.
+   * Dicoba SESUDAH nomor: nomor lebih dipercaya karena ia dinormalkan, sedangkan
+   * LID hanya sekuat pemetaan yang disetel admin.
+   */
+  lidPengirim?: string | null,
 ): HasilCocokNomor {
   const n = normalizePhone(nomorPengirim);
-  if (!n) return { jenis: "tidak_ada" };
-  const cocok = daftar.filter(
-    (u) => normalizePhone(u.waNumber) === n || normalizePhone(u.phone) === n,
-  );
-  if (cocok.length === 1) return { jenis: "tepat", id: cocok[0].id };
-  if (cocok.length > 1) return { jenis: "ganda", ids: cocok.map((u) => u.id) };
+  if (n) {
+    const cocok = daftar.filter(
+      (u) => normalizePhone(u.waNumber) === n || normalizePhone(u.phone) === n,
+    );
+    if (cocok.length === 1) return { jenis: "tepat", id: cocok[0].id };
+    if (cocok.length > 1) return { jenis: "ganda", ids: cocok.map((u) => u.id) };
+  }
+  const lid = samakanLid(lidPengirim);
+  if (lid) {
+    const cocok = daftar.filter((u) => samakanLid(u.waLid) === lid);
+    if (cocok.length === 1) return { jenis: "tepat", id: cocok[0].id };
+    if (cocok.length > 1) return { jenis: "ganda", ids: cocok.map((u) => u.id) };
+  }
   return { jenis: "tidak_ada" };
+}
+
+/**
+ * Samakan bentuk LID untuk dibandingkan: sufiks & spasi dibuang, huruf dikecilkan.
+ *
+ * Admin menyalinnya dari log hit, dan salinan manusia selalu datang dalam
+ * berbagai bentuk — dengan atau tanpa `@lid`, kadang berspasi. Membandingkannya
+ * apa adanya mengulang persis cacat nomor telepon di DECISIONS 345.
+ */
+function samakanLid(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const d = raw.trim().toLowerCase().replace(/@lid$/, "").replace(/[^0-9]/g, "");
+  return d.length >= 6 ? d : null;
 }

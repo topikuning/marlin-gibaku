@@ -373,6 +373,13 @@ model User {
   /// Nomor WhatsApp (format 62xxxxxxxxxx, hasil normalizeWaTarget). Dipakai
   /// pengingat laporan harian (DECISIONS 202). null = tidak dikirimi apa pun.
   waNumber           String?   @map("wa_number")
+  /// Identitas privasi WhatsApp (`…@lid`) milik orang ini — DECISIONS 347.
+  ///
+  /// WhatsApp mengirim sebagian chat dengan `@lid` alih-alih JID bernomor, dan
+  /// @lid TIDAK memuat nomor telepon. Kalau payload WAHA tidak membawa nomor
+  /// pasangannya, hanya pemetaan inilah yang bisa mengenali penanya. Diisi
+  /// admin dengan menyalin dari log hit di Sistem → WhatsApp.
+  waLid              String?   @map("wa_lid")
   createdById        String?   @map("created_by_id") @db.Uuid
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz
   updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz

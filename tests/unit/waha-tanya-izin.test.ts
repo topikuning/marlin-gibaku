@@ -342,3 +342,94 @@ describe("nomor yang DILIHAT orang vs yang DISIMPAN", () => {
     ).toEqual({ jenis: "tepat", id: "a" });
   });
 });
+
+describe("pengirim ber-@lid (DECISIONS 347)", () => {
+  /*
+   * Gejalanya identik dengan cacat nomor di DECISIONS 345 — "tidak ada respon
+   * sama sekali" — tapi sebabnya lain, dan itu yang membuatnya mahal.
+   *
+   * Log Sistem user 2026-08-17:
+   *   diabaikan — chat pribadi · tanya: diam — didiamkan — nomor ? tidak cocok
+   *   143026840146095@lid
+   *
+   * `@lid` adalah identitas PRIVASI WhatsApp: angkanya BUKAN nomor telepon.
+   * Memperlakukannya sebagai nomor akan menautkan pesan ke orang lain yang
+   * kebetulan bernomor sama — kegagalan yang jauh lebih buruk daripada diam.
+   * Jadi ia dicocokkan lewat kolomnya sendiri, dan hanya SESUDAH nomor.
+   */
+  const p = (id: string, waLid: string | null, waNumber: string | null = null) => ({
+    id,
+    waNumber,
+    phone: null,
+    waLid,
+  });
+
+  it("LID pengirim cocok dengan pemetaan admin", () => {
+    expect(
+      cocokkanNomorPengguna([p("a", "143026840146095")], null, "143026840146095@lid"),
+    ).toEqual({ jenis: "tepat", id: "a" });
+  });
+
+  it("salinan tangan admin dirapikan: sufiks, spasi, huruf besar", () => {
+    // Admin MENYALIN nilai ini dari layar. Kalau bentuk salinannya harus persis,
+    // kolomnya akan gagal diam-diam persis seperti nomor telepon dulu.
+    for (const disimpan of ["143026840146095@lid", " 143026840146095 ", "143026840146095@LID"]) {
+      expect(
+        cocokkanNomorPengguna([p("a", disimpan)], null, "143026840146095@lid").jenis,
+        disimpan,
+      ).toBe("tepat");
+    }
+  });
+
+  it("LID BUKAN nomor telepon — tidak pernah dicocokkan ke kolom nomor", () => {
+    /*
+     * Penjaga terpenting di blok ini. Pengguna "a" bernomor sama persis dengan
+     * angka LID pengirim; menjawabnya berarti mengirim data orang lain.
+     */
+    expect(
+      cocokkanNomorPengguna(
+        [{ id: "a", waNumber: "143026840146095@c.us", phone: null, waLid: null }],
+        null,
+        "143026840146095@lid",
+      ).jenis,
+    ).toBe("tidak_ada");
+  });
+
+  it("nomor DIUTAMAKAN atas LID bila keduanya ada", () => {
+    // Nomor dinormalkan sistem; LID hanya sekuat ketikan admin.
+    const r = cocokkanNomorPengguna(
+      [p("bernomor", null, "6281234757999@c.us"), p("berlid", "143026840146095")],
+      "6281234757999",
+      "143026840146095@lid",
+    );
+    expect(r).toEqual({ jenis: "tepat", id: "bernomor" });
+  });
+
+  it("dua pengguna dengan LID sama → TIDAK dijawab", () => {
+    const r = cocokkanNomorPengguna(
+      [p("a", "143026840146095"), p("b", "143026840146095@lid")],
+      null,
+      "143026840146095@lid",
+    );
+    expect(r.jenis).toBe("ganda");
+  });
+
+  it("LID kosong / terlalu pendek diabaikan, tidak memancing kecocokan", () => {
+    for (const l of [null, "", "@lid", "12@lid", "abc@lid"]) {
+      expect(cocokkanNomorPengguna([p("a", "143026840146095")], null, l).jenis, String(l)).toBe(
+        "tidak_ada",
+      );
+    }
+  });
+
+  it("pengguna tanpa pemetaan LID tidak ikut tersapu", () => {
+    expect(
+      cocokkanNomorPengguna([p("a", null, "6281234757999@c.us")], null, "143026840146095@lid").jenis,
+    ).toBe("tidak_ada");
+  });
+
+  it("pengguna berkolom LID kosong tidak cocok dengan LID kosong pengirim", () => {
+    // Dua "tidak diketahui" bukan kecocokan.
+    expect(cocokkanNomorPengguna([p("a", "")], null, "").jenis).toBe("tidak_ada");
+  });
+});

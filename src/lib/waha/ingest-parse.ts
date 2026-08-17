@@ -18,6 +18,15 @@ export type ParsedWaMessage = {
   fromMe: boolean;
   timestamp: Date;
   /**
+   * JID @lid pengirim, bila ada (DECISIONS 347).
+   *
+   * WhatsApp kini mengirim sebagian chat dengan identitas privasi `@lid`
+   * alih-alih JID bernomor. `fromNumber` sengaja null untuk itu — @lid BUKAN
+   * nomor telepon — tapi LID-nya sendiri stabil per orang, jadi ia tetap bisa
+   * dipakai mengenali penanya lewat pemetaan yang disetel admin.
+   */
+  senderLid: string | null;
+  /**
    * JID yang di-MENTION di pesan ini (DECISIONS 338).
    *
    * Di grup, MARLIN hanya menjawab kalau ia disebut — dan penyebutan itu harus
@@ -89,7 +98,8 @@ export function parseWaEvent(body: unknown): ParsedWaMessage | null {
     waMessageId,
     chatId,
     senderJid,
-    fromNumber: bareNumber(senderJid),
+    // Untuk chat @lid, nomornya dicari di medan pasangan yang dibawa payload.
+    fromNumber: bareNumber(senderJid) ?? (isLid(senderJid) ? nomorDariLid(p, data) : null),
     // Nama tampilan WhatsApp bisa datang di banyak field tergantung versi/engine
     // WAHA (WEBJS/NOWEB, Core/Plus) — baca defensif supaya tidak jatuh ke nomor.
     fromName:
@@ -109,7 +119,74 @@ export function parseWaEvent(body: unknown): ParsedWaMessage | null {
     fromMe,
     timestamp: timestampSec != null ? new Date(timestampSec * 1000) : new Date(0),
     mentionedJids: bacaMention(p, data),
+    senderLid: isLid(senderJid) ? senderJid : null,
   };
+}
+
+function isLid(jid: string | null): boolean {
+  return !!jid && /@lid$/i.test(jid);
+}
+
+/**
+ * Nomor telepon pengirim untuk chat ber-identitas `@lid` (DECISIONS 347).
+ *
+ * WhatsApp membawa DUA identitas untuk orang yang sama: `@lid` (privasi) dan
+ * JID bernomor. Nama medan yang memuat pasangannya berbeda antar versi & engine
+ * WAHA, dan dokumentasinya tidak terjangkau dari lingkungan kerja ini — jadi
+ * dibaca DEFENSIF dari daftar kandidat, persis seperti `fromName` di atas.
+ *
+ * Kalau tak satu pun ada, hasilnya null dan pemanggil jatuh ke pemetaan LID
+ * yang disetel admin. Yang TIDAK dilakukan: menebak nomor dari LID-nya —
+ * angkanya bukan nomor telepon, dan memperlakukannya sebagai nomor akan
+ * menautkan pesan ke orang yang salah.
+ */
+function nomorDariLid(p: AnyObj, data: AnyObj): string | null {
+  const kandidat = [
+    p.senderPn,
+    p.participantPn,
+    p.authorPn,
+    p.participantAlt,
+    p.authorAlt,
+    p.fromAlt,
+    data.senderPn,
+    data.participantPn,
+    data.participantAlt,
+    data.authorAlt,
+    (data.id as AnyObj)?.participant,
+    (p._data as AnyObj)?.senderPn,
+    (p._data as AnyObj)?.participantAlt,
+  ];
+  for (const v of kandidat) {
+    const s = typeof v === "string" ? v : str((v as AnyObj)?._serialized);
+    if (!s || /@lid$/i.test(s)) continue;
+    const nomor = s.replace(/@.*$/, "").replace(/[^0-9]/g, "");
+    if (nomor.length >= 8) return nomor;
+  }
+  return null;
+}
+
+/**
+ * Medan yang BENAR-BENAR ada di payload, untuk diagnosa (DECISIONS 347).
+ *
+ * Hanya NAMA medan dan nilai yang berbentuk JID — bukan isi pesan. Dipakai saat
+ * pengirim ber-@lid dan nomornya tidak ketemu: tanpa ini, menutup celahnya
+ * berarti menebak nama medan berulang kali lewat rilis, satu tebakan per hari.
+ */
+export function medanJidPayload(body: unknown): string {
+  const p = ((body as AnyObj)?.payload ?? {}) as AnyObj;
+  const data = (p._data ?? {}) as AnyObj;
+  const keluar: string[] = [];
+  const pindai = (obj: AnyObj, awalan: string) => {
+    for (const [k, v] of Object.entries(obj)) {
+      if (typeof v !== "string") continue;
+      if (/@(lid|c\.us|s\.whatsapp\.net|g\.us)$/i.test(v) || /^\d{8,}$/.test(v)) {
+        keluar.push(`${awalan}${k}=${v}`);
+      }
+    }
+  };
+  pindai(p, "");
+  pindai(data, "_data.");
+  return keluar.join(" ");
 }
 
 /** Kumpulkan JID yang di-mention dari berbagai bentuk payload WAHA. */

@@ -99,6 +99,7 @@ type UserRow = {
   fullName: string;
   email: string | null;
   waNumber: string | null;
+  waLid: string | null;
   role: UserRole;
   isActive: boolean;
   mustChangePassword: boolean;
@@ -135,6 +136,17 @@ export function UserForm({ locations, roles }: { locations: LocationOption[]; ro
             (DECISIONS 202). */}
         <p className="mt-1 text-[11px] text-ink-faint">
           Dipakai pengingat laporan harian. Dikosongkan = tidak menerima pengingat.
+        </p>
+      </div>
+      <div>
+        <Label htmlFor="u-lid">ID WhatsApp / @lid (opsional)</Label>
+        <Input id="u-lid" name="waLid" inputMode="numeric" placeholder="143026840146095" />
+        {/* Diisi HANYA kalau perlu, dan alamat mencarinya disebut — kolom yang
+            tak seorang pun tahu cara mengisinya sama saja dengan tidak ada
+            (DECISIONS 347). */}
+        <p className="mt-1 text-[11px] text-ink-faint">
+          Isi bila chat pribadi orang ini tidak terjawab. Salin dari Sistem →
+          WhatsApp, baris log yang berakhir <code>@lid</code>.
         </p>
       </div>
       <div>
@@ -203,6 +215,20 @@ function EditProfile({ user, onClose }: { user: UserRow; onClose: () => void }) 
           placeholder="0812xxxxxxx"
           className="w-56"
         />
+      </div>
+      <div>
+        <Label htmlFor={`ep-lid-${user.id}`}>ID WhatsApp (@lid)</Label>
+        <Input
+          id={`ep-lid-${user.id}`}
+          name="waLid"
+          inputMode="numeric"
+          defaultValue={user.waLid ?? ""}
+          placeholder="143026840146095"
+          className="w-56"
+        />
+        <p className="mt-1 text-[11px] text-ink-faint">
+          Dari Sistem → WhatsApp, baris log berakhiran <code>@lid</code>.
+        </p>
       </div>
       <Button size="sm" type="submit" loading={pending}>Simpan</Button>
       <Button size="sm" type="button" variant="ghost" onClick={onClose}>Tutup</Button>
