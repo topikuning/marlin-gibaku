@@ -867,3 +867,117 @@ describe("pembalikan yang dihilangkan DECISIONS 351", () => {
     expect(teks).not.toContain("Kedung Mutih");
   });
 });
+
+describe("periode & niat baru — MARLIN yang luwes (DECISIONS 356)", () => {
+  /*
+   * Permintaan user 2026-08-17: *"aku ingin chat whatsapp ke marlin menjadi
+   * seluwes mungkin … minta laporan harian, progress tanggal tertentu atau
+   * kemarin, kemarin lusa"*.
+   *
+   * Yang diuji di sini BUKAN kepintaran AI-nya (itu dipalsukan), melainkan
+   * bahwa struktur yang dihasilkan AI benar-benar SAMPAI ke pengambil data
+   * dengan tanggal yang benar. Niat yang dibaca sempurna lalu diabaikan
+   * perangkainya terlihat persis sama seperti AI yang bodoh.
+   */
+  const tanya = async (teks: string) => {
+    terkirim.length = 0;
+    await db.aiRun.deleteMany({});
+    const r = await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks }),
+    );
+    return { r, teks: terkirim[0]?.teks ?? "" };
+  };
+
+  it("'bantuan' menjelaskan kemampuannya sendiri, tanpa menyentuh data", async () => {
+    // Kelenturan yang tidak diketahui sama dengan tidak ada: orang lapangan
+    // tidak membaca dokumentasi.
+    niatPalsu = { niat: "bantuan", lokasiDisebut: [], periode: { jenis: "hari_ini" } };
+    const { r, teks } = await tanya("kamu bisa apa saja");
+    expect(r.dijawab, r.alasan).toBe(true);
+    expect(teks).toContain("Yang bisa saya jawab");
+    expect(teks.toLowerCase()).toContain("kemarin lusa");
+    expect(teks.toLowerCase()).toContain("laporan harian");
+  });
+
+  it("'laporan harian' mengirim ISI laporan, bukan sekadar siapa yang belum lapor", async () => {
+    niatPalsu = { niat: "laporan", lokasiDisebut: [], periode: { jenis: "hari_ini" } };
+    const { r, teks } = await tanya("minta laporan harian");
+    expect(r.dijawab, r.alasan).toBe(true);
+    expect(teks).toContain("Laporan harian");
+    // Lokasi TANPA laporan tetap disebut — "belum ada laporan" tidak boleh
+    // tertukar dengan "lokasi itu tidak saya periksa".
+    expect(teks).toMatch(/Kedung Mutih|Kedungmalang|Tengket/);
+  });
+
+  it("'progress kemarin' memakai TANGGAL KEMARIN, dan mengatakannya", async () => {
+    niatPalsu = { niat: "progress", lokasiDisebut: [], periode: { jenis: "mundur_hari", hari: 1 } };
+    const { r, teks } = await tanya("progress kemarin");
+    expect(r.dijawab, r.alasan).toBe(true);
+    // Judulnya menyebut periode yang dijawab — kalau tidak, penanya tidak punya
+    // cara tahu apakah pertanyaannya dimengerti.
+    expect(teks).toContain("kemarin");
+    expect(teks).not.toContain("kemarin lusa");
+  });
+
+  it("'kemarin lusa' berbeda dari 'kemarin'", async () => {
+    niatPalsu = { niat: "progress", lokasiDisebut: [], periode: { jenis: "mundur_hari", hari: 2 } };
+    const { teks } = await tanya("progress kemarin lusa");
+    expect(teks).toContain("kemarin lusa");
+  });
+
+  it("tanggal yang DITULIS penanya dipakai apa adanya", async () => {
+    niatPalsu = {
+      niat: "laporan",
+      lokasiDisebut: [],
+      periode: { jenis: "tanggal", hari: 3, bulan: 7, tahun: 2026 },
+    };
+    const { teks } = await tanya("laporan tanggal 3 juli");
+    expect(teks).toContain("3 Juli 2026");
+  });
+
+  it("DEVIASI untuk hari lampau MENGAKU bahwa angkanya posisi hari ini", async () => {
+    /*
+     * Pagar kejujuran yang paling penting di blok ini. Deviasi dihitung
+     * terhadap posisi kurva-S HARI INI; menyajikannya di bawah judul "kemarin"
+     * adalah jawaban benar untuk hari yang salah, dan penerimanya — yang akan
+     * men-screenshot lalu meneruskannya ke PPK — tidak punya cara mengetahuinya.
+     */
+    niatPalsu = { niat: "deviasi", lokasiDisebut: [], periode: { jenis: "mundur_hari", hari: 2 } };
+    const { teks } = await tanya("deviasi kemarin lusa");
+    expect(teks).toContain("posisi HARI INI");
+    expect(teks).toContain("kemarin lusa");
+  });
+
+  it("KENDALA untuk hari lampau MENGAKU bahwa daftarnya keadaan sekarang", async () => {
+    // Sistem tidak menyimpan riwayat "kendala apa yang terbuka pada hari X".
+    niatPalsu = { niat: "kendala", lokasiDisebut: [], periode: { jenis: "mundur_hari", hari: 1 } };
+    const { teks } = await tanya("kendala kemarin");
+    expect(teks).toContain("masih TERBUKA sekarang");
+  });
+
+  it("deviasi HARI INI tidak memberi catatan yang tidak perlu", async () => {
+    // Catatan yang muncul saat tidak dibutuhkan melatih orang mengabaikannya.
+    niatPalsu = { niat: "deviasi", lokasiDisebut: [], periode: { jenis: "hari_ini" } };
+    const { teks } = await tanya("mana yang deviasinya negatif");
+    expect(teks).not.toContain("posisi HARI INI");
+  });
+
+  it("periode RENTANG 'minggu ini' menyebut pemotongan di hari ini", async () => {
+    niatPalsu = {
+      niat: "progress",
+      lokasiDisebut: [],
+      periode: { jenis: "rentang", satuan: "minggu", mundur: 0 },
+    };
+    const { teks } = await tanya("progress minggu ini");
+    expect(teks).toContain("minggu ini");
+  });
+
+  it("periode tak terbaca jatuh ke hari ini, TIDAK menggagalkan jawaban", async () => {
+    // AI bisa mengirim bentuk yang tidak kita kenal; itu tidak boleh membuat
+    // penanya menerima kegagalan.
+    niatPalsu = { niat: "progress", lokasiDisebut: [], periode: undefined };
+    const { r, teks } = await tanya("progress");
+    expect(r.dijawab, r.alasan).toBe(true);
+    expect(teks).toContain("hari ini");
+  });
+});

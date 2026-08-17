@@ -30,10 +30,12 @@ import {
 } from "./tanya-niat";
 import {
   balasAmbigu,
+  balasBantuan,
   balasDeviasi,
   balasDitolak,
   balasKelengkapan,
   balasKendala,
+  balasLaporan,
   balasProgress,
   balasTidakMengerti,
   type OpsiKaki,
@@ -42,9 +44,11 @@ import {
   dataDeviasi,
   dataKelengkapan,
   dataKendala,
+  dataLaporan,
   dataProgress,
   katalogLokasi,
 } from "./tanya-data";
+import { bacaPeriode } from "./tanya-tanggal";
 
 /**
  * TANYA-JAWAB WHATSAPP BEBAS — perangkai (DECISIONS 339).
@@ -413,17 +417,47 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
     resolusi,
   };
 
-  // (8) Angka dari calc layer → kata → kirim.
+  /*
+   * (8) PERIODE → tanggal nyata, lalu angka dari calc layer → kata → kirim.
+   *
+   * Tanggalnya dihitung DI SINI dari bentuk yang dibaca AI (DECISIONS 356). AI
+   * tidak pernah menghitung tanggal: ia tidak tahu hari ini tanggal berapa di
+   * Asia/Jakarta, tidak tahu panjang bulan, dan akan menebak tahun untuk
+   * "17 Agustus".
+   */
   const sekarang = new Date();
-  const dateKey = jakartaDateKey(sekarang);
-  const tanggal = formatTanggal(jakartaToday(), "d MMMM yyyy");
+  const hariIniKey = jakartaDateKey(sekarang);
+  const periode = bacaPeriode(niat.periode, hariIniKey);
+  // Satu hari → tanggal itu. Rentang → ujung akhirnya, karena angka kumulatif
+  // (progress/deviasi) selalu "posisi PADA suatu hari", bukan penjumlahan hari.
+  const dateKey = periode.akhir;
+  const tanggal = periode.label;
+  opts.catatanPeriode = periode.catatan;
   let balasan: string;
 
-  if (niat.niat === "kendala") {
+  if (niat.niat === "bantuan") {
+    balasan = balasBantuan();
+  } else if (niat.niat === "laporan") {
+    const d = await dataLaporan(sasaran, dateKey);
+    balasan = balasLaporan({ tanggal, baris: d.baris }, { ...opts, catatanBatas: d.catatanBatas });
+  } else if (niat.niat === "kendala") {
     const d = await dataKendala(sasaran, sekarang);
     balasan = balasKendala(
       { tanggal, baris: d.baris, lokasiDiperiksa: d.lokasiDiperiksa },
-      { ...opts, catatanBatas: d.catatanBatas },
+      {
+        ...opts,
+        catatanBatas: d.catatanBatas,
+        /*
+         * Kendala yang didaftar adalah yang MASIH TERBUKA sekarang — sistem
+         * tidak menyimpan riwayat "kendala apa yang terbuka pada hari X". Kalau
+         * penanya menyebut hari lain, itu HARUS dikatakan; menjawab angka hari
+         * ini di bawah judul "kemarin" adalah jawaban benar untuk hari yang
+         * salah, dan penerimanya tidak punya cara mengetahuinya.
+         */
+        catatanPeriode: periode.satuHari && dateKey === hariIniKey
+          ? periode.catatan
+          : `Daftar kendala ini yang masih TERBUKA sekarang, bukan keadaan pada ${periode.label}.`,
+      },
     );
   } else if (niat.niat === "progress") {
     const d = await dataProgress(sasaran, dateKey);
@@ -432,7 +466,15 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
     const d = await dataDeviasi(sasaran);
     balasan = balasDeviasi(
       { tanggal, negatif: d.negatif, diperiksa: d.diperiksa },
-      { ...opts, catatanBatas: d.catatanBatas },
+      {
+        ...opts,
+        catatanBatas: d.catatanBatas,
+        // Deviasi dihitung terhadap posisi kurva-S HARI INI. Deviasi historis
+        // butuh evaluasi baseline pada tanggal itu — belum ada, jadi diakui.
+        catatanPeriode: dateKey === hariIniKey
+          ? periode.catatan
+          : `Deviasi ini posisi HARI INI; saya belum bisa menghitung deviasi pada ${periode.label}.`,
+      },
     );
   } else {
     const d = await dataKelengkapan(penyaring, sasaran.map((l) => l.id), dateKey);

@@ -16553,3 +16553,106 @@ merah, dengan e2e menunjukkan persis URL dua-ketukan yang dikeluhkan
 (`?bulan=2026-06&tgl=2026-06-01`); `status === null` dipakai sebagai ganti
 keadaan (pagar luar-kontrak & belum-tiba jebol) → 3 unit merah; sel berisi ikut
 melompat → 1 unit merah. Dipulihkan → hijau.
+
+---
+
+## 356 — Chat WhatsApp jadi luwes: periode bebas + niat baru (2026-08-17)
+
+Permintaan user 2026-08-17:
+
+> *"aku ingin chat whatsapp ke marlin menjadi seluar mungkin, ai yang menentukan
+> ini bisa dihandle atau tidak. mulai dari minta laporan harian, progress
+> tanggal tertentu atau kemarin, kemarin lusa … aku ingin marlin seluwes itu."*
+
+Sebelum ini tanya-jawab WhatsApp hanya mengenal **empat niat** dan **satu
+periode**: `"hari_ini"`, dikunci di skema. Pertanyaan sesederhana *"progress
+kemarin"* dijawab dengan angka hari ini — tanpa ada yang tahu.
+
+### Kunci kelenturan: AI menyebut yang ia BACA, kode yang MENGHITUNG
+
+Godaan yang harus ditolak adalah menyuruh AI mengisi `"2026-08-16"` untuk
+*"kemarin"*. Itu melanggar doktrin yang sama yang melarangnya menghasilkan angka
+(DECISIONS 133/193), **dan gagal secara praktis**: model tidak tahu hari ini
+tanggal berapa di Asia/Jakarta, tidak tahu Februari 2024 punya 29 hari, dan akan
+menebak tahun untuk *"17 Agustus"*.
+
+Jadi AI hanya melaporkan BENTUK yang ia lihat di kalimat, dan seluruh
+aritmetikanya ada di `tanya-tanggal.ts` — murni, tanpa `Date.now()` tersembunyi
+(hari ini selalu dioper masuk, karena uji yang bergantung pada "hari ini
+sungguhan" berubah hasilnya tiap tengah malam, dan cacat zona waktu justru
+paling sering muncul di sekitar pergantian hari).
+
+| yang ditulis penanya | yang dikirim AI |
+| --- | --- |
+| "kemarin" | `{jenis:"mundur_hari",hari:1}` |
+| "kemarin lusa" | `{jenis:"mundur_hari",hari:2}` |
+| "17 agustus" | `{jenis:"tanggal",hari:17,bulan:8,tahun:null}` |
+| "minggu lalu" | `{jenis:"rentang",satuan:"minggu",mundur:1}` |
+
+**Tahun yang tidak disebut = kejadian TERAKHIR yang sudah lewat.** *"Progress 20
+Desember"* yang ditanya pada Agustus 2026 berarti Desember 2025. Menebak ke
+depan menjawab hari yang belum terjadi, dan jawabannya kosong — terbaca seperti
+*"tidak ada pekerjaan"*, bukan *"salah tahun"*.
+
+### Dua niat baru
+
+- **`laporan`** — ISI laporan harian satu tanggal (item, contoh nama pekerjaan,
+  tenaga kerja, foto, cuaca, jam kerja). Ini pertanyaan yang berbeda dari
+  `kelengkapan`: yang satu menanyakan APA ISINYA, yang lain siapa yang belum
+  mengisi. Lokasi tanpa laporan TETAP disebut — menghilangkan barisnya membuat
+  "belum ada laporan" tak bisa dibedakan dari "lokasi itu tidak saya periksa".
+- **`bantuan`** — MARLIN menjelaskan kemampuannya sendiri. Kelenturan yang tidak
+  diketahui sama dengan tidak ada: orang lapangan tidak membaca dokumentasi, dan
+  satu-satunya tempat mereka bisa menemukan batasnya adalah percakapan yang
+  sedang berlangsung.
+
+### Yang MENGAKU, bukan menebak — batas yang ikut dipasang
+
+Kelenturan tanpa kejujuran justru berbahaya: balasan WhatsApp di-screenshot dan
+diteruskan ke PPK.
+
+- **Deviasi** dihitung terhadap posisi kurva-S HARI INI. Deviasi historis butuh
+  evaluasi baseline pada tanggal itu — belum ada. Kalau penanya menyebut hari
+  lain, balasannya berkata *"Deviasi ini posisi HARI INI; saya belum bisa
+  menghitung deviasi pada kemarin lusa."* Menyajikannya diam-diam di bawah judul
+  "kemarin" adalah jawaban benar untuk hari yang salah.
+- **Kendala** yang didaftar adalah yang MASIH TERBUKA sekarang; sistem tidak
+  menyimpan riwayat "kendala apa yang terbuka pada hari X". Disebut juga.
+- **Minggu/bulan berjalan** dipotong di hari ini, dan pemotongannya dikatakan —
+  menghitung hari yang belum terjadi ke dalam penyebut membuat angkanya bohong.
+- Catatan hanya muncul saat DIBUTUHKAN. Deviasi hari ini tidak diberi catatan;
+  peringatan yang muncul ketika tidak perlu melatih orang mengabaikannya.
+
+### Yang BELUM bisa, dan sengaja tidak dijanjikan
+
+Chat ini tetap **hanya membaca**. Belum bisa: mengubah data (input laporan,
+keuangan, RAB), mengirim berkas/foto, dan deviasi historis. Menambahkan jalur
+MUTASI lewat WhatsApp adalah keputusan terpisah — di sana pertanyaan izin,
+pemisahan tugas, dan jejak audit jauh lebih berat daripada sekadar membaca.
+
+### Skema periode TOLERAN, karena ia memeriksa keluaran MODEL
+
+Bentuk lama berupa string (`"hari_ini"`) tetap diterima, dan bentuk yang tidak
+dikenal jatuh ke hari ini alih-alih menggagalkan seluruh parse. Ini skema untuk
+keluaran model, bukan untuk masukan program kita: satu kata yang meleset tidak
+boleh membuat penanya menerima *"AI sedang tidak bisa membaca pertanyaan"*
+padahal niatnya sudah terbaca benar. Periodenya SELALU disebut di judul balasan,
+jadi salah-baca periode tetap terlihat oleh penanya.
+
+**Penjaga.** Berkas baru `tests/unit/waha-tanya-tanggal.test.ts` (17): mundur
+melewati awal bulan/tahun & 29 Februari, mundur nol/negatif tidak pernah jadi
+tanggal depan, minggu dimulai Senin dan dipotong di hari ini, panjang bulan yang
+berbeda-beda, tahun tak disebut → kejadian terakhir, tanggal mustahil (31
+Februari) DITOLAK alih-alih digulung diam-diam oleh `Date.UTC`.
+`tests/integration/waha-tanya-jawab.test.ts` +10 lewat perangkai UTUH — karena
+niat yang dibaca sempurna lalu diabaikan perangkainya terlihat persis sama
+seperti AI yang bodoh.
+
+`tests/unit/waha-tanya-niat.test.ts` +3 (bentuk baru, bentuk lama, bentuk tak
+dikenal).
+
+Uji gigi: periode diabaikan perangkai (perilaku lama) → **6 integrasi merah**;
+toleransi periode dilepas → 1 merah;
+deviasi lampau tidak lagi mengaku → 1 merah; tahun ditebak ke depan → 1 merah;
+tanggal mustahil digulung `Date.UTC` apa adanya → 2 merah. Dipulihkan → 17 & 50
+hijau.
