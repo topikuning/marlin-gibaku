@@ -16427,3 +16427,77 @@ ganda tidak bisa menyelinap masuk.
 Uji gigi: hak dicabut lagi dari SM → 3 merah; SM diberi `contract.manage`
 (pelonggaran merembet) → 2 merah; Pelaksana ikut kebagian → 3 merah. Dipulihkan
 → 20 hijau.
+
+---
+
+## 354 — Tab lokasi melekat, dan tarik-untuk-muat-ulang dimatikan (2026-08-17)
+
+Keluhan user 2026-08-17 di halaman RAB (903 item): *"scroll ke bawah, kembali ke
+atas tab menu ringkasan, rab, progress, dll susah untuk discroll aktif di layar,
+malah browser seperti mentok lalu refresh."*
+
+Satu kalimat, **tiga cacat berbeda** — dan tak satu pun adalah sebab dari yang
+lain, jadi memperbaiki satu tidak menyelesaikan keluhannya.
+
+### 1. Deret tab ikut menggulir pergi
+
+Deret tab adalah satu-satunya jalan menuju sembilan halaman lain dari lokasi
+ini. Di halaman 903 item, berpindah tab berarti menggulir balik ke paling atas.
+Navigasi utama yang harus dikejar bukan navigasi.
+
+Sekarang melekat di `top-13` — tinggi topbar — bukan `top-0`. Kalau `top-0`, ia
+bersembunyi DI BALIK topbar yang juga melekat, dan gejalanya justru terlihat
+seperti tab yang hilang. Diukur: sesudah digulir ke dasar, tepi atas deret tab =
+tepi bawah topbar = 52px, tanpa celah dan tanpa tumpang tindih.
+
+### 2. Tab yang sedang aktif bisa berada di luar layar
+
+Ini yang membuat "susah dicari" itu harfiah. Deretnya lebih lebar dari layar
+ponsel, dan tanpa digulir sendiri ia selalu berhenti di posisi paling kiri.
+
+Diukur di layar 390px sebelum perbaikan — **enam dari sembilan tab sepenuhnya di
+luar layar**:
+
+| tab | posisi | layar |
+| --- | --- | --- |
+| Pelaksanaan Harian | 306→464 | 390 |
+| Kegiatan Lapangan | 465→619 | 390 |
+| Progress | 620→704 | 390 |
+| Keuangan | 706→799 | 390 |
+| Dokumen & Kepatuhan | 801→979 | 390 |
+| Laporan | 980→1059 | 390 |
+
+Membuka tab "Laporan" berarti tab yang sedang aktif ada hampir tiga lebar layar
+di sebelah kanan — orang kehilangan jejak posisinya sendiri.
+
+Digeser lewat `scrollLeft`, BUKAN `scrollIntoView`: yang terakhir bisa ikut
+menggeser halaman secara VERTIKAL, dan itu persis gerakan tak terduga yang
+dikeluhkan. Yang sudah terlihat utuh tidak digeser sama sekali.
+
+### 3. Tarik-untuk-muat-ulang peramban
+
+*"malah browser seperti mentok lalu refresh"* bukan kerusakan aplikasi — itu
+gestur bawaan peramban: begitu halaman mentok di paling atas, sapuan ke bawah
+berikutnya dibaca sebagai "muat ulang". Justru gerakan yang dipakai orang untuk
+mencari tab di atas.
+
+Di aplikasi ini akibatnya bukan sekadar menunggu: **memuat ulang membuang isian
+formulir yang belum tersimpan** — laporan harian yang sedang diketik mandor di
+lapangan, dengan sinyal seadanya. Gestur untuk menggulir dan gestur untuk
+membuang pekerjaan tidak boleh sama.
+
+`overscroll-behavior-y: contain` di `html, body`. `contain`, bukan `none`:
+penggulungan di DALAM elemen ber-scroll sendiri tetap normal; yang dihentikan
+hanya perambatannya ke peramban.
+
+**Penjaga.** Berkas baru `tests/e2e/mobile-tab-lokasi.spec.ts` (3): tab tetap di
+layar sesudah digulir ke dasar DAN tepat menempel di bawah topbar; tab aktif
+terlihat di kesembilan sub-halaman; `overscroll-behavior-y` = contain. Diuji
+lewat GEOMETRI, bukan tangkapan layar — yang dijanjikan ke pengguna adalah "tab
+ada di layar dan bisa ditekan", dan itu pertanyaan tentang koordinat.
+
+Uji gigi: `sticky` dilepas → 1 merah; penggeseran tab aktif dilepas → 1 merah
+yang MENYEBUTKAN keenam tab di luar layar berikut koordinatnya;
+`overscroll-behavior` dikembalikan ke `auto` → 1 merah. Dipulihkan → 3 hijau,
+dan sapuan overflow (60 rute × 2 lebar) tetap hijau sesudah perubahan tata letak
+ini.
