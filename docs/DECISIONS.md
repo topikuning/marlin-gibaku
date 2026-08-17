@@ -15845,3 +15845,44 @@ log hit di **Sistem → WhatsApp** kini menjawabnya sendiri:
 - ada baris, `tanya: diam — nomor … tidak cocok` → nomornya belum terdaftar
   pada pengguna aktif mana pun;
 - `tanya: diam — pesan dari MARLIN sendiri` → yang terkirim pesan keluar.
+
+---
+
+## 346 — Nomor WhatsApp ditampilkan apa adanya (`…@c.us`) di kolom pengguna (2026-08-17)
+
+Keluhan user 2026-08-17 (dengan tangkapan layar): kolom berlabel **Nomor
+WhatsApp** menampilkan `6281234757999@c.us`.
+
+Nilainya BENAR — itu alamat tujuan kirim WAHA, dan memang harus disimpan begitu
+supaya bisa dipakai apa adanya oleh `sendText`. Yang salah menampilkannya di
+kolom yang mengaku "nomor". Orang yang membacanya wajar menyimpulkan datanya
+rusak — dan itu terjadi tepat pada saat ia sedang memeriksa apakah nomornya
+sudah tersimpan dengan benar, yaitu saat paling buruk untuk membuatnya ragu.
+
+`nomorWaUntukTampil()` membuang sufiksnya untuk DITAMPILKAN; yang disimpan tidak
+berubah. Menyimpan ulang bentuk tampilan itu aman — `normalizeWaTarget`
+mengembalikannya ke bentuk yang sama, dan itu dijaga uji bolak-balik.
+
+ID grup (`…@g.us`) TIDAK dipotong: di sana sufiksnya bagian dari identitas, dan
+grup tidak punya "nomor" yang bisa dibaca manusia.
+
+### Catatan diagnosis yang ikut terjawab
+
+Keluhan yang sama menyertakan: *"tapi pesan di sistem ada keterangan diabaikan"*.
+Itu keterangan **ingest**, bukan tanya-jawab — dan untuk chat pribadi memang
+benar: ingest hanya mengarsipkan pesan grup yang tertaut paket. Keberadaannya
+justru kabar baik, karena membuktikan webhook-nya SAMPAI.
+
+Kata di kolom itu sekaligus menandakan versi mana yang sedang berjalan:
+
+| yang tertulis | versi |
+| --- | --- |
+| `diabaikan — grup tidak tertaut paket` (padahal chat pribadi) | sebelum DECISIONS 339 |
+| `diabaikan — chat pribadi (tidak diarsipkan)` | DECISIONS 339–344 |
+| ditambah ` · tanya: …` | DECISIONS 345, sudah membawa perbaikan pencocokan nomor |
+
+Tanpa akhiran `· tanya:`, perbaikan DECISIONS 345 belum sampai ke server itu.
+
+**Penjaga.** `tests/unit/waha-tanya-izin.test.ts` +4: sufiks dibuang untuk tiga
+bentuk alamat, bolak-balik aman, id grup utuh, dan penjaga silang bahwa bentuk
+tampilan tetap bisa dicocokkan ke pengirimnya.

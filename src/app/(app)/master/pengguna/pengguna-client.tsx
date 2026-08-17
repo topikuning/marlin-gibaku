@@ -5,6 +5,7 @@ import { Search } from "lucide-react";
 import { Banner, Button, Input, Label, Combobox, StatusPill } from "@/components/ui";
 import { ROLE_LABEL, creatableRoles } from "@/lib/authz";
 import { formatTanggalWaktu } from "@/lib/format";
+import { nomorWaUntukTampil } from "@/lib/contacts/model";
 import {
   createUser,
   resetUserPassword,
@@ -198,7 +199,7 @@ function EditProfile({ user, onClose }: { user: UserRow; onClose: () => void }) 
           id={`ep-wa-${user.id}`}
           name="waNumber"
           inputMode="tel"
-          defaultValue={user.waNumber ?? ""}
+          defaultValue={nomorWaUntukTampil(user.waNumber)}
           placeholder="0812xxxxxxx"
           className="w-56"
         />

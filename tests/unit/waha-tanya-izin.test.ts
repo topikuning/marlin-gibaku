@@ -20,7 +20,7 @@ import {
   niatLintasLokasi,
   type AsalPesan,
 } from "@/lib/waha/tanya-izin";
-import { normalizeWaTarget } from "@/lib/contacts/model";
+import { normalizeWaTarget, nomorWaUntukTampil } from "@/lib/contacts/model";
 
 const MARLIN = { nomor: "6281200000000" };
 
@@ -305,5 +305,40 @@ describe("mencocokkan nomor pengirim ke pengguna", () => {
 
   it("pengguna tanpa nomor sama sekali diabaikan", () => {
     expect(cocokkanNomorPengguna([u("a", null, null)], "6281234567890").jenis).toBe("tidak_ada");
+  });
+});
+
+describe("nomor yang DILIHAT orang vs yang DISIMPAN", () => {
+  it("sufiks alamat WAHA dibuang untuk ditampilkan", () => {
+    /*
+     * Keluhan user 2026-08-17: kolom berlabel "Nomor WhatsApp" menampilkan
+     * "6281234757999@c.us". Nilai itu BENAR — ia alamat tujuan kirim — tapi
+     * menampilkannya membuat orang mengira datanya rusak, tepat ketika ia
+     * sedang memeriksa apakah nomornya sudah tersimpan.
+     */
+    expect(nomorWaUntukTampil("6281234757999@c.us")).toBe("6281234757999");
+    expect(nomorWaUntukTampil("6281234757999@s.whatsapp.net")).toBe("6281234757999");
+    expect(nomorWaUntukTampil("6281234757999")).toBe("6281234757999");
+    expect(nomorWaUntukTampil(null)).toBe("");
+  });
+
+  it("bolak-balik AMAN: menyimpan ulang hasil tampilan tidak mengubah apa pun", () => {
+    // Kolomnya bisa disunting; kalau bentuk tampilan disimpan lagi apa adanya,
+    // hasilnya harus persis sama dengan sebelumnya.
+    const disimpan = normalizeWaTarget("0812-3475-7999");
+    expect(normalizeWaTarget(nomorWaUntukTampil(disimpan))).toBe(disimpan);
+  });
+
+  it("ID GRUP tidak dipotong — sufiksnya bagian dari identitas", () => {
+    expect(nomorWaUntukTampil("12036300000000001@g.us")).toBe("12036300000000001@g.us");
+  });
+
+  it("yang ditampilkan tetap bisa dicocokkan ke pengirimnya", () => {
+    // Penjaga silang: bentuk tampilan dan bentuk simpanan harus sama-sama
+    // menormalkan ke nomor yang sama.
+    const disimpan = "6281234757999@c.us";
+    expect(
+      cocokkanNomorPengguna([{ id: "a", waNumber: disimpan, phone: null }], nomorWaUntukTampil(disimpan)),
+    ).toEqual({ jenis: "tepat", id: "a" });
   });
 });
