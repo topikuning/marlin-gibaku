@@ -15610,3 +15610,106 @@ gigi tiga pagar baru:
 
 Diverifikasi di dua lingkungan: DENGAN R2 (28 hijau bersama spesifikasi harian
 lain) dan TANPA R2 seperti CI (32 hijau, 28 dilewati pada cabang R2-mati).
+
+---
+
+## 343 — Foto material/alat ikut simpanan: tiga sumber langsung di barisnya (2026-08-17)
+
+Tiga keluhan user 2026-08-17, ditutup satu kalimat: *"kenapa sih bikin gini aja
+gak beres langsung!"*
+
+1. *"mana pilihan foto cepat di alat dan bahan"*
+2. *"ada semen yang aku sudah simpan dan upload foto, ada di bawah, tapi di atas
+   0 foto"*
+3. *"buat apa ada button simpan & foto, seharusnya langsung saja 3 pilihan
+   sumber foto seperti biasa"*
+
+### Ketiganya satu sebab, dan sebabnya keputusan saya
+
+Foto material/alat diurus lewat **jalur sendiri** — aksi terpisah
+(`addSupplyPhotosAction`) dengan lembar melayang — alih-alih ikut simpanan
+formnya. Semua yang dikeluhkan mengalir dari situ:
+
+- Jalur sendiri berarti kantong Foto Cepat harus disambungkan ulang. Tidak
+  pernah dilakukan, jadi **pilihannya tidak ada** (keluhan 1).
+- Jalur sendiri butuh id baris, jadi barisnya harus tersimpan lebih dulu —
+  lahirlah tombol antara **"Simpan & foto"** (keluhan 3).
+- Jumlah foto dibaca dari state baris yang disalin sekali saat komponen
+  dipasang, dan **tidak ikut diperbarui** sesudah unggah. Baris yang sudah
+  berfoto tetap menulis **"0 foto"** sampai formnya kebetulan dipasang ulang —
+  kunci pemasangan ulang (`tandaTangan`) hanya memuat cuaca, jam, dan daftar id;
+  jumlah foto tidak ada di sana (keluhan 2).
+
+Padahal polanya sudah ada di rumah sendiri: **form item pekerjaan** sejak lama
+mengirim fotonya BERSAMA simpanan, dan menautkannya sesudah barisnya punya id.
+Yang benar bukan menambal jalur kedua, melainkan membuangnya.
+
+### Sekarang
+
+Tiga sumber (**Kamera · Galeri · Foto Cepat**) langsung di tiap baris material
+dan alat, bisa dipilih kapan saja — termasuk pada baris yang belum pernah
+disimpan — dan ikut terkirim saat **Simpan Pelengkap**. Tidak ada tombol antara,
+tidak ada lembar melayang, tidak ada aksi kedua.
+
+Yang dibuang: `components/knmp/lembar-foto.tsx` dan `addSupplyPhotosAction`.
+Jalur ganda untuk satu pekerjaan selalu menyimpang; yang ini menyimpang bahkan
+sebelum sempat dipakai.
+
+### Tiga hal yang harus benar, dan gampang salah diam-diam
+
+**1. Foto tidak boleh tertukar antarbaris.** Semua baris hidup di SATU form.
+`PhotoSourceInput` karena itu menerima `prefix`: medannya jadi `m0_photos`,
+`m1_photos`, `a0_photos`, … Tanpa awalan, `photos` seluruh baris menyatu jadi
+satu daftar dan tidak ada lagi cara mengetahui foto mana milik baris mana.
+
+**2. Indeks form ≠ indeks sesudah penyaringan.** `setEnrichment` membuang baris
+tanpa nama. Kalau foto dipasangkan menurut posisi sesudah penyaringan, foto
+baris ke-3 menempel ke baris ke-2 — bukti pada barang yang salah, tanpa satu pun
+galat, dan mustahil terlihat dari layar (kedua baris punya foto, jumlahnya
+benar, isinya tertukar). Karena itu `setEnrichment` kini mengembalikan
+`{ idMaterial, idAlat }` yang **sejajar larik MASUKAN**, dengan `null` untuk
+baris yang dibuang.
+
+**3. Jumlah foto dibaca dari SERVER, bukan state.** Itu sebab persis "0 foto"
+yang keras kepala. Sekarang tiap baris membaca `report.materials[].photos`
+setiap render — segar tanpa perlu pemasangan ulang.
+
+### Kantong Foto Cepat kini bisa menuju material/alat
+
+`TujuanPakai` bertambah `{tujuan:"material"|"alat", barisId}`. Ini yang membuat
+keluhan 1 bisa dijawab tanpa jalur baru. Dan memang di sanalah foto kantong
+paling masuk akal: pengiriman semen difoto saat truk datang, jauh sebelum
+siapa pun membuka formulir.
+
+### Yang sengaja TIDAK membatalkan simpanan
+
+Kegagalan unggah foto tidak mengembalikan simpanan pelengkap. Angka dan nama
+sudah benar; menghapusnya karena satu berkas gagal berarti membuang pekerjaan
+yang sudah beres. Kegagalannya DISEBUTKAN lewat `warning`.
+
+Satu lagi yang disebut, bukan didiamkan: foto pada baris yang namanya belum
+diisi. Barisnya dibuang penyimpanan, jadi fotonya tidak punya induk — dan itu
+dikatakan, bukan dibiarkan lenyap.
+
+### Peringatan izin lokasi hanya SEKALI
+
+Kotak "izin lokasi belum diberikan" milik `PhotoSourceInput`. Dengan satu
+pemilih per baris, ia terbit lima belas kali pada satu layar — dan peringatan
+yang diulang sebanyak itu berhenti dibaca sebagai peringatan. Prop `sunyiIzin`
+menyembunyikan kotaknya (perilakunya tidak berubah) mulai baris kedua.
+
+**Penjaga.** `tests/integration/pelengkap-foto-ikut-simpan.test.ts` (4) menjaga
+kesejajaran id — termasuk bahwa baris LAMA mengembalikan id yang SAMA, invarian
+DECISIONS 304 yang menjaga foto tidak lepas saat menyimpan ulang.
+`tests/e2e/harian-tata-letak-input.spec.ts` (7) menjaga ketiga sumber hadir di
+barisnya, medan foto ber-awalan & tidak kembar, dan — menggantikan penjaga
+form-bersarang DECISIONS 341 — bahwa halaman ini tidak memuat `form` di dalam
+`form` sama sekali. Invarian terakhir itu kini berlaku **di lingkungan mana pun,
+termasuk CI tanpa R2**, tidak seperti pendahulunya yang butuh lembar terbuka.
+
+Ditambah penjaga di `tests/unit/galat-klien.test.ts`: SELURUH medan foto wajib
+lewat `n()`. Satu medan yang lupa diberi awalan cukup untuk menukar bukti —
+`photoLat` baris ke-3 akan menimpa milik baris ke-1 karena namanya sama, dan cap
+foto memakai koordinat baris yang salah tanpa satu pun galat. Penjaga itu
+langsung menangkap satu sisa saat ditulis (dan versi pertamanya sendiri merah
+karena ikut menangkap kutipan di dalam komentar — diperbaiki dengan lookbehind).

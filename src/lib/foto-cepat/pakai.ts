@@ -33,7 +33,17 @@ import { lengkapiCap } from "./service";
 
 export type TujuanPakai =
   | { tujuan: "kegiatan"; kegiatanId: string }
-  | { tujuan: "laporan"; reportItemId: string };
+  | { tujuan: "laporan"; reportItemId: string }
+  /**
+   * Baris MATERIAL / ALAT di pelengkap laporan (DECISIONS 343).
+   *
+   * Sebelumnya kantong hanya bisa dipakai untuk item pekerjaan & kegiatan, jadi
+   * di baris material/alat pilihan "Foto Cepat" tidak ada sama sekali —
+   * padahal justru di sanalah foto kantong paling masuk akal: pengiriman
+   * semen difoto saat truk datang, jauh sebelum siapa pun membuka formulir.
+   */
+  | { tujuan: "material"; barisId: string }
+  | { tujuan: "alat"; barisId: string };
 
 export type HasilPakai =
   | { error: string }
@@ -49,9 +59,42 @@ export async function pakaiFotoKeTujuan(
   let reportId: string | null = null;
   let reportItemId: string | null = null;
   let activityId: string | null = null;
+  let reportMaterialId: string | null = null;
+  let reportEquipmentId: string | null = null;
   let labelTujuan: string;
 
-  if (target.tujuan === "kegiatan") {
+  if (target.tujuan === "material" || target.tujuan === "alat") {
+    const baris =
+      target.tujuan === "material"
+        ? await db.dailyReportMaterial.findUnique({
+            where: { id: target.barisId },
+            select: {
+              id: true,
+              name: true,
+              reportId: true,
+              report: { select: { locationId: true, status: true } },
+            },
+          })
+        : await db.dailyReportEquipment.findUnique({
+            where: { id: target.barisId },
+            select: {
+              id: true,
+              name: true,
+              reportId: true,
+              report: { select: { locationId: true, status: true } },
+            },
+          });
+    if (!baris) return { error: "Baris material/alat tidak ditemukan." };
+    if (!EDITABLE_STATUSES.includes(baris.report.status))
+      return {
+        error: "Laporan itu sudah dikirim/disetujui — lampirannya tidak bisa diubah dari sini.",
+      };
+    tujuanLocationId = baris.report.locationId;
+    reportId = baris.reportId;
+    if (target.tujuan === "material") reportMaterialId = baris.id;
+    else reportEquipmentId = baris.id;
+    labelTujuan = `${target.tujuan === "material" ? "material" : "alat"} "${baris.name}"`;
+  } else if (target.tujuan === "kegiatan") {
     const keg = await db.fieldActivity.findUnique({
       where: { id: target.kegiatanId },
       select: { id: true, locationId: true, status: true, title: true },
@@ -112,12 +155,14 @@ export async function pakaiFotoKeTujuan(
     await db.$transaction(async (tx) => {
       await tx.photo.update({
         where: { id: f.id },
-        data: { reportId, reportItemId, activityId },
+        data: { reportId, reportItemId, activityId, reportMaterialId, reportEquipmentId },
       });
       await auditIn(tx, actor.id, "photo.quick_attach", "photo", f.id, {
         tujuan: target.tujuan,
         reportItemId,
         activityId,
+        reportMaterialId,
+        reportEquipmentId,
         locationId: tujuanLocationId,
       });
     });

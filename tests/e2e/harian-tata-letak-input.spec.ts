@@ -131,59 +131,44 @@ test.describe("tata letak input harian", () => {
     }
   });
 
-  test("pemicu foto ADA di tiap baris material & alat", async ({ page }) => {
+  test("TIGA sumber foto langsung di tiap baris material & alat", async ({ page }) => {
+    /*
+     * Keluhan user 2026-08-17: *"mana pilihan foto cepat di alat dan bahan"* dan
+     * *"seharusnya langsung saja 3 pilihan sumber foto seperti biasa"*. Yang
+     * dijaga: ketiganya ADA di barisnya, tanpa tombol antara.
+     */
     await bukaDraft(page);
     const pelengkap = page.locator("form", { hasText: "Pelengkap laporan KKP" }).first();
     await expect(pelengkap, "form pelengkap tidak muncul").toBeVisible();
 
-    // Baris material yang SUDAH tersimpan membawa tombol "<n> foto"; baris baru
-    // membawa "Simpan dulu" — dua-duanya penanda bahwa foto memang bisa di sini.
-    const pemicu = pelengkap.locator('button[aria-label^="Foto untuk"]');
     if (!(await fotoAktif(page))) {
-      // Kontrak lingkungan tanpa R2: JANGAN tawarkan kontrol yang mati di tiap
-      // baris — alasannya sudah disebut sekali di bagian foto pekerjaan.
-      expect(await pemicu.count(), "kontrol foto mati muncul padahal R2 nonaktif").toBe(0);
+      expect(await pelengkap.locator('input[type="file"]').count()).toBe(0);
       return;
     }
-    expect(await pemicu.count(), "tidak ada pemicu foto di baris material/alat").toBeGreaterThan(0);
+    const baris = pelengkap.locator("[data-baris]").first();
+    for (const nama of ["Kamera", "Galeri", "Foto Cepat"]) {
+      await expect(baris.getByText(nama, { exact: true }), nama).toBeVisible();
+    }
+    // Tidak boleh ada tombol antara lagi.
+    await expect(page.getByText("Simpan & foto")).toHaveCount(0);
+    await expect(page.getByText("Simpan dulu")).toHaveCount(0);
   });
 
-  test("baris BARU: SISTEM yang menyimpan, bukan menyuruh orangnya simpan dulu", async ({ page }) => {
+  test("medan foto tiap baris TERPISAH — bukti tidak tertukar antarbaris", async ({ page }) => {
     /*
-     * Tantangan user 2026-08-17: *"kenapa data pendukung harus disimpan dulu
-     * baru bisa beri foto."* Versi pertama menampilkan tombol MATI bertuliskan
-     * "Simpan dulu" — jujur, tapi memindahkan pekerjaan pembukuan kami ke
-     * penggunanya. Yang dijaga uji ini: tombolnya HIDUP, dan sekali ketuk
-     * benar-benar berakhir di lembar foto.
+     * Semua baris hidup di SATU form. Tanpa awalan per baris, `photos` seluruh
+     * baris menyatu jadi satu daftar dan tidak ada lagi cara mengetahui foto
+     * mana milik baris mana — bukti menempel pada barang yang salah, diam-diam.
      */
     await bukaDraft(page);
-    const pelengkap = page.locator("form", { hasText: "Pelengkap laporan KKP" }).first();
-    test.skip(!(await fotoAktif(page)), "R2 nonaktif — pemicu foto memang tidak ada (dijaga uji di atas)");
-    const sebelum = await pelengkap.locator('button[aria-label^="Foto untuk"]').count();
-    await pelengkap.getByRole("button", { name: "Tambah material" }).click();
-
-    const semua = pelengkap.locator('button[aria-label^="Foto untuk"]');
-    expect(await semua.count(), "baris baru tidak membawa pemicu foto sama sekali").toBe(sebelum + 1);
-    // Bukan `.last()`: baris material baru disisipkan SEBELUM bagian peralatan,
-    // jadi yang terakhir di DOM adalah alat, bukan baris yang baru dibuat.
-    const baru = pelengkap.locator('button[aria-label="Foto untuk material ini"]').last();
-    await expect(baru).toBeEnabled();
-    await expect(baru).toHaveText(/Simpan & foto/);
-
-    // Isi barisnya, lalu SATU ketukan: harus menyimpan DAN membuka lembar foto.
-    const nama = `Pasir uji ${Date.now().toString(36)}`;
-    await pelengkap.locator('input[name="materialName"]').last().fill(nama);
-    await pelengkap.locator('input[name="materialUnit"]').last().fill("m3");
-    await pelengkap.locator('input[name="materialQty"]').last().fill("3");
-    await baru.click();
-
-    await expect(page.getByText("Pelengkap laporan tersimpan.").first()).toBeVisible({
-      timeout: 20_000,
-    });
-    // Inti: berakhir di lembar fotonya, bukan sekadar tersimpan lalu diam.
-    await expect(page.getByRole("dialog", { name: `Foto ${nama}` })).toBeVisible({
-      timeout: 20_000,
-    });
+    test.skip(!(await fotoAktif(page)), "R2 nonaktif — medan foto memang tidak dirender");
+    const kunci = await page
+      .locator("form", { hasText: "Pelengkap laporan KKP" })
+      .first()
+      .evaluate((f) => [...new FormData(f as HTMLFormElement).keys()].filter((k) => /photos$/.test(k)));
+    expect(kunci.length, "tidak ada medan foto baris sama sekali").toBeGreaterThan(1);
+    for (const k of kunci) expect(k, k).toMatch(/^[ma]\d+_photos$/);
+    expect(new Set(kunci).size, "ada medan foto baris yang namanya kembar").toBe(kunci.length);
   });
 
   test("Enter di kolom Qty/Volume MENYIMPAN, bukan mengambil cuaca", async ({ page }) => {
@@ -218,29 +203,17 @@ test.describe("tata letak input harian", () => {
     await expect(pelengkap.locator('input[name="materialQty"]').first()).toHaveValue("7");
   });
 
-  test("form lembar foto TIDAK bersarang di dalam form pelengkap", async ({ page }) => {
+  test("form pelengkap tidak memuat form lain di dalamnya", async ({ page }) => {
+    /*
+     * Penerus penjaga DECISIONS 341. Dulu foto material diurus lewat form
+     * tersendiri, dan `<form>` di dalam `<form>` dibuang peramban — tombolnya
+     * diam saja saat ditekan. Sekarang fotonya ikut form pelengkap, jadi
+     * invariannya lebih sederhana DAN berlaku di lingkungan mana pun (termasuk
+     * CI tanpa R2): tidak boleh ada form bersarang di halaman ini.
+     */
     await bukaDraft(page);
-    test.skip(!(await fotoAktif(page)), "R2 nonaktif — lembar foto memang tidak bisa dibuka");
-    const pemicu = page.locator('button[aria-label^="Foto untuk"]:not([disabled])').first();
-    expect(await pemicu.count(), "tidak ada baris material/alat tersimpan di data uji").toBeGreaterThan(0);
-    await pemicu.scrollIntoViewIfNeeded();
-    await pemicu.click();
-
-    const lembar = page.getByRole("dialog");
-    await expect(lembar).toBeVisible();
-
-    // INTI UJI INI: form di dalam lembar tidak boleh punya <form> leluhur.
-    const bersarang = await lembar.locator("form").first().evaluate((el) => {
-      const induk = el.parentElement?.closest("form");
-      return induk !== null && induk !== undefined;
-    });
-    expect(bersarang, "form lembar foto bersarang di dalam form lain — tombolnya akan diam").toBe(false);
-
-    // Dan tombol simpannya benar-benar terikat pada form itu.
-    const punyaForm = await lembar
-      .getByRole("button", { name: "Simpan foto" })
-      .evaluate((el) => (el as HTMLButtonElement).form !== null);
-    expect(punyaForm, "tombol Simpan foto tidak terikat form mana pun").toBe(true);
+    const bersarang = await page.evaluate(() => document.querySelectorAll("form form").length);
+    expect(bersarang, "ada <form> bersarang — tombol di dalamnya akan diam").toBe(0);
   });
 
   test("kirim terkunci sampai pertanyaan kendala dijawab", async ({ page }) => {

@@ -45,6 +45,8 @@ export function PhotoSourceInput({
   compact = false,
   hanyaKamera = false,
   slotKetiga,
+  prefix = "",
+  sunyiIzin = false,
 }: {
   latName?: string;
   lngName?: string;
@@ -75,7 +77,27 @@ export function PhotoSourceInput({
    * lain, yaitu foto yang KETINGGALAN (DECISIONS 226).
    */
   hanyaKamera?: boolean;
+  /**
+   * Awalan nama medan, supaya BEBERAPA pemilih bisa hidup dalam SATU form
+   * (DECISIONS 343).
+   *
+   * Tiap baris material/alat punya pemilih fotonya sendiri; tanpa awalan,
+   * `photos` dari semua baris menyatu jadi satu daftar dan tidak ada lagi cara
+   * mengetahui foto mana milik baris mana. Kosong = perilaku lama, dipakai
+   * pemilih yang memang sendirian di formnya.
+   */
+  prefix?: string;
+  /**
+   * Sembunyikan KOTAK PERINGATAN izin lokasi (perilakunya tidak berubah).
+   *
+   * Dipakai pemilih ke-2 dan seterusnya dalam satu layar (DECISIONS 343):
+   * peringatan yang sama diulang lima belas kali — sekali per baris material —
+   * berhenti dibaca sebagai peringatan dan berubah jadi latar. Yang pertama
+   * tetap menampilkannya, jadi kabarnya tidak hilang.
+   */
+  sunyiIzin?: boolean;
 }) {
+  const n = (nama: string) => `${prefix}${nama}`;
   const camRef = useRef<HTMLInputElement>(null);
   const galRef = useRef<HTMLInputElement>(null);
   /** Input yang BENAR-BENAR dikirim — isinya kumpulan dari semua pemilihan. */
@@ -371,15 +393,15 @@ export function PhotoSourceInput({
 
   return (
     <div className="space-y-2">
-      <input type="hidden" name="photoSource" value={source} />
-      <input type="hidden" name="galleryAtSite" value={diLokasi === true ? "1" : ""} />
-      <input type="hidden" name="photoTakenAt" value={takenAt} />
-      <input ref={latRef} type="hidden" name={latName} defaultValue="" />
-      <input ref={lngRef} type="hidden" name={lngName} defaultValue="" />
+      <input type="hidden" name={n("photoSource")} value={source} />
+      <input type="hidden" name={n("galleryAtSite")} value={diLokasi === true ? "1" : ""} />
+      <input type="hidden" name={n("photoTakenAt")} value={takenAt} />
+      <input ref={latRef} type="hidden" name={n(latName)} defaultValue="" />
+      <input ref={lngRef} type="hidden" name={n(lngName)} defaultValue="" />
 
       {/* Keadaan izin lokasi — disebut TERANG-TERANGAN sebelum memotret.
           Dulu ini diam saja dan fotonya diam-diam dicap titik proyek. */}
-      {izin === "granted" ? (
+      {sunyiIzin ? null : izin === "granted" ? (
         <p className="flex items-center gap-1.5 text-xs text-success">
           <MapPin aria-hidden className="size-3.5" /> Izin lokasi aktif — foto kamera akan membawa
           koordinat asli.
@@ -438,7 +460,7 @@ export function PhotoSourceInput({
             accept="image/*"
             capture="environment"
             multiple
-            name={rakitGagal ? "photos" : undefined}
+            name={rakitGagal ? n("photos") : undefined}
             className="sr-only"
             onChange={pickCamera}
           />
@@ -455,7 +477,7 @@ export function PhotoSourceInput({
               type="file"
               accept="image/*"
               multiple
-              name={rakitGagal ? "photos" : undefined}
+              name={rakitGagal ? n("photos") : undefined}
               className="sr-only"
               onChange={pickGallery}
             />
@@ -468,7 +490,7 @@ export function PhotoSourceInput({
         <input
           ref={berkasRef}
           type="file"
-          name={rakitGagal ? undefined : "photos"}
+          name={rakitGagal ? undefined : n("photos")}
           multiple
           className="sr-only"
           tabIndex={-1}

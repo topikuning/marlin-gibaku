@@ -186,7 +186,7 @@ export default async function HarianWorkspacePage({
            Pemicunya menempel pada barisnya masing-masing; lembar unggahnya
            di-portal ke body supaya form-nya tidak bersarang (DECISIONS 341,
            menggantikan susunan DECISIONS 304). */
-        <EnrichmentForm report={report} fotoAktif={isR2Configured()} />
+        <EnrichmentForm report={report} locationId={data.location.id} fotoAktif={isR2Configured()} />
       ) : report && (report.weather || report.workers.length || report.materials.length || report.equipment.length || report.workStart) ? (
         <Card>
           <CardHeader title="Pelengkap laporan KKP" />

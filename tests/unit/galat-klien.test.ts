@@ -62,8 +62,28 @@ describe("perakitan DataTransfer di input foto", () => {
   });
 
   it("punya jalur cadangan: pemilih sendiri yang ber-name saat perakitan gagal", () => {
-    expect(src).toContain('name={rakitGagal ? "photos" : undefined}');
-    expect(src).toContain('name={rakitGagal ? undefined : "photos"}');
+    // Nama medannya kini lewat `n()` supaya bisa diberi awalan per baris
+    // (DECISIONS 343) — yang dijaga tetap sama: di jalur cadangan pemilihnya
+    // yang ber-name, dan input perakit justru melepas name-nya supaya tidak
+    // mengirim daftar kosong yang menimpa pilihan asli.
+    expect(src).toContain('name={rakitGagal ? n("photos") : undefined}');
+    expect(src).toContain('name={rakitGagal ? undefined : n("photos")}');
+  });
+
+  it("SELURUH medan foto ikut awalan — tidak ada yang tertinggal bernama tetap", () => {
+    /*
+     * Satu medan yang lupa diberi awalan cukup untuk menukar bukti: `photoLat`
+     * baris ke-3 akan menimpa milik baris ke-1 karena namanya sama, dan cap
+     * foto memakai koordinat baris yang salah tanpa satu pun galat.
+     */
+    for (const medan of ["photoSource", "galleryAtSite", "photoTakenAt", "photos"]) {
+      expect(src, medan).toContain(`n("${medan}")`);
+    }
+    // Nama tetap (tanpa `n(`) tidak boleh tersisa pada ATRIBUT name.
+    // Yang di dalam backtick adalah kutipan di komentar, bukan kode — versi
+    // pertama pemeriksa ini ikut menangkapnya dan merah karena sebuah kalimat.
+    const tetap = [...src.matchAll(/(?<!`)name="(photo[A-Za-z]*|photos|galleryAtSite)"/g)];
+    expect(tetap.map((m) => m[0]), "masih ada medan foto bernama tetap").toEqual([]);
   });
 
   it("menyebut nama galatnya di layar, bukan menelannya diam-diam", () => {

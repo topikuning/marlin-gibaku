@@ -16,8 +16,9 @@ import {
   WORKER_ROLE_LABEL,
   WORKER_ROLE_ORDER,
 } from "@/lib/daily-report/constants";
-import { PemicuFotoBaris } from "@/components/knmp/lembar-foto";
+import { FotoBarisPelengkap } from "@/components/knmp/foto-baris-pelengkap";
 import type { WorkspaceReport } from "@/lib/daily-report/queries";
+import type { PhotoView } from "@/lib/photos";
 
 /**
  * Panel pelengkap KKP: cuaca (otomatis per jam; pemilih manual di balik
@@ -34,36 +35,23 @@ import type { WorkspaceReport } from "@/lib/daily-report/queries";
  * diperbarui di tempat, bukan dibuat ulang — foto menempel pada `id` itu
  * (DECISIONS 304).
  */
-type Row = {
-  key: number;
-  id: string;
-  name: string;
-  a: string;
-  b: string;
-  /** Jumlah foto yang sudah menempel pada baris ini (DECISIONS 341). */
-  foto: number;
-};
+type Row = { key: number; id: string; name: string; a: string; b: string };
 let rowSeq = 1;
 
 /**
- * Nama yang SEDANG diketik pada sebuah baris, dibaca dari elemen barisnya.
+ * Foto yang menempel pada satu baris — dibaca dari data SERVER, bukan state.
  *
- * Kolomnya tak-terkendali (`defaultValue`), jadi `row.name` masih berisi nilai
- * AWAL — untuk baris baru itu string kosong. Yang dibutuhkan pencocokan sesudah
- * penyimpanan adalah apa yang benar-benar diketik orangnya. Dipangkas ujungnya
- * supaya cocok dengan yang disimpan server.
- *
- * Elemennya DISERAHKAN pemicu (hasil `closest("[data-baris]")`), bukan dicari
- * lewat penanda ber-nomor. Versi pertama memasang `data-baris={row.key}` —
- * padahal `rowSeq` adalah penghitung tingkat MODUL: di server ia terus naik
- * lintas permintaan, di klien ia mulai dari 1. Nomornya jadi berbeda antara
- * render server dan klien, dan React melaporkan hidrasi tidak cocok. Selama
- * `row.key` hanya dipakai sebagai `key` React hal itu tak pernah terlihat —
- * `key` tidak pernah sampai ke DOM. Begitu ia dicetak sebagai atribut, ia
- * terlihat.
+ * Inilah perbaikan angka "0 foto" yang keras kepala (DECISIONS 343): jumlahnya
+ * dulu disalin ke state baris saat komponen dipasang, dan state itu tidak ikut
+ * diperbarui sesudah foto diunggah. Baris yang sudah punya foto tetap menulis
+ * "0 foto" sampai formnya kebetulan dipasang ulang.
  */
-function namaBaris(baris: HTMLElement | null, medan: string): string {
-  return baris?.querySelector<HTMLInputElement>(`input[name="${medan}"]`)?.value.trim() ?? "";
+function fotoBaris<T extends { id: string; photos: PhotoView[] }>(
+  daftar: T[],
+  barisId: string,
+): PhotoView[] {
+  if (!barisId) return [];
+  return daftar.find((b) => b.id === barisId)?.photos ?? [];
 }
 
 const CATEGORY_TONE: Record<KkpWeatherCategory, string> = {
@@ -189,9 +177,12 @@ function WeatherAuto({ report }: { report: WorkspaceReport }) {
  */
 export function EnrichmentForm({
   report,
+  locationId,
   fotoAktif,
 }: {
   report: WorkspaceReport;
+  /** Dipakai pemilih kantong Foto Cepat — kantong disaring per lokasi. */
+  locationId: string;
   /** false = R2 mati / laporan tidak lagi bisa ditambahi foto. */
   fotoAktif: boolean;
 }) {
@@ -199,20 +190,6 @@ export function EnrichmentForm({
     saveEnrichmentAction,
     undefined,
   );
-  /**
-   * Baris mana yang tadi menekan "Simpan & foto" (DECISIONS 342).
-   *
-   * WAJIB di komponen LUAR ini: badan form dipasang ulang tiap daftar id
-   * berubah — dan itu persis yang terjadi ketika penyimpanan berhasil. State di
-   * dalamnya tidak akan selamat melewati penyimpanan yang ia picu sendiri.
-   *
-   * Dicocokkan lewat NAMA, bukan indeks: server mengurutkan baris menurut nama,
-   * jadi indeks sesudah tersimpan bisa menunjuk baris lain.
-   */
-  const [mintaFoto, setMintaFoto] = useState<{ jenis: "material" | "alat"; nama: string } | null>(
-    null,
-  );
-
   const tandaTangan = [
     report.weather,
     report.workStart,
@@ -225,9 +202,8 @@ export function EnrichmentForm({
     <BadanForm
       key={tandaTangan}
       report={report}
+      locationId={locationId}
       fotoAktif={fotoAktif}
-      mintaFoto={mintaFoto}
-      onMintaFoto={setMintaFoto}
       state={state}
       formAction={formAction}
       pending={pending}
@@ -237,17 +213,15 @@ export function EnrichmentForm({
 
 function BadanForm({
   report,
+  locationId,
   fotoAktif,
-  mintaFoto,
-  onMintaFoto,
   state,
   formAction,
   pending,
 }: {
   report: WorkspaceReport;
+  locationId: string;
   fotoAktif: boolean;
-  mintaFoto: { jenis: "material" | "alat"; nama: string } | null;
-  onMintaFoto: (v: { jenis: "material" | "alat"; nama: string } | null) => void;
   state: DailyActionState;
   formAction: (formData: FormData) => void;
   pending: boolean;
@@ -261,9 +235,8 @@ function BadanForm({
           name: m.name,
           a: m.unit ?? "",
           b: m.qty != null ? String(m.qty) : "",
-          foto: m.photos.length,
         }))
-      : [{ key: rowSeq++, id: "", name: "", a: "", b: "", foto: 0 }],
+      : [{ key: rowSeq++, id: "", name: "", a: "", b: "" }],
   );
   const [equipment, setEquipment] = useState<Row[]>(
     report.equipment.length
@@ -273,9 +246,8 @@ function BadanForm({
           name: e.name,
           a: String(e.count),
           b: "",
-          foto: e.photos.length,
         }))
-      : [{ key: rowSeq++, id: "", name: "", a: "1", b: "", foto: 0 }],
+      : [{ key: rowSeq++, id: "", name: "", a: "1", b: "" }],
   );
 
   return (
@@ -353,7 +325,7 @@ function BadanForm({
       <fieldset>
         <legend className="mb-1.5 text-[13px] font-medium text-ink">Pemasukan bahan / material</legend>
         <div className="space-y-2">
-          {materials.map((row) => (
+          {materials.map((row, idx) => (
             <div
               key={row.key}
               data-baris="material"
@@ -399,29 +371,26 @@ function BadanForm({
                 <X aria-hidden className="size-4" />
               </Button>
               </div>
-              {/* Foto menempel pada BARISNYA, bukan di kartu terpisah ratusan
-                  piksel di bawah (DECISIONS 341). Lembarnya di-portal ke body
-                  supaya form-nya tidak bersarang. */}
-              <PemicuFotoBaris
-                reportId={report.id}
-                jenis="material"
-                barisId={row.id}
-                label={row.name || "material ini"}
-                jumlahFoto={row.foto}
-                aktif={fotoAktif}
-                bukaAwal={mintaFoto?.jenis === "material" && mintaFoto.nama === row.name}
-                onSudahDibuka={() => onMintaFoto(null)}
-                onMintaSimpan={(el) =>
-                  onMintaFoto({ jenis: "material", nama: namaBaris(el, "materialName") })
-                }
-              />
+              {/* Tiga sumber foto LANGSUNG di barisnya, dan fotonya ikut
+                  "Simpan Pelengkap" — tanpa tombol antara, tanpa aksi
+                  tersendiri (DECISIONS 343). */}
+              {fotoAktif ? (
+                <FotoBarisPelengkap
+                  awalan={`m${idx}_`}
+                  locationId={locationId}
+                  label={row.name}
+                  foto={fotoBaris(report.materials, row.id)}
+                  bolehHapus={fotoAktif}
+                  sunyiIzin={idx > 0}
+                />
+              ) : null}
             </div>
           ))}
           <Button
             type="button"
             variant="secondary"
             size="sm"
-            onClick={() => setMaterials((rows) => [...rows, { key: rowSeq++, id: "", name: "", a: "", b: "", foto: 0 }])}
+            onClick={() => setMaterials((rows) => [...rows, { key: rowSeq++, id: "", name: "", a: "", b: "" }])}
           >
             <Plus aria-hidden className="size-4" />
             Tambah material
@@ -433,7 +402,7 @@ function BadanForm({
       <fieldset>
         <legend className="mb-1.5 text-[13px] font-medium text-ink">Peralatan</legend>
         <div className="space-y-2">
-          {equipment.map((row) => (
+          {equipment.map((row, idx) => (
             <div
               key={row.key}
               data-baris="alat"
@@ -459,26 +428,23 @@ function BadanForm({
                 <X aria-hidden className="size-4" />
               </Button>
               </div>
-              <PemicuFotoBaris
-                reportId={report.id}
-                jenis="alat"
-                barisId={row.id}
-                label={row.name || "alat ini"}
-                jumlahFoto={row.foto}
-                aktif={fotoAktif}
-                bukaAwal={mintaFoto?.jenis === "alat" && mintaFoto.nama === row.name}
-                onSudahDibuka={() => onMintaFoto(null)}
-                onMintaSimpan={(el) =>
-                  onMintaFoto({ jenis: "alat", nama: namaBaris(el, "equipmentName") })
-                }
-              />
+              {fotoAktif ? (
+                <FotoBarisPelengkap
+                  awalan={`a${idx}_`}
+                  locationId={locationId}
+                  label={row.name}
+                  foto={fotoBaris(report.equipment, row.id)}
+                  bolehHapus={fotoAktif}
+                  sunyiIzin
+                />
+              ) : null}
             </div>
           ))}
           <Button
             type="button"
             variant="secondary"
             size="sm"
-            onClick={() => setEquipment((rows) => [...rows, { key: rowSeq++, id: "", name: "", a: "1", b: "", foto: 0 }])}
+            onClick={() => setEquipment((rows) => [...rows, { key: rowSeq++, id: "", name: "", a: "1", b: "" }])}
           >
             <Plus aria-hidden className="size-4" />
             Tambah alat

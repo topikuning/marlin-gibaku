@@ -91,10 +91,23 @@ test.describe("umpan balik simpan pelengkap", () => {
      * R2 penyimpanan foto memang mati dan kontrolnya sengaja tidak ditawarkan.
      */
     const fotoMati = (await page.getByText(/Penyimpanan foto .*belum diaktifkan/i).count()) > 0;
+    const pelengkap = page.locator("form", { hasText: "Pelengkap laporan KKP" }).first();
     if (fotoMati) {
-      await expect(page.locator('button[aria-label^="Foto untuk"]')).toHaveCount(0);
+      await expect(pelengkap.locator('input[type="file"]')).toHaveCount(0);
     } else {
-      await expect(page.locator(`button[aria-label="Foto untuk ${nama}"]`)).toBeVisible();
+      /*
+       * Barisnya menawarkan KETIGA sumber foto langsung di tempatnya
+       * (DECISIONS 343). Baris yang baru disimpan berada paling akhir di
+       * bagian material, jadi yang diperiksa baris terakhir sebelum
+       * bagian Peralatan.
+       */
+      const barisBaru = pelengkap
+        .locator('[data-baris="material"]')
+        .filter({ has: page.locator(`input[value="${nama}"]`) });
+      await expect(barisBaru).toHaveCount(1);
+      for (const sumber of ["Kamera", "Galeri", "Foto Cepat"]) {
+        await expect(barisBaru.getByText(sumber, { exact: true }), sumber).toBeVisible();
+      }
     }
   });
 });
