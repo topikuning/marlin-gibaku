@@ -67,6 +67,39 @@ export function MenuBerkas({
     return () => document.removeEventListener("mousedown", luar);
   }, [terbuka]);
 
+  /*
+   * Panel menu tidak boleh MELEBARKAN HALAMAN (DECISIONS 352).
+   *
+   * Panelnya `absolute` tanpa jangkar horizontal, jadi ia selalu membuka ke
+   * KANAN dari tepi kiri tombolnya. Tombol yang kebetulan duduk di paruh kanan
+   * layar mendorong panel selebar 15rem melewati tepi kanan — dan karena tak
+   * ada leluhur yang memotong, yang melebar adalah SELURUH halaman.
+   *
+   * Diukur pada laporan periodik lokasi: di 414px tombol "Excel" ada di x=264,
+   * panelnya 264→504, halaman jadi 504px. Di 375px tombolnya membungkus ke
+   * baris sendiri (x=33) sehingga muat — itu sebabnya sapuan yang hanya
+   * menguji SATU lebar tidak pernah melihatnya.
+   *
+   * Sisinya dipilih saat DIBUKA, bukan lewat CSS statis: `right-0` saja hanya
+   * memindahkan masalahnya ke tombol yang duduk di dekat tepi kiri.
+   */
+  const [keKiri, setKeKiri] = useState(false);
+  useEffect(() => {
+    if (!terbuka) return;
+    const panel = ref.current?.querySelector<HTMLElement>('[role="menu"]');
+    if (!panel) return;
+    // Diukur dengan jangkar dikembalikan ke kiri dulu, supaya keputusannya
+    // tidak dipengaruhi hasil pengukuran sebelumnya.
+    setKeKiri(false);
+    requestAnimationFrame(() => {
+      const r = panel.getBoundingClientRect();
+      const muatDiKanan = r.right <= document.documentElement.clientWidth - 4;
+      // Hanya dibalik kalau sisi seberangnya benar-benar lebih baik: pada layar
+      // yang lebih sempit dari panelnya, membalik tidak menolong apa pun.
+      if (!muatDiKanan && r.width <= document.documentElement.clientWidth - 8) setKeKiri(true);
+    });
+  }, [terbuka]);
+
   const tutup = () => setTerbuka(false);
 
   return (
@@ -94,7 +127,13 @@ export function MenuBerkas({
       <div
         id={id}
         role="menu"
-        className="absolute z-20 mt-1 min-w-60 rounded-md border border-border bg-surface p-1 shadow-lg"
+        className={cn(
+          "absolute z-20 mt-1 min-w-60 rounded-md border border-border bg-surface p-1 shadow-lg",
+          // Pagar terakhir: pada layar yang lebih sempit dari panelnya, tidak
+          // ada sisi yang muat — jadi panelnya yang mengalah, bukan halamannya.
+          "max-w-[calc(100vw-1.5rem)]",
+          keKiri && "right-0",
+        )}
       >
         {pilihan.map((p) => {
           const mati = !!p.disabledReason;

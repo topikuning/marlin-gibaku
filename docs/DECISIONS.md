@@ -16280,3 +16280,89 @@ organisasi ditulis ulang ke invarian yang lebih ketat.
 Uji gigi: irisan izin penanya dikembalikan → 3 unit + 2 integrasi merah; chat
 pribadi ikut dilonggarkan → 5 integrasi merah; grup tanpa tautan paket ikut
 dijawab → 1 unit merah. Semuanya dipulihkan → hijau.
+
+---
+
+## 352 — Overflow mobile berulang: pagarnya menyapu daftar yang ditulis tangan (2026-08-17)
+
+Teguran user 2026-08-17 (dengan tangkapan layar `/lokasi/[slug]/laporan-lokasi`
+tergeser ke samping): *"lagi-lagi masalah tampilan mobile. kenapa harus terjadi
+lagi"*.
+
+Pertanyaannya tepat, dan jawabannya bukan "kurang teliti". Pagar overflow
+(DECISIONS 217) punya **tiga celah struktural**, dan cacat kali ini lolos lewat
+ketiganya sekaligus — memperbaiki satu saja tidak akan mencegah yang berikutnya.
+
+### Celah 1 — daftar rute ditulis tangan di dalam spec
+
+Sapuan memeriksa daftar rute yang diketik langsung di
+`mobile-overflow.spec.ts`. Artinya **setiap halaman baru lahir tidak terjaga**,
+dan tidak ada apa pun yang memberi tahu. Saat keluhan ini datang aplikasi punya
+**60 halaman**, dan sapuannya menyentuh sekitar setengah — termasuk melewatkan
+halaman yang dikeluhkan.
+
+Daftarnya pindah ke `tests/e2e/rute-mobile.ts`, dan `tests/unit/rute-terjaga.test.ts`
+membaca `src/app/(app)/**/page.tsx` lalu **menolak rute yang tidak terdaftar**.
+Uji itu sengaja UNIT: tanpa peramban, tanpa basis data, ikut jalan di setiap
+`pnpm vitest run tests/unit`. Menaruhnya di e2e berarti ia baru bicara saat
+seseorang menjalankan Playwright — terlambat, dan justru pada bagian yang paling
+sering dilewati saat buru-buru. Ia juga menolak rute HANTU (pola yang halamannya
+sudah dihapus), karena daftar yang menumpuk rute mati perlahan berhenti dibaca.
+
+### Celah 2 — hanya SATU lebar diuji
+
+Cacat ini **tidak ada di 375px**. Diukur: di layar sesempit itu deretan tombol
+membungkus sehingga setiap menu mulai dari tepi kiri (x=33) dan muat. Baru di
+**414px** dua tombol muat sebaris, panel menu kedua mulai di x=264, dan panel
+selebar 240px mendorong halaman jadi **504px**.
+
+Sapuan berlebar tunggal akan terus melewatkan seluruh keluarga cacat ini —
+bukan karena kurang teliti, tapi karena lebar yang diuji kebetulan yang paling
+aman. `LEBAR_SAPUAN = [375, 414]`.
+
+### Celah 3 — hanya keadaan bawaan diuji
+
+Panel menu baru ada di DOM **setelah dibuka**; blanko KKP baru dirender
+**setelah "Tampilkan"**. Halaman yang dibuka apa adanya tampak sehat. Ini
+pengulangan persis pelajaran DECISIONS 230 (pita cuaca hanya melebar setelah
+cuaca diambil), yang saat itu dicatat tapi tidak diubah jadi pagar.
+
+Sapuan sekarang membuka **setiap `<summary>`** satu per satu lalu mengukur
+ulang, dan `rute-mobile.ts` menyediakan URL ber-query untuk keadaan yang butuh
+dipicu. Rute yang datanya tidak tersedia **DISEBUT di log**, bukan dilewati
+diam-diam — "tidak diuji" yang terbaca seperti "lulus" adalah cara sapuan ini
+pernah berbohong sebelumnya.
+
+### Dua cacat nyata yang ditemukan
+
+**`MenuBerkas`** — panelnya `absolute` tanpa jangkar horizontal, jadi selalu
+membuka ke KANAN dari tepi kiri tombolnya; tombol di paruh kanan layar mendorong
+panel keluar dan, karena tak ada leluhur yang memotong, yang melebar adalah
+seluruh halaman. Sisinya kini dipilih saat dibuka (`right-0` bila perlu), plus
+`max-w-[calc(100vw-1.5rem)]` sebagai pagar terakhir: pada layar yang lebih
+sempit dari panelnya, **panelnya yang mengalah, bukan halamannya**. Membalik
+lewat CSS statis saja hanya memindahkan masalah ke tombol dekat tepi kiri.
+
+**`Combobox`** — ditemukan sapuan yang sudah diperluas, di halaman yang
+sebelumnya tidak pernah disapu (`/paket/[id]/dokumen/impor`, 547px di layar
+375px). Label terpilih dipotong `truncate`, dan `truncate` menyetel
+`white-space: nowrap` sehingga UKURAN MIN-CONTENT-nya = lebar teks penuh.
+Sebagai item flex/grid, ukuran minimum otomatisnya adalah min-content — induknya
+tidak bisa mengecilkannya. `min-w-0` mematikan aturan itu sehingga `truncate`
+akhirnya benar-benar memotong.
+
+Diperbaiki di PRIMITIF, bukan di halaman yang kebetulan ketahuan: aturan proyek
+mewajibkan SEMUA dropdown memakai `Combobox`, jadi satu perbaikan menutup
+seluruh halaman sekaligus — termasuk yang belum ditulis. Sejalan dengan
+`fieldset { min-inline-size: 0 }` (DECISIONS 230).
+
+**Penjaga.** `tests/unit/rute-terjaga.test.ts` (6) — direktori terbaca, setiap
+halaman tercakup atau dikecualikan beralasan, tidak ada rute hantu, pengecualian
+wajib beralasan, tidak ada pola ganda, dinamis/statis tidak tertukar.
+`tests/e2e/mobile-overflow.spec.ts` ditulis ulang: 60 rute × 2 lebar × setiap
+menu dibuka. Hasil akhir hijau; dua rute (`/foto/[id]/cap`, `/ai/run/[id]`)
+dilaporkan tidak teruji karena data seed tidak menyediakannya.
+
+Uji gigi: satu rute dihapus dari daftar → 1 merah dengan nama rutenya; rute
+hantu ditambahkan → 1 merah. Sebelum perbaikan, sapuan baru menemukan 2 halaman
+melebar (laporan periodik pada menu terbuka, dan impor dokumen paket).
