@@ -34,7 +34,11 @@ async function masuk(page: Page) {
 /**
  * Buka tanggal berstatus Draft, dicari lewat kalender lokasi.
  *
- * Sel kalender menuju `?tgl=` (panel samping), BUKAN `/harian/<tanggal>` —
+ * Sel kalender BERSTATUS menuju `?tgl=` (panel samping), BUKAN
+ * `/harian/<tanggal>`. Sejak DECISIONS 355 hanya sel KOSONG yang melompat
+ * langsung ke formulir; uji ini menyaring `hasText: "Draft"` sehingga selalu
+ * mendarat di sel bersatus — tetap sah, tapi bedanya perlu disebut supaya
+ * pembaca berikutnya tidak menyimpulkan seluruh sel berperilaku sama. Sebelumnya —
  * versi pertama pencari ini mencocokkan pola path dan tidak menemukan apa pun,
  * sehingga SELURUH berkas ini melewat dengan status hijau. Uji yang melewat
  * karena pencarinya salah adalah uji yang berbohong; pencari di bawah karena

@@ -126,3 +126,86 @@ test.describe("tab lokasi di ponsel", () => {
     expect(g.overscroll).toBe("contain");
   });
 });
+
+/**
+ * SEL KOSONG DI KALENDER MEMBUKA INPUTAN LANGSUNG (DECISIONS 355).
+ *
+ * Permintaan user 2026-08-17: *"laporan harian di halaman lokasi, klik kalender,
+ * jika memang kosong langsung buka inputan laporan"*.
+ *
+ * Diuji lewat jalur yang sama dengan jari pengguna: KLIK selnya, lalu periksa
+ * di mana ia mendarat dan apakah formulirnya benar-benar ada. Memeriksa `href`
+ * saja akan hijau walau halaman tujuannya menolak membuka formulir.
+ */
+test.describe("kalender harian: sel kosong", () => {
+  test.use({ viewport: { width: 390, height: 812 } });
+
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/masuk");
+    await page.getByLabel("Username atau email").fill("hery");
+    await page.getByRole("textbox", { name: "Password", exact: true }).fill("marlin123");
+    await page.getByRole("button", { name: /masuk/i }).click();
+    await page.waitForURL((u) => !u.pathname.includes("/masuk"), { timeout: 30_000 });
+  });
+
+  test("satu ketukan mendarat di formulir, bukan di panel samping", async ({ page }) => {
+    test.skip(test.info().project.name !== "mobile", "cukup sekali, di project mobile");
+    /*
+     * Bulan DIPILIH, tidak dibiarkan bawaan. Bulan berjalan di data seed
+     * kebetulan tidak punya satu pun hari kosong — seluruh harinya di luar
+     * kontrak atau sudah berlaporan — sehingga uji ini akan "lulus" tanpa
+     * menyentuh perilaku yang dijaganya. `?bulan=` membuat pilihan itu terlihat
+     * di alamatnya, bukan bergantung pada tanggal berjalan.
+     */
+    const res = await page.goto(`/lokasi/${LOKASI}/harian?bulan=2026-06`, {
+      waitUntil: "domcontentloaded",
+    });
+    test.skip(res != null && res.status() >= 400, `lokasi "${LOKASI}" tidak ada di data uji`);
+    await page.waitForLoadState("networkidle").catch(() => {});
+
+    const petak = page.getByRole("group", { name: "Petak tanggal" });
+    // Sel KOSONG = yang membawa kata "Belum". Disaring dari dalam petak supaya
+    // chip saringan di bilah atas tidak ikut tertangkap.
+    const kosong = petak.locator("a").filter({ hasText: "Belum" }).first();
+    const jumlah = await petak.locator("a").filter({ hasText: "Belum" }).count();
+    // Kalau tidak ada satu pun, uji ini tidak membuktikan apa-apa — dan
+    // "melewati" akan terbaca seperti "lulus".
+    expect(jumlah, "tidak ada sel kosong di bulan ini — data uji tidak menguji apa pun").toBeGreaterThan(0);
+
+    await kosong.click();
+    await page.waitForLoadState("domcontentloaded");
+    await page.waitForTimeout(800);
+
+    // Mendarat di halaman TANGGAL, bukan kembali ke daftar dengan ?tgl=
+    expect(page.url()).toMatch(new RegExp(`/lokasi/${LOKASI}/harian/\\d{4}-\\d{2}-\\d{2}$`));
+    expect(page.url()).not.toContain("tgl=");
+
+    // Dan formulirnya memang terbuka — bukan sekadar halaman yang benar.
+    await expect(
+      page.getByRole("button", { name: /simpan|tambah item/i }).first(),
+    ).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("sel BERISI tetap membuka panel ringkasan, bukan langsung formulir", async ({ page }) => {
+    /*
+     * Batas keputusan itu. Panel samping meringkas item, foto, kendala, dan
+     * kelengkapan — melompat ke formulir akan melewati ringkasan yang justru
+     * jadi alasan orang membuka tanggal berisi.
+     */
+    test.skip(test.info().project.name !== "mobile", "cukup sekali, di project mobile");
+    // Bulan yang memang punya sel berstatus di data seed.
+    await page.goto(`/lokasi/${LOKASI}/harian?bulan=2026-08`, { waitUntil: "domcontentloaded" });
+    await page.waitForLoadState("networkidle").catch(() => {});
+
+    const petak = page.getByRole("group", { name: "Petak tanggal" });
+    const berisi = petak.locator('a[href*="tgl="]').filter({ hasText: /item/ });
+    const n = await berisi.count();
+    test.skip(n === 0, "bulan ini tidak punya sel berstatus di data uji");
+
+    await berisi.first().click();
+    await page.waitForLoadState("domcontentloaded");
+    await page.waitForTimeout(600);
+    expect(page.url()).toContain("tgl=");
+    expect(page.url()).not.toMatch(/\/harian\/\d{4}-\d{2}-\d{2}$/);
+  });
+});

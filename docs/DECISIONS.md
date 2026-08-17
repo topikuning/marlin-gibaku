@@ -16501,3 +16501,55 @@ yang MENYEBUTKAN keenam tab di luar layar berikut koordinatnya;
 `overscroll-behavior` dikembalikan ke `auto` → 1 merah. Dipulihkan → 3 hijau,
 dan sapuan overflow (60 rute × 2 lebar) tetap hijau sesudah perubahan tata letak
 ini.
+
+---
+
+## 355 — Sel kalender KOSONG membuka inputan langsung (2026-08-17)
+
+Permintaan user 2026-08-17: *"laporan harian di halaman lokasi, klik kalender,
+jika memang kosong langsung buka inputan laporan"*.
+
+Sebelumnya SEMUA sel menuju `?tgl=…` — memilih tanggal, memuat ulang halaman,
+lalu panel samping menampilkan *"Belum ada laporan untuk tanggal ini"* dan
+sebuah tombol "Buat laporan". Dua ketukan dan satu muat halaman untuk sampai ke
+**satu-satunya** hal yang bisa dilakukan di hari kosong.
+
+Panel itu berguna ketika ADA yang bisa diringkas. Pada hari kosong, ia hanya
+memberi tahu bahwa isinya kosong.
+
+### Hanya `kosong` yang melompat — dan itu batasnya
+
+| keadaan | tujuan | alasan |
+| --- | --- | --- |
+| `kosong` | `/harian/<tanggal>` | satu-satunya tindakan yang masuk akal |
+| `ada` | `?tgl=` | panel meringkas item, foto, kendala, kelengkapan — ada yang perlu dibaca dulu |
+| `luar_kontrak` | `?tgl=` | tidak ada laporan yang ditagih; melompat ke formulir menjanjikan pekerjaan yang tidak diminta siapa pun |
+| `belum_tiba` | `?tgl=` | formulirnya sendiri menolak (`isFuture`) — melompat hanya memindahkan orang ke jalan buntu |
+
+Keputusannya ditaruh di lapisan MURNI (`bukaLangsung()` di
+`kalender-harian.ts`), bukan di JSX: aturan "hari mana yang boleh melompat"
+adalah aturan domain, dan di sana ia bisa diuji tanpa peramban.
+
+Sel kosong juga MENYEBUT akibatnya (`title` = "Belum ada — buat laporan"):
+tujuan yang berbeda dari sel tetangganya harus bisa diketahui sebelum ditekan.
+
+**Penjaga.** `tests/unit/kalender-harian.test.ts` +6 (hari lewat kosong
+melompat; hari berlaporan tidak; luar kontrak tidak; belum tiba tidak; HARI INI
+yang masih kosong ikut melompat — kasus paling sering di lapangan; penjaga
+silang atas seluruh sel sebulan). `tests/e2e/mobile-tab-lokasi.spec.ts` +2:
+ketukan NYATA pada selnya, lalu diperiksa mendarat di `/harian/<tanggal>` DAN
+formulirnya benar-benar terbuka — memeriksa `href` saja akan hijau walau halaman
+tujuannya menolak membuka formulir.
+
+### Catatan data uji
+
+Bulan berjalan di seed tidak punya satu pun hari kosong (seluruh harinya di luar
+kontrak atau sudah berlaporan), sehingga versi pertama uji e2e ini "lulus" tanpa
+menyentuh perilaku yang dijaganya. Bulannya kini DIPILIH lewat `?bulan=`, dan
+ketiadaan sel kosong menggagalkan uji alih-alih melewatinya.
+
+Uji gigi: predikat dikembalikan ke `false` (perilaku lama) → 3 unit + 1 e2e
+merah, dengan e2e menunjukkan persis URL dua-ketukan yang dikeluhkan
+(`?bulan=2026-06&tgl=2026-06-01`); `status === null` dipakai sebagai ganti
+keadaan (pagar luar-kontrak & belum-tiba jebol) → 3 unit merah; sel berisi ikut
+melompat → 1 unit merah. Dipulihkan → hijau.
