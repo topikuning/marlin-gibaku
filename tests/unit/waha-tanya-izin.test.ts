@@ -14,11 +14,13 @@
 import { describe, expect, it } from "vitest";
 import {
   bersihkanMention,
+  cocokkanNomorPengguna,
   diajakBicara,
   lingkupJawaban,
   niatLintasLokasi,
   type AsalPesan,
 } from "@/lib/waha/tanya-izin";
+import { normalizeWaTarget } from "@/lib/contacts/model";
 
 const MARLIN = { nomor: "6281200000000" };
 
@@ -216,5 +218,92 @@ describe("niat lintas lokasi", () => {
 
   it("menyebut lokasi = bukan lintas lokasi", () => {
     expect(niatLintasLokasi(["a"])).toBe(false);
+  });
+});
+
+describe("mencocokkan nomor pengirim ke pengguna", () => {
+  const u = (id: string, waNumber: string | null, phone: string | null = null) => ({
+    id,
+    waNumber,
+    phone,
+  });
+
+  it("COCOK dengan bentuk yang BENAR-BENAR disimpan sistem (…@c.us)", () => {
+    /*
+     * Inti berkas ini, dan cacat yang membuat fitur ini diam total di produksi.
+     * `waNumber` ditulis lewat `normalizeWaTarget`, yang menghasilkan
+     * "628…@c.us" — LENGKAP DENGAN SUFIKS. Versi pertama pencocok ini merakit
+     * varian teks polos ("62…", "+62…", "0…") lalu mencarinya dengan `IN`,
+     * sehingga TIDAK PERNAH cocok. Seluruh pengguna jadi tak dikenali, dan chat
+     * pribadi dari nomor tak dikenal memang sengaja didiamkan — gejalanya
+     * "tidak ada respon sama sekali", tanpa satu pun galat.
+     *
+     * Nilai harapannya sengaja dihitung lewat `normalizeWaTarget` yang ASLI,
+     * bukan ditulis tangan: kalau bentuk simpanannya berubah suatu saat, uji
+     * ini ikut berubah bersamanya alih-alih membeku pada bentuk lama.
+     */
+    const tersimpan = normalizeWaTarget("0812-3456-7890");
+    expect(tersimpan, "bentuk simpanan berubah — periksa pencocok").toContain("@c.us");
+    const r = cocokkanNomorPengguna([u("a", tersimpan)], "6281234567890");
+    expect(r).toEqual({ jenis: "tepat", id: "a" });
+  });
+
+  it("cocok lintas SEGALA bentuk penulisan, di kedua kolom", () => {
+    // Nomor telepon tidak pernah boleh dibandingkan sebagai teks.
+    for (const disimpan of [
+      "6281234567890",
+      "+6281234567890",
+      "081234567890",
+      "0812-3456-7890",
+      "+62 812 3456 7890",
+      "6281234567890@c.us",
+      "6281234567890@s.whatsapp.net",
+    ]) {
+      expect(cocokkanNomorPengguna([u("a", disimpan)], "6281234567890"), disimpan).toEqual({
+        jenis: "tepat",
+        id: "a",
+      });
+      // Kolom `phone` sama sekali tidak dinormalisasi saat disimpan, jadi ia
+      // justru yang paling beragam bentuknya.
+      expect(cocokkanNomorPengguna([u("b", null, disimpan)], "081234567890"), disimpan).toEqual({
+        jenis: "tepat",
+        id: "b",
+      });
+    }
+  });
+
+  it("nomor yang BERBEDA tidak boleh cocok", () => {
+    // Penjaga arah sebaliknya: pencocok yang terlalu longgar akan mengirim
+    // angka kontrak ke orang lain.
+    expect(cocokkanNomorPengguna([u("a", "6281234567890@c.us")], "6289999999999").jenis).toBe(
+      "tidak_ada",
+    );
+    // Ekor yang sama tapi kepala berbeda juga BUKAN nomor yang sama.
+    expect(cocokkanNomorPengguna([u("a", "6285734567890")], "6281234567890").jenis).toBe(
+      "tidak_ada",
+    );
+  });
+
+  it("tanpa nomor pengirim → tidak ada, bukan asal pilih", () => {
+    for (const n of [null, "", "   ", "abc"]) {
+      expect(cocokkanNomorPengguna([u("a", "6281234567890@c.us")], n).jenis, String(n)).toBe(
+        "tidak_ada",
+      );
+    }
+  });
+
+  it("dua pengguna aktif bernomor sama → TIDAK dijawab", () => {
+    // Menjawab berarti memilih lingkup lokasi salah satunya; kalau keduanya
+    // orang berbeda, jawabannya benar untuk orang yang salah.
+    const r = cocokkanNomorPengguna(
+      [u("a", "6281234567890@c.us"), u("b", null, "081234567890")],
+      "6281234567890",
+    );
+    expect(r.jenis).toBe("ganda");
+    expect(r.jenis === "ganda" && r.ids.sort()).toEqual(["a", "b"]);
+  });
+
+  it("pengguna tanpa nomor sama sekali diabaikan", () => {
+    expect(cocokkanNomorPengguna([u("a", null, null)], "6281234567890").jenis).toBe("tidak_ada");
   });
 });

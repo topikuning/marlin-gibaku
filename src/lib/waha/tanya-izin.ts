@@ -156,3 +156,55 @@ export function lingkupJawaban(k: KonteksLingkup): LingkupJawaban {
 export function niatLintasLokasi(lokasiDiminta: string[] | null): boolean {
   return lokasiDiminta === null || lokasiDiminta.length === 0;
 }
+
+/* ------------------------------------------------------------------ */
+/* Mencocokkan nomor pengirim ke pengguna MARLIN                       */
+/* ------------------------------------------------------------------ */
+
+export type CalonPengguna = { id: string; waNumber: string | null; phone: string | null };
+
+export type HasilCocokNomor =
+  | { jenis: "tepat"; id: string }
+  | { jenis: "tidak_ada" }
+  /** Lebih dari satu pengguna aktif memakai nomor yang sama. */
+  | { jenis: "ganda"; ids: string[] };
+
+/**
+ * Cocokkan nomor pengirim ke pengguna — lewat NORMALISASI, bukan pencocokan
+ * teks (DECISIONS 345).
+ *
+ * ### Cacat yang diperbaiki
+ *
+ * Versi pertama merakit tiga varian teks (`62…`, `+62…`, `0…`) lalu mencarinya
+ * dengan `IN`. Itu tidak pernah cocok, karena `waNumber` disimpan
+ * `normalizeWaTarget` sebagai **`6281234567890@c.us`** — LENGKAP DENGAN
+ * SUFIKS. Kolom `phone` lebih longgar lagi: tak ada normalisasi sama sekali,
+ * jadi isinya bisa "0812-3456-7890" atau "+62 812 3456 7890".
+ *
+ * Akibatnya SELURUH pengguna tidak dikenali, dan chat pribadi dari nomor tak
+ * dikenal memang sengaja DIDIAMKAN — jadi gejalanya "tidak ada respon sama
+ * sekali", tanpa satu pun galat. Laporan user 2026-08-17.
+ *
+ * Pelajarannya: nomor telepon TIDAK PERNAH boleh dibandingkan sebagai teks.
+ * Satu-satunya perbandingan yang benar adalah antar-bentuk ternormalisasi.
+ *
+ * ### Kenapa dua pengguna dengan nomor sama TIDAK dijawab
+ *
+ * Menjawab berarti memilih lingkup lokasi salah satunya. Kalau keduanya orang
+ * yang berbeda, jawabannya benar untuk orang yang salah — dan penerimanya tidak
+ * punya cara mengetahuinya. Prinsip yang sama dengan nama lokasi ambigu: jangan
+ * menebak, dan sebutkan keadaannya di log supaya datanya bisa dibetulkan.
+ */
+export function cocokkanNomorPengguna(
+  daftar: CalonPengguna[],
+  nomorPengirim: string | null,
+): HasilCocokNomor {
+  const n = normalizePhone(nomorPengirim);
+  if (!n) return { jenis: "tidak_ada" };
+  const cocok = daftar.filter(
+    (u) => normalizePhone(u.waNumber) === n || normalizePhone(u.phone) === n,
+  );
+  if (cocok.length === 1) return { jenis: "tepat", id: cocok[0].id };
+  if (cocok.length > 1) return { jenis: "ganda", ids: cocok.map((u) => u.id) };
+  return { jenis: "tidak_ada" };
+}
