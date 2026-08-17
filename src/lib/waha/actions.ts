@@ -700,6 +700,62 @@ export async function sendDailyReportPdfToWaAction(
 }
 
 /** Kirim Laporan Mingguan/Bulanan sebagai PDF blanko KKP ke WA (grup paket atau tujuan bebas). */
+/**
+ * Kirim BERKAS MINGGUAN (sampul + tujuh laporan harian) ke WhatsApp
+ * (DECISIONS 335). Jalur kirimnya sama persis dengan laporan periodik —
+ * `resolveWaChat` + `sendFile` yang sama; yang berbeda hanya berkasnya.
+ */
+export async function sendWeeklyBundleToWaAction(
+  _prev: WaActionState,
+  formData: FormData,
+): Promise<WaActionState> {
+  const parsed = z
+    .object({ locationId: z.uuid(), minggu: z.coerce.number().int().min(1).max(520) })
+    .safeParse({ locationId: formData.get("locationId"), minggu: formData.get("minggu") });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { locationId, minggu } = parsed.data;
+
+  try {
+    const user = await requireCapability("report.export");
+    await requireLocationAccess(user, locationId);
+
+    const target = await resolveWaChat(locationId, String(formData.get("destChatId") ?? ""));
+    if ("error" in target) return { error: target.error };
+
+    const loc = await groupForLocation(locationId);
+    if (!loc?.slug) return { error: "Lokasi tidak ditemukan." };
+
+    const { renderMingguanKkpPdf } = await import("@/lib/pdf/mingguan-kkp");
+    const hasil = await renderMingguanKkpPdf(loc.slug, minggu);
+    if (!hasil) {
+      return { error: `Berkas mingguan ke-${minggu} belum bisa disusun — lokasi ini belum punya tanggal SPMK.` };
+    }
+
+    // Kekurangan berkas DISEBUT di keterangan kirimannya, bukan hanya tercetak
+    // di kaki halaman: yang menerima di WhatsApp membaca keterangan lebih dulu.
+    const caption = [
+      `📄 *Laporan Harian Minggu ke-${minggu}* (7 hari dalam 1 berkas)`,
+      loc.name ? `📍 ${loc.name}` : null,
+      hasil.hariKosong > 0 ? `⚠️ ${hasil.hariKosong} hari belum ada laporan` : null,
+      hasil.fotoDipotong > 0 ? `⚠️ ${hasil.fotoDipotong} foto tidak dimuat (batas berkas)` : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
+    const fileName = `laporan-harian-minggu-${minggu}-${loc.slug}.pdf`;
+    await sendFile(target.chatId, toFilePayload(hasil.buffer, PDF_MIME, fileName), caption);
+
+    await audit(user.id, "report.wa_send_pdf", "location", locationId, {
+      kind: "berkas_mingguan",
+      minggu,
+      chatId: target.chatId,
+      hariKosong: hasil.hariKosong,
+    });
+    return { success: `Berkas mingguan ke-${minggu} terkirim ke ${target.label}.` };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
 export async function sendPeriodReportPdfToWaAction(
   _prev: WaActionState,
   formData: FormData,

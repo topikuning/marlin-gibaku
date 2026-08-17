@@ -82,25 +82,11 @@ export function PeriodFilter({
 
       <Button type="submit">Tampilkan</Button>
 
-      <span className="grow" />
-
-      {/* Cetak & Unduh — aktif hanya setelah laporan digenerate */}
-      <Link
-        href={withBackTo(`/cetak/periodik/${slug}/${kind}/${n}`, `/lokasi/${slug}/laporan-lokasi`)}
-        aria-disabled={!shown}
-        tabIndex={shown ? undefined : -1}
-        className={cn(LINK_BTN, !shown && LINK_BTN_DISABLED)}
-      >
-        <Printer aria-hidden className="size-4" /> Cetak
-      </Link>
-      <a
-        href={`/lokasi/${slug}/laporan-lokasi/export?kind=${kind}&n=${n}`}
-        aria-disabled={!shown}
-        tabIndex={shown ? undefined : -1}
-        className={cn(LINK_BTN, !shown && LINK_BTN_DISABLED)}
-      >
-        <Sheet aria-hidden className="size-4" /> Unduh Excel
-      </a>
+      {/* Cetak & Unduh TIDAK lagi di sini — keduanya ada di menu berkas di
+          bawah laporan (DECISIONS 334). Dua tombol "Cetak" dan dua "Unduh
+          Excel" yang menuju berkas yang sama persis adalah kebingungan yang
+          saya buat sendiri; keberatan user 2026-08-16: *"jelas-jelas
+          memberikan data dan hal yang sama, kenapa kamu double, rapikan."* */}
     </form>
   );
 }

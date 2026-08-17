@@ -159,7 +159,7 @@ export type KkpDailyData = {
  * dipakai, supaya tata letak blanko tidak bergeser sedikit pun saat gambar
  * tanda tangan belum diunggah. DECISIONS 328.
  */
-const RUANG_TTD_HARIAN = 48;
+const RUANG_TTD_HARIAN = 84;
 
 export function KkpDailyReport({ d, ttd }: { d: KkpDailyData; ttd?: TtdLaporan | null }) {
   const rr = barisRencanaRealisasi(d);

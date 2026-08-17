@@ -111,3 +111,54 @@ kendala, solusi, lokasi) + **semua foto** (sebagai gambar) + **semua dokumen**
   `GET /api/{session}/groups`; `GET /api/sessions/{session}`. Auth header `X-Api-Key`.
 - Konfigurasi (URL/API key/sesi) disimpan di tabel `AppSetting` (key-value, effective-
   dated) — pola sama dengan Branding — bukan environment. Lihat `src/lib/waha/config.ts`.
+
+---
+
+## 6. Tanya-jawab bebas (DECISIONS 338 + 339)
+
+Tidak ada langkah pemasangan tambahan: fitur ini memakai **webhook yang sama**
+seperti arsip percakapan di atas.
+
+**Cara memakainya**
+
+- **Chat pribadi** ke nomor MARLIN: tulis pertanyaannya langsung.
+- **Grup**: MARLIN hanya menjawab kalau **di-mention** (`@` lalu pilih nomor
+  MARLIN dari daftar). Mengetik teks "@marlin" saja TIDAK cukup — penyebutan
+  dibaca dari daftar JID pesan, bukan dari isi teksnya, karena nama tampilan
+  bisa diubah siapa saja.
+
+**Yang bisa ditanyakan** (bahasa bebas, tidak ada format baku):
+
+| contoh | dijawab dengan |
+| --- | --- |
+| "ada kendala apa hari ini" | kendala belum selesai per lokasi |
+| "progress hari ini di Kedung Mutih" | realisasi / rencana / deviasi + kegiatan hari ini |
+| "mana yang deviasinya negatif" | lokasi tertinggal dari kurva-S, paling parah dulu |
+| "siapa yang belum lapor" | kelengkapan laporan harian |
+
+Di luar keempatnya MARLIN akan **mengaku belum mengerti** dan menyebut apa yang
+bisa dijawab — ia tidak menebak niat yang paling mirip.
+
+**Dua syarat yang sering jadi sebab "MARLIN tidak menjawab"**
+
+1. **Nomor penanya harus terdaftar.** Diambil dari `Nomor WhatsApp` di data
+   penggunanya (`waNumber`, atau `phone`). Nama tampilan WhatsApp tidak pernah
+   dipakai — siapa pun bisa mengubahnya. Nomor tak dikenal yang mengirim chat
+   pribadi sengaja **didiamkan**, bukan dibalas.
+2. **Sesi WAHA harus berstatus `WORKING`.** Nomor MARLIN sendiri dibaca dari
+   `me.id` sesi; kalau sesinya belum login, MARLIN tidak tahu kapan ia
+   di-mention dan grup **tidak dilayani sama sekali**.
+
+**Apa yang boleh keluar di grup**
+
+Jawaban di grup selalu **dipotong ke lokasi paket grup itu saja** — juga untuk
+super admin, karena yang menentukan bukan izin penanya melainkan siapa yang ikut
+membaca. Pemotongannya selalu ditulis di balasan. Grup yang belum tertaut paket
+tidak dilayani.
+
+**Batas**
+
+- Hanya periode **hari ini** (lihat OPEN_ISSUES `WATANYA-02`).
+- Maksimal 15 baris per jawaban (20 untuk kendala); pemotongannya disebutkan.
+- Memakai kuota AI Hub — kill-switch & batas laju di **Sistem → AI Hub** berlaku,
+  dan tiap pertanyaan tercatat di `ai_runs` sebagai kind `tanya`.

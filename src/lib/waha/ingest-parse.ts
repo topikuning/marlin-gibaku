@@ -17,6 +17,15 @@ export type ParsedWaMessage = {
   mediaType: string | null;
   fromMe: boolean;
   timestamp: Date;
+  /**
+   * JID yang di-MENTION di pesan ini (DECISIONS 338).
+   *
+   * Di grup, MARLIN hanya menjawab kalau ia disebut — dan penyebutan itu harus
+   * dibaca dari daftar JID, BUKAN dari teks "@marlin" di badan pesan. Nama
+   * tampilan bisa diubah siapa saja; JID tidak. Bentuk medannya berbeda antar
+   * engine WAHA, jadi dibaca defensif seperti medan lain di berkas ini.
+   */
+  mentionedJids: string[];
 };
 
 type AnyObj = Record<string, unknown>;
@@ -99,5 +108,33 @@ export function parseWaEvent(body: unknown): ParsedWaMessage | null {
     mediaType: str(media.mimetype) ?? str(p.type) ?? str(data.type) ?? null,
     fromMe,
     timestamp: timestampSec != null ? new Date(timestampSec * 1000) : new Date(0),
+    mentionedJids: bacaMention(p, data),
   };
+}
+
+/** Kumpulkan JID yang di-mention dari berbagai bentuk payload WAHA. */
+function bacaMention(p: AnyObj, data: AnyObj): string[] {
+  const sumber = [
+    p.mentionedIds,
+    p.mentionedJidList,
+    (p._data as AnyObj)?.mentionedJidList,
+    data.mentionedIds,
+    data.mentionedJidList,
+    (p.mentions as AnyObj[] | undefined),
+  ];
+  const keluar = new Set<string>();
+  for (const s of sumber) {
+    if (!Array.isArray(s)) continue;
+    for (const v of s) {
+      // Bentuknya bisa string JID, atau objek { id } / { _serialized }.
+      const jid =
+        typeof v === "string"
+          ? v
+          : str((v as AnyObj)?._serialized) ??
+            str((v as AnyObj)?.id) ??
+            str((v as AnyObj)?.jid);
+      if (jid) keluar.add(jid.trim());
+    }
+  }
+  return [...keluar];
 }

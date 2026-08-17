@@ -178,7 +178,15 @@ test.describe("foto menyusul", () => {
       test.skip(true, "Penyimpanan foto (R2) tidak aktif di lingkungan ini.");
       return;
     }
-    await expect(page.getByText("Belum ada foto").first()).toBeVisible();
+    /*
+     * Kata yang BENAR-BENAR dipakai penandanya adalah "Tanpa foto" — lihat
+     * `PenandaFoto` di report-editor, yang sengaja memilih kata itu karena foto
+     * memang OPSIONAL saat menyimpan. Pernyataan ini semula mencari "Belum ada
+     * foto", kalimat yang tidak pernah ada di sumber mana pun; ia tidak pernah
+     * ketahuan karena baris ini hanya tercapai bila R2 aktif, dan di CI R2 tidak
+     * pernah aktif. Diperbaiki 2026-08-17 (DECISIONS 342).
+     */
+    await expect(page.getByText("Tanpa foto").first()).toBeVisible();
 
     await tombol.click();
     await expect(

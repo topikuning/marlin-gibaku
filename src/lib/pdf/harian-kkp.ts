@@ -5,7 +5,14 @@ import { getKkpDailyData } from "@/lib/daily-report/queries";
 import { WORKER_ROLE_LABEL, WORKER_ROLE_ORDER } from "@/lib/daily-report/constants";
 import { barisRealisasiKkp, type KkpDailyData } from "@/components/knmp/kkp-daily-report";
 import { KKP_WEATHER_HOURS } from "@/lib/weather/hourly";
-import { PDF_COLORS, PDF_FONT, docToBuffer, createFormA4Doc, FORM_MARGIN } from "./document";
+import {
+  PDF_COLORS,
+  PDF_FONT,
+  docToBuffer,
+  createFormA4Doc,
+  FORM_MARGIN,
+  type PdfDoc,
+} from "./document";
 import { colWidths, gridRow, gridRowHeight, type GridCell, type GridOptions } from "./grid";
 import {
   gambarDokumentasi,
@@ -40,29 +47,37 @@ const MIN_RR_ROWS = 6;
 
 export type HarianKkpPdfResult = { buffer: Buffer; locationId: string };
 
-export async function buildHarianKkpPdf(
+/** Lampiran gambar untuk satu hari. Dipakai penyaji harian DAN mingguan. */
+export type LampiranHarian = {
+  /** Logo pemilik pekerjaan — kop blanko. PNG; lihat catatan data-URI di bawah. */
+  logoPemilik?: Buffer | null;
+  logoVendor: Buffer | null;
+  foto: FotoDok[];
+  /** Bukti material & alat — halamannya sendiri-sendiri (DECISIONS 304). */
+  fotoMaterial?: FotoPelengkapDok[];
+  fotoAlat?: FotoPelengkapDok[];
+  /** Gambar tanda tangan & stempel (DECISIONS 328); null = ruang kosong. */
+  ttd?: TtdPdf | null;
+};
+
+/**
+ * Tulis BADAN satu laporan harian — blanko + dokumentasi — ke dokumen yang
+ * SUDAH ada, tanpa membuat dan tanpa menutupnya (DECISIONS 332).
+ *
+ * Dipisah supaya berkas mingguan (satu sampul, tujuh laporan) memakai badan
+ * yang SAMA PERSIS dengan cetak harian. Kalau keduanya menggambar blanko
+ * sendiri-sendiri, cepat atau lambat keduanya menyimpang — aturan yang sama
+ * dengan DECISIONS 241, dan yang ketahuan belakangan justru setelah dokumennya
+ * dikirim ke PPK.
+ *
+ * Pemanggil bertanggung jawab menyiapkan halaman kosong yang siap ditulis;
+ * fungsi ini mulai dari `FORM_MARGIN` di halaman yang sedang aktif.
+ */
+export function tulisBadanHarian(
+  doc: PdfDoc,
   d: KkpDailyData,
-  appName: string,
-  logo?: Buffer | null,
-  lampiran?: {
-    logoVendor: Buffer | null;
-    foto: FotoDok[];
-    /** Bukti material & alat — halamannya sendiri-sendiri (DECISIONS 304). */
-    fotoMaterial?: FotoPelengkapDok[];
-    fotoAlat?: FotoPelengkapDok[];
-    /** Gambar tanda tangan & stempel (DECISIONS 328); null = ruang kosong. */
-    ttd?: TtdPdf | null;
-  },
-): Promise<Buffer> {
-  const doc = createFormA4Doc({ title: `Laporan Harian KKP — ${d.locationName}` });
-
-  /* ── Halaman 1: SAMPUL ─────────────────────────────────────────────────
-     Blanko di halaman berikutnya TIDAK berubah sedikit pun (permintaan user
-     2026-08-07: *"halaman 2: seperti blanko apa adanya saat ini"*). */
-  doc.page.margins.bottom = 0;
-  gambarSampul(doc, d, logo ?? null, lampiran?.logoVendor ?? null);
-  doc.addPage();
-
+  lampiran?: LampiranHarian,
+): void {
   const x = FORM_MARGIN;
   const width = doc.page.width - FORM_MARGIN * 2;
   const bottom = doc.page.height - FORM_MARGIN - 12;
@@ -148,9 +163,10 @@ export async function buildHarianKkpPdf(
   // sehingga input Buffer jatuh ke cabang `fs.readFileSync` yang TIDAK ADA di
   // bundle itu ("fs.readFileSync is not a function"). Data URI ditangani cabang
   // base64 yang bekerja di kedua build.
-  if (logo) {
+  const logoPemilik = lampiran?.logoPemilik ?? null;
+  if (logoPemilik) {
     try {
-      const src = `data:image/png;base64,${logo.toString("base64")}`;
+      const src = `data:image/png;base64,${logoPemilik.toString("base64")}`;
       doc.image(src, x + 3, atas + 3, { fit: [logoW - 6, kopBawah - atas - 6], align: "center", valign: "center" });
     } catch (err) {
       // Logo rusak tidak boleh menggagalkan laporan — tapi jangan diam-diam.
@@ -359,9 +375,9 @@ export async function buildHarianKkpPdf(
   draw([{ text: "CATATAN / KETERANGAN", head: true }], catatan);
   draw([{ text: d.notes || " " }], { ...catatan, minRowHeight: 34 });
 
-  const ttd: GridOptions = { x, width, cols: colWidths(width, [1, 1]), fontSize: 7, minRowHeight: 70 };
+  const ttd: GridOptions = { x, width, cols: colWidths(width, [1, 1]), fontSize: 7, minRowHeight: 94 };
   const blokTtd = (judul: string, peran: string, firm: string | null | undefined, nama: string | null | undefined, sub: string) =>
-    `${judul}\n${peran}${firm ? `\n${firm}` : ""}\n\n\n( ${nama ?? "……………………"} )\n${sub}`;
+    `${judul}\n${peran}${firm ? `\n${firm}` : ""}\n\n\n\n\n( ${nama ?? "……………………"} )\n${sub}`;
   const yTtd = y;
   y = gridRow(
     doc,
@@ -386,19 +402,21 @@ export async function buildHarianKkpPdf(
   const gbr = lampiran?.ttd;
   if (gbr) {
     const [kolomKiri, kolomKanan] = colWidths(width, [1, 1]);
-    const CELAH_TTD_PDF = 34; // poin — rem, bukan penentu ukuran
-    const yDasar = yTtd + 46; // tepat di atas baris nama
+    // Ruang dari tepi ATAS blok sampai garis nama; stempel dibatasi tepat
+    // sebesar ini supaya tidak melimpah keluar blok (DECISIONS 333).
+    const RUANG_TTD_PDF = 70;
+    const yDasar = yTtd + RUANG_TTD_PDF;
     gambarTtdPdf(doc, gbr.pengawas, {
       xTengah: x + kolomKiri / 2,
       yDasar,
       lebarKolom: kolomKiri,
-      tinggiCelah: CELAH_TTD_PDF,
+      ruangDiAtasNama: RUANG_TTD_PDF,
     });
     gambarTtdPdf(doc, gbr.penyedia, {
       xTengah: x + kolomKiri + kolomKanan / 2,
       yDasar,
       lebarKolom: kolomKanan,
-      tinggiCelah: CELAH_TTD_PDF,
+      ruangDiAtasNama: RUANG_TTD_PDF,
     });
   }
 
@@ -419,6 +437,19 @@ export async function buildHarianKkpPdf(
     doc, d, lampiran?.fotoAlat ?? [], "Dokumentasi Peralatan", "Alat", halamanBaru,
   );
 
+}
+
+
+/**
+ * Catatan kaki tiap halaman: nama aplikasi + status, dan "Halaman i dari n"
+ * yang MENERUS untuk seluruh berkas.
+ *
+ * Menerus itu yang benar untuk berkas mingguan: satu berkas = satu penomoran.
+ * Kalau tiap hari dinomori ulang, tujuh "Halaman 1 dari 5" dalam satu PDF
+ * membuat orang mengira berkasnya terpotong.
+ */
+export function kakiHalaman(doc: PdfDoc, appName: string, status: string): void {
+  const width = doc.page.width - FORM_MARGIN * 2;
   /* ── Catatan kaki tiap halaman ─────────────────────────────────────── */
   const range = doc.bufferedPageRange();
   for (let i = range.start; i < range.start + range.count; i++) {
@@ -428,7 +459,7 @@ export async function buildHarianKkpPdf(
       .fontSize(6.5)
       .fillColor(PDF_COLORS.inkFaint)
       .text(
-        `${appName} · ${d.isFinal ? "Laporan final" : "PRATINJAU — belum difinalisasi"}`,
+        `${appName} · ${status}`,
         FORM_MARGIN,
         doc.page.height - FORM_MARGIN + 2,
         { width: width, align: "left", lineBreak: false },
@@ -439,59 +470,105 @@ export async function buildHarianKkpPdf(
         lineBreak: false,
       });
   }
+}
 
+/** Satu laporan harian utuh: sampul + badan. */
+export async function buildHarianKkpPdf(
+  d: KkpDailyData,
+  appName: string,
+  logo?: Buffer | null,
+  lampiran?: LampiranHarian & { tanpaSampul?: boolean },
+): Promise<Buffer> {
+  const doc = createFormA4Doc({ title: `Laporan Harian KKP — ${d.locationName}` });
+
+  /* ── Halaman 1: SAMPUL ─────────────────────────────────────────────────
+     Blanko di halaman berikutnya TIDAK berubah sedikit pun (permintaan user
+     2026-08-07: *"halaman 2: seperti blanko apa adanya saat ini"*).
+
+     Sampulnya bertuliskan "MINGGU KE-n" — memang sampul MINGGUAN. Sejak
+     DECISIONS 332 ia bisa dimatikan (`tanpaSampul`) untuk yang menyusun
+     berkas mingguan sendiri atau cuma butuh blankonya. */
+  if (!lampiran?.tanpaSampul) {
+    doc.page.margins.bottom = 0;
+    gambarSampul(doc, d, logo ?? null, lampiran?.logoVendor ?? null);
+    doc.addPage();
+  }
+
+  tulisBadanHarian(doc, d, {
+    ...lampiran,
+    logoPemilik: logo ?? null,
+    logoVendor: lampiran?.logoVendor ?? null,
+    foto: lampiran?.foto ?? [],
+  });
+  kakiHalaman(doc, appName, d.isFinal ? "Laporan final" : "PRATINJAU — belum difinalisasi");
   return docToBuffer(doc);
 }
 
 /**
- * Muat data harian + render PDF format KKP. Null bila tak ada. TANPA otorisasi
- * (pemanggil gate).
+ * Batas foto yang ditempel ke SATU berkas mingguan (DECISIONS 332).
  *
- * `baseUrl` = origin publik MARLIN, dipakai menautkan tiap foto dokumentasi ke
- * gambar PENUH di cloud (`/api/foto/<token>`, DECISIONS 125). Tanpa origin yang
- * diketahui — mis. dipanggil dari cron di luar request — tautannya TIDAK
- * dikarang; fotonya cuma tidak bisa diklik.
+ * Diukur, bukan ditebak: `createFormA4Doc` memakai `bufferPages: true` sehingga
+ * seluruh dokumen ditahan di RAM sampai selesai. Pada kontainer 0,5 vCPU /
+ * 512 MB, puncak RSS terukur (foto kamera 4000x3000 lewat pipeline 900px q72):
+ *
+ *     1 hari,  15 foto → 212 MB      7 hari, 105 foto → 304 MB
+ *     7 hari,  70 foto → 255 MB      7 hari, 175 foto → 358 MB
+ *
+ * 120 dipilih di bawah titik 358 MB, menyisakan ruang untuk server Next yang
+ * sudah residen. Yang terpotong WAJIB disebutkan pemanggil — memotong
+ * dokumentasi diam-diam membuat berkasnya terbaca lengkap padahal tidak.
  */
-export async function renderHarianKkpPdf(
-  slug: string,
-  dateKey: string,
-  opts?: { baseUrl?: string | null },
-): Promise<HarianKkpPdfResult | null> {
-  const baseUrl = opts?.baseUrl?.replace(/\/+$/, "") || null;
-  const [data, branding, loc] = await Promise.all([
-    getKkpDailyData(slug, dateKey),
-    getBranding(),
-    db.location.findUnique({ where: { slug }, select: { id: true } }),
-  ]);
-  if (!data || !loc) return null;
-  // Logo pemilik untuk kop; kegagalan R2 tidak boleh menggagalkan laporan.
-  //
-  // WAJIB dikonversi ke PNG: logo disimpan sebagai WebP (system/actions.ts),
-  // sedangkan pdfkit HANYA mendukung JPEG dan PNG. Tanpa konversi,
-  // `doc.image()` melempar dan logonya hilang DIAM-DIAM di semua keluaran PDF
-  // (unduh, Google Drive, WhatsApp) padahal di layar tampil normal — persis
-  // ketidakkonsistenan yang dilaporkan 28 Juli 2026.
-  let logo: Buffer | null = null;
-  if (branding.ownerLogoKey) {
-    try {
-      const { r2GetBuffer } = await import("@/lib/r2");
-      const asli = await r2GetBuffer(branding.ownerLogoKey);
-      const sharp = (await import("sharp")).default;
-      logo = await sharp(asli).png().toBuffer();
-    } catch (err) {
-      console.error("[laporan-harian] logo pemilik gagal disiapkan untuk PDF:", err);
-      logo = null;
-    }
+export const BATAS_FOTO_MINGGUAN = 120;
+
+/**
+ * Logo pemilik pekerjaan untuk kop, sebagai PNG.
+ *
+ * WAJIB dikonversi: logo disimpan sebagai WebP (system/actions.ts), sedangkan
+ * pdfkit HANYA mendukung JPEG dan PNG. Tanpa konversi `doc.image()` melempar
+ * dan logonya hilang DIAM-DIAM di semua keluaran PDF (unduh, Drive, WhatsApp)
+ * padahal di layar tampil normal — persis ketidakkonsistenan yang dilaporkan
+ * 28 Juli 2026.
+ */
+export async function muatLogoPemilik(key: string | null | undefined): Promise<Buffer | null> {
+  if (!key) return null;
+  try {
+    const { r2GetBuffer } = await import("@/lib/r2");
+    const sharp = (await import("sharp")).default;
+    return await sharp(await r2GetBuffer(key)).png().toBuffer();
+  } catch (err) {
+    console.error("[laporan-kkp] logo pemilik gagal disiapkan untuk PDF:", err);
+    return null;
   }
-  /*
-   * Aset lampiran: logo pelaksana + foto bukti. Keduanya BEST-EFFORT —
-   * kegagalan R2/sharp tidak boleh menggagalkan laporan resminya; halaman
-   * dokumentasi cuma ikut kosong dan itu terlihat, bukan diam-diam salah.
-   *
-   * Foto dikecilkan dulu: satu laporan bisa membawa belasan foto kamera 3–8
-   * MB, dan menempelkannya mentah ke PDF meledakkan memori di kontainer kecil
-   * (pelajaran DECISIONS 297).
-   */
+}
+
+/**
+ * Muat logo pelaksana + foto bukti satu hari, siap ditempel ke PDF.
+ *
+ * BEST-EFFORT seluruhnya: kegagalan R2/sharp tidak boleh menggagalkan laporan
+ * resminya; halaman dokumentasi cuma ikut kosong, dan itu terlihat — bukan
+ * diam-diam salah.
+ *
+ * `sisaFoto` membatasi berapa foto yang masih boleh diambil (dipakai berkas
+ * mingguan). `null` = tanpa batas, yaitu perilaku cetak harian.
+ */
+export async function muatLampiranFoto(
+  data: KkpDailyData,
+  baseUrl: string | null,
+  sisaFoto: number | null = null,
+): Promise<{
+  logoVendor: Buffer | null;
+  foto: FotoDok[];
+  fotoMaterial: FotoPelengkapDok[];
+  fotoAlat: FotoPelengkapDok[];
+  /** Berapa foto TIDAK diambil karena batas. Pemanggil wajib menyebutkannya. */
+  dipotong: number;
+}> {
+  let sisa = sisaFoto;
+  const bolehLagi = () => sisa === null || sisa > 0;
+  const pakai = () => {
+    if (sisa !== null) sisa -= 1;
+  };
+  let dipotong = 0;
   let logoVendor: Buffer | null = null;
   const foto: FotoDok[] = [];
   const fotoMaterial: FotoPelengkapDok[] = [];
@@ -508,6 +585,10 @@ export async function renderHarianKkpPdf(
         }
       }
       for (const p of data.photos ?? []) {
+        if (!bolehLagi()) {
+          dipotong += 1;
+          continue;
+        }
         try {
           const kecil = await sharp(await r2GetBuffer(p.r2Key))
             .rotate()
@@ -521,6 +602,7 @@ export async function renderHarianKkpPdf(
             bobot: p.bobot,
             link: baseUrl ? `${baseUrl}/api/foto/${signPhotoToken(p.id)}` : null,
           });
+          pakai();
         } catch {
           /* satu foto gagal tidak menggagalkan sisanya */
         }
@@ -532,6 +614,10 @@ export async function renderHarianKkpPdf(
         [data.equipmentPhotos ?? [], fotoAlat],
       ] as const) {
         for (const p of rows) {
+          if (!bolehLagi()) {
+            dipotong += 1;
+            continue;
+          }
           try {
             const kecil = await sharp(await r2GetBuffer(p.r2Key))
               .rotate()
@@ -544,6 +630,7 @@ export async function renderHarianKkpPdf(
               keterangan: p.keterangan,
               link: baseUrl ? `${baseUrl}/api/foto/${signPhotoToken(p.id)}` : null,
             });
+            pakai();
           } catch {
             /* satu foto gagal tidak menggagalkan sisanya */
           }
@@ -551,12 +638,26 @@ export async function renderHarianKkpPdf(
       }
     }
   } catch (err) {
-    console.error("[laporan-harian] lampiran dokumentasi gagal disiapkan:", err);
+    console.error("[laporan-kkp] lampiran dokumentasi gagal disiapkan:", err);
   }
+  return { logoVendor, foto, fotoMaterial, fotoAlat, dipotong };
+}
 
-  // Tanda tangan & stempel (DECISIONS 328) — best-effort, sama dengan logo.
+export async function renderHarianKkpPdf(
+  slug: string,
+  dateKey: string,
+  opts?: { baseUrl?: string | null; tanpaSampul?: boolean },
+): Promise<HarianKkpPdfResult | null> {
+  const baseUrl = opts?.baseUrl?.replace(/\/+$/, "") || null;
+  const [data, branding, loc] = await Promise.all([
+    getKkpDailyData(slug, dateKey),
+    getBranding(),
+    db.location.findUnique({ where: { slug }, select: { id: true } }),
+  ]);
+  if (!data || !loc) return null;
+  const logo = await muatLogoPemilik(branding.ownerLogoKey);
+  const { logoVendor, foto, fotoMaterial, fotoAlat } = await muatLampiranFoto(data, baseUrl);
   const gambarTtd = await muatTtdPdf(loc.id).catch(() => TANPA_TTD_PDF);
-
   return {
     buffer: await buildHarianKkpPdf(data, branding.appName, logo, {
       logoVendor,
@@ -564,6 +665,7 @@ export async function renderHarianKkpPdf(
       fotoMaterial,
       fotoAlat,
       ttd: gambarTtd,
+      tanpaSampul: opts?.tanpaSampul,
     }),
     locationId: loc.id,
   };

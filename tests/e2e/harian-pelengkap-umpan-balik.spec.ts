@@ -79,6 +79,35 @@ test.describe("umpan balik simpan pelengkap", () => {
     await expect(page.locator(`input[name="materialName"][value="${nama}"]`)).toHaveCount(1, {
       timeout: 15_000,
     });
-    await expect(page.getByText("Foto material & alat")).toBeVisible();
+    /*
+     * Dulu di sini diperiksa keberadaan kartu "Foto material & alat" — kartu
+     * TERPISAH di bawah form (DECISIONS 304). Kartu itu sudah tidak ada:
+     * pemicunya kini menempel pada barisnya sendiri (DECISIONS 341), justru
+     * karena kartu jauh di bawah itulah yang membuat orang tidak tahu foto
+     * material bisa ditambahkan.
+     *
+     * Yang diperiksa sekarang hal yang SAMA maksudnya: sesudah tersimpan, baris
+     * itu menawarkan jalan menambahkan fotonya. Bergantung lingkungan — tanpa
+     * R2 penyimpanan foto memang mati dan kontrolnya sengaja tidak ditawarkan.
+     */
+    const fotoMati = (await page.getByText(/Penyimpanan foto .*belum diaktifkan/i).count()) > 0;
+    const pelengkap = page.locator("form", { hasText: "Pelengkap laporan KKP" }).first();
+    if (fotoMati) {
+      await expect(pelengkap.locator('input[type="file"]')).toHaveCount(0);
+    } else {
+      /*
+       * Barisnya menawarkan KETIGA sumber foto langsung di tempatnya
+       * (DECISIONS 343). Baris yang baru disimpan berada paling akhir di
+       * bagian material, jadi yang diperiksa baris terakhir sebelum
+       * bagian Peralatan.
+       */
+      const barisBaru = pelengkap
+        .locator('[data-baris="material"]')
+        .filter({ has: page.locator(`input[value="${nama}"]`) });
+      await expect(barisBaru).toHaveCount(1);
+      for (const sumber of ["Kamera", "Galeri", "Foto Cepat"]) {
+        await expect(barisBaru.getByText(sumber, { exact: true }), sumber).toBeVisible();
+      }
+    }
   });
 });

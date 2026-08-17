@@ -1,19 +1,42 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CalendarDays, ClipboardList, MapPin } from "lucide-react";
-import { Banner, Card, CardBody, CardHeader, EmptyState, PageHeader, StatusPill } from "@/components/ui";
+import { CalendarDays, ClipboardList } from "lucide-react";
+import { Banner, Card, CardBody, CardHeader, EmptyState, PageHeader } from "@/components/ui";
 import { requireUser, accessibleLocationIds } from "@/lib/auth/session";
 import { locationScopeWhere } from "@/lib/auth/scope";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
 import { getHariIniLocation } from "@/lib/daily-report/queries";
 import { jakartaDateKey, formatTanggal, formatNumber } from "@/lib/format";
-import { REPORT_STATUS_LABEL, REPORT_STATUS_TONE } from "@/lib/lifecycle";
+import { REPORT_STATUS_LABEL } from "@/lib/lifecycle";
+import { urutkanLokasi } from "@/lib/daily-report/hari-ini-ringkas";
+import { KeteranganStatus, Strip7Hari } from "@/components/knmp/strip-7-hari";
 
 export const metadata: Metadata = { title: "Hari Ini" };
 export const dynamic = "force-dynamic";
 
-/** Landing lapangan mobile-first: prioritas hari ini, draft, koreksi, target minggu. */
+/**
+ * Landing PELAKSANA — satu tugas: buka tanggal yang mau dilaporkan
+ * (DECISIONS 337).
+ *
+ * Koreksi user 2026-08-17: *"fokus halaman hari ini tetap adalah langsung klik
+ * hari ini atau tanggal yang mau dilaporkan… fokus site manager dan pelaksana
+ * beda, hari ini fokus pelaksana."*
+ *
+ * DECISIONS 336 sempat menaruh ringkasan angka, saringan, dan matriks di sini,
+ * dipagari `banyakLokasi`. Pagar itu tidak menolong — Site Manager dengan DUA
+ * lokasi tetap disambut dinding angka sebelum sampai ke tombolnya. Semuanya
+ * dipindahkan:
+ *
+ * - pemantauan SATU lokasi → `/lokasi/{slug}/harian`
+ * - pemantauan LINTAS lokasi → `/laporan/status-harian` (sudah ada, DECISIONS 262)
+ *
+ * Yang tersisa di sini hanya yang dipakai MENGERJAKAN: tombol hari ini, strip 7
+ * hari untuk menekan tanggal lain, koreksi yang menunggu, dan target minggu ini.
+ *
+ * Lokasi tetap diurutkan menurut yang perlu dikerjakan (`urutkanLokasi`) — itu
+ * bukan pemantauan, itu meletakkan pekerjaan di depan.
+ */
 export default async function HariIniPage() {
   const user = await requireUser();
   requireCapabilityPage(user.role, "daily_report.create");
@@ -25,26 +48,28 @@ export default async function HariIniPage() {
     select: { id: true },
     orderBy: { name: "asc" },
   });
-  const summaries = (
+  const semua = (
     await Promise.all(locations.map((l) => getHariIniLocation(l.id)))
   ).filter((s): s is NonNullable<typeof s> => s !== null);
+
+  const terlihat = urutkanLokasi(semua);
 
   return (
     <div className="mx-auto max-w-xl space-y-5">
       <PageHeader
         title="Hari Ini"
-        description={formatTanggal(new Date(), "EEEE, d MMMM yyyy")}
+        description={formatTanggal(new Date(`${todayKey}T00:00:00Z`))}
       />
 
-      {summaries.length === 0 && (
+      {semua.length === 0 ? (
         <EmptyState
-          icon={MapPin}
+          icon={CalendarDays}
           title="Belum ada penugasan lokasi"
-          description="Hubungi admin untuk mendapatkan penugasan lokasi."
+          description="Hubungi Site Manager untuk mendapat penugasan lokasi."
         />
-      )}
+      ) : null}
 
-      {summaries.map((s) => (
+      {terlihat.map((s) => (
         <Card key={s.id}>
           <CardHeader
             title={s.name}
@@ -56,11 +81,17 @@ export default async function HariIniPage() {
                 tone="warning"
                 title={`${s.corrections.length} laporan dikembalikan — perlu koreksi`}
                 description={s.corrections
-                  .map((c) => `${formatTanggal(new Date(`${c.dateKey}T00:00:00Z`))}: ${c.reason ?? "tanpa alasan"}`)
+                  .map(
+                    (c) =>
+                      `${formatTanggal(new Date(`${c.dateKey}T00:00:00Z`))}: ${c.reason ?? "tanpa alasan"}`,
+                  )
                   .join(" · ")}
               />
             )}
 
+            {/* Tombol utama, SELALU besar dan penuh lebar — berapa pun jumlah
+                lokasinya. Halaman ini dipakai di luar ruangan; mengecilkannya
+                demi kerapian memperburuk pekerjaan yang sebenarnya. */}
             <Link
               href={`/lokasi/${s.slug}/harian/${todayKey}`}
               className="block rounded-lg bg-primary px-4 py-4 text-center text-base font-semibold text-white hover:bg-primary-800"
@@ -82,6 +113,9 @@ export default async function HariIniPage() {
               </Link>
             ))}
 
+            {/* Target minggu ini DIPERTAHANKAN: satu-satunya bagian halaman
+                yang melihat KE DEPAN — apa yang harus dikerjakan, bukan cuma
+                apakah sudah melapor. */}
             {s.weeklyTargets.length > 0 && (
               <div>
                 <h3 className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-ink">
@@ -91,7 +125,7 @@ export default async function HariIniPage() {
                   {s.weeklyTargets.map((t, i) => (
                     <li key={i} className="flex items-center justify-between gap-2 py-1.5">
                       <span className="min-w-0 truncate">{t.name}</span>
-                      <span className="shrink-0 tabular text-ink-muted">
+                      <span className="tabular shrink-0 text-ink-muted">
                         {formatNumber(t.realizedVolume)}/{formatNumber(t.targetVolume)} {t.unit ?? ""}
                       </span>
                     </li>
@@ -100,28 +134,24 @@ export default async function HariIniPage() {
               </div>
             )}
 
+            {/* Strip 7 hari = cara menekan TANGGAL LAIN yang mau dilaporkan.
+                Ia tinggal di sini bukan sebagai pemantauan, melainkan sebagai
+                pemilih tanggal. */}
             <div>
-              <h3 className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-ink">
-                <CalendarDays className="h-4 w-4" aria-hidden /> 7 hari terakhir
+              <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-ink">
+                <CalendarDays className="h-4 w-4" aria-hidden /> Laporkan tanggal lain
               </h3>
-              <ul className="divide-y divide-border text-sm">
-                {s.last7Days.map((d) => (
-                  <li key={d.dateKey}>
-                    <Link
-                      href={`/lokasi/${s.slug}/harian/${d.dateKey}`}
-                      className="flex items-center justify-between gap-2 py-1.5 hover:bg-surface-muted"
-                    >
-                      <span>{formatTanggal(new Date(`${d.dateKey}T00:00:00Z`), "EEE, d MMM")}</span>
-                      {d.status ? (
-                        <StatusPill tone={REPORT_STATUS_TONE[d.status]} label={`${REPORT_STATUS_LABEL[d.status]} · ${d.itemCount} item`} />
-                      ) : (
-                        <StatusPill tone="neutral" label="Tidak ada laporan" />
-                      )}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+              <Strip7Hari slug={s.slug} hari={s.last7Days} todayKey={todayKey} />
+              <p className="mt-1.5 text-[12px] text-ink-muted">
+                Butuh tanggal lebih lama atau ringkasan kepatuhan?{" "}
+                <Link href={`/lokasi/${s.slug}/harian`} className="font-medium text-primary hover:underline">
+                  Buka Pelaksanaan Harian
+                </Link>
+                .
+              </p>
             </div>
+
+            <KeteranganStatus />
           </CardBody>
         </Card>
       ))}

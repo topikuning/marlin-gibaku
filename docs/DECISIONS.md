@@ -14435,3 +14435,1325 @@ walau stempel disetel selebar penuh kolom, karena pada ketujuh dokumen nyata rem
 selalu memotong lebih dulu sehingga aturan lebarnya tidak pernah teruji di sana.
 Diperbaiki dengan menambahkan kasus kolom sangat sempit — baru kemudian ia
 merah.
+
+---
+
+## 331 — Tanda tangan tidak pernah sampai ke PDF: `Buffer` vs `ArrayBuffer` (2026-08-16)
+
+Ditemukan sesaat setelah 328–330 ter-merge ke `main`, saat menyiapkan pengukuran
+lain. **Cacat saya sendiri, dan kelas cacat yang modul itu sendiri sudah
+memperingatkannya.**
+
+`gambarTtdPdf` menyerahkan `Buffer` ke `doc.image()`. pdfkit yang di-vendor
+(`assets/pdfkit-standalone.cjs`) menyangka argumen semacam itu **nama berkas**
+lalu memanggil `fs.readFileSync`, yang di bundel itu sengaja dikosongkan:
+
+```
+doc.image(<Buffer>)      → TypeError: fs.readFileSync is not a function
+doc.image(<ArrayBuffer>) → berhasil
+```
+
+`try/catch` di `gambarTtdPdf` menelan lemparannya (memang disengaja: satu gambar
+rusak tidak boleh menggagalkan laporan), jadi **tanda tangan & stempel tidak
+pernah muncul di satu pun PDF** — tanpa galat yang terlihat pengguna.
+
+Ini persis kegagalan yang pernah menghilangkan logo dari semua keluaran PDF, dan
+`harian-kkp-lampiran.ts` sudah punya helper `sebagaiArrayBuffer` untuk itu.
+Saya menulis modul baru tanpa memakainya.
+
+### Kenapa 19 uji tidak menangkapnya
+
+`ttd-stempel-cetak.test.ts` menguji **aritmetika ukuran**: 19 uji, semuanya
+hijau, semuanya benar — dan tidak satu pun membuktikan gambarnya sampai ke
+kertas. Angka yang dihitung dengan benar lalu diserahkan ke pemanggil yang
+membuangnya tetap menghasilkan uji hijau.
+
+Dibuktikan: dengan bug-nya dikembalikan, `ttd-stempel-cetak` tetap **19 hijau**,
+sementara uji baru **3 merah**.
+
+### Penjaga yang benar
+
+`tests/unit/ttd-pdf-tertempel.test.ts` (5) tidak memeriksa satu angka pun. Ia
+merender PDF sungguhan lewat `createFormA4Doc` yang dipakai produksi, lalu
+menghitung penanda `/Subtype /Image` di berkas hasilnya — penanda yang hanya
+ditulis pdfkit kalau gambarnya benar-benar diproses.
+
+**Pelajarannya untuk penyaji berikutnya**: uji yang memeriksa masukan sebuah
+fungsi tidak menggantikan uji yang memeriksa keluarannya. Untuk PDF, satu-satunya
+keluaran yang berarti adalah berkas PDF-nya.
+
+---
+
+## 332 — Berkas mingguan: satu sampul, tujuh laporan harian (2026-08-16)
+
+Keterangan user 2026-08-16:
+
+> *"laporan harian selalu ada sampul, ternyata sampul itu dibutuhkan untuk
+> mengumpulkan beberapa laporan harian dalam periode mingguan. jadi satu sampul
+> untuk 7 laporan harian."*
+
+### Yang ini bukan fitur baru, tapi sampul yang salah tempat
+
+Sampulnya SUDAH bertuliskan "MINGGU KE-n" beserta terbilangnya, dan `weekNo`
+sudah dihitung dari SPMK. Ia memang sampul MINGGUAN sejak dibuat — yang keliru
+perilakunya: tercetak ulang pada setiap laporan harian, tujuh kali untuk minggu
+yang sama.
+
+### Satu penyusun, dua keluaran
+
+`buildHarianKkpPdf` dipecah:
+
+```
+tulisBadanHarian(doc, d, lampiran)   ← blanko + dokumentasi, ke doc yang SUDAH ada
+kakiHalaman(doc, appName, status)    ← "Halaman i dari n" MENERUS seluruh berkas
+
+harian   = doc → sampul → badan(1 hari)      → kaki → buffer
+mingguan = doc → sampul → badan × 7 hari     → kaki → buffer
+```
+
+Berkas mingguan TIDAK menggambar blanko sendiri. Kalau keduanya menyusun
+blankonya masing-masing, cepat atau lambat keduanya menyimpang — aturan yang
+sama dengan DECISIONS 241, dan yang ketahuan belakangan justru setelah dokumennya
+dikirim ke PPK.
+
+Alamatnya `/api/laporan/mingguan/[slug]/[minggu]/pdf`, memakai NOMOR MINGGU
+seperti `/cetak/rencana/[slug]/[n]` dan `/cetak/periodik/...`. Cetak harian
+bertambah `?sampul=0` untuk yang sudah memegang berkas mingguannya.
+
+### Hari tanpa laporan
+
+Keputusan user: **blanko kosong tanpa isian pekerjaan**, halamannya tetap ada.
+`getKkpDailyData` memang sudah mengembalikan blanko kosong untuk tanggal yang
+belum berlaporan, jadi tidak ada cabang khusus — satu jalur data, satu bentuk
+keluaran.
+
+Yang TIDAK boleh: menghilangkannya diam-diam. Jumlah hari kosong dicetak di kaki
+tiap halaman (`statusBerkasMingguan`), bukan cuma dikembalikan fungsi — berkasnya
+hidup sendiri sesudah keluar dari MARLIN.
+
+**Hari kosong ditanyakan ke basis data**, bukan disimpulkan dari `items.length`:
+blanko kosong dihasilkan baik oleh "belum ada laporan" maupun "laporan ada tapi
+belum diisi", dan menyamakan keduanya adalah kebohongan kecil yang tercetak.
+
+### Tanpa SPMK tidak terbit
+
+"Minggu ke-n" tidak punya tanggal tanpa SPMK. Menerbitkan dokumen resmi atas
+tanggal tebakan jauh lebih buruk daripada tidak terbit; route menjawab dengan
+menyebutkan sebabnya, bukan 404 telanjang.
+
+### Memori — DIUKUR, bukan ditebak
+
+`createFormA4Doc` memakai `bufferPages: true`: seluruh dokumen ditahan di RAM
+sampai selesai. Puncak RSS terukur (foto kamera 4000×3000 lewat pipeline 900px
+q72, proses node terisolasi):
+
+```
+1 hari,  15 foto → 212 MB        7 hari, 105 foto → 304 MB
+7 hari,  70 foto → 255 MB        7 hari, 175 foto → 358 MB
+```
+
+Ukuran BERKASNYA kecil (2–4 MB) — yang mahal memorinya, bukan hasilnya. Dua
+akibatnya:
+
+1. Foto dimuat **per hari, tepat sebelum digambar**, bukan tujuh hari sekaligus.
+2. `BATAS_FOTO_MINGGUAN = 120`, di bawah titik 358 MB, menyisakan ruang untuk
+   server Next yang sudah residen. Yang terpotong **disebutkan di kaki halaman**.
+
+Jebakan yang sama sudah membunuh impor AHSP bulan ini (DECISIONS 325); kali ini
+diukur lebih dulu.
+
+### Penjaga, dan kenapa bentuknya begitu
+
+- `tests/unit/mingguan-tanggal.test.ts` (12) — uji utamanya bukan "tanggalnya
+  benar" melainkan **kedua rumus saling membalik**: `tanggalMinggu` di sini dan
+  `weekNo` di `queries`. Kalau tidak, sampul menulis "MINGGU KE-3" di atas
+  hari-hari minggu ke-4 — dan tidak ada yang tahu sampai dokumennya sudah
+  ditandatangani.
+- `tests/integration/mingguan-berkas.test.ts` (7) — pada PDF SUNGGUHAN, sesuai
+  pelajaran DECISIONS 331.
+
+**Yang tidak bisa diuji, dan diakui:** PDF ini memakai font subset, sehingga bita
+string di dalamnya adalah ID glyph — mencari kata "LAPORAN HARIAN" di berkas
+hasilnya SELALU nihil. Uji yang mencari begitu akan hijau/merah karena alasan
+yang salah. Karena itu pembuktiannya struktural:
+
+```
+halaman(mingguan) === 1 + Σ halaman(harian tanpa sampul)
+halaman(mingguan) === Σ halaman(harian bersampul) − 6
+```
+
+Enam sampul yang hilang itulah intinya. Kalimat statusnya dipisah ke fungsi
+murni `statusBerkasMingguan` dan diuji terpisah.
+
+**Uji gigi**: sampul dicetak tiap hari (perilaku lama) → 2 merah; hari kosong
+dilewati → 2 merah; nomor minggu digeser satu → 2 merah integrasi + 4 merah unit;
+tanpa SPMK tetap terbit dengan tanggal karangan → 1 merah.
+
+---
+
+## 333 — Stempel dikurung di dalam blok tanda tangannya (2026-08-16)
+
+Keberatan user, dengan tangkapan layar lembar kurva-S:
+
+> *"stempelmu jangan melebihi areanya tandatangannya, itu memakan tabel juga."*
+
+Benar, dan itu akibat langsung dari 330. Di sana stempel dibatasi **2,3 × tinggi
+celah** demi mengejar ukuran foto dokumen asli — artinya ia sengaja dibuat lebih
+tinggi daripada blok tanda tangannya sendiri, lalu melimpah ke ATAS menembus
+tabel di atasnya. Pada PDF periodik: ruang blok 44 pt, stempel 74 pt → 30 pt
+masuk ke tabel.
+
+### Yang benar
+
+Stempel boleh menimpa teks **di dalam** blok tanda tangan (nama perusahaan,
+jabatan) — memang begitu dokumen aslinya — tapi tidak boleh keluar dari blok itu.
+
+```
+stempel = min(56% lebar kolom, ruangDiAtasNama)
+```
+
+`ruangDiAtasNama` = jarak dari tepi ATAS blok sampai garis nama, diserahkan
+pemanggil. `BATAS_STEMPEL` turun 2,3 → **1,0**: tidak boleh melebihi ruangnya
+sama sekali.
+
+### Supaya tetap sebesar dokumen asli, BLOKNYA yang diperbesar
+
+Bukan stempel yang dibiarkan melimpah:
+
+| penyaji | blok lama | blok baru | stempel | ×huruf |
+|---|---|---|---|---|
+| pdf periodik | 66 pt (nama +44) | 90 pt (nama +68) | 68 | 9,1 |
+| pdf harian | 70 pt (nama +46) | 94 pt (nama +70) | 70 | 10,0 |
+| pdf rencana | ruang 48 pt | ruang 72 pt | 72 | 9,6 |
+| html kurva-S | 40 px | 72 px | 72 | 8,5 |
+| html harian | 48 px | 84 px | 84 | 8,4 |
+| html periodik | 48 px | 84 px | 84 | 8,4 |
+| html mingguan | 56 px | 88 px | 88 | 8,8 |
+
+Foto dokumen aslinya 10,8 × tinggi huruf; ketujuhnya kini 8,4–10,0× **dan tidak
+ada yang melimpah**. Ini pertukaran yang benar: sedikit lebih kecil daripada
+foto, tapi tidak pernah memakan tabel.
+
+**Penjaga.** `tests/unit/ttd-stempel-cetak.test.ts` (20). Invarian utamanya
+sekarang `stempel.tinggi ≤ ruangDiAtasNama` untuk ketujuh penyaji, juga untuk
+kolom yang sangat lebar. Uji gigi: kembali ke 2,3 × ruang → 5 merah; melebihi
+1,05 × saja → 2 merah.
+
+---
+
+## 334 — Satu tombol per BERKAS, tujuannya di dalam menu (2026-08-16)
+
+> *"laporan 7 harian itu seharusnya satu tombol nanti muncul 3 opsi, kirim wa,
+> kirim google drive, download. itu lebih ringkas. pola itu di tombol lain juga
+> sepertinya lebih oke."*
+
+### Kenapa barisan tombol yang lama memang salah
+
+Bukan sekadar padat — ia menyusun **dua sumbu jadi satu deret**:
+
+```
+Kirim ke WhatsApp (PDF) · Excel · Unduh PDF · 7 Laporan Harian · Upload ke Drive (PDF + Excel)
+        tujuan            berkas    tujuan        berkas               tujuan
+```
+
+Lima tombol yang tidak sejajar artinya. Pembaca harus membaca satu per satu
+untuk tahu mana berkas dan mana tujuan, dan tiap berkas baru menambah tombol
+sebanyak tujuannya.
+
+Sekarang: **judul tombol = berkasnya, isi menu = tujuannya.** Menambah tujuan
+tidak lagi menambah tombol.
+
+`components/ui/menu-berkas.tsx` sengaja memakai `<details>`, bukan popover
+buatan sendiri: Esc, klik-di-luar, fokus papan ketik, dan pembaca layar sudah
+benar tanpa satu baris JS pun.
+
+**Syarat yang belum terpenuhi DITULIS**, bukan sekadar tombolnya diredupkan —
+"Paket belum punya grup WA", "Google Drive belum terhubung". Tombol redup tanpa
+keterangan membuat orang mengira aplikasinya rusak, bukan syaratnya kurang.
+
+### ~~Lubang~~ yang ternyata bukan lubang — dan duplikat yang saya buat sendiri
+
+Saya sempat menyimpulkan Excel laporan periodik tidak punya cara diunduh, lalu
+membuat rute `/api/laporan/periodik/[slug]/[kind]/[n]/xlsx`. **Salah**: rutenya
+sudah ada sejak lama di `/lokasi/[slug]/laporan-lokasi/export?kind=&n=`, dipakai
+tombol "Unduh Excel" di baris saringan. Rute baru itu **dibatalkan dan dihapus**;
+menu menunjuk yang sudah ada.
+
+Pelajarannya: sebelum menambah pintu, cari dulu pintunya. Keberatan user
+2026-08-16: *"begitu pula excel, kalau memang sudah ada, kenapa harus ada double
+seperti itu."*
+
+### Pertanyaan user: cetak vs unduh PDF menghasilkan hal yang sama?
+
+> *"di laporan mingguan, unduh pdf dan cetak bukannya menghasilkan sesuatu yang
+> sama? metodenya saja kan yang berbeda"*
+
+**Ya, dan itu memang dua penyaji berbeda untuk satu dokumen** — kodenya
+mengakuinya sendiri: `lib/pdf/periodik-kkp.ts` ditulis sebagai *"cermin komponen
+layar `ScurveKkpSheet`"*. Halaman `/cetak/...` adalah HTML yang di-Ctrl+P;
+`/api/.../pdf` adalah pdfkit.
+
+Untuk sekarang keduanya tetap ada, dan menu menyebutkan hubungannya apa adanya
+("Versi layar dokumen yang sama — lalu Ctrl+P"). Menyatukannya (cetak = buka PDF)
+adalah perubahan yang benar tapi bukan perubahan kecil, dan itu keputusan user —
+dicatat di OPEN_ISSUES sebagai CETAK-01, bukan dikerjakan diam-diam.
+
+---
+
+## 335 — Berkas mingguan ikut jalur WhatsApp & Drive; tombol ganda dibersihkan (2026-08-16)
+
+Dua teguran user, keduanya menunjuk pemborosan saya sendiri.
+
+### (a) "ngapain perlu tambahan, itu kan metode yang sama hanya filenya yang berbeda"
+
+Saya menandai Kirim-WA dan Upload-Drive untuk berkas mingguan sebagai "belum
+tersedia" **tanpa memeriksa dulu**. Setelah diperiksa: benar, pipanya memang
+generik. `sendPeriodReportPdfToWaAction` hanya merangkai `resolveWaChat` →
+`sendFile` → `audit`; `unggahLaporanPeriodik` hanya `konteksUnggah` →
+`uploadBatch` → `rangkum`. Yang berbeda cuma penyaji dan nama berkasnya, dan
+`GDriveUploadKind` ternyata union TS biasa — bukan enum DB, jadi tidak ada
+migrasi sama sekali.
+
+Total tambahannya ~90 baris yang seluruhnya meniru yang sudah ada. Menandainya
+"belum tersedia" jauh lebih mahal daripada mengerjakannya.
+
+Dua hal yang SENGAJA dibedakan dari laporan periodik:
+
+1. **`refKey` Drive berbeda** (`…:berkas-harian-minggu-N`). Keduanya "mingguan
+   ke-n" untuk lokasi yang sama, dan refKey itulah kunci idempotensi unggahan —
+   kalau disamakan, mengunggah salah satu akan terbaca sebagai unggahan yang
+   lain sudah selesai.
+2. **Namanya diawali "Laporan Harian"**, karena isinya memang tujuh laporan
+   HARIAN. Dua berkas berbeda bernama mirip dalam satu folder adalah cara
+   tercepat orang mengirim yang salah ke PPK.
+
+Kekurangan berkas (hari kosong, foto terpotong) ikut **disebut di keterangan
+WhatsApp**, bukan hanya tercetak di kaki halaman: yang menerima di WA membaca
+keterangan lebih dulu.
+
+### (b) "kenapa kamu double, rapikan"
+
+Perapian 334 menambahkan menu tapi **membiarkan tombol lamanya**. Hasilnya
+justru lebih buruk daripada sebelumnya:
+
+| berkas | jalur ganda |
+|---|---|
+| cetak laporan periodik | tombol "Cetak" di baris saringan **dan** "Buka untuk dicetak" di menu |
+| Excel laporan periodik | tombol "Unduh Excel" di baris saringan **dan** "Unduh" di menu Excel |
+| Excel laporan periodik | ditambah lagi rute `/api/…/xlsx` yang saya buat, padahal `/laporan-lokasi/export` sudah ada |
+
+Ketiganya dibersihkan: tombol di baris saringan dihapus, rute duplikat dihapus,
+menu menunjuk rute yang sudah ada. Sekarang **tepat satu jalur per berkas** di
+layar itu.
+
+Tiga tombol jadwal di kepala kartu juga disatukan jadi satu menu
+"Jadwal / Time Schedule". Salah satunya berlabel "Unduh Excel" — persis sama
+dengan tombol Excel LAPORAN di bawahnya, padahal isinya jadwal. Label yang sama
+untuk dua berkas berbeda adalah kesalahan kirim yang menunggu terjadi.
+
+**Pelajarannya, dan ini yang mahal**: perapian yang menambah tanpa membuang
+bukan perapian. Dan sebelum menambah pintu, cari dulu pintunya.
+
+---
+
+## 336 — /hari-ini: strip 7 hari, matriks, dan dua bentuk untuk dua pengguna (2026-08-16)
+
+> **SEBAGIAN DIBATALKAN oleh DECISIONS 337.** Ringkasan, saringan, dan matriks
+> DIPINDAH dari /hari-ini. Yang masih berlaku dari sini: strip 7 hari, urutan
+> menurut masalah, status berkata (bukan warna saja), huruf yang tidak kembar,
+> dan angka yang selalu berpenyebut.
+
+User mengirim rancangan HTML halaman /hari-ini dan bertanya pendapat. Idenya
+benar dan sebagian besar diambil — tapi tidak seluruhnya, dan alasannya penting.
+
+### Yang diambil
+
+**Strip 7 hari.** Bentuk lama menampilkan tujuh hari sebagai daftar tujuh baris
+vertikal PER LOKASI. Untuk Site Manager dengan 12 lokasi itu **84 baris untuk
+digulir** hanya demi melihat kelengkapan. Sekarang satu baris per lokasi.
+Datanya sudah ada (`getHariIniLocation.last7Days`), jadi ini murni penyajian.
+
+**Matriks lokasi × 7 hari** dan saringan **"Perlu Tindakan"**. Halaman lama
+TIDAK BISA menjawab "lokasi mana yang tertinggal" tanpa menggulir semuanya.
+
+**Ringkasan berangka di atas** — tapi lihat di bawah.
+
+**Urutan menurut masalah**, bukan abjad. Halaman ini dibuka untuk MENGERJAKAN
+sesuatu; mengurut menurut nama membuat lokasi bermasalah terkubur di bawah
+sepuluh lokasi yang sudah beres.
+
+### Yang TIDAK diambil, dan kenapa
+
+**1. Tombol lapor yang mengecil.** Di rancangan, tombol utama jadi tombol 36 px
+di pojok kartu. Untuk mandor — satu lokasi, di luar ruangan, sering gaptek —
+itu lebih buruk daripada sekarang.
+
+Ini inti persoalannya: **rancangan itu diam-diam mengganti penggunanya.** Ia
+pandangan MANAJER, sementara halaman lama pandangan MANDOR. Keduanya benar
+untuk penggunanya masing-masing.
+
+Jalan keluarnya: satu halaman, **dua bentuk**, ditentukan **lingkup lokasi**
+(bukan peran — peran bisa sama sementara lingkupnya berbeda). Satu lokasi →
+tombol besar penuh lebar tetap menang, tanpa ringkasan yang menundanya. Banyak
+lokasi → strip, ringkasan, matriks.
+
+**2. "Target minggu ini" dibuang.** Rancangan menghapusnya. Itu **satu-satunya
+bagian halaman yang melihat KE DEPAN** — yang memberi tahu mandor apa yang
+harus dikerjakan, bukan cuma apakah ia sudah melapor. Dipertahankan.
+
+**3. Navigasi bawah lima tombol.** `AppShell` sudah punya nav yang disaring per
+capability. Nav kedua adalah persis duplikasi yang baru dibersihkan
+(DECISIONS 335).
+
+**4. Drawer yang meringkas ulang laporan** ("Pekerjaan 3 item · Tenaga 18 orang
+· Alat 4 unit"). Itu pembacaan kedua atas laporan harian di tempat lain — pola
+yang sudah dua kali menggigit repo ini (DECISIONS 241, 267). Tiap sel langsung
+menaut ke laporannya.
+
+### Dua cacat pada rancangan yang diperbaiki, bukan disalin
+
+**Status berbasis warna saja.** Sel harinya mengandalkan warna + teks 8 px.
+Aturan repo sudah menuliskannya di `kkp-weekly-plan.tsx` (*"Semua penanda status
+ditulis DENGAN KATA, tidak pernah warna saja"*), dan alasannya sama kuat di
+layar: HP murah di bawah matahari, dan buta warna merah-hijau ada pada ±8%
+laki-laki. Tiap sel kini membawa KATA; matriks membawa HURUF.
+
+**Huruf matriks kembar.** Rancangannya memakai `F` untuk Final dan `S` untuk
+Setuju sambil **mewarnai keduanya dengan kelas yang sama** (`cell final` dipakai
+untuk "S"), sehingga di matriks kedua status itu tidak bisa dibedakan sama
+sekali. Sekarang F/S/K/D/!/— masing-masing satu status, dan keunikannya diuji —
+bukan diandalkan pada kehati-hatian penulis berikutnya.
+
+**Angka tanpa penyebut.** Rancangannya menulis "Final/Setuju **51**". 51 dari
+84 dan 51 dari 51 adalah dua kabar yang sangat berbeda, dan pembacanya tidak
+punya cara membedakannya. Setiap angka kini "n / m hari" — aturan yang sama
+dengan cakupan RAPL (DECISIONS 327).
+
+### Satu keputusan yang tidak kentara
+
+**"Perlu tindakan" hanya melihat HARI INI + koreksi tertunda**, bukan seluruh
+tujuh hari. Hari kemarin yang kosong tidak bisa diisi mandor lagi; menandainya
+setiap hari membuat penandanya selalu menyala dan kehilangan arti. Hari kosong
+yang sudah lewat tetap DILAPORKAN, hanya di tempat lain (ringkasan), dan
+spanduk "tidak ada yang perlu dikerjakan" menyebutkannya supaya tidak terbaca
+"semuanya sempurna".
+
+**Penjaga.** `tests/unit/hari-ini-ringkas.test.ts` (18) atas lapisan murni. Uji
+gigi: Final & Setuju dibuat berhuruf sama (cacat rancangan) → 1 merah; kata
+dihapus → 1 merah; penyebut hilang → 1 merah; perlu-tindakan melihat 7 hari →
+2 merah; urutan kembali ke abjad → 1 merah.
+
+Rute matriks & "perlu tindakan" **ditambahkan ke pagar overflow mobile**
+(DECISIONS 217) — matriks adalah elemen terlebar di halaman itu, dan pola
+"scroll di dalam kontainer" persis yang dulu meleset. Uji gigi di peramban
+sungguhan: kontainer scroll dilepas → e2e 375px MERAH, dipulihkan → 18 hijau.
+
+---
+
+## 337 — /hari-ini dikembalikan jadi alat kerja pelaksana (2026-08-17)
+
+Koreksi user 2026-08-17, dengan tangkapan layar ponsel:
+
+> *"fokus halaman hari ini tetap adalah langsung klik hari ini atau tanggal yang
+> mau dilaporkan. filter ini dan lain2 lebih baik di halaman lokasi →
+> pelaksanaan harian. sesuai katamu, fokus site manager dan pelaksana beda,
+> hari ini fokus pelaksana."*
+
+### Saya melanggar prinsip yang saya tulis sendiri
+
+Di DECISIONS 336 saya menulis panjang bahwa mandor dan Site Manager butuh hal
+berbeda — lalu **tetap** menaruh ringkasan angka, saringan, dan matriks di
+/hari-ini, cuma dipagari `banyakLokasi > 1`.
+
+Pagar itu tidak menolong, dan layar user membuktikannya: **Site Manager dengan
+DUA lokasi** disambut empat kotak angka + spanduk + tiga tab + keterangan
+status, sebelum tombol pertamanya. Halaman yang seharusnya "tekan, lalu kerja"
+berubah jadi laporan yang harus dibaca dulu.
+
+Ambang "lebih dari satu" itu sendiri yang keliru. Yang menentukan bukan berapa
+lokasinya, melainkan **untuk apa halaman itu dibuka**.
+
+### Pembagian yang sekarang tegas
+
+| halaman | tugas |
+|---|---|
+| `/hari-ini` | **mengerjakan** — tombol besar + strip 7 hari untuk menekan tanggal |
+| `/lokasi/{slug}/harian` | memeriksa **satu** lokasi — ringkasan + saringan |
+| `/laporan/status-harian` | memeriksa **lintas** lokasi (sudah ada, DECISIONS 262) |
+
+Tiga tempat, tiga tugas, tanpa tumpang tindih.
+
+**Matriks lokasi × 7 hari DIHAPUS**, bukan dipindah. `/laporan/status-harian`
+sudah memiliki pemantauan lintas-lokasi sejak DECISIONS 262; menaruh papan
+kedua di tempat lain adalah persis duplikasi yang baru dibersihkan
+(DECISIONS 334/335). Kalau kelak sudut pandang 7-hari memang dibutuhkan, ia
+menjadi tampilan tambahan DI HALAMAN ITU — bukan halaman baru.
+
+### Yang tetap di /hari-ini, dan kenapa
+
+Strip 7 hari **tinggal** — tapi artinya berubah. Ia bukan pemantauan, melainkan
+**pemilih tanggal**: justru itu yang diminta user ("klik hari ini atau tanggal
+yang mau dilaporkan"). Judulnya ikut berubah jadi "Laporkan tanggal lain", dan
+di bawahnya ada tautan ke Pelaksanaan Harian untuk yang butuh rentang lebih
+panjang.
+
+Tombol utama kini **selalu** besar dan penuh lebar — berapa pun jumlah
+lokasinya. Tidak ada lagi percabangan bentuk.
+
+### Pemantauan satu lokasi, di tempatnya
+
+`/lokasi/{slug}/harian` bertambah ringkasan 14 hari **berpenyebut** ("8 / 14
+hari") dan bilah saringan (semua · perlu tindakan · belum ada · draft · koreksi
+· selesai). Saringannya hidup di **alamat halaman**, bukan state komponen —
+hasilnya punya URL sendiri dan bisa dikirim lewat WhatsApp, cara kerja tim ini
+sehari-hari (alasan yang sama dengan DECISIONS 279).
+
+Yang disaring **disebut jumlahnya** ("Menampilkan 5 dari 14 hari — 9
+disembunyikan saringan"): "tidak muncul" tidak boleh terbaca "tidak ada".
+
+**Satu perbedaan yang disengaja**: "perlu tindakan" pada LOKASI (`perluTindakan`,
+dipakai mengurutkan /hari-ini) hanya melihat hari ini + koreksi tertunda,
+sedangkan pada DAFTAR RIWAYAT (`lolosSaringHarian`) ia juga meloloskan hari
+lampau yang kosong. Bukan ketidakkonsistenan: mandor tidak bisa mengisi hari
+lampau dari /hari-ini, tapi halaman riwayat justru dibuka untuk menambalnya.
+
+**Penjaga.** `tests/unit/hari-ini-ringkas.test.ts` naik ke 24. Yang baru
+mengunci saringan: nilai tak dikenal jatuh ke "semua" (alamat salah ketik tidak
+boleh menghasilkan halaman kosong yang terbaca "tidak ada laporan"), tiap
+saringan sempit adalah himpunan bagian "semua", dan saringan sempit
+bersama-sama menutupi SELURUH status — kalau ada status yang tercecer, ia hanya
+bisa ditemukan lewat "Semua" dan orang tidak akan tahu ia ada.
+
+Uji gigi: saringan tak dikenal menyembunyikan semuanya → 1 merah; satu status
+tercecer dari semua saringan → 2 merah; penyebut hilang → 1 merah; "perlu
+tindakan" riwayat melewatkan hari kosong → 1 merah.
+
+Rute tersaring ikut ke pagar overflow mobile — dan sengaja ditaruh di uji
+DINAMIS yang slug-nya dari `E2E_SLUG`, bukan daftar statis. Percobaan pertama
+saya mengeraskan `kedung-mutih` padahal seed memakai `kedungmutih`: rutenya 404,
+dan uji melewatinya dengan `status() >= 400` — hijau tanpa memeriksa apa pun.
+
+---
+
+## 338 — Tanya-jawab WhatsApp bebas: izin dikerjakan lebih dulu (2026-08-17)
+
+Permintaan user: kirim pesan WhatsApp berbahasa bebas, MARLIN menerjemahkan lalu
+menjawab dari data sistem. Contohnya *"ada kendala apa hari ini"*, *"kendala di
+<lokasi>"*, *"progress hari ini di A, B, C"*, *"mana yang deviasinya negatif"*.
+
+**Bisa** — dan hampir seluruh pipanya sudah ada: webhook masuk ber-token
+(DECISIONS 119), pemetaan nomor → pengguna (138), `aiStructured` dengan skema
+Zod, pembangun data deterministik ber-scope (133), penjaga laju + kill-switch,
+dan pengirim WhatsApp.
+
+### Bentuknya: AI jadi PENERJEMAH, bukan penjawab
+
+```
+WA masuk → siapa penanyanya → AI mengubah kalimat jadi NIAT
+        → guard + lingkup izin → pembangun data deterministik
+        → rakit balasan dari angka jadi → kirim
+```
+
+AI tidak pernah menghasilkan angka; ia hanya memetakan *"mana yang deviasinya
+negatif"* ke `{niat: "deviasi_negatif", lokasi: null}`. Angkanya tetap dari calc
+layer. Ini doktrin yang sudah tertulis — `ai-hub/source.ts`: *"AI tidak pernah
+query DB; AI hanya menerima hasil builder ini"* (133), dan *"AI bukan sumber
+angka"* (193).
+
+### Kenapa izin dikerjakan lebih dulu, sebelum satu balasan pun terkirim
+
+Kebocoran di sini bukan kesalahan tampilan. Ia mengirim angka kontrak orang lain
+ke telepon yang salah, lewat saluran yang di-screenshot dan diteruskan — dan
+tidak ada cara menariknya kembali.
+
+**Tiga pertanyaan yang dijaga TERPISAH:**
+
+1. **Apakah MARLIN diajak bicara?** DM: selalu. Grup: hanya bila di-mention
+   (keputusan user). Penyebutan dibaca dari **daftar JID**, bukan teks "@marlin"
+   di badan pesan — nama tampilan bisa diubah siapa saja, JID tidak.
+2. **Siapa penanyanya?** Nomor WhatsApp BUKAN sesi login. Hanya nomor yang cocok
+   dengan pengguna MARLIN aktif; nama tampilan tidak pernah dipakai.
+3. **Apa yang boleh disebut di sana?** — dan ini **tidak selesai** oleh (1).
+
+### Butir (3), yang tidak terpikir dari permintaannya
+
+Mention menjawab "kapan membalas", bukan "apa yang boleh dibocorkan". Kalau
+seseorang bertanya *"mana yang deviasinya negatif"* di grup Paket A, jawaban
+jujurnya menyebut Paket B dan C — dan seluruh anggota grup A ikut membacanya,
+termasuk vendor paket itu.
+
+Karena itu di grup, lingkup jawaban **dipotong** ke lokasi paket grup tersebut:
+
+```
+lingkup akhir = lokasi pengguna ∩ (grup ? lokasi paket grup : semua)
+```
+
+Tiap lapis boleh MEMPERSEMPIT, tidak pernah melebarkan — termasuk untuk super
+admin: izin PENANYA tidak menaikkan apa yang pantas dibaca ANGGOTA GRUP.
+
+Grup yang tidak tertaut paket **tidak dilayani sama sekali**: tanpa tautan,
+tidak ada dasar memutuskan apa yang pantas dibaca anggotanya.
+
+Dan pemotongannya **selalu disebutkan** ("Jawaban ini hanya mencakup Paket X…").
+Jawaban sebagian yang tidak mengaku sebagian akan dibaca sebagai jawaban
+lengkap.
+
+### Satu kegagalan yang dipilih dengan sadar
+
+Kalau nomor MARLIN sendiri belum diketahui, grup **tidak pernah** dilayani —
+bukan dilayani semua. Diam adalah kegagalan yang benar di sini; membalas setiap
+pesan grup lapangan yang ramai sepanjang hari adalah kegagalan yang mahal.
+
+**Penjaga.** `tests/unit/waha-tanya-izin.test.ts` (21). Uji gigi: grup dijawab
+tanpa mention → 4 merah; mention dibaca dari teks → 1 merah; grup tidak dipotong
+→ 3 merah; pemotongan tidak disebut → 1 merah; grup tanpa tautan paket tetap
+dilayani → 1 merah.
+
+Sisa pekerjaannya (penerjemah niat, pembangun data, perakit balasan, rangkaian
+webhook) tercatat di OPEN_ISSUES sebagai **WATANYA-01** — belum dikerjakan, dan
+jangan terbaca sudah.
+
+---
+
+## 339 — Tanya-jawab WhatsApp bebas: dari izin sampai jawaban (2026-08-17)
+
+DECISIONS 338 hanya membangun pagarnya. Ini yang menjadikannya alat: penerjemah
+niat, pengambil angka, perakit balasan, dan rangkaiannya di webhook. Teguran
+user yang memicunya tepat — *"jadi saat ini aku belum bisa melakukan apapun?
+kalau 4 item itu belum kamu kerjakan?!"* Pagar tanpa jalan bukan setengah
+fitur; ia nol fitur.
+
+### Nomor MARLIN sendiri: koreksi, bukan pekerjaan baru
+
+Di OPEN_ISSUES saya menulis nomor MARLIN "belum tersimpan di konfigurasi" dan
+mendaftarkannya sebagai penghalang. Itu salah. `getSessionStatus()` di
+`waha/client.ts` sudah mengembalikan `me: { id, pushName }` sejak lama, dan
+`waha/actions.ts` sudah memakainya untuk menampilkan akun yang sedang login.
+
+Yang benar bukan menambah medan pengaturan, melainkan MEMBACA yang sudah ada:
+`getNomorMarlin()` — `me.id` dari sesi, di-cache 10 menit di memori proses.
+Menyalin nomor itu ke pengaturan justru menciptakan sumber kedua yang basi
+begitu sesi dipindah ke nomor lain, dan basinya tidak akan terlihat: MARLIN
+cuma berhenti menjawab di grup, tanpa galat.
+
+Dua rincian yang disengaja: hanya sesi berstatus `WORKING` yang dipercaya
+(sesi `SCAN_QR_CODE` bisa membawa `me` sisa sesi sebelumnya), dan kegagalan
+di-cache 1 menit saja — bukan 10 — supaya sesi yang baru login cepat terbaca.
+
+### Urutan langkah adalah keputusan, bukan selera
+
+```
+1. bukan pesan kita sendiri   6. lingkupJawaban()
+2. diajakBicara()             7. katalog lokasi → cocokkan nama
+3. siapa penanyanya (nomor)   8. calc layer → kata → kirim
+4. guard AI                   
+5. AI → struktur niat         
+```
+
+**Langkah 6 tidak boleh ditukar dengan 7.** Katalog nama HARUS lahir dari
+lingkup yang sudah dipotong. Kalau nama dicocokkan ke seluruh basis data lalu
+hasilnya disaring, balasan "nama itu ambigu, maksudnya A atau B?" sudah
+membocorkan bahwa A dan B ada — padahal penanya tidak berhak tahu. Dengan
+urutan yang benar, lokasi di luar haknya jatuh ke "tidak saya kenali", persis
+sama seperti salah ketik.
+
+**Langkah 1 bukan basa-basi.** Tanpa pagar `fromMe`, balasan MARLIN masuk lagi
+lewat `message.any` dan MARLIN membalas dirinya sendiri — tanpa henti, di grup
+pelanggan.
+
+### Diam adalah jawaban yang sah — tapi hanya di satu tempat
+
+Nomor tak dikenal yang mengirim **chat pribadi** tidak dibalas sama sekali.
+Balasan apa pun — termasuk "Anda belum terdaftar" — mengkonfirmasi bahwa nomor
+ini milik sistem proyek dan mengundang percobaan berikutnya.
+
+Di **grup** berbeda: grupnya sudah tertaut paket dan orangnya sengaja
+me-mention, jadi keterangan singkat ("nomor Anda belum terdaftar, hubungi
+admin") lebih menolong daripada diam yang terbaca seperti kerusakan.
+
+### Pagar yang TIDAK ada di 338 dan baru terlihat saat merangkai
+
+`lingkupJawaban` meng-irisan lokasi grup dengan izin penanya — dan izin super
+admin adalah "tanpa batas". Untuk grup milik **organisasi lain**, irisan itu
+menjadi seluruh lokasi grup asing. Aturannya benar; yang kurang adalah
+datanya. Karena itu `paketGrup(chatId, orgId)` mensyaratkan `orgId` yang sama;
+grup tenant lain jatuh ke "belum tertaut paket".
+
+Ini persis kelas kebocoran yang ditutup DECISIONS 150, dan ia hanya muncul
+ketika aturan murni bertemu query nyata — bukti bahwa uji murni saja tidak
+cukup untuk fitur ini.
+
+### Nama disebut tapi tak dikenali → JANGAN melebar
+
+Kalau penanya menulis "progress di Tengket" dan Tengket di luar lingkupnya,
+godaannya adalah membuang nama itu, mendapat `lokasiDisebut = []`, lalu
+menjawab untuk SELURUH lingkup. Itu menjawab pertanyaan yang tidak ditanyakan,
+dengan data yang tidak diminta, dan pembacanya akan mengira itu jawaban untuk
+Tengket. Jalur ini ditutup eksplisit.
+
+### Angka: tidak satu pun lahir di jalur ini
+
+`tanya-data.ts` tidak memuat satu pembagian pun. Realisasi, rencana, dan
+deviasi diambil bulat-bulat dari `getLocationsProgress`; kelengkapan dari
+`getStatusHarian` (DECISIONS 262) supaya jawaban WhatsApp dan halaman
+`/laporan/status-harian` mustahil berbeda. AI hanya mengisi
+`{niat, lokasiDisebut, periode}` — doktrin 133/193 utuh.
+
+Tiga rincian penyajian yang bukan kosmetik:
+
+- **`itemHariIni = null` ≠ `0`.** null = belum ada laporan; 0 = ada laporan,
+  isinya masih kosong. Menyatukannya membuat lokasi lalai terlihat sama dengan
+  lokasi rajin yang belum sempat mengisi.
+- **Kendala `ditangani` ikut, dan statusnya ditulis.** Pertanyaan "ada kendala
+  apa" menanyakan apa yang masih menekan; kendala yang sedang ditangani masih
+  menekan. Tapi "sudah ada yang pegang" tidak boleh hilang.
+- **Penyebut selalu utuh.** "1 belum lapor" tanpa penyebut bisa berarti 1 dari
+  2 atau 1 dari 83. Yang dirinci hanya yang perlu ditindak; `total` tetap
+  seluruh lokasi yang diperiksa.
+
+### Batas baris diakui, tidak dipotong diam-diam
+
+Balasan WhatsApp panjang tidak terbaca di lapangan — ia dilipat, di-"baca
+selengkapnya", lalu dilewati. Karena itu 15 baris (20 untuk kendala). Setiap
+pemotongan dicetak: "Ditampilkan 15 dari 40 lokasi." Daftar yang dipotong diam
+akan dibaca sebagai daftar lengkap — masalah yang sama persis dengan
+pemotongan lingkup di 338, di lapis yang berbeda.
+
+### Kuota: ai_runs, bukan penghitung baru
+
+Tiap panggilan menulis satu baris `ai_runs` berkindkan `tanya` (enum-nya sudah
+ada). Tanpa itu, tanya-jawab memakai provider tanpa menambah hitungan kuota:
+satu grup ramai bisa menghabiskan anggaran AI sepanjang hari sementara panel
+AI Hub melaporkan nol pemakaian.
+
+Rangkaiannya juga TERPISAH dari `ingestWaEvent`, dan itu perlu: ingest hanya
+menyimpan pesan grup tertaut paket, sedangkan tanya-jawab juga melayani chat
+pribadi yang memang tidak pernah diarsipkan. Menyatukan keduanya berarti chat
+pribadi tak pernah terjawab — atau seluruh chat pribadi ikut tersimpan, yang
+tidak diminta siapa pun. (Efek sampingnya: log ingest berhenti menuduh chat
+pribadi sebagai "grup belum tertaut paket", tuduhan yang mengirim admin
+memburu tautan yang tidak pernah ada.)
+
+**Penjaga.** `tests/unit/waha-tanya-niat.test.ts` (24) untuk bagian murni;
+`tests/integration/waha-tanya-jawab.test.ts` (16) untuk perangkainya —
+memakai `accessibleLocationIds`, `locationScopeWhere`, dan query lokasi yang
+ASLI; hanya jaringan WhatsApp dan penyedia AI yang dipalsukan. Aturan yang
+benar tapi tidak terpanggil terlihat persis sama seperti aturan yang salah,
+dari sisi orang yang menerima balasannya.
+
+Uji gigi pada perangkai — enam pagar dicabut satu per satu:
+
+| pagar dicabut | hasil |
+| --- | --- |
+| `fromMe` | 1 merah |
+| mention di grup | 1 merah |
+| pemotongan lingkup grup | 3 merah |
+| syarat seorganisasi | 1 merah |
+| nama tak dikenal melebar | 1 merah |
+| DM nomor asing dibalas | 1 merah |
+| dipulihkan | 16 hijau |
+
+Uji pasangan yang penting: "jawaban grup tidak menyebut Tengket" ditemani
+"chat pribadi orang yang SAMA menyebut Tengket". Tanpa pasangannya, uji
+pertama bisa hijau hanya karena Tengket tidak pernah muncul di jawaban mana
+pun.
+
+### Yang BELUM ada, dan jangan terbaca sudah
+
+Hanya periode `hari_ini`. "progress minggu lalu" akan dijawab sebagai hari ini
+— skemanya memaksa `periode: "hari_ini"`, jadi jawabannya benar untuk hari
+ini, tetapi bukan yang ditanyakan. Menambah periode berarti menambah pilihan
+enum + jalur `asOf` di pengambil datanya; dicatat di OPEN_ISSUES sebagai
+WATANYA-02.
+
+---
+
+## 340 — Pelaksanaan Harian jadi kalender: seluruh riwayat, bukan 14 hari (2026-08-17)
+
+Permintaan user, disertai konsep HTML: *"ubah halaman lokasi→pelaksanaan harian
+dengan konsep ini. tujuan utamanya, agar tidak hanya menampilkan 14 hari
+terakhir."*
+
+Jendela 14 hari itu keputusan saya sendiri di DECISIONS 337, dan ia salah.
+Untuk kontrak 22 minggu, 90% riwayatnya tidak punya alamat sama sekali: tanggal
+yang terlewat bulan lalu tidak bisa ditemukan, tidak bisa ditambal, dan tidak
+bisa dibuktikan pernah kosong. Yang terpotong bukan kenyamanan — melainkan
+bukti.
+
+### Yang TIDAK diambil dari konsepnya
+
+Konsep membuka dengan pita enam metrik proyek (nilai kontrak, periode, rencana,
+realisasi, deviasi, minggu berjalan). Pita itu **sudah ada** di `layout.tsx`
+lokasi, di atas seluruh tab. Memasangnya lagi berarti dua tempat yang harus sama
+selamanya, dan begitu salah satunya berubah pembacanya tidak punya cara tahu
+mana yang benar. Angkanya tidak hilang; ia cuma tidak dicetak dua kali.
+
+### Temuan yang tidak ada di permintaannya: "kosong" ada TIGA macam
+
+Selama jendelanya 14 hari, "tidak ada laporan" hampir selalu berarti satu hal:
+ada yang lalai. Begitu jendelanya seluruh kontrak, arti itu pecah.
+
+| keadaan | artinya | ikut penyebut? |
+| --- | --- | --- |
+| `ada` | ada laporannya | ya |
+| `kosong` | dalam masa kontrak, sudah lewat, tanpa laporan | ya — **ini** yang harus ditambal |
+| `luar_kontrak` | sebelum SPMK / sesudah masa kontrak | tidak |
+| `belum_tiba` | hari yang belum terjadi | tidak |
+
+Kalau ketiganya dicat sama, membuka bulan depan menampilkan **30 hari "belum ada
+laporan"** — angka yang menakutkan, salah, dan tidak bisa ditindaklanjuti. Ini
+penerusan aturan yang sama dengan minggu 0 pada kurva-S (DECISIONS 202): hari
+yang pekerjaannya belum boleh dimulai bukan hari yang terlambat.
+
+Konsekuensinya: penyebut ringkasan **hanya** menghitung `kosong` + `ada`, dan
+sisanya tetap disebut jumlahnya di bawah kalender — yang tidak dihitung tidak
+boleh terbaca hilang.
+
+### Laporan yang TERLANJUR ada di luar masa kontrak tetap ditampilkan
+
+Impor rekap Excel bisa menghasilkan laporan bertanggal di luar kontrak (data
+seed repo ini sendiri punya: kontrak Kedungmutih berakhir 28 Juli, laporannya
+9–16 Agustus). Menyembunyikannya membuat kesalahannya awet — data yang salah
+harus TERLIHAT untuk bisa diperbaiki. Karena itu batas navigasi bukan hanya masa
+kontrak:
+
+```
+min = paling awal dari (mulai kontrak, laporan paling lama)
+max = paling akhir dari (bulan ini, laporan paling baru)
+```
+
+Invarian yang dijaga uji: **setiap bulan yang memuat data WAJIB terjangkau**.
+Batas yang terlalu ketat mengembalikan persis cacat yang sedang diperbaiki,
+hanya dengan bentuk yang lebih meyakinkan — kalendernya terlihat lengkap,
+padahal riwayatnya terpotong.
+
+### Dua bentuk, dua pertanyaan
+
+- **Kalender** (bawaan) — satu bulan, enak dipindai, sel membawa jumlah item.
+- **Daftar** — SELURUH rentang sekaligus dalam `MarlinGrid`: diurut, dicari,
+  diunduh CSV. Ini jawaban paling langsung atas "jangan hanya 14 hari": pada
+  data seed, 158 baris Maret–Agustus dalam satu tabel.
+
+AG Grid, bukan tabel buatan sendiri (aturan CLAUDE.md) — dan alasannya terasa
+persis di sini: 150+ baris tanpa pengurutan dan pencarian bukan daftar,
+melainkan gulungan.
+
+Angka di chip saringan mengikuti **cakupan yang sedang dilihat**. Kalender
+menghitung satu bulan, daftar menghitung seluruh rentang; chip yang selalu
+menghitung bulan berjalan akan menawarkan "Belum ada (12)" lalu menampilkan 60
+baris.
+
+### Saringan MEREDUPKAN di kalender, MENYARING di daftar
+
+Menghapus sel dari kalender merusak barisnya — tanggal 20 akan pindah ke kolom
+hari Selasa. Karena itu di kalender saringan hanya meredupkan, dan jumlah yang
+diredupkan disebut. Di daftar, menyaring baris tidak merusak apa pun, jadi ia
+benar-benar menyaring.
+
+Satu tambahan yang wajib: hari `luar_kontrak` dan `belum_tiba` **tidak pernah**
+cocok dengan saringan status apa pun, termasuk "Belum ada". Tanpa itu, menekan
+"Belum ada" pada bulan depan menyorot 30 hari yang belum terjadi seolah semuanya
+tertinggal. Saringan yang menyorot hal yang salah lebih buruk daripada tidak ada
+saringan — ia terlihat seperti jawaban.
+
+### Seluruh keadaan di ALAMAT, bukan di `useState`
+
+`?bulan`, `?tgl`, `?saring`, `?tampilan`. Alasannya sama dengan DECISIONS 279:
+layar yang sedang dilihat harus bisa dikirim ke orang lain lewat WhatsApp, cara
+kerja tim ini sehari-hari. "Buka Juni, lihat tanggal 12" jauh lebih berguna
+dikirim sebagai tautan daripada sebagai instruksi. Konsekuensi yang diterima:
+tiap ketukan tanggal adalah satu perjalanan ke server — karenanya `prefetch`
+dimatikan di 42 sel (42 permintaan hanya untuk membuka satu bulan).
+
+### Aritmetika tanggal: UTC murni, dan Senin = 0
+
+Dua cacat SENYAP yang dijaga uji:
+
+1. `new Date("2026-08-01").getDate()` membaca tanggal di zona MESIN. Dari
+   Jakarta hasilnya benar; di runner UTC−7 tanggal 1 terbaca 31 dan kalendernya
+   bergeser satu hari penuh — tanpa galat apa pun. Seluruh modul memakai string
+   "YYYY-MM-DD" dan `Date.UTC`.
+2. `getUTCDay()` memakai Minggu = 0; kalender ini Senin = 0. Meleset satu kolom
+   dan SETIAP tanggal jatuh di hari yang salah. Diuji langsung terhadap tanggal
+   yang harinya sudah diketahui (17 Agu 2026 = Senin, 23 Agu = Minggu, 1 Feb =
+   Minggu).
+
+### Kosakata status DIPINJAM, tidak ditulis ulang
+
+`TAMPIL_STATUS` diekspor dari `hari-ini-ringkas.ts` dan dipakai apa adanya. Dua
+kosakata untuk satu status adalah cara paling mudah membuat strip 7 hari dan
+kalender menyebut hal yang sama dengan kata berbeda — dan tidak ada yang
+menyadarinya sampai seseorang membandingkan dua layar.
+
+Di ponsel sel selebar ±44px, jadi ada kata SANGAT pendek (`singkat`). Sengaja
+tetap KATA, bukan huruf/titik: percobaan pertama memakai "·" untuk *di luar
+kontrak* MAUPUN *belum tiba*, dan dua fakta berbeda tampil identik — persis
+yang dilarang aturan "status tidak pernah hanya warna". Sekarang
+Final/Setuju/Kirim/Draft/Koreksi/Belum/Luar/Nanti, seluruhnya berbeda, dijamin
+`singkatUnik()`.
+
+**Penjaga.** `tests/unit/kalender-harian.test.ts` (32). Uji gigi delapan pagar:
+
+| pagar dicabut | hasil |
+| --- | --- |
+| kolom Minggu = 0 | 3 merah |
+| batas hanya masa kontrak | 2 merah |
+| laporan masa depan tak terjangkau | 1 merah |
+| luar kontrak dianggap kelalaian | 4 merah |
+| hari belum tiba dianggap terlewat | 5 merah |
+| sel titipan ikut dihitung | 3 merah |
+| saringan menyorot hari belum tiba | 1 merah |
+| kabisat dihitung 28 tetap | 1 merah |
+| dipulihkan | 32 hijau |
+
+Ditambah `tests/e2e/mobile-overflow.spec.ts`: kalender (kisi 7 kolom) dan daftar
+(AG Grid 5 kolom) ikut disapu di 375px — dua bentuk yang paling gampang
+melebihi layar. Uji gigi: memberi sel lebar minimum 96px (7×96 = 672px) membuat
+sapuan itu merah, dan hijau lagi setelah dipulihkan.
+
+---
+
+## 341 — Tata letak input harian: sumber foto, foto material, dan kendala (2026-08-17)
+
+Permintaan user, disertai konsep HTML: *"pelajari dan adaptasi desain untuk
+inputan harian ini, terutama pada peletakan pemilihan sumber foto pada inputan
+pekerjaan lalu pada pelengkap laporan KKP. juga pada layout inputan fotonya.
+punyamu saat ini terlalu scroll ke bawah bahkan user tidak tahu kalau itu bisa
+diberi foto untuk alat dan material, menyesatkan."* Ditambah: *"form kendala itu
+sebaiknya muncul saat laporan dikirim/direview, jadi bisa dipilih tidak ada
+kendala, tapi bukan form sangat di bawah begitu."*
+
+Diukur sebelum diubah: layar input harian **3.896 px di ponsel 390×844 — 4,6
+layar**.
+
+### 1 · Sumber foto: tiga UBIN setara, bukan dua tombol kecil + satu baris lagi
+
+Dua tombol setinggi 36px di sela-sela form terbaca seperti tombol pelengkap,
+bukan seperti pertanyaan "dari mana fotonya?". Dan "Foto Cepat" berdiri di baris
+TERSENDIRI di bawah keduanya — sehingga terbaca sebagai aksi kelas dua, padahal
+untuk foto yang dijepret lewat /foto-cepat justru koordinat dan jamnya yang
+paling benar (DECISIONS 253).
+
+Sekarang ketiganya ubin ±64px sejajar: Kamera · Galeri · Foto Cepat, masing-masing
+ikon + nama + keterangan satu baris. `PhotoSourceInput` menerima `slotKetiga`
+supaya ubin ketiga bisa diisi pemanggil — Foto Cepat bukan `<input type=file>`
+melainkan panel pemilih, jadi hanya pemanggilnya yang tahu cara membukanya.
+
+### 2 · Foto material & alat: MENEMPEL pada barisnya
+
+Ini keluhan yang paling tajam, dan paling benar. Foto material/alat hidup di
+kartu TERPISAH di bawah form pelengkap (DECISIONS 304): barisnya diketik di satu
+tempat, fotonya ditambahkan ±600px di bawah, di kartu yang judulnya baru terbaca
+kalau seseorang menggulir sampai sana. Orang yang tidak pernah menggulir sejauh
+itu menyimpulkan fiturnya tidak ada — dan itulah yang terjadi.
+
+Kartu terpisah itu bukan kemalasan: baris material hidup DI DALAM satu `<form>`
+pelengkap, dan `<form>` di dalam `<form>` bukan HTML yang sah — peramban
+membuang yang di dalam dan tombolnya jadi diam saja saat ditekan.
+
+Jalan keluarnya bukan memindahkan kartunya, melainkan memindahkan **form-nya
+keluar dari DOM**: lembar foto dirender lewat `createPortal(document.body)`,
+jadi pemicunya tetap menempel pada barisnya sementara form-nya berada di luar
+form pelengkap. Sah, dan tanpa jarak.
+
+**Baris yang belum tersimpan tetap menampilkan pemicunya**, mati, dengan
+sebabnya tertulis ("Simpan dulu"). Menyembunyikannya akan mengajarkan hal yang
+sama salahnya dengan sebelumnya: bahwa fiturnya tidak ada.
+
+Sekalian dibetulkan: nama material mengambil BARIS SENDIRI di ponsel. Sebelumnya
+ia berbagi satu baris dengan satuan + jumlah + tombol hapus, dan pada layar
+390px sisanya ±100px — "Semen PCC 50kg" terbaca **"Seme"**. Nama material yang
+terpotong bukan kosmetik: itu yang dipakai mencocokkan dengan surat jalan. Label
+juga dicetak di SETIAP baris, bukan cuma yang pertama — tiap baris kini kartu
+tersendiri, dan "20" tanpa keterangan di kartu ketiga tidak bisa dibaca sebagai
+apa pun.
+
+### 3 · Kendala ditanyakan saat MENGIRIM
+
+Formulir kendala yang menganga di dasar halaman empat layar tidak terbaca
+sebagai pertanyaan. Ia terlewat — dan yang terlewat bukan kolom hiasan: kendala
+adalah dasar seluruh tindakan pemulihan.
+
+Sekarang pertanyaannya diajukan di ambang pintu, pada satu-satunya saat orangnya
+PASTI berhenti dan memikirkan harinya: lembar **Review & Kirim**. Ringkasan
+singkat (n item · n foto), lalu *"Ada kendala hari ini?"* dengan dua ubin —
+**Tidak ada** / **Ada kendala**. Tombol kirim tidak aktif sebelum salah satunya
+dipilih.
+
+Itu memenuhi permintaan yang sebenarnya: *"bisa dipilih tidak ada kendala"*.
+Diam bukan jawaban — dari sisi pemeriksa, laporan tanpa kendala dan laporan yang
+orangnya lupa mengisi kendala terlihat persis sama.
+
+**Satu aksi, bukan dua berurutan.** `submitReportAction` menerima medan kendala
+dan mencatatnya LEBIH DULU, baru mengirim. Dua aksi berarti dua ketukan dan satu
+keadaan antara yang berbahaya: kendala tercatat tapi laporan gagal terkirim,
+atau sebaliknya.
+
+**Kegagalan yang dijaga:** memilih "Ada kendala" lalu judulnya kosong. Kalau
+diterima, kendalanya lenyap tanpa jejak DAN laporannya terkirim seolah hari itu
+lancar — persis kebalikan dari yang barusan dinyatakan orangnya, tanpa satu pun
+galat. Ditolak, dan yang diperiksa uji bukan sekadar "aksinya mengembalikan
+error" melainkan **statusnya masih `draft`** sesudahnya.
+
+Jalur tanpa medan kendala sama sekali TETAP jalan. Pertanyaan ini soal
+kelengkapan laporan, bukan soal izin; menolaknya akan mematikan pemanggil lain
+tanpa menambah satu pun jaminan.
+
+Yang tersisa di kartu bawah cuma tombol "Catat kendala" — jalan tambahan bagi
+pemeriksa yang menemukan kendala saat verifikasi.
+
+### 4 · Daftar 14 hari di dasar halaman → strip 7 hari + tautan
+
+±700px di dasar halaman yang sudah empat layar, dan sejak DECISIONS 340 juga
+duplikat: riwayat lengkapnya sudah punya rumah sendiri berupa kalender seluruh
+masa kontrak. Yang berguna DI SINI cuma satu — melompat ke hari sebelah tanpa
+keluar dari alur mengisi. Tujuh sel cukup.
+
+### Hasil ukur
+
+**3.896 px → 3.486 px** (4,6 → 4,1 layar). Turunnya lebih kecil daripada yang
+bisa dicapai karena dua tambahan yang sengaja MENAMBAH tinggi: nama material
+sebaris sendiri, dan label di tiap baris. Keduanya membeli kejelasan pada bagian
+yang justru dikeluhkan menyesatkan — menukar itu demi 300px adalah pertukaran
+yang salah.
+
+### Yang TIDAK diambil dari konsepnya
+
+- **Bilah aksi melayang** ("Simpan Draft | Review & Kirim" menempel di dasar).
+  Aplikasi ini sudah punya bilah navigasi melayang di ponsel; dua bilah = 148px
+  chrome tetap. Tombol kirim juga tidak terkubur — ia berada tepat di bawah
+  daftar item, ±1/3 halaman.
+- **Kartu "Kendala Hari Ini" sebagai seksi 3.** Konsepnya masih menaruh
+  formulirnya sebagai bagian yang berdiri sendiri; instruksi user sesudahnya
+  jelas menolak itu, dan instruksinya yang menang.
+
+**Penjaga.** `tests/unit/kirim-kendala.test.ts` (10, murni) ·
+`tests/integration/kirim-dengan-kendala.test.ts` (5, DB asli) ·
+`tests/e2e/harian-tata-letak-input.spec.ts` (5, peramban).
+
+Uji e2e itu perlu karena satu hal tidak bisa dibuktikan di tempat lain: kalau
+portal lembar foto suatu saat dilepas, **halamannya tetap terlihat benar** dan
+tombol simpannya diam-diam berhenti bekerja. Yang diperiksa karena itu DOM-nya:
+form di dalam lembar tidak boleh punya `<form>` leluhur.
+
+Uji gigi lima pagar:
+
+| pagar dicabut | hasil |
+| --- | --- |
+| portal dilepas (form bersarang lagi) | 1 merah |
+| pemicu foto disembunyikan saat baris belum tersimpan | 1 merah |
+| kunci pilihan kendala dicabut | 1 merah |
+| judul kendala kosong diloloskan | 2 merah |
+| kendala tidak jadi dicatat | 5 merah |
+| dipulihkan | 5 hijau (e2e) · 15 hijau (unit+integrasi) |
+
+Dua jebakan uji yang ketahuan saat menulisnya, keduanya jenis "hijau tapi tidak
+menguji apa pun":
+
+1. Pencari tanggal draft memindai seluruh halaman untuk tautan ber-`?tgl=` dan
+   menangkap **chip saringan "Draft (2)"** — yang juga ber-`?tgl=` karena bilah
+   saringan mempertahankan tanggal terpilih. Ujinya membuka tanggal tanpa
+   laporan, lalu MELEWAT. Diperbaiki dengan memberi petak tanggal
+   `role="group" aria-label="Petak tanggal"` dan membatasi pencarian ke sana.
+2. `test.skip` pada data yang tidak ditemukan. Diganti `expect(...)`: kalau data
+   ujinya tidak punya draft, berkas ini harus berteriak — bukan diam-diam hijau.
+
+### Tambahan sesudah CI merah (2026-08-17)
+
+Uji e2e di atas ditulis pada server lokal yang env R2-nya sengaja diisi, lalu
+**merah begitu masuk CI** — di CI R2 tidak dikonfigurasi, jadi `fotoAktif`
+bernilai false dan pemicu foto memang tidak dirender. Yang keliru ujinya, bukan
+aplikasinya.
+
+Jalan keluarnya BUKAN `test.skip`. Pada lingkungan tanpa R2 justru ada kontrak
+yang perlu dijaga: aplikasi **tidak menawarkan kontrol foto yang mati** di
+setiap baris, karena alasannya sudah disebut sekali di kepala bagian foto. Jadi
+kedua cabang diperiksa, masing-masing dengan pernyataannya sendiri. Hanya dua uji
+yang benar-benar butuh lembar foto terbuka yang dilewati saat R2 mati — dan
+keduanya dijaga cabang "R2 mati" pada uji di atasnya.
+
+Dua hal lain yang ikut ketahuan:
+
+- `harian-pelengkap-umpan-balik.spec.ts` masih memeriksa keberadaan kartu
+  "Foto material & alat" yang justru dihapus perubahan ini. Diganti memeriksa
+  hal yang SAMA maksudnya (baris tersimpan menawarkan jalan menambah foto),
+  dengan cabang R2 yang sama.
+- Jalur SATU SUMBER (`hanyaKamera`, Foto Cepat) dikembalikan ke tombol ringkas.
+  Ubin ada untuk membuat sebuah PILIHAN terbaca; kalau sumbernya cuma satu,
+  tidak ada pilihan yang perlu dibaca — dan satu ubin selebar kolom hanya
+  memakan ruang di layar yang justru dirancang tanpa gulir (DECISIONS 255).
+
+**Celah yang tersisa, dan disebut apa adanya:** CI tidak pernah menjalankan
+jalur foto mana pun (R2 tak dikonfigurasi) — bukan hanya uji baru ini, tapi juga
+`harian-alur-isi.spec.ts` yang sudah lama `test.skip` di sana. Cabang R2-hidup
+diverifikasi manual di server lokal ber-env R2 palsu, dua kali: sebelum dan
+sesudah perbaikan ini. Menyalakan R2 palsu di CI akan membuat uji lain benar-
+benar mencoba mengunggah ke endpoint yang tidak ada, jadi tidak dilakukan dalam
+perubahan ini.
+
+---
+
+## 342 — Enter menyimpan, "Diterima" jadi Qty/Volume, dan foto tak lagi menagih simpan dulu (2026-08-17)
+
+Tiga hal dari satu sesi pemakaian nyata. Yang pertama cacat yang sudah lama ada
+dan belum pernah terlihat.
+
+### 1 · Enter di kolom jumlah memanggil AMBIL CUACA, bukan menyimpan
+
+Pertanyaan user: *"saat aku tekan enter di jumlah itu menyimpan, saat ini apa
+yang terjadi?"* Diukur di peramban sebelum menjawab:
+
+```
+submit di form pelengkap: ["Muat ulang cuaca", "Simpan Pelengkap"]
+ketik 41 di kolom jumlah → Enter
+  → POST terkirim: 1   (fetchWeatherAction)
+  → pesan di layar: "Layanan cuaca menolak permintaan (HTTP 403)."
+  → nilai qty sesudah Enter: 40      ← 41 hilang
+```
+
+Sebabnya aturan HTML yang jarang diingat: **tombol submit PERTAMA di sebuah form
+adalah "default button"-nya**, dan Enter di kolom mana pun menekan tombol itu.
+Tombol cuaca ber-`type="submit"` (memakai `formAction` untuk mengarah ke aksi
+lain) dan berada paling awal — jadi Enter di seluruh form pelengkap memanggil
+cuaca. Karena aksi itu memasang ulang badan form, apa pun yang baru diketik dan
+belum tersimpan **hilang tanpa pesan**.
+
+Ada lapis yang lebih buruk. Form ini membawa `overwriteManual` bila cuacanya
+sudah diisi manual dari lapangan — jadi satu ketukan Enter yang tidak disengaja
+bisa MENIMPA pengamatan orang lapangan dengan data otomatis. Itu persis yang
+dilarang DECISIONS 176: *"isian manual lapangan selalu menang."*
+
+Perbaikannya sekecil sebabnya: tombol cuaca jadi `type="button"` dan aksinya
+dipicu `onClick` dengan `FormData` dari form yang sama (jadi `reportId` &
+`overwriteManual` tetap ikut). Sesudah itu satu-satunya tombol submit adalah
+"Simpan Pelengkap" — Enter menyimpan, seperti yang diharapkan siapa pun.
+
+Dijaga uji yang memeriksa DUA hal: daftar tombol submit di form itu harus persis
+`["Simpan Pelengkap"]`, dan sesudah Enter angkanya **bertahan** (bukti ia benar
+menyimpan, bukan memuat ulang).
+
+### 2 · "Diterima" → "Qty/Volume" di layar
+
+*"apa maksud diterima, rancu!"* Betul. "Diterima" adalah kata BLANKO KKP, dan di
+sana ia berpasangan dengan kolom "Ditolak" sehingga artinya jelas: berapa yang
+diterima, berapa yang ditolak. Di layar input pasangannya tidak ada — sistem ini
+belum punya isian "ditolak" (kolomnya sengaja dikosongkan untuk diisi tangan),
+jadi "Diterima" berdiri sendiri tanpa lawan dan kehilangan artinya.
+
+**Cetakan KKP dan ekspor Excel TETAP "Diterima"/"Ditolak"** — blankonya memang
+begitu, dan dokumen resmi harus mengikuti blanko. Yang diganti hanya kata di
+layar.
+
+### 3 · "Simpan dulu" → "Simpan & foto"
+
+Tantangan user: *"atau apa polamu ini, kenapa data pendukung harus disimpan dulu
+baru bisa beri foto."*
+
+Benar, dan versi kemarin memang salah. Foto menempel pada id baris di basis data
+dan id itu baru ada sesudah tersimpan — tapi itu urusan **buku besar kami**,
+bukan syarat yang pantas ditagihkan ke orang di lapangan. Menampilkan tombol
+MATI bertuliskan "Simpan dulu" memang jujur, dan tetap memindahkan pekerjaan
+pembukuan ke penggunanya. DECISIONS 341 menyebut kontrol mati itu sebagai
+perbaikan; itu koreksinya.
+
+Sekarang tombolnya HIDUP dan berbunyi "Simpan & foto": sekali ketuk ia
+menyimpan pelengkapnya sendiri (`form.requestSubmit()` — yang bisa diandalkan
+justru karena butir 1 sudah membereskan tombol bawaan form), lalu lembar
+fotonya terbuka untuk baris itu begitu id-nya ada.
+
+Yang perlu diakali: badan form dipasang ulang tiap daftar id berubah — persis
+saat penyimpanan berhasil. Jadi "baris mana yang tadi minta foto" disimpan di
+komponen LUAR yang tidak ikut dipasang ulang, dan dicocokkan lewat **nama**,
+bukan indeks (server mengurutkan baris menurut nama, jadi indeks sesudah
+tersimpan bisa menunjuk baris lain).
+
+### Cacat yang lahir dari perbaikan itu — dan ketahuan sebelum dikirim
+
+Versi pertama menandai baris dengan `data-baris={row.key}`. `rowSeq` adalah
+penghitung tingkat **MODUL**: di server ia terus naik lintas permintaan, di
+klien ia mulai dari 1. Nomornya berbeda antara render server dan klien →
+**hidrasi tidak cocok**, dilaporkan React di konsol.
+
+Selama `row.key` hanya dipakai sebagai `key` React, hal itu tidak pernah
+terlihat — `key` tidak pernah sampai ke DOM. Begitu ia dicetak sebagai atribut,
+ia terlihat. Ketidakcocokan hidrasi tidak menjatuhkan halaman: React diam-diam
+membuang render server dan merender ulang di klien. Yang hilang justru yang tak
+terlihat — kecepatan tampil pertama di HP lapangan.
+
+Diperbaiki dengan membuang nilai volatil itu dari DOM: penandanya jadi tetap
+(`data-baris="material"` / `"alat"`), dan pemicu menyerahkan ELEMEN barisnya
+(`closest("[data-baris]")`) alih-alih sebuah nomor. Ditambah penjaga e2e yang
+menggagalkan berkas bila ada galat hidrasi di layar ini.
+
+### Satu lagi: pernyataan uji yang tidak pernah bisa benar
+
+`harian-alur-isi.spec.ts` mencari teks **"Belum ada foto"**. Kalimat itu tidak
+pernah ada di sumber mana pun — penandanya berbunyi "Tanpa foto" (dipilih sadar,
+karena foto memang opsional saat menyimpan). Pernyataan itu tidak pernah
+ketahuan karena barisnya hanya tercapai bila R2 aktif, dan **di CI R2 tidak
+pernah aktif**. Sudah ada sejak sebelum perubahan ini (identik di `main`);
+diperbaiki sekalian.
+
+Ini gejala kedua dari celah yang sama dengan yang dicatat di 341: seluruh jalur
+foto tidak pernah dijalankan CI. Dua pernyataan basi sudah ditemukan di sana
+hanya dengan menyalakan R2 palsu sekali di mesin sendiri.
+
+**Penjaga.** `tests/e2e/harian-tata-letak-input.spec.ts` naik jadi 7 uji. Uji
+gigi tiga pagar baru:
+
+| pagar dicabut | hasil |
+| --- | --- |
+| tombol cuaca kembali `type="submit"` | 1 merah |
+| "Simpan & foto" tidak memanggil `requestSubmit` | 1 merah |
+| lembar tidak terbuka sesudah tersimpan | 1 merah |
+| dipulihkan | 7 hijau |
+
+Diverifikasi di dua lingkungan: DENGAN R2 (28 hijau bersama spesifikasi harian
+lain) dan TANPA R2 seperti CI (32 hijau, 28 dilewati pada cabang R2-mati).
+
+---
+
+## 343 — Foto material/alat ikut simpanan: tiga sumber langsung di barisnya (2026-08-17)
+
+Tiga keluhan user 2026-08-17, ditutup satu kalimat: *"kenapa sih bikin gini aja
+gak beres langsung!"*
+
+1. *"mana pilihan foto cepat di alat dan bahan"*
+2. *"ada semen yang aku sudah simpan dan upload foto, ada di bawah, tapi di atas
+   0 foto"*
+3. *"buat apa ada button simpan & foto, seharusnya langsung saja 3 pilihan
+   sumber foto seperti biasa"*
+
+### Ketiganya satu sebab, dan sebabnya keputusan saya
+
+Foto material/alat diurus lewat **jalur sendiri** — aksi terpisah
+(`addSupplyPhotosAction`) dengan lembar melayang — alih-alih ikut simpanan
+formnya. Semua yang dikeluhkan mengalir dari situ:
+
+- Jalur sendiri berarti kantong Foto Cepat harus disambungkan ulang. Tidak
+  pernah dilakukan, jadi **pilihannya tidak ada** (keluhan 1).
+- Jalur sendiri butuh id baris, jadi barisnya harus tersimpan lebih dulu —
+  lahirlah tombol antara **"Simpan & foto"** (keluhan 3).
+- Jumlah foto dibaca dari state baris yang disalin sekali saat komponen
+  dipasang, dan **tidak ikut diperbarui** sesudah unggah. Baris yang sudah
+  berfoto tetap menulis **"0 foto"** sampai formnya kebetulan dipasang ulang —
+  kunci pemasangan ulang (`tandaTangan`) hanya memuat cuaca, jam, dan daftar id;
+  jumlah foto tidak ada di sana (keluhan 2).
+
+Padahal polanya sudah ada di rumah sendiri: **form item pekerjaan** sejak lama
+mengirim fotonya BERSAMA simpanan, dan menautkannya sesudah barisnya punya id.
+Yang benar bukan menambal jalur kedua, melainkan membuangnya.
+
+### Sekarang
+
+Tiga sumber (**Kamera · Galeri · Foto Cepat**) langsung di tiap baris material
+dan alat, bisa dipilih kapan saja — termasuk pada baris yang belum pernah
+disimpan — dan ikut terkirim saat **Simpan Pelengkap**. Tidak ada tombol antara,
+tidak ada lembar melayang, tidak ada aksi kedua.
+
+Yang dibuang: `components/knmp/lembar-foto.tsx` dan `addSupplyPhotosAction`.
+Jalur ganda untuk satu pekerjaan selalu menyimpang; yang ini menyimpang bahkan
+sebelum sempat dipakai.
+
+### Tiga hal yang harus benar, dan gampang salah diam-diam
+
+**1. Foto tidak boleh tertukar antarbaris.** Semua baris hidup di SATU form.
+`PhotoSourceInput` karena itu menerima `prefix`: medannya jadi `m0_photos`,
+`m1_photos`, `a0_photos`, … Tanpa awalan, `photos` seluruh baris menyatu jadi
+satu daftar dan tidak ada lagi cara mengetahui foto mana milik baris mana.
+
+**2. Indeks form ≠ indeks sesudah penyaringan.** `setEnrichment` membuang baris
+tanpa nama. Kalau foto dipasangkan menurut posisi sesudah penyaringan, foto
+baris ke-3 menempel ke baris ke-2 — bukti pada barang yang salah, tanpa satu pun
+galat, dan mustahil terlihat dari layar (kedua baris punya foto, jumlahnya
+benar, isinya tertukar). Karena itu `setEnrichment` kini mengembalikan
+`{ idMaterial, idAlat }` yang **sejajar larik MASUKAN**, dengan `null` untuk
+baris yang dibuang.
+
+**3. Jumlah foto dibaca dari SERVER, bukan state.** Itu sebab persis "0 foto"
+yang keras kepala. Sekarang tiap baris membaca `report.materials[].photos`
+setiap render — segar tanpa perlu pemasangan ulang.
+
+### Kantong Foto Cepat kini bisa menuju material/alat
+
+`TujuanPakai` bertambah `{tujuan:"material"|"alat", barisId}`. Ini yang membuat
+keluhan 1 bisa dijawab tanpa jalur baru. Dan memang di sanalah foto kantong
+paling masuk akal: pengiriman semen difoto saat truk datang, jauh sebelum
+siapa pun membuka formulir.
+
+### Yang sengaja TIDAK membatalkan simpanan
+
+Kegagalan unggah foto tidak mengembalikan simpanan pelengkap. Angka dan nama
+sudah benar; menghapusnya karena satu berkas gagal berarti membuang pekerjaan
+yang sudah beres. Kegagalannya DISEBUTKAN lewat `warning`.
+
+Satu lagi yang disebut, bukan didiamkan: foto pada baris yang namanya belum
+diisi. Barisnya dibuang penyimpanan, jadi fotonya tidak punya induk — dan itu
+dikatakan, bukan dibiarkan lenyap.
+
+### Peringatan izin lokasi hanya SEKALI
+
+Kotak "izin lokasi belum diberikan" milik `PhotoSourceInput`. Dengan satu
+pemilih per baris, ia terbit lima belas kali pada satu layar — dan peringatan
+yang diulang sebanyak itu berhenti dibaca sebagai peringatan. Prop `sunyiIzin`
+menyembunyikan kotaknya (perilakunya tidak berubah) mulai baris kedua.
+
+**Penjaga.** `tests/integration/pelengkap-foto-ikut-simpan.test.ts` (4) menjaga
+kesejajaran id — termasuk bahwa baris LAMA mengembalikan id yang SAMA, invarian
+DECISIONS 304 yang menjaga foto tidak lepas saat menyimpan ulang.
+`tests/e2e/harian-tata-letak-input.spec.ts` (7) menjaga ketiga sumber hadir di
+barisnya, medan foto ber-awalan & tidak kembar, dan — menggantikan penjaga
+form-bersarang DECISIONS 341 — bahwa halaman ini tidak memuat `form` di dalam
+`form` sama sekali. Invarian terakhir itu kini berlaku **di lingkungan mana pun,
+termasuk CI tanpa R2**, tidak seperti pendahulunya yang butuh lembar terbuka.
+
+Ditambah penjaga di `tests/unit/galat-klien.test.ts`: SELURUH medan foto wajib
+lewat `n()`. Satu medan yang lupa diberi awalan cukup untuk menukar bukti —
+`photoLat` baris ke-3 akan menimpa milik baris ke-1 karena namanya sama, dan cap
+foto memakai koordinat baris yang salah tanpa satu pun galat. Penjaga itu
+langsung menangkap satu sisa saat ditulis (dan versi pertamanya sendiri merah
+karena ikut menangkap kutipan di dalam komentar — diperbaiki dengan lookbehind).
+
+---
+
+## 344 — Sumber foto di baris material/alat diringkas jadi sepertiga (2026-08-17)
+
+Keluhan user 2026-08-17: *"tombol sumber fotomu terlalu besar di bagian alat dan
+bahan ini, perkecil sampai 1/3 nya."*
+
+Betul, dan sebabnya salah tempat. Ubin besar (110×74 px, tiga sejajar selebar
+kolom) memang BENAR di form item pekerjaan: di sana ia pilihan utama layar dan
+terbit **sekali per laporan**. Di baris material/alat ia terbit **sekali per
+BARIS** — pada laporan berisi lima material dan dua alat, tujuh salinan ubin
+yang sama menenggelamkan kolom yang justru harus diisi.
+
+`PhotoSourceInput` karena itu punya bentuk `ringkas`: tiga tombol setinggi 32px
+sebaris, ikon 14px, tanpa keterangan baris kedua. `UbinAmbilDariKantong` ikut
+punya kembarannya supaya ketiganya tetap tampil setara.
+
+Diukur di peramban, bukan dikira-kira:
+
+| | sebelum | sesudah |
+| --- | --- | --- |
+| satu tombol | 110×74 px | ±86×32 px |
+| tiga sumber | 24.420 px² | 8.525 px² |
+| rasio | — | **34,9%** |
+| tinggi baris (dengan foto) | 360 px | 318 px baris ke-1 · **208 px** baris berikutnya |
+
+Baris ke-1 lebih tinggi karena masih membawa kotak izin lokasi — memang hanya
+sekali per layar (DECISIONS 343).
+
+Yang TIDAK ikut diperkecil: form item pekerjaan. Mengecilkan keduanya sekaligus
+akan menghilangkan bedanya, padahal bedanya itu yang membuat jalur foto utama
+langsung terbaca.
+
+Yang tidak dibuang meski ukurannya turun: **namanya**. Ikon telanjang untuk
+"Kamera / Galeri / Foto Cepat" memaksa orang menebak — dan bedanya bukan gaya,
+melainkan koordinat mana yang menempel di bukti (DECISIONS 197/220).
+
+**Penjaga.** `tests/e2e/harian-tata-letak-input.spec.ts` mengukur DUA-duanya di
+peramban dan menuntut luas sumber baris material < 40% ubin form pekerjaan.
+Ambangnya 40% dan bukan 33% pas: lebar tombol ringkas mengikuti panjang katanya,
+jadi angkanya bergerak sedikit antar-font — yang dijaga perbedaan KELAS ukuran,
+bukan angka desimal. Uji gigi: `ringkas` dimatikan → rasio 0,97, merah;
+dipulihkan → 0,35, hijau.

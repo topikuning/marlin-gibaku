@@ -472,3 +472,42 @@ Kalau nama penanda tangan panjang sampai membungkus dua baris, blok memanjang ke
 bawah sementara gambarnya tetap di tempat lama, sehingga coretan bisa menumpuk
 teks. Belum terlihat pada nama-nama yang ada sekarang. Perbaikan yang benar:
 `gridRow` mengembalikan posisi tiap baris teks, bukan hanya `y` akhir.
+
+## 🟡 CETAK-01 · Dua penyaji untuk satu dokumen: halaman cetak HTML vs PDF (DECISIONS 334)
+
+Laporan periodik, harian, dan rencana mingguan masing-masing punya DUA penyaji
+yang menghasilkan dokumen yang sama: komponen React di `/cetak/...` (di-Ctrl+P
+dari peramban) dan pembangun pdfkit di `lib/pdf/...`. Kodenya sendiri menyebut
+yang kedua *"cermin komponen layar"*.
+
+Risikonya sudah terbukti nyata di repo ini: dua penyaji untuk satu dokumen
+selalu menyimpang (DECISIONS 241, 267), dan yang ketahuan belakangan justru
+sesudah dokumennya dikirim ke PPK.
+
+**Perbaikan yang benar**: tombol "Cetak" cukup membuka PDF-nya, lalu penyaji
+HTML dihapus — satu sumber, mustahil menyimpang. Belum dikerjakan karena
+halaman `/cetak/...` juga dipakai sebagai PRATINJAU di layar (dan pratinjau PDF
+di peramban ponsel lapangan belum dipastikan bisa diandalkan). Keputusan user.
+
+## 🟢 WATANYA-02 · Tanya-jawab WhatsApp hanya mengenal "hari ini"
+
+Tanya-jawab bebas sudah jalan (DECISIONS 338 + 339): DM + grup ber-mention,
+empat niat (kendala, progress, deviasi, kelengkapan), angka dari calc layer.
+
+Yang belum: **periode selain hari ini**. `skemaNiat.periode` hanya punya satu
+nilai, jadi *"progress minggu lalu"* dijawab dengan angka HARI INI — benar untuk
+hari ini, tetapi bukan yang ditanyakan, dan penanya tidak diberi tahu bahwa
+periodenya diabaikan.
+
+Dua pilihan, dan keduanya butuh keputusan user:
+
+1. **Menolak dengan jujur** — kalau AI mendeteksi periode lain, balas "saya baru
+   bisa menjawab untuk hari ini". Kecil, bisa dikerjakan kapan saja.
+2. **Mendukung periode** — tambah nilai enum + alirkan `asOf` ke
+   `getLocationsProgress` (jalurnya sudah ada, DECISIONS 275) dan `dateKey` ke
+   pengambil kelengkapan. Untuk kendala perlu keputusan terpisah: "kendala
+   minggu lalu" berarti yang dibuka minggu lalu, atau yang masih terbuka pada
+   akhir minggu lalu?
+
+Sampai salah satu dikerjakan, jangan menulis di mana pun bahwa MARLIN bisa
+ditanyai periode — ia tidak bisa.

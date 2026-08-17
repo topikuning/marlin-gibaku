@@ -125,84 +125,87 @@ describe("pemilihan kunci gambar", () => {
   });
 });
 
-const { BATAS_STEMPEL, PERSEN_STEMPEL, ukuranTtd: ukuran } = await import(
-  "@/lib/export/ttd-ukuran"
-);
+const { PERSEN_STEMPEL, ukuranTtd: ukuran } = await import("@/lib/export/ttd-ukuran");
 
 /**
- * Ketujuh penyaji dengan LEBAR KOLOM dan TINGGI CELAH-nya masing-masing, apa
- * adanya dari kodenya (HTML px, PDF poin). `huruf` = ukuran huruf blok tanda
- * tangan di penyaji itu — dipakai membandingkan dengan foto dokumen asli.
+ * Ketujuh penyaji: LEBAR KOLOM tanda tangan dan RUANG dari tepi atas blok
+ * sampai garis nama, apa adanya dari kodenya (HTML px, PDF poin). `huruf` =
+ * ukuran huruf blok itu — dipakai membandingkan dengan foto dokumen asli.
  */
 const DOKUMEN = [
-  { nama: "html: lembar kurva-S", lebar: 200, celah: 40, huruf: 8.5 },
-  { nama: "html: laporan harian", lebar: 350, celah: 48, huruf: 10 },
-  { nama: "html: laporan periodik", lebar: 280, celah: 48, huruf: 10 },
-  { nama: "html: rencana mingguan", lebar: 280, celah: 56, huruf: 10 },
-  { nama: "pdf: laporan periodik", lebar: 256, celah: 32, huruf: 7.5 },
-  { nama: "pdf: laporan harian", lebar: 265, celah: 34, huruf: 7 },
-  { nama: "pdf: rencana mingguan", lebar: 176, celah: 40, huruf: 7.5 },
+  { nama: "html: lembar kurva-S", lebar: 200, ruang: 72, huruf: 8.5 },
+  { nama: "html: laporan harian", lebar: 350, ruang: 84, huruf: 10 },
+  { nama: "html: laporan periodik", lebar: 280, ruang: 84, huruf: 10 },
+  { nama: "html: rencana mingguan", lebar: 280, ruang: 88, huruf: 10 },
+  { nama: "pdf: laporan periodik", lebar: 256, ruang: 68, huruf: 7.5 },
+  { nama: "pdf: laporan harian", lebar: 265, ruang: 70, huruf: 7 },
+  { nama: "pdf: rencana mingguan", lebar: 176, ruang: 72, huruf: 7.5 },
 ];
 
-describe("ukuran stempel — acuannya LEBAR KOLOM, bukan tinggi celah (DECISIONS 330)", () => {
-  it("stempel jauh lebih besar daripada celah tanda tangannya", () => {
-    // Inti koreksi user: *"kenapa makin kecil, bukan makin mengikuti contoh!"*
-    // Versi 328/329 menskalakan dari tinggi celah, sehingga stempel SELALU
-    // lebih kecil daripada celah itu. Di dokumen asli justru sebaliknya:
-    // stempel membentang jauh melewati celahnya.
+describe("stempel TIDAK PERNAH melebihi blok tanda tangannya (DECISIONS 333)", () => {
+  it("tinggi stempel ≤ ruang dari tepi atas blok sampai garis nama", () => {
+    // Keberatan user, dengan tangkapan layar: *"stempelmu jangan melebihi
+    // areanya tandatangannya, itu memakan tabel juga."* Versi 330 memakai
+    // 2,3 × ruang, sehingga stempel melimpah ke ATAS menembus tabel di
+    // atasnya. Ini invarian yang paling penting di berkas ini.
     for (const d of DOKUMEN) {
-      const u = ukuran(d.lebar, d.celah);
-      expect(u.stempel.tinggi, d.nama).toBeGreaterThan(d.celah * 1.5);
+      const u = ukuran(d.lebar, d.ruang);
+      expect(u.stempel.tinggi, d.nama).toBeLessThanOrEqual(d.ruang);
     }
   });
 
-  it("garis tengah stempel ±9–14× tinggi huruf, seperti foto dokumen asli", () => {
-    // Diukur dari foto yang dikirim user: stempel ≈ 280 px dengan huruf ≈ 26 px
-    // → ±10,8×. Rentang ini yang membuat "mengikuti contoh" jadi angka, bukan
-    // selera.
+  it("berlaku juga untuk kolom yang sangat lebar", () => {
+    // Kolom lebar tidak boleh membuat stempel melar melewati bloknya —
+    // aturan lebar dan aturan ruang keduanya mengikat.
+    const u = ukuran(4000, 70);
+    expect(u.stempel.tinggi).toBeLessThanOrEqual(70);
+  });
+
+  it("coretan tanda tangan juga tetap di dalam bloknya", () => {
     for (const d of DOKUMEN) {
-      const u = ukuran(d.lebar, d.celah);
+      const u = ukuran(d.lebar, d.ruang);
+      expect(u.ttd.tinggi, d.nama).toBeLessThanOrEqual(d.ruang);
+    }
+  });
+
+  it("stempel + turunnya masih di dalam blok", () => {
+    // Sisi bawah boleh menimpa baris nama sedikit (dokumen aslinya begitu),
+    // tapi sisi ATAS tidak boleh keluar: tinggi + turun ≤ ruang + turun.
+    for (const d of DOKUMEN) {
+      const u = ukuran(d.lebar, d.ruang);
+      expect(u.stempel.tinggi - u.turun, d.nama).toBeLessThanOrEqual(d.ruang);
+    }
+  });
+});
+
+describe("ukuran stempel tetap sepadan dokumen asli", () => {
+  it("garis tengah stempel ±8–12× tinggi huruf", () => {
+    // Foto dokumen asli: stempel ≈ 280 px dengan huruf ≈ 26 px → ±10,8×.
+    // Rentang ini yang membuat "mengikuti contoh" jadi angka, bukan selera.
+    for (const d of DOKUMEN) {
+      const u = ukuran(d.lebar, d.ruang);
       const kali = u.stempel.tinggi / d.huruf;
-      expect(kali, `${d.nama} (${kali.toFixed(1)}× huruf)`).toBeGreaterThan(9);
-      expect(kali, `${d.nama} (${kali.toFixed(1)}× huruf)`).toBeLessThan(14);
+      expect(kali, `${d.nama} (${kali.toFixed(1)}× huruf)`).toBeGreaterThan(8);
+      expect(kali, `${d.nama} (${kali.toFixed(1)}× huruf)`).toBeLessThan(12);
     }
   });
 
   it("stempel + geserannya tidak pernah keluar dari kolomnya", () => {
-    // Batas keras: keluar kolom berarti menabrak blok tanda tangan sebelah.
-    //
-    // Sengaja diuji juga pada kolom SANGAT SEMPIT. Pada ketujuh dokumen nyata,
-    // rem tinggi-celah selalu memotong lebih dulu sehingga aturan lebar tidak
-    // pernah teruji di sana — versi pertama uji ini lolos bahkan ketika stempel
-    // disetel selebar penuh kolom.
     const kasus = [
-      ...DOKUMEN.map((d) => ({ nama: d.nama, lebar: d.lebar, celah: d.celah })),
-      { nama: "kolom sangat sempit", lebar: 90, celah: 48 },
-      { nama: "kolom sempit, celah tinggi", lebar: 120, celah: 90 },
+      ...DOKUMEN.map((d) => ({ nama: d.nama, lebar: d.lebar, ruang: d.ruang })),
+      { nama: "kolom sangat sempit", lebar: 90, ruang: 84 },
+      { nama: "kolom sempit, ruang tinggi", lebar: 120, ruang: 200 },
     ];
     for (const d of kasus) {
-      const u = ukuran(d.lebar, d.celah);
+      const u = ukuran(d.lebar, d.ruang);
       expect(u.stempel.lebar / 2 + u.geser, d.nama).toBeLessThanOrEqual(d.lebar / 2);
     }
   });
 
-  it("kolom yang makin lebar TIDAK membuat stempel melar tanpa batas", () => {
-    // Rem `BATAS_STEMPEL` harus benar-benar menggigit; tanpa itu kolom lebar di
-    // layar menghasilkan stempel sebesar setengah halaman.
-    const sempit = ukuran(200, 48);
-    const lebar = ukuran(2000, 48);
-    expect(lebar.stempel.tinggi).toBe(Math.round(48 * BATAS_STEMPEL));
-    expect(lebar.stempel.tinggi).toBeGreaterThanOrEqual(sempit.stempel.tinggi);
-  });
-
-  it("kolom sempit dilayani persen lebar, bukan rem", () => {
-    // Sisi lain dari aturan yang sama: pada kolom sempit yang menentukan adalah
-    // LEBAR KOLOMNYA, supaya stempel tidak menabrak tetangganya — walau remnya
-    // sebenarnya mengizinkan lebih besar.
+  it("kolom sempit dilayani persen lebar, bukan ruang", () => {
     const lebar = 100;
-    const celah = 90; // rem mengizinkan 207 — jauh lebih besar dari kolomnya
-    const u = ukuran(lebar, celah);
-    expect(u.stempel.lebar).toBeLessThan(Math.round(celah * BATAS_STEMPEL));
+    const ruang = 200; // ruang mengizinkan jauh lebih besar dari kolomnya
+    const u = ukuran(lebar, ruang);
     expect(u.stempel.lebar).toBe(Math.round((lebar * PERSEN_STEMPEL) / 100));
   });
 });
@@ -210,15 +213,14 @@ describe("ukuran stempel — acuannya LEBAR KOLOM, bukan tinggi celah (DECISIONS
 describe("bentuk & letak", () => {
   it("stempel BUNDAR — lebar sama dengan tingginya", () => {
     for (const d of DOKUMEN) {
-      const u = ukuran(d.lebar, d.celah);
+      const u = ukuran(d.lebar, d.ruang);
       expect(u.stempel.lebar, d.nama).toBe(u.stempel.tinggi);
     }
   });
 
-  it("coretan tanda tangan lebih LEBAR tapi lebih RENDAH daripada stempel", () => {
-    // Benda aslinya: stempel bundar ±4 cm; coretan ±5–6 cm × ±3 cm.
+  it("coretan lebih LEBAR tapi lebih RENDAH daripada stempel", () => {
     for (const d of DOKUMEN) {
-      const u = ukuran(d.lebar, d.celah);
+      const u = ukuran(d.lebar, d.ruang);
       expect(u.ttd.lebar, d.nama).toBeGreaterThan(u.stempel.lebar);
       expect(u.ttd.tinggi, d.nama).toBeLessThan(u.stempel.tinggi);
     }
@@ -226,31 +228,23 @@ describe("bentuk & letak", () => {
 
   it("coretan memanjang, bukan bujur sangkar", () => {
     for (const d of DOKUMEN) {
-      const u = ukuran(d.lebar, d.celah);
+      const u = ukuran(d.lebar, d.ruang);
       expect(u.ttd.lebar / u.ttd.tinggi, d.nama).toBeGreaterThan(1.5);
     }
   });
 
-  it("stempel TURUN sedikit melewati garis pijak — menimpa baris nama", () => {
-    // Di foto asli sisi bawah stempel menutupi nama penanda tangan. Nol berarti
-    // ia berhenti rapi di garis, dan itu yang terbaca sebagai gambar tempelan.
+  it("stempel TURUN sedikit menimpa baris nama, tapi tidak menelannya", () => {
     for (const d of DOKUMEN) {
-      expect(ukuran(d.lebar, d.celah).turun, d.nama).toBeGreaterThan(0);
-    }
-  });
-
-  it("turunnya kecil — tidak menelan baris nama", () => {
-    for (const d of DOKUMEN) {
-      const u = ukuran(d.lebar, d.celah);
+      const u = ukuran(d.lebar, d.ruang);
+      expect(u.turun, d.nama).toBeGreaterThan(0);
       expect(u.turun, d.nama).toBeLessThan(u.stempel.tinggi / 8);
     }
   });
 
   it("stempel digeser ke kiri supaya MENIMPA coretan, bukan berdiri terpisah", () => {
     for (const d of DOKUMEN) {
-      const u = ukuran(d.lebar, d.celah);
+      const u = ukuran(d.lebar, d.ruang);
       expect(u.geser, d.nama).toBeGreaterThan(0);
-      // Kalau geseran melebihi setengah lebar gabungan, keduanya berpisah.
       expect(u.geser, d.nama).toBeLessThan(u.stempel.lebar / 2 + u.ttd.lebar / 2);
     }
   });

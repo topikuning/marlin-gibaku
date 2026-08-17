@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Camera, ClipboardList, History, Printer, TriangleAlert } from "lucide-react";
 import { Badge, Banner, ButtonLink, Card, CardBody, CardHeader, PageHeader, StatusPill } from "@/components/ui";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
+import { KeteranganStatus, Strip7Hari } from "@/components/knmp/strip-7-hari";
 import { isR2Configured } from "@/lib/r2";
 import { requireUser, hasLocationAccess } from "@/lib/auth/session";
 import { can } from "@/lib/authz";
@@ -13,8 +14,7 @@ import { getLeafNodeOptions, getWorkspaceData } from "@/lib/daily-report/queries
 import { ISSUE_SEVERITY_LABEL, WEATHER_LABEL, WORKER_ROLE_LABEL } from "@/lib/daily-report/constants";
 import { ReportEditor } from "./report-editor";
 import { EnrichmentForm } from "./enrichment-form";
-import { SupplyPhotos } from "./supply-photos";
-import { FinalizePanel, IssueForm, ReviewActions } from "./review-actions";
+import { FinalizePanel, PanelKendala, ReviewActions } from "./review-actions";
 import { withBackTo } from "@/lib/print-back";
 
 export const metadata: Metadata = { title: "Laporan Harian" };
@@ -182,13 +182,11 @@ export default async function HarianWorkspacePage({
           sekarang diurus DI DALAM EnrichmentForm supaya kabar "tersimpan"
           tidak ikut musnah bersamanya (lihat catatan di berkas itu). */}
       {report && enrichable ? (
-        <>
-          <EnrichmentForm report={report} />
-          {/* Panel foto berdiri SENDIRI, bukan di dalam form pelengkap: form di
-              dalam form bukan HTML yang sah, dan tombolnya akan diam saja saat
-              ditekan. DECISIONS 304. */}
-          <SupplyPhotos report={report} photoEnabled={isR2Configured()} />
-        </>
+        /* Foto material/alat TIDAK lagi berupa kartu terpisah di bawah form.
+           Pemicunya menempel pada barisnya masing-masing; lembar unggahnya
+           di-portal ke body supaya form-nya tidak bersarang (DECISIONS 341,
+           menggantikan susunan DECISIONS 304). */
+        <EnrichmentForm report={report} locationId={data.location.id} fotoAktif={isR2Configured()} />
       ) : report && (report.weather || report.workers.length || report.materials.length || report.equipment.length || report.workStart) ? (
         <Card>
           <CardHeader title="Pelengkap laporan KKP" />
@@ -291,7 +289,11 @@ export default async function HarianWorkspacePage({
             ) : (
               <p className="text-sm text-ink-muted">Tidak ada kendala tercatat.</p>
             )}
-            <IssueForm reportId={report.id} />
+            {/* Formulirnya TIDAK lagi menganga di dasar halaman.
+                Pelapor ditanya saat MENGIRIM (lihat lembar kirim di editor);
+                di sini tinggal jalan tambahan untuk pemeriksa yang menemukan
+                kendala saat verifikasi. DECISIONS 341. */}
+            {canCreate || canReview ? <PanelKendala reportId={report.id} /> : null}
           </CardBody>
         </Card>
       ) : null}
@@ -331,41 +333,34 @@ export default async function HarianWorkspacePage({
         </Card>
       ) : null}
 
-      {/* 14 hari terakhir */}
+      {/* RIWAYAT: strip 7 hari + tautan ke kalender penuh.
+
+          Dulu di sini ada daftar 14 baris tanggal — ±700px di dasar halaman
+          yang sudah empat layar, dan sejak DECISIONS 340 ia juga duplikat:
+          riwayat lengkapnya sudah punya rumah sendiri berupa kalender yang
+          menjangkau seluruh masa kontrak, bukan cuma 14 hari. Yang berguna
+          DI SINI cuma satu hal — melompat ke hari sebelah tanpa keluar dari
+          alur mengisi. Tujuh sel cukup untuk itu. */}
       <Card>
         <CardHeader
           title={
             <span className="inline-flex items-center gap-1.5">
               <ClipboardList aria-hidden className="size-4 text-ink-muted" />
-              14 hari terakhir
+              Hari sekitar
             </span>
           }
+          action={
+            <Link
+              href={`/lokasi/${slug}/harian?tgl=${date}`}
+              className="text-[13px] font-medium text-primary hover:underline"
+            >
+              Riwayat lengkap →
+            </Link>
+          }
         />
-        <CardBody className="px-0 py-0">
-          <ul className="divide-y divide-border">
-            {data.recentDays.map((d) => (
-              <li key={d.dateKey}>
-                <Link
-                  href={`/lokasi/${slug}/harian/${d.dateKey}`}
-                  className={`flex items-center justify-between gap-3 px-4 py-2.5 text-sm hover:bg-surface-muted ${
-                    d.dateKey === date ? "bg-primary-50" : ""
-                  }`}
-                >
-                  <span className="font-medium text-ink">{formatTanggal(parseDateKey(d.dateKey)!, "EEE, d MMM")}</span>
-                  <span className="flex items-center gap-2">
-                    {d.status ? (
-                      <>
-                        <span className="text-xs text-ink-muted">{d.itemCount} item</span>
-                        <StatusPill tone={REPORT_STATUS_TONE[d.status]} label={REPORT_STATUS_LABEL[d.status]} />
-                      </>
-                    ) : (
-                      <span className="text-xs text-ink-faint">Tidak ada laporan</span>
-                    )}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+        <CardBody className="space-y-2">
+          <Strip7Hari slug={slug} hari={[...data.recentDays].slice(0, 7).reverse()} todayKey={todayKey} />
+          <KeteranganStatus />
         </CardBody>
       </Card>
     </div>

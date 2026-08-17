@@ -16,7 +16,9 @@ import {
   WORKER_ROLE_LABEL,
   WORKER_ROLE_ORDER,
 } from "@/lib/daily-report/constants";
+import { FotoBarisPelengkap } from "@/components/knmp/foto-baris-pelengkap";
 import type { WorkspaceReport } from "@/lib/daily-report/queries";
+import type { PhotoView } from "@/lib/photos";
 
 /**
  * Panel pelengkap KKP: cuaca (otomatis per jam; pemilih manual di balik
@@ -35,6 +37,22 @@ import type { WorkspaceReport } from "@/lib/daily-report/queries";
  */
 type Row = { key: number; id: string; name: string; a: string; b: string };
 let rowSeq = 1;
+
+/**
+ * Foto yang menempel pada satu baris — dibaca dari data SERVER, bukan state.
+ *
+ * Inilah perbaikan angka "0 foto" yang keras kepala (DECISIONS 343): jumlahnya
+ * dulu disalin ke state baris saat komponen dipasang, dan state itu tidak ikut
+ * diperbarui sesudah foto diunggah. Baris yang sudah punya foto tetap menulis
+ * "0 foto" sampai formnya kebetulan dipasang ulang.
+ */
+function fotoBaris<T extends { id: string; photos: PhotoView[] }>(
+  daftar: T[],
+  barisId: string,
+): PhotoView[] {
+  if (!barisId) return [];
+  return daftar.find((b) => b.id === barisId)?.photos ?? [];
+}
 
 const CATEGORY_TONE: Record<KkpWeatherCategory, string> = {
   Cerah: "bg-amber-100 text-amber-900",
@@ -71,11 +89,36 @@ function WeatherAuto({ report }: { report: WorkspaceReport }) {
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
       <div className="flex flex-wrap items-center gap-2">
+        {/*
+          `type="button"`, BUKAN submit — dan ini perbaikan cacat, bukan selera
+          (DECISIONS 342).
+
+          Tombol submit PERTAMA di sebuah form adalah "default button"-nya:
+          menekan Enter di kolom mana pun akan menekan tombol itu. Karena
+          tombol cuaca berada paling awal, Enter di kolom "Diterima" material
+          memanggil AMBIL CUACA, bukan menyimpan — dan karena aksi itu memasang
+          ulang badan form, angka yang baru diketik ikut hilang tanpa pesan apa
+          pun. Diukur di peramban: mengetik 41 lalu Enter mengembalikan 40.
+
+          Lebih buruk lagi bila cuaca sudah diisi manual dari lapangan: form ini
+          membawa `overwriteManual`, jadi satu ketukan Enter yang tidak disengaja
+          bisa MENIMPA pengamatan orang lapangan dengan data otomatis — persis
+          yang dilarang DECISIONS 176 ("isian manual lapangan selalu menang").
+
+          Aksinya tetap sama, hanya pemicunya yang dipindah ke onClick: FormData
+          dirakit dari form yang sama, jadi `reportId` & `overwriteManual` tetap
+          ikut. Sesudah ini satu-satunya tombol submit di form adalah "Simpan
+          Pelengkap" — jadi Enter MENYIMPAN, seperti yang diharapkan orang.
+        */}
         <Button
-          type="submit"
+          type="button"
           variant="secondary"
           size="sm"
-          formAction={formAction}
+          onClick={(e) => {
+            const form = e.currentTarget.form;
+            if (!form) return;
+            formAction(new FormData(form));
+          }}
           disabled={pending}
           title="Diambil dari koordinat lokasi, mengikuti TANGGAL laporan ini (bukan hari ini) — laporan yang diisi mundur tetap dapat cuaca tanggalnya."
         >
@@ -132,7 +175,17 @@ function WeatherAuto({ report }: { report: WorkspaceReport }) {
  * Jadi state aksi ditaruh di komponen luar yang TIDAK ikut dipasang ulang,
  * dan badan form yang ber-`key` menerimanya sebagai prop.
  */
-export function EnrichmentForm({ report }: { report: WorkspaceReport }) {
+export function EnrichmentForm({
+  report,
+  locationId,
+  fotoAktif,
+}: {
+  report: WorkspaceReport;
+  /** Dipakai pemilih kantong Foto Cepat — kantong disaring per lokasi. */
+  locationId: string;
+  /** false = R2 mati / laporan tidak lagi bisa ditambahi foto. */
+  fotoAktif: boolean;
+}) {
   const [state, formAction, pending] = useActionState<DailyActionState, FormData>(
     saveEnrichmentAction,
     undefined,
@@ -149,6 +202,8 @@ export function EnrichmentForm({ report }: { report: WorkspaceReport }) {
     <BadanForm
       key={tandaTangan}
       report={report}
+      locationId={locationId}
+      fotoAktif={fotoAktif}
       state={state}
       formAction={formAction}
       pending={pending}
@@ -158,11 +213,15 @@ export function EnrichmentForm({ report }: { report: WorkspaceReport }) {
 
 function BadanForm({
   report,
+  locationId,
+  fotoAktif,
   state,
   formAction,
   pending,
 }: {
   report: WorkspaceReport;
+  locationId: string;
+  fotoAktif: boolean;
   state: DailyActionState;
   formAction: (formData: FormData) => void;
   pending: boolean;
@@ -170,12 +229,24 @@ function BadanForm({
   const workerMap = new Map(report.workers.map((w) => [w.role, w.count]));
   const [materials, setMaterials] = useState<Row[]>(
     report.materials.length
-      ? report.materials.map((m) => ({ key: rowSeq++, id: m.id, name: m.name, a: m.unit ?? "", b: m.qty != null ? String(m.qty) : "" }))
+      ? report.materials.map((m) => ({
+          key: rowSeq++,
+          id: m.id,
+          name: m.name,
+          a: m.unit ?? "",
+          b: m.qty != null ? String(m.qty) : "",
+        }))
       : [{ key: rowSeq++, id: "", name: "", a: "", b: "" }],
   );
   const [equipment, setEquipment] = useState<Row[]>(
     report.equipment.length
-      ? report.equipment.map((e) => ({ key: rowSeq++, id: e.id, name: e.name, a: String(e.count), b: "" }))
+      ? report.equipment.map((e) => ({
+          key: rowSeq++,
+          id: e.id,
+          name: e.name,
+          a: String(e.count),
+          b: "",
+        }))
       : [{ key: rowSeq++, id: "", name: "", a: "1", b: "" }],
   );
 
@@ -255,20 +326,39 @@ function BadanForm({
         <legend className="mb-1.5 text-[13px] font-medium text-ink">Pemasukan bahan / material</legend>
         <div className="space-y-2">
           {materials.map((row, idx) => (
-            <div key={row.key} className="flex items-end gap-2">
+            <div
+              key={row.key}
+              data-baris="material"
+              className="space-y-1.5 rounded-md border border-border/70 bg-surface-muted/40 p-2"
+            >
+              {/* Nama mengambil BARIS SENDIRI di ponsel. Sebelumnya ia berbagi
+                  satu baris dengan satuan + jumlah + tombol hapus, dan pada
+                  layar 390px sisanya cuma ±100px: "Semen PCC 50kg" terbaca
+                  "Seme". Nama material yang terpotong bukan kosmetik — itu yang
+                  dipakai orang mencocokkan dengan surat jalan. */}
+              <div className="flex flex-wrap items-end gap-2">
               {/* Larik di server sejajar per INDEKS, jadi tiap baris wajib
                   memancarkan id-nya — termasuk yang kosong (baris baru). */}
               <input type="hidden" name="materialId" value={row.id} />
-              <div className="min-w-0 flex-1">
-                {idx === 0 ? <Label className="text-xs font-normal text-ink-muted">Nama</Label> : null}
+              <div className="min-w-0 basis-full sm:flex-1 sm:basis-auto">
+                <Label className="text-xs font-normal text-ink-muted">Nama</Label>
                 <Input name="materialName" defaultValue={row.name} placeholder="mis. Semen 50kg" />
               </div>
               <div className="w-20">
-                {idx === 0 ? <Label className="text-xs font-normal text-ink-muted">Sat</Label> : null}
+                {/* Label di SETIAP baris, bukan cuma yang pertama: tiap baris
+                    kini kartu tersendiri, dan "20" tanpa keterangan di kartu
+                    ketiga tidak bisa dibaca sebagai apa pun. */}
+                <Label className="text-xs font-normal text-ink-muted">Sat</Label>
                 <Input name="materialUnit" defaultValue={row.a} placeholder="zak" />
               </div>
-              <div className="w-24">
-                {idx === 0 ? <Label className="text-xs font-normal text-ink-muted">Diterima</Label> : null}
+              <div className="min-w-0 flex-1 sm:w-24 sm:flex-none">
+                {/* "Diterima" adalah kata BLANKO KKP, dan di sana ia berpasangan
+                    dengan kolom "Ditolak" sehingga artinya jelas. Di layar input
+                    pasangannya tidak ada, jadi "Diterima" berdiri sendiri dan
+                    rancu — keluhan user 2026-08-17. Cetakan KKP TETAP memakai
+                    "Diterima"/"Ditolak" karena blankonya begitu; yang diganti
+                    hanya kata di layar. */}
+                <Label className="text-xs font-normal text-ink-muted">Qty/Volume</Label>
                 <Input name="materialQty" type="number" inputMode="decimal" step="0.001" min="0" defaultValue={row.b} />
               </div>
               <Button
@@ -280,6 +370,20 @@ function BadanForm({
               >
                 <X aria-hidden className="size-4" />
               </Button>
+              </div>
+              {/* Tiga sumber foto LANGSUNG di barisnya, dan fotonya ikut
+                  "Simpan Pelengkap" — tanpa tombol antara, tanpa aksi
+                  tersendiri (DECISIONS 343). */}
+              {fotoAktif ? (
+                <FotoBarisPelengkap
+                  awalan={`m${idx}_`}
+                  locationId={locationId}
+                  label={row.name}
+                  foto={fotoBaris(report.materials, row.id)}
+                  bolehHapus={fotoAktif}
+                  sunyiIzin={idx > 0}
+                />
+              ) : null}
             </div>
           ))}
           <Button
@@ -299,14 +403,19 @@ function BadanForm({
         <legend className="mb-1.5 text-[13px] font-medium text-ink">Peralatan</legend>
         <div className="space-y-2">
           {equipment.map((row, idx) => (
-            <div key={row.key} className="flex items-end gap-2">
+            <div
+              key={row.key}
+              data-baris="alat"
+              className="space-y-1.5 rounded-md border border-border/70 bg-surface-muted/40 p-2"
+            >
+              <div className="flex flex-wrap items-end gap-2">
               <input type="hidden" name="equipmentId" value={row.id} />
-              <div className="min-w-0 flex-1">
-                {idx === 0 ? <Label className="text-xs font-normal text-ink-muted">Nama alat</Label> : null}
+              <div className="min-w-0 basis-full sm:flex-1 sm:basis-auto">
+                <Label className="text-xs font-normal text-ink-muted">Nama alat</Label>
                 <Input name="equipmentName" defaultValue={row.name} placeholder="mis. Molen beton" />
               </div>
-              <div className="w-24">
-                {idx === 0 ? <Label className="text-xs font-normal text-ink-muted">Jumlah</Label> : null}
+              <div className="min-w-0 flex-1 sm:w-24 sm:flex-none">
+                <Label className="text-xs font-normal text-ink-muted">Jumlah</Label>
                 <Input name="equipmentCount" type="number" inputMode="numeric" min={1} defaultValue={row.a || "1"} />
               </div>
               <Button
@@ -318,6 +427,17 @@ function BadanForm({
               >
                 <X aria-hidden className="size-4" />
               </Button>
+              </div>
+              {fotoAktif ? (
+                <FotoBarisPelengkap
+                  awalan={`a${idx}_`}
+                  locationId={locationId}
+                  label={row.name}
+                  foto={fotoBaris(report.equipment, row.id)}
+                  bolehHapus={fotoAktif}
+                  sunyiIzin
+                />
+              ) : null}
             </div>
           ))}
           <Button

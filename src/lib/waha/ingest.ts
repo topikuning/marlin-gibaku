@@ -27,6 +27,13 @@ export async function ingestWaEvent(body: unknown): Promise<IngestResult> {
     select: { id: true },
   });
   if (!pkg) {
+    // Chat PRIBADI memang tidak pernah disimpan — itu bukan kesalahan
+    // penautan, dan sejak tanya-jawab bebas (DECISIONS 339) chat pribadi
+    // adalah saluran yang sah. Menyebutnya "DIBUANG — belum tertaut paket"
+    // mengirim admin memburu tautan grup yang tidak pernah ada.
+    if (!m.chatId.endsWith("@g.us")) {
+      return { stored: false, reason: "chat pribadi (tidak diarsipkan)", chatId: m.chatId };
+    }
     console.warn(
       `[waha] pesan DIBUANG — grup "${m.chatId}" belum tertaut paket. ` +
         `Tautkan chatId ini di Paket → Grup WhatsApp. from=${m.fromNumber ?? "?"} body="${m.body.slice(0, 40)}"`,

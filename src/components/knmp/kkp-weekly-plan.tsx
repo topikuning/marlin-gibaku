@@ -457,7 +457,7 @@ function Sign({
       <div className="font-medium">{role}</div>
       {/* 56px = `h-14` yang dulu dipakai — tata letak tidak bergeser saat
           gambar tanda tangan belum ada. */}
-      <RuangTtd tinggi={56} ttd={ttd} stempel={stempel} />
+      <RuangTtd tinggi={88} ttd={ttd} stempel={stempel} />
       <div className="border-t border-slate-400 pt-0.5 font-semibold">{name ?? "(………………………)"}</div>
       {sub ? <div className="text-[9px] text-slate-500">{sub}</div> : null}
     </div>

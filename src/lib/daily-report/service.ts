@@ -265,8 +265,24 @@ export async function setEnrichment(reportId: string, input: EnrichmentInput, us
   }
 
   const workers = input.workers.filter((w) => Number.isFinite(w.count) && w.count > 0);
-  const materials = input.materials.filter((m) => m.name.trim().length > 0);
-  const equipment = input.equipment.filter((e) => e.name.trim().length > 0 && e.count > 0);
+  /*
+   * Indeks ASLI dibawa serta (DECISIONS 343).
+   *
+   * Baris tanpa nama dibuang di sini, jadi posisi sesudah penyaringan tidak
+   * lagi sama dengan posisi di form. Foto yang ikut dikirim bersama simpanan
+   * dipasangkan menurut posisi FORM — tanpa membawa indeks aslinya, foto baris
+   * ke-3 bisa menempel ke baris ke-2. Itu bukan galat yang terbit; itu bukti
+   * yang menempel pada barang yang salah.
+   */
+  const materials = input.materials
+    .map((m, i) => ({ ...m, asli: i }))
+    .filter((m) => m.name.trim().length > 0);
+  const equipment = input.equipment
+    .map((e, i) => ({ ...e, asli: i }))
+    .filter((e) => e.name.trim().length > 0 && e.count > 0);
+  /** id hasil simpan, sejajar dengan larik MASUKAN (null = baris dibuang). */
+  const idMaterial: (string | null)[] = input.materials.map(() => null);
+  const idAlat: (string | null)[] = input.equipment.map(() => null);
 
   // Cuaca yang dipilih tangan = PENGAMATAN lapangan → tandai `manual` supaya
   // pengambilan otomatis tidak pernah menimpanya. Deret per jam hasil ambil
@@ -316,6 +332,7 @@ export async function setEnrichment(reportId: string, input: EnrichmentInput, us
       ),
     );
     const barisMaterial = materials.map((m) => ({
+      asli: m.asli,
       id: m.id && milikMaterial.has(m.id) ? m.id : null,
       name: m.name.trim(),
       unit: m.unit?.trim() || null,
@@ -333,10 +350,13 @@ export async function setEnrichment(reportId: string, input: EnrichmentInput, us
           where: { id: m.id },
           data: { name: m.name, unit: m.unit, qtyReceived: m.qtyReceived },
         });
+        idMaterial[m.asli] = m.id;
       } else {
-        await tx.dailyReportMaterial.create({
+        const baru = await tx.dailyReportMaterial.create({
           data: { reportId, name: m.name, unit: m.unit, qtyReceived: m.qtyReceived },
+          select: { id: true },
         });
+        idMaterial[m.asli] = baru.id;
       }
     }
 
@@ -346,6 +366,7 @@ export async function setEnrichment(reportId: string, input: EnrichmentInput, us
       ),
     );
     const barisAlat = equipment.map((e) => ({
+      asli: e.asli,
       id: e.id && milikAlat.has(e.id) ? e.id : null,
       name: e.name.trim(),
       count: Math.round(e.count),
@@ -357,8 +378,13 @@ export async function setEnrichment(reportId: string, input: EnrichmentInput, us
     for (const e of barisAlat) {
       if (e.id) {
         await tx.dailyReportEquipment.update({ where: { id: e.id }, data: { name: e.name, count: e.count } });
+        idAlat[e.asli] = e.id;
       } else {
-        await tx.dailyReportEquipment.create({ data: { reportId, name: e.name, count: e.count } });
+        const baru = await tx.dailyReportEquipment.create({
+          data: { reportId, name: e.name, count: e.count },
+          select: { id: true },
+        });
+        idAlat[e.asli] = baru.id;
       }
     }
   });
@@ -368,6 +394,9 @@ export async function setEnrichment(reportId: string, input: EnrichmentInput, us
     materials: materials.length,
     equipment: equipment.length,
   });
+  // Dikembalikan supaya foto yang ikut dikirim bersama simpanan bisa langsung
+  // ditempelkan ke barisnya — tanpa menyuruh orangnya menyimpan dulu.
+  return { idMaterial, idAlat };
 }
 
 /**

@@ -205,6 +205,58 @@ export async function unggahLaporanHarian(input: {
  * Yang diunggah OTOMATIS hanya `mingguan` (DECISIONS 313); `bulanan` tetap
  * lewat tombol, dan memakai fungsi yang sama ini.
  */
+/**
+ * BERKAS MINGGUAN (sampul + tujuh laporan harian) ke Drive — DECISIONS 335.
+ *
+ * Metodenya sama persis dengan laporan periodik; yang berbeda hanya berkasnya.
+ * Karena itu ia memakai `konteksUnggah` + `uploadBatch` yang sama, dan tidak
+ * ada satu pun jalur unggah baru.
+ *
+ * Dua hal yang SENGAJA dibedakan:
+ *
+ * 1. `refKey` berbeda dari laporan mingguan periodik. Keduanya "mingguan
+ *    ke-n" untuk lokasi yang sama, dan refKey itulah kunci idempotensi
+ *    unggahannya — kalau disamakan, mengunggah salah satu akan terbaca sebagai
+ *    unggahan yang lain sudah selesai.
+ * 2. Namanya diawali "Laporan Harian" karena isinya memang tujuh laporan
+ *    HARIAN, bukan laporan mingguan. Menaruh dua berkas berbeda dengan nama
+ *    mirip di satu folder adalah cara tercepat membuat orang mengirim yang
+ *    salah ke PPK.
+ */
+export async function unggahBerkasMingguan(input: {
+  locationId: string;
+  minggu: number;
+  byId: string | null;
+  jedaMs?: number;
+}): Promise<HasilUnggah | Terhalang | TidakBerlaku> {
+  const { locationId, minggu } = input;
+  const c = await konteksUnggah(
+    { locationId },
+    "laporan_mingguan",
+    `${locationId}:berkas-harian-minggu-${minggu}`,
+    input.byId,
+  );
+  if (adalahTerhalang(c)) return c;
+
+  const { renderMingguanKkpPdf } = await import("@/lib/pdf/mingguan-kkp");
+  const loc = await db.location.findUnique({ where: { id: locationId }, select: { slug: true } });
+  if (!loc) return { batal: "Lokasi tidak ditemukan." };
+
+  const hasil = await renderMingguanKkpPdf(loc.slug, minggu);
+  if (!hasil) {
+    return { batal: `Berkas mingguan ke-${minggu} belum bisa disusun — lokasi ini belum punya tanggal SPMK.` };
+  }
+
+  const nama = safeFileName(`Laporan Harian Minggu ke-${minggu} - ${c.locationName}.pdf`);
+  const outcome = await uploadBatch(
+    c.target,
+    periodReportPath("mingguan", c.locationName),
+    [{ fileName: nama, mime: PDF_MIME, data: hasil.buffer }],
+    { jedaMs: input.jedaMs },
+  );
+  return rangkum(`Berkas harian minggu ke-${minggu}`, [outcome], 0);
+}
+
 export async function unggahLaporanPeriodik(input: {
   locationId: string;
   kind: PeriodKind;

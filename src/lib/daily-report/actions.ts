@@ -19,6 +19,7 @@ import { audit, auditIn } from "@/lib/audit";
 import { applyWeatherToReport, WeatherError, WeatherFetchError } from "@/lib/weather/service";
 import type { UserRole, WeatherCode, WorkerRole } from "@/generated/prisma/enums";
 import { WEATHER_ORDER, WORKER_ROLE_ORDER } from "./constants";
+import { bacaKendalaKirim } from "./kirim-kendala";
 import {
   addIssueFromReport,
   approveReport,
@@ -126,6 +127,18 @@ const photoFieldsShape = {
 };
 type PhotoFields = z.infer<z.ZodObject<typeof photoFieldsShape>>;
 
+/**
+ * Medan foto satu baris → bentuk yang sudah tervalidasi.
+ *
+ * Nilai yang tidak masuk akal DIBUANG, bukan menggagalkan simpanan: koordinat
+ * aneh dari peramban tidak boleh menahan angka material yang sudah benar. Yang
+ * hilang cuma capnya, dan itu tetap terbaca di foto (gpsSource).
+ */
+function photoFieldsShapeParse(raw: Record<string, unknown>): PhotoFields {
+  const r = z.object(photoFieldsShape).safeParse(raw);
+  return r.success ? r.data : {};
+}
+
 function photoFieldsFrom(formData: FormData) {
   return {
     photoLat: formData.get("photoLat") || undefined,
@@ -134,6 +147,33 @@ function photoFieldsFrom(formData: FormData) {
     photoSource: formData.get("photoSource") || undefined,
     galleryFallback: formData.get("galleryFallback") || undefined,
     galleryAtSite: formData.get("galleryAtSite") || undefined,
+  };
+}
+
+/**
+ * Medan foto satu BARIS material/alat, dibaca lewat awalan (DECISIONS 343).
+ *
+ * Tiap baris punya pemilih fotonya sendiri di dalam form pelengkap yang sama,
+ * jadi nama medannya diawali `m0_`, `m1_`, `a0_`, … Tanpa awalan, `photos`
+ * seluruh baris menyatu jadi satu daftar dan tidak ada lagi cara mengetahui
+ * foto mana milik baris mana — bukti akan menempel pada barang yang salah,
+ * diam-diam.
+ */
+function fotoBarisDariForm(formData: FormData, awalan: string) {
+  return {
+    files: formData
+      .getAll(`${awalan}photos`)
+      .filter((f): f is File => f instanceof File && f.size > 0)
+      .slice(0, MAX_PHOTOS_PER_UPLOAD),
+    kantong: formData.getAll(`${awalan}kantongPhotoIds`).map(String).filter(Boolean),
+    foto: {
+      photoLat: formData.get(`${awalan}photoLat`) || undefined,
+      photoLng: formData.get(`${awalan}photoLng`) || undefined,
+      photoTakenAt: formData.get(`${awalan}photoTakenAt`) || undefined,
+      photoSource: formData.get(`${awalan}photoSource`) || undefined,
+      galleryFallback: formData.get(`${awalan}galleryFallback`) || undefined,
+      galleryAtSite: formData.get(`${awalan}galleryAtSite`) || undefined,
+    },
   };
 }
 
@@ -570,96 +610,6 @@ export async function addItemPhotosAction(
   }
 }
 
-/**
- * Foto bukti untuk satu baris MATERIAL / ALAT (DECISIONS 304).
- *
- * Kebutuhan lapangan user 2026-08-08: laporan harian bukan hanya item
- * pekerjaan — material masuk dan alat juga perlu dibuktikan, masing-masing
- * barisnya sendiri.
- *
- * Barisnya harus SUDAH tersimpan sebelum bisa difoto: ID-nya baru ada setelah
- * pelengkap disimpan. Itu batasan nyata, dan dikatakan di layar — bukan
- * dibiarkan jadi tombol yang diam saja saat ditekan.
- */
-const addSupplyPhotosSchema = z.object({
-  reportId: z.uuid(),
-  jenis: z.enum(["material", "alat"]),
-  barisId: z.uuid(),
-  ...photoFieldsShape,
-});
-
-export async function addSupplyPhotosAction(
-  _prev: DailyActionState,
-  formData: FormData,
-): Promise<DailyActionState> {
-  try {
-    const user = await requireCapability("daily_report.create");
-    const parsed = addSupplyPhotosSchema.safeParse({
-      reportId: formData.get("reportId"),
-      jenis: formData.get("jenis"),
-      barisId: formData.get("barisId"),
-      ...photoFieldsFrom(formData),
-    });
-    if (!parsed.success) return { error: parsed.error.issues[0].message };
-    const d = parsed.data;
-
-    const ctx = await loadReportContext(d.reportId);
-    await requireLocationAccess(user, ctx.locationId);
-    // Batas yang sama dengan foto pekerjaan: begitu laporan dikirim, fotonya
-    // sudah jadi dasar verifikasi — menambah bukti setelah itu bukan koreksi.
-    if (!EDITABLE_STATUSES.includes(ctx.status)) {
-      return { error: "Laporan sudah dikirim — foto tidak bisa ditambah lagi." };
-    }
-
-    // Baris DICARI dengan reportId ikut disaring: id dari form tidak boleh
-    // bisa menempelkan foto ke laporan milik orang lain.
-    const baris =
-      d.jenis === "material"
-        ? await db.dailyReportMaterial.findFirst({
-            where: { id: d.barisId, reportId: ctx.id },
-            select: { id: true, name: true, unit: true, qtyReceived: true },
-          })
-        : await db.dailyReportEquipment.findFirst({
-            where: { id: d.barisId, reportId: ctx.id },
-            select: { id: true, name: true, count: true },
-          });
-    if (!baris) {
-      return { error: "Baris tidak ditemukan di laporan ini — simpan pelengkap dulu, lalu foto." };
-    }
-
-    const files = fotoDariForm(formData);
-    if (files.length === 0) return { error: "Belum ada foto yang dipilih." };
-
-    const { location, companyName } = await muatLokasiCap(ctx.locationId);
-    const photoErrors = await unggahFotoPelengkap({
-      user,
-      location,
-      companyName,
-      reportId: ctx.id,
-      jenis: d.jenis,
-      barisId: baris.id,
-      namaBaris: baris.name,
-      dateKey: ctx.dateKey,
-      files,
-      foto: d,
-    });
-
-    const berhasil = files.length - photoErrors.length;
-    revalidateReport(ctx.slug, ctx.dateKey);
-    if (berhasil === 0) {
-      return { error: `Foto tidak tersimpan: ${[...new Set(photoErrors)].join("; ")}` };
-    }
-    return {
-      success: `${berhasil} foto ${d.jenis === "material" ? "material" : "alat"} ditambahkan.`,
-      warning: photoErrors.length
-        ? `Sebagian foto gagal: ${[...new Set(photoErrors)].join("; ")}`
-        : undefined,
-    };
-  } catch (err) {
-    return errState(err);
-  }
-}
-
 const removeItemSchema = z.object({ reportId: z.uuid(), itemId: z.uuid() });
 
 export async function removeItemAction(_prev: DailyActionState, formData: FormData): Promise<DailyActionState> {
@@ -971,7 +921,7 @@ export async function saveEnrichmentAction(_prev: DailyActionState, formData: Fo
       count: Math.max(1, Math.trunc(Number(equipmentCounts[i] ?? 1)) || 1),
     }));
 
-    await setEnrichment(
+    const { idMaterial, idAlat } = await setEnrichment(
       ctx.id,
       {
         weather: parsed.data.weather,
@@ -984,8 +934,85 @@ export async function saveEnrichmentAction(_prev: DailyActionState, formData: Fo
       },
       user.id,
     );
+
+    /*
+     * FOTO IKUT SIMPANAN — tidak ada lagi "simpan dulu, baru foto"
+     * (DECISIONS 343, mengoreksi 341/342).
+     *
+     * Pola yang sama sudah dipakai form item pekerjaan sejak lama: fotonya
+     * dikirim bersama simpanan, dan penautannya diurus sesudah barisnya punya
+     * id. Menagih penggunanya menyimpan lebih dulu adalah memindahkan
+     * pembukuan kami ke pundaknya.
+     *
+     * Kegagalan foto TIDAK membatalkan simpanan: angka & nama sudah tersimpan,
+     * dan mengembalikannya hanya karena satu berkas gagal diunggah akan
+     * menghapus pekerjaan yang sudah benar. Kegagalannya DISEBUTKAN.
+     */
+    const galatFoto: string[] = [];
+    let fotoBaru = 0;
+    // Impor dinamis, pola yang sama dengan jalur item pekerjaan di atas:
+    // modul foto-cepat menarik rantai R2 + cap yang tidak dibutuhkan simpanan
+    // pelengkap yang tanpa foto.
+    const { pakaiFotoKeTujuan } = await import("@/lib/foto-cepat/pakai");
+    const adaFoto = [...formData.keys()].some((k) => /^[ma]\d+_(photos|kantongPhotoIds)$/.test(k));
+    if (adaFoto) {
+      const { location, companyName } = await muatLokasiCap(ctx.locationId);
+      const jalur: { jenis: "material" | "alat"; awalan: string; ids: (string | null)[] }[] = [
+        { jenis: "material", awalan: "m", ids: idMaterial },
+        { jenis: "alat", awalan: "a", ids: idAlat },
+      ];
+      for (const j of jalur) {
+        for (const [i, barisId] of j.ids.entries()) {
+          const b = fotoBarisDariForm(formData, `${j.awalan}${i}_`);
+          if (b.files.length === 0 && b.kantong.length === 0) continue;
+          if (!barisId) {
+            // Baris tanpa nama dibuang penyimpanan — fotonya tidak punya induk.
+            galatFoto.push("ada foto pada baris yang namanya belum diisi");
+            continue;
+          }
+          const nama =
+            j.jenis === "material" ? (materials[i]?.name ?? "") : (equipment[i]?.name ?? "");
+          if (b.files.length > 0) {
+            const gagal = await unggahFotoPelengkap({
+              user,
+              location,
+              companyName,
+              reportId: ctx.id,
+              jenis: j.jenis,
+              barisId,
+              namaBaris: nama,
+              dateKey: ctx.dateKey,
+              files: b.files,
+              foto: photoFieldsShapeParse(b.foto),
+            });
+            fotoBaru += b.files.length - gagal.length;
+            galatFoto.push(...gagal);
+          }
+          if (b.kantong.length > 0) {
+            const hasil = await pakaiFotoKeTujuan(user, b.kantong, {
+              tujuan: j.jenis === "material" ? "material" : "alat",
+              barisId,
+            });
+            if ("error" in hasil) galatFoto.push(hasil.error);
+            else {
+              fotoBaru += hasil.dipakai;
+              galatFoto.push(...hasil.gagalCap);
+            }
+          }
+        }
+      }
+    }
+
     revalidateReport(ctx.slug, ctx.dateKey);
-    return { success: "Pelengkap laporan tersimpan." };
+    const kabar = fotoBaru > 0
+      ? `Pelengkap laporan tersimpan — ${fotoBaru} foto ditambahkan.`
+      : "Pelengkap laporan tersimpan.";
+    return {
+      success: kabar,
+      warning: galatFoto.length
+        ? `Sebagian foto gagal: ${[...new Set(galatFoto)].join("; ")}`
+        : undefined,
+    };
   } catch (err) {
     return errState(err);
   }
@@ -995,15 +1022,49 @@ export async function saveEnrichmentAction(_prev: DailyActionState, formData: Fo
 // Transisi status
 // ─────────────────────────────────────────────────────────────
 
+/**
+ * Kirim laporan — SEKALIAN mencatat kendala yang dijawab di lembar kirim
+ * (DECISIONS 341).
+ *
+ * Satu aksi, bukan dua berurutan. Dua aksi berarti dua ketukan dan satu
+ * keadaan antara yang berbahaya: kendala tercatat tapi laporannya gagal
+ * terkirim, atau sebaliknya. Di sini kendalanya dicatat LEBIH DULU — kalau
+ * pencatatannya gagal, laporan tidak jadi terkirim dan orangnya masih memegang
+ * kalimat yang barusan ia tulis.
+ */
 export async function submitReportAction(_prev: DailyActionState, formData: FormData): Promise<DailyActionState> {
   try {
     const user = await requireCapability("daily_report.create");
     const reportId = z.uuid().parse(formData.get("reportId"));
     const ctx = await loadReportContext(reportId);
     await requireLocationAccess(user, ctx.locationId);
+
+    const kendala = bacaKendalaKirim({
+      pilihan: formData.get("kendalaPilihan"),
+      title: formData.get("kendalaTitle"),
+      severity: formData.get("kendalaSeverity"),
+      description: formData.get("kendalaDescription"),
+    });
+    if (!kendala.ok) return { error: kendala.error };
+    if (kendala.kendala) {
+      await addIssueFromReport(
+        ctx.id,
+        {
+          title: kendala.kendala.title,
+          description: kendala.kendala.description,
+          severity: kendala.kendala.severity,
+        },
+        user.id,
+      );
+    }
+
     await submitReport(reportId, user.id);
     revalidateReport(ctx.slug, ctx.dateKey);
-    return { success: "Laporan terkirim — menunggu verifikasi." };
+    return {
+      success: kendala.kendala
+        ? "Laporan terkirim beserta 1 kendala — menunggu verifikasi."
+        : "Laporan terkirim — menunggu verifikasi.",
+    };
   } catch (err) {
     return errState(err);
   }

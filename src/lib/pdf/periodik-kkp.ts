@@ -495,11 +495,11 @@ function signatureBlock(
     width: o.width,
     cols: colWidths(o.width, [1, 1, 1]),
     fontSize: 7.5,
-    minRowHeight: 66,
+    minRowHeight: 90,
   };
   const nameOf = (n: string | null, sub: string | null) =>
-    `\n\n\n( ${n ?? "……………………………"} )${sub ? `\n${sub}` : ""}`;
-  o.fit(66);
+    `\n\n\n\n\n( ${n ?? "……………………………"} )${sub ? `\n${sub}` : ""}`;
+  o.fit(90);
   const y = gridRow(
     doc,
     o.y,
@@ -525,14 +525,17 @@ function signatureBlock(
      "( … )" ada di baris ke-5 blok; coretan berpijak tepat di atasnya. */
   if (o.gambarTtd) {
     const lebarKolom = o.width / 3;
-    const yDasar = o.y + 44;
+    // Ruang dari tepi ATAS blok sampai garis nama. Stempel dibatasi tepat
+    // sebesar ini supaya tidak menembus tabel di atasnya (DECISIONS 333).
+    const RUANG = 68;
+    const yDasar = o.y + RUANG;
     const urut = ["ppk", "pengawas", "penyedia"] as const;
     urut.forEach((pihak, i) => {
       gambarTtdPdf(doc, o.gambarTtd![pihak], {
         xTengah: o.x + i * lebarKolom + lebarKolom / 2,
         yDasar,
         lebarKolom,
-        tinggiCelah: 32,
+        ruangDiAtasNama: RUANG,
       });
     });
   }

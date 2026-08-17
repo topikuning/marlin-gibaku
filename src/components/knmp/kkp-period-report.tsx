@@ -416,7 +416,7 @@ function Sign({
       <div className="text-[9px] text-slate-500 uppercase">{title}</div>
       <div className="font-semibold">{role}</div>
       {/* 48px = `mt-12` yang dulu dipakai. */}
-      <RuangTtd tinggi={48} ttd={ttd} stempel={stempel} />
+      <RuangTtd tinggi={84} ttd={ttd} stempel={stempel} />
       <div className="border-t border-slate-400 pt-1 font-semibold text-ink">
         {name ? `( ${name} )` : <span className="font-normal text-slate-500">( …………………………… )</span>}
       </div>

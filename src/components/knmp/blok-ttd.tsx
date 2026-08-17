@@ -67,6 +67,8 @@ export function RuangTtd({
   // Lebar kolomnya tidak diketahui saat render (grid/flex), jadi persentasenya
   // diserahkan ke CSS `min()` — angka yang persis sama dengan yang dipakai
   // `ukuranTtd` untuk PDF, supaya kertas dan layar tidak bisa berbeda.
+  // Batas kedua adalah TINGGI RUANGNYA sendiri: stempel yang lebih tinggi
+  // dari ruangnya akan melimpah ke atas menembus tabel (DECISIONS 333).
   const lebarStempel = `min(${PERSEN_STEMPEL}%, ${Math.round(tinggi * BATAS_STEMPEL)}px)`;
   const lebarTtd = `min(${PERSEN_TTD}%, ${Math.round(tinggi * BATAS_TTD * BENTUK_TTD)}px)`;
 

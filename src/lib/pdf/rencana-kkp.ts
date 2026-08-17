@@ -312,7 +312,7 @@ export async function buildRencanaKkpPdf(
 
   /* ── Tanda tangan ── */
   const ttd = pihakTandaTanganRencana(r);
-  fit(96);
+  fit(120);
   const kolom = width / 3;
   const atasTtd = y;
   ttd.forEach((t, i) => {
@@ -323,7 +323,10 @@ export async function buildRencanaKkpPdf(
     cy += 11;
     doc.font(PDF_FONT.bold).fillColor(PDF_COLORS.ink);
     doc.text(t.role, cx, cy, { width: kolom, align: "center" });
-    cy += 48; // ruang tanda tangan basah
+    // Ruang tanda tangan basah, sekaligus batas tinggi stempel: ia tidak boleh
+    // melimpah keluar blok dan menembus tabel di atasnya (DECISIONS 333).
+    const RUANG = 72;
+    cy += RUANG;
     // Tempel gambar tanda tangan & stempel di ruang itu (DECISIONS 328).
     // Pihaknya dibaca dari `t.pihak`, BUKAN dari indeks `i`: kalau urutan blok
     // diubah, mencocokkan lewat indeks akan menempelkan stempel PPK di kolom
@@ -334,7 +337,7 @@ export async function buildRencanaKkpPdf(
         xTengah: cx + kolom / 2,
         yDasar: cy,
         lebarKolom: kolom,
-        tinggiCelah: 40,
+        ruangDiAtasNama: RUANG,
       });
     }
     doc

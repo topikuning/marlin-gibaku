@@ -597,6 +597,14 @@ export function WahaWebhookPanel({
         title="Pakai message.any, bukan message"
         description="Event message hanya membawa pesan MASUK. Kiriman MARLIN sendiri (laporan harian/kegiatan yang dikirim ke grup) hanya ikut terarsip lewat message.any — tanpa itu ringkasan harian tidak utuh."
       />
+      {/* Tanya-jawab bebas memakai webhook yang SAMA — tidak ada yang perlu
+          dipasang lagi. Yang perlu diketahui admin hanya dua syaratnya, dan
+          keduanya sering jadi sebab "kok MARLIN tidak menjawab". */}
+      <Banner
+        tone="info"
+        title="Webhook ini juga dipakai tanya-jawab bebas"
+        description="Pertanyaan berbahasa bebas (mis. “ada kendala apa hari ini”) dijawab dari data sistem. Dua syaratnya: (1) nomor WhatsApp penanya harus terisi di data penggunanya — nama tampilan WhatsApp tidak dipakai; (2) di grup, MARLIN hanya menjawab bila di-mention. Jawaban di grup selalu dipotong ke lokasi paket grup itu saja."
+      />
 
       {hasSecret && webhookUrl ? (
         <div>

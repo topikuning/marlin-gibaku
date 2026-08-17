@@ -47,3 +47,4 @@ export {
   type DeltaBadgeProps,
   type DeviationTone,
 } from "./stat-delta";
+export { MenuBerkas, type PilihanBerkas } from "./menu-berkas";

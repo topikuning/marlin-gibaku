@@ -44,6 +44,10 @@ export function PhotoSourceInput({
   onPicked,
   compact = false,
   hanyaKamera = false,
+  slotKetiga,
+  prefix = "",
+  sunyiIzin = false,
+  ringkas = false,
 }: {
   latName?: string;
   lngName?: string;
@@ -51,6 +55,16 @@ export function PhotoSourceInput({
   onPicked?: () => void;
   /** true → sembunyikan pratinjau (mode inline auto-submit). */
   compact?: boolean;
+  /**
+   * Ubin KETIGA di baris sumber foto — dipakai "Foto Cepat" (DECISIONS 341).
+   *
+   * Sengaja slot, bukan prop boolean: mengambil dari kantong Foto Cepat BUKAN
+   * `<input type=file>` melainkan panel pemilih tersendiri, jadi pemiliknya
+   * yang tahu cara membukanya. Yang dijamin berkas ini hanyalah ketiganya
+   * TAMPIL SETARA — sebelumnya Foto Cepat terbaca seperti aksi kelas dua
+   * padahal koordinatnya justru yang paling benar.
+   */
+  slotKetiga?: React.ReactNode;
   /**
    * true → JALUR GALERI DITUTUP; hanya memotret langsung (DECISIONS 255).
    *
@@ -64,7 +78,42 @@ export function PhotoSourceInput({
    * lain, yaitu foto yang KETINGGALAN (DECISIONS 226).
    */
   hanyaKamera?: boolean;
+  /**
+   * Awalan nama medan, supaya BEBERAPA pemilih bisa hidup dalam SATU form
+   * (DECISIONS 343).
+   *
+   * Tiap baris material/alat punya pemilih fotonya sendiri; tanpa awalan,
+   * `photos` dari semua baris menyatu jadi satu daftar dan tidak ada lagi cara
+   * mengetahui foto mana milik baris mana. Kosong = perilaku lama, dipakai
+   * pemilih yang memang sendirian di formnya.
+   */
+  prefix?: string;
+  /**
+   * Sembunyikan KOTAK PERINGATAN izin lokasi (perilakunya tidak berubah).
+   *
+   * Dipakai pemilih ke-2 dan seterusnya dalam satu layar (DECISIONS 343):
+   * peringatan yang sama diulang lima belas kali — sekali per baris material —
+   * berhenti dibaca sebagai peringatan dan berubah jadi latar. Yang pertama
+   * tetap menampilkannya, jadi kabarnya tidak hilang.
+   */
+  sunyiIzin?: boolean;
+  /**
+   * Bentuk RINGKAS: tiga tombol kecil sebaris, bukan ubin selebar kolom
+   * (DECISIONS 344).
+   *
+   * Ubin besar benar di tempat ia jadi pilihan UTAMA layar — form item
+   * pekerjaan, satu per laporan. Di baris material/alat ia terbit sekali per
+   * BARIS: pada satu laporan berisi lima material dan dua alat, tujuh salinan
+   * ubin yang sama menenggelamkan kolom yang justru harus diisi. Keluhan user
+   * 2026-08-17: *"tombol sumber fotomu terlalu besar di bagian alat dan bahan
+   * ini, perkecil sampai 1/3 nya."*
+   *
+   * Yang dibuang cuma ukuran dan keterangan barisnya; pilihannya tetap tiga,
+   * namanya tetap ditulis (bukan ikon telanjang).
+   */
+  ringkas?: boolean;
 }) {
+  const n = (nama: string) => `${prefix}${nama}`;
   const camRef = useRef<HTMLInputElement>(null);
   const galRef = useRef<HTMLInputElement>(null);
   /** Input yang BENAR-BENAR dikirim — isinya kumpulan dari semua pemilihan. */
@@ -332,20 +381,44 @@ export function PhotoSourceInput({
     onPicked?.();
   };
 
-  const btn =
+  /**
+   * SUMBER FOTO SEBAGAI UBIN, bukan tombol kecil sebaris (DECISIONS 341).
+   *
+   * Keluhan user 2026-08-17 atas layar input harian: pilihan sumber foto tidak
+   * terbaca sebagai pilihan. Dua tombol setinggi 36px di sela-sela form memang
+   * terlihat seperti tombol pelengkap, bukan seperti "dari mana fotonya?" —
+   * dan di lapangan, dengan sarung tangan dan layar kena matahari, sasaran
+   * ketuk sekecil itu sering meleset.
+   *
+   * Ubin ini setinggi ±64px dengan ikon + nama + keterangan satu baris:
+   * pilihannya terbaca sekali lihat, dan tetap masuk akal di laptop karena
+   * lebarnya mengikuti kolom, bukan dipatok.
+   */
+  const ubin = ringkas
+    ? "inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[12px] font-medium text-ink hover:border-primary hover:bg-primary-50"
+    : "flex min-h-16 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border border-border bg-surface px-2 py-2 text-center text-ink hover:border-primary hover:bg-primary-50";
+
+  /**
+   * Jalur SATU SUMBER (Foto Cepat, `hanyaKamera`) tetap tombol ringkas.
+   *
+   * Ubin ada untuk membuat sebuah PILIHAN terbaca. Kalau sumbernya cuma satu,
+   * tidak ada pilihan yang perlu dibaca — dan satu ubin selebar kolom hanya
+   * memakan ruang di layar yang justru dirancang tanpa gulir (DECISIONS 255).
+   */
+  const tombolTunggal =
     "inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium text-ink hover:bg-surface-muted";
 
   return (
     <div className="space-y-2">
-      <input type="hidden" name="photoSource" value={source} />
-      <input type="hidden" name="galleryAtSite" value={diLokasi === true ? "1" : ""} />
-      <input type="hidden" name="photoTakenAt" value={takenAt} />
-      <input ref={latRef} type="hidden" name={latName} defaultValue="" />
-      <input ref={lngRef} type="hidden" name={lngName} defaultValue="" />
+      <input type="hidden" name={n("photoSource")} value={source} />
+      <input type="hidden" name={n("galleryAtSite")} value={diLokasi === true ? "1" : ""} />
+      <input type="hidden" name={n("photoTakenAt")} value={takenAt} />
+      <input ref={latRef} type="hidden" name={n(latName)} defaultValue="" />
+      <input ref={lngRef} type="hidden" name={n(lngName)} defaultValue="" />
 
       {/* Keadaan izin lokasi — disebut TERANG-TERANGAN sebelum memotret.
           Dulu ini diam saja dan fotonya diam-diam dicap titik proyek. */}
-      {izin === "granted" ? (
+      {sunyiIzin ? null : izin === "granted" ? (
         <p className="flex items-center gap-1.5 text-xs text-success">
           <MapPin aria-hidden className="size-3.5" /> Izin lokasi aktif — foto kamera akan membawa
           koordinat asli.
@@ -385,43 +458,61 @@ export function PhotoSourceInput({
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2">
-        <label className={btn}>
-          <Camera aria-hidden className="size-4" /> Kamera
+      <div
+        className={
+          hanyaKamera || ringkas
+            ? "flex flex-wrap gap-1.5"
+            : `grid gap-2 ${slotKetiga ? "grid-cols-3" : "grid-cols-2"}`
+        }
+      >
+        <label className={hanyaKamera ? tombolTunggal : ubin}>
+          <Camera
+            aria-hidden
+            className={hanyaKamera || ringkas ? "size-3.5 text-ink-muted" : "size-5 text-ink-muted"}
+          />
+          <span className={hanyaKamera || ringkas ? "" : "text-[13px] font-semibold"}>Kamera</span>
+          {hanyaKamera || ringkas ? null : (
+            <span className="text-[10px] leading-tight text-ink-muted">Ambil langsung</span>
+          )}
           <input
             ref={camRef}
             type="file"
             accept="image/*"
             capture="environment"
             multiple
-            name={rakitGagal ? "photos" : undefined}
+            name={rakitGagal ? n("photos") : undefined}
             className="sr-only"
             onChange={pickCamera}
           />
         </label>
         {hanyaKamera ? null : (
           <>
-            <button type="button" className={btn} onClick={() => setTanyaLokasi(true)}>
-              <Images aria-hidden className="size-4" /> Galeri
+            <button type="button" className={ubin} onClick={() => setTanyaLokasi(true)}>
+              <Images aria-hidden className={ringkas ? "size-3.5 text-ink-muted" : "size-5 text-ink-muted"} />
+              <span className={ringkas ? "" : "text-[13px] font-semibold"}>Galeri</span>
+              {ringkas ? null : (
+                <span className="text-[10px] leading-tight text-ink-muted">Dari perangkat</span>
+              )}
             </button>
             <input
               ref={galRef}
               type="file"
               accept="image/*"
               multiple
-              name={rakitGagal ? "photos" : undefined}
+              name={rakitGagal ? n("photos") : undefined}
               className="sr-only"
               onChange={pickGallery}
             />
           </>
         )}
+        {slotKetiga}
         {/* Input yang ikut terkirim; isinya dirakit dari state. Di jalur
             cadangan `name`-nya dilepas supaya tidak mengirim daftar kosong
             yang menimpa pilihan asli dari pemilih. */}
         <input
           ref={berkasRef}
           type="file"
-          name={rakitGagal ? undefined : "photos"}
+          name={rakitGagal ? undefined : n("photos")}
           multiple
           className="sr-only"
           tabIndex={-1}
