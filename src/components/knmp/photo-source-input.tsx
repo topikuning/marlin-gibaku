@@ -359,6 +359,16 @@ export function PhotoSourceInput({
   const ubin =
     "flex min-h-16 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border border-border bg-surface px-2 py-2 text-center text-ink hover:border-primary hover:bg-primary-50";
 
+  /**
+   * Jalur SATU SUMBER (Foto Cepat, `hanyaKamera`) tetap tombol ringkas.
+   *
+   * Ubin ada untuk membuat sebuah PILIHAN terbaca. Kalau sumbernya cuma satu,
+   * tidak ada pilihan yang perlu dibaca — dan satu ubin selebar kolom hanya
+   * memakan ruang di layar yang justru dirancang tanpa gulir (DECISIONS 255).
+   */
+  const tombolTunggal =
+    "inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium text-ink hover:bg-surface-muted";
+
   return (
     <div className="space-y-2">
       <input type="hidden" name="photoSource" value={source} />
@@ -410,12 +420,18 @@ export function PhotoSourceInput({
       )}
 
       <div
-        className={`grid gap-2 ${hanyaKamera ? "grid-cols-1" : slotKetiga ? "grid-cols-3" : "grid-cols-2"}`}
+        className={
+          hanyaKamera
+            ? "flex flex-wrap gap-2"
+            : `grid gap-2 ${slotKetiga ? "grid-cols-3" : "grid-cols-2"}`
+        }
       >
-        <label className={ubin}>
-          <Camera aria-hidden className="size-5 text-ink-muted" />
-          <span className="text-[13px] font-semibold">Kamera</span>
-          <span className="text-[10px] leading-tight text-ink-muted">Ambil langsung</span>
+        <label className={hanyaKamera ? tombolTunggal : ubin}>
+          <Camera aria-hidden className={hanyaKamera ? "size-4" : "size-5 text-ink-muted"} />
+          <span className={hanyaKamera ? "" : "text-[13px] font-semibold"}>Kamera</span>
+          {hanyaKamera ? null : (
+            <span className="text-[10px] leading-tight text-ink-muted">Ambil langsung</span>
+          )}
           <input
             ref={camRef}
             type="file"

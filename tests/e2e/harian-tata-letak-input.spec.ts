@@ -58,6 +58,24 @@ async function cariDraft(page: Page): Promise<string | null> {
   return null;
 }
 
+/**
+ * Apakah penyimpanan foto (R2) aktif di lingkungan ini?
+ *
+ * DI CI R2 TIDAK DIKONFIGURASI. Berkas ini semula menganggapnya selalu aktif —
+ * karena dikembangkan di server lokal yang env R2-nya sengaja diisi — lalu
+ * merah begitu masuk CI. Yang keliru bukan aplikasinya melainkan ujinya.
+ *
+ * Jalan keluarnya BUKAN `test.skip`. Uji yang melewat tidak membuktikan apa pun,
+ * dan justru pada lingkungan tanpa R2 ada kontrak yang perlu dijaga: aplikasi
+ * TIDAK menampilkan kontrol foto yang mati di setiap baris, karena alasannya
+ * sudah disebut sekali di kepala bagian foto. Jadi kedua cabang sama-sama
+ * diperiksa, masing-masing dengan pernyataannya sendiri.
+ */
+async function fotoAktif(page: Page): Promise<boolean> {
+  const mati = page.getByText(/Penyimpanan foto .*belum diaktifkan/i);
+  return (await mati.count()) === 0;
+}
+
 async function bukaDraft(page: Page): Promise<boolean> {
   const tgl = await cariDraft(page);
   // Data uji WAJIB punya draft; tanpa itu berkas ini tidak menguji apa pun dan
@@ -79,6 +97,14 @@ test.describe("tata letak input harian", () => {
     // sembarang yang pertama membuat uji ini hijau tanpa memeriksa yang dimaksud.
     const formItem = page.locator("form", { hasText: "Tambah / ubah progres pekerjaan" }).first();
     await expect(formItem).toBeVisible();
+
+    if (!(await fotoAktif(page))) {
+      // Tanpa R2, ubinnya memang tidak boleh ada — tapi SEBABNYA wajib tertulis,
+      // bukan sekadar hilang tanpa keterangan.
+      await expect(formItem.getByText(/Penyimpanan foto .*belum diaktifkan/i)).toBeVisible();
+      await expect(formItem.getByText("Kamera", { exact: true })).toHaveCount(0);
+      return;
+    }
     for (const nama of ["Kamera", "Galeri", "Foto Cepat"]) {
       await expect(formItem.getByText(nama, { exact: true }).first(), nama).toBeVisible();
     }
@@ -92,6 +118,12 @@ test.describe("tata letak input harian", () => {
     // Baris material yang SUDAH tersimpan membawa tombol "<n> foto"; baris baru
     // membawa "Simpan dulu" — dua-duanya penanda bahwa foto memang bisa di sini.
     const pemicu = pelengkap.locator('button[aria-label^="Foto untuk"]');
+    if (!(await fotoAktif(page))) {
+      // Kontrak lingkungan tanpa R2: JANGAN tawarkan kontrol yang mati di tiap
+      // baris — alasannya sudah disebut sekali di bagian foto pekerjaan.
+      expect(await pemicu.count(), "kontrol foto mati muncul padahal R2 nonaktif").toBe(0);
+      return;
+    }
     expect(await pemicu.count(), "tidak ada pemicu foto di baris material/alat").toBeGreaterThan(0);
   });
 
@@ -102,6 +134,7 @@ test.describe("tata letak input harian", () => {
     // ada. Yang benar: kontrolnya tetap terlihat, mati, dengan sebabnya.
     await bukaDraft(page);
     const pelengkap = page.locator("form", { hasText: "Pelengkap laporan KKP" }).first();
+    test.skip(!(await fotoAktif(page)), "R2 nonaktif — pemicu foto memang tidak ada (dijaga uji di atas)");
     const sebelum = await pelengkap.locator('button[aria-label^="Foto untuk"]').count();
     await pelengkap.getByRole("button", { name: "Tambah material" }).click();
 
@@ -119,6 +152,7 @@ test.describe("tata letak input harian", () => {
 
   test("form lembar foto TIDAK bersarang di dalam form pelengkap", async ({ page }) => {
     await bukaDraft(page);
+    test.skip(!(await fotoAktif(page)), "R2 nonaktif — lembar foto memang tidak bisa dibuka");
     const pemicu = page.locator('button[aria-label^="Foto untuk"]:not([disabled])').first();
     expect(await pemicu.count(), "tidak ada baris material/alat tersimpan di data uji").toBeGreaterThan(0);
     await pemicu.scrollIntoViewIfNeeded();

@@ -15457,3 +15457,36 @@ menguji apa pun":
    `role="group" aria-label="Petak tanggal"` dan membatasi pencarian ke sana.
 2. `test.skip` pada data yang tidak ditemukan. Diganti `expect(...)`: kalau data
    ujinya tidak punya draft, berkas ini harus berteriak — bukan diam-diam hijau.
+
+### Tambahan sesudah CI merah (2026-08-17)
+
+Uji e2e di atas ditulis pada server lokal yang env R2-nya sengaja diisi, lalu
+**merah begitu masuk CI** — di CI R2 tidak dikonfigurasi, jadi `fotoAktif`
+bernilai false dan pemicu foto memang tidak dirender. Yang keliru ujinya, bukan
+aplikasinya.
+
+Jalan keluarnya BUKAN `test.skip`. Pada lingkungan tanpa R2 justru ada kontrak
+yang perlu dijaga: aplikasi **tidak menawarkan kontrol foto yang mati** di
+setiap baris, karena alasannya sudah disebut sekali di kepala bagian foto. Jadi
+kedua cabang diperiksa, masing-masing dengan pernyataannya sendiri. Hanya dua uji
+yang benar-benar butuh lembar foto terbuka yang dilewati saat R2 mati — dan
+keduanya dijaga cabang "R2 mati" pada uji di atasnya.
+
+Dua hal lain yang ikut ketahuan:
+
+- `harian-pelengkap-umpan-balik.spec.ts` masih memeriksa keberadaan kartu
+  "Foto material & alat" yang justru dihapus perubahan ini. Diganti memeriksa
+  hal yang SAMA maksudnya (baris tersimpan menawarkan jalan menambah foto),
+  dengan cabang R2 yang sama.
+- Jalur SATU SUMBER (`hanyaKamera`, Foto Cepat) dikembalikan ke tombol ringkas.
+  Ubin ada untuk membuat sebuah PILIHAN terbaca; kalau sumbernya cuma satu,
+  tidak ada pilihan yang perlu dibaca — dan satu ubin selebar kolom hanya
+  memakan ruang di layar yang justru dirancang tanpa gulir (DECISIONS 255).
+
+**Celah yang tersisa, dan disebut apa adanya:** CI tidak pernah menjalankan
+jalur foto mana pun (R2 tak dikonfigurasi) — bukan hanya uji baru ini, tapi juga
+`harian-alur-isi.spec.ts` yang sudah lama `test.skip` di sana. Cabang R2-hidup
+diverifikasi manual di server lokal ber-env R2 palsu, dua kali: sebelum dan
+sesudah perbaikan ini. Menyalakan R2 palsu di CI akan membuat uji lain benar-
+benar mencoba mengunggah ke endpoint yang tidak ada, jadi tidak dilakukan dalam
+perubahan ini.

@@ -79,6 +79,22 @@ test.describe("umpan balik simpan pelengkap", () => {
     await expect(page.locator(`input[name="materialName"][value="${nama}"]`)).toHaveCount(1, {
       timeout: 15_000,
     });
-    await expect(page.getByText("Foto material & alat")).toBeVisible();
+    /*
+     * Dulu di sini diperiksa keberadaan kartu "Foto material & alat" — kartu
+     * TERPISAH di bawah form (DECISIONS 304). Kartu itu sudah tidak ada:
+     * pemicunya kini menempel pada barisnya sendiri (DECISIONS 341), justru
+     * karena kartu jauh di bawah itulah yang membuat orang tidak tahu foto
+     * material bisa ditambahkan.
+     *
+     * Yang diperiksa sekarang hal yang SAMA maksudnya: sesudah tersimpan, baris
+     * itu menawarkan jalan menambahkan fotonya. Bergantung lingkungan — tanpa
+     * R2 penyimpanan foto memang mati dan kontrolnya sengaja tidak ditawarkan.
+     */
+    const fotoMati = (await page.getByText(/Penyimpanan foto .*belum diaktifkan/i).count()) > 0;
+    if (fotoMati) {
+      await expect(page.locator('button[aria-label^="Foto untuk"]')).toHaveCount(0);
+    } else {
+      await expect(page.locator(`button[aria-label="Foto untuk ${nama}"]`)).toBeVisible();
+    }
   });
 });
