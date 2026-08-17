@@ -16,6 +16,7 @@ import {
   WORKER_ROLE_LABEL,
   WORKER_ROLE_ORDER,
 } from "@/lib/daily-report/constants";
+import { PemicuFotoBaris } from "@/components/knmp/lembar-foto";
 import type { WorkspaceReport } from "@/lib/daily-report/queries";
 
 /**
@@ -33,7 +34,15 @@ import type { WorkspaceReport } from "@/lib/daily-report/queries";
  * diperbarui di tempat, bukan dibuat ulang — foto menempel pada `id` itu
  * (DECISIONS 304).
  */
-type Row = { key: number; id: string; name: string; a: string; b: string };
+type Row = {
+  key: number;
+  id: string;
+  name: string;
+  a: string;
+  b: string;
+  /** Jumlah foto yang sudah menempel pada baris ini (DECISIONS 341). */
+  foto: number;
+};
 let rowSeq = 1;
 
 const CATEGORY_TONE: Record<KkpWeatherCategory, string> = {
@@ -132,7 +141,14 @@ function WeatherAuto({ report }: { report: WorkspaceReport }) {
  * Jadi state aksi ditaruh di komponen luar yang TIDAK ikut dipasang ulang,
  * dan badan form yang ber-`key` menerimanya sebagai prop.
  */
-export function EnrichmentForm({ report }: { report: WorkspaceReport }) {
+export function EnrichmentForm({
+  report,
+  fotoAktif,
+}: {
+  report: WorkspaceReport;
+  /** false = R2 mati / laporan tidak lagi bisa ditambahi foto. */
+  fotoAktif: boolean;
+}) {
   const [state, formAction, pending] = useActionState<DailyActionState, FormData>(
     saveEnrichmentAction,
     undefined,
@@ -149,6 +165,7 @@ export function EnrichmentForm({ report }: { report: WorkspaceReport }) {
     <BadanForm
       key={tandaTangan}
       report={report}
+      fotoAktif={fotoAktif}
       state={state}
       formAction={formAction}
       pending={pending}
@@ -158,11 +175,13 @@ export function EnrichmentForm({ report }: { report: WorkspaceReport }) {
 
 function BadanForm({
   report,
+  fotoAktif,
   state,
   formAction,
   pending,
 }: {
   report: WorkspaceReport;
+  fotoAktif: boolean;
   state: DailyActionState;
   formAction: (formData: FormData) => void;
   pending: boolean;
@@ -170,13 +189,27 @@ function BadanForm({
   const workerMap = new Map(report.workers.map((w) => [w.role, w.count]));
   const [materials, setMaterials] = useState<Row[]>(
     report.materials.length
-      ? report.materials.map((m) => ({ key: rowSeq++, id: m.id, name: m.name, a: m.unit ?? "", b: m.qty != null ? String(m.qty) : "" }))
-      : [{ key: rowSeq++, id: "", name: "", a: "", b: "" }],
+      ? report.materials.map((m) => ({
+          key: rowSeq++,
+          id: m.id,
+          name: m.name,
+          a: m.unit ?? "",
+          b: m.qty != null ? String(m.qty) : "",
+          foto: m.photos.length,
+        }))
+      : [{ key: rowSeq++, id: "", name: "", a: "", b: "", foto: 0 }],
   );
   const [equipment, setEquipment] = useState<Row[]>(
     report.equipment.length
-      ? report.equipment.map((e) => ({ key: rowSeq++, id: e.id, name: e.name, a: String(e.count), b: "" }))
-      : [{ key: rowSeq++, id: "", name: "", a: "1", b: "" }],
+      ? report.equipment.map((e) => ({
+          key: rowSeq++,
+          id: e.id,
+          name: e.name,
+          a: String(e.count),
+          b: "",
+          foto: e.photos.length,
+        }))
+      : [{ key: rowSeq++, id: "", name: "", a: "1", b: "", foto: 0 }],
   );
 
   return (
@@ -254,21 +287,30 @@ function BadanForm({
       <fieldset>
         <legend className="mb-1.5 text-[13px] font-medium text-ink">Pemasukan bahan / material</legend>
         <div className="space-y-2">
-          {materials.map((row, idx) => (
-            <div key={row.key} className="flex items-end gap-2">
+          {materials.map((row) => (
+            <div key={row.key} className="space-y-1.5 rounded-md border border-border/70 bg-surface-muted/40 p-2">
+              {/* Nama mengambil BARIS SENDIRI di ponsel. Sebelumnya ia berbagi
+                  satu baris dengan satuan + jumlah + tombol hapus, dan pada
+                  layar 390px sisanya cuma ±100px: "Semen PCC 50kg" terbaca
+                  "Seme". Nama material yang terpotong bukan kosmetik — itu yang
+                  dipakai orang mencocokkan dengan surat jalan. */}
+              <div className="flex flex-wrap items-end gap-2">
               {/* Larik di server sejajar per INDEKS, jadi tiap baris wajib
                   memancarkan id-nya — termasuk yang kosong (baris baru). */}
               <input type="hidden" name="materialId" value={row.id} />
-              <div className="min-w-0 flex-1">
-                {idx === 0 ? <Label className="text-xs font-normal text-ink-muted">Nama</Label> : null}
+              <div className="min-w-0 basis-full sm:flex-1 sm:basis-auto">
+                <Label className="text-xs font-normal text-ink-muted">Nama</Label>
                 <Input name="materialName" defaultValue={row.name} placeholder="mis. Semen 50kg" />
               </div>
               <div className="w-20">
-                {idx === 0 ? <Label className="text-xs font-normal text-ink-muted">Sat</Label> : null}
+                {/* Label di SETIAP baris, bukan cuma yang pertama: tiap baris
+                    kini kartu tersendiri, dan "20" tanpa keterangan di kartu
+                    ketiga tidak bisa dibaca sebagai apa pun. */}
+                <Label className="text-xs font-normal text-ink-muted">Sat</Label>
                 <Input name="materialUnit" defaultValue={row.a} placeholder="zak" />
               </div>
-              <div className="w-24">
-                {idx === 0 ? <Label className="text-xs font-normal text-ink-muted">Diterima</Label> : null}
+              <div className="min-w-0 flex-1 sm:w-24 sm:flex-none">
+                <Label className="text-xs font-normal text-ink-muted">Diterima</Label>
                 <Input name="materialQty" type="number" inputMode="decimal" step="0.001" min="0" defaultValue={row.b} />
               </div>
               <Button
@@ -280,13 +322,25 @@ function BadanForm({
               >
                 <X aria-hidden className="size-4" />
               </Button>
+              </div>
+              {/* Foto menempel pada BARISNYA, bukan di kartu terpisah ratusan
+                  piksel di bawah (DECISIONS 341). Lembarnya di-portal ke body
+                  supaya form-nya tidak bersarang. */}
+              <PemicuFotoBaris
+                reportId={report.id}
+                jenis="material"
+                barisId={row.id}
+                label={row.name || "material ini"}
+                jumlahFoto={row.foto}
+                aktif={fotoAktif}
+              />
             </div>
           ))}
           <Button
             type="button"
             variant="secondary"
             size="sm"
-            onClick={() => setMaterials((rows) => [...rows, { key: rowSeq++, id: "", name: "", a: "", b: "" }])}
+            onClick={() => setMaterials((rows) => [...rows, { key: rowSeq++, id: "", name: "", a: "", b: "", foto: 0 }])}
           >
             <Plus aria-hidden className="size-4" />
             Tambah material
@@ -298,15 +352,16 @@ function BadanForm({
       <fieldset>
         <legend className="mb-1.5 text-[13px] font-medium text-ink">Peralatan</legend>
         <div className="space-y-2">
-          {equipment.map((row, idx) => (
-            <div key={row.key} className="flex items-end gap-2">
+          {equipment.map((row) => (
+            <div key={row.key} className="space-y-1.5 rounded-md border border-border/70 bg-surface-muted/40 p-2">
+              <div className="flex flex-wrap items-end gap-2">
               <input type="hidden" name="equipmentId" value={row.id} />
-              <div className="min-w-0 flex-1">
-                {idx === 0 ? <Label className="text-xs font-normal text-ink-muted">Nama alat</Label> : null}
+              <div className="min-w-0 basis-full sm:flex-1 sm:basis-auto">
+                <Label className="text-xs font-normal text-ink-muted">Nama alat</Label>
                 <Input name="equipmentName" defaultValue={row.name} placeholder="mis. Molen beton" />
               </div>
-              <div className="w-24">
-                {idx === 0 ? <Label className="text-xs font-normal text-ink-muted">Jumlah</Label> : null}
+              <div className="min-w-0 flex-1 sm:w-24 sm:flex-none">
+                <Label className="text-xs font-normal text-ink-muted">Jumlah</Label>
                 <Input name="equipmentCount" type="number" inputMode="numeric" min={1} defaultValue={row.a || "1"} />
               </div>
               <Button
@@ -318,13 +373,22 @@ function BadanForm({
               >
                 <X aria-hidden className="size-4" />
               </Button>
+              </div>
+              <PemicuFotoBaris
+                reportId={report.id}
+                jenis="alat"
+                barisId={row.id}
+                label={row.name || "alat ini"}
+                jumlahFoto={row.foto}
+                aktif={fotoAktif}
+              />
             </div>
           ))}
           <Button
             type="button"
             variant="secondary"
             size="sm"
-            onClick={() => setEquipment((rows) => [...rows, { key: rowSeq++, id: "", name: "", a: "1", b: "" }])}
+            onClick={() => setEquipment((rows) => [...rows, { key: rowSeq++, id: "", name: "", a: "1", b: "", foto: 0 }])}
           >
             <Plus aria-hidden className="size-4" />
             Tambah alat

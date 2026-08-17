@@ -44,6 +44,7 @@ export function PhotoSourceInput({
   onPicked,
   compact = false,
   hanyaKamera = false,
+  slotKetiga,
 }: {
   latName?: string;
   lngName?: string;
@@ -51,6 +52,16 @@ export function PhotoSourceInput({
   onPicked?: () => void;
   /** true → sembunyikan pratinjau (mode inline auto-submit). */
   compact?: boolean;
+  /**
+   * Ubin KETIGA di baris sumber foto — dipakai "Foto Cepat" (DECISIONS 341).
+   *
+   * Sengaja slot, bukan prop boolean: mengambil dari kantong Foto Cepat BUKAN
+   * `<input type=file>` melainkan panel pemilih tersendiri, jadi pemiliknya
+   * yang tahu cara membukanya. Yang dijamin berkas ini hanyalah ketiganya
+   * TAMPIL SETARA — sebelumnya Foto Cepat terbaca seperti aksi kelas dua
+   * padahal koordinatnya justru yang paling benar.
+   */
+  slotKetiga?: React.ReactNode;
   /**
    * true → JALUR GALERI DITUTUP; hanya memotret langsung (DECISIONS 255).
    *
@@ -332,8 +343,21 @@ export function PhotoSourceInput({
     onPicked?.();
   };
 
-  const btn =
-    "inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-border bg-surface px-3 py-2 text-sm font-medium text-ink hover:bg-surface-muted";
+  /**
+   * SUMBER FOTO SEBAGAI UBIN, bukan tombol kecil sebaris (DECISIONS 341).
+   *
+   * Keluhan user 2026-08-17 atas layar input harian: pilihan sumber foto tidak
+   * terbaca sebagai pilihan. Dua tombol setinggi 36px di sela-sela form memang
+   * terlihat seperti tombol pelengkap, bukan seperti "dari mana fotonya?" —
+   * dan di lapangan, dengan sarung tangan dan layar kena matahari, sasaran
+   * ketuk sekecil itu sering meleset.
+   *
+   * Ubin ini setinggi ±64px dengan ikon + nama + keterangan satu baris:
+   * pilihannya terbaca sekali lihat, dan tetap masuk akal di laptop karena
+   * lebarnya mengikuti kolom, bukan dipatok.
+   */
+  const ubin =
+    "flex min-h-16 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border border-border bg-surface px-2 py-2 text-center text-ink hover:border-primary hover:bg-primary-50";
 
   return (
     <div className="space-y-2">
@@ -385,9 +409,13 @@ export function PhotoSourceInput({
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2">
-        <label className={btn}>
-          <Camera aria-hidden className="size-4" /> Kamera
+      <div
+        className={`grid gap-2 ${hanyaKamera ? "grid-cols-1" : slotKetiga ? "grid-cols-3" : "grid-cols-2"}`}
+      >
+        <label className={ubin}>
+          <Camera aria-hidden className="size-5 text-ink-muted" />
+          <span className="text-[13px] font-semibold">Kamera</span>
+          <span className="text-[10px] leading-tight text-ink-muted">Ambil langsung</span>
           <input
             ref={camRef}
             type="file"
@@ -401,8 +429,10 @@ export function PhotoSourceInput({
         </label>
         {hanyaKamera ? null : (
           <>
-            <button type="button" className={btn} onClick={() => setTanyaLokasi(true)}>
-              <Images aria-hidden className="size-4" /> Galeri
+            <button type="button" className={ubin} onClick={() => setTanyaLokasi(true)}>
+              <Images aria-hidden className="size-5 text-ink-muted" />
+              <span className="text-[13px] font-semibold">Galeri</span>
+              <span className="text-[10px] leading-tight text-ink-muted">Dari perangkat</span>
             </button>
             <input
               ref={galRef}
@@ -415,6 +445,7 @@ export function PhotoSourceInput({
             />
           </>
         )}
+        {slotKetiga}
         {/* Input yang ikut terkirim; isinya dirakit dari state. Di jalur
             cadangan `name`-nya dilepas supaya tidak mengirim daftar kosong
             yang menimpa pilihan asli dari pemilih. */}

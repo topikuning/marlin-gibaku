@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, Printer, Undo2 } from "lucide-react";
+import { CheckCircle2, Plus, Printer, Undo2 } from "lucide-react";
 import { Banner, Button, Label, Textarea } from "@/components/ui";
 import {
   addIssueAction,
@@ -219,7 +219,38 @@ function UnfinalizeForm({ reportId }: { reportId: string }) {
 }
 
 /** Form tambah kendala hari itu (menempel ke laporan). */
-export function IssueForm({ reportId }: { reportId: string }) {
+/**
+ * Kendala di kartu bawah: DI BALIK PENGUNGKAP, tidak menganga (DECISIONS 341).
+ *
+ * Keluhan user 2026-08-17: *"form kendala itu … bukan form sangat di bawah
+ * begitu. itu menyesatkan pengguna, karena bisa jadi dia tidak tahu kalau ada
+ * inputan itu."* Betul dua-duanya sekaligus — form yang selalu terbuka di dasar
+ * halaman empat layar itu tidak terbaca sebagai pertanyaan, dan tetap terlewat.
+ *
+ * Pertanyaannya sekarang diajukan pada saat yang benar: **ketika laporan
+ * dikirim** (lihat lembar kirim di `report-editor.tsx`), dengan pilihan "tidak
+ * ada kendala" yang tegas. Yang tersisa di sini hanyalah jalan tambahan bagi
+ * pemeriksa yang menemukan kendala saat verifikasi — jadi ia cukup berupa satu
+ * tombol, bukan formulir yang menganga.
+ */
+export function PanelKendala({ reportId }: { reportId: string }) {
+  const [buka, setBuka] = useState(false);
+  if (!buka) {
+    return (
+      <Button type="button" variant="secondary" size="sm" onClick={() => setBuka(true)}>
+        <Plus aria-hidden className="size-4" />
+        Catat kendala
+      </Button>
+    );
+  }
+  return (
+    <div className="rounded-md border border-border bg-surface-muted p-3">
+      <IssueForm reportId={reportId} onSelesai={() => setBuka(false)} />
+    </div>
+  );
+}
+
+export function IssueForm({ reportId, onSelesai }: { reportId: string; onSelesai?: () => void }) {
   const [state, formAction, pending] = useActionState<DailyActionState, FormData>(addIssueAction, undefined);
   return (
     <form action={formAction} className="space-y-2">
@@ -256,9 +287,16 @@ export function IssueForm({ reportId }: { reportId: string }) {
         <Label htmlFor="is-desc">Uraian (opsional)</Label>
         <Textarea id="is-desc" name="description" rows={2} maxLength={2000} />
       </div>
-      <Button type="submit" variant="secondary" loading={pending}>
-        Catat Kendala
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" variant="secondary" loading={pending}>
+          Catat Kendala
+        </Button>
+        {onSelesai ? (
+          <Button type="button" variant="ghost" onClick={onSelesai}>
+            Batal
+          </Button>
+        ) : null}
+      </div>
     </form>
   );
 }

@@ -1,8 +1,9 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
-import { ImagePlus, Search, Send, Trash2 } from "lucide-react";
-import { Banner, Button, Input, Label } from "@/components/ui";
+import { createPortal } from "react-dom";
+import { ImagePlus, Search, Send, Trash2, X } from "lucide-react";
+import { Banner, Button, Combobox, Input, Label, Textarea } from "@/components/ui";
 import { formatNumber, formatRupiah } from "@/lib/format";
 import {
   addItemPhotosAction,
@@ -12,6 +13,7 @@ import {
   type DailyActionState,
 } from "@/lib/daily-report/actions";
 import type { LeafNodeOption, WorkspaceItem } from "@/lib/daily-report/queries";
+import { ISSUE_SEVERITY_LABEL } from "@/lib/daily-report/constants";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import type { PhotoView } from "@/lib/photos";
 import { removeReportPhotoAction, returnPhotoToKantongAction } from "@/lib/daily-report/actions";
@@ -21,6 +23,7 @@ import {
   AmbilDariKantong,
   PemilihKantong,
   TombolAmbilDariKantong,
+  UbinAmbilDariKantong,
 } from "@/components/knmp/ambil-dari-kantong";
 
 /**
@@ -133,7 +136,15 @@ export function ReportEditor({
           </div>
         </section>
       ) : null}
-      {reportId && items.length > 0 ? <SubmitPanel reportId={reportId} slug={slug} dateKey={dateKey} /> : null}
+      {reportId && items.length > 0 ? (
+        <SubmitPanel
+          reportId={reportId}
+          slug={slug}
+          dateKey={dateKey}
+          jumlahItem={items.length}
+          jumlahFoto={items.reduce((n, it) => n + it.photos.length, 0)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -431,32 +442,42 @@ function ItemForm({
           </p>
         ) : (
           <div className="space-y-2">
-            <PhotoSourceInput key={photoKey} latName="photoLat" lngName="photoLng" />
             {/*
-              JALUR KETIGA, SETARA dengan kamera & galeri — permintaan user
-              2026-08-07: *"selain kamera, galeri, kantong harusnya langsung
-              bisa dipilih sebelum simpan item... ini default paling nyaman"*.
+              TIGA SUMBER DALAM SATU BARIS UBIN — permintaan user 2026-08-07:
+              *"selain kamera, galeri, kantong harusnya langsung bisa dipilih
+              sebelum simpan item… ini default paling nyaman"*, dan koreksi
+              tata letak 2026-08-17 (DECISIONS 341).
+
+              Sebelumnya Foto Cepat berdiri di BARIS TERSENDIRI di bawah dua
+              tombol kecil, sehingga terbaca sebagai aksi kelas dua — padahal
+              foto kantong justru yang koordinat dan jamnya paling benar
+              (DECISIONS 253). Sekarang ketiganya ubin sejajar: pilihannya
+              terbaca sekali lihat.
 
               Fotonya tidak bisa DITAUTKAN sekarang (penautan butuh id item yang
               belum ada), tapi bisa DIPILIH sekarang dan ditautkan tepat sesudah
               itemnya tersimpan — lihat `kantongPhotoIds` di saveItemAction.
-              Dari sisi pelapor hasilnya sama.
             */}
+            <PhotoSourceInput
+              key={photoKey}
+              latName="photoLat"
+              lngName="photoLng"
+              slotKetiga={
+                <UbinAmbilDariKantong
+                  onClick={() => setBukaKantong((v) => !v)}
+                  aktif={bukaKantong}
+                  jumlahTerpilih={kantong.size}
+                />
+              }
+            />
             {[...kantong].map((id) => (
               <input key={id} type="hidden" name="kantongPhotoIds" value={id} />
             ))}
-            <div className="flex flex-wrap items-center gap-1.5">
-              <TombolAmbilDariKantong
-                onClick={() => setBukaKantong((v) => !v)}
-                aktif={bukaKantong}
-                jumlahTerpilih={kantong.size}
-              />
-              {kantong.size > 0 && !bukaKantong ? (
-                <span className="text-[11px] text-ink-muted">
-                  ikut tersimpan bersama pekerjaan ini
-                </span>
-              ) : null}
-            </div>
+            {kantong.size > 0 && !bukaKantong ? (
+              <p className="text-[11px] text-ink-muted">
+                {kantong.size} foto kantong ikut tersimpan bersama pekerjaan ini.
+              </p>
+            ) : null}
             {bukaKantong ? (
               <div className="rounded-md border border-border bg-surface-muted p-3">
                 <PemilihKantong
@@ -844,26 +865,226 @@ function ItemList({
 
 // ─────────────────────────────────────────────────────────────
 
-function SubmitPanel({ reportId, slug, dateKey }: { reportId: string; slug: string; dateKey: string }) {
+/**
+ * LEMBAR KIRIM — ringkasan + pertanyaan kendala (DECISIONS 341).
+ *
+ * Keluhan user 2026-08-17: *"form kendala itu sebaiknya muncul saat laporan
+ * dikirim/direview, jadi bisa dipilih tidak ada kendala, tapi bukan form sangat
+ * di bawah begitu."*
+ *
+ * Kendala sekarang ditanyakan tepat di ambang pintu — pada satu-satunya saat
+ * orangnya PASTI berhenti dan memikirkan harinya. "Tidak ada kendala" jadi
+ * jawaban yang DIKATAKAN, bukan disimpulkan dari kolom yang dibiarkan kosong:
+ * dari sisi pemeriksa, laporan tanpa kendala dan laporan yang orangnya lupa
+ * mengisi kendala dulu terlihat persis sama.
+ *
+ * Tombol kirim TIDAK aktif sebelum salah satunya dipilih. Itu bukan penghalang
+ * — pertanyaannya satu ketukan — melainkan cara membuat jawabannya berarti.
+ *
+ * Lembarnya di-portal ke `document.body`: di ponsel menempel di dasar layar
+ * (tempat ibu jari), di laptop jadi dialog tengah.
+ */
+function SubmitPanel({
+  reportId,
+  slug,
+  dateKey,
+  jumlahItem,
+  jumlahFoto,
+}: {
+  reportId: string;
+  slug: string;
+  dateKey: string;
+  jumlahItem: number;
+  jumlahFoto: number;
+}) {
   const [state, formAction, pending] = useActionState<DailyActionState, FormData>(kirimLaporan, undefined);
+  const [buka, setBuka] = useState(false);
+  const [pilihan, setPilihan] = useState<"" | "tidak_ada" | "ada">("");
+  const [siap, setSiap] = useState(false);
 
-  // Kirim sukses → draft lokal (slug,date) tidak relevan lagi.
   useEffect(() => {
-    if (state?.success) clearLocalDrafts(slug, dateKey);
+    const t = window.setTimeout(() => setSiap(true), 0);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  // Kirim sukses → draft lokal (slug,date) tidak relevan lagi, dan lembarnya
+  // ditutup supaya kabar suksesnya terbaca di halaman, bukan di balik tirai.
+  useEffect(() => {
+    if (!state?.success) return;
+    clearLocalDrafts(slug, dateKey);
+    const t = window.setTimeout(() => setBuka(false), 0);
+    return () => window.clearTimeout(t);
   }, [state, slug, dateKey]);
 
+  useEffect(() => {
+    if (!buka) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setBuka(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [buka]);
+
+  const lembar =
+    buka && siap
+      ? createPortal(
+          <div
+            className="fixed inset-0 z-[1200] flex items-end justify-center sm:items-center sm:p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="kirim-judul"
+          >
+            <button
+              type="button"
+              aria-label="Batal"
+              className="absolute inset-0 bg-ink/50"
+              onClick={() => setBuka(false)}
+              tabIndex={-1}
+            />
+            <form
+              action={formAction}
+              className="relative max-h-[88vh] w-full space-y-3 overflow-y-auto rounded-t-xl border border-border bg-surface p-4 shadow-lg sm:max-w-md sm:rounded-xl"
+            >
+              <input type="hidden" name="reportId" value={reportId} />
+              <input type="hidden" name="kendalaPilihan" value={pilihan} />
+
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 id="kirim-judul" className="text-[15px] font-semibold text-ink">
+                    Kirim laporan
+                  </h2>
+                  {/* Ringkasan sebelum berpisah dari laporan: angka yang paling
+                      sering baru disadari salah SESUDAH terkirim. */}
+                  <p className="mt-0.5 text-xs text-ink-muted">
+                    {jumlahItem} item pekerjaan · {jumlahFoto} foto
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setBuka(false)}
+                  aria-label="Tutup"
+                  className="grid size-8 shrink-0 place-items-center rounded-md border border-border text-ink-muted hover:bg-surface-muted"
+                >
+                  <X aria-hidden className="size-4" />
+                </button>
+              </div>
+
+              {state?.error ? <Banner tone="error" title={state.error} /> : null}
+
+              <fieldset>
+                <legend className="mb-1.5 text-[13px] font-semibold text-ink">
+                  Ada kendala hari ini?
+                </legend>
+                <div className="grid grid-cols-2 gap-2">
+                  <PilihanKendalaBtn
+                    aktif={pilihan === "tidak_ada"}
+                    onClick={() => setPilihan("tidak_ada")}
+                    utama="Tidak ada"
+                    ket="Pekerjaan lancar"
+                  />
+                  <PilihanKendalaBtn
+                    aktif={pilihan === "ada"}
+                    onClick={() => setPilihan("ada")}
+                    utama="Ada kendala"
+                    ket="Catat sekarang"
+                  />
+                </div>
+              </fieldset>
+
+              {pilihan === "ada" ? (
+                <div className="space-y-2 rounded-md border border-border bg-surface-muted p-3">
+                  <div>
+                    <Label htmlFor="kk-title" required>
+                      Kendala
+                    </Label>
+                    <Input
+                      id="kk-title"
+                      name="kendalaTitle"
+                      required
+                      minLength={3}
+                      maxLength={200}
+                      placeholder="mis. hujan deras sejak siang, cor ditunda"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="kk-sev">Tingkat</Label>
+                    <Combobox id="kk-sev" name="kendalaSeverity" defaultValue="sedang">
+                      {(Object.keys(ISSUE_SEVERITY_LABEL) as (keyof typeof ISSUE_SEVERITY_LABEL)[]).map(
+                        (s) => (
+                          <option key={s} value={s}>
+                            {ISSUE_SEVERITY_LABEL[s]}
+                          </option>
+                        ),
+                      )}
+                    </Combobox>
+                  </div>
+                  <div>
+                    <Label htmlFor="kk-desc">Uraian (opsional)</Label>
+                    <Textarea id="kk-desc" name="kendalaDescription" rows={2} maxLength={2000} />
+                  </div>
+                </div>
+              ) : null}
+
+              <Button
+                type="submit"
+                loading={pending}
+                disabled={pilihan === ""}
+                className="h-12 w-full text-base"
+              >
+                <Send aria-hidden className="size-4" />
+                {pilihan === "" ? "Pilih dulu di atas" : "Kirim sekarang"}
+              </Button>
+              <p className="text-center text-[11px] text-ink-muted">
+                Setelah dikirim, laporan diverifikasi. Item tidak bisa diubah kecuali dikembalikan
+                untuk koreksi.
+              </p>
+            </form>
+          </div>,
+          document.body,
+        )
+      : null;
+
   return (
-    <form action={formAction} className="space-y-2">
-      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+    <div className="space-y-2">
+      {state?.error && !buka ? <Banner tone="error" title={state.error} /> : null}
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
-      <input type="hidden" name="reportId" value={reportId} />
-      <Button type="submit" loading={pending} className="h-13 w-full text-base">
+      <Button type="button" onClick={() => setBuka(true)} className="h-13 w-full text-base">
         <Send aria-hidden className="size-4" />
-        Kirim Laporan
+        Review &amp; Kirim
       </Button>
       <p className="text-center text-[11px] text-ink-muted">
-        Setelah dikirim, laporan diverifikasi. Item tidak bisa diubah kecuali dikembalikan untuk koreksi.
+        Sebelum terkirim, Anda ditanya soal kendala hari ini.
       </p>
-    </form>
+      {lembar}
+    </div>
+  );
+}
+
+function PilihanKendalaBtn({
+  aktif,
+  onClick,
+  utama,
+  ket,
+}: {
+  aktif: boolean;
+  onClick: () => void;
+  utama: string;
+  ket: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={aktif}
+      className={`flex min-h-16 flex-col items-center justify-center rounded-lg border px-2 py-2 text-center ${
+        aktif
+          ? "border-primary bg-primary-50 font-semibold text-ink"
+          : "border-border bg-surface text-ink hover:border-primary hover:bg-primary-50"
+      }`}
+    >
+      {/* Terpilih ditandai KATA "dipilih", bukan cuma warna latar. */}
+      <span className="text-[14px]">{utama}</span>
+      <span className="text-[10px] leading-tight text-ink-muted">{aktif ? "dipilih" : ket}</span>
+    </button>
   );
 }

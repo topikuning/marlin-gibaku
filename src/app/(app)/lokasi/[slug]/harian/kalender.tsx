@@ -88,7 +88,11 @@ export function Kalender({ bulan, batas, sel, terpilih, disorot, taut }: Kalende
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-1">
+      {/* Ber-label supaya petak hari bisa dibedakan dari tautan lain yang juga
+          membawa "?tgl=" — bilah saringan di atas ikut mempertahankan tanggal
+          terpilih, dan pemilih yang tidak membedakannya akan mengira chip
+          "Draft (2)" adalah sebuah tanggal. */}
+      <div className="grid grid-cols-7 gap-1" role="group" aria-label="Petak tanggal">
         {sel.map((s) =>
           !s.bulanIni ? (
             // Hari titipan bulan tetangga: penanda posisi, bukan data. Sengaja

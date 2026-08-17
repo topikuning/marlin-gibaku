@@ -12,6 +12,7 @@ import {
 import { useRouter } from "next/navigation";
 import { Check, Images, MapPin, MapPinOff } from "lucide-react";
 import { Banner, Button, HelpText } from "@/components/ui";
+import { cn } from "@/lib/cn";
 import {
   muatKantongLokasiAction,
   pakaiFotoAction,
@@ -85,6 +86,47 @@ export function TombolAmbilDariKantong({
       Foto Cepat
       {(jumlahTerpilih ?? 0) > 0 ? ` (${jumlahTerpilih})` : ""}
     </Button>
+  );
+}
+
+/**
+ * UBIN "Foto Cepat" — kembaran visual ubin Kamera/Galeri (DECISIONS 341).
+ *
+ * Dipakai di baris sumber foto `PhotoSourceInput`, lewat prop `slotKetiga`.
+ * Bentuknya sengaja SAMA PERSIS dengan dua ubin di sebelahnya: mengambil dari
+ * kantong Foto Cepat bukan pilihan kelas dua — untuk foto yang dijepret di
+ * lapangan lewat /foto-cepat, koordinat dan jamnya justru yang paling benar
+ * (DECISIONS 253). Yang membedakannya cuma satu: ia membuka panel pemilih,
+ * bukan pemilih berkas perangkat.
+ */
+export function UbinAmbilDariKantong({
+  onClick,
+  aktif,
+  jumlahTerpilih,
+}: {
+  onClick: () => void;
+  aktif?: boolean;
+  jumlahTerpilih?: number;
+}) {
+  const dipilih = (jumlahTerpilih ?? 0) > 0;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-expanded={aktif ?? false}
+      className={cn(
+        "flex min-h-16 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border px-2 py-2 text-center",
+        aktif || dipilih
+          ? "border-primary bg-primary-50 text-ink"
+          : "border-border bg-surface text-ink hover:border-primary hover:bg-primary-50",
+      )}
+    >
+      <Images aria-hidden className="size-5 text-ink-muted" />
+      <span className="text-[13px] font-semibold">Foto Cepat</span>
+      <span className="text-[10px] leading-tight text-ink-muted">
+        {dipilih ? `${jumlahTerpilih} dipilih` : "Sudah dijepret"}
+      </span>
+    </button>
   );
 }
 

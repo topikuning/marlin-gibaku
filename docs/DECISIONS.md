@@ -15310,3 +15310,150 @@ Ditambah `tests/e2e/mobile-overflow.spec.ts`: kalender (kisi 7 kolom) dan daftar
 (AG Grid 5 kolom) ikut disapu di 375px — dua bentuk yang paling gampang
 melebihi layar. Uji gigi: memberi sel lebar minimum 96px (7×96 = 672px) membuat
 sapuan itu merah, dan hijau lagi setelah dipulihkan.
+
+---
+
+## 341 — Tata letak input harian: sumber foto, foto material, dan kendala (2026-08-17)
+
+Permintaan user, disertai konsep HTML: *"pelajari dan adaptasi desain untuk
+inputan harian ini, terutama pada peletakan pemilihan sumber foto pada inputan
+pekerjaan lalu pada pelengkap laporan KKP. juga pada layout inputan fotonya.
+punyamu saat ini terlalu scroll ke bawah bahkan user tidak tahu kalau itu bisa
+diberi foto untuk alat dan material, menyesatkan."* Ditambah: *"form kendala itu
+sebaiknya muncul saat laporan dikirim/direview, jadi bisa dipilih tidak ada
+kendala, tapi bukan form sangat di bawah begitu."*
+
+Diukur sebelum diubah: layar input harian **3.896 px di ponsel 390×844 — 4,6
+layar**.
+
+### 1 · Sumber foto: tiga UBIN setara, bukan dua tombol kecil + satu baris lagi
+
+Dua tombol setinggi 36px di sela-sela form terbaca seperti tombol pelengkap,
+bukan seperti pertanyaan "dari mana fotonya?". Dan "Foto Cepat" berdiri di baris
+TERSENDIRI di bawah keduanya — sehingga terbaca sebagai aksi kelas dua, padahal
+untuk foto yang dijepret lewat /foto-cepat justru koordinat dan jamnya yang
+paling benar (DECISIONS 253).
+
+Sekarang ketiganya ubin ±64px sejajar: Kamera · Galeri · Foto Cepat, masing-masing
+ikon + nama + keterangan satu baris. `PhotoSourceInput` menerima `slotKetiga`
+supaya ubin ketiga bisa diisi pemanggil — Foto Cepat bukan `<input type=file>`
+melainkan panel pemilih, jadi hanya pemanggilnya yang tahu cara membukanya.
+
+### 2 · Foto material & alat: MENEMPEL pada barisnya
+
+Ini keluhan yang paling tajam, dan paling benar. Foto material/alat hidup di
+kartu TERPISAH di bawah form pelengkap (DECISIONS 304): barisnya diketik di satu
+tempat, fotonya ditambahkan ±600px di bawah, di kartu yang judulnya baru terbaca
+kalau seseorang menggulir sampai sana. Orang yang tidak pernah menggulir sejauh
+itu menyimpulkan fiturnya tidak ada — dan itulah yang terjadi.
+
+Kartu terpisah itu bukan kemalasan: baris material hidup DI DALAM satu `<form>`
+pelengkap, dan `<form>` di dalam `<form>` bukan HTML yang sah — peramban
+membuang yang di dalam dan tombolnya jadi diam saja saat ditekan.
+
+Jalan keluarnya bukan memindahkan kartunya, melainkan memindahkan **form-nya
+keluar dari DOM**: lembar foto dirender lewat `createPortal(document.body)`,
+jadi pemicunya tetap menempel pada barisnya sementara form-nya berada di luar
+form pelengkap. Sah, dan tanpa jarak.
+
+**Baris yang belum tersimpan tetap menampilkan pemicunya**, mati, dengan
+sebabnya tertulis ("Simpan dulu"). Menyembunyikannya akan mengajarkan hal yang
+sama salahnya dengan sebelumnya: bahwa fiturnya tidak ada.
+
+Sekalian dibetulkan: nama material mengambil BARIS SENDIRI di ponsel. Sebelumnya
+ia berbagi satu baris dengan satuan + jumlah + tombol hapus, dan pada layar
+390px sisanya ±100px — "Semen PCC 50kg" terbaca **"Seme"**. Nama material yang
+terpotong bukan kosmetik: itu yang dipakai mencocokkan dengan surat jalan. Label
+juga dicetak di SETIAP baris, bukan cuma yang pertama — tiap baris kini kartu
+tersendiri, dan "20" tanpa keterangan di kartu ketiga tidak bisa dibaca sebagai
+apa pun.
+
+### 3 · Kendala ditanyakan saat MENGIRIM
+
+Formulir kendala yang menganga di dasar halaman empat layar tidak terbaca
+sebagai pertanyaan. Ia terlewat — dan yang terlewat bukan kolom hiasan: kendala
+adalah dasar seluruh tindakan pemulihan.
+
+Sekarang pertanyaannya diajukan di ambang pintu, pada satu-satunya saat orangnya
+PASTI berhenti dan memikirkan harinya: lembar **Review & Kirim**. Ringkasan
+singkat (n item · n foto), lalu *"Ada kendala hari ini?"* dengan dua ubin —
+**Tidak ada** / **Ada kendala**. Tombol kirim tidak aktif sebelum salah satunya
+dipilih.
+
+Itu memenuhi permintaan yang sebenarnya: *"bisa dipilih tidak ada kendala"*.
+Diam bukan jawaban — dari sisi pemeriksa, laporan tanpa kendala dan laporan yang
+orangnya lupa mengisi kendala terlihat persis sama.
+
+**Satu aksi, bukan dua berurutan.** `submitReportAction` menerima medan kendala
+dan mencatatnya LEBIH DULU, baru mengirim. Dua aksi berarti dua ketukan dan satu
+keadaan antara yang berbahaya: kendala tercatat tapi laporan gagal terkirim,
+atau sebaliknya.
+
+**Kegagalan yang dijaga:** memilih "Ada kendala" lalu judulnya kosong. Kalau
+diterima, kendalanya lenyap tanpa jejak DAN laporannya terkirim seolah hari itu
+lancar — persis kebalikan dari yang barusan dinyatakan orangnya, tanpa satu pun
+galat. Ditolak, dan yang diperiksa uji bukan sekadar "aksinya mengembalikan
+error" melainkan **statusnya masih `draft`** sesudahnya.
+
+Jalur tanpa medan kendala sama sekali TETAP jalan. Pertanyaan ini soal
+kelengkapan laporan, bukan soal izin; menolaknya akan mematikan pemanggil lain
+tanpa menambah satu pun jaminan.
+
+Yang tersisa di kartu bawah cuma tombol "Catat kendala" — jalan tambahan bagi
+pemeriksa yang menemukan kendala saat verifikasi.
+
+### 4 · Daftar 14 hari di dasar halaman → strip 7 hari + tautan
+
+±700px di dasar halaman yang sudah empat layar, dan sejak DECISIONS 340 juga
+duplikat: riwayat lengkapnya sudah punya rumah sendiri berupa kalender seluruh
+masa kontrak. Yang berguna DI SINI cuma satu — melompat ke hari sebelah tanpa
+keluar dari alur mengisi. Tujuh sel cukup.
+
+### Hasil ukur
+
+**3.896 px → 3.486 px** (4,6 → 4,1 layar). Turunnya lebih kecil daripada yang
+bisa dicapai karena dua tambahan yang sengaja MENAMBAH tinggi: nama material
+sebaris sendiri, dan label di tiap baris. Keduanya membeli kejelasan pada bagian
+yang justru dikeluhkan menyesatkan — menukar itu demi 300px adalah pertukaran
+yang salah.
+
+### Yang TIDAK diambil dari konsepnya
+
+- **Bilah aksi melayang** ("Simpan Draft | Review & Kirim" menempel di dasar).
+  Aplikasi ini sudah punya bilah navigasi melayang di ponsel; dua bilah = 148px
+  chrome tetap. Tombol kirim juga tidak terkubur — ia berada tepat di bawah
+  daftar item, ±1/3 halaman.
+- **Kartu "Kendala Hari Ini" sebagai seksi 3.** Konsepnya masih menaruh
+  formulirnya sebagai bagian yang berdiri sendiri; instruksi user sesudahnya
+  jelas menolak itu, dan instruksinya yang menang.
+
+**Penjaga.** `tests/unit/kirim-kendala.test.ts` (10, murni) ·
+`tests/integration/kirim-dengan-kendala.test.ts` (5, DB asli) ·
+`tests/e2e/harian-tata-letak-input.spec.ts` (5, peramban).
+
+Uji e2e itu perlu karena satu hal tidak bisa dibuktikan di tempat lain: kalau
+portal lembar foto suatu saat dilepas, **halamannya tetap terlihat benar** dan
+tombol simpannya diam-diam berhenti bekerja. Yang diperiksa karena itu DOM-nya:
+form di dalam lembar tidak boleh punya `<form>` leluhur.
+
+Uji gigi lima pagar:
+
+| pagar dicabut | hasil |
+| --- | --- |
+| portal dilepas (form bersarang lagi) | 1 merah |
+| pemicu foto disembunyikan saat baris belum tersimpan | 1 merah |
+| kunci pilihan kendala dicabut | 1 merah |
+| judul kendala kosong diloloskan | 2 merah |
+| kendala tidak jadi dicatat | 5 merah |
+| dipulihkan | 5 hijau (e2e) · 15 hijau (unit+integrasi) |
+
+Dua jebakan uji yang ketahuan saat menulisnya, keduanya jenis "hijau tapi tidak
+menguji apa pun":
+
+1. Pencari tanggal draft memindai seluruh halaman untuk tautan ber-`?tgl=` dan
+   menangkap **chip saringan "Draft (2)"** — yang juga ber-`?tgl=` karena bilah
+   saringan mempertahankan tanggal terpilih. Ujinya membuka tanggal tanpa
+   laporan, lalu MELEWAT. Diperbaiki dengan memberi petak tanggal
+   `role="group" aria-label="Petak tanggal"` dan membatasi pencarian ke sana.
+2. `test.skip` pada data yang tidak ditemukan. Diganti `expect(...)`: kalau data
+   ujinya tidak punya draft, berkas ini harus berteriak — bukan diam-diam hijau.

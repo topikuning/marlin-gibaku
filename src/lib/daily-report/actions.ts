@@ -19,6 +19,7 @@ import { audit, auditIn } from "@/lib/audit";
 import { applyWeatherToReport, WeatherError, WeatherFetchError } from "@/lib/weather/service";
 import type { UserRole, WeatherCode, WorkerRole } from "@/generated/prisma/enums";
 import { WEATHER_ORDER, WORKER_ROLE_ORDER } from "./constants";
+import { bacaKendalaKirim } from "./kirim-kendala";
 import {
   addIssueFromReport,
   approveReport,
@@ -995,15 +996,49 @@ export async function saveEnrichmentAction(_prev: DailyActionState, formData: Fo
 // Transisi status
 // ─────────────────────────────────────────────────────────────
 
+/**
+ * Kirim laporan — SEKALIAN mencatat kendala yang dijawab di lembar kirim
+ * (DECISIONS 341).
+ *
+ * Satu aksi, bukan dua berurutan. Dua aksi berarti dua ketukan dan satu
+ * keadaan antara yang berbahaya: kendala tercatat tapi laporannya gagal
+ * terkirim, atau sebaliknya. Di sini kendalanya dicatat LEBIH DULU — kalau
+ * pencatatannya gagal, laporan tidak jadi terkirim dan orangnya masih memegang
+ * kalimat yang barusan ia tulis.
+ */
 export async function submitReportAction(_prev: DailyActionState, formData: FormData): Promise<DailyActionState> {
   try {
     const user = await requireCapability("daily_report.create");
     const reportId = z.uuid().parse(formData.get("reportId"));
     const ctx = await loadReportContext(reportId);
     await requireLocationAccess(user, ctx.locationId);
+
+    const kendala = bacaKendalaKirim({
+      pilihan: formData.get("kendalaPilihan"),
+      title: formData.get("kendalaTitle"),
+      severity: formData.get("kendalaSeverity"),
+      description: formData.get("kendalaDescription"),
+    });
+    if (!kendala.ok) return { error: kendala.error };
+    if (kendala.kendala) {
+      await addIssueFromReport(
+        ctx.id,
+        {
+          title: kendala.kendala.title,
+          description: kendala.kendala.description,
+          severity: kendala.kendala.severity,
+        },
+        user.id,
+      );
+    }
+
     await submitReport(reportId, user.id);
     revalidateReport(ctx.slug, ctx.dateKey);
-    return { success: "Laporan terkirim — menunggu verifikasi." };
+    return {
+      success: kendala.kendala
+        ? "Laporan terkirim beserta 1 kendala — menunggu verifikasi."
+        : "Laporan terkirim — menunggu verifikasi.",
+    };
   } catch (err) {
     return errState(err);
   }
