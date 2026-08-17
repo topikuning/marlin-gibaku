@@ -126,7 +126,12 @@ async function wahaFetch(
 export type WahaSessionStatus = {
   name: string;
   status: string; // STARTING | SCAN_QR_CODE | WORKING | FAILED | STOPPED
-  me?: { id?: string; pushName?: string } | null;
+  /**
+   * Identitas sesi. `lid` = identitas privasi WhatsApp untuk nomor yang sama
+   * (DECISIONS 349) — nama medannya berbeda antar versi WAHA, jadi dibaca
+   * defensif seperti medan payload lain.
+   */
+  me?: { id?: string; pushName?: string; lid?: string; lidId?: string } | null;
 };
 
 /** Status sesi WA (login/belum). */
@@ -150,27 +155,54 @@ export async function getSessionStatus(): Promise<WahaSessionStatus> {
  * berubah. Kegagalan mengembalikan null — dan null berarti grup TIDAK dilayani,
  * bukan dilayani tanpa syarat.
  */
-let cacheNomor: { nilai: string | null; sampai: number } | null = null;
+let cacheNomor: { nilai: IdentitasSesi; sampai: number } | null = null;
 
-export async function getNomorMarlin(): Promise<string | null> {
+/**
+ * Identitas MARLIN sendiri — nomor DAN LID (DECISIONS 349).
+ *
+ * Sejak WhatsApp memakai identitas privasi, penyebutan di grup bisa berisi
+ * `…@lid` alih-alih JID bernomor. Mengenali diri sendiri lewat nomor saja
+ * membuat SETIAP mention di grup terbaca "tidak ada mention".
+ */
+export type IdentitasSesi = { nomor: string | null; lid: string | null };
+
+export async function getIdentitasMarlin(): Promise<IdentitasSesi> {
   if (cacheNomor && Date.now() < cacheNomor.sampai) return cacheNomor.nilai;
-  let nilai: string | null = null;
+  let nilai: IdentitasSesi = { nomor: null, lid: null };
   try {
     const s = await getSessionStatus();
     // Hanya sesi yang benar-benar login yang punya identitas; sesi SCAN_QR_CODE
     // bisa membawa `me` sisa sesi sebelumnya.
-    if (s.status === "WORKING") nilai = s.me?.id?.replace(/@.*$/, "") ?? null;
+    if (s.status === "WORKING") {
+      const me = (s.me ?? {}) as Record<string, unknown>;
+      const teks = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+      const id = teks(me.id);
+      // `me.id` sendiri bisa berupa @lid pada sesi yang sudah bermigrasi.
+      const idLid = id && /@lid$/i.test(id) ? id : null;
+      nilai = {
+        nomor: idLid ? null : (id?.replace(/@.*$/, "") ?? null),
+        lid: (idLid ?? teks(me.lid) ?? teks(me.lidId))?.replace(/@.*$/, "") ?? null,
+      };
+    }
   } catch {
-    // WAHA mati / belum dikonfigurasi → nomor tidak diketahui. Jangan melempar:
-    // pemanggilnya sedang memproses webhook masuk.
-    nilai = null;
+    // WAHA mati / belum dikonfigurasi → identitas tidak diketahui. Jangan
+    // melempar: pemanggilnya sedang memproses webhook masuk.
+    nilai = { nomor: null, lid: null };
   }
   // Kegagalan di-cache lebih singkat supaya sesi yang baru login cepat terbaca.
-  cacheNomor = { nilai, sampai: Date.now() + (nilai ? 600_000 : 60_000) };
+  const tahu = !!(nilai.nomor || nilai.lid);
+  cacheNomor = { nilai, sampai: Date.now() + (tahu ? 600_000 : 60_000) };
   return nilai;
 }
 
-/** Buang cache nomor (dipakai uji & saat sesi WAHA diganti). */
+/*
+ * SENGAJA tidak ada `getNomorMarlin()` lagi (DECISIONS 349). Pembantu "nomor
+ * saja" itu persis jebakan yang menyebabkan cacat ini: memanggilnya terasa
+ * benar, dan hasilnya MARLIN tidak mengenali dirinya sendiri di grup yang sudah
+ * bermigrasi ke identitas privasi. Identitas WhatsApp ada DUA — ambil keduanya.
+ */
+
+/** Buang cache identitas (dipakai uji & saat sesi WAHA diganti). */
 export function lupakanNomorMarlin(): void {
   cacheNomor = null;
 }

@@ -365,3 +365,69 @@ describe("kerangkaPayload — diagnosa tanpa membocorkan chat", () => {
     expect(kerangkaPayload({ payload: besar }).length).toBeLessThanOrEqual(401);
   });
 });
+
+describe("mention & balasan di payload bersarang (DECISIONS 349)", () => {
+  /*
+   * Mention grup tidak selalu ada di permukaan payload. Engine NOWEB menaruhnya
+   * di `message.extendedTextMessage.contextInfo.mentionedJid`; WEBJS kadang di
+   * `_data.contextInfo`. Selama itu tidak dibaca, mention terlihat seperti tidak
+   * ada — dan MARLIN diam pada pesan yang jelas memanggilnya.
+   */
+  const grup = (extra: Record<string, unknown>) =>
+    parseWaEvent({
+      event: "message",
+      payload: {
+        id: "gm1",
+        from: "120363410571149972@g.us",
+        author: "6285700000001@c.us",
+        body: "@marlin progress?",
+        timestamp: 1_690_000_000,
+        ...extra,
+      },
+    })!;
+
+  it("contextInfo.mentionedJid NOWEB terbaca", () => {
+    const m = grup({
+      message: { extendedTextMessage: { contextInfo: { mentionedJid: ["77712345678901@lid"] } } },
+    });
+    expect(m.mentionedJids).toEqual(["77712345678901@lid"]);
+  });
+
+  it("_data.contextInfo.mentionedJid WEBJS terbaca", () => {
+    const m = grup({ _data: { contextInfo: { mentionedJid: ["6281200000000@c.us"] } } });
+    expect(m.mentionedJids).toEqual(["6281200000000@c.us"]);
+  });
+
+  it("mention pada pesan bergambar juga terbaca", () => {
+    const m = grup({ message: { imageMessage: { contextInfo: { mentionedJid: ["628120@c.us"] } } } });
+    expect(m.mentionedJids).toEqual(["628120@c.us"]);
+  });
+
+  it("pemilik pesan yang DIBALAS terbaca dan dikanonikkan", () => {
+    const m = grup({
+      message: { extendedTextMessage: { contextInfo: { participant: "6281200000000@s.whatsapp.net" } } },
+    });
+    // Dikanonikkan supaya bisa dibandingkan langsung dengan identitas MARLIN.
+    expect(m.balasanKepada).toBe("6281200000000@c.us");
+  });
+
+  it("balasan lewat bentuk WEBJS (_data.quotedParticipant)", () => {
+    const m = grup({ _data: { quotedParticipant: "6281200000000@c.us" } });
+    expect(m.balasanKepada).toBe("6281200000000@c.us");
+  });
+
+  it("bukan balasan → null, bukan tebakan", () => {
+    // Kalau ini mengembalikan pengirimnya sendiri, setiap pesan grup akan
+    // terlihat seperti balasan ke seseorang.
+    expect(grup({}).balasanKepada).toBeNull();
+    expect(grup({}).mentionedJids).toEqual([]);
+  });
+
+  it("mention dari beberapa sumber digabung tanpa duplikat", () => {
+    const m = grup({
+      mentionedIds: ["6281200000000@c.us"],
+      message: { extendedTextMessage: { contextInfo: { mentionedJid: ["6281200000000@c.us", "628999@c.us"] } } },
+    });
+    expect(m.mentionedJids.sort()).toEqual(["6281200000000@c.us", "628999@c.us"]);
+  });
+});

@@ -16044,3 +16044,80 @@ Uji gigi: sufiks perangkat dibiarkan → 1 merah; `@s.whatsapp.net` tidak
 disamakan → 4 merah; `payload.key` tidak dibaca → 4 merah; `@lid` ikut
 dilebarkan → 1 merah; isi pesan ikut tercatat → 2 merah; pencocokan teks tunggal
 dikembalikan → 3 merah di integrasi. Semuanya dipulihkan → hijau.
+
+---
+
+## 349 — Mention di grup tidak pernah dikenali: MARLIN tak mengenal dirinya sendiri (2026-08-17)
+
+Tangkapan layar user 2026-08-17, log **Sistem → WhatsApp**:
+
+```
+tersimpan ✓ · tanya: diam — grup tanpa mention ke MARLIN
+120363410571149972@g.us
+```
+
+Pesannya **tersimpan**. Artinya webhook sampai, grupnya tertaut paket, dan
+parser bekerja — seluruh jalur yang diperbaiki DECISIONS 345/348 sehat. Yang
+gagal satu hal saja, dan itu di ujung: MARLIN tidak mengenali dirinya sendiri.
+
+### Sebabnya sama dengan DECISIONS 347, satu lapis di atas
+
+Sejak WhatsApp memakai identitas privasi, yang masuk ke daftar mention adalah
+**`…@lid` MARLIN**, bukan JID bernomornya. `diajakBicara()` mencocokkannya lewat
+`normalizePhone` — membandingkan LID dengan nomor telepon, yang tidak akan
+pernah sama. Akibatnya SETIAP mention di grup terbaca "tidak ada mention", dan
+seluruh tanya-jawab grup mati diam-diam tanpa satu pun galat.
+
+Dibuktikan, bukan didalilkan: mengembalikan pencocokan ke nomor saja membuat
+persis skenario user merah — 4 uji unit dan 3 uji integrasi.
+
+**LID dibandingkan dengan LID, nomor dengan nomor — tidak pernah bersilang.**
+Kalau bersilang, sebuah `@lid` yang angkanya kebetulan sama dengan nomor MARLIN
+akan memicu jawaban, padahal LID itu milik orang lain sepenuhnya.
+
+### Tiga sebab yang mungkin, ketiganya ditutup
+
+Payload aslinya tidak bisa dilihat dari sini, jadi ketiganya dikerjakan
+sekaligus alih-alih menebak satu per rilis:
+
+1. **Identitas kita salah** — `getIdentitasMarlin()` kini membaca nomor DAN LID
+   sesi (`me.id` yang sudah ber-`@lid`, `me.lid`, `me.lidId`).
+2. **Mention-nya tidak terbaca** — `bacaMention()` kini membaca
+   `contextInfo.mentionedJid` yang BERSARANG (`message.extendedTextMessage`,
+   `imageMessage`, `videoMessage`, `documentMessage`, dan `_data.contextInfo`).
+   Engine NOWEB menaruhnya di sana, bukan di permukaan payload.
+3. **Orangnya tidak me-mention, tapi MEMBALAS** — balasan (quote) ke pesan
+   MARLIN kini dihitung sebagai diajak bicara. Itu cara orang benar-benar
+   meneruskan percakapan, dan WhatsApp tidak selalu menyertakan mention di situ.
+   Hanya balasan ke pesan MILIK KITA yang dihitung, jadi pagarnya tidak melebar.
+
+### `getNomorMarlin()` DIHAPUS
+
+Pembantu "nomor saja" itu persis jebakan yang menyebabkan cacat ini: memanggilnya
+terasa benar, dan hasilnya MARLIN tidak mengenali dirinya di grup yang sudah
+bermigrasi. Identitas WhatsApp ada dua; sekarang tidak ada lagi cara mengambil
+setengahnya.
+
+### Diam di grup kini menyebut APA YANG DILIHAT
+
+`"grup tanpa mention ke MARLIN"` tidak bisa membedakan tiga keadaan yang butuh
+tindakan berbeda. Sekarang log menyebutkan yang mana:
+
+| yang tertulis | artinya |
+| --- | --- |
+| `identitas sesi WAHA belum terbaca` | sesi belum WORKING — scan QR / restart |
+| `tidak ada mention terbaca di payload · medan: …` | medan mention belum dikenali; nama medannya ikut tercatat |
+| `mention terbaca [X] ≠ kita (Y)` | identitas MARLIN yang salah, dan keduanya disebut |
+
+**Penjaga.** `tests/unit/waha-tanya-izin.test.ts` +8 (mention @lid, @lid orang
+lain, **LID tidak pernah bersilang dengan nomor**, sesi ber-LID tanpa nomor,
+identitas kosong tetap diam, balasan ke MARLIN, balasan ke orang lain, chat
+pribadi tak terpengaruh). `tests/unit/wa-ingest-parse.test.ts` +7 (contextInfo
+NOWEB & WEBJS, pesan bergambar, pemilik pesan yang dibalas dikanonikkan, bentuk
+`quotedParticipant`, bukan-balasan tetap null, gabungan tanpa duplikat).
+`tests/integration/waha-tanya-jawab.test.ts` +5.
+
+Uji gigi: pencocokan lewat nomor saja dikembalikan → **4 unit + 3 integrasi
+merah** (persis skenario user); LID/nomor dibandingkan bersilang → 1 merah;
+`contextInfo` bersarang tidak dibaca → 3 unit + 1 integrasi merah; balasan tidak
+dihitung → 1 unit + 1 integrasi merah. Semuanya dipulihkan → hijau.

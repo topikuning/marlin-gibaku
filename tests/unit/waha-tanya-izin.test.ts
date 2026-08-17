@@ -433,3 +433,74 @@ describe("pengirim ber-@lid (DECISIONS 347)", () => {
     expect(cocokkanNomorPengguna([p("a", "")], null, "").jenis).toBe("tidak_ada");
   });
 });
+
+describe("mention MARLIN yang ber-@lid (DECISIONS 349)", () => {
+  /*
+   * Laporan user 2026-08-17 dengan tangkapan layar: pesan grup yang JELAS
+   * me-mention MARLIN tercatat "diam — grup tanpa mention ke MARLIN".
+   *
+   * Sejak WhatsApp memakai identitas privasi, yang masuk daftar mention adalah
+   * @lid MARLIN, bukan JID bernomornya. Mencocokkan lewat nomor saja berarti
+   * membandingkan LID dengan nomor telepon — tidak pernah sama, sehingga SETIAP
+   * mention terbaca "tidak ada mention" dan tanya-jawab grup mati diam-diam.
+   */
+  const LID = "77712345678901";
+  const AKU = { nomor: "6281200000000", lid: LID };
+
+  it("mention berisi @lid MARLIN: dilayani", () => {
+    expect(diajakBicara(pesan({ grup: true, mentionedJids: [`${LID}@lid`] }), AKU)).toBe(true);
+  });
+
+  it("@lid orang lain tetap TIDAK menghitung", () => {
+    expect(diajakBicara(pesan({ grup: true, mentionedJids: ["99900000000000@lid"] }), AKU)).toBe(
+      false,
+    );
+  });
+
+  it("LID TIDAK PERNAH dibandingkan dengan nomor, dan sebaliknya", () => {
+    /*
+     * Penjaga paling penting di blok ini. Kalau perbandingannya bersilang, LID
+     * yang angkanya kebetulan sama dengan nomor MARLIN akan memicu jawaban —
+     * dan LID itu milik orang lain sepenuhnya.
+     */
+    const samar = { nomor: "6281200000000", lid: "6281200000000" };
+    // @lid berangka sama dengan NOMOR kita, tapi LID kita berbeda → bukan kita.
+    expect(
+      diajakBicara(pesan({ grup: true, mentionedJids: ["6281200000000@lid"] }), AKU),
+    ).toBe(false);
+    // Kebalikannya: JID bernomor sama dengan LID kita → tetap dicocokkan sebagai
+    // nomor, dan di sini nomornya memang kita.
+    expect(diajakBicara(pesan({ grup: true, mentionedJids: [`${LID}@c.us`] }), samar)).toBe(false);
+  });
+
+  it("sesi yang hanya punya LID (tanpa nomor) tetap bisa dikenali", () => {
+    expect(
+      diajakBicara(pesan({ grup: true, mentionedJids: [`${LID}@lid`] }), { nomor: null, lid: LID }),
+    ).toBe(true);
+  });
+
+  it("identitas belum diketahui SAMA SEKALI → grup tetap tidak dilayani", () => {
+    // Lebih baik diam daripada membalas setiap pesan grup.
+    expect(
+      diajakBicara(pesan({ grup: true, mentionedJids: [`${LID}@lid`] }), { nomor: null, lid: null }),
+    ).toBe(false);
+  });
+
+  it("MEMBALAS pesan MARLIN dihitung sebagai diajak bicara", () => {
+    // Cara orang benar-benar meneruskan percakapan; WhatsApp tidak selalu
+    // menyertakan mention pada balasan.
+    expect(diajakBicara(pesan({ grup: true, balasanKepada: `${LID}@lid` }), AKU)).toBe(true);
+    expect(diajakBicara(pesan({ grup: true, balasanKepada: "6281200000000@c.us" }), AKU)).toBe(true);
+  });
+
+  it("membalas pesan ORANG LAIN tidak memancing jawaban", () => {
+    // Kalau ini lolos, MARLIN ikut menyahut setiap balasan di grup.
+    expect(diajakBicara(pesan({ grup: true, balasanKepada: "6285711111111@c.us" }), AKU)).toBe(
+      false,
+    );
+  });
+
+  it("chat pribadi tidak terpengaruh aturan mention", () => {
+    expect(diajakBicara(pesan({ grup: false, mentionedJids: [] }), AKU)).toBe(true);
+  });
+});

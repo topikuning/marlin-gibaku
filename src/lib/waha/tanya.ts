@@ -6,7 +6,7 @@ import type { SessionUser } from "@/lib/auth/session";
 import { accessibleLocationIds } from "@/lib/auth/session";
 import { aiStructured } from "@/lib/ai/structured";
 import { AiGuardError, checkAiGuard, estimateCostUsd, getAiPricing } from "@/lib/ai-hub/guard";
-import { getNomorMarlin, sendText } from "./client";
+import { getIdentitasMarlin, sendText } from "./client";
 import { medanJidPayload, parseWaEvent, varianChatId, type ParsedWaMessage } from "./ingest-parse";
 import {
   bersihkanMention,
@@ -191,17 +191,36 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
 
   const grup = m.chatId.endsWith("@g.us");
 
-  // (2) Diajak bicara? Di grup: hanya kalau JID kita di-mention.
-  const nomorKita = grup ? await getNomorMarlin() : null;
+  // (2) Diajak bicara? Di grup: hanya kalau JID kita di-mention (atau pesan kita
+  // yang dibalas). Nomor DAN LID, karena mention kini berisi @lid (DECISIONS 349).
+  const kita = grup ? await getIdentitasMarlin() : { nomor: null, lid: null };
   const asal = {
     grup,
     senderJid: m.senderJid,
     fromNumber: m.fromNumber,
     mentionedJids: m.mentionedJids,
+    balasanKepada: m.balasanKepada,
     body: m.body,
   };
-  if (!diajakBicara(asal, { nomor: nomorKita })) {
-    return DIAM(grup ? "grup tanpa mention ke MARLIN" : "tidak diajak bicara");
+  if (!diajakBicara(asal, kita)) {
+    /*
+     * Sebut APA YANG DILIHAT, bukan cuma kesimpulannya (DECISIONS 349).
+     *
+     * Log lama hanya berbunyi "grup tanpa mention ke MARLIN". Ketika user
+     * mengirim tangkapan layar grup yang JELAS me-mention MARLIN, baris itu
+     * tidak bisa membedakan tiga hal yang sangat berbeda: daftar mention kosong
+     * (medan payload-nya tidak terbaca), daftar berisi tapi bukan kita
+     * (identitas kita salah), atau identitas kita belum diketahui sama sekali
+     * (sesi WAHA belum WORKING). Ketiganya butuh tindakan yang berbeda.
+     */
+    if (!grup) return DIAM("tidak diajak bicara");
+    const siapaKita = kita.nomor ?? (kita.lid ? `${kita.lid}@lid` : null);
+    const rinci = !siapaKita
+      ? "identitas sesi WAHA belum terbaca (sesi belum WORKING?)"
+      : m.mentionedJids.length === 0
+        ? `tidak ada mention terbaca di payload · medan: ${medanJidPayload(body).slice(0, 200) || "(tidak ada)"}`
+        : `mention terbaca [${m.mentionedJids.join(", ")}] ≠ kita (${siapaKita})`;
+    return DIAM(`grup tanpa mention ke MARLIN — ${rinci}`);
   }
 
   const teks = bersihkanMention(m.body).slice(0, BATAS_TANYA);

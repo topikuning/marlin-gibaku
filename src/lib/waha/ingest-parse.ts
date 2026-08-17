@@ -35,6 +35,14 @@ export type ParsedWaMessage = {
    * engine WAHA, jadi dibaca defensif seperti medan lain di berkas ini.
    */
   mentionedJids: string[];
+  /**
+   * JID pemilik pesan yang DIBALAS (quote), bila pesan ini sebuah balasan
+   * (DECISIONS 349).
+   *
+   * Membalas pesan MARLIN adalah cara orang benar-benar meneruskan percakapan
+   * di grup, dan WhatsApp tidak selalu menyertakan mention di situ.
+   */
+  balasanKepada: string | null;
 };
 
 import { toInternationalId } from "@/lib/contacts/model";
@@ -211,6 +219,7 @@ export function parseWaEvent(body: unknown): ParsedWaMessage | null {
     fromMe,
     timestamp: timestampSec != null ? new Date(timestampSec * 1000) : new Date(0),
     mentionedJids: bacaMention(p, data),
+    balasanKepada: bacaBalasanKepada(p, data),
     senderLid: isLid(senderJid) ? senderJid : null,
   };
 }
@@ -323,15 +332,63 @@ export function kerangkaPayload(body: unknown, batas = 400): string {
   return s.length > batas ? `${s.slice(0, batas)}…` : s;
 }
 
-/** Kumpulkan JID yang di-mention dari berbagai bentuk payload WAHA. */
+/**
+ * JID pemilik pesan yang dibalas (DECISIONS 349) — dinormalkan seperti JID lain
+ * supaya bisa dibandingkan langsung dengan identitas MARLIN.
+ */
+function bacaBalasanKepada(p: AnyObj, data: AnyObj): string | null {
+  const pesan = (p.message ?? data.message ?? {}) as AnyObj;
+  const konteks = [
+    p.contextInfo,
+    data.contextInfo,
+    (p._data as AnyObj)?.contextInfo,
+    (pesan.extendedTextMessage as AnyObj)?.contextInfo,
+  ].filter(Boolean) as AnyObj[];
+  const kandidat = [
+    ...konteks.map((c) => c.participant),
+    (p.replyTo as AnyObj)?.participant,
+    (p.replyTo as AnyObj)?.author,
+    data.quotedParticipant,
+    (p._data as AnyObj)?.quotedParticipant,
+    (p.quotedMsg as AnyObj)?.author,
+  ];
+  for (const v of kandidat) {
+    const s = typeof v === "string" ? v : str((v as AnyObj)?._serialized);
+    const n = normalizeChatId(s);
+    if (n) return n;
+  }
+  return null;
+}
+
+/**
+ * Kumpulkan JID yang di-mention dari berbagai bentuk payload WAHA.
+ *
+ * Termasuk `contextInfo.mentionedJid` yang BERSARANG (DECISIONS 349): engine
+ * NOWEB menaruh penyebutan di `message.extendedTextMessage.contextInfo`, bukan
+ * di permukaan payload. Selama itu tidak dibaca, mention di grup terlihat
+ * seperti tidak ada — dan MARLIN diam pada pesan yang jelas memanggilnya.
+ */
 function bacaMention(p: AnyObj, data: AnyObj): string[] {
+  const pesan = (p.message ?? data.message ?? {}) as AnyObj;
+  const konteks = [
+    p.contextInfo,
+    data.contextInfo,
+    (pesan.extendedTextMessage as AnyObj)?.contextInfo,
+    (pesan.imageMessage as AnyObj)?.contextInfo,
+    (pesan.videoMessage as AnyObj)?.contextInfo,
+    (pesan.documentMessage as AnyObj)?.contextInfo,
+  ].filter(Boolean) as AnyObj[];
+
   const sumber = [
     p.mentionedIds,
     p.mentionedJidList,
     (p._data as AnyObj)?.mentionedJidList,
+    (p._data as AnyObj)?.contextInfo && ((p._data as AnyObj).contextInfo as AnyObj).mentionedJid,
     data.mentionedIds,
     data.mentionedJidList,
     (p.mentions as AnyObj[] | undefined),
+    ...konteks.map((c) => c.mentionedJid),
+    ...konteks.map((c) => c.mentionedJidList),
   ];
   const keluar = new Set<string>();
   for (const s of sumber) {
