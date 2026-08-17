@@ -16366,3 +16366,64 @@ dilaporkan tidak teruji karena data seed tidak menyediakannya.
 Uji gigi: satu rute dihapus dari daftar → 1 merah dengan nama rutenya; rute
 hantu ditambahkan → 1 merah. Sebelum perbaikan, sapuan baru menemukan 2 halaman
 melebar (laporan periodik pada menu terbuka, dan impor dokumen paket).
+
+---
+
+## 353 — Site Manager boleh mengubah kurva-S (baseline) (2026-08-17)
+
+Keputusan user 2026-08-17, menjawab pertanyaannya sendiri *"siapa yang boleh
+mengubah kurva S?"* dengan **"site manager dibolehkan"**.
+
+Sebelum ini `baseline.manage` berhenti di Project Manager. Susunan itu tidak
+konsisten dengan DECISIONS 302: Site Manager sudah memegang `rab.manage`,
+artinya ia boleh mengubah **bobot** — bahan baku kurvanya — tetapi tidak boleh
+menyentuh **jadwalnya**. Padahal SM pula yang memegang jadwal lapangan dan yang
+ditanya ketika realisasi menyimpang dari rencana; ia harus meminta atasan untuk
+menyesuaikan kurva atas pekerjaan yang ia sendiri kelola.
+
+### Yang terbuka
+
+Lima aksi baseline di `lokasi/[slug]/rab/actions.ts`: hitung ulang dari RAB
+aktif, simpan kurva hasil edit manual, jadwal per kategori, impor jadwal Excel,
+dan pulihkan baseline lama.
+
+### Yang TIDAK ikut terbuka — dan ini bagian keputusannya
+
+- **`requireLocationAccess` tetap di setiap aksi.** SM hanya menyentuh lokasi
+  penugasannya; capability tidak pernah jadi akses lintas lokasi.
+- **Baseline tetap append-only.** Versi lama tidak ditimpa, hanya berstatus
+  "digantikan"; seluruh riwayat tetap bisa dibuka dan dipulihkan. Yang dibuka
+  adalah hak MENYUSUN ULANG, bukan hak menghapus jejak.
+- **Deret manual tetap divalidasi ulang di server** (monoton, 0..100, berakhir
+  100) — kiriman klien tidak dipercaya.
+- **Tanggal kontrak tetap `contract.manage`** (super_admin & Program Director).
+  Itu kisi mingguan kurvanya; membukanya berarti membuka kontrak, dan itu tidak
+  diminta.
+- **Aktivasi revisi RAB tetap empat mata** (dua orang berbeda, satu di antaranya
+  Program Director), dan pencatatan adendum di sisi kontrak tetap
+  `amendment.manage`.
+
+Ringkasnya: SM boleh menyusun ulang RENCANA di dalam kontrak yang sudah
+ditetapkan — bukan mengubah kontraknya, bukan melintasi lokasi orang lain, dan
+bukan menghapus versi sebelumnya.
+
+### Didaftar SEKALI, di SITE_MANAGER
+
+`baseline.manage` dipindah ke daftar `SITE_MANAGER` dan **dihapus** dari
+`PROJECT_MANAGER`, yang sudah menyebar `...SITE_MANAGER`. Mendaftar hak yang
+sama dua kali membuat pencabutan di SM kelak tidak terlihat efeknya di PM — cara
+matriks izin diam-diam berhenti mencerminkan kenyataan. Pola yang sama sudah
+dipakai `rab.manage` sejak DECISIONS 302.
+
+`docs/rebuild/PERMISSION_MATRIX.md` diregenerasi (`pnpm docs:permission`).
+
+**Penjaga.** `tests/unit/authz.test.ts` +3: daftar peran pemegang
+`baseline.manage` ditulis LENGKAP dan eksplisit (Pelaksana harus merah); batas
+keputusan diuji terpisah (`contract.manage` / `contract.edit` /
+`amendment.manage` TIDAK ikut terbuka untuk SM, dan `contract.manage` tetap
+tertutup bahkan untuk PM); pewarisan diuji lewat perilaku sehingga pendaftaran
+ganda tidak bisa menyelinap masuk.
+
+Uji gigi: hak dicabut lagi dari SM → 3 merah; SM diberi `contract.manage`
+(pelonggaran merembet) → 2 merah; Pelaksana ikut kebagian → 3 merah. Dipulihkan
+→ 20 hijau.

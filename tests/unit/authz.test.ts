@@ -5,6 +5,7 @@ import {
   canCreateRole,
   creatableRoles,
   isCrossLocation,
+  ALL_ROLES,
   ROLE_CAPABILITIES,
 } from "@/lib/authz";
 
@@ -71,6 +72,50 @@ describe("authz capability matrix", () => {
     expect(can("exec_viewer", "finance.input")).toBe(false);
     expect(can("exec_viewer", "finance.view")).toBe(true);
     expect(can("exec_viewer", "daily_report.create")).toBe(false);
+  });
+
+  /**
+   * KURVA-S: siapa yang boleh mengubah baseline (DECISIONS 353).
+   *
+   * Keputusan user 2026-08-17. Sebelumnya Site Manager memegang `rab.manage`
+   * (DECISIONS 302) — boleh mengubah BOBOT, bahan baku kurvanya — tapi tidak
+   * boleh menyentuh jadwalnya, padahal SM pula yang ditanya ketika realisasi
+   * menyimpang dari rencana.
+   */
+  it("baseline.manage: Site Manager ke atas, Pelaksana TIDAK", () => {
+    // Daftarnya lengkap dan eksplisit, bukan "minimal berisi": kurva-S adalah
+    // dasar seluruh angka deviasi, jadi setiap perubahan hak di sini harus
+    // ditulis sadar — bukan lolos karena ujinya memeriksa sebagian.
+    const boleh = new Set(["super_admin", "program_director", "regional_manager", "project_manager", "site_manager"]);
+    for (const role of ALL_ROLES) {
+      expect(can(role, "baseline.manage"), role).toBe(boleh.has(role));
+    }
+  });
+
+  it("yang TIDAK ikut terbuka bersama baseline.manage", () => {
+    /*
+     * Batas keputusan itu. Yang dibuka adalah menyusun ulang RENCANA di dalam
+     * kontrak yang sudah ditetapkan — bukan mengubah kontraknya, dan bukan
+     * menghapus jejak. Kalau salah satu baris ini ikut hijau untuk SM, artinya
+     * pelonggaran merembet melewati yang diputuskan.
+     */
+    expect(can("site_manager", "contract.manage")).toBe(false);
+    expect(can("site_manager", "contract.edit")).toBe(false);
+    expect(can("site_manager", "amendment.manage")).toBe(false);
+    // Kisi mingguan kurva berasal dari tanggal kontrak — tetap terkunci.
+    expect(can("project_manager", "contract.manage")).toBe(false);
+  });
+
+  it("baseline.manage DIWARISI dari Site Manager, tidak didaftar dua kali", () => {
+    /*
+     * Peran atasan membangun kapabilitasnya dengan menyebar SITE_MANAGER.
+     * Mendaftar ulang hak yang sama di atasnya membuat pencabutan di SM kelak
+     * tidak terlihat efeknya di PM — cara matriks izin diam-diam jadi bohong.
+     * Diuji lewat perilaku: setiap peran di atas SM harus ikut punya.
+     */
+    for (const role of ["project_manager", "regional_manager", "program_director", "super_admin"] as const) {
+      expect(can(role, "baseline.manage"), role).toBe(true);
+    }
   });
 
   it("matrix terdefinisi untuk semua role", () => {
