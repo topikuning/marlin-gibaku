@@ -16121,3 +16121,70 @@ Uji gigi: pencocokan lewat nomor saja dikembalikan → **4 unit + 3 integrasi
 merah** (persis skenario user); LID/nomor dibandingkan bersilang → 1 merah;
 `contextInfo` bersarang tidak dibaca → 3 unit + 1 integrasi merah; balasan tidak
 dihitung → 1 unit + 1 integrasi merah. Semuanya dipulihkan → hijau.
+
+---
+
+## 350 — Nomor pasangan `@lid` ada di `key.remoteJidAlt` (2026-08-17)
+
+Log **Sistem → WhatsApp** sesudah DECISIONS 347 terpasang — diagnostiknya
+bekerja, dan menyebut jawabannya:
+
+```
+diam — nomor 143026840146095@lid tidak cocok dengan pengguna mana pun
+ · medan payload:
+   from=143026840146095@lid
+   key.remoteJid=143026840146095@lid
+   key.remoteJidAlt=6281234757999@s.whatsapp.net
+```
+
+`6281234757999` adalah nomor yang MEMANG sudah terdaftar pada pengguna. Ia ada
+di payload sepanjang waktu, di medan **`key.remoteJidAlt`** — yang tidak ada di
+daftar tebakan DECISIONS 347, DAN tidak berada di permukaan payload (dua sebab
+terpisah kenapa tebakan itu meleset).
+
+Gejala keduanya: di grup, MARLIN menjawab *"Maaf, nomor Anda belum terdaftar
+sebagai pengguna MARLIN"* — kalimat yang salah dan membingungkan, karena
+nomornya terdaftar; yang tidak dikenali adalah bentuk identitasnya.
+
+### Daftar nama diganti POLA nama
+
+Menambahkan `key.remoteJidAlt` ke daftar akan menutup kasus ini dan mengulang
+kesalahannya: setiap nama medan baru berarti menunggu satu pesan asli
+berikutnya — satu percobaan per rilis WAHA, dan setiap percobaan butuh user
+melapor lagi.
+
+WAHA menamai medan pasangan dengan akhiran **`Pn`** (phone number) atau
+**`Alt`** (alternate): `senderPn`, `participantPn`, `participantAlt`,
+`remoteJidAlt`. Yang dicari sekarang polanya, di seluruh wadah yang mungkin
+(`payload`, `payload.key`, `payload._data`, `payload._data.key`).
+
+Nilai yang isinya `@lid` lagi tetap ditolak — `remoteJid` dan `remoteJidAlt`
+duduk bersebelahan, dan hanya salah satunya nomor telepon.
+
+### Yang tidak berubah
+
+Pemetaan `User.waLid` tetap ada sebagai jaring terakhir, dan **nomor dari
+payload menang atas pemetaan itu**: nomor datang dari WhatsApp, pemetaan datang
+dari ketikan admin yang bisa salah orang.
+
+### Catatan tentang "log semua data raw"
+
+User meminta ini dua kali. Diagnostik DECISIONS 348 (`medanJidPayload`) —
+nama medan + nilai berbentuk JID, tanpa isi pesan — ternyata SUDAH cukup: ia
+yang menemukan `key.remoteJidAlt`, dan tangkapan layar user adalah buktinya.
+Karena itu payload utuh tetap hanya ke log server, tidak ke log Sistem yang
+dibaca admin lain. Kalau suatu saat ada temuan yang butuh isi pesan untuk
+didiagnosa, itu keputusan terpisah yang harus diminta secara sadar.
+
+**Penjaga.** `tests/unit/wa-ingest-parse.test.ts` +10, memakai payload ASLI apa
+adanya dari layar user (bukan karangan): nomor terbaca dari `key.remoteJidAlt`,
+LID tetap terekam terpisah, `remoteJid` ber-`@lid` tidak keliru dipungut, lima
+nama medan lewat pola, medan di `_data`, sufiks perangkat, tanpa medan pasangan
+→ null, medan `Alt` ber-`@lid` ditolak, dan baris diagnosa yang menemukan cacat
+ini tetap ada. `tests/integration/waha-tanya-jawab.test.ts` +3 lewat perangkai
+UTUH — chat pribadi dijawab tanpa pemetaan apa pun, grup tidak lagi menjawab
+"belum terdaftar", dan nomor payload menang atas pemetaan LID yang salah orang.
+
+Uji gigi: daftar nama tebakan dikembalikan → 4 unit + 2 integrasi merah; nilai
+ber-`@lid` tidak ditolak → 2 merah; pola diganti nama tunggal → 5 unit + 3
+integrasi merah. Semuanya dipulihkan → hijau.

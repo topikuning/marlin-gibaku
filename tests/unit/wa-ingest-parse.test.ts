@@ -431,3 +431,120 @@ describe("mention & balasan di payload bersarang (DECISIONS 349)", () => {
     expect(m.mentionedJids.sort()).toEqual(["6281200000000@c.us", "628999@c.us"]);
   });
 });
+
+describe("nomor pasangan @lid dari payload ASLI (DECISIONS 350)", () => {
+  /*
+   * Payload PERSIS seperti yang tertangkap log Sistem 2026-08-17 16.06 — nilai
+   * ini bukan karangan, melainkan salinan dari layar user:
+   *
+   *   from=143026840146095@lid
+   *   key.remoteJid=143026840146095@lid
+   *   key.remoteJidAlt=6281234757999@s.whatsapp.net
+   *
+   * `key.remoteJidAlt` tidak ada di daftar tebakan DECISIONS 347, DAN tidak
+   * berada di permukaan payload. Dua sebab kenapa versi itu tetap meleset.
+   */
+  const asli = {
+    event: "message.any",
+    payload: {
+      id: "asli-1",
+      timestamp: 1_690_000_000,
+      body: "ada tanya",
+      from: "143026840146095@lid",
+      key: {
+        remoteJid: "143026840146095@lid",
+        remoteJidAlt: "6281234757999@s.whatsapp.net",
+        fromMe: false,
+        id: "asli-1",
+      },
+    },
+  };
+
+  it("nomor terbaca dari key.remoteJidAlt", () => {
+    const m = parseWaEvent(asli)!;
+    expect(m.fromNumber).toBe("6281234757999");
+  });
+
+  it("LID tetap direkam terpisah — keduanya, bukan salah satu", () => {
+    const m = parseWaEvent(asli)!;
+    expect(m.senderLid).toBe("143026840146095@lid");
+  });
+
+  it("remoteJid yang ber-@lid tidak keliru dipungut sebagai nomor", () => {
+    // Penjaga inti: `remoteJid` dan `remoteJidAlt` duduk bersebelahan, dan
+    // hanya salah satunya nomor telepon.
+    expect(parseWaEvent(asli)!.fromNumber).not.toContain("143026840146095");
+  });
+
+  it("POLA nama medan, bukan daftar nama — bertahan melewati penggantian", () => {
+    /*
+     * Menambah satu nama per temuan berarti menunggu satu pesan asli per rilis
+     * WAHA. Yang dicari sekarang polanya: akhiran `Pn` / `Alt`.
+     */
+    for (const medan of ["senderPn", "participantPn", "participantAlt", "remoteJidAlt", "authorAlt"]) {
+      const m = parseWaEvent({
+        event: "message",
+        payload: {
+          id: `p-${medan}`,
+          timestamp: 1,
+          from: "143026840146095@lid",
+          key: { remoteJid: "143026840146095@lid", [medan]: "6281234757999@s.whatsapp.net" },
+        },
+      })!;
+      expect(m.fromNumber, medan).toBe("6281234757999");
+    }
+  });
+
+  it("medan pasangan di _data juga terbaca", () => {
+    const m = parseWaEvent({
+      event: "message",
+      payload: {
+        id: "d1",
+        timestamp: 1,
+        from: "143026840146095@lid",
+        _data: { senderPn: "6281234757999@c.us" },
+      },
+    })!;
+    expect(m.fromNumber).toBe("6281234757999");
+  });
+
+  it("sufiks perangkat pada nomor pasangan ikut dibuang", () => {
+    const m = parseWaEvent({
+      event: "message",
+      payload: {
+        id: "d2",
+        timestamp: 1,
+        from: "143026840146095@lid",
+        key: { remoteJidAlt: "6281234757999:47@s.whatsapp.net" },
+      },
+    })!;
+    expect(m.fromNumber).toBe("6281234757999");
+  });
+
+  it("tanpa medan pasangan: null, JATUH ke pemetaan admin — bukan menebak", () => {
+    const m = parseWaEvent({
+      event: "message",
+      payload: { id: "d3", timestamp: 1, from: "143026840146095@lid" },
+    })!;
+    expect(m.fromNumber).toBeNull();
+    expect(m.senderLid).toBe("143026840146095@lid");
+  });
+
+  it("medan berakhiran Alt yang ISINYA @lid tidak dipungut", () => {
+    const m = parseWaEvent({
+      event: "message",
+      payload: {
+        id: "d4",
+        timestamp: 1,
+        from: "143026840146095@lid",
+        key: { remoteJidAlt: "99900000000000@lid" },
+      },
+    })!;
+    expect(m.fromNumber).toBeNull();
+  });
+
+  it("diagnosa tetap menyebut key.remoteJidAlt — itu yang menemukan cacat ini", () => {
+    // Kalau baris diagnosa ini hilang, temuan berikutnya kembali jadi tebakan.
+    expect(medanJidPayload(asli)).toContain("key.remoteJidAlt=6281234757999@s.whatsapp.net");
+  });
+});
