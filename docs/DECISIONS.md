@@ -15713,3 +15713,47 @@ lewat `n()`. Satu medan yang lupa diberi awalan cukup untuk menukar bukti —
 foto memakai koordinat baris yang salah tanpa satu pun galat. Penjaga itu
 langsung menangkap satu sisa saat ditulis (dan versi pertamanya sendiri merah
 karena ikut menangkap kutipan di dalam komentar — diperbaiki dengan lookbehind).
+
+---
+
+## 344 — Sumber foto di baris material/alat diringkas jadi sepertiga (2026-08-17)
+
+Keluhan user 2026-08-17: *"tombol sumber fotomu terlalu besar di bagian alat dan
+bahan ini, perkecil sampai 1/3 nya."*
+
+Betul, dan sebabnya salah tempat. Ubin besar (110×74 px, tiga sejajar selebar
+kolom) memang BENAR di form item pekerjaan: di sana ia pilihan utama layar dan
+terbit **sekali per laporan**. Di baris material/alat ia terbit **sekali per
+BARIS** — pada laporan berisi lima material dan dua alat, tujuh salinan ubin
+yang sama menenggelamkan kolom yang justru harus diisi.
+
+`PhotoSourceInput` karena itu punya bentuk `ringkas`: tiga tombol setinggi 32px
+sebaris, ikon 14px, tanpa keterangan baris kedua. `UbinAmbilDariKantong` ikut
+punya kembarannya supaya ketiganya tetap tampil setara.
+
+Diukur di peramban, bukan dikira-kira:
+
+| | sebelum | sesudah |
+| --- | --- | --- |
+| satu tombol | 110×74 px | ±86×32 px |
+| tiga sumber | 24.420 px² | 8.525 px² |
+| rasio | — | **34,9%** |
+| tinggi baris (dengan foto) | 360 px | 318 px baris ke-1 · **208 px** baris berikutnya |
+
+Baris ke-1 lebih tinggi karena masih membawa kotak izin lokasi — memang hanya
+sekali per layar (DECISIONS 343).
+
+Yang TIDAK ikut diperkecil: form item pekerjaan. Mengecilkan keduanya sekaligus
+akan menghilangkan bedanya, padahal bedanya itu yang membuat jalur foto utama
+langsung terbaca.
+
+Yang tidak dibuang meski ukurannya turun: **namanya**. Ikon telanjang untuk
+"Kamera / Galeri / Foto Cepat" memaksa orang menebak — dan bedanya bukan gaya,
+melainkan koordinat mana yang menempel di bukti (DECISIONS 197/220).
+
+**Penjaga.** `tests/e2e/harian-tata-letak-input.spec.ts` mengukur DUA-duanya di
+peramban dan menuntut luas sumber baris material < 40% ubin form pekerjaan.
+Ambangnya 40% dan bukan 33% pas: lebar tombol ringkas mengikuti panjang katanya,
+jadi angkanya bergerak sedikit antar-font — yang dijaga perbedaan KELAS ukuran,
+bukan angka desimal. Uji gigi: `ringkas` dimatikan → rasio 0,97, merah;
+dipulihkan → 0,35, hijau.

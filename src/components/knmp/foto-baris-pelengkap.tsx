@@ -87,8 +87,10 @@ export function FotoBarisPelengkap({
         lngName="photoLng"
         compact
         sunyiIzin={sunyiIzin}
+        ringkas
         slotKetiga={
           <UbinAmbilDariKantong
+            ringkas
             onClick={() => setBukaKantong((v) => !v)}
             aktif={bukaKantong}
             jumlahTerpilih={kantong.size}

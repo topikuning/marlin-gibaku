@@ -154,6 +154,50 @@ test.describe("tata letak input harian", () => {
     await expect(page.getByText("Simpan dulu")).toHaveCount(0);
   });
 
+  test("sumber foto di baris material RINGKAS — sepertiga ubin form pekerjaan", async ({ page }) => {
+    /*
+     * Keluhan user 2026-08-17: *"tombol sumber fotomu terlalu besar di bagian
+     * alat dan bahan ini, perkecil sampai 1/3 nya."*
+     *
+     * Diukur, bukan dikira-kira. Ubin besar tetap BENAR di form item pekerjaan —
+     * di sana ia pilihan utama layar dan terbit sekali per laporan. Di baris
+     * material ia terbit sekali per BARIS, jadi tujuh salinan menenggelamkan
+     * kolom yang justru harus diisi.
+     *
+     * Ambangnya 40%, bukan 33% pas: lebar tombol ringkas mengikuti panjang
+     * katanya, jadi angkanya bergerak sedikit antar-font/zoom. Yang dijaga
+     * perbedaan KELAS ukuran, bukan angka desimal.
+     */
+    await bukaDraft(page);
+    test.skip(!(await fotoAktif(page)), "R2 nonaktif — sumber foto memang tidak dirender");
+
+    const luas = async (akar: import("@playwright/test").Locator) =>
+      akar.evaluate((el) =>
+        ["Kamera", "Galeri", "Foto Cepat"]
+          .map((teks) =>
+            [...el.querySelectorAll("label,button")].find((n) =>
+              n.textContent?.trim().startsWith(teks),
+            ),
+          )
+          .reduce((jml, n) => {
+            const r = n?.getBoundingClientRect();
+            return jml + (r ? r.width * r.height : 0);
+          }, 0),
+      );
+
+    const formItem = page.locator("form", { hasText: "Tambah / ubah progres pekerjaan" }).first();
+    const barisMaterial = page.locator('[data-baris="material"]').first();
+    const besar = await luas(formItem);
+    const kecil = await luas(barisMaterial);
+
+    expect(besar, "ubin form pekerjaan tidak terukur").toBeGreaterThan(0);
+    expect(kecil, "sumber foto baris material tidak terukur").toBeGreaterThan(0);
+    expect(
+      kecil / besar,
+      `sumber foto baris material ${Math.round(kecil)}px² vs ubin ${Math.round(besar)}px²`,
+    ).toBeLessThan(0.4);
+  });
+
   test("medan foto tiap baris TERPISAH — bukti tidak tertukar antarbaris", async ({ page }) => {
     /*
      * Semua baris hidup di SATU form. Tanpa awalan per baris, `photos` seluruh

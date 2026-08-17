@@ -47,6 +47,7 @@ export function PhotoSourceInput({
   slotKetiga,
   prefix = "",
   sunyiIzin = false,
+  ringkas = false,
 }: {
   latName?: string;
   lngName?: string;
@@ -96,6 +97,21 @@ export function PhotoSourceInput({
    * tetap menampilkannya, jadi kabarnya tidak hilang.
    */
   sunyiIzin?: boolean;
+  /**
+   * Bentuk RINGKAS: tiga tombol kecil sebaris, bukan ubin selebar kolom
+   * (DECISIONS 344).
+   *
+   * Ubin besar benar di tempat ia jadi pilihan UTAMA layar — form item
+   * pekerjaan, satu per laporan. Di baris material/alat ia terbit sekali per
+   * BARIS: pada satu laporan berisi lima material dan dua alat, tujuh salinan
+   * ubin yang sama menenggelamkan kolom yang justru harus diisi. Keluhan user
+   * 2026-08-17: *"tombol sumber fotomu terlalu besar di bagian alat dan bahan
+   * ini, perkecil sampai 1/3 nya."*
+   *
+   * Yang dibuang cuma ukuran dan keterangan barisnya; pilihannya tetap tiga,
+   * namanya tetap ditulis (bukan ikon telanjang).
+   */
+  ringkas?: boolean;
 }) {
   const n = (nama: string) => `${prefix}${nama}`;
   const camRef = useRef<HTMLInputElement>(null);
@@ -378,8 +394,9 @@ export function PhotoSourceInput({
    * pilihannya terbaca sekali lihat, dan tetap masuk akal di laptop karena
    * lebarnya mengikuti kolom, bukan dipatok.
    */
-  const ubin =
-    "flex min-h-16 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border border-border bg-surface px-2 py-2 text-center text-ink hover:border-primary hover:bg-primary-50";
+  const ubin = ringkas
+    ? "inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 text-[12px] font-medium text-ink hover:border-primary hover:bg-primary-50"
+    : "flex min-h-16 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border border-border bg-surface px-2 py-2 text-center text-ink hover:border-primary hover:bg-primary-50";
 
   /**
    * Jalur SATU SUMBER (Foto Cepat, `hanyaKamera`) tetap tombol ringkas.
@@ -443,15 +460,18 @@ export function PhotoSourceInput({
 
       <div
         className={
-          hanyaKamera
-            ? "flex flex-wrap gap-2"
+          hanyaKamera || ringkas
+            ? "flex flex-wrap gap-1.5"
             : `grid gap-2 ${slotKetiga ? "grid-cols-3" : "grid-cols-2"}`
         }
       >
         <label className={hanyaKamera ? tombolTunggal : ubin}>
-          <Camera aria-hidden className={hanyaKamera ? "size-4" : "size-5 text-ink-muted"} />
-          <span className={hanyaKamera ? "" : "text-[13px] font-semibold"}>Kamera</span>
-          {hanyaKamera ? null : (
+          <Camera
+            aria-hidden
+            className={hanyaKamera || ringkas ? "size-3.5 text-ink-muted" : "size-5 text-ink-muted"}
+          />
+          <span className={hanyaKamera || ringkas ? "" : "text-[13px] font-semibold"}>Kamera</span>
+          {hanyaKamera || ringkas ? null : (
             <span className="text-[10px] leading-tight text-ink-muted">Ambil langsung</span>
           )}
           <input
@@ -468,9 +488,11 @@ export function PhotoSourceInput({
         {hanyaKamera ? null : (
           <>
             <button type="button" className={ubin} onClick={() => setTanyaLokasi(true)}>
-              <Images aria-hidden className="size-5 text-ink-muted" />
-              <span className="text-[13px] font-semibold">Galeri</span>
-              <span className="text-[10px] leading-tight text-ink-muted">Dari perangkat</span>
+              <Images aria-hidden className={ringkas ? "size-3.5 text-ink-muted" : "size-5 text-ink-muted"} />
+              <span className={ringkas ? "" : "text-[13px] font-semibold"}>Galeri</span>
+              {ringkas ? null : (
+                <span className="text-[10px] leading-tight text-ink-muted">Dari perangkat</span>
+              )}
             </button>
             <input
               ref={galRef}
