@@ -61,13 +61,28 @@ export type SelHari = {
  * keduanya tak terbedakan. Di sini: F/S/K/D/! masing-masing satu status, dan
  * "belum ada" memakai "—" yang jelas bukan huruf.
  */
-const TAMPIL: Record<DailyReportStatus, Pick<SelHari, "kata" | "huruf" | "nada" | "perluTindakan">> = {
+export type Nada = SelHari["nada"];
+
+/**
+ * Kosakata status — SATU-satunya di aplikasi.
+ *
+ * Diekspor supaya kalender Pelaksanaan Harian (DECISIONS 340) meminjamnya utuh
+ * alih-alih menulis ulang. Dua kosakata untuk satu status adalah cara paling
+ * mudah membuat dua layar menyebut hal yang sama dengan kata berbeda — dan
+ * tidak ada yang menyadarinya sampai seseorang membandingkan keduanya.
+ */
+export const TAMPIL_STATUS: Record<
+  DailyReportStatus,
+  Pick<SelHari, "kata" | "huruf" | "nada" | "perluTindakan">
+> = {
   final: { kata: "Final", huruf: "F", nada: "success", perluTindakan: false },
   disetujui: { kata: "Setuju", huruf: "S", nada: "success", perluTindakan: false },
   dikirim: { kata: "Kirim", huruf: "K", nada: "info", perluTindakan: false },
   draft: { kata: "Draft", huruf: "D", nada: "warning", perluTindakan: true },
   perlu_koreksi: { kata: "Koreksi", huruf: "!", nada: "danger", perluTindakan: true },
 };
+
+const TAMPIL = TAMPIL_STATUS;
 
 const KOSONG: Pick<SelHari, "kata" | "huruf" | "nada" | "perluTindakan"> = {
   kata: "Belum",

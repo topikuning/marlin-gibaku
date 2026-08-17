@@ -15165,3 +15165,148 @@ Hanya periode `hari_ini`. "progress minggu lalu" akan dijawab sebagai hari ini
 ini, tetapi bukan yang ditanyakan. Menambah periode berarti menambah pilihan
 enum + jalur `asOf` di pengambil datanya; dicatat di OPEN_ISSUES sebagai
 WATANYA-02.
+
+---
+
+## 340 — Pelaksanaan Harian jadi kalender: seluruh riwayat, bukan 14 hari (2026-08-17)
+
+Permintaan user, disertai konsep HTML: *"ubah halaman lokasi→pelaksanaan harian
+dengan konsep ini. tujuan utamanya, agar tidak hanya menampilkan 14 hari
+terakhir."*
+
+Jendela 14 hari itu keputusan saya sendiri di DECISIONS 337, dan ia salah.
+Untuk kontrak 22 minggu, 90% riwayatnya tidak punya alamat sama sekali: tanggal
+yang terlewat bulan lalu tidak bisa ditemukan, tidak bisa ditambal, dan tidak
+bisa dibuktikan pernah kosong. Yang terpotong bukan kenyamanan — melainkan
+bukti.
+
+### Yang TIDAK diambil dari konsepnya
+
+Konsep membuka dengan pita enam metrik proyek (nilai kontrak, periode, rencana,
+realisasi, deviasi, minggu berjalan). Pita itu **sudah ada** di `layout.tsx`
+lokasi, di atas seluruh tab. Memasangnya lagi berarti dua tempat yang harus sama
+selamanya, dan begitu salah satunya berubah pembacanya tidak punya cara tahu
+mana yang benar. Angkanya tidak hilang; ia cuma tidak dicetak dua kali.
+
+### Temuan yang tidak ada di permintaannya: "kosong" ada TIGA macam
+
+Selama jendelanya 14 hari, "tidak ada laporan" hampir selalu berarti satu hal:
+ada yang lalai. Begitu jendelanya seluruh kontrak, arti itu pecah.
+
+| keadaan | artinya | ikut penyebut? |
+| --- | --- | --- |
+| `ada` | ada laporannya | ya |
+| `kosong` | dalam masa kontrak, sudah lewat, tanpa laporan | ya — **ini** yang harus ditambal |
+| `luar_kontrak` | sebelum SPMK / sesudah masa kontrak | tidak |
+| `belum_tiba` | hari yang belum terjadi | tidak |
+
+Kalau ketiganya dicat sama, membuka bulan depan menampilkan **30 hari "belum ada
+laporan"** — angka yang menakutkan, salah, dan tidak bisa ditindaklanjuti. Ini
+penerusan aturan yang sama dengan minggu 0 pada kurva-S (DECISIONS 202): hari
+yang pekerjaannya belum boleh dimulai bukan hari yang terlambat.
+
+Konsekuensinya: penyebut ringkasan **hanya** menghitung `kosong` + `ada`, dan
+sisanya tetap disebut jumlahnya di bawah kalender — yang tidak dihitung tidak
+boleh terbaca hilang.
+
+### Laporan yang TERLANJUR ada di luar masa kontrak tetap ditampilkan
+
+Impor rekap Excel bisa menghasilkan laporan bertanggal di luar kontrak (data
+seed repo ini sendiri punya: kontrak Kedungmutih berakhir 28 Juli, laporannya
+9–16 Agustus). Menyembunyikannya membuat kesalahannya awet — data yang salah
+harus TERLIHAT untuk bisa diperbaiki. Karena itu batas navigasi bukan hanya masa
+kontrak:
+
+```
+min = paling awal dari (mulai kontrak, laporan paling lama)
+max = paling akhir dari (bulan ini, laporan paling baru)
+```
+
+Invarian yang dijaga uji: **setiap bulan yang memuat data WAJIB terjangkau**.
+Batas yang terlalu ketat mengembalikan persis cacat yang sedang diperbaiki,
+hanya dengan bentuk yang lebih meyakinkan — kalendernya terlihat lengkap,
+padahal riwayatnya terpotong.
+
+### Dua bentuk, dua pertanyaan
+
+- **Kalender** (bawaan) — satu bulan, enak dipindai, sel membawa jumlah item.
+- **Daftar** — SELURUH rentang sekaligus dalam `MarlinGrid`: diurut, dicari,
+  diunduh CSV. Ini jawaban paling langsung atas "jangan hanya 14 hari": pada
+  data seed, 158 baris Maret–Agustus dalam satu tabel.
+
+AG Grid, bukan tabel buatan sendiri (aturan CLAUDE.md) — dan alasannya terasa
+persis di sini: 150+ baris tanpa pengurutan dan pencarian bukan daftar,
+melainkan gulungan.
+
+Angka di chip saringan mengikuti **cakupan yang sedang dilihat**. Kalender
+menghitung satu bulan, daftar menghitung seluruh rentang; chip yang selalu
+menghitung bulan berjalan akan menawarkan "Belum ada (12)" lalu menampilkan 60
+baris.
+
+### Saringan MEREDUPKAN di kalender, MENYARING di daftar
+
+Menghapus sel dari kalender merusak barisnya — tanggal 20 akan pindah ke kolom
+hari Selasa. Karena itu di kalender saringan hanya meredupkan, dan jumlah yang
+diredupkan disebut. Di daftar, menyaring baris tidak merusak apa pun, jadi ia
+benar-benar menyaring.
+
+Satu tambahan yang wajib: hari `luar_kontrak` dan `belum_tiba` **tidak pernah**
+cocok dengan saringan status apa pun, termasuk "Belum ada". Tanpa itu, menekan
+"Belum ada" pada bulan depan menyorot 30 hari yang belum terjadi seolah semuanya
+tertinggal. Saringan yang menyorot hal yang salah lebih buruk daripada tidak ada
+saringan — ia terlihat seperti jawaban.
+
+### Seluruh keadaan di ALAMAT, bukan di `useState`
+
+`?bulan`, `?tgl`, `?saring`, `?tampilan`. Alasannya sama dengan DECISIONS 279:
+layar yang sedang dilihat harus bisa dikirim ke orang lain lewat WhatsApp, cara
+kerja tim ini sehari-hari. "Buka Juni, lihat tanggal 12" jauh lebih berguna
+dikirim sebagai tautan daripada sebagai instruksi. Konsekuensi yang diterima:
+tiap ketukan tanggal adalah satu perjalanan ke server — karenanya `prefetch`
+dimatikan di 42 sel (42 permintaan hanya untuk membuka satu bulan).
+
+### Aritmetika tanggal: UTC murni, dan Senin = 0
+
+Dua cacat SENYAP yang dijaga uji:
+
+1. `new Date("2026-08-01").getDate()` membaca tanggal di zona MESIN. Dari
+   Jakarta hasilnya benar; di runner UTC−7 tanggal 1 terbaca 31 dan kalendernya
+   bergeser satu hari penuh — tanpa galat apa pun. Seluruh modul memakai string
+   "YYYY-MM-DD" dan `Date.UTC`.
+2. `getUTCDay()` memakai Minggu = 0; kalender ini Senin = 0. Meleset satu kolom
+   dan SETIAP tanggal jatuh di hari yang salah. Diuji langsung terhadap tanggal
+   yang harinya sudah diketahui (17 Agu 2026 = Senin, 23 Agu = Minggu, 1 Feb =
+   Minggu).
+
+### Kosakata status DIPINJAM, tidak ditulis ulang
+
+`TAMPIL_STATUS` diekspor dari `hari-ini-ringkas.ts` dan dipakai apa adanya. Dua
+kosakata untuk satu status adalah cara paling mudah membuat strip 7 hari dan
+kalender menyebut hal yang sama dengan kata berbeda — dan tidak ada yang
+menyadarinya sampai seseorang membandingkan dua layar.
+
+Di ponsel sel selebar ±44px, jadi ada kata SANGAT pendek (`singkat`). Sengaja
+tetap KATA, bukan huruf/titik: percobaan pertama memakai "·" untuk *di luar
+kontrak* MAUPUN *belum tiba*, dan dua fakta berbeda tampil identik — persis
+yang dilarang aturan "status tidak pernah hanya warna". Sekarang
+Final/Setuju/Kirim/Draft/Koreksi/Belum/Luar/Nanti, seluruhnya berbeda, dijamin
+`singkatUnik()`.
+
+**Penjaga.** `tests/unit/kalender-harian.test.ts` (32). Uji gigi delapan pagar:
+
+| pagar dicabut | hasil |
+| --- | --- |
+| kolom Minggu = 0 | 3 merah |
+| batas hanya masa kontrak | 2 merah |
+| laporan masa depan tak terjangkau | 1 merah |
+| luar kontrak dianggap kelalaian | 4 merah |
+| hari belum tiba dianggap terlewat | 5 merah |
+| sel titipan ikut dihitung | 3 merah |
+| saringan menyorot hari belum tiba | 1 merah |
+| kabisat dihitung 28 tetap | 1 merah |
+| dipulihkan | 32 hijau |
+
+Ditambah `tests/e2e/mobile-overflow.spec.ts`: kalender (kisi 7 kolom) dan daftar
+(AG Grid 5 kolom) ikut disapu di 375px — dua bentuk yang paling gampang
+melebihi layar. Uji gigi: memberi sel lebar minimum 96px (7×96 = 672px) membuat
+sapuan itu merah, dan hijau lagi setelah dipulihkan.

@@ -919,3 +919,120 @@ async function rencanaHarianUntukTanggal(
     hari,
   ).map((r) => ({ name: r.name, unit: r.unit, volume: r.volume, picName: r.picName }));
 }
+
+// ─────────────────────────────────────────────────────────────
+// Kalender Pelaksanaan Harian (DECISIONS 340)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Isi satu hari yang MEMANG punya laporan. Hari kosong sengaja TIDAK
+ * dikembalikan — lapis murni (`kalender-harian.ts`) yang menentukan artinya,
+ * karena "kosong" punya tiga arti berbeda dan hanya dia yang tahu masa
+ * kontraknya.
+ */
+export type HariBerlaporan = {
+  status: DailyReportStatus;
+  itemCount: number;
+  fotoCount: number;
+};
+
+/** Laporan pada rentang tanggal (inklusif), dipetakan per dateKey. */
+export async function getDaysInRange(
+  locationId: string,
+  startKey: string,
+  endKey: string,
+): Promise<Map<string, HariBerlaporan>> {
+  const start = parseDateKey(startKey);
+  const end = parseDateKey(endKey);
+  const out = new Map<string, HariBerlaporan>();
+  if (!start || !end || start > end) return out;
+  const rows = await db.dailyReport.findMany({
+    where: { locationId, reportDate: { gte: start, lte: end } },
+    select: {
+      reportDate: true,
+      status: true,
+      _count: { select: { items: true, photos: true } },
+    },
+  });
+  for (const r of rows) {
+    out.set(jakartaDateKey(r.reportDate), {
+      status: r.status,
+      itemCount: r._count.items,
+      fotoCount: r._count.photos,
+    });
+  }
+  return out;
+}
+
+/**
+ * Tanggal laporan paling lama & paling baru di satu lokasi.
+ *
+ * Dipakai menentukan sejauh mana tombol ‹ › boleh melangkah. Batas yang hanya
+ * memakai masa kontrak akan membuat laporan hasil impor yang tanggalnya
+ * meleset menjadi mustahil dibuka — dan karena itu mustahil diperbaiki.
+ */
+export async function getBatasLaporan(
+  locationId: string,
+): Promise<{ pertama: string | null; terakhir: string | null }> {
+  const [awal, akhir] = await Promise.all([
+    db.dailyReport.findFirst({
+      where: { locationId },
+      select: { reportDate: true },
+      orderBy: { reportDate: "asc" },
+    }),
+    db.dailyReport.findFirst({
+      where: { locationId },
+      select: { reportDate: true },
+      orderBy: { reportDate: "desc" },
+    }),
+  ]);
+  return {
+    pertama: awal ? jakartaDateKey(awal.reportDate) : null,
+    terakhir: akhir ? jakartaDateKey(akhir.reportDate) : null,
+  };
+}
+
+/** Isi panel "Tanggal Terpilih" — hanya satu tanggal, jadi murah. */
+export type DetailHari = {
+  status: DailyReportStatus;
+  itemCount: number;
+  fotoCount: number;
+  kendalaTerbuka: number;
+  pekerjaCount: number;
+  adaCuaca: boolean;
+  adaJamKerja: boolean;
+  updatedAt: Date;
+};
+
+export async function getDetailHari(
+  locationId: string,
+  dateKey: string,
+): Promise<DetailHari | null> {
+  const reportDate = parseDateKey(dateKey);
+  if (!reportDate) return null;
+  const r = await db.dailyReport.findUnique({
+    where: { locationId_reportDate: { locationId, reportDate } },
+    select: {
+      status: true,
+      weather: true,
+      weatherHourly: true,
+      workStart: true,
+      workEnd: true,
+      updatedAt: true,
+      _count: { select: { items: true, photos: true, workers: true } },
+      issues: { where: { status: { not: "selesai" } }, select: { id: true } },
+    },
+  });
+  if (!r) return null;
+  return {
+    status: r.status,
+    itemCount: r._count.items,
+    fotoCount: r._count.photos,
+    kendalaTerbuka: r.issues.length,
+    pekerjaCount: r._count.workers,
+    adaCuaca: r.weather !== null || r.weatherHourly !== null,
+    // Dua-duanya harus ada: jam mulai tanpa jam selesai bukan jam kerja.
+    adaJamKerja: !!r.workStart && !!r.workEnd,
+    updatedAt: r.updatedAt,
+  };
+}

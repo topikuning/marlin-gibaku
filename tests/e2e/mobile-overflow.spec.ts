@@ -173,6 +173,12 @@ test.describe("tampilan mobile: halaman tidak boleh melebar ke samping", () => {
       // elemen baru yang bisa melebar. Slug-nya ikut yang dinamis di atas
       // supaya uji tidak terikat data seed tertentu.
       `/lokasi/${SLUG}/harian?saring=perlu_tindakan`,
+      // DECISIONS 340: halaman ini sekarang berbentuk KALENDER (7 kolom) dengan
+      // bentuk DAFTAR ber-AG Grid (5 kolom) sebagai alternatif. Dua-duanya
+      // adalah kisi berlebar tetap — bentuk yang paling gampang melebihi layar
+      // 390px, dan paling gampang lolos kalau yang disapu cuma bentuk bawaan.
+      `/lokasi/${SLUG}/harian?tampilan=daftar`,
+      `/lokasi/${SLUG}/harian?bulan=2026-03`,
       ...(harianHref ? [harianHref] : []),
       `/lokasi/${SLUG}/keuangan`,
       `/lokasi/${SLUG}/dokumen`,
