@@ -14932,3 +14932,83 @@ Rute tersaring ikut ke pagar overflow mobile — dan sengaja ditaruh di uji
 DINAMIS yang slug-nya dari `E2E_SLUG`, bukan daftar statis. Percobaan pertama
 saya mengeraskan `kedung-mutih` padahal seed memakai `kedungmutih`: rutenya 404,
 dan uji melewatinya dengan `status() >= 400` — hijau tanpa memeriksa apa pun.
+
+---
+
+## 338 — Tanya-jawab WhatsApp bebas: izin dikerjakan lebih dulu (2026-08-17)
+
+Permintaan user: kirim pesan WhatsApp berbahasa bebas, MARLIN menerjemahkan lalu
+menjawab dari data sistem. Contohnya *"ada kendala apa hari ini"*, *"kendala di
+<lokasi>"*, *"progress hari ini di A, B, C"*, *"mana yang deviasinya negatif"*.
+
+**Bisa** — dan hampir seluruh pipanya sudah ada: webhook masuk ber-token
+(DECISIONS 119), pemetaan nomor → pengguna (138), `aiStructured` dengan skema
+Zod, pembangun data deterministik ber-scope (133), penjaga laju + kill-switch,
+dan pengirim WhatsApp.
+
+### Bentuknya: AI jadi PENERJEMAH, bukan penjawab
+
+```
+WA masuk → siapa penanyanya → AI mengubah kalimat jadi NIAT
+        → guard + lingkup izin → pembangun data deterministik
+        → rakit balasan dari angka jadi → kirim
+```
+
+AI tidak pernah menghasilkan angka; ia hanya memetakan *"mana yang deviasinya
+negatif"* ke `{niat: "deviasi_negatif", lokasi: null}`. Angkanya tetap dari calc
+layer. Ini doktrin yang sudah tertulis — `ai-hub/source.ts`: *"AI tidak pernah
+query DB; AI hanya menerima hasil builder ini"* (133), dan *"AI bukan sumber
+angka"* (193).
+
+### Kenapa izin dikerjakan lebih dulu, sebelum satu balasan pun terkirim
+
+Kebocoran di sini bukan kesalahan tampilan. Ia mengirim angka kontrak orang lain
+ke telepon yang salah, lewat saluran yang di-screenshot dan diteruskan — dan
+tidak ada cara menariknya kembali.
+
+**Tiga pertanyaan yang dijaga TERPISAH:**
+
+1. **Apakah MARLIN diajak bicara?** DM: selalu. Grup: hanya bila di-mention
+   (keputusan user). Penyebutan dibaca dari **daftar JID**, bukan teks "@marlin"
+   di badan pesan — nama tampilan bisa diubah siapa saja, JID tidak.
+2. **Siapa penanyanya?** Nomor WhatsApp BUKAN sesi login. Hanya nomor yang cocok
+   dengan pengguna MARLIN aktif; nama tampilan tidak pernah dipakai.
+3. **Apa yang boleh disebut di sana?** — dan ini **tidak selesai** oleh (1).
+
+### Butir (3), yang tidak terpikir dari permintaannya
+
+Mention menjawab "kapan membalas", bukan "apa yang boleh dibocorkan". Kalau
+seseorang bertanya *"mana yang deviasinya negatif"* di grup Paket A, jawaban
+jujurnya menyebut Paket B dan C — dan seluruh anggota grup A ikut membacanya,
+termasuk vendor paket itu.
+
+Karena itu di grup, lingkup jawaban **dipotong** ke lokasi paket grup tersebut:
+
+```
+lingkup akhir = lokasi pengguna ∩ (grup ? lokasi paket grup : semua)
+```
+
+Tiap lapis boleh MEMPERSEMPIT, tidak pernah melebarkan — termasuk untuk super
+admin: izin PENANYA tidak menaikkan apa yang pantas dibaca ANGGOTA GRUP.
+
+Grup yang tidak tertaut paket **tidak dilayani sama sekali**: tanpa tautan,
+tidak ada dasar memutuskan apa yang pantas dibaca anggotanya.
+
+Dan pemotongannya **selalu disebutkan** ("Jawaban ini hanya mencakup Paket X…").
+Jawaban sebagian yang tidak mengaku sebagian akan dibaca sebagai jawaban
+lengkap.
+
+### Satu kegagalan yang dipilih dengan sadar
+
+Kalau nomor MARLIN sendiri belum diketahui, grup **tidak pernah** dilayani —
+bukan dilayani semua. Diam adalah kegagalan yang benar di sini; membalas setiap
+pesan grup lapangan yang ramai sepanjang hari adalah kegagalan yang mahal.
+
+**Penjaga.** `tests/unit/waha-tanya-izin.test.ts` (21). Uji gigi: grup dijawab
+tanpa mention → 4 merah; mention dibaca dari teks → 1 merah; grup tidak dipotong
+→ 3 merah; pemotongan tidak disebut → 1 merah; grup tanpa tautan paket tetap
+dilayani → 1 merah.
+
+Sisa pekerjaannya (penerjemah niat, pembangun data, perakit balasan, rangkaian
+webhook) tercatat di OPEN_ISSUES sebagai **WATANYA-01** — belum dikerjakan, dan
+jangan terbaca sudah.

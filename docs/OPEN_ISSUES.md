@@ -488,3 +488,34 @@ sesudah dokumennya dikirim ke PPK.
 HTML dihapus — satu sumber, mustahil menyimpang. Belum dikerjakan karena
 halaman `/cetak/...` juga dipakai sebagai PRATINJAU di layar (dan pratinjau PDF
 di peramban ponsel lapangan belum dipastikan bisa diandalkan). Keputusan user.
+
+## 🟢 WATANYA-01 · Tanya-jawab WhatsApp bebas — pondasi izin sudah ada, sisanya belum
+
+Permintaan user 2026-08-17: pesan WhatsApp berbahasa bebas ("ada kendala apa
+hari ini", "mana yang deviasinya negatif") diterjemahkan MARLIN lalu dijawab
+dari data sistem. Keputusan user: **DM + grup, tapi di grup hanya bila MARLIN
+di-mention**; cakupan v1 = kendala, progress harian, deviasi, kelengkapan
+laporan.
+
+**Sudah ada (DECISIONS 338)** — bagian yang paling berbahaya dikerjakan lebih
+dulu:
+
+- `waha/ingest-parse.ts` membaca `mentionedJids` dari payload (defensif, lintas
+  engine WAHA).
+- `waha/tanya-izin.ts` (murni): kapan MARLIN menjawab, pembersihan mention dari
+  badan pesan, dan **lingkup jawaban** — di grup dipotong ke lokasi paket grup,
+  pemotongannya selalu disebut.
+- `tests/unit/waha-tanya-izin.test.ts` (21), uji gigi 5×.
+
+**Belum dikerjakan:**
+
+1. **Penerjemah niat** — `aiStructured` + skema Zod: kalimat bebas → `{niat,
+   lokasi[], periode}`. Niat tak dikenal harus MENGAKU, bukan menebak; nama
+   lokasi ambigu harus BALIK BERTANYA, bukan memilih sendiri.
+2. **Pembangun data** untuk empat niat itu. Angkanya WAJIB dari calc layer —
+   `progress.ts` / `getPeriodReport` — bukan dari AI (DECISIONS 133/193).
+3. **Perakit balasan** (murni) + rangkaian di `api/waha/webhook/route.ts`,
+   memakai `ai-hub/guard.ts` yang sudah ada untuk batas laju & kill-switch.
+4. **Nomor MARLIN sendiri** belum tersimpan di konfigurasi — `diajakBicara`
+   memerlukannya, dan tanpa itu grup tidak akan pernah dilayani (sengaja: diam
+   lebih baik daripada membalas semua pesan grup).
