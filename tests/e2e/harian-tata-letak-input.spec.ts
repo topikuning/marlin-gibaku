@@ -90,6 +90,27 @@ test.describe("tata letak input harian", () => {
     await masuk(page);
   });
 
+  test("layar input harian bebas galat hidrasi", async ({ page }) => {
+    /*
+     * Dipasang sesudah cacatnya nyata (DECISIONS 342): penanda baris sempat
+     * mencetak `rowSeq` — penghitung tingkat MODUL yang di server terus naik
+     * lintas permintaan dan di klien mulai dari 1 — sehingga atributnya berbeda
+     * antara render server dan klien.
+     *
+     * Ketidakcocokan hidrasi tidak menjatuhkan halaman: React diam-diam
+     * membuang render server dan merender ulang di klien. Yang hilang justru
+     * yang tak terlihat — kecepatan tampil pertama di HP lapangan, dan jaminan
+     * bahwa yang tercetak server memang yang dilihat orang.
+     */
+    const galat: string[] = [];
+    page.on("console", (m) => {
+      if (m.type() === "error" && /hydrat/i.test(m.text())) galat.push(m.text().slice(0, 200));
+    });
+    await bukaDraft(page);
+    await page.waitForTimeout(2_000);
+    expect(galat, `galat hidrasi:\n${galat.join("\n")}`).toEqual([]);
+  });
+
   test("sumber foto pekerjaan tampil sebagai TIGA ubin setara", async ({ page }) => {
     await bukaDraft(page);
     // Dicari DI DALAM form input pekerjaan, bukan di halaman mana pun: ubin
@@ -127,11 +148,14 @@ test.describe("tata letak input harian", () => {
     expect(await pemicu.count(), "tidak ada pemicu foto di baris material/alat").toBeGreaterThan(0);
   });
 
-  test("baris BARU tetap menampilkan pemicunya, dengan alasan kenapa belum bisa", async ({ page }) => {
-    // Keluhan aslinya soal PENGETAHUAN, bukan kenyamanan: *"user tidak tahu
-    // kalau itu bisa diberi foto"*. Menyembunyikan kontrolnya pada baris yang
-    // belum tersimpan mengajarkan hal yang sama salahnya — bahwa fiturnya tidak
-    // ada. Yang benar: kontrolnya tetap terlihat, mati, dengan sebabnya.
+  test("baris BARU: SISTEM yang menyimpan, bukan menyuruh orangnya simpan dulu", async ({ page }) => {
+    /*
+     * Tantangan user 2026-08-17: *"kenapa data pendukung harus disimpan dulu
+     * baru bisa beri foto."* Versi pertama menampilkan tombol MATI bertuliskan
+     * "Simpan dulu" — jujur, tapi memindahkan pekerjaan pembukuan kami ke
+     * penggunanya. Yang dijaga uji ini: tombolnya HIDUP, dan sekali ketuk
+     * benar-benar berakhir di lembar foto.
+     */
     await bukaDraft(page);
     const pelengkap = page.locator("form", { hasText: "Pelengkap laporan KKP" }).first();
     test.skip(!(await fotoAktif(page)), "R2 nonaktif — pemicu foto memang tidak ada (dijaga uji di atas)");
@@ -142,12 +166,56 @@ test.describe("tata letak input harian", () => {
     expect(await semua.count(), "baris baru tidak membawa pemicu foto sama sekali").toBe(sebelum + 1);
     // Bukan `.last()`: baris material baru disisipkan SEBELUM bagian peralatan,
     // jadi yang terakhir di DOM adalah alat, bukan baris yang baru dibuat.
-    // Baris kosong memberi dirinya label "material ini" — itu yang dicari.
     const baru = pelengkap.locator('button[aria-label="Foto untuk material ini"]').last();
-    await expect(baru).toBeDisabled();
-    await expect(baru).toHaveText(/Simpan dulu/);
-    // Sebabnya tertulis, bukan cuma tombol kelabu tanpa keterangan.
-    await expect(baru).toHaveAttribute("title", /Simpan pelengkap dulu/);
+    await expect(baru).toBeEnabled();
+    await expect(baru).toHaveText(/Simpan & foto/);
+
+    // Isi barisnya, lalu SATU ketukan: harus menyimpan DAN membuka lembar foto.
+    const nama = `Pasir uji ${Date.now().toString(36)}`;
+    await pelengkap.locator('input[name="materialName"]').last().fill(nama);
+    await pelengkap.locator('input[name="materialUnit"]').last().fill("m3");
+    await pelengkap.locator('input[name="materialQty"]').last().fill("3");
+    await baru.click();
+
+    await expect(page.getByText("Pelengkap laporan tersimpan.").first()).toBeVisible({
+      timeout: 20_000,
+    });
+    // Inti: berakhir di lembar fotonya, bukan sekadar tersimpan lalu diam.
+    await expect(page.getByRole("dialog", { name: `Foto ${nama}` })).toBeVisible({
+      timeout: 20_000,
+    });
+  });
+
+  test("Enter di kolom Qty/Volume MENYIMPAN, bukan mengambil cuaca", async ({ page }) => {
+    /*
+     * Diukur di peramban sebelum diperbaiki: mengetik 41 lalu Enter memanggil
+     * "Muat ulang cuaca" — karena tombol cuaca adalah tombol submit PERTAMA di
+     * form, jadi dialah "default button"-nya — dan angka yang baru diketik
+     * hilang saat badan form dipasang ulang. Di laporan yang cuacanya sudah
+     * diisi manual, ketukan itu bahkan bisa MENIMPA pengamatan lapangan.
+     */
+    await bukaDraft(page);
+    const pelengkap = page.locator("form", { hasText: "Pelengkap laporan KKP" }).first();
+    await expect(pelengkap).toBeVisible();
+
+    // Hanya BOLEH ada satu tombol submit di form ini, dan itu tombol simpan.
+    const submits = await pelengkap.evaluate((f) =>
+      [...f.querySelectorAll("button")]
+        .filter((b) => ((b as HTMLButtonElement).type || "submit") === "submit")
+        .map((b) => b.textContent?.trim() ?? ""),
+    );
+    expect(submits, "ada tombol submit lain yang akan membajak Enter").toEqual(["Simpan Pelengkap"]);
+
+    const qty = pelengkap.locator('input[name="materialQty"]').first();
+    await qty.scrollIntoViewIfNeeded();
+    await qty.fill("7");
+    await qty.press("Enter");
+
+    await expect(page.getByText("Pelengkap laporan tersimpan.").first()).toBeVisible({
+      timeout: 20_000,
+    });
+    // Angkanya BERTAHAN — bukti Enter benar-benar menyimpan, bukan memuat ulang.
+    await expect(pelengkap.locator('input[name="materialQty"]').first()).toHaveValue("7");
   });
 
   test("form lembar foto TIDAK bersarang di dalam form pelengkap", async ({ page }) => {

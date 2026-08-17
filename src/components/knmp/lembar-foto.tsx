@@ -34,12 +34,18 @@ import { tahanGagalKirim } from "@/lib/aksi-klien";
  * sah, dan pemicunya tetap menempel pada barisnya sendiri — tidak ada lagi
  * jarak antara "saya mengetik Semen 40 zak" dan "beri fotonya".
  *
- * ### Yang tetap jujur
+ * ### Baris yang belum tersimpan: SISTEM yang menyimpan, bukan orangnya
  *
- * Baris yang BELUM tersimpan tidak punya id di basis data, jadi fotonya belum
- * bisa ditempelkan. Pemicunya tetap DITAMPILKAN dengan alasannya tertulis —
- * bukan disembunyikan. Kontrol yang hilang mengajarkan "fitur ini tidak ada";
- * kontrol yang menjelaskan mengajarkan "simpan dulu".
+ * Tantangan user 2026-08-17: *"atau apa polamu ini, kenapa data pendukung harus
+ * disimpan dulu baru bisa beri foto."* Betul. Foto memang menempel pada id
+ * baris di basis data, dan id itu baru ada sesudah tersimpan — tapi itu urusan
+ * BUKU BESAR kami, bukan syarat yang pantas ditagihkan ke orang di lapangan.
+ *
+ * Versi pertama pemicu ini menampilkan tombol MATI bertuliskan "Simpan dulu".
+ * Itu memang jujur, dan tetap salah: ia memindahkan pekerjaan pembukuan ke
+ * penggunanya. Sekarang tombolnya HIDUP dan berbunyi "Simpan & foto" — sekali
+ * ketuk ia menyimpan pelengkapnya sendiri, lalu lembar fotonya terbuka untuk
+ * baris itu begitu id-nya ada.
  */
 const kirimFoto = tahanGagalKirim(addSupplyPhotosAction);
 
@@ -53,6 +59,22 @@ export type PemicuFotoProps = {
   jumlahFoto: number;
   /** false = laporan tidak lagi bisa diubah / R2 mati. */
   aktif: boolean;
+  /**
+   * Buka lembarnya begitu komponen tampil — dipakai sesudah baris yang tadi
+   * belum tersimpan selesai disimpan, supaya "Simpan & foto" benar-benar
+   * berakhir di lembar foto, bukan sekadar menyimpan lalu diam.
+   */
+  bukaAwal?: boolean;
+  /** Dipanggil sekali sesudah `bukaAwal` dipakai, supaya tidak terbuka lagi. */
+  onSudahDibuka?: () => void;
+  /**
+   * Baris ini belum tersimpan dan orangnya menekan "Simpan & foto".
+   *
+   * Yang diserahkan ELEMEN barisnya (`[data-baris]` terdekat), bukan sebuah
+   * nilai: hanya pemanggil yang tahu nama medan mana yang berisi nama baris,
+   * dan hanya DOM yang tahu apa yang SEDANG diketik di kolom tak-terkendali.
+   */
+  onMintaSimpan?: (baris: HTMLElement | null) => void;
 };
 
 export function PemicuFotoBaris({
@@ -62,9 +84,20 @@ export function PemicuFotoBaris({
   label,
   jumlahFoto,
   aktif,
+  bukaAwal = false,
+  onSudahDibuka,
+  onMintaSimpan,
 }: PemicuFotoProps) {
-  const [buka, setBuka] = useState(false);
   const belumTersimpan = !barisId;
+  const [buka, setBuka] = useState(bukaAwal && !belumTersimpan);
+
+  // Permintaan buka-otomatis dilepas sesudah dipakai; kalau tidak, menutup
+  // lembarnya lalu menyimpan hal lain akan membukanya lagi tanpa diminta.
+  useEffect(() => {
+    if (!bukaAwal || belumTersimpan || !onSudahDibuka) return;
+    const t = window.setTimeout(() => onSudahDibuka(), 0);
+    return () => window.clearTimeout(t);
+  }, [bukaAwal, belumTersimpan, onSudahDibuka]);
 
   if (!aktif) return null;
 
@@ -72,26 +105,30 @@ export function PemicuFotoBaris({
     <>
       <button
         type="button"
-        onClick={() => setBuka(true)}
-        disabled={belumTersimpan}
+        onClick={(e) => {
+          if (!belumTersimpan) return setBuka(true);
+          // Simpan dulu — TAPI sistem yang melakukannya, bukan orangnya.
+          // `requestSubmit()` memakai tombol submit bawaan form, yaitu
+          // "Simpan Pelengkap" (lihat DECISIONS 342 soal tombol cuaca).
+          onMintaSimpan?.(e.currentTarget.closest<HTMLElement>("[data-baris]"));
+          e.currentTarget.form?.requestSubmit();
+        }}
         aria-label={`Foto untuk ${label}`}
         title={
           belumTersimpan
-            ? "Simpan pelengkap dulu — foto menempel pada baris yang sudah tersimpan."
+            ? "Simpan pelengkap lalu tambahkan fotonya"
             : `Foto ${label}`
         }
         className={`inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-1.5 text-[11px] font-medium ${
-          belumTersimpan
-            ? "cursor-not-allowed border-border bg-surface-muted text-ink-faint"
-            : jumlahFoto > 0
-              ? "border-success-border bg-success-soft text-success hover:bg-success-soft/70"
-              : "border-warning-border bg-warning-soft text-warning hover:bg-warning-soft/70"
+          jumlahFoto > 0 && !belumTersimpan
+            ? "border-success-border bg-success-soft text-success hover:bg-success-soft/70"
+            : "border-warning-border bg-warning-soft text-warning hover:bg-warning-soft/70"
         }`}
       >
         <Camera aria-hidden className="size-3.5" />
         {/* Jumlahnya DISEBUT, termasuk nol. "0 foto" keterangan yang berguna:
             ia memberi tahu bahwa foto memang bisa ditambahkan di sini. */}
-        {belumTersimpan ? "Simpan dulu" : `${jumlahFoto} foto`}
+        {belumTersimpan ? "Simpan & foto" : `${jumlahFoto} foto`}
       </button>
       {buka && !belumTersimpan ? (
         <LembarFoto

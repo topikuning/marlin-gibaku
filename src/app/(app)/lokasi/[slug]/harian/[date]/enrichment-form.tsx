@@ -45,6 +45,27 @@ type Row = {
 };
 let rowSeq = 1;
 
+/**
+ * Nama yang SEDANG diketik pada sebuah baris, dibaca dari elemen barisnya.
+ *
+ * Kolomnya tak-terkendali (`defaultValue`), jadi `row.name` masih berisi nilai
+ * AWAL — untuk baris baru itu string kosong. Yang dibutuhkan pencocokan sesudah
+ * penyimpanan adalah apa yang benar-benar diketik orangnya. Dipangkas ujungnya
+ * supaya cocok dengan yang disimpan server.
+ *
+ * Elemennya DISERAHKAN pemicu (hasil `closest("[data-baris]")`), bukan dicari
+ * lewat penanda ber-nomor. Versi pertama memasang `data-baris={row.key}` —
+ * padahal `rowSeq` adalah penghitung tingkat MODUL: di server ia terus naik
+ * lintas permintaan, di klien ia mulai dari 1. Nomornya jadi berbeda antara
+ * render server dan klien, dan React melaporkan hidrasi tidak cocok. Selama
+ * `row.key` hanya dipakai sebagai `key` React hal itu tak pernah terlihat —
+ * `key` tidak pernah sampai ke DOM. Begitu ia dicetak sebagai atribut, ia
+ * terlihat.
+ */
+function namaBaris(baris: HTMLElement | null, medan: string): string {
+  return baris?.querySelector<HTMLInputElement>(`input[name="${medan}"]`)?.value.trim() ?? "";
+}
+
 const CATEGORY_TONE: Record<KkpWeatherCategory, string> = {
   Cerah: "bg-amber-100 text-amber-900",
   Mendung: "bg-slate-200 text-slate-700",
@@ -80,11 +101,36 @@ function WeatherAuto({ report }: { report: WorkspaceReport }) {
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
       <div className="flex flex-wrap items-center gap-2">
+        {/*
+          `type="button"`, BUKAN submit — dan ini perbaikan cacat, bukan selera
+          (DECISIONS 342).
+
+          Tombol submit PERTAMA di sebuah form adalah "default button"-nya:
+          menekan Enter di kolom mana pun akan menekan tombol itu. Karena
+          tombol cuaca berada paling awal, Enter di kolom "Diterima" material
+          memanggil AMBIL CUACA, bukan menyimpan — dan karena aksi itu memasang
+          ulang badan form, angka yang baru diketik ikut hilang tanpa pesan apa
+          pun. Diukur di peramban: mengetik 41 lalu Enter mengembalikan 40.
+
+          Lebih buruk lagi bila cuaca sudah diisi manual dari lapangan: form ini
+          membawa `overwriteManual`, jadi satu ketukan Enter yang tidak disengaja
+          bisa MENIMPA pengamatan orang lapangan dengan data otomatis — persis
+          yang dilarang DECISIONS 176 ("isian manual lapangan selalu menang").
+
+          Aksinya tetap sama, hanya pemicunya yang dipindah ke onClick: FormData
+          dirakit dari form yang sama, jadi `reportId` & `overwriteManual` tetap
+          ikut. Sesudah ini satu-satunya tombol submit di form adalah "Simpan
+          Pelengkap" — jadi Enter MENYIMPAN, seperti yang diharapkan orang.
+        */}
         <Button
-          type="submit"
+          type="button"
           variant="secondary"
           size="sm"
-          formAction={formAction}
+          onClick={(e) => {
+            const form = e.currentTarget.form;
+            if (!form) return;
+            formAction(new FormData(form));
+          }}
           disabled={pending}
           title="Diambil dari koordinat lokasi, mengikuti TANGGAL laporan ini (bukan hari ini) — laporan yang diisi mundur tetap dapat cuaca tanggalnya."
         >
@@ -153,6 +199,20 @@ export function EnrichmentForm({
     saveEnrichmentAction,
     undefined,
   );
+  /**
+   * Baris mana yang tadi menekan "Simpan & foto" (DECISIONS 342).
+   *
+   * WAJIB di komponen LUAR ini: badan form dipasang ulang tiap daftar id
+   * berubah — dan itu persis yang terjadi ketika penyimpanan berhasil. State di
+   * dalamnya tidak akan selamat melewati penyimpanan yang ia picu sendiri.
+   *
+   * Dicocokkan lewat NAMA, bukan indeks: server mengurutkan baris menurut nama,
+   * jadi indeks sesudah tersimpan bisa menunjuk baris lain.
+   */
+  const [mintaFoto, setMintaFoto] = useState<{ jenis: "material" | "alat"; nama: string } | null>(
+    null,
+  );
+
   const tandaTangan = [
     report.weather,
     report.workStart,
@@ -166,6 +226,8 @@ export function EnrichmentForm({
       key={tandaTangan}
       report={report}
       fotoAktif={fotoAktif}
+      mintaFoto={mintaFoto}
+      onMintaFoto={setMintaFoto}
       state={state}
       formAction={formAction}
       pending={pending}
@@ -176,12 +238,16 @@ export function EnrichmentForm({
 function BadanForm({
   report,
   fotoAktif,
+  mintaFoto,
+  onMintaFoto,
   state,
   formAction,
   pending,
 }: {
   report: WorkspaceReport;
   fotoAktif: boolean;
+  mintaFoto: { jenis: "material" | "alat"; nama: string } | null;
+  onMintaFoto: (v: { jenis: "material" | "alat"; nama: string } | null) => void;
   state: DailyActionState;
   formAction: (formData: FormData) => void;
   pending: boolean;
@@ -288,7 +354,11 @@ function BadanForm({
         <legend className="mb-1.5 text-[13px] font-medium text-ink">Pemasukan bahan / material</legend>
         <div className="space-y-2">
           {materials.map((row) => (
-            <div key={row.key} className="space-y-1.5 rounded-md border border-border/70 bg-surface-muted/40 p-2">
+            <div
+              key={row.key}
+              data-baris="material"
+              className="space-y-1.5 rounded-md border border-border/70 bg-surface-muted/40 p-2"
+            >
               {/* Nama mengambil BARIS SENDIRI di ponsel. Sebelumnya ia berbagi
                   satu baris dengan satuan + jumlah + tombol hapus, dan pada
                   layar 390px sisanya cuma ±100px: "Semen PCC 50kg" terbaca
@@ -310,7 +380,13 @@ function BadanForm({
                 <Input name="materialUnit" defaultValue={row.a} placeholder="zak" />
               </div>
               <div className="min-w-0 flex-1 sm:w-24 sm:flex-none">
-                <Label className="text-xs font-normal text-ink-muted">Diterima</Label>
+                {/* "Diterima" adalah kata BLANKO KKP, dan di sana ia berpasangan
+                    dengan kolom "Ditolak" sehingga artinya jelas. Di layar input
+                    pasangannya tidak ada, jadi "Diterima" berdiri sendiri dan
+                    rancu — keluhan user 2026-08-17. Cetakan KKP TETAP memakai
+                    "Diterima"/"Ditolak" karena blankonya begitu; yang diganti
+                    hanya kata di layar. */}
+                <Label className="text-xs font-normal text-ink-muted">Qty/Volume</Label>
                 <Input name="materialQty" type="number" inputMode="decimal" step="0.001" min="0" defaultValue={row.b} />
               </div>
               <Button
@@ -333,6 +409,11 @@ function BadanForm({
                 label={row.name || "material ini"}
                 jumlahFoto={row.foto}
                 aktif={fotoAktif}
+                bukaAwal={mintaFoto?.jenis === "material" && mintaFoto.nama === row.name}
+                onSudahDibuka={() => onMintaFoto(null)}
+                onMintaSimpan={(el) =>
+                  onMintaFoto({ jenis: "material", nama: namaBaris(el, "materialName") })
+                }
               />
             </div>
           ))}
@@ -353,7 +434,11 @@ function BadanForm({
         <legend className="mb-1.5 text-[13px] font-medium text-ink">Peralatan</legend>
         <div className="space-y-2">
           {equipment.map((row) => (
-            <div key={row.key} className="space-y-1.5 rounded-md border border-border/70 bg-surface-muted/40 p-2">
+            <div
+              key={row.key}
+              data-baris="alat"
+              className="space-y-1.5 rounded-md border border-border/70 bg-surface-muted/40 p-2"
+            >
               <div className="flex flex-wrap items-end gap-2">
               <input type="hidden" name="equipmentId" value={row.id} />
               <div className="min-w-0 basis-full sm:flex-1 sm:basis-auto">
@@ -381,6 +466,11 @@ function BadanForm({
                 label={row.name || "alat ini"}
                 jumlahFoto={row.foto}
                 aktif={fotoAktif}
+                bukaAwal={mintaFoto?.jenis === "alat" && mintaFoto.nama === row.name}
+                onSudahDibuka={() => onMintaFoto(null)}
+                onMintaSimpan={(el) =>
+                  onMintaFoto({ jenis: "alat", nama: namaBaris(el, "equipmentName") })
+                }
               />
             </div>
           ))}

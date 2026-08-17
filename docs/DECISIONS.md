@@ -15490,3 +15490,123 @@ diverifikasi manual di server lokal ber-env R2 palsu, dua kali: sebelum dan
 sesudah perbaikan ini. Menyalakan R2 palsu di CI akan membuat uji lain benar-
 benar mencoba mengunggah ke endpoint yang tidak ada, jadi tidak dilakukan dalam
 perubahan ini.
+
+---
+
+## 342 — Enter menyimpan, "Diterima" jadi Qty/Volume, dan foto tak lagi menagih simpan dulu (2026-08-17)
+
+Tiga hal dari satu sesi pemakaian nyata. Yang pertama cacat yang sudah lama ada
+dan belum pernah terlihat.
+
+### 1 · Enter di kolom jumlah memanggil AMBIL CUACA, bukan menyimpan
+
+Pertanyaan user: *"saat aku tekan enter di jumlah itu menyimpan, saat ini apa
+yang terjadi?"* Diukur di peramban sebelum menjawab:
+
+```
+submit di form pelengkap: ["Muat ulang cuaca", "Simpan Pelengkap"]
+ketik 41 di kolom jumlah → Enter
+  → POST terkirim: 1   (fetchWeatherAction)
+  → pesan di layar: "Layanan cuaca menolak permintaan (HTTP 403)."
+  → nilai qty sesudah Enter: 40      ← 41 hilang
+```
+
+Sebabnya aturan HTML yang jarang diingat: **tombol submit PERTAMA di sebuah form
+adalah "default button"-nya**, dan Enter di kolom mana pun menekan tombol itu.
+Tombol cuaca ber-`type="submit"` (memakai `formAction` untuk mengarah ke aksi
+lain) dan berada paling awal — jadi Enter di seluruh form pelengkap memanggil
+cuaca. Karena aksi itu memasang ulang badan form, apa pun yang baru diketik dan
+belum tersimpan **hilang tanpa pesan**.
+
+Ada lapis yang lebih buruk. Form ini membawa `overwriteManual` bila cuacanya
+sudah diisi manual dari lapangan — jadi satu ketukan Enter yang tidak disengaja
+bisa MENIMPA pengamatan orang lapangan dengan data otomatis. Itu persis yang
+dilarang DECISIONS 176: *"isian manual lapangan selalu menang."*
+
+Perbaikannya sekecil sebabnya: tombol cuaca jadi `type="button"` dan aksinya
+dipicu `onClick` dengan `FormData` dari form yang sama (jadi `reportId` &
+`overwriteManual` tetap ikut). Sesudah itu satu-satunya tombol submit adalah
+"Simpan Pelengkap" — Enter menyimpan, seperti yang diharapkan siapa pun.
+
+Dijaga uji yang memeriksa DUA hal: daftar tombol submit di form itu harus persis
+`["Simpan Pelengkap"]`, dan sesudah Enter angkanya **bertahan** (bukti ia benar
+menyimpan, bukan memuat ulang).
+
+### 2 · "Diterima" → "Qty/Volume" di layar
+
+*"apa maksud diterima, rancu!"* Betul. "Diterima" adalah kata BLANKO KKP, dan di
+sana ia berpasangan dengan kolom "Ditolak" sehingga artinya jelas: berapa yang
+diterima, berapa yang ditolak. Di layar input pasangannya tidak ada — sistem ini
+belum punya isian "ditolak" (kolomnya sengaja dikosongkan untuk diisi tangan),
+jadi "Diterima" berdiri sendiri tanpa lawan dan kehilangan artinya.
+
+**Cetakan KKP dan ekspor Excel TETAP "Diterima"/"Ditolak"** — blankonya memang
+begitu, dan dokumen resmi harus mengikuti blanko. Yang diganti hanya kata di
+layar.
+
+### 3 · "Simpan dulu" → "Simpan & foto"
+
+Tantangan user: *"atau apa polamu ini, kenapa data pendukung harus disimpan dulu
+baru bisa beri foto."*
+
+Benar, dan versi kemarin memang salah. Foto menempel pada id baris di basis data
+dan id itu baru ada sesudah tersimpan — tapi itu urusan **buku besar kami**,
+bukan syarat yang pantas ditagihkan ke orang di lapangan. Menampilkan tombol
+MATI bertuliskan "Simpan dulu" memang jujur, dan tetap memindahkan pekerjaan
+pembukuan ke penggunanya. DECISIONS 341 menyebut kontrol mati itu sebagai
+perbaikan; itu koreksinya.
+
+Sekarang tombolnya HIDUP dan berbunyi "Simpan & foto": sekali ketuk ia
+menyimpan pelengkapnya sendiri (`form.requestSubmit()` — yang bisa diandalkan
+justru karena butir 1 sudah membereskan tombol bawaan form), lalu lembar
+fotonya terbuka untuk baris itu begitu id-nya ada.
+
+Yang perlu diakali: badan form dipasang ulang tiap daftar id berubah — persis
+saat penyimpanan berhasil. Jadi "baris mana yang tadi minta foto" disimpan di
+komponen LUAR yang tidak ikut dipasang ulang, dan dicocokkan lewat **nama**,
+bukan indeks (server mengurutkan baris menurut nama, jadi indeks sesudah
+tersimpan bisa menunjuk baris lain).
+
+### Cacat yang lahir dari perbaikan itu — dan ketahuan sebelum dikirim
+
+Versi pertama menandai baris dengan `data-baris={row.key}`. `rowSeq` adalah
+penghitung tingkat **MODUL**: di server ia terus naik lintas permintaan, di
+klien ia mulai dari 1. Nomornya berbeda antara render server dan klien →
+**hidrasi tidak cocok**, dilaporkan React di konsol.
+
+Selama `row.key` hanya dipakai sebagai `key` React, hal itu tidak pernah
+terlihat — `key` tidak pernah sampai ke DOM. Begitu ia dicetak sebagai atribut,
+ia terlihat. Ketidakcocokan hidrasi tidak menjatuhkan halaman: React diam-diam
+membuang render server dan merender ulang di klien. Yang hilang justru yang tak
+terlihat — kecepatan tampil pertama di HP lapangan.
+
+Diperbaiki dengan membuang nilai volatil itu dari DOM: penandanya jadi tetap
+(`data-baris="material"` / `"alat"`), dan pemicu menyerahkan ELEMEN barisnya
+(`closest("[data-baris]")`) alih-alih sebuah nomor. Ditambah penjaga e2e yang
+menggagalkan berkas bila ada galat hidrasi di layar ini.
+
+### Satu lagi: pernyataan uji yang tidak pernah bisa benar
+
+`harian-alur-isi.spec.ts` mencari teks **"Belum ada foto"**. Kalimat itu tidak
+pernah ada di sumber mana pun — penandanya berbunyi "Tanpa foto" (dipilih sadar,
+karena foto memang opsional saat menyimpan). Pernyataan itu tidak pernah
+ketahuan karena barisnya hanya tercapai bila R2 aktif, dan **di CI R2 tidak
+pernah aktif**. Sudah ada sejak sebelum perubahan ini (identik di `main`);
+diperbaiki sekalian.
+
+Ini gejala kedua dari celah yang sama dengan yang dicatat di 341: seluruh jalur
+foto tidak pernah dijalankan CI. Dua pernyataan basi sudah ditemukan di sana
+hanya dengan menyalakan R2 palsu sekali di mesin sendiri.
+
+**Penjaga.** `tests/e2e/harian-tata-letak-input.spec.ts` naik jadi 7 uji. Uji
+gigi tiga pagar baru:
+
+| pagar dicabut | hasil |
+| --- | --- |
+| tombol cuaca kembali `type="submit"` | 1 merah |
+| "Simpan & foto" tidak memanggil `requestSubmit` | 1 merah |
+| lembar tidak terbuka sesudah tersimpan | 1 merah |
+| dipulihkan | 7 hijau |
+
+Diverifikasi di dua lingkungan: DENGAN R2 (28 hijau bersama spesifikasi harian
+lain) dan TANPA R2 seperti CI (32 hijau, 28 dilewati pada cabang R2-mati).
