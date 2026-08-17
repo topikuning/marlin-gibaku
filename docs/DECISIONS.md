@@ -15845,3 +15845,279 @@ log hit di **Sistem → WhatsApp** kini menjawabnya sendiri:
 - ada baris, `tanya: diam — nomor … tidak cocok` → nomornya belum terdaftar
   pada pengguna aktif mana pun;
 - `tanya: diam — pesan dari MARLIN sendiri` → yang terkirim pesan keluar.
+
+---
+
+## 346 — Nomor WhatsApp ditampilkan apa adanya (`…@c.us`) di kolom pengguna (2026-08-17)
+
+Keluhan user 2026-08-17 (dengan tangkapan layar): kolom berlabel **Nomor
+WhatsApp** menampilkan `6281234757999@c.us`.
+
+Nilainya BENAR — itu alamat tujuan kirim WAHA, dan memang harus disimpan begitu
+supaya bisa dipakai apa adanya oleh `sendText`. Yang salah menampilkannya di
+kolom yang mengaku "nomor". Orang yang membacanya wajar menyimpulkan datanya
+rusak — dan itu terjadi tepat pada saat ia sedang memeriksa apakah nomornya
+sudah tersimpan dengan benar, yaitu saat paling buruk untuk membuatnya ragu.
+
+`nomorWaUntukTampil()` membuang sufiksnya untuk DITAMPILKAN; yang disimpan tidak
+berubah. Menyimpan ulang bentuk tampilan itu aman — `normalizeWaTarget`
+mengembalikannya ke bentuk yang sama, dan itu dijaga uji bolak-balik.
+
+ID grup (`…@g.us`) TIDAK dipotong: di sana sufiksnya bagian dari identitas, dan
+grup tidak punya "nomor" yang bisa dibaca manusia.
+
+### Catatan diagnosis yang ikut terjawab
+
+Keluhan yang sama menyertakan: *"tapi pesan di sistem ada keterangan diabaikan"*.
+Itu keterangan **ingest**, bukan tanya-jawab — dan untuk chat pribadi memang
+benar: ingest hanya mengarsipkan pesan grup yang tertaut paket. Keberadaannya
+justru kabar baik, karena membuktikan webhook-nya SAMPAI.
+
+Kata di kolom itu sekaligus menandakan versi mana yang sedang berjalan:
+
+| yang tertulis | versi |
+| --- | --- |
+| `diabaikan — grup tidak tertaut paket` (padahal chat pribadi) | sebelum DECISIONS 339 |
+| `diabaikan — chat pribadi (tidak diarsipkan)` | DECISIONS 339–344 |
+| ditambah ` · tanya: …` | DECISIONS 345, sudah membawa perbaikan pencocokan nomor |
+
+Tanpa akhiran `· tanya:`, perbaikan DECISIONS 345 belum sampai ke server itu.
+
+**Penjaga.** `tests/unit/waha-tanya-izin.test.ts` +4: sufiks dibuang untuk tiga
+bentuk alamat, bolak-balik aman, id grup utuh, dan penjaga silang bahwa bentuk
+tampilan tetap bisa dicocokkan ke pengirimnya.
+
+---
+
+## 347 — Chat pribadi ber-identitas `@lid` tidak pernah terjawab (2026-08-17)
+
+Sesudah DECISIONS 345 & 346, user melapor lagi dan mengirim log **Sistem →
+WhatsApp** apa adanya:
+
+```
+diabaikan — chat pribadi (tidak diarsipkan) · tanya: diam — didiamkan —
+nomor ? tidak cocok dengan pengguna mana pun
+143026840146095@lid
+```
+
+Akhiran `· tanya:` membuktikan DECISIONS 345 sudah berjalan di server itu, dan
+webhook-nya sampai. Yang gagal bukan pencocokan nomor: **nomornya tidak pernah
+dikirim**. WhatsApp menyampaikan chat itu dengan JID `…@lid` — identitas privasi
+— dan `bareNumber()` memang sengaja mengembalikan `null` untuknya. Karena itu
+tertulis `nomor ?`, dan chat pribadi dari pengirim tak dikenal memang
+DIDIAMKAN. Sistemnya bekerja persis seperti ditulis; yang belum ada adalah
+kemampuan mengenali bentuk identitas ini.
+
+### Angka di dalam `@lid` BUKAN nomor telepon
+
+Ini pagar yang paling penting, dan yang paling menggoda untuk dilanggar karena
+"kelihatan seperti nomor". Kalau `143026840146095@lid` diperlakukan sebagai
+nomor, MARLIN akan menjawab siapa pun yang kebetulan bernomor sama — mengirim
+angka kontrak ke orang yang salah, lewat saluran yang di-screenshot dan
+diteruskan. Diam jauh lebih baik daripada salah orang. Jadi LID punya kolomnya
+sendiri (`User.waLid`) dan dicocokkan hanya lewat kolom itu.
+
+### Tiga lapis, sekali pasang
+
+Dokumentasi WAHA tidak terjangkau dari lingkungan kerja ini (egress diblokir),
+dan nama medan yang membawa nomor pasangan LID berbeda antar rilis & engine.
+Menebak satu nama medan per rilis berarti satu percobaan per pesan asli — satu
+per hari. Karena itu ketiganya dipasang sekaligus:
+
+1. **`nomorDariLid()`** — baca nomor pasangan secara DEFENSIF dari daftar
+   kandidat (`senderPn`, `participantPn`, `authorPn`, `participantAlt`, …,
+   termasuk di `_data`), persis konvensi yang sudah dipakai `fromName`. Nilai
+   yang isinya `@lid` lagi ditolak. Kalau ada, admin tidak perlu berbuat apa-apa.
+2. **`medanJidPayload()`** — bila tetap tidak ketemu, log hit mencatat NAMA
+   MEDAN + nilai yang berbentuk JID yang benar-benar ada di payload. Isi pesan
+   tidak pernah ikut: log itu dibaca admin lain, dan diagnosa tidak boleh
+   berubah jadi penyadapan.
+3. **`User.waLid`** — pemetaan eksplisit oleh admin, dicoba SESUDAH nomor.
+   Nomor lebih dipercaya karena ia dinormalkan sistem; LID hanya sekuat ketikan
+   admin.
+
+Kolomnya disimpan sebagai angka saja (`rapikanLid`): admin MENYALIN nilai itu
+dari layar, dan salinan manusia datang dengan/tanpa sufiks, kadang berspasi.
+Membandingkannya sebagai teks akan mengulang persis cacat DECISIONS 345.
+
+### Kolom yang tak seorang pun tahu cara mengisinya = tidak ada
+
+Formulir pengguna (buat & sunting) mendapat **ID WhatsApp (@lid)** dengan
+keterangan yang menyebut ALAMAT mencarinya: *Sistem → WhatsApp, baris log
+berakhiran `@lid`*. Dan log itu sendiri kini menyebutkan LID-nya beserta
+instruksinya, jadi jalannya ketemu dari dua arah.
+
+**Penjaga.** `tests/unit/waha-tanya-izin.test.ts` +8 (LID cocok lewat kolomnya,
+salinan tangan dirapikan, **LID tidak pernah dicocokkan ke kolom nomor**, nomor
+diutamakan atas LID, LID ganda tidak dijawab, LID pendek/kosong diabaikan).
+`tests/unit/wa-ingest-parse.test.ts` +9 (LID direkam terpisah & tidak jadi
+nomor, empat medan pasangan, `_data`, medan yang isinya `@lid` ditolak;
+`medanJidPayload` menyebut medan tapi tidak pernah isi pesan).
+`tests/integration/waha-tanya-jawab.test.ts` +5, menempuh jalur webhook yang
+sama dengan pesan asli — termasuk pemetaan lintas organisasi yang dijawab
+sebagai dirinya sendiri tanpa menyebut lokasi kita.
+
+Uji gigi: pencocokan LID ke kolom nomor dibuka → 1 merah; normalisasi LID
+dimatikan → 3 merah; penolakan nilai `@lid` di `nomorDariLid` dicabut → 1
+merah; parameter LID dilepas dari `cariPengguna` → 2 merah di integrasi.
+Semuanya dipulihkan → 39 / 17 / 23 hijau.
+
+---
+
+## 348 — Satu chat, satu tulisan: kanonikalisasi chat id WhatsApp (2026-08-17)
+
+Permintaan user 2026-08-17: periksa sinkronisasi `chat_id` WAHA — medan chatId
+bisa ada di beberapa tempat tergantung engine (WEBJS vs NOWEB), dan bentuk yang
+tersimpan di basis data harus identik dengan yang datang dari webhook.
+
+Diukur dulu, bukan diduga. Delapan bentuk payload nyata dilewatkan parser yang
+ada:
+
+| yang datang | sebelum |
+| --- | --- |
+| `from: 628…@c.us` (WEBJS) | ✓ |
+| `key.remoteJid` (NOWEB mentah) | **null — pesan dibuang** |
+| `from: 628…@s.whatsapp.net` | chatId `…@s.whatsapp.net` |
+| `from: 628…:12@s.whatsapp.net` | nomor **628123475799912** |
+| `chatId: 628…` telanjang | chatId telanjang |
+| grup via `key.remoteJid` | **null — pesan dibuang** |
+| keluar via `key.fromMe` | **null — pesan dibuang** |
+
+Tiga baris pertama dari daftar user terbukti nyata. Satu yang tidak ia sebut
+justru yang paling berbahaya: **sufiks perangkat `:12`** menghasilkan nomor
+`628123475799912` — bukan sekadar tidak cocok, tapi nomor orang lain. Kalau
+kebetulan ada pemiliknya, jawaban proyek pergi ke sana.
+
+### Dikanonikkan sekali, di pintu masuk
+
+`normalizeChatId()` dipanggil satu kali di parser, sehingga seluruh sistem hilir
+— pencocokan paket, pencarian pengguna, alamat balasan — hanya pernah melihat
+satu bentuk. `@s.whatsapp.net` dan `@c.us` adalah tulisan berbeda untuk kontak
+yang sama, jadi disatukan; sufiks perangkat/agen dibuang.
+
+Yang TIDAK ditebak: `@lid`, `@g.us`, `@broadcast`, `@newsletter` masing-masing
+ruang identitas sendiri dan dibiarkan apa adanya. Angka telanjang dibedakan
+lewat bentuknya (≥16 angka atau memuat `-` = id grup; 8–15 angka = nomor). Di
+luar itu dikembalikan apa adanya — menebak alamat kirim yang salah lebih buruk
+daripada mengaku tidak tahu.
+
+### Menormalkan sisi masuk saja akan MERUSAK yang sudah jalan
+
+Ini yang membuat saran "harus identik karakter per karakter" tidak cukup.
+`Package.waGroupId` yang sudah tersimpan memakai bentuk apa pun yang kebetulan
+datang saat ditautkan. Kalau sisi masuk dikanonikkan dan pencocokan tetap teks
+tunggal, grup yang selama ini bekerja justru berhenti cocok — memperbaiki satu
+hal sambil merusak yang lain, tanpa galat.
+
+Karena itu pencocokan memakai `varianChatId()`: seluruh tulisan yang berarti
+chat yang sama. Datanya tidak perlu diubah, dan tidak ada migrasi yang bisa
+salah pada 83 lokasi.
+
+### "Log full raw payload" — dipenuhi, tapi dibelah dua
+
+Permintaannya tepat sebagai keinginan diagnosa. Tapi log hit di **Sistem →
+WhatsApp** dibaca admin lain, dan payload utuh memuat ISI chat pribadi.
+Menyalakannya apa adanya berarti setiap chat pribadi yang gagal diproses ikut
+terbit di halaman yang bisa dibuka orang lain.
+
+Jadi: payload UTUH ke log server (Railway, akses terbatas), dan
+`kerangkaPayload()` ke Sistem — setiap medan beserta tipe & panjangnya, nilai
+ditulis hanya bila pendek dan bukan medan isi pesan. Untuk menjawab "chatId ada
+di medan mana", itu sama berguna dengan payload utuh.
+
+### `fromMe` — sudah ada, dan sengaja berbeda antara dua jalur
+
+Tanya-jawab memang sudah menolak pesan sendiri sejak DECISIONS 339 (tanpa itu
+MARLIN membalas balasannya sendiri). Ingest justru SENGAJA menyimpannya:
+ringkasan grup tidak utuh tanpa pesan keluar. Yang kurang hanyalah `key.fromMe`
+— bentuk mentah NOWEB — sehingga pesan keluar berbentuk itu tak dikenali
+sebagai milik kita. Itu kini dibaca.
+
+**Penjaga.** `tests/unit/wa-ingest-parse.test.ts` +18 (lima bentuk kontak jadi
+satu, sufiks perangkat, angka telanjang, ruang identitas lain tidak diseret,
+idempoten, varian data lama, empat bentuk `payload.key`, kerangka payload tanpa
+isi chat). Berkas BARU `tests/integration/waha-ingest-chatid.test.ts` +12 —
+jalur terima→simpan sebelumnya tidak punya uji integrasi sama sekali, padahal di
+sanalah satu-satunya hal yang menentukan pesan tersimpan atau hilang.
+
+Uji gigi: sufiks perangkat dibiarkan → 1 merah; `@s.whatsapp.net` tidak
+disamakan → 4 merah; `payload.key` tidak dibaca → 4 merah; `@lid` ikut
+dilebarkan → 1 merah; isi pesan ikut tercatat → 2 merah; pencocokan teks tunggal
+dikembalikan → 3 merah di integrasi. Semuanya dipulihkan → hijau.
+
+---
+
+## 349 — Mention di grup tidak pernah dikenali: MARLIN tak mengenal dirinya sendiri (2026-08-17)
+
+Tangkapan layar user 2026-08-17, log **Sistem → WhatsApp**:
+
+```
+tersimpan ✓ · tanya: diam — grup tanpa mention ke MARLIN
+120363410571149972@g.us
+```
+
+Pesannya **tersimpan**. Artinya webhook sampai, grupnya tertaut paket, dan
+parser bekerja — seluruh jalur yang diperbaiki DECISIONS 345/348 sehat. Yang
+gagal satu hal saja, dan itu di ujung: MARLIN tidak mengenali dirinya sendiri.
+
+### Sebabnya sama dengan DECISIONS 347, satu lapis di atas
+
+Sejak WhatsApp memakai identitas privasi, yang masuk ke daftar mention adalah
+**`…@lid` MARLIN**, bukan JID bernomornya. `diajakBicara()` mencocokkannya lewat
+`normalizePhone` — membandingkan LID dengan nomor telepon, yang tidak akan
+pernah sama. Akibatnya SETIAP mention di grup terbaca "tidak ada mention", dan
+seluruh tanya-jawab grup mati diam-diam tanpa satu pun galat.
+
+Dibuktikan, bukan didalilkan: mengembalikan pencocokan ke nomor saja membuat
+persis skenario user merah — 4 uji unit dan 3 uji integrasi.
+
+**LID dibandingkan dengan LID, nomor dengan nomor — tidak pernah bersilang.**
+Kalau bersilang, sebuah `@lid` yang angkanya kebetulan sama dengan nomor MARLIN
+akan memicu jawaban, padahal LID itu milik orang lain sepenuhnya.
+
+### Tiga sebab yang mungkin, ketiganya ditutup
+
+Payload aslinya tidak bisa dilihat dari sini, jadi ketiganya dikerjakan
+sekaligus alih-alih menebak satu per rilis:
+
+1. **Identitas kita salah** — `getIdentitasMarlin()` kini membaca nomor DAN LID
+   sesi (`me.id` yang sudah ber-`@lid`, `me.lid`, `me.lidId`).
+2. **Mention-nya tidak terbaca** — `bacaMention()` kini membaca
+   `contextInfo.mentionedJid` yang BERSARANG (`message.extendedTextMessage`,
+   `imageMessage`, `videoMessage`, `documentMessage`, dan `_data.contextInfo`).
+   Engine NOWEB menaruhnya di sana, bukan di permukaan payload.
+3. **Orangnya tidak me-mention, tapi MEMBALAS** — balasan (quote) ke pesan
+   MARLIN kini dihitung sebagai diajak bicara. Itu cara orang benar-benar
+   meneruskan percakapan, dan WhatsApp tidak selalu menyertakan mention di situ.
+   Hanya balasan ke pesan MILIK KITA yang dihitung, jadi pagarnya tidak melebar.
+
+### `getNomorMarlin()` DIHAPUS
+
+Pembantu "nomor saja" itu persis jebakan yang menyebabkan cacat ini: memanggilnya
+terasa benar, dan hasilnya MARLIN tidak mengenali dirinya di grup yang sudah
+bermigrasi. Identitas WhatsApp ada dua; sekarang tidak ada lagi cara mengambil
+setengahnya.
+
+### Diam di grup kini menyebut APA YANG DILIHAT
+
+`"grup tanpa mention ke MARLIN"` tidak bisa membedakan tiga keadaan yang butuh
+tindakan berbeda. Sekarang log menyebutkan yang mana:
+
+| yang tertulis | artinya |
+| --- | --- |
+| `identitas sesi WAHA belum terbaca` | sesi belum WORKING — scan QR / restart |
+| `tidak ada mention terbaca di payload · medan: …` | medan mention belum dikenali; nama medannya ikut tercatat |
+| `mention terbaca [X] ≠ kita (Y)` | identitas MARLIN yang salah, dan keduanya disebut |
+
+**Penjaga.** `tests/unit/waha-tanya-izin.test.ts` +8 (mention @lid, @lid orang
+lain, **LID tidak pernah bersilang dengan nomor**, sesi ber-LID tanpa nomor,
+identitas kosong tetap diam, balasan ke MARLIN, balasan ke orang lain, chat
+pribadi tak terpengaruh). `tests/unit/wa-ingest-parse.test.ts` +7 (contextInfo
+NOWEB & WEBJS, pesan bergambar, pemilik pesan yang dibalas dikanonikkan, bentuk
+`quotedParticipant`, bukan-balasan tetap null, gabungan tanpa duplikat).
+`tests/integration/waha-tanya-jawab.test.ts` +5.
+
+Uji gigi: pencocokan lewat nomor saja dikembalikan → **4 unit + 3 integrasi
+merah** (persis skenario user); LID/nomor dibandingkan bersilang → 1 merah;
+`contextInfo` bersarang tidak dibaca → 3 unit + 1 integrasi merah; balasan tidak
+dihitung → 1 unit + 1 integrasi merah. Semuanya dipulihkan → hijau.

@@ -91,6 +91,29 @@ export function normalizeWaTarget(raw: string): string {
   throw new Error(`Format tujuan WA tidak dikenal: ${raw} (pakai nomor WA, atau id grup …@g.us).`);
 }
 
+/**
+ * Bentuk nomor untuk DILIHAT ORANG — kebalikan `normalizeWaTarget`.
+ *
+ * Yang tersimpan adalah alamat WAHA (`628…@c.us`), dan itu memang harus
+ * begitu: nilainya dipakai apa adanya sebagai tujuan kirim. Tapi menampilkan
+ * alamat itu di kolom berlabel "Nomor WhatsApp" membuat orang mengira datanya
+ * rusak — keluhan user 2026-08-17, yang muncul justru saat ia memeriksa apakah
+ * nomornya sudah benar tersimpan (DECISIONS 346).
+ *
+ * Sufiksnya dibuang untuk ditampilkan; yang disimpan tidak berubah. Menyimpan
+ * ulang hasil tampilan ini pun aman — `normalizeWaTarget` mengembalikannya ke
+ * bentuk yang sama.
+ *
+ * ID GRUP (`…@g.us`) TIDAK dipotong: di sana sufiksnya bagian dari identitas,
+ * dan grup tidak punya "nomor" yang bisa dibaca manusia.
+ */
+export function nomorWaUntukTampil(raw: string | null | undefined): string {
+  if (!raw) return "";
+  const t = raw.trim();
+  if (t.endsWith("@g.us")) return t;
+  return t.replace(/@(c\.us|s\.whatsapp\.net)$/i, "");
+}
+
 /** Urutan tampil: nama (Indonesia, case-insensitive), stabil. */
 export function byName<T extends { name: string }>(a: T, b: T): number {
   return a.name.localeCompare(b.name, "id", { sensitivity: "base" });

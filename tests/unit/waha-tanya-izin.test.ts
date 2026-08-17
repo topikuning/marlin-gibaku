@@ -20,7 +20,7 @@ import {
   niatLintasLokasi,
   type AsalPesan,
 } from "@/lib/waha/tanya-izin";
-import { normalizeWaTarget } from "@/lib/contacts/model";
+import { normalizeWaTarget, nomorWaUntukTampil } from "@/lib/contacts/model";
 
 const MARLIN = { nomor: "6281200000000" };
 
@@ -305,5 +305,202 @@ describe("mencocokkan nomor pengirim ke pengguna", () => {
 
   it("pengguna tanpa nomor sama sekali diabaikan", () => {
     expect(cocokkanNomorPengguna([u("a", null, null)], "6281234567890").jenis).toBe("tidak_ada");
+  });
+});
+
+describe("nomor yang DILIHAT orang vs yang DISIMPAN", () => {
+  it("sufiks alamat WAHA dibuang untuk ditampilkan", () => {
+    /*
+     * Keluhan user 2026-08-17: kolom berlabel "Nomor WhatsApp" menampilkan
+     * "6281234757999@c.us". Nilai itu BENAR — ia alamat tujuan kirim — tapi
+     * menampilkannya membuat orang mengira datanya rusak, tepat ketika ia
+     * sedang memeriksa apakah nomornya sudah tersimpan.
+     */
+    expect(nomorWaUntukTampil("6281234757999@c.us")).toBe("6281234757999");
+    expect(nomorWaUntukTampil("6281234757999@s.whatsapp.net")).toBe("6281234757999");
+    expect(nomorWaUntukTampil("6281234757999")).toBe("6281234757999");
+    expect(nomorWaUntukTampil(null)).toBe("");
+  });
+
+  it("bolak-balik AMAN: menyimpan ulang hasil tampilan tidak mengubah apa pun", () => {
+    // Kolomnya bisa disunting; kalau bentuk tampilan disimpan lagi apa adanya,
+    // hasilnya harus persis sama dengan sebelumnya.
+    const disimpan = normalizeWaTarget("0812-3475-7999");
+    expect(normalizeWaTarget(nomorWaUntukTampil(disimpan))).toBe(disimpan);
+  });
+
+  it("ID GRUP tidak dipotong — sufiksnya bagian dari identitas", () => {
+    expect(nomorWaUntukTampil("12036300000000001@g.us")).toBe("12036300000000001@g.us");
+  });
+
+  it("yang ditampilkan tetap bisa dicocokkan ke pengirimnya", () => {
+    // Penjaga silang: bentuk tampilan dan bentuk simpanan harus sama-sama
+    // menormalkan ke nomor yang sama.
+    const disimpan = "6281234757999@c.us";
+    expect(
+      cocokkanNomorPengguna([{ id: "a", waNumber: disimpan, phone: null }], nomorWaUntukTampil(disimpan)),
+    ).toEqual({ jenis: "tepat", id: "a" });
+  });
+});
+
+describe("pengirim ber-@lid (DECISIONS 347)", () => {
+  /*
+   * Gejalanya identik dengan cacat nomor di DECISIONS 345 — "tidak ada respon
+   * sama sekali" — tapi sebabnya lain, dan itu yang membuatnya mahal.
+   *
+   * Log Sistem user 2026-08-17:
+   *   diabaikan — chat pribadi · tanya: diam — didiamkan — nomor ? tidak cocok
+   *   143026840146095@lid
+   *
+   * `@lid` adalah identitas PRIVASI WhatsApp: angkanya BUKAN nomor telepon.
+   * Memperlakukannya sebagai nomor akan menautkan pesan ke orang lain yang
+   * kebetulan bernomor sama — kegagalan yang jauh lebih buruk daripada diam.
+   * Jadi ia dicocokkan lewat kolomnya sendiri, dan hanya SESUDAH nomor.
+   */
+  const p = (id: string, waLid: string | null, waNumber: string | null = null) => ({
+    id,
+    waNumber,
+    phone: null,
+    waLid,
+  });
+
+  it("LID pengirim cocok dengan pemetaan admin", () => {
+    expect(
+      cocokkanNomorPengguna([p("a", "143026840146095")], null, "143026840146095@lid"),
+    ).toEqual({ jenis: "tepat", id: "a" });
+  });
+
+  it("salinan tangan admin dirapikan: sufiks, spasi, huruf besar", () => {
+    // Admin MENYALIN nilai ini dari layar. Kalau bentuk salinannya harus persis,
+    // kolomnya akan gagal diam-diam persis seperti nomor telepon dulu.
+    for (const disimpan of ["143026840146095@lid", " 143026840146095 ", "143026840146095@LID"]) {
+      expect(
+        cocokkanNomorPengguna([p("a", disimpan)], null, "143026840146095@lid").jenis,
+        disimpan,
+      ).toBe("tepat");
+    }
+  });
+
+  it("LID BUKAN nomor telepon — tidak pernah dicocokkan ke kolom nomor", () => {
+    /*
+     * Penjaga terpenting di blok ini. Pengguna "a" bernomor sama persis dengan
+     * angka LID pengirim; menjawabnya berarti mengirim data orang lain.
+     */
+    expect(
+      cocokkanNomorPengguna(
+        [{ id: "a", waNumber: "143026840146095@c.us", phone: null, waLid: null }],
+        null,
+        "143026840146095@lid",
+      ).jenis,
+    ).toBe("tidak_ada");
+  });
+
+  it("nomor DIUTAMAKAN atas LID bila keduanya ada", () => {
+    // Nomor dinormalkan sistem; LID hanya sekuat ketikan admin.
+    const r = cocokkanNomorPengguna(
+      [p("bernomor", null, "6281234757999@c.us"), p("berlid", "143026840146095")],
+      "6281234757999",
+      "143026840146095@lid",
+    );
+    expect(r).toEqual({ jenis: "tepat", id: "bernomor" });
+  });
+
+  it("dua pengguna dengan LID sama → TIDAK dijawab", () => {
+    const r = cocokkanNomorPengguna(
+      [p("a", "143026840146095"), p("b", "143026840146095@lid")],
+      null,
+      "143026840146095@lid",
+    );
+    expect(r.jenis).toBe("ganda");
+  });
+
+  it("LID kosong / terlalu pendek diabaikan, tidak memancing kecocokan", () => {
+    for (const l of [null, "", "@lid", "12@lid", "abc@lid"]) {
+      expect(cocokkanNomorPengguna([p("a", "143026840146095")], null, l).jenis, String(l)).toBe(
+        "tidak_ada",
+      );
+    }
+  });
+
+  it("pengguna tanpa pemetaan LID tidak ikut tersapu", () => {
+    expect(
+      cocokkanNomorPengguna([p("a", null, "6281234757999@c.us")], null, "143026840146095@lid").jenis,
+    ).toBe("tidak_ada");
+  });
+
+  it("pengguna berkolom LID kosong tidak cocok dengan LID kosong pengirim", () => {
+    // Dua "tidak diketahui" bukan kecocokan.
+    expect(cocokkanNomorPengguna([p("a", "")], null, "").jenis).toBe("tidak_ada");
+  });
+});
+
+describe("mention MARLIN yang ber-@lid (DECISIONS 349)", () => {
+  /*
+   * Laporan user 2026-08-17 dengan tangkapan layar: pesan grup yang JELAS
+   * me-mention MARLIN tercatat "diam — grup tanpa mention ke MARLIN".
+   *
+   * Sejak WhatsApp memakai identitas privasi, yang masuk daftar mention adalah
+   * @lid MARLIN, bukan JID bernomornya. Mencocokkan lewat nomor saja berarti
+   * membandingkan LID dengan nomor telepon — tidak pernah sama, sehingga SETIAP
+   * mention terbaca "tidak ada mention" dan tanya-jawab grup mati diam-diam.
+   */
+  const LID = "77712345678901";
+  const AKU = { nomor: "6281200000000", lid: LID };
+
+  it("mention berisi @lid MARLIN: dilayani", () => {
+    expect(diajakBicara(pesan({ grup: true, mentionedJids: [`${LID}@lid`] }), AKU)).toBe(true);
+  });
+
+  it("@lid orang lain tetap TIDAK menghitung", () => {
+    expect(diajakBicara(pesan({ grup: true, mentionedJids: ["99900000000000@lid"] }), AKU)).toBe(
+      false,
+    );
+  });
+
+  it("LID TIDAK PERNAH dibandingkan dengan nomor, dan sebaliknya", () => {
+    /*
+     * Penjaga paling penting di blok ini. Kalau perbandingannya bersilang, LID
+     * yang angkanya kebetulan sama dengan nomor MARLIN akan memicu jawaban —
+     * dan LID itu milik orang lain sepenuhnya.
+     */
+    const samar = { nomor: "6281200000000", lid: "6281200000000" };
+    // @lid berangka sama dengan NOMOR kita, tapi LID kita berbeda → bukan kita.
+    expect(
+      diajakBicara(pesan({ grup: true, mentionedJids: ["6281200000000@lid"] }), AKU),
+    ).toBe(false);
+    // Kebalikannya: JID bernomor sama dengan LID kita → tetap dicocokkan sebagai
+    // nomor, dan di sini nomornya memang kita.
+    expect(diajakBicara(pesan({ grup: true, mentionedJids: [`${LID}@c.us`] }), samar)).toBe(false);
+  });
+
+  it("sesi yang hanya punya LID (tanpa nomor) tetap bisa dikenali", () => {
+    expect(
+      diajakBicara(pesan({ grup: true, mentionedJids: [`${LID}@lid`] }), { nomor: null, lid: LID }),
+    ).toBe(true);
+  });
+
+  it("identitas belum diketahui SAMA SEKALI → grup tetap tidak dilayani", () => {
+    // Lebih baik diam daripada membalas setiap pesan grup.
+    expect(
+      diajakBicara(pesan({ grup: true, mentionedJids: [`${LID}@lid`] }), { nomor: null, lid: null }),
+    ).toBe(false);
+  });
+
+  it("MEMBALAS pesan MARLIN dihitung sebagai diajak bicara", () => {
+    // Cara orang benar-benar meneruskan percakapan; WhatsApp tidak selalu
+    // menyertakan mention pada balasan.
+    expect(diajakBicara(pesan({ grup: true, balasanKepada: `${LID}@lid` }), AKU)).toBe(true);
+    expect(diajakBicara(pesan({ grup: true, balasanKepada: "6281200000000@c.us" }), AKU)).toBe(true);
+  });
+
+  it("membalas pesan ORANG LAIN tidak memancing jawaban", () => {
+    // Kalau ini lolos, MARLIN ikut menyahut setiap balasan di grup.
+    expect(diajakBicara(pesan({ grup: true, balasanKepada: "6285711111111@c.us" }), AKU)).toBe(
+      false,
+    );
+  });
+
+  it("chat pribadi tidak terpengaruh aturan mention", () => {
+    expect(diajakBicara(pesan({ grup: false, mentionedJids: [] }), AKU)).toBe(true);
   });
 });

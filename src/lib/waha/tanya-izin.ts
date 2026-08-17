@@ -40,6 +40,8 @@ export type AsalPesan = {
   fromNumber: string | null;
   /** JID yang di-mention pada pesan itu. */
   mentionedJids: string[];
+  /** JID pemilik pesan yang DIBALAS (quote), bila pesan ini balasan. */
+  balasanKepada?: string | null;
   /** Isi pesan apa adanya. */
   body: string;
 };
@@ -48,21 +50,53 @@ export type AsalPesan = {
 export type IdentitasMarlin = {
   /** Nomor sesi WAHA, mis. "6281234567890". null = belum diketahui. */
   nomor: string | null;
+  /** Identitas privasi sesi (`…@lid`) — DECISIONS 349. null = belum diketahui. */
+  lid?: string | null;
 };
 
 /**
  * Apakah MARLIN diajak bicara?
  *
  * Di grup, penyebutan dibaca dari **daftar JID**, bukan dari teks "@marlin" di
- * badan pesan: nama tampilan bisa diubah siapa saja, JID tidak. Kalau nomor
- * MARLIN belum diketahui, grup TIDAK dilayani — lebih baik diam daripada
- * membalas setiap pesan grup.
+ * badan pesan: nama tampilan bisa diubah siapa saja, JID tidak. Kalau identitas
+ * MARLIN belum diketahui sama sekali, grup TIDAK dilayani — lebih baik diam
+ * daripada membalas setiap pesan grup.
+ *
+ * ### Kenapa LID ikut dicocokkan (DECISIONS 349)
+ *
+ * Laporan user 2026-08-17 dengan tangkapan layar: pesan grup yang JELAS
+ * me-mention MARLIN tercatat *"diam — grup tanpa mention ke MARLIN"*.
+ *
+ * Sejak WhatsApp memakai identitas privasi, yang masuk ke daftar mention adalah
+ * `…@lid` MARLIN, bukan JID bernomornya. Mencocokkan lewat nomor saja berarti
+ * membandingkan LID dengan nomor telepon — tidak akan pernah sama, sehingga
+ * SETIAP mention terbaca "tidak ada mention" dan seluruh fitur tanya-jawab grup
+ * mati diam-diam. Ini cacat yang sama dengan DECISIONS 347, satu lapis di atas.
+ *
+ * LID dibandingkan dengan LID, nomor dengan nomor — TIDAK pernah bersilang.
+ *
+ * ### Kenapa MEMBALAS pesan MARLIN juga dihitung
+ *
+ * Membalas (quote) pesan MARLIN adalah cara orang benar-benar meneruskan
+ * percakapan, dan WhatsApp tidak selalu menyertakan mention di situ. Yang
+ * dihitung hanya balasan ke pesan MILIK KITA, jadi ia tidak melebarkan siapa
+ * pun yang boleh memicu jawaban.
  */
 export function diajakBicara(asal: AsalPesan, marlin: IdentitasMarlin): boolean {
   if (!asal.grup) return true;
-  const kita = normalizePhone(marlin.nomor);
-  if (!kita) return false;
-  return asal.mentionedJids.some((j) => normalizePhone(j.replace(/@.*$/, "")) === kita);
+  const nomorKita = normalizePhone(marlin.nomor);
+  const lidKita = samakanLid(marlin.lid);
+  if (!nomorKita && !lidKita) return false;
+
+  const menyebutKita = (jid: string | null | undefined): boolean => {
+    if (!jid) return false;
+    const t = jid.trim();
+    if (/@lid$/i.test(t)) return !!lidKita && samakanLid(t) === lidKita;
+    return !!nomorKita && normalizePhone(t.replace(/@.*$/, "")) === nomorKita;
+  };
+
+  if (asal.mentionedJids.some(menyebutKita)) return true;
+  return menyebutKita(asal.balasanKepada);
 }
 
 /** Buang penyebutan "@62812…" dari badan pesan supaya tidak mengotori niat. */
@@ -161,7 +195,13 @@ export function niatLintasLokasi(lokasiDiminta: string[] | null): boolean {
 /* Mencocokkan nomor pengirim ke pengguna MARLIN                       */
 /* ------------------------------------------------------------------ */
 
-export type CalonPengguna = { id: string; waNumber: string | null; phone: string | null };
+export type CalonPengguna = {
+  id: string;
+  waNumber: string | null;
+  phone: string | null;
+  /** Identitas privasi WhatsApp (`…@lid`) yang dipetakan admin (DECISIONS 347). */
+  waLid?: string | null;
+};
 
 export type HasilCocokNomor =
   | { jenis: "tepat"; id: string }
@@ -198,13 +238,39 @@ export type HasilCocokNomor =
 export function cocokkanNomorPengguna(
   daftar: CalonPengguna[],
   nomorPengirim: string | null,
+  /**
+   * JID `…@lid` pengirim, bila chat-nya memakai identitas privasi WhatsApp.
+   * Dicoba SESUDAH nomor: nomor lebih dipercaya karena ia dinormalkan, sedangkan
+   * LID hanya sekuat pemetaan yang disetel admin.
+   */
+  lidPengirim?: string | null,
 ): HasilCocokNomor {
   const n = normalizePhone(nomorPengirim);
-  if (!n) return { jenis: "tidak_ada" };
-  const cocok = daftar.filter(
-    (u) => normalizePhone(u.waNumber) === n || normalizePhone(u.phone) === n,
-  );
-  if (cocok.length === 1) return { jenis: "tepat", id: cocok[0].id };
-  if (cocok.length > 1) return { jenis: "ganda", ids: cocok.map((u) => u.id) };
+  if (n) {
+    const cocok = daftar.filter(
+      (u) => normalizePhone(u.waNumber) === n || normalizePhone(u.phone) === n,
+    );
+    if (cocok.length === 1) return { jenis: "tepat", id: cocok[0].id };
+    if (cocok.length > 1) return { jenis: "ganda", ids: cocok.map((u) => u.id) };
+  }
+  const lid = samakanLid(lidPengirim);
+  if (lid) {
+    const cocok = daftar.filter((u) => samakanLid(u.waLid) === lid);
+    if (cocok.length === 1) return { jenis: "tepat", id: cocok[0].id };
+    if (cocok.length > 1) return { jenis: "ganda", ids: cocok.map((u) => u.id) };
+  }
   return { jenis: "tidak_ada" };
+}
+
+/**
+ * Samakan bentuk LID untuk dibandingkan: sufiks & spasi dibuang, huruf dikecilkan.
+ *
+ * Admin menyalinnya dari log hit, dan salinan manusia selalu datang dalam
+ * berbagai bentuk — dengan atau tanpa `@lid`, kadang berspasi. Membandingkannya
+ * apa adanya mengulang persis cacat nomor telepon di DECISIONS 345.
+ */
+function samakanLid(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const d = raw.trim().toLowerCase().replace(/@lid$/, "").replace(/[^0-9]/g, "");
+  return d.length >= 6 ? d : null;
 }

@@ -18,6 +18,20 @@ import { env } from "@/lib/env";
 import { normalizeWaTarget } from "@/lib/contacts/model";
 import type { UserRole } from "@/generated/prisma/enums";
 
+/**
+ * Rapikan ID `…@lid` yang DISALIN TANGAN dari log (DECISIONS 347).
+ *
+ * Yang disimpan angkanya saja: admin menyalinnya dari layar, dan salinan
+ * manusia datang dengan/tanpa sufiks, kadang berspasi. Menyimpan apa adanya
+ * lalu membandingkan sebagai teks akan mengulang persis cacat nomor telepon di
+ * DECISIONS 345 — `6281234757999@c.us` yang tidak pernah cocok dengan
+ * `6281234757999`.
+ */
+function rapikanLid(raw: string | undefined | null): string | null {
+  const d = (raw ?? "").trim().toLowerCase().replace(/@lid$/, "").replace(/[^0-9]/g, "");
+  return d.length >= 6 ? d : null;
+}
+
 const createUserSchema = z.object({
   username: z
     .string()
@@ -28,6 +42,7 @@ const createUserSchema = z.object({
   fullName: z.string().trim().min(2, "Nama lengkap wajib").max(120),
   email: z.union([z.email("Email tidak valid"), z.literal("")]).optional(),
   waNumber: z.string().optional(),
+  waLid: z.string().optional(),
   role: z.enum(ALL_ROLES as [string, ...string[]]),
   password: z.string().min(8, "Password minimal 8 karakter").max(255),
   locationIds: z.array(z.uuid()).optional(),
@@ -72,6 +87,7 @@ export async function createUser(_prev: UserActionState, formData: FormData): Pr
     fullName: formData.get("fullName"),
     email: formData.get("email") ?? "",
     waNumber: formData.get("waNumber") ?? "",
+    waLid: formData.get("waLid") ?? "",
     role: formData.get("role"),
     password: formData.get("password"),
     locationIds: formData.getAll("locationIds").map(String).filter(Boolean),
@@ -128,6 +144,7 @@ export async function createUser(_prev: UserActionState, formData: FormData): Pr
       // Dinormalkan sekali di sini (62xxxx) supaya pengirim pengingat tidak
       // perlu menebak format yang diketik admin (DECISIONS 202).
       waNumber: d.waNumber?.trim() ? normalizeWaTarget(d.waNumber) : null,
+      waLid: rapikanLid(d.waLid),
       mustChangePassword: true,
       createdById: actor.id,
     },
@@ -148,6 +165,7 @@ const updateProfileSchema = z.object({
   fullName: z.string().trim().min(2, "Nama lengkap wajib").max(120),
   email: z.union([z.email("Email tidak valid"), z.literal("")]).optional(),
   waNumber: z.string().optional(),
+  waLid: z.string().optional(),
 });
 
 /**
@@ -167,6 +185,7 @@ export async function updateUserProfile(_prev: UserActionState, formData: FormDa
     fullName: formData.get("fullName"),
     email: formData.get("email") ?? "",
     waNumber: formData.get("waNumber") ?? "",
+    waLid: formData.get("waLid") ?? "",
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
@@ -186,10 +205,15 @@ export async function updateUserProfile(_prev: UserActionState, formData: FormDa
     }
 
     const waNumber = d.waNumber?.trim() ? normalizeWaTarget(d.waNumber) : null;
-    await db.user.update({ where: { id: d.userId }, data: { fullName: d.fullName, email, waNumber } });
+    const waLid = rapikanLid(d.waLid);
+    await db.user.update({
+      where: { id: d.userId },
+      data: { fullName: d.fullName, email, waNumber, waLid },
+    });
     await audit(actor.id, "user.update_profile", "user", d.userId, {
       fullName: d.fullName,
       waDiisi: !!waNumber,
+      lidDiisi: !!waLid,
     });
     revalidatePath("/master/pengguna");
     return { success: "Data pengguna diperbarui." };

@@ -27,7 +27,9 @@ vi.mock("@/lib/waha/client", () => ({
     terkirim.push({ chatId, teks });
     return "mock-id";
   },
-  getNomorMarlin: async () => NOMOR_MARLIN,
+  // Identitas sesi = nomor DAN LID (DECISIONS 349). Dipalsukan seperti WAHA
+  // yang sudah bermigrasi ke identitas privasi: mention di grup berisi @lid.
+  getIdentitasMarlin: async () => ({ nomor: NOMOR_MARLIN, lid: LID_MARLIN }),
 }));
 
 /** Niat yang "dibaca AI" — disetel per uji. */
@@ -55,6 +57,7 @@ vi.mock("@/lib/ai/structured", () => ({
 }));
 
 const NOMOR_MARLIN = "6281200000000";
+const LID_MARLIN = "77712345678901";
 
 const { db } = await import("@/lib/db");
 const { jawabPertanyaanWa } = await import("@/lib/waha/tanya");
@@ -160,6 +163,8 @@ beforeAll(async () => {
   }
   // Super admin: lintas lokasi, TANPA penugasan.
   await buatUser(orgId, "SuperAdmin", "super_admin", nomorAdmin);
+  // Orang organisasi LAIN — dipakai menguji pemetaan @lid lintas organisasi.
+  await buatUser(orgLainId, "OrangOrgLain", "site_manager", null);
 });
 
 afterAll(async () => {
@@ -408,5 +413,148 @@ describe("mengenali penanya dari nomornya", () => {
     expect(terkirim).toHaveLength(0);
     expect(r.alasan).toContain("6289999999999");
     expect(r.alasan.toLowerCase()).toContain("tidak cocok");
+  });
+});
+
+describe("penanya ber-identitas privasi @lid (DECISIONS 347)", () => {
+  /*
+   * Laporan user 2026-08-17, log Sistem apa adanya:
+   *
+   *   diabaikan — chat pribadi (tidak diarsipkan) · tanya: diam — didiamkan —
+   *   nomor ? tidak cocok dengan pengguna mana pun          143026840146095@lid
+   *
+   * Nomornya SUDAH tersimpan di data pengguna; yang tidak dikirim WhatsApp
+   * adalah nomor itu sendiri. Blok ini menempuh jalur webhook yang sama persis
+   * dengan pesan aslinya.
+   */
+  const LID = "143026840146095";
+  const eventLid = (teks: string, extra: Record<string, unknown> = {}) => ({
+    event: "message",
+    payload: {
+      id: `msg-lid-${Math.random().toString(36).slice(2)}`,
+      from: `${LID}@lid`,
+      fromMe: false,
+      body: teks,
+      timestamp: Math.floor(Date.now() / 1000),
+      ...extra,
+    },
+  });
+
+  it("tanpa pemetaan: DIAM, tapi log menyebut LID-nya DAN cara memperbaikinya", async () => {
+    await db.user.updateMany({ where: { fullName: "SiteManager" }, data: { waLid: null } });
+    const r = await jawabPertanyaanWa(eventLid("ada tanya"));
+    expect(r.dijawab).toBe(false);
+    expect(terkirim).toHaveLength(0);
+    // Log lama hanya berbunyi "nomor ? tidak cocok" — betul, dan tidak berguna.
+    expect(r.alasan).toContain(LID);
+    expect(r.alasan).toContain("@lid");
+  });
+
+  it("medan payload ikut tercatat, supaya nama medannya tidak perlu ditebak", async () => {
+    const r = await jawabPertanyaanWa(eventLid("ada tanya", { participantAlt: `${LID}@lid` }));
+    expect(r.alasan).toContain("medan payload");
+    expect(r.alasan).toContain("participantAlt=");
+  });
+
+  it("sesudah admin memetakan LID: DIJAWAB", async () => {
+    await db.user.updateMany({ where: { fullName: "SiteManager" }, data: { waLid: LID } });
+    const r = await jawabPertanyaanWa(eventLid("mana yang deviasinya negatif"));
+    expect(r.dijawab, `tidak dijawab: ${r.alasan}`).toBe(true);
+    expect(terkirim).toHaveLength(1);
+    // Dibalas ke JID @lid-nya — satu-satunya alamat yang kita punya untuk dia.
+    expect(terkirim[0].chatId).toBe(`${LID}@lid`);
+  });
+
+  it("nomor pasangan di payload dipakai TANPA pemetaan apa pun", async () => {
+    // Kalau WAHA memang mengirim nomor pasangannya, pemetaan admin tak perlu.
+    await db.user.updateMany({ where: { fullName: "SiteManager" }, data: { waLid: null } });
+    const r = await jawabPertanyaanWa(
+      eventLid("mana yang deviasinya negatif", { senderPn: `${nomorSM}@c.us` }),
+    );
+    expect(r.dijawab, `tidak dijawab: ${r.alasan}`).toBe(true);
+    expect(terkirim).toHaveLength(1);
+  });
+
+  it("pemetaan ke pengguna organisasi lain tidak membocorkan lokasi kita", async () => {
+    /*
+     * LID dipetakan ke orang di organisasi LAIN. Ia berhak dijawab sebagai
+     * dirinya sendiri — yang tidak boleh adalah jawabannya berisi lokasi kita.
+     */
+    await db.user.updateMany({ where: { fullName: "SiteManager" }, data: { waLid: null } });
+    await db.user.updateMany({ where: { fullName: "OrangOrgLain" }, data: { waLid: LID } });
+    const r = await jawabPertanyaanWa(eventLid("mana yang deviasinya negatif"));
+    // Dijawab SEBAGAI DIRINYA — bukan didiamkan. Kalau ini didiamkan, baris
+    // "tidak menyebut Tengket" di bawah lolos tanpa membuktikan apa pun.
+    expect(r.dijawab, `didiamkan: ${r.alasan}`).toBe(true);
+    const isi = terkirim.map((t) => t.teks).join("\n");
+    expect(isi, `alasan: ${r.alasan}`).not.toContain("Tengket");
+    expect(isi).not.toContain("Kedung");
+    await db.user.updateMany({ where: { fullName: "OrangOrgLain" }, data: { waLid: null } });
+  });
+});
+
+describe("mention MARLIN di grup, apa pun bentuk identitasnya (DECISIONS 349)", () => {
+  /*
+   * Tangkapan layar user 2026-08-17: baris log berbunyi
+   *   "tersimpan ✓ · tanya: diam — grup tanpa mention ke MARLIN"
+   * untuk pesan yang JELAS me-mention MARLIN. Pesannya tersimpan — jadi webhook
+   * sampai, grup tertaut, parser bekerja. Yang gagal hanya pengenalan diri
+   * sendiri: mention berisi @lid MARLIN, dicocokkan lewat nomor.
+   */
+  const grupEvent = (payload: Record<string, unknown>) => ({
+    event: "message",
+    payload: {
+      id: `mg-${Math.random().toString(36).slice(2)}`,
+      from: GRUP_A,
+      author: `${nomorSM}@c.us`,
+      body: "@marlin mana yang deviasinya negatif",
+      timestamp: Math.floor(Date.now() / 1000),
+      ...payload,
+    },
+  });
+
+  it("mention ber-@lid: DIJAWAB", async () => {
+    const r = await jawabPertanyaanWa(grupEvent({ mentionedIds: [`${LID_MARLIN}@lid`] }));
+    expect(r.dijawab, `tidak dijawab: ${r.alasan}`).toBe(true);
+    expect(terkirim).toHaveLength(1);
+  });
+
+  it("mention bersarang di contextInfo NOWEB: DIJAWAB", async () => {
+    const r = await jawabPertanyaanWa(
+      grupEvent({
+        message: { extendedTextMessage: { contextInfo: { mentionedJid: [`${LID_MARLIN}@lid`] } } },
+      }),
+    );
+    expect(r.dijawab, `tidak dijawab: ${r.alasan}`).toBe(true);
+    expect(terkirim).toHaveLength(1);
+  });
+
+  it("membalas pesan MARLIN: DIJAWAB tanpa mention sama sekali", async () => {
+    const r = await jawabPertanyaanWa(
+      grupEvent({
+        message: { extendedTextMessage: { contextInfo: { participant: `${LID_MARLIN}@lid` } } },
+      }),
+    );
+    expect(r.dijawab, `tidak dijawab: ${r.alasan}`).toBe(true);
+  });
+
+  it("mention ke ORANG LAIN tetap diam — pagarnya tidak ikut longgar", async () => {
+    const r = await jawabPertanyaanWa(grupEvent({ mentionedIds: ["99900000000000@lid"] }));
+    expect(r.dijawab).toBe(false);
+    expect(terkirim).toHaveLength(0);
+  });
+
+  it("diam di grup menyebut APA YANG DILIHAT, bukan cuma kesimpulannya", async () => {
+    /*
+     * Log lama hanya berbunyi "grup tanpa mention ke MARLIN" — tidak bisa
+     * membedakan "daftar mention kosong" dari "berisi, tapi bukan kita".
+     * Keduanya butuh tindakan yang sama sekali berbeda.
+     */
+    const kosong = await jawabPertanyaanWa(grupEvent({}));
+    expect(kosong.alasan).toContain("tidak ada mention terbaca");
+
+    const salah = await jawabPertanyaanWa(grupEvent({ mentionedIds: ["99900000000000@lid"] }));
+    expect(salah.alasan).toContain("99900000000000@lid");
+    expect(salah.alasan).toContain(NOMOR_MARLIN);
   });
 });

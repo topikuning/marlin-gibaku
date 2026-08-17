@@ -6,8 +6,8 @@ import type { SessionUser } from "@/lib/auth/session";
 import { accessibleLocationIds } from "@/lib/auth/session";
 import { aiStructured } from "@/lib/ai/structured";
 import { AiGuardError, checkAiGuard, estimateCostUsd, getAiPricing } from "@/lib/ai-hub/guard";
-import { getNomorMarlin, sendText } from "./client";
-import { parseWaEvent, type ParsedWaMessage } from "./ingest-parse";
+import { getIdentitasMarlin, sendText } from "./client";
+import { medanJidPayload, parseWaEvent, varianChatId, type ParsedWaMessage } from "./ingest-parse";
 import {
   bersihkanMention,
   cocokkanNomorPengguna,
@@ -89,9 +89,15 @@ const BATAS_TANYA = 500;
  * Nama tampilan WhatsApp TIDAK PERNAH dipakai — siapa pun bisa mengubahnya jadi
  * "Hery". Nomor disimpan dalam beberapa bentuk historis (`0…`, `+62…`, `62…`),
  * jadi dicari lewat semua varian yang menormalkan ke nomor yang sama.
+ *
+ * Sebagian chat tiba dengan identitas privasi `…@lid` yang TIDAK memuat nomor
+ * sama sekali. Itu dicoba SESUDAH nomor, lewat kolom `waLid` yang dipetakan
+ * admin (DECISIONS 347) — angka di dalam LID bukan nomor telepon dan tidak
+ * pernah boleh dicocokkan ke kolom nomor.
  */
 async function cariPengguna(
   fromNumber: string | null,
+  senderLid: string | null,
 ): Promise<{ user: SessionUser | null; alasan: string }> {
   /*
    * Dibandingkan di MEMORI setelah dinormalkan, bukan lewat `IN` berisi tebakan
@@ -106,13 +112,17 @@ async function cariPengguna(
   const daftar = await db.user.findMany({
     where: {
       isActive: true,
-      OR: [{ waNumber: { not: null } }, { phone: { not: null } }],
+      OR: [{ waNumber: { not: null } }, { phone: { not: null } }, { waLid: { not: null } }],
     },
-    select: { id: true, waNumber: true, phone: true },
+    select: { id: true, waNumber: true, phone: true, waLid: true },
   });
-  const c = cocokkanNomorPengguna(daftar, fromNumber);
+  const c = cocokkanNomorPengguna(daftar, fromNumber, senderLid);
   if (c.jenis === "tidak_ada") {
-    return { user: null, alasan: `nomor ${fromNumber ?? "?"} tidak cocok dengan pengguna mana pun` };
+    const siapa = fromNumber ?? senderLid ?? "?";
+    const petunjuk = senderLid && !fromNumber
+      ? ` — chat ber-@lid, isi kolom "ID WhatsApp (@lid)" pengguna dengan ${senderLid}`
+      : "";
+    return { user: null, alasan: `nomor ${siapa} tidak cocok dengan pengguna mana pun${petunjuk}` };
   }
   if (c.jenis === "ganda") {
     return {
@@ -152,7 +162,10 @@ type PaketGrup = { id: string; nama: string; lokasiIds: string[] } | null;
  */
 async function paketGrup(chatId: string, orgId: string): Promise<PaketGrup> {
   const p = await db.package.findFirst({
-    where: { waGroupId: chatId, orgId },
+    // Seluruh varian tulisan, sama seperti ingest (DECISIONS 348) — kalau di
+    // sini hanya bentuk kanonik, grup yang pesannya TERSIMPAN tetap dianggap
+    // "tidak tertaut" saat menjawab, dan jawabannya dipangkas jadi kosong.
+    where: { waGroupId: { in: varianChatId(chatId) }, orgId },
     select: {
       id: true,
       name: true,
@@ -178,23 +191,53 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
 
   const grup = m.chatId.endsWith("@g.us");
 
-  // (2) Diajak bicara? Di grup: hanya kalau JID kita di-mention.
-  const nomorKita = grup ? await getNomorMarlin() : null;
+  // (2) Diajak bicara? Di grup: hanya kalau JID kita di-mention (atau pesan kita
+  // yang dibalas). Nomor DAN LID, karena mention kini berisi @lid (DECISIONS 349).
+  const kita = grup ? await getIdentitasMarlin() : { nomor: null, lid: null };
   const asal = {
     grup,
     senderJid: m.senderJid,
     fromNumber: m.fromNumber,
     mentionedJids: m.mentionedJids,
+    balasanKepada: m.balasanKepada,
     body: m.body,
   };
-  if (!diajakBicara(asal, { nomor: nomorKita })) {
-    return DIAM(grup ? "grup tanpa mention ke MARLIN" : "tidak diajak bicara");
+  if (!diajakBicara(asal, kita)) {
+    /*
+     * Sebut APA YANG DILIHAT, bukan cuma kesimpulannya (DECISIONS 349).
+     *
+     * Log lama hanya berbunyi "grup tanpa mention ke MARLIN". Ketika user
+     * mengirim tangkapan layar grup yang JELAS me-mention MARLIN, baris itu
+     * tidak bisa membedakan tiga hal yang sangat berbeda: daftar mention kosong
+     * (medan payload-nya tidak terbaca), daftar berisi tapi bukan kita
+     * (identitas kita salah), atau identitas kita belum diketahui sama sekali
+     * (sesi WAHA belum WORKING). Ketiganya butuh tindakan yang berbeda.
+     */
+    if (!grup) return DIAM("tidak diajak bicara");
+    const siapaKita = kita.nomor ?? (kita.lid ? `${kita.lid}@lid` : null);
+    const rinci = !siapaKita
+      ? "identitas sesi WAHA belum terbaca (sesi belum WORKING?)"
+      : m.mentionedJids.length === 0
+        ? `tidak ada mention terbaca di payload · medan: ${medanJidPayload(body).slice(0, 200) || "(tidak ada)"}`
+        : `mention terbaca [${m.mentionedJids.join(", ")}] ≠ kita (${siapaKita})`;
+    return DIAM(`grup tanpa mention ke MARLIN — ${rinci}`);
   }
 
   const teks = bersihkanMention(m.body).slice(0, BATAS_TANYA);
 
   // (3) Siapa penanyanya — nomor, bukan nama tampilan.
-  const { user, alasan: alasanNomor } = await cariPengguna(m.fromNumber);
+  const { user, alasan: alasanNomor0 } = await cariPengguna(m.fromNumber, m.senderLid);
+  /*
+   * Pengirim ber-@lid yang TIDAK ketemu: catat medan JID apa saja yang benar-
+   * benar ada di payload (DECISIONS 347). Tanpa ini, menutup celahnya berarti
+   * menebak nama medan satu per satu lewat rilis WAHA — satu tebakan per hari,
+   * karena satu-satunya cara mengujinya adalah menunggu pesan asli berikutnya.
+   * Isi pesan TIDAK ikut tercatat; hanya nama medan + nilai berbentuk JID.
+   */
+  const alasanNomor =
+    !user && m.senderLid && !m.fromNumber
+      ? `${alasanNomor0} · medan payload: ${medanJidPayload(body).slice(0, 300) || "(tidak ada medan berbentuk JID)"}`
+      : alasanNomor0;
   if (!user) {
     if (!grup) return DIAM(`didiamkan — ${alasanNomor}`);
     await sendText(
