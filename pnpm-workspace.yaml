@@ -7,6 +7,12 @@
 #     (minimatch@3, mis. eslint) & v2 (minimatch@5) TAK boleh dipaksa ke v5: CJS build v5 memakai
 #     named export → `expand is not a function` di minimatch@3 (rusak). Keduanya sudah patched di
 #     lini masing2 (1.1.16 > 1.1.12, 2.1.2 > 2.0.2).
+#   deepmerge-ts — patch stack exhaustion saat menggabungkan graf objek rekursif
+#     (GHSA-ggr8-5vv4-36mx, <8.0.0). Transitif lewat @prisma/client→prisma→@prisma/config.
+#     Lompatan MAYOR (7→8), jadi tidak boleh dianggap remeh: yang memakainya hanya
+#     @prisma/config saat menggabungkan berkas konfigurasi Prisma, dan jalur itu
+#     dilewati setiap `prisma generate`/`migrate`. Diverifikasi setelah override:
+#     generate, migrate deploy, build, unit, dan integrasi semuanya hijau.
 #   nanoid@3 — patch custom generator yg bisa berputar tanpa henti saat size 0
 #     (GHSA-2v37-7h3g-55p8, <3.3.17). Transitif lewat postcss, yang dipakai Next,
 #     Tailwind, DAN Vite sekaligus. Dinaikkan HANYA di lini v3 — rentang postcss
@@ -19,6 +25,7 @@ overrides:
   brace-expansion@2: 2.1.4
   brace-expansion@5: 5.0.9
   nanoid@3: 3.3.18
+  deepmerge-ts: '>=8.0.1'
 # Audit pnpm memakai rentang datar <=5.0.7 utk advisory ini → ikut menandai salinan v1/v2 yg
 # SUDAH patched (false-positive; tak bisa dikecualikan per-path). Instance rentan sejati (v5)
 # sudah di-override ke 5.0.8 di atas, jadi GHSA ini nyatanya sudah tertutup di pohon dependensi.
@@ -43,3 +50,4 @@ minimumReleaseAgeExclude:
   - '@aws-sdk/credential-provider-node@3.972.67'
   - '@aws-sdk/s3-request-presigner@3.1086.0'
   - tsx@4.23.1
+  - deepmerge-ts@8.0.1
