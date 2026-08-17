@@ -137,6 +137,44 @@ export async function getSessionStatus(): Promise<WahaSessionStatus> {
   return data;
 }
 
+/**
+ * Nomor WhatsApp MARLIN SENDIRI, dari `me.id` sesi WAHA (mis. "628…@c.us").
+ *
+ * Dipakai memutuskan apakah MARLIN di-mention di grup (DECISIONS 338/339).
+ * Bukan medan konfigurasi: nomornya adalah nomor perangkat yang sedang login,
+ * dan menyalinnya ke pengaturan hanya menciptakan sumber kedua yang bisa basi
+ * begitu sesi dipindah ke nomor lain.
+ *
+ * Di-cache di memori proses (10 menit): tanpa itu, SETIAP pesan grup masuk
+ * memicu satu panggilan HTTP ke WAHA hanya untuk menanyakan nomor yang tidak
+ * berubah. Kegagalan mengembalikan null — dan null berarti grup TIDAK dilayani,
+ * bukan dilayani tanpa syarat.
+ */
+let cacheNomor: { nilai: string | null; sampai: number } | null = null;
+
+export async function getNomorMarlin(): Promise<string | null> {
+  if (cacheNomor && Date.now() < cacheNomor.sampai) return cacheNomor.nilai;
+  let nilai: string | null = null;
+  try {
+    const s = await getSessionStatus();
+    // Hanya sesi yang benar-benar login yang punya identitas; sesi SCAN_QR_CODE
+    // bisa membawa `me` sisa sesi sebelumnya.
+    if (s.status === "WORKING") nilai = s.me?.id?.replace(/@.*$/, "") ?? null;
+  } catch {
+    // WAHA mati / belum dikonfigurasi → nomor tidak diketahui. Jangan melempar:
+    // pemanggilnya sedang memproses webhook masuk.
+    nilai = null;
+  }
+  // Kegagalan di-cache lebih singkat supaya sesi yang baru login cepat terbaca.
+  cacheNomor = { nilai, sampai: Date.now() + (nilai ? 600_000 : 60_000) };
+  return nilai;
+}
+
+/** Buang cache nomor (dipakai uji & saat sesi WAHA diganti). */
+export function lupakanNomorMarlin(): void {
+  cacheNomor = null;
+}
+
 export type WahaGroup = { id: string; name: string };
 
 /** Ekstrak id grup ("…@g.us") dari bentuk string atau objek { _serialized } / { user, server }. */

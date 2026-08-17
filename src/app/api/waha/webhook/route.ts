@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { getWahaWebhookSecret, recordWahaHit } from "@/lib/waha/config";
 import { ingestWaEvent } from "@/lib/waha/ingest";
+import { jawabPertanyaanWa } from "@/lib/waha/tanya";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +68,25 @@ export async function POST(req: Request) {
       const result = await ingestWaEvent(body);
       chatId = result.chatId ?? null;
       outcome = result.stored ? "tersimpan ✓" : `diabaikan — ${result.reason}`;
+
+      /**
+       * Tanya-jawab bebas (DECISIONS 339) — TERPISAH dari ingest, dan sengaja.
+       *
+       * Ingest hanya menyimpan pesan grup yang tertaut paket; tanya-jawab juga
+       * melayani chat pribadi, yang tidak pernah disimpan. Kalau keduanya
+       * disatukan, chat pribadi tidak akan pernah terjawab — atau seluruh chat
+       * pribadi ikut tersimpan, yang tidak diminta siapa pun.
+       *
+       * Kegagalan di sini TIDAK boleh menggagalkan ingest yang sudah berhasil:
+       * pesan yang sudah tersimpan tetap tersimpan.
+       */
+      try {
+        const jawab = await jawabPertanyaanWa(body);
+        if (jawab.dijawab) outcome += ` · tanya: ${jawab.alasan}`;
+      } catch (err) {
+        console.error("[waha/webhook] gagal menjawab pertanyaan:", err);
+        outcome += " · tanya: gagal (lihat log)";
+      }
     } catch (err) {
       console.error("[waha/webhook] gagal ingest:", err);
       status = 500;

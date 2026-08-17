@@ -489,33 +489,25 @@ HTML dihapus — satu sumber, mustahil menyimpang. Belum dikerjakan karena
 halaman `/cetak/...` juga dipakai sebagai PRATINJAU di layar (dan pratinjau PDF
 di peramban ponsel lapangan belum dipastikan bisa diandalkan). Keputusan user.
 
-## 🟢 WATANYA-01 · Tanya-jawab WhatsApp bebas — pondasi izin sudah ada, sisanya belum
+## 🟢 WATANYA-02 · Tanya-jawab WhatsApp hanya mengenal "hari ini"
 
-Permintaan user 2026-08-17: pesan WhatsApp berbahasa bebas ("ada kendala apa
-hari ini", "mana yang deviasinya negatif") diterjemahkan MARLIN lalu dijawab
-dari data sistem. Keputusan user: **DM + grup, tapi di grup hanya bila MARLIN
-di-mention**; cakupan v1 = kendala, progress harian, deviasi, kelengkapan
-laporan.
+Tanya-jawab bebas sudah jalan (DECISIONS 338 + 339): DM + grup ber-mention,
+empat niat (kendala, progress, deviasi, kelengkapan), angka dari calc layer.
 
-**Sudah ada (DECISIONS 338)** — bagian yang paling berbahaya dikerjakan lebih
-dulu:
+Yang belum: **periode selain hari ini**. `skemaNiat.periode` hanya punya satu
+nilai, jadi *"progress minggu lalu"* dijawab dengan angka HARI INI — benar untuk
+hari ini, tetapi bukan yang ditanyakan, dan penanya tidak diberi tahu bahwa
+periodenya diabaikan.
 
-- `waha/ingest-parse.ts` membaca `mentionedJids` dari payload (defensif, lintas
-  engine WAHA).
-- `waha/tanya-izin.ts` (murni): kapan MARLIN menjawab, pembersihan mention dari
-  badan pesan, dan **lingkup jawaban** — di grup dipotong ke lokasi paket grup,
-  pemotongannya selalu disebut.
-- `tests/unit/waha-tanya-izin.test.ts` (21), uji gigi 5×.
+Dua pilihan, dan keduanya butuh keputusan user:
 
-**Belum dikerjakan:**
+1. **Menolak dengan jujur** — kalau AI mendeteksi periode lain, balas "saya baru
+   bisa menjawab untuk hari ini". Kecil, bisa dikerjakan kapan saja.
+2. **Mendukung periode** — tambah nilai enum + alirkan `asOf` ke
+   `getLocationsProgress` (jalurnya sudah ada, DECISIONS 275) dan `dateKey` ke
+   pengambil kelengkapan. Untuk kendala perlu keputusan terpisah: "kendala
+   minggu lalu" berarti yang dibuka minggu lalu, atau yang masih terbuka pada
+   akhir minggu lalu?
 
-1. **Penerjemah niat** — `aiStructured` + skema Zod: kalimat bebas → `{niat,
-   lokasi[], periode}`. Niat tak dikenal harus MENGAKU, bukan menebak; nama
-   lokasi ambigu harus BALIK BERTANYA, bukan memilih sendiri.
-2. **Pembangun data** untuk empat niat itu. Angkanya WAJIB dari calc layer —
-   `progress.ts` / `getPeriodReport` — bukan dari AI (DECISIONS 133/193).
-3. **Perakit balasan** (murni) + rangkaian di `api/waha/webhook/route.ts`,
-   memakai `ai-hub/guard.ts` yang sudah ada untuk batas laju & kill-switch.
-4. **Nomor MARLIN sendiri** belum tersimpan di konfigurasi — `diajakBicara`
-   memerlukannya, dan tanpa itu grup tidak akan pernah dilayani (sengaja: diam
-   lebih baik daripada membalas semua pesan grup).
+Sampai salah satu dikerjakan, jangan menulis di mana pun bahwa MARLIN bisa
+ditanyai periode — ia tidak bisa.

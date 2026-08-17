@@ -15012,3 +15012,156 @@ dilayani → 1 merah.
 Sisa pekerjaannya (penerjemah niat, pembangun data, perakit balasan, rangkaian
 webhook) tercatat di OPEN_ISSUES sebagai **WATANYA-01** — belum dikerjakan, dan
 jangan terbaca sudah.
+
+---
+
+## 339 — Tanya-jawab WhatsApp bebas: dari izin sampai jawaban (2026-08-17)
+
+DECISIONS 338 hanya membangun pagarnya. Ini yang menjadikannya alat: penerjemah
+niat, pengambil angka, perakit balasan, dan rangkaiannya di webhook. Teguran
+user yang memicunya tepat — *"jadi saat ini aku belum bisa melakukan apapun?
+kalau 4 item itu belum kamu kerjakan?!"* Pagar tanpa jalan bukan setengah
+fitur; ia nol fitur.
+
+### Nomor MARLIN sendiri: koreksi, bukan pekerjaan baru
+
+Di OPEN_ISSUES saya menulis nomor MARLIN "belum tersimpan di konfigurasi" dan
+mendaftarkannya sebagai penghalang. Itu salah. `getSessionStatus()` di
+`waha/client.ts` sudah mengembalikan `me: { id, pushName }` sejak lama, dan
+`waha/actions.ts` sudah memakainya untuk menampilkan akun yang sedang login.
+
+Yang benar bukan menambah medan pengaturan, melainkan MEMBACA yang sudah ada:
+`getNomorMarlin()` — `me.id` dari sesi, di-cache 10 menit di memori proses.
+Menyalin nomor itu ke pengaturan justru menciptakan sumber kedua yang basi
+begitu sesi dipindah ke nomor lain, dan basinya tidak akan terlihat: MARLIN
+cuma berhenti menjawab di grup, tanpa galat.
+
+Dua rincian yang disengaja: hanya sesi berstatus `WORKING` yang dipercaya
+(sesi `SCAN_QR_CODE` bisa membawa `me` sisa sesi sebelumnya), dan kegagalan
+di-cache 1 menit saja — bukan 10 — supaya sesi yang baru login cepat terbaca.
+
+### Urutan langkah adalah keputusan, bukan selera
+
+```
+1. bukan pesan kita sendiri   6. lingkupJawaban()
+2. diajakBicara()             7. katalog lokasi → cocokkan nama
+3. siapa penanyanya (nomor)   8. calc layer → kata → kirim
+4. guard AI                   
+5. AI → struktur niat         
+```
+
+**Langkah 6 tidak boleh ditukar dengan 7.** Katalog nama HARUS lahir dari
+lingkup yang sudah dipotong. Kalau nama dicocokkan ke seluruh basis data lalu
+hasilnya disaring, balasan "nama itu ambigu, maksudnya A atau B?" sudah
+membocorkan bahwa A dan B ada — padahal penanya tidak berhak tahu. Dengan
+urutan yang benar, lokasi di luar haknya jatuh ke "tidak saya kenali", persis
+sama seperti salah ketik.
+
+**Langkah 1 bukan basa-basi.** Tanpa pagar `fromMe`, balasan MARLIN masuk lagi
+lewat `message.any` dan MARLIN membalas dirinya sendiri — tanpa henti, di grup
+pelanggan.
+
+### Diam adalah jawaban yang sah — tapi hanya di satu tempat
+
+Nomor tak dikenal yang mengirim **chat pribadi** tidak dibalas sama sekali.
+Balasan apa pun — termasuk "Anda belum terdaftar" — mengkonfirmasi bahwa nomor
+ini milik sistem proyek dan mengundang percobaan berikutnya.
+
+Di **grup** berbeda: grupnya sudah tertaut paket dan orangnya sengaja
+me-mention, jadi keterangan singkat ("nomor Anda belum terdaftar, hubungi
+admin") lebih menolong daripada diam yang terbaca seperti kerusakan.
+
+### Pagar yang TIDAK ada di 338 dan baru terlihat saat merangkai
+
+`lingkupJawaban` meng-irisan lokasi grup dengan izin penanya — dan izin super
+admin adalah "tanpa batas". Untuk grup milik **organisasi lain**, irisan itu
+menjadi seluruh lokasi grup asing. Aturannya benar; yang kurang adalah
+datanya. Karena itu `paketGrup(chatId, orgId)` mensyaratkan `orgId` yang sama;
+grup tenant lain jatuh ke "belum tertaut paket".
+
+Ini persis kelas kebocoran yang ditutup DECISIONS 150, dan ia hanya muncul
+ketika aturan murni bertemu query nyata — bukti bahwa uji murni saja tidak
+cukup untuk fitur ini.
+
+### Nama disebut tapi tak dikenali → JANGAN melebar
+
+Kalau penanya menulis "progress di Tengket" dan Tengket di luar lingkupnya,
+godaannya adalah membuang nama itu, mendapat `lokasiDisebut = []`, lalu
+menjawab untuk SELURUH lingkup. Itu menjawab pertanyaan yang tidak ditanyakan,
+dengan data yang tidak diminta, dan pembacanya akan mengira itu jawaban untuk
+Tengket. Jalur ini ditutup eksplisit.
+
+### Angka: tidak satu pun lahir di jalur ini
+
+`tanya-data.ts` tidak memuat satu pembagian pun. Realisasi, rencana, dan
+deviasi diambil bulat-bulat dari `getLocationsProgress`; kelengkapan dari
+`getStatusHarian` (DECISIONS 262) supaya jawaban WhatsApp dan halaman
+`/laporan/status-harian` mustahil berbeda. AI hanya mengisi
+`{niat, lokasiDisebut, periode}` — doktrin 133/193 utuh.
+
+Tiga rincian penyajian yang bukan kosmetik:
+
+- **`itemHariIni = null` ≠ `0`.** null = belum ada laporan; 0 = ada laporan,
+  isinya masih kosong. Menyatukannya membuat lokasi lalai terlihat sama dengan
+  lokasi rajin yang belum sempat mengisi.
+- **Kendala `ditangani` ikut, dan statusnya ditulis.** Pertanyaan "ada kendala
+  apa" menanyakan apa yang masih menekan; kendala yang sedang ditangani masih
+  menekan. Tapi "sudah ada yang pegang" tidak boleh hilang.
+- **Penyebut selalu utuh.** "1 belum lapor" tanpa penyebut bisa berarti 1 dari
+  2 atau 1 dari 83. Yang dirinci hanya yang perlu ditindak; `total` tetap
+  seluruh lokasi yang diperiksa.
+
+### Batas baris diakui, tidak dipotong diam-diam
+
+Balasan WhatsApp panjang tidak terbaca di lapangan — ia dilipat, di-"baca
+selengkapnya", lalu dilewati. Karena itu 15 baris (20 untuk kendala). Setiap
+pemotongan dicetak: "Ditampilkan 15 dari 40 lokasi." Daftar yang dipotong diam
+akan dibaca sebagai daftar lengkap — masalah yang sama persis dengan
+pemotongan lingkup di 338, di lapis yang berbeda.
+
+### Kuota: ai_runs, bukan penghitung baru
+
+Tiap panggilan menulis satu baris `ai_runs` berkindkan `tanya` (enum-nya sudah
+ada). Tanpa itu, tanya-jawab memakai provider tanpa menambah hitungan kuota:
+satu grup ramai bisa menghabiskan anggaran AI sepanjang hari sementara panel
+AI Hub melaporkan nol pemakaian.
+
+Rangkaiannya juga TERPISAH dari `ingestWaEvent`, dan itu perlu: ingest hanya
+menyimpan pesan grup tertaut paket, sedangkan tanya-jawab juga melayani chat
+pribadi yang memang tidak pernah diarsipkan. Menyatukan keduanya berarti chat
+pribadi tak pernah terjawab — atau seluruh chat pribadi ikut tersimpan, yang
+tidak diminta siapa pun. (Efek sampingnya: log ingest berhenti menuduh chat
+pribadi sebagai "grup belum tertaut paket", tuduhan yang mengirim admin
+memburu tautan yang tidak pernah ada.)
+
+**Penjaga.** `tests/unit/waha-tanya-niat.test.ts` (24) untuk bagian murni;
+`tests/integration/waha-tanya-jawab.test.ts` (16) untuk perangkainya —
+memakai `accessibleLocationIds`, `locationScopeWhere`, dan query lokasi yang
+ASLI; hanya jaringan WhatsApp dan penyedia AI yang dipalsukan. Aturan yang
+benar tapi tidak terpanggil terlihat persis sama seperti aturan yang salah,
+dari sisi orang yang menerima balasannya.
+
+Uji gigi pada perangkai — enam pagar dicabut satu per satu:
+
+| pagar dicabut | hasil |
+| --- | --- |
+| `fromMe` | 1 merah |
+| mention di grup | 1 merah |
+| pemotongan lingkup grup | 3 merah |
+| syarat seorganisasi | 1 merah |
+| nama tak dikenal melebar | 1 merah |
+| DM nomor asing dibalas | 1 merah |
+| dipulihkan | 16 hijau |
+
+Uji pasangan yang penting: "jawaban grup tidak menyebut Tengket" ditemani
+"chat pribadi orang yang SAMA menyebut Tengket". Tanpa pasangannya, uji
+pertama bisa hijau hanya karena Tengket tidak pernah muncul di jawaban mana
+pun.
+
+### Yang BELUM ada, dan jangan terbaca sudah
+
+Hanya periode `hari_ini`. "progress minggu lalu" akan dijawab sebagai hari ini
+— skemanya memaksa `periode: "hari_ini"`, jadi jawabannya benar untuk hari
+ini, tetapi bukan yang ditanyakan. Menambah periode berarti menambah pilihan
+enum + jalur `asOf` di pengambil datanya; dicatat di OPEN_ISSUES sebagai
+WATANYA-02.
