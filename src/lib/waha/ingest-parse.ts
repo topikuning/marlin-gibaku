@@ -229,12 +229,32 @@ function isLid(jid: string | null): boolean {
 }
 
 /**
- * Nomor telepon pengirim untuk chat ber-identitas `@lid` (DECISIONS 347).
+ * Nama medan yang membawa PASANGAN bernomor dari sebuah identitas `@lid`.
+ *
+ * Bukan daftar nama lengkap, melainkan POLA: WAHA menamainya dengan akhiran
+ * `Pn` (phone number) atau `Alt` (alternate) — `senderPn`, `participantPn`,
+ * `participantAlt`, dan `remoteJidAlt` yang tertangkap di payload asli
+ * 2026-08-17. Menambah satu nama per temuan berarti menunggu satu pesan asli
+ * per rilis WAHA; polanya bertahan melewati penggantian nama.
+ */
+const MEDAN_PASANGAN = /(pn|alt)$/i;
+
+/**
+ * Nomor telepon pengirim untuk chat ber-identitas `@lid` (DECISIONS 347/350).
  *
  * WhatsApp membawa DUA identitas untuk orang yang sama: `@lid` (privasi) dan
- * JID bernomor. Nama medan yang memuat pasangannya berbeda antar versi & engine
- * WAHA, dan dokumentasinya tidak terjangkau dari lingkungan kerja ini — jadi
- * dibaca DEFENSIF dari daftar kandidat, persis seperti `fromName` di atas.
+ * JID bernomor. Versi pertama menebak nama medannya dari daftar tetap, dan
+ * meleset — payload aslinya memakai **`key.remoteJidAlt`**, medan yang tidak ada
+ * di daftar itu dan tidak berada di permukaan payload:
+ *
+ * ```
+ * from=143026840146095@lid
+ * key.remoteJid=143026840146095@lid
+ * key.remoteJidAlt=6281234757999@s.whatsapp.net
+ * ```
+ *
+ * Sekarang dicari lewat POLA NAMA di seluruh wadah yang mungkin (`payload`,
+ * `payload.key`, `payload._data`, `payload._data.key`), bukan daftar nama.
  *
  * Kalau tak satu pun ada, hasilnya null dan pemanggil jatuh ke pemetaan LID
  * yang disetel admin. Yang TIDAK dilakukan: menebak nomor dari LID-nya —
@@ -242,28 +262,27 @@ function isLid(jid: string | null): boolean {
  * menautkan pesan ke orang yang salah.
  */
 function nomorDariLid(p: AnyObj, data: AnyObj): string | null {
-  const kandidat = [
-    p.senderPn,
-    p.participantPn,
-    p.authorPn,
-    p.participantAlt,
-    p.authorAlt,
-    p.fromAlt,
-    data.senderPn,
-    data.participantPn,
-    data.participantAlt,
-    data.authorAlt,
-    (data.id as AnyObj)?.participant,
-    (p._data as AnyObj)?.senderPn,
-    (p._data as AnyObj)?.participantAlt,
-  ];
-  for (const v of kandidat) {
+  const key = (p.key ?? data.key ?? {}) as AnyObj;
+  const wadah: AnyObj[] = [p, key, data, (data.key ?? {}) as AnyObj];
+
+  const bacaNomor = (v: unknown): string | null => {
     const s = typeof v === "string" ? v : str((v as AnyObj)?._serialized);
-    if (!s || /@lid$/i.test(s)) continue;
-    const nomor = s.replace(/@.*$/, "").replace(/[^0-9]/g, "");
-    if (nomor.length >= 8) return nomor;
+    // Nilai yang isinya @lid lagi BUKAN pasangan bernomor — melewatinya penting,
+    // karena `remoteJid` dan `remoteJidAlt` duduk bersebelahan.
+    if (!s || /@lid$/i.test(s)) return null;
+    const nomor = s.replace(/@.*$/, "").replace(/[:_].*$/, "").replace(/[^0-9]/g, "");
+    return nomor.length >= 8 ? nomor : null;
+  };
+
+  for (const obj of wadah) {
+    for (const [k, v] of Object.entries(obj)) {
+      if (!MEDAN_PASANGAN.test(k)) continue;
+      const nomor = bacaNomor(v);
+      if (nomor) return nomor;
+    }
   }
-  return null;
+  // Bentuk lama yang namanya tidak mengikuti pola.
+  return bacaNomor((data.id as AnyObj)?.participant) ?? bacaNomor(key.participant);
 }
 
 /**

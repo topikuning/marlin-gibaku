@@ -558,3 +558,84 @@ describe("mention MARLIN di grup, apa pun bentuk identitasnya (DECISIONS 349)", 
     expect(salah.alasan).toContain(NOMOR_MARLIN);
   });
 });
+
+describe("payload ASLI dari lapangan: @lid + key.remoteJidAlt (DECISIONS 350)", () => {
+  /*
+   * Salinan payload yang benar-benar tertangkap di log Sistem 2026-08-17 16.06,
+   * sesudah DECISIONS 347 terpasang. Diagnostiknya bekerja dan menyebut nama
+   * medannya — `key.remoteJidAlt` — yang tidak ada di daftar tebakan 347 dan
+   * tidak berada di permukaan payload.
+   *
+   * Uji ini menempuh perangkai UTUH, bukan parser saja: yang gagal di produksi
+   * bukan pembacaan payload-nya, melainkan penanya tidak dikenali sehingga
+   * balasannya "nomor Anda belum terdaftar".
+   */
+  const LID = "143026840146095";
+  const evLid = (extra: Record<string, unknown>) => ({
+    event: "message.any",
+    payload: {
+      id: `asli-${Math.random().toString(36).slice(2)}`,
+      timestamp: Math.floor(Date.now() / 1000),
+      body: "mana yang deviasinya negatif",
+      from: `${LID}@lid`,
+      ...extra,
+    },
+  });
+
+  it("chat pribadi: DIJAWAB tanpa pemetaan admin apa pun", async () => {
+    await db.user.updateMany({ where: { fullName: "SiteManager" }, data: { waLid: null } });
+    const r = await jawabPertanyaanWa(
+      evLid({
+        key: {
+          remoteJid: `${LID}@lid`,
+          remoteJidAlt: `${nomorSM}@s.whatsapp.net`,
+          fromMe: false,
+        },
+      }),
+    );
+    expect(r.dijawab, `tidak dijawab: ${r.alasan}`).toBe(true);
+    expect(terkirim).toHaveLength(1);
+    // Dibalas ke chat asalnya — satu-satunya alamat yang WhatsApp berikan.
+    expect(terkirim[0].chatId).toBe(`${LID}@lid`);
+  });
+
+  it("di GRUP: bukan lagi 'nomor Anda belum terdaftar'", async () => {
+    /*
+     * Keluhan user 2026-08-17: di-mention di grup, MARLIN menjawab "Maaf, nomor
+     * Anda belum terdaftar sebagai pengguna MARLIN" — padahal nomornya
+     * terdaftar. Pengirim grup ber-@lid, nomornya di medan pasangan.
+     */
+    await db.user.updateMany({ where: { fullName: "SiteManager" }, data: { waLid: null } });
+    const r = await jawabPertanyaanWa({
+      event: "message.any",
+      payload: {
+        id: `grup-asli-${Math.random().toString(36).slice(2)}`,
+        timestamp: Math.floor(Date.now() / 1000),
+        body: "@marlin mana yang deviasinya negatif",
+        from: GRUP_A,
+        author: `${LID}@lid`,
+        participantAlt: `${nomorSM}@s.whatsapp.net`,
+        mentionedIds: [`${LID_MARLIN}@lid`],
+      },
+    });
+    expect(r.dijawab, `tidak dijawab: ${r.alasan}`).toBe(true);
+    expect(terkirim).toHaveLength(1);
+    expect(terkirim[0].teks).not.toContain("belum terdaftar");
+  });
+
+  it("nomor pasangan DIUTAMAKAN atas pemetaan LID yang salah orang", async () => {
+    /*
+     * Kalau admin terlanjur memetakan LID ini ke orang lain, nomor asli dari
+     * payload yang menang — ia berasal dari WhatsApp, bukan dari ketikan.
+     */
+    await db.user.updateMany({ where: { fullName: "OrangOrgLain" }, data: { waLid: LID } });
+    const r = await jawabPertanyaanWa(
+      evLid({ key: { remoteJid: `${LID}@lid`, remoteJidAlt: `${nomorSM}@s.whatsapp.net` } }),
+    );
+    expect(r.dijawab, `tidak dijawab: ${r.alasan}`).toBe(true);
+    // Dijawab dalam LINGKUP SiteManager (3 lokasi), bukan lingkup orang org
+    // lain (0 lokasi) — pembeda yang benar-benar ada di teks balasannya.
+    expect(terkirim[0].teks).toContain("3 yang saya periksa");
+    await db.user.updateMany({ where: { fullName: "OrangOrgLain" }, data: { waLid: null } });
+  });
+});
