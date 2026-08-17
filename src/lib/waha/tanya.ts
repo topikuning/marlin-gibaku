@@ -8,9 +8,9 @@ import { aiStructured } from "@/lib/ai/structured";
 import { AiGuardError, checkAiGuard, estimateCostUsd, getAiPricing } from "@/lib/ai-hub/guard";
 import { getNomorMarlin, sendText } from "./client";
 import { parseWaEvent, type ParsedWaMessage } from "./ingest-parse";
-import { normalizePhone } from "./sender-identity";
 import {
   bersihkanMention,
+  cocokkanNomorPengguna,
   diajakBicara,
   lingkupJawaban,
   type LingkupJawaban,
@@ -90,16 +90,38 @@ const BATAS_TANYA = 500;
  * "Hery". Nomor disimpan dalam beberapa bentuk historis (`0…`, `+62…`, `62…`),
  * jadi dicari lewat semua varian yang menormalkan ke nomor yang sama.
  */
-async function cariPengguna(fromNumber: string | null): Promise<SessionUser | null> {
-  const n = normalizePhone(fromNumber);
-  if (!n) return null;
-  const lokal = `0${n.slice(2)}`;
-  const varian = [n, `+${n}`, lokal];
-  const u = await db.user.findFirst({
+async function cariPengguna(
+  fromNumber: string | null,
+): Promise<{ user: SessionUser | null; alasan: string }> {
+  /*
+   * Dibandingkan di MEMORI setelah dinormalkan, bukan lewat `IN` berisi tebakan
+   * bentuk (DECISIONS 345). Nomor telepon tidak pernah boleh dibandingkan
+   * sebagai teks: `waNumber` tersimpan "628…@c.us", dan `phone` bisa berisi
+   * apa saja yang diketik orang.
+   *
+   * Yang ditarik hanya tiga kolom dari pengguna AKTIF yang punya nomor —
+   * puluhan sampai ratusan baris untuk program 83 lokasi, dan hanya sekali per
+   * pesan masuk.
+   */
+  const daftar = await db.user.findMany({
     where: {
       isActive: true,
-      OR: [{ waNumber: { in: varian } }, { phone: { in: varian } }],
+      OR: [{ waNumber: { not: null } }, { phone: { not: null } }],
     },
+    select: { id: true, waNumber: true, phone: true },
+  });
+  const c = cocokkanNomorPengguna(daftar, fromNumber);
+  if (c.jenis === "tidak_ada") {
+    return { user: null, alasan: `nomor ${fromNumber ?? "?"} tidak cocok dengan pengguna mana pun` };
+  }
+  if (c.jenis === "ganda") {
+    return {
+      user: null,
+      alasan: `nomor ${fromNumber ?? "?"} dipakai ${c.ids.length} pengguna aktif — tidak dijawab, betulkan datanya`,
+    };
+  }
+  const u = await db.user.findUnique({
+    where: { id: c.id },
     select: {
       id: true,
       orgId: true,
@@ -110,7 +132,7 @@ async function cariPengguna(fromNumber: string | null): Promise<SessionUser | nu
       mustChangePassword: true,
     },
   });
-  return u;
+  return { user: u, alasan: u ? "dikenali" : "pengguna hilang saat dibaca ulang" };
 }
 
 /* ------------------------------------------------------------------ */
@@ -172,14 +194,14 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
   const teks = bersihkanMention(m.body).slice(0, BATAS_TANYA);
 
   // (3) Siapa penanyanya — nomor, bukan nama tampilan.
-  const user = await cariPengguna(m.fromNumber);
+  const { user, alasan: alasanNomor } = await cariPengguna(m.fromNumber);
   if (!user) {
-    if (!grup) return DIAM("nomor tidak dikenal (chat pribadi — sengaja didiamkan)");
+    if (!grup) return DIAM(`didiamkan — ${alasanNomor}`);
     await sendText(
       m.chatId,
       "Maaf, nomor Anda belum terdaftar sebagai pengguna MARLIN, jadi saya belum boleh menjawab pertanyaan data. Hubungi admin untuk mendaftarkan nomor WhatsApp Anda.",
     );
-    return { dijawab: true, alasan: "nomor tidak terdaftar" };
+    return { dijawab: true, alasan: `nomor tidak terdaftar — ${alasanNomor}` };
   }
 
   if (!teks) {

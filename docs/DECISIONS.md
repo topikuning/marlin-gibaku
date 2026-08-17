@@ -15757,3 +15757,91 @@ Ambangnya 40% dan bukan 33% pas: lebar tombol ringkas mengikuti panjang katanya,
 jadi angkanya bergerak sedikit antar-font — yang dijaga perbedaan KELAS ukuran,
 bukan angka desimal. Uji gigi: `ringkas` dimatikan → rasio 0,97, merah;
 dipulihkan → 0,35, hijau.
+
+---
+
+## 345 — Nomor pengirim WhatsApp tidak pernah cocok; diam pun tak berjejak (2026-08-17)
+
+Laporan user 2026-08-17: *"aku kirim pesan ke nomor marlin yang tersambung ke
+sistem. nomorku ada di data pengguna, tidak ada respon sama sekali."*
+
+Dua cacat, dua-duanya milik saya, dan yang kedua membuat yang pertama mustahil
+didiagnosis.
+
+### Cacat 1 — nomor dibandingkan sebagai TEKS
+
+`cariPengguna` merakit tiga varian teks dan mencarinya dengan `IN`:
+
+```ts
+const varian = [n, `+${n}`, `0${n.slice(2)}`];   // "62812…", "+62812…", "0812…"
+where: { OR: [{ waNumber: { in: varian } }, { phone: { in: varian } }] }
+```
+
+Padahal `waNumber` ditulis lewat `normalizeWaTarget`, yang menghasilkan
+**`6281234567890@c.us`** — LENGKAP DENGAN SUFIKS. Tidak satu pun varian di atas
+memuatnya, jadi pencocokan **tidak pernah berhasil**. Kolom `phone` lebih parah:
+tidak ada normalisasi sama sekali saat disimpan, jadi isinya bisa
+`"0812-3456-7890"` atau `"+62 812 3456 7890"`.
+
+Akibatnya SELURUH pengguna tidak dikenali. Dan karena chat pribadi dari nomor
+tak dikenal memang sengaja DIDIAMKAN (DECISIONS 339 — balasan apa pun
+mengkonfirmasi bahwa nomor itu milik sistem proyek), gejalanya persis seperti
+yang dilaporkan: **tidak ada respon sama sekali, tanpa satu pun galat.**
+
+Pelajarannya satu kalimat: **nomor telepon tidak pernah boleh dibandingkan
+sebagai teks.** Satu-satunya perbandingan yang benar antar-bentuk ternormalisasi.
+Pencocokan kini dilakukan di memori atas pengguna aktif yang punya nomor —
+puluhan sampai ratusan baris, sekali per pesan masuk.
+
+### Cacat 2 — diam yang tidak meninggalkan jejak
+
+Log hit webhook di Sistem hanya menambahkan `· tanya: …` **ketika berhasil
+menjawab**. Semua jalur diam — nomor tak dikenal, grup tanpa mention, pesan dari
+kita sendiri — tidak mencatat apa pun.
+
+Jadi ketika fiturnya diam, log sama sekali tidak bisa membedakan **"webhook tidak
+pernah datang"** dari **"datang, lalu sengaja didiamkan"**. Itu dua penyebab yang
+perbaikannya sama sekali berbeda (setel webhook di WAHA vs betulkan data nomor),
+dan tidak ada cara memilih di antaranya.
+
+Diam yang tidak tercatat membuat diagnosis mustahil justru pada kegagalan yang
+paling mungkin terjadi. Sekarang SETIAP hasil dicatat, dengan alasannya —
+termasuk nomor yang tidak cocok, ditulis apa adanya di log (bukan di balasan;
+penanyanya tetap tidak dijawab).
+
+### Dua pengguna aktif bernomor sama → TIDAK dijawab
+
+Menjawab berarti memilih lingkup lokasi salah satunya. Kalau keduanya orang yang
+berbeda, jawabannya benar untuk orang yang salah — dan penerimanya tidak punya
+cara mengetahuinya. Prinsip yang sama dengan nama lokasi ambigu (DECISIONS 339):
+jangan menebak, dan sebutkan keadaannya di log supaya datanya bisa dibetulkan.
+
+### Kenapa uji integrasi yang sudah ada TIDAK menangkapnya
+
+Ini bagian yang paling perlu diingat. `waha-tanya-jawab.test.ts` memang menguji
+"chat pribadi dari pengguna terdaftar: dijawab", dan ia **hijau** sepanjang
+waktu — karena fixture-nya menulis `waNumber: "6285700000001"`, nomor polos.
+Aplikasi tidak pernah menulis bentuk itu.
+
+Uji yang menyiapkan datanya sendiri hanya sekuat kesetiaan fixture-nya pada
+kenyataan. Fixture kini memakai `normalizeWaTarget` yang ASLI, dan uji unitnya
+menghitung nilai harapan lewat fungsi yang sama — jadi kalau bentuk simpanan
+berubah suatu saat, ujinya ikut berubah bersamanya alih-alih membeku pada bentuk
+lama.
+
+**Penjaga.** `tests/unit/waha-tanya-izin.test.ts` +6 (bentuk simpanan asli,
+tujuh bentuk penulisan di dua kolom, nomor berbeda tidak boleh cocok, nomor
+ganda tidak dijawab). `tests/integration/waha-tanya-jawab.test.ts` +2, dengan
+fixture yang setia. Uji gigi: pencocokan teks dikembalikan → **3 merah** di
+unit, **11 merah** di integrasi; dipulihkan → 27 & 18 hijau.
+
+### Yang MASIH perlu diperiksa di sisi pemasangan
+
+Perbaikan ini menutup sebab yang ada di kode. Kalau sesudah rilis masih diam,
+log hit di **Sistem → WhatsApp** kini menjawabnya sendiri:
+
+- tidak ada baris hit sama sekali → WAHA belum mem-POST ke webhook (URL/secret,
+  atau event `message.any` belum diaktifkan);
+- ada baris, `tanya: diam — nomor … tidak cocok` → nomornya belum terdaftar
+  pada pengguna aktif mana pun;
+- `tanya: diam — pesan dari MARLIN sendiri` → yang terkirim pesan keluar.

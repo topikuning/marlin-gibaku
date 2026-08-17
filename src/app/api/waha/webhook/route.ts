@@ -82,7 +82,18 @@ export async function POST(req: Request) {
        */
       try {
         const jawab = await jawabPertanyaanWa(body);
-        if (jawab.dijawab) outcome += ` · tanya: ${jawab.alasan}`;
+        /*
+         * SELALU dicatat, termasuk saat TIDAK dijawab (DECISIONS 345).
+         *
+         * Versi pertama hanya mencatat saat berhasil menjawab, sehingga setiap
+         * jalur diam — nomor tak dikenal, grup tanpa mention, pesan dari kita
+         * sendiri — tidak meninggalkan jejak apa pun. Ketika user melapor
+         * *"tidak ada respon sama sekali"*, log hit di Sistem sama sekali tidak
+         * bisa membedakan "webhook tidak pernah datang" dari "datang, lalu
+         * sengaja didiamkan". Diam yang tidak tercatat membuat diagnosis
+         * mustahil justru pada kegagalan yang paling mungkin terjadi.
+         */
+        outcome += ` · tanya: ${jawab.dijawab ? "" : "diam — "}${jawab.alasan}`;
       } catch (err) {
         console.error("[waha/webhook] gagal menjawab pertanyaan:", err);
         outcome += " · tanya: gagal (lihat log)";

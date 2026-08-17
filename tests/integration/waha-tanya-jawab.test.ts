@@ -58,6 +58,7 @@ const NOMOR_MARLIN = "6281200000000";
 
 const { db } = await import("@/lib/db");
 const { jawabPertanyaanWa } = await import("@/lib/waha/tanya");
+const { normalizeWaTarget } = await import("@/lib/contacts/model");
 
 const suffix = `wt${Date.now().toString(36)}`;
 const GRUP_A = `12036300000000001@g.us`;
@@ -100,7 +101,13 @@ async function buatUser(oid: string, nama: string, role: string, waNumber: strin
       fullName: nama,
       role: role as never,
       passwordHash: "x",
-      waNumber,
+      /*
+       * Ditulis PERSIS seperti aplikasi menulisnya — lewat `normalizeWaTarget`,
+       * yang menghasilkan "628…@c.us" (DECISIONS 345). Versi pertama uji ini
+       * menaruh nomor polos, jadi ia hijau sementara produksi diam total: yang
+       * diuji bukan data yang benar-benar ada di basis data.
+       */
+      waNumber: waNumber ? normalizeWaTarget(waNumber) : null,
     },
   });
   return u.id;
@@ -368,5 +375,38 @@ describe("mengaku saat tidak bisa", () => {
       event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "mana yang deviasinya negatif" }),
     );
     expect(await db.auditLog.count({ where: { action: "waha.tanya" } })).toBe(sebelum + 1);
+  });
+});
+
+describe("mengenali penanya dari nomornya", () => {
+  it("nomor tersimpan ber-sufiks @c.us tetap dikenali", async () => {
+    // Cacat produksi 2026-08-17: seluruh pengguna tidak dikenali karena
+    // nomornya dicocokkan sebagai TEKS terhadap varian tanpa sufiks.
+    const u = await db.user.findFirstOrThrow({
+      where: { fullName: "SiteManager" },
+      select: { waNumber: true },
+    });
+    expect(u.waNumber, "data uji tidak lagi memakai bentuk simpanan asli").toContain("@c.us");
+
+    const r = await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "mana yang deviasinya negatif" }),
+    );
+    expect(r.dijawab, `tidak dijawab: ${r.alasan}`).toBe(true);
+    expect(terkirim).toHaveLength(1);
+  });
+
+  it("nomor yang TIDAK terdaftar tetap didiamkan, dan ALASANNYA tercatat", async () => {
+    /*
+     * Diam itu benar; yang salah dulu adalah diam TANPA JEJAK. Ketika user
+     * melapor "tidak ada respon sama sekali", log hit tidak bisa membedakan
+     * "webhook tidak pernah datang" dari "datang, lalu sengaja didiamkan".
+     */
+    const r = await jawabPertanyaanWa(
+      event({ chatId: "6289999999999@c.us", dari: "6289999999999", teks: "progress hari ini" }),
+    );
+    expect(r.dijawab).toBe(false);
+    expect(terkirim).toHaveLength(0);
+    expect(r.alasan).toContain("6289999999999");
+    expect(r.alasan.toLowerCase()).toContain("tidak cocok");
   });
 });
