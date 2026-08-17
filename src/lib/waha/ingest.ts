@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
-import { isWaMessageEvent, parseWaEvent } from "./ingest-parse";
+import { isWaMessageEvent, kerangkaPayload, parseWaEvent, varianChatId } from "./ingest-parse";
 
 /**
  * Ingest event webhook WAHA → tabel wa_messages. Cakupan: HANYA pesan dari grup
@@ -17,13 +17,28 @@ export async function ingestWaEvent(body: unknown): Promise<IngestResult> {
   }
   const m = parseWaEvent(body);
   if (!m) {
-    console.warn(`[waha] pesan gagal diparse. keys=${Object.keys((body as { payload?: object })?.payload ?? {}).join(",")}`);
-    return { stored: false, reason: "payload tidak dikenali" };
+    /*
+     * Payload UTUH ke log server (DECISIONS 348) — di sinilah, dan hanya di
+     * sini, "log full raw payload" itu aman: log Railway berakses terbatas,
+     * sedangkan log hit di Sistem dibaca admin lain dan tidak boleh memuat isi
+     * chat pribadi. Daftar nama medan saja ternyata tidak cukup: bentuk mentah
+     * NOWEB menaruh chatId di `key.remoteJid`, yang tak terlihat dari `keys=`.
+     */
+    console.warn("[waha] pesan gagal diparse. payload utuh:", JSON.stringify(body)?.slice(0, 4000));
+    return { stored: false, reason: `payload tidak dikenali — ${kerangkaPayload(body)}` };
   }
 
-  // Cakupan: hanya grup tertaut paket (privasi + relevansi). Grup lain diabaikan.
+  /*
+   * Cakupan: hanya grup tertaut paket (privasi + relevansi). Grup lain diabaikan.
+   *
+   * Dicocokkan ke SELURUH VARIAN tulisan, bukan satu teks (DECISIONS 348).
+   * `m.chatId` kini kanonik, sedangkan `waGroupId` yang sudah tersimpan memakai
+   * bentuk apa pun yang kebetulan datang saat ditautkan. Mencocokkan kanonik
+   * lawan kanonik saja akan memutus tautan grup yang selama ini bekerja —
+   * memperbaiki satu hal sambil merusak yang lain.
+   */
   const pkg = await db.package.findFirst({
-    where: { waGroupId: m.chatId },
+    where: { waGroupId: { in: varianChatId(m.chatId) } },
     select: { id: true },
   });
   if (!pkg) {

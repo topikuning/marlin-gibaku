@@ -7,7 +7,7 @@ import { accessibleLocationIds } from "@/lib/auth/session";
 import { aiStructured } from "@/lib/ai/structured";
 import { AiGuardError, checkAiGuard, estimateCostUsd, getAiPricing } from "@/lib/ai-hub/guard";
 import { getNomorMarlin, sendText } from "./client";
-import { medanJidPayload, parseWaEvent, type ParsedWaMessage } from "./ingest-parse";
+import { medanJidPayload, parseWaEvent, varianChatId, type ParsedWaMessage } from "./ingest-parse";
 import {
   bersihkanMention,
   cocokkanNomorPengguna,
@@ -162,7 +162,10 @@ type PaketGrup = { id: string; nama: string; lokasiIds: string[] } | null;
  */
 async function paketGrup(chatId: string, orgId: string): Promise<PaketGrup> {
   const p = await db.package.findFirst({
-    where: { waGroupId: chatId, orgId },
+    // Seluruh varian tulisan, sama seperti ingest (DECISIONS 348) — kalau di
+    // sini hanya bentuk kanonik, grup yang pesannya TERSIMPAN tetap dianggap
+    // "tidak tertaut" saat menjawab, dan jawabannya dipangkas jadi kosong.
+    where: { waGroupId: { in: varianChatId(chatId) }, orgId },
     select: {
       id: true,
       name: true,

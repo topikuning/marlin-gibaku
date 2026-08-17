@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { parseWaEvent, isWaMessageEvent, medanJidPayload } from "@/lib/waha/ingest-parse";
+import {
+  parseWaEvent,
+  isWaMessageEvent,
+  medanJidPayload,
+  kerangkaPayload,
+  normalizeChatId,
+  varianChatId,
+} from "@/lib/waha/ingest-parse";
 
 /** Parser event webhook WAHA (murni, tanpa DB). DECISIONS 119. */
 describe("parseWaEvent", () => {
@@ -184,5 +191,177 @@ describe("medanJidPayload — diagnosa, bukan tebakan", () => {
     expect(medanJidPayload({})).toBe("");
     expect(medanJidPayload(null)).toBe("");
     expect(medanJidPayload({ payload: {} })).toBe("");
+  });
+});
+
+/**
+ * SATU CHAT, SATU TULISAN (DECISIONS 348).
+ *
+ * Chat yang sama datang dengan tulisan berbeda tergantung engine WAHA, padahal
+ * `Package.waGroupId` dicocokkan sebagai TEKS dan tujuan kirim dipakai apa
+ * adanya. Satu huruf beda = tidak pernah cocok, tanpa galat apa pun.
+ */
+describe("normalizeChatId", () => {
+  it("NOWEB dan WEBJS menulis kontak yang sama → satu bentuk", () => {
+    for (const raw of [
+      "6281234757999@c.us",
+      "6281234757999@s.whatsapp.net",
+      "6281234757999@S.WhatsApp.net",
+      " 6281234757999@c.us ",
+      "+6281234757999@c.us",
+    ]) {
+      expect(normalizeChatId(raw), raw).toBe("6281234757999@c.us");
+    }
+  });
+
+  it("sufiks PERANGKAT dibuang — kalau tidak, nomornya jadi salah", () => {
+    /*
+     * Diukur sebelum perbaikan: "6281234757999:12@s.whatsapp.net" menghasilkan
+     * nomor 628123475799912. Bukan sekadar tidak cocok — itu nomor orang lain.
+     */
+    expect(normalizeChatId("6281234757999:12@s.whatsapp.net")).toBe("6281234757999@c.us");
+    expect(normalizeChatId("6281234757999:3@c.us")).toBe("6281234757999@c.us");
+  });
+
+  it("angka telanjang: nomor jadi @c.us, id grup jadi @g.us", () => {
+    expect(normalizeChatId("6281234757999")).toBe("6281234757999@c.us");
+    expect(normalizeChatId("081234757999")).toBe("6281234757999@c.us");
+    // ID grup panjang, atau bentuk lama berstrip — bukan nomor telepon.
+    expect(normalizeChatId("120363000000000001")).toBe("120363000000000001@g.us");
+    expect(normalizeChatId("6281234757999-1600000000")).toBe("6281234757999-1600000000@g.us");
+  });
+
+  it("ruang identitas LAIN tidak diseret jadi @c.us", () => {
+    // @lid bukan nomor (DECISIONS 347); grup/siaran/newsletter punya ruangnya
+    // sendiri. Menyeretnya ke @c.us berarti mengirim ke alamat yang salah.
+    expect(normalizeChatId("143026840146095@lid")).toBe("143026840146095@lid");
+    expect(normalizeChatId("120363000@g.us")).toBe("120363000@g.us");
+    expect(normalizeChatId("status@broadcast")).toBe("status@broadcast");
+  });
+
+  it("kosong / tak berbentuk → null atau apa adanya, TIDAK ditebak", () => {
+    expect(normalizeChatId(null)).toBeNull();
+    expect(normalizeChatId("   ")).toBeNull();
+    expect(normalizeChatId("@c.us")).toBeNull();
+    // Angka yang bukan nomor & bukan id grup dibiarkan — mengaku tidak tahu.
+    expect(normalizeChatId("12345")).toBe("12345");
+  });
+
+  it("idempoten: menormalkan hasil normalisasi tidak mengubah apa pun", () => {
+    for (const raw of ["6281234757999@s.whatsapp.net", "120363000@g.us", "143026840146095@lid"]) {
+      const sekali = normalizeChatId(raw)!;
+      expect(normalizeChatId(sekali), raw).toBe(sekali);
+    }
+  });
+});
+
+describe("varianChatId — data LAMA tetap cocok", () => {
+  it("mencakup bentuk yang mungkin sudah tersimpan sebelum kanonikalisasi", () => {
+    const v = varianChatId("6281234757999@s.whatsapp.net");
+    expect(v).toContain("6281234757999@c.us");
+    expect(v).toContain("6281234757999@s.whatsapp.net");
+    expect(v).toContain("6281234757999");
+  });
+
+  it("grup: bentuk kanonik dan telanjang", () => {
+    const v = varianChatId("120363000@g.us");
+    expect(v).toContain("120363000@g.us");
+    expect(v).toContain("120363000");
+  });
+
+  it("tidak pernah mencampur ruang identitas", () => {
+    // Kalau @lid ikut melebar jadi @c.us, satu LID bisa menautkan grup orang lain.
+    expect(varianChatId("143026840146095@lid")).toEqual(["143026840146095@lid"]);
+  });
+
+  it("kosong → daftar kosong, bukan [null] yang mencocokkan segalanya", () => {
+    expect(varianChatId(null)).toEqual([]);
+    expect(varianChatId("  ")).toEqual([]);
+  });
+});
+
+describe("parseWaEvent — bentuk MENTAH NOWEB (payload.key)", () => {
+  it("chatId di key.remoteJid: dibaca, bukan dibuang", () => {
+    // Diukur sebelum perbaikan: seluruh pesan berbentuk ini dikembalikan null.
+    const m = parseWaEvent({
+      event: "message",
+      payload: {
+        key: { remoteJid: "6281234757999@s.whatsapp.net", fromMe: false, id: "abc" },
+        body: "halo",
+        timestamp: 1_690_000_000,
+      },
+    });
+    expect(m).not.toBeNull();
+    expect(m!.chatId).toBe("6281234757999@c.us");
+    expect(m!.fromNumber).toBe("6281234757999");
+  });
+
+  it("grup: key.participant adalah pengirim sebenarnya, bukan grupnya", () => {
+    const m = parseWaEvent({
+      event: "message",
+      payload: {
+        id: "g1",
+        key: { remoteJid: "120363000@g.us", fromMe: false, participant: "6281234757999@s.whatsapp.net" },
+        body: "halo",
+        timestamp: 1_690_000_000,
+      },
+    });
+    expect(m!.chatId).toBe("120363000@g.us");
+    expect(m!.fromNumber).toBe("6281234757999");
+  });
+
+  it("key.fromMe dikenali — kalau tidak, MARLIN membalas dirinya sendiri", () => {
+    const m = parseWaEvent({
+      event: "message",
+      payload: {
+        id: "x1",
+        key: { remoteJid: "120363000@g.us", fromMe: true },
+        body: "balasan MARLIN",
+        timestamp: 1_690_000_000,
+      },
+    });
+    expect(m!.fromMe).toBe(true);
+  });
+
+  it("id pesan boleh datang dari key.id saja", () => {
+    const m = parseWaEvent({
+      event: "message",
+      payload: { key: { remoteJid: "6281234757999@c.us", id: "hanya-di-key" }, body: "hai", timestamp: 1 },
+    });
+    expect(m!.waMessageId).toBe("hanya-di-key");
+  });
+});
+
+describe("kerangkaPayload — diagnosa tanpa membocorkan chat", () => {
+  it("menyebut medan bersarang, termasuk key.remoteJid", () => {
+    const s = kerangkaPayload({
+      payload: { key: { remoteJid: "6281234757999@s.whatsapp.net", fromMe: false } },
+    });
+    expect(s).toContain("key.remoteJid=6281234757999@s.whatsapp.net");
+    expect(s).toContain("key.fromMe=false");
+  });
+
+  it("ISI pesan hanya panjangnya, tidak pernah isinya", () => {
+    /*
+     * User meminta "log full raw payload". Untuk log server itu benar; untuk log
+     * hit di Sistem — yang dibaca admin lain — payload utuh berarti setiap chat
+     * pribadi yang gagal diproses ikut terbit di sana.
+     */
+    const s = kerangkaPayload({ payload: { body: "gaji saya belum dibayar", caption: "rahasia" } });
+    expect(s).not.toContain("gaji");
+    expect(s).not.toContain("rahasia");
+    expect(s).toContain("body:str(23)");
+  });
+
+  it("teks panjang apa pun namanya tetap dipotong", () => {
+    const s = kerangkaPayload({ payload: { catatan: "x".repeat(200) } });
+    expect(s).toContain("catatan:str(200)");
+    expect(s).not.toContain("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+  });
+
+  it("dipotong pada batas, tidak membanjiri log", () => {
+    const besar: Record<string, string> = {};
+    for (let i = 0; i < 200; i++) besar[`m${i}`] = "1";
+    expect(kerangkaPayload({ payload: besar }).length).toBeLessThanOrEqual(401);
   });
 });

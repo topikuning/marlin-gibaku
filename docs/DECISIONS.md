@@ -15961,3 +15961,86 @@ Uji gigi: pencocokan LID ke kolom nomor dibuka → 1 merah; normalisasi LID
 dimatikan → 3 merah; penolakan nilai `@lid` di `nomorDariLid` dicabut → 1
 merah; parameter LID dilepas dari `cariPengguna` → 2 merah di integrasi.
 Semuanya dipulihkan → 39 / 17 / 23 hijau.
+
+---
+
+## 348 — Satu chat, satu tulisan: kanonikalisasi chat id WhatsApp (2026-08-17)
+
+Permintaan user 2026-08-17: periksa sinkronisasi `chat_id` WAHA — medan chatId
+bisa ada di beberapa tempat tergantung engine (WEBJS vs NOWEB), dan bentuk yang
+tersimpan di basis data harus identik dengan yang datang dari webhook.
+
+Diukur dulu, bukan diduga. Delapan bentuk payload nyata dilewatkan parser yang
+ada:
+
+| yang datang | sebelum |
+| --- | --- |
+| `from: 628…@c.us` (WEBJS) | ✓ |
+| `key.remoteJid` (NOWEB mentah) | **null — pesan dibuang** |
+| `from: 628…@s.whatsapp.net` | chatId `…@s.whatsapp.net` |
+| `from: 628…:12@s.whatsapp.net` | nomor **628123475799912** |
+| `chatId: 628…` telanjang | chatId telanjang |
+| grup via `key.remoteJid` | **null — pesan dibuang** |
+| keluar via `key.fromMe` | **null — pesan dibuang** |
+
+Tiga baris pertama dari daftar user terbukti nyata. Satu yang tidak ia sebut
+justru yang paling berbahaya: **sufiks perangkat `:12`** menghasilkan nomor
+`628123475799912` — bukan sekadar tidak cocok, tapi nomor orang lain. Kalau
+kebetulan ada pemiliknya, jawaban proyek pergi ke sana.
+
+### Dikanonikkan sekali, di pintu masuk
+
+`normalizeChatId()` dipanggil satu kali di parser, sehingga seluruh sistem hilir
+— pencocokan paket, pencarian pengguna, alamat balasan — hanya pernah melihat
+satu bentuk. `@s.whatsapp.net` dan `@c.us` adalah tulisan berbeda untuk kontak
+yang sama, jadi disatukan; sufiks perangkat/agen dibuang.
+
+Yang TIDAK ditebak: `@lid`, `@g.us`, `@broadcast`, `@newsletter` masing-masing
+ruang identitas sendiri dan dibiarkan apa adanya. Angka telanjang dibedakan
+lewat bentuknya (≥16 angka atau memuat `-` = id grup; 8–15 angka = nomor). Di
+luar itu dikembalikan apa adanya — menebak alamat kirim yang salah lebih buruk
+daripada mengaku tidak tahu.
+
+### Menormalkan sisi masuk saja akan MERUSAK yang sudah jalan
+
+Ini yang membuat saran "harus identik karakter per karakter" tidak cukup.
+`Package.waGroupId` yang sudah tersimpan memakai bentuk apa pun yang kebetulan
+datang saat ditautkan. Kalau sisi masuk dikanonikkan dan pencocokan tetap teks
+tunggal, grup yang selama ini bekerja justru berhenti cocok — memperbaiki satu
+hal sambil merusak yang lain, tanpa galat.
+
+Karena itu pencocokan memakai `varianChatId()`: seluruh tulisan yang berarti
+chat yang sama. Datanya tidak perlu diubah, dan tidak ada migrasi yang bisa
+salah pada 83 lokasi.
+
+### "Log full raw payload" — dipenuhi, tapi dibelah dua
+
+Permintaannya tepat sebagai keinginan diagnosa. Tapi log hit di **Sistem →
+WhatsApp** dibaca admin lain, dan payload utuh memuat ISI chat pribadi.
+Menyalakannya apa adanya berarti setiap chat pribadi yang gagal diproses ikut
+terbit di halaman yang bisa dibuka orang lain.
+
+Jadi: payload UTUH ke log server (Railway, akses terbatas), dan
+`kerangkaPayload()` ke Sistem — setiap medan beserta tipe & panjangnya, nilai
+ditulis hanya bila pendek dan bukan medan isi pesan. Untuk menjawab "chatId ada
+di medan mana", itu sama berguna dengan payload utuh.
+
+### `fromMe` — sudah ada, dan sengaja berbeda antara dua jalur
+
+Tanya-jawab memang sudah menolak pesan sendiri sejak DECISIONS 339 (tanpa itu
+MARLIN membalas balasannya sendiri). Ingest justru SENGAJA menyimpannya:
+ringkasan grup tidak utuh tanpa pesan keluar. Yang kurang hanyalah `key.fromMe`
+— bentuk mentah NOWEB — sehingga pesan keluar berbentuk itu tak dikenali
+sebagai milik kita. Itu kini dibaca.
+
+**Penjaga.** `tests/unit/wa-ingest-parse.test.ts` +18 (lima bentuk kontak jadi
+satu, sufiks perangkat, angka telanjang, ruang identitas lain tidak diseret,
+idempoten, varian data lama, empat bentuk `payload.key`, kerangka payload tanpa
+isi chat). Berkas BARU `tests/integration/waha-ingest-chatid.test.ts` +12 —
+jalur terima→simpan sebelumnya tidak punya uji integrasi sama sekali, padahal di
+sanalah satu-satunya hal yang menentukan pesan tersimpan atau hilang.
+
+Uji gigi: sufiks perangkat dibiarkan → 1 merah; `@s.whatsapp.net` tidak
+disamakan → 4 merah; `payload.key` tidak dibaca → 4 merah; `@lid` ikut
+dilebarkan → 1 merah; isi pesan ikut tercatat → 2 merah; pencocokan teks tunggal
+dikembalikan → 3 merah di integrasi. Semuanya dipulihkan → hijau.
