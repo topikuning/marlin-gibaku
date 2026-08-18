@@ -29,6 +29,15 @@ const nav = (page: Page) => page.getByRole("navigation", { name: "Bagian Rencana
 test.describe("Rencana & RAB — sub-tab", () => {
   test("ketiga bagian terlihat TANPA menggulir", async ({ page }) => {
     await login(page);
+    /*
+     * 375px DIPAKSA, bukan mengandalkan lebar proyek 'mobile'.
+     *
+     * Perangkat proyek mobile Playwright (Pixel 7) selebar 412px, dan pada
+     * lebar itu pil terakhir masih muat sementara di 375px ia terpotong —
+     * penjaganya hijau padahal cacatnya ada. 375px adalah lebar ponsel yang
+     * benar-benar dipakai di lapangan.
+     */
+    await page.setViewportSize({ width: 375, height: 800 });
     await page.goto(`/lokasi/${LOKASI}/rab`);
     await nav(page).waitFor({ timeout: 20_000 });
 

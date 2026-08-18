@@ -17108,3 +17108,69 @@ tetap hijau.
 Catatan jujur: percobaan uji gigi pertama menghasilkan 4 merah yang TIDAK berarti
 apa-apa — servernya mati, bukan penjaganya menggigit. Diulang dengan server
 hidup, dan barulah angkanya bisa dipercaya.
+
+---
+
+## 363 — Progress lokasi: memantau dipisah dari mengatur (2026-08-18)
+
+**Permintaan user 2026-08-18** (mengirim rancangan `index20260818164900.html`):
+*"ikuti dan adopsi desain ini untuk tab progres di lokasi, ini lebih rapi dan
+tidak scroll panjang jauh ke bawah."*
+
+Halaman lama menumpuk **delapan kartu** dalam satu gulungan: kurva-S, tabel
+rencana-vs-realisasi mingguan, prognosa, editor jadwal pekerjaan, penyesuaian
+halus %-mingguan, item tertinggal, kendala & pemulihan, dan riwayat baseline.
+
+Yang salah bukan panjangnya, melainkan **dua peran yang berbeda dijejalkan jadi
+satu**: *membaca angka* dan *mengubah rencana*. Orang yang cuma ingin melihat
+deviasi harus menggulir melewati dua editor; orang yang mau memperbarui kurva-S
+harus menemukan tempatnya jauh di bawah grafik. Empat sub-tab memisahkannya:
+Ringkasan · Kurva-S & Baseline · Jadwal Pekerjaan · Tertinggal & Kendala.
+
+Tidak ada fungsi yang berubah. Seluruh aksi, gerbang izin, dan komponennya
+persis yang lama — hanya letaknya, dan bagian mana yang dikirim ke peramban.
+
+### Default `ringkasan`, dan itu keputusan, bukan kebetulan
+
+Memantau jauh lebih sering daripada mengatur. Mendaratkan orang di editor
+baseline adalah kebalikan dari yang ia cari saat menekan tab Progress. Diuji
+tersendiri supaya tidak bergeser diam-diam.
+
+### Tiap bagian membayar kuerinya sendiri
+
+Yang lama menarik SEMUANYA setiap kali halaman dibuka: seluruh isu beserta aksi
+dan log perkembangannya, seluruh baseline beserta titik mingguannya, jadwal
+kategori, volume kumulatif per lineage, dan seluruh item RAB aktif untuk
+menghitung yang tertinggal. Orang yang cuma melirik kurva-S membayar semuanya.
+`series` tetap selalu diambil — ia sumber angka utama halaman ini.
+
+### Aturan sub-tab dipusatkan
+
+`src/lib/ui/sub-tab.ts` sekarang memegang kedua aturan yang gampang rusak
+diam-diam (bagian ngawur jatuh ke bagian sah; parameter lain ikut terbawa dan
+di-encode). `rab/bagian.ts` ikut memakainya, jadi keduanya tidak bisa berbeda.
+
+### Dua cacat yang ditemukan saat MEMERIKSA, bukan saat menulis
+
+1. **Halaman meluber 3px di 375px.** Kedua kartu di grid Ringkasan punya
+   `min-width: auto` = lebar min-content, dan grafik kurva-S maupun tabel
+   mingguan min-content-nya lebih lebar dari kolomnya. Pola yang sama dengan
+   DECISIONS 217, dan tetap terulang karena `min-w-0` harus ditulis di tiap
+   anak grid baru. Ditutup di keduanya; tabel mingguan juga digulir dua sumbu.
+2. **Penjaga saya sendiri lolos padahal cacatnya ada.** Uji "keempat bagian
+   terlihat utuh" berjalan di lebar proyek `mobile` Playwright — Pixel 7,
+   **412px**. Di lebar itu pil terakhir masih muat; di **375px** ia terpotong.
+   Ujinya kini MEMAKSA 375px, dan pil mengecil (`px-2.5 text-[12px]`) di layar
+   sempit sehingga empat pil muat dengan sisa ruang. Uji `rab-sub-tab` ikut
+   dipaksa 375px karena punya kelemahan yang sama.
+
+**Penjaga.** `tests/unit/progress-bagian.test.ts` (7): default memantau bukan
+mengatur, bagian ngawur jatuh ke bagian sah, parameter kosong dibuang, parameter
+di-encode. `tests/e2e/progress-sub-tab.spec.ts` (5 × 2 proyek): keempat bagian
+terlihat utuh di 375px, mendarat di bagian pantau, editor & riwayat baseline
+tidak ikut dirender di ringkasan, tiap bagian membuka isinya sendiri, bagian
+ngawur tidak menghasilkan halaman kosong.
+
+Uji gigi: semua bagian dirender sekaligus → 1 merah (yang tepat); default
+dipindah ke `baseline` → 1 unit merah; label pendek dihapus → mobile merah
+dengan pesan "Jadwal Pekerjaan terpotong kanan" sementara desktop tetap hijau.

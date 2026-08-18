@@ -16,13 +16,15 @@
  *     dan orang mengira datanya hilang.
  */
 
+import { bacaSubTab, hrefSubTab } from "@/lib/ui/sub-tab";
+
 export type BagianRab = "rab" | "rencana" | "revisi";
 
 export const BAGIAN_RAB: readonly BagianRab[] = ["rab", "rencana", "revisi"];
 
 /** Default `"rab"`: pohon RAB adalah isi yang paling dulu ada di lokasi mana pun. */
 export function bacaBagian(v: string | undefined | null): BagianRab {
-  return BAGIAN_RAB.includes(v as BagianRab) ? (v as BagianRab) : "rab";
+  return bacaSubTab(BAGIAN_RAB, v, "rab");
 }
 
 /**
@@ -33,7 +35,5 @@ export function bacaBagian(v: string | undefined | null): BagianRab {
  * benar begitu defaultnya diubah, dan kegagalannya sunyi.
  */
 export function hrefBagian(slug: string, bagian: BagianRab, minggu?: string | null): string {
-  const q = new URLSearchParams({ bagian });
-  if (minggu != null && minggu !== "") q.set("minggu", minggu);
-  return `/lokasi/${slug}/rab?${q.toString()}`;
+  return hrefSubTab(`/lokasi/${slug}/rab`, bagian, { minggu });
 }
