@@ -131,7 +131,10 @@ export default async function AiRunDetailPage({ params }: { params: Promise<{ id
 
 
   const [creator, contacts, auditTrail] = await Promise.all([
-    db.user.findUnique({ where: { id: run.userId }, select: { fullName: true } }),
+    // userId nullable sejak DECISIONS 351 (tanya-jawab grup tanpa pengguna).
+    run.userId
+      ? db.user.findUnique({ where: { id: run.userId }, select: { fullName: true } })
+      : Promise.resolve(null),
     listSendableContacts(user.id),
     db.auditLog.findMany({
       where: { resourceType: { in: ["ai_run", "ai_artifact"] }, resourceId: { in: [run.id, ...run.artifacts.map((a) => a.id)] } },

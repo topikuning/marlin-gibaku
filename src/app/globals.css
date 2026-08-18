@@ -245,3 +245,24 @@ a[data-navigating] {
 fieldset {
   min-inline-size: 0;
 }
+
+/*
+ * TARIK-UNTUK-MUAT-ULANG peramban dimatikan (DECISIONS 354).
+ *
+ * Keluhan user 2026-08-17: *"kembali ke atas … malah browser seperti mentok
+ * lalu refresh"*. Itu bukan kerusakan aplikasi — itu gestur bawaan peramban:
+ * begitu halaman sudah mentok di paling atas, sapuan ke bawah berikutnya
+ * dibaca sebagai "muat ulang".
+ *
+ * Di aplikasi ini akibatnya mahal, dan bukan sekadar menunggu: memuat ulang
+ * membuang isian formulir yang belum tersimpan — laporan harian yang sedang
+ * diketik mandor di lapangan, dengan sinyal seadanya. Gestur untuk menggulir
+ * dan gestur untuk membuang pekerjaan tidak boleh sama.
+ *
+ * `contain` (bukan `none`) sengaja: penggulungan di DALAM elemen ber-scroll
+ * sendiri tetap normal, yang dihentikan hanya perambatannya ke peramban.
+ */
+html,
+body {
+  overscroll-behavior-y: contain;
+}

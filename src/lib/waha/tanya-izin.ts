@@ -126,7 +126,12 @@ export type LingkupJawaban =
 
 export type KonteksLingkup = {
   grup: boolean;
-  /** Lokasi yang boleh diakses PENANYA. null = lintas lokasi (mis. super admin). */
+  /**
+   * Lokasi yang boleh diakses PENANYA. null = lintas lokasi (mis. super admin).
+   *
+   * Dipakai HANYA untuk chat pribadi. Di grup, lingkupnya ditentukan grupnya
+   * sendiri — lihat `lingkupJawaban` (DECISIONS 351).
+   */
   lokasiPengguna: string[] | null;
   /**
    * Lokasi milik paket tempat grup ini tertaut. null = grup tidak tertaut paket
@@ -140,12 +145,32 @@ export type KonteksLingkup = {
 /**
  * Tentukan lokasi mana yang boleh disebut dalam balasan.
  *
- * Aturannya berlapis dan tiap lapis bisa MEMPERSEMPIT, tidak pernah melebarkan:
+ *   chat pribadi → lingkup PENANYA
+ *   grup         → lingkup PAKET GRUP ITU (DECISIONS 351)
  *
- *   lingkup akhir = lokasi pengguna ∩ (grup ? lokasi paket grup : semua)
+ * ### Kenapa di grup identitas penanya TIDAK menentukan lingkup
  *
- * Grup yang tidak tertaut paket TIDAK dilayani sama sekali: tanpa tautan, tidak
- * ada dasar memutuskan apa yang pantas dibaca anggotanya.
+ * Instruksi user 2026-08-17: *"untuk mention di group nomor yang mention tidak
+ * perlu terdaftar. selama itu chat di dalam group, jawab sesuai paket group
+ * itu."*
+ *
+ * Itu bukan pelonggaran, melainkan pembetulan sumbu. **Balasannya dikirim ke
+ * GRUP, bukan ke penanyanya.** Seluruh anggota grup membacanya, siapa pun yang
+ * mengetik. Jadi memotong jawaban menurut izin si pengetik tidak pernah
+ * melindungi apa pun — ia hanya membuat isi jawaban berubah-ubah tergantung
+ * siapa yang kebetulan bertanya, di depan audiens yang sama persis.
+ *
+ * Yang menentukan justru penautan grup↔paket, dan itu dilakukan admin secara
+ * sadar. Grup yang tidak tertaut paket tetap TIDAK dilayani sama sekali: tanpa
+ * tautan tidak ada dasar memutuskan apa yang pantas dibaca anggotanya.
+ *
+ * ### Pembalikan yang ikut hilang
+ *
+ * Aturan lama meng-irisan lokasi grup dengan izin penanya. Digabung dengan
+ * kebijakan baru, itu menghasilkan pembalikan yang tak bisa dipertahankan:
+ * orang TAK TERDAFTAR di grup mendapat data paket, sementara pengguna TERDAFTAR
+ * yang kebetulan tidak ditugaskan ke paket itu ditolak — terdaftar membuat
+ * seseorang melihat LEBIH SEDIKIT, di grup yang sama.
  */
 export function lingkupJawaban(k: KonteksLingkup): LingkupJawaban {
   if (!k.grup) {
@@ -161,20 +186,10 @@ export function lingkupJawaban(k: KonteksLingkup): LingkupJawaban {
     };
   }
 
-  // Potong ke lokasi paket grup, lalu potong lagi ke izin penggunanya.
-  const izin = k.lokasiPengguna;
-  const irisan = izin === null ? k.lokasiGrup : k.lokasiGrup.filter((id) => izin.includes(id));
-
-  if (irisan.length === 0) {
-    return {
-      boleh: false,
-      alasan: "Anda tidak punya akses ke lokasi paket ini.",
-    };
-  }
-
+  // Lingkupnya PERSIS paket grup ini — tidak di-irisan dengan izin penanya.
   return {
     boleh: true,
-    lokasiIds: irisan,
+    lokasiIds: k.lokasiGrup,
     // Pemotongan SELALU disebut: jawaban sebagian yang tidak mengaku sebagian
     // akan dibaca sebagai jawaban lengkap.
     catatanPemotongan: `Jawaban ini hanya mencakup ${k.namaPaketGrup ?? "paket grup ini"}. Untuk lintas paket, tanya saya lewat chat pribadi.`,

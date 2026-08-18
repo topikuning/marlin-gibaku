@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { PeriodeDiminta } from "./tanya-tanggal";
 
 /**
  * NIAT pertanyaan WhatsApp bebas — skema + pencocokan nama lokasi
@@ -19,7 +20,16 @@ import { z } from "zod";
  *    lokasi yang salah — dan tidak ada yang bisa membedakannya.
  */
 
-export const NIAT = ["kendala", "progress", "deviasi", "kelengkapan"] as const;
+export const NIAT = [
+  "kendala",
+  "progress",
+  "deviasi",
+  "kelengkapan",
+  /** Isi laporan harian satu tanggal — DECISIONS 356. */
+  "laporan",
+  /** "kamu bisa apa saja?" — MARLIN menjelaskan dirinya sendiri. */
+  "bantuan",
+] as const;
 export type Niat = (typeof NIAT)[number];
 
 export const NIAT_LABEL: Record<Niat, string> = {
@@ -27,7 +37,29 @@ export const NIAT_LABEL: Record<Niat, string> = {
   progress: "progress pekerjaan",
   deviasi: "deviasi terhadap kurva-S",
   kelengkapan: "kelengkapan laporan harian",
+  laporan: "isi laporan harian satu tanggal",
+  bantuan: "daftar hal yang bisa saya jawab",
 };
+
+/**
+ * Periode yang boleh diminta AI — BENTUKNYA saja, bukan tanggal hasil hitungan
+ * (DECISIONS 356). Aritmetikanya di `tanya-tanggal.ts`.
+ */
+export const skemaPeriode = z.discriminatedUnion("jenis", [
+  z.object({ jenis: z.literal("hari_ini") }),
+  z.object({ jenis: z.literal("mundur_hari"), hari: z.number().int().min(0).max(400) }),
+  z.object({
+    jenis: z.literal("tanggal"),
+    hari: z.number().int().min(1).max(31),
+    bulan: z.number().int().min(1).max(12).nullable().default(null),
+    tahun: z.number().int().min(2000).max(2100).nullable().default(null),
+  }),
+  z.object({
+    jenis: z.literal("rentang"),
+    satuan: z.enum(["minggu", "bulan"]),
+    mundur: z.number().int().min(0).max(60),
+  }),
+]);
 
 /**
  * Skema yang WAJIB diisi AI. Sengaja sempit: makin sedikit yang boleh
@@ -41,16 +73,36 @@ export const skemaNiat = z.object({
    * Kosong = pertanyaan lintas lokasi.
    */
   lokasiDisebut: z.array(z.string().min(1)).max(20),
-  /** Periode yang diminta; hanya "hari_ini" yang didukung v1. */
-  periode: z.enum(["hari_ini"]).default("hari_ini"),
+  /**
+   * BENTUK periode yang dibaca dari kalimat. Tanggal nyatanya dihitung
+   * `bacaPeriode()`, bukan oleh AI (DECISIONS 356).
+   *
+   * TOLERAN pada bentuk lama berupa string (`"hari_ini"`). Skema ini memeriksa
+   * keluaran MODEL, bukan masukan program kita: satu kata yang meleset tidak
+   * boleh menggagalkan seluruh parse dan membuat penanya menerima "AI sedang
+   * tidak bisa membaca pertanyaan". Bentuk yang tak dikenal jatuh ke hari ini —
+   * jawaban yang mungkin kurang tepat periodenya, tapi tetap berguna dan
+   * periodenya SELALU disebut di judul balasan.
+   */
+  periode: z
+    .preprocess((v) => {
+      if (typeof v === "string") return { jenis: v === "hari_ini" ? "hari_ini" : v };
+      return v;
+    }, skemaPeriode)
+    .catch({ jenis: "hari_ini" as const })
+    .default({ jenis: "hari_ini" }),
 });
 
 export type NiatTerbaca = z.infer<typeof skemaNiat>;
 
 export const PETUNJUK_SKEMA = `{
-  "niat": "kendala" | "progress" | "deviasi" | "kelengkapan" | null,
+  "niat": "kendala" | "progress" | "deviasi" | "kelengkapan" | "laporan" | "bantuan" | null,
   "lokasiDisebut": string[],
-  "periode": "hari_ini"
+  "periode":
+      { "jenis": "hari_ini" }
+    | { "jenis": "mundur_hari", "hari": number }
+    | { "jenis": "tanggal", "hari": number, "bulan": number|null, "tahun": number|null }
+    | { "jenis": "rentang", "satuan": "minggu"|"bulan", "mundur": number }
 }`;
 
 export const SISTEM_PROMPT = [
@@ -58,10 +110,28 @@ export const SISTEM_PROMPT = [
   "Tugasmu HANYA mengubah pertanyaan berbahasa Indonesia bebas menjadi struktur JSON.",
   "",
   "Arti tiap niat:",
-  "- kendala     : menanyakan masalah/hambatan/kendala di lapangan",
-  "- progress    : menanyakan kemajuan/realisasi pekerjaan",
-  "- deviasi     : menanyakan keterlambatan, deviasi, atau siapa yang tertinggal dari jadwal",
-  "- kelengkapan : menanyakan siapa yang sudah/belum membuat laporan harian",
+  "- kendala     : masalah/hambatan/kendala di lapangan",
+  "- progress    : kemajuan/realisasi pekerjaan, berapa persen, sudah sampai mana",
+  "- deviasi     : keterlambatan, deviasi, siapa yang tertinggal dari jadwal",
+  "- kelengkapan : siapa yang sudah/belum membuat laporan harian",
+  "- laporan     : ISI laporan harian satu tanggal — apa yang dikerjakan, cuaca,",
+  "                jam kerja, jumlah tenaga kerja, foto. Dipakai untuk permintaan",
+  "                seperti 'minta laporan harian', 'laporan tanggal 12', 'kirim",
+  "                laporan kemarin'.",
+  "- bantuan     : penanya bertanya APA SAJA yang bisa kamu jawab / kamu bisa apa",
+  "",
+  "PERIODE — kamu HANYA melaporkan bentuk yang KAMU BACA. JANGAN menghitung tanggal.",
+  "Kamu TIDAK tahu hari ini tanggal berapa, jadi menghitung sendiri pasti salah.",
+  "  'hari ini', tidak disebut          -> {\"jenis\":\"hari_ini\"}",
+  "  'kemarin'                          -> {\"jenis\":\"mundur_hari\",\"hari\":1}",
+  "  'kemarin lusa', 'dua hari lalu'    -> {\"jenis\":\"mundur_hari\",\"hari\":2}",
+  "  'seminggu lalu'                    -> {\"jenis\":\"mundur_hari\",\"hari\":7}",
+  "  'tanggal 12'                       -> {\"jenis\":\"tanggal\",\"hari\":12,\"bulan\":null,\"tahun\":null}",
+  "  '17 agustus'                       -> {\"jenis\":\"tanggal\",\"hari\":17,\"bulan\":8,\"tahun\":null}",
+  "  '3 Juli 2025'                      -> {\"jenis\":\"tanggal\",\"hari\":3,\"bulan\":7,\"tahun\":2025}",
+  "  'minggu ini' / 'minggu lalu'       -> {\"jenis\":\"rentang\",\"satuan\":\"minggu\",\"mundur\":0 atau 1}",
+  "  'bulan ini' / 'bulan lalu'         -> {\"jenis\":\"rentang\",\"satuan\":\"bulan\",\"mundur\":0 atau 1}",
+  "Kalau tahun tidak ditulis penanya, isi tahun = null. JANGAN menebaknya.",
   "",
   "ATURAN KERAS:",
   "1. Kalau pertanyaannya TIDAK jelas masuk salah satu niat di atas, isi niat = null.",
@@ -69,6 +139,7 @@ export const SISTEM_PROMPT = [
   "2. lokasiDisebut diisi nama lokasi APA ADANYA seperti ditulis penanya, tanpa dibetulkan",
   "   ejaannya. Kalau tidak ada lokasi disebut, isi larik kosong.",
   "3. JANGAN pernah mengarang angka, tanggal, atau nama lokasi yang tidak ditulis penanya.",
+  "4. Nama bulan/hari yang disebut penanya BUKAN nama lokasi.",
 ].join("\n");
 
 /* ------------------------------------------------------------------ */

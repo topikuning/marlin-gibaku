@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 import {
   NAMA_HARI,
+  bukaLangsung,
   geserBulan,
   judulBulan,
   type BatasBulan,
@@ -59,9 +60,11 @@ export type KalenderProps = {
   disorot: (s: SelKalender) => boolean;
   /** Pembentuk URL — mempertahankan saringan & mode tampilan. */
   taut: (ubah: { bulan?: BulanKey; tgl?: string }) => string;
+  /** URL FORMULIR harian satu tanggal — tujuan sel yang masih kosong. */
+  tautIsi: (dateKey: string) => string;
 };
 
-export function Kalender({ bulan, batas, sel, terpilih, disorot, taut }: KalenderProps) {
+export function Kalender({ bulan, batas, sel, terpilih, disorot, taut, tautIsi }: KalenderProps) {
   const mundur = bulan > batas.min ? geserBulan(bulan, -1) : null;
   const maju = bulan < batas.max ? geserBulan(bulan, 1) : null;
 
@@ -110,7 +113,7 @@ export function Kalender({ bulan, batas, sel, terpilih, disorot, taut }: Kalende
               sel={s}
               terpilih={s.dateKey === terpilih}
               redup={!disorot(s)}
-              href={taut({ tgl: s.dateKey })}
+              href={bukaLangsung(s) ? tautIsi(s.dateKey) : taut({ tgl: s.dateKey })}
             />
           ),
         )}
@@ -154,7 +157,10 @@ function SelHariKalender({
       // 42 sel × prefetch = 42 permintaan hanya untuk membuka satu bulan.
       prefetch={false}
       aria-current={terpilih ? "date" : undefined}
-      title={sel.kata}
+      /* Menyebut AKIBATNYA, bukan cuma keadaannya: sel kosong membuka formulir
+         langsung (DECISIONS 355), dan tujuan yang berbeda dari sel tetangganya
+         harus bisa diketahui SEBELUM ditekan. */
+      title={bukaLangsung(sel) ? `${sel.kata} — buat laporan` : sel.kata}
       className={cn(
         "relative flex min-h-16 flex-col justify-between rounded-lg border p-1.5 text-left transition sm:min-h-20",
         NADA_SEL[sel.nada],

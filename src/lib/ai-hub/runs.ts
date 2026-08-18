@@ -142,6 +142,8 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
   const run = await db.aiRun.create({
     data: {
       userId: user.id,
+      // Kuota harian organisasi dihitung dari kolom ini (DECISIONS 351).
+      orgId: user.orgId,
       runKind: input.kind,
       status: "berjalan",
       scopeType: scope.all ? "all" : "location",

@@ -16188,3 +16188,550 @@ UTUH — chat pribadi dijawab tanpa pemetaan apa pun, grup tidak lagi menjawab
 Uji gigi: daftar nama tebakan dikembalikan → 4 unit + 2 integrasi merah; nilai
 ber-`@lid` tidak ditolak → 2 merah; pola diganti nama tunggal → 5 unit + 3
 integrasi merah. Semuanya dipulihkan → hijau.
+
+---
+
+## 351 — Di grup, penanya tidak perlu terdaftar: lingkup ditentukan GRUPNYA (2026-08-17)
+
+Instruksi user 2026-08-17, sesudah tanya-jawab WhatsApp akhirnya hidup:
+
+> *"untuk mention di group nomor yang mention tidak perlu terdaftar. selama itu
+> chat di dalam group, jawab sesuai paket group itu"*
+
+Sebelumnya, pengirim tak terdaftar di grup dibalas *"Maaf, nomor Anda belum
+terdaftar sebagai pengguna MARLIN"* — yang memblokir mandor lapangan dari data
+paketnya sendiri, di grup paketnya sendiri.
+
+### Ini pembetulan SUMBU, bukan pelonggaran
+
+**Balasannya dikirim ke GRUP.** Seluruh anggota membacanya, siapa pun yang
+mengetik. Jadi memotong jawaban menurut izin si pengetik tidak pernah melindungi
+siapa pun — ia hanya membuat isi jawaban berubah-ubah tergantung siapa yang
+kebetulan bertanya, di depan audiens yang sama persis.
+
+Yang benar-benar menentukan siapa boleh membaca adalah **penautan grup↔paket**,
+dan itu dilakukan admin secara sadar di Paket → Grup WhatsApp. Karena itu:
+
+```
+chat pribadi → lingkup PENANYA      (tidak berubah)
+grup         → lingkup PAKET GRUP   (identitas penanya tidak ikut memotong)
+```
+
+Grup TANPA tautan paket tetap ditolak sepenuhnya. Kelonggaran ini berhenti
+persis di situ: tanpa tautan tidak ada dasar memutuskan apa yang pantas dibaca
+anggotanya.
+
+Chat pribadi juga tidak ikut longgar — nomor tak dikenal tetap **DIDIAMKAN**,
+karena balasan apa pun mengkonfirmasi bahwa nomor ini milik sistem proyek.
+
+### Pembalikan yang ikut hilang
+
+Aturan lama meng-irisan lokasi grup dengan izin penanya. Digabung dengan
+kebijakan baru, itu menghasilkan keadaan yang tak bisa dipertahankan: orang
+**tak terdaftar** di grup mendapat data paket, sementara pengguna **terdaftar**
+yang kebetulan tidak ditugaskan ke paket itu ditolak — di grup yang sama.
+Terdaftar membuat seseorang melihat LEBIH SEDIKIT.
+
+### Penyaring organisasi grup: dilepas, dan justru mengencang
+
+`paketGrup()` dulu disaring dengan `orgId` penanya, karena izin super admin
+"tanpa batas" akan melahap lokasi grup asing lewat irisan. Sejak lingkup grup
+ditentukan paket grupnya, syarat itu tidak diperlukan — dan tidak mungkin lagi,
+karena penanya boleh tidak terdaftar. Penggantinya lebih kuat: satu grup tertaut
+tepat satu paket, milik tepat satu organisasi; jawabannya berisi data paket itu
+dan dikirim ke grup itu. Yang diuji sekarang adalah arah yang berbahaya — data
+organisasi KITA tidak pernah muncul di grup tenant lain.
+
+### Pemakaian AI tanpa pengguna
+
+Jawaban grup kini bisa terjadi tanpa pengguna, jadi `ai_runs.user_id` dibuat
+NULLABLE. Yang TIDAK dilakukan: mengarang pengguna agar kolomnya terisi — audit
+yang menunjuk orang yang tidak melakukan apa-apa lebih buruk daripada kolom
+kosong, dan kuota per-pengguna jadi salah orang.
+
+Dua kolom baru menggantikannya:
+
+- `org_id` — kuota harian organisasi. Sebelumnya diturunkan dari daftar id
+  pengguna organisasi (`userId IN (…)`), yang **tidak bisa menghitung run tanpa
+  pengguna** (jawaban grup akan memakai anggaran tanpa pernah menyentuh kuota)
+  dan memanjang seiring jumlah akun. Baris lama di-backfill di migrasi.
+- `wa_chat_id` — kunci pembatas laju untuk penanya tak terdaftar. Tanpa itu satu
+  grup ramai bisa menghabiskan anggaran AI sepanjang hari.
+
+### Aturan yang dijaga di DUA tempat hanya dijaga di satu
+
+Versi pertama perbaikan ini menaruh aturannya dua kali: `tanya.ts` mengirim
+`lokasiPengguna: null` untuk grup, DAN `lingkupJawaban` mengabaikannya. Uji gigi
+membongkarnya — melanggar aturan di `lingkupJawaban` tidak membuat satu uji
+integrasi pun merah, karena lapisan kedua menutupinya.
+
+Sekarang izin penanya diteruskan APA ADANYA dan `lingkupJawaban` satu-satunya
+yang memutuskan. Sesudah itu pelanggaran yang sama membuat 3 uji unit dan 2 uji
+integrasi merah.
+
+**Penjaga.** `tests/unit/waha-tanya-izin.test.ts`: dua uji kebijakan lama
+DIBALIK dengan alasannya ditulis di tempat, +2 (lingkup grup selalu persis paket
+grupnya — tidak kurang tidak lebih; pembalikan terdaftar-vs-tak-terdaftar).
+`tests/integration/waha-tanya-jawab.test.ts` +9, termasuk fixture baru
+`SmPaketB` — pengguna terdaftar di luar penugasan paket grup, satu-satunya kasus
+yang benar-benar membedakan kebijakan lama dan baru lewat basis data. Uji lintas
+organisasi ditulis ulang ke invarian yang lebih ketat.
+
+Uji gigi: irisan izin penanya dikembalikan → 3 unit + 2 integrasi merah; chat
+pribadi ikut dilonggarkan → 5 integrasi merah; grup tanpa tautan paket ikut
+dijawab → 1 unit merah. Semuanya dipulihkan → hijau.
+
+---
+
+## 352 — Overflow mobile berulang: pagarnya menyapu daftar yang ditulis tangan (2026-08-17)
+
+Teguran user 2026-08-17 (dengan tangkapan layar `/lokasi/[slug]/laporan-lokasi`
+tergeser ke samping): *"lagi-lagi masalah tampilan mobile. kenapa harus terjadi
+lagi"*.
+
+Pertanyaannya tepat, dan jawabannya bukan "kurang teliti". Pagar overflow
+(DECISIONS 217) punya **tiga celah struktural**, dan cacat kali ini lolos lewat
+ketiganya sekaligus — memperbaiki satu saja tidak akan mencegah yang berikutnya.
+
+### Celah 1 — daftar rute ditulis tangan di dalam spec
+
+Sapuan memeriksa daftar rute yang diketik langsung di
+`mobile-overflow.spec.ts`. Artinya **setiap halaman baru lahir tidak terjaga**,
+dan tidak ada apa pun yang memberi tahu. Saat keluhan ini datang aplikasi punya
+**60 halaman**, dan sapuannya menyentuh sekitar setengah — termasuk melewatkan
+halaman yang dikeluhkan.
+
+Daftarnya pindah ke `tests/e2e/rute-mobile.ts`, dan `tests/unit/rute-terjaga.test.ts`
+membaca `src/app/(app)/**/page.tsx` lalu **menolak rute yang tidak terdaftar**.
+Uji itu sengaja UNIT: tanpa peramban, tanpa basis data, ikut jalan di setiap
+`pnpm vitest run tests/unit`. Menaruhnya di e2e berarti ia baru bicara saat
+seseorang menjalankan Playwright — terlambat, dan justru pada bagian yang paling
+sering dilewati saat buru-buru. Ia juga menolak rute HANTU (pola yang halamannya
+sudah dihapus), karena daftar yang menumpuk rute mati perlahan berhenti dibaca.
+
+### Celah 2 — hanya SATU lebar diuji
+
+Cacat ini **tidak ada di 375px**. Diukur: di layar sesempit itu deretan tombol
+membungkus sehingga setiap menu mulai dari tepi kiri (x=33) dan muat. Baru di
+**414px** dua tombol muat sebaris, panel menu kedua mulai di x=264, dan panel
+selebar 240px mendorong halaman jadi **504px**.
+
+Sapuan berlebar tunggal akan terus melewatkan seluruh keluarga cacat ini —
+bukan karena kurang teliti, tapi karena lebar yang diuji kebetulan yang paling
+aman. `LEBAR_SAPUAN = [375, 414]`.
+
+### Celah 3 — hanya keadaan bawaan diuji
+
+Panel menu baru ada di DOM **setelah dibuka**; blanko KKP baru dirender
+**setelah "Tampilkan"**. Halaman yang dibuka apa adanya tampak sehat. Ini
+pengulangan persis pelajaran DECISIONS 230 (pita cuaca hanya melebar setelah
+cuaca diambil), yang saat itu dicatat tapi tidak diubah jadi pagar.
+
+Sapuan sekarang membuka **setiap `<summary>`** satu per satu lalu mengukur
+ulang, dan `rute-mobile.ts` menyediakan URL ber-query untuk keadaan yang butuh
+dipicu. Rute yang datanya tidak tersedia **DISEBUT di log**, bukan dilewati
+diam-diam — "tidak diuji" yang terbaca seperti "lulus" adalah cara sapuan ini
+pernah berbohong sebelumnya.
+
+### Dua cacat nyata yang ditemukan
+
+**`MenuBerkas`** — panelnya `absolute` tanpa jangkar horizontal, jadi selalu
+membuka ke KANAN dari tepi kiri tombolnya; tombol di paruh kanan layar mendorong
+panel keluar dan, karena tak ada leluhur yang memotong, yang melebar adalah
+seluruh halaman. Sisinya kini dipilih saat dibuka (`right-0` bila perlu), plus
+`max-w-[calc(100vw-1.5rem)]` sebagai pagar terakhir: pada layar yang lebih
+sempit dari panelnya, **panelnya yang mengalah, bukan halamannya**. Membalik
+lewat CSS statis saja hanya memindahkan masalah ke tombol dekat tepi kiri.
+
+**`Combobox`** — ditemukan sapuan yang sudah diperluas, di halaman yang
+sebelumnya tidak pernah disapu (`/paket/[id]/dokumen/impor`, 547px di layar
+375px). Label terpilih dipotong `truncate`, dan `truncate` menyetel
+`white-space: nowrap` sehingga UKURAN MIN-CONTENT-nya = lebar teks penuh.
+Sebagai item flex/grid, ukuran minimum otomatisnya adalah min-content — induknya
+tidak bisa mengecilkannya. `min-w-0` mematikan aturan itu sehingga `truncate`
+akhirnya benar-benar memotong.
+
+Diperbaiki di PRIMITIF, bukan di halaman yang kebetulan ketahuan: aturan proyek
+mewajibkan SEMUA dropdown memakai `Combobox`, jadi satu perbaikan menutup
+seluruh halaman sekaligus — termasuk yang belum ditulis. Sejalan dengan
+`fieldset { min-inline-size: 0 }` (DECISIONS 230).
+
+**Penjaga.** `tests/unit/rute-terjaga.test.ts` (6) — direktori terbaca, setiap
+halaman tercakup atau dikecualikan beralasan, tidak ada rute hantu, pengecualian
+wajib beralasan, tidak ada pola ganda, dinamis/statis tidak tertukar.
+`tests/e2e/mobile-overflow.spec.ts` ditulis ulang: 60 rute × 2 lebar × setiap
+menu dibuka. Hasil akhir hijau; dua rute (`/foto/[id]/cap`, `/ai/run/[id]`)
+dilaporkan tidak teruji karena data seed tidak menyediakannya.
+
+Uji gigi: satu rute dihapus dari daftar → 1 merah dengan nama rutenya; rute
+hantu ditambahkan → 1 merah. Sebelum perbaikan, sapuan baru menemukan 2 halaman
+melebar (laporan periodik pada menu terbuka, dan impor dokumen paket).
+
+---
+
+## 353 — Site Manager boleh mengubah kurva-S (baseline) (2026-08-17)
+
+Keputusan user 2026-08-17, menjawab pertanyaannya sendiri *"siapa yang boleh
+mengubah kurva S?"* dengan **"site manager dibolehkan"**.
+
+Sebelum ini `baseline.manage` berhenti di Project Manager. Susunan itu tidak
+konsisten dengan DECISIONS 302: Site Manager sudah memegang `rab.manage`,
+artinya ia boleh mengubah **bobot** — bahan baku kurvanya — tetapi tidak boleh
+menyentuh **jadwalnya**. Padahal SM pula yang memegang jadwal lapangan dan yang
+ditanya ketika realisasi menyimpang dari rencana; ia harus meminta atasan untuk
+menyesuaikan kurva atas pekerjaan yang ia sendiri kelola.
+
+### Yang terbuka
+
+Lima aksi baseline di `lokasi/[slug]/rab/actions.ts`: hitung ulang dari RAB
+aktif, simpan kurva hasil edit manual, jadwal per kategori, impor jadwal Excel,
+dan pulihkan baseline lama.
+
+### Yang TIDAK ikut terbuka — dan ini bagian keputusannya
+
+- **`requireLocationAccess` tetap di setiap aksi.** SM hanya menyentuh lokasi
+  penugasannya; capability tidak pernah jadi akses lintas lokasi.
+- **Baseline tetap append-only.** Versi lama tidak ditimpa, hanya berstatus
+  "digantikan"; seluruh riwayat tetap bisa dibuka dan dipulihkan. Yang dibuka
+  adalah hak MENYUSUN ULANG, bukan hak menghapus jejak.
+- **Deret manual tetap divalidasi ulang di server** (monoton, 0..100, berakhir
+  100) — kiriman klien tidak dipercaya.
+- **Tanggal kontrak tetap `contract.manage`** (super_admin & Program Director).
+  Itu kisi mingguan kurvanya; membukanya berarti membuka kontrak, dan itu tidak
+  diminta.
+- **Aktivasi revisi RAB tetap empat mata** (dua orang berbeda, satu di antaranya
+  Program Director), dan pencatatan adendum di sisi kontrak tetap
+  `amendment.manage`.
+
+Ringkasnya: SM boleh menyusun ulang RENCANA di dalam kontrak yang sudah
+ditetapkan — bukan mengubah kontraknya, bukan melintasi lokasi orang lain, dan
+bukan menghapus versi sebelumnya.
+
+### Didaftar SEKALI, di SITE_MANAGER
+
+`baseline.manage` dipindah ke daftar `SITE_MANAGER` dan **dihapus** dari
+`PROJECT_MANAGER`, yang sudah menyebar `...SITE_MANAGER`. Mendaftar hak yang
+sama dua kali membuat pencabutan di SM kelak tidak terlihat efeknya di PM — cara
+matriks izin diam-diam berhenti mencerminkan kenyataan. Pola yang sama sudah
+dipakai `rab.manage` sejak DECISIONS 302.
+
+`docs/rebuild/PERMISSION_MATRIX.md` diregenerasi (`pnpm docs:permission`).
+
+**Penjaga.** `tests/unit/authz.test.ts` +3: daftar peran pemegang
+`baseline.manage` ditulis LENGKAP dan eksplisit (Pelaksana harus merah); batas
+keputusan diuji terpisah (`contract.manage` / `contract.edit` /
+`amendment.manage` TIDAK ikut terbuka untuk SM, dan `contract.manage` tetap
+tertutup bahkan untuk PM); pewarisan diuji lewat perilaku sehingga pendaftaran
+ganda tidak bisa menyelinap masuk.
+
+Uji gigi: hak dicabut lagi dari SM → 3 merah; SM diberi `contract.manage`
+(pelonggaran merembet) → 2 merah; Pelaksana ikut kebagian → 3 merah. Dipulihkan
+→ 20 hijau.
+
+---
+
+## 354 — Tab lokasi melekat, dan tarik-untuk-muat-ulang dimatikan (2026-08-17)
+
+Keluhan user 2026-08-17 di halaman RAB (903 item): *"scroll ke bawah, kembali ke
+atas tab menu ringkasan, rab, progress, dll susah untuk discroll aktif di layar,
+malah browser seperti mentok lalu refresh."*
+
+Satu kalimat, **tiga cacat berbeda** — dan tak satu pun adalah sebab dari yang
+lain, jadi memperbaiki satu tidak menyelesaikan keluhannya.
+
+### 1. Deret tab ikut menggulir pergi
+
+Deret tab adalah satu-satunya jalan menuju sembilan halaman lain dari lokasi
+ini. Di halaman 903 item, berpindah tab berarti menggulir balik ke paling atas.
+Navigasi utama yang harus dikejar bukan navigasi.
+
+Sekarang melekat di `top-13` — tinggi topbar — bukan `top-0`. Kalau `top-0`, ia
+bersembunyi DI BALIK topbar yang juga melekat, dan gejalanya justru terlihat
+seperti tab yang hilang. Diukur: sesudah digulir ke dasar, tepi atas deret tab =
+tepi bawah topbar = 52px, tanpa celah dan tanpa tumpang tindih.
+
+### 2. Tab yang sedang aktif bisa berada di luar layar
+
+Ini yang membuat "susah dicari" itu harfiah. Deretnya lebih lebar dari layar
+ponsel, dan tanpa digulir sendiri ia selalu berhenti di posisi paling kiri.
+
+Diukur di layar 390px sebelum perbaikan — **enam dari sembilan tab sepenuhnya di
+luar layar**:
+
+| tab | posisi | layar |
+| --- | --- | --- |
+| Pelaksanaan Harian | 306→464 | 390 |
+| Kegiatan Lapangan | 465→619 | 390 |
+| Progress | 620→704 | 390 |
+| Keuangan | 706→799 | 390 |
+| Dokumen & Kepatuhan | 801→979 | 390 |
+| Laporan | 980→1059 | 390 |
+
+Membuka tab "Laporan" berarti tab yang sedang aktif ada hampir tiga lebar layar
+di sebelah kanan — orang kehilangan jejak posisinya sendiri.
+
+Digeser lewat `scrollLeft`, BUKAN `scrollIntoView`: yang terakhir bisa ikut
+menggeser halaman secara VERTIKAL, dan itu persis gerakan tak terduga yang
+dikeluhkan. Yang sudah terlihat utuh tidak digeser sama sekali.
+
+### 3. Tarik-untuk-muat-ulang peramban
+
+*"malah browser seperti mentok lalu refresh"* bukan kerusakan aplikasi — itu
+gestur bawaan peramban: begitu halaman mentok di paling atas, sapuan ke bawah
+berikutnya dibaca sebagai "muat ulang". Justru gerakan yang dipakai orang untuk
+mencari tab di atas.
+
+Di aplikasi ini akibatnya bukan sekadar menunggu: **memuat ulang membuang isian
+formulir yang belum tersimpan** — laporan harian yang sedang diketik mandor di
+lapangan, dengan sinyal seadanya. Gestur untuk menggulir dan gestur untuk
+membuang pekerjaan tidak boleh sama.
+
+`overscroll-behavior-y: contain` di `html, body`. `contain`, bukan `none`:
+penggulungan di DALAM elemen ber-scroll sendiri tetap normal; yang dihentikan
+hanya perambatannya ke peramban.
+
+**Penjaga.** Berkas baru `tests/e2e/mobile-tab-lokasi.spec.ts` (3): tab tetap di
+layar sesudah digulir ke dasar DAN tepat menempel di bawah topbar; tab aktif
+terlihat di kesembilan sub-halaman; `overscroll-behavior-y` = contain. Diuji
+lewat GEOMETRI, bukan tangkapan layar — yang dijanjikan ke pengguna adalah "tab
+ada di layar dan bisa ditekan", dan itu pertanyaan tentang koordinat.
+
+Uji gigi: `sticky` dilepas → 1 merah; penggeseran tab aktif dilepas → 1 merah
+yang MENYEBUTKAN keenam tab di luar layar berikut koordinatnya;
+`overscroll-behavior` dikembalikan ke `auto` → 1 merah. Dipulihkan → 3 hijau,
+dan sapuan overflow (60 rute × 2 lebar) tetap hijau sesudah perubahan tata letak
+ini.
+
+---
+
+## 355 — Sel kalender KOSONG membuka inputan langsung (2026-08-17)
+
+Permintaan user 2026-08-17: *"laporan harian di halaman lokasi, klik kalender,
+jika memang kosong langsung buka inputan laporan"*.
+
+Sebelumnya SEMUA sel menuju `?tgl=…` — memilih tanggal, memuat ulang halaman,
+lalu panel samping menampilkan *"Belum ada laporan untuk tanggal ini"* dan
+sebuah tombol "Buat laporan". Dua ketukan dan satu muat halaman untuk sampai ke
+**satu-satunya** hal yang bisa dilakukan di hari kosong.
+
+Panel itu berguna ketika ADA yang bisa diringkas. Pada hari kosong, ia hanya
+memberi tahu bahwa isinya kosong.
+
+### Hanya `kosong` yang melompat — dan itu batasnya
+
+| keadaan | tujuan | alasan |
+| --- | --- | --- |
+| `kosong` | `/harian/<tanggal>` | satu-satunya tindakan yang masuk akal |
+| `ada` | `?tgl=` | panel meringkas item, foto, kendala, kelengkapan — ada yang perlu dibaca dulu |
+| `luar_kontrak` | `?tgl=` | tidak ada laporan yang ditagih; melompat ke formulir menjanjikan pekerjaan yang tidak diminta siapa pun |
+| `belum_tiba` | `?tgl=` | formulirnya sendiri menolak (`isFuture`) — melompat hanya memindahkan orang ke jalan buntu |
+
+Keputusannya ditaruh di lapisan MURNI (`bukaLangsung()` di
+`kalender-harian.ts`), bukan di JSX: aturan "hari mana yang boleh melompat"
+adalah aturan domain, dan di sana ia bisa diuji tanpa peramban.
+
+Sel kosong juga MENYEBUT akibatnya (`title` = "Belum ada — buat laporan"):
+tujuan yang berbeda dari sel tetangganya harus bisa diketahui sebelum ditekan.
+
+**Penjaga.** `tests/unit/kalender-harian.test.ts` +6 (hari lewat kosong
+melompat; hari berlaporan tidak; luar kontrak tidak; belum tiba tidak; HARI INI
+yang masih kosong ikut melompat — kasus paling sering di lapangan; penjaga
+silang atas seluruh sel sebulan). `tests/e2e/mobile-tab-lokasi.spec.ts` +2:
+ketukan NYATA pada selnya, lalu diperiksa mendarat di `/harian/<tanggal>` DAN
+formulirnya benar-benar terbuka — memeriksa `href` saja akan hijau walau halaman
+tujuannya menolak membuka formulir.
+
+### Catatan data uji
+
+Bulan berjalan di seed tidak punya satu pun hari kosong (seluruh harinya di luar
+kontrak atau sudah berlaporan), sehingga versi pertama uji e2e ini "lulus" tanpa
+menyentuh perilaku yang dijaganya. Bulannya kini DIPILIH lewat `?bulan=`, dan
+ketiadaan sel kosong menggagalkan uji alih-alih melewatinya.
+
+Uji gigi: predikat dikembalikan ke `false` (perilaku lama) → 3 unit + 1 e2e
+merah, dengan e2e menunjukkan persis URL dua-ketukan yang dikeluhkan
+(`?bulan=2026-06&tgl=2026-06-01`); `status === null` dipakai sebagai ganti
+keadaan (pagar luar-kontrak & belum-tiba jebol) → 3 unit merah; sel berisi ikut
+melompat → 1 unit merah. Dipulihkan → hijau.
+
+---
+
+## 356 — Chat WhatsApp jadi luwes: periode bebas + niat baru (2026-08-17)
+
+Permintaan user 2026-08-17:
+
+> *"aku ingin chat whatsapp ke marlin menjadi seluar mungkin, ai yang menentukan
+> ini bisa dihandle atau tidak. mulai dari minta laporan harian, progress
+> tanggal tertentu atau kemarin, kemarin lusa … aku ingin marlin seluwes itu."*
+
+Sebelum ini tanya-jawab WhatsApp hanya mengenal **empat niat** dan **satu
+periode**: `"hari_ini"`, dikunci di skema. Pertanyaan sesederhana *"progress
+kemarin"* dijawab dengan angka hari ini — tanpa ada yang tahu.
+
+### Kunci kelenturan: AI menyebut yang ia BACA, kode yang MENGHITUNG
+
+Godaan yang harus ditolak adalah menyuruh AI mengisi `"2026-08-16"` untuk
+*"kemarin"*. Itu melanggar doktrin yang sama yang melarangnya menghasilkan angka
+(DECISIONS 133/193), **dan gagal secara praktis**: model tidak tahu hari ini
+tanggal berapa di Asia/Jakarta, tidak tahu Februari 2024 punya 29 hari, dan akan
+menebak tahun untuk *"17 Agustus"*.
+
+Jadi AI hanya melaporkan BENTUK yang ia lihat di kalimat, dan seluruh
+aritmetikanya ada di `tanya-tanggal.ts` — murni, tanpa `Date.now()` tersembunyi
+(hari ini selalu dioper masuk, karena uji yang bergantung pada "hari ini
+sungguhan" berubah hasilnya tiap tengah malam, dan cacat zona waktu justru
+paling sering muncul di sekitar pergantian hari).
+
+| yang ditulis penanya | yang dikirim AI |
+| --- | --- |
+| "kemarin" | `{jenis:"mundur_hari",hari:1}` |
+| "kemarin lusa" | `{jenis:"mundur_hari",hari:2}` |
+| "17 agustus" | `{jenis:"tanggal",hari:17,bulan:8,tahun:null}` |
+| "minggu lalu" | `{jenis:"rentang",satuan:"minggu",mundur:1}` |
+
+**Tahun yang tidak disebut = kejadian TERAKHIR yang sudah lewat.** *"Progress 20
+Desember"* yang ditanya pada Agustus 2026 berarti Desember 2025. Menebak ke
+depan menjawab hari yang belum terjadi, dan jawabannya kosong — terbaca seperti
+*"tidak ada pekerjaan"*, bukan *"salah tahun"*.
+
+### Dua niat baru
+
+- **`laporan`** — ISI laporan harian satu tanggal (item, contoh nama pekerjaan,
+  tenaga kerja, foto, cuaca, jam kerja). Ini pertanyaan yang berbeda dari
+  `kelengkapan`: yang satu menanyakan APA ISINYA, yang lain siapa yang belum
+  mengisi. Lokasi tanpa laporan TETAP disebut — menghilangkan barisnya membuat
+  "belum ada laporan" tak bisa dibedakan dari "lokasi itu tidak saya periksa".
+- **`bantuan`** — MARLIN menjelaskan kemampuannya sendiri. Kelenturan yang tidak
+  diketahui sama dengan tidak ada: orang lapangan tidak membaca dokumentasi, dan
+  satu-satunya tempat mereka bisa menemukan batasnya adalah percakapan yang
+  sedang berlangsung.
+
+### Yang MENGAKU, bukan menebak — batas yang ikut dipasang
+
+Kelenturan tanpa kejujuran justru berbahaya: balasan WhatsApp di-screenshot dan
+diteruskan ke PPK.
+
+- **Deviasi** dihitung terhadap posisi kurva-S HARI INI. Deviasi historis butuh
+  evaluasi baseline pada tanggal itu — belum ada. Kalau penanya menyebut hari
+  lain, balasannya berkata *"Deviasi ini posisi HARI INI; saya belum bisa
+  menghitung deviasi pada kemarin lusa."* Menyajikannya diam-diam di bawah judul
+  "kemarin" adalah jawaban benar untuk hari yang salah.
+- **Kendala** yang didaftar adalah yang MASIH TERBUKA sekarang; sistem tidak
+  menyimpan riwayat "kendala apa yang terbuka pada hari X". Disebut juga.
+- **Minggu/bulan berjalan** dipotong di hari ini, dan pemotongannya dikatakan —
+  menghitung hari yang belum terjadi ke dalam penyebut membuat angkanya bohong.
+- Catatan hanya muncul saat DIBUTUHKAN. Deviasi hari ini tidak diberi catatan;
+  peringatan yang muncul ketika tidak perlu melatih orang mengabaikannya.
+
+### Yang BELUM bisa, dan sengaja tidak dijanjikan
+
+Chat ini tetap **hanya membaca**. Belum bisa: mengubah data (input laporan,
+keuangan, RAB), mengirim berkas/foto, dan deviasi historis. Menambahkan jalur
+MUTASI lewat WhatsApp adalah keputusan terpisah — di sana pertanyaan izin,
+pemisahan tugas, dan jejak audit jauh lebih berat daripada sekadar membaca.
+
+### Skema periode TOLERAN, karena ia memeriksa keluaran MODEL
+
+Bentuk lama berupa string (`"hari_ini"`) tetap diterima, dan bentuk yang tidak
+dikenal jatuh ke hari ini alih-alih menggagalkan seluruh parse. Ini skema untuk
+keluaran model, bukan untuk masukan program kita: satu kata yang meleset tidak
+boleh membuat penanya menerima *"AI sedang tidak bisa membaca pertanyaan"*
+padahal niatnya sudah terbaca benar. Periodenya SELALU disebut di judul balasan,
+jadi salah-baca periode tetap terlihat oleh penanya.
+
+**Penjaga.** Berkas baru `tests/unit/waha-tanya-tanggal.test.ts` (17): mundur
+melewati awal bulan/tahun & 29 Februari, mundur nol/negatif tidak pernah jadi
+tanggal depan, minggu dimulai Senin dan dipotong di hari ini, panjang bulan yang
+berbeda-beda, tahun tak disebut → kejadian terakhir, tanggal mustahil (31
+Februari) DITOLAK alih-alih digulung diam-diam oleh `Date.UTC`.
+`tests/integration/waha-tanya-jawab.test.ts` +10 lewat perangkai UTUH — karena
+niat yang dibaca sempurna lalu diabaikan perangkainya terlihat persis sama
+seperti AI yang bodoh.
+
+`tests/unit/waha-tanya-niat.test.ts` +3 (bentuk baru, bentuk lama, bentuk tak
+dikenal).
+
+Uji gigi: periode diabaikan perangkai (perilaku lama) → **6 integrasi merah**;
+toleransi periode dilepas → 1 merah;
+deviasi lampau tidak lagi mengaku → 1 merah; tahun ditebak ke depan → 1 merah;
+tanggal mustahil digulung `Date.UTC` apa adanya → 2 merah. Dipulihkan → 17 & 50
+hijau.
+
+---
+
+## 357 — Laporan mingguan WA: minggu yang dilaporkan bisa dipilih (2026-08-17)
+
+Permintaan user 2026-08-17:
+
+> *"laporan mingguan basis teks yang dikirim ke wa group di halaman paket. itu
+> saat ini kirim minggu berjalan, padahal kadang kita butuh kirim minggu
+> terakhir. butuh flexibelitas di situ."*
+
+Minggu berjalan baru berisi sebagian hari; yang biasanya dilaporkan ke PPK
+adalah minggu yang sudah TUNTAS. Sebelum ini nomor mingguanya dipaku ke
+`mingguKontrak(startDate, now)` — tidak ada jalan lain sama sekali.
+
+### Yang dipilih bukan cuma NOMORNYA, tapi juga TANGGAL HITUNGNYA
+
+Ini inti perubahan, dan bagian yang paling mudah dikerjakan setengah. Mengganti
+nomor minggu di judul saja akan menghasilkan pesan berjudul **"Minggu Ke : 4"**
+yang isinya realisasi HARI INI: tetap terkirim, tetap rapi, tetap ke grup berisi
+PPK dan konsultan — dan tidak ada yang bisa membedakannya tanpa menghitung ulang
+sendiri.
+
+Calculation layer sudah mendukungnya: `getLocationProgress(id, { asOf })`, yang
+artinya persis *"laporan mana yang ikut dihitung (`report_date <= asOf`)"*
+(CALC-01, DECISIONS 275). Jadi minggu lampau dihitung `asOf` hari TERAKHIR
+minggu itu.
+
+Minggu BERJALAN tetap memakai `now`, bukan akhir minggunya — akhir minggu
+berjalan adalah tanggal DEPAN, dan `report_date <= asOf` akan diam-diam
+memasukkan laporan yang belum ada.
+
+### Yang tidak berubah
+
+- **Bawaannya tetap minggu berjalan.** Kebiasaan yang sudah jalan tidak diubah
+  diam-diam, dan penjadwal otomatis tetap mengirim minggu berjalan pada hari
+  terakhirnya. Yang bertambah hanyalah pilihan.
+- **Kunci `(paket, minggu)` tetap berarti.** Kiriman susulan minggu ke-4 tercatat
+  di baris minggu ke-4, jadi ia TIDAK mengunci minggu berjalan — kalau keduanya
+  berbagi satu baris, mengirim laporan susulan akan membuat penjadwal diam pada
+  minggu berjalan dan laporan otomatisnya hilang tanpa ada yang sadar.
+
+### Yang ditambahkan ke badan pesan
+
+- **Rentang tanggal**: `Minggu Ke : 5 (3 Agt – 9 Agt 2026)`. Nomor minggu saja
+  tidak cukup begitu yang dilaporkan bisa bukan minggu berjalan — penerimanya
+  tidak punya cara tahu periode mana yang dimaksud, dan pesan WhatsApp tidak
+  bisa ditarik kembali untuk diperjelas.
+- **Penanda minggu berjalan**: *"(minggu berjalan — belum genap seminggu)"*.
+  Tanpa itu, penerima membandingkannya dengan minggu-minggu genap sebelumnya —
+  perbandingan yang selalu membuat minggu berjalan terlihat tertinggal.
+
+Pemilihnya (`Combobox`, sesuai aturan proyek) berada DI LUAR kedua form dan
+dititipkan lewat input tersembunyi: kalau ia di dalam salah satu form,
+"Lihat dulu" dan "Kirim" bisa memakai minggu berbeda — dan pratinjau yang tidak
+sama dengan yang dikirim membatalkan gunanya pratinjau.
+
+### Uji gigi yang membongkar uji saya sendiri
+
+Percobaan pertama: mencabut `asOf` sepenuhnya **tidak membuat satu uji pun
+merah**. Sebabnya fixture-nya tidak punya data progres — realisasi minggu ke-4
+dan realisasi hari ini sama-sama nol, jadi cacat paling senyap dari fitur ini
+lolos tanpa terlihat.
+
+Fixture-nya kini punya RAB, baseline, dan DUA laporan harian di minggu berbeda
+(minggu ke-3 dan ke-7), sehingga "s/d minggu ke-4" (10%) benar-benar berbeda
+dari "s/d hari ini" (40%). Sesudah itu, mencabut `asOf` → 2 merah.
+
+**Penjaga.** Berkas baru `tests/unit/mingguan-pilih-minggu.test.ts` (11):
+`mingguKontrak` & `rentangMingguKontrak` SALING MEMBALIK untuk 30 minggu × 7
+hari, minggu tanpa celah/tumpang tindih, `mingguSelesaiTerakhir` nol selama
+belum ada minggu penuh, `asOf` minggu berjalan = hari ini, minggu lampau = akhir
+minggunya, dan tidak pernah menghasilkan tanggal depan.
+`tests/integration/laporan-mingguan-wa.test.ts` +9.
+
+Uji gigi: `asOf` dicabut → **2 integrasi merah**; minggu berjalan memakai akhir
+minggunya → 2 unit merah; rentang digeser satu hari → 3 unit + 1 integrasi
+merah; minggu depan tidak lagi ditolak → 1 integrasi merah. Dipulihkan → 11 & 21
+hijau.

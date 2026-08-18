@@ -157,7 +157,28 @@ export function Combobox({
   }
 
   return (
-    <div ref={rootRef} className={cn("relative", className)}>
+    /*
+     * `min-w-0` BUKAN kerapian — ia yang menahan Combobox melebarkan halaman
+     * (DECISIONS 352).
+     *
+     * Label terpilih dipotong dengan `truncate`, dan `truncate` menyetel
+     * `white-space: nowrap`. Akibatnya UKURAN MIN-CONTENT kotak ini = lebar
+     * teks penuh. Sebagai item flex/grid, ukuran minimum otomatisnya adalah
+     * min-content — jadi induknya tidak bisa mengecilkannya, dan yang melebar
+     * adalah kolom, kartu, lalu seluruh halaman.
+     *
+     * Diukur pada /paket/[id]/dokumen/impor: satu paket bernama panjang
+     * ("… (belum ada folder Drive)") membuat halaman jadi 547px di layar 375px.
+     * `min-w-0` mematikan aturan minimum otomatis itu sehingga `truncate`
+     * akhirnya benar-benar memotong.
+     *
+     * Ditaruh di PRIMITIF, bukan di halaman yang kebetulan ketahuan: aturan
+     * proyek ini mewajibkan SEMUA dropdown memakai Combobox, jadi satu
+     * perbaikan di sini menutup seluruh halaman sekaligus — termasuk yang belum
+     * ditulis. Sejalan dengan `fieldset { min-inline-size: 0 }` di globals.css
+     * (DECISIONS 230).
+     */
+    <div ref={rootRef} className={cn("relative min-w-0", className)}>
       {name ? <input type="hidden" name={name} value={selected} /> : null}
       <button
         type="button"

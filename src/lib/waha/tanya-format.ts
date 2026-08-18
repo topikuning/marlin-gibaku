@@ -38,6 +38,12 @@ function kepala(judul: string, tanggal: string): string {
  */
 export type OpsiKaki = {
   catatanPemotongan?: string | null;
+  /**
+   * Periode yang tidak bisa dipenuhi apa adanya — mis. minggu berjalan dipotong
+   * di hari ini, atau tanggal yang belum terjadi (DECISIONS 356). Periode yang
+   * diam-diam digeser menghasilkan angka yang benar untuk hari yang salah.
+   */
+  catatanPeriode?: string | null;
   /** Pemotongan JUMLAH baris ("ditampilkan 15 dari 40"). */
   catatanBatas?: string | null;
   resolusi?: HasilResolusi | null;
@@ -50,6 +56,7 @@ function kaki(opts: OpsiKaki): string {
       `⚠️ Tidak saya kenali: ${opts.resolusi.tidakDikenal.join(", ")} — mungkin salah ketik, atau di luar penugasan Anda.`,
     );
   }
+  if (opts.catatanPeriode) b.push(`ℹ️ ${opts.catatanPeriode}`);
   if (opts.catatanBatas) b.push(`ℹ️ ${opts.catatanBatas}`);
   if (opts.catatanPemotongan) b.push(`ℹ️ ${opts.catatanPemotongan}`);
   return b.length > 0 ? `\n\n${b.join("\n")}` : "";
@@ -224,4 +231,79 @@ export function balasKelengkapan(
     isi.join("\n") +
     kaki(opts)
   );
+}
+
+/* ------------------------------------------------------------------ */
+/* Isi laporan harian                                                  */
+/* ------------------------------------------------------------------ */
+
+export type BarisLaporanWa = {
+  lokasi: string;
+  status: string | null;
+  itemCount: number;
+  contohItem: string[];
+  pekerjaCount: number;
+  fotoCount: number;
+  cuaca: string | null;
+  jamKerja: string | null;
+};
+
+/**
+ * ISI laporan harian satu tanggal (DECISIONS 356).
+ *
+ * Lokasi tanpa laporan TETAP disebut, dengan kalimatnya sendiri. Menghilangkan
+ * barisnya membuat "belum ada laporan" tak bisa dibedakan dari "lokasi itu
+ * memang tidak saya periksa".
+ */
+export function balasLaporan(
+  r: { tanggal: string; baris: BarisLaporanWa[] },
+  opts: OpsiKaki = {},
+): string {
+  if (r.baris.length === 0) {
+    return kepala("Laporan harian", r.tanggal) + "\n\nTidak ada lokasi yang cocok." + kaki(opts);
+  }
+  const isi = r.baris.map((b) => {
+    if (!b.status) return `*${b.lokasi}*\n  belum ada laporan`;
+    const rinci = [
+      `${b.itemCount} item`,
+      b.pekerjaCount > 0 ? `${b.pekerjaCount} baris tenaga kerja` : null,
+      b.fotoCount > 0 ? `${b.fotoCount} foto` : null,
+      b.cuaca,
+      b.jamKerja,
+    ].filter(Boolean);
+    const baris = [`*${b.lokasi}* (${b.status})`, `  ${rinci.join(" · ")}`];
+    if (b.contohItem.length > 0) {
+      // Nama pekerjaan yang benar-benar dilaporkan — bukti bahwa isinya nyata,
+      // bukan sekadar angka yang bisa saja nol item.
+      baris.push(`  ${b.contohItem.map((n) => `– ${n}`).join("\n  ")}`);
+    }
+    return baris.join("\n");
+  });
+  return kepala("Laporan harian", r.tanggal) + "\n\n" + isi.join("\n\n") + kaki(opts);
+}
+
+/**
+ * "Kamu bisa apa saja?" — MARLIN menjelaskan dirinya sendiri (DECISIONS 356).
+ *
+ * Kelenturan yang tidak diketahui sama dengan tidak ada. Orang lapangan tidak
+ * membaca dokumentasi; satu-satunya tempat mereka bisa menemukan batas
+ * kemampuan MARLIN adalah percakapan yang sedang berlangsung.
+ */
+export function balasBantuan(): string {
+  return [
+    "*Yang bisa saya jawab lewat chat*",
+    "",
+    "• *Progress* — “progress hari ini”, “progress kemarin di Kedung Mutih”",
+    "• *Laporan harian* — “minta laporan harian”, “laporan tanggal 12”, “laporan kemarin lusa”",
+    "• *Kendala* — “ada kendala apa”, “kendala di Tengket”",
+    "• *Deviasi* — “mana yang deviasinya negatif”, “siapa yang tertinggal”",
+    "• *Kelengkapan* — “siapa yang belum lapor hari ini”",
+    "",
+    "*Periode yang saya mengerti*",
+    "hari ini · kemarin · kemarin lusa · N hari lalu · tanggal tertentu",
+    "(“17 agustus”, “tanggal 3”) · minggu ini/lalu · bulan ini/lalu",
+    "",
+    "Sebut nama lokasi kalau mau dipersempit. Kalau tidak disebut, saya jawab",
+    "untuk seluruh lokasi yang boleh Anda lihat.",
+  ].join("\n");
 }

@@ -270,3 +270,79 @@ export async function dataKelengkapan(
     ),
   };
 }
+
+/* ------------------------------------------------------------------ */
+/* Isi laporan harian satu tanggal                                     */
+/* ------------------------------------------------------------------ */
+
+export type BarisLaporan = {
+  lokasi: string;
+  /** null = tidak ada laporan sama sekali untuk tanggal itu. */
+  status: string | null;
+  itemCount: number;
+  /** Beberapa nama pekerjaan teratas — bukti bahwa laporannya berisi. */
+  contohItem: string[];
+  pekerjaCount: number;
+  fotoCount: number;
+  cuaca: string | null;
+  jamKerja: string | null;
+};
+
+export type HasilLaporan = { baris: BarisLaporan[]; catatanBatas: string | null };
+
+/**
+ * ISI laporan harian satu tanggal (DECISIONS 356).
+ *
+ * Menjawab permintaan yang paling sering diucapkan di lapangan — *"minta
+ * laporan harian"*, *"laporan tanggal 12"* — dan itu pertanyaan yang berbeda
+ * dari `kelengkapan`: yang ini menanyakan APA ISINYA, bukan siapa yang belum
+ * mengisi.
+ *
+ * Lokasi TANPA laporan tetap dikembalikan dengan `status: null`. Menghilangkan
+ * barisnya akan membuat "belum ada laporan" tak bisa dibedakan dari "lokasinya
+ * tidak termasuk yang saya tanyakan" — dua kabar yang menuntut tindakan
+ * berbeda.
+ */
+export async function dataLaporan(
+  lokasi: LokasiKatalog[],
+  dateKey: string,
+): Promise<HasilLaporan> {
+  if (lokasi.length === 0) return { baris: [], catatanBatas: null };
+  const dipakai = lokasi.slice(0, BATAS_BARIS);
+  const ids = dipakai.map((l) => l.id);
+  const reportDate = parseDateKey(dateKey);
+  if (!reportDate) return { baris: [], catatanBatas: null };
+
+  const rows = await db.dailyReport.findMany({
+    where: { locationId: { in: ids }, reportDate },
+    select: {
+      locationId: true,
+      status: true,
+      weather: true,
+      workStart: true,
+      workEnd: true,
+      _count: { select: { items: true, photos: true, workers: true } },
+      items: { select: { rabNode: { select: { name: true } } }, take: 5 },
+    },
+  });
+  const byId = new Map(rows.map((r) => [r.locationId, r]));
+
+  return {
+    baris: dipakai.map((l) => {
+      const r = byId.get(l.id);
+      return {
+        lokasi: l.nama,
+        status: r ? REPORT_STATUS_LABEL[r.status] : null,
+        itemCount: r?._count.items ?? 0,
+        contohItem: r?.items.map((i) => i.rabNode.name).filter(Boolean) ?? [],
+        pekerjaCount: r?._count.workers ?? 0,
+        fotoCount: r?._count.photos ?? 0,
+        cuaca: r?.weather ?? null,
+        // Jam mulai tanpa jam selesai BUKAN jam kerja — jangan ditampilkan
+        // separuh seolah lengkap.
+        jamKerja: r?.workStart && r.workEnd ? `${r.workStart}–${r.workEnd}` : null,
+      };
+    }),
+    catatanBatas: catatanBatas(dipakai.length, lokasi.length, "lokasi"),
+  };
+}

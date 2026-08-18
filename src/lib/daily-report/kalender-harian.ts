@@ -370,6 +370,32 @@ export function lolosSelSaring(sel: SelKalender, saring: SaringHarian): boolean 
   return lolosSaringHarian(sel.status, saring);
 }
 
+/**
+ * Hari yang diklik langsung MEMBUKA INPUTAN, bukan sekadar memilih tanggal
+ * (DECISIONS 355).
+ *
+ * Permintaan user 2026-08-17: *"klik kalender, jika memang kosong langsung buka
+ * inputan laporan"*.
+ *
+ * Sebelumnya semua sel menuju `?tgl=…` — memilih tanggal, lalu panel samping
+ * menampilkan "Belum ada laporan untuk tanggal ini" dan sebuah tombol "Buat
+ * laporan". Dua ketukan dan satu muat halaman untuk sampai ke satu-satunya hal
+ * yang bisa dilakukan di hari kosong. Panel itu berguna ketika ADA yang bisa
+ * diringkas; pada hari kosong ia cuma memberi tahu bahwa isinya kosong.
+ *
+ * HANYA `kosong` yang melompat, dan itu batasnya:
+ *
+ *  - `ada`         → panel meringkas item, foto, kendala, kelengkapan. Ada yang
+ *                    perlu dibaca lebih dulu, jadi memilih tetap benar.
+ *  - `luar_kontrak`→ tidak ada laporan yang ditagih. Melompat ke formulir
+ *                    menjanjikan pekerjaan yang tidak diminta siapa pun.
+ *  - `belum_tiba`  → hari depan. Formulirnya pun menolak (`isFuture`), jadi
+ *                    melompat hanya memindahkan orang ke jalan buntu.
+ */
+export function bukaLangsung(sel: SelKalender): boolean {
+  return sel.keadaan === "kosong";
+}
+
 /* ------------------------------------------------------------------ */
 /* Ringkasan                                                           */
 /* ------------------------------------------------------------------ */

@@ -40,6 +40,22 @@ async function pastikanPaketSeorganisasi(packageId: string, orgId: string): Prom
 }
 
 /**
+ * Minggu yang diminta tombol. Kosong = minggu berjalan (perilaku lama, tetap
+ * jadi bawaan supaya kebiasaan yang sudah ada tidak berubah diam-diam).
+ */
+const skemaMinggu = z.object({
+  packageId: z.uuid(),
+  mingguKe: z
+    .union([z.string(), z.number()])
+    .optional()
+    .transform((v) => {
+      if (v === undefined || v === "" || v === null) return undefined;
+      const n = Number(v);
+      return Number.isFinite(n) && n >= 1 ? Math.floor(n) : undefined;
+    }),
+});
+
+/**
  * Susun teksnya saja, JANGAN kirim.
  *
  * Laporan resmi ke pemberi kerja tidak boleh berangkat tanpa ada yang sempat
@@ -50,18 +66,22 @@ export async function pratinjauMingguanAction(
   _prev: MingguanState,
   formData: FormData,
 ): Promise<MingguanState> {
-  const parsed = z.object({ packageId: z.uuid() }).safeParse({
+  const parsed = skemaMinggu.safeParse({
     packageId: formData.get("packageId"),
+    mingguKe: formData.get("mingguKe") ?? undefined,
   });
   if (!parsed.success) return { error: "Paket tidak valid." };
 
   try {
     const user = await requireCapability("ai.report_send");
     await pastikanPaketSeorganisasi(parsed.data.packageId, user.orgId);
-    const hasil = await pratinjauMingguan(parsed.data.packageId);
+    const hasil = await pratinjauMingguan(parsed.data.packageId, new Date(), parsed.data.mingguKe);
     if ("alasan" in hasil) return { error: hasil.alasan };
     return {
-      info: `Minggu ke-${hasil.mingguKe} · ${hasil.lokasi} lokasi. Periksa dulu, baru kirim.`,
+      info:
+        `Minggu ke-${hasil.mingguKe} · ${hasil.lokasi} lokasi` +
+        (hasil.berjalan ? " · minggu BERJALAN (belum genap)" : " · minggu sudah tuntas") +
+        ". Periksa dulu, baru kirim.",
       body: hasil.body,
     };
   } catch (err) {
@@ -83,8 +103,9 @@ export async function kirimMingguanAction(
   _prev: MingguanState,
   formData: FormData,
 ): Promise<MingguanState> {
-  const parsed = z.object({ packageId: z.uuid() }).safeParse({
+  const parsed = skemaMinggu.safeParse({
     packageId: formData.get("packageId"),
+    mingguKe: formData.get("mingguKe") ?? undefined,
   });
   if (!parsed.success) return { error: "Paket tidak valid." };
 
@@ -95,9 +116,14 @@ export async function kirimMingguanAction(
       manual: true,
       paksa: true,
       sentById: user.id,
+      mingguKe: parsed.data.mingguKe,
     });
     await audit(user.id, "report.weekly_wa.send", "package", parsed.data.packageId, {
       ok: hasil.ok,
+      // Minggu yang DIMINTA ikut tercatat: kalau kelak ada pertanyaan "kenapa
+      // grup menerima dua laporan", jejaknya harus bisa membedakan kiriman
+      // minggu berjalan dari kiriman minggu lampau.
+      mingguDiminta: parsed.data.mingguKe ?? null,
       ...(hasil.ok ? { mingguKe: hasil.mingguKe, lokasi: hasil.lokasi } : { alasan: hasil.alasan }),
     });
     revalidatePath(`/paket/${parsed.data.packageId}`);

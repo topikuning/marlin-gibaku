@@ -39,7 +39,7 @@ const KATALOG: LokasiKatalog[] = [
 
 describe("skema niat", () => {
   it("menerima niat null — AI WAJIB boleh mengaku tidak tahu", () => {
-    const r = skemaNiat.safeParse({ niat: null, lokasiDisebut: [], periode: "hari_ini" });
+    const r = skemaNiat.safeParse({ niat: null, lokasiDisebut: [], periode: { jenis: "hari_ini" } });
     expect(r.success).toBe(true);
     expect(r.success && r.data.niat).toBeNull();
   });
@@ -52,7 +52,32 @@ describe("skema niat", () => {
 
   it("periode default hari_ini", () => {
     const r = skemaNiat.parse({ niat: "kendala", lokasiDisebut: [] });
-    expect(r.periode).toBe("hari_ini");
+    expect(r.periode).toEqual({ jenis: "hari_ini" });
+  });
+
+  it("periode bentuk BARU dibaca apa adanya (DECISIONS 356)", () => {
+    const r = skemaNiat.parse({
+      niat: "progress",
+      lokasiDisebut: [],
+      periode: { jenis: "mundur_hari", hari: 2 },
+    });
+    expect(r.periode).toEqual({ jenis: "mundur_hari", hari: 2 });
+  });
+
+  it("bentuk LAMA berupa string tetap diterima, tidak menggagalkan parse", () => {
+    // Skema ini memeriksa keluaran MODEL, bukan masukan program kita. Satu kata
+    // yang meleset tidak boleh membuat penanya menerima "AI tidak bisa membaca
+    // pertanyaan" — padahal niatnya sudah terbaca benar.
+    const r = skemaNiat.parse({ niat: "kendala", lokasiDisebut: [], periode: "hari_ini" });
+    expect(r.periode).toEqual({ jenis: "hari_ini" });
+  });
+
+  it("periode yang TIDAK DIKENAL jatuh ke hari ini, bukan gagal total", () => {
+    for (const aneh of ["minggu_depan", 42, { jenis: "entah" }, { jenis: "mundur_hari" }]) {
+      const r = skemaNiat.safeParse({ niat: "progress", lokasiDisebut: [], periode: aneh });
+      expect(r.success, JSON.stringify(aneh)).toBe(true);
+      expect(r.success && r.data.periode, JSON.stringify(aneh)).toEqual({ jenis: "hari_ini" });
+    }
   });
 
   it("membatasi jumlah lokasi — pesan yang membanjiri tidak jadi kueri raksasa", () => {

@@ -17,6 +17,7 @@
 import { describe, expect, it } from "vitest";
 import {
   bacaBulan,
+  bukaLangsung,
   batasBulan,
   bulanDari,
   geserBulan,
@@ -384,5 +385,75 @@ describe("bentuk daftar — SELURUH rentang, bukan satu bulan", () => {
 describe("bulanDari", () => {
   it("memotong dateKey ke kunci bulan", () => {
     expect(bulanDari("2026-08-17")).toBe("2026-08");
+  });
+});
+
+describe("sel kosong membuka inputan langsung (DECISIONS 355)", () => {
+  /*
+   * Permintaan user 2026-08-17: "klik kalender, jika memang kosong langsung
+   * buka inputan laporan".
+   *
+   * Sebelumnya SEMUA sel menuju `?tgl=` — memilih tanggal, lalu panel samping
+   * memberi tahu bahwa isinya kosong dan menawarkan satu tombol "Buat laporan".
+   * Dua ketukan dan satu muat halaman untuk sampai ke satu-satunya hal yang
+   * bisa dilakukan di hari kosong.
+   */
+  const sel = (bulan: string, tanggal: number, opts: Parameters<typeof kalender>[1] = {}) => {
+    const dateKey = `${bulan}-${String(tanggal).padStart(2, "0")}`;
+    const s = kalender(bulan, opts).find((x) => x.dateKey === dateKey);
+    if (!s) throw new Error(`sel ${dateKey} tidak ada — fixture uji salah`);
+    return s;
+  };
+
+  it("hari LEWAT tanpa laporan: melompat ke formulir", () => {
+    const s = sel("2026-08", 10);
+    expect(s.keadaan).toBe("kosong");
+    expect(bukaLangsung(s)).toBe(true);
+  });
+
+  it("hari yang SUDAH punya laporan: tetap memilih, karena ada yang perlu dibaca", () => {
+    // Panel samping meringkas item, foto, kendala, dan kelengkapan. Melompat ke
+    // formulir akan melewati ringkasan itu.
+    const data = new Map<string, DataHari>([
+      ["2026-08-10", { status: "draft", itemCount: 3, fotoCount: 1 }],
+    ]);
+    const s = sel("2026-08", 10, { data });
+    expect(s.keadaan).toBe("ada");
+    expect(bukaLangsung(s)).toBe(false);
+  });
+
+  it("hari DI LUAR masa kontrak: TIDAK melompat", () => {
+    /*
+     * Pagar yang paling mudah dilanggar tanpa sadar. Melompat ke formulir
+     * menjanjikan pekerjaan yang memang tidak ditagih siapa pun — persis
+     * alasan label aksinya dibedakan sejak awal.
+     */
+    const s = sel("2026-08", 10, { mulaiKontrak: "2026-08-15", akhirKontrak: "2026-09-30" });
+    expect(s.keadaan).toBe("luar_kontrak");
+    expect(bukaLangsung(s)).toBe(false);
+  });
+
+  it("hari yang BELUM TIBA: TIDAK melompat — formulirnya pun menolak", () => {
+    // Halaman harian menolak tanggal depan (`isFuture`), jadi melompat hanya
+    // memindahkan orang ke jalan buntu.
+    const s = sel("2026-08", 25);
+    expect(s.keadaan).toBe("belum_tiba");
+    expect(bukaLangsung(s)).toBe(false);
+  });
+
+  it("HARI INI yang masih kosong ikut melompat", () => {
+    // Kasus paling sering di lapangan: mandor membuka kalender untuk mengisi
+    // hari ini. Kalau justru hari ini tidak melompat, perbaikan ini kehilangan
+    // alasan utamanya.
+    const s = sel("2026-08", 17);
+    expect(s.hariIni).toBe(true);
+    expect(bukaLangsung(s)).toBe(true);
+  });
+
+  it("keputusannya HANYA dari keadaan, bukan dari jumlah item/foto", () => {
+    // Penjaga silang: seluruh sel non-kosong harus false, apa pun isinya.
+    for (const s of kalender("2026-08", { mulaiKontrak: "2026-08-05", akhirKontrak: "2026-08-20" })) {
+      expect(bukaLangsung(s), `${s.dateKey} (${s.keadaan})`).toBe(s.keadaan === "kosong");
+    }
   });
 });

@@ -258,6 +258,10 @@ export default async function HarianIndexPage({
                 terpilih={terpilih.dateKey}
                 disorot={disorot}
                 taut={(u) => taut(u)}
+                // Hari KOSONG melompat langsung ke formulirnya (DECISIONS 355):
+                // di hari tanpa laporan, panel samping cuma memberi tahu bahwa
+                // isinya kosong lalu menawarkan satu tombol.
+                tautIsi={(tgl) => `/lokasi/${slug}/harian/${tgl}`}
               />
 
               {/* Angka SELALU membawa penyebutnya, dan penyebutnya JUJUR: hari

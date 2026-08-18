@@ -139,6 +139,33 @@ const SITE_MANAGER: Capability[] = [
    * Program Director saja).
    */
   "rab.manage",
+  /**
+   * KURVA-S: Site Manager boleh mengubah baseline (DECISIONS 353).
+   *
+   * Keputusan user 2026-08-17, menjawab pertanyaannya sendiri "siapa yang boleh
+   * mengubah kurva S?".
+   *
+   * Susunan sebelumnya tidak konsisten dengan DECISIONS 302: SM sudah memegang
+   * `rab.manage` — ia boleh mengubah BOBOT, yaitu bahan baku kurvanya — tapi
+   * tidak boleh menyentuh jadwalnya. Padahal SM pula yang memegang jadwal
+   * lapangan dan yang ditanya ketika realisasi menyimpang dari rencana. Ia
+   * harus meminta atasan untuk menyesuaikan kurva atas pekerjaan yang dia
+   * sendiri kelola.
+   *
+   * Yang membatasi tetap ada dan tidak diubah:
+   *
+   *  - `requireLocationAccess` di SETIAP aksi baseline — SM hanya bisa
+   *    menyentuh lokasi penugasannya, bukan seluruh paket;
+   *  - baseline append-only: versi lama tidak ditimpa, hanya "digantikan", dan
+   *    seluruh riwayatnya tetap bisa dibuka & dipulihkan;
+   *  - deret manual divalidasi ulang di server (monoton, 0..100, berakhir 100);
+   *  - tanggal kontrak — kisi mingguan kurvanya — tetap `contract.manage`
+   *    (super_admin & Program Director saja).
+   *
+   * Jadi yang terbuka adalah MENYUSUN ULANG rencana dalam kontrak yang sudah
+   * ditetapkan, bukan mengubah kontraknya, dan bukan menghapus jejak.
+   */
+  "baseline.manage",
   "daily_report.review",
   "daily_report.finalize",
   "issue.manage",
@@ -160,10 +187,11 @@ const PROJECT_MANAGER: Capability[] = [
   ...SITE_MANAGER,
   "portfolio.view",
   "location.manage",
-  // `rab.manage` kini datang dari SITE_MANAGER (DECISIONS 302) — tidak
-  // didaftar ulang di sini supaya jelas ia hak yang DIWARISI, bukan hak khas
-  // Project Manager yang kebetulan sama namanya.
-  "baseline.manage",
+  // `rab.manage` (DECISIONS 302) dan `baseline.manage` (DECISIONS 353) kini
+  // datang dari SITE_MANAGER — tidak didaftar ulang di sini supaya jelas
+  // keduanya hak yang DIWARISI, bukan hak khas Project Manager yang kebetulan
+  // sama namanya. Mendaftarnya dua kali membuat pencabutan di SM kelak tidak
+  // terlihat efeknya di PM, dan itu cara matriks izin diam-diam jadi bohong.
   "finance.view",
   "document.verify",
   "document.edit",

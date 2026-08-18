@@ -31,7 +31,7 @@ Jumlah capability: **50**.
 | `location.correct` | ✓ | — | — | — | — | — | — | — |
 | `rab.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `rab.manage` | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | — |
-| `baseline.manage` | ✓ | ✓ | ✓ | ✓ | — | — | — | — |
+| `baseline.manage` | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | — |
 | `weekly_plan.manage` | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | — |
 | `daily_report.create` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | — | — |
 | `daily_report.review` | ✓ | ✓ | ✓ | ✓ | ✓ | — | — | — |
