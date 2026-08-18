@@ -17024,3 +17024,87 @@ Catatan: dua kegagalan lain yang muncul saat memeriksa ini di lokal
 login (5 percobaan gagal per identifier per 15 menit) tersentuh karena spec-nya
 saya jalankan lima kali berturut-turut. Diperiksa langsung ke tabel
 `login_attempts`, bukan disimpulkan.
+
+---
+
+## 362 — Rencana & RAB dipisah SUB-TAB, bukan ditumpuk (2026-08-18)
+
+**Laporan user 2026-08-18:** *"menu RAB dan Rencana, saat ini terlalu panjang
+scroll ke bawah. bahkan ada pengguna yang bilang baru tau kalau ternyata ada
+fitur rencana, karena terlalu ke bawah menunya."*
+
+Itu bukan keluhan estetika. Halaman ini memuat tiga bagian setara — pohon RAB,
+rencana mingguan, riwayat revisi — ditumpuk sebagai tiga kartu, dengan pohon RAB
+di paling atas. Di Kedung Mutih pohon itu berisi **1.657 item**. Dua bagian di
+bawahnya karena itu berada ribuan piksel di bawah lipatan, dan **fitur yang tak
+pernah terlihat sama dengan fitur yang tidak ada**. Menumpuk hanya adil kalau
+yang di atas pendek.
+
+User mengirim rancangan (dibuat di luar, tanpa pengetahuan fitur MARLIN) dan
+memintanya diadopsi *"tanpa harus mengubah fungsi utama dan alur menu rab,
+adendum dan rencana"*. Yang diambil adalah gagasan intinya: **sub-tab lokal di
+dalam satu halaman**. Alur RAB → adendum → rencana, gerbang izin, dan halaman
+adendum tidak disentuh sama sekali.
+
+### Sub-tab berbasis URL, bukan `useState`
+
+Tab yang disimpan di state hilang setiap muat ulang, tidak bisa dikirim ke orang
+lain ("buka rencana minggu 5"), dan membuat tombol Kembali peramban melompati
+halaman alih-alih kembali ke tab sebelumnya. Berbasis query (`?bagian=`),
+ketiganya benar tanpa satu baris JS pun — `SubTabs` adalah server component,
+jadi tidak menambah payload klien.
+
+Sengaja TIDAK melekat, berbeda dari `LinkTabs`: dua bilah melekat bertumpuk
+memakan sepertiga layar ponsel sebelum isinya mulai.
+
+### Yang tidak dirender juga tidak DIAMBIL
+
+Pohon RAB ikut diserialisasi ke klien. Selama ketiganya ditumpuk, ongkos itu
+dibayar bahkan oleh orang yang cuma mau mengisi rencana minggu ini. Sekarang
+kueri node hanya jalan untuk bagian yang memakainya, dan kueri rencana (tiga
+kueri + rekap kurva-S) hanya saat tabnya dibuka. Jumlah item di judul tetap
+disebut lewat `count()`, yang tidak menarik satu baris pun.
+
+### Dua regresi yang LAHIR dari perubahan ini, dan ditutup
+
+1. **Penukar minggu membuang query lain.** Ia menulis ulang tujuannya dari nol
+   (`?minggu=N`) — aman selama `minggu` satu-satunya parameter. Begitu ada
+   `?bagian=`, memilih minggu melempar orang kembali ke pohon RAB, persis saat
+   ia sedang mengisi rencana. Kini memakai `URLSearchParams` di atas query yang
+   ada.
+2. **Tombol Kembali dari formulir cetak rencana** menunjuk `?minggu=N` saja,
+   sehingga mendarat di pohon RAB alih-alih rencana yang barusan dicetak.
+
+### Label pendek di ponsel
+
+Tiga pil berlabel penuh tidak muat di 375px dan yang terakhir terpotong di tepi
+kanan — dan pil yang separuh terlihat adalah persis cara sebuah bagian berhenti
+ditemukan orang. Barisnya memang bisa digeser, tapi menggeser hanya dilakukan
+yang sudah tahu ada sesuatu di sana. Di layar sempit labelnya jadi
+`RAB · Rencana · Revisi`; nama lengkap tetap dibacakan pembaca layar lewat
+`aria-label`, jadi yang dipendekkan hanya yang untuk mata.
+
+### Draft menggantung diumumkan di SEMUA bagian
+
+Selama ada draft revisi, seluruh angka resmi masih memakai revisi aktif. Orang
+yang sedang membaca pohon RAB berhak tahu ada versi lain yang sedang disiapkan,
+jadi bannernya muncul di bagian mana pun, dan sub-tab "Revisi" membawa penanda
+jumlah — supaya yang perlu dikerjakan terlihat TANPA membuka tabnya.
+
+**Penjaga.** `tests/unit/rab-bagian.test.ts` (8): bagian ngawur jatuh ke bagian
+sah, minggu ikut terbawa, `bagian` selalu ditulis walau kebetulan default, nilai
+minggu di-encode. `tests/e2e/rab-sub-tab.spec.ts` (5 × 2 proyek): ketiga bagian
+terlihat tanpa menggulir **dan tidak terpotong ke samping**, halaman tidak lagi
+memuat ketiganya sekaligus, berpindah bagian membawa minggu, mengganti minggu
+tidak melempar keluar dari rencana, bagian ngawur tidak menghasilkan halaman
+kosong.
+
+Uji gigi: ketiga bagian dirender sekaligus → 1 merah (yang tepat); penukar
+minggu dikembalikan ke perilaku lama → 1 merah; fallback `bacaBagian` dilucuti →
+2 unit merah; `minggu` dibuang dari href → 2 unit merah; label pendek dihapus →
+mobile merah dengan pesan "Revisi & Adendum terpotong kanan" sementara desktop
+tetap hijau.
+
+Catatan jujur: percobaan uji gigi pertama menghasilkan 4 merah yang TIDAK berarti
+apa-apa — servernya mati, bukan penjaganya menggigit. Diulang dengan server
+hidup, dan barulah angkanya bisa dipercaya.

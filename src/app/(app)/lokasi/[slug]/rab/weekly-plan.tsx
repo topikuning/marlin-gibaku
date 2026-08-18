@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useActionState, useMemo, useState } from "react";
 import { Download, MessageCircle, Printer } from "lucide-react";
 import { sendRencanaMingguanToWaAction, type WaActionState } from "@/lib/waha/actions";
@@ -432,7 +432,22 @@ export function WeeklyPlanSection({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const weeks = Array.from({ length: Math.max(totalWeeks, currentWeek, weekNumber) }, (_, i) => i + 1);
+
+  /*
+   * Ganti minggu tanpa MEMBUANG query lain (DECISIONS 362).
+   *
+   * Sebelumnya tujuannya ditulis ulang dari nol (`?minggu=N`), yang aman selama
+   * `minggu` satu-satunya parameter. Sejak halaman ini punya sub-tab
+   * (`?bagian=rencana`), menulis ulang berarti memilih minggu MELEMPAR orang
+   * kembali ke tab RAB — persis pada saat ia sedang bekerja di rencana.
+   */
+  function pindahMinggu(nilai: string) {
+    const q = new URLSearchParams(searchParams.toString());
+    q.set("minggu", nilai);
+    router.push(`${pathname}?${q.toString()}`);
+  }
 
   return (
     <div className="space-y-4">
@@ -442,7 +457,7 @@ export function WeeklyPlanSection({
           <Combobox
             id="wp-week"
             value={String(weekNumber)}
-            onChange={(value) => router.push(`${pathname}?minggu=${value}`)}
+            onChange={pindahMinggu}
             className="w-44"
           >
             {weeks.map((w) => (
