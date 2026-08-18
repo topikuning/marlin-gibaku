@@ -165,7 +165,7 @@ export default async function KeuanganPage() {
         </Card>
       </section>
 
-      <section className="grid grid-cols-2 gap-4 lg:grid-cols-4" aria-label="Ringkasan keuangan">
+      <section className="grid grid-cols-2 gap-2 lg:grid-cols-4" aria-label="Ringkasan keuangan">
         <KpiCard label="Budget" value={formatRupiahShort(totalBudget)} href="#per-lokasi" />
         <KpiCard label="Realisasi" value={formatRupiahShort(totalExpense)} href="#per-lokasi" />
         <KpiCard label="Komitmen terbuka" value={formatRupiahShort(totalCommitment)} href="#per-lokasi" />

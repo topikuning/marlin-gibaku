@@ -60,7 +60,7 @@ export default async function KatalogPage() {
         }
       />
 
-      <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <section className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <KpiCard label="Total katalog" value={total} />
         <KpiCard label="Tersedia" value={tersedia} />
         <KpiCard label="Terpakai (bypass)" value={terpakai} />

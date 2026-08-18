@@ -206,7 +206,7 @@ export default async function ChatGrupPage({
             />
           ) : null}
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5">
             <KpiCard label="Grup dalam scope" value={packages.length} sub="paket tertaut grup WA" />
             <KpiCard
               label="Pesan relevan"

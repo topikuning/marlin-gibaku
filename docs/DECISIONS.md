@@ -16966,3 +16966,61 @@ SEBELUM panel menunya; alasan mati tetap ditulis. Ditambah penjaga tipe
 Uji gigi: kepingan sibuk dilucuti → 4 merah; badan tombol satu-klik dihapus →
 1 merah; kewajiban tipe dilonggarkan → `tsc` merah (TS2578, `@ts-expect-error`
 tak terpakai). Dipulihkan → 8 hijau, 1638 unit hijau.
+
+---
+
+## 361 — Kartu KPI diperkecil di primitifnya (2026-08-18)
+
+**Keberatan user 2026-08-18:** *"semua kotak mu yang berisikan informasi total
+perusahaan 19 dst, yang kotak/card itu terlalu besar, kurang compact. itu di
+semua menu. terlihat terlalu besar."*
+
+Betul, dan ongkosnya bukan estetika: baris KPI yang tinggi mendorong DAFTARNYA —
+yang sebenarnya dicari orang — turun ke bawah lipatan, di setiap halaman, setiap
+kali dibuka. KPI itu ringkasan, bukan judul halaman.
+
+Diubah di **primitifnya** (`KpiCard`), bukan per halaman: ada 89 pemakaian di 22
+berkas, dan menyetelnya satu per satu berarti 22 kesempatan untuk berbeda
+sendiri. Padding `px-4 py-3` → `px-3 py-2`; angka `text-2xl` → `text-xl`
+`leading-tight`; label `text-xs` → `text-[11px]`; keterangan `text-[13px]` →
+`text-[11px]`; jarak antar-baris `mt-1` → `mt-0.5`.
+
+Jarak antar-kartu ikut diseragamkan ke `gap-2` pada 17 baris KPI yang sebelumnya
+memakai `gap-3`/`gap-4` — ketidakseragaman itu sendiri yang membuat sebagian
+menu terasa lebih bengkak daripada yang lain. Hanya grid yang anak langsungnya
+`KpiCard` yang disentuh.
+
+### Diukur, bukan dikira-kira
+
+Tinggi kartu diukur di peramban dengan salinan berkelas LAMA disuntikkan
+berdampingan di halaman yang sama, jadi angkanya perbandingan langsung:
+
+| Halaman | 1280px | 375px |
+|---|---|---|
+| Master Perusahaan / Pengguna | 100 → 79 px (−21%) | 100 → 79 px (−21%) |
+| Progress | 100 → 79 px (−21%) | 132 → 79 px (−40%) |
+| Keuangan | 80 → 62 px (−23%) | 112 → 62 px (−45%) |
+
+Penghematan terbesar justru di ponsel: pada lebar sempit, keterangan berukuran
+13px membungkus jadi dua–tiga baris, sehingga kartunya menggelembung persis di
+layar yang paling sedikit ruangnya.
+
+### Uji e2e yang ikut jatuh, dan kenapa patokannya diganti
+
+`auth.spec.ts` menandai "program director bisa buka Pengguna" dengan menunggu
+teks **"Daftar pengguna"** — judul kartu yang hilang saat tata letak master data
+diganti (DECISIONS 359). Yang diuji sebenarnya adalah IZIN-nya, jadi patokannya
+kini ringkasan "Total akun" **dan** satu baris akun nyata (`@hery`): keduanya
+membuktikan halamannya terbuka DAN daftarnya benar-benar berisi, sementara
+menunggu judul hanya membuktikan halamannya tidak 404.
+
+Di ponsel patokan itu sempat gagal dengan alasan menyesatkan: daftarnya dirender
+dua kali — tabel untuk layar lebar, kartu untuk ponsel — dan `.first()` menunjuk
+salinan tabel yang memang tersembunyi. Diperbaiki dengan
+`filter({ visible: true })`.
+
+Catatan: dua kegagalan lain yang muncul saat memeriksa ini di lokal
+(`login admin`, `keluar mengakhiri sesi`) TERNYATA bukan cacat — pembatas laju
+login (5 percobaan gagal per identifier per 15 menit) tersentuh karena spec-nya
+saya jalankan lima kali berturut-turut. Diperiksa langsung ke tabel
+`login_attempts`, bukan disimpulkan.
