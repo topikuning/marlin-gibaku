@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, CalendarClock, ListTree, Sheet, Sparkles } from "lucide-react";
+import { ArrowRight, CalendarClock, ListTree, Sheet, Sparkles, UploadCloud } from "lucide-react";
 import {
   Badge,
   ButtonLink,
@@ -28,8 +28,8 @@ import { IssuesPanel, type IssueData } from "./issues-client";
 import { RecalcBaselineButton } from "./recalc-baseline";
 import { BaselineEditor } from "./baseline-editor";
 import { ScheduleEditor } from "./schedule-editor";
-import { JadwalImport } from "./jadwal-import";
 import { BaselineHistory, type BaselineHistoryRow } from "./baseline-history";
+import { PerbaruiKurvaS } from "./perbarui-kurva-s";
 import { withBackTo } from "@/lib/print-back";
 
 export const metadata: Metadata = { title: "Progress Lokasi" };
@@ -123,6 +123,16 @@ export default async function ProgressLokasiPage({
           action={
             bounds ? (
               <div className="flex flex-wrap items-center gap-2">
+                {/* Jalan masuk alur "Perbarui Kurva-S" dari MANA PUN di halaman
+                    ini. Pertanyaan yang paling sering muncul adalah "di mana
+                    saya unggah template kurva-S?", dan jawabannya harus terlihat
+                    tanpa harus tahu bahwa ia ada di dalam tab Baseline. */}
+                {canManageBaseline ? (
+                  <ButtonLink href={href("baseline")} variant="primary" size="sm">
+                    <UploadCloud aria-hidden className="size-4" />
+                    Perbarui Kurva-S
+                  </ButtonLink>
+                ) : null}
                 <Link
                   // Kembali ke BAGIAN yang sedang dibuka, bukan selalu ke
                   // ringkasan: tombol cetak ada di header yang tampil di semua
@@ -176,7 +186,7 @@ export default async function ProgressLokasiPage({
           ) : null}
 
           {bagian === "baseline" ? (
-            <BagianBaseline locationId={location.id} canManage={canManageBaseline} />
+            <BagianBaseline locationId={location.id} slug={slug} canManage={canManageBaseline} />
           ) : null}
 
           {bagian === "jadwal" ? (
@@ -431,9 +441,11 @@ async function BagianRingkasan({
 
 async function BagianBaseline({
   locationId,
+  slug,
   canManage,
 }: {
   locationId: string;
+  slug: string;
   canManage: boolean;
 }) {
   const baselines = await db.baseline.findMany({
@@ -492,10 +504,19 @@ async function BagianBaseline({
       )}
 
       {canManage ? (
+        <PerbaruiKurvaS
+          locationId={locationId}
+          slug={slug}
+          baselineAktif={activeBaseline?.baselineNo ?? null}
+        />
+      ) : null}
+
+      {canManage ? (
         <section className="rounded-lg border border-border p-3">
-          <p className="text-[13px] font-semibold text-ink">Hitung ulang baseline</p>
+          <p className="text-[13px] font-semibold text-ink">Cara lain: hitung ulang dari RAB</p>
           <p className="mt-0.5 mb-2 text-[11px] text-ink-muted">
-            Membuat versi baru dari RAB aktif + jadwal pekerjaan. Versi lama tidak dihapus.
+            Tanpa Excel — sistem menyusun ulang jadwal dari RAB aktif. Dipakai saat RAB berubah
+            (mis. sesudah adendum), bukan saat Anda punya jadwal sendiri. Versi lama tidak dihapus.
           </p>
           <RecalcBaselineButton locationId={locationId} />
         </section>
@@ -572,8 +593,9 @@ async function BagianJadwal({
     <div className="space-y-3 p-3">
       <p className="rounded-md border border-info-border bg-info-soft p-2.5 text-[11px] text-ink-muted">
         Ini editor teknis, bukan halaman pantau. Atur rentang minggu tiap pekerjaan — boleh lebih
-        dari satu rentang bila terputus (jeda); bobot mengikuti RAB. Angka deviasi ada di bagian
-        Ringkasan.
+        dari satu rentang bila terputus (jeda); bobot mengikuti RAB. Punya jadwal dari Excel? Pakai
+        alur <strong className="font-semibold text-ink">Perbarui Kurva-S</strong> di bagian Baseline —
+        di sana berkasnya diperiksa dulu sebelum diterapkan.
       </p>
       <ScheduleEditor
         locationId={locationId}
@@ -581,7 +603,6 @@ async function BagianJadwal({
         origin={schedule.origin}
         initial={schedule.rows}
       />
-      <JadwalImport locationId={locationId} />
     </div>
   );
 }

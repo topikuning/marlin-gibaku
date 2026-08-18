@@ -41,7 +41,9 @@ vi.mock("@/lib/auth/session", async () => {
 });
 
 const { db } = await import("@/lib/db");
-const { importJadwalAction } = await import("@/app/(app)/lokasi/[slug]/rab/actions");
+const { importJadwalAction, pratinjauJadwalAction } = await import(
+  "@/app/(app)/lokasi/[slug]/rab/actions"
+);
 
 const suffix = `ij${Date.now().toString(36)}`;
 let locId = "";
@@ -290,5 +292,126 @@ describe("yang tidak bisa diikuti ditolak, bukan diam-diam diperbaiki", () => {
     expect(bobotOf(b, "Pekerjaan Struktur")).toBeCloseTo(60, 3);
     expect(b.points.at(-1)).toBeDefined();
     expect(Number(b.points.at(-1)!.plannedPct)).toBeCloseTo(100, 2);
+  });
+});
+
+/*
+ * PRATINJAU: menghitung, TIDAK menulis (DECISIONS 364).
+ *
+ * Langkah yang selama ini hilang dari alur "Perbarui Kurva-S". Dua sifatnya
+ * yang benar-benar penting diuji di sini, karena keduanya gagal secara SENYAP:
+ * pratinjau yang diam-diam menulis, dan pratinjau yang angkanya berbeda dari
+ * yang akhirnya tersimpan.
+ */
+describe("pratinjau impor jadwal", () => {
+  it("TIDAK membuat baseline baru", async () => {
+    // Perlu ada baseline aktif dulu supaya "tidak berubah" bisa dibuktikan —
+    // `beforeEach` mengosongkannya.
+    await importJadwalAction(undefined, fd(await workbook(JADWAL_USER)));
+    const sebelum = await baselineAktif();
+    const jml = await db.baseline.count({ where: { locationId: locId } });
+
+    // Jadwal yang BERBEDA dari yang aktif. Memakai berkas yang sama membuat
+    // pratinjau-yang-diam-diam-menulis jadi no-op (hasilnya identik → tidak ada
+    // baseline baru), sehingga ujinya hijau padahal cacatnya ada.
+    const LAIN = [
+      { code: "I", name: "Pekerjaan Persiapan", weekly: [20, 0, 0, 0] },
+      { code: "II", name: "Pekerjaan Struktur", weekly: [0, 0, 50, 0] },
+      { code: "III", name: "Pekerjaan Finishing", weekly: [0, 0, 0, 30] },
+    ];
+    const hasil = await pratinjauJadwalAction(undefined, fd(await workbook(LAIN)));
+    expect(hasil?.error).toBeUndefined();
+    expect(hasil?.data).toBeTruthy();
+
+    expect(await db.baseline.count({ where: { locationId: locId } })).toBe(jml);
+    const sesudah = await baselineAktif();
+    expect(sesudah.id).toBe(sebelum.id);
+    expect(sesudah.baselineNo).toBe(sebelum.baselineNo);
+  });
+
+  it("angkanya PERSIS sama dengan yang akhirnya tersimpan", async () => {
+    // Inti pratinjau. Kalau ia menghitung lewat jalur sendiri, suatu saat ia
+    // menampilkan angka yang berbeda dari hasil "Terapkan" — dan orang
+    // mempercayainya tepat pada saat ia menekan tombol itu.
+    const file = await workbook(JADWAL_USER);
+    const pra = await pratinjauJadwalAction(undefined, fd(file));
+    const diramal = new Map(pra!.data!.perubahan.map((r) => [r.minggu, r.baru]));
+    expect(diramal.size).toBeGreaterThan(0);
+
+    const terap = await importJadwalAction(undefined, fd(await workbook(JADWAL_USER)));
+    expect(terap?.error).toBeUndefined();
+
+    const b = await baselineAktif();
+    for (const [minggu, nilai] of diramal) {
+      expect(Number(b.points[minggu - 1].plannedPct), `minggu ${minggu}`).toBeCloseTo(nilai, 2);
+    }
+  });
+
+  it("mode 'sesuaikan ke RAB' ikut diramalkan, bukan diabaikan", async () => {
+    // Centangnya mengubah hasil secara drastis (bobot direnormalisasi ke RAB).
+    // Pratinjau yang mengabaikannya menampilkan kurva yang bukan yang akan
+    // diterapkan.
+    const apaAdanya = await pratinjauJadwalAction(undefined, fd(await workbook(JADWAL_USER)));
+    const keRab = await pratinjauJadwalAction(undefined, fd(await workbook(JADWAL_USER), true));
+    const a = apaAdanya!.data!.perubahan.map((r) => r.baru);
+    const r = keRab!.data!.perubahan.map((r) => r.baru);
+    expect(a).not.toEqual(r);
+  });
+
+  it("berkas yang identik dengan baseline aktif ditandai 'tidak perlu diterapkan'", async () => {
+    await importJadwalAction(undefined, fd(await workbook(JADWAL_USER)));
+    const pra = await pratinjauJadwalAction(undefined, fd(await workbook(JADWAL_USER)));
+    expect(pra?.data?.samaSaja).toBe(true);
+    expect(pra?.data?.perubahan).toHaveLength(0);
+  });
+
+  it("perubahan KECIL tetap disebut, dan 'berubah' tak pernah kosong", async () => {
+    /*
+     * Ambang "berubah" di pratinjau harus sama dengan ambang yang dipakai
+     * penerapan untuk memutuskan "tidak ada perubahan" (0,005 pp). Ambang yang
+     * lebih longgar membuat pratinjau berkata "N minggu berubah" sambil
+     * menampilkan tabel kosong — atau lebih buruk, menyembunyikan pergeseran
+     * kecil yang justru sedang dicari orang.
+     */
+    await importJadwalAction(undefined, fd(await workbook(JADWAL_USER)));
+
+    // Beda tipis: 1 poin dipindah dari Struktur ke Persiapan.
+    const TIPIS = [
+      { code: "I", name: "Pekerjaan Persiapan", weekly: [11, 0, 0, 0] },
+      { code: "II", name: "Pekerjaan Struktur", weekly: [0, 29, 30, 0] },
+      { code: "III", name: "Pekerjaan Finishing", weekly: [0, 0, 10, 20] },
+    ];
+    const pra = await pratinjauJadwalAction(undefined, fd(await workbook(TIPIS)));
+    expect(pra?.data?.samaSaja).toBe(false);
+    expect(pra!.data!.perubahan.length).toBeGreaterThan(0);
+    expect(pra!.data!.jumlahMingguBerubah).toBe(pra!.data!.perubahan.length);
+
+    // Dan pergeserannya memang kecil — bukti ambangnya rapat, bukan kebetulan
+    // ada perubahan besar.
+    const terbesar = Math.max(
+      ...pra!.data!.perubahan.map((r) => (r.lama == null ? 99 : Math.abs(r.baru - r.lama))),
+    );
+    expect(terbesar).toBeLessThan(5);
+  });
+
+  it("berkas ngawur DITOLAK di pratinjau, sebelum apa pun tersimpan", async () => {
+    const jml = await db.baseline.count({ where: { locationId: locId } });
+    const bukanExcel = new File(["bukan excel"], "catatan.txt", { type: "text/plain" });
+    const hasil = await pratinjauJadwalAction(undefined, fd(bukanExcel));
+    expect(hasil?.error).toBeTruthy();
+    expect(hasil?.data).toBeUndefined();
+    expect(await db.baseline.count({ where: { locationId: locId } })).toBe(jml);
+  });
+
+  it("tanpa izin baseline.manage, pratinjau ditolak", async () => {
+    const semula = role;
+    role = "field_supervisor";
+    try {
+      const hasil = await pratinjauJadwalAction(undefined, fd(await workbook(JADWAL_USER)));
+      expect(hasil?.error).toBeTruthy();
+      expect(hasil?.data).toBeUndefined();
+    } finally {
+      role = semula;
+    }
   });
 });

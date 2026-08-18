@@ -17174,3 +17174,106 @@ ngawur tidak menghasilkan halaman kosong.
 Uji gigi: semua bagian dirender sekaligus → 1 merah (yang tepat); default
 dipindah ke `baseline` → 1 unit merah; label pendek dihapus → mobile merah
 dengan pesan "Jadwal Pekerjaan terpotong kanan" sementara desktop tetap hijau.
+
+---
+
+## 364 — "Perbarui Kurva-S" jadi alur resmi, bukan tombol yang berserak (2026-08-18)
+
+**Teguran user 2026-08-18**, setelah DECISIONS 363 hanya memindahkan kartu:
+
+> *"aku sudah beri kamu contoh jelas, dan di situ seharusnya kamu paham bahwa
+> Yang harus diubah adalah membuat 'Perbarui Kurva-S' menjadi workflow resmi
+> yang jelas dari awal sampai akhir. alur tugas yang bercampur … pengguna sulit
+> membedakan mana hanya untuk melihat dan mana yang akan mengubah data resmi.
+> lalu pengguna juga bingung dimana mereka harus upload template kurva-s.
+> pelajari betul itu desain, bukan diambil saklek, tapi sebagai referensi"*
+
+Tegurannya tepat. 363 memperbaiki **letak**, bukan **alur**. Langkah-langkahnya
+sebetulnya sudah ada, tetapi berserak dan tak satu pun bernama:
+
+| Langkah | Sebelumnya |
+|---|---|
+| Unduh template | Tombol **"Unduh Excel"** di header — tidak menyebut bahwa berkas itulah yang disunting lalu dikirim balik |
+| Sunting di Excel | Tidak disebut di mana pun |
+| Unggah | Tersembunyi di bawah editor jadwal, bernama "Impor jadwal dari Excel" — istilah berbeda dari yang dicari orang |
+| Pratinjau | **TIDAK ADA** |
+| Terapkan | Menyatu dengan tombol unggah — mengunggah = langsung mengganti baseline |
+
+### Langkah yang benar-benar hilang: PRATINJAU
+
+Ini bagian terpenting. Tanpa pratinjau, satu-satunya cara tahu apa yang akan
+berubah adalah **menerapkannya**, lalu memulihkan versi lama kalau ternyata
+salah — memperbaiki dengan cara merusak dulu. `pratinjauJadwalAction` membaca
+berkas, menghitung kurva barunya, dan menampilkan perbandingan per minggu
+terhadap baseline aktif, **tanpa menulis apa pun**.
+
+Angkanya datang dari `hitungJadwalBaru`, jalur yang sama persis dengan yang
+dipakai saat menerapkan — `saveCategoryWeekly` kini memanggilnya juga. Pratinjau
+yang menghitung sendiri adalah pratinjau yang suatu saat berbohong, dan tepat
+pada saat orang mempercayainya untuk menekan "Terapkan". Ambang "berubah"
+(0,005 pp) pun sengaja sama dengan ambang yang dipakai penerapan untuk
+memutuskan "tidak ada perubahan".
+
+Berkasnya dikirim ke server DUA KALI (periksa, lalu terapkan) lewat SATU form
+dengan `formAction` — bukan disusun ulang di klien. Server tidak boleh
+menerapkan sesuatu yang tidak ia baca sendiri pada permintaan itu.
+
+### Yang MENGUBAH data resmi harus terlihat berbeda
+
+Panelnya berlencana **"Mengubah data resmi"**, langkah 5 dipisah garis, dan
+akibatnya ditulis SEBELUM tombolnya, bukan sesudah: versi lama tidak dihapus,
+realisasi lapangan tidak berubah, deviasi berikutnya memakai baseline baru,
+serta siapa & kapan tercatat di audit.
+
+### Satu pintu unggah, bukan dua
+
+`jadwal-import.tsx` DIHAPUS. Membiarkannya berarti dua tempat mengunggah berkas
+yang sama dengan nama berbeda — persis kebingungan yang dikeluhkan. Tab "Jadwal
+Pekerjaan" kini menunjuk ke alur ini.
+
+Jalan masuknya ada di header halaman Progress, jadi terlihat dari **bagian mana
+pun** — pertanyaannya "di mana saya unggah template kurva-S?", dan jawabannya
+tidak boleh menuntut orang menebak isi tab mana.
+
+"Hitung ulang dari RAB" tetap ada tapi diberi nama jujur: **"Cara lain"**, untuk
+saat RAB berubah (mis. sesudah adendum), bukan saat orang punya jadwal sendiri.
+
+### Urutan tab: Progress ↔ RAPL bertukar
+
+Permintaan terpisah user. Progress dibaca hampir tiap hari, RAPL jauh lebih
+jarang — jadi yang sering duduk dekat "Rencana & RAB", yang jarang pindah ke
+belakang.
+
+### Tiga temuan dari MEMERIKSA, bukan dari menulis
+
+1. **Uji "TIDAK membuat baseline baru" hijau padahal cacatnya ada.** Ia memakai
+   berkas yang sama dengan yang barusan diterapkan, sehingga pratinjau yang
+   diam-diam menulis menghasilkan baseline identik → tidak ada versi baru →
+   ujinya lolos. Diperbaiki dengan berkas yang BERBEDA.
+2. **Ambang "berubah" tidak teruji.** Melonggarkannya dari 0,005 ke 25 pp tidak
+   membuat satu pun uji merah, karena semua kasus uji tidak punya baseline
+   pembanding. Ditutup dengan kasus perubahan kecil (~1 pp) di atas baseline
+   yang sudah ada.
+3. **Uji e2e gagal karena artefak Playwright, bukan produk.** `setInputFiles`
+   GAGAL DIAM-DIAM (berkas tidak masuk sama sekali, tanpa galat) ketika path
+   tujuannya berada di direktori keluaran yang memuat karakter panah "→" dari
+   judul uji. Dipakai path polos.
+
+**Penjaga.** `tests/integration/impor-jadwal-excel.test.ts` +7: pratinjau tidak
+membuat baseline, angkanya persis sama dengan yang tersimpan, mode "sesuaikan ke
+RAB" ikut diramalkan, berkas identik ditandai "tidak perlu diterapkan",
+perubahan kecil tetap disebut, berkas ngawur ditolak sebelum apa pun tersimpan,
+tanpa izin ditolak. `tests/e2e/perbarui-kurva-s.spec.ts` (4 × 2 proyek): jalan
+masuk terlihat dari SETIAP bagian, panelnya bertanda "mengubah data resmi" dan
+menyebut kelima langkah, **alur penuh benar-benar dijalani** (unduh template →
+unggah berkas itu juga → periksa), dan tanpa wewenang baseline alurnya tidak
+ditawarkan sama sekali.
+
+Uji gigi: pratinjau dibuat menulis → 3 integrasi merah; pratinjau menghitung
+lewat jalur sendiri (mode diabaikan) → 1 merah; ambang dilonggarkan → 1 merah;
+jalan masuk di header dihapus → 1 e2e merah.
+
+Catatan jujur: pulang-pergi template TANPA disunting menggeser beberapa minggu
+sepersekian poin — sisa pembulatan saat template ditulis ke Excel. Pratinjau
+menyebutnya apa adanya, dan ujinya memagari pergeseran itu di bawah 1 pp supaya
+kalau suatu saat ekspor & impor berhenti membaca hal yang sama, ketahuan.

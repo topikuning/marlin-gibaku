@@ -385,11 +385,18 @@ export async function saveCategorySchedule(
  */
 export type ModeJadwal = "apaadanya" | "rab";
 
-export async function saveCategoryWeekly(
+/**
+ * Hitung baseline BARU dari jadwal mingguan per kategori — TANPA menulis apa
+ * pun (DECISIONS 364).
+ *
+ * Dipisah dari `saveCategoryWeekly` supaya **pratinjau dan penerapan memakai
+ * jalur hitung yang sama**. Pratinjau yang menghitung sendiri adalah pratinjau
+ * yang suatu saat berbohong — dan tepat pada saat orang mempercayainya untuk
+ * menekan "Terapkan".
+ */
+export async function hitungJadwalBaru(
   locationId: string,
   input: { lineageKey: string; weekly: number[] }[],
-  userId: string,
-  note: string,
   mode: ModeJadwal = "apaadanya",
 ) {
   const base = await activeCategoriesWithWeights(locationId);
@@ -453,8 +460,8 @@ export async function saveCategoryWeekly(
       scheduleItems: { select: { lineageKey: true, weekly: true } },
     },
   });
-  if (
-    active &&
+  const unchanged =
+    !!active &&
     active.rabRevisionId === base.revisionId &&
     active.points.length === weekly.length &&
     active.points.every((p, i) => Math.abs(Number(p.plannedPct) - weekly[i]) < 0.005) &&
@@ -464,9 +471,41 @@ export async function saveCategoryWeekly(
       if (!prev) return false;
       const pw = asWeekly(prev.weekly);
       return pw.length === r.weekly.length && pw.every((v, i) => Math.abs(v - r.weekly[i]) < 0.005);
-    })
-  ) {
-    return { baselineNo: active.baselineNo, unchanged: true as const, matched, mode, verbatim };
+    });
+
+  return {
+    weekly,
+    rows,
+    matched,
+    mode,
+    verbatim,
+    totalWeeks,
+    contractDays,
+    revisionId: base.revisionId,
+    jumlahKategori: base.categories.length,
+    aktif: active
+      ? {
+          baselineNo: active.baselineNo,
+          points: active.points.map((p) => Number(p.plannedPct)),
+        }
+      : null,
+    unchanged,
+  };
+}
+
+export async function saveCategoryWeekly(
+  locationId: string,
+  input: { lineageKey: string; weekly: number[] }[],
+  userId: string,
+  note: string,
+  mode: ModeJadwal = "apaadanya",
+) {
+  const h = await hitungJadwalBaru(locationId, input, mode);
+  const { weekly, rows, matched, verbatim, totalWeeks: _tw, contractDays, revisionId } = h;
+  void _tw;
+
+  if (h.unchanged && h.aktif) {
+    return { baselineNo: h.aktif.baselineNo, unchanged: true as const, matched, mode, verbatim };
   }
 
   const baseline = await db.$transaction(async (tx) => {
@@ -481,7 +520,7 @@ export async function saveCategoryWeekly(
         baselineNo: (last._max.baselineNo ?? 0) + 1,
         source: "manual",
         status: "aktif",
-        rabRevisionId: base.revisionId,
+        rabRevisionId: revisionId,
         contractDays,
         note,
         createdById: userId,
