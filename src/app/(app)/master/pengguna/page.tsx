@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Card, CardHeader, CardBody } from "@/components/ui";
 import { requireUser, accessibleLocationIds } from "@/lib/auth/session";
 import { locationScopeWhere } from "@/lib/auth/scope";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
@@ -7,7 +6,7 @@ import { can, creatableRoles, ROLE_LABEL } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { adalahAkar, parseAkar } from "@/lib/akar";
 import { env } from "@/lib/env";
-import { UserForm, UsersTable } from "./pengguna-client";
+import { PenggunaManager } from "./pengguna-client";
 
 export const metadata: Metadata = { title: "Pengguna" };
 export const dynamic = "force-dynamic";
@@ -74,51 +73,37 @@ export default async function PenggunaPage() {
   // dinonaktifkan" jadi misteri yang cuma terbaca di kode.
   const daftarAkar = parseAkar(env.SUPER_ADMIN_UTAMA);
 
-  const listTitle = fullManage ? "Daftar pengguna" : "Pengguna yang saya buat";
+  // Pembuat terbatas hanya melihat akun buatannya sendiri — dikatakan, supaya
+  // "kok pengguna lain tidak muncul" tidak terbaca sebagai data hilang.
   const description = fullManage
-    ? "Akun, peran, dan penugasan lokasi. Password baru selalu wajib diganti saat login pertama."
-    : `Anda dapat membuat akun peran: ${allowedRoles.map((r) => ROLE_LABEL[r]).join(", ")}. Setiap akun mencatat pembuatnya.`;
+    ? null
+    : `Daftar ini hanya memuat akun yang Anda buat. Anda dapat membuat peran: ${allowedRoles
+        .map((r) => ROLE_LABEL[r])
+        .join(", ")}.`;
 
   return (
-    <div className="space-y-6">
-      <p className="text-sm text-ink-muted">{description}</p>
-      <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-        <Card>
-          <CardHeader title={listTitle} subtitle={`${users.length} akun`} />
-          <CardBody>
-            <UsersTable
-              canManage={fullManage}
-              actorRole={user.role}
-              users={users.map((u) => ({
-                id: u.id,
-                username: u.username ?? "—",
-                fullName: u.fullName,
-                email: u.email,
-                waNumber: u.waNumber,
-                waLid: u.waLid,
-                role: u.role,
-                isActive: u.isActive,
-                mustChangePassword: u.mustChangePassword,
-                lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
-                createdByName: u.creator?.fullName ?? null,
-                akar: adalahAkar(u, daftarAkar),
-                assignments: u.assignments.map((a) => ({ id: a.locationId, name: a.location.name })),
-              }))}
-              locations={locationOptions}
-            />
-          </CardBody>
-        </Card>
-        <Card>
-          <CardHeader title="Pengguna baru" />
-          <CardBody>
-            {allowedRoles.length === 0 ? (
-              <p className="text-sm text-ink-muted">Anda tidak berwenang membuat pengguna.</p>
-            ) : (
-              <UserForm locations={locationOptions} roles={allowedRoles} />
-            )}
-          </CardBody>
-        </Card>
-      </div>
+    <div className="space-y-3">
+      {description ? <p className="text-sm text-ink-muted">{description}</p> : null}
+      <PenggunaManager
+        canManage={fullManage}
+        actorRole={user.role}
+        users={users.map((u) => ({
+          id: u.id,
+          username: u.username ?? "—",
+          fullName: u.fullName,
+          email: u.email,
+          waNumber: u.waNumber,
+          waLid: u.waLid,
+          role: u.role,
+          isActive: u.isActive,
+          mustChangePassword: u.mustChangePassword,
+          lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
+          createdByName: u.creator?.fullName ?? null,
+          akar: adalahAkar(u, daftarAkar),
+          assignments: u.assignments.map((a) => ({ id: a.locationId, name: a.location.name })),
+        }))}
+        locations={locationOptions}
+      />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Loader2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 /**
@@ -13,36 +13,78 @@ import { cn } from "@/lib/cn";
  *
  * Benar, dan alasannya lebih dalam daripada kerapian: baris tombol yang lama
  * menyusun DUA sumbu jadi satu deret — **berkas apa** (PDF blanko, Excel,
- * berkas mingguan) dan **mau diapakan** (unduh, WhatsApp, Drive). Hasilnya
- * "Kirim ke WhatsApp (PDF) · Excel · Unduh PDF · 7 Laporan Harian · Upload ke
- * Drive (PDF + Excel)" — lima tombol yang tidak sejajar artinya, dan orang
- * harus membacanya satu-satu untuk tahu mana yang berkas dan mana yang tujuan.
- *
- * Di sini sumbunya dipisah: **judul tombol = berkasnya**, isi menu = tujuannya.
- * Menambah tujuan baru nanti tidak menambah tombol.
+ * berkas mingguan) dan **mau diapakan** (unduh, WhatsApp, Drive). Di sini
+ * sumbunya dipisah: **judul tombol = berkasnya**, isi menu = tujuannya.
  *
  * Sengaja `<details>`, bukan popover buatan sendiri: Esc, klik di luar, fokus
- * papan ketik, dan pembaca layar sudah benar tanpa satu baris JS pun. Yang
- * ditambahkan hanya penutupan saat salah satu pilihan ditekan.
+ * papan ketik, dan pembaca layar sudah benar tanpa satu baris JS pun.
+ *
+ * ---
+ *
+ * ### DUA hal yang WAJIB dijaga di sini (DECISIONS 360)
+ *
+ * Keduanya laporan user 2026-08-18, dan yang kedua sudah pernah terjadi
+ * sebelumnya:
+ *
+ * **1. Aksi yang sedang berjalan HARUS terlihat, dan tombolnya HARUS mati.**
+ * Menu ini menutup dirinya begitu sebuah pilihan ditekan. Akibatnya penanda
+ * `loading` pada pilihan itu tidak pernah terlihat oleh siapa pun — panelnya
+ * sudah tidak ada. Dari kursi pemakai: klik "Kirim ke WhatsApp" → menu hilang →
+ * layar diam beberapa detik → klik lagi → **pesan terkirim dua kali**. Bukan
+ * kesalahan pemakai; tidak ada satu pun tanda bahwa yang pertama sedang jalan.
+ *
+ * Karena itu selama ada pilihan yang `loading`, SELURUH kendali diganti kepingan
+ * "sedang mengirim…" yang tidak bisa diklik sama sekali — bukan sekadar
+ * diredupkan, dan bukan hanya item di dalam menunya.
+ *
+ * **2. Yang paling sering dipakai cukup SATU klik.** Membuka menu lalu memilih
+ * "Unduh PDF" berarti dua klik untuk hal yang dilakukan setiap hari. `utama`
+ * membuat separuh kiri tombol langsung mengerjakannya; panah di kanan tetap
+ * membuka sisanya.
  */
 
-export type PilihanBerkas = {
+type Dasar = {
   label: string;
   icon?: ReactNode;
-  /** Tautan unduh/cetak. Salah satu dari `href` atau `onSelect` wajib ada. */
-  href?: string;
-  onSelect?: () => void;
   /** Alasan pilihan ini mati — DITULIS, bukan sekadar diredupkan. */
   disabledReason?: string | null;
   /** Keterangan sebaris di bawah label; dipakai menjelaskan isi berkasnya. */
   hint?: string;
-  loading?: boolean;
 };
+
+/** Pilihan yang hanya membuka tautan (unduh/cetak) — tak punya keadaan sibuk. */
+export type PilihanTautan = Dasar & {
+  href: string;
+  onSelect?: never;
+  loading?: never;
+  labelSibuk?: never;
+};
+
+/**
+ * Pilihan yang MENJALANKAN sesuatu di server.
+ *
+ * `loading` dan `labelSibuk` **wajib**, dan itu disengaja: kiriman WhatsApp
+ * ganda pada 2026-08-18 terjadi persis karena sebuah pilihan aksi bisa ada
+ * tanpa penanda sibuk, dan tidak ada apa pun yang memaksa penulisnya
+ * memasangkannya. Sekarang yang menolak adalah **kompilernya**, bukan ingatan
+ * orang — satu-satunya penjaga yang tidak ikut lelah (DECISIONS 360).
+ */
+export type PilihanAksi = Dasar & {
+  onSelect: () => void;
+  href?: never;
+  /** Biasanya `pending` dari `useActionState`. */
+  loading: boolean;
+  /** Kata KERJA yang menggantikan tombol selagi jalan: "Mengirim ke WhatsApp…". */
+  labelSibuk: string;
+};
+
+export type PilihanBerkas = PilihanTautan | PilihanAksi;
 
 export function MenuBerkas({
   label,
   icon,
   pilihan,
+  utama,
   variant = "secondary",
   className,
 }: {
@@ -50,10 +92,16 @@ export function MenuBerkas({
   label: string;
   icon?: ReactNode;
   pilihan: PilihanBerkas[];
+  /**
+   * Aksi sekali-klik di badan tombol. Isi dengan yang paling sering dipakai —
+   * biasanya "Unduh". Tetap ikut didaftar di `pilihan` supaya orang bisa
+   * menemukannya tanpa menebak apa yang dilakukan badan tombol.
+   */
+  utama?: PilihanBerkas;
   variant?: "primary" | "secondary";
   className?: string;
 }) {
-  const ref = useRef<HTMLDetailsElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
   const id = useId();
   const [terbuka, setTerbuka] = useState(false);
 
@@ -75,11 +123,6 @@ export function MenuBerkas({
    * layar mendorong panel selebar 15rem melewati tepi kanan — dan karena tak
    * ada leluhur yang memotong, yang melebar adalah SELURUH halaman.
    *
-   * Diukur pada laporan periodik lokasi: di 414px tombol "Excel" ada di x=264,
-   * panelnya 264→504, halaman jadi 504px. Di 375px tombolnya membungkus ke
-   * baris sendiri (x=33) sehingga muat — itu sebabnya sapuan yang hanya
-   * menguji SATU lebar tidak pernah melihatnya.
-   *
    * Sisinya dipilih saat DIBUKA, bukan lewat CSS statis: `right-0` saja hanya
    * memindahkan masalahnya ke tombol yang duduk di dekat tepi kiri.
    */
@@ -100,102 +143,179 @@ export function MenuBerkas({
     });
   }, [terbuka]);
 
-  const tutup = () => setTerbuka(false);
+  /*
+   * Satu aksi yang sedang berjalan mematikan SELURUH kendali ini, bukan hanya
+   * dirinya sendiri: "Kirim ke WhatsApp" dan "Upload ke Drive" pada berkas yang
+   * sama tidak pernah dimaksudkan berjalan bersamaan, dan menyisakan satu pintu
+   * terbuka hanya memindahkan kiriman gandanya ke pintu sebelah.
+   */
+  const sibuk = [utama, ...pilihan].find((p) => p?.loading) ?? null;
+
+  const kelasTombol = cn(
+    "inline-flex h-9 items-center gap-1.5 border px-3 text-[13px] font-medium transition-colors",
+    variant === "primary"
+      ? "border-primary-600 bg-primary-600 text-white hover:bg-primary-700"
+      : "border-border bg-surface text-ink hover:border-border-strong hover:bg-surface-muted",
+  );
+
+  if (sibuk) {
+    return (
+      <span
+        aria-busy="true"
+        // `aria-live` supaya perubahannya juga SAMPAI ke pembaca layar; tanpa
+        // ini penanda sibuk hanya ada untuk yang melihat layar.
+        aria-live="polite"
+        className={cn(
+          "inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface-muted px-3 text-[13px] font-medium text-ink-muted",
+          className,
+        )}
+      >
+        <Loader2 aria-hidden className="size-4 animate-spin" />
+        {sibuk.labelSibuk ?? "Memproses…"}
+      </span>
+    );
+  }
 
   return (
-    <details
-      ref={ref}
-      open={terbuka}
-      onToggle={(e) => setTerbuka((e.currentTarget as HTMLDetailsElement).open)}
-      className={cn("relative inline-block", className)}
-    >
-      <summary
-        aria-haspopup="menu"
-        className={cn(
-          "inline-flex h-9 cursor-pointer list-none items-center gap-1.5 rounded-md border px-3 text-[13px] font-medium transition-colors",
-          "[&::-webkit-details-marker]:hidden",
-          variant === "primary"
-            ? "border-primary-600 bg-primary-600 text-white hover:bg-primary-700"
-            : "border-border bg-surface text-ink hover:border-border-strong hover:bg-surface-muted",
-        )}
-      >
-        {icon}
-        {label}
-        <ChevronDown aria-hidden className={cn("size-3.5 transition-transform", terbuka && "rotate-180")} />
-      </summary>
+    <div ref={ref} className={cn("relative inline-flex", className)}>
+      {utama ? <TombolUtama utama={utama} label={label} icon={icon} kelas={kelasTombol} /> : null}
 
-      <div
-        id={id}
-        role="menu"
-        className={cn(
-          "absolute z-20 mt-1 min-w-60 rounded-md border border-border bg-surface p-1 shadow-lg",
-          // Pagar terakhir: pada layar yang lebih sempit dari panelnya, tidak
-          // ada sisi yang muat — jadi panelnya yang mengalah, bukan halamannya.
-          "max-w-[calc(100vw-1.5rem)]",
-          keKiri && "right-0",
-        )}
+      {/* `static`: panel di dalamnya menjangkar ke pembungkus, supaya pada mode
+          terpisah ia sejajar dengan SELURUH kendali, bukan cuma panahnya. */}
+      <details
+        open={terbuka}
+        onToggle={(e) => setTerbuka((e.currentTarget as HTMLDetailsElement).open)}
+        className="static"
       >
-        {pilihan.map((p) => {
-          const mati = !!p.disabledReason;
-          const isi = (
+        <summary
+          aria-haspopup="menu"
+          aria-label={utama ? `Pilihan lain untuk ${label}` : undefined}
+          className={cn(
+            kelasTombol,
+            "cursor-pointer list-none [&::-webkit-details-marker]:hidden",
+            utama ? "rounded-r-md border-l-0 px-2" : "rounded-md",
+          )}
+        >
+          {utama ? null : (
             <>
-              <span className="flex items-center gap-2">
-                {p.icon}
-                <span className="font-medium">{p.label}</span>
-              </span>
-              {/* Alasan mati DITULIS. "Redup tanpa keterangan" membuat orang
-                  mengira aplikasinya rusak, bukan syaratnya belum terpenuhi. */}
-              {p.disabledReason ? (
-                <span className="mt-0.5 block text-[11px] text-ink-faint">{p.disabledReason}</span>
-              ) : p.hint ? (
-                <span className="mt-0.5 block text-[11px] text-ink-muted">{p.hint}</span>
-              ) : null}
+              {icon}
+              {label}
             </>
-          );
-          const kelas = cn(
-            "block w-full rounded px-2.5 py-1.5 text-start text-[13px]",
-            mati ? "cursor-not-allowed text-ink-faint" : "text-ink hover:bg-surface-muted",
-          );
+          )}
+          <ChevronDown aria-hidden className={cn("size-3.5 transition-transform", terbuka && "rotate-180")} />
+        </summary>
 
-          if (mati) {
-            return (
-              <span key={p.label} role="menuitem" aria-disabled className={kelas}>
-                {isi}
-              </span>
-            );
-          }
-          if (p.href) {
-            return (
-              <a
-                key={p.label}
-                role="menuitem"
-                href={p.href}
-                target="_blank"
-                rel="noopener"
-                onClick={tutup}
-                className={kelas}
-              >
-                {isi}
-              </a>
-            );
-          }
-          return (
-            <button
-              key={p.label}
-              type="button"
-              role="menuitem"
-              disabled={p.loading}
-              onClick={() => {
-                p.onSelect?.();
-                tutup();
-              }}
-              className={kelas}
-            >
-              {isi}
-            </button>
-          );
-        })}
-      </div>
-    </details>
+        <div
+          id={id}
+          role="menu"
+          className={cn(
+            "absolute z-20 mt-1 min-w-60 rounded-md border border-border bg-surface p-1 shadow-lg",
+            // Pagar terakhir: pada layar yang lebih sempit dari panelnya, tidak
+            // ada sisi yang muat — jadi panelnya yang mengalah, bukan halamannya.
+            "max-w-[calc(100vw-1.5rem)]",
+            keKiri ? "right-0" : "left-0",
+          )}
+          style={{ top: "100%" }}
+        >
+          {pilihan.map((p) => (
+            <ItemMenu key={p.label} p={p} onTutup={() => setTerbuka(false)} />
+          ))}
+        </div>
+      </details>
+    </div>
+  );
+}
+
+/** Badan tombol = aksi sekali-klik. */
+function TombolUtama({
+  utama,
+  label,
+  icon,
+  kelas,
+}: {
+  utama: PilihanBerkas;
+  label: string;
+  icon?: ReactNode;
+  kelas: string;
+}) {
+  const isi = (
+    <>
+      {icon}
+      {label}
+    </>
+  );
+  const bentuk = cn(kelas, "rounded-l-md");
+
+  if (utama.disabledReason) {
+    // Syaratnya belum terpenuhi: badan tombol mati, tapi panahnya tetap hidup
+    // supaya pilihan lain (dan alasan matinya) masih bisa dibaca.
+    return (
+      <span aria-disabled className={cn(bentuk, "cursor-not-allowed text-ink-faint")} title={utama.disabledReason}>
+        {isi}
+      </span>
+    );
+  }
+  if (utama.href) {
+    return (
+      <a href={utama.href} target="_blank" rel="noopener" className={bentuk} title={utama.label}>
+        {isi}
+      </a>
+    );
+  }
+  return (
+    <button type="button" onClick={utama.onSelect} className={bentuk} title={utama.label}>
+      {isi}
+    </button>
+  );
+}
+
+function ItemMenu({ p, onTutup }: { p: PilihanBerkas; onTutup: () => void }) {
+  const mati = !!p.disabledReason;
+  const isi = (
+    <>
+      <span className="flex items-center gap-2">
+        {p.icon}
+        <span className="font-medium">{p.label}</span>
+      </span>
+      {/* Alasan mati DITULIS. "Redup tanpa keterangan" membuat orang mengira
+          aplikasinya rusak, bukan syaratnya belum terpenuhi. */}
+      {p.disabledReason ? (
+        <span className="mt-0.5 block text-[11px] text-ink-faint">{p.disabledReason}</span>
+      ) : p.hint ? (
+        <span className="mt-0.5 block text-[11px] text-ink-muted">{p.hint}</span>
+      ) : null}
+    </>
+  );
+  const kelas = cn(
+    "block w-full rounded px-2.5 py-1.5 text-start text-[13px]",
+    mati ? "cursor-not-allowed text-ink-faint" : "text-ink hover:bg-surface-muted",
+  );
+
+  if (mati) {
+    return (
+      <span role="menuitem" aria-disabled className={kelas}>
+        {isi}
+      </span>
+    );
+  }
+  if (p.href) {
+    return (
+      <a role="menuitem" href={p.href} target="_blank" rel="noopener" onClick={onTutup} className={kelas}>
+        {isi}
+      </a>
+    );
+  }
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={() => {
+        p.onSelect?.();
+        onTutup();
+      }}
+      className={kelas}
+    >
+      {isi}
+    </button>
   );
 }

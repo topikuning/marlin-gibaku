@@ -16812,3 +16812,157 @@ menempuh perangkai utuh dengan skenario persis dari tangkapan layar.
 Uji gigi: mingguan memakai satu hari alih-alih pekan → 2 integrasi merah; pekan
 berjalan tidak dipotong → 2 unit + 1 integrasi merah; judul harian kembali
 meminjam label rentang → 1 integrasi merah. Dipulihkan → 23 & 56 hijau.
+
+---
+
+## 359 — Master data memakai rancangan baru: ringkasan, temuan, laci (2026-08-18)
+
+**Permintaan user** (mengirim `preview2.html`): *"abaikan sidebarnya, adopsi
+desain ini untuk master data"*.
+
+Diadopsi untuk ketiga tabnya — Perusahaan, Kontak, Pengguna — dengan susunan
+yang sama di semuanya: **ringkasan angka → bilah "perlu perhatian" → daftar
+bersaringan → laci untuk mengubah**. Menyeragamkan ketiganya bukan soal rapi:
+master data jarang dibuka, jadi setiap tab yang berperilaku berbeda harus
+dipelajari ulang dari nol setiap kali.
+
+### Yang TIDAK ikut diadopsi, dan sengaja
+
+- **Sidebar-nya sendiri** — diminta diabaikan; navigasi master data sudah ada
+  sebagai tab, dan nav kedua berarti dua tempat yang harus terus setuju.
+- **`<select>` native** di toolbar → `Combobox` (aturan 094/115/174).
+- **Warna hex mentah** → token tema, supaya mode gelap & kontras ikut benar.
+
+### Angka apa pun disertai APA yang dihitung
+
+Rancangannya menampilkan "45%" per perusahaan. Persentase tanpa daftar isian
+yang kurang membuat orang menebak apa yang harus dilengkapi, jadi
+`kelengkapanVendor()` mengembalikan `kurang` — nama-nama isian yang kosong — dan
+persentasenya **diturunkan dari daftar itu**. Keduanya karena itu tidak bisa
+berselisih: mustahil menulis "100%" di samping daftar yang masih berisi.
+
+Hal yang sama berlaku untuk hitungan di bilah atas: `12 belum lengkap` selalu
+disertai penyebutnya (`dari 19`), karena dua belas dari tiga belas dan dua belas
+dari dua ratus menuntut tindakan yang sangat berbeda.
+
+### "Tanpa penugasan" naik dari tulisan abu-abu jadi temuan
+
+Di daftar pengguna lama, "Tanpa penugasan" berdiri di antara "Dibuat oleh …" dan
+"Login terakhir …" dengan bobot yang sama. Artinya sebenarnya jauh lebih berat:
+akun itu **bisa masuk dan tidak melihat apa pun**. Sekarang ia dihitung, disebut
+di atas, dan bisa disaring.
+
+Aturannya diturunkan DARI aturan akses yang sesungguhnya (`isCrossLocation`),
+bukan dari daftar peran yang disalin ulang — daftar salinan akan terus menuduh
+peran yang suatu saat dipindah ke lintas-lokasi.
+
+Akun **nonaktif hanya dilaporkan "nonaktif"**: ia memang sengaja tidak bisa
+dipakai, jadi menuduhnya "tanpa penugasan" hanya menggelembungkan hitungan
+masalah dengan hal yang tak perlu dikerjakan.
+
+### Tujuan WhatsApp ganda akhirnya terlihat
+
+Dua kontak dengan alamat WA yang sama berarti satu laporan terkirim **dua kali**
+ke penerima yang sama, dan sebelumnya itu hanya ketahuan kalau seseorang
+membandingkan sendiri kolom nomor baris demi baris. `tujuanGanda()`
+membandingkan ALAMAT-nya, bukan namanya: "Direksi" dan "Pak Dirut" yang menunjuk
+nomor sama tetap satu tujuan yang sama.
+
+### Laci, bukan formulir yang membentang di dalam daftar
+
+Formulir yang dibentangkan di tengah daftar mendorong barisnya turun, sehingga
+sesudah menyimpan orang kehilangan tempatnya. Laci membiarkan daftarnya diam.
+Yang disimpan komponennya adalah **ID baris, bukan objeknya** — sesudah aksi
+tersimpan datanya datang baru dari server, dan memegang objek lama membuat laci
+menampilkan data basi persis pada saat orang ingin memastikan simpanannya masuk.
+Efek sampingnya benar juga: sesudah "Gabung", lacinya menutup sendiri karena
+barisnya memang sudah tidak ada.
+
+Panel melayang wajib: Esc menutup, klik di luar menutup, fokus masuk saat dibuka
+dan **kembali ke pemicunya** saat ditutup, latar tidak ikut menggulir.
+
+### Daftar yang tersaring tidak boleh terbaca "data hilang"
+
+Daftar tersaring terlihat persis seperti daftar kosong. Karena itu tombol reset
+muncul KETIKA ada yang menyaring, dan jumlah hasil selalu disebut bersama
+penyebutnya ("Menampilkan 3 dari 19 perusahaan"). Saringan peran hanya
+menawarkan peran yang **benar-benar ada** di daftar — menawarkan yang pasti nihil
+membuat saringannya terasa rusak saat dipilih.
+
+**Penjaga.** `tests/unit/vendor-kelengkapan.test.ts` (8) — termasuk invarian
+persen ⇄ daftar kurang, dan " " bukan isi. `tests/unit/kesehatan-akun.test.ts`
+(9) — termasuk `butuhPenugasan` yang diuji terhadap `isCrossLocation` untuk
+seluruh peran, sehingga ia ikut pindah sendiri kalau aturan aksesnya berubah.
+`tests/unit/contacts-model.test.ts` +4 (`tujuanGanda`).
+
+---
+
+## 360 — Menu berkas: aksi yang berjalan harus terlihat, dan tombolnya mati (2026-08-18)
+
+**Laporan user 2026-08-18:** *"di bagian ini laporan seharusnya aku tinggal
+klik, ini malah banyak klik, lalu saat menu upload ke drive atau kirim ke wa
+diklik, tidak ada penanda sedang proses atau apa … masalah klik berkali-kali
+akhirnya jadi spam di whatsapp terjadi … sepele tapi sangat mengganggu. masalah
+sudah pernah terjadi, terulang lagi."*
+
+Terjadi di menu laporan harian DAN di menu laporan mingguan di atasnya —
+keduanya `MenuBerkas`.
+
+### Penyebabnya bukan aksinya lambat
+
+`MenuBerkas` menutup dirinya begitu sebuah pilihan ditekan. Pilihan itu memang
+punya `loading`, tetapi penandanya **tidak pernah punya tempat untuk terlihat**:
+panelnya sudah tidak ada. `disabled={p.loading}` pada itemnya pun tak berguna
+karena itemnya tidak sedang tampil. Tombol pemicunya sendiri tidak berubah sama
+sekali.
+
+Dari kursi pemakai: klik "Kirim ke WhatsApp" → menu hilang → layar diam beberapa
+detik → klik lagi → **pesan terkirim dua kali**. Itu bukan kesalahan pemakai.
+Tidak ada satu pun tanda bahwa yang pertama sedang berjalan.
+
+### Selagi berjalan, TIDAK ADA yang bisa diklik
+
+Selama ada pilihan yang `loading`, seluruh kendali diganti kepingan
+"Mengirim ke WhatsApp…" berikut pemutarnya — bukan sekadar diredupkan, dan bukan
+hanya itemnya. Ia `aria-busy` + `aria-live="polite"` supaya sampai juga ke
+pembaca layar; penanda yang hanya berupa animasi tidak berarti apa-apa bagi yang
+tidak melihat layar, dan merekalah yang paling mungkin menekan dua kali.
+
+Satu aksi mematikan SELURUH menunya, bukan dirinya sendiri: "Kirim WA" dan
+"Upload Drive" pada berkas yang sama tidak pernah dimaksudkan berjalan
+bersamaan, dan menyisakan satu pintu terbuka hanya memindahkan kiriman gandanya
+ke pintu sebelah.
+
+Kalimat sibuknya adalah kata KERJA yang menyebut apa yang dikerjakan
+("Mengunggah ke Drive…"), bukan "Memproses…" — yang benar tapi tidak memberi
+tahu apa pun.
+
+### Yang menolak sekarang KOMPILERNYA, bukan ingatan orang
+
+Ini bagian terpenting, karena user benar bahwa masalahnya berulang. Selama
+`loading` hanya `boolean` opsional, akan selalu ada pilihan aksi berikutnya yang
+ditulis tanpa penanda sibuk dan tidak ada apa pun yang menghentikannya.
+
+`PilihanBerkas` kini union: `PilihanTautan` (punya `href`, tak punya keadaan
+sibuk) atau `PilihanAksi` (punya `onSelect`, dan **wajib** `loading` +
+`labelSibuk`). Menulis aksi tanpa penanda sibuk sekarang gagal dikompilasi.
+Penjaga yang tidak ikut lelah.
+
+### Satu klik untuk yang dilakukan setiap hari
+
+Keluhan pertama di pesan yang sama: membuka menu lalu memilih "Unduh PDF"
+berarti dua klik untuk hal yang dikerjakan tiap hari. `utama` membuat badan
+tombol langsung mengerjakannya; panah di kanan tetap membuka sisanya. Aksinya
+tetap didaftar juga di dalam menu — kalau hanya ada di badan tombol, tidak ada
+cara menebak apa yang akan terjadi saat ditekan.
+
+**Penjaga.** `tests/unit/menu-berkas.test.tsx` (8): selagi sibuk tidak ada
+`<button>`, `<summary>`, maupun `<a>` tersisa; kalimat sibuk menyebut aksinya;
+`aria-busy` + `aria-live` ada; satu aksi mematikan pilihan lain; `utama` muncul
+SEBELUM panel menunya; alasan mati tetap ditulis. Ditambah penjaga tipe
+`@ts-expect-error` yang membuat `pnpm typecheck` merah bila kewajiban
+`loading`/`labelSibuk` dilonggarkan.
+
+Uji gigi: kepingan sibuk dilucuti → 4 merah; badan tombol satu-klik dihapus →
+1 merah; kewajiban tipe dilonggarkan → `tsc` merah (TS2578, `@ts-expect-error`
+tak terpakai). Dipulihkan → 8 hijau, 1638 unit hijau.

@@ -5,6 +5,7 @@ import {
   normalizeWaTarget,
   senderKeyKind,
   byName,
+  tujuanGanda,
 } from "@/lib/contacts/model";
 
 /** Manajemen Kontak — util murni. DECISIONS 150. */
@@ -100,5 +101,28 @@ describe("byName", () => {
   it("urut Indonesia, abai huruf besar/kecil", () => {
     const rows = [{ name: "budi" }, { name: "Ani" }, { name: "Candra" }];
     expect([...rows].sort(byName).map((r) => r.name)).toEqual(["Ani", "budi", "Candra"]);
+  });
+});
+
+describe("tujuanGanda", () => {
+  it("daftar tanpa kembar = himpunan kosong", () => {
+    expect(tujuanGanda([{ chatId: "628111@c.us" }, { chatId: "628222@c.us" }]).size).toBe(0);
+  });
+
+  it("tujuan sama dengan NAMA berbeda tetap satu tujuan yang sama", () => {
+    // Ini justru kasus yang paling sering terjadi dan paling sulit dilihat:
+    // "Direksi" dan "Pak Dirut" menunjuk nomor yang sama, jadi laporannya
+    // terkirim dua kali ke orang yang sama.
+    const g = tujuanGanda([{ chatId: "628111@c.us" }, { chatId: "628111@c.us" }]);
+    expect([...g]).toEqual(["628111@c.us"]);
+  });
+
+  it("beda huruf besar/kecil & spasi tetap dianggap sama", () => {
+    const g = tujuanGanda([{ chatId: "12036@G.US" }, { chatId: " 12036@g.us " }]);
+    expect([...g]).toEqual(["12036@g.us"]);
+  });
+
+  it("tujuan kosong diabaikan, bukan dilaporkan kembar", () => {
+    expect(tujuanGanda([{ chatId: "" }, { chatId: "  " }]).size).toBe(0);
   });
 });
