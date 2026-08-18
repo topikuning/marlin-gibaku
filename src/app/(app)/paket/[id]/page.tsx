@@ -12,7 +12,7 @@ import {
   PACKAGE_STAGE_TONE,
   revertTargetFor,
 } from "@/lib/lifecycle";
-import { formatPct, formatRupiah, formatRupiahShort, formatTanggalWaktu } from "@/lib/format";
+import { formatPct, formatRupiah, formatRupiahShort, formatTanggal, formatTanggalWaktu } from "@/lib/format";
 import { getLocationsProgress } from "@/lib/progress";
 import { weightedRealizedPct } from "@/lib/progress-calc";
 import {
@@ -29,12 +29,44 @@ import {
 } from "./stage-actions";
 import { WaGroupForm } from "./wa-group-form";
 import { DriveFolderForm } from "./drive-folder-form";
+import { mingguKontrak, rentangMingguKontrak } from "@/lib/mingguan/kirim";
 import { LaporanMingguanWa } from "./laporan-mingguan-wa";
 import { getGDriveConfigDisplay } from "@/lib/gdrive/config";
 import { getDriveCoverage } from "@/lib/gdrive/coverage";
 
 export const metadata: Metadata = { title: "Ringkasan Paket" };
 export const dynamic = "force-dynamic";
+
+/**
+ * Minggu kontrak yang boleh dipilih untuk laporan mingguan → grup WA
+ * (DECISIONS 357). Terbaru dulu; minggu berjalan tetap yang PERTAMA supaya
+ * bawaannya tidak berubah.
+ *
+ * Dibangun di server: aritmetika tanggalnya milik `kirim.ts`, dan menyalinnya
+ * ke komponen klien akan melahirkan salinan kedua yang bisa menyimpang dari
+ * yang benar-benar dipakai saat mengirim.
+ */
+function pilihanMingguPaket(startDate: Date | null): { nilai: number; label: string }[] {
+  if (!startDate) return [];
+  const now = new Date();
+  const berjalan = mingguKontrak(startDate, now);
+  if (berjalan < 1) return [];
+  const keluar: { nilai: number; label: string }[] = [];
+  // Minggu berjalan + hingga 8 minggu selesai terakhir — cukup untuk mengejar
+  // kiriman yang terlewat tanpa membuat daftarnya jadi gulungan panjang.
+  for (let n = berjalan; n >= Math.max(1, berjalan - 8); n--) {
+    const r = rentangMingguKontrak(startDate, n);
+    const rentang = `${formatTanggal(r.mulai, "d MMM")} – ${formatTanggal(r.akhir, "d MMM")}`;
+    keluar.push({
+      nilai: n,
+      label:
+        n === berjalan
+          ? `Minggu ke-${n} — berjalan (${rentang})`
+          : `Minggu ke-${n} — selesai (${rentang})`,
+    });
+  }
+  return keluar;
+}
 
 /** Stepper lifecycle horizontal — stage batal ditandai banner di layout. */
 function StageStepper({ current }: { current: PackageStage }) {
@@ -397,7 +429,11 @@ export default async function RingkasanPaketPage({
             subtitle="Semua lokasi paket ini dalam satu pesan. Otomatis pada hari terakhir tiap minggu kontrak (sesuai tanggal SPMK) bila sakelarnya menyala di Sistem — tombol di bawah tetap bisa dipakai kapan saja."
           />
           <CardBody>
-            <LaporanMingguanWa packageId={pkg.id} punyaGrup={Boolean(pkg.waGroupId)} />
+            <LaporanMingguanWa
+              packageId={pkg.id}
+              punyaGrup={Boolean(pkg.waGroupId)}
+              pilihanMinggu={pilihanMingguPaket(pkg.contract?.startDate ?? null)}
+            />
           </CardBody>
         </Card>
       ) : null}

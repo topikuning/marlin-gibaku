@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Send, Eye } from "lucide-react";
-import { Banner, Button } from "@/components/ui";
+import { Banner, Button, Combobox, Label } from "@/components/ui";
 import {
   kirimMingguanAction,
   pratinjauMingguanAction,
@@ -21,18 +21,45 @@ import { tahanGagalKirim } from "@/lib/aksi-klien";
  * kerja. Pratinjau menampilkan teks yang PERSIS akan dikirim — disusun oleh
  * fungsi yang sama, bukan tiruannya — jadi yang dibaca di layar memang yang
  * berangkat.
+ *
+ * ### Kenapa minggunya bisa DIPILIH (DECISIONS 357)
+ *
+ * Permintaan user 2026-08-17: *"itu saat ini kirim minggu berjalan, padahal
+ * kadang kita butuh kirim minggu terakhir"*. Minggu berjalan baru berisi
+ * sebagian hari; yang biasanya dilaporkan ke PPK adalah minggu yang sudah
+ * tuntas.
+ *
+ * Bawaannya TETAP minggu berjalan — kebiasaan yang sudah jalan tidak diubah
+ * diam-diam, dan penjadwal otomatis pun tetap mengirim minggu berjalan pada
+ * hari terakhirnya. Yang bertambah hanyalah pilihan.
+ *
+ * Pemilihnya berada DI LUAR kedua form dan dititipkan ke masing-masing lewat
+ * input tersembunyi: kalau ia berada di dalam salah satu form, "Lihat dulu" dan
+ * "Kirim" bisa memakai minggu yang berbeda — dan pratinjau yang tidak sama
+ * dengan yang dikirim justru membatalkan gunanya pratinjau.
  */
 const pratinjau = tahanGagalKirim(pratinjauMingguanAction);
 const kirim = tahanGagalKirim(kirimMingguanAction);
 
+export type PilihanMinggu = { nilai: number; label: string };
+
 export function LaporanMingguanWa({
   packageId,
   punyaGrup,
+  pilihanMinggu = [],
 }: {
   packageId: string;
   /** false = paket belum ditautkan ke grup WA; tombol kirim tidak ada gunanya. */
   punyaGrup: boolean;
+  /**
+   * Minggu yang boleh dipilih, terbaru dulu. Kosong (kontrak belum ber-SPMK)
+   * = pemilihnya tidak ditampilkan dan perilakunya persis seperti sebelumnya.
+   */
+  pilihanMinggu?: PilihanMinggu[];
 }) {
+  const [minggu, setMinggu] = useState<string>(
+    pilihanMinggu.length > 0 ? String(pilihanMinggu[0].nilai) : "",
+  );
   const [statePratinjau, aksiPratinjau, sedangPratinjau] = useActionState<MingguanState, FormData>(
     pratinjau,
     undefined,
@@ -71,9 +98,23 @@ export function LaporanMingguanWa({
         </pre>
       ) : null}
 
+      {pilihanMinggu.length > 0 ? (
+        <div className="max-w-xs">
+          <Label htmlFor="lm-minggu">Minggu yang dilaporkan</Label>
+          <Combobox id="lm-minggu" value={minggu} onChange={setMinggu}>
+            {pilihanMinggu.map((p) => (
+              <option key={p.nilai} value={String(p.nilai)}>
+                {p.label}
+              </option>
+            ))}
+          </Combobox>
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap gap-2">
         <form action={aksiPratinjau}>
           <input type="hidden" name="packageId" value={packageId} />
+          <input type="hidden" name="mingguKe" value={minggu} />
           <Button type="submit" variant="secondary" size="sm" loading={sedangPratinjau}>
             <Eye aria-hidden className="size-4" />
             Lihat dulu
@@ -81,6 +122,7 @@ export function LaporanMingguanWa({
         </form>
         <form action={aksiKirim}>
           <input type="hidden" name="packageId" value={packageId} />
+          <input type="hidden" name="mingguKe" value={minggu} />
           <Button type="submit" size="sm" loading={sedangKirim} disabled={!punyaGrup}>
             <Send aria-hidden className="size-4" />
             Kirim ke grup sekarang

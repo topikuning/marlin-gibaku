@@ -62,6 +62,17 @@ export type IsiPesanMingguan = {
   pelaksana: string;
   /** Minggu ke berapa sejak SPMK — sifat KONTRAK, sama untuk semua lokasinya. */
   mingguKe: number;
+  /**
+   * Rentang tanggal minggu itu, mis. "12–18 Agu 2026" (DECISIONS 357).
+   *
+   * Wajib ada sejak minggu yang dilaporkan bisa BUKAN minggu berjalan: nomor
+   * minggu saja tidak cukup bagi PPK & konsultan yang menerima pesannya untuk
+   * tahu periode mana yang dimaksud, dan pesan WhatsApp tidak bisa ditarik
+   * kembali untuk diperjelas.
+   */
+  periode?: string | null;
+  /** false = minggu sudah TUNTAS; true = masih berjalan (data belum genap). */
+  berjalan?: boolean;
   lokasi: BarisLokasiMingguan[];
   /**
    * Rekap seluruh paket. `null` bila tidak ada yang bisa dihitung — dan SENGAJA
@@ -124,7 +135,14 @@ export function susunPesanMingguan(isi: IsiPesanMingguan): string | null {
   const bagian = [
     "Laporan Progres Mingguan",
     `Nama Pelaksana : ${isi.pelaksana}`,
-    `Minggu Ke : ${isi.mingguKe}`,
+    `Minggu Ke : ${isi.mingguKe}${isi.periode ? ` (${isi.periode})` : ""}`,
+    /*
+     * Minggu BERJALAN dikatakan apa adanya. Angkanya belum genap seminggu, dan
+     * penerima yang mengira ini laporan minggu penuh akan membandingkannya
+     * dengan minggu-minggu sebelumnya yang genap — perbandingan yang selalu
+     * membuat minggu berjalan terlihat tertinggal.
+     */
+    ...(isi.berjalan ? ["_(minggu berjalan — belum genap seminggu)_"] : []),
     "",
     blok.join("\n\n"),
   ];

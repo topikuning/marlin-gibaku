@@ -16656,3 +16656,82 @@ toleransi periode dilepas → 1 merah;
 deviasi lampau tidak lagi mengaku → 1 merah; tahun ditebak ke depan → 1 merah;
 tanggal mustahil digulung `Date.UTC` apa adanya → 2 merah. Dipulihkan → 17 & 50
 hijau.
+
+---
+
+## 357 — Laporan mingguan WA: minggu yang dilaporkan bisa dipilih (2026-08-17)
+
+Permintaan user 2026-08-17:
+
+> *"laporan mingguan basis teks yang dikirim ke wa group di halaman paket. itu
+> saat ini kirim minggu berjalan, padahal kadang kita butuh kirim minggu
+> terakhir. butuh flexibelitas di situ."*
+
+Minggu berjalan baru berisi sebagian hari; yang biasanya dilaporkan ke PPK
+adalah minggu yang sudah TUNTAS. Sebelum ini nomor mingguanya dipaku ke
+`mingguKontrak(startDate, now)` — tidak ada jalan lain sama sekali.
+
+### Yang dipilih bukan cuma NOMORNYA, tapi juga TANGGAL HITUNGNYA
+
+Ini inti perubahan, dan bagian yang paling mudah dikerjakan setengah. Mengganti
+nomor minggu di judul saja akan menghasilkan pesan berjudul **"Minggu Ke : 4"**
+yang isinya realisasi HARI INI: tetap terkirim, tetap rapi, tetap ke grup berisi
+PPK dan konsultan — dan tidak ada yang bisa membedakannya tanpa menghitung ulang
+sendiri.
+
+Calculation layer sudah mendukungnya: `getLocationProgress(id, { asOf })`, yang
+artinya persis *"laporan mana yang ikut dihitung (`report_date <= asOf`)"*
+(CALC-01, DECISIONS 275). Jadi minggu lampau dihitung `asOf` hari TERAKHIR
+minggu itu.
+
+Minggu BERJALAN tetap memakai `now`, bukan akhir minggunya — akhir minggu
+berjalan adalah tanggal DEPAN, dan `report_date <= asOf` akan diam-diam
+memasukkan laporan yang belum ada.
+
+### Yang tidak berubah
+
+- **Bawaannya tetap minggu berjalan.** Kebiasaan yang sudah jalan tidak diubah
+  diam-diam, dan penjadwal otomatis tetap mengirim minggu berjalan pada hari
+  terakhirnya. Yang bertambah hanyalah pilihan.
+- **Kunci `(paket, minggu)` tetap berarti.** Kiriman susulan minggu ke-4 tercatat
+  di baris minggu ke-4, jadi ia TIDAK mengunci minggu berjalan — kalau keduanya
+  berbagi satu baris, mengirim laporan susulan akan membuat penjadwal diam pada
+  minggu berjalan dan laporan otomatisnya hilang tanpa ada yang sadar.
+
+### Yang ditambahkan ke badan pesan
+
+- **Rentang tanggal**: `Minggu Ke : 5 (3 Agt – 9 Agt 2026)`. Nomor minggu saja
+  tidak cukup begitu yang dilaporkan bisa bukan minggu berjalan — penerimanya
+  tidak punya cara tahu periode mana yang dimaksud, dan pesan WhatsApp tidak
+  bisa ditarik kembali untuk diperjelas.
+- **Penanda minggu berjalan**: *"(minggu berjalan — belum genap seminggu)"*.
+  Tanpa itu, penerima membandingkannya dengan minggu-minggu genap sebelumnya —
+  perbandingan yang selalu membuat minggu berjalan terlihat tertinggal.
+
+Pemilihnya (`Combobox`, sesuai aturan proyek) berada DI LUAR kedua form dan
+dititipkan lewat input tersembunyi: kalau ia di dalam salah satu form,
+"Lihat dulu" dan "Kirim" bisa memakai minggu berbeda — dan pratinjau yang tidak
+sama dengan yang dikirim membatalkan gunanya pratinjau.
+
+### Uji gigi yang membongkar uji saya sendiri
+
+Percobaan pertama: mencabut `asOf` sepenuhnya **tidak membuat satu uji pun
+merah**. Sebabnya fixture-nya tidak punya data progres — realisasi minggu ke-4
+dan realisasi hari ini sama-sama nol, jadi cacat paling senyap dari fitur ini
+lolos tanpa terlihat.
+
+Fixture-nya kini punya RAB, baseline, dan DUA laporan harian di minggu berbeda
+(minggu ke-3 dan ke-7), sehingga "s/d minggu ke-4" (10%) benar-benar berbeda
+dari "s/d hari ini" (40%). Sesudah itu, mencabut `asOf` → 2 merah.
+
+**Penjaga.** Berkas baru `tests/unit/mingguan-pilih-minggu.test.ts` (11):
+`mingguKontrak` & `rentangMingguKontrak` SALING MEMBALIK untuk 30 minggu × 7
+hari, minggu tanpa celah/tumpang tindih, `mingguSelesaiTerakhir` nol selama
+belum ada minggu penuh, `asOf` minggu berjalan = hari ini, minggu lampau = akhir
+minggunya, dan tidak pernah menghasilkan tanggal depan.
+`tests/integration/laporan-mingguan-wa.test.ts` +9.
+
+Uji gigi: `asOf` dicabut → **2 integrasi merah**; minggu berjalan memakai akhir
+minggunya → 2 unit merah; rentang digeser satu hari → 3 unit + 1 integrasi
+merah; minggu depan tidak lagi ditolak → 1 integrasi merah. Dipulihkan → 11 & 21
+hijau.

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getLocationProgress, type LocationProgress } from "@/lib/progress";
 import { weightedPct, weightedRealizedPct } from "@/lib/progress-calc";
 import { isWahaConfigured, sendText } from "@/lib/waha/client";
+import { formatTanggal } from "@/lib/format";
 import { susunPesanMingguan, type BarisLokasiMingguan, type RekapPaket } from "./pesan";
 
 /**
@@ -50,6 +51,45 @@ export function akhirMingguKontrak(startDate: Date, now: Date): boolean {
 /** Tengah malam UTC dari sebuah tanggal — supaya selisihnya utuh per hari. */
 function tengahMalam(d: Date): number {
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
+
+/**
+ * Hari pertama & terakhir sebuah minggu kontrak (DECISIONS 357).
+ *
+ * Kebalikan `mingguKontrak`. Dipakai mengirim laporan minggu yang SUDAH SELESAI:
+ * angkanya harus dihitung `asOf` hari terakhir minggu itu, bukan hari ini.
+ * Tanpa itu, judulnya berbunyi "Minggu ke-6" sementara isinya realisasi hari ini
+ * — jawaban benar untuk minggu yang salah, dan penerimanya (PPK, konsultan)
+ * tidak punya cara mengetahuinya.
+ */
+export function rentangMingguKontrak(startDate: Date, mingguKe: number): { mulai: Date; akhir: Date } {
+  const n = Math.max(1, Math.floor(mingguKe));
+  const awal = tengahMalam(startDate) + (n - 1) * 7 * HARI_MS;
+  return { mulai: new Date(awal), akhir: new Date(awal + 6 * HARI_MS) };
+}
+
+/**
+ * Minggu kontrak TERAKHIR yang sudah tuntas pada `now`.
+ *
+ * Nol berarti kontraknya belum melewati satu minggu penuh pun — bukan "minggu
+ * ke-0". Pemanggil WAJIB memeriksanya; menawarkan "kirim minggu terakhir" pada
+ * kontrak yang baru berjalan tiga hari menjanjikan laporan yang isinya belum ada.
+ */
+export function mingguSelesaiTerakhir(startDate: Date, now: Date): number {
+  return mingguKontrak(startDate, now) - 1;
+}
+
+/**
+ * Tanggal yang dipakai sebagai `asOf` untuk sebuah minggu target.
+ *
+ * Minggu BERJALAN memakai `now` — memakai akhir minggunya berarti memakai
+ * tanggal DEPAN, dan `report_date <= asOf` akan diam-diam memasukkan laporan
+ * yang belum ada sambil membuat nomor minggunya melompat.
+ */
+export function asOfMinggu(startDate: Date, mingguKe: number, now: Date): Date {
+  const berjalan = mingguKontrak(startDate, now);
+  if (mingguKe >= berjalan) return now;
+  return rentangMingguKontrak(startDate, mingguKe).akhir;
 }
 
 /**
@@ -112,7 +152,15 @@ async function muatPaket(packageId: string) {
 export async function pratinjauMingguan(
   packageId: string,
   now = new Date(),
-): Promise<{ body: string; mingguKe: number; lokasi: number } | { alasan: string }> {
+  /**
+   * Minggu kontrak yang diminta. Kosong = minggu BERJALAN (perilaku lama).
+   *
+   * Permintaan user 2026-08-17: *"kadang kita butuh kirim minggu terakhir"* —
+   * minggu berjalan baru berisi sebagian hari, dan yang dilaporkan ke PPK
+   * biasanya minggu yang sudah tuntas (DECISIONS 357).
+   */
+  mingguDiminta?: number,
+): Promise<{ body: string; mingguKe: number; lokasi: number; berjalan: boolean } | { alasan: string }> {
   const pkg = await muatPaket(packageId);
   if (!pkg) return { alasan: "Paket tidak ditemukan." };
   if (!pkg.contract?.startDate) {
@@ -120,7 +168,22 @@ export async function pratinjauMingguan(
   }
   if (pkg.locations.length === 0) return { alasan: "Paket ini belum punya lokasi aktif." };
 
-  const mingguKe = mingguKontrak(pkg.contract.startDate, now);
+  const mingguBerjalan = mingguKontrak(pkg.contract.startDate, now);
+  const mingguKe = mingguDiminta ?? mingguBerjalan;
+  if (mingguKe < 1) {
+    return { alasan: "Kontrak ini belum melewati satu minggu penuh, jadi belum ada minggu selesai yang bisa dilaporkan." };
+  }
+  if (mingguKe > mingguBerjalan) {
+    return { alasan: `Minggu ke-${mingguKe} belum terjadi — minggu kontrak yang sedang berjalan baru ke-${mingguBerjalan}.` };
+  }
+  const berjalan = mingguKe >= mingguBerjalan;
+  /*
+   * Angka dihitung PADA akhir minggu target, bukan hari ini (DECISIONS 357).
+   * `asOf` sudah didukung calculation layer dan artinya persis ini: laporan
+   * mana yang ikut dihitung (`report_date <= asOf`). Tanpa ini, judul "Minggu
+   * ke-6" akan memuat realisasi hari ini.
+   */
+  const asOf = asOfMinggu(pkg.contract.startDate, mingguKe, now);
   const baris: BarisLokasiMingguan[] = [];
   /** Hanya yang punya kurva-S yang boleh ikut rekap — lihat `rekapPaket`. */
   const berkurva: LocationProgress[] = [];
@@ -129,7 +192,7 @@ export async function pratinjauMingguan(
   for (const l of pkg.locations) {
     // Angkanya DITERIMA dari calculation layer, tidak dihitung ulang di sini
     // (CLAUDE.md). `totalWeeks === 0` = lokasi belum punya baseline sama sekali.
-    const p = await getLocationProgress(l.id);
+    const p = await getLocationProgress(l.id, { asOf });
     const belumAdaKurva = p.totalWeeks === 0;
     if (belumAdaKurva) tanpaKurva += 1;
     else berkurva.push(p);
@@ -142,14 +205,17 @@ export async function pratinjauMingguan(
     });
   }
 
+  const rentang = rentangMingguKontrak(pkg.contract.startDate, mingguKe);
   const body = susunPesanMingguan({
     pelaksana: pkg.contract.vendor.name,
     mingguKe,
+    periode: `${formatTanggal(rentang.mulai, "d MMM")} – ${formatTanggal(rentang.akhir, "d MMM yyyy")}`,
+    berjalan,
     lokasi: baris,
     rekap: rekapPaket(berkurva, tanpaKurva),
   });
   if (!body) return { alasan: "Tidak ada lokasi yang bisa dilaporkan." };
-  return { body, mingguKe, lokasi: baris.length };
+  return { body, mingguKe, lokasi: baris.length, berjalan };
 }
 
 /**
@@ -163,7 +229,14 @@ export async function pratinjauMingguan(
  */
 export async function kirimLaporanMingguan(
   packageId: string,
-  opts: { manual?: boolean; paksa?: boolean; sentById?: string; now?: Date } = {},
+  opts: {
+    manual?: boolean;
+    paksa?: boolean;
+    sentById?: string;
+    now?: Date;
+    /** Minggu kontrak yang diminta; kosong = minggu berjalan (DECISIONS 357). */
+    mingguKe?: number;
+  } = {},
 ): Promise<HasilKirimMingguan> {
   const now = opts.now ?? new Date();
   const pkg = await muatPaket(packageId);
@@ -175,7 +248,7 @@ export async function kirimLaporanMingguan(
     return { ok: false, alasan: "WhatsApp (WAHA) belum dikonfigurasi." };
   }
 
-  const siap = await pratinjauMingguan(packageId, now);
+  const siap = await pratinjauMingguan(packageId, now, opts.mingguKe);
   if ("alasan" in siap) return { ok: false, alasan: siap.alasan };
 
   const sudah = await db.weeklyWaLog.findUnique({
