@@ -294,7 +294,8 @@ export function balasBantuan(): string {
     "*Yang bisa saya jawab lewat chat*",
     "",
     "• *Progress* — “progress hari ini”, “progress kemarin di Kedung Mutih”",
-    "• *Laporan harian* — “minta laporan harian”, “laporan tanggal 12”, “laporan kemarin lusa”",
+    "• *Laporan harian* — isi laporan SATU tanggal: “laporan hari ini”, “laporan tanggal 12”",
+    "• *Laporan mingguan* — rekap SEPEKAN: “laporan mingguan”, “laporan mingguan minggu lalu”",
     "• *Kendala* — “ada kendala apa”, “kendala di Tengket”",
     "• *Deviasi* — “mana yang deviasinya negatif”, “siapa yang tertinggal”",
     "• *Kelengkapan* — “siapa yang belum lapor hari ini”",
@@ -306,4 +307,49 @@ export function balasBantuan(): string {
     "Sebut nama lokasi kalau mau dipersempit. Kalau tidak disebut, saya jawab",
     "untuk seluruh lokasi yang boleh Anda lihat.",
   ].join("\n");
+}
+
+/* ------------------------------------------------------------------ */
+/* Laporan mingguan                                                    */
+/* ------------------------------------------------------------------ */
+
+export type BarisMingguanWa = {
+  lokasi: string;
+  rencanaPct: number | null;
+  realisasiPct: number;
+  deviasiPct: number | null;
+  hariBerlaporan: number;
+  totalHari: number;
+};
+
+/**
+ * Rekap MINGGUAN per lokasi (DECISIONS 358).
+ *
+ * Judulnya "Laporan mingguan", dan itu bukan kosmetik: keluhan user 2026-08-18
+ * adalah *"gak jelas apa yang kuminta, sistem kasih apa"* — ia meminta laporan
+ * mingguan dan menerima kotak berjudul "Laporan harian". Judul yang tidak sama
+ * dengan yang diminta membuat penerimanya harus menebak apakah sistemnya salah
+ * paham atau memang begitu isinya.
+ */
+export function balasMingguan(
+  r: { periode: string; baris: BarisMingguanWa[] },
+  opts: OpsiKaki = {},
+): string {
+  if (r.baris.length === 0) {
+    return kepala("Laporan mingguan", r.periode) + "\n\nTidak ada lokasi yang cocok." + kaki(opts);
+  }
+  const isi = r.baris.map((b) => {
+    const angka =
+      b.rencanaPct == null
+        ? // Lokasi tanpa kurva-S TIDAK dicetak "rencana 0%" — rencana yang belum
+          // ada bukan rencana nol, dan di sini ia akan terbaca sebagai prestasi.
+          `  realisasi ${pct(b.realisasiPct)} · rencana belum ada (kurva-S belum disusun)`
+        : `  realisasi ${pct(b.realisasiPct)} · rencana ${pct(b.rencanaPct)} · deviasi ${bertanda(b.deviasiPct ?? 0)}`;
+    return [
+      `*${b.lokasi}*`,
+      angka,
+      `  ${b.hariBerlaporan} dari ${b.totalHari} hari sudah dilaporkan`,
+    ].join("\n");
+  });
+  return kepala("Laporan mingguan", r.periode) + "\n\n" + isi.join("\n\n") + kaki(opts);
 }

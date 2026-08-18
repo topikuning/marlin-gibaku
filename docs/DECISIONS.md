@@ -16735,3 +16735,80 @@ Uji gigi: `asOf` dicabut → **2 integrasi merah**; minggu berjalan memakai akhi
 minggunya → 2 unit merah; rentang digeser satu hari → 3 unit + 1 integrasi
 merah; minggu depan tidak lagi ditolak → 1 integrasi merah. Dipulihkan → 11 & 21
 hijau.
+
+---
+
+## 358 — "Laporan mingguan" dijawab laporan harian, dan salah label (2026-08-18)
+
+Keluhan user 2026-08-18 dengan tangkapan layar percakapan WhatsApp:
+
+> *"gak jelas apa yang kuminta, sistem kasih apa"*
+
+Ia mengetik **"laporan mingguan kemantren, minggu kemarin"** dan menerima kotak
+berjudul **"Laporan harian — minggu lalu"** yang isinya SATU hari. Lalu **"aku
+minta laporan mingguan"** → lagi-lagi *"Laporan harian — minggu ini"*.
+
+Dua cacat berbeda, dan yang kedua saya buat sendiri di DECISIONS 356.
+
+### Cacat 1 — niat "laporan mingguan" memang tidak ada
+
+Kosakata niat hanya punya `laporan` (isi laporan harian SATU tanggal). AI tidak
+punya pilihan lain, jadi ia memetakan "laporan mingguan" ke sana. Sistemnya
+menjawab pertanyaan yang berbeda dari yang ditanyakan — persis yang dilarang
+doktrin "mengaku, bukan menebak", hanya lewat pintu yang belum dijaga: bukan
+menebak JAWABAN, tapi menebak PERTANYAAN.
+
+Ditutup dengan niat `laporan_mingguan`: rekap sepekan per lokasi — realisasi vs
+rencana, deviasi, dan berapa hari dari pekan itu yang sudah dilaporkan.
+
+Angkanya dihitung `asOf` hari TERAKHIR pekan itu, bukan hari ini — alasan yang
+sama persis dengan DECISIONS 357. Lokasi tanpa kurva-S tidak dicetak "rencana
+0%": rencana yang belum ada bukan rencana nol, dan di grup ia terbaca sebagai
+prestasi.
+
+### Cacat 2 — judul meminjam label periode yang tidak dijawab
+
+Laporan harian SELALU satu tanggal. Versi DECISIONS 356 memakai `periode.akhir`
+sebagai tanggalnya (benar) tetapi `periode.label` sebagai judulnya (salah), jadi
+"minggu lalu" tercetak di atas isi satu hari.
+
+Sekarang judulnya TANGGAL yang benar-benar ditampilkan, dan bila penanya menyebut
+rentang, balasannya mengaku: *"Laporan harian selalu satu tanggal. Anda menyebut
+minggu lalu, jadi saya ambil hari terakhirnya. Untuk rekap sepekan, tanya
+'laporan mingguan'."* — pengakuan yang sekalian mengajarkan jalan yang benar.
+
+Catatan itu hanya muncul saat periodenya memang rentang; peringatan yang muncul
+ketika tidak dibutuhkan melatih orang mengabaikannya.
+
+### Label pekan menyebut TANGGAL, bukan kata relatif
+
+`pekan 10 Agustus 2026 – 16 Agustus 2026`, bukan "minggu lalu". Balasan WhatsApp
+dibaca lagi berhari-hari kemudian — sering sesudah diteruskan ke PPK — dan
+"minggu lalu" berarti berbeda tergantung kapan dibaca.
+
+Pekan BERJALAN dipotong di hari ini dan pemotongannya dikatakan: menghitung hari
+yang belum terjadi ke dalam penyebut "berapa hari sudah dilaporkan" membuat
+angkanya bohong.
+
+### Daftar bantuan ikut dibetulkan
+
+`bantuan` kini membedakan keduanya secara eksplisit — "Laporan harian: isi
+laporan SATU tanggal" vs "Laporan mingguan: rekap SEPEKAN". Kalau daftarnya
+tidak membedakan, orang akan terus meminta yang salah, dan itu persis cara
+keluhan ini bermula.
+
+### Uji gigi membongkar uji saya sendiri (lagi)
+
+Percobaan pertama uji "judulnya tanggal, bukan minggu lalu" memakai regex yang
+tidak menghitung tanda `*` penutup judul, sehingga ia tetap HIJAU ketika label
+rentang dikembalikan. Ujinya kini memeriksa baris subjudul secara langsung
+(`_3 Juli 2026_`), dan pelanggaran yang sama membuatnya merah.
+
+**Penjaga.** `tests/unit/waha-tanya-tanggal.test.ts` +6 (pekan dari satu hari,
+dari "kemarin", pekan berjalan dipotong, pekan lalu utuh, label bertanggal,
+tidak pernah melewati hari ini). `tests/integration/waha-tanya-jawab.test.ts` +6,
+menempuh perangkai utuh dengan skenario persis dari tangkapan layar.
+
+Uji gigi: mingguan memakai satu hari alih-alih pekan → 2 integrasi merah; pekan
+berjalan tidak dipotong → 2 unit + 1 integrasi merah; judul harian kembali
+meminjam label rentang → 1 integrasi merah. Dipulihkan → 23 & 56 hijau.

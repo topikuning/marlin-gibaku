@@ -1,7 +1,7 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
-import { jakartaDateKey, jakartaToday, formatTanggal } from "@/lib/format";
+import { jakartaDateKey, jakartaToday, formatTanggal, parseDateKey } from "@/lib/format";
 import type { SessionUser } from "@/lib/auth/session";
 import { accessibleLocationIds } from "@/lib/auth/session";
 import { aiStructured } from "@/lib/ai/structured";
@@ -36,6 +36,7 @@ import {
   balasKelengkapan,
   balasKendala,
   balasLaporan,
+  balasMingguan,
   balasProgress,
   balasTidakMengerti,
   type OpsiKaki,
@@ -45,10 +46,11 @@ import {
   dataKelengkapan,
   dataKendala,
   dataLaporan,
+  dataMingguan,
   dataProgress,
   katalogLokasi,
 } from "./tanya-data";
-import { bacaPeriode } from "./tanya-tanggal";
+import { bacaPeriode, pekanDari } from "./tanya-tanggal";
 
 /**
  * TANYA-JAWAB WHATSAPP BEBAS — perangkai (DECISIONS 339).
@@ -437,9 +439,38 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
 
   if (niat.niat === "bantuan") {
     balasan = balasBantuan();
+  } else if (niat.niat === "laporan_mingguan") {
+    // Berapa pun bentuk periode yang ditulis penanya, jawabannya satu PEKAN
+    // penuh — "laporan mingguan 17 agustus" berarti pekan yang memuat 17
+    // Agustus, bukan tanggal 17 saja (DECISIONS 358).
+    const pekan = pekanDari(periode, hariIniKey);
+    const d = await dataMingguan(sasaran, pekan.mulai, pekan.akhir);
+    balasan = balasMingguan(
+      { periode: pekan.label, baris: d.baris },
+      { ...opts, catatanBatas: d.catatanBatas, catatanPeriode: pekan.catatan },
+    );
   } else if (niat.niat === "laporan") {
     const d = await dataLaporan(sasaran, dateKey);
-    balasan = balasLaporan({ tanggal, baris: d.baris }, { ...opts, catatanBatas: d.catatanBatas });
+    /*
+     * Judulnya TANGGAL yang benar-benar ditampilkan, bukan label periodenya
+     * (DECISIONS 358).
+     *
+     * Keluhan user 2026-08-18: kotak berjudul "Laporan harian — minggu lalu"
+     * yang isinya SATU hari. Ini laporan harian: ia selalu satu tanggal. Kalau
+     * penanya menyebut rentang, yang jujur adalah menyebut hari mana yang
+     * diambil, bukan meminjam label rentang yang tidak dijawab.
+     */
+    const rentangDiminta = !periode.satuHari;
+    balasan = balasLaporan(
+      { tanggal: formatTanggal(parseDateKey(dateKey) ?? jakartaToday(), "d MMMM yyyy"), baris: d.baris },
+      {
+        ...opts,
+        catatanBatas: d.catatanBatas,
+        catatanPeriode: rentangDiminta
+          ? `Laporan harian selalu satu tanggal. Anda menyebut ${periode.label}, jadi saya ambil hari terakhirnya. Untuk rekap sepekan, tanya "laporan mingguan".`
+          : periode.catatan,
+      },
+    );
   } else if (niat.niat === "kendala") {
     const d = await dataKendala(sasaran, sekarang);
     balasan = balasKendala(

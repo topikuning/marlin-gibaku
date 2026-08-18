@@ -981,3 +981,107 @@ describe("periode & niat baru — MARLIN yang luwes (DECISIONS 356)", () => {
     expect(teks).toContain("hari ini");
   });
 });
+
+describe("laporan MINGGUAN vs laporan HARIAN (DECISIONS 358)", () => {
+  /*
+   * Keluhan user 2026-08-18, dengan tangkapan layar: *"gak jelas apa yang
+   * kuminta, sistem kasih apa"*.
+   *
+   * Ia mengetik "laporan mingguan kemantren, minggu kemarin" dan menerima kotak
+   * berjudul **"Laporan harian — minggu lalu"** berisi SATU hari. Dua cacat
+   * sekaligus, dan keduanya diuji terpisah di bawah:
+   *
+   *  1. niat "laporan mingguan" tidak ada sama sekali — AI terpaksa memetakannya
+   *     ke laporan HARIAN;
+   *  2. judulnya meminjam label rentang ("minggu lalu") padahal isinya satu
+   *     tanggal — jawaban yang mengaku menjawab pertanyaan lain.
+   */
+  const tanya = async (teks: string) => {
+    terkirim.length = 0;
+    await db.aiRun.deleteMany({});
+    const r = await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks }),
+    );
+    return { r, teks: terkirim[0]?.teks ?? "" };
+  };
+
+  it("niat laporan_mingguan menjawab REKAP SEPEKAN, berjudul mingguan", async () => {
+    niatPalsu = {
+      niat: "laporan_mingguan",
+      lokasiDisebut: [],
+      periode: { jenis: "rentang", satuan: "minggu", mundur: 1 },
+    };
+    const { r, teks } = await tanya("laporan mingguan minggu kemarin");
+    expect(r.dijawab, r.alasan).toBe(true);
+    expect(teks).toContain("Laporan mingguan");
+    expect(teks).not.toContain("Laporan harian");
+    // Rekap sepekan menyebut penyebutnya: berapa hari sudah dilaporkan.
+    expect(teks).toMatch(/\d+ dari \d+ hari sudah dilaporkan/);
+  });
+
+  it("judulnya menyebut RENTANG TANGGAL pekannya, bukan kata relatif", async () => {
+    /*
+     * "minggu lalu" berarti berbeda tergantung kapan dibaca, dan balasan
+     * WhatsApp dibaca lagi berhari-hari kemudian — sering setelah diteruskan
+     * ke PPK.
+     */
+    niatPalsu = {
+      niat: "laporan_mingguan",
+      lokasiDisebut: [],
+      periode: { jenis: "rentang", satuan: "minggu", mundur: 1 },
+    };
+    const { teks } = await tanya("laporan mingguan minggu kemarin");
+    expect(teks).toMatch(/pekan \d+ \w+ \d{4} – \d+ \w+ \d{4}/);
+  });
+
+  it("laporan HARIAN dengan periode rentang: judulnya TANGGAL, bukan 'minggu lalu'", async () => {
+    /*
+     * Cacat yang terlihat di tangkapan layar user. Laporan harian selalu SATU
+     * tanggal; meminjam label rentang membuat kotak itu mengaku menjawab
+     * sepekan padahal tidak.
+     */
+    niatPalsu = {
+      niat: "laporan",
+      lokasiDisebut: [],
+      periode: { jenis: "rentang", satuan: "minggu", mundur: 1 },
+    };
+    const { teks } = await tanya("laporan minggu lalu");
+    expect(teks).toContain("Laporan harian");
+    /*
+     * Baris SUBJUDUL diperiksa langsung, bukan lewat pola longgar. Versi
+     * pertama uji ini memakai regex yang tidak menghitung tanda `*` penutup
+     * judul, jadi ia tetap hijau ketika label rentang dikembalikan — uji gigi
+     * yang membongkarnya.
+     */
+    const subjudul = teks.split("\n")[1];
+    expect(subjudul, `subjudul: ${subjudul}`).toMatch(/^_\d+ \w+ \d{4}_$/);
+    expect(subjudul).not.toContain("minggu");
+    // Dan MENGAKU bahwa yang diambil hanya hari terakhirnya.
+    expect(teks).toContain("Laporan harian selalu satu tanggal");
+    expect(teks).toContain("laporan mingguan");
+  });
+
+  it("laporan harian SATU HARI tidak diberi catatan yang tidak perlu", async () => {
+    // Catatan yang muncul saat tidak dibutuhkan melatih orang mengabaikannya.
+    niatPalsu = { niat: "laporan", lokasiDisebut: [], periode: { jenis: "mundur_hari", hari: 1 } };
+    const { teks } = await tanya("laporan kemarin");
+    expect(teks).not.toContain("selalu satu tanggal");
+  });
+
+  it("tanpa periode, laporan mingguan memakai PEKAN BERJALAN dan mengatakannya", async () => {
+    niatPalsu = { niat: "laporan_mingguan", lokasiDisebut: [], periode: { jenis: "hari_ini" } };
+    const { r, teks } = await tanya("aku minta laporan mingguan");
+    expect(r.dijawab, r.alasan).toBe(true);
+    expect(teks).toContain("Laporan mingguan");
+    expect(teks).toContain("Pekan berjalan");
+  });
+
+  it("'bantuan' membedakan laporan harian dari laporan mingguan", async () => {
+    // Kalau daftarnya tidak membedakan keduanya, orang akan terus meminta yang
+    // salah — dan itu persis cara keluhan ini bermula.
+    niatPalsu = { niat: "bantuan", lokasiDisebut: [], periode: { jenis: "hari_ini" } };
+    const { teks } = await tanya("kamu bisa apa saja");
+    expect(teks).toContain("Laporan harian");
+    expect(teks).toContain("Laporan mingguan");
+  });
+});

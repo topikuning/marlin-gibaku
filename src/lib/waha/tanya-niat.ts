@@ -27,6 +27,8 @@ export const NIAT = [
   "kelengkapan",
   /** Isi laporan harian satu tanggal — DECISIONS 356. */
   "laporan",
+  /** Rekap posisi pekerjaan satu PEKAN — DECISIONS 358. */
+  "laporan_mingguan",
   /** "kamu bisa apa saja?" — MARLIN menjelaskan dirinya sendiri. */
   "bantuan",
 ] as const;
@@ -38,6 +40,7 @@ export const NIAT_LABEL: Record<Niat, string> = {
   deviasi: "deviasi terhadap kurva-S",
   kelengkapan: "kelengkapan laporan harian",
   laporan: "isi laporan harian satu tanggal",
+  laporan_mingguan: "rekap mingguan (realisasi vs rencana per pekan)",
   bantuan: "daftar hal yang bisa saya jawab",
 };
 
@@ -96,7 +99,7 @@ export const skemaNiat = z.object({
 export type NiatTerbaca = z.infer<typeof skemaNiat>;
 
 export const PETUNJUK_SKEMA = `{
-  "niat": "kendala" | "progress" | "deviasi" | "kelengkapan" | "laporan" | "bantuan" | null,
+  "niat": "kendala" | "progress" | "deviasi" | "kelengkapan" | "laporan" | "laporan_mingguan" | "bantuan" | null,
   "lokasiDisebut": string[],
   "periode":
       { "jenis": "hari_ini" }
@@ -118,6 +121,11 @@ export const SISTEM_PROMPT = [
   "                jam kerja, jumlah tenaga kerja, foto. Dipakai untuk permintaan",
   "                seperti 'minta laporan harian', 'laporan tanggal 12', 'kirim",
   "                laporan kemarin'.",
+  "- laporan_mingguan : rekap satu PEKAN — realisasi vs rencana, berapa hari sudah",
+  "                     dilaporkan. Dipakai untuk 'laporan mingguan', 'rekap mingguan',",
+  "                     'laporan minggu lalu', 'progress mingguan'.",
+  "                     PENTING: 'laporan MINGGUAN' selalu laporan_mingguan, JANGAN",
+  "                     dipetakan ke 'laporan' (yang itu laporan HARIAN satu tanggal).",
   "- bantuan     : penanya bertanya APA SAJA yang bisa kamu jawab / kamu bisa apa",
   "",
   "PERIODE — kamu HANYA melaporkan bentuk yang KAMU BACA. JANGAN menghitung tanggal.",
