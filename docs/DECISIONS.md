@@ -18002,3 +18002,110 @@ regresi produk melainkan mock yang menunjuk lapisan yang sudah berpindah.
 `message.ack` harus **diaktifkan di WAHA** untuk URL webhook yang sama. Tanpa
 itu kiriman berhenti di `Diterima WAHA` selamanya — dan itu jujur: memang tidak
 ada bukti lain yang pernah tiba. Dicatat di `docs/WAHA_SETUP.md`.
+
+---
+
+## 375 — Parser niat deterministik: yang jelas dijawab tanpa AI, yang kabur ditawarkan (2026-08-19)
+
+Fase D butir 20 & 28 dari brief perbaikan WhatsApp-AI. Dua keluhan yang
+sebenarnya satu masalah: **setiap** pertanyaan bebas memanggil provider AI.
+
+### Masalah 1 — pola yang jelas tidak butuh AI
+
+*"progress hari ini"* tidak punya tafsir kedua, tapi tetap membayar satu
+panggilan AI. Ongkosnya bukan cuma uang:
+
+1. menambah 1–3 detik sebelum balasan muncul;
+2. memakai kuota yang dibagi seluruh organisasi — satu grup ramai bisa
+   mematikan perintah paling sederhana untuk semua orang;
+3. membuat fitur ini **mati total** setiap kali provider bermasalah.
+
+Perintah sederhana seharusnya tetap jalan saat AI mati. Karena itu
+`src/lib/waha/parser-niat.ts` membaca niat + periode secara deterministik, dan
+letaknya **sebelum** guard AI di `tanya.ts` — bukan sesudah. Kalau ia ditaruh
+sesudah, "progress hari ini" tetap ikut ditolak saat kuota habis.
+
+### Masalah 2 — yang kabur DITAWARKAN, bukan ditolak
+
+Keberatan user: `niat = null → balasTidakMengerti()` terlalu cepat menyerah dan
+membuang waktu. *"bagaimana yang kemarin?"* memang tidak pasti — tapi tafsirnya
+hanya tiga, dan menyebutkan ketiganya **memakai kata yang ia tulis sendiri**
+jauh lebih menolong daripada menu kemampuan generik yang sama untuk semua orang.
+
+Keluaran parser karena itu KANDIDAT, bukan satu niat. Maksimal 3 (menu panjang
+di WhatsApp dilipat lalu dilewati). Kandidatnya tetap melewati resolver tanggal,
+izin, dan calculation layer setelah dipilih — parser ini **tidak pernah menjadi
+sumber angka**.
+
+`kendala` di daftar pilihan sengaja ditulis *"(yang masih terbuka sekarang)"*,
+bukan "kendala kemarin": MARLIN belum menyimpan riwayat status kendala
+(`WATANYA-02`), jadi menjanjikannya di menu sudah berbohong sebelum penanya
+sempat memilih.
+
+### Pagar yang membuat jalur cepat ini jujur
+
+Syaratnya dua, dan yang kedua yang menentukan:
+
+1. niatnya terbaca deterministik;
+2. **tidak ada satu kata pun yang tak terjelaskan.**
+
+Tanpa syarat 2, *"progress di Kedung"* lolos sebagai "progress" polos lalu
+dijawab untuk SELURUH lokasi — benar sebagai angka, tapi menjawab pertanyaan
+yang tidak ditanyakan, dan penerimanya tidak punya cara mengetahuinya. Kata sisa
+yang tidak cocok katalog karena itu **diserahkan ke AI**, bukan diabaikan.
+Akibatnya jalur ini hanya bisa MENGHEMAT, tidak bisa memperluas jawaban.
+
+### Akhiran ditoleransi — dan biaya yang timbul karenanya
+
+Bahasa lapangan menulis "deviasinya", "progresnya", "laporannya". Menuntut kata
+dasar telanjang berarti melempar pertanyaan yang sudah jelas ke AI hanya karena
+satu sufiks. Jadi polanya `\w*`.
+
+Tapi toleransi itu langsung merusak sesuatu: `lapor\w*` ikut menangkap "lapor"
+di dalam **"belum lapor"**, sehingga *"siapa yang belum lapor"* cocok pada DUA
+niat sekaligus (`kelengkapan` + `laporan`) dan justru dianggap ambigu.
+
+Perbaikannya bukan daftar pasangan yang di-hardcode — itu berarti tiap kata
+kunci baru diam-diam menambah lubang yang sama. Yang dipakai: **letak**. Kata
+kunci yang TERMUAT di dalam kata kunci lain menyebut satu maksud yang sama dan
+dibuang (`buangYangTermuat`); yang benar-benar bersaing menempati potongan teks
+yang TERPISAH — *"kendala apa yang bikin progress turun"* menyebut dua hal di
+dua tempat, dan itu memang layak ditimbang AI.
+
+Agar itu bekerja, pola `kelengkapan` harus mengaku seluas jangkauannya:
+`siapa yang belum` diperluas menjadi `siapa yang belum(?: lapor\w*| kirim\w*)?`.
+Selama ia berhenti di "belum", kata "lapor" tertinggal di luar dan tidak ada
+yang termuat.
+
+Pola periode disatukan jadi SATU tabel yang dipakai dua arah — dibaca dan
+dibuang. Dua daftar terpisah berarti daftar kedua yang tertinggal satu pola
+membuat kata waktu tersisa sebagai "kata tak dikenal", lalu pertanyaan yang
+sudah jelas dilempar ke AI karena kata "kemarin"-nya sendiri dianggap
+mencurigakan.
+
+### Uji gigi
+
+- `buangYangTermuat` dilepas → 2 uji merah (`siapa yang belum lapor`,
+  `minta laporan mingguan` — yang kedua diperiksa terpisah supaya terbukti
+  benar-benar dijaga, bukan sekadar terhalang assertion sebelumnya).
+- Pola `kelengkapan` dikembalikan berhenti di "belum" → 2 uji merah.
+- Pagar sisa-kata dilepas → 2 uji merah, termasuk yang membuktikan
+  *"progress hari ini di Sumberjaya"* tidak boleh melebar jadi semua lokasi.
+- Jalur deterministik dimatikan di `tanya.ts` → uji integrasi merah.
+
+### Uji lama yang ikut berubah, dan alasannya
+
+Tiga uji integrasi memakai *"mana yang deviasinya negatif"* dan
+*"siapa yang belum lapor"* untuk membuktikan pemakaian AI tercatat di
+`ai_runs`. Keduanya kini TIDAK menyentuh AI sama sekali, jadi uji itu akan
+menguji matinya AI lewat jalur yang tidak pernah memanggil AI — hijau yang tidak
+membuktikan apa pun. Pertanyaannya diganti `TANYA_BUTUH_AI`, dan ditambah satu
+uji baru yang mengunci sisi sebaliknya: pola jelas dijawab **dengan
+`aiSehat = false`**, tanpa baris `ai_runs`, dan jawabannya tetap lengkap.
+
+### Yang BELUM dikerjakan di sini
+
+Cabang `ambigu` sudah dihitung parser tapi masih diserahkan ke AI di `tanya.ts`.
+Menawarkan pilihan bernomor sebelum ada konteks klarifikasi yang durable berarti
+menyodorkan `1`/`2`/`3` yang tidak bisa dijawab — lebih buruk daripada tidak
+menawarkan. Dinyalakan bersama D2 (konteks klarifikasi per chat + pengirim).

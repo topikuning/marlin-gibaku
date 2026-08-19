@@ -24,7 +24,9 @@ import {
   resolusiLokasi,
   skemaNiat,
   type LokasiKatalog,
+  type Niat,
 } from "./tanya-niat";
+import { rencanaDeterministik } from "./parser-niat";
 import {
   balasAmbigu,
   balasBantuan,
@@ -47,7 +49,7 @@ import {
   dataProgress,
   katalogLokasi,
 } from "./tanya-data";
-import { bacaPeriode, pekanDari } from "./tanya-tanggal";
+import { bacaPeriode, pekanDari, type PeriodeDiminta } from "./tanya-tanggal";
 
 /**
  * TANYA-JAWAB WHATSAPP BEBAS — perangkai (DECISIONS 339).
@@ -57,13 +59,14 @@ import { bacaPeriode, pekanDari } from "./tanya-tanggal";
  *   1. bukan pesan kita sendiri  → kalau tidak, MARLIN membalas balasannya
  *   2. diajakBicara()            → di grup: hanya kalau di-mention
  *   3. siapa penanyanya          → nomor, BUKAN nama tampilan
- *   4. guard AI                  → kill-switch + kuota, SEBELUM provider dipanggil
- *   5. AI → struktur niat        → AI tidak pernah menyentuh data
- *   6. lingkupJawaban()          → apa yang boleh disebut DI SANA
- *   7. katalog lokasi (sudah dipotong izin) → cocokkan nama
- *   8. pengambil angka (calc layer) → perangkai kata → kirim
+ *   4. putuskanLayanan()         → apa yang boleh disebut DI SANA
+ *   5. katalog lokasi (sudah dipotong izin)
+ *   6. parser deterministik      → pola jelas dijawab TANPA AI (DECISIONS 375)
+ *   7. guard AI + AI → struktur niat → hanya untuk sisanya; AI tak sentuh data
+ *   8. cocokkan nama ke katalog
+ *   9. pengambil angka (calc layer) → perangkai kata → kirim
  *
- * Langkah 6 tidak boleh ditukar dengan 7: katalog nama HARUS lahir dari lingkup
+ * Langkah 4 tidak boleh ditukar dengan 5: katalog nama HARUS lahir dari lingkup
  * yang sudah dipotong, supaya lokasi di luar hak penanya tidak sekadar tidak
  * dijawab — namanya tidak pernah bisa dicocokkan, sehingga keberadaannya pun
  * tidak terkonfirmasi lewat balasan "tidak saya kenali" vs "ambigu".
@@ -358,47 +361,79 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
     keputusan.lokasiIds ?? (user ? await accessibleLocationIds(user) : null);
   const katalog = await katalogLokasi(penyaring, lokasiIds);
 
-  // (4) Guard AI — kill-switch & kuota, SEBELUM provider dipanggil. Untuk
-  // penanya tak terdaftar, kuncinya CHAT-nya: satu grup ramai tidak boleh
-  // menghabiskan anggaran AI sepanjang hari (DECISIONS 351).
-  const pemakaiAi: PemakaiAi = user ?? { jenis: "grup", orgId: pkg!.orgId, chatId: m.chatId };
-  try {
-    await checkAiGuard(pemakaiAi, {
-      kind: "waha.tanya",
-      locationCount: katalog.length,
-      inputChars: teks.length,
-    });
-  } catch (err) {
-    if (err instanceof AiGuardError) {
-      await sendText(m.chatId, `Maaf, permintaan tidak bisa saya proses: ${err.message}`);
-      return { dijawab: true, alasan: `guard AI menolak (${err.code})` };
+  /*
+   * (5) JALUR DETERMINISTIK DULU — pola yang jelas tidak memanggil AI sama
+   * sekali (DECISIONS 375).
+   *
+   * Letaknya SEBELUM guard AI, dan itu bukan penghematan baris. Tiga
+   * akibatnya yang nyata:
+   *
+   * 1. **Tidak memakai kuota.** Guard menolak pada kuota yang habis; kalau ia
+   *    dilewati lebih dulu, "progress hari ini" ikut mati hanya karena grup
+   *    lain menghabiskan anggaran AI hari itu.
+   * 2. **Tetap hidup saat provider mati.** Perintah paling sering dipakai
+   *    seharusnya tidak ikut jatuh setiap kali layanan AI bermasalah.
+   * 3. **Tidak menunggu 1–3 detik** untuk pertanyaan yang tidak punya tafsir
+   *    kedua.
+   *
+   * Yang lolos jalur ini hanya kalimat yang SELURUH katanya terjelaskan —
+   * lihat `rencanaDeterministik`. Sisanya jatuh ke AI persis seperti dulu,
+   * jadi jalur ini hanya bisa menghemat, tidak bisa memperluas jawaban.
+   */
+  const rencana = rencanaDeterministik(teks, katalog);
+  let niat: { niat: Niat; lokasiDisebut: string[]; periode: PeriodeDiminta };
+  const jalur = rencana.jenis === "jalan" ? "deterministik" : "ai";
+
+  if (rencana.jenis === "jalan") {
+    niat = {
+      niat: rencana.niat,
+      lokasiDisebut: rencana.lokasiDisebut,
+      periode: rencana.periode,
+    };
+  } else {
+    // (6) Guard AI — kill-switch & kuota, SEBELUM provider dipanggil. Untuk
+    // penanya tak terdaftar, kuncinya CHAT-nya: satu grup ramai tidak boleh
+    // menghabiskan anggaran AI sepanjang hari (DECISIONS 351).
+    const pemakaiAi: PemakaiAi = user ?? { jenis: "grup", orgId: pkg!.orgId, chatId: m.chatId };
+    try {
+      await checkAiGuard(pemakaiAi, {
+        kind: "waha.tanya",
+        locationCount: katalog.length,
+        inputChars: teks.length,
+      });
+    } catch (err) {
+      if (err instanceof AiGuardError) {
+        await sendText(m.chatId, `Maaf, permintaan tidak bisa saya proses: ${err.message}`);
+        return { dijawab: true, alasan: `guard AI menolak (${err.code})` };
+      }
+      throw err;
     }
-    throw err;
-  }
 
-  // (5) AI → struktur niat. AI TIDAK PERNAH menyentuh data.
-  const mulai = Date.now();
-  const hasil = await aiStructured(skemaNiat, {
-    system: SISTEM_PROMPT,
-    prompt: `Pertanyaan:\n"""${teks}"""`,
-    schemaHint: PETUNJUK_SKEMA,
-    maxTokens: 300,
-    timeoutMs: 25_000,
-  });
-  await catatRun(pemakaiAi, katalog, hasil, Date.now() - mulai);
+    // (7) AI → struktur niat. AI TIDAK PERNAH menyentuh data.
+    const mulai = Date.now();
+    const hasil = await aiStructured(skemaNiat, {
+      system: SISTEM_PROMPT,
+      prompt: `Pertanyaan:\n"""${teks}"""`,
+      schemaHint: PETUNJUK_SKEMA,
+      maxTokens: 300,
+      timeoutMs: 25_000,
+    });
+    await catatRun(pemakaiAi, katalog, hasil, Date.now() - mulai);
 
-  if (!hasil.ok) {
-    await sendText(
-      m.chatId,
-      "Maaf, saya sedang tidak bisa membaca pertanyaan bebas (layanan AI tidak merespons). Coba lagi sebentar lagi, atau buka MARLIN langsung.",
-    );
-    return { dijawab: true, alasan: `AI gagal (${hasil.errorCode})` };
-  }
+    if (!hasil.ok) {
+      await sendText(
+        m.chatId,
+        "Maaf, saya sedang tidak bisa membaca pertanyaan bebas (layanan AI tidak merespons). Coba lagi sebentar lagi, atau buka MARLIN langsung.",
+      );
+      return { dijawab: true, alasan: `AI gagal (${hasil.errorCode})` };
+    }
 
-  const niat = hasil.data;
-  if (niat.niat === null) {
-    await sendText(m.chatId, balasTidakMengerti());
-    return { dijawab: true, alasan: "niat tidak dikenali" };
+    const d = hasil.data;
+    if (d.niat === null) {
+      await sendText(m.chatId, balasTidakMengerti());
+      return { dijawab: true, alasan: "niat tidak dikenali" };
+    }
+    niat = { niat: d.niat, lokasiDisebut: d.lokasiDisebut, periode: d.periode };
   }
 
   // (7) Cocokkan nama terhadap katalog yang SUDAH dipotong izin.
@@ -547,6 +582,9 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
     // Penanya tak terdaftar dicatat apa adanya — bukan diisi pengguna karangan.
     penanyaTerdaftar: !!user,
     niat: niat.niat,
+    // Jalur mana yang membaca pertanyaannya — inilah yang membuktikan
+    // penghematan AI benar-benar terjadi, bukan sekadar diklaim.
+    jalur,
     lokasiDisebut: niat.lokasiDisebut,
     lokasiDijawab: sasaran.length,
     dipotongKeGrup: keputusan.catatanPemotongan !== null,
@@ -555,7 +593,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
     peranDipakai: keputusan.peranDipakai,
     scopeIds: lokasiIds ? lokasiIds.length : null,
   });
-  return { dijawab: true, alasan: `dijawab (${niat.niat})` };
+  return { dijawab: true, alasan: `dijawab (${niat.niat}, ${jalur})` };
 }
 
 /**

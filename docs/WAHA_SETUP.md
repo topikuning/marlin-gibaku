@@ -139,6 +139,23 @@ seperti arsip percakapan di atas.
 Di luar keempatnya MARLIN akan **mengaku belum mengerti** dan menyebut apa yang
 bisa dijawab — ia tidak menebak niat yang paling mirip.
 
+**Pola yang jelas dijawab tanpa AI** (DECISIONS 375)
+
+Pertanyaan yang tidak punya tafsir kedua — "progress hari ini", "ada kendala
+apa", "siapa yang belum lapor", "laporan tanggal 12", "laporan mingguan",
+"mana yang deviasinya negatif" — dibaca langsung tanpa memanggil layanan AI.
+Akibatnya tiga hal: balasannya lebih cepat, tidak memakai kuota AI, dan
+**tetap berfungsi saat layanan AI sedang mati**.
+
+Syaratnya seluruh kata dalam kalimat harus terjelaskan. Begitu ada kata yang
+tidak dikenali — termasuk nama tempat yang tidak ada di katalog — pertanyaannya
+diserahkan ke AI seperti biasa. Jalur cepat ini karena itu hanya bisa
+mempercepat, tidak pernah melebarkan jawaban: "progress di Kedung Mutih" tidak
+akan berubah diam-diam menjadi progress seluruh lokasi.
+
+Di **Sistem → WhatsApp**, jejak audit tiap jawaban menyebut `jalur`:
+`deterministik` (tanpa AI) atau `ai`.
+
 **Dua syarat yang sering jadi sebab "MARLIN tidak menjawab"**
 
 1. **Nomor penanya harus terdaftar.** Diambil dari `Nomor WhatsApp` di data

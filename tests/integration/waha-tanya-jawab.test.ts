@@ -68,6 +68,15 @@ vi.mock("@/lib/ai/structured", () => ({
       : { ok: false, errorCode: "provider_down", error: "uji", meta: null, attempts: 1 },
 }));
 
+/**
+ * Pertanyaan yang MEMANG harus dibaca AI.
+ *
+ * Tidak memuat satu pun kata kunci niat dan tidak menyebut waktu, jadi parser
+ * deterministik menyerahkannya — persis jalur yang diuji oleh uji-uji AI di
+ * berkas ini.
+ */
+const TANYA_BUTUH_AI = "bagaimana keadaan pekerjaan tanggul";
+
 const NOMOR_MARLIN = "6281200000000";
 const LID_MARLIN = "77712345678901";
 
@@ -622,8 +631,14 @@ describe("mengaku saat tidak bisa", () => {
 
   it("AI mati: mengaku, TIDAK mengarang jawaban", async () => {
     aiSehat = false;
+    /*
+     * Pertanyaannya sengaja yang MEMANG butuh AI (DECISIONS 375). "mana yang
+     * deviasinya negatif" tidak lagi menyentuh provider sama sekali, jadi
+     * memakainya di sini akan menguji matinya AI lewat jalur yang tidak pernah
+     * memanggil AI — hijau yang tidak membuktikan apa pun.
+     */
     await jawabPertanyaanWa(
-      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "mana yang deviasinya negatif" }),
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: TANYA_BUTUH_AI }),
     );
     const teks = terkirim[0]?.teks ?? "";
     expect(teks.toLowerCase()).toContain("tidak bisa membaca");
@@ -634,9 +649,30 @@ describe("mengaku saat tidak bisa", () => {
   it("pemakaian AI tercatat di ai_runs — kuota guard menghitung dari sana", async () => {
     const sebelum = await db.aiRun.count({ where: { runKind: "tanya" } });
     await jawabPertanyaanWa(
-      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "mana yang deviasinya negatif" }),
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: TANYA_BUTUH_AI }),
     );
     expect(await db.aiRun.count({ where: { runKind: "tanya" } })).toBe(sebelum + 1);
+  });
+
+  it("pola JELAS dijawab tanpa menyentuh AI sama sekali (DECISIONS 375)", async () => {
+    /*
+     * Sisi lain dari uji di atas, dan alasan seluruh parser deterministik ada.
+     *
+     * Yang dibuktikan bukan "lebih murah", melainkan tiga hal yang terukur:
+     * tidak ada baris `ai_runs` (kuota tidak terpakai), jawabannya tetap
+     * lengkap, dan — lewat `aiSehat = false` — ia tetap terjawab WALAU provider
+     * AI sedang mati total.
+     */
+    aiSehat = false;
+    const sebelum = await db.aiRun.count({ where: { runKind: "tanya" } });
+    await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "mana yang deviasinya negatif" }),
+    );
+    expect(await db.aiRun.count({ where: { runKind: "tanya" } })).toBe(sebelum);
+
+    const teks = terkirim[0]?.teks ?? "";
+    expect(teks.toLowerCase()).not.toContain("tidak bisa membaca");
+    expect(teks.toLowerCase()).toContain("deviasi");
   });
 
   it("jawaban yang berhasil ditulis ke audit", async () => {
@@ -1022,7 +1058,9 @@ describe("di grup, pengirim TIDAK perlu terdaftar (DECISIONS 351)", () => {
       event({
         chatId: GRUP_A,
         dari: ORANG_ASING,
-        teks: "siapa yang belum lapor",
+        // Butuh AI: "siapa yang belum lapor" kini dijawab deterministik, dan
+        // jalur itu memang TIDAK menulis ai_runs — bukan itu yang diuji di sini.
+        teks: TANYA_BUTUH_AI,
         mention: [`${NOMOR_MARLIN}@c.us`],
       }),
     );
