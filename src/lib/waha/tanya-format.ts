@@ -445,3 +445,65 @@ export function balasPilihanKedaluwarsa(pertanyaan: string, umurMenit: number): 
 export function balasPilihanTakAda(jumlah: number): string {
   return `Pilihannya hanya 1–${jumlah}. Balas salah satu angka itu, atau tulis ulang pertanyaannya.`;
 }
+
+/* ------------------------------------------------------------------ */
+/* Catatan lapangan (DECISIONS 383)                                    */
+/* ------------------------------------------------------------------ */
+
+export type BarisNarasi = {
+  lokasi: string;
+  jenis: string;
+  tanggal: string | null;
+  teks: string;
+};
+
+/** Sepanjang apa satu kutipan boleh tampil di WhatsApp sebelum dipotong. */
+const BATAS_KUTIPAN = 240;
+
+/**
+ * Jawaban dari CATATAN LAPANGAN — kutipan apa adanya (DECISIONS 383).
+ *
+ * ### Kenapa verbatim, dan kenapa tanpa AI
+ *
+ * Yang dikirim adalah kalimat yang benar-benar ditulis pelapor, disalin bulat-
+ * bulat dari basis data. Tidak ada model yang merangkum, jadi **tidak ada yang
+ * bisa mengarang** — bukan karena dilarang di prompt, melainkan karena tidak
+ * ada langkah yang bisa mengarang. Itu juga membuatnya tetap menjawab saat
+ * penyedia AI mati (alasan yang sama dengan DECISIONS 375).
+ *
+ * ### Kenapa harus DITANDAI
+ *
+ * Balasan WhatsApp di-screenshot dan diteruskan ke PPK. Angka di dalam catatan
+ * lapangan ("cor 12 m3") adalah KATA PELAPOR, bukan hasil hitungan MARLIN —
+ * kalau tidak dikatakan, pembacanya akan memperlakukannya sebagai angka resmi.
+ * Penandanya karena itu bukan hiasan dan tidak boleh dilepas.
+ *
+ * Pemotongan kutipan yang terlalu panjang juga DISEBUT: kutipan yang dipangkas
+ * diam-diam bisa membalik artinya ("…tidak jadi berhenti" → "…tidak jadi").
+ */
+export function balasNarasi(
+  r: { pertanyaan: string; baris: BarisNarasi[] },
+  opts: OpsiKaki = {},
+): string {
+  if (r.baris.length === 0) {
+    return (
+      kepala("Catatan lapangan", r.pertanyaan) +
+      "\n\nTidak ada catatan lapangan yang cocok dengan pertanyaan itu." +
+      kaki(opts)
+    );
+  }
+  const isi = r.baris.map((b) => {
+    const dipotong = b.teks.length > BATAS_KUTIPAN;
+    const teks = dipotong ? `${b.teks.slice(0, BATAS_KUTIPAN)}…` : b.teks;
+    const jejak = [b.jenis, b.tanggal].filter(Boolean).join(" · ");
+    return [`*${b.lokasi}* _(${jejak})_`, `  "${teks}"${dipotong ? " _(dipotong)_" : ""}`].join("\n");
+  });
+  return (
+    kepala("Catatan lapangan", r.pertanyaan) +
+    "\n\n" +
+    isi.join("\n\n") +
+    "\n\n📝 Ini KUTIPAN catatan pelapor, disalin apa adanya — termasuk angkanya. " +
+    "Bukan angka resmi hasil hitungan MARLIN." +
+    kaki(opts)
+  );
+}

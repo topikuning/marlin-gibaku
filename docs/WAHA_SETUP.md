@@ -136,8 +136,26 @@ seperti arsip percakapan di atas.
 | "mana yang deviasinya negatif" | lokasi tertinggal dari kurva-S, paling parah dulu |
 | "siapa yang belum lapor" | kelengkapan laporan harian |
 
-Di luar keempatnya MARLIN akan **mengaku belum mengerti** dan menyebut apa yang
-bisa dijawab — ia tidak menebak niat yang paling mirip.
+**Pertanyaan "kenapa" dijawab dari CATATAN LAPANGAN** (DECISIONS 383)
+
+Pertanyaan yang tidak masuk keempat kategori di atas — *"kenapa Kedung Mutih
+tertinggal?"*, *"masalah material apa saja?"* — dicari di catatan laporan
+harian, catatan kegiatan, dan uraian kendala. Yang dikirim adalah **kutipan
+apa adanya** dari kalimat yang ditulis pelapor, lengkap dengan lokasi, jenis
+sumber, dan tanggalnya.
+
+- **Tidak ada AI yang merangkum**, jadi tidak ada yang bisa mengarang — dan
+  jawabannya **tetap muncul saat layanan AI mati**.
+- Balasannya selalu menutup dengan penanda bahwa itu **kutipan catatan
+  pelapor, bukan angka resmi hasil hitungan MARLIN**. Angka di dalam catatan
+  ("cor 12 m3", "tenaga 8 orang") adalah kata pelapor.
+- Hanya laporan **final/disetujui** yang dicari — laporan yang masih draft atau
+  perlu koreksi tidak pernah ikut.
+- Lingkupnya sama dengan jawaban lain: hanya lokasi yang boleh dilihat penanya
+  (di grup: lokasi paket grup itu).
+
+Kalau tidak ada catatan yang cocok, MARLIN tetap **mengaku belum mengerti** dan
+menyebut apa yang bisa dijawab — ia tidak menebak niat yang paling mirip.
 
 **Pola yang jelas dijawab tanpa AI** (DECISIONS 375)
 

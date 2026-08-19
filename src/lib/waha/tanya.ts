@@ -34,6 +34,7 @@ import {
   simpanTawaran,
 } from "./klarifikasi";
 import { ambilKonteks, simpanKonteks } from "./konteks-lanjutan";
+import { LABEL_JENIS, cariNarasi } from "@/lib/narasi/cari";
 import {
   balasAmbigu,
   balasBantuan,
@@ -43,6 +44,7 @@ import {
   balasKendala,
   balasLaporan,
   balasMingguan,
+  balasNarasi,
   balasPilihan,
   balasPilihanKedaluwarsa,
   balasPilihanTakAda,
@@ -401,6 +403,9 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
   // masuk ke dalam closure di bawah. Diikat sekali di sini supaya jalur AI
   // tidak perlu ditaburi `!`.
   const pesan: ParsedWaMessage = m;
+  // Sama alasannya dengan `pesan`: penyempitan `keputusan` ke varian "jawab"
+  // tidak ikut masuk ke dalam closure di bawah.
+  const catatanPemotongan = keputusan.catatanPemotongan;
 
   /**
    * Jalur AI — guard, provider, pencatatan kuota.
@@ -440,6 +445,15 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
     await catatRun(pemakaiAi, katalog, hasil, Date.now() - mulai);
 
     if (!hasil.ok) {
+      /*
+       * AI mati — TAPI catatan lapangan tetap bisa dicari (DECISIONS 383).
+       *
+       * Pencarian narasi tidak memanggil provider mana pun, jadi justru di
+       * saat seperti inilah ia paling berguna. Menyerah tanpa mencobanya
+       * berarti membuang jawaban yang sudah ada di tangan.
+       */
+      const narasi = await jawabDariCatatan();
+      if (narasi) return narasi;
       await sendText(
         pesan.chatId,
         "Maaf, saya sedang tidak bisa membaca pertanyaan bebas (layanan AI tidak merespons). Coba lagi sebentar lagi, atau buka MARLIN langsung.",
@@ -449,10 +463,67 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
 
     const d = hasil.data;
     if (d.niat === null) {
+      /*
+       * Niat tidak dikenali — cari CATATAN LAPANGAN sebelum menyerah
+       * (DECISIONS 383).
+       *
+       * Inilah pertanyaan yang selama ini selalu berakhir "belum mengerti":
+       * *"kenapa Kedung Mutih tertinggal?"*. Jawabannya ada, di catatan
+       * pelapor — hanya tidak pernah bisa dicari. Menyodorkan menu kemampuan
+       * untuk pertanyaan yang datanya justru tersedia adalah kegagalan yang
+       * paling mahal, karena penanya menyimpulkan MARLIN tidak tahu apa-apa.
+       */
+      const narasi = await jawabDariCatatan();
+      if (narasi) return narasi;
       await sendText(pesan.chatId, balasTidakMengerti());
       return { dijawab: true, alasan: "niat tidak dikenali" };
     }
     return { niat: d.niat, lokasiDisebut: d.lokasiDisebut, periode: d.periode };
+  }
+
+  /**
+   * Jawab dari KUTIPAN catatan lapangan — tanpa AI sama sekali (DECISIONS 383).
+   *
+   * Yang dikirim kalimat yang benar-benar ditulis pelapor, disalin bulat-bulat.
+   * Tidak ada model yang merangkum, jadi tidak ada yang bisa mengarang — bukan
+   * karena dilarang di prompt, melainkan karena tidak ada langkah yang bisa
+   * mengarang.
+   *
+   * `null` = tidak ada catatan yang cocok; pemanggil melanjutkan ke jalur
+   * menyerah yang lama.
+   */
+  async function jawabDariCatatan(): Promise<HasilTanya | null> {
+    // Katalog sudah dipotong izin & lingkup grup — dipakai apa adanya supaya
+    // pencarian tidak pernah punya jangkauan lebih luas daripada jawaban lain.
+    const potongan = await cariNarasi({
+      locationIds: katalog.map((l) => l.id),
+      pertanyaan: teks,
+      batas: 5,
+    });
+    if (potongan.length === 0) return null;
+
+    await sendText(
+      pesan.chatId,
+      balasNarasi(
+        {
+          pertanyaan: teks,
+          baris: potongan.map((p) => ({
+            lokasi: p.namaLokasi,
+            jenis: LABEL_JENIS[p.jenis],
+            tanggal: p.tanggal,
+            teks: p.teks,
+          })),
+        },
+        { catatanPemotongan },
+      ),
+    );
+    await audit(user?.id ?? null, "waha.tanya.narasi", "wa_message", pesan.waMessageId, {
+      chatId: pesan.chatId,
+      pertanyaan: teks,
+      potongan: potongan.length,
+      lokasi: [...new Set(potongan.map((p) => p.locationId))].length,
+    });
+    return { dijawab: true, alasan: `dijawab dari catatan lapangan (${potongan.length})` };
   }
 
   let niat: Terbaca;

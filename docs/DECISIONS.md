@@ -18744,3 +18744,69 @@ Dokumen PDF tidak di-index (butuh ekstraksi + OCR — proyek tersendiri). Lapora
 yang sama dengan calculation layer supaya tidak lahir definisi "laporan sah"
 kedua. Lingkup disaring DI DALAM query — menyaring sesudah peringkat
 membocorkan keberadaan lokasi lain lewat jumlah hasil dan skornya.
+
+---
+
+## 383 — Pencarian narasi TERSAMBUNG ke WhatsApp (2026-08-19)
+
+**Koreksi user, dan koreksinya benar:** *"dari awal ini dibangun utamanya untuk
+whatsapp, kenapa malah belum tersambung ke whatsapp!"*
+
+DECISIONS 382 memasang pencarian narasi hanya di Ask MARLIN (dalam aplikasi),
+lalu menunda WhatsApp dengan alasan pengungkapan — padahal user sudah mencabut
+alasan itu **di pesan yang sama** yang menyetujui Fase F. Briefnya sendiri
+berjudul perbaikan WhatsApp. Menunda justru sasaran utamanya adalah kesalahan
+saya, bukan pertimbangan yang sah.
+
+### Di mana ia menyambung
+
+Bukan menggantikan jalur mana pun, melainkan menolong dua keadaan yang selama
+ini selalu berakhir menyerah:
+
+| keadaan | dulu | sekarang |
+|---|---|---|
+| AI tidak memetakan niat (`niat = null`) | "Maaf, saya belum mengerti" + menu | cari catatan; kalau ada, kutip |
+| Layanan AI mati | "sedang tidak bisa membaca pertanyaan bebas" | cari catatan; kalau ada, kutip |
+
+Urutannya sengaja begitu: niat yang dikenali TIDAK PERNAH dibajak pencarian
+catatan. Yang ditolong hanya pertanyaan yang tanpa ini berakhir tanpa jawaban —
+*"kenapa Kedung Mutih tertinggal?"*, yang jawabannya justru ada di catatan
+pelapor.
+
+Bahwa ia juga bekerja **saat AI mati** bukan bonus: pencarian catatan tidak
+memanggil provider mana pun, jadi justru di saat itulah ia paling berguna.
+Menyerah tanpa mencobanya berarti membuang jawaban yang sudah ada di tangan.
+
+### Tanpa AI sama sekali — dan itu yang membuatnya aman
+
+Yang dikirim adalah kalimat yang benar-benar ditulis pelapor, disalin bulat-
+bulat dari basis data. Tidak ada model yang merangkum, jadi **tidak ada langkah
+yang bisa mengarang** — bukan karena dilarang di prompt, melainkan karena tidak
+ada tempat untuk mengarang. Pagar kutipan verbatim DECISIONS 382 tetap dipakai
+di Ask MARLIN, tempat model memang menyusun kalimat.
+
+Balasannya selalu ditutup penanda: **kutipan catatan pelapor, bukan angka resmi
+hasil hitungan MARLIN**. Balasan WhatsApp di-screenshot dan diteruskan ke PPK;
+angka di dalam catatan ("tenaga 8 orang") adalah kata pelapor, dan tanpa
+penanda itu pembacanya memperlakukannya sebagai angka resmi. Pemotongan kutipan
+yang terlalu panjang juga disebut — kutipan yang dipangkas diam-diam bisa
+membalik artinya.
+
+Lingkupnya `katalog`, yaitu daftar yang sudah dipotong izin penanya dan paket
+grup. Jadi pencarian tidak pernah punya jangkauan lebih luas daripada jawaban
+lain di kanal yang sama.
+
+### Uji gigi
+
+- Pencarian catatan dilepas dari jalur `niat = null` → 2 merah.
+- Dilepas dari jalur AI mati → 1 merah.
+- Penanda "kutipan catatan pelapor" dilepas → 1 merah.
+- Lingkup tidak dipotong katalog → 4 merah.
+
+### Kesalahan kerja yang perlu dicatat
+
+Saat memulihkan uji gigi ketiga saya memakai `git checkout` pada berkas yang
+perubahannya BELUM di-commit, sehingga `balasNarasi` terhapus dan seluruh uji
+memerah. Ketahuan karena langkah "PULIH" ikut merah — itulah gunanya selalu
+menjalankan pemulihan sebagai langkah tersendiri, bukan menganggapnya pasti
+berhasil. Fungsinya ditulis ulang, lalu hijau.

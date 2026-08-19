@@ -1761,3 +1761,87 @@ describe("pertanyaan susulan — dilengkapi dari konteks (DECISIONS 377)", () =>
     expect((jejak?.payload as { niatDipinjam?: string } | null)?.niatDipinjam).toBe("progress");
   });
 });
+
+
+describe("catatan lapangan menjawab di WhatsApp (DECISIONS 383)", () => {
+  const tanya = async (teks: string) => {
+    await jawabPertanyaanWa(event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks }));
+    return terkirim.at(-1)?.teks ?? "";
+  };
+
+  beforeEach(async () => {
+    await db.dailyReport.deleteMany({ where: { locationId: lokA1 } });
+    const pelapor = await db.user.findFirstOrThrow({
+      where: { fullName: "SiteManager" },
+      select: { id: true },
+    });
+    await db.dailyReport.create({
+      data: {
+        locationId: lokA1,
+        reportDate: new Date("2026-08-14T00:00:00.000Z"),
+        status: "final",
+        notes: "Pengecoran tertunda karena hujan deras, tenaga 8 orang dipulangkan.",
+        createdById: pelapor.id,
+      },
+    });
+  });
+
+  it("pertanyaan yang dulu selalu 'belum mengerti' kini dijawab dari catatan", async () => {
+    /*
+     * Inilah pertanyaan yang jadi alasan seluruh Fase F: jawabannya ADA di
+     * catatan pelapor, hanya tidak pernah bisa dicari. Menyodorkan menu
+     * kemampuan untuk pertanyaan yang datanya justru tersedia membuat penanya
+     * menyimpulkan MARLIN tidak tahu apa-apa.
+     */
+    niatPalsu = { niat: null, lokasiDisebut: [], periode: "hari_ini" };
+    const teks = await tanya("kenapa pengecoran tertunda?");
+    expect(teks).toContain("Catatan lapangan");
+    expect(teks).toContain("hujan deras");
+    expect(teks.toLowerCase()).not.toContain("belum mengerti");
+  });
+
+  it("KUTIPAN persis, dan ditandai sebagai kata pelapor", async () => {
+    /*
+     * Balasan WhatsApp di-screenshot lalu diteruskan ke PPK. Angka di dalam
+     * catatan ("8 orang") adalah kata pelapor, bukan hitungan MARLIN — kalau
+     * tidak dikatakan, pembacanya memperlakukannya sebagai angka resmi.
+     */
+    niatPalsu = { niat: null, lokasiDisebut: [], periode: "hari_ini" };
+    const teks = await tanya("kenapa pengecoran tertunda?");
+    expect(teks).toContain("tenaga 8 orang dipulangkan");
+    expect(teks).toContain("KUTIPAN catatan pelapor");
+    expect(teks).toContain("Bukan angka resmi");
+  });
+
+  it("TETAP menjawab walau layanan AI mati total", async () => {
+    /*
+     * Pencarian catatan tidak memanggil provider mana pun, jadi justru di saat
+     * seperti inilah ia paling berguna. Menyerah tanpa mencobanya berarti
+     * membuang jawaban yang sudah ada di tangan.
+     */
+    aiSehat = false;
+    const teks = await tanya("kenapa pengecoran tertunda?");
+    expect(teks).toContain("hujan deras");
+    expect(teks.toLowerCase()).not.toContain("tidak bisa membaca");
+  });
+
+  it("tanpa catatan yang cocok → tetap mengaku belum mengerti", async () => {
+    // Pagar arah sebaliknya: pencarian yang terlalu longgar akan menjawab
+    // pertanyaan apa pun dengan catatan yang tidak berhubungan.
+    niatPalsu = { niat: null, lokasiDisebut: [], periode: "hari_ini" };
+    const teks = await tanya("zxqwerty tidak ada di catatan mana pun");
+    expect(teks.toLowerCase()).toContain("belum mengerti");
+  });
+
+  it("jejak audit mencatat jalur catatan lapangan", async () => {
+    niatPalsu = { niat: null, lokasiDisebut: [], periode: "hari_ini" };
+    await tanya("kenapa pengecoran tertunda?");
+    const jejak = await db.auditLog.findFirst({
+      where: { action: "waha.tanya.narasi" },
+      orderBy: { createdAt: "desc" },
+      select: { payload: true },
+    });
+    expect(jejak).not.toBeNull();
+    expect((jejak?.payload as { potongan?: number } | null)?.potongan).toBeGreaterThan(0);
+  });
+});
