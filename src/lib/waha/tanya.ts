@@ -494,17 +494,22 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
     const d = await dataProgress(sasaran, dateKey);
     balasan = balasProgress({ tanggal, baris: d.baris }, { ...opts, catatanBatas: d.catatanBatas });
   } else if (niat.niat === "deviasi") {
-    const d = await dataDeviasi(sasaran);
+    const d = await dataDeviasi(sasaran, dateKey);
     balasan = balasDeviasi(
       { tanggal, negatif: d.negatif, diperiksa: d.diperiksa },
       {
         ...opts,
         catatanBatas: d.catatanBatas,
-        // Deviasi dihitung terhadap posisi kurva-S HARI INI. Deviasi historis
-        // butuh evaluasi baseline pada tanggal itu — belum ada, jadi diakui.
-        catatanPeriode: dateKey === hariIniKey
-          ? periode.catatan
-          : `Deviasi ini posisi HARI INI; saya belum bisa menghitung deviasi pada ${periode.label}.`,
+        /*
+         * Catatan "deviasi ini posisi HARI INI" DIHAPUS, bukan dilunakkan.
+         *
+         * Ia dulu benar: angkanya memang posisi hari ini, apa pun periode yang
+         * ditanya. Sekarang `dataDeviasi` menerima `dateKey` dan meneruskannya
+         * sebagai `asOf`, jadi kalimat itu berubah dari pengakuan jujur menjadi
+         * keterangan yang salah — dan keterangan salah yang terdengar
+         * berhati-hati lebih merusak daripada tidak ada keterangan sama sekali.
+         */
+        catatanPeriode: periode.catatan,
       },
     );
   } else {

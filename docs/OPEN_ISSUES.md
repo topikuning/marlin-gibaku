@@ -489,25 +489,24 @@ HTML dihapus — satu sumber, mustahil menyimpang. Belum dikerjakan karena
 halaman `/cetak/...` juga dipakai sebagai PRATINJAU di layar (dan pratinjau PDF
 di peramban ponsel lapangan belum dipastikan bisa diandalkan). Keputusan user.
 
-## 🟢 WATANYA-02 · Tanya-jawab WhatsApp hanya mengenal "hari ini"
+## 🟢 WATANYA-02 · Kendala lampau belum punya snapshot status
 
-Tanya-jawab bebas sudah jalan (DECISIONS 338 + 339): DM + grup ber-mention,
-empat niat (kendala, progress, deviasi, kelengkapan), angka dari calc layer.
+Tanya-jawab WhatsApp sudah mengenal periode (DECISIONS 356–358) dan sejak
+DECISIONS 369 angka **progress dan deviasi** untuk tanggal lampau benar-benar
+dihitung pada tanggal itu (`asOf`), bukan posisi hari ini.
 
-Yang belum: **periode selain hari ini**. `skemaNiat.periode` hanya punya satu
-nilai, jadi *"progress minggu lalu"* dijawab dengan angka HARI INI — benar untuk
-hari ini, tetapi bukan yang ditanyakan, dan penanya tidak diberi tahu bahwa
-periodenya diabaikan.
+Yang MASIH belum bisa: **kendala pada tanggal lampau**. MARLIN tidak menyimpan
+riwayat "kendala apa yang berstatus terbuka pada hari X" — yang ada hanya status
+kendala saat ini. Karena itu pertanyaan "kendala kemarin" dijawab dengan kendala
+yang masih terbuka SEKARANG, dan balasannya mengatakan hal itu apa adanya:
 
-Dua pilihan, dan keduanya butuh keputusan user:
+> Daftar kendala ini yang masih TERBUKA sekarang, bukan keadaan pada [periode].
 
-1. **Menolak dengan jujur** — kalau AI mendeteksi periode lain, balas "saya baru
-   bisa menjawab untuk hari ini". Kecil, bisa dikerjakan kapan saja.
-2. **Mendukung periode** — tambah nilai enum + alirkan `asOf` ke
-   `getLocationsProgress` (jalurnya sudah ada, DECISIONS 275) dan `dateKey` ke
-   pengambil kelengkapan. Untuk kendala perlu keputusan terpisah: "kendala
-   minggu lalu" berarti yang dibuka minggu lalu, atau yang masih terbuka pada
-   akhir minggu lalu?
+Menambalnya butuh keputusan user lebih dulu, karena "kendala minggu lalu" punya
+dua arti yang sama masuk akal: yang DIBUKA minggu lalu, atau yang masih TERBUKA
+pada akhir minggu lalu. Dua-duanya memerlukan histori status yang belum dicatat
+(`Issue` hanya menyimpan status terkini), jadi ini bukan sekadar meneruskan
+tanggal seperti pada progress/deviasi.
 
-Sampai salah satu dikerjakan, jangan menulis di mana pun bahwa MARLIN bisa
-ditanyai periode — ia tidak bisa.
+Sampai itu diputuskan: jangan menulis di mana pun bahwa MARLIN bisa menjawab
+keadaan kendala pada tanggal lampau — ia tidak bisa, dan ia memang mengatakannya.

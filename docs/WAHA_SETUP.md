@@ -158,7 +158,12 @@ tidak dilayani.
 
 **Batas**
 
-- Hanya periode **hari ini** (lihat OPEN_ISSUES `WATANYA-02`).
+- Periode bebas: hari ini, kemarin, tanggal tertentu, minggu/bulan (DECISIONS
+  356–358). Progress & deviasi untuk tanggal lampau dihitung **pada tanggal itu**
+  (DECISIONS 369).
+- **Kendala** adalah pengecualian: yang didaftar selalu kendala yang masih
+  terbuka SEKARANG, karena riwayat status kendala belum dicatat. Balasannya
+  mengatakan itu apa adanya (OPEN_ISSUES `WATANYA-02`).
 - Maksimal 15 baris per jawaban (20 untuk kendala); pemotongannya disebutkan.
 - Memakai kuota AI Hub — kill-switch & batas laju di **Sistem → AI Hub** berlaku,
   dan tiap pertanyaan tercatat di `ai_runs` sebagai kind `tanya`.

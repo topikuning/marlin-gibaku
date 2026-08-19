@@ -17624,3 +17624,85 @@ Tiga kekeliruan uji buatan sendiri yang ikut diperbaiki, semuanya sejenis
 
 Satu penjaga lama ikut bekerja tanpa diminta: `rute-terjaga.test.ts` menolak
 `/master/lokasi` karena rute baru itu belum masuk sapuan overflow mobile.
+
+---
+
+## 369 — Progress historis WhatsApp & AI Hub: `asOf` diteruskan (2026-08-19)
+
+**Temuan audit user 2026-08-19** (brief perbaikan WhatsApp & AI, terhadap commit
+`e5a3e57`). Tiga tempat menerima periode, memakainya untuk sebagian data, lalu
+mengambil angka progress **tanpa `asOf`** — yaitu posisi hari ini.
+
+Ini Fase A dari brief itu: integritas angka. Fase berikutnya (isolasi grup &
+idempotensi, gateway pengiriman & ack, grounding Ask MARLIN, perluasan sumber)
+belum dikerjakan. Fase RAG **tidak boleh dimulai tanpa persetujuan eksplisit
+user** dan bukan keputusan MARLIN saat ini.
+
+### Yang salah, dan kenapa senyap
+
+| Tempat | Sebelum | Sesudah |
+|---|---|---|
+| `dataProgress(lokasi, dateKey)` | `getLocationsProgress(ids)` | `getLocationsProgress(ids, { asOf: reportDate })` |
+| `dataDeviasi(lokasi)` | tidak menerima tanggal sama sekali | `dataDeviasi(lokasi, dateKey)` → `{ asOf }` |
+| `buildPortfolioPulse(…, startKey, endKey)` | `getLocationsProgress(locIds)` | `getLocationsProgress(locIds, { asOf })` |
+
+Tidak ada galat, tidak ada kolom kosong. Satu balasan berjudul "minggu lalu"
+memuat **status laporan minggu lalu** berdampingan dengan **realisasi hari ini**,
+dan penerimanya tidak punya cara mengetahui bahwa dua angka itu berasal dari dua
+waktu berbeda. Di WhatsApp balasan itu di-screenshot dan diteruskan ke PPK.
+
+Yang penting: jalurnya **sudah ada sejak DECISIONS 275**. `asOf` di
+`getLocationsProgress` mengatur persis dua hal yang dibutuhkan — laporan mana
+yang ikut dihitung (`report_date <= asOf`) dan minggu ke berapa tanggal itu
+jatuh. Tidak ada formula baru yang ditulis; tidak boleh ada.
+
+### Caveat yang berubah dari jujur menjadi salah
+
+Balasan deviasi dulu membawa: *"Deviasi ini posisi HARI INI; saya belum bisa
+menghitung deviasi pada [periode]."* Waktu ditulis, itu pengakuan yang benar.
+Sesudah `asOf` diteruskan, kalimat yang sama menjadi keterangan yang **keliru** —
+dan keterangan keliru yang terdengar berhati-hati lebih merusak daripada tidak
+ada keterangan sama sekali. Kalimatnya dihapus, bukan dilunakkan.
+
+Uji integrasi yang MENGUNCI kalimat itu ikut dibalik, dengan alasannya ditulis
+di tempatnya. Uji yang mengunci keterbatasan harus ikut dibalik saat
+keterbatasannya hilang; kalau tidak, ia berubah menjadi alasan mempertahankan
+cacat.
+
+### Periode yang ujungnya di masa depan dijepit
+
+`buildPortfolioPulse` memakai `asOf = min(end, hari ini)`. Periode seperti "bulan
+ini" berakhir di masa depan; tanpa penjepitan, minggu rencana melompat ke minggu
+yang belum terjadi dan deviasinya mengukur keterlambatan terhadap **masa depan** —
+angka yang memburuk sendiri tanpa ada yang salah di lapangan. Penjepitan yang
+sama sudah dipakai `endMs` untuk laporan yang diharapkan; sekarang keduanya
+memakai satu nilai, bukan dua perhitungan yang kebetulan sama.
+
+Label `sourceRef` progress ikut menyebut tanggalnya (`— progress per
+2026-06-15`). Sitasi yang tidak menyebut kapan membuat angka lampau terbaca
+sebagai angka terkini.
+
+### Kendala TIDAK ikut diperbaiki, dan itu disengaja
+
+MARLIN tidak menyimpan riwayat "kendala apa yang berstatus terbuka pada hari X" —
+`Issue` hanya punya status terkini. Menjawabnya dengan `asOf` berarti mengarang.
+Yang benar: jawab keadaan sekarang DAN katakan itu. Justru karena tetangganya
+(progress & deviasi) kini benar-benar historis, pengakuan ini makin penting —
+pembaca akan menganggap seluruh balasan historis kalau satu bagian diam-diam
+tidak.
+
+`OPEN_ISSUES` WATANYA-02 ditulis ulang dari *"hanya mengenal hari ini"* (sudah
+tidak benar) menjadi keterbatasan yang sebenarnya tersisa: snapshot status
+kendala. `docs/WAHA_SETUP.md` yang masih menulis "hanya periode hari ini" ikut
+dibetulkan.
+
+### Uji gigi
+
+`asOf` dilepas dari ketiga tempat → **6 dari 8** uji integrasi baru merah. Dua
+yang tetap hijau diperiksa terpisah, dan keduanya memang bukan penjaga cacat itu:
+
+- *"dataDeviasi memakai asOf yang SAMA dengan dataProgress"* menjaga **kesepakatan
+  antar-fungsi**; tanpa `asOf` keduanya sama-sama jatuh ke hari ini sehingga tetap
+  sepakat. Ia menggigit kalau salah satunya menyimpang sendiri.
+- *"periode masa depan dijepit"* hanya berarti setelah `asOf` ada. Diuji dengan
+  melepas penjepitnya saja → merah sendirian.

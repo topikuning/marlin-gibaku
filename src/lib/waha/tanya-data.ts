@@ -152,12 +152,22 @@ export async function dataKendala(
 export type HasilProgress = { baris: BarisProgress[]; catatanBatas: string | null };
 
 /**
- * Realisasi / rencana / deviasi per lokasi + kegiatan hari ini.
+ * Realisasi / rencana / deviasi per lokasi + kegiatan pada tanggal yang diminta.
  *
- * `itemHariIni = null` berarti BELUM ADA laporan hari ini; `0` berarti ada
- * laporan tapi belum berisi item. Dua kabar yang sangat berbeda, dan menyatukan
- * keduanya jadi "0" akan membuat lokasi yang lalai terlihat sama dengan lokasi
- * yang rajin tapi belum sempat mengisi.
+ * `itemHariIni = null` berarti BELUM ADA laporan pada tanggal itu; `0` berarti
+ * ada laporan tapi belum berisi item. Dua kabar yang sangat berbeda, dan
+ * menyatukan keduanya jadi "0" akan membuat lokasi yang lalai terlihat sama
+ * dengan lokasi yang rajin tapi belum sempat mengisi.
+ *
+ * ### `asOf` bukan tambahan — tanpanya jawabannya bercampur
+ *
+ * Fungsi ini SUDAH menerima `dateKey` dan memakainya untuk mengambil laporan
+ * tanggal itu, tapi angka realisasi/rencana/deviasinya dulu diambil tanpa
+ * `asOf` — yaitu posisi HARI INI. Akibatnya satu balasan berjudul "minggu lalu"
+ * memuat status laporan minggu lalu di sebelah realisasi hari ini, dan tidak
+ * ada apa pun di layar yang memberi tahu bahwa dua angka itu dari dua waktu
+ * berbeda. Jalurnya sendiri sudah lama tersedia (DECISIONS 275); yang kurang
+ * hanya meneruskannya.
  */
 export async function dataProgress(
   lokasi: LokasiKatalog[],
@@ -169,7 +179,12 @@ export async function dataProgress(
   const reportDate = parseDateKey(dateKey);
 
   const [progress, laporan] = await Promise.all([
-    getLocationsProgress(ids),
+    /*
+     * `reportDate` null (dateKey tak terbaca) → tanpa `asOf` = posisi terkini.
+     * Itu perilaku lama, dan dipertahankan HANYA untuk keadaan yang memang
+     * tidak punya tanggal — bukan sebagai jalan pintas diam-diam.
+     */
+    getLocationsProgress(ids, reportDate ? { asOf: reportDate } : {}),
     reportDate
       ? db.dailyReport.findMany({
           where: { locationId: { in: ids }, reportDate },
@@ -208,16 +223,33 @@ export type HasilDeviasi = {
 };
 
 /**
- * Lokasi yang tertinggal dari kurva-S, paling parah di atas.
+ * Lokasi yang tertinggal dari kurva-S pada tanggal yang diminta, paling parah
+ * di atas.
  *
  * Ambangnya nol pas: deviasi 0 bukan keterlambatan. Lokasi yang SPMK-nya belum
  * tiba berada di minggu 0 dengan rencana 0% (DECISIONS 202), jadi ia tidak
  * pernah muncul di sini — memang belum boleh mulai, bukan terlambat.
+ *
+ * ### Deviasi lampau BISA dihitung, dan dulu diakui tidak bisa
+ *
+ * Balasan lama membawa catatan *"Deviasi ini posisi HARI INI; saya belum bisa
+ * menghitung deviasi pada [periode]"*. Pengakuannya jujur — tapi premisnya
+ * salah: `getLocationsProgress` sudah menerima `asOf` sejak DECISIONS 275, dan
+ * `asOf` memang mengatur dua hal yang persis dibutuhkan di sini — laporan mana
+ * yang ikut dihitung (`report_date <= asOf`) dan minggu ke berapa tanggal itu
+ * jatuh. Yang kurang cuma meneruskan tanggalnya.
  */
-export async function dataDeviasi(lokasi: LokasiKatalog[]): Promise<HasilDeviasi> {
+export async function dataDeviasi(
+  lokasi: LokasiKatalog[],
+  dateKey: string,
+): Promise<HasilDeviasi> {
   if (lokasi.length === 0) return { negatif: [], diperiksa: 0, catatanBatas: null };
   const namaById = new Map(lokasi.map((l) => [l.id, l.nama]));
-  const progress = await getLocationsProgress(lokasi.map((l) => l.id));
+  const asOf = parseDateKey(dateKey);
+  const progress = await getLocationsProgress(
+    lokasi.map((l) => l.id),
+    asOf ? { asOf } : {},
+  );
 
   const semua: BarisDeviasi[] = [...progress.values()]
     .filter((p) => p.deviationPct < 0)

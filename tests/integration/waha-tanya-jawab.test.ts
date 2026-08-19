@@ -424,6 +424,61 @@ describe("nama lokasi di pertanyaan", () => {
   });
 });
 
+describe("periode lampau: jujur soal WAKTU yang dijawab (DECISIONS 369)", () => {
+  const tanya = async (teks: string) => {
+    await jawabPertanyaanWa(event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks }));
+    return terkirim[0]?.teks ?? "";
+  };
+
+  it("deviasi lampau TIDAK lagi mengaku 'posisi HARI INI'", async () => {
+    /*
+     * Kalimat itu dulu benar dan sekarang salah. `dataDeviasi` menerima
+     * `dateKey` dan meneruskannya sebagai `asOf`, jadi angkanya memang posisi
+     * tanggal yang ditanya — keterangan lama berubah dari pengakuan jujur
+     * menjadi keterangan keliru, dan keterangan keliru yang terdengar
+     * berhati-hati lebih merusak daripada tidak ada keterangan sama sekali.
+     */
+    niatPalsu = {
+      niat: "deviasi",
+      lokasiDisebut: [],
+      periode: { jenis: "mundur_hari", hari: 7 },
+    };
+    const teks = await tanya("deviasi seminggu lalu");
+    expect(teks.toLowerCase()).not.toContain("posisi hari ini");
+    expect(teks.toLowerCase()).not.toContain("belum bisa menghitung deviasi");
+  });
+
+  it("laporan harian untuk RENTANG tetap menyebut tanggal mana yang diambil", async () => {
+    // Laporan harian selalu satu tanggal. Meminjam label rentang ("minggu
+    // lalu") untuk isi satu hari adalah judul yang tidak dijawab isinya.
+    niatPalsu = {
+      niat: "laporan",
+      lokasiDisebut: [],
+      periode: { jenis: "rentang", satuan: "minggu", mundur: 1 },
+    };
+    const teks = await tanya("minta laporan minggu lalu");
+    expect(teks).toContain("Laporan harian selalu satu tanggal");
+    expect(teks.toLowerCase()).toContain("hari terakhirnya");
+  });
+
+  it("kendala lampau tetap mengaku bahwa yang didaftar adalah yang TERBUKA SEKARANG", async () => {
+    /*
+     * Ini SENGAJA tidak ikut diperbaiki `asOf`. MARLIN tidak menyimpan riwayat
+     * "kendala apa yang terbuka pada hari X", jadi menjawabnya dengan `asOf`
+     * berarti mengarang. Yang benar adalah menjawab keadaan sekarang DAN
+     * mengatakannya — dan justru karena tetangganya (progress & deviasi) kini
+     * benar-benar historis, pengakuan ini jadi makin penting.
+     */
+    niatPalsu = {
+      niat: "kendala",
+      lokasiDisebut: [],
+      periode: { jenis: "mundur_hari", hari: 1 },
+    };
+    const teks = await tanya("kendala kemarin apa saja");
+    expect(teks).toContain("masih TERBUKA sekarang");
+  });
+});
+
 describe("mengaku saat tidak bisa", () => {
   it("niat null: mengaku belum mengerti + menyebut yang bisa dijawab", async () => {
     niatPalsu = { niat: null, lokasiDisebut: [], periode: "hari_ini" };
@@ -993,17 +1048,28 @@ describe("periode & niat baru — MARLIN yang luwes (DECISIONS 356)", () => {
     expect(teks).toContain("3 Juli 2026");
   });
 
-  it("DEVIASI untuk hari lampau MENGAKU bahwa angkanya posisi hari ini", async () => {
+  it("DEVIASI untuk hari lampau kini benar-benar historis, tanpa caveat lama", async () => {
     /*
-     * Pagar kejujuran yang paling penting di blok ini. Deviasi dihitung
-     * terhadap posisi kurva-S HARI INI; menyajikannya di bawah judul "kemarin"
-     * adalah jawaban benar untuk hari yang salah, dan penerimanya — yang akan
-     * men-screenshot lalu meneruskannya ke PPK — tidak punya cara mengetahuinya.
+     * Uji ini DIBALIK, bukan dihapus — dan pembalikannya sengaja dicatat.
+     *
+     * Versi lamanya menuntut kalimat *"Deviasi ini posisi HARI INI; saya belum
+     * bisa menghitung deviasi pada …"*. Waktu itu ia pagar kejujuran yang
+     * benar: angkanya memang posisi hari ini apa pun periode yang ditanya.
+     *
+     * Audit user 2026-08-19 menunjukkan premisnya keliru sejak awal —
+     * `getLocationsProgress` sudah menerima `asOf` sejak DECISIONS 275, jadi
+     * yang kurang cuma meneruskan tanggalnya. Sesudah diteruskan, kalimat itu
+     * berubah dari pengakuan jujur menjadi keterangan yang SALAH.
+     *
+     * Uji yang mengunci keterbatasan harus ikut dibalik saat keterbatasannya
+     * hilang; kalau tidak, ia menjadi alasan untuk mempertahankan cacat.
+     * DECISIONS 369.
      */
     niatPalsu = { niat: "deviasi", lokasiDisebut: [], periode: { jenis: "mundur_hari", hari: 2 } };
     const { teks } = await tanya("deviasi kemarin lusa");
-    expect(teks).toContain("posisi HARI INI");
     expect(teks).toContain("kemarin lusa");
+    expect(teks).not.toContain("posisi HARI INI");
+    expect(teks.toLowerCase()).not.toContain("belum bisa menghitung deviasi");
   });
 
   it("KENDALA untuk hari lampau MENGAKU bahwa daftarnya keadaan sekarang", async () => {
