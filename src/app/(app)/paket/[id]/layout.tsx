@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Banner, ButtonLink, LinkTabs, PageHeader, StatusPill } from "@/components/ui";
 import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
+import { can } from "@/lib/authz";
 import { PACKAGE_STAGE_LABEL, PACKAGE_STAGE_TONE } from "@/lib/lifecycle";
 import { formatRupiah } from "@/lib/format";
 import { contractMismatch, withPpn } from "@/lib/money";
@@ -129,6 +130,9 @@ export default async function PaketWorkspaceLayout({
           tone="warning"
           title="Nilai kontrak tidak cocok dengan RAB aktif"
           description={`Nilai kontrak berjalan ${formatRupiah(running)} ≠ Σ RAB aktif + PPN ${formatRupiah(mismatch.expected)} (RAB pra-PPN ${formatRupiah(mismatch.rabSum)}). Periksa revisi RAB lokasi atau nilai adendum.`}
+          /* Peringatan ini muncul di SETIAP tab paket. Tanpa jalan menuju
+             tempat memeriksanya, ia jadi latar yang dilewati begitu saja. */
+          action={<ButtonLink href={`${base}#rekonsiliasi`}>Periksa masalah</ButtonLink>}
         />
       ) : null}
 

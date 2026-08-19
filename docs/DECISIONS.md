@@ -18963,3 +18963,82 @@ mesin status kecil yang membedakan string/JSX dari komentar. Aturan gaya tanpa
 uji akan luntur pada berkas ke-sekian; ini membuatnya merah, bukan sekadar
 tercatat. Pendeteksinya sendiri ikut diuji (menemukan di string/JSX/template,
 melewati `//`, `/* */`, dan JSDoc, serta melaporkan nomor baris yang benar).
+
+---
+
+## 386 — Halaman Paket dirombak: ringkasan untuk KEPUTUSAN, form sesekali ke drawer (2026-08-19)
+
+**Keputusan.** Seluruh workspace paket (`/paket/[id]` dan tab-tabnya) mengikuti
+rancangan yang dikirim user (`MARLIN_Paket_Detail_Total_Redesign.html`),
+diminta dengan *"adopsi maksimal untuk halaman paket ini, ikuti ui/ux-nya"*.
+
+### Masalah yang dipecahkan rancangan itu
+
+Bukan warna. **Urutan kepentingan.**
+
+Ringkasan Paket dulu satu kolom panjang: stepper → KPI → rekonsiliasi →
+langkah berikutnya → **empat kartu pengaturan berturut-turut** (grup WhatsApp,
+laporan mingguan, folder Drive, tabel kelengkapan Drive). Tab Kontrak sama
+polanya: ringkasan kontrak di atas, lalu empat form panjang (adendum, koreksi,
+penanda tangan, tanda tangan & stempel) yang mendorongnya hilang dari layar.
+
+Akibatnya sama di kedua tempat: yang dibuka **setiap hari** – kondisi lokasi,
+aktivitas terakhir, nilai kontrak berjalan – kalah tempat oleh formulir yang
+mungkin disentuh **sekali seumur paket**.
+
+### Yang berubah
+
+- **Kepala halaman punya aksi cepat**: `n Lokasi`, `Dokumen`, `Chat Grup
+  MARLIN` (yang terakhir hanya bila grup tertaut DAN penanya punya `wa.chat`).
+- **Banner selisih kontrak vs RAB dapat tombol** `Periksa masalah` yang
+  melompat ke kartu rekonsiliasi. Peringatan yang muncul di setiap tab tanpa
+  jalan keluar adalah peringatan yang dibaca sekali lalu diabaikan selamanya.
+- **Panel siklus bertanggal** menggantikan stepper polos. Tanggalnya sudah ada
+  di `PackageStageHistory`; yang kurang cuma menampilkannya. Tahap yang belum
+  dilalui berbunyi "belum", bukan kosong – kolom kosong terbaca sebagai data
+  yang hilang.
+- **Ringkasan jadi dua kolom**: kiri yang DIBACA (langkah berikutnya, tanggal
+  kontrak, rekonsiliasi, daftar lokasi berprogres, aktivitas), kanan keadaan
+  integrasi yang cukup DILIHAT statusnya.
+- **Form sesekali pindah ke `Drawer`** – grup WA, laporan mingguan, folder
+  Drive (+ tabel kelengkapan KKP di dalamnya), adendum, koreksi kontrak,
+  penanda tangan, tanda tangan & stempel, koreksi susunan lokasi.
+- **Tab Kontrak**: ringkasan jadi pusat (11 angka ringkas), empat pekerjaan
+  jarang jadi kartu aksi berpenjelasan.
+- **Tab Tender**: lencana `Read-only` saat sudah berkontrak, milestone
+  dikelompokkan per fase dengan hitungan `n/m selesai`.
+- **Tab Lokasi**: daftar membawa persentase progres, dan koreksi susunan lokasi
+  pindah ke drawer di balik peringatan "bukan pengganti adendum".
+
+### Tidak ada kemampuan yang dihapus
+
+Ini syarat yang saya pegang sepanjang rombakan: setiap form, tabel, dan tombol
+yang tadinya ada masih ada di halaman yang sama – hanya tidak lagi berebut
+tempat dengan angka. Termasuk tabel kelengkapan folder KKP, yang pindah ke
+dalam drawer Drive dan bukan dibuang.
+
+### Kenapa DRAWER, bukan sekadar `<details>`
+
+Isinya form ber-Server Action. Drawer dibuat sebagai cangkang klien yang
+menerima `children` apa adanya, jadi form yang sudah ada masuk tanpa diubah
+sedikit pun. Aksesibilitasnya mengikuti pola APG yang sama dengan
+`ConfirmSubmit`: fokus masuk saat buka, Tab terkurung, Escape menutup, fokus
+kembali ke pemicu saat tutup, gulir latar dikunci.
+
+Lencana status di tiap baris integrasi ("Terpasang" / "Belum") adalah bagian
+yang membuat penyembunyian ini boleh: keadaan tiap integrasi terbaca **tanpa**
+membuka apa pun. Sebelumnya, menjawab "grup paket ini sudah tertaut belum?"
+menuntut menggulir ke form dan menafsirkan isian di dalamnya.
+
+### Penjaga
+
+`tests/unit/paket-siklus-panel.test.tsx` – ketujuh tahap selalu tampil, tahap
+tanpa tanggal berbunyi "belum", tepat satu tahap aktif, tanggal dibaca dari
+histori dan tidak ditebak dari urutan, dan `batal` (yang di luar deret) tidak
+menandai satu tahap pun. Uji gigi: `aria-current` dilepas + "belum" dikosongkan
+→ **3 merah**.
+
+Perilaku drawer sendiri tidak diuji unit: `vitest.config.ts` memakai
+`environment: "node"` tanpa jsdom, dan menambah jsdom demi satu komponen
+bertentangan dengan stack "pinned exact". Tempatnya di Playwright, sejalan
+dengan `ConfirmSubmit` yang juga tidak punya uji unit.

@@ -117,13 +117,20 @@ export function Drawer({
       </Button>
       {open ? (
         <div className="fixed inset-0 z-[1200]">
-          <button
-            type="button"
-            aria-label="Tutup panel"
-            tabIndex={-1}
-            className="absolute inset-0 bg-ink/40"
-            onClick={tutup}
-          />
+          {/*
+            Latar gelap SENGAJA di luar pohon aksesibilitas.
+
+            Versi pertama membuatnya `<button aria-label="Tutup panel">` –
+            nama yang sama persis dengan tombol ✕ di dalam panel. Akibatnya dua
+            elemen berbagi satu nama, dan di ponsel (panel selebar layar penuh)
+            latar itu justru MENUTUPI tombol tutup yang sesungguhnya. Ketahuan
+            dari uji Playwright yang merah di proyek mobile, bukan dari
+            pemeriksaan mata.
+
+            Menutup lewat klik latar tetap ada untuk tetikus; jalur papan tik
+            sudah dijamin Escape dan tombol ✕.
+          */}
+          <div aria-hidden className="absolute inset-0 bg-ink/40" onClick={tutup} />
           <div
             ref={panelRef}
             role="dialog"

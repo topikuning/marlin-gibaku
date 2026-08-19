@@ -65,6 +65,24 @@ export default async function TenderPage({
     select: { id: true, name: true, phase: true, status: true, dueDate: true, note: true },
   });
 
+  /*
+   * Kelompok per fase, urut sesuai urutan proses (pemilihan → penunjukan).
+   * `selesai` memakai definisi yang sama dengan papan kepatuhan: "tidak
+   * berlaku" ikut dihitung tuntas, karena item yang memang tidak berlaku bukan
+   * pekerjaan yang tertinggal.
+   */
+  const kelompokMilestone = (["pemilihan", "penunjukan"] as const)
+    .map((phase) => {
+      const items = milestones.filter((m) => m.phase === phase);
+      return {
+        phase,
+        label: PHASE_LABEL[phase] ?? phase,
+        items,
+        selesai: items.filter((m) => m.status === "selesai" || m.status === "tidak_berlaku").length,
+      };
+    })
+    .filter((g) => g.items.length > 0);
+
   const praKontrak = !pkg.contract && ["prospek", "tender", "penetapan"].includes(pkg.stage);
   const canEdit = can(user.role, "package.edit");
   const vendorNames = canEdit && praKontrak ? (await listVendors()).map((v) => v.name) : [];
@@ -80,7 +98,13 @@ export default async function TenderPage({
             subtitle={
               praKontrak
                 ? "Identitas paket, HPS, dan kandidat vendor – bisa diubah sampai berkontrak."
-                : "Paket sudah berkontrak – data terkunci."
+                : "Paket sudah berkontrak – identitas tender dikunci dan tinggal jadi rekam proses."
+            }
+            /* Lencana ini menjawab pertanyaan yang timbul saat form-nya tidak
+               ada: "kenapa saya tidak bisa mengubah ini?" – terkunci karena
+               tahapnya, bukan karena hak akses. */
+            action={
+              praKontrak && canEdit ? null : <StatusPill tone="neutral" label="Read-only" />
             }
           />
           <CardBody>
@@ -157,24 +181,50 @@ export default async function TenderPage({
               description="Milestone fase pemilihan/penunjukan akan muncul setelah template administrasi paket dibuat."
             />
           ) : (
-            <ul className="divide-y divide-border">
-              {milestones.map((m) => (
-                <li key={m.id} className="flex items-start justify-between gap-3 py-2 text-sm">
-                  <div className="min-w-0">
-                    <p className="text-ink">{m.name}</p>
-                    <p className="text-xs text-ink-muted">
-                      {PHASE_LABEL[m.phase] ?? m.phase}
-                      {m.dueDate ? ` · jatuh tempo ${formatTanggal(m.dueDate)}` : ""}
-                      {m.note ? ` · ${m.note}` : ""}
-                    </p>
-                  </div>
-                  <StatusPill
-                    tone={MILESTONE_STATUS_TONE[m.status]}
-                    label={MILESTONE_STATUS_LABEL[m.status]}
-                  />
-                </li>
+            /*
+              Dikelompokkan per fase, dengan hitungan "n/m selesai" di tiap
+              kepala kelompok. Daftar rata sebelumnya menuntut orang menghitung
+              sendiri lencana hijau untuk menjawab satu-satunya pertanyaan yang
+              biasanya diajukan: fase mana yang belum tuntas.
+            */
+            <div className="divide-y divide-border">
+              {kelompokMilestone.map((g) => (
+                <section key={g.phase} className="py-2.5 first:pt-0 last:pb-0">
+                  <header className="flex items-baseline justify-between gap-2">
+                    <h3 className="text-[13px] font-semibold text-ink">{g.label}</h3>
+                    <span className="tabular text-[12px] text-ink-muted">
+                      {g.selesai}/{g.items.length} selesai
+                    </span>
+                  </header>
+                  <ul className="mt-1.5 space-y-1.5">
+                    {g.items.map((m) => (
+                      <li
+                        key={m.id}
+                        className="flex flex-wrap items-start justify-between gap-2 text-sm"
+                      >
+                        <div className="min-w-[10rem] flex-1">
+                          <p className="text-ink">{m.name}</p>
+                          {m.dueDate || m.note ? (
+                            <p className="text-xs text-ink-muted">
+                              {[
+                                m.dueDate ? `jatuh tempo ${formatTanggal(m.dueDate)}` : null,
+                                m.note,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </p>
+                          ) : null}
+                        </div>
+                        <StatusPill
+                          tone={MILESTONE_STATUS_TONE[m.status]}
+                          label={MILESTONE_STATUS_LABEL[m.status]}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </section>
               ))}
-            </ul>
+            </div>
           )}
         </CardBody>
       </Card>
