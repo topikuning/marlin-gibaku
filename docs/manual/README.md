@@ -67,11 +67,34 @@ Keterangan yang disalin ke dua tempat cepat atau lambat berbeda.
 4. **CSS tidak termuat saat menjepret** — halaman tanpa stylesheet tetap terpotret
    rapi sebagai teks polos (DECISIONS 352).
 
+## Seed khusus manual
+
+```bash
+pnpm db:seed          # dasar (org/user/paket/lokasi/RAB/baseline)
+pnpm manual:seed      # dandani Purworejo jadi lokasi "wajar" (DECISIONS 366)
+```
+
+`manual:seed` men-generate ulang baseline Purworejo dengan tanggal kontrak
+RELATIF ke sekarang (selalu "sedang berjalan", tidak pernah basi), lalu mengisi
+laporan harian beberapa minggu, rencana mingguan, dan 1-2 kendala — deviasi
+kecil (±5%), bukan lencana merah "Kritis" di semua layar. Idempotent lewat
+SKIP: `daily_report_status_history` append-only (trigger DB), jadi sekali
+Purworejo punya laporan, run berikutnya dilewati apa adanya. Untuk regenerasi
+total, reset database dulu (`pnpm db:reset` lalu `pnpm db:seed`).
+
+Foto perlu R2 (opsional) — di sandbox/dev tanpa R2, bagian foto dilewati
+otomatis (skrip tidak gagal). Untuk foto sungguhan tanpa akun R2 asli, jalankan
+mock storage lokal (S3-compatible minimal, TLS asli — lihat komentar di
+berkasnya):
+
+```bash
+tsx scripts/manual/mock-r2.ts 9444 /tmp/mock-r2/data <cert.pem> <key.pem>
+# lalu jalankan manual:seed DAN server Next dengan R2_ENDPOINT=https://127.0.0.1:9444
+# (+ R2_BUCKET/R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY apa saja, NODE_EXTRA_CA_CERTS=<ca-cert.pem>)
+```
+
 ## Yang belum selesai
 
-- [ ] **Seed khusus manual.** Seed sekarang menampilkan deviasi −99,9% dan
-      realisasi 0,1% — buku penuh lencana merah "Kritis" mengajarkan keadaan
-      darurat sebagai keadaan normal. Perlu lokasi contoh dengan progres wajar.
 - [ ] Bab lapangan: mengisi laporan harian langkah demi langkah, alur koreksi
       (`perlu_koreksi` → perbaiki → kirim ulang), dan chat WhatsApp.
 - [ ] Bab manajemen: keuangan, laporan periodik KKP, RAPL, AI.

@@ -17348,3 +17348,105 @@ gambar jadi yatim).
 Seed khusus manual belum dibuat, jadi gambar sekarang masih memakai seed lama yang
 menampilkan deviasi −99,9%. Bab lapangan & manajemen baru kerangka pertama.
 Daftar lengkapnya di `docs/manual/README.md`.
+
+---
+
+## 366 — Seed khusus buku manual: Purworejo "wajar", bukan Kedung Mutih "darurat" (2026-08-19)
+
+Lanjutan 365. Seed dev (`runDemoSeed`) sengaja menampilkan Kedung Mutih dalam
+keadaan DARURAT (4 laporan saja, kontrak sudah lewat tanggal selesai) — bagus
+untuk uji fitur, tapi kalau buku manual memotretnya, SETIAP layar `{lokasi}`
+menampilkan lencana merah "Kritis": mengajarkan pembaca baru bahwa darurat itu
+normal. `pnpm manual:seed` (`src/lib/seed/manual.ts`, skrip TERPISAH — seed e2e
+tidak disentuh) mendandani **Purworejo** — lokasi yang RAB & baseline-nya sudah
+ada dari `runDemoSeed` tapi belum pernah punya laporan harian, dan TIDAK dipakai
+satu pun uji e2e — jadi lokasi contoh dengan progres wajar.
+
+### Kenapa Purworejo, bukan lokasi baru
+
+Lebih murah menumpang RAB (2197 node) & baseline yang sudah tergenerate
+daripada mengarang RAB baru. Amannya diverifikasi dengan grep: tidak ada
+`tests/e2e/*.spec.ts` yang menyebut slug `purworejo` selain satu uji visual
+(`lokasi-pindah-ponsel.spec.ts`, cuma memeriksa teks "Purworejo" tampil dan
+tidak ada pemicu ganti-lokasi — tidak peduli isi laporannya).
+
+### Tanggal kontrak relatif ke SEKARANG, bukan tetap
+
+`WEEKS_PAST=12, WEEKS_FUTURE=8` dari `Date.now()` saat skrip dijalankan, lalu
+baseline (kurva-S) di-generate ULANG untuk jendela itu, memakai algoritma PERSIS
+`demo.ts` (`scheduleFromItems`/`autoCategoryWindowFrac`/DECISIONS 082). Alasannya
+sama dengan kenapa gambar buku dibangkitkan skrip (365): tanggal tetap cepat atau
+lambat lewat dari tanggal selesai, dan bug yang sama (rencana 100%, realisasi
+kecil = deviasi −99%) muncul lagi di lokasi "wajar" ini juga.
+
+### Realisasi per item, BUKAN per segelintir item
+
+Percobaan pertama menjitter 8 "item sorotan" saja ke ~86% volume masing-masing.
+Hasilnya realisasi portofolio 0,94% — bukan 86%. Kesalahannya jelas begitu
+dipikir ulang: realisasi lokasi = rata-rata TERTIMBANG NILAI seluruh item
+(`Σ prestasi×amount / grandTotal`), dan grandTotal Purworejo ~Rp12M dari ~1.750
+item — 8 item hanya seiris kecil nilai itu, mau 100% pun tidak menggerakkan
+angka portofolio. Diperbaiki: SEMUA item (1.755) dapat target penyelesaian
+(faktor 0,90–1,02 × rencana kumulatif minggu berjalan, PRNG mulberry32 seed
+tetap) — realisasi jadi 82,75% vs rencana 86,14% = deviasi −3,4%, dalam ±5%
+yang diminta.
+
+Percobaan kedua menyebar delta tiap item ke SEMUA 15 tanggal riwayat (ramp
+bentuk-S per item) — teknis benar, tapi tiap laporan jadi memuat ~1.750 item
+sekaligus: tidak wajar (laporan sungguhan tidak menyentuh seluruh RAB tiap
+hari) DAN berisiko halaman "Item hari ini" lambat/timeout saat dipotret.
+Diganti: tiap item dikerjakan TUNTAS pada SATU tanggal (bucket deterministik
+dari `sortOrder`, bukan acak) — ~117 item/laporan, jauh lebih wajar, dan
+`dailyReportItem.createManyAndReturn` (bukan `create` per baris) supaya tetap
+cepat.
+
+### `import "server-only"` melempar di skrip Node biasa, bukan cuma di bundle klien
+
+`@/lib/progress.ts`, `@/lib/r2.ts`, `@/lib/photo-stamp/config.ts` semua
+`import "server-only"` — dan paket itu MELEMPAR begitu modulnya di-`require`
+di proses Node apa pun yang bukan lewat bundler yang mengerti kondisi
+`"browser"` di `package.json`-nya (yakni: `tsx` menjalankan skrip seed ini
+langsung). Bukan cuma soal "jangan dipakai di client component" seperti
+namanya — di sini gejalanya modul MANA PUN yang mengimpornya, transitif
+sekalipun, membuat seluruh skrip crash saat startup.
+
+Bukan alasan melonggarkan batas server-only. Yang dipakai ulang hanya bagian
+BERSIH dari batas itu — `currentWeekNumber`/`planPctAtWeek` (disalin, pure &
+kecil), `buildStampSvg`+util format dari `photo-stamp/renderer.ts` &
+`format.ts` (memang tanpa I/O) — dan untuk R2, klien `S3Client` dipasang
+sendiri langsung dari env `R2_*`, TANPA menyentuh `@/lib/r2.ts`.
+
+### Foto: R2 opsional tapi TLS tidak boleh dimatikan
+
+`R2_ENDPOINT` divalidasi wajib `https` (`normalizeR2Endpoint`, "TLS tidak boleh
+dimatikan") — jadi mock storage lokal untuk memotret buku (`scripts/manual/mock-r2.ts`,
+S3-compatible minimal: PUT simpan ke disk, GET baca balik, TANPA verifikasi
+signature Sig V4) tetap jalan di atas TLS sungguhan (sertifikat self-signed,
+CA-nya dipercaya lewat `NODE_EXTRA_CA_CERTS` — MEMPERLUAS kepercayaan ke satu
+CA tertentu, bukan mematikan verifikasi TLS sama sekali). Tanpa R2 dikonfigurasi
+(default sandbox/dev), bagian foto DILEWATI dengan peringatan — sisanya
+(laporan/rencana/kendala/kurva-S) tetap lengkap; skrip tidak gagal.
+
+### Idempotent lewat SKIP, bukan timpa-bersih
+
+Percobaan pertama menghapus data lama sebelum membangun ulang (`deleteMany`
+DailyReport dkk) supaya skrip "selalu bisa dijalankan ulang dari nol". Gagal:
+`daily_report_status_history` APPEND-ONLY (trigger DB menolak UPDATE/DELETE,
+error Postgres eksplisit "append-only: UPDATE/DELETE dilarang") — laporan yang
+sudah dibuat tidak bisa dihapus untuk dibuat ulang, titik. Diperbaiki: skrip
+memeriksa `dailyReport.count` untuk Purworejo di awal; kalau sudah ada,
+SELURUH isi (geser kontrak/generate ulang baseline/laporan/rencana/kendala/
+foto) dilewati apa adanya. Regenerasi total (mis. tanggalnya sudah sangat
+basi) perlu reset database dev/e2e dulu — bukan sesuatu yang skrip ini
+lakukan sendiri.
+
+### Penjaga
+
+`pnpm typecheck && pnpm lint && pnpm vitest run tests/unit` hijau. Diverifikasi
+manual (query SQL memakai rumus PERSIS `getLocationsProgress`): realisasi
+82,75% vs rencana 86,14% (deviasi −3,4%), baseline monotonik 9,8%→100,0% di 20
+minggu, 18 laporan (final→disetujui→dikirim→perlu_koreksi→draft, ~117
+item/laporan), 2 rencana mingguan (minggu lalu terikat realisasi nyata, minggu
+ini target maju), 2 kendala (satu berjalan, satu selesai + `RecoveryUpdate`),
+8 foto sungguhan (cap Timemark asli ter-render, diperiksa visual) lewat
+`mock-r2.ts`.
