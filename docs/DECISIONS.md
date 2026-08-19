@@ -17277,3 +17277,74 @@ Catatan jujur: pulang-pergi template TANPA disunting menggeser beberapa minggu
 sepersekian poin — sisa pembulatan saat template ditulis ke Excel. Pratinjau
 menyebutnya apa adanya, dan ujinya memagari pergeseran itu di bawah 1 pp supaya
 kalau suatu saat ekspor & impor berhenti membaca hal yang sama, ketahuan.
+
+---
+
+## 365 — Buku manual: screenshot DIBANGKITKAN, bukan ditempel (2026-08-19)
+
+**Permintaan user 2026-08-19:** membuat buku manual MARLIN dengan screenshot, dan
+bertanya sesi mana yang paling efektif.
+
+Jawabannya Claude Code — hanya di sini MARLIN bisa dijalankan, dipotret, dan
+hasilnya di-commit. Claude chat tidak bisa membuka aplikasinya sama sekali.
+
+Pilihan user: pembaca **lapangan (SM & Mandor) + manajemen (PM/AM/Direktur)**,
+keluaran **Markdown di repo + PDF A4**, dan **seed khusus manual** dengan angka
+yang sehat.
+
+### Keputusan pokok: gambar dibangkitkan skrip
+
+Bukan soal kerapian. Dalam satu hari saja Master Data, Rencana & RAB, dan Progress
+dirombak seluruhnya (359/362/363). Buku yang gambarnya ditempel tangan basi dalam
+hitungan minggu — dan yang paling berbahaya, tidak ada yang tahu bagian mana yang
+sudah bohong. Dengan pipeline ini, memperbarui seluruh buku cukup dua perintah.
+
+`scripts/manual/daftar-gambar.ts` jadi satu sumber kebenaran: id, peran yang
+masuk, halaman, dan lebar layar. Bab lapangan dipotret pada **390px** karena di
+situlah pekerjaannya dilakukan; bab manajemen pada 1280px karena tabel mingguan
+dan kurva-S memang tidak dimaksudkan dibaca di layar HP.
+
+### Tanpa dependensi runtime baru
+
+PDF dicetak Chromium yang sudah ada lewat Playwright; `marked` hanya
+devDependency. `pdfkit` yang dipakai blanko KKP sengaja tidak dipakai — ia
+menggambar programatik, cocok untuk formulir baku, bukan untuk prosa panjang.
+
+**`marked` sempat dipasang di versi yang terbit HARI ITU JUGA (18.0.10), dan pnpm
+diam-diam menambahkan pengecualian di `minimumReleaseAgeExclude`.** Seluruh entri
+lain di daftar itu ada karena patch keamanan yang memang harus segera diambil;
+menumpanginya untuk kenyamanan berarti melemahkan pagar rantai pasok tanpa sebab.
+Diganti `18.0.7` (terbit 4 minggu sebelumnya) — lolos gerbang tanpa pengecualian,
+dan `pnpm-workspace.yaml` sama sekali tidak tersentuh.
+
+### Tiga penjaga yang menggagalkan build
+
+Naskah menyebut gambar lewat `{{gambar:id}}`, dan keterangannya diambil dari
+manifes — bukan ditulis ulang di naskah, karena keterangan yang disalin ke dua
+tempat cepat atau lambat berbeda.
+
+1. gambar disebut naskah tapi tidak ada;
+2. gambar dijepret tapi tidak pernah dipakai naskah;
+3. **gambar tidak termuat saat mencetak.**
+
+Yang ketiga ditambahkan setelah gagal sungguhan: PDF terbit dengan pesan
+"sukses" berisi **sembilan kotak kosong**. Berkasnya ada di `docs/manual/gambar/`,
+penjaga naskah-vs-manifes hijau — tapi HTML-nya ditulis di
+`docs/manual/keluaran/`, sehingga `gambar/x.png` menunjuk tempat yang salah.
+Memeriksa berkas ada di disk BUKAN memeriksa peramban bisa memuatnya; yang bisa
+membuktikan sebuah gambar terlihat hanyalah peramban yang mencetaknya. Buktinya
+kasar dan meyakinkan: PDF 84 KB → 1,1 MB sesudah diperbaiki.
+
+Penjepretnya juga menolak halaman yang CSS-nya tidak termuat — halaman tanpa
+stylesheet tetap terpotret rapi sebagai teks polos, dan itu pernah menipu saya
+sendiri (352).
+
+Uji gigi: path gambar dikembalikan salah → build merah menyebut sembilan berkas;
+naskah menyebut id yang tidak ada → build merah dua arah sekaligus (id hilang +
+gambar jadi yatim).
+
+### Yang belum selesai
+
+Seed khusus manual belum dibuat, jadi gambar sekarang masih memakai seed lama yang
+menampilkan deviasi −99,9%. Bab lapangan & manajemen baru kerangka pertama.
+Daftar lengkapnya di `docs/manual/README.md`.
