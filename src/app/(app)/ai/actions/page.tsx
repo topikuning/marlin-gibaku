@@ -125,7 +125,7 @@ export default async function AiActionsPage() {
       </Card>
 
       <div className="space-y-3 self-start">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2">
           <KpiCard label="Kritis" value={String(kritis)} tone={kritis > 0 ? "danger" : "success"} />
           <KpiCard label="Overdue" value={String(overdue)} tone={overdue > 0 ? "warning" : "success"} />
           <KpiCard label="Total item" value={String(queue.length)} />

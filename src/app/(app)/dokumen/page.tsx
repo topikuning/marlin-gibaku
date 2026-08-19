@@ -159,7 +159,7 @@ export default async function DokumenPage({
         }
       />
 
-      <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <section className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <KpiCard label="Total dokumen (filter aktif)" value={String(documents.length)} />
         <KpiCard label="Kadaluarsa < 30 hari" value={String(expiring)} tone={expiring > 0 ? "warning" : "default"} />
       </section>

@@ -75,7 +75,7 @@ export default async function ArsipFotoPage() {
         description="Berkas asli tanpa cap — dipakai bila cap foto perlu diperbaiki. Tidak pernah dihapus otomatis."
       />
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-2 sm:grid-cols-3">
         <KpiCard label="Foto ber-arsip asli" value={agg._count._all.toLocaleString("id-ID")} sub={`dari ${jumlahFoto.toLocaleString("id-ID")} foto`} />
         <KpiCard label="Ukuran arsip" value={mb(totalBytes)} sub="di luar versi ber-cap & thumbnail" tone="warning" />
         <KpiCard

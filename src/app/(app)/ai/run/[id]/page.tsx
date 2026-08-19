@@ -180,7 +180,7 @@ export default async function AiRunDetailPage({ params }: { params: Promise<{ id
         ) : null}
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
         <KpiCard label="Readiness rata-rata" value={run.readinessScore != null ? `${run.readinessScore}%` : "—"} />
         <KpiCard label="Confidence AI" value={run.confidence != null ? `${run.confidence}%` : "—"} />
         <KpiCard label="Provider" value={run.provider ? `${run.provider}` : "—"} sub={run.model ?? undefined} />

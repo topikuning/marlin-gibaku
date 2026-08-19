@@ -71,7 +71,7 @@ export default async function AiPulsePage({
         />
       ) : null}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
         <KpiCard label="Lokasi dalam scope" value={String(t.locations)} sub={`periode ${pulse.periodStart} – ${pulse.periodEnd}`} />
         <KpiCard
           label="Laporan final"

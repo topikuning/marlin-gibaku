@@ -742,7 +742,7 @@ export default async function SistemPage() {
       </div>
 
       {/* KPI */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <KpiCard label="Layanan Aktif" value={`${activeIntegrations}/3`} sub="Integrasi terhubung" />
         <KpiCard label="Pengguna Aktif" value={activeUsers} sub="Akun bisa login" />
         <KpiCard label="Sesi Aktif" value={sessionCount} sub="Login berjalan" />

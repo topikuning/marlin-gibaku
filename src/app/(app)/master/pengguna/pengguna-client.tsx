@@ -1,11 +1,16 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
-import { Search } from "lucide-react";
-import { Banner, Button, Input, Label, Combobox, StatusPill } from "@/components/ui";
-import { ROLE_LABEL, creatableRoles } from "@/lib/authz";
+import { Plus, Search, Settings2 } from "lucide-react";
+import { Badge, Banner, Button, Combobox, Input, KpiCard, Label } from "@/components/ui";
+import { BilahSaring } from "@/components/master/bilah-saring";
+import { Laci } from "@/components/master/laci";
+import { PerluPerhatian, type TemuanMaster } from "@/components/master/perlu-perhatian";
+import { KartuBaris, SelNama } from "@/components/master/sel-nama";
+import { ALL_ROLES, ROLE_LABEL, creatableRoles } from "@/lib/authz";
 import { formatTanggalWaktu } from "@/lib/format";
 import { nomorWaUntukTampil } from "@/lib/contacts/model";
+import { LABEL_MASALAH, masalahAkun, type MasalahAkun } from "@/lib/users/kesehatan-akun";
 import {
   createUser,
   resetUserPassword,
@@ -16,6 +21,21 @@ import {
   type UserActionState,
 } from "@/lib/users/actions";
 import type { UserRole } from "@/generated/prisma/enums";
+
+/**
+ * DAFTAR PENGGUNA — tata letak master data (DECISIONS 359).
+ *
+ * Bentuknya sama dengan Perusahaan, dan itu disengaja: ringkasan angka, bilah
+ * "perlu perhatian", lalu daftar bersaringan, dengan seluruh pengubahan di
+ * dalam LACI. Sebelumnya tiap baris punya lima tombol yang membentangkan
+ * formulir DI DALAM daftar, sehingga sesudah menyimpan barisnya melompat dan
+ * orang kehilangan tempatnya.
+ *
+ * Yang paling berubah maknanya: "Tanpa penugasan" dulu sekadar tulisan abu-abu
+ * di antara tulisan abu-abu lain. Ia sebetulnya berarti akun itu TIDAK BISA
+ * MELIHAT APA PUN — jadi sekarang ia dihitung, disebut di atas, dan bisa
+ * disaring (`@/lib/users/kesehatan-akun`).
+ */
 
 type LocationOption = { id: string; name: string; company?: string | null };
 
@@ -51,7 +71,7 @@ function LocationPicker({
   return (
     <div className="space-y-2">
       <div className="relative">
-        <Search aria-hidden className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-ink-muted" />
+        <Search aria-hidden className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-ink-muted" />
         <Input
           type="search"
           value={q}
@@ -93,7 +113,8 @@ function LocationPicker({
     </div>
   );
 }
-type UserRow = {
+
+export type UserRow = {
   id: string;
   username: string;
   fullName: string;
@@ -110,8 +131,357 @@ type UserRow = {
   assignments: { id: string; name: string }[];
 };
 
+/* ── Daftar ──────────────────────────────────────────────────────────────── */
+
+type Saring = "" | MasalahAkun | "sehat";
+
+export function PenggunaManager({
+  users,
+  locations,
+  canManage,
+  actorRole,
+}: {
+  users: UserRow[];
+  locations: LocationOption[];
+  canManage: boolean;
+  actorRole: UserRole;
+}) {
+  const [cari, setCari] = useState("");
+  const [saring, setSaring] = useState<Saring>("");
+  const [saringPeran, setSaringPeran] = useState("");
+  // Yang disimpan ID, bukan barisnya. Sesudah sebuah aksi tersimpan, `users`
+  // datang baru dari server; menyimpan objek lama membuat laci menampilkan
+  // data basi persis pada saat orang ingin memastikan simpanannya masuk.
+  const [idBuka, setIdBuka] = useState<string | null>(null);
+  const [buatBaru, setBuatBaru] = useState(false);
+  const allowedRoles = useMemo(() => creatableRoles(actorRole), [actorRole]);
+
+  const diperkaya = useMemo(
+    () =>
+      users.map((u) => ({
+        u,
+        masalah: masalahAkun({
+          role: u.role,
+          isActive: u.isActive,
+          mustChangePassword: u.mustChangePassword,
+          waNumber: u.waNumber,
+          jumlahPenugasan: u.assignments.length,
+          pernahMasuk: u.lastLoginAt !== null,
+        }),
+      })),
+    [users],
+  );
+
+  const shown = useMemo(() => {
+    const q = cari.trim().toLowerCase();
+    return diperkaya.filter((r) => {
+      if (q) {
+        const hay = [r.u.fullName, r.u.username, r.u.email, r.u.waNumber, ...r.u.assignments.map((a) => a.name)]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      if (saringPeran && r.u.role !== saringPeran) return false;
+      if (saring === "sehat") return r.masalah.length === 0;
+      if (saring) return r.masalah.includes(saring);
+      return true;
+    });
+  }, [diperkaya, cari, saring, saringPeran]);
+
+  const hitung = (m: MasalahAkun) => diperkaya.filter((r) => r.masalah.includes(m)).length;
+  const aktif = diperkaya.filter((r) => r.u.isActive).length;
+  const tanpaPenugasan = hitung("tanpa_penugasan");
+  const belumDipakai = hitung("belum_dipakai");
+  const tanpaWa = hitung("tanpa_wa");
+
+  const temuan: TemuanMaster[] = [];
+  if (tanpaPenugasan > 0) {
+    temuan.push({
+      judul: `${tanpaPenugasan} dari ${aktif} akun aktif tanpa penugasan`,
+      keterangan:
+        "Perannya terikat lokasi, jadi tanpa penugasan akun ini masuk ke MARLIN dan tidak melihat apa pun.",
+      nada: "bahaya",
+      aksi: <TombolSaring onKlik={() => setSaring("tanpa_penugasan")} label="Lihat yang tanpa penugasan" />,
+    });
+  }
+  if (belumDipakai > 0) {
+    temuan.push({
+      judul: `${belumDipakai} akun belum pernah dipakai`,
+      keterangan: "Password awalnya masih yang diketik pembuatnya dan belum pernah diganti.",
+      nada: "peringatan",
+      aksi: <TombolSaring onKlik={() => setSaring("belum_dipakai")} label="Lihat yang belum dipakai" />,
+    });
+  }
+  if (tanpaWa > 0) {
+    temuan.push({
+      judul: `${tanpaWa} akun tanpa nomor WhatsApp`,
+      keterangan: "Tidak menerima pengingat laporan harian maupun balasan chat MARLIN.",
+      aksi: <TombolSaring onKlik={() => setSaring("tanpa_wa")} label="Lihat yang tanpa nomor" />,
+    });
+  }
+
+  const dibuka = idBuka ? (users.find((u) => u.id === idBuka) ?? null) : null;
+
+  return (
+    <div className="space-y-3">
+      <section aria-label="Ringkasan pengguna" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard label="Total akun" value={String(diperkaya.length)} sub={`${aktif} aktif`} />
+        <KpiCard
+          label="Tanpa penugasan"
+          value={String(tanpaPenugasan)}
+          sub={tanpaPenugasan > 0 ? "Tidak melihat lokasi apa pun" : "Semua terhubung lokasi"}
+          tone={tanpaPenugasan > 0 ? "danger" : "default"}
+        />
+        <KpiCard
+          label="Belum pernah masuk"
+          value={String(belumDipakai)}
+          sub={belumDipakai > 0 ? "Password awal masih beredar" : "Tidak ada"}
+          tone={belumDipakai > 0 ? "warning" : "default"}
+        />
+        <KpiCard label="Tanpa nomor WA" value={String(tanpaWa)} sub="Tidak dapat pengingat" />
+      </section>
+
+      <PerluPerhatian temuan={temuan} />
+
+      <section className="overflow-hidden rounded-lg border border-border bg-surface">
+        <BilahSaring
+          cari={cari}
+          onCari={setCari}
+          petunjukCari="Cari nama, username, email, nomor, lokasi…"
+          tampil={shown.length}
+          total={diperkaya.length}
+          satuan="akun"
+          saringan={[
+            {
+              id: "u-peran",
+              label: "Semua peran",
+              nilai: saringPeran,
+              onUbah: setSaringPeran,
+              // Hanya peran yang BENAR-BENAR ada di daftar. Menawarkan peran
+              // yang pasti nihil membuat saringan terasa rusak saat dipilih.
+              opsi: ALL_ROLES.filter((r) => users.some((u) => u.role === r)).map((r) => ({
+                nilai: r,
+                label: ROLE_LABEL[r],
+              })),
+            },
+            {
+              id: "u-masalah",
+              label: "Semua kondisi",
+              nilai: saring,
+              onUbah: (v) => setSaring(v as Saring),
+              opsi: [
+                { nilai: "tanpa_penugasan", label: LABEL_MASALAH.tanpa_penugasan },
+                { nilai: "belum_dipakai", label: LABEL_MASALAH.belum_dipakai },
+                { nilai: "tanpa_wa", label: LABEL_MASALAH.tanpa_wa },
+                { nilai: "nonaktif", label: LABEL_MASALAH.nonaktif },
+                { nilai: "sehat", label: "Tanpa masalah" },
+              ],
+            },
+          ]}
+          aksi={
+            allowedRoles.length > 0 ? (
+              <Button size="sm" onClick={() => setBuatBaru(true)}>
+                <Plus aria-hidden className="size-3.5" />
+                Pengguna baru
+              </Button>
+            ) : null
+          }
+        />
+
+        {shown.length === 0 ? (
+          <p className="p-4 text-sm text-ink-muted">
+            {diperkaya.length === 0
+              ? "Belum ada pengguna."
+              : "Tidak ada akun yang cocok dengan saringan ini."}
+          </p>
+        ) : (
+          <>
+            <div className="max-sm:hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-surface-muted text-left text-[11px] text-ink-muted uppercase">
+                    <th className="px-3 py-2">Pengguna</th>
+                    <th className="px-3 py-2">Peran</th>
+                    <th className="px-3 py-2">Penugasan</th>
+                    <th className="px-3 py-2">Login terakhir</th>
+                    {canManage ? <th className="px-3 py-2">Aksi</th> : null}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {shown.map((r) => (
+                    <tr key={r.u.id} className="align-top hover:bg-surface-muted">
+                      <td className="px-3 py-2">
+                        <SelNama
+                          nama={r.u.fullName}
+                          keterangan={`@${r.u.username}`}
+                          lencana={<Lencana u={r.u} masalah={r.masalah} />}
+                        />
+                      </td>
+                      <td className="px-3 py-2 whitespace-nowrap">{ROLE_LABEL[r.u.role]}</td>
+                      <td className="px-3 py-2">{ringkasLokasi(r.u.assignments)}</td>
+                      <td className="px-3 py-2 whitespace-nowrap text-ink-muted">
+                        {r.u.lastLoginAt ? formatTanggalWaktu(new Date(r.u.lastLoginAt)) : "Belum pernah"}
+                      </td>
+                      {canManage ? (
+                        <td className="px-3 py-2">
+                          <Button size="sm" variant="secondary" onClick={() => setIdBuka(r.u.id)}>
+                            <Settings2 aria-hidden className="size-3.5" />
+                            Kelola
+                          </Button>
+                        </td>
+                      ) : null}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="space-y-2 p-2 sm:hidden">
+              {shown.map((r) => (
+                <KartuBaris
+                  key={r.u.id}
+                  aksi={
+                    canManage ? (
+                      <Button size="sm" variant="secondary" onClick={() => setIdBuka(r.u.id)}>
+                        <Settings2 aria-hidden className="size-3.5" />
+                        Kelola
+                      </Button>
+                    ) : null
+                  }
+                >
+                  <SelNama
+                    nama={r.u.fullName}
+                    keterangan={`@${r.u.username} · ${ROLE_LABEL[r.u.role]}`}
+                    lencana={<Lencana u={r.u} masalah={r.masalah} />}
+                  />
+                  <p className="mt-1.5 text-[11px] text-ink-muted">
+                    {ringkasLokasi(r.u.assignments)} ·{" "}
+                    {r.u.lastLoginAt
+                      ? `login ${formatTanggalWaktu(new Date(r.u.lastLoginAt))}`
+                      : "belum pernah masuk"}
+                  </p>
+                </KartuBaris>
+              ))}
+            </div>
+          </>
+        )}
+      </section>
+
+      <Laci
+        buka={dibuka !== null && canManage}
+        onTutup={() => setIdBuka(null)}
+        judul={dibuka?.fullName ?? "Pengguna"}
+        keterangan={dibuka ? `@${dibuka.username} · ${ROLE_LABEL[dibuka.role]}` : undefined}
+      >
+        {dibuka ? (
+          <PanelKelola user={dibuka} locations={locations} allowedRoles={allowedRoles} />
+        ) : null}
+      </Laci>
+
+      <Laci
+        buka={buatBaru}
+        onTutup={() => setBuatBaru(false)}
+        judul="Pengguna baru"
+        keterangan="Password awal wajib diganti sendiri saat login pertama."
+      >
+        <UserForm locations={locations} roles={allowedRoles} />
+      </Laci>
+    </div>
+  );
+}
+
+function TombolSaring({ onKlik, label }: { onKlik: () => void; label: string }) {
+  return (
+    <Button size="sm" variant="secondary" onClick={onKlik}>
+      {label}
+    </Button>
+  );
+}
+
+function Lencana({ u, masalah }: { u: UserRow; masalah: MasalahAkun[] }) {
+  return (
+    <>
+      {u.akar ? (
+        <span title="Ditetapkan lewat SUPER_ADMIN_UTAMA. Akun ini tidak bisa dinonaktifkan, diturunkan, atau direset dari layar mana pun — ubah variabel lingkungannya lebih dulu.">
+          <Badge tone="success" label="Super admin utama" />
+        </span>
+      ) : null}
+      {masalah.map((m) => (
+        <Badge
+          key={m}
+          tone={m === "nonaktif" || m === "tanpa_penugasan" ? "danger" : "warning"}
+          label={LABEL_MASALAH[m]}
+        />
+      ))}
+    </>
+  );
+}
+
+/** Sebut dua lokasi lalu "+N lagi" — daftar penuh membuat barisnya setinggi paragraf. */
+function ringkasLokasi(assignments: { name: string }[], batas = 2): string {
+  if (assignments.length === 0) return "Tanpa penugasan";
+  const nama = assignments.map((a) => a.name);
+  if (nama.length <= batas) return nama.join(", ");
+  return `${nama.slice(0, batas).join(", ")} +${nama.length - batas} lagi`;
+}
+
+/* ── Isi laci ────────────────────────────────────────────────────────────── */
+
+function Bagian({ judul, keterangan, children }: { judul: string; keterangan?: string; children: React.ReactNode }) {
+  return (
+    <section className="border-t border-border pt-3 first:border-t-0 first:pt-0">
+      <p className="text-[13px] font-semibold text-ink">{judul}</p>
+      {keterangan ? <p className="mt-0.5 mb-2 text-[11px] text-ink-muted">{keterangan}</p> : <div className="mb-2" />}
+      {children}
+    </section>
+  );
+}
+
+function PanelKelola({
+  user,
+  locations,
+  allowedRoles,
+}: {
+  user: UserRow;
+  locations: LocationOption[];
+  allowedRoles: UserRole[];
+}) {
+  return (
+    <div className="space-y-4">
+      <Bagian judul="Identitas" keterangan="Nama, email, dan nomor yang dipakai MARLIN untuk menghubunginya.">
+        <EditProfile user={user} />
+      </Bagian>
+
+      {allowedRoles.length > 0 ? (
+        <Bagian
+          judul="Peran"
+          keterangan="Peran menentukan APA yang boleh dilakukan; penugasan menentukan DI MANA. Sesi lama akun ini dicabut, jadi ia harus masuk ulang."
+        >
+          <RoleEditor user={user} allowedRoles={allowedRoles} />
+        </Bagian>
+      ) : null}
+
+      <Bagian judul="Penugasan lokasi" keterangan="Lokasi yang boleh dilihat dan dilaporkan akun ini.">
+        <AssignmentEditor user={user} locations={locations} />
+      </Bagian>
+
+      <Bagian judul="Password" keterangan="Password baru selalu wajib diganti sendiri saat login berikutnya.">
+        <ResetPassword userId={user.id} />
+      </Bagian>
+
+      <Bagian judul="Status akun" keterangan="Akun nonaktif tidak bisa masuk; datanya tetap utuh.">
+        <TombolAktif user={user} />
+      </Bagian>
+    </div>
+  );
+}
+
 export function UserForm({ locations, roles }: { locations: LocationOption[]; roles: UserRole[] }) {
   const [state, action, pending] = useActionState<UserActionState, FormData>(createUser, undefined);
+  if (roles.length === 0) {
+    return <p className="text-sm text-ink-muted">Anda tidak berwenang membuat pengguna.</p>;
+  }
   return (
     <form action={action} className="space-y-3">
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
@@ -170,85 +540,79 @@ export function UserForm({ locations, roles }: { locations: LocationOption[]; ro
   );
 }
 
-function AssignmentEditor({ user, locations, onClose }: { user: UserRow; locations: LocationOption[]; onClose: () => void }) {
+function AssignmentEditor({ user, locations }: { user: UserRow; locations: LocationOption[] }) {
   const [state, action, pending] = useActionState<UserActionState, FormData>(setAssignments, undefined);
   return (
-    <form action={action} className="mt-2 space-y-2 rounded-md border border-border bg-surface-muted p-3">
+    <form action={action} className="space-y-2">
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
       <input type="hidden" name="userId" value={user.id} />
       <LocationPicker
         locations={locations}
-        columns
         isChecked={(id) => user.assignments.some((a) => a.id === id)}
       />
-      <div className="flex gap-2">
-        <Button size="sm" type="submit" loading={pending}>Simpan penugasan</Button>
-        <Button size="sm" type="button" variant="ghost" onClick={onClose}>Tutup</Button>
-      </div>
+      <Button size="sm" type="submit" loading={pending}>Simpan penugasan</Button>
     </form>
   );
 }
 
-function EditProfile({ user, onClose }: { user: UserRow; onClose: () => void }) {
+function EditProfile({ user }: { user: UserRow }) {
   const [state, action, pending] = useActionState<UserActionState, FormData>(updateUserProfile, undefined);
   return (
-    <form action={action} className="mt-2 flex flex-wrap items-end gap-2 rounded-md border border-border bg-surface-muted p-3">
-      {state?.error ? <div className="w-full"><Banner tone="error" title={state.error} /></div> : null}
-      {state?.success ? <div className="w-full"><Banner tone="success" title={state.success} /></div> : null}
+    <form action={action} className="space-y-2">
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      {state?.success ? <Banner tone="success" title={state.success} /> : null}
       <input type="hidden" name="userId" value={user.id} />
-      <div>
-        <Label htmlFor={`ep-name-${user.id}`}>Nama lengkap</Label>
-        <Input id={`ep-name-${user.id}`} name="fullName" defaultValue={user.fullName} minLength={2} maxLength={120} required className="w-56" />
+      <div className="grid gap-2 sm:grid-cols-2">
+        <div>
+          <Label htmlFor={`ep-name-${user.id}`}>Nama lengkap</Label>
+          <Input id={`ep-name-${user.id}`} name="fullName" defaultValue={user.fullName} minLength={2} maxLength={120} required />
+        </div>
+        <div>
+          <Label htmlFor={`ep-email-${user.id}`}>Email (opsional)</Label>
+          <Input id={`ep-email-${user.id}`} name="email" type="email" defaultValue={user.email ?? ""} />
+        </div>
+        <div>
+          <Label htmlFor={`ep-wa-${user.id}`}>Nomor WhatsApp</Label>
+          <Input
+            id={`ep-wa-${user.id}`}
+            name="waNumber"
+            inputMode="tel"
+            defaultValue={nomorWaUntukTampil(user.waNumber)}
+            placeholder="0812xxxxxxx"
+          />
+        </div>
+        <div>
+          <Label htmlFor={`ep-lid-${user.id}`}>ID WhatsApp (@lid)</Label>
+          <Input
+            id={`ep-lid-${user.id}`}
+            name="waLid"
+            inputMode="numeric"
+            defaultValue={user.waLid ?? ""}
+            placeholder="143026840146095"
+          />
+          <p className="mt-1 text-[11px] text-ink-faint">
+            Dari Sistem → WhatsApp, baris log berakhiran <code>@lid</code>.
+          </p>
+        </div>
       </div>
-      <div>
-        <Label htmlFor={`ep-email-${user.id}`}>Email (opsional)</Label>
-        <Input id={`ep-email-${user.id}`} name="email" type="email" defaultValue={user.email ?? ""} className="w-56" />
-      </div>
-      <div>
-        <Label htmlFor={`ep-wa-${user.id}`}>Nomor WhatsApp</Label>
-        <Input
-          id={`ep-wa-${user.id}`}
-          name="waNumber"
-          inputMode="tel"
-          defaultValue={nomorWaUntukTampil(user.waNumber)}
-          placeholder="0812xxxxxxx"
-          className="w-56"
-        />
-      </div>
-      <div>
-        <Label htmlFor={`ep-lid-${user.id}`}>ID WhatsApp (@lid)</Label>
-        <Input
-          id={`ep-lid-${user.id}`}
-          name="waLid"
-          inputMode="numeric"
-          defaultValue={user.waLid ?? ""}
-          placeholder="143026840146095"
-          className="w-56"
-        />
-        <p className="mt-1 text-[11px] text-ink-faint">
-          Dari Sistem → WhatsApp, baris log berakhiran <code>@lid</code>.
-        </p>
-      </div>
-      <Button size="sm" type="submit" loading={pending}>Simpan</Button>
-      <Button size="sm" type="button" variant="ghost" onClick={onClose}>Tutup</Button>
+      <Button size="sm" type="submit" loading={pending}>Simpan identitas</Button>
     </form>
   );
 }
 
-function ResetPassword({ userId, onClose }: { userId: string; onClose: () => void }) {
+function ResetPassword({ userId }: { userId: string }) {
   const [state, action, pending] = useActionState<UserActionState, FormData>(resetUserPassword, undefined);
   return (
-    <form action={action} className="mt-2 flex flex-wrap items-end gap-2 rounded-md border border-border bg-surface-muted p-3">
-      {state?.error ? <Banner tone="error" title={state.error} /> : null}
-      {state?.success ? <Banner tone="success" title={state.success} /> : null}
+    <form action={action} className="flex flex-wrap items-end gap-2">
+      {state?.error ? <div className="w-full"><Banner tone="error" title={state.error} /></div> : null}
+      {state?.success ? <div className="w-full"><Banner tone="success" title={state.success} /></div> : null}
       <input type="hidden" name="userId" value={userId} />
-      <div>
-        <Label htmlFor={`rp-${userId}`}>Password baru</Label>
-        <Input id={`rp-${userId}`} name="password" type="text" minLength={8} required className="w-48" />
+      <div className="min-w-0 flex-1">
+        <Label htmlFor={`rp-${userId}`}>Password baru (min 8)</Label>
+        <Input id={`rp-${userId}`} name="password" type="text" minLength={8} required />
       </div>
       <Button size="sm" type="submit" loading={pending}>Reset</Button>
-      <Button size="sm" type="button" variant="ghost" onClick={onClose}>Tutup</Button>
     </form>
   );
 }
@@ -259,25 +623,17 @@ function ResetPassword({ userId, onClose }: { userId: string; onClose: () => voi
  * "ganti peran" yang lebih longgar daripada "buat user". Server tetap
  * memeriksa ulang; daftar ini hanya supaya yang tidak mungkin tidak ditawarkan.
  */
-function RoleEditor({
-  user,
-  allowedRoles,
-  onClose,
-}: {
-  user: UserRow;
-  allowedRoles: UserRole[];
-  onClose: () => void;
-}) {
+function RoleEditor({ user, allowedRoles }: { user: UserRow; allowedRoles: UserRole[] }) {
   const [state, action, pending] = useActionState<UserActionState, FormData>(setUserRole, undefined);
   return (
-    <form action={action} className="mt-2 space-y-2 rounded-md border border-border bg-surface-muted p-3">
+    <form action={action} className="space-y-2">
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
       <input type="hidden" name="userId" value={user.id} />
       <div className="flex flex-wrap items-end gap-2">
-        <div>
+        <div className="min-w-0 flex-1">
           <Label htmlFor={`role-${user.id}`}>Peran baru</Label>
-          <Combobox id={`role-${user.id}`} name="role" defaultValue={user.role} className="w-56">
+          <Combobox id={`role-${user.id}`} name="role" defaultValue={user.role}>
             {allowedRoles.map((r) => (
               <option key={r} value={r}>
                 {ROLE_LABEL[r]}
@@ -288,141 +644,34 @@ function RoleEditor({
         <Button size="sm" type="submit" loading={pending}>
           Ganti peran
         </Button>
-        <Button size="sm" type="button" variant="ghost" onClick={onClose}>
-          Tutup
-        </Button>
       </div>
-      <p className="text-xs text-ink-muted">
-        Peran menentukan APA yang boleh dilakukan; penugasan lokasi menentukan DI MANA — penugasan
-        tidak ikut berubah. Sesi lama akun ini akan dicabut, jadi ia harus masuk ulang.
-      </p>
     </form>
   );
 }
 
-export function UsersTable({
-  users,
-  locations,
-  canManage,
-  actorRole,
-}: {
-  users: UserRow[];
-  locations: LocationOption[];
-  canManage: boolean;
-  actorRole: UserRole;
-}) {
-  const [open, setOpen] = useState<{ id: string; panel: "assign" | "reset" | "profile" | "role" } | null>(null);
-  const allowedRoles = useMemo(() => creatableRoles(actorRole), [actorRole]);
-  // Hasil "Nonaktifkan/Aktifkan" per BARIS. Aksi ini tidak punya formulir
-  // sendiri, jadi tanpa ini penolakannya tidak punya tempat untuk muncul —
-  // dan sebelumnya memang tidak muncul sama sekali: ia jatuh ke error boundary
-  // sebagai layar putih (laporan produksi 2026-08-15).
-  const [aktifMsg, setAktifMsg] = useState<{ id: string; tone: "success" | "error"; text: string } | null>(
-    null,
-  );
-  if (users.length === 0) {
-    return <p className="text-sm text-ink-muted">Belum ada pengguna.</p>;
-  }
+/**
+ * Nonaktifkan/Aktifkan. Hasilnya ditampilkan DI SINI — aksi ini tidak punya
+ * formulir sendiri, jadi tanpa tempat ini penolakannya tidak punya tempat untuk
+ * muncul, dan sebelumnya memang jatuh ke error boundary sebagai layar putih
+ * (laporan produksi 2026-08-15).
+ */
+function TombolAktif({ user }: { user: UserRow }) {
+  const [pesan, setPesan] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   return (
-    <div className="divide-y divide-border">
-      {users.map((u) => (
-        <div key={u.id} className="py-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            {/* min-w-0: tanpa ini blok identitas memakai lebar max-content —
-                "Lokasi: A, B, C…" + "Login terakhir …" berjejer jadi 470px dan
-                MELEBARKAN HALAMAN di 375px, walau baris di dalamnya sudah
-                flex-wrap. Wrap baru bekerja setelah induknya boleh menyempit.
-                DECISIONS 217. */}
-            <div className="min-w-0">
-              <div className="font-medium text-ink">
-                {u.fullName} <span className="ml-1 text-sm text-ink-muted">@{u.username}</span>
-              </div>
-              <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
-                <StatusPill tone="info" label={ROLE_LABEL[u.role]} />
-                {u.akar && (
-                  <span title="Ditetapkan lewat SUPER_ADMIN_UTAMA. Akun ini tidak bisa dinonaktifkan, diturunkan, atau direset dari layar mana pun — ubah variabel lingkungannya lebih dulu.">
-                    <StatusPill tone="success" label="Super admin utama" />
-                  </span>
-                )}
-                {!u.isActive && <StatusPill tone="danger" label="Nonaktif" />}
-                {u.mustChangePassword && <StatusPill tone="warning" label="Wajib ganti password" />}
-                <span>
-                  {u.assignments.length > 0
-                    ? `Lokasi: ${u.assignments.map((a) => a.name).join(", ")}`
-                    : "Tanpa penugasan"}
-                </span>
-                <span>Dibuat oleh: {u.createdByName ?? "—"}</span>
-                {u.lastLoginAt && <span>Login terakhir {formatTanggalWaktu(new Date(u.lastLoginAt))}</span>}
-              </div>
-            </div>
-            {canManage && (
-              // flex-wrap: lima tombol aksi berjejer = 527px, jauh di atas
-              // layar 375px. Tanpa wrap, barisnya melebarkan halaman.
-              <div className="flex flex-wrap gap-1.5">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setOpen(open?.id === u.id && open.panel === "profile" ? null : { id: u.id, panel: "profile" })}
-                >
-                  Edit nama
-                </Button>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setOpen(open?.id === u.id && open.panel === "assign" ? null : { id: u.id, panel: "assign" })}
-                >
-                  Penugasan
-                </Button>
-                {allowedRoles.length > 0 && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => setOpen(open?.id === u.id && open.panel === "role" ? null : { id: u.id, panel: "role" })}
-                  >
-                    Ganti peran
-                  </Button>
-                )}
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => setOpen(open?.id === u.id && open.panel === "reset" ? null : { id: u.id, panel: "reset" })}
-                >
-                  Reset password
-                </Button>
-                <form
-                  action={async () => {
-                    setAktifMsg(null);
-                    const r = await setUserActive(u.id, !u.isActive);
-                    if (r?.error) setAktifMsg({ id: u.id, tone: "error", text: r.error });
-                    else if (r?.success) setAktifMsg({ id: u.id, tone: "success", text: r.success });
-                  }}
-                >
-                  <Button size="sm" variant={u.isActive ? "danger" : "primary"} type="submit">
-                    {u.isActive ? "Nonaktifkan" : "Aktifkan"}
-                  </Button>
-                </form>
-              </div>
-            )}
-          </div>
-          {aktifMsg?.id === u.id && (
-            <div className="mt-2">
-              <Banner tone={aktifMsg.tone} title={aktifMsg.text} />
-            </div>
-          )}
-          {canManage && open?.id === u.id && open.panel === "profile" && (
-            <EditProfile user={u} onClose={() => setOpen(null)} />
-          )}
-          {canManage && open?.id === u.id && open.panel === "assign" && (
-            <AssignmentEditor user={u} locations={locations} onClose={() => setOpen(null)} />
-          )}
-          {canManage && open?.id === u.id && open.panel === "role" && (
-            <RoleEditor user={u} allowedRoles={allowedRoles} onClose={() => setOpen(null)} />
-          )}
-          {canManage && open?.id === u.id && open.panel === "reset" && (
-            <ResetPassword userId={u.id} onClose={() => setOpen(null)} />
-          )}
-        </div>
-      ))}
+    <div className="space-y-2">
+      {pesan ? <Banner tone={pesan.tone} title={pesan.text} /> : null}
+      <form
+        action={async () => {
+          setPesan(null);
+          const r = await setUserActive(user.id, !user.isActive);
+          if (r?.error) setPesan({ tone: "error", text: r.error });
+          else if (r?.success) setPesan({ tone: "success", text: r.success });
+        }}
+      >
+        <Button size="sm" variant={user.isActive ? "danger" : "primary"} type="submit">
+          {user.isActive ? "Nonaktifkan akun" : "Aktifkan akun"}
+        </Button>
+      </form>
     </div>
   );
 }

@@ -346,3 +346,75 @@ export async function dataLaporan(
     catatanBatas: catatanBatas(dipakai.length, lokasi.length, "lokasi"),
   };
 }
+
+/* ------------------------------------------------------------------ */
+/* Laporan MINGGUAN                                                    */
+/* ------------------------------------------------------------------ */
+
+export type BarisMingguan = {
+  lokasi: string;
+  /** null = lokasi belum punya kurva-S; rencana yang tidak ada bukan nol. */
+  rencanaPct: number | null;
+  realisasiPct: number;
+  deviasiPct: number | null;
+  /** Berapa hari dalam pekan itu yang punya laporan. */
+  hariBerlaporan: number;
+  /** Penyebutnya: hari dalam pekan yang sudah lewat. */
+  totalHari: number;
+};
+
+export type HasilMingguan = { baris: BarisMingguan[]; catatanBatas: string | null };
+
+/**
+ * Rekap MINGGUAN per lokasi (DECISIONS 358).
+ *
+ * Pertanyaan yang berbeda dari `laporan` harian: yang ini menanyakan posisi
+ * pekerjaan pada akhir sebuah pekan, bukan isi laporan satu hari.
+ *
+ * Angkanya dihitung `asOf` hari TERAKHIR pekan itu — bukan hari ini. Tanpa itu,
+ * "laporan mingguan minggu lalu" akan berjudul pekan lalu tapi berisi realisasi
+ * hari ini: jawaban benar untuk pekan yang salah, lewat saluran yang
+ * di-screenshot dan diteruskan (alasan yang sama dengan DECISIONS 357).
+ */
+export async function dataMingguan(
+  lokasi: LokasiKatalog[],
+  mulai: string,
+  akhir: string,
+): Promise<HasilMingguan> {
+  if (lokasi.length === 0) return { baris: [], catatanBatas: null };
+  const dipakai = lokasi.slice(0, BATAS_BARIS);
+  const ids = dipakai.map((l) => l.id);
+  const dMulai = parseDateKey(mulai);
+  const dAkhir = parseDateKey(akhir);
+  if (!dMulai || !dAkhir) return { baris: [], catatanBatas: null };
+
+  const [progress, laporan] = await Promise.all([
+    getLocationsProgress(ids, { asOf: dAkhir }),
+    db.dailyReport.groupBy({
+      by: ["locationId"],
+      where: { locationId: { in: ids }, reportDate: { gte: dMulai, lte: dAkhir } },
+      _count: { _all: true },
+    }),
+  ]);
+  const jumlahById = new Map(laporan.map((r) => [r.locationId, r._count._all]));
+  const totalHari =
+    Math.floor((dAkhir.getTime() - dMulai.getTime()) / 86_400_000) + 1;
+
+  return {
+    baris: dipakai.map((l) => {
+      const p = progress.get(l.id);
+      // `totalWeeks === 0` = belum ada baseline sama sekali. Rencana yang tidak
+      // ada BUKAN nol: nol menyatakan rencananya memang nol pekan itu.
+      const adaKurva = (p?.totalWeeks ?? 0) > 0;
+      return {
+        lokasi: l.nama,
+        rencanaPct: adaKurva ? (p?.planPct ?? 0) : null,
+        realisasiPct: p?.realizedPct ?? 0,
+        deviasiPct: adaKurva ? (p?.deviationPct ?? 0) : null,
+        hariBerlaporan: jumlahById.get(l.id) ?? 0,
+        totalHari,
+      };
+    }),
+    catatanBatas: catatanBatas(dipakai.length, lokasi.length, "lokasi"),
+  };
+}

@@ -36,7 +36,10 @@ export default async function CetakRencanaPage({
       <PrintToolbar
         backHref={safeBackPath(
           typeof sp[PRINT_BACK_PARAM] === "string" ? sp[PRINT_BACK_PARAM] : undefined,
-          `/lokasi/${slug}/rab?minggu=${minggu}`,
+          // `bagian=rencana` WAJIB ikut: sejak halaman RAB bersub-tab
+          // (DECISIONS 362), tanpa itu tombol Kembali mendarat di pohon RAB —
+          // bukan di rencana minggu yang barusan dicetak.
+          `/lokasi/${slug}/rab?bagian=rencana&minggu=${minggu}`,
         )}
       />
       <style>{`@media print { @page { size: A4 portrait; margin: 12mm; } }`}</style>

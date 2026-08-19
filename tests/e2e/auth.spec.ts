@@ -73,6 +73,16 @@ test.describe("otorisasi per peran", () => {
   test("program director bisa buka Pengguna", async ({ page }) => {
     await login(page, "hery");
     await page.goto("/pengguna");
-    await expect(page.getByText("Daftar pengguna").first()).toBeVisible();
+    // Patokannya BUKAN judul kartu. Judul bisa berubah saat tata letak diganti
+    // (dan memang berubah di DECISIONS 359), sementara yang sebenarnya diuji
+    // di sini adalah izinnya: halamannya terbuka DAN daftarnya benar-benar
+    // berisi. Ringkasan "Total akun" + satu baris akun nyata membuktikan
+    // keduanya; menunggu judul hanya membuktikan halamannya tidak 404.
+    await expect(page.getByText("Total akun").first()).toBeVisible();
+    // `filter({ visible: true })`, bukan `.first()`. Daftarnya dirender dua
+    // kali — tabel untuk layar lebar, kartu untuk ponsel — dan salah satunya
+    // SELALU tersembunyi. `.first()` di ponsel menunjuk salinan tabel yang
+    // memang tak terlihat, lalu gagal dengan alasan yang menyesatkan.
+    await expect(page.getByText("@hery").filter({ visible: true }).first()).toBeVisible();
   });
 });

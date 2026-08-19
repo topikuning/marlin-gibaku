@@ -118,3 +118,23 @@ export function nomorWaUntukTampil(raw: string | null | undefined): string {
 export function byName<T extends { name: string }>(a: T, b: T): number {
   return a.name.localeCompare(b.name, "id", { sensitivity: "base" });
 }
+
+/**
+ * Tujuan yang dipakai LEBIH DARI SATU kontak dalam daftar yang sama
+ * (DECISIONS 359).
+ *
+ * Dua entri dengan tujuan yang sama berarti satu laporan terkirim dua kali ke
+ * nomor/grup itu — dan yang menerima menyimpulkan sistemnya berulah. Karena
+ * yang menentukan tujuan adalah alamat WAHA-nya, pembandingnya alamat itu,
+ * bukan namanya: "Direksi" dan "Pak Dirut" yang menunjuk nomor sama tetap satu
+ * tujuan yang sama.
+ */
+export function tujuanGanda(items: { chatId: string }[]): Set<string> {
+  const hitung = new Map<string, number>();
+  for (const i of items) {
+    const k = i.chatId.trim().toLowerCase();
+    if (!k) continue;
+    hitung.set(k, (hitung.get(k) ?? 0) + 1);
+  }
+  return new Set([...hitung].filter(([, n]) => n > 1).map(([k]) => k));
+}

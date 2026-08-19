@@ -35,6 +35,7 @@ export {
   type PageHeaderProps,
 } from "./page-header";
 export { LinkTabs, type LinkTabItem } from "./tabs";
+export { SubTabs, type SubTabItem } from "./sub-tabs";
 export {
   ProgressBar,
   type ProgressBarProps,

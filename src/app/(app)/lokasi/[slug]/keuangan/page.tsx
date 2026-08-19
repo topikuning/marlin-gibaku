@@ -159,7 +159,7 @@ export default async function LokasiKeuanganPage({ params }: { params: Promise<{
         breadcrumb={[{ label: "Keuangan", href: "/keuangan" }, { label: location.name }]}
       />
 
-      <section className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6" aria-label="Ringkasan keuangan lokasi">
+      <section className="grid grid-cols-2 gap-2 lg:grid-cols-3 xl:grid-cols-6" aria-label="Ringkasan keuangan lokasi">
         <KpiCard label="Budget" value={formatRupiahShort(budgetTotal)} />
         <KpiCard label="Serapan Biaya" value={formatRupiahShort(expenseApproved)} sub={formatPct(serapanBiayaPct)} />
         <KpiCard label="Komitmen terbuka" value={formatRupiahShort(s?.commitmentOpen ?? 0n)} />

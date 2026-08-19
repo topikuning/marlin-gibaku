@@ -103,7 +103,7 @@ export default async function LokasiRingkasanPage({
         />
       ) : null}
 
-      <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <section className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <KpiCard label="Nilai RAB aktif" value={formatRupiahShort(progress.grandTotal)} sub="pra-PPN" />
         <KpiCard
           label="RAB + PPN"

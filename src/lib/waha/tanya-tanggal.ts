@@ -204,6 +204,38 @@ export function bacaPeriode(
   return { mulai: key, akhir: key, satuHari: true, label: formatKey(key), catatan };
 }
 
+/**
+ * Pekan (Senin–Minggu) yang MEMUAT akhir periode ini — DECISIONS 358.
+ *
+ * Dipakai niat "laporan mingguan", yang jawabannya selalu satu pekan penuh
+ * berapa pun bentuk periode yang ditulis penanya:
+ *
+ *   "laporan mingguan"              → pekan berjalan
+ *   "laporan mingguan minggu lalu"  → pekan lalu (utuh Senin–Minggu)
+ *   "laporan mingguan 17 agustus"   → pekan yang memuat 17 Agustus
+ *
+ * Pekan BERJALAN dipotong di hari ini: menghitung hari yang belum terjadi ke
+ * dalam penyebut "berapa hari sudah dilaporkan" membuat angkanya bohong.
+ */
+export function pekanDari(p: PeriodeTerbaca, hariIniKey: TanggalKey): PeriodeTerbaca {
+  const t = keTitik(p.akhir) ?? keTitik(hariIniKey);
+  if (t == null) return p;
+  const acuan = keKey(t);
+  const senin = geser(acuan, -offsetSenin(acuan));
+  const minggu = geser(senin, 6);
+  const akhir = minggu > hariIniKey ? hariIniKey : minggu;
+  const berjalan = akhir !== minggu;
+  return {
+    mulai: senin,
+    akhir,
+    satuHari: senin === akhir,
+    label: `pekan ${formatKey(senin)} – ${formatKey(minggu)}`,
+    catatan: berjalan
+      ? `Pekan berjalan — baru dihitung sampai hari ini (${formatKey(akhir)}).`
+      : null,
+  };
+}
+
 /** Rentang dijadikan daftar tanggal — dibatasi supaya tidak meledak. */
 export function daftarTanggal(p: PeriodeTerbaca, batas = 40): TanggalKey[] {
   const a = keTitik(p.mulai);

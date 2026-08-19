@@ -16735,3 +16735,545 @@ Uji gigi: `asOf` dicabut → **2 integrasi merah**; minggu berjalan memakai akhi
 minggunya → 2 unit merah; rentang digeser satu hari → 3 unit + 1 integrasi
 merah; minggu depan tidak lagi ditolak → 1 integrasi merah. Dipulihkan → 11 & 21
 hijau.
+
+---
+
+## 358 — "Laporan mingguan" dijawab laporan harian, dan salah label (2026-08-18)
+
+Keluhan user 2026-08-18 dengan tangkapan layar percakapan WhatsApp:
+
+> *"gak jelas apa yang kuminta, sistem kasih apa"*
+
+Ia mengetik **"laporan mingguan kemantren, minggu kemarin"** dan menerima kotak
+berjudul **"Laporan harian — minggu lalu"** yang isinya SATU hari. Lalu **"aku
+minta laporan mingguan"** → lagi-lagi *"Laporan harian — minggu ini"*.
+
+Dua cacat berbeda, dan yang kedua saya buat sendiri di DECISIONS 356.
+
+### Cacat 1 — niat "laporan mingguan" memang tidak ada
+
+Kosakata niat hanya punya `laporan` (isi laporan harian SATU tanggal). AI tidak
+punya pilihan lain, jadi ia memetakan "laporan mingguan" ke sana. Sistemnya
+menjawab pertanyaan yang berbeda dari yang ditanyakan — persis yang dilarang
+doktrin "mengaku, bukan menebak", hanya lewat pintu yang belum dijaga: bukan
+menebak JAWABAN, tapi menebak PERTANYAAN.
+
+Ditutup dengan niat `laporan_mingguan`: rekap sepekan per lokasi — realisasi vs
+rencana, deviasi, dan berapa hari dari pekan itu yang sudah dilaporkan.
+
+Angkanya dihitung `asOf` hari TERAKHIR pekan itu, bukan hari ini — alasan yang
+sama persis dengan DECISIONS 357. Lokasi tanpa kurva-S tidak dicetak "rencana
+0%": rencana yang belum ada bukan rencana nol, dan di grup ia terbaca sebagai
+prestasi.
+
+### Cacat 2 — judul meminjam label periode yang tidak dijawab
+
+Laporan harian SELALU satu tanggal. Versi DECISIONS 356 memakai `periode.akhir`
+sebagai tanggalnya (benar) tetapi `periode.label` sebagai judulnya (salah), jadi
+"minggu lalu" tercetak di atas isi satu hari.
+
+Sekarang judulnya TANGGAL yang benar-benar ditampilkan, dan bila penanya menyebut
+rentang, balasannya mengaku: *"Laporan harian selalu satu tanggal. Anda menyebut
+minggu lalu, jadi saya ambil hari terakhirnya. Untuk rekap sepekan, tanya
+'laporan mingguan'."* — pengakuan yang sekalian mengajarkan jalan yang benar.
+
+Catatan itu hanya muncul saat periodenya memang rentang; peringatan yang muncul
+ketika tidak dibutuhkan melatih orang mengabaikannya.
+
+### Label pekan menyebut TANGGAL, bukan kata relatif
+
+`pekan 10 Agustus 2026 – 16 Agustus 2026`, bukan "minggu lalu". Balasan WhatsApp
+dibaca lagi berhari-hari kemudian — sering sesudah diteruskan ke PPK — dan
+"minggu lalu" berarti berbeda tergantung kapan dibaca.
+
+Pekan BERJALAN dipotong di hari ini dan pemotongannya dikatakan: menghitung hari
+yang belum terjadi ke dalam penyebut "berapa hari sudah dilaporkan" membuat
+angkanya bohong.
+
+### Daftar bantuan ikut dibetulkan
+
+`bantuan` kini membedakan keduanya secara eksplisit — "Laporan harian: isi
+laporan SATU tanggal" vs "Laporan mingguan: rekap SEPEKAN". Kalau daftarnya
+tidak membedakan, orang akan terus meminta yang salah, dan itu persis cara
+keluhan ini bermula.
+
+### Uji gigi membongkar uji saya sendiri (lagi)
+
+Percobaan pertama uji "judulnya tanggal, bukan minggu lalu" memakai regex yang
+tidak menghitung tanda `*` penutup judul, sehingga ia tetap HIJAU ketika label
+rentang dikembalikan. Ujinya kini memeriksa baris subjudul secara langsung
+(`_3 Juli 2026_`), dan pelanggaran yang sama membuatnya merah.
+
+**Penjaga.** `tests/unit/waha-tanya-tanggal.test.ts` +6 (pekan dari satu hari,
+dari "kemarin", pekan berjalan dipotong, pekan lalu utuh, label bertanggal,
+tidak pernah melewati hari ini). `tests/integration/waha-tanya-jawab.test.ts` +6,
+menempuh perangkai utuh dengan skenario persis dari tangkapan layar.
+
+Uji gigi: mingguan memakai satu hari alih-alih pekan → 2 integrasi merah; pekan
+berjalan tidak dipotong → 2 unit + 1 integrasi merah; judul harian kembali
+meminjam label rentang → 1 integrasi merah. Dipulihkan → 23 & 56 hijau.
+
+---
+
+## 359 — Master data memakai rancangan baru: ringkasan, temuan, laci (2026-08-18)
+
+**Permintaan user** (mengirim `preview2.html`): *"abaikan sidebarnya, adopsi
+desain ini untuk master data"*.
+
+Diadopsi untuk ketiga tabnya — Perusahaan, Kontak, Pengguna — dengan susunan
+yang sama di semuanya: **ringkasan angka → bilah "perlu perhatian" → daftar
+bersaringan → laci untuk mengubah**. Menyeragamkan ketiganya bukan soal rapi:
+master data jarang dibuka, jadi setiap tab yang berperilaku berbeda harus
+dipelajari ulang dari nol setiap kali.
+
+### Yang TIDAK ikut diadopsi, dan sengaja
+
+- **Sidebar-nya sendiri** — diminta diabaikan; navigasi master data sudah ada
+  sebagai tab, dan nav kedua berarti dua tempat yang harus terus setuju.
+- **`<select>` native** di toolbar → `Combobox` (aturan 094/115/174).
+- **Warna hex mentah** → token tema, supaya mode gelap & kontras ikut benar.
+
+### Angka apa pun disertai APA yang dihitung
+
+Rancangannya menampilkan "45%" per perusahaan. Persentase tanpa daftar isian
+yang kurang membuat orang menebak apa yang harus dilengkapi, jadi
+`kelengkapanVendor()` mengembalikan `kurang` — nama-nama isian yang kosong — dan
+persentasenya **diturunkan dari daftar itu**. Keduanya karena itu tidak bisa
+berselisih: mustahil menulis "100%" di samping daftar yang masih berisi.
+
+Hal yang sama berlaku untuk hitungan di bilah atas: `12 belum lengkap` selalu
+disertai penyebutnya (`dari 19`), karena dua belas dari tiga belas dan dua belas
+dari dua ratus menuntut tindakan yang sangat berbeda.
+
+### "Tanpa penugasan" naik dari tulisan abu-abu jadi temuan
+
+Di daftar pengguna lama, "Tanpa penugasan" berdiri di antara "Dibuat oleh …" dan
+"Login terakhir …" dengan bobot yang sama. Artinya sebenarnya jauh lebih berat:
+akun itu **bisa masuk dan tidak melihat apa pun**. Sekarang ia dihitung, disebut
+di atas, dan bisa disaring.
+
+Aturannya diturunkan DARI aturan akses yang sesungguhnya (`isCrossLocation`),
+bukan dari daftar peran yang disalin ulang — daftar salinan akan terus menuduh
+peran yang suatu saat dipindah ke lintas-lokasi.
+
+Akun **nonaktif hanya dilaporkan "nonaktif"**: ia memang sengaja tidak bisa
+dipakai, jadi menuduhnya "tanpa penugasan" hanya menggelembungkan hitungan
+masalah dengan hal yang tak perlu dikerjakan.
+
+### Tujuan WhatsApp ganda akhirnya terlihat
+
+Dua kontak dengan alamat WA yang sama berarti satu laporan terkirim **dua kali**
+ke penerima yang sama, dan sebelumnya itu hanya ketahuan kalau seseorang
+membandingkan sendiri kolom nomor baris demi baris. `tujuanGanda()`
+membandingkan ALAMAT-nya, bukan namanya: "Direksi" dan "Pak Dirut" yang menunjuk
+nomor sama tetap satu tujuan yang sama.
+
+### Laci, bukan formulir yang membentang di dalam daftar
+
+Formulir yang dibentangkan di tengah daftar mendorong barisnya turun, sehingga
+sesudah menyimpan orang kehilangan tempatnya. Laci membiarkan daftarnya diam.
+Yang disimpan komponennya adalah **ID baris, bukan objeknya** — sesudah aksi
+tersimpan datanya datang baru dari server, dan memegang objek lama membuat laci
+menampilkan data basi persis pada saat orang ingin memastikan simpanannya masuk.
+Efek sampingnya benar juga: sesudah "Gabung", lacinya menutup sendiri karena
+barisnya memang sudah tidak ada.
+
+Panel melayang wajib: Esc menutup, klik di luar menutup, fokus masuk saat dibuka
+dan **kembali ke pemicunya** saat ditutup, latar tidak ikut menggulir.
+
+### Daftar yang tersaring tidak boleh terbaca "data hilang"
+
+Daftar tersaring terlihat persis seperti daftar kosong. Karena itu tombol reset
+muncul KETIKA ada yang menyaring, dan jumlah hasil selalu disebut bersama
+penyebutnya ("Menampilkan 3 dari 19 perusahaan"). Saringan peran hanya
+menawarkan peran yang **benar-benar ada** di daftar — menawarkan yang pasti nihil
+membuat saringannya terasa rusak saat dipilih.
+
+**Penjaga.** `tests/unit/vendor-kelengkapan.test.ts` (8) — termasuk invarian
+persen ⇄ daftar kurang, dan " " bukan isi. `tests/unit/kesehatan-akun.test.ts`
+(9) — termasuk `butuhPenugasan` yang diuji terhadap `isCrossLocation` untuk
+seluruh peran, sehingga ia ikut pindah sendiri kalau aturan aksesnya berubah.
+`tests/unit/contacts-model.test.ts` +4 (`tujuanGanda`).
+
+---
+
+## 360 — Menu berkas: aksi yang berjalan harus terlihat, dan tombolnya mati (2026-08-18)
+
+**Laporan user 2026-08-18:** *"di bagian ini laporan seharusnya aku tinggal
+klik, ini malah banyak klik, lalu saat menu upload ke drive atau kirim ke wa
+diklik, tidak ada penanda sedang proses atau apa … masalah klik berkali-kali
+akhirnya jadi spam di whatsapp terjadi … sepele tapi sangat mengganggu. masalah
+sudah pernah terjadi, terulang lagi."*
+
+Terjadi di menu laporan harian DAN di menu laporan mingguan di atasnya —
+keduanya `MenuBerkas`.
+
+### Penyebabnya bukan aksinya lambat
+
+`MenuBerkas` menutup dirinya begitu sebuah pilihan ditekan. Pilihan itu memang
+punya `loading`, tetapi penandanya **tidak pernah punya tempat untuk terlihat**:
+panelnya sudah tidak ada. `disabled={p.loading}` pada itemnya pun tak berguna
+karena itemnya tidak sedang tampil. Tombol pemicunya sendiri tidak berubah sama
+sekali.
+
+Dari kursi pemakai: klik "Kirim ke WhatsApp" → menu hilang → layar diam beberapa
+detik → klik lagi → **pesan terkirim dua kali**. Itu bukan kesalahan pemakai.
+Tidak ada satu pun tanda bahwa yang pertama sedang berjalan.
+
+### Selagi berjalan, TIDAK ADA yang bisa diklik
+
+Selama ada pilihan yang `loading`, seluruh kendali diganti kepingan
+"Mengirim ke WhatsApp…" berikut pemutarnya — bukan sekadar diredupkan, dan bukan
+hanya itemnya. Ia `aria-busy` + `aria-live="polite"` supaya sampai juga ke
+pembaca layar; penanda yang hanya berupa animasi tidak berarti apa-apa bagi yang
+tidak melihat layar, dan merekalah yang paling mungkin menekan dua kali.
+
+Satu aksi mematikan SELURUH menunya, bukan dirinya sendiri: "Kirim WA" dan
+"Upload Drive" pada berkas yang sama tidak pernah dimaksudkan berjalan
+bersamaan, dan menyisakan satu pintu terbuka hanya memindahkan kiriman gandanya
+ke pintu sebelah.
+
+Kalimat sibuknya adalah kata KERJA yang menyebut apa yang dikerjakan
+("Mengunggah ke Drive…"), bukan "Memproses…" — yang benar tapi tidak memberi
+tahu apa pun.
+
+### Yang menolak sekarang KOMPILERNYA, bukan ingatan orang
+
+Ini bagian terpenting, karena user benar bahwa masalahnya berulang. Selama
+`loading` hanya `boolean` opsional, akan selalu ada pilihan aksi berikutnya yang
+ditulis tanpa penanda sibuk dan tidak ada apa pun yang menghentikannya.
+
+`PilihanBerkas` kini union: `PilihanTautan` (punya `href`, tak punya keadaan
+sibuk) atau `PilihanAksi` (punya `onSelect`, dan **wajib** `loading` +
+`labelSibuk`). Menulis aksi tanpa penanda sibuk sekarang gagal dikompilasi.
+Penjaga yang tidak ikut lelah.
+
+### Satu klik untuk yang dilakukan setiap hari
+
+Keluhan pertama di pesan yang sama: membuka menu lalu memilih "Unduh PDF"
+berarti dua klik untuk hal yang dikerjakan tiap hari. `utama` membuat badan
+tombol langsung mengerjakannya; panah di kanan tetap membuka sisanya. Aksinya
+tetap didaftar juga di dalam menu — kalau hanya ada di badan tombol, tidak ada
+cara menebak apa yang akan terjadi saat ditekan.
+
+**Penjaga.** `tests/unit/menu-berkas.test.tsx` (8): selagi sibuk tidak ada
+`<button>`, `<summary>`, maupun `<a>` tersisa; kalimat sibuk menyebut aksinya;
+`aria-busy` + `aria-live` ada; satu aksi mematikan pilihan lain; `utama` muncul
+SEBELUM panel menunya; alasan mati tetap ditulis. Ditambah penjaga tipe
+`@ts-expect-error` yang membuat `pnpm typecheck` merah bila kewajiban
+`loading`/`labelSibuk` dilonggarkan.
+
+Uji gigi: kepingan sibuk dilucuti → 4 merah; badan tombol satu-klik dihapus →
+1 merah; kewajiban tipe dilonggarkan → `tsc` merah (TS2578, `@ts-expect-error`
+tak terpakai). Dipulihkan → 8 hijau, 1638 unit hijau.
+
+---
+
+## 361 — Kartu KPI diperkecil di primitifnya (2026-08-18)
+
+**Keberatan user 2026-08-18:** *"semua kotak mu yang berisikan informasi total
+perusahaan 19 dst, yang kotak/card itu terlalu besar, kurang compact. itu di
+semua menu. terlihat terlalu besar."*
+
+Betul, dan ongkosnya bukan estetika: baris KPI yang tinggi mendorong DAFTARNYA —
+yang sebenarnya dicari orang — turun ke bawah lipatan, di setiap halaman, setiap
+kali dibuka. KPI itu ringkasan, bukan judul halaman.
+
+Diubah di **primitifnya** (`KpiCard`), bukan per halaman: ada 89 pemakaian di 22
+berkas, dan menyetelnya satu per satu berarti 22 kesempatan untuk berbeda
+sendiri. Padding `px-4 py-3` → `px-3 py-2`; angka `text-2xl` → `text-xl`
+`leading-tight`; label `text-xs` → `text-[11px]`; keterangan `text-[13px]` →
+`text-[11px]`; jarak antar-baris `mt-1` → `mt-0.5`.
+
+Jarak antar-kartu ikut diseragamkan ke `gap-2` pada 17 baris KPI yang sebelumnya
+memakai `gap-3`/`gap-4` — ketidakseragaman itu sendiri yang membuat sebagian
+menu terasa lebih bengkak daripada yang lain. Hanya grid yang anak langsungnya
+`KpiCard` yang disentuh.
+
+### Diukur, bukan dikira-kira
+
+Tinggi kartu diukur di peramban dengan salinan berkelas LAMA disuntikkan
+berdampingan di halaman yang sama, jadi angkanya perbandingan langsung:
+
+| Halaman | 1280px | 375px |
+|---|---|---|
+| Master Perusahaan / Pengguna | 100 → 79 px (−21%) | 100 → 79 px (−21%) |
+| Progress | 100 → 79 px (−21%) | 132 → 79 px (−40%) |
+| Keuangan | 80 → 62 px (−23%) | 112 → 62 px (−45%) |
+
+Penghematan terbesar justru di ponsel: pada lebar sempit, keterangan berukuran
+13px membungkus jadi dua–tiga baris, sehingga kartunya menggelembung persis di
+layar yang paling sedikit ruangnya.
+
+### Uji e2e yang ikut jatuh, dan kenapa patokannya diganti
+
+`auth.spec.ts` menandai "program director bisa buka Pengguna" dengan menunggu
+teks **"Daftar pengguna"** — judul kartu yang hilang saat tata letak master data
+diganti (DECISIONS 359). Yang diuji sebenarnya adalah IZIN-nya, jadi patokannya
+kini ringkasan "Total akun" **dan** satu baris akun nyata (`@hery`): keduanya
+membuktikan halamannya terbuka DAN daftarnya benar-benar berisi, sementara
+menunggu judul hanya membuktikan halamannya tidak 404.
+
+Di ponsel patokan itu sempat gagal dengan alasan menyesatkan: daftarnya dirender
+dua kali — tabel untuk layar lebar, kartu untuk ponsel — dan `.first()` menunjuk
+salinan tabel yang memang tersembunyi. Diperbaiki dengan
+`filter({ visible: true })`.
+
+Catatan: dua kegagalan lain yang muncul saat memeriksa ini di lokal
+(`login admin`, `keluar mengakhiri sesi`) TERNYATA bukan cacat — pembatas laju
+login (5 percobaan gagal per identifier per 15 menit) tersentuh karena spec-nya
+saya jalankan lima kali berturut-turut. Diperiksa langsung ke tabel
+`login_attempts`, bukan disimpulkan.
+
+---
+
+## 362 — Rencana & RAB dipisah SUB-TAB, bukan ditumpuk (2026-08-18)
+
+**Laporan user 2026-08-18:** *"menu RAB dan Rencana, saat ini terlalu panjang
+scroll ke bawah. bahkan ada pengguna yang bilang baru tau kalau ternyata ada
+fitur rencana, karena terlalu ke bawah menunya."*
+
+Itu bukan keluhan estetika. Halaman ini memuat tiga bagian setara — pohon RAB,
+rencana mingguan, riwayat revisi — ditumpuk sebagai tiga kartu, dengan pohon RAB
+di paling atas. Di Kedung Mutih pohon itu berisi **1.657 item**. Dua bagian di
+bawahnya karena itu berada ribuan piksel di bawah lipatan, dan **fitur yang tak
+pernah terlihat sama dengan fitur yang tidak ada**. Menumpuk hanya adil kalau
+yang di atas pendek.
+
+User mengirim rancangan (dibuat di luar, tanpa pengetahuan fitur MARLIN) dan
+memintanya diadopsi *"tanpa harus mengubah fungsi utama dan alur menu rab,
+adendum dan rencana"*. Yang diambil adalah gagasan intinya: **sub-tab lokal di
+dalam satu halaman**. Alur RAB → adendum → rencana, gerbang izin, dan halaman
+adendum tidak disentuh sama sekali.
+
+### Sub-tab berbasis URL, bukan `useState`
+
+Tab yang disimpan di state hilang setiap muat ulang, tidak bisa dikirim ke orang
+lain ("buka rencana minggu 5"), dan membuat tombol Kembali peramban melompati
+halaman alih-alih kembali ke tab sebelumnya. Berbasis query (`?bagian=`),
+ketiganya benar tanpa satu baris JS pun — `SubTabs` adalah server component,
+jadi tidak menambah payload klien.
+
+Sengaja TIDAK melekat, berbeda dari `LinkTabs`: dua bilah melekat bertumpuk
+memakan sepertiga layar ponsel sebelum isinya mulai.
+
+### Yang tidak dirender juga tidak DIAMBIL
+
+Pohon RAB ikut diserialisasi ke klien. Selama ketiganya ditumpuk, ongkos itu
+dibayar bahkan oleh orang yang cuma mau mengisi rencana minggu ini. Sekarang
+kueri node hanya jalan untuk bagian yang memakainya, dan kueri rencana (tiga
+kueri + rekap kurva-S) hanya saat tabnya dibuka. Jumlah item di judul tetap
+disebut lewat `count()`, yang tidak menarik satu baris pun.
+
+### Dua regresi yang LAHIR dari perubahan ini, dan ditutup
+
+1. **Penukar minggu membuang query lain.** Ia menulis ulang tujuannya dari nol
+   (`?minggu=N`) — aman selama `minggu` satu-satunya parameter. Begitu ada
+   `?bagian=`, memilih minggu melempar orang kembali ke pohon RAB, persis saat
+   ia sedang mengisi rencana. Kini memakai `URLSearchParams` di atas query yang
+   ada.
+2. **Tombol Kembali dari formulir cetak rencana** menunjuk `?minggu=N` saja,
+   sehingga mendarat di pohon RAB alih-alih rencana yang barusan dicetak.
+
+### Label pendek di ponsel
+
+Tiga pil berlabel penuh tidak muat di 375px dan yang terakhir terpotong di tepi
+kanan — dan pil yang separuh terlihat adalah persis cara sebuah bagian berhenti
+ditemukan orang. Barisnya memang bisa digeser, tapi menggeser hanya dilakukan
+yang sudah tahu ada sesuatu di sana. Di layar sempit labelnya jadi
+`RAB · Rencana · Revisi`; nama lengkap tetap dibacakan pembaca layar lewat
+`aria-label`, jadi yang dipendekkan hanya yang untuk mata.
+
+### Draft menggantung diumumkan di SEMUA bagian
+
+Selama ada draft revisi, seluruh angka resmi masih memakai revisi aktif. Orang
+yang sedang membaca pohon RAB berhak tahu ada versi lain yang sedang disiapkan,
+jadi bannernya muncul di bagian mana pun, dan sub-tab "Revisi" membawa penanda
+jumlah — supaya yang perlu dikerjakan terlihat TANPA membuka tabnya.
+
+**Penjaga.** `tests/unit/rab-bagian.test.ts` (8): bagian ngawur jatuh ke bagian
+sah, minggu ikut terbawa, `bagian` selalu ditulis walau kebetulan default, nilai
+minggu di-encode. `tests/e2e/rab-sub-tab.spec.ts` (5 × 2 proyek): ketiga bagian
+terlihat tanpa menggulir **dan tidak terpotong ke samping**, halaman tidak lagi
+memuat ketiganya sekaligus, berpindah bagian membawa minggu, mengganti minggu
+tidak melempar keluar dari rencana, bagian ngawur tidak menghasilkan halaman
+kosong.
+
+Uji gigi: ketiga bagian dirender sekaligus → 1 merah (yang tepat); penukar
+minggu dikembalikan ke perilaku lama → 1 merah; fallback `bacaBagian` dilucuti →
+2 unit merah; `minggu` dibuang dari href → 2 unit merah; label pendek dihapus →
+mobile merah dengan pesan "Revisi & Adendum terpotong kanan" sementara desktop
+tetap hijau.
+
+Catatan jujur: percobaan uji gigi pertama menghasilkan 4 merah yang TIDAK berarti
+apa-apa — servernya mati, bukan penjaganya menggigit. Diulang dengan server
+hidup, dan barulah angkanya bisa dipercaya.
+
+---
+
+## 363 — Progress lokasi: memantau dipisah dari mengatur (2026-08-18)
+
+**Permintaan user 2026-08-18** (mengirim rancangan `index20260818164900.html`):
+*"ikuti dan adopsi desain ini untuk tab progres di lokasi, ini lebih rapi dan
+tidak scroll panjang jauh ke bawah."*
+
+Halaman lama menumpuk **delapan kartu** dalam satu gulungan: kurva-S, tabel
+rencana-vs-realisasi mingguan, prognosa, editor jadwal pekerjaan, penyesuaian
+halus %-mingguan, item tertinggal, kendala & pemulihan, dan riwayat baseline.
+
+Yang salah bukan panjangnya, melainkan **dua peran yang berbeda dijejalkan jadi
+satu**: *membaca angka* dan *mengubah rencana*. Orang yang cuma ingin melihat
+deviasi harus menggulir melewati dua editor; orang yang mau memperbarui kurva-S
+harus menemukan tempatnya jauh di bawah grafik. Empat sub-tab memisahkannya:
+Ringkasan · Kurva-S & Baseline · Jadwal Pekerjaan · Tertinggal & Kendala.
+
+Tidak ada fungsi yang berubah. Seluruh aksi, gerbang izin, dan komponennya
+persis yang lama — hanya letaknya, dan bagian mana yang dikirim ke peramban.
+
+### Default `ringkasan`, dan itu keputusan, bukan kebetulan
+
+Memantau jauh lebih sering daripada mengatur. Mendaratkan orang di editor
+baseline adalah kebalikan dari yang ia cari saat menekan tab Progress. Diuji
+tersendiri supaya tidak bergeser diam-diam.
+
+### Tiap bagian membayar kuerinya sendiri
+
+Yang lama menarik SEMUANYA setiap kali halaman dibuka: seluruh isu beserta aksi
+dan log perkembangannya, seluruh baseline beserta titik mingguannya, jadwal
+kategori, volume kumulatif per lineage, dan seluruh item RAB aktif untuk
+menghitung yang tertinggal. Orang yang cuma melirik kurva-S membayar semuanya.
+`series` tetap selalu diambil — ia sumber angka utama halaman ini.
+
+### Aturan sub-tab dipusatkan
+
+`src/lib/ui/sub-tab.ts` sekarang memegang kedua aturan yang gampang rusak
+diam-diam (bagian ngawur jatuh ke bagian sah; parameter lain ikut terbawa dan
+di-encode). `rab/bagian.ts` ikut memakainya, jadi keduanya tidak bisa berbeda.
+
+### Dua cacat yang ditemukan saat MEMERIKSA, bukan saat menulis
+
+1. **Halaman meluber 3px di 375px.** Kedua kartu di grid Ringkasan punya
+   `min-width: auto` = lebar min-content, dan grafik kurva-S maupun tabel
+   mingguan min-content-nya lebih lebar dari kolomnya. Pola yang sama dengan
+   DECISIONS 217, dan tetap terulang karena `min-w-0` harus ditulis di tiap
+   anak grid baru. Ditutup di keduanya; tabel mingguan juga digulir dua sumbu.
+2. **Penjaga saya sendiri lolos padahal cacatnya ada.** Uji "keempat bagian
+   terlihat utuh" berjalan di lebar proyek `mobile` Playwright — Pixel 7,
+   **412px**. Di lebar itu pil terakhir masih muat; di **375px** ia terpotong.
+   Ujinya kini MEMAKSA 375px, dan pil mengecil (`px-2.5 text-[12px]`) di layar
+   sempit sehingga empat pil muat dengan sisa ruang. Uji `rab-sub-tab` ikut
+   dipaksa 375px karena punya kelemahan yang sama.
+
+**Penjaga.** `tests/unit/progress-bagian.test.ts` (7): default memantau bukan
+mengatur, bagian ngawur jatuh ke bagian sah, parameter kosong dibuang, parameter
+di-encode. `tests/e2e/progress-sub-tab.spec.ts` (5 × 2 proyek): keempat bagian
+terlihat utuh di 375px, mendarat di bagian pantau, editor & riwayat baseline
+tidak ikut dirender di ringkasan, tiap bagian membuka isinya sendiri, bagian
+ngawur tidak menghasilkan halaman kosong.
+
+Uji gigi: semua bagian dirender sekaligus → 1 merah (yang tepat); default
+dipindah ke `baseline` → 1 unit merah; label pendek dihapus → mobile merah
+dengan pesan "Jadwal Pekerjaan terpotong kanan" sementara desktop tetap hijau.
+
+---
+
+## 364 — "Perbarui Kurva-S" jadi alur resmi, bukan tombol yang berserak (2026-08-18)
+
+**Teguran user 2026-08-18**, setelah DECISIONS 363 hanya memindahkan kartu:
+
+> *"aku sudah beri kamu contoh jelas, dan di situ seharusnya kamu paham bahwa
+> Yang harus diubah adalah membuat 'Perbarui Kurva-S' menjadi workflow resmi
+> yang jelas dari awal sampai akhir. alur tugas yang bercampur … pengguna sulit
+> membedakan mana hanya untuk melihat dan mana yang akan mengubah data resmi.
+> lalu pengguna juga bingung dimana mereka harus upload template kurva-s.
+> pelajari betul itu desain, bukan diambil saklek, tapi sebagai referensi"*
+
+Tegurannya tepat. 363 memperbaiki **letak**, bukan **alur**. Langkah-langkahnya
+sebetulnya sudah ada, tetapi berserak dan tak satu pun bernama:
+
+| Langkah | Sebelumnya |
+|---|---|
+| Unduh template | Tombol **"Unduh Excel"** di header — tidak menyebut bahwa berkas itulah yang disunting lalu dikirim balik |
+| Sunting di Excel | Tidak disebut di mana pun |
+| Unggah | Tersembunyi di bawah editor jadwal, bernama "Impor jadwal dari Excel" — istilah berbeda dari yang dicari orang |
+| Pratinjau | **TIDAK ADA** |
+| Terapkan | Menyatu dengan tombol unggah — mengunggah = langsung mengganti baseline |
+
+### Langkah yang benar-benar hilang: PRATINJAU
+
+Ini bagian terpenting. Tanpa pratinjau, satu-satunya cara tahu apa yang akan
+berubah adalah **menerapkannya**, lalu memulihkan versi lama kalau ternyata
+salah — memperbaiki dengan cara merusak dulu. `pratinjauJadwalAction` membaca
+berkas, menghitung kurva barunya, dan menampilkan perbandingan per minggu
+terhadap baseline aktif, **tanpa menulis apa pun**.
+
+Angkanya datang dari `hitungJadwalBaru`, jalur yang sama persis dengan yang
+dipakai saat menerapkan — `saveCategoryWeekly` kini memanggilnya juga. Pratinjau
+yang menghitung sendiri adalah pratinjau yang suatu saat berbohong, dan tepat
+pada saat orang mempercayainya untuk menekan "Terapkan". Ambang "berubah"
+(0,005 pp) pun sengaja sama dengan ambang yang dipakai penerapan untuk
+memutuskan "tidak ada perubahan".
+
+Berkasnya dikirim ke server DUA KALI (periksa, lalu terapkan) lewat SATU form
+dengan `formAction` — bukan disusun ulang di klien. Server tidak boleh
+menerapkan sesuatu yang tidak ia baca sendiri pada permintaan itu.
+
+### Yang MENGUBAH data resmi harus terlihat berbeda
+
+Panelnya berlencana **"Mengubah data resmi"**, langkah 5 dipisah garis, dan
+akibatnya ditulis SEBELUM tombolnya, bukan sesudah: versi lama tidak dihapus,
+realisasi lapangan tidak berubah, deviasi berikutnya memakai baseline baru,
+serta siapa & kapan tercatat di audit.
+
+### Satu pintu unggah, bukan dua
+
+`jadwal-import.tsx` DIHAPUS. Membiarkannya berarti dua tempat mengunggah berkas
+yang sama dengan nama berbeda — persis kebingungan yang dikeluhkan. Tab "Jadwal
+Pekerjaan" kini menunjuk ke alur ini.
+
+Jalan masuknya ada di header halaman Progress, jadi terlihat dari **bagian mana
+pun** — pertanyaannya "di mana saya unggah template kurva-S?", dan jawabannya
+tidak boleh menuntut orang menebak isi tab mana.
+
+"Hitung ulang dari RAB" tetap ada tapi diberi nama jujur: **"Cara lain"**, untuk
+saat RAB berubah (mis. sesudah adendum), bukan saat orang punya jadwal sendiri.
+
+### Urutan tab: Progress ↔ RAPL bertukar
+
+Permintaan terpisah user. Progress dibaca hampir tiap hari, RAPL jauh lebih
+jarang — jadi yang sering duduk dekat "Rencana & RAB", yang jarang pindah ke
+belakang.
+
+### Tiga temuan dari MEMERIKSA, bukan dari menulis
+
+1. **Uji "TIDAK membuat baseline baru" hijau padahal cacatnya ada.** Ia memakai
+   berkas yang sama dengan yang barusan diterapkan, sehingga pratinjau yang
+   diam-diam menulis menghasilkan baseline identik → tidak ada versi baru →
+   ujinya lolos. Diperbaiki dengan berkas yang BERBEDA.
+2. **Ambang "berubah" tidak teruji.** Melonggarkannya dari 0,005 ke 25 pp tidak
+   membuat satu pun uji merah, karena semua kasus uji tidak punya baseline
+   pembanding. Ditutup dengan kasus perubahan kecil (~1 pp) di atas baseline
+   yang sudah ada.
+3. **Uji e2e gagal karena artefak Playwright, bukan produk.** `setInputFiles`
+   GAGAL DIAM-DIAM (berkas tidak masuk sama sekali, tanpa galat) ketika path
+   tujuannya berada di direktori keluaran yang memuat karakter panah "→" dari
+   judul uji. Dipakai path polos.
+
+**Penjaga.** `tests/integration/impor-jadwal-excel.test.ts` +7: pratinjau tidak
+membuat baseline, angkanya persis sama dengan yang tersimpan, mode "sesuaikan ke
+RAB" ikut diramalkan, berkas identik ditandai "tidak perlu diterapkan",
+perubahan kecil tetap disebut, berkas ngawur ditolak sebelum apa pun tersimpan,
+tanpa izin ditolak. `tests/e2e/perbarui-kurva-s.spec.ts` (4 × 2 proyek): jalan
+masuk terlihat dari SETIAP bagian, panelnya bertanda "mengubah data resmi" dan
+menyebut kelima langkah, **alur penuh benar-benar dijalani** (unduh template →
+unggah berkas itu juga → periksa), dan tanpa wewenang baseline alurnya tidak
+ditawarkan sama sekali.
+
+Uji gigi: pratinjau dibuat menulis → 3 integrasi merah; pratinjau menghitung
+lewat jalur sendiri (mode diabaikan) → 1 merah; ambang dilonggarkan → 1 merah;
+jalan masuk di header dihapus → 1 e2e merah.
+
+Catatan jujur: pulang-pergi template TANPA disunting menggeser beberapa minggu
+sepersekian poin — sisa pembulatan saat template ditulis ke Excel. Pratinjau
+menyebutnya apa adanya, dan ujinya memagari pergeseran itu di bawah 1 pp supaya
+kalau suatu saat ekspor & impor berhenti membaca hal yang sama, ketahuan.

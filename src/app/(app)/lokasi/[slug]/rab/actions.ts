@@ -15,6 +15,7 @@ import {
 import {
   restoreBaseline,
   saveCategorySchedule,
+  hitungJadwalBaru,
   saveCategoryWeekly,
   updateBaselinePoints,
   validateBaselinePoints,
@@ -315,69 +316,95 @@ const norm = (s: string): string => s.normalize("NFKC").toUpperCase().replace(/\
  * pernyataan rencananya, dan sistem mengikutinya (DECISIONS 203). Renormalisasi
  * bobot ke RAB hanya terjadi bila DIMINTA lewat centang `sesuaikanRab`.
  */
-export async function importJadwalAction(_prev: RabActionState, formData: FormData): Promise<RabActionState> {
+/**
+ * Semua pemeriksaan berkas + pencocokan kategori, SEKALI (DECISIONS 364).
+ *
+ * Dipakai bersama oleh pratinjau dan penerapan. Kalau keduanya memeriksa
+ * sendiri-sendiri, suatu saat pratinjau meloloskan berkas yang ditolak
+ * penerapan — dan orang membaca "valid" tepat sebelum menekan tombol yang
+ * gagal.
+ */
+type SiapImpor = {
+  user: Awaited<ReturnType<typeof requireCapability>>;
+  location: { id: string; slug: string };
+  input: { lineageKey: string; weekly: number[] }[];
+  catNodes: { code: string | null; name: string; lineageKey: string }[];
+  mode: ModeJadwal;
+  namaBerkas: string;
+};
+
+async function siapkanImporJadwal(formData: FormData): Promise<{ error: string } | SiapImpor> {
   const locId = z.uuid().safeParse(formData.get("locationId"));
   if (!locId.success) return { error: "Lokasi tidak valid." };
 
+  const user = await requireCapability("baseline.manage");
+  await requireLocationAccess(user, locId.data);
+  const location = await db.location.findUniqueOrThrow({
+    where: { id: locId.data },
+    select: { id: true, slug: true },
+  });
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return { error: "File jadwal (.xlsx) wajib dipilih." };
+  if (file.size > 15 * 1024 * 1024) return { error: "File terlalu besar (maks 15 MB)." };
+  if (!IMPORT_XLSX_MIME.includes(file.type) && !/\.xlsx?$/i.test(file.name)) {
+    return { error: "File harus Excel (.xlsx)." };
+  }
+
+  let parsed;
   try {
-    const user = await requireCapability("baseline.manage");
-    await requireLocationAccess(user, locId.data);
-    const location = await db.location.findUniqueOrThrow({
-      where: { id: locId.data },
-      select: { id: true, slug: true },
-    });
+    parsed = await parseJadwalWorkbook(Buffer.from(await file.arrayBuffer()));
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Gagal membaca file jadwal." };
+  }
 
-    const file = formData.get("file");
-    if (!(file instanceof File) || file.size === 0) return { error: "File jadwal (.xlsx) wajib dipilih." };
-    if (file.size > 15 * 1024 * 1024) return { error: "File terlalu besar (maks 15 MB)." };
-    if (!IMPORT_XLSX_MIME.includes(file.type) && !/\.xlsx?$/i.test(file.name)) {
-      return { error: "File harus Excel (.xlsx)." };
-    }
+  const contractDays = await contractDaysFor(location.id);
+  const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
+  if (parsed.totalWeeks !== totalWeeks) {
+    return {
+      error: `Jumlah minggu di Excel (${parsed.totalWeeks}) ≠ durasi kontrak lokasi ini (${totalWeeks} minggu). Pastikan file berasal dari lokasi & durasi yang sama.`,
+    };
+  }
 
-    let parsed;
-    try {
-      parsed = await parseJadwalWorkbook(Buffer.from(await file.arrayBuffer()));
-    } catch (e) {
-      return { error: e instanceof Error ? e.message : "Gagal membaca file jadwal." };
-    }
+  // Kategori RAB aktif utk pencocokan (kode → nama).
+  const revision = await db.rabRevision.findFirst({ where: { locationId: location.id, status: "aktif" }, select: { id: true } });
+  if (!revision) return { error: "Belum ada revisi RAB aktif — impor RAB dulu." };
+  const catNodes = await db.rabNode.findMany({
+    where: { revisionId: revision.id, kind: "kategori", amount: { gt: 0n } },
+    select: { code: true, name: true, lineageKey: true },
+  });
 
-    const contractDays = await contractDaysFor(location.id);
-    const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
-    if (parsed.totalWeeks !== totalWeeks) {
-      return {
-        error: `Jumlah minggu di Excel (${parsed.totalWeeks}) ≠ durasi kontrak lokasi ini (${totalWeeks} minggu). Pastikan file berasal dari lokasi & durasi yang sama.`,
-      };
-    }
+  const byCode = new Map<string, string>(); // norm(code) → lineageKey
+  const byName = new Map<string, string>(); // norm(name) → lineageKey
+  for (const c of catNodes) {
+    if (c.code) byCode.set(norm(c.code), c.lineageKey);
+    byName.set(norm(c.name), c.lineageKey);
+  }
+  const input: { lineageKey: string; weekly: number[] }[] = [];
+  const usedKeys = new Set<string>();
+  for (const pc of parsed.categories) {
+    const key = (pc.code ? byCode.get(norm(pc.code)) : undefined) ?? byName.get(norm(pc.name));
+    if (!key || usedKeys.has(key)) continue;
+    usedKeys.add(key);
+    input.push({ lineageKey: key, weekly: pc.weekly });
+  }
+  if (input.length === 0) {
+    return { error: "Tak satu pun pekerjaan di Excel cocok dengan kategori RAB (kode/nama) lokasi ini." };
+  }
 
-    // Kategori RAB aktif utk pencocokan (kode → nama).
-    const revision = await db.rabRevision.findFirst({ where: { locationId: location.id, status: "aktif" }, select: { id: true } });
-    if (!revision) return { error: "Belum ada revisi RAB aktif — impor RAB dulu." };
-    const catNodes = await db.rabNode.findMany({
-      where: { revisionId: revision.id, kind: "kategori", amount: { gt: 0n } },
-      select: { code: true, name: true, lineageKey: true },
-    });
+  // Tanpa centang = apa adanya. Tidak ada mode "otomatis" yang menebak: yang
+  // tidak diminta tidak dilakukan.
+  const mode: ModeJadwal = formData.get("sesuaikanRab") === "1" ? "rab" : "apaadanya";
 
-    const byCode = new Map<string, string>(); // norm(code) → lineageKey
-    const byName = new Map<string, string>(); // norm(name) → lineageKey
-    for (const c of catNodes) {
-      if (c.code) byCode.set(norm(c.code), c.lineageKey);
-      byName.set(norm(c.name), c.lineageKey);
-    }
-    const input: { lineageKey: string; weekly: number[] }[] = [];
-    const usedKeys = new Set<string>();
-    for (const pc of parsed.categories) {
-      const key = (pc.code ? byCode.get(norm(pc.code)) : undefined) ?? byName.get(norm(pc.name));
-      if (!key || usedKeys.has(key)) continue;
-      usedKeys.add(key);
-      input.push({ lineageKey: key, weekly: pc.weekly });
-    }
-    if (input.length === 0) {
-      return { error: "Tak satu pun pekerjaan di Excel cocok dengan kategori RAB (kode/nama) lokasi ini." };
-    }
+  return { user, location, input, catNodes, mode, namaBerkas: file.name };
+}
 
-    // Tanpa centang = apa adanya. Tidak ada mode "otomatis" yang menebak: yang
-    // tidak diminta tidak dilakukan.
-    const mode: ModeJadwal = formData.get("sesuaikanRab") === "1" ? "rab" : "apaadanya";
+export async function importJadwalAction(_prev: RabActionState, formData: FormData): Promise<RabActionState> {
+  try {
+    const siap = await siapkanImporJadwal(formData);
+    if ("error" in siap) return siap;
+    const { user, location, input, catNodes, mode } = siap;
+
     const note =
       mode === "apaadanya"
         ? "Impor jadwal dari Excel (angka Excel apa adanya)"
@@ -399,6 +426,113 @@ export async function importJadwalAction(_prev: RabActionState, formData: FormDa
     return fail(err);
   }
 }
+
+/** Satu baris pemeriksaan di layar pratinjau. */
+export type PeriksaJadwal = { lolos: boolean; judul: string; rincian: string };
+
+export type PratinjauJadwal = {
+  namaBerkas: string;
+  baselineAktif: number | null;
+  totalMinggu: number;
+  cocok: number;
+  totalKategori: number;
+  /** Sama sekali tidak berubah dari baseline aktif — tidak perlu diterapkan. */
+  samaSaja: boolean;
+  periksa: PeriksaJadwal[];
+  /** Per minggu: %-kumulatif baseline aktif vs berkas. Hanya yang BERUBAH. */
+  perubahan: { minggu: number; lama: number | null; baru: number }[];
+  jumlahMingguBerubah: number;
+};
+
+export type PratinjauState = { error?: string; data?: PratinjauJadwal } | undefined;
+
+/**
+ * PRATINJAU impor jadwal — menghitung, tidak menulis (DECISIONS 364).
+ *
+ * Langkah yang selama ini hilang. Tanpa ini, satu-satunya cara tahu apa yang
+ * akan berubah adalah MENERAPKANNYA, lalu memulihkan versi lama kalau ternyata
+ * salah — memperbaiki dengan cara merusak dulu.
+ *
+ * Angkanya datang dari `hitungJadwalBaru`, jalur yang sama persis dengan yang
+ * dipakai saat menerapkan. Pratinjau yang menghitung sendiri adalah pratinjau
+ * yang suatu saat berbohong.
+ */
+export async function pratinjauJadwalAction(
+  _prev: PratinjauState,
+  formData: FormData,
+): Promise<PratinjauState> {
+  try {
+    const siap = await siapkanImporJadwal(formData);
+    if ("error" in siap) return { error: siap.error };
+    const { location, input, mode, namaBerkas } = siap;
+
+    const h = await hitungJadwalBaru(location.id, input, mode);
+    const lama = h.aktif?.points ?? null;
+
+    const perubahan: { minggu: number; lama: number | null; baru: number }[] = [];
+    h.weekly.forEach((baru, i) => {
+      const sebelum = lama?.[i] ?? null;
+      // Ambang 0,005 pp = sama dengan ambang yang dipakai saat memutuskan
+      // "tidak ada perubahan" pada penerapan. Dua ambang berbeda akan membuat
+      // pratinjau menyebut perubahan yang lalu tidak jadi disimpan.
+      if (sebelum == null || Math.abs(sebelum - baru) >= 0.005) {
+        perubahan.push({ minggu: i + 1, lama: sebelum, baru });
+      }
+    });
+
+    const totalExcel = h.verbatim ? h.verbatim.totalExcel : null;
+    const periksa: PeriksaJadwal[] = [
+      {
+        lolos: true,
+        judul: `${h.totalWeeks} minggu terbaca`,
+        rincian: "Jumlah minggu di berkas sama dengan durasi kontrak lokasi ini.",
+      },
+      {
+        lolos: h.matched === h.jumlahKategori,
+        judul: `${h.matched} dari ${h.jumlahKategori} pekerjaan cocok`,
+        rincian:
+          h.matched === h.jumlahKategori
+            ? "Semua pekerjaan RAB punya jadwal di berkas."
+            : mode === "apaadanya"
+              ? "Pekerjaan yang tidak ada di berkas TIDAK dijadwalkan — kurvanya mengikuti berkas Anda."
+              : "Pekerjaan yang tidak ada di berkas diisi jadwal otomatis agar kurva tuntas 100%.",
+      },
+      {
+        lolos: true,
+        judul: "Kurva tuntas di 100%",
+        rincian:
+          totalExcel != null && Math.abs(totalExcel - 100) >= 0.01
+            ? `Total berkas ${totalExcel.toFixed(2)}% — diskalakan seragam ke 100% supaya kurva-S tuntas. Bentuk dan jeda dari berkas tetap dipakai.`
+            : "Total bobot mingguan berjumlah 100%.",
+      },
+      {
+        lolos: !h.unchanged,
+        judul: h.unchanged ? "Tidak ada yang berubah" : `${perubahan.length} minggu berubah`,
+        rincian: h.unchanged
+          ? "Berkas ini menghasilkan kurva yang identik dengan baseline aktif — tidak perlu diterapkan."
+          : "Bandingkan di tabel bawah sebelum menerapkan.",
+      },
+    ];
+
+    return {
+      data: {
+        namaBerkas,
+        baselineAktif: h.aktif?.baselineNo ?? null,
+        totalMinggu: h.totalWeeks,
+        cocok: h.matched,
+        totalKategori: h.jumlahKategori,
+        samaSaja: h.unchanged,
+        periksa,
+        perubahan: perubahan.slice(0, 60),
+        jumlahMingguBerubah: perubahan.length,
+      },
+    };
+  } catch (err) {
+    return { error: fail(err)?.error ?? "Gagal membaca berkas jadwal." };
+  }
+}
+
+
 
 /** Pulihkan baseline lama → versi baru aktif (append-only, riwayat utuh). */
 export async function restoreBaselineAction(

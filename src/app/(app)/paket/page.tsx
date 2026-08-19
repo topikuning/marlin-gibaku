@@ -106,7 +106,7 @@ export default async function PaketPage({
         }
       />
 
-      <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <section className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <KpiCard label="Total paket" value={stats.total} href="/paket" />
         <KpiCard label="Dalam tender" value={stats.tender} href="/paket?stage=tender" />
         <KpiCard label="Berkontrak" value={stats.berkontrak} href="/paket?stage=berkontrak" />

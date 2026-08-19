@@ -25,11 +25,14 @@ function tabItems(slug: string): LinkTabItem[] {
   return [
     { label: "Ringkasan", href: base, exact: true },
     { label: "Rencana & RAB", href: `${base}/rab` },
-    { label: "RAPL", href: `${base}/rapl` },
+    // Progress dan RAPL BERTUKAR tempat (permintaan user 2026-08-18): Progress
+    // dibaca hampir tiap hari, RAPL jauh lebih jarang — jadi yang sering duduk
+    // dekat "Rencana & RAB", dan yang jarang pindah ke belakang.
+    { label: "Progress", href: `${base}/progress` },
     // Tab milik slice lain — link saja, halamannya dibangun terpisah.
     { label: "Pelaksanaan Harian", href: `${base}/harian` },
     { label: "Kegiatan Lapangan", href: `${base}/kegiatan` },
-    { label: "Progress", href: `${base}/progress` },
+    { label: "RAPL", href: `${base}/rapl` },
     { label: "Keuangan", href: `${base}/keuangan` },
     { label: "Dokumen & Kepatuhan", href: `${base}/dokumen` },
     { label: "Laporan", href: `${base}/laporan-lokasi` },

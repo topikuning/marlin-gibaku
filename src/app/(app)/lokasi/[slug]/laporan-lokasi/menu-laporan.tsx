@@ -84,12 +84,25 @@ export function MenuLaporanPeriodik({
 
   const pesan = waPdf ?? waXls ?? drive ?? waBundel ?? driveBundel;
 
+  const unduhPdf: PilihanBerkas = {
+    label: "Unduh",
+    icon: <Download aria-hidden className="size-3.5" />,
+    href: `/api/laporan/periodik/${slug}/${kind}/${n}/pdf`,
+  };
+  const unduhExcel: PilihanBerkas = {
+    label: "Unduh",
+    icon: <Download aria-hidden className="size-3.5" />,
+    href: `/lokasi/${slug}/laporan-lokasi/export?kind=${kind}&n=${n}`,
+  };
+  const unduhBundel: PilihanBerkas = {
+    label: "Unduh",
+    icon: <Download aria-hidden className="size-3.5" />,
+    href: `/api/laporan/mingguan/${slug}/${n}/pdf`,
+    hint: "Sampul minggu ini + tujuh blanko harian",
+  };
+
   const pdf: PilihanBerkas[] = [
-    {
-      label: "Unduh",
-      icon: <Download aria-hidden className="size-3.5" />,
-      href: `/api/laporan/periodik/${slug}/${kind}/${n}/pdf`,
-    },
+    unduhPdf,
     {
       label: "Buka untuk dicetak",
       icon: <Printer aria-hidden className="size-3.5" />,
@@ -102,6 +115,7 @@ export function MenuLaporanPeriodik({
       onSelect: () => kirimWaPdf(fd()),
       disabledReason: alasanWa,
       loading: waPdfPending,
+      labelSibuk: "Mengirim ke WhatsApp…",
     },
     {
       label: "Upload ke Drive",
@@ -110,21 +124,19 @@ export function MenuLaporanPeriodik({
       disabledReason: alasanDrive,
       hint: "Mengunggah PDF + Excel sekaligus",
       loading: drivePending,
+      labelSibuk: "Mengunggah ke Drive…",
     },
   ];
 
   const excel: PilihanBerkas[] = [
-    {
-      label: "Unduh",
-      icon: <Download aria-hidden className="size-3.5" />,
-      href: `/lokasi/${slug}/laporan-lokasi/export?kind=${kind}&n=${n}`,
-    },
+    unduhExcel,
     {
       label: "Kirim ke WhatsApp",
       icon: <MessageCircle aria-hidden className="size-3.5" />,
       onSelect: () => kirimWaXls(fd()),
       disabledReason: alasanWa,
       loading: waXlsPending,
+      labelSibuk: "Mengirim Excel ke WhatsApp…",
     },
     {
       label: "Upload ke Drive",
@@ -133,6 +145,7 @@ export function MenuLaporanPeriodik({
       disabledReason: alasanDrive,
       hint: "Mengunggah PDF + Excel sekaligus",
       loading: drivePending,
+      labelSibuk: "Mengunggah ke Drive…",
     },
   ];
 
@@ -144,30 +157,29 @@ export function MenuLaporanPeriodik({
         <MenuBerkas
           label={`Laporan ${kind === "mingguan" ? "Mingguan" : "Bulanan"} (PDF)`}
           icon={<FileText aria-hidden className="size-4" />}
+          utama={unduhPdf}
           pilihan={pdf}
         />
         <MenuBerkas
           label="Excel"
           icon={<FileSpreadsheet aria-hidden className="size-4" />}
+          utama={unduhExcel}
           pilihan={excel}
         />
         {kind === "mingguan" ? (
           <MenuBerkas
             label="7 Laporan Harian (1 berkas)"
             icon={<Files aria-hidden className="size-4" />}
+            utama={unduhBundel}
             pilihan={[
-              {
-                label: "Unduh",
-                icon: <Download aria-hidden className="size-3.5" />,
-                href: `/api/laporan/mingguan/${slug}/${n}/pdf`,
-                hint: "Sampul minggu ini + tujuh blanko harian",
-              },
+              unduhBundel,
               {
                 label: "Kirim ke WhatsApp",
                 icon: <MessageCircle aria-hidden className="size-3.5" />,
                 onSelect: () => kirimWaBundel(fdBundel()),
                 disabledReason: alasanWa,
                 loading: waBundelPending,
+                labelSibuk: "Mengirim 7 laporan harian…",
               },
               {
                 label: "Upload ke Drive",
@@ -175,6 +187,7 @@ export function MenuLaporanPeriodik({
                 onSelect: () => kirimDriveBundel(fdBundel()),
                 disabledReason: alasanDrive,
                 loading: driveBundelPending,
+                labelSibuk: "Mengunggah 7 laporan harian…",
               },
             ]}
           />
@@ -216,17 +229,22 @@ export function MenuLaporanHarian({
 
   const pesan = wa ?? drive;
 
+  // Yang dilakukan setiap hari cukup SATU klik: badan tombol langsung mengunduh
+  // PDF-nya, panah di kanan menyimpan sisanya (DECISIONS 360).
+  const unduhPdf: PilihanBerkas = {
+    label: "Unduh PDF",
+    icon: <Download aria-hidden className="size-3.5" />,
+    href: `/api/laporan/harian/${slug}/${dateKey}/pdf`,
+  };
+
   return (
     <span className="inline-flex flex-col gap-1">
       <MenuBerkas
         label="Laporan Harian"
         icon={<FileText aria-hidden className="size-4" />}
+        utama={unduhPdf}
         pilihan={[
-          {
-            label: "Unduh PDF",
-            icon: <Download aria-hidden className="size-3.5" />,
-            href: `/api/laporan/harian/${slug}/${dateKey}/pdf`,
-          },
+          unduhPdf,
           {
             label: "Unduh PDF tanpa sampul",
             icon: <Download aria-hidden className="size-3.5" />,
@@ -249,6 +267,7 @@ export function MenuLaporanHarian({
                 : null,
             hint: sentAt ? `Sudah dikirim ${sentAt}` : undefined,
             loading: waPending,
+            labelSibuk: "Mengirim ke WhatsApp…",
           },
           {
             label: "Upload ke Drive",
@@ -261,6 +280,7 @@ export function MenuLaporanHarian({
                 : null,
             hint: uploadedAt ? `Sudah diupload ${uploadedAt}` : undefined,
             loading: drivePending,
+            labelSibuk: "Mengunggah ke Drive…",
           },
         ]}
       />

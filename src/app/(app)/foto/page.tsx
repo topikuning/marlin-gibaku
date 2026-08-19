@@ -85,7 +85,7 @@ export default async function FotoLapanganPage({ searchParams }: { searchParams:
       />
 
       {/* KPI */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5">
         <KpiCard label="Foto Hari Ini" value={data.kpi.total.toLocaleString("id-ID")} sub="Diunggah hari ini" />
         <KpiCard label="Terverifikasi" value={data.kpi.verified.toLocaleString("id-ID")} sub="Hari ini" tone="success" />
         <KpiCard label="Menunggu Review" value={data.kpi.pending.toLocaleString("id-ID")} sub="Hari ini" tone="warning" />

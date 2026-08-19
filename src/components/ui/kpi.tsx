@@ -22,6 +22,18 @@ export interface KpiCardProps {
   className?: string;
 }
 
+/**
+ * Kartu angka ringkas (DECISIONS 361).
+ *
+ * Keberatan user 2026-08-18: *"kotak/card itu terlalu besar, kurang compact.
+ * itu di semua menu."* Betul, dan ongkosnya nyata: baris KPI yang tinggi
+ * mendorong DAFTARNYA — yang sebenarnya dicari orang — turun ke bawah lipatan,
+ * di setiap halaman, setiap kali dibuka. Ia ringkasan, bukan judul halaman.
+ *
+ * Ukurannya diperkecil di primitifnya, bukan di tiap halaman: ada 89 pemakaian
+ * di 22 berkas, dan menyetelnya satu per satu berarti 22 kesempatan untuk
+ * berbeda sendiri.
+ */
 export function KpiCard({
   label,
   value,
@@ -32,18 +44,18 @@ export function KpiCard({
 }: KpiCardProps) {
   const inner = (
     <>
-      <p className="text-xs font-medium tracking-wide text-ink-muted uppercase">
+      <p className="text-[11px] font-medium tracking-wide text-ink-muted uppercase">
         {label}
       </p>
-      <p className={cn("tabular mt-1 text-2xl font-semibold", VALUE_TONE[tone])}>
+      <p className={cn("tabular mt-0.5 text-xl leading-tight font-semibold", VALUE_TONE[tone])}>
         {value}
       </p>
-      {sub ? <div className="mt-1 text-[13px] text-ink-muted">{sub}</div> : null}
+      {sub ? <div className="mt-0.5 text-[11px] leading-snug text-ink-muted">{sub}</div> : null}
     </>
   );
 
   const base = cn(
-    "block rounded-lg border border-border bg-surface px-4 py-3 shadow-xs",
+    "block rounded-lg border border-border bg-surface px-3 py-2 shadow-xs",
     className,
   );
 

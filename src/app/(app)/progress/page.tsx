@@ -63,7 +63,7 @@ export default async function ProgressPage() {
           ) : null
         }
       />
-      <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <section className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <KpiCard label="Nilai RAB aktif" value={formatRupiahShort(totalRab)} sub="pra-PPN" />
         <KpiCard label="Nilai terpasang" value={formatRupiahShort(totalRealized)} />
         <KpiCard label="Rencana (tertimbang)" value={formatPct(avgPlan)} />

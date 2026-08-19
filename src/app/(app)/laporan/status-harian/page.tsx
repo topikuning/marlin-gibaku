@@ -90,7 +90,7 @@ export default async function StatusHarianPage({
               mendorong gridnya — isi sebenarnya halaman ini — jauh ke bawah.
               Angkanya SELALU untuk seluruh hari, tidak ikut menyusut saat
               disaring: gunanya menjawab "sejauh mana hari ini". */}
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
             <KpiCard label="Lokasi aktif" value={String(data.total)} />
             {/* "Belum ada laporan" TIDAK diberi nada bahaya: hari libur dan
                 kelalaian menghasilkan angka yang sama, dan hanya satu yang
