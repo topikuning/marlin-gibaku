@@ -17826,3 +17826,78 @@ Audit mencatat `asalScope` (`package_group` / `privileged_user` / `pengguna`),
 - Peran istimewa dibiarkan **bocor ke grup tertaut** (kesalahan paling mungkin
   saat aturan ini ditambahkan) → 3 uji unit + 3 uji integrasi merah, termasuk uji
   lintas-organisasi yang sudah ada sejak DECISIONS 351.
+
+---
+
+## 373 — Migrasi grup ganda MEMBERESKAN sendiri; pemulihan deploy diperbaiki (2026-08-19)
+
+Membalik sebagian DECISIONS 370, karena keputusan di sana benar di atas kertas
+dan salah di lapangan.
+
+### Apa yang terjadi
+
+Deploy Railway (dev) menabrak migrasi `20260819120000_wa_group_unik`, yang
+MENOLAK berjalan karena menemukan duplikat sungguhan:
+
+```
+120363427322560313@g.us dipakai 2 paket:
+Paket KNMP Bangkalan (2 lokasi), Paket KNMP Lamongan — Kemantren
+```
+
+Temuan auditnya benar — cacat isolasi data itu memang ada di data nyata. Yang
+salah adalah **cara menanganinya**: migrasi menolak supaya manusia yang
+memutuskan, padahal orang yang harus memutuskan tidak punya akses menjalankan
+perintah apa pun ke basis data itu. *"aku gak bisa jalankan perintahmu."*
+
+Pagar yang mengunci pintu dari luar bukan pagar, melainkan kerusakan kedua:
+deploy mentok, dan cacat isolasi datanya tetap hidup selama kemacetannya.
+
+### Dua kemacetan, bukan satu
+
+**(1) Data.** Migrasi kini membereskan sendiri. Pemenang dipilih dari BUKTI
+PEMAKAIAN, berurutan: (a) paling banyak arsip pesan WhatsApp — penunjuk terkuat
+"grup ini sebenarnya mengalirkan pesan ke paket mana"; (b) paling banyak lokasi
+aktif; (c) paling tua, sebagai pemutus stabil. Yang kalah dilepas tautannya.
+
+Yang membuat ini boleh dilakukan otomatis bukan kepraktisan, melainkan satu
+kenyataan: **keadaan sebelumnya sudah rusak, dan rusaknya lebih parah.** Dengan
+dua paket menunjuk satu grup, pemenangnya dipilih ulang setiap kueri oleh urutan
+baris — tidak deterministik, tidak tercatat, tidak terlihat. Migrasi ini memilih
+sekali, dengan bukti, lalu **menuliskannya ke `audit_logs`** (append-only)
+lengkap dengan nilai lama, paket pemenang, angka buktinya, dan cara memulihkan.
+Tidak ada yang dihapus: `wa_group_id` hanya penunjuk, dan paket, lokasi,
+laporan, serta arsip pesan tidak tersentuh.
+
+Terbukti di reproduksi: dari dua paket bertaut grup sama, yang menang adalah
+**paket yang punya 7 arsip pesan**, meski paket satunya 50 hari lebih tua. Bukti
+mengalahkan usia — itu memang yang diinginkan.
+
+**(2) Baris migrasi yang tercatat gagal (P3009).** Ini seharusnya sudah ditangani
+`scripts/migrate-deploy.mjs`. Ternyata **tidak pernah bisa**: ia mencari nama
+migrasi gagal lewat `prisma migrate status`, dan pada Prisma 7 perintah itu sama
+sekali tidak menyebutnya — hanya mendaftar yang belum diterapkan. Jadi
+pemulihannya selalu berhenti di *"nama migrasinya tidak terbaca"*, dan deploy
+tetap mentok persis pada keadaan yang seharusnya ia selamatkan.
+
+Namanya justru ada di keluaran `migrate deploy` sendiri (`P3009` menyebutnya di
+kalimat "…migration started at … failed", `P3018` di baris "Migration name:").
+Sekarang keluaran itulah yang dibaca lebih dulu; `migrate status` tinggal
+cadangan. Parsernya dipisah jadi fungsi murni `namaMigrasiGagal()` dan diuji
+terhadap keluaran Prisma yang **disalin apa adanya** — uji dengan teks karangan
+tidak akan pernah menangkap kegagalan ini, karena yang salah bukan pola
+regex-nya melainkan sumber teks yang dibaca.
+
+### Dibuktikan ujung ke ujung
+
+Basis data dibangun sampai keadaan MACET yang sama persis (versi lama migrasi
+dijalankan lebih dulu supaya tercatat gagal), lalu `node scripts/migrate-deploy.mjs`
+dijalankan tanpa campur tangan apa pun: pemulihan menandai rolled-back →
+migrasi baru jalan → duplikat dibereskan dengan bukti → indeks unik terpasang →
+migrasi berikutnya ikut lolos. Varian tulisan (`…:9@G.US`) juga dikenali sebagai
+grup yang sama.
+
+### Yang TIDAK dilakukan
+
+Alat diagnosa `pnpm waha:grup-ganda` tetap ada dan tetap berguna — untuk
+memeriksa keputusan yang sudah diambil migrasi, dan untuk memutuskan sendiri
+sebelum deploy bila memang ada aksesnya. Ia tidak lagi menjadi SYARAT deploy.
