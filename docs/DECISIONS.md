@@ -17497,3 +17497,73 @@ manual:tangkap` penuh (11 gambar) + `pnpm manual:bangun` sukses, dan SELURUH 24
 halaman PDF diperiksa visual satu per satu (bukan cuma pesan sukses) — termasuk
 menemukan sisa `{tanggal}` mentah di naskah (placeholder yang lupa dijelaskan
 ulang jadi teks biasa) dan bug tautan pertama di atas.
+
+---
+
+## 368 — PDF "tidak rapi": layar HP dipotong utuh membuat halaman kosong separuh (2026-08-19)
+
+User memeriksa PDF hasil 367 dan menolaknya keras: "tidak layak, tidak rapi
+sama sekali". Diperiksa ulang halaman-per-halaman — bukan cuma dilihat sekilas —
+dan penyebabnya jelas: `figure { page-break-inside: avoid }` (365, sengaja,
+supaya gambar tak terpotong tengah) mendorong SELURUH gambar ke halaman
+berikutnya kalau tak muat di sisa halaman berjalan. Screenshot ponsel
+`fullPage` (satu layar HP di-scroll penuh — `harian-isi.png` 390×3569,
+`harian-koreksi.png` 390×3942) nyaris tidak pernah muat, jadi HAMPIR SETIAP
+bagian buku diikuti halaman kosong 60-90%. 24 halaman, mayoritas kosong.
+
+### Perbaikan: potong ke bagian yang relevan, bukan seluruh layar
+
+`Gambar.potong` (`daftar-gambar.ts`) sekarang boleh array selector — digabung
+jadi SATU kotak potongan (union bounding box), dipakai saat yang perlu
+ditunjukkan ada di dua elemen bertetangga yang bukan leluhur bersama yang rapi
+(mis. banner peringatan + form di bawahnya, DECISIONS 210-an area kode
+`harian-koreksi`). Ditambah jangkar semu `"@awal"` (pojok kiri-atas HALAMAN,
+lebar penuh) untuk potongan yang harus mulai dari paling atas (header + tab)
+tanpa elemen nyata untuk dijadikan pegangan.
+
+Enam gambar dipotong ulang — bukan lagi seluruh halaman HP di-scroll:
+`harian-isi`/`harian-koreksi` → formulir "Tambah/ubah progres pekerjaan" saja
+(358×581 & 358×609, dari 390×3569 & 390×3942); `hari-ini` → satu `<section>`
+kartu lokasi contoh saja, bukan dua kartu ditumpuk (sm-01 ditugaskan ke Kedung
+Mutih DAN Purworejo — hari-ini.png tadinya memuat KEDUANYA); `lokasi-ringkasan`
+→ dari atas sampai kartu Kurva-S (kartu Rencana/Kendala/Status di bawahnya
+sudah ada gambar sendiri, tak perlu diulang); `rencana-mingguan` → dari atas
+sampai tombol "Sarankan otomatis" (form tambah rencana + tabel item di
+bawahnya bukan inti cerita layar ini).
+
+### Jaring pengaman CSS: `max-height` di samping potongan
+
+Potongan yang tepat adalah perbaikan UTAMA, tapi ditambah `max-height: 200mm`
+di `figure img` (bab manajemen tak disunting sesi ini, dan satu gambar layar
+lebar — kurva-S "Perbarui Kurva-S" — tetap tinggi walau sudah dipotong) supaya
+gambar mengecil (mempertahankan rasio) SEBELUM dipaksa muat, bukan meluber ke
+halaman berikutnya dulu baru terpotong paksa. Lebar ponsel juga dinaikkan
+62mm→80mm (isi kecil kalau terlalu sempit, dan sisa margin kanan-kiri yang
+lebar justru terlihat tidak rapi).
+
+### Bug ikutan: luberan horizontal 390→487px
+
+Saat memotong `lokasi-ringkasan`, `section:has-text("Kurva-S")` melaporkan
+lebar 470px pada viewport 390px — kartu Kurva-S MELUBER ke kanan (kategori bug
+yang sama dengan DECISIONS 230, belum didiagnosis akar penyebabnya di sesi
+ini, dicatat sebagai temuan bukan diperbaiki). Union-clip sekarang membatasi
+lebar ke `page.viewportSize().width` supaya potongan buku manual tidak ikut
+menampilkan margin abu-abu dari luberan itu — penambal gejala di penjepret,
+BUKAN perbaikan bug aslinya.
+
+### Hasil
+
+24 halaman → **16 halaman**. Hampir seluruh halaman sekarang padat; sisa satu
+halaman agak kosong (pembuka bab 2, sebelum `beranda.png` — screenshot layar
+lebar 1280×1607 yang tetap besar walau sudah kena `max-height`). PDF (1,7 MB →
+1,1 MB) dan folder gambar (2,0 MB → 1,4 MB) ikut menyusut karena potongannya
+lebih kecil.
+
+### Penjaga
+
+`pnpm typecheck && pnpm lint && pnpm vitest run tests/unit` hijau. SELURUH 16
+halaman PDF diperiksa visual ulang satu per satu sesudah tiap perubahan CSS/
+potongan (tiga kali iterasi: potong 2 gambar terparah → potong 3 gambar
+lainnya + perbaiki bug lebar "@awal" yang sempat menyempit ke 187px → turunkan
+`max-height` 235mm→200mm), bukan cuma dipercaya dari jumlah halaman yang
+menyusut.

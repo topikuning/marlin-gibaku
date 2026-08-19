@@ -105,5 +105,9 @@ tsx scripts/manual/mock-r2.ts 9444 /tmp/mock-r2/data <cert.pem> <key.pem>
       deviasi ~-99%. Perlu diputuskan: dandani lokasi lain juga, atau batasi
       Beranda contoh ke tangkapan lokasi tunggal.
 - [ ] Daftar isi otomatis + nomor halaman per bab.
-- [ ] Pertimbangkan ukuran repo: 11 gambar ≈ 1,7 MB. Buku penuh (60+ layar) bisa
+- [ ] Pertimbangkan ukuran repo: 11 gambar ≈ 1,4 MB. Buku penuh (60+ layar) bisa
       10–20 MB, dan tumbuh tiap kali UI berubah.
+- [ ] Bug ditemukan (bukan diperbaiki, DECISIONS 368): kartu Kurva-S di
+      `/lokasi/{slug}` meluber horizontal 390px→470px pada viewport ponsel
+      (kategori sama dengan DECISIONS 230). Penjepret buku sudah dijaga
+      (potongan dibatasi lebar viewport), tapi bug aslinya di app masih ada.

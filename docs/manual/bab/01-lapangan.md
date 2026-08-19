@@ -84,15 +84,15 @@ Simpan Pelengkap.
 
 Site Manager memeriksa setiap laporan yang masuk. Kalau ada yang perlu
 diperbaiki — foto kurang jelas, volume meragukan — laporan itu **dikembalikan**,
-bukan ditolak. Anda akan melihatnya di Hari Ini sebagai kotak kuning
-"N laporan dikembalikan — perlu koreksi", lengkap dengan tanggal dan alasannya.
-
-Ketuk tombol **"Perbaiki laporan ..."** (tanggalnya mengikuti laporan yang
-dimaksud) untuk membukanya. Alasan pengembaliannya
-tertulis jelas di atas formulir, supaya Anda tahu persis apa yang perlu diubah —
-bukan menebak-nebak.
+bukan ditolak, lengkap dengan alasannya.
 
 {{gambar:harian-koreksi}}
+
+Anda akan melihatnya di Hari Ini sebagai kotak kuning "N laporan dikembalikan —
+perlu koreksi". Ketuk tombol **"Perbaiki laporan ..."** (tanggalnya mengikuti
+laporan yang dimaksud) untuk membukanya — alasan pengembaliannya tertulis jelas
+di atas formulir, supaya Anda tahu persis apa yang perlu diubah, bukan
+menebak-nebak.
 
 Cara memperbaikinya **sama seperti mengisi laporan biasa** (bagian 3): ubah
 volume yang keliru, tambahkan foto yang diminta, atau lengkapi yang kurang.

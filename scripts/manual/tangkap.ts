@@ -101,6 +101,36 @@ async function jepret(page: Page, g: Gambar, lokasi: string): Promise<void> {
   if (jumlahCss === 0) throw new Error(`${g.id}: CSS tidak termuat — jangan dipakai.`);
 
   const berkas = path.join(KELUARAN, `${g.id}.png`);
+  if (Array.isArray(g.potong)) {
+    // Gabungan kotak pembungkus beberapa elemen — lihat catatan tipe `potong`.
+    // "@awal" = jangkar semu SELEBAR HALAMAN di y=0 (dipakai saat potongan
+    // harus mulai dari paling atas, mis. header + tab, bukan dari elemen mana
+    // pun yang bisa dipilih selector) — lebar penuh supaya potongannya tidak
+    // ikut menyempit ke lebar elemen SEMPIT lain dalam gabungan (mis. satu
+    // tombol kecil di titik akhir potongan).
+    const viewport = page.viewportSize();
+    const kotak: { x: number; y: number; width: number; height: number }[] = [];
+    for (const sel of g.potong) {
+      if (sel === "@awal") {
+        kotak.push({ x: 0, y: 0, width: viewport?.width ?? 0, height: 0 });
+        continue;
+      }
+      const el = page.locator(sel).first();
+      await el.waitFor({ timeout: 15_000 });
+      const box = await el.boundingBox();
+      if (!box) throw new Error(`${g.id}: elemen "${sel}" tidak punya ukuran (tersembunyi?).`);
+      kotak.push(box);
+    }
+    const x = Math.min(...kotak.map((b) => b.x));
+    const y = Math.min(...kotak.map((b) => b.y));
+    // Lebar dibatasi lebar viewport — beberapa halaman ponsel meluber tipis ke
+    // kanan (bug tersendiri, lihat DECISIONS 368), dan potongan buku TIDAK
+    // BOLEH ikut menampilkan margin abu-abu dari luberan itu.
+    const kanan = Math.min(viewport?.width ?? Infinity, Math.max(...kotak.map((b) => b.x + b.width)));
+    const bawah = Math.max(...kotak.map((b) => b.y + b.height));
+    await page.screenshot({ path: berkas, clip: { x, y, width: kanan - x, height: bawah - y } });
+    return;
+  }
   const target = g.potong ? page.locator(g.potong).first() : page;
   await target.screenshot({
     path: berkas,
