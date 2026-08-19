@@ -148,7 +148,9 @@ describe("angka tanpa klaim", () => {
      */
     const r = jalankan([bagian("Realisasi Kedung Mutih 42%.", [])]);
     expect(r.hidup).toHaveLength(0);
-    expect(r.dibuang[0]).toContain("tanpa klaim");
+    // Sejak DECISIONS 382 alasannya menyebut ANGKA mana yang tak bersumber —
+    // perilakunya sama (bagiannya dibuang), keterangannya yang lebih tepat.
+    expect(r.dibuang[0]).toContain("angka tanpa sumber");
   });
 
   it("bagian TANPA angka boleh lewat tanpa claims", () => {
@@ -206,5 +208,170 @@ describe("keyakinan deterministik", () => {
     ]);
     expect(r.hidup).toHaveLength(1);
     expect(hitungKeyakinan(r, 2)).toBe(50);
+  });
+});
+
+describe("kutipan catatan lapangan: verbatim, dan angkanya boleh (DECISIONS 382)", () => {
+  const CHUNK = "narasi:laporan:abc";
+  const ASLI =
+    "Pengecoran lantai 12 m3 tertunda karena hujan mulai jam 14, tenaga 8 orang dipulangkan.";
+  const potongan = new Map([[CHUNK, ASLI]]);
+
+  const jalankanDenganKutipan = (parts: BagianJawaban[]) =>
+    validasiKlaimTerikat(parts, FAKTA, REFS, potongan);
+
+  it("kutipan PERSIS lolos, dan angkanya ikut sah", () => {
+    /*
+     * Penegasan user 2026-08-19: yang dilarang tanpa toleransi adalah MENGARANG
+     * angka. Angka yang memang tertulis di catatan lapangan adalah angka
+     * MARLIN — boleh disampaikan, asal disalin apa adanya.
+     */
+    const r = jalankanDenganKutipan([
+      {
+        text: 'Pelapor menulis: "tertunda karena hujan mulai jam 14".',
+        claims: [],
+        kutipan: [{ chunkId: CHUNK, teks: "tertunda karena hujan mulai jam 14" }],
+      },
+    ]);
+    expect(r.hidup).toHaveLength(1);
+    expect(r.klaimValid).toBe(1);
+  });
+
+  it("PARAFRASE ditolak — walau isinya benar", () => {
+    /*
+     * Begitu model menyusun ulang kalimatnya, tidak ada lagi cara otomatis
+     * membedakan angka yang benar-benar ditulis pelapor dari angka yang
+     * dikarang model. Pagar ini yang membuat "tidak mengarang angka" bisa
+     * diperiksa mesin, bukan sekadar diminta di prompt.
+     */
+    const r = jalankanDenganKutipan([
+      {
+        text: "Pekerjaan berhenti sekitar pukul 14 karena hujan.",
+        claims: [],
+        kutipan: [{ chunkId: CHUNK, teks: "berhenti sekitar pukul 14 karena hujan" }],
+      },
+    ]);
+    expect(r.hidup).toHaveLength(0);
+    expect(r.dibuang[0]).toContain("salinan persis");
+  });
+
+  it("kutipan ke catatan yang TIDAK ditemukan ditolak", () => {
+    const r = jalankanDenganKutipan([
+      {
+        text: 'Katanya: "hujan deras".',
+        claims: [],
+        kutipan: [{ chunkId: "narasi:laporan:tidak-ada", teks: "hujan deras" }],
+      },
+    ]);
+    expect(r.hidup).toHaveLength(0);
+  });
+
+  it("angka DI LUAR kutipan dan di luar klaim = karangan, bagiannya dibuang", () => {
+    /*
+     * Inti pagarnya. "12 m3" memang ada di catatan, tapi bagian ini menyebut
+     * 20 m3 — angka yang tidak pernah ditulis siapa pun.
+     */
+    const r = jalankanDenganKutipan([
+      {
+        text: 'Sekitar 20 m3 belum dicor. Pelapor menulis: "hujan mulai jam 14".',
+        claims: [],
+        kutipan: [{ chunkId: CHUNK, teks: "hujan mulai jam 14" }],
+      },
+    ]);
+    expect(r.hidup).toHaveLength(0);
+    expect(r.dibuang[0]).toContain("angka tanpa sumber");
+  });
+
+  it("angka HITUNGAN lapangan kini ikut diperiksa — dulu lolos semua", () => {
+    /*
+     * Penyaring lama hanya menangkap "%"/"pp", jadi setiap angka lapangan tanpa
+     * satuan persen ("8 orang") lolos tanpa pernah diperiksa sama sekali.
+     */
+    const r = jalankanDenganKutipan([
+      { text: "Tenaga 99 orang dipulangkan.", claims: [], kutipan: [] },
+    ]);
+    expect(r.hidup).toHaveLength(0);
+  });
+
+  it("bagian tanpa angka dan tanpa kutipan tetap boleh lewat", () => {
+    // Kalimat penghubung bukan klaim; menuntut sitasi untuknya hanya memaksa
+    // model mengarang rujukan.
+    const r = jalankanDenganKutipan([{ text: "Berikut ringkasannya.", claims: [], kutipan: [] }]);
+    expect(r.hidup).toHaveLength(1);
+  });
+
+  it("angka dari klaim metrik tetap sah walau ditulis gaya Indonesia", () => {
+    // Calculation layer menghasilkan 42.5; balasan menulis "42,5".
+    const r = jalankanDenganKutipan([
+      {
+        text: "Realisasinya 42,5%.",
+        claims: [
+          { locationId: "lok-a", metric: "realisasi", value: 42.5, periodKey: PERIODE, sourceRefId: "a:progress" },
+        ],
+        kutipan: [],
+      },
+    ]);
+    expect(r.hidup).toHaveLength(1);
+  });
+});
+
+describe("angka dibandingkan sebagai NILAI, bukan sebagai teks", () => {
+  it("uang berformat Indonesia cocok dengan nilai calculation layer", () => {
+    /*
+     * Ditemukan lewat uji integrasi yang merah: "Rp 5.000.000.000" adalah
+     * bentuk tertulis dari 5000000000. Membandingkan teksnya membuat klaim uang
+     * yang BENAR ditolak dan keyakinannya jatuh ke 0 — pagar yang menghukum
+     * jawaban yang tepat, yang justru dilarang desain ini.
+     */
+    const FAKTA_UANG = new Map<string, FaktaResmi>([
+      [
+        kunciFakta("lok-a", "nilai_kontrak"),
+        {
+          locationId: "lok-a",
+          metric: "nilai_kontrak",
+          value: 5_000_000_000,
+          periodKey: PERIODE,
+          sourceRefId: "a:kontrak",
+        },
+      ],
+    ]);
+    const r = validasiKlaimTerikat(
+      [
+        {
+          text: "Nilai kontraknya Rp 5.000.000.000.",
+          claims: [
+            {
+              locationId: "lok-a",
+              metric: "nilai_kontrak",
+              value: 5_000_000_000,
+              periodKey: PERIODE,
+              sourceRefId: "a:kontrak",
+            },
+          ],
+        },
+      ],
+      FAKTA_UANG,
+      new Set(["a:kontrak"]),
+    );
+    expect(r.hidup).toHaveLength(1);
+  });
+
+  it("satuan yang menempel angka tidak dihitung sebagai angka", () => {
+    // Tanpa lookbehind, "m3" menyumbang angka 3 yang tidak pernah ditulis
+    // siapa pun — dan bagian yang sah ikut dibuang.
+    const CHUNK = "narasi:laporan:x";
+    const r = validasiKlaimTerikat(
+      [
+        {
+          text: 'Pelapor menulis: "cor 12 m3 selesai".',
+          claims: [],
+          kutipan: [{ chunkId: CHUNK, teks: "cor 12 m3 selesai" }],
+        },
+      ],
+      FAKTA,
+      REFS,
+      new Map([[CHUNK, "Hari ini cor 12 m3 selesai tanpa kendala."]]),
+    );
+    expect(r.hidup).toHaveLength(1);
   });
 });

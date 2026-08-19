@@ -8,6 +8,7 @@ import type { AiRunKind } from "@/generated/prisma/enums";
 import { checkAiGuard, estimateCostUsd, getAiPricing } from "./guard";
 import { buildPortfolioPulse, buildQualityDetails, resolveAiScope } from "./source";
 import { LABEL_WILAYAH, buildAdapterFacts, gabungFakta } from "./adapters";
+import { LABEL_JENIS, cariNarasi, type PotonganNarasi } from "@/lib/narasi/cari";
 import { runQualityRules } from "./quality-rules";
 import {
   buildNarrativeBundle,
@@ -20,6 +21,7 @@ import {
   KIND_INSTRUCTION,
   PROMPT_VERSION,
   buildFaktaPayload,
+  buildNarasiPayload,
   buildPulsePayload,
   buildQualityPayload,
 } from "./prompt";
@@ -161,7 +163,33 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
       ? await buildAdapterFacts(user, scope.ids, pulse.periodEnd)
       : { refs: [], fakta: [], dilewati: [] };
 
-  const allSourceRefs = [...pulse.sourceRefs, ...narrativeRefs, ...tambahan.refs];
+  /*
+   * PENCARIAN NARASI LAPANGAN (DECISIONS 382) — hanya untuk `tanya`.
+   *
+   * Lingkupnya `scope.ids`, disaring DI DALAM query (lihat `cariNarasi`), jadi
+   * catatan lokasi di luar hak penanya tidak pernah ikut diperingkat, apalagi
+   * dikutip.
+   */
+  const potongan: PotonganNarasi[] =
+    input.kind === "tanya" && input.question
+      ? await cariNarasi({ locationIds: scope.ids, pertanyaan: input.question })
+      : [];
+
+  /*
+   * Tiap potongan menjadi sumber yang bisa DIBUKA pembaca. Tanpa ini kutipan
+   * hanya berupa teks tanpa jalan memeriksanya — persis cacat sitasi id mentah
+   * yang diperbaiki DECISIONS 378.
+   */
+  const narasiRefs: SourceRef[] = potongan.map((p) => ({
+    id: p.id,
+    entityType: `narasi_${p.jenis}`,
+    entityId: p.locationId,
+    label: `${p.namaLokasi} — ${LABEL_JENIS[p.jenis]}${p.tanggal ? ` ${p.tanggal}` : ""}`,
+    value: p.teks.length > 160 ? `${p.teks.slice(0, 160)}…` : p.teks,
+    href: p.href,
+  }));
+
+  const allSourceRefs = [...pulse.sourceRefs, ...narrativeRefs, ...tambahan.refs, ...narasiRefs];
   const readinessAvg = pulse.rows.length
     ? Math.round(pulse.rows.reduce((s, r) => s + r.readiness.score, 0) / pulse.rows.length)
     : 0;
@@ -244,6 +272,7 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
       refTambahan: tambahan.refs,
       dilewati: tambahan.dilewati.map((w) => LABEL_WILAYAH[w]),
     })}`;
+    payload += `\n\n${buildNarasiPayload(potongan)}`;
   }
   const template = input.kind === "laporan" ? aiReportTemplate(input.templateKey ?? "") : undefined;
   if (input.kind === "laporan" && !template) return fail("invalid_input", "Template laporan tidak dikenal.");
@@ -302,7 +331,9 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
   if (!result.ok) return fail(result.errorCode, result.error);
 
   // 9. Grounding: buang bagian tak tergrounding, catat sebagai limitations.
-  const ctx = groundingContext(pulse, [...narrativeRefs, ...tambahan.refs]);
+  const ctx = groundingContext(pulse, [...narrativeRefs, ...tambahan.refs, ...narasiRefs]);
+  // Teks asli tiap potongan — dasar pemeriksaan kutipan VERBATIM (DECISIONS 382).
+  const teksPotongan = new Map(potongan.map((p) => [p.id, p.teks]));
   const globals = globalNumbers(pulse);
   // Fakta terikat (lokasi, metrik) → nilai + periode + sumber (DECISIONS 378),
   // ditambah fakta adapter yang boleh dilihat penanya (DECISIONS 379).
@@ -368,7 +399,7 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
      * maupun PDF nyaris tidak pernah terbaca.
      */
     const parts = (output.answerParts as BagianJawaban[] | undefined) ?? [];
-    const hasil = validasiKlaimTerikat(parts, fakta, ctx.allowedSourceRefIds);
+    const hasil = validasiKlaimTerikat(parts, fakta, ctx.allowedSourceRefIds, teksPotongan);
     output.answerParts = hasil.hidup;
     droppedNotes.push(...hasil.dibuang);
 

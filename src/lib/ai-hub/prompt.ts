@@ -1,6 +1,7 @@
 import { promptDefault } from "@/lib/ai/prompt-registry";
 import type { PortfolioPulse, PulseRow, QualityFinding, RiskItem, SourceRef } from "./types";
 import { faktaResmi, type FaktaResmi } from "./schemas";
+import { LABEL_JENIS, type PotonganNarasi } from "@/lib/narasi/cari";
 
 /**
  * Penyusun prompt AI Hub — data deterministik diringkas jadi payload kompak.
@@ -118,6 +119,41 @@ export function buildFaktaPayload(
     "Setiap bagian jawaban yang menyebut angka WAJIB membawa claims dari daftar di atas,",
     "dengan value, periodKey, dan sourceRefId PERSIS seperti tertulis. Bagian yang menyebut",
     "angka tanpa claims yang cocok akan DIBUANG dan tidak pernah sampai ke penanya.",
+  ].join("\n");
+}
+
+/**
+ * CATATAN LAPANGAN yang ditemukan pencarian narasi (DECISIONS 382).
+ *
+ * Teksnya disodorkan APA ADANYA beserta `chunkId`-nya, karena validator menuntut
+ * kutipan yang PERSIS. Model yang harus menebak bentuk kutipannya akan
+ * menghasilkan parafrase, seluruh kutipannya ditolak, dan penanya menerima
+ * jawaban kosong untuk pertanyaan yang catatannya justru ada.
+ */
+export function buildNarasiPayload(potongan: PotonganNarasi[]): string {
+  if (potongan.length === 0) {
+    return [
+      "CATATAN LAPANGAN: tidak ada catatan yang cocok dengan pertanyaan ini.",
+      "Jangan mengarang isi catatan. Katakan saja tidak ada catatan yang cocok.",
+    ].join("\n");
+  }
+  const baris = potongan.map(
+    (p) =>
+      `- chunkId=${p.id} | ${LABEL_JENIS[p.jenis]} | ${p.namaLokasi}` +
+      `${p.tanggal ? ` | ${p.tanggal}` : ""}\n  teks: ${p.teks.replace(/\s+/g, " ")}`,
+  );
+  return [
+    "CATATAN LAPANGAN (teks yang ditulis pelapor — BUKAN angka resmi MARLIN):",
+    ...baris,
+    "",
+    "ATURAN KUTIPAN — dijaga mesin, bukan sekadar anjuran:",
+    "1. Bila memakai isi catatan, SALIN PERSIS potongan kalimatnya ke answerParts[].kutipan",
+    "   ({ chunkId, teks }). Parafrase DITOLAK dan bagiannya dibuang.",
+    "2. Setiap ANGKA yang kamu tulis harus berasal dari claims (angka resmi) ATAU",
+    "   berada di dalam kutipan verbatim. Angka lain dianggap karangan dan bagiannya",
+    "   DIBUANG.",
+    "3. Angka di dalam catatan lapangan adalah KATA PELAPOR, bukan angka resmi MARLIN.",
+    "   Sebutkan begitu; jangan menyajikannya sebagai hasil hitungan sistem.",
   ].join("\n");
 }
 

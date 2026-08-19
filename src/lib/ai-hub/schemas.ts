@@ -203,6 +203,16 @@ export const klaimSchema = z.object({
 });
 export type Klaim = z.infer<typeof klaimSchema>;
 
+/* ── Kutipan narasi lapangan (DECISIONS 382) ─────────────────────────── */
+
+export const kutipanSchema = z.object({
+  /** Id potongan yang dikutip — harus dari daftar yang benar-benar ditemukan. */
+  chunkId: z.string(),
+  /** Teks APA ADANYA dari potongan itu. Parafrase ditolak. */
+  teks: z.string().min(3).max(500),
+});
+export type Kutipan = z.infer<typeof kutipanSchema>;
+
 export const askOutputSchema = z.object({
   answer: z.string().min(5).max(4000),
   /**
@@ -215,6 +225,8 @@ export const askOutputSchema = z.object({
       z.object({
         text: z.string().min(1).max(800),
         claims: z.array(klaimSchema).max(8),
+        /** Kutipan VERBATIM catatan lapangan (DECISIONS 382). */
+        kutipan: z.array(kutipanSchema).max(4).default([]),
       }),
     )
     .max(12)
@@ -271,7 +283,113 @@ export function faktaResmi(pulse: PortfolioPulse): Map<string, FaktaResmi> {
   return out;
 }
 
-export type BagianJawaban = { text: string; claims: Klaim[] };
+/* ── Kutipan narasi lapangan (DECISIONS 382, Fase F2) ─────────────────── */
+
+export type BagianJawaban = { text: string; claims: Klaim[]; kutipan?: Kutipan[] };
+
+/** Samakan spasi supaya kutipan tidak gagal hanya karena baris baru. */
+function ratakan(s: string): string {
+  return s.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+/**
+ * Setiap ANGKA yang muncul di sebuah teks — bukan hanya persen.
+ *
+ * `extractNumericClaims` sengaja sempit: ia hanya menangkap "%"/"pp" karena
+ * dibuat untuk klaim metrik. Catatan lapangan menulis angka tanpa satuan itu —
+ * *"cor 12 m3, tenaga 8 orang"* — jadi memakai penyaring lama di jalur narasi
+ * berarti seluruh angka lapangan lolos tanpa pernah diperiksa.
+ */
+export function semuaAngka(teks: string): number[] {
+  /*
+   * Dibandingkan sebagai NILAI, bukan sebagai teks.
+   *
+   * Uang ditulis dalam bentuk Indonesia — "Rp 5.000.000.000" — sementara
+   * calculation layer menyimpan 5000000000. Membandingkan teksnya membuat klaim
+   * uang yang BENAR ditolak, lalu keyakinannya jatuh ke 0: pagar yang menghukum
+   * jawaban yang tepat. Terukur: uji klaim nilai kontrak merah karenanya.
+   *
+   * Titik = pemisah ribuan, koma = desimal (konvensi yang dipakai seluruh
+   * pemformat MARLIN).
+   *
+   * Lookbehind `(?<![\p{L}])` mencegah angka yang menempel huruf ikut terbaca:
+   * tanpa itu "m3" menyumbang angka 3 yang tidak pernah ditulis siapa pun, dan
+   * bagian yang sah ikut dibuang.
+   */
+  return [...teks.matchAll(/(?<![\p{L}])\d[\d.]*(?:,\d+)?/gu)]
+    .map((m) => Number(m[0].replace(/\.+$/, "").replace(/\./g, "").replace(",", ".")))
+    .filter((n) => Number.isFinite(n));
+}
+
+export type HasilValidasiKutipan = {
+  sah: Kutipan[];
+  dibuang: string[];
+};
+
+/**
+ * Kutipan harus VERBATIM — diperiksa sebagai potongan teks aslinya
+ * (DECISIONS 382).
+ *
+ * Inilah pagar anti-karangan yang bisa diuji, bukan imbauan di prompt. Model
+ * boleh menyampaikan angka yang MEMANG tertulis di catatan lapangan — itu angka
+ * MARLIN, bukan karangan — tapi hanya dengan menyalinnya apa adanya. Begitu ia
+ * menyusun ulang kalimatnya, tidak ada lagi cara otomatis membedakan angka yang
+ * benar-benar ditulis pelapor dari angka yang dikarang model.
+ *
+ * Perbandingannya meratakan spasi dan huruf besar-kecil saja. Lebih longgar
+ * dari itu (mis. mengabaikan tanda baca) akan membuat "12" dan "1,2" bisa
+ * saling lolos.
+ */
+export function validasiKutipan(
+  kutipan: Kutipan[],
+  potongan: ReadonlyMap<string, string>,
+): HasilValidasiKutipan {
+  const sah: Kutipan[] = [];
+  const dibuang: string[] = [];
+  for (const k of kutipan) {
+    const asli = potongan.get(k.chunkId);
+    if (asli == null) {
+      dibuang.push(`kutipan menunjuk catatan yang tidak ada: ${k.chunkId}`);
+      continue;
+    }
+    if (!ratakan(asli).includes(ratakan(k.teks))) {
+      dibuang.push(`kutipan bukan salinan persis dari ${k.chunkId}`);
+      continue;
+    }
+    sah.push(k);
+  }
+  return { sah, dibuang };
+}
+
+/**
+ * Angka pada satu bagian yang TIDAK bisa dipertanggungjawabkan.
+ *
+ * Sebuah angka boleh muncul bila ia berasal dari salah satu dari dua sumber
+ * yang keduanya milik MARLIN sendiri:
+ *
+ *   1. klaim metrik yang lolos validasi (calculation layer, DECISIONS 378), atau
+ *   2. kutipan VERBATIM dari catatan lapangan (DECISIONS 382).
+ *
+ * Selain itu ia karangan — dan itulah satu-satunya hal yang dilarang tanpa
+ * toleransi (penegasan user 2026-08-19). Yang dikembalikan adalah angka-angka
+ * yang tak tertutup keduanya.
+ */
+export function angkaTakBersumber(
+  bagian: BagianJawaban,
+  klaimSah: readonly Klaim[],
+  kutipanSah: readonly Kutipan[],
+): number[] {
+  const boleh = [
+    ...kutipanSah.flatMap((k) => semuaAngka(k.teks)),
+    ...klaimSah.map((k) => k.value),
+  ];
+  /*
+   * Toleransi kecil untuk pembulatan tampilan: calculation layer menghasilkan
+   * 42.499 sementara balasan menulis "42,5". Uang tetap ketat karena nilainya
+   * besar — selisih 0,05 pada rupiah tidak mungkin lolos sebagai angka lain.
+   */
+  return semuaAngka(bagian.text).filter((a) => !boleh.some((b) => Math.abs(a - b) <= 0.05));
+}
 
 export type HasilValidasiKlaim = {
   hidup: BagianJawaban[];
@@ -300,6 +418,8 @@ export function validasiKlaimTerikat(
   parts: BagianJawaban[],
   fakta: ReadonlyMap<string, FaktaResmi>,
   allowedSourceRefIds: ReadonlySet<string>,
+  /** Teks potongan narasi per `chunkId` — untuk memeriksa kutipan verbatim. */
+  potongan: ReadonlyMap<string, string> = new Map(),
 ): HasilValidasiKlaim {
   const dibuang: string[] = [];
   const hidup: BagianJawaban[] = [];
@@ -307,6 +427,7 @@ export function validasiKlaimTerikat(
 
   for (const part of parts) {
     const alasan: string[] = [];
+    const klaimSah: Klaim[] = [];
 
     for (const k of part.claims) {
       const f = fakta.get(kunciFakta(k.locationId, k.metric));
@@ -327,11 +448,30 @@ export function validasiKlaimTerikat(
         continue;
       }
       klaimValid += 1;
+      klaimSah.push(k);
     }
 
-    // Menyebut angka tanpa klaim = tidak bisa diperiksa siapa pun.
-    if (part.claims.length === 0 && extractNumericClaims(part.text).length > 0) {
-      alasan.push("menyebut angka tanpa klaim bersumber");
+    /*
+     * KUTIPAN diperiksa verbatim (DECISIONS 382). Kutipan yang tidak sah
+     * membatalkan bagiannya: menyodorkan tanda kutip di sekeliling kalimat yang
+     * tidak pernah ditulis siapa pun lebih buruk daripada tidak mengutip.
+     */
+    const hasilKutipan = validasiKutipan(part.kutipan ?? [], potongan);
+    if (hasilKutipan.dibuang.length > 0) alasan.push(hasilKutipan.dibuang[0]);
+    klaimValid += hasilKutipan.sah.length;
+
+    /*
+     * ANGKA yang tidak berasal dari calculation layer MAUPUN dari kutipan
+     * verbatim = karangan, dan itu satu-satunya hal yang dilarang tanpa
+     * toleransi (penegasan user 2026-08-19).
+     *
+     * Pemeriksaannya kini menjangkau SEMUA angka, bukan hanya persen: catatan
+     * lapangan menulis "cor 12 m3" tanpa satuan persen, dan penyaring lama
+     * meloloskan seluruhnya tanpa pernah memeriksa.
+     */
+    const liar = angkaTakBersumber(part, klaimSah, hasilKutipan.sah);
+    if (liar.length > 0) {
+      alasan.push(`angka tanpa sumber: ${liar.slice(0, 3).join(", ")}`);
     }
 
     if (alasan.length > 0) {
@@ -484,6 +624,7 @@ export const SCHEMA_HINTS = {
   "answer": string (Bahasa Indonesia, langsung ke inti),
   "answerParts": [{
     "text": string (satu bagian jawaban, boleh 1-3 kalimat),
+    "kutipan": [{ "chunkId": string dari daftar CATATAN LAPANGAN, "teks": string SALINAN PERSIS }],
     "claims": [{
       "locationId": string (dari daftar scope),
       "metric": "rencana"|"realisasi"|"deviasi"|"kesiapan"|"laporan_final"|"laporan_diharapkan"|"kendala_terbuka"|"kendala_kritis",

@@ -18649,3 +18649,98 @@ manual.
 Dua penegasan SPMK di `tugas-harian` sekalian diperbaiki: memeriksa **nama
 paketnya sendiri** (`hasil.paket`), bukan hitungan global — lebih kuat, dan
 kebal baris asing. Sisanya dicatat di `OPEN_ISSUES` sebagai `UJI-01`.
+
+---
+
+## 382 — Fase F1+F2: pencarian narasi lapangan + kutipan verbatim (2026-08-19)
+
+Empat keputusan user 2026-08-19 (lewat pertanyaan interaktif):
+
+1. **F1 + F2 sekaligus** — pencarian kata, bukan embedding, plus pagar kutipan.
+2. **Kutipan verbatim + ditandai** — angka lapangan boleh disampaikan, asal disalin apa adanya.
+3. **Sumber**: laporan harian + itemnya, kegiatan lapangan, kendala + recovery. **Bukan** PDF.
+4. **Hanya laporan final/disetujui.**
+
+Ditambah penegasan yang mengubah desainnya:
+
+> *"yang aku larang tanpa toleransi kan mengarang angka, kalau angkanya dari
+> sumber marlin ya tidak apa AI mengirim data itu keluar."*
+
+Jadi hambatan pengungkapan yang sempat saya angkat gugur. Yang tersisa satu
+larangan, dan larangan itu kini **diperiksa mesin**, bukan diminta di prompt.
+
+### Kenapa pencarian kata, bukan embedding
+
+Diperiksa langsung pada PostgreSQL 16.13 yang dipakai: **pgvector TIDAK
+tersedia**, sementara konfigurasi teks `indonesian` bawaan **ADA** dan
+benar-benar melakukan stemming — `pengecoran` → `ecor`, `tertunda` → `tunda`,
+`terlambat` → `lambat`.
+
+Maka F1 tidak menambah ekstensi, tidak berbiaya per pertanyaan, dan tetap hidup
+saat penyedia AI mati (alasan yang sama dengan DECISIONS 375). Embedding baru
+layak ditambahkan kalau ini terbukti kurang pada pertanyaan nyata.
+
+### Indeks GENERATED, bukan tabel indeks tersendiri
+
+Tabel indeks terpisah harus DISINKRONKAN, dan sinkronisasi yang terlewat membuat
+MARLIN menjawab dari teks yang sudah dikoreksi — kesalahan paling sulit terlihat,
+karena jawabannya tampak normal DAN bersitasi.
+
+Kolom `tsv … GENERATED ALWAYS … STORED` dipelihara PostgreSQL sendiri pada setiap
+tulis, lewat jalur apa pun. Tidak ada kode sinkronisasi yang bisa lupa, tidak ada
+jendela basi. Ada ujinya: catatan diubah, potongan lama langsung hilang dari
+hasil dan yang baru langsung muncul.
+
+### OR, bukan AND — ditemukan lewat uji yang merah
+
+Versi pertama memakai `plainto_tsquery`, yang meng-AND seluruh kata. Untuk
+pertanyaan orang — *"kenapa terlambat, hujan?"* — itu menuntut catatan memuat
+"kenapa" DAN "lambat" DAN "hujan" sekaligus. Terukur: **0 hasil** terhadap
+catatan yang jelas relevan. Fiturnya akan lahir dalam keadaan tidak berguna.
+
+Sekarang lexeme di-OR-kan dan `ts_rank` yang mengurutkan — ketepatan datang dari
+PERINGKAT, bukan penyaringan kaku. Lexeme diambil dari `to_tsvector` (bukan teks
+mentah) dan disaring `^[a-z0-9]+$`, jadi operator tsquery tidak mungkin terbawa
+dari ketikan penanya.
+
+### Pagar kutipan (F2): satu-satunya larangan, diperiksa mesin
+
+- Kutipan harus **verbatim** — divalidasi sebagai potongan teks aslinya.
+  Parafrase ditolak dan bagiannya dibuang. Begitu model menyusun ulang
+  kalimatnya, tidak ada lagi cara otomatis membedakan angka yang benar-benar
+  ditulis pelapor dari angka yang dikarang.
+- Setiap **angka** harus berasal dari salah satu dari dua sumber yang keduanya
+  milik MARLIN: klaim metrik tervalidasi (calculation layer) **atau** kutipan
+  verbatim. Selain itu = karangan → bagiannya dibuang.
+- Pemeriksaannya kini menjangkau **semua angka**, bukan hanya persen.
+  `extractNumericClaims` hanya menangkap `%`/`pp`; catatan lapangan menulis
+  "cor 12 m3, tenaga 8 orang" — seluruhnya lolos tanpa pernah diperiksa.
+
+### Angka dibandingkan sebagai NILAI — ditemukan lewat uji integrasi yang merah
+
+Versi pertama membandingkan angka sebagai teks. Akibatnya klaim uang yang BENAR
+ditolak: `Rp 5.000.000.000` adalah bentuk tertulis dari `5000000000`, dan
+keyakinannya jatuh ke 0. Itu pagar yang menghukum jawaban yang tepat — persis
+yang dilarang desainnya sendiri.
+
+Sekarang keduanya di-parse (titik = ribuan, koma = desimal) lalu dibandingkan
+sebagai bilangan, dengan toleransi 0,05 untuk pembulatan tampilan. Lookbehind
+`(?<![\p{L}])` mencegah "m3" ikut terbaca sebagai angka 3 — tanpa itu bagian
+yang sah ikut dibuang.
+
+### Uji gigi
+
+Murni (4): verbatim dilepas → merah; chunkId tak dikenal diterima → merah;
+angka liar tidak diperiksa → 3 merah; `semuaAngka` dikembalikan ke persen-saja →
+2 merah.
+
+Terpasang (3): pagar lingkup dilepas → merah; pagar status dilepas (draft ikut)
+→ merah; kembali ke `plainto_tsquery` → merah.
+
+### Batas yang tetap berlaku
+
+Dokumen PDF tidak di-index (butuh ekstraksi + OCR — proyek tersendiri). Laporan
+`draft`/`perlu_koreksi` tidak pernah dicari, memakai `COUNTED_REPORT_STATUSES`
+yang sama dengan calculation layer supaya tidak lahir definisi "laporan sah"
+kedua. Lingkup disaring DI DALAM query — menyaring sesudah peringkat
+membocorkan keberadaan lokasi lain lewat jumlah hasil dan skornya.

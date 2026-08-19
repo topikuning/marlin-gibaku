@@ -1,7 +1,10 @@
 # Desain Fase F — pencarian narasi lapangan (yang di brief disebut "RAG")
 
-**Status: USULAN. Belum ada satu baris kode pun.**
-Dibuat 2026-08-19 atas permintaan user ("rancang dulu, jangan bangun").
+**Status: F1 + F2 SUDAH DIBANGUN** (DECISIONS 382, 2026-08-19). F3 (embedding)
+belum, dan menunggu bukti bahwa F1 kurang.
+
+Dibuat 2026-08-19 atas permintaan user ("rancang dulu, jangan bangun"), lalu
+disetujui dengan empat keputusan di bagian 10.
 
 `DECISIONS 369` mencatat: *"Fase RAG tidak boleh dimulai tanpa persetujuan
 eksplisit user dan bukan keputusan MARLIN saat ini."* Dokumen ini tidak
@@ -211,12 +214,15 @@ F1 dan F2 tidak mengirim data ke mana pun dan tidak menambah dependensi.
 
 ## 10. Yang perlu Anda putuskan
 
-1. **Boleh atau tidak teks catatan lapangan keluar ke penyedia embedding?**
-   Ini keputusan pengungkapan, sejenis "uang lewat WhatsApp" yang Anda tunda —
-   bukan keputusan teknis. Kalau jawabannya tidak, F3 gugur dan F1+F2 saja.
-2. **Mulai dari F1 (pencarian kata) atau langsung F3 (embedding)?**
-   Saya menyarankan F1 lebih dulu, dengan alasan di bagian 4.
-3. **Dokumen PDF ikut?** Saran: tidak untuk sekarang (butuh OCR).
-4. **Laporan draft ikut di-index?** Saran: tidak — hanya yang sudah disetujui.
+**SUDAH DIJAWAB user 2026-08-19:**
 
-Sebelum keempatnya terjawab, tidak ada kode yang ditulis.
+1. **Pengungkapan — BUKAN hambatan.** Penegasan user: yang dilarang tanpa
+   toleransi adalah *mengarang* angka; angka yang berasal dari sumber MARLIN
+   boleh dikirim keluar. F3 karena itu tidak terhalang alasan pengungkapan.
+2. **F1 + F2 sekaligus.** ✅ dibangun.
+3. **PDF: tidak** untuk sekarang.
+4. **Hanya laporan final/disetujui.** ✅
+
+Yang tersisa: F3 (embedding) — dikerjakan hanya bila F1 terbukti kurang pada
+pertanyaan nyata. Prasyaratnya pgvector, yang TIDAK tersedia pada PostgreSQL
+yang diperiksa dan harus diverifikasi di Railway lebih dulu.
