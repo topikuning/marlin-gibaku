@@ -3,6 +3,8 @@ import { timingSafeEqual } from "node:crypto";
 import { getWahaWebhookSecret, recordWahaHit } from "@/lib/waha/config";
 import { ingestWaEvent } from "@/lib/waha/ingest";
 import { antreJawaban, prosesAntrean } from "@/lib/waha/antrean";
+import { isWaAckEvent, parseWaAck } from "@/lib/waha/ingest-parse";
+import { terapkanAck } from "@/lib/waha/gateway";
 
 export const dynamic = "force-dynamic";
 
@@ -63,6 +65,33 @@ export async function POST(req: Request) {
   } else if (body === null) {
     status = 400;
     outcome = "body bukan JSON";
+  } else if (isWaAckEvent(body)) {
+    /*
+     * TANDA TERIMA — jalur tersendiri, dan sengaja SEBELUM ingest
+     * (DECISIONS 374).
+     *
+     * `message.ack` mengabarkan sesuatu yang sudah KELUAR, bukan sesuatu yang
+     * masuk. Kalau ia dilewatkan ke jalur pesan, ia akan diarsipkan sebagai
+     * pesan lalu diantrekan sebagai pertanyaan — MARLIN mencoba menjawab tanda
+     * terimanya sendiri.
+     */
+    try {
+      const a = parseWaAck(body);
+      chatId = a?.chatId ?? null;
+      if (!a) {
+        outcome = "ack: payload tidak terbaca";
+      } else {
+        const r = await terapkanAck(a.waMessageId, a.ack);
+        outcome = r.cocok
+          ? r.berubah
+            ? `ack: ${r.dari} → ${r.ke}`
+            : `ack: tidak mengubah apa pun (status ${r.dari})`
+          : `ack: ${r.alasan}`;
+      }
+    } catch (err) {
+      console.error("[waha/webhook] gagal memproses ack:", err);
+      outcome = "ack: gagal diproses (lihat log)";
+    }
   } else {
     try {
       const result = await ingestWaEvent(body);

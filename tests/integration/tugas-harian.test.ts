@@ -28,6 +28,18 @@ vi.mock("@/lib/waha/client", () => ({
   // menegasikan Promise dan karena itu tidak pernah aktif — lolos dari uji.
   isWahaConfigured: async () => wahaAktif,
   getSessionStatus: async () => ({ name: "default", status: statusSesi }),
+}));
+
+/*
+ * Jalur kirim dipalsukan di `@/lib/waha/kirim`, BUKAN di `client` (DECISIONS 374).
+ *
+ * Sejak gateway kanonik ada, pemanggil fitur tidak lagi menyentuh `client`
+ * langsung: `client` tinggal transport mentah, dan `kirim` yang menumpang
+ * gateway (periksa sesi → catat outbox → simpan message id). Memalsukan
+ * `client` saja membuat uji menembus gateway sungguhan — yang benar, tapi
+ * bukan yang sedang diuji berkas ini.
+ */
+vi.mock("@/lib/waha/kirim", () => ({
   sendText: async (chatId: string, text: string) => {
     if (gagalKirim) throw new Error("WAHA mati");
     terkirim.push({ chatId, text });

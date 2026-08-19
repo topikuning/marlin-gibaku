@@ -17901,3 +17901,104 @@ grup yang sama.
 Alat diagnosa `pnpm waha:grup-ganda` tetap ada dan tetap berguna — untuk
 memeriksa keputusan yang sudah diambil migrasi, dan untuk memutuskan sendiri
 sebelum deploy bila memang ada aksesnya. Ia tidak lagi menjadi SYARAT deploy.
+
+---
+
+## 374 — Gateway pengiriman WhatsApp + rekonsiliasi `message.ack` (2026-08-19)
+
+Fase C dari brief audit user 2026-08-19.
+
+### Tiga fungsi kirim, tiga perilaku
+
+| | kembalian | periksa sesi | simpan message id |
+|---|---|---|---|
+| `sendText` | id atau `null` | tidak | kadang, oleh pemanggil |
+| `sendImage` | `void` | tidak | tidak pernah |
+| `sendFile` | `void` | tidak | tidak pernah |
+
+Akibatnya tiap pemanggil menafsirkan keberhasilan sendiri, dan sebagian UI
+menulis **"Terkirim"** begitu tidak ada galat. Padahal WAHA menjawab 2xx juga
+ketika sesinya belum login: pesannya tidak pernah keluar, dan tidak ada satu pun
+tempat di layar yang bisa membedakannya dari pesan yang benar-benar sampai.
+
+Yang paling parah justru dua jalur yang mengembalikan `void` — `sendImage` dan
+`sendFile` — karena itulah jalur laporan resmi ke grup KKP.
+
+### Satu pintu keluar
+
+`sendWaMessage()` (`gateway.ts`) menjamin: konfigurasi ada → **sesi `WORKING`
+diperiksa SEBELUM endpoint kirim disentuh** → tujuan dikanonikkan → percobaan
+dicatat di `wa_outbound` sebelum berangkat → idempotensi lewat `idempotencyKey`
+→ **message id disimpan untuk teks, gambar, DAN berkas** → kiriman yang sudah
+diterima WAHA tidak pernah dikirim ulang → galat tersimpan terstruktur.
+
+Baris outbox dibuat **sebelum** berangkat, bukan sesudah: kalau proses mati
+tepat setelah WAHA menerima tapi sebelum kita mencatat, pesannya sudah keluar
+sementara sistem tidak punya jejaknya — dan percobaan berikutnya mengirim ulang.
+
+**28 pemanggil di 6 berkas tidak disentuh satu pun.** `sendText`/`sendImage`/
+`sendFile` dipindah ke `kirim.ts` dan diarahkan ke gateway; `client.ts` tinggal
+transport mentah (`kirimMentah*`). Memigrasikan 28 tempat sekaligus berarti satu
+perubahan besar yang menyentuh setiap fitur WhatsApp — persis yang dilarang
+brief. Yang TIDAK ikut otomatis: idempotensi. Tanpa kunci dari pemanggil,
+gateway membuat kunci acak — sama seperti dulu. Mengarang kunci dari isi pesan
+akan diam-diam MENELAN kiriman sah yang kebetulan sama (pengingat harian dua
+hari berturut-turut).
+
+### "Diterima WAHA" ≠ "Terkirim"
+
+Enum-nya memisahkan keduanya, dan kata-kata UI mengikuti pemisahan itu — bukan
+sebaliknya. `distributeArtifactAction`, yang dulu mengabaikan hasil `sendText()`
+dan langsung menulis *"Terkirim ke …"*, kini berbunyi *"Sudah diserahkan ke
+WhatsApp untuk … Status sampai/dibaca menyusul di Sistem → WhatsApp."*
+
+Ada uji yang menjaga label `diterima_waha` tidak boleh memuat kata "terkirim"
+atau "sampai": kalau suatu saat diganti demi terlihat rapi, seluruh perbaikan
+ini batal tanpa satu baris kode pun berubah.
+
+### Status tidak boleh mundur
+
+Ack tiba lewat jaringan dan TIDAK dijamin berurutan — `read` bisa mendarat
+sebelum `delivered`. Kalau tiap ack ditulis apa adanya, satu pesan yang sudah
+dibaca "turun" jadi terkirim lalu naik lagi, dan riwayat yang berkedip membuat
+orang berhenti mempercayainya sama sekali.
+
+Jadi status hanya NAIK, dengan satu pengecualian yang memang final:
+gagal/ditolak menang atas status maju mana pun — ia punya bukti sendiri, dan
+menyembunyikannya karena "sudah pernah terkirim" berarti melaporkan pesan hilang
+sebagai pesan sampai. Sesudah final, ack maju tidak menghidupkannya kembali.
+
+`message.ack` ditangani di cabang webhook TERSENDIRI, sebelum ingest: ia
+mengabarkan sesuatu yang KELUAR, bukan masuk. Kalau dilewatkan ke jalur pesan,
+ia diarsipkan sebagai pesan lalu diantrekan sebagai pertanyaan — MARLIN mencoba
+menjawab tanda terimanya sendiri.
+
+Ack untuk pesan yang bukan kiriman MARLIN diabaikan dengan tenang: WAHA
+mengirim ack untuk SETIAP pesan keluar dari nomor itu, termasuk yang diketik
+manusia dari HP-nya.
+
+### 4xx = ditolak, bukan gagal
+
+WhatsApp menolak nomor tak terdaftar dengan 4xx (mis. 463). Menandainya "gagal"
+mengundang percobaan ulang yang pasti sia-sia — dan menyembunyikan bahwa
+tujuannya yang salah. Karena itu `WahaError` kini membawa kode HTTP-nya.
+
+### Uji gigi
+
+- Pemeriksaan sesi `WORKING` dilepas → 2 uji merah, termasuk yang membuktikan
+  penolakan terjadi SEBELUM jaringan disentuh.
+- Pagar anti-mundur dilepas → 2 uji unit + 1 uji integrasi merah.
+
+### Uji lama yang ikut berubah, dan alasannya
+
+Lima berkas uji memalsukan `sendText` di `@/lib/waha/client`. Sejak gateway ada,
+pemanggil fitur tidak lagi menyentuh `client` — memalsukan `client` saja membuat
+uji menembus gateway sungguhan. Mock-nya dipindah ke `@/lib/waha/kirim`, yaitu
+lapisan yang benar-benar dipakai. 97 uji sempat merah karenanya; itu bukan
+regresi produk melainkan mock yang menunjuk lapisan yang sudah berpindah.
+
+### Yang masih tersisa
+
+`message.ack` harus **diaktifkan di WAHA** untuk URL webhook yang sama. Tanpa
+itu kiriman berhenti di `Diterima WAHA` selamanya — dan itu jujur: memang tidak
+ada bukti lain yang pernah tiba. Dicatat di `docs/WAHA_SETUP.md`.

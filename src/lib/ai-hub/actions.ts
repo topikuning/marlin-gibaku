@@ -9,7 +9,8 @@ import { scopeCoveredBy } from "@/lib/ai-hub/read-scope";
 import { audit, auditIn } from "@/lib/audit";
 import { accessibleLocationIds, ForbiddenError, requireCapability, requireLocationAccess } from "@/lib/auth/session";
 import { canTransitionAiArtifact } from "@/lib/lifecycle";
-import { sendText, WahaError } from "@/lib/waha/client";
+import { WahaError } from "@/lib/waha/client";
+import { sendWaMessage } from "@/lib/waha/gateway";
 import { normalizeWaTarget } from "@/lib/contacts/model";
 import { jakartaToday, parseDateKey } from "@/lib/format";
 import type { AiArtifactStatus, AiRunKind } from "@/generated/prisma/enums";
@@ -456,7 +457,30 @@ export async function distributeArtifactAction(_prev: AiHubState, formData: Form
 
     const text =
       artifact.renderedText ?? renderAiReportWhatsApp(parseAiReportContent(artifact.structuredContent), true);
-    await sendText(target.chatId, text);
+
+    /*
+     * Lewat gateway kanonik, dan hasilnya DIBACA (DECISIONS 374).
+     *
+     * Sebelumnya hasil `sendText()` diabaikan sepenuhnya dan UI langsung
+     * menulis "Terkirim ke …". Itu keliru dua tingkat: WAHA menjawab 2xx juga
+     * saat sesinya belum login, dan bahkan ID pesan pun cuma bukti WAHA
+     * MENERIMA — bukan bukti pesannya sampai.
+     *
+     * Kunci idempotensinya mengikat artefak + tujuan + isi. Menekan tombol
+     * kirim dua kali untuk artefak yang sama ke tujuan yang sama tidak akan
+     * mengirim dua pesan; mengubah isinya (hash berubah) memang kiriman baru.
+     */
+    const hasil = await sendWaMessage({
+      kind: "teks",
+      destination: target.chatId,
+      payload: { teks: text },
+      idempotencyKey: `artifact:${artifact.id}:${target.chatId}:${artifact.contentHash}`,
+      sourceType: "ai_artifact",
+      sourceId: artifact.id,
+    });
+    if (!hasil.diterimaWaha) {
+      return { error: hasil.error ?? "Pengiriman WhatsApp gagal." };
+    }
 
     const dist = Array.isArray(artifact.distributions) ? (artifact.distributions as unknown[]) : [];
     dist.push({
@@ -466,14 +490,30 @@ export async function distributeArtifactAction(_prev: AiHubState, formData: Form
       chatId: target.chatId,
       byId: user.id,
       hash: artifact.contentHash,
+      // Jejak ke outbox: status sebenarnya (sampai/dibaca/gagal) hidup di sana
+      // dan diperbarui oleh `message.ack`, bukan dibekukan di sini.
+      outboundId: hasil.outboundId,
+      waMessageId: hasil.waMessageId,
     });
     await db.aiArtifact.update({
       where: { id: artifact.id },
       data: { status: "terkirim", distributions: JSON.parse(JSON.stringify(dist)) },
     });
-    await audit(user.id, "ai.artifact.distribusi", "ai_artifact", artifact.id, { target: target.name, chatId: target.chatId });
+    await audit(user.id, "ai.artifact.distribusi", "ai_artifact", artifact.id, {
+      target: target.name,
+      chatId: target.chatId,
+      outboundId: hasil.outboundId,
+      status: hasil.status,
+    });
     if (artifact.runId) revalidatePath(`/ai/run/${artifact.runId}`);
-    return { ok: `Terkirim ke ${target.name}.` };
+    /*
+     * Kalimatnya JUJUR terhadap yang benar-benar diketahui saat ini. "Terkirim"
+     * baru sah setelah tanda terima WhatsApp tiba — dan itu terjadi beberapa
+     * detik kemudian, di luar permintaan ini.
+     */
+    return {
+      ok: `Sudah diserahkan ke WhatsApp untuk ${target.name}. Status sampai/dibaca menyusul di Sistem → WhatsApp.`,
+    };
   } catch (err) {
     return fail(err);
   }

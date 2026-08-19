@@ -1719,6 +1719,73 @@ model WaReplyJob {
   @@map("wa_reply_jobs")
 }
 
+/// Jenis kiriman WhatsApp yang dilayani gateway kanonik (DECISIONS 374).
+enum WaOutboundKind {
+  teks
+  gambar
+  berkas
+}
+
+/// Perjalanan satu kiriman WhatsApp — TIDAK boleh mundur (DECISIONS 374).
+///
+/// Bedanya `diterima_waha` dan `terkirim` adalah inti seluruh perubahan ini:
+/// HTTP 2xx dari WAHA hanya membuktikan WAHA MENERIMA permintaannya, bukan
+/// bahwa WhatsApp mengirimkannya. Bukti sampai hanya datang dari `message.ack`.
+enum WaOutboundStatus {
+  antre
+  diterima_waha
+  terkirim
+  sampai
+  dibaca
+  gagal
+  ditolak
+}
+
+/// OUTBOX kiriman WhatsApp — satu-satunya pintu keluar (DECISIONS 374).
+///
+/// Sebelumnya tiap pemanggil menafsirkan keberhasilan sendiri: `sendText`
+/// mengembalikan id-atau-null, `sendImage`/`sendFile` mengembalikan void, dan
+/// pemeriksaan sesi WORKING hanya ada di sebagian jalur. Sebagian UI menulis
+/// "Terkirim" begitu HTTP 2xx — padahal WAHA menjawab 2xx juga saat sesinya
+/// belum login, dan pesannya tidak pernah keluar.
+model WaOutbound {
+  id   String         @id @default(uuid()) @db.Uuid
+  kind WaOutboundKind
+
+  chatId String @map("chat_id")
+
+  /// Kunci idempotensi dari pemanggil. UNIQUE: kiriman yang sama tidak pernah
+  /// berangkat dua kali, berapa pun kali tombolnya ditekan atau job diulang.
+  idempotencyKey String @unique @map("idempotency_key")
+
+  /// Dari fitur mana — supaya kiriman bisa ditelusuri balik ke asalnya.
+  sourceType String  @map("source_type")
+  sourceId   String? @map("source_id")
+
+  /// ID pesan dari WAHA. Bukti WAHA MENERIMA — bukan bukti sampai.
+  waMessageId String? @unique @map("wa_message_id")
+
+  status   WaOutboundStatus @default(antre)
+  attempts Int              @default(0)
+
+  lastError String? @map("last_error")
+  /// Kode HTTP WAHA saat gagal — pembeda "ditolak" (4xx) dari "gagal" (jaringan).
+  errorCode String? @map("error_code")
+
+  /// Ringkasan isi untuk diagnosa. SENGAJA bukan isi penuh: outbox dibaca admin
+  /// lain, dan isi chat pribadi tidak pantas ada di sana.
+  ringkas String?
+
+  sentAt    DateTime? @map("sent_at") @db.Timestamptz
+  ackAt     DateTime? @map("ack_at") @db.Timestamptz
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([status, createdAt])
+  @@index([sourceType, sourceId])
+  @@map("wa_outbound")
+}
+
 model AuditLog {
   id           String   @id @default(uuid()) @db.Uuid
   userId       String?  @map("user_id") @db.Uuid

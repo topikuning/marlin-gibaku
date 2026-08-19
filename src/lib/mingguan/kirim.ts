@@ -2,7 +2,8 @@ import "server-only";
 import { db } from "@/lib/db";
 import { getLocationProgress, type LocationProgress } from "@/lib/progress";
 import { weightedPct, weightedRealizedPct } from "@/lib/progress-calc";
-import { isWahaConfigured, sendText } from "@/lib/waha/client";
+import { isWahaConfigured } from "@/lib/waha/client";
+import { sendText } from "@/lib/waha/kirim";
 import { formatTanggal } from "@/lib/format";
 import { susunPesanMingguan, type BarisLokasiMingguan, type RekapPaket } from "./pesan";
 

@@ -19,7 +19,23 @@ import { wajibKanonikGrupId } from "./grup-id";
  * dari R2 — supaya tidak bergantung pada WAHA bisa menjangkau presigned URL kita.
  */
 
-export class WahaError extends Error {}
+export class WahaError extends Error {
+  /**
+   * Kode HTTP dari WAHA, bila galatnya memang berasal dari respons — bukan
+   * dari kegagalan koneksi.
+   *
+   * Dibutuhkan gateway pengiriman untuk membedakan DITOLAK dari GAGAL
+   * (DECISIONS 374). WhatsApp menolak nomor yang tidak terdaftar dengan 4xx
+   * (mis. 463); mengulanginya tidak akan pernah berhasil, jadi ia tidak boleh
+   * masuk antrean coba-lagi. Kegagalan jaringan sebaliknya: memang layak
+   * diulang.
+   */
+  readonly status?: number;
+  constructor(message: string, status?: number) {
+    super(message);
+    this.status = status;
+  }
+}
 
 // Re-export supaya pemanggil lama tetap jalan (isWahaConfigured async, dari DB).
 export { isWahaConfigured } from "@/lib/waha/config";
@@ -128,8 +144,8 @@ async function wahaFetch(
       /* abaikan */
     }
     const dikenal = terjemahkanWahaError(res.status, detail);
-    if (dikenal) throw new WahaError(dikenal);
-    throw new WahaError(`WAHA error ${res.status}: ${detail.slice(0, 300) || res.statusText}`);
+    if (dikenal) throw new WahaError(dikenal, res.status);
+    throw new WahaError(`WAHA error ${res.status}: ${detail.slice(0, 300) || res.statusText}`, res.status);
   }
   return res;
 }
@@ -362,17 +378,22 @@ export async function resolveGroupByInvite(rawLink: string): Promise<WahaGroup> 
   return { id, name: extractGroupName(rec, id) };
 }
 
-type FilePayload = { mimetype: string; filename: string; data: string }; // data = base64
+export type FilePayload = { mimetype: string; filename: string; data: string }; // data = base64
 
 /**
- * Kirim teks. Mengembalikan ID pesan dari WAHA bila ada.
+ * TRANSPORT MENTAH — hanya bicara HTTP ke WAHA (DECISIONS 374).
  *
- * Dulu `void`: pemanggil hanya tahu "tidak melempar error", dan itu DIANGGAP
- * sebagai "terkirim". Padahal WAHA menjawab 2xx juga saat sesi belum login —
- * pesannya tidak pernah keluar. ID pesan adalah satu-satunya bukti bahwa
- * WhatsApp benar-benar menerimanya (DECISIONS 206).
+ * Ketiga fungsi `kirimMentah*` di bawah TIDAK memeriksa sesi, TIDAK mencatat
+ * apa pun, dan TIDAK memutuskan apakah pesannya "terkirim". Semua itu tugas
+ * `gateway.ts`, dan menaruhnya di sini berarti punya dua tempat yang harus
+ * setuju. Jangan panggil langsung dari fitur — pakai `sendWaMessage()`.
+ *
+ * Ketiganya kini mengembalikan ID pesan. Dulu hanya `sendText` yang melakukannya;
+ * `sendImage`/`sendFile` mengembalikan `void`, sehingga kiriman laporan resmi —
+ * justru yang paling penting dilacak — tidak pernah punya bukti apa pun bahwa
+ * WAHA menerimanya.
  */
-export async function sendText(chatId: string, text: string): Promise<string | null> {
+export async function kirimMentahTeks(chatId: string, text: string): Promise<string | null> {
   const c = await cfg();
   const res = await wahaFetch(c, `/api/sendText`, {
     method: "POST",
@@ -401,24 +422,34 @@ export function extractMessageId(data: unknown): string | null {
   return null;
 }
 
-export async function sendImage(chatId: string, file: FilePayload, caption?: string): Promise<void> {
+async function kirimMentahBerkas(
+  jalur: "sendImage" | "sendFile",
+  chatId: string,
+  file: FilePayload,
+  caption?: string,
+): Promise<string | null> {
   const c = await cfg();
-  await wahaFetch(
+  const res = await wahaFetch(
     c,
-    `/api/sendImage`,
+    `/api/${jalur}`,
     { method: "POST", body: JSON.stringify({ session: c.session, chatId, file, caption: caption || undefined }) },
     120_000,
   );
+  try {
+    return extractMessageId((await res.json()) as unknown);
+  } catch {
+    // Sebagian versi WAHA membalas tanpa body. Bukan kegagalan kirim, tapi juga
+    // bukan bukti — jangan mengarang id.
+    return null;
+  }
 }
 
-export async function sendFile(chatId: string, file: FilePayload, caption?: string): Promise<void> {
-  const c = await cfg();
-  await wahaFetch(
-    c,
-    `/api/sendFile`,
-    { method: "POST", body: JSON.stringify({ session: c.session, chatId, file, caption: caption || undefined }) },
-    120_000,
-  );
+export function kirimMentahGambar(chatId: string, file: FilePayload, caption?: string) {
+  return kirimMentahBerkas("sendImage", chatId, file, caption);
+}
+
+export function kirimMentahFile(chatId: string, file: FilePayload, caption?: string) {
+  return kirimMentahBerkas("sendFile", chatId, file, caption);
 }
 
 /** Ubah buffer → payload file base64 WAHA. */

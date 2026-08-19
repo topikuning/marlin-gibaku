@@ -23,13 +23,25 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 const terkirim: { chatId: string; teks: string }[] = [];
 
 vi.mock("@/lib/waha/client", () => ({
+  // Identitas sesi = nomor DAN LID (DECISIONS 349). Dipalsukan seperti WAHA
+  // yang sudah bermigrasi ke identitas privasi: mention di grup berisi @lid.
+  getIdentitasMarlin: async () => ({ nomor: NOMOR_MARLIN, lid: LID_MARLIN }),
+}));
+
+/*
+ * Jalur kirim dipalsukan di `@/lib/waha/kirim`, BUKAN di `client` (DECISIONS 374).
+ *
+ * Sejak gateway kanonik ada, pemanggil fitur tidak lagi menyentuh `client`
+ * langsung: `client` tinggal transport mentah, dan `kirim` yang menumpang
+ * gateway (periksa sesi → catat outbox → simpan message id). Memalsukan
+ * `client` saja membuat uji menembus gateway sungguhan — yang benar, tapi
+ * bukan yang sedang diuji berkas ini.
+ */
+vi.mock("@/lib/waha/kirim", () => ({
   sendText: async (chatId: string, teks: string) => {
     terkirim.push({ chatId, teks });
     return "mock-id";
   },
-  // Identitas sesi = nomor DAN LID (DECISIONS 349). Dipalsukan seperti WAHA
-  // yang sudah bermigrasi ke identitas privasi: mention di grup berisi @lid.
-  getIdentitasMarlin: async () => ({ nomor: NOMOR_MARLIN, lid: LID_MARLIN }),
 }));
 
 /** Niat yang "dibaca AI" — disetel per uji. */

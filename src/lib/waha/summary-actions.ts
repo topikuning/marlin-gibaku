@@ -7,7 +7,8 @@ import { promptDefault } from "@/lib/ai/prompt-registry";
 import { resolvePrompt } from "@/lib/ai/prompts";
 import { audit } from "@/lib/audit";
 import { ForbiddenError, requireCapability } from "@/lib/auth/session";
-import { sendText, WahaError } from "@/lib/waha/client";
+import { WahaError } from "@/lib/waha/client";
+import { sendText } from "@/lib/waha/kirim";
 import { formatTanggal } from "@/lib/format";
 import {
   generateChatSummary,

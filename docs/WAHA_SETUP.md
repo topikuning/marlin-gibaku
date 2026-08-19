@@ -166,6 +166,31 @@ Seluruh keputusan "siapa dilayani di mana dengan lingkup apa" ada di satu tempat
 `src/lib/waha/resolver-kanal.ts`. Kalau aturannya perlu diubah, ubah di sana —
 bukan di `tanya.ts`.
 
+**Status pengiriman — apa artinya**
+
+Sejak DECISIONS 374 setiap kiriman WhatsApp lewat SATU gateway dan tercatat di
+outbox. Statusnya berarti persis apa yang tertulis:
+
+| Status | Artinya |
+|---|---|
+| `Diterima WAHA` | WAHA menerima permintaannya. **Belum tentu sampai** — WAHA menjawab 2xx juga saat sesinya belum login. |
+| `Terkirim` | Sampai server WhatsApp (`message.ack` = 1). |
+| `Sampai` | Sampai perangkat tujuan (ack = 2). |
+| `Dibaca` | Sudah dibaca (ack ≥ 3). |
+| `Gagal` | Gagal kirim — layak dicoba lagi (mis. jaringan, sesi mati). |
+| `Ditolak` | WhatsApp menolak (4xx, mis. 463 nomor tak terdaftar). **Mengulanginya tidak akan berhasil** — periksa tujuannya. |
+
+Status hanya boleh NAIK; ack yang datang terlambat tidak menurunkannya.
+Kegagalan adalah pengecualian: ia punya bukti sendiri dan menang atas status
+maju mana pun.
+
+Agar `Terkirim`/`Sampai`/`Dibaca` benar-benar muncul, **event `message.ack`
+harus diaktifkan di WAHA** untuk URL webhook yang sama. Tanpa itu, kiriman akan
+berhenti di `Diterima WAHA` selamanya — dan itu jujur: memang tidak ada bukti
+lain yang pernah tiba.
+
+Diagnosanya di **Sistem → WhatsApp → Pengiriman keluar**.
+
 **Batas**
 
 - Periode bebas: hari ini, kemarin, tanggal tertentu, minggu/bulan (DECISIONS

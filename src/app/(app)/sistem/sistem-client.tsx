@@ -568,6 +568,7 @@ export function WahaWebhookPanel({
   lastCapturedAt,
   hits,
   antrean,
+  pengiriman,
 }: {
   webhookUrl: string | null;
   hasSecret: boolean;
@@ -584,6 +585,23 @@ export function WahaWebhookPanel({
     berjalan: number;
     gagal: number;
     contohGagal: { chatId: string; lastError: string | null; attempts: number }[];
+  };
+  /**
+   * Diagnosa PENGIRIMAN (DECISIONS 374). Dipisah dari antrean masuk: yang satu
+   * soal pertanyaan yang belum dijawab, yang ini soal pesan yang sudah
+   * berangkat — dan pertanyaan "kenapa laporan saya tidak sampai" hanya bisa
+   * dijawab dari sini.
+   */
+  pengiriman: {
+    per: { status: string; jumlah: number }[];
+    gagalTerbaru: {
+      chatId: string;
+      sourceType: string;
+      status: string;
+      lastError: string | null;
+      errorCode: string | null;
+      createdAt: string;
+    }[];
   };
 }) {
   const [state, action, pending] = useActionState<WaActionState, FormData>(
@@ -703,6 +721,42 @@ export function WahaWebhookPanel({
                 <li key={i}>
                   <span className="font-mono">{g.chatId}</span> — {g.attempts}× gagal:{" "}
                   <span className="text-danger">{g.lastError ?? "(tanpa pesan)"}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+
+        <div className="mt-3 rounded-md border border-border bg-surface-muted p-3">
+          <p className="text-[13px] font-semibold text-ink">Pengiriman keluar</p>
+          <p className="mt-0.5 text-xs text-ink-muted">
+            <b>Diterima WAHA</b> berarti WAHA menerima permintaannya — <b>belum tentu sampai</b>.
+            Status <b>Terkirim / Sampai / Dibaca</b> hanya muncul setelah tanda terima WhatsApp
+            (<code>message.ack</code>) tiba.
+          </p>
+          {pengiriman.per.length === 0 ? (
+            <p className="mt-2 text-[13px] text-ink-muted">Belum ada kiriman tercatat.</p>
+          ) : (
+            <p className="tabular mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[13px]">
+              {pengiriman.per.map((p) => (
+                <span key={p.status}>
+                  <span className="text-ink-muted">{p.status}</span>{" "}
+                  <b className={p.status === "gagal" || p.status === "ditolak" ? "text-danger" : undefined}>
+                    {p.jumlah}
+                  </b>
+                </span>
+              ))}
+            </p>
+          )}
+          {pengiriman.gagalTerbaru.length > 0 ? (
+            <ul className="mt-2 space-y-1 text-xs text-ink-muted">
+              {pengiriman.gagalTerbaru.map((g, i) => (
+                <li key={i}>
+                  <span className="font-mono">{g.chatId}</span> · {g.sourceType} ·{" "}
+                  <span className="text-danger">
+                    {g.status}
+                    {g.errorCode ? ` (${g.errorCode})` : ""}: {g.lastError ?? "(tanpa pesan)"}
+                  </span>
                 </li>
               ))}
             </ul>

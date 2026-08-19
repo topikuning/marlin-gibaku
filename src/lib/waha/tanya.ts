@@ -12,7 +12,8 @@ import {
   getAiPricing,
   type PemakaiAi,
 } from "@/lib/ai-hub/guard";
-import { getIdentitasMarlin, sendText } from "./client";
+import { getIdentitasMarlin } from "./client";
+import { sendText } from "./kirim";
 import { medanJidPayload, parseWaEvent, type ParsedWaMessage } from "./ingest-parse";
 import { kanonikGrupId } from "./grup-id";
 import { bersihkanMention, cocokkanNomorPengguna, diajakBicara } from "./tanya-izin";

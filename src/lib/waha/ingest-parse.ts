@@ -145,6 +145,45 @@ export function isWaMessageEvent(body: unknown): boolean {
   return e === "message" || e === "message.any";
 }
 
+/**
+ * Event tanda terima `message.ack` (DECISIONS 374).
+ *
+ * Dipisahkan dari event pesan karena maknanya berlawanan: `message` adalah
+ * sesuatu yang MASUK, `message.ack` adalah kabar tentang sesuatu yang sudah
+ * KELUAR. Menyatukannya di satu penjaga membuat ack ikut diantrekan sebagai
+ * pertanyaan — dan MARLIN akan mencoba menjawab tanda terimanya sendiri.
+ */
+export function isWaAckEvent(body: unknown): boolean {
+  return (body as AnyObj)?.event === "message.ack";
+}
+
+export type ParsedWaAck = { waMessageId: string; ack: number | string | null; chatId: string | null };
+
+/**
+ * Baca `message.ack` dengan toleransi bentuk yang sama seperti event pesan:
+ * medan yang sama ditulis berbeda antar versi & engine WAHA, dan menebak satu
+ * bentuk berarti seluruh rekonsiliasi diam-diam mati pada engine lainnya.
+ */
+export function parseWaAck(body: unknown): ParsedWaAck | null {
+  if (!isWaAckEvent(body)) return null;
+  const p = ((body as AnyObj).payload ?? {}) as AnyObj;
+  const data = (p._data ?? {}) as AnyObj;
+  const key = (p.key ?? data.key ?? {}) as AnyObj;
+
+  const idMentah = p.id ?? data.id ?? key.id;
+  const waMessageId =
+    typeof idMentah === "string"
+      ? idMentah
+      : str((idMentah as AnyObj)?._serialized) ?? null;
+  if (!waMessageId) return null;
+
+  const ackMentah = p.ack ?? data.ack ?? p.ackName ?? p.status;
+  const ack =
+    typeof ackMentah === "number" || typeof ackMentah === "string" ? ackMentah : null;
+
+  return { waMessageId, ack, chatId: normalizeChatId(str(p.from) ?? str(p.to) ?? str(key.remoteJid)) };
+}
+
 export function parseWaEvent(body: unknown): ParsedWaMessage | null {
   const root = body as AnyObj;
   if (!isWaMessageEvent(root)) return null;
