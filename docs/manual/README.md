@@ -95,9 +95,15 @@ tsx scripts/manual/mock-r2.ts 9444 /tmp/mock-r2/data <cert.pem> <key.pem>
 
 ## Yang belum selesai
 
-- [ ] Bab lapangan: mengisi laporan harian langkah demi langkah, alur koreksi
-      (`perlu_koreksi` → perbaiki → kirim ulang), dan chat WhatsApp.
-- [ ] Bab manajemen: keuangan, laporan periodik KKP, RAPL, AI.
+- [x] Bab lapangan (DECISIONS 367): masuk, Hari Ini, isi laporan harian langkah
+      demi langkah, alur koreksi (`perlu_koreksi` → perbaiki → kirim ulang),
+      Foto Cepat, ringkasan lokasi, rencana mingguan. Chat WhatsApp belum —
+      belum ada gambar/bagian untuk itu.
+- [ ] Bab manajemen: keuangan, laporan periodik KKP, RAPL, AI. Kerangka
+      (Beranda/Progress/Kurva-S) sudah, tapi Beranda memotret PORTOFOLIO —
+      lokasi selain Purworejo (dari seed dev, belum didandani) masih tampil
+      deviasi ~-99%. Perlu diputuskan: dandani lokasi lain juga, atau batasi
+      Beranda contoh ke tangkapan lokasi tunggal.
 - [ ] Daftar isi otomatis + nomor halaman per bab.
-- [ ] Pertimbangkan ukuran repo: 9 gambar = 1,3 MB. Buku penuh (60+ layar) bisa
+- [ ] Pertimbangkan ukuran repo: 11 gambar ≈ 1,7 MB. Buku penuh (60+ layar) bisa
       10–20 MB, dan tumbuh tiap kali UI berubah.

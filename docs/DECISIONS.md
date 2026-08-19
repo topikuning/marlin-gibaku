@@ -17450,3 +17450,50 @@ item/laporan), 2 rencana mingguan (minggu lalu terikat realisasi nyata, minggu
 ini target maju), 2 kendala (satu berjalan, satu selesai + `RecoveryUpdate`),
 8 foto sungguhan (cap Timemark asli ter-render, diperiksa visual) lewat
 `mock-r2.ts`.
+
+---
+
+## 367 — Bab lapangan lengkap + dua bug penjepret buku manual (2026-08-19)
+
+Lanjutan 366: sesudah Purworejo jadi lokasi contoh wajar, `pnpm manual:tangkap`
+dijalankan ulang dan bab lapangan (`docs/manual/bab/01-lapangan.md`) ditulis
+sampai lengkap — 7 layar: masuk, Hari Ini, isi laporan harian (langkah demi
+langkah), laporan dikembalikan/koreksi, Foto Cepat, ringkasan lokasi, rencana
+mingguan. Dua gambar baru: `harian-isi` dan `harian-koreksi`.
+
+### Bug: race condition memilih lokasi contoh
+
+`contohLokasi()` di `tangkap.ts` tadinya `.locator(...).first().getAttribute("href",
+{timeout})` — `getAttribute` dengan timeout MENUNGGU elemennya ada. Diganti ke
+`.evaluateAll()` (perlu SEMUA href, bukan cuma yang pertama) supaya bisa memilih
+lokasi wajar secara eksplisit — tapi `evaluateAll()` TIDAK menunggu apa pun,
+langsung mengeksekusi. `/lokasi` memakai MarlinGrid (AG Grid) yang merender baris
+SESUDAH hidrasi klien, jadi `domcontentloaded` sering menang duluan dan baris
+grid-nya belum ada. Gejalanya: "Tidak menemukan satu pun lokasi contoh di /lokasi"
+walau lokasinya nyata ada (dibuktikan dengan skrip debug Playwright terpisah yang
+menambahkan `waitForTimeout` dan berhasil). Diperbaiki dengan `.first().waitFor()`
+eksplisit sebelum `evaluateAll()`. Pelajaran: `evaluateAll`/`$$eval` tidak
+auto-wait seperti method locator lain — kalau butuh SEMUA elemen (bukan cuma
+elemen pertama yang auto-wait), tunggu dulu secara eksplisit.
+
+### Bug: tautan pertama belum tentu milik lokasi yang benar
+
+`viaLinkText` (mekanisme baru: ikuti tautan yang teksnya cocok, dipakai untuk
+"Perbaiki laporan {tanggal}" yang URL-nya tak bisa ditebak) awalnya ambil
+`.first()` tautan yang match. Di `/hari-ini`, sm-01 melihat DUA kartu lokasi
+(Kedung Mutih dari seed dev — masih darurat, DAN Purworejo dari seed manual) —
+keduanya sama-sama punya laporan "perlu koreksi", jadi tautan PERTAMA di DOM
+ternyata milik Kedung Mutih. Hasilnya: `harian-koreksi.png` sempat memotret
+lencana **-99,9%** — persis masalah yang seluruh pekerjaan ini coba hindari.
+Ketahuan karena gambarnya diperiksa visual (bukan cuma dipercaya "berhasil"),
+sesuai prinsip 365. Diperbaiki: ambil SEMUA tautan yang cocok, filter yang
+hrefnya mengandung `/lokasi/<lokasi-contoh>/`, dan GAGAL KERAS (bukan jatuh ke
+tautan pertama) kalau lokasi contoh itu sendiri tidak punya tautannya.
+
+### Penjaga
+
+`pnpm typecheck && pnpm lint && pnpm vitest run tests/unit` hijau. `pnpm
+manual:tangkap` penuh (11 gambar) + `pnpm manual:bangun` sukses, dan SELURUH 24
+halaman PDF diperiksa visual satu per satu (bukan cuma pesan sukses) — termasuk
+menemukan sisa `{tanggal}` mentah di naskah (placeholder yang lupa dijelaskan
+ulang jadi teks biasa) dan bug tautan pertama di atas.

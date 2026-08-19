@@ -80,9 +80,17 @@ async function r2PutLocal(key: string, body: Buffer, contentType: string): Promi
 }
 
 const DAY = 24 * 3600 * 1000;
-const dateOnly = (d: Date) => new Date(`${d.toISOString().slice(0, 10)}T00:00:00.000Z`);
+// Kalender Asia/Jakarta, BUKAN UTC — "hari ini" untuk laporan harian dinilai
+// dari jam WIB (`jakartaToday()`/`jakartaDateKey()` di `lib/format.ts`); dekat
+// tengah malam UTC keduanya bisa beda tanggal. Disalin di sini (bukan diimpor)
+// karena alasan yang sama dengan `currentWeekNumber`/`planPctAtWeek` di atas —
+// modul-modul itu tidak "server-only", tapi menyalin dua baris lebih murah
+// daripada menambah satu impor lagi hanya untuk fungsi sekecil ini.
+const jakartaDateKeyOf = (d: Date) =>
+  new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+const dateOnly = (d: Date) => new Date(`${jakartaDateKeyOf(d)}T00:00:00.000Z`);
 const daysFromNow = (n: number) => dateOnly(new Date(Date.now() + n * DAY));
-const dateKeyOf = (d: Date) => d.toISOString().slice(0, 10);
+const dateKeyOf = jakartaDateKeyOf;
 
 /**
  * Duplikat SENGAJA dari `src/lib/progress.ts` (`currentWeekNumber`/`planPctAtWeek`)

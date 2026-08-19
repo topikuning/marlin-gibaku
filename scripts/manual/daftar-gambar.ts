@@ -39,6 +39,17 @@ export type Gambar = {
   /** Gulir ke elemen ini dulu (untuk bagian yang jauh di bawah). */
   gulirKe?: string;
   /**
+   * Alih-alih memotret `path` langsung: buka `path`, lalu IKUTI tautan pertama
+   * yang teksnya cocok regex ini, dan potret halaman tujuannya.
+   *
+   * Dipakai saat URL sasaran tak bisa ditebak dari luar (mis. tanggal laporan
+   * "perlu koreksi" — beda tiap kali `pnpm manual:seed` dijalankan). Tautannya
+   * tetap diambil DARI APLIKASI (href sungguhan), bukan dihitung sendiri di
+   * skrip ini — kalau seedingnya berubah dan tautannya hilang, penjepretnya
+   * gagal keras, bukan diam-diam memotret halaman yang salah.
+   */
+  viaLinkText?: string;
+  /**
    * Dipotret TANPA sesi.
    *
    * Layar masuk hanya bisa dilihat oleh yang belum masuk — memotretnya sesudah
@@ -71,6 +82,25 @@ export const GAMBAR_LAPANGAN: Gambar[] = [
     peran: "sm-01",
     path: "/hari-ini",
     lebar: "ponsel",
+  },
+  {
+    id: "harian-isi",
+    keterangan:
+      "Mengisi laporan hari ini — pilih pekerjaan, isi volume yang selesai, lampirkan foto. Item yang sudah dicatat tampil di bawahnya.",
+    peran: "sm-01",
+    path: "/lokasi/{lokasi}/harian/{hari}",
+    lebar: "ponsel",
+    tunggu: "Tambah / ubah progres pekerjaan",
+  },
+  {
+    id: "harian-koreksi",
+    keterangan:
+      "Laporan yang dikembalikan SM untuk diperbaiki — alasannya tertulis jelas di sini, tinggal disunting sesuai catatan lalu dikirim ulang.",
+    peran: "sm-01",
+    path: "/hari-ini",
+    viaLinkText: "Perbaiki laporan",
+    lebar: "ponsel",
+    tunggu: "Laporan dikembalikan",
   },
   {
     id: "foto-cepat",
