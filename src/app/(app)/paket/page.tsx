@@ -82,7 +82,16 @@ export default async function PaketPage({
     <div className="space-y-6">
       <PageHeader
         title="Paket"
-        description="Funnel paket pekerjaan: prospek → tender → penetapan → kontrak → pelaksanaan."
+        /*
+         * Funnel-nya MENGGANTIKAN deskripsi, bukan berdiri di bawahnya.
+         *
+         * Kalimat lamanya berbunyi "Funnel paket pekerjaan: prospek → tender →
+         * penetapan → kontrak → pelaksanaan." — persis kata demi kata dengan
+         * lencana di bawahnya, hanya tanpa angka dan tidak bisa diklik. Dua
+         * baris yang mengatakan hal yang sama membuat yang berguna terlihat
+         * seperti hiasan. Keberatan user 2026-08-19.
+         */
+        description={<FunnelPaket perStage={stats.perStage} aktif={filter} />}
         actions={
           <div className="flex flex-wrap gap-2">
             {can(user.role, "contract.manage") ? (
@@ -120,8 +129,6 @@ export default async function PaketPage({
           </div>
         }
       />
-
-      <FunnelPaket perStage={stats.perStage} aktif={filter} />
 
       <section className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <KpiCard label="Total paket" value={stats.total} href="/paket" />

@@ -39,9 +39,6 @@ export function FunnelPaket({
         const dipilih = aktif === s;
         return (
           <span key={s} className="flex items-center gap-1.5">
-            {i > 0 ? (
-              <ChevronRight aria-hidden className="size-3.5 shrink-0 text-ink-faint" />
-            ) : null}
             <Link
               href={dipilih ? "/paket" : `/paket?stage=${s}`}
               aria-current={dipilih ? "page" : undefined}
@@ -57,6 +54,14 @@ export function FunnelPaket({
               </span>
               <span className="tabular">{perStage[s]}</span>
             </Link>
+            {/* Panah MENGEKOR chip-nya, bukan mendahului chip berikutnya: kalau
+                mendahului, pembungkusan baris menaruh panah sendirian di awal
+                baris kedua — menggantung tanpa asal. Di layar sempit ia
+                disembunyikan sekalian; urutan kiri-ke-kanan sudah menyatakan
+                alurnya, dan panah yang melipat justru mengaburkannya. */}
+            {i < LANGKAH.length - 1 ? (
+              <ChevronRight aria-hidden className="size-3.5 shrink-0 text-ink-faint max-sm:hidden" />
+            ) : null}
           </span>
         );
       })}
