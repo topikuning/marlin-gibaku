@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { prosesAntrean, ringkasAntreanWa } from "@/lib/waha/antrean";
+import { bersihkanKlarifikasiBasi } from "@/lib/waha/klarifikasi";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -41,7 +42,13 @@ export async function POST(req: Request) {
     // Sisa antrean & jumlah gagal ikut dilaporkan: cron yang selalu menjawab
     // "ok" tanpa angka tidak bisa membedakan antrean sehat dari antrean macet.
     const sisa = await ringkasAntreanWa();
-    return NextResponse.json({ ok: true, ...hasil, sisa });
+    /*
+     * Tawaran klarifikasi yang sudah lewat umurnya dibuang di sini
+     * (DECISIONS 376). Tidak ada yang membacanya lagi, tapi membiarkannya
+     * menumpuk membuat tabel itu tumbuh selamanya untuk data berumur 12 menit.
+     */
+    const klarifikasiDibuang = await bersihkanKlarifikasiBasi();
+    return NextResponse.json({ ok: true, ...hasil, sisa, klarifikasiDibuang });
   } catch (err) {
     console.error("[cron/waha] gagal:", err);
     return NextResponse.json(

@@ -154,18 +154,23 @@ function event(p: {
   teks: string;
   mention?: string[];
   fromMe?: boolean;
+  /** Dipakai uji idempotensi: webhook yang sama dikirim ulang membawa id sama. */
+  id?: string;
+  /** ID pesan yang DIKUTIP — pengikat jawaban pilihan (DECISIONS 376). */
+  mengutip?: string;
 }) {
   const grup = p.chatId.endsWith("@g.us");
   return {
     event: "message",
     payload: {
-      id: `msg-${Math.random().toString(36).slice(2)}`,
+      id: p.id ?? `msg-${Math.random().toString(36).slice(2)}`,
       from: grup ? p.chatId : `${p.dari}@c.us`,
       author: grup ? `${p.dari}@c.us` : undefined,
       fromMe: p.fromMe ?? false,
       body: p.teks,
       timestamp: Math.floor(Date.now() / 1000),
       mentionedIds: p.mention ?? [],
+      ...(p.mengutip ? { contextInfo: { stanzaId: p.mengutip } } : {}),
     },
   };
 }
@@ -231,6 +236,9 @@ beforeEach(async () => {
    * SELISIH baris ai_runs, dan selisih tidak terganggu penolan.
    */
   await db.aiRun.deleteMany({});
+  // Tawaran klarifikasi juga durable (DECISIONS 376): tawaran yang tersisa dari
+  // uji sebelumnya akan membuat "1" di uji berikutnya menjawab pertanyaan lain.
+  await db.waPendingClarification.deleteMany({});
 });
 
 describe("kapan MARLIN benar-benar membalas", () => {
@@ -1375,5 +1383,192 @@ describe("laporan MINGGUAN vs laporan HARIAN (DECISIONS 358)", () => {
     const { teks } = await tanya("kamu bisa apa saja");
     expect(teks).toContain("Laporan harian");
     expect(teks).toContain("Laporan mingguan");
+  });
+});
+
+
+describe("klarifikasi tertunda — pilihan yang benar-benar bisa dijawab (DECISIONS 376)", () => {
+  const ORANG_LAIN = "6289811111111";
+
+  /** Ajukan pertanyaan kabur, kembalikan teks tawaran yang dikirim MARLIN. */
+  async function tawarkan(dari = nomorSM, chatId = `${nomorSM}@c.us`) {
+    const r = await jawabPertanyaanWa(
+      event({ chatId, dari, teks: "bagaimana yang kemarin?" }),
+    );
+    return { hasil: r, teks: terkirim.at(-1)?.teks ?? "" };
+  }
+
+  it("pertanyaan kabur DITAWARI pilihan, bukan ditolak mentah", async () => {
+    /*
+     * Keberatan user 2026-08-19: "niat = null → tidak mengerti" terlalu cepat
+     * menyerah. Tafsirnya cuma tiga, dan menyebutkannya memakai kata yang ia
+     * tulis sendiri jauh lebih menolong daripada menu kemampuan generik.
+     */
+    const { teks } = await tawarkan();
+    expect(teks).toContain("1.");
+    expect(teks).toContain("2.");
+    expect(teks).toContain("kemarin");
+    expect(teks.toLowerCase()).not.toContain("belum mengerti");
+  });
+
+  it("tawaran TIDAK memanggil AI", async () => {
+    const sebelum = await db.aiRun.count({ where: { runKind: "tanya" } });
+    aiSehat = false; // provider mati — tawarannya tetap harus muncul
+    const { teks } = await tawarkan();
+    expect(teks).toContain("1.");
+    expect(await db.aiRun.count({ where: { runKind: "tanya" } })).toBe(sebelum);
+  });
+
+  it('balasan "2" dijalankan — juga TANPA panggilan AI kedua', async () => {
+    /*
+     * Inti butir 22 brief. Kandidatnya sudah dihitung saat tawaran dibuat dan
+     * disimpan utuh; membayar panggilan AI kedua untuk membaca ulang
+     * pertanyaan yang sama adalah pemborosan yang tidak menambah apa pun.
+     */
+    await tawarkan();
+    const sebelum = await db.aiRun.count({ where: { runKind: "tanya" } });
+    aiSehat = false;
+    terkirim.length = 0;
+
+    const r = await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "2" }),
+    );
+    expect(r.dijawab).toBe(true);
+    expect(await db.aiRun.count({ where: { runKind: "tanya" } })).toBe(sebelum);
+    // Pilihan ke-2 = "laporan" (urutan kandidat: progress, laporan, kendala).
+    expect(terkirim.at(-1)?.teks ?? "").toContain("Laporan harian");
+  });
+
+  it("orang LAIN di grup tidak bisa membajak klarifikasi dengan mengetik 1", async () => {
+    /*
+     * Pagar paling penting di fitur ini, dan alasan kuncinya chat + PENGIRIM.
+     * Kalau dikunci per chat saja, jawaban orang lain akan tampil seolah
+     * menjawab pertanyaan si penanya asli — dan tidak ada yang bisa
+     * membedakannya.
+     */
+    await jawabPertanyaanWa(
+      event({
+        chatId: GRUP_A,
+        dari: nomorSM,
+        teks: "bagaimana yang kemarin?",
+        mention: [`${NOMOR_MARLIN}@c.us`],
+      }),
+    );
+    expect(terkirim.at(-1)?.teks ?? "").toContain("1.");
+    terkirim.length = 0;
+
+    // Orang lain menjawab "1" di grup yang sama.
+    niatPalsu = { niat: null, lokasiDisebut: [], periode: "hari_ini" };
+    await jawabPertanyaanWa(
+      event({
+        chatId: GRUP_A,
+        dari: ORANG_LAIN,
+        teks: "1",
+        mention: [`${NOMOR_MARLIN}@c.us`],
+      }),
+    );
+    // Bukan jawaban pilihan → jatuh ke jalur biasa, BUKAN menjalankan pilihan
+    // milik orang lain.
+    expect(terkirim.at(-1)?.teks ?? "").not.toContain("Progress");
+
+    // Tawaran penanya asli masih utuh — belum terpakai oleh siapa pun.
+    const baris = await db.waPendingClarification.findFirst({
+      where: { chatId: GRUP_A, senderKey: `${nomorSM}@c.us` },
+      select: { answeredAt: true },
+    });
+    expect(baris?.answeredAt).toBeNull();
+  });
+
+  it("tawaran KEDALUWARSA dikatakan, tidak didiamkan", async () => {
+    await tawarkan();
+    // Dituakan langsung di basis data — menunggu 12 menit di uji tidak masuk akal.
+    await db.waPendingClarification.updateMany({
+      where: { chatId: `${nomorSM}@c.us` },
+      data: { expiresAt: new Date(Date.now() - 60_000) },
+    });
+    terkirim.length = 0;
+
+    await jawabPertanyaanWa(event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "1" }));
+    const teks = terkirim.at(-1)?.teks ?? "";
+    // Diam di sini terbaca seperti sistem rusak: penanya baru saja mengetik "1".
+    expect(teks.toLowerCase()).toContain("sudah lewat");
+  });
+
+  it("angka di LUAR daftar disebut batasnya", async () => {
+    await tawarkan();
+    terkirim.length = 0;
+    await jawabPertanyaanWa(event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "7" }));
+    expect(terkirim.at(-1)?.teks ?? "").toContain("1–3");
+  });
+
+  it("webhook yang DIULANG tidak menawarkan dua kali", async () => {
+    const id = "msg-ulang-tawaran";
+    await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "bagaimana yang kemarin?", id }),
+    );
+    const setelahSatu = terkirim.length;
+    const r = await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "bagaimana yang kemarin?", id }),
+    );
+    expect(terkirim.length).toBe(setelahSatu);
+    expect(r.dijawab).toBe(false);
+  });
+
+  it("jawaban yang DIULANG tidak dijalankan dua kali", async () => {
+    await tawarkan();
+    terkirim.length = 0;
+    await jawabPertanyaanWa(event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "1" }));
+    const setelahSatu = terkirim.length;
+    expect(setelahSatu).toBe(1);
+
+    niatPalsu = { niat: null, lokasiDisebut: [], periode: "hari_ini" };
+    await jawabPertanyaanWa(event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "1" }));
+    // Balasan kedua BUKAN pengulangan jawaban pilihan.
+    expect(terkirim.at(-1)?.teks ?? "").not.toContain("Progress");
+  });
+
+  it("balasan yang MENGUTIP pesan lain bukan jawaban untuk tawaran ini", async () => {
+    /*
+     * Di grup ramai beberapa percakapan berjalan bersamaan. Angka yang mengutip
+     * pesan lain, kalau dijalankan, menjawab percakapan yang salah.
+     */
+    await tawarkan();
+    terkirim.length = 0;
+    niatPalsu = { niat: null, lokasiDisebut: [], periode: "hari_ini" };
+    await jawabPertanyaanWa(
+      event({
+        chatId: `${nomorSM}@c.us`,
+        dari: nomorSM,
+        teks: "1",
+        mengutip: "pesan-percakapan-lain",
+      }),
+    );
+    expect(terkirim.at(-1)?.teks ?? "").not.toContain("Progress");
+  });
+
+  it("pertanyaan yang JELAS tidak pernah ditawari pilihan", async () => {
+    // Menawarkan pilihan untuk "progress hari ini" akan membuang waktu yang
+    // justru sedang dihemat parser deterministik.
+    await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "progress hari ini" }),
+    );
+    expect(terkirim.at(-1)?.teks ?? "").not.toContain("Maksud Anda yang mana?");
+  });
+
+  it("jejak audit menyebut tawaran DAN pilihannya", async () => {
+    await tawarkan();
+    const tawar = await db.auditLog.findFirst({
+      where: { action: "waha.tanya.tawar" },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(tawar).not.toBeNull();
+
+    await jawabPertanyaanWa(event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "3" }));
+    const pilih = await db.auditLog.findFirst({
+      where: { action: "waha.tanya.klarifikasi" },
+      orderBy: { createdAt: "desc" },
+      select: { payload: true },
+    });
+    expect((pilih?.payload as { pilihan?: number } | null)?.pilihan).toBe(3);
   });
 });

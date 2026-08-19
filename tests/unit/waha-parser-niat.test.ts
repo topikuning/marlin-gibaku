@@ -131,19 +131,25 @@ describe("yang tidak jelas: DITAWARKAN, bukan ditolak", () => {
     expect(kendala?.label).not.toMatch(/kendala kemarin/i);
   });
 
-  it('"minta laporan minggu lalu" → mingguan vs harian hari terakhir', () => {
-    // Bedanya besar: laporan harian selalu SATU tanggal, rekap mingguan
-    // meliputi sepekan. Menebak salah satunya menjawab pertanyaan yang tidak
-    // ditanyakan (DECISIONS 358).
+  it('"minta laporan minggu lalu" TIDAK ditawarkan — sudah diputus DECISIONS 358', () => {
+    /*
+     * Sekilas ini kandidat tawaran yang sempurna: laporan harian selalu SATU
+     * tanggal, rekap mingguan meliputi sepekan. Tapi kasus ini sudah diputus
+     * setelah keluhan user 2026-08-18 — jawabannya laporan harian pada hari
+     * terakhir rentang, dan balasannya menyebut tanggal mana yang diambil.
+     *
+     * Menawarkan pilihan di sini menukar jawaban langsung yang sudah jujur
+     * dengan satu putaran tanya-jawab tambahan, untuk mandor yang sedang di
+     * lapangan. Tawaran disediakan untuk yang BELUM diputuskan.
+     */
     const r = parseNiatDeterministik("minta laporan minggu lalu");
-    expect(r.jenis).toBe("ambigu");
-    const niat = r.jenis === "ambigu" ? r.kandidat.map((k) => k.niat) : [];
-    expect(niat).toEqual(["laporan_mingguan", "laporan"]);
+    expect(r.jenis).toBe("yakin");
+    expect(r.jenis === "yakin" && r.kandidat.niat).toBe("laporan");
   });
 
   it("maksimal tiga pilihan", () => {
     // Menu panjang di WhatsApp tidak dibaca; ia dilipat lalu dilewati.
-    for (const t of ["bagaimana yang kemarin?", "minta laporan minggu lalu"]) {
+    for (const t of ["bagaimana yang kemarin?", "bagaimana minggu lalu?"]) {
       const r = parseNiatDeterministik(t);
       if (r.jenis === "ambigu") expect(r.kandidat.length, t).toBeLessThanOrEqual(3);
     }

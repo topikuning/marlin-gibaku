@@ -43,6 +43,15 @@ export type ParsedWaMessage = {
    * di grup, dan WhatsApp tidak selalu menyertakan mention di situ.
    */
   balasanKepada: string | null;
+  /**
+   * ID pesan YANG DIKUTIP, bila pesan ini sebuah balasan (DECISIONS 376).
+   *
+   * Berbeda dari `balasanKepada`, yang menyebut SIAPA yang dibalas. Untuk
+   * mengikat jawaban `1`/`2`/`3` ke tawaran klarifikasi tertentu, yang
+   * dibutuhkan pesan MANA — di grup ramai beberapa tawaran bisa berumur
+   * bersamaan, dan pemiliknya sama-sama MARLIN.
+   */
+  balasanKePesanId: string | null;
 };
 
 import { toInternationalId } from "@/lib/contacts/model";
@@ -259,6 +268,7 @@ export function parseWaEvent(body: unknown): ParsedWaMessage | null {
     timestamp: timestampSec != null ? new Date(timestampSec * 1000) : new Date(0),
     mentionedJids: bacaMention(p, data),
     balasanKepada: bacaBalasanKepada(p, data),
+    balasanKePesanId: bacaBalasanKePesanId(p, data),
     senderLid: isLid(senderJid) ? senderJid : null,
   };
 }
@@ -388,6 +398,38 @@ export function kerangkaPayload(body: unknown, batas = 400): string {
   pindai(p, "", 0);
   const s = keluar.join(" ");
   return s.length > batas ? `${s.slice(0, batas)}…` : s;
+}
+
+/**
+ * ID pesan yang DIKUTIP — dibaca defensif seperti medan lain di berkas ini,
+ * karena namanya berbeda antar engine WAHA (DECISIONS 376).
+ *
+ * `stanzaId` adalah nama Baileys/NOWEB; `quotedMsg.id` dan `replyTo.id` dipakai
+ * engine berbasis browser. Tidak ada yang dijamin ada — balasan tanpa id kutipan
+ * tetap sah, dan penanganannya di `ambilPilihan` sengaja memperlakukan
+ * ketiadaan id sebagai "tidak tahu", bukan sebagai "bukan untuk kita".
+ */
+function bacaBalasanKePesanId(p: AnyObj, data: AnyObj): string | null {
+  const pesan = (p.message ?? data.message ?? {}) as AnyObj;
+  const konteks = [
+    p.contextInfo,
+    data.contextInfo,
+    (p._data as AnyObj)?.contextInfo,
+    (pesan.extendedTextMessage as AnyObj)?.contextInfo,
+  ].filter(Boolean) as AnyObj[];
+  const kandidat = [
+    ...konteks.map((c) => c.stanzaId),
+    ...konteks.map((c) => c.stanzaID),
+    (p.replyTo as AnyObj)?.id,
+    (p.quotedMsg as AnyObj)?.id,
+    data.quotedMessageId,
+    (p._data as AnyObj)?.quotedStanzaID,
+  ];
+  for (const v of kandidat) {
+    const s = typeof v === "string" ? v : str((v as AnyObj)?._serialized);
+    if (s) return s;
+  }
+  return null;
 }
 
 /**

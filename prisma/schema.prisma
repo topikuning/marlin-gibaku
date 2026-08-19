@@ -1741,6 +1741,60 @@ enum WaOutboundStatus {
   ditolak
 }
 
+/// KLARIFIKASI TERTUNDA — tawaran pilihan yang sedang menunggu jawaban
+/// (DECISIONS 376).
+///
+/// Kuncinya **chat + PENGIRIM**, bukan chat saja. Di grup, mengunci per chat
+/// berarti siapa pun bisa mengambil alih klarifikasi orang lain dengan
+/// mengetik `1` — dan jawabannya akan tampak seolah menjawab pertanyaan si
+/// penanya asli. Ini bukan kenyamanan; ini yang menentukan pertanyaan siapa
+/// yang sebenarnya dijawab.
+///
+/// Durable (bukan memori proses) karena jawaban WhatsApp diproses lewat antrean
+/// yang bisa berpindah proses atau restart di antara tawaran dan jawabannya
+/// (DECISIONS 372). Konteks di memori akan hilang tepat ketika dipakai.
+model WaPendingClarification {
+  id String @id @default(uuid()) @db.Uuid
+
+  chatId String @map("chat_id")
+
+  /// Identitas pengirim yang ditawari — JID/LID/nomor, apa pun yang stabil.
+  /// Bukan nama tampilan: siapa saja bisa mengubahnya.
+  senderKey String @map("sender_key")
+
+  /// Pertanyaan asli APA ADANYA — dipakai di audit dan saat menjelaskan
+  /// kembali pilihan yang sudah kedaluwarsa.
+  pertanyaan String
+
+  /// Kandidat yang ditawarkan (`KandidatNiat[]`). Disimpan utuh supaya jawaban
+  /// `1`/`2`/`3` tidak perlu menghitung ulang — apalagi memanggil AI lagi.
+  kandidat Json
+
+  /// Pesan masuk yang MELAHIRKAN tawaran ini. Dipakai idempotensi: webhook yang
+  /// dikirim ulang tidak boleh menawarkan pilihan yang sama dua kali.
+  waMessageId String @map("wa_message_id")
+
+  /// ID pesan tawaran MARLIN sendiri — pengikat balasan reply-to di grup ramai.
+  offerMessageId String? @map("offer_message_id")
+
+  /// Tawaran basi tidak boleh dijawab: `2` yang diketik sejam kemudian hampir
+  /// pasti menjawab percakapan lain.
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+
+  answeredAt DateTime? @map("answered_at") @db.Timestamptz
+  /// Indeks pilihan yang diambil (0-based) bila sudah dijawab.
+  pilihan Int?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  /// Satu tawaran aktif per orang per chat. Pertanyaan baru MENGGANTIKAN yang
+  /// lama: menumpuk tawaran membuat `1` menjadi taruhan tentang tawaran mana
+  /// yang dimaksud.
+  @@unique([chatId, senderKey])
+  @@index([expiresAt])
+  @@map("wa_pending_clarifications")
+}
+
 /// OUTBOX kiriman WhatsApp — satu-satunya pintu keluar (DECISIONS 374).
 ///
 /// Sebelumnya tiap pemanggil menafsirkan keberhasilan sendiri: `sendText`

@@ -18109,3 +18109,101 @@ Cabang `ambigu` sudah dihitung parser tapi masih diserahkan ke AI di `tanya.ts`.
 Menawarkan pilihan bernomor sebelum ada konteks klarifikasi yang durable berarti
 menyodorkan `1`/`2`/`3` yang tidak bisa dijawab — lebih buruk daripada tidak
 menawarkan. Dinyalakan bersama D2 (konteks klarifikasi per chat + pengirim).
+
+---
+
+## 376 — Klarifikasi tertunda: pilihan yang benar-benar bisa dijawab (2026-08-19)
+
+Fase D butir 21 & 22. DECISIONS 375 sudah bisa MENGHITUNG 2–3 tafsir untuk
+pertanyaan yang kabur, tapi belum punya tempat menyimpannya sampai penanya
+menjawab — jadi cabang `ambigu` masih diserahkan ke AI. Menawarkan `1`/`2`/`3`
+yang tidak bisa dipilih lebih buruk daripada tidak menawarkan sama sekali.
+
+### Kenapa DURABLE, bukan konteks di memori
+
+Pesan WhatsApp diproses lewat antrean yang boleh berpindah proses, di-restart,
+atau dijalankan ulang cron (DECISIONS 372). Konteks di memori akan hilang tepat
+pada saat ia dipakai: tawaran dikirim satu proses, jawabannya tiba di proses
+lain, dan penanya melihat MARLIN melupakan pertanyaan yang baru saja ia ajukan.
+Karena itu tabel `wa_pending_clarifications`.
+
+### Kuncinya chat + PENGIRIM, dan itu yang paling menentukan
+
+Instruksi brief, dan alasannya bukan kenyamanan. Mengunci per chat saja berarti
+di grup **siapa pun bisa mengambil alih klarifikasi orang lain dengan mengetik
+`1`** — dan jawabannya akan tampil seolah menjawab pertanyaan si penanya asli,
+tanpa ada yang bisa membedakannya.
+
+Turunannya: kalau pengirim di GRUP tidak bisa dibedakan sama sekali (tidak ada
+JID, LID, maupun nomor), klarifikasi **tidak ditawarkan** dan pertanyaannya
+diteruskan ke AI seperti sebelumnya. Menawarkannya di situ sama dengan membuka
+`1` untuk semua pembaca. Di chat pribadi tidak ada masalah itu — chat-nya
+sendiri hanya berisi satu lawan bicara.
+
+Nama tampilan WhatsApp tidak pernah menjadi kunci: siapa pun bisa mengubahnya,
+dan memakainya berarti membiarkan orang lain memakai kunci milik penanya hanya
+dengan mengganti namanya sendiri.
+
+### Menjawab `2` TIDAK memanggil AI lagi
+
+Kandidatnya sudah dihitung saat tawaran dibuat dan disimpan utuh di kolom
+`kandidat`. Membayar panggilan AI kedua untuk membaca ulang pertanyaan yang sama
+tidak menambah apa pun. Diuji dengan `aiSehat = false`: tawaran DAN jawabannya
+tetap berjalan saat provider mati total.
+
+### Apa yang dihitung sebagai "jawaban pilihan"
+
+Sengaja sempit: angka telanjang (`2`) dan imbuhan pendek (`pilih 2`, `no 2`).
+Kalimat panjang yang kebetulan memuat angka **bukan** jawaban pilihan —
+*"laporan tanggal 2"* adalah pertanyaan sungguhan, dan memperlakukannya sebagai
+pilihan berarti membajaknya dan menjawab hal yang sama sekali berbeda.
+
+### Pengikatan kutipan, dan batasnya yang jujur
+
+`ParsedWaMessage` dulu hanya membawa `balasanKepada` — SIAPA yang dibalas, bukan
+pesan MANA. Untuk mengikat jawaban ke satu tawaran, yang dibutuhkan id pesannya,
+jadi ditambah `balasanKePesanId` (`contextInfo.stanzaId` dan kerabatnya).
+
+Diperiksa hanya bila KEDUA id diketahui, dan perbandingannya toleran ujung: WAHA
+menulis id pesan keluar dalam bentuk lengkap (`true_120…@g.us_ABC`) sementara id
+yang dikutip sering hanya bagian terakhirnya. Menuntut sama persis akan menolak
+balasan yang benar-benar mengutip tawaran kita. Balasan tanpa id kutipan tetap
+diterima — kebanyakan orang cuma mengetik "1", dan sebagian engine WAHA memang
+tidak mengirimkan id itu. Ketiadaan bukti bukan bukti ketiadaan.
+
+### Kedaluwarsa 12 menit — DIKATAKAN, bukan didiamkan
+
+Brief meminta 10–15 menit. `2` yang diketik sejam kemudian hampir pasti menjawab
+percakapan lain. Tapi angka yang dibalas ke tawaran basi tidak boleh didiamkan:
+penanya baru saja mengetik "1" dan berhak tahu kenapa tidak terjadi apa-apa —
+diam di situ terbaca seperti sistem rusak. Baris basi dibuang oleh cron WAHA
+yang sudah ada.
+
+### Yang TIDAK jadi ditawarkan, dan kenapa
+
+Parser sempat memperlakukan *"laporan minggu lalu"* sebagai ambigu
+(`laporan_mingguan` vs `laporan`). Sekilas kandidat sempurna — dan dua uji
+integrasi langsung merah.
+
+Uji itu benar. Kasus ini **sudah diputus di DECISIONS 358**, sesudah keluhan
+user 2026-08-18: jawabannya laporan harian pada hari terakhir rentang, dan
+balasannya menyebut tanggal mana yang diambil beserta cara meminta rekap
+sepekan. Menawarkan pilihan berarti menarik kembali keputusan itu — menukar
+jawaban langsung yang sudah jujur dengan satu putaran tanya-jawab tambahan,
+untuk mandor yang sedang di lapangan.
+
+Cabang itu dihapus. **Tawaran pilihan untuk yang BELUM pernah diputuskan, bukan
+untuk membuka ulang yang sudah selesai.**
+
+### Uji gigi (5 arah, masing-masing merah tepat pada ujinya sendiri)
+
+- Kunci diubah jadi per CHAT saja → uji pembajakan merah.
+- Idempotensi webhook dilepas → tawaran terkirim dua kali, uji merah.
+- Pemeriksaan kedaluwarsa dilepas → tawaran basi dijalankan, uji merah.
+- Pengikatan kutipan dilepas → angka yang mengutip pesan lain dijalankan, merah.
+- `answeredAt` diabaikan → jawaban dijalankan dua kali, uji merah.
+
+### Yang BELUM
+
+D3 (Ask MARLIN multi-turn) dan D4 (klaim `answerParts` + sitasi) belum
+dikerjakan. Fase F (RAG) TIDAK boleh dimulai tanpa persetujuan user.

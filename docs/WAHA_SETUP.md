@@ -154,7 +154,25 @@ mempercepat, tidak pernah melebarkan jawaban: "progress di Kedung Mutih" tidak
 akan berubah diam-diam menjadi progress seluruh lokasi.
 
 Di **Sistem → WhatsApp**, jejak audit tiap jawaban menyebut `jalur`:
-`deterministik` (tanpa AI) atau `ai`.
+`deterministik` (tanpa AI), `klarifikasi` (jawaban atas pilihan), atau `ai`.
+
+**Pertanyaan yang kabur DITAWARI pilihan** (DECISIONS 376)
+
+Kalau pertanyaannya menyebut waktu tanpa menyebut maksud — mis. *"bagaimana
+yang kemarin?"* — MARLIN tidak lagi menjawab "belum mengerti". Ia menawarkan
+2–3 tafsir memakai kata yang Anda tulis sendiri, dan Anda cukup **membalas
+angkanya** (`1`, `2`, `3`).
+
+| Hal | Perilaku |
+|---|---|
+| Berlaku | 12 menit; sesudah itu MARLIN mengatakan pilihannya sudah ditutup |
+| Milik siapa | **Hanya penanya**. Di grup, orang lain yang mengetik `1` tidak mengambil alih klarifikasi Anda |
+| Biaya AI | Nol — tawaran maupun jawabannya tidak memanggil AI |
+| Angka dalam kalimat | *"laporan tanggal 2"* tetap dibaca sebagai pertanyaan, bukan pilihan |
+
+Kalau pengirim di grup tidak bisa dikenali sama sekali (tidak ada nomor maupun
+@lid di payload), pilihan **tidak** ditawarkan — kalau ditawarkan, siapa pun
+yang membaca bisa menjawabnya.
 
 **Dua syarat yang sering jadi sebab "MARLIN tidak menjawab"**
 

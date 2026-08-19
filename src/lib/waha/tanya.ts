@@ -28,6 +28,12 @@ import {
 } from "./tanya-niat";
 import { rencanaDeterministik } from "./parser-niat";
 import {
+  UMUR_KLARIFIKASI_MENIT,
+  ambilPilihan,
+  catatIdTawaran,
+  simpanTawaran,
+} from "./klarifikasi";
+import {
   balasAmbigu,
   balasBantuan,
   balasDeviasi,
@@ -36,6 +42,9 @@ import {
   balasKendala,
   balasLaporan,
   balasMingguan,
+  balasPilihan,
+  balasPilihanKedaluwarsa,
+  balasPilihanTakAda,
   balasProgress,
   balasTidakMengerti,
   type OpsiKaki,
@@ -61,10 +70,12 @@ import { bacaPeriode, pekanDari, type PeriodeDiminta } from "./tanya-tanggal";
  *   3. siapa penanyanya          → nomor, BUKAN nama tampilan
  *   4. putuskanLayanan()         → apa yang boleh disebut DI SANA
  *   5. katalog lokasi (sudah dipotong izin)
- *   6. parser deterministik      → pola jelas dijawab TANPA AI (DECISIONS 375)
- *   7. guard AI + AI → struktur niat → hanya untuk sisanya; AI tak sentuh data
- *   8. cocokkan nama ke katalog
- *   9. pengambil angka (calc layer) → perangkai kata → kirim
+ *   6. membaca pertanyaan, berurutan:
+ *        a. jawaban tawaran klarifikasi → tanpa AI (DECISIONS 376)
+ *        b. parser deterministik        → tanpa AI (DECISIONS 375)
+ *        c. guard AI + AI → struktur niat; AI tidak pernah menyentuh data
+ *   7. cocokkan nama ke katalog
+ *   8. pengambil angka (calc layer) → perangkai kata → kirim
  *
  * Langkah 4 tidak boleh ditukar dengan 5: katalog nama HARUS lahir dari lingkup
  * yang sudah dipotong, supaya lokasi di luar hak penanya tidak sekadar tidak
@@ -362,39 +373,45 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
   const katalog = await katalogLokasi(penyaring, lokasiIds);
 
   /*
-   * (5) JALUR DETERMINISTIK DULU — pola yang jelas tidak memanggil AI sama
-   * sekali (DECISIONS 375).
+   * (6) MEMBACA PERTANYAAN — tiga jalur, diperiksa berurutan.
    *
-   * Letaknya SEBELUM guard AI, dan itu bukan penghematan baris. Tiga
-   * akibatnya yang nyata:
+   *   a. jawaban atas tawaran klarifikasi  → tanpa AI (DECISIONS 376)
+   *   b. parser deterministik              → tanpa AI (DECISIONS 375)
+   *   c. AI                                → hanya untuk sisanya
+   *
+   * Urutannya mengikat. Ketiganya diperiksa SEBELUM guard AI, dan itu bukan
+   * penghematan baris — tiga akibatnya nyata:
    *
    * 1. **Tidak memakai kuota.** Guard menolak pada kuota yang habis; kalau ia
    *    dilewati lebih dulu, "progress hari ini" ikut mati hanya karena grup
    *    lain menghabiskan anggaran AI hari itu.
    * 2. **Tetap hidup saat provider mati.** Perintah paling sering dipakai
    *    seharusnya tidak ikut jatuh setiap kali layanan AI bermasalah.
-   * 3. **Tidak menunggu 1–3 detik** untuk pertanyaan yang tidak punya tafsir
-   *    kedua.
+   * 3. **Tidak menunggu 1–3 detik** untuk yang tidak punya tafsir kedua.
    *
-   * Yang lolos jalur ini hanya kalimat yang SELURUH katanya terjelaskan —
-   * lihat `rencanaDeterministik`. Sisanya jatuh ke AI persis seperti dulu,
-   * jadi jalur ini hanya bisa menghemat, tidak bisa memperluas jawaban.
+   * Jalur (b) hanya menerima kalimat yang SELURUH katanya terjelaskan — lihat
+   * `rencanaDeterministik`. Sisanya jatuh ke AI persis seperti dulu, jadi ini
+   * hanya bisa menghemat, tidak bisa memperluas jawaban.
    */
-  const rencana = rencanaDeterministik(teks, katalog);
-  let niat: { niat: Niat; lokasiDisebut: string[]; periode: PeriodeDiminta };
-  const jalur = rencana.jenis === "jalan" ? "deterministik" : "ai";
+  type Terbaca = { niat: Niat; lokasiDisebut: string[]; periode: PeriodeDiminta };
 
-  if (rencana.jenis === "jalan") {
-    niat = {
-      niat: rencana.niat,
-      lokasiDisebut: rencana.lokasiDisebut,
-      periode: rencana.periode,
-    };
-  } else {
-    // (6) Guard AI — kill-switch & kuota, SEBELUM provider dipanggil. Untuk
+  // `m` sudah dipastikan ada di awal fungsi, tapi penyempitan itu tidak ikut
+  // masuk ke dalam closure di bawah. Diikat sekali di sini supaya jalur AI
+  // tidak perlu ditaburi `!`.
+  const pesan: ParsedWaMessage = m;
+
+  /**
+   * Jalur AI — guard, provider, pencatatan kuota.
+   *
+   * Mengembalikan `HasilTanya` bila perangkai harus BERHENTI (AI mati, niat
+   * tidak dikenali, kuota habis). Dibuat begitu, bukan melempar, supaya
+   * alasan yang dicatat webhook tetap sama persis seperti sebelum Fase D.
+   */
+  async function bacaLewatAi(): Promise<Terbaca | HasilTanya> {
+    // Guard AI — kill-switch & kuota, SEBELUM provider dipanggil. Untuk
     // penanya tak terdaftar, kuncinya CHAT-nya: satu grup ramai tidak boleh
     // menghabiskan anggaran AI sepanjang hari (DECISIONS 351).
-    const pemakaiAi: PemakaiAi = user ?? { jenis: "grup", orgId: pkg!.orgId, chatId: m.chatId };
+    const pemakaiAi: PemakaiAi = user ?? { jenis: "grup", orgId: pkg!.orgId, chatId: pesan.chatId };
     try {
       await checkAiGuard(pemakaiAi, {
         kind: "waha.tanya",
@@ -403,13 +420,13 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
       });
     } catch (err) {
       if (err instanceof AiGuardError) {
-        await sendText(m.chatId, `Maaf, permintaan tidak bisa saya proses: ${err.message}`);
+        await sendText(pesan.chatId, `Maaf, permintaan tidak bisa saya proses: ${err.message}`);
         return { dijawab: true, alasan: `guard AI menolak (${err.code})` };
       }
       throw err;
     }
 
-    // (7) AI → struktur niat. AI TIDAK PERNAH menyentuh data.
+    // AI → struktur niat. AI TIDAK PERNAH menyentuh data.
     const mulai = Date.now();
     const hasil = await aiStructured(skemaNiat, {
       system: SISTEM_PROMPT,
@@ -422,7 +439,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
 
     if (!hasil.ok) {
       await sendText(
-        m.chatId,
+        pesan.chatId,
         "Maaf, saya sedang tidak bisa membaca pertanyaan bebas (layanan AI tidak merespons). Coba lagi sebentar lagi, atau buka MARLIN langsung.",
       );
       return { dijawab: true, alasan: `AI gagal (${hasil.errorCode})` };
@@ -430,11 +447,107 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
 
     const d = hasil.data;
     if (d.niat === null) {
-      await sendText(m.chatId, balasTidakMengerti());
+      await sendText(pesan.chatId, balasTidakMengerti());
       return { dijawab: true, alasan: "niat tidak dikenali" };
     }
-    niat = { niat: d.niat, lokasiDisebut: d.lokasiDisebut, periode: d.periode };
+    return { niat: d.niat, lokasiDisebut: d.lokasiDisebut, periode: d.periode };
   }
+
+  let niat: Terbaca;
+  let jalur: "klarifikasi" | "deterministik" | "ai";
+
+  /*
+   * (6a) JAWABAN atas tawaran klarifikasi — diperiksa PALING DULU.
+   *
+   * "2" tidak punya niat maupun periode; jalur mana pun sesudah ini akan
+   * membacanya sebagai pertanyaan yang tidak dimengerti. Kandidatnya sudah
+   * dihitung saat tawaran dibuat dan disimpan utuh, jadi menjawabnya TIDAK
+   * memanggil AI lagi — itu inti butir 22 brief.
+   */
+  const pilihan = await ambilPilihan(m, teks);
+  if (pilihan.jenis === "kedaluwarsa") {
+    // DIKATAKAN, bukan didiamkan: penanya baru saja mengetik angka dan berhak
+    // tahu kenapa tidak terjadi apa-apa. Diam terbaca seperti sistem rusak.
+    await sendText(m.chatId, balasPilihanKedaluwarsa(pilihan.pertanyaan, UMUR_KLARIFIKASI_MENIT));
+    return { dijawab: true, alasan: "pilihan klarifikasi kedaluwarsa" };
+  }
+  if (pilihan.jenis === "di_luar_daftar") {
+    await sendText(m.chatId, balasPilihanTakAda(pilihan.jumlah));
+    return { dijawab: true, alasan: "pilihan di luar daftar" };
+  }
+
+  if (pilihan.jenis === "ambil") {
+    jalur = "klarifikasi";
+    niat = {
+      niat: pilihan.kandidat.niat,
+      lokasiDisebut: pilihan.kandidat.lokasiDisebut,
+      periode: pilihan.kandidat.periode,
+    };
+    await audit(user?.id ?? null, "waha.tanya.klarifikasi", "wa_message", m.waMessageId, {
+      chatId: m.chatId,
+      pertanyaan: pilihan.pertanyaan,
+      pilihan: pilihan.indeks + 1,
+      niat: niat.niat,
+    });
+  } else {
+    const rencana = rencanaDeterministik(teks, katalog);
+
+    if (rencana.jenis === "jalan") {
+      jalur = "deterministik";
+      niat = {
+        niat: rencana.niat,
+        lokasiDisebut: rencana.lokasiDisebut,
+        periode: rencana.periode,
+      };
+    } else if (rencana.jenis === "ambigu") {
+      /*
+       * (6b) TAFSIRNYA lebih dari satu — TAWARKAN, jangan menyerah.
+       *
+       * Keberatan user 2026-08-19: `niat = null → balasTidakMengerti()`
+       * terlalu cepat menyerah dan membuang waktu penanya. Tawarannya durable
+       * dan terikat CHAT + PENGIRIM, jadi `1` benar-benar bisa dijawab — dan
+       * tidak bisa dibajak orang lain di grup yang sama.
+       */
+      const simpan = await simpanTawaran(m, teks, rencana.kandidat);
+      if (simpan.jenis === "sudah") {
+        // Webhook yang sama diproses ulang: tawarannya sudah dikirim.
+        // Mengirim lagi berarti dua daftar pilihan untuk satu pertanyaan.
+        return { dijawab: false, alasan: "tawaran klarifikasi sudah pernah dikirim" };
+      }
+      if (simpan.jenis === "disimpan") {
+        const idPesan = await sendText(
+          m.chatId,
+          balasPilihan(teks, rencana.kandidat, UMUR_KLARIFIKASI_MENIT),
+        );
+        await catatIdTawaran(simpan.id, idPesan);
+        await audit(user?.id ?? null, "waha.tanya.tawar", "wa_message", m.waMessageId, {
+          chatId: m.chatId,
+          pertanyaan: teks,
+          kandidat: rencana.kandidat.map((k) => k.niat),
+        });
+        return {
+          dijawab: true,
+          alasan: `tawaran klarifikasi (${rencana.kandidat.length} pilihan)`,
+        };
+      }
+      /*
+       * `tak_bisa` — pengirim di grup tidak bisa dibedakan dari peserta lain.
+       * Menawarkan pilihan di situ berarti membuka `1` untuk siapa pun yang
+       * membaca, dan jawabannya akan tampak seperti jawaban penanya aslinya.
+       * Diteruskan ke AI, persis perilaku sebelum DECISIONS 376.
+       */
+      jalur = "ai";
+      const t = await bacaLewatAi();
+      if ("dijawab" in t) return t;
+      niat = t;
+    } else {
+      jalur = "ai";
+      const t = await bacaLewatAi();
+      if ("dijawab" in t) return t;
+      niat = t;
+    }
+  }
+
 
   // (7) Cocokkan nama terhadap katalog yang SUDAH dipotong izin.
   const resolusi = resolusiLokasi(niat.lokasiDisebut, katalog);

@@ -258,25 +258,20 @@ export function parseNiatDeterministik(teksMentah: string): HasilParser {
   }
 
   /*
-   * "laporan" + periode RENTANG itu genuinely dua hal, dan bedanya besar:
-   * laporan harian selalu SATU tanggal, sedangkan rekap mingguan meliputi
-   * sepekan. Menebak salah satunya berarti menjawab pertanyaan yang tidak
-   * ditanyakan (keluhan user 2026-08-18, DECISIONS 358).
+   * "laporan" + periode RENTANG sengaja TIDAK ditawarkan sebagai pilihan.
+   *
+   * Sekilas ia kandidat sempurna: laporan harian selalu SATU tanggal sedangkan
+   * rekap mingguan meliputi sepekan, jadi keduanya terasa sama masuk akal.
+   * Tapi kasus ini SUDAH diputus di DECISIONS 358, sesudah keluhan user
+   * 2026-08-18: jawabannya laporan harian pada hari terakhir rentang, DAN
+   * balasannya menyebut tanggal mana yang diambil beserta cara meminta rekap
+   * sepekan.
+   *
+   * Menawarkan pilihan di sini berarti menarik kembali keputusan itu — menukar
+   * jawaban langsung yang sudah jujur dengan satu putaran tanya-jawab tambahan,
+   * untuk mandor yang sedang di lapangan. Tawaran pilihan disediakan untuk yang
+   * BELUM pernah diputuskan, bukan untuk membuka ulang yang sudah selesai.
    */
-  if (
-    cocok.includes("laporan") &&
-    !cocok.includes("laporan_mingguan") &&
-    periode?.jenis === "rentang" &&
-    periode.satuan === "minggu"
-  ) {
-    return {
-      jenis: "ambigu",
-      kandidat: [
-        kandidat("laporan_mingguan", periode),
-        kandidat("laporan", periode, " pada hari terakhir pekan itu"),
-      ],
-    };
-  }
 
   // Dua niat di dua potongan teks yang terpisah → biar AI menimbang kalimat
   // utuhnya. Yang cuma saling memuat sudah disaring `buangYangTermuat`.

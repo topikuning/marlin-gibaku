@@ -381,3 +381,53 @@ export function balasMingguan(
   });
   return kepala("Laporan mingguan", r.periode) + "\n\n" + isi.join("\n\n") + kaki(opts);
 }
+
+/**
+ * Tawaran pilihan untuk pertanyaan yang tafsirnya lebih dari satu
+ * (DECISIONS 375/376).
+ *
+ * Menggantikan `balasTidakMengerti()` untuk kasus yang sebenarnya HAMPIR
+ * jelas. Keberatan user 2026-08-19: menyodorkan menu kemampuan yang sama untuk
+ * semua orang terlalu cepat menyerah dan membuang waktu penanya, padahal
+ * tafsirnya cuma dua atau tiga.
+ *
+ * Labelnya memakai KATA YANG IA TULIS ("kemarin"), bukan istilah baku — itu
+ * bedanya antara balik bertanya dan menyodorkan daftar fitur.
+ */
+export function balasPilihan(
+  pertanyaan: string,
+  kandidat: { label: string }[],
+  umurMenit: number,
+): string {
+  const daftar = kandidat.map((k, i) => `${i + 1}. ${k.label}`).join("\n");
+  return [
+    // Pertanyaannya DIKUTIP: di grup yang ramai, tawaran ini bisa muncul
+    // beberapa pesan setelah pertanyaannya, dan tanpa kutipan penanya harus
+    // menebak tawaran ini milik pertanyaan yang mana.
+    `"${pertanyaan}" bisa saya baca dengan ${kandidat.length === 2 ? "dua" : "beberapa"} cara.`,
+    "Maksud Anda yang mana?",
+    "",
+    daftar,
+    "",
+    "Balas angkanya saja (mis. *1*). Kalau bukan salah satunya, tulis ulang lebih lengkap.",
+    `_Pilihan ini berlaku ${umurMenit} menit, dan hanya untuk Anda._`,
+  ].join("\n");
+}
+
+/**
+ * Angka yang dibalas tidak lagi punya tawaran yang hidup.
+ *
+ * DIKATAKAN, bukan didiamkan: penanya baru saja mengetik "2" dan berhak tahu
+ * kenapa tidak terjadi apa-apa. Diam di sini terbaca seperti sistem rusak.
+ */
+export function balasPilihanKedaluwarsa(pertanyaan: string, umurMenit: number): string {
+  return [
+    `Maaf, pilihan untuk "${pertanyaan}" sudah lewat ${umurMenit} menit jadi saya tutup.`,
+    "Silakan tanyakan lagi — saya tawarkan pilihannya sekali lagi.",
+  ].join("\n");
+}
+
+/** Angka di luar daftar yang ditawarkan. */
+export function balasPilihanTakAda(jumlah: number): string {
+  return `Pilihannya hanya 1–${jumlah}. Balas salah satu angka itu, atau tulis ulang pertanyaannya.`;
+}
