@@ -1,53 +1,43 @@
 -- PENCARIAN NARASI LAPANGAN — indeks teks penuh Bahasa Indonesia
--- (DECISIONS 382, Fase F1).
+-- (DECISIONS 382, direvisi 384 sebelum menyentuh produksi).
 --
--- Kenapa GENERATED ALWAYS, bukan tabel indeks tersendiri:
+-- INDEKS EKSPRESI, bukan kolom `GENERATED ALWAYS ... STORED`.
 --
---   Tabel indeks terpisah harus DISINKRONKAN, dan sinkronisasi yang terlewat
---   membuat MARLIN menjawab dari teks yang sudah dikoreksi atau sudah dihapus —
---   kesalahan yang paling sulit terlihat, karena jawabannya tampak normal DAN
---   bersitasi. Kolom generated dipelihara PostgreSQL sendiri pada setiap tulis,
---   lewat jalur apa pun (Prisma, SQL mentah, migrasi), jadi tidak ada yang bisa
---   lupa dan tidak ada yang bisa basi.
+-- Versi pertama menambah kolom tsvector tersimpan. Itu bekerja, tapi
+-- `ALTER TABLE ... ADD COLUMN ... GENERATED ... STORED` MENULIS ULANG seluruh
+-- tabel sambil memegang kunci ACCESS EXCLUSIVE — baca DAN tulis mati selama
+-- proses. Diukur pada PostgreSQL 16.13 dengan 100.000 laporan + 500.000 item:
 --
--- Konfigurasi 'indonesian' bawaan PostgreSQL memang melakukan stemming:
---   'pengecoran' -> 'ecor', 'tertunda' -> 'tunda', 'terlambat' -> 'lambat'.
--- Diperiksa langsung pada PostgreSQL 16.13 yang dipakai proyek ini.
+--   kolom GENERATED + GIN : 13,2 detik  · tabel 49 MB + 168 MB · baca & tulis MATI
+--   indeks ekspresi       :  8,5 detik  · tabel 24 MB +  91 MB · baca TETAP JALAN
 --
--- Idempoten sepenuhnya: aman dijalankan ulang setelah deploy yang gagal separuh
--- jalan (DECISIONS 373).
+-- Indeks ekspresi menang di setiap sumbu, dan yang menentukan bukan kecepatannya
+-- melainkan KUNCINYA: `CREATE INDEX` memakai kunci SHARE, jadi pembacaan tetap
+-- berjalan. Pada basis data produksi yang sudah berisi banyak data, beda antara
+-- "lambat sebentar" dan "aplikasi mati sebentar" itu beda yang sebenarnya.
+--
+-- Query di `src/lib/narasi/cari.ts` menuliskan ekspresi yang SAMA PERSIS supaya
+-- perencana memakai indeks ini (terbukti lewat EXPLAIN: Bitmap Index Scan).
+--
+-- Idempoten: aman dijalankan ulang setelah deploy yang gagal separuh jalan.
 
--- 1. Laporan harian
-ALTER TABLE "daily_reports"
-  ADD COLUMN IF NOT EXISTS "tsv" tsvector
-  GENERATED ALWAYS AS (to_tsvector('indonesian', coalesce("notes", ''))) STORED;
-CREATE INDEX IF NOT EXISTS "daily_reports_tsv_idx" ON "daily_reports" USING GIN ("tsv");
+CREATE INDEX IF NOT EXISTS "daily_reports_tsv_idx"
+  ON "daily_reports" USING GIN (to_tsvector('indonesian', coalesce("notes", '')));
 
--- 2. Item laporan harian
-ALTER TABLE "daily_report_items"
-  ADD COLUMN IF NOT EXISTS "tsv" tsvector
-  GENERATED ALWAYS AS (to_tsvector('indonesian', coalesce("notes", ''))) STORED;
-CREATE INDEX IF NOT EXISTS "daily_report_items_tsv_idx" ON "daily_report_items" USING GIN ("tsv");
+CREATE INDEX IF NOT EXISTS "daily_report_items_tsv_idx"
+  ON "daily_report_items" USING GIN (to_tsvector('indonesian', coalesce("notes", '')));
 
--- 3. Kegiatan lapangan — judul IKUT diindeks; judulnya sering justru inti
---    kejadiannya ("Rapat percepatan", "Alat rusak").
-ALTER TABLE "field_activities"
-  ADD COLUMN IF NOT EXISTS "tsv" tsvector
-  GENERATED ALWAYS AS (
+-- Judul kegiatan IKUT diindeks; judulnya sering justru inti kejadiannya
+-- ("Rapat percepatan", "Alat rusak").
+CREATE INDEX IF NOT EXISTS "field_activities_tsv_idx"
+  ON "field_activities" USING GIN (
     to_tsvector('indonesian', coalesce("title", '') || ' ' || coalesce("notes", ''))
-  ) STORED;
-CREATE INDEX IF NOT EXISTS "field_activities_tsv_idx" ON "field_activities" USING GIN ("tsv");
+  );
 
--- 4. Kendala — judul + uraian
-ALTER TABLE "issues"
-  ADD COLUMN IF NOT EXISTS "tsv" tsvector
-  GENERATED ALWAYS AS (
+CREATE INDEX IF NOT EXISTS "issues_tsv_idx"
+  ON "issues" USING GIN (
     to_tsvector('indonesian', coalesce("title", '') || ' ' || coalesce("description", ''))
-  ) STORED;
-CREATE INDEX IF NOT EXISTS "issues_tsv_idx" ON "issues" USING GIN ("tsv");
+  );
 
--- 5. Tindakan recovery
-ALTER TABLE "recovery_actions"
-  ADD COLUMN IF NOT EXISTS "tsv" tsvector
-  GENERATED ALWAYS AS (to_tsvector('indonesian', coalesce("description", ''))) STORED;
-CREATE INDEX IF NOT EXISTS "recovery_actions_tsv_idx" ON "recovery_actions" USING GIN ("tsv");
+CREATE INDEX IF NOT EXISTS "recovery_actions_tsv_idx"
+  ON "recovery_actions" USING GIN (to_tsvector('indonesian', coalesce("description", '')));

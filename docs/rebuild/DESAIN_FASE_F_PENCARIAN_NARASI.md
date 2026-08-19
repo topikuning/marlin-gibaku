@@ -193,7 +193,11 @@ JANGAN index catatan bermuatan keuangan sama sekali.
 83 lokasi × ~1 laporan/hari ≈ **30.000 laporan/tahun**, ditambah item dan
 kegiatan → kasar **±100.000 potongan** untuk satu tahun program.
 
-- Pilihan A: nol biaya berulang; satu kolom `tsvector` + indeks GIN.
+- Pilihan A: nol biaya berulang; satu **indeks ekspresi** GIN atas
+  `to_tsvector('indonesian', ...)`. Bukan kolom tersimpan — kolom `GENERATED
+  ... STORED` menulis ulang seluruh tabel di bawah kunci `ACCESS EXCLUSIVE`,
+  yang pada basis data produksi berarti aplikasi mati selama migrasi
+  (`DECISIONS 384`, terukur).
 - Pilihan B: satu kali embedding untuk seluruh korpus + re-embed tiap perubahan
   + satu embedding per pertanyaan. Perlu masuk hitungan guard AI Hub yang sudah
   ada (kill switch, batas laju, estimasi biaya per run).

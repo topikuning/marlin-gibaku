@@ -1117,11 +1117,6 @@ model DailyReport {
   updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz
 
 
-  /// Indeks pencarian narasi (DECISIONS 382) — diisi PostgreSQL sendiri lewat
-  /// GENERATED ALWAYS, jadi tidak pernah ditulis aplikasi dan tidak pernah basi
-  /// terhadap teks aslinya. Didaftarkan di sini supaya schema tidak "drift"
-  /// terhadap basis data; Prisma tidak bisa (dan tidak perlu) membacanya.
-  tsv Unsupported("tsvector")?
   location      Location                   @relation(fields: [locationId], references: [id])
   items         DailyReportItem[]
   workers       DailyReportWorker[]
@@ -1181,11 +1176,6 @@ model FieldActivity {
   updatedAt     DateTime            @updatedAt @map("updated_at") @db.Timestamptz
 
 
-  /// Indeks pencarian narasi (DECISIONS 382) — diisi PostgreSQL sendiri lewat
-  /// GENERATED ALWAYS, jadi tidak pernah ditulis aplikasi dan tidak pernah basi
-  /// terhadap teks aslinya. Didaftarkan di sini supaya schema tidak "drift"
-  /// terhadap basis data; Prisma tidak bisa (dan tidak perlu) membacanya.
-  tsv Unsupported("tsvector")?
   location    Location                  @relation(fields: [locationId], references: [id])
   photos      Photo[]
   attachments FieldActivityAttachment[]
@@ -1235,11 +1225,6 @@ model DailyReportItem {
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
 
-  /// Indeks pencarian narasi (DECISIONS 382) — diisi PostgreSQL sendiri lewat
-  /// GENERATED ALWAYS, jadi tidak pernah ditulis aplikasi dan tidak pernah basi
-  /// terhadap teks aslinya. Didaftarkan di sini supaya schema tidak "drift"
-  /// terhadap basis data; Prisma tidak bisa (dan tidak perlu) membacanya.
-  tsv Unsupported("tsvector")?
   report  DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
   rabNode RabNode     @relation(fields: [rabNodeId], references: [id])
   photos  Photo[]
@@ -1407,11 +1392,6 @@ model Issue {
   updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz
 
 
-  /// Indeks pencarian narasi (DECISIONS 382) — diisi PostgreSQL sendiri lewat
-  /// GENERATED ALWAYS, jadi tidak pernah ditulis aplikasi dan tidak pernah basi
-  /// terhadap teks aslinya. Didaftarkan di sini supaya schema tidak "drift"
-  /// terhadap basis data; Prisma tidak bisa (dan tidak perlu) membacanya.
-  tsv Unsupported("tsvector")?
   location Location         @relation(fields: [locationId], references: [id])
   report   DailyReport?     @relation(fields: [reportId], references: [id])
   actions  RecoveryAction[]
@@ -1433,11 +1413,6 @@ model RecoveryAction {
   updatedAt   DateTime       @updatedAt @map("updated_at") @db.Timestamptz
 
 
-  /// Indeks pencarian narasi (DECISIONS 382) — diisi PostgreSQL sendiri lewat
-  /// GENERATED ALWAYS, jadi tidak pernah ditulis aplikasi dan tidak pernah basi
-  /// terhadap teks aslinya. Didaftarkan di sini supaya schema tidak "drift"
-  /// terhadap basis data; Prisma tidak bisa (dan tidak perlu) membacanya.
-  tsv Unsupported("tsvector")?
   issue   Issue            @relation(fields: [issueId], references: [id], onDelete: Cascade)
   updates RecoveryUpdate[]
 

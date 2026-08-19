@@ -8,7 +8,7 @@ import type { AiRunKind } from "@/generated/prisma/enums";
 import { checkAiGuard, estimateCostUsd, getAiPricing } from "./guard";
 import { buildPortfolioPulse, buildQualityDetails, resolveAiScope } from "./source";
 import { LABEL_WILAYAH, buildAdapterFacts, gabungFakta } from "./adapters";
-import { LABEL_JENIS, cariNarasi, type PotonganNarasi } from "@/lib/narasi/cari";
+import { LABEL_JENIS, cariNarasiAman, type PotonganNarasi } from "@/lib/narasi/cari";
 import { runQualityRules } from "./quality-rules";
 import {
   buildNarrativeBundle,
@@ -172,7 +172,7 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
    */
   const potongan: PotonganNarasi[] =
     input.kind === "tanya" && input.question
-      ? await cariNarasi({ locationIds: scope.ids, pertanyaan: input.question })
+      ? await cariNarasiAman({ locationIds: scope.ids, pertanyaan: input.question })
       : [];
 
   /*

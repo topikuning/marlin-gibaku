@@ -18810,3 +18810,112 @@ perubahannya BELUM di-commit, sehingga `balasNarasi` terhapus dan seluruh uji
 memerah. Ketahuan karena langkah "PULIH" ikut merah — itulah gunanya selalu
 menjalankan pemulihan sebagai langkah tersendiri, bukan menganggapnya pasti
 berhasil. Fungsinya ditulis ulang, lalu hijau.
+
+---
+
+## 384 — Indeks narasi jadi INDEKS EKSPRESI, bukan kolom tersimpan (2026-08-19)
+
+**Keputusan.** Migrasi `20260819200000_narasi_pencarian` DIUBAH sebelum menyentuh
+produksi: tidak lagi menambah kolom `tsv GENERATED ALWAYS ... STORED`, melainkan
+membuat **indeks ekspresi** `GIN (to_tsvector('indonesian', coalesce(...)))`.
+Migrasi susulan `20260819210000_narasi_buang_kolom_tsv` membuang kolom `tsv`
+yang terlanjur ada di basis data dev.
+
+### Kenapa — soalnya KUNCI, bukan kecepatan
+
+Versi pertama bekerja dan seluruh ujinya hijau. Yang tidak diperiksa: apa yang
+terjadi pada basis data yang **sudah berisi banyak data**.
+
+`ALTER TABLE ... ADD COLUMN ... GENERATED ... STORED` menulis ulang SELURUH tabel
+sambil memegang kunci `ACCESS EXCLUSIVE`. Selama itu, baca **dan** tulis pada
+tabel `daily_reports` mati — dan `daily_reports` adalah tabel yang disentuh
+hampir setiap halaman MARLIN. `CREATE INDEX` biasa memegang kunci `SHARE`:
+menulis tertahan, membaca tetap jalan.
+
+Diukur langsung di PostgreSQL 16.13 pada basis data khusus berisi 100.000
+laporan harian + 500.000 item laporan:
+
+| | kolom GENERATED + GIN | indeks ekspresi |
+|---|---|---|
+| Waktu migrasi | 13,2 detik | **8,5 detik** |
+| Kunci | `ACCESS EXCLUSIVE` — baca & tulis MATI | `SHARE` — **baca tetap jalan** |
+| Tambahan ukuran | 49 MB + 168 MB | **24 MB + 91 MB** |
+| Indeks terpakai | ya | ya (`Bitmap Index Scan`) |
+
+Indeks ekspresi menang di setiap sumbu. Tapi yang menentukan keputusan ini bukan
+"lebih cepat 4,7 detik" — melainkan beda antara **aplikasi lambat sebentar** dan
+**aplikasi mati sebentar**. Pada produksi berisi data, itu beda yang sebenarnya
+terasa, dan tidak ada satu pun uji di repo ini yang bisa menangkapnya, karena
+basis data uji selalu kosong.
+
+Bonus: kesegaran jadi lebih kuat, bukan lebih lemah. Tidak ada lagi salinan
+tsvector tersimpan yang secara prinsip bisa basi — tsvector dihitung saat query
+dari kolom teks aslinya.
+
+### Harga yang dibayar: ekspresinya harus SAMA PERSIS
+
+Perencana hanya memakai indeks ekspresi kalau ekspresi di query identik dengan
+yang diindeks — termasuk `coalesce(..., '')` dan urutan penggabungan judul +
+catatan. Kalau bergeser satu huruf, PostgreSQL **tidak mengeluh**; ia diam-diam
+memindai seluruh tabel. Tidak ada galat, hanya lambat, jadi tidak akan ketahuan
+sendiri — dan di basis data uji yang kecil tidak terasa sama sekali.
+
+Karena itu ekspresinya ditulis SEKALI sebagai `EKSPRESI_TSV` di
+`src/lib/narasi/cari.ts`, dipakai query dari situ, dan dijaga uji integrasi yang
+menjalankan `EXPLAIN` dengan `SET LOCAL enable_seqscan = off` lalu menuntut nama
+indeksnya muncul di rencana. `SET LOCAL` di dalam transaksi, bukan `SET` polos:
+Prisma memakai kolam koneksi, jadi `SET` polos bisa mendarat di koneksi yang
+berbeda dengan `EXPLAIN`-nya dan ujinya lolos tanpa pernah mematikan seqscan.
+
+### Uji gigi
+
+- `coalesce(dr.notes, '')` diubah jadi `coalesce(dr.notes, ' ')` → **1 merah**
+  (`daily_reports_tsv_idx` hilang dari rencana). Penting: 13 uji fungsional
+  lainnya TETAP HIJAU — pencariannya masih benar, hanya kehilangan indeks. Itu
+  persis jenis kerusakan yang tidak akan ketahuan tanpa uji ini.
+
+### Diperiksa juga sebelum menyentuh produksi
+
+- `prisma migrate deploy` pada basis data KOSONG menerapkan 65 migrasi sampai
+  tuntas, dan `migrate diff` tidak menunjukkan selisih apa pun pada kelima tabel
+  narasi (jadi menghapus deklarasi `tsv Unsupported("tsvector")` dari
+  `schema.prisma` tidak menimbulkan drift).
+- Pada basis data yang SUDAH memakai bentuk lama (dev), `20260819210000`
+  membuang kolomnya; pada basis data yang belum (produksi), berkas itu no-op —
+  `DROP COLUMN IF EXISTS` hanya menyentuh katalog, tidak menulis ulang tabel.
+- Kelima cabang query terbukti memakai indeksnya lewat `EXPLAIN`.
+
+### Catatan kerja
+
+Versi pertama lolos seluruh uji dan lolos tinjauan saya sendiri. Yang
+memunculkan masalahnya bukan uji, melainkan pertanyaan user: *"pastikan tidak
+ada masalah, ini di production dan sudah banyak data"*. Uji di repo ini berjalan
+pada basis data kosong, jadi seluruh kelas kesalahan "aman saat kosong, merusak
+saat penuh" tidak terjangkau olehnya — satu-satunya cara menemukannya adalah
+mengukur pada data sebesar produksi, dan itu harus dilakukan dengan sengaja.
+
+### Tambahan: kegagalan pencarian TIDAK boleh menjatuhkan jalur balasan
+
+Ditemukan saat memeriksa risiko produksi, bukan lewat uji: `cariNarasi`
+dipasang persis di jalur MENYERAH (niat tak dikenali; penyedia AI mati). Jalur
+itu sebelum DECISIONS 383 **selalu** berhasil mengirim sesuatu — "saya belum
+mengerti". Dengan pencarian di dalamnya, satu lemparan apa pun dari query itu
+mengubah jalur yang dulu selalu menjawab menjadi jalur yang diam. Di lapangan,
+diam lebih buruk daripada keadaan sebelum fiturnya ada.
+
+Karena itu kedua pemanggil (`waha/tanya.ts` dan `ai-hub/runs.ts`) memakai
+`cariNarasiAman()`: kegagalan diturunkan jadi "tidak ada catatan yang cocok",
+sehingga perilakunya kembali persis ke sebelum 383. Galatnya **tidak ditelan
+diam-diam** — dicatat ke log server, supaya kerusakan yang sesungguhnya tetap
+terlihat.
+
+Ini sekaligus jaring untuk satu hal yang tidak bisa diperiksa dari sini: query
+memakai konfigurasi teks `indonesian`. Konfigurasi itu ADA pada PostgreSQL yang
+dipakai pengembangan (bawaan snowball), tapi baru bisa dipastikan di server
+produksi sesudah deploy. Kalau ternyata tidak ada, yang terjadi adalah
+pencarian catatan mati dan MARLIN kembali menjawab seperti sebelumnya — bukan
+balasan WhatsApp yang berhenti sama sekali.
+
+Uji gigi: `try/catch` dilepas → **1 merah** (`invalid input syntax for type
+uuid`), dan uji pendampingnya menjaga jalur amannya tidak berubah jadi "selalu
+kosong".

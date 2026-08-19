@@ -34,7 +34,7 @@ import {
   simpanTawaran,
 } from "./klarifikasi";
 import { ambilKonteks, simpanKonteks } from "./konteks-lanjutan";
-import { LABEL_JENIS, cariNarasi } from "@/lib/narasi/cari";
+import { LABEL_JENIS, cariNarasiAman } from "@/lib/narasi/cari";
 import {
   balasAmbigu,
   balasBantuan,
@@ -495,7 +495,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
   async function jawabDariCatatan(): Promise<HasilTanya | null> {
     // Katalog sudah dipotong izin & lingkup grup — dipakai apa adanya supaya
     // pencarian tidak pernah punya jangkauan lebih luas daripada jawaban lain.
-    const potongan = await cariNarasi({
+    const potongan = await cariNarasiAman({
       locationIds: katalog.map((l) => l.id),
       pertanyaan: teks,
       batas: 5,

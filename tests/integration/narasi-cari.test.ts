@@ -7,8 +7,15 @@
 //      tidak ikut diperingkat.
 //   2. STATUS — laporan draft/perlu_koreksi tidak pernah dicari; menjawab dari
 //      laporan yang sedang diperbaiki berarti menyebarkan yang belum sah.
-//   3. KESEGARAN — teks yang dikoreksi langsung terbawa, karena indeksnya kolom
-//      GENERATED yang dipelihara PostgreSQL sendiri.
+//   3. KESEGARAN — teks yang dikoreksi langsung terbawa, karena tsvector-nya
+//      dihitung saat query dari kolom teks aslinya (tidak ada salinan tersimpan
+//      yang bisa basi).
+//
+// Ditambah satu penjaga yang sifatnya beda: bahwa indeks ekspresinya BENAR-BENAR
+// terpakai (DECISIONS 384). Kalau ekspresi di query bergeser satu huruf dari
+// yang diindeks, PostgreSQL tidak mengeluh — ia hanya memindai seluruh tabel.
+// Di basis data uji yang kecil itu tak terasa; di produksi yang sudah berisi
+// banyak data, itu bedanya jawaban seketika dengan jawaban yang menggantung.
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 process.env.APP_ENV ??= "test";
@@ -17,7 +24,8 @@ process.env.SESSION_SECRET ??= "test-secret-0123456789abcdef-0123456789abcdef";
 vi.mock("server-only", () => ({}));
 
 const { db } = await import("@/lib/db");
-const { cariNarasi } = await import("@/lib/narasi/cari");
+const { cariNarasi, cariNarasiAman, EKSPRESI_TSV, ALIAS_TSV } = await import("@/lib/narasi/cari");
+const { Prisma } = await import("@/generated/prisma/client");
 
 const suffix = `nrs${Date.now().toString(36)}`;
 let orgId = "";
@@ -205,4 +213,71 @@ describe("pagar yang membuat fitur ini aman", () => {
     expect(r.length).toBeGreaterThan(0);
     expect(r.every((p) => p.href.startsWith("/lokasi/"))).toBe(true);
   });
+});
+
+describe("kegagalan pencarian tidak menjatuhkan jalur balasan (DECISIONS 384)", () => {
+  /*
+   * Pencarian catatan dipasang persis di jalur MENYERAH — niat tak dikenali,
+   * atau AI mati. Jalur itu dulu SELALU berhasil mengirim "saya belum
+   * mengerti". Kalau pencariannya melempar, jalur yang dulu selalu menjawab
+   * berubah jadi diam; di lapangan itu lebih buruk daripada sebelum fiturnya
+   * ada.
+   */
+  it("id lokasi yang bukan uuid → larik kosong, bukan lemparan", async () => {
+    // `cariNarasi` mentah memang melempar — itu yang dijaga `cariNarasiAman`.
+    await expect(
+      cariNarasi({ locationIds: ["bukan-uuid"], pertanyaan: "hujan" }),
+    ).rejects.toThrow();
+    await expect(cariNarasiAman({ locationIds: ["bukan-uuid"], pertanyaan: "hujan" })).resolves
+      .toEqual([]);
+  });
+
+  it("pencarian yang berhasil tetap mengembalikan hasilnya lewat jalur aman", async () => {
+    // Supaya penjaga di atas tidak berubah jadi "selalu kosong".
+    const r = await cariNarasiAman({ locationIds: [lokA], pertanyaan: "besi" });
+    expect(r.length).toBeGreaterThan(0);
+  });
+});
+
+describe("indeks ekspresi benar-benar terpakai (DECISIONS 384)", () => {
+  /*
+   * Kenapa `enable_seqscan = off`.
+   *
+   * Basis data uji berisi belasan baris; di situ pemindaian seluruh tabel
+   * memang LEBIH MURAH daripada lewat indeks, jadi perencana akan memilihnya
+   * apa pun ekspresinya — dan ujinya jadi tidak menguji apa-apa. Dengan
+   * seqscan dimatikan, satu-satunya cara perencana bisa memakai indeks adalah
+   * kalau ekspresi di query cocok dengan yang diindeks. Itulah yang diperiksa
+   * di sini: BUKAN "mana yang lebih cepat", melainkan "indeksnya berlaku".
+   *
+   * Ekspresinya diambil dari `EKSPRESI_TSV` — objek yang sama yang dipakai
+   * `cariNarasi` — sehingga mengubah query tanpa mengubah migrasinya (atau
+   * sebaliknya) membuat uji ini merah.
+   */
+  const TABEL = [
+    "daily_reports",
+    "daily_report_items",
+    "field_activities",
+    "issues",
+    "recovery_actions",
+  ] as const;
+
+  for (const tabel of TABEL) {
+    it(`${tabel} memakai ${tabel}_tsv_idx`, async () => {
+      // `SET LOCAL` di dalam transaksi, bukan `SET` biasa: Prisma memakai kolam
+      // koneksi, jadi `SET` polos bisa mendarat di koneksi yang berbeda dengan
+      // EXPLAIN-nya — dan ujinya lolos tanpa pernah mematikan seqscan.
+      const teks = await db.$transaction(async (tx) => {
+        await tx.$executeRawUnsafe("SET LOCAL enable_seqscan = off");
+        const rencana = await tx.$queryRaw<{ "QUERY PLAN": string }[]>(Prisma.sql`
+          EXPLAIN SELECT ${Prisma.raw(ALIAS_TSV[tabel])}.id
+            FROM ${Prisma.raw(tabel)} ${Prisma.raw(ALIAS_TSV[tabel])}
+           WHERE ${EKSPRESI_TSV[tabel]} @@ to_tsquery('indonesian', 'hujan')
+        `);
+        return rencana.map((b) => b["QUERY PLAN"]).join("\n");
+      });
+      expect(teks).toContain(`${tabel}_tsv_idx`);
+      expect(teks).not.toContain("Seq Scan");
+    });
+  }
 });
