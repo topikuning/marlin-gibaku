@@ -138,13 +138,27 @@ export type BarisKendala = {
 };
 
 export function balasKendala(
-  r: { tanggal: string; baris: BarisKendala[]; lokasiDiperiksa: number },
+  r: {
+    tanggal: string;
+    baris: BarisKendala[];
+    lokasiDiperiksa: number;
+    /**
+     * Judul yang menyebut CARA BACA-nya (DECISIONS 381) — "yang dibuka",
+     * "yang dibuka & masih terbuka", atau "belum selesai".
+     *
+     * Wajib berbeda per cara baca: tiga daftar yang isinya bisa sangat berbeda
+     * di bawah satu judul yang sama membuat penanya tidak punya cara mengetahui
+     * pertanyaan mana yang sebenarnya dijawab.
+     */
+    judul?: string;
+  },
   opts: OpsiKaki = {},
 ): string {
+  const judul = r.judul ?? "Kendala belum selesai";
   if (r.baris.length === 0) {
     return (
-      kepala("Kendala belum selesai", r.tanggal) +
-      `\n\nTidak ada kendala belum selesai di ${r.lokasiDiperiksa} lokasi yang saya periksa.` +
+      kepala(judul, r.tanggal) +
+      `\n\nTidak ada yang cocok di ${r.lokasiDiperiksa} lokasi yang saya periksa.` +
       kaki(opts)
     );
   }
@@ -162,7 +176,7 @@ export function balasKendala(
     return [`*${lokasi}*`, ...item].join("\n");
   });
   return (
-    kepala(`Kendala belum selesai — ${r.baris.length} di ${perLokasi.size} lokasi`, r.tanggal) +
+    kepala(`${judul} — ${r.baris.length} di ${perLokasi.size} lokasi`, r.tanggal) +
     "\n\n" +
     isi.join("\n\n") +
     kaki(opts)

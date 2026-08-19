@@ -491,24 +491,29 @@ HTML dihapus — satu sumber, mustahil menyimpang. Belum dikerjakan karena
 halaman `/cetak/...` juga dipakai sebagai PRATINJAU di layar (dan pratinjau PDF
 di peramban ponsel lapangan belum dipastikan bisa diandalkan). Keputusan user.
 
-## 🟢 WATANYA-02 · Kendala lampau belum punya snapshot status
+## 🟡 UJI-01 · `tugas-harian.test.ts` tidak bisa dijalankan dua kali berturut-turut
 
-Tanya-jawab WhatsApp sudah mengenal periode (DECISIONS 356–358) dan sejak
-DECISIONS 369 angka **progress dan deviasi** untuk tanggal lampau benar-benar
-dihitung pada tanggal itu (`asOf`), bukan posisi hari ini.
+Ditemukan 2026-08-19 saat menelusuri kegagalan yang tampak tidak berhubungan.
 
-Yang MASIH belum bisa: **kendala pada tanggal lampau**. MARLIN tidak menyimpan
-riwayat "kendala apa yang berstatus terbuka pada hari X" — yang ada hanya status
-kendala saat ini. Karena itu pertanyaan "kendala kemarin" dijawab dengan kendala
-yang masih terbuka SEKARANG, dan balasannya mengatakan hal itu apa adanya:
+Berkas itu sengaja TIDAK membersihkan fixture-nya (histori tahap & status
+bersifat append-only), sementara beberapa ujinya menegaskan hasil fungsi yang
+menyapu **seluruh** basis data. Akibatnya paket sisa RUN SEBELUMNYA ikut
+terhitung.
 
-> Daftar kendala ini yang masih TERBUKA sekarang, bukan keadaan pada [periode].
+Terbukti pada `HEAD` bersih, tanpa perubahan apa pun: basis data dikosongkan →
+18 lulus; dijalankan lagi tanpa dibersihkan → 1 merah. Merahnya di uji yang
+sama sekali tidak menunjuk ke sebabnya.
 
-Menambalnya butuh keputusan user lebih dulu, karena "kendala minggu lalu" punya
-dua arti yang sama masuk akal: yang DIBUKA minggu lalu, atau yang masih TERBUKA
-pada akhir minggu lalu. Dua-duanya memerlukan histori status yang belum dicatat
-(`Issue` hanya menyimpan status terkini), jadi ini bukan sekadar meneruskan
-tanggal seperti pada progress/deviasi.
+**Sudah diperbaiki sebagian** (DECISIONS 381): dua penegasan SPMK kini
+memeriksa **nama paketnya sendiri** (`hasil.paket`), bukan hitungan global —
+lebih kuat, sekaligus kebal baris asing.
 
-Sampai itu diputuskan: jangan menulis di mana pun bahwa MARLIN bisa menjawab
-keadaan kendala pada tanggal lampau — ia tidak bisa, dan ia memang mengatakannya.
+**Belum**: uji `PAKSA mengirim ulang di hari yang sama` masih menghitung jumlah
+pesan terkirim secara global, jadi lokasi sisa run sebelumnya membuatnya
+mengharapkan 2 tapi menerima 7. Perbaikannya sejenis — saring ke fixture-nya
+sendiri — tapi menyentuh uji yang tidak berhubungan dengan pekerjaan berjalan,
+jadi dikerjakan terpisah.
+
+Dalam rangkaian penuh `pnpm vitest run tests/integration` semuanya hijau
+(berkas lain mem-`TRUNCATE` lebih dulu). Gejalanya hanya muncul saat berkas itu
+dijalankan sendirian berulang kali.

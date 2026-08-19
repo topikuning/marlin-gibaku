@@ -112,18 +112,67 @@ export type HasilKendala = {
  * menekan. Statusnya tetap ditulis per baris supaya "sudah ada yang pegang"
  * tidak hilang.
  */
+/**
+ * Cara kendala disaring (DECISIONS 381).
+ *
+ * `terbuka_sekarang` adalah perilaku lama: apa pun yang masih terbuka HARI INI,
+ * tanpa peduli kapan dibukanya. Dua yang lain menjawab pertanyaan tentang
+ * PERIODE, dan keduanya cukup memakai `Issue.createdAt` + status terkini —
+ * tidak butuh histori status yang memang belum dicatat.
+ *
+ * Yang TETAP tidak bisa dijawab: "kendala apa yang berstatus terbuka PADA hari
+ * X". Itu butuh riwayat status. Tidak satu pun saringan di sini berpura-pura
+ * bisa menjawabnya.
+ */
+/**
+ * Penghujung hari untuk batas periode.
+ *
+ * `Issue.createdAt` bertimestamp sedangkan periode datang sebagai tanggal.
+ * Tanpa ini, kendala yang dibuka pukul 09:00 pada hari terakhir periode jatuh
+ * DI LUAR rentang — dan yang hilang justru yang paling baru.
+ */
+function akhirHari(d: Date): Date {
+  return new Date(d.getTime() + 24 * 3600 * 1000 - 1);
+}
+
+export type SaringKendala =
+  /** Masih terbuka sekarang, kapan pun dibukanya. */
+  | "terbuka_sekarang"
+  /** DIBUKA dalam periode itu — apa pun statusnya sekarang. */
+  | "dibuka_periode"
+  /** Dibuka dalam periode itu DAN masih terbuka sekarang. */
+  | "dibuka_periode_masih_terbuka";
+
 export async function dataKendala(
   lokasi: LokasiKatalog[],
   sekarang: Date,
+  saring: SaringKendala = "terbuka_sekarang",
+  periode?: { mulai: Date; akhir: Date },
 ): Promise<HasilKendala> {
   if (lokasi.length === 0) return { baris: [], lokasiDiperiksa: 0, catatanBatas: null };
   const namaById = new Map(lokasi.map((l) => [l.id, l.nama]));
   const ids = lokasi.map((l) => l.id);
 
+  /*
+   * Saringan periode memakai `createdAt` — kapan kendalanya DIBUKA. Batas
+   * akhirnya inklusif sampai penghujung hari, karena tanggal kerja disimpan
+   * sebagai tanggal sedangkan `createdAt` bertimestamp.
+   */
+  const dalamPeriode =
+    periode != null
+      ? { createdAt: { gte: periode.mulai, lte: akhirHari(periode.akhir) } }
+      : {};
+  const where =
+    saring === "terbuka_sekarang"
+      ? { locationId: { in: ids }, status: { not: "selesai" as const } }
+      : saring === "dibuka_periode"
+        ? { locationId: { in: ids }, ...dalamPeriode }
+        : { locationId: { in: ids }, status: { not: "selesai" as const }, ...dalamPeriode };
+
   const [total, rows] = await Promise.all([
-    db.issue.count({ where: { locationId: { in: ids }, status: { not: "selesai" } } }),
+    db.issue.count({ where }),
     db.issue.findMany({
-      where: { locationId: { in: ids }, status: { not: "selesai" } },
+      where,
       select: { locationId: true, title: true, severity: true, status: true, createdAt: true },
       // Paling berat dulu, lalu paling lama menganggur — itu urutan yang dipakai
       // orang lapangan memutuskan mana yang dikerjakan pagi ini.

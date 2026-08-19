@@ -108,7 +108,7 @@ describe("yang tidak jelas: DITAWARKAN, bukan ditolak", () => {
     const r = parseNiatDeterministik("bagaimana yang kemarin?");
     expect(r.jenis).toBe("ambigu");
     const niat = r.jenis === "ambigu" ? r.kandidat.map((k) => k.niat) : [];
-    expect(niat).toEqual(["progress", "laporan", "kendala"]);
+    expect(niat).toEqual(["progress", "laporan", "kendala_dibuka"]);
   });
 
   it("pilihannya memakai KATA yang ditulis penanya", () => {
@@ -119,16 +119,19 @@ describe("yang tidak jelas: DITAWARKAN, bukan ditolak", () => {
     expect(label[1]).toContain("kemarin");
   });
 
-  it("kendala TIDAK dijanjikan historis di daftar pilihan", () => {
+  it("kendala MENGHORMATI periode yang ditulis penanya", () => {
     /*
-     * MARLIN tidak menyimpan riwayat status kendala (WATANYA-02). Menulis
-     * "Kendala kemarin" di menu pilihan sudah menjanjikan yang tidak bisa
-     * ditepati — sebelum penanya sempat memilih apa pun.
+     * Dulu kandidat ini sengaja berbunyi "(yang masih terbuka sekarang)" tanpa
+     * periode, karena MARLIN belum bisa menjawab kendala per periode sama
+     * sekali (WATANYA-02). Sejak `kendala_dibuka` ada, kalimat itu berubah dari
+     * pengakuan jujur menjadi pembatasan yang tidak perlu — orang yang menulis
+     * "kemarin" memang menanyakan kemarin.
      */
     const r = parseNiatDeterministik("bagaimana yang kemarin?");
-    const kendala = r.jenis === "ambigu" ? r.kandidat.find((k) => k.niat === "kendala") : null;
-    expect(kendala?.label).toContain("masih terbuka sekarang");
-    expect(kendala?.label).not.toMatch(/kendala kemarin/i);
+    const kendala =
+      r.jenis === "ambigu" ? r.kandidat.find((k) => k.niat === "kendala_dibuka") : null;
+    expect(kendala?.label).toContain("kemarin");
+    expect(kendala?.label).not.toMatch(/masih terbuka sekarang/i);
   });
 
   it('"minta laporan minggu lalu" TIDAK ditawarkan — sudah diputus DECISIONS 358', () => {
@@ -228,5 +231,43 @@ describe("boleh dijalankan tanpa AI?", () => {
   it("ambigu pun tidak memanggil AI — pilihannya sudah cukup", () => {
     const r = rencanaDeterministik("bagaimana yang kemarin?", KATALOG);
     expect(r.jenis).toBe("ambigu");
+  });
+});
+
+
+describe("kendala + periode LAMPAU: dua tafsir, penanya yang memilih (DECISIONS 381)", () => {
+  it('"kendala minggu lalu" ditawari dua cara baca', () => {
+    /*
+     * Koreksi user 2026-08-19: mesin klarifikasi memang dibuat untuk kasus ini.
+     * Sebelumnya MARLIN memilih sendiri — menjawab SEMUA yang terbuka sekarang
+     * (kapan pun dibukanya) lalu menempel catatan bahwa itu bukan keadaan pada
+     * periode yang ditanya. Jujur, tapi menjawab pertanyaan yang tidak
+     * ditanyakan.
+     */
+    const r = parseNiatDeterministik("kendala minggu lalu");
+    expect(r.jenis).toBe("ambigu");
+    const niat = r.jenis === "ambigu" ? r.kandidat.map((k) => k.niat) : [];
+    expect(niat).toEqual(["kendala_dibuka", "kendala_periode_terbuka"]);
+  });
+
+  it("pilihannya menyebut BEDANYA, bukan sekadar dua kata mirip", () => {
+    const r = parseNiatDeterministik("kendala kemarin");
+    const label = r.jenis === "ambigu" ? r.kandidat.map((k) => k.label) : [];
+    expect(label[0]).toContain("DIBUKA");
+    expect(label[1]).toContain("MASIH TERBUKA");
+  });
+
+  it('"ada kendala apa" (tanpa periode) tetap langsung dijawab', () => {
+    // Tidak ada yang ambigu di sini: tanpa periode, yang dimaksud memang
+    // keadaan sekarang. Menawarkan pilihan justru membuang waktu.
+    const r = parseNiatDeterministik("ada kendala apa");
+    expect(r.jenis).toBe("yakin");
+    expect(r.jenis === "yakin" && r.kandidat.niat).toBe("kendala");
+  });
+
+  it('"kendala hari ini" juga langsung dijawab', () => {
+    const r = parseNiatDeterministik("kendala hari ini");
+    expect(r.jenis).toBe("yakin");
+    expect(r.jenis === "yakin" && r.kandidat.niat).toBe("kendala");
   });
 });

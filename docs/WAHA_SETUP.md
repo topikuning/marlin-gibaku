@@ -247,9 +247,17 @@ Diagnosanya di **Sistem → WhatsApp → Pengiriman keluar**.
 - Periode bebas: hari ini, kemarin, tanggal tertentu, minggu/bulan (DECISIONS
   356–358). Progress & deviasi untuk tanggal lampau dihitung **pada tanggal itu**
   (DECISIONS 369).
-- **Kendala** adalah pengecualian: yang didaftar selalu kendala yang masih
-  terbuka SEKARANG, karena riwayat status kendala belum dicatat. Balasannya
-  mengatakan itu apa adanya (OPEN_ISSUES `WATANYA-02`).
+- **Kendala** punya tiga cara baca, dan untuk periode lampau MARLIN
+  **menawarkan pilihan** alih-alih memilihkan (DECISIONS 381):
+
+  | Anda tulis | MARLIN |
+  |---|---|
+  | "ada kendala apa" / "kendala hari ini" | langsung: yang masih terbuka sekarang |
+  | "kendala minggu lalu" | menawarkan **1.** semua yang *dibuka* minggu lalu (termasuk yang sudah selesai) **2.** yang dibuka minggu lalu dan *masih terbuka* |
+
+  Yang tetap TIDAK bisa dijawab: *"kendala apa yang berstatus terbuka **pada**
+  hari X"*. Itu butuh riwayat status yang belum dicatat, dan tidak satu pun
+  pilihan di atas berpura-pura bisa menjawabnya.
 - Maksimal 15 baris per jawaban (20 untuk kendala); pemotongannya disebutkan.
 - Memakai kuota AI Hub — kill-switch & batas laju di **Sistem → AI Hub** berlaku,
   dan tiap pertanyaan tercatat di `ai_runs` sebagai kind `tanya`.

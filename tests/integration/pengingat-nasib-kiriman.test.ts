@@ -62,8 +62,21 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-  await db.dailyReminderLog.deleteMany({ where: { userId } });
-  await db.waOutbound.deleteMany({ where: { waMessageId: ID_PESAN } });
+  /*
+   * TRUNCATE, bukan DELETE — pola yang sama dengan berkas integrasi lain.
+   *
+   * `audit_logs` append-only di tingkat basis data (trigger menolak
+   * UPDATE/DELETE), tapi trigger itu TIDAK berlaku untuk TRUNCATE. Jadi jejak
+   * audit tetap tak bisa dihapus dalam pemakaian normal, sementara uji tetap
+   * bisa mengembalikan basis data ke keadaan bersih.
+   *
+   * Wajib: sebagian uji lain menegaskan hitungan GLOBAL, jadi baris yang
+   * tertinggal dari berkas ini membuat uji yang sama sekali tidak berhubungan
+   * gagal — dan gagalnya di tempat yang tidak menunjuk ke sini.
+   */
+  await db.$executeRawUnsafe(
+    `TRUNCATE TABLE daily_reminder_logs, wa_outbound, audit_logs, users, organizations RESTART IDENTITY CASCADE`,
+  );
   await db.$disconnect();
 });
 

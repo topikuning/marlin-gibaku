@@ -200,13 +200,20 @@ beforeEach(async () => {
 
 afterAll(async () => {
   /*
-   * Fixture TIDAK dihapus. Menghapus pengguna/organisasi meng-cascade ke
-   * `audit_logs`, dan tabel itu append-only di tingkat basis data (trigger
-   * menolak UPDATE/DELETE) — jejak audit memang tidak boleh bisa dihapus,
-   * termasuk oleh uji. Nama fixture ber-suffix waktu, jadi sisa baris tidak
-   * pernah bertabrakan dengan uji berikutnya.
+   * TRUNCATE, bukan DELETE — pola yang sama dengan berkas integrasi lain.
+   *
+   * `audit_logs` append-only di tingkat basis data (trigger menolak
+   * UPDATE/DELETE), tapi trigger itu TIDAK berlaku untuk TRUNCATE. Jadi jejak
+   * audit tetap tak bisa dihapus dalam pemakaian normal, sementara uji tetap
+   * bisa mengembalikan basis data ke keadaan bersih.
+   *
+   * Wajib: sebagian uji lain menegaskan hitungan GLOBAL, jadi baris yang
+   * tertinggal dari berkas ini membuat uji yang sama sekali tidak berhubungan
+   * gagal — dan gagalnya di tempat yang tidak menunjuk ke sini.
    */
-  await db.aiRun.deleteMany({ where: { orgId } });
+  await db.$executeRawUnsafe(
+    `TRUNCATE TABLE ai_runs, audit_logs, admin_milestones, budget_lines, rab_revisions, contracts, vendors, locations, packages, users, organizations RESTART IDENTITY CASCADE`,
+  );
   await db.$disconnect();
 });
 

@@ -18560,3 +18560,92 @@ ber-id dan satu tidak; sesudah itu pencocokan lewat nomor benar-benar merah.
 kegagalan mencatat berarti pesan terkirim tanpa jejak, lalu dikirim ulang.
 Yang benar bukan memindahkan pencatatannya, melainkan membaca nasibnya dari
 tempat yang memang tahu — dan itulah yang dilakukan di sini.
+
+---
+
+## 381 — "Kendala minggu lalu" DITAWARKAN, bukan dipilihkan (2026-08-19)
+
+Menutup `WATANYA-02`. **Koreksi user**, dan koreksinya tepat: mesin klarifikasi
+(DECISIONS 376) memang dibangun untuk kasus seperti ini — lalu kasus ini justru
+dilempar balik ke user sebagai "butuh keputusan Anda".
+
+> *"kalau kamu perlu klarifikasi, kamu bisa tanyakan, jadi berikan saja opsi:
+> kamu tanya kendala-kendala minggu lalu tanpa peduli status sekarang, atau
+> kendala dari minggu lalu yang masih terbuka. begitu kan beres."*
+
+### Dua tafsir itu ternyata SAMA-SAMA bisa dijawab
+
+Alasan lama menolaknya — "butuh riwayat status yang belum dicatat" — hanya
+benar untuk tafsir KETIGA yang tidak diminta siapa pun: *"kendala apa yang
+berstatus terbuka **pada** hari X"*. Dua tafsir yang user sebut cukup memakai
+`Issue.createdAt` (kapan dibukanya) + status terkini:
+
+| niat | saringan |
+|---|---|
+| `kendala` | masih terbuka sekarang, kapan pun dibukanya (perilaku lama) |
+| `kendala_dibuka` | dibuka dalam periode itu — **apa pun** statusnya sekarang |
+| `kendala_periode_terbuka` | dibuka dalam periode itu **dan** masih terbuka |
+
+Yang tetap tidak bisa dijawab tetap tidak dijawab, dan tidak ada cabang yang
+berpura-pura bisa.
+
+### Yang berubah di perilaku
+
+*"kendala kemarin"* dulu dijawab langsung dengan SEMUA yang terbuka sekarang,
+plus catatan *"ini keadaan sekarang, bukan keadaan pada kemarin"*. Jujur — tapi
+menjawab pertanyaan yang tidak ditanyakan, padahal alat untuk bertanya balik
+sudah ada. Sekarang ia menawarkan dua pilihan; jawabannya menyusul tanpa
+panggilan AI (kandidatnya sudah tersimpan, DECISIONS 376).
+
+Kandidat ketiga pada *"bagaimana yang kemarin?"* ikut berubah dari `kendala`
+(berlabel "yang masih terbuka sekarang") menjadi `kendala_dibuka`. Label lama
+lahir ketika kendala per periode memang belum bisa dijawab; sesudah bisa, ia
+berubah dari pengakuan jujur menjadi pembatasan yang tidak perlu — orang yang
+menulis "kemarin" memang menanyakan kemarin.
+
+Judul balasan menyebut cara bacanya ("Kendala yang dibuka", "…& masih
+terbuka", "Kendala belum selesai"). Tiga daftar yang isinya bisa sangat berbeda
+di bawah satu judul yang sama membuat penanya tidak punya cara mengetahui
+pertanyaan mana yang sebenarnya dijawab.
+
+### Uji gigi
+
+- Saringan periode diabaikan → 3 merah.
+- `dibuka_periode` ikut menyaring status (jadi sama dengan tafsir kedua) → merah.
+- Batas akhir periode tidak inklusif sampai penghujung hari → **awalnya HIJAU**.
+
+Yang ketiga itu kelemahan uji: batas akhirnya dipatok pada instan yang sama
+persis dengan `createdAt` kendalanya, sehingga `lte` cocok dengan atau tanpa
+penghujung hari. Ditulis ulang memakai batas TENGAH MALAM — bentuk yang
+benar-benar dihasilkan `parseDateKey` — dan sesudah itu pagarnya merah.
+
+### Uji lama yang ikut berubah
+
+Dua uji integrasi menegaskan catatan *"masih TERBUKA sekarang"* memakai teks
+"kendala kemarin". Teks itu kini dicegat parser dan ditawari pilihan, jadi
+ujinya akan menguji cabang yang tidak pernah tercapai. Diarahkan ke pertanyaan
+yang memang lewat AI, dan ditambah dua uji baru: satu untuk tawarannya, satu
+untuk memastikan `kendala_dibuka` TIDAK memakai catatan itu (di sana catatan
+tersebut bukan lagi kejujuran, melainkan keterangan yang salah).
+
+### Cacat isolasi uji yang tersingkap — dan siapa penyebabnya
+
+Rangkaian penuh sempat merah di `tugas-harian.test.ts`, uji yang sama sekali
+tidak berhubungan. Ditelusuri sampai sebabnya, dan sebabnya BUKAN perubahan
+ini: pada `HEAD` bersih tanpa perubahan apa pun, berkas itu lulus pada basis
+data kosong lalu **merah saat dijalankan lagi tanpa dibersihkan**. Ia menegaskan
+hasil fungsi yang menyapu seluruh basis data sementara fixture-nya sengaja tidak
+dibersihkan.
+
+Yang memang salah saya: tiga berkas uji baru (DECISIONS 378–380) tidak
+mem-`TRUNCATE` seperti 20 berkas integrasi lain, karena saya mengira
+`audit_logs` yang append-only menghalanginya. Ternyata tidak — trigger
+penolakannya berlaku untuk UPDATE/DELETE, **bukan TRUNCATE**. Jadi jejak audit
+tetap tak bisa dihapus dalam pemakaian normal, sementara uji tetap bisa
+mengembalikan basis data ke keadaan bersih. Ketiganya kini mengikuti pola yang
+sama, dan rangkaian penuh hijau dua kali berturut-turut tanpa pembersihan
+manual.
+
+Dua penegasan SPMK di `tugas-harian` sekalian diperbaiki: memeriksa **nama
+paketnya sendiri** (`hasil.paket`), bukan hitungan global — lebih kuat, dan
+kebal baris asing. Sisanya dicatat di `OPEN_ISSUES` sebagai `UJI-01`.

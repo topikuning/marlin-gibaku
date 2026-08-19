@@ -206,6 +206,8 @@ function labelPeriode(p: PeriodeDiminta | null): string {
 
 const LABEL_NIAT: Record<Niat, string> = {
   kendala: "Kendala yang masih terbuka",
+  kendala_dibuka: "Semua kendala yang DIBUKA",
+  kendala_periode_terbuka: "Kendala dari periode itu yang MASIH TERBUKA sekarang",
   progress: "Progress pekerjaan",
   deviasi: "Deviasi terhadap kurva-S",
   kelengkapan: "Siapa yang sudah/belum lapor",
@@ -213,6 +215,15 @@ const LABEL_NIAT: Record<Niat, string> = {
   laporan_mingguan: "Rekap laporan mingguan",
   bantuan: "Daftar yang bisa saya jawab",
 };
+
+/** Periode yang artinya "hari ini" — di situ kendala tidak ambigu. */
+function periodeHariIni(p: PeriodeDiminta): boolean {
+  if (p.jenis === "hari_ini") return true;
+  // "minggu ini"/"bulan ini" MEMUAT hari ini, tapi tetap sebuah rentang lampau
+  // + berjalan; pertanyaannya tetap dua tafsir. Hanya `mundur_hari: 0` yang
+  // benar-benar berarti hari ini.
+  return p.jenis === "mundur_hari" && p.hari === 0;
+}
 
 function kandidat(niat: Niat, periode: PeriodeDiminta | null, imbuhan = ""): KandidatNiat {
   return {
@@ -249,10 +260,41 @@ export function parseNiatDeterministik(teksMentah: string): HasilParser {
       kandidat: [
         kandidat("progress", periode),
         kandidat("laporan", periode),
-        // Kendala sengaja TANPA imbuhan periode: MARLIN tidak menyimpan riwayat
-        // status kendala, jadi menuliskan "kendala kemarin" di daftar pilihan
-        // sudah menjanjikan yang tidak bisa ditepati (WATANYA-02).
-        kandidat("kendala", periode, " (yang masih terbuka sekarang)"),
+        /*
+         * Kendala MENGHORMATI periode yang ditulis penanya (DECISIONS 381).
+         *
+         * Dulu kandidat ini sengaja tanpa imbuhan periode dan berbunyi "(yang
+         * masih terbuka sekarang)", karena MARLIN belum bisa menjawab kendala
+         * per periode sama sekali. Sejak `kendala_dibuka` ada, kalimat itu
+         * berubah dari pengakuan jujur menjadi pembatasan yang tidak perlu:
+         * orang yang menulis "kemarin" memang menanyakan kemarin.
+         */
+        kandidat("kendala_dibuka", periode),
+      ],
+    };
+  }
+
+  /*
+   * "kendala" + periode LAMPAU = dua tafsir yang sama masuk akal
+   * (DECISIONS 381), dan penanya yang memilih — bukan MARLIN.
+   *
+   * *"kendala minggu lalu"* bisa berarti **semua yang dibuka** minggu lalu
+   * (apa pun statusnya sekarang) atau **yang dibuka minggu lalu dan masih
+   * terbuka**. Dua-duanya bisa dijawab dari `Issue.createdAt` + status
+   * terkini — tidak butuh riwayat status.
+   *
+   * Sebelumnya MARLIN memilih sendiri: ia menjawab SEMUA yang terbuka
+   * sekarang, kapan pun dibukanya, lalu menempelkan catatan bahwa itu bukan
+   * keadaan pada periode yang ditanya. Jujur, tapi menjawab pertanyaan yang
+   * tidak ditanyakan — padahal mesin klarifikasi (DECISIONS 376) memang ada
+   * untuk kasus persis ini.
+   */
+  if (cocok.length === 1 && cocok[0] === "kendala" && periode && !periodeHariIni(periode)) {
+    return {
+      jenis: "ambigu",
+      kandidat: [
+        kandidat("kendala_dibuka", periode),
+        kandidat("kendala_periode_terbuka", periode),
       ],
     };
   }

@@ -502,21 +502,37 @@ describe("periode lampau: jujur soal WAKTU yang dijawab (DECISIONS 369)", () => 
     expect(teks.toLowerCase()).toContain("hari terakhirnya");
   });
 
-  it("kendala lampau tetap mengaku bahwa yang didaftar adalah yang TERBUKA SEKARANG", async () => {
+  it("kendala 'terbuka sekarang' untuk periode lampau TETAP mengaku begitu", async () => {
     /*
-     * Ini SENGAJA tidak ikut diperbaiki `asOf`. MARLIN tidak menyimpan riwayat
-     * "kendala apa yang terbuka pada hari X", jadi menjawabnya dengan `asOf`
-     * berarti mengarang. Yang benar adalah menjawab keadaan sekarang DAN
-     * mengatakannya — dan justru karena tetangganya (progress & deviasi) kini
-     * benar-benar historis, pengakuan ini jadi makin penting.
+     * Cabang `terbuka_sekarang` masih ada dan masih harus jujur: daftarnya
+     * keadaan SEKARANG, bukan keadaan pada periode yang ditanya.
+     *
+     * Pertanyaannya sengaja yang MEMANG lewat AI. Sejak DECISIONS 381, teks
+     * yang menyebut "kendala" + periode lampau dicegat parser dan DITAWARI dua
+     * cara baca — jadi memakai teks itu di sini akan menguji jalur yang tidak
+     * pernah sampai ke cabang ini.
      */
     niatPalsu = {
       niat: "kendala",
       lokasiDisebut: [],
       periode: { jenis: "mundur_hari", hari: 1 },
     };
-    const teks = await tanya("kendala kemarin apa saja");
+    const teks = await tanya(TANYA_BUTUH_AI);
     expect(teks).toContain("masih TERBUKA sekarang");
+  });
+
+  it("'kendala kemarin' kini DITAWARI dua cara baca, bukan dipilihkan", async () => {
+    /*
+     * Koreksi user 2026-08-19 (DECISIONS 381): mesin klarifikasi memang dibuat
+     * untuk kasus ini. Sebelumnya MARLIN memilih sendiri — menjawab semua yang
+     * terbuka sekarang lalu menempel catatan bahwa itu bukan keadaan pada
+     * periode yang ditanya. Jujur, tapi menjawab pertanyaan yang tidak
+     * ditanyakan.
+     */
+    const teks = await tanya("kendala kemarin apa saja");
+    expect(teks).toContain("Maksud Anda yang mana?");
+    expect(teks).toContain("DIBUKA");
+    expect(teks).toContain("MASIH TERBUKA");
   });
 });
 
@@ -1251,11 +1267,29 @@ describe("periode & niat baru — MARLIN yang luwes (DECISIONS 356)", () => {
     expect(teks.toLowerCase()).not.toContain("belum bisa menghitung deviasi");
   });
 
-  it("KENDALA untuk hari lampau MENGAKU bahwa daftarnya keadaan sekarang", async () => {
-    // Sistem tidak menyimpan riwayat "kendala apa yang terbuka pada hari X".
+  it("KENDALA 'terbuka sekarang' untuk hari lampau MENGAKU keadaannya sekarang", async () => {
+    // Teksnya yang MEMANG lewat AI — "kendala kemarin" kini dicegat parser dan
+    // ditawari dua cara baca (DECISIONS 381).
     niatPalsu = { niat: "kendala", lokasiDisebut: [], periode: { jenis: "mundur_hari", hari: 1 } };
-    const { teks } = await tanya("kendala kemarin");
+    const { teks } = await tanya(TANYA_BUTUH_AI);
     expect(teks).toContain("masih TERBUKA sekarang");
+  });
+
+  it("niat kendala_dibuka TIDAK memakai catatan 'keadaan sekarang'", async () => {
+    /*
+     * Catatan itu benar untuk `terbuka_sekarang`, tapi untuk cabang periode ia
+     * berubah dari pengakuan jujur menjadi keterangan yang SALAH — dan
+     * keterangan salah yang terdengar berhati-hati lebih merusak daripada tidak
+     * ada keterangan sama sekali.
+     */
+    niatPalsu = {
+      niat: "kendala_dibuka",
+      lokasiDisebut: [],
+      periode: { jenis: "mundur_hari", hari: 1 },
+    };
+    const { teks } = await tanya(TANYA_BUTUH_AI);
+    expect(teks).not.toContain("masih TERBUKA sekarang");
+    expect(teks).toContain("Kendala yang dibuka");
   });
 
   it("deviasi HARI INI tidak memberi catatan yang tidak perlu", async () => {

@@ -22,6 +22,13 @@ import type { PeriodeDiminta } from "./tanya-tanggal";
 
 export const NIAT = [
   "kendala",
+  /**
+   * Kendala yang DIBUKA pada periode itu — apa pun statusnya sekarang
+   * (DECISIONS 381).
+   */
+  "kendala_dibuka",
+  /** Kendala yang dibuka pada periode itu DAN masih terbuka sekarang. */
+  "kendala_periode_terbuka",
   "progress",
   "deviasi",
   "kelengkapan",
@@ -36,6 +43,8 @@ export type Niat = (typeof NIAT)[number];
 
 export const NIAT_LABEL: Record<Niat, string> = {
   kendala: "kendala lapangan",
+  kendala_dibuka: "kendala yang dibuka pada suatu periode",
+  kendala_periode_terbuka: "kendala dari suatu periode yang masih terbuka",
   progress: "progress pekerjaan",
   deviasi: "deviasi terhadap kurva-S",
   kelengkapan: "kelengkapan laporan harian",
@@ -113,7 +122,13 @@ export const SISTEM_PROMPT = [
   "Tugasmu HANYA mengubah pertanyaan berbahasa Indonesia bebas menjadi struktur JSON.",
   "",
   "Arti tiap niat:",
-  "- kendala     : masalah/hambatan/kendala di lapangan",
+  "- kendala     : masalah/hambatan/kendala yang MASIH TERBUKA sekarang",
+  "- kendala_dibuka : kendala yang DIBUKA/MUNCUL pada periode tertentu, apa pun",
+  "                   statusnya sekarang. Dipakai untuk 'kendala apa saja minggu lalu',",
+  "                   'kendala yang muncul kemarin'.",
+  "- kendala_periode_terbuka : kendala yang dibuka pada periode itu DAN masih",
+  "                   terbuka sekarang. Dipakai untuk 'kendala minggu lalu yang belum",
+  "                   selesai'.",
   "- progress    : kemajuan/realisasi pekerjaan, berapa persen, sudah sampai mana",
   "- deviasi     : keterlambatan, deviasi, siapa yang tertinggal dari jadwal",
   "- kelengkapan : siapa yang sudah/belum membuat laporan harian",

@@ -58,6 +58,7 @@ import {
   dataMingguan,
   dataProgress,
   katalogLokasi,
+  type SaringKendala,
 } from "./tanya-data";
 import { bacaPeriode, pekanDari, type PeriodeDiminta } from "./tanya-tanggal";
 
@@ -656,23 +657,59 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
           : periode.catatan,
       },
     );
-  } else if (niat.niat === "kendala") {
-    const d = await dataKendala(sasaran, sekarang);
+  } else if (
+    niat.niat === "kendala" ||
+    niat.niat === "kendala_dibuka" ||
+    niat.niat === "kendala_periode_terbuka"
+  ) {
+    /*
+     * TIGA cara membaca "kendala", dan penanya yang memilih (DECISIONS 381).
+     *
+     * Dua yang bertumpu periode memakai `Issue.createdAt` — kapan kendalanya
+     * DIBUKA — plus status terkini. Keduanya bisa dijawab tanpa riwayat status,
+     * yang memang belum dicatat. Yang tetap TIDAK bisa dijawab: "kendala apa
+     * yang berstatus terbuka PADA hari X"; tidak satu pun cabang di sini
+     * berpura-pura bisa.
+     */
+    const saring: SaringKendala =
+      niat.niat === "kendala_dibuka"
+        ? "dibuka_periode"
+        : niat.niat === "kendala_periode_terbuka"
+          ? "dibuka_periode_masih_terbuka"
+          : "terbuka_sekarang";
+    const rentang =
+      saring === "terbuka_sekarang"
+        ? undefined
+        : {
+            mulai: parseDateKey(periode.mulai) ?? jakartaToday(),
+            akhir: parseDateKey(periode.akhir) ?? jakartaToday(),
+          };
+    const d = await dataKendala(sasaran, sekarang, saring, rentang);
+
+    const judul =
+      saring === "dibuka_periode"
+        ? "Kendala yang dibuka"
+        : saring === "dibuka_periode_masih_terbuka"
+          ? "Kendala yang dibuka & masih terbuka"
+          : "Kendala belum selesai";
     balasan = balasKendala(
-      { tanggal, baris: d.baris, lokasiDiperiksa: d.lokasiDiperiksa },
+      { tanggal, baris: d.baris, lokasiDiperiksa: d.lokasiDiperiksa, judul },
       {
         ...opts,
         catatanBatas: d.catatanBatas,
         /*
-         * Kendala yang didaftar adalah yang MASIH TERBUKA sekarang — sistem
-         * tidak menyimpan riwayat "kendala apa yang terbuka pada hari X". Kalau
-         * penanya menyebut hari lain, itu HARUS dikatakan; menjawab angka hari
-         * ini di bawah judul "kemarin" adalah jawaban benar untuk hari yang
-         * salah, dan penerimanya tidak punya cara mengetahuinya.
+         * Catatan lama ("ini keadaan sekarang, bukan pada periode itu") hanya
+         * dipakai untuk cabang `terbuka_sekarang`. Untuk dua cabang periode ia
+         * berubah dari pengakuan jujur menjadi keterangan yang SALAH — dan
+         * keterangan salah yang terdengar berhati-hati lebih merusak daripada
+         * tidak ada keterangan sama sekali.
          */
-        catatanPeriode: periode.satuHari && dateKey === hariIniKey
-          ? periode.catatan
-          : `Daftar kendala ini yang masih TERBUKA sekarang, bukan keadaan pada ${periode.label}.`,
+        catatanPeriode:
+          saring !== "terbuka_sekarang"
+            ? periode.catatan
+            : periode.satuHari && dateKey === hariIniKey
+              ? periode.catatan
+              : `Daftar kendala ini yang masih TERBUKA sekarang, bukan keadaan pada ${periode.label}.`,
       },
     );
   } else if (niat.niat === "progress") {
