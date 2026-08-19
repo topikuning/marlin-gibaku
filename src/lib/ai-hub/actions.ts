@@ -9,7 +9,8 @@ import { scopeCoveredBy } from "@/lib/ai-hub/read-scope";
 import { audit, auditIn } from "@/lib/audit";
 import { accessibleLocationIds, ForbiddenError, requireCapability, requireLocationAccess } from "@/lib/auth/session";
 import { canTransitionAiArtifact } from "@/lib/lifecycle";
-import { sendText, WahaError } from "@/lib/waha/client";
+import { WahaError } from "@/lib/waha/client";
+import { sendWaMessage } from "@/lib/waha/gateway";
 import { normalizeWaTarget } from "@/lib/contacts/model";
 import { jakartaToday, parseDateKey } from "@/lib/format";
 import type { AiArtifactStatus, AiRunKind } from "@/generated/prisma/enums";
@@ -18,6 +19,7 @@ import { AiRunError, executeAiRun } from "./runs";
 import { isAiReportTemplateKey, aiReportTemplate } from "./report-templates";
 import { parseAiReportContent, renderAiReportWhatsApp } from "./render";
 import type { AskOutput, ReportOutput } from "./schemas";
+import type { SourceRef } from "./types";
 
 /**
  * Server Actions AI Hub — SEMUA mutasi: requireCapability + zod + audit.
@@ -456,7 +458,30 @@ export async function distributeArtifactAction(_prev: AiHubState, formData: Form
 
     const text =
       artifact.renderedText ?? renderAiReportWhatsApp(parseAiReportContent(artifact.structuredContent), true);
-    await sendText(target.chatId, text);
+
+    /*
+     * Lewat gateway kanonik, dan hasilnya DIBACA (DECISIONS 374).
+     *
+     * Sebelumnya hasil `sendText()` diabaikan sepenuhnya dan UI langsung
+     * menulis "Terkirim ke …". Itu keliru dua tingkat: WAHA menjawab 2xx juga
+     * saat sesinya belum login, dan bahkan ID pesan pun cuma bukti WAHA
+     * MENERIMA — bukan bukti pesannya sampai.
+     *
+     * Kunci idempotensinya mengikat artefak + tujuan + isi. Menekan tombol
+     * kirim dua kali untuk artefak yang sama ke tujuan yang sama tidak akan
+     * mengirim dua pesan; mengubah isinya (hash berubah) memang kiriman baru.
+     */
+    const hasil = await sendWaMessage({
+      kind: "teks",
+      destination: target.chatId,
+      payload: { teks: text },
+      idempotencyKey: `artifact:${artifact.id}:${target.chatId}:${artifact.contentHash}`,
+      sourceType: "ai_artifact",
+      sourceId: artifact.id,
+    });
+    if (!hasil.diterimaWaha) {
+      return { error: hasil.error ?? "Pengiriman WhatsApp gagal." };
+    }
 
     const dist = Array.isArray(artifact.distributions) ? (artifact.distributions as unknown[]) : [];
     dist.push({
@@ -466,14 +491,30 @@ export async function distributeArtifactAction(_prev: AiHubState, formData: Form
       chatId: target.chatId,
       byId: user.id,
       hash: artifact.contentHash,
+      // Jejak ke outbox: status sebenarnya (sampai/dibaca/gagal) hidup di sana
+      // dan diperbarui oleh `message.ack`, bukan dibekukan di sini.
+      outboundId: hasil.outboundId,
+      waMessageId: hasil.waMessageId,
     });
     await db.aiArtifact.update({
       where: { id: artifact.id },
       data: { status: "terkirim", distributions: JSON.parse(JSON.stringify(dist)) },
     });
-    await audit(user.id, "ai.artifact.distribusi", "ai_artifact", artifact.id, { target: target.name, chatId: target.chatId });
+    await audit(user.id, "ai.artifact.distribusi", "ai_artifact", artifact.id, {
+      target: target.name,
+      chatId: target.chatId,
+      outboundId: hasil.outboundId,
+      status: hasil.status,
+    });
     if (artifact.runId) revalidatePath(`/ai/run/${artifact.runId}`);
-    return { ok: `Terkirim ke ${target.name}.` };
+    /*
+     * Kalimatnya JUJUR terhadap yang benar-benar diketahui saat ini. "Terkirim"
+     * baru sah setelah tanda terima WhatsApp tiba — dan itu terjadi beberapa
+     * detik kemudian, di luar permintaan ini.
+     */
+    return {
+      ok: `Sudah diserahkan ke WhatsApp untuk ${target.name}. Status sampai/dibaca menyusul di Sistem → WhatsApp.`,
+    };
   } catch (err) {
     return fail(err);
   }
@@ -537,8 +578,35 @@ export async function askMarlinAction(_prev: AiHubState, formData: FormData): Pr
       await db.aiConversation.update({ where: { id: existingId }, data: { updatedAt: new Date() } });
     }
 
-    const out = run?.outputJson as { tanya?: AskOutput } | null;
+    const out = run?.outputJson as
+      | { tanya?: AskOutput; official?: { sourceRefs?: SourceRef[] } }
+      | null;
     const answer = out?.tanya;
+
+    /*
+     * Sitasi disimpan LENGKAP dengan label & tautannya (DECISIONS 378).
+     *
+     * Sebelumnya yang tersimpan hanya `sourceRefId`, dan layar percakapan
+     * menampilkannya apa adanya: *"sumber: kedung-mutih:progress"*. Itu tidak
+     * memberi tahu pembaca angka apa yang dirujuk, dan tidak bisa diklik untuk
+     * memeriksanya — jadi "berbasis sumber" hanya benar di dalam kode.
+     *
+     * Diperkaya SAAT MENULIS, bukan saat render: pesan percakapan hidup lebih
+     * lama daripada run-nya, dan sumber yang diresolusi belakangan akan
+     * berubah/hilang begitu datanya bergerak. Yang tersimpan di sini adalah apa
+     * yang benar SAAT jawaban itu diberikan.
+     */
+    const refs = new Map((out?.official?.sourceRefs ?? []).map((r) => [r.id, r]));
+    const sitasi = (answer?.citations ?? []).map((c) => {
+      const r = refs.get(c.sourceRefId);
+      return {
+        sourceRefId: c.sourceRefId,
+        note: c.note,
+        label: r?.label ?? null,
+        value: r?.value ?? null,
+        href: r?.href ?? null,
+      };
+    });
     await db.aiMessage.create({
       data: { conversationId, role: "user", content: question },
     });
@@ -550,7 +618,7 @@ export async function askMarlinAction(_prev: AiHubState, formData: FormData): Pr
           result.status === "siap" && answer
             ? answer.answer
             : `Maaf, analisis gagal: ${run?.errorMessage ?? "provider AI tidak tersedia"}.`,
-        citations: answer ? JSON.parse(JSON.stringify(answer.citations)) : undefined,
+        citations: answer ? JSON.parse(JSON.stringify(sitasi)) : undefined,
         confidence: answer?.confidence ?? null,
         runId: result.runId,
       },

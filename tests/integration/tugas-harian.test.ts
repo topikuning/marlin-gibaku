@@ -28,6 +28,18 @@ vi.mock("@/lib/waha/client", () => ({
   // menegasikan Promise dan karena itu tidak pernah aktif — lolos dari uji.
   isWahaConfigured: async () => wahaAktif,
   getSessionStatus: async () => ({ name: "default", status: statusSesi }),
+}));
+
+/*
+ * Jalur kirim dipalsukan di `@/lib/waha/kirim`, BUKAN di `client` (DECISIONS 374).
+ *
+ * Sejak gateway kanonik ada, pemanggil fitur tidak lagi menyentuh `client`
+ * langsung: `client` tinggal transport mentah, dan `kirim` yang menumpang
+ * gateway (periksa sesi → catat outbox → simpan message id). Memalsukan
+ * `client` saja membuat uji menembus gateway sungguhan — yang benar, tapi
+ * bukan yang sedang diuji berkas ini.
+ */
+vi.mock("@/lib/waha/kirim", () => ({
   sendText: async (chatId: string, text: string) => {
     if (gagalKirim) throw new Error("WAHA mati");
     terkirim.push({ chatId, text });
@@ -59,8 +71,9 @@ async function buatPaket(opts: {
   statusLokasi?: "persiapan" | "berjalan";
 }) {
   const tag = Math.random().toString(36).slice(2, 8);
+  const nama = `Paket ${tag}`;
   const pkg = await db.package.create({
-    data: { orgId, name: `Paket ${tag}`, stage: opts.stage },
+    data: { orgId, name: nama, stage: opts.stage },
     select: { id: true },
   });
   if (opts.spmk) {
@@ -94,7 +107,7 @@ async function buatPaket(opts: {
     });
     ids.push(l.id);
   }
-  return { packageId: pkg.id, locationIds: ids };
+  return { packageId: pkg.id, locationIds: ids, nama };
 }
 
 beforeAll(async () => {
@@ -150,13 +163,27 @@ beforeEach(async () => {
 
 describe("KASUS INTI: SPMK 3 Agustus tidak boleh jalan pada 1 Agustus", () => {
   it("paket dengan SPMK masa depan TIDAK diaktifkan", async () => {
-    const { packageId, locationIds } = await buatPaket({
+    const { packageId, locationIds, nama } = await buatPaket({
       spmk: "2026-08-03",
       stage: "kontrak",
       lokasi: ["Alfa"],
     });
     const hasil = await aktifkanSpmkJatuhTempo(HARI_INI);
-    expect(hasil.diaktifkan).toBe(0);
+    /*
+     * Diperiksa per NAMA PAKET, bukan lewat hitungan global.
+     *
+     * `aktifkanSpmkJatuhTempo` menyapu SELURUH basis data, sedangkan berkas ini
+     * sengaja tidak membersihkan fixture-nya (histori tahap & status bersifat
+     * append-only). Akibatnya paket "kontrak" sisa RUN SEBELUMNYA ikut
+     * teraktivasi, dan `diaktifkan === 0` gagal — bukan karena kode salah,
+     * melainkan karena uji ini tidak bisa dijalankan dua kali.
+     *
+     * Terbukti: pada basis data bersih uji ini lulus, lalu dijalankan lagi
+     * tanpa pembersihan ia merah. Menyandarkan pemeriksaan pada nama paketnya
+     * sendiri membuatnya kebal baris asing TANPA melemahkan apa pun — tiga
+     * pemeriksaan di bawah tetap membuktikan paket & lokasi ini tidak bergerak.
+     */
+    expect(hasil.paket).not.toContain(nama);
 
     const p = await db.package.findUniqueOrThrow({ where: { id: packageId }, select: { stage: true } });
     expect(p.stage).toBe("kontrak");
@@ -168,13 +195,15 @@ describe("KASUS INTI: SPMK 3 Agustus tidak boleh jalan pada 1 Agustus", () => {
   });
 
   it("pada tanggal SPMK-nya: paket naik + lokasi jadi Berjalan", async () => {
-    const { packageId, locationIds } = await buatPaket({
+    const { packageId, locationIds, nama } = await buatPaket({
       spmk: "2026-08-03",
       stage: "kontrak",
       lokasi: ["Beta", "Gama"],
     });
     const hasil = await aktifkanSpmkJatuhTempo(new Date("2026-08-03T06:00:00+07:00"));
-    expect(hasil.diaktifkan).toBeGreaterThanOrEqual(1);
+    // Nama paketnya sendiri — LEBIH kuat daripada "≥ 1", yang bisa hijau
+    // gara-gara paket lain yang kebetulan ikut teraktivasi.
+    expect(hasil.paket).toContain(nama);
 
     const p = await db.package.findUniqueOrThrow({ where: { id: packageId }, select: { stage: true } });
     expect(p.stage).toBe("pelaksanaan");

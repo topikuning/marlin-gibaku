@@ -83,6 +83,23 @@ export async function buildPortfolioPulse(
   if (!start || !end) throw new Error("Periode tidak valid.");
   const today = jakartaToday();
 
+  /*
+   * Titik waktu SATU-SATUNYA untuk seluruh snapshot ini (DECISIONS 369).
+   *
+   * Sebelumnya `buildPortfolioPulse` menerima periode, memakainya untuk
+   * menghitung laporan & kegiatan dalam rentang itu, lalu mengambil progress
+   * TANPA `asOf` — yaitu posisi hari ini. Satu run "bulan lalu" karenanya
+   * memuat jumlah laporan bulan lalu berdampingan dengan realisasi hari ini,
+   * dan tak ada di layar maupun di `sourceRefs` yang menyebutkan bahwa dua
+   * angka itu berasal dari dua waktu berbeda.
+   *
+   * Dijepit ke hari ini: periode yang ujungnya di masa depan ("bulan ini")
+   * tidak boleh membuat rencana kurva-S melompat ke minggu yang belum terjadi,
+   * karena deviasinya lalu mengukur keterlambatan terhadap masa depan.
+   * Penjepitan yang sama sudah dipakai `endMs` untuk laporan yang diharapkan.
+   */
+  const asOf = new Date(Math.min(end.getTime(), today.getTime()));
+
   if (locIds.length === 0) {
     return {
       periodStart: startKey,
@@ -119,7 +136,7 @@ export async function buildPortfolioPulse(
         },
         orderBy: { name: "asc" },
       }),
-      getLocationsProgress(locIds),
+      getLocationsProgress(locIds, { asOf }),
       db.dailyReport.groupBy({
         by: ["locationId", "status"],
         where: { locationId: { in: locIds }, reportDate: { gte: start, lte: end } },
@@ -199,7 +216,7 @@ export async function buildPortfolioPulse(
   }
   const milestonesByLoc = new Map(milestoneGroups.map((m) => [m.locationId, m._count._all]));
 
-  const endMs = Math.min(end.getTime(), today.getTime());
+  const endMs = asOf.getTime();
   const rows: PulseRow[] = [];
   const risks: RiskItem[] = [];
   const sourceRefs: SourceRef[] = [];
@@ -268,7 +285,12 @@ export async function buildPortfolioPulse(
         id: `${l.slug}:progress`,
         entityType: "location",
         entityId: l.id,
-        label: `${l.name} — progress`,
+        /*
+         * Tanggal `asOf` IKUT DI LABEL. Angka progress di sini bukan "sekarang"
+         * melainkan posisi pada akhir periode run; sitasi yang tidak menyebut
+         * kapan membuat angka lampau terbaca sebagai angka terkini.
+         */
+        label: `${l.name} — progress per ${jakartaDateKey(asOf)}`,
         value: `rencana ${facts.planPct.toFixed(1)}% · realisasi ${facts.actualPct.toFixed(1)}% · deviasi ${facts.deviationPp.toFixed(1)} pp (mgg ${facts.currentWeek}/${facts.totalWeeks})`,
         href: `/lokasi/${l.slug}/progress`,
       },

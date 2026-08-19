@@ -303,7 +303,7 @@ KEPUTUSAN "Level status progress" di atas, bukan keputusan terpisah.
   dipastikan dulu revisi mana yang diekspor (DECISIONS 208, dan protokol di
   `docs/rebuild/CALCULATION_INTEGRITY_PROTOCOL.md`).
 
-## WA-01 · ID pesan WAHA BUKAN bukti sampai (DECISIONS 222)
+## 🟢 WA-01 · Error 463 tidak bisa diakali dari aplikasi (DECISIONS 222 → 374/380)
 
 Log server user 2026-08-02:
 
@@ -317,19 +317,21 @@ berhasil — lalu mesin WAHA menolak sendiri karena WhatsApp membatasi nomor
 pengirim menghubungi nomor BARU. Penolakannya terjadi SESUDAH id terbit dan
 tidak terlihat dari respons API.
 
-Sudah dilakukan: kalimat hasil kirim tidak lagi mengaku bukti sampai; ia
-menyebut batas pengetahuannya dan menunjuk log WAHA + error 463.
+**Sisi perangkat lunak SUDAH selesai.** DECISIONS 374 memasang outbox
+(`wa_outbound`) + rekonsiliasi `message.ack`, sehingga nasib tiap kiriman
+tercatat dan bisa naik (`terkirim`→`sampai`→`dibaca`) atau berakhir
+`gagal`/`ditolak`. DECISIONS 380 menyambungkannya ke layar pengingat harian:
+`DailyReminderLog` dicocokkan ke outbox lewat **ID pesan**, jadi pengingat yang
+ditolak WhatsApp tidak lagi tampil "ada ID pesan".
 
-**Belum**: MARLIN tidak punya cara mengetahui nasib pesan sesudah terkirim.
-Jalan keluarnya menerima webhook status dari WAHA (`message.ack`: sent →
-delivered → read) dan merekonsiliasi ke `DailyReminderLog`, sehingga
-"terkirim" bisa naik jadi "sampai" atau turun jadi "ditolak". Perlu diputuskan
-user karena menambah endpoint webhook baru.
-
-**Catatan operasional (bukan bug kode)**: error 463 tidak bisa diakali dari
-aplikasi. Yang menyelesaikannya di sisi WhatsApp — nomor pengirim yang sudah
-"hangat" (dipakai wajar, punya riwayat percakapan dua arah), atau penerima
+**Yang tersisa BUKAN bug kode**: error 463 tidak bisa diakali dari aplikasi.
+Yang menyelesaikannya di sisi WhatsApp — nomor pengirim yang sudah "hangat"
+(dipakai wajar, punya riwayat percakapan dua arah), atau penerima
 menyimpan/menghubungi nomor itu lebih dulu.
+
+**Syarat operasional**: event `message.ack` harus diaktifkan di WAHA untuk URL
+webhook yang sama. Tanpa itu status berhenti di `Diterima WAHA` selamanya — dan
+itu jujur: memang tidak ada bukti lain yang pernah tiba.
 
 ## UX-01 · `loading.tsx` masih terhalang: `router.refresh()` tidak selesai di balik batas Suspense (DECISIONS 245)
 
@@ -489,25 +491,29 @@ HTML dihapus — satu sumber, mustahil menyimpang. Belum dikerjakan karena
 halaman `/cetak/...` juga dipakai sebagai PRATINJAU di layar (dan pratinjau PDF
 di peramban ponsel lapangan belum dipastikan bisa diandalkan). Keputusan user.
 
-## 🟢 WATANYA-02 · Tanya-jawab WhatsApp hanya mengenal "hari ini"
+## 🟡 UJI-01 · `tugas-harian.test.ts` tidak bisa dijalankan dua kali berturut-turut
 
-Tanya-jawab bebas sudah jalan (DECISIONS 338 + 339): DM + grup ber-mention,
-empat niat (kendala, progress, deviasi, kelengkapan), angka dari calc layer.
+Ditemukan 2026-08-19 saat menelusuri kegagalan yang tampak tidak berhubungan.
 
-Yang belum: **periode selain hari ini**. `skemaNiat.periode` hanya punya satu
-nilai, jadi *"progress minggu lalu"* dijawab dengan angka HARI INI — benar untuk
-hari ini, tetapi bukan yang ditanyakan, dan penanya tidak diberi tahu bahwa
-periodenya diabaikan.
+Berkas itu sengaja TIDAK membersihkan fixture-nya (histori tahap & status
+bersifat append-only), sementara beberapa ujinya menegaskan hasil fungsi yang
+menyapu **seluruh** basis data. Akibatnya paket sisa RUN SEBELUMNYA ikut
+terhitung.
 
-Dua pilihan, dan keduanya butuh keputusan user:
+Terbukti pada `HEAD` bersih, tanpa perubahan apa pun: basis data dikosongkan →
+18 lulus; dijalankan lagi tanpa dibersihkan → 1 merah. Merahnya di uji yang
+sama sekali tidak menunjuk ke sebabnya.
 
-1. **Menolak dengan jujur** — kalau AI mendeteksi periode lain, balas "saya baru
-   bisa menjawab untuk hari ini". Kecil, bisa dikerjakan kapan saja.
-2. **Mendukung periode** — tambah nilai enum + alirkan `asOf` ke
-   `getLocationsProgress` (jalurnya sudah ada, DECISIONS 275) dan `dateKey` ke
-   pengambil kelengkapan. Untuk kendala perlu keputusan terpisah: "kendala
-   minggu lalu" berarti yang dibuka minggu lalu, atau yang masih terbuka pada
-   akhir minggu lalu?
+**Sudah diperbaiki sebagian** (DECISIONS 381): dua penegasan SPMK kini
+memeriksa **nama paketnya sendiri** (`hasil.paket`), bukan hitungan global —
+lebih kuat, sekaligus kebal baris asing.
 
-Sampai salah satu dikerjakan, jangan menulis di mana pun bahwa MARLIN bisa
-ditanyai periode — ia tidak bisa.
+**Belum**: uji `PAKSA mengirim ulang di hari yang sama` masih menghitung jumlah
+pesan terkirim secara global, jadi lokasi sisa run sebelumnya membuatnya
+mengharapkan 2 tapi menerima 7. Perbaikannya sejenis — saring ke fixture-nya
+sendiri — tapi menyentuh uji yang tidak berhubungan dengan pekerjaan berjalan,
+jadi dikerjakan terpisah.
+
+Dalam rangkaian penuh `pnpm vitest run tests/integration` semuanya hijau
+(berkas lain mem-`TRUNCATE` lebih dulu). Gejalanya hanya muncul saat berkas itu
+dijalankan sendirian berulang kali.

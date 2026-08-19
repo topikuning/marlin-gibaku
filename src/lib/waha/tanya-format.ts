@@ -138,13 +138,27 @@ export type BarisKendala = {
 };
 
 export function balasKendala(
-  r: { tanggal: string; baris: BarisKendala[]; lokasiDiperiksa: number },
+  r: {
+    tanggal: string;
+    baris: BarisKendala[];
+    lokasiDiperiksa: number;
+    /**
+     * Judul yang menyebut CARA BACA-nya (DECISIONS 381) — "yang dibuka",
+     * "yang dibuka & masih terbuka", atau "belum selesai".
+     *
+     * Wajib berbeda per cara baca: tiga daftar yang isinya bisa sangat berbeda
+     * di bawah satu judul yang sama membuat penanya tidak punya cara mengetahui
+     * pertanyaan mana yang sebenarnya dijawab.
+     */
+    judul?: string;
+  },
   opts: OpsiKaki = {},
 ): string {
+  const judul = r.judul ?? "Kendala belum selesai";
   if (r.baris.length === 0) {
     return (
-      kepala("Kendala belum selesai", r.tanggal) +
-      `\n\nTidak ada kendala belum selesai di ${r.lokasiDiperiksa} lokasi yang saya periksa.` +
+      kepala(judul, r.tanggal) +
+      `\n\nTidak ada yang cocok di ${r.lokasiDiperiksa} lokasi yang saya periksa.` +
       kaki(opts)
     );
   }
@@ -162,7 +176,7 @@ export function balasKendala(
     return [`*${lokasi}*`, ...item].join("\n");
   });
   return (
-    kepala(`Kendala belum selesai — ${r.baris.length} di ${perLokasi.size} lokasi`, r.tanggal) +
+    kepala(`${judul} — ${r.baris.length} di ${perLokasi.size} lokasi`, r.tanggal) +
     "\n\n" +
     isi.join("\n\n") +
     kaki(opts)
@@ -380,4 +394,116 @@ export function balasMingguan(
     ].join("\n");
   });
   return kepala("Laporan mingguan", r.periode) + "\n\n" + isi.join("\n\n") + kaki(opts);
+}
+
+/**
+ * Tawaran pilihan untuk pertanyaan yang tafsirnya lebih dari satu
+ * (DECISIONS 375/376).
+ *
+ * Menggantikan `balasTidakMengerti()` untuk kasus yang sebenarnya HAMPIR
+ * jelas. Keberatan user 2026-08-19: menyodorkan menu kemampuan yang sama untuk
+ * semua orang terlalu cepat menyerah dan membuang waktu penanya, padahal
+ * tafsirnya cuma dua atau tiga.
+ *
+ * Labelnya memakai KATA YANG IA TULIS ("kemarin"), bukan istilah baku — itu
+ * bedanya antara balik bertanya dan menyodorkan daftar fitur.
+ */
+export function balasPilihan(
+  pertanyaan: string,
+  kandidat: { label: string }[],
+  umurMenit: number,
+): string {
+  const daftar = kandidat.map((k, i) => `${i + 1}. ${k.label}`).join("\n");
+  return [
+    // Pertanyaannya DIKUTIP: di grup yang ramai, tawaran ini bisa muncul
+    // beberapa pesan setelah pertanyaannya, dan tanpa kutipan penanya harus
+    // menebak tawaran ini milik pertanyaan yang mana.
+    `"${pertanyaan}" bisa saya baca dengan ${kandidat.length === 2 ? "dua" : "beberapa"} cara.`,
+    "Maksud Anda yang mana?",
+    "",
+    daftar,
+    "",
+    "Balas angkanya saja (mis. *1*). Kalau bukan salah satunya, tulis ulang lebih lengkap.",
+    `_Pilihan ini berlaku ${umurMenit} menit, dan hanya untuk Anda._`,
+  ].join("\n");
+}
+
+/**
+ * Angka yang dibalas tidak lagi punya tawaran yang hidup.
+ *
+ * DIKATAKAN, bukan didiamkan: penanya baru saja mengetik "2" dan berhak tahu
+ * kenapa tidak terjadi apa-apa. Diam di sini terbaca seperti sistem rusak.
+ */
+export function balasPilihanKedaluwarsa(pertanyaan: string, umurMenit: number): string {
+  return [
+    `Maaf, pilihan untuk "${pertanyaan}" sudah lewat ${umurMenit} menit jadi saya tutup.`,
+    "Silakan tanyakan lagi — saya tawarkan pilihannya sekali lagi.",
+  ].join("\n");
+}
+
+/** Angka di luar daftar yang ditawarkan. */
+export function balasPilihanTakAda(jumlah: number): string {
+  return `Pilihannya hanya 1–${jumlah}. Balas salah satu angka itu, atau tulis ulang pertanyaannya.`;
+}
+
+/* ------------------------------------------------------------------ */
+/* Catatan lapangan (DECISIONS 383)                                    */
+/* ------------------------------------------------------------------ */
+
+export type BarisNarasi = {
+  lokasi: string;
+  jenis: string;
+  tanggal: string | null;
+  teks: string;
+};
+
+/** Sepanjang apa satu kutipan boleh tampil di WhatsApp sebelum dipotong. */
+const BATAS_KUTIPAN = 240;
+
+/**
+ * Jawaban dari CATATAN LAPANGAN — kutipan apa adanya (DECISIONS 383).
+ *
+ * ### Kenapa verbatim, dan kenapa tanpa AI
+ *
+ * Yang dikirim adalah kalimat yang benar-benar ditulis pelapor, disalin bulat-
+ * bulat dari basis data. Tidak ada model yang merangkum, jadi **tidak ada yang
+ * bisa mengarang** — bukan karena dilarang di prompt, melainkan karena tidak
+ * ada langkah yang bisa mengarang. Itu juga membuatnya tetap menjawab saat
+ * penyedia AI mati (alasan yang sama dengan DECISIONS 375).
+ *
+ * ### Kenapa harus DITANDAI
+ *
+ * Balasan WhatsApp di-screenshot dan diteruskan ke PPK. Angka di dalam catatan
+ * lapangan ("cor 12 m3") adalah KATA PELAPOR, bukan hasil hitungan MARLIN —
+ * kalau tidak dikatakan, pembacanya akan memperlakukannya sebagai angka resmi.
+ * Penandanya karena itu bukan hiasan dan tidak boleh dilepas.
+ *
+ * Pemotongan kutipan yang terlalu panjang juga DISEBUT: kutipan yang dipangkas
+ * diam-diam bisa membalik artinya ("…tidak jadi berhenti" → "…tidak jadi").
+ */
+export function balasNarasi(
+  r: { pertanyaan: string; baris: BarisNarasi[] },
+  opts: OpsiKaki = {},
+): string {
+  if (r.baris.length === 0) {
+    return (
+      kepala("Catatan lapangan", r.pertanyaan) +
+      "\n\nTidak ada catatan lapangan yang cocok dengan pertanyaan itu." +
+      kaki(opts)
+    );
+  }
+  const isi = r.baris.map((b) => {
+    const dipotong = b.teks.length > BATAS_KUTIPAN;
+    const teks = dipotong ? `${b.teks.slice(0, BATAS_KUTIPAN)}…` : b.teks;
+    const jejak = [b.jenis, b.tanggal].filter(Boolean).join(" · ");
+    return [`*${b.lokasi}* _(${jejak})_`, `  "${teks}"${dipotong ? " _(dipotong)_" : ""}`].join("\n");
+  });
+  return (
+    kepala("Catatan lapangan", r.pertanyaan) +
+    "\n\n" +
+    isi.join("\n\n") +
+    "\n\n📝 Ini KUTIPAN catatan pelapor, disalin apa adanya — termasuk angkanya. " +
+    "Bukan angka resmi hasil hitungan MARLIN." +
+    kaki(opts)
+  );
 }

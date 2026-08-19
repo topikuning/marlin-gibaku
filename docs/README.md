@@ -56,3 +56,8 @@ dipakai sebagai acuan implementasi** — masing-masing sudah diberi banner ARSIP
    tambahkan penjaga uji bila membuat dokumen turunan lain.
 5. **Arsip diberi banner, tidak dihapus.** Menghapus jejak alasan lebih mahal
    daripada menyimpan file yang jelas-jelas bertanda ARSIP.
+
+- [`rebuild/DESAIN_FASE_F_PENCARIAN_NARASI.md`](./rebuild/DESAIN_FASE_F_PENCARIAN_NARASI.md)
+  — **USULAN, belum dibangun.** Desain pencarian narasi lapangan (di brief
+  disebut "RAG"). Memuat empat keputusan yang menunggu user; tidak ada kode
+  sampai keempatnya terjawab.

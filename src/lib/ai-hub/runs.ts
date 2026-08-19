@@ -7,6 +7,8 @@ import { aiStructured } from "@/lib/ai/structured";
 import type { AiRunKind } from "@/generated/prisma/enums";
 import { checkAiGuard, estimateCostUsd, getAiPricing } from "./guard";
 import { buildPortfolioPulse, buildQualityDetails, resolveAiScope } from "./source";
+import { LABEL_WILAYAH, buildAdapterFacts, gabungFakta } from "./adapters";
+import { LABEL_JENIS, cariNarasiAman, type PotonganNarasi } from "@/lib/narasi/cari";
 import { runQualityRules } from "./quality-rules";
 import {
   buildNarrativeBundle,
@@ -15,18 +17,29 @@ import {
   toNarrativeSourceRefs,
   type NarrativeBundle,
 } from "./narrative";
-import { KIND_INSTRUCTION, PROMPT_VERSION, buildPulsePayload, buildQualityPayload } from "./prompt";
+import {
+  KIND_INSTRUCTION,
+  PROMPT_VERSION,
+  buildFaktaPayload,
+  buildNarasiPayload,
+  buildPulsePayload,
+  buildQualityPayload,
+} from "./prompt";
 import { resolvePrompt } from "@/lib/ai/prompts";
 import {
   SCHEMA_HINTS,
   askOutputSchema,
   filterGrounded,
+  faktaResmi,
+  hitungKeyakinan,
   numericClaimsValid,
   pulseOutputSchema,
   qualityOutputSchema,
   reportOutputSchema,
   riskOutputSchema,
+  validasiKlaimTerikat,
   varianceOutputSchema,
+  type BagianJawaban,
   type GroundingContext,
 } from "./schemas";
 import { aiReportTemplate } from "./report-templates";
@@ -133,7 +146,50 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
     );
   }
   const narrativeRefs = narrativeBundle ? toNarrativeSourceRefs(narrativeBundle) : [];
-  const allSourceRefs = [...pulse.sourceRefs, ...narrativeRefs];
+
+  /*
+   * ADAPTER SUMBER (DECISIONS 379) — kontrak, keuangan, RAB, milestone KKP.
+   *
+   * Dipagari KAPABILITAS penanya, bukan hanya scope lokasi: `site_manager`
+   * punya `ai.ask` tapi TIDAK punya `finance.view`, dan `wakil_ppk` sengaja
+   * dijauhkan dari uang internal pelaksana. Lihat `adapters.ts`.
+   *
+   * Dipanggil DI SINI, sebelum `allSourceRefs` dirakit, supaya sumber tambahan
+   * ikut tersimpan di `sourcesJson` dan snapshot resmi — kalau tidak, sitasi ke
+   * kontrak/keuangan tidak punya label maupun tautan saat dirender.
+   */
+  const tambahan =
+    input.kind === "tanya"
+      ? await buildAdapterFacts(user, scope.ids, pulse.periodEnd)
+      : { refs: [], fakta: [], dilewati: [] };
+
+  /*
+   * PENCARIAN NARASI LAPANGAN (DECISIONS 382) — hanya untuk `tanya`.
+   *
+   * Lingkupnya `scope.ids`, disaring DI DALAM query (lihat `cariNarasi`), jadi
+   * catatan lokasi di luar hak penanya tidak pernah ikut diperingkat, apalagi
+   * dikutip.
+   */
+  const potongan: PotonganNarasi[] =
+    input.kind === "tanya" && input.question
+      ? await cariNarasiAman({ locationIds: scope.ids, pertanyaan: input.question })
+      : [];
+
+  /*
+   * Tiap potongan menjadi sumber yang bisa DIBUKA pembaca. Tanpa ini kutipan
+   * hanya berupa teks tanpa jalan memeriksanya — persis cacat sitasi id mentah
+   * yang diperbaiki DECISIONS 378.
+   */
+  const narasiRefs: SourceRef[] = potongan.map((p) => ({
+    id: p.id,
+    entityType: `narasi_${p.jenis}`,
+    entityId: p.locationId,
+    label: `${p.namaLokasi} — ${LABEL_JENIS[p.jenis]}${p.tanggal ? ` ${p.tanggal}` : ""}`,
+    value: p.teks.length > 160 ? `${p.teks.slice(0, 160)}…` : p.teks,
+    href: p.href,
+  }));
+
+  const allSourceRefs = [...pulse.sourceRefs, ...narrativeRefs, ...tambahan.refs, ...narasiRefs];
   const readinessAvg = pulse.rows.length
     ? Math.round(pulse.rows.reduce((s, r) => s + r.readiness.score, 0) / pulse.rows.length)
     : 0;
@@ -172,6 +228,16 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
       totals: pulse.totals,
       rows: pulse.rows,
       risks: pulse.risks,
+      /*
+       * Sumber IKUT disimpan (DECISIONS 378).
+       *
+       * Tanpa ini sitasi hanya bisa ditampilkan sebagai id mentah
+       * ("kedung-mutih:progress") — yang tidak memberi tahu pembaca angka apa
+       * yang dirujuk, dan tidak bisa diklik untuk memeriksanya. Snapshot ini
+       * juga yang dipakai UI saat AI gagal, jadi sumbernya harus ada di sini,
+       * bukan dihitung ulang saat render.
+       */
+      sourceRefs: allSourceRefs,
       quality: qualityFindings,
       narrative: narrativeBundle,
       periodStart: pulse.periodStart,
@@ -196,7 +262,18 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
   };
 
   // 7. Susun prompt per kind.
-  const payload = buildPulsePayload(pulse, { maxRows: guardCfg.maxLocationsPerRun });
+  let payload = buildPulsePayload(pulse, { maxRows: guardCfg.maxLocationsPerRun });
+  if (input.kind === "tanya") {
+    // Bentuk klaim yang dituntut validator disodorkan apa adanya — lihat
+    // `buildFaktaPayload` untuk alasannya (DECISIONS 378).
+    payload += `\n\n${buildFaktaPayload(pulse, {
+      maxRows: guardCfg.maxLocationsPerRun,
+      tambahan: tambahan.fakta,
+      refTambahan: tambahan.refs,
+      dilewati: tambahan.dilewati.map((w) => LABEL_WILAYAH[w]),
+    })}`;
+    payload += `\n\n${buildNarasiPayload(potongan)}`;
+  }
   const template = input.kind === "laporan" ? aiReportTemplate(input.templateKey ?? "") : undefined;
   if (input.kind === "laporan" && !template) return fail("invalid_input", "Template laporan tidak dikenal.");
 
@@ -254,8 +331,13 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
   if (!result.ok) return fail(result.errorCode, result.error);
 
   // 9. Grounding: buang bagian tak tergrounding, catat sebagai limitations.
-  const ctx = groundingContext(pulse, narrativeRefs);
+  const ctx = groundingContext(pulse, [...narrativeRefs, ...tambahan.refs, ...narasiRefs]);
+  // Teks asli tiap potongan — dasar pemeriksaan kutipan VERBATIM (DECISIONS 382).
+  const teksPotongan = new Map(potongan.map((p) => [p.id, p.teks]));
   const globals = globalNumbers(pulse);
+  // Fakta terikat (lokasi, metrik) → nilai + periode + sumber (DECISIONS 378),
+  // ditambah fakta adapter yang boleh dilihat penanya (DECISIONS 379).
+  const fakta = gabungFakta(faktaResmi(pulse), tambahan.fakta);
   const output = result.data as Record<string, unknown>;
   const droppedNotes: string[] = [];
   const applyFilter = <T extends object>(arr: T[] | undefined): T[] => {
@@ -307,8 +389,56 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
   } else if (input.kind === "tanya") {
     const cites = (output.citations as { sourceRefId: string }[] | undefined) ?? [];
     output.citations = cites.filter((c) => ctx.allowedSourceRefIds.has(c.sourceRefId));
-    if (typeof output.answer === "string" && !numericClaimsValid(output.answer, globals)) {
+
+    /*
+     * VALIDASI KLAIM TERIKAT (DECISIONS 378).
+     *
+     * Bagian yang klaimnya tidak cocok DIBUANG, bukan sekadar ditandai —
+     * PROJECT.md §5a. Sebelum ini jawaban dengan angka salah tetap tampil utuh
+     * dan hanya menambah satu baris limitation di bawahnya, yang di WhatsApp
+     * maupun PDF nyaris tidak pernah terbaca.
+     */
+    const parts = (output.answerParts as BagianJawaban[] | undefined) ?? [];
+    const hasil = validasiKlaimTerikat(parts, fakta, ctx.allowedSourceRefIds, teksPotongan);
+    output.answerParts = hasil.hidup;
+    droppedNotes.push(...hasil.dibuang);
+
+    if (parts.length > 0) {
+      /*
+       * Teks jawaban DISUSUN ULANG dari bagian yang selamat.
+       *
+       * Kalau `answer` dibiarkan apa adanya, membuang bagian tidak ada
+       * gunanya: kalimat yang sama tetap terbaca penanya lewat `answer`.
+       */
+      const teks = hasil.hidup.map((b) => b.text.trim()).filter(Boolean).join(" ");
+      output.answer = teks || "Saya tidak punya angka bersumber untuk menjawab itu.";
+    } else if (typeof output.answer === "string" && !numericClaimsValid(output.answer, globals)) {
+      // Keluaran model lama (tanpa answerParts) tetap dijaga cara lama.
       droppedNotes.push("jawaban memuat angka persen yang tidak cocok data — verifikasi manual");
+    }
+
+    /*
+     * Wilayah yang ditahan kapabilitas ikut ke limitations (DECISIONS 379) —
+     * bukan hanya diberitahukan ke model.
+     *
+     * Model bisa lupa menyebutkannya, dan kalau itu terjadi penanya membaca
+     * jawaban yang diam-diam sebagian tanpa tanda apa pun. Baris ini tampil di
+     * layar terlepas dari apa yang model tulis.
+     */
+    if (tambahan.dilewati.length > 0) {
+      droppedNotes.push(
+        `Tidak ditampilkan untuk peran Anda: ${tambahan.dilewati
+          .map((w) => LABEL_WILAYAH[w])
+          .join(", ")} — angkanya ada, tetapi di luar hak akses Anda.`,
+      );
+    }
+
+    // Keyakinan DETERMINISTIK — menimpa angka yang diakui sendiri oleh model.
+    output.confidence = hitungKeyakinan(hasil, parts.length);
+    if (output.confidence === 0) {
+      droppedNotes.push(
+        "keyakinan 0: tidak ada klaim angka yang cocok dengan data resmi beserta sumbernya",
+      );
     }
   }
   // Ringkasan global: klaim angka dibandingkan seluruh angka resmi.

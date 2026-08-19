@@ -108,93 +108,22 @@ export function bersihkanMention(body: string): string {
 }
 
 /* ------------------------------------------------------------------ */
-/* Lingkup jawaban                                                     */
+/* Lingkup jawaban — PINDAH ke resolver-kanal.ts (DECISIONS 371)        */
 /* ------------------------------------------------------------------ */
 
-export type LingkupJawaban =
-  | {
-      boleh: true;
-      /**
-       * Lokasi yang boleh disebut. null = seluruh lingkup pengguna (chat
-       * pribadi). Larik = dipotong ke paket grup.
-       */
-      lokasiIds: string[] | null;
-      /** Disebutkan di balasan bila jawaban dipotong. null = tidak dipotong. */
-      catatanPemotongan: string | null;
-    }
-  | { boleh: false; alasan: string };
-
-export type KonteksLingkup = {
-  grup: boolean;
-  /**
-   * Lokasi yang boleh diakses PENANYA. null = lintas lokasi (mis. super admin).
-   *
-   * Dipakai HANYA untuk chat pribadi. Di grup, lingkupnya ditentukan grupnya
-   * sendiri — lihat `lingkupJawaban` (DECISIONS 351).
-   */
-  lokasiPengguna: string[] | null;
-  /**
-   * Lokasi milik paket tempat grup ini tertaut. null = grup tidak tertaut paket
-   * mana pun (mis. grup pribadi berisi beberapa orang).
-   */
-  lokasiGrup: string[] | null;
-  /** Nama paket grup, untuk kalimat pemotongan. */
-  namaPaketGrup: string | null;
-};
-
-/**
- * Tentukan lokasi mana yang boleh disebut dalam balasan.
+/*
+ * `lingkupJawaban()` dan `KonteksLingkup` DIHAPUS dari sini, tidak sekadar
+ * berhenti dipakai.
  *
- *   chat pribadi → lingkup PENANYA
- *   grup         → lingkup PAKET GRUP ITU (DECISIONS 351)
+ * Aturannya sekarang tinggal di `putuskanLayanan()` (resolver-kanal.ts)
+ * bersama keputusan kanal dan identitas. Membiarkan fungsi lama tetap ada
+ * "untuk jaga-jaga" persis melahirkan cacat yang brief 2026-08-19 minta
+ * ditutup: dua tempat yang saling menutupi, sehingga melanggar aturan di satu
+ * tempat tidak membuat satu uji pun merah.
  *
- * ### Kenapa di grup identitas penanya TIDAK menentukan lingkup
- *
- * Instruksi user 2026-08-17: *"untuk mention di group nomor yang mention tidak
- * perlu terdaftar. selama itu chat di dalam group, jawab sesuai paket group
- * itu."*
- *
- * Itu bukan pelonggaran, melainkan pembetulan sumbu. **Balasannya dikirim ke
- * GRUP, bukan ke penanyanya.** Seluruh anggota grup membacanya, siapa pun yang
- * mengetik. Jadi memotong jawaban menurut izin si pengetik tidak pernah
- * melindungi apa pun — ia hanya membuat isi jawaban berubah-ubah tergantung
- * siapa yang kebetulan bertanya, di depan audiens yang sama persis.
- *
- * Yang menentukan justru penautan grup↔paket, dan itu dilakukan admin secara
- * sadar. Grup yang tidak tertaut paket tetap TIDAK dilayani sama sekali: tanpa
- * tautan tidak ada dasar memutuskan apa yang pantas dibaca anggotanya.
- *
- * ### Pembalikan yang ikut hilang
- *
- * Aturan lama meng-irisan lokasi grup dengan izin penanya. Digabung dengan
- * kebijakan baru, itu menghasilkan pembalikan yang tak bisa dipertahankan:
- * orang TAK TERDAFTAR di grup mendapat data paket, sementara pengguna TERDAFTAR
- * yang kebetulan tidak ditugaskan ke paket itu ditolak — terdaftar membuat
- * seseorang melihat LEBIH SEDIKIT, di grup yang sama.
+ * `niatLintasLokasi()` tetap di sini — ia soal ISI pertanyaan (menyebut lokasi
+ * atau tidak), bukan soal siapa boleh dijawab di mana.
  */
-export function lingkupJawaban(k: KonteksLingkup): LingkupJawaban {
-  if (!k.grup) {
-    // Chat pribadi: seluruh lingkup penggunanya sendiri.
-    return { boleh: true, lokasiIds: k.lokasiPengguna, catatanPemotongan: null };
-  }
-
-  if (k.lokasiGrup === null || k.lokasiGrup.length === 0) {
-    return {
-      boleh: false,
-      alasan:
-        "Grup ini belum tertaut paket mana pun, jadi saya tidak tahu data apa yang pantas dibagikan di sini. Silakan tanya lewat chat pribadi.",
-    };
-  }
-
-  // Lingkupnya PERSIS paket grup ini — tidak di-irisan dengan izin penanya.
-  return {
-    boleh: true,
-    lokasiIds: k.lokasiGrup,
-    // Pemotongan SELALU disebut: jawaban sebagian yang tidak mengaku sebagian
-    // akan dibaca sebagai jawaban lengkap.
-    catatanPemotongan: `Jawaban ini hanya mencakup ${k.namaPaketGrup ?? "paket grup ini"}. Untuk lintas paket, tanya saya lewat chat pribadi.`,
-  };
-}
 
 /**
  * Apakah niat ini bersifat LINTAS lokasi (tanpa lokasi disebut)?

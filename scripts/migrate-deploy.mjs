@@ -98,14 +98,36 @@ function deploy() {
   return r;
 }
 
-/** Nama migrasi yang tercatat GAGAL, dari output `prisma migrate status`. */
-function failedMigrations() {
-  const r = run(["migrate", "status"]);
-  const out = `${r.stdout ?? ""}\n${r.stderr ?? ""}`;
+/**
+ * Nama migrasi yang tercatat GAGAL, dibaca dari SATU keluaran teks.
+ *
+ * Dipisah jadi fungsi murni supaya bisa diuji unit terhadap keluaran Prisma
+ * yang SEBENARNYA — dan itu perlu, karena versi pertama fungsi ini tidak pernah
+ * bekerja sekali pun.
+ *
+ * ### Kenapa `migrate status` tidak cukup (dan dulu jadi satu-satunya sumber)
+ *
+ * Pada Prisma 7, `prisma migrate status` sama sekali TIDAK menyebut migrasi
+ * yang gagal — ia hanya mendaftar yang belum diterapkan. Jadi pemulihan
+ * otomatis selalu berhenti di "nama migrasinya tidak terbaca", dan deploy tetap
+ * mentok persis pada keadaan yang seharusnya ia selamatkan. Ketahuan saat dev
+ * Railway benar-benar macet 2026-08-19.
+ *
+ * Namanya justru ADA di keluaran `migrate deploy` sendiri:
+ *
+ *   The `20260819120000_wa_group_unik` migration started at … failed
+ *   Migration name: 20260819120000_wa_group_unik
+ *
+ * Karena itu keluaran deploy-lah yang dibaca lebih dulu, dan `migrate status`
+ * tinggal cadangan untuk versi Prisma yang memang memuatnya.
+ */
+export function namaMigrasiGagal(out) {
   const names = new Set();
-  // Format Prisma: "The `20260728020000_nama` migration started at ... failed"
+  // "The `20260819120000_nama` migration started at … failed"
   for (const m of out.matchAll(/`(\d{14}_[A-Za-z0-9_]+)`[^\n]*failed/g)) names.add(m[1]);
-  // Format daftar: "Following migration have failed:\n20260728020000_nama"
+  // "Migration name: 20260819120000_nama" (dicetak P3018)
+  for (const m of out.matchAll(/Migration name:\s*(\d{14}_[A-Za-z0-9_]+)/g)) names.add(m[1]);
+  // "Following migration have failed:\n20260819120000_nama"
   const daftar = out.match(/migrations? have failed:\s*\n([\s\S]*?)(?:\n\s*\n|$)/i);
   if (daftar) {
     for (const baris of daftar[1].split("\n")) {
@@ -114,6 +136,14 @@ function failedMigrations() {
     }
   }
   return [...names];
+}
+
+/** Nama migrasi gagal — dari keluaran deploy, dengan `migrate status` sebagai cadangan. */
+function failedMigrations(keluaranDeploy) {
+  const dariDeploy = namaMigrasiGagal(keluaranDeploy ?? "");
+  if (dariDeploy.length > 0) return dariDeploy;
+  const r = run(["migrate", "status"]);
+  return namaMigrasiGagal(`${r.stdout ?? ""}\n${r.stderr ?? ""}`);
 }
 
 function amanDijalankanUlang(name) {
@@ -144,7 +174,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     process.exit(pertama.status ?? 1);
   }
 
-  const gagal = failedMigrations();
+  const gagal = failedMigrations(keluaran);
   if (gagal.length === 0) {
     log("Terdeteksi P3009 tapi nama migrasinya tidak terbaca. Perlu penanganan manual.");
     process.exit(pertama.status ?? 1);

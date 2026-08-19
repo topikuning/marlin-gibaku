@@ -470,7 +470,11 @@ model Package {
   cancelReason        String?      @map("cancel_reason")
   // Grup WhatsApp tujuan kiriman laporan/kegiatan paket ini (WAHA chatId, mis.
   // "12036300...@g.us"). Semua lokasi di paket ini mengirim ke grup yang sama.
-  waGroupId           String?      @map("wa_group_id")
+  // SATU grup WhatsApp = SATU paket (DECISIONS 370). Tanpa batasan ini, dua
+  // paket bisa menunjuk grup yang sama dan paket mana yang menjawab ditentukan
+  // urutan baris — data paket A terkirim ke grup paket B. NULL boleh banyak:
+  // PostgreSQL menganggap tiap NULL berbeda, dan paket tanpa grup itu wajar.
+  waGroupId           String?      @unique @map("wa_group_id")
   waGroupName         String?      @map("wa_group_name")
   // Folder Google Drive paket (pemberian KKP) — tujuan upload PDF/Excel laporan.
   driveFolderId       String?      @map("drive_folder_id")
@@ -1112,6 +1116,7 @@ model DailyReport {
   createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz
   updatedAt        DateTime          @updatedAt @map("updated_at") @db.Timestamptz
 
+
   location      Location                   @relation(fields: [locationId], references: [id])
   items         DailyReportItem[]
   workers       DailyReportWorker[]
@@ -1170,6 +1175,7 @@ model FieldActivity {
   createdAt     DateTime            @default(now()) @map("created_at") @db.Timestamptz
   updatedAt     DateTime            @updatedAt @map("updated_at") @db.Timestamptz
 
+
   location    Location                  @relation(fields: [locationId], references: [id])
   photos      Photo[]
   attachments FieldActivityAttachment[]
@@ -1217,6 +1223,7 @@ model DailyReportItem {
   reportedById String?  @map("reported_by_id") @db.Uuid
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
 
   report  DailyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
   rabNode RabNode     @relation(fields: [rabNodeId], references: [id])
@@ -1384,6 +1391,7 @@ model Issue {
   createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz
 
+
   location Location         @relation(fields: [locationId], references: [id])
   report   DailyReport?     @relation(fields: [reportId], references: [id])
   actions  RecoveryAction[]
@@ -1403,6 +1411,7 @@ model RecoveryAction {
   createdById String?        @map("created_by_id") @db.Uuid
   createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime       @updatedAt @map("updated_at") @db.Timestamptz
+
 
   issue   Issue            @relation(fields: [issueId], references: [id], onDelete: Cascade)
   updates RecoveryUpdate[]
@@ -1669,6 +1678,207 @@ model Document {
 // ─────────────────────────────────────────────────────────────
 
 /// APPEND-ONLY (trigger): diisi helper audit() pada setiap mutasi
+/// Status pemrosesan satu pesan masuk WhatsApp (DECISIONS 372).
+enum WaJobStatus {
+  antre
+  berjalan
+  selesai
+  /// Sudah melewati batas percobaan — TIDAK dicoba lagi, dan harus terlihat admin.
+  gagal
+}
+
+/// ANTREAN JAWABAN WhatsApp — webhook menaruh pekerjaan di sini lalu langsung
+/// membalas 200; processor yang menjalankan AI dan pengiriman (DECISIONS 372).
+///
+/// Sebelumnya webhook menunggu ingest, guard, provider AI, query data, DAN
+/// pengiriman WAHA sebelum mengembalikan 200. Provider yang lambat membuat
+/// endpoint tampak mati, WAHA me-retry, dan event yang sama memicu AI serta
+/// balasan dua kali — kuota AI terhitung dua kali, penerima dapat dua pesan.
+model WaReplyJob {
+  id String @id @default(uuid()) @db.Uuid
+
+  /// Kunci idempotensi = id pesan inbound. UNIQUE: satu pesan masuk hanya boleh
+  /// melahirkan SATU pekerjaan jawab, berapa pun kali WAHA mengirim ulang.
+  waMessageId String @unique @map("wa_message_id")
+
+  chatId String @map("chat_id")
+
+  /// Payload webhook apa adanya. Disimpan supaya processor tidak perlu
+  /// bergantung pada webhook mem-parse lebih dulu — dan supaya pekerjaan yang
+  /// gagal bisa diperiksa persis dengan masukan yang sama.
+  payload Json
+
+  status        WaJobStatus @default(antre)
+  attempts      Int         @default(0)
+  lastError     String?     @map("last_error")
+  /// Backoff: pekerjaan tidak diambil sebelum waktu ini.
+  nextAttemptAt DateTime    @default(now()) @map("next_attempt_at") @db.Timestamptz
+  startedAt     DateTime?   @map("started_at") @db.Timestamptz
+  finishedAt    DateTime?   @map("finished_at") @db.Timestamptz
+  /// Alasan hasil dari `jawabPertanyaanWa` — termasuk "diam" yang disengaja.
+  hasil         String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([status, nextAttemptAt])
+  @@map("wa_reply_jobs")
+}
+
+/// Jenis kiriman WhatsApp yang dilayani gateway kanonik (DECISIONS 374).
+enum WaOutboundKind {
+  teks
+  gambar
+  berkas
+}
+
+/// Perjalanan satu kiriman WhatsApp — TIDAK boleh mundur (DECISIONS 374).
+///
+/// Bedanya `diterima_waha` dan `terkirim` adalah inti seluruh perubahan ini:
+/// HTTP 2xx dari WAHA hanya membuktikan WAHA MENERIMA permintaannya, bukan
+/// bahwa WhatsApp mengirimkannya. Bukti sampai hanya datang dari `message.ack`.
+enum WaOutboundStatus {
+  antre
+  diterima_waha
+  terkirim
+  sampai
+  dibaca
+  gagal
+  ditolak
+}
+
+/// KLARIFIKASI TERTUNDA — tawaran pilihan yang sedang menunggu jawaban
+/// (DECISIONS 376).
+///
+/// Kuncinya **chat + PENGIRIM**, bukan chat saja. Di grup, mengunci per chat
+/// berarti siapa pun bisa mengambil alih klarifikasi orang lain dengan
+/// mengetik `1` — dan jawabannya akan tampak seolah menjawab pertanyaan si
+/// penanya asli. Ini bukan kenyamanan; ini yang menentukan pertanyaan siapa
+/// yang sebenarnya dijawab.
+///
+/// Durable (bukan memori proses) karena jawaban WhatsApp diproses lewat antrean
+/// yang bisa berpindah proses atau restart di antara tawaran dan jawabannya
+/// (DECISIONS 372). Konteks di memori akan hilang tepat ketika dipakai.
+model WaPendingClarification {
+  id String @id @default(uuid()) @db.Uuid
+
+  chatId String @map("chat_id")
+
+  /// Identitas pengirim yang ditawari — JID/LID/nomor, apa pun yang stabil.
+  /// Bukan nama tampilan: siapa saja bisa mengubahnya.
+  senderKey String @map("sender_key")
+
+  /// Pertanyaan asli APA ADANYA — dipakai di audit dan saat menjelaskan
+  /// kembali pilihan yang sudah kedaluwarsa.
+  pertanyaan String
+
+  /// Kandidat yang ditawarkan (`KandidatNiat[]`). Disimpan utuh supaya jawaban
+  /// `1`/`2`/`3` tidak perlu menghitung ulang — apalagi memanggil AI lagi.
+  kandidat Json
+
+  /// Pesan masuk yang MELAHIRKAN tawaran ini. Dipakai idempotensi: webhook yang
+  /// dikirim ulang tidak boleh menawarkan pilihan yang sama dua kali.
+  waMessageId String @map("wa_message_id")
+
+  /// ID pesan tawaran MARLIN sendiri — pengikat balasan reply-to di grup ramai.
+  offerMessageId String? @map("offer_message_id")
+
+  /// Tawaran basi tidak boleh dijawab: `2` yang diketik sejam kemudian hampir
+  /// pasti menjawab percakapan lain.
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+
+  answeredAt DateTime? @map("answered_at") @db.Timestamptz
+  /// Indeks pilihan yang diambil (0-based) bila sudah dijawab.
+  pilihan Int?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  /// Satu tawaran aktif per orang per chat. Pertanyaan baru MENGGANTIKAN yang
+  /// lama: menumpuk tawaran membuat `1` menjadi taruhan tentang tawaran mana
+  /// yang dimaksud.
+  @@unique([chatId, senderKey])
+  @@index([expiresAt])
+  @@map("wa_pending_clarifications")
+}
+
+/// KONTEKS PERTANYAAN TERAKHIR — supaya pertanyaan susulan bisa berdiri
+/// sendiri (DECISIONS 377).
+///
+/// Yang disimpan adalah pertanyaan yang SUDAH selesai diresolusi: niatnya dan
+/// nama lokasi APA ADANYA seperti diketik. Sengaja nama, bukan id lokasi hasil
+/// resolusi — nama harus dicocokkan ulang terhadap katalog yang berlaku SAAT
+/// susulan datang, sehingga riwayat tidak pernah bisa memperlebar lingkup.
+/// Lokasi yang sudah di luar hak penanya (atau di luar paket grupnya) tidak
+/// akan cocok lagi, dan itu memang yang benar.
+model WaChatContext {
+  id String @id @default(uuid()) @db.Uuid
+
+  chatId    String @map("chat_id")
+  /// Sama seperti klarifikasi: chat + PENGIRIM, bukan chat saja. Konteks orang
+  /// lain tidak boleh menjadi konteks pertanyaan Anda.
+  senderKey String @map("sender_key")
+
+  /// Niat pertanyaan terakhir yang berhasil dijawab.
+  niat String
+
+  /// Nama lokasi apa adanya seperti diketik penanya (`string[]`).
+  lokasiDisebut Json @map("lokasi_disebut")
+
+  /// Konteks basi lebih berbahaya daripada tidak ada konteks: ia menjawab
+  /// pertanyaan lama dengan percaya diri.
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@unique([chatId, senderKey])
+  @@index([expiresAt])
+  @@map("wa_chat_contexts")
+}
+
+/// OUTBOX kiriman WhatsApp — satu-satunya pintu keluar (DECISIONS 374).
+///
+/// Sebelumnya tiap pemanggil menafsirkan keberhasilan sendiri: `sendText`
+/// mengembalikan id-atau-null, `sendImage`/`sendFile` mengembalikan void, dan
+/// pemeriksaan sesi WORKING hanya ada di sebagian jalur. Sebagian UI menulis
+/// "Terkirim" begitu HTTP 2xx — padahal WAHA menjawab 2xx juga saat sesinya
+/// belum login, dan pesannya tidak pernah keluar.
+model WaOutbound {
+  id   String         @id @default(uuid()) @db.Uuid
+  kind WaOutboundKind
+
+  chatId String @map("chat_id")
+
+  /// Kunci idempotensi dari pemanggil. UNIQUE: kiriman yang sama tidak pernah
+  /// berangkat dua kali, berapa pun kali tombolnya ditekan atau job diulang.
+  idempotencyKey String @unique @map("idempotency_key")
+
+  /// Dari fitur mana — supaya kiriman bisa ditelusuri balik ke asalnya.
+  sourceType String  @map("source_type")
+  sourceId   String? @map("source_id")
+
+  /// ID pesan dari WAHA. Bukti WAHA MENERIMA — bukan bukti sampai.
+  waMessageId String? @unique @map("wa_message_id")
+
+  status   WaOutboundStatus @default(antre)
+  attempts Int              @default(0)
+
+  lastError String? @map("last_error")
+  /// Kode HTTP WAHA saat gagal — pembeda "ditolak" (4xx) dari "gagal" (jaringan).
+  errorCode String? @map("error_code")
+
+  /// Ringkasan isi untuk diagnosa. SENGAJA bukan isi penuh: outbox dibaca admin
+  /// lain, dan isi chat pribadi tidak pantas ada di sana.
+  ringkas String?
+
+  sentAt    DateTime? @map("sent_at") @db.Timestamptz
+  ackAt     DateTime? @map("ack_at") @db.Timestamptz
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([status, createdAt])
+  @@index([sourceType, sourceId])
+  @@map("wa_outbound")
+}
+
 model AuditLog {
   id           String   @id @default(uuid()) @db.Uuid
   userId       String?  @map("user_id") @db.Uuid

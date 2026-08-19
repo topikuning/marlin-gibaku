@@ -44,6 +44,7 @@ export const RUTE_STATIS: { pola: string; nama: string }[] = [
   { pola: "/master", nama: "Master data" },
   { pola: "/master/kontak", nama: "Master — kontak" },
   { pola: "/master/kontak-wa", nama: "Master — kontak WhatsApp" },
+  { pola: "/master/lokasi", nama: "Master — katalog lokasi" },
   { pola: "/master/pengguna", nama: "Master — pengguna" },
   { pola: "/master/perusahaan", nama: "Master — perusahaan" },
   { pola: "/paket", nama: "Daftar paket" },

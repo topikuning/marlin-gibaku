@@ -17,7 +17,14 @@ type Msg = {
   id: string;
   role: string;
   content: string;
-  citations: { sourceRefId: string; note: string | null }[];
+  citations: {
+    sourceRefId: string;
+    note: string | null;
+    /** Kalimat sumber yang bisa dibaca; null utk pesan lama (DECISIONS 378). */
+    label?: string | null;
+    value?: string | null;
+    href?: string | null;
+  }[];
   confidence: number | null;
   runId: string | null;
 };
@@ -77,18 +84,54 @@ export function AskClient({
               >
                 {m.content}
                 {m.role !== "user" && (m.citations.length > 0 || m.confidence != null) ? (
-                  <p className="mt-1.5 border-t border-border-muted pt-1 text-[11px] text-ink-faint">
-                    {m.confidence != null ? `confidence ${m.confidence}% · ` : ""}
-                    sumber: {m.citations.map((c) => c.sourceRefId).join(", ") || "—"}
-                    {m.runId ? (
-                      <>
-                        {" · "}
-                        <Link href={`/ai/run/${m.runId}`} className="text-primary hover:underline">
-                          detail run
-                        </Link>
-                      </>
-                    ) : null}
-                  </p>
+                  <div className="mt-1.5 border-t border-border-muted pt-1 text-[11px] text-ink-faint">
+                    <p>
+                      {/*
+                        Keyakinan 0 disebut APA ADANYA, bukan disembunyikan: ia
+                        berarti tidak satu pun angka di jawaban ini cocok dengan
+                        data resmi beserta sumbernya (DECISIONS 378).
+                      */}
+                      {m.confidence != null ? (
+                        <span className={m.confidence === 0 ? "font-medium text-danger" : undefined}>
+                          {m.confidence === 0 ? "tanpa sumber terverifikasi" : `keyakinan ${m.confidence}%`}
+                        </span>
+                      ) : null}
+                      {m.runId ? (
+                        <>
+                          {m.confidence != null ? " · " : ""}
+                          <Link href={`/ai/run/${m.runId}`} className="text-primary hover:underline">
+                            detail run
+                          </Link>
+                        </>
+                      ) : null}
+                    </p>
+                    {m.citations.length > 0 ? (
+                      <ul className="mt-1 space-y-0.5">
+                        {m.citations.map((c) => (
+                          <li key={c.sourceRefId} className="min-w-0">
+                            {/*
+                              Sumber yang BISA DIBACA dan DIKLIK. Sebelumnya
+                              baris ini menampilkan id mentah
+                              ("kedung-mutih:progress") — yang tidak menyebut
+                              angka apa yang dirujuk, dan tidak bisa diperiksa.
+                              Pesan lama tidak menyimpan label; id-nya tetap
+                              ditampilkan supaya riwayat tidak jadi kosong.
+                            */}
+                            {c.href ? (
+                              <Link href={c.href} className="text-primary hover:underline">
+                                {c.label ?? c.sourceRefId}
+                              </Link>
+                            ) : (
+                              <span>{c.label ?? c.sourceRefId}</span>
+                            )}
+                            {c.value ? <span className="text-ink-faint"> — {c.value}</span> : null}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p>sumber: —</p>
+                    )}
+                  </div>
                 ) : null}
               </div>
             ))}

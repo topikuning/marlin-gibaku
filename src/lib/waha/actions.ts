@@ -14,19 +14,8 @@ import { buildPeriodReportXlsx } from "@/lib/export/xlsx";
 import { muatLogoLaporan } from "@/lib/export/logo-laporan";
 import { getKkpDailyData } from "@/lib/daily-report/queries";
 import { buildDailyReportXlsx } from "@/lib/export/daily-xlsx";
-import {
-  WahaError,
-  getGroupInfo,
-  getSessionStatus,
-  listGroups,
-  normalizeGroupChatId,
-  resolveGroupByInvite,
-  sendFile,
-  sendImage,
-  sendText,
-  toFilePayload,
-  type WahaGroup,
-} from "@/lib/waha/client";
+import { WahaError, getGroupInfo, getSessionStatus, listGroups, normalizeGroupChatId, resolveGroupByInvite, toFilePayload, type WahaGroup } from "@/lib/waha/client";
+import { sendFile, sendImage, sendText } from "@/lib/waha/kirim";
 import { WahaConfigError, setWahaConfig } from "@/lib/waha/config";
 import { ingestWaEvent } from "@/lib/waha/ingest";
 
@@ -174,6 +163,30 @@ export async function setPackageWaGroupAction(
         groupId = normalizeGroupChatId(d.waGroupId);
       } catch (err) {
         return fail(err);
+      }
+
+      /*
+       * Grup yang SUDAH dipakai paket lain ditolak DI SINI, dengan menyebut
+       * paketnya (DECISIONS 370).
+       *
+       * Indeks unik di basis data tetap jadi pagar terakhir, tapi galatnya
+       * berbunyi "Unique constraint failed on the fields: (`wa_group_id`)" —
+       * benar, dan tidak menolong siapa pun. Yang dibutuhkan admin adalah nama
+       * paket yang harus dilepas lebih dulu.
+       *
+       * Dicek terhadap bentuk kanonik, jadi "12036…:12@G.US" pun tertangkap
+       * sebagai grup yang sama.
+       */
+      const pemilik = await db.package.findUnique({
+        where: { waGroupId: groupId },
+        select: { id: true, name: true },
+      });
+      if (pemilik && pemilik.id !== pkg.id) {
+        return {
+          error:
+            `Grup itu sudah dipakai paket "${pemilik.name}". Satu grup WhatsApp hanya boleh ` +
+            `milik satu paket — lepaskan dulu dari paket itu, baru tautkan ke sini.`,
+        };
       }
     }
 

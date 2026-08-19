@@ -89,6 +89,108 @@ export async function existingLocationIndex(orgId: string): Promise<ExistingLoca
   return buildExistingLocationIndex(locs);
 }
 
+/* ------------------------------------------------------------------ */
+/* Pencegahan lokasi ganda saat menambah manual (DECISIONS 368)         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Seberapa yakin sebuah kandidat adalah lokasi yang SAMA.
+ *
+ * - `persis` — kunci alaminya identik. Ini tidak bisa dibuat lagi: indeks unik
+ *   `@@unique([orgId, province, regency, district, village])` akan menolaknya,
+ *   dan memang seharusnya.
+ * - `mirip` — cocok setelah dinormalkan longgar. Ejaannya berbeda
+ *   ("Kedungmutih" vs "Kedung Mutih" — kasus nyata di data ini), atau salah
+ *   satu sisi tidak mengisi kecamatan. Basis data akan menerimanya sebagai
+ *   baris baru, jadi justru INILAH yang menghasilkan lokasi ganda.
+ */
+export type KemiripanDuplikat = "persis" | "mirip";
+
+export type KandidatDuplikat = LocationIdentity & {
+  id: string;
+  /** `katalog` = baris master. `lokasi` = Location riil yang sudah berpaket. */
+  sumber: "katalog" | "lokasi";
+  /** Nama yang dikenal orang — nama Location riil, atau desa untuk katalog. */
+  nama: string;
+  kemiripan: KemiripanDuplikat;
+};
+
+/** Kecamatan cocok bila sama, ATAU salah satu sisi kosong (lihat catatan atas). */
+function kecamatanCocok(a: LocationIdentity, b: LocationIdentity): boolean {
+  const x = normLoose(a.district ?? "");
+  const y = normLoose(b.district ?? "");
+  return x === "" || y === "" || x === y;
+}
+
+/**
+ * Cari lokasi yang mungkin SAMA dengan yang hendak ditambahkan.
+ *
+ * Dipakai SEBELUM menyimpan, dan sengaja LEBIH LONGGAR daripada indeks unik di
+ * basis data. Indeks unik hanya menangkap yang hurufnya persis sama; yang
+ * benar-benar terjadi di lapangan adalah ejaan yang berbeda tipis, dan itu
+ * lolos indeks lalu menjadi dua lokasi untuk satu desa yang sama.
+ *
+ * Katalog DAN Location riil dua-duanya diperiksa: menambah baris katalog untuk
+ * desa yang sudah berjalan sebagai proyek adalah bentuk lokasi ganda yang
+ * paling merepotkan — angkanya terpecah dua tanpa ada yang sadar.
+ */
+export function cariDuplikat(
+  input: LocationIdentity,
+  katalog: (LocationIdentity & { id: string })[],
+  lokasiRiil: (LocationIdentity & { id: string; name: string })[],
+): KandidatDuplikat[] {
+  const kunci = locationKey(input);
+  const hasil: KandidatDuplikat[] = [];
+
+  const nilai = (i: LocationIdentity): KemiripanDuplikat | null => {
+    if (locationKey(i) === kunci) return "persis";
+    if (baseKey(i) === baseKey(input) && kecamatanCocok(i, input)) return "mirip";
+    return null;
+  };
+
+  for (const k of katalog) {
+    const m = nilai(k);
+    if (m) hasil.push({ ...k, sumber: "katalog", nama: k.village, kemiripan: m });
+  }
+  for (const l of lokasiRiil) {
+    const m = nilai(l);
+    if (m) hasil.push({ ...l, sumber: "lokasi", nama: l.name, kemiripan: m });
+  }
+
+  // Yang paling meyakinkan lebih dulu — itu yang menentukan boleh-tidaknya
+  // menyimpan, jadi ia tidak boleh tenggelam di bawah daftar yang cuma mirip.
+  return hasil.sort((a, b) => (a.kemiripan === b.kemiripan ? 0 : a.kemiripan === "persis" ? -1 : 1));
+}
+
+/* ------------------------------------------------------------------ */
+/* Status katalog                                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Status satu baris katalog — SELALU turunan, tidak pernah kolom yang disunting
+ * (aturan proyek: angka & status agregat wajib derived).
+ *
+ * Urutan prioritas dipilih dari "apa yang harus dilakukan orang terhadap baris
+ * ini", bukan dari kerapian: baris yang sudah terpakai tidak menunggu tindakan
+ * apa pun, sementara baris tersedia yang koordinatnya kosong menunggu
+ * diperbaiki sebelum dipakai.
+ */
+export type StatusKatalog = "terpakai" | "sudah_ada" | "perlu_verifikasi" | "tersedia";
+
+export function tanpaKoordinat(m: { latitude: unknown; longitude: unknown }): boolean {
+  return m.latitude == null || m.longitude == null;
+}
+
+export function statusKatalog(
+  m: { assignedLocationId: string | null; latitude: unknown; longitude: unknown },
+  adaLokasiRiil: boolean,
+): StatusKatalog {
+  if (m.assignedLocationId != null) return "terpakai";
+  if (adaLokasiRiil) return "sudah_ada";
+  if (tanpaKoordinat(m)) return "perlu_verifikasi";
+  return "tersedia";
+}
+
 export type CatalogItem = {
   id: string;
   province: string;

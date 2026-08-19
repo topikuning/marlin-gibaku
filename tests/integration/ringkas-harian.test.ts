@@ -34,15 +34,25 @@ vi.mock("@/lib/waha/client", async () => {
     ...actual,
     isWahaConfigured: async () => true,
     getSessionStatus: async () => ({ name: "default", status: "WORKING" }),
-    sendText: async (chatId: string, text: string) => {
-      terkirim.push({ chatId, text });
-      return "MSGID";
-    },
-    sendFile: async (chatId: string, file: { filename?: string }) => {
-      terkirim.push({ chatId, fileName: file.filename });
-    },
   };
 });
+
+/*
+ * Jalur kirim dipalsukan di `@/lib/waha/kirim`, BUKAN di `client`
+ * (DECISIONS 374). Sejak gateway kanonik ada, pemanggil fitur tidak lagi
+ * menyentuh `client` langsung: `client` tinggal transport mentah, dan `kirim`
+ * yang menumpang gateway (periksa sesi → catat outbox → simpan message id).
+ */
+vi.mock("@/lib/waha/kirim", () => ({
+  sendText: async (chatId: string, text: string) => {
+    terkirim.push({ chatId, text });
+    return "MSGID";
+  },
+  sendFile: async (chatId: string, file: { filename?: string }) => {
+    terkirim.push({ chatId, fileName: file.filename });
+    return "MSGID";
+  },
+}));
 
 // R2 mati: foto TIDAK ditanam ke PDF, tapi metadatanya tetap dihitung. Itu
 // justru jalur yang perlu diuji — dokumen harus tetap terbentuk, dan jumlah

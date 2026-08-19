@@ -17502,3 +17502,1420 @@ hasil uji**, dan yang merah bukan uji yang berubah. Satu uji sudah membersihkann
 sendiri sejak dulu; pembersihan itu diangkat ke `beforeEach` karena memang milik
 seluruh berkas. Tidak ada uji di sana yang menguji BATASnya sendiri — yang ada
 menghitung selisih baris, dan selisih tidak terganggu penolan.
+
+---
+
+## 368 — Paket & Katalog Lokasi dirombak; katalog pindah ke Master Data (2026-08-19)
+
+**Permintaan user** (dengan dua berkas rancangan, `01_paket.html` &
+`02_katalog_lokasi.html`): *"rombak halaman paket dengan referensi file 01_paket,
+dan halaman master data lokasi dengan 02_katalog. sambungkan ke menu master
+data"*, ditambah dua aturan UX yang disebut eksplisit:
+
+> *"jika koordinat belum ada, lokasi tetap bisa disimpan tetapi diberi status
+> Perlu verifikasi. Sebelum menyimpan, sistem seharusnya memeriksa duplikasi
+> berdasarkan kombinasi wilayah agar tidak membuat lokasi ganda."*
+
+### Katalog lokasi pindah rumah
+
+Dari `/paket/katalog` → `/master/lokasi`. Ia **data induk yang DIPAKAI paket**,
+bukan milik satu paket: lokasi yang sama bisa dipakai paket mana pun. Selama ia
+bersarang di bawah `/paket`, orang yang mencari "master lokasi" tidak
+menemukannya di tempat semua master lain berada. Rute lamanya `permanentRedirect`,
+tidak dihapus — alamat itu sudah beredar di tautan dan riwayat peramban, dan 404
+untuk alamat yang kemarin masih bekerja terbaca sebagai "fiturnya dihilangkan".
+
+### Dua jalur input yang tidak bercampur
+
+Sebelumnya satu-satunya jalan masuk adalah impor Excel: untuk menambahkan SATU
+desa pun orang harus membuat berkas. Sekarang **Tambah Lokasi** (laci manual) dan
+**Impor Excel** berdiri berdampingan, memakai bahasa rupa master data yang sama
+(359): ringkasan angka, bilah "perlu perhatian", daftar bersaringan, laci.
+
+### Aturan 1 — koordinat kosong ≠ ditolak
+
+Statusnya turunan, tidak pernah kolom yang disunting, dengan urutan prioritas
+**terpakai > sudah ada > perlu verifikasi > tersedia**. Urutan itu dipilih dari
+*"apa yang harus dilakukan orang terhadap baris ini"*: baris yang sudah terpakai
+tidak menunggu apa pun, sementara baris tersedia tanpa koordinat menunggu
+diperbaiki sebelum dipakai.
+
+Satu tambahan yang tidak diminta tapi menutup lubang di aturan itu: **separuh
+koordinat DITOLAK**. Lintang tanpa bujur tidak menunjuk tempat mana pun, tapi
+kolomnya terisi — sehingga barisnya lolos dari "perlu verifikasi" dan tak
+seorang pun kembali memperbaikinya. Kosong seluruhnya jujur; separuh terisi
+menipu. Koordinat di luar kotak Indonesia juga ditolak dengan menyebut sebabnya
+("periksa apakah tertukar dengan bujur") — lintang & bujur tertukar adalah salah
+ketik paling lazim, dan hasilnya titik di tengah laut yang tidak diperiksa lagi.
+
+### Aturan 2 — periksa duplikat SEBELUM menyimpan, lebih longgar dari indeks unik
+
+Indeks unik `@@unique([orgId, province, regency, district, village])` sudah ada
+sejak dulu — dan ia **tidak cukup**, karena hanya menangkap yang hurufnya persis
+sama. Lokasi ganda yang benar-benar terjadi lahir dari ejaan berbeda tipis:
+"Kedungmutih" vs "Kedung Mutih", kasus nyata di data ini.
+
+Karena itu `cariDuplikat()` membandingkan dengan normalisasi longgar (abai
+huruf besar-kecil dan spasi, kecamatan cocok bila sama ATAU salah satu kosong),
+dan memeriksa **katalog DAN Location riil** — menambah baris katalog untuk desa
+yang sudah berjalan sebagai proyek adalah bentuk lokasi ganda yang paling
+merepotkan, karena angkanya terpecah dua tanpa ada yang sadar.
+
+Dua perlakuan, sengaja berbeda:
+
+- **`persis`** tidak pernah boleh dipaksa — indeks unik akan menolaknya, jadi
+  memberi tombol "tetap simpan" cuma menjanjikan sesuatu yang berakhir dengan
+  galat mentah.
+- **`mirip`** boleh dipaksa SESUDAH kandidatnya terlihat. Desa senama di
+  kecamatan berbeda itu nyata, dan menolaknya berarti melarang data yang benar
+  demi mencegah data yang salah.
+
+Kandidatnya selalu DISEBUT, bukan sekadar ditolak: penolakan tanpa menunjukkan
+yang mana memaksa orang mencari sendiri di daftar 73 baris.
+
+### Halaman Paket: funnel + kolom Status Data
+
+Deskripsi halaman ini sudah berbunyi *"funnel paket pekerjaan: prospek → tender
+→ …"* sejak lama, tapi tidak ada satu pun tempat di layar yang memperlihatkan
+sebarannya — kalimatnya menjanjikan sesuatu yang tidak ada. Sekarang ada, dan
+tiap langkah adalah tautan saringan. Angkanya dihitung dari query terpisah,
+bukan dari baris yang tampil: funnel yang ikut menyusut saat orang memilih satu
+tahap berhenti menjadi gambaran keseluruhan.
+
+`kesiapanPaket()` diukur **terhadap TAHAPNYA**. Prospek tanpa lokasi itu wajar —
+prospek memang belum tentu jadi — dan kalau ia ikut merah, seluruh kolom merah
+pada paket yang tidak salah apa-apa. Yang benar-benar menghambat adalah paket
+yang sudah berkontrak tapi belum punya lokasi.
+
+**Versi pertama fungsi itu salah, dan ketahuan dari layar, bukan dari uji.**
+Grup WA & folder Drive ikut dihitung sebagai catatan; hasilnya di data nyata:
+SELURUH paket pelaksanaan berlencana "Perlu cek" yang sama, karena tak satu pun
+punya grup WA. Kolom yang warnanya seragam tidak membedakan apa pun, dan yang
+tidak membedakan apa pun berhenti dibaca — persis kegagalan yang komentar di
+fungsi itu sendiri peringatkan. Keduanya dikeluarkan seluruhnya; keduanya sudah
+punya kolom sendiri sejak 2026-07-30. Sesudah itu kolomnya benar-benar
+membedakan: Arsip / Perlu cek / Lengkap.
+
+Letaknya tepat sesudah Stage, bukan di ujung kanan: kolom yang harus digulir
+dulu untuk dilihat sama saja dengan tidak ada — dan tahap + kesiapan memang
+dibaca berpasangan ("pelaksanaan, tapi lokasinya belum ada").
+
+### Uji gigi, dan satu bukti tak terduga
+
+Penjaga duplikat dimatikan → uji e2e "wilayah yang sudah ada DITAHAN" merah,
+tiga uji lain tetap hijau (benar — mereka tidak bergantung padanya). Yang
+menarik: pada saat penjaga mati, basis data **menerima** baris kedua
+`bali/buleleng/gerokgak/sumberkima` di samping `Bali/Buleleng/Gerokgak/Sumberkima`
+yang sudah ada. Indeks uniknya tidak berbunyi sama sekali. Itu bukan skenario
+karangan — itu hasil mengetik nama daerah dengan huruf kecil, dan itulah persis
+alasan pemeriksaan ini harus lebih longgar daripada indeks basis data.
+
+Tiga kekeliruan uji buatan sendiri yang ikut diperbaiki, semuanya sejenis
+"hijau yang tidak membuktikan apa-apa":
+
+1. `getByText(/kosongkan keduanya/)` juga cocok dengan teks BANTUAN di formulir,
+   bukan hanya pesan galatnya — ujinya bisa hijau tanpa galat pernah muncul.
+   Diganti kalimat yang hanya ada di banner.
+2. `getByText("Sumberkima").first()` mengenai salinan tabel desktop yang sedang
+   disembunyikan CSS di ponsel (daftarnya dirender dua kali). Dibatasi ke laci.
+3. Pembuktian "tersimpan" hanya membaca kalimat sukses. Sekarang barisnya
+   dicari di daftar, dibatasi ke `region` "Daftar lokasi" — yang sekaligus
+   memberi daftar itu nama aksesibel yang memang seharusnya ia punya.
+
+Satu penjaga lama ikut bekerja tanpa diminta: `rute-terjaga.test.ts` menolak
+`/master/lokasi` karena rute baru itu belum masuk sapuan overflow mobile.
+
+---
+
+## 369 — Progress historis WhatsApp & AI Hub: `asOf` diteruskan (2026-08-19)
+
+**Temuan audit user 2026-08-19** (brief perbaikan WhatsApp & AI, terhadap commit
+`e5a3e57`). Tiga tempat menerima periode, memakainya untuk sebagian data, lalu
+mengambil angka progress **tanpa `asOf`** — yaitu posisi hari ini.
+
+Ini Fase A dari brief itu: integritas angka. Fase berikutnya (isolasi grup &
+idempotensi, gateway pengiriman & ack, grounding Ask MARLIN, perluasan sumber)
+belum dikerjakan. Fase RAG **tidak boleh dimulai tanpa persetujuan eksplisit
+user** dan bukan keputusan MARLIN saat ini.
+
+### Yang salah, dan kenapa senyap
+
+| Tempat | Sebelum | Sesudah |
+|---|---|---|
+| `dataProgress(lokasi, dateKey)` | `getLocationsProgress(ids)` | `getLocationsProgress(ids, { asOf: reportDate })` |
+| `dataDeviasi(lokasi)` | tidak menerima tanggal sama sekali | `dataDeviasi(lokasi, dateKey)` → `{ asOf }` |
+| `buildPortfolioPulse(…, startKey, endKey)` | `getLocationsProgress(locIds)` | `getLocationsProgress(locIds, { asOf })` |
+
+Tidak ada galat, tidak ada kolom kosong. Satu balasan berjudul "minggu lalu"
+memuat **status laporan minggu lalu** berdampingan dengan **realisasi hari ini**,
+dan penerimanya tidak punya cara mengetahui bahwa dua angka itu berasal dari dua
+waktu berbeda. Di WhatsApp balasan itu di-screenshot dan diteruskan ke PPK.
+
+Yang penting: jalurnya **sudah ada sejak DECISIONS 275**. `asOf` di
+`getLocationsProgress` mengatur persis dua hal yang dibutuhkan — laporan mana
+yang ikut dihitung (`report_date <= asOf`) dan minggu ke berapa tanggal itu
+jatuh. Tidak ada formula baru yang ditulis; tidak boleh ada.
+
+### Caveat yang berubah dari jujur menjadi salah
+
+Balasan deviasi dulu membawa: *"Deviasi ini posisi HARI INI; saya belum bisa
+menghitung deviasi pada [periode]."* Waktu ditulis, itu pengakuan yang benar.
+Sesudah `asOf` diteruskan, kalimat yang sama menjadi keterangan yang **keliru** —
+dan keterangan keliru yang terdengar berhati-hati lebih merusak daripada tidak
+ada keterangan sama sekali. Kalimatnya dihapus, bukan dilunakkan.
+
+Uji integrasi yang MENGUNCI kalimat itu ikut dibalik, dengan alasannya ditulis
+di tempatnya. Uji yang mengunci keterbatasan harus ikut dibalik saat
+keterbatasannya hilang; kalau tidak, ia berubah menjadi alasan mempertahankan
+cacat.
+
+### Periode yang ujungnya di masa depan dijepit
+
+`buildPortfolioPulse` memakai `asOf = min(end, hari ini)`. Periode seperti "bulan
+ini" berakhir di masa depan; tanpa penjepitan, minggu rencana melompat ke minggu
+yang belum terjadi dan deviasinya mengukur keterlambatan terhadap **masa depan** —
+angka yang memburuk sendiri tanpa ada yang salah di lapangan. Penjepitan yang
+sama sudah dipakai `endMs` untuk laporan yang diharapkan; sekarang keduanya
+memakai satu nilai, bukan dua perhitungan yang kebetulan sama.
+
+Label `sourceRef` progress ikut menyebut tanggalnya (`— progress per
+2026-06-15`). Sitasi yang tidak menyebut kapan membuat angka lampau terbaca
+sebagai angka terkini.
+
+### Kendala TIDAK ikut diperbaiki, dan itu disengaja
+
+MARLIN tidak menyimpan riwayat "kendala apa yang berstatus terbuka pada hari X" —
+`Issue` hanya punya status terkini. Menjawabnya dengan `asOf` berarti mengarang.
+Yang benar: jawab keadaan sekarang DAN katakan itu. Justru karena tetangganya
+(progress & deviasi) kini benar-benar historis, pengakuan ini makin penting —
+pembaca akan menganggap seluruh balasan historis kalau satu bagian diam-diam
+tidak.
+
+`OPEN_ISSUES` WATANYA-02 ditulis ulang dari *"hanya mengenal hari ini"* (sudah
+tidak benar) menjadi keterbatasan yang sebenarnya tersisa: snapshot status
+kendala. `docs/WAHA_SETUP.md` yang masih menulis "hanya periode hari ini" ikut
+dibetulkan.
+
+### Uji gigi
+
+`asOf` dilepas dari ketiga tempat → **6 dari 8** uji integrasi baru merah. Dua
+yang tetap hijau diperiksa terpisah, dan keduanya memang bukan penjaga cacat itu:
+
+- *"dataDeviasi memakai asOf yang SAMA dengan dataProgress"* menjaga **kesepakatan
+  antar-fungsi**; tanpa `asOf` keduanya sama-sama jatuh ke hari ini sehingga tetap
+  sepakat. Ia menggigit kalau salah satunya menyimpang sendiri.
+- *"periode masa depan dijepit"* hanya berarti setelah `asOf` ada. Diuji dengan
+  melepas penjepitnya saja → merah sendirian.
+
+---
+
+## 370 — Satu grup WhatsApp = satu paket (2026-08-19)
+
+**Temuan audit user** (brief perbaikan WhatsApp & AI, Fase B). `Package.waGroupId`
+tanpa batasan apa pun, sementara pembacaannya memakai `findFirst()` atas
+beberapa varian tulisan. Dua paket yang menunjuk grup sama membuat **paket mana
+yang menjawab ditentukan urutan baris di basis data** — data paket A bisa
+terkirim ke grup paket B, tanpa galat apa pun. Ini isolasi data, bukan kebersihan
+master data.
+
+### Akar: dua normalisasi yang tidak setuju
+
+| Fungsi | Dipakai | Perilaku |
+|---|---|---|
+| `normalizeGroupChatId()` | saat MENULIS (admin menautkan grup) | kembalikan apa adanya begitu berakhiran `@g.us` — sufiks perangkat (`:12`) & domain huruf besar lolos |
+| `normalizeChatId()` | saat MEMBACA (pesan masuk) | buang sufiks, kecilkan domain, satukan `s.whatsapp.net`→`c.us` |
+
+Karena itu bentuk tersimpan bisa **tidak pernah sama persis** dengan bentuk yang
+datang dari webhook — dan itulah sebabnya pembacaan terpaksa longgar
+(DECISIONS 348). Pencocokan longgar + `findFirst()` = pemilihan paket yang
+bergantung pada urutan baris.
+
+Sekarang satu fungsi: `kanonikGrupId()` / `wajibKanonikGrupId()`
+(`src/lib/waha/grup-id.ts`). `normalizeGroupChatId` menumpang ke sana, jadi
+seluruh pemanggil lama ikut benar tanpa perubahan lain.
+
+### Migration: kanonikkan → tolak duplikat → indeks unik
+
+Urutannya penting. Memasang indeks lebih dulu hanya menghasilkan galat
+unique-constraint yang tidak menyebut paket mana. Migrasi ini menormalkan dulu,
+lalu `RAISE EXCEPTION` yang **menyebut nama paketnya**:
+
+```
+Satu grup WhatsApp tertaut ke lebih dari satu paket. Lepaskan dulu tautan yang
+salah di Paket → Grup WhatsApp, lalu jalankan migrasi ini lagi.
+120363000000000009@g.us dipakai 2 paket: Paket Jepara, Paket Demak
+```
+
+Indeksnya TIDAK parsial dan tidak perlu: PostgreSQL menganggap setiap NULL
+berbeda, jadi paket tanpa grup tetap boleh banyak — dan bentuk non-parsial itu
+persis yang dihasilkan `@unique` Prisma, sehingga skema dan basis data tidak
+berselisih saat drift diperiksa.
+
+**Diuji pada tiga keadaan:** DB kosong (lulus); DB berisi 5 bentuk campur —
+rapi, `:12`, `@G.US`, tanpa domain, berspasi — (semua dikanonikkan benar, NULL
+dibiarkan); DB berisi dua paket menunjuk grup sama dalam tulisan berbeda
+(migrasi GAGAL dengan pesan di atas).
+
+Server action juga menolak lebih dulu dengan menyebut paket pemiliknya — galat
+unique-constraint mentah benar, dan tidak menolong siapa pun.
+
+### Uji fixture yang ikut berubah, dan alasannya
+
+`waha-ingest-chatid.test.ts` menyimpan bentuk NON-kanonik langsung ke DB untuk
+meniru baris lama. Keadaan itu kini mustahil. Fixture-nya menyimpan kanonik, dan
+yang divariasikan tinggal sisi MASUK — yang memang tetap beragam. Melonggarkan
+kembali pencocokan demi mempertahankan fixture berarti mempertahankan cacat yang
+sedang diperbaiki.
+
+---
+
+## 371 — Satu resolver kanal + identitas + scope; Super Admin & Program Director dilayani di mana pun (2026-08-19)
+
+Dua hal yang harus dikerjakan bersama, karena yang kedua mustahil aman tanpa yang
+pertama.
+
+### (a) Aturannya dulu hidup di TIGA tempat
+
+`diajakBicara()` menjawab "kapan membalas", `lingkupJawaban()` menjawab "apa yang
+boleh disebut", dan `tanya.ts` menyisipkan sendiri "di grup pengirim tidak perlu
+terdaftar" di antara keduanya. Brief 2026-08-19 melarangnya: *"Jangan menaruh
+aturan ini di dua tempat yang saling menutupi."*
+
+Sekarang satu fungsi murni `putuskanLayanan()` (`resolver-kanal.ts`)
+menghasilkan keputusan terstruktur: `diam` / `tolak` / `jawab` beserta
+`asalScope`, `lokasiIds`, `orgId`, `catatanPemotongan`, `penandaLingkup`.
+`lingkupJawaban()` **dihapus**, tidak sekadar berhenti dipakai — fungsi lama yang
+dibiarkan "untuk jaga-jaga" persis melahirkan cacat yang mau ditutup. Seluruh
+ujinya dipindahkan apa adanya, termasuk yang dibalik DECISIONS 351.
+
+### (b) Aturan baru user: dua peran dilayani di kanal mana pun
+
+| Kanal & identitas | Perilaku |
+|---|---|
+| DM, nomor/LID tak dikenal | **diam** — balasan apa pun mengonfirmasi keberadaan sistem |
+| DM, pengguna biasa | jawab sesuai penugasannya |
+| DM, super admin / program director | jawab, lingkup organisasinya |
+| Grup tertaut, siapa pun | jawab, lingkup **paket grup** — termasuk untuk peran istimewa |
+| Grup tak tertaut, biasa / tak dikenal | tolak |
+| Grup tak tertaut, peran istimewa terverifikasi | jawab, lingkup organisasinya + **penanda** |
+
+Tiga hal yang gampang salah dibaca, dan sengaja ditulis di sini:
+
+1. **Ini bukan pelonggaran untuk anggota grup.** Pengecualiannya melekat pada
+   PENGIRIM yang terverifikasi lewat nomor/LID tersimpan. Nama tampilan WhatsApp
+   tidak pernah menjadi bukti identitas.
+2. **`super_admin` ≠ seluruh basis data.** Lingkupnya tetap organisasinya
+   sendiri. Diuji dengan dua organisasi.
+3. **Di grup TERTAUT, peran istimewa tetap dipotong ke paket grup.** Balasannya
+   dibaca seluruh anggota, termasuk vendor paket itu; melebarkannya karena yang
+   bertanya kebetulan direktur berarti data paket lain bocor ke sana.
+
+Penanda lingkup ditaruh **di depan** balasan, bukan di kaki: ia menjawab "kenapa
+data ini muncul di grup yang tidak tertaut apa pun", dan itu harus terbaca
+sebelum angkanya. Brief meminta penanda tidak diulang dalam satu konteks aktif —
+itu butuh konteks per-chat yang durable, dibangun di Fase D. Sampai ada, penanda
+muncul setiap kali; mengulang keterangan yang benar jauh lebih ringan daripada
+menghilangkannya lewat tebakan "sudah pernah dikirim".
+
+Audit mencatat `asalScope` (`package_group` / `privileged_user` / `pengguna`),
+`peranDipakai`, `grup`, dan jumlah `scopeIds`.
+
+### Uji gigi — dua arah, dan arah kedua yang paling penting
+
+- Peran istimewa **dimatikan** → 4 uji unit + 4 uji integrasi merah.
+- Peran istimewa dibiarkan **bocor ke grup tertaut** (kesalahan paling mungkin
+  saat aturan ini ditambahkan) → 3 uji unit + 3 uji integrasi merah, termasuk uji
+  lintas-organisasi yang sudah ada sejak DECISIONS 351.
+
+---
+
+## 373 — Migrasi grup ganda MEMBERESKAN sendiri; pemulihan deploy diperbaiki (2026-08-19)
+
+Membalik sebagian DECISIONS 370, karena keputusan di sana benar di atas kertas
+dan salah di lapangan.
+
+### Apa yang terjadi
+
+Deploy Railway (dev) menabrak migrasi `20260819120000_wa_group_unik`, yang
+MENOLAK berjalan karena menemukan duplikat sungguhan:
+
+```
+120363427322560313@g.us dipakai 2 paket:
+Paket KNMP Bangkalan (2 lokasi), Paket KNMP Lamongan — Kemantren
+```
+
+Temuan auditnya benar — cacat isolasi data itu memang ada di data nyata. Yang
+salah adalah **cara menanganinya**: migrasi menolak supaya manusia yang
+memutuskan, padahal orang yang harus memutuskan tidak punya akses menjalankan
+perintah apa pun ke basis data itu. *"aku gak bisa jalankan perintahmu."*
+
+Pagar yang mengunci pintu dari luar bukan pagar, melainkan kerusakan kedua:
+deploy mentok, dan cacat isolasi datanya tetap hidup selama kemacetannya.
+
+### Dua kemacetan, bukan satu
+
+**(1) Data.** Migrasi kini membereskan sendiri. Pemenang dipilih dari BUKTI
+PEMAKAIAN, berurutan: (a) paling banyak arsip pesan WhatsApp — penunjuk terkuat
+"grup ini sebenarnya mengalirkan pesan ke paket mana"; (b) paling banyak lokasi
+aktif; (c) paling tua, sebagai pemutus stabil. Yang kalah dilepas tautannya.
+
+Yang membuat ini boleh dilakukan otomatis bukan kepraktisan, melainkan satu
+kenyataan: **keadaan sebelumnya sudah rusak, dan rusaknya lebih parah.** Dengan
+dua paket menunjuk satu grup, pemenangnya dipilih ulang setiap kueri oleh urutan
+baris — tidak deterministik, tidak tercatat, tidak terlihat. Migrasi ini memilih
+sekali, dengan bukti, lalu **menuliskannya ke `audit_logs`** (append-only)
+lengkap dengan nilai lama, paket pemenang, angka buktinya, dan cara memulihkan.
+Tidak ada yang dihapus: `wa_group_id` hanya penunjuk, dan paket, lokasi,
+laporan, serta arsip pesan tidak tersentuh.
+
+Terbukti di reproduksi: dari dua paket bertaut grup sama, yang menang adalah
+**paket yang punya 7 arsip pesan**, meski paket satunya 50 hari lebih tua. Bukti
+mengalahkan usia — itu memang yang diinginkan.
+
+**(2) Baris migrasi yang tercatat gagal (P3009).** Ini seharusnya sudah ditangani
+`scripts/migrate-deploy.mjs`. Ternyata **tidak pernah bisa**: ia mencari nama
+migrasi gagal lewat `prisma migrate status`, dan pada Prisma 7 perintah itu sama
+sekali tidak menyebutnya — hanya mendaftar yang belum diterapkan. Jadi
+pemulihannya selalu berhenti di *"nama migrasinya tidak terbaca"*, dan deploy
+tetap mentok persis pada keadaan yang seharusnya ia selamatkan.
+
+Namanya justru ada di keluaran `migrate deploy` sendiri (`P3009` menyebutnya di
+kalimat "…migration started at … failed", `P3018` di baris "Migration name:").
+Sekarang keluaran itulah yang dibaca lebih dulu; `migrate status` tinggal
+cadangan. Parsernya dipisah jadi fungsi murni `namaMigrasiGagal()` dan diuji
+terhadap keluaran Prisma yang **disalin apa adanya** — uji dengan teks karangan
+tidak akan pernah menangkap kegagalan ini, karena yang salah bukan pola
+regex-nya melainkan sumber teks yang dibaca.
+
+### Dibuktikan ujung ke ujung
+
+Basis data dibangun sampai keadaan MACET yang sama persis (versi lama migrasi
+dijalankan lebih dulu supaya tercatat gagal), lalu `node scripts/migrate-deploy.mjs`
+dijalankan tanpa campur tangan apa pun: pemulihan menandai rolled-back →
+migrasi baru jalan → duplikat dibereskan dengan bukti → indeks unik terpasang →
+migrasi berikutnya ikut lolos. Varian tulisan (`…:9@G.US`) juga dikenali sebagai
+grup yang sama.
+
+### Yang TIDAK dilakukan
+
+Alat diagnosa `pnpm waha:grup-ganda` tetap ada dan tetap berguna — untuk
+memeriksa keputusan yang sudah diambil migrasi, dan untuk memutuskan sendiri
+sebelum deploy bila memang ada aksesnya. Ia tidak lagi menjadi SYARAT deploy.
+
+---
+
+## 374 — Gateway pengiriman WhatsApp + rekonsiliasi `message.ack` (2026-08-19)
+
+Fase C dari brief audit user 2026-08-19.
+
+### Tiga fungsi kirim, tiga perilaku
+
+| | kembalian | periksa sesi | simpan message id |
+|---|---|---|---|
+| `sendText` | id atau `null` | tidak | kadang, oleh pemanggil |
+| `sendImage` | `void` | tidak | tidak pernah |
+| `sendFile` | `void` | tidak | tidak pernah |
+
+Akibatnya tiap pemanggil menafsirkan keberhasilan sendiri, dan sebagian UI
+menulis **"Terkirim"** begitu tidak ada galat. Padahal WAHA menjawab 2xx juga
+ketika sesinya belum login: pesannya tidak pernah keluar, dan tidak ada satu pun
+tempat di layar yang bisa membedakannya dari pesan yang benar-benar sampai.
+
+Yang paling parah justru dua jalur yang mengembalikan `void` — `sendImage` dan
+`sendFile` — karena itulah jalur laporan resmi ke grup KKP.
+
+### Satu pintu keluar
+
+`sendWaMessage()` (`gateway.ts`) menjamin: konfigurasi ada → **sesi `WORKING`
+diperiksa SEBELUM endpoint kirim disentuh** → tujuan dikanonikkan → percobaan
+dicatat di `wa_outbound` sebelum berangkat → idempotensi lewat `idempotencyKey`
+→ **message id disimpan untuk teks, gambar, DAN berkas** → kiriman yang sudah
+diterima WAHA tidak pernah dikirim ulang → galat tersimpan terstruktur.
+
+Baris outbox dibuat **sebelum** berangkat, bukan sesudah: kalau proses mati
+tepat setelah WAHA menerima tapi sebelum kita mencatat, pesannya sudah keluar
+sementara sistem tidak punya jejaknya — dan percobaan berikutnya mengirim ulang.
+
+**28 pemanggil di 6 berkas tidak disentuh satu pun.** `sendText`/`sendImage`/
+`sendFile` dipindah ke `kirim.ts` dan diarahkan ke gateway; `client.ts` tinggal
+transport mentah (`kirimMentah*`). Memigrasikan 28 tempat sekaligus berarti satu
+perubahan besar yang menyentuh setiap fitur WhatsApp — persis yang dilarang
+brief. Yang TIDAK ikut otomatis: idempotensi. Tanpa kunci dari pemanggil,
+gateway membuat kunci acak — sama seperti dulu. Mengarang kunci dari isi pesan
+akan diam-diam MENELAN kiriman sah yang kebetulan sama (pengingat harian dua
+hari berturut-turut).
+
+### "Diterima WAHA" ≠ "Terkirim"
+
+Enum-nya memisahkan keduanya, dan kata-kata UI mengikuti pemisahan itu — bukan
+sebaliknya. `distributeArtifactAction`, yang dulu mengabaikan hasil `sendText()`
+dan langsung menulis *"Terkirim ke …"*, kini berbunyi *"Sudah diserahkan ke
+WhatsApp untuk … Status sampai/dibaca menyusul di Sistem → WhatsApp."*
+
+Ada uji yang menjaga label `diterima_waha` tidak boleh memuat kata "terkirim"
+atau "sampai": kalau suatu saat diganti demi terlihat rapi, seluruh perbaikan
+ini batal tanpa satu baris kode pun berubah.
+
+### Status tidak boleh mundur
+
+Ack tiba lewat jaringan dan TIDAK dijamin berurutan — `read` bisa mendarat
+sebelum `delivered`. Kalau tiap ack ditulis apa adanya, satu pesan yang sudah
+dibaca "turun" jadi terkirim lalu naik lagi, dan riwayat yang berkedip membuat
+orang berhenti mempercayainya sama sekali.
+
+Jadi status hanya NAIK, dengan satu pengecualian yang memang final:
+gagal/ditolak menang atas status maju mana pun — ia punya bukti sendiri, dan
+menyembunyikannya karena "sudah pernah terkirim" berarti melaporkan pesan hilang
+sebagai pesan sampai. Sesudah final, ack maju tidak menghidupkannya kembali.
+
+`message.ack` ditangani di cabang webhook TERSENDIRI, sebelum ingest: ia
+mengabarkan sesuatu yang KELUAR, bukan masuk. Kalau dilewatkan ke jalur pesan,
+ia diarsipkan sebagai pesan lalu diantrekan sebagai pertanyaan — MARLIN mencoba
+menjawab tanda terimanya sendiri.
+
+Ack untuk pesan yang bukan kiriman MARLIN diabaikan dengan tenang: WAHA
+mengirim ack untuk SETIAP pesan keluar dari nomor itu, termasuk yang diketik
+manusia dari HP-nya.
+
+### 4xx = ditolak, bukan gagal
+
+WhatsApp menolak nomor tak terdaftar dengan 4xx (mis. 463). Menandainya "gagal"
+mengundang percobaan ulang yang pasti sia-sia — dan menyembunyikan bahwa
+tujuannya yang salah. Karena itu `WahaError` kini membawa kode HTTP-nya.
+
+### Uji gigi
+
+- Pemeriksaan sesi `WORKING` dilepas → 2 uji merah, termasuk yang membuktikan
+  penolakan terjadi SEBELUM jaringan disentuh.
+- Pagar anti-mundur dilepas → 2 uji unit + 1 uji integrasi merah.
+
+### Uji lama yang ikut berubah, dan alasannya
+
+Lima berkas uji memalsukan `sendText` di `@/lib/waha/client`. Sejak gateway ada,
+pemanggil fitur tidak lagi menyentuh `client` — memalsukan `client` saja membuat
+uji menembus gateway sungguhan. Mock-nya dipindah ke `@/lib/waha/kirim`, yaitu
+lapisan yang benar-benar dipakai. 97 uji sempat merah karenanya; itu bukan
+regresi produk melainkan mock yang menunjuk lapisan yang sudah berpindah.
+
+### Yang masih tersisa
+
+`message.ack` harus **diaktifkan di WAHA** untuk URL webhook yang sama. Tanpa
+itu kiriman berhenti di `Diterima WAHA` selamanya — dan itu jujur: memang tidak
+ada bukti lain yang pernah tiba. Dicatat di `docs/WAHA_SETUP.md`.
+
+---
+
+## 375 — Parser niat deterministik: yang jelas dijawab tanpa AI, yang kabur ditawarkan (2026-08-19)
+
+Fase D butir 20 & 28 dari brief perbaikan WhatsApp-AI. Dua keluhan yang
+sebenarnya satu masalah: **setiap** pertanyaan bebas memanggil provider AI.
+
+### Masalah 1 — pola yang jelas tidak butuh AI
+
+*"progress hari ini"* tidak punya tafsir kedua, tapi tetap membayar satu
+panggilan AI. Ongkosnya bukan cuma uang:
+
+1. menambah 1–3 detik sebelum balasan muncul;
+2. memakai kuota yang dibagi seluruh organisasi — satu grup ramai bisa
+   mematikan perintah paling sederhana untuk semua orang;
+3. membuat fitur ini **mati total** setiap kali provider bermasalah.
+
+Perintah sederhana seharusnya tetap jalan saat AI mati. Karena itu
+`src/lib/waha/parser-niat.ts` membaca niat + periode secara deterministik, dan
+letaknya **sebelum** guard AI di `tanya.ts` — bukan sesudah. Kalau ia ditaruh
+sesudah, "progress hari ini" tetap ikut ditolak saat kuota habis.
+
+### Masalah 2 — yang kabur DITAWARKAN, bukan ditolak
+
+Keberatan user: `niat = null → balasTidakMengerti()` terlalu cepat menyerah dan
+membuang waktu. *"bagaimana yang kemarin?"* memang tidak pasti — tapi tafsirnya
+hanya tiga, dan menyebutkan ketiganya **memakai kata yang ia tulis sendiri**
+jauh lebih menolong daripada menu kemampuan generik yang sama untuk semua orang.
+
+Keluaran parser karena itu KANDIDAT, bukan satu niat. Maksimal 3 (menu panjang
+di WhatsApp dilipat lalu dilewati). Kandidatnya tetap melewati resolver tanggal,
+izin, dan calculation layer setelah dipilih — parser ini **tidak pernah menjadi
+sumber angka**.
+
+`kendala` di daftar pilihan sengaja ditulis *"(yang masih terbuka sekarang)"*,
+bukan "kendala kemarin": MARLIN belum menyimpan riwayat status kendala
+(`WATANYA-02`), jadi menjanjikannya di menu sudah berbohong sebelum penanya
+sempat memilih.
+
+### Pagar yang membuat jalur cepat ini jujur
+
+Syaratnya dua, dan yang kedua yang menentukan:
+
+1. niatnya terbaca deterministik;
+2. **tidak ada satu kata pun yang tak terjelaskan.**
+
+Tanpa syarat 2, *"progress di Kedung"* lolos sebagai "progress" polos lalu
+dijawab untuk SELURUH lokasi — benar sebagai angka, tapi menjawab pertanyaan
+yang tidak ditanyakan, dan penerimanya tidak punya cara mengetahuinya. Kata sisa
+yang tidak cocok katalog karena itu **diserahkan ke AI**, bukan diabaikan.
+Akibatnya jalur ini hanya bisa MENGHEMAT, tidak bisa memperluas jawaban.
+
+### Akhiran ditoleransi — dan biaya yang timbul karenanya
+
+Bahasa lapangan menulis "deviasinya", "progresnya", "laporannya". Menuntut kata
+dasar telanjang berarti melempar pertanyaan yang sudah jelas ke AI hanya karena
+satu sufiks. Jadi polanya `\w*`.
+
+Tapi toleransi itu langsung merusak sesuatu: `lapor\w*` ikut menangkap "lapor"
+di dalam **"belum lapor"**, sehingga *"siapa yang belum lapor"* cocok pada DUA
+niat sekaligus (`kelengkapan` + `laporan`) dan justru dianggap ambigu.
+
+Perbaikannya bukan daftar pasangan yang di-hardcode — itu berarti tiap kata
+kunci baru diam-diam menambah lubang yang sama. Yang dipakai: **letak**. Kata
+kunci yang TERMUAT di dalam kata kunci lain menyebut satu maksud yang sama dan
+dibuang (`buangYangTermuat`); yang benar-benar bersaing menempati potongan teks
+yang TERPISAH — *"kendala apa yang bikin progress turun"* menyebut dua hal di
+dua tempat, dan itu memang layak ditimbang AI.
+
+Agar itu bekerja, pola `kelengkapan` harus mengaku seluas jangkauannya:
+`siapa yang belum` diperluas menjadi `siapa yang belum(?: lapor\w*| kirim\w*)?`.
+Selama ia berhenti di "belum", kata "lapor" tertinggal di luar dan tidak ada
+yang termuat.
+
+Pola periode disatukan jadi SATU tabel yang dipakai dua arah — dibaca dan
+dibuang. Dua daftar terpisah berarti daftar kedua yang tertinggal satu pola
+membuat kata waktu tersisa sebagai "kata tak dikenal", lalu pertanyaan yang
+sudah jelas dilempar ke AI karena kata "kemarin"-nya sendiri dianggap
+mencurigakan.
+
+### Uji gigi
+
+- `buangYangTermuat` dilepas → 2 uji merah (`siapa yang belum lapor`,
+  `minta laporan mingguan` — yang kedua diperiksa terpisah supaya terbukti
+  benar-benar dijaga, bukan sekadar terhalang assertion sebelumnya).
+- Pola `kelengkapan` dikembalikan berhenti di "belum" → 2 uji merah.
+- Pagar sisa-kata dilepas → 2 uji merah, termasuk yang membuktikan
+  *"progress hari ini di Sumberjaya"* tidak boleh melebar jadi semua lokasi.
+- Jalur deterministik dimatikan di `tanya.ts` → uji integrasi merah.
+
+### Uji lama yang ikut berubah, dan alasannya
+
+Tiga uji integrasi memakai *"mana yang deviasinya negatif"* dan
+*"siapa yang belum lapor"* untuk membuktikan pemakaian AI tercatat di
+`ai_runs`. Keduanya kini TIDAK menyentuh AI sama sekali, jadi uji itu akan
+menguji matinya AI lewat jalur yang tidak pernah memanggil AI — hijau yang tidak
+membuktikan apa pun. Pertanyaannya diganti `TANYA_BUTUH_AI`, dan ditambah satu
+uji baru yang mengunci sisi sebaliknya: pola jelas dijawab **dengan
+`aiSehat = false`**, tanpa baris `ai_runs`, dan jawabannya tetap lengkap.
+
+### Yang BELUM dikerjakan di sini
+
+Cabang `ambigu` sudah dihitung parser tapi masih diserahkan ke AI di `tanya.ts`.
+Menawarkan pilihan bernomor sebelum ada konteks klarifikasi yang durable berarti
+menyodorkan `1`/`2`/`3` yang tidak bisa dijawab — lebih buruk daripada tidak
+menawarkan. Dinyalakan bersama D2 (konteks klarifikasi per chat + pengirim).
+
+---
+
+## 376 — Klarifikasi tertunda: pilihan yang benar-benar bisa dijawab (2026-08-19)
+
+Fase D butir 21 & 22. DECISIONS 375 sudah bisa MENGHITUNG 2–3 tafsir untuk
+pertanyaan yang kabur, tapi belum punya tempat menyimpannya sampai penanya
+menjawab — jadi cabang `ambigu` masih diserahkan ke AI. Menawarkan `1`/`2`/`3`
+yang tidak bisa dipilih lebih buruk daripada tidak menawarkan sama sekali.
+
+### Kenapa DURABLE, bukan konteks di memori
+
+Pesan WhatsApp diproses lewat antrean yang boleh berpindah proses, di-restart,
+atau dijalankan ulang cron (DECISIONS 372). Konteks di memori akan hilang tepat
+pada saat ia dipakai: tawaran dikirim satu proses, jawabannya tiba di proses
+lain, dan penanya melihat MARLIN melupakan pertanyaan yang baru saja ia ajukan.
+Karena itu tabel `wa_pending_clarifications`.
+
+### Kuncinya chat + PENGIRIM, dan itu yang paling menentukan
+
+Instruksi brief, dan alasannya bukan kenyamanan. Mengunci per chat saja berarti
+di grup **siapa pun bisa mengambil alih klarifikasi orang lain dengan mengetik
+`1`** — dan jawabannya akan tampil seolah menjawab pertanyaan si penanya asli,
+tanpa ada yang bisa membedakannya.
+
+Turunannya: kalau pengirim di GRUP tidak bisa dibedakan sama sekali (tidak ada
+JID, LID, maupun nomor), klarifikasi **tidak ditawarkan** dan pertanyaannya
+diteruskan ke AI seperti sebelumnya. Menawarkannya di situ sama dengan membuka
+`1` untuk semua pembaca. Di chat pribadi tidak ada masalah itu — chat-nya
+sendiri hanya berisi satu lawan bicara.
+
+Nama tampilan WhatsApp tidak pernah menjadi kunci: siapa pun bisa mengubahnya,
+dan memakainya berarti membiarkan orang lain memakai kunci milik penanya hanya
+dengan mengganti namanya sendiri.
+
+### Menjawab `2` TIDAK memanggil AI lagi
+
+Kandidatnya sudah dihitung saat tawaran dibuat dan disimpan utuh di kolom
+`kandidat`. Membayar panggilan AI kedua untuk membaca ulang pertanyaan yang sama
+tidak menambah apa pun. Diuji dengan `aiSehat = false`: tawaran DAN jawabannya
+tetap berjalan saat provider mati total.
+
+### Apa yang dihitung sebagai "jawaban pilihan"
+
+Sengaja sempit: angka telanjang (`2`) dan imbuhan pendek (`pilih 2`, `no 2`).
+Kalimat panjang yang kebetulan memuat angka **bukan** jawaban pilihan —
+*"laporan tanggal 2"* adalah pertanyaan sungguhan, dan memperlakukannya sebagai
+pilihan berarti membajaknya dan menjawab hal yang sama sekali berbeda.
+
+### Pengikatan kutipan, dan batasnya yang jujur
+
+`ParsedWaMessage` dulu hanya membawa `balasanKepada` — SIAPA yang dibalas, bukan
+pesan MANA. Untuk mengikat jawaban ke satu tawaran, yang dibutuhkan id pesannya,
+jadi ditambah `balasanKePesanId` (`contextInfo.stanzaId` dan kerabatnya).
+
+Diperiksa hanya bila KEDUA id diketahui, dan perbandingannya toleran ujung: WAHA
+menulis id pesan keluar dalam bentuk lengkap (`true_120…@g.us_ABC`) sementara id
+yang dikutip sering hanya bagian terakhirnya. Menuntut sama persis akan menolak
+balasan yang benar-benar mengutip tawaran kita. Balasan tanpa id kutipan tetap
+diterima — kebanyakan orang cuma mengetik "1", dan sebagian engine WAHA memang
+tidak mengirimkan id itu. Ketiadaan bukti bukan bukti ketiadaan.
+
+### Kedaluwarsa 12 menit — DIKATAKAN, bukan didiamkan
+
+Brief meminta 10–15 menit. `2` yang diketik sejam kemudian hampir pasti menjawab
+percakapan lain. Tapi angka yang dibalas ke tawaran basi tidak boleh didiamkan:
+penanya baru saja mengetik "1" dan berhak tahu kenapa tidak terjadi apa-apa —
+diam di situ terbaca seperti sistem rusak. Baris basi dibuang oleh cron WAHA
+yang sudah ada.
+
+### Yang TIDAK jadi ditawarkan, dan kenapa
+
+Parser sempat memperlakukan *"laporan minggu lalu"* sebagai ambigu
+(`laporan_mingguan` vs `laporan`). Sekilas kandidat sempurna — dan dua uji
+integrasi langsung merah.
+
+Uji itu benar. Kasus ini **sudah diputus di DECISIONS 358**, sesudah keluhan
+user 2026-08-18: jawabannya laporan harian pada hari terakhir rentang, dan
+balasannya menyebut tanggal mana yang diambil beserta cara meminta rekap
+sepekan. Menawarkan pilihan berarti menarik kembali keputusan itu — menukar
+jawaban langsung yang sudah jujur dengan satu putaran tanya-jawab tambahan,
+untuk mandor yang sedang di lapangan.
+
+Cabang itu dihapus. **Tawaran pilihan untuk yang BELUM pernah diputuskan, bukan
+untuk membuka ulang yang sudah selesai.**
+
+### Uji gigi (5 arah, masing-masing merah tepat pada ujinya sendiri)
+
+- Kunci diubah jadi per CHAT saja → uji pembajakan merah.
+- Idempotensi webhook dilepas → tawaran terkirim dua kali, uji merah.
+- Pemeriksaan kedaluwarsa dilepas → tawaran basi dijalankan, uji merah.
+- Pengikatan kutipan dilepas → angka yang mengutip pesan lain dijalankan, merah.
+- `answeredAt` diabaikan → jawaban dijalankan dua kali, uji merah.
+
+### Yang BELUM
+
+D3 (Ask MARLIN multi-turn) dan D4 (klaim `answerParts` + sitasi) belum
+dikerjakan. Fase F (RAG) TIDAK boleh dimulai tanpa persetujuan user.
+
+---
+
+## 377 — Pertanyaan susulan disambung dari konteks, bukan ditanya balik (2026-08-19)
+
+Fase D butir 23. Percakapan lapangan tidak mengulang subjeknya: orang menulis
+*"progress hari ini di Kedung Mutih"*, lalu *"kalau kemarin?"*. Pertanyaan kedua
+itu benar-benar tidak berarti apa-apa sendirian — dan sesudah DECISIONS 376,
+MARLIN menawarinya daftar pilihan, padahal ia BARU SAJA menjawab pertanyaan yang
+melengkapinya.
+
+### Menyimpang dari brief, dan alasannya
+
+Brief menulis: *"6–10 pesan terakhir dipakai HANYA untuk menulis ulang
+pertanyaan susulan menjadi pertanyaan yang berdiri sendiri"*. Yang dikerjakan di
+sini lebih sempit: bukan riwayat pesan mentah yang dibaca AI, melainkan
+**pertanyaan terakhir yang sudah selesai diresolusi** — niat + nama lokasi yang
+benar-benar dipakai menjawab.
+
+Alasannya keandalan, bukan ongkos:
+
+1. **Tepat, bukan tafsir.** Kita sudah TAHU apa yang dijawab tadi. Menyuruh AI
+   menyimpulkannya kembali dari teks mentah hanya menambah kesempatan salah pada
+   informasi yang sudah pasti.
+2. **Tidak bisa mengarang lingkup.** Model yang membaca riwayat bisa memunculkan
+   nama lokasi yang tidak pernah ditulis siapa pun. Di sini tidak ada yang bisa
+   dikarang: yang tersimpan persis apa yang diketik.
+3. Susulan jadi **tidak memanggil AI sama sekali** — sejalan DECISIONS 375.
+
+Hasil yang diminta brief tetap tercapai penuh: susulan berdiri sendiri, dan
+riwayat tidak memperlebar lingkup.
+
+### Kenapa NAMA lokasi, bukan id hasil resolusi
+
+Yang disimpan nama apa adanya, lalu dicocokkan ULANG terhadap katalog yang
+berlaku saat susulan datang. Itulah yang membuat riwayat **tidak pernah bisa
+memperlebar lingkup** (syarat keras butir 23): lokasi yang sudah di luar hak
+penanya, atau di luar paket grup tempat ia bertanya sekarang, tidak akan cocok
+lagi. Menyimpan id hasil resolusi akan mengawetkan izin lama — persis kebocoran
+yang paling sulit terlihat, karena jawabannya tampak normal.
+
+Kalau nama warisan itu tidak cocok, MARLIN **mengaku tidak menemukannya**. Yang
+dilarang adalah diam-diam melebar jadi seluruh lokasi.
+
+### Yang dipinjam hanya bagian yang HILANG
+
+Nama lokasi yang ditulis di susulan SELALU menang; konteks tidak pernah
+menambahi lokasi pada pertanyaan yang sudah menyebut lokasinya sendiri.
+Periodenya selalu dari susulan — itu yang ia sebut sendiri, dan satu-satunya
+alasan ia bertanya lagi.
+
+Konteks hanya dipakai untuk pertanyaan yang memang TIDAK LENGKAP (parser
+menghasilkan kandidat, bukan satu niat). Pertanyaan utuh dijawab apa adanya —
+menafsirkan ulang masukan yang sudah lengkap adalah persis yang dilarang
+`CLAUDE.md` soal angka yang diunggah user.
+
+Kuncinya chat + PENGIRIM, sama seperti klarifikasi: konteks orang lain bukan
+konteks Anda. Umurnya 30 menit — konteks basi lebih berbahaya daripada tidak ada
+konteks, karena ia menjawab pertanyaan lama dengan percaya diri.
+
+Disimpan SESUDAH balasannya berangkat. Konteks yang tersimpan padahal jawabannya
+gagal terkirim membuat susulan menyambung ke percakapan yang — dari sisi
+penanya — tidak pernah terjadi.
+
+### Kata sambung susulan masuk daftar abaikan
+
+*"kalau kemarin?"* sempat jatuh ke AI karena kata "kalau" tersisa sebagai kata
+tak dikenal. Satu kata sambung membuat bentuk susulan yang paling lazim diketik
+dilempar ke AI — justru pada jalur yang dibuat untuk menghindarinya.
+
+### Uji gigi
+
+- Kunci konteks diubah jadi per CHAT saja (simpan DAN baca) → uji "konteks orang
+  LAIN bukan konteks Anda" merah.
+- Kedaluwarsa diabaikan → uji konteks basi merah.
+- Konteks menimpa lokasi yang disebut susulan → uji "lokasi susulan menang" merah.
+
+Percobaan pertama uji gigi pertama HIJAU dan itu salah uji-giginya, bukan
+pagarnya: hanya sisi BACA yang dirusak sementara sisi SIMPAN masih memakai kunci
+pengirim, jadi pencarian tetap meleset. Dirusak dua-duanya, ujinya merah.
+
+### Uji sendiri yang keliru, dan apa artinya
+
+Satu uji memakai lokasi "Tambakbulusan" yang tidak ada di fixture. Ia merah
+bukan karena kode salah, melainkan karena nama itu tidak pernah cocok di katalog
+mana pun — jadi pertanyaannya memang benar diserahkan ke AI. Diganti
+"Kedungmalang" (lokasi fixture yang nyata).
+
+---
+
+## 378 — Klaim TERIKAT + keyakinan deterministik + sitasi yang bisa dibaca (2026-08-19)
+
+Fase D butir 24–27. Ask MARLIN sudah punya sitasi dan `confidence` sejak
+DECISIONS 133, tapi ketiganya lemah di titik yang justru menentukan.
+
+### Cacat 1 — validasi angka mengabaikan MILIK SIAPA angka itu
+
+`numericClaimsValid` mengambil angka dari teks dengan regex, lalu
+mencocokkannya ke kolam angka resmi **seluruh lokasi**. Akibatnya *"realisasi
+Kedung Mutih 88%"* lolos hanya karena ADA lokasi lain yang realisasinya 88% —
+jawaban yang benar untuk lokasi yang salah, dan tidak ada yang bisa
+membedakannya.
+
+Turunan cacat yang sama: karena regex hanya menangkap `%`/`pp`, kolamnya WAJIB
+sesatuan persen (DECISIONS 196) — sehingga **setiap klaim hitungan** (jumlah
+laporan, jumlah kendala) lolos tanpa pernah diperiksa sama sekali.
+
+Gantinya `answerParts[].claims`: tiap bagian jawaban membawa klaimnya sendiri,
+dan tiap klaim mengikat **lima**-nya sekaligus pada SATU fakta resmi —
+`locationId` + `metric` + `value` + `periodKey` + `sourceRefId`. Mengendurkan
+satu saja membuat sisanya nyaris tak berarti:
+
+- tanpa **lokasi**, angka lokasi lain memvalidasi klaim lokasi ini;
+- tanpa **metrik**, "realisasi 55%" lolos karena rencananya 55%;
+- tanpa **periode**, angka hari ini memvalidasi klaim tentang bulan lalu;
+- tanpa **sourceRef**, pembaca tidak punya jalan memeriksanya sendiri.
+
+Karena satuannya kini diketahui per metrik, hitungan ikut divalidasi — tanpa
+toleransi: 3 kendala bukan 4.
+
+**Bagian yang menyebut angka tanpa membawa klaim juga dibuang.** Tanpa aturan
+itu model cukup berhenti mengisi `claims` dan seluruh validasi ini jadi hiasan.
+
+Bagian yang gagal DIBUANG, dan `answer` **disusun ulang** dari bagian yang
+selamat. Kalau `answer` dibiarkan apa adanya, membuang bagian tidak ada gunanya:
+kalimat yang sama tetap terbaca penanya. Ini pola yang sudah dipakai `waSummary`
+(PROJECT.md §5a), kini berlaku juga untuk jawaban Ask.
+
+### Cacat 2 — keyakinan diakui sendiri oleh model
+
+`confidence` diisi model. Angka itu tidak pernah punya arti yang bisa diperiksa:
+ia keluaran dari hal yang sama yang sedang kita ragukan. Sekarang DIHITUNG:
+**0 bila tidak ada satu pun klaim valid** (syarat keras butir 26), selebihnya
+porsi bagian yang selamat. Nilai dari model tetap diterima skema — supaya
+keluaran lama tidak gagal parse — lalu ditimpa.
+
+### Cacat 3 — sitasi tidak bisa dibaca, apalagi diklik
+
+Layar percakapan menampilkan `sourceRefId` mentah: *"sumber:
+kedung-mutih:progress"*. Itu tidak memberi tahu angka apa yang dirujuk dan tidak
+bisa dibuka. "Berbasis sumber" hanya benar di dalam kode.
+
+`sourceRefs` kini ikut tersimpan di snapshot resmi run, dan sitasi pada pesan
+percakapan disimpan **lengkap dengan label + nilai + tautannya**. Diperkaya SAAT
+MENULIS, bukan saat render: pesan hidup lebih lama daripada run-nya, dan sumber
+yang diresolusi belakangan akan berubah begitu datanya bergerak. Yang tersimpan
+adalah apa yang benar SAAT jawaban itu diberikan.
+
+### Pagar tidak boleh menghukum jawaban yang benar
+
+Kalau model harus MENEBAK sourceRef mana yang menopang metrik mana dan tanggal
+berapa yang berlaku, tebakan yang meleset membuat semua klaim ditolak dan setiap
+jawaban jatuh ke keyakinan 0 — penanya menerima "tidak punya angka bersumber"
+untuk pertanyaan yang datanya justru ada. Karena itu prompt `tanya` memuat blok
+**FAKTA YANG BOLEH DIKLAIM**: satu baris per (lokasi, metrik) lengkap dengan
+nilai, periode, dan sumbernya — persis bentuk yang dituntut validator.
+
+Uji integrasinya membaca fakta itu DARI PROMPT, bukan menghitung ulang sendiri.
+Jadi kalau format kedua sisi berubah sepihak, ujinya yang memerah.
+
+### Uji gigi
+
+Murni (5 pengikat): lokasi+metrik dilepas → merah; periode → merah; sumber →
+merah; "angka tanpa klaim" dibolehkan → merah.
+
+Terpasang (4 titik sambung): validator tidak dipanggil → 4 merah; keyakinan
+model tidak ditimpa → 3 merah; `answer` tidak disusun ulang → 2 merah; blok
+FAKTA tidak dikirim → 4 merah.
+
+**Satu pagar sempat TIDAK bermata.** `klaimValid === 0 → keyakinan 0` bisa
+dilepas tanpa satu pun uji memerah, karena uji yang ada memakai bagian yang
+DIBUANG — porsinya 0/1 = 0 dengan sendirinya. Kasus yang benar-benar
+membutuhkannya: semua bagian SELAMAT tapi tak satu pun membawa klaim (kalimat
+penghubung tanpa angka) — di situ porsi bagian selamat menghasilkan 100% untuk
+jawaban tanpa satu pun angka terverifikasi. Uji itu ditambahkan, lalu pagarnya
+merah.
+
+### Yang TIDAK diubah
+
+Kind lain (`pulse`, `deviasi`, `risiko`, `kualitas_data`, `laporan`) tetap
+memakai `numericClaimsValid` seperti sebelumnya. Memigrasikan semuanya sekaligus
+berarti satu perubahan besar yang menyentuh setiap keluaran AI — persis yang
+dilarang brief. Yang dikerjakan di sini jalur `tanya`, yang memang jadi sasaran
+butir 24–27.
+
+---
+
+## 379 — Adapter sumber: kontrak, keuangan, RAB, milestone — dipagari kapabilitas (2026-08-19)
+
+Fase E. `buildPortfolioPulse` hanya tahu progress, laporan, kendala, foto, dan
+milestone-yang-perlu-perbaikan. Empat wilayah data lain **tidak pernah dikirim
+ke AI sama sekali**, jadi *"berapa nilai kontraknya"* atau *"sudah tertagih
+berapa"* dijawab "tidak ada datanya" — padahal datanya ada, hanya tidak pernah
+sampai.
+
+### Yang paling menentukan: pagarnya KAPABILITAS, bukan scope lokasi
+
+Ditemukan saat menyiapkan adapter ini, dan ia mengubah seluruh bentuknya:
+
+> `site_manager` punya **`ai.ask`** tetapi TIDAK punya **`finance.view`** — ia
+> hanya `finance.input`.
+
+Kalau fakta keuangan disuntikkan ke setiap prompt, Site Manager bisa
+menanyakan — dan menerima — angka uang yang di layar MARLIN sendiri tidak boleh
+ia lihat. Lubang seperti itu tidak menghasilkan galat apa pun; ia hanya menjawab
+dengan sopan. `wakil_ppk` bahkan sengaja dijauhkan dari `finance.view` dengan
+alasan tertulis (uang INTERNAL pelaksana bukan urusan pemberi kerja) — melewati
+pagar itu lewat pintu AI membatalkan keputusan itu diam-diam.
+
+Jadi tiap wilayah menyebut kapabilitasnya sendiri, **sama persis dengan
+kapabilitas halaman yang menampilkan angka itu di layar**. Kalau berbeda, AI
+menjadi jalur akses kedua dengan aturan sendiri.
+
+| wilayah | pagar |
+|---|---|
+| Kontrak | `package.view` |
+| Keuangan | `finance.view` |
+| RAB | `rab.view` |
+| Milestone KKP | `package.view` |
+
+Yang tidak berhak **tidak menerima angkanya sama sekali** — bukan menerima angka
+lalu diminta tidak menyebutkannya. Prompt tidak boleh memuat apa yang tidak
+boleh keluar.
+
+### Yang ditahan DIKATAKAN
+
+Wilayah yang dilewati disebut di prompt DAN di `limitations`. Tanpa itu model
+menyimpulkan "tidak ada data keuangan" lalu menuliskannya sebagai fakta —
+jawaban yang salah untuk alasan yang tidak kelihatan. Penanya juga berhak tahu ia
+harus meminta akses, bukan mengira datanya belum diisi.
+
+Ditulis ke `limitations` terpisah dari prompt karena model bisa lupa
+menyebutkannya; baris itu tampil di layar terlepas dari apa yang model tulis.
+
+### AI tetap bukan sumber angka
+
+Tidak ada satu pun formula di `adapters.ts`. Angkanya dari `finance/calc.ts`
+(`getLocationsFinance`, `getContractsBilling`) atau dibaca apa adanya dari kolom
+yang memang menyimpannya (`Contract.contractValue`, `RabRevision.totalValue`).
+Semua query batched — pola N+1 pada run 83 lokasi berarti ratusan perjalanan
+basis data untuk satu pertanyaan.
+
+### Rupiah bertoleransi NOL, dan ada batas presisinya
+
+Uang tidak punya "kira-kira": nilai kontrak yang meleset seribu rupiah bukan
+pembulatan tampilan, dan di dokumen KKP ia dibaca sebagai angka resmi.
+
+Uang disimpan `BigInt` dan tidak pernah dihitung sebagai `number` (CLAUDE.md).
+Di adapter tidak ada aritmetika sama sekali — nilainya hanya dibandingkan
+sama-atau-tidak dengan klaim model, dan itu eksak selama di bawah
+`Number.MAX_SAFE_INTEGER`. Di atas batas itu faktanya **tidak diterbitkan**:
+menerbitkan angka yang sudah kehilangan presisi berarti memvalidasi klaim
+terhadap nilai yang bukan nilai sebenarnya — pagar yang justru meloloskan angka
+salah. Lebih baik satu fakta hilang daripada satu fakta bohong.
+
+### "Belum tertagih" sengaja TIDAK ditambahkan
+
+Angka itu berguna, tapi menghitungnya butuh Σ nilai terpasang seluruh lokasi
+satu kontrak plus alokasi proporsional untuk kontrak multi-lokasi — dan
+penjumlahan itu hari ini hidup **di dalam halaman Keuangan**
+(`src/app/(app)/keuangan/page.tsx`), bukan di `finance/calc.ts`.
+
+Menyalinnya ke adapter akan melahirkan implementasi KEDUA dari satu formula
+uang. Dua salinan berarti dua jawaban yang bisa berbeda tanpa ada yang memberi
+tahu — persis yang dilarang CLAUDE.md. Menambahkannya dengan benar berarti
+memindahkan Σ + alokasinya ke `finance/calc.ts` lebih dulu; itu perubahan
+tersendiri yang menyentuh halaman yang sudah bekerja, jadi tidak dikerjakan
+sambil lalu.
+
+### Uji gigi
+
+- Pagar kapabilitas dilepas → 2 merah, termasuk uji kebocoran uang ke Site
+  Manager.
+- Wilayah yang ditahan tidak dikatakan → 1 merah.
+- Fakta adapter tidak ikut ke payload → 5 merah.
+- Pagar presisi rupiah dilepas → 1 merah.
+
+Uji "pagar bukan tembok buta" ikut dijaga: Site Manager TETAP menerima RAB dan
+kontrak, yang memang haknya. Pagar yang menutup segalanya sama tidak bergunanya
+dengan pagar yang tidak menutup apa pun.
+
+### Batas
+
+Adapter hanya berlaku untuk kind `tanya` (Ask MARLIN), sejalan DECISIONS 378.
+Kind lain (`pulse`, `deviasi`, `risiko`, `kualitas_data`, `laporan`) belum
+menerimanya.
+
+**Jalur WhatsApp TIDAK diberi akses uang.** Menjawab nilai kontrak atau termin
+ke dalam grup WhatsApp adalah keputusan pengungkapan, bukan keputusan teknis:
+yang menentukan bukan izin penanya melainkan siapa saja yang ikut membaca di
+grup itu. Perlu diminta user secara eksplisit.
+
+---
+
+## 380 — Nasib pengingat harian dibaca dari outbox, bukan dari catatan pra-kirim (2026-08-19)
+
+Menutup sisa `WA-01`. Bukan fitur baru — menyambungkan yang sudah dibangun
+DECISIONS 374 ke layar yang selama ini tidak tahu apa-apa.
+
+### Cacatnya
+
+`DailyReminderLog.status` diisi **`"sukses"` SEBELUM pesannya berangkat**, dan
+hanya berubah menjadi `"gagal"` kalau pemanggilan `sendText` melempar. Padahal
+kegagalan yang paling berbahaya justru terjadi SESUDAH itu:
+
+```
+error 463: account restricted or missing tctoken for contact
+```
+
+WAHA menerbitkan id pesan, MARLIN mencatatnya sebagai bukti, lalu WhatsApp
+menolak sendiri karena nomor pengirim dibatasi menghubungi nomor baru.
+Penolakan itu tidak terlihat dari respons API.
+
+Panel pengingat sudah berhati-hati — ia menulis *"ada ID pesan"*, bukan
+*"sukses"*. Tapi sejak DECISIONS 374 kalimat itu **menyembunyikan yang sudah
+diketahui**: outbox mencatat `ditolak`, dan layar tetap berkata "ada ID pesan"
+yang terbaca seperti baik-baik saja.
+
+### Perbaikannya
+
+`DailyReminderLog.waMessageId` → `wa_outbound.waMessageId`, satu query untuk
+seluruh daftar. Label & nada memakai `LABEL_STATUS_KIRIM` / `NADA_STATUS_KIRIM`
+yang sudah ada — tidak ada kosakata status kedua.
+
+Dicocokkan lewat **ID PESAN**, bukan nomor tujuan. Dua orang bisa memakai satu
+nomor WhatsApp (satu HP dipakai berdua di lapangan); mencocokkan lewat nomor
+membuat status kiriman orang pertama menempel ke orang kedua.
+
+`null` bila tidak ada barisnya — kiriman lama dari sebelum outbox ada tidak
+ditebak, dan layar jatuh kembali ke kalimat lama yang jujur.
+
+Sekalian: pil hasil kirim langsung diubah dari *"terkirim + ID pesan"* menjadi
+*"diterima WAHA + ID pesan"*, sejalan DECISIONS 374 — WAHA menjawab 2xx juga
+saat sesinya belum login.
+
+### Uji gigi, dan uji sendiri yang ternyata lemah
+
+- Outbox tidak dibaca → 2 merah.
+- Dicocokkan lewat nomor tujuan → **awalnya HIJAU**.
+
+Yang kedua itu kelemahan uji, bukan pagar. Skenarionya hanya memuat baris TANPA
+id pesan, sehingga query outbox dilewati sama sekali (`idPesan.length ? … : []`)
+dan pencocokan lewat nomor pun ikut lolos — hijau yang tidak membuktikan apa
+pun. Ujinya ditulis ulang memakai dua orang dengan **nomor yang sama**, satu
+ber-id dan satu tidak; sesudah itu pencocokan lewat nomor benar-benar merah.
+
+### Yang TIDAK berubah
+
+`DailyReminderLog.status` tetap ditulis sebelum kirim. Membalik urutannya
+(kirim dulu, catat kemudian) akan mengembalikan cacat yang lebih buruk:
+kegagalan mencatat berarti pesan terkirim tanpa jejak, lalu dikirim ulang.
+Yang benar bukan memindahkan pencatatannya, melainkan membaca nasibnya dari
+tempat yang memang tahu — dan itulah yang dilakukan di sini.
+
+---
+
+## 381 — "Kendala minggu lalu" DITAWARKAN, bukan dipilihkan (2026-08-19)
+
+Menutup `WATANYA-02`. **Koreksi user**, dan koreksinya tepat: mesin klarifikasi
+(DECISIONS 376) memang dibangun untuk kasus seperti ini — lalu kasus ini justru
+dilempar balik ke user sebagai "butuh keputusan Anda".
+
+> *"kalau kamu perlu klarifikasi, kamu bisa tanyakan, jadi berikan saja opsi:
+> kamu tanya kendala-kendala minggu lalu tanpa peduli status sekarang, atau
+> kendala dari minggu lalu yang masih terbuka. begitu kan beres."*
+
+### Dua tafsir itu ternyata SAMA-SAMA bisa dijawab
+
+Alasan lama menolaknya — "butuh riwayat status yang belum dicatat" — hanya
+benar untuk tafsir KETIGA yang tidak diminta siapa pun: *"kendala apa yang
+berstatus terbuka **pada** hari X"*. Dua tafsir yang user sebut cukup memakai
+`Issue.createdAt` (kapan dibukanya) + status terkini:
+
+| niat | saringan |
+|---|---|
+| `kendala` | masih terbuka sekarang, kapan pun dibukanya (perilaku lama) |
+| `kendala_dibuka` | dibuka dalam periode itu — **apa pun** statusnya sekarang |
+| `kendala_periode_terbuka` | dibuka dalam periode itu **dan** masih terbuka |
+
+Yang tetap tidak bisa dijawab tetap tidak dijawab, dan tidak ada cabang yang
+berpura-pura bisa.
+
+### Yang berubah di perilaku
+
+*"kendala kemarin"* dulu dijawab langsung dengan SEMUA yang terbuka sekarang,
+plus catatan *"ini keadaan sekarang, bukan keadaan pada kemarin"*. Jujur — tapi
+menjawab pertanyaan yang tidak ditanyakan, padahal alat untuk bertanya balik
+sudah ada. Sekarang ia menawarkan dua pilihan; jawabannya menyusul tanpa
+panggilan AI (kandidatnya sudah tersimpan, DECISIONS 376).
+
+Kandidat ketiga pada *"bagaimana yang kemarin?"* ikut berubah dari `kendala`
+(berlabel "yang masih terbuka sekarang") menjadi `kendala_dibuka`. Label lama
+lahir ketika kendala per periode memang belum bisa dijawab; sesudah bisa, ia
+berubah dari pengakuan jujur menjadi pembatasan yang tidak perlu — orang yang
+menulis "kemarin" memang menanyakan kemarin.
+
+Judul balasan menyebut cara bacanya ("Kendala yang dibuka", "…& masih
+terbuka", "Kendala belum selesai"). Tiga daftar yang isinya bisa sangat berbeda
+di bawah satu judul yang sama membuat penanya tidak punya cara mengetahui
+pertanyaan mana yang sebenarnya dijawab.
+
+### Uji gigi
+
+- Saringan periode diabaikan → 3 merah.
+- `dibuka_periode` ikut menyaring status (jadi sama dengan tafsir kedua) → merah.
+- Batas akhir periode tidak inklusif sampai penghujung hari → **awalnya HIJAU**.
+
+Yang ketiga itu kelemahan uji: batas akhirnya dipatok pada instan yang sama
+persis dengan `createdAt` kendalanya, sehingga `lte` cocok dengan atau tanpa
+penghujung hari. Ditulis ulang memakai batas TENGAH MALAM — bentuk yang
+benar-benar dihasilkan `parseDateKey` — dan sesudah itu pagarnya merah.
+
+### Uji lama yang ikut berubah
+
+Dua uji integrasi menegaskan catatan *"masih TERBUKA sekarang"* memakai teks
+"kendala kemarin". Teks itu kini dicegat parser dan ditawari pilihan, jadi
+ujinya akan menguji cabang yang tidak pernah tercapai. Diarahkan ke pertanyaan
+yang memang lewat AI, dan ditambah dua uji baru: satu untuk tawarannya, satu
+untuk memastikan `kendala_dibuka` TIDAK memakai catatan itu (di sana catatan
+tersebut bukan lagi kejujuran, melainkan keterangan yang salah).
+
+### Cacat isolasi uji yang tersingkap — dan siapa penyebabnya
+
+Rangkaian penuh sempat merah di `tugas-harian.test.ts`, uji yang sama sekali
+tidak berhubungan. Ditelusuri sampai sebabnya, dan sebabnya BUKAN perubahan
+ini: pada `HEAD` bersih tanpa perubahan apa pun, berkas itu lulus pada basis
+data kosong lalu **merah saat dijalankan lagi tanpa dibersihkan**. Ia menegaskan
+hasil fungsi yang menyapu seluruh basis data sementara fixture-nya sengaja tidak
+dibersihkan.
+
+Yang memang salah saya: tiga berkas uji baru (DECISIONS 378–380) tidak
+mem-`TRUNCATE` seperti 20 berkas integrasi lain, karena saya mengira
+`audit_logs` yang append-only menghalanginya. Ternyata tidak — trigger
+penolakannya berlaku untuk UPDATE/DELETE, **bukan TRUNCATE**. Jadi jejak audit
+tetap tak bisa dihapus dalam pemakaian normal, sementara uji tetap bisa
+mengembalikan basis data ke keadaan bersih. Ketiganya kini mengikuti pola yang
+sama, dan rangkaian penuh hijau dua kali berturut-turut tanpa pembersihan
+manual.
+
+Dua penegasan SPMK di `tugas-harian` sekalian diperbaiki: memeriksa **nama
+paketnya sendiri** (`hasil.paket`), bukan hitungan global — lebih kuat, dan
+kebal baris asing. Sisanya dicatat di `OPEN_ISSUES` sebagai `UJI-01`.
+
+---
+
+## 382 — Fase F1+F2: pencarian narasi lapangan + kutipan verbatim (2026-08-19)
+
+Empat keputusan user 2026-08-19 (lewat pertanyaan interaktif):
+
+1. **F1 + F2 sekaligus** — pencarian kata, bukan embedding, plus pagar kutipan.
+2. **Kutipan verbatim + ditandai** — angka lapangan boleh disampaikan, asal disalin apa adanya.
+3. **Sumber**: laporan harian + itemnya, kegiatan lapangan, kendala + recovery. **Bukan** PDF.
+4. **Hanya laporan final/disetujui.**
+
+Ditambah penegasan yang mengubah desainnya:
+
+> *"yang aku larang tanpa toleransi kan mengarang angka, kalau angkanya dari
+> sumber marlin ya tidak apa AI mengirim data itu keluar."*
+
+Jadi hambatan pengungkapan yang sempat saya angkat gugur. Yang tersisa satu
+larangan, dan larangan itu kini **diperiksa mesin**, bukan diminta di prompt.
+
+### Kenapa pencarian kata, bukan embedding
+
+Diperiksa langsung pada PostgreSQL 16.13 yang dipakai: **pgvector TIDAK
+tersedia**, sementara konfigurasi teks `indonesian` bawaan **ADA** dan
+benar-benar melakukan stemming — `pengecoran` → `ecor`, `tertunda` → `tunda`,
+`terlambat` → `lambat`.
+
+Maka F1 tidak menambah ekstensi, tidak berbiaya per pertanyaan, dan tetap hidup
+saat penyedia AI mati (alasan yang sama dengan DECISIONS 375). Embedding baru
+layak ditambahkan kalau ini terbukti kurang pada pertanyaan nyata.
+
+### Indeks GENERATED, bukan tabel indeks tersendiri
+
+Tabel indeks terpisah harus DISINKRONKAN, dan sinkronisasi yang terlewat membuat
+MARLIN menjawab dari teks yang sudah dikoreksi — kesalahan paling sulit terlihat,
+karena jawabannya tampak normal DAN bersitasi.
+
+Kolom `tsv … GENERATED ALWAYS … STORED` dipelihara PostgreSQL sendiri pada setiap
+tulis, lewat jalur apa pun. Tidak ada kode sinkronisasi yang bisa lupa, tidak ada
+jendela basi. Ada ujinya: catatan diubah, potongan lama langsung hilang dari
+hasil dan yang baru langsung muncul.
+
+### OR, bukan AND — ditemukan lewat uji yang merah
+
+Versi pertama memakai `plainto_tsquery`, yang meng-AND seluruh kata. Untuk
+pertanyaan orang — *"kenapa terlambat, hujan?"* — itu menuntut catatan memuat
+"kenapa" DAN "lambat" DAN "hujan" sekaligus. Terukur: **0 hasil** terhadap
+catatan yang jelas relevan. Fiturnya akan lahir dalam keadaan tidak berguna.
+
+Sekarang lexeme di-OR-kan dan `ts_rank` yang mengurutkan — ketepatan datang dari
+PERINGKAT, bukan penyaringan kaku. Lexeme diambil dari `to_tsvector` (bukan teks
+mentah) dan disaring `^[a-z0-9]+$`, jadi operator tsquery tidak mungkin terbawa
+dari ketikan penanya.
+
+### Pagar kutipan (F2): satu-satunya larangan, diperiksa mesin
+
+- Kutipan harus **verbatim** — divalidasi sebagai potongan teks aslinya.
+  Parafrase ditolak dan bagiannya dibuang. Begitu model menyusun ulang
+  kalimatnya, tidak ada lagi cara otomatis membedakan angka yang benar-benar
+  ditulis pelapor dari angka yang dikarang.
+- Setiap **angka** harus berasal dari salah satu dari dua sumber yang keduanya
+  milik MARLIN: klaim metrik tervalidasi (calculation layer) **atau** kutipan
+  verbatim. Selain itu = karangan → bagiannya dibuang.
+- Pemeriksaannya kini menjangkau **semua angka**, bukan hanya persen.
+  `extractNumericClaims` hanya menangkap `%`/`pp`; catatan lapangan menulis
+  "cor 12 m3, tenaga 8 orang" — seluruhnya lolos tanpa pernah diperiksa.
+
+### Angka dibandingkan sebagai NILAI — ditemukan lewat uji integrasi yang merah
+
+Versi pertama membandingkan angka sebagai teks. Akibatnya klaim uang yang BENAR
+ditolak: `Rp 5.000.000.000` adalah bentuk tertulis dari `5000000000`, dan
+keyakinannya jatuh ke 0. Itu pagar yang menghukum jawaban yang tepat — persis
+yang dilarang desainnya sendiri.
+
+Sekarang keduanya di-parse (titik = ribuan, koma = desimal) lalu dibandingkan
+sebagai bilangan, dengan toleransi 0,05 untuk pembulatan tampilan. Lookbehind
+`(?<![\p{L}])` mencegah "m3" ikut terbaca sebagai angka 3 — tanpa itu bagian
+yang sah ikut dibuang.
+
+### Uji gigi
+
+Murni (4): verbatim dilepas → merah; chunkId tak dikenal diterima → merah;
+angka liar tidak diperiksa → 3 merah; `semuaAngka` dikembalikan ke persen-saja →
+2 merah.
+
+Terpasang (3): pagar lingkup dilepas → merah; pagar status dilepas (draft ikut)
+→ merah; kembali ke `plainto_tsquery` → merah.
+
+### Batas yang tetap berlaku
+
+Dokumen PDF tidak di-index (butuh ekstraksi + OCR — proyek tersendiri). Laporan
+`draft`/`perlu_koreksi` tidak pernah dicari, memakai `COUNTED_REPORT_STATUSES`
+yang sama dengan calculation layer supaya tidak lahir definisi "laporan sah"
+kedua. Lingkup disaring DI DALAM query — menyaring sesudah peringkat
+membocorkan keberadaan lokasi lain lewat jumlah hasil dan skornya.
+
+---
+
+## 383 — Pencarian narasi TERSAMBUNG ke WhatsApp (2026-08-19)
+
+**Koreksi user, dan koreksinya benar:** *"dari awal ini dibangun utamanya untuk
+whatsapp, kenapa malah belum tersambung ke whatsapp!"*
+
+DECISIONS 382 memasang pencarian narasi hanya di Ask MARLIN (dalam aplikasi),
+lalu menunda WhatsApp dengan alasan pengungkapan — padahal user sudah mencabut
+alasan itu **di pesan yang sama** yang menyetujui Fase F. Briefnya sendiri
+berjudul perbaikan WhatsApp. Menunda justru sasaran utamanya adalah kesalahan
+saya, bukan pertimbangan yang sah.
+
+### Di mana ia menyambung
+
+Bukan menggantikan jalur mana pun, melainkan menolong dua keadaan yang selama
+ini selalu berakhir menyerah:
+
+| keadaan | dulu | sekarang |
+|---|---|---|
+| AI tidak memetakan niat (`niat = null`) | "Maaf, saya belum mengerti" + menu | cari catatan; kalau ada, kutip |
+| Layanan AI mati | "sedang tidak bisa membaca pertanyaan bebas" | cari catatan; kalau ada, kutip |
+
+Urutannya sengaja begitu: niat yang dikenali TIDAK PERNAH dibajak pencarian
+catatan. Yang ditolong hanya pertanyaan yang tanpa ini berakhir tanpa jawaban —
+*"kenapa Kedung Mutih tertinggal?"*, yang jawabannya justru ada di catatan
+pelapor.
+
+Bahwa ia juga bekerja **saat AI mati** bukan bonus: pencarian catatan tidak
+memanggil provider mana pun, jadi justru di saat itulah ia paling berguna.
+Menyerah tanpa mencobanya berarti membuang jawaban yang sudah ada di tangan.
+
+### Tanpa AI sama sekali — dan itu yang membuatnya aman
+
+Yang dikirim adalah kalimat yang benar-benar ditulis pelapor, disalin bulat-
+bulat dari basis data. Tidak ada model yang merangkum, jadi **tidak ada langkah
+yang bisa mengarang** — bukan karena dilarang di prompt, melainkan karena tidak
+ada tempat untuk mengarang. Pagar kutipan verbatim DECISIONS 382 tetap dipakai
+di Ask MARLIN, tempat model memang menyusun kalimat.
+
+Balasannya selalu ditutup penanda: **kutipan catatan pelapor, bukan angka resmi
+hasil hitungan MARLIN**. Balasan WhatsApp di-screenshot dan diteruskan ke PPK;
+angka di dalam catatan ("tenaga 8 orang") adalah kata pelapor, dan tanpa
+penanda itu pembacanya memperlakukannya sebagai angka resmi. Pemotongan kutipan
+yang terlalu panjang juga disebut — kutipan yang dipangkas diam-diam bisa
+membalik artinya.
+
+Lingkupnya `katalog`, yaitu daftar yang sudah dipotong izin penanya dan paket
+grup. Jadi pencarian tidak pernah punya jangkauan lebih luas daripada jawaban
+lain di kanal yang sama.
+
+### Uji gigi
+
+- Pencarian catatan dilepas dari jalur `niat = null` → 2 merah.
+- Dilepas dari jalur AI mati → 1 merah.
+- Penanda "kutipan catatan pelapor" dilepas → 1 merah.
+- Lingkup tidak dipotong katalog → 4 merah.
+
+### Kesalahan kerja yang perlu dicatat
+
+Saat memulihkan uji gigi ketiga saya memakai `git checkout` pada berkas yang
+perubahannya BELUM di-commit, sehingga `balasNarasi` terhapus dan seluruh uji
+memerah. Ketahuan karena langkah "PULIH" ikut merah — itulah gunanya selalu
+menjalankan pemulihan sebagai langkah tersendiri, bukan menganggapnya pasti
+berhasil. Fungsinya ditulis ulang, lalu hijau.
+
+---
+
+## 384 — Indeks narasi jadi INDEKS EKSPRESI, bukan kolom tersimpan (2026-08-19)
+
+**Keputusan.** Migrasi `20260819200000_narasi_pencarian` DIUBAH sebelum menyentuh
+produksi: tidak lagi menambah kolom `tsv GENERATED ALWAYS ... STORED`, melainkan
+membuat **indeks ekspresi** `GIN (to_tsvector('indonesian', coalesce(...)))`.
+Migrasi susulan `20260819210000_narasi_buang_kolom_tsv` membuang kolom `tsv`
+yang terlanjur ada di basis data dev.
+
+### Kenapa — soalnya KUNCI, bukan kecepatan
+
+Versi pertama bekerja dan seluruh ujinya hijau. Yang tidak diperiksa: apa yang
+terjadi pada basis data yang **sudah berisi banyak data**.
+
+`ALTER TABLE ... ADD COLUMN ... GENERATED ... STORED` menulis ulang SELURUH tabel
+sambil memegang kunci `ACCESS EXCLUSIVE`. Selama itu, baca **dan** tulis pada
+tabel `daily_reports` mati — dan `daily_reports` adalah tabel yang disentuh
+hampir setiap halaman MARLIN. `CREATE INDEX` biasa memegang kunci `SHARE`:
+menulis tertahan, membaca tetap jalan.
+
+Diukur langsung di PostgreSQL 16.13 pada basis data khusus berisi 100.000
+laporan harian + 500.000 item laporan:
+
+| | kolom GENERATED + GIN | indeks ekspresi |
+|---|---|---|
+| Waktu migrasi | 13,2 detik | **8,5 detik** |
+| Kunci | `ACCESS EXCLUSIVE` — baca & tulis MATI | `SHARE` — **baca tetap jalan** |
+| Tambahan ukuran | 49 MB + 168 MB | **24 MB + 91 MB** |
+| Indeks terpakai | ya | ya (`Bitmap Index Scan`) |
+
+Indeks ekspresi menang di setiap sumbu. Tapi yang menentukan keputusan ini bukan
+"lebih cepat 4,7 detik" — melainkan beda antara **aplikasi lambat sebentar** dan
+**aplikasi mati sebentar**. Pada produksi berisi data, itu beda yang sebenarnya
+terasa, dan tidak ada satu pun uji di repo ini yang bisa menangkapnya, karena
+basis data uji selalu kosong.
+
+Bonus: kesegaran jadi lebih kuat, bukan lebih lemah. Tidak ada lagi salinan
+tsvector tersimpan yang secara prinsip bisa basi — tsvector dihitung saat query
+dari kolom teks aslinya.
+
+### Harga yang dibayar: ekspresinya harus SAMA PERSIS
+
+Perencana hanya memakai indeks ekspresi kalau ekspresi di query identik dengan
+yang diindeks — termasuk `coalesce(..., '')` dan urutan penggabungan judul +
+catatan. Kalau bergeser satu huruf, PostgreSQL **tidak mengeluh**; ia diam-diam
+memindai seluruh tabel. Tidak ada galat, hanya lambat, jadi tidak akan ketahuan
+sendiri — dan di basis data uji yang kecil tidak terasa sama sekali.
+
+Karena itu ekspresinya ditulis SEKALI sebagai `EKSPRESI_TSV` di
+`src/lib/narasi/cari.ts`, dipakai query dari situ, dan dijaga uji integrasi yang
+menjalankan `EXPLAIN` dengan `SET LOCAL enable_seqscan = off` lalu menuntut nama
+indeksnya muncul di rencana. `SET LOCAL` di dalam transaksi, bukan `SET` polos:
+Prisma memakai kolam koneksi, jadi `SET` polos bisa mendarat di koneksi yang
+berbeda dengan `EXPLAIN`-nya dan ujinya lolos tanpa pernah mematikan seqscan.
+
+### Uji gigi
+
+- `coalesce(dr.notes, '')` diubah jadi `coalesce(dr.notes, ' ')` → **1 merah**
+  (`daily_reports_tsv_idx` hilang dari rencana). Penting: 13 uji fungsional
+  lainnya TETAP HIJAU — pencariannya masih benar, hanya kehilangan indeks. Itu
+  persis jenis kerusakan yang tidak akan ketahuan tanpa uji ini.
+
+### Diperiksa juga sebelum menyentuh produksi
+
+- `prisma migrate deploy` pada basis data KOSONG menerapkan 65 migrasi sampai
+  tuntas, dan `migrate diff` tidak menunjukkan selisih apa pun pada kelima tabel
+  narasi (jadi menghapus deklarasi `tsv Unsupported("tsvector")` dari
+  `schema.prisma` tidak menimbulkan drift).
+- Pada basis data yang SUDAH memakai bentuk lama (dev), `20260819210000`
+  membuang kolomnya; pada basis data yang belum (produksi), berkas itu no-op —
+  `DROP COLUMN IF EXISTS` hanya menyentuh katalog, tidak menulis ulang tabel.
+- Kelima cabang query terbukti memakai indeksnya lewat `EXPLAIN`.
+
+### Catatan kerja
+
+Versi pertama lolos seluruh uji dan lolos tinjauan saya sendiri. Yang
+memunculkan masalahnya bukan uji, melainkan pertanyaan user: *"pastikan tidak
+ada masalah, ini di production dan sudah banyak data"*. Uji di repo ini berjalan
+pada basis data kosong, jadi seluruh kelas kesalahan "aman saat kosong, merusak
+saat penuh" tidak terjangkau olehnya — satu-satunya cara menemukannya adalah
+mengukur pada data sebesar produksi, dan itu harus dilakukan dengan sengaja.
+
+### Tambahan: kegagalan pencarian TIDAK boleh menjatuhkan jalur balasan
+
+Ditemukan saat memeriksa risiko produksi, bukan lewat uji: `cariNarasi`
+dipasang persis di jalur MENYERAH (niat tak dikenali; penyedia AI mati). Jalur
+itu sebelum DECISIONS 383 **selalu** berhasil mengirim sesuatu — "saya belum
+mengerti". Dengan pencarian di dalamnya, satu lemparan apa pun dari query itu
+mengubah jalur yang dulu selalu menjawab menjadi jalur yang diam. Di lapangan,
+diam lebih buruk daripada keadaan sebelum fiturnya ada.
+
+Karena itu kedua pemanggil (`waha/tanya.ts` dan `ai-hub/runs.ts`) memakai
+`cariNarasiAman()`: kegagalan diturunkan jadi "tidak ada catatan yang cocok",
+sehingga perilakunya kembali persis ke sebelum 383. Galatnya **tidak ditelan
+diam-diam** — dicatat ke log server, supaya kerusakan yang sesungguhnya tetap
+terlihat.
+
+Ini sekaligus jaring untuk satu hal yang tidak bisa diperiksa dari sini: query
+memakai konfigurasi teks `indonesian`. Konfigurasi itu ADA pada PostgreSQL yang
+dipakai pengembangan (bawaan snowball), tapi baru bisa dipastikan di server
+produksi sesudah deploy. Kalau ternyata tidak ada, yang terjadi adalah
+pencarian catatan mati dan MARLIN kembali menjawab seperti sebelumnya — bukan
+balasan WhatsApp yang berhenti sama sekali.
+
+Uji gigi: `try/catch` dilepas → **1 merah** (`invalid input syntax for type
+uuid`), dan uji pendampingnya menjaga jalur amannya tidak berubah jadi "selalu
+kosong".

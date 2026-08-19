@@ -3,6 +3,7 @@ import { cache } from "react";
 import { db } from "@/lib/db";
 import { accessibleLocationIds, requireUser, type SessionUser } from "@/lib/auth/session";
 import { packageScopeWhere } from "@/lib/auth/scope";
+import { PACKAGE_STAGE_LABEL } from "@/lib/lifecycle";
 import type { PackageStage } from "@/generated/prisma/enums";
 
 /**
@@ -83,6 +84,13 @@ export type PackageStats = {
   tender: number;
   berkontrak: number;
   totalHps: bigint;
+  /**
+   * Jumlah paket PER TAHAP — bahan bilah funnel di daftar paket
+   * (DECISIONS 368). Dihitung sekali di sini, bukan dari baris yang tampil di
+   * layar: daftarnya bisa tersaring, dan funnel yang ikut menyusut saat orang
+   * memilih satu tahap berhenti menjadi gambaran keseluruhan.
+   */
+  perStage: Record<PackageStage, number>;
 };
 
 /** KPI ringkas daftar paket (ter-scope sama dengan daftarnya). HPS total tidak menghitung paket batal. */
@@ -91,7 +99,7 @@ export async function getPackageStats(
   scopedLocationIds: string[] | null,
 ): Promise<PackageStats> {
   const scope = packageScopeWhere(user, scopedLocationIds);
-  const [total, tender, berkontrak, hps] = await Promise.all([
+  const [total, tender, berkontrak, hps, perStageRaw] = await Promise.all([
     db.package.count({ where: scope }),
     db.package.count({ where: { ...scope, stage: "tender" } }),
     db.package.count({ where: { ...scope, stage: { in: BERKONTRAK_STAGES } } }),
@@ -99,8 +107,17 @@ export async function getPackageStats(
       where: { ...scope, stage: { not: "batal" } },
       _sum: { hpsValue: true },
     }),
+    db.package.groupBy({ by: ["stage"], where: scope, _count: { _all: true } }),
   ]);
-  return { total, tender, berkontrak, totalHps: hps._sum.hpsValue ?? 0n };
+
+  // Tahap yang TIDAK punya paket tetap muncul dengan nol. Funnel yang
+  // melompati tahap kosong membuat orang mengira tahap itu tidak ada.
+  const perStage = Object.fromEntries(
+    (Object.keys(PACKAGE_STAGE_LABEL) as PackageStage[]).map((s) => [s, 0]),
+  ) as Record<PackageStage, number>;
+  for (const row of perStageRaw) perStage[row.stage] = row._count._all;
+
+  return { total, tender, berkontrak, totalHps: hps._sum.hpsValue ?? 0n, perStage };
 }
 
 /**
