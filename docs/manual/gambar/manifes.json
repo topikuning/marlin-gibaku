@@ -1,0 +1,56 @@
+[
+  {
+    "id": "masuk",
+    "keterangan": "Layar masuk. Isi nama pengguna dan kata sandi yang diberikan admin.",
+    "peran": "sm-01",
+    "lebar": "ponsel"
+  },
+  {
+    "id": "hari-ini",
+    "keterangan": "Halaman Hari Ini — daftar pekerjaan yang perlu dilaporkan hari ini, langsung terbuka setelah masuk.",
+    "peran": "sm-01",
+    "lebar": "ponsel"
+  },
+  {
+    "id": "foto-cepat",
+    "keterangan": "Foto Cepat — jepret dulu, pilih itemnya belakangan. Dipakai saat sedang di lapangan dan tidak sempat mengisi apa pun.",
+    "peran": "sm-01",
+    "lebar": "ponsel"
+  },
+  {
+    "id": "lokasi-ringkasan",
+    "keterangan": "Ringkasan satu lokasi: nilai kontrak, periode, rencana, realisasi, dan deviasi.",
+    "peran": "sm-01",
+    "lebar": "ponsel"
+  },
+  {
+    "id": "rencana-mingguan",
+    "keterangan": "Rencana Mingguan — target volume per pekerjaan untuk minggu berjalan, dibandingkan realisasi laporan harian.",
+    "peran": "sm-01",
+    "lebar": "ponsel"
+  },
+  {
+    "id": "beranda",
+    "keterangan": "Beranda — ringkasan seluruh portofolio yang menjadi tanggung jawab Anda.",
+    "peran": "hery",
+    "lebar": "layar"
+  },
+  {
+    "id": "progress-ringkasan",
+    "keterangan": "Progress sebuah lokasi: kurva-S di kiri, rencana vs realisasi per minggu di kanan, prognosa di bawahnya.",
+    "peran": "pm-01",
+    "lebar": "layar"
+  },
+  {
+    "id": "progress-kendala",
+    "keterangan": "Tertinggal & Kendala — sepuluh item dengan nilai kekurangan terbesar, lalu catatan kendala dan aksi pemulihannya.",
+    "peran": "pm-01",
+    "lebar": "layar"
+  },
+  {
+    "id": "perbarui-kurva-s",
+    "keterangan": "Alur Perbarui Kurva-S: lima langkah bernomor. Selama belum ditekan Terapkan, tidak ada satu pun angka resmi yang berubah.",
+    "peran": "pm-01",
+    "lebar": "layar"
+  }
+]

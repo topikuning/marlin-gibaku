@@ -20,6 +20,8 @@
     "db:reset": "tsx scripts/guarded-reset.ts",
     "test": "vitest",
     "test:e2e": "playwright test",
+    "manual:tangkap": "tsx scripts/manual/tangkap.ts",
+    "manual:bangun": "tsx scripts/manual/bangun.ts",
     "docs:permission": "tsx scripts/gen-permission-matrix.mts",
     "audit:ahsp": "tsx scripts/audit-ahsp.mts",
     "ahsp:siapkan": "tsx scripts/siapkan-ahsp.mts"
@@ -62,6 +64,7 @@
     "@vitejs/plugin-react": "6.0.3",
     "eslint": "9.39.5",
     "eslint-config-next": "16.2.10",
+    "marked": "18.0.7",
     "prisma": "7.8.0",
     "tailwindcss": "4.3.2",
     "tsx": "4.23.1",
