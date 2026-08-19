@@ -18207,3 +18207,90 @@ untuk membuka ulang yang sudah selesai.**
 
 D3 (Ask MARLIN multi-turn) dan D4 (klaim `answerParts` + sitasi) belum
 dikerjakan. Fase F (RAG) TIDAK boleh dimulai tanpa persetujuan user.
+
+---
+
+## 377 — Pertanyaan susulan disambung dari konteks, bukan ditanya balik (2026-08-19)
+
+Fase D butir 23. Percakapan lapangan tidak mengulang subjeknya: orang menulis
+*"progress hari ini di Kedung Mutih"*, lalu *"kalau kemarin?"*. Pertanyaan kedua
+itu benar-benar tidak berarti apa-apa sendirian — dan sesudah DECISIONS 376,
+MARLIN menawarinya daftar pilihan, padahal ia BARU SAJA menjawab pertanyaan yang
+melengkapinya.
+
+### Menyimpang dari brief, dan alasannya
+
+Brief menulis: *"6–10 pesan terakhir dipakai HANYA untuk menulis ulang
+pertanyaan susulan menjadi pertanyaan yang berdiri sendiri"*. Yang dikerjakan di
+sini lebih sempit: bukan riwayat pesan mentah yang dibaca AI, melainkan
+**pertanyaan terakhir yang sudah selesai diresolusi** — niat + nama lokasi yang
+benar-benar dipakai menjawab.
+
+Alasannya keandalan, bukan ongkos:
+
+1. **Tepat, bukan tafsir.** Kita sudah TAHU apa yang dijawab tadi. Menyuruh AI
+   menyimpulkannya kembali dari teks mentah hanya menambah kesempatan salah pada
+   informasi yang sudah pasti.
+2. **Tidak bisa mengarang lingkup.** Model yang membaca riwayat bisa memunculkan
+   nama lokasi yang tidak pernah ditulis siapa pun. Di sini tidak ada yang bisa
+   dikarang: yang tersimpan persis apa yang diketik.
+3. Susulan jadi **tidak memanggil AI sama sekali** — sejalan DECISIONS 375.
+
+Hasil yang diminta brief tetap tercapai penuh: susulan berdiri sendiri, dan
+riwayat tidak memperlebar lingkup.
+
+### Kenapa NAMA lokasi, bukan id hasil resolusi
+
+Yang disimpan nama apa adanya, lalu dicocokkan ULANG terhadap katalog yang
+berlaku saat susulan datang. Itulah yang membuat riwayat **tidak pernah bisa
+memperlebar lingkup** (syarat keras butir 23): lokasi yang sudah di luar hak
+penanya, atau di luar paket grup tempat ia bertanya sekarang, tidak akan cocok
+lagi. Menyimpan id hasil resolusi akan mengawetkan izin lama — persis kebocoran
+yang paling sulit terlihat, karena jawabannya tampak normal.
+
+Kalau nama warisan itu tidak cocok, MARLIN **mengaku tidak menemukannya**. Yang
+dilarang adalah diam-diam melebar jadi seluruh lokasi.
+
+### Yang dipinjam hanya bagian yang HILANG
+
+Nama lokasi yang ditulis di susulan SELALU menang; konteks tidak pernah
+menambahi lokasi pada pertanyaan yang sudah menyebut lokasinya sendiri.
+Periodenya selalu dari susulan — itu yang ia sebut sendiri, dan satu-satunya
+alasan ia bertanya lagi.
+
+Konteks hanya dipakai untuk pertanyaan yang memang TIDAK LENGKAP (parser
+menghasilkan kandidat, bukan satu niat). Pertanyaan utuh dijawab apa adanya —
+menafsirkan ulang masukan yang sudah lengkap adalah persis yang dilarang
+`CLAUDE.md` soal angka yang diunggah user.
+
+Kuncinya chat + PENGIRIM, sama seperti klarifikasi: konteks orang lain bukan
+konteks Anda. Umurnya 30 menit — konteks basi lebih berbahaya daripada tidak ada
+konteks, karena ia menjawab pertanyaan lama dengan percaya diri.
+
+Disimpan SESUDAH balasannya berangkat. Konteks yang tersimpan padahal jawabannya
+gagal terkirim membuat susulan menyambung ke percakapan yang — dari sisi
+penanya — tidak pernah terjadi.
+
+### Kata sambung susulan masuk daftar abaikan
+
+*"kalau kemarin?"* sempat jatuh ke AI karena kata "kalau" tersisa sebagai kata
+tak dikenal. Satu kata sambung membuat bentuk susulan yang paling lazim diketik
+dilempar ke AI — justru pada jalur yang dibuat untuk menghindarinya.
+
+### Uji gigi
+
+- Kunci konteks diubah jadi per CHAT saja (simpan DAN baca) → uji "konteks orang
+  LAIN bukan konteks Anda" merah.
+- Kedaluwarsa diabaikan → uji konteks basi merah.
+- Konteks menimpa lokasi yang disebut susulan → uji "lokasi susulan menang" merah.
+
+Percobaan pertama uji gigi pertama HIJAU dan itu salah uji-giginya, bukan
+pagarnya: hanya sisi BACA yang dirusak sementara sisi SIMPAN masih memakai kunci
+pengirim, jadi pencarian tetap meleset. Dirusak dua-duanya, ujinya merah.
+
+### Uji sendiri yang keliru, dan apa artinya
+
+Satu uji memakai lokasi "Tambakbulusan" yang tidak ada di fixture. Ia merah
+bukan karena kode salah, melainkan karena nama itu tidak pernah cocok di katalog
+mana pun — jadi pertanyaannya memang benar diserahkan ke AI. Diganti
+"Kedungmalang" (lokasi fixture yang nyata).

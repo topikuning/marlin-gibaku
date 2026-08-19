@@ -33,6 +33,7 @@ import {
   catatIdTawaran,
   simpanTawaran,
 } from "./klarifikasi";
+import { ambilKonteks, simpanKonteks } from "./konteks-lanjutan";
 import {
   balasAmbigu,
   balasBantuan,
@@ -454,7 +455,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
   }
 
   let niat: Terbaca;
-  let jalur: "klarifikasi" | "deterministik" | "ai";
+  let jalur: "klarifikasi" | "lanjutan" | "deterministik" | "ai";
 
   /*
    * (6a) JAWABAN atas tawaran klarifikasi — diperiksa PALING DULU.
@@ -501,18 +502,49 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
       };
     } else if (rencana.jenis === "ambigu") {
       /*
-       * (6b) TAFSIRNYA lebih dari satu — TAWARKAN, jangan menyerah.
+       * (6b) PERTANYAAN SUSULAN — dilengkapi dari konteks, bukan ditanya balik
+       * (DECISIONS 377).
        *
-       * Keberatan user 2026-08-19: `niat = null → balasTidakMengerti()`
-       * terlalu cepat menyerah dan membuang waktu penanya. Tawarannya durable
-       * dan terikat CHAT + PENGIRIM, jadi `1` benar-benar bisa dijawab — dan
-       * tidak bisa dibajak orang lain di grup yang sama.
+       * Percakapan lapangan tidak mengulang subjeknya: *"progress hari ini di
+       * Kedung Mutih"* lalu *"kalau kemarin?"*. Menawarkan daftar pilihan di
+       * situ berarti menanyakan sesuatu yang BARU SAJA kita jawab sendiri.
+       *
+       * Yang dipinjam hanya bagian yang HILANG. Nama lokasi yang ditulis di
+       * susulan SELALU menang: konteks tidak pernah menambahi lokasi pada
+       * pertanyaan yang sudah menyebut lokasinya sendiri.
        */
-      const simpan = await simpanTawaran(m, teks, rencana.kandidat);
-      if (simpan.jenis === "sudah") {
-        // Webhook yang sama diproses ulang: tawarannya sudah dikirim.
-        // Mengirim lagi berarti dua daftar pilihan untuk satu pertanyaan.
-        return { dijawab: false, alasan: "tawaran klarifikasi sudah pernah dikirim" };
+      const konteks = await ambilKonteks(m);
+      if (konteks) {
+        jalur = "lanjutan";
+        const disebutSusulan = rencana.kandidat[0].lokasiDisebut;
+        niat = {
+          niat: konteks.niat,
+          lokasiDisebut: disebutSusulan.length > 0 ? disebutSusulan : konteks.lokasiDisebut,
+          // Periodenya SELALU dari pertanyaan susulan — itu yang ia sebut
+          // sendiri, dan satu-satunya alasan ia bertanya lagi.
+          periode: rencana.kandidat[0].periode,
+        };
+        await audit(user?.id ?? null, "waha.tanya.lanjutan", "wa_message", m.waMessageId, {
+          chatId: m.chatId,
+          pertanyaan: teks,
+          niatDipinjam: konteks.niat,
+          lokasiDipinjam: niat.lokasiDisebut,
+        });
+      } else {
+        /*
+         * TAFSIRNYA lebih dari satu dan tidak ada konteks — TAWARKAN, jangan
+         * menyerah.
+         *
+         * Keberatan user 2026-08-19: `niat = null → balasTidakMengerti()`
+         * terlalu cepat menyerah dan membuang waktu penanya. Tawarannya durable
+         * dan terikat CHAT + PENGIRIM, jadi `1` benar-benar bisa dijawab — dan
+         * tidak bisa dibajak orang lain di grup yang sama.
+         */
+        const simpan = await simpanTawaran(m, teks, rencana.kandidat);
+        if (simpan.jenis === "sudah") {
+          // Webhook yang sama diproses ulang: tawarannya sudah dikirim.
+          // Mengirim lagi berarti dua daftar pilihan untuk satu pertanyaan.
+          return { dijawab: false, alasan: "tawaran klarifikasi sudah pernah dikirim" };
       }
       if (simpan.jenis === "disimpan") {
         const idPesan = await sendText(
@@ -540,6 +572,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
       const t = await bacaLewatAi();
       if ("dijawab" in t) return t;
       niat = t;
+      }
     } else {
       jalur = "ai";
       const t = await bacaLewatAi();
@@ -689,6 +722,20 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
     m.chatId,
     keputusan.penandaLingkup ? `${keputusan.penandaLingkup}\n\n${balasan}` : balasan,
   );
+
+  /*
+   * Pertanyaan ini menjadi KONTEKS untuk susulan berikutnya (DECISIONS 377).
+   *
+   * Disimpan SESUDAH balasannya berangkat, bukan sebelum: konteks yang
+   * tersimpan padahal jawabannya gagal terkirim akan membuat "kalau kemarin?"
+   * menyambung ke percakapan yang — dari sisi penanya — tidak pernah terjadi.
+   *
+   * Yang disimpan nama lokasi APA ADANYA seperti ia ketik, bukan id hasil
+   * resolusi. Nama harus dicocokkan ulang terhadap katalog yang berlaku saat
+   * susulan datang; menyimpan id akan mengawetkan izin lama.
+   */
+  await simpanKonteks(m, niat.niat, niat.lokasiDisebut);
+
   await audit(user?.id ?? null, "waha.tanya", "wa_message", m.waMessageId, {
     chatId: m.chatId,
     grup,

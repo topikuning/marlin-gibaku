@@ -154,7 +154,23 @@ mempercepat, tidak pernah melebarkan jawaban: "progress di Kedung Mutih" tidak
 akan berubah diam-diam menjadi progress seluruh lokasi.
 
 Di **Sistem → WhatsApp**, jejak audit tiap jawaban menyebut `jalur`:
-`deterministik` (tanpa AI), `klarifikasi` (jawaban atas pilihan), atau `ai`.
+`deterministik` (tanpa AI), `lanjutan` (susulan yang disambung dari konteks),
+`klarifikasi` (jawaban atas pilihan), atau `ai`.
+
+**Pertanyaan susulan** (DECISIONS 377)
+
+Anda tidak perlu mengulang subjeknya. Setelah bertanya *"progress hari ini di
+Kedung Mutih"*, cukup tulis *"kalau kemarin?"* — MARLIN menyambungnya sendiri
+(niatnya dipinjam dari pertanyaan sebelumnya, tanggalnya dari yang baru Anda
+tulis), tanpa memanggil AI.
+
+- Berlaku **30 menit**; sesudah itu MARLIN menawarkan pilihan seperti biasa.
+- Milik **Anda saja** — konteks orang lain di grup yang sama tidak terpakai.
+- Kalau susulan Anda menyebut lokasi sendiri, lokasi itu yang dipakai; konteks
+  tidak pernah menambahinya.
+- Konteks **tidak pernah memperlebar** apa yang boleh Anda lihat. Lokasi yang
+  kini di luar penugasan Anda (atau di luar paket grup tempat Anda bertanya)
+  tidak akan muncul — MARLIN mengaku tidak menemukannya.
 
 **Pertanyaan yang kabur DITAWARI pilihan** (DECISIONS 376)
 

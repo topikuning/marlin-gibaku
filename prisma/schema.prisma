@@ -1795,6 +1795,40 @@ model WaPendingClarification {
   @@map("wa_pending_clarifications")
 }
 
+/// KONTEKS PERTANYAAN TERAKHIR — supaya pertanyaan susulan bisa berdiri
+/// sendiri (DECISIONS 377).
+///
+/// Yang disimpan adalah pertanyaan yang SUDAH selesai diresolusi: niatnya dan
+/// nama lokasi APA ADANYA seperti diketik. Sengaja nama, bukan id lokasi hasil
+/// resolusi — nama harus dicocokkan ulang terhadap katalog yang berlaku SAAT
+/// susulan datang, sehingga riwayat tidak pernah bisa memperlebar lingkup.
+/// Lokasi yang sudah di luar hak penanya (atau di luar paket grupnya) tidak
+/// akan cocok lagi, dan itu memang yang benar.
+model WaChatContext {
+  id String @id @default(uuid()) @db.Uuid
+
+  chatId    String @map("chat_id")
+  /// Sama seperti klarifikasi: chat + PENGIRIM, bukan chat saja. Konteks orang
+  /// lain tidak boleh menjadi konteks pertanyaan Anda.
+  senderKey String @map("sender_key")
+
+  /// Niat pertanyaan terakhir yang berhasil dijawab.
+  niat String
+
+  /// Nama lokasi apa adanya seperti diketik penanya (`string[]`).
+  lokasiDisebut Json @map("lokasi_disebut")
+
+  /// Konteks basi lebih berbahaya daripada tidak ada konteks: ia menjawab
+  /// pertanyaan lama dengan percaya diri.
+  expiresAt DateTime @map("expires_at") @db.Timestamptz
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@unique([chatId, senderKey])
+  @@index([expiresAt])
+  @@map("wa_chat_contexts")
+}
+
 /// OUTBOX kiriman WhatsApp — satu-satunya pintu keluar (DECISIONS 374).
 ///
 /// Sebelumnya tiap pemanggil menafsirkan keberhasilan sendiri: `sendText`

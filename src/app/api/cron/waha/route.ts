@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { prosesAntrean, ringkasAntreanWa } from "@/lib/waha/antrean";
 import { bersihkanKlarifikasiBasi } from "@/lib/waha/klarifikasi";
+import { bersihkanKonteksBasi } from "@/lib/waha/konteks-lanjutan";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -48,7 +49,8 @@ export async function POST(req: Request) {
      * menumpuk membuat tabel itu tumbuh selamanya untuk data berumur 12 menit.
      */
     const klarifikasiDibuang = await bersihkanKlarifikasiBasi();
-    return NextResponse.json({ ok: true, ...hasil, sisa, klarifikasiDibuang });
+    const konteksDibuang = await bersihkanKonteksBasi();
+    return NextResponse.json({ ok: true, ...hasil, sisa, klarifikasiDibuang, konteksDibuang });
   } catch (err) {
     console.error("[cron/waha] gagal:", err);
     return NextResponse.json(

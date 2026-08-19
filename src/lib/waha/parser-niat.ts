@@ -300,6 +300,10 @@ const KATA_ABAIKAN = new Set(
     "status kondisi lokasi lokasinya tempat titik proyek pekerjaan gak nggak tidak bukan " +
     "negatif positif minus turun naik terbesar tertinggi terendah terburuk parah paling " +
     "pak bu bapak ibu halo hai selamat pagi siang sore malam terima kasih min admin marlin " +
+    // Penyambung pertanyaan SUSULAN — "kalau kemarin?", "terus minggu lalu?".
+    // Tanpa ini satu kata sambung membuat susulan yang paling lazim diketik
+    // dilempar ke AI, justru pada jalur yang dibuat untuk menghindarinya.
+    "kalau kalo klo terus trus lalu nah oke ok juga sama gimana bagaimana yg " +
     "hari harinya dengan dgn sampai saat waktu jam total ringkasan rekap detail rinci").split(" "),
 );
 

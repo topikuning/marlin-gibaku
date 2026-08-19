@@ -239,6 +239,9 @@ beforeEach(async () => {
   // Tawaran klarifikasi juga durable (DECISIONS 376): tawaran yang tersisa dari
   // uji sebelumnya akan membuat "1" di uji berikutnya menjawab pertanyaan lain.
   await db.waPendingClarification.deleteMany({});
+  // Konteks susulan juga durable (DECISIONS 377): konteks sisa uji sebelumnya
+  // akan membuat "kalau kemarin?" menyambung ke pertanyaan yang salah.
+  await db.waChatContext.deleteMany({});
 });
 
 describe("kapan MARLIN benar-benar membalas", () => {
@@ -1570,5 +1573,157 @@ describe("klarifikasi tertunda — pilihan yang benar-benar bisa dijawab (DECISI
       select: { payload: true },
     });
     expect((pilih?.payload as { pilihan?: number } | null)?.pilihan).toBe(3);
+  });
+});
+
+
+describe("pertanyaan susulan — dilengkapi dari konteks (DECISIONS 377)", () => {
+  const pribadi = () => `${nomorSM}@c.us`;
+
+  it('"bagaimana yang kemarin?" MENYAMBUNG pertanyaan sebelumnya, bukan ditanya balik', async () => {
+    /*
+     * Percakapan lapangan tidak mengulang subjeknya. Menawarkan daftar pilihan
+     * di sini berarti menanyakan sesuatu yang BARU SAJA kita jawab sendiri.
+     */
+    await jawabPertanyaanWa(
+      event({ chatId: pribadi(), dari: nomorSM, teks: "progress hari ini" }),
+    );
+    terkirim.length = 0;
+
+    aiSehat = false; // menyambung konteks tidak boleh memanggil AI
+    await jawabPertanyaanWa(
+      event({ chatId: pribadi(), dari: nomorSM, teks: "bagaimana yang kemarin?" }),
+    );
+    const teks = terkirim.at(-1)?.teks ?? "";
+    expect(teks).not.toContain("Maksud Anda yang mana?");
+    expect(teks).toContain("Progress");
+  });
+
+  it("periode diambil dari SUSULAN, niat dari konteks", async () => {
+    await jawabPertanyaanWa(
+      event({ chatId: pribadi(), dari: nomorSM, teks: "ada kendala apa" }),
+    );
+    terkirim.length = 0;
+    await jawabPertanyaanWa(
+      event({ chatId: pribadi(), dari: nomorSM, teks: "kalau kemarin?" }),
+    );
+    // Niat "kendala" dipinjam; periodenya yang ia sebut sendiri.
+    expect(terkirim.at(-1)?.teks ?? "").toContain("Kendala");
+  });
+
+  it("lokasi yang DISEBUT di susulan menang atas konteks", async () => {
+    // Konteks tidak pernah menambahi lokasi pada pertanyaan yang sudah
+    // menyebut lokasinya sendiri.
+    await jawabPertanyaanWa(
+      event({ chatId: pribadi(), dari: nomorSM, teks: "progress hari ini di Kedung Mutih" }),
+    );
+    terkirim.length = 0;
+    await jawabPertanyaanWa(
+      event({ chatId: pribadi(), dari: nomorSM, teks: "bagaimana Kedungmalang kemarin?" }),
+    );
+    const teks = terkirim.at(-1)?.teks ?? "";
+    expect(teks).toContain("Kedungmalang");
+    expect(teks).not.toContain("Kedung Mutih");
+  });
+
+  it("konteks TIDAK memperlebar lingkup ke lokasi di luar hak penanya", async () => {
+    /*
+     * Syarat keras brief butir 23, dan alasan konteks menyimpan NAMA bukan id
+     * hasil resolusi: nama dicocokkan ULANG terhadap katalog yang berlaku saat
+     * susulan datang. Di sini konteks dibuat seolah penanya tadi bertanya
+     * tentang lokasi milik organisasi LAIN.
+     */
+    // "Batah Timur" milik Paket Tetangga di organisasi LAIN — di luar katalog
+    // Site Manager, apa pun isi konteksnya.
+    const lokasiLain = await db.location.findFirstOrThrow({
+      where: { package: { orgId: orgLainId } },
+      select: { name: true },
+    });
+    await db.waChatContext.create({
+      data: {
+        chatId: pribadi(),
+        senderKey: `${nomorSM}@c.us`,
+        niat: "progress",
+        lokasiDisebut: [lokasiLain.name],
+        expiresAt: new Date(Date.now() + 10 * 60_000),
+      },
+    });
+    terkirim.length = 0;
+
+    await jawabPertanyaanWa(
+      event({ chatId: pribadi(), dari: nomorSM, teks: "bagaimana yang kemarin?" }),
+    );
+    const teks = terkirim.at(-1)?.teks ?? "";
+    // Namanya tidak cocok di katalog penanya → MENGAKU tidak menemukan.
+    // Yang DILARANG adalah diam-diam melebar jadi seluruh lokasi.
+    expect(teks).toContain("tidak menemukan lokasi");
+    // Yang DILARANG: diam-diam melebar jadi seluruh lokasi penanya.
+    expect(teks).not.toContain("Kedung Mutih");
+  });
+
+  it("konteks orang LAIN bukan konteks Anda", async () => {
+    const ORANG_LAIN = "6289822222222";
+    await jawabPertanyaanWa(
+      event({
+        chatId: GRUP_A,
+        dari: nomorSM,
+        teks: "ada kendala apa",
+        mention: [`${NOMOR_MARLIN}@c.us`],
+      }),
+    );
+    terkirim.length = 0;
+
+    // Orang lain bertanya susulan di grup yang sama — tidak boleh mewarisi
+    // konteks milik penanya sebelumnya.
+    niatPalsu = { niat: null, lokasiDisebut: [], periode: "hari_ini" };
+    await jawabPertanyaanWa(
+      event({
+        chatId: GRUP_A,
+        dari: ORANG_LAIN,
+        teks: "bagaimana yang kemarin?",
+        mention: [`${NOMOR_MARLIN}@c.us`],
+      }),
+    );
+    // Ditawari pilihan (konteksnya sendiri kosong), BUKAN dijawab "kendala".
+    expect(terkirim.at(-1)?.teks ?? "").toContain("Maksud Anda yang mana?");
+  });
+
+  it("konteks BASI tidak dipakai — ditawari pilihan seperti biasa", async () => {
+    /*
+     * Konteks basi lebih berbahaya daripada tidak ada konteks: ia menjawab
+     * pertanyaan lama dengan percaya diri.
+     */
+    await jawabPertanyaanWa(
+      event({ chatId: pribadi(), dari: nomorSM, teks: "ada kendala apa" }),
+    );
+    await db.waChatContext.updateMany({
+      where: { chatId: pribadi() },
+      data: { expiresAt: new Date(Date.now() - 60_000) },
+    });
+    terkirim.length = 0;
+
+    await jawabPertanyaanWa(
+      event({ chatId: pribadi(), dari: nomorSM, teks: "bagaimana yang kemarin?" }),
+    );
+    expect(terkirim.at(-1)?.teks ?? "").toContain("Maksud Anda yang mana?");
+  });
+
+  it("konteks disimpan SESUDAH balasan berangkat, dan jejaknya tercatat", async () => {
+    await jawabPertanyaanWa(
+      event({ chatId: pribadi(), dari: nomorSM, teks: "progress hari ini di Kedung Mutih" }),
+    );
+    const k = await db.waChatContext.findFirst({ where: { chatId: pribadi() } });
+    expect(k?.niat).toBe("progress");
+    expect(k?.lokasiDisebut).toEqual(["kedung mutih"]);
+
+    await jawabPertanyaanWa(
+      event({ chatId: pribadi(), dari: nomorSM, teks: "bagaimana yang kemarin?" }),
+    );
+    const jejak = await db.auditLog.findFirst({
+      where: { action: "waha.tanya.lanjutan" },
+      orderBy: { createdAt: "desc" },
+      select: { payload: true },
+    });
+    expect((jejak?.payload as { niatDipinjam?: string } | null)?.niatDipinjam).toBe("progress");
   });
 });
