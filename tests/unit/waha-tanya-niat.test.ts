@@ -30,11 +30,19 @@ import {
   balasTidakMengerti,
 } from "@/lib/waha/tanya-format";
 
+const lok = (
+  id: string,
+  nama: string,
+  kabupaten: string,
+  provinsi: string,
+  kecamatan: string | null = null,
+): LokasiKatalog => ({ id, nama, desa: nama, kecamatan, kabupaten, provinsi });
+
 const KATALOG: LokasiKatalog[] = [
-  { id: "1", nama: "Kedung Mutih" },
-  { id: "2", nama: "Kedungmalang" },
-  { id: "3", nama: "Tengket" },
-  { id: "4", nama: "Batah Timur" },
+  lok("1", "Kedung Mutih", "Demak", "Jawa Tengah"),
+  lok("2", "Kedungmalang", "Jepara", "Jawa Tengah"),
+  lok("3", "Tengket", "Bangkalan", "Jawa Timur"),
+  lok("4", "Batah Timur", "Bangkalan", "Jawa Timur"),
 ];
 
 describe("skema niat", () => {
@@ -127,6 +135,99 @@ describe("pencocokan nama lokasi", () => {
     expect(r.cocok).toHaveLength(1);
   });
 
+  it("nama KABUPATEN dikenali, bukan dijawab 'tidak menemukan lokasi'", () => {
+    /*
+     * Keluhan user 2026-08-19: *"apa jember kemarin laporan?"* dijawab "Saya
+     * tidak menemukan lokasi: jember. Mungkin salah ketik" — padahal Jember
+     * kabupaten, dan lokasinya ada. Orang lapangan menyebut daerah, bukan cuma
+     * nama titik proyek (DECISIONS 367).
+     */
+    const c = cocokkanLokasi("Bangkalan", KATALOG);
+    expect(c.jenis).toBe("wilayah");
+    expect(c.jenis === "wilayah" && c.wilayah.tingkat).toBe("kabupaten");
+    expect(c.jenis === "wilayah" && c.wilayah.lokasi.map((l) => l.id).sort()).toEqual(["3", "4"]);
+  });
+
+  it("nama PROVINSI juga dikenali", () => {
+    const c = cocokkanLokasi("jawa tengah", KATALOG);
+    expect(c.jenis === "wilayah" && c.wilayah.tingkat).toBe("provinsi");
+    expect(c.jenis === "wilayah" && c.wilayah.lokasi.map((l) => l.id).sort()).toEqual(["1", "2"]);
+  });
+
+  it("awalan 'kabupaten'/'kab.' diabaikan di kedua sisi", () => {
+    // Penanya menulis sesukanya; data menyimpan "Bangkalan" polos.
+    for (const ketik of ["Kabupaten Bangkalan", "kab. bangkalan", "KAB BANGKALAN"]) {
+      const c = cocokkanLokasi(ketik, KATALOG);
+      expect(c.jenis, ketik).toBe("wilayah");
+    }
+  });
+
+  it("wilayah berisi SATU lokasi = sama saja menyebut lokasinya", () => {
+    // Tidak perlu berkata "Kabupaten Demak — 1 lokasi"; itu cerewet tanpa guna.
+    const c = cocokkanLokasi("Demak", KATALOG);
+    expect(c.jenis === "tepat" && c.lokasi.id).toBe("1");
+  });
+
+  it("nama LOKASI menang atas nama wilayah — yang khusus mengalahkan yang luas", () => {
+    // Kalau ada lokasi yang namanya persis "Demak", itulah yang dimaksud,
+    // bukan seluruh Kabupaten Demak.
+    const katalog = [...KATALOG, lok("5", "Demak", "Demak", "Jawa Tengah")];
+    const c = cocokkanLokasi("Demak", katalog);
+    expect(c.jenis === "tepat" && c.lokasi.id).toBe("5");
+  });
+
+  it("satu kata cocok di DUA tingkat dengan isi berbeda → balik bertanya", () => {
+    /*
+     * Kecamatan Bangkalan (1 lokasi) di dalam Kabupaten Bangkalan (2 lokasi).
+     * Memilih sendiri menghasilkan jawaban yang benar untuk daerah yang salah,
+     * dan penanya tidak punya cara mengetahuinya.
+     */
+    const katalog = [
+      lok("3", "Tengket", "Bangkalan", "Jawa Timur", "Bangkalan"),
+      lok("4", "Batah Timur", "Bangkalan", "Jawa Timur", "Arosbaya"),
+    ];
+    const c = cocokkanLokasi("Bangkalan", katalog);
+    expect(c.jenis).toBe("ambigu_wilayah");
+    expect(c.jenis === "ambigu_wilayah" && c.pilihan.map((p) => p.tingkat)).toEqual([
+      "kecamatan",
+      "kabupaten",
+    ]);
+  });
+
+  it("dua tingkat yang isinya PERSIS SAMA tidak jadi pertanyaan tanpa beda", () => {
+    /*
+     * Desa Sepulu di Kecamatan Sepulu: satu lokasi yang sama, dua tingkat.
+     * Bertanya "maksud Anda desa atau kecamatan?" tidak menambah apa pun.
+     *
+     * Nama lokasinya sengaja BUKAN "Sepulu" — kalau sama, lapis nama sudah
+     * menjawab lebih dulu dan uji ini lolos tanpa pernah menyentuh jalur yang
+     * dimaksud.
+     */
+    const katalog = [
+      { ...lok("3", "Tanjung Bumi", "Bangkalan", "Jawa Timur", "Sepulu"), desa: "Sepulu" },
+      lok("4", "Batah Timur", "Bangkalan", "Jawa Timur", "Arosbaya"),
+    ];
+    const c = cocokkanLokasi("Sepulu", katalog);
+    expect(c.jenis === "tepat" && c.lokasi.id).toBe("3");
+  });
+
+  it("resolusi mencatat perluasan wilayah supaya balasan bisa mengakuinya", () => {
+    const r = resolusiLokasi(["Bangkalan"], KATALOG);
+    expect(r.cocok.map((l) => l.id).sort()).toEqual(["3", "4"]);
+    expect(r.wilayah).toEqual([
+      { diketik: "Bangkalan", tingkat: "kabupaten", nama: "Bangkalan", jumlah: 2 },
+    ]);
+  });
+
+  it("wilayah di luar izin penanya tetap tidak dikenal", () => {
+    // Pemotongan izin terjadi SEBELUM pencocokan; menyebut kabupaten tidak
+    // boleh jadi jalan pintas melewatinya.
+    const sempit = KATALOG.filter((l) => l.id === "3");
+    const r = resolusiLokasi(["Jawa Tengah"], sempit);
+    expect(r.cocok).toHaveLength(0);
+    expect(r.tidakDikenal).toEqual(["Jawa Tengah"]);
+  });
+
   it("katalog yang sudah dipotong izin membuat lokasi luar jadi 'tidak dikenal'", () => {
     // Penting: pemotongan izin terjadi SEBELUM pencocokan, sehingga lokasi di
     // luar hak penanya tidak pernah bisa disebut — bahkan namanya.
@@ -154,12 +255,37 @@ describe("balasan yang mengaku, bukan menebak", () => {
     expect(t).toContain("Kedungmalang");
     expect(t.toLowerCase()).toContain("nama lengkap");
   });
+
+  it("ambigu antar TINGKAT wilayah menyebut jumlah lokasinya", () => {
+    // Jumlah lokasi itulah beda yang menentukan pilihan penanya; tanpa angka
+    // itu kedua pilihan terlihat sama saja.
+    const t = balasAmbigu(
+      [],
+      [
+        {
+          diketik: "Bangkalan",
+          pilihan: [
+            { tingkat: "kecamatan", nama: "Bangkalan", lokasi: [KATALOG[2]] },
+            { tingkat: "kabupaten", nama: "Bangkalan", lokasi: [KATALOG[2], KATALOG[3]] },
+          ],
+        },
+      ],
+    );
+    expect(t).toContain("Kecamatan Bangkalan (1 lokasi)");
+    expect(t).toContain("Kabupaten Bangkalan (2 lokasi)");
+  });
 });
 
 describe("balasan berdata selalu jujur soal batasnya", () => {
   const opts = {
     catatanPemotongan: "Jawaban ini hanya mencakup Paket X.",
-    resolusi: { cocok: [], ambigu: [], tidakDikenal: ["Surabaya"] },
+    resolusi: {
+      cocok: [],
+      wilayah: [],
+      ambigu: [],
+      ambiguWilayah: [],
+      tidakDikenal: ["Surabaya"],
+    },
   };
 
   it("pemotongan lingkup ikut tercetak di SETIAP jenis balasan", () => {
@@ -188,6 +314,36 @@ describe("balasan berdata selalu jujur soal batasnya", () => {
       balasKelengkapan({ tanggal: "17 Agu 2026", perlu: [], total: 3 }, batas),
     ];
     for (const t of semua) expect(t).toContain("15 dari 40");
+  });
+
+  it("perluasan WILAYAH ikut tercetak di SETIAP jenis balasan", () => {
+    /*
+     * Menjawab 2 lokasi untuk pertanyaan yang menyebut satu kata — tanpa
+     * mengatakan kata itu sebuah kabupaten — membuat penanya mengira ia sedang
+     * membaca angka SATU lokasi. Di WhatsApp balasan itu di-screenshot dan
+     * diteruskan apa adanya ke PPK (DECISIONS 367).
+     */
+    const w = {
+      resolusi: {
+        cocok: [KATALOG[2], KATALOG[3]],
+        wilayah: [
+          { diketik: "bangkalan", tingkat: "kabupaten" as const, nama: "Bangkalan", jumlah: 2 },
+        ],
+        ambigu: [],
+        ambiguWilayah: [],
+        tidakDikenal: [],
+      },
+    };
+    const semua = [
+      balasKendala({ tanggal: "17 Agu 2026", baris: [], lokasiDiperiksa: 2 }, w),
+      balasProgress({ tanggal: "17 Agu 2026", baris: [] }, w),
+      balasDeviasi({ tanggal: "17 Agu 2026", negatif: [], diperiksa: 2 }, w),
+      balasKelengkapan({ tanggal: "17 Agu 2026", perlu: [], total: 0 }, w),
+    ];
+    for (const t of semua) {
+      expect(t).toContain("Kabupaten Bangkalan");
+      expect(t).toContain("2 lokasi");
+    }
   });
 
   it("kendala kosong menyebut BERAPA lokasi diperiksa, bukan cuma 'tidak ada'", () => {

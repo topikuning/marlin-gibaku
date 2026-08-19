@@ -1,4 +1,4 @@
-import { NIAT_LABEL, type HasilResolusi, type Niat } from "./tanya-niat";
+import { LABEL_TINGKAT, NIAT_LABEL, type HasilResolusi, type Niat } from "./tanya-niat";
 
 /**
  * Perakit BALASAN WhatsApp — MURNI, dari angka yang SUDAH dihitung
@@ -51,6 +51,18 @@ export type OpsiKaki = {
 
 function kaki(opts: OpsiKaki): string {
   const b: string[] = [];
+  /*
+   * Perluasan wilayah disebut DULUAN, dan tidak pernah dilewati.
+   *
+   * Menjawab 5 lokasi untuk pertanyaan yang menyebut satu kata — tanpa
+   * mengatakan kata itu sebuah kabupaten — membuat penanya mengira ia sedang
+   * membaca angka SATU lokasi. Di WhatsApp balasan itu diteruskan apa adanya.
+   */
+  for (const w of opts.resolusi?.wilayah ?? []) {
+    b.push(
+      `ℹ️ "${w.diketik}" saya baca sebagai ${LABEL_TINGKAT[w.tingkat]} ${w.nama} — ${w.jumlah} lokasi.`,
+    );
+  }
   if (opts.resolusi && opts.resolusi.tidakDikenal.length > 0) {
     b.push(
       `⚠️ Tidak saya kenali: ${opts.resolusi.tidakDikenal.join(", ")} — mungkin salah ketik, atau di luar penugasan Anda.`,
@@ -85,10 +97,26 @@ export function balasTidakMengerti(): string {
  * Bukan memilih yang pertama: itu menghasilkan jawaban yang benar untuk lokasi
  * yang salah, dan penanya tidak punya cara mengetahuinya.
  */
-export function balasAmbigu(ambigu: HasilResolusi["ambigu"]): string {
+export function balasAmbigu(
+  ambigu: HasilResolusi["ambigu"],
+  ambiguWilayah: HasilResolusi["ambiguWilayah"] = [],
+): string {
   const b = ambigu.map(
     (a) => `"${a.diketik}" bisa berarti: ${a.kandidat.map((k) => k.nama).join(", ")}`,
   );
+  /*
+   * Satu kata yang cocok di dua TINGKAT wilayah sekaligus — mis. Kecamatan
+   * Demak (1 lokasi) di dalam Kabupaten Demak (4 lokasi). Jumlah lokasinya
+   * ikut disebut karena itulah beda yang menentukan pilihan penanya; tanpa
+   * angka itu, kedua pilihan terlihat sama saja.
+   */
+  for (const a of ambiguWilayah) {
+    b.push(
+      `"${a.diketik}" bisa berarti: ${a.pilihan
+        .map((p) => `${LABEL_TINGKAT[p.tingkat]} ${p.nama} (${p.lokasi.length} lokasi)`)
+        .join(", ")}`,
+    );
+  }
   return ["Nama lokasinya belum pasti:", "", ...b, "", "Tolong sebut nama lengkapnya."].join("\n");
 }
 

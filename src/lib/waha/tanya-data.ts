@@ -72,10 +72,26 @@ export async function katalogLokasi(
 ): Promise<LokasiKatalog[]> {
   const rows = await db.location.findMany({
     where: { ...locationScopeWhere(user, lokasiIds), isActive: true },
-    select: { id: true, name: true },
+    // Wilayah ikut supaya penanya boleh menyebut daerah, bukan cuma nama titik
+    // proyek — "apa jember kemarin laporan?" (DECISIONS 367).
+    select: {
+      id: true,
+      name: true,
+      village: true,
+      district: true,
+      regency: true,
+      province: true,
+    },
     orderBy: { name: "asc" },
   });
-  return rows.map((r) => ({ id: r.id, nama: r.name }));
+  return rows.map((r) => ({
+    id: r.id,
+    nama: r.name,
+    desa: r.village,
+    kecamatan: r.district,
+    kabupaten: r.regency,
+    provinsi: r.province,
+  }));
 }
 
 /* ------------------------------------------------------------------ */

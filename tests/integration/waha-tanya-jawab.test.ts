@@ -80,14 +80,17 @@ async function buatPaket(oid: string, nama: string, waGroupId: string | null) {
   return db.package.create({ data: { orgId: oid, name: `${nama} ${suffix}`, waGroupId } });
 }
 
-async function buatLokasi(packageId: string, nama: string) {
+async function buatLokasi(packageId: string, nama: string, regency = "Kab") {
   const l = await db.location.create({
     data: {
       packageId,
       name: nama,
       slug: `${nama.toLowerCase().replace(/\s+/g, "")}-${suffix}`,
       village: nama,
-      regency: "Kab",
+      // Kabupaten SUNGGUHAN, bukan "Kab" untuk semua: penanya lapangan menyebut
+      // daerah, dan kabupaten yang seragam membuat perilaku itu tak teruji
+      // (DECISIONS 367).
+      regency,
       province: "Prov",
       // `isActive` default-nya FALSE di skema; lokasi non-aktif tidak menagih
       // laporan dan sengaja tidak masuk katalog jawaban.
@@ -152,10 +155,10 @@ beforeAll(async () => {
   const pkgB = await buatPaket(orgId, "Paket B", null);
   const pkgLain = await buatPaket(orgLainId, "Paket Tetangga", GRUP_LAIN_ORG);
 
-  lokA1 = await buatLokasi(pkgA.id, "Kedung Mutih");
-  lokA2 = await buatLokasi(pkgA.id, "Kedungmalang");
-  lokB1 = await buatLokasi(pkgB.id, "Tengket");
-  await buatLokasi(pkgLain.id, "Batah Timur");
+  lokA1 = await buatLokasi(pkgA.id, "Kedung Mutih", "Demak");
+  lokA2 = await buatLokasi(pkgA.id, "Kedungmalang", "Demak");
+  lokB1 = await buatLokasi(pkgB.id, "Tengket", "Bangkalan");
+  await buatLokasi(pkgLain.id, "Batah Timur", "Bangkalan");
 
   // Site Manager: ditugaskan ke SELURUH lokasi org (A1, A2, B1).
   const sm = await buatUser(orgId, "SiteManager", "site_manager", nomorSM);
@@ -180,10 +183,24 @@ afterAll(async () => {
   await db.$disconnect();
 });
 
-beforeEach(() => {
+beforeEach(async () => {
   terkirim.length = 0;
   aiSehat = true;
   niatPalsu = { niat: "deviasi", lokasiDisebut: [], periode: "hari_ini" };
+  /*
+   * Kuota AI (20 analisis/jam/pengguna) dinolkan tiap uji.
+   *
+   * Tanpa ini, JUMLAH uji di berkas ini ikut menentukan hasilnya: uji-uji awal
+   * menghabiskan jatah SiteManager, lalu uji yang jauh di bawah menerima
+   * "Batas 20 analisis AI per jam tercapai" alih-alih jawaban yang sedang
+   * diperiksa. Persis itu yang terjadi saat dua uji kabupaten ditambahkan —
+   * uji yang merah bukan uji yang berubah. Satu uji sudah membersihkannya
+   * sendiri sejak dulu; pembersihan itu memang milik seluruh berkas.
+   *
+   * Tidak ada uji di sini yang menguji BATASnya sendiri — yang ada menghitung
+   * SELISIH baris ai_runs, dan selisih tidak terganggu penolan.
+   */
+  await db.aiRun.deleteMany({});
 });
 
 describe("kapan MARLIN benar-benar membalas", () => {
@@ -353,6 +370,47 @@ describe("nama lokasi di pertanyaan", () => {
     const teks = terkirim[0]?.teks ?? "";
     expect(teks.toLowerCase()).toContain("tidak menemukan lokasi");
     expect(teks).not.toContain("Kedung Mutih");
+  });
+
+  it("nama KABUPATEN dijawab, bukan 'tidak menemukan lokasi'", async () => {
+    /*
+     * Keluhan user 2026-08-19 dari WhatsApp sungguhan: *"apa jember kemarin
+     * laporan?"* → *"Saya tidak menemukan lokasi: jember. Mungkin salah ketik,
+     * atau di luar penugasan Anda."* Padahal Jember kabupaten, dan lokasinya
+     * ada. Katalog nama saja tidak cukup — orang lapangan menyebut daerah.
+     */
+    niatPalsu = { niat: "progress", lokasiDisebut: ["Demak"], periode: "hari_ini" };
+    await jawabPertanyaanWa(
+      event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: "progress di Demak" }),
+    );
+    const teks = terkirim[0]?.teks ?? "";
+    expect(teks.toLowerCase()).not.toContain("tidak menemukan lokasi");
+    // Kedua lokasi di Kabupaten Demak ikut …
+    expect(teks).toContain("Kedung Mutih");
+    expect(teks).toContain("Kedungmalang");
+    // … yang di kabupaten lain TIDAK.
+    expect(teks).not.toContain("Tengket");
+    // Dan balasannya MENGAKU bahwa yang dibaca itu kabupaten — tanpa ini,
+    // penanya mengira sedang membaca angka satu lokasi.
+    expect(teks).toContain("Kabupaten Demak");
+    expect(teks).toContain("2 lokasi");
+  });
+
+  it("kabupaten di luar lingkup penanya tetap 'tidak ditemukan'", async () => {
+    // Menyebut kabupaten tidak boleh jadi jalan pintas melewati pemotongan
+    // izin: Batah Timur (Bangkalan) milik organisasi LAIN.
+    niatPalsu = { niat: "progress", lokasiDisebut: ["Bangkalan"], periode: "hari_ini" };
+    await jawabPertanyaanWa(
+      event({
+        chatId: GRUP_A,
+        dari: nomorSM,
+        teks: "progress di Bangkalan",
+        mention: [`${NOMOR_MARLIN}@c.us`],
+      }),
+    );
+    const teks = terkirim[0]?.teks ?? "";
+    expect(teks.toLowerCase()).toContain("tidak menemukan lokasi");
+    expect(teks).not.toContain("Batah Timur");
   });
 
   it("satu lokasi disebut: hanya lokasi itu yang dijawab", async () => {

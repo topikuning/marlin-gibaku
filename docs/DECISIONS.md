@@ -17418,3 +17418,87 @@ karena tata letak lama memang tidak memotong teks. Dikembalikan → 6/6 hijau.
 Nilai terlebar yang mungkin ("Rp 1.234,56 M") disuntikkan di 375/412/768/1280px:
 0px meluber, dan penyuntiknya sendiri melempar kalau elemennya tidak ketemu —
 supaya ujinya tidak hijau karena tidak menguji apa-apa.
+
+---
+
+## 367 — Tanya-jawab WA mengenali nama DAERAH, bukan cuma nama lokasi (2026-08-19)
+
+**Keluhan user, dari WhatsApp sungguhan:**
+
+> *"apa jember kemarin laporan?"*
+> → *"Saya tidak menemukan lokasi: jember. Mungkin salah ketik, atau di luar
+> penugasan Anda."*
+>
+> *"padahal jember adalah nama kabupaten. kamu tidak handle itu?"*
+
+Betul, dan balasannya bukan sekadar tidak membantu — ia **menuduh yang salah**.
+"Mungkin salah ketik" menyalahkan penanya untuk sesuatu yang ia tulis dengan
+benar, dan "di luar penugasan Anda" membuatnya mengira haknya kurang. Dua-duanya
+keliru: yang kurang adalah katalognya.
+
+Sebabnya sepele dan dalam: `katalogLokasi()` hanya memilih `id` dan `name`.
+`Location` menyimpan `village`, `district`, `regency`, dan `province` — keempatnya
+ada di basis data, tidak satu pun ikut dicocokkan. Orang lapangan menyebut
+daerah; sistemnya cuma kenal nama titik proyek.
+
+### Lapisan pencocokan sekarang
+
+1. nama lokasi sama persis
+2. nama lokasi mengandung yang diketik ("kedung" → "Kedung Mutih")
+3. **nama wilayah** — desa, kecamatan, kabupaten, provinsi
+
+Nama lokasi menang lebih dulu karena ia yang paling khusus: kalau ada lokasi
+bernama persis "Demak", itulah yang dimaksud, bukan seluruh Kabupaten Demak.
+
+Awalan jenis wilayah dibuang di KEDUA sisi ("kab. jember" = "Kabupaten Jember" =
+"jember"). Data sekarang menyimpan kabupaten polos ("Demak"), tapi pencocokan
+yang bergantung pada gaya pengetikan operator data adalah pencocokan yang akan
+patah diam-diam.
+
+### Banyak lokasi BUKAN keadaan ambigu
+
+"Jember" memang berarti seluruh lokasi di Jember — mengembalikannya sebagai
+"ambigu, tolong sebut nama lengkapnya" akan menolak pertanyaan yang sudah jelas.
+Jadi wilayah menghasilkan sasaran jamak, dan balasannya **wajib mengaku**:
+
+> ℹ️ "jember" saya baca sebagai Kabupaten Jember — 5 lokasi.
+
+Tanpa baris itu, penanya membaca angka lima lokasi sambil mengira itu satu
+lokasi, lalu men-screenshot-nya ke PPK. Barisnya ikut di SETIAP jenis balasan,
+sejajar dengan pemotongan lingkup dan nama tak dikenal (339).
+
+Yang ambigu adalah kalau satu kata cocok di lebih dari satu TINGKAT dengan isi
+berbeda — Kecamatan Demak (1 lokasi) di dalam Kabupaten Demak (4 lokasi). Di
+situ MARLIN balik bertanya, menyebut jumlah lokasi tiap pilihan, karena jumlah
+itulah beda yang menentukan. Dua tingkat yang isinya PERSIS SAMA (Desa Sepulu di
+Kecamatan Sepulu, satu lokasi yang sama) tidak ditanyakan — pertanyaan tanpa beda
+hanya merepotkan.
+
+### Yang TIDAK berubah
+
+Pemotongan izin tetap terjadi SEBELUM pencocokan. Menyebut kabupaten bukan jalan
+pintas melewati penugasan: katalognya sudah dipotong lebih dulu, jadi kabupaten
+yang lokasinya di luar hak penanya tetap "tidak ditemukan". Ada uji khusus untuk
+itu, di unit maupun integrasi.
+
+`LokasiKatalog` dibuat WAJIB berisi keempat medan wilayah, bukan opsional. Katalog
+baru yang lupa mengisinya akan merah di typecheck, bukan diam-diam kehilangan
+kemampuan ini — gejalanya cuma "tidak ketemu", yang terbaca seperti salah ketik
+penanya.
+
+### Uji gigi
+
+Lapis wilayah dimatikan → 7 uji unit merah + 1 uji integrasi merah, semuanya
+tepat yang menguji perilaku ini. Satu uji sempat lolos di kedua keadaan (nama
+lokasinya kebetulan sama dengan nama wilayahnya, jadi lapis 1 sudah menjawab);
+diperbaiki memakai desa yang namanya berbeda dari nama lokasi, lalu ikut merah.
+
+### Efek samping yang ketahuan, dan pantas diperbaiki
+
+Menambah dua uji integrasi membuat uji LAIN merah: *"Batas 20 analisis AI per jam
+per pengguna tercapai"*. Kuota per pengguna dihitung dari `ai_runs`, dan berkas
+itu memakainya bersama tanpa menolkan — sehingga **jumlah uji ikut menentukan
+hasil uji**, dan yang merah bukan uji yang berubah. Satu uji sudah membersihkannya
+sendiri sejak dulu; pembersihan itu diangkat ke `beforeEach` karena memang milik
+seluruh berkas. Tidak ada uji di sana yang menguji BATASnya sendiri — yang ada
+menghitung selisih baris, dan selisih tidak terganggu penolan.
