@@ -15,13 +15,8 @@ import {
 import { getIdentitasMarlin, sendText } from "./client";
 import { medanJidPayload, parseWaEvent, type ParsedWaMessage } from "./ingest-parse";
 import { kanonikGrupId } from "./grup-id";
-import {
-  bersihkanMention,
-  cocokkanNomorPengguna,
-  diajakBicara,
-  lingkupJawaban,
-  type LingkupJawaban,
-} from "./tanya-izin";
+import { bersihkanMention, cocokkanNomorPengguna, diajakBicara } from "./tanya-izin";
+import { putuskanLayanan } from "./resolver-kanal";
 import {
   PETUNJUK_SKEMA,
   SISTEM_PROMPT,
@@ -309,22 +304,33 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
    * jadi identitas penanya satu-satunya dasar — dan nomor tak dikenal tetap
    * DIDIAMKAN (balasan apa pun mengkonfirmasi bahwa nomor ini milik sistem).
    */
-  if (!user && !grup) return DIAM(`didiamkan — ${alasanNomor}`);
-
-  // (6) Apa yang boleh disebut DI SANA — dihitung sebelum katalog nama dibuat.
+  /*
+   * (4) SATU resolver memutuskan kanal + identitas + scope (DECISIONS 371).
+   *
+   * Sebelumnya keputusan ini tersebar di tiga tempat — `diajakBicara()`,
+   * potongan `if (!user && !grup)` di sini, dan `lingkupJawaban()` — sehingga
+   * aturan bisa berubah di satu tempat dan diam-diam ditutupi tempat lain.
+   */
   const pkg = grup ? await paketGrup(m.chatId) : null;
-  if (grup && !pkg) {
-    await sendText(
-      m.chatId,
-      balasDitolak(
-        "Grup ini belum tertaut paket mana pun, jadi saya tidak tahu data apa yang pantas dibagikan di sini. Minta admin menautkannya di Paket → Grup WhatsApp.",
-      ),
-    );
+  const keputusan = putuskanLayanan({
+    grup,
+    diajakBicara: true, // sudah diperiksa di langkah (2) di atas
+    penanya: user ? { id: user.id, orgId: user.orgId, role: user.role } : null,
+    alasanIdentitas: alasanNomor,
+    paketGrup: pkg
+      ? { id: pkg.id, nama: pkg.nama, orgId: pkg.orgId, lokasiIds: pkg.lokasiIds }
+      : null,
+  });
+
+  if (keputusan.jenis === "diam") return DIAM(keputusan.alasan);
+  if (keputusan.jenis === "tolak") {
+    await sendText(m.chatId, balasDitolak(keputusan.pesan));
     await audit(user?.id ?? null, "waha.tanya.tolak", "wa_message", m.waMessageId, {
       chatId: m.chatId,
-      alasan: "grup tidak tertaut paket",
+      grup,
+      alasan: keputusan.alasan,
     });
-    return { dijawab: true, alasan: "grup tidak tertaut paket" };
+    return { dijawab: true, alasan: keputusan.alasan };
   }
 
   if (!teks) {
@@ -337,36 +343,19 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
    * bukan dari penanya — termasuk ketika penanyanya justru pengguna terdaftar,
    * supaya jawaban di satu grup tidak berubah-ubah tergantung siapa mengetik.
    */
-  const penyaring: SessionUser = pkg ? penyaringGrup(pkg.orgId) : user!;
-  /*
-   * Izin penanya dihitung dan diteruskan APA ADANYA, termasuk di grup —
-   * `lingkupJawaban` yang memutuskan bahwa di grup ia tidak memotong apa pun
-   * (DECISIONS 351).
-   *
-   * Sengaja BUKAN dinolkan di sini. Versi pertama perbaikan ini menaruh
-   * aturannya di dua tempat sekaligus (mengirim `null` untuk grup DAN
-   * mengabaikannya di `lingkupJawaban`), dan hasilnya: melanggar aturan di
-   * `lingkupJawaban` tidak membuat satu uji pun merah, karena lapisan kedua
-   * menutupinya. Aturan yang dijaga di dua tempat hanya benar-benar dijaga di
-   * satu — dan yang satunya lagi diam-diam berhenti diuji.
-   */
-  const lokasiPengguna = user ? await accessibleLocationIds(user) : null;
-  const lingkup: LingkupJawaban = lingkupJawaban({
-    grup,
-    lokasiPengguna,
-    lokasiGrup: pkg?.lokasiIds ?? null,
-    namaPaketGrup: pkg?.nama ?? null,
-  });
-  if (!lingkup.boleh) {
-    await sendText(m.chatId, balasDitolak(lingkup.alasan));
-    await audit(user?.id ?? null, "waha.tanya.tolak", "wa_message", m.waMessageId, {
-      chatId: m.chatId,
-      alasan: lingkup.alasan,
-    });
-    return { dijawab: true, alasan: "lingkup ditolak" };
-  }
+  const penyaring: SessionUser = pkg ? penyaringGrup(keputusan.orgId) : user!;
 
-  const katalog = await katalogLokasi(penyaring, lingkup.lokasiIds);
+  /*
+   * `lokasiIds = null` berarti "seluruh lokasi yang boleh diakses penanya di
+   * organisasinya" — dan itu harus BENAR-BENAR dihitung dari penugasannya,
+   * bukan diartikan "semua". Untuk peran istimewa `accessibleLocationIds`
+   * mengembalikan null (lintas lokasi), dan `katalogLokasi` menyaringnya dengan
+   * `orgId` — jadi batas organisasi tetap berlaku (brief 5A: `super_admin`
+   * BUKAN akses seluruh basis data).
+   */
+  const lokasiIds =
+    keputusan.lokasiIds ?? (user ? await accessibleLocationIds(user) : null);
+  const katalog = await katalogLokasi(penyaring, lokasiIds);
 
   // (4) Guard AI — kill-switch & kuota, SEBELUM provider dipanggil. Untuk
   // penanya tak terdaftar, kuncinya CHAT-nya: satu grup ramai tidak boleh
@@ -429,7 +418,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
 
   const sasaran: LokasiKatalog[] = resolusi.cocok.length > 0 ? resolusi.cocok : katalog;
   const opts: OpsiKaki = {
-    catatanPemotongan: lingkup.catatanPemotongan,
+    catatanPemotongan: keputusan.catatanPemotongan,
     resolusi,
   };
 
@@ -534,7 +523,23 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
     );
   }
 
-  await sendText(m.chatId, balasan);
+  /*
+   * Penanda lingkup ditaruh DI DEPAN balasan, bukan di kakinya (brief 5A).
+   *
+   * Ia menjawab "kenapa data ini muncul di grup yang tidak tertaut paket apa
+   * pun", dan pertanyaan itu harus terjawab SEBELUM angkanya terbaca — bukan
+   * sesudah, di antara catatan-catatan kecil yang sering dilewati.
+   *
+   * Belum ada penekan pengulangan: brief meminta penanda ini tidak diulang
+   * pada setiap balasan dalam satu konteks aktif, dan itu butuh konteks
+   * per-chat yang durable — dibangun di Fase D. Sampai itu ada, penanda muncul
+   * setiap kali. Mengulang keterangan yang benar jauh lebih ringan daripada
+   * menghilangkannya lewat tebakan "sudah pernah dikirim".
+   */
+  await sendText(
+    m.chatId,
+    keputusan.penandaLingkup ? `${keputusan.penandaLingkup}\n\n${balasan}` : balasan,
+  );
   await audit(user?.id ?? null, "waha.tanya", "wa_message", m.waMessageId, {
     chatId: m.chatId,
     grup,
@@ -543,7 +548,11 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
     niat: niat.niat,
     lokasiDisebut: niat.lokasiDisebut,
     lokasiDijawab: sasaran.length,
-    dipotongKeGrup: lingkup.catatanPemotongan !== null,
+    dipotongKeGrup: keputusan.catatanPemotongan !== null,
+    // Jejak keputusan resolver — brief 5A menuntut audit menyebut asal scope.
+    asalScope: keputusan.asalScope,
+    peranDipakai: keputusan.peranDipakai,
+    scopeIds: lokasiIds ? lokasiIds.length : null,
   });
   return { dijawab: true, alasan: `dijawab (${niat.niat})` };
 }

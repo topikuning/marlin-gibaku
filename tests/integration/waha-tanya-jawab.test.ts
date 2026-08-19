@@ -66,6 +66,8 @@ const { normalizeWaTarget } = await import("@/lib/contacts/model");
 const suffix = `wt${Date.now().toString(36)}`;
 const GRUP_A = `12036300000000001@g.us`;
 const GRUP_LAIN_ORG = `12036300000000002@g.us`;
+/** Grup yang TIDAK tertaut paket mana pun — jalur baru brief 5A. */
+const GRUP_LEPAS = `12036300000000003@g.us`;
 
 let orgId = "";
 let orgLainId = "";
@@ -75,6 +77,10 @@ let lokB1 = "";
 let nomorSM = "6285700000001";
 const nomorSmB = "6285700000009";
 let nomorAdmin = "6285700000002";
+/** Program Director org kita — peran istimewa kedua (brief 5A). */
+const nomorPD = "6285700000003";
+/** Super admin ORGANISASI LAIN — dipakai membuktikan batas tenancy. */
+const nomorAdminLain = "6285700000004";
 
 async function buatPaket(oid: string, nama: string, waGroupId: string | null) {
   return db.package.create({ data: { orgId: oid, name: `${nama} ${suffix}`, waGroupId } });
@@ -167,6 +173,9 @@ beforeAll(async () => {
   }
   // Super admin: lintas lokasi, TANPA penugasan.
   await buatUser(orgId, "SuperAdmin", "super_admin", nomorAdmin);
+  // Peran istimewa kedua + super admin organisasi lain (brief 5A).
+  await buatUser(orgId, "ProgramDirector", "program_director", nomorPD);
+  await buatUser(orgLainId, "AdminOrgLain", "super_admin", nomorAdminLain);
   // Orang organisasi LAIN — dipakai menguji pemetaan @lid lintas organisasi.
   await buatUser(orgLainId, "OrangOrgLain", "site_manager", null);
   // Pengguna TERDAFTAR yang ditugaskan HANYA ke paket B — dipakai membuktikan
@@ -476,6 +485,115 @@ describe("periode lampau: jujur soal WAKTU yang dijawab (DECISIONS 369)", () => 
     };
     const teks = await tanya("kendala kemarin apa saja");
     expect(teks).toContain("masih TERBUKA sekarang");
+  });
+});
+
+describe("akses istimewa Super Admin & Program Director (brief 5A, DECISIONS 371)", () => {
+  const mention = [`${NOMOR_MARLIN}@c.us`];
+
+  const tanya = async (chatId: string, dari: string, teks: string, pakaiMention = false) => {
+    await jawabPertanyaanWa(
+      event({ chatId, dari, teks, ...(pakaiMention ? { mention } : {}) }),
+    );
+    return terkirim[0]?.teks ?? "";
+  };
+
+  it("super admin dijawab lewat DM", async () => {
+    niatPalsu = { niat: "deviasi", lokasiDisebut: [], periode: "hari_ini" };
+    const teks = await tanya(`${nomorAdmin}@c.us`, nomorAdmin, "deviasi");
+    expect(teks).not.toBe("");
+    // 3 lokasi org kita (A1, A2, B1) — bukan 4 (Batah Timur milik org lain).
+    expect(teks).toContain("3 yang saya periksa");
+  });
+
+  it("program director dijawab lewat DM", async () => {
+    niatPalsu = { niat: "deviasi", lokasiDisebut: [], periode: "hari_ini" };
+    const teks = await tanya(`${nomorPD}@c.us`, nomorPD, "deviasi");
+    expect(teks).toContain("3 yang saya periksa");
+  });
+
+  it("keduanya dijawab di grup TIDAK tertaut, sesudah mention", async () => {
+    /*
+     * Ini jalur yang sebelumnya selalu ditolak. Yang membuatnya aman bukan
+     * grupnya — grup itu tidak menyatakan apa pun — melainkan identitas
+     * pengirim yang terverifikasi lewat nomor tersimpan.
+     */
+    for (const nomor of [nomorAdmin, nomorPD]) {
+      terkirim.length = 0;
+      await db.aiRun.deleteMany({});
+      niatPalsu = { niat: "deviasi", lokasiDisebut: [], periode: "hari_ini" };
+      const teks = await tanya(GRUP_LEPAS, nomor, "deviasi", true);
+      expect(teks, nomor).not.toContain("belum tertaut paket");
+      expect(teks, nomor).toContain("3 yang saya periksa");
+    }
+  });
+
+  it("jawaban di grup tak tertaut MENYEBUT dasar lingkupnya", async () => {
+    // Anggota grup lain berhak tahu kenapa data proyek muncul di grup yang
+    // tidak tertaut paket apa pun.
+    niatPalsu = { niat: "deviasi", lokasiDisebut: [], periode: "hari_ini" };
+    const teks = await tanya(GRUP_LEPAS, nomorPD, "deviasi", true);
+    expect(teks).toContain("Program Director");
+    expect(teks).toContain("tidak tertaut paket");
+  });
+
+  it("scope-nya dari ORG + PERAN, bukan dari grupnya", async () => {
+    /*
+     * Super admin ORGANISASI LAIN bertanya di grup yang sama. Kalau lingkupnya
+     * diambil dari grup, ia akan menerima data org kita. Yang benar: ia hanya
+     * melihat organisasinya sendiri — yang di fixture ini berisi 1 lokasi.
+     */
+    niatPalsu = { niat: "deviasi", lokasiDisebut: [], periode: "hari_ini" };
+    const teks = await tanya(GRUP_LEPAS, nomorAdminLain, "deviasi", true);
+    expect(teks).toContain("1 yang saya periksa");
+    expect(teks).not.toContain("Kedung Mutih");
+  });
+
+  it("pengguna BIASA di grup tak tertaut TIDAK memperoleh data proyek", async () => {
+    niatPalsu = { niat: "deviasi", lokasiDisebut: [], periode: "hari_ini" };
+    const teks = await tanya(GRUP_LEPAS, nomorSM, "deviasi", true);
+    expect(teks).toContain("belum tertaut paket");
+    expect(teks).not.toContain("yang saya periksa");
+  });
+
+  it("nomor TIDAK dikenal di grup tak tertaut tetap ditolak", async () => {
+    // Nama tampilan yang meniru direktur tidak pernah sampai ke resolver
+    // sebagai identitas — yang dibaca hanya nomor/LID.
+    niatPalsu = { niat: "deviasi", lokasiDisebut: [], periode: "hari_ini" };
+    const teks = await tanya(GRUP_LEPAS, "6289999999999", "deviasi", true);
+    expect(teks).toContain("belum tertaut paket");
+  });
+
+  it("di grup TERTAUT, super admin tetap dipotong ke paket grup", async () => {
+    /*
+     * Pagar yang paling gampang jebol saat aturan 5A ditambahkan. Balasannya
+     * dibaca seluruh anggota grup paket A, termasuk vendornya — melebarkannya
+     * karena yang bertanya direktur berarti data paket B bocor ke sana.
+     */
+    niatPalsu = { niat: "deviasi", lokasiDisebut: [], periode: "hari_ini" };
+    const teks = await tanya(GRUP_A, nomorAdmin, "deviasi", true);
+    expect(teks).toContain("2 yang saya periksa"); // A1 + A2 saja
+    expect(teks).not.toContain("Tengket");
+    expect(teks).toContain("hanya mencakup");
+  });
+
+  it("audit mencatat asal scope dan peran yang dipakai", async () => {
+    // Brief 5A: audit harus menyebut kanal, grup tertaut atau tidak, asal
+    // scope, dan perannya — tanpa itu, kejadian ini tidak bisa ditelusuri.
+    // `audit_logs` append-only di level basis data (trigger menolak
+    // UPDATE/DELETE), jadi barisnya tidak dibersihkan — cukup ambil yang
+    // TERBARU sesudah aksi ini.
+    niatPalsu = { niat: "deviasi", lokasiDisebut: [], periode: "hari_ini" };
+    await tanya(GRUP_LEPAS, nomorPD, "deviasi", true);
+    const baris = await db.auditLog.findFirst({
+      where: { action: "waha.tanya" },
+      orderBy: { createdAt: "desc" },
+      select: { payload: true },
+    });
+    const meta = baris?.payload as Record<string, unknown> | null;
+    expect(meta?.asalScope).toBe("privileged_user");
+    expect(meta?.peranDipakai).toBe("program_director");
+    expect(meta?.grup).toBe(true);
   });
 });
 

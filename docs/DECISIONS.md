@@ -17706,3 +17706,123 @@ yang tetap hijau diperiksa terpisah, dan keduanya memang bukan penjaga cacat itu
   sepakat. Ia menggigit kalau salah satunya menyimpang sendiri.
 - *"periode masa depan dijepit"* hanya berarti setelah `asOf` ada. Diuji dengan
   melepas penjepitnya saja → merah sendirian.
+
+---
+
+## 370 — Satu grup WhatsApp = satu paket (2026-08-19)
+
+**Temuan audit user** (brief perbaikan WhatsApp & AI, Fase B). `Package.waGroupId`
+tanpa batasan apa pun, sementara pembacaannya memakai `findFirst()` atas
+beberapa varian tulisan. Dua paket yang menunjuk grup sama membuat **paket mana
+yang menjawab ditentukan urutan baris di basis data** — data paket A bisa
+terkirim ke grup paket B, tanpa galat apa pun. Ini isolasi data, bukan kebersihan
+master data.
+
+### Akar: dua normalisasi yang tidak setuju
+
+| Fungsi | Dipakai | Perilaku |
+|---|---|---|
+| `normalizeGroupChatId()` | saat MENULIS (admin menautkan grup) | kembalikan apa adanya begitu berakhiran `@g.us` — sufiks perangkat (`:12`) & domain huruf besar lolos |
+| `normalizeChatId()` | saat MEMBACA (pesan masuk) | buang sufiks, kecilkan domain, satukan `s.whatsapp.net`→`c.us` |
+
+Karena itu bentuk tersimpan bisa **tidak pernah sama persis** dengan bentuk yang
+datang dari webhook — dan itulah sebabnya pembacaan terpaksa longgar
+(DECISIONS 348). Pencocokan longgar + `findFirst()` = pemilihan paket yang
+bergantung pada urutan baris.
+
+Sekarang satu fungsi: `kanonikGrupId()` / `wajibKanonikGrupId()`
+(`src/lib/waha/grup-id.ts`). `normalizeGroupChatId` menumpang ke sana, jadi
+seluruh pemanggil lama ikut benar tanpa perubahan lain.
+
+### Migration: kanonikkan → tolak duplikat → indeks unik
+
+Urutannya penting. Memasang indeks lebih dulu hanya menghasilkan galat
+unique-constraint yang tidak menyebut paket mana. Migrasi ini menormalkan dulu,
+lalu `RAISE EXCEPTION` yang **menyebut nama paketnya**:
+
+```
+Satu grup WhatsApp tertaut ke lebih dari satu paket. Lepaskan dulu tautan yang
+salah di Paket → Grup WhatsApp, lalu jalankan migrasi ini lagi.
+120363000000000009@g.us dipakai 2 paket: Paket Jepara, Paket Demak
+```
+
+Indeksnya TIDAK parsial dan tidak perlu: PostgreSQL menganggap setiap NULL
+berbeda, jadi paket tanpa grup tetap boleh banyak — dan bentuk non-parsial itu
+persis yang dihasilkan `@unique` Prisma, sehingga skema dan basis data tidak
+berselisih saat drift diperiksa.
+
+**Diuji pada tiga keadaan:** DB kosong (lulus); DB berisi 5 bentuk campur —
+rapi, `:12`, `@G.US`, tanpa domain, berspasi — (semua dikanonikkan benar, NULL
+dibiarkan); DB berisi dua paket menunjuk grup sama dalam tulisan berbeda
+(migrasi GAGAL dengan pesan di atas).
+
+Server action juga menolak lebih dulu dengan menyebut paket pemiliknya — galat
+unique-constraint mentah benar, dan tidak menolong siapa pun.
+
+### Uji fixture yang ikut berubah, dan alasannya
+
+`waha-ingest-chatid.test.ts` menyimpan bentuk NON-kanonik langsung ke DB untuk
+meniru baris lama. Keadaan itu kini mustahil. Fixture-nya menyimpan kanonik, dan
+yang divariasikan tinggal sisi MASUK — yang memang tetap beragam. Melonggarkan
+kembali pencocokan demi mempertahankan fixture berarti mempertahankan cacat yang
+sedang diperbaiki.
+
+---
+
+## 371 — Satu resolver kanal + identitas + scope; Super Admin & Program Director dilayani di mana pun (2026-08-19)
+
+Dua hal yang harus dikerjakan bersama, karena yang kedua mustahil aman tanpa yang
+pertama.
+
+### (a) Aturannya dulu hidup di TIGA tempat
+
+`diajakBicara()` menjawab "kapan membalas", `lingkupJawaban()` menjawab "apa yang
+boleh disebut", dan `tanya.ts` menyisipkan sendiri "di grup pengirim tidak perlu
+terdaftar" di antara keduanya. Brief 2026-08-19 melarangnya: *"Jangan menaruh
+aturan ini di dua tempat yang saling menutupi."*
+
+Sekarang satu fungsi murni `putuskanLayanan()` (`resolver-kanal.ts`)
+menghasilkan keputusan terstruktur: `diam` / `tolak` / `jawab` beserta
+`asalScope`, `lokasiIds`, `orgId`, `catatanPemotongan`, `penandaLingkup`.
+`lingkupJawaban()` **dihapus**, tidak sekadar berhenti dipakai — fungsi lama yang
+dibiarkan "untuk jaga-jaga" persis melahirkan cacat yang mau ditutup. Seluruh
+ujinya dipindahkan apa adanya, termasuk yang dibalik DECISIONS 351.
+
+### (b) Aturan baru user: dua peran dilayani di kanal mana pun
+
+| Kanal & identitas | Perilaku |
+|---|---|
+| DM, nomor/LID tak dikenal | **diam** — balasan apa pun mengonfirmasi keberadaan sistem |
+| DM, pengguna biasa | jawab sesuai penugasannya |
+| DM, super admin / program director | jawab, lingkup organisasinya |
+| Grup tertaut, siapa pun | jawab, lingkup **paket grup** — termasuk untuk peran istimewa |
+| Grup tak tertaut, biasa / tak dikenal | tolak |
+| Grup tak tertaut, peran istimewa terverifikasi | jawab, lingkup organisasinya + **penanda** |
+
+Tiga hal yang gampang salah dibaca, dan sengaja ditulis di sini:
+
+1. **Ini bukan pelonggaran untuk anggota grup.** Pengecualiannya melekat pada
+   PENGIRIM yang terverifikasi lewat nomor/LID tersimpan. Nama tampilan WhatsApp
+   tidak pernah menjadi bukti identitas.
+2. **`super_admin` ≠ seluruh basis data.** Lingkupnya tetap organisasinya
+   sendiri. Diuji dengan dua organisasi.
+3. **Di grup TERTAUT, peran istimewa tetap dipotong ke paket grup.** Balasannya
+   dibaca seluruh anggota, termasuk vendor paket itu; melebarkannya karena yang
+   bertanya kebetulan direktur berarti data paket lain bocor ke sana.
+
+Penanda lingkup ditaruh **di depan** balasan, bukan di kaki: ia menjawab "kenapa
+data ini muncul di grup yang tidak tertaut apa pun", dan itu harus terbaca
+sebelum angkanya. Brief meminta penanda tidak diulang dalam satu konteks aktif —
+itu butuh konteks per-chat yang durable, dibangun di Fase D. Sampai ada, penanda
+muncul setiap kali; mengulang keterangan yang benar jauh lebih ringan daripada
+menghilangkannya lewat tebakan "sudah pernah dikirim".
+
+Audit mencatat `asalScope` (`package_group` / `privileged_user` / `pengguna`),
+`peranDipakai`, `grup`, dan jumlah `scopeIds`.
+
+### Uji gigi — dua arah, dan arah kedua yang paling penting
+
+- Peran istimewa **dimatikan** → 4 uji unit + 4 uji integrasi merah.
+- Peran istimewa dibiarkan **bocor ke grup tertaut** (kesalahan paling mungkin
+  saat aturan ini ditambahkan) → 3 uji unit + 3 uji integrasi merah, termasuk uji
+  lintas-organisasi yang sudah ada sejak DECISIONS 351.

@@ -151,10 +151,20 @@ bisa dijawab — ia tidak menebak niat yang paling mirip.
 
 **Apa yang boleh keluar di grup**
 
-Jawaban di grup selalu **dipotong ke lokasi paket grup itu saja** — juga untuk
-super admin, karena yang menentukan bukan izin penanya melainkan siapa yang ikut
-membaca. Pemotongannya selalu ditulis di balasan. Grup yang belum tertaut paket
-tidak dilayani.
+Jawaban di grup **tertaut paket** selalu dipotong ke lokasi paket grup itu saja —
+juga untuk super admin, karena yang menentukan bukan izin penanya melainkan siapa
+yang ikut membaca. Pemotongannya selalu ditulis di balasan.
+
+Grup yang **belum tertaut paket** tidak dilayani, dengan satu pengecualian
+(DECISIONS 371): pengirim yang terverifikasi sebagai **Super Admin** atau
+**Program Director** dijawab memakai lingkup **organisasinya**, dan balasannya
+diawali penanda yang menyebut dasar itu supaya anggota grup lain tahu kenapa data
+proyek muncul di grup yang tidak tertaut apa pun. Verifikasinya lewat nomor/LID
+tersimpan — nama tampilan WhatsApp tidak pernah menjadi bukti identitas.
+
+Seluruh keputusan "siapa dilayani di mana dengan lingkup apa" ada di satu tempat,
+`src/lib/waha/resolver-kanal.ts`. Kalau aturannya perlu diubah, ubah di sana —
+bukan di `tanya.ts`.
 
 **Batas**
 
