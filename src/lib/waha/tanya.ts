@@ -399,8 +399,8 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
 
   // (7) Cocokkan nama terhadap katalog yang SUDAH dipotong izin.
   const resolusi = resolusiLokasi(niat.lokasiDisebut, katalog);
-  if (resolusi.ambigu.length > 0) {
-    await sendText(m.chatId, balasAmbigu(resolusi.ambigu));
+  if (resolusi.ambigu.length > 0 || resolusi.ambiguWilayah.length > 0) {
+    await sendText(m.chatId, balasAmbigu(resolusi.ambigu, resolusi.ambiguWilayah));
     return { dijawab: true, alasan: "nama lokasi ambigu — balik bertanya" };
   }
   // Nama disebut tapi TIDAK SATU PUN dikenali: jangan diam-diam melebar jadi
