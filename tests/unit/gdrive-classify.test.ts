@@ -20,7 +20,7 @@ const FOLDER_1 = ["1. SPPBJ, SPK, SPMK, RAB, DED"];
 const FOLDER_2 = ["2. PCM"];
 const FOLDER_7 = ["7. BERKAS TERMIN"];
 
-describe("classifyDriveFile — nama berkas menang atas folder", () => {
+describe("classifyDriveFile – nama berkas menang atas folder", () => {
   const kasus: { file: string; path: string[]; type: string }[] = [
     { file: "SPMK Kedungrejo.pdf", path: FOLDER_1, type: "spmk" },
     { file: "SPPBJ-027-2026.pdf", path: FOLDER_1, type: "sppbj" },
@@ -65,7 +65,7 @@ describe("classifyDriveFile — nama berkas menang atas folder", () => {
   });
 });
 
-describe("classifyDriveFile — jatuh ke folder & keyakinan", () => {
+describe("classifyDriveFile – jatuh ke folder & keyakinan", () => {
   it("nama tak bermakna di folder PCM ditebak pcm dengan keyakinan rendah", () => {
     const r = classifyDriveFile({ fileName: "Scan001.pdf", path: FOLDER_2 });
     expect(r.type).toBe("pcm");
@@ -218,7 +218,7 @@ describe("extractDocDate", () => {
     expect(key(extractDocDate("Laporan 3 Agustus 2026 final.pdf"))).toBe("2026-08-03");
   });
 
-  it("menolak yang bukan tanggal — lebih baik kosong daripada salah", () => {
+  it("menolak yang bukan tanggal – lebih baik kosong daripada salah", () => {
     for (const n of [
       "MC-2 termin 1.pdf",
       "Laporan Mingguan M-03.pdf",

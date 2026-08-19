@@ -60,12 +60,12 @@ function kaki(opts: OpsiKaki): string {
    */
   for (const w of opts.resolusi?.wilayah ?? []) {
     b.push(
-      `ℹ️ "${w.diketik}" saya baca sebagai ${LABEL_TINGKAT[w.tingkat]} ${w.nama} — ${w.jumlah} lokasi.`,
+      `ℹ️ "${w.diketik}" saya baca sebagai ${LABEL_TINGKAT[w.tingkat]} ${w.nama} – ${w.jumlah} lokasi.`,
     );
   }
   if (opts.resolusi && opts.resolusi.tidakDikenal.length > 0) {
     b.push(
-      `⚠️ Tidak saya kenali: ${opts.resolusi.tidakDikenal.join(", ")} — mungkin salah ketik, atau di luar penugasan Anda.`,
+      `⚠️ Tidak saya kenali: ${opts.resolusi.tidakDikenal.join(", ")} – mungkin salah ketik, atau di luar penugasan Anda.`,
     );
   }
   if (opts.catatanPeriode) b.push(`ℹ️ ${opts.catatanPeriode}`);
@@ -176,7 +176,7 @@ export function balasKendala(
     return [`*${lokasi}*`, ...item].join("\n");
   });
   return (
-    kepala(`${judul} — ${r.baris.length} di ${perLokasi.size} lokasi`, r.tanggal) +
+    kepala(`${judul} – ${r.baris.length} di ${perLokasi.size} lokasi`, r.tanggal) +
     "\n\n" +
     isi.join("\n\n") +
     kaki(opts)
@@ -231,11 +231,11 @@ export function balasDeviasi(
   }
   const isi = r.negatif.map(
     (b) =>
-      `*${b.lokasi}* — ${bertanda(b.deviasiPct)}\n  realisasi ${pct(b.realisasiPct)} vs rencana ${pct(b.rencanaPct)}`,
+      `*${b.lokasi}* – ${bertanda(b.deviasiPct)}\n  realisasi ${pct(b.realisasiPct)} vs rencana ${pct(b.rencanaPct)}`,
   );
   return (
     kepala(
-      `Deviasi negatif — ${r.negatif.length} dari ${r.diperiksa} lokasi`,
+      `Deviasi negatif – ${r.negatif.length} dari ${r.diperiksa} lokasi`,
       r.tanggal,
     ) +
     "\n\n" +
@@ -266,9 +266,9 @@ export function balasKelengkapan(
   const isi =
     r.perlu.length === 0
       ? ["Semua lokasi sudah melapor hari ini."]
-      : r.perlu.map((b) => `• *${b.lokasi}* — ${b.status}`);
+      : r.perlu.map((b) => `• *${b.lokasi}* – ${b.status}`);
   return (
-    kepala(`Kelengkapan laporan — ${beres} dari ${r.total} beres`, r.tanggal) +
+    kepala(`Kelengkapan laporan – ${beres} dari ${r.total} beres`, r.tanggal) +
     "\n\n" +
     isi.join("\n") +
     kaki(opts)
@@ -335,12 +335,12 @@ export function balasBantuan(): string {
   return [
     "*Yang bisa saya jawab lewat chat*",
     "",
-    "• *Progress* — “progress hari ini”, “progress kemarin di Kedung Mutih”",
-    "• *Laporan harian* — isi laporan SATU tanggal: “laporan hari ini”, “laporan tanggal 12”",
-    "• *Laporan mingguan* — rekap SEPEKAN: “laporan mingguan”, “laporan mingguan minggu lalu”",
-    "• *Kendala* — “ada kendala apa”, “kendala di Tengket”",
-    "• *Deviasi* — “mana yang deviasinya negatif”, “siapa yang tertinggal”",
-    "• *Kelengkapan* — “siapa yang belum lapor hari ini”",
+    "• *Progress* – “progress hari ini”, “progress kemarin di Kedung Mutih”",
+    "• *Laporan harian* – isi laporan SATU tanggal: “laporan hari ini”, “laporan tanggal 12”",
+    "• *Laporan mingguan* – rekap SEPEKAN: “laporan mingguan”, “laporan mingguan minggu lalu”",
+    "• *Kendala* – “ada kendala apa”, “kendala di Tengket”",
+    "• *Deviasi* – “mana yang deviasinya negatif”, “siapa yang tertinggal”",
+    "• *Kelengkapan* – “siapa yang belum lapor hari ini”",
     "",
     "*Periode yang saya mengerti*",
     "hari ini · kemarin · kemarin lusa · N hari lalu · tanggal tertentu",
@@ -437,7 +437,7 @@ export function balasPilihan(
 export function balasPilihanKedaluwarsa(pertanyaan: string, umurMenit: number): string {
   return [
     `Maaf, pilihan untuk "${pertanyaan}" sudah lewat ${umurMenit} menit jadi saya tutup.`,
-    "Silakan tanyakan lagi — saya tawarkan pilihannya sekali lagi.",
+    "Silakan tanyakan lagi – saya tawarkan pilihannya sekali lagi.",
   ].join("\n");
 }
 
@@ -502,7 +502,7 @@ export function balasNarasi(
     kepala("Catatan lapangan", r.pertanyaan) +
     "\n\n" +
     isi.join("\n\n") +
-    "\n\n📝 Ini KUTIPAN catatan pelapor, disalin apa adanya — termasuk angkanya. " +
+    "\n\n📝 Ini KUTIPAN catatan pelapor, disalin apa adanya – termasuk angkanya. " +
     "Bukan angka resmi hasil hitungan MARLIN." +
     kaki(opts)
   );

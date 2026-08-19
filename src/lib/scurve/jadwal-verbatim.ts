@@ -89,7 +89,7 @@ export function susunJadwalApaAdanya(
     const minggu = raw.findIndex((v) => !Number.isFinite(v) || v < 0);
     if (minggu >= 0) {
       throw new Error(
-        `"${kat.name}" minggu ${minggu + 1} bernilai ${raw[minggu]} — nilai negatif membuat kurva turun. Perbaiki filenya.`,
+        `"${kat.name}" minggu ${minggu + 1} bernilai ${raw[minggu]} – nilai negatif membuat kurva turun. Perbaiki filenya.`,
       );
     }
     const weekly = raw.map(bulat6);
@@ -101,7 +101,7 @@ export function susunJadwalApaAdanya(
   const totalExcel = mentah.reduce((s, r) => s + r.sum, 0);
   if (!(totalExcel > 0)) {
     throw new Error(
-      "Semua nilai minggu di Excel kosong atau 0 — tidak ada jadwal yang bisa dijadikan rencana.",
+      "Semua nilai minggu di Excel kosong atau 0 – tidak ada jadwal yang bisa dijadikan rencana.",
     );
   }
 
@@ -111,7 +111,7 @@ export function susunJadwalApaAdanya(
         ? ` ${tanpaJadwal.length} pekerjaan RAB belum punya jadwal di Excel: ${tanpaJadwal.slice(0, 5).join(", ")}${tanpaJadwal.length > 5 ? ", …" : ""}.`
         : "";
     throw new Error(
-      `Total bobot di Excel ${pp(totalExcel)}%, selisihnya lebih dari ${TOLERANSI_TOTAL_PP}% dari 100% — angkanya tidak bisa dipakai apa adanya karena kurva-S harus tuntas 100%.${sisa} Perbaiki filenya, atau centang "Sesuaikan bobot ke RAB" bila memang ingin sistem yang menghitung bobotnya.`,
+      `Total bobot di Excel ${pp(totalExcel)}%, selisihnya lebih dari ${TOLERANSI_TOTAL_PP}% dari 100% – angkanya tidak bisa dipakai apa adanya karena kurva-S harus tuntas 100%.${sisa} Perbaiki filenya, atau centang "Sesuaikan bobot ke RAB" bila memang ingin sistem yang menghitung bobotnya.`,
     );
   }
 
@@ -161,7 +161,7 @@ export function ringkasApaAdanya(h: HasilApaAdanya): string {
       .map((d) => `${d.name} ${pp(d.excel)}% (RAB ${pp(d.rab)}%)`)
       .join("; ");
     bagian.push(
-      `${h.selisihBobot.length} pekerjaan berbeda dari bobot RAB — ${contoh}${h.selisihBobot.length > 3 ? "; …" : ""}`,
+      `${h.selisihBobot.length} pekerjaan berbeda dari bobot RAB – ${contoh}${h.selisihBobot.length > 3 ? "; …" : ""}`,
     );
   }
   return bagian.join(". ") + ".";

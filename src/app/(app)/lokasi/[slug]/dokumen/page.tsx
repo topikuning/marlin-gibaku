@@ -54,7 +54,7 @@ export default async function DokumenKepatuhanPage({ params }: { params: Promise
     <div className="space-y-6">
       <CollapsibleCard
         title="Administrasi induk (paket)"
-        subtitle={`${indukBoard.done}/${indukBoard.total} selesai — SPPBJ, kontrak, jaminan, SPMK, termin, PHO/FHO. Dikelola di paket; status ikut induk.`}
+        subtitle={`${indukBoard.done}/${indukBoard.total} selesai – SPPBJ, kontrak, jaminan, SPMK, termin, PHO/FHO. Dikelola di paket; status ikut induk.`}
         defaultOpen={false}
       >
         <div className="space-y-4">
@@ -89,7 +89,7 @@ export default async function DokumenKepatuhanPage({ params }: { params: Promise
 
       <Card>
         <CardHeader
-          title="Kepatuhan lokasi — MC-0 & serah terima lokasi"
+          title="Kepatuhan lokasi – MC-0 & serah terima lokasi"
           subtitle={`${board.done}/${board.total} selesai · ${board.late} terlambat`}
         />
         <CardBody className="space-y-5">
@@ -136,7 +136,7 @@ export default async function DokumenKepatuhanPage({ params }: { params: Promise
               locationId={location.id}
               packageId={location.packageId}
               slug={slug}
-              milestones={board.phases.flatMap((p) => p.items.map((m) => ({ id: m.id, name: `${p.label} — ${m.name}` })))}
+              milestones={board.phases.flatMap((p) => p.items.map((m) => ({ id: m.id, name: `${p.label} – ${m.name}` })))}
             />
           )}
           {documents.length === 0 ? (
@@ -178,7 +178,7 @@ export default async function DokumenKepatuhanPage({ params }: { params: Promise
                       <td className="py-1.5 pr-3">
                         <StatusPill tone="neutral" label={TYPE_LABEL[d.type]} />
                       </td>
-                      <td className="py-1.5 pr-3 tabular">{d.docDate ? formatTanggal(d.docDate) : "—"}</td>
+                      <td className="py-1.5 pr-3 tabular">{d.docDate ? formatTanggal(d.docDate) : "–"}</td>
                       <td className="py-1.5 text-ink-muted">{d.uploadedByName}</td>
                     </tr>
                   ))}

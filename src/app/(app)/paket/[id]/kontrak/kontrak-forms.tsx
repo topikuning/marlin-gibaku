@@ -313,7 +313,7 @@ export function ConvertContractForm({
         </div>
       </div>
       <HelpText>
-        Kontrak belum menetapkan tanggal mulai — pekerjaan baru berjalan saat <b>SPMK</b> terbit.
+        Kontrak belum menetapkan tanggal mulai – pekerjaan baru berjalan saat <b>SPMK</b> terbit.
         Tanggal mulai &amp; selesai diisi nanti di langkah <b>Mulai Pelaksanaan</b> (selesai = SPMK +
         masa pelaksanaan).
       </HelpText>
@@ -329,7 +329,7 @@ export function ConvertContractForm({
 
       <HelpText>
         Konversi menaikkan stage Penetapan → Kontrak dan mengaktifkan semua lokasi target. Aksi
-        aman diulang — kontrak tidak akan terduplikasi.
+        aman diulang – kontrak tidak akan terduplikasi.
       </HelpText>
 
       <Button type="submit" loading={pending}>
@@ -480,7 +480,7 @@ export function TtdStempelForm({
           stempelUrl={gambar.supervisorStempelUrl}
         />
         <PihakTtdFields
-          judul={`Penyedia Jasa — ${gambar.vendorName}`}
+          judul={`Penyedia Jasa – ${gambar.vendorName}`}
           medanTtd="contractorTtdKey"
           medanStempel="contractorStempelKey"
           ttdUrl={gambar.contractorTtdUrl}
@@ -537,7 +537,7 @@ function PihakTtdFields({
         kelasPratinjau="size-16"
         catatan={
           !stempelUrl && stempelCadanganUrl
-            ? "Kosong — memakai stempel dari master perusahaan."
+            ? "Kosong – memakai stempel dari master perusahaan."
             : null
         }
         urlCadangan={!stempelUrl ? stempelCadanganUrl : null}

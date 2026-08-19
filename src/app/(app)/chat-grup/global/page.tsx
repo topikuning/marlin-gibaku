@@ -11,7 +11,7 @@ import { SUMMARY_STATUS_LABEL, SUMMARY_STATUS_TONE, canSend } from "@/lib/waha/s
 import { formatTanggal, formatTanggalWaktu, jakartaToday } from "@/lib/format";
 import { SendGlobalForm } from "./send-global-form";
 
-export const metadata: Metadata = { title: "Chat Grup — Ringkasan Global" };
+export const metadata: Metadata = { title: "Chat Grup – Ringkasan Global" };
 export const dynamic = "force-dynamic";
 
 /**
@@ -41,7 +41,7 @@ export default async function ChatGrupGlobalPage({
     <div className="space-y-4">
       <PageHeader
         title="Ringkasan Global Chat Grup"
-        description="Gabungan ringkasan seluruh grup WhatsApp pada satu tanggal — kirim sekali jalan ke pimpinan."
+        description="Gabungan ringkasan seluruh grup WhatsApp pada satu tanggal – kirim sekali jalan ke pimpinan."
         actions={
           <Link
             href="/chat-grup"
@@ -79,7 +79,7 @@ export default async function ChatGrupGlobalPage({
         <div className="space-y-4">
           <Card>
             <CardHeader
-              title={`Kirim ke pimpinan — ${formatTanggal(new Date(`${dateKey}T00:00:00.000Z`))}`}
+              title={`Kirim ke pimpinan – ${formatTanggal(new Date(`${dateKey}T00:00:00.000Z`))}`}
               subtitle={
                 sendable.length > 1
                   ? `${sendable.length} ringkasan final digabung jadi satu pesan; AI menambahkan pengantar singkat.`
@@ -89,7 +89,7 @@ export default async function ChatGrupGlobalPage({
             <CardBody className="space-y-2">
               {rows.length === 0 ? (
                 <p className="text-sm text-ink-muted">
-                  Belum ada ringkasan pada tanggal ini — buat dulu di halaman per grup.
+                  Belum ada ringkasan pada tanggal ini – buat dulu di halaman per grup.
                 </p>
               ) : (
                 <>

@@ -199,7 +199,7 @@ export async function cariNarasi(opts: {
       UNION ALL
 
       SELECT 'kegiatan', fa.id::text, l.id::text, l.name, l.slug, fa.activity_date,
-             coalesce(fa.title, '') || ' — ' || coalesce(fa.notes, ''),
+             coalesce(fa.title, '') || ' – ' || coalesce(fa.notes, ''),
              ts_rank(${EKSPRESI_TSV.field_activities}, q.tsq)
         FROM field_activities fa
         JOIN locations l ON l.id = fa.location_id
@@ -210,7 +210,7 @@ export async function cariNarasi(opts: {
       UNION ALL
 
       SELECT 'kendala', i.id::text, l.id::text, l.name, l.slug, i.created_at::date,
-             coalesce(i.title, '') || ' — ' || coalesce(i.description, ''),
+             coalesce(i.title, '') || ' – ' || coalesce(i.description, ''),
              ts_rank(${EKSPRESI_TSV.issues}, q.tsq)
         FROM issues i
         JOIN locations l ON l.id = i.location_id
@@ -276,7 +276,7 @@ export async function cariNarasiAman(
   try {
     return await cariNarasi(opts);
   } catch (err) {
-    console.error("[narasi] pencarian catatan gagal — dilewati:", err);
+    console.error("[narasi] pencarian catatan gagal – dilewati:", err);
     return [];
   }
 }

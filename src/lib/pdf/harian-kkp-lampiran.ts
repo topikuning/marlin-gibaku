@@ -163,7 +163,7 @@ export function gambarSampul(
   baris("TANGGAL KONTRAK", d.contractDate);
   y += 10;
   baris("PEKERJAAN", d.pekerjaan);
-  baris("LOKASI", `${d.locationName} — ${d.regency}, ${d.province}`);
+  baris("LOKASI", `${d.locationName} – ${d.regency}, ${d.province}`);
   baris("TAHUN ANGGARAN", String(d.tahunAnggaran));
 
   /* ── Dua pihak di kaki halaman: KOP BERLOGO + garis tanda tangan ──────
@@ -263,7 +263,7 @@ function gambarKartu(
   const kategori = kartu[0]?.kategori;
   const label = colWidths(w, [1.1, 3.4]);
   y = gridRow(doc, y, [{ text: "Pekerjaan" }, { text: pekerjaan ?? "(tanpa item pekerjaan)", bold: true }], opsi(label));
-  y = gridRow(doc, y, [{ text: "Bangunan" }, { text: kategori ?? "—" }], opsi(label));
+  y = gridRow(doc, y, [{ text: "Bangunan" }, { text: kategori ?? "–" }], opsi(label));
 
   /* Foto: baris judul (nama pekerjaan | Bobot %) lalu baris gambar. */
   const kolomFoto = colWidths(w, [4.2, 1]);
@@ -411,10 +411,10 @@ function gambarKartuPelengkap(
 
   y = gridRow(doc, y, [{ text: judul.toUpperCase(), head: true, align: "center" }], opsi([w], 9));
   const label = colWidths(w, [1.1, 3.4]);
-  y = gridRow(doc, y, [{ text: labelBaris }, { text: kartu[0]?.nama ?? "—", bold: true }], opsi(label));
+  y = gridRow(doc, y, [{ text: labelBaris }, { text: kartu[0]?.nama ?? "–", bold: true }], opsi(label));
   // "—" untuk jumlah yang tidak diisi; 0 akan MENGARANG angka yang tak pernah
   // dilaporkan siapa pun.
-  y = gridRow(doc, y, [{ text: "Jumlah" }, { text: kartu[0]?.keterangan ?? "—" }], opsi(label));
+  y = gridRow(doc, y, [{ text: "Jumlah" }, { text: kartu[0]?.keterangan ?? "–" }], opsi(label));
 
   for (const f of kartu) {
     doc.lineWidth(0.6).strokeColor(R.inkMuted).rect(x, y, w, tinggiFoto).stroke();

@@ -88,7 +88,7 @@ export default async function PerbaikiCapPage({ params }: { params: Promise<{ id
     <div className="space-y-4">
       <PageHeader
         title="Perbaiki cap foto"
-        description="Cap dirender ULANG dari berkas asli yang diarsipkan — bukan dicap ulang di atas gambar ber-cap."
+        description="Cap dirender ULANG dari berkas asli yang diarsipkan – bukan dicap ulang di atas gambar ber-cap."
         actions={
           <Link href="/foto" className="text-sm text-primary hover:underline">
             ← Galeri Foto
@@ -101,7 +101,7 @@ export default async function PerbaikiCapPage({ params }: { params: Promise<{ id
           tone="error"
           title={
             k.originalPurgedAt
-              ? "Arsip berkas asli foto ini sudah dihapus — capnya tidak bisa diperbaiki lagi."
+              ? "Arsip berkas asli foto ini sudah dihapus – capnya tidak bisa diperbaiki lagi."
               : "Foto ini diunggah sebelum arsip berkas asli aktif, jadi capnya tidak bisa diperbaiki."
           }
           description="Perbaikan cap selalu dimulai dari berkas asli. Tanpa arsipnya, cap lama sudah menyatu dengan pikselnya."
@@ -138,7 +138,7 @@ export default async function PerbaikiCapPage({ params }: { params: Promise<{ id
                 <Badge tone="neutral" label={k.saatIni.timeSource} />
               </dd>
               <dt className="text-ink-muted">Photo ID</dt>
-              <dd className="tabular">{k.saatIni.photoId ?? "— (belum punya)"}</dd>
+              <dd className="tabular">{k.saatIni.photoId ?? "– (belum punya)"}</dd>
             </dl>
           </CardBody>
         </Card>
@@ -152,14 +152,14 @@ export default async function PerbaikiCapPage({ params }: { params: Promise<{ id
             {bisaDiperbaiki ? (
               <RestampForm photoId={k.photoId} awal={awal} usulan={usulan} />
             ) : (
-              <p className="text-sm text-ink-muted">Form dinonaktifkan — arsip aslinya tidak ada.</p>
+              <p className="text-sm text-ink-muted">Form dinonaktifkan – arsip aslinya tidak ada.</p>
             )}
           </CardBody>
         </Card>
       </div>
 
       <Card>
-        <CardHeader title="Riwayat perbaikan" subtitle="Append-only — tidak bisa diubah atau dihapus." />
+        <CardHeader title="Riwayat perbaikan" subtitle="Append-only – tidak bisa diubah atau dihapus." />
         <CardBody>
           {revisi.length === 0 ? (
             <p className="text-sm text-ink-muted">Cap foto ini belum pernah diperbaiki.</p>
@@ -168,11 +168,11 @@ export default async function PerbaikiCapPage({ params }: { params: Promise<{ id
               {revisi.map((r) => (
                 <li key={r.revision} className="py-2">
                   <div className="font-medium text-ink">
-                    Revisi {r.revision} · {namaPengubah.get(r.changedById) ?? "—"}
+                    Revisi {r.revision} · {namaPengubah.get(r.changedById) ?? "–"}
                   </div>
                   <p className="text-xs text-ink-muted">
                     {formatTanggalWaktu(r.createdAt)} · diketik manual:{" "}
-                    {r.manualFields.length ? r.manualFields.join(", ") : "—"}
+                    {r.manualFields.length ? r.manualFields.join(", ") : "–"}
                   </p>
                   <p className="mt-0.5 text-xs text-ink">{r.reason}</p>
                 </li>

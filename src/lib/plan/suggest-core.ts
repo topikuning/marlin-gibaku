@@ -191,7 +191,7 @@ export function computeSuggestions(
     let reason: string;
     if (shortfall > EPS) {
       const wk = overdueWeeks(workType, stage, cs, ce, it.volume, realized, weekNumber, totalWeeks);
-      reason = wk > 0 ? `Tertinggal ~${wk} mgg — kejar` : "Tertinggal — kejar";
+      reason = wk > 0 ? `Tertinggal ~${wk} mgg – kejar` : "Tertinggal – kejar";
     } else if (fracPrev <= EPS && fracNow > EPS) {
       reason = "Mulai minggu ini";
     } else {

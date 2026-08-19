@@ -235,7 +235,7 @@ describe("kapan minggu kontrak berakhir", () => {
     }
   });
 
-  it("nomor minggu TIDAK dibatasi panjang kurva-S — kontrak molor tetap jujur", () => {
+  it("nomor minggu TIDAK dibatasi panjang kurva-S – kontrak molor tetap jujur", () => {
     // Kalau angka ini di-clamp ke jumlah minggu baseline, kontrak yang lewat
     // jadwal akan selamanya melaporkan "Minggu Ke : 20" padahal sudah 25.
     expect(mingguKontrak(SPMK, new Date("2027-01-04T00:00:00Z"))).toBe(27);
@@ -270,7 +270,7 @@ describe("penjadwal", () => {
     expect(lagi.terkirim).toBe(0);
   });
 
-  it("minggu BERIKUTNYA tetap dikirim — yang dikunci minggunya, bukan paketnya", async () => {
+  it("minggu BERIKUTNYA tetap dikirim – yang dikunci minggunya, bukan paketnya", async () => {
     const h = await kirimLaporanMingguanTerjadwal(new Date("2026-07-19T09:00:00Z"));
     expect(h.terkirim).toBe(1);
     expect(terkirim[0].text).toContain("Minggu Ke : 2");
@@ -349,7 +349,7 @@ describe("memilih minggu yang dilaporkan (DECISIONS 357)", () => {
    */
   const KINI = new Date("2026-08-19T03:00:00.000Z"); // minggu berjalan ke-7
 
-  it("tanpa pilihan: tetap minggu BERJALAN — kebiasaan lama tidak berubah", async () => {
+  it("tanpa pilihan: tetap minggu BERJALAN – kebiasaan lama tidak berubah", async () => {
     const r = await pratinjauMingguan(packageId, KINI);
     expect("alasan" in r, "alasan" in r ? r.alasan : "").toBe(false);
     if ("alasan" in r) return;

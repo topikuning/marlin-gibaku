@@ -91,7 +91,7 @@ export function ReportEditor({
       {correctionReason ? (
         <Banner
           tone="warning"
-          title="Laporan dikembalikan — perlu koreksi"
+          title="Laporan dikembalikan – perlu koreksi"
           description={correctionReason}
         />
       ) : null}
@@ -115,7 +115,7 @@ export function ReportEditor({
               bagaimana"*. Sekarang ada jawabannya, dan disebut lebih dulu. */}
           <p className="mt-0.5 text-xs text-muted">
             Foto ini ikut terlepas saat pekerjaannya dihapus. Ketuk panah untuk mengembalikannya ke
-            kantong Foto Cepat — dari sana bisa dipakai untuk pekerjaan mana pun. Hapus hanya bila
+            kantong Foto Cepat – dari sana bisa dipakai untuk pekerjaan mana pun. Hapus hanya bila
             memang tidak terpakai.
           </p>
           <div className="mt-2">
@@ -385,7 +385,7 @@ function ItemForm({
                           (DECISIONS 210). */}
                       {n.basis === "draft_adendum" ? (
                         <div className="mt-0.5 inline-block rounded bg-warning-soft px-1.5 py-0.5 text-[11px] font-medium text-warning">
-                          Pengajuan adendum — belum resmi
+                          Pengajuan adendum – belum resmi
                         </div>
                       ) : null}
                       <div className="text-xs text-ink-muted">
@@ -427,7 +427,7 @@ function ItemForm({
         {picked?.remaining != null ? (
           <p className="mt-1 text-xs text-ink-muted">
             Sisa yang bisa dilaporkan: {formatNumber(picked.remaining)} {picked.unit} (dari volume RAB{" "}
-            {picked.volume != null ? formatNumber(picked.volume) : "—"}).
+            {picked.volume != null ? formatNumber(picked.volume) : "–"}).
           </p>
         ) : null}
       </div>
@@ -437,7 +437,7 @@ function ItemForm({
         <Label>3 · Foto bukti (opsional)</Label>
         {!photoEnabled ? (
           <p className="rounded-lg border border-warning bg-warning-soft px-3 py-2 text-sm text-ink">
-            Penyimpanan foto (Cloudflare R2) belum diaktifkan — unggah foto sementara tidak tersedia.
+            Penyimpanan foto (Cloudflare R2) belum diaktifkan – unggah foto sementara tidak tersedia.
             Volume tetap bisa disimpan. Hubungi admin untuk mengaktifkan (menu Sistem → tes R2).
           </p>
         ) : (
@@ -833,7 +833,7 @@ function ItemList({
   if (items.length === 0) {
     return (
       <p className="rounded-lg border border-dashed border-border bg-surface px-4 py-6 text-center text-sm text-ink-muted">
-        Belum ada item pekerjaan hari ini — mulai dari form di atas.
+        Belum ada item pekerjaan hari ini – mulai dari form di atas.
       </p>
     );
   }

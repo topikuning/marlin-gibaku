@@ -151,7 +151,7 @@ export default async function ProgressLokasiPage({
                 </a>
                 <a
                   href={`/lokasi/${slug}/jadwal/rincian`}
-                  title="Rincian sampai uraian item: volume, harga satuan, jumlah, dan bobot tiap baris. Kolom jadwalnya adalah jadwal KATEGORI induk — sistem tidak menyimpan jadwal per item."
+                  title="Rincian sampai uraian item: volume, harga satuan, jumlah, dan bobot tiap baris. Kolom jadwalnya adalah jadwal KATEGORI induk – sistem tidak menyimpan jadwal per item."
                   className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink transition-colors hover:border-border-strong hover:bg-surface-muted"
                 >
                   <ListTree aria-hidden className="size-4" /> Rincian Item
@@ -237,7 +237,7 @@ async function BagianRingkasan({
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="text-[13px] font-semibold text-ink">
-                Pantauan internal — progres atas usulan adendum (draft revisi #{draftProg.revisionNo})
+                Pantauan internal – progres atas usulan adendum (draft revisi #{draftProg.revisionNo})
               </p>
               <p className="mt-0.5 text-[11px] text-ink-muted">
                 Laporan sampingan untuk kebutuhan internal. BUKAN angka resmi: termin, kurva-S,
@@ -276,7 +276,7 @@ async function BagianRingkasan({
           </div>
           <p className="mt-2 text-[11px] text-ink-muted">
             {draftProg.barisBasisDraft === 0
-              ? "Belum ada baris laporan yang dicatat terhadap draft ini — angka di atas berasal dari laporan yang sudah ada, dinilai memakai RAB draft."
+              ? "Belum ada baris laporan yang dicatat terhadap draft ini – angka di atas berasal dari laporan yang sudah ada, dinilai memakai RAB draft."
               : `${draftProg.barisBasisDraft} baris laporan dicatat terhadap draft ini (pekerjaan yang belum ada dasarnya di kontrak berjalan).`}
           </p>
         </section>
@@ -329,11 +329,11 @@ async function BagianRingkasan({
                         </td>
                         <td className="tabular px-3 py-1.5 text-right">{formatPct(plan)}</td>
                         <td className="tabular px-3 py-1.5 text-right">
-                          {actual == null ? "—" : formatPct(actual)}
+                          {actual == null ? "–" : formatPct(actual)}
                         </td>
                         <td className="px-3 py-1.5">
                           {actual == null ? (
-                            <span className="text-ink-faint">—</span>
+                            <span className="text-ink-faint">–</span>
                           ) : (
                             <DeltaBadge value={actual - plan} />
                           )}
@@ -368,7 +368,7 @@ async function BagianRingkasan({
           <div className="p-3">
             {!forecast.enoughData ? (
               <p className="text-sm text-ink-muted">
-                {fcStatus.label} — prognosa tampil setelah ada realisasi minimal 2 minggu.
+                {fcStatus.label} – prognosa tampil setelah ada realisasi minimal 2 minggu.
               </p>
             ) : (
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -395,7 +395,7 @@ async function BagianRingkasan({
                     rencana:{" "}
                     {bounds && !bounds.assumed ? formatTanggal(bounds.endDate) : `minggu ${forecast.totalWeeks}`}
                     {forecast.beyondHorizon
-                      ? " · laju realisasi terlalu rendah — proyeksi jatuh >1 tahun melewati rencana"
+                      ? " · laju realisasi terlalu rendah – proyeksi jatuh >1 tahun melewati rencana"
                       : forecast.slipWeeks != null
                         ? ` · ${forecast.slipWeeks <= 0 ? "tepat / lebih cepat" : `perkiraan telat ~${forecast.slipWeeks} mgg`}`
                         : ""}
@@ -418,10 +418,10 @@ async function BagianRingkasan({
                     Laju terkini / dibutuhkan
                   </div>
                   <div className="mt-1 text-base font-semibold text-ink">
-                    {forecast.velocityPerWeek != null ? `${forecast.velocityPerWeek.toFixed(2)}%` : "—"}
+                    {forecast.velocityPerWeek != null ? `${forecast.velocityPerWeek.toFixed(2)}%` : "–"}
                     <span className="text-ink-muted">
                       {" / "}
-                      {forecast.requiredPerWeek != null ? `${forecast.requiredPerWeek.toFixed(2)}%` : "—"}/mgg
+                      {forecast.requiredPerWeek != null ? `${forecast.requiredPerWeek.toFixed(2)}%` : "–"}/mgg
                     </span>
                   </div>
                   {forecast.spi != null ? (
@@ -497,7 +497,7 @@ async function BagianBaseline({
         <section className="rounded-lg border border-warning-border bg-warning-soft p-3">
           <p className="text-[13px] font-semibold text-ink">Belum ada baseline aktif</p>
           <p className="mt-0.5 text-[11px] text-ink-muted">
-            Tanpa baseline, tidak ada rencana untuk dibandingkan — deviasi dan prognosa tidak bisa
+            Tanpa baseline, tidak ada rencana untuk dibandingkan – deviasi dan prognosa tidak bisa
             dihitung. Baseline terbentuk otomatis saat RAB diimpor, atau bisa dihitung ulang di sini.
           </p>
         </section>
@@ -515,7 +515,7 @@ async function BagianBaseline({
         <section className="rounded-lg border border-border p-3">
           <p className="text-[13px] font-semibold text-ink">Cara lain: hitung ulang dari RAB</p>
           <p className="mt-0.5 mb-2 text-[11px] text-ink-muted">
-            Tanpa Excel — sistem menyusun ulang jadwal dari RAB aktif. Dipakai saat RAB berubah
+            Tanpa Excel – sistem menyusun ulang jadwal dari RAB aktif. Dipakai saat RAB berubah
             (mis. sesudah adendum), bukan saat Anda punya jadwal sendiri. Versi lama tidak dihapus.
           </p>
           <RecalcBaselineButton locationId={locationId} />
@@ -545,7 +545,7 @@ async function BagianBaseline({
         <header className="border-b border-border px-3 py-2">
           <p className="text-[13px] font-semibold text-ink">Riwayat baseline</p>
           <p className="mt-0.5 text-[11px] text-ink-muted">
-            Baseline tidak pernah diedit in place — setiap perubahan membuat versi baru. Centang
+            Baseline tidak pernah diedit in place – setiap perubahan membuat versi baru. Centang
             beberapa versi untuk membandingkan kurvanya; versi lama bisa dipulihkan (dibuat sebagai
             salinan baru).
           </p>
@@ -592,9 +592,9 @@ async function BagianJadwal({
   return (
     <div className="space-y-3 p-3">
       <p className="rounded-md border border-info-border bg-info-soft p-2.5 text-[11px] text-ink-muted">
-        Ini editor teknis, bukan halaman pantau. Atur rentang minggu tiap pekerjaan — boleh lebih
+        Ini editor teknis, bukan halaman pantau. Atur rentang minggu tiap pekerjaan – boleh lebih
         dari satu rentang bila terputus (jeda); bobot mengikuti RAB. Punya jadwal dari Excel? Pakai
-        alur <strong className="font-semibold text-ink">Perbarui Kurva-S</strong> di bagian Baseline —
+        alur <strong className="font-semibold text-ink">Perbarui Kurva-S</strong> di bagian Baseline –
         di sana berkasnya diperiksa dulu sebelum diterapkan.
       </p>
       <ScheduleEditor
@@ -732,7 +732,7 @@ async function BagianKendala({
           <p className="text-[13px] font-semibold text-ink">Item tertinggal</p>
           <p className="mt-0.5 text-[11px] text-ink-muted">
             Realisasi kumulatif di bawah target proporsional rencana ({formatPct(planNow)} pada
-            minggu {currentWeek}) — 10 terbesar berdasar nilai kekurangan.
+            minggu {currentWeek}) – 10 terbesar berdasar nilai kekurangan.
           </p>
         </header>
         {lagging.length === 0 ? (

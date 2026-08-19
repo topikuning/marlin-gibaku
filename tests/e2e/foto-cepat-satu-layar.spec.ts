@@ -29,7 +29,7 @@ test.use({
   },
 });
 
-test.describe("Foto Cepat — satu layar, tanpa gulir", () => {
+test.describe("Foto Cepat – satu layar, tanpa gulir", () => {
   test.beforeEach(async ({ page, context }) => {
     test.skip(test.info().project.name !== "mobile", "keluhannya soal layar ponsel");
     await context.grantPermissions(["geolocation", "camera"]);
@@ -54,7 +54,7 @@ test.describe("Foto Cepat — satu layar, tanpa gulir", () => {
     return rana;
   };
 
-  test("rana langsung terlihat di layar — tanpa digulir sedikit pun", async ({ page }) => {
+  test("rana langsung terlihat di layar – tanpa digulir sedikit pun", async ({ page }) => {
     const rana = await bukaKamera(page);
     const kotak = (await rana.boundingBox())!;
     const layar = page.viewportSize()!;
@@ -78,7 +78,7 @@ test.describe("Foto Cepat — satu layar, tanpa gulir", () => {
     expect(kotak.y).toBeLessThanOrEqual(0.5);
   });
 
-  test("halaman di belakang terkunci — menyeret tidak menggeser apa pun", async ({ page }) => {
+  test("halaman di belakang terkunci – menyeret tidak menggeser apa pun", async ({ page }) => {
     // Tanpa kunci ini, seretan di atas pratinjau menggulir halaman di baliknya
     // dan gerakan "tarik untuk muat ulang" bisa memuat ulang halaman di tengah
     // pemotretan — foto yang belum sempat tersimpan ikut hilang.

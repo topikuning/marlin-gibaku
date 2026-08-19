@@ -79,7 +79,7 @@ export function LaporanMingguanWa({
         <Banner
           tone="warning"
           title="Paket ini belum ditautkan ke grup WhatsApp"
-          description="Tetapkan grupnya di panel “Grup WhatsApp paket” dulu — tanpa itu tidak ada tujuan kirim."
+          description="Tetapkan grupnya di panel “Grup WhatsApp paket” dulu – tanpa itu tidak ada tujuan kirim."
         />
       ) : null}
 

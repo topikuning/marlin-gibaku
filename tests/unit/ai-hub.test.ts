@@ -40,7 +40,7 @@ describe("ai/crypto", () => {
     expect(decryptSecret(ct, key)).toBe("sk-abc123");
   });
 
-  it("nonce unik — dua enkripsi nilai sama menghasilkan ciphertext berbeda", () => {
+  it("nonce unik – dua enkripsi nilai sama menghasilkan ciphertext berbeda", () => {
     expect(encryptSecret("x", key)).not.toBe(encryptSecret("x", key));
   });
 

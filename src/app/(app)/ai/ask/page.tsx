@@ -11,7 +11,7 @@ import { resolveAiScope } from "@/lib/ai-hub/source";
 import { formatTanggalWaktu } from "@/lib/format";
 import { AskClient } from "./ask-client";
 
-export const metadata: Metadata = { title: "AI Intelligence — Ask MARLIN" };
+export const metadata: Metadata = { title: "AI Intelligence – Ask MARLIN" };
 export const dynamic = "force-dynamic";
 
 /**

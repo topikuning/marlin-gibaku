@@ -17,7 +17,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   }
 
   const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Belum masuk — silakan login" }, { status: 401 });
+  if (!user) return NextResponse.json({ error: "Belum masuk – silakan login" }, { status: 401 });
   // Mengunduh PDF = EKSPOR dokumen, bukan sekadar melihat layar: capability
   // `report.export` ditegakkan di route, bukan hanya menyembunyikan tombol
   // (audit Codex 2026-07-28, AUTH-05 — direct GET tetap bisa dipanggil).

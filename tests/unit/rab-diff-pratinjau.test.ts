@@ -143,7 +143,7 @@ const berharga: NodeAktif[] = [
 ];
 
 describe("KASUS INTI: harga satuan item kontrak lama bergeser", () => {
-  it("tertangkap walau VOLUMENYA sama persis — itu bentuk yang paling mudah lolos", () => {
+  it("tertangkap walau VOLUMENYA sama persis – itu bentuk yang paling mudah lolos", () => {
     const baru = [
       kategori(3_100_000n),
       item({ lineageKey: "I#1", code: "1", name: "Galian Tanah", volume: 100, unitPrice: 21_000 }),
@@ -160,7 +160,7 @@ describe("KASUS INTI: harga satuan item kontrak lama bergeser", () => {
     expect(h.jumlahTetap).toBe(1);
   });
 
-  it("item BARU tidak ikut ditandai — harganya memang belum pernah disepakati", () => {
+  it("item BARU tidak ikut ditandai – harganya memang belum pernah disepakati", () => {
     const baru = [
       kategori(3_500_000n),
       item({ lineageKey: "I#1", code: "1", name: "Galian Tanah", volume: 100, unitPrice: 20_000 }),

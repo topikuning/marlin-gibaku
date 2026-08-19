@@ -371,7 +371,7 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
         fromStatus: h.fromStatus,
         toStatus: h.toStatus,
         changedAt: h.changedAt.toISOString(),
-        changedByName: nameById.get(h.changedById) ?? "—",
+        changedByName: nameById.get(h.changedById) ?? "–",
         reason: h.reason,
       })),
       issues: report.issues.map((i) => ({

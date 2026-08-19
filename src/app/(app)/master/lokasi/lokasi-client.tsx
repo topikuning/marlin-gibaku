@@ -140,7 +140,7 @@ export function KatalogLokasiManager({
     temuan.push({
       judul: `${hitung.sudahAda} dari ${hitung.total} sudah ada sebagai lokasi proyek`,
       keterangan:
-        "Baris katalognya tidak lagi bisa dipakai membuat proyek baru — lokasinya sudah berjalan.",
+        "Baris katalognya tidak lagi bisa dipakai membuat proyek baru – lokasinya sudah berjalan.",
       aksi: (
         <Button size="sm" variant="secondary" onClick={() => { setSaring("sudah_ada"); setProv(""); setCari(""); }}>
           Lihat daftarnya
@@ -247,7 +247,7 @@ export function KatalogLokasiManager({
                         <SelNama nama={r.village} keterangan={r.province} />
                       </td>
                       <td className="px-3 py-2">{r.regency}</td>
-                      <td className="px-3 py-2 text-ink-muted">{r.district || "—"}</td>
+                      <td className="px-3 py-2 text-ink-muted">{r.district || "–"}</td>
                       <td className="tabular px-3 py-2 whitespace-nowrap text-ink-muted">
                         {(() => {
                           const k = koordinat(r);
@@ -258,7 +258,7 @@ export function KatalogLokasiManager({
                           );
                         })()}
                       </td>
-                      <td className="px-3 py-2 text-ink-muted">{r.candidateVendor || "—"}</td>
+                      <td className="px-3 py-2 text-ink-muted">{r.candidateVendor || "–"}</td>
                       <td className="px-3 py-2">
                         <StatusPill tone={NADA_STATUS[r.status]} label={LABEL_STATUS[r.status]} />
                       </td>
@@ -302,7 +302,7 @@ export function KatalogLokasiManager({
         buka={laci === "impor"}
         onTutup={() => setLaci(null)}
         judul="Impor Excel"
-        keterangan="Untuk banyak lokasi sekaligus. Selalu dipratinjau dulu — tidak ada baris yang masuk sebelum Anda melihat ringkasannya."
+        keterangan="Untuk banyak lokasi sekaligus. Selalu dipratinjau dulu – tidak ada baris yang masuk sebelum Anda melihat ringkasannya."
       >
         <MasterImportForm />
       </Laci>
@@ -348,7 +348,7 @@ function FormTambahLokasi({
           tone={adaPersis ? "error" : "warning"}
           title={
             adaPersis
-              ? "Lokasi ini sudah ada — tidak dibuat ganda."
+              ? "Lokasi ini sudah ada – tidak dibuat ganda."
               : `${kandidat.length} lokasi mirip sudah terdaftar. Periksa dulu sebelum menyimpan.`
           }
           description={
@@ -358,7 +358,7 @@ function FormTambahLokasi({
                   <li key={`${k.sumber}-${k.id}`} className="text-[12px]">
                     <span className="font-semibold text-ink">{k.nama}</span>{" "}
                     <span className="text-ink-muted">
-                      — {[k.district, k.regency, k.province].filter(Boolean).join(" · ")}
+                      – {[k.district, k.regency, k.province].filter(Boolean).join(" · ")}
                     </span>{" "}
                     <span className="text-ink-faint">
                       ({k.sumber === "katalog" ? "katalog" : "sudah jadi proyek"}
@@ -373,8 +373,8 @@ function FormTambahLokasi({
                 </p>
               ) : (
                 <p className="text-[12px]">
-                  Kalau ini memang desa yang berbeda — nama desa yang sama di kecamatan lain itu
-                  lazim — tekan <strong className="font-semibold">Tetap simpan sebagai baru</strong>.
+                  Kalau ini memang desa yang berbeda – nama desa yang sama di kecamatan lain itu
+                  lazim – tekan <strong className="font-semibold">Tetap simpan sebagai baru</strong>.
                 </p>
               )}
             </div>
@@ -421,7 +421,7 @@ function FormTambahLokasi({
           </div>
         </div>
         <p className="text-[11px] text-ink-muted">
-          Boleh dikosongkan — lokasinya tetap tersimpan, tapi diberi status{" "}
+          Boleh dikosongkan – lokasinya tetap tersimpan, tapi diberi status{" "}
           <strong className="font-semibold text-ink">Perlu verifikasi</strong> sampai koordinatnya
           diisi. Isi keduanya atau kosongkan keduanya.
         </p>

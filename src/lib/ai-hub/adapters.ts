@@ -187,7 +187,7 @@ async function tambahKontrak(
       id: refId,
       entityType: "contract",
       entityId: l.packageId,
-      label: `${l.name} — kontrak ${k.contractNumber}`,
+      label: `${l.name} – kontrak ${k.contractNumber}`,
       value: [
         `nilai ${formatRupiah(k.contractValue)} (incl. PPN ${k.ppnPercent}%)`,
         `vendor ${k.vendor.name}`,
@@ -244,7 +244,7 @@ async function tambahRab(
         id: refId,
         entityType: "rab",
         entityId: l.id,
-        label: `${l.name} — RAB`,
+        label: `${l.name} – RAB`,
         value: "belum ada revisi aktif",
         href: `/lokasi/${l.slug}/rab`,
       });
@@ -254,7 +254,7 @@ async function tambahRab(
       id: refId,
       entityType: "rab",
       entityId: l.id,
-      label: `${l.name} — RAB revisi ${r.revisionNo} (aktif)`,
+      label: `${l.name} – RAB revisi ${r.revisionNo} (aktif)`,
       value: `nilai ${formatRupiah(r.totalValue)} (pre-PPN) · ${r._count.nodes} baris`,
       href: `/lokasi/${l.slug}/rab`,
     });
@@ -297,7 +297,7 @@ async function tambahKeuangan(
         id: refId,
         entityType: "finance",
         entityId: l.id,
-        label: `${l.name} — keuangan`,
+        label: `${l.name} – keuangan`,
         value: [
           `anggaran ${formatRupiah(f.budgetTotal)}`,
           `terpakai ${formatRupiah(f.expenseApproved)}`,
@@ -320,7 +320,7 @@ async function tambahKeuangan(
       id: refTagihan,
       entityType: "owner_billing",
       entityId: k.id,
-      label: `${l.name} — termin ke pemberi kerja`,
+      label: `${l.name} – termin ke pemberi kerja`,
       value: [
         `tertagih ${formatRupiah(t.billed)}`,
         `cair ${formatRupiah(t.disbursed)}`,
@@ -367,7 +367,7 @@ async function tambahMilestone(
       id: refId,
       entityType: "milestone",
       entityId: l.id,
-      label: `${l.name} — kelengkapan dokumen KKP`,
+      label: `${l.name} – kelengkapan dokumen KKP`,
       value: `${selesai}/${total} selesai · ${perluPerbaikan} perlu perbaikan`,
       href: `/lokasi/${l.slug}/administrasi`,
     });

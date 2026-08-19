@@ -169,7 +169,7 @@ describe("editor draft adendum", () => {
     expect(pondasi.lineageKey).toBe("II#1");
   });
 
-  it("harga satuan item BARU bisa diedit (negosiasi); item LAMA ditolak — terkunci", async () => {
+  it("harga satuan item BARU bisa diedit (negosiasi); item LAMA ditolak – terkunci", async () => {
     const sondir = await draftNode(draftId, "I#3");
     const naik = await updateDraftNewItemFields(draftId, sondir.id, { unitPrice: 3_000_000 }, userId);
     expect(naik.totalValue).toBe(165_000_000n); // 163jt + 4 titik × 500rb

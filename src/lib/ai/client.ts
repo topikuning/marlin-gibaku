@@ -46,7 +46,7 @@ const DEFAULT_TIMEOUT_MS = 60_000;
 
 async function readError(res: Response): Promise<string> {
   const body = (await res.text().catch(() => "")).slice(0, 300);
-  return `HTTP ${res.status}${body ? ` — ${body}` : ""}`;
+  return `HTTP ${res.status}${body ? ` – ${body}` : ""}`;
 }
 
 function buildRequest(cfg: ResolvedAiConfig, req: AiRequest): { url: string; init: RequestInit } {
@@ -168,7 +168,7 @@ export async function aiCall(req: AiRequest): Promise<AiCallResult> {
       provider: null,
       model: null,
       errorCode: "provider_disabled",
-      error: "Provider AI aktif belum siap — pilih provider & isi API key di Sistem → AI.",
+      error: "Provider AI aktif belum siap – pilih provider & isi API key di Sistem → AI.",
       latencyMs: 0,
     };
   }

@@ -241,7 +241,7 @@ describe("sakelar", () => {
 });
 
 describe("pindai", () => {
-  it("menjaring laporan FINAL yang paketnya punya folder Drive — dan hanya itu", async () => {
+  it("menjaring laporan FINAL yang paketnya punya folder Drive – dan hanya itu", async () => {
     const n = await pindaiHarian();
     expect(n).toBe(1);
     const semua = await db.gDriveJob.findMany({ where: { kind: "laporan_harian" } });
@@ -298,7 +298,7 @@ describe("pindai", () => {
     await db.dailyReport.delete({ where: { id: lama.id } });
   });
 
-  it("BACKLOG mingguan konvergen — jatah kecil tetap menjangkau lokasi berikutnya", async () => {
+  it("BACKLOG mingguan konvergen – jatah kecil tetap menjangkau lokasi berikutnya", async () => {
     // Dua cacat sekaligus diuji di sini: minggu yang sudah diantre memakan
     // jatah, DAN pindai berhenti di lokasi pertama. Dengan jatah 1 per putaran,
     // empat putaran harus menjangkau 2 lokasi × 2 minggu — bukan berputar di
@@ -360,7 +360,7 @@ describe("mengerjakan antrean", () => {
     }
   });
 
-  it("FOTO ikut naik — hasil otomatis sama isinya dengan tombol manual", async () => {
+  it("FOTO ikut naik – hasil otomatis sama isinya dengan tombol manual", async () => {
     await db.photo.create({
       data: {
         locationId: lokasiId,
@@ -389,7 +389,7 @@ describe("mengerjakan antrean", () => {
     expect(await jobHarian()).toMatchObject({ status: "batal" });
   });
 
-  it("finalisasi ulang mengantre lagi — isinya sudah berbeda dari yang di Drive", async () => {
+  it("finalisasi ulang mengantre lagi – isinya sudah berbeda dari yang di Drive", async () => {
     await pindaiHarian();
     await jalankanAntreanDrive({ pindai: false });
     expect(await jobHarian()).toMatchObject({ status: "sukses" });

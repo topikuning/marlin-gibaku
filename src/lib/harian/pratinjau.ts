@@ -165,7 +165,7 @@ export async function pratinjauPengingat(orgId: string): Promise<PratinjauPengin
       riwayat: riwayat(p.userId),
     })),
     sudahDikirim: log.map((l) => ({
-      nama: namaOrg.get(l.userId) ?? "—",
+      nama: namaOrg.get(l.userId) ?? "–",
       lokasi: l.locations,
       tujuan: l.chatId,
       attempts: l.attempts,

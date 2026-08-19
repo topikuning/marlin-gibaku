@@ -189,7 +189,7 @@ export async function discardDraft(revisionId: string, userId: string) {
     select: { id: true, status: true, revisionNo: true, locationId: true },
   });
   if (rev.status !== "draft") {
-    throw new Error(`Revisi #${rev.revisionNo} bukan draft — tidak boleh dihapus.`);
+    throw new Error(`Revisi #${rev.revisionNo} bukan draft – tidak boleh dihapus.`);
   }
   await db.rabRevision.delete({ where: { id: rev.id } });
   await audit(userId, "rab.revision_discard", "rab_revision", rev.id, {

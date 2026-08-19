@@ -63,7 +63,7 @@ function fixture(over?: Partial<PeriodReport>): PeriodReport {
       district: "Rembang",
       regency: "Rembang",
       province: "Jawa Tengah",
-      packageName: "Pembangunan Kampung Nelayan Merah Putih — Pasar Banggi",
+      packageName: "Pembangunan Kampung Nelayan Merah Putih – Pasar Banggi",
       ownerAgency: "Kementerian Kelautan dan Perikanan",
       contractNumber: "B.17105/DJPT.6/PI.420/PPK/VI/2026",
       vendorName: "PT Kurnia Alam Sentosa",
@@ -170,11 +170,11 @@ describe("sheet COV-BQ (sampul)", () => {
     const t = semuaTeks((await book()).getWorksheet("COV-BQ")!);
     expect(t).toContain("LAPORAN PROGRES MINGGU KE-2");
     expect(t).toContain("SATUAN KERJA");
-    expect(t).toContain("PEMBANGUNAN KAMPUNG NELAYAN MERAH PUTIH — PASAR BANGGI");
+    expect(t).toContain("PEMBANGUNAN KAMPUNG NELAYAN MERAH PUTIH – PASAR BANGGI");
     expect(t).toContain("KEMENTERIAN KELAUTAN DAN PERIKANAN");
     expect(t).toContain("LOKASI PEKERJAAN");
     // Nama desa yang sama dengan nama lokasi tidak diulang.
-    expect(t).toContain("PASAR BANGGI — KEC. REMBANG, REMBANG, JAWA TENGAH");
+    expect(t).toContain("PASAR BANGGI – KEC. REMBANG, REMBANG, JAWA TENGAH");
     expect(t).toContain("TAHUN 2026");
     expect(t).toContain("KONTRAKTOR PELAKSANA");
     expect(t).toContain("PT Kurnia Alam Sentosa");
@@ -195,7 +195,7 @@ describe("sheet REKAP", () => {
     return { ws, r };
   };
 
-  it("kolomnya persis enam dan MURNI BOBOT — tidak ada kolom rupiah", async () => {
+  it("kolomnya persis enam dan MURNI BOBOT – tidak ada kolom rupiah", async () => {
     const { ws, r } = await kepala();
     expect(r).toBeGreaterThan(0);
     const head = ws.getRow(r);
@@ -249,16 +249,16 @@ describe("sheet REKAP", () => {
     expect(dev.result).toBeCloseTo(-1, 6);
   });
 
-  it("deviasi negatif DIKATAKAN terlambat — angka minus saja tidak terbaca", async () => {
+  it("deviasi negatif DIKATAKAN terlambat – angka minus saja tidak terbaca", async () => {
     const ws = (await book()).getWorksheet("REKAP")!;
-    expect(cariBaris(ws, (t) => t === "DEVIASI — TERLAMBAT")).toBeGreaterThan(0);
+    expect(cariBaris(ws, (t) => t === "DEVIASI – TERLAMBAT")).toBeGreaterThan(0);
   });
 
   it("deviasi positif tidak ditulis terlambat", async () => {
     const ws = (
       await book({ deviationPct: 2.4, actualPct: 8.4, totals: { bobotLalu: 2, bobotIni: 3, bobotSd: 8.4, bobotRencana: 6 } })
     ).getWorksheet("REKAP")!;
-    expect(cariBaris(ws, (t) => t === "DEVIASI — LEBIH CEPAT")).toBeGreaterThan(0);
+    expect(cariBaris(ws, (t) => t === "DEVIASI – LEBIH CEPAT")).toBeGreaterThan(0);
   });
 
   it("progres rencana periode ini = selisih kumulatif rencana, bukan kumulatifnya", async () => {
@@ -277,7 +277,7 @@ describe("sheet REKAP", () => {
   });
 });
 
-describe("sheet Laporan — kolom harga", () => {
+describe("sheet Laporan – kolom harga", () => {
   const laporan = async () => (await book()).getWorksheet("Laporan")!;
 
   it("kepala tabel memuat Harga Satuan & Harga Total tepat setelah Satuan", async () => {
@@ -318,7 +318,7 @@ describe("sheet Laporan — kolom harga", () => {
 });
 
 describe("blok tanda tangan", () => {
-  it("ada di Laporan, Kurva S, dan REKAP — dengan tiga pihak", async () => {
+  it("ada di Laporan, Kurva S, dan REKAP – dengan tiga pihak", async () => {
     const wb = await book();
     for (const nama of ["Laporan", "Kurva S", "REKAP"]) {
       const t = semuaTeks(wb.getWorksheet(nama)!);
@@ -349,7 +349,7 @@ describe("blok tanda tangan", () => {
   });
 });
 
-describe("logo kop — TATA LETAK dari berkas acuan", () => {
+describe("logo kop – TATA LETAK dari berkas acuan", () => {
   // Koreksi user 2026-08-06, dua kali. Pertama: "aku sudah berikan contoh bahwa
   // itu ada logo KKP (Pemilik Pekerjaan) dan kontraktor. kenapa itu kamu
   // hilangkan?" Lalu, setelah kupasang kiri–kanan: "SIAPA YANG MENYURUHMU TARUH
@@ -397,7 +397,7 @@ describe("logo kop — TATA LETAK dari berkas acuan", () => {
     }
   });
 
-  it("REKAP: pasangan logo BERJAJAR di kanan — baris sama, kolom berbeda", async () => {
+  it("REKAP: pasangan logo BERJAJAR di kanan – baris sama, kolom berbeda", async () => {
     const p = posisi((await book(undefined, LOGO)).getWorksheet("REKAP")!);
     expect(p).toHaveLength(2);
     expect(p[0].row).toBe(p[1].row);
@@ -411,11 +411,11 @@ describe("logo kop — TATA LETAK dari berkas acuan", () => {
     expect(p[0].col).toBeLessThan(p[1].col);
   });
 
-  it("sheet Laporan (RAB) TANPA logo — berkas acuan pun begitu", async () => {
+  it("sheet Laporan (RAB) TANPA logo – berkas acuan pun begitu", async () => {
     expect(posisi((await book(undefined, LOGO)).getWorksheet("Laporan")!)).toHaveLength(0);
   });
 
-  it("RASIO gambar dijaga — logo tidak diregangkan ke kotak seragam", async () => {
+  it("RASIO gambar dijaga – logo tidak diregangkan ke kotak seragam", async () => {
     // pemilik 240×120 (2:1) dan kontraktor 100×200 (1:2). Kalau keduanya
     // dipaksa ke kotak yang sama, logo perusahaan jadi gepeng/melar.
     const p = posisi((await book(undefined, LOGO)).getWorksheet("REKAP")!);
@@ -423,7 +423,7 @@ describe("logo kop — TATA LETAK dari berkas acuan", () => {
     expect(p[1].w / p[1].h).toBeCloseTo(100 / 200, 2);
   });
 
-  it("logo yang BELUM diunggah hanya dilewati — berkas tetap terbit", async () => {
+  it("logo yang BELUM diunggah hanya dilewati – berkas tetap terbit", async () => {
     // Kotak kosong atau teks pengganti lebih buruk daripada tidak ada apa-apa:
     // sisi yang kosong memang berarti logonya belum diunggah.
     const wb = await book(undefined, { pemilik: LOGO.pemilik, kontraktor: null });
@@ -468,7 +468,7 @@ describe("grafik kurva-S hidup berdampingan dengan logo", () => {
     const target = new RegExp(`Id="${rid}"[^>]*Target="([^"]+)"`).exec(rels)![1];
     const sheetFile = target.slice(target.lastIndexOf("/") + 1);
     const sheetXml = await zip.file(`xl/worksheets/${sheetFile}`)!.async("string");
-    // Tepat satu <drawing> — bukan dua, bukan nol.
+    // Tepat satu <drawing> – bukan dua, bukan nol.
     expect(sheetXml.match(/<drawing\b/g) ?? []).toHaveLength(1);
 
     const sheetRels = await zip.file(`xl/worksheets/_rels/${sheetFile}.rels`)!.async("string");

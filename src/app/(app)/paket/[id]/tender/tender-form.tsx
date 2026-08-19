@@ -63,7 +63,7 @@ export function TenderForm({
           inputMode="numeric"
           defaultValue={defaults.hpsValue}
         />
-        <HelpText>Angka rupiah tanpa desimal — pemisah titik boleh.</HelpText>
+        <HelpText>Angka rupiah tanpa desimal – pemisah titik boleh.</HelpText>
       </div>
 
       <div>

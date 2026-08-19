@@ -176,7 +176,7 @@ export function classifyDriveFile(input: {
       type: dariFolder,
       phase: phaseForType(dariFolder),
       keyakinan: "rendah",
-      alasan: `nama berkas tidak menyebut jenis — ditebak dari folder "${folder}"`,
+      alasan: `nama berkas tidak menyebut jenis – ditebak dari folder "${folder}"`,
     };
   }
 
@@ -195,7 +195,7 @@ export function classifyDriveFile(input: {
     type: "lainnya",
     phase: "lainnya",
     keyakinan: "rendah",
-    alasan: "jenis tidak terbaca dari nama berkas maupun folder — pilih manual",
+    alasan: "jenis tidak terbaca dari nama berkas maupun folder – pilih manual",
   };
 }
 
@@ -240,10 +240,10 @@ export function alasanDilewati(input: {
 }): string | null {
   const folder = kkpFolderOf(input.path);
   if (folder === "6. DOKUMENTASI") {
-    return "folder dokumentasi foto — foto lapangan dikelola di modul Kegiatan/Foto, bukan arsip dokumen";
+    return "folder dokumentasi foto – foto lapangan dikelola di modul Kegiatan/Foto, bukan arsip dokumen";
   }
   if (input.mimeType.startsWith("image/") && (input.fileName.match(/^(img|dsc|photo|foto)[-_ ]?\d+/i))) {
-    return "berkas foto kamera — bukan dokumen administrasi";
+    return "berkas foto kamera – bukan dokumen administrasi";
   }
   if (!input.didukung(input.mimeType)) {
     return `jenis berkas tidak didukung (${input.mimeType})`;

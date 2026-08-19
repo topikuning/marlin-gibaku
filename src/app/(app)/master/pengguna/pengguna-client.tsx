@@ -403,7 +403,7 @@ function Lencana({ u, masalah }: { u: UserRow; masalah: MasalahAkun[] }) {
   return (
     <>
       {u.akar ? (
-        <span title="Ditetapkan lewat SUPER_ADMIN_UTAMA. Akun ini tidak bisa dinonaktifkan, diturunkan, atau direset dari layar mana pun — ubah variabel lingkungannya lebih dulu.">
+        <span title="Ditetapkan lewat SUPER_ADMIN_UTAMA. Akun ini tidak bisa dinonaktifkan, diturunkan, atau direset dari layar mana pun – ubah variabel lingkungannya lebih dulu.">
           <Badge tone="success" label="Super admin utama" />
         </span>
       ) : null}

@@ -130,7 +130,7 @@ describe("nasib kiriman dibaca dari outbox, bukan dari catatan pra-kirim", () =>
     expect(s?.statusKirim).toBe("ditolak");
   });
 
-  it("DIBACA ikut terbaca — kabar baik pun tidak boleh hilang", async () => {
+  it("DIBACA ikut terbaca – kabar baik pun tidak boleh hilang", async () => {
     // Pagar ini tidak boleh cuma memburukkan; ack yang maju juga harus tampil,
     // kalau tidak, "ada ID pesan" tetap jadi satu-satunya yang bisa dikatakan.
     await catatPengingatSukses();

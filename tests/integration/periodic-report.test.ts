@@ -162,7 +162,7 @@ afterAll(async () => {
 const allRows = (r: NonNullable<Awaited<ReturnType<typeof getPeriodReport>>>) =>
   r.categories.flatMap((c) => c.rows);
 
-describe("laporan mingguan — invarian angka", () => {
+describe("laporan mingguan – invarian angka", () => {
   it("prasyarat periode terbaca (8 minggu)", async () => {
     const b = await getPeriodBounds(locationId);
     expect(b?.totalWeeks).toBe(WEEKS);
@@ -342,7 +342,7 @@ describe("REGRESI: dashboard & laporan resmi tidak boleh beda angka", () => {
   });
 });
 
-describe("Fixture emas — angka bulat, hitungan manual", () => {
+describe("Fixture emas – angka bulat, hitungan manual", () => {
   /**
    * Calculation Integrity Protocol menuntut fixture dengan expected yang bisa
    * dihitung tangan. Lokasi terpisah dengan angka bulat supaya selisih sekecil
@@ -459,7 +459,7 @@ describe("Fixture emas — angka bulat, hitungan manual", () => {
   });
 });
 
-describe("Reconciliation gate — satu lokasi, satu dataAsOf, satu angka", () => {
+describe("Reconciliation gate – satu lokasi, satu dataAsOf, satu angka", () => {
   /**
    * Calculation Integrity Protocol: untuk lokasi & tanggal yang sama, seluruh
    * output WAJIB identik. Diuji lewat calculation layer yang dikonsumsi tiap
@@ -796,7 +796,7 @@ describe("REGRESI B2 (audit 2026-07-27): blanko harian jalur LIVE ikut cap 100%"
   });
 });
 
-describe("laporan bulanan — invarian yang sama", () => {
+describe("laporan bulanan – invarian yang sama", () => {
   it("total tabel = angka kurva-S", async () => {
     const b = await getPeriodBounds(locationId);
     for (let n = 1; n <= b!.totalMonths; n++) {

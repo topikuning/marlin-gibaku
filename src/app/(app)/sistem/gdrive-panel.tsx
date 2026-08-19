@@ -63,7 +63,7 @@ export function GDrivePanel({
               id="gd-client-secret"
               name="clientSecret"
               type="password"
-              placeholder={initial.hasClientSecret ? "•••••••• (tersimpan — isi untuk mengganti)" : "Client secret"}
+              placeholder={initial.hasClientSecret ? "•••••••• (tersimpan – isi untuk mengganti)" : "Client secret"}
             />
           </div>
         </div>
@@ -89,7 +89,7 @@ export function GDrivePanel({
           Buat OAuth Client <span className="font-medium">tipe Web application</span> di Google Cloud Console.
           Aktifkan <span className="font-medium">Google Drive API</span>, dan di OAuth consent screen tambahkan
           scope <code className="rounded bg-surface-inset px-1">.../auth/drive</code> lalu klik{" "}
-          <span className="font-medium">Publish app</span> (status In production) — status Testing membuat token
+          <span className="font-medium">Publish app</span> (status In production) – status Testing membuat token
           mati tiap 7 hari.
         </HelpText>
         <Button type="submit" size="sm" variant="secondary" loading={pending}>

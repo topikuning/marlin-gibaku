@@ -69,13 +69,13 @@ function esc(s: string): string {
   return s.replace(/[<>&'"]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" })[c]!);
 }
 const clamp = (min: number, v: number, max: number) => Math.round(Math.max(min, Math.min(max, v)));
-/** Estimasi lebar teks (tanpa mesin font) — cukup untuk fit & wrap. */
+/** Estimasi lebar teks (tanpa mesin font) – cukup untuk fit & wrap. */
 const estWidth = (text: string, fs: number, bold: boolean) => text.length * fs * (bold ? 0.6 : 0.52);
 /** Halo gelap tipis di sekeliling teks → terbaca di atas foto terang/ramai. */
 const halo = (fs: number) =>
   `paint-order="stroke" stroke="rgb(${OVERLAY_RGB})" stroke-opacity="0.55" stroke-width="${Math.max(1, fs * 0.09).toFixed(1)}" stroke-linejoin="round"`;
 
-// Path Lucide (viewBox 24) — MapPin, UserRound, Camera.
+// Path Lucide (viewBox 24) – MapPin, UserRound, Camera.
 const ICON_PATHS: Record<"map" | "user" | "camera", string> = {
   map: '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>',
   user: '<circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/>',
@@ -120,7 +120,7 @@ function fitLocation(name: string, maxW: number, fs0: number): { lines: string[]
  *
  * Faktornya DIUKUR, bukan ditebak: merender ketiga contoh nyata lalu memangkas
  * tepi tintanya memberi 0,715–0,724 per huruf. Rumus lama `estWidth` (0,60 +
- * 0,03) meleset ~13% ke bawah — itulah sebabnya teks meluber keluar pill.
+ * 0,03) meleset ~13% ke bawah – itulah sebabnya teks meluber keluar pill.
  * Dipakai 0,75 sebagai marjin aman; jaminan KERAS-nya tetap `textLength`
  * di bawah, supaya tidak bergantung pada font yang dipakai runtime.
  */
@@ -133,7 +133,7 @@ const badgeTextW = (text: string, fs: number) => text.length * fs * 0.75;
  * kanan foto DAN teksnya ikut terpotong: teks di-anchor di TENGAH pill, jadi
  * begitu pill-nya lebih lebar dari kanvas, titik tengahnya bergeser ke luar
  * layar dan huruf depan ikut terbuang (terlihat di lapangan 28 Juli 2026:
- * "…EKERJAAN SONDIR …" — huruf P-nya hilang).
+ * "…EKERJAAN SONDIR …" – huruf P-nya hilang).
  *
  * Urutan: kecilkan font sampai batas bawah, baru potong dengan elipsis.
  */
@@ -153,7 +153,7 @@ function fitBadge(text: string, maxW: number, fs0: number): { text: string; fs: 
  *
  * Faktornya DIUKUR seperti `badgeTextW`, bukan ditebak: merender lima nama
  * perusahaan nyata lalu memangkas tepi tintanya memberi 0,566 (campuran) sampai
- * 0,695 (kapital penuh) per huruf. `estWidth` memakai 0,60 untuk tebal — itu
+ * 0,695 (kapital penuh) per huruf. `estWidth` memakai 0,60 untuk tebal – itu
  * MELESET KE BAWAH untuk nama kapital, dan nama perusahaan hampir selalu
  * kapital, jadi teksnya menyembul keluar panel. Dipakai 0,72 sebagai marjin
  * aman; kelebihan lebar hanya menyisakan ruang kosong di panel, sedangkan
@@ -205,7 +205,7 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
 
   // ── Baris kepala: panel perusahaan (kiri) ⟷ wordmark MARLIN (kanan) ──
   //
-  // KEDUANYA MASUK KE DALAM MARJIN AMAN dan berbagi SATU garis tengah —
+  // KEDUANYA MASUK KE DALAM MARJIN AMAN dan berbagi SATU garis tengah –
   // tata letak yang diminta user 2026-08-02 lewat contoh gambar. Sebelumnya
   // panel menempel mati di sudut (0,0) sementara wordmark inset, jadi keduanya
   // tidak pernah sejajar dan jarak ke tepi foto berbeda kiri-kanan.
@@ -223,7 +223,7 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
 
   if (d.companyName?.trim()) {
     // Panel BERHENTI sebelum wordmark. Tanpa batas ini nama perusahaan panjang
-    // menyelinap di bawah logo lalu keluar tepi kanan foto — dan cap sudah
+    // menyelinap di bawah logo lalu keluar tepi kanan foto – dan cap sudah
     // terbakar ke gambar, jadi tidak ada kesempatan kedua memperbaikinya.
     const maxPanelW = Math.max(w * 0.3, logoKiri - safeX - Math.round(safeX * 0.6));
     const co = fitPanel(d.companyName.trim(), maxPanelW, fsCoDasar);
@@ -258,7 +258,7 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
   const fsDate = fs(0.028, 18);
   const fsMeta = fs(0.021, 15);
 
-  const loc = fitLocation(d.locationName.trim() || "—", maxW, fsLoc0);
+  const loc = fitLocation(d.locationName.trim() || "–", maxW, fsLoc0);
   const metaLH = Math.round(fsMeta * 1.6);
   const iconSize = Math.round(fsMeta * 1.15);
   const metaRows: Array<{ ic: keyof typeof ICON_PATHS; text: string; boldTail?: string; note?: string }> = [];
@@ -315,7 +315,7 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
     cy += badgeH + gapBadgeLoc;
   }
 
-  // Item pekerjaan — di bawah badge bangunan, sebelum nama lokasi. Dipotong
+  // Item pekerjaan – di bawah badge bangunan, sebelum nama lokasi. Dipotong
   // dengan elipsis, TIDAK dipaksa selebar apa pun: ini kalimat, bukan pill.
   if (workText) {
     const maxW = w - 2 * safeX;
@@ -388,14 +388,14 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
 }
 
 /**
- * Wordmark resmi MARLIN di cap foto — berkas `public/brand/marlin-wordmark.svg`
+ * Wordmark resmi MARLIN di cap foto – berkas `public/brand/marlin-wordmark.svg`
  * (user 2026-08-02): "atur supaya di pojok atas, proporsional dengan informasi
  * nama perusahaan".
  *
  * WARNA RESMI DIPERTAHANKAN (navy + merah). Yang ditambahkan hanya HALO PUTIH:
  * navy di atas bayangan malam sama gelapnya dengan latarnya, dan logo yang
  * lenyap separuh waktu lebih buruk daripada logo yang diberi garis luar. Halo
- * putih — bukan gelap — supaya di foto terang ia praktis tak terlihat dan yang
+ * putih – bukan gelap – supaya di foto terang ia praktis tak terlihat dan yang
  * tampak tetap warna resmi.
  *
  * Tidak ada plat, tidak ada tagline. Hurufnya VEKTOR, jadi cap ini tidak lagi

@@ -111,8 +111,8 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       select: { id: true, revisionNo: true, totalValue: true },
     }),
   ]);
-  if (!aktif) return NextResponse.json({ error: "Belum ada revisi RAB aktif — tidak ada MC-0 untuk dibandingkan" }, { status: 404 });
-  if (!draft) return NextResponse.json({ error: "Belum ada draft adendum — buat draftnya dulu di tab Adendum" }, { status: 404 });
+  if (!aktif) return NextResponse.json({ error: "Belum ada revisi RAB aktif – tidak ada MC-0 untuk dibandingkan" }, { status: 404 });
+  if (!draft) return NextResponse.json({ error: "Belum ada draft adendum – buat draftnya dulu di tab Adendum" }, { status: 404 });
 
   const [nodeLama, nodeBaru] = await Promise.all([
     db.rabNode.findMany({ where: { revisionId: aktif.id }, orderBy: { sortOrder: "asc" }, select: pilih }),

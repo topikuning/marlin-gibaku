@@ -100,16 +100,16 @@ function AddItemForm({
         <div className="sm:col-span-2">
           <Label htmlFor="wp-item" required>Item pekerjaan</Label>
           <Combobox id="wp-item" name="rabNodeId" required key={query /* reset pilihan saat filter berubah */}>
-            <option value="">— pilih item ({filtered.length}{filtered.length === MAX_OPTIONS ? "+" : ""} tersedia) —</option>
+            <option value="">– pilih item ({filtered.length}{filtered.length === MAX_OPTIONS ? "+" : ""} tersedia) –</option>
             {filtered.map((o) => (
               <option key={o.id} value={o.id}>
-                {o.code} — {o.name}
+                {o.code} – {o.name}
                 {o.volume != null ? ` (vol RAB ${formatNumber(o.volume)} ${o.unit ?? ""})` : ""}
               </option>
             ))}
           </Combobox>
           {filtered.length === MAX_OPTIONS ? (
-            <HelpText>Menampilkan {MAX_OPTIONS} pertama — persempit lewat pencarian.</HelpText>
+            <HelpText>Menampilkan {MAX_OPTIONS} pertama – persempit lewat pencarian.</HelpText>
           ) : null}
         </div>
         <div>
@@ -343,7 +343,7 @@ function RingkasanRencana({
         <div>
           <p className="text-sm font-semibold text-ink">Ringkasan rencana minggu {weekNumber}</p>
           <p className="text-xs text-ink-muted">
-            Angka yang sama dengan formulir cetak — layar dan berkas tidak boleh berbeda.
+            Angka yang sama dengan formulir cetak – layar dan berkas tidak boleh berbeda.
           </p>
         </div>
         <span className="flex flex-wrap items-center gap-2">
@@ -379,7 +379,7 @@ function RingkasanRencana({
       <p className="rounded-md border border-border bg-surface p-2 text-[13px] leading-relaxed text-ink">
         <b>Kalau rencana ini dikerjakan penuh</b>, realisasi akhir minggu {weekNumber} menjadi{" "}
         <b className="tabular">{formatPct(r.proyeksiPct, 2)}</b>, sedangkan kurva-S menuntut{" "}
-        <b className="tabular">{formatPct(r.targetPct, 2)}</b> —{" "}
+        <b className="tabular">{formatPct(r.targetPct, 2)}</b> –{" "}
         {r.masihTertinggal ? (
           <span className="font-semibold text-danger">
             masih tertinggal {formatPct(Math.abs(r.selisihPct), 2)}. Rencana ini belum cukup untuk
@@ -394,14 +394,14 @@ function RingkasanRencana({
 
       {r.ppc.pct != null ? (
         <p className="text-xs text-ink-muted">
-          <b className="text-ink">PPC minggu {weekNumber - 1}: {formatPct(r.ppc.pct, 0)}</b> —{" "}
+          <b className="text-ink">PPC minggu {weekNumber - 1}: {formatPct(r.ppc.pct, 0)}</b> –{" "}
           {r.ppc.tuntas} dari {r.ppc.jumlah} komitmen tuntas. Dihitung per komitmen dan biner:
           pekerjaan 80% selesai tidak melepaskan penerusnya, jadi dihitung belum tuntas. Ambang
           sehat lapangan ≥ 70%.
         </p>
       ) : weekNumber > 1 ? (
         <p className="text-xs text-ink-muted">
-          Tidak ada rencana tercatat untuk minggu {weekNumber - 1} — tidak ada komitmen yang bisa
+          Tidak ada rencana tercatat untuk minggu {weekNumber - 1} – tidak ada komitmen yang bisa
           dievaluasi. Ini bukan nilai 0%.
         </p>
       ) : null}
@@ -522,9 +522,9 @@ export function WeeklyPlanSection({
                       {formatPct(achievedPct, 0)}
                     </td>
                     <td className="tabular py-2 pr-3">{it.priority}</td>
-                    <td className="py-2 pr-3 text-ink-muted">{it.picName ?? "—"}</td>
+                    <td className="py-2 pr-3 text-ink-muted">{it.picName ?? "–"}</td>
                     <td className="max-w-52 truncate py-2 pr-3 text-ink-muted" title={it.note ?? undefined}>
-                      {it.note ?? "—"}
+                      {it.note ?? "–"}
                     </td>
                     {canManage ? (
                       <td className="py-2 text-right">

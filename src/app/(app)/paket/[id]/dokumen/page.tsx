@@ -120,7 +120,7 @@ export default async function DokumenPaketPage({
       <Card>
         <CardHeader
           title="Kepatuhan administrasi induk (paket)"
-          subtitle={`${indukBoard.done}/${indukBoard.total} selesai · ${indukBoard.late} terlambat — berlaku untuk seluruh lokasi. Status otomatis dari dokumen yang diunggah.`}
+          subtitle={`${indukBoard.done}/${indukBoard.total} selesai · ${indukBoard.late} terlambat – berlaku untuk seluruh lokasi. Status otomatis dari dokumen yang diunggah.`}
           action={canManage ? <SyncComplianceButton packageId={pkg.id} /> : undefined}
         />
         <CardBody className="space-y-5">
@@ -160,7 +160,7 @@ export default async function DokumenPaketPage({
       {canUpload ? (
         <CollapsibleCard
           title="Unggah dokumen ke paket ini"
-          subtitle="Langsung dari sini — paket sudah terisi otomatis, tak perlu ke Document Center. Fase & jenis dokumen pakai kategori resmi."
+          subtitle="Langsung dari sini – paket sudah terisi otomatis, tak perlu ke Document Center. Fase & jenis dokumen pakai kategori resmi."
           defaultOpen={documents.length === 0}
         >
           <PackageDocUploadForm
@@ -185,7 +185,7 @@ export default async function DokumenPaketPage({
             </Link>
             {!pkg.driveFolderId ? (
               <p className="mt-2 text-xs text-ink-muted">
-                Paket ini belum punya ID folder Google Drive — isi dulu di halaman paket, baru impor
+                Paket ini belum punya ID folder Google Drive – isi dulu di halaman paket, baru impor
                 bisa membaca folder KKP-nya.
               </p>
             ) : null}
@@ -196,7 +196,7 @@ export default async function DokumenPaketPage({
       <Card>
         <CardHeader
           title="Dokumen paket"
-          subtitle={`${documents.length} dokumen — per fase`}
+          subtitle={`${documents.length} dokumen – per fase`}
           action={
             <Link href="/dokumen" className="text-[13px] font-medium text-primary hover:underline">
               Buka Document Center
@@ -210,7 +210,7 @@ export default async function DokumenPaketPage({
               title="Belum ada dokumen paket"
               description={
                 canUpload
-                  ? "Gunakan formulir “Unggah dokumen ke paket ini” di atas — undangan, BA, SPPBJ, kontrak, dst."
+                  ? "Gunakan formulir “Unggah dokumen ke paket ini” di atas – undangan, BA, SPPBJ, kontrak, dst."
                   : "Belum ada dokumen administrasi untuk paket ini."
               }
             />

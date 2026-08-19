@@ -96,7 +96,7 @@ describe("KASUS INTI: paket A punya lokasi A–D, user ditugaskan B & C", () => 
     expect(semua).not.toContain("Lokasi A");
   });
 
-  it("yang disembunyikan DISEBUT jumlahnya — 'tidak muncul' ≠ 'tidak ada'", async () => {
+  it("yang disembunyikan DISEBUT jumlahnya – 'tidak muncul' ≠ 'tidak ada'", async () => {
     scopedLocations = [lokasi.B, lokasi.C];
     const pkg = await getPackageWorkspace(packageId);
     expect(pkg!.locationsHidden).toBe(2);

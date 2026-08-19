@@ -148,7 +148,7 @@ export default async function KontrakPage({
                 <dd className="tabular font-medium text-ink">
                   {contract.advancePercent != null
                     ? formatPct(Number(contract.advancePercent))
-                    : "—"}
+                    : "–"}
                 </dd>
               </div>
               <div>
@@ -156,7 +156,7 @@ export default async function KontrakPage({
                 <dd className="tabular font-medium text-ink">
                   {contract.retentionPercent != null
                     ? formatPct(Number(contract.retentionPercent))
-                    : "—"}
+                    : "–"}
                 </dd>
               </div>
               <div>
@@ -211,7 +211,7 @@ export default async function KontrakPage({
           <Card className="self-start">
             <CardHeader
               title="Tambah adendum (CCO)"
-              subtitle="Append-only — revisi RAB lokasi terkait dilakukan di modul RAB."
+              subtitle="Append-only – revisi RAB lokasi terkait dilakukan di modul RAB."
             />
             <CardBody>
               <AmendmentForm contractId={contract.id} />
@@ -248,7 +248,7 @@ export default async function KontrakPage({
       <Card>
         <CardHeader
           title="Penanda tangan dokumen KKP"
-          subtitle="Nama tercetak di blok tanda tangan laporan — bisa diganti bila ada pergantian personel."
+          subtitle="Nama tercetak di blok tanda tangan laporan – bisa diganti bila ada pergantian personel."
         />
         <CardBody>
           {canContract ? (
@@ -267,17 +267,17 @@ export default async function KontrakPage({
             <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
               <div>
                 <dt className="text-ink-muted">PPK</dt>
-                <dd className="font-medium text-ink">{contract.ppkName || "—"}</dd>
+                <dd className="font-medium text-ink">{contract.ppkName || "–"}</dd>
                 {contract.ppkNip ? <dd className="text-xs text-ink-muted">NIP. {contract.ppkNip}</dd> : null}
               </div>
               <div>
                 <dt className="text-ink-muted">Konsultan Pengawas</dt>
-                <dd className="font-medium text-ink">{contract.supervisorName || "—"}</dd>
+                <dd className="font-medium text-ink">{contract.supervisorName || "–"}</dd>
                 {contract.supervisorFirm ? <dd className="text-xs text-ink-muted">{contract.supervisorFirm}</dd> : null}
               </div>
               <div>
                 <dt className="text-ink-muted">Penyedia / Pelaksana</dt>
-                <dd className="font-medium text-ink">{contract.contractorSignerName || "—"}</dd>
+                <dd className="font-medium text-ink">{contract.contractorSignerName || "–"}</dd>
                 {contract.contractorSignerTitle ? <dd className="text-xs text-ink-muted">{contract.contractorSignerTitle}</dd> : null}
               </div>
             </dl>

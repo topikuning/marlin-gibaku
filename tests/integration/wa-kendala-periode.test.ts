@@ -118,7 +118,7 @@ describe("tiga cara baca menghasilkan daftar yang BERBEDA", () => {
     expect(judulSaja(d.baris)).toEqual(["BARU_TERBUKA", "LAMA_TERBUKA", "PERIODE_TERBUKA"]);
   });
 
-  it("dibuka_periode: SEMUA yang dibuka minggu lalu — termasuk yang sudah selesai", async () => {
+  it("dibuka_periode: SEMUA yang dibuka minggu lalu – termasuk yang sudah selesai", async () => {
     /*
      * Tafsir pertama yang diminta user: "kendala-kendala minggu lalu tanpa
      * peduli status sekarang". Yang sudah SELESAI justru wajib ikut — kalau

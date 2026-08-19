@@ -49,7 +49,7 @@ afterAll(async () => {
 });
 
 describe("constraint integritas inti", () => {
-  it("laporan harian unik per (lokasi, tanggal) — anti-double-input di DB", async () => {
+  it("laporan harian unik per (lokasi, tanggal) – anti-double-input di DB", async () => {
     const date = new Date("2026-07-01T00:00:00.000Z");
     await db.dailyReport.create({ data: { locationId, reportDate: date, createdById: userId } });
     await expect(
@@ -85,7 +85,7 @@ describe("constraint integritas inti", () => {
     ).rejects.toThrow(/unique/i);
   });
 
-  it("kontrak unik per paket — konversi idempotent terjaga DB", async () => {
+  it("kontrak unik per paket – konversi idempotent terjaga DB", async () => {
     const vendor = await db.vendor.create({ data: { orgId, name: `Vendor ${suffix}` } });
     const base = {
       vendorId: vendor.id,

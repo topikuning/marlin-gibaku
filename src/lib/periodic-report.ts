@@ -725,7 +725,7 @@ export async function getPeriodReport(
     [...weatherCount.entries()]
       .sort((a, b) => b[1] - a[1])
       .map(([code, count]) => `${WEATHER_LABEL[code]} ${count} hari`)
-      .join(" · ") || "—";
+      .join(" · ") || "–";
 
   // Kendala (Issue) yang muncul pada periode — hari kerja dihitung di Asia/Jakarta,
   // jadi query dilebihkan 1 hari lalu difilter presisi dengan jakartaDateKey.

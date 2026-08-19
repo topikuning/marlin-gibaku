@@ -23,7 +23,7 @@ export function validateBaselinePoints(points: number[]): string | null {
     if (!Number.isFinite(p) || p < 0 || p > 100) {
       return `Minggu ${i + 1}: nilai ${p} di luar rentang 0–100.`;
     }
-    if (p < prev) return `Minggu ${i + 1}: kurva turun (${prev} → ${p}) — harus monotonik naik.`;
+    if (p < prev) return `Minggu ${i + 1}: kurva turun (${prev} → ${p}) – harus monotonik naik.`;
     prev = p;
   }
   const last = points[points.length - 1];

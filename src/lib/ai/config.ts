@@ -89,8 +89,8 @@ export function aiSecretStorageStatus(): { encrypted: boolean; detail: string } 
     encrypted: false,
     detail:
       env.APP_ENV === "production"
-        ? "AI_SECRET_ENCRYPTION_KEY belum diset — penyimpanan API key baru DITOLAK di production."
-        : "AI_SECRET_ENCRYPTION_KEY belum diset — API key tersimpan plaintext (hanya boleh di dev).",
+        ? "AI_SECRET_ENCRYPTION_KEY belum diset – penyimpanan API key baru DITOLAK di production."
+        : "AI_SECRET_ENCRYPTION_KEY belum diset – API key tersimpan plaintext (hanya boleh di dev).",
   };
 }
 
@@ -114,7 +114,7 @@ export async function setAiProviderConfig(
     } else if (env.APP_ENV === "production") {
       // Jangan pernah diam-diam menyimpan plaintext baru di production.
       throw new Error(
-        "AI_SECRET_ENCRYPTION_KEY belum diset di server — API key tidak disimpan. Set env tersebut lalu ulangi.",
+        "AI_SECRET_ENCRYPTION_KEY belum diset di server – API key tidak disimpan. Set env tersebut lalu ulangi.",
       );
     } else {
       await put(keyApiKey(id), plain); // dev/test: transisi, tetap jalan

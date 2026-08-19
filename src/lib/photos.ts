@@ -93,7 +93,7 @@ async function loadSharp(): Promise<typeof import("sharp")["default"]> {
     return mod.default;
   } catch (err) {
     console.error("[photos] sharp tidak tersedia:", err);
-    throw new PhotoError("Pemrosesan gambar tidak tersedia di server ini — hubungi admin");
+    throw new PhotoError("Pemrosesan gambar tidak tersedia di server ini – hubungi admin");
   }
 }
 
@@ -185,7 +185,7 @@ function stampSvg(w: number, h: number, s: PhotoStamp): string {
   const tz = s.timezone ?? DEFAULT_STAMP_TZ;
   const data: StampRenderData = {
     companyName: s.companyName?.trim() || null,
-    locationName: s.locationLabel?.trim() || "—",
+    locationName: s.locationLabel?.trim() || "–",
     categoryName: s.categoryName?.trim() || null,
     workName: s.workName?.trim() || null,
     dateTimeText: s.dateOnly ? formatStampDate(s.takenAt, tz) : formatStampDateTime(s.takenAt, tz),
@@ -355,7 +355,7 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       // dikeluhkan user.
       throw new PhotoError(
         `"${file.name}" tidak punya data GPS di dalam fotonya. ` +
-          "Nyalakan layanan lokasi di aplikasi kamera HP sebelum memotret, lalu unggah ulang — " +
+          "Nyalakan layanan lokasi di aplikasi kamera HP sebelum memotret, lalu unggah ulang – " +
           "atau ambil ulang lewat tombol Kamera.",
       );
     } else {
@@ -583,7 +583,7 @@ export async function processWithSharpOrOriginal(
   try {
     sharp = await loadSharp();
   } catch (err) {
-    console.error("[photos] sharp tak tersedia — simpan gambar asli tanpa cap:", err);
+    console.error("[photos] sharp tak tersedia – simpan gambar asli tanpa cap:", err);
     const { contentType, ext } = mimeExt(file?.type ?? "", file?.name ?? "");
     return { main: original, thumb: null, contentType, ext, width: null, height: null };
   }
@@ -606,7 +606,7 @@ export async function processWithSharpOrOriginal(
     width = resized.info.width ?? null;
     height = resized.info.height ?? null;
   } catch (err) {
-    console.error("[photos] sharp gagal resize — simpan gambar asli:", err);
+    console.error("[photos] sharp gagal resize – simpan gambar asli:", err);
     const { contentType, ext } = mimeExt(file?.type ?? "", file?.name ?? "");
     return { main: original, thumb: null, contentType, ext, width: null, height: null };
   }
@@ -627,7 +627,7 @@ export async function processWithSharpOrOriginal(
       "cap",
     );
   } catch (err) {
-    console.error("[photos] cap gagal/timeout — simpan hasil resize tanpa cap:", err);
+    console.error("[photos] cap gagal/timeout – simpan hasil resize tanpa cap:", err);
     main = await sharp(resizedData, { failOn: "none" }).webp({ quality: 80 }).toBuffer();
   }
 

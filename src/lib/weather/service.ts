@@ -62,7 +62,7 @@ export async function getObservation(
   if (!location) throw new WeatherError("Lokasi tidak ditemukan.");
   if (location.gpsLat == null || location.gpsLng == null) {
     throw new WeatherError(
-      `Lokasi "${location.name}" belum punya koordinat GPS — isi koordinat di data lokasi dulu, atau pilih cuaca manual.`,
+      `Lokasi "${location.name}" belum punya koordinat GPS – isi koordinat di data lokasi dulu, atau pilih cuaca manual.`,
     );
   }
 
@@ -112,10 +112,10 @@ export async function applyWeatherToReport(
   });
   if (!report) throw new WeatherError("Laporan tidak ditemukan.");
   if (!FILLABLE_STATUSES.includes(report.status as (typeof FILLABLE_STATUSES)[number])) {
-    throw new WeatherError("Laporan sudah disetujui/final — cuaca tidak bisa diubah lagi.");
+    throw new WeatherError("Laporan sudah disetujui/final – cuaca tidak bisa diubah lagi.");
   }
   if (report.weatherSource === "manual" && !opts.overwriteManual) {
-    throw new WeatherError("Cuaca sudah diisi manual dari lapangan — isian itu yang dipakai.");
+    throw new WeatherError("Cuaca sudah diisi manual dari lapangan – isian itu yang dipakai.");
   }
 
   const dateKey = jakartaDateKey(report.reportDate);

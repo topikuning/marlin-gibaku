@@ -136,7 +136,7 @@ describe("menonaktifkan akun setingkat", () => {
     expect(hasil?.error).toMatch(/tidak ditemukan/i);
   });
 
-  it("yang peringkatnya DI BAWAH tetap bisa dinonaktifkan — pagarnya tidak kebablasan", async () => {
+  it("yang peringkatnya DI BAWAH tetap bisa dinonaktifkan – pagarnya tidak kebablasan", async () => {
     const hasil = await setUserActive(siteManagerId, false);
     expect(hasil?.error).toBeUndefined();
     expect(hasil?.success).toBeTruthy();
@@ -145,7 +145,7 @@ describe("menonaktifkan akun setingkat", () => {
     expect(dicabut).toContain(siteManagerId);
   });
 
-  it("MENGAKTIFKAN kembali tidak butuh peringkat — memulihkan akses bukan menyerangnya", async () => {
+  it("MENGAKTIFKAN kembali tidak butuh peringkat – memulihkan akses bukan menyerangnya", async () => {
     await db.user.update({ where: { id: superAdminLainId }, data: { isActive: false } });
     const hasil = await setUserActive(superAdminLainId, true);
     expect(hasil?.error).toBeUndefined();
@@ -193,7 +193,7 @@ describe("penugasan lokasi: akun di luar organisasi", () => {
 });
 
 describe("edit profil akun setingkat", () => {
-  it("DITOLAK — email adalah identifier login, jadi mengubahnya = menyentuh akunnya", async () => {
+  it("DITOLAK – email adalah identifier login, jadi mengubahnya = menyentuh akunnya", async () => {
     // Login menerima username ATAU email (`auth/actions.ts`). Membiarkan admin
     // setingkat mengubah email peer-nya berarti ia bisa mencabut satu jalan
     // masuk akun yang password-nya saja tidak boleh ia reset — pagar DECISIONS

@@ -245,7 +245,7 @@ export function PhotoSourceInput({
     if (lebih > 0) {
       for (const b of gabung.slice(MAX_PHOTOS_PER_UPLOAD)) URL.revokeObjectURL(b.url);
       setPesanBatas(
-        `Maksimal ${MAX_PHOTOS_PER_UPLOAD} foto sekali unggah — ${lebih} foto terakhir tidak ikut.`,
+        `Maksimal ${MAX_PHOTOS_PER_UPLOAD} foto sekali unggah – ${lebih} foto terakhir tidak ikut.`,
       );
     } else {
       setPesanBatas(null);
@@ -420,7 +420,7 @@ export function PhotoSourceInput({
           Dulu ini diam saja dan fotonya diam-diam dicap titik proyek. */}
       {sunyiIzin ? null : izin === "granted" ? (
         <p className="flex items-center gap-1.5 text-xs text-success">
-          <MapPin aria-hidden className="size-3.5" /> Izin lokasi aktif — foto kamera akan membawa
+          <MapPin aria-hidden className="size-3.5" /> Izin lokasi aktif – foto kamera akan membawa
           koordinat asli.
         </p>
       ) : izin === "unsupported" ? (
@@ -438,7 +438,7 @@ export function PhotoSourceInput({
               : "Izin lokasi belum diberikan"}
           </p>
           <p className="mt-0.5 text-xs text-ink-muted">
-            Tanpa izin, foto dicap memakai <strong>titik lokasi proyek</strong> — bukan posisi
+            Tanpa izin, foto dicap memakai <strong>titik lokasi proyek</strong> – bukan posisi
             sebenarnya saat memotret.
             {izin === "denied"
               ? " Buka setelan situs di browser (ikon di kiri address bar) → izinkan Lokasi, lalu muat ulang halaman."
@@ -589,7 +589,7 @@ export function PhotoSourceInput({
             Perangkat ini tidak bisa menggabungkan beberapa kali pemilihan foto
           </p>
           <p className="mt-0.5 text-xs text-ink-muted">
-            Pilih SEMUA foto sekaligus dalam satu ketukan — yang terkirim hanya pemilihan terakhir.
+            Pilih SEMUA foto sekaligus dalam satu ketukan – yang terkirim hanya pemilihan terakhir.
             Unggahnya tetap jalan.
           </p>
           <p className="mt-1 text-[11px] break-words text-ink-muted">{rakitGagal}</p>

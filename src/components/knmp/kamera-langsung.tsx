@@ -256,7 +256,7 @@ export function KameraLangsung({
             <p className="mt-1 text-[13px] text-ink-muted">
               {keadaan === "ditolak"
                 ? "Buka setelan situs di peramban (ikon di kiri address bar) → izinkan Kamera, lalu muat ulang halaman."
-                : "Tutup layar ini, lalu pakai jalur cadangan “Kamera dalam aplikasi tidak jalan?” — hasilnya sama, hanya ada satu layar konfirmasi dari aplikasi kamera HP."}
+                : "Tutup layar ini, lalu pakai jalur cadangan “Kamera dalam aplikasi tidak jalan?” – hasilnya sama, hanya ada satu layar konfirmasi dari aplikasi kamera HP."}
             </p>
             <button
               type="button"
@@ -319,8 +319,8 @@ export function KameraLangsung({
           {keadaan !== "hidup"
             ? "Menyiapkan kamera… rana aktif begitu gambar muncul."
             : menunggu > 0
-              ? `${menunggu} foto menunggu kirim — aman tersimpan di HP.`
-              : "Ketuk untuk memotret. Foto langsung tersimpan — tanpa konfirmasi."}
+              ? `${menunggu} foto menunggu kirim – aman tersimpan di HP.`
+              : "Ketuk untuk memotret. Foto langsung tersimpan – tanpa konfirmasi."}
         </p>
         {/*
           Rana SENGAJA tetap aktif selagi unggahan berjalan: menonaktifkannya

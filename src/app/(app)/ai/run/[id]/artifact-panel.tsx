@@ -102,7 +102,7 @@ function ArtifactCard({
     return (
       <Card>
         <CardHeader
-          title={`Draft saran — ${a.title}`}
+          title={`Draft saran – ${a.title}`}
           subtitle={
             a.status === "terkirim"
               ? "Sudah diterapkan menjadi Kendala di lokasi."
@@ -127,8 +127,8 @@ function ArtifactCard({
   return (
     <Card>
       <CardHeader
-        title={`Artefak laporan v${a.version} — ${a.title}`}
-        subtitle={`Template ${a.templateKey ?? "—"} · lifecycle: draft → direview → disetujui → beku → terkirim`}
+        title={`Artefak laporan v${a.version} – ${a.title}`}
+        subtitle={`Template ${a.templateKey ?? "–"} · lifecycle: draft → direview → disetujui → beku → terkirim`}
         action={<Badge tone={AI_ARTIFACT_STATUS_TONE[a.status]} label={AI_ARTIFACT_STATUS_LABEL[a.status]} />}
       />
       <CardBody className="space-y-3 text-sm">
@@ -213,10 +213,10 @@ function ArtifactCard({
                 id={`dist-${a.id}`}
                 name="contactId"
                 defaultValue=""
-                placeholder="— kontak tersimpan —"
+                placeholder="– kontak tersimpan –"
                 className="w-56"
               >
-                <option value="">— tanpa kontak (isi tujuan manual) —</option>
+                <option value="">– tanpa kontak (isi tujuan manual) –</option>
                 {contacts.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}

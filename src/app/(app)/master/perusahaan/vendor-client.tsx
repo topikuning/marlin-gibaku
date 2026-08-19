@@ -110,7 +110,7 @@ export function VendorManager({ vendors, duplicateKeys }: { vendors: V[]; duplic
   if (diperkaya.length - lengkap > 0) {
     temuan.push({
       judul: `${diperkaya.length - lengkap} dari ${diperkaya.length} profil belum lengkap`,
-      keterangan: "Logo, stempel, kop surat, atau PIC belum ada — dokumen cetak jadi tidak seragam.",
+      keterangan: "Logo, stempel, kop surat, atau PIC belum ada – dokumen cetak jadi tidak seragam.",
       aksi: (
         <Button size="sm" variant="secondary" onClick={() => setSaring("perlu_lengkap")}>
           Lihat yang belum lengkap
@@ -121,7 +121,7 @@ export function VendorManager({ vendors, duplicateKeys }: { vendors: V[]; duplic
   if (tanpaPakai > 0) {
     temuan.push({
       judul: `${tanpaPakai} perusahaan tanpa pemakaian`,
-      keterangan: "Belum dipakai kontrak maupun komitmen — aman untuk ditinjau atau dibersihkan.",
+      keterangan: "Belum dipakai kontrak maupun komitmen – aman untuk ditinjau atau dibersihkan.",
       aksi: (
         <Button size="sm" variant="secondary" onClick={() => setSaring("tanpa_pemakaian")}>
           Lihat yang tanpa pemakaian

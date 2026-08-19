@@ -96,7 +96,7 @@ export function statusBerkasMingguan(r: {
 }): string {
   return [
     `Minggu ke-${r.minggu}`,
-    r.adaFinal ? null : "PRATINJAU — belum ada laporan final",
+    r.adaFinal ? null : "PRATINJAU – belum ada laporan final",
     r.hariKosong > 0 ? `${r.hariKosong} hari belum ada laporan` : null,
     r.fotoDipotong > 0 ? `${r.fotoDipotong} foto tidak dimuat (batas berkas)` : null,
   ]
@@ -157,7 +157,7 @@ export async function renderMingguanKkpPdf(
   if (!hariPertama) return null;
 
   const doc = createFormA4Doc({
-    title: `Laporan Harian KKP Minggu ke-${minggu} — ${hariPertama.locationName}`,
+    title: `Laporan Harian KKP Minggu ke-${minggu} – ${hariPertama.locationName}`,
   });
 
   // Logo pelaksana untuk sampul: dimuat sekali, bukan tujuh kali.

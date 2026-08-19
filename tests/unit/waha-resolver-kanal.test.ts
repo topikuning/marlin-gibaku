@@ -78,7 +78,7 @@ describe("grup TERTAUT paket", () => {
   const grupTertaut = (o: Partial<MasukanKeputusan> = {}) =>
     putuskanLayanan(dasar({ grup: true, paketGrup: PAKET, ...o }));
 
-  it("anggota TAK TERDAFTAR tetap dijawab — sesuai paket grup", () => {
+  it("anggota TAK TERDAFTAR tetap dijawab – sesuai paket grup", () => {
     // DECISIONS 351: balasannya dikirim ke GRUP dan dibaca seluruh anggotanya,
     // jadi identitas si pengetik tidak menentukan siapa yang melihat jawabannya.
     const k = grupTertaut();
@@ -118,7 +118,7 @@ describe("grup TERTAUT paket", () => {
     expect(k.jenis === "jawab" && k.orgId).toBe("org-1");
   });
 
-  it("scope grup SELALU persis paket grupnya — tidak kurang, tidak lebih", () => {
+  it("scope grup SELALU persis paket grupnya – tidak kurang, tidak lebih", () => {
     // Invarian pengganti dari DECISIONS 351, dipindahkan apa adanya.
     for (const penanya of [
       null,
@@ -142,7 +142,7 @@ describe("grup TERTAUT paket", () => {
   });
 });
 
-describe("grup TIDAK tertaut paket — aturan baru 5A", () => {
+describe("grup TIDAK tertaut paket – aturan baru 5A", () => {
   const grupLepas = (o: Partial<MasukanKeputusan> = {}) =>
     putuskanLayanan(dasar({ grup: true, paketGrup: null, ...o }));
 

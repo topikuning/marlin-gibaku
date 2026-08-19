@@ -160,7 +160,7 @@ function SelHariKalender({
       /* Menyebut AKIBATNYA, bukan cuma keadaannya: sel kosong membuka formulir
          langsung (DECISIONS 355), dan tujuan yang berbeda dari sel tetangganya
          harus bisa diketahui SEBELUM ditekan. */
-      title={bukaLangsung(sel) ? `${sel.kata} — buat laporan` : sel.kata}
+      title={bukaLangsung(sel) ? `${sel.kata} – buat laporan` : sel.kata}
       className={cn(
         "relative flex min-h-16 flex-col justify-between rounded-lg border p-1.5 text-left transition sm:min-h-20",
         NADA_SEL[sel.nada],

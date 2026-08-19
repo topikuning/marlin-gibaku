@@ -71,7 +71,7 @@ export async function testAiProviderAction(
     const result = await testAiProvider(id);
     if (result.ok) {
       return {
-        success: `Koneksi ${aiProvider(id)?.label ?? id} OK (model ${result.model}) — balasan: "${result.text.slice(0, 60) || "—"}".`,
+        success: `Koneksi ${aiProvider(id)?.label ?? id} OK (model ${result.model}) – balasan: "${result.text.slice(0, 60) || "–"}".`,
       };
     }
     return { error: `Tes ${aiProvider(id)?.label ?? id} gagal: ${result.error}` };

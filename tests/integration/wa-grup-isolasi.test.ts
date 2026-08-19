@@ -69,7 +69,7 @@ describe("indeks unik grup → paket", () => {
     ).rejects.toMatchObject({ code: "P2002" });
   });
 
-  it("banyak paket TANPA grup tetap boleh — NULL bukan nilai yang bentrok", async () => {
+  it("banyak paket TANPA grup tetap boleh – NULL bukan nilai yang bentrok", async () => {
     // Kalau ini gagal, indeksnya terlalu ketat dan seluruh paket baru (yang
     // memang belum punya grup) akan tertolak.
     const tanpa = await Promise.all([
@@ -99,7 +99,7 @@ describe("indeks unik grup → paket", () => {
     await db.package.update({ where: { id: paketA }, data: { waGroupId: GRUP } });
   });
 
-  it("pencarian pemilik grup memakai findUnique — satu jawaban, bukan 'yang pertama'", async () => {
+  it("pencarian pemilik grup memakai findUnique – satu jawaban, bukan 'yang pertama'", async () => {
     /*
      * `findUnique` hanya bisa dipanggil pada kolom unik. Bahwa panggilan ini
      * mengembalikan tepat satu paket adalah janji basis data, bukan kebetulan

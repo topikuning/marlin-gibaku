@@ -194,7 +194,7 @@ export default async function HarianWorkspacePage({
             <div className="flex flex-wrap gap-x-6 gap-y-1">
               <span>
                 <span className="text-ink-muted">Cuaca:</span>{" "}
-                {report.weather ? WEATHER_LABEL[report.weather] : "—"}
+                {report.weather ? WEATHER_LABEL[report.weather] : "–"}
               </span>
               <span>
                 <span className="text-ink-muted">Jam kerja:</span> {report.workStart ?? "…"}–{report.workEnd ?? "…"}

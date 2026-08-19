@@ -54,7 +54,7 @@ describe("kanonikGrupId", () => {
   });
 });
 
-describe("wajibKanonikGrupId — jalur tulis", () => {
+describe("wajibKanonikGrupId – jalur tulis", () => {
   it("kosong dan salah-format dibedakan pesannya", () => {
     // Admin yang lupa mengisi butuh kalimat lain daripada admin yang menempel
     // teks yang salah; satu pesan untuk dua sebab membuat keduanya menebak.

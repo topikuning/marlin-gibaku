@@ -65,7 +65,7 @@ describe("kapan MARLIN menjawab", () => {
     }
   });
 
-  it("menulis '@marlin' di teks TIDAK cukup — penyebutan dibaca dari JID", () => {
+  it("menulis '@marlin' di teks TIDAK cukup – penyebutan dibaca dari JID", () => {
     // Nama tampilan bisa diubah siapa saja; JID tidak. Kalau teks yang dipercaya,
     // siapa pun bisa memancing balasan dengan mengetik nama.
     expect(
@@ -147,7 +147,7 @@ describe("mencocokkan nomor pengirim ke pengguna", () => {
      * ini ikut berubah bersamanya alih-alih membeku pada bentuk lama.
      */
     const tersimpan = normalizeWaTarget("0812-3456-7890");
-    expect(tersimpan, "bentuk simpanan berubah — periksa pencocok").toContain("@c.us");
+    expect(tersimpan, "bentuk simpanan berubah – periksa pencocok").toContain("@c.us");
     const r = cocokkanNomorPengguna([u("a", tersimpan)], "6281234567890");
     expect(r).toEqual({ jenis: "tepat", id: "a" });
   });
@@ -233,7 +233,7 @@ describe("nomor yang DILIHAT orang vs yang DISIMPAN", () => {
     expect(normalizeWaTarget(nomorWaUntukTampil(disimpan))).toBe(disimpan);
   });
 
-  it("ID GRUP tidak dipotong — sufiksnya bagian dari identitas", () => {
+  it("ID GRUP tidak dipotong – sufiksnya bagian dari identitas", () => {
     expect(nomorWaUntukTampil("12036300000000001@g.us")).toBe("12036300000000001@g.us");
   });
 
@@ -285,7 +285,7 @@ describe("pengirim ber-@lid (DECISIONS 347)", () => {
     }
   });
 
-  it("LID BUKAN nomor telepon — tidak pernah dicocokkan ke kolom nomor", () => {
+  it("LID BUKAN nomor telepon – tidak pernah dicocokkan ke kolom nomor", () => {
     /*
      * Penjaga terpenting di blok ini. Pengguna "a" bernomor sama persis dengan
      * angka LID pengirim; menjawabnya berarti mengirim data orang lain.

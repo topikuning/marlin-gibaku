@@ -51,7 +51,7 @@ export function decryptSecret(stored: string, key: Buffer): string {
     decipher.setAuthTag(tag);
     return Buffer.concat([decipher.update(ct), decipher.final()]).toString("utf8");
   } catch {
-    throw new SecretDecryptError("dekripsi gagal — kunci salah atau data rusak");
+    throw new SecretDecryptError("dekripsi gagal – kunci salah atau data rusak");
   }
 }
 

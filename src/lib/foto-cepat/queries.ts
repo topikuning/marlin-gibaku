@@ -143,7 +143,7 @@ export async function getKantong(
       lat: num(r.exifGpsLat),
       lng: num(r.exifGpsLng),
       gpsAsli: r.gpsSource === "exif" || r.gpsSource === "device",
-      reporterName: (r.uploadedById && nama.get(r.uploadedById)) || "—",
+      reporterName: (r.uploadedById && nama.get(r.uploadedById)) || "–",
       bisaDilengkapi: r.originalKey != null && r.originalPurgedAt == null,
     };
   });
@@ -189,7 +189,7 @@ export async function getTujuan(
   return {
     kegiatan: kegiatan.map((k) => ({
       id: k.id,
-      label: `${formatTanggal(k.activityDate)} — ${k.title}`,
+      label: `${formatTanggal(k.activityDate)} – ${k.title}`,
     })),
     laporan: laporan.map((r) => ({
       id: r.id,

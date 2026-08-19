@@ -45,7 +45,7 @@ async function cfg() {
   const c = await getWahaConfig();
   if (!c) {
     throw new WahaError(
-      "Integrasi WhatsApp (WAHA) belum dikonfigurasi — atur URL & API key di halaman Sistem.",
+      "Integrasi WhatsApp (WAHA) belum dikonfigurasi – atur URL & API key di halaman Sistem.",
     );
   }
   return c;
@@ -82,24 +82,24 @@ type ResolvedCfg = { baseUrl: string; apiKey: string; session: string };
 export function terjemahkanWahaError(status: number, body: string): string | null {
   const b = body.toLowerCase();
   if (status === 401 || status === 403) {
-    return "WAHA menolak API key (401/403) — periksa API key di halaman Sistem.";
+    return "WAHA menolak API key (401/403) – periksa API key di halaman Sistem.";
   }
   // Engine NOWEB menolak /groups bila store dimatikan (setelan default-nya mati).
   if (b.includes("store") && (b.includes("enabled") || b.includes("noweb"))) {
     return (
       "Engine NOWEB di server WAHA belum mengaktifkan STORE, jadi daftar grup tidak bisa dibaca. " +
       "Set env WAHA: WAHA_NOWEB_STORE_ENABLED=true dan WAHA_NOWEB_STORE_FULLSYNC=true, restart WAHA, " +
-      "lalu logout & scan QR ulang. Sementara itu pakai Cara 2 (link undangan grup) — tidak butuh store."
+      "lalu logout & scan QR ulang. Sementara itu pakai Cara 2 (link undangan grup) – tidak butuh store."
     );
   }
   if (status === 404 && (b.includes("session") || b.includes("not found"))) {
     return (
-      "WAHA tidak mengenal sesi ini (404) — periksa NAMA SESI di halaman Sistem " +
+      "WAHA tidak mengenal sesi ini (404) – periksa NAMA SESI di halaman Sistem " +
       '(bawaan WAHA biasanya "default", huruf kecil semua, harus persis sama).'
     );
   }
   if (status === 422) {
-    return `WAHA menolak permintaan (422): ${body.slice(0, 200)}. Biasanya sesi belum login — cek status sesi di halaman Sistem.`;
+    return `WAHA menolak permintaan (422): ${body.slice(0, 200)}. Biasanya sesi belum login – cek status sesi di halaman Sistem.`;
   }
   return null;
 }
@@ -131,7 +131,7 @@ async function wahaFetch(
     const timeout = err instanceof Error && err.name === "TimeoutError";
     throw new WahaError(
       timeout
-        ? `Server WAHA tidak merespons dalam ${Math.round(timeoutMs / 1000)} detik (${c.baseUrl}) — cek apakah servernya hidup & tidak kelebihan beban.`
+        ? `Server WAHA tidak merespons dalam ${Math.round(timeoutMs / 1000)} detik (${c.baseUrl}) – cek apakah servernya hidup & tidak kelebihan beban.`
         : `Tidak bisa menghubungi server WAHA (${c.baseUrl}): ${err instanceof Error ? err.message : "gagal koneksi"}. ` +
           "Bila WAHA di Railway yang sama, pakai URL private networking dengan http:// (bukan https://), mis. http://waha.railway.internal:3000.",
     );

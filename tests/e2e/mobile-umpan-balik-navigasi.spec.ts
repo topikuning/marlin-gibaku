@@ -81,7 +81,7 @@ test.describe("mobile: ketukan menu harus terlihat direspons", () => {
     await laci.getByRole("link", { name: /Keuangan/ }).click();
 
     // Tepat sesudah ketukan, selagi halaman masih dimuat: laci WAJIB masih ada.
-    await expect(laci, "laci menutup sebelum halaman berganti — layar jadi kosong tanpa tanda").toBeVisible();
+    await expect(laci, "laci menutup sebelum halaman berganti – layar jadi kosong tanpa tanda").toBeVisible();
     await expect(page).toHaveURL(/\/keuangan/, { timeout: 30_000 });
     // Dan ketika halamannya benar-benar tiba, laci menutup sendiri.
     await expect(laci).toBeHidden({ timeout: 10_000 });

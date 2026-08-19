@@ -135,7 +135,7 @@ describe("bacaPenulangan", () => {
     expect(r.kodeKandidat).toEqual(["2.2.1.1.4.a"]);
   });
 
-  it("Ø tanpa elemen menyisakan EMPAT kandidat — dan itu jawaban yang benar", () => {
+  it("Ø tanpa elemen menyisakan EMPAT kandidat – dan itu jawaban yang benar", () => {
     const r = baca("Pembesian Besi Beton Ø 10-150 mm").rein!;
     expect(r.kodeKandidat).toHaveLength(4);
     expect(r.perluKonteks).toBe(true);

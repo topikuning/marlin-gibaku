@@ -239,7 +239,7 @@ export default async function LokasiRingkasanPage({
           <Card>
             <CardHeader
               title="Alamat & koordinat"
-              subtitle="Titik GPS proyek — dipakai Peta, cuaca otomatis, cap foto, dan pemeriksaan jarak foto lapangan."
+              subtitle="Titik GPS proyek – dipakai Peta, cuaca otomatis, cap foto, dan pemeriksaan jarak foto lapangan."
             />
             <CardBody>
               <LocationMasterForm
@@ -281,7 +281,7 @@ export default async function LokasiRingkasanPage({
                     </span>
                     <span className="text-xs text-ink-muted">
                       {formatTanggal(h.changedAt)}
-                      {h.note ? ` — ${h.note}` : ""}
+                      {h.note ? ` – ${h.note}` : ""}
                     </span>
                   </li>
                 ))}

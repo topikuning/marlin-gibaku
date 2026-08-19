@@ -237,7 +237,7 @@ export function PadananPanel({
           p.data?.ahspTanpaKomponen ? "text-warning" : "",
         tooltipValueGetter: (p) =>
           p.data?.ahspTanpaKomponen
-            ? "Analisa ini belum punya koefisien — tidak bisa dipakai menghitung kebutuhan."
+            ? "Analisa ini belum punya koefisien – tidak bisa dipakai menghitung kebutuhan."
             : (p.value as string),
       },
       {
@@ -272,7 +272,7 @@ export function PadananPanel({
         cellClass: "tabular text-right",
         valueFormatter: (p: ValueFormatterParams<BarisUraianRow>) =>
           p.value == null
-            ? "—"
+            ? "–"
             : `${Number(p.value).toLocaleString("id-ID")}${p.data?.unit ? ` ${p.data.unit}` : ""}`,
       },
       { field: "kodeContoh", headerName: "Kode", width: 110, hide: true },
@@ -343,7 +343,7 @@ export function PadananPanel({
       {canManage && usulanTampil > 0 ? (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-line bg-surface-inset px-3 py-2">
           <p className="text-[13px] text-ink-muted">
-            Centang baris di grid — {usulanTampil} usulan menunggu keputusan pada saringan ini.
+            Centang baris di grid – {usulanTampil} usulan menunggu keputusan pada saringan ini.
           </p>
           <Button
             type="button"
@@ -401,7 +401,7 @@ export function PadananPanel({
           />
         ) : (
           <div className="rounded-lg border border-line bg-surface-inset p-3 text-[13px] text-ink-muted">
-            <strong className="text-ink">{terbuka.uraian}</strong> —{" "}
+            <strong className="text-ink">{terbuka.uraian}</strong> –{" "}
             {terbuka.catatan ?? "belum ada catatan pemetaan."} Mengubah padanan butuh hak kelola RAB.
           </div>
         )
@@ -472,7 +472,7 @@ function PemilihPadanan({
           {b.ahspTanpaKomponen ? (
             <p className="mt-1 flex items-center gap-1 text-[12px] text-warning">
               <AlertTriangle aria-hidden className="size-3.5" />
-              Analisa yang terpasang belum punya koefisien — tidak bisa dipakai menghitung kebutuhan.
+              Analisa yang terpasang belum punya koefisien – tidak bisa dipakai menghitung kebutuhan.
             </p>
           ) : null}
         </div>

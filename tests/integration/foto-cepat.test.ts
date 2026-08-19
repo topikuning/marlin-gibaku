@@ -270,7 +270,7 @@ describe("menyimpan ke kantong", () => {
     expect(panggilan[0].stamp?.fallbackMode).toBe("none");
   });
 
-  it("sumber SELALU kamera — kiriman yang mengaku 'gallery' pun diabaikan", async () => {
+  it("sumber SELALU kamera – kiriman yang mengaku 'gallery' pun diabaikan", async () => {
     // Sumber tidak boleh datang dari input klien (DECISIONS 255): kalau dipercaya,
     // jalur galeri bisa dihidupkan lagi dari luar tanpa satu baris pun berubah
     // di server, dan seluruh jaminan "koordinat & jam benar" ikut bocor.
@@ -284,7 +284,7 @@ describe("menyimpan ke kantong", () => {
     expect(panggilan[0].stamp?.atSite ?? false).toBe(false);
   });
 
-  it("cap awalnya DASAR — tidak menyebut yang belum diketahui", async () => {
+  it("cap awalnya DASAR – tidak menyebut yang belum diketahui", async () => {
     await simpanFotoCepatAction({}, fd({ gpsLat: dariA(20), gpsLng: "116.0" }, [berkas("c.jpg")]));
     const s = panggilan[0].stamp!;
     expect(s.locationLabel).toBeNull();
@@ -320,7 +320,7 @@ describe("invarian induk foto di DATABASE", () => {
   // seluruh Foto Cepat mati; kalau seseorang membuangnya sama sekali, foto bisa
   // jadi lampiran laporan DAN kegiatan sekaligus (dua kebenaran yang bisa
   // berbeda). Keduanya cacat senyap.
-  it("NOL induk diterima — itu bentuk foto kantong", async () => {
+  it("NOL induk diterima – itu bentuk foto kantong", async () => {
     const f = await buatFotoKantong(locA, `${suffix}-nol`);
     expect(f.reportId).toBeNull();
     expect(f.activityId).toBeNull();
@@ -395,7 +395,7 @@ describe("memakai foto dari kantong", () => {
     expect(hasil.error).toMatch(/difinalkan/i);
   });
 
-  it("foto tanpa arsip asli TETAP dipakai, capnya tetap dasar — dan itu disebut", async () => {
+  it("foto tanpa arsip asli TETAP dipakai, capnya tetap dasar – dan itu disebut", async () => {
     // Kegagalan melengkapi cap tidak boleh membatalkan penautan: foto & datanya
     // sudah benar, yang kurang hanya teks di gambarnya.
     const f = await buatFotoKantong(locA, `${suffix}-noarsip`);
@@ -463,7 +463,7 @@ describe("deteksi lokasi dari koordinat foto", () => {
     expect(panggilan[0].locationSlug).toBe("_kantong");
   });
 
-  it("satu kiriman, dua lokasi berbeda — dideteksi PER BERKAS", async () => {
+  it("satu kiriman, dua lokasi berbeda – dideteksi PER BERKAS", async () => {
     // Unggahan borongan dari galeri/cloud bisa memuat foto dari beberapa lokasi.
     // Memaksakan satu lokasi untuk seluruh kiriman akan menaruh sebagian di
     // tempat yang salah — persis cacat yang sedang diperbaiki.

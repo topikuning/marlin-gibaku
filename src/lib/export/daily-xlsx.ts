@@ -130,7 +130,7 @@ export async function buildDailyReportXlsx(d: KkpDailyData): Promise<Buffer> {
 
   const kopBawah: [string, string][] = [
     // Identitas pemberi kerja dari menu Sistem, BUKAN dipatok KKP (DECISIONS 166).
-    ["PEMBERI KERJA", [d.ownerName, d.ownerSubtitle].filter(Boolean).join(" — ") || "-"],
+    ["PEMBERI KERJA", [d.ownerName, d.ownerSubtitle].filter(Boolean).join(" – ") || "-"],
     ["PEKERJAAN", d.pekerjaan ?? "Konstruksi"],
     ["LOKASI", `${d.locationName}, ${d.regency}, ${d.province}`],
     ["TH. ANGGARAN", String(d.tahunAnggaran)],
@@ -142,7 +142,7 @@ export async function buildDailyReportXlsx(d: KkpDailyData): Promise<Buffer> {
     r += 1;
   }
   if (!d.isFinal) {
-    const c = sel(r, 1, "PRATINJAU — laporan belum difinalisasi; angka masih bisa berubah.", {
+    const c = sel(r, 1, "PRATINJAU – laporan belum difinalisasi; angka masih bisa berubah.", {
       gabung: KOL_AKHIR,
       rata: "center",
     });
@@ -240,7 +240,7 @@ export async function buildDailyReportXlsx(d: KkpDailyData): Promise<Buffer> {
 
   // ── Jam kerja ──────────────────────────────────────────────────────────────
   sel(r, 1, "Jam Kerja", { gabung: 2, tebal: true });
-  sel(r, 3, `mulai ${d.workStart ?? "……"} — selesai ${d.workEnd ?? "……"}`, { gabung: KOL_AKHIR });
+  sel(r, 3, `mulai ${d.workStart ?? "……"} – selesai ${d.workEnd ?? "……"}`, { gabung: KOL_AKHIR });
   r += 2;
 
   // ── Rencana | realisasi ────────────────────────────────────────────────────
@@ -263,7 +263,7 @@ export async function buildDailyReportXlsx(d: KkpDailyData): Promise<Buffer> {
       r,
       1,
       `${d.draftItemCount} pekerjaan hari ini dilaporkan atas usulan adendum yang belum disetujui sehingga ` +
-        `tidak dicetak di blanko ini — belum ada dasar kontraknya. Rinciannya ada di pantauan internal MARLIN.`,
+        `tidak dicetak di blanko ini – belum ada dasar kontraknya. Rinciannya ada di pantauan internal MARLIN.`,
       { gabung: KOL_AKHIR, bungkus: true },
     );
     c.font = { size: 8, italic: true, color: { argb: "FF6B7280" } };
@@ -313,7 +313,7 @@ export async function buildDailyReportXlsx(d: KkpDailyData): Promise<Buffer> {
   r = rTtd + 8;
 
   // ── TAMBAHAN di luar blanko: rincian kemajuan per pekerjaan ────────────────
-  sel(r, 1, "RINCIAN KEMAJUAN PEKERJAAN (tambahan MARLIN — tidak ada di blanko KKP)", {
+  sel(r, 1, "RINCIAN KEMAJUAN PEKERJAAN (tambahan MARLIN – tidak ada di blanko KKP)", {
     gabung: KOL_AKHIR,
     kepala: true,
   });
@@ -337,7 +337,7 @@ export async function buildDailyReportXlsx(d: KkpDailyData): Promise<Buffer> {
     d.items.forEach((it, i) => {
       sel(r, 1, i + 1, { rata: "center" });
       // Kategori ditulis apa adanya; null = tidak ada lagi di RAB aktif, tidak ditebak.
-      sel(r, 2, it.categoryName ? `${it.categoryCode ? `${it.categoryCode}. ` : ""}${it.categoryName}` : "—", {
+      sel(r, 2, it.categoryName ? `${it.categoryCode ? `${it.categoryCode}. ` : ""}${it.categoryName}` : "–", {
         gabung: 5,
         bungkus: true,
       });

@@ -128,7 +128,7 @@ export function kalimatStatusKirim(status: WaOutboundStatus): string {
     case "antre":
       return "Antre dikirim.";
     case "diterima_waha":
-      return "Sudah diserahkan ke WhatsApp — menunggu tanda terima. Belum tentu sampai.";
+      return "Sudah diserahkan ke WhatsApp – menunggu tanda terima. Belum tentu sampai.";
     case "terkirim":
       return "Terkirim ke server WhatsApp.";
     case "sampai":
@@ -138,6 +138,6 @@ export function kalimatStatusKirim(status: WaOutboundStatus): string {
     case "gagal":
       return "Gagal dikirim.";
     case "ditolak":
-      return "Ditolak WhatsApp — periksa nomor/grup tujuannya.";
+      return "Ditolak WhatsApp – periksa nomor/grup tujuannya.";
   }
 }

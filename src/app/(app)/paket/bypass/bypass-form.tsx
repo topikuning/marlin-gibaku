@@ -79,7 +79,7 @@ export function BypassForm({
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <Label htmlFor="bp-name" required>Nama paket (pendek)</Label>
-            <Input id="bp-name" name="name" required minLength={3} maxLength={200} placeholder="mis. KNMP Muncar — Kedungrejo" />
+            <Input id="bp-name" name="name" required minLength={3} maxLength={200} placeholder="mis. KNMP Muncar – Kedungrejo" />
           </div>
           <div>
             <Label htmlFor="bp-number">Nomor paket (opsional)</Label>
@@ -105,7 +105,7 @@ export function BypassForm({
           {!newVendor ? (
             <>
               <Combobox id="bp-vendor" name="vendorId" defaultValue="" required={!newVendor}>
-                <option value="" disabled>— pilih dari master —</option>
+                <option value="" disabled>– pilih dari master –</option>
                 {vendors.map((v) => (
                   <option key={v.id} value={v.id}>{v.name}</option>
                 ))}
@@ -145,7 +145,7 @@ export function BypassForm({
             <Input id="bp-dur" name="durationDays" type="number" min={1} max={3650} required placeholder="mis. 150" />
           </div>
         </div>
-        <HelpText>Tanggal mulai (SPMK) belum diisi di sini — tetap lewat langkah “Mulai Pelaksanaan”.</HelpText>
+        <HelpText>Tanggal mulai (SPMK) belum diisi di sini – tetap lewat langkah “Mulai Pelaksanaan”.</HelpText>
       </fieldset>
 
       {/* 3 · Lokasi dari katalog */}
@@ -186,7 +186,7 @@ export function BypassForm({
                       />
                       <span className="text-[13px]">
                         <span className="font-medium text-ink">{m.village}</span>
-                        <span className="text-ink-muted"> — {m.regency}{m.district ? `, Kec. ${m.district}` : ""}</span>
+                        <span className="text-ink-muted"> – {m.regency}{m.district ? `, Kec. ${m.district}` : ""}</span>
                         {m.candidateVendor ? (
                           <span className="block text-[11px] text-ink-faint">calon: {m.candidateVendor}</span>
                         ) : null}

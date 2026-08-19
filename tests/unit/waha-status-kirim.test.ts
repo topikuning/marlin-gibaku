@@ -51,14 +51,14 @@ describe("statusDariAck", () => {
   });
 });
 
-describe("statusBerikutnya — status tidak boleh mundur", () => {
+describe("statusBerikutnya – status tidak boleh mundur", () => {
   it("maju satu tingkat diterima", () => {
     expect(statusBerikutnya("diterima_waha", "terkirim")).toBe("terkirim");
     expect(statusBerikutnya("terkirim", "sampai")).toBe("sampai");
     expect(statusBerikutnya("sampai", "dibaca")).toBe("dibaca");
   });
 
-  it("melompat maju juga diterima — ack tengah boleh hilang", () => {
+  it("melompat maju juga diterima – ack tengah boleh hilang", () => {
     // WhatsApp tidak menjamin seluruh ack tiba. Menuntut urutan lengkap berarti
     // pesan yang jelas sudah dibaca tertahan di "terkirim" selamanya.
     expect(statusBerikutnya("diterima_waha", "dibaca")).toBe("dibaca");

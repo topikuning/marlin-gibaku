@@ -475,7 +475,7 @@ export function validasiKlaimTerikat(
     }
 
     if (alasan.length > 0) {
-      dibuang.push(`bagian dibuang — ${alasan[0]}`);
+      dibuang.push(`bagian dibuang – ${alasan[0]}`);
       continue;
     }
     hidup.push(part);

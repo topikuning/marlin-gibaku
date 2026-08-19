@@ -82,7 +82,7 @@ export async function restampPhotoAction(_prev: RestampState, formData: FormData
     if (!k.originalKey) {
       return {
         error: k.originalPurgedAt
-          ? "Arsip berkas asli foto ini sudah dihapus — capnya tidak bisa diperbaiki lagi."
+          ? "Arsip berkas asli foto ini sudah dihapus – capnya tidak bisa diperbaiki lagi."
           : "Foto ini diunggah sebelum arsip berkas asli aktif, jadi capnya tidak bisa diperbaiki.",
       };
     }
@@ -163,7 +163,7 @@ export async function restampPhotoAction(_prev: RestampState, formData: FormData
     };
 
     if (manualFields.length === 0) {
-      return { error: "Tidak ada yang berubah — ubah minimal satu nilai sebelum menyimpan." };
+      return { error: "Tidak ada yang berubah – ubah minimal satu nilai sebelum menyimpan." };
     }
 
     // ── Render ulang dari berkas ASLI ──

@@ -308,7 +308,7 @@ export async function buildRincianJadwalXlsx(
   /* ── Catatan: apa yang fakta, apa yang turunan ──────────────────────────── */
   ws.addRow([]);
   const catatan = ws.addRow([
-    "Bobot tiap item dihitung dari nilai RAB-nya sendiri (fakta). Sebaran mingguan DI DALAM satu kategori adalah TURUNAN — " +
+    "Bobot tiap item dihitung dari nilai RAB-nya sendiri (fakta). Sebaran mingguan DI DALAM satu kategori adalah TURUNAN – " +
       "sistem menyimpan jadwal per KATEGORI, bukan per item, jadi tiap item disebar sebanding nilainya sepanjang jendela " +
       "kategorinya. Jumlah tiap kolom minggu tetap persis sama dengan kurva-S resmi; yang boleh disesuaikan orang sipil " +
       "adalah sebaran di dalam kategorinya.",

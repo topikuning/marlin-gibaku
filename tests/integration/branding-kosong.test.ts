@@ -53,7 +53,7 @@ describe("KASUS INTI: kosong yang disengaja tidak boleh diisi ulang sendiri", ()
     expect((await getBranding()).ownerSubtitle).toBe("");
   });
 
-  it("spasi saja dihitung kosong — bukan teks yang tak terlihat", async () => {
+  it("spasi saja dihitung kosong – bukan teks yang tak terlihat", async () => {
     await setBranding({ projectContext: "   " });
     expect((await getBranding()).projectContext).toBe("");
   });

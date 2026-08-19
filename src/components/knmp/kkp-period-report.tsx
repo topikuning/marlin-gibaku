@@ -59,7 +59,7 @@ export function KkpPeriodReport({ r, ttd }: { r: PeriodReport; ttd?: TtdLaporan 
       <div className="mt-3 grid grid-cols-1 gap-x-8 gap-y-0.5 sm:grid-cols-2">
         <KV k="Paket Pekerjaan" v={h.packageName} />
         <KV k="Masa Pelaksanaan" v={`${h.masaPelaksanaanHari} Hari Kalender`} />
-        <KV k="Lokasi" v={`${h.locationName} — ${h.village}${h.district ? `, Kec. ${h.district}` : ""}, ${h.regency}, ${h.province}`} />
+        <KV k="Lokasi" v={`${h.locationName} – ${h.village}${h.district ? `, Kec. ${h.district}` : ""}, ${h.regency}, ${h.province}`} />
         <KV k="Nilai Fisik Lokasi" v={rupiahFmt.format(Number(h.locationValue))} />
         <KV k="Nomor Kontrak" v={h.contractNumber} />
         <KV k="Kontraktor Pelaksana" v={h.vendorName} />
@@ -157,7 +157,7 @@ export function KkpPeriodReport({ r, ttd }: { r: PeriodReport; ttd?: TtdLaporan 
         <ul className="space-y-1 text-[10px]">
           {r.kendala.map((k, i) => (
             <li key={i}>
-              <span className="text-slate-500">{dFmt.format(k.createdAt)} — </span>
+              <span className="text-slate-500">{dFmt.format(k.createdAt)} – </span>
               <b>{k.title}</b>
               <span className="text-slate-500">
                 {" "}· tingkat {k.severity} · status {k.status.replace(/_/g, " ")}
@@ -171,7 +171,7 @@ export function KkpPeriodReport({ r, ttd }: { r: PeriodReport; ttd?: TtdLaporan 
       <div className="mt-8 grid grid-cols-3 gap-4 text-center text-[10px]">
         <Sign title="Mengetahui" role="Pejabat Pembuat Komitmen" name={h.ppkName} sub={h.ppkNip ? `NIP. ${h.ppkNip}` : null} {...gambarPihak(ttd, "ppk")} />
         <Sign title="Diperiksa" role="Konsultan Pengawas" name={h.supervisorName} sub={h.supervisorFirm} {...gambarPihak(ttd, "pengawas")} />
-        <Sign title="Dibuat Oleh" role={`Penyedia Jasa — ${h.vendorName}`} name={h.contractorSignerName} sub={h.contractorSignerTitle} {...gambarPihak(ttd, "penyedia")} />
+        <Sign title="Dibuat Oleh" role={`Penyedia Jasa – ${h.vendorName}`} name={h.contractorSignerName} sub={h.contractorSignerTitle} {...gambarPihak(ttd, "penyedia")} />
       </div>
     </div>
   );

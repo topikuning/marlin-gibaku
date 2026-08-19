@@ -45,12 +45,12 @@ type SeedFile = ParsedRab & {
 
 // Paket: grup lokasi per kontrak. BGK = satu kontrak dua lokasi (multi-lokasi).
 const PACKAGES: { name: string; number: string; slugs: string[]; contractNumber: string }[] = [
-  { name: "Paket KNMP Demak — Kedungmutih", number: "PKT-2026-001", slugs: ["kedungmutih"], contractNumber: "SPK-KNMP-2026-KDM-001" },
+  { name: "Paket KNMP Demak – Kedungmutih", number: "PKT-2026-001", slugs: ["kedungmutih"], contractNumber: "SPK-KNMP-2026-KDM-001" },
   { name: "Paket KNMP Purworejo", number: "PKT-2026-002", slugs: ["purworejo"], contractNumber: "SPK-KNMP-2026-PWJ-002" },
-  { name: "Paket KNMP Jepara — Ujungwatu", number: "PKT-2026-003", slugs: ["ujungwatu"], contractNumber: "SPK-KNMP-2026-JPR-003" },
-  { name: "Paket KNMP Jepara — Karanggondang", number: "PKT-2026-004", slugs: ["karanggondang"], contractNumber: "SPK-KNMP-2026-JPR-004" },
+  { name: "Paket KNMP Jepara – Ujungwatu", number: "PKT-2026-003", slugs: ["ujungwatu"], contractNumber: "SPK-KNMP-2026-JPR-003" },
+  { name: "Paket KNMP Jepara – Karanggondang", number: "PKT-2026-004", slugs: ["karanggondang"], contractNumber: "SPK-KNMP-2026-JPR-004" },
   { name: "Paket KNMP Bangkalan (2 lokasi)", number: "PKT-2026-005", slugs: ["batah-timur", "tengket"], contractNumber: "SPK-KNMP-2026-BGK-005" },
-  { name: "Paket KNMP Lamongan — Kemantren", number: "PKT-2026-006", slugs: ["kemantren"], contractNumber: "SPK-KNMP-2026-LMG-007" },
+  { name: "Paket KNMP Lamongan – Kemantren", number: "PKT-2026-006", slugs: ["kemantren"], contractNumber: "SPK-KNMP-2026-LMG-007" },
 ];
 
 /**
@@ -422,8 +422,8 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
 
   // ── Paket non-kontrak: prospek / tender / batal ─────────────
   const extraPkgs = [
-    { number: "PKT-2027-001", name: "Paket KNMP Tahap II — Sulawesi Selatan", stage: "prospek" as const, hps: 12_500_000_000n },
-    { number: "PKT-2027-002", name: "Paket KNMP Tahap II — Maluku", stage: "tender" as const, hps: 9_800_000_000n, candidate: "PT Bahari Jaya Mandiri" },
+    { number: "PKT-2027-001", name: "Paket KNMP Tahap II – Sulawesi Selatan", stage: "prospek" as const, hps: 12_500_000_000n },
+    { number: "PKT-2027-002", name: "Paket KNMP Tahap II – Maluku", stage: "tender" as const, hps: 9_800_000_000n, candidate: "PT Bahari Jaya Mandiri" },
     { number: "PKT-2026-X01", name: "Paket KNMP Aceh (batal)", stage: "batal" as const, hps: 6_000_000_000n, cancel: "Anggaran dialihkan ke TA 2027" },
   ];
   for (const e of extraPkgs) {
@@ -546,7 +546,7 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
           fromStatus: (from ?? undefined) as never,
           toStatus: to as never,
           changedById: to === "dikirim" ? mandorId : smId,
-          reason: to === "perlu_koreksi" ? "Volume pasangan batu tidak sesuai foto — mohon cek ulang" : null,
+          reason: to === "perlu_koreksi" ? "Volume pasangan batu tidak sesuai foto – mohon cek ulang" : null,
         },
       });
     }

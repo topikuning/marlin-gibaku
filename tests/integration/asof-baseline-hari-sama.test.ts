@@ -207,7 +207,7 @@ afterAll(async () => {
 });
 
 describe("dasar rencana = baseline aktif", () => {
-  it("minggunya sama-sama 2 — jadi selisihnya memang bukan soal minggu", async () => {
+  it("minggunya sama-sama 2 – jadi selisihnya memang bukan soal minggu", async () => {
     const layar = await getLocationProgress(locId);
     const dokumen = await getLocationProgress(locId, { asOf: ASOF });
     expect(layar.weekNumber).toBe(2);
@@ -219,7 +219,7 @@ describe("dasar rencana = baseline aktif", () => {
     expect(layar.planPct).toBeCloseTo(1.7, 5);
   });
 
-  it("dokumen hari ini memakai baseline aktif — sama dengan layar", async () => {
+  it("dokumen hari ini memakai baseline aktif – sama dengan layar", async () => {
     // Inilah keluhan aslinya: dokumen mencetak 23,30% (jadwal yang sudah
     // dibatalkan siang tadi) sementara layar menulis 1,7%.
     const dokumen = await getLocationProgress(locId, { asOf: ASOF });
@@ -237,7 +237,7 @@ describe("dasar rencana = baseline aktif", () => {
     expect(lampau.planPct).not.toBeCloseTo(11.5, 5); // bukan kurva lama
   });
 
-  it("`asOf` tetap membatasi LAPORAN yang dihitung — itu inti CALC-01", async () => {
+  it("`asOf` tetap membatasi LAPORAN yang dihitung – itu inti CALC-01", async () => {
     // Yang dibuang cuma pemilihan VERSI. Batas waktu laporan tidak ikut
     // dibuang: dokumen bertanggal 30 Juli tidak boleh memuat realisasi 6
     // Agustus hanya karena dicetak hari ini.

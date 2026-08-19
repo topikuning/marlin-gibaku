@@ -83,11 +83,11 @@ export async function getDriveCoverage(packageId: string): Promise<FolderCoverag
         break;
       case "4. LAPORAN MINGGUAN":
         expected = null;
-        source = `Laporan mingguan KKP per lokasi (${locCount} lokasi) — PDF + Excel`;
+        source = `Laporan mingguan KKP per lokasi (${locCount} lokasi) – PDF + Excel`;
         break;
       case "5. LAPORAN BULANAN":
         expected = null;
-        source = `Laporan bulanan KKP per lokasi (${locCount} lokasi) — PDF + Excel`;
+        source = `Laporan bulanan KKP per lokasi (${locCount} lokasi) – PDF + Excel`;
         break;
       case "6. DOKUMENTASI":
         expected = activities;

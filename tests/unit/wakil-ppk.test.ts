@@ -40,7 +40,7 @@ describe("Wakil PPK: hanya melihat", () => {
     for (const c of ai) expect(can("wakil_ppk", c)).toBe(false);
   });
 
-  it("TANPA Keuangan — uang internal pelaksana bukan urusan pemberi kerja", () => {
+  it("TANPA Keuangan – uang internal pelaksana bukan urusan pemberi kerja", () => {
     expect(can("wakil_ppk", "finance.view")).toBe(false);
   });
 
@@ -50,7 +50,7 @@ describe("Wakil PPK: hanya melihat", () => {
     }
   });
 
-  it("SESUAI PENUGASAN — bukan lintas lokasi", () => {
+  it("SESUAI PENUGASAN – bukan lintas lokasi", () => {
     expect(isCrossLocation("wakil_ppk")).toBe(false);
     expect(CROSS_LOCATION_ROLES.has("wakil_ppk")).toBe(false);
   });

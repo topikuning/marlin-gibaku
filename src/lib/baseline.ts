@@ -259,14 +259,14 @@ export async function saveCategorySchedule(
   userId: string,
 ) {
   const base = await activeCategoriesWithWeights(locationId);
-  if (!base) throw new Error("Belum ada revisi RAB aktif — impor RAB dulu.");
+  if (!base) throw new Error("Belum ada revisi RAB aktif – impor RAB dulu.");
   const contractDays = await contractDaysFor(locationId);
   const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
 
   const byKey = new Map(input.map((r) => [r.lineageKey, r]));
   const rows = base.categories.map((c) => {
     const r = byKey.get(c.lineageKey);
-    if (!r) throw new Error(`Jadwal untuk kategori "${c.name}" tidak lengkap — muat ulang halaman.`);
+    if (!r) throw new Error(`Jadwal untuk kategori "${c.name}" tidak lengkap – muat ulang halaman.`);
     const segments = (r.segments ?? []).map((s) => ({
       startWeek: Math.floor(s.startWeek),
       endWeek: Math.floor(s.endWeek),
@@ -341,7 +341,7 @@ export async function saveCategorySchedule(
         status: "aktif",
         rabRevisionId: base.revisionId,
         contractDays,
-        note: "Jadwal per pekerjaan (kategori) — editor manual",
+        note: "Jadwal per pekerjaan (kategori) – editor manual",
         createdById: userId,
       },
     });
@@ -400,7 +400,7 @@ export async function hitungJadwalBaru(
   mode: ModeJadwal = "apaadanya",
 ) {
   const base = await activeCategoriesWithWeights(locationId);
-  if (!base) throw new Error("Belum ada revisi RAB aktif — impor RAB dulu.");
+  if (!base) throw new Error("Belum ada revisi RAB aktif – impor RAB dulu.");
   const contractDays = await contractDaysFor(locationId);
   const totalWeeks = Math.max(1, Math.ceil(contractDays / 7));
 

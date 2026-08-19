@@ -189,7 +189,7 @@ export function AdendumEditor({
         cellClass: "text-right tabular-nums text-ink-muted",
         headerClass: "ag-right-aligned-header",
         valueFormatter: (p) =>
-          p.value == null ? (p.data?.kind === "item" ? "—" : "") : volFmt.format(p.value),
+          p.value == null ? (p.data?.kind === "item" ? "–" : "") : volFmt.format(p.value),
       },
       {
         field: "volume",
@@ -219,7 +219,7 @@ export function AdendumEditor({
         cellClass: (p) =>
           `text-right tabular-nums ${p.data?.kind === "item" && !p.data.isNew ? "text-ink-muted" : ""}`,
         valueFormatter: (p) => (p.value == null ? "" : rupiah.format(p.value)),
-        headerTooltip: "Item lama terkunci (harga kontrak tetap). Item BARU bebas — harga negosiasi.",
+        headerTooltip: "Item lama terkunci (harga kontrak tetap). Item BARU bebas – harga negosiasi.",
       },
       {
         field: "amountLama",
@@ -230,7 +230,7 @@ export function AdendumEditor({
         headerClass: "ag-right-aligned-header",
         cellClass: "text-right tabular-nums text-ink-muted",
         valueFormatter: (p) =>
-          p.data?.isNew ? "—" : p.value == null ? "" : rupiah.format(BigInt(p.value)),
+          p.data?.isNew ? "–" : p.value == null ? "" : rupiah.format(BigInt(p.value)),
       },
       {
         field: "amount",
@@ -272,7 +272,7 @@ export function AdendumEditor({
           if (!n) return null;
           if (!n.canDelete) {
             return (
-              <span title="Punya realisasi — pekerjaan-kurang lewat volume, bukan hapus.">
+              <span title="Punya realisasi – pekerjaan-kurang lewat volume, bukan hapus.">
                 <Trash2 aria-hidden className="inline size-4 text-ink-faint" />
               </span>
             );
@@ -352,7 +352,7 @@ function TambahItem({
     () =>
       parents.map((p) => ({
         value: p.id,
-        label: `${"— ".repeat(p.depth)}${kodeTampil(p.code)} · ${p.name}`,
+        label: `${"– ".repeat(p.depth)}${kodeTampil(p.code)} · ${p.name}`,
       })),
     [parents],
   );

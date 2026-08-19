@@ -77,7 +77,7 @@ export function pesanRencanaWa(r: IsiPesanRencana): string {
 
   bagian.push(
     [
-      `*RENCANA KERJA MINGGUAN — Minggu ke-${r.weekNumber} dari ${r.totalWeeks}*`,
+      `*RENCANA KERJA MINGGUAN – Minggu ke-${r.weekNumber} dari ${r.totalWeeks}*`,
       r.packageName,
       `Lokasi: ${lokasiDenganWilayah(r.locationName, r.regency, r.province)}`,
       `Periode: ${tgl(r.periodeStart)} – ${tgl(r.periodeEnd)}`,
@@ -89,7 +89,7 @@ export function pesanRencanaWa(r: IsiPesanRencana): string {
       `*Posisi kemajuan*`,
       `Realisasi s/d saat ini: ${p2(r.actualPct)}`,
       `Rencana kurva-S: ${p2(r.targetPct)}`,
-      `Deviasi: ${signed(r.deviationPct)} — ${LABEL_STATUS[r.status]}`,
+      `Deviasi: ${signed(r.deviationPct)} – ${LABEL_STATUS[r.status]}`,
     ].join("\n"),
   );
 
@@ -99,7 +99,7 @@ export function pesanRencanaWa(r: IsiPesanRencana): string {
       `*Proyeksi akhir minggu ini*`,
       `Bila rencana ini dikerjakan penuh, realisasi menjadi *${p2(r.proyeksi.proyeksiPct)}*, sedangkan kurva-S menuntut ${p2(r.proyeksi.targetPct)}.`,
       r.proyeksi.masihTertinggal
-        ? `Masih tertinggal ${p2(Math.abs(r.proyeksi.selisihPct))} — rencana ini belum cukup untuk kembali ke jadwal.`
+        ? `Masih tertinggal ${p2(Math.abs(r.proyeksi.selisihPct))} – rencana ini belum cukup untuk kembali ke jadwal.`
         : `Menutup ketertinggalan dengan selisih ${signed(r.proyeksi.selisihPct)}.`,
     ].join("\n"),
   );
@@ -108,18 +108,18 @@ export function pesanRencanaWa(r: IsiPesanRencana): string {
   if (r.ppc.pct == null) {
     if (r.weekNumber > 1) {
       bagian.push(
-        `*Kredibilitas rencana minggu ke-${r.weekNumber - 1}*\nTidak ada rencana tercatat — tidak ada komitmen yang bisa dievaluasi (bukan nilai 0%).`,
+        `*Kredibilitas rencana minggu ke-${r.weekNumber - 1}*\nTidak ada rencana tercatat – tidak ada komitmen yang bisa dievaluasi (bukan nilai 0%).`,
       );
     }
   } else {
     const baris = [
       `*Kredibilitas rencana minggu ke-${r.weekNumber - 1}*`,
-      `PPC ${p2(r.ppc.pct)} — ${r.ppc.tuntas} dari ${r.ppc.jumlah} komitmen tuntas.`,
+      `PPC ${p2(r.ppc.pct)} – ${r.ppc.tuntas} dari ${r.ppc.jumlah} komitmen tuntas.`,
     ];
     if (r.tidakTuntas.length > 0) {
       baris.push("Belum tuntas:");
       for (const t of r.tidakTuntas.slice(0, MAKS_TIDAK_TUNTAS_TAMPIL)) {
-        baris.push(`• ${t.code} · ${t.name} — ${vol(t.realisasi, t.unit)} dari ${vol(t.target, t.unit)}`);
+        baris.push(`• ${t.code} · ${t.name} – ${vol(t.realisasi, t.unit)} dari ${vol(t.target, t.unit)}`);
       }
       const sisa = r.tidakTuntas.length - MAKS_TIDAK_TUNTAS_TAMPIL;
       if (sisa > 0) baris.push(`_…dan ${sisa} komitmen lain, ada di berkas terlampir._`);

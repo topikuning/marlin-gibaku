@@ -140,12 +140,12 @@ async function addKurvaSheet(
     return row;
   };
   const barisJudul = banner(
-    `KURVA S — ${r.kind === "mingguan" ? `MINGGU KE-${r.n}` : `BULAN KE-${r.n}`}`,
+    `KURVA S – ${r.kind === "mingguan" ? `MINGGU KE-${r.n}` : `BULAN KE-${r.n}`}`,
     true,
     12,
     WARNA.kepala,
   );
-  banner(`${r.header.packageName} — ${r.header.village}, ${r.header.regency}`, false, 10, WARNA.teksRedup);
+  banner(`${r.header.packageName} – ${r.header.village}, ${r.header.regency}`, false, 10, WARNA.teksRedup);
   // Tata letak berkas acuan (Time Schedule): identitas di kiri, PASANGAN logo
   // pemilik + kontraktor BERJAJAR DI KANAN — bukan kiri-kanan terpisah.
   ws.getRow(barisJudul.number + 1).height = 34;
@@ -442,7 +442,7 @@ const lokasiLengkap = (h: PeriodReport["header"]): string => {
     h.regency,
     h.province,
   ].filter(Boolean);
-  return `${h.locationName} — ${wilayah.join(", ")}`;
+  return `${h.locationName} – ${wilayah.join(", ")}`;
 };
 
 const labelPeriode = (r: PeriodReport): string =>
@@ -604,7 +604,7 @@ function addRekapSheet(wb: ExcelJS.Workbook, r: PeriodReport, logo?: LogoLaporan
   kv("Tahun Anggaran", String(h.tahunAnggaran));
   kv("Pemberi Tugas", h.ownerAgency);
   kv("Kontraktor", h.vendorName);
-  kv("Konsultan Pengawas", h.supervisorFirm?.trim() || h.supervisorName?.trim() || "—");
+  kv("Konsultan Pengawas", h.supervisorFirm?.trim() || h.supervisorName?.trim() || "–");
   kv("Alamat", lokasiLengkap(h));
   kv(`${periodeLabel} ke`, `${r.n} dari ${r.maxN}`);
   kv(
@@ -728,7 +728,7 @@ function addRekapSheet(wb: ExcelJS.Workbook, r: PeriodReport, logo?: LogoLaporan
   const ket = dev < -0.005 ? "TERLAMBAT" : dev > 0.005 ? "LEBIH CEPAT" : "SESUAI RENCANA";
   const warnaDev = dev < -0.005 ? WARNA.negatif : dev > 0.005 ? WARNA.positif : WARNA.teks;
   rowDev.getCell(5).font = { size: 9, bold: true, color: { argb: warnaDev } };
-  rowDev.getCell(1).value = `DEVIASI — ${ket}`;
+  rowDev.getCell(1).value = `DEVIASI – ${ket}`;
   rowDev.getCell(1).font = { size: 9, bold: true, color: { argb: warnaDev } };
 
   const catatan = ws.addRow([
@@ -825,7 +825,7 @@ export async function buildPeriodReportXlsx(
     return { cell: value, row: row.number };
   };
   kv("Paket Pekerjaan", h.packageName);
-  kv("Lokasi", `${h.locationName} — ${h.village}, ${h.regency}, ${h.province}`);
+  kv("Lokasi", `${h.locationName} – ${h.village}, ${h.regency}, ${h.province}`);
   kv("Nomor Kontrak", h.contractNumber);
   kv("Kontraktor Pelaksana", h.vendorName);
   kv("Nilai Fisik Lokasi", `Rp ${new Intl.NumberFormat("id-ID").format(Number(h.locationValue))}`);
@@ -1057,7 +1057,7 @@ export async function buildPeriodReportXlsx(
   kv("Ringkasan", r.cuacaRingkas);
   section("Kendala");
   if (r.kendala.length === 0) {
-    kv("—", "Tidak ada kendala tercatat pada periode ini");
+    kv("–", "Tidak ada kendala tercatat pada periode ini");
   } else {
     for (const k of r.kendala) kv(formatTanggal(k.createdAt), `${k.title} (${k.severity}, ${k.status})`);
   }

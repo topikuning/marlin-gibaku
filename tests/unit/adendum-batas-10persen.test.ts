@@ -42,7 +42,7 @@ describe("KASUS NYATA user 2026-08-03: tukar pekerjaan, nilai praktis sama", () 
     expect(hasil).not.toBe("lewat-batas");
   });
 
-  it("tetap disebut sebagai pergeseran LINGKUP — bukan didiamkan", () => {
+  it("tetap disebut sebagai pergeseran LINGKUP – bukan didiamkan", () => {
     // Nilainya aman, tapi isinya berpindah ~Rp 1 miliar. Itu tetap perubahan
     // lingkup yang butuh dasar tertulis; yang salah dulu cuma NAMANYA.
     expect(
@@ -60,7 +60,7 @@ describe("batas 10% diukur dari kenaikan NILAI KONTRAK", () => {
     ).toBe("lewat-batas");
   });
 
-  it("tepat di batas belum melanggar — Perpres membatasi yang MELEBIHI", () => {
+  it("tepat di batas belum melanggar – Perpres membatasi yang MELEBIHI", () => {
     expect(nilaiAdendum({ nilaiAwal: NILAI_AWAL, delta: batas, totalTambah: batas })).toBe("aman");
   });
 

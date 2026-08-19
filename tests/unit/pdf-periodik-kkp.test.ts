@@ -74,7 +74,7 @@ function fixture(kind: "mingguan" | "bulanan"): PeriodReport {
       lineageKey: CODES[ci],
       code: CODES[ci],
       name,
-      rows: Array.from({ length: 6 }, (_, i) => item(ci * 6 + i + 1, `${name} — butir ${i + 1}`)),
+      rows: Array.from({ length: 6 }, (_, i) => item(ci * 6 + i + 1, `${name} – butir ${i + 1}`)),
       subtotalAmount: 150_000_000,
       subtotalBobot: 25,
       subtotalBobotLalu: 1.2,

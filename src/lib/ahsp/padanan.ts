@@ -423,7 +423,7 @@ export async function keadaanPadanan(
       petunjuk: ahsp
         ? null
         : p && !p.tidakAda
-          ? "Padanan sebelumnya hilang saat basis AHSP diganti — tekan “Petakan otomatis” untuk menyambungnya kembali, atau pilih sendiri."
+          ? "Padanan sebelumnya hilang saat basis AHSP diganti – tekan “Petakan otomatis” untuk menyambungnya kembali, atau pilih sendiri."
           : petunjukBaris(it.name, aturan),
     };
   });
@@ -488,7 +488,7 @@ function petunjukBaris(uraian: string, aturan: AturanIstilah): string | null {
   if (!rein || rein.kodeKandidat.length === 0) return null;
   const daftar = rein.kodeKandidat.join(", ");
   if (!rein.perluKonteks) return `Analisa penulangan yang cocok: ${daftar}.`;
-  return `Pekerjaan penulangan — ${rein.alasan.join("; ")}. Kandidat resmi: ${daftar}. Pilih setelah memastikan konteksnya.`;
+  return `Pekerjaan penulangan – ${rein.alasan.join("; ")}. Kandidat resmi: ${daftar}. Pilih setelah memastikan konteksnya.`;
 }
 
 /** Kandidat alternatif untuk satu baris — bahan pilihan saat mengoreksi. */

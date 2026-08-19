@@ -79,7 +79,7 @@ describe("aritmetika bulan", () => {
   });
 });
 
-describe("kolom hari — Senin di kiri", () => {
+describe("kolom hari – Senin di kiri", () => {
   it("offset dihitung dengan Senin = 0", () => {
     // 1 Agustus 2026 = SABTU → kolom ke-6 (indeks 5).
     expect(offsetSenin("2026-08")).toBe(5);
@@ -263,7 +263,7 @@ describe("saringan status", () => {
   });
 });
 
-describe("batas navigasi — setiap bulan berdata WAJIB terjangkau", () => {
+describe("batas navigasi – setiap bulan berdata WAJIB terjangkau", () => {
   it("mundur sampai bulan mulai kontrak", () => {
     const b = batasBulan({
       hariIniKey: "2026-08-17",
@@ -338,7 +338,7 @@ describe("batas navigasi — setiap bulan berdata WAJIB terjangkau", () => {
   });
 });
 
-describe("bentuk daftar — SELURUH rentang, bukan satu bulan", () => {
+describe("bentuk daftar – SELURUH rentang, bukan satu bulan", () => {
   const dasar = {
     min: "2026-06",
     max: "2026-08",
@@ -401,7 +401,7 @@ describe("sel kosong membuka inputan langsung (DECISIONS 355)", () => {
   const sel = (bulan: string, tanggal: number, opts: Parameters<typeof kalender>[1] = {}) => {
     const dateKey = `${bulan}-${String(tanggal).padStart(2, "0")}`;
     const s = kalender(bulan, opts).find((x) => x.dateKey === dateKey);
-    if (!s) throw new Error(`sel ${dateKey} tidak ada — fixture uji salah`);
+    if (!s) throw new Error(`sel ${dateKey} tidak ada – fixture uji salah`);
     return s;
   };
 
@@ -433,7 +433,7 @@ describe("sel kosong membuka inputan langsung (DECISIONS 355)", () => {
     expect(bukaLangsung(s)).toBe(false);
   });
 
-  it("hari yang BELUM TIBA: TIDAK melompat — formulirnya pun menolak", () => {
+  it("hari yang BELUM TIBA: TIDAK melompat – formulirnya pun menolak", () => {
     // Halaman harian menolak tanggal depan (`isFuture`), jadi melompat hanya
     // memindahkan orang ke jalan buntu.
     const s = sel("2026-08", 25);

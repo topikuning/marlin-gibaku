@@ -158,7 +158,7 @@ test.describe("tata letak input harian", () => {
     await expect(page.getByText("Simpan dulu")).toHaveCount(0);
   });
 
-  test("sumber foto di baris material RINGKAS — sepertiga ubin form pekerjaan", async ({ page }) => {
+  test("sumber foto di baris material RINGKAS – sepertiga ubin form pekerjaan", async ({ page }) => {
     /*
      * Keluhan user 2026-08-17: *"tombol sumber fotomu terlalu besar di bagian
      * alat dan bahan ini, perkecil sampai 1/3 nya."*
@@ -173,7 +173,7 @@ test.describe("tata letak input harian", () => {
      * perbedaan KELAS ukuran, bukan angka desimal.
      */
     await bukaDraft(page);
-    test.skip(!(await fotoAktif(page)), "R2 nonaktif — sumber foto memang tidak dirender");
+    test.skip(!(await fotoAktif(page)), "R2 nonaktif – sumber foto memang tidak dirender");
 
     const luas = async (akar: import("@playwright/test").Locator) =>
       akar.evaluate((el) =>
@@ -202,14 +202,14 @@ test.describe("tata letak input harian", () => {
     ).toBeLessThan(0.4);
   });
 
-  test("medan foto tiap baris TERPISAH — bukti tidak tertukar antarbaris", async ({ page }) => {
+  test("medan foto tiap baris TERPISAH – bukti tidak tertukar antarbaris", async ({ page }) => {
     /*
      * Semua baris hidup di SATU form. Tanpa awalan per baris, `photos` seluruh
      * baris menyatu jadi satu daftar dan tidak ada lagi cara mengetahui foto
      * mana milik baris mana — bukti menempel pada barang yang salah, diam-diam.
      */
     await bukaDraft(page);
-    test.skip(!(await fotoAktif(page)), "R2 nonaktif — medan foto memang tidak dirender");
+    test.skip(!(await fotoAktif(page)), "R2 nonaktif – medan foto memang tidak dirender");
     const kunci = await page
       .locator("form", { hasText: "Pelengkap laporan KKP" })
       .first()
@@ -261,7 +261,7 @@ test.describe("tata letak input harian", () => {
      */
     await bukaDraft(page);
     const bersarang = await page.evaluate(() => document.querySelectorAll("form form").length);
-    expect(bersarang, "ada <form> bersarang — tombol di dalamnya akan diam").toBe(0);
+    expect(bersarang, "ada <form> bersarang – tombol di dalamnya akan diam").toBe(0);
   });
 
   test("kirim terkunci sampai pertanyaan kendala dijawab", async ({ page }) => {

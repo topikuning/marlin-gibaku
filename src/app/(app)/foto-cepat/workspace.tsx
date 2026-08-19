@@ -146,7 +146,7 @@ function JepretCard({
         <div>
           <h2 className="text-sm font-semibold text-ink">Jepret sekarang</h2>
           <HelpText>
-            Ketuk rana — foto langsung tersimpan di HP, lalu dikirim sendiri begitu ada sinyal.
+            Ketuk rana – foto langsung tersimpan di HP, lalu dikirim sendiri begitu ada sinyal.
             Koordinat & jamnya terekam saat rana ditekan.
           </HelpText>
         </div>
@@ -156,7 +156,7 @@ function JepretCard({
             ? terdekat?.jarakMeter != null
               ? `Kamu ada di dekat ${terdekat.name} (${labelJarak(terdekat.jarakMeter)}). Foto yang dijepret di sini akan dikenali ke lokasi itu.`
               : "Posisi terbaca, tapi belum ada lokasi yang punya titik proyek untuk dibandingkan."
-            : "Posisi belum terbaca. Izinkan akses lokasi — tanpa koordinat, lokasi fotonya harus dipilih manual belakangan."}
+            : "Posisi belum terbaca. Izinkan akses lokasi – tanpa koordinat, lokasi fotonya harus dipilih manual belakangan."}
         </p>
 
         {wajibGps ? (
@@ -192,7 +192,7 @@ function JepretCard({
 
         <Button type="button" onClick={() => setKameraBuka(true)} className="w-full sm:w-auto">
           <Camera aria-hidden className="size-4" />
-          {ringkas.menunggu > 0 ? "Buka kamera — lanjut memotret" : "Buka kamera"}
+          {ringkas.menunggu > 0 ? "Buka kamera – lanjut memotret" : "Buka kamera"}
         </Button>
 
         {/*
@@ -279,7 +279,7 @@ function PanelAntrean({
       </div>
 
       <HelpText>
-        Foto tersimpan di HP dan dikirim sendiri begitu ada sinyal — termasuk kalau halaman ini
+        Foto tersimpan di HP dan dikirim sendiri begitu ada sinyal – termasuk kalau halaman ini
         ditutup dan dibuka lagi nanti. Tapi ia masih di HP ini: jangan hapus data aplikasi sebelum
         antreannya habis.
       </HelpText>
@@ -352,7 +352,7 @@ function PanelAntrean({
           title={`${rusak.length} foto rusak di simpanan HP`}
           description={
             rusak[0].pesan ??
-            "Isi fotonya hilang dari simpanan HP — tidak bisa dikirim. Buang saja lalu potret ulang."
+            "Isi fotonya hilang dari simpanan HP – tidak bisa dikirim. Buang saja lalu potret ulang."
           }
         />
       ) : null}
@@ -538,7 +538,7 @@ function KantongCard({
       <div className="space-y-3 p-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-sm font-semibold text-ink">
-            Kantong — {kantong.length} foto belum dipakai
+            Kantong – {kantong.length} foto belum dipakai
           </h2>
           {terpilih.size > 0 ? (
             <button
@@ -554,7 +554,7 @@ function KantongCard({
         {/* Tanpa kalimat ini, "bisa dipilih" harus ditebak: petaknya tidak
             bertombol, dan satu-satunya ikon yang menonjol justru tong sampah. */}
         <HelpText>
-          Ketuk foto untuk memilihnya — pilihannya boleh berapa pun dan boleh dari kelompok mana
+          Ketuk foto untuk memilihnya – pilihannya boleh berapa pun dan boleh dari kelompok mana
           pun. Tindakan yang bisa dilakukan muncul di bawah, mengikuti apa yang kamu pilih.
         </HelpText>
 
@@ -586,7 +586,7 @@ function KantongCard({
               {g.tanpaLokasi ? (
                 <HelpText>
                   Koordinatnya tidak ada, terlalu jauh dari semua titik proyek, atau berada di
-                  antara dua lokasi yang berdekatan — sistem sengaja tidak menebak. Pilih foto yang
+                  antara dua lokasi yang berdekatan – sistem sengaja tidak menebak. Pilih foto yang
                   lokasinya sama, tetapkan lokasinya, lalu ulangi untuk kelompok berikutnya.
                 </HelpText>
               ) : null}
@@ -889,7 +889,7 @@ function PanelPakai({
           ) : (
             <HelpText>
               Tidak ada laporan harian yang masih bisa disunting di lokasi ini. Laporan yang sudah
-              dikirim atau disetujui sengaja tidak ditawarkan — menambah lampiran ke sana berarti
+              dikirim atau disetujui sengaja tidak ditawarkan – menambah lampiran ke sana berarti
               mengubah berkas yang sudah disahkan orang lain.
             </HelpText>
           )
@@ -919,7 +919,7 @@ function PanelPakai({
           {pending ? "Memproses…" : "Pakai foto"}
         </Button>
         <HelpText>
-          Waktu & koordinat foto TIDAK berubah — yang ditambahkan hanya nama lokasi, perusahaan,
+          Waktu & koordinat foto TIDAK berubah – yang ditambahkan hanya nama lokasi, perusahaan,
           bangunan, dan item pekerjaannya ke capnya.
         </HelpText>
       </form>

@@ -78,7 +78,7 @@ export function runQualityRules(facts: LocationFacts, d: QualityDetailFacts): Qu
           "exif_mismatch",
           "Tanggal EXIF foto ≠ tanggal laporan",
           "periksa",
-          `${d.exifDateMismatch} foto berbeda tanggal — pastikan foto diambil pada hari kerja tsb`,
+          `${d.exifDateMismatch} foto berbeda tanggal – pastikan foto diambil pada hari kerja tsb`,
           d,
           d.exifDateMismatch,
         )
@@ -136,7 +136,7 @@ export function runQualityRules(facts: LocationFacts, d: QualityDetailFacts): Qu
           "nol_dengan_bukti",
           "Realisasi 0% padahal bukti lapangan ada",
           "gagal",
-          `${facts.photoCount} foto & ${facts.activityCount} kegiatan tercatat — laporan harian belum masuk/final`,
+          `${facts.photoCount} foto & ${facts.activityCount} kegiatan tercatat – laporan harian belum masuk/final`,
           d,
           1,
         )

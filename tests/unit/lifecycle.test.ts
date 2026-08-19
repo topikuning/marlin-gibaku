@@ -46,7 +46,7 @@ describe("revertTargetFor", () => {
   });
 });
 
-describe("canTransitionPackage — serah terima satu arah", () => {
+describe("canTransitionPackage – serah terima satu arah", () => {
   it("pelaksanaan hanya boleh maju ke serah_terima", () => {
     const targets: PackageStage[] = [
       "prospek",
@@ -64,7 +64,7 @@ describe("canTransitionPackage — serah terima satu arah", () => {
   });
 });
 
-describe("transisi laporan harian — buka kunci final (DECISIONS 149)", () => {
+describe("transisi laporan harian – buka kunci final (DECISIONS 149)", () => {
   it("alur normal draft → dikirim → disetujui → final", () => {
     expect(canTransitionReport("draft", "dikirim")).toBe(true);
     expect(canTransitionReport("dikirim", "disetujui")).toBe(true);

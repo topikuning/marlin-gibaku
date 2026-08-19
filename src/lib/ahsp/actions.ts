@@ -32,7 +32,7 @@ export async function imporAhspAction(): Promise<AhspActionState> {
 
     if (h.takBerubah) {
       return {
-        success: `Basis AHSP sudah mutakhir — berkasnya identik (${h.total.toLocaleString("id-ID")} analisa). Tidak ada yang ditulis ulang.`,
+        success: `Basis AHSP sudah mutakhir – berkasnya identik (${h.total.toLocaleString("id-ID")} analisa). Tidak ada yang ditulis ulang.`,
       };
     }
     const komponen = h.komponen.upah + h.komponen.bahan + h.komponen.alat;
@@ -47,7 +47,7 @@ export async function imporAhspAction(): Promise<AhspActionState> {
     }
     if (h.padananPutus > 0) {
       bagian.push(
-        `${h.padananPutus} padanan TIDAK punya analisa padanannya lagi — barisnya muncul lagi sebagai pekerjaan di halaman RAPL`,
+        `${h.padananPutus} padanan TIDAK punya analisa padanannya lagi – barisnya muncul lagi sebagai pekerjaan di halaman RAPL`,
       );
     }
     if (h.tanpaKomponen > 0) {

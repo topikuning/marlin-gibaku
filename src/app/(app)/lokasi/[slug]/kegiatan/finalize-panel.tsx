@@ -85,7 +85,7 @@ export function FinalizePanel({ activityId }: { activityId: string }) {
           </div>
           <p className="text-xs text-ink-muted">
             {REWRITE_STYLE_LABEL.rapi}: {REWRITE_STYLE_HINT.rapi} · {REWRITE_STYLE_LABEL.teknis}:{" "}
-            {REWRITE_STYLE_HINT.teknis} AI hanya mengubah bahasa — angka & fakta tidak boleh berubah.
+            {REWRITE_STYLE_HINT.teknis} AI hanya mengubah bahasa – angka & fakta tidak boleh berubah.
           </p>
         </div>
       ) : null}
@@ -95,7 +95,7 @@ export function FinalizePanel({ activityId }: { activityId: string }) {
         <form action={finalizeAction} className="space-y-3">
           <input type="hidden" name="activityId" value={activityId} />
           <p className="text-[13px] font-medium text-ink">
-            Usulan {suggest.style === "teknis" ? "bahasa teknis" : "perapian bahasa"} — centang yang dipakai
+            Usulan {suggest.style === "teknis" ? "bahasa teknis" : "perapian bahasa"} – centang yang dipakai
           </p>
 
           {usable.map((f) => {

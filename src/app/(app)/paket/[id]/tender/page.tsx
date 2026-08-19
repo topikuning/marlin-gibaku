@@ -79,8 +79,8 @@ export default async function TenderPage({
             title="Data tender"
             subtitle={
               praKontrak
-                ? "Identitas paket, HPS, dan kandidat vendor — bisa diubah sampai berkontrak."
-                : "Paket sudah berkontrak — data terkunci."
+                ? "Identitas paket, HPS, dan kandidat vendor – bisa diubah sampai berkontrak."
+                : "Paket sudah berkontrak – data terkunci."
             }
           />
           <CardBody>
@@ -101,15 +101,15 @@ export default async function TenderPage({
               <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
                 <div>
                   <dt className="text-ink-muted">Nomor paket</dt>
-                  <dd className="font-medium text-ink">{pkg.packageNumber ?? "—"}</dd>
+                  <dd className="font-medium text-ink">{pkg.packageNumber ?? "–"}</dd>
                 </div>
                 <div>
                   <dt className="text-ink-muted">Provinsi</dt>
-                  <dd className="font-medium text-ink">{pkg.province ?? "—"}</dd>
+                  <dd className="font-medium text-ink">{pkg.province ?? "–"}</dd>
                 </div>
                 <div>
                   <dt className="text-ink-muted">Kandidat vendor</dt>
-                  <dd className="font-medium text-ink">{pkg.candidateVendorName ?? "—"}</dd>
+                  <dd className="font-medium text-ink">{pkg.candidateVendorName ?? "–"}</dd>
                 </div>
                 <div>
                   <dt className="text-ink-muted">Instansi pemilik</dt>
@@ -117,7 +117,7 @@ export default async function TenderPage({
                 </div>
                 <div className="sm:col-span-2">
                   <dt className="text-ink-muted">Catatan</dt>
-                  <dd className="text-ink">{pkg.note ?? "—"}</dd>
+                  <dd className="text-ink">{pkg.note ?? "–"}</dd>
                 </div>
               </dl>
             )}
@@ -147,7 +147,7 @@ export default async function TenderPage({
       <Card className="self-start">
         <CardHeader
           title="Administrasi pemilihan & penunjukan"
-          subtitle="Milestone administrasi PBJ (read-only — kelola di modul Administrasi)"
+          subtitle="Milestone administrasi PBJ (read-only – kelola di modul Administrasi)"
         />
         <CardBody>
           {milestones.length === 0 ? (

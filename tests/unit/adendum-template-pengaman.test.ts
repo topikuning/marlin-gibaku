@@ -88,7 +88,7 @@ describe("kolom REALISASI TERCATAT", () => {
     expect(ws.getCell(r, 12).value).toBe(0);
   });
 
-  it("kolom 1–11 TIDAK bergeser — template lama harus tetap terbaca parser", async () => {
+  it("kolom 1–11 TIDAK bergeser – template lama harus tetap terbaca parser", async () => {
     // Penanda template ada di kolom 11; menggesernya membuat berkas yang sudah
     // beredar gagal dikenali dan diam-diam jatuh ke parser HPS biasa.
     const ws = await lembar();
@@ -137,7 +137,7 @@ describe("validasi sel VOLUME ADENDUM", () => {
   });
 });
 
-describe("sorotan merah — jaring terakhir", () => {
+describe("sorotan merah – jaring terakhir", () => {
   it("volume di bawah realisasi disoroti", async () => {
     // Diperiksa dari XML: tipe ExcelJS tidak mengekspos `conditionalFormattings`,
     // dan XML adalah yang benar-benar dibuka Excel.

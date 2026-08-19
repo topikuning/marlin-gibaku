@@ -82,7 +82,7 @@ export async function updateDocumentMeta(
   const doc = await loadDocument(documentId, user.orgId);
   if (doc.locationId) await requireLocationAccess(user, doc.locationId);
   if (doc.status === "dibatalkan") {
-    throw new DocumentError("Dokumen sudah dibatalkan — pulihkan dulu sebelum dikoreksi.");
+    throw new DocumentError("Dokumen sudah dibatalkan – pulihkan dulu sebelum dikoreksi.");
   }
 
   // Kombinasi fase × jenis TIDAK dibatasi di sini: jalur upload pun tidak
@@ -170,7 +170,7 @@ async function syncMilestoneAfterVoid(
     data: {
       status: "belum_dimulai",
       completedAt: null,
-      note: `${ms.note ? `${ms.note}\n` : ""}Dikembalikan otomatis — bukti "${doc.title}" dibatalkan.`,
+      note: `${ms.note ? `${ms.note}\n` : ""}Dikembalikan otomatis – bukti "${doc.title}" dibatalkan.`,
     },
   });
   await auditIn(
@@ -202,12 +202,12 @@ export async function voidDocument(documentId: string, reason: string): Promise<
   ]);
   if (rabRefs > 0) {
     throw new DocumentError(
-      "Dokumen ini sumber RAB yang sudah diimpor — batalkan/ganti revisi RAB-nya dulu, jangan buang buktinya.",
+      "Dokumen ini sumber RAB yang sudah diimpor – batalkan/ganti revisi RAB-nya dulu, jangan buang buktinya.",
     );
   }
   if (expenseRefs > 0) {
     throw new DocumentError(
-      `Dokumen ini bukti ${expenseRefs} transaksi pengeluaran — lepaskan bukti dari transaksinya dulu.`,
+      `Dokumen ini bukti ${expenseRefs} transaksi pengeluaran – lepaskan bukti dari transaksinya dulu.`,
     );
   }
 
@@ -275,7 +275,7 @@ export async function deleteDocumentPermanently(
   const user = await requireCapability("document.delete");
   const doc = await loadDocument(documentId, user.orgId);
   if (doc.status !== "dibatalkan") {
-    throw new DocumentError("Batalkan dokumen dulu — hapus permanen hanya untuk dokumen yang sudah dibatalkan.");
+    throw new DocumentError("Batalkan dokumen dulu – hapus permanen hanya untuk dokumen yang sudah dibatalkan.");
   }
 
   const [rabRefs, expenseRefs, versionRefs] = await Promise.all([
@@ -290,7 +290,7 @@ export async function deleteDocumentPermanently(
       versionRefs > 0 ? `${versionRefs} dokumen versi penerus` : null,
     ].filter(Boolean);
     throw new DocumentError(
-      `Tidak bisa dihapus permanen — masih diacu oleh ${sebab.join(" dan ")}. Dokumen tetap dibatalkan (tidak muncul di daftar).`,
+      `Tidak bisa dihapus permanen – masih diacu oleh ${sebab.join(" dan ")}. Dokumen tetap dibatalkan (tidak muncul di daftar).`,
     );
   }
 
@@ -310,7 +310,7 @@ export async function deleteDocumentPermanently(
         packageId: doc.packageId,
         r2Key: doc.r2Key,
         source: doc.source,
-        catatan: "Hapus permanen — baris & file tidak bisa dipulihkan",
+        catatan: "Hapus permanen – baris & file tidak bisa dipulihkan",
       },
       ip,
     );

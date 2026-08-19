@@ -95,7 +95,7 @@ describe("pendeteksi idempoten (dipakai preDeploy untuk memutuskan pemulihan)", 
     expect(alasanTidakIdempoten(`CREATE TYPE "Peran" AS ENUM ('a');`)).toHaveLength(1);
   });
 
-  it("mengabaikan isi KOMENTAR — frasa penjelas tidak boleh dianggap pernyataan", () => {
+  it("mengabaikan isi KOMENTAR – frasa penjelas tidak boleh dianggap pernyataan", () => {
     expect(
       alasanTidakIdempoten('-- tiap ADD CONSTRAINT harus didahului DROP CONSTRAINT\n/* CREATE INDEX contoh */'),
     ).toEqual([]);

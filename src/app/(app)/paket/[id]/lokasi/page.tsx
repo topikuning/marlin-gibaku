@@ -73,7 +73,7 @@ export default async function LokasiPaketPage({
                 pkg.locationsHidden > 0
                   ? `Paket ini punya ${pkg.locationsHidden} lokasi, tetapi tidak ada satu pun yang ditugaskan kepada Anda.`
                   : praKontrak
-                    ? "Tambahkan lokasi target — wajib minimal satu sebelum konversi kontrak."
+                    ? "Tambahkan lokasi target – wajib minimal satu sebelum konversi kontrak."
                     : "Paket ini belum memiliki lokasi."
               }
             />
@@ -142,7 +142,7 @@ export default async function LokasiPaketPage({
         <Card className="self-start">
           <CardHeader
             title="Koreksi susunan lokasi (super admin)"
-            subtitle="Paket sudah berkontrak — komposisi lokasi terkunci. Panel ini hanya untuk membetulkan lokasi yang KETINGGALAN saat input, ketika nilai kontraknya sendiri sudah benar."
+            subtitle="Paket sudah berkontrak – komposisi lokasi terkunci. Panel ini hanya untuk membetulkan lokasi yang KETINGGALAN saat input, ketika nilai kontraknya sendiri sudah benar."
           />
           <CardBody>
             <CorrectAddLocationForm
@@ -159,7 +159,7 @@ export default async function LokasiPaketPage({
             <p className="text-sm text-ink-muted">
               {praKontrak
                 ? "Penambahan lokasi target dilakukan pemegang akses prospek."
-                : "Paket sudah berkontrak — komposisi lokasi terkunci. Perubahan lingkup lewat adendum; lokasi yang ketinggalan saat input dikoreksi super admin."}
+                : "Paket sudah berkontrak – komposisi lokasi terkunci. Perubahan lingkup lewat adendum; lokasi yang ketinggalan saat input dikoreksi super admin."}
             </p>
           </CardBody>
         </Card>

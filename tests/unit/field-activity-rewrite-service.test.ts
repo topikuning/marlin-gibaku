@@ -56,7 +56,7 @@ beforeEach(() => {
   checkAiGuard.mockResolvedValue({ enabled: true });
 });
 
-describe("suggestActivityRewrite — satu panggilan untuk seluruh teks bebas", () => {
+describe("suggestActivityRewrite – satu panggilan untuk seluruh teks bebas", () => {
   it("usulan bersih → dikembalikan per bagian (tidak menyimpan apa pun)", async () => {
     aiCall.mockResolvedValue({
       ok: true,

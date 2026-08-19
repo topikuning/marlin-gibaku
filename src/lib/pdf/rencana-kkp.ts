@@ -41,7 +41,7 @@ export async function buildRencanaKkpPdf(
   gambarTtd?: TtdPdf | null,
 ): Promise<Buffer> {
   const doc = createFormA4Doc({
-    title: `Rencana Kerja Mingguan — Minggu ke-${r.weekNumber} — ${r.header.locationName}`,
+    title: `Rencana Kerja Mingguan – Minggu ke-${r.weekNumber} – ${r.header.locationName}`,
   });
   const x = FORM_MARGIN;
   const width = doc.page.width - FORM_MARGIN * 2;
@@ -86,7 +86,7 @@ export async function buildRencanaKkpPdf(
     ["Paket Pekerjaan", h.packageName, "Masa Pelaksanaan", `${h.masaPelaksanaanHari} Hari Kalender`],
     [
       "Lokasi",
-      `${h.locationName} — ${h.village}${h.district ? `, Kec. ${h.district}` : ""}, ${h.regency}, ${h.province}`,
+      `${h.locationName} – ${h.village}${h.district ? `, Kec. ${h.district}` : ""}, ${h.regency}, ${h.province}`,
       "Nilai Fisik Lokasi",
       rupiah(Number(h.locationValue)),
     ],
@@ -138,7 +138,7 @@ export async function buildRencanaKkpPdf(
   // orang yang menandatangani, bukan sekadar angka dalam kotak.
   const proyeksiTeks =
     `Bila seluruh komitmen dalam formulir ini dikerjakan penuh, realisasi pada akhir minggu ke-${r.weekNumber} ` +
-    `menjadi ${p2(r.proyeksi.proyeksiPct)}, sedangkan kurva-S menuntut ${p2(r.proyeksi.targetPct)} — ` +
+    `menjadi ${p2(r.proyeksi.proyeksiPct)}, sedangkan kurva-S menuntut ${p2(r.proyeksi.targetPct)} – ` +
     (r.proyeksi.masihTertinggal
       ? `MASIH TERTINGGAL ${p2(Math.abs(r.proyeksi.selisihPct))}. Rencana ini belum cukup untuk kembali ke ` +
         `jadwal; perlu tambahan sumber daya, perpanjangan jam kerja, atau penyesuaian jadwal yang disepakati.`
@@ -154,7 +154,7 @@ export async function buildRencanaKkpPdf(
       [
         {
           text:
-            "Tidak ada rencana tercatat untuk minggu sebelumnya — tidak ada komitmen yang bisa " +
+            "Tidak ada rencana tercatat untuk minggu sebelumnya – tidak ada komitmen yang bisa " +
             "dievaluasi. Ini bukan nilai 0%.",
         },
       ],
@@ -173,11 +173,11 @@ export async function buildRencanaKkpPdf(
     );
     draw(
       [
-        { text: `${p2(r.ppc.pct)} — ${r.ppc.tuntas} dari ${r.ppc.jumlah} komitmen tuntas`, bold: true, align: "center" },
-        { text: r.ppc.volumePct == null ? "—" : `${p2(r.ppc.volumePct)} (pelengkap)`, align: "center" },
+        { text: `${p2(r.ppc.pct)} – ${r.ppc.tuntas} dari ${r.ppc.jumlah} komitmen tuntas`, bold: true, align: "center" },
+        { text: r.ppc.volumePct == null ? "–" : `${p2(r.ppc.volumePct)} (pelengkap)`, align: "center" },
         {
           text:
-            "PPC dihitung per komitmen dan biner — tuntas atau tidak. Pekerjaan yang baru 80% selesai " +
+            "PPC dihitung per komitmen dan biner – tuntas atau tidak. Pekerjaan yang baru 80% selesai " +
             "tidak melepaskan penerusnya, jadi dihitung tidak tuntas. Ambang sehat lapangan: 70%.",
         },
       ],
@@ -264,20 +264,20 @@ export async function buildRencanaKkpPdf(
       const cells: GridCell[] = [
         { text: String(no++), align: "right" },
         { text: `${b.code} · ${b.name}${b.note?.trim() ? `\nCatatan: ${b.note}` : ""}` },
-        { text: b.unit ?? "—", align: "center" },
+        { text: b.unit ?? "–", align: "center" },
         { text: volFmt.format(b.volumeKontrak), align: "right" },
         { text: b.realisasi > 0 ? volFmt.format(b.realisasi) : "–", align: "right" },
         { text: volFmt.format(b.sisa), align: "right" },
         { text: volFmt.format(b.target), align: "right", bold: true },
         { text: bobot(b.bobotTarget), align: "right" },
         { text: rupiah(b.nilaiTarget), align: "right" },
-        { text: b.picName ?? "—" },
+        { text: b.picName ?? "–" },
       ];
       fit(gridRowHeight(doc, cells, kOpt), kHead);
       y = gridRow(doc, y, cells, kOpt);
     }
     const totalCells: GridCell[] = [
-      { text: `JUMLAH — ${r.baris.length} komitmen`, span: 7, bold: true, align: "right" },
+      { text: `JUMLAH – ${r.baris.length} komitmen`, span: 7, bold: true, align: "right" },
       { text: p2(r.totalBobot), bold: true, align: "right" },
       { text: rupiah(r.totalNilai), bold: true, align: "right" },
       { text: "" },
@@ -287,7 +287,7 @@ export async function buildRencanaKkpPdf(
 
     y += 3;
     const catatanKaki =
-      `Kolom Bobot = nilai target dibagi nilai fisik lokasi (${rupiah(Number(h.locationValue))}), dalam poin persen — ` +
+      `Kolom Bobot = nilai target dibagi nilai fisik lokasi (${rupiah(Number(h.locationValue))}), dalam poin persen – ` +
       `dasar yang sama dengan kurva-S dan laporan mingguan KKP. Kolom Realisasi = volume kumulatif s/d formulir ini disusun.`;
     doc.font(PDF_FONT.regular).fontSize(6).fillColor(PDF_COLORS.inkMuted);
     // Tinggi DIUKUR, bukan ditebak: catatan ini membungkus jadi 2–3 baris

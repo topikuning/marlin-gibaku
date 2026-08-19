@@ -754,7 +754,7 @@ export async function addPayment(_prev: FinanceActionState, formData: FormData):
     );
     await revalidateFinance([scoped.locationId]);
     return {
-      success: result.newStatus === "lunas" ? "Pembayaran dicatat — invoice lunas." : "Pembayaran parsial dicatat.",
+      success: result.newStatus === "lunas" ? "Pembayaran dicatat – invoice lunas." : "Pembayaran parsial dicatat.",
     };
   });
 }
@@ -965,7 +965,7 @@ export async function addDisbursement(_prev: FinanceActionState, formData: FormD
     );
     await revalidateFinance(locationIds);
     return {
-      success: result.newStatus === "cair" ? "Pencairan dicatat — termin cair penuh." : "Pencairan parsial dicatat.",
+      success: result.newStatus === "cair" ? "Pencairan dicatat – termin cair penuh." : "Pencairan parsial dicatat.",
     };
   });
 }

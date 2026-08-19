@@ -37,7 +37,7 @@ describe("jenisGalat", () => {
     expect(jenisGalat(503)).toBe("laju");
   });
 
-  it("tanpa status HTTP = gagal beneran — kalau tidak, ia mengulang selamanya", () => {
+  it("tanpa status HTTP = gagal beneran – kalau tidak, ia mengulang selamanya", () => {
     // "Paket belum punya folder Drive", R2 tak terbaca, render PDF melempar:
     // semuanya sampai ke sini tanpa status. Menggolongkannya "ditahan laju"
     // berarti percobaannya tidak pernah bertambah, jadi ia tidak akan PERNAH
@@ -48,7 +48,7 @@ describe("jenisGalat", () => {
     expect(jenisGalat(null, "Paket ini belum punya folder Google Drive")).toBe("nyata");
   });
 
-  it("403 dibedakan lewat alasannya — kuota vs hak akses", () => {
+  it("403 dibedakan lewat alasannya – kuota vs hak akses", () => {
     // Drive memakai 403 untuk dua hal yang penanganannya berlawanan.
     expect(jenisGalat(403, "User rate limit exceeded")).toBe("laju");
     expect(jenisGalat(403, "rateLimitExceeded")).toBe("laju");
@@ -82,7 +82,7 @@ describe("retryAfterMs", () => {
     expect(retryAfterMs(lampau, T0.getTime())).toBeNull();
   });
 
-  it("dibatasi atas — jangan tertidur berhari-hari karena satu header", () => {
+  it("dibatasi atas – jangan tertidur berhari-hari karena satu header", () => {
     const ms = retryAfterMs(String(60 * 60 * 24 * 30), T0.getTime());
     expect(ms).toBe(6 * 3_600_000);
   });
@@ -125,7 +125,7 @@ describe("hitungMundur", () => {
     expect(a.menyerah).toBe(false);
   });
 
-  it("menyerah setelah batas percobaan — berhenti membebani antrean", () => {
+  it("menyerah setelah batas percobaan – berhenti membebani antrean", () => {
     const m = hitungMundur({ jenis: "nyata", attemptsSebelum: MAKS_PERCOBAAN - 1, sekarang: T0 });
     expect(m.attempts).toBe(MAKS_PERCOBAAN);
     expect(m.menyerah).toBe(true);
@@ -152,7 +152,7 @@ describe("mingguRampung", () => {
     expect(mingguRampung(mulai, new Date("2026-01-01T10:00:00.000Z"), 52)).toBe(0);
   });
 
-  it("HARI TERAKHIR minggu ke-1 belum tuntas — datanya belum lengkap sore itu", () => {
+  it("HARI TERAKHIR minggu ke-1 belum tuntas – datanya belum lengkap sore itu", () => {
     // Penjadwal berjalan 16:00 WIB; laporan harian hari itu sering belum final.
     expect(mingguRampung(mulai, new Date("2026-01-07T09:00:00.000Z"), 52)).toBe(0);
   });

@@ -213,7 +213,7 @@ const fd = (isi: Record<string, string | string[]>) => {
   return f;
 };
 
-describe("muatKantongLokasiAction — pemuat kantong dari layar laporan/kegiatan", () => {
+describe("muatKantongLokasiAction – pemuat kantong dari layar laporan/kegiatan", () => {
   it("hanya mengembalikan foto lokasi yang diminta", async () => {
     const diA = await buatFoto(locA, "a1");
     await buatFoto(locB, "b1");
@@ -248,7 +248,7 @@ describe("muatKantongLokasiAction — pemuat kantong dari layar laporan/kegiatan
   });
 });
 
-describe("pakaiFotoAction — dari layar laporan harian & kegiatan lapangan", () => {
+describe("pakaiFotoAction – dari layar laporan harian & kegiatan lapangan", () => {
   it("menautkan foto terpilih ke item laporan harian", async () => {
     const satu = await buatFoto(locA, "a3");
     const dua = await buatFoto(locA, "a4");
@@ -277,7 +277,7 @@ describe("pakaiFotoAction — dari layar laporan harian & kegiatan lapangan", ()
     expect(p.reportId).toBeNull();
   });
 
-  it("MENOLAK foto dari lokasi lain — dan menyebut sebabnya", async () => {
+  it("MENOLAK foto dari lokasi lain – dan menyebut sebabnya", async () => {
     const asing = await buatFoto(locB, "b2");
     const hasil = await pakaiFotoAction(
       {},
@@ -313,7 +313,7 @@ describe("pakaiFotoAction — dari layar laporan harian & kegiatan lapangan", ()
   });
 });
 
-describe("tetapkanLokasiAction — hanya menyentuh foto yang dipilih", () => {
+describe("tetapkanLokasiAction – hanya menyentuh foto yang dipilih", () => {
   it("foto lain yang sama-sama belum berlokasi TIDAK ikut terbawa", async () => {
     // Keluhan user 2026-08-06: *"terlalu memaksakan untuk beberapa foto yang
     // diambil diberi tag lokasi yang sama."* Satu perjalanan lapangan lazim
@@ -353,7 +353,7 @@ describe("tetapkanLokasiAction — hanya menyentuh foto yang dipilih", () => {
   });
 });
 
-describe("saveItemAction — foto kantong dipilih SEBELUM itemnya ada", () => {
+describe("saveItemAction – foto kantong dipilih SEBELUM itemnya ada", () => {
   // Permintaan user 2026-08-07: *"seharusnya di tampilan utama pilih pekerjaan,
   // selain kamera, galeri, kantong harusnya langsung bisa dipilih sebelum
   // simpan item. atau ini tidak memungkinkan karena item belum tersimpan?"*
@@ -386,7 +386,7 @@ describe("saveItemAction — foto kantong dipilih SEBELUM itemnya ada", () => {
     expect(foto.reportId).not.toBeNull();
   });
 
-  it("foto dari lokasi LAIN ditolak — tapi progresnya tetap tersimpan, dan penolakannya DISEBUT", async () => {
+  it("foto dari lokasi LAIN ditolak – tapi progresnya tetap tersimpan, dan penolakannya DISEBUT", async () => {
     // Dua hal yang sama pentingnya. Membatalkan simpan karena satu lampiran
     // bermasalah akan menghapus volume yang sudah benar — angka yang masuk ke
     // kurva-S — demi foto yang statusnya opsional. Sebaliknya, menelan
@@ -444,7 +444,7 @@ describe("saveItemAction — foto kantong dipilih SEBELUM itemnya ada", () => {
   });
 });
 
-describe("foto YATIM — bekas item yang dihapus", () => {
+describe("foto YATIM – bekas item yang dihapus", () => {
   // Laporan user 2026-08-07: *"item pekerjaan dihapus, foto jadi orphan. tapi
   // dihapus juga error. kalau mau dipakai lagi bagaimana"* — dan menyusul:
   // *"itu dari foto cepat yang disambungkan ke item, lalu itemnya dihapus"*.

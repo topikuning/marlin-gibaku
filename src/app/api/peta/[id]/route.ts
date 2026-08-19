@@ -12,7 +12,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
 
   const user = await getCurrentUser();
   if (!user) {
-    return NextResponse.json({ error: "Belum masuk — silakan login" }, { status: 401 });
+    return NextResponse.json({ error: "Belum masuk – silakan login" }, { status: 401 });
   }
   if (!(await hasLocationAccess(user, id))) {
     return NextResponse.json({ error: "Tidak punya akses ke lokasi ini" }, { status: 403 });

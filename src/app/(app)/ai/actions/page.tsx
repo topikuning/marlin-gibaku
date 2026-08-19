@@ -12,7 +12,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { SuggestionButton } from "./suggestion-button";
 import { ApplySuggestionButton } from "./apply-suggestion-button";
 
-export const metadata: Metadata = { title: "AI Intelligence — Perlu Tindakan" };
+export const metadata: Metadata = { title: "AI Intelligence – Perlu Tindakan" };
 export const dynamic = "force-dynamic";
 
 const SEV_TONE = { kritis: "danger", tinggi: "warning", sedang: "info" } as const;
@@ -103,7 +103,7 @@ export default async function AiActionsPage() {
                     {item.overdue ? <Badge tone="danger" label="overdue" /> : null}
                   </div>
                   <p className="mt-1 text-sm font-medium text-ink">
-                    {item.locationName} — {item.title}
+                    {item.locationName} – {item.title}
                   </p>
                   <p className="text-xs text-ink-muted">{item.evidence}</p>
                 </div>
@@ -133,7 +133,7 @@ export default async function AiActionsPage() {
         </div>
         <p className="rounded-md border border-warning-border bg-warning-soft px-3 py-2 text-xs leading-snug text-warning">
           AI tidak pernah membuat Kendala/Recovery sendiri. Draft di bawah baru menjadi data nyata setelah Anda
-          menerapkannya — dan hanya pemegang izin Kendala yang bisa.
+          menerapkannya – dan hanya pemegang izin Kendala yang bisa.
         </p>
 
         <Card>
@@ -150,7 +150,7 @@ export default async function AiActionsPage() {
               draftTampil.map((d) => (
                 <div key={d.id} className="rounded-md border border-border px-2.5 py-2">
                   <p className="text-[13px] font-medium text-ink">{d.title}</p>
-                  <p className="mt-0.5 text-xs text-ink-muted">{d.locationName ?? "—"}</p>
+                  <p className="mt-0.5 text-xs text-ink-muted">{d.locationName ?? "–"}</p>
                   {bolehTerapkan ? (
                     <ApplySuggestionButton
                       artifactId={d.id}

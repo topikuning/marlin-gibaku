@@ -220,7 +220,7 @@ export async function updateMilestone(id: string, input: MilestoneUpdateInput, u
     if (input.status === "selesai" && ms.requiresVerification) {
       if (!can(user.role, "document.verify")) {
         throw new ForbiddenError(
-          "Milestone ini butuh verifikasi dokumen — hanya pemegang izin verifikasi yang boleh menandai selesai",
+          "Milestone ini butuh verifikasi dokumen – hanya pemegang izin verifikasi yang boleh menandai selesai",
         );
       }
       data.verifiedById = user.id;
@@ -410,7 +410,7 @@ async function syncComplianceFromDocuments(packageId: string): Promise<{ linked:
           data: {
             status: "selesai",
             completedAt: new Date(),
-            note: milestone.note || `Selesai otomatis — bukti "${doc.title}" diunggah`,
+            note: milestone.note || `Selesai otomatis – bukti "${doc.title}" diunggah`,
           },
         });
         await audit(user.id, "milestone.auto_selesai", "admin_milestone", milestone.id, {
@@ -424,7 +424,7 @@ async function syncComplianceFromDocuments(packageId: string): Promise<{ linked:
         await audit(user.id, "milestone.bukti_masuk", "admin_milestone", milestone.id, {
           documentId: doc.id,
           milestone: milestone.name,
-          catatan: "Sinkronisasi kepatuhan — menunggu verifikasi manusia",
+          catatan: "Sinkronisasi kepatuhan – menunggu verifikasi manusia",
         });
         advanced += 1;
       }
@@ -446,7 +446,7 @@ export async function syncComplianceAction(
   try {
     const { linked, advanced } = await syncComplianceFromDocuments(packageId);
     revalidatePath(`/paket/${packageId}/dokumen`);
-    if (linked === 0) return { success: "Semua dokumen sudah tersambung — tidak ada perubahan." };
+    if (linked === 0) return { success: "Semua dokumen sudah tersambung – tidak ada perubahan." };
     return {
       success:
         `${linked} dokumen tersambung ke checklist` +

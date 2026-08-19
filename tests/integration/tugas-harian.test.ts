@@ -252,7 +252,7 @@ describe("pengingat WA harian", () => {
     await siapkanLokasiBerjalan("Zeta");
     await kirimPengingatHarian(HARI_INI);
     expect(punyaKita()).toHaveLength(1);
-    expect(punyaKita()[0].text).toContain("Zeta — belum ada laporan");
+    expect(punyaKita()[0].text).toContain("Zeta – belum ada laporan");
     expect(punyaKita()[0].text).toContain("Prio Yulianto");
   });
 
@@ -281,7 +281,7 @@ describe("pengingat WA harian", () => {
       },
     });
     await kirimPengingatHarian(HARI_INI);
-    expect(punyaKita()[0].text).toContain("Iota — masih DRAF");
+    expect(punyaKita()[0].text).toContain("Iota – masih DRAF");
   });
 
   it("dua lokasi milik satu orang → SATU pesan berisi dua baris", async () => {
@@ -362,7 +362,7 @@ describe("pengingat WA harian", () => {
     expect(punyaKita()).toHaveLength(1);
   });
 
-  it("nomor lama tanpa @c.us dinormalkan SAAT KIRIM — WAHA hanya kenal bentuk itu", async () => {
+  it("nomor lama tanpa @c.us dinormalkan SAAT KIRIM – WAHA hanya kenal bentuk itu", async () => {
     // Baris lama (dibuat sebelum normalisasi di form, atau hasil impor) bisa
     // berisi "0812…". WAHA menerima bentuk itu dengan 2xx lalu tidak mengirim
     // apa pun — persis "terkirim tapi tidak sampai".
@@ -423,7 +423,7 @@ describe("pengingat WA harian", () => {
     expect(log.lastSentAt).not.toBeNull();
   });
 
-  it("rincian menyebut tiap penerima + tujuannya — hasil tidak perlu ditebak", async () => {
+  it("rincian menyebut tiap penerima + tujuannya – hasil tidak perlu ditebak", async () => {
     await siapkanLokasiBerjalan("Chi");
     const hasil = await kirimPengingatHarian(HARI_INI);
     const kita = hasil.rincian.find((r) => r.tujuan === TUJUAN_KITA);
@@ -433,7 +433,7 @@ describe("pengingat WA harian", () => {
     expect(kita!.waMessageId).toBe("true_628123456789@c.us_MSGID");
   });
 
-  it("ID pesan dari WAHA disimpan — bukti bahwa 'sukses' bukan sekadar 2xx", async () => {
+  it("ID pesan dari WAHA disimpan – bukti bahwa 'sukses' bukan sekadar 2xx", async () => {
     await siapkanLokasiBerjalan("Tau");
     await kirimPengingatHarian(HARI_INI);
     const log = await db.dailyReminderLog.findFirstOrThrow({

@@ -145,7 +145,7 @@ describe("setEnrichment mengembalikan id sejajar MASUKAN", () => {
     expect(molen.name).toBe("Molen");
   });
 
-  it("baris LAMA yang diperbarui mengembalikan id yang SAMA — foto tidak lepas", async () => {
+  it("baris LAMA yang diperbarui mengembalikan id yang SAMA – foto tidak lepas", async () => {
     // Inti DECISIONS 304 yang harus tetap berlaku: menyimpan ulang tidak boleh
     // membuat baris baru, karena foto menempel pada id-nya.
     const p1 = await setEnrichment(

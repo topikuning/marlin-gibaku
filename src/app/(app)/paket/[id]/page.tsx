@@ -61,8 +61,8 @@ function pilihanMingguPaket(startDate: Date | null): { nilai: number; label: str
       nilai: n,
       label:
         n === berjalan
-          ? `Minggu ke-${n} — berjalan (${rentang})`
-          : `Minggu ke-${n} — selesai (${rentang})`,
+          ? `Minggu ke-${n} – berjalan (${rentang})`
+          : `Minggu ke-${n} – selesai (${rentang})`,
     });
   }
   return keluar;
@@ -173,14 +173,14 @@ export default async function RingkasanPaketPage({
     switch (pkg.stage) {
       case "prospek":
         return {
-          hint: "Prospek aktif — naikkan ke Tender saat proses pemilihan dimulai.",
+          hint: "Prospek aktif – naikkan ke Tender saat proses pemilihan dimulai.",
           action: canProspect ? (
             <AdvanceStageButton packageId={pkg.id} toStage="tender" label="Naikkan ke Tender" />
           ) : null,
         };
       case "tender":
         return {
-          hint: "Sedang tender — lengkapi administrasi pemilihan di tab Tender, lalu naikkan ke Penetapan saat pemenang ditetapkan.",
+          hint: "Sedang tender – lengkapi administrasi pemilihan di tab Tender, lalu naikkan ke Penetapan saat pemenang ditetapkan.",
           action: canProspect ? (
             <AdvanceStageButton
               packageId={pkg.id}
@@ -191,7 +191,7 @@ export default async function RingkasanPaketPage({
         };
       case "penetapan":
         return {
-          hint: "Pemenang ditetapkan — input data kontrak untuk konversi ke tahap Kontrak.",
+          hint: "Pemenang ditetapkan – input data kontrak untuk konversi ke tahap Kontrak.",
           action: canContract ? (
             <Link
               href={`/paket/${pkg.id}/kontrak`}
@@ -203,12 +203,12 @@ export default async function RingkasanPaketPage({
         };
       case "kontrak":
         return {
-          hint: "Kontrak tercatat — mulai pelaksanaan untuk mengaktifkan status Berjalan di semua lokasi.",
+          hint: "Kontrak tercatat – mulai pelaksanaan untuk mengaktifkan status Berjalan di semua lokasi.",
           action: canContract ? <StartPelaksanaanButton packageId={pkg.id} /> : null,
         };
       case "pelaksanaan":
         return {
-          hint: "Pelaksanaan berjalan — pantau progress lokasi. Tandai Serah Terima saat pekerjaan fisik selesai (100%).",
+          hint: "Pelaksanaan berjalan – pantau progress lokasi. Tandai Serah Terima saat pekerjaan fisik selesai (100%).",
           action: canProspect ? (
             <AdvanceStageButton
               packageId={pkg.id}
@@ -217,7 +217,7 @@ export default async function RingkasanPaketPage({
               variant="secondary"
               warn={
                 aggregatePct < 99.95
-                  ? `Progress agregat baru ${formatPct(aggregatePct)}. Serah terima hanya diizinkan saat 100% — tindakan ini akan ditolak sampai pekerjaan tuntas.`
+                  ? `Progress agregat baru ${formatPct(aggregatePct)}. Serah terima hanya diizinkan saat 100% – tindakan ini akan ditolak sampai pekerjaan tuntas.`
                   : undefined
               }
             />
@@ -225,7 +225,7 @@ export default async function RingkasanPaketPage({
         };
       case "serah_terima":
         return {
-          hint: "Serah terima berlangsung — tandai Selesai setelah FHO/administrasi tuntas.",
+          hint: "Serah terima berlangsung – tandai Selesai setelah FHO/administrasi tuntas.",
           action: canProspect ? (
             <AdvanceStageButton
               packageId={pkg.id}
@@ -257,7 +257,7 @@ export default async function RingkasanPaketPage({
         <KpiCard label="Nilai HPS" value={formatRupiahShort(pkg.hpsValue)} />
         <KpiCard
           label="Nilai kontrak berjalan"
-          value={running !== null ? formatRupiahShort(running) : "—"}
+          value={running !== null ? formatRupiahShort(running) : "–"}
           sub={
             pkg.contract
               ? `${pkg.contract.amendments.length} adendum`
@@ -296,7 +296,7 @@ export default async function RingkasanPaketPage({
         <Banner
           tone="info"
           title="Rekonsiliasi kontrak vs RAB tidak ditampilkan"
-          description={`Perbandingan itu memerlukan RAB SELURUH lokasi paket, sementara ${pkg.locationsHidden} lokasi berada di luar penugasan Anda — angkanya tidak akan benar bila dihitung sebagian.`}
+          description={`Perbandingan itu memerlukan RAB SELURUH lokasi paket, sementara ${pkg.locationsHidden} lokasi berada di luar penugasan Anda – angkanya tidak akan benar bila dihitung sebagian.`}
         />
       ) : null}
 
@@ -304,7 +304,7 @@ export default async function RingkasanPaketPage({
         <Card>
           <CardHeader
             title="Rekonsiliasi: nilai kontrak (input) vs RAB semua lokasi"
-            subtitle="“Nilai kontrak berjalan” di atas adalah INPUT kamu (nilai kontrak + adendum), termasuk PPN — bukan jumlah lokasi. Di sini dibandingkan dengan jumlah RAB semua lokasi (pra-PPN) untuk verifikasi alokasi."
+            subtitle="“Nilai kontrak berjalan” di atas adalah INPUT kamu (nilai kontrak + adendum), termasuk PPN – bukan jumlah lokasi. Di sini dibandingkan dengan jumlah RAB semua lokasi (pra-PPN) untuk verifikasi alokasi."
           />
           <CardBody className="space-y-3">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -337,8 +337,8 @@ export default async function RingkasanPaketPage({
                   recon.cocok
                     ? "Teralokasi penuh (±1%)"
                     : recon.semuaBerRab
-                      ? "Ada selisih — periksa nilai kontrak / RAB / PPN"
-                      : "Belum semua lokasi ber-RAB — selisih wajar"
+                      ? "Ada selisih – periksa nilai kontrak / RAB / PPN"
+                      : "Belum semua lokasi ber-RAB – selisih wajar"
                 }
               />
               <span className="text-[13px] text-ink-muted">
@@ -367,7 +367,7 @@ export default async function RingkasanPaketPage({
                           {r.rab > 0 ? formatRupiah(BigInt(Math.round(r.rab))) : <span className="text-ink-faint">belum ada RAB</span>}
                         </td>
                         <td className="tabular py-1.5 text-right text-ink-muted">
-                          {recon.basePraPpn > 0 ? formatPct((r.rab / recon.basePraPpn) * 100) : "—"}
+                          {recon.basePraPpn > 0 ? formatPct((r.rab / recon.basePraPpn) * 100) : "–"}
                         </td>
                       </tr>
                     ))}
@@ -377,7 +377,7 @@ export default async function RingkasanPaketPage({
             </details>
 
             <p className="text-xs text-ink-muted">
-              Kontrak dicatat termasuk PPN, RAB pra-PPN — perbandingan pada basis pra-PPN.
+              Kontrak dicatat termasuk PPN, RAB pra-PPN – perbandingan pada basis pra-PPN.
               Selisih besar biasanya karena belum semua lokasi impor RAB, atau nilai kontrak
               input belum sesuai total RAB (perbaiki via Koreksi Kontrak / revisi RAB).
             </p>
@@ -426,7 +426,7 @@ export default async function RingkasanPaketPage({
         <Card>
           <CardHeader
             title="Laporan progres mingguan → grup WA"
-            subtitle="Semua lokasi paket ini dalam satu pesan. Otomatis pada hari terakhir tiap minggu kontrak (sesuai tanggal SPMK) bila sakelarnya menyala di Sistem — tombol di bawah tetap bisa dipakai kapan saja."
+            subtitle="Semua lokasi paket ini dalam satu pesan. Otomatis pada hari terakhir tiap minggu kontrak (sesuai tanggal SPMK) bila sakelarnya menyala di Sistem – tombol di bawah tetap bisa dipakai kapan saja."
           />
           <CardBody>
             <LaporanMingguanWa
@@ -442,7 +442,7 @@ export default async function RingkasanPaketPage({
         <Card>
           <CardHeader
             title="Folder Google Drive paket"
-            subtitle="Folder pemberian KKP — tujuan upload PDF/Excel laporan harian & mingguan lokasi paket ini."
+            subtitle="Folder pemberian KKP – tujuan upload PDF/Excel laporan harian & mingguan lokasi paket ini."
           />
           <CardBody>
             <DriveFolderForm
@@ -458,7 +458,7 @@ export default async function RingkasanPaketPage({
         <Card>
           <CardHeader
             title="Kelengkapan folder KKP di Drive"
-            subtitle="Sembilan folder standar KKP — apa yang MARLIN punya vs apa yang sudah disetor."
+            subtitle="Sembilan folder standar KKP – apa yang MARLIN punya vs apa yang sudah disetor."
           />
           <CardBody className="overflow-x-auto">
             <table className="w-full min-w-[560px] text-sm">
@@ -481,7 +481,7 @@ export default async function RingkasanPaketPage({
                       {r.failed > 0 ? <span className="ml-1 text-danger">({r.failed} gagal)</span> : null}
                     </td>
                     <td className="py-2 text-right text-[13px] text-ink-muted">
-                      {r.lastAt ? formatTanggalWaktu(r.lastAt) : "—"}
+                      {r.lastAt ? formatTanggalWaktu(r.lastAt) : "–"}
                     </td>
                   </tr>
                 ))}
@@ -527,7 +527,7 @@ export default async function RingkasanPaketPage({
                         ? `dari ${PACKAGE_STAGE_LABEL[h.fromStage]}`
                         : "stage awal"}
                   </span>
-                  {h.note ? <span className="text-ink-muted">— {h.note}</span> : null}
+                  {h.note ? <span className="text-ink-muted">– {h.note}</span> : null}
                   <span className="ml-auto text-xs text-ink-muted">
                     {h.changedByName} · {formatTanggalWaktu(h.changedAt)}
                   </span>

@@ -128,7 +128,7 @@ describe("pesan kosong", () => {
   });
 });
 
-describe("TOTAL PAKET — angka gabungan seluruh lokasi", () => {
+describe("TOTAL PAKET – angka gabungan seluruh lokasi", () => {
   const DUA = {
     ...SATU,
     lokasi: [
@@ -176,10 +176,10 @@ describe("TOTAL PAKET — angka gabungan seluruh lokasi", () => {
         lokasiTanpaKurva: 1,
       },
     })!;
-    expect(teks).toContain("TOTAL PAKET (2 dari 3 lokasi — 1 lokasi belum ada kurva-S)");
+    expect(teks).toContain("TOTAL PAKET (2 dari 3 lokasi – 1 lokasi belum ada kurva-S)");
   });
 
-  it("paket SATU lokasi tidak dapat rekap — angkanya akan sama persis", () => {
+  it("paket SATU lokasi tidak dapat rekap – angkanya akan sama persis", () => {
     const teks = susunPesanMingguan({
       ...SATU,
       rekap: {
@@ -193,7 +193,7 @@ describe("TOTAL PAKET — angka gabungan seluruh lokasi", () => {
     expect(teks).not.toContain("TOTAL PAKET");
   });
 
-  it("tanpa rekap, pesannya tetap sah — cuma tidak ada bagian totalnya", () => {
+  it("tanpa rekap, pesannya tetap sah – cuma tidak ada bagian totalnya", () => {
     const teks = susunPesanMingguan({ ...DUA, rekap: null })!;
     expect(teks).toContain("Nama Desa/KNMP : Kedung Mutih");
     expect(teks).not.toContain("TOTAL PAKET");

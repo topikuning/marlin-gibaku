@@ -181,7 +181,7 @@ export async function updatePackage(
   });
   if (!pkg) return { error: "Paket tidak ditemukan." };
   if (pkg.contract || !PRA_KONTRAK.includes(pkg.stage)) {
-    return { error: "Paket sudah berkontrak/terkunci — identitas dan HPS tidak bisa diubah." };
+    return { error: "Paket sudah berkontrak/terkunci – identitas dan HPS tidak bisa diubah." };
   }
 
   await db.package.update({
@@ -240,7 +240,7 @@ export async function advanceStage(
         error: `Progress paket baru ${pct.toLocaleString("id-ID", {
           minimumFractionDigits: 1,
           maximumFractionDigits: 1,
-        })}% — serah terima hanya bisa saat pekerjaan 100%. Selesaikan/verifikasi laporan lokasi dulu.`,
+        })}% – serah terima hanya bisa saat pekerjaan 100%. Selesaikan/verifikasi laporan lokasi dulu.`,
       };
     }
   }
@@ -462,7 +462,7 @@ export async function addTargetLocationsFromCatalog(
     });
     if (masters.length !== ids.data.length) return { error: "Sebagian lokasi tak ditemukan di katalog." };
     const used = masters.filter((m) => m.assignedLocationId);
-    if (used.length > 0) return { error: `${used.length} lokasi sudah dipakai proyek lain — segarkan halaman.` };
+    if (used.length > 0) return { error: `${used.length} lokasi sudah dipakai proyek lain – segarkan halaman.` };
 
     // Tolak yang kunci alaminya sudah ada sebagai Location riil (cegah ganda).
     const existing = await existingLocationIndex(actor.orgId);
@@ -536,12 +536,12 @@ export async function removeTargetLocation(locationId: string): Promise<PackageA
       },
     });
     if (!loc) return { error: "Lokasi tidak ditemukan." as string };
-    if (loc.isActive) return { error: "Lokasi sudah aktif — tidak bisa dihapus." };
+    if (loc.isActive) return { error: "Lokasi sudah aktif – tidak bisa dihapus." };
     if (loc._count.rabRevisions > 0) {
-      return { error: "Lokasi sudah punya RAB — tidak bisa dihapus." };
+      return { error: "Lokasi sudah punya RAB – tidak bisa dihapus." };
     }
     if (loc._count.statusHistory > 0 || loc._count.dailyReports > 0) {
-      return { error: "Lokasi sudah punya riwayat — tidak bisa dihapus." };
+      return { error: "Lokasi sudah punya riwayat – tidak bisa dihapus." };
     }
     await tx.location.delete({ where: { id: id.data } });
     return { loc };
@@ -690,7 +690,7 @@ export async function convertToContract(
       };
     }
     if (pkg.stage !== "penetapan" && pkg.stage !== "kontrak") {
-      return { error: `Paket di tahap ${PACKAGE_STAGE_LABEL[pkg.stage]} — konversi kontrak tidak berlaku.` };
+      return { error: `Paket di tahap ${PACKAGE_STAGE_LABEL[pkg.stage]} – konversi kontrak tidak berlaku.` };
     }
     if (pkg.locations.length === 0) {
       return { error: "Tambahkan minimal satu lokasi target dulu (tab Lokasi)." };
@@ -777,7 +777,7 @@ export async function convertToContract(
 
   if ("error" in result) return { error: result.error };
   if ("alreadyExists" in result) {
-    return { success: "Kontrak untuk paket ini sudah tercatat — tidak dibuat duplikat." };
+    return { success: "Kontrak untuk paket ini sudah tercatat – tidak dibuat duplikat." };
   }
 
   await audit(actor.id, "contract.convert", "package", d.packageId, {
@@ -789,7 +789,7 @@ export async function convertToContract(
   revalidatePath("/paket");
   revalidatePath(`/paket/${d.packageId}`, "layout");
   return {
-    success: `Kontrak ${d.contractNumber} tercatat. ${result.locationCount} lokasi diaktifkan — lanjut import RAB per lokasi.`,
+    success: `Kontrak ${d.contractNumber} tercatat. ${result.locationCount} lokasi diaktifkan – lanjut import RAB per lokasi.`,
   };
 }
 
@@ -881,7 +881,7 @@ export async function createDirectProject(
     }
     const used = masters.filter((m) => m.assignedLocationId);
     if (used.length > 0) {
-      return { error: `${used.length} lokasi sudah dipakai proyek lain — segarkan halaman.` };
+      return { error: `${used.length} lokasi sudah dipakai proyek lain – segarkan halaman.` };
     }
 
     // Mitigasi lokasi GANDA: tolak master yang kunci alaminya (prov|kab|kec|desa)
@@ -891,7 +891,7 @@ export async function createDirectProject(
     if (clash.length > 0) {
       const list = clash.map((m) => `${m.village} (${m.regency})`).join(", ");
       return {
-        error: `Lokasi berikut sudah ada di sistem — tidak dibuat ganda: ${list}. Hapus dari pilihan, atau gunakan lokasi yang sudah ada.`,
+        error: `Lokasi berikut sudah ada di sistem – tidak dibuat ganda: ${list}. Hapus dari pilihan, atau gunakan lokasi yang sudah ada.`,
       };
     }
 
@@ -930,7 +930,7 @@ export async function createDirectProject(
         province: d.province ?? masters[0]?.province ?? null,
         stage: "kontrak",
         isBypass: true,
-        note: "Dibuat via jalur cepat admin (bypass) — dokumen pengadaan menyusul.",
+        note: "Dibuat via jalur cepat admin (bypass) – dokumen pengadaan menyusul.",
         createdById: actor.id,
       },
       select: { id: true },
@@ -941,7 +941,7 @@ export async function createDirectProject(
         fromStage: null,
         toStage: "kontrak",
         changedById: actor.id,
-        note: `Jalur cepat (bypass) — kontrak ${d.contractNumber}`,
+        note: `Jalur cepat (bypass) – kontrak ${d.contractNumber}`,
       },
     });
 
@@ -996,7 +996,7 @@ export async function createDirectProject(
           fromStatus: null,
           toStatus: "persiapan",
           changedById: actor.id,
-          note: `Jalur cepat — kontrak ${d.contractNumber}`,
+          note: `Jalur cepat – kontrak ${d.contractNumber}`,
         },
       });
     }
@@ -1125,7 +1125,7 @@ export async function editContractAction(
       try {
         await regenerateBaseline(loc.id, {
           source: "auto",
-          note: "Koreksi kontrak (waktu) — hitung ulang kurva-S",
+          note: "Koreksi kontrak (waktu) – hitung ulang kurva-S",
           userId: actor.id,
         });
         recomputed++;
@@ -1238,7 +1238,7 @@ export async function startPelaksanaan(
       },
     });
     if (!pkg) return { error: "Paket tidak ditemukan." as string };
-    if (!pkg.contract) return { error: "Belum ada kontrak — konversi kontrak dulu." };
+    if (!pkg.contract) return { error: "Belum ada kontrak – konversi kontrak dulu." };
     if (!canTransitionPackage(pkg.stage, "pelaksanaan")) {
       return {
         error: `Transisi ${PACKAGE_STAGE_LABEL[pkg.stage]} → Pelaksanaan tidak diizinkan.`,
@@ -1300,7 +1300,7 @@ export async function startPelaksanaan(
     revalidatePath(`/paket/${id.data}`, "layout");
     return {
       success:
-        `SPMK ${spmkDateStr} dicatat. Pelaksanaan BELUM dimulai — status paket & lokasi ` +
+        `SPMK ${spmkDateStr} dicatat. Pelaksanaan BELUM dimulai – status paket & lokasi ` +
         `berubah otomatis pada tanggal tersebut, supaya kurva-S tidak menghitung hari ` +
         `sebelum pekerjaan dimulai.`,
     };
@@ -1312,7 +1312,7 @@ export async function startPelaksanaan(
   });
   revalidatePath("/paket");
   revalidatePath(`/paket/${id.data}`, "layout");
-  return { success: `Pelaksanaan dimulai (SPMK ${spmkDateStr}) — ${result.started} lokasi berstatus Berjalan.` };
+  return { success: `Pelaksanaan dimulai (SPMK ${spmkDateStr}) – ${result.started} lokasi berstatus Berjalan.` };
 }
 
 /* ------------------------------------------------------------------ */
@@ -1449,7 +1449,7 @@ const correctLocationSchema = z.object({
   reason: z
     .string()
     .trim()
-    .min(10, "Alasan koreksi wajib diisi (minimal 10 karakter) — tercatat di audit.")
+    .min(10, "Alasan koreksi wajib diisi (minimal 10 karakter) – tercatat di audit.")
     .max(500, "Alasan maksimal 500 karakter"),
 });
 
@@ -1503,7 +1503,7 @@ export async function correctAddLocationAction(
     if (!pkg.contract || PRA_KONTRAK.includes(pkg.stage)) {
       return {
         error:
-          "Paket ini belum berkontrak — pakai jalur normal “Tambah lokasi target”, koreksi ini khusus paket yang sudah berkontrak.",
+          "Paket ini belum berkontrak – pakai jalur normal “Tambah lokasi target”, koreksi ini khusus paket yang sudah berkontrak.",
       };
     }
     if (!KOREKSI_LOKASI_STAGES.includes(pkg.stage)) {
@@ -1595,7 +1595,7 @@ export async function correctAddLocationAction(
         fromStage: pkg.stage,
         toStage: pkg.stage,
         changedById: actor.id,
-        note: `Koreksi data (bukan adendum): lokasi "${loc.name}" ditambahkan — ${d.reason}`,
+        note: `Koreksi data (bukan adendum): lokasi "${loc.name}" ditambahkan – ${d.reason}`,
       },
     });
     await auditIn(
@@ -1718,7 +1718,7 @@ export async function updateContractSignatureImages(
       return { error: `Format ${LABEL_TTD[medan]} harus PNG/JPG/WebP.` };
     }
     if (!isR2Configured()) {
-      return { error: "Penyimpanan berkas (R2) belum dikonfigurasi — gambar tidak dapat diunggah." };
+      return { error: "Penyimpanan berkas (R2) belum dikonfigurasi – gambar tidak dapat diunggah." };
     }
     const sharp = (await import("sharp")).default;
     // 800px sisi terpanjang: cukup tajam untuk cetak A4 pada ruang ±2 cm,
@@ -1734,7 +1734,7 @@ export async function updateContractSignatureImages(
   }
 
   if (berubah.length === 0) {
-    return { error: "Tidak ada berkas yang dipilih — pilih gambar atau centang “lepas”." };
+    return { error: "Tidak ada berkas yang dipilih – pilih gambar atau centang “lepas”." };
   }
 
   await db.contract.update({ where: { id: contract.id }, data });

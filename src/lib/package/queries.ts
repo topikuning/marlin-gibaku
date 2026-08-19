@@ -283,7 +283,7 @@ export async function getStageHistory(packageId: string) {
   const nameById = new Map(users.map((u) => [u.id, u.fullName]));
   return rows.map((r) => ({
     ...r,
-    changedByName: r.changedById ? (nameById.get(r.changedById) ?? "—") : "Sistem (terjadwal)",
+    changedByName: r.changedById ? (nameById.get(r.changedById) ?? "–") : "Sistem (terjadwal)",
   }));
 }
 

@@ -98,7 +98,7 @@ export async function uploadDocument(input: UploadDocumentInput, userId: string)
 
   if (!isR2Configured()) {
     throw new DocumentError(
-      "Penyimpanan file (R2) belum dikonfigurasi — upload dinonaktifkan. Hubungi admin (menu Sistem → Diagnostik R2).",
+      "Penyimpanan file (R2) belum dikonfigurasi – upload dinonaktifkan. Hubungi admin (menu Sistem → Diagnostik R2).",
     );
   }
 
@@ -209,7 +209,7 @@ export async function uploadDocument(input: UploadDocumentInput, userId: string)
   });
   if (duplicate) {
     throw new DocumentError(
-      `File identik sudah pernah diunggah sebagai "${duplicate.title}" — tidak perlu diunggah ulang.`,
+      `File identik sudah pernah diunggah sebagai "${duplicate.title}" – tidak perlu diunggah ulang.`,
     );
   }
 
@@ -269,7 +269,7 @@ export async function uploadDocument(input: UploadDocumentInput, userId: string)
         data: {
           status: "selesai",
           completedAt: new Date(),
-          note: milestone.note || `Selesai otomatis — bukti "${doc.title}" diunggah`,
+          note: milestone.note || `Selesai otomatis – bukti "${doc.title}" diunggah`,
         },
       });
       await audit(user.id, "milestone.auto_selesai", "admin_milestone", milestone.id, {
@@ -472,7 +472,7 @@ export async function listDocuments(params: DocumentListParams): Promise<Documen
     milestoneId: d.milestoneId,
     supersedesId: d.supersedesId,
     uploadedById: d.uploadedById,
-    uploadedByName: nameById.get(d.uploadedById) ?? "—",
+    uploadedByName: nameById.get(d.uploadedById) ?? "–",
     uploadedAt: d.uploadedAt,
     status: d.status,
     voidReason: d.voidReason,

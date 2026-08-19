@@ -34,7 +34,7 @@ export function describePackageContext(ctx: PackageContext): string {
 
 /** Judul pendek utk header ringkasan & pesan WA (paket + pekerjaan bila ada). */
 export function shortPackageTitle(ctx: PackageContext): string {
-  return ctx.workTitle ? `${ctx.packageName} — ${ctx.workTitle}` : ctx.packageName;
+  return ctx.workTitle ? `${ctx.packageName} – ${ctx.workTitle}` : ctx.packageName;
 }
 
 const TEST_EXACT = new Set([
@@ -105,7 +105,7 @@ export function buildTranscript(
 /** Format pesan WhatsApp untuk mengirim ringkasan satu grup. MURNI. */
 export function formatSummaryForWa(title: string, dateLabel: string, summaryText: string, messageCount: number): string {
   return [
-    `*Ringkasan Chat Grup — ${title}*`,
+    `*Ringkasan Chat Grup – ${title}*`,
     `${dateLabel} · ${messageCount} pesan`,
     "",
     summaryText.trim(),

@@ -265,7 +265,7 @@ describe("KASUS INTI: cap salah bisa diperbaiki", () => {
     expect(r.manualFields).not.toContain("koordinat");
   });
 
-  it("koordinat yang diketik ditandai `manual` — bukan diam-diam jadi bukti GPS", async () => {
+  it("koordinat yang diketik ditandai `manual` – bukan diam-diam jadi bukti GPS", async () => {
     await restampPhotoAction(undefined, fdRestamp({ lat: "-6.9", lng: "109.1" }));
     const p = await db.photo.findUniqueOrThrow({
       where: { id: fotoId },
@@ -314,7 +314,7 @@ describe("pagar perbaikan cap", () => {
     expect(res?.error).toMatch(/alasan/i);
   });
 
-  it("tanpa perubahan ditolak — perbaikan kosong hanya membuang berkas lama", async () => {
+  it("tanpa perubahan ditolak – perbaikan kosong hanya membuang berkas lama", async () => {
     // Form sungguhan selalu mengirim nilai yang SEDANG berlaku; menekan Simpan
     // tanpa mengubah apa pun berarti mengirim itu kembali.
     const lok = await db.location.findUniqueOrThrow({ where: { id: locId }, select: { name: true } });

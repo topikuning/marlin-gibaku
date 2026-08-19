@@ -176,7 +176,7 @@ describe("pemetaan otomatis RAB → AHSP", () => {
     expect(sewa.ahsp).toBeNull();
   }, 120000);
 
-  it("dijalankan lagi tidak menulis apa pun — idempoten", async () => {
+  it("dijalankan lagi tidak menulis apa pun – idempoten", async () => {
     const h = await petakanLokasi(lokasiA, userId);
     expect(h.baru).toBe(0);
     // Yang belum ketemu TIDAK dihitung ulang sebagai lubang baru: lubangnya
@@ -353,7 +353,7 @@ describe("persetujuan borongan → simulasi RAPL", () => {
     expect(galian.ahsp?.id).toBe(galianSebelum.ahsp?.id);
   }, 120000);
 
-  it("menyetujui ulang tidak menambah apa-apa — idempoten", async () => {
+  it("menyetujui ulang tidak menambah apa-apa – idempoten", async () => {
     const h = await setujuiPadanan({ tanda: await tandaMenunggu(lokasiB), userId });
     expect(h.disetujui).toBe(0);
   }, 120000);

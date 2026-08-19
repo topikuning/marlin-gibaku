@@ -97,7 +97,7 @@ export function tahanGagalKirim<S extends AksiState>(
         return {
           error:
             "MARLIN sudah diperbarui sejak halaman ini dibuka, jadi kiriman dari halaman lama ini ditolak. " +
-            "Muat ulang halaman lalu ulangi — mencoba lagi tanpa memuat ulang tidak akan berhasil. " +
+            "Muat ulang halaman lalu ulangi – mencoba lagi tanpa memuat ulang tidak akan berhasil. " +
             "Catat dulu isian yang belum tersimpan; foto perlu dilampirkan ulang.",
         } as S;
       }
@@ -105,8 +105,8 @@ export function tahanGagalKirim<S extends AksiState>(
       const hidup = await serverMenjawab();
       return {
         error: hidup
-          ? `Gagal mengirim — server menolak permintaan ini. Isian di layar TIDAK hilang; coba tekan lagi, dan kalau tetap gagal laporkan pesan ini: ${nama}`
-          : `Gagal mengirim — server sedang tidak bisa dihubungi. Isian di layar TIDAK hilang; tunggu sebentar lalu tekan lagi. (${nama})`,
+          ? `Gagal mengirim – server menolak permintaan ini. Isian di layar TIDAK hilang; coba tekan lagi, dan kalau tetap gagal laporkan pesan ini: ${nama}`
+          : `Gagal mengirim – server sedang tidak bisa dihubungi. Isian di layar TIDAK hilang; tunggu sebentar lalu tekan lagi. (${nama})`,
       } as S;
     }
   };

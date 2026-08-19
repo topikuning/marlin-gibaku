@@ -79,7 +79,7 @@ export function barisTabel(r: SumberBaris): BarisTabel {
     r.drive.status === "sukses"
       ? `${r.drive.fileSukses} berkas${r.drive.at ? ` · ${formatTanggalWaktu(r.drive.at)}` : ""}`
       : r.drive.status === "gagal"
-        ? `Percobaan terakhir GAGAL${r.drive.error ? ` — ${r.drive.error}` : ""}`
+        ? `Percobaan terakhir GAGAL${r.drive.error ? ` – ${r.drive.error}` : ""}`
         : "Belum diunggah";
 
   return {

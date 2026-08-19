@@ -137,7 +137,7 @@ export function ImportForm({
                 : adaAktif && !bukaKunci; // mengganti RAB kontrak yang berlaku
             const sebab =
               nilai === "draft"
-                ? "Belum ada RAB aktif — draft adendum disalin dari RAB aktif, jadi belum ada yang bisa diadendum."
+                ? "Belum ada RAB aktif – draft adendum disalin dari RAB aktif, jadi belum ada yang bisa diadendum."
                 : "Terkunci karena lokasi ini sudah punya RAB aktif.";
             return (
               <label
@@ -196,8 +196,8 @@ export function ImportForm({
                   ? `Isi draft adendum revisi #${preview.draftAda.revisionNo} akan DIGANTI`
                   : "Draft adendum baru akan dibuat"
                 : preview.isAdendum
-                  ? "Terdeteksi ADENDUM — lokasi sudah punya revisi RAB aktif"
-                  : "Impor HPS awal — belum ada revisi RAB aktif"
+                  ? "Terdeteksi ADENDUM – lokasi sudah punya revisi RAB aktif"
+                  : "Impor HPS awal – belum ada revisi RAB aktif"
             }
             description={
               preview.mode === "draft"
@@ -224,8 +224,8 @@ export function ImportForm({
               Harga dibaca dari kolom{" "}
               <span className="font-semibold text-ink">{preview.priceColumnLabel}</span>
               {preview.priceSource === "hps"
-                ? " — file tidak punya kolom penawaran/negosiasi."
-                : " — bukan pagu HPS."}
+                ? " – file tidak punya kolom penawaran/negosiasi."
+                : " – bukan pagu HPS."}
             </p>
           </div>
 
@@ -340,7 +340,7 @@ function PanelBeda({ beda }: { beda: BedaPratinjau }) {
             Harga satuan {beda.hargaBerubah.length} item KONTRAK LAMA berubah
           </p>
           <p className="mt-0.5 text-ink-muted">
-            Adendum mengubah volume — harga item yang sudah ada di kontrak seharusnya tetap. Dampak
+            Adendum mengubah volume – harga item yang sudah ada di kontrak seharusnya tetap. Dampak
             neto{" "}
             <span className="tabular font-medium">
               {formatRupiah(Number(beda.hargaBerubah.reduce((t, h) => t + BigInt(h.dampakRupiah), 0n)))}
@@ -350,8 +350,8 @@ function PanelBeda({ beda }: { beda: BedaPratinjau }) {
           <ul className="mt-1 list-disc pl-4 text-ink-muted">
             {beda.hargaBerubah.slice(0, 8).map((h) => (
               <li key={h.lineageKey}>
-                {h.code} {h.name} — <span className="tabular">{h.dari ?? "—"}</span> →{" "}
-                <span className="tabular">{h.ke ?? "—"}</span> (
+                {h.code} {h.name} – <span className="tabular">{h.dari ?? "–"}</span> →{" "}
+                <span className="tabular">{h.ke ?? "–"}</span> (
                 {Number(h.dampakRupiah) >= 0 ? "+" : "−"}
                 {formatRupiah(Math.abs(Number(h.dampakRupiah)))})
               </li>
@@ -373,7 +373,7 @@ function PanelBeda({ beda }: { beda: BedaPratinjau }) {
           <ul className="mt-1 list-disc pl-4 text-ink-muted">
             {berisiko.slice(0, 8).map((i) => (
               <li key={i.code + i.name}>
-                {i.code} {i.name} — realisasi {i.realisasi}
+                {i.code} {i.name} – realisasi {i.realisasi}
               </li>
             ))}
             {berisiko.length > 8 ? <li>+{berisiko.length - 8} lainnya</li> : null}
@@ -389,7 +389,7 @@ function PanelBeda({ beda }: { beda: BedaPratinjau }) {
           <ul className="mt-1 list-disc pl-4 text-ink-muted">
             {dibawah.slice(0, 8).map((v) => (
               <li key={v.code + v.name}>
-                {v.code} {v.name} — {v.dari} → {v.ke}, sudah dikerjakan {v.realisasi}
+                {v.code} {v.name} – {v.dari} → {v.ke}, sudah dikerjakan {v.realisasi}
               </li>
             ))}
             {dibawah.length > 8 ? <li>+{dibawah.length - 8} lainnya</li> : null}

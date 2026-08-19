@@ -88,7 +88,7 @@ beforeAll(async () => {
       toStatus: "perlu_koreksi",
       changedById: smId,
       changedAt: new Date("2026-07-30T08:42:00Z"),
-      reason: "Volume pasangan batu tidak sesuai foto — mohon cek ulang",
+      reason: "Volume pasangan batu tidak sesuai foto – mohon cek ulang",
     },
   });
   await db.dailyReport.create({
@@ -132,14 +132,14 @@ describe("KASUS INTI: angka di kartu punya jalan ke laporannya", () => {
     expect(r.locationName).toBe("Tengket");
     expect(r.dateKey).toBe("2026-07-26");
     // Tanpa ini user cuma tahu ADA yang dikembalikan, bukan APA yang salah.
-    expect(r.reason).toBe("Volume pasangan batu tidak sesuai foto — mohon cek ulang");
+    expect(r.reason).toBe("Volume pasangan batu tidak sesuai foto – mohon cek ulang");
     expect(r.olehNama).toBe("Slamet Riyadi");
     expect(r.pelaporNama).toBe("Paijo Sutrisno");
     // Link tujuan = laporannya sendiri, bukan halaman daftar.
     expect(`/lokasi/${r.locationSlug}/harian/${r.dateKey}`).toContain("/harian/2026-07-26");
   });
 
-  it("menunggu-verifikasi hanya berisi yang DIKIRIM — final tidak ikut", async () => {
+  it("menunggu-verifikasi hanya berisi yang DIKIRIM – final tidak ikut", async () => {
     const hasil = await getAntreanLaporan(user(), null, "menunggu-verifikasi");
     const punyaKita = hasil.filter((r) => r.locationSlug.endsWith(suffix));
     expect(punyaKita.map((r) => r.locationName)).toEqual(["Batah Timur"]);

@@ -195,7 +195,7 @@ afterAll(async () => {
   await db.$disconnect();
 });
 
-describe("Tanya WhatsApp — progress historis", () => {
+describe("Tanya WhatsApp – progress historis", () => {
   it("progress tanggal lampau BERBEDA dari progress hari ini", async () => {
     const lampau = await dataProgress(katalog, TANGGAL_LAMPAU);
     const kemudian = await dataProgress(katalog, TANGGAL_KEMUDIAN);
@@ -249,7 +249,7 @@ describe("Tanya WhatsApp — progress historis", () => {
   });
 });
 
-describe("AI Hub — buildPortfolioPulse", () => {
+describe("AI Hub – buildPortfolioPulse", () => {
   it("periode lampau memakai progress akhir periode, bukan hari ini", async () => {
     const lampau = await buildPortfolioPulse(user, [locId], "2026-06-01", TANGGAL_LAMPAU);
     const kemudian = await buildPortfolioPulse(user, [locId], "2026-06-01", TANGGAL_KEMUDIAN);

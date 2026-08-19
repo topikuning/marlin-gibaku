@@ -74,7 +74,7 @@ export default async function FotoLapanganPage({ searchParams }: { searchParams:
     <div className="space-y-4">
       <PageHeader
         title="Foto & Galeri Lapangan"
-        description="Semua bukti visual proyek dalam satu tempat — terhubung ke lokasi, laporan/item pekerjaan atau kegiatan, pelapor, GPS, dan status verifikasi."
+        description="Semua bukti visual proyek dalam satu tempat – terhubung ke lokasi, laporan/item pekerjaan atau kegiatan, pelapor, GPS, dan status verifikasi."
         actions={
           can(user.role, "photo.archive_purge") ? (
             <Link href="/sistem/arsip-foto" className="text-sm text-primary hover:underline">

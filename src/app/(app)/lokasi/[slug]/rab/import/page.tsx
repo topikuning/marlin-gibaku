@@ -28,8 +28,8 @@ export default async function RabImportPage({ params }: { params: Promise<{ slug
           title="Impor HPS / Adendum"
           subtitle={
             active
-              ? `Revisi aktif sekarang: #${active.revisionNo} (${active.source === "adendum" ? "adendum" : "HPS awal"}) — ${formatRupiah(active.totalValue)}, ${formatTanggal(active.createdAt)}. File baru akan jadi revisi berikutnya.`
-              : "Belum ada revisi RAB — file akan jadi revisi #1 dan baseline kurva-S dibuat otomatis."
+              ? `Revisi aktif sekarang: #${active.revisionNo} (${active.source === "adendum" ? "adendum" : "HPS awal"}) – ${formatRupiah(active.totalValue)}, ${formatTanggal(active.createdAt)}. File baru akan jadi revisi berikutnya.`
+              : "Belum ada revisi RAB – file akan jadi revisi #1 dan baseline kurva-S dibuat otomatis."
           }
           action={
             <ButtonLink href={`/lokasi/${slug}/rab`} variant="ghost" size="sm">

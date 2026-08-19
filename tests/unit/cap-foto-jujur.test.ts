@@ -70,7 +70,7 @@ describe("jam 07:00 yang selalu muncul", () => {
     expect(formatStampDate(tanggalKerja)).not.toContain("WIB");
   });
 
-  it("jam asli jepret tetap tampil lengkap — aturan ini tidak menggeneralisir", () => {
+  it("jam asli jepret tetap tampil lengkap – aturan ini tidak menggeneralisir", () => {
     const jepret = new Date("2026-07-31T09:15:00.000+07:00");
     expect(formatStampDateTime(jepret)).toBe("Jumat, 31 Juli 2026 • 09:15 WIB");
   });

@@ -402,7 +402,7 @@ export async function jalankanAntreanDrive(
 
     for (const job of antre) {
       if (!masihAdaJatah({ berkas, mulai, sekarang: Date.now() })) {
-        hasil.berhenti = "Jatah satu putaran habis — sisanya lanjut putaran berikutnya.";
+        hasil.berhenti = "Jatah satu putaran habis – sisanya lanjut putaran berikutnya.";
         break;
       }
       if (!(await klaim(job.id, new Date()))) continue;
@@ -472,7 +472,7 @@ export async function jalankanAntreanDrive(
       // Ditahan laju = Google sedang menyuruh berhenti. Meneruskan putaran ini
       // hanya menambah tekanan pada kuota yang sudah ditolak.
       if (jenis === "laju") {
-        hasil.berhenti = "Google menahan laju — sisanya dijadwalkan mundur.";
+        hasil.berhenti = "Google menahan laju – sisanya dijadwalkan mundur.";
         break;
       }
     }

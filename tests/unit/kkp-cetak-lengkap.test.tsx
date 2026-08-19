@@ -116,7 +116,7 @@ describe("halaman dokumentasi cetak HTML", () => {
     expect(html).not.toContain("0,00");
   });
 
-  it("foto tanpa item tetap dicetak — bukti tetap bukti", () => {
+  it("foto tanpa item tetap dicetak – bukti tetap bukti", () => {
     const html = renderToStaticMarkup(
       <KkpDailyPhotos d={data()} foto={[foto({ pekerjaan: null, kategori: null })]} />,
     );
@@ -177,7 +177,7 @@ describe("halaman dokumentasi cetak HTML", () => {
       expect(html).toContain('rel="noopener noreferrer"');
     });
 
-    it("gambarnya SAMA PERSIS dengan atau tanpa tautan — tidak di-crop, tidak diubah", () => {
+    it("gambarnya SAMA PERSIS dengan atau tanpa tautan – tidak di-crop, tidak diubah", () => {
       const tag = (h: string) => h.match(/<img[^>]*>/)?.[0] ?? "";
       const dengan = tag(renderToStaticMarkup(<KkpDailyPhotos d={data()} foto={[foto()]} />));
       const tanpa = tag(renderToStaticMarkup(<KkpDailyPhotos d={data()} foto={[foto({ link: null })]} />));
@@ -185,7 +185,7 @@ describe("halaman dokumentasi cetak HTML", () => {
       expect(dengan).toContain("object-contain"); // bukan object-cover = tidak dipotong
     });
 
-    it("tanpa tautan, fotonya tetap tampil — bukan hilang", () => {
+    it("tanpa tautan, fotonya tetap tampil – bukan hilang", () => {
       // origin tidak diketahui (mis. render di luar request) tidak boleh
       // membuat bukti ikut lenyap; cukup tidak bisa diklik.
       const html = renderToStaticMarkup(<KkpDailyPhotos d={data()} foto={[foto({ link: null })]} />);
@@ -229,13 +229,13 @@ describe("halaman dokumentasi material & peralatan", () => {
     expect(html).toContain('href="https://marlin.uji/api/foto/tokM"');
   });
 
-  it("jumlah yang TIDAK diisi ditulis \u2014, bukan 0", () => {
+  it("jumlah yang TIDAK diisi ditulis \u2013, bukan 0", () => {
     // "belum diisi" berbeda dari "nol"; menulis 0 mengarang angka yang tidak
     // pernah dilaporkan siapa pun.
     const html = renderToStaticMarkup(
       <KkpDailyPelengkapPhotos d={data()} foto={[bukti({ keterangan: null })]} judul="Dokumentasi Peralatan" labelBaris="Alat" />,
     );
-    expect(html).toContain("\u2014");
+    expect(html).toContain("\u2013");
     expect(html).not.toContain(">0<");
   });
 

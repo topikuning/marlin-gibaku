@@ -110,7 +110,7 @@ function RestoreButton({ baselineId, baselineNo }: { baselineId: string; baselin
     <form action={action} className="space-y-2 rounded-md border border-border bg-surface-muted p-2">
       <p className="text-[12px] text-ink">
         Aktifkan kembali kurva versi #{baselineNo}? Dibuat sebagai versi BARU
-        (salinan), baseline aktif sekarang digantikan — riwayat tetap utuh.
+        (salinan), baseline aktif sekarang digantikan – riwayat tetap utuh.
       </p>
       <input type="hidden" name="baselineId" value={baselineId} />
       <div className="flex gap-1.5">
@@ -201,7 +201,7 @@ export function BaselineHistory({
                 </td>
                 <td className="tabular py-2 pr-3">{b.createdAtLabel}</td>
                 <td className="max-w-60 truncate py-2 pr-3 text-ink-muted" title={b.note ?? undefined}>
-                  {b.note ?? "—"}
+                  {b.note ?? "–"}
                 </td>
                 <td className="py-2">
                   <div className="space-y-1">

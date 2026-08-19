@@ -46,7 +46,7 @@ describe("kelompokkanKantong", () => {
     expect(g).toHaveLength(2);
   });
 
-  it("SETIAP foto masuk ke salah satu kelompok — tak ada yang tercecer", () => {
+  it("SETIAP foto masuk ke salah satu kelompok – tak ada yang tercecer", () => {
     // Inti keluhan "diklik tidak terjadi apa-apa": foto tanpa lokasi dulu
     // dirender di luar daftar yang bisa dipilih, jadi bagi pelapor yang
     // geotag-nya gagal TIDAK ADA satu pun foto yang bisa disentuh.

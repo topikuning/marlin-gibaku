@@ -18919,3 +18919,47 @@ balasan WhatsApp yang berhenti sama sekali.
 Uji gigi: `try/catch` dilepas → **1 merah** (`invalid input syntax for type
 uuid`), dan uji pendampingnya menjaga jalur amannya tidak berubah jadi "selalu
 kosong".
+
+---
+
+## 385 — Tanda pisah teks UI: en-dash (–), bukan em-dash (—) (2026-08-19)
+
+**Keputusan.** Semua teks yang dilihat orang memakai en-dash `–`. Em-dash `—`
+dilarang di layar, balasan WhatsApp, PDF, dan Excel. Komentar kode tidak
+dijaga.
+
+**Alasan user**, dua kalimat yang menentukan lingkupnya:
+
+> *"di semua kode, AI selalu menjadikan — standar, aku tidak mau begitu.
+> standar yang aku mau adalah: –"*
+
+> *"tentu saja untuk standar UI, bukan backend, tapi lebih untuk front end,
+> standar ai terlalu kelihatan dibuat oleh AI"*
+
+Jadi ini bukan selera tipografi melainkan **bau**: em-dash yang bertaburan
+membuat teks terbaca seperti keluaran mesin. MARLIN dibaca PPK, KKP, dan
+mandor; kalau tulisannya berbau AI, yang ikut turun adalah kepercayaan pada
+angkanya.
+
+### Kenapa komentar TIDAK ikut
+
+Percobaan pertama saya mengganti seluruh repo: 9.017 em-dash di 782 berkas,
+termasuk komentar dan dokumen. Itu salah dua kali. Pertama, komentar tidak
+pernah sampai ke layar, jadi tidak ada satu pun pembaca yang tertolong.
+Kedua, diff sebesar itu mengubur perubahan yang sebenarnya diminta – dan
+review yang tidak bisa dibaca sama saja dengan tidak ada review. Setelah user
+mempersempit ke front end, lingkupnya jadi **string literal + teks JSX**:
+1.542 penggantian di 433 berkas.
+
+Berkas migrasi yang SUDAH diterapkan sengaja tidak disentuh sama sekali —
+mengubah berkas migrasi terpasang demi tanda baca di komentar adalah risiko
+tanpa imbalan. `seed-data/` dan `docs/rab-analysis/corpus.json` juga tidak:
+isinya data dari berkas master, dan data yang diunggah dipakai apa adanya.
+
+### Penjaga
+
+`tests/unit/tanda-pisah-ui.test.ts` memindai `src/`, `tests/`, `e2e/` dengan
+mesin status kecil yang membedakan string/JSX dari komentar. Aturan gaya tanpa
+uji akan luntur pada berkas ke-sekian; ini membuatnya merah, bukan sekadar
+tercatat. Pendeteksinya sendiri ikut diuji (menemukan di string/JSX/template,
+melewati `//`, `/* */`, dan JSDoc, serta melaporkan nomor baris yang benar).

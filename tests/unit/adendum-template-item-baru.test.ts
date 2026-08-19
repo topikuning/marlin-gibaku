@@ -102,7 +102,7 @@ const TERKUNCI: [number, string][] = [
 ];
 
 describe("baris sisipan harus bisa diketik", () => {
-  it("kolom isian item TERBUKA di baris item — sumber warisan baris sisipan", async () => {
+  it("kolom isian item TERBUKA di baris item – sumber warisan baris sisipan", async () => {
     const ws = await lembar();
     const r = await cariBaris(ws, "Galian tanah");
     for (const [kolom, nama] of TERBUKA) {
@@ -110,7 +110,7 @@ describe("baris sisipan harus bisa diketik", () => {
     }
   });
 
-  it("kolom yang sama TERBUKA di baris kategori — menyisipkan tepat di bawah judul kategori sama sahnya", async () => {
+  it("kolom yang sama TERBUKA di baris kategori – menyisipkan tepat di bawah judul kategori sama sahnya", async () => {
     // Kalau hanya baris item yang dibuka, menyisipkan baris persis di bawah
     // judul kategori mewarisi kunci kategori dan buntu lagi — bug yang sama
     // dengan wajah berbeda.
@@ -199,7 +199,7 @@ describe("item baru yang disisipkan terbaca kembali", () => {
     expect(() => parseAdendumTemplate(wb)).toThrow(/Galian tanah keras/);
   });
 
-  it("baris lama yang DISALIN ditolak — identitas ganda tidak boleh menimpa diam-diam", async () => {
+  it("baris lama yang DISALIN ditolak – identitas ganda tidak boleh menimpa diam-diam", async () => {
     // Cara tercepat membuat item baru adalah menyalin baris lama supaya rumus
     // dan formatnya ikut. Salinannya membawa lineageKey di kolom tersembunyi,
     // jadi dua baris mengaku item kontrak yang sama.

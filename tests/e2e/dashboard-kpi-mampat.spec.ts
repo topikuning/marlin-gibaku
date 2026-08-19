@@ -36,7 +36,7 @@ async function masukSebagaiManajemen(page: Page): Promise<void> {
   await expect(page.getByText("Total Lokasi", { exact: true })).toBeVisible({ timeout: 30_000 });
 }
 
-test.describe("Dashboard Eksekutif — blok KPI tetap mampat", () => {
+test.describe("Dashboard Eksekutif – blok KPI tetap mampat", () => {
   test.beforeEach(async ({ page }) => {
     await masukSebagaiManajemen(page);
   });
@@ -103,7 +103,7 @@ test.describe("Dashboard Eksekutif — blok KPI tetap mampat", () => {
           kartu = kartu.parentElement;
         }
         if (!kartu) {
-          buruk.push(`${l}: kotak kartunya tidak ditemukan — uji ini jadi sia-sia`);
+          buruk.push(`${l}: kotak kartunya tidak ditemukan – uji ini jadi sia-sia`);
           continue;
         }
         if (kartu.scrollHeight > kartu.clientHeight + 1) {

@@ -84,7 +84,7 @@ export function decideAiGuard(cfg: AiGuardConfig, f: GuardFacts): GuardVerdict {
     return {
       ok: false,
       code: "rate_user",
-      reason: `Batas ${cfg.maxRunsPerUserPerHour} analisis AI per jam per pengguna tercapai — coba lagi nanti.`,
+      reason: `Batas ${cfg.maxRunsPerUserPerHour} analisis AI per jam per pengguna tercapai – coba lagi nanti.`,
     };
   }
   if (f.orgRunsToday >= cfg.maxRunsPerOrgPerDay) {

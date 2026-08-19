@@ -13,7 +13,7 @@ import { AI_ARTIFACT_STATUS_LABEL, AI_ARTIFACT_STATUS_TONE } from "@/lib/lifecyc
 import { formatTanggalWaktu } from "@/lib/format";
 import { ReportStudioClient } from "./studio-client";
 
-export const metadata: Metadata = { title: "AI Intelligence — Report Studio" };
+export const metadata: Metadata = { title: "AI Intelligence – Report Studio" };
 export const dynamic = "force-dynamic";
 
 /**
@@ -80,7 +80,7 @@ export default async function AiReportsPage({
           tone="warning"
           title={
             guard.enabled
-              ? "Provider AI belum dikonfigurasi (Sistem → AI) — generate draf dinonaktifkan."
+              ? "Provider AI belum dikonfigurasi (Sistem → AI) – generate draf dinonaktifkan."
               : "Fitur AI dinonaktifkan admin (kill switch)."
           }
         />
@@ -97,7 +97,7 @@ export default async function AiReportsPage({
         <CardHeader title="Artefak laporan terbaru" subtitle="Regenerate selalu membuat versi baru; artefak beku bersifat immutable." />
         <CardBody>
           {artifacts.length === 0 ? (
-            <p className="text-sm text-ink-muted">Belum ada artefak — generate draf pertama di atas.</p>
+            <p className="text-sm text-ink-muted">Belum ada artefak – generate draf pertama di atas.</p>
           ) : (
             <ul className="divide-y divide-border-muted">
               {artifacts.map((a) => (

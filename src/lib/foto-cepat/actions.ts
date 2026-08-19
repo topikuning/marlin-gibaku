@@ -200,10 +200,10 @@ export async function simpanFotoCepatAction(
     // diam tidak bisa dipercaya siapa pun: pelapor harus bisa melihat bahwa
     // fotonya mendarat di desa yang benar, saat itu juga.
     const nama = [...perLokasi.entries()].map(([n, j]) => `${n} (${j})`).join(", ");
-    const dasar = nama ? `${sukses} foto tersimpan — terdeteksi di ${nama}.` : `${sukses} foto tersimpan.`;
+    const dasar = nama ? `${sukses} foto tersimpan – terdeteksi di ${nama}.` : `${sukses} foto tersimpan.`;
     const catatanBelum =
       belumTerdeteksi.length > 0
-        ? ` ${belumTerdeteksi.length} foto belum ketahuan lokasinya (${[...new Set(belumTerdeteksi)].join("; ")}) — pilih di kantong bawah.`
+        ? ` ${belumTerdeteksi.length} foto belum ketahuan lokasinya (${[...new Set(belumTerdeteksi)].join("; ")}) – pilih di kantong bawah.`
         : "";
     // Foto tanpa koordinat TETAP disimpan, tapi tidak dibiarkan lewat diam-diam:
     // pelapor perlu tahu sekarang, selagi masih di lokasi dan masih bisa
@@ -226,7 +226,7 @@ const pakaiSchema = z
     reportItemId: z.uuid().optional(),
   })
   .refine((v) => (v.tujuan === "kegiatan" ? !!v.kegiatanId : !!v.reportItemId), {
-    message: "Tujuan belum lengkap — pilih kegiatan atau item laporannya.",
+    message: "Tujuan belum lengkap – pilih kegiatan atau item laporannya.",
   });
 
 /**
@@ -274,7 +274,7 @@ export async function pakaiFotoAction(
       return {
         warning:
           `${dasar} ${gagalCap.length} di antaranya tetap memakai cap dasar (waktu + koordinat) ` +
-          `karena ${unik} — foto & datanya tetap utuh.`,
+          `karena ${unik} – foto & datanya tetap utuh.`,
       };
     }
     return { ok: `${dasar} Cap fotonya dilengkapi otomatis.` };
@@ -299,7 +299,7 @@ export async function hapusFotoCepatAction(
     });
     if (!p) return { error: "Foto tidak ditemukan." };
     if (p.reportId || p.activityId)
-      return { error: "Foto ini sudah dipakai — hapus lewat laporannya." };
+      return { error: "Foto ini sudah dipakai – hapus lewat laporannya." };
     if (p.locationId) await requireLocationAccess(actor, p.locationId);
 
     await hapusFotoKantong(p.id, actor.id);
@@ -437,7 +437,7 @@ export async function tetapkanLokasiAction(
     revalidatePath("/foto-cepat");
     revalidatePath("/foto");
     if (berhasil === 0)
-      return { error: `Foto itu sudah pernah diunggah di ${lokasi.name} — tidak ditetapkan ulang.` };
+      return { error: `Foto itu sudah pernah diunggah di ${lokasi.name} – tidak ditetapkan ulang.` };
     const dasar = `${berhasil} foto ditetapkan ke ${lokasi.name}.`;
     return duplikat.length > 0
       ? { warning: `${dasar} ${duplikat.length} dilewati karena sudah ada di lokasi itu.` }

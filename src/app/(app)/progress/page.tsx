@@ -51,7 +51,7 @@ export default async function ProgressPage() {
     <div className="space-y-6">
       <PageHeader
         title="Progress Portfolio"
-        description="Rencana vs realisasi berbasis volume — angka dihitung dari RAB aktif, baseline aktif, dan laporan harian terkirim."
+        description="Rencana vs realisasi berbasis volume – angka dihitung dari RAB aktif, baseline aktif, dan laporan harian terkirim."
         actions={
           can(user.role, "ai.view") ? (
             <Link

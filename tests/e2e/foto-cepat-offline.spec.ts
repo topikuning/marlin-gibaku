@@ -36,7 +36,7 @@ async function bukaKamera(page: import("@playwright/test").Page) {
   return rana;
 }
 
-test.describe("Foto Cepat — jaringan jelek / offline", () => {
+test.describe("Foto Cepat – jaringan jelek / offline", () => {
   test.beforeEach(async ({ page, context }) => {
     test.skip(test.info().project.name !== "mobile", "alur lapangan = ponsel");
     await context.grantPermissions(["geolocation", "camera"]);

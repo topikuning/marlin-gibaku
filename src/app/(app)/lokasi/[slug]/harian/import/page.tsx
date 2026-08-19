@@ -31,7 +31,7 @@ export default async function ImporRekapHarianPage({ params }: { params: Promise
     <div className="space-y-5">
       <PageHeader
         title="Impor Rekap Laporan Harian"
-        description={`${location.name} — unggah rekap Excel untuk merekonstruksi laporan harian yang terlewat.`}
+        description={`${location.name} – unggah rekap Excel untuk merekonstruksi laporan harian yang terlewat.`}
       />
 
       <ButtonLink href={`/lokasi/${slug}/harian`} variant="ghost" size="sm" className="self-start">
@@ -48,13 +48,13 @@ export default async function ImporRekapHarianPage({ params }: { params: Promise
               <Link href={`/lokasi/${slug}/harian/import/template`} className="font-medium text-primary hover:underline">
                 template Excel
               </Link>{" "}
-              — sudah berisi daftar {leaves.length} item pekerjaan RAB (kode, uraian, satuan, sisa volume).
+              – sudah berisi daftar {leaves.length} item pekerjaan RAB (kode, uraian, satuan, sisa volume).
             </li>
             <li>Isi kolom <span className="font-medium">Tanggal</span> (mis. 2026-07-12) dan <span className="font-medium">Volume Terpasang</span> per baris. Satu pekerjaan boleh muncul di beberapa tanggal.</li>
             <li>Unggah kembali di sini, cek pratinjau, lalu simpan.</li>
           </ol>
           <p className="rounded-md bg-surface-muted px-3 py-2 text-xs">
-            Laporan hasil impor masuk berstatus <span className="font-medium">Dikirim (menunggu verifikasi)</span> —
+            Laporan hasil impor masuk berstatus <span className="font-medium">Dikirim (menunggu verifikasi)</span> –
             baru dihitung ke progres setelah disetujui manajemen. Volume yang melebihi sisa RAB otomatis ditandai &amp; dilewati.
           </p>
         </CardBody>

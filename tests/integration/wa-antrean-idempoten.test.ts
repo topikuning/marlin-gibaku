@@ -116,7 +116,7 @@ describe("idempotensi antrean", () => {
     expect(await db.waReplyJob.count()).toBe(0);
   });
 
-  it("payload tanpa id pesan DITOLAK — tanpa kunci, tak ada idempotensi", async () => {
+  it("payload tanpa id pesan DITOLAK – tanpa kunci, tak ada idempotensi", async () => {
     const h = await antreJawaban({ event: "message", payload: { tanpaApaPun: true } });
     expect(h).toMatchObject({ antre: false });
     expect(await db.waReplyJob.count()).toBe(0);

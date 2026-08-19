@@ -165,7 +165,7 @@ export async function getRencanaMingguan(
       unit: n.unit,
       volume: n.volume != null ? Number(n.volume) : 0,
       unitPrice: n.unitPrice != null ? Number(n.unitPrice) : 0,
-      categoryName: n.parent?.parent?.name ?? n.parent?.name ?? "—",
+      categoryName: n.parent?.parent?.name ?? n.parent?.name ?? "–",
     });
   }
 

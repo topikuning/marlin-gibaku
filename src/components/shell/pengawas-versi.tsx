@@ -70,7 +70,7 @@ export function PengawasVersi() {
       <div className="mx-auto flex w-full max-w-[1600px] flex-wrap items-center gap-x-3 gap-y-1.5">
         <p className="text-xs text-ink">
           <strong className="font-medium">MARLIN sudah diperbarui</strong> sejak halaman ini dibuka.
-          Muat ulang sebelum menyimpan — kalau tidak, kiriman dari halaman ini akan ditolak.
+          Muat ulang sebelum menyimpan – kalau tidak, kiriman dari halaman ini akan ditolak.
         </p>
         <button
           type="button"
@@ -80,7 +80,7 @@ export function PengawasVersi() {
           <RefreshCw aria-hidden className="size-3.5" /> Muat ulang
         </button>
         <span className="text-[11px] text-ink-muted">
-          Isian yang belum disimpan akan hilang — simpan dulu bila sudah sempat mengisi.
+          Isian yang belum disimpan akan hilang – simpan dulu bila sudah sempat mengisi.
         </span>
       </div>
     </div>

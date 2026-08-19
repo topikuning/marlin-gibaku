@@ -16,7 +16,7 @@ import {
  * menyelundupkan/menghilangkan fakta (DECISIONS 178).
  */
 
-describe("verifyRewrite — MENANDAI, bukan memblokir (DECISIONS 181)", () => {
+describe("verifyRewrite – MENANDAI, bukan memblokir (DECISIONS 181)", () => {
   const asli = "hari ini pengecoran kolom 12 titik, mutu K-250, cuaca hujan sore jadi berhenti jam 15";
 
   it("perapian yang jujur → tanpa catatan", () => {
@@ -70,7 +70,7 @@ describe("verifyRewrite — MENANDAI, bukan memblokir (DECISIONS 181)", () => {
   });
 });
 
-describe("cleanRewrite — balasan model dibersihkan sebelum dipakai", () => {
+describe("cleanRewrite – balasan model dibersihkan sebelum dipakai", () => {
   it("buang pembungkus kutip dan blok kode", () => {
     expect(cleanRewrite('"Pekerjaan selesai."')).toBe("Pekerjaan selesai.");
     expect(cleanRewrite("```\nPekerjaan selesai.\n```")).toBe("Pekerjaan selesai.");
@@ -88,7 +88,7 @@ describe("cleanRewrite — balasan model dibersihkan sebelum dipakai", () => {
   });
 });
 
-describe("rewriteInputProblem — kapan tombol tidak perlu memanggil model", () => {
+describe("rewriteInputProblem – kapan tombol tidak perlu memanggil model", () => {
   it("teks terlalu pendek → tidak dipanggil", () => {
     expect(rewriteInputProblem("selesai")).toMatch(/pendek/i);
   });
@@ -123,7 +123,7 @@ describe("prompt", () => {
   });
 });
 
-describe("mode gabungan (dipakai saat finalisasi) — satu panggilan, banyak bagian", () => {
+describe("mode gabungan (dipakai saat finalisasi) – satu panggilan, banyak bagian", () => {
   it("prompt hanya memuat bagian yang dikirim + gaya yang dipilih", () => {
     const p = buildBatchRewritePrompt({
       fields: [

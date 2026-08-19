@@ -114,7 +114,7 @@ export default async function CetakHarianPage({
       <main className="mx-auto max-w-[900px] bg-white p-6 print:p-0">
       {!data.isFinal && (
         <p className="no-print mb-3 rounded-md border border-warning bg-warning-soft px-3 py-2 text-sm">
-          Pratinjau — laporan belum difinalisasi (data live, bukan snapshot).
+          Pratinjau – laporan belum difinalisasi (data live, bukan snapshot).
         </p>
       )}
       {/* Form bergaris fixed-layout: scroll horizontal di layar sempit. */}

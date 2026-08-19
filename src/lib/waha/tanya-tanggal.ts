@@ -176,7 +176,7 @@ export function bacaPeriode(
   const hari = Math.floor(minta.hari);
   const bulan = minta.bulan == null ? kini.getUTCMonth() + 1 : Math.floor(minta.bulan);
   if (hari < 1 || hari > 31 || bulan < 1 || bulan > 12) {
-    return { ...hariIni, catatan: "Tanggal yang Anda sebut tidak saya kenali — saya jawab untuk hari ini." };
+    return { ...hariIni, catatan: "Tanggal yang Anda sebut tidak saya kenali – saya jawab untuk hari ini." };
   }
 
   const rakit = (tahun: number) => `${tahun}-${String(bulan).padStart(2, "0")}-${String(hari).padStart(2, "0")}`;
@@ -185,7 +185,7 @@ export function bacaPeriode(
   if (keTitik(key) == null) {
     return {
       ...hariIni,
-      catatan: `Tanggal ${hari}/${bulan} tidak ada di kalender — saya jawab untuk hari ini.`,
+      catatan: `Tanggal ${hari}/${bulan} tidak ada di kalender – saya jawab untuk hari ini.`,
     };
   }
   // Tahun tidak disebut & tanggalnya masih di depan → maksudnya tahun lalu.
@@ -199,7 +199,7 @@ export function bacaPeriode(
 
   const catatan =
     key > hariIniKey
-      ? `Tanggal ${formatKey(key)} belum terjadi — belum ada data yang bisa saya laporkan.`
+      ? `Tanggal ${formatKey(key)} belum terjadi – belum ada data yang bisa saya laporkan.`
       : null;
   return { mulai: key, akhir: key, satuHari: true, label: formatKey(key), catatan };
 }
@@ -231,7 +231,7 @@ export function pekanDari(p: PeriodeTerbaca, hariIniKey: TanggalKey): PeriodeTer
     satuHari: senin === akhir,
     label: `pekan ${formatKey(senin)} – ${formatKey(minggu)}`,
     catatan: berjalan
-      ? `Pekan berjalan — baru dihitung sampai hari ini (${formatKey(akhir)}).`
+      ? `Pekan berjalan – baru dihitung sampai hari ini (${formatKey(akhir)}).`
       : null,
   };
 }

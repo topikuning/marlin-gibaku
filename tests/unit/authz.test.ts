@@ -131,7 +131,7 @@ describe("authz capability matrix", () => {
     expect(isCrossLocation("project_manager")).toBe(false);
   });
 
-  it("exec_viewer BUTUH penugasan — bukan lintas lokasi (DECISIONS 190)", () => {
+  it("exec_viewer BUTUH penugasan – bukan lintas lokasi (DECISIONS 190)", () => {
     // Permintaan user 2026-07-31: Executive View tidak boleh otomatis melihat
     // semua lokasi. Tanpa penugasan ia melihat NOL, bukan semuanya.
     expect(isCrossLocation("exec_viewer")).toBe(false);

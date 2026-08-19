@@ -290,7 +290,7 @@ export async function buildPortfolioPulse(
          * melainkan posisi pada akhir periode run; sitasi yang tidak menyebut
          * kapan membuat angka lampau terbaca sebagai angka terkini.
          */
-        label: `${l.name} — progress per ${jakartaDateKey(asOf)}`,
+        label: `${l.name} – progress per ${jakartaDateKey(asOf)}`,
         value: `rencana ${facts.planPct.toFixed(1)}% · realisasi ${facts.actualPct.toFixed(1)}% · deviasi ${facts.deviationPp.toFixed(1)} pp (mgg ${facts.currentWeek}/${facts.totalWeeks})`,
         href: `/lokasi/${l.slug}/progress`,
       },
@@ -298,7 +298,7 @@ export async function buildPortfolioPulse(
         id: `${l.slug}:laporan`,
         entityType: "daily_report",
         entityId: l.id,
-        label: `${l.name} — laporan harian`,
+        label: `${l.name} – laporan harian`,
         value: `${facts.finalReports}/${facts.expectedReports} final · ${facts.sentReports} proses · ${facts.draftReports} draft`,
         href: `/lokasi/${l.slug}/laporan`,
       },
@@ -306,7 +306,7 @@ export async function buildPortfolioPulse(
         id: `${l.slug}:kendala`,
         entityType: "issue",
         entityId: l.id,
-        label: `${l.name} — kendala & recovery`,
+        label: `${l.name} – kendala & recovery`,
         value: `${facts.openIssues} terbuka (${facts.criticalIssues} kritis) · ${facts.overdueRecoveries} recovery overdue`,
         href: `/lokasi/${l.slug}/kendala`,
       },
@@ -314,7 +314,7 @@ export async function buildPortfolioPulse(
         id: `${l.slug}:foto`,
         entityType: "photo",
         entityId: l.id,
-        label: `${l.name} — dokumentasi`,
+        label: `${l.name} – dokumentasi`,
         value: `${facts.photoCount} foto · ${facts.activityCount} kegiatan dlm periode`,
         href: `/lokasi/${l.slug}/kegiatan`,
       },
@@ -324,7 +324,7 @@ export async function buildPortfolioPulse(
         id: `${l.slug}:milestone`,
         entityType: "milestone",
         entityId: l.id,
-        label: `${l.name} — milestone administrasi`,
+        label: `${l.name} – milestone administrasi`,
         value: `${facts.milestonesNeedFix} perlu perbaikan`,
         href: `/lokasi/${l.slug}/administrasi`,
       });
@@ -392,7 +392,7 @@ export async function buildQualityDetails(
         -- Pembandingnya volume RAB AKTIF, jadi yang dijumlahkan pun harus
         -- basis aktif saja (DECISIONS 211). Mencampur basis draft ke sini
         -- memunculkan "volume melebihi RAB" untuk pekerjaan yang justru
-        -- sedang diajukan adendumnya — temuan palsu.
+        -- sedang diajukan adendumnya – temuan palsu.
         AND dri.basis = 'aktif'
       GROUP BY 1, 2, rn.volume
       HAVING SUM(dri.volume_done) > rn.volume::float * 1.001

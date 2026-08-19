@@ -264,7 +264,7 @@ async function CommandCenter({ user }: { user: SessionUser }) {
                           {l.name}
                           <span className="ml-2 text-ink-muted">{l.province}</span>
                         </span>
-                        {p ? <DeltaBadge value={p.deviationPct} /> : <StatusPill tone="neutral" label="—" />}
+                        {p ? <DeltaBadge value={p.deviationPct} /> : <StatusPill tone="neutral" label="–" />}
                       </Link>
                     </li>
                   );

@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const brand = await getBranding();
   return {
-    name: `${brand.appName} — ${brand.tagline}`,
+    name: `${brand.appName} – ${brand.tagline}`,
     short_name: brand.appName,
     description: brand.projectContext,
     start_url: "/",

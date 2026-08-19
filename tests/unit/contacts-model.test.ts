@@ -16,7 +16,7 @@ describe("normalizeWaTarget", () => {
     expect(normalizeWaTarget("+62 812-3456-7890")).toBe("6281234567890@c.us");
   });
 
-  it("REGRESI: awalan 0 dan 8 diubah ke 62 — kalau tidak, kiriman gagal senyap", () => {
+  it("REGRESI: awalan 0 dan 8 diubah ke 62 – kalau tidak, kiriman gagal senyap", () => {
     // Gejala: kontak tersimpan "081234567890@c.us"; WhatsApp tidak mengenalnya
     // dan barusan ketahuan hanya ketika laporan gagal terkirim.
     expect(normalizeWaTarget("  0812 3456 7890 ")).toBe("6281234567890@c.us");

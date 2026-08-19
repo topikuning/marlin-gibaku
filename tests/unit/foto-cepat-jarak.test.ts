@@ -29,7 +29,7 @@ describe("jarakMeter", () => {
     expect(m).toBeLessThan(112_000);
   });
 
-  it("simetris — urutan argumen tidak mengubah hasil", () => {
+  it("simetris – urutan argumen tidak mengubah hasil", () => {
     expect(jarakMeter(-8.5, 116.1, -8.9, 116.5)).toBeCloseTo(
       jarakMeter(-8.9, 116.5, -8.5, 116.1),
       6,
@@ -38,7 +38,7 @@ describe("jarakMeter", () => {
 });
 
 describe("labelJarak", () => {
-  it("di bawah 1 km ditulis meter — itu rentang yang menentukan di lapangan", () => {
+  it("di bawah 1 km ditulis meter – itu rentang yang menentukan di lapangan", () => {
     // "0,1 km" tidak memberi tahu apa pun soal "sudah sampai atau belum";
     // "80 m" memberi tahu.
     expect(labelJarak(80)).toBe("80 m");

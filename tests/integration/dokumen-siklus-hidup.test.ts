@@ -219,7 +219,7 @@ describe("batalkan", () => {
     expect(jejak).toBe(1);
   });
 
-  it("TIDAK menurunkan milestone yang sudah diverifikasi manusia — hanya menandai perlu ditinjau", async () => {
+  it("TIDAK menurunkan milestone yang sudah diverifikasi manusia – hanya menandai perlu ditinjau", async () => {
     const ms = await buatMilestone({ status: "selesai", verifiedById: sessionUserId });
     const doc = await buatDokumen({ milestoneId: ms.id });
     await voidDocument(doc.id, "berkas rusak, tidak terbaca");

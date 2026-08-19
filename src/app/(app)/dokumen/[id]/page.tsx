@@ -138,9 +138,9 @@ export default async function DokumenDetailPage({ params }: { params: Promise<{ 
         <Banner
           tone="warning"
           title="Dokumen ini DIBATALKAN"
-          description={`${doc.voidReason ?? "Tanpa alasan tercatat"} — dibatalkan ${
-            doc.voidedAt ? formatTanggalWaktu(doc.voidedAt) : "—"
-          } oleh ${doc.voidedById ? (nameById.get(doc.voidedById) ?? "—") : "—"}. Tidak muncul di daftar dokumen dan tidak dihitung sebagai bukti milestone.`}
+          description={`${doc.voidReason ?? "Tanpa alasan tercatat"} – dibatalkan ${
+            doc.voidedAt ? formatTanggalWaktu(doc.voidedAt) : "–"
+          } oleh ${doc.voidedById ? (nameById.get(doc.voidedById) ?? "–") : "–"}. Tidak muncul di daftar dokumen dan tidak dihitung sebagai bukti milestone.`}
         />
       ) : null}
 
@@ -156,16 +156,16 @@ export default async function DokumenDetailPage({ params }: { params: Promise<{ 
             </Row>
             <Row label="Jenis">{TYPE_LABEL[doc.type]}</Row>
             <Row label="Fase">{PHASE_LABEL[doc.phase]}</Row>
-            <Row label="Nomor">{doc.docNumber ?? "—"}</Row>
-            <Row label="Tanggal dokumen">{doc.docDate ? formatTanggal(doc.docDate) : "—"}</Row>
-            <Row label="Kadaluarsa">{doc.expiryDate ? formatTanggal(doc.expiryDate) : "—"}</Row>
+            <Row label="Nomor">{doc.docNumber ?? "–"}</Row>
+            <Row label="Tanggal dokumen">{doc.docDate ? formatTanggal(doc.docDate) : "–"}</Row>
+            <Row label="Kadaluarsa">{doc.expiryDate ? formatTanggal(doc.expiryDate) : "–"}</Row>
             <Row label="Paket">
               {doc.package ? (
                 <Link href={`/paket/${doc.package.id}`} className="text-primary hover:underline">
                   {doc.package.name}
                 </Link>
               ) : (
-                "—"
+                "–"
               )}
             </Row>
             <Row label="Lokasi">
@@ -174,13 +174,13 @@ export default async function DokumenDetailPage({ params }: { params: Promise<{ 
                   {doc.location.name}
                 </Link>
               ) : (
-                "—"
+                "–"
               )}
             </Row>
             <Row label="Milestone administrasi">
-              {doc.milestone ? `${doc.milestone.name} (${doc.milestone.status})` : "—"}
+              {doc.milestone ? `${doc.milestone.name} (${doc.milestone.status})` : "–"}
             </Row>
-            <Row label="Keterangan">{doc.description ?? "—"}</Row>
+            <Row label="Keterangan">{doc.description ?? "–"}</Row>
             <Row label="Berkas">
               {doc.fileName} · {Math.max(1, Math.round(doc.bytes / 1024))} KB · {doc.mimeType}
             </Row>
@@ -188,7 +188,7 @@ export default async function DokumenDetailPage({ params }: { params: Promise<{ 
               {doc.source === "drive_kkp" ? (
                 <span>
                   Impor dari Google Drive KKP
-                  {doc.drivePath ? ` — ${doc.drivePath}` : ""}
+                  {doc.drivePath ? ` – ${doc.drivePath}` : ""}
                   {doc.driveModifiedAt ? ` (diubah di Drive ${formatTanggalWaktu(doc.driveModifiedAt)})` : ""}
                   {doc.driveWebLink ? (
                     <>
@@ -209,7 +209,7 @@ export default async function DokumenDetailPage({ params }: { params: Promise<{ 
               )}
             </Row>
             <Row label="Diunggah">
-              {formatTanggalWaktu(doc.uploadedAt)} oleh {nameById.get(doc.uploadedById) ?? "—"}
+              {formatTanggalWaktu(doc.uploadedAt)} oleh {nameById.get(doc.uploadedById) ?? "–"}
             </Row>
             <Row label="Checksum (sha256)">
               <span className="break-all font-mono text-xs">{doc.sha256}</span>
@@ -254,7 +254,7 @@ export default async function DokumenDetailPage({ params }: { params: Promise<{ 
             title="Zona bahaya"
             subtitle={
               dibatalkan
-                ? "Dokumen sudah dibatalkan — bisa dipulihkan, atau dihapus permanen oleh super admin."
+                ? "Dokumen sudah dibatalkan – bisa dipulihkan, atau dihapus permanen oleh super admin."
                 : "Membatalkan dokumen tidak menghapus file: ia hilang dari daftar, bisa dipulihkan."
             }
           />

@@ -89,7 +89,7 @@ export default async function PenggunaPage() {
         actorRole={user.role}
         users={users.map((u) => ({
           id: u.id,
-          username: u.username ?? "—",
+          username: u.username ?? "–",
           fullName: u.fullName,
           email: u.email,
           waNumber: u.waNumber,

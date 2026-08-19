@@ -134,7 +134,7 @@ describe("yang tidak jelas: DITAWARKAN, bukan ditolak", () => {
     expect(kendala?.label).not.toMatch(/masih terbuka sekarang/i);
   });
 
-  it('"minta laporan minggu lalu" TIDAK ditawarkan — sudah diputus DECISIONS 358', () => {
+  it('"minta laporan minggu lalu" TIDAK ditawarkan – sudah diputus DECISIONS 358', () => {
     /*
      * Sekilas ini kandidat tawaran yang sempurna: laporan harian selalu SATU
      * tanggal, rekap mingguan meliputi sepekan. Tapi kasus ini sudah diputus
@@ -228,7 +228,7 @@ describe("boleh dijalankan tanpa AI?", () => {
     expect(r.jenis).toBe("serahkan_ai");
   });
 
-  it("ambigu pun tidak memanggil AI — pilihannya sudah cukup", () => {
+  it("ambigu pun tidak memanggil AI – pilihannya sudah cukup", () => {
     const r = rencanaDeterministik("bagaimana yang kemarin?", KATALOG);
     expect(r.jenis).toBe("ambigu");
   });
