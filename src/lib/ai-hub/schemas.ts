@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { PortfolioPulse } from "./types";
 
 /**
  * Skema output AI terstruktur (zod) + validator grounding — MURNI, unit-testable.
@@ -126,13 +127,215 @@ export const reportOutputSchema = z.object({
 });
 export type ReportOutput = z.infer<typeof reportOutputSchema>;
 
+/**
+ * METRIK yang boleh diklaim AI, beserta SATUANNYA (DECISIONS 378).
+ *
+ * Metrik disebut EKSPLISIT, bukan disimpulkan dari teks. Itu yang membedakan
+ * validasi klaim terikat dari cara lama: dulu angka diambil dengan regex dari
+ * kalimat, lalu dicocokkan ke kolam angka resmi SELURUH lokasi. Akibatnya
+ * "realisasi Kedung Mutih 42%" bisa lolos hanya karena ADA lokasi lain yang
+ * realisasinya 42% — jawaban yang benar untuk lokasi yang salah, dan tidak ada
+ * yang bisa membedakannya.
+ *
+ * Karena satuannya diketahui per metrik, hitungan (jumlah laporan, jumlah
+ * kendala) ikut bisa divalidasi. Cara lama tidak bisa: ia hanya menangkap
+ * "%"/"pp", jadi kolamnya WAJIB sesatuan persen (DECISIONS 196) dan seluruh
+ * klaim hitungan lolos tanpa diperiksa sama sekali.
+ */
+export const METRIK = {
+  rencana: { satuan: "persen", toleransi: 0.6 },
+  realisasi: { satuan: "persen", toleransi: 0.6 },
+  deviasi: { satuan: "pp", toleransi: 0.6 },
+  kesiapan: { satuan: "skor", toleransi: 0.6 },
+  laporan_final: { satuan: "hitungan", toleransi: 0 },
+  laporan_diharapkan: { satuan: "hitungan", toleransi: 0 },
+  kendala_terbuka: { satuan: "hitungan", toleransi: 0 },
+  kendala_kritis: { satuan: "hitungan", toleransi: 0 },
+} as const;
+export type Metrik = keyof typeof METRIK;
+export const NAMA_METRIK = Object.keys(METRIK) as Metrik[];
+
+/** Satu angka resmi yang boleh dijadikan rujukan klaim. */
+export type FaktaResmi = {
+  locationId: string;
+  metric: Metrik;
+  value: number;
+  /** Tanggal berlakunya angka ini (YYYY-MM-DD) — bukan "sekarang". */
+  periodKey: string;
+  sourceRefId: string;
+};
+
+/** Kunci pencarian fakta: satu angka per (lokasi, metrik). */
+export function kunciFakta(locationId: string, metric: string): string {
+  return `${locationId}|${metric}`;
+}
+
+export const klaimSchema = z.object({
+  locationId: z.string(),
+  metric: z.enum(NAMA_METRIK as [Metrik, ...Metrik[]]),
+  value: z.number(),
+  periodKey: z.string().max(20),
+  sourceRefId: z.string(),
+});
+export type Klaim = z.infer<typeof klaimSchema>;
+
 export const askOutputSchema = z.object({
   answer: z.string().min(5).max(4000),
+  /**
+   * Jawaban dipecah menjadi bagian-bagian, masing-masing membawa klaimnya
+   * sendiri. Bagian yang klaimnya tidak tervalidasi DIBUANG — bukan sekadar
+   * ditandai — sesuai PROJECT.md §5a.
+   */
+  answerParts: z
+    .array(
+      z.object({
+        text: z.string().min(1).max(800),
+        claims: z.array(klaimSchema).max(8),
+      }),
+    )
+    .max(12)
+    .default([]),
   citations: z.array(z.object({ sourceRefId: z.string(), note: z.string().max(200).nullable() })).max(12),
+  /**
+   * Diisi model, tapi SELALU ditimpa angka deterministik sesudah validasi
+   * (`hitungKeyakinan`). Dibiarkan di skema supaya keluaran model yang lama
+   * tetap lolos parse.
+   */
   confidence: z.number().int().min(0).max(100),
   limitations: z.array(z.string().max(300)).max(6),
 });
 export type AskOutput = z.infer<typeof askOutputSchema>;
+
+/**
+ * Fakta resmi TERIKAT (lokasi, metrik) → nilai + periode + sumbernya
+ * (DECISIONS 378).
+ *
+ * Beda dari `officialNumbersByLocation` yang cuma daftar angka: di sini setiap
+ * angka tahu ia metrik apa, berlaku kapan, dan bisa diperiksa di mana. Itulah
+ * yang membuat klaim bisa diikat kelima-limanya sekaligus — dan yang membuat
+ * hitungan (jumlah laporan, jumlah kendala) ikut bisa divalidasi, padahal jalur
+ * regex lama hanya menangkap "%"/"pp".
+ *
+ * `periodKey` diambil dari akhir periode run, sama dengan `asOf` yang dipakai
+ * `buildPortfolioPulse` — jadi angka lampau tidak pernah divalidasi seolah
+ * angka hari ini.
+ */
+export function faktaResmi(pulse: PortfolioPulse): Map<string, FaktaResmi> {
+  const out = new Map<string, FaktaResmi>();
+  const periodKey = pulse.periodEnd;
+  for (const r of pulse.rows) {
+    const tambah = (metric: Metrik, value: number, sourceRefId: string) =>
+      out.set(kunciFakta(r.locationId, metric), {
+        locationId: r.locationId,
+        metric,
+        value,
+        periodKey,
+        sourceRefId,
+      });
+    const progres = `${r.slug}:progress`;
+    tambah("rencana", r.planPct, progres);
+    tambah("realisasi", r.actualPct, progres);
+    tambah("deviasi", r.deviationPp, progres);
+    tambah("kesiapan", r.readiness.score, progres);
+    const laporan = `${r.slug}:laporan`;
+    tambah("laporan_final", r.finalReports, laporan);
+    tambah("laporan_diharapkan", r.expectedReports, laporan);
+    const kendala = `${r.slug}:kendala`;
+    tambah("kendala_terbuka", r.openIssues, kendala);
+    tambah("kendala_kritis", r.criticalIssues, kendala);
+  }
+  return out;
+}
+
+export type BagianJawaban = { text: string; claims: Klaim[] };
+
+export type HasilValidasiKlaim = {
+  hidup: BagianJawaban[];
+  dibuang: string[];
+  /** Jumlah klaim yang benar-benar cocok fakta resmi — dasar keyakinan. */
+  klaimValid: number;
+};
+
+/**
+ * Validasi klaim TERIKAT: lokasi + metrik + nilai + periode + sourceRef
+ * (DECISIONS 378).
+ *
+ * Kelima-limanya harus cocok pada SATU fakta resmi yang sama. Mengendurkan
+ * salah satunya membuat sisanya nyaris tak berarti:
+ *
+ * - tanpa **lokasi**, angka lokasi lain memvalidasi klaim lokasi ini;
+ * - tanpa **metrik**, "realisasi 42%" lolos karena rencananya 42%;
+ * - tanpa **periode**, angka hari ini memvalidasi klaim tentang bulan lalu;
+ * - tanpa **sourceRef**, pembaca tidak punya jalan memeriksanya sendiri.
+ *
+ * Bagian yang MENYEBUT ANGKA tapi tidak membawa klaim juga dibuang. Tanpa
+ * aturan itu, model cukup berhenti mengisi `claims` dan seluruh validasi ini
+ * menjadi hiasan.
+ */
+export function validasiKlaimTerikat(
+  parts: BagianJawaban[],
+  fakta: ReadonlyMap<string, FaktaResmi>,
+  allowedSourceRefIds: ReadonlySet<string>,
+): HasilValidasiKlaim {
+  const dibuang: string[] = [];
+  const hidup: BagianJawaban[] = [];
+  let klaimValid = 0;
+
+  for (const part of parts) {
+    const alasan: string[] = [];
+
+    for (const k of part.claims) {
+      const f = fakta.get(kunciFakta(k.locationId, k.metric));
+      if (!f) {
+        alasan.push(`metrik "${k.metric}" tidak tersedia untuk lokasi itu`);
+        continue;
+      }
+      if (!allowedSourceRefIds.has(k.sourceRefId) || k.sourceRefId !== f.sourceRefId) {
+        alasan.push(`sumber "${k.sourceRefId}" bukan sumber angka itu`);
+        continue;
+      }
+      if (k.periodKey !== f.periodKey) {
+        alasan.push(`periode "${k.periodKey}" ≠ periode angka resmi (${f.periodKey})`);
+        continue;
+      }
+      if (Math.abs(k.value - f.value) > METRIK[k.metric].toleransi) {
+        alasan.push(`nilai ${k.value} ≠ ${f.value} (${k.metric})`);
+        continue;
+      }
+      klaimValid += 1;
+    }
+
+    // Menyebut angka tanpa klaim = tidak bisa diperiksa siapa pun.
+    if (part.claims.length === 0 && extractNumericClaims(part.text).length > 0) {
+      alasan.push("menyebut angka tanpa klaim bersumber");
+    }
+
+    if (alasan.length > 0) {
+      dibuang.push(`bagian dibuang — ${alasan[0]}`);
+      continue;
+    }
+    hidup.push(part);
+  }
+  return { hidup, dibuang, klaimValid };
+}
+
+/**
+ * Keyakinan DETERMINISTIK — dihitung, bukan diakui sendiri oleh model
+ * (DECISIONS 378).
+ *
+ * Angka `confidence` dari model tidak pernah punya arti yang bisa diperiksa:
+ * ia keluaran dari hal yang sama yang sedang kita ragukan. Yang dipakai di sini
+ * hanya hasil validasi:
+ *
+ * - **0 bila tidak ada satu pun klaim yang valid** — syarat keras brief butir
+ *   26. Jawaban tanpa sitasi yang sah tidak boleh tampil "80% yakin".
+ * - selebihnya = porsi bagian yang selamat.
+ */
+export function hitungKeyakinan(hasil: HasilValidasiKlaim, totalBagian: number): number {
+  if (hasil.klaimValid === 0) return 0;
+  if (totalBagian === 0) return 0;
+  return Math.round((hasil.hidup.length / totalBagian) * 100);
+}
 
 /* ── Validasi grounding (pasca-skema) ──────────────────────────────────── */
 
@@ -255,8 +458,20 @@ export const SCHEMA_HINTS = {
 }`,
   ask: `{
   "answer": string (Bahasa Indonesia, langsung ke inti),
+  "answerParts": [{
+    "text": string (satu bagian jawaban, boleh 1-3 kalimat),
+    "claims": [{
+      "locationId": string (dari daftar scope),
+      "metric": "rencana"|"realisasi"|"deviasi"|"kesiapan"|"laporan_final"|"laporan_diharapkan"|"kendala_terbuka"|"kendala_kritis",
+      "value": number (PERSIS seperti angka resmi yang kamu kutip),
+      "periodKey": string (tanggal berlaku angka itu, YYYY-MM-DD, dari daftar sumber),
+      "sourceRefId": string (sumber angka itu)
+    }]
+  }],
   "citations": [{ "sourceRefId": string dari daftar sumber, "note": string|null }],
   "confidence": number 0-100,
   "limitations": [string]
-}`,
+}
+ATURAN KERAS: setiap bagian yang MENYEBUT ANGKA wajib membawa claims-nya.
+Bagian yang menyebut angka tanpa claims akan DIBUANG dan tidak sampai ke penanya.`,
 } as const;

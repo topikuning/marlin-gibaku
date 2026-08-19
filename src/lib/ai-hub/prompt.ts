@@ -1,5 +1,6 @@
 import { promptDefault } from "@/lib/ai/prompt-registry";
 import type { PortfolioPulse, PulseRow, QualityFinding, RiskItem } from "./types";
+import { faktaResmi } from "./schemas";
 
 /**
  * Penyusun prompt AI Hub — data deterministik diringkas jadi payload kompak.
@@ -60,6 +61,37 @@ export function buildPulsePayload(pulse: PortfolioPulse, opts?: { maxRows?: numb
     "",
     "DAFTAR SUMBER (pakai id ini utk sourceRefIds):",
     ...refs,
+  ].join("\n");
+}
+
+/**
+ * DAFTAR FAKTA yang boleh diklaim — dipakai kind `tanya` (DECISIONS 378).
+ *
+ * Tanpa daftar ini model harus MENEBAK sourceRef mana yang menopang metrik
+ * mana, dan tanggal berapa yang berlaku. Tebakan yang meleset membuat klaimnya
+ * ditolak validator, keyakinannya jatuh ke 0, dan penanya menerima "tidak punya
+ * angka bersumber" untuk pertanyaan yang datanya justru ada — pagar yang
+ * menghukum jawaban benar karena format rujukannya salah.
+ *
+ * Jadi bentuk yang diminta validator disodorkan apa adanya: satu baris per
+ * (lokasi, metrik), lengkap dengan nilai, periode, dan sumbernya.
+ */
+export function buildFaktaPayload(pulse: PortfolioPulse, opts?: { maxRows?: number }): string {
+  const rows = pulse.rows.slice(0, opts?.maxRows ?? 30);
+  const diizinkan = new Set(rows.map((r) => r.locationId));
+  const baris = [...faktaResmi(pulse).values()]
+    .filter((f) => diizinkan.has(f.locationId))
+    .map(
+      (f) =>
+        `- locationId=${f.locationId} metric=${f.metric} value=${f.value} periodKey=${f.periodKey} sourceRefId=${f.sourceRefId}`,
+    );
+  return [
+    "FAKTA YANG BOLEH DIKLAIM (salin PERSIS ke answerParts[].claims):",
+    ...baris,
+    "",
+    "Setiap bagian jawaban yang menyebut angka WAJIB membawa claims dari daftar di atas,",
+    "dengan value, periodKey, dan sourceRefId PERSIS seperti tertulis. Bagian yang menyebut",
+    "angka tanpa claims yang cocok akan DIBUANG dan tidak pernah sampai ke penanya.",
   ].join("\n");
 }
 

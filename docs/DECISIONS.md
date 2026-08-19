@@ -18294,3 +18294,100 @@ Satu uji memakai lokasi "Tambakbulusan" yang tidak ada di fixture. Ia merah
 bukan karena kode salah, melainkan karena nama itu tidak pernah cocok di katalog
 mana pun — jadi pertanyaannya memang benar diserahkan ke AI. Diganti
 "Kedungmalang" (lokasi fixture yang nyata).
+
+---
+
+## 378 — Klaim TERIKAT + keyakinan deterministik + sitasi yang bisa dibaca (2026-08-19)
+
+Fase D butir 24–27. Ask MARLIN sudah punya sitasi dan `confidence` sejak
+DECISIONS 133, tapi ketiganya lemah di titik yang justru menentukan.
+
+### Cacat 1 — validasi angka mengabaikan MILIK SIAPA angka itu
+
+`numericClaimsValid` mengambil angka dari teks dengan regex, lalu
+mencocokkannya ke kolam angka resmi **seluruh lokasi**. Akibatnya *"realisasi
+Kedung Mutih 88%"* lolos hanya karena ADA lokasi lain yang realisasinya 88% —
+jawaban yang benar untuk lokasi yang salah, dan tidak ada yang bisa
+membedakannya.
+
+Turunan cacat yang sama: karena regex hanya menangkap `%`/`pp`, kolamnya WAJIB
+sesatuan persen (DECISIONS 196) — sehingga **setiap klaim hitungan** (jumlah
+laporan, jumlah kendala) lolos tanpa pernah diperiksa sama sekali.
+
+Gantinya `answerParts[].claims`: tiap bagian jawaban membawa klaimnya sendiri,
+dan tiap klaim mengikat **lima**-nya sekaligus pada SATU fakta resmi —
+`locationId` + `metric` + `value` + `periodKey` + `sourceRefId`. Mengendurkan
+satu saja membuat sisanya nyaris tak berarti:
+
+- tanpa **lokasi**, angka lokasi lain memvalidasi klaim lokasi ini;
+- tanpa **metrik**, "realisasi 55%" lolos karena rencananya 55%;
+- tanpa **periode**, angka hari ini memvalidasi klaim tentang bulan lalu;
+- tanpa **sourceRef**, pembaca tidak punya jalan memeriksanya sendiri.
+
+Karena satuannya kini diketahui per metrik, hitungan ikut divalidasi — tanpa
+toleransi: 3 kendala bukan 4.
+
+**Bagian yang menyebut angka tanpa membawa klaim juga dibuang.** Tanpa aturan
+itu model cukup berhenti mengisi `claims` dan seluruh validasi ini jadi hiasan.
+
+Bagian yang gagal DIBUANG, dan `answer` **disusun ulang** dari bagian yang
+selamat. Kalau `answer` dibiarkan apa adanya, membuang bagian tidak ada gunanya:
+kalimat yang sama tetap terbaca penanya. Ini pola yang sudah dipakai `waSummary`
+(PROJECT.md §5a), kini berlaku juga untuk jawaban Ask.
+
+### Cacat 2 — keyakinan diakui sendiri oleh model
+
+`confidence` diisi model. Angka itu tidak pernah punya arti yang bisa diperiksa:
+ia keluaran dari hal yang sama yang sedang kita ragukan. Sekarang DIHITUNG:
+**0 bila tidak ada satu pun klaim valid** (syarat keras butir 26), selebihnya
+porsi bagian yang selamat. Nilai dari model tetap diterima skema — supaya
+keluaran lama tidak gagal parse — lalu ditimpa.
+
+### Cacat 3 — sitasi tidak bisa dibaca, apalagi diklik
+
+Layar percakapan menampilkan `sourceRefId` mentah: *"sumber:
+kedung-mutih:progress"*. Itu tidak memberi tahu angka apa yang dirujuk dan tidak
+bisa dibuka. "Berbasis sumber" hanya benar di dalam kode.
+
+`sourceRefs` kini ikut tersimpan di snapshot resmi run, dan sitasi pada pesan
+percakapan disimpan **lengkap dengan label + nilai + tautannya**. Diperkaya SAAT
+MENULIS, bukan saat render: pesan hidup lebih lama daripada run-nya, dan sumber
+yang diresolusi belakangan akan berubah begitu datanya bergerak. Yang tersimpan
+adalah apa yang benar SAAT jawaban itu diberikan.
+
+### Pagar tidak boleh menghukum jawaban yang benar
+
+Kalau model harus MENEBAK sourceRef mana yang menopang metrik mana dan tanggal
+berapa yang berlaku, tebakan yang meleset membuat semua klaim ditolak dan setiap
+jawaban jatuh ke keyakinan 0 — penanya menerima "tidak punya angka bersumber"
+untuk pertanyaan yang datanya justru ada. Karena itu prompt `tanya` memuat blok
+**FAKTA YANG BOLEH DIKLAIM**: satu baris per (lokasi, metrik) lengkap dengan
+nilai, periode, dan sumbernya — persis bentuk yang dituntut validator.
+
+Uji integrasinya membaca fakta itu DARI PROMPT, bukan menghitung ulang sendiri.
+Jadi kalau format kedua sisi berubah sepihak, ujinya yang memerah.
+
+### Uji gigi
+
+Murni (5 pengikat): lokasi+metrik dilepas → merah; periode → merah; sumber →
+merah; "angka tanpa klaim" dibolehkan → merah.
+
+Terpasang (4 titik sambung): validator tidak dipanggil → 4 merah; keyakinan
+model tidak ditimpa → 3 merah; `answer` tidak disusun ulang → 2 merah; blok
+FAKTA tidak dikirim → 4 merah.
+
+**Satu pagar sempat TIDAK bermata.** `klaimValid === 0 → keyakinan 0` bisa
+dilepas tanpa satu pun uji memerah, karena uji yang ada memakai bagian yang
+DIBUANG — porsinya 0/1 = 0 dengan sendirinya. Kasus yang benar-benar
+membutuhkannya: semua bagian SELAMAT tapi tak satu pun membawa klaim (kalimat
+penghubung tanpa angka) — di situ porsi bagian selamat menghasilkan 100% untuk
+jawaban tanpa satu pun angka terverifikasi. Uji itu ditambahkan, lalu pagarnya
+merah.
+
+### Yang TIDAK diubah
+
+Kind lain (`pulse`, `deviasi`, `risiko`, `kualitas_data`, `laporan`) tetap
+memakai `numericClaimsValid` seperti sebelumnya. Memigrasikan semuanya sekaligus
+berarti satu perubahan besar yang menyentuh setiap keluaran AI — persis yang
+dilarang brief. Yang dikerjakan di sini jalur `tanya`, yang memang jadi sasaran
+butir 24–27.

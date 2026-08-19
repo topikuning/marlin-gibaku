@@ -106,7 +106,16 @@ export default async function AiAskPage({ searchParams }: { searchParams: Promis
                     id: m.id,
                     role: m.role,
                     content: m.content,
-                    citations: (m.citations as { sourceRefId: string; note: string | null }[] | null) ?? [],
+                    citations:
+                      (m.citations as
+                        | {
+                            sourceRefId: string;
+                            note: string | null;
+                            label?: string | null;
+                            value?: string | null;
+                            href?: string | null;
+                          }[]
+                        | null) ?? [],
                     confidence: m.confidence,
                     runId: m.runId,
                   })),

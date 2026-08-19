@@ -15,18 +15,28 @@ import {
   toNarrativeSourceRefs,
   type NarrativeBundle,
 } from "./narrative";
-import { KIND_INSTRUCTION, PROMPT_VERSION, buildPulsePayload, buildQualityPayload } from "./prompt";
+import {
+  KIND_INSTRUCTION,
+  PROMPT_VERSION,
+  buildFaktaPayload,
+  buildPulsePayload,
+  buildQualityPayload,
+} from "./prompt";
 import { resolvePrompt } from "@/lib/ai/prompts";
 import {
   SCHEMA_HINTS,
   askOutputSchema,
   filterGrounded,
+  faktaResmi,
+  hitungKeyakinan,
   numericClaimsValid,
   pulseOutputSchema,
   qualityOutputSchema,
   reportOutputSchema,
   riskOutputSchema,
+  validasiKlaimTerikat,
   varianceOutputSchema,
+  type BagianJawaban,
   type GroundingContext,
 } from "./schemas";
 import { aiReportTemplate } from "./report-templates";
@@ -172,6 +182,16 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
       totals: pulse.totals,
       rows: pulse.rows,
       risks: pulse.risks,
+      /*
+       * Sumber IKUT disimpan (DECISIONS 378).
+       *
+       * Tanpa ini sitasi hanya bisa ditampilkan sebagai id mentah
+       * ("kedung-mutih:progress") — yang tidak memberi tahu pembaca angka apa
+       * yang dirujuk, dan tidak bisa diklik untuk memeriksanya. Snapshot ini
+       * juga yang dipakai UI saat AI gagal, jadi sumbernya harus ada di sini,
+       * bukan dihitung ulang saat render.
+       */
+      sourceRefs: allSourceRefs,
       quality: qualityFindings,
       narrative: narrativeBundle,
       periodStart: pulse.periodStart,
@@ -196,7 +216,12 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
   };
 
   // 7. Susun prompt per kind.
-  const payload = buildPulsePayload(pulse, { maxRows: guardCfg.maxLocationsPerRun });
+  let payload = buildPulsePayload(pulse, { maxRows: guardCfg.maxLocationsPerRun });
+  if (input.kind === "tanya") {
+    // Bentuk klaim yang dituntut validator disodorkan apa adanya — lihat
+    // `buildFaktaPayload` untuk alasannya (DECISIONS 378).
+    payload += `\n\n${buildFaktaPayload(pulse, { maxRows: guardCfg.maxLocationsPerRun })}`;
+  }
   const template = input.kind === "laporan" ? aiReportTemplate(input.templateKey ?? "") : undefined;
   if (input.kind === "laporan" && !template) return fail("invalid_input", "Template laporan tidak dikenal.");
 
@@ -256,6 +281,8 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
   // 9. Grounding: buang bagian tak tergrounding, catat sebagai limitations.
   const ctx = groundingContext(pulse, narrativeRefs);
   const globals = globalNumbers(pulse);
+  // Fakta terikat (lokasi, metrik) → nilai + periode + sumber (DECISIONS 378).
+  const fakta = faktaResmi(pulse);
   const output = result.data as Record<string, unknown>;
   const droppedNotes: string[] = [];
   const applyFilter = <T extends object>(arr: T[] | undefined): T[] => {
@@ -307,8 +334,40 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
   } else if (input.kind === "tanya") {
     const cites = (output.citations as { sourceRefId: string }[] | undefined) ?? [];
     output.citations = cites.filter((c) => ctx.allowedSourceRefIds.has(c.sourceRefId));
-    if (typeof output.answer === "string" && !numericClaimsValid(output.answer, globals)) {
+
+    /*
+     * VALIDASI KLAIM TERIKAT (DECISIONS 378).
+     *
+     * Bagian yang klaimnya tidak cocok DIBUANG, bukan sekadar ditandai —
+     * PROJECT.md §5a. Sebelum ini jawaban dengan angka salah tetap tampil utuh
+     * dan hanya menambah satu baris limitation di bawahnya, yang di WhatsApp
+     * maupun PDF nyaris tidak pernah terbaca.
+     */
+    const parts = (output.answerParts as BagianJawaban[] | undefined) ?? [];
+    const hasil = validasiKlaimTerikat(parts, fakta, ctx.allowedSourceRefIds);
+    output.answerParts = hasil.hidup;
+    droppedNotes.push(...hasil.dibuang);
+
+    if (parts.length > 0) {
+      /*
+       * Teks jawaban DISUSUN ULANG dari bagian yang selamat.
+       *
+       * Kalau `answer` dibiarkan apa adanya, membuang bagian tidak ada
+       * gunanya: kalimat yang sama tetap terbaca penanya lewat `answer`.
+       */
+      const teks = hasil.hidup.map((b) => b.text.trim()).filter(Boolean).join(" ");
+      output.answer = teks || "Saya tidak punya angka bersumber untuk menjawab itu.";
+    } else if (typeof output.answer === "string" && !numericClaimsValid(output.answer, globals)) {
+      // Keluaran model lama (tanpa answerParts) tetap dijaga cara lama.
       droppedNotes.push("jawaban memuat angka persen yang tidak cocok data — verifikasi manual");
+    }
+
+    // Keyakinan DETERMINISTIK — menimpa angka yang diakui sendiri oleh model.
+    output.confidence = hitungKeyakinan(hasil, parts.length);
+    if (output.confidence === 0) {
+      droppedNotes.push(
+        "keyakinan 0: tidak ada klaim angka yang cocok dengan data resmi beserta sumbernya",
+      );
     }
   }
   // Ringkasan global: klaim angka dibandingkan seluruh angka resmi.

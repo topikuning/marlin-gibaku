@@ -81,6 +81,8 @@ type Official = {
   periodStart: string;
   periodEnd: string;
   dataAsOf: string;
+  /** Sejak DECISIONS 378 ikut tersimpan; run lama tidak punya. */
+  sourceRefs?: SourceRef[];
 };
 
 const SEV_TONE = { kritis: "danger", tinggi: "warning", sedang: "info" } as const;
@@ -553,13 +555,46 @@ function RunOutput({ kind, out, official }: { kind: string; out: Record<string, 
 
   if (kind === "tanya" && out.tanya) {
     const a = out.tanya as AskOutput;
+    const refs = new Map((official?.sourceRefs ?? []).map((r) => [r.id, r]));
     return (
       <Card>
-        <CardHeader title="Jawaban Ask MARLIN" subtitle={`Confidence ${a.confidence}%`} />
+        <CardHeader
+          title="Jawaban Ask MARLIN"
+          /*
+           * Keyakinan 0 disebut apa adanya. Sejak DECISIONS 378 angka ini
+           * DIHITUNG dari klaim yang lolos validasi, bukan diakui sendiri oleh
+           * model — jadi 0 berarti tidak satu pun angka di jawaban ini cocok
+           * dengan data resmi beserta sumbernya.
+           */
+          subtitle={
+            a.confidence === 0
+              ? "Tanpa sumber terverifikasi — tidak ada klaim angka yang cocok data resmi"
+              : `Keyakinan ${a.confidence}% (dihitung dari klaim yang lolos validasi)`
+          }
+        />
         <CardBody className="space-y-2 text-sm">
           <p className="whitespace-pre-wrap text-ink">{a.answer}</p>
           {a.citations.length > 0 ? (
-            <p className="text-xs text-ink-faint">Sumber: {a.citations.map((c) => c.sourceRefId).join(", ")}</p>
+            <div className="text-xs text-ink-faint">
+              <p className="font-medium">Sumber:</p>
+              <ul className="mt-0.5 space-y-0.5">
+                {a.citations.map((c) => {
+                  const r = refs.get(c.sourceRefId);
+                  return (
+                    <li key={c.sourceRefId} className="min-w-0">
+                      {r?.href ? (
+                        <Link href={r.href} className="text-primary hover:underline">
+                          {r.label}
+                        </Link>
+                      ) : (
+                        <span>{r?.label ?? c.sourceRefId}</span>
+                      )}
+                      {r?.value ? <span> — {r.value}</span> : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           ) : null}
         </CardBody>
       </Card>

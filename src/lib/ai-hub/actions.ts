@@ -19,6 +19,7 @@ import { AiRunError, executeAiRun } from "./runs";
 import { isAiReportTemplateKey, aiReportTemplate } from "./report-templates";
 import { parseAiReportContent, renderAiReportWhatsApp } from "./render";
 import type { AskOutput, ReportOutput } from "./schemas";
+import type { SourceRef } from "./types";
 
 /**
  * Server Actions AI Hub — SEMUA mutasi: requireCapability + zod + audit.
@@ -577,8 +578,35 @@ export async function askMarlinAction(_prev: AiHubState, formData: FormData): Pr
       await db.aiConversation.update({ where: { id: existingId }, data: { updatedAt: new Date() } });
     }
 
-    const out = run?.outputJson as { tanya?: AskOutput } | null;
+    const out = run?.outputJson as
+      | { tanya?: AskOutput; official?: { sourceRefs?: SourceRef[] } }
+      | null;
     const answer = out?.tanya;
+
+    /*
+     * Sitasi disimpan LENGKAP dengan label & tautannya (DECISIONS 378).
+     *
+     * Sebelumnya yang tersimpan hanya `sourceRefId`, dan layar percakapan
+     * menampilkannya apa adanya: *"sumber: kedung-mutih:progress"*. Itu tidak
+     * memberi tahu pembaca angka apa yang dirujuk, dan tidak bisa diklik untuk
+     * memeriksanya — jadi "berbasis sumber" hanya benar di dalam kode.
+     *
+     * Diperkaya SAAT MENULIS, bukan saat render: pesan percakapan hidup lebih
+     * lama daripada run-nya, dan sumber yang diresolusi belakangan akan
+     * berubah/hilang begitu datanya bergerak. Yang tersimpan di sini adalah apa
+     * yang benar SAAT jawaban itu diberikan.
+     */
+    const refs = new Map((out?.official?.sourceRefs ?? []).map((r) => [r.id, r]));
+    const sitasi = (answer?.citations ?? []).map((c) => {
+      const r = refs.get(c.sourceRefId);
+      return {
+        sourceRefId: c.sourceRefId,
+        note: c.note,
+        label: r?.label ?? null,
+        value: r?.value ?? null,
+        href: r?.href ?? null,
+      };
+    });
     await db.aiMessage.create({
       data: { conversationId, role: "user", content: question },
     });
@@ -590,7 +618,7 @@ export async function askMarlinAction(_prev: AiHubState, formData: FormData): Pr
           result.status === "siap" && answer
             ? answer.answer
             : `Maaf, analisis gagal: ${run?.errorMessage ?? "provider AI tidak tersedia"}.`,
-        citations: answer ? JSON.parse(JSON.stringify(answer.citations)) : undefined,
+        citations: answer ? JSON.parse(JSON.stringify(sitasi)) : undefined,
         confidence: answer?.confidence ?? null,
         runId: result.runId,
       },
