@@ -18498,3 +18498,65 @@ menerimanya.
 ke dalam grup WhatsApp adalah keputusan pengungkapan, bukan keputusan teknis:
 yang menentukan bukan izin penanya melainkan siapa saja yang ikut membaca di
 grup itu. Perlu diminta user secara eksplisit.
+
+---
+
+## 380 — Nasib pengingat harian dibaca dari outbox, bukan dari catatan pra-kirim (2026-08-19)
+
+Menutup sisa `WA-01`. Bukan fitur baru — menyambungkan yang sudah dibangun
+DECISIONS 374 ke layar yang selama ini tidak tahu apa-apa.
+
+### Cacatnya
+
+`DailyReminderLog.status` diisi **`"sukses"` SEBELUM pesannya berangkat**, dan
+hanya berubah menjadi `"gagal"` kalau pemanggilan `sendText` melempar. Padahal
+kegagalan yang paling berbahaya justru terjadi SESUDAH itu:
+
+```
+error 463: account restricted or missing tctoken for contact
+```
+
+WAHA menerbitkan id pesan, MARLIN mencatatnya sebagai bukti, lalu WhatsApp
+menolak sendiri karena nomor pengirim dibatasi menghubungi nomor baru.
+Penolakan itu tidak terlihat dari respons API.
+
+Panel pengingat sudah berhati-hati — ia menulis *"ada ID pesan"*, bukan
+*"sukses"*. Tapi sejak DECISIONS 374 kalimat itu **menyembunyikan yang sudah
+diketahui**: outbox mencatat `ditolak`, dan layar tetap berkata "ada ID pesan"
+yang terbaca seperti baik-baik saja.
+
+### Perbaikannya
+
+`DailyReminderLog.waMessageId` → `wa_outbound.waMessageId`, satu query untuk
+seluruh daftar. Label & nada memakai `LABEL_STATUS_KIRIM` / `NADA_STATUS_KIRIM`
+yang sudah ada — tidak ada kosakata status kedua.
+
+Dicocokkan lewat **ID PESAN**, bukan nomor tujuan. Dua orang bisa memakai satu
+nomor WhatsApp (satu HP dipakai berdua di lapangan); mencocokkan lewat nomor
+membuat status kiriman orang pertama menempel ke orang kedua.
+
+`null` bila tidak ada barisnya — kiriman lama dari sebelum outbox ada tidak
+ditebak, dan layar jatuh kembali ke kalimat lama yang jujur.
+
+Sekalian: pil hasil kirim langsung diubah dari *"terkirim + ID pesan"* menjadi
+*"diterima WAHA + ID pesan"*, sejalan DECISIONS 374 — WAHA menjawab 2xx juga
+saat sesinya belum login.
+
+### Uji gigi, dan uji sendiri yang ternyata lemah
+
+- Outbox tidak dibaca → 2 merah.
+- Dicocokkan lewat nomor tujuan → **awalnya HIJAU**.
+
+Yang kedua itu kelemahan uji, bukan pagar. Skenarionya hanya memuat baris TANPA
+id pesan, sehingga query outbox dilewati sama sekali (`idPesan.length ? … : []`)
+dan pencocokan lewat nomor pun ikut lolos — hijau yang tidak membuktikan apa
+pun. Ujinya ditulis ulang memakai dua orang dengan **nomor yang sama**, satu
+ber-id dan satu tidak; sesudah itu pencocokan lewat nomor benar-benar merah.
+
+### Yang TIDAK berubah
+
+`DailyReminderLog.status` tetap ditulis sebelum kirim. Membalik urutannya
+(kirim dulu, catat kemudian) akan mengembalikan cacat yang lebih buruk:
+kegagalan mencatat berarti pesan terkirim tanpa jejak, lalu dikirim ulang.
+Yang benar bukan memindahkan pencatatannya, melainkan membaca nasibnya dari
+tempat yang memang tahu — dan itulah yang dilakukan di sini.

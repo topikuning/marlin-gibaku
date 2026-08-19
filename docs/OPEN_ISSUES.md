@@ -303,7 +303,7 @@ KEPUTUSAN "Level status progress" di atas, bukan keputusan terpisah.
   dipastikan dulu revisi mana yang diekspor (DECISIONS 208, dan protokol di
   `docs/rebuild/CALCULATION_INTEGRITY_PROTOCOL.md`).
 
-## WA-01 · ID pesan WAHA BUKAN bukti sampai (DECISIONS 222)
+## 🟢 WA-01 · Error 463 tidak bisa diakali dari aplikasi (DECISIONS 222 → 374/380)
 
 Log server user 2026-08-02:
 
@@ -317,19 +317,21 @@ berhasil — lalu mesin WAHA menolak sendiri karena WhatsApp membatasi nomor
 pengirim menghubungi nomor BARU. Penolakannya terjadi SESUDAH id terbit dan
 tidak terlihat dari respons API.
 
-Sudah dilakukan: kalimat hasil kirim tidak lagi mengaku bukti sampai; ia
-menyebut batas pengetahuannya dan menunjuk log WAHA + error 463.
+**Sisi perangkat lunak SUDAH selesai.** DECISIONS 374 memasang outbox
+(`wa_outbound`) + rekonsiliasi `message.ack`, sehingga nasib tiap kiriman
+tercatat dan bisa naik (`terkirim`→`sampai`→`dibaca`) atau berakhir
+`gagal`/`ditolak`. DECISIONS 380 menyambungkannya ke layar pengingat harian:
+`DailyReminderLog` dicocokkan ke outbox lewat **ID pesan**, jadi pengingat yang
+ditolak WhatsApp tidak lagi tampil "ada ID pesan".
 
-**Belum**: MARLIN tidak punya cara mengetahui nasib pesan sesudah terkirim.
-Jalan keluarnya menerima webhook status dari WAHA (`message.ack`: sent →
-delivered → read) dan merekonsiliasi ke `DailyReminderLog`, sehingga
-"terkirim" bisa naik jadi "sampai" atau turun jadi "ditolak". Perlu diputuskan
-user karena menambah endpoint webhook baru.
-
-**Catatan operasional (bukan bug kode)**: error 463 tidak bisa diakali dari
-aplikasi. Yang menyelesaikannya di sisi WhatsApp — nomor pengirim yang sudah
-"hangat" (dipakai wajar, punya riwayat percakapan dua arah), atau penerima
+**Yang tersisa BUKAN bug kode**: error 463 tidak bisa diakali dari aplikasi.
+Yang menyelesaikannya di sisi WhatsApp — nomor pengirim yang sudah "hangat"
+(dipakai wajar, punya riwayat percakapan dua arah), atau penerima
 menyimpan/menghubungi nomor itu lebih dulu.
+
+**Syarat operasional**: event `message.ack` harus diaktifkan di WAHA untuk URL
+webhook yang sama. Tanpa itu status berhenti di `Diterima WAHA` selamanya — dan
+itu jujur: memang tidak ada bukti lain yang pernah tiba.
 
 ## UX-01 · `loading.tsx` masih terhalang: `router.refresh()` tidak selesai di balik batas Suspense (DECISIONS 245)
 

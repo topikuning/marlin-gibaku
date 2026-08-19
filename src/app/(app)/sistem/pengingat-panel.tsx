@@ -10,7 +10,34 @@ import {
   setPengingatAktifAction,
   type PengingatState,
 } from "@/lib/harian/actions";
-import type { PratinjauPengingat } from "@/lib/harian/pratinjau";
+import type { PratinjauPengingat, RiwayatHariIni } from "@/lib/harian/pratinjau";
+import { LABEL_STATUS_KIRIM, NADA_STATUS_KIRIM } from "@/lib/waha/status-kirim";
+
+/**
+ * Nasib kiriman apa adanya (DECISIONS 380).
+ *
+ * Sebelum ini layar hanya bisa mengatakan "ada ID pesan", karena memang itu
+ * satu-satunya yang diketahui. Sejak DECISIONS 374 nasib sebenarnya tercatat di
+ * outbox dan diperbarui `message.ack` — dan pengingat yang DITOLAK WhatsApp
+ * (mis. error 463) selama ini tetap tampil "ada ID pesan", yang terbaca seperti
+ * baik-baik saja.
+ *
+ * Urutan bacanya: outbox lebih tahu daripada `DailyReminderLog.status`, yang
+ * ditulis "sukses" SEBELUM pesannya berangkat.
+ */
+function labelRiwayat(r: Pick<RiwayatHariIni, "status" | "adaBukti" | "statusKirim">): string {
+  if (r.statusKirim) return LABEL_STATUS_KIRIM[r.statusKirim];
+  if (r.status === "gagal") return "GAGAL terkirim";
+  return r.adaBukti ? "ada ID pesan" : "tanpa ID pesan (tidak bisa dipastikan sampai)";
+}
+
+function nadaRiwayat(
+  r: Pick<RiwayatHariIni, "status" | "adaBukti" | "statusKirim">,
+): "neutral" | "info" | "success" | "warning" | "danger" {
+  if (r.statusKirim) return NADA_STATUS_KIRIM[r.statusKirim];
+  if (r.status === "gagal") return "danger";
+  return r.adaBukti ? "neutral" : "warning";
+}
 
 /**
  * Kirim pengingat laporan harian SEKARANG (DECISIONS 205/207/260).
@@ -121,14 +148,8 @@ export function PengingatPanel({ pratinjau }: { pratinjau: PratinjauPengingat })
                       <span className="tabular text-[13px] text-ink-faint">{p.tujuan}</span>
                       {p.riwayat ? (
                         <StatusPill
-                          tone={p.riwayat.status === "gagal" ? "danger" : "neutral"}
-                          label={
-                            p.riwayat.status === "gagal"
-                              ? `${p.riwayat.attempts}× hari ini · GAGAL`
-                              : p.riwayat.adaBukti
-                                ? `${p.riwayat.attempts}× hari ini · ada ID pesan`
-                                : `${p.riwayat.attempts}× hari ini · tanpa ID pesan`
-                          }
+                          tone={nadaRiwayat(p.riwayat)}
+                          label={`${p.riwayat.attempts}× hari ini · ${labelRiwayat(p.riwayat)}`}
                         />
                       ) : null}
                     </div>
@@ -176,17 +197,13 @@ export function PengingatPanel({ pratinjau }: { pratinjau: PratinjauPengingat })
           <ul className="mt-2 space-y-1.5 text-[13px] text-ink-muted">
             {pratinjau.sudahDikirim.map((s, i) => (
               <li key={`${s.nama}-${i}`} className="flex items-start gap-2">
-                {s.status === "gagal" || !s.adaBukti ? (
+                {nadaRiwayat(s) === "danger" || !s.adaBukti ? (
                   <AlertTriangle aria-hidden className="mt-0.5 size-3.5 shrink-0 text-danger" />
                 ) : null}
                 <span>
                   {s.nama} — {s.lokasi} lokasi · {s.attempts}× ·{" "}
                   <span className="tabular">{s.tujuan ?? "nomor tidak tercatat"}</span>
-                  {s.status === "gagal"
-                    ? " · GAGAL terkirim"
-                    : s.adaBukti
-                      ? " · ada ID pesan"
-                      : " · tanpa ID pesan (tidak bisa dipastikan sampai)"}
+                  {` · ${labelRiwayat(s)}`}
                   {s.error ? <span className="text-danger"> — {s.error}</span> : null}
                 </span>
               </li>
@@ -334,8 +351,11 @@ function HasilKirim({
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span className="font-medium text-ink">{r.nama}</span>
               <span className="tabular text-ink-faint">{r.tujuan}</span>
+              {/* SENGAJA bukan "terkirim": WAHA menjawab 2xx juga saat sesinya
+                  belum login, dan penolakan WhatsApp datang sesudah id terbit
+                  (DECISIONS 374). Status sampai/dibaca menyusul lewat ack. */}
               {r.ok && r.waMessageId ? (
-                <StatusPill tone="success" label="terkirim + ID pesan" />
+                <StatusPill tone="info" label="diterima WAHA + ID pesan" />
               ) : r.ok ? (
                 <StatusPill tone="warning" label="tanpa ID pesan" />
               ) : (
