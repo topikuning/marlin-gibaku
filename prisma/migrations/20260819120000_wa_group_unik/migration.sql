@@ -54,7 +54,7 @@ BEGIN
   ) d;
 
   IF daftar IS NOT NULL THEN
-    RAISE EXCEPTION E'Satu grup WhatsApp tertaut ke lebih dari satu paket. Lepaskan dulu tautan yang salah di Paket → Grup WhatsApp, lalu jalankan migrasi ini lagi.\n%', daftar;
+    RAISE EXCEPTION E'Satu grup WhatsApp tertaut ke lebih dari satu paket.\n%\n\nPemulihan:\n  1. `pnpm waha:grup-ganda` untuk melihat paket mana yang benar-benar memakai grup itu.\n  2. Lepaskan grup dari paket yang salah: Paket → buka paketnya → Grup WhatsApp → kosongkan.\n  3. `pnpm prisma migrate resolve --rolled-back 20260819120000_wa_group_unik`\n  4. Deploy lagi.', daftar;
   END IF;
 END $$;
 
