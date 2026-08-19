@@ -51,7 +51,12 @@ import type { SessionUser } from "@/lib/auth/session";
 const suffix = `klm${Date.now().toString(36)}`;
 let orgId = "";
 let locId = "";
+let pkgId = "";
 let user: SessionUser;
+/** Site Manager: punya `ai.ask` TAPI tidak punya `finance.view`. */
+let userSm: SessionUser;
+const NILAI_KONTRAK = 5_000_000_000n;
+const NILAI_RAB = 4_504_504_504n;
 
 const MULAI = "2026-06-01";
 const AKHIR = "2026-08-19";
@@ -98,6 +103,7 @@ beforeAll(async () => {
   const pkg = await db.package.create({
     data: { orgId, name: `Paket KLM ${suffix}`, stage: "pelaksanaan" },
   });
+  pkgId = pkg.id;
   const loc = await db.location.create({
     data: {
       packageId: pkg.id,
@@ -126,6 +132,64 @@ beforeAll(async () => {
     select: { id: true, orgId: true, fullName: true, username: true, email: true, role: true },
   });
   user = { ...u, mustChangePassword: false };
+
+  const sm = await db.user.create({
+    data: {
+      orgId,
+      username: `sm-${suffix}`,
+      email: `sm-${suffix}@contoh.id`,
+      fullName: "SM KLM",
+      role: "site_manager",
+      passwordHash: "x",
+    },
+    select: { id: true, orgId: true, fullName: true, username: true, email: true, role: true },
+  });
+  userSm = { ...sm, mustChangePassword: false };
+  // Site Manager bukan peran lintas lokasi — tanpa penugasan, scope-nya nol.
+  await db.locationAssignment.create({ data: { userId: sm.id, locationId: locId } });
+
+  // ── Data untuk adapter sumber (DECISIONS 379) ──
+  const vendor = await db.vendor.create({
+    data: { orgId, name: `CV KLM ${suffix}` },
+    select: { id: true },
+  });
+  await db.contract.create({
+    data: {
+      packageId: pkg.id,
+      vendorId: vendor.id,
+      contractNumber: `K-${suffix}`,
+      contractValue: NILAI_KONTRAK,
+      ppnPercent: 11,
+      signedDate: new Date("2026-05-20T00:00:00.000Z"),
+      durationDays: 140,
+      startDate: new Date("2026-06-01T00:00:00.000Z"),
+      endDate: new Date("2026-10-19T00:00:00.000Z"),
+    },
+  });
+  await db.rabRevision.create({
+    data: {
+      locationId: locId,
+      revisionNo: 2,
+      status: "aktif",
+      source: "hps_awal",
+      totalValue: NILAI_RAB,
+    },
+  });
+  await db.budgetLine.create({
+    data: {
+      locationId: locId,
+      category: "material",
+      note: "Anggaran uji",
+      amount: 1_000_000_000n,
+      status: "disetujui",
+    },
+  });
+  await db.adminMilestone.createMany({
+    data: [
+      { packageId: pkg.id, locationId: locId, templateKey: `t1-${suffix}`, name: "Dok 1", phase: "penunjukan", status: "selesai" },
+      { packageId: pkg.id, locationId: locId, templateKey: `t2-${suffix}`, name: "Dok 2", phase: "penunjukan", status: "perlu_perbaikan" },
+    ],
+  });
 });
 
 beforeEach(async () => {
@@ -295,5 +359,139 @@ describe("sumber ikut tersimpan supaya sitasi bisa dibaca", () => {
     expect(refs.length).toBeGreaterThan(0);
     expect(refs.every((x) => !!x.label)).toBe(true);
     expect(refs.some((x) => !!x.href)).toBe(true);
+  });
+});
+
+
+describe("adapter sumber: kontrak / keuangan / RAB / milestone (DECISIONS 379)", () => {
+  it("fakta kontrak, RAB, dan milestone sampai ke model", async () => {
+    /*
+     * Sebelum adapter ini, empat wilayah data tidak pernah dikirim sama sekali,
+     * jadi "berapa nilai kontraknya" dijawab "tidak ada datanya" — padahal
+     * datanya ada, hanya tidak pernah sampai.
+     */
+    buatKeluaran = () => ({
+      answer: "-",
+      answerParts: [],
+      citations: [],
+      confidence: 50,
+      limitations: [],
+    });
+    await jalankan();
+    const fakta = faktaDariPrompt(promptTerakhir);
+    const metrik = fakta.map((f) => f.metric);
+    expect(metrik).toContain("nilai_kontrak");
+    expect(metrik).toContain("rab_aktif");
+    expect(metrik).toContain("milestone_selesai");
+    expect(metrik).toContain("anggaran_total");
+
+    // Nilainya dibaca APA ADANYA dari kolom yang menyimpannya — bukan dihitung
+    // ulang di adapter.
+    expect(fakta.find((f) => f.metric === "nilai_kontrak")?.value).toBe(5_000_000_000);
+    expect(fakta.find((f) => f.metric === "rab_aktif")?.value).toBe(4_504_504_504);
+  });
+
+  it("klaim uang bisa divalidasi dan dijawab dengan keyakinan penuh", async () => {
+    buatKeluaran = (p) => {
+      const f = faktaDariPrompt(p).find((x) => x.metric === "nilai_kontrak")!;
+      return {
+        answer: "x",
+        answerParts: [{ text: "Nilai kontraknya Rp 5.000.000.000.", claims: [f] }],
+        citations: [{ sourceRefId: f.sourceRefId, note: null }],
+        confidence: 10,
+        limitations: [],
+      };
+    };
+    const o = await jalankan();
+    expect(o._confidence).toBe(100);
+    expect(o.answer).toContain("5.000.000.000");
+  });
+
+  it("uang TIDAK bertoleransi — meleset seribu rupiah pun ditolak", async () => {
+    // Angka yang meleset pada nilai kontrak bukan pembulatan tampilan; di
+    // dokumen KKP ia dibaca sebagai angka resmi.
+    buatKeluaran = (p) => {
+      const f = faktaDariPrompt(p).find((x) => x.metric === "nilai_kontrak")!;
+      return {
+        answer: "x",
+        answerParts: [{ text: "Nilai kontraknya Rp 5.000.001.000.", claims: [{ ...f, value: f.value + 1000 }] }],
+        citations: [],
+        confidence: 90,
+        limitations: [],
+      };
+    };
+    const o = await jalankan();
+    expect(o._confidence).toBe(0);
+  });
+});
+
+describe("PAGAR KAPABILITAS: uang tidak bocor lewat pintu AI", () => {
+  async function jalankanSebagaiSm(): Promise<Record<string, unknown>> {
+    const r = await executeAiRun(userSm, {
+      kind: "tanya",
+      locationIds: [locId],
+      startKey: MULAI,
+      endKey: AKHIR,
+      question: "Berapa anggarannya?",
+    });
+    expect(r.status).toBe("siap");
+    const run = await db.aiRun.findUniqueOrThrow({
+      where: { id: r.runId },
+      select: { outputJson: true, limitations: true },
+    });
+    const out = run.outputJson as { tanya?: Record<string, unknown> };
+    return { ...out.tanya, _limitations: run.limitations };
+  }
+
+  it("Site Manager (punya ai.ask, TANPA finance.view) tidak menerima angka uang", async () => {
+    /*
+     * Lubang yang ditutup pagar ini tidak menghasilkan galat apa pun — ia hanya
+     * menjawab dengan sopan. Yang diperiksa: angka keuangan tidak pernah masuk
+     * ke prompt, jadi model tidak punya apa pun untuk dibocorkan.
+     */
+    buatKeluaran = () => ({
+      answer: "-",
+      answerParts: [],
+      citations: [],
+      confidence: 10,
+      limitations: [],
+    });
+    await jalankanSebagaiSm();
+    const metrik = faktaDariPrompt(promptTerakhir).map((f) => f.metric);
+    expect(metrik).not.toContain("anggaran_total");
+    expect(metrik).not.toContain("anggaran_tersedia");
+    expect(metrik).not.toContain("tertagih_owner");
+    // Nilai rupiahnya sendiri tidak boleh muncul di mana pun di prompt.
+    expect(promptTerakhir).not.toContain("1.000.000.000");
+  });
+
+  it("yang BOLEH dilihat Site Manager tetap dikirim", async () => {
+    // Pagar tidak boleh jadi tembok: RAB dan kontrak memang haknya.
+    buatKeluaran = () => ({ answer: "-", answerParts: [], citations: [], confidence: 10, limitations: [] });
+    await jalankanSebagaiSm();
+    const metrik = faktaDariPrompt(promptTerakhir).map((f) => f.metric);
+    expect(metrik).toContain("rab_aktif");
+    expect(metrik).toContain("nilai_kontrak");
+  });
+
+  it("yang DITAHAN dikatakan — bukan didiamkan jadi 'tidak ada uangnya'", async () => {
+    /*
+     * Diam di sini membuat model menyimpulkan datanya kosong dan menuliskannya
+     * sebagai fakta. Penanya juga berhak tahu ia harus meminta akses, bukan
+     * mengira datanya belum diisi.
+     */
+    buatKeluaran = () => ({ answer: "-", answerParts: [], citations: [], confidence: 10, limitations: [] });
+    const o = await jalankanSebagaiSm();
+    expect(promptTerakhir).toContain("TIDAK DITAMPILKAN untuk peran penanya");
+    expect(promptTerakhir).toContain("Keuangan");
+    // Tampil juga di layar, terlepas dari apa yang model tulis.
+    expect((o._limitations as string[]).some((l) => l.includes("Keuangan"))).toBe(true);
+  });
+
+  it("peran berhak TETAP menerima keuangan — pagar bukan tembok buta", async () => {
+    buatKeluaran = () => ({ answer: "-", answerParts: [], citations: [], confidence: 10, limitations: [] });
+    await jalankan();
+    const metrik = faktaDariPrompt(promptTerakhir).map((f) => f.metric);
+    expect(metrik).toContain("anggaran_total");
   });
 });

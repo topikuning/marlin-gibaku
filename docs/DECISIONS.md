@@ -18391,3 +18391,110 @@ memakai `numericClaimsValid` seperti sebelumnya. Memigrasikan semuanya sekaligus
 berarti satu perubahan besar yang menyentuh setiap keluaran AI — persis yang
 dilarang brief. Yang dikerjakan di sini jalur `tanya`, yang memang jadi sasaran
 butir 24–27.
+
+---
+
+## 379 — Adapter sumber: kontrak, keuangan, RAB, milestone — dipagari kapabilitas (2026-08-19)
+
+Fase E. `buildPortfolioPulse` hanya tahu progress, laporan, kendala, foto, dan
+milestone-yang-perlu-perbaikan. Empat wilayah data lain **tidak pernah dikirim
+ke AI sama sekali**, jadi *"berapa nilai kontraknya"* atau *"sudah tertagih
+berapa"* dijawab "tidak ada datanya" — padahal datanya ada, hanya tidak pernah
+sampai.
+
+### Yang paling menentukan: pagarnya KAPABILITAS, bukan scope lokasi
+
+Ditemukan saat menyiapkan adapter ini, dan ia mengubah seluruh bentuknya:
+
+> `site_manager` punya **`ai.ask`** tetapi TIDAK punya **`finance.view`** — ia
+> hanya `finance.input`.
+
+Kalau fakta keuangan disuntikkan ke setiap prompt, Site Manager bisa
+menanyakan — dan menerima — angka uang yang di layar MARLIN sendiri tidak boleh
+ia lihat. Lubang seperti itu tidak menghasilkan galat apa pun; ia hanya menjawab
+dengan sopan. `wakil_ppk` bahkan sengaja dijauhkan dari `finance.view` dengan
+alasan tertulis (uang INTERNAL pelaksana bukan urusan pemberi kerja) — melewati
+pagar itu lewat pintu AI membatalkan keputusan itu diam-diam.
+
+Jadi tiap wilayah menyebut kapabilitasnya sendiri, **sama persis dengan
+kapabilitas halaman yang menampilkan angka itu di layar**. Kalau berbeda, AI
+menjadi jalur akses kedua dengan aturan sendiri.
+
+| wilayah | pagar |
+|---|---|
+| Kontrak | `package.view` |
+| Keuangan | `finance.view` |
+| RAB | `rab.view` |
+| Milestone KKP | `package.view` |
+
+Yang tidak berhak **tidak menerima angkanya sama sekali** — bukan menerima angka
+lalu diminta tidak menyebutkannya. Prompt tidak boleh memuat apa yang tidak
+boleh keluar.
+
+### Yang ditahan DIKATAKAN
+
+Wilayah yang dilewati disebut di prompt DAN di `limitations`. Tanpa itu model
+menyimpulkan "tidak ada data keuangan" lalu menuliskannya sebagai fakta —
+jawaban yang salah untuk alasan yang tidak kelihatan. Penanya juga berhak tahu ia
+harus meminta akses, bukan mengira datanya belum diisi.
+
+Ditulis ke `limitations` terpisah dari prompt karena model bisa lupa
+menyebutkannya; baris itu tampil di layar terlepas dari apa yang model tulis.
+
+### AI tetap bukan sumber angka
+
+Tidak ada satu pun formula di `adapters.ts`. Angkanya dari `finance/calc.ts`
+(`getLocationsFinance`, `getContractsBilling`) atau dibaca apa adanya dari kolom
+yang memang menyimpannya (`Contract.contractValue`, `RabRevision.totalValue`).
+Semua query batched — pola N+1 pada run 83 lokasi berarti ratusan perjalanan
+basis data untuk satu pertanyaan.
+
+### Rupiah bertoleransi NOL, dan ada batas presisinya
+
+Uang tidak punya "kira-kira": nilai kontrak yang meleset seribu rupiah bukan
+pembulatan tampilan, dan di dokumen KKP ia dibaca sebagai angka resmi.
+
+Uang disimpan `BigInt` dan tidak pernah dihitung sebagai `number` (CLAUDE.md).
+Di adapter tidak ada aritmetika sama sekali — nilainya hanya dibandingkan
+sama-atau-tidak dengan klaim model, dan itu eksak selama di bawah
+`Number.MAX_SAFE_INTEGER`. Di atas batas itu faktanya **tidak diterbitkan**:
+menerbitkan angka yang sudah kehilangan presisi berarti memvalidasi klaim
+terhadap nilai yang bukan nilai sebenarnya — pagar yang justru meloloskan angka
+salah. Lebih baik satu fakta hilang daripada satu fakta bohong.
+
+### "Belum tertagih" sengaja TIDAK ditambahkan
+
+Angka itu berguna, tapi menghitungnya butuh Σ nilai terpasang seluruh lokasi
+satu kontrak plus alokasi proporsional untuk kontrak multi-lokasi — dan
+penjumlahan itu hari ini hidup **di dalam halaman Keuangan**
+(`src/app/(app)/keuangan/page.tsx`), bukan di `finance/calc.ts`.
+
+Menyalinnya ke adapter akan melahirkan implementasi KEDUA dari satu formula
+uang. Dua salinan berarti dua jawaban yang bisa berbeda tanpa ada yang memberi
+tahu — persis yang dilarang CLAUDE.md. Menambahkannya dengan benar berarti
+memindahkan Σ + alokasinya ke `finance/calc.ts` lebih dulu; itu perubahan
+tersendiri yang menyentuh halaman yang sudah bekerja, jadi tidak dikerjakan
+sambil lalu.
+
+### Uji gigi
+
+- Pagar kapabilitas dilepas → 2 merah, termasuk uji kebocoran uang ke Site
+  Manager.
+- Wilayah yang ditahan tidak dikatakan → 1 merah.
+- Fakta adapter tidak ikut ke payload → 5 merah.
+- Pagar presisi rupiah dilepas → 1 merah.
+
+Uji "pagar bukan tembok buta" ikut dijaga: Site Manager TETAP menerima RAB dan
+kontrak, yang memang haknya. Pagar yang menutup segalanya sama tidak bergunanya
+dengan pagar yang tidak menutup apa pun.
+
+### Batas
+
+Adapter hanya berlaku untuk kind `tanya` (Ask MARLIN), sejalan DECISIONS 378.
+Kind lain (`pulse`, `deviasi`, `risiko`, `kualitas_data`, `laporan`) belum
+menerimanya.
+
+**Jalur WhatsApp TIDAK diberi akses uang.** Menjawab nilai kontrak atau termin
+ke dalam grup WhatsApp adalah keputusan pengungkapan, bukan keputusan teknis:
+yang menentukan bukan izin penanya melainkan siapa saja yang ikut membaca di
+grup itu. Perlu diminta user secara eksplisit.

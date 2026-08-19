@@ -151,6 +151,30 @@ export const METRIK = {
   laporan_diharapkan: { satuan: "hitungan", toleransi: 0 },
   kendala_terbuka: { satuan: "hitungan", toleransi: 0 },
   kendala_kritis: { satuan: "hitungan", toleransi: 0 },
+
+  /*
+   * Metrik dari adapter sumber (DECISIONS 379) — kontrak, RAB, keuangan,
+   * milestone KKP.
+   *
+   * Rupiah bertoleransi 0: uang tidak punya "kira-kira". Angka yang meleset
+   * seribu rupiah pada nilai kontrak bukan pembulatan tampilan, melainkan
+   * angka yang salah — dan di dokumen KKP ia dibaca sebagai angka resmi.
+   */
+  nilai_kontrak: { satuan: "rupiah", toleransi: 0 },
+  durasi_kontrak_hari: { satuan: "hitungan", toleransi: 0 },
+  sisa_hari_kontrak: { satuan: "hitungan", toleransi: 0 },
+  rab_aktif: { satuan: "rupiah", toleransi: 0 },
+  rab_revisi_no: { satuan: "hitungan", toleransi: 0 },
+  anggaran_total: { satuan: "rupiah", toleransi: 0 },
+  anggaran_tersedia: { satuan: "rupiah", toleransi: 0 },
+  pengeluaran_disetujui: { satuan: "rupiah", toleransi: 0 },
+  utang_belum_bayar: { satuan: "rupiah", toleransi: 0 },
+  tertagih_owner: { satuan: "rupiah", toleransi: 0 },
+  cair_owner: { satuan: "rupiah", toleransi: 0 },
+  retensi_ditahan: { satuan: "rupiah", toleransi: 0 },
+  milestone_total: { satuan: "hitungan", toleransi: 0 },
+  milestone_selesai: { satuan: "hitungan", toleransi: 0 },
+  milestone_perlu_perbaikan: { satuan: "hitungan", toleransi: 0 },
 } as const;
 export type Metrik = keyof typeof METRIK;
 export const NAMA_METRIK = Object.keys(METRIK) as Metrik[];

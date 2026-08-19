@@ -7,6 +7,7 @@ import { aiStructured } from "@/lib/ai/structured";
 import type { AiRunKind } from "@/generated/prisma/enums";
 import { checkAiGuard, estimateCostUsd, getAiPricing } from "./guard";
 import { buildPortfolioPulse, buildQualityDetails, resolveAiScope } from "./source";
+import { LABEL_WILAYAH, buildAdapterFacts, gabungFakta } from "./adapters";
 import { runQualityRules } from "./quality-rules";
 import {
   buildNarrativeBundle,
@@ -143,7 +144,24 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
     );
   }
   const narrativeRefs = narrativeBundle ? toNarrativeSourceRefs(narrativeBundle) : [];
-  const allSourceRefs = [...pulse.sourceRefs, ...narrativeRefs];
+
+  /*
+   * ADAPTER SUMBER (DECISIONS 379) — kontrak, keuangan, RAB, milestone KKP.
+   *
+   * Dipagari KAPABILITAS penanya, bukan hanya scope lokasi: `site_manager`
+   * punya `ai.ask` tapi TIDAK punya `finance.view`, dan `wakil_ppk` sengaja
+   * dijauhkan dari uang internal pelaksana. Lihat `adapters.ts`.
+   *
+   * Dipanggil DI SINI, sebelum `allSourceRefs` dirakit, supaya sumber tambahan
+   * ikut tersimpan di `sourcesJson` dan snapshot resmi — kalau tidak, sitasi ke
+   * kontrak/keuangan tidak punya label maupun tautan saat dirender.
+   */
+  const tambahan =
+    input.kind === "tanya"
+      ? await buildAdapterFacts(user, scope.ids, pulse.periodEnd)
+      : { refs: [], fakta: [], dilewati: [] };
+
+  const allSourceRefs = [...pulse.sourceRefs, ...narrativeRefs, ...tambahan.refs];
   const readinessAvg = pulse.rows.length
     ? Math.round(pulse.rows.reduce((s, r) => s + r.readiness.score, 0) / pulse.rows.length)
     : 0;
@@ -220,7 +238,12 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
   if (input.kind === "tanya") {
     // Bentuk klaim yang dituntut validator disodorkan apa adanya — lihat
     // `buildFaktaPayload` untuk alasannya (DECISIONS 378).
-    payload += `\n\n${buildFaktaPayload(pulse, { maxRows: guardCfg.maxLocationsPerRun })}`;
+    payload += `\n\n${buildFaktaPayload(pulse, {
+      maxRows: guardCfg.maxLocationsPerRun,
+      tambahan: tambahan.fakta,
+      refTambahan: tambahan.refs,
+      dilewati: tambahan.dilewati.map((w) => LABEL_WILAYAH[w]),
+    })}`;
   }
   const template = input.kind === "laporan" ? aiReportTemplate(input.templateKey ?? "") : undefined;
   if (input.kind === "laporan" && !template) return fail("invalid_input", "Template laporan tidak dikenal.");
@@ -279,10 +302,11 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
   if (!result.ok) return fail(result.errorCode, result.error);
 
   // 9. Grounding: buang bagian tak tergrounding, catat sebagai limitations.
-  const ctx = groundingContext(pulse, narrativeRefs);
+  const ctx = groundingContext(pulse, [...narrativeRefs, ...tambahan.refs]);
   const globals = globalNumbers(pulse);
-  // Fakta terikat (lokasi, metrik) → nilai + periode + sumber (DECISIONS 378).
-  const fakta = faktaResmi(pulse);
+  // Fakta terikat (lokasi, metrik) → nilai + periode + sumber (DECISIONS 378),
+  // ditambah fakta adapter yang boleh dilihat penanya (DECISIONS 379).
+  const fakta = gabungFakta(faktaResmi(pulse), tambahan.fakta);
   const output = result.data as Record<string, unknown>;
   const droppedNotes: string[] = [];
   const applyFilter = <T extends object>(arr: T[] | undefined): T[] => {
@@ -360,6 +384,22 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
     } else if (typeof output.answer === "string" && !numericClaimsValid(output.answer, globals)) {
       // Keluaran model lama (tanpa answerParts) tetap dijaga cara lama.
       droppedNotes.push("jawaban memuat angka persen yang tidak cocok data — verifikasi manual");
+    }
+
+    /*
+     * Wilayah yang ditahan kapabilitas ikut ke limitations (DECISIONS 379) —
+     * bukan hanya diberitahukan ke model.
+     *
+     * Model bisa lupa menyebutkannya, dan kalau itu terjadi penanya membaca
+     * jawaban yang diam-diam sebagian tanpa tanda apa pun. Baris ini tampil di
+     * layar terlepas dari apa yang model tulis.
+     */
+    if (tambahan.dilewati.length > 0) {
+      droppedNotes.push(
+        `Tidak ditampilkan untuk peran Anda: ${tambahan.dilewati
+          .map((w) => LABEL_WILAYAH[w])
+          .join(", ")} — angkanya ada, tetapi di luar hak akses Anda.`,
+      );
     }
 
     // Keyakinan DETERMINISTIK — menimpa angka yang diakui sendiri oleh model.

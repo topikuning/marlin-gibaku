@@ -1,6 +1,6 @@
 import { promptDefault } from "@/lib/ai/prompt-registry";
-import type { PortfolioPulse, PulseRow, QualityFinding, RiskItem } from "./types";
-import { faktaResmi } from "./schemas";
+import type { PortfolioPulse, PulseRow, QualityFinding, RiskItem, SourceRef } from "./types";
+import { faktaResmi, type FaktaResmi } from "./schemas";
 
 /**
  * Penyusun prompt AI Hub — data deterministik diringkas jadi payload kompak.
@@ -76,18 +76,44 @@ export function buildPulsePayload(pulse: PortfolioPulse, opts?: { maxRows?: numb
  * Jadi bentuk yang diminta validator disodorkan apa adanya: satu baris per
  * (lokasi, metrik), lengkap dengan nilai, periode, dan sumbernya.
  */
-export function buildFaktaPayload(pulse: PortfolioPulse, opts?: { maxRows?: number }): string {
+export function buildFaktaPayload(
+  pulse: PortfolioPulse,
+  opts?: { maxRows?: number; tambahan?: FaktaResmi[]; refTambahan?: SourceRef[]; dilewati?: string[] },
+): string {
   const rows = pulse.rows.slice(0, opts?.maxRows ?? 30);
   const diizinkan = new Set(rows.map((r) => r.locationId));
-  const baris = [...faktaResmi(pulse).values()]
+  const semua = [...faktaResmi(pulse).values(), ...(opts?.tambahan ?? [])];
+  const baris = semua
     .filter((f) => diizinkan.has(f.locationId))
     .map(
       (f) =>
         `- locationId=${f.locationId} metric=${f.metric} value=${f.value} periodKey=${f.periodKey} sourceRefId=${f.sourceRefId}`,
     );
+  const refs = (opts?.refTambahan ?? [])
+    .filter((r) => r.value)
+    .map((r) => `- ${r.id}: ${r.label} = ${r.value}`);
+
   return [
     "FAKTA YANG BOLEH DIKLAIM (salin PERSIS ke answerParts[].claims):",
     ...baris,
+    ...(refs.length ? ["", "SUMBER TAMBAHAN (kontrak/keuangan/RAB/milestone):", ...refs] : []),
+    /*
+     * Wilayah yang DITAHAN disebut apa adanya (DECISIONS 379).
+     *
+     * Tanpa baris ini model menyimpulkan "tidak ada data keuangan" dan
+     * menuliskannya sebagai fakta — jawaban yang salah untuk alasan yang tidak
+     * kelihatan. Yang ditahan adalah ANGKANYA; keberadaan pagarnya sendiri
+     * bukan rahasia, dan justru harus terbaca penanya supaya ia tahu harus
+     * meminta akses, bukan mengira datanya belum diisi.
+     */
+    ...(opts?.dilewati?.length
+      ? [
+          "",
+          `TIDAK DITAMPILKAN untuk peran penanya: ${opts.dilewati.join(", ")}.`,
+          "Jangan menyimpulkan datanya kosong atau nol. Katakan bahwa angkanya tidak",
+          "tersedia untuk peran penanya, dan sarankan menghubungi yang berwenang.",
+        ]
+      : []),
     "",
     "Setiap bagian jawaban yang menyebut angka WAJIB membawa claims dari daftar di atas,",
     "dengan value, periodKey, dan sourceRefId PERSIS seperti tertulis. Bagian yang menyebut",
