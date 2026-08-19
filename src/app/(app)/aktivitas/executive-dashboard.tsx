@@ -68,7 +68,7 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
       </header>
 
       {/* KPI row */}
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2 xl:grid-cols-5">
         <StatCard icon={<MapPin aria-hidden />} tone="info" label="Total Lokasi" value={kpi.totalLokasi} sub="Aktif dipantau" />
         <StatCard
           icon={<CheckCircle2 aria-hidden />}
@@ -94,7 +94,7 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
             </>
           }
         />
-        <StatCard icon={<FileText aria-hidden />} tone="primary" label="Total Laporan Hari Ini" value={kpi.totalReportsToday} sub="Laporan harian + kegiatan lapangan" />
+        <StatCard icon={<FileText aria-hidden />} tone="primary" label="Total Laporan Hari Ini" value={kpi.totalReportsToday} sub="harian + kegiatan lapangan" />
         <StatCard
           icon={<AlertTriangle aria-hidden />}
           tone="danger"
@@ -105,7 +105,7 @@ export async function ExecutiveDashboard({ user }: { user: SessionUser }) {
       </div>
 
       {/* Portofolio & administrasi (gabungan Command Center) */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-5">
         <StatCard
           icon={<Wallet aria-hidden />}
           tone="primary"
@@ -402,15 +402,34 @@ const TONE_ICON: Record<Tone, string> = {
   primary: "bg-primary-50 text-primary",
 };
 
+/**
+ * Kartu angka dashboard — dipampatkan mengikuti `KpiCard` (DECISIONS 361/366).
+ *
+ * Sepuluh kartu ini adalah hal PERTAMA di layar, dan sebelumnya memakan 264px
+ * di 1280px — 764px di HP, artinya peta, daftar "belum submit", dan kendala
+ * seluruhnya di bawah lipatan. Angkanya ringkasan, bukan judul halaman.
+ *
+ * Ukurannya disamakan dengan `KpiCard` (`px-3 py-2`, label 11px, nilai
+ * `text-xl`, jarak `mt-0.5`) supaya dashboard tidak jadi satu-satunya tempat
+ * dengan kartu berukuran sendiri. Ikonnya tetap ada — ia penanda tone yang
+ * dipakai orang untuk memindai — hanya mengecil.
+ *
+ * Ikon duduk di samping ANGKA, bukan di samping label. Ini bukan selera:
+ * label tetap dapat lebar penuh, dan label seperti "Total Laporan Hari Ini"
+ * berhenti melipat jadi dua baris — sementara ikon 20px tetap lebih pendek
+ * dari angkanya, jadi barisnya tidak bertambah tinggi sama sekali. `h-full`
+ * menyamakan tinggi sebaris, jadi satu label yang melipat menaikkan kelima
+ * kartu sekaligus.
+ */
 function StatCard({ icon, tone, label, value, sub, href }: { icon: ReactNode; tone: Tone; label: string; value: ReactNode; sub?: ReactNode; href?: string }) {
   const card = (
-    <Card className="flex h-full flex-col p-3">
-      <div className="flex items-center gap-2">
-        <span className={`flex size-7 shrink-0 items-center justify-center rounded-md [&>svg]:size-4 ${TONE_ICON[tone]}`}>{icon}</span>
-        <span className="text-[10px] font-medium uppercase leading-tight tracking-wide text-ink-muted">{label}</span>
+    <Card className="flex h-full flex-col px-3 py-2">
+      <span className="text-[11px] font-medium uppercase leading-tight tracking-wide text-ink-muted">{label}</span>
+      <div className="mt-0.5 flex items-center gap-1.5">
+        <span className={`flex size-5 shrink-0 items-center justify-center rounded [&>svg]:size-3 ${TONE_ICON[tone]}`}>{icon}</span>
+        <span className="tabular text-xl font-semibold leading-tight text-ink">{value}</span>
       </div>
-      <div className="tabular mt-2 text-2xl font-semibold leading-none text-ink">{value}</div>
-      {sub ? <div className="mt-1.5 text-[11px] text-ink-muted">{sub}</div> : null}
+      {sub ? <div className="mt-0.5 text-[11px] leading-snug text-ink-muted">{sub}</div> : null}
     </Card>
   );
   return href ? (
@@ -427,16 +446,19 @@ function Delta({ value, pct, goodWhenUp }: { value: number; pct: number; goodWhe
   const good = goodWhenUp ? up : !up;
   const Icon = up ? ArrowUpRight : ArrowDownRight;
   return (
+    /* `whitespace-nowrap` + teks sependek mungkin: di kolom 2-baris HP, satu
+       kata tambahan membuat baris ini melipat dan MENAMBAH tinggi ke seluruh
+       baris kartu, karena `h-full` menyamakan tinggi sebaris. */
     <span className={`inline-flex items-center gap-0.5 whitespace-nowrap font-medium ${good ? "text-success" : "text-danger"}`}>
-      <Icon aria-hidden className="size-3.5" />
-      {value > 0 ? "+" : ""}{value} ({formatPct(Math.abs(pct))}) dari kemarin
+      <Icon aria-hidden className="size-3" />
+      {value > 0 ? "+" : ""}{value} ({formatPct(Math.abs(pct))}) vs kemarin
     </span>
   );
 }
 
 function Bar({ value, tone }: { value: number; tone: "success" | "warning" }) {
   return (
-    <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-surface-inset">
+    <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-surface-inset">
       <div className={tone === "success" ? "h-full rounded-full bg-success" : "h-full rounded-full bg-warning"} style={{ width: `${Math.min(100, value)}%` }} />
     </div>
   );

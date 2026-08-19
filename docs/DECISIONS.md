@@ -17348,3 +17348,73 @@ gambar jadi yatim).
 Seed khusus manual belum dibuat, jadi gambar sekarang masih memakai seed lama yang
 menampilkan deviasi −99,9%. Bab lapangan & manajemen baru kerangka pertama.
 Daftar lengkapnya di `docs/manual/README.md`.
+
+---
+
+## 366 — Kartu KPI dashboard ikut dimampatkan (2026-08-19)
+
+**Keluhan user:** *"mampatkan kpi card"* — dengan tangkapan layar Dashboard
+Eksekutif, sepuluh kartu dalam kisi 5×2.
+
+Ini keluhan yang SAMA dengan 361 (*"kotak/card itu terlalu besar, kurang
+compact. itu di semua menu"*), datang lagi sebulan kemudian. Sebabnya bukan 361
+salah, melainkan tidak lengkap: 361 mengecilkan primitif `KpiCard`, sementara
+dashboard memakai `StatCard` **buatannya sendiri** di
+`app/(app)/aktivitas/executive-dashboard.tsx` yang tidak ikut terpengaruh.
+Sesudah perbaikan ini, `grep` tidak lagi menemukan kartu angka bergaya sendiri
+di luar dua tempat itu.
+
+### Ongkos yang nyata
+
+Sepuluh kartu itu hal PERTAMA di layar, dan mereka memakan:
+
+| | sebelum | sesudah | |
+|---|---|---|---|
+| tinggi satu kartu (1280px) | 126px | 86px | −32% |
+| blok KPI (1280px) | 264px | 186px | −30% |
+| blok KPI (375px, kisi 2 kolom) | 764px | 536px | −30% |
+
+Peta, daftar "belum submit", dan kendala — yang sebenarnya dicari orang —
+terdorong sejauh itu ke bawah, setiap kali halaman dibuka.
+
+### Yang diubah
+
+Ukurannya disamakan dengan `KpiCard` (`px-3 py-2`, label 11px, nilai `text-xl`,
+jarak `mt-0.5`, kisi `gap-2`), ikon 28px → 20px, bilah 6px → 4px.
+
+Satu perubahan bukan sekadar penyetelan angka: **ikon dipindah ke samping ANGKA,
+bukan di samping label.** Alasannya terukur, bukan selera. Selama ikon duduk di
+baris label, ia memakan 26px lebar sehingga "Total Laporan Hari Ini" melipat jadi
+dua baris; `h-full` menyamakan tinggi sebaris, jadi SATU label yang melipat
+menaikkan kelima kartu sekaligus. Dipindah ke baris angka, labelnya dapat lebar
+penuh dan berhenti melipat — sementara ikon 20px tetap lebih pendek dari angka
+`text-xl`, jadi barisnya tidak bertambah tinggi sama sekali. Pemindahan itu
+sendiri menyumbang 105px → 86px dari total penghematan.
+
+Teks delta dipendekkan "dari kemarin" → "vs kemarin" dan diberi
+`whitespace-nowrap`: di kolom dua-baris HP, satu kata tambahan melipat baris itu
+dan menaikkan seluruh baris kartu. Sub "Laporan harian + kegiatan lapangan" →
+"harian + kegiatan lapangan" karena labelnya sudah menyebut "Total Laporan".
+Tidak ada informasi yang dihapus — tidak ada label yang dipotong, tidak ada
+angka yang disingkat.
+
+### Penjaganya mengukur yang DIRASAKAN, bukan tinggi kartu
+
+`tests/e2e/dashboard-kpi-mampat.spec.ts` tidak mengunci "tinggi kartu ≤ N px" —
+angka itu berubah tiap kali padding atau font disetel, dan penjaga yang merah
+karena hal sah adalah penjaga yang cepat dimatikan. Yang dikunci: **berapa jauh
+isi sungguhan terdorong turun oleh blok KPI**, diukur dari puncak kartu pertama
+ke judul panel pertama di bawahnya. Ukuran itu tidak bergantung pada struktur DOM
+kartu sama sekali.
+
+Dua penjaga pendamping menutup cara paling gampang mencurangi "mampat": setiap
+label harus tetap terlihat utuh dan tidak ada kartu yang isinya meluber keluar
+kotaknya (`scrollHeight > clientHeight`), serta halaman tidak boleh melebar ke
+samping (217).
+
+**Uji gigi:** tata letak lama dikembalikan → merah di kedua project, desktop dan
+mobile (ponsel: 772px vs anggaran 640px). Empat uji lain tetap hijau — betul,
+karena tata letak lama memang tidak memotong teks. Dikembalikan → 6/6 hijau.
+Nilai terlebar yang mungkin ("Rp 1.234,56 M") disuntikkan di 375/412/768/1280px:
+0px meluber, dan penyuntiknya sendiri melempar kalau elemennya tidak ketemu —
+supaya ujinya tidak hijau karena tidak menguji apa-apa.
