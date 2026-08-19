@@ -1673,6 +1673,52 @@ model Document {
 // ─────────────────────────────────────────────────────────────
 
 /// APPEND-ONLY (trigger): diisi helper audit() pada setiap mutasi
+/// Status pemrosesan satu pesan masuk WhatsApp (DECISIONS 372).
+enum WaJobStatus {
+  antre
+  berjalan
+  selesai
+  /// Sudah melewati batas percobaan — TIDAK dicoba lagi, dan harus terlihat admin.
+  gagal
+}
+
+/// ANTREAN JAWABAN WhatsApp — webhook menaruh pekerjaan di sini lalu langsung
+/// membalas 200; processor yang menjalankan AI dan pengiriman (DECISIONS 372).
+///
+/// Sebelumnya webhook menunggu ingest, guard, provider AI, query data, DAN
+/// pengiriman WAHA sebelum mengembalikan 200. Provider yang lambat membuat
+/// endpoint tampak mati, WAHA me-retry, dan event yang sama memicu AI serta
+/// balasan dua kali — kuota AI terhitung dua kali, penerima dapat dua pesan.
+model WaReplyJob {
+  id String @id @default(uuid()) @db.Uuid
+
+  /// Kunci idempotensi = id pesan inbound. UNIQUE: satu pesan masuk hanya boleh
+  /// melahirkan SATU pekerjaan jawab, berapa pun kali WAHA mengirim ulang.
+  waMessageId String @unique @map("wa_message_id")
+
+  chatId String @map("chat_id")
+
+  /// Payload webhook apa adanya. Disimpan supaya processor tidak perlu
+  /// bergantung pada webhook mem-parse lebih dulu — dan supaya pekerjaan yang
+  /// gagal bisa diperiksa persis dengan masukan yang sama.
+  payload Json
+
+  status        WaJobStatus @default(antre)
+  attempts      Int         @default(0)
+  lastError     String?     @map("last_error")
+  /// Backoff: pekerjaan tidak diambil sebelum waktu ini.
+  nextAttemptAt DateTime    @default(now()) @map("next_attempt_at") @db.Timestamptz
+  startedAt     DateTime?   @map("started_at") @db.Timestamptz
+  finishedAt    DateTime?   @map("finished_at") @db.Timestamptz
+  /// Alasan hasil dari `jawabPertanyaanWa` — termasuk "diam" yang disengaja.
+  hasil         String?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([status, nextAttemptAt])
+  @@map("wa_reply_jobs")
+}
+
 model AuditLog {
   id           String   @id @default(uuid()) @db.Uuid
   userId       String?  @map("user_id") @db.Uuid

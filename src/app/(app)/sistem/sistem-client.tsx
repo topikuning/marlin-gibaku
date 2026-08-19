@@ -567,12 +567,24 @@ export function WahaWebhookPanel({
   capturedCount,
   lastCapturedAt,
   hits,
+  antrean,
 }: {
   webhookUrl: string | null;
   hasSecret: boolean;
   capturedCount: number;
   lastCapturedAt: string | null;
   hits: { at: string; tokenOk: boolean; event: string; chatId: string | null; outcome: string }[];
+  /**
+   * Antrean jawaban (DECISIONS 372). Pekerjaan yang GAGAL permanen harus
+   * terlihat: dead-letter yang tidak terlihat sama saja dengan pesan yang
+   * hilang — dan gejalanya di lapangan identik ("bot-nya tidak menjawab").
+   */
+  antrean: {
+    antre: number;
+    berjalan: number;
+    gagal: number;
+    contohGagal: { chatId: string; lastError: string | null; attempts: number }[];
+  };
 }) {
   const [state, action, pending] = useActionState<WaActionState, FormData>(
     generateWahaWebhookSecretAction,
@@ -668,6 +680,34 @@ export function WahaWebhookPanel({
           MARLIN sehat, lepas dari WAHA. Tabel di bawah mencatat <b>setiap</b> POST yang benar-benar
           mendarat (10 terakhir): kalau kosong setelah kirim pesan → WAHA belum sampai ke server.
         </p>
+
+        <div className="mt-3 rounded-md border border-border bg-surface-muted p-3">
+          <p className="text-[13px] font-semibold text-ink">Antrean jawaban</p>
+          <p className="mt-0.5 text-xs text-ink-muted">
+            Webhook hanya menaruh pekerjaan di antrean lalu langsung membalas 200; AI dan
+            pengiriman dijalankan processor. Satu pesan masuk = satu pekerjaan, berapa pun kali
+            WAHA mengirim ulang.
+          </p>
+          <p className="tabular mt-2 text-[13px]">
+            <span className="text-ink-muted">Antre</span>{" "}
+            <b>{antrean.antre}</b>
+            <span className="text-ink-faint"> · </span>
+            <span className="text-ink-muted">Berjalan</span> <b>{antrean.berjalan}</b>
+            <span className="text-ink-faint"> · </span>
+            <span className="text-ink-muted">Gagal</span>{" "}
+            <b className={antrean.gagal > 0 ? "text-danger" : undefined}>{antrean.gagal}</b>
+          </p>
+          {antrean.contohGagal.length > 0 ? (
+            <ul className="mt-2 space-y-1 text-xs text-ink-muted">
+              {antrean.contohGagal.map((g, i) => (
+                <li key={i}>
+                  <span className="font-mono">{g.chatId}</span> — {g.attempts}× gagal:{" "}
+                  <span className="text-danger">{g.lastError ?? "(tanpa pesan)"}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
 
         {hits.length === 0 ? (
           <p className="mt-2 text-[13px] text-ink-muted">

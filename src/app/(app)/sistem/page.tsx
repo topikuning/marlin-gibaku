@@ -7,6 +7,7 @@ import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { env } from "@/lib/env";
 import { isR2Configured } from "@/lib/r2";
 import { getWahaConfigDisplay, getWahaHits } from "@/lib/waha/config";
+import { ringkasAntreanWa } from "@/lib/waha/antrean";
 import { getGDriveConfigDisplay } from "@/lib/gdrive/config";
 import { driveRedirectUriFrom } from "@/lib/gdrive/origin";
 import { parseAkar } from "@/lib/akar";
@@ -176,10 +177,11 @@ export default async function SistemPage() {
   const webhookUrl = wahaDisplay.webhookSecret
     ? `${origin}/api/waha/webhook?token=${encodeURIComponent(wahaDisplay.webhookSecret)}`
     : null;
-  const [waCapturedCount, waLast, waHits] = await Promise.all([
+  const [waCapturedCount, waLast, waHits, antreanWa] = await Promise.all([
     db.waMessage.count(),
     db.waMessage.findFirst({ orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
     getWahaHits(),
+    ringkasAntreanWa(),
   ]);
   const waHitsFmt = waHits.map((hit) => ({ ...hit, at: formatTanggalWaktu(new Date(hit.at)) }));
 
@@ -359,6 +361,7 @@ export default async function SistemPage() {
             capturedCount={waCapturedCount}
             lastCapturedAt={waLast ? formatTanggalWaktu(waLast.createdAt) : null}
             hits={waHitsFmt}
+            antrean={antreanWa}
           />
         </CardBody>
       </Card>
