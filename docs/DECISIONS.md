@@ -17502,3 +17502,125 @@ hasil uji**, dan yang merah bukan uji yang berubah. Satu uji sudah membersihkann
 sendiri sejak dulu; pembersihan itu diangkat ke `beforeEach` karena memang milik
 seluruh berkas. Tidak ada uji di sana yang menguji BATASnya sendiri — yang ada
 menghitung selisih baris, dan selisih tidak terganggu penolan.
+
+---
+
+## 368 — Paket & Katalog Lokasi dirombak; katalog pindah ke Master Data (2026-08-19)
+
+**Permintaan user** (dengan dua berkas rancangan, `01_paket.html` &
+`02_katalog_lokasi.html`): *"rombak halaman paket dengan referensi file 01_paket,
+dan halaman master data lokasi dengan 02_katalog. sambungkan ke menu master
+data"*, ditambah dua aturan UX yang disebut eksplisit:
+
+> *"jika koordinat belum ada, lokasi tetap bisa disimpan tetapi diberi status
+> Perlu verifikasi. Sebelum menyimpan, sistem seharusnya memeriksa duplikasi
+> berdasarkan kombinasi wilayah agar tidak membuat lokasi ganda."*
+
+### Katalog lokasi pindah rumah
+
+Dari `/paket/katalog` → `/master/lokasi`. Ia **data induk yang DIPAKAI paket**,
+bukan milik satu paket: lokasi yang sama bisa dipakai paket mana pun. Selama ia
+bersarang di bawah `/paket`, orang yang mencari "master lokasi" tidak
+menemukannya di tempat semua master lain berada. Rute lamanya `permanentRedirect`,
+tidak dihapus — alamat itu sudah beredar di tautan dan riwayat peramban, dan 404
+untuk alamat yang kemarin masih bekerja terbaca sebagai "fiturnya dihilangkan".
+
+### Dua jalur input yang tidak bercampur
+
+Sebelumnya satu-satunya jalan masuk adalah impor Excel: untuk menambahkan SATU
+desa pun orang harus membuat berkas. Sekarang **Tambah Lokasi** (laci manual) dan
+**Impor Excel** berdiri berdampingan, memakai bahasa rupa master data yang sama
+(359): ringkasan angka, bilah "perlu perhatian", daftar bersaringan, laci.
+
+### Aturan 1 — koordinat kosong ≠ ditolak
+
+Statusnya turunan, tidak pernah kolom yang disunting, dengan urutan prioritas
+**terpakai > sudah ada > perlu verifikasi > tersedia**. Urutan itu dipilih dari
+*"apa yang harus dilakukan orang terhadap baris ini"*: baris yang sudah terpakai
+tidak menunggu apa pun, sementara baris tersedia tanpa koordinat menunggu
+diperbaiki sebelum dipakai.
+
+Satu tambahan yang tidak diminta tapi menutup lubang di aturan itu: **separuh
+koordinat DITOLAK**. Lintang tanpa bujur tidak menunjuk tempat mana pun, tapi
+kolomnya terisi — sehingga barisnya lolos dari "perlu verifikasi" dan tak
+seorang pun kembali memperbaikinya. Kosong seluruhnya jujur; separuh terisi
+menipu. Koordinat di luar kotak Indonesia juga ditolak dengan menyebut sebabnya
+("periksa apakah tertukar dengan bujur") — lintang & bujur tertukar adalah salah
+ketik paling lazim, dan hasilnya titik di tengah laut yang tidak diperiksa lagi.
+
+### Aturan 2 — periksa duplikat SEBELUM menyimpan, lebih longgar dari indeks unik
+
+Indeks unik `@@unique([orgId, province, regency, district, village])` sudah ada
+sejak dulu — dan ia **tidak cukup**, karena hanya menangkap yang hurufnya persis
+sama. Lokasi ganda yang benar-benar terjadi lahir dari ejaan berbeda tipis:
+"Kedungmutih" vs "Kedung Mutih", kasus nyata di data ini.
+
+Karena itu `cariDuplikat()` membandingkan dengan normalisasi longgar (abai
+huruf besar-kecil dan spasi, kecamatan cocok bila sama ATAU salah satu kosong),
+dan memeriksa **katalog DAN Location riil** — menambah baris katalog untuk desa
+yang sudah berjalan sebagai proyek adalah bentuk lokasi ganda yang paling
+merepotkan, karena angkanya terpecah dua tanpa ada yang sadar.
+
+Dua perlakuan, sengaja berbeda:
+
+- **`persis`** tidak pernah boleh dipaksa — indeks unik akan menolaknya, jadi
+  memberi tombol "tetap simpan" cuma menjanjikan sesuatu yang berakhir dengan
+  galat mentah.
+- **`mirip`** boleh dipaksa SESUDAH kandidatnya terlihat. Desa senama di
+  kecamatan berbeda itu nyata, dan menolaknya berarti melarang data yang benar
+  demi mencegah data yang salah.
+
+Kandidatnya selalu DISEBUT, bukan sekadar ditolak: penolakan tanpa menunjukkan
+yang mana memaksa orang mencari sendiri di daftar 73 baris.
+
+### Halaman Paket: funnel + kolom Status Data
+
+Deskripsi halaman ini sudah berbunyi *"funnel paket pekerjaan: prospek → tender
+→ …"* sejak lama, tapi tidak ada satu pun tempat di layar yang memperlihatkan
+sebarannya — kalimatnya menjanjikan sesuatu yang tidak ada. Sekarang ada, dan
+tiap langkah adalah tautan saringan. Angkanya dihitung dari query terpisah,
+bukan dari baris yang tampil: funnel yang ikut menyusut saat orang memilih satu
+tahap berhenti menjadi gambaran keseluruhan.
+
+`kesiapanPaket()` diukur **terhadap TAHAPNYA**. Prospek tanpa lokasi itu wajar —
+prospek memang belum tentu jadi — dan kalau ia ikut merah, seluruh kolom merah
+pada paket yang tidak salah apa-apa. Yang benar-benar menghambat adalah paket
+yang sudah berkontrak tapi belum punya lokasi.
+
+**Versi pertama fungsi itu salah, dan ketahuan dari layar, bukan dari uji.**
+Grup WA & folder Drive ikut dihitung sebagai catatan; hasilnya di data nyata:
+SELURUH paket pelaksanaan berlencana "Perlu cek" yang sama, karena tak satu pun
+punya grup WA. Kolom yang warnanya seragam tidak membedakan apa pun, dan yang
+tidak membedakan apa pun berhenti dibaca — persis kegagalan yang komentar di
+fungsi itu sendiri peringatkan. Keduanya dikeluarkan seluruhnya; keduanya sudah
+punya kolom sendiri sejak 2026-07-30. Sesudah itu kolomnya benar-benar
+membedakan: Arsip / Perlu cek / Lengkap.
+
+Letaknya tepat sesudah Stage, bukan di ujung kanan: kolom yang harus digulir
+dulu untuk dilihat sama saja dengan tidak ada — dan tahap + kesiapan memang
+dibaca berpasangan ("pelaksanaan, tapi lokasinya belum ada").
+
+### Uji gigi, dan satu bukti tak terduga
+
+Penjaga duplikat dimatikan → uji e2e "wilayah yang sudah ada DITAHAN" merah,
+tiga uji lain tetap hijau (benar — mereka tidak bergantung padanya). Yang
+menarik: pada saat penjaga mati, basis data **menerima** baris kedua
+`bali/buleleng/gerokgak/sumberkima` di samping `Bali/Buleleng/Gerokgak/Sumberkima`
+yang sudah ada. Indeks uniknya tidak berbunyi sama sekali. Itu bukan skenario
+karangan — itu hasil mengetik nama daerah dengan huruf kecil, dan itulah persis
+alasan pemeriksaan ini harus lebih longgar daripada indeks basis data.
+
+Tiga kekeliruan uji buatan sendiri yang ikut diperbaiki, semuanya sejenis
+"hijau yang tidak membuktikan apa-apa":
+
+1. `getByText(/kosongkan keduanya/)` juga cocok dengan teks BANTUAN di formulir,
+   bukan hanya pesan galatnya — ujinya bisa hijau tanpa galat pernah muncul.
+   Diganti kalimat yang hanya ada di banner.
+2. `getByText("Sumberkima").first()` mengenai salinan tabel desktop yang sedang
+   disembunyikan CSS di ponsel (daftarnya dirender dua kali). Dibatasi ke laci.
+3. Pembuktian "tersimpan" hanya membaca kalimat sukses. Sekarang barisnya
+   dicari di daftar, dibatasi ke `region` "Daftar lokasi" — yang sekaligus
+   memberi daftar itu nama aksesibel yang memang seharusnya ia punya.
+
+Satu penjaga lama ikut bekerja tanpa diminta: `rute-terjaga.test.ts` menolak
+`/master/lokasi` karena rute baru itu belum masuk sapuan overflow mobile.

@@ -80,7 +80,7 @@ export const MAIN_NAV: NavItem[] = [
     label: "Master Data",
     href: "/master",
     icon: "database",
-    anyCapability: ["contract.manage", "wa.chat", "user.create"],
+    anyCapability: ["contract.manage", "package.bypass", "wa.chat", "user.create"],
   },
   { label: "Sistem", href: "/sistem", icon: "settings", capability: "system.manage" },
 ];
