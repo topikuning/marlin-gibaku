@@ -1,7 +1,8 @@
 import "server-only";
 import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma/client";
-import { isWaMessageEvent, kerangkaPayload, parseWaEvent, varianChatId } from "./ingest-parse";
+import { isWaMessageEvent, kerangkaPayload, parseWaEvent } from "./ingest-parse";
+import { kanonikGrupId } from "./grup-id";
 
 /**
  * Ingest event webhook WAHA → tabel wa_messages. Cakupan: HANYA pesan dari grup
@@ -31,16 +32,18 @@ export async function ingestWaEvent(body: unknown): Promise<IngestResult> {
   /*
    * Cakupan: hanya grup tertaut paket (privasi + relevansi). Grup lain diabaikan.
    *
-   * Dicocokkan ke SELURUH VARIAN tulisan, bukan satu teks (DECISIONS 348).
-   * `m.chatId` kini kanonik, sedangkan `waGroupId` yang sudah tersimpan memakai
-   * bentuk apa pun yang kebetulan datang saat ditautkan. Mencocokkan kanonik
-   * lawan kanonik saja akan memutus tautan grup yang selama ini bekerja —
-   * memperbaiki satu hal sambil merusak yang lain.
+   * Dicocokkan dengan bentuk KANONIK, satu lawan satu (DECISIONS 370).
+   * Sebelumnya di sini dipakai `findFirst` atas seluruh varian tulisan
+   * (DECISIONS 348) karena baris lama menyimpan bentuk apa pun yang kebetulan
+   * datang. Migration `20260819120000_wa_group_unik` mengkanonikkan seluruh
+   * baris dan memasang indeks unik, jadi pencocokan longgar tidak lagi
+   * diperlukan — dan pencocokan longgar itulah yang membuat paket mana yang
+   * terpilih bergantung pada urutan baris.
    */
-  const pkg = await db.package.findFirst({
-    where: { waGroupId: { in: varianChatId(m.chatId) } },
-    select: { id: true },
-  });
+  const kanonik = kanonikGrupId(m.chatId);
+  const pkg = kanonik
+    ? await db.package.findUnique({ where: { waGroupId: kanonik }, select: { id: true } })
+    : null;
   if (!pkg) {
     // Chat PRIBADI memang tidak pernah disimpan — itu bukan kesalahan
     // penautan, dan sejak tanya-jawab bebas (DECISIONS 339) chat pribadi

@@ -13,7 +13,8 @@ import {
   type PemakaiAi,
 } from "@/lib/ai-hub/guard";
 import { getIdentitasMarlin, sendText } from "./client";
-import { medanJidPayload, parseWaEvent, varianChatId, type ParsedWaMessage } from "./ingest-parse";
+import { medanJidPayload, parseWaEvent, type ParsedWaMessage } from "./ingest-parse";
+import { kanonikGrupId } from "./grup-id";
 import {
   bersihkanMention,
   cocokkanNomorPengguna,
@@ -178,11 +179,24 @@ type PaketGrup = { id: string; nama: string; orgId: string; lokasiIds: string[] 
  * dikirim ke grup itu — data tenant tidak pernah keluar dari grup tenant itu.
  */
 async function paketGrup(chatId: string): Promise<PaketGrup> {
-  const p = await db.package.findFirst({
-    // Seluruh varian tulisan, sama seperti ingest (DECISIONS 348) — kalau di
-    // sini hanya bentuk kanonik, grup yang pesannya TERSIMPAN tetap dianggap
-    // "tidak tertaut" saat menjawab, dan jawabannya dipangkas jadi kosong.
-    where: { waGroupId: { in: varianChatId(chatId) } },
+  /*
+   * `findUnique` atas bentuk KANONIK — bukan lagi `findFirst` atas daftar varian
+   * (DECISIONS 370).
+   *
+   * Pencocokan varian dulu perlu karena baris lama tersimpan dalam bentuk apa
+   * pun yang kebetulan datang (DECISIONS 348). Sesudah migration
+   * `20260819120000_wa_group_unik` mengkanonikkan seluruh baris DAN memasang
+   * indeks unik, dua hal itu hilang sekaligus: bentuknya tunggal, dan satu grup
+   * paling banyak dimiliki satu paket.
+   *
+   * Bedanya bukan kerapian. `findFirst` atas beberapa varian berarti paket mana
+   * yang menjawab ditentukan urutan baris — data paket A bisa terkirim ke grup
+   * paket B, tanpa galat apa pun.
+   */
+  const kanonik = kanonikGrupId(chatId);
+  if (!kanonik) return null;
+  const p = await db.package.findUnique({
+    where: { waGroupId: kanonik },
     select: {
       id: true,
       name: true,

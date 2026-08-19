@@ -175,6 +175,30 @@ export async function setPackageWaGroupAction(
       } catch (err) {
         return fail(err);
       }
+
+      /*
+       * Grup yang SUDAH dipakai paket lain ditolak DI SINI, dengan menyebut
+       * paketnya (DECISIONS 370).
+       *
+       * Indeks unik di basis data tetap jadi pagar terakhir, tapi galatnya
+       * berbunyi "Unique constraint failed on the fields: (`wa_group_id`)" —
+       * benar, dan tidak menolong siapa pun. Yang dibutuhkan admin adalah nama
+       * paket yang harus dilepas lebih dulu.
+       *
+       * Dicek terhadap bentuk kanonik, jadi "12036…:12@G.US" pun tertangkap
+       * sebagai grup yang sama.
+       */
+      const pemilik = await db.package.findUnique({
+        where: { waGroupId: groupId },
+        select: { id: true, name: true },
+      });
+      if (pemilik && pemilik.id !== pkg.id) {
+        return {
+          error:
+            `Grup itu sudah dipakai paket "${pemilik.name}". Satu grup WhatsApp hanya boleh ` +
+            `milik satu paket — lepaskan dulu dari paket itu, baru tautkan ke sini.`,
+        };
+      }
     }
 
     // Verifikasi ke WAHA saat ID diisi: tarik NAMA GRUP yang sebenarnya supaya

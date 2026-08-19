@@ -470,7 +470,11 @@ model Package {
   cancelReason        String?      @map("cancel_reason")
   // Grup WhatsApp tujuan kiriman laporan/kegiatan paket ini (WAHA chatId, mis.
   // "12036300...@g.us"). Semua lokasi di paket ini mengirim ke grup yang sama.
-  waGroupId           String?      @map("wa_group_id")
+  // SATU grup WhatsApp = SATU paket (DECISIONS 370). Tanpa batasan ini, dua
+  // paket bisa menunjuk grup yang sama dan paket mana yang menjawab ditentukan
+  // urutan baris — data paket A terkirim ke grup paket B. NULL boleh banyak:
+  // PostgreSQL menganggap tiap NULL berbeda, dan paket tanpa grup itu wajar.
+  waGroupId           String?      @unique @map("wa_group_id")
   waGroupName         String?      @map("wa_group_name")
   // Folder Google Drive paket (pemberian KKP) — tujuan upload PDF/Excel laporan.
   driveFolderId       String?      @map("drive_folder_id")

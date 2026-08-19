@@ -1,5 +1,6 @@
 import "server-only";
 import { getWahaConfig } from "@/lib/waha/config";
+import { wajibKanonikGrupId } from "./grup-id";
 
 /**
  * Klien WAHA (WhatsApp HTTP API) — https://waha.devlike.pro.
@@ -34,15 +35,25 @@ async function cfg() {
   return c;
 }
 
-/** Format chatId grup: pastikan berakhiran @g.us (terima id polos atau lengkap). */
+/**
+ * Format chatId grup — SATU pintu, sekarang menumpang `wajibKanonikGrupId`
+ * (DECISIONS 370).
+ *
+ * Versi lamanya mengembalikan teks apa adanya begitu berakhiran `@g.us`,
+ * sehingga sufiks perangkat (`:12`) dan domain berhuruf besar tersimpan utuh —
+ * bentuk yang tidak akan pernah sama persis dengan yang datang dari webhook,
+ * yang memang dikanonikkan. Dua normalisasi yang tidak setuju itulah sebab
+ * pembacaan terpaksa mencocokkan seluruh varian dengan `findFirst()`.
+ *
+ * Dibiarkan tetap melempar `WahaError` supaya pemanggil lama yang menangkapnya
+ * tidak berubah perilaku.
+ */
 export function normalizeGroupChatId(raw: string): string {
-  const t = raw.trim();
-  if (!t) throw new WahaError("ID grup kosong.");
-  if (t.endsWith("@g.us")) return t;
-  if (t.endsWith("@c.us")) return t; // kontak personal (dibolehkan, walau utama grup)
-  // hanya angka (+ mungkin '-') → anggap id grup
-  if (/^[0-9-]+$/.test(t)) return `${t}@g.us`;
-  throw new WahaError(`Format ID grup tidak dikenal: ${raw} (harusnya seperti 12036300000000@g.us)`);
+  try {
+    return wajibKanonikGrupId(raw);
+  } catch (err) {
+    throw new WahaError(err instanceof Error ? err.message : "ID grup tidak valid.");
+  }
 }
 
 type ResolvedCfg = { baseUrl: string; apiKey: string; session: string };

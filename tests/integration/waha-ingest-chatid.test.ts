@@ -8,8 +8,11 @@
 //
 // Yang dibuktikan di sini adalah hal yang MUSTAHIL dibuktikan di uji murni:
 // bahwa bentuk tulisan apa pun dari engine mana pun benar-benar bertemu dengan
-// baris paket yang sudah tersimpan — termasuk baris LAMA yang ditulis dengan
-// bentuk berbeda.
+// baris paket yang sudah tersimpan.
+//
+// Sejak DECISIONS 370 sisi TERSIMPAN selalu kanonik (migration + indeks unik),
+// jadi yang berbeda-beda tinggal sisi MASUK — dan itulah yang divariasikan di
+// bawah.
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 process.env.APP_ENV ??= "test";
@@ -24,12 +27,26 @@ const { ingestWaEvent } = await import("@/lib/waha/ingest");
 
 const suffix = Math.random().toString(36).slice(2, 8);
 
-/** Grup yang ditautkan dalam bentuk KANONIK — cara paket baru ditulis. */
+/*
+ * SEMUA baris tersimpan kanonik — dan itu sekarang invarian, bukan kebetulan
+ * (DECISIONS 370).
+ *
+ * Versi pertama berkas ini menyimpan bentuk MENTAH ("…002" tanpa sufiks,
+ * "…@s.whatsapp.net") untuk meniru baris lama, karena waktu itu pembacaan
+ * memang mencocokkan seluruh varian. Sejak migration `20260819120000` seluruh
+ * `wa_group_id` dikanonikkan dan diberi indeks unik, jadi baris seperti itu
+ * tidak bisa ada lagi — menyimpannya di fixture berarti menguji keadaan yang
+ * tidak mungkin terjadi, dan menuntut pencocokan longgar yang justru dibuang
+ * karena membuat pemilihan paket bergantung pada urutan baris.
+ *
+ * Yang diuji tetap sama dan tetap penting: bentuk MASUK apa pun dari engine
+ * mana pun harus bertemu baris kanoniknya.
+ */
 const GRUP_KANONIK = "12036300000000001@g.us";
-/** Grup yang ditautkan dalam bentuk TELANJANG — data lama, tanpa sufiks. */
-const GRUP_TELANJANG = "12036300000000002";
-/** Kontak yang ditautkan dengan domain NOWEB — data lama dari engine lain. */
-const KONTAK_NOWEB = "6285799999999@s.whatsapp.net";
+/** Grup kedua — masuknya nanti diuji dalam bentuk telanjang tanpa sufiks. */
+const GRUP_TELANJANG = "12036300000000002@g.us";
+/** Kontak — masuknya nanti diuji lewat domain NOWEB maupun WEBJS. */
+const KONTAK_NOWEB = "6285799999999@c.us";
 
 let idKanonik = "";
 let idTelanjang = "";
@@ -102,15 +119,16 @@ describe("satu grup, berapa pun bentuk tulisannya", () => {
     expect([...new Set(rows.map((r) => r.chatId))]).toEqual([GRUP_KANONIK]);
   });
 
-  it("paket LAMA bertaut bentuk telanjang tetap cocok", async () => {
-    // Menormalkan hanya sisi masuk akan memutus tautan yang selama ini bekerja.
-    const r = await ingestWaEvent(event({ from: `${GRUP_TELANJANG}@g.us` }));
+  it("chatId masuk TANPA sufiks domain tetap cocok", async () => {
+    // Bentuk telanjang masih datang dari sebagian payload; ia harus menemukan
+    // baris kanoniknya, bukan dianggap grup lain.
+    const r = await ingestWaEvent(event({ from: "12036300000000002" }));
     expect(r.stored, r.reason).toBe(true);
     expect(r.packageId).toBe(idTelanjang);
   });
 
-  it("paket LAMA bertaut domain NOWEB tetap cocok dari payload WEBJS", async () => {
-    const r = await ingestWaEvent(event({ from: "6285799999999@c.us" }));
+  it("domain NOWEB dan WEBJS adalah chat yang sama", async () => {
+    const r = await ingestWaEvent(event({ from: "6285799999999@s.whatsapp.net" }));
     expect(r.stored, r.reason).toBe(true);
     expect(r.packageId).toBe(idNoweb);
   });
