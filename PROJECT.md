@@ -150,7 +150,10 @@ draft saran, TIDAK menulis Issue/Recovery), Report Studio (8 template; satu
 structuredContent → pratinjau/cetak-A4/WA/Excel dgn angka identik; lifecycle
 draft→direview→disetujui→beku→terkirim via lifecycle.ts; beku immutable),
 Ask MARLIN (grounded, read-only, bersitasi, percakapan tersimpan; scope
-percakapan bisa dibawa ke Report Studio), Riwayat & Audit (usage token/latency/
+percakapan bisa dibawa ke Report Studio; klaim angka TERIKAT lokasi+metrik+
+nilai+periode+sumber & keyakinan DIHITUNG — 0 bila tak ada klaim sah,
+DECISIONS 378; sumber kontrak/keuangan/RAB/milestone lewat adapter yang
+dipagari kapabilitas penanya — `finance.view` dst., DECISIONS 379), Riwayat & Audit (usage token/latency/
 estimasi biaya per run). Laporan WA eksekutif = template `wa_update` di Report
 Studio (menu Laporan → WA lama dilebur, route `/laporan-wa` dialihkan —
 DECISIONS 194); distribusi artefak beku menerima kontak tersimpan ATAU
