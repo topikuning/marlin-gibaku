@@ -17348,3 +17348,222 @@ gambar jadi yatim).
 Seed khusus manual belum dibuat, jadi gambar sekarang masih memakai seed lama yang
 menampilkan deviasi −99,9%. Bab lapangan & manajemen baru kerangka pertama.
 Daftar lengkapnya di `docs/manual/README.md`.
+
+---
+
+## 366 — Seed khusus buku manual: Purworejo "wajar", bukan Kedung Mutih "darurat" (2026-08-19)
+
+Lanjutan 365. Seed dev (`runDemoSeed`) sengaja menampilkan Kedung Mutih dalam
+keadaan DARURAT (4 laporan saja, kontrak sudah lewat tanggal selesai) — bagus
+untuk uji fitur, tapi kalau buku manual memotretnya, SETIAP layar `{lokasi}`
+menampilkan lencana merah "Kritis": mengajarkan pembaca baru bahwa darurat itu
+normal. `pnpm manual:seed` (`src/lib/seed/manual.ts`, skrip TERPISAH — seed e2e
+tidak disentuh) mendandani **Purworejo** — lokasi yang RAB & baseline-nya sudah
+ada dari `runDemoSeed` tapi belum pernah punya laporan harian, dan TIDAK dipakai
+satu pun uji e2e — jadi lokasi contoh dengan progres wajar.
+
+### Kenapa Purworejo, bukan lokasi baru
+
+Lebih murah menumpang RAB (2197 node) & baseline yang sudah tergenerate
+daripada mengarang RAB baru. Amannya diverifikasi dengan grep: tidak ada
+`tests/e2e/*.spec.ts` yang menyebut slug `purworejo` selain satu uji visual
+(`lokasi-pindah-ponsel.spec.ts`, cuma memeriksa teks "Purworejo" tampil dan
+tidak ada pemicu ganti-lokasi — tidak peduli isi laporannya).
+
+### Tanggal kontrak relatif ke SEKARANG, bukan tetap
+
+`WEEKS_PAST=12, WEEKS_FUTURE=8` dari `Date.now()` saat skrip dijalankan, lalu
+baseline (kurva-S) di-generate ULANG untuk jendela itu, memakai algoritma PERSIS
+`demo.ts` (`scheduleFromItems`/`autoCategoryWindowFrac`/DECISIONS 082). Alasannya
+sama dengan kenapa gambar buku dibangkitkan skrip (365): tanggal tetap cepat atau
+lambat lewat dari tanggal selesai, dan bug yang sama (rencana 100%, realisasi
+kecil = deviasi −99%) muncul lagi di lokasi "wajar" ini juga.
+
+### Realisasi per item, BUKAN per segelintir item
+
+Percobaan pertama menjitter 8 "item sorotan" saja ke ~86% volume masing-masing.
+Hasilnya realisasi portofolio 0,94% — bukan 86%. Kesalahannya jelas begitu
+dipikir ulang: realisasi lokasi = rata-rata TERTIMBANG NILAI seluruh item
+(`Σ prestasi×amount / grandTotal`), dan grandTotal Purworejo ~Rp12M dari ~1.750
+item — 8 item hanya seiris kecil nilai itu, mau 100% pun tidak menggerakkan
+angka portofolio. Diperbaiki: SEMUA item (1.755) dapat target penyelesaian
+(faktor 0,90–1,02 × rencana kumulatif minggu berjalan, PRNG mulberry32 seed
+tetap) — realisasi jadi 82,75% vs rencana 86,14% = deviasi −3,4%, dalam ±5%
+yang diminta.
+
+Percobaan kedua menyebar delta tiap item ke SEMUA 15 tanggal riwayat (ramp
+bentuk-S per item) — teknis benar, tapi tiap laporan jadi memuat ~1.750 item
+sekaligus: tidak wajar (laporan sungguhan tidak menyentuh seluruh RAB tiap
+hari) DAN berisiko halaman "Item hari ini" lambat/timeout saat dipotret.
+Diganti: tiap item dikerjakan TUNTAS pada SATU tanggal (bucket deterministik
+dari `sortOrder`, bukan acak) — ~117 item/laporan, jauh lebih wajar, dan
+`dailyReportItem.createManyAndReturn` (bukan `create` per baris) supaya tetap
+cepat.
+
+### `import "server-only"` melempar di skrip Node biasa, bukan cuma di bundle klien
+
+`@/lib/progress.ts`, `@/lib/r2.ts`, `@/lib/photo-stamp/config.ts` semua
+`import "server-only"` — dan paket itu MELEMPAR begitu modulnya di-`require`
+di proses Node apa pun yang bukan lewat bundler yang mengerti kondisi
+`"browser"` di `package.json`-nya (yakni: `tsx` menjalankan skrip seed ini
+langsung). Bukan cuma soal "jangan dipakai di client component" seperti
+namanya — di sini gejalanya modul MANA PUN yang mengimpornya, transitif
+sekalipun, membuat seluruh skrip crash saat startup.
+
+Bukan alasan melonggarkan batas server-only. Yang dipakai ulang hanya bagian
+BERSIH dari batas itu — `currentWeekNumber`/`planPctAtWeek` (disalin, pure &
+kecil), `buildStampSvg`+util format dari `photo-stamp/renderer.ts` &
+`format.ts` (memang tanpa I/O) — dan untuk R2, klien `S3Client` dipasang
+sendiri langsung dari env `R2_*`, TANPA menyentuh `@/lib/r2.ts`.
+
+### Foto: R2 opsional tapi TLS tidak boleh dimatikan
+
+`R2_ENDPOINT` divalidasi wajib `https` (`normalizeR2Endpoint`, "TLS tidak boleh
+dimatikan") — jadi mock storage lokal untuk memotret buku (`scripts/manual/mock-r2.ts`,
+S3-compatible minimal: PUT simpan ke disk, GET baca balik, TANPA verifikasi
+signature Sig V4) tetap jalan di atas TLS sungguhan (sertifikat self-signed,
+CA-nya dipercaya lewat `NODE_EXTRA_CA_CERTS` — MEMPERLUAS kepercayaan ke satu
+CA tertentu, bukan mematikan verifikasi TLS sama sekali). Tanpa R2 dikonfigurasi
+(default sandbox/dev), bagian foto DILEWATI dengan peringatan — sisanya
+(laporan/rencana/kendala/kurva-S) tetap lengkap; skrip tidak gagal.
+
+### Idempotent lewat SKIP, bukan timpa-bersih
+
+Percobaan pertama menghapus data lama sebelum membangun ulang (`deleteMany`
+DailyReport dkk) supaya skrip "selalu bisa dijalankan ulang dari nol". Gagal:
+`daily_report_status_history` APPEND-ONLY (trigger DB menolak UPDATE/DELETE,
+error Postgres eksplisit "append-only: UPDATE/DELETE dilarang") — laporan yang
+sudah dibuat tidak bisa dihapus untuk dibuat ulang, titik. Diperbaiki: skrip
+memeriksa `dailyReport.count` untuk Purworejo di awal; kalau sudah ada,
+SELURUH isi (geser kontrak/generate ulang baseline/laporan/rencana/kendala/
+foto) dilewati apa adanya. Regenerasi total (mis. tanggalnya sudah sangat
+basi) perlu reset database dev/e2e dulu — bukan sesuatu yang skrip ini
+lakukan sendiri.
+
+### Penjaga
+
+`pnpm typecheck && pnpm lint && pnpm vitest run tests/unit` hijau. Diverifikasi
+manual (query SQL memakai rumus PERSIS `getLocationsProgress`): realisasi
+82,75% vs rencana 86,14% (deviasi −3,4%), baseline monotonik 9,8%→100,0% di 20
+minggu, 18 laporan (final→disetujui→dikirim→perlu_koreksi→draft, ~117
+item/laporan), 2 rencana mingguan (minggu lalu terikat realisasi nyata, minggu
+ini target maju), 2 kendala (satu berjalan, satu selesai + `RecoveryUpdate`),
+8 foto sungguhan (cap Timemark asli ter-render, diperiksa visual) lewat
+`mock-r2.ts`.
+
+---
+
+## 367 — Bab lapangan lengkap + dua bug penjepret buku manual (2026-08-19)
+
+Lanjutan 366: sesudah Purworejo jadi lokasi contoh wajar, `pnpm manual:tangkap`
+dijalankan ulang dan bab lapangan (`docs/manual/bab/01-lapangan.md`) ditulis
+sampai lengkap — 7 layar: masuk, Hari Ini, isi laporan harian (langkah demi
+langkah), laporan dikembalikan/koreksi, Foto Cepat, ringkasan lokasi, rencana
+mingguan. Dua gambar baru: `harian-isi` dan `harian-koreksi`.
+
+### Bug: race condition memilih lokasi contoh
+
+`contohLokasi()` di `tangkap.ts` tadinya `.locator(...).first().getAttribute("href",
+{timeout})` — `getAttribute` dengan timeout MENUNGGU elemennya ada. Diganti ke
+`.evaluateAll()` (perlu SEMUA href, bukan cuma yang pertama) supaya bisa memilih
+lokasi wajar secara eksplisit — tapi `evaluateAll()` TIDAK menunggu apa pun,
+langsung mengeksekusi. `/lokasi` memakai MarlinGrid (AG Grid) yang merender baris
+SESUDAH hidrasi klien, jadi `domcontentloaded` sering menang duluan dan baris
+grid-nya belum ada. Gejalanya: "Tidak menemukan satu pun lokasi contoh di /lokasi"
+walau lokasinya nyata ada (dibuktikan dengan skrip debug Playwright terpisah yang
+menambahkan `waitForTimeout` dan berhasil). Diperbaiki dengan `.first().waitFor()`
+eksplisit sebelum `evaluateAll()`. Pelajaran: `evaluateAll`/`$$eval` tidak
+auto-wait seperti method locator lain — kalau butuh SEMUA elemen (bukan cuma
+elemen pertama yang auto-wait), tunggu dulu secara eksplisit.
+
+### Bug: tautan pertama belum tentu milik lokasi yang benar
+
+`viaLinkText` (mekanisme baru: ikuti tautan yang teksnya cocok, dipakai untuk
+"Perbaiki laporan {tanggal}" yang URL-nya tak bisa ditebak) awalnya ambil
+`.first()` tautan yang match. Di `/hari-ini`, sm-01 melihat DUA kartu lokasi
+(Kedung Mutih dari seed dev — masih darurat, DAN Purworejo dari seed manual) —
+keduanya sama-sama punya laporan "perlu koreksi", jadi tautan PERTAMA di DOM
+ternyata milik Kedung Mutih. Hasilnya: `harian-koreksi.png` sempat memotret
+lencana **-99,9%** — persis masalah yang seluruh pekerjaan ini coba hindari.
+Ketahuan karena gambarnya diperiksa visual (bukan cuma dipercaya "berhasil"),
+sesuai prinsip 365. Diperbaiki: ambil SEMUA tautan yang cocok, filter yang
+hrefnya mengandung `/lokasi/<lokasi-contoh>/`, dan GAGAL KERAS (bukan jatuh ke
+tautan pertama) kalau lokasi contoh itu sendiri tidak punya tautannya.
+
+### Penjaga
+
+`pnpm typecheck && pnpm lint && pnpm vitest run tests/unit` hijau. `pnpm
+manual:tangkap` penuh (11 gambar) + `pnpm manual:bangun` sukses, dan SELURUH 24
+halaman PDF diperiksa visual satu per satu (bukan cuma pesan sukses) — termasuk
+menemukan sisa `{tanggal}` mentah di naskah (placeholder yang lupa dijelaskan
+ulang jadi teks biasa) dan bug tautan pertama di atas.
+
+---
+
+## 368 — PDF "tidak rapi": layar HP dipotong utuh membuat halaman kosong separuh (2026-08-19)
+
+User memeriksa PDF hasil 367 dan menolaknya keras: "tidak layak, tidak rapi
+sama sekali". Diperiksa ulang halaman-per-halaman — bukan cuma dilihat sekilas —
+dan penyebabnya jelas: `figure { page-break-inside: avoid }` (365, sengaja,
+supaya gambar tak terpotong tengah) mendorong SELURUH gambar ke halaman
+berikutnya kalau tak muat di sisa halaman berjalan. Screenshot ponsel
+`fullPage` (satu layar HP di-scroll penuh — `harian-isi.png` 390×3569,
+`harian-koreksi.png` 390×3942) nyaris tidak pernah muat, jadi HAMPIR SETIAP
+bagian buku diikuti halaman kosong 60-90%. 24 halaman, mayoritas kosong.
+
+### Perbaikan: potong ke bagian yang relevan, bukan seluruh layar
+
+`Gambar.potong` (`daftar-gambar.ts`) sekarang boleh array selector — digabung
+jadi SATU kotak potongan (union bounding box), dipakai saat yang perlu
+ditunjukkan ada di dua elemen bertetangga yang bukan leluhur bersama yang rapi
+(mis. banner peringatan + form di bawahnya, DECISIONS 210-an area kode
+`harian-koreksi`). Ditambah jangkar semu `"@awal"` (pojok kiri-atas HALAMAN,
+lebar penuh) untuk potongan yang harus mulai dari paling atas (header + tab)
+tanpa elemen nyata untuk dijadikan pegangan.
+
+Enam gambar dipotong ulang — bukan lagi seluruh halaman HP di-scroll:
+`harian-isi`/`harian-koreksi` → formulir "Tambah/ubah progres pekerjaan" saja
+(358×581 & 358×609, dari 390×3569 & 390×3942); `hari-ini` → satu `<section>`
+kartu lokasi contoh saja, bukan dua kartu ditumpuk (sm-01 ditugaskan ke Kedung
+Mutih DAN Purworejo — hari-ini.png tadinya memuat KEDUANYA); `lokasi-ringkasan`
+→ dari atas sampai kartu Kurva-S (kartu Rencana/Kendala/Status di bawahnya
+sudah ada gambar sendiri, tak perlu diulang); `rencana-mingguan` → dari atas
+sampai tombol "Sarankan otomatis" (form tambah rencana + tabel item di
+bawahnya bukan inti cerita layar ini).
+
+### Jaring pengaman CSS: `max-height` di samping potongan
+
+Potongan yang tepat adalah perbaikan UTAMA, tapi ditambah `max-height: 200mm`
+di `figure img` (bab manajemen tak disunting sesi ini, dan satu gambar layar
+lebar — kurva-S "Perbarui Kurva-S" — tetap tinggi walau sudah dipotong) supaya
+gambar mengecil (mempertahankan rasio) SEBELUM dipaksa muat, bukan meluber ke
+halaman berikutnya dulu baru terpotong paksa. Lebar ponsel juga dinaikkan
+62mm→80mm (isi kecil kalau terlalu sempit, dan sisa margin kanan-kiri yang
+lebar justru terlihat tidak rapi).
+
+### Bug ikutan: luberan horizontal 390→487px
+
+Saat memotong `lokasi-ringkasan`, `section:has-text("Kurva-S")` melaporkan
+lebar 470px pada viewport 390px — kartu Kurva-S MELUBER ke kanan (kategori bug
+yang sama dengan DECISIONS 230, belum didiagnosis akar penyebabnya di sesi
+ini, dicatat sebagai temuan bukan diperbaiki). Union-clip sekarang membatasi
+lebar ke `page.viewportSize().width` supaya potongan buku manual tidak ikut
+menampilkan margin abu-abu dari luberan itu — penambal gejala di penjepret,
+BUKAN perbaikan bug aslinya.
+
+### Hasil
+
+24 halaman → **16 halaman**. Hampir seluruh halaman sekarang padat; sisa satu
+halaman agak kosong (pembuka bab 2, sebelum `beranda.png` — screenshot layar
+lebar 1280×1607 yang tetap besar walau sudah kena `max-height`). PDF (1,7 MB →
+1,1 MB) dan folder gambar (2,0 MB → 1,4 MB) ikut menyusut karena potongannya
+lebih kecil.
+
+### Penjaga
+
+`pnpm typecheck && pnpm lint && pnpm vitest run tests/unit` hijau. SELURUH 16
+halaman PDF diperiksa visual ulang satu per satu sesudah tiap perubahan CSS/
+potongan (tiga kali iterasi: potong 2 gambar terparah → potong 3 gambar
+lainnya + perbaiki bug lebar "@awal" yang sempat menyempit ke 187px → turunkan
+`max-height` 235mm→200mm), bukan cuma dipercaya dari jumlah halaman yang
+menyusut.

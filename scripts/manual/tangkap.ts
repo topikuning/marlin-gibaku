@@ -38,24 +38,53 @@ async function masuk(page: Page, peran: PeranPotret): Promise<void> {
  * Lokasi & paket contoh diambil DARI APLIKASI, bukan ditulis tetap di skrip.
  *
  * Slug yang di-hardcode akan diam-diam salah begitu seed berubah, dan gejalanya
- * berupa halaman 404 yang tetap terpotret sebagai gambar "berhasil".
+ * berupa halaman 404 yang tetap terpotret sebagai gambar "berhasil". Karena itu
+ * `LOKASI_WAJAR` di bawah bukan dipakai buta — hanya dipilih kalau BENAR-BENAR
+ * muncul di daftar lokasi live milik peran yang sedang memotret; kalau tidak
+ * ada (mis. `pnpm manual:seed` belum dijalankan), jatuh ke lokasi pertama apa
+ * adanya, sama seperti sebelumnya.
  */
+const LOKASI_WAJAR = "purworejo"; // DECISIONS 366 — progres wajar, bukan darurat kritis
 async function contohLokasi(page: Page): Promise<string> {
   await page.goto(`${BASE}/lokasi`, { waitUntil: "domcontentloaded" });
-  const href = await page
-    .locator('a[href^="/lokasi/"]')
-    .first()
-    .getAttribute("href", { timeout: 15_000 });
-  const slug = href?.split("/")[2];
-  if (!slug) throw new Error("Tidak menemukan satu pun lokasi contoh di /lokasi.");
-  return slug;
+  // MarlinGrid (AG Grid) merender baris SESUDAH hidrasi klien — `domcontentloaded`
+  // sering menang duluan, dan tautan lokasinya belum ada sama sekali di DOM.
+  await page.locator('a[href^="/lokasi/"]').first().waitFor({ timeout: 15_000 });
+  const hrefs = await page.locator('a[href^="/lokasi/"]').evaluateAll((els) => els.map((e) => e.getAttribute("href")));
+  const slugs = hrefs.map((h) => h?.split("/")[2]).filter((s): s is string => Boolean(s));
+  if (slugs.length === 0) throw new Error("Tidak menemukan satu pun lokasi contoh di /lokasi.");
+  return slugs.includes(LOKASI_WAJAR) ? LOKASI_WAJAR : slugs[0]!;
+}
+
+/** Tanggal kerja hari ini di Asia/Jakarta — SAMA persis dengan yang dipakai server. */
+function hariIniJakarta(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(
+    new Date(),
+  );
 }
 
 async function jepret(page: Page, g: Gambar, lokasi: string): Promise<void> {
-  const url = `${BASE}${g.path.replace("{lokasi}", lokasi)}`;
+  const url = `${BASE}${g.path.replace("{lokasi}", lokasi).replace("{hari}", hariIniJakarta())}`;
   const res = await page.goto(url, { waitUntil: "domcontentloaded" });
   if (res && res.status() >= 400) {
     throw new Error(`${g.id}: ${url} menjawab ${res.status()}`);
+  }
+  if (g.viaLinkText) {
+    // Beberapa lokasi bisa sama-sama punya tautan ini di satu halaman (mis.
+    // /hari-ini menumpuk satu kartu per lokasi yang ditugaskan ke peran ini) —
+    // ambil yang hrefnya menuju LOKASI CONTOH yang sedang dipotret, bukan
+    // yang pertama ketemu di DOM (bisa saja milik lokasi lain).
+    await page.getByRole("link", { name: new RegExp(g.viaLinkText) }).first().waitFor({ timeout: 15_000 });
+    const semua = await page.getByRole("link", { name: new RegExp(g.viaLinkText) }).evaluateAll((els) => els.map((e) => e.getAttribute("href")));
+    const href = semua.find((h) => h?.includes(`/lokasi/${lokasi}/`));
+    if (!href) {
+      throw new Error(
+        `${g.id}: tautan "${g.viaLinkText}" menuju lokasi "${lokasi}" tidak ditemukan di ${url} ` +
+          `(yang ada: ${semua.join(", ") || "tidak ada sama sekali"}) — cek data seed manual.`,
+      );
+    }
+    const res2 = await page.goto(`${BASE}${href}`, { waitUntil: "domcontentloaded" });
+    if (res2 && res2.status() >= 400) throw new Error(`${g.id}: ${href} menjawab ${res2.status()}`);
   }
   if (g.tunggu) {
     await page.getByText(g.tunggu).first().waitFor({ timeout: 20_000 });
@@ -72,6 +101,36 @@ async function jepret(page: Page, g: Gambar, lokasi: string): Promise<void> {
   if (jumlahCss === 0) throw new Error(`${g.id}: CSS tidak termuat — jangan dipakai.`);
 
   const berkas = path.join(KELUARAN, `${g.id}.png`);
+  if (Array.isArray(g.potong)) {
+    // Gabungan kotak pembungkus beberapa elemen — lihat catatan tipe `potong`.
+    // "@awal" = jangkar semu SELEBAR HALAMAN di y=0 (dipakai saat potongan
+    // harus mulai dari paling atas, mis. header + tab, bukan dari elemen mana
+    // pun yang bisa dipilih selector) — lebar penuh supaya potongannya tidak
+    // ikut menyempit ke lebar elemen SEMPIT lain dalam gabungan (mis. satu
+    // tombol kecil di titik akhir potongan).
+    const viewport = page.viewportSize();
+    const kotak: { x: number; y: number; width: number; height: number }[] = [];
+    for (const sel of g.potong) {
+      if (sel === "@awal") {
+        kotak.push({ x: 0, y: 0, width: viewport?.width ?? 0, height: 0 });
+        continue;
+      }
+      const el = page.locator(sel).first();
+      await el.waitFor({ timeout: 15_000 });
+      const box = await el.boundingBox();
+      if (!box) throw new Error(`${g.id}: elemen "${sel}" tidak punya ukuran (tersembunyi?).`);
+      kotak.push(box);
+    }
+    const x = Math.min(...kotak.map((b) => b.x));
+    const y = Math.min(...kotak.map((b) => b.y));
+    // Lebar dibatasi lebar viewport — beberapa halaman ponsel meluber tipis ke
+    // kanan (bug tersendiri, lihat DECISIONS 368), dan potongan buku TIDAK
+    // BOLEH ikut menampilkan margin abu-abu dari luberan itu.
+    const kanan = Math.min(viewport?.width ?? Infinity, Math.max(...kotak.map((b) => b.x + b.width)));
+    const bawah = Math.max(...kotak.map((b) => b.y + b.height));
+    await page.screenshot({ path: berkas, clip: { x, y, width: kanan - x, height: bawah - y } });
+    return;
+  }
   const target = g.potong ? page.locator(g.potong).first() : page;
   await target.screenshot({
     path: berkas,
@@ -106,7 +165,7 @@ async function main(): Promise<void> {
     // Gambar tanpa sesi dipotret lebih dulu, di konteks yang benar-benar bersih.
     const tanpaSesi = daftar.filter((g) => g.tanpaSesi);
     if (tanpaSesi.length) {
-      const ctx = await browser.newContext({ viewport: UKURAN.layar });
+      const ctx = await browser.newContext({ viewport: UKURAN.layar, ignoreHTTPSErrors: true });
       const page = await ctx.newPage();
       for (const g of tanpaSesi) {
         await page.setViewportSize(UKURAN[g.lebar]);
@@ -123,7 +182,7 @@ async function main(): Promise<void> {
 
     const peranUnik = [...new Set(daftar.filter((g) => !g.tanpaSesi).map((g) => g.peran))];
     for (const peran of peranUnik) {
-      const ctx = await browser.newContext({ viewport: UKURAN.layar });
+      const ctx = await browser.newContext({ viewport: UKURAN.layar, ignoreHTTPSErrors: true });
       const page = await ctx.newPage();
       await masuk(page, peran);
       const lokasi = await contohLokasi(page);

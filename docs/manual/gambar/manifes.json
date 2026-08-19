@@ -12,6 +12,18 @@
     "lebar": "ponsel"
   },
   {
+    "id": "harian-isi",
+    "keterangan": "Mengisi laporan hari ini — pilih pekerjaan, isi volume yang selesai, lampirkan foto.",
+    "peran": "sm-01",
+    "lebar": "ponsel"
+  },
+  {
+    "id": "harian-koreksi",
+    "keterangan": "Laporan yang dikembalikan SM untuk diperbaiki — alasannya tertulis jelas di sini, tinggal disunting sesuai catatan lalu dikirim ulang.",
+    "peran": "sm-01",
+    "lebar": "ponsel"
+  },
+  {
     "id": "foto-cepat",
     "keterangan": "Foto Cepat — jepret dulu, pilih itemnya belakangan. Dipakai saat sedang di lapangan dan tidak sempat mengisi apa pun.",
     "peran": "sm-01",
