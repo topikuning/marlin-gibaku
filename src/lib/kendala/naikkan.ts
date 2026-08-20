@@ -45,6 +45,11 @@ export async function naikkanKendalaKegiatan(input: {
     // banyak satu kendala. Kalau sudah ada, JANGAN ditimpa: mungkin sudah
     // diberi PIC, tenggat, atau aksi pemulihan oleh orang lain, dan menimpanya
     // menghapus pekerjaan itu diam-diam.
+    //
+    // KEMBAR-OK: yang sudah digabungkan SENGAJA ikut terbaca di sini.
+    // Kalau tidak, kegiatan yang kendalanya sudah digabungkan ke kendala
+    // lain akan dianggap belum punya kendala pada finalisasi berikutnya,
+    // dan kembarnya lahir kembali — persis yang baru saja dirapikan orang.
     const lama = await db.issue.findFirst({
       where: { fieldActivityId: input.activityId },
       select: { id: true },
@@ -58,7 +63,11 @@ export async function naikkanKendalaKegiatan(input: {
     // kedua. Kendala yang mirip dan masih terbuka di lokasi yang sama sudah
     // menagih orang yang sama; baris keduanya cuma mengencerkan hitungan.
     const terbuka = await db.issue.findMany({
-      where: { locationId: input.locationId, status: { in: ["terbuka", "ditangani"] } },
+      where: {
+        locationId: input.locationId,
+        status: { in: ["terbuka", "ditangani"] },
+        mergedIntoId: null,
+      },
       select: { id: true, title: true, createdAt: true },
       orderBy: { createdAt: "desc" },
       take: 100,

@@ -26,6 +26,17 @@ vi.mock("next/headers", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("next/server", () => ({ after: (fn: () => void) => fn() }));
 
+vi.mock("@/lib/auth/session", async (importAsli) => {
+  const asli = await importAsli<typeof import("@/lib/auth/session")>();
+  return {
+    ...asli,
+    requireUser: async () => penggunaUji(),
+    requireCapability: async () => penggunaUji(),
+    requireLocationAccess: async () => {},
+    requestIp: async () => null,
+  };
+});
+
 /** Pesan WA yang "terkirim" — dicegat supaya isinya bisa diperiksa. */
 const terkirim: { chatId: string; teks: string }[] = [];
 vi.mock("@/lib/waha/kirim", () => ({
@@ -38,6 +49,23 @@ vi.mock("@/lib/waha/kirim", () => ({
 const { db } = await import("@/lib/db");
 const { naikkanKendalaKegiatan } = await import("@/lib/kendala/naikkan");
 const { kirimPengingatKendalaTerjadwal } = await import("@/lib/kendala/penjadwal-tenggat");
+const { gabungkanKendala, updateIssueStatus } = await import("@/lib/issues");
+const { papanKendala } = await import("@/lib/kendala/queries");
+
+/**
+ * Pengguna uji — `super_admin` supaya `accessibleLocationIds` (yang TIDAK
+ * dimock) benar-benar mencakup lokasi fixture. Melonggarkan lingkupnya lewat
+ * mock akan membuat uji papan membuktikan mock-nya, bukan kuerinya.
+ */
+async function penggunaUji() {
+  return db.user.findUniqueOrThrow({
+    where: { id: userId },
+    select: {
+      id: true, orgId: true, username: true, email: true,
+      fullName: true, role: true, mustChangePassword: true,
+    },
+  });
+}
 
 const suffix = `kp${Date.now().toString(36)}`;
 let packageId = "";
@@ -88,7 +116,7 @@ beforeAll(async () => {
       orgId: org.id,
       username: `sm-${suffix}`,
       fullName: "Budi Uji",
-      role: "site_manager",
+      role: "super_admin",
       passwordHash: "x",
     },
   });
@@ -304,5 +332,152 @@ describe("pengingat kendala lewat tenggat ke grup paket", () => {
     await kirimPengingatKendalaTerjadwal(HARI_INI);
     const empatHari = new Date("2026-08-24T09:00:00.000Z");
     expect((await kirimPengingatKendalaTerjadwal(empatHari)).terkirim).toBe(1);
+  });
+});
+
+describe("menggabungkan kendala kembar (DECISIONS 393)", () => {
+  async function kendala(judul: string, extra: Record<string, unknown> = {}) {
+    return db.issue.create({
+      data: { locationId, title: judul, severity: "sedang", status: "terbuka", ...extra },
+    });
+  }
+
+  function fd(v: Record<string, string>) {
+    const f = new FormData();
+    for (const [k, val] of Object.entries(v)) f.set(k, val);
+    return f;
+  }
+
+  it("kembarnya ditutup dan ditandai – TIDAK dihapus", async () => {
+    const induk = await kendala("Lahan belum bisa clear");
+    const dup = await kendala("Lahan belum clear");
+
+    const r = await gabungkanKendala(undefined, fd({ duplikatId: dup.id, indukId: induk.id }));
+    expect(r?.error).toBeUndefined();
+
+    const sesudah = await db.issue.findUniqueOrThrow({ where: { id: dup.id } });
+    expect(sesudah.status).toBe("selesai");
+    expect(sesudah.mergedIntoId).toBe(induk.id);
+    expect(sesudah.closedAt).not.toBeNull();
+    // Catatan penutup menyebut judul induknya — tanpa itu jejaknya buntu.
+    expect(sesudah.closingNote).toContain("Lahan belum bisa clear");
+    // Induknya tidak tersentuh.
+    expect((await db.issue.findUniqueOrThrow({ where: { id: induk.id } })).status).toBe("terbuka");
+  });
+
+  it("REGRESI: aksi pemulihan ikut PINDAH, tidak ikut terkubur", async () => {
+    /*
+     * Kalau seseorang sudah merencanakan pemulihan di baris kembarnya, rencana
+     * itu tetap berlaku untuk masalah yang sama. Menguburnya berarti pekerjaan
+     * orang hilang tanpa pemberitahuan.
+     */
+    const induk = await kendala("Akses jalan longsor");
+    const dup = await kendala("Jalan akses longsor");
+    await db.recoveryAction.create({
+      data: { issueId: dup.id, description: "Sewa ekskavator dari dinas", createdById: userId },
+    });
+
+    const r = await gabungkanKendala(undefined, fd({ duplikatId: dup.id, indukId: induk.id }));
+    expect(r?.success).toContain("1 aksi pemulihan");
+
+    expect(await db.recoveryAction.count({ where: { issueId: dup.id } })).toBe(0);
+    expect(await db.recoveryAction.count({ where: { issueId: induk.id } })).toBe(1);
+  });
+
+  it("REGRESI: kembar yang digabungkan hilang dari papan DAN dari hitungannya", async () => {
+    const induk = await kendala("Material besi belum datang");
+    const dup = await kendala("Besi belum datang");
+    await gabungkanKendala(undefined, fd({ duplikatId: dup.id, indukId: induk.id }));
+
+    const papan = await papanKendala(await penggunaUji(), {});
+    const idsTampil = papan.baris.map((b) => b.id);
+    expect(idsTampil).toContain(induk.id);
+    expect(idsTampil).not.toContain(dup.id);
+    // Bukan hanya hilang dari daftar — juga tidak menambah hitungan "selesai".
+    expect(papan.ringkas.selesai30Hari).toBe(0);
+  });
+
+  it("REGRESI: kembar yang digabungkan tidak ikut ditagih pengingat WA", async () => {
+    const kemarin = new Date("2026-08-14T00:00:00.000Z");
+    const induk = await kendala("Lahan belum bisa clear", { dueDate: kemarin, picName: "Budi" });
+    const dup = await kendala("Lahan belum clear", { dueDate: kemarin, picName: "Budi" });
+    await gabungkanKendala(undefined, fd({ duplikatId: dup.id, indukId: induk.id }));
+
+    await kirimPengingatKendalaTerjadwal(new Date("2026-08-20T09:00:00.000Z"));
+    expect(terkirim).toHaveLength(1);
+    expect(terkirim[0].teks).toContain("1 kendala sudah lewat tenggat");
+    expect(terkirim[0].teks).not.toContain("Lahan belum clear –");
+  });
+
+  it("kembar yang digabungkan tidak bisa dibuka kembali lewat kontrol status", async () => {
+    /*
+     * Kalau boleh, kembar yang baru saja dirapikan hidup lagi — dan kali ini
+     * dengan status yang tidak cocok dengan catatan penutupnya, sehingga layar
+     * mengatakan dua hal sekaligus.
+     */
+    const induk = await kendala("Lahan belum bisa clear");
+    const dup = await kendala("Lahan belum clear");
+    await gabungkanKendala(undefined, fd({ duplikatId: dup.id, indukId: induk.id }));
+
+    const r = await updateIssueStatus(undefined, fd({ issueId: dup.id, status: "terbuka" }));
+    expect(r?.error).toMatch(/sudah digabungkan/i);
+    expect((await db.issue.findUniqueOrThrow({ where: { id: dup.id } })).status).toBe("selesai");
+  });
+
+  it("REGRESI: kembar yang TERLANJUR terbuka tetap tidak ditagih pengingat WA", async () => {
+    /*
+     * Statusnya diubah LANGSUNG di basis data, bukan lewat aksi — memodelkan
+     * data yang lahir sebelum penjaga status ada, atau yang disunting di luar
+     * aplikasi.
+     *
+     * Ditulis setelah uji gigi memperlihatkan bahwa uji sebelumnya TIDAK
+     * membuktikan apa pun tentang saringan `mergedIntoId` di penagih: kembar
+     * yang baru digabungkan selalu berstatus `selesai`, jadi saringan status
+     * sudah membuangnya lebih dulu. Baru dengan status terbuka, saringan
+     * kembarnya benar-benar menanggung beban.
+     */
+    const kemarin = new Date("2026-08-14T00:00:00.000Z");
+    const induk = await kendala("Lahan belum bisa clear", { dueDate: kemarin, picName: "Budi" });
+    const dup = await kendala("Lahan belum clear", { dueDate: kemarin, picName: "Budi" });
+    await gabungkanKendala(undefined, fd({ duplikatId: dup.id, indukId: induk.id }));
+    await db.issue.update({ where: { id: dup.id }, data: { status: "terbuka" } });
+
+    await kirimPengingatKendalaTerjadwal(new Date("2026-08-20T09:00:00.000Z"));
+    expect(terkirim).toHaveLength(1);
+    expect(terkirim[0].teks).toContain("1 kendala sudah lewat tenggat");
+  });
+
+  it("lintas lokasi ditolak, dan tidak ada yang berubah", async () => {
+    const lain = await db.location.create({
+      data: {
+        packageId,
+        name: `Lokasi lain ${suffix}`,
+        slug: `lain-${suffix}`,
+        village: "D",
+        regency: "K",
+        province: "P",
+        isActive: true,
+      },
+    });
+    const induk = await kendala("Lahan belum bisa clear");
+    const dup = await db.issue.create({
+      data: { locationId: lain.id, title: "Lahan belum clear", severity: "sedang" },
+    });
+
+    const r = await gabungkanKendala(undefined, fd({ duplikatId: dup.id, indukId: induk.id }));
+    expect(r?.error).toMatch(/lokasi yang sama/i);
+    expect((await db.issue.findUniqueOrThrow({ where: { id: dup.id } })).mergedIntoId).toBeNull();
+    await db.issue.delete({ where: { id: dup.id } });
+    await db.location.delete({ where: { id: lain.id } });
+  });
+
+  it("rantai ditolak: A tidak bisa digabungkan ke B yang sudah digabung ke C", async () => {
+    const c = await kendala("Induk asli");
+    const b = await kendala("Kembar pertama");
+    await gabungkanKendala(undefined, fd({ duplikatId: b.id, indukId: c.id }));
+
+    const a = await kendala("Kembar kedua");
+    const r = await gabungkanKendala(undefined, fd({ duplikatId: a.id, indukId: b.id }));
+    expect(r?.error).toMatch(/sudah digabungkan/i);
   });
 });

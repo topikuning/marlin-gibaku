@@ -59,7 +59,7 @@ export default async function LokasiRingkasanPage({
       },
     }),
     db.issue.findMany({
-      where: { locationId: location.id, status: { not: "selesai" } },
+      where: { locationId: location.id, status: { not: "selesai" }, mergedIntoId: null },
       orderBy: [{ severity: "desc" }, { createdAt: "desc" }],
       take: 5,
       select: { id: true, title: true, severity: true, status: true, createdAt: true },

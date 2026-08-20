@@ -20,6 +20,7 @@ import { papanKendala, HARI_SELESAI_TAMPIL, type BarisKendala } from "@/lib/kend
 import type { IssueSeverity, IssueSource, IssueStatus } from "@/generated/prisma/enums";
 import { SaringKendala } from "./saring";
 import { PemilikForm } from "./pemilik-form";
+import { GabungForm, type KandidatInduk } from "./gabung-form";
 
 export const metadata: Metadata = { title: "Kendala" };
 export const dynamic = "force-dynamic";
@@ -67,10 +68,12 @@ function BarisKendalaKartu({
   k,
   bolehKelola,
   penggunaOpsi,
+  kandidatInduk,
 }: {
   k: BarisKendala;
   bolehKelola: boolean;
   penggunaOpsi: { id: string; nama: string }[];
+  kandidatInduk: KandidatInduk[];
 }) {
   return (
     <li className="rounded-md border border-border px-3 py-2.5">
@@ -135,6 +138,9 @@ function BarisKendalaKartu({
             dueDate={k.dueDate ? k.dueDate.toISOString().slice(0, 10) : ""}
             pengguna={penggunaOpsi}
           />
+          <div className="mt-2">
+            <GabungForm issueId={k.id} judul={k.title} kandidat={kandidatInduk} />
+          </div>
         </div>
       ) : null}
     </li>
@@ -225,6 +231,25 @@ export default async function KendalaPage({
                   k={k}
                   bolehKelola={bolehKelola}
                   penggunaOpsi={pengguna}
+                  /*
+                   * Calon induk = kendala LAIN di lokasi yang sama yang belum
+                   * selesai. Lintas lokasi sengaja tidak ditawarkan sama
+                   * sekali: aksinya memang menolaknya, tapi menawarkan lalu
+                   * menolak mengajari orang bahwa pesan galat itu wajar.
+                   */
+                  kandidatInduk={baris
+                    .filter(
+                      (c) =>
+                        c.id !== k.id &&
+                        c.locationId === k.locationId &&
+                        c.status !== "selesai",
+                    )
+                    .map((c) => ({
+                      id: c.id,
+                      title: c.title,
+                      status: c.status,
+                      createdAt: c.createdAt.toISOString(),
+                    }))}
                 />
               ))}
             </ul>

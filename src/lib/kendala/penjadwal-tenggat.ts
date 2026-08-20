@@ -94,6 +94,7 @@ export async function kirimPengingatKendalaTerjadwal(
       locationId: { in: lokasiIds },
       status: { in: ["terbuka", "ditangani"] },
       dueDate: { not: null, lt: hariIni },
+      mergedIntoId: null,
     };
     const kendala = await db.issue.findMany({
       where: saring,

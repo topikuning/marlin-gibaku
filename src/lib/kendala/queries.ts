@@ -91,6 +91,7 @@ export async function papanKendala(
   const rows = await db.issue.findMany({
     where: {
       location: locationScopeWhere(user, scoped),
+      mergedIntoId: null,
       // Kendala selesai yang sudah lama tidak ikut — papan ini alat kerja,
       // bukan arsip. Riwayat penuh tetap ada di halaman lokasinya.
       OR: [

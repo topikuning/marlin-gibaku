@@ -183,8 +183,9 @@ lewat tiga hari.
 
 - **Aksi massal** di papan (tetapkan PIC/tenggat sekaligus, gabungkan duplikat)
   belum ada — sekarang satu per satu lewat formulir baris.
-- **Menggabungkan** dua kendala yang terlanjur kembar belum ada. Yang ada baru
-  pencegahannya di pintu masuk.
+- ~~**Menggabungkan** dua kendala yang terlanjur kembar~~ → selesai, DECISIONS
+  393. Tersedia di tab Progress dan di papan `/kendala`; kembarnya ditutup dan
+  ditandai, tidak dihapus, dan aksi pemulihannya ikut pindah.
 - **Eskalasi** bertingkat (mis. lewat 14 hari → naik ke manajemen) belum ada.
 
 ---

@@ -19514,3 +19514,79 @@ pemotongan judul di batas kata, penyaringan solusi, urutan terlama-dulu, `total`
 dari pemanggil, sidik tanpa total, sidik dengan `lewatHari`, PIC kosong yang
 dibiarkan kosong, daftar kosong yang tetap mengirim, penjaga `sudah_ada`,
 penjaga duplikat, saringan status pada penagih, peredam, dan pelepasan jeda.
+
+---
+
+## 393 — Menggabungkan kendala kembar, dan penjaga statis untuk pembacanya (2026-08-20)
+
+Lanjutan DECISIONS 392. Penjaga duplikat menahan kembar **baru** di pintu masuk,
+tapi tidak bisa merapikan yang **terlanjur ada** — dan tangkapan layar user
+memuat "Lahan belum bisa clear" tiga kali, tanggal sama, tingkat sama.
+
+### Menggabungkan BUKAN menghapus
+
+Baris kembarnya tetap ada berikut riwayatnya; ia ditutup, ditandai
+`mergedIntoId`, dan **aksi pemulihannya dipindahkan ke induk**. Menghapus akan
+membuat jejak audit menunjuk ke baris yang tidak ada lagi, dan membatalkan
+penggabungan yang salah jadi mustahil.
+
+Aksi pemulihan ikut pindah, bukan ikut terkubur: kalau seseorang sudah
+merencanakan pemulihan di baris kembarnya, rencana itu tetap berlaku untuk
+masalah yang sama.
+
+### Aturan yang ditolak, dan sebabnya
+
+| Ditolak | Sebab |
+|---|---|
+| Ke dirinya sendiri | – |
+| Lintas lokasi | "Lahan belum bisa clear" di dua desa adalah dua masalah. Menggabungkannya menghapus satu masalah nyata dari hitungan lokasi yang lain. |
+| Induk yang sudah digabung | Rantai A → B → C memaksa tiap pembaca menelusuri, dan rantai melingkar menggantung selamanya. |
+| Induk yang sudah `selesai` | Menggabungkan kendala berjalan ke kendala tertutup MENGHILANGKAN masalah berjalan dari semua hitungan sekaligus. |
+| Membuka kembali kembar lewat kontrol status | Menghidupkan lagi kembar yang baru dirapikan, dengan status yang tidak cocok dengan catatan penutupnya. |
+
+Catatan penutup **selalu menyebut judul induknya**: orang yang membuka riwayat
+ini enam bulan lagi tidak punya cara lain mengetahui ke mana masalah ini pindah.
+
+### Penjaga statis `tests/unit/kendala-pembaca-gabung.test.ts`
+
+Saat penggabungan dirancang, **tujuh tempat membaca `Issue` — empat di antaranya
+tanpa saringan status sama sekali**, termasuk laporan periodik KKP. Menutup
+baris kembarnya saja tidak cukup untuk yang empat itu.
+
+Bahayanya bukan hari ini melainkan pembaca kedelapan yang ditambahkan enam bulan
+lagi oleh orang yang tidak tahu kolomnya ada: ia tidak akan memerahkan uji apa
+pun, hanya diam-diam menampilkan kembarnya lagi. Jadi penjaganya statis — tiap
+pembacaan daftar kendala wajib menyebut `mergedIntoId`, atau menuliskan alasannya
+di sebelahnya dengan penanda `KEMBAR-OK:`.
+
+Penandanya sengaja ditulis **di kode**, bukan di daftar pengecualian terpisah:
+daftar terpisah basi begitu baris bergeser, dan pengecualian tanpa alasan
+tertulis tidak pernah ditinjau ulang.
+
+Dua pengecualian yang sah, keduanya berpenanda:
+
+- `naikkan.ts` — penjaga "satu kegiatan = satu kendala" HARUS ikut membaca yang
+  sudah digabungkan, kalau tidak kembarnya lahir kembali pada finalisasi
+  berikutnya.
+- `seed/demo.ts` — penjaga idempotensi seed; yang ditanya "sudah pernah di-seed",
+  bukan "berapa kendala yang berlaku".
+
+### Dua kelemahan penjaga yang ketahuan lewat uji gigi
+
+1. **Jendela penelusuran bocor ke kueri tetangga.** Kueri yang sama sekali tidak
+   menyaring bisa lolos hanya karena kueri LAIN 704 karakter di bawahnya
+   kebetulan menyaring. Terjadi sungguhan di `naikkan.ts`. Diperbaiki: jendela
+   tiap titik dipotong di titik baca berikutnya.
+2. **Uji penagih WA tidak membuktikan apa yang dikiranya.** Kembar yang baru
+   digabungkan selalu berstatus `selesai`, jadi saringan status sudah
+   membuangnya lebih dulu — melepas `mergedIntoId: null` tidak memerahkan apa
+   pun. Diperbaiki dengan uji yang mengubah statusnya LANGSUNG di basis data
+   (memodelkan data pra-penjaga), dan sekaligus melahirkan penjaga baru:
+   `updateIssueStatus` menolak mengubah status kendala yang sudah digabungkan.
+
+### Migrasi
+
+`20260820120000_kendala_gabung` — kolom + FK ke tabelnya sendiri + indeks,
+idempoten. FK ditulis DROP-lalu-ADD, bukan `DO … IF NOT EXISTS`: itulah bentuk
+yang dikenali `alasanTidakIdempoten`, dan menyesuaikan migrasi ke penjaganya
+lebih benar daripada melonggarkan penjaganya untuk satu berkas.

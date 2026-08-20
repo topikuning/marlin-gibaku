@@ -242,7 +242,7 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
         equipment: { orderBy: { name: "asc" } },
         statusHistory: { orderBy: { changedAt: "asc" } },
         photos: { orderBy: { createdAt: "asc" } },
-        issues: { orderBy: { createdAt: "asc" } },
+        issues: { where: { mergedIntoId: null }, orderBy: { createdAt: "asc" } },
       },
     }),
     getRecentDays(location.id, 14, dateKey),
@@ -1020,7 +1020,7 @@ export async function getDetailHari(
       workEnd: true,
       updatedAt: true,
       _count: { select: { items: true, photos: true, workers: true } },
-      issues: { where: { status: { not: "selesai" } }, select: { id: true } },
+      issues: { where: { status: { not: "selesai" }, mergedIntoId: null }, select: { id: true } },
     },
   });
   if (!r) return null;

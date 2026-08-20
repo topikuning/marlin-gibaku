@@ -1425,6 +1425,20 @@ model Issue {
   picName   String? @map("pic_name")
   dueDate   DateTime? @map("due_date") @db.Date
 
+  /// Kendala ini KEMBAR, dan induknya yang berlaku (DECISIONS 393).
+  ///
+  /// Penjaga duplikat menahan kembar BARU di pintu masuk, tapi tidak bisa
+  /// merapikan yang terlanjur ada — tangkapan layar user memuat "Lahan belum
+  /// bisa clear" tiga kali. Kolom ini yang membuat dua baris menjadi satu
+  /// tanpa MENGHAPUS apa pun: baris kembarnya tetap ada berikut riwayatnya,
+  /// hanya berhenti dihitung dan berhenti muncul.
+  ///
+  /// PERINGATAN: setiap pembaca `Issue` wajib menyaring `mergedIntoId: null`,
+  /// kalau tidak kembarnya muncul lagi di layar itu. Dijaga
+  /// `tests/unit/kendala-pembaca-gabung.test.ts` — jangan matikan penjaganya,
+  /// tambahkan saringannya.
+  mergedIntoId String? @map("merged_into_id") @db.Uuid
+
   closedAt    DateTime? @map("closed_at") @db.Timestamptz
   /// Bagaimana kendala ini selesai. Opsional, tapi diminta saat menutup:
   /// riwayat tanpa catatan penutup tidak bisa dipakai belajar maupun
@@ -1439,10 +1453,14 @@ model Issue {
   report   DailyReport?     @relation(fields: [reportId], references: [id])
   actions  RecoveryAction[]
 
+  mergedInto Issue?  @relation("IssueGabung", fields: [mergedIntoId], references: [id])
+  mergedFrom Issue[] @relation("IssueGabung")
+
   @@index([locationId, status])
   /// Papan kendala terpusat menyaring status + tenggat lintas lokasi.
   @@index([status, dueDate])
   @@index([fieldActivityId])
+  @@index([mergedIntoId])
   @@map("issues")
 }
 

@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { requireCapability, requireLocationAccess, ForbiddenError, type SessionUser } from "@/lib/auth/session";
 import { cariDuplikat } from "@/lib/kendala/duplikat";
+import { alasanTidakBisaDigabung, catatanGabung } from "@/lib/kendala/gabung";
 
 /**
  * Server actions kendala (Issue) + aksi pemulihan (RecoveryAction/Update).
@@ -80,7 +81,13 @@ export async function createIssue(_prev: IssueActionState, formData: FormData): 
 
     if (!d.paksa) {
       const terbuka = await db.issue.findMany({
-        where: { locationId: d.locationId, status: { in: ["terbuka", "ditangani"] } },
+        where: {
+          locationId: d.locationId,
+          status: { in: ["terbuka", "ditangani"] },
+          // Kendala yang sudah digabungkan tidak boleh ditawarkan sebagai
+          // induk — menggabungkan ke sana akan membentuk rantai.
+          mergedIntoId: null,
+        },
         select: { id: true, title: true, createdAt: true },
         orderBy: { createdAt: "desc" },
         take: 100,
@@ -135,9 +142,20 @@ export async function updateIssueStatus(_prev: IssueActionState, formData: FormD
   try {
     const issue = await db.issue.findUniqueOrThrow({
       where: { id: parsed.data.issueId },
-      select: { id: true, locationId: true, status: true },
+      select: { id: true, locationId: true, status: true, mergedIntoId: true },
     });
     const { user, slug } = await guard(issue.locationId);
+    /*
+     * Kendala yang sudah digabungkan tidak punya siklus hidup sendiri lagi.
+     *
+     * Membiarkannya dibuka kembali menghidupkan lagi kembar yang baru saja
+     * dirapikan orang — dan kali ini dengan status yang tidak cocok dengan
+     * catatan penutupnya, sehingga layar mengatakan dua hal sekaligus.
+     * DECISIONS 393.
+     */
+    if (issue.mergedIntoId) {
+      return { error: "Kendala ini sudah digabungkan – ubah statusnya di kendala induknya." };
+    }
     await db.issue.update({
       where: { id: issue.id },
       data: {
@@ -388,6 +406,93 @@ export async function tutupKendala(
     });
     revalidateLocation(slug);
     return { success: "Kendala ditutup." };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+const gabungSchema = z.object({
+  duplikatId: z.uuid(),
+  indukId: z.uuid(),
+  catatan: z.string().trim().max(2000).optional(),
+});
+
+/**
+ * Gabungkan kendala kembar ke induknya (DECISIONS 393).
+ *
+ * Baris kembarnya TIDAK dihapus: ia ditutup, ditandai `mergedIntoId`, dan aksi
+ * pemulihannya dipindahkan ke induk. Menghapus akan membuat jejak audit
+ * menunjuk ke baris yang tidak ada lagi, dan membatalkan penggabungan yang
+ * salah jadi mustahil.
+ *
+ * Aksi pemulihan ikut pindah, bukan ikut terkubur: kalau seseorang sudah
+ * merencanakan pemulihan di baris kembarnya, rencana itu tetap berlaku untuk
+ * masalah yang sama — menguburnya berarti pekerjaan orang hilang tanpa
+ * pemberitahuan.
+ */
+export async function gabungkanKendala(
+  _prev: IssueActionState,
+  formData: FormData,
+): Promise<IssueActionState> {
+  const parsed = gabungSchema.safeParse({
+    duplikatId: formData.get("duplikatId"),
+    indukId: formData.get("indukId"),
+    catatan: String(formData.get("catatan") ?? "").trim() || undefined,
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const d = parsed.data;
+
+  try {
+    const pilih = {
+      id: true,
+      locationId: true,
+      status: true,
+      mergedIntoId: true,
+      title: true,
+    } as const;
+    const [duplikat, induk] = await Promise.all([
+      db.issue.findUnique({ where: { id: d.duplikatId }, select: pilih }),
+      db.issue.findUnique({ where: { id: d.indukId }, select: pilih }),
+    ]);
+    if (!duplikat || !induk) return { error: "Kendala tidak ditemukan." };
+
+    const alasan = alasanTidakBisaDigabung(duplikat, induk);
+    if (alasan) return { error: alasan };
+
+    // Penjaga dijalankan pada KEDUA lokasi. Aturan murninya sudah menuntut
+    // lokasi sama, tapi mengandalkan itu berarti hak akses bergantung pada
+    // urutan pemeriksaan – dan itu jenis ketergantungan yang diam-diam rusak.
+    const { user, slug } = await guard(duplikat.locationId);
+    await requireLocationAccess(user, induk.locationId);
+
+    const dipindah = await db.$transaction(async (tx) => {
+      const n = await tx.recoveryAction.updateMany({
+        where: { issueId: duplikat.id },
+        data: { issueId: induk.id },
+      });
+      await tx.issue.update({
+        where: { id: duplikat.id },
+        data: {
+          status: "selesai",
+          closedAt: new Date(),
+          closingNote: catatanGabung(induk.title, d.catatan),
+          mergedIntoId: induk.id,
+        },
+      });
+      return n.count;
+    });
+
+    await audit(user.id, "issue.gabung", "issue", duplikat.id, {
+      indukId: induk.id,
+      locationId: duplikat.locationId,
+      aksiDipindah: dipindah,
+    });
+    revalidateLocation(slug);
+    return {
+      success: dipindah
+        ? `Kendala digabungkan – ${dipindah} aksi pemulihan ikut dipindahkan.`
+        : "Kendala digabungkan.",
+    };
   } catch (err) {
     return fail(err);
   }
