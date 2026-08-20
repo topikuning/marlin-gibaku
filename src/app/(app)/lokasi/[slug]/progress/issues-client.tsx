@@ -13,6 +13,7 @@ import {
   type IssueActionState,
 } from "@/lib/issues";
 import { kemiripan } from "@/lib/kendala/duplikat";
+import { HapusKendalaForm } from "@/components/knmp/hapus-kendala-form";
 import {
   ALL_ISSUE_SEVERITIES,
   ALL_ISSUE_STATUSES,
@@ -364,6 +365,15 @@ function IssueCard({
                 <Button size="sm" variant="secondary" onClick={() => setShowGabung(true)}>
                   Gabungkan sebagai kembar
                 </Button>
+              ) : null}
+              {/*
+                Hapus hanya ditawarkan pada kendala yang MUNGKIN salah catat:
+                belum ada aksi pemulihan dan belum selesai. Aturan sebenarnya
+                ditegakkan di server – ini sekadar tidak menawarkan tombol yang
+                pasti ditolak.
+              */}
+              {issue.actions.length === 0 && issue.status !== "selesai" ? (
+                <HapusKendalaForm issueId={issue.id} />
               ) : null}
             </div>
           )

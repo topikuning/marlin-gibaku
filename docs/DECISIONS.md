@@ -19590,3 +19590,69 @@ Dua pengecualian yang sah, keduanya berpenanda:
 idempoten. FK ditulis DROP-lalu-ADD, bukan `DO … IF NOT EXISTS`: itulah bentuk
 yang dikenali `alasanTidakIdempoten`, dan menyesuaikan migrasi ke penjaganya
 lebih benar daripada melonggarkan penjaganya untuk satu berkas.
+
+---
+
+## 394 — Menghapus kendala salah catat: sempit, wajib beralasan, atomik dengan jejaknya (2026-08-20)
+
+Pertanyaan user: *"lalu kalau mau hapus kendala bagaimana? apa menurutmu tidak
+ada hapus?"*
+
+Diperiksa: **tidak ada hapus sama sekali** untuk `Issue`, `RecoveryAction`,
+maupun `RecoveryUpdate`. Itu bukan keputusan sadar, itu kelalaian.
+
+Penggabungan (393) menutup kasus DUPLIKAT tapi tidak menutup kasus **salah
+catat** — mandor mengetik di lokasi yang salah, atau menulis "asdf" saat
+mencoba. Satu-satunya jalan keluar sebelum ini adalah menutupnya sebagai
+`selesai`, dan **itu berbohong**: tidak ada yang diselesaikan. Papan lalu terisi
+kendala palsu berstatus selesai, dan angka "Selesai 30 hari" ikut menghitungnya.
+
+Pilihan user: **hapus permanen, tapi sempit.**
+
+### Syaratnya, dan sebab tiap syarat
+
+| Ditolak bila | Sebab |
+|---|---|
+| Sudah punya aksi pemulihan | Seseorang sudah MERENCANAKAN sesuatu. Menghapusnya membuang pekerjaan orang lain tanpa pemberitahuan. |
+| Jadi TUJUAN penggabungan | Kembarnya kehilangan induk lalu muncul lagi seolah tidak pernah dirapikan. |
+| Sudah digabungkan | Barisnya adalah bukti penggabungan pernah terjadi. |
+| Menempel di laporan harian FINAL | Laporan final bisa sudah disetorkan ke PPK; dokumen yang beredar jadi tidak cocok dengan sistem. |
+| Berstatus `selesai` | Kendala selesai adalah riwayat. Yang perlu diperbaiki catatan penutupnya. |
+
+Kesempitan itulah satu-satunya alasan hapus permanen boleh ada; melonggarkan
+salah satu syaratnya menghilangkan alasannya.
+
+**Alasan menghapus WAJIB** (min. 3 karakter), dan judul + uraian + tingkat +
+sumber kendala disalin ke `audit_logs` — sesudah barisnya hilang, itulah
+satu-satunya tempat isinya masih bisa dibaca, dan audit bersifat append-only
+sehingga jejaknya tidak bisa ikut dibuang.
+
+Tombolnya dua langkah: "Hapus" hanya MEMBUKA konfirmasi. Tombol hapus satu
+ketukan pada layar ponsel lapangan akan tertekan tanpa dimaksud.
+
+### Kesalahan yang ketahuan lewat uji gigi — komentar yang mengaku aman padahal tidak
+
+Versi pertama menulis `audit()` DULU lalu `db.issue.delete()`, lengkap dengan
+komentar yang menjelaskan kenapa urutan itu aman. **Komentarnya salah.**
+`audit()` bersifat best-effort dan menelan galatnya sendiri, jadi kalau
+tulisannya gagal, penghapusannya tetap jalan dan tidak meninggalkan apa-apa —
+persis yang komentar itu klaim dicegah.
+
+Ketahuan karena membalik urutannya **tidak memerahkan satu uji pun**: dua
+urutan itu memang tidak berbeda secara teramati.
+
+Diperbaiki dengan `auditIn` di dalam `db.$transaction` (AUDIT-01): gagal menulis
+jejak = penghapusan DIBATALKAN. Sekarang jaminannya nyata dan bisa dibuktikan —
+`tests/integration/kendala-hapus-atomik.test.ts` menggagalkan penulisan audit
+dengan sengaja dan menuntut kendalanya masih ada.
+
+Ini kali ketiga dalam pekerjaan kendala sebuah uji terlihat kuat padahal tidak
+membuktikan apa pun. Dicatat apa adanya, bukan disebut "uji gigi lolos".
+
+### Yang TIDAK dilakukan
+
+- **Bukan** hapus untuk `RecoveryAction`/`RecoveryUpdate`. Belum diminta, dan
+  keduanya selalu punya induk yang menerangkan konteksnya.
+- **Bukan** soft-delete. Kolom tersembunyi kedua berarti tiap pembaca `Issue`
+  harus menyaring dua kolom, dan penjaga statis 393 baru saja memperlihatkan
+  betapa mudah satu pembaca terlewat.

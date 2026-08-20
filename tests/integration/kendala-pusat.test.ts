@@ -49,7 +49,7 @@ vi.mock("@/lib/waha/kirim", () => ({
 const { db } = await import("@/lib/db");
 const { naikkanKendalaKegiatan } = await import("@/lib/kendala/naikkan");
 const { kirimPengingatKendalaTerjadwal } = await import("@/lib/kendala/penjadwal-tenggat");
-const { gabungkanKendala, updateIssueStatus } = await import("@/lib/issues");
+const { gabungkanKendala, updateIssueStatus, hapusKendala } = await import("@/lib/issues");
 const { papanKendala } = await import("@/lib/kendala/queries");
 
 /**
@@ -134,8 +134,8 @@ beforeEach(async () => {
 
 afterAll(async () => {
   await db.$executeRawUnsafe(
-    `TRUNCATE TABLE issues, field_activities, audit_logs, locations, packages, users,
-     organizations RESTART IDENTITY CASCADE`,
+    `TRUNCATE TABLE issues, daily_reports, field_activities, audit_logs, locations,
+     packages, users, organizations RESTART IDENTITY CASCADE`,
   );
 });
 
@@ -479,5 +479,104 @@ describe("menggabungkan kendala kembar (DECISIONS 393)", () => {
     const a = await kendala("Kembar kedua");
     const r = await gabungkanKendala(undefined, fd({ duplikatId: a.id, indukId: b.id }));
     expect(r?.error).toMatch(/sudah digabungkan/i);
+  });
+});
+
+describe("menghapus kendala salah catat (DECISIONS 394)", () => {
+  async function kendala(judul: string, extra: Record<string, unknown> = {}) {
+    return db.issue.create({
+      data: { locationId, title: judul, severity: "sedang", status: "terbuka", ...extra },
+    });
+  }
+
+  function fd(v: Record<string, string>) {
+    const f = new FormData();
+    for (const [k, val] of Object.entries(v)) f.set(k, val);
+    return f;
+  }
+
+  it("REGRESI: isi kendala tersimpan di audit SEBELUM barisnya hilang", async () => {
+    /*
+     * Sesudah barisnya hilang, audit adalah SATU-SATUNYA tempat isinya masih
+     * bisa dibaca. Penghapusan yang tidak meninggalkan apa-apa tidak bisa
+     * dipertanggungjawabkan ke siapa pun.
+     */
+    const i = await kendala("asdf salah ketik");
+    const r = await hapusKendala(
+      undefined,
+      fd({ issueId: i.id, alasan: "salah ketik saat mencoba" }),
+    );
+    expect(r?.error).toBeUndefined();
+    expect(await db.issue.findUnique({ where: { id: i.id } })).toBeNull();
+
+    const jejak = await db.auditLog.findFirstOrThrow({
+      where: { action: "issue.hapus", resourceId: i.id },
+    });
+    const p = jejak.payload as Record<string, unknown>;
+    expect(p.title).toBe("asdf salah ketik");
+    expect(p.alasan).toBe("salah ketik saat mencoba");
+    expect(p.severity).toBe("sedang");
+  });
+
+  it("alasan WAJIB – tanpa alasan tidak ada yang dihapus", async () => {
+    const i = await kendala("Salah lokasi");
+    const r = await hapusKendala(undefined, fd({ issueId: i.id, alasan: "" }));
+    expect(r?.error).toMatch(/alasan/i);
+    expect(await db.issue.findUnique({ where: { id: i.id } })).not.toBeNull();
+  });
+
+  it("REGRESI: yang punya aksi pemulihan tidak bisa dihapus", async () => {
+    const i = await kendala("Lahan belum bisa clear");
+    await db.recoveryAction.create({
+      data: { issueId: i.id, description: "Rapat dengan pemilik lahan", createdById: userId },
+    });
+    const r = await hapusKendala(undefined, fd({ issueId: i.id, alasan: "coba hapus" }));
+    expect(r?.error).toMatch(/aksi pemulihan/i);
+    expect(await db.issue.findUnique({ where: { id: i.id } })).not.toBeNull();
+  });
+
+  it("REGRESI: induk penggabungan tidak bisa dihapus – kembarnya akan muncul lagi", async () => {
+    const induk = await kendala("Lahan belum bisa clear");
+    const dup = await kendala("Lahan belum clear");
+    await gabungkanKendala(undefined, fd({ duplikatId: dup.id, indukId: induk.id }));
+
+    const r = await hapusKendala(undefined, fd({ issueId: induk.id, alasan: "coba hapus" }));
+    expect(r?.error).toMatch(/digabungkan ke kendala ini/i);
+    expect(await db.issue.findUnique({ where: { id: induk.id } })).not.toBeNull();
+  });
+
+  it("REGRESI: kendala di laporan harian FINAL tidak bisa dihapus", async () => {
+    const laporan = await db.dailyReport.create({
+      data: {
+        locationId,
+        reportDate: new Date("2026-08-11"),
+        status: "final",
+        createdById: userId,
+      },
+    });
+    const i = await kendala("Kendala di laporan final", { reportId: laporan.id });
+    const r = await hapusKendala(undefined, fd({ issueId: i.id, alasan: "coba hapus" }));
+    expect(r?.error).toMatch(/FINAL/);
+    expect(await db.issue.findUnique({ where: { id: i.id } })).not.toBeNull();
+    await db.issue.delete({ where: { id: i.id } });
+    await db.dailyReport.delete({ where: { id: laporan.id } });
+  });
+
+  it("kendala dari kegiatan lapangan: pesannya mengingatkan teks kegiatannya belum berubah", async () => {
+    /*
+     * Menghapus Issue-nya TIDAK menyentuh kolom kendala di kegiatannya. Kalau
+     * layar tidak mengatakan itu, orang mengira sudah beres – lalu kendalanya
+     * lahir lagi pada finalisasi berikutnya dan tampak seperti hantu.
+     */
+    const faId = await kegiatan("Akses jalan longsor");
+    await naikkanKendalaKegiatan({
+      activityId: faId,
+      locationId,
+      kendala: "Akses jalan longsor",
+      userId,
+    });
+    const i = await db.issue.findFirstOrThrow({ where: { fieldActivityId: faId } });
+    const r = await hapusKendala(undefined, fd({ issueId: i.id, alasan: "salah lokasi" }));
+    expect(r?.success).toMatch(/kegiatan lapangannya belum berubah/i);
   });
 });

@@ -4,7 +4,8 @@ Untuk diuji langsung di layar, tanpa menjalankan perintah apa pun.
 Semua kata bertanda `→` adalah yang harus Anda LIHAT; kalau yang muncul lain,
 itu temuan.
 
-Menyangkut DECISIONS 392 (satu pusat) + 393 (gabung kembar).
+Menyangkut DECISIONS 392 (satu pusat) + 393 (gabung kembar) + 394 (hapus salah
+catat).
 
 ---
 
@@ -233,9 +234,57 @@ lapangan · Ask MARLIN.
 
 ---
 
+## H. Menghapus kendala salah catat
+
+Hapus di MARLIN **sempit dengan sengaja**. Yang boleh dibuang hanya kendala yang
+belum menyentuh siapa pun; kendala yang benar-benar terjadi harus DITUTUP dengan
+catatan, bukan dihapus.
+
+**H-1.** Catat kendala berjudul *"asdf"*. Lalu tekan **"Hapus – salah catat"**.
+
+→ Tombolnya TIDAK langsung menghapus – muncul konfirmasi dengan peringatan dan
+kolom **Alasan**.
+→ Kosongkan alasannya lalu tekan "Ya, hapus" → ditolak, alasannya wajib.
+→ Isi alasan, hapus → barisnya hilang dari papan dan dari tab Progress.
+
+**H-2.** Pada kendala yang **sudah punya aksi pemulihan**, cari tombol Hapus.
+
+→ Tombolnya TIDAK muncul. (Kalau Anda memaksanya lewat cara lain, aksinya
+menolak: *"Kendala ini sudah punya aksi pemulihan – tutup dengan catatan, jangan
+dihapus."*) Rencana orang lain tidak boleh terbuang tanpa pemberitahuan.
+
+**H-3.** Gabungkan A ke B. Lalu coba hapus **B** (induknya).
+
+→ Ditolak: *"Ada kendala lain yang digabungkan ke kendala ini."* Kalau induknya
+hilang, kembarnya muncul kembali seolah tidak pernah dirapikan.
+
+**H-4.** Kendala yang menempel di laporan harian yang sudah **final**.
+
+→ Ditolak. Laporan final bisa saja sudah disetorkan ke PPK; menghapus isinya
+membuat dokumen yang sudah beredar tidak cocok lagi dengan sistem.
+
+**H-5.** Kendala yang sudah berstatus **selesai**.
+
+→ Ditolak. Kendala selesai adalah riwayat. Kalau isinya salah, perbaiki catatan
+penutupnya.
+
+**H-6.** Hapus kendala yang berasal dari **kegiatan lapangan**.
+
+→ Pesan suksesnya mengingatkan: *"Catatan kendala di kegiatan lapangannya belum
+berubah – perbaiki di sana bila perlu."* Kalau tidak diperbaiki, kendalanya lahir
+lagi pada finalisasi berikutnya.
+
+**H-7.** Sesudah menghapus, buka **Sistem → Audit**.
+
+→ Ada baris `issue.hapus` yang memuat **judul, uraian, tingkat, sumber, dan
+alasan** kendala yang dihapus. Sesudah barisnya hilang, itulah satu-satunya
+tempat isinya masih bisa dibaca — dan `audit_logs` bersifat append-only jadi
+jejaknya tidak bisa ikut dibuang.
+
+---
+
 ## Yang BELUM ada — jangan diuji, memang tidak ada
 
-- **Menghapus kendala.** Belum ada sama sekali, termasuk untuk salah ketik.
 - **Aksi massal** (tetapkan PIC/tenggat banyak kendala sekaligus).
 - **Eskalasi bertingkat** (mis. lewat 14 hari → naik ke manajemen).
 - **Membatalkan penggabungan** yang salah. Datanya tersimpan (`mergedIntoId`)

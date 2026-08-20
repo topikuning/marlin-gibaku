@@ -3,10 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { audit } from "@/lib/audit";
+import { audit, auditIn } from "@/lib/audit";
 import { requireCapability, requireLocationAccess, ForbiddenError, type SessionUser } from "@/lib/auth/session";
 import { cariDuplikat } from "@/lib/kendala/duplikat";
 import { alasanTidakBisaDigabung, catatanGabung } from "@/lib/kendala/gabung";
+import { alasanTidakBisaDihapus } from "@/lib/kendala/hapus";
 
 /**
  * Server actions kendala (Issue) + aksi pemulihan (RecoveryAction/Update).
@@ -492,6 +493,105 @@ export async function gabungkanKendala(
       success: dipindah
         ? `Kendala digabungkan – ${dipindah} aksi pemulihan ikut dipindahkan.`
         : "Kendala digabungkan.",
+    };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+const hapusSchema = z.object({
+  issueId: z.uuid(),
+  alasan: z.string().trim().min(3, "Sebutkan alasan menghapus, minimal 3 karakter").max(500),
+});
+
+/**
+ * Hapus kendala yang SALAH CATAT (DECISIONS 394).
+ *
+ * Sempit dengan sengaja – aturannya di `@/lib/kendala/hapus`. Yang boleh
+ * dibuang hanya kendala yang belum menyentuh siapa pun: belum punya aksi
+ * pemulihan, bukan tujuan penggabungan, belum menempel di laporan final.
+ *
+ * Alasannya WAJIB, dan judul kendalanya disalin ke audit sebelum barisnya
+ * hilang. Penghapusan yang tidak meninggalkan apa-apa tidak bisa
+ * dipertanggungjawabkan, dan `audit_logs` append-only sehingga jejaknya tidak
+ * bisa ikut dibuang.
+ */
+export async function hapusKendala(
+  _prev: IssueActionState,
+  formData: FormData,
+): Promise<IssueActionState> {
+  const parsed = hapusSchema.safeParse({
+    issueId: formData.get("issueId"),
+    alasan: String(formData.get("alasan") ?? "").trim(),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+  try {
+    const issue = await db.issue.findUnique({
+      where: { id: parsed.data.issueId },
+      select: {
+        id: true,
+        locationId: true,
+        title: true,
+        description: true,
+        severity: true,
+        status: true,
+        source: true,
+        createdAt: true,
+        mergedIntoId: true,
+        fieldActivityId: true,
+        report: { select: { status: true } },
+        _count: { select: { actions: true, mergedFrom: true } },
+      },
+    });
+    if (!issue) return { error: "Kendala tidak ditemukan." };
+
+    const alasan = alasanTidakBisaDihapus({
+      status: issue.status,
+      jumlahAksi: issue._count.actions,
+      mergedIntoId: issue.mergedIntoId,
+      jumlahKembar: issue._count.mergedFrom,
+      statusLaporan: issue.report?.status ?? null,
+    });
+    if (alasan) return { error: alasan };
+
+    const { user, slug } = await guard(issue.locationId);
+
+    /*
+     * Jejak dan penghapusan dalam SATU transaksi (AUDIT-01).
+     *
+     * Bukan `audit()` yang best-effort: ia menelan galatnya sendiri, sehingga
+     * menulisnya lebih dulu TIDAK menjamin apa pun – kalau tulisannya gagal,
+     * penghapusannya tetap jalan dan tidak meninggalkan apa-apa. (Versi pertama
+     * modul ini persis begitu, lengkap dengan komentar yang mengaku aman;
+     * ketahuan waktu uji gigi karena merusak urutannya tidak memerahkan uji apa
+     * pun.)
+     *
+     * Dengan `auditIn` di dalam transaksi, gagal menulis jejak = penghapusan
+     * DIBATALKAN. Penghapusan permanen tanpa jejak tidak boleh mungkin.
+     */
+    await db.$transaction(async (tx) => {
+      await auditIn(tx, user.id, "issue.hapus", "issue", issue.id, {
+        locationId: issue.locationId,
+        alasan: parsed.data.alasan,
+        // Isi kendalanya disalin utuh: sesudah barisnya hilang, inilah
+        // satu-satunya tempat isinya masih bisa dibaca.
+        title: issue.title,
+        description: issue.description,
+        severity: issue.severity,
+        status: issue.status,
+        source: issue.source,
+        createdAt: issue.createdAt.toISOString(),
+        fieldActivityId: issue.fieldActivityId,
+      });
+      await tx.issue.delete({ where: { id: issue.id } });
+    });
+
+    revalidateLocation(slug);
+    return {
+      success: issue.fieldActivityId
+        ? "Kendala dihapus. Catatan kendala di kegiatan lapangannya belum berubah – perbaiki di sana bila perlu."
+        : "Kendala dihapus.",
     };
   } catch (err) {
     return fail(err);

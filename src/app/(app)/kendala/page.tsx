@@ -21,6 +21,7 @@ import type { IssueSeverity, IssueSource, IssueStatus } from "@/generated/prisma
 import { SaringKendala } from "./saring";
 import { PemilikForm } from "./pemilik-form";
 import { GabungForm, type KandidatInduk } from "./gabung-form";
+import { HapusKendalaForm } from "@/components/knmp/hapus-kendala-form";
 
 export const metadata: Metadata = { title: "Kendala" };
 export const dynamic = "force-dynamic";
@@ -138,8 +139,9 @@ function BarisKendalaKartu({
             dueDate={k.dueDate ? k.dueDate.toISOString().slice(0, 10) : ""}
             pengguna={penggunaOpsi}
           />
-          <div className="mt-2">
+          <div className="mt-2 flex flex-wrap items-start gap-2">
             <GabungForm issueId={k.id} judul={k.title} kandidat={kandidatInduk} />
+            {k.jumlahAksi === 0 ? <HapusKendalaForm issueId={k.id} /> : null}
           </div>
         </div>
       ) : null}
