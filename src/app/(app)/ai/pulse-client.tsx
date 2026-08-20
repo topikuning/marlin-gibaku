@@ -169,10 +169,10 @@ export function PulseClient({
                       </span>
                     </button>
                   </td>
-                  <td className="tabular px-3 py-2 text-right">{r.hasActiveBaseline ? `${r.planPct.toFixed(1)}%` : "—"}</td>
-                  <td className="tabular px-3 py-2 text-right">{r.hasActiveBaseline ? `${r.actualPct.toFixed(1)}%` : "—"}</td>
+                  <td className="tabular px-3 py-2 text-right">{r.hasActiveBaseline ? `${r.planPct.toFixed(1)}%` : "–"}</td>
+                  <td className="tabular px-3 py-2 text-right">{r.hasActiveBaseline ? `${r.actualPct.toFixed(1)}%` : "–"}</td>
                   <td className={`tabular px-3 py-2 text-right font-semibold ${r.deviationPp < -0.05 ? "text-danger" : "text-ink"}`}>
-                    {r.hasActiveBaseline ? `${fmtPp(r.deviationPp)} pp` : "—"}
+                    {r.hasActiveBaseline ? `${fmtPp(r.deviationPp)} pp` : "–"}
                   </td>
                   <td className="px-3 py-2">
                     {r.riskSeverity ? (
@@ -236,7 +236,7 @@ export function PulseClient({
             </ul>
           )}
           {!aiReady ? (
-            <p className="text-xs text-ink-muted">Provider AI nonaktif — aksi analisis dimatikan; data tabel tetap berlaku.</p>
+            <p className="text-xs text-ink-muted">Provider AI nonaktif – aksi analisis dimatikan; data tabel tetap berlaku.</p>
           ) : null}
           <div className="space-y-2">
             {ACTIONS.map((a) => (
@@ -295,13 +295,13 @@ export function PulseClient({
                     {drawer.readiness.blockers.map((b) => (
                       <li key={b.key} className="text-danger">
                         ⛔ {b.label}
-                        {b.detail ? <span className="text-ink-muted"> — {b.detail}</span> : null}
+                        {b.detail ? <span className="text-ink-muted"> – {b.detail}</span> : null}
                       </li>
                     ))}
                     {drawer.readiness.warnings.map((b) => (
                       <li key={b.key} className="text-warning">
                         ⚠ {b.label}
-                        {b.detail ? <span className="text-ink-muted"> — {b.detail}</span> : null}
+                        {b.detail ? <span className="text-ink-muted"> – {b.detail}</span> : null}
                       </li>
                     ))}
                   </ul>

@@ -89,7 +89,7 @@ export async function buildRencanaMingguanXlsx(r: RencanaMingguan): Promise<Buff
   kv("Paket Pekerjaan", h.packageName);
   kv(
     "Lokasi",
-    `${h.locationName} — ${h.village}${h.district ? `, Kec. ${h.district}` : ""}, ${h.regency}, ${h.province}`,
+    `${h.locationName} – ${h.village}${h.district ? `, Kec. ${h.district}` : ""}, ${h.regency}, ${h.province}`,
   );
   kv("Nomor Kontrak", h.contractNumber);
   kv("Kontraktor Pelaksana", h.vendorName);
@@ -126,7 +126,7 @@ export async function buildRencanaMingguanXlsx(r: RencanaMingguan): Promise<Buff
     r.proyeksi.selisihPct,
     PCT_FMT,
     r.proyeksi.masihTertinggal
-      ? "MASIH TERTINGGAL — rencana ini belum cukup untuk kembali ke jadwal"
+      ? "MASIH TERTINGGAL – rencana ini belum cukup untuk kembali ke jadwal"
       : "cukup untuk kembali ke jadwal bila dijalankan penuh",
   );
   ws.addRow([]);
@@ -135,17 +135,17 @@ export async function buildRencanaMingguanXlsx(r: RencanaMingguan): Promise<Buff
   section(ws, `B. EVALUASI KOMITMEN MINGGU KE-${r.weekNumber - 1} (PPC)`);
   if (r.ppc.pct == null) {
     const row = ws.addRow([
-      "Tidak ada rencana tercatat untuk minggu sebelumnya — tidak ada komitmen yang bisa dievaluasi (bukan nilai 0%).",
+      "Tidak ada rencana tercatat untuk minggu sebelumnya – tidak ada komitmen yang bisa dievaluasi (bukan nilai 0%).",
     ]);
     row.getCell(1).font = { size: 9, italic: true };
     ws.mergeCells(row.number, 1, row.number, COL_COUNT);
   } else {
-    num("PPC — Percent Plan Complete (%)", r.ppc.pct, PCT_FMT, `${r.ppc.tuntas} dari ${r.ppc.jumlah} komitmen tuntas`);
+    num("PPC – Percent Plan Complete (%)", r.ppc.pct, PCT_FMT, `${r.ppc.tuntas} dari ${r.ppc.jumlah} komitmen tuntas`);
     if (r.ppc.volumePct != null) {
       num("Pencapaian volume (%)", r.ppc.volumePct, PCT_FMT, "pelengkap, bukan pengganti PPC");
     }
     const catatan = ws.addRow([
-      "PPC dihitung per komitmen dan biner — tuntas atau tidak. Pekerjaan 80% selesai tidak melepaskan penerusnya, jadi dihitung tidak tuntas. Ambang sehat lapangan: >= 70%.",
+      "PPC dihitung per komitmen dan biner – tuntas atau tidak. Pekerjaan 80% selesai tidak melepaskan penerusnya, jadi dihitung tidak tuntas. Ambang sehat lapangan: >= 70%.",
     ]);
     catatan.getCell(1).font = { size: 8, italic: true };
     catatan.getCell(1).alignment = { wrapText: true, vertical: "top" };
@@ -158,7 +158,7 @@ export async function buildRencanaMingguanXlsx(r: RencanaMingguan): Promise<Buff
       r.tidakTuntas.forEach((t, i) => {
         const row = ws.addRow([
           i + 1,
-          `${t.code} — ${t.name}`,
+          `${t.code} – ${t.name}`,
           t.unit ?? "",
           round2(t.target),
           round2(t.realisasi),
@@ -210,7 +210,7 @@ export async function buildRencanaMingguanXlsx(r: RencanaMingguan): Promise<Buff
     }
     const row = ws.addRow([
       no++,
-      `${b.code} — ${b.name}`,
+      `${b.code} – ${b.name}`,
       b.unit ?? "",
       round2(b.volumeKontrak),
       round2(b.realisasi),
@@ -248,7 +248,7 @@ export async function buildRencanaMingguanXlsx(r: RencanaMingguan): Promise<Buff
     const first = dataRows[0];
     const last = dataRows[dataRows.length - 1];
     const total = ws.addRow([]);
-    total.getCell(1).value = `JUMLAH — ${r.baris.length} komitmen`;
+    total.getCell(1).value = `JUMLAH – ${r.baris.length} komitmen`;
     ws.mergeCells(total.number, 1, total.number, 7);
     total.getCell(8).value = { formula: `SUM(H${first}:H${last})` };
     total.getCell(8).numFmt = PCT_FMT;
@@ -266,7 +266,7 @@ export async function buildRencanaMingguanXlsx(r: RencanaMingguan): Promise<Buff
 
   /* ── D. Catatan ── */
   section(ws, "D. CATATAN, KENDALA & KEBUTUHAN DUKUNGAN");
-  const cat = ws.addRow([r.catatan?.trim() || "—"]);
+  const cat = ws.addRow([r.catatan?.trim() || "–"]);
   ws.mergeCells(cat.number, 1, cat.number, COL_COUNT);
   cat.getCell(1).font = { size: 9 };
   cat.getCell(1).alignment = { wrapText: true, vertical: "top" };

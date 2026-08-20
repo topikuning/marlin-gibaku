@@ -62,7 +62,7 @@ async function buatDraft(over: Record<string, unknown> = {}) {
       title: "Deviasi jadwal berat",
       structuredContent: {
         title: "Deviasi jadwal berat",
-        detail: "Realisasi 12% vs rencana 68% — perlu percepatan mobilisasi.",
+        detail: "Realisasi 12% vs rencana 68% – perlu percepatan mobilisasi.",
         category: "schedule",
         severity: "kritis",
         locationId: locId,
@@ -175,7 +175,7 @@ describe("KASUS INTI: draft recovery menjadi Kendala + aksi pemulihan NYATA", ()
 });
 
 describe("pagar", () => {
-  it("tanpa izin Kendala ditolak — AI tidak boleh jadi pintu belakang", async () => {
+  it("tanpa izin Kendala ditolak – AI tidak boleh jadi pintu belakang", async () => {
     const id = await buatDraft();
     role = "exec_viewer"; // punya ai.generate, TIDAK punya issue.manage
     const res = await terapkanSaranAction(undefined, fd({ artifactId: id }));

@@ -23,10 +23,10 @@ async function bootstrapDemoData() {
   try {
     const { db } = await import("@/lib/db");
     const { runDemoSeed } = await import("@/lib/seed/demo");
-    console.log("[bootstrap] BOOTSTRAP_DEMO_DATA=true — memuat data demo…");
+    console.log("[bootstrap] BOOTSTRAP_DEMO_DATA=true – memuat data demo…");
     await runDemoSeed(db);
     console.log(
-      "[bootstrap] data demo termuat (7 lokasi, user demo password 'marlin123' — wajib diganti). " +
+      "[bootstrap] data demo termuat (7 lokasi, user demo password 'marlin123' – wajib diganti). " +
         "HAPUS env BOOTSTRAP_DEMO_DATA setelah ini.",
     );
   } catch (err) {
@@ -38,7 +38,7 @@ async function bootstrapAdmin() {
   const password = process.env.BOOTSTRAP_ADMIN_PASSWORD;
   if (!password) return;
   if (password.length < 8) {
-    console.error("[bootstrap] BOOTSTRAP_ADMIN_PASSWORD minimal 8 karakter — admin tidak dibuat");
+    console.error("[bootstrap] BOOTSTRAP_ADMIN_PASSWORD minimal 8 karakter – admin tidak dibuat");
     return;
   }
   const username = (process.env.BOOTSTRAP_ADMIN_USERNAME ?? "admin").trim();
@@ -47,7 +47,7 @@ async function bootstrapAdmin() {
     const { db } = await import("@/lib/db");
     const existing = await db.user.findUnique({ where: { username }, select: { id: true } });
     if (existing) {
-      console.log(`[bootstrap] user '${username}' sudah ada — dilewati`);
+      console.log(`[bootstrap] user '${username}' sudah ada – dilewati`);
       return;
     }
     const { hashPassword } = await import("@/lib/auth/password");
@@ -67,7 +67,7 @@ async function bootstrapAdmin() {
       },
     });
     console.log(
-      `[bootstrap] admin '${username}' berhasil dibuat — login lalu ganti password. ` +
+      `[bootstrap] admin '${username}' berhasil dibuat – login lalu ganti password. ` +
         "Setelah itu HAPUS env BOOTSTRAP_ADMIN_PASSWORD & BOOTSTRAP_ADMIN_USERNAME.",
     );
   } catch (err) {

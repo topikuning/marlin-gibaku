@@ -76,7 +76,7 @@ export async function parseJadwalWorkbook(buf: Buffer): Promise<ParsedJadwal> {
     }
   }
   if (weekRow < 0) {
-    throw new Error("Header minggu (M1, M2, …) tidak ditemukan — pastikan file dari Unduh Excel Jadwal.");
+    throw new Error("Header minggu (M1, M2, …) tidak ditemukan – pastikan file dari Unduh Excel Jadwal.");
   }
 
   // 2) Baris kategori setelah header minggu: kolom B = nama, kolom A = kode,

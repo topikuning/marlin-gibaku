@@ -81,5 +81,5 @@ export function lokasiDenganWilayah(
   province?: string | null,
 ): string {
   const wilayah = [regency?.trim(), province?.trim()].filter(Boolean).join(", ");
-  return wilayah ? `${name} — ${wilayah}` : name;
+  return wilayah ? `${name} – ${wilayah}` : name;
 }

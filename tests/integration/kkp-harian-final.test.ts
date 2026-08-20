@@ -228,7 +228,7 @@ describe("KASUS INTI: sampul & dokumentasi bertahan melewati finalisasi", () => 
     expect(d!.vendorLogoKey).toBe("logo/vendor-kf.webp");
   });
 
-  it("angka blanko TETAP dari snapshot beku — perbaikan ini tidak boleh mencairkannya", async () => {
+  it("angka blanko TETAP dari snapshot beku – perbaikan ini tidak boleh mencairkannya", async () => {
     // Batas yang penting: sampul & foto boleh diambil dari data hidup, TAPI
     // volume/prestasi wajib tetap dari snapshot. Kalau tidak, "final" kehilangan
     // artinya. Diuji dengan MENGUBAH RAB sesudah final: nama & volume di blanko

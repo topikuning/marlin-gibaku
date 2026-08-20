@@ -107,7 +107,7 @@ export function MenuLaporanPeriodik({
       label: "Buka untuk dicetak",
       icon: <Printer aria-hidden className="size-3.5" />,
       href: `/cetak/periodik/${slug}/${kind}/${n}`,
-      hint: "Versi layar dokumen yang sama — lalu Ctrl+P",
+      hint: "Versi layar dokumen yang sama – lalu Ctrl+P",
     },
     {
       label: "Kirim ke WhatsApp",

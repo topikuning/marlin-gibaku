@@ -125,7 +125,7 @@ beforeEach(async () => {
   await db.dailyReport.update({ where: { id: reportId }, data: { status: "draft" } });
 });
 
-describe("hapus foto laporan harian — siapa yang boleh", () => {
+describe("hapus foto laporan harian – siapa yang boleh", () => {
   it("pengunggah boleh menghapus fotonya sendiri", async () => {
     const foto = await buatFoto(mandorId);
     sesi = { id: mandorId, role: "field_supervisor" };
@@ -156,7 +156,7 @@ describe("hapus foto laporan harian — siapa yang boleh", () => {
   });
 });
 
-describe("hapus foto laporan harian — gerbang status", () => {
+describe("hapus foto laporan harian – gerbang status", () => {
   it("laporan DIKIRIM: ditolak, foto tetap utuh (bukti sudah jadi dasar verifikasi)", async () => {
     const foto = await buatFoto(mandorId);
     await db.dailyReport.update({ where: { id: reportId }, data: { status: "dikirim" } });
@@ -166,7 +166,7 @@ describe("hapus foto laporan harian — gerbang status", () => {
     expect(await ada(foto)).toBe(true);
   });
 
-  it("laporan PERLU KOREKSI: boleh — memang untuk diperbaiki", async () => {
+  it("laporan PERLU KOREKSI: boleh – memang untuk diperbaiki", async () => {
     const foto = await buatFoto(mandorId);
     await db.dailyReport.update({ where: { id: reportId }, data: { status: "perlu_koreksi" } });
     sesi = { id: mandorId, role: "field_supervisor" };

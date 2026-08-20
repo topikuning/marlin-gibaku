@@ -207,7 +207,8 @@ function labelPeriode(p: PeriodeDiminta | null): string {
 const LABEL_NIAT: Record<Niat, string> = {
   kendala: "Kendala yang masih terbuka",
   kendala_dibuka: "Semua kendala yang DIBUKA",
-  kendala_periode_terbuka: "Kendala dari periode itu yang MASIH TERBUKA sekarang",
+  // Dipakai lewat LABEL_PERIODE_DI_TENGAH – periodenya masuk ke tengah kalimat.
+  kendala_periode_terbuka: "Kendala yang MASIH TERBUKA sekarang",
   progress: "Progress pekerjaan",
   deviasi: "Deviasi terhadap kurva-S",
   kelengkapan: "Siapa yang sudah/belum lapor",
@@ -225,12 +226,32 @@ function periodeHariIni(p: PeriodeDiminta): boolean {
   return p.jenis === "mundur_hari" && p.hari === 0;
 }
 
+/**
+ * Label yang periodenya duduk di TENGAH kalimat, bukan ditempel di belakang.
+ *
+ * Bawaannya `LABEL_NIAT[niat] + labelPeriode(...)`, dan itu benar untuk hampir
+ * semua niat. Tapi untuk `kendala_periode_terbuka` hasilnya berbunyi *"Kendala
+ * dari periode itu yang MASIH TERBUKA sekarang minggu lalu"* – artinya tidak
+ * salah, bacaannya yang jelek, dan ini kalimat yang dibaca orang lapangan
+ * sebagai PILIHAN yang harus mereka putuskan. Pilihan yang canggung dibaca
+ * ulang dua kali, lalu ditebak.
+ *
+ * Ketahuan saat menyusun naskah uji manual (`SKENARIO_UJI_WA_AI.md`) – yaitu
+ * saat balasannya ditulis apa adanya untuk dibaca orang, bukan diperiksa
+ * sebagai `toContain("MASIH TERBUKA")`.
+ */
+const LABEL_PERIODE_DI_TENGAH: Partial<Record<Niat, (periode: string) => string>> = {
+  kendala_periode_terbuka: (p) => `Kendala${p} yang MASIH TERBUKA sekarang`,
+};
+
 function kandidat(niat: Niat, periode: PeriodeDiminta | null, imbuhan = ""): KandidatNiat {
+  const teksPeriode = imbuhan || labelPeriode(periode);
+  const khusus = LABEL_PERIODE_DI_TENGAH[niat];
   return {
     niat,
     lokasiDisebut: [],
     periode: periode ?? { jenis: "hari_ini" },
-    label: `${LABEL_NIAT[niat]}${imbuhan || labelPeriode(periode)}`,
+    label: khusus ? khusus(teksPeriode) : `${LABEL_NIAT[niat]}${teksPeriode}`,
   };
 }
 

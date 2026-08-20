@@ -23,7 +23,7 @@ import type {
 } from "@/lib/ai-hub/schemas";
 import { ArtifactPanel } from "./artifact-panel";
 
-export const metadata: Metadata = { title: "AI Intelligence — Detail Run" };
+export const metadata: Metadata = { title: "AI Intelligence – Detail Run" };
 export const dynamic = "force-dynamic";
 
 /** Template Report Studio yang paling cocok per jenis analisis (DECISIONS 194). */
@@ -166,7 +166,7 @@ export default async function AiRunDetailPage({ params }: { params: Promise<{ id
         <h2 className="text-base font-semibold text-ink">{KIND_LABEL[run.runKind] ?? run.runKind}</h2>
         <span className="text-sm text-ink-muted">
           {(run.scopeIds as string[]).length} lokasi · {run.periodStart.toISOString().slice(0, 10)} –{" "}
-          {run.periodEnd.toISOString().slice(0, 10)} · oleh {creator?.fullName ?? "—"} ·{" "}
+          {run.periodEnd.toISOString().slice(0, 10)} · oleh {creator?.fullName ?? "–"} ·{" "}
           {formatTanggalWaktu(run.createdAt)}
         </span>
         {/* Doktrin DECISIONS 193: analisis tidak boleh berakhir di layar —
@@ -183,17 +183,17 @@ export default async function AiRunDetailPage({ params }: { params: Promise<{ id
       </div>
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-5">
-        <KpiCard label="Readiness rata-rata" value={run.readinessScore != null ? `${run.readinessScore}%` : "—"} />
-        <KpiCard label="Confidence AI" value={run.confidence != null ? `${run.confidence}%` : "—"} />
-        <KpiCard label="Provider" value={run.provider ? `${run.provider}` : "—"} sub={run.model ?? undefined} />
+        <KpiCard label="Readiness rata-rata" value={run.readinessScore != null ? `${run.readinessScore}%` : "–"} />
+        <KpiCard label="Confidence AI" value={run.confidence != null ? `${run.confidence}%` : "–"} />
+        <KpiCard label="Provider" value={run.provider ? `${run.provider}` : "–"} sub={run.model ?? undefined} />
         <KpiCard
           label="Token in/out"
-          value={run.inputTokens != null ? `${run.inputTokens}/${run.outputTokens ?? 0}` : "—"}
+          value={run.inputTokens != null ? `${run.inputTokens}/${run.outputTokens ?? 0}` : "–"}
           sub={run.latencyMs != null ? `${(run.latencyMs / 1000).toFixed(1)}s` : undefined}
         />
         <KpiCard
           label="± Biaya"
-          value={run.estimatedCostUsd != null ? `$${Number(run.estimatedCostUsd).toFixed(4)}` : "—"}
+          value={run.estimatedCostUsd != null ? `$${Number(run.estimatedCostUsd).toFixed(4)}` : "–"}
           sub="estimasi (pricing admin)"
         />
       </div>
@@ -202,7 +202,7 @@ export default async function AiRunDetailPage({ params }: { params: Promise<{ id
         <Banner
           tone="error"
           title={`Analisis AI gagal (${run.errorCode})`}
-          description={`${run.errorMessage ?? ""} — data deterministik di bawah tetap berlaku.`}
+          description={`${run.errorMessage ?? ""} – data deterministik di bawah tetap berlaku.`}
         />
       ) : null}
       {limitations.length > 0 ? (
@@ -254,7 +254,7 @@ export default async function AiRunDetailPage({ params }: { params: Promise<{ id
       {/* ── Snapshot angka resmi ── */}
       {official ? (
         <Card>
-          <CardHeader title="Angka resmi MARLIN (snapshot run)" subtitle={`Data per ${official.dataAsOf.slice(0, 16).replace("T", " ")} UTC — sumber kebenaran KPI, bukan narasi AI.`} />
+          <CardHeader title="Angka resmi MARLIN (snapshot run)" subtitle={`Data per ${official.dataAsOf.slice(0, 16).replace("T", " ")} UTC – sumber kebenaran KPI, bukan narasi AI.`} />
           <CardBody>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[760px] text-sm">
@@ -277,10 +277,10 @@ export default async function AiRunDetailPage({ params }: { params: Promise<{ id
                           {r.name}
                         </Link>
                       </td>
-                      <td className="tabular px-3 py-1.5 text-right">{r.hasActiveBaseline ? `${r.planPct.toFixed(1)}%` : "—"}</td>
-                      <td className="tabular px-3 py-1.5 text-right">{r.hasActiveBaseline ? `${r.actualPct.toFixed(1)}%` : "—"}</td>
+                      <td className="tabular px-3 py-1.5 text-right">{r.hasActiveBaseline ? `${r.planPct.toFixed(1)}%` : "–"}</td>
+                      <td className="tabular px-3 py-1.5 text-right">{r.hasActiveBaseline ? `${r.actualPct.toFixed(1)}%` : "–"}</td>
                       <td className={`tabular px-3 py-1.5 text-right ${r.deviationPp < -0.05 ? "font-semibold text-danger" : ""}`}>
-                        {r.hasActiveBaseline ? `${r.deviationPp >= 0 ? "+" : "−"}${Math.abs(r.deviationPp).toFixed(1)} pp` : "—"}
+                        {r.hasActiveBaseline ? `${r.deviationPp >= 0 ? "+" : "−"}${Math.abs(r.deviationPp).toFixed(1)} pp` : "–"}
                       </td>
                       <td className="tabular px-3 py-1.5 text-right">
                         {r.finalReports}/{r.expectedReports}
@@ -303,7 +303,7 @@ export default async function AiRunDetailPage({ params }: { params: Promise<{ id
         <Card>
           <CardHeader
             title="Narasi lapangan (sumber mentah)"
-            subtitle="Catatan laporan harian & kegiatan lapangan apa adanya — dasar kutipan AI. Foto TIDAK dianalisis AI (hanya jumlah + tautan); isinya tetap perlu dilihat manusia."
+            subtitle="Catatan laporan harian & kegiatan lapangan apa adanya – dasar kutipan AI. Foto TIDAK dianalisis AI (hanya jumlah + tautan); isinya tetap perlu dilihat manusia."
           />
           <CardBody className="space-y-4 text-sm">
             {official.narrative.locations
@@ -385,7 +385,7 @@ export default async function AiRunDetailPage({ params }: { params: Promise<{ id
               <li key={a.id} className="flex flex-wrap gap-2 text-ink-muted">
                 <span className="tabular">{formatTanggalWaktu(a.createdAt)}</span>
                 <span className="font-medium text-ink">{a.action}</span>
-                <span>oleh {a.userId ? (nameOf.get(a.userId) ?? "—") : "sistem"}</span>
+                <span>oleh {a.userId ? (nameOf.get(a.userId) ?? "–") : "sistem"}</span>
               </li>
             ))}
           </ul>
@@ -406,7 +406,7 @@ function RunOutput({ kind, out, official }: { kind: string; out: Record<string, 
     return (
       <Card>
         <CardHeader
-          title="Analisis AI — Portfolio Pulse"
+          title="Analisis AI – Portfolio Pulse"
           subtitle={
             <span>
               Status keseluruhan: <Badge tone={STATUS_TONE[p.overallStatus]} label={p.overallStatus} /> · confidence {p.confidence}%
@@ -423,7 +423,7 @@ function RunOutput({ kind, out, official }: { kind: string; out: Record<string, 
                 {p.priorityLocations.map((x, i) => (
                   <li key={i} className="rounded-md border border-border px-3 py-2">
                     <Badge tone={SEV_TONE[x.severity]} label={x.severity} />{" "}
-                    <strong>{locName(x.locationId)}</strong> — {x.reason}
+                    <strong>{locName(x.locationId)}</strong> – {x.reason}
                     <span className="block text-[11px] text-ink-faint">sumber: {x.sourceRefIds.join(", ")}</span>
                   </li>
                 ))}
@@ -432,7 +432,7 @@ function RunOutput({ kind, out, official }: { kind: string; out: Record<string, 
           ) : null}
           {p.actionsToConsider.length > 0 ? (
             <div>
-              <h4 className="mb-1 font-medium text-ink">Tindakan untuk dipertimbangkan (draft — bukan eksekusi)</h4>
+              <h4 className="mb-1 font-medium text-ink">Tindakan untuk dipertimbangkan (draft – bukan eksekusi)</h4>
               <ul className="space-y-1.5">
                 {p.actionsToConsider.map((x, i) => (
                   <li key={i} className="rounded-md border border-border px-3 py-2">
@@ -453,7 +453,7 @@ function RunOutput({ kind, out, official }: { kind: string; out: Record<string, 
     const v = out.deviasi as VarianceOutput;
     return (
       <Card>
-        <CardHeader title="Analisis AI — Explain Variance" subtitle={`Confidence ${v.confidence}% · deviasi resmi TIDAK diubah AI`} />
+        <CardHeader title="Analisis AI – Explain Variance" subtitle={`Confidence ${v.confidence}% · deviasi resmi TIDAK diubah AI`} />
         <CardBody className="space-y-3 text-sm">
           <p className="whitespace-pre-wrap text-ink">{v.summary}</p>
           {v.locations.map((l) => (
@@ -506,13 +506,13 @@ function RunOutput({ kind, out, official }: { kind: string; out: Record<string, 
     const r = out.risiko as RiskOutput;
     return (
       <Card>
-        <CardHeader title="Analisis AI — Risk Intelligence" subtitle={`Confidence ${r.confidence}% · skor risiko dari rule, AI hanya memberi rasional`} />
+        <CardHeader title="Analisis AI – Risk Intelligence" subtitle={`Confidence ${r.confidence}% · skor risiko dari rule, AI hanya memberi rasional`} />
         <CardBody className="space-y-3 text-sm">
           <p className="whitespace-pre-wrap text-ink">{r.summary}</p>
           <ul className="space-y-1.5">
             {r.rationales.map((x, i) => (
               <li key={i} className="rounded-md border border-border px-3 py-2">
-                <Badge tone="neutral" label={RISK_CATEGORY_LABEL[x.category]} /> <strong>{locName(x.locationId)}</strong> —{" "}
+                <Badge tone="neutral" label={RISK_CATEGORY_LABEL[x.category]} /> <strong>{locName(x.locationId)}</strong> –{" "}
                 {x.aiRationale}
               </li>
             ))}
@@ -528,7 +528,7 @@ function RunOutput({ kind, out, official }: { kind: string; out: Record<string, 
     const flagged = findings.filter((f) => f.status === "gagal" || f.status === "periksa");
     return (
       <Card>
-        <CardHeader title="Audit Kualitas Data" subtitle="Status temuan ditentukan rule deterministik — AI hanya menjelaskan." />
+        <CardHeader title="Audit Kualitas Data" subtitle="Status temuan ditentukan rule deterministik – AI hanya menjelaskan." />
         <CardBody className="space-y-3 text-sm">
           {q ? <p className="whitespace-pre-wrap text-ink">{q.summary}</p> : null}
           <ul className="space-y-1.5">
@@ -538,7 +538,7 @@ function RunOutput({ kind, out, official }: { kind: string; out: Record<string, 
                   tone={f.status === "gagal" ? "danger" : f.status === "periksa" ? "warning" : f.status === "lulus" ? "success" : "neutral"}
                   label={f.status}
                 />{" "}
-                <strong>{f.locationName}</strong> — {f.label}
+                <strong>{f.locationName}</strong> – {f.label}
                 <span className="block text-ink-muted">{f.detail}</span>
                 {q?.explanations.find((e) => e.locationId === f.locationId && e.findingKey === f.key) ? (
                   <span className="mt-1 block border-l-2 border-info pl-2 text-ink-muted">
@@ -568,7 +568,7 @@ function RunOutput({ kind, out, official }: { kind: string; out: Record<string, 
            */
           subtitle={
             a.confidence === 0
-              ? "Tanpa sumber terverifikasi — tidak ada klaim angka yang cocok data resmi"
+              ? "Tanpa sumber terverifikasi – tidak ada klaim angka yang cocok data resmi"
               : `Keyakinan ${a.confidence}% (dihitung dari klaim yang lolos validasi)`
           }
         />
@@ -589,7 +589,7 @@ function RunOutput({ kind, out, official }: { kind: string; out: Record<string, 
                       ) : (
                         <span>{r?.label ?? c.sourceRefId}</span>
                       )}
-                      {r?.value ? <span> — {r.value}</span> : null}
+                      {r?.value ? <span> – {r.value}</span> : null}
                     </li>
                   );
                 })}

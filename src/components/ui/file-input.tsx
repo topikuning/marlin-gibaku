@@ -143,7 +143,7 @@ export function FileInput({
         ) : (
           <span className="min-w-0 flex-1 text-[13px] text-ink-muted">
             Belum ada berkas dipilih
-            <span className="hidden sm:inline"> — atau seret ke sini</span>
+            <span className="hidden sm:inline"> – atau seret ke sini</span>
           </span>
         )}
 

@@ -173,7 +173,7 @@ export async function getLocationsProgress(
       -- progress-calc.ts: batas atas 100% DAN batas bawah 0, serta volume RAB
       -- ≤ 0 diperlakukan sebagai "tidak bisa dihitung" (bukan bagi negatif).
       -- Tanpa batas bawah, koreksi bervolume negatif membuat dashboard minus
-      -- sementara blanko KKP menulis 0 — dua angka berbeda lagi.
+      -- sementara blanko KKP menulis 0 – dua angka berbeda lagi.
       SELECT dr.location_id AS location_id,
              GREATEST(0.0, LEAST(1.0,
                SUM(dri.volume_done) / NULLIF(GREATEST(rn.volume, 0), 0)
@@ -188,7 +188,7 @@ export async function getLocationsProgress(
         AND (${asOf ?? null}::date IS NULL OR dr.report_date <= ${asOf ?? null}::date)
         AND rn.kind = 'item'
         -- HANYA basis aktif. Laporan terhadap draft adendum TIDAK boleh
-        -- menggerakkan angka resmi — adendumnya belum disetujui siapa pun
+        -- menggerakkan angka resmi – adendumnya belum disetujui siapa pun
         -- (DECISIONS 210). Tanpa baris ini, item yang lineage-nya ada di kedua
         -- revisi akan ikut terhitung dan progres resmi naik tanpa dasar.
         AND dri.basis = 'aktif'

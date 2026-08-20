@@ -91,7 +91,7 @@ function QueueRow({ item, canApprove }: { item: QueueItem; canApprove: boolean }
                 <ConfirmSubmit
                   label="Setujui"
                   title="Setujui transaksi ini?"
-                  description={`${item.kindLabel} — ${item.description} senilai ${formatRupiah(Number(item.amount))}. Persetujuan tercatat atas nama Anda dan langsung memengaruhi angka keuangan.`}
+                  description={`${item.kindLabel} – ${item.description} senilai ${formatRupiah(Number(item.amount))}. Persetujuan tercatat atas nama Anda dan langsung memengaruhi angka keuangan.`}
                   loading={approving}
                 />
               </form>

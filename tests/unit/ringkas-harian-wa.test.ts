@@ -20,7 +20,7 @@ const dasar: IsiPesanRingkas = {
   locationName: "Kedung Mutih",
   regency: "Demak",
   province: "Jawa Tengah",
-  packageName: "Paket KNMP Demak — Kedungmutih",
+  packageName: "Paket KNMP Demak – Kedungmutih",
   hari: "Rabu",
   tanggalFull: "5 Agustus 2026",
   status: "dikirim",
@@ -38,7 +38,7 @@ const dasar: IsiPesanRingkas = {
 };
 
 describe("pesan ringkasan harian (forum PPK/dinas)", () => {
-  it("KEADAAN DOKUMEN dinyatakan — bukan cuma nama statusnya", () => {
+  it("KEADAAN DOKUMEN dinyatakan – bukan cuma nama statusnya", () => {
     // Inti keputusan "tanpa gerbang": draf boleh dikirim, tapi pembaca harus
     // tahu. "Dikirim" saja tidak memberi tahu bahwa belum ada yang memeriksa.
     const t = pesanRingkasHarianWa(dasar);
@@ -54,14 +54,14 @@ describe("pesan ringkasan harian (forum PPK/dinas)", () => {
     expect(kalimatStatus(null)).toMatch(/belum ada laporan/i);
   });
 
-  it("nama lokasi LENGKAP dengan kabupatennya — pesan ini tidak punya baris Wilayah", () => {
+  it("nama lokasi LENGKAP dengan kabupatennya – pesan ini tidak punya baris Wilayah", () => {
     // Permintaan user 2026-08-06. Nama desa berulang antar kabupaten; pembaca
     // grup yang memegang banyak paket tidak bisa tahu ini yang mana.
     const t = pesanRingkasHarianWa(dasar);
-    expect(t).toContain("Kedung Mutih — Demak, Jawa Tengah");
+    expect(t).toContain("Kedung Mutih – Demak, Jawa Tengah");
   });
 
-  it("TIDAK menyebut pelaksana per item — forum ini pengawasan, bukan pengarahan", () => {
+  it("TIDAK menyebut pelaksana per item – forum ini pengawasan, bukan pengarahan", () => {
     const t = pesanRingkasHarianWa(dasar);
     expect(t).not.toMatch(/PIC/i);
     expect(t).not.toMatch(/mandor/i);

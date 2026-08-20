@@ -33,7 +33,7 @@ function render(el: React.ReactElement): string {
   return renderToStaticMarkup(el);
 }
 
-describe("MenuBerkas — selagi aksi berjalan", () => {
+describe("MenuBerkas – selagi aksi berjalan", () => {
   const sibuk = render(
     <MenuBerkas label="Laporan Harian" utama={UNDUH} pilihan={[UNDUH, kirim(true)]} />,
   );
@@ -74,7 +74,7 @@ describe("MenuBerkas — selagi aksi berjalan", () => {
   });
 });
 
-describe("MenuBerkas — keadaan biasa", () => {
+describe("MenuBerkas – keadaan biasa", () => {
   it("menunya utuh saat tidak ada yang berjalan", () => {
     const m = render(<MenuBerkas label="Laporan Harian" pilihan={[UNDUH, kirim(false)]} />);
     expect(m).toContain("<summary");
@@ -106,7 +106,7 @@ describe("MenuBerkas — keadaan biasa", () => {
   });
 });
 
-describe("MenuBerkas — penjaga tipe", () => {
+describe("MenuBerkas – penjaga tipe", () => {
   it("pilihan beraksi TIDAK BISA ditulis tanpa penanda sibuk", () => {
     /*
      * Penjaga yang sebenarnya ada di kompiler, bukan di sini: `PilihanAksi`

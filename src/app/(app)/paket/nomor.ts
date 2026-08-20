@@ -17,5 +17,5 @@ export function nomorPaket(
   packageNumber: string | null | undefined,
   contractNumber?: string | null,
 ): string {
-  return packageNumber?.trim() || contractNumber?.trim() || "—";
+  return packageNumber?.trim() || contractNumber?.trim() || "–";
 }

@@ -125,7 +125,7 @@ describe("KASUS INTI: kode dari negosiasi resmi tidak boleh dinomori ulang", () 
 });
 
 describe("KASUS INTI: hasil ekspor bisa diimpor ulang", () => {
-  it("kategori terbaca lengkap — tanpa kategori hantu", async () => {
+  it("kategori terbaca lengkap – tanpa kategori hantu", async () => {
     const { parsed } = parseHpsWorkbook(await ekspor());
     expect(parsed.categories.map((c) => c.roman)).toEqual(["I", "III", "IV"]);
     expect(parsed.categories.map((c) => c.name)).toEqual([
@@ -137,7 +137,7 @@ describe("KASUS INTI: hasil ekspor bisa diimpor ulang", () => {
     expect(parsed.categories.every((c) => !/judul tidak ada/i.test(c.name))).toBe(true);
   });
 
-  it("nilainya utuh — total dan per kategori sama dengan yang diekspor", async () => {
+  it("nilainya utuh – total dan per kategori sama dengan yang diekspor", async () => {
     const { parsed } = parseHpsWorkbook(await ekspor());
     expect(parsed.categories.map((c) => c.total_value)).toEqual([3_000_000, 5_000_000, 2_000_000]);
     expect(parsed.total).toBe(10_000_000);

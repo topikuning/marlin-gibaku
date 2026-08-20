@@ -36,7 +36,7 @@ describe("premis pagar: bertanya ke AI ≠ boleh melihat uang", () => {
 });
 
 describe("tiap wilayah adapter menyebut kapabilitasnya sendiri", () => {
-  it("keuangan dipagari finance.view — bukan sekadar scope lokasi", () => {
+  it("keuangan dipagari finance.view – bukan sekadar scope lokasi", () => {
     expect(KAPABILITAS_ADAPTER.keuangan).toBe("finance.view");
   });
 
@@ -48,7 +48,7 @@ describe("tiap wilayah adapter menyebut kapabilitasnya sendiri", () => {
     expect(KAPABILITAS_ADAPTER.milestone).toBe("package.view");
   });
 
-  it("setiap wilayah punya pagar — tidak ada yang terbuka", () => {
+  it("setiap wilayah punya pagar – tidak ada yang terbuka", () => {
     for (const [wilayah, cap] of Object.entries(KAPABILITAS_ADAPTER)) {
       expect(cap, wilayah).toBeTruthy();
     }

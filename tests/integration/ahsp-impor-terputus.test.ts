@@ -105,7 +105,7 @@ describe("impor AHSP yang terputus di tengah", () => {
     await imporAhspDariSeed(null);
   }, 900000);
 
-  it("impor kedua atas berkas yang sama berhenti cepat — tanpa membaca ulang basisnya", async () => {
+  it("impor kedua atas berkas yang sama berhenti cepat – tanpa membaca ulang basisnya", async () => {
     // Jalur inilah yang dipakai tombol "Periksa & segarkan" sehari-hari, dan
     // dulu ia ikut mem-parse berkas 14,6 MB hanya untuk menyimpulkan "tidak ada
     // yang berubah" — 184 MB RSS untuk menjawab "tidak ada yang berubah".

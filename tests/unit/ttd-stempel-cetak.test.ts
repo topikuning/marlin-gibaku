@@ -65,7 +65,7 @@ describe("identitas pihak dibawa datanya, bukan urutan larik", () => {
     expect(perPihak.get("ppk")?.name).toBe("Budi Santoso");
   });
 
-  it("ketiga pihak berbeda — tidak ada dua blok yang mengaku pihak yang sama", () => {
+  it("ketiga pihak berbeda – tidak ada dua blok yang mengaku pihak yang sama", () => {
     const blok = pihakTandaTanganRencana({ header: KOP });
     expect(new Set(blok.map((b) => b.pihak)).size).toBe(3);
   });
@@ -211,7 +211,7 @@ describe("ukuran stempel tetap sepadan dokumen asli", () => {
 });
 
 describe("bentuk & letak", () => {
-  it("stempel BUNDAR — lebar sama dengan tingginya", () => {
+  it("stempel BUNDAR – lebar sama dengan tingginya", () => {
     for (const d of DOKUMEN) {
       const u = ukuran(d.lebar, d.ruang);
       expect(u.stempel.lebar, d.nama).toBe(u.stempel.tinggi);

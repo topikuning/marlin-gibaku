@@ -21,7 +21,7 @@ const ctx: PackageContext = {
 };
 
 describe("describePackageContext", () => {
-  it("sebut paket, pekerjaan, pelaksana, dan lokasi — bukan cuma nama grup generik", () => {
+  it("sebut paket, pekerjaan, pelaksana, dan lokasi – bukan cuma nama grup generik", () => {
     const s = describePackageContext(ctx);
     expect(s).toContain("KNMP Jawa Tengah & DIY");
     expect(s).toContain("PKT-2026-004");
@@ -49,7 +49,7 @@ describe("describePackageContext", () => {
   });
 
   it("shortPackageTitle pakai judul pekerjaan bila ada", () => {
-    expect(shortPackageTitle(ctx)).toContain("—");
+    expect(shortPackageTitle(ctx)).toContain("–");
     expect(shortPackageTitle({ ...ctx, workTitle: null })).toBe("KNMP Jawa Tengah & DIY");
   });
 });
@@ -108,8 +108,8 @@ describe("buildTranscript", () => {
 
 describe("format pesan WhatsApp", () => {
   it("ringkasan satu grup memuat judul, tanggal, jumlah pesan, dan disclaimer", () => {
-    const wa = formatSummaryForWa("Paket A — Pekerjaan X", "Minggu, 26 Juli 2026", "Isi ringkasan.", 12);
-    expect(wa).toContain("*Ringkasan Chat Grup — Paket A — Pekerjaan X*");
+    const wa = formatSummaryForWa("Paket A – Pekerjaan X", "Minggu, 26 Juli 2026", "Isi ringkasan.", 12);
+    expect(wa).toContain("*Ringkasan Chat Grup – Paket A – Pekerjaan X*");
     expect(wa).toContain("Minggu, 26 Juli 2026 · 12 pesan");
     expect(wa).toContain("Isi ringkasan.");
     expect(wa).toContain("verifikasi manusia");

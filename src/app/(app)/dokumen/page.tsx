@@ -252,9 +252,9 @@ export default async function DokumenPage({
                       </td>
                       <td className="py-1.5 pr-3"><StatusPill tone="neutral" label={TYPE_LABEL[d.type]} /></td>
                       <td className="py-1.5 pr-3">{PHASE_LABEL[d.phase]}</td>
-                      <td className="py-1.5 pr-3">{d.docNumber ?? "—"}</td>
-                      <td className="py-1.5 pr-3 tabular">{d.docDate ? formatTanggal(d.docDate) : "—"}</td>
-                      <td className="py-1.5 pr-3 text-ink-muted">{d.locationName ?? d.packageName ?? "—"}</td>
+                      <td className="py-1.5 pr-3">{d.docNumber ?? "–"}</td>
+                      <td className="py-1.5 pr-3 tabular">{d.docDate ? formatTanggal(d.docDate) : "–"}</td>
+                      <td className="py-1.5 pr-3 text-ink-muted">{d.locationName ?? d.packageName ?? "–"}</td>
                       <td className="py-1.5 pr-3 text-right tabular">{Math.max(1, Math.round(d.bytes / 1024))} KB</td>
                       <td className="py-1.5 pr-3 text-ink-muted">{d.uploadedByName}</td>
                       <td className="py-1.5">
@@ -284,7 +284,7 @@ export default async function DokumenPage({
                             uploadedAt={driveUploadedAt.get(d.id) ?? null}
                           />
                         ) : (
-                          <span className="text-[12px] text-ink-faint">—</span>
+                          <span className="text-[12px] text-ink-faint">–</span>
                         )}
                       </td>
                     </tr>

@@ -244,7 +244,7 @@ export default async function HarianIndexPage({
                 ? ` ${daftar.disembunyikan} hari tidak didaftar karena belum tiba atau di luar masa kontrak.`
                 : ""}
               {saring !== "semua"
-                ? ` Saringan aktif — ${(daftar?.baris.length ?? 0) - barisDaftar.length} baris disembunyikan.`
+                ? ` Saringan aktif – ${(daftar?.baris.length ?? 0) - barisDaftar.length} baris disembunyikan.`
                 : ""}
             </p>
           </section>
@@ -280,14 +280,14 @@ export default async function HarianIndexPage({
               </div>
 
               <p className="text-[12px] text-ink-muted">
-                Penyebut = {ringkas.wajib} hari yang dihitung di {judulBulan(bulan)} — dalam
+                Penyebut = {ringkas.wajib} hari yang dihitung di {judulBulan(bulan)} – dalam
                 masa kontrak dan sudah lewat, atau sudah punya laporan.
                 {ringkas.luarKontrak > 0
                   ? ` ${ringkas.luarKontrak} hari di luar masa kontrak (tidak dihitung).`
                   : ""}
                 {ringkas.belumTiba > 0 ? ` ${ringkas.belumTiba} hari belum tiba.` : ""}
                 {saring !== "semua" && diredupkan > 0
-                  ? ` Saringan aktif — ${diredupkan} hari diredupkan, tidak dihapus.`
+                  ? ` Saringan aktif – ${diredupkan} hari diredupkan, tidak dihapus.`
                   : ""}
               </p>
             </section>
@@ -362,7 +362,7 @@ function PanelTanggal({
       ) : (
         <p className="mt-3 rounded-lg border border-border bg-surface p-3 text-[12px] text-ink-muted">
           {sel.keadaan === "luar_kontrak"
-            ? "Tanggal ini di luar masa kontrak — tidak ada laporan yang ditagih."
+            ? "Tanggal ini di luar masa kontrak – tidak ada laporan yang ditagih."
             : sel.keadaan === "belum_tiba"
               ? "Tanggal ini belum tiba."
               : "Belum ada laporan untuk tanggal ini."}

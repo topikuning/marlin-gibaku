@@ -85,7 +85,7 @@ describe("agregasiKebutuhan", () => {
     expect(h.dilewat[0].rinci).toContain("A.5");
   });
 
-  it("item tanpa volume dilewat — bukan dianggap nol", () => {
+  it("item tanpa volume dilewat – bukan dianggap nol", () => {
     // Nol berarti "tidak butuh apa-apa"; kosong berarti "tidak ada yang tahu".
     // Menyamakan keduanya membuat kebutuhan proyek terlihat lebih kecil.
     const h = agregasiKebutuhan([item({ volume: null })]);
@@ -113,7 +113,7 @@ describe("agregasiKebutuhan", () => {
     expect(h.dilewat[1].rinci).toMatch(/perlu dicarikan analisanya/i);
   });
 
-  it("nilai yang dilewat dilaporkan per alasan — supaya lubangnya terukur", () => {
+  it("nilai yang dilewat dilaporkan per alasan – supaya lubangnya terukur", () => {
     const h = agregasiKebutuhan([
       item({ lineageKey: "a", satuanNorm: "m2", amount: 5_000_000n }),
       item({ lineageKey: "b", volume: null, amount: 3_000_000n }),
@@ -129,7 +129,7 @@ describe("agregasiKebutuhan", () => {
     expect(h.dipakai.nilai + totalLewat).toBe(19_000_000n);
   });
 
-  it("besar-kecil huruf satuan BUKAN pembeda — Kg dan kg satu bahan", () => {
+  it("besar-kecil huruf satuan BUKAN pembeda – Kg dan kg satu bahan", () => {
     // Kalau ikut jadi kunci, satu bahan pecah jadi dua baris berjumlah separuh
     // dan pembacanya menyimpulkan kebutuhannya lebih kecil dari yang sebenarnya.
     const h = agregasiKebutuhan([

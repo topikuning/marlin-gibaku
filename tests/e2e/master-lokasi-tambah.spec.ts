@@ -38,7 +38,7 @@ async function isiWilayah(
   await page.getByLabel("Desa / Kelurahan *").fill(w.desa);
 }
 
-test.describe("Katalog Lokasi — tambah manual", () => {
+test.describe("Katalog Lokasi – tambah manual", () => {
   test.beforeEach(async ({ page }) => {
     await bukaKatalog(page);
     await page.getByRole("button", { name: "Tambah Lokasi" }).click();
@@ -59,7 +59,7 @@ test.describe("Katalog Lokasi — tambah manual", () => {
     });
     await page.getByRole("button", { name: "Simpan Lokasi" }).click();
 
-    await expect(page.getByText(/sudah ada — tidak dibuat ganda/i)).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/sudah ada – tidak dibuat ganda/i)).toBeVisible({ timeout: 20_000 });
     /*
      * Kandidatnya DISEBUT, bukan cuma ditolak: penolakan tanpa menunjukkan
      * yang mana memaksa orang mencari sendiri di daftar 73 baris.
@@ -122,7 +122,7 @@ test.describe("Katalog Lokasi — tambah manual", () => {
     await expect(daftar.getByText("belum diisi").filter({ visible: true })).toHaveCount(1);
   });
 
-  test("separuh koordinat ditolak — lintang tanpa bujur bukan tempat", async ({ page }) => {
+  test("separuh koordinat ditolak – lintang tanpa bujur bukan tempat", async ({ page }) => {
     await isiWilayah(page, {
       provinsi: "Nusa Tenggara Timur",
       kabupaten: "Sikka",

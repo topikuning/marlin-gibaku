@@ -42,7 +42,7 @@ export async function buildPeriodikKkpPdf(
 ): Promise<Buffer> {
   const kindLabel = r.kind === "mingguan" ? "MINGGU" : "BULAN";
   const periodeLabel = r.kind === "mingguan" ? "Minggu" : "Bulan";
-  const doc = createLandscapeA4Doc({ title: `Laporan ${periodeLabel} ke-${r.n} — ${r.header.locationName}` });
+  const doc = createLandscapeA4Doc({ title: `Laporan ${periodeLabel} ke-${r.n} – ${r.header.locationName}` });
   const x = LANDSCAPE_MARGIN;
   const width = doc.page.width - LANDSCAPE_MARGIN * 2;
   const bottom = doc.page.height - LANDSCAPE_MARGIN - 14;
@@ -235,7 +235,7 @@ export async function buildPeriodikKkpPdf(
   draw(
     [
       { text: "Lokasi", head: true },
-      { text: `${h.locationName} — ${h.village}${h.district ? `, Kec. ${h.district}` : ""}, ${h.regency}, ${h.province}` },
+      { text: `${h.locationName} – ${h.village}${h.district ? `, Kec. ${h.district}` : ""}, ${h.regency}, ${h.province}` },
       { text: "Nilai Fisik Lokasi", head: true },
       { text: rupiah(Number(h.locationValue)) },
     ],
@@ -395,7 +395,7 @@ export async function buildPeriodikKkpPdf(
     ] as GridCell[],
     ...(rows.length > 0
       ? rows.map(([a, b]): GridCell[] => [{ text: a }, { text: b, align: "right" }])
-      : [[{ text: "—", span: 2, align: "center" }] as GridCell[]]),
+      : [[{ text: "–", span: 2, align: "center" }] as GridCell[]]),
   ]);
   const maxRes = Math.max(...resRows.map((t) => t.length));
   for (let i = 0; i < maxRes; i++) {
@@ -414,7 +414,7 @@ export async function buildPeriodikKkpPdf(
     .font(PDF_FONT.regular)
     .fontSize(7.5)
     .fillColor(PDF_COLORS.ink)
-    .text(`Ringkasan cuaca periode: ${r.cuacaRingkas || "—"}`, x, y, { width });
+    .text(`Ringkasan cuaca periode: ${r.cuacaRingkas || "–"}`, x, y, { width });
   y += 14;
 
   sectionTitle(doc, "3. Kendala Lapangan", x, () => y, (v) => (y = v));
@@ -513,7 +513,7 @@ function signatureBlock(
         align: "center",
       },
       {
-        text: `DIBUAT OLEH :\nPENYEDIA JASA — ${o.h.vendorName}${nameOf(o.h.contractorSignerName, o.h.contractorSignerTitle)}`,
+        text: `DIBUAT OLEH :\nPENYEDIA JASA – ${o.h.vendorName}${nameOf(o.h.contractorSignerName, o.h.contractorSignerTitle)}`,
         align: "center",
       },
     ],

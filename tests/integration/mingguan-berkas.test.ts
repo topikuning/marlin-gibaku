@@ -176,7 +176,7 @@ describe("berkas mingguan", () => {
     expect(hasil.buffer.subarray(0, 5).toString()).toBe("%PDF-");
   });
 
-  it("tanpa SPMK TIDAK terbit — daripada mengarang tanggal", async () => {
+  it("tanpa SPMK TIDAK terbit – daripada mengarang tanggal", async () => {
     // "Minggu ke-n" tidak punya tanggal tanpa SPMK. Menerbitkan dokumen resmi
     // atas tanggal tebakan jauh lebih buruk daripada tidak terbit.
     expect(await renderMingguanKkpPdf(slugTanpaSpmk, 1)).toBeNull();

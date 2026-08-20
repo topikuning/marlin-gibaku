@@ -15,7 +15,7 @@ const doc = readFileSync(new URL("../../docs/rebuild/PERMISSION_MATRIX.md", impo
 describe("PERMISSION_MATRIX.md sinkron dengan authz.ts", () => {
   it("setiap capability ada di dokumen", () => {
     const hilang = CAPABILITIES.filter((c) => !doc.includes(`\`${c}\``));
-    expect(hilang, `Jalankan: pnpm docs:permission — capability belum terdokumentasi`).toEqual([]);
+    expect(hilang, `Jalankan: pnpm docs:permission – capability belum terdokumentasi`).toEqual([]);
   });
 
   it("dokumen tidak memuat capability yang sudah dihapus dari kode", () => {
@@ -41,7 +41,7 @@ describe("PERMISSION_MATRIX.md sinkron dengan authz.ts", () => {
       const marks = m[2].split(" | ").map((x) => x.trim());
       expect(marks, cap).toHaveLength(roles.length);
       roles.forEach((role, i) => {
-        const expected = ROLE_CAPABILITIES[role].has(cap) ? "✓" : "—";
+        const expected = ROLE_CAPABILITIES[role].has(cap) ? "✓" : "–";
         expect(marks[i], `${cap} · ${role}`).toBe(expected);
       });
     }

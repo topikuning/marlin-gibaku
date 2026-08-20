@@ -163,7 +163,7 @@ export async function savePhotoStampConfigAction(
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   await setPhotoStampConfig(parsed.data);
   await audit(actor.id, "system.photo_stamp_update", "system", null, parsed.data);
-  return { success: "Pengaturan cap foto tersimpan — berlaku pada foto berikutnya.", values: await getPhotoStampConfig() };
+  return { success: "Pengaturan cap foto tersimpan – berlaku pada foto berikutnya.", values: await getPhotoStampConfig() };
 }
 
 // ─── Master data jenis kegiatan lapangan ──────────────────────────────
@@ -288,7 +288,7 @@ export async function rebuildFinalSnapshots(
     return {
       success:
         `${ok} laporan final dibangun ulang${gagal > 0 ? `, ${gagal} gagal` : ""}. ` +
-        "Status & data input tidak berubah — hanya angka pada cetakan yang dihitung ulang.",
+        "Status & data input tidak berubah – hanya angka pada cetakan yang dihitung ulang.",
     };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Terjadi kesalahan." };
@@ -327,6 +327,6 @@ export async function savePolicyAction(_prev: PolicyState, formData: FormData): 
     success:
       berubah.length === 0
         ? "Tidak ada perubahan kebijakan."
-        : `Kebijakan tersimpan — ${berubah.length} setelan berubah.`,
+        : `Kebijakan tersimpan – ${berubah.length} setelan berubah.`,
   };
 }

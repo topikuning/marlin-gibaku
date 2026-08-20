@@ -131,7 +131,7 @@ export function classifyMessage(input: ClassifyInput): MessageClass {
       relevance: "perlu_interpretasi",
       category: "lainnya",
       useForSummary: true,
-      reason: "Lampiran tanpa keterangan — isi perlu dilihat manusia",
+      reason: "Lampiran tanpa keterangan – isi perlu dilihat manusia",
     };
   }
 
@@ -171,7 +171,7 @@ export function classifyMessage(input: ClassifyInput): MessageClass {
     relevance: "perlu_interpretasi",
     category: "lainnya",
     useForSummary: true,
-    reason: "Tidak cocok kata kunci — perlu dibaca manusia",
+    reason: "Tidak cocok kata kunci – perlu dibaca manusia",
   };
 }
 

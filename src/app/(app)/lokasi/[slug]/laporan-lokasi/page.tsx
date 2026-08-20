@@ -84,7 +84,7 @@ export default async function LaporanLokasiPage({
       <Card>
         <CardHeader
           title="Laporan Periodik KKP"
-          subtitle="Mingguan / bulanan — dihitung dari laporan harian terkirim (satu calculation layer)."
+          subtitle="Mingguan / bulanan – dihitung dari laporan harian terkirim (satu calculation layer)."
           action={
             scheduleBounds ? (
               // Satu tombol untuk JADWAL, isinya bentuk-bentuknya (DECISIONS 334).
@@ -109,10 +109,10 @@ export default async function LaporanLokasiPage({
                     hint: "Bobot per kategori × minggu",
                   },
                   {
-                    label: "Unduh Excel — rincian item",
+                    label: "Unduh Excel – rincian item",
                     icon: <ListTree aria-hidden className="size-3.5" />,
                     href: `/lokasi/${slug}/jadwal/rincian`,
-                    hint: "Sampai uraian item: volume, harga satuan, bobot. Kolom jadwalnya tetap jadwal KATEGORI induk — sistem tidak menyimpan jadwal per item.",
+                    hint: "Sampai uraian item: volume, harga satuan, bobot. Kolom jadwalnya tetap jadwal KATEGORI induk – sistem tidak menyimpan jadwal per item.",
                   },
                 ]}
               />
@@ -162,7 +162,7 @@ export default async function LaporanLokasiPage({
       </Card>
 
       <Card>
-        <CardHeader title="Laporan harian final" subtitle="Snapshot beku — siap cetak KKP" />
+        <CardHeader title="Laporan harian final" subtitle="Snapshot beku – siap cetak KKP" />
         <CardBody>
           {finalReports.length === 0 ? (
             <EmptyState icon={FileText} title="Belum ada laporan final" description="Finalisasi dilakukan dari workspace harian setelah disetujui." />

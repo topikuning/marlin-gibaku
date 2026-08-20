@@ -54,7 +54,7 @@ export function toNarrativeSourceRefs(bundle: NarrativeBundle): SourceRef[] {
         id: `${loc.slug}:laporan:${r.date}`,
         entityType: "daily_report",
         entityId: r.id,
-        label: `${loc.locationName} — laporan ${r.date}`,
+        label: `${loc.locationName} – laporan ${r.date}`,
         value: r.notes ?? "(tanpa catatan naratif)",
         href: `/lokasi/${loc.slug}/harian/${r.date}`,
       });
@@ -64,7 +64,7 @@ export function toNarrativeSourceRefs(bundle: NarrativeBundle): SourceRef[] {
         id: `${loc.slug}:kegiatan:${a.id}`,
         entityType: "field_activity",
         entityId: a.id,
-        label: `${loc.locationName} — ${a.kindLabel} ${a.date}`,
+        label: `${loc.locationName} – ${a.kindLabel} ${a.date}`,
         value: a.notes ?? a.title,
         href: `/lokasi/${loc.slug}/kegiatan`,
       });
@@ -92,7 +92,7 @@ export function buildNarrativePayload(bundle: NarrativeBundle, opts?: { maxChars
     return "NARASI LAPANGAN: tidak ada catatan laporan harian/kegiatan pada periode & scope ini.";
   }
   const lines: string[] = [
-    "NARASI LAPANGAN (kutip/rangkum apa adanya sebagai konteks kualitatif — BUKAN sumber angka progres; setiap baris punya id sumber granular):",
+    "NARASI LAPANGAN (kutip/rangkum apa adanya sebagai konteks kualitatif – BUKAN sumber angka progres; setiap baris punya id sumber granular):",
   ];
   for (const loc of withContent) {
     lines.push(`### ${loc.locationName}`);
@@ -124,7 +124,7 @@ export function buildNarrativePayload(bundle: NarrativeBundle, opts?: { maxChars
   }
   let text = lines.join("\n");
   if (text.length > maxChars) {
-    text = `${text.slice(0, maxChars).trimEnd()}\n… (narasi terpotong karena batas ukuran — persempit scope/periode untuk narasi lebih lengkap)`;
+    text = `${text.slice(0, maxChars).trimEnd()}\n… (narasi terpotong karena batas ukuran – persempit scope/periode untuk narasi lebih lengkap)`;
   }
   return text;
 }

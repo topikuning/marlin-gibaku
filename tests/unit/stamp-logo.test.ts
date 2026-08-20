@@ -51,7 +51,7 @@ describe("KASUS INTI: cap foto memakai wordmark resmi, bukan gambar tangan", () 
     expect(s).toContain(PATH_KURVA);
   });
 
-  it("SEMUA huruf M-A-R-L-I-N ada sebagai path — bukan sebagai teks", () => {
+  it("SEMUA huruf M-A-R-L-I-N ada sebagai path – bukan sebagai teks", () => {
     const s = rapat(svg());
     // Setiap path huruf di berkas resmi harus muncul di cap. Ini yang membuat
     // wordmark tidak lagi bergantung pada font apa pun.
@@ -66,7 +66,7 @@ describe("KASUS INTI: cap foto memakai wordmark resmi, bukan gambar tangan", () 
     expect(s).not.toContain("Monitoring, Analysis");
   });
 
-  it("tidak ada plat gelap — cap menumpang di atas foto, bukan menutupinya", () => {
+  it("tidak ada plat gelap – cap menumpang di atas foto, bukan menutupinya", () => {
     expect(svg()).not.toContain(`<rect width="1800" height="640"`);
   });
 
@@ -79,7 +79,7 @@ describe("KASUS INTI: cap foto memakai wordmark resmi, bukan gambar tangan", () 
     expect(s).toContain('stroke="#FFFFFF"');
   });
 
-  it("mask takik kurva ikut disertakan di <defs> — tanpa itu ikonnya beda bentuk", () => {
+  it("mask takik kurva ikut disertakan di <defs> – tanpa itu ikonnya beda bentuk", () => {
     expect(svg()).toContain(WORDMARK_DEFS);
     expect(rapat(BERKAS)).toContain('maskUnits="userSpaceOnUse"');
   });
@@ -93,7 +93,7 @@ describe("KASUS INTI: cap foto memakai wordmark resmi, bukan gambar tangan", () 
 
 describe("halo dua ruang koordinat", () => {
   // Huruf diperkecil 0,134× dan ikon diperbesar 3,125×. Satu angka stroke yang
-  // sama akan tampil ~23× lebih tebal di ikon daripada di huruf — cacat yang
+  // sama akan tampil ~23× lebih tebal di ikon daripada di huruf – cacat yang
   // baru kelihatan setelah dicetak, jadi dijaga di sini.
   it("tebal halo huruf dan ikon dihitung terpisah", () => {
     const s = wordmarkSvgInner(0, 0, 400, { halo: "#FFFFFF" });

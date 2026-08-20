@@ -42,7 +42,7 @@ describe("adalahAkar", () => {
     expect(adalahAkar({ username: "hery", role: "super_admin" }, daftar)).toBe(true);
   });
 
-  it("PERAN wajib super_admin — env tidak mengangkat siapa pun", () => {
+  it("PERAN wajib super_admin – env tidak mengangkat siapa pun", () => {
     // Salah ketik di Railway yang kebetulan cocok dengan username mandor tidak
     // boleh memberi mandor itu kewenangan apa pun.
     expect(adalahAkar({ username: "hery", role: "field_supervisor" }, daftar)).toBe(false);

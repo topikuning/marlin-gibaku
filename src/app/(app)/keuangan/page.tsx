@@ -104,7 +104,7 @@ export default async function KeuanganPage() {
       kind: "commitment" as const,
       id: c.id,
       kindLabel: `Komitmen · ${COMMITMENT_TYPE_LABEL[c.type]}`,
-      description: `${c.number} — ${c.description}${c.vendor ? ` (${c.vendor.name})` : ""}`,
+      description: `${c.number} – ${c.description}${c.vendor ? ` (${c.vendor.name})` : ""}`,
       context: c.location.name,
       href: `/lokasi/${c.location.slug}/keuangan`,
       amount: c.amount.toString(),
@@ -135,7 +135,7 @@ export default async function KeuanganPage() {
       id: b.id,
       kindLabel: `Penagihan owner · Termin ${b.terminNo}`,
       description: b.description || `Termin ${b.terminNo}`,
-      context: `${b.contract.package.name} — ${b.contract.contractNumber}`,
+      context: `${b.contract.package.name} – ${b.contract.contractNumber}`,
       href: null,
       amount: b.amount.toString(),
       createdAt: b.createdAt.toISOString(),
@@ -146,7 +146,7 @@ export default async function KeuanganPage() {
     <div className="space-y-6">
       <PageHeader
         title="Keuangan Portfolio"
-        description="Semua angka derived dari transaksi (budget, komitmen, realisasi, invoice, penagihan) — tidak ada input agregat manual."
+        description="Semua angka derived dari transaksi (budget, komitmen, realisasi, invoice, penagihan) – tidak ada input agregat manual."
       />
 
       <section id="antrean" aria-label="Antrean approval">
@@ -155,7 +155,7 @@ export default async function KeuanganPage() {
             title={`Antrean approval (${queue.length})`}
             subtitle={
               canApprove
-                ? "Transaksi diajukan lintas jenis — putuskan di sini."
+                ? "Transaksi diajukan lintas jenis – putuskan di sini."
                 : "Transaksi diajukan menunggu keputusan approver."
             }
           />
@@ -177,7 +177,7 @@ export default async function KeuanganPage() {
           href="#per-lokasi"
         />
         <KpiCard label="Outstanding payable" value={formatRupiahShort(totalOutstanding)} href="#per-lokasi" />
-        <KpiCard label="Terpasang" value={formatRupiahShort(totalInstalled)} sub="dilaporkan (dikirim+disetujui+final) — belum tentu terverifikasi" href="#per-lokasi" />
+        <KpiCard label="Terpasang" value={formatRupiahShort(totalInstalled)} sub="dilaporkan (dikirim+disetujui+final) – belum tentu terverifikasi" href="#per-lokasi" />
         <KpiCard label="Tertagih" value={formatRupiahShort(totalBilled)} sub="owner billing diajukan+" href="#per-lokasi" />
         <KpiCard label="Cair" value={formatRupiahShort(totalDisbursed)} sub="pencairan diterima" href="#per-lokasi" />
       </section>

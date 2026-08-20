@@ -77,7 +77,7 @@ export async function setujuiRevisi(revisionId: string, user: { id: string; role
     select: { id: true, status: true, revisionNo: true, locationId: true, totalValue: true },
   });
   if (rev.status !== "draft") {
-    throw new PersetujuanError(`Revisi #${rev.revisionNo} bukan draft — tidak ada yang perlu disetujui.`);
+    throw new PersetujuanError(`Revisi #${rev.revisionNo} bukan draft – tidak ada yang perlu disetujui.`);
   }
   await db.rabRevisionApproval.upsert({
     where: { revisionId_userId: { revisionId, userId: user.id } },
@@ -125,7 +125,7 @@ export async function pastikanBolehAktivasi(revisionId: string): Promise<void> {
   throw new PersetujuanError(
     `Aktivasi revisi #${rev.revisionNo} butuh persetujuan DUA orang berbeda dan masih kurang: ` +
       `${status.kurang.join(" + ")}. ` +
-      `Adendum mengganti RAB kontrak yang berlaku dan menghitung ulang kurva-S — ` +
+      `Adendum mengganti RAB kontrak yang berlaku dan menghitung ulang kurva-S – ` +
       `tidak ada peran, termasuk Super Admin, yang boleh melakukannya sendirian.`,
   );
 }

@@ -96,7 +96,7 @@ export async function POST(req: Request) {
     try {
       const result = await ingestWaEvent(body);
       chatId = result.chatId ?? null;
-      outcome = result.stored ? "tersimpan ✓" : `diabaikan — ${result.reason}`;
+      outcome = result.stored ? "tersimpan ✓" : `diabaikan – ${result.reason}`;
 
       /**
        * Tanya-jawab bebas (DECISIONS 339) — DIANTREKAN, tidak dijalankan di
@@ -125,7 +125,7 @@ export async function POST(req: Request) {
          */
         outcome += antre.antre
           ? ` · tanya: ${antre.baru ? "diantrekan" : "sudah pernah diantrekan (idempoten)"}`
-          : ` · tanya: tidak diantrekan — ${antre.alasan}`;
+          : ` · tanya: tidak diantrekan – ${antre.alasan}`;
 
         /*
          * Diproses TANPA ditunggu — 200 tidak boleh menunggu provider AI.

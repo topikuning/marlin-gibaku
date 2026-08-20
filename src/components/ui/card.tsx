@@ -5,12 +5,16 @@ import { cn } from "@/lib/cn";
 export function Card({
   className,
   children,
+  id,
 }: {
   className?: string;
   children: ReactNode;
+  /** Sasaran tautan dalam-halaman (mis. banner yang melompat ke kartu ini). */
+  id?: string;
 }) {
   return (
     <section
+      id={id}
       className={cn(
         // `min-w-0` WAJIB di sini, bukan ditambal per halaman. Card hampir
         // selalu jadi anak grid/flex, dan anak grid/flex punya

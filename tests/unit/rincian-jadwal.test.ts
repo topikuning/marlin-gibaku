@@ -41,7 +41,7 @@ describe("labelJadwal", () => {
     expect(labelJadwal([{ startWeek: 7, endWeek: 7 }])).toBe("M7");
   });
 
-  it("JEDA ditulis terpisah — menggabungkannya akan berbohong", () => {
+  it("JEDA ditulis terpisah – menggabungkannya akan berbohong", () => {
     // "M5–M14" akan membuat pembaca mengira minggu 9–10 dikerjakan.
     expect(labelJadwal([{ startWeek: 5, endWeek: 8 }, { startWeek: 11, endWeek: 14 }])).toBe(
       "M5–M8, M11–M14",
@@ -49,7 +49,7 @@ describe("labelJadwal", () => {
   });
 
   it("kategori tanpa jadwal ditandai, bukan dikosongkan diam-diam", () => {
-    expect(labelJadwal([])).toBe("—");
+    expect(labelJadwal([])).toBe("–");
   });
 });
 
@@ -86,16 +86,16 @@ describe("susunRincian", () => {
 
   it("kategori yang belum dijadwalkan tidak mengarang waktu", () => {
     const tanpa = susunRincian(pohon(), 1000, [{ lineageKey: "A", segments: [{ startWeek: 1, endWeek: 4 }] }]);
-    expect(tanpa.find((r) => r.code === "B")!.jadwal).toBe("—");
+    expect(tanpa.find((r) => r.code === "B")!.jadwal).toBe("–");
   });
 
-  it("grand total DITERIMA, bukan dijumlah dari simpul — mencegah hitung ganda", () => {
+  it("grand total DITERIMA, bukan dijumlah dari simpul – mencegah hitung ganda", () => {
     // Σ semua amount = 1600 (kategori + anaknya). Kalau itu yang jadi pembagi,
     // bobot kategori jadi 25% + 37,5% dan totalnya bukan 100%.
     expect(totalBobotKategori(rows)).toBeCloseTo(100);
   });
 
-  it("total hanya menjumlah KATEGORI — sub/item adalah anaknya", () => {
+  it("total hanya menjumlah KATEGORI – sub/item adalah anaknya", () => {
     expect(totalNilaiKategori(rows)).toBe(1000);
   });
 
@@ -111,7 +111,7 @@ describe("susunRincian", () => {
     ];
     const hasil = susunRincian(rusak, 100, []);
     expect(hasil).toHaveLength(2);
-    expect(hasil[0].kategori).toBe("—");
-    expect(hasil[0].jadwal).toBe("—");
+    expect(hasil[0].kategori).toBe("–");
+    expect(hasil[0].jadwal).toBe("–");
   });
 });

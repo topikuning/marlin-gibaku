@@ -291,7 +291,7 @@ describe("KASUS INTI: ringkasan memuat hari itu, dan HANYA hari itu", () => {
     expect(d!.status).toBe("dikirim");
   });
 
-  it("hari tanpa laporan TETAP menghasilkan data — bukan null", async () => {
+  it("hari tanpa laporan TETAP menghasilkan data – bukan null", async () => {
     // Kegiatan lapangan hari itu bisa saja ada, dan "belum ada laporan harian"
     // adalah keterangan yang berguna, bukan alasan menolak mencetak.
     const d = await getRingkasHarian(slug, HARI_KOSONG);
@@ -411,7 +411,7 @@ describe("PDF benar-benar terbentuk (bukan cuma lolos typecheck)", () => {
     expect(buf.length).toBeGreaterThan(3_000);
   });
 
-  it("foto DITAUTKAN ke gambar penuh di cloud — bukti yang dipangkas harus punya jalan pulang", async () => {
+  it("foto DITAUTKAN ke gambar penuh di cloud – bukti yang dipangkas harus punya jalan pulang", async () => {
     // Keluhan user 2026-08-06: PDF kegiatan lapangan menautkan fotonya ke
     // cloud, ringkasan ini tidak. Fotonya DIPANGKAS ke kotak 4:3; memangkas
     // bukti tanpa menyisakan jalan ke aslinya berarti menghilangkan bagian
@@ -467,7 +467,7 @@ describe("papan status harian", () => {
     expect(lain!.status).toBeNull();
   });
 
-  it("jejak Drive dipasangkan lewat refKey — TIDAK tertukar antar lokasi", async () => {
+  it("jejak Drive dipasangkan lewat refKey – TIDAK tertukar antar lokasi", async () => {
     const pkgId = (
       await db.location.findUniqueOrThrow({ where: { id: locationId }, select: { packageId: true } })
     ).packageId;
@@ -538,7 +538,7 @@ describe("papan status harian", () => {
     expect(await getStatusHarian(user(), null, "bukan-tanggal")).toBeNull();
   });
 
-  it("scope lokasi dihormati — daftar kosong bila tak ada akses", async () => {
+  it("scope lokasi dihormati – daftar kosong bila tak ada akses", async () => {
     const s = await getStatusHarian(user(), [], HARI);
     expect(s!.rows).toHaveLength(0);
   });
@@ -561,7 +561,7 @@ describe("kirim ringkasan ke grup WA", () => {
     expect(terkirim[1].fileName).toBe(`laporan-harian-${slug}-${HARI}.pdf`);
   });
 
-  it("status non-final DISEBUT di pesan hasil — pengirim tahu apa yang ia kirim", async () => {
+  it("status non-final DISEBUT di pesan hasil – pengirim tahu apa yang ia kirim", async () => {
     const res = await kirim(slug, HARI);
     expect(res?.success).toMatch(/dikirim/); // status laporannya
   });
@@ -576,7 +576,7 @@ describe("kirim ringkasan ke grup WA", () => {
     expect(lap.waSentById).toBe(sessionUserId);
   });
 
-  it("hari KOSONG ditolak — tidak melatih grup pejabat mengabaikan pesan MARLIN", async () => {
+  it("hari KOSONG ditolak – tidak melatih grup pejabat mengabaikan pesan MARLIN", async () => {
     const res = await kirim(slug, HARI_KOSONG);
     expect(res?.error).toMatch(/tidak ada yang bisa dilaporkan/i);
     expect(terkirim).toHaveLength(0);
@@ -654,7 +654,7 @@ describe("judul foto = pekerjaan yang dibuktikannya, bukan label seragam", () =>
     }
   });
 
-  it("foto tanpa item TETAP berlabel umum — menebak pekerjaannya lebih buruk", async () => {
+  it("foto tanpa item TETAP berlabel umum – menebak pekerjaannya lebih buruk", async () => {
     const lap = await db.dailyReport.findFirstOrThrow({
       where: { locationId, reportDate: new Date(`${HARI}T00:00:00.000Z`) },
       select: { id: true },
@@ -680,7 +680,7 @@ describe("judul foto = pekerjaan yang dibuktikannya, bukan label seragam", () =>
 });
 
 describe("jam yang tidak diketahui tidak boleh dicetak sebagai jam", () => {
-  it("waktu dari TANGGAL KERJA ditandai — bukan dicetak '07.00'", async () => {
+  it("waktu dari TANGGAL KERJA ditandai – bukan dicetak '07.00'", async () => {
     // Kolom tanggal kerja = DATE = tengah malam UTC. Diformat lengkap ia
     // berbunyi 07.00 WIB: tanggalnya benar, jamnya karangan (DECISIONS 197).
     const lap = await db.dailyReport.findFirstOrThrow({

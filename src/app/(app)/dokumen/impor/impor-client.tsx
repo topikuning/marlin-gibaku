@@ -100,7 +100,7 @@ export function ImporDriveClient({
     <div className="space-y-6">
       <Card>
         <CardHeader
-          title="Langkah 1 — baca folder Drive"
+          title="Langkah 1 – baca folder Drive"
           subtitle="MARLIN menelusuri folder KKP paket ini (sampai 4 lapis, 500 berkas) lalu menebak jenis & desa tiap berkas. Tidak ada yang masuk arsip sebelum Anda menyetujuinya."
         />
         <CardBody className="space-y-3">
@@ -114,7 +114,7 @@ export function ImporDriveClient({
           {previewState?.preview ? (
             <div className="space-y-2 text-sm">
               <p>
-                Ditemukan <strong>{previewState.preview.jumlah.total}</strong> berkas —{" "}
+                Ditemukan <strong>{previewState.preview.jumlah.total}</strong> berkas –{" "}
                 <strong>{previewState.preview.jumlah.siap}</strong> siap diimpor,{" "}
                 {previewState.preview.jumlah.sudahAda} sudah pernah diimpor,{" "}
                 {previewState.preview.jumlah.dilewati} dilewati.
@@ -124,7 +124,7 @@ export function ImporDriveClient({
               {previewState.preview.jumlah.terbitanSendiri > 0 ? (
                 <p className="text-[13px] text-ink-muted">
                   {previewState.preview.jumlah.terbitanSendiri} berkas tidak ditampilkan karena
-                  terbitan MARLIN sendiri (laporan yang diunggah dari sini) — datanya sudah ada,
+                  terbitan MARLIN sendiri (laporan yang diunggah dari sini) – datanya sudah ada,
                   tidak perlu diimpor balik.
                 </p>
               ) : null}
@@ -132,7 +132,7 @@ export function ImporDriveClient({
                 <Banner
                   tone="warning"
                   title="Belum semua berkas terbaca"
-                  description="Batas kedalaman/jumlah tercapai — impor yang tampil dulu, lalu baca ulang folder untuk sisanya."
+                  description="Batas kedalaman/jumlah tercapai – impor yang tampil dulu, lalu baca ulang folder untuk sisanya."
                 />
               ) : null}
             </div>
@@ -143,7 +143,7 @@ export function ImporDriveClient({
       {rows.length > 0 ? (
         <Card>
           <CardHeader
-            title="Langkah 2 — periksa & impor"
+            title="Langkah 2 – periksa & impor"
             subtitle="Perbaiki jenis dokumen atau desa yang salah tebak. Kolom “nama di MARLIN” memperlihatkan hasilnya sebelum disimpan."
           />
           <CardBody className="space-y-4">
@@ -157,7 +157,7 @@ export function ImporDriveClient({
                       ? `, ${commitState.result.gagal.length} gagal`
                       : ""
                   }`}
-                  description="Berkas yang berhasil sudah tersalin ke arsip MARLIN (R2) — tidak lagi bergantung pada file di Drive. Baca ulang folder untuk melihat status terbaru."
+                  description="Berkas yang berhasil sudah tersalin ke arsip MARLIN (R2) – tidak lagi bergantung pada file di Drive. Baca ulang folder untuk melihat status terbaru."
                 />
                 {commitState.result.gagal.length > 0 ? (
                   <ul className="list-inside list-disc space-y-1 text-xs text-ink-muted">
@@ -275,7 +275,7 @@ export function ImporDriveClient({
                               }))
                             }
                           >
-                            <option value="">— tingkat paket (bukan per desa) —</option>
+                            <option value="">– tingkat paket (bukan per desa) –</option>
                             {locations.map((l) => (
                               <option key={l.id} value={l.id}>
                                 {l.name}
@@ -284,7 +284,7 @@ export function ImporDriveClient({
                           </Combobox>
                         </td>
                         <td className="py-2 pr-3 align-top text-xs">
-                          {r.dilewati ? "—" : namaTampilan(r)}
+                          {r.dilewati ? "–" : namaTampilan(r)}
                         </td>
                       </tr>
                     );

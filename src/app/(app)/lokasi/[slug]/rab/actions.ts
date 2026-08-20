@@ -169,7 +169,7 @@ export async function recalcBaselineAction(_prev: RabActionState, formData: Form
       where: { locationId: parsed.data, status: "aktif" },
       select: { id: true },
     });
-    if (!active) return { error: "Belum ada revisi RAB aktif — import RAB dulu." };
+    if (!active) return { error: "Belum ada revisi RAB aktif – import RAB dulu." };
     const baseline = await regenerateBaseline(parsed.data, {
       source: "auto",
       rabRevisionId: active.id,
@@ -180,11 +180,11 @@ export async function recalcBaselineAction(_prev: RabActionState, formData: Form
     revalidatePath(`/lokasi/${loc.slug}/progress`);
     if (baseline.unchanged) {
       return {
-        success: `Tidak ada perubahan — hasil hitung identik dengan baseline #${baseline.baselineNo} yang aktif, versi baru tidak dibuat.`,
+        success: `Tidak ada perubahan – hasil hitung identik dengan baseline #${baseline.baselineNo} yang aktif, versi baru tidak dibuat.`,
       };
     }
     return {
-      success: `Kurva-S dihitung ulang — baseline #${baseline.baselineNo} aktif. Versi sebelumnya tersimpan di kartu "Riwayat baseline" di bawah.`,
+      success: `Kurva-S dihitung ulang – baseline #${baseline.baselineNo} aktif. Versi sebelumnya tersimpan di kartu "Riwayat baseline" di bawah.`,
     };
   } catch (err) {
     return fail(err);
@@ -237,7 +237,7 @@ export async function saveManualBaselineAction(_prev: RabActionState, formData: 
     const baseline = await updateBaselinePoints(baselineId, points, user.id);
     revalidateRab(ref.location.slug);
     revalidatePath(`/lokasi/${ref.location.slug}/progress`);
-    return { success: `Kurva-S manual disimpan — baseline #${baseline.baselineNo} aktif.` };
+    return { success: `Kurva-S manual disimpan – baseline #${baseline.baselineNo} aktif.` };
   } catch (err) {
     return fail(err);
   }
@@ -291,10 +291,10 @@ export async function saveCategoryScheduleAction(
     revalidateRab(loc.slug);
     revalidatePath(`/lokasi/${loc.slug}/progress`);
     if (result.unchanged) {
-      return { success: `Tidak ada perubahan — jadwal identik dengan baseline #${result.baselineNo} yang aktif.` };
+      return { success: `Tidak ada perubahan – jadwal identik dengan baseline #${result.baselineNo} yang aktif.` };
     }
     return {
-      success: `Jadwal tersimpan — baseline #${result.baselineNo} aktif. Versi sebelumnya ada di Riwayat baseline.`,
+      success: `Jadwal tersimpan – baseline #${result.baselineNo} aktif. Versi sebelumnya ada di Riwayat baseline.`,
     };
   } catch (err) {
     return fail(err);
@@ -368,7 +368,7 @@ async function siapkanImporJadwal(formData: FormData): Promise<{ error: string }
 
   // Kategori RAB aktif utk pencocokan (kode → nama).
   const revision = await db.rabRevision.findFirst({ where: { locationId: location.id, status: "aktif" }, select: { id: true } });
-  if (!revision) return { error: "Belum ada revisi RAB aktif — impor RAB dulu." };
+  if (!revision) return { error: "Belum ada revisi RAB aktif – impor RAB dulu." };
   const catNodes = await db.rabNode.findMany({
     where: { revisionId: revision.id, kind: "kategori", amount: { gt: 0n } },
     select: { code: true, name: true, lineageKey: true },
@@ -417,10 +417,10 @@ export async function importJadwalAction(_prev: RabActionState, formData: FormDa
       ? ` ${ringkasApaAdanya(result.verbatim)}`
       : ` ${result.matched} dari ${catNodes.length} pekerjaan cocok; bobot mengikuti RAB.`;
     if (result.unchanged) {
-      return { success: `Tidak ada perubahan — jadwal identik dengan baseline #${result.baselineNo} yang aktif.${rincian}` };
+      return { success: `Tidak ada perubahan – jadwal identik dengan baseline #${result.baselineNo} yang aktif.${rincian}` };
     }
     return {
-      success: `Jadwal terimpor — baseline #${result.baselineNo} aktif.${rincian} Versi sebelumnya ada di Riwayat baseline.`,
+      success: `Jadwal terimpor – baseline #${result.baselineNo} aktif.${rincian} Versi sebelumnya ada di Riwayat baseline.`,
     };
   } catch (err) {
     return fail(err);
@@ -494,7 +494,7 @@ export async function pratinjauJadwalAction(
           h.matched === h.jumlahKategori
             ? "Semua pekerjaan RAB punya jadwal di berkas."
             : mode === "apaadanya"
-              ? "Pekerjaan yang tidak ada di berkas TIDAK dijadwalkan — kurvanya mengikuti berkas Anda."
+              ? "Pekerjaan yang tidak ada di berkas TIDAK dijadwalkan – kurvanya mengikuti berkas Anda."
               : "Pekerjaan yang tidak ada di berkas diisi jadwal otomatis agar kurva tuntas 100%.",
       },
       {
@@ -502,14 +502,14 @@ export async function pratinjauJadwalAction(
         judul: "Kurva tuntas di 100%",
         rincian:
           totalExcel != null && Math.abs(totalExcel - 100) >= 0.01
-            ? `Total berkas ${totalExcel.toFixed(2)}% — diskalakan seragam ke 100% supaya kurva-S tuntas. Bentuk dan jeda dari berkas tetap dipakai.`
+            ? `Total berkas ${totalExcel.toFixed(2)}% – diskalakan seragam ke 100% supaya kurva-S tuntas. Bentuk dan jeda dari berkas tetap dipakai.`
             : "Total bobot mingguan berjumlah 100%.",
       },
       {
         lolos: !h.unchanged,
         judul: h.unchanged ? "Tidak ada yang berubah" : `${perubahan.length} minggu berubah`,
         rincian: h.unchanged
-          ? "Berkas ini menghasilkan kurva yang identik dengan baseline aktif — tidak perlu diterapkan."
+          ? "Berkas ini menghasilkan kurva yang identik dengan baseline aktif – tidak perlu diterapkan."
           : "Bandingkan di tabel bawah sebelum menerapkan.",
       },
     ];
@@ -552,9 +552,9 @@ export async function restoreBaselineAction(
     revalidateRab(ref.location.slug);
     revalidatePath(`/lokasi/${ref.location.slug}/progress`);
     if (result.unchanged) {
-      return { success: `Baseline #${result.baselineNo} sudah aktif — tidak ada yang dipulihkan.` };
+      return { success: `Baseline #${result.baselineNo} sudah aktif – tidak ada yang dipulihkan.` };
     }
-    return { success: `Dipulihkan — baseline #${result.baselineNo} aktif (salinan dari versi lama, riwayat tetap utuh).` };
+    return { success: `Dipulihkan – baseline #${result.baselineNo} aktif (salinan dari versi lama, riwayat tetap utuh).` };
   } catch (err) {
     return fail(err);
   }
@@ -601,7 +601,7 @@ export async function addWeeklyPlanItem(_prev: RabActionState, formData: FormDat
     });
     const startDate = location.package.contract?.startDate;
     if (!startDate) {
-      return { error: "Paket belum punya kontrak — periode minggu tidak bisa dihitung." };
+      return { error: "Paket belum punya kontrak – periode minggu tidak bisa dihitung." };
     }
 
     // Item harus milik revisi RAB AKTIF lokasi ini dan berjenis leaf item.
@@ -676,7 +676,7 @@ export async function getWeeklySuggestions(_prev: SuggestState, formData: FormDa
     const user = await requireCapability("weekly_plan.manage");
     await requireLocationAccess(user, parsed.data.locationId);
     const result = await suggestWeeklyPlan(parsed.data.locationId, parsed.data.weekNumber);
-    if (!result) return { error: "Belum ada revisi RAB aktif — impor RAB dulu." };
+    if (!result) return { error: "Belum ada revisi RAB aktif – impor RAB dulu." };
     if (result.suggestions.length === 0) {
       return { error: "Tidak ada pekerjaan yang perlu disarankan untuk minggu ini (semua sesuai/selesai)." };
     }
@@ -708,7 +708,7 @@ export async function applyWeeklySuggestions(_prev: RabActionState, formData: Fo
       select: { slug: true, package: { select: { contract: { select: { startDate: true } } } } },
     });
     const startDate = location.package.contract?.startDate;
-    if (!startDate) return { error: "Paket belum punya kontrak — periode minggu tidak bisa dihitung." };
+    if (!startDate) return { error: "Paket belum punya kontrak – periode minggu tidak bisa dihitung." };
 
     const result = await suggestWeeklyPlan(locationId, weekNumber);
     if (!result || result.suggestions.length === 0) {

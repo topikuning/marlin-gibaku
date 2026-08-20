@@ -300,7 +300,7 @@ describe("keyakinan DETERMINISTIK, bukan pengakuan model", () => {
     expect(o.confidence).toBe(50);
   });
 
-  it("NOL bila tidak ada klaim yang cocok — walau model bilang 95", async () => {
+  it("NOL bila tidak ada klaim yang cocok – walau model bilang 95", async () => {
     // Syarat keras brief butir 26.
     buatKeluaran = (p) => {
       const f = faktaDariPrompt(p).find((x) => x.metric === "realisasi")!;
@@ -414,7 +414,7 @@ describe("adapter sumber: kontrak / keuangan / RAB / milestone (DECISIONS 379)",
     expect(o.answer).toContain("5.000.000.000");
   });
 
-  it("uang TIDAK bertoleransi — meleset seribu rupiah pun ditolak", async () => {
+  it("uang TIDAK bertoleransi – meleset seribu rupiah pun ditolak", async () => {
     // Angka yang meleset pada nilai kontrak bukan pembulatan tampilan; di
     // dokumen KKP ia dibaca sebagai angka resmi.
     buatKeluaran = (p) => {
@@ -481,7 +481,7 @@ describe("PAGAR KAPABILITAS: uang tidak bocor lewat pintu AI", () => {
     expect(metrik).toContain("nilai_kontrak");
   });
 
-  it("yang DITAHAN dikatakan — bukan didiamkan jadi 'tidak ada uangnya'", async () => {
+  it("yang DITAHAN dikatakan – bukan didiamkan jadi 'tidak ada uangnya'", async () => {
     /*
      * Diam di sini membuat model menyimpulkan datanya kosong dan menuliskannya
      * sebagai fakta. Penanya juga berhak tahu ia harus meminta akses, bukan
@@ -495,7 +495,7 @@ describe("PAGAR KAPABILITAS: uang tidak bocor lewat pintu AI", () => {
     expect((o._limitations as string[]).some((l) => l.includes("Keuangan"))).toBe(true);
   });
 
-  it("peran berhak TETAP menerima keuangan — pagar bukan tembok buta", async () => {
+  it("peran berhak TETAP menerima keuangan – pagar bukan tembok buta", async () => {
     buatKeluaran = () => ({ answer: "-", answerParts: [], citations: [], confidence: 10, limitations: [] });
     await jalankan();
     const metrik = faktaDariPrompt(promptTerakhir).map((f) => f.metric);

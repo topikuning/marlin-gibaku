@@ -134,7 +134,7 @@ describe("yang tidak jelas: DITAWARKAN, bukan ditolak", () => {
     expect(kendala?.label).not.toMatch(/masih terbuka sekarang/i);
   });
 
-  it('"minta laporan minggu lalu" TIDAK ditawarkan — sudah diputus DECISIONS 358', () => {
+  it('"minta laporan minggu lalu" TIDAK ditawarkan – sudah diputus DECISIONS 358', () => {
     /*
      * Sekilas ini kandidat tawaran yang sempurna: laporan harian selalu SATU
      * tanggal, rekap mingguan meliputi sepekan. Tapi kasus ini sudah diputus
@@ -228,7 +228,7 @@ describe("boleh dijalankan tanpa AI?", () => {
     expect(r.jenis).toBe("serahkan_ai");
   });
 
-  it("ambigu pun tidak memanggil AI — pilihannya sudah cukup", () => {
+  it("ambigu pun tidak memanggil AI – pilihannya sudah cukup", () => {
     const r = rencanaDeterministik("bagaimana yang kemarin?", KATALOG);
     expect(r.jenis).toBe("ambigu");
   });
@@ -255,6 +255,23 @@ describe("kendala + periode LAMPAU: dua tafsir, penanya yang memilih (DECISIONS 
     const label = r.jenis === "ambigu" ? r.kandidat.map((k) => k.label) : [];
     expect(label[0]).toContain("DIBUKA");
     expect(label[1]).toContain("MASIH TERBUKA");
+  });
+
+  it("kalimat pilihannya BISA DIBACA – periodenya di tempat yang benar", () => {
+    /*
+     * Bukan uji gaya. Ini kalimat yang dibaca orang lapangan sebagai pilihan
+     * yang harus mereka putuskan; kalau canggung, ia dibaca ulang lalu
+     * ditebak. Versi sebelumnya menempel periode di ujung label yang sudah
+     * menyebut "periode itu", jadi berbunyi "…MASIH TERBUKA sekarang minggu
+     * lalu". Lolos `toContain("MASIH TERBUKA")` tanpa masalah – yang
+     * membuktikan asersi `toContain` saja tidak menjaga keterbacaan.
+     */
+    const r = parseNiatDeterministik("kendala minggu lalu");
+    const label = r.jenis === "ambigu" ? r.kandidat.map((k) => k.label) : [];
+    expect(label[0]).toBe("Semua kendala yang DIBUKA minggu lalu");
+    expect(label[1]).toBe("Kendala minggu lalu yang MASIH TERBUKA sekarang");
+    // Periode tidak boleh terdampar di belakang kata "sekarang".
+    expect(label[1]).not.toMatch(/sekarang\s+(minggu|bulan|kemarin|hari|tanggal)/i);
   });
 
   it('"ada kendala apa" (tanpa periode) tetap langsung dijawab', () => {

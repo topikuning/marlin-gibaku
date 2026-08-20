@@ -46,7 +46,7 @@ const KATALOG: LokasiKatalog[] = [
 ];
 
 describe("skema niat", () => {
-  it("menerima niat null — AI WAJIB boleh mengaku tidak tahu", () => {
+  it("menerima niat null – AI WAJIB boleh mengaku tidak tahu", () => {
     const r = skemaNiat.safeParse({ niat: null, lokasiDisebut: [], periode: { jenis: "hari_ini" } });
     expect(r.success).toBe(true);
     expect(r.success && r.data.niat).toBeNull();
@@ -88,7 +88,7 @@ describe("skema niat", () => {
     }
   });
 
-  it("membatasi jumlah lokasi — pesan yang membanjiri tidak jadi kueri raksasa", () => {
+  it("membatasi jumlah lokasi – pesan yang membanjiri tidak jadi kueri raksasa", () => {
     const banyak = Array.from({ length: 21 }, (_, i) => `L${i}`);
     expect(skemaNiat.safeParse({ niat: "progress", lokasiDisebut: banyak }).success).toBe(false);
   });
@@ -168,7 +168,7 @@ describe("pencocokan nama lokasi", () => {
     expect(c.jenis === "tepat" && c.lokasi.id).toBe("1");
   });
 
-  it("nama LOKASI menang atas nama wilayah — yang khusus mengalahkan yang luas", () => {
+  it("nama LOKASI menang atas nama wilayah – yang khusus mengalahkan yang luas", () => {
     // Kalau ada lokasi yang namanya persis "Demak", itulah yang dimaksud,
     // bukan seluruh Kabupaten Demak.
     const katalog = [...KATALOG, lok("5", "Demak", "Demak", "Jawa Tengah")];
@@ -408,7 +408,7 @@ describe("balasan berdata selalu jujur soal batasnya", () => {
     expect(t.toLowerCase()).toContain("sudah melapor");
   });
 
-  it("kendala menuliskan STATUS tiap baris — 'sudah ada yang pegang' tidak hilang", () => {
+  it("kendala menuliskan STATUS tiap baris – 'sudah ada yang pegang' tidak hilang", () => {
     const t = balasKendala(
       {
         tanggal: "17 Agu 2026",

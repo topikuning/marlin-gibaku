@@ -157,7 +157,7 @@ describe('pilihan "tidak ada kendala"', () => {
 });
 
 describe('pilihan "ada kendala"', () => {
-  it("kendala tercatat DAN laporan terkirim — satu ketukan", async () => {
+  it("kendala tercatat DAN laporan terkirim – satu ketukan", async () => {
     const r = await draftBerisi("2026-06-03");
     const hasil = await submitReportAction(undefined,
       fd({

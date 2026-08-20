@@ -140,7 +140,7 @@ export async function upsertItem(reportId: string, input: UpsertItemInput, userI
         ? "draft_adendum"
         : (() => {
             throw new DailyReportError(
-              "Item RAB berasal dari revisi lama yang sudah digantikan — muat ulang halaman",
+              "Item RAB berasal dari revisi lama yang sudah digantikan – muat ulang halaman",
             );
           })();
 
@@ -468,7 +468,7 @@ async function assertVolumeWithinRab(
   }
   if (offending.length > 0) {
     throw new DailyReportError(
-      `Volume kumulatif melebihi RAB — laporan lain sudah terkirim lebih dulu. Perbaiki item berikut: ${offending.join("; ")}`,
+      `Volume kumulatif melebihi RAB – laporan lain sudah terkirim lebih dulu. Perbaiki item berikut: ${offending.join("; ")}`,
     );
   }
 }
@@ -556,7 +556,7 @@ export async function submitReport(reportId: string, userId: string) {
   ]);
   if (itemCount === 0 && materialCount === 0 && equipmentCount === 0) {
     throw new DailyReportError(
-      "Laporan masih kosong — isi minimal satu item pekerjaan, material masuk, atau alat.",
+      "Laporan masih kosong – isi minimal satu item pekerjaan, material masuk, atau alat.",
     );
   }
   const { updated } = await transition(
@@ -618,7 +618,7 @@ async function assertPemisahanTugas(
     const sendiri = rep.submittedById === userId || (rep.submittedById == null && rep.createdById === userId);
     if (sendiri) {
       throw new DailyReportError(
-        "Laporan ini kamu sendiri yang mengirim — penyetujunya harus orang lain. " +
+        "Laporan ini kamu sendiri yang mengirim – penyetujunya harus orang lain. " +
           "Setelan ini bisa diubah di menu Sistem → Kebijakan pengendalian.",
       );
     }
@@ -626,7 +626,7 @@ async function assertPemisahanTugas(
   }
   if (rep.verifiedById === userId) {
     throw new DailyReportError(
-      "Laporan ini kamu sendiri yang menyetujui — pemfinalnya harus orang lain. " +
+      "Laporan ini kamu sendiri yang menyetujui – pemfinalnya harus orang lain. " +
         "Setelan ini bisa diubah di menu Sistem → Kebijakan pengendalian.",
     );
   }
@@ -905,7 +905,7 @@ export async function addIssueFromReport(reportId: string, input: IssueInput, us
   // Laporan final beku — kendala baru dicatat lewat menu Kendala lokasi, bukan
   // menempel diam-diam ke dokumen yang sudah final (audit 2026-07-27, B16c).
   if (report.status === "final") {
-    throw new DailyReportError("Laporan sudah final — catat kendala lewat menu Kendala lokasi");
+    throw new DailyReportError("Laporan sudah final – catat kendala lewat menu Kendala lokasi");
   }
   if (!input.title || input.title.trim().length === 0) {
     throw new DailyReportError("Judul kendala wajib diisi");

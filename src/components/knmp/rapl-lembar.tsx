@@ -67,8 +67,8 @@ export function RaplLembar({
       <table className="mb-3 w-full">
         <tbody>
           <Baris k="Lokasi" v={lokasi} k2="Paket" v2={paket} />
-          <Baris k="Wilayah" v={wilayah} k2="Kontrak" v2={kontrak ?? "—"} />
-          <Baris k="Penyedia jasa" v={penyedia ?? "—"} k2="Dicetak oleh" v2={dicetakOleh} />
+          <Baris k="Wilayah" v={wilayah} k2="Kontrak" v2={kontrak ?? "–"} />
+          <Baris k="Penyedia jasa" v={penyedia ?? "–"} k2="Dicetak oleh" v2={dicetakOleh} />
         </tbody>
       </table>
 
@@ -94,7 +94,7 @@ export function RaplLembar({
         {pctNilai < 99.95 || pctHarga < 99.95 ? (
           <p className="mt-1.5 border-t border-black pt-1 leading-snug">
             <strong>Angka di lembar ini BELUM mencakup seluruh proyek.</strong> Biaya yang belum
-            masuk akan MENAMBAH total dan MENGECILKAN selisih terhadap nilai kontrak — jadi selisih
+            masuk akan MENAMBAH total dan MENGECILKAN selisih terhadap nilai kontrak – jadi selisih
             di bawah belum boleh dibaca sebagai keuntungan.
           </p>
         ) : null}
@@ -133,7 +133,7 @@ export function RaplLembar({
         return (
           <section key={kat.kategori} className="mb-3 break-inside-avoid">
             <p className="mb-1 text-[12px] font-bold uppercase">
-              {LABEL[kat.kategori] ?? kat.kategori} — {formatRupiah(kat.biaya)}
+              {LABEL[kat.kategori] ?? kat.kategori} – {formatRupiah(kat.biaya)}
               <span className="ms-2 text-[10px] font-normal">
                 ({kat.berharga} dari {kat.total} berharga)
               </span>
@@ -155,9 +155,9 @@ export function RaplLembar({
                     <td className="border border-black px-1 py-0.5 text-right">
                       {formatNumber(b.jumlah)}
                     </td>
-                    <td className="border border-black px-1 py-0.5">{b.satuan || "—"}</td>
+                    <td className="border border-black px-1 py-0.5">{b.satuan || "–"}</td>
                     <td className="border border-black px-1 py-0.5 text-right">
-                      {b.harga === null ? "—" : formatRupiah(b.harga)}
+                      {b.harga === null ? "–" : formatRupiah(b.harga)}
                     </td>
                     <td className="border border-black px-1 py-0.5 text-right">
                       {b.biaya === null ? "belum berharga" : formatRupiah(b.biaya)}

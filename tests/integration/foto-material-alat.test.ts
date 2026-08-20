@@ -220,7 +220,7 @@ describe("KASUS INTI: identitas baris material & alat bertahan", () => {
     expect(sesudah!.reportMaterialId, "foto terlepas dari barisnya").toBe(m.id);
   });
 
-  it("baris yang DIBUANG memang hilang — bukan menumpuk diam-diam", async () => {
+  it("baris yang DIBUANG memang hilang – bukan menumpuk diam-diam", async () => {
     // Batas sebaliknya: mempertahankan id tidak boleh berubah jadi tidak pernah
     // bisa menghapus. Material yang tidak lagi dikirim harus benar-benar pergi.
     await setEnrichment(reportId, pelengkap([], []), userId);
@@ -228,7 +228,7 @@ describe("KASUS INTI: identitas baris material & alat bertahan", () => {
     expect(await db.dailyReportEquipment.count({ where: { reportId } })).toBe(0);
   });
 
-  it("foto BERTAHAN sebagai yatim saat barisnya dihapus — bukti tidak lenyap", async () => {
+  it("foto BERTAHAN sebagai yatim saat barisnya dihapus – bukti tidak lenyap", async () => {
     // Uji sebelumnya baru saja menghapus barisnya. Fotonya harus masih ada,
     // dengan tautan dilepas, supaya bisa dilihat & dibersihkan — bukan raib.
     const foto = await db.photo.findFirst({

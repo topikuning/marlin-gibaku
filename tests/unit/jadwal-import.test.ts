@@ -30,7 +30,7 @@ function syntheticReport() {
   } as unknown as Parameters<typeof buildJadwalXlsx>[0];
 }
 
-describe("parseJadwalWorkbook (round-trip Time Schedule Excel — DECISIONS 103)", () => {
+describe("parseJadwalWorkbook (round-trip Time Schedule Excel – DECISIONS 103)", () => {
   it("membaca kembali kategori + matriks mingguan; jeda (0) dipertahankan", async () => {
     const buf = await buildJadwalXlsx(syntheticReport());
     const parsed = await parseJadwalWorkbook(buf);

@@ -494,7 +494,7 @@ function MiniList({
       </div>
       <ul>
         {rows.length === 0 ? (
-          <li className="py-2 text-xs text-ink-muted">—</li>
+          <li className="py-2 text-xs text-ink-muted">–</li>
         ) : (
           rows.map((r) => (
             <li key={r.key}>

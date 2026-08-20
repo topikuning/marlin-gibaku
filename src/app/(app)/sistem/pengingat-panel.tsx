@@ -95,7 +95,7 @@ export function PengingatPanel({ pratinjau }: { pratinjau: PratinjauPengingat })
         <Banner
           tone="warning"
           title="WhatsApp (WAHA) belum dikonfigurasi"
-          description="Tanpa itu tidak ada pesan yang bisa dikirim — baik oleh penjadwal maupun tombol di halaman ini. Atur di tab Integrasi."
+          description="Tanpa itu tidak ada pesan yang bisa dikirim – baik oleh penjadwal maupun tombol di halaman ini. Atur di tab Integrasi."
         />
       ) : pratinjau.sesiStatus !== "WORKING" ? (
         /* Keterangan, BUKAN pagar. Status sesi berguna untuk membaca hasil,
@@ -104,7 +104,7 @@ export function PengingatPanel({ pratinjau }: { pratinjau: PratinjauPengingat })
         <Banner
           tone="warning"
           title={`Status sesi WhatsApp: ${pratinjau.sesiStatus}`}
-          description="Di luar WORKING, pesan bisa saja tidak sampai walau WAHA menjawab 2xx. Tombol kirim tetap bisa dipakai — hasil per orang ditampilkan setelahnya, lengkap dengan ada/tidaknya ID pesan."
+          description="Di luar WORKING, pesan bisa saja tidak sampai walau WAHA menjawab 2xx. Tombol kirim tetap bisa dipakai – hasil per orang ditampilkan setelahnya, lengkap dengan ada/tidaknya ID pesan."
         />
       ) : null}
 
@@ -125,7 +125,7 @@ export function PengingatPanel({ pratinjau }: { pratinjau: PratinjauPengingat })
           <span>
             Tidak ada penanggung jawab yang perlu ditagih sekarang
             {pratinjau.sudahDikirim.length > 0
-              ? ` — ${pratinjau.sudahDikirim.length} orang sudah menerima pengingat hari ini.`
+              ? ` – ${pratinjau.sudahDikirim.length} orang sudah menerima pengingat hari ini.`
               : "."}
           </span>
         </div>
@@ -201,10 +201,10 @@ export function PengingatPanel({ pratinjau }: { pratinjau: PratinjauPengingat })
                   <AlertTriangle aria-hidden className="mt-0.5 size-3.5 shrink-0 text-danger" />
                 ) : null}
                 <span>
-                  {s.nama} — {s.lokasi} lokasi · {s.attempts}× ·{" "}
+                  {s.nama} – {s.lokasi} lokasi · {s.attempts}× ·{" "}
                   <span className="tabular">{s.tujuan ?? "nomor tidak tercatat"}</span>
                   {` · ${labelRiwayat(s)}`}
-                  {s.error ? <span className="text-danger"> — {s.error}</span> : null}
+                  {s.error ? <span className="text-danger"> – {s.error}</span> : null}
                 </span>
               </li>
             ))}
@@ -258,7 +258,7 @@ function SakelarOtomatis({
             </p>
             <p className="mt-0.5 text-[13px] text-ink-muted">
               {aktif
-                ? "Penjadwal menagih penanggung jawab sekali sehari. Mematikannya menghentikan penjadwal saja — tombol kirim di halaman ini tetap bisa dipakai."
+                ? "Penjadwal menagih penanggung jawab sekali sehari. Mematikannya menghentikan penjadwal saja – tombol kirim di halaman ini tetap bisa dipakai."
                 : "Penjadwal tidak mengirim apa pun. Tombol kirim di halaman ini TETAP bekerja, dan aktivasi SPMK jatuh tempo juga tetap berjalan."}
             </p>
           </div>
@@ -365,7 +365,7 @@ function HasilKirim({
             {r.error ? <p className="mt-1 text-danger">{r.error}</p> : null}
             {r.ok && !r.waMessageId ? (
               <p className="mt-1 text-ink-muted">
-                WAHA menerima permintaannya tetapi tidak memberi ID pesan — tidak bisa dipastikan
+                WAHA menerima permintaannya tetapi tidak memberi ID pesan – tidak bisa dipastikan
                 sampai.
               </p>
             ) : null}

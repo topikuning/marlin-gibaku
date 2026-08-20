@@ -175,7 +175,7 @@ export async function pratinjauMingguan(
     return { alasan: "Kontrak ini belum melewati satu minggu penuh, jadi belum ada minggu selesai yang bisa dilaporkan." };
   }
   if (mingguKe > mingguBerjalan) {
-    return { alasan: `Minggu ke-${mingguKe} belum terjadi — minggu kontrak yang sedang berjalan baru ke-${mingguBerjalan}.` };
+    return { alasan: `Minggu ke-${mingguKe} belum terjadi – minggu kontrak yang sedang berjalan baru ke-${mingguBerjalan}.` };
   }
   const berjalan = mingguKe >= mingguBerjalan;
   /*

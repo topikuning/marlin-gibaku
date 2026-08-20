@@ -162,7 +162,7 @@ export async function setMingguanAktifAction(
     return {
       success: aktif
         ? "Laporan mingguan otomatis DINYALAKAN. Tiap paket dikirimi pada hari terakhir minggu kontraknya sendiri."
-        : "Laporan mingguan otomatis DIMATIKAN. Penjadwal tidak mengirim apa pun — tombol kirim manual di halaman paket tetap bisa dipakai.",
+        : "Laporan mingguan otomatis DIMATIKAN. Penjadwal tidak mengirim apa pun – tombol kirim manual di halaman paket tetap bisa dipakai.",
     };
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };

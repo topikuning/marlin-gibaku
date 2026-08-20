@@ -99,7 +99,7 @@ export function AiGuardPanel({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block text-xs text-ink-muted">
-          Harga input USD / 1 jt token (opsional — utk estimasi biaya, bukan kill switch)
+          Harga input USD / 1 jt token (opsional – utk estimasi biaya, bukan kill switch)
           <input
             type="number"
             step="0.01"

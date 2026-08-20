@@ -26,12 +26,12 @@ export function pesanPengingat(
   if (lokasi.length === 0) return null;
 
   const baris = lokasi.map((l) =>
-    l.adaDraft ? `• ${l.nama} — masih DRAF, belum dikirim` : `• ${l.nama} — belum ada laporan`,
+    l.adaDraft ? `• ${l.nama} – masih DRAF, belum dikirim` : `• ${l.nama} – belum ada laporan`,
   );
   const kata = lokasi.length === 1 ? "1 lokasi" : `${lokasi.length} lokasi`;
 
   return [
-    `*MARLIN — Laporan Harian ${tanggalTampil}*`,
+    `*MARLIN – Laporan Harian ${tanggalTampil}*`,
     "",
     `Halo ${namaPenerima}, ${kata} yang Anda tangani belum tercatat lengkap hari ini:`,
     ...baris,

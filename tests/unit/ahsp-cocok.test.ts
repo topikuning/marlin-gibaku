@@ -45,7 +45,7 @@ describe("normalisasiSatuan", () => {
     expect(normalisasiSatuan("Buah")).toBe(normalisasiSatuan("bh"));
   });
 
-  it("kosong tetap kosong — bukan ditebak", () => {
+  it("kosong tetap kosong – bukan ditebak", () => {
     expect(normalisasiSatuan(null)).toBe("");
     expect(normalisasiSatuan("  ")).toBe("");
   });
@@ -76,7 +76,7 @@ describe("tokenisasi", () => {
 });
 
 describe("usulkanPadanan", () => {
-  it("memilih mutu beton yang BENAR — angka yang membedakannya", () => {
+  it("memilih mutu beton yang BENAR – angka yang membedakannya", () => {
     // Dua kandidat nyaris identik sebagai teks; fc 10 dan fc 25 berbeda mutu,
     // komposisi, dan harga. Salah pilih di sini bukan salah ketik.
     const k = kandidat([
@@ -118,7 +118,7 @@ describe("usulkanPadanan", () => {
     expect(u?.kandidat.kode).toBe("B.1");
   });
 
-  it("SATUAN yang berbeda menjatuhkan skor — m3 vs kg bukan variasi penulisan", () => {
+  it("SATUAN yang berbeda menjatuhkan skor – m3 vs kg bukan variasi penulisan", () => {
     const k = kandidat([["B.1", "Pembesian besi beton polos", "kg"]]);
     const denganSatuanSalah = usulkanPadanan({ uraian: "Pembesian besi beton", satuan: "m³" }, k);
     const denganSatuanBenar = usulkanPadanan({ uraian: "Pembesian besi beton", satuan: "kg" }, k);
@@ -152,7 +152,7 @@ describe("usulkanPadanan", () => {
     expect(u?.kandidat.kode).toBe("K.1");
   });
 
-  it("analisa tanpa koefisien terstruktur kalah — ia tidak bisa dipakai menghitung", () => {
+  it("analisa tanpa koefisien terstruktur kalah – ia tidak bisa dipakai menghitung", () => {
     const berisi = kandidat([["C.1", "Galian tanah biasa sedalam 1 m", "m3"]])[0];
     const kosong = kandidat([["C.9", "Galian tanah biasa sedalam 1 m", "m3"]], {
       jumlahKomponen: 0,
@@ -189,7 +189,7 @@ describe("tandaItem", () => {
     );
   });
 
-  it("satuan ikut jadi kunci — pekerjaan sama nama beda satuan bukan satu hal", () => {
+  it("satuan ikut jadi kunci – pekerjaan sama nama beda satuan bukan satu hal", () => {
     expect(tandaItem("Pembesian besi beton", "kg")).not.toBe(
       tandaItem("Pembesian besi beton", "m3"),
     );
@@ -212,7 +212,7 @@ describe("peringkatPadanan", () => {
     expect(hasil.map((h) => h.kandidat.kode)).not.toContain("T.3");
   });
 
-  it("menghormati batas jumlah — daftar koreksi bukan tumpahan 5.550 baris", () => {
+  it("menghormati batas jumlah – daftar koreksi bukan tumpahan 5.550 baris", () => {
     const k = kandidat([
       ["A.1", "Timbunan Sirtu manual", "m3"],
       ["A.2", "Timbunan Sirtu mekanis", "m3"],

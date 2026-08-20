@@ -11,7 +11,7 @@ const inter = localFont({
 
 export const metadata: Metadata = {
   title: {
-    default: "MARLIN — Pengendalian Proyek KNMP",
+    default: "MARLIN – Pengendalian Proyek KNMP",
     template: "%s · MARLIN",
   },
   description: "Sistem pengendalian proyek Kampung Nelayan Merah Putih",

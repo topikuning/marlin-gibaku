@@ -147,14 +147,14 @@ async function cariPengguna(
   if (c.jenis === "tidak_ada") {
     const siapa = fromNumber ?? senderLid ?? "?";
     const petunjuk = senderLid && !fromNumber
-      ? ` — chat ber-@lid, isi kolom "ID WhatsApp (@lid)" pengguna dengan ${senderLid}`
+      ? ` – chat ber-@lid, isi kolom "ID WhatsApp (@lid)" pengguna dengan ${senderLid}`
       : "";
     return { user: null, alasan: `nomor ${siapa} tidak cocok dengan pengguna mana pun${petunjuk}` };
   }
   if (c.jenis === "ganda") {
     return {
       user: null,
-      alasan: `nomor ${fromNumber ?? "?"} dipakai ${c.ids.length} pengguna aktif — tidak dijawab, betulkan datanya`,
+      alasan: `nomor ${fromNumber ?? "?"} dipakai ${c.ids.length} pengguna aktif – tidak dijawab, betulkan datanya`,
     };
   }
   const u = await db.user.findUnique({
@@ -290,7 +290,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
       : m.mentionedJids.length === 0
         ? `tidak ada mention terbaca di payload · medan: ${medanJidPayload(body).slice(0, 200) || "(tidak ada)"}`
         : `mention terbaca [${m.mentionedJids.join(", ")}] ≠ kita (${siapaKita})`;
-    return DIAM(`grup tanpa mention ke MARLIN — ${rinci}`);
+    return DIAM(`grup tanpa mention ke MARLIN – ${rinci}`);
   }
 
   const teks = bersihkanMention(m.body).slice(0, BATAS_TANYA);
@@ -658,7 +658,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
   const resolusi = resolusiLokasi(niat.lokasiDisebut, katalog);
   if (resolusi.ambigu.length > 0 || resolusi.ambiguWilayah.length > 0) {
     await sendText(m.chatId, balasAmbigu(resolusi.ambigu, resolusi.ambiguWilayah));
-    return { dijawab: true, alasan: "nama lokasi ambigu — balik bertanya" };
+    return { dijawab: true, alasan: "nama lokasi ambigu – balik bertanya" };
   }
   // Nama disebut tapi TIDAK SATU PUN dikenali: jangan diam-diam melebar jadi
   // "semua lokasi" — itu menjawab pertanyaan yang tidak ditanyakan.

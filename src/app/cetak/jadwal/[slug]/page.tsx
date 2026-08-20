@@ -49,7 +49,7 @@ export default async function CetakJadwalPage({
           <ScurveKkpSheet
             ttd={ttd}
             r={report}
-            titleOverride="TIME SCHEDULE (KURVA S) — RENCANA & REALISASI"
+            titleOverride="TIME SCHEDULE (KURVA S) – RENCANA & REALISASI"
             periodeOverride={{ start: bounds.startDate, end: bounds.endDate }}
           />
         </section>

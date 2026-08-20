@@ -11,7 +11,7 @@ import type { PeriodItemRow, PeriodReport } from "@/lib/periodic-report";
  */
 
 const PAKET =
-  "Pekerjaan Konstruksi Pembangunan Kampung Nelayan Merah Putih di Provinsi Jawa Tengah — Paket 3";
+  "Pekerjaan Konstruksi Pembangunan Kampung Nelayan Merah Putih di Provinsi Jawa Tengah – Paket 3";
 
 const item = (over: Partial<PeriodItemRow> & { no: number; name: string }): PeriodItemRow => ({
   code: "",
@@ -119,7 +119,7 @@ const rowWithLabel = (ws: ExcelJS.Worksheet, label: string): number => {
   return found;
 };
 
-describe("sheet Laporan — identitas tidak terpotong", () => {
+describe("sheet Laporan – identitas tidak terpotong", () => {
   it("nilai identitas dimerge sampai kolom terakhir tabel dan teksnya utuh", async () => {
     const ws = await sheet();
     const r = rowWithLabel(ws, "Paket Pekerjaan");
@@ -132,7 +132,7 @@ describe("sheet Laporan — identitas tidak terpotong", () => {
   });
 });
 
-describe("sheet Laporan — angka terhitung memakai rumus", () => {
+describe("sheet Laporan – angka terhitung memakai rumus", () => {
   it("kolom Sisa Pekerjaan = MAX(0, ...) atas sel di barisnya, cache cocok", async () => {
     const ws = await sheet();
     // Baris item = punya nomor urut angka di kolom A.

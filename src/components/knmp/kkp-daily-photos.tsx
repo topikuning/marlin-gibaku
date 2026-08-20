@@ -161,7 +161,7 @@ export function KkpDailyPelengkapPhotos({
                   <Sel>Jumlah</Sel>
                   {/* Jumlah yang TIDAK diisi ditulis "—", bukan 0: "belum
                       diisi" berbeda dari "nol". */}
-                  <Sel colSpan={2}>{k[0]?.keterangan ?? "—"}</Sel>
+                  <Sel colSpan={2}>{k[0]?.keterangan ?? "–"}</Sel>
                 </tr>
                 {k.map((f, n) => (
                   <tr key={`${f.id}-${n}`}>
@@ -216,7 +216,7 @@ function Kartu({
         </tr>
         <tr>
           <Sel>Bangunan</Sel>
-          <Sel colSpan={2}>{kartu[0]?.kategori ?? "—"}</Sel>
+          <Sel colSpan={2}>{kartu[0]?.kategori ?? "–"}</Sel>
         </tr>
 
         {kartu.map((f, i) => (

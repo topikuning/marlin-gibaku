@@ -46,7 +46,7 @@ describe("berkas berbentuk CCO tapi angkanya tidak terbukti", () => {
 });
 
 describe("berkas asing", () => {
-  it("menyebut sheet yang ADA — supaya user tidak menebak", async () => {
+  it("menyebut sheet yang ADA – supaya user tidak menebak", async () => {
     const buf = await xlsx((wb) => {
       wb.addWorksheet("Sheet1").getRow(1).values = ["a"];
       wb.addWorksheet("Rekap Bulanan").getRow(1).values = ["b"];
@@ -54,7 +54,7 @@ describe("berkas asing", () => {
     await expect(parseHpsBuffer(buf)).rejects.toThrow(/Sheet1, Rekap Bulanan/);
   });
 
-  it("RAB yang sah TETAP diterima — penolakan tidak boleh melebar", async () => {
+  it("RAB yang sah TETAP diterima – penolakan tidak boleh melebar", async () => {
     // Batasnya penting: pesan bagus tidak ada gunanya kalau berkas yang benar
     // ikut ditolak.
     const buf = await xlsx((wb) => {

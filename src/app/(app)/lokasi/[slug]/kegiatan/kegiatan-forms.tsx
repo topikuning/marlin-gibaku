@@ -98,7 +98,7 @@ export function SendPdfToWaButton({
                 <span className="text-[12px] text-ink-muted">Grup: {groupName}</span>
               ) : null
             ) : (
-              <span className="text-[12px] text-ink-muted">Paket belum punya grup WA — pakai “tujuan lain”.</span>
+              <span className="text-[12px] text-ink-muted">Paket belum punya grup WA – pakai “tujuan lain”.</span>
             )
           ) : null}
         </div>
@@ -147,7 +147,7 @@ export function SendToWaButton({
         ) : null}
         {disabled ? (
           <span className="text-[12px] text-ink-muted">
-            Paket belum punya grup WA — atur di halaman Paket.
+            Paket belum punya grup WA – atur di halaman Paket.
           </span>
         ) : groupName ? (
           <span className="text-[12px] text-ink-muted">Grup: {groupName}</span>
@@ -563,7 +563,7 @@ function AddPhotoPanel({
       <form ref={formRef} action={action}>
         <input type="hidden" name="activityId" value={activityId} />
         <div className="mb-2 flex items-center justify-between gap-2">
-          <span className="text-[13px] font-medium text-ink">Tambah foto{pending ? " — mengunggah…" : ""}</span>
+          <span className="text-[13px] font-medium text-ink">Tambah foto{pending ? " – mengunggah…" : ""}</span>
           <button type="button" onClick={onDone} className="text-[12px] font-medium text-ink-muted hover:underline">
             Tutup
           </button>

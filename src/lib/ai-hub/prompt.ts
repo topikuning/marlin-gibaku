@@ -35,7 +35,7 @@ function rowLine(r: PulseRow): string {
 }
 
 function riskLine(x: RiskItem): string {
-  return `- [${x.category}/${x.severity} skor=${x.ruleScore}] ${x.locationName}: ${x.title} — ${x.evidence} (sumber: ${x.sourceRefIds.join(",")})`;
+  return `- [${x.category}/${x.severity} skor=${x.ruleScore}] ${x.locationName}: ${x.title} – ${x.evidence} (sumber: ${x.sourceRefIds.join(",")})`;
 }
 
 /** Risiko teratas yang ikut ke prompt; sisanya disebut jumlahnya, tidak dibuang diam-diam. */
@@ -49,10 +49,10 @@ export function buildPulsePayload(pulse: PortfolioPulse, opts?: { maxRows?: numb
     `PERIODE: ${pulse.periodStart} s/d ${pulse.periodEnd} (data terakhir berubah: ${pulse.dataAsOf ?? "belum ada data"})`,
     `TOTAL: ${pulse.totals.locations} lokasi | laporan final ${pulse.totals.reportsFinal}/${pulse.totals.reportsExpected} | deviasi negatif ${pulse.totals.negativeDeviationLocations} lokasi | kendala terbuka ${pulse.totals.openIssues} | recovery overdue ${pulse.totals.overdueRecoveries} | readiness rendah ${pulse.totals.lowReadinessLocations} lokasi`,
     "",
-    "DATA PER LOKASI (angka RESMI — kutip persis):",
+    "DATA PER LOKASI (angka RESMI – kutip persis):",
     ...rows.map(rowLine),
     "",
-    "RISIKO (skor rule deterministik — jangan diubah):",
+    "RISIKO (skor rule deterministik – jangan diubah):",
     ...(pulse.risks.length ? pulse.risks.slice(0, MAKS_RISIKO).map(riskLine) : ["- (tidak ada risiko terdeteksi rule)"]),
     // Pemotongan DISEBUTKAN. Daftar yang diam-diam dipangkas terbaca model (dan
     // pembaca laporannya) sebagai "cuma segini risikonya".
@@ -143,10 +143,10 @@ export function buildNarasiPayload(potongan: PotonganNarasi[]): string {
       `${p.tanggal ? ` | ${p.tanggal}` : ""}\n  teks: ${p.teks.replace(/\s+/g, " ")}`,
   );
   return [
-    "CATATAN LAPANGAN (teks yang ditulis pelapor — BUKAN angka resmi MARLIN):",
+    "CATATAN LAPANGAN (teks yang ditulis pelapor – BUKAN angka resmi MARLIN):",
     ...baris,
     "",
-    "ATURAN KUTIPAN — dijaga mesin, bukan sekadar anjuran:",
+    "ATURAN KUTIPAN – dijaga mesin, bukan sekadar anjuran:",
     "1. Bila memakai isi catatan, SALIN PERSIS potongan kalimatnya ke answerParts[].kutipan",
     "   ({ chunkId, teks }). Parafrase DITOLAK dan bagiannya dibuang.",
     "2. Setiap ANGKA yang kamu tulis harus berasal dari claims (angka resmi) ATAU",
@@ -161,10 +161,10 @@ export function buildNarasiPayload(potongan: PotonganNarasi[]): string {
 export function buildQualityPayload(findings: QualityFinding[]): string {
   const active = findings.filter((f) => f.status === "gagal" || f.status === "periksa");
   return [
-    "TEMUAN AUDIT KUALITAS DATA (status ditentukan rule — jangan diubah):",
+    "TEMUAN AUDIT KUALITAS DATA (status ditentukan rule – jangan diubah):",
     ...(active.length
       ? active.map(
-          (f) => `- [${f.status}] ${f.locationName} · ${f.key}: ${f.label} — ${f.detail} (jumlah=${f.count})`,
+          (f) => `- [${f.status}] ${f.locationName} · ${f.key}: ${f.label} – ${f.detail} (jumlah=${f.count})`,
         )
       : ["- Semua rule lulus."]),
   ].join("\n");

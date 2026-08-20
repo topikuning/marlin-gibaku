@@ -37,7 +37,7 @@ export function ReportStudioClient({
   return (
     <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
       <Card className="self-start">
-        <CardHeader title="Template" subtitle="Satu structured report utk pratinjau, cetak/PDF, Excel, dan WhatsApp — angka identik." />
+        <CardHeader title="Template" subtitle="Satu structured report utk pratinjau, cetak/PDF, Excel, dan WhatsApp – angka identik." />
         <CardBody className="space-y-1.5">
           {AI_REPORT_TEMPLATES.map((t) => (
             <button
@@ -68,7 +68,7 @@ export function ReportStudioClient({
               locations={locations}
               selected={selected}
               onChange={setSelected}
-              petunjukKosong="Belum ada lokasi dipilih — seluruh lokasi yang Anda pegang akan dipakai."
+              petunjukKosong="Belum ada lokasi dipilih – seluruh lokasi yang Anda pegang akan dipakai."
             />
             <div className="flex flex-wrap items-center gap-2">
               <label className="text-sm text-ink-muted" htmlFor="ai-report-period">
@@ -87,7 +87,7 @@ export function ReportStudioClient({
             </div>
             {state?.error ? <Banner tone="error" title={state.error} /> : null}
             <p className="text-xs text-ink-faint">
-              Draf disusun AI dari angka resmi MARLIN dan selalu berstatus <strong>Draft</strong> — wajib review →
+              Draf disusun AI dari angka resmi MARLIN dan selalu berstatus <strong>Draft</strong> – wajib review →
               approve → bekukan sebelum distribusi.
             </p>
           </form>

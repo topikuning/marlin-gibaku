@@ -74,7 +74,7 @@ describe("bacaMasterAhsp", () => {
     expect(m.sumber.generatedAt.getUTCFullYear()).toBe(2026);
   });
 
-  it("supplemental_records DITANDAI perlu verifikasi — panduan berkasnya menuntut itu", () => {
+  it("supplemental_records DITANDAI perlu verifikasi – panduan berkasnya menuntut itu", () => {
     const m = bacaMasterAhsp(
       master({
         supplemental_records: [
@@ -90,7 +90,7 @@ describe("bacaMasterAhsp", () => {
     expect(m.ringkas.kanonik).toBe(1);
   });
 
-  it("KODE duplikat tetap jadi entri terpisah — kuncinya id, bukan kode", () => {
+  it("KODE duplikat tetap jadi entri terpisah – kuncinya id, bukan kode", () => {
     // Berkas resminya memang memuat kode yang dipakai beberapa analisa berbeda.
     // Memakai kode sebagai kunci akan menggabungkan analisa yang tidak sama.
     const m = bacaMasterAhsp(
@@ -120,7 +120,7 @@ describe("bacaMasterAhsp", () => {
     expect(m.entries[0].perluVerifikasi).toBe(false);
   });
 
-  it("analisa TANPA komponen disimpan apa adanya — koefisien tidak dikarang", () => {
+  it("analisa TANPA komponen disimpan apa adanya – koefisien tidak dikarang", () => {
     // 435 analisa resmi belum punya komponen terstruktur; semuanya membawa
     // rujukan halaman. Mengisinya dengan tebakan adalah kebohongan yang
     // paling mahal di seluruh fitur ini.
@@ -204,7 +204,7 @@ describe("bacaMasterAhsp", () => {
     expect(m.ringkas.komponen).toEqual({ upah: 0, bahan: 1, alat: 0 });
   });
 
-  it("satuan '-' dipertahankan apa adanya — itu penanda 'belum terbaca'", () => {
+  it("satuan '-' dipertahankan apa adanya – itu penanda 'belum terbaca'", () => {
     const m = bacaMasterAhsp(
       master({ records: [{ id: "s", kode: "A", uraian: "U", satuan: "-", bidang: "x", components: [] }] }),
       "X",

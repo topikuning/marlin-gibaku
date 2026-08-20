@@ -56,7 +56,7 @@ export async function createDraftAction(_prev: AdendumActionState, formData: For
     const amendmentId = amendmentRaw ? z.uuid().parse(amendmentRaw) : null;
     const res = await createAdendumDraft(location.id, user.id, { note, amendmentId });
     revalidate(slug);
-    return { success: `Draft revisi #${res.revisionNo} dibuat — silakan edit lalu aktifkan.` };
+    return { success: `Draft revisi #${res.revisionNo} dibuat – silakan edit lalu aktifkan.` };
   } catch (err) {
     if (err instanceof z.ZodError) return { error: "Adendum kontrak (CCO) tidak valid." };
     return errState(err);
@@ -180,7 +180,7 @@ export async function addKategoriAction(_prev: AdendumActionState, formData: For
     const { user } = await requireCtx(d.slug);
     await addDraftKategori(d.revisionId, { code: d.code, name: d.name }, user.id);
     revalidate(d.slug);
-    return { success: `Kategori "${d.name}" ditambahkan — isi item pekerjaannya.` };
+    return { success: `Kategori "${d.name}" ditambahkan – isi item pekerjaannya.` };
   } catch (err) {
     if (err instanceof z.ZodError) return { error: err.issues[0].message };
     return errState(err);

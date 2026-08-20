@@ -32,7 +32,7 @@ export const SUMMARY_STATUS_TONE: Record<SummaryViewStatus, "neutral" | "info" |
 /** Penjelasan satu kalimat — dipakai sebagai subtitle panel kanan. */
 export const SUMMARY_STATUS_HINT: Record<SummaryViewStatus, string> = {
   belum_dibuat: "Belum ada draf untuk tanggal ini. Hasilkan draf AI dari bukti percakapan.",
-  draft_ai: "Draf mentah dari AI — wajib dibaca & diverifikasi sebelum difinalkan.",
+  draft_ai: "Draf mentah dari AI – wajib dibaca & diverifikasi sebelum difinalkan.",
   edited_draft: "Sudah disunting manusia, belum difinalkan.",
   final: "Sudah diverifikasi. Siap dikirim ke kontak WhatsApp.",
   sent: "Sudah dikirim. Menyunting ulang akan mengembalikan status ke draf disunting.",

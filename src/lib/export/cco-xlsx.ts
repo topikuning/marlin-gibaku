@@ -245,7 +245,7 @@ function tulisJudul(ws: ExcelJS.Worksheet, noCco: string) {
 function tulisIdentitas(ws: ExcelJS.Worksheet, input: CcoXlsxInput) {
   const identitas: [string, string][] = [
     ["NAMA PAKET", input.workTitle ?? input.packageName],
-    ["LOKASI", [input.locationName, input.address].filter(Boolean).join(" — ")],
+    ["LOKASI", [input.locationName, input.address].filter(Boolean).join(" – ")],
     ["PENYEDIA JASA", input.vendorName ?? ""],
     ["NOMOR KONTRAK", input.contractNumber ?? ""],
   ];
@@ -374,7 +374,7 @@ function tulisBaris(
         errorTitle: "Di bawah realisasi",
         error:
           `Pekerjaan ini sudah terealisasi ${VOL_ID.format(row.realisasi)}${row.satuan ? ` ${row.satuan}` : ""} ` +
-          `di lapangan (kolom REALISASI). Volume CCO-01 tidak boleh di bawahnya — pekerjaan-kurang atas item ` +
+          `di lapangan (kolom REALISASI). Volume CCO-01 tidak boleh di bawahnya – pekerjaan-kurang atas item ` +
           `berjalan maksimal sampai volume yang sudah dikerjakan.`,
       };
       barisBerealisasi.push(r);
@@ -613,7 +613,7 @@ function tulisRekonsiliasi(
   c.value =
     "Selisih bukan nol berarti RAB sumber memuat item yang JUMLAH-nya tidak sama dengan harga satuan × volume " +
     "(mis. item ber-volume dan ber-harga tetapi jumlahnya ditulis nol). MARLIN menyimpan angka RAB apa adanya dan " +
-    "tidak membetulkannya diam-diam — periksa item bersangkutan di RAB sebelum dokumen ini diajukan.";
+    "tidak membetulkannya diam-diam – periksa item bersangkutan di RAB sebelum dokumen ini diajukan.";
   c.font = { size: 8, italic: true, color: { argb: "FF9A3412" } };
   c.alignment = { horizontal: "left", wrapText: true };
   ws.mergeCells(rCatatan, 1, rCatatan, TOTAL_KOLOM);
@@ -624,7 +624,7 @@ function tulisCatatanDanTtd(ws: ExcelJS.Worksheet, baris: number, input: CcoXlsx
   const catatan = ws.getCell(baris, 1);
   catatan.value =
     "Sel berlatar putih pada kolom VOLUME (MC-0 & CCO-01) dan HARGA SATUAN adalah data; kolom lain formula yang ikut menyesuaikan. " +
-    "Bobot MC-0, PEKERJAAN TAMBAH, dan PEKERJAAN KURANG dihitung terhadap JUMLAH MC-0; bobot CCO-01 terhadap JUMLAH CCO-01 — keduanya pra-PPN. " +
+    "Bobot MC-0, PEKERJAAN TAMBAH, dan PEKERJAAN KURANG dihitung terhadap JUMLAH MC-0; bobot CCO-01 terhadap JUMLAH CCO-01 – keduanya pra-PPN. " +
     "Kolom tambah/kurang dikosongkan bila volumenya tidak berubah.";
   catatan.font = { size: 8, italic: true, color: { argb: "FF6B7280" } };
   catatan.alignment = { horizontal: "left", wrapText: true };

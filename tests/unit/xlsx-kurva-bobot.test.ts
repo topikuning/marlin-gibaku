@@ -79,7 +79,7 @@ const numOf = (v: ExcelJS.CellValue): number => {
   return 0;
 };
 
-describe("sheet Kurva S — kolom Bobot (%) = SUM kolom minggu", () => {
+describe("sheet Kurva S – kolom Bobot (%) = SUM kolom minggu", () => {
   it("tiap baris kategori: rumus SUM(D:J), dan Σ sel minggu yang tertulis = hasilnya", async () => {
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load((await buildJadwalXlsx(fixture())) as unknown as ArrayBuffer);

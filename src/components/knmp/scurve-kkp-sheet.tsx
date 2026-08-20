@@ -254,7 +254,7 @@ export function ScurveKkpSheet({
         />
         <SignBlock
           title="DIBUAT OLEH :"
-          role={`PENYEDIA JASA — ${hdr.vendorName}`}
+          role={`PENYEDIA JASA – ${hdr.vendorName}`}
           name={hdr.contractorSignerName}
           sub={hdr.contractorSignerTitle}
           {...gambarPihak(ttd, "penyedia")}

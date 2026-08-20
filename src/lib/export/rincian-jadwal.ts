@@ -76,7 +76,7 @@ const LEVEL: Record<SimpulRab["kind"], number> = { kategori: 0, sub: 1, grup: 2,
  * memang kosong di situ.
  */
 export function labelJadwal(segments: WeekSegment[]): string {
-  if (segments.length === 0) return "—";
+  if (segments.length === 0) return "–";
   return segments
     .map((s) => (s.startWeek === s.endWeek ? `M${s.startWeek}` : `M${s.startWeek}–M${s.endWeek}`))
     .join(", ");
@@ -130,7 +130,7 @@ export function susunRincian(
       unitPrice: n.unitPrice,
       amount: n.amount,
       bobotPct: (n.amount / grandTotal) * 100,
-      kategori: kat?.name ?? "—",
+      kategori: kat?.name ?? "–",
       kategoriKey: kat?.lineageKey ?? null,
       segments,
       jadwal: labelJadwal(segments),

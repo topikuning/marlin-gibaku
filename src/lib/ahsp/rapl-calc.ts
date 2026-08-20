@@ -171,8 +171,8 @@ export function agregasiKebutuhan(items: ItemUntukRapl[]): HasilRapl {
         it,
         "belum_disetujui",
         it.adaUsulan
-          ? "usulan mesin sudah ada — tinggal diperiksa lalu disetujui"
-          : "belum ada padanan sama sekali — perlu dicarikan analisanya",
+          ? "usulan mesin sudah ada – tinggal diperiksa lalu disetujui"
+          : "belum ada padanan sama sekali – perlu dicarikan analisanya",
       );
       continue;
     }

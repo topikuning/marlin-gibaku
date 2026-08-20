@@ -59,7 +59,7 @@ export function PackageDocUploadForm({
       <div>
         <Label htmlFor="pu-loc">Lokasi (opsional)</Label>
         <Combobox id="pu-loc" name="locationId" defaultValue="">
-          <option value="">— tingkat paket —</option>
+          <option value="">– tingkat paket –</option>
           {locations.map((l) => (
             <option key={l.id} value={l.id}>{l.name}</option>
           ))}

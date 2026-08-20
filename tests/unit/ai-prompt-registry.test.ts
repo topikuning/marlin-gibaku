@@ -109,7 +109,7 @@ describe("aturan sumber wajib ada di SEMUA prompt", () => {
   });
 });
 
-describe("validatePromptOverride — pagar anti-mengarang tidak boleh dihapus", () => {
+describe("validatePromptOverride – pagar anti-mengarang tidak boleh dihapus", () => {
   it("membuang frasa pengaman AI Hub → DITOLAK", () => {
     const problem = validatePromptOverride(
       "hub.system",
@@ -121,7 +121,7 @@ describe("validatePromptOverride — pagar anti-mengarang tidak boleh dihapus", 
   it("mengubah gaya TAPI mempertahankan frasa pengaman → diterima", () => {
     const problem = validatePromptOverride(
       "hub.system",
-      "Anda analis MARLIN. Tulis sangat ringkas, maksimal 5 poin. Anda BUKAN sumber angka — kutip persis " +
+      "Anda analis MARLIN. Tulis sangat ringkas, maksimal 5 poin. Anda BUKAN sumber angka – kutip persis " +
         "angka yang diberikan. JANGAN MENGARANG apa pun di luar data yang dilampirkan.",
     );
     expect(problem).toBeNull();

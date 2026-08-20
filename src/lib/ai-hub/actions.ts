@@ -202,7 +202,7 @@ export async function saveSuggestionAction(_prev: AiHubState, formData: FormData
     });
     revalidatePath("/ai/actions");
     return {
-      ok: `Draft ${s.suggestKind === "recovery" ? "recovery" : "action"} tersimpan — TIDAK mengubah data domain; eksekusi tetap manual di modul Kendala.`,
+      ok: `Draft ${s.suggestKind === "recovery" ? "recovery" : "action"} tersimpan – TIDAK mengubah data domain; eksekusi tetap manual di modul Kendala.`,
     };
   } catch (err) {
     return fail(err);
@@ -240,7 +240,7 @@ export async function terapkanSaranAction(_prev: AiHubState, formData: FormData)
     };
     const locationId = isi.locationId ?? null;
     if (!locationId) {
-      return { error: "Draft ini tidak menunjuk lokasi tertentu — catat manual di workspace lokasi." };
+      return { error: "Draft ini tidak menunjuk lokasi tertentu – catat manual di workspace lokasi." };
     }
 
     // Menulis data domain = capability domain, BUKAN ai.generate.
@@ -308,8 +308,8 @@ export async function terapkanSaranAction(_prev: AiHubState, formData: FormData)
     revalidatePath(`/lokasi/${loc.slug}/progress`);
     return {
       ok: buatRecovery
-        ? `Kendala + aksi pemulihan dibuat di lokasi — buka workspace lokasi untuk memantau (issue ${issueId.slice(0, 8)}).`
-        : `Kendala dibuat di lokasi — buka workspace lokasi untuk memantau (issue ${issueId.slice(0, 8)}).`,
+        ? `Kendala + aksi pemulihan dibuat di lokasi – buka workspace lokasi untuk memantau (issue ${issueId.slice(0, 8)}).`
+        : `Kendala dibuat di lokasi – buka workspace lokasi untuk memantau (issue ${issueId.slice(0, 8)}).`,
     };
   } catch (err) {
     return fail(err);
@@ -435,7 +435,7 @@ export async function distributeArtifactAction(_prev: AiHubState, formData: Form
       return { error: "Artefak tidak ditemukan." };
     }
     if (artifact.status !== "beku" && artifact.status !== "terkirim") {
-      return { error: "Hanya artefak BEKU yang boleh didistribusikan — bekukan dulu setelah approve." };
+      return { error: "Hanya artefak BEKU yang boleh didistribusikan – bekukan dulu setelah approve." };
     }
     // Tujuan: kontak tersimpan ATAU tujuan bebas (nomor / id grup) — fungsi
     // bawaan menu Laporan → WA yang dilebur ke sini (DECISIONS 194). Distribusi
@@ -542,7 +542,7 @@ export async function askMarlinAction(_prev: AiHubState, formData: FormData): Pr
       });
       if (!convo) return { error: "Percakapan tidak ditemukan." };
       if (convo._count.messages >= guardCfg.maxAskPerConversation * 2) {
-        return { error: "Percakapan sudah mencapai batas — mulai percakapan baru." };
+        return { error: "Percakapan sudah mencapai batas – mulai percakapan baru." };
       }
       conversationId = convo.id;
       locationIds = (convo.scopeIds as string[]) ?? [];

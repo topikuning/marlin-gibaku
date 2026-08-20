@@ -115,7 +115,7 @@ export function putuskanLayanan(m: MasukanKeputusan): KeputusanLayanan {
        * bahwa nomor ini milik sistem proyek dan mengundang percobaan
        * berikutnya. Perilaku ini TIDAK diubah oleh aturan 5A.
        */
-      return { jenis: "diam", alasan: `didiamkan — ${m.alasanIdentitas}` };
+      return { jenis: "diam", alasan: `didiamkan – ${m.alasanIdentitas}` };
     }
     return {
       jenis: "jawab",

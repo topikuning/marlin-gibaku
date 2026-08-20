@@ -104,7 +104,7 @@ export default async function LokasiKeuanganPage({ params }: { params: Promise<{
     .filter((c) => c.status === "disetujui" && c.closedAt === null && c.realizedAmount < c.amount)
     .map((c) => ({
       id: c.id,
-      label: `${c.number} · ${COMMITMENT_TYPE_LABEL[c.type]} — sisa ${formatRupiah(Number(c.amount - c.realizedAmount))}`,
+      label: `${c.number} · ${COMMITMENT_TYPE_LABEL[c.type]} – sisa ${formatRupiah(Number(c.amount - c.realizedAmount))}`,
     }));
 
   // Komitmen disetujui (terbuka) untuk form invoice
@@ -112,7 +112,7 @@ export default async function LokasiKeuanganPage({ params }: { params: Promise<{
     .filter((c) => c.status === "disetujui" && c.closedAt === null)
     .map((c) => ({
       id: c.id,
-      label: `${c.number} · ${COMMITMENT_TYPE_LABEL[c.type]}${c.vendor ? ` — ${c.vendor.name}` : ""}`,
+      label: `${c.number} · ${COMMITMENT_TYPE_LABEL[c.type]}${c.vendor ? ` – ${c.vendor.name}` : ""}`,
     }));
 
   const expenseRows: ExpenseRowUI[] = expenses.map((e) => ({
@@ -154,7 +154,7 @@ export default async function LokasiKeuanganPage({ params }: { params: Promise<{
     <div className="space-y-6">
       <PageHeader
         eyebrow={location.package.name}
-        title={`Keuangan — ${location.name}`}
+        title={`Keuangan – ${location.name}`}
         description={location.province}
         breadcrumb={[{ label: "Keuangan", href: "/keuangan" }, { label: location.name }]}
       />
@@ -170,7 +170,7 @@ export default async function LokasiKeuanganPage({ params }: { params: Promise<{
           sub={(s?.availableBudget ?? 0n) < 0n ? "melebihi budget" : undefined}
         />
         <KpiCard label="Outstanding payable" value={formatRupiahShort(s?.outstandingPayable ?? 0n)} />
-        <KpiCard label="Terpasang" value={formatRupiahShort(s?.installedValue ?? 0n)} sub="dilaporkan — belum tentu terverifikasi" />
+        <KpiCard label="Terpasang" value={formatRupiahShort(s?.installedValue ?? 0n)} sub="dilaporkan – belum tentu terverifikasi" />
       </section>
 
       <Card>
@@ -202,7 +202,7 @@ export default async function LokasiKeuanganPage({ params }: { params: Promise<{
       <Card>
         <CardHeader
           title="Komitmen"
-          subtitle="PO, kontrak vendor, kasbon — diajukan saat dibuat, mengikat available budget setelah disetujui."
+          subtitle="PO, kontrak vendor, kasbon – diajukan saat dibuat, mengikat available budget setelah disetujui."
         />
         <CardBody>
           <CommitmentSection
@@ -218,7 +218,7 @@ export default async function LokasiKeuanganPage({ params }: { params: Promise<{
       <Card>
         <CardHeader
           title="Realisasi Biaya"
-          subtitle="Pengeluaran aktual — termasuk settlement kasbon (pilih komitmen terbuka)."
+          subtitle="Pengeluaran aktual – termasuk settlement kasbon (pilih komitmen terbuka)."
         />
         <CardBody>
           <ExpenseSection
@@ -251,7 +251,7 @@ export default async function LokasiKeuanganPage({ params }: { params: Promise<{
           title="Penagihan owner"
           subtitle={
             contract
-              ? `Kontrak ${contract.contractNumber} — nilai ${formatRupiah(contract.contractValue)}`
+              ? `Kontrak ${contract.contractNumber} – nilai ${formatRupiah(contract.contractValue)}`
               : "Termin tagihan ke owner (KKP) per kontrak."
           }
         />
@@ -262,7 +262,7 @@ export default async function LokasiKeuanganPage({ params }: { params: Promise<{
                 <Banner
                   tone="info"
                   title="Termin level kontrak"
-                  description={`Kontrak paket ini mencakup ${location.package.locations.length} lokasi — termin di bawah berlaku untuk seluruh paket, bukan hanya lokasi ini.`}
+                  description={`Kontrak paket ini mencakup ${location.package.locations.length} lokasi – termin di bawah berlaku untuk seluruh paket, bukan hanya lokasi ini.`}
                   className="mb-3"
                 />
               ) : null}
@@ -275,7 +275,7 @@ export default async function LokasiKeuanganPage({ params }: { params: Promise<{
               />
             </>
           ) : (
-            <p className="text-sm text-ink-muted">Paket lokasi ini belum punya kontrak — penagihan owner belum bisa dibuat.</p>
+            <p className="text-sm text-ink-muted">Paket lokasi ini belum punya kontrak – penagihan owner belum bisa dibuat.</p>
           )}
         </CardBody>
       </Card>

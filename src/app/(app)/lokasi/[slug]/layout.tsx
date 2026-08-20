@@ -105,7 +105,7 @@ export default async function LokasiLayout({
               />
             </div>
             <p className="mt-1 text-[13px] text-ink-muted">
-              {location.village}, {location.regency} — {location.province}
+              {location.village}, {location.regency} – {location.province}
             </p>
           </div>
           <div className="text-right text-[13px]">
@@ -121,7 +121,7 @@ export default async function LokasiLayout({
             {contract ? (
               <span className="tabular">{formatRupiah(contract.contractValue)}</span>
             ) : (
-              <span className="text-ink-faint">—</span>
+              <span className="text-ink-faint">–</span>
             )}
             {contract ? <span className="ml-1 text-[11px] font-normal text-ink-faint">inkl. PPN</span> : null}
           </StatCell>
@@ -131,7 +131,7 @@ export default async function LokasiLayout({
                 {formatTanggal(contract.startDate)} – {formatTanggal(contract.endDate)}
               </span>
             ) : contract ? (
-              <span className="text-[13px] text-ink-faint">{contract.durationDays} hari — menunggu SPMK</span>
+              <span className="text-[13px] text-ink-faint">{contract.durationDays} hari – menunggu SPMK</span>
             ) : (
               <span className="text-ink-faint">Belum ada</span>
             )}

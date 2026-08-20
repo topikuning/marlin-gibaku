@@ -59,15 +59,15 @@ const rupiah = (n: bigint) => `Rp ${new Intl.NumberFormat("id-ID").format(n)}`;
 export function kalimatStatus(status: DailyReportStatus | null): string {
   switch (status) {
     case "final":
-      return "Status: Final — angka sudah dikunci.";
+      return "Status: Final – angka sudah dikunci.";
     case "disetujui":
-      return "Status: Disetujui — sudah diperiksa, belum difinalkan.";
+      return "Status: Disetujui – sudah diperiksa, belum difinalkan.";
     case "dikirim":
-      return "Status: Dikirim — BELUM diverifikasi siapa pun.";
+      return "Status: Dikirim – BELUM diverifikasi siapa pun.";
     case "perlu_koreksi":
-      return "Status: Perlu koreksi — dikembalikan ke pelapor, angkanya belum bisa dipakai.";
+      return "Status: Perlu koreksi – dikembalikan ke pelapor, angkanya belum bisa dipakai.";
     case "draft":
-      return "Status: Draf — belum dikirim pelapor, angkanya masih bisa berubah.";
+      return "Status: Draf – belum dikirim pelapor, angkanya masih bisa berubah.";
     default:
       return "Status: Belum ada laporan harian untuk tanggal ini.";
   }
@@ -78,7 +78,7 @@ export function pesanRingkasHarianWa(r: IsiPesanRingkas): string {
 
   bagian.push(
     [
-      `*LAPORAN HARIAN — ${r.hari}, ${r.tanggalFull}*`,
+      `*LAPORAN HARIAN – ${r.hari}, ${r.tanggalFull}*`,
       r.packageName,
       `Lokasi: ${lokasiDenganWilayah(r.locationName, r.regency, r.province)}`,
     ].join("\n"),
@@ -116,7 +116,7 @@ export function pesanRingkasHarianWa(r: IsiPesanRingkas): string {
   if (r.kendala.length > 0) {
     const baris = [`*Permasalahan tercatat*`];
     for (const k of r.kendala.slice(0, MAKS_KENDALA_TAMPIL)) {
-      baris.push(`• ${k.title} — ${k.severity}, ${k.status}`);
+      baris.push(`• ${k.title} – ${k.severity}, ${k.status}`);
     }
     const sisa = r.kendala.length - MAKS_KENDALA_TAMPIL;
     if (sisa > 0) baris.push(`_…dan ${sisa} permasalahan lain, ada di berkas terlampir._`);

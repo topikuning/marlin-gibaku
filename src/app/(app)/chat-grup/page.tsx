@@ -27,7 +27,7 @@ import { EvidenceTabs } from "./evidence-tabs";
 import { MessageCard } from "./message-card";
 import { SummaryPanel, type TimelineItem } from "./summary-panel";
 
-export const metadata: Metadata = { title: "Chat Grup — Ringkasan Harian" };
+export const metadata: Metadata = { title: "Chat Grup – Ringkasan Harian" };
 export const dynamic = "force-dynamic";
 
 /**
@@ -171,13 +171,13 @@ export default async function ChatGrupPage({
     : nothingToSummarize
       ? messages.length === 0
         ? "Tidak ada pesan maupun kiriman MARLIN pada tanggal ini."
-        : `Semua ${messages.length} pesan hari ini berkonteks rendah — tidak ada yang layak diringkas.`
+        : `Semua ${messages.length} pesan hari ini berkonteks rendah – tidak ada yang layak diringkas.`
       : null;
 
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Chat Grup — Ringkasan Harian"
+        title="Chat Grup – Ringkasan Harian"
         description="Baca bukti percakapan, verifikasi kiriman MARLIN, susun draf AI, review, lalu finalkan dan kirim ke pimpinan."
         actions={
           <Link
@@ -227,7 +227,7 @@ export default async function ChatGrupPage({
             />
             <KpiCard
               label="Terakhir sinkron"
-              value={<span className="text-lg">{lastMsg ? formatTanggalWaktu(lastMsg.timestamp) : "—"}</span>}
+              value={<span className="text-lg">{lastMsg ? formatTanggalWaktu(lastMsg.timestamp) : "–"}</span>}
               sub="pesan terakhir masuk"
             />
           </div>
@@ -419,7 +419,7 @@ export default async function ChatGrupPage({
                     version={summary?.version ?? 0}
                     providerLabel={
                       summary
-                        ? `${summary.provider ?? "AI"}/${summary.model ?? "—"} · ${summary.messageCount} pesan · diperbarui ${formatTanggalWaktu(summary.updatedAt)}`
+                        ? `${summary.provider ?? "AI"}/${summary.model ?? "–"} · ${summary.messageCount} pesan · diperbarui ${formatTanggalWaktu(summary.updatedAt)}`
                         : null
                     }
                     blockedReason={blockedReason}

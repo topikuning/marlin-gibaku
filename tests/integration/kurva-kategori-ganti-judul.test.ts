@@ -31,7 +31,7 @@ const d = (key: string) => new Date(`${key}T00:00:00.000Z`);
 const plusDays = (key: string, n: number) => new Date(d(key).getTime() + n * DAY);
 
 /** Judul yang TERSIMPAN di baseline — sisa keadaan sebelum judul diperbaiki. */
-const JUDUL_USANG = "PEKERJAAN (kategori II — judul tidak ada di file)";
+const JUDUL_USANG = "PEKERJAAN (kategori II – judul tidak ada di file)";
 /** Judul yang BERLAKU di RAB aktif sekarang. */
 const JUDUL_RAB = "PEKERJAAN REVETMENT";
 
@@ -144,7 +144,7 @@ afterAll(async () => {
 });
 
 describe("jadwal kurva-S vs kategori RAB yang judulnya diganti", () => {
-  it("kategori tetap punya nomor romawi — tidak jadi baris tanpa kode", async () => {
+  it("kategori tetap punya nomor romawi – tidak jadi baris tanpa kode", async () => {
     const r = await getPeriodReport(locationId, "mingguan", 2);
     expect(r).not.toBeNull();
     expect(r!.kurvaSchedule.map((k) => k.code)).toEqual(["I", "II"]);
@@ -162,7 +162,7 @@ describe("jadwal kurva-S vs kategori RAB yang judulnya diganti", () => {
     expect(r!.kurvaSchedule.map((k) => k.lineageKey)).toEqual(["I", "II"]);
   });
 
-  it("BOBOT RENCANA memakai jadwal kategorinya sendiri — bukan fallback lokasi", async () => {
+  it("BOBOT RENCANA memakai jadwal kategorinya sendiri – bukan fallback lokasi", async () => {
     // Ini gigi sesungguhnya: yang salah bukan hanya labelnya.
     // Minggu 2 → rencana resmi 25%. Jadwal kategori I sudah tuntas (fraksi 1),
     // kategori II belum mulai (fraksi 0), jadi SELURUH 25% itu milik kategori I.

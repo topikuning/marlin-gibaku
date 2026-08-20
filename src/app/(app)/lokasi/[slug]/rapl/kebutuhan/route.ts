@@ -61,7 +61,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   ]);
   if (!basis) {
     return NextResponse.json(
-      { error: "Basis analisa AHSP belum dimuat — muat dulu di halaman Sistem." },
+      { error: "Basis analisa AHSP belum dimuat – muat dulu di halaman Sistem." },
       { status: 409 },
     );
   }

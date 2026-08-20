@@ -160,7 +160,7 @@ describe("siklus laporan harian terpadu", () => {
     expect(Number(full.items[0].volumeDone)).toBe(2);
   });
 
-  it("REGRESI B1 (audit 2026-07-27): dua draft menembus guard volume — submit kedua DITOLAK", async () => {
+  it("REGRESI B1 (audit 2026-07-27): dua draft menembus guard volume – submit kedua DITOLAK", async () => {
     // Laporan 2026-07-01 sudah final dengan volume 2 → sisa RAB = 98.
     // Dua draft di dua tanggal masing-masing lolos guard upsert (draft tidak
     // counted), tetapi keduanya bersama melampaui RAB. Sebelum perbaikan,

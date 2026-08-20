@@ -324,7 +324,7 @@ export async function tambahLokasiMasterAction(
     return {
       success:
         koordinat.lat == null
-          ? `${village} tersimpan tanpa koordinat — statusnya "Perlu verifikasi" sampai koordinatnya diisi.`
+          ? `${village} tersimpan tanpa koordinat – statusnya "Perlu verifikasi" sampai koordinatnya diisi.`
           : `${village} tersimpan di katalog.`,
     };
   } catch (err) {

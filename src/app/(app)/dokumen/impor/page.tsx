@@ -77,12 +77,12 @@ export default async function ImporDokumenDrivePage({
       <Card>
         <CardHeader
           title="Pilih paket"
-          subtitle="Impor membaca folder Drive milik paket. Paket tanpa ID folder Drive belum bisa diimpor — isi ID folder KKP di halaman paket dulu."
+          subtitle="Impor membaca folder Drive milik paket. Paket tanpa ID folder Drive belum bisa diimpor – isi ID folder KKP di halaman paket dulu."
         />
         <CardBody className="space-y-3">
           <form method="GET" className="grid gap-2 text-sm sm:grid-cols-[minmax(0,24rem)_auto]">
             <Combobox name="paket" defaultValue={sp.paket ?? ""} placeholder="Pilih paket…">
-              <option value="">— pilih paket —</option>
+              <option value="">– pilih paket –</option>
               {packages.map((p) => (
                 <option key={p.id} value={p.id} disabled={!p.driveFolderId}>
                   {p.name}
@@ -114,7 +114,7 @@ export default async function ImporDokumenDrivePage({
             <Banner
               tone="warning"
               title={`Paket "${selected.name}" belum punya folder Drive`}
-              description="Isi ID folder KKP paket ini di halaman paket dulu — impor membaca folder itu."
+              description="Isi ID folder KKP paket ini di halaman paket dulu – impor membaca folder itu."
             />
           ) : null}
         </CardBody>

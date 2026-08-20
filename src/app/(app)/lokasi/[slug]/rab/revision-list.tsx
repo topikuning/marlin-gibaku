@@ -92,7 +92,7 @@ export function RevisionList({ revisions, canManage }: { revisions: RevisionRow[
               <td className="tabular py-2 pr-3 text-right">{formatRupiah(Number(r.totalValue))}</td>
               <td className="tabular py-2 pr-3">{formatTanggal(new Date(r.createdAt))}</td>
               <td className="max-w-60 truncate py-2 pr-3 text-ink-muted" title={r.note ?? undefined}>
-                {r.note ?? "—"}
+                {r.note ?? "–"}
               </td>
               {canManage ? (
                 <td className="py-2 text-right">

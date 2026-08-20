@@ -24,7 +24,7 @@ export function renderMatrix(): string {
   const head = `| Capability | ${ROLES.join(" | ")} |`;
   const sep = `|---|${ROLES.map(() => ":-:").join("|")}|`;
   const rows = CAPABILITIES.map(
-    (cap) => `| \`${cap}\` | ${ROLES.map((r) => (ROLE_CAPABILITIES[r].has(cap) ? "✓" : "—")).join(" | ")} |`,
+    (cap) => `| \`${cap}\` | ${ROLES.map((r) => (ROLE_CAPABILITIES[r].has(cap) ? "✓" : "–")).join(" | ")} |`,
   );
   return [head, sep, ...rows].join("\n");
 }

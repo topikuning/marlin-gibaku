@@ -209,14 +209,14 @@ describe("KASUS INTI: menambah foto tidak menyentuh angka", () => {
 });
 
 describe("gerbang & penolakan", () => {
-  it("laporan DIKIRIM: ditolak — bukti sudah jadi dasar verifikasi", async () => {
+  it("laporan DIKIRIM: ditolak – bukti sudah jadi dasar verifikasi", async () => {
     await db.dailyReport.update({ where: { id: reportId }, data: { status: "dikirim" } });
     const hasil = await tambah([berkas()]);
     expect(hasil?.error).toMatch(/sudah dikirim/i);
     expect(panggilan).toHaveLength(0);
   });
 
-  it("PERLU KOREKSI: boleh — memang untuk diperbaiki", async () => {
+  it("PERLU KOREKSI: boleh – memang untuk diperbaiki", async () => {
     await db.dailyReport.update({ where: { id: reportId }, data: { status: "perlu_koreksi" } });
     expect((await tambah([berkas()]))?.success).toBeTruthy();
   });

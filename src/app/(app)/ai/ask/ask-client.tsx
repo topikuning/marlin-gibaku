@@ -57,7 +57,7 @@ export function AskClient({
         subtitle={
           conversation
             ? `Scope ${conversation.scopeCount} lokasi · periode ${conversation.periodStart} – ${conversation.periodEnd} · grounded (hanya data yang Anda boleh akses)`
-            : "Percakapan baru — pilih scope (kosong = semua lokasi Anda), lalu bertanya. Jawaban selalu menyertakan sumber."
+            : "Percakapan baru – pilih scope (kosong = semua lokasi Anda), lalu bertanya. Jawaban selalu menyertakan sumber."
         }
         action={
           conversation ? (
@@ -124,12 +124,12 @@ export function AskClient({
                             ) : (
                               <span>{c.label ?? c.sourceRefId}</span>
                             )}
-                            {c.value ? <span className="text-ink-faint"> — {c.value}</span> : null}
+                            {c.value ? <span className="text-ink-faint"> – {c.value}</span> : null}
                           </li>
                         ))}
                       </ul>
                     ) : (
-                      <p>sumber: —</p>
+                      <p>sumber: –</p>
                     )}
                   </div>
                 ) : null}
@@ -142,7 +142,7 @@ export function AskClient({
             selected={selected}
             onChange={setSelected}
             maxTinggi="max-h-56"
-            petunjukKosong="Belum ada lokasi dipilih — pertanyaan dijawab atas seluruh lokasi yang Anda pegang."
+            petunjukKosong="Belum ada lokasi dipilih – pertanyaan dijawab atas seluruh lokasi yang Anda pegang."
           />
         )}
 

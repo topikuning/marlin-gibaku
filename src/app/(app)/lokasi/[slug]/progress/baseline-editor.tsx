@@ -12,7 +12,7 @@ function validate(points: number[]): string | null {
   let prev = -Infinity;
   for (const [i, p] of points.entries()) {
     if (!Number.isFinite(p) || p < 0 || p > 100) return `Minggu ${i + 1}: nilai di luar 0–100.`;
-    if (p < prev - 1e-9) return `Minggu ${i + 1}: kurva turun (${prev}→${p}) — harus naik.`;
+    if (p < prev - 1e-9) return `Minggu ${i + 1}: kurva turun (${prev}→${p}) – harus naik.`;
     prev = p;
   }
   const last = points[points.length - 1];
@@ -105,7 +105,7 @@ export function BaselineEditor({
           <p className="mt-3 text-xs text-ink-muted">
             Kurva valid: monoton naik, mulai 0%, berakhir 100%. Simpan membuat
             baseline manual baru (baseline lama tetap tersimpan sebagai histori).
-            Jadwal per pekerjaan ikut disetel mengikuti kurva ini — bobot tiap
+            Jadwal per pekerjaan ikut disetel mengikuti kurva ini – bobot tiap
             pekerjaan tetap sesuai RAB, hanya waktunya yang bergeser.
           </p>
         )}

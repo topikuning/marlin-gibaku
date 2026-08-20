@@ -136,7 +136,7 @@ export async function parseRecapWorkbook(buf: Buffer): Promise<ParsedRecapRow[]>
   }
   if (headerRow < 0) {
     throw new Error(
-      "Header tidak ditemukan. Pastikan ada kolom Tanggal, Volume, dan Kode/Uraian pekerjaan — gunakan template unduhan.",
+      "Header tidak ditemukan. Pastikan ada kolom Tanggal, Volume, dan Kode/Uraian pekerjaan – gunakan template unduhan.",
     );
   }
 

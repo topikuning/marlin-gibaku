@@ -85,7 +85,7 @@ export async function antreJawaban(body: unknown): Promise<HasilAntre> {
       });
       return ada
         ? { antre: true, baru: false, jobId: ada.id }
-        : { antre: false, alasan: "balapan antre — baris hilang saat dibaca ulang" };
+        : { antre: false, alasan: "balapan antre – baris hilang saat dibaca ulang" };
     }
     throw err;
   }
@@ -160,7 +160,7 @@ export async function prosesAntrean(batas = 10): Promise<HasilProses> {
           finishedAt: new Date(),
           // Alasan "diam" ikut disimpan: jalur yang sengaja tidak menjawab
           // adalah jalur yang paling sering perlu didiagnosis.
-          hasil: `${jawab.dijawab ? "dijawab" : "diam"} — ${jawab.alasan}`.slice(0, 500),
+          hasil: `${jawab.dijawab ? "dijawab" : "diam"} – ${jawab.alasan}`.slice(0, 500),
           lastError: null,
         },
       });

@@ -178,13 +178,13 @@ function bacaEntri(raw: unknown, perluVerifikasi: boolean): EntriAhsp | null {
 
   return {
     externalId,
-    kode: teks(o.kode) ?? "—",
+    kode: teks(o.kode) ?? "–",
     uraian,
     // Satuan "-" dipakai berkas master sebagai penanda "tidak terbaca";
     // dipertahankan apa adanya supaya pembaca tahu itu memang belum pasti.
-    satuan: teks(o.satuan) ?? "—",
+    satuan: teks(o.satuan) ?? "–",
     bidang: teks(o.bidang) ?? "lainnya",
-    ahspType: teks(o.ahsp_type) ?? "—",
+    ahspType: teks(o.ahsp_type) ?? "–",
     workGroup: teks(o.work_group),
     divisi: teks(o.divisi),
     notes: teks(o.notes),
@@ -222,7 +222,7 @@ export function bacaMasterAhsp(raw: unknown, code: string): MasterAhsp {
   const recs = Array.isArray(o.records) ? o.records : [];
   const supp = Array.isArray(o.supplemental_records) ? o.supplemental_records : [];
   if (recs.length === 0) {
-    throw new AhspParseError("Berkas AHSP tidak memuat `records` — tidak ada yang bisa diimpor.");
+    throw new AhspParseError("Berkas AHSP tidak memuat `records` – tidak ada yang bisa diimpor.");
   }
 
   const entries = [
@@ -264,7 +264,7 @@ export function bacaMasterAhsp(raw: unknown, code: string): MasterAhsp {
       code,
       name: teks(reg.name) ?? teks(meta.title) ?? code,
       subject: teks(reg.subject),
-      schemaVersion: teks(meta.schema_version) ?? "—",
+      schemaVersion: teks(meta.schema_version) ?? "–",
       generatedAt: Number.isNaN(waktu.getTime()) ? new Date() : waktu,
       documents: meta.source_documents ?? {},
       matchingEngine: o.matching_engine ?? null,

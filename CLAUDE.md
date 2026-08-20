@@ -124,6 +124,9 @@ src/
   (FormData + zod + `useActionState` + `Banner`).
 - Tabel data → `MarlinGrid`; KPI/ringkasan → `KpiCard`; status → `StatusPill`
   dgn label/tone dari `lifecycle.ts`.
+- **Tanda pisah di teks UI = en-dash `–`, BUKAN em-dash `—`** (DECISIONS 385).
+  Berlaku untuk semua teks yang dilihat orang: layar, balasan WhatsApp, PDF,
+  Excel. Komentar kode bebas. Dijaga `tests/unit/tanda-pisah-ui.test.ts`.
 - **SEMUA dropdown form → `Combobox`** (bisa diketik-cari), TIDAK PERNAH
   `<select>` native — DECISIONS 094/115/174, dijaga lint. Satu-satunya
   pengecualian: primitive `ui/field.tsx` & halaman `app/cetak/`.

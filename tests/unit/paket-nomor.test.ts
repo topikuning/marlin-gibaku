@@ -30,14 +30,14 @@ describe("nomorPaket", () => {
   });
 
   it("undefined (paket tanpa kontrak sama sekali) tetap aman", () => {
-    expect(nomorPaket(null, undefined)).toBe("—");
-    expect(nomorPaket(undefined, undefined)).toBe("—");
+    expect(nomorPaket(null, undefined)).toBe("–");
+    expect(nomorPaket(undefined, undefined)).toBe("–");
   });
 
   it("keduanya kosong → strip, bukan string kosong yang tak terlihat", () => {
     // "—" menyatakan "memang tidak ada"; sel kosong terbaca "belum dimuat".
-    expect(nomorPaket("  ", "  ")).toBe("—");
-    expect(nomorPaket(null, null)).toBe("—");
+    expect(nomorPaket("  ", "  ")).toBe("–");
+    expect(nomorPaket(null, null)).toBe("–");
   });
 
   it("nomor yang dipakai sudah dirapikan dari spasi tepi", () => {

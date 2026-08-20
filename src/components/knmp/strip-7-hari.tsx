@@ -86,7 +86,7 @@ export function KeteranganStatus() {
     { kata: "Dikirim", huruf: "K", nada: "info" },
     { kata: "Draft", huruf: "D", nada: "warning" },
     { kata: "Perlu koreksi", huruf: "!", nada: "danger" },
-    { kata: "Belum ada", huruf: "\u2014", nada: "neutral" },
+    { kata: "Belum ada", huruf: "\u2013", nada: "neutral" },
   ];
   return (
     <ul className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[12px] text-ink-muted">

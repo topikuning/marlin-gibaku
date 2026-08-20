@@ -72,7 +72,7 @@ function MilestoneEditForm({
       <div>
         <Label htmlFor={`pic-${item.id}`}>Penanggung jawab (PIC)</Label>
         <Combobox id={`pic-${item.id}`} name="picUserId" defaultValue={item.picUserId ?? ""}>
-          <option value="">— tanpa PIC —</option>
+          <option value="">– tanpa PIC –</option>
           {picOptions.map((p) => (
             <option key={p.id} value={p.id}>{p.fullName}</option>
           ))}
@@ -87,7 +87,7 @@ function MilestoneEditForm({
           <Label htmlFor={`file-${item.id}`}>Lampiran dokumen</Label>
           <FileInput id={`file-${item.id}`} name="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.xlsx,.docx" />
           <p className="mt-1 text-xs text-ink-muted">
-            Unggah bukti (PDF/DOCX) — status otomatis maju setelah terunggah.
+            Unggah bukti (PDF/DOCX) – status otomatis maju setelah terunggah.
           </p>
         </div>
       ) : null}
@@ -257,7 +257,7 @@ export function QuickUploadForm({
       <div>
         <Label htmlFor="up-milestone">Milestone (bukti utk)</Label>
         <Combobox id="up-milestone" name="milestoneId" defaultValue="">
-          <option value="">— tidak terkait milestone —</option>
+          <option value="">– tidak terkait milestone –</option>
           {milestones.map((m) => (
             <option key={m.id} value={m.id}>{m.name}</option>
           ))}

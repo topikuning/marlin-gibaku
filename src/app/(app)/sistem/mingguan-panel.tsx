@@ -46,7 +46,7 @@ export function MingguanPanel({ aktif }: { aktif: boolean }) {
             </p>
             <p className="mt-0.5 text-[13px] text-ink-muted">
               {aktif
-                ? "Tiap paket berjalan dikirimi pada HARI TERAKHIR minggu kontraknya sendiri — mengikuti tanggal SPMK, jadi harinya berbeda antar paket. Satu minggu hanya diumumkan sekali."
+                ? "Tiap paket berjalan dikirimi pada HARI TERAKHIR minggu kontraknya sendiri – mengikuti tanggal SPMK, jadi harinya berbeda antar paket. Satu minggu hanya diumumkan sekali."
                 : "Penjadwal tidak mengirim apa pun. Tombol “Kirim ke grup sekarang” di halaman paket TETAP bekerja."}
             </p>
           </div>

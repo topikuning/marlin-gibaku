@@ -30,7 +30,7 @@ describe("sumLeaves", () => {
 });
 
 describe("baris berkode rusak/kosong (#REF!) sesudah item berharga → item sendiri (bukan anak)", () => {
-  it("grand total (jalur flatten) ikut menghitung baris tsb — nilai induk tak hilang", async () => {
+  it("grand total (jalur flatten) ikut menghitung baris tsb – nilai induk tak hilang", async () => {
     // Item "4" berharga (2000), lalu baris kode-KOSONG (#REF! → terbaca kosong) yg
     // punya nilai sendiri (500). Bug lama: baris jadi anak "4" → nilai induk 2000
     // hilang, hanya 500 terhitung. Harus: 2000 + 500 = 2500.
@@ -153,7 +153,7 @@ describe("helper classifyRow / isSummaryRow", () => {
   });
 });
 
-describe("kategori tanpa judul (mis. RAB_Nyamplung VIII) — infer dari sub-kode", () => {
+describe("kategori tanpa judul (mis. RAB_Nyamplung VIII) – infer dari sub-kode", () => {
   it("sub-kode VIII.x setelah kategori VII → kategori VIII terpisah, VII tak menyerap", async () => {
     const { parsed, warnings } = await parseHpsBuffer(
       await xlsxFromRows([
@@ -331,7 +331,7 @@ describe("parseHpsBuffer error", () => {
   });
 });
 
-describe("baris DIHIDE di Excel diabaikan (tidak masuk perhitungan) — DECISIONS 084", () => {
+describe("baris DIHIDE di Excel diabaikan (tidak masuk perhitungan) – DECISIONS 084", () => {
   it("baris hidden dikecualikan dari pohon & total; ada peringatan", async () => {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("RAB");
@@ -351,7 +351,7 @@ describe("baris DIHIDE di Excel diabaikan (tidak masuk perhitungan) — DECISION
   });
 });
 
-describe("slimRabWorkbook: file raksasa multi-sheet + defined names → ramping ke RAB — DECISIONS 085", () => {
+describe("slimRabWorkbook: file raksasa multi-sheet + defined names → ramping ke RAB – DECISIONS 085", () => {
   it("workbook 3 sheet + 3000 defined names → parse RAB benar, tanpa OOM", async () => {
     const { slimRabWorkbook } = await import("@/lib/rab/xlsx-slim");
     const wb = new ExcelJS.Workbook();
@@ -456,7 +456,7 @@ describe("baris rekap: kata kunci menempel ke huruf berikutnya", () => {
 });
 
 describe("kode kategori dengan titik di ujung (IV., VII.)", () => {
-  it("dikenali sebagai kategori — judulnya TIDAK hilang", async () => {
+  it("dikenali sebagai kategori – judulnya TIDAK hilang", async () => {
     // Berkas KKP memakai dua gaya dalam satu file: "III" dan "IV.". Dulu yang
     // bertitik dibuang, judulnya ikut hilang, lalu sub-kodenya memicu kategori
     // sisipan "judul tidak ada di file" — padahal judulnya ada.

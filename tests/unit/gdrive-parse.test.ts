@@ -75,7 +75,7 @@ describe("publicOrigin & driveRedirectUri", () => {
     );
   });
 
-  it("alamat bind container DITOLAK — ini penyebab redirect_uri https://0.0.0.0:8080", () => {
+  it("alamat bind container DITOLAK – ini penyebab redirect_uri https://0.0.0.0:8080", () => {
     expect(publicOrigin({ host: "0.0.0.0:8080" })).toBeNull();
     expect(publicOrigin({ host: "[::]:8080" })).toBeNull();
     expect(publicOrigin({ host: "marlin.railway.internal" })).toBeNull();
@@ -127,7 +127,7 @@ describe("regresi: origin yang tidak bisa dibuka browser", () => {
   });
 });
 
-describe("summarize — bedakan file baru vs diperbarui", () => {
+describe("summarize – bedakan file baru vs diperbarui", () => {
   const o = (p: Partial<UploadOutcome>): UploadOutcome => ({
     ok: 0, failed: 0, updated: 0, firstError: null, webLink: null, ...p,
   });
@@ -136,7 +136,7 @@ describe("summarize — bedakan file baru vs diperbarui", () => {
     expect(summarize("Laporan harian", [o({ ok: 3 })])).toBe("Laporan harian: 3 file baru.");
   });
 
-  it("semua memperbarui — sebut eksplisit bahwa isi lama jadi versi sebelumnya", () => {
+  it("semua memperbarui – sebut eksplisit bahwa isi lama jadi versi sebelumnya", () => {
     expect(summarize("Laporan harian", [o({ ok: 2, updated: 2 })])).toBe(
       "Laporan harian: 2 file diperbarui (versi baru di Drive).",
     );

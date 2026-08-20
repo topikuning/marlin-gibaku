@@ -34,7 +34,7 @@ export function AhspPanel({ ringkas }: { ringkas: RingkasAhsp | null }) {
       {ringkas?.belumSelesai ? (
         <Banner
           tone="error"
-          title="Impor basis AHSP TERPUTUS — isinya belum lengkap"
+          title="Impor basis AHSP TERPUTUS – isinya belum lengkap"
           description="Percobaan sebelumnya berhenti di tengah, jadi angka di bawah belum utuh dan BELUM boleh dipakai menghitung kebutuhan bahan. Tekan tombol di bawah untuk mengulang; basis yang belum selesai tidak akan pernah dianggap mutakhir."
         />
       ) : null}
@@ -77,7 +77,7 @@ export function AhspPanel({ ringkas }: { ringkas: RingkasAhsp | null }) {
           <p className="mt-2 break-all text-[12px] text-ink-muted">
             Versi berkas (sha256):{" "}
             {ringkas.belumSelesai ? (
-              <span className="font-medium text-danger">belum dipasang — impor belum tuntas</span>
+              <span className="font-medium text-danger">belum dipasang – impor belum tuntas</span>
             ) : (
               <code className="rounded bg-surface-inset px-1">{ringkas.fileSha256}</code>
             )}
@@ -102,7 +102,7 @@ export function AhspPanel({ ringkas }: { ringkas: RingkasAhsp | null }) {
 
       <p className="text-[12px] text-ink-muted">
         Sumber: Surat Edaran Dirjen Bina Konstruksi No. 47/SE/Dk/2026, Lampiran II–VI. Aman ditekan
-        berulang — berkas yang isinya sama tidak ditulis ulang, dan impor yang terputus di tengah
+        berulang – berkas yang isinya sama tidak ditulis ulang, dan impor yang terputus di tengah
         selalu diulang dari awal alih-alih mengaku selesai.
       </p>
     </div>

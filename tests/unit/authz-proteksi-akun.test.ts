@@ -16,7 +16,7 @@ describe("outranks (peringkat peran)", () => {
     }
   });
 
-  it("peran TIDAK mengungguli dirinya sendiri — setingkat pun dilarang", () => {
+  it("peran TIDAK mengungguli dirinya sendiri – setingkat pun dilarang", () => {
     for (const r of ALL_ROLES) expect(outranks(r, r), r).toBe(false);
   });
 
@@ -44,7 +44,7 @@ describe("ADMIN_ROLES (dasar proteksi admin terakhir)", () => {
     }
   });
 
-  it("tidak kosong — kalau kosong, proteksi admin terakhir tidak pernah aktif", () => {
+  it("tidak kosong – kalau kosong, proteksi admin terakhir tidak pernah aktif", () => {
     expect(ADMIN_ROLES.length).toBeGreaterThan(0);
   });
 

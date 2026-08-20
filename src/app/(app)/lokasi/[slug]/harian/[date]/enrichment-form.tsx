@@ -120,7 +120,7 @@ function WeatherAuto({ report }: { report: WorkspaceReport }) {
             formAction(new FormData(form));
           }}
           disabled={pending}
-          title="Diambil dari koordinat lokasi, mengikuti TANGGAL laporan ini (bukan hari ini) — laporan yang diisi mundur tetap dapat cuaca tanggalnya."
+          title="Diambil dari koordinat lokasi, mengikuti TANGGAL laporan ini (bukan hari ini) – laporan yang diisi mundur tetap dapat cuaca tanggalnya."
         >
           {pending ? "Mengambil…" : hours ? "Muat ulang cuaca" : "Ambil cuaca otomatis"}
         </Button>

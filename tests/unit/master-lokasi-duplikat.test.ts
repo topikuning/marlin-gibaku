@@ -67,7 +67,7 @@ describe("pencegahan lokasi ganda saat menambah manual", () => {
     expect(hasil[0]?.kemiripan).toBe("persis");
   });
 
-  it("EJAAN berbeda tertangkap sebagai 'mirip' — inilah yang lolos indeks unik", () => {
+  it("EJAAN berbeda tertangkap sebagai 'mirip' – inilah yang lolos indeks unik", () => {
     /*
      * "Kedung Mutih" vs "Kedungmutih": indeks unik menerimanya sebagai baris
      * baru, dan sejak itu satu desa punya dua entri. Angkanya terpecah dua dan
@@ -132,7 +132,7 @@ describe("pencegahan lokasi ganda saat menambah manual", () => {
     expect(hasil[0].nama).toBe("Kedung Mutih");
   });
 
-  it("yang 'persis' selalu di atas — ia yang menentukan boleh-tidaknya menyimpan", () => {
+  it("yang 'persis' selalu di atas – ia yang menentukan boleh-tidaknya menyimpan", () => {
     // Tombol "tetap simpan sebagai baru" hanya muncul kalau TIDAK ada yang
     // persis; kalau yang persis tenggelam di bawah daftar, keputusannya salah.
     const katalog = [

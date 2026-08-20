@@ -10,7 +10,9 @@ export {
   type ButtonVariant,
 } from "./button";
 export { Card, CardBody, CardHeader, CollapsibleCard } from "./card";
+export { Drawer } from "./drawer";
 export { KpiCard, type KpiCardProps, type KpiTone } from "./kpi";
+export { MiniStat } from "./mini-stat";
 export { Badge, StatusPill, type BadgeProps, type BadgeTone } from "./badge";
 export { Banner, type BannerProps, type BannerTone } from "./banner";
 export {

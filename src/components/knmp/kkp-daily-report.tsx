@@ -170,7 +170,7 @@ export function KkpDailyReport({ d, ttd }: { d: KkpDailyData; ttd?: TtdLaporan |
     <div className="mx-auto max-w-225 bg-white text-[11px] leading-tight text-slate-900">
       {!d.isFinal ? (
         <div className="no-print mb-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-800">
-          PRATINJAU — laporan belum difinalisasi; angka masih bisa berubah.
+          PRATINJAU – laporan belum difinalisasi; angka masih bisa berubah.
         </div>
       ) : null}
 
@@ -368,7 +368,7 @@ export function KkpDailyReport({ d, ttd }: { d: KkpDailyData; ttd?: TtdLaporan |
           <tr>
             <Cell>Jam Kerja</Cell>
             <Cell>
-              mulai {d.workStart ?? "……"} — selesai {d.workEnd ?? "……"}
+              mulai {d.workStart ?? "……"} – selesai {d.workEnd ?? "……"}
             </Cell>
           </tr>
         </tbody>
@@ -420,7 +420,7 @@ export function KkpDailyReport({ d, ttd }: { d: KkpDailyData; ttd?: TtdLaporan |
       {(d.draftItemCount ?? 0) > 0 ? (
         <div className="border-x border-b border-slate-500 px-1.5 py-1 text-[8px] leading-tight text-slate-600 italic">
           {d.draftItemCount} pekerjaan hari ini dilaporkan atas usulan adendum yang belum disetujui
-          sehingga tidak dicetak di blanko ini — belum ada dasar kontraknya. Rinciannya ada di
+          sehingga tidak dicetak di blanko ini – belum ada dasar kontraknya. Rinciannya ada di
           pantauan internal MARLIN.
         </div>
       ) : null}
@@ -474,7 +474,7 @@ export function KkpDailyReport({ d, ttd }: { d: KkpDailyData; ttd?: TtdLaporan |
  */
 export function teksRealisasi(it: KkpDailyItem): string {
   const satuan = it.unit ? ` ${it.unit}` : "";
-  const bagian = [`${it.name} — ${volFmt.format(it.volumeToday)}${satuan}`];
+  const bagian = [`${it.name} – ${volFmt.format(it.volumeToday)}${satuan}`];
   const progres: string[] = [`s/d ${volFmt.format(it.volumeCumulative)}`];
   if (it.volumeContract != null) progres.push(`dari ${volFmt.format(it.volumeContract)}${satuan}`);
   if (it.pctCumulative != null) progres.push(`${pctFmt.format(it.pctCumulative)}%`);
@@ -530,7 +530,7 @@ export function barisRencanaRealisasi(
   d: KkpDailyData,
 ): { rencanaNo: string; rencana: string | null; realisasiNo: string; realisasi: string | null; realisasiKategori: boolean }[] {
   const rencana = (d.rencana ?? []).map((r) =>
-    `${r.name}${r.volume > 0 ? ` — ${volFmt.format(r.volume)}${r.unit ? ` ${r.unit}` : ""}` : ""}` +
+    `${r.name}${r.volume > 0 ? ` – ${volFmt.format(r.volume)}${r.unit ? ` ${r.unit}` : ""}` : ""}` +
     (r.picName ? ` (${r.picName})` : ""),
   );
   const realisasi = barisRealisasiKkp(d.items);

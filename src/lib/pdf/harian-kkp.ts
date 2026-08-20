@@ -307,7 +307,7 @@ export function tulisBadanHarian(
   draw(
     [
       { text: "Jam Kerja", head: true },
-      { text: `mulai ${d.workStart ?? "……"} — selesai ${d.workEnd ?? "……"}` },
+      { text: `mulai ${d.workStart ?? "……"} – selesai ${d.workEnd ?? "……"}` },
     ],
     jam,
   );
@@ -320,7 +320,7 @@ export function tulisBadanHarian(
   const rrRight: GridOptions = { x: x + rrHalf, width: rrHalf, cols: colWidths(rrHalf, [0.5, 6]), fontSize: 6.5 };
   const rencanaTeks = (d.rencana ?? []).map(
     (r) =>
-      `${r.name}${r.volume > 0 ? ` — ${volFmt.format(r.volume)}${r.unit ? ` ${r.unit}` : ""}` : ""}` +
+      `${r.name}${r.volume > 0 ? ` – ${volFmt.format(r.volume)}${r.unit ? ` ${r.unit}` : ""}` : ""}` +
       (r.picName ? ` (${r.picName})` : ""),
   );
   // Dikelompokkan per BANGUNAN/KATEGORI — sumbernya sama dengan blanko layar
@@ -361,7 +361,7 @@ export function tulisBadanHarian(
         {
           text:
             `${d.draftItemCount} pekerjaan hari ini dilaporkan atas usulan adendum yang belum disetujui ` +
-            `sehingga tidak dicetak di blanko ini — belum ada dasar kontraknya. ` +
+            `sehingga tidak dicetak di blanko ini – belum ada dasar kontraknya. ` +
             `Rinciannya ada di pantauan internal MARLIN.`,
         },
       ],
@@ -479,7 +479,7 @@ export async function buildHarianKkpPdf(
   logo?: Buffer | null,
   lampiran?: LampiranHarian & { tanpaSampul?: boolean },
 ): Promise<Buffer> {
-  const doc = createFormA4Doc({ title: `Laporan Harian KKP — ${d.locationName}` });
+  const doc = createFormA4Doc({ title: `Laporan Harian KKP – ${d.locationName}` });
 
   /* ── Halaman 1: SAMPUL ─────────────────────────────────────────────────
      Blanko di halaman berikutnya TIDAK berubah sedikit pun (permintaan user
@@ -500,7 +500,7 @@ export async function buildHarianKkpPdf(
     logoVendor: lampiran?.logoVendor ?? null,
     foto: lampiran?.foto ?? [],
   });
-  kakiHalaman(doc, appName, d.isFinal ? "Laporan final" : "PRATINJAU — belum difinalisasi");
+  kakiHalaman(doc, appName, d.isFinal ? "Laporan final" : "PRATINJAU – belum difinalisasi");
   return docToBuffer(doc);
 }
 

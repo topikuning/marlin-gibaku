@@ -184,7 +184,7 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
     id: p.id,
     entityType: `narasi_${p.jenis}`,
     entityId: p.locationId,
-    label: `${p.namaLokasi} — ${LABEL_JENIS[p.jenis]}${p.tanggal ? ` ${p.tanggal}` : ""}`,
+    label: `${p.namaLokasi} – ${LABEL_JENIS[p.jenis]}${p.tanggal ? ` ${p.tanggal}` : ""}`,
     value: p.teks.length > 160 ? `${p.teks.slice(0, 160)}…` : p.teks,
     href: p.href,
   }));
@@ -304,7 +304,7 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
   const questionBlock = input.question ? `\n\nPERTANYAAN USER:\n${input.question}` : "";
   const prompt = `${instruction}\n\n=== DATA ===\n${payload}${qualityBlock}${narrativeBlock}${questionBlock}`;
   if (prompt.length > guardCfg.maxInputChars) {
-    return fail("input_too_big", "Data sumber melebihi batas — persempit scope/periode.");
+    return fail("input_too_big", "Data sumber melebihi batas – persempit scope/periode.");
   }
 
   // 8. SATU panggilan provider terstruktur (+maks 1 repair internal).
@@ -373,18 +373,18 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
     // lewat diam-diam) — padahal keduanya tampil di panel, PDF, dan Excel.
     if (typeof output.executiveSummary === "string" && !numericClaimsValid(output.executiveSummary, globals)) {
       output.executiveSummary =
-        "[Ringkasan eksekutif dibuang: memuat angka yang tidak cocok data resmi — tulis ulang manual.]";
+        "[Ringkasan eksekutif dibuang: memuat angka yang tidak cocok data resmi – tulis ulang manual.]";
       droppedNotes.push("ringkasan eksekutif dibuang: memuat angka tanpa sumber");
     }
     if (typeof output.title === "string" && !numericClaimsValid(output.title, globals)) {
-      droppedNotes.push("judul memuat angka yang tidak cocok data resmi — periksa manual");
+      droppedNotes.push("judul memuat angka yang tidak cocok data resmi – periksa manual");
     }
     if (typeof output.waSummary === "string" && !numericClaimsValid(output.waSummary, globals)) {
       // PROJECT.md §5a: bagian yang gagal grounding DIBUANG — ringkasan WA yang
       // angkanya tak bersumber tidak boleh ikut terkirim (audit B10; dulu cuma
       // jadi limitation dan TETAP dikirim).
       output.waSummary = "";
-      droppedNotes.push("ringkasan WA dibuang: memuat angka tanpa sumber — tulis ulang manual sebelum kirim");
+      droppedNotes.push("ringkasan WA dibuang: memuat angka tanpa sumber – tulis ulang manual sebelum kirim");
     }
   } else if (input.kind === "tanya") {
     const cites = (output.citations as { sourceRefId: string }[] | undefined) ?? [];
@@ -414,7 +414,7 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
       output.answer = teks || "Saya tidak punya angka bersumber untuk menjawab itu.";
     } else if (typeof output.answer === "string" && !numericClaimsValid(output.answer, globals)) {
       // Keluaran model lama (tanpa answerParts) tetap dijaga cara lama.
-      droppedNotes.push("jawaban memuat angka persen yang tidak cocok data — verifikasi manual");
+      droppedNotes.push("jawaban memuat angka persen yang tidak cocok data – verifikasi manual");
     }
 
     /*
@@ -429,7 +429,7 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
       droppedNotes.push(
         `Tidak ditampilkan untuk peran Anda: ${tambahan.dilewati
           .map((w) => LABEL_WILAYAH[w])
-          .join(", ")} — angkanya ada, tetapi di luar hak akses Anda.`,
+          .join(", ")} – angkanya ada, tetapi di luar hak akses Anda.`,
       );
     }
 
@@ -443,7 +443,7 @@ export async function executeAiRun(user: SessionUser, input: ExecuteRunInput): P
   }
   // Ringkasan global: klaim angka dibandingkan seluruh angka resmi.
   if (typeof output.summary === "string" && !numericClaimsValid(output.summary, globals)) {
-    droppedNotes.push("ringkasan memuat angka yang tidak cocok data resmi — verifikasi manual");
+    droppedNotes.push("ringkasan memuat angka yang tidak cocok data resmi – verifikasi manual");
   }
   const limitations = [
     ...((output.limitations as string[] | undefined) ?? []),

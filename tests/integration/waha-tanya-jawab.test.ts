@@ -321,7 +321,7 @@ describe("apa yang boleh bocor ke grup", () => {
     expect(teks.toLowerCase()).toContain("chat pribadi");
   });
 
-  it("chat pribadi orang yang sama: Tengket ikut — jadi pemotongan tadi nyata", async () => {
+  it("chat pribadi orang yang sama: Tengket ikut – jadi pemotongan tadi nyata", async () => {
     // Tanpa uji pasangan ini, "tidak menyebut Tengket" bisa saja karena
     // Tengket memang tidak pernah muncul di jawaban mana pun.
     niatPalsu = { niat: "kelengkapan", lokasiDisebut: [], periode: "hari_ini" };
@@ -673,7 +673,7 @@ describe("mengaku saat tidak bisa", () => {
     expect(teks).not.toContain("Kedung");
   });
 
-  it("pemakaian AI tercatat di ai_runs — kuota guard menghitung dari sana", async () => {
+  it("pemakaian AI tercatat di ai_runs – kuota guard menghitung dari sana", async () => {
     const sebelum = await db.aiRun.count({ where: { runKind: "tanya" } });
     await jawabPertanyaanWa(
       event({ chatId: `${nomorSM}@c.us`, dari: nomorSM, teks: TANYA_BUTUH_AI }),
@@ -866,7 +866,7 @@ describe("mention MARLIN di grup, apa pun bentuk identitasnya (DECISIONS 349)", 
     expect(r.dijawab, `tidak dijawab: ${r.alasan}`).toBe(true);
   });
 
-  it("mention ke ORANG LAIN tetap diam — pagarnya tidak ikut longgar", async () => {
+  it("mention ke ORANG LAIN tetap diam – pagarnya tidak ikut longgar", async () => {
     const r = await jawabPertanyaanWa(grupEvent({ mentionedIds: ["99900000000000@lid"] }));
     expect(r.dijawab).toBe(false);
     expect(terkirim).toHaveLength(0);
@@ -1016,7 +1016,7 @@ describe("di grup, pengirim TIDAK perlu terdaftar (DECISIONS 351)", () => {
     expect(terkirim[0]?.teks ?? "").not.toContain("belum terdaftar");
   });
 
-  it("CHAT PRIBADI tidak ikut longgar — nomor tak dikenal tetap DIDIAMKAN", async () => {
+  it("CHAT PRIBADI tidak ikut longgar – nomor tak dikenal tetap DIDIAMKAN", async () => {
     /*
      * Pagar yang tidak boleh ikut terbuka. Di chat pribadi tidak ada grup yang
      * membatasi apa pun, jadi identitas penanya satu-satunya dasar. Balasan apa
@@ -1073,7 +1073,7 @@ describe("di grup, pengirim TIDAK perlu terdaftar (DECISIONS 351)", () => {
     expect(olehAsing).toBe(olehSM);
   });
 
-  it("pemakaian AI penanya tak terdaftar TETAP tercatat — kuota tidak bocor", async () => {
+  it("pemakaian AI penanya tak terdaftar TETAP tercatat – kuota tidak bocor", async () => {
     /*
      * Tanpa ini, satu grup ramai bisa menghabiskan anggaran AI sepanjang hari
      * sementara panel AI Hub melaporkan nol pemakaian. `userId` null, tapi
@@ -1176,7 +1176,7 @@ describe("pembalikan yang dihilangkan DECISIONS 351", () => {
   });
 });
 
-describe("periode & niat baru — MARLIN yang luwes (DECISIONS 356)", () => {
+describe("periode & niat baru – MARLIN yang luwes (DECISIONS 356)", () => {
   /*
    * Permintaan user 2026-08-17: *"aku ingin chat whatsapp ke marlin menjadi
    * seluwes mungkin … minta laporan harian, progress tanggal tertentu atau
@@ -1424,7 +1424,7 @@ describe("laporan MINGGUAN vs laporan HARIAN (DECISIONS 358)", () => {
 });
 
 
-describe("klarifikasi tertunda — pilihan yang benar-benar bisa dijawab (DECISIONS 376)", () => {
+describe("klarifikasi tertunda – pilihan yang benar-benar bisa dijawab (DECISIONS 376)", () => {
   const ORANG_LAIN = "6289811111111";
 
   /** Ajukan pertanyaan kabur, kembalikan teks tawaran yang dikirim MARLIN. */
@@ -1456,7 +1456,7 @@ describe("klarifikasi tertunda — pilihan yang benar-benar bisa dijawab (DECISI
     expect(await db.aiRun.count({ where: { runKind: "tanya" } })).toBe(sebelum);
   });
 
-  it('balasan "2" dijalankan — juga TANPA panggilan AI kedua', async () => {
+  it('balasan "2" dijalankan – juga TANPA panggilan AI kedua', async () => {
     /*
      * Inti butir 22 brief. Kandidatnya sudah dihitung saat tawaran dibuat dan
      * disimpan utuh; membayar panggilan AI kedua untuk membaca ulang
@@ -1611,7 +1611,7 @@ describe("klarifikasi tertunda — pilihan yang benar-benar bisa dijawab (DECISI
 });
 
 
-describe("pertanyaan susulan — dilengkapi dari konteks (DECISIONS 377)", () => {
+describe("pertanyaan susulan – dilengkapi dari konteks (DECISIONS 377)", () => {
   const pribadi = () => `${nomorSM}@c.us`;
 
   it('"bagaimana yang kemarin?" MENYAMBUNG pertanyaan sebelumnya, bukan ditanya balik', async () => {
@@ -1722,7 +1722,7 @@ describe("pertanyaan susulan — dilengkapi dari konteks (DECISIONS 377)", () =>
     expect(terkirim.at(-1)?.teks ?? "").toContain("Maksud Anda yang mana?");
   });
 
-  it("konteks BASI tidak dipakai — ditawari pilihan seperti biasa", async () => {
+  it("konteks BASI tidak dipakai – ditawari pilihan seperti biasa", async () => {
     /*
      * Konteks basi lebih berbahaya daripada tidak ada konteks: ia menjawab
      * pertanyaan lama dengan percaya diri.

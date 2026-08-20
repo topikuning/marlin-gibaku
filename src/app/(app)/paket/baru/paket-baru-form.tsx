@@ -43,7 +43,7 @@ export function PaketBaruForm({ vendorNames = [] }: { vendorNames?: string[] }) 
           inputMode="numeric"
           placeholder="mis. 12.500.000.000"
         />
-        <HelpText>Angka rupiah — pemisah titik boleh, akan dibaca sebagai angka.</HelpText>
+        <HelpText>Angka rupiah – pemisah titik boleh, akan dibaca sebagai angka.</HelpText>
       </div>
 
       <div>
@@ -52,7 +52,7 @@ export function PaketBaruForm({ vendorNames = [] }: { vendorNames?: string[] }) 
           id="pb-vendor"
           name="candidateVendorName"
           list="pb-vendor-list"
-          placeholder="Opsional — pilih dari master atau ketik baru"
+          placeholder="Opsional – pilih dari master atau ketik baru"
           autoComplete="off"
         />
         {vendorNames.length > 0 ? (

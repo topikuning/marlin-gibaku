@@ -46,7 +46,7 @@ describe("masalahAkun", () => {
     expect(masalahAkun({ ...SEHAT, role: "super_admin", jumlahPenugasan: 0 })).toEqual([]);
   });
 
-  it("nonaktif MENELAN masalah lain — cuma satu yang perlu dikerjakan", () => {
+  it("nonaktif MENELAN masalah lain – cuma satu yang perlu dikerjakan", () => {
     const m = masalahAkun({
       ...SEHAT,
       isActive: false,

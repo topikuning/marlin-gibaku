@@ -61,7 +61,7 @@ describe("klaim yang benar lolos", () => {
     expect(r.hidup).toHaveLength(1);
   });
 
-  it("HITUNGAN divalidasi juga — tidak ada toleransi untuk 3 vs 4 kendala", () => {
+  it("HITUNGAN divalidasi juga – tidak ada toleransi untuk 3 vs 4 kendala", () => {
     /*
      * Jalur lama tidak bisa memeriksa ini sama sekali: ia mengambil angka lewat
      * regex "%"/"pp", jadi setiap klaim hitungan lolos tanpa diperiksa.
@@ -237,7 +237,7 @@ describe("kutipan catatan lapangan: verbatim, dan angkanya boleh (DECISIONS 382)
     expect(r.klaimValid).toBe(1);
   });
 
-  it("PARAFRASE ditolak — walau isinya benar", () => {
+  it("PARAFRASE ditolak – walau isinya benar", () => {
     /*
      * Begitu model menyusun ulang kalimatnya, tidak ada lagi cara otomatis
      * membedakan angka yang benar-benar ditulis pelapor dari angka yang
@@ -282,7 +282,7 @@ describe("kutipan catatan lapangan: verbatim, dan angkanya boleh (DECISIONS 382)
     expect(r.dibuang[0]).toContain("angka tanpa sumber");
   });
 
-  it("angka HITUNGAN lapangan kini ikut diperiksa — dulu lolos semua", () => {
+  it("angka HITUNGAN lapangan kini ikut diperiksa – dulu lolos semua", () => {
     /*
      * Penyaring lama hanya menangkap "%"/"pp", jadi setiap angka lapangan tanpa
      * satuan persen ("8 orang") lolos tanpa pernah diperiksa sama sekali.

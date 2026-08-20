@@ -93,7 +93,7 @@ describe("angka ringkasan selalu membawa penyebutnya", () => {
     expect(r.belumAda).toBe(1);
   });
 
-  it("tanpa hari, penyebutnya nol — bukan angka karangan", () => {
+  it("tanpa hari, penyebutnya nol – bukan angka karangan", () => {
     const r = ringkasHari([]);
     expect(r.total).toBe(0);
     expect(r.selesai).toBe(0);
@@ -181,7 +181,7 @@ describe("penanda status tidak pernah bergantung warna saja", () => {
     expect(new Set(huruf).size).toBe(huruf.length);
   });
 
-  it("judul sel menyebut tanggal DAN keadaannya — untuk pembaca layar", () => {
+  it("judul sel menyebut tanggal DAN keadaannya – untuk pembaca layar", () => {
     const s = selHari("2026-08-16", "perlu_koreksi", "Minggu, 16 Agu");
     expect(s.judul).toContain("Minggu, 16 Agu");
     expect(s.judul.toLowerCase()).toContain("koreksi");
@@ -234,7 +234,7 @@ describe("urutan: yang bermasalah lebih dulu", () => {
     expect(urut.map((l) => l.name)).toEqual(["Koreksi", "Kosong", "Draft", "Beres"]);
   });
 
-  it("pada bobot yang sama, urut nama — supaya letaknya tidak berpindah-pindah", () => {
+  it("pada bobot yang sama, urut nama – supaya letaknya tidak berpindah-pindah", () => {
     const urut = urutkanLokasi([
       lok("Zebra", [F, F, F, F, F, F, null]),
       lok("Alfa", [F, F, F, F, F, F, null]),

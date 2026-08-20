@@ -73,7 +73,7 @@ async function normalizePhoto(r2Key: string): Promise<Buffer> {
  * DECISIONS 124.
  */
 export async function buildKegiatanPdf(d: KegiatanPdfData): Promise<Buffer> {
-  const doc = createA4Doc({ title: `Laporan Kegiatan — ${d.title}` });
+  const doc = createA4Doc({ title: `Laporan Kegiatan – ${d.title}` });
 
   drawHeader(doc, d.appName, d.projectContext);
   drawIdentity(doc, {
@@ -116,7 +116,7 @@ export async function buildKegiatanPdf(d: KegiatanPdfData): Promise<Buffer> {
       .font(PDF_FONT.regular)
       .fontSize(8)
       .fillColor(PDF_COLORS.inkMuted)
-      .text("Foto dipangkas agar rapi — ketuk foto untuk membuka gambar penuh (tak ter-crop) di cloud.", PAGE_MARGIN, doc.y, {
+      .text("Foto dipangkas agar rapi – ketuk foto untuk membuka gambar penuh (tak ter-crop) di cloud.", PAGE_MARGIN, doc.y, {
         width: CONTENT_WIDTH,
       });
     doc.y += 4;

@@ -177,7 +177,7 @@ describe("akun akar tidak bisa disentuh siapa pun", () => {
     expect(u?.isActive).toBe(true);
   });
 
-  it("akar lain pun tidak bisa — daftarnya di env yang menentukan, bukan siapa cepat", async () => {
+  it("akar lain pun tidak bisa – daftarnya di env yang menentukan, bukan siapa cepat", async () => {
     const akarKedua = await buatUser(USER_KURSI_KOSONG, "super_admin");
     sebagai(akarKedua, USER_KURSI_KOSONG);
     const hasil = await setUserActive(akarId, false);
@@ -190,7 +190,7 @@ describe("akun akar tidak bisa disentuh siapa pun", () => {
     expect(hasil?.error).toMatch(/super admin utama/i);
   });
 
-  it("email akar tidak bisa diganti — email adalah identifier login", async () => {
+  it("email akar tidak bisa diganti – email adalah identifier login", async () => {
     sebagai(superBiasaId, `super-biasa-${suffix}`);
     const f = new FormData();
     f.set("userId", akarId);
@@ -249,7 +249,7 @@ describe("akar TIDAK BISA dicetak dari dalam aplikasi", () => {
     expect(u?.role).toBe("field_supervisor");
   });
 
-  it("PROMOSI ke super admin juga ditutup — jalan memutar yang sama", async () => {
+  it("PROMOSI ke super admin juga ditutup – jalan memutar yang sama", async () => {
     sebagai(superBiasaId, `super-biasa-${suffix}`);
     await createUser(undefined, fdBuat(USER_KURSI_KOSONG, "field_supervisor"));
     const calon = await db.user.findFirstOrThrow({

@@ -107,7 +107,7 @@ export async function setGDriveOtomatisAktifAction(
     return {
       success: aktif
         ? "Unggah otomatis DINYALAKAN. Laporan harian yang final dan laporan mingguan yang minggunya sudah tuntas akan naik sendiri, dicicil supaya tidak diblok Google."
-        : "Unggah otomatis DIMATIKAN. Penjadwal tidak menaikkan apa pun — tombol unggah manual tetap bisa dipakai.",
+        : "Unggah otomatis DIMATIKAN. Penjadwal tidak menaikkan apa pun – tombol unggah manual tetap bisa dipakai.",
     };
   } catch (err) {
     return fail(err);
@@ -127,7 +127,7 @@ export async function jalankanAntreanDriveAction(): Promise<GDriveActionState> {
     });
     revalidatePath("/sistem");
 
-    if (!h.aktif) return { error: "Unggah otomatis sedang MATI — nyalakan dulu sakelarnya." };
+    if (!h.aktif) return { error: "Unggah otomatis sedang MATI – nyalakan dulu sakelarnya." };
     if (!h.terhubung) return { error: "Akun Google belum terhubung." };
 
     const bagian = [
@@ -158,7 +158,7 @@ export async function ulangiAntreanDriveAction(): Promise<GDriveActionState> {
       success:
         n > 0
           ? `${n} pekerjaan dikembalikan ke antrean.`
-          : "Tidak ada pekerjaan yang menyerah — antrean bersih.",
+          : "Tidak ada pekerjaan yang menyerah – antrean bersih.",
     };
   } catch (err) {
     return fail(err);
@@ -195,7 +195,7 @@ export async function setPackageDriveFolderAction(
     }
 
     const folderId = parseDriveFolderId(folder);
-    if (!folderId) return { error: "Tidak dikenali — tempel link folder Drive atau ID-nya." };
+    if (!folderId) return { error: "Tidak dikenali – tempel link folder Drive atau ID-nya." };
     // Validasi akses hanya bila akun sudah terhubung; kalau belum, tetap simpan.
     let folderName: string | null = null;
     try {
@@ -212,7 +212,7 @@ export async function setPackageDriveFolderAction(
     return {
       success: folderName
         ? `Folder Drive tersimpan: “${folderName}”.`
-        : "Folder Drive tersimpan (akses belum tervalidasi — hubungkan akun Google di Sistem).",
+        : "Folder Drive tersimpan (akses belum tervalidasi – hubungkan akun Google di Sistem).",
     };
   } catch (err) {
     return fail(err);
@@ -237,7 +237,7 @@ async function ctxFor(
   });
   if (!loc) return { error: "Lokasi tidak ditemukan." };
   if (!loc.package.driveFolderId)
-    return { error: "Paket ini belum punya folder Google Drive — atur di halaman paket." };
+    return { error: "Paket ini belum punya folder Google Drive – atur di halaman paket." };
   return {
     locationName: loc.name,
     slug: loc.slug,
@@ -483,7 +483,7 @@ export async function uploadDocumentToDriveAction(
     // Frontend menyembunyikan tombolnya; gerbang sesungguhnya di sini
     // (DECISIONS 197).
     if (doc.source === "drive_kkp") {
-      return { error: "Dokumen ini berasal dari Drive KKP — berkasnya sudah ada di sana." };
+      return { error: "Dokumen ini berasal dari Drive KKP – berkasnya sudah ada di sana." };
     }
 
     const path = documentPath({
@@ -493,7 +493,7 @@ export async function uploadDocumentToDriveAction(
     });
     if (!path)
       return {
-        error: `Jenis dokumen ini tidak punya folder di struktur KKP — tidak perlu dishare ke Drive.`,
+        error: `Jenis dokumen ini tidak punya folder di struktur KKP – tidak perlu dishare ke Drive.`,
       };
 
     // Folder Drive diambil dari paket dokumen, atau paket pemilik lokasinya.
@@ -504,7 +504,7 @@ export async function uploadDocumentToDriveAction(
       select: { id: true, driveFolderId: true },
     });
     if (!pkg?.driveFolderId)
-      return { error: "Paket ini belum punya folder Google Drive — atur di halaman paket." };
+      return { error: "Paket ini belum punya folder Google Drive – atur di halaman paket." };
     if (doc.locationId) await requireLocationAccess(user, doc.locationId);
 
     const target: UploadTarget = {

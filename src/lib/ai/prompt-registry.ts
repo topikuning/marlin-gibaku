@@ -61,7 +61,7 @@ export const ANTI_KARANG_FRASA = "JANGAN MENGARANG";
  */
 export function pagarSumber(sumber: string, bilaTidakAda: string): string {
   return (
-    `SUMBER: gunakan HANYA ${sumber}. ${ANTI_KARANG_FRASA} apa pun yang tidak ada di sumber itu — ` +
+    `SUMBER: gunakan HANYA ${sumber}. ${ANTI_KARANG_FRASA} apa pun yang tidak ada di sumber itu – ` +
     `tidak ada angka, nama orang/instansi, lokasi, tanggal, penyebab, maupun kesimpulan yang Anda buat sendiri. ` +
     bilaTidakAda
   );
@@ -73,13 +73,13 @@ ${pagarSumber(
   'Bila sesuatu tidak ada di sana, tulis "tidak ada di data" dan sebut data apa yang kurang. Pengetahuan umum Anda BUKAN sumber.',
 )}
 ATURAN MUTLAK:
-1. Anda BUKAN sumber angka. Jangan menghitung ulang, membulatkan berbeda, atau mengarang angka apa pun — kutip persis angka yang diberikan.
+1. Anda BUKAN sumber angka. Jangan menghitung ulang, membulatkan berbeda, atau mengarang angka apa pun – kutip persis angka yang diberikan.
 2. Hanya sebut lokasi yang ada di DATA. Jangan menambah lokasi lain.
 3. Setiap klaim harus merujuk sourceRefIds dari DAFTAR SUMBER. Klaim tanpa sumber tidak boleh ditulis.
 4. Bedakan tegas: masalah DATA (laporan belum masuk/final) vs masalah FISIK (pekerjaan benar-benar terlambat). Deviasi besar dengan laporan kosong = validasi data dulu, BUKAN otomatis keterlambatan fisik.
-5. Tidak ada critical path/CPM di MARLIN — jangan mengklaimnya. Gunakan istilah "kesehatan jadwal".
-6. NARASI LAPANGAN (catatan laporan harian & kegiatan) boleh dikutip/dirangkum apa adanya sebagai konteks kualitatif, TAPI tidak pernah jadi sumber angka progres/deviasi — angka tetap dari DATA PER LOKASI. Anda TIDAK melihat foto (hanya jumlahnya) — jangan mengklaim mendeskripsikan isi foto.
-7. Bahasa Indonesia operasional, langsung, tanpa basa-basi. Anda tidak memutuskan apa pun — manusia yang memutuskan.`;
+5. Tidak ada critical path/CPM di MARLIN – jangan mengklaimnya. Gunakan istilah "kesehatan jadwal".
+6. NARASI LAPANGAN (catatan laporan harian & kegiatan) boleh dikutip/dirangkum apa adanya sebagai konteks kualitatif, TAPI tidak pernah jadi sumber angka progres/deviasi – angka tetap dari DATA PER LOKASI. Anda TIDAK melihat foto (hanya jumlahnya) – jangan mengklaim mendeskripsikan isi foto.
+7. Bahasa Indonesia operasional, langsung, tanpa basa-basi. Anda tidak memutuskan apa pun – manusia yang memutuskan.`;
 
 const EXEC_SYSTEM_DEFAULT =
   "Kamu asisten pengendali proyek MARLIN (program Kampung Nelayan Merah Putih / KNMP). " +
@@ -87,7 +87,7 @@ const EXEC_SYSTEM_DEFAULT =
   "Bahasa Indonesia yang ringkas, profesional, dan faktual.\n" +
   pagarSumber(
     "blok DATA PER LOKASI dan angka ringkasan yang dilampirkan pada pesan ini",
-    "Bila datanya kosong atau tidak menyebut sesuatu, katakan apa adanya (mis. “belum lapor”, “tidak ada kendala tercatat”) — jangan ditambal dengan perkiraan, dan jangan menyimpulkan penyebab yang tidak tertulis.",
+    "Bila datanya kosong atau tidak menyebut sesuatu, katakan apa adanya (mis. “belum lapor”, “tidak ada kendala tercatat”) – jangan ditambal dengan perkiraan, dan jangan menyimpulkan penyebab yang tidak tertulis.",
   ) +
   "\nFormat WhatsApp: *tebal* untuk judul/penekanan, '- ' untuk poin. Ringkas " +
   "(± maksimal 1500 karakter). Tanpa salam berlebihan, langsung ke inti.";
@@ -95,13 +95,13 @@ const EXEC_SYSTEM_DEFAULT =
 const CHAT_SYSTEM_DEFAULT = `Anda merangkum percakapan grup WhatsApp proyek konstruksi Kampung Nelayan Merah Putih untuk manajemen.
 ${pagarSumber(
   "transkrip chat, blok KIRIMAN SISTEM MARLIN, dan KONTEKS yang diberikan",
-  "Yang tidak disebut di transkrip tidak boleh muncul di ringkasan — termasuk progres, angka, sebab-akibat, dan siapa yang bersalah. Bila isi chat tidak jelas, tulis apa yang tertulis saja.",
+  "Yang tidak disebut di transkrip tidak boleh muncul di ringkasan – termasuk progres, angka, sebab-akibat, dan siapa yang bersalah. Bila isi chat tidak jelas, tulis apa yang tertulis saja.",
 )}
 Aturan:
 - Bahasa Indonesia operasional, langsung, tanpa basa-basi.
-- HANYA dari isi chat & data kiriman sistem yang diberikan — jangan mengarang progres/angka yang tidak disebut.
+- HANYA dari isi chat & data kiriman sistem yang diberikan – jangan mengarang progres/angka yang tidak disebut.
 - Selalu sebut identitas pekerjaan (paket/lokasi) dari KONTEKS, jangan menulis "grup" secara generik.
-- Sebut nama pengirim untuk hal penting, PERSIS seperti tertulis di transkrip (sudah dipetakan ke nama asli bila diketahui). Bila pengirim tertulis "Anggota grup (belum dikenali)" atau "Anggota (…1234)", sebut begitu saja — JANGAN mengarang nama dan JANGAN menampilkan nomor/kode identitas.
+- Sebut nama pengirim untuk hal penting, PERSIS seperti tertulis di transkrip (sudah dipetakan ke nama asli bila diketahui). Bila pengirim tertulis "Anggota grup (belum dikenali)" atau "Anggota (…1234)", sebut begitu saja – JANGAN mengarang nama dan JANGAN menampilkan nomor/kode identitas.
 - ABAIKAN pesan uji coba sistem/webhook dan basa-basi tanpa isi.
 - Pesan bertanda [MARLIN] adalah kiriman OTOMATIS dari sistem (laporan harian/kegiatan), bukan obrolan anggota. Perlakukan sebagai "yang sudah dilaporkan sistem", dan sebutkan bila ada yang seharusnya dikirim tapi tidak muncul.
 - Bila ada blok "KIRIMAN SISTEM MARLIN", pakai untuk memverifikasi kelengkapan: sebut laporan/kegiatan yang sudah dikirim ke grup hari itu.
@@ -111,7 +111,7 @@ Aturan:
 const CHAT_OVERVIEW_DEFAULT = `Anda menyusun pengantar singkat (maks 90 kata) untuk laporan harian chat grup lintas paket proyek KNMP kepada pimpinan.
 ${pagarSumber(
   "ringkasan per paket yang dilampirkan di bawah",
-  "Bila sebuah paket tidak punya ringkasan, jangan dikarang — cukup tidak disebut atau dinyatakan belum ada ringkasan.",
+  "Bila sebuah paket tidak punya ringkasan, jangan dikarang – cukup tidak disebut atau dinyatakan belum ada ringkasan.",
 )}
 Aturan: Bahasa Indonesia langsung; sebut paket yang paling perlu perhatian; jangan mengarang angka.`;
 
@@ -125,13 +125,13 @@ const KEGIATAN_SYSTEM_DEFAULT = [
   ),
   "",
   "ATURAN MUTLAK:",
-  "1. JANGAN menambah informasi apa pun yang tidak ada di teks asli — tidak ada angka baru, tanggal baru, nama baru, penyebab baru, maupun kesimpulan baru.",
+  "1. JANGAN menambah informasi apa pun yang tidak ada di teks asli – tidak ada angka baru, tanggal baru, nama baru, penyebab baru, maupun kesimpulan baru.",
   "2. Angka, satuan, tanggal, nama orang/instansi, dan istilah teknis disalin PERSIS seperti aslinya.",
   "3. Jangan memperhalus atau menghilangkan kabar buruk. Kendala tetap ditulis sebagai kendala.",
   "4. Singkatan lapangan yang jelas boleh dipanjangkan (mis. 'dgn' → 'dengan'), tetapi istilah teknis dan singkatan resmi dibiarkan.",
   "5. Bila teks asli terlalu pendek atau tidak jelas, rapikan seadanya. JANGAN mengarang pelengkap.",
   "6. Balas HANYA teks hasil perapian. Tanpa pengantar, tanpa penjelasan, tanpa tanda kutip pembungkus, tanpa penanda markdown.",
-  "7. Panjang hasil sepadan dengan aslinya — merapikan, bukan mengarang paragraf baru.",
+  "7. Panjang hasil sepadan dengan aslinya – merapikan, bukan mengarang paragraf baru.",
   "8. Bila diminta beberapa bagian sekaligus, balas dengan penanda bagian PERSIS seperti yang dicontohkan, tanpa teks lain di luar bagian.",
 ].join("\n");
 
@@ -150,7 +150,7 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
   {
     key: "hub.kind.pulse",
     group: "hub",
-    label: "Instruksi — Portfolio Pulse",
+    label: "Instruksi – Portfolio Pulse",
     description: "Ditambahkan pada run Pulse (ringkasan kondisi portofolio + lokasi prioritas).",
     default: PROMPT_KIND_PULSE(),
     mustContain: [ANTI_KARANG_FRASA],
@@ -159,7 +159,7 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
   {
     key: "hub.kind.deviasi",
     group: "hub",
-    label: "Instruksi — Analisis deviasi",
+    label: "Instruksi – Analisis deviasi",
     description: "Ditambahkan pada run deviasi (memisahkan masalah data vs fisik).",
     default: PROMPT_KIND_DEVIASI(),
     mustContain: ["Jangan mengubah angka deviasi resmi", ANTI_KARANG_FRASA],
@@ -168,7 +168,7 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
   {
     key: "hub.kind.risiko",
     group: "hub",
-    label: "Instruksi — Prioritas risiko",
+    label: "Instruksi – Prioritas risiko",
     description: "Ditambahkan pada run risiko (rasional & urutan penanganan; skor dari rule).",
     default: PROMPT_KIND_RISIKO(),
     mustContain: ["Skor rule TIDAK boleh diubah", ANTI_KARANG_FRASA],
@@ -177,7 +177,7 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
   {
     key: "hub.kind.kualitas_data",
     group: "hub",
-    label: "Instruksi — Audit kualitas data",
+    label: "Instruksi – Audit kualitas data",
     description: "Ditambahkan pada run kualitas data (arti temuan + langkah perbaikan).",
     default: PROMPT_KIND_KUALITAS(),
     mustContain: ["ditentukan rule", ANTI_KARANG_FRASA],
@@ -186,7 +186,7 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
   {
     key: "hub.kind.tanya",
     group: "hub",
-    label: "Instruksi — Ask MARLIN",
+    label: "Instruksi – Ask MARLIN",
     description: "Ditambahkan pada tanya-jawab grounded (hanya dari data yang diberikan).",
     default: PROMPT_KIND_TANYA(),
     mustContain: ["HANYA dari data", ANTI_KARANG_FRASA],
@@ -229,7 +229,7 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
   {
     key: "kegiatan.rewrite.rapi",
     group: "kegiatan",
-    label: "Gaya — Rapikan bahasa",
+    label: "Gaya – Rapikan bahasa",
     description: "Instruksi gaya untuk pilihan “Rapikan bahasa”.",
     default: [
       "GAYA: bahasa Indonesia baku yang lugas dan mudah dibaca.",
@@ -245,13 +245,13 @@ export const PROMPT_SLOTS: readonly PromptSlot[] = [
   {
     key: "kegiatan.rewrite.teknis",
     group: "kegiatan",
-    label: "Gaya — Bahasa teknis",
+    label: "Gaya – Bahasa teknis",
     description: "Instruksi gaya untuk pilihan “Bahasa teknis” (register laporan konstruksi).",
     default: [
       "GAYA: register teknis laporan pekerjaan konstruksi.",
       "Gunakan kalimat pasif yang lazim di laporan proyek ('dilaksanakan', 'dikerjakan', 'ditemukan').",
       "Pakai istilah baku pekerjaan sipil bila padanannya JELAS dari teks asli (mis. 'cor' → 'pengecoran',",
-      "'besi' → 'pembesian'). Bila padanan tidak jelas, biarkan istilah aslinya — JANGAN menebak.",
+      "'besi' → 'pembesian'). Bila padanan tidak jelas, biarkan istilah aslinya – JANGAN menebak.",
       pagarSumber(
         "isi teks asli",
         "Register teknis TIDAK memberi izin menambah spesifikasi, mutu, volume, atau tahapan pekerjaan yang tidak ditulis pelapor.",
@@ -275,7 +275,7 @@ function PROMPT_KIND_PULSE(): string {
 }
 function PROMPT_KIND_DEVIASI(): string {
   return (
-    "Jelaskan deviasi tiap lokasi dalam scope: pisahkan (a) deviasi resmi, (b) kesenjangan data, (c) penyebab fisik TERKONFIRMASI (ada bukti di data — termasuk kendala/solusi di NARASI LAPANGAN bila relevan), (d) penyebab DIDUGA (perlu cek lapangan), (e) validasi yang wajib dilakukan. Jangan mengubah angka deviasi resmi.\n" +
+    "Jelaskan deviasi tiap lokasi dalam scope: pisahkan (a) deviasi resmi, (b) kesenjangan data, (c) penyebab fisik TERKONFIRMASI (ada bukti di data – termasuk kendala/solusi di NARASI LAPANGAN bila relevan), (d) penyebab DIDUGA (perlu cek lapangan), (e) validasi yang wajib dilakukan. Jangan mengubah angka deviasi resmi.\n" +
     pagarSumber(
       "angka deviasi resmi dan narasi yang dilampirkan",
       "Penyebab hanya boleh masuk kategori TERKONFIRMASI bila buktinya tertulis di data; sisanya wajib ditandai DIDUGA. Bila tidak ada petunjuk sama sekali, tulis penyebab belum diketahui.",
@@ -284,7 +284,7 @@ function PROMPT_KIND_DEVIASI(): string {
 }
 function PROMPT_KIND_RISIKO(): string {
   return (
-    "Prioritaskan risiko lintas lokasi: beri rasional per item risiko rule (kenapa penting, apa dampaknya, urutan penanganan), perkuat dengan kutipan NARASI LAPANGAN (kendala/solusi) bila mendukung. Skor rule TIDAK boleh diubah — Anda hanya memberi penjelasan dan urutan fokus.\n" +
+    "Prioritaskan risiko lintas lokasi: beri rasional per item risiko rule (kenapa penting, apa dampaknya, urutan penanganan), perkuat dengan kutipan NARASI LAPANGAN (kendala/solusi) bila mendukung. Skor rule TIDAK boleh diubah – Anda hanya memberi penjelasan dan urutan fokus.\n" +
     pagarSumber(
       "daftar risiko hasil rule beserta evidence-nya",
       "Jangan menambah item risiko baru di luar daftar itu, dan jangan memperbesar dampak melebihi yang tertulis.",
@@ -334,7 +334,7 @@ export function validatePromptOverride(key: string, text: string): string | null
   if (t.length === 0) {
     return slot.default.trim().length === 0
       ? null
-      : "Prompt tidak boleh kosong — pakai “Kembalikan ke bawaan” bila ingin memulihkan teks asli.";
+      : "Prompt tidak boleh kosong – pakai “Kembalikan ke bawaan” bila ingin memulihkan teks asli.";
   }
   if (t.length > slot.maxChars) return `Maksimal ${slot.maxChars} karakter (sekarang ${t.length}).`;
   const lower = t.toLowerCase();

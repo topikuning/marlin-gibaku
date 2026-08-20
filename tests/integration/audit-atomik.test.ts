@@ -67,7 +67,7 @@ async function keadaan() {
   return { pembayaran, jejak, status: inv.status };
 }
 
-describe("AUDIT-01 — mutasi uang dan auditnya satu transaksi", () => {
+describe("AUDIT-01 – mutasi uang dan auditnya satu transaksi", () => {
   it("audit GAGAL ⇒ pembayaran ikut batal (tidak ada uang tanpa jejak)", async () => {
     const awal = await keadaan();
 

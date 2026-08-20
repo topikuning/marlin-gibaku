@@ -46,7 +46,7 @@ describe("batas galat klien", () => {
 describe("perakitan DataTransfer di input foto", () => {
   const src = readFileSync("src/components/knmp/photo-source-input.tsx", "utf8");
 
-  it("dijaga try/catch — tidak boleh menjatuhkan halaman", () => {
+  it("dijaga try/catch – tidak boleh menjatuhkan halaman", () => {
     // Baris KODE-nya, bukan penyebutan `new DataTransfer()` di komentar.
     const i = src.indexOf("const dt = new DataTransfer();");
     expect(i).toBeGreaterThan(-1);
@@ -70,7 +70,7 @@ describe("perakitan DataTransfer di input foto", () => {
     expect(src).toContain('name={rakitGagal ? undefined : n("photos")}');
   });
 
-  it("SELURUH medan foto ikut awalan — tidak ada yang tertinggal bernama tetap", () => {
+  it("SELURUH medan foto ikut awalan – tidak ada yang tertinggal bernama tetap", () => {
     /*
      * Satu medan yang lupa diberi awalan cukup untuk menukar bukti: `photoLat`
      * baris ke-3 akan menimpa milik baris ke-1 karena namanya sama, dan cap

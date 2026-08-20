@@ -109,7 +109,7 @@ export function renderAiReportWhatsApp(c: AiReportContent, sudahFinal = false): 
   if (sections.length) {
     lines.push("*Catatan lapangan:*");
     for (const sec of sections) {
-      lines.push(`• *${sec.heading}* — ${ringkas(sec.body, 320)}`);
+      lines.push(`• *${sec.heading}* – ${ringkas(sec.body, 320)}`);
     }
     lines.push("");
   }
@@ -118,7 +118,7 @@ export function renderAiReportWhatsApp(c: AiReportContent, sudahFinal = false): 
   if (rekom.length) {
     lines.push("*Tindakan yang disarankan:*");
     for (const [i, a] of rekom.entries()) {
-      lines.push(`${i + 1}. ${a.title} — ${ringkas(a.reason, 200)}`);
+      lines.push(`${i + 1}. ${a.title} – ${ringkas(a.reason, 200)}`);
     }
     lines.push("");
   }
@@ -144,8 +144,8 @@ export function renderAiReportWhatsApp(c: AiReportContent, sudahFinal = false): 
   lines.push(
     "",
     sudahFinal
-      ? "_Laporan MARLIN — angka dari sistem, narasi disusun AI dan sudah direview._"
-      : "_Draf AI MARLIN — angka dari sistem, narasi perlu review manusia._",
+      ? "_Laporan MARLIN – angka dari sistem, narasi disusun AI dan sudah direview._"
+      : "_Draf AI MARLIN – angka dari sistem, narasi perlu review manusia._",
   );
   return lines.join("\n");
 }
@@ -184,7 +184,7 @@ export function renderAiReportHtml(c: AiReportContent, sudahFinal = false): stri
     .join("");
   const recs = r.recommendations.length
     ? `<h3>Tindakan untuk dipertimbangkan</h3><ul>${r.recommendations
-        .map((x) => `<li><strong>${esc(x.title)}</strong> — ${esc(x.reason)}</li>`)
+        .map((x) => `<li><strong>${esc(x.title)}</strong> – ${esc(x.reason)}</li>`)
         .join("")}</ul>`
     : "";
   const limits = r.limitations.length
@@ -195,7 +195,7 @@ export function renderAiReportHtml(c: AiReportContent, sudahFinal = false): stri
   return `<article class="ai-report">
 <header>
   <h1>${esc(r.title)}</h1>
-  <p class="meta">Periode ${o.periodStart} s/d ${o.periodEnd} · data terakhir berubah ${o.dataAsOf ? esc(new Date(o.dataAsOf).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", dateStyle: "medium", timeStyle: "short" })) + " WIB" : "—"} · status: <strong>${STATUS_LABEL[statusEfektif(c)]}</strong> · confidence AI ${r.confidence}%</p>
+  <p class="meta">Periode ${o.periodStart} s/d ${o.periodEnd} · data terakhir berubah ${o.dataAsOf ? esc(new Date(o.dataAsOf).toLocaleString("id-ID", { timeZone: "Asia/Jakarta", dateStyle: "medium", timeStyle: "short" })) + " WIB" : "–"} · status: <strong>${STATUS_LABEL[statusEfektif(c)]}</strong> · confidence AI ${r.confidence}%</p>
 </header>
 <div class="summary"><strong>Ringkasan (Analisis AI)</strong><p>${esc(r.executiveSummary).replace(/\n/g, "<br/>")}</p></div>
 <h3>Angka Resmi MARLIN</h3>
@@ -206,7 +206,7 @@ export function renderAiReportHtml(c: AiReportContent, sudahFinal = false): stri
 ${sections}
 ${recs}
 ${limits}
-<footer><p>${sudahFinal ? "Laporan MARLIN — narasi disusun AI dan sudah direview manusia." : "Draf disusun AI dari data MARLIN — wajib review manusia sebelum distribusi."} Angka bersumber dari calculation layer MARLIN, bukan dari AI.</p></footer>
+<footer><p>${sudahFinal ? "Laporan MARLIN – narasi disusun AI dan sudah direview manusia." : "Draf disusun AI dari data MARLIN – wajib review manusia sebelum distribusi."} Angka bersumber dari calculation layer MARLIN, bukan dari AI.</p></footer>
 </article>`;
 }
 

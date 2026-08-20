@@ -97,7 +97,7 @@ export function RestampForm({
           </div>
           <p className="col-span-2 text-[11px] text-ink-faint">
             Kosongkan keduanya untuk membuang koordinat dari cap. Nilai yang diketik ditandai
-            &quot;diisi manual&quot; — kecuali persis sama dengan titik proyek.
+            &quot;diisi manual&quot; – kecuali persis sama dengan titik proyek.
           </p>
         </div>
 

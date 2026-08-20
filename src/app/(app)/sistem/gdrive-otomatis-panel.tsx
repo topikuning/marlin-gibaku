@@ -71,7 +71,7 @@ export function GDriveOtomatisPanel({
             </p>
             <p className="mt-0.5 text-[13px] text-ink-muted">
               {aktif
-                ? "Laporan harian yang difinalisasi naik sendiri (PDF blanko KKP + fotonya), begitu juga laporan mingguan tiap lokasi setelah minggu kontraknya tuntas. Dicicil dengan jeda — bukan diguyur — supaya akun Google tidak diblok."
+                ? "Laporan harian yang difinalisasi naik sendiri (PDF blanko KKP + fotonya), begitu juga laporan mingguan tiap lokasi setelah minggu kontraknya tuntas. Dicicil dengan jeda – bukan diguyur – supaya akun Google tidak diblok."
                 : "Penjadwal tidak menaikkan apa pun. Tombol unggah manual di papan status harian & halaman laporan lokasi TETAP bekerja."}
             </p>
           </div>
@@ -86,7 +86,7 @@ export function GDriveOtomatisPanel({
         <Banner
           tone="warning"
           title="Akun Google belum terhubung"
-          description="Sakelarnya nyala tapi tidak ada yang bisa naik. Hubungkan akun di kartu Google Drive di atas — antrean tidak dihanguskan, ia menunggu."
+          description="Sakelarnya nyala tapi tidak ada yang bisa naik. Hubungkan akun di kartu Google Drive di atas – antrean tidak dihanguskan, ia menunggu."
         />
       ) : null}
 
@@ -124,13 +124,13 @@ export function GDriveOtomatisPanel({
         <div className="rounded-lg border border-danger-border bg-danger-soft px-4 py-3">
           <p className="flex items-center gap-2 text-sm font-medium text-ink">
             <AlertTriangle aria-hidden className="size-4 shrink-0 text-danger" />
-            Berhenti dicoba — perlu diperiksa
+            Berhenti dicoba – perlu diperiksa
           </p>
           <ul className="mt-2 space-y-1.5 text-[13px] text-ink-muted">
             {antrean.macet.map((m, i) => (
               <li key={`${m.lokasi}-${m.kind}-${m.periode}-${i}`}>
                 <span className="font-medium text-ink">{m.lokasi}</span>{" "}
-                {m.kind === "laporan_harian" ? `harian ${m.periode}` : `mingguan ke-${m.periode}`} —{" "}
+                {m.kind === "laporan_harian" ? `harian ${m.periode}` : `mingguan ke-${m.periode}`} –{" "}
                 {m.error ?? "penyebab tidak tercatat"}
               </li>
             ))}
@@ -170,7 +170,7 @@ function TombolSakelar({ aktif }: { aktif: boolean }) {
       <ConfirmSubmit
         label="Nyalakan"
         title="Nyalakan unggah otomatis ke Drive KKP?"
-        description="MARLIN akan menaikkan sendiri laporan harian yang final (PDF + foto) dan laporan mingguan tiap lokasi ke folder Drive milik KKP — termasuk yang sudah terlanjur menumpuk, dicicil sedikit demi sedikit tiap putaran. Berkas bernama sama akan diperbarui sebagai versi baru, bukan digandakan."
+        description="MARLIN akan menaikkan sendiri laporan harian yang final (PDF + foto) dan laporan mingguan tiap lokasi ke folder Drive milik KKP – termasuk yang sudah terlanjur menumpuk, dicicil sedikit demi sedikit tiap putaran. Berkas bernama sama akan diperbarui sebagai versi baru, bukan digandakan."
         confirmLabel="Ya, nyalakan"
         loading={pending}
       />

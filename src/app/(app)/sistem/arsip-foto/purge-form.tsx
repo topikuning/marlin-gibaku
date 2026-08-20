@@ -28,7 +28,7 @@ export function PurgeForm({
         <div>
           <Label htmlFor="pf-paket">Paket</Label>
           <Combobox id="pf-paket" name="packageId" defaultValue="">
-            <option value="">— semua paket —</option>
+            <option value="">– semua paket –</option>
             {packages.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -39,7 +39,7 @@ export function PurgeForm({
         <div>
           <Label htmlFor="pf-lokasi">Lokasi</Label>
           <Combobox id="pf-lokasi" name="locationId" defaultValue="">
-            <option value="">— semua lokasi —</option>
+            <option value="">– semua lokasi –</option>
             {locations.map((l) => (
               <option key={l.id} value={l.id}>
                 {l.name}
@@ -60,7 +60,7 @@ export function PurgeForm({
       <Banner
         tone="warning"
         title="Setelah dihapus, cap foto-foto itu TIDAK bisa diperbaiki lagi"
-        description="Foto ber-capnya tetap ada dan tetap tampil seperti biasa — yang hilang adalah kemampuan mengulang capnya bila ternyata salah."
+        description="Foto ber-capnya tetap ada dan tetap tampil seperti biasa – yang hilang adalah kemampuan mengulang capnya bila ternyata salah."
       />
 
       <div className="flex flex-wrap items-end gap-2">

@@ -142,7 +142,7 @@ export function susunPesanMingguan(isi: IsiPesanMingguan): string | null {
      * dengan minggu-minggu sebelumnya yang genap — perbandingan yang selalu
      * membuat minggu berjalan terlihat tertinggal.
      */
-    ...(isi.berjalan ? ["_(minggu berjalan — belum genap seminggu)_"] : []),
+    ...(isi.berjalan ? ["_(minggu berjalan – belum genap seminggu)_"] : []),
     "",
     blok.join("\n\n"),
   ];
@@ -160,7 +160,7 @@ export function susunPesanMingguan(isi: IsiPesanMingguan): string | null {
   if (r && isi.lokasi.length > 1) {
     const cakupan =
       r.lokasiTanpaKurva > 0
-        ? `${r.lokasiDihitung} dari ${r.lokasiDihitung + r.lokasiTanpaKurva} lokasi — ${r.lokasiTanpaKurva} lokasi belum ada kurva-S`
+        ? `${r.lokasiDihitung} dari ${r.lokasiDihitung + r.lokasiTanpaKurva} lokasi – ${r.lokasiTanpaKurva} lokasi belum ada kurva-S`
         : `${r.lokasiDihitung} lokasi`;
     bagian.push(
       "",

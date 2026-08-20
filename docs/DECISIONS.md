@@ -18919,3 +18919,275 @@ balasan WhatsApp yang berhenti sama sekali.
 Uji gigi: `try/catch` dilepas → **1 merah** (`invalid input syntax for type
 uuid`), dan uji pendampingnya menjaga jalur amannya tidak berubah jadi "selalu
 kosong".
+
+---
+
+## 385 — Tanda pisah teks UI: en-dash (–), bukan em-dash (—) (2026-08-19)
+
+**Keputusan.** Semua teks yang dilihat orang memakai en-dash `–`. Em-dash `—`
+dilarang di layar, balasan WhatsApp, PDF, dan Excel. Komentar kode tidak
+dijaga.
+
+**Alasan user**, dua kalimat yang menentukan lingkupnya:
+
+> *"di semua kode, AI selalu menjadikan — standar, aku tidak mau begitu.
+> standar yang aku mau adalah: –"*
+
+> *"tentu saja untuk standar UI, bukan backend, tapi lebih untuk front end,
+> standar ai terlalu kelihatan dibuat oleh AI"*
+
+Jadi ini bukan selera tipografi melainkan **bau**: em-dash yang bertaburan
+membuat teks terbaca seperti keluaran mesin. MARLIN dibaca PPK, KKP, dan
+mandor; kalau tulisannya berbau AI, yang ikut turun adalah kepercayaan pada
+angkanya.
+
+### Kenapa komentar TIDAK ikut
+
+Percobaan pertama saya mengganti seluruh repo: 9.017 em-dash di 782 berkas,
+termasuk komentar dan dokumen. Itu salah dua kali. Pertama, komentar tidak
+pernah sampai ke layar, jadi tidak ada satu pun pembaca yang tertolong.
+Kedua, diff sebesar itu mengubur perubahan yang sebenarnya diminta – dan
+review yang tidak bisa dibaca sama saja dengan tidak ada review. Setelah user
+mempersempit ke front end, lingkupnya jadi **string literal + teks JSX**:
+1.542 penggantian di 433 berkas.
+
+Berkas migrasi yang SUDAH diterapkan sengaja tidak disentuh sama sekali —
+mengubah berkas migrasi terpasang demi tanda baca di komentar adalah risiko
+tanpa imbalan. `seed-data/` dan `docs/rab-analysis/corpus.json` juga tidak:
+isinya data dari berkas master, dan data yang diunggah dipakai apa adanya.
+
+### Penjaga
+
+`tests/unit/tanda-pisah-ui.test.ts` memindai `src/`, `tests/`, `e2e/` dengan
+mesin status kecil yang membedakan string/JSX dari komentar. Aturan gaya tanpa
+uji akan luntur pada berkas ke-sekian; ini membuatnya merah, bukan sekadar
+tercatat. Pendeteksinya sendiri ikut diuji (menemukan di string/JSX/template,
+melewati `//`, `/* */`, dan JSDoc, serta melaporkan nomor baris yang benar).
+
+---
+
+## 386 — Halaman Paket dirombak: ringkasan untuk KEPUTUSAN, form sesekali ke drawer (2026-08-19)
+
+**Keputusan.** Seluruh workspace paket (`/paket/[id]` dan tab-tabnya) mengikuti
+rancangan yang dikirim user (`MARLIN_Paket_Detail_Total_Redesign.html`),
+diminta dengan *"adopsi maksimal untuk halaman paket ini, ikuti ui/ux-nya"*.
+
+### Masalah yang dipecahkan rancangan itu
+
+Bukan warna. **Urutan kepentingan.**
+
+Ringkasan Paket dulu satu kolom panjang: stepper → KPI → rekonsiliasi →
+langkah berikutnya → **empat kartu pengaturan berturut-turut** (grup WhatsApp,
+laporan mingguan, folder Drive, tabel kelengkapan Drive). Tab Kontrak sama
+polanya: ringkasan kontrak di atas, lalu empat form panjang (adendum, koreksi,
+penanda tangan, tanda tangan & stempel) yang mendorongnya hilang dari layar.
+
+Akibatnya sama di kedua tempat: yang dibuka **setiap hari** – kondisi lokasi,
+aktivitas terakhir, nilai kontrak berjalan – kalah tempat oleh formulir yang
+mungkin disentuh **sekali seumur paket**.
+
+### Yang berubah
+
+- **Kepala halaman punya aksi cepat**: `n Lokasi`, `Dokumen`, `Chat Grup
+  MARLIN` (yang terakhir hanya bila grup tertaut DAN penanya punya `wa.chat`).
+- **Banner selisih kontrak vs RAB dapat tombol** `Periksa masalah` yang
+  melompat ke kartu rekonsiliasi. Peringatan yang muncul di setiap tab tanpa
+  jalan keluar adalah peringatan yang dibaca sekali lalu diabaikan selamanya.
+- **Panel siklus bertanggal** menggantikan stepper polos. Tanggalnya sudah ada
+  di `PackageStageHistory`; yang kurang cuma menampilkannya. Tahap yang belum
+  dilalui berbunyi "belum", bukan kosong – kolom kosong terbaca sebagai data
+  yang hilang.
+- **Ringkasan jadi dua kolom**: kiri yang DIBACA (langkah berikutnya, tanggal
+  kontrak, rekonsiliasi, daftar lokasi berprogres, aktivitas), kanan keadaan
+  integrasi yang cukup DILIHAT statusnya.
+- **Form sesekali pindah ke `Drawer`** – grup WA, laporan mingguan, folder
+  Drive (+ tabel kelengkapan KKP di dalamnya), adendum, koreksi kontrak,
+  penanda tangan, tanda tangan & stempel, koreksi susunan lokasi.
+- **Tab Kontrak**: ringkasan jadi pusat (11 angka ringkas), empat pekerjaan
+  jarang jadi kartu aksi berpenjelasan.
+- **Tab Tender**: lencana `Read-only` saat sudah berkontrak, milestone
+  dikelompokkan per fase dengan hitungan `n/m selesai`.
+- **Tab Lokasi**: daftar membawa persentase progres, dan koreksi susunan lokasi
+  pindah ke drawer di balik peringatan "bukan pengganti adendum".
+
+### Tidak ada kemampuan yang dihapus
+
+Ini syarat yang saya pegang sepanjang rombakan: setiap form, tabel, dan tombol
+yang tadinya ada masih ada di halaman yang sama – hanya tidak lagi berebut
+tempat dengan angka. Termasuk tabel kelengkapan folder KKP, yang pindah ke
+dalam drawer Drive dan bukan dibuang.
+
+### Kenapa DRAWER, bukan sekadar `<details>`
+
+Isinya form ber-Server Action. Drawer dibuat sebagai cangkang klien yang
+menerima `children` apa adanya, jadi form yang sudah ada masuk tanpa diubah
+sedikit pun. Aksesibilitasnya mengikuti pola APG yang sama dengan
+`ConfirmSubmit`: fokus masuk saat buka, Tab terkurung, Escape menutup, fokus
+kembali ke pemicu saat tutup, gulir latar dikunci.
+
+Lencana status di tiap baris integrasi ("Terpasang" / "Belum") adalah bagian
+yang membuat penyembunyian ini boleh: keadaan tiap integrasi terbaca **tanpa**
+membuka apa pun. Sebelumnya, menjawab "grup paket ini sudah tertaut belum?"
+menuntut menggulir ke form dan menafsirkan isian di dalamnya.
+
+### Penjaga
+
+`tests/unit/paket-siklus-panel.test.tsx` – ketujuh tahap selalu tampil, tahap
+tanpa tanggal berbunyi "belum", tepat satu tahap aktif, tanggal dibaca dari
+histori dan tidak ditebak dari urutan, dan `batal` (yang di luar deret) tidak
+menandai satu tahap pun. Uji gigi: `aria-current` dilepas + "belum" dikosongkan
+→ **3 merah**.
+
+Perilaku drawer sendiri tidak diuji unit: `vitest.config.ts` memakai
+`environment: "node"` tanpa jsdom, dan menambah jsdom demi satu komponen
+bertentangan dengan stack "pinned exact". Tempatnya di Playwright, sejalan
+dengan `ConfirmSubmit` yang juga tidak punya uji unit.
+
+---
+
+## 387 — Naskah uji manual WA-AI + label pilihan yang bisa dibaca (2026-08-19)
+
+**Keputusan.** `docs/rebuild/SKENARIO_UJI_WA_AI.md` — naskah uji manual fase
+A–F: yang diketik, yang harus keluar, dan yang dihitung GAGAL. Ditulis atas
+permintaan user *"buatkan skenario dan contoh pengecekan dari pekerjaanmu yang
+RAG fase A-F"*.
+
+Bentuknya sengaja naskah, bukan ringkasan fitur. Ringkasan fitur menjawab
+"apa yang dibangun"; yang dibutuhkan adalah "bagaimana saya membuktikannya
+sendiri". Setiap butir karena itu memuat tiga hal: kalimat persis yang
+diketik, balasan yang diharapkan, dan **kalimat GAGAL** — karena tanpa itu,
+pemeriksa yang melihat balasan aneh tidak punya dasar menyebutnya bug.
+
+### Yang ditemukan JUSTRU karena menulis naskahnya
+
+Untuk butir D-02 saya menjalankan parsernya sungguhan dan menyalin balasannya
+apa adanya. Hasilnya:
+
+> 2. Kendala dari periode itu yang MASIH TERBUKA sekarang **minggu lalu**
+
+Periodenya terdampar di belakang kata "sekarang". Artinya tidak salah,
+bacaannya yang jelek — dan ini kalimat yang dibaca orang lapangan sebagai
+**pilihan yang harus mereka putuskan**. Pilihan yang canggung dibaca ulang dua
+kali, lalu ditebak.
+
+Uji yang ada lolos tanpa keberatan, karena asersinya
+`expect(label[1]).toContain("MASIH TERBUKA")` — benar, dan buta terhadap
+seluruh sisa kalimat. Diperbaiki lewat `LABEL_PERIODE_DI_TENGAH` di
+`parser-niat.ts` sehingga berbunyi *"Kendala minggu lalu yang MASIH TERBUKA
+sekarang"*, dengan uji baru yang membandingkan **seluruh** kalimatnya
+(`toBe`, bukan `toContain`) plus penjaga bahwa periode tidak pernah menyusul
+kata "sekarang".
+
+Pelajarannya bukan soal satu label: **`toContain` pada teks yang dibaca
+manusia hampir selalu terlalu longgar.** Ia menjaga kata kuncinya dan
+membiarkan kalimatnya rusak.
+
+### Dua ketidakjujuran yang ikut tercatat di naskah
+
+Naskah ini menyebut apa yang TIDAK bisa dibuktikan dari layar, supaya
+pemeriksa tidak mengira sudah memeriksa padahal belum:
+
+1. Keterangan "sumber ini dilewati karena peran penanya" hanya masuk ke
+   **prompt**, tidak ditampilkan di halaman run. Yang bisa diperiksa dari UI
+   adalah **ketiadaannya** di daftar "Sumber data" — bukan pernyataan
+   eksplisit.
+2. F3 (embedding), pencarian isi PDF, dan uang lewat WhatsApp memang belum
+   ada. Ditulis di bagian "Yang SENGAJA belum ada" supaya tidak diuji lalu
+   dilaporkan sebagai bug.
+
+## 388 — Tab Dokumen ikut rombak (2026-08-19)
+
+Tab terakhir yang belum mengikuti rancangan. Pola yang sama dengan
+DECISIONS 386:
+
+- Form unggah pindah dari kartu tersendiri ke **Drawer** di kepala kartu
+  kepatuhan. Kartu itu tadinya duduk PERSIS di antara papan kepatuhan dan
+  daftar dokumen — memisahkan dua hal yang justru dibaca berurutan, demi form
+  yang dipakai sesekali.
+- **"Terlambat" berdiri sendiri** sebagai angka, bukan dilebur ke dalam
+  kalimat subtitle. Ia satu-satunya angka di kartu itu yang menuntut tindakan,
+  dan angka yang menuntut tindakan tidak boleh dibaca sambil lalu di tengah
+  kalimat. Diberi latar peringatan hanya bila > 0.
+- Daftar dokumen + impor Drive jadi **dua kolom**; kartu impor menyebut
+  keadaannya di kepala ("Folder tertaut" / "Belum tertaut") dan, bila belum,
+  tombolnya mengarah ke tempat menautkannya — bukan tombol impor yang ditekan
+  lalu ternyata tidak bisa apa-apa.
+
+### Temuan sampingan yang TIDAK saya ubah
+
+`hover:bg-surface-2` pada tombol impor Drive menunjuk token yang tidak ada,
+jadi selama ini tidak melakukan apa pun; diganti `ButtonLink` biasa.
+
+Yang serupa dan **sengaja dibiarkan**: `border-border-muted` /
+`divide-border-muted` dipakai di **17 tempat** di seluruh aplikasi padahal
+`--color-border-muted` tidak pernah didefinisikan di `globals.css`. Semua
+kelas itu mati tanpa suara. Menambah tokennya satu baris, tapi akibatnya
+mengubah tampilan 17 tempat di luar halaman Paket — itu keputusan user, bukan
+efek samping yang pantas menumpang di rombakan ini.
+
+---
+
+## 389 — Koreksi naskah uji: lingkup jawaban ditentukan KANAL, bukan orangnya (2026-08-20)
+
+**Kesalahan saya, ditemukan user.** Butir A-02 di `SKENARIO_UJI_WA_AI.md`
+berbunyi *"Lingkup jawaban = hak penanya, bukan isi grup"* dan menyuruh
+pemeriksa memastikan **hanya lokasi si penanya** yang muncul saat seorang Site
+Manager bertanya di grup paket.
+
+Itu **terbalik**. `putuskanLayanan()` di `resolver-kanal.ts` mengembalikan
+`lokasiIds = paketGrup.lokasiIds` untuk grup tertaut — **seluruh lokasi paket
+itu**, tanpa irisan dengan penugasan si penanya. Penugasan baru menjadi batas
+di **chat pribadi**, tempat `lokasiIds` null lalu jatuh ke
+`accessibleLocationIds(user)`.
+
+Aturan aslinya benar dan disengaja (`DECISIONS 351` + brief 5A): balasan
+dikirim **ke grup** dan dibaca semua anggotanya. Mempersempit ke penugasan si
+penanya tidak melindungi apa pun — anggota lain tinggal bertanya sendiri —
+tapi membuat dua orang yang bertanya sama di grup yang sama menerima jawaban
+berbeda. Yang saya lakukan adalah menuliskan aturan itu **terbalik** di naskah
+yang justru dibuat untuk memeriksanya.
+
+Akibatnya kalau tidak ketahuan: pemeriksa menjalankan A-02, melihat lokasi
+lain ikut muncul, lalu **melaporkannya sebagai kebocoran data** — dan
+perbaikan yang "benar" menurut naskah itu justru akan merusak aturan yang
+sudah tepat.
+
+User menemukannya bukan dengan membaca kode, melainkan dengan bertanya *"apa
+maksudmu? group paket yang mana?"* — kalimat yang kabur ternyata menutupi
+kalimat yang salah.
+
+### Yang diperbaiki
+
+A-02 dipecah jadi empat keadaan yang masing-masing punya tanda TERLIHAT:
+
+| Keadaan | Lingkup | Tanda di balasan |
+|---|---|---|
+| Grup tertaut paket | seluruh lokasi paket | kaki "Jawaban ini hanya mencakup &lt;paket&gt;…" |
+| Chat pribadi, nomor terdaftar | penugasan orangnya | tanpa kaki pemotongan |
+| Chat pribadi, nomor asing | – | **diam total** |
+| Grup tak tertaut | ditolak | pesan "minta admin menautkannya" |
+| Grup tak tertaut + peran istimewa terverifikasi | organisasinya | penanda "Saya mengenali Anda sebagai …" |
+
+Ditambahkan juga hal-hal yang naskah versi pertama diam saja tentangnya, dan
+tanpa itu pemeriksa akan menyimpulkan yang salah:
+
+- **Di grup, mengetik saja tidak cukup** — MARLIN hanya menjawab bila
+  di-mention atau pesannya dibalas. Diamnya benar, bukan rusak.
+- **Grup tertaut menjawab siapa pun anggotanya**, termasuk nomor tak terdaftar
+  (mis. staf vendor). Itu disengaja: grupnya sendiri yang menjadi izin.
+- **Nama tampilan WhatsApp bukan bukti identitas.**
+- F-06 diperbaiki agar memakai dua lokasi di paket BERBEDA; versi lama
+  (dua lokasi, satu paket) akan gagal justru karena aturan A-02a.
+- D-04: umur tawaran klarifikasi **12 menit**, bukan 15.
+- D-05 diganti jadi uji yang benar-benar bisa memerahkan pagarnya: cabut
+  penugasan di antara pertanyaan dan susulannya, lalu pastikan lokasi itu
+  tidak lagi ikut.
+
+### Satu hal lagi yang jujur
+
+`asalScope` (`package_group` / `pengguna` / `privileged_user`) memang tercatat
+di `audit_logs.payload`, tapi **tidak ditampilkan di layar** — halaman Sistem →
+Audit hanya memilih action, resource, waktu, dan pelaku, bukan payload.
+Naskah versi pertama menyuruh pemeriksa "lihat kolom asalScope", yang berarti
+menyuruhnya melihat sesuatu yang tidak ada di sana. Diganti tabel tanda yang
+benar-benar terlihat di balasan.

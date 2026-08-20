@@ -103,9 +103,9 @@ export async function parseMasterLocationXlsx(buffer: Buffer): Promise<MasterImp
   }
   const { headerRow, cols } = detected;
   const warnings: string[] = [];
-  if (cols.district === -1) warnings.push("Kolom KECAMATAN tidak ditemukan — dikosongkan.");
-  if (cols.latitude === -1 || cols.longitude === -1) warnings.push("Kolom koordinat tidak lengkap — sebagian lat/lng kosong.");
-  if (cols.candidateVendor === -1) warnings.push("Kolom CALON PENYEDIA tidak ditemukan — vendor tidak diimpor.");
+  if (cols.district === -1) warnings.push("Kolom KECAMATAN tidak ditemukan – dikosongkan.");
+  if (cols.latitude === -1 || cols.longitude === -1) warnings.push("Kolom koordinat tidak lengkap – sebagian lat/lng kosong.");
+  if (cols.candidateVendor === -1) warnings.push("Kolom CALON PENYEDIA tidak ditemukan – vendor tidak diimpor.");
 
   const rows: ParsedMasterRow[] = [];
   let skipped = 0;

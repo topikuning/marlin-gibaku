@@ -9,7 +9,7 @@ import { buildPortfolioPulse, resolveAiScope } from "@/lib/ai-hub/source";
 import { jakartaToday } from "@/lib/format";
 import { PulseClient } from "./pulse-client";
 
-export const metadata: Metadata = { title: "AI Intelligence — Portfolio Pulse" };
+export const metadata: Metadata = { title: "AI Intelligence – Portfolio Pulse" };
 export const dynamic = "force-dynamic";
 
 function shiftKey(key: string, deltaDays: number): string {

@@ -95,7 +95,7 @@ export async function saveSummaryDraftAction(
       where: { packageId_summaryDate: { packageId, summaryDate } },
       select: { id: true, status: true, summaryText: true, package: { select: { orgId: true } } },
     });
-    if (!current) return { error: "Belum ada draf untuk tanggal ini — hasilkan draf AI dulu." };
+    if (!current) return { error: "Belum ada draf untuk tanggal ini – hasilkan draf AI dulu." };
     if (current.package.orgId !== user.orgId) return { error: "Paket tidak ditemukan." };
 
     const from = current.status as SummaryViewStatus;
@@ -124,7 +124,7 @@ export async function saveSummaryDraftAction(
     revalidatePath("/chat-grup");
     revalidatePath("/chat-grup/global");
     return {
-      success: gate.status === "final" ? "Ringkasan difinalkan — siap dikirim." : "Editan tersimpan.",
+      success: gate.status === "final" ? "Ringkasan difinalkan – siap dikirim." : "Editan tersimpan.",
     };
   } catch (err) {
     return fail(err);
@@ -162,7 +162,7 @@ export async function sendChatSummaryAction(
       db.waContact.findFirst({ where: { id: contactId, ownerId: user.id }, select: { name: true, chatId: true } }),
     ]);
     if (!ctx) return { error: "Paket tidak ditemukan." };
-    if (!summary) return { error: "Belum ada ringkasan untuk tanggal ini — buat ringkasan dulu." };
+    if (!summary) return { error: "Belum ada ringkasan untuk tanggal ini – buat ringkasan dulu." };
     if (!contact) return { error: "Kontak tujuan tidak ditemukan (kelola di Master Data → Kontak WA)." };
     // Draf AI mentah tidak boleh sampai ke pimpinan tanpa review manusia.
     if (!canSend(summary.status as SummaryViewStatus)) {

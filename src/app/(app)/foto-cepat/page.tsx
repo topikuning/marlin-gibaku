@@ -32,7 +32,7 @@ export default async function FotoCepatPage() {
     <div className="space-y-4">
       <PageHeader
         title="Foto Cepat"
-        description="Jepret sekarang, pilih itemnya belakangan. Koordinat & jam direkam saat foto diambil — bukan saat diunggah."
+        description="Jepret sekarang, pilih itemnya belakangan. Koordinat & jam direkam saat foto diambil – bukan saat diunggah."
       />
 
       {lokasi.length === 0 ? (

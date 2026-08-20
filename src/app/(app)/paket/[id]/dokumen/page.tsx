@@ -2,13 +2,23 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FolderOpen } from "lucide-react";
-import { Card, CardBody, CardHeader, CollapsibleCard, EmptyState, ProgressBar, StatusPill } from "@/components/ui";
+import {
+  ButtonLink,
+  Card,
+  CardBody,
+  CardHeader,
+  Drawer,
+  EmptyState,
+  MiniStat,
+  ProgressBar,
+  StatusPill,
+} from "@/components/ui";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
 import { documentDisplayNames } from "@/lib/document-label";
-import { formatTanggal } from "@/lib/format";
+import { formatPct, formatTanggal } from "@/lib/format";
 import { getPackageWorkspace } from "@/lib/package/queries";
 import { ensureMilestones } from "@/lib/milestones/actions";
 import { milestoneBoard, MILESTONE_STATUS_LABEL, MILESTONE_STATUS_TONE } from "@/lib/milestones/queries";
@@ -116,20 +126,75 @@ export default async function DokumenPaketPage({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Card>
         <CardHeader
           title="Kepatuhan administrasi induk (paket)"
-          subtitle={`${indukBoard.done}/${indukBoard.total} selesai · ${indukBoard.late} terlambat — berlaku untuk seluruh lokasi. Status otomatis dari dokumen yang diunggah.`}
-          action={canManage ? <SyncComplianceButton packageId={pkg.id} /> : undefined}
+          subtitle="Berlaku untuk seluruh lokasi. Status diturunkan otomatis dari dokumen yang diunggah."
+          action={
+            <div className="flex flex-wrap gap-2">
+              {/*
+                Form unggah pindah ke balik tombol (DECISIONS 386). Sebelumnya
+                ia kartu tersendiri di antara papan kepatuhan dan daftar
+                dokumen – memisahkan dua hal yang justru dibaca berurutan,
+                demi form yang dipakai sesekali.
+              */}
+              {canUpload ? (
+                <Drawer
+                  trigger="+ Unggah dokumen"
+                  triggerVariant="primary"
+                  title="Unggah dokumen ke paket ini"
+                  subtitle="Paket sudah terisi otomatis. Fase & jenis dokumen memakai kategori resmi."
+                >
+                  <PackageDocUploadForm
+                    packageId={pkg.id}
+                    locations={pkg.locations.map((l) => ({ id: l.id, name: l.name }))}
+                  />
+                </Drawer>
+              ) : null}
+              {canManage ? <SyncComplianceButton packageId={pkg.id} /> : null}
+            </div>
+          }
         />
         <CardBody className="space-y-5">
-          <ProgressBar value={indukBoard.completenessPct} tone={indukBoard.late > 0 ? "warning" : "success"} />
+          <div className="space-y-2">
+            <div className="flex items-baseline justify-between gap-2 text-sm">
+              <span className="tabular font-semibold text-ink">
+                {indukBoard.done} / {indukBoard.total} selesai
+              </span>
+              <span className="tabular text-[13px] text-ink-muted">
+                {formatPct(indukBoard.completenessPct)} lengkap
+              </span>
+            </div>
+            <ProgressBar
+              value={indukBoard.completenessPct}
+              tone={indukBoard.late > 0 ? "warning" : "success"}
+              label="Kelengkapan administrasi paket"
+            />
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {/*
+                "Terlambat" berdiri sendiri, tidak dilebur ke dalam kalimat
+                subtitle seperti sebelumnya. Ia satu-satunya angka di kartu ini
+                yang menuntut tindakan, dan angka yang menuntut tindakan tidak
+                boleh dibaca sambil lalu di tengah kalimat.
+              */}
+              <MiniStat
+                label="Terlambat"
+                value={indukBoard.late}
+                className={indukBoard.late > 0 ? "border-warning-border bg-warning-soft" : undefined}
+              />
+              <MiniStat label="Belum selesai" value={indukBoard.total - indukBoard.done} />
+              <MiniStat label="Dokumen terunggah" value={documents.length} />
+            </div>
+          </div>
+
           {indukBoard.phases.map((phase) => (
             <section key={phase.phase}>
               <h3 className="mb-2 flex items-center justify-between text-sm font-semibold text-ink">
                 {phase.label}
-                <span className="text-xs font-normal text-ink-muted">{phase.done}/{phase.total}</span>
+                <span className="tabular text-xs font-normal text-ink-muted">
+                  {phase.done}/{phase.total} selesai
+                </span>
               </h3>
               <MilestonePanel
                 packageId={pkg.id}
@@ -157,51 +222,12 @@ export default async function DokumenPaketPage({
         </CardBody>
       </Card>
 
-      {canUpload ? (
-        <CollapsibleCard
-          title="Unggah dokumen ke paket ini"
-          subtitle="Langsung dari sini — paket sudah terisi otomatis, tak perlu ke Document Center. Fase & jenis dokumen pakai kategori resmi."
-          defaultOpen={documents.length === 0}
-        >
-          <PackageDocUploadForm
-            packageId={pkg.id}
-            locations={pkg.locations.map((l) => ({ id: l.id, name: l.name }))}
-          />
-        </CollapsibleCard>
-      ) : null}
-
-      {canUpload ? (
-        <Card>
-          <CardHeader
-            title="Impor dari folder Google Drive KKP"
-            subtitle="Berkas yang sudah ada di folder KKP (kontrak, SPMK, BA PCM, MC-0, berkas termin) bisa ditarik masuk: MARLIN membaca folder itu, menebak jenis & desanya, lalu menyalin yang Anda setujui."
-          />
-          <CardBody>
-            <Link
-              href={`/dokumen/impor?paket=${pkg.id}`}
-              className="inline-block rounded-md border border-border px-3 py-2 text-sm font-medium hover:bg-surface-2"
-            >
-              Buka impor dari Drive
-            </Link>
-            {!pkg.driveFolderId ? (
-              <p className="mt-2 text-xs text-ink-muted">
-                Paket ini belum punya ID folder Google Drive — isi dulu di halaman paket, baru impor
-                bisa membaca folder KKP-nya.
-              </p>
-            ) : null}
-          </CardBody>
-        </Card>
-      ) : null}
-
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(18rem,0.4fr)]">
       <Card>
         <CardHeader
           title="Dokumen paket"
-          subtitle={`${documents.length} dokumen — per fase`}
-          action={
-            <Link href="/dokumen" className="text-[13px] font-medium text-primary hover:underline">
-              Buka Document Center
-            </Link>
-          }
+          subtitle={`${documents.length} dokumen – dikelompokkan per fase`}
+          action={<ButtonLink href="/dokumen">Document Center</ButtonLink>}
         />
         <CardBody>
           {documents.length === 0 ? (
@@ -210,7 +236,7 @@ export default async function DokumenPaketPage({
               title="Belum ada dokumen paket"
               description={
                 canUpload
-                  ? "Gunakan formulir “Unggah dokumen ke paket ini” di atas — undangan, BA, SPPBJ, kontrak, dst."
+                  ? "Pakai tombol “+ Unggah dokumen” di kartu kepatuhan di atas – undangan, BA, SPPBJ, kontrak, dst."
                   : "Belum ada dokumen administrasi untuk paket ini."
               }
             />
@@ -249,9 +275,9 @@ export default async function DokumenPaketPage({
                             {` · ${doc.fileName}`}
                           </p>
                         </div>
-                        <div className="flex shrink-0 items-center gap-2">
+                        <div className="flex min-w-0 items-center gap-2">
                           <StatusPill tone="neutral" label={docTypeLabel(doc.type)} />
-                          <span className="text-xs text-ink-muted">
+                          <span className="text-xs whitespace-nowrap text-ink-muted">
                             {formatTanggal(doc.uploadedAt)}
                           </span>
                         </div>
@@ -264,6 +290,47 @@ export default async function DokumenPaketPage({
           )}
         </CardBody>
       </Card>
+
+      {canUpload ? (
+        <Card className="self-start">
+          <CardHeader
+            title="Impor dari folder Drive KKP"
+            subtitle="Berkas yang sudah ada di folder KKP ditarik masuk: MARLIN membaca folder itu, menebak jenis & desanya, lalu menyalin yang Anda setujui."
+            /* Keadaannya disebut di kepala kartu, bukan disembunyikan sebagai
+               catatan kecil di bawah tombol yang ternyata belum bisa dipakai. */
+            action={
+              <StatusPill
+                tone={pkg.driveFolderId ? "success" : "warning"}
+                label={pkg.driveFolderId ? "Folder tertaut" : "Belum tertaut"}
+              />
+            }
+          />
+          <CardBody className="space-y-2">
+            {pkg.driveFolderId ? (
+              <>
+                <p className="text-[13px] text-ink-muted">
+                  Kontrak, SPMK, BA PCM, MC-0, dan berkas termin adalah yang paling sering
+                  ditemukan di sana.
+                </p>
+                <ButtonLink href={`/dokumen/impor?paket=${pkg.id}`} className="w-full">
+                  Buka impor dari Drive
+                </ButtonLink>
+              </>
+            ) : (
+              <>
+                <p className="text-[13px] text-ink-muted">
+                  Paket ini belum punya folder Google Drive, jadi impor belum punya tempat untuk
+                  membaca. Tautkan dulu di Ringkasan → Komunikasi paket.
+                </p>
+                <ButtonLink href={`/paket/${pkg.id}`} className="w-full">
+                  Tautkan folder dulu
+                </ButtonLink>
+              </>
+            )}
+          </CardBody>
+        </Card>
+      ) : null}
+      </div>
     </div>
   );
 }

@@ -135,7 +135,7 @@ export async function buildAdendumTemplateXlsx(input: AdendumTemplateInput): Pro
     c.value = text;
     c.font = { bold, size };
   };
-  judul(1, "TEMPLATE ADENDUM — RENCANA ANGGARAN BIAYA", true, 12);
+  judul(1, "TEMPLATE ADENDUM – RENCANA ANGGARAN BIAYA", true, 12);
   judul(2, `${input.locationName} · ${input.packageName}${input.vendorName ? ` · ${input.vendorName}` : ""}`);
   judul(
     3,
@@ -144,16 +144,16 @@ export async function buildAdendumTemplateXlsx(input: AdendumTemplateInput): Pro
   // Petunjuk pengisian ditulis DI BERKASNYA, bukan hanya di layar: berkas ini
   // beredar lewat WhatsApp dan email, jauh dari aplikasi yang menerbitkannya.
   judul(4, "CARA MENGISI:", true);
-  judul(5, "1. Isi kolom VOLUME ADENDUM (kolom G) — itu volume SETELAH adendum, bukan selisihnya.");
+  judul(5, "1. Isi kolom VOLUME ADENDUM (kolom G) – itu volume SETELAH adendum, bukan selisihnya.");
   judul(
     6,
     "2. Item baru: SISIPKAN BARIS KOSONG di dalam kategori yang sesuai (klik kanan nomor baris → Insert), lalu isi Kode/Uraian/Sat/Harga Satuan/VOLUME ADENDUM. " +
-      "Jangan MENYALIN baris lama — salinan ikut membawa identitas item itu dan akan ditolak saat diunggah. " +
+      "Jangan MENYALIN baris lama – salinan ikut membawa identitas item itu dan akan ditolak saat diunggah. " +
       "Kolom Jumlah Adendum & Selisih pada baris baru biarkan kosong: sistem yang menghitungnya saat impor.",
   );
   judul(
     7,
-    "3. Mencabut item: tulis HAPUS di kolom KETERANGAN. Volume 0 BUKAN penghapusan — artinya item tetap ada dengan volume nol. " +
+    "3. Mencabut item: tulis HAPUS di kolom KETERANGAN. Volume 0 BUKAN penghapusan – artinya item tetap ada dengan volume nol. " +
       "Kolom REALISASI TERCATAT (L) = pekerjaan yang SUDAH dikerjakan: Volume Adendum tidak boleh di bawahnya dan item " +
       "ber-realisasi tidak bisa di-HAPUS. Sel yang melanggar berubah MERAH dan ditolak saat diunggah.",
   );
@@ -261,7 +261,7 @@ export async function buildAdendumTemplateXlsx(input: AdendumTemplateInput): Pro
           errorTitle: "Di bawah realisasi",
           error:
             `Item ini sudah dikerjakan ${VOL_ID.format(realisasi)}${n.unit ? ` ${n.unit}` : ""} di lapangan ` +
-            `(kolom REALISASI TERCATAT). Volume adendum tidak boleh di bawahnya — pekerjaan-kurang atas item ` +
+            `(kolom REALISASI TERCATAT). Volume adendum tidak boleh di bawahnya – pekerjaan-kurang atas item ` +
             `berjalan maksimal sampai volume yang sudah terealisasi.`,
         };
         barisBerealisasi.push(r);

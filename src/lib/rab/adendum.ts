@@ -40,7 +40,7 @@ async function requireDraft(tx: Tx, revisionId: string) {
   });
   if (!rev) throw new AdendumError("Revisi tidak ditemukan.");
   if (rev.status !== "draft") {
-    throw new AdendumError(`Revisi #${rev.revisionNo} bukan draft — editan hanya untuk draft.`);
+    throw new AdendumError(`Revisi #${rev.revisionNo} bukan draft – editan hanya untuk draft.`);
   }
   return rev;
 }
@@ -100,7 +100,7 @@ export async function createAdendumDraft(
     });
     if (existingDraft) {
       throw new AdendumError(
-        `Masih ada draft revisi #${existingDraft.revisionNo} — aktifkan atau buang dulu sebelum membuat draft baru.`,
+        `Masih ada draft revisi #${existingDraft.revisionNo} – aktifkan atau buang dulu sebelum membuat draft baru.`,
       );
     }
     const active = await tx.rabRevision.findFirst({
@@ -329,7 +329,7 @@ export async function updateDraftNewItemFields(
       });
       if (lama) {
         throw new AdendumError(
-          `"${node.name}" adalah item kontrak lama — harga satuan dan identitasnya terkunci. Hanya volume yang boleh diubah.`,
+          `"${node.name}" adalah item kontrak lama – harga satuan dan identitasnya terkunci. Hanya volume yang boleh diubah.`,
         );
       }
     }
@@ -440,7 +440,7 @@ export async function removeDraftNode(
     const blocked = items.find((n) => (realized.get(n.lineageKey) ?? 0) > EPS);
     if (blocked) {
       throw new AdendumError(
-        `"${blocked.name}" punya realisasi tercatat — tidak bisa dihapus. ` +
+        `"${blocked.name}" punya realisasi tercatat – tidak bisa dihapus. ` +
           `Kecilkan volumenya sampai sama dengan realisasi (pekerjaan-kurang).`,
       );
     }

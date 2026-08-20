@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
-import { Banner, LinkTabs, PageHeader, StatusPill } from "@/components/ui";
+import { Banner, ButtonLink, LinkTabs, PageHeader, StatusPill } from "@/components/ui";
 import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
+import { can } from "@/lib/authz";
 import { PACKAGE_STAGE_LABEL, PACKAGE_STAGE_TONE } from "@/lib/lifecycle";
 import { formatRupiah } from "@/lib/format";
 import { contractMismatch, withPpn } from "@/lib/money";
@@ -64,7 +65,7 @@ export default async function PaketWorkspaceLayout({
               label={PACKAGE_STAGE_LABEL[pkg.stage]}
             />
             {pkg.isBypass ? (
-              <StatusPill tone="warning" label="Bypass — dokumen menyusul" />
+              <StatusPill tone="warning" label="Bypass – dokumen menyusul" />
             ) : null}
             {contract?.workTitle ? (
               <span className="w-full text-[13px] text-ink-muted">
@@ -77,7 +78,7 @@ export default async function PaketWorkspaceLayout({
             <span>
               Vendor:{" "}
               <span className="font-medium text-ink">
-                {contract?.vendor.name ?? pkg.candidateVendorName ?? "—"}
+                {contract?.vendor.name ?? pkg.candidateVendorName ?? "–"}
               </span>
               {!contract && pkg.candidateVendorName ? " (kandidat)" : ""}
             </span>
@@ -91,6 +92,28 @@ export default async function PaketWorkspaceLayout({
               </span>
             ) : null}
           </div>
+        }
+        /*
+         * Aksi cepat di kepala halaman.
+         *
+         * Ketiganya adalah tujuan yang paling sering dituju dari mana pun di
+         * dalam paket – daftar lokasi, dokumen, dan percakapan grup. Sebelum
+         * ini semuanya hanya bisa dicapai lewat tab, yang berarti orang harus
+         * tahu dulu ada di tab mana. Jumlah lokasi ikut ditulis supaya
+         * tombolnya sekaligus menjawab "berapa lokasi paket ini".
+         */
+        actions={
+          <>
+            <ButtonLink href={`${base}/lokasi`}>
+              {pkg.locations.length} Lokasi
+            </ButtonLink>
+            <ButtonLink href={`${base}/dokumen`}>Dokumen</ButtonLink>
+            {pkg.waGroupId && can(user.role, "wa.chat") ? (
+              <ButtonLink href={`/chat-grup?p=${pkg.id}`} variant="primary">
+                Chat Grup MARLIN
+              </ButtonLink>
+            ) : null}
+          </>
         }
       />
 
@@ -107,6 +130,9 @@ export default async function PaketWorkspaceLayout({
           tone="warning"
           title="Nilai kontrak tidak cocok dengan RAB aktif"
           description={`Nilai kontrak berjalan ${formatRupiah(running)} ≠ Σ RAB aktif + PPN ${formatRupiah(mismatch.expected)} (RAB pra-PPN ${formatRupiah(mismatch.rabSum)}). Periksa revisi RAB lokasi atau nilai adendum.`}
+          /* Peringatan ini muncul di SETIAP tab paket. Tanpa jalan menuju
+             tempat memeriksanya, ia jadi latar yang dilewati begitu saja. */
+          action={<ButtonLink href={`${base}#rekonsiliasi`}>Periksa masalah</ButtonLink>}
         />
       ) : null}
 

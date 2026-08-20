@@ -51,7 +51,7 @@ export function ReviewActions({
       {mode === "koreksi" ? (
         <p className="text-[13px] text-ink-muted">
           Laporan berstatus Disetujui tidak bisa diedit. Kembalikan ke Perlu Koreksi supaya isinya
-          bisa diperbaiki — <strong>volumenya berhenti dihitung di progres &amp; kurva-S</strong>{" "}
+          bisa diperbaiki – <strong>volumenya berhenti dihitung di progres &amp; kurva-S</strong>{" "}
           sampai laporan dikirim &amp; disetujui ulang.
         </p>
       ) : null}
@@ -94,7 +94,7 @@ export function ReviewActions({
               required
               minLength={3}
               maxLength={1000}
-              placeholder="mis. volume pasangan bata tidak sesuai foto — cek ulang zona B"
+              placeholder="mis. volume pasangan bata tidak sesuai foto – cek ulang zona B"
             />
           </div>
           <Button type="submit" variant="danger" loading={returnPending}>
@@ -130,7 +130,7 @@ export function FinalizePanel({
     return (
       <div className="space-y-2">
         <div className="flex flex-col gap-2 rounded-lg border border-success-border bg-success-soft p-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm font-medium text-ink">Laporan final — angka dibekukan untuk cetak KKP.</p>
+          <p className="text-sm font-medium text-ink">Laporan final – angka dibekukan untuk cetak KKP.</p>
           <Link
             href={withBackTo(`/cetak/harian/${slug}/${dateKey}`, `/lokasi/${slug}/harian/${dateKey}`)}
             target="_blank"
@@ -190,7 +190,7 @@ function UnfinalizeForm({ reportId }: { reportId: string }) {
       <h3 className="text-sm font-semibold text-ink">Buka kembali laporan final</h3>
       <p className="text-[12px] text-ink-muted">
         Status kembali ke <span className="font-medium">Disetujui</span> supaya angka bisa dikoreksi. Snapshot
-        cetak dihapus dan dibangun ulang saat difinalkan lagi. Progres &amp; kurva-S tidak berubah oleh aksi ini —
+        cetak dihapus dan dibangun ulang saat difinalkan lagi. Progres &amp; kurva-S tidak berubah oleh aksi ini –
         yang mengubah angka adalah editan setelahnya.
       </p>
       {state?.error ? <Banner tone="error" title={state.error} /> : null}

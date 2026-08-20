@@ -26,7 +26,7 @@ export async function ingestWaEvent(body: unknown): Promise<IngestResult> {
      * NOWEB menaruh chatId di `key.remoteJid`, yang tak terlihat dari `keys=`.
      */
     console.warn("[waha] pesan gagal diparse. payload utuh:", JSON.stringify(body)?.slice(0, 4000));
-    return { stored: false, reason: `payload tidak dikenali — ${kerangkaPayload(body)}` };
+    return { stored: false, reason: `payload tidak dikenali – ${kerangkaPayload(body)}` };
   }
 
   /*
@@ -53,7 +53,7 @@ export async function ingestWaEvent(body: unknown): Promise<IngestResult> {
       return { stored: false, reason: "chat pribadi (tidak diarsipkan)", chatId: m.chatId };
     }
     console.warn(
-      `[waha] pesan DIBUANG — grup "${m.chatId}" belum tertaut paket. ` +
+      `[waha] pesan DIBUANG – grup "${m.chatId}" belum tertaut paket. ` +
         `Tautkan chatId ini di Paket → Grup WhatsApp. from=${m.fromNumber ?? "?"} body="${m.body.slice(0, 40)}"`,
     );
     return { stored: false, reason: "grup tidak tertaut paket", chatId: m.chatId };

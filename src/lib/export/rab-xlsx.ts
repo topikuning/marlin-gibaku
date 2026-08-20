@@ -136,7 +136,7 @@ export async function buildRabXlsx(input: RabExportInput): Promise<Buffer> {
     { width: 15 }, // E harga satuan
     { width: 17 }, // F jumlah
   ];
-  addTitle(det, "RENCANA ANGGARAN BIAYA — DETAIL", input);
+  addTitle(det, "RENCANA ANGGARAN BIAYA – DETAIL", input);
   const detHeaderRow = 5;
   const detHeaders = ["Kode", "Uraian Pekerjaan", "Volume", "Sat", "Harga Satuan (Rp)", "Jumlah (Rp)"];
   detHeaders.forEach((h, i) => {
@@ -215,7 +215,7 @@ export async function buildRabXlsx(input: RabExportInput): Promise<Buffer> {
 
   /* ── Sheet 2: Sub Resume — anak langsung tiap kategori, tertaut ke Detail ── */
   sub.columns = [{ width: 10 }, { width: 56 }, { width: 18 }];
-  addTitle(sub, "RENCANA ANGGARAN BIAYA — SUB RESUME", input);
+  addTitle(sub, "RENCANA ANGGARAN BIAYA – SUB RESUME", input);
   const subHeaderRow = 5;
   ["Kode", "Uraian", "Jumlah Harga (Rp)"].forEach((h, i) => {
     const c = sub.getCell(subHeaderRow, i + 1);
@@ -254,7 +254,7 @@ export async function buildRabXlsx(input: RabExportInput): Promise<Buffer> {
     }
     s += 1;
     subTotalRowOf.set(kat.id, s);
-    sub.getCell(s, 2).value = `JUMLAH ${romanOf.get(kat.id)!} — ${displayName(kat.name)}`;
+    sub.getCell(s, 2).value = `JUMLAH ${romanOf.get(kat.id)!} – ${displayName(kat.name)}`;
     sub.getCell(s, 2).font = { bold: true };
     sub.getCell(s, 3).value = childRows.length
       ? { formula: childRows.map((cr) => `C${cr}`).join("+"), result: Number(kat.amount) }
@@ -268,7 +268,7 @@ export async function buildRabXlsx(input: RabExportInput): Promise<Buffer> {
 
   /* ── Sheet 1: Resume — kategori tertaut ke Sub Resume + PPN + pembulatan ── */
   res.columns = [{ width: 6 }, { width: 56 }, { width: 18 }];
-  addTitle(res, "RENCANA ANGGARAN BIAYA — RESUME", input);
+  addTitle(res, "RENCANA ANGGARAN BIAYA – RESUME", input);
   const resHeaderRow = 5;
   ["No", "Uraian Pekerjaan", "Jumlah Harga (Rp)"].forEach((h, i) => {
     const c = res.getCell(resHeaderRow, i + 1);

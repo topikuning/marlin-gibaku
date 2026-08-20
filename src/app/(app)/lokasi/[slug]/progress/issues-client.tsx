@@ -201,7 +201,7 @@ function IssueCard({ issue, canManage }: { issue: IssueData; canManage: boolean 
                 <ul className="mt-1 space-y-0.5 text-[13px] text-ink-muted">
                   {a.updates.map((u) => (
                     <li key={u.id}>
-                      <span className="tabular text-ink-faint">{formatTanggal(new Date(u.createdAt))}</span> — {u.note}
+                      <span className="tabular text-ink-faint">{formatTanggal(new Date(u.createdAt))}</span> – {u.note}
                     </li>
                   ))}
                 </ul>

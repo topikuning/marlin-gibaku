@@ -69,7 +69,7 @@ export async function commitImportAction(
   try {
     selections = z.array(selectionSchema).min(1).max(200).parse(JSON.parse(raw));
   } catch {
-    return { error: "Pilihan berkas tidak terbaca — muat ulang pratinjau lalu coba lagi." };
+    return { error: "Pilihan berkas tidak terbaca – muat ulang pratinjau lalu coba lagi." };
   }
 
   try {

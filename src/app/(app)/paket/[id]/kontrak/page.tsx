@@ -1,7 +1,15 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { FileSignature } from "lucide-react";
-import { Banner, Card, CardBody, CardHeader, EmptyState } from "@/components/ui";
+import {
+  Banner,
+  Card,
+  CardBody,
+  CardHeader,
+  Drawer,
+  EmptyState,
+  MiniStat,
+} from "@/components/ui";
 import { requireUser } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
@@ -23,6 +31,7 @@ import {
 } from "./kontrak-forms";
 import { presignKeys } from "@/lib/photos";
 import { AmendmentDocUpload } from "./amendment-doc-upload";
+import { AksiTile } from "./aksi-tile";
 
 export const metadata: Metadata = { title: "Kontrak & Adendum" };
 export const dynamic = "force-dynamic";
@@ -116,202 +125,234 @@ export default async function KontrakPage({
   const urlsTtd = kunciTtd.length > 0 ? await presignKeys(kunciTtd) : new Map<string, string>();
   const urlTtd = (k: string | null) => (k ? (urlsTtd.get(k) ?? null) : null);
 
+
   return (
-    <div className="space-y-6">
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader title="Detail kontrak" subtitle={contract.contractNumber} />
-          <CardBody>
-            <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
-              <div>
-                <dt className="text-ink-muted">Vendor</dt>
-                <dd className="font-medium text-ink">{contract.vendor.name}</dd>
-              </div>
-              <div>
-                <dt className="text-ink-muted">Nilai kontrak (inkl. PPN)</dt>
-                <dd className="tabular font-medium text-ink">
-                  {formatRupiah(contract.contractValue)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-ink-muted">Nilai berjalan (+adendum)</dt>
-                <dd className="tabular font-semibold text-primary">{formatRupiah(running)}</dd>
-              </div>
-              <div>
-                <dt className="text-ink-muted">PPN</dt>
-                <dd className="tabular font-medium text-ink">
-                  {formatPct(Number(contract.ppnPercent))}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-ink-muted">Uang muka</dt>
-                <dd className="tabular font-medium text-ink">
-                  {contract.advancePercent != null
-                    ? formatPct(Number(contract.advancePercent))
-                    : "—"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-ink-muted">Retensi</dt>
-                <dd className="tabular font-medium text-ink">
-                  {contract.retentionPercent != null
-                    ? formatPct(Number(contract.retentionPercent))
-                    : "—"}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-ink-muted">Tanda tangan kontrak</dt>
-                <dd className="font-medium text-ink">{formatTanggal(contract.signedDate)}</dd>
-              </div>
-              <div>
-                <dt className="text-ink-muted">Masa pelaksanaan</dt>
-                <dd className="font-medium text-ink">{contract.durationDays} hari kalender</dd>
-              </div>
-              <div>
-                <dt className="text-ink-muted">Mulai (SPMK)</dt>
-                <dd className="font-medium text-ink">
-                  {contract.startDate ? (
-                    <>
-                      {formatTanggal(contract.startDate)}
-                      {/* SPMK sudah dicatat tapi paket masih Kontrak = tanggalnya
-                          belum tiba. Tanpa keterangan ini, tanggal yang tampil
-                          terbaca seolah pelaksanaan sudah jalan (DECISIONS 202). */}
-                      {pkg.stage === "kontrak" ? (
-                        <span className="ml-1 text-xs font-normal text-warning">
-                          · terjadwal, pelaksanaan belum dimulai
-                        </span>
-                      ) : null}
-                    </>
-                  ) : (
-                    <span className="text-ink-muted italic">Belum terbit</span>
-                  )}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-ink-muted">Selesai {endRunning ? "(+adendum)" : ""}</dt>
-                <dd className="font-medium text-ink">
-                  {endRunning ? (
-                    formatTanggal(endRunning)
-                  ) : (
-                    <span className="text-ink-muted italic">Menunggu SPMK</span>
-                  )}
-                </dd>
-              </div>
-            </dl>
-
-            {pkg.stage === "kontrak" && canContract ? (
-              <div className="mt-4 border-t border-border pt-4">
-                <StartPelaksanaanButton packageId={pkg.id} />
-              </div>
-            ) : null}
-          </CardBody>
-        </Card>
-
-        {canAmend ? (
-          <Card className="self-start">
-            <CardHeader
-              title="Tambah adendum (CCO)"
-              subtitle="Append-only — revisi RAB lokasi terkait dilakukan di modul RAB."
+    <div className="space-y-4">
+      <Card>
+        <CardHeader
+          title="Kontrak berjalan"
+          subtitle={contract.contractNumber}
+          action={
+            pkg.stage === "kontrak" && canContract ? (
+              <StartPelaksanaanButton packageId={pkg.id} />
+            ) : null
+          }
+        />
+        <CardBody className="space-y-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+            <MiniStat label="Vendor" value={contract.vendor.name} />
+            <MiniStat
+              label="Nilai awal (inkl. PPN)"
+              value={formatRupiah(contract.contractValue)}
             />
-            <CardBody>
-              <AmendmentForm contractId={contract.id} />
-            </CardBody>
-          </Card>
+            <MiniStat
+              label="Nilai berjalan"
+              value={formatRupiah(running)}
+              sub={
+                contract.amendments.length > 0
+                  ? `termasuk ${contract.amendments.length} adendum`
+                  : "belum ada adendum"
+              }
+            />
+            <MiniStat label="PPN" value={formatPct(Number(contract.ppnPercent))} />
+            <MiniStat
+              label="Uang muka"
+              value={
+                contract.advancePercent != null
+                  ? formatPct(Number(contract.advancePercent))
+                  : "–"
+              }
+            />
+            <MiniStat
+              label="Retensi"
+              value={
+                contract.retentionPercent != null
+                  ? formatPct(Number(contract.retentionPercent))
+                  : "–"
+              }
+            />
+            <MiniStat label="Tanda tangan kontrak" value={formatTanggal(contract.signedDate)} />
+            <MiniStat
+              label="Masa pelaksanaan"
+              value={`${contract.durationDays} hari`}
+              sub="hari kalender"
+            />
+            <MiniStat
+              label="Mulai (SPMK)"
+              value={
+                contract.startDate ? (
+                  formatTanggal(contract.startDate)
+                ) : (
+                  <span className="text-ink-muted italic">Belum terbit</span>
+                )
+              }
+              /* SPMK sudah dicatat tapi paket masih Kontrak = tanggalnya belum
+                 tiba. Tanpa keterangan ini, tanggal yang tampil terbaca seolah
+                 pelaksanaan sudah jalan (DECISIONS 202). */
+              sub={
+                contract.startDate && pkg.stage === "kontrak" ? (
+                  <span className="text-warning">terjadwal, pelaksanaan belum dimulai</span>
+                ) : undefined
+              }
+            />
+            <MiniStat
+              label={`Selesai${endRunning && contract.amendments.length > 0 ? " (+adendum)" : ""}`}
+              value={
+                endRunning ? (
+                  formatTanggal(endRunning)
+                ) : (
+                  <span className="text-ink-muted italic">Menunggu SPMK</span>
+                )
+              }
+            />
+          </div>
+          {contract.workTitle ? (
+            <p className="text-[13px] text-ink-muted">
+              Pekerjaan: <span className="text-ink">{contract.workTitle}</span>
+            </p>
+          ) : null}
+        </CardBody>
+      </Card>
+
+      {/*
+        Empat pekerjaan kontrak yang JARANG dilakukan. Sebelumnya keempat
+        formnya terbuka sekaligus di bawah ringkasan, sehingga ringkasan yang
+        justru dibaca berulang terdorong hilang dari layar. Sekarang tetap di
+        halaman yang sama, hanya di belakang satu klik.
+      */}
+      <div className="grid gap-2 sm:grid-cols-2">
+        {canAmend ? (
+          <AksiTile
+            judul="Adendum kontrak (CCO)"
+            penjelasan="Perubahan RESMI nilai dan/atau waktu. Riwayatnya append-only; revisi RAB lokasi tetap dilakukan di modul RAB."
+            aksi={
+              <Drawer
+                trigger="Catat adendum"
+                triggerVariant="primary"
+                title="Catat adendum kontrak (CCO)"
+                subtitle="Append-only – revisi RAB lokasi terkait dilakukan di modul RAB."
+              >
+                <AmendmentForm contractId={contract.id} />
+              </Drawer>
+            }
+          />
+        ) : null}
+
+        {canEditContract ? (
+          <AksiTile
+            judul="Koreksi data kontrak"
+            penjelasan="Khusus membetulkan SALAH INPUT – bukan pengganti adendum. Bila masa pelaksanaan / SPMK ikut berubah, kurva-S semua lokasi dihitung ulang otomatis."
+            aksi={
+              <Drawer
+                trigger="Koreksi data"
+                title="Koreksi kontrak (Super Admin)"
+                subtitle="Betulkan data kontrak termasuk WAKTU. Berbeda dari adendum, yang mencatat perubahan resmi."
+              >
+                <EditContractForm
+                  packageId={pkg.id}
+                  initial={{
+                    packageName: pkg.name,
+                    packageNumber: pkg.packageNumber ?? "",
+                    workTitle: contract.workTitle ?? "",
+                    contractNumber: contract.contractNumber,
+                    contractValue: String(contract.contractValue),
+                    ppnPercent: Number(contract.ppnPercent),
+                    signedDate: contract.signedDate.toISOString().slice(0, 10),
+                    durationDays: contract.durationDays,
+                    startDate: contract.startDate
+                      ? contract.startDate.toISOString().slice(0, 10)
+                      : "",
+                  }}
+                />
+              </Drawer>
+            }
+          />
+        ) : null}
+
+        <AksiTile
+          judul="Penanda tangan dokumen KKP"
+          penjelasan={
+            canContract
+              ? "Nama PPK, Konsultan Pengawas, dan Penyedia yang tercetak pada blok tanda tangan laporan."
+              : "Nama yang tercetak pada blok tanda tangan laporan. Hanya pengelola kontrak yang boleh mengubahnya."
+          }
+          aksi={
+            <Drawer
+              trigger={canContract ? "Kelola nama" : "Lihat nama"}
+              title="Penanda tangan dokumen KKP"
+              subtitle="Nama tercetak di blok tanda tangan laporan – bisa diganti bila ada pergantian personel."
+            >
+              {canContract ? (
+                <SignatoriesForm
+                  contractId={contract.id}
+                  value={{
+                    ppkName: contract.ppkName,
+                    ppkNip: contract.ppkNip,
+                    supervisorName: contract.supervisorName,
+                    supervisorFirm: contract.supervisorFirm,
+                    contractorSignerName: contract.contractorSignerName,
+                    contractorSignerTitle: contract.contractorSignerTitle,
+                  }}
+                />
+              ) : (
+                <dl className="space-y-3 text-sm">
+                  <div>
+                    <dt className="text-ink-muted">PPK</dt>
+                    <dd className="font-medium text-ink">{contract.ppkName || "–"}</dd>
+                    {contract.ppkNip ? (
+                      <dd className="text-xs text-ink-muted">NIP. {contract.ppkNip}</dd>
+                    ) : null}
+                  </div>
+                  <div>
+                    <dt className="text-ink-muted">Konsultan Pengawas</dt>
+                    <dd className="font-medium text-ink">{contract.supervisorName || "–"}</dd>
+                    {contract.supervisorFirm ? (
+                      <dd className="text-xs text-ink-muted">{contract.supervisorFirm}</dd>
+                    ) : null}
+                  </div>
+                  <div>
+                    <dt className="text-ink-muted">Penyedia / Pelaksana</dt>
+                    <dd className="font-medium text-ink">
+                      {contract.contractorSignerName || "–"}
+                    </dd>
+                    {contract.contractorSignerTitle ? (
+                      <dd className="text-xs text-ink-muted">{contract.contractorSignerTitle}</dd>
+                    ) : null}
+                  </div>
+                </dl>
+              )}
+            </Drawer>
+          }
+        />
+
+        {canContract ? (
+          <AksiTile
+            judul="Tanda tangan & stempel"
+            penjelasan="Gambar OPSIONAL yang ditempel pada laporan cetak. Kosongkan bila laporan tetap ditandatangani dengan pena."
+            aksi={
+              <Drawer
+                trigger="Kelola gambar"
+                title="Tanda tangan & stempel untuk laporan cetak"
+                subtitle="Ditempel otomatis pada laporan harian, rencana mingguan, laporan periodik & lembar kurva-S yang dicetak."
+              >
+                <TtdStempelForm
+                  contractId={contract.id}
+                  gambar={{
+                    ppkTtdUrl: urlTtd(contract.ppkTtdKey),
+                    ppkStempelUrl: urlTtd(contract.ppkStempelKey),
+                    supervisorTtdUrl: urlTtd(contract.supervisorTtdKey),
+                    supervisorStempelUrl: urlTtd(contract.supervisorStempelKey),
+                    contractorTtdUrl: urlTtd(contract.contractorTtdKey),
+                    contractorStempelUrl: urlTtd(contract.contractorStempelKey),
+                    vendorStempelUrl: urlTtd(contract.vendor.stempelKey),
+                    vendorName: contract.vendor.name,
+                  }}
+                />
+              </Drawer>
+            }
+          />
         ) : null}
       </div>
-
-      {canEditContract ? (
-        <Card>
-          <CardHeader
-            title="Koreksi kontrak (Super Admin)"
-            subtitle="Betulkan data kontrak termasuk WAKTU. Jika masa pelaksanaan / SPMK diubah, kurva-S semua lokasi dihitung ulang otomatis. Berbeda dari adendum (perubahan resmi)."
-          />
-          <CardBody>
-            <EditContractForm
-              packageId={pkg.id}
-              initial={{
-                packageName: pkg.name,
-                packageNumber: pkg.packageNumber ?? "",
-                workTitle: contract.workTitle ?? "",
-                contractNumber: contract.contractNumber,
-                contractValue: String(contract.contractValue),
-                ppnPercent: Number(contract.ppnPercent),
-                signedDate: contract.signedDate.toISOString().slice(0, 10),
-                durationDays: contract.durationDays,
-                startDate: contract.startDate ? contract.startDate.toISOString().slice(0, 10) : "",
-              }}
-            />
-          </CardBody>
-        </Card>
-      ) : null}
-
-      <Card>
-        <CardHeader
-          title="Penanda tangan dokumen KKP"
-          subtitle="Nama tercetak di blok tanda tangan laporan — bisa diganti bila ada pergantian personel."
-        />
-        <CardBody>
-          {canContract ? (
-            <SignatoriesForm
-              contractId={contract.id}
-              value={{
-                ppkName: contract.ppkName,
-                ppkNip: contract.ppkNip,
-                supervisorName: contract.supervisorName,
-                supervisorFirm: contract.supervisorFirm,
-                contractorSignerName: contract.contractorSignerName,
-                contractorSignerTitle: contract.contractorSignerTitle,
-              }}
-            />
-          ) : (
-            <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
-              <div>
-                <dt className="text-ink-muted">PPK</dt>
-                <dd className="font-medium text-ink">{contract.ppkName || "—"}</dd>
-                {contract.ppkNip ? <dd className="text-xs text-ink-muted">NIP. {contract.ppkNip}</dd> : null}
-              </div>
-              <div>
-                <dt className="text-ink-muted">Konsultan Pengawas</dt>
-                <dd className="font-medium text-ink">{contract.supervisorName || "—"}</dd>
-                {contract.supervisorFirm ? <dd className="text-xs text-ink-muted">{contract.supervisorFirm}</dd> : null}
-              </div>
-              <div>
-                <dt className="text-ink-muted">Penyedia / Pelaksana</dt>
-                <dd className="font-medium text-ink">{contract.contractorSignerName || "—"}</dd>
-                {contract.contractorSignerTitle ? <dd className="text-xs text-ink-muted">{contract.contractorSignerTitle}</dd> : null}
-              </div>
-            </dl>
-          )}
-        </CardBody>
-      </Card>
-
-      <Card>
-        <CardHeader
-          title="Tanda tangan & stempel untuk laporan cetak"
-          subtitle="Ditempel otomatis pada laporan harian, rencana mingguan, laporan periodik & lembar kurva-S yang dicetak. Kosongkan bila laporan tetap ditandatangani dengan pena."
-        />
-        <CardBody>
-          {canContract ? (
-            <TtdStempelForm
-              contractId={contract.id}
-              gambar={{
-                ppkTtdUrl: urlTtd(contract.ppkTtdKey),
-                ppkStempelUrl: urlTtd(contract.ppkStempelKey),
-                supervisorTtdUrl: urlTtd(contract.supervisorTtdKey),
-                supervisorStempelUrl: urlTtd(contract.supervisorStempelKey),
-                contractorTtdUrl: urlTtd(contract.contractorTtdKey),
-                contractorStempelUrl: urlTtd(contract.contractorStempelKey),
-                vendorStempelUrl: urlTtd(contract.vendor.stempelKey),
-                vendorName: contract.vendor.name,
-              }}
-            />
-          ) : (
-            <p className="text-sm text-ink-muted">
-              Hanya pengelola kontrak yang boleh mengunggah gambar tanda tangan &amp; stempel.
-            </p>
-          )}
-        </CardBody>
-      </Card>
 
       <Card>
         <CardHeader
@@ -325,7 +366,7 @@ export default async function KontrakPage({
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border text-left text-xs uppercase text-ink-muted">
+                  <tr className="border-b border-border text-left text-xs text-ink-muted uppercase">
                     <th className="py-2 pr-3">Nomor CCO</th>
                     <th className="py-2 pr-3 text-right">Perubahan nilai</th>
                     <th className="py-2 pr-3 text-right">Waktu</th>
@@ -339,12 +380,12 @@ export default async function KontrakPage({
                     <tr key={a.id}>
                       <td className="py-2 pr-3 font-medium text-ink">{a.ccoNumber}</td>
                       <td
-                        className={`py-2 pr-3 text-right tabular ${a.valueDelta < 0n ? "text-danger" : a.valueDelta > 0n ? "text-success" : "text-ink"}`}
+                        className={`tabular py-2 pr-3 text-right ${a.valueDelta < 0n ? "text-danger" : a.valueDelta > 0n ? "text-success" : "text-ink"}`}
                       >
                         {a.valueDelta > 0n ? "+" : ""}
                         {formatRupiah(a.valueDelta)}
                       </td>
-                      <td className="py-2 pr-3 text-right tabular">
+                      <td className="tabular py-2 pr-3 text-right">
                         {a.endDateDelta > 0 ? "+" : ""}
                         {a.endDateDelta} hari
                       </td>

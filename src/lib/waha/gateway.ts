@@ -83,7 +83,7 @@ export type HasilKirimWa = {
 function ringkasIsi(input: KirimWaInput): string {
   if ("teks" in input.payload) return input.payload.teks.slice(0, 120);
   return `${input.payload.file.filename} (${input.payload.file.mimetype})${
-    input.payload.caption ? ` — ${input.payload.caption.slice(0, 80)}` : ""
+    input.payload.caption ? ` – ${input.payload.caption.slice(0, 80)}` : ""
   }`;
 }
 

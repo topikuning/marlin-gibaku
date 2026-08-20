@@ -35,7 +35,7 @@ describe("kesiapan data paket", () => {
     expect(kesiapanPaket(bahan({ adaVendor: false })).status).toBe("belum_lengkap");
   });
 
-  it("PROSPEK tanpa lokasi TIDAK merah — prospek memang belum tentu jadi", () => {
+  it("PROSPEK tanpa lokasi TIDAK merah – prospek memang belum tentu jadi", () => {
     const r = kesiapanPaket(bahan({ stage: "prospek", locationCount: 0, adaVendor: false }));
     expect(r.status).toBe("perlu_cek");
     // Tetap disebut, supaya orang tahu apa yang menunggu.

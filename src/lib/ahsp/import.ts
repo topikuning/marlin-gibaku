@@ -186,7 +186,7 @@ export async function imporAhspDariSeed(userId: string | null): Promise<HasilImp
     throw new Error(
       `Impor AHSP tidak lengkap: ${entriTertulis}/${manifest.jumlah.entri} analisa, ` +
         `${komponenTertulis}/${manifest.jumlah.komponen} komponen. ` +
-        `Basis dibiarkan bertanda belum selesai — ulangi impornya.`,
+        `Basis dibiarkan bertanda belum selesai – ulangi impornya.`,
     );
   }
 

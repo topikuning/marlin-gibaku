@@ -179,7 +179,7 @@ describe("KASUS INTI: admin bisa menagih semua orang tanpa menunggu penjadwal", 
     expect(punyaKita()[0].text).toContain("Pengaradan");
   });
 
-  it("BOLEH dikirim berkali-kali — admin tidak dikunci sehari sekali", async () => {
+  it("BOLEH dikirim berkali-kali – admin tidak dikunci sehari sekali", async () => {
     // DECISIONS 207, permintaan user 2026-08-02: "di halaman admin aku bebas
     // kirim berapa kali pun … kamu cukup mencegah atau menambah aksi ganda
     // untuk kirim ulang, misal konfirmasi kalau kirim ulang, bukan me-lock
@@ -202,7 +202,7 @@ describe("KASUS INTI: admin bisa menagih semua orang tanpa menunggu penjadwal", 
     expect(log.chatId).toBe(TUJUAN);
   });
 
-  it("hasil per orang dilaporkan — 'berhasil atau tidak' tidak perlu ditebak", async () => {
+  it("hasil per orang dilaporkan – 'berhasil atau tidak' tidak perlu ditebak", async () => {
     const res = await kirimPengingatSekarangAction(undefined, new FormData());
     const kita = res?.rincian?.find((r) => r.tujuan === TUJUAN);
     expect(kita).toBeDefined();
@@ -213,7 +213,7 @@ describe("KASUS INTI: admin bisa menagih semua orang tanpa menunggu penjadwal", 
     expect(kita!.waMessageId).toBe("MSGID");
   });
 
-  it("tercatat di audit — pengiriman ke orang lain harus punya jejak pelakunya", async () => {
+  it("tercatat di audit – pengiriman ke orang lain harus punya jejak pelakunya", async () => {
     await kirimPengingatSekarangAction(undefined, new FormData());
     const log = await db.auditLog.findFirst({
       where: { action: "reminder.manual_send", userId: sessionUserId },
@@ -227,7 +227,7 @@ describe("KASUS INTI: admin bisa menagih semua orang tanpa menunggu penjadwal", 
 });
 
 describe("pagar tombol", () => {
-  it("peran tanpa system.manage DITOLAK — bukan cuma menunya disembunyikan", async () => {
+  it("peran tanpa system.manage DITOLAK – bukan cuma menunya disembunyikan", async () => {
     for (const r of ["project_manager", "site_manager", "field_supervisor", "wakil_ppk"]) {
       role = r;
       const res = await kirimPengingatSekarangAction(undefined, new FormData());
@@ -291,12 +291,12 @@ describe("pratinjau menunjukkan yang SAMA dengan yang akan dikirim", () => {
     expect(kita!.tujuan).toBe(TUJUAN);
   });
 
-  it("penanggung jawab TANPA nomor WA disebut namanya — 'terkirim 1' bukan berarti semua tertagih", async () => {
+  it("penanggung jawab TANPA nomor WA disebut namanya – 'terkirim 1' bukan berarti semua tertagih", async () => {
     const p = await pratinjauPengingat(orgId);
     expect(p.tanpaNomor).toContain("Tanpa Nomor");
   });
 
-  it("setelah dikirim orangnya TETAP di daftar — tombolnya memang akan mengirim lagi", async () => {
+  it("setelah dikirim orangnya TETAP di daftar – tombolnya memang akan mengirim lagi", async () => {
     // DECISIONS 207: daftar "akan menerima" harus persis sama dengan yang
     // benar-benar dikirimi. Menyembunyikan yang sudah dikirimi tadi membuat
     // pratinjau berbohong, karena tombolnya tetap mengirim ke mereka.
@@ -392,7 +392,7 @@ describe("sakelar pengingat: mematikan PENJADWAL, bukan kemampuan menagih", () =
     await db.package.update({ where: { id: paketSpmkId }, data: { stage: "kontrak" } });
   });
 
-  it("belum pernah disetel = NYALA — setelan kosong tidak boleh diam-diam mematikan tagihan", async () => {
+  it("belum pernah disetel = NYALA – setelan kosong tidak boleh diam-diam mematikan tagihan", async () => {
     expect(await getPengingatAktif()).toBe(true);
   });
 
@@ -448,7 +448,7 @@ describe("sakelar pengingat: mematikan PENJADWAL, bukan kemampuan menagih", () =
     }
   });
 
-  it("perubahannya tercatat di audit — mematikan tagihan lapangan harus ada pelakunya", async () => {
+  it("perubahannya tercatat di audit – mematikan tagihan lapangan harus ada pelakunya", async () => {
     const fd = new FormData();
     fd.set("aktif", "0");
     const res = await setPengingatAktifAction(undefined, fd);
@@ -532,7 +532,7 @@ describe("pengingat per orang: menagih satu, bukan mengganggu semua", () => {
     expect(punyaKita()).toHaveLength(0); // mandor pertama TIDAK diganggu
   });
 
-  it("isi pesannya sama persis dengan versi massal — bukan jalur kedua yang menyimpang", async () => {
+  it("isi pesannya sama persis dengan versi massal – bukan jalur kedua yang menyimpang", async () => {
     await kirimKe(mandor2Id);
     const satuan = punyaOrangKedua()[0].text;
     terkirim.length = 0;

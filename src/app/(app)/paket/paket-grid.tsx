@@ -107,7 +107,7 @@ export function PaketGrid({ rows }: { rows: PaketRow[] }) {
         valueFormatter: (p) => {
           const k = KESIAPAN_LABEL[p.value as KesiapanPaket] ?? "";
           const kurang = p.data?.kurang ?? [];
-          return kurang.length ? `${k} — ${kurang.join(", ")}` : k;
+          return kurang.length ? `${k} – ${kurang.join(", ")}` : k;
         },
       },
       { field: "province", headerName: "Provinsi", width: 160 },

@@ -258,7 +258,7 @@ export function blokTandaTangan(
     [
       "Pejabat Pembuat Komitmen",
       o.h.supervisorFirm?.trim() || "Konsultan Pengawas",
-      o.h.vendorName?.trim() ? `Penyedia Jasa — ${o.h.vendorName.trim()}` : "Penyedia Jasa",
+      o.h.vendorName?.trim() ? `Penyedia Jasa – ${o.h.vendorName.trim()}` : "Penyedia Jasa",
     ],
     { bold: true, size: 9 },
   );

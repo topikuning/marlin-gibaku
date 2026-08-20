@@ -23,7 +23,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   }
 
   const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Belum masuk — silakan login" }, { status: 401 });
+  if (!user) return NextResponse.json({ error: "Belum masuk – silakan login" }, { status: 401 });
 
   const photo = await db.photo.findUnique({
     where: { id },
@@ -43,7 +43,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
 
   if (!photo.originalKey) {
     return NextResponse.json(
-      { error: "Foto ini diunggah sebelum arsip berkas asli aktif — hanya versi ber-cap yang tersimpan." },
+      { error: "Foto ini diunggah sebelum arsip berkas asli aktif – hanya versi ber-cap yang tersimpan." },
       { status: 404 },
     );
   }

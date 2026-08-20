@@ -252,7 +252,7 @@ export function BudgetSection({
           {rows.map((r) => (
             <tr key={r.category}>
               <td className={`${TD} font-medium text-ink`}>{CATEGORY_LABEL[r.category]}</td>
-              <td className={`${TD} tabular text-right`}>{r.amount ? rp(r.amount) : <span className="text-ink-faint">—</span>}</td>
+              <td className={`${TD} tabular text-right`}>{r.amount ? rp(r.amount) : <span className="text-ink-faint">–</span>}</td>
               <td className={`${TD} text-ink-muted`}>{r.note ?? ""}</td>
               {canApprove ? (
                 <td className={TD}>
@@ -274,7 +274,7 @@ export function BudgetSection({
         </tbody>
       </table>
       {canApprove ? (
-        <HelpText>Perubahan membuat baris budget baru — riwayat nilai lama tersimpan (append-only).</HelpText>
+        <HelpText>Perubahan membuat baris budget baru – riwayat nilai lama tersimpan (append-only).</HelpText>
       ) : null}
     </div>
   );
@@ -374,7 +374,7 @@ export function CommitmentSection({
             <Button type="submit" loading={pending}>
               Ajukan komitmen
             </Button>
-            <HelpText>Komitmen langsung berstatus diajukan — menunggu persetujuan approver.</HelpText>
+            <HelpText>Komitmen langsung berstatus diajukan – menunggu persetujuan approver.</HelpText>
           </form>
         </ToggleFormCard>
       ) : null}
@@ -410,11 +410,11 @@ export function CommitmentSection({
                     </div>
                   </td>
                   <td className={TD}>{COMMITMENT_TYPE_LABEL[c.type]}</td>
-                  <td className={TD}>{c.vendorName ?? <span className="text-ink-faint">—</span>}</td>
+                  <td className={TD}>{c.vendorName ?? <span className="text-ink-faint">–</span>}</td>
                   <td className={TD}>{CATEGORY_LABEL[c.category]}</td>
                   <td className={`${TD} tabular text-right`}>{rp(c.amount)}</td>
                   <td className={`${TD} tabular text-right`}>{rp(c.realizedAmount)}</td>
-                  <td className={`${TD} tabular`}>{c.dueDate ? tgl(c.dueDate) : "—"}</td>
+                  <td className={`${TD} tabular`}>{c.dueDate ? tgl(c.dueDate) : "–"}</td>
                   <td className={TD}>
                     <Badge tone={APPROVAL_STATUS_TONE[c.status]} label={APPROVAL_STATUS_LABEL[c.status]} />
                     {c.closedAt ? <Badge tone="neutral" label="Ditutup" className="ml-1" /> : null}
@@ -484,7 +484,7 @@ export function ExpenseSection({
               <div>
                 <Label htmlFor="e-commitment">Komitmen terbuka (opsional)</Label>
                 <Combobox id="e-commitment" name="commitmentId" defaultValue="">
-                  <option value="">— tanpa komitmen —</option>
+                  <option value="">– tanpa komitmen –</option>
                   {openCommitments.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.label}
@@ -551,7 +551,7 @@ export function ExpenseSection({
                   <td className={`${TD} tabular`}>{tgl(e.txDate)}</td>
                   <td className={`${TD} max-w-72`}>{e.description}</td>
                   <td className={TD}>{CATEGORY_LABEL[e.category]}</td>
-                  <td className={TD}>{e.commitmentNumber ?? <span className="text-ink-faint">—</span>}</td>
+                  <td className={TD}>{e.commitmentNumber ?? <span className="text-ink-faint">–</span>}</td>
                   <td className={`${TD} tabular text-right`}>{rp(e.amount)}</td>
                   <td className={TD}>
                     <Badge tone={APPROVAL_STATUS_TONE[e.status]} label={APPROVAL_STATUS_LABEL[e.status]} />
@@ -648,7 +648,7 @@ export function InvoiceSection({
               <div>
                 <Label htmlFor="i-commitment">Komitmen (opsional)</Label>
                 <Combobox id="i-commitment" name="commitmentId" defaultValue="">
-                  <option value="">— tanpa komitmen —</option>
+                  <option value="">– tanpa komitmen –</option>
                   {commitments.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.label}
@@ -704,9 +704,9 @@ export function InvoiceSection({
                       {inv.number}
                       {inv.vendorName ? <div className="text-xs font-normal text-ink-muted">{inv.vendorName}</div> : null}
                     </td>
-                    <td className={TD}>{inv.commitmentNumber ?? <span className="text-ink-faint">—</span>}</td>
+                    <td className={TD}>{inv.commitmentNumber ?? <span className="text-ink-faint">–</span>}</td>
                     <td className={`${TD} tabular`}>{tgl(inv.invoiceDate)}</td>
-                    <td className={`${TD} tabular`}>{inv.dueDate ? tgl(inv.dueDate) : "—"}</td>
+                    <td className={`${TD} tabular`}>{inv.dueDate ? tgl(inv.dueDate) : "–"}</td>
                     <td className={`${TD} tabular text-right`}>{rp(inv.amount)}</td>
                     <td className={`${TD} tabular text-right`}>{rp(inv.paidTotal)}</td>
                     <td className={TD}>
@@ -819,7 +819,7 @@ export function BillingSection({
             <Button type="submit" loading={pending}>
               Simpan draft termin
             </Button>
-            <HelpText>Termin dibuat sebagai draft — ajukan setelah dokumen tagihan siap.</HelpText>
+            <HelpText>Termin dibuat sebagai draft – ajukan setelah dokumen tagihan siap.</HelpText>
           </form>
         </ToggleFormCard>
       ) : null}
@@ -850,8 +850,8 @@ export function BillingSection({
                 return (
                   <tr key={b.id}>
                     <td className={`${TD} font-medium text-ink`}>Termin {b.terminNo}</td>
-                    <td className={`${TD} max-w-64`}>{b.description ?? <span className="text-ink-faint">—</span>}</td>
-                    <td className={`${TD} tabular`}>{b.billedDate ? tgl(b.billedDate) : "—"}</td>
+                    <td className={`${TD} max-w-64`}>{b.description ?? <span className="text-ink-faint">–</span>}</td>
+                    <td className={`${TD} tabular`}>{b.billedDate ? tgl(b.billedDate) : "–"}</td>
                     <td className={`${TD} tabular text-right`}>{rp(b.amount)}</td>
                     <td className={`${TD} tabular text-right`}>{rp(b.retentionHeld)}</td>
                     <td className={`${TD} tabular text-right`}>{rp(b.disbursedTotal)}</td>

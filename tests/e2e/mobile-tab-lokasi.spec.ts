@@ -68,7 +68,7 @@ test.describe("tab lokasi di ponsel", () => {
     await page.waitForTimeout(1_000);
 
     const awal = await geometri(page);
-    expect(awal.ada, "deret tab tidak ditemukan — selector uji ini sudah basi").toBe(true);
+    expect(awal.ada, "deret tab tidak ditemukan – selector uji ini sudah basi").toBe(true);
 
     // Halaman harus benar-benar bisa digulir; kalau tidak, uji ini tidak
     // membuktikan apa pun tentang "melekat".
@@ -170,7 +170,7 @@ test.describe("kalender harian: sel kosong", () => {
     const jumlah = await petak.locator("a").filter({ hasText: "Belum" }).count();
     // Kalau tidak ada satu pun, uji ini tidak membuktikan apa-apa — dan
     // "melewati" akan terbaca seperti "lulus".
-    expect(jumlah, "tidak ada sel kosong di bulan ini — data uji tidak menguji apa pun").toBeGreaterThan(0);
+    expect(jumlah, "tidak ada sel kosong di bulan ini – data uji tidak menguji apa pun").toBeGreaterThan(0);
 
     await kosong.click();
     await page.waitForLoadState("domcontentloaded");

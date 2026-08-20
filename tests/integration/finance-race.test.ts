@@ -57,7 +57,7 @@ afterAll(async () => {
   await db.$disconnect();
 });
 
-describe("B6 — pembayaran invoice tidak bisa dobel", () => {
+describe("B6 – pembayaran invoice tidak bisa dobel", () => {
   it("dua pembayaran PARALEL 60jt atas invoice 100jt → tepat satu ditolak", async () => {
     const invoice = await db.invoice.create({
       data: {
@@ -110,7 +110,7 @@ describe("B6 — pembayaran invoice tidak bisa dobel", () => {
   });
 });
 
-describe("B6 — pencairan termin tidak bisa dobel", () => {
+describe("B6 – pencairan termin tidak bisa dobel", () => {
   it("dua pencairan PARALEL 80jt atas termin 100jt → tepat satu ditolak", async () => {
     const billing = await db.ownerBilling.create({
       data: {

@@ -20,7 +20,7 @@ describe("kunciPengirim", () => {
     ).toBe("628111@c.us");
   });
 
-  it("@lid dipakai bila JID tidak ada — dan TIDAK dicampur dengan nomor", () => {
+  it("@lid dipakai bila JID tidak ada – dan TIDAK dicampur dengan nomor", () => {
     // Angka di dalam LID bukan nomor telepon (DECISIONS 347). Kalau keduanya
     // ditulis ke kunci yang sama, dua orang berbeda bisa bertabrakan.
     expect(
@@ -39,7 +39,7 @@ describe("kunciPengirim", () => {
     ).toBeNull();
   });
 
-  it("chat PRIBADI tanpa identitas masih aman — chat = orangnya", () => {
+  it("chat PRIBADI tanpa identitas masih aman – chat = orangnya", () => {
     expect(
       kunciPengirim({ senderJid: null, senderLid: null, fromNumber: null, chatId: "628111@c.us" }),
     ).toBe("628111@c.us");

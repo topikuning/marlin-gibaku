@@ -273,7 +273,7 @@ export async function generateChatSummary(
       error:
         all.length === 0
           ? "Tidak ada pesan maupun kiriman MARLIN pada tanggal ini."
-          : `Semua ${all.length} pesan pada tanggal ini berkonteks rendah (uji sistem/basa-basi) — tidak ada yang layak diringkas.`,
+          : `Semua ${all.length} pesan pada tanggal ini berkonteks rendah (uji sistem/basa-basi) – tidak ada yang layak diringkas.`,
     };
   }
 
@@ -319,7 +319,7 @@ export async function generateChatSummary(
   if (!result.ok) return { ok: false, error: result.error };
 
   const notes: string[] = [];
-  if (truncated) notes.push(`chat sangat panjang — ringkasan dari ${MAX_CHARS.toLocaleString("id-ID")} karakter pertama`);
+  if (truncated) notes.push(`chat sangat panjang – ringkasan dari ${MAX_CHARS.toLocaleString("id-ID")} karakter pertama`);
   if (skipped > 0) notes.push(`${skipped} pesan berkonteks rendah diabaikan`);
   const summaryText = notes.length ? `${result.text}\n\n(Catatan: ${notes.join("; ")}.)` : result.text;
 
@@ -401,7 +401,7 @@ export async function listSummariesForDate(user: SessionUser, dateKey: string): 
   });
   return rows.map((r) => ({
     packageId: r.packageId,
-    title: r.package.contract?.workTitle ? `${r.package.name} — ${r.package.contract.workTitle}` : r.package.name,
+    title: r.package.contract?.workTitle ? `${r.package.name} – ${r.package.contract.workTitle}` : r.package.name,
     summaryText: r.summaryText,
     messageCount: r.messageCount,
     updatedAt: r.updatedAt,

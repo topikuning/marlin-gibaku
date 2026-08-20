@@ -113,7 +113,7 @@ describe("parseWaEvent", () => {
  * yang harus tetap benar bersamaan: LID tidak pernah diselundupkan jadi nomor,
  * DAN nomor pasangannya tetap dipakai kalau memang ada di payload.
  */
-describe("parseWaEvent — pengirim @lid", () => {
+describe("parseWaEvent – pengirim @lid", () => {
   const dm = (payload: Record<string, unknown>) => ({
     event: "message",
     session: "default",
@@ -160,7 +160,7 @@ describe("parseWaEvent — pengirim @lid", () => {
   });
 });
 
-describe("medanJidPayload — diagnosa, bukan tebakan", () => {
+describe("medanJidPayload – diagnosa, bukan tebakan", () => {
   /*
    * Dokumentasi WAHA tidak terjangkau dari lingkungan kerja ini, dan nama medan
    * pasangan LID berubah antar rilis. Tanpa jejak ini, menutup celahnya berarti
@@ -214,7 +214,7 @@ describe("normalizeChatId", () => {
     }
   });
 
-  it("sufiks PERANGKAT dibuang — kalau tidak, nomornya jadi salah", () => {
+  it("sufiks PERANGKAT dibuang – kalau tidak, nomornya jadi salah", () => {
     /*
      * Diukur sebelum perbaikan: "6281234757999:12@s.whatsapp.net" menghasilkan
      * nomor 628123475799912. Bukan sekadar tidak cocok — itu nomor orang lain.
@@ -255,7 +255,7 @@ describe("normalizeChatId", () => {
   });
 });
 
-describe("varianChatId — data LAMA tetap cocok", () => {
+describe("varianChatId – data LAMA tetap cocok", () => {
   it("mencakup bentuk yang mungkin sudah tersimpan sebelum kanonikalisasi", () => {
     const v = varianChatId("6281234757999@s.whatsapp.net");
     expect(v).toContain("6281234757999@c.us");
@@ -280,7 +280,7 @@ describe("varianChatId — data LAMA tetap cocok", () => {
   });
 });
 
-describe("parseWaEvent — bentuk MENTAH NOWEB (payload.key)", () => {
+describe("parseWaEvent – bentuk MENTAH NOWEB (payload.key)", () => {
   it("chatId di key.remoteJid: dibaca, bukan dibuang", () => {
     // Diukur sebelum perbaikan: seluruh pesan berbentuk ini dikembalikan null.
     const m = parseWaEvent({
@@ -310,7 +310,7 @@ describe("parseWaEvent — bentuk MENTAH NOWEB (payload.key)", () => {
     expect(m!.fromNumber).toBe("6281234757999");
   });
 
-  it("key.fromMe dikenali — kalau tidak, MARLIN membalas dirinya sendiri", () => {
+  it("key.fromMe dikenali – kalau tidak, MARLIN membalas dirinya sendiri", () => {
     const m = parseWaEvent({
       event: "message",
       payload: {
@@ -332,7 +332,7 @@ describe("parseWaEvent — bentuk MENTAH NOWEB (payload.key)", () => {
   });
 });
 
-describe("kerangkaPayload — diagnosa tanpa membocorkan chat", () => {
+describe("kerangkaPayload – diagnosa tanpa membocorkan chat", () => {
   it("menyebut medan bersarang, termasuk key.remoteJid", () => {
     const s = kerangkaPayload({
       payload: { key: { remoteJid: "6281234757999@s.whatsapp.net", fromMe: false } },
@@ -465,7 +465,7 @@ describe("nomor pasangan @lid dari payload ASLI (DECISIONS 350)", () => {
     expect(m.fromNumber).toBe("6281234757999");
   });
 
-  it("LID tetap direkam terpisah — keduanya, bukan salah satu", () => {
+  it("LID tetap direkam terpisah – keduanya, bukan salah satu", () => {
     const m = parseWaEvent(asli)!;
     expect(m.senderLid).toBe("143026840146095@lid");
   });
@@ -476,7 +476,7 @@ describe("nomor pasangan @lid dari payload ASLI (DECISIONS 350)", () => {
     expect(parseWaEvent(asli)!.fromNumber).not.toContain("143026840146095");
   });
 
-  it("POLA nama medan, bukan daftar nama — bertahan melewati penggantian", () => {
+  it("POLA nama medan, bukan daftar nama – bertahan melewati penggantian", () => {
     /*
      * Menambah satu nama per temuan berarti menunggu satu pesan asli per rilis
      * WAHA. Yang dicari sekarang polanya: akhiran `Pn` / `Alt`.
@@ -521,7 +521,7 @@ describe("nomor pasangan @lid dari payload ASLI (DECISIONS 350)", () => {
     expect(m.fromNumber).toBe("6281234757999");
   });
 
-  it("tanpa medan pasangan: null, JATUH ke pemetaan admin — bukan menebak", () => {
+  it("tanpa medan pasangan: null, JATUH ke pemetaan admin – bukan menebak", () => {
     const m = parseWaEvent({
       event: "message",
       payload: { id: "d3", timestamp: 1, from: "143026840146095@lid" },
@@ -543,7 +543,7 @@ describe("nomor pasangan @lid dari payload ASLI (DECISIONS 350)", () => {
     expect(m.fromNumber).toBeNull();
   });
 
-  it("diagnosa tetap menyebut key.remoteJidAlt — itu yang menemukan cacat ini", () => {
+  it("diagnosa tetap menyebut key.remoteJidAlt – itu yang menemukan cacat ini", () => {
     // Kalau baris diagnosa ini hilang, temuan berikutnya kembali jadi tebakan.
     expect(medanJidPayload(asli)).toContain("key.remoteJidAlt=6281234757999@s.whatsapp.net");
   });

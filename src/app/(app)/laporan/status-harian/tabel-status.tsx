@@ -150,7 +150,7 @@ export function TabelStatus({ rows, dateKey }: Props) {
               label={d.diDrive === "Sudah" ? "Sudah" : d.diDrive === "Gagal" ? "Ulangi" : "Unggah"}
               judul={
                 halangan === "Tanpa folder"
-                  ? "Paket belum punya folder Google Drive — tidak bisa diunggah"
+                  ? "Paket belum punya folder Google Drive – tidak bisa diunggah"
                   : halangan === "Kosong"
                     ? "Belum ada isi yang bisa diunggah"
                     : d.diDrive === "Sudah"
@@ -174,7 +174,7 @@ export function TabelStatus({ rows, dateKey }: Props) {
                 if (
                   d.diDrive === "Sudah" &&
                   !window.confirm(
-                    `Unggah ulang ${d.lokasi} ke Google Drive?\n\nSudah pernah diunggah — ${d.driveKeterangan}.\n\nBerkas dengan nama sama akan diganti (tidak menumpuk), tapi PDF-nya dibuat ulang dan semua fotonya ditarik ulang dari penyimpanan lalu dinaikkan lagi. Kalau tidak ada yang berubah, tidak perlu diulang.`,
+                    `Unggah ulang ${d.lokasi} ke Google Drive?\n\nSudah pernah diunggah – ${d.driveKeterangan}.\n\nBerkas dengan nama sama akan diganti (tidak menumpuk), tapi PDF-nya dibuat ulang dan semua fotonya ditarik ulang dari penyimpanan lalu dinaikkan lagi. Kalau tidak ada yang berubah, tidak perlu diulang.`,
                   )
                 )
                   return;
@@ -203,7 +203,7 @@ export function TabelStatus({ rows, dateKey }: Props) {
               label={d.waTerkirim ? "Sudah" : "Kirim"}
               judul={
                 halangan === "Tanpa grup"
-                  ? "Paket belum punya grup WhatsApp — tidak bisa dikirim"
+                  ? "Paket belum punya grup WhatsApp – tidak bisa dikirim"
                   : halangan === "Kosong"
                     ? "Belum ada yang bisa dikirim"
                     : d.waTerkirim
@@ -219,7 +219,7 @@ export function TabelStatus({ rows, dateKey }: Props) {
                   d.status === "final"
                     ? ""
                     : status
-                      ? `\n\nLaporan ini berstatus "${status}" — belum dikunci, dan status itu ikut tercetak di PDF.`
+                      ? `\n\nLaporan ini berstatus "${status}" – belum dikunci, dan status itu ikut tercetak di PDF.`
                       : "\n\nBelum ada laporan harian untuk tanggal ini; yang terkirim hanya kegiatan lapangan dan fotonya.";
                 const ulang = d.waTerkirim ? "\n\nRingkasan tanggal ini SUDAH pernah dikirim." : "";
                 if (
@@ -379,7 +379,7 @@ function TombolAksi({
         <Ikon aria-hidden className="size-3.5 shrink-0" />
       )}
       {label}
-      <span className="sr-only"> — {judul}</span>
+      <span className="sr-only"> – {judul}</span>
     </button>
   );
 }

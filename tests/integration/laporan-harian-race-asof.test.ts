@@ -130,7 +130,7 @@ async function draftDenganVolume(lok: { locationId: string; nodeId: string }, da
   return draft;
 }
 
-describe("CALC-02 — dua submit PARALEL di satu lokasi tidak boleh sama-sama lolos", () => {
+describe("CALC-02 – dua submit PARALEL di satu lokasi tidak boleh sama-sama lolos", () => {
   it("dua laporan BERBEDA masing-masing 60 m3 atas RAB 100 m3 → tepat satu ditolak", async () => {
     const lok = await buatLokasi();
     const a = await draftDenganVolume(lok, "2026-07-10", 60);
@@ -155,7 +155,7 @@ describe("CALC-02 — dua submit PARALEL di satu lokasi tidak boleh sama-sama lo
   });
 });
 
-describe("CALC-01 — snapshot final memotret progres PADA TANGGAL LAPORAN", () => {
+describe("CALC-01 – snapshot final memotret progres PADA TANGGAL LAPORAN", () => {
   let lok: { locationId: string; nodeId: string };
   let idLama: string;
 

@@ -197,7 +197,7 @@ export function useAntreanFoto() {
         await perbarui(r.id, {
           status: "rusak",
           pesan:
-            "Isi fotonya hilang dari simpanan HP (peramban melepas berkasnya) — tidak bisa dikirim. Buang saja lalu potret ulang.",
+            "Isi fotonya hilang dari simpanan HP (peramban melepas berkasnya) – tidak bisa dikirim. Buang saja lalu potret ulang.",
         });
         await muat();
         return;
@@ -257,10 +257,10 @@ export function useAntreanFoto() {
         await perbarui(r.id, {
           status: statusDariKegagalan("jaringan"),
           pesan: habisWaktu
-            ? "Server tidak menjawab sampai 60 detik — akan dicoba lagi otomatis."
+            ? "Server tidak menjawab sampai 60 detik – akan dicoba lagi otomatis."
             : !daring
-              ? "Belum ada jaringan — akan dicoba lagi otomatis."
-              : `Pengiriman gagal padahal jaringan TERDETEKSI ADA — ${nama}. Akan dicoba lagi otomatis.`,
+              ? "Belum ada jaringan – akan dicoba lagi otomatis."
+              : `Pengiriman gagal padahal jaringan TERDETEKSI ADA – ${nama}. Akan dicoba lagi otomatis.`,
           percobaan: r.percobaan + 1,
         });
       }
@@ -334,7 +334,7 @@ export function useAntreanFoto() {
   const titip = useCallback(
     async (file: File, posisi: PosisiJepret): Promise<boolean> => {
       if (!simpananTersedia()) {
-        setPenuh("Peramban ini tidak mendukung simpanan lokal — foto dikirim langsung tanpa antrean.");
+        setPenuh("Peramban ini tidak mendukung simpanan lokal – foto dikirim langsung tanpa antrean.");
         return false;
       }
       const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -358,7 +358,7 @@ export function useAntreanFoto() {
           e instanceof SimpananPenuh || e instanceof SimpananTakTerbaca
             ? e.message
             : e instanceof Error
-              ? `Gagal menyimpan foto di HP — ${e.message}`
+              ? `Gagal menyimpan foto di HP – ${e.message}`
               : "Gagal menyimpan foto di perangkat.",
         );
         return false;

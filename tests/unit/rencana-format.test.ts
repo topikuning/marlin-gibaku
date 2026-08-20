@@ -88,7 +88,7 @@ describe("proyeksi kalau rencana diikuti", () => {
   });
 });
 
-describe("PPC — Percent Plan Complete", () => {
+describe("PPC – Percent Plan Complete", () => {
   it("dihitung PER KOMITMEN dan BINER, bukan tertimbang volume", () => {
     // Inti Last Planner System: pekerjaan 80% selesai TIDAK melepaskan
     // penerusnya. Empat komitmen, satu tuntas → 25%, walau volumenya hampir
@@ -136,7 +136,7 @@ describe("status deviasi", () => {
     expect(statusDeviasi(-10.1)).toBe("kritis");
   });
 
-  it("tiap status punya label teks — bukan warna saja", () => {
+  it("tiap status punya label teks – bukan warna saja", () => {
     // Berkas ini dicetak hitam-putih dan dibaca orang yang mungkin buta warna.
     for (const s of ["aman", "perhatian", "kritis"] as const) {
       expect(LABEL_STATUS[s]).toBeTruthy();

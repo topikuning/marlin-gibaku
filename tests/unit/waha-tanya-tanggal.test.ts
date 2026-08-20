@@ -102,7 +102,7 @@ describe("tanggal yang DITULIS penanya", () => {
     );
   });
 
-  it("tahun DISEBUT dipakai apa adanya, walau di depan — tapi diberi catatan", () => {
+  it("tahun DISEBUT dipakai apa adanya, walau di depan – tapi diberi catatan", () => {
     const r = bacaPeriode({ jenis: "tanggal", hari: 1, bulan: 12, tahun: 2027 }, HARI_INI);
     expect(r.mulai).toBe("2027-12-01");
     expect(r.catatan).toContain("belum terjadi");

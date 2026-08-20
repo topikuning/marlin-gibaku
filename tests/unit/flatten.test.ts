@@ -150,7 +150,7 @@ describe("apportion (largest remainder)", () => {
   });
 });
 
-describe("flattenParsedRab (nilai desimal — cocok Excel)", () => {
+describe("flattenParsedRab (nilai desimal – cocok Excel)", () => {
   const decFixture: ParsedRab = {
     meta: fixture.meta,
     project: "DEC",

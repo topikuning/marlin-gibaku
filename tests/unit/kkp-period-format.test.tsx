@@ -96,7 +96,7 @@ function fixture(): PeriodReport {
 
 const html = () => renderToStaticMarkup(<KkpPeriodReport r={fixture()} />);
 
-describe("blanko periodik KKP — satu konvensi desimal (FMT-01)", () => {
+describe("blanko periodik KKP – satu konvensi desimal (FMT-01)", () => {
   it("persen memakai KOMA desimal, bukan titik", () => {
     const t = html();
     expect(t).toContain("12,40%"); // bobot kategori

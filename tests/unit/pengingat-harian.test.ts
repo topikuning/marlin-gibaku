@@ -29,17 +29,17 @@ describe("pesan pengingat: hanya menagih yang perlu", () => {
     ])!;
     expect(t).toContain("Prio Yulianto");
     expect(t).toContain("1 Agt 2026");
-    expect(t).toContain("Pengaradan — belum ada laporan");
+    expect(t).toContain("Pengaradan – belum ada laporan");
     expect(t).toContain("1 lokasi");
   });
 
-  it("membedakan BELUM ADA dari MASIH DRAF — dua masalah yang berbeda", () => {
+  it("membedakan BELUM ADA dari MASIH DRAF – dua masalah yang berbeda", () => {
     const t = pesanPengingat("Budi", "1 Agt 2026", [
       { nama: "Alfa", adaDraft: true },
       { nama: "Beta", adaDraft: false },
     ])!;
-    expect(t).toContain("Alfa — masih DRAF, belum dikirim");
-    expect(t).toContain("Beta — belum ada laporan");
+    expect(t).toContain("Alfa – masih DRAF, belum dikirim");
+    expect(t).toContain("Beta – belum ada laporan");
     expect(t).toContain("2 lokasi");
   });
 
