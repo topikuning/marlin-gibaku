@@ -918,6 +918,11 @@ export async function addIssueFromReport(reportId: string, input: IssueInput, us
       description: input.description?.trim() || null,
       severity: input.severity,
       raisedById: userId,
+      // Ditulis TEGAS, bukan mengandalkan default `manual` di skema. Tanpa ini
+      // kendala dari laporan harian berlabel "Dicatat langsung" di papan, dan
+      // saringan Sumber diam-diam salah – label yang salah lebih buruk
+      // daripada label yang tidak ada. DECISIONS 392.
+      source: "laporan_harian",
     },
   });
   await audit(userId, "issue.create", "issue", issue.id, { reportId, severity: input.severity });

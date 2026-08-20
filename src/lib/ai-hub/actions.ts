@@ -267,6 +267,9 @@ export async function terapkanSaranAction(_prev: AiHubState, formData: FormData)
           description: isi.detail ?? null,
           severity,
           raisedById: user.id,
+          // Kendala usulan Ask MARLIN yang disetujui orang. Ditulis tegas
+          // supaya saringan Sumber di papan kendala tidak berbohong.
+          source: "ai",
         },
         select: { id: true },
       });
