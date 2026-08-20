@@ -18,6 +18,7 @@ import { medanJidPayload, parseWaEvent, type ParsedWaMessage } from "./ingest-pa
 import { kanonikGrupId } from "./grup-id";
 import { bersihkanMention, cocokkanNomorPengguna, diajakBicara } from "./tanya-izin";
 import { putuskanLayanan } from "./resolver-kanal";
+import { potongPesan } from "./potong-pesan";
 import {
   PETUNJUK_SKEMA,
   SISTEM_PROMPT,
@@ -26,14 +27,20 @@ import {
   type LokasiKatalog,
   type Niat,
 } from "./tanya-niat";
-import { rencanaDeterministik } from "./parser-niat";
+import {
+  frasaSisa,
+  mintaLupakanKonteks,
+  mintaSebab,
+  rencanaDeterministik,
+  type UrutanJawaban,
+} from "./parser-niat";
 import {
   UMUR_KLARIFIKASI_MENIT,
   ambilPilihan,
   catatIdTawaran,
   simpanTawaran,
 } from "./klarifikasi";
-import { ambilKonteks, simpanKonteks } from "./konteks-lanjutan";
+import { ambilKonteks, lupakanKonteks, simpanKonteks } from "./konteks-lanjutan";
 import { LABEL_JENIS, cariNarasiAman } from "@/lib/narasi/cari";
 import {
   balasAmbigu,
@@ -42,6 +49,7 @@ import {
   balasDitolak,
   balasKelengkapan,
   balasKendala,
+  balasLupakan,
   balasLaporan,
   balasMingguan,
   balasNarasi,
@@ -397,7 +405,17 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
    * `rencanaDeterministik`. Sisanya jatuh ke AI persis seperti dulu, jadi ini
    * hanya bisa menghemat, tidak bisa memperluas jawaban.
    */
-  type Terbaca = { niat: Niat; lokasiDisebut: string[]; periode: PeriodeDiminta };
+  type Terbaca = {
+    niat: Niat;
+    lokasiDisebut: string[];
+    periode: PeriodeDiminta;
+    /**
+     * Urutan yang diminta penanya (DECISIONS 390). Hanya lahir dari parser
+     * deterministik: AI TIDAK diminta menebaknya, karena kata superlatif yang
+     * salah baca menghasilkan daftar yang berkebalikan tanpa satu pun tanda.
+     */
+    urutan?: UrutanJawaban | null;
+  };
 
   // `m` sudah dipastikan ada di awal fungsi, tapi penyempitan itu tidak ikut
   // masuk ke dalam closure di bawah. Diikat sekali di sini supaya jalur AI
@@ -493,10 +511,25 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
    * menyerah yang lama.
    */
   async function jawabDariCatatan(): Promise<HasilTanya | null> {
-    // Katalog sudah dipotong izin & lingkup grup — dipakai apa adanya supaya
-    // pencarian tidak pernah punya jangkauan lebih luas daripada jawaban lain.
+    /*
+     * Nama lokasi di pertanyaan DIHORMATI juga di jalur ini (DECISIONS 390).
+     *
+     * Dilaporkan user 2026-08-20 dengan tangkapan layar: *"kenapa randu putih
+     * deviasi negatifnya tinggi"* dijawab catatan dari Betahwalang,
+     * Kedungmutih, dan Purworejo – *"malah daerahnya kemana-mana"*. Dua sebab:
+     * "randu putih" tidak cocok ke "Randuputih" (diperbaiki di
+     * `cocokkanLokasi`), dan jalur ini mencari ke SELURUH katalog tanpa peduli
+     * penanya menyebut lokasi.
+     *
+     * Yang paling merusak bukan cakupannya, melainkan diamnya: balasan itu
+     * tidak menyebut satu kata pun bahwa nama yang ditulis penanya tidak
+     * dikenali, jadi ia terbaca sebagai jawaban ATAS Randu Putih.
+     */
+    const resolusiNarasi = resolusiLokasi(frasaSisa(teks), katalog);
+    const lingkup = resolusiNarasi.cocok.length > 0 ? resolusiNarasi.cocok : katalog;
+
     const potongan = await cariNarasiAman({
-      locationIds: katalog.map((l) => l.id),
+      locationIds: lingkup.map((l) => l.id),
       pertanyaan: teks,
       batas: 5,
     });
@@ -514,7 +547,9 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
             teks: p.teks,
           })),
         },
-        { catatanPemotongan },
+        // `resolusi` membawa nama yang TIDAK dikenali ke kaki balasan — itulah
+        // yang hilang di layar user.
+        { catatanPemotongan, resolusi: resolusiNarasi },
       ),
     );
     await audit(user?.id ?? null, "waha.tanya.narasi", "wa_message", pesan.waMessageId, {
@@ -537,6 +572,25 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
    * dihitung saat tawaran dibuat dan disimpan utuh, jadi menjawabnya TIDAK
    * memanggil AI lagi — itu inti butir 22 brief.
    */
+  /*
+   * (6-0) "abaikan" / "lupakan" — perintah, bukan pertanyaan (DECISIONS 390).
+   *
+   * Diperiksa PALING DULU, sebelum tawaran klarifikasi maupun parser: begitu
+   * penanya minta melupakan, tidak ada satu pun sisa percakapan yang boleh
+   * ikut menentukan balasan berikutnya. User mengetik ini secara alami setelah
+   * menerima jawaban yang melenceng, dan sebelumnya dijawab "belum mengerti"
+   * sambil TETAP memegang konteks yang salah.
+   */
+  if (mintaLupakanKonteks(teks)) {
+    const adaKonteks = await lupakanKonteks(m);
+    await sendText(m.chatId, balasLupakan(adaKonteks));
+    await audit(user?.id ?? null, "waha.tanya.lupakan", "wa_message", m.waMessageId, {
+      chatId: m.chatId,
+      adaKonteks,
+    });
+    return { dijawab: true, alasan: "konteks dilepas atas permintaan" };
+  }
+
   const pilihan = await ambilPilihan(m, teks);
   if (pilihan.jenis === "kedaluwarsa") {
     // DIKATAKAN, bukan didiamkan: penanya baru saja mengetik angka dan berhak
@@ -571,6 +625,7 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
         niat: rencana.niat,
         lokasiDisebut: rencana.lokasiDisebut,
         periode: rencana.periode,
+        urutan: rencana.urutan,
       };
     } else if (rencana.jenis === "ambigu") {
       /*
@@ -585,7 +640,25 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
        * susulan SELALU menang: konteks tidak pernah menambahi lokasi pada
        * pertanyaan yang sudah menyebut lokasinya sendiri.
        */
-      const konteks = await ambilKonteks(m);
+      /*
+       * Konteks hanya dipinjam bila penanya BENAR-BENAR tidak menyebut
+       * maksudnya (`sebab === "tanpa_niat"`).
+       *
+       * Cacat produksi 2026-08-20, dilaporkan user dengan tangkapan layar:
+       *
+       *   "siapa yang belum lapor kemarin?"  → Kelengkapan laporan, kemarin ✓
+       *   "kendala minggu lalu"              → Kelengkapan laporan, minggu lalu ✗
+       *
+       * Pertanyaan kedua menyebut "kendala" sejelas-jelasnya; yang bercabang
+       * cuma cara membacanya (DECISIONS 381). Tapi kedua bentuk ambigu dulu
+       * bertipe sama, jadi cabang ini meminjam niat lama dan MEMBUANG kata
+       * yang baru saja ditulis penanya — lalu menjawabnya dengan percaya diri.
+       *
+       * Ini kelas kesalahan terburuk di seluruh fitur: bukan "tidak bisa
+       * menjawab", melainkan menjawab pertanyaan yang tidak diajukan, dengan
+       * angka yang benar untuk pertanyaan yang salah.
+       */
+      const konteks = rencana.sebab === "tanpa_niat" ? await ambilKonteks(m) : null;
       if (konteks) {
         jalur = "lanjutan";
         const disebutSusulan = rencana.kandidat[0].lokasiDisebut;
@@ -690,7 +763,26 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
   // Satu hari → tanggal itu. Rentang → ujung akhirnya, karena angka kumulatif
   // (progress/deviasi) selalu "posisi PADA suatu hari", bukan penjumlahan hari.
   const dateKey = periode.akhir;
-  const tanggal = periode.label;
+  /*
+   * Kepala balasan menyebut TANGGAL NYATA, bukan cuma labelnya (DECISIONS 390).
+   *
+   * Permintaan user 2026-08-20: *"jawaban sudah lumayan oke, tapi seharusnya
+   * jawaban ini disertai tanggal"*. Alasannya lebih dari kerapian: balasan
+   * WhatsApp di-screenshot lalu diteruskan ke PPK berhari-hari kemudian, dan
+   * di situ "kemarin lusa" tidak lagi berarti apa-apa – bahkan menyesatkan,
+   * karena "kemarin"-nya pembaca bukan "kemarin"-nya penanya.
+   *
+   * Untuk RENTANG ditulis "posisi <tanggal>", karena angka kumulatif memang
+   * posisi pada hari terakhir rentang, bukan penjumlahan sepanjang rentang.
+   */
+  const tglAkhir = parseDateKey(dateKey) ?? jakartaToday();
+  const tanggalNyata = formatTanggal(tglAkhir, "d MMMM yyyy");
+  const tanggal =
+    periode.label === tanggalNyata
+      ? periode.label
+      : periode.satuHari
+        ? `${periode.label} · ${tanggalNyata}`
+        : `${periode.label} · posisi ${tanggalNyata}`;
   opts.catatanPeriode = periode.catatan;
   let balasan: string;
 
@@ -784,8 +876,11 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
       },
     );
   } else if (niat.niat === "progress") {
-    const d = await dataProgress(sasaran, dateKey);
-    balasan = balasProgress({ tanggal, baris: d.baris }, { ...opts, catatanBatas: d.catatanBatas });
+    const d = await dataProgress(sasaran, dateKey, niat.urutan ?? null);
+    balasan = balasProgress(
+      { tanggal, baris: d.baris, urutan: niat.urutan ?? null },
+      { ...opts, catatanBatas: d.catatanBatas },
+    );
   } else if (niat.niat === "deviasi") {
     const d = await dataDeviasi(sasaran, dateKey);
     balasan = balasDeviasi(
@@ -826,10 +921,72 @@ export async function jawabPertanyaanWa(body: unknown): Promise<HasilTanya> {
    * setiap kali. Mengulang keterangan yang benar jauh lebih ringan daripada
    * menghilangkannya lewat tebakan "sudah pernah dikirim".
    */
-  await sendText(
-    m.chatId,
-    keputusan.penandaLingkup ? `${keputusan.penandaLingkup}\n\n${balasan}` : balasan,
-  );
+  /*
+   * Dikirim BERTAHAP bila panjang (DECISIONS 390).
+   *
+   * Semua balasan berdata melewati satu titik ini, jadi pemotongannya cukup
+   * dipasang sekali — bukan di tujuh perakit balasan yang masing-masing bisa
+   * lupa.
+   *
+   * Berurutan (`for await`), bukan `Promise.all`: WhatsApp tidak menjamin
+   * urutan tiba untuk kiriman yang berangkat bersamaan, dan "bagian 2/3" yang
+   * mendarat sebelum "bagian 1/3" lebih membingungkan daripada satu pesan
+   * panjang.
+   */
+  const utuh = keputusan.penandaLingkup
+    ? `${keputusan.penandaLingkup}\n\n${balasan}`
+    : balasan;
+  const { bagian } = potongPesan(utuh);
+  for (const b of bagian) {
+    await sendText(m.chatId, b);
+  }
+
+  /*
+   * Pertanyaan "KENAPA" mendapat SEBABNYA, bukan cuma angkanya (DECISIONS 390).
+   *
+   * Keberatan user 2026-08-20: *"kenapa randuputih tertinggal, malah cuma
+   * jawab progress"*. Balasannya benar – deviasi −30,93% – tapi menjawab
+   * "berapa", bukan "kenapa". Angkanya justru sudah diketahui penanya; itulah
+   * sebabnya ia bertanya.
+   *
+   * Yang ditambahkan BUKAN karangan model: kutipan catatan pelapor apa adanya,
+   * lewat jalur yang sama dengan DECISIONS 383, lengkap dengan penandanya
+   * ("kutipan pelapor, bukan angka resmi MARLIN"). Angka resmi tetap di depan
+   * dan tidak tersentuh — pertanyaan "kenapa" tidak boleh menjadi celah bagi
+   * angka yang tidak lewat calculation layer.
+   *
+   * Dikirim sebagai pesan TERPISAH supaya batas antara "angka MARLIN" dan
+   * "kata pelapor" terlihat, bukan menyatu dalam satu gelembung.
+   */
+  if (mintaSebab(teks) && niat.niat !== "bantuan") {
+    const catatan = await cariNarasiAman({
+      locationIds: sasaran.map((l) => l.id),
+      pertanyaan: teks,
+      batas: 3,
+    });
+    if (catatan.length > 0) {
+      const teksSebab = balasNarasi(
+        {
+          pertanyaan: teks,
+          baris: catatan.map((p) => ({
+            lokasi: p.namaLokasi,
+            jenis: LABEL_JENIS[p.jenis],
+            tanggal: p.tanggal,
+            teks: p.teks,
+          })),
+        },
+        {},
+      );
+      for (const b of potongPesan(teksSebab).bagian) {
+        await sendText(m.chatId, b);
+      }
+      await audit(user?.id ?? null, "waha.tanya.sebab", "wa_message", m.waMessageId, {
+        chatId: m.chatId,
+        niat: niat.niat,
+        potongan: catatan.length,
+      });
+    }
+  }
 
   /*
    * Pertanyaan ini menjadi KONTEKS untuk susulan berikutnya (DECISIONS 377).

@@ -120,6 +120,19 @@ export function balasAmbigu(
   return ["Nama lokasinya belum pasti:", "", ...b, "", "Tolong sebut nama lengkapnya."].join("\n");
 }
 
+/**
+ * Balasan atas perintah "abaikan" / "lupakan" (DECISIONS 390).
+ *
+ * Membedakan "sudah saya lupakan" dari "memang tidak ada yang saya ingat":
+ * kalau keduanya dijawab sama, penanya tidak pernah tahu apakah perintahnya
+ * benar-benar berlaku – dan itu justru alasan ia mengetiknya.
+ */
+export function balasLupakan(adaKonteks: boolean): string {
+  return adaKonteks
+    ? "Baik, saya lupakan percakapan sebelumnya. Pertanyaan berikutnya saya baca dari nol – sebutkan lokasi & periodenya kalau perlu."
+    : "Tidak ada percakapan yang sedang saya ingat, jadi tidak ada yang perlu dilupakan. Silakan tanya apa saja.";
+}
+
 export function balasDitolak(alasan: string): string {
   return alasan;
 }
@@ -194,26 +207,51 @@ export type BarisProgress = {
   statusHariIni?: string | null;
 };
 
+/**
+ * Judul yang MENGAKU diurutkan.
+ *
+ * Daftar yang diurutkan lalu dipotong tanpa menyebut urutannya terbaca sebagai
+ * "inilah lokasinya" – padahal ia "inilah 15 teratas". Bedanya menentukan
+ * tindakan orang yang membacanya.
+ */
+function judulProgress(urutan: "terbaik" | "terburuk" | null): string {
+  if (urutan === "terbaik") return "Progress – terbaik dulu";
+  if (urutan === "terburuk") return "Progress – terburuk dulu";
+  return "Progress";
+}
+
 export function balasProgress(
-  r: { tanggal: string; baris: BarisProgress[] },
+  r: { tanggal: string; baris: BarisProgress[]; urutan?: "terbaik" | "terburuk" | null },
   opts: OpsiKaki = {},
 ): string {
+  const judul = judulProgress(r.urutan ?? null);
   if (r.baris.length === 0) {
-    return kepala("Progress", r.tanggal) + "\n\nTidak ada lokasi yang cocok." + kaki(opts);
+    return kepala(judul, r.tanggal) + "\n\nTidak ada lokasi yang cocok." + kaki(opts);
   }
   const isi = r.baris.map((b) => {
-    const hariIni =
+    /*
+     * TIDAK menulis "hari ini".
+     *
+     * Cacat produksi 2026-08-20, terlihat di tangkapan layar user: pertanyaan
+     * "kalau kemarin lusa?" dijawab dengan baris "2 item dilaporkan HARI INI".
+     * Itemnya memang dua, tapi dilaporkan kemarin lusa – kalimatnya menempelkan
+     * hari yang salah pada angka yang benar, yaitu jenis kesalahan yang paling
+     * sulit dibantah karena angkanya sendiri tidak keliru.
+     *
+     * Harinya sudah disebut sekali di kepala balasan; mengulanginya per baris
+     * hanya menambah kesempatan untuk salah.
+     */
+    const laporan =
       b.itemHariIni === null
-        ? "belum ada laporan hari ini"
-        : `${b.itemHariIni} item dilaporkan hari ini` +
-          (b.statusHariIni ? ` (${b.statusHariIni})` : "");
+        ? "belum ada laporan"
+        : `${b.itemHariIni} item dilaporkan` + (b.statusHariIni ? ` (${b.statusHariIni})` : "");
     return [
       `*${b.lokasi}*`,
       `  realisasi ${pct(b.realisasiPct)} · rencana ${pct(b.rencanaPct)} · deviasi ${bertanda(b.deviasiPct)}`,
-      `  ${hariIni}`,
+      `  ${laporan}`,
     ].join("\n");
   });
-  return kepala("Progress", r.tanggal) + "\n\n" + isi.join("\n\n") + kaki(opts);
+  return kepala(judul, r.tanggal) + "\n\n" + isi.join("\n\n") + kaki(opts);
 }
 
 export type BarisDeviasi = { lokasi: string; deviasiPct: number; realisasiPct: number; rencanaPct: number };

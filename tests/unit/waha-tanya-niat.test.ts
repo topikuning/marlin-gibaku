@@ -383,8 +383,15 @@ describe("balasan berdata selalu jujur soal batasnya", () => {
       },
       {},
     );
-    expect(t).toContain("belum ada laporan hari ini");
-    expect(t).toContain("0 item dilaporkan hari ini");
+    /*
+     * TANPA kata "hari ini" (DECISIONS 390): balasan yang sama dipakai untuk
+     * pertanyaan hari lain, dan versi lama menulis "dilaporkan HARI INI" pada
+     * jawaban "kemarin lusa" – hari yang salah ditempelkan pada angka yang
+     * benar. Harinya sudah disebut sekali di kepala balasan.
+     */
+    expect(t).toContain("belum ada laporan");
+    expect(t).toContain("0 item dilaporkan");
+    expect(t).not.toContain("hari ini");
   });
 
   it("kelengkapan menyebut berapa yang beres DARI berapa", () => {
@@ -428,5 +435,46 @@ describe("balasan berdata selalu jujur soal batasnya", () => {
     const t = balasKelengkapan({ tanggal: "17 Agu 2026", perlu: [], total: 0 }, {});
     expect(t).not.toContain("⚠️");
     expect(t).not.toContain("ℹ️");
+  });
+});
+
+describe("nama lokasi bespasi vs menyatu (DECISIONS 390)", () => {
+  /*
+   * Dilaporkan user 2026-08-20 dengan tangkapan layar: *"aku sengaja ketik
+   * randu putih, seharusnya randuputih malah daerahnya kemana-mana"*.
+   *
+   * Yang terjadi: "randu putih" tidak cocok dengan apa pun, pertanyaannya
+   * jatuh ke jalur catatan lapangan, lalu dijawab dengan catatan lokasi LAIN
+   * (Betahwalang, Kedungmutih, Purworejo) – tanpa satu pun tanda bahwa nama
+   * yang ia tulis tidak dikenali. Jawaban yang sepenuhnya nyambung ke
+   * pertanyaan yang tidak diajukan.
+   */
+  const kat: LokasiKatalog[] = [
+    { id: "1", nama: "Randuputih", desa: "Randuputih", kecamatan: "Dringu", kabupaten: "Probolinggo", provinsi: "Jawa Timur" },
+    { id: "2", nama: "Batah Timur", desa: "Batah Timur", kecamatan: null, kabupaten: "Bangkalan", provinsi: "Jawa Timur" },
+  ];
+
+  it('"randu putih" cocok ke Randuputih', () => {
+    const r = cocokkanLokasi("randu putih", kat);
+    expect(r.jenis).toBe("tepat");
+    if (r.jenis === "tepat") expect(r.lokasi.nama).toBe("Randuputih");
+  });
+
+  it('sebaliknya juga: "batahtimur" cocok ke Batah Timur', () => {
+    const r = cocokkanLokasi("batahtimur", kat);
+    expect(r.jenis).toBe("tepat");
+    if (r.jenis === "tepat") expect(r.lokasi.nama).toBe("Batah Timur");
+  });
+
+  it("nama yang memang bespasi tetap menang lebih dulu", () => {
+    // Pencocokan rapat adalah lapis TERAKHIR; ia tidak boleh menyalip
+    // pencocokan biasa yang sudah benar.
+    const r = cocokkanLokasi("Batah Timur", kat);
+    expect(r.jenis).toBe("tepat");
+    if (r.jenis === "tepat") expect(r.lokasi.nama).toBe("Batah Timur");
+  });
+
+  it("nama asing tetap TIDAK cocok – bukan dipaksakan ke yang terdekat", () => {
+    expect(cocokkanLokasi("zxqwerty", kat).jenis).toBe("tidak_ada");
   });
 });

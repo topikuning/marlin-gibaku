@@ -36,11 +36,30 @@ export type KandidatNiat = {
   label: string;
 };
 
+/**
+ * KENAPA sebuah pertanyaan ambigu — dan ini bukan sekadar keterangan.
+ *
+ * `tanpa_niat`  : penanya TIDAK menyebut maksudnya sama sekali, hanya waktu
+ *                 ("kalau kemarin?"). Pertanyaan seperti ini memang tidak
+ *                 berarti apa-apa sendirian, jadi boleh dilengkapi dari
+ *                 konteks pertanyaan sebelumnya.
+ * `niat_bercabang`: maksudnya SUDAH disebut ("kendala minggu lalu"); yang
+ *                 bercabang cuma cara membacanya. Konteks TIDAK BOLEH dipakai
+ *                 di sini — meminjam niat lama berarti membuang kata yang baru
+ *                 saja ditulis penanya.
+ *
+ * Dua-duanya dulu bertipe sama, dan `tanya.ts` memperlakukan keduanya sebagai
+ * "pertanyaan susulan yang perlu dilengkapi". Akibatnya di produksi:
+ * "siapa yang belum lapor kemarin?" lalu "kendala minggu lalu" dijawab
+ * KELENGKAPAN LAPORAN minggu lalu — kata "kendala" ditelan mentah-mentah.
+ */
+export type SebabAmbigu = "tanpa_niat" | "niat_bercabang";
+
 export type HasilParser =
   /** Satu tafsir, dan tidak ada saingannya. Langsung dijalankan. */
   | { jenis: "yakin"; kandidat: KandidatNiat }
   /** 2–3 tafsir yang sama masuk akal. Penanya yang memilih. */
-  | { jenis: "ambigu"; kandidat: KandidatNiat[] }
+  | { jenis: "ambigu"; sebab: SebabAmbigu; kandidat: KandidatNiat[] }
   /** Tidak ada petunjuk sama sekali — serahkan ke AI. */
   | { jenis: "tidak_tahu" };
 
@@ -278,6 +297,7 @@ export function parseNiatDeterministik(teksMentah: string): HasilParser {
     if (!periode) return { jenis: "tidak_tahu" };
     return {
       jenis: "ambigu",
+      sebab: "tanpa_niat",
       kandidat: [
         kandidat("progress", periode),
         kandidat("laporan", periode),
@@ -313,6 +333,7 @@ export function parseNiatDeterministik(teksMentah: string): HasilParser {
   if (cocok.length === 1 && cocok[0] === "kendala" && periode && !periodeHariIni(periode)) {
     return {
       jenis: "ambigu",
+      sebab: "niat_bercabang",
       kandidat: [
         kandidat("kendala_dibuka", periode),
         kandidat("kendala_periode_terbuka", periode),
@@ -356,12 +377,90 @@ export function parseNiatDeterministik(teksMentah: string): HasilParser {
  * sebagai nama tempat — dan bila ia tidak ada di katalog, pertanyaannya
  * DISERAHKAN ke AI, bukan dijawab untuk semua lokasi.
  */
+/**
+ * URUTAN yang diminta penanya — "progress terbaik", "yang paling tertinggal".
+ *
+ * Cacat produksi 2026-08-20, dilaporkan user dengan tangkapan layar: pertanyaan
+ * *"progress terbaik"* dijawab daftar lokasi ber-realisasi 0,00% – yaitu justru
+ * yang TERBURUK, diurut abjad. Dua sebab bertumpuk:
+ *
+ * 1. sebagian kata superlatif ("tertinggi", "terendah", "terburuk", "paling")
+ *    dulu ada di `KATA_ABAIKAN`, jadi DIBUANG diam-diam sebagai kata sampah;
+ * 2. yang tidak ada di sana ("terbaik") membuat pertanyaannya dilempar ke AI,
+ *    dan AI mengembalikan niat `progress` tanpa membawa superlatifnya.
+ *
+ * Dua-duanya berujung sama: kata yang justru menentukan isi jawaban hilang
+ * tanpa jejak, dan penanya menerima daftar yang berkebalikan dengan yang ia
+ * minta – tanpa satu pun tanda bahwa permintaannya tidak dipenuhi.
+ *
+ * Diam-diam mengabaikan kata adalah bentuk mengarang yang paling halus: yang
+ * dikarang bukan angkanya, melainkan PERTANYAANNYA.
+ */
+export type UrutanJawaban = "terbaik" | "terburuk";
+
+const URUTAN: { arah: UrutanJawaban; pola: RegExp }[] = [
+  {
+    arah: "terbaik",
+    pola: /\b(terbaik|tertinggi|terbesar|teratas|termaju|paling (?:baik|bagus|tinggi|besar|maju|depan))\b/,
+  },
+  {
+    arah: "terburuk",
+    pola: /\b(terburuk|terjelek|terendah|terkecil|terparah|terbelakang|paling (?:buruk|jelek|rendah|kecil|parah|ketinggalan|tertinggal|belakang))\b/,
+  },
+];
+
+/** Arah urutan yang diminta, atau null bila penanya tidak menyebut apa pun. */
+/**
+ * Perintah MELEPAS konteks – "abaikan", "lupakan", "mulai lagi".
+ *
+ * Bukan pertanyaan, jadi ia diperiksa sebelum niat apa pun. Ditambahkan karena
+ * user benar-benar mengetiknya secara alami saat jawabannya melenceng, dan
+ * MARLIN membalas "belum mengerti" sambil tetap memegang konteks yang salah.
+ */
+const POLA_LUPAKAN =
+  /^(abaikan|lupakan|lupain|batal|batalkan|reset|ulang|mulai lagi|mulai dari awal|hapus konteks|lupakan yang tadi|abaikan yang tadi)\b/;
+
+/**
+ * Pertanyaan SEBAB — "kenapa", "mengapa", "apa penyebabnya" (DECISIONS 390).
+ *
+ * Keberatan user 2026-08-20: *"kenapa randuputih tertinggal, malah cuma jawab
+ * progress"*. Balasannya benar – deviasi −30,93% – tapi ia menjawab "berapa",
+ * bukan "kenapa". Angkanya justru sudah diketahui penanya; itu sebabnya ia
+ * bertanya.
+ *
+ * Jawabannya bukan menukar angka dengan cerita, melainkan MENAMBAHKAN: angka
+ * resmi tetap di depan, catatan lapangan yang menjelaskannya menyusul sebagai
+ * kutipan bertanda.
+ */
+const POLA_SEBAB = /\b(kenapa|mengapa|kok|knp|apa (?:sebab|penyebab|alasan)\w*|penyebabnya|sebabnya)\b/;
+
+export function mintaSebab(teksMentah: string): boolean {
+  return POLA_SEBAB.test(bersih(teksMentah));
+}
+
+export function mintaLupakanKonteks(teksMentah: string): boolean {
+  return POLA_LUPAKAN.test(bersih(teksMentah));
+}
+
+export function bacaUrutan(teksMentah: string): UrutanJawaban | null {
+  const t = bersih(teksMentah);
+  for (const u of URUTAN) if (u.pola.test(t)) return u.arah;
+  return null;
+}
+
+/** Buang kata urutan dari kalimat — ia modifier, bukan nama lokasi. */
+function hapusUrutan(t: string): string {
+  let out = t;
+  for (const u of URUTAN) out = out.replace(new RegExp(u.pola.source, "g"), " ");
+  return out;
+}
+
 const KATA_ABAIKAN = new Set(
   ("di ke dari pada untuk yang apa apakah siapa mana bagaimana gimana kenapa berapa ada adakah " +
     "itu ini dan atau saja aja per semua seluruh sudah belum masih lagi dong ya yah nih sih kah kok " +
     "tolong minta mintakan kirim kirimkan coba mohon bisa boleh mau ingin lihat cek update info " +
     "status kondisi lokasi lokasinya tempat titik proyek pekerjaan gak nggak tidak bukan " +
-    "negatif positif minus turun naik terbesar tertinggi terendah terburuk parah paling " +
+    "negatif positif minus turun naik " +
     "pak bu bapak ibu halo hai selamat pagi siang sore malam terima kasih min admin marlin " +
     // Penyambung pertanyaan SUSULAN — "kalau kemarin?", "terus minggu lalu?".
     // Tanpa ini satu kata sambung membuat susulan yang paling lazim diketik
@@ -391,7 +490,7 @@ function hapusPeriode(t: string): string {
  * pencocokannya tugas `cocokkanLokasi`, bukan tugas parser ini.
  */
 export function frasaSisa(teksMentah: string): string[] {
-  let sisa = hapusPeriode(bersih(teksMentah));
+  let sisa = hapusUrutan(hapusPeriode(bersih(teksMentah)));
   for (const k of KUNCI) sisa = sisa.replace(new RegExp(k.pola.source, "g"), " ");
 
   const frasa: string[] = [];
@@ -410,9 +509,16 @@ export function frasaSisa(teksMentah: string): string[] {
 
 export type RencanaDeterministik =
   /** Cukup jelas — dijawab TANPA memanggil AI sama sekali. */
-  | { jenis: "jalan"; niat: Niat; periode: PeriodeDiminta; lokasiDisebut: string[] }
+  | {
+      jenis: "jalan";
+      niat: Niat;
+      periode: PeriodeDiminta;
+      lokasiDisebut: string[];
+      /** Urutan yang diminta penanya; null = urutan bawaan. */
+      urutan: UrutanJawaban | null;
+    }
   /** Jelas tafsirnya terbatas — tawarkan pilihan, juga tanpa AI. */
-  | { jenis: "ambigu"; kandidat: KandidatNiat[] }
+  | { jenis: "ambigu"; sebab: SebabAmbigu; kandidat: KandidatNiat[] }
   /** Ada yang tidak bisa dipertanggungjawabkan sendiri — biar AI yang membaca. */
   | { jenis: "serahkan_ai"; alasan: string };
 
@@ -440,6 +546,7 @@ export function rencanaDeterministik(
 ): RencanaDeterministik {
   const parse = parseNiatDeterministik(teksMentah);
   if (parse.jenis === "tidak_tahu") return { jenis: "serahkan_ai", alasan: "niat tidak terbaca" };
+  const urutan = bacaUrutan(teksMentah);
 
   const sisa = frasaSisa(teksMentah);
   for (const f of sisa) {
@@ -449,12 +556,30 @@ export function rencanaDeterministik(
   }
 
   if (parse.jenis === "ambigu") {
-    return { jenis: "ambigu", kandidat: parse.kandidat.map((k) => ({ ...k, lokasiDisebut: sisa })) };
+    return {
+      jenis: "ambigu",
+      sebab: parse.sebab,
+      kandidat: parse.kandidat.map((k) => ({ ...k, lokasiDisebut: sisa })),
+    };
+  }
+  /*
+   * Urutan hanya berlaku untuk niat yang PUNYA angka untuk diurutkan.
+   *
+   * Kalau penanya menulis superlatif pada niat lain ("kendala terparah"),
+   * pertanyaannya diserahkan ke AI alih-alih dijawab sambil membuang katanya —
+   * karena membuangnya diam-diam persis kesalahan yang sedang diperbaiki di
+   * sini.
+   */
+  const niat = parse.kandidat.niat;
+  const bisaDiurut = niat === "progress" || niat === "deviasi";
+  if (urutan && !bisaDiurut) {
+    return { jenis: "serahkan_ai", alasan: `urutan "${urutan}" tidak berlaku untuk niat ${niat}` };
   }
   return {
     jenis: "jalan",
-    niat: parse.kandidat.niat,
+    niat,
     periode: parse.kandidat.periode,
     lokasiDisebut: sisa,
+    urutan: bisaDiurut ? urutan : null,
   };
 }

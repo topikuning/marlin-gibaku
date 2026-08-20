@@ -7,6 +7,10 @@ import { getStatusHarian } from "@/lib/daily-report/status-harian";
 import { REPORT_STATUS_LABEL } from "@/lib/lifecycle";
 import { parseDateKey } from "@/lib/format";
 import type { LokasiKatalog } from "./tanya-niat";
+import type { UrutanJawaban } from "./parser-niat";
+import { urutkanProgress } from "./urutan-progress";
+
+export { urutkanProgress };
 import type {
   BarisDeviasi,
   BarisKelengkapan,
@@ -30,16 +34,30 @@ import type {
  * menuliskannya, itu berarti angka WhatsApp mulai berbeda dari angka layar, dan
  * pembacanya tidak akan pernah tahu yang mana yang benar.
  *
- * ### Batas baris bukan hiasan
+ * ### Batas baris: dikirim BERTAHAP, bukan dipangkas
  *
- * Balasan WhatsApp yang panjang tidak terbaca di lapangan — ia dilipat, di-"baca
- * selengkapnya", lalu dilewati. Karena itu tiap jawaban dipotong ke
- * `BATAS_BARIS`. Pemotongan itu SELALU dilaporkan; daftar yang dipotong diam-diam
- * akan dibaca sebagai daftar lengkap.
+ * Dulu tiap jawaban dipotong di baris ke-15 dan sisanya diganti kalimat
+ * "Selengkapnya buka MARLIN". Jujur, tapi menjawab setengah — keberatan user
+ * 2026-08-20: *"kenapa cuma batasi 15, kalau pun harus dikirim bertahap, ya
+ * buat bertahap beberapa pesan"*. Orang yang bertanya "siapa yang belum lapor"
+ * justru butuh daftar LENGKAPnya untuk ditindaklanjuti; menyuruhnya membuka
+ * aplikasi meniadakan alasan ia bertanya lewat WhatsApp.
+ *
+ * Sekarang batasnya jauh lebih longgar dan pemotongan sesungguhnya terjadi di
+ * `potong-pesan.ts`, yang membelah balasan panjang menjadi beberapa PESAN
+ * berurutan bertanda `(bagian n/m)`. Yang benar-benar tidak terkirim tetap
+ * diakui — daftar yang dipotong diam-diam akan dibaca sebagai daftar lengkap.
  */
 
-/** Maksimal baris per balasan. Sisanya disebut jumlahnya, tidak dibuang diam-diam. */
-export const BATAS_BARIS = 15;
+/**
+ * Maksimal baris per balasan.
+ *
+ * Bukan lagi batas keterbacaan (itu tugas `potongPesan`), melainkan pagar
+ * terhadap organisasi yang punya ratusan lokasi: satu jawaban tidak boleh
+ * menjadi ratusan baris yang harus dirakit lalu dibuang lagi. 120 baris cukup
+ * untuk seluruh 83 lokasi KNMP plus ruang tumbuh.
+ */
+export const BATAS_BARIS = 120;
 
 /** Maksimal kendala yang dirinci — grup lapangan bisa punya puluhan sekaligus. */
 export const BATAS_KENDALA = 20;
@@ -221,9 +239,18 @@ export type HasilProgress = { baris: BarisProgress[]; catatanBatas: string | nul
 export async function dataProgress(
   lokasi: LokasiKatalog[],
   dateKey: string,
+  /**
+   * Urutan yang diminta penanya (DECISIONS 390). null = urutan katalog.
+   *
+   * Saat diminta, angka SELURUH lokasi dihitung dulu baru diurut baru dipotong.
+   * Kebalikannya – memotong dulu lalu mengurut – akan mengurutkan 120 lokasi
+   * pertama menurut abjad dan menyebutnya "terbaik", yang persis jenis jawaban
+   * yang salah tapi terlihat benar.
+   */
+  urutan: UrutanJawaban | null = null,
 ): Promise<HasilProgress> {
   if (lokasi.length === 0) return { baris: [], catatanBatas: null };
-  const dipakai = lokasi.slice(0, BATAS_BARIS);
+  const dipakai = urutan ? lokasi : lokasi.slice(0, BATAS_BARIS);
   const ids = dipakai.map((l) => l.id);
   const reportDate = parseDateKey(dateKey);
 
@@ -243,21 +270,29 @@ export async function dataProgress(
   ]);
   const laporanById = new Map(laporan.map((r) => [r.locationId, r]));
 
+  const baris = dipakai.map((l) => {
+    const p = progress.get(l.id);
+    const r = laporanById.get(l.id);
+    return {
+      lokasi: l.nama,
+      // Angka BULAT-BULAT dari calc layer — tidak dihitung ulang di sini.
+      realisasiPct: p?.realizedPct ?? 0,
+      rencanaPct: p?.planPct ?? 0,
+      deviasiPct: p?.deviationPct ?? 0,
+      itemHariIni: r ? r._count.items : null,
+      statusHariIni: r ? REPORT_STATUS_LABEL[r.status] : null,
+    };
+  });
+
+  if (!urutan) {
+    return { baris, catatanBatas: catatanBatas(baris.length, lokasi.length, "lokasi") };
+  }
+
+  const urut = urutkanProgress(baris, urutan);
+  const potong = urut.slice(0, BATAS_BARIS);
   return {
-    baris: dipakai.map((l) => {
-      const p = progress.get(l.id);
-      const r = laporanById.get(l.id);
-      return {
-        lokasi: l.nama,
-        // Angka BULAT-BULAT dari calc layer — tidak dihitung ulang di sini.
-        realisasiPct: p?.realizedPct ?? 0,
-        rencanaPct: p?.planPct ?? 0,
-        deviasiPct: p?.deviationPct ?? 0,
-        itemHariIni: r ? r._count.items : null,
-        statusHariIni: r ? REPORT_STATUS_LABEL[r.status] : null,
-      };
-    }),
-    catatanBatas: catatanBatas(dipakai.length, lokasi.length, "lokasi"),
+    baris: potong,
+    catatanBatas: catatanBatas(potong.length, urut.length, "lokasi"),
   };
 }
 
