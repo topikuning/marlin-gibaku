@@ -58,6 +58,10 @@ dipakai sebagai acuan implementasi** — masing-masing sudah diberi banner ARSIP
    daripada menyimpan file yang jelas-jelas bertanda ARSIP.
 
 - [`rebuild/DESAIN_FASE_F_PENCARIAN_NARASI.md`](./rebuild/DESAIN_FASE_F_PENCARIAN_NARASI.md)
-  — **USULAN, belum dibangun.** Desain pencarian narasi lapangan (di brief
-  disebut "RAG"). Memuat empat keputusan yang menunggu user; tidak ada kode
-  sampai keempatnya terjawab.
+  — Desain pencarian narasi lapangan (di brief disebut "RAG"). **F1+F2 sudah
+  dibangun** (DECISIONS 382); F3 (embedding) belum dan menunggu bukti bahwa F1
+  kurang.
+- [`rebuild/SKENARIO_UJI_WA_AI.md`](./rebuild/SKENARIO_UJI_WA_AI.md)
+  — **Naskah uji manual** tanya-jawab WhatsApp & AI, fase A–F. Yang diketik,
+  yang harus keluar, dan yang dihitung GAGAL. Dipakai untuk memeriksa sendiri
+  tanpa membaca kode.

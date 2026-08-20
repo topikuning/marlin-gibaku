@@ -19042,3 +19042,85 @@ Perilaku drawer sendiri tidak diuji unit: `vitest.config.ts` memakai
 `environment: "node"` tanpa jsdom, dan menambah jsdom demi satu komponen
 bertentangan dengan stack "pinned exact". Tempatnya di Playwright, sejalan
 dengan `ConfirmSubmit` yang juga tidak punya uji unit.
+
+---
+
+## 387 — Naskah uji manual WA-AI + label pilihan yang bisa dibaca (2026-08-19)
+
+**Keputusan.** `docs/rebuild/SKENARIO_UJI_WA_AI.md` — naskah uji manual fase
+A–F: yang diketik, yang harus keluar, dan yang dihitung GAGAL. Ditulis atas
+permintaan user *"buatkan skenario dan contoh pengecekan dari pekerjaanmu yang
+RAG fase A-F"*.
+
+Bentuknya sengaja naskah, bukan ringkasan fitur. Ringkasan fitur menjawab
+"apa yang dibangun"; yang dibutuhkan adalah "bagaimana saya membuktikannya
+sendiri". Setiap butir karena itu memuat tiga hal: kalimat persis yang
+diketik, balasan yang diharapkan, dan **kalimat GAGAL** — karena tanpa itu,
+pemeriksa yang melihat balasan aneh tidak punya dasar menyebutnya bug.
+
+### Yang ditemukan JUSTRU karena menulis naskahnya
+
+Untuk butir D-02 saya menjalankan parsernya sungguhan dan menyalin balasannya
+apa adanya. Hasilnya:
+
+> 2. Kendala dari periode itu yang MASIH TERBUKA sekarang **minggu lalu**
+
+Periodenya terdampar di belakang kata "sekarang". Artinya tidak salah,
+bacaannya yang jelek — dan ini kalimat yang dibaca orang lapangan sebagai
+**pilihan yang harus mereka putuskan**. Pilihan yang canggung dibaca ulang dua
+kali, lalu ditebak.
+
+Uji yang ada lolos tanpa keberatan, karena asersinya
+`expect(label[1]).toContain("MASIH TERBUKA")` — benar, dan buta terhadap
+seluruh sisa kalimat. Diperbaiki lewat `LABEL_PERIODE_DI_TENGAH` di
+`parser-niat.ts` sehingga berbunyi *"Kendala minggu lalu yang MASIH TERBUKA
+sekarang"*, dengan uji baru yang membandingkan **seluruh** kalimatnya
+(`toBe`, bukan `toContain`) plus penjaga bahwa periode tidak pernah menyusul
+kata "sekarang".
+
+Pelajarannya bukan soal satu label: **`toContain` pada teks yang dibaca
+manusia hampir selalu terlalu longgar.** Ia menjaga kata kuncinya dan
+membiarkan kalimatnya rusak.
+
+### Dua ketidakjujuran yang ikut tercatat di naskah
+
+Naskah ini menyebut apa yang TIDAK bisa dibuktikan dari layar, supaya
+pemeriksa tidak mengira sudah memeriksa padahal belum:
+
+1. Keterangan "sumber ini dilewati karena peran penanya" hanya masuk ke
+   **prompt**, tidak ditampilkan di halaman run. Yang bisa diperiksa dari UI
+   adalah **ketiadaannya** di daftar "Sumber data" — bukan pernyataan
+   eksplisit.
+2. F3 (embedding), pencarian isi PDF, dan uang lewat WhatsApp memang belum
+   ada. Ditulis di bagian "Yang SENGAJA belum ada" supaya tidak diuji lalu
+   dilaporkan sebagai bug.
+
+## 388 — Tab Dokumen ikut rombak (2026-08-19)
+
+Tab terakhir yang belum mengikuti rancangan. Pola yang sama dengan
+DECISIONS 386:
+
+- Form unggah pindah dari kartu tersendiri ke **Drawer** di kepala kartu
+  kepatuhan. Kartu itu tadinya duduk PERSIS di antara papan kepatuhan dan
+  daftar dokumen — memisahkan dua hal yang justru dibaca berurutan, demi form
+  yang dipakai sesekali.
+- **"Terlambat" berdiri sendiri** sebagai angka, bukan dilebur ke dalam
+  kalimat subtitle. Ia satu-satunya angka di kartu itu yang menuntut tindakan,
+  dan angka yang menuntut tindakan tidak boleh dibaca sambil lalu di tengah
+  kalimat. Diberi latar peringatan hanya bila > 0.
+- Daftar dokumen + impor Drive jadi **dua kolom**; kartu impor menyebut
+  keadaannya di kepala ("Folder tertaut" / "Belum tertaut") dan, bila belum,
+  tombolnya mengarah ke tempat menautkannya — bukan tombol impor yang ditekan
+  lalu ternyata tidak bisa apa-apa.
+
+### Temuan sampingan yang TIDAK saya ubah
+
+`hover:bg-surface-2` pada tombol impor Drive menunjuk token yang tidak ada,
+jadi selama ini tidak melakukan apa pun; diganti `ButtonLink` biasa.
+
+Yang serupa dan **sengaja dibiarkan**: `border-border-muted` /
+`divide-border-muted` dipakai di **17 tempat** di seluruh aplikasi padahal
+`--color-border-muted` tidak pernah didefinisikan di `globals.css`. Semua
+kelas itu mati tanpa suara. Menambah tokennya satu baris, tapi akibatnya
+mengubah tampilan 17 tempat di luar halaman Paket — itu keputusan user, bukan
+efek samping yang pantas menumpang di rombakan ini.
