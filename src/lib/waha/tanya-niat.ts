@@ -240,6 +240,25 @@ export function normalWilayah(s: string): string {
   return tanpa || n;
 }
 
+/**
+ * Bentuk RAPAT — nama tanpa spasi sama sekali.
+ *
+ * Nama desa ditulis orang dengan dan tanpa spasi, dan keduanya sama benarnya:
+ * "Randuputih" di basis data, "randu putih" yang diketik penanya. Sebelum ini
+ * yang kedua TIDAK cocok dengan apa pun, lalu pertanyaannya jatuh ke jalur
+ * catatan lapangan — dan dijawab dengan catatan lokasi LAIN, tanpa satu pun
+ * tanda bahwa nama yang ia tulis tidak dikenali. Dilaporkan user 2026-08-20
+ * dengan tangkapan layar: *"aku sengaja ketik randu putih … malah daerahnya
+ * kemana-mana"*.
+ *
+ * Dipakai sebagai lapis TERAKHIR sebelum menyerah ke pencocokan wilayah, bukan
+ * menggantikan pencocokan biasa: "batah timur" tetap harus lebih dulu dicoba
+ * apa adanya.
+ */
+export function rapatNama(s: string): string {
+  return normalNama(s).replace(/\s+/g, "");
+}
+
 /** Nilai wilayah satu lokasi pada satu tingkat. */
 function nilaiWilayah(l: LokasiKatalog, t: TingkatWilayah): string | null {
   if (t === "desa") return l.desa;
@@ -276,6 +295,24 @@ export function cocokkanLokasi(diketik: string, katalog: LokasiKatalog[]): Hasil
   const mengandung = katalog.filter((l) => normalNama(l.nama).includes(q));
   if (mengandung.length === 1) return { jenis: "tepat", lokasi: mengandung[0] };
   if (mengandung.length > 1) return { jenis: "ambigu", kandidat: mengandung };
+
+  /*
+   * Lapis RAPAT: spasi diabaikan sepenuhnya di kedua sisi.
+   *
+   * "randu putih" → "randuputih" = nama desa yang di basis data memang ditulis
+   * menyatu. Dicoba SESUDAH pencocokan biasa supaya nama yang memang bespasi
+   * tidak kalah oleh kebetulan.
+   */
+  const qr = rapatNama(diketik);
+  if (qr) {
+    const rapat = katalog.filter((l) => rapatNama(l.nama) === qr);
+    if (rapat.length === 1) return { jenis: "tepat", lokasi: rapat[0] };
+    if (rapat.length > 1) return { jenis: "ambigu", kandidat: rapat };
+
+    const rapatSebagian = katalog.filter((l) => rapatNama(l.nama).includes(qr));
+    if (rapatSebagian.length === 1) return { jenis: "tepat", lokasi: rapatSebagian[0] };
+    if (rapatSebagian.length > 1) return { jenis: "ambigu", kandidat: rapatSebagian };
+  }
 
   const w = normalWilayah(diketik);
   if (!w) return { jenis: "tidak_ada" };

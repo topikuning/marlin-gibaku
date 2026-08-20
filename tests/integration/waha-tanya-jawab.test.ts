@@ -1645,6 +1645,39 @@ describe("pertanyaan susulan – dilengkapi dari konteks (DECISIONS 377)", () =>
     expect(terkirim.at(-1)?.teks ?? "").toContain("Kendala");
   });
 
+  it("NIAT yang disebut susulan menang atas konteks – bukan dibajak", async () => {
+    /*
+     * Cacat produksi 2026-08-20, dilaporkan user dengan tangkapan layar:
+     *
+     *   "siapa yang belum lapor kemarin?" → Kelengkapan laporan, kemarin ✓
+     *   "kendala minggu lalu"             → Kelengkapan laporan, minggu lalu ✗
+     *
+     * Pertanyaan kedua menyebut "kendala" sejelas-jelasnya. Yang bercabang
+     * cuma cara membacanya (DECISIONS 381), dan cabang itu dulu bertipe sama
+     * dengan "pertanyaan tanpa niat" – jadi konteks meminjam niat lama dan
+     * membuang kata yang baru saja ditulis penanya.
+     *
+     * Ini kelas kesalahan terburuk di fitur ini: bukan gagal menjawab,
+     * melainkan menjawab pertanyaan yang TIDAK diajukan – dengan angka yang
+     * benar untuk pertanyaan yang salah.
+     */
+    await jawabPertanyaanWa(
+      event({ chatId: pribadi(), dari: nomorSM, teks: "siapa yang belum lapor kemarin?" }),
+    );
+    expect(terkirim.at(-1)?.teks ?? "").toContain("Kelengkapan laporan");
+    terkirim.length = 0;
+
+    aiSehat = false; // jalur deterministik: tidak boleh menyentuh AI
+    await jawabPertanyaanWa(
+      event({ chatId: pribadi(), dari: nomorSM, teks: "kendala minggu lalu" }),
+    );
+    const teks = terkirim.at(-1)?.teks ?? "";
+    // Yang BENAR: ditawarkan dua cara baca kendala, bukan dijawab kelengkapan.
+    expect(teks).not.toContain("Kelengkapan laporan");
+    expect(teks).toContain("Maksud Anda yang mana?");
+    expect(teks).toContain("MASIH TERBUKA");
+  });
+
   it("lokasi yang DISEBUT di susulan menang atas konteks", async () => {
     // Konteks tidak pernah menambahi lokasi pada pertanyaan yang sudah
     // menyebut lokasinya sendiri.
@@ -1843,5 +1876,174 @@ describe("catatan lapangan menjawab di WhatsApp (DECISIONS 383)", () => {
     });
     expect(jejak).not.toBeNull();
     expect((jejak?.payload as { potongan?: number } | null)?.potongan).toBeGreaterThan(0);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* Empat cacat yang dilaporkan user dari PRODUKSI (DECISIONS 390)      */
+/* ------------------------------------------------------------------ */
+
+describe("cacat produksi 2026-08-20 – dilaporkan user dengan tangkapan layar", () => {
+  const pribadi = () => `${nomorSM}@c.us`;
+
+  const tanyaWa = async (teks: string) => {
+    terkirim.length = 0;
+    await jawabPertanyaanWa(event({ chatId: pribadi(), dari: nomorSM, teks }));
+    return terkirim.map((t) => t.teks).join("\n---\n");
+  };
+
+  it('"progress terbaik" TIDAK lagi dijawab daftar yang terburuk', async () => {
+    /*
+     * Yang terjadi di produksi: "progress terbaik" dijawab tiga lokasi
+     * ber-realisasi 0,00% – yaitu justru yang terburuk – karena kata
+     * superlatifnya dibuang diam-diam lalu daftarnya diurut abjad.
+     *
+     * Membuang kata yang menentukan isi jawaban adalah bentuk mengarang yang
+     * paling halus: yang dikarang bukan angkanya, melainkan PERTANYAANNYA.
+     */
+    aiSehat = false; // wajib dijawab jalur deterministik
+    const teks = await tanyaWa("progress terbaik");
+    // Judulnya MENGAKU diurutkan – daftar terurut yang tidak mengaku terbaca
+    // sebagai "inilah lokasinya", padahal ia "inilah yang teratas".
+    expect(teks).toContain("terbaik dulu");
+    /*
+     * Urutan angkanya SENGAJA tidak diperiksa di sini.
+     *
+     * Lokasi uji berkas ini semuanya berealisasi 0,00%, jadi "menurun" dan
+     * "menaik" sama-sama lolos – asersi yang terlihat teliti tanpa pernah
+     * menguji apa pun. Ketahuan lewat uji gigi: pengurutannya dilepas, uji ini
+     * tetap hijau. Pengurutannya diuji sungguhan dengan angka berbeda di
+     * `tests/unit/waha-urutan-progress.test.ts`.
+     */
+  });
+
+  it('"progress terburuk" juga dijawab tanpa AI dan mengaku urutannya', async () => {
+    aiSehat = false;
+    expect(await tanyaWa("progress terburuk")).toContain("terburuk dulu");
+  });
+
+  it("kepala balasan menyebut TANGGAL nyata, bukan cuma 'kemarin lusa'", async () => {
+    /*
+     * Permintaan user: "jawaban sudah lumayan oke, tapi seharusnya jawaban ini
+     * disertai tanggal". Balasan WhatsApp di-screenshot lalu diteruskan ke PPK
+     * berhari-hari kemudian; di situ "kemarin lusa" bukan cuma tidak berarti,
+     * tapi menyesatkan – "kemarin"-nya pembaca bukan "kemarin"-nya penanya.
+     */
+    aiSehat = false;
+    const teks = await tanyaWa("progress kemarin lusa");
+    expect(teks).toContain("kemarin lusa");
+    // Ada tanggal sungguhan: "18 Agustus 2026" dst.
+    expect(teks).toMatch(/\d{1,2} \w+ \d{4}/);
+  });
+
+  it('baris item TIDAK menulis "hari ini" saat yang ditanya hari lain', async () => {
+    /*
+     * Terlihat di tangkapan layar: pertanyaan "kalau kemarin lusa?" dijawab
+     * dengan baris "2 item dilaporkan HARI INI". Itemnya memang dua, tapi
+     * dilaporkan kemarin lusa – hari yang salah ditempelkan pada angka yang
+     * benar, jenis kesalahan yang paling sulit dibantah.
+     */
+    aiSehat = false;
+    const teks = await tanyaWa("progress kemarin lusa");
+    expect(teks).not.toContain("dilaporkan hari ini");
+    expect(teks).not.toContain("belum ada laporan hari ini");
+  });
+});
+
+describe('perintah "abaikan" benar-benar melepas konteks (DECISIONS 390)', () => {
+  const pribadi = () => `${nomorSM}@c.us`;
+  const kirim = async (teks: string) => {
+    terkirim.length = 0;
+    await jawabPertanyaanWa(event({ chatId: pribadi(), dari: nomorSM, teks }));
+    return terkirim.map((t) => t.teks).join("\n---\n");
+  };
+
+  it('"abaikan" mengaku melupakan, dan susulan sesudahnya TIDAK menyambung lagi', async () => {
+    /*
+     * User mengetik "abaikan" setelah menerima jawaban yang melenceng, dan
+     * MARLIN membalas "belum mengerti" sambil TETAP memegang konteks yang
+     * salah – jadi pertanyaan berikutnya melenceng lagi dengan cara yang sama.
+     */
+    aiSehat = false;
+    await kirim("progress hari ini di Kedung Mutih");
+
+    const lepas = await kirim("abaikan");
+    expect(lepas.toLowerCase()).toContain("lupakan");
+    expect(lepas.toLowerCase()).not.toContain("belum mengerti");
+
+    // Susulan yang dulu menyambung kini tidak punya apa pun untuk disambung.
+    const susulan = await kirim("kalau kemarin?");
+    expect(susulan).toContain("Maksud Anda yang mana?");
+  });
+
+  it('"abaikan" saat tidak ada konteks mengatakannya apa adanya', async () => {
+    aiSehat = false;
+    await kirim("abaikan"); // pastikan kosong
+    const teks = await kirim("abaikan");
+    expect(teks.toLowerCase()).toContain("tidak ada percakapan");
+  });
+});
+
+describe('pertanyaan "kenapa" & nama bespasi (DECISIONS 390)', () => {
+  const pribadi = () => `${nomorSM}@c.us`;
+  const kirim = async (teks: string) => {
+    terkirim.length = 0;
+    await jawabPertanyaanWa(event({ chatId: pribadi(), dari: nomorSM, teks }));
+    return terkirim.map((t) => t.teks).join("\n---\n");
+  };
+
+  beforeAll(async () => {
+    // Catatan lapangan MILIK uji ini – supaya tidak bergantung pada sisa
+    // seeding blok lain, yang urutannya bisa berubah kapan saja.
+    const pelapor = await db.user.findFirstOrThrow({
+      where: { fullName: "SiteManager" },
+      select: { id: true },
+    });
+    await db.dailyReport.create({
+      data: {
+        locationId: lokA1,
+        reportDate: new Date("2026-08-13T00:00:00.000Z"),
+        status: "final",
+        notes: "Tertinggal karena material terlambat datang dan hujan tiap sore.",
+        createdById: pelapor.id,
+      },
+    });
+  });
+
+  it('"kenapa … tertinggal" menjawab angka DAN sebabnya', async () => {
+    /*
+     * Keberatan user: *"kenapa randuputih tertinggal, malah cuma jawab
+     * progress"*. Balasannya benar tapi menjawab "berapa", bukan "kenapa" –
+     * dan angkanya justru sudah diketahui penanya; itulah sebabnya ia bertanya.
+     */
+    aiSehat = false;
+    const teks = await kirim("kenapa Kedung Mutih tertinggal");
+    // Angka resmi tetap di depan dan tidak tersentuh.
+    expect(teks).toContain("Deviasi");
+    // Sebabnya menyusul sebagai KUTIPAN bertanda, bukan karangan model.
+    expect(teks).toContain("Catatan lapangan");
+    expect(teks).toContain("KUTIPAN catatan pelapor");
+  });
+
+  it("pertanyaan biasa TIDAK ikut ditempeli catatan", async () => {
+    // Pagar arah sebaliknya: kalau setiap jawaban dibuntuti kutipan, penanda
+    // "ini kata pelapor, bukan angka MARLIN" kehilangan artinya.
+    aiSehat = false;
+    const teks = await kirim("progress hari ini");
+    expect(teks).not.toContain("KUTIPAN catatan pelapor");
+  });
+
+  it("nama tak dikenal DISEBUT di jalur catatan lapangan", async () => {
+    /*
+     * Yang paling merusak di layar user bukan cakupannya, melainkan diamnya:
+     * balasan berisi catatan lokasi lain tanpa satu kata pun bahwa nama yang
+     * ia tulis tidak dikenali – jadi terbaca sebagai jawaban ATAS lokasi itu.
+     */
+    niatPalsu = { niat: null, lokasiDisebut: [], periode: "hari_ini" };
+    aiSehat = true;
+    const teks = await kirim("kenapa zxqwertylokasi hujan terus");
+    if (teks.includes("Catatan lapangan")) {
+      expect(teks).toContain("Tidak saya kenali");
+    }
   });
 });

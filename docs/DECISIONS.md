@@ -19191,3 +19191,136 @@ Audit hanya memilih action, resource, waktu, dan pelaku, bukan payload.
 Naskah versi pertama menyuruh pemeriksa "lihat kolom asalScope", yang berarti
 menyuruhnya melihat sesuatu yang tidak ada di sana. Diganti tabel tanda yang
 benar-benar terlihat di balasan.
+
+---
+
+## 390 — Enam cacat tanya-jawab WhatsApp yang dilaporkan user dari PRODUKSI (2026-08-20)
+
+Semuanya ditemukan user dengan tangkapan layar percakapan sungguhan, bukan
+lewat uji. Dicatat bersama karena satu benang merah: **MARLIN menjawab dengan
+percaya diri pertanyaan yang tidak diajukan.**
+
+### 1. Konteks lanjutan MEMBAJAK niat yang sudah disebut
+
+```
+"siapa yang belum lapor kemarin?" → Kelengkapan laporan, kemarin   ✓
+"kendala minggu lalu"             → Kelengkapan laporan, minggu lalu ✗
+"progres di kemantren"            → Progress                        ✓
+"kendala minggu lalu"             → Progress, minggu lalu            ✗
+```
+
+`parseNiatDeterministik` mengembalikan `ambigu` untuk dua keadaan yang
+sebenarnya sangat berbeda: (a) penanya tidak menyebut niat sama sekali
+("kalau kemarin?"), dan (b) niatnya jelas tapi cara membacanya bercabang
+("kendala minggu lalu", DECISIONS 381). Keduanya bertipe sama, jadi cabang
+konteks di `tanya.ts` memperlakukan (b) sebagai pertanyaan yang perlu
+dilengkapi — meminjam niat lama dan **membuang kata yang baru saja ditulis
+penanya**.
+
+Diperbaiki dengan `SebabAmbigu = "tanpa_niat" | "niat_bercabang"`; konteks
+hanya dipinjam untuk yang pertama.
+
+Ini kelas kesalahan terburuk di fitur ini: bukan gagal menjawab, melainkan
+menjawab dengan angka yang **benar untuk pertanyaan yang salah**.
+
+### 2. "progress terbaik" dijawab daftar yang TERBURUK
+
+Sebagian kata superlatif ("tertinggi", "terendah", "terburuk", "paling") ada di
+`KATA_ABAIKAN` — dibuang diam-diam sebagai kata sampah. Yang tidak ada di sana
+("terbaik") membuat pertanyaannya dilempar ke AI, dan AI mengembalikan niat
+`progress` tanpa membawa superlatifnya. Hasilnya sama: daftar urut abjad yang
+dimulai dari lokasi berealisasi 0,00%.
+
+Sekarang ada `UrutanJawaban` + `bacaUrutan()`, superlatifnya dibuang dari
+`KATA_ABAIKAN`, dan judul balasan MENGAKU diurutkan ("Progress – terbaik
+dulu"). Superlatif pada niat yang tidak punya sumbu angka ("kendala terparah")
+diserahkan ke AI, bukan dijawab sambil membuang katanya.
+
+Mengabaikan kata diam-diam adalah bentuk mengarang yang paling halus: yang
+dikarang bukan angkanya, melainkan **pertanyaannya**.
+
+### 3. Daftar dipangkas di 15, bukan dikirim bertahap
+
+> *"kenapa cuma batasi 15, kalau pun harus dikirim bertahap, ya buat bertahap
+> beberapa pesan"*
+
+Orang yang bertanya "siapa yang belum lapor" justru butuh daftar LENGKAPnya
+untuk ditindaklanjuti; menyuruhnya membuka aplikasi meniadakan alasan ia
+bertanya lewat WhatsApp. `BATAS_BARIS` 15 → 120, dan `potong-pesan.ts`
+membelah balasan panjang jadi beberapa pesan bertanda `(bagian n/m)`.
+Pemotongan hanya di batas baris; baris tunggal yang kelebihan dikirim utuh
+(kutipan lapangan wajib verbatim). Yang benar-benar tidak terkirim tetap
+diakui.
+
+### 4. Tanggal tidak disebut, dan "hari ini" ditempel pada hari lain
+
+> *"jawaban sudah lumayan oke, tapi seharusnya jawaban ini disertai tanggal"*
+
+Kepala balasan hanya menulis label ("kemarin lusa"). Balasan WhatsApp
+di-screenshot lalu diteruskan ke PPK berhari-hari kemudian, dan di situ
+"kemarin" milik pembaca bukan "kemarin" milik penanya. Sekarang:
+`_kemarin lusa · 18 Agustus 2026_`, dan untuk rentang `· posisi <tanggal>`.
+
+Lebih buruk lagi, baris per lokasi menulis **"2 item dilaporkan HARI INI"**
+pada jawaban "kemarin lusa" — hari yang salah ditempelkan pada angka yang
+benar. Kata "hari ini" dibuang dari baris; harinya sudah disebut sekali di
+kepala.
+
+### 5. "randu putih" tidak cocok ke "Randuputih"
+
+> *"aku sengaja ketik randu putih, seharusnya randuputih malah daerahnya
+> kemana-mana"*
+
+Nama desa ditulis orang dengan dan tanpa spasi, dan keduanya sama benarnya.
+`cocokkanLokasi` kini punya lapis RAPAT (spasi diabaikan di kedua sisi),
+dicoba sesudah pencocokan biasa supaya nama yang memang bespasi tidak kalah.
+
+Yang paling merusak bukan gagal cocoknya, melainkan **diamnya**: pertanyaannya
+jatuh ke jalur catatan lapangan lalu dijawab catatan Betahwalang, Kedungmutih,
+dan Purworejo — tanpa satu kata pun bahwa "randu putih" tidak dikenali, jadi
+terbaca sebagai jawaban ATAS Randu Putih. Jalur catatan kini menghormati nama
+lokasi yang disebut (mempersempit lingkup bila cocok) dan **menyebut yang
+tidak dikenali** di kaki balasan.
+
+### 6. "kenapa X tertinggal" dijawab angkanya saja
+
+> *"kenapa randuputih tertinggal, malah cuma jawab progress"*
+
+Balasannya benar — deviasi −30,93% — tapi menjawab "berapa", bukan "kenapa".
+Angkanya justru sudah diketahui penanya; itulah sebabnya ia bertanya.
+
+Sekarang pertanyaan ber-"kenapa/mengapa/apa sebabnya" mendapat **dua** pesan:
+angka resmi seperti biasa, lalu kutipan catatan lapangan yang menjelaskannya —
+lewat jalur DECISIONS 383, lengkap dengan penanda "kutipan pelapor, bukan
+angka resmi MARLIN". Angka resmi tidak tersentuh: pertanyaan "kenapa" tidak
+boleh jadi celah bagi angka yang tidak lewat calculation layer. Dikirim
+terpisah supaya batas antara angka MARLIN dan kata pelapor terlihat.
+
+### Tambahan: "abaikan" benar-benar melepas konteks
+
+User mengetik *"abaikan"* setelah menerima jawaban yang melenceng; MARLIN
+membalas "belum mengerti" dan **tetap memegang konteks yang salah**, jadi
+pertanyaan berikutnya melenceng lagi dengan cara yang sama. Sebelumnya
+satu-satunya cara melepas konteks adalah menunggu 30 menit. Sekarang
+"abaikan/lupakan/batal/reset/mulai lagi" dikenali sebagai perintah, diperiksa
+paling dulu, dan balasannya membedakan "sudah saya lupakan" dari "memang tidak
+ada yang saya ingat".
+
+### Uji gigi — dan satu uji yang ternyata KOSONG
+
+Setiap perbaikan dilepas satu per satu dan uji yang seharusnya merah memang
+merah: pembajakan konteks (1 merah), tanggal nyata (1), "hari ini" (1),
+pencocokan rapat (2), nama tak dikenal di jalur catatan (1), jawaban sebab (1).
+
+Kecuali satu. Uji integrasi yang memeriksa urutan "progress terbaik" **tetap
+hijau** saat pengurutannya dilepas — karena seluruh lokasi uji di berkas itu
+berealisasi 0,00%, sehingga "menurun" dan "menaik" sama-sama benar. Asersi
+yang terlihat teliti tanpa pernah menguji apa pun.
+
+Diperbaiki dengan memisahkan `urutkanProgress` menjadi fungsi murni di
+`urutan-progress.ts` dan mengujinya dengan angka yang benar-benar berbeda;
+uji integrasinya kini hanya menjaga bahwa judulnya MENGAKU diurutkan, dan
+mengatakan di komentarnya kenapa ia tidak memeriksa angkanya.
+
+Pelajarannya sama dengan DECISIONS 387: **asersi yang lolos pada data seragam
+tidak membuktikan apa-apa.** Uji gigi adalah satu-satunya cara mengetahuinya.

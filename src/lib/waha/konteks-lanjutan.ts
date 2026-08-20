@@ -101,3 +101,24 @@ export async function bersihkanKonteksBasi(sekarang = new Date()): Promise<numbe
   });
   return r.count;
 }
+
+/**
+ * Lepaskan konteks percakapan atas permintaan penanya (DECISIONS 390).
+ *
+ * User 2026-08-20 mengetik *"abaikan"* setelah menerima jawaban yang salah,
+ * dan MARLIN membalas "belum mengerti" – lalu pertanyaan berikutnya TETAP
+ * tersambung ke konteks lama. Reaksi itu wajar dan seharusnya bisa dipenuhi:
+ * satu-satunya cara melepas konteks sebelum ini adalah menunggu 30 menit atau
+ * mengajukan pertanyaan yang lengkap.
+ *
+ * Mengembalikan `true` bila memang ada yang dilepas – dipakai balasan untuk
+ * membedakan "sudah saya lupakan" dari "memang tidak ada yang saya ingat".
+ */
+export async function lupakanKonteks(
+  m: Pick<ParsedWaMessage, "chatId" | "senderJid" | "senderLid" | "fromNumber">,
+): Promise<boolean> {
+  const senderKey = kunciPengirim(m);
+  if (!senderKey) return false;
+  const hapus = await db.waChatContext.deleteMany({ where: { chatId: m.chatId, senderKey } });
+  return hapus.count > 0;
+}
