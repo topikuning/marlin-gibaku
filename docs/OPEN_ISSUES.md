@@ -517,3 +517,21 @@ jadi dikerjakan terpisah.
 Dalam rangkaian penuh `pnpm vitest run tests/integration` semuanya hijau
 (berkas lain mem-`TRUNCATE` lebih dulu). Gejalanya hanya muncul saat berkas itu
 dijalankan sendirian berulang kali.
+
+## 🟡 UI-04 · `border-border-muted` tidak pernah ada — 9 berkas memakai kelas mati
+
+Ditemukan 2026-08-20 saat menambah papan kendala.
+
+`--color-border-muted` **tidak pernah didefinisikan** di `src/app/globals.css`,
+tapi `border-border-muted` dipakai di 9 berkas komponen. Tailwind 4 membangun
+kelas dari token yang ada; token yang tidak ada tidak menghasilkan aturan CSS
+apa pun. Jadi elemen-elemen itu tampil **tanpa garis batas sama sekali**, bukan
+dengan garis yang lebih samar seperti yang jelas dimaksudkan penulisnya.
+
+Tidak merusak fungsi, dan tidak diperbaiki sekalian karena dua kemungkinan
+perbaikannya berbeda hasil: mendefinisikan tokennya (9 tempat itu mendadak
+bergaris) atau mengganti ke `border-border` yang ada (garisnya lebih tegas
+daripada niat aslinya). Mana yang benar keputusan tampilan, bukan keputusan
+kode.
+
+Ditemukan dengan `grep -c "color-border-muted" src/app/globals.css` → 0.

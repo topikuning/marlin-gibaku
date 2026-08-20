@@ -50,9 +50,64 @@ function StateBanners({ state }: { state: IssueActionState }) {
   return null;
 }
 
+/**
+ * Tawaran saat ada kendala terbuka yang judulnya mirip (DECISIONS 392).
+ *
+ * MENAWARKAN, bukan menolak: menolak hanya melatih orang mengubah judul sedikit
+ * supaya lolos, dan duplikat yang menyamar lebih sulit dikenali daripada
+ * duplikat terang-terangan.
+ */
+function TawaranDuplikat({
+  locationId,
+  state,
+}: {
+  locationId: string;
+  state: NonNullable<IssueActionState>;
+}) {
+  const [paksaState, paksaAction, paksaPending] = useActionState<IssueActionState, FormData>(
+    createIssue,
+    undefined,
+  );
+  const nilai = state.nilai!;
+  if (paksaState?.success) return <Banner tone="success" title={paksaState.success} />;
+  return (
+    <div className="space-y-2 rounded-md border border-warning bg-warning-soft p-3">
+      <p className="text-sm font-medium">
+        Sudah ada kendala serupa yang masih terbuka di lokasi ini.
+      </p>
+      <ul className="space-y-1 text-sm">
+        {state.duplikat!.map((d) => (
+          <li key={d.id}>
+            • {d.title}{" "}
+            <span className="text-ink-muted">– dibuka {formatTanggal(new Date(d.createdAt))}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="text-sm text-ink-muted">
+        Kalau ini masalah yang sama, tambahkan perkembangannya di kendala yang sudah ada – jangan
+        dicatat dua kali. Kalau memang masalah lain, lanjutkan.
+      </p>
+      {paksaState?.error ? <Banner tone="error" title={paksaState.error} /> : null}
+      <form action={paksaAction}>
+        <input type="hidden" name="locationId" value={locationId} />
+        <input type="hidden" name="title" value={nilai.title} />
+        <input type="hidden" name="description" value={nilai.description} />
+        <input type="hidden" name="severity" value={nilai.severity} />
+        <input type="hidden" name="paksa" value="1" />
+        <Button type="submit" variant="secondary" loading={paksaPending}>
+          Tetap buat kendala baru
+        </Button>
+      </form>
+    </div>
+  );
+}
+
 /** Form buat kendala baru. */
 function CreateIssueForm({ locationId }: { locationId: string }) {
   const [state, action, pending] = useActionState<IssueActionState, FormData>(createIssue, undefined);
+  if (state?.duplikat?.length && state.nilai) {
+    return <TawaranDuplikat locationId={locationId} state={state} />;
+  }
   return (
     <form action={action} className="space-y-3 rounded-md border border-border bg-surface-muted p-3">
       <StateBanners state={state} />

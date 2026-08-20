@@ -187,6 +187,18 @@ enum IssueStatus {
   selesai
 }
 
+/// Dari mana sebuah kendala masuk ke MARLIN (DECISIONS 392).
+enum IssueSource {
+  /// Dicatat langsung lewat form kendala (tab Progress atau papan kendala).
+  manual
+  /// Menempel pada laporan harian.
+  laporan_harian
+  /// Lahir dari kolom "Kendala" kegiatan lapangan saat kegiatan difinalkan.
+  kegiatan_lapangan
+  /// Dibuat dari hasil analisis Ask MARLIN.
+  ai
+}
+
 enum RecoveryStatus {
   direncanakan
   berjalan
@@ -1388,6 +1400,37 @@ model Issue {
   severity    IssueSeverity @default(sedang)
   status      IssueStatus   @default(terbuka)
   raisedById  String?       @map("raised_by_id") @db.Uuid
+
+  /// DARI MANA kendala ini masuk (DECISIONS 392).
+  ///
+  /// Sebelum ini kata "kendala" di MARLIN menunjuk dua benda berbeda: entitas
+  /// ber-siklus-hidup, dan beberapa kolom teks bebas yang tidak punya apa-apa.
+  /// Orang lapangan tidak bisa membedakannya dari layar. Kolom ini membuat
+  /// asalnya terbaca di daftar terpusat, sehingga "kendala dari kegiatan
+  /// lapangan" tidak lagi menghilang.
+  source      IssueSource   @default(manual)
+
+  /// Kegiatan lapangan yang melahirkan kendala ini — supaya bisa dibuka lagi.
+  fieldActivityId String? @map("field_activity_id") @db.Uuid
+
+  /// PEMILIK kendala — yang ditagih, bukan yang melapor (`raisedById`).
+  ///
+  /// Dulu PIC hanya ada di `RecoveryAction`, jadi kendala baru punya pemilik
+  /// SETELAH seseorang sempat merencanakan pemulihan. Padahal justru kendala
+  /// yang belum disentuh yang paling perlu ditagih — dan itulah keadaan
+  /// keempat kendala di tangkapan layar user: "Belum ada aksi pemulihan."
+  picUserId String? @map("pic_user_id") @db.Uuid
+  /// PIC di luar MARLIN (PLN, pemilik lahan, dinas). Tidak bisa dikirimi
+  /// pengingat, dan layarnya mengatakan itu — keputusan user 2026-08-20.
+  picName   String? @map("pic_name")
+  dueDate   DateTime? @map("due_date") @db.Date
+
+  closedAt    DateTime? @map("closed_at") @db.Timestamptz
+  /// Bagaimana kendala ini selesai. Opsional, tapi diminta saat menutup:
+  /// riwayat tanpa catatan penutup tidak bisa dipakai belajar maupun
+  /// dipertanggungjawabkan ke PPK.
+  closingNote String?   @map("closing_note")
+
   createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz
   updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz
 
@@ -1397,6 +1440,9 @@ model Issue {
   actions  RecoveryAction[]
 
   @@index([locationId, status])
+  /// Papan kendala terpusat menyaring status + tenggat lintas lokasi.
+  @@index([status, dueDate])
+  @@index([fieldActivityId])
   @@map("issues")
 }
 

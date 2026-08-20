@@ -19396,3 +19396,121 @@ mekanisme yang saling menutupi — saringan `planFrac > 0` dan rumus
 regresinya; yang terbukti load-bearing sendirian baru rumusnya. Ditulis di
 berkas ujinya supaya pembaca berikutnya tidak menyimpulkan lebih dari yang
 dibuktikan.
+
+---
+
+## 392 — Satu pusat kendala: `/kendala`, pemilik, penjaga duplikat, penagih (2026-08-20)
+
+**Keberatan user:**
+
+> *"pencatatan kendala, saat ini menurutku tidak efektif, setelah dicatat tidak
+> ada tindak lanjut, lalu akan rancu dengan kendala di laporan harian atau
+> kegiatan lapangan. kamu perlu memetakan lagi soal pencatatan kendala ini.
+> coba cek seluruh sistemmu terkait kendala dan buat satu pusat"*
+
+Penelusuran lengkapnya ada di [`docs/rebuild/PETA_KENDALA.md`](./rebuild/PETA_KENDALA.md).
+Hasilnya lebih buruk daripada yang tersirat di keberatan itu: kata "kendala" di
+MARLIN menunjuk **dua benda berbeda** — satu entitas ber-siklus-hidup (`Issue`),
+dan beberapa kolom teks bebas yang tidak punya status, pemilik, maupun tenggat.
+Kendala yang ditulis di Kegiatan Lapangan **tidak pernah muncul di daftar
+kendala mana pun**; ia hanya terbaca lagi kalau ada orang membuka kegiatan itu
+satu per satu.
+
+### Yang diputuskan user (2026-08-20)
+
+| Pertanyaan | Jawaban |
+|---|---|
+| Kendala di Kegiatan Lapangan | **Otomatis jadi Issue saat difinalkan** |
+| Siapa boleh jadi PIC | **Pengguna MARLIN + nama bebas** (PLN, pemilik lahan) |
+| Pengingat lewat tenggat | **Grup paket, ringkas** |
+
+### Yang dibangun
+
+1. **Skema** — `Issue` diberi `source` (`manual` / `laporan_harian` /
+   `kegiatan_lapangan` / `ai`), `fieldActivityId`, `picUserId`, `picName`,
+   `dueDate`, `closedAt`, `closingNote`. Migrasi idempoten
+   `20260820030000_kendala_pusat`, dengan backfill `closed_at` dari
+   `updated_at` untuk kendala yang sudah `selesai` dan `source='laporan_harian'`
+   untuk yang ber-`report_id`.
+
+   Alasan PIC naik ke `Issue`, bukan tetap di `RecoveryAction`: menaruhnya hanya
+   di aksi pemulihan berarti kendala baru punya pemilik SETELAH seseorang sempat
+   merencanakan pemulihan — padahal justru kendala yang belum disentuh yang
+   paling perlu ditagih. Tangkapan layar user memperlihatkan tepat itu: empat
+   kendala, keempatnya *"Belum ada aksi pemulihan."*
+
+2. **Halaman `/kendala`** — papan lintas lokasi, dipotong `locationScopeWhere`
+   seperti halaman lain. Menu memakai `location.view`, BUKAN `issue.manage`:
+   yang tidak boleh mengubah tetap perlu MELIHAT apa yang menghambat lokasinya.
+
+3. **`src/lib/kendala/prioritas.ts`** — urutan lewat tenggat → terbengkalai →
+   tingkat → tenggat terdekat, dipindah dari `dashboard.ts` supaya papan, tab
+   Progress, dan pengingat WA tidak punya tiga salinan jawaban.
+
+   Lewat tenggat menang atas tingkat: kendala "rendah" yang tenggatnya lewat
+   seminggu sudah membuktikan dirinya tidak tertangani; kendala "kritis" yang
+   tenggatnya besok masih punya kesempatan.
+
+4. **Kegiatan lapangan → Issue otomatis** (`src/lib/kendala/naikkan.ts`).
+   Penjaganya:
+   - isian yang berarti "tidak ada kendala" (`-`, `nihil`, `tidak ada kendala
+     yang berarti`, …) TIDAK melahirkan apa pun — dicocokkan pada SELURUH teks,
+     bukan sebagai potongan, supaya *"tidak ada material besi di lokasi"* tetap
+     jadi kendala;
+   - satu kegiatan = paling banyak satu kendala. Finalisasi ULANG tidak menimpa
+     Issue yang sudah ada: ia mungkin sudah diberi PIC/tenggat orang lain, dan
+     menimpanya menghapus pekerjaan itu diam-diam;
+   - gagal mencatat kendala TIDAK menggagalkan finalisasi kegiatan. Yang hilang
+     kalau ia melempar bukan kendalanya saja, melainkan seluruh kegiatan beserta
+     fotonya.
+
+   Formulirnya sekarang mengatakan apa yang akan terjadi ("otomatis masuk papan
+   kendala dan akan ditagih sampai ditutup") — orang berhak tahu tulisannya akan
+   menagih dirinya.
+
+5. **Penjaga duplikat** (`src/lib/kendala/duplikat.ts`). Keluhan asli user:
+   *"Lahan belum bisa clear"* tercatat **tiga kali**, tanggal sama, tingkat
+   sama. Kemiripan = Dice atas bigram KARAKTER (versi bigram KATA terbukti
+   terlalu lemah: *"lahan belum bisa clear"* vs *"lahan belum clear"* hanya
+   0,40). Ambang **0,7**, DIUKUR bukan ditebak — pada 0,6, *"Akses jalan rusak"*
+   vs *"Akses jalan longsor"* (0,647) ikut tertangkap, padahal itu dua kerusakan
+   berbeda, dan tawaran yang selalu salah akan selalu diabaikan.
+
+   Di jalur MANUAL: menawarkan, tidak menolak — menolak hanya melatih orang
+   mengubah judul sedikit supaya lolos, dan duplikat yang menyamar lebih sulit
+   dikenali. Di jalur OTOMATIS (kegiatan lapangan) tidak ada orang yang bisa
+   ditanya, jadi baris keduanya tidak dibuat dan alasannya dicatat ke audit.
+
+6. **Penagih** (`src/lib/kendala/penjadwal-tenggat.ts`) — menumpang cron harian
+   yang sudah ada, ke grup paket, di bawah sakelar pengingat harian yang SAMA
+   (dua-duanya tagihan internal; laporan mingguan beda urusan karena ia laporan
+   resmi ke pemberi kerja).
+
+   **Peredam pengulangan**: sebuah grup dikirimi lagi hanya kalau isinya berubah
+   atau sudah lewat 3 hari. Daftar kendala lewat tenggat hampir tidak berubah
+   dari hari ke hari, dan mengirimnya tiap 24 jam adalah cara tercepat membuat
+   grup berhenti membaca peringatan MARLIN — saat itu terjadi, peringatan yang
+   sungguhan ikut hilang. Catatannya menumpang `audit_logs` (append-only, sudah
+   ber-indeks `(resource_type, resource_id)`) sehingga tidak perlu tabel baru.
+
+   Sidik jari peredam sengaja TIDAK memuat umur keterlambatan (berubah tiap hari
+   → peredam tidak pernah bekerja) tapi MEMUAT jumlah total (kalau tidak,
+   perubahan di luar potongan teratas tidak terdeteksi).
+
+### Yang TIDAK dilakukan
+
+- **Bukan** model baru. `Issue` sudah benar bentuknya.
+- **Bukan** memindahkan kendala keluar dari tab Progress. Di situ ia berguna –
+  kendala lokasi itu, di samping angka lokasi itu.
+- **Bukan** menyentuh `DailyReport.notes` / `DailyReportItem.notes`. Itu memang
+  catatan bebas, bukan kendala, dan sudah bisa dicari lewat pencarian narasi
+  (DECISIONS 382).
+
+### Uji gigi
+
+Enam belas penjaga dirusak satu per satu dan semuanya memerahkan ujinya: pola
+"tidak ada kendala", ambang panjang, pencocokan seluruh-teks vs potongan,
+pemotongan judul di batas kata, penyaringan solusi, urutan terlama-dulu, `total`
+dari pemanggil, sidik tanpa total, sidik dengan `lewatHari`, PIC kosong yang
+dibiarkan kosong, daftar kosong yang tetap mengirim, penjaga `sudah_ada`,
+penjaga duplikat, saringan status pada penagih, peredam, dan pelepasan jeda.
