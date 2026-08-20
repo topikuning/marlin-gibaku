@@ -19729,3 +19729,86 @@ menyetel `size` + `margin`, dan `min-w` di atas 700px wajib dibatalkan saat
 cetak. Versi pertamanya menuduh berkas yang SUDAH benar karena ikut memindai
 komentar yang menjelaskan bahayanya; komentar dibuang dulu sekarang. Penjaga
 yang menuduh kode benar akan dimatikan orang, bukan dituruti.
+
+---
+
+## 396 — Hari tanpa kegiatan: pernyataan, bukan pelonggaran pagar (2026-08-20)
+
+Kebutuhan user: *"dalam satu hari di laporan harian itu, dalam hari ini tidak
+ada kegiatan. jadi item pekerjaan tidak harus diisi."*
+
+Keadaan sebelumnya lebih longgar daripada dugaan: `submitReport` sudah TIDAK
+mewajibkan item pekerjaan — yang ditolak hanya kalau item, material, DAN alat
+ketiganya kosong. Yang belum bisa: hari yang benar-benar tidak ada apa-apa.
+
+### Kenapa BUKAN sekadar melonggarkan pagarnya
+
+Kalau pagar "laporan tidak boleh kosong" dibuang, laporan yang **lupa diisi**
+tidak bisa dibedakan dari hari yang **memang nihil**. Dua hal itu berlawanan
+artinya, dan yang memeriksa tidak punya cara memisahkannya — justru ambiguitas
+itu yang membuat data harian tidak berguna.
+
+Jadi hari nihil harus **dinyatakan**, dan pagarnya tetap berdiri untuk yang
+tidak menyatakan apa-apa.
+
+### Kenapa SEBABNYA wajib
+
+Di kurva-S hujan, libur, dan menunggu sama-sama 0%. Di manajemen ketiganya
+berbeda:
+
+| Sebab | Akibat |
+|---|---|
+| Hujan | Dasar klaim **perpanjangan waktu**. Tidak tercatat per hari = tidak bisa diklaim berbulan-bulan kemudian, saat buktinya sudah tidak ada. |
+| Libur / cuti bersama | Netral; tidak boleh terbaca sebagai kelalaian siapa pun. |
+| Menunggu material / lahan / izin | Itu **kendala**, bukan hari libur — harus ditagih. |
+| Force majeure | Perlakuan kontraktual lain lagi. |
+
+Enum + catatan bebas (pilihan user): enum supaya bisa dihitung, catatan supaya
+keadaan yang tidak muat di enum tidak dipaksa masuk kotak yang salah — memaksa
+begitu merusak angka yang tadinya mau dirapikan.
+
+### Menyambung ke papan kendala — MENAWARKAN, tidak memaksa
+
+Sebab "menunggu" memunculkan tawaran mencatatnya sebagai kendala, judul terisi
+otomatis. Memaksa akan memenuhi papan dengan baris dari hari-hari yang
+sebenarnya satu masalah berlarut; tidak menawarkan sama sekali mengulang cacat
+yang baru saja diperbaiki (DECISIONS 392).
+
+Judul usulannya SENGAJA tanpa tanggal: menunggu material hari ini dan besok
+adalah masalah yang sama, dan judul ber-tanggal akan lolos dari penjaga
+duplikat.
+
+### Menagih pekerjaan yang berhenti
+
+Tiga hari nihil berturut-turut (pilihan user) = pekerjaan berhenti, dan itu
+tidak boleh diam-diam lewat sebagai "sudah lapor kok" — laporan nihil MEMANG
+memuaskan pengingat laporan harian. Peringatannya ke grup paket, menumpang cron
+harian, dengan peredam seperti pengingat kendala.
+
+Hari **tanpa laporan MEMUTUS** hitungan, bukan dianggap nihil: "belum lapor"
+bukan pernyataan apa pun, dan memperlakukannya sebagai nihil melahirkan
+peringatan berhenti-bekerja untuk lokasi yang sebenarnya cuma telat mengisi.
+Laporan **draft** juga tidak dihitung — draft bisa berubah, dan sering memang
+berubah.
+
+### Blanko cetak
+
+Hari nihil menuliskan `TIDAK ADA KEGIATAN – <sebab> – <catatan>` di baris
+realisasi. Blanko yang dibiarkan kosong terbaca seperti ada yang lupa mengisi;
+pemeriksa di sisi PPK harus bisa melihat bahwa ini pernyataan sengaja.
+
+### Uji yang ternyata tidak membuktikan apa pun
+
+Saringan "draft tidak dihitung" lolos uji gigi — melepasnya tidak memerahkan
+apa pun, karena seluruh fixture memang sudah berstatus `dikirim`. Ditambah uji
+yang benar-benar memuat hari draft di tengah. Ini kali keempat dalam sesi ini
+sebuah uji terlihat kuat padahal tidak; dicatat apa adanya.
+
+### Yang TIDAK dilakukan
+
+- **Bukan** status baru di mesin transisi. Alurnya tetap draft → dikirim →
+  disetujui; yang berbeda isinya, bukan siklus hidupnya.
+- **Bukan** membiarkan nihil berdiri bersama item/material/alat. Dua pernyataan
+  yang saling menyangkal membuat laporan mengatakan dua hal sekaligus.
+- **Bukan** mem-backfill laporan lama tanpa item jadi "nihil". Itu mengarang
+  pernyataan yang tidak pernah dibuat siapa pun — persis kebalikan dari gunanya.

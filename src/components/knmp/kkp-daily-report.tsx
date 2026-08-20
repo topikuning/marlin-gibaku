@@ -18,6 +18,8 @@ import { WORKER_ROLE_LABEL, WORKER_ROLE_ORDER } from "@/lib/daily-report/constan
 
 import { KKP_WEATHER_HOURS, type KkpWeatherCategory } from "@/lib/weather/hourly";
 import { RuangTtd, gambarPihak, type TtdLaporan } from "./blok-ttd";
+import { teksNihilCetak } from "@/lib/daily-report/nihil";
+import type { NoActivityReason } from "@/generated/prisma/enums";
 
 const volFmt = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 });
 const orgFmt = new Intl.NumberFormat("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -78,6 +80,10 @@ export type KkpDailyData = {
   items: KkpDailyItem[];
   /** false = pratinjau dari data live (belum dibekukan finalSnapshot). */
   isFinal: boolean;
+  /** Hari itu DINYATAKAN tanpa kegiatan, berikut sebabnya (DECISIONS 396). */
+  noActivity?: boolean;
+  noActivityReason?: NoActivityReason | null;
+  noActivityNote?: string | null;
   /**
    * Berapa baris laporan hari itu yang basisnya DRAFT ADENDUM dan karena itu
    * TIDAK dicetak di blanko (DECISIONS 215). Blanko harian KKP adalah dokumen
@@ -542,7 +548,16 @@ export function barisRencanaRealisasi(
     `${r.name}${r.volume > 0 ? ` – ${volFmt.format(r.volume)}${r.unit ? ` ${r.unit}` : ""}` : ""}` +
     (r.picName ? ` (${r.picName})` : ""),
   );
-  const realisasi = barisRealisasiKkp(d.items);
+  /*
+   * Hari yang DINYATAKAN tanpa kegiatan menuliskan kalimatnya di baris pertama
+   * realisasi (DECISIONS 396). Blanko yang dibiarkan kosong terbaca seperti ada
+   * yang lupa mengisi — pemeriksa di sisi PPK harus bisa melihat bahwa ini
+   * pernyataan sengaja, berikut sebabnya.
+   */
+  const teksNihil = teksNihilCetak(!!d.noActivity, d.noActivityReason, d.noActivityNote);
+  const realisasi = teksNihil
+    ? [{ no: "1", text: teksNihil, kategori: false }]
+    : barisRealisasiKkp(d.items);
   const n = Math.max(MIN_RR_ROWS, rencana.length, realisasi.length);
   // Baris kosong di bawah daftar tetap bernomor (kotaknya memang untuk diisi
   // tangan), melanjutkan nomor PEKERJAAN terakhir — bukan nomor baris tabel,

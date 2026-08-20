@@ -11,6 +11,7 @@ import type {
   WeatherCode,
   WeatherSource,
   WorkerRole,
+  NoActivityReason,
 } from "@/generated/prisma/enums";
 import { hourlyCategoryEntries, parseHourlyWeather, type HourlyWeather } from "@/lib/weather/hourly";
 import { WEATHER_KKP_CATEGORY } from "./constants";
@@ -174,6 +175,10 @@ export type WorkspaceReport = {
   workStart: string | null;
   workEnd: string | null;
   notes: string | null;
+  /** Pernyataan "hari ini tidak ada kegiatan" (DECISIONS 396). */
+  noActivity: boolean;
+  noActivityReason: NoActivityReason | null;
+  noActivityNote: string | null;
   items: WorkspaceItem[];
   totalValueToday: string; // BigInt string
   workers: { role: WorkerRole; count: number }[];
@@ -384,6 +389,9 @@ export async function getWorkspaceData(slug: string, dateKey: string): Promise<W
       photos: photoViews,
       photosTanpaItem,
       lastCorrectionReason: lastCorrection?.reason ?? null,
+      noActivity: report.noActivity,
+      noActivityReason: report.noActivityReason,
+      noActivityNote: report.noActivityNote,
       isFinal: report.status === "final",
     },
   };
@@ -866,6 +874,10 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
           volumeContract != null && volumeContract > 0 ? prestasiPct(volumeCumulative, volumeContract) : null,
       };
     }),
+    // Pernyataan "tidak ada kegiatan" ikut ke blanko cetak (DECISIONS 396).
+    noActivity: report?.noActivity ?? false,
+    noActivityReason: report?.noActivityReason ?? null,
+    noActivityNote: report?.noActivityNote ?? null,
     isFinal: report?.status === "final",
     ...signatories,
   };

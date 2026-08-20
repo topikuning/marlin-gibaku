@@ -12,6 +12,8 @@ import {
   submitReportAction,
   type DailyActionState,
 } from "@/lib/daily-report/actions";
+import { HariNihilPanel } from "@/components/knmp/hari-nihil-panel";
+import type { NoActivityReason } from "@/generated/prisma/enums";
 import type { LeafNodeOption, WorkspaceItem } from "@/lib/daily-report/queries";
 import { ISSUE_SEVERITY_LABEL } from "@/lib/daily-report/constants";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
@@ -72,6 +74,7 @@ export function ReportEditor({
   photoEnabled,
   photosTanpaItem,
   bolehHapusFoto,
+  nihil,
 }: {
   locationId: string;
   slug: string;
@@ -85,6 +88,8 @@ export function ReportEditor({
   photosTanpaItem: PhotoView[];
   /** Laporan masih bisa diedit (draft / perlu koreksi). */
   bolehHapusFoto: boolean;
+  /** Pernyataan "tidak ada kegiatan" hari itu (DECISIONS 396). */
+  nihil: { aktif: boolean; alasan: NoActivityReason | null; catatan: string | null };
 }) {
   return (
     <div className="space-y-4">
@@ -95,7 +100,24 @@ export function ReportEditor({
           description={correctionReason}
         />
       ) : null}
-      <ItemForm locationId={locationId} slug={slug} dateKey={dateKey} nodes={nodes} photoEnabled={photoEnabled} />
+      {/*
+        Panel hari-nihil hanya muncul saat laporan MASIH KOSONG, atau saat
+        pernyataannya sudah terpasang (supaya bisa dibatalkan). Menawarkannya di
+        samping pekerjaan yang sudah tercatat cuma mengundang orang mencentang
+        dua pernyataan yang saling menyangkal. DECISIONS 396.
+      */}
+      {reportId && (nihil.aktif || items.length === 0) ? (
+        <HariNihilPanel
+          reportId={reportId}
+          locationId={locationId}
+          nihil={nihil.aktif}
+          alasan={nihil.alasan}
+          catatan={nihil.catatan}
+        />
+      ) : null}
+      {nihil.aktif ? null : (
+        <ItemForm locationId={locationId} slug={slug} dateKey={dateKey} nodes={nodes} photoEnabled={photoEnabled} />
+      )}
       <ItemList
         reportId={reportId}
         locationId={locationId}

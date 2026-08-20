@@ -17,6 +17,10 @@ import {
   kirimPengingatKendalaTerjadwal,
   type HasilPengingatTenggat,
 } from "@/lib/kendala/penjadwal-tenggat";
+import {
+  kirimPengingatNihilTerjadwal,
+  type HasilPengingatNihil,
+} from "@/lib/daily-report/penjadwal-nihil";
 
 /**
  * Pekerjaan harian MARLIN (DECISIONS 202) — dijalankan penjadwal luar lewat
@@ -67,6 +71,8 @@ export type HasilHarian = {
   drive: HasilPutaran;
   /** Pengingat kendala lewat tenggat ke grup paket — DECISIONS 392. */
   kendala: HasilPengingatTenggat;
+  /** Peringatan pekerjaan berhenti N hari berturut-turut — DECISIONS 396. */
+  nihil: HasilPengingatNihil;
 };
 
 /* ── 1. Aktivasi SPMK yang jatuh tempo ───────────────────────────────────── */
@@ -461,6 +467,7 @@ export async function jalankanTugasHarian(now = new Date()): Promise<HasilHarian
       // grup yang sama akan terbaca sebagai sakelarnya rusak. Laporan mingguan
       // beda urusan — ia laporan resmi ke pemberi kerja, jadi tetap di atas.
       kendala: { diperiksa: 0, terkirim: 0, gagal: 0, diredam: 0, rincian: [] },
+      nihil: { diperiksa: 0, terkirim: 0, gagal: 0, diredam: 0, rincian: [] },
       pengingat: {
         terkirim: 0,
         gagal: 0,
@@ -473,5 +480,6 @@ export async function jalankanTugasHarian(now = new Date()): Promise<HasilHarian
   }
   const pengingat = await kirimPengingatHarian(now);
   const kendala = await kirimPengingatKendalaTerjadwal(now);
-  return { dateKey: jakartaDateKey(now), spmk, pengingat, mingguan, drive, kendala };
+  const nihil = await kirimPengingatNihilTerjadwal(now);
+  return { dateKey: jakartaDateKey(now), spmk, pengingat, mingguan, drive, kendala, nihil };
 }

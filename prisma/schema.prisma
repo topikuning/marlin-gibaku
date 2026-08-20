@@ -1097,6 +1097,21 @@ model WeeklyPlanItem {
 // PELAKSANAAN HARIAN (SATU entitas laporan)
 // ─────────────────────────────────────────────────────────────
 
+/// Sebab sebuah hari kerja BERLALU TANPA KEGIATAN (DECISIONS 396).
+///
+/// Di kurva-S semuanya sama: 0%. Di manajemen sama sekali berbeda — hujan
+/// adalah dasar klaim perpanjangan waktu, libur netral, dan "menunggu" adalah
+/// kendala yang harus ditagih. Sistem yang tidak membedakannya memaksa orang
+/// menebaknya lagi berbulan-bulan kemudian, saat buktinya sudah tidak ada.
+enum NoActivityReason {
+  hujan
+  libur
+  menunggu_material
+  menunggu_lahan_izin
+  force_majeure
+  lainnya
+}
+
 model DailyReport {
   id               String            @id @default(uuid()) @db.Uuid
   locationId       String            @map("location_id") @db.Uuid
@@ -1112,6 +1127,21 @@ model DailyReport {
   workStart        String?           @map("work_start")
   workEnd          String?           @map("work_end")
   notes            String?
+
+  /// HARI INI TIDAK ADA KEGIATAN — pernyataan, bukan ketiadaan data.
+  ///
+  /// Tanpa kolom ini, laporan yang LUPA diisi tidak bisa dibedakan dari hari
+  /// yang MEMANG nihil. Dua hal itu berlawanan artinya, dan yang memeriksa
+  /// tidak punya cara memisahkannya. DECISIONS 396.
+  noActivity       Boolean           @default(false) @map("no_activity")
+  /// Wajib bila `noActivity`. Enum supaya bisa dihitung ("berapa hari hujan
+  /// bulan ini") — angka itulah dasar klaim perpanjangan waktu.
+  noActivityReason NoActivityReason? @map("no_activity_reason")
+  /// Keterangan bebas pendamping: keadaan lapangan tidak selalu muat di enum,
+  /// dan memaksanya masuk kotak yang salah merusak angka yang tadinya mau
+  /// dirapikan.
+  noActivityNote   String?           @map("no_activity_note")
+
   gpsLat           Decimal?          @map("gps_lat") @db.Decimal(10, 7)
   gpsLng           Decimal?          @map("gps_lng") @db.Decimal(10, 7)
   createdById      String            @map("created_by_id") @db.Uuid
@@ -1140,6 +1170,8 @@ model DailyReport {
 
   @@unique([locationId, reportDate])
   @@index([status])
+  /// Menghitung hari nihil beruntun per lokasi, dan "berapa hari hujan".
+  @@index([locationId, noActivity, reportDate])
   @@index([locationId, status])
   @@map("daily_reports")
 }
