@@ -17,7 +17,7 @@ import { db } from "@/lib/db";
 import { can } from "@/lib/authz";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { cumulativeVolumeByLineage, getProgresDraftAdendum } from "@/lib/progress";
-import { laggingItems } from "@/lib/progress-calc";
+import { itemPlanFracDariJadwal, laggingItems } from "@/lib/progress-calc";
 import { bacaBagianProgress, hrefBagianProgress, type BagianProgress } from "@/lib/progress-bagian";
 import { getPeriodBounds } from "@/lib/periodic-report";
 import { deriveCategorySchedule, getScurveSeries } from "@/lib/baseline";
@@ -633,7 +633,7 @@ async function BagianKendala({
     gapValue: number;
   };
 
-  const [realizedVol, issues, activeItems] = await Promise.all([
+  const [realizedVol, issues, activeItems, jadwalItem] = await Promise.all([
     planFraction > 0 ? cumulativeVolumeByLineage(locationId) : Promise.resolve(new Map<string, number>()),
     db.issue.findMany({
       where: { locationId },
@@ -676,23 +676,69 @@ async function BagianKendala({
           },
         })
       : Promise.resolve([]),
+    /*
+     * JADWAL PER ITEM — inilah yang membuat panel ini berhenti berbohong
+     * (DECISIONS 391). `weekly` = increment bobot per minggu milik item itu;
+     * 0 berarti minggu jeda. Sudah tersimpan sejak baseline dibuat, hanya
+     * belum pernah dibaca panel ini.
+     */
+    planFraction > 0
+      ? db.baseline.findFirst({
+          where: { locationId, status: "aktif" },
+          orderBy: { baselineNo: "desc" },
+          select: { scheduleItems: { select: { lineageKey: true, weekly: true } } },
+        })
+      : Promise.resolve(null),
   ]);
 
-  // ── Item tertinggal: realisasi kumulatif < target proporsional plan ──────
-  // Sederhana & jelas: target volume item minggu ini = volume RAB × plan% —
-  // asumsi semua item bergerak proporsional terhadap kurva rencana.
+  /*
+   * ── Item tertinggal: dibandingkan terhadap JADWAL ITEM ITU SENDIRI ──────
+   *
+   * Dilaporkan user 2026-08-20: *"kenapa ada item penarikan kabel yang mana
+   * pekerjaan ME, padahal ini baru minggu ketiga"*. Betul – dan sebabnya ada
+   * di rumus lamanya: target tiap item = volume RAB × persen kurva-S GLOBAL,
+   * yaitu asumsi bahwa semua pekerjaan berjalan serentak sejak minggu 1 dengan
+   * laju yang sama. Di konstruksi itu tidak pernah benar.
+   *
+   * Sekarang fraksi rencananya diambil per item dari jadwal yang memang sudah
+   * tersimpan. Item yang minggu ini belum dijadwalkan berfraksi 0 dan TIDAK
+   * bisa tertinggal – bukan disembunyikan, melainkan memang belum jatuh tempo.
+   */
   let lagging: LaggingItem[] = [];
+  let pakaiJadwalItem = false;
   if (planFraction > 0) {
     // Formula ada di calculation layer, bukan di halaman (audit 2026-07-27, M6).
     const meta = new Map(activeItems.map((n) => [n.lineageKey, n]));
+    const weeklyByKey = new Map<string, number[]>();
+    for (const s of jadwalItem?.scheduleItems ?? []) {
+      weeklyByKey.set(
+        s.lineageKey,
+        Array.isArray(s.weekly)
+          ? (s.weekly as unknown[]).map((x) => (typeof x === "number" && Number.isFinite(x) ? x : 0))
+          : [],
+      );
+    }
     lagging = laggingItems(
-      activeItems.map((n) => ({
-        lineageKey: n.lineageKey,
-        volK: n.volume != null ? Number(n.volume) : 0,
-        amount: Number(n.amount),
-        volSd: realizedVol.get(n.lineageKey) ?? 0,
-      })),
-      planFraction,
+      activeItems.map((n) => {
+        /*
+         * Cadangannya fraksi GLOBAL, dan itu disengaja: lokasi yang baselinenya
+         * belum menyimpan jadwal per item kembali ke perilaku lama, bukan
+         * kehilangan panel ini sama sekali. Yang berubah cuma ketepatannya,
+         * dan bedanya disebut di layar.
+         */
+        const dariJadwal = itemPlanFracDariJadwal(
+          weeklyByKey.get(n.lineageKey) ?? [],
+          currentWeek,
+        );
+        if (dariJadwal !== null) pakaiJadwalItem = true;
+        return {
+          lineageKey: n.lineageKey,
+          volK: n.volume != null ? Number(n.volume) : 0,
+          amount: Number(n.amount),
+          volSd: realizedVol.get(n.lineageKey) ?? 0,
+          planFrac: dariJadwal ?? planFraction,
+        };
+      }),
     ).map((it) => {
       const n = meta.get(it.lineageKey)!;
       return {
@@ -731,8 +777,19 @@ async function BagianKendala({
         <header className="border-b border-border px-3 py-2">
           <p className="text-[13px] font-semibold text-ink">Item tertinggal</p>
           <p className="mt-0.5 text-[11px] text-ink-muted">
-            Realisasi kumulatif di bawah target proporsional rencana ({formatPct(planNow)} pada
-            minggu {currentWeek}) – 10 terbesar berdasar nilai kekurangan.
+            {pakaiJadwalItem ? (
+              <>
+                Realisasi kumulatif di bawah target <b>jadwal item itu sendiri</b> pada minggu{" "}
+                {currentWeek} – 10 terbesar berdasar nilai kekurangan. Item yang menurut jadwalnya
+                belum dimulai TIDAK dihitung tertinggal.
+              </>
+            ) : (
+              <>
+                Baseline lokasi ini belum menyimpan jadwal per item, jadi pembandingnya target
+                proporsional kurva-S ({formatPct(planNow)} pada minggu {currentWeek}) – semua item
+                dianggap berjalan serentak. Perbarui kurva-S untuk perbandingan per item.
+              </>
+            )}
           </p>
         </header>
         {lagging.length === 0 ? (
