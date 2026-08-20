@@ -19324,3 +19324,75 @@ mengatakan di komentarnya kenapa ia tidak memeriksa angkanya.
 
 Pelajarannya sama dengan DECISIONS 387: **asersi yang lolos pada data seragam
 tidak membuktikan apa-apa.** Uji gigi adalah satu-satunya cara mengetahuinya.
+
+---
+
+## 391 — "Item tertinggal" dibandingkan terhadap JADWAL ITEM, bukan kurva-S global (2026-08-20)
+
+**Dilaporkan user** dari layar produksi, dan pertanyaannya sendiri sudah
+memuat diagnosisnya:
+
+> *"tertinggal / kendala, kenapa ada item penarikan kabel yang mana pekerjaan
+> ME, padahal ini baru minggu ketiga."*
+
+### Angkanya membuktikan sebabnya
+
+Layar itu menampilkan **Pekerjaan Tarik Kabel NYY 2 × 4** sebagai item PALING
+tertinggal pada minggu ke-3: volume RAB 747,6 m', "target s/d mgg ini" 47,846,
+kekurangan Rp 6,6 jt.
+
+747,6 × 6,4% = **47,8464**. Persis. Jadi targetnya = volume RAB × persen
+kurva-S **global**, dan komentar kodenya memang mengakuinya apa adanya:
+
+> *"Sederhana & jelas: target volume item minggu ini = volume RAB × plan% —
+> asumsi semua item bergerak proporsional terhadap kurva rencana."*
+
+Asumsi itu tidak pernah benar di konstruksi. Pekerjaan ME dijadwalkan di ujung;
+menyebutnya tertinggal Rp 6,6 jt pada minggu ke-3 bukan cuma salah, tapi
+**mendorong item yang benar-benar terlambat keluar dari 10 besar** — daftar
+prioritas yang isinya bukan prioritas.
+
+### Datanya sudah ada sejak awal
+
+`BaselineScheduleItem.weekly` menyimpan increment bobot **per item per minggu**
+("0 = minggu tak aktif (jeda)"). Panel ini satu-satunya yang tidak pernah
+membacanya. Bukti bahwa itu memang jawabannya: `src/lib/plan/suggest.ts` sudah
+memakai matriks yang sama untuk menentukan jendela tiap item, dan
+`itemPlannedFraction()` di `scurve/sequencing.ts` sudah menghitung fraksi
+rencana per item. Jadi MARLIN **sudah tahu** kabel belum waktunya — hanya
+panel ini yang tidak bertanya.
+
+Satu sistem, dua jawaban untuk pertanyaan yang sama: Rencana Mingguan tidak
+menyarankan tarik kabel di minggu 3, tapi Item Tertinggal menuntutnya.
+
+### Yang berubah
+
+- `LaggingInput` kini membawa `planFrac` **per item**; `laggingItems()` tidak
+  lagi menerima satu fraksi global.
+- `itemPlanFracDariJadwal(weekly, minggu)` baru di `progress-calc.ts` —
+  kumulatif jadwal item itu sendiri. Mengembalikan `null` bila jadwalnya tidak
+  ada, sengaja **tidak** diam-diam jatuh ke 1 atau ke fraksi global; keduanya
+  menghasilkan angka yang terlihat sah padahal tidak berdasar.
+- `planFrac = 0` ⇒ item disaring keluar. Item yang belum jatuh tempo bukan item
+  yang terlambat.
+- Baseline tanpa jadwal per item **kembali ke perilaku lama**, dan layarnya
+  mengatakan itu: *"Baseline lokasi ini belum menyimpan jadwal per item, jadi
+  pembandingnya target proporsional kurva-S … Perbarui kurva-S untuk
+  perbandingan per item."* Kehilangan ketepatan boleh; kehilangan panelnya
+  tidak, dan diam soal dasar bandingnya juga tidak.
+
+Blast radius kecil: `laggingItems` hanya dipakai satu halaman.
+
+### Uji — termasuk yang TIDAK terbukti
+
+`tests/unit/progress-item-tertinggal.test.ts`, memakai angka asli dari layar
+user sebagai fixture. Satu uji sengaja merekam **rumus lamanya** (747,6 ×
+6,4% = 47,8464) supaya kalau ada yang mengembalikan fraksi global, angka itu
+muncul lagi sebagai uji merah.
+
+Yang perlu dicatat jujur: perilaku "item ME tidak muncul" dijaga **dua**
+mekanisme yang saling menutupi — saringan `planFrac > 0` dan rumus
+`expected = volK × planFrac`. Melepas salah satunya saja tidak memerahkan uji
+regresinya; yang terbukti load-bearing sendirian baru rumusnya. Ditulis di
+berkas ujinya supaya pembaca berikutnya tidak menyimpulkan lebih dari yang
+dibuktikan.

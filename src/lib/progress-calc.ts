@@ -156,6 +156,23 @@ export type LaggingInput = {
   amount: number;
   /** Volume yang sudah direalisasi s/d sekarang. */
   volSd: number;
+  /**
+   * Fraksi rencana SELESAI item INI pada minggu berjalan (0..1) — DECISIONS 391.
+   *
+   * Dulu parameter ini satu angka untuk SELURUH item: fraksi kurva-S global.
+   * Artinya setiap item dianggap berjalan serentak sejak minggu 1 dengan laju
+   * yang sama, dan itu tidak pernah benar di konstruksi. Akibatnya di produksi:
+   * *"Pekerjaan Tarik Kabel NYY"* – pekerjaan ME yang jadwalnya di ujung –
+   * muncul sebagai item PALING tertinggal pada **minggu ke-3**, dengan
+   * "kekurangan" 47,846 m dan Rp 6,6 jt. Padahal menurut jadwalnya sendiri ia
+   * memang belum boleh dimulai.
+   *
+   * `0` = belum dijadwalkan minggu ini ⇒ item TIDAK bisa tertinggal, dan
+   * disaring keluar. Item yang belum jatuh tempo bukan item yang terlambat;
+   * menyebutnya terlambat membuat daftar ini menuntut orang mengejar pekerjaan
+   * yang justru belum boleh dikerjakan.
+   */
+  planFrac: number;
 };
 
 export type LaggingItem = {
@@ -169,6 +186,34 @@ export type LaggingItem = {
 };
 
 /**
+ * Fraksi rencana SELESAI satu item pada akhir minggu ke-N, dari jadwal yang
+ * BENAR-BENAR tersimpan (DECISIONS 391).
+ *
+ * `weekly` adalah increment bobot per minggu milik item itu di
+ * `BaselineScheduleItem` — nol berarti minggu jeda. Yang dikembalikan porsi
+ * kumulatifnya terhadap total bobot item, jadi:
+ *
+ *   - minggu sebelum item mulai   → 0   (belum dijadwalkan, tidak bisa telat)
+ *   - minggu sesudah item selesai → 1
+ *
+ * Mengembalikan `null` bila jadwalnya tidak ada atau kosong — pemanggil yang
+ * memutuskan cadangannya. Sengaja TIDAK diam-diam jatuh ke 1 atau ke fraksi
+ * global: keduanya menghasilkan angka yang terlihat sah padahal tidak berdasar.
+ */
+export function itemPlanFracDariJadwal(weekly: number[], weekNumber: number): number | null {
+  if (!Array.isArray(weekly) || weekly.length === 0) return null;
+  let total = 0;
+  let sd = 0;
+  for (let i = 0; i < weekly.length; i++) {
+    const v = typeof weekly[i] === "number" && Number.isFinite(weekly[i]) ? weekly[i] : 0;
+    total += v;
+    if (i < weekNumber) sd += v;
+  }
+  if (!(total > 0)) return null;
+  return Math.max(0, Math.min(1, sd / total));
+}
+
+/**
  * Item yang tertinggal terhadap fraksi rencana (0..1) — dipakai panel
  * "paling tertinggal" di halaman Progress.
  *
@@ -177,13 +222,11 @@ export type LaggingItem = {
  * boleh kosong di RAB hasil impor, dan menambalnya dengan `amount / volume`
  * berarti mengarang angka yang tidak ada di dokumen RAB (audit 2026-07-27, M6).
  */
-export function laggingItems(items: LaggingInput[], planFraction: number, limit = 10): LaggingItem[] {
-  if (!(planFraction > 0)) return [];
-  const frac = Math.min(1, planFraction);
+export function laggingItems(items: LaggingInput[], limit = 10): LaggingItem[] {
   return items
-    .filter((it) => it.volK > 0)
+    .filter((it) => it.volK > 0 && it.planFrac > 0)
     .map((it) => {
-      const expected = it.volK * frac;
+      const expected = it.volK * Math.min(1, it.planFrac);
       const shortfall = Math.max(0, expected - it.volSd);
       return {
         lineageKey: it.lineageKey,
