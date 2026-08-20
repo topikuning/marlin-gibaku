@@ -19124,3 +19124,70 @@ Yang serupa dan **sengaja dibiarkan**: `border-border-muted` /
 kelas itu mati tanpa suara. Menambah tokennya satu baris, tapi akibatnya
 mengubah tampilan 17 tempat di luar halaman Paket — itu keputusan user, bukan
 efek samping yang pantas menumpang di rombakan ini.
+
+---
+
+## 389 — Koreksi naskah uji: lingkup jawaban ditentukan KANAL, bukan orangnya (2026-08-20)
+
+**Kesalahan saya, ditemukan user.** Butir A-02 di `SKENARIO_UJI_WA_AI.md`
+berbunyi *"Lingkup jawaban = hak penanya, bukan isi grup"* dan menyuruh
+pemeriksa memastikan **hanya lokasi si penanya** yang muncul saat seorang Site
+Manager bertanya di grup paket.
+
+Itu **terbalik**. `putuskanLayanan()` di `resolver-kanal.ts` mengembalikan
+`lokasiIds = paketGrup.lokasiIds` untuk grup tertaut — **seluruh lokasi paket
+itu**, tanpa irisan dengan penugasan si penanya. Penugasan baru menjadi batas
+di **chat pribadi**, tempat `lokasiIds` null lalu jatuh ke
+`accessibleLocationIds(user)`.
+
+Aturan aslinya benar dan disengaja (`DECISIONS 351` + brief 5A): balasan
+dikirim **ke grup** dan dibaca semua anggotanya. Mempersempit ke penugasan si
+penanya tidak melindungi apa pun — anggota lain tinggal bertanya sendiri —
+tapi membuat dua orang yang bertanya sama di grup yang sama menerima jawaban
+berbeda. Yang saya lakukan adalah menuliskan aturan itu **terbalik** di naskah
+yang justru dibuat untuk memeriksanya.
+
+Akibatnya kalau tidak ketahuan: pemeriksa menjalankan A-02, melihat lokasi
+lain ikut muncul, lalu **melaporkannya sebagai kebocoran data** — dan
+perbaikan yang "benar" menurut naskah itu justru akan merusak aturan yang
+sudah tepat.
+
+User menemukannya bukan dengan membaca kode, melainkan dengan bertanya *"apa
+maksudmu? group paket yang mana?"* — kalimat yang kabur ternyata menutupi
+kalimat yang salah.
+
+### Yang diperbaiki
+
+A-02 dipecah jadi empat keadaan yang masing-masing punya tanda TERLIHAT:
+
+| Keadaan | Lingkup | Tanda di balasan |
+|---|---|---|
+| Grup tertaut paket | seluruh lokasi paket | kaki "Jawaban ini hanya mencakup &lt;paket&gt;…" |
+| Chat pribadi, nomor terdaftar | penugasan orangnya | tanpa kaki pemotongan |
+| Chat pribadi, nomor asing | – | **diam total** |
+| Grup tak tertaut | ditolak | pesan "minta admin menautkannya" |
+| Grup tak tertaut + peran istimewa terverifikasi | organisasinya | penanda "Saya mengenali Anda sebagai …" |
+
+Ditambahkan juga hal-hal yang naskah versi pertama diam saja tentangnya, dan
+tanpa itu pemeriksa akan menyimpulkan yang salah:
+
+- **Di grup, mengetik saja tidak cukup** — MARLIN hanya menjawab bila
+  di-mention atau pesannya dibalas. Diamnya benar, bukan rusak.
+- **Grup tertaut menjawab siapa pun anggotanya**, termasuk nomor tak terdaftar
+  (mis. staf vendor). Itu disengaja: grupnya sendiri yang menjadi izin.
+- **Nama tampilan WhatsApp bukan bukti identitas.**
+- F-06 diperbaiki agar memakai dua lokasi di paket BERBEDA; versi lama
+  (dua lokasi, satu paket) akan gagal justru karena aturan A-02a.
+- D-04: umur tawaran klarifikasi **12 menit**, bukan 15.
+- D-05 diganti jadi uji yang benar-benar bisa memerahkan pagarnya: cabut
+  penugasan di antara pertanyaan dan susulannya, lalu pastikan lokasi itu
+  tidak lagi ikut.
+
+### Satu hal lagi yang jujur
+
+`asalScope` (`package_group` / `pengguna` / `privileged_user`) memang tercatat
+di `audit_logs.payload`, tapi **tidak ditampilkan di layar** — halaman Sistem →
+Audit hanya memilih action, resource, waktu, dan pelaku, bukan payload.
+Naskah versi pertama menyuruh pemeriksa "lihat kolom asalScope", yang berarti
+menyuruhnya melihat sesuatu yang tidak ada di sana. Diganti tabel tanda yang
+benar-benar terlihat di balasan.

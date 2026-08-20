@@ -53,12 +53,92 @@ temuan**, bukan perbedaan yang wajar.
 > `package.wa_group_auto_unlink`. Payload-nya memuat `waGroupId` lama dan cara
 > memulihkannya.
 
-### A-02 Lingkup jawaban = hak penanya, bukan isi grup
+### A-02 Lingkup jawaban ditentukan KANAL-nya, bukan orangnya
 
-1. Minta seorang **Site Manager** yang hanya ditugaskan di 1 lokasi mengetik
-   di grup paket: `progress hari ini`.
-2. **Harus:** hanya lokasi dia yang muncul.
-3. **GAGAL kalau:** muncul lokasi lain di paket yang sama.
+Ini aturan yang paling mudah salah dikira bug, jadi baca dulu sebelum menguji.
+
+**Di grup yang tertaut paket, lingkup jawaban = SELURUH lokasi paket itu** —
+apa pun penugasan orang yang mengetik. Bukan irisan dengan penugasannya.
+
+Alasannya: balasan dikirim **ke grup** dan dibaca semua anggotanya. Mempersempit
+jawaban ke penugasan si penanya tidak melindungi apa pun (anggota lain tinggal
+bertanya sendiri), tapi membuat dua orang yang bertanya sama di grup yang sama
+menerima jawaban berbeda. Yang membatasi di sini adalah **keanggotaan grup**,
+dan itu diatur manusia. `DECISIONS 351` + brief 5A.
+
+Siapkan satu contoh konkret, mis. paket **KNMP Lamongan – Kemantren** dengan
+dua lokasi (**Kemantren**, **Sugihwaras**), dan seorang Site Manager (sebut
+**Budi**) yang hanya ditugaskan di **Kemantren**.
+
+> **Cara memanggil MARLIN di grup:** mengetik saja **tidak cukup**. Di grup,
+> MARLIN hanya menjawab kalau di-**mention** atau pesannya **dibalas (reply)**.
+> Kalau tidak, ia diam — dan diamnya benar, bukan rusak. Di chat pribadi tidak
+> perlu mention.
+
+**A-02a — di grup paket: seluruh lokasi paket**
+
+1. Budi mention MARLIN di grup paket itu: `@MARLIN progress hari ini`
+2. **Harus:** **kedua** lokasi muncul — Kemantren **dan** Sugihwaras.
+3. **Harus:** kaki balasan menyebut pemotongannya:
+   *"Jawaban ini hanya mencakup KNMP Lamongan – Kemantren. Untuk lintas paket,
+   tanya saya lewat chat pribadi."*
+4. **GAGAL kalau:** muncul lokasi dari paket **LAIN**. Itu baru kebocoran.
+
+**A-02b — di chat pribadi: penugasan orangnya**
+
+1. Budi japri MARLIN (tanpa mention): `progress hari ini`
+2. **Harus:** **hanya Kemantren**. Di sini yang membatasi memang penugasan,
+   karena tidak ada grup yang menyatakan lingkup apa pun.
+3. **GAGAL kalau:** Sugihwaras ikut muncul.
+4. Lalu japri dari **nomor yang tidak terdaftar** di MARLIN. **Harus: DIAM
+   TOTAL** — bukan "Anda belum terdaftar". Balasan apa pun mengonfirmasi bahwa
+   nomor itu milik sistem proyek dan mengundang percobaan berikutnya.
+   **GAGAL kalau:** ada balasan apa pun, sesopan apa pun.
+
+Perbedaan A-02a vs A-02b inilah intinya: **jawaban yang sama bisa berbeda
+lingkup tergantung di mana ditanya**, dan itu memang dirancang begitu.
+
+**A-02c — grup tertaut menjawab siapa pun anggotanya**
+
+1. Minta orang yang **nomornya tidak terdaftar** di MARLIN (mis. staf vendor)
+   mention MARLIN di grup paket.
+2. **Harus:** tetap dijawab, dengan lingkup paket grup itu.
+3. **Ini disengaja**, bukan lubang: grupnya sendiri yang menjadi izin, dan
+   siapa yang boleh ada di dalamnya diputuskan manusia. Kalau Anda tidak ingin
+   vendor melihat data paketnya, keluarkan dari grup — bukan berharap MARLIN
+   menebak.
+4. **GAGAL kalau:** ia menerima data paket **lain**.
+
+**A-02d — grup TIDAK tertaut: ditolak, bukan didiamkan**
+
+1. Mention MARLIN di grup yang belum ditautkan paket mana pun.
+2. **Harus:** balasan penolakan yang bisa ditindaklanjuti — *"Grup ini belum
+   tertaut paket mana pun… Minta admin menautkannya di Paket → Grup
+   WhatsApp."*
+3. **Kecuali** kalau yang bertanya **Super Admin / Program Director yang
+   nomornya terverifikasi**: ia dilayani dengan lingkup **organisasinya**, dan
+   balasannya **wajib** membawa penanda *"Saya mengenali Anda sebagai … Grup
+   ini tidak tertaut paket; jawaban memakai lingkup organisasi Anda."*
+4. **GAGAL kalau:** penanda itu hilang. Anggota grup lain melihat data proyek
+   muncul di grup yang tidak tertaut apa pun dan berhak tahu atas dasar apa.
+5. **GAGAL juga kalau:** nama tampilan WhatsApp saja sudah cukup untuk
+   dianggap direktur. Yang jadi bukti hanya **nomor/LID tersimpan** — siapa pun
+   bisa menamai dirinya "Program Director".
+
+**Cara memastikan aturan mana yang dipakai — dari balasannya sendiri:**
+
+| Keadaan | Tanda yang TERLIHAT di balasan |
+|---|---|
+| Grup tertaut (A-02a/c) | kaki: *"Jawaban ini hanya mencakup **&lt;nama paket&gt;**…"* |
+| Chat pribadi (A-02b) | tidak ada kaki pemotongan |
+| Grup tak tertaut + peran istimewa (A-02d) | penanda *"Saya mengenali Anda sebagai …"* |
+
+> Jejak mesinnya (`asalScope` = `package_group` / `pengguna` /
+> `privileged_user`) memang dicatat di `audit_logs.payload` untuk action
+> `waha.tanya` — tapi **tidak ditampilkan di layar**: halaman Sistem → Audit
+> hanya menampilkan action, resource, waktu, dan pelakunya, bukan payload-nya.
+> Jadi untuk pemeriksaan sehari-hari pakai tabel di atas; payload hanya
+> terjangkau lewat query basis data.
 
 ### A-03 Antrean jawaban tahan mati listrik
 
@@ -160,7 +240,7 @@ pertanyaan yang tidak diajukan.
 
 ### D-04 Tawaran kedaluwarsa DIKATAKAN, bukan didiamkan
 
-1. Munculkan tawaran, **tunggu lewat 15 menit**, lalu balas `1`.
+1. Munculkan tawaran, **tunggu lewat 12 menit**, lalu balas `1`.
 2. **Harus:** ada balasan yang menyebut pilihannya sudah lewat dan
    mempersilakan bertanya lagi.
 3. **GAGAL kalau:** diam. Penanya baru saja mengetik angka dan berhak tahu
@@ -176,13 +256,19 @@ kalau kemarin?
 **Harus:** pertanyaan kedua dijawab untuk **Kedung Mutih**, periode kemarin —
 tanpa bertanya balik lokasinya.
 
-Lalu uji pagar arah sebaliknya:
+Lalu uji pagar arah sebaliknya — **riwayat tidak boleh memperlebar lingkup**.
+Ingat A-02: di grup, lingkupnya paket grup itu; yang diuji di sini adalah
+apakah konteks bisa menembusnya.
 
-1. Sebagai user yang **hanya** boleh melihat lokasi X, tanyakan sesuatu.
-2. Minta orang lain (berhak lebih luas) bertanya di grup yang sama.
-3. **Harus:** riwayat percakapan **tidak pernah** memperlebar lingkup siapa
-   pun. Konteks menyimpan **nama** lokasi lalu mencocokkannya ulang dengan
-   katalog yang boleh dilihat penanya saat itu.
+1. Di **chat pribadi**, seseorang bertanya `progress di Kedung Mutih` (lokasi
+   yang memang boleh ia lihat).
+2. Cabut penugasannya dari Kedung Mutih (Pengguna → penugasan lokasi).
+3. Orang yang sama menulis susulan: `kalau kemarin?`
+4. **Harus:** Kedung Mutih **tidak lagi** ikut — konteks menyimpan **nama**
+   lokasi lalu mencocokkannya ulang dengan katalog yang berlaku **saat susulan
+   datang**.
+5. **GAGAL kalau:** tetap dijawab. Itu berarti konteks mengawetkan izin lama —
+   menyimpan id, bukan nama.
 
 ### D-06 Nama daerah dikenali, dan yang ambigu ditanyakan
 
@@ -325,11 +411,19 @@ pernah terjadi dan ketahuan dari uji, bukan dugaan.
 
 ### F-06 Lingkup lokasi tetap berlaku pada catatan
 
-1. Dua lokasi punya catatan dengan kata kunci yang **sama persis**.
-2. Sebagai user yang hanya berhak atas lokasi A, cari kata itu.
-3. **Harus:** hanya catatan lokasi A. **Jumlah hasilnya** pun tidak boleh
-   membocorkan keberadaan lokasi B — penyaringan terjadi di dalam query,
+Lingkupnya mengikuti aturan A-02, jadi pilih kanalnya dengan sadar.
+
+1. Siapkan dua lokasi **di paket BERBEDA**, masing-masing punya catatan dengan
+   kata kunci yang **sama persis** (mis. `hujan deras`).
+2. Cari kata itu di **grup paket A**.
+3. **Harus:** hanya catatan lokasi paket A. **Jumlah hasilnya** pun tidak boleh
+   membocorkan keberadaan paket B — penyaringan terjadi **di dalam** query,
    bukan sesudah peringkat.
+4. **GAGAL kalau:** catatan paket B ikut muncul, atau jumlah hasilnya
+   menyiratkan ada yang disembunyikan.
+
+> Kalau kedua lokasi ada di **satu paket** dan Anda bertanya di grup paket itu,
+> **kedua-duanya memang harus muncul** — itu A-02a, bukan kebocoran.
 
 ### F-07 Niat yang dikenali TIDAK dibajak
 
