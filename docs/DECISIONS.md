@@ -19656,3 +19656,76 @@ membuktikan apa pun. Dicatat apa adanya, bukan disebut "uji gigi lolos".
 - **Bukan** soft-delete. Kolom tersembunyi kedua berarti tiap pembaca `Issue`
   harus menyaring dua kolom, dan penjaga statis 393 baru saja memperlihatkan
   betapa mudah satu pembaca terlewat.
+
+---
+
+## 395 — Cetak laporan harian KKP: empat cacat tata letak, semuanya struktural (2026-08-20)
+
+Teguran user: *"hasil cetakmu berantakan!"* berikut PDF cetakan produksi
+7 halaman (KNMP Malang, Kedungsalam, minggu ke-2).
+
+Empat cacat, semuanya DIUKUR lewat cetakan Chromium sungguhan – bukan ditebak
+dari kode:
+
+### 1. `/cetak/harian` tidak punya aturan `@page` sama sekali
+
+Dari lima halaman di `src/app/cetak/`, empat menyetel `@page { size; margin }`
+dan **dua terlewat**: laporan harian KKP (yang paling sering dicetak) dan
+artefak AI. Keduanya mewarisi bawaan peramban, jadi ukuran kertas dan margin
+berbeda tergantung siapa yang menekan Cetak. Untuk dokumen yang diserahkan ke
+PPK, "tergantung perambannya" bukan jawaban yang bisa dipertanggungjawabkan.
+
+Halaman AI tidak ketahuan dari cetakan user – ia ketahuan oleh penjaga statis
+yang dibuat untuk cacat pertama.
+
+### 2. `min-w-[720px]` ikut terbawa ke kertas
+
+A4 potret dikurangi margin 10mm menyisakan 190mm = **718px**. Lebar minimum
+720px melimpah 2px keluar kertas dan tepi kanan tabel terpotong – tidak pernah
+terlihat di layar, selalu terlihat di cetakan. Sekarang `print:min-w-0`.
+
+### 3. Dokumentasi foto dipaksa 2 kartu per halaman
+
+`for (let i = 0; i < kartu.length; i += 2)` dengan `break-before-page` pada TIAP
+pasangan: satu halaman A4 hanya pernah memuat satu baris. Cetakan user: 8 foto →
+4 halaman, masing-masing terisi seperempat.
+
+Sekarang kartunya mengalir dan halaman baru terjadi sendiri ketika satu baris
+tidak muat. **Dicetak sungguhan lewat Chromium: 6 kartu per halaman** – 8 foto
+jadi 2 halaman, bukan 4. `break-inside-avoid` dipasang per BARIS, bukan per
+kartu: kalau hanya kartunya yang dijaga, kartu kiri bisa tercetak di halaman ini
+dan kartu kanan di halaman berikutnya.
+
+### 4. Blok tanda tangan sendirian di satu halaman A4
+
+Diukur pada lebar cetak sebenarnya (718px, bukan viewport 1280px – pengukuran
+pertama saya salah karena memakai lebar layar): blanko setinggi **1092px**
+sedangkan ruang cetak **1047px**. Lewat 45px, jadi ekornya (Catatan + tanda
+tangan) terdorong ke halaman tersendiri.
+
+Padding sel `py-0.5` × belasan baris persis selisihnya. `print:py-0` menurunkan
+blanko jadi **904px** – muat satu halaman dengan sisa 143px untuk lokasi yang
+daftar materialnya lebih panjang. Di layar paddingnya tidak berubah; di kertas
+baris tetap ±6,6mm, masih muat ditulisi tangan.
+
+Hasil akhir untuk laporan uji: **3 halaman → 2 halaman**, tanda tangan menyatu
+dengan blanko yang ditandatanganinya. Dokumen yang tanda tangannya berdiri
+sendiri di halaman lain mengundang pertanyaan tentang keasliannya.
+
+### Uji yang MENGUNCI cacatnya
+
+`kkp-cetak-lengkap.test.tsx` berbunyi *"5 kartu = 3 halaman (2 kartu per
+halaman)"* dan menegaskan `break-before-page` tiga kali — yakni menegakkan cacat
+nomor 3 sebagai kebenaran. Uji seperti ini lebih berbahaya daripada tidak ada
+uji: ia membuat perbaikan terlihat seperti kerusakan.
+
+Ditulis ulang untuk menegaskan MAKSUDNYA (dokumentasi tidak menempel di ekor
+blanko = satu `break-before-page`), bukan angka lamanya.
+
+### Penjaga baru
+
+`tests/unit/cetak-page-rule.test.ts` — tiap halaman di `src/app/cetak/` wajib
+menyetel `size` + `margin`, dan `min-w` di atas 700px wajib dibatalkan saat
+cetak. Versi pertamanya menuduh berkas yang SUDAH benar karena ikut memindai
+komentar yang menjelaskan bahayanya; komentar dibuang dulu sekarang. Penjaga
+yang menuduh kode benar akan dimatikan orang, bukan dituruti.

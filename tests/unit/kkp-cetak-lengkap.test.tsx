@@ -194,13 +194,24 @@ describe("halaman dokumentasi cetak HTML", () => {
     });
   });
 
-  it("tiap halaman dokumentasi mulai di halaman kertas baru", () => {
-    // Tanpa ini, kartu dokumentasi menempel di ekor blanko dan hasil Ctrl+P
-    // tidak lagi menyerupai PDF-nya.
+  it("blok dokumentasi mulai di halaman kertas baru, SEKALI", () => {
+    /*
+     * Versi uji ini sebelumnya berbunyi "5 kartu = 3 halaman (2 kartu per
+     * halaman)" dan menegaskan `break-before-page` sebanyak 3 kali — yaitu
+     * MENGUNCI cacat yang dikeluhkan user 2026-08-20: tiap pasangan kartu
+     * dipaksa ke halaman sendiri, sehingga 8 foto memakan 4 halaman A4 yang
+     * masing-masing terisi seperempat.
+     *
+     * Maksud aslinya tetap dijaga di sini — dokumentasi TIDAK boleh menempel di
+     * ekor blanko — tapi yang menentukan pemenggalan halaman berikutnya
+     * sekarang tinggi kartunya, bukan angka 2 yang dituliskan di kode. Dicetak
+     * sungguhan lewat Chromium: 8 kartu satu-foto = 6 kartu per halaman.
+     */
     const banyak = Array.from({ length: 5 }, (_, i) => foto({ pekerjaan: `Pekerjaan ${i}` }));
     const html = renderToStaticMarkup(<KkpDailyPhotos d={data()} foto={banyak} />);
-    // 5 pekerjaan berbeda = 5 kartu = 3 halaman (2 kartu per halaman).
-    expect(html.match(/break-before-page/g) ?? []).toHaveLength(3);
+    expect(html.match(/break-before-page/g) ?? []).toHaveLength(1);
+    // Barisnya dijaga utuh supaya kartu kiri & kanan tidak terpisah halaman.
+    expect(html.match(/break-inside-avoid/g) ?? []).not.toHaveLength(0);
   });
 });
 
