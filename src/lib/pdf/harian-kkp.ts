@@ -657,7 +657,7 @@ export async function renderHarianKkpPdf(
   if (!data || !loc) return null;
   const logo = await muatLogoPemilik(branding.ownerLogoKey);
   const { logoVendor, foto, fotoMaterial, fotoAlat } = await muatLampiranFoto(data, baseUrl);
-  const gambarTtd = await muatTtdPdf(loc.id).catch(() => TANPA_TTD_PDF);
+  const gambarTtd = await muatTtdPdf(loc.id, "harian").catch(() => TANPA_TTD_PDF);
   return {
     buffer: await buildHarianKkpPdf(data, branding.appName, logo, {
       logoVendor,

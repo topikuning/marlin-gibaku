@@ -156,6 +156,13 @@ export const getPackageWorkspace = cache(async (id: string) => {
       note: true,
       isBypass: true,
       cancelReason: true,
+      // Pelaksana Lapangan – penanda tangan laporan harian & mingguan
+      // (DECISIONS 402). Di paket, bukan kontrak: orangnya melekat pada
+      // pelaksanaan pekerjaan dan bertahan saat kontraknya diganti.
+      pelaksanaName: true,
+      pelaksanaTitle: true,
+      pelaksanaTtdKey: true,
+      pelaksanaStempelKey: true,
       waGroupId: true,
       waGroupName: true,
       driveFolderId: true,

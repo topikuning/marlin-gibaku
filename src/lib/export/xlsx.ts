@@ -415,7 +415,9 @@ async function addKurvaSheet(
   // Blok tanda tangan (permintaan user 2026-08-06): kurva-S ikut ditandatangani
   // seperti blanko KKP. Diletakkan di bawah baris helper tersembunyi supaya
   // tidak mengganggu rentang data grafik.
-  blokTandaTangan(ws, { lastCol: lastTableCol, h: r.header });
+  // Kurva-S = Time Schedule: penanda tangannya belum diputuskan pindah, jadi
+  // tetap direktur seperti sebelum DECISIONS 402.
+  blokTandaTangan(ws, { lastCol: lastTableCol, h: r.header, jenis: "jadwal" });
 
   return {
     chart,
@@ -739,7 +741,7 @@ function addRekapSheet(wb: ExcelJS.Workbook, r: PeriodReport, logo?: LogoLaporan
   catatan.getCell(1).alignment = { wrapText: true, vertical: "top" };
   catatan.height = 24;
 
-  blokTandaTangan(ws, { lastCol: LAST, h });
+  blokTandaTangan(ws, { lastCol: LAST, h, jenis: r.kind });
 }
 
 /**
@@ -1062,7 +1064,7 @@ export async function buildPeriodReportXlsx(
     for (const k of r.kendala) kv(formatTanggal(k.createdAt), `${k.title} (${k.severity}, ${k.status})`);
   }
 
-  blokTandaTangan(ws, { lastCol: COL_COUNT, h });
+  blokTandaTangan(ws, { lastCol: COL_COUNT, h, jenis: r.kind });
 
   const buf = Buffer.from(await wb.xlsx.writeBuffer());
   // Sisipkan grafik kurva-S NATIVE ke sheet "Kurva S" (exceljs tak bisa; kita

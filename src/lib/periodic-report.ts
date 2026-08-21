@@ -1,4 +1,5 @@
 import "server-only";
+import { pilihPelaksana } from "@/lib/laporan/penandatangan";
 import { db } from "@/lib/db";
 import { autoCategoryWindowFrac, scheduleFromItems } from "@/lib/scurve/sequencing";
 import { orderCategoriesByRab } from "@/lib/scurve/kkp-sheet";
@@ -120,6 +121,14 @@ export type PeriodHeader = {
   supervisorFirm: string | null;
   contractorSignerName: string | null;
   contractorSignerTitle: string | null;
+  /**
+   * Pelaksana Lapangan — penanda tangan laporan MINGGUAN (DECISIONS 402).
+   * Laporan BULANAN tetap diteken direktur (`contractorSigner*`). Keduanya
+   * dibawa di kop yang sama supaya penyajinya memilih berdasarkan `kind`,
+   * bukan mengambil ulang dari basis data.
+   */
+  pelaksanaName: string | null;
+  pelaksanaTitle: string | null;
 };
 
 export type PeriodReport = {
@@ -206,10 +215,19 @@ export const HEADER_LOCATION_SELECT = {
   district: true,
   regency: true,
   province: true,
+  // Penimpaan Pelaksana per lokasi (DECISIONS 402) — lihat `pilihPelaksana`.
+  pelaksanaName: true,
+  pelaksanaTitle: true,
+  pelaksanaTtdKey: true,
+  pelaksanaStempelKey: true,
   package: {
     select: {
       name: true,
       ownerAgency: true,
+      pelaksanaName: true,
+      pelaksanaTitle: true,
+      pelaksanaTtdKey: true,
+      pelaksanaStempelKey: true,
       contract: {
         select: {
           contractNumber: true,
@@ -241,6 +259,15 @@ export function buildPeriodHeader(
 ): PeriodHeader | null {
   const contract = location.package.contract;
   if (!contract) return null;
+  const pelaksana = pilihPelaksana(
+    {
+      pelaksanaName: location.pelaksanaName,
+      pelaksanaTitle: location.pelaksanaTitle,
+      pelaksanaTtdKey: location.pelaksanaTtdKey,
+      pelaksanaStempelKey: location.pelaksanaStempelKey,
+    },
+    location.package,
+  );
   return {
     locationName: location.name,
     village: location.village,
@@ -266,6 +293,8 @@ export function buildPeriodHeader(
     supervisorFirm: contract.supervisorFirm,
     contractorSignerName: contract.contractorSignerName,
     contractorSignerTitle: contract.contractorSignerTitle,
+    pelaksanaName: pelaksana.nama,
+    pelaksanaTitle: pelaksana.jabatan,
   };
 }
 

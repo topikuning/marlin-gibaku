@@ -130,6 +130,10 @@ function rencana(): RencanaMingguan {
       contractStart: start,
       periodeStart: new Date(start.getTime() + 7 * 86_400_000),
       periodeEnd: new Date(start.getTime() + 13 * 86_400_000),
+      // Rencana mingguan BELUM diputuskan pindah ke Pelaksana (DECISIONS 402);
+      // medannya ada di kop, tapi blok TTD rencana tetap memakai direktur.
+      pelaksanaName: "Joko Susilo",
+      pelaksanaTitle: "Pelaksana Lapangan",
       ...kopTtd,
     },
     weekNumber: 2,

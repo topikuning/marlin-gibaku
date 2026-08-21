@@ -80,6 +80,8 @@ function fixture(over?: Partial<PeriodReport>): PeriodReport {
       supervisorFirm: "PT Konsultan Pengawas Nusantara",
       contractorSignerName: "Andi Prasetyo",
       contractorSignerTitle: "Direktur",
+  pelaksanaName: "Joko Susilo",
+  pelaksanaTitle: "Pelaksana Lapangan",
     },
     categories: [
       {
@@ -328,8 +330,34 @@ describe("blok tanda tangan", () => {
       expect(t, `${nama}: ppk`).toContain("( Budi Santoso )");
       expect(t, `${nama}: nip`).toContain("NIP. 19800101 200501 1 001");
       expect(t, `${nama}: pengawas`).toContain("( Rina Wijaya )");
-      expect(t, `${nama}: pelaksana`).toContain("( Andi Prasetyo )");
       expect(t, `${nama}: tempat & tanggal`).toContain("Rembang, 4 Agustus 2026");
+    }
+  });
+
+  /*
+   * SIAPA yang mengisi slot "Dibuat Oleh" bergantung jenis laporannya
+   * (DECISIONS 402). Uji ini sebelumnya menuntut nama DIREKTUR pada laporan
+   * MINGGUAN — yaitu keadaan yang justru diperbaiki: laporan yang dibuat dan
+   * diteken orang lapangan menyatakan direktur sebagai pembuatnya.
+   *
+   * Sheet "Kurva S" sengaja TIDAK ikut: Time Schedule belum diputuskan pindah
+   * penanda tangannya, jadi ia tetap memakai direktur pada kedua jenis.
+   */
+  it("MINGGUAN dibuat oleh Pelaksana Lapangan, bukan Direktur", async () => {
+    const wb = await book({ kind: "mingguan" });
+    for (const nama of ["Laporan", "REKAP"]) {
+      const t = semuaTeks(wb.getWorksheet(nama)!);
+      expect(t, `${nama}: pelaksana`).toContain("( Joko Susilo )");
+      expect(t, `${nama}: bukan direktur`).not.toContain("( Andi Prasetyo )");
+    }
+  });
+
+  it("BULANAN tetap dibuat oleh Direktur", async () => {
+    const wb = await book({ kind: "bulanan" });
+    for (const nama of ["Laporan", "REKAP"]) {
+      const t = semuaTeks(wb.getWorksheet(nama)!);
+      expect(t, `${nama}: direktur`).toContain("( Andi Prasetyo )");
+      expect(t, `${nama}: bukan pelaksana`).not.toContain("( Joko Susilo )");
     }
   });
 

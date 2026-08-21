@@ -44,6 +44,11 @@ const KOP: SumberTtdRencana["header"] = {
 };
 
 const KOSONG: SumberKunciTtd = {
+  // Dokumen yang diteken Direktur – dasar semua kasus di berkas ini kecuali
+  // yang menyebut sebaliknya (DECISIONS 402).
+  penyedia: "direktur",
+  pelaksanaTtdKey: null,
+  pelaksanaStempelKey: null,
   ppkTtdKey: null,
   ppkStempelKey: null,
   supervisorTtdKey: null,

@@ -28,7 +28,9 @@ export default async function CetakPeriodikPage({
   const location = await db.location.findUnique({ where: { slug }, select: { id: true } });
   if (!location) notFound();
   await requireLocationAccess(user, location.id);
-  const ttd = await muatTtdLaporan(location.id);
+  // `kind` menentukan penanda tangannya: mingguan diteken Pelaksana Lapangan,
+  // bulanan diteken Direktur (DECISIONS 402).
+  const ttd = await muatTtdLaporan(location.id, kind as PeriodKind);
 
   const report = await getPeriodReport(location.id, kind as PeriodKind, periodN);
   if (!report) notFound();

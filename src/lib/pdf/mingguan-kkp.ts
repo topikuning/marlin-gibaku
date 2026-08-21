@@ -148,7 +148,7 @@ export async function renderMingguanKkpPdf(
   const branding = await getBranding();
   const [logo, gambarTtd] = await Promise.all([
     muatLogoPemilik(branding.ownerLogoKey),
-    muatTtdPdf(lokasi.id).catch(() => TANPA_TTD_PDF),
+    muatTtdPdf(lokasi.id, "mingguan").catch(() => TANPA_TTD_PDF),
   ]);
 
   // Data hari pertama dipakai sampul: identitas kontrak & "MINGGU KE-n"-nya

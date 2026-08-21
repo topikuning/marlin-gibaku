@@ -1,4 +1,5 @@
 import "server-only";
+import { pilihPelaksana } from "@/lib/laporan/penandatangan";
 import { db } from "@/lib/db";
 import { bobotPct, prestasiPct } from "@/lib/progress-calc";
 import { COUNTED_REPORT_STATUSES, cumulativeVolumeByLineage, getLocationProgress } from "@/lib/progress";
@@ -586,8 +587,16 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
       name: true,
       regency: true,
       province: true,
+      pelaksanaName: true,
+      pelaksanaTitle: true,
+      pelaksanaTtdKey: true,
+      pelaksanaStempelKey: true,
       package: {
         select: {
+          pelaksanaName: true,
+          pelaksanaTitle: true,
+          pelaksanaTtdKey: true,
+          pelaksanaStempelKey: true,
           contract: {
             select: {
               startDate: true,
@@ -608,11 +617,20 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
   if (!location) return null;
 
   const contract = location.package.contract;
+  /*
+   * Laporan HARIAN diteken PELAKSANA LAPANGAN, bukan direktur (DECISIONS 402).
+   *
+   * Sebelum ini blok "Dibuat Oleh" memuat `contractorSignerName` — nama
+   * direktur — pada dokumen yang diisi dan ditandatangani orang lapangan.
+   * Nama yang belum diisi dibiarkan null: tercetak sebagai baris kosong untuk
+   * ditandatangani tangan, TIDAK jatuh ke nama direktur.
+   */
+  const pelaksana = pilihPelaksana(location, location.package);
   const signatories = {
     supervisorName: contract?.supervisorName ?? null,
     supervisorSub: contract?.supervisorFirm ?? null,
-    contractorName: contract?.contractorSignerName ?? null,
-    contractorSub: contract?.contractorSignerTitle ?? null,
+    contractorName: pelaksana.nama,
+    contractorSub: pelaksana.jabatan,
     // Nama perusahaan untuk kop blanko (posisi "logo perusahaan" di contoh KKP).
     supervisorFirm: contract?.supervisorFirm ?? null,
     contractorFirm: contract?.vendor?.name ?? null,

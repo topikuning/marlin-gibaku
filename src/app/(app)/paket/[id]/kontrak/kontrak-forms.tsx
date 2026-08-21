@@ -546,7 +546,14 @@ function PihakTtdFields({
   );
 }
 
-function BerkasTtd({
+/**
+ * Satu medan berkas tanda tangan/stempel + pratinjau yang sedang berlaku.
+ *
+ * DIEKSPOR karena formulir Pelaksana Lapangan (DECISIONS 402) memakai bentuk
+ * yang sama persis. Menyalinnya berarti dua kotak unggah yang lambat laun
+ * berbeda aturan ukuran dan kata-katanya, untuk pekerjaan yang identik.
+ */
+export function BerkasTtd({
   id,
   medan,
   label,

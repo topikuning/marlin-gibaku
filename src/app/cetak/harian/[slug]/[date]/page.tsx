@@ -43,7 +43,7 @@ export default async function CetakHarianPage({
   const location = await db.location.findUnique({ where: { slug }, select: { id: true } });
   if (!location) notFound();
   await requireLocationAccess(user, location.id);
-  const ttd = await muatTtdLaporan(location.id);
+  const ttd = await muatTtdLaporan(location.id, "harian");
 
   const data = await getKkpDailyData(slug, date);
   if (!data) notFound();

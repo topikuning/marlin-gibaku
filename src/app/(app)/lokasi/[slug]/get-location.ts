@@ -32,11 +32,19 @@ function findLocation(slug: string) {
       gpsLng: true,
       status: true,
       isActive: true,
+      // Pelaksana Lapangan lokasi ini (penimpaan) + milik paket sebagai
+      // cadangan — dibaca `pilihPelaksana` (DECISIONS 402).
+      pelaksanaName: true,
+      pelaksanaTitle: true,
+      pelaksanaTtdKey: true,
+      pelaksanaStempelKey: true,
       package: {
         select: {
           id: true,
           name: true,
           packageNumber: true,
+          pelaksanaName: true,
+          pelaksanaTitle: true,
           contract: {
             select: {
               id: true,

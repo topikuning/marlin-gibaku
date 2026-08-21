@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { PelaksanaForm } from "@/components/knmp/pelaksana-form";
+import { presignKeys } from "@/lib/photos";
 import Link from "next/link";
 import { AlertTriangle, CalendarRange, ClipboardList } from "lucide-react";
 import { Banner, ButtonLink, Card, CardBody, CardHeader, EmptyState, KpiCard, StatusPill } from "@/components/ui";
@@ -34,6 +36,15 @@ export default async function LokasiRingkasanPage({
   const { slug } = await params;
   const { user, location } = await requireLocationPage(slug);
   const contract = location.package.contract;
+
+  // Pratinjau tanda tangan/stempel pelaksana lokasi ini. Satu presign untuk
+  // keduanya; yang belum diunggah tidak ikut diminta.
+  const kunciPelaksana = [location.pelaksanaTtdKey, location.pelaksanaStempelKey].filter(
+    (k): k is string => !!k,
+  );
+  const urlsPelaksana =
+    kunciPelaksana.length > 0 ? await presignKeys(kunciPelaksana) : new Map<string, string>();
+  const urlTtdPelaksana = (k: string | null) => (k ? (urlsPelaksana.get(k) ?? null) : null);
 
   const [progress, series, packageLocationCount] = await Promise.all([
     getLocationProgress(location.id),
@@ -250,6 +261,29 @@ export default async function LokasiRingkasanPage({
                 province={location.province}
                 gpsLat={location.gpsLat != null ? location.gpsLat.toString() : null}
                 gpsLng={location.gpsLng != null ? location.gpsLng.toString() : null}
+              />
+            </CardBody>
+          </Card>
+        ) : null}
+
+        {canManageLocation ? (
+          <Card>
+            <CardHeader
+              title="Pelaksana Lapangan"
+              subtitle="Meneken laporan HARIAN dan MINGGUAN lokasi ini. Kosongkan bila mengikuti pelaksana paket; laporan bulanan, MC, dan CCO tetap diteken Direktur."
+            />
+            <CardBody>
+              <PelaksanaForm
+                sasaran="lokasi"
+                id={location.id}
+                nama={location.pelaksanaName}
+                jabatan={location.pelaksanaTitle}
+                ttdUrl={urlTtdPelaksana(location.pelaksanaTtdKey)}
+                stempelUrl={urlTtdPelaksana(location.pelaksanaStempelKey)}
+                warisan={{
+                  nama: location.package.pelaksanaName,
+                  jabatan: location.package.pelaksanaTitle,
+                }}
               />
             </CardBody>
           </Card>

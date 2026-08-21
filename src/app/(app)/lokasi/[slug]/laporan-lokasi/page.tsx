@@ -1,7 +1,8 @@
 import Link from "next/link";
+import { peringatanPelaksana, pilihPelaksana } from "@/lib/laporan/penandatangan";
 import { notFound } from "next/navigation";
 import { CalendarClock, FileText, ListTree, Printer, Sheet } from "lucide-react";
-import { Card, CardBody, CardHeader, EmptyState } from "@/components/ui";
+import { Banner, Card, CardBody, CardHeader, EmptyState } from "@/components/ui";
 import { KkpPeriodReport } from "@/components/knmp/kkp-period-report";
 import { ScurveKkpSheet } from "@/components/knmp/scurve-kkp-sheet";
 import { PeriodFilter } from "./period-filter";
@@ -35,7 +36,21 @@ export default async function LaporanLokasiPage({
     select: {
       id: true,
       name: true,
-      package: { select: { id: true, waGroupId: true, driveFolderId: true } },
+      pelaksanaName: true,
+      pelaksanaTitle: true,
+      pelaksanaTtdKey: true,
+      pelaksanaStempelKey: true,
+      package: {
+        select: {
+          id: true,
+          waGroupId: true,
+          driveFolderId: true,
+          pelaksanaName: true,
+          pelaksanaTitle: true,
+          pelaksanaTtdKey: true,
+          pelaksanaStempelKey: true,
+        },
+      },
     },
   });
   if (!location) notFound();
@@ -45,6 +60,17 @@ export default async function LaporanLokasiPage({
   const hasGroup = !!location.package?.waGroupId;
   const hasDrive = !!location.package?.driveFolderId;
   const driveOn = (await getGDriveConfigDisplay()).connected;
+
+  /*
+   * Peringatan Pelaksana Lapangan (DECISIONS 402) – DI SINI, di layar tempat
+   * orang menekan cetak/kirim, bukan hanya di halaman pengaturan yang mungkin
+   * tidak pernah dibuka. Yang kosong tetap bisa dicetak: blok TTD-nya keluar
+   * tanpa nama untuk ditandatangani tangan. Yang TIDAK dilakukan adalah
+   * memakai nama Direktur sebagai pengganti.
+   */
+  const peringatanTtd = peringatanPelaksana(
+    pilihPelaksana(location, location.package ?? null),
+  );
 
   // scheduleBounds: real bila SPMK ada, else asumsi mulai hari ini — utk tombol Jadwal
   // (kurva-S rencana tetap bisa dilihat sebelum SPMK). bounds REAL: hanya utk laporan
@@ -81,6 +107,10 @@ export default async function LaporanLokasiPage({
 
   return (
     <div className="space-y-6">
+      {peringatanTtd ? (
+        <Banner tone="warning" title="Pelaksana Lapangan belum diisi" description={peringatanTtd} />
+      ) : null}
+
       <Card>
         <CardHeader
           title="Laporan Periodik KKP"

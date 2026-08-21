@@ -1,4 +1,5 @@
 import "server-only";
+import { penyediaLaporan, type JenisDokumen } from "@/lib/laporan/penandatangan";
 import { getBranding } from "@/lib/branding";
 import { getPeriodReport, type PeriodKind, type PeriodReport } from "@/lib/periodic-report";
 import { buildKurvaSheet } from "@/lib/scurve/kkp-sheet";
@@ -211,7 +212,7 @@ export async function buildPeriodikKkpPdf(
   });
 
   y += 8;
-  signatureBlock(doc, { x, width, y, h, fit: (need) => fit(need), setY: (v) => (y = v), gambarTtd });
+  signatureBlock(doc, { x, width, y, h, fit: (need) => fit(need), setY: (v) => (y = v), gambarTtd, jenis: r.kind });
 
   /* ═════ HALAMAN 2+ — BLANKO RINCIAN ════════════════════════════════════ */
   newPage();
@@ -445,7 +446,7 @@ export async function buildPeriodikKkpPdf(
   }
 
   y += 10;
-  signatureBlock(doc, { x, width, y, h, fit: (need) => fit(need), setY: (v) => (y = v), gambarTtd });
+  signatureBlock(doc, { x, width, y, h, fit: (need) => fit(need), setY: (v) => (y = v), gambarTtd, jenis: r.kind });
 
   /* ── Catatan kaki tiap halaman ──────────────────────────────────────── */
   const range = doc.bufferedPageRange();
@@ -488,6 +489,8 @@ function signatureBlock(
     fit: (need: number) => void;
     setY: (v: number) => void;
     gambarTtd?: TtdPdf | null;
+    /** Menentukan siapa yang mengisi slot penyedia (DECISIONS 402). */
+    jenis: JenisDokumen;
   },
 ): void {
   const opt: GridOptions = {
@@ -499,6 +502,7 @@ function signatureBlock(
   };
   const nameOf = (n: string | null, sub: string | null) =>
     `\n\n\n\n\n( ${n ?? "……………………………"} )${sub ? `\n${sub}` : ""}`;
+  const penyedia = penyediaLaporan(o.jenis, o.h);
   o.fit(90);
   const y = gridRow(
     doc,
@@ -513,7 +517,7 @@ function signatureBlock(
         align: "center",
       },
       {
-        text: `DIBUAT OLEH :\nPENYEDIA JASA – ${o.h.vendorName}${nameOf(o.h.contractorSignerName, o.h.contractorSignerTitle)}`,
+        text: `DIBUAT OLEH :\nPENYEDIA JASA – ${o.h.vendorName}${nameOf(penyedia.nama, penyedia.sub)}`,
         align: "center",
       },
     ],
@@ -623,6 +627,6 @@ export async function renderPeriodikKkpPdf(
   if (!report) return null;
   // Best-effort, sama dengan logo: kegagalannya menghasilkan ruang kosong,
   // bukan PDF yang gagal terbit.
-  const gambarTtd = await muatTtdPdf(locationId).catch(() => TANPA_TTD_PDF);
+  const gambarTtd = await muatTtdPdf(locationId, kind).catch(() => TANPA_TTD_PDF);
   return { buffer: await buildPeriodikKkpPdf(report, branding.appName, gambarTtd) };
 }

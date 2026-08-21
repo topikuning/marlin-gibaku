@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PelaksanaForm } from "@/components/knmp/pelaksana-form";
 import { notFound } from "next/navigation";
 import { FileSignature } from "lucide-react";
 import {
@@ -121,6 +122,8 @@ export default async function KontrakPage({
     contract.contractorTtdKey,
     contract.contractorStempelKey,
     contract.vendor.stempelKey,
+    pkg.pelaksanaTtdKey,
+    pkg.pelaksanaStempelKey,
   ].filter((k): k is string => !!k);
   const urlsTtd = kunciTtd.length > 0 ? await presignKeys(kunciTtd) : new Map<string, string>();
   const urlTtd = (k: string | null) => (k ? (urlsTtd.get(k) ?? null) : null);
@@ -347,6 +350,33 @@ export default async function KontrakPage({
                     vendorStempelUrl: urlTtd(contract.vendor.stempelKey),
                     vendorName: contract.vendor.name,
                   }}
+                />
+              </Drawer>
+            }
+          />
+        ) : null}
+
+        {canContract ? (
+          <AksiTile
+            judul="Pelaksana Lapangan"
+            penjelasan={
+              pkg.pelaksanaName
+                ? `${pkg.pelaksanaName} – ${pkg.pelaksanaTitle || "Pelaksana Lapangan"}. Meneken laporan harian & mingguan; bulanan, MC, dan CCO tetap Direktur.`
+                : "BELUM DIISI – blok tanda tangan laporan harian & mingguan akan tercetak tanpa nama."
+            }
+            aksi={
+              <Drawer
+                trigger={pkg.pelaksanaName ? "Ubah" : "Isi sekarang"}
+                title="Pelaksana Lapangan paket ini"
+                subtitle="Meneken laporan HARIAN dan MINGGUAN. Laporan bulanan, MC, dan CCO tetap diteken Direktur (penanda tangan kontrak)."
+              >
+                <PelaksanaForm
+                  sasaran="paket"
+                  id={pkg.id}
+                  nama={pkg.pelaksanaName}
+                  jabatan={pkg.pelaksanaTitle}
+                  ttdUrl={urlTtd(pkg.pelaksanaTtdKey)}
+                  stempelUrl={urlTtd(pkg.pelaksanaStempelKey)}
                 />
               </Drawer>
             }

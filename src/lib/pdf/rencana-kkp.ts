@@ -404,7 +404,7 @@ export async function renderRencanaKkpPdf(
   if (!rencana) return null;
   // Best-effort, sama dengan logo: kegagalannya menghasilkan ruang kosong,
   // bukan PDF yang gagal terbit.
-  const gambarTtd = await muatTtdPdf(locationId).catch(() => TANPA_TTD_PDF);
+  const gambarTtd = await muatTtdPdf(locationId, "rencana").catch(() => TANPA_TTD_PDF);
   return {
     buffer: await buildRencanaKkpPdf(rencana, branding.appName, gambarTtd),
     locationId,
