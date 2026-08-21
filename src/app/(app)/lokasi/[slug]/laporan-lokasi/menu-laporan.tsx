@@ -88,16 +88,22 @@ export function MenuLaporanPeriodik({
     label: "Unduh",
     icon: <Download aria-hidden className="size-3.5" />,
     href: `/api/laporan/periodik/${slug}/${kind}/${n}/pdf`,
+    jenis: "berkas",
+    labelSibuk: "Menyiapkan PDF…",
   };
   const unduhExcel: PilihanBerkas = {
     label: "Unduh",
     icon: <Download aria-hidden className="size-3.5" />,
     href: `/lokasi/${slug}/laporan-lokasi/export?kind=${kind}&n=${n}`,
+    jenis: "berkas",
+    labelSibuk: "Menyiapkan Excel…",
   };
   const unduhBundel: PilihanBerkas = {
     label: "Unduh",
     icon: <Download aria-hidden className="size-3.5" />,
     href: `/api/laporan/mingguan/${slug}/${n}/pdf`,
+    jenis: "berkas",
+    labelSibuk: "Menyiapkan 7 laporan harian…",
     hint: "Sampul minggu ini + tujuh blanko harian",
   };
 
@@ -107,6 +113,7 @@ export function MenuLaporanPeriodik({
       label: "Buka untuk dicetak",
       icon: <Printer aria-hidden className="size-3.5" />,
       href: `/cetak/periodik/${slug}/${kind}/${n}`,
+      jenis: "tab",
       hint: "Versi layar dokumen yang sama – lalu Ctrl+P",
     },
     {
@@ -235,6 +242,8 @@ export function MenuLaporanHarian({
     label: "Unduh PDF",
     icon: <Download aria-hidden className="size-3.5" />,
     href: `/api/laporan/harian/${slug}/${dateKey}/pdf`,
+    jenis: "berkas",
+    labelSibuk: "Menyiapkan PDF…",
   };
 
   return (
@@ -249,12 +258,15 @@ export function MenuLaporanHarian({
             label: "Unduh PDF tanpa sampul",
             icon: <Download aria-hidden className="size-3.5" />,
             href: `/api/laporan/harian/${slug}/${dateKey}/pdf?sampul=0`,
+            jenis: "berkas",
+            labelSibuk: "Menyiapkan PDF…",
             hint: "Untuk yang sudah memegang berkas mingguannya",
           },
           {
             label: "Buka untuk dicetak",
             icon: <Printer aria-hidden className="size-3.5" />,
             href: `/cetak/harian/${slug}/${dateKey}`,
+            jenis: "tab",
           },
           {
             label: "Kirim ke WhatsApp",

@@ -100,18 +100,23 @@ export default async function LaporanLokasiPage({
                     label: "Buka untuk dicetak",
                     icon: <Printer aria-hidden className="size-3.5" />,
                     href: withBackTo(`/cetak/jadwal/${slug}`, `/lokasi/${slug}/laporan-lokasi`),
+                    jenis: "tab",
                     hint: "Kurva-S seluruh masa kontrak",
                   },
                   {
                     label: "Unduh Excel",
                     icon: <Sheet aria-hidden className="size-3.5" />,
                     href: `/lokasi/${slug}/jadwal/export`,
+                    jenis: "berkas",
+                    labelSibuk: "Menyiapkan Excel jadwal…",
                     hint: "Bobot per kategori × minggu",
                   },
                   {
                     label: "Unduh Excel – rincian item",
                     icon: <ListTree aria-hidden className="size-3.5" />,
                     href: `/lokasi/${slug}/jadwal/rincian`,
+                    jenis: "berkas",
+                    labelSibuk: "Menyiapkan Excel rincian…",
                     hint: "Sampai uraian item: volume, harga satuan, bobot. Kolom jadwalnya tetap jadwal KATEGORI induk – sistem tidak menyimpan jadwal per item.",
                   },
                 ]}
@@ -124,7 +129,7 @@ export default async function LaporanLokasiPage({
             <EmptyState icon={FileText} title="Kontrak belum ada" description="Laporan periodik butuh periode kontrak." />
           ) : (
             <>
-              <PeriodFilter slug={slug} kind={kind} n={n} maxN={maxN} shown={shown} />
+              <PeriodFilter slug={slug} kind={kind} n={n} maxN={maxN} />
               {!shown ? (
                 <EmptyState
                   icon={FileText}

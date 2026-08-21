@@ -20210,3 +20210,119 @@ Batas DECISIONS 398 tetap: hanya `/foto-cepat`, tidak ada unggah latar belakang
 setelah aplikasi ditutup, tidak ada push, tidak ada pemeriksaan sesi saat
 luring. Yang bertambah cuma satu hal, tapi yang menentukan: syarat "pernah
 dibuka" hilang.
+
+---
+
+## 400 — Keluhan yang sama untuk KEDUA kalinya: aksi yang diklik tidak mengaku sedang bekerja (2026-08-21)
+
+### Keluhan user
+
+*"aku sudah pernah komplain terkait klik whatsapp dan upload ke drive, atau aksi
+apapun di sini, ketika diklik tidak memberikan tanda apapun kalau sedang proses.
+tapi kenapa masih belum tersolusikan!"*
+
+Benar. Sudah pernah dilaporkan 2026-08-18 dan sudah pernah saya tutup di
+DECISIONS 360. Yang saya tutup ternyata cuma separuh pintu.
+
+### Kenapa separuh — dan ini bagian yang paling perlu dicatat
+
+DECISIONS 360 memasang penanda sibuk untuk pilihan yang memanggil **server
+action** (Kirim WA, Upload Drive), lengkap dengan pagar kompiler: `PilihanAksi`
+mewajibkan `loading` + `labelSibuk`.
+
+Tapi di berkas yang sama saya menulis:
+
+```ts
+export type PilihanTautan = Dasar & { href: string; loading?: never; labelSibuk?: never };
+```
+
+`labelSibuk?: never` artinya **tautan DILARANG oleh kompiler punya penanda
+sibuk**. Itu bukan kelalaian yang kelupaan diperbaiki — itu keyakinan yang saya
+tuliskan ke dalam tipe: *"tautan pasti cepat"*. Selama keyakinan itu berdiri,
+tidak ada penambalan yang bisa menutup keluhannya, karena tipe-nya sendiri
+menolak tambalan.
+
+Dan keyakinan itu salah. Berkas laporan MARLIN dibangun di server: kurva-S,
+foto, exceljs, seluruh laporan harian dalam periode.
+
+### Yang diukur, bukan ditebak
+
+Diukur di peramban sungguhan pada `/lokasi/batah-timur/laporan-lokasi`
+(basis data e2e, satu lokasi kecil):
+
+| Kendali | Lama | Penanda sibuk SEBELUM |
+|---|---|---|
+| **Tampilkan** (form GET polos) | **8,9 detik** | tidak ada |
+| **Unduh** PDF mingguan | **4,1 detik** | tidak ada |
+| Buka untuk dicetak (halaman) | – | tab baru (memang penandanya) |
+| Kirim WA / Upload Drive | – | ADA (DECISIONS 360) |
+
+Perhatikan barisnya: **yang punya penanda justru dua pilihan yang di layar itu
+MATI** (paket contoh tidak punya grup WA maupun folder Drive). Jadi dari kursi
+user, seluruh yang bisa diklik memang diam — tepat seperti yang ia katakan.
+
+### Yang berubah
+
+**1. Tautan wajib menyatakan `jenis`.**
+
+- `"berkas"` — href menghasilkan PDF/Excel. Dijemput lewat `fetch` di halaman
+  itu juga, lalu diserahkan ke peramban sebagai unduhan. Penanda sibuknya jadi
+  mengikuti lamanya server bekerja SUNGGUHAN, bukan tebakan berbasis pewaktu.
+- `"tab"` — href adalah halaman (mis. versi cetak). Tetap `target="_blank"`;
+  tab barunya sendiri yang jadi penanda. Mengaku "sedang memuat" di halaman
+  induk untuk sesuatu yang tidak dipantau sama saja mengarang.
+
+`<a href>`-nya DIPERTAHANKAN sekalipun kliknya diambil alih: klik-tengah, "Buka
+di tab baru", dan "Simpan tautan sebagai" tetap bekerja seperti tautan.
+
+Bonus yang tidak diminta tapi jatuh gratis: jawaban 403/500 dulu mendarat
+sebagai JSON mentah di tab baru yang terbuka di belakang — dari kursi pemakai
+itu sama saja dengan "tidak terjadi apa-apa". Sekarang alasannya dikatakan di
+layar tempat ia menekan.
+
+**2. `Tampilkan` berpindah lewat `router.push` di dalam `useTransition`.**
+`method="GET"` dipertahankan sebagai jaring kalau JS belum termuat.
+
+### Uji — dan kenapa kali ini E2E
+
+Uji unit DECISIONS 360 merender `loading: true` lalu memeriksa markup. Ia
+membuktikan **bentuk** kepingan sibuknya, bukan bahwa menekan tombol
+menerbitkannya. Justru celah itu yang membuat cacat ini lolos berhari-hari:
+penanda yang ada, tapi tidak pernah menyala. Yang bisa membedakan keduanya cuma
+peramban sungguhan.
+
+`tests/e2e/laporan-penanda-sibuk.spec.ts` — 3 uji × 2 proyek (desktop + mobile),
+semuanya hijau. Sesudah perbaikan, diukur ulang dengan cara yang sama:
+
+| Kendali | Penanda sibuk SESUDAH |
+|---|---|
+| Tampilkan | terbit < 300 ms |
+| Unduh PDF | terlihat +50 ms … +2000 ms, padam saat berkas turun (4054 ms) |
+
+Uji gigi: mematikan `setUnduhan(p)` memerahkan 2 uji unduhan; mengembalikan
+`Tampilkan` ke form GET polos memerahkan uji ketiga. Keduanya dijalankan
+terhadap build produksi, bukan dev.
+
+Pagar kompilernya juga diuji: `@ts-expect-error` untuk tautan tanpa `jenis` dan
+untuk `jenis: "berkas"` tanpa `labelSibuk`. Melonggarkan salah satunya
+memerahkan `pnpm typecheck` — yaitu tepat saat cacat ini bisa kembali.
+
+### Yang MASIH diam, disebut apa adanya
+
+Perbaikan ini menyentuh tab Laporan lokasi. Tautan berkas yang dibangun server
+di layar lain belum ikut, dan sengaja tidak diborong dalam satu langkah:
+
+- `src/app/(app)/lokasi/[slug]/kegiatan/page.tsx:163` — `/api/kegiatan/{id}/pdf`
+- `src/app/(app)/ai/run/[id]/artifact-panel.tsx:179` — `/api/ai-artifact/{id}/excel`
+- `src/app/(app)/laporan/status-harian/tabel-status.tsx:251` — `…/ringkas`
+
+Tautan berkas TERSIMPAN (dokumen, foto asli, lampiran) tidak masuk daftar: ia
+alihan ke R2, bukan berkas yang dibangun, jadi penanda unduhan peramban sudah
+cukup.
+
+### Pelajaran
+
+Pagar kompiler hanya menjaga apa yang tipenya izinkan ada. `?: never` bukan
+sekadar "belum dipakai" — ia larangan, dan larangan yang salah tidak akan pernah
+ketahuan dari dalam berkasnya sendiri. Yang membongkarnya bukan pembacaan ulang
+kode melainkan menjalankan aplikasinya dan menghitung detik.

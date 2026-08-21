@@ -41,6 +41,32 @@ import { cn } from "@/lib/cn";
  * "Unduh PDF" berarti dua klik untuk hal yang dilakukan setiap hari. `utama`
  * membuat separuh kiri tombol langsung mengerjakannya; panah di kanan tetap
  * membuka sisanya.
+ *
+ * ---
+ *
+ * ### Kenapa keluhan yang sama datang lagi (DECISIONS 400)
+ *
+ * User 2026-08-21: *"aku sudah pernah komplain terkait klik whatsapp dan upload
+ * ke drive, atau aksi apapun di sini, ketika diklik tidak memberikan tanda
+ * apapun kalau sedang proses. tapi kenapa masih belum tersolusikan!"*
+ *
+ * Karena DECISIONS 360 hanya menutup SEPARUH pintu. Tipe lama menulis
+ * `PilihanTautan = { loading?: never; labelSibuk?: never }` — artinya tautan
+ * **dilarang oleh kompiler** punya keadaan sibuk. Itu bukan kelalaian yang
+ * kelupaan diperbaiki; itu keyakinan yang saya tuliskan ke dalam tipe: "tautan
+ * pasti cepat". Diukur di halaman Laporan Periodik: unduh PDF mingguan **4,1
+ * detik**, dan selama itu layar sama sekali diam.
+ *
+ * Karena itu tautan sekarang WAJIB menyatakan `jenis`:
+ *
+ * - `"berkas"` — href menghasilkan PDF/Excel. Dijemput lewat `fetch` lalu
+ *   diserahkan ke peramban sebagai unduhan, supaya penanda sibuknya mengikuti
+ *   lamanya server bekerja SUNGGUHAN, bukan tebakan. Bonusnya: galat 403/500
+ *   sekarang terbaca sebagai kalimat, bukan tab kosong berisi JSON.
+ * - `"tab"` — href adalah HALAMAN (mis. versi cetak). Tab barunya sendiri yang
+ *   jadi penanda; mengaku "sedang memuat" di halaman induk hanya mengarang.
+ *
+ * Kompiler yang menagih, bukan ingatan — sama seperti `PilihanAksi`.
  */
 
 type Dasar = {
@@ -52,9 +78,28 @@ type Dasar = {
   hint?: string;
 };
 
-/** Pilihan yang hanya membuka tautan (unduh/cetak) — tak punya keadaan sibuk. */
+/**
+ * Tautan yang menghasilkan BERKAS (PDF/Excel).
+ *
+ * `labelSibuk` wajib dengan alasan yang sama seperti pada {@link PilihanAksi}:
+ * yang menagihnya harus kompiler. Berkas laporan dibangun di server — kurva-S,
+ * foto, exceljs — dan itu memakan detik, bukan milidetik.
+ */
+export type PilihanUnduh = Dasar & {
+  href: string;
+  jenis: "berkas";
+  /** Kata KERJA selagi berkasnya disiapkan: "Menyiapkan PDF…". */
+  labelSibuk: string;
+  /** Cadangan nama berkas bila server tidak mengirim `Content-Disposition`. */
+  namaBerkas?: string;
+  onSelect?: never;
+  loading?: never;
+};
+
+/** Tautan ke HALAMAN yang dibuka di tab baru — tab itu sendiri penandanya. */
 export type PilihanTautan = Dasar & {
   href: string;
+  jenis: "tab";
   onSelect?: never;
   loading?: never;
   labelSibuk?: never;
@@ -78,7 +123,53 @@ export type PilihanAksi = Dasar & {
   labelSibuk: string;
 };
 
-export type PilihanBerkas = PilihanTautan | PilihanAksi;
+export type PilihanBerkas = PilihanUnduh | PilihanTautan | PilihanAksi;
+
+/**
+ * Nama berkas dari `Content-Disposition`, kalau servernya menyebutkan.
+ *
+ * Tanda kutip ditulis sebagai `\x22`/`\x27`, bukan harfiah, DENGAN SENGAJA:
+ * penjaga en-dash (`tests/unit/tanda-pisah-ui.test.ts`) memindai berkas dengan
+ * tokenizer buatan sendiri yang tidak mengenal literal regex. Satu regex berisi
+ * tanda kutip ganjil membalik parity-nya dan membuat SISA berkas terbaca sebagai
+ * isi string — komentar biasa pun lalu dilaporkan sebagai pelanggaran. Dicatat
+ * di `docs/OPEN_ISSUES.md`; sementara belum diperbaiki, ini cara menghindarinya
+ * tanpa melemahkan penjaganya.
+ */
+function namaDariHeader(cd: string | null): string | null {
+  if (!cd) return null;
+  // Bentuk `filename*=UTF-8''…` didahulukan: ia yang membawa huruf non-ASCII
+  // dengan benar.
+  const bintang = /filename\*=UTF-8\x27\x27([^;]+)/i.exec(cd);
+  if (bintang) {
+    try {
+      return decodeURIComponent(bintang[1].trim());
+    } catch {
+      /* jatuh ke bentuk polos di bawah */
+    }
+  }
+  const polos = /filename=\x22?([^\x22;]+)\x22?/i.exec(cd);
+  return polos ? polos[1].trim() : null;
+}
+
+/**
+ * Kalimat galat dari jawaban yang gagal.
+ *
+ * Sebelumnya jawaban 403/500 mendarat di TAB BARU sebagai JSON mentah — dan
+ * karena tabnya terbuka di belakang, yang dilihat orang cuma "tidak terjadi
+ * apa-apa". Sekarang alasannya dibawa kembali ke layar tempat ia menekan.
+ */
+async function galatDariJawaban(r: Response): Promise<string> {
+  try {
+    const j = (await r.clone().json()) as { error?: unknown };
+    if (typeof j.error === "string" && j.error) return j.error;
+  } catch {
+    /* bukan JSON */
+  }
+  if (r.status === 401) return "Sesi berakhir – masuk lagi lalu ulangi.";
+  if (r.status === 403) return "Tidak punya izin untuk berkas ini.";
+  return `Gagal menyiapkan berkas (${r.status}). Coba lagi sebentar.`;
+}
 
 export function MenuBerkas({
   label,
@@ -144,12 +235,64 @@ export function MenuBerkas({
   }, [terbuka]);
 
   /*
+   * Unduhan yang sedang disiapkan. Dipegang di sini, bukan di pemanggil: tautan
+   * tidak punya `useActionState` yang bisa dititipi keadaan sibuk, dan menuntut
+   * setiap pemanggil membuat state sendiri berarti mengulang cacat lamanya —
+   * yang lupa, lupa diam-diam.
+   */
+  const [unduhan, setUnduhan] = useState<PilihanUnduh | null>(null);
+  const [galat, setGalat] = useState<string | null>(null);
+  // Klik yang sudah tidak relevan (komponen dilepas) tidak boleh menyentuh state.
+  const hidup = useRef(true);
+  useEffect(() => {
+    hidup.current = true;
+    return () => {
+      hidup.current = false;
+    };
+  }, []);
+
+  async function jemputBerkas(p: PilihanUnduh) {
+    setUnduhan(p);
+    setGalat(null);
+    try {
+      const r = await fetch(p.href, { credentials: "same-origin" });
+      if (!r.ok) throw new Error(await galatDariJawaban(r));
+      const blob = await r.blob();
+      const nama = namaDariHeader(r.headers.get("content-disposition")) ?? p.namaBerkas ?? "berkas";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = nama;
+      a.rel = "noopener";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Jeda sebelum dilepas: peramban masih membaca blob-nya saat unduhan mulai.
+      setTimeout(() => URL.revokeObjectURL(url), 30_000);
+    } catch (e) {
+      if (hidup.current) {
+        setGalat(
+          e instanceof Error && e.message
+            ? e.message
+            : "Berkas gagal disiapkan – periksa jaringan lalu coba lagi.",
+        );
+      }
+    } finally {
+      if (hidup.current) setUnduhan(null);
+    }
+  }
+
+  /*
    * Satu aksi yang sedang berjalan mematikan SELURUH kendali ini, bukan hanya
    * dirinya sendiri: "Kirim ke WhatsApp" dan "Upload ke Drive" pada berkas yang
    * sama tidak pernah dimaksudkan berjalan bersamaan, dan menyisakan satu pintu
    * terbuka hanya memindahkan kiriman gandanya ke pintu sebelah.
+   *
+   * Unduhan ikut menutup pintu dengan alasan yang sama: menekan "Unduh" tiga
+   * kali karena layarnya diam berarti server membangun PDF yang sama tiga kali.
    */
-  const sibuk = [utama, ...pilihan].find((p) => p?.loading) ?? null;
+  const sibuk: { labelSibuk: string } | null =
+    unduhan ?? ([utama, ...pilihan].find((p) => p?.loading) as PilihanAksi | undefined) ?? null;
 
   const kelasTombol = cn(
     "inline-flex h-9 items-center gap-1.5 border px-3 text-[13px] font-medium transition-colors",
@@ -161,6 +304,10 @@ export function MenuBerkas({
   if (sibuk) {
     return (
       <span
+        // Halaman ini kadang menaruh beberapa menu bersebelahan; `role="status"`
+        // membuat kepingan sibuknya diumumkan sebagai satu wilayah yang berdiri
+        // sendiri, bukan potongan teks yang mengambang.
+        role="status"
         aria-busy="true"
         // `aria-live` supaya perubahannya juga SAMPAI ke pembaca layar; tanpa
         // ini penanda sibuk hanya ada untuk yang melihat layar.
@@ -178,7 +325,36 @@ export function MenuBerkas({
 
   return (
     <div ref={ref} className={cn("relative inline-flex", className)}>
-      {utama ? <TombolUtama utama={utama} label={label} icon={icon} kelas={kelasTombol} /> : null}
+      {/*
+        Galat unduhan dikatakan DI SINI, menempel pada tombolnya. Sebelumnya ia
+        mendarat sebagai JSON di tab baru yang terbuka di belakang – dari kursi
+        pemakai itu sama saja dengan "tidak terjadi apa-apa".
+      */}
+      {galat ? (
+        <span
+          role="alert"
+          className="absolute top-full left-0 z-30 mt-1 max-w-[min(22rem,calc(100vw-1.5rem))] rounded-md border border-danger bg-surface px-2.5 py-1.5 text-[12px] text-danger shadow-lg"
+        >
+          {galat}{" "}
+          <button
+            type="button"
+            onClick={() => setGalat(null)}
+            className="font-medium underline underline-offset-2"
+          >
+            tutup
+          </button>
+        </span>
+      ) : null}
+
+      {utama ? (
+        <TombolUtama
+          utama={utama}
+          label={label}
+          icon={icon}
+          kelas={kelasTombol}
+          onUnduh={jemputBerkas}
+        />
+      ) : null}
 
       {/* `static`: panel di dalamnya menjangkar ke pembungkus, supaya pada mode
           terpisah ia sejajar dengan SELURUH kendali, bukan cuma panahnya. */}
@@ -218,7 +394,12 @@ export function MenuBerkas({
           style={{ top: "100%" }}
         >
           {pilihan.map((p) => (
-            <ItemMenu key={p.label} p={p} onTutup={() => setTerbuka(false)} />
+            <ItemMenu
+              key={p.label}
+              p={p}
+              onTutup={() => setTerbuka(false)}
+              onUnduh={jemputBerkas}
+            />
           ))}
         </div>
       </details>
@@ -232,11 +413,13 @@ function TombolUtama({
   label,
   icon,
   kelas,
+  onUnduh,
 }: {
   utama: PilihanBerkas;
   label: string;
   icon?: ReactNode;
   kelas: string;
+  onUnduh: (p: PilihanUnduh) => void;
 }) {
   const isi = (
     <>
@@ -256,8 +439,30 @@ function TombolUtama({
     );
   }
   if (utama.href) {
+    /*
+     * Tetap `<a href>` walau berkasnya dijemput lewat fetch: klik-tengah,
+     * "Buka di tab baru", dan "Simpan tautan sebagai" tetap bekerja seperti
+     * yang orang harapkan dari sebuah tautan. Yang diambil alih hanya klik
+     * biasa — supaya ada yang bisa mengatakan "sedang disiapkan".
+     */
+    const berkas = utama.jenis === "berkas";
     return (
-      <a href={utama.href} target="_blank" rel="noopener" className={bentuk} title={utama.label}>
+      <a
+        href={utama.href}
+        target={berkas ? undefined : "_blank"}
+        rel="noopener"
+        className={bentuk}
+        title={utama.label}
+        onClick={
+          berkas
+            ? (e) => {
+                if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+                e.preventDefault();
+                onUnduh(utama);
+              }
+            : undefined
+        }
+      >
         {isi}
       </a>
     );
@@ -269,7 +474,15 @@ function TombolUtama({
   );
 }
 
-function ItemMenu({ p, onTutup }: { p: PilihanBerkas; onTutup: () => void }) {
+function ItemMenu({
+  p,
+  onTutup,
+  onUnduh,
+}: {
+  p: PilihanBerkas;
+  onTutup: () => void;
+  onUnduh: (p: PilihanUnduh) => void;
+}) {
   const mati = !!p.disabledReason;
   const isi = (
     <>
@@ -299,8 +512,22 @@ function ItemMenu({ p, onTutup }: { p: PilihanBerkas; onTutup: () => void }) {
     );
   }
   if (p.href) {
+    const berkas = p.jenis === "berkas";
     return (
-      <a role="menuitem" href={p.href} target="_blank" rel="noopener" onClick={onTutup} className={kelas}>
+      <a
+        role="menuitem"
+        href={p.href}
+        target={berkas ? undefined : "_blank"}
+        rel="noopener"
+        onClick={(e) => {
+          if (berkas && !e.metaKey && !e.ctrlKey && !e.shiftKey && e.button === 0) {
+            e.preventDefault();
+            onUnduh(p);
+          }
+          onTutup();
+        }}
+        className={kelas}
+      >
         {isi}
       </a>
     );

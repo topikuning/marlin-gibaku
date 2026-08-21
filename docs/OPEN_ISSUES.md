@@ -106,6 +106,18 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
   (pengecualian terdokumentasi di OPEN_SOURCE_LICENSE_AUDIT.md).
 - 🟢 Foto stamp memakai font DejaVu bundel; verifikasi otomatis foto (flag GPS/waktu)
   belum dievaluasi rutin (dedup sha256 jalan).
+- 🟡 **UI-05 · Penjaga en-dash buta terhadap literal regex.**
+  `tests/unit/tanda-pisah-ui.test.ts` memindai dengan tokenizer buatan sendiri
+  yang hanya mengenal `//`, `/* */`, dan tiga jenis tanda kutip — literal regex
+  tidak dikenali. Satu regex berisi tanda kutip **ganjil** (mis.
+  `/filename="?([^";]+)"?/`) membalik parity-nya, dan SISA berkas terbaca sebagai
+  isi string: komentar biasa pun dilaporkan sebagai pelanggaran em-dash.
+  Ditemukan 2026-08-21 saat `menu-berkas.tsx` mendadak melanggar pada baris
+  komentar yang sudah ada berbulan-bulan.
+  Dampak: **false positive**, bukan lubang — jadi tidak ada em-dash yang lolos.
+  Akalannya sekarang: tulis tanda kutip di dalam regex sebagai `\x22`/`\x27`.
+  Perbaikan sesungguhnya butuh tokenizer yang bisa membedakan pembagian dari
+  literal regex; belum dikerjakan karena harganya tidak sepadan dengan dampaknya.
 
 ## FUTURE · Serah terima parsial (PHO parsial per pekerjaan) — DECISIONS 078
 Kontrak KNMP membolehkan PHO PARSIAL atas pekerjaan yang sudah 100% (mis. revetmen)
