@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Camera, WifiOff } from "lucide-react";
+import { WifiOff } from "lucide-react";
+import { PintuFotoCepat } from "@/components/pwa/pintu-foto-cepat";
 
 export const metadata: Metadata = { title: "Tidak ada jaringan" };
 
@@ -36,15 +37,7 @@ export default function OfflinePage() {
           </p>
         </div>
 
-        <a
-          href="/foto-cepat"
-          className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-white hover:bg-primary-800"
-        >
-          <Camera aria-hidden className="size-4" /> Buka Foto Cepat
-        </a>
-        <p className="mt-2 text-[11px] text-ink-muted">
-          Foto Cepat bisa dibuka tanpa sinyal bila pernah dibuka sebelumnya di HP ini.
-        </p>
+        <PintuFotoCepat />
       </div>
     </main>
   );

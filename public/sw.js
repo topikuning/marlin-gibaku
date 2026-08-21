@@ -75,6 +75,8 @@ self.addEventListener("message", function (event) {
   if (!pesan || typeof pesan !== "object") return;
   if (pesan.jenis === "halo") {
     event.waitUntil(halo(String(pesan.pemilik || ""), String(pesan.build || "")));
+  } else if (pesan.jenis === "siapkan-luring") {
+    event.waitUntil(siapkanLuring(String(pesan.jalur || "")));
   } else if (pesan.jenis === "bersihkan-halaman") {
     event.waitUntil(caches.delete(K.NAMA.halaman));
   } else if (pesan.jenis === "info-simpanan") {
@@ -108,7 +110,10 @@ async function simpanAsetHalaman(jawaban) {
   if (!jawaban) return;
   var html = await jawaban.clone().text();
   var jalur = [];
-  var pola = /["'(](\/_next\/static\/[^"')]+)["')]/g;
+  // Wajib berakhiran berkas (`.js`, `.css`, `.woff2`): tanpa itu, potongan
+  // alamat yang kebetulan berawalan sama ikut terjemput dan menghuni simpanan
+  // sebagai entri yang tak pernah dipakai siapa pun.
+  var pola = /["'(](\/_next\/static\/[^"')\s]+\.[a-zA-Z0-9]+)["')]/g;
   var cocok;
   while ((cocok = pola.exec(html)) !== null) {
     if (jalur.indexOf(cocok[1]) < 0) jalur.push(cocok[1]);
@@ -158,7 +163,7 @@ async function asetDuluSimpanan(req) {
 async function jaringanDulu(req, simpan) {
   try {
     var jawaban = await fetch(req);
-    if (simpan && jawaban && jawaban.ok && jawaban.type === "basic") {
+    if (simpan && jawaban && layakSimpan(jawaban, K.kunciHalaman(req.url))) {
       var halaman = await caches.open(K.NAMA.halaman);
       await halaman.put(K.kunciHalaman(req.url), await salinanBercap(jawaban.clone()));
     }
@@ -186,6 +191,63 @@ async function jaringanDulu(req, simpan) {
       })
     );
   }
+}
+
+/** Jawaban ini boleh disimpan sebagai halaman `kunci`? (kebijakannya diuji) */
+function layakSimpan(jawaban, kunci) {
+  return K.bolehSimpanHalaman({
+    kunci: kunci,
+    urlAkhir: jawaban.url || kunci,
+    redirected: jawaban.redirected === true,
+    status: jawaban.status,
+    tipe: jawaban.type,
+  });
+}
+
+/**
+ * SIAPKAN LURING: jemput halaman lapangan lalu simpan, tanpa menunggu orangnya
+ * membukanya.
+ *
+ * Ini yang membuat mode pesawat benar-benar bisa dipakai. Tanpa penyiapan,
+ * simpanan hanya lahir dari kunjungan yang sudah terjadi — jadi mandor yang
+ * memasang MARLIN di kantor lalu berangkat ke lokasi tanpa pernah menekan menu
+ * Foto Cepat akan menemukan aplikasinya kosong persis saat dibutuhkan. Cukup
+ * aplikasinya terbuka sekali di tempat ada sinyal.
+ *
+ * Sekaligus menjaga simpanannya SEGAR: tiap kali aplikasi dibuka online,
+ * rekamannya diperbarui — jadi yang tampil saat luring adalah keadaan terakhir
+ * kali HP ini punya sinyal, bukan keadaan kunjungan entah kapan.
+ */
+async function siapkanLuring(jalur) {
+  // Hanya rute yang memang boleh disimpan. Pesan dari halaman tidak boleh bisa
+  // memperluas daftar putih.
+  if (K.RUTE_LURING.indexOf(jalur) < 0) return;
+
+  var halaman = await caches.open(K.NAMA.halaman);
+  var lama = await halaman.match(jalur);
+  if (lama) {
+    var cap = Date.parse(lama.headers.get(K.CAP_SIMPAN) || "");
+    if (!isNaN(cap) && Date.now() - cap < K.JEDA_SIAP_MS) return;
+  }
+
+  var jawaban;
+  try {
+    jawaban = await fetch(
+      new Request(jalur, {
+        credentials: "same-origin",
+        headers: { accept: "text/html" },
+      }),
+    );
+  } catch (_) {
+    // Tidak ada sinyal saat menyiapkan. Simpanan lama (kalau ada) tetap utuh.
+    return;
+  }
+
+  if (!layakSimpan(jawaban, jalur)) return;
+  await halaman.put(jalur, await salinanBercap(jawaban.clone()));
+  // Tanpa berkas gaya & skripnya, halaman tersimpan itu terbuka sebagai teks
+  // polos tanpa kamera — tersimpan tapi tidak bisa dipakai.
+  await simpanAsetHalaman(jawaban);
 }
 
 /**

@@ -3,6 +3,7 @@ import { AppShell } from "@/components/shell/app-shell";
 import { filterNav, MOBILE_NAV } from "@/components/shell/nav-config";
 import { Banner } from "@/components/ui";
 import { accessibleLocationIds, requireUser } from "@/lib/auth/session";
+import { can } from "@/lib/authz";
 import { logout } from "@/lib/auth/actions";
 import { getBranding } from "@/lib/branding";
 
@@ -31,7 +32,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           Di layout supaya berlaku untuk seluruh aplikasi: yang memasangnya cuma
           perlu sekali terbuka di mana saja, dan pengakuannya harus muncul di
           halaman mana pun yang kelak disajikan luring. */}
-      <PendaftarServiceWorker pemilik={user.id} />
+      <PendaftarServiceWorker pemilik={user.id} siapkanFotoCepat={can(user.role, "photo.quick")} />
       {tanpaPenugasan ? (
         <Banner
           tone="warning"

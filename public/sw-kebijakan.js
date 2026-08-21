@@ -111,6 +111,37 @@
     return new URL(url).pathname;
   }
 
+  /**
+   * Boleh tidaknya sebuah JAWABAN disimpan sebagai halaman `kunci`.
+   *
+   * Yang dijaga di sini satu hal yang tidak kelihatan sampai ia terjadi: sesi
+   * yang kedaluwarsa membuat server MENGALIHKAN ke `/masuk`, dan jawaban itu
+   * tetap ber-status 200. Tanpa pemeriksaan alamat akhir, halaman masuk akan
+   * tersimpan dengan nama `/foto-cepat` — dan mandor yang membukanya di luar
+   * jangkauan akan disodori formulir masuk yang tidak mungkin dia lewati.
+   *
+   * @param {{kunci: string, urlAkhir: string, redirected?: boolean, status: number, tipe?: string}} p
+   */
+  function bolehSimpanHalaman(p) {
+    if (p.status !== 200) return false;
+    if (p.tipe && p.tipe !== "basic") return false;
+    if (p.redirected) return false;
+    try {
+      return new URL(p.urlAkhir).pathname === p.kunci;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /**
+   * Jarak minimal antar penyegaran simpanan luring.
+   *
+   * Penyiapan dijalankan tiap kali aplikasi dibuka; tanpa jeda ini, tiap muat
+   * halaman membayar satu render `/foto-cepat` di server (query lokasi +
+   * kantong) hanya untuk menyalin yang sudah ada.
+   */
+  var JEDA_SIAP_MS = 15 * 60 * 1000;
+
   /** Cache milik MARLIN dari versi lama — boleh dibuang saat aktivasi. */
   function cacheUsang(nama) {
     if (nama.indexOf(AWALAN) !== 0) return false;
@@ -125,8 +156,10 @@
     CAP_SIMPAN: CAP_SIMPAN,
     RUTE_LURING: RUTE_LURING,
     PRAPASANG: PRAPASANG,
+    JEDA_SIAP_MS: JEDA_SIAP_MS,
     rencana: rencana,
     kunciHalaman: kunciHalaman,
+    bolehSimpanHalaman: bolehSimpanHalaman,
     cacheUsang: cacheUsang,
   };
 })(typeof self !== "undefined" ? self : globalThis);

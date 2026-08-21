@@ -28,6 +28,19 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     background_color: "#08152E",
     theme_color: "#1E3A8A",
     lang: "id",
+    // Tekan-lama ikon di layar depan → langsung Foto Cepat. Satu-satunya
+    // halaman yang memang bisa dipakai tanpa sinyal, jadi pintasnya bukan
+    // hiasan: ia memotong satu ketukan justru di keadaan yang paling terburu
+    // (DECISIONS 393).
+    shortcuts: [
+      {
+        name: "Foto Cepat",
+        short_name: "Foto Cepat",
+        description: "Jepret sekarang, pilih itemnya belakangan",
+        url: "/foto-cepat",
+        icons: [{ src: "/brand/marlin-favicon-192.png", sizes: "192x192", type: "image/png" }],
+      },
+    ],
     icons: [
       { src: "/brand/marlin-favicon-192.png", sizes: "192x192", type: "image/png" },
       { src: "/brand/marlin-favicon-512.png", sizes: "512x512", type: "image/png" },

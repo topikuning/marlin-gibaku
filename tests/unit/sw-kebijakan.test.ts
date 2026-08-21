@@ -22,6 +22,14 @@ interface Kebijakan {
   NAMA: { kerangka: string; aset: string; halaman: string };
   HALAMAN_OFFLINE: string;
   RUTE_LURING: string[];
+  JEDA_SIAP_MS: number;
+  bolehSimpanHalaman(p: {
+    kunci: string;
+    urlAkhir: string;
+    redirected?: boolean;
+    status: number;
+    tipe?: string;
+  }): boolean;
   rencana(p: {
     metode: string;
     url: string;
@@ -130,6 +138,46 @@ describe("kebijakan service worker – yang boleh disimpan", () => {
     // ber-sesi yang menetap di HP lapangan. Ubah daftarnya = ubah uji ini =
     // keputusan sadar, dan alasannya ditulis di DECISIONS.
     expect(K.RUTE_LURING).toEqual(["/foto-cepat"]);
+  });
+});
+
+describe("kebijakan service worker – jawaban mana yang layak disimpan", () => {
+  const sah = {
+    kunci: "/foto-cepat",
+    urlAkhir: `${ASAL}/foto-cepat`,
+    redirected: false,
+    status: 200,
+    tipe: "basic",
+  };
+
+  it("jawaban halaman yang benar disimpan", () => {
+    expect(K.bolehSimpanHalaman(sah)).toBe(true);
+  });
+
+  it("sesi kedaluwarsa → dialihkan ke /masuk → TIDAK disimpan", () => {
+    // Cacat yang tak terlihat sampai ia terjadi: alihan diikuti peramban dan
+    // jawabannya tetap 200. Tanpa pemeriksaan alamat akhir, formulir masuk
+    // tersimpan dengan nama /foto-cepat – dan mandor di luar jangkauan
+    // disodori layar masuk yang mustahil dia lewati.
+    expect(
+      K.bolehSimpanHalaman({ ...sah, urlAkhir: `${ASAL}/masuk`, redirected: true }),
+    ).toBe(false);
+    // Bahkan bila peramban tidak menandai `redirected`, alamat akhirnya yang
+    // menentukan.
+    expect(K.bolehSimpanHalaman({ ...sah, urlAkhir: `${ASAL}/masuk` })).toBe(false);
+  });
+
+  it("galat server & jawaban buram tidak disimpan", () => {
+    expect(K.bolehSimpanHalaman({ ...sah, status: 500 })).toBe(false);
+    expect(K.bolehSimpanHalaman({ ...sah, status: 404 })).toBe(false);
+    expect(K.bolehSimpanHalaman({ ...sah, tipe: "opaque" })).toBe(false);
+  });
+
+  it("penyegaran simpanan tidak lebih rapat dari 15 menit", () => {
+    // Penyiapan berjalan tiap aplikasi dibuka; tanpa jeda, tiap muat halaman
+    // membayar satu render /foto-cepat di server hanya untuk menyalin yang
+    // sudah ada.
+    expect(K.JEDA_SIAP_MS).toBe(15 * 60 * 1000);
   });
 });
 

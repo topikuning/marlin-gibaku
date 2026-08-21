@@ -19534,3 +19534,96 @@ dijalankan di container ini — spec-nya meng-override `launchOptions` sehingga
 `executablePath` dari playwright.config ikut hilang dan Chromium bundelnya tidak
 ada. Bukan regresi dari perubahan ini (gagal di peluncuran peramban, sebelum
 halaman apa pun dimuat), tapi ditulis di sini supaya tidak dibaca sebagai hijau.
+
+---
+
+## 393 — Mode pesawat: Foto Cepat siap TANPA pernah dibuka lebih dulu (2026-08-21)
+
+### Permintaan user
+
+*"mauku bahkan jika airplane mode, marlin masih bisa digunakan untuk setidaknya
+foto"*
+
+DECISIONS 392 membuat `/foto-cepat` bisa dibuka luring — **asal halaman itu
+pernah dibuka saat ada sinyal**. Syarat itu terdengar sepele di layar dan
+mematikan di lapangan: mandor memasang MARLIN di kantor, berangkat ke lokasi,
+dan menemukan aplikasinya kosong persis pada saat dibutuhkan. Simpanan yang
+hanya lahir dari kunjungan yang sudah terjadi adalah simpanan yang selalu
+terlambat satu langkah.
+
+### Yang berubah
+
+**1. Penyiapan otomatis (`siapkan-luring`).** Tiap kali aplikasi terbuka dan
+service worker aktif, halaman `/foto-cepat` dijemput di latar belakang lalu
+disimpan — beserta berkas gaya & skripnya. Cukup aplikasinya terbuka SEKALI di
+tempat ada sinyal, di menu mana pun. Sekaligus menjaga rekamannya segar: yang
+tampil saat luring adalah keadaan terakhir kali HP itu punya sinyal, bukan
+kunjungan entah kapan.
+
+Dijaga tiga hal:
+- **Hanya rute daftar putih.** Pesan dari halaman tidak bisa memperluas daftar
+  itu; `siapkanLuring()` menolak jalur di luar `RUTE_LURING`.
+- **Hanya untuk yang berhak.** Layout mengirim `siapkanFotoCepat` dari
+  `can(role, "photo.quick")` — menyiapkan halaman yang berujung 404 bagi
+  rolenya cuma membuang kuota dan render server.
+- **Jeda 15 menit.** Tanpa itu tiap muat halaman membayar satu render
+  `/foto-cepat` di server (query lokasi + kantong) hanya untuk menyalin yang
+  sudah ada.
+
+**2. Alihan ke halaman masuk tidak boleh tersimpan.** Sesi kedaluwarsa membuat
+server MENGALIHKAN ke `/masuk`, dan jawabannya tetap 200. Tanpa pemeriksaan
+alamat akhir, formulir masuk akan tersimpan dengan nama `/foto-cepat` — dan
+mandor yang membukanya di luar jangkauan disodori layar masuk yang mustahil
+dilewatinya. `bolehSimpanHalaman()` menolak jawaban yang beralamat akhir lain,
+ber-status bukan 200, atau buram; dipakai di jalur navigasi maupun penyiapan.
+
+**3. Halaman `/offline` mengatakan siap atau tidak.** Tombol yang selalu tampak
+"siap" adalah janji yang tidak bisa ditepati: kalau halamannya belum tersimpan,
+menekannya cuma kembali ke halaman yang sama, dan orang yang berdiri di lokasi
+tanpa sinyal akan mengira aplikasinya rusak. Sekarang status simpanannya
+ditanyakan ke service worker dan dikatakan apa adanya, termasuk kapan
+rekamannya diambil.
+
+**4. Pintasan `Foto Cepat` di manifest.** Tekan-lama ikon di layar depan →
+langsung ke satu-satunya halaman yang memang bisa dipakai tanpa sinyal.
+
+### Cacat yang ditemukan sambil mengerjakannya — dan ini yang paling penting
+
+Banner "ditampilkan dari simpanan" **hilang di sebagian muat ulang luring**.
+Sebabnya urutan di klien: pertanyaan "halaman ini dari simpanan?" dipasang di
+BELAKANG `navigator.serviceWorker.register()`, sedangkan `register()` menjemput
+ulang `/sw.js` dari jaringan — jadi ia gagal justru saat luring. Akibatnya
+banner itu absen persis pada satu-satunya keadaan ia dibutuhkan, dan halaman
+simpanan tampil seolah halaman segar.
+
+Sekarang klien memakai `navigator.serviceWorker.controller` lebih dulu (halaman
+yang dikendalikan bisa ditanyai tanpa jaringan sama sekali), lalu mendaftar
+ulang sebagai urusan terpisah yang boleh gagal.
+
+### Uji, dan uji yang sempat berbohong
+
+- `tests/unit/sw-kebijakan.test.ts` — 17 uji; tambahan menutup alihan `/masuk`,
+  status non-200, jawaban buram, dan mengunci jeda 15 menit.
+- `tests/e2e/pwa-luring.spec.ts` — uji baru "MODE PESAWAT dari aplikasi
+  tertutup": masuk lalu **berhenti di beranda** (menu Foto Cepat tidak pernah
+  disentuh), tunggu penyiapan, mode pesawat, **halaman ditutup**, buka lagi →
+  `/` menampilkan halaman luring yang menyatakan Foto Cepat siap → ketuk →
+  halamannya terbuka dan tombol "Buka kamera" ada.
+
+Yang perlu dicatat karena hampir lolos: `context.setOffline(true)` TIDAK selalu
+memutus permintaan yang dikeluarkan service worker sendiri. Uji versi pertama
+karenanya hijau-merah bergantian, dan yang hijau tidak membuktikan apa pun —
+halamannya diam-diam masih menjemput dari server. Pemutusannya sekarang lewat
+`context.route(… abort)` yang berlaku untuk semua pihak; `setOffline` tetap
+dipasang hanya supaya `navigator.onLine` ikut berkata jujur.
+
+Dibuktikan bergigi: mematikan penanganan pesan `siapkan-luring` di service
+worker memerahkan **uji mode pesawat saja** — dua uji lain tetap hijau, persis
+pemisahan yang seharusnya (keduanya memang tidak bergantung pada penyiapan).
+
+### Yang TIDAK berubah
+
+Batas DECISIONS 392 tetap: hanya `/foto-cepat`, tidak ada unggah latar belakang
+setelah aplikasi ditutup, tidak ada push, tidak ada pemeriksaan sesi saat
+luring. Yang bertambah cuma satu hal, tapi yang menentukan: syarat "pernah
+dibuka" hilang.

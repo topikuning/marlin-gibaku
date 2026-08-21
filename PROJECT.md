@@ -232,10 +232,14 @@ Definition of Done = prompt rebuild §38 + traceability matrix terisi.
 Service worker `public/sw.js` (kebijakan terpisah + diuji di
 `public/sw-kebijakan.js`): aset build ber-hash disimpan; **hanya `/foto-cepat`**
 yang HTML-nya disimpan sehingga bisa dibuka dari nol tanpa sinyal, dengan banner
-"ditampilkan dari simpanan" + tanggal kunjungan terakhir; navigasi lain yang gagal
-jatuh ke `/offline`. Jaringan SELALU dicoba lebih dulu. Tidak menyentuh non-GET,
-`/api/**`, muatan RSC, dan lintas asal. Simpanan halaman dibuang saat pemilik HP
-berganti dan saat `/masuk` dibuka. Tidak aktif di `pnpm dev`. DECISIONS 392.
+"ditampilkan dari simpanan" + tanggal rekamannya; navigasi lain yang gagal
+jatuh ke `/offline` (halaman itu menyatakan Foto Cepat siap/belum, apa adanya).
+Jaringan SELALU dicoba lebih dulu. Tidak menyentuh non-GET, `/api/**`, muatan RSC,
+dan lintas asal. Jawaban yang beralamat akhir lain (mis. alihan ke `/masuk` karena
+sesi habis) tidak pernah disimpan. Halaman lapangan DISIAPKAN otomatis tiap
+aplikasi dibuka (jeda 15 menit; hanya role ber-`photo.quick`) — mode pesawat tak
+lagi menuntut halamannya pernah dibuka. Simpanan halaman dibuang saat pemilik HP
+berganti dan saat `/masuk` dibuka. Tidak aktif di `pnpm dev`. DECISIONS 392/393.
 
 ## 10. Scope yang sengaja ditunda
 

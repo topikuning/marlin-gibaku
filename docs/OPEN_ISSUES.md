@@ -75,7 +75,9 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
   idempotent, antrean foto di IndexedDB yang bertahan melewati muat ulang
   (DECISIONS 257), manifest installable, DAN service worker yang membuat
   `/foto-cepat` bisa DIBUKA dari nol tanpa sinyal (dengan banner "dari simpanan")
-  sementara halaman lain jatuh ke `/offline` (DECISIONS 392).
+  sementara halaman lain jatuh ke `/offline` (DECISIONS 392). Halamannya
+  disiapkan otomatis tiap aplikasi dibuka, jadi mode pesawat tidak menuntut
+  Foto Cepat pernah dibuka lebih dulu (DECISIONS 393).
   Yang masih kurang: menu lain belum bisa dibuka luring (sadar — HTML ber-sesi yang
   menetap di HP adalah risiko, dan halaman lain tidak bisa ditindaklanjuti tanpa
   jaringan), background sync/unggah setelah aplikasi ditutup, dan push notification.

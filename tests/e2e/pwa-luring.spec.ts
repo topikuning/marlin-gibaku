@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type BrowserContext, type Page } from "@playwright/test";
 
 /**
  * APLIKASINYA SENDIRI HARUS BISA DIBUKA TANPA SINYAL (DECISIONS 392).
@@ -29,10 +29,53 @@ async function masuk(page: Page) {
   await page.waitForURL((u) => !u.pathname.includes("/masuk"), { timeout: 30_000 });
 }
 
+/**
+ * MODE PESAWAT yang sungguhan.
+ *
+ * `context.setOffline(true)` saja TIDAK cukup di sini: permintaan yang
+ * dikeluarkan service worker sendiri tidak selalu ikut diputus, jadi halaman
+ * bisa terlihat "luring" padahal service worker-nya masih menjemput dari
+ * server. Uji versi awal berkas ini hijau-merah bergantian justru karena itu –
+ * dan yang hijau tidak membuktikan apa pun. Menggugurkan seluruh rute menutup
+ * jalannya untuk semua pihak; `setOffline` tetap dipasang supaya
+ * `navigator.onLine` di halaman ikut berkata jujur.
+ */
+async function modePesawat(context: BrowserContext) {
+  await context.route("**/*", (rute) => rute.abort("internetdisconnected"));
+  await context.setOffline(true);
+}
+
+async function sinyalKembali(context: BrowserContext) {
+  await context.unroute("**/*");
+  await context.setOffline(false);
+}
+
 /** Tunggu sampai service worker benar-benar MENGENDALIKAN halaman ini. */
 async function tungguDikendalikan(page: Page) {
   await page.waitForFunction(() => Boolean(navigator.serviceWorker?.controller), null, {
     timeout: 30_000,
+  });
+}
+
+/** Tanya service worker: `/foto-cepat` tersimpan sejak kapan (null = belum). */
+async function simpananFotoCepat(page: Page): Promise<string | null> {
+  return page.evaluate(async () => {
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sw = reg?.active;
+    if (!sw) return null;
+    return new Promise<string | null>((selesai) => {
+      const kanal = new MessageChannel();
+      const jam = setTimeout(() => selesai(null), 3000);
+      kanal.port1.onmessage = (e: MessageEvent) => {
+        clearTimeout(jam);
+        const d = e.data as { disimpanPada?: string } | null;
+        selesai(typeof d?.disimpanPada === "string" ? d.disimpanPada : null);
+      };
+      sw.postMessage(
+        { jenis: "info-simpanan", url: `${location.origin}/foto-cepat` },
+        [kanal.port2],
+      );
+    });
   });
 }
 
@@ -51,7 +94,7 @@ test.describe("PWA – aplikasi terbuka tanpa jaringan", () => {
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: "Foto Cepat" })).toBeVisible();
 
-    await context.setOffline(true);
+    await modePesawat(context);
     await page.reload({ waitUntil: "domcontentloaded" });
 
     // Inti janji: halamannya MUNCUL, bukan layar galat peramban.
@@ -66,7 +109,48 @@ test.describe("PWA – aplikasi terbuka tanpa jaringan", () => {
       timeout: 20_000,
     });
 
-    await context.setOffline(false);
+    await sinyalKembali(context);
+  });
+
+  test("MODE PESAWAT dari aplikasi tertutup: Foto Cepat siap walau belum pernah dibuka", async ({
+    page,
+    context,
+  }) => {
+    // `beforeEach` sudah masuk dan berhenti di beranda. Menu Foto Cepat tidak
+    // pernah disentuh di uji ini – itu intinya: aplikasi dipasang di kantor,
+    // lalu HP dibawa ke lokasi tanpa sinyal.
+    await tungguDikendalikan(page);
+
+    // Penyiapan berjalan sendiri sesudah service worker aktif.
+    await expect
+      .poll(() => simpananFotoCepat(page), { timeout: 30_000 })
+      .not.toBeNull();
+
+    // Aplikasi DITUTUP, HP masuk mode pesawat, lalu aplikasinya dibuka lagi.
+    // Halaman baru = jendela yang benar-benar baru: tidak ada apa pun yang
+    // tersisa di memori halaman sebelumnya.
+    await page.close();
+    const lagi = await context.newPage();
+    await modePesawat(context);
+
+    await lagi.goto("/", { waitUntil: "domcontentloaded" });
+    await expect(lagi.getByRole("heading", { name: "Tidak ada jaringan" })).toBeVisible({
+      timeout: 20_000,
+    });
+    // Halaman luring TAHU Foto Cepat siap – dan mengatakannya. Kalimat ini
+    // hanya muncul kalau skrip halaman luring pun ikut tersimpan.
+    await expect(lagi.getByText(/siap dipakai memotret tanpa sinyal/i)).toBeVisible({
+      timeout: 20_000,
+    });
+
+    await lagi.getByRole("link", { name: /buka foto cepat/i }).click();
+    await expect(lagi.getByRole("heading", { name: "Foto Cepat" })).toBeVisible({
+      timeout: 20_000,
+    });
+    // Bukan sekadar halamannya muncul: kameranya harus bisa dibuka.
+    await expect(lagi.getByRole("button", { name: /buka kamera/i })).toBeVisible();
+
+    await sinyalKembali(context);
   });
 
   test("halaman lain saat OFFLINE menjawab jujur, bukan layar galat peramban", async ({
@@ -76,7 +160,7 @@ test.describe("PWA – aplikasi terbuka tanpa jaringan", () => {
     await page.goto("/foto-cepat", { waitUntil: "domcontentloaded" });
     await tungguDikendalikan(page);
 
-    await context.setOffline(true);
+    await modePesawat(context);
     await page.goto("/progress", { waitUntil: "domcontentloaded" });
 
     await expect(page.getByRole("heading", { name: "Tidak ada jaringan" })).toBeVisible({
@@ -85,6 +169,6 @@ test.describe("PWA – aplikasi terbuka tanpa jaringan", () => {
     // Kalimat yang paling penting di halaman itu: fotonya tidak hilang.
     await expect(page.getByText(/terkirim sendiri begitu sinyal kembali/i)).toBeVisible();
 
-    await context.setOffline(false);
+    await sinyalKembali(context);
   });
 });
