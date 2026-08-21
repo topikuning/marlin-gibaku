@@ -1,5 +1,6 @@
 import {
   Activity,
+  AlertTriangle,
   Database,
   MessagesSquare,
   Camera,
@@ -37,6 +38,7 @@ export const ICONS = {
   map: Map,
   sun: Sun,
   trendingUp: TrendingUp,
+  alertTriangle: AlertTriangle,
   wallet: Wallet,
   folderOpen: FolderOpen,
   fileText: FileText,
@@ -70,6 +72,10 @@ export const MAIN_NAV: NavItem[] = [
   { label: "Foto Lapangan", href: "/foto", icon: "images", capability: "location.view" },
   { label: "AI Intelligence", href: "/ai", icon: "sparkles", capability: "ai.view" },
   { label: "Progress", href: "/progress", icon: "trendingUp", capability: "progress.view" },
+  // Papan kendala lintas lokasi (DECISIONS 392). Pakai `location.view`, bukan
+  // `issue.manage`: yang tidak boleh mengubah tetap perlu MELIHAT apa yang
+  // sedang menghambat lokasinya.
+  { label: "Kendala", href: "/kendala", icon: "alertTriangle", capability: "location.view" },
   { label: "Keuangan", href: "/keuangan", icon: "wallet", capability: "finance.view" },
   { label: "Dokumen", href: "/dokumen", icon: "folderOpen", capability: "document.view" },
   { label: "Laporan", href: "/laporan", icon: "fileText", capability: "report.export" },

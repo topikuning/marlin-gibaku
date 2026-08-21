@@ -18,6 +18,8 @@ import { WORKER_ROLE_LABEL, WORKER_ROLE_ORDER } from "@/lib/daily-report/constan
 
 import { KKP_WEATHER_HOURS, type KkpWeatherCategory } from "@/lib/weather/hourly";
 import { RuangTtd, gambarPihak, type TtdLaporan } from "./blok-ttd";
+import { teksNihilCetak } from "@/lib/daily-report/nihil";
+import type { NoActivityReason } from "@/generated/prisma/enums";
 
 const volFmt = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 3 });
 const orgFmt = new Intl.NumberFormat("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -78,6 +80,10 @@ export type KkpDailyData = {
   items: KkpDailyItem[];
   /** false = pratinjau dari data live (belum dibekukan finalSnapshot). */
   isFinal: boolean;
+  /** Hari itu DINYATAKAN tanpa kegiatan, berikut sebabnya (DECISIONS 396). */
+  noActivity?: boolean;
+  noActivityReason?: NoActivityReason | null;
+  noActivityNote?: string | null;
   /**
    * Berapa baris laporan hari itu yang basisnya DRAFT ADENDUM dan karena itu
    * TIDAK dicetak di blanko (DECISIONS 215). Blanko harian KKP adalah dokumen
@@ -439,8 +445,17 @@ export function KkpDailyReport({ d, ttd }: { d: KkpDailyData; ttd?: TtdLaporan |
         </tbody>
       </table>
 
-      {/* ── Tanda tangan ─────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 border-x border-b border-slate-500">
+      {/*
+        ── Tanda tangan ───────────────────────────────────────────────────
+
+        `break-inside-avoid` supaya blok ini tidak pernah terbelah, DAN
+        `break-before-avoid` supaya ia tidak terdorong sendirian ke halaman
+        berikutnya. Cetakan user 2026-08-20 memuat satu halaman A4 penuh yang
+        isinya HANYA kotak tanda tangan, terlepas dari blanko yang
+        ditandatanganinya — dokumen yang tanda tangannya berdiri sendiri di
+        halaman lain mengundang pertanyaan tentang keasliannya. DECISIONS 395.
+      */}
+      <div className="grid grid-cols-2 border-x border-b border-slate-500 break-inside-avoid break-before-avoid">
         <div className="border-r border-slate-500 px-3 py-2 text-center">
           <div className="text-[10px] text-slate-600">Disetujui Oleh;</div>
           <div className="text-[10px] text-slate-600">Konsultan Pengawas</div>
@@ -533,7 +548,16 @@ export function barisRencanaRealisasi(
     `${r.name}${r.volume > 0 ? ` – ${volFmt.format(r.volume)}${r.unit ? ` ${r.unit}` : ""}` : ""}` +
     (r.picName ? ` (${r.picName})` : ""),
   );
-  const realisasi = barisRealisasiKkp(d.items);
+  /*
+   * Hari yang DINYATAKAN tanpa kegiatan menuliskan kalimatnya di baris pertama
+   * realisasi (DECISIONS 396). Blanko yang dibiarkan kosong terbaca seperti ada
+   * yang lupa mengisi — pemeriksa di sisi PPK harus bisa melihat bahwa ini
+   * pernyataan sengaja, berikut sebabnya.
+   */
+  const teksNihil = teksNihilCetak(!!d.noActivity, d.noActivityReason, d.noActivityNote);
+  const realisasi = teksNihil
+    ? [{ no: "1", text: teksNihil, kategori: false }]
+    : barisRealisasiKkp(d.items);
   const n = Math.max(MIN_RR_ROWS, rencana.length, realisasi.length);
   // Baris kosong di bawah daftar tetap bernomor (kotaknya memang untuk diisi
   // tangan), melanjutkan nomor PEKERJAAN terakhir — bukan nomor baris tabel,
@@ -575,7 +599,17 @@ function Cell({
       colSpan={colSpan}
       rowSpan={rowSpan}
       className={[
-        "border border-slate-500 px-1.5 py-0.5 align-top",
+        /*
+         * `print:py-0` — DIUKUR, bukan ditebak (2026-08-20): blanko setinggi
+         * 1092px sedangkan A4 potret dikurangi margin 10mm menyisakan 1047px,
+         * jadi ekornya (Catatan + tanda tangan) terdorong ke halaman
+         * tersendiri. Padding 2px per sisi × belasan baris persis selisihnya.
+         *
+         * Yang dikurangi HANYA di kertas: di layar baris yang lebih longgar
+         * lebih mudah dibaca, dan di kertas barisnya tetap ±6,6mm — masih muat
+         * ditulisi tangan, yang memang gunanya blanko ini.
+         */
+        "border border-slate-500 px-1.5 py-0.5 align-top print:py-0",
         head ? "bg-slate-50 text-[10px] font-semibold text-slate-600 uppercase" : "",
         w ? "w-px whitespace-nowrap" : "",
         center ? "text-center" : right ? "text-right tabular-nums" : "text-left",

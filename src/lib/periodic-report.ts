@@ -732,6 +732,10 @@ export async function getPeriodReport(
   const issuesRaw = await db.issue.findMany({
     where: {
       locationId,
+      // Kembar yang sudah digabungkan TIDAK ikut ke laporan pemberi kerja:
+      // satu masalah yang tercetak tiga kali membuat seluruh laporan
+      // kehilangan kredibilitas, dan itu tidak bisa ditarik kembali.
+      mergedIntoId: null,
       createdAt: {
         gte: new Date(periodeStart.getTime() - DAY),
         lt: new Date(periodeEnd.getTime() + 2 * DAY),
