@@ -20,8 +20,10 @@ import { applyWeatherToReport, WeatherError, WeatherFetchError } from "@/lib/wea
 import type { UserRole, WeatherCode, WorkerRole } from "@/generated/prisma/enums";
 import { WEATHER_ORDER, WORKER_ROLE_ORDER } from "./constants";
 import { bacaKendalaKirim } from "./kirim-kendala";
+import { ALASAN_NIHIL, judulKendalaDariNihil } from "./nihil";
 import {
   addIssueFromReport,
+  setHariNihil,
   approveReport,
   CREATOR_ENRICHABLE_STATUSES,
   DailyReportError,
@@ -44,7 +46,18 @@ import {
  */
 
 export type DailyActionState =
-  | { error?: string; success?: string; warning?: string }
+  | {
+      error?: string;
+      success?: string;
+      warning?: string;
+      /**
+       * Usulan judul kendala sesudah hari dinyatakan nihil karena MENUNGGU
+       * (DECISIONS 396). Layar menawarkannya; tidak ada yang dibuat sampai
+       * orangnya menekan tombolnya.
+       */
+      usulKendala?: string;
+      usulLokasiId?: string;
+    }
   | undefined;
 
 /**
@@ -1213,6 +1226,69 @@ export async function addIssueAction(_prev: DailyActionState, formData: FormData
     );
     revalidateReport(ctx.slug, ctx.dateKey);
     return { success: "Kendala tercatat." };
+  } catch (err) {
+    return errState(err);
+  }
+}
+
+const hariNihilSchema = z.object({
+  /*
+   * Lokasi + tanggal, BUKAN reportId.
+   *
+   * Hari yang benar-benar tanpa kegiatan belum punya draft sama sekali — draft
+   * baru lahir saat item pertama disimpan. Menuntut `reportId` membuat fitur
+   * ini mustahil dipakai justru di hari yang membutuhkannya. DECISIONS 396.
+   */
+  locationId: z.uuid(),
+  dateKey: z.iso.date("Tanggal tidak valid"),
+  nihil: z.boolean(),
+  alasan: z.enum(ALASAN_NIHIL).optional(),
+  catatan: z.string().trim().max(500).optional(),
+});
+
+/**
+ * Nyatakan / batalkan "hari ini tidak ada kegiatan" (DECISIONS 396).
+ *
+ * Bila sebabnya "menunggu", pengembaliannya membawa `usulKendala` — layar
+ * MENAWARKAN mencatatnya sebagai kendala supaya ditagih, tidak memaksanya.
+ * Memaksa akan memenuhi papan dengan baris dari hari yang sebenarnya satu
+ * masalah berlarut; tidak menawarkan sama sekali mengulang cacat yang baru saja
+ * diperbaiki — hambatan tercatat lalu tidak ditagih siapa pun.
+ */
+export async function setHariNihilAction(
+  _prev: DailyActionState,
+  formData: FormData,
+): Promise<DailyActionState> {
+  try {
+    const user = await requireCapability("daily_report.create");
+    const parsed = hariNihilSchema.safeParse({
+      locationId: formData.get("locationId"),
+      dateKey: formData.get("dateKey"),
+      nihil: String(formData.get("nihil") ?? "") === "1",
+      alasan: String(formData.get("alasan") ?? "").trim() || undefined,
+      catatan: String(formData.get("catatan") ?? "").trim() || undefined,
+    });
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    const d = parsed.data;
+    await requireLocationAccess(user, d.locationId);
+    // Draft dibuat kalau belum ada — inilah jalur yang membuat hari kosong
+    // bisa dilaporkan sama sekali.
+    const report = await getOrCreateDraft(d.locationId, d.dateKey, user.id);
+    const ctx = await loadReportContext(report.id);
+
+    await setHariNihil(
+      ctx.id,
+      { nihil: d.nihil, alasan: d.alasan ?? null, catatan: d.catatan ?? null },
+      user.id,
+    );
+    revalidateReport(ctx.slug, ctx.dateKey);
+
+    if (!d.nihil) return { success: "Pernyataan tidak ada kegiatan dibatalkan." };
+    const usul = judulKendalaDariNihil(d.alasan, d.catatan);
+    return {
+      success: "Hari ini dinyatakan tidak ada kegiatan.",
+      ...(usul ? { usulKendala: usul, usulLokasiId: ctx.locationId } : {}),
+    };
   } catch (err) {
     return errState(err);
   }

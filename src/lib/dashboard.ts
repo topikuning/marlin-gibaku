@@ -229,7 +229,7 @@ export async function getDashboardData(locIds: string[] | null, orgId: string): 
 
   // Kendala & solusi tertunda (issue terbuka/ditangani + aksi pemulihan terbaru).
   const issues = await db.issue.findMany({
-    where: { location: locWhere, status: { in: ["terbuka", "ditangani"] } },
+    where: { location: locWhere, status: { in: ["terbuka", "ditangani"] }, mergedIntoId: null },
     select: {
       id: true,
       title: true,

@@ -51,6 +51,10 @@ Location → RabRevision (draft|aktif|digantikan) → RabNode (pohon 1 tabel;
          → DailyReport (uniq lokasi+tanggal) → Item (uniq report+lineage) +
            Worker/Material/Equipment + StatusHistory (append-only) + Photo (sha256 dedup)
          → Issue → RecoveryAction → RecoveryUpdate
+           (Issue = SATU-satunya bentuk kendala yang bisa ditagih: punya
+            source/PIC/tenggat/penutup, papan lintas lokasi di `/kendala`,
+            penagih WA lewat cron harian — DECISIONS 392. Kendala di
+            FieldActivity naik jadi Issue saat kegiatan difinalkan.)
          → BudgetLine / Commitment / Expense / Invoice+PaymentOut  (keuangan lokasi)
 Contract → OwnerBilling (termin) → Disbursement                    (penagihan owner)
 Package/Location → AdminMilestone (template KKP 45 item) → Document (FK nyata ke semua

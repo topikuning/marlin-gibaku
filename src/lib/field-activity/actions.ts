@@ -11,6 +11,7 @@ import { isR2Configured, r2Delete, r2Put } from "@/lib/r2";
 import { ALLOWED_UPLOAD_MIMES, MAX_UPLOAD_BYTES } from "@/lib/documents-meta";
 import { jakartaDateKey } from "@/lib/format";
 import { getActivityKinds, getActivityKindLabelMap, activeActivityKindKeys } from "@/lib/field-activity/kinds";
+import { naikkanKendalaKegiatan, pesanNaikkan } from "@/lib/kendala/naikkan";
 
 /** Hapus objek R2 (best-effort — orphan diabaikan bila gagal). */
 async function deleteR2Keys(keys: (string | null | undefined)[]): Promise<void> {
@@ -342,6 +343,9 @@ async function activityCtx(activityId: string) {
       status: true,
       locationId: true,
       activityDate: true,
+      // Dibaca saat finalisasi untuk dinaikkan jadi Issue (DECISIONS 392).
+      kendala: true,
+      solusi: true,
       location: {
         select: {
           id: true,
@@ -435,8 +439,15 @@ export async function finalizeActivityAction(
       data: { status: "final", finalizedById: user.id, finalizedAt: new Date() },
     });
     await audit(user.id, "field_activity.finalize", "field_activity", ctx.id, { locationId: ctx.locationId });
+    const naik = await naikkanKendalaKegiatan({
+      activityId: ctx.id,
+      locationId: ctx.locationId,
+      kendala: ctx.kendala,
+      solusi: ctx.solusi,
+      userId: user.id,
+    });
     revalidate(ctx.location.slug);
-    return { success: "Kegiatan difinalkan." };
+    return { success: `Kegiatan difinalkan.${pesanNaikkan(naik)}` };
   } catch (err) {
     return fail(err);
   }
@@ -773,12 +784,19 @@ export async function finalizeActivityWithTextAction(
       locationId: ctx.locationId,
       teksDirapikan: Object.keys(changed),
     });
+    // Teks yang baru disetujui pengguna yang dipakai, bukan yang lama di DB.
+    const naik = await naikkanKendalaKegiatan({
+      activityId: ctx.id,
+      locationId: ctx.locationId,
+      kendala: d.kendala !== undefined ? d.kendala : ctx.kendala,
+      solusi: d.solusi !== undefined ? d.solusi : ctx.solusi,
+      userId: user.id,
+    });
     revalidate(ctx.location.slug);
-    return {
-      success: Object.keys(changed).length
-        ? `Kegiatan difinalkan (${Object.keys(changed).length} bagian teks dirapikan).`
-        : "Kegiatan difinalkan.",
-    };
+    const dasar = Object.keys(changed).length
+      ? `Kegiatan difinalkan (${Object.keys(changed).length} bagian teks dirapikan).`
+      : "Kegiatan difinalkan.";
+    return { success: `${dasar}${pesanNaikkan(naik)}` };
   } catch (err) {
     return fail(err);
   }

@@ -273,6 +273,11 @@ export function CreateActivityForm({
           <div>
             <Label htmlFor="fa-kendala">Kendala</Label>
             <Textarea id="fa-kendala" name="kendala" rows={2} placeholder="Kosongkan bila tidak ada kendala" maxLength={2000} />
+            {/* Orang berhak tahu tulisannya akan ditagih, bukan sekadar tersimpan. */}
+            <p className="mt-1 text-xs text-ink-muted">
+              Saat kegiatan difinalkan, isian ini otomatis masuk papan kendala dan akan ditagih
+              sampai ditutup.
+            </p>
           </div>
           <div>
             <Label htmlFor="fa-solusi">Solusi / tindak lanjut</Label>

@@ -103,6 +103,13 @@ export default async function CetakHarianPage({
 
   return (
     <>
+      {/*
+        Tanpa aturan ini, ukuran kertas dan marginnya diserahkan ke bawaan
+        peramban — dan hasil cetak dokumen resmi jadi berbeda-beda tergantung
+        siapa yang menekan Cetak. Empat halaman cetak lain sudah punya; halaman
+        ini terlewat. DECISIONS 395.
+      */}
+      <style>{`@media print { @page { size: A4 portrait; margin: 10mm; } }`}</style>
       <PrintToolbar
         backHref={safeBackPath(
           typeof sp[PRINT_BACK_PARAM] === "string" ? sp[PRINT_BACK_PARAM] : undefined,
@@ -119,9 +126,24 @@ export default async function CetakHarianPage({
       )}
       {/* Form bergaris fixed-layout: scroll horizontal di layar sempit. */}
       <div className="overflow-x-auto print:overflow-visible">
-        <div className="min-w-[720px]">
+        {/*
+          `min-w-[720px]` HANYA untuk layar. A4 potret dikurangi margin 10mm
+          menyisakan 190mm = 718px, jadi 720px melimpah keluar kertas dan tepi
+          kanan tabel terpotong — persis yang terlihat di cetakan user
+          2026-08-20. Di layar minimum itu tetap perlu supaya tabel bergaris
+          tidak remuk; yang salah adalah membawanya ke kertas.
+        */}
+        <div className="min-w-[720px] print:min-w-0">
           <KkpDailyCover d={data} logoVendorUrl={logoVendorUrl} />
-          <div className="mt-6 break-before-page">
+          {/*
+            `mt-6` HANYA untuk layar. Diukur 2026-08-20: blanko harian setinggi
+            1039px, sedangkan A4 potret dikurangi margin 10mm menyisakan 1047px
+            — jadi ia muat, dan yang mendorong ekornya (Catatan + tanda tangan)
+            ke halaman tersendiri justru margin 24px ini. Satu halaman A4 yang
+            isinya hanya kotak tanda tangan, terlepas dari blanko yang
+            ditandatanganinya, mengundang pertanyaan tentang keasliannya.
+          */}
+          <div className="mt-6 break-before-page print:mt-0">
             <KkpDailyReport d={data} ttd={ttd} />
           </div>
           <KkpDailyPhotos d={data} foto={fotoCetak} />

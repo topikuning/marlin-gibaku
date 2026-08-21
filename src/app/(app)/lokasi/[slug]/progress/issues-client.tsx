@@ -7,10 +7,13 @@ import {
   addRecoveryAction,
   addRecoveryUpdate,
   createIssue,
+  gabungkanKendala,
   updateIssueStatus,
   updateRecoveryStatus,
   type IssueActionState,
 } from "@/lib/issues";
+import { kemiripan } from "@/lib/kendala/duplikat";
+import { HapusKendalaForm } from "@/components/knmp/hapus-kendala-form";
 import {
   ALL_ISSUE_SEVERITIES,
   ALL_ISSUE_STATUSES,
@@ -50,9 +53,64 @@ function StateBanners({ state }: { state: IssueActionState }) {
   return null;
 }
 
+/**
+ * Tawaran saat ada kendala terbuka yang judulnya mirip (DECISIONS 392).
+ *
+ * MENAWARKAN, bukan menolak: menolak hanya melatih orang mengubah judul sedikit
+ * supaya lolos, dan duplikat yang menyamar lebih sulit dikenali daripada
+ * duplikat terang-terangan.
+ */
+function TawaranDuplikat({
+  locationId,
+  state,
+}: {
+  locationId: string;
+  state: NonNullable<IssueActionState>;
+}) {
+  const [paksaState, paksaAction, paksaPending] = useActionState<IssueActionState, FormData>(
+    createIssue,
+    undefined,
+  );
+  const nilai = state.nilai!;
+  if (paksaState?.success) return <Banner tone="success" title={paksaState.success} />;
+  return (
+    <div className="space-y-2 rounded-md border border-warning bg-warning-soft p-3">
+      <p className="text-sm font-medium">
+        Sudah ada kendala serupa yang masih terbuka di lokasi ini.
+      </p>
+      <ul className="space-y-1 text-sm">
+        {state.duplikat!.map((d) => (
+          <li key={d.id}>
+            • {d.title}{" "}
+            <span className="text-ink-muted">– dibuka {formatTanggal(new Date(d.createdAt))}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="text-sm text-ink-muted">
+        Kalau ini masalah yang sama, tambahkan perkembangannya di kendala yang sudah ada – jangan
+        dicatat dua kali. Kalau memang masalah lain, lanjutkan.
+      </p>
+      {paksaState?.error ? <Banner tone="error" title={paksaState.error} /> : null}
+      <form action={paksaAction}>
+        <input type="hidden" name="locationId" value={locationId} />
+        <input type="hidden" name="title" value={nilai.title} />
+        <input type="hidden" name="description" value={nilai.description} />
+        <input type="hidden" name="severity" value={nilai.severity} />
+        <input type="hidden" name="paksa" value="1" />
+        <Button type="submit" variant="secondary" loading={paksaPending}>
+          Tetap buat kendala baru
+        </Button>
+      </form>
+    </div>
+  );
+}
+
 /** Form buat kendala baru. */
 function CreateIssueForm({ locationId }: { locationId: string }) {
   const [state, action, pending] = useActionState<IssueActionState, FormData>(createIssue, undefined);
+  if (state?.duplikat?.length && state.nilai) {
+    return <TawaranDuplikat locationId={locationId} state={state} />;
+  }
   return (
     <form action={action} className="space-y-3 rounded-md border border-border bg-surface-muted p-3">
       <StateBanners state={state} />
@@ -160,8 +218,88 @@ function AddUpdateForm({ actionId }: { actionId: string }) {
   );
 }
 
-function IssueCard({ issue, canManage }: { issue: IssueData; canManage: boolean }) {
+/**
+ * Gabungkan kendala kembar ke induknya (DECISIONS 393).
+ *
+ * Calon induk diurutkan berdasar KEMIRIPAN JUDUL, bukan tanggal: orang yang
+ * membuka panel ini sudah tahu kendalanya kembar, dan yang dicarinya kembaran
+ * itu – bukan kendala terbaru. Rumus kemiripannya sama persis dengan yang
+ * dipakai penjaga duplikat, supaya tawaran di pintu masuk dan daftar di sini
+ * tidak pernah menyebut dua urutan berbeda untuk kendala yang sama.
+ */
+function GabungForm({
+  issue,
+  kandidat,
+  onDone,
+}: {
+  issue: IssueData;
+  kandidat: IssueData[];
+  onDone: () => void;
+}) {
+  const [state, action, pending] = useActionState<IssueActionState, FormData>(
+    gabungkanKendala,
+    undefined,
+  );
+  const urut = [...kandidat].sort(
+    (a, b) => kemiripan(issue.title, b.title) - kemiripan(issue.title, a.title),
+  );
+  if (state?.success) {
+    // Barisnya akan hilang setelah revalidate; sampai itu terjadi, katakan
+    // hasilnya supaya tidak terbaca seperti tombol yang tidak berfungsi.
+    return <Banner tone="success" title={state.success} />;
+  }
+  return (
+    <form action={action} className="space-y-2 rounded-md border border-border bg-surface-muted p-3">
+      {state?.error ? <Banner tone="error" title={state.error} /> : null}
+      <input type="hidden" name="duplikatId" value={issue.id} />
+      <div>
+        <Label htmlFor={`gb-induk-${issue.id}`} required>
+          Gabungkan ke kendala
+        </Label>
+        <Combobox id={`gb-induk-${issue.id}`} name="indukId" required>
+          {urut.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.title} – {ISSUE_STATUS_LABEL[c.status]}, {formatTanggal(new Date(c.createdAt))}
+            </option>
+          ))}
+        </Combobox>
+      </div>
+      <div>
+        <Label htmlFor={`gb-catatan-${issue.id}`}>Alasan (opsional)</Label>
+        <Input
+          id={`gb-catatan-${issue.id}`}
+          name="catatan"
+          maxLength={2000}
+          placeholder="mis. dilaporkan dua mandor berbeda"
+        />
+      </div>
+      <p className="text-xs text-ink-muted">
+        Kendala ini ditutup dan ditandai kembar – tidak dihapus. Aksi pemulihannya ikut pindah ke
+        kendala tujuan.
+      </p>
+      <div className="flex gap-2">
+        <Button size="sm" type="submit" loading={pending}>
+          Gabungkan
+        </Button>
+        <Button size="sm" variant="secondary" type="button" onClick={onDone}>
+          Batal
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+function IssueCard({
+  issue,
+  kandidat,
+  canManage,
+}: {
+  issue: IssueData;
+  kandidat: IssueData[];
+  canManage: boolean;
+}) {
   const [showAddAction, setShowAddAction] = useState(false);
+  const [showGabung, setShowGabung] = useState(false);
   return (
     <li className="py-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -214,10 +352,34 @@ function IssueCard({ issue, canManage }: { issue: IssueData; canManage: boolean 
           showAddAction ? (
             <AddRecoveryActionForm issueId={issue.id} onDone={() => setShowAddAction(false)} />
           ) : (
-            <Button size="sm" variant="secondary" onClick={() => setShowAddAction(true)}>
-              Tambah aksi pemulihan
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="secondary" onClick={() => setShowAddAction(true)}>
+                Tambah aksi pemulihan
+              </Button>
+              {/*
+                Tombol menggabungkan hanya muncul kalau MEMANG ada calon
+                induknya. Tombol yang membuka daftar kosong membuat orang
+                mengira fiturnya rusak.
+              */}
+              {kandidat.length > 0 && issue.status !== "selesai" ? (
+                <Button size="sm" variant="secondary" onClick={() => setShowGabung(true)}>
+                  Gabungkan sebagai kembar
+                </Button>
+              ) : null}
+              {/*
+                Hapus hanya ditawarkan pada kendala yang MUNGKIN salah catat:
+                belum ada aksi pemulihan dan belum selesai. Aturan sebenarnya
+                ditegakkan di server – ini sekadar tidak menawarkan tombol yang
+                pasti ditolak.
+              */}
+              {issue.actions.length === 0 && issue.status !== "selesai" ? (
+                <HapusKendalaForm issueId={issue.id} />
+              ) : null}
+            </div>
           )
+        ) : null}
+        {showGabung ? (
+          <GabungForm issue={issue} kandidat={kandidat} onDone={() => setShowGabung(false)} />
         ) : null}
       </div>
     </li>
@@ -241,7 +403,18 @@ export function IssuesPanel({
       ) : (
         <ul className="divide-y divide-border">
           {issues.map((issue) => (
-            <IssueCard key={issue.id} issue={issue} canManage={canManage} />
+            <IssueCard
+              key={issue.id}
+              issue={issue}
+              /*
+               * Calon induk = kendala LAIN di lokasi ini yang belum selesai.
+               * Yang sudah selesai sengaja tidak ditawarkan: menggabungkan
+               * kendala berjalan ke kendala yang sudah ditutup akan
+               * menghilangkan masalah yang masih berjalan dari semua hitungan.
+               */
+              kandidat={issues.filter((c) => c.id !== issue.id && c.status !== "selesai")}
+              canManage={canManage}
+            />
           ))}
         </ul>
       )}

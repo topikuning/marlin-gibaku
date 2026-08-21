@@ -62,7 +62,7 @@ async function CommandCenter({ user }: { user: SessionUser }) {
         })
       : Promise.resolve([]),
     db.issue.findMany({
-      where: { status: "terbuka", location: locWhere },
+      where: { status: "terbuka", location: locWhere, mergedIntoId: null },
       select: { id: true, title: true, severity: true, location: { select: { name: true, slug: true } } },
       orderBy: { createdAt: "desc" },
       take: 10,

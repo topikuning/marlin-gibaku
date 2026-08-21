@@ -180,12 +180,20 @@ export async function dataKendala(
     periode != null
       ? { createdAt: { gte: periode.mulai, lte: akhirHari(periode.akhir) } }
       : {};
+  // `mergedIntoId: null` di KETIGA cabang, termasuk "dibuka_periode" yang
+  // tidak menyaring status sama sekali — di situlah kembar yang sudah
+  // digabungkan akan muncul lagi kalau dilewatkan.
   const where =
     saring === "terbuka_sekarang"
-      ? { locationId: { in: ids }, status: { not: "selesai" as const } }
+      ? { locationId: { in: ids }, mergedIntoId: null, status: { not: "selesai" as const } }
       : saring === "dibuka_periode"
-        ? { locationId: { in: ids }, ...dalamPeriode }
-        : { locationId: { in: ids }, status: { not: "selesai" as const }, ...dalamPeriode };
+        ? { locationId: { in: ids }, mergedIntoId: null, ...dalamPeriode }
+        : {
+            locationId: { in: ids },
+            mergedIntoId: null,
+            status: { not: "selesai" as const },
+            ...dalamPeriode,
+          };
 
   const [total, rows] = await Promise.all([
     db.issue.count({ where }),

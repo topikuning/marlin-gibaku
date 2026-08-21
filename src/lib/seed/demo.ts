@@ -600,6 +600,9 @@ export async function runDemoSeed(db: PrismaClient): Promise<void> {
   }
 
   // Kendala + pemulihan
+  // KEMBAR-OK: penjaga idempotensi seed. Yang ditanya "sudah pernah di-seed
+  // atau belum", bukan "berapa kendala yang berlaku" — kembar yang
+  // digabungkan tetap bukti seed pernah jalan.
   const hasIssue = await db.issue.count({ where: { locationId: kdm.id } });
   if (hasIssue === 0) {
     const issue = await db.issue.create({

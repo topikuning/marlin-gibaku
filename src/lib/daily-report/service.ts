@@ -1,3 +1,5 @@
+import type { NoActivityReason } from "@/generated/prisma/enums";
+import { alasanTidakBisaNihil } from "./nihil";
 import { db } from "@/lib/db";
 import { audit, auditIn } from "@/lib/audit";
 import { requestIp } from "@/lib/auth/session";
@@ -549,15 +551,37 @@ async function transition(
  * tetap jujur.
  */
 export async function submitReport(reportId: string, userId: string) {
-  const [itemCount, materialCount, equipmentCount] = await Promise.all([
+  const [itemCount, materialCount, equipmentCount, laporan] = await Promise.all([
     db.dailyReportItem.count({ where: { reportId } }),
     db.dailyReportMaterial.count({ where: { reportId } }),
     db.dailyReportEquipment.count({ where: { reportId } }),
+    db.dailyReport.findUnique({
+      where: { id: reportId },
+      select: { noActivity: true, noActivityReason: true },
+    }),
   ]);
   if (itemCount === 0 && materialCount === 0 && equipmentCount === 0) {
-    throw new DailyReportError(
-      "Laporan masih kosong – isi minimal satu item pekerjaan, material masuk, atau alat.",
-    );
+    /*
+     * Hari nihil BOLEH dikirim — tapi hanya kalau dinyatakan, berikut sebabnya
+     * (DECISIONS 396). Pagarnya tidak dilonggarkan, melainkan diberi satu pintu
+     * yang harus dilewati dengan sadar: laporan yang LUPA diisi tetap ditolak,
+     * dan itulah yang membuat hari nihil bisa dipercaya sebagai pernyataan.
+     */
+    if (!laporan?.noActivity) {
+      throw new DailyReportError(
+        "Laporan masih kosong – isi minimal satu item pekerjaan, material masuk, atau alat. " +
+          "Kalau hari ini memang tidak ada kegiatan, centang \"Tidak ada kegiatan\" dan sebutkan sebabnya.",
+      );
+    }
+    if (!laporan.noActivityReason) {
+      /*
+       * Tanpa sebab, hari nihil tidak bisa dibedakan satu sama lain — padahal
+       * hujan adalah dasar klaim perpanjangan waktu, libur netral, dan
+       * "menunggu" adalah kendala yang harus ditagih. Di kurva-S ketiganya 0%;
+       * di manajemen ketiganya berbeda.
+       */
+      throw new DailyReportError("Sebab tidak ada kegiatan wajib dipilih.");
+    }
   }
   const { updated } = await transition(
     reportId,
@@ -918,8 +942,61 @@ export async function addIssueFromReport(reportId: string, input: IssueInput, us
       description: input.description?.trim() || null,
       severity: input.severity,
       raisedById: userId,
+      // Ditulis TEGAS, bukan mengandalkan default `manual` di skema. Tanpa ini
+      // kendala dari laporan harian berlabel "Dicatat langsung" di papan, dan
+      // saringan Sumber diam-diam salah – label yang salah lebih buruk
+      // daripada label yang tidak ada. DECISIONS 392.
+      source: "laporan_harian",
     },
   });
   await audit(userId, "issue.create", "issue", issue.id, { reportId, severity: input.severity });
   return issue;
+}
+
+/**
+ * Nyatakan / batalkan "hari ini tidak ada kegiatan" (DECISIONS 396).
+ *
+ * Sengaja BUKAN sekadar menulis kolom: penjaganya memastikan pernyataan ini
+ * tidak pernah berdiri bersama item pekerjaan, material, atau alat. Dua
+ * pernyataan yang saling menyangkal membuat laporan mengatakan dua hal
+ * sekaligus, dan pembacanya yang disuruh memilih mana yang benar.
+ */
+export async function setHariNihil(
+  reportId: string,
+  input: { nihil: boolean; alasan?: NoActivityReason | null; catatan?: string | null },
+  userId: string,
+) {
+  const report = await getReportOrThrow(reportId);
+  if (report.status === "final") {
+    throw new DailyReportError("Laporan sudah final – tidak bisa diubah.");
+  }
+
+  if (input.nihil) {
+    if (!input.alasan) throw new DailyReportError("Sebab tidak ada kegiatan wajib dipilih.");
+    const [jumlahItem, jumlahMaterial, jumlahAlat] = await Promise.all([
+      db.dailyReportItem.count({ where: { reportId } }),
+      db.dailyReportMaterial.count({ where: { reportId } }),
+      db.dailyReportEquipment.count({ where: { reportId } }),
+    ]);
+    const halangan = alasanTidakBisaNihil({ jumlahItem, jumlahMaterial, jumlahAlat });
+    if (halangan) throw new DailyReportError(halangan);
+  }
+
+  const updated = await db.dailyReport.update({
+    where: { id: reportId },
+    data: {
+      noActivity: input.nihil,
+      // Dikosongkan saat pembatalan, bukan dibiarkan menggantung: sebab yang
+      // tertinggal dari pernyataan yang sudah dicabut akan terbaca lagi oleh
+      // laporan periodik dan hitungan hari hujan.
+      noActivityReason: input.nihil ? (input.alasan ?? null) : null,
+      noActivityNote: input.nihil ? (input.catatan?.trim() || null) : null,
+    },
+  });
+  await audit(userId, "daily_report.set_nihil", "daily_report", reportId, {
+    locationId: report.locationId,
+    nihil: input.nihil,
+    alasan: input.nihil ? input.alasan : null,
+  });
+  return updated;
 }

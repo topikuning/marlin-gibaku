@@ -19399,7 +19399,460 @@ dibuktikan.
 
 ---
 
-## 392 — Aplikasinya sendiri bisa dibuka tanpa sinyal: service worker, bukan aplikasi Android (2026-08-21)
+## 392 — Satu pusat kendala: `/kendala`, pemilik, penjaga duplikat, penagih (2026-08-20)
+
+**Keberatan user:**
+
+> *"pencatatan kendala, saat ini menurutku tidak efektif, setelah dicatat tidak
+> ada tindak lanjut, lalu akan rancu dengan kendala di laporan harian atau
+> kegiatan lapangan. kamu perlu memetakan lagi soal pencatatan kendala ini.
+> coba cek seluruh sistemmu terkait kendala dan buat satu pusat"*
+
+Penelusuran lengkapnya ada di [`docs/rebuild/PETA_KENDALA.md`](./rebuild/PETA_KENDALA.md).
+Hasilnya lebih buruk daripada yang tersirat di keberatan itu: kata "kendala" di
+MARLIN menunjuk **dua benda berbeda** — satu entitas ber-siklus-hidup (`Issue`),
+dan beberapa kolom teks bebas yang tidak punya status, pemilik, maupun tenggat.
+Kendala yang ditulis di Kegiatan Lapangan **tidak pernah muncul di daftar
+kendala mana pun**; ia hanya terbaca lagi kalau ada orang membuka kegiatan itu
+satu per satu.
+
+### Yang diputuskan user (2026-08-20)
+
+| Pertanyaan | Jawaban |
+|---|---|
+| Kendala di Kegiatan Lapangan | **Otomatis jadi Issue saat difinalkan** |
+| Siapa boleh jadi PIC | **Pengguna MARLIN + nama bebas** (PLN, pemilik lahan) |
+| Pengingat lewat tenggat | **Grup paket, ringkas** |
+
+### Yang dibangun
+
+1. **Skema** — `Issue` diberi `source` (`manual` / `laporan_harian` /
+   `kegiatan_lapangan` / `ai`), `fieldActivityId`, `picUserId`, `picName`,
+   `dueDate`, `closedAt`, `closingNote`. Migrasi idempoten
+   `20260820030000_kendala_pusat`, dengan backfill `closed_at` dari
+   `updated_at` untuk kendala yang sudah `selesai` dan `source='laporan_harian'`
+   untuk yang ber-`report_id`.
+
+   Alasan PIC naik ke `Issue`, bukan tetap di `RecoveryAction`: menaruhnya hanya
+   di aksi pemulihan berarti kendala baru punya pemilik SETELAH seseorang sempat
+   merencanakan pemulihan — padahal justru kendala yang belum disentuh yang
+   paling perlu ditagih. Tangkapan layar user memperlihatkan tepat itu: empat
+   kendala, keempatnya *"Belum ada aksi pemulihan."*
+
+2. **Halaman `/kendala`** — papan lintas lokasi, dipotong `locationScopeWhere`
+   seperti halaman lain. Menu memakai `location.view`, BUKAN `issue.manage`:
+   yang tidak boleh mengubah tetap perlu MELIHAT apa yang menghambat lokasinya.
+
+3. **`src/lib/kendala/prioritas.ts`** — urutan lewat tenggat → terbengkalai →
+   tingkat → tenggat terdekat, dipindah dari `dashboard.ts` supaya papan, tab
+   Progress, dan pengingat WA tidak punya tiga salinan jawaban.
+
+   Lewat tenggat menang atas tingkat: kendala "rendah" yang tenggatnya lewat
+   seminggu sudah membuktikan dirinya tidak tertangani; kendala "kritis" yang
+   tenggatnya besok masih punya kesempatan.
+
+4. **Kegiatan lapangan → Issue otomatis** (`src/lib/kendala/naikkan.ts`).
+   Penjaganya:
+   - isian yang berarti "tidak ada kendala" (`-`, `nihil`, `tidak ada kendala
+     yang berarti`, …) TIDAK melahirkan apa pun — dicocokkan pada SELURUH teks,
+     bukan sebagai potongan, supaya *"tidak ada material besi di lokasi"* tetap
+     jadi kendala;
+   - satu kegiatan = paling banyak satu kendala. Finalisasi ULANG tidak menimpa
+     Issue yang sudah ada: ia mungkin sudah diberi PIC/tenggat orang lain, dan
+     menimpanya menghapus pekerjaan itu diam-diam;
+   - gagal mencatat kendala TIDAK menggagalkan finalisasi kegiatan. Yang hilang
+     kalau ia melempar bukan kendalanya saja, melainkan seluruh kegiatan beserta
+     fotonya.
+
+   Formulirnya sekarang mengatakan apa yang akan terjadi ("otomatis masuk papan
+   kendala dan akan ditagih sampai ditutup") — orang berhak tahu tulisannya akan
+   menagih dirinya.
+
+5. **Penjaga duplikat** (`src/lib/kendala/duplikat.ts`). Keluhan asli user:
+   *"Lahan belum bisa clear"* tercatat **tiga kali**, tanggal sama, tingkat
+   sama. Kemiripan = Dice atas bigram KARAKTER (versi bigram KATA terbukti
+   terlalu lemah: *"lahan belum bisa clear"* vs *"lahan belum clear"* hanya
+   0,40). Ambang **0,7**, DIUKUR bukan ditebak — pada 0,6, *"Akses jalan rusak"*
+   vs *"Akses jalan longsor"* (0,647) ikut tertangkap, padahal itu dua kerusakan
+   berbeda, dan tawaran yang selalu salah akan selalu diabaikan.
+
+   Di jalur MANUAL: menawarkan, tidak menolak — menolak hanya melatih orang
+   mengubah judul sedikit supaya lolos, dan duplikat yang menyamar lebih sulit
+   dikenali. Di jalur OTOMATIS (kegiatan lapangan) tidak ada orang yang bisa
+   ditanya, jadi baris keduanya tidak dibuat dan alasannya dicatat ke audit.
+
+6. **Penagih** (`src/lib/kendala/penjadwal-tenggat.ts`) — menumpang cron harian
+   yang sudah ada, ke grup paket, di bawah sakelar pengingat harian yang SAMA
+   (dua-duanya tagihan internal; laporan mingguan beda urusan karena ia laporan
+   resmi ke pemberi kerja).
+
+   **Peredam pengulangan**: sebuah grup dikirimi lagi hanya kalau isinya berubah
+   atau sudah lewat 3 hari. Daftar kendala lewat tenggat hampir tidak berubah
+   dari hari ke hari, dan mengirimnya tiap 24 jam adalah cara tercepat membuat
+   grup berhenti membaca peringatan MARLIN — saat itu terjadi, peringatan yang
+   sungguhan ikut hilang. Catatannya menumpang `audit_logs` (append-only, sudah
+   ber-indeks `(resource_type, resource_id)`) sehingga tidak perlu tabel baru.
+
+   Sidik jari peredam sengaja TIDAK memuat umur keterlambatan (berubah tiap hari
+   → peredam tidak pernah bekerja) tapi MEMUAT jumlah total (kalau tidak,
+   perubahan di luar potongan teratas tidak terdeteksi).
+
+### Yang TIDAK dilakukan
+
+- **Bukan** model baru. `Issue` sudah benar bentuknya.
+- **Bukan** memindahkan kendala keluar dari tab Progress. Di situ ia berguna –
+  kendala lokasi itu, di samping angka lokasi itu.
+- **Bukan** menyentuh `DailyReport.notes` / `DailyReportItem.notes`. Itu memang
+  catatan bebas, bukan kendala, dan sudah bisa dicari lewat pencarian narasi
+  (DECISIONS 382).
+
+### Uji gigi
+
+Enam belas penjaga dirusak satu per satu dan semuanya memerahkan ujinya: pola
+"tidak ada kendala", ambang panjang, pencocokan seluruh-teks vs potongan,
+pemotongan judul di batas kata, penyaringan solusi, urutan terlama-dulu, `total`
+dari pemanggil, sidik tanpa total, sidik dengan `lewatHari`, PIC kosong yang
+dibiarkan kosong, daftar kosong yang tetap mengirim, penjaga `sudah_ada`,
+penjaga duplikat, saringan status pada penagih, peredam, dan pelepasan jeda.
+
+---
+
+## 393 — Menggabungkan kendala kembar, dan penjaga statis untuk pembacanya (2026-08-20)
+
+Lanjutan DECISIONS 392. Penjaga duplikat menahan kembar **baru** di pintu masuk,
+tapi tidak bisa merapikan yang **terlanjur ada** — dan tangkapan layar user
+memuat "Lahan belum bisa clear" tiga kali, tanggal sama, tingkat sama.
+
+### Menggabungkan BUKAN menghapus
+
+Baris kembarnya tetap ada berikut riwayatnya; ia ditutup, ditandai
+`mergedIntoId`, dan **aksi pemulihannya dipindahkan ke induk**. Menghapus akan
+membuat jejak audit menunjuk ke baris yang tidak ada lagi, dan membatalkan
+penggabungan yang salah jadi mustahil.
+
+Aksi pemulihan ikut pindah, bukan ikut terkubur: kalau seseorang sudah
+merencanakan pemulihan di baris kembarnya, rencana itu tetap berlaku untuk
+masalah yang sama.
+
+### Aturan yang ditolak, dan sebabnya
+
+| Ditolak | Sebab |
+|---|---|
+| Ke dirinya sendiri | – |
+| Lintas lokasi | "Lahan belum bisa clear" di dua desa adalah dua masalah. Menggabungkannya menghapus satu masalah nyata dari hitungan lokasi yang lain. |
+| Induk yang sudah digabung | Rantai A → B → C memaksa tiap pembaca menelusuri, dan rantai melingkar menggantung selamanya. |
+| Induk yang sudah `selesai` | Menggabungkan kendala berjalan ke kendala tertutup MENGHILANGKAN masalah berjalan dari semua hitungan sekaligus. |
+| Membuka kembali kembar lewat kontrol status | Menghidupkan lagi kembar yang baru dirapikan, dengan status yang tidak cocok dengan catatan penutupnya. |
+
+Catatan penutup **selalu menyebut judul induknya**: orang yang membuka riwayat
+ini enam bulan lagi tidak punya cara lain mengetahui ke mana masalah ini pindah.
+
+### Penjaga statis `tests/unit/kendala-pembaca-gabung.test.ts`
+
+Saat penggabungan dirancang, **tujuh tempat membaca `Issue` — empat di antaranya
+tanpa saringan status sama sekali**, termasuk laporan periodik KKP. Menutup
+baris kembarnya saja tidak cukup untuk yang empat itu.
+
+Bahayanya bukan hari ini melainkan pembaca kedelapan yang ditambahkan enam bulan
+lagi oleh orang yang tidak tahu kolomnya ada: ia tidak akan memerahkan uji apa
+pun, hanya diam-diam menampilkan kembarnya lagi. Jadi penjaganya statis — tiap
+pembacaan daftar kendala wajib menyebut `mergedIntoId`, atau menuliskan alasannya
+di sebelahnya dengan penanda `KEMBAR-OK:`.
+
+Penandanya sengaja ditulis **di kode**, bukan di daftar pengecualian terpisah:
+daftar terpisah basi begitu baris bergeser, dan pengecualian tanpa alasan
+tertulis tidak pernah ditinjau ulang.
+
+Dua pengecualian yang sah, keduanya berpenanda:
+
+- `naikkan.ts` — penjaga "satu kegiatan = satu kendala" HARUS ikut membaca yang
+  sudah digabungkan, kalau tidak kembarnya lahir kembali pada finalisasi
+  berikutnya.
+- `seed/demo.ts` — penjaga idempotensi seed; yang ditanya "sudah pernah di-seed",
+  bukan "berapa kendala yang berlaku".
+
+### Dua kelemahan penjaga yang ketahuan lewat uji gigi
+
+1. **Jendela penelusuran bocor ke kueri tetangga.** Kueri yang sama sekali tidak
+   menyaring bisa lolos hanya karena kueri LAIN 704 karakter di bawahnya
+   kebetulan menyaring. Terjadi sungguhan di `naikkan.ts`. Diperbaiki: jendela
+   tiap titik dipotong di titik baca berikutnya.
+2. **Uji penagih WA tidak membuktikan apa yang dikiranya.** Kembar yang baru
+   digabungkan selalu berstatus `selesai`, jadi saringan status sudah
+   membuangnya lebih dulu — melepas `mergedIntoId: null` tidak memerahkan apa
+   pun. Diperbaiki dengan uji yang mengubah statusnya LANGSUNG di basis data
+   (memodelkan data pra-penjaga), dan sekaligus melahirkan penjaga baru:
+   `updateIssueStatus` menolak mengubah status kendala yang sudah digabungkan.
+
+### Migrasi
+
+`20260820120000_kendala_gabung` — kolom + FK ke tabelnya sendiri + indeks,
+idempoten. FK ditulis DROP-lalu-ADD, bukan `DO … IF NOT EXISTS`: itulah bentuk
+yang dikenali `alasanTidakIdempoten`, dan menyesuaikan migrasi ke penjaganya
+lebih benar daripada melonggarkan penjaganya untuk satu berkas.
+
+---
+
+## 394 — Menghapus kendala salah catat: sempit, wajib beralasan, atomik dengan jejaknya (2026-08-20)
+
+Pertanyaan user: *"lalu kalau mau hapus kendala bagaimana? apa menurutmu tidak
+ada hapus?"*
+
+Diperiksa: **tidak ada hapus sama sekali** untuk `Issue`, `RecoveryAction`,
+maupun `RecoveryUpdate`. Itu bukan keputusan sadar, itu kelalaian.
+
+Penggabungan (393) menutup kasus DUPLIKAT tapi tidak menutup kasus **salah
+catat** — mandor mengetik di lokasi yang salah, atau menulis "asdf" saat
+mencoba. Satu-satunya jalan keluar sebelum ini adalah menutupnya sebagai
+`selesai`, dan **itu berbohong**: tidak ada yang diselesaikan. Papan lalu terisi
+kendala palsu berstatus selesai, dan angka "Selesai 30 hari" ikut menghitungnya.
+
+Pilihan user: **hapus permanen, tapi sempit.**
+
+### Syaratnya, dan sebab tiap syarat
+
+| Ditolak bila | Sebab |
+|---|---|
+| Sudah punya aksi pemulihan | Seseorang sudah MERENCANAKAN sesuatu. Menghapusnya membuang pekerjaan orang lain tanpa pemberitahuan. |
+| Jadi TUJUAN penggabungan | Kembarnya kehilangan induk lalu muncul lagi seolah tidak pernah dirapikan. |
+| Sudah digabungkan | Barisnya adalah bukti penggabungan pernah terjadi. |
+| Menempel di laporan harian FINAL | Laporan final bisa sudah disetorkan ke PPK; dokumen yang beredar jadi tidak cocok dengan sistem. |
+| Berstatus `selesai` | Kendala selesai adalah riwayat. Yang perlu diperbaiki catatan penutupnya. |
+
+Kesempitan itulah satu-satunya alasan hapus permanen boleh ada; melonggarkan
+salah satu syaratnya menghilangkan alasannya.
+
+**Alasan menghapus WAJIB** (min. 3 karakter), dan judul + uraian + tingkat +
+sumber kendala disalin ke `audit_logs` — sesudah barisnya hilang, itulah
+satu-satunya tempat isinya masih bisa dibaca, dan audit bersifat append-only
+sehingga jejaknya tidak bisa ikut dibuang.
+
+Tombolnya dua langkah: "Hapus" hanya MEMBUKA konfirmasi. Tombol hapus satu
+ketukan pada layar ponsel lapangan akan tertekan tanpa dimaksud.
+
+### Kesalahan yang ketahuan lewat uji gigi — komentar yang mengaku aman padahal tidak
+
+Versi pertama menulis `audit()` DULU lalu `db.issue.delete()`, lengkap dengan
+komentar yang menjelaskan kenapa urutan itu aman. **Komentarnya salah.**
+`audit()` bersifat best-effort dan menelan galatnya sendiri, jadi kalau
+tulisannya gagal, penghapusannya tetap jalan dan tidak meninggalkan apa-apa —
+persis yang komentar itu klaim dicegah.
+
+Ketahuan karena membalik urutannya **tidak memerahkan satu uji pun**: dua
+urutan itu memang tidak berbeda secara teramati.
+
+Diperbaiki dengan `auditIn` di dalam `db.$transaction` (AUDIT-01): gagal menulis
+jejak = penghapusan DIBATALKAN. Sekarang jaminannya nyata dan bisa dibuktikan —
+`tests/integration/kendala-hapus-atomik.test.ts` menggagalkan penulisan audit
+dengan sengaja dan menuntut kendalanya masih ada.
+
+Ini kali ketiga dalam pekerjaan kendala sebuah uji terlihat kuat padahal tidak
+membuktikan apa pun. Dicatat apa adanya, bukan disebut "uji gigi lolos".
+
+### Yang TIDAK dilakukan
+
+- **Bukan** hapus untuk `RecoveryAction`/`RecoveryUpdate`. Belum diminta, dan
+  keduanya selalu punya induk yang menerangkan konteksnya.
+- **Bukan** soft-delete. Kolom tersembunyi kedua berarti tiap pembaca `Issue`
+  harus menyaring dua kolom, dan penjaga statis 393 baru saja memperlihatkan
+  betapa mudah satu pembaca terlewat.
+
+---
+
+## 395 — Cetak laporan harian KKP: empat cacat tata letak, semuanya struktural (2026-08-20)
+
+Teguran user: *"hasil cetakmu berantakan!"* berikut PDF cetakan produksi
+7 halaman (KNMP Malang, Kedungsalam, minggu ke-2).
+
+Empat cacat, semuanya DIUKUR lewat cetakan Chromium sungguhan – bukan ditebak
+dari kode:
+
+### 1. `/cetak/harian` tidak punya aturan `@page` sama sekali
+
+Dari lima halaman di `src/app/cetak/`, empat menyetel `@page { size; margin }`
+dan **dua terlewat**: laporan harian KKP (yang paling sering dicetak) dan
+artefak AI. Keduanya mewarisi bawaan peramban, jadi ukuran kertas dan margin
+berbeda tergantung siapa yang menekan Cetak. Untuk dokumen yang diserahkan ke
+PPK, "tergantung perambannya" bukan jawaban yang bisa dipertanggungjawabkan.
+
+Halaman AI tidak ketahuan dari cetakan user – ia ketahuan oleh penjaga statis
+yang dibuat untuk cacat pertama.
+
+### 2. `min-w-[720px]` ikut terbawa ke kertas
+
+A4 potret dikurangi margin 10mm menyisakan 190mm = **718px**. Lebar minimum
+720px melimpah 2px keluar kertas dan tepi kanan tabel terpotong – tidak pernah
+terlihat di layar, selalu terlihat di cetakan. Sekarang `print:min-w-0`.
+
+### 3. Dokumentasi foto dipaksa 2 kartu per halaman
+
+`for (let i = 0; i < kartu.length; i += 2)` dengan `break-before-page` pada TIAP
+pasangan: satu halaman A4 hanya pernah memuat satu baris. Cetakan user: 8 foto →
+4 halaman, masing-masing terisi seperempat.
+
+Sekarang kartunya mengalir dan halaman baru terjadi sendiri ketika satu baris
+tidak muat. **Dicetak sungguhan lewat Chromium: 6 kartu per halaman** – 8 foto
+jadi 2 halaman, bukan 4. `break-inside-avoid` dipasang per BARIS, bukan per
+kartu: kalau hanya kartunya yang dijaga, kartu kiri bisa tercetak di halaman ini
+dan kartu kanan di halaman berikutnya.
+
+### 4. Blok tanda tangan sendirian di satu halaman A4
+
+Diukur pada lebar cetak sebenarnya (718px, bukan viewport 1280px – pengukuran
+pertama saya salah karena memakai lebar layar): blanko setinggi **1092px**
+sedangkan ruang cetak **1047px**. Lewat 45px, jadi ekornya (Catatan + tanda
+tangan) terdorong ke halaman tersendiri.
+
+Padding sel `py-0.5` × belasan baris persis selisihnya. `print:py-0` menurunkan
+blanko jadi **904px** – muat satu halaman dengan sisa 143px untuk lokasi yang
+daftar materialnya lebih panjang. Di layar paddingnya tidak berubah; di kertas
+baris tetap ±6,6mm, masih muat ditulisi tangan.
+
+Hasil akhir untuk laporan uji: **3 halaman → 2 halaman**, tanda tangan menyatu
+dengan blanko yang ditandatanganinya. Dokumen yang tanda tangannya berdiri
+sendiri di halaman lain mengundang pertanyaan tentang keasliannya.
+
+### Uji yang MENGUNCI cacatnya
+
+`kkp-cetak-lengkap.test.tsx` berbunyi *"5 kartu = 3 halaman (2 kartu per
+halaman)"* dan menegaskan `break-before-page` tiga kali — yakni menegakkan cacat
+nomor 3 sebagai kebenaran. Uji seperti ini lebih berbahaya daripada tidak ada
+uji: ia membuat perbaikan terlihat seperti kerusakan.
+
+Ditulis ulang untuk menegaskan MAKSUDNYA (dokumentasi tidak menempel di ekor
+blanko = satu `break-before-page`), bukan angka lamanya.
+
+### Penjaga baru
+
+`tests/unit/cetak-page-rule.test.ts` — tiap halaman di `src/app/cetak/` wajib
+menyetel `size` + `margin`, dan `min-w` di atas 700px wajib dibatalkan saat
+cetak. Versi pertamanya menuduh berkas yang SUDAH benar karena ikut memindai
+komentar yang menjelaskan bahayanya; komentar dibuang dulu sekarang. Penjaga
+yang menuduh kode benar akan dimatikan orang, bukan dituruti.
+
+---
+
+## 396 — Hari tanpa kegiatan: pernyataan, bukan pelonggaran pagar (2026-08-20)
+
+Kebutuhan user: *"dalam satu hari di laporan harian itu, dalam hari ini tidak
+ada kegiatan. jadi item pekerjaan tidak harus diisi."*
+
+Keadaan sebelumnya lebih longgar daripada dugaan: `submitReport` sudah TIDAK
+mewajibkan item pekerjaan — yang ditolak hanya kalau item, material, DAN alat
+ketiganya kosong. Yang belum bisa: hari yang benar-benar tidak ada apa-apa.
+
+### Kenapa BUKAN sekadar melonggarkan pagarnya
+
+Kalau pagar "laporan tidak boleh kosong" dibuang, laporan yang **lupa diisi**
+tidak bisa dibedakan dari hari yang **memang nihil**. Dua hal itu berlawanan
+artinya, dan yang memeriksa tidak punya cara memisahkannya — justru ambiguitas
+itu yang membuat data harian tidak berguna.
+
+Jadi hari nihil harus **dinyatakan**, dan pagarnya tetap berdiri untuk yang
+tidak menyatakan apa-apa.
+
+### Kenapa SEBABNYA wajib
+
+Di kurva-S hujan, libur, dan menunggu sama-sama 0%. Di manajemen ketiganya
+berbeda:
+
+| Sebab | Akibat |
+|---|---|
+| Hujan | Dasar klaim **perpanjangan waktu**. Tidak tercatat per hari = tidak bisa diklaim berbulan-bulan kemudian, saat buktinya sudah tidak ada. |
+| Libur / cuti bersama | Netral; tidak boleh terbaca sebagai kelalaian siapa pun. |
+| Menunggu material / lahan / izin | Itu **kendala**, bukan hari libur — harus ditagih. |
+| Force majeure | Perlakuan kontraktual lain lagi. |
+
+Enum + catatan bebas (pilihan user): enum supaya bisa dihitung, catatan supaya
+keadaan yang tidak muat di enum tidak dipaksa masuk kotak yang salah — memaksa
+begitu merusak angka yang tadinya mau dirapikan.
+
+### Menyambung ke papan kendala — MENAWARKAN, tidak memaksa
+
+Sebab "menunggu" memunculkan tawaran mencatatnya sebagai kendala, judul terisi
+otomatis. Memaksa akan memenuhi papan dengan baris dari hari-hari yang
+sebenarnya satu masalah berlarut; tidak menawarkan sama sekali mengulang cacat
+yang baru saja diperbaiki (DECISIONS 392).
+
+Judul usulannya SENGAJA tanpa tanggal: menunggu material hari ini dan besok
+adalah masalah yang sama, dan judul ber-tanggal akan lolos dari penjaga
+duplikat.
+
+### Menagih pekerjaan yang berhenti
+
+Tiga hari nihil berturut-turut (pilihan user) = pekerjaan berhenti, dan itu
+tidak boleh diam-diam lewat sebagai "sudah lapor kok" — laporan nihil MEMANG
+memuaskan pengingat laporan harian. Peringatannya ke grup paket, menumpang cron
+harian, dengan peredam seperti pengingat kendala.
+
+Hari **tanpa laporan MEMUTUS** hitungan, bukan dianggap nihil: "belum lapor"
+bukan pernyataan apa pun, dan memperlakukannya sebagai nihil melahirkan
+peringatan berhenti-bekerja untuk lokasi yang sebenarnya cuma telat mengisi.
+Laporan **draft** juga tidak dihitung — draft bisa berubah, dan sering memang
+berubah.
+
+### Blanko cetak
+
+Hari nihil menuliskan `TIDAK ADA KEGIATAN – <sebab> – <catatan>` di baris
+realisasi. Blanko yang dibiarkan kosong terbaca seperti ada yang lupa mengisi;
+pemeriksa di sisi PPK harus bisa melihat bahwa ini pernyataan sengaja.
+
+### Uji yang ternyata tidak membuktikan apa pun
+
+Saringan "draft tidak dihitung" lolos uji gigi — melepasnya tidak memerahkan
+apa pun, karena seluruh fixture memang sudah berstatus `dikirim`. Ditambah uji
+yang benar-benar memuat hari draft di tengah. Ini kali keempat dalam sesi ini
+sebuah uji terlihat kuat padahal tidak; dicatat apa adanya.
+
+### DUA cacat yang hanya ketahuan dengan menjajal aplikasinya
+
+Pertanyaan user *"cara buat laporan kosong bagaimana?"* membuat saya menjalankan
+alurnya sendiri lewat Chromium, bukan membaca kode. Keduanya melumpuhkan fitur
+ini sepenuhnya, dan **tidak satu pun uji menangkapnya**:
+
+1. **Panelnya tidak pernah muncul.** Draft laporan baru lahir ketika item
+   pertama disimpan — jadi hari yang benar-benar tanpa kegiatan TIDAK punya
+   draft, `reportId` null, dan panel yang saya gantungkan padanya tidak
+   dirender. Fiturnya mustahil dipakai justru di hari yang membutuhkannya.
+   Aksinya sekarang memakai lokasi + tanggal dan MEMBUAT draftnya sendiri.
+
+2. **Tidak ada tombol Kirim.** `SubmitPanel` digantung pada `items.length > 0`,
+   dan hari nihil memang tidak punya item. Seluruh fitur berhenti di draft dan
+   tidak pernah sampai ke pemeriksa.
+
+Keduanya cacat PENYAMBUNGAN, bukan cacat aturan — dan uji unit maupun uji
+service tidak menyentuh dari mana komponen mengambil datanya. Yang menangkapnya
+cuma menjalankan aplikasinya.
+
+### Pintu masuknya KARTU, bukan tombol sekunder
+
+Keluhan lanjutan user: *"tombol hari ini tidak ada kegiatan kurang
+standout/menonjol"*. Versi pertamanya tombol abu-abu seukuran "Tambah material"
+dan "Tambah alat" — jadi jalan keluar SATU-SATUNYA untuk hari kosong tampak
+setara dengan pelengkap opsional.
+
+Yang bahaya bukan estetikanya: orang lapangan yang tidak menemukannya akan
+memilih jalan yang sudah ia tahu, yaitu **tidak melapor sama sekali** — dan
+seluruh gunanya fitur ini hilang.
+
+Sekarang kartu bergaris putus-putus dengan ikon, judul tebal, satu kalimat
+sebab, dan tombol utama. Garis putus-putus disengaja: ia menandai JALUR
+ALTERNATIF. Formulir item tetap yang menonjol karena hari berkegiatan memang
+jauh lebih sering — yang salah bukan urutannya, melainkan bahwa pilihan keduanya
+nyaris tak terlihat.
+
+### Yang TIDAK dilakukan
+
+- **Bukan** status baru di mesin transisi. Alurnya tetap draft → dikirim →
+  disetujui; yang berbeda isinya, bukan siklus hidupnya.
+- **Bukan** membiarkan nihil berdiri bersama item/material/alat. Dua pernyataan
+  yang saling menyangkal membuat laporan mengatakan dua hal sekaligus.
+- **Bukan** mem-backfill laporan lama tanpa item jadi "nihil". Itu mengarang
+  pernyataan yang tidak pernah dibuat siapa pun — persis kebalikan dari gunanya.
+
+---
+
+## 397 — Aplikasinya sendiri bisa dibuka tanpa sinyal: service worker, bukan aplikasi Android (2026-08-21)
 
 ### Pertanyaan user
 
@@ -19537,14 +19990,14 @@ halaman apa pun dimuat), tapi ditulis di sini supaya tidak dibaca sebagai hijau.
 
 ---
 
-## 393 — Mode pesawat: Foto Cepat siap TANPA pernah dibuka lebih dulu (2026-08-21)
+## 398 — Mode pesawat: Foto Cepat siap TANPA pernah dibuka lebih dulu (2026-08-21)
 
 ### Permintaan user
 
 *"mauku bahkan jika airplane mode, marlin masih bisa digunakan untuk setidaknya
 foto"*
 
-DECISIONS 392 membuat `/foto-cepat` bisa dibuka luring — **asal halaman itu
+DECISIONS 397 membuat `/foto-cepat` bisa dibuka luring — **asal halaman itu
 pernah dibuka saat ada sinyal**. Syarat itu terdengar sepele di layar dan
 mematikan di lapangan: mandor memasang MARLIN di kantor, berangkat ke lokasi,
 dan menemukan aplikasinya kosong persis pada saat dibutuhkan. Simpanan yang
@@ -19623,7 +20076,7 @@ pemisahan yang seharusnya (keduanya memang tidak bergantung pada penyiapan).
 
 ### Yang TIDAK berubah
 
-Batas DECISIONS 392 tetap: hanya `/foto-cepat`, tidak ada unggah latar belakang
+Batas DECISIONS 397 tetap: hanya `/foto-cepat`, tidak ada unggah latar belakang
 setelah aplikasi ditutup, tidak ada push, tidak ada pemeriksaan sesi saat
 luring. Yang bertambah cuma satu hal, tapi yang menentukan: syarat "pernah
 dibuka" hilang.

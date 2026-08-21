@@ -106,7 +106,9 @@ export async function getActivityFeed(locIds: string[] | null, limit = 40): Prom
       take,
     }),
     db.issue.findMany({
-      where: byLoc ? { locationId: byLoc } : {},
+      where: byLoc
+        ? { locationId: byLoc, mergedIntoId: null }
+        : { mergedIntoId: null },
       select: {
         id: true,
         title: true,

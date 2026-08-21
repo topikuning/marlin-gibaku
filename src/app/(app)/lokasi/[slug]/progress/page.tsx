@@ -636,7 +636,9 @@ async function BagianKendala({
   const [realizedVol, issues, activeItems, jadwalItem] = await Promise.all([
     planFraction > 0 ? cumulativeVolumeByLineage(locationId) : Promise.resolve(new Map<string, number>()),
     db.issue.findMany({
-      where: { locationId },
+      // Kembar yang sudah digabungkan berhenti muncul di sini: baris yang
+      // hilang setelah digabungkan justru umpan balik yang benar.
+      where: { locationId, mergedIntoId: null },
       orderBy: [{ status: "asc" }, { createdAt: "desc" }],
       select: {
         id: true,

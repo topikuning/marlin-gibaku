@@ -39,6 +39,30 @@ const pctFmt = new Intl.NumberFormat("id-ID", { minimumFractionDigits: 2, maximu
  */
 const KOL = ["24.444%", "56.325%", "19.231%"];
 
+/**
+ * Kartu dibagi jadi BARIS berisi dua, dan barisnya mengalir — halaman baru
+ * terjadi sendiri ketika satu baris tidak muat lagi.
+ *
+ * Versi sebelumnya memaksa `break-before-page` pada TIAP pasangan kartu, jadi
+ * satu halaman A4 hanya pernah memuat satu baris. Cetakan user 2026-08-20:
+ * 8 foto → 4 halaman, masing-masing terisi seperempat. Yang menentukan
+ * pemenggalan halaman seharusnya tinggi kartunya, bukan angka 2 yang
+ * dituliskan di kode.
+ */
+function barisKartu<T>(kartu: T[]): T[][] {
+  const baris: T[][] = [];
+  for (let i = 0; i < kartu.length; i += 2) baris.push(kartu.slice(i, i + 2));
+  return baris;
+}
+
+/**
+ * `break-inside-avoid` per BARIS, bukan per kartu: kalau hanya kartunya yang
+ * dijaga, satu baris bisa terbelah sehingga kartu kiri tercetak di halaman ini
+ * dan kartu kanan di halaman berikutnya — dua foto sebaris yang tidak lagi
+ * sebaris justru lebih membingungkan daripada halaman yang longgar.
+ */
+const BARIS_KELAS = "mt-4 grid grid-cols-2 items-start gap-4 break-inside-avoid first:mt-0";
+
 export type FotoCetak = {
   url: string;
   pekerjaan: string | null;
@@ -64,16 +88,10 @@ export function KkpDailyPhotos({ d, foto }: { d: KkpDailyData; foto: FotoCetak[]
   const kartu = susunKartu(foto);
   if (kartu.length === 0) return null;
 
-  const halaman: FotoCetak[][][] = [];
-  for (let i = 0; i < kartu.length; i += 2) halaman.push(kartu.slice(i, i + 2));
-
   return (
-    <>
-      {halaman.map((pasangan, i) => (
-        <section
-          key={`dok${i}`}
-          className="mt-6 grid grid-cols-2 items-start gap-4 break-before-page text-slate-900"
-        >
+    <section className="mt-6 break-before-page text-slate-900">
+      {barisKartu(kartu).map((pasangan, i) => (
+        <div key={`dok${i}`} className={BARIS_KELAS}>
           {pasangan.map((k, j) => (
             <Kartu
               key={`k${i}-${j}`}
@@ -81,9 +99,9 @@ export function KkpDailyPhotos({ d, foto }: { d: KkpDailyData; foto: FotoCetak[]
               vendor={{ nama: d.contractorFirm, alamat: d.contractorAddress }}
             />
           ))}
-        </section>
+        </div>
       ))}
-    </>
+    </section>
   );
 }
 
@@ -113,16 +131,11 @@ export function KkpDailyPelengkapPhotos({
 }) {
   if (foto.length === 0) return null;
   const kartu = susunKartu(foto.map((f) => ({ ...f, pekerjaan: f.nama })));
-  const halaman: (typeof kartu)[] = [];
-  for (let i = 0; i < kartu.length; i += 2) halaman.push(kartu.slice(i, i + 2));
 
   return (
-    <>
-      {halaman.map((pasangan, i) => (
-        <section
-          key={`${judul}-${i}`}
-          className="mt-6 grid grid-cols-2 items-start gap-4 break-before-page text-slate-900"
-        >
+    <section className="mt-6 break-before-page text-slate-900">
+      {barisKartu(kartu).map((pasangan, i) => (
+        <div key={`${judul}-${i}`} className={BARIS_KELAS}>
           {pasangan.map((k, j) => (
             <table
               key={`${judul}-${i}-${j}`}
@@ -173,9 +186,9 @@ export function KkpDailyPelengkapPhotos({
               </tbody>
             </table>
           ))}
-        </section>
+        </div>
       ))}
-    </>
+    </section>
   );
 }
 

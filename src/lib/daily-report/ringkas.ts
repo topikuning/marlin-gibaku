@@ -209,7 +209,10 @@ export async function getRingkasHarian(
         workers: { select: { role: true, count: true } },
         materials: { select: { name: true, unit: true, qtyReceived: true } },
         equipment: { select: { name: true, count: true } },
-        issues: { select: { title: true, severity: true, status: true } },
+        issues: {
+          where: { mergedIntoId: null },
+          select: { title: true, severity: true, status: true },
+        },
         items: {
           select: {
             basis: true,
