@@ -1,5 +1,5 @@
 /**
- * Tanya-jawab dengan service worker (DECISIONS 392/393).
+ * Tanya-jawab dengan service worker (DECISIONS 397/398).
  *
  * Dipakai dua tempat: banner "dari simpanan" di dalam aplikasi, dan halaman
  * `/offline` yang perlu tahu apakah Foto Cepat sudah tersimpan sebelum

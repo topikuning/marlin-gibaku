@@ -243,10 +243,10 @@ dan lintas asal. Jawaban yang beralamat akhir lain (mis. alihan ke `/masuk` kare
 sesi habis) tidak pernah disimpan. Halaman lapangan DISIAPKAN otomatis tiap
 aplikasi dibuka (jeda 15 menit; hanya role ber-`photo.quick`) — mode pesawat tak
 lagi menuntut halamannya pernah dibuka. Simpanan halaman dibuang saat pemilik HP
-berganti dan saat `/masuk` dibuka. Tidak aktif di `pnpm dev`. DECISIONS 392/393.
+berganti dan saat `/masuk` dibuka. Tidak aktif di `pnpm dev`. DECISIONS 397/398.
 
 ## 10. Scope yang sengaja ditunda
 
 Peta Leaflet, offline di luar `/foto-cepat` + background sync + push (butuh
-cangkang native — DECISIONS 392), PR/PO/receiving granular, intake WA-text —
+cangkang native — DECISIONS 397), PR/PO/receiving granular, intake WA-text —
 tercatat di OPEN_ISSUES + REBUILD_PLAN dgn alasan.

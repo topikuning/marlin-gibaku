@@ -28,7 +28,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         await logout();
       }}
     >
-      {/* Pemasang service worker (DECISIONS 392) + pengakuan halaman-dari-simpanan.
+      {/* Pemasang service worker (DECISIONS 397) + pengakuan halaman-dari-simpanan.
           Di layout supaya berlaku untuk seluruh aplikasi: yang memasangnya cuma
           perlu sekali terbuka di mana saja, dan pengakuannya harus muncul di
           halaman mana pun yang kelak disajikan luring. */}

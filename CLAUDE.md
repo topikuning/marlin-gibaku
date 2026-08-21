@@ -83,7 +83,7 @@ src/
 │                        # dokumen/, laporan/, pengguna/, sistem/
 ├── app/cetak/           # print A4 tanpa shell
 ├── app/offline/         # halaman luring (statis, di luar (app)) — disajikan
-│                        # service worker saat navigasi gagal (DECISIONS 392)
+│                        # service worker saat navigasi gagal (DECISIONS 397)
 ├── app/api/health, ready, documents/[id]
 ├── lib/                 # db, env (validasi+normalisasi R2), authz (capability),
 │   ├── auth/            # session (DB, revocable), password, actions, page-guard

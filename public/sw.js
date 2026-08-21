@@ -1,6 +1,6 @@
 /**
  * SERVICE WORKER MARLIN — supaya aplikasinya bisa DIBUKA saat tidak ada sinyal
- * (DECISIONS 392, menutup butir OPEN_ISSUES "PWA offline penuh").
+ * (DECISIONS 397, menutup butir OPEN_ISSUES "PWA offline penuh").
  *
  * Sebelum berkas ini: foto yang SUDAH dijepret selamat melewati sinyal putus
  * (antrean IndexedDB, DECISIONS 257), tapi aplikasinya sendiri harus sekali
@@ -11,7 +11,7 @@
  * Yang DIJANJIKAN: `/foto-cepat` terbuka tanpa jaringan, memakai HTML kunjungan
  * terakhir, dengan pemberitahuan terang-terangan bahwa isinya simpanan.
  * Yang TIDAK dijanjikan: data segar, halaman lain, atau pemeriksaan sesi saat
- * luring — lihat DECISIONS 392 bagian "Yang TIDAK dijanjikan".
+ * luring — lihat DECISIONS 397 bagian "Yang TIDAK dijanjikan".
  *
  * Keputusan "boleh disimpan / tidak" ada di sw-kebijakan.js supaya bisa diuji.
  */

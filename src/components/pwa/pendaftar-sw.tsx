@@ -8,7 +8,7 @@ import { tanya, type InfoSimpanan } from "./tanya-sw";
 
 /**
  * Pemasang service worker + pengakuan "halaman ini dari simpanan"
- * (DECISIONS 392/393).
+ * (DECISIONS 397/398).
  *
  * Tiga tugas, sengaja satu berkas, karena ketiganya tidak boleh terpisah:
  *
@@ -16,7 +16,7 @@ import { tanya, type InfoSimpanan } from "./tanya-sw";
  * 2. MENYIAPKAN halaman lapangan untuk dipakai luring – tanpa ini, simpanan
  *    hanya lahir dari kunjungan yang sudah terjadi, dan mandor yang berangkat
  *    tanpa pernah menekan menu Foto Cepat menemukan aplikasinya kosong persis
- *    saat dibutuhkan (DECISIONS 393);
+ *    saat dibutuhkan (DECISIONS 398);
  * 3. mengaku bila halaman yang sedang dibaca berasal dari simpanan. Begitu
  *    sebuah halaman bisa disajikan dari simpanan, ia WAJIB bisa mengatakannya –
  *    halaman lama yang tampil seperti halaman baru adalah cacat yang lebih
@@ -85,7 +85,7 @@ export function PendaftarServiceWorker({ pemilik, siapkanFotoCepat }: PendaftarS
       } catch {
         // Peramban menolak service worker (mode privat, kuota, HTTP polos)
         // atau tidak ada jaringan untuk memeriksa versinya. Aplikasinya tetap
-        // jalan seperti sebelum DECISIONS 392 – tidak ada yang perlu
+        // jalan seperti sebelum DECISIONS 397 – tidak ada yang perlu
         // dikatakan ke pemakai tentang ini.
       }
 

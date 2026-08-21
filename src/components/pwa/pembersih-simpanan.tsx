@@ -4,7 +4,7 @@ import { useEffect } from "react";
 
 /**
  * Buang HTML ber-sesi yang tersimpan di HP, dipasang di halaman masuk
- * (DECISIONS 392).
+ * (DECISIONS 397).
  *
  * Halaman masuk adalah satu-satunya titik yang PASTI dilewati sesudah keluar –
  * `logout()` selalu mengalihkan ke sini, dan sesi yang kedaluwarsa juga

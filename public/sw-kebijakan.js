@@ -1,5 +1,5 @@
 /**
- * KEBIJAKAN SERVICE WORKER MARLIN — bagian MURNI, yang diuji (DECISIONS 392).
+ * KEBIJAKAN SERVICE WORKER MARLIN — bagian MURNI, yang diuji (DECISIONS 397).
  *
  * Dipisah dari `sw.js` supaya keputusan "permintaan mana yang boleh disimpan"
  * bisa diuji vitest, bukan sekadar dipercaya. Service worker adalah satu-satunya

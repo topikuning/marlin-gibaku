@@ -20,7 +20,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     description: brand.projectContext,
     // `id` + `scope` eksplisit: tanpa keduanya, identitas aplikasi terpasang
     // ikut berubah bila start_url berubah, dan Android memperlakukannya sebagai
-    // aplikasi lain (ikon kedua di layar depan). DECISIONS 392.
+    // aplikasi lain (ikon kedua di layar depan). DECISIONS 397.
     id: "/",
     start_url: "/",
     scope: "/",
@@ -31,7 +31,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     // Tekan-lama ikon di layar depan → langsung Foto Cepat. Satu-satunya
     // halaman yang memang bisa dipakai tanpa sinyal, jadi pintasnya bukan
     // hiasan: ia memotong satu ketukan justru di keadaan yang paling terburu
-    // (DECISIONS 393).
+    // (DECISIONS 398).
     shortcuts: [
       {
         name: "Foto Cepat",

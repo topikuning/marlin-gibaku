@@ -1,7 +1,7 @@
 import { test, expect, type BrowserContext, type Page } from "@playwright/test";
 
 /**
- * APLIKASINYA SENDIRI HARUS BISA DIBUKA TANPA SINYAL (DECISIONS 392).
+ * APLIKASINYA SENDIRI HARUS BISA DIBUKA TANPA SINYAL (DECISIONS 397).
  *
  * DECISIONS 257 menyelamatkan foto yang SUDAH dijepret: ia bertahan melewati
  * muat ulang, tab tertutup, dan HP dimatikan. Yang tersisa – dan ditulis

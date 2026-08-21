@@ -14,7 +14,7 @@ export default async function MasukPage() {
   const brand = await getBranding();
   return (
     <main className="flex min-h-dvh items-center justify-center bg-slate-100 px-4">
-      {/* Sesi berakhir = simpanan halaman ber-sesi dibuang (DECISIONS 392). */}
+      {/* Sesi berakhir = simpanan halaman ber-sesi dibuang (DECISIONS 397). */}
       <PembersihSimpanan />
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">

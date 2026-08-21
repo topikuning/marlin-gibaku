@@ -75,14 +75,14 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
   idempotent, antrean foto di IndexedDB yang bertahan melewati muat ulang
   (DECISIONS 257), manifest installable, DAN service worker yang membuat
   `/foto-cepat` bisa DIBUKA dari nol tanpa sinyal (dengan banner "dari simpanan")
-  sementara halaman lain jatuh ke `/offline` (DECISIONS 392). Halamannya
+  sementara halaman lain jatuh ke `/offline` (DECISIONS 397). Halamannya
   disiapkan otomatis tiap aplikasi dibuka, jadi mode pesawat tidak menuntut
-  Foto Cepat pernah dibuka lebih dulu (DECISIONS 393).
+  Foto Cepat pernah dibuka lebih dulu (DECISIONS 398).
   Yang masih kurang: menu lain belum bisa dibuka luring (sadar — HTML ber-sesi yang
   menetap di HP adalah risiko, dan halaman lain tidak bisa ditindaklanjuti tanpa
   jaringan), background sync/unggah setelah aplikasi ditutup, dan push notification.
   Dua yang terakhir menuntut cangkang native (Capacitor/TWA), bukan peramban —
-  lihat DECISIONS 392 untuk kenapa aplikasi Android penuh ditolak.
+  lihat DECISIONS 397 untuk kenapa aplikasi Android penuh ditolak.
 - 🟢 PR/PO/receiving granular (kini direpresentasikan Commitment+Expense).
 - 🟢 Intake WA-text mandor (model lama SuggestionSource tidak dibawa).
 - 🟢 Cash forecast otomatis dari baseline (fungsi `cashRequirement` ada; UI input

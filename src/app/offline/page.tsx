@@ -5,7 +5,7 @@ import { PintuFotoCepat } from "@/components/pwa/pintu-foto-cepat";
 export const metadata: Metadata = { title: "Tidak ada jaringan" };
 
 /**
- * Halaman yang disajikan service worker saat navigasi gagal (DECISIONS 392).
+ * Halaman yang disajikan service worker saat navigasi gagal (DECISIONS 397).
  *
  * SENGAJA statis dan tanpa sesi: ia dijemput sekali saat service worker
  * dipasang, lalu hidup di HP. Menyentuh database atau branding di sini berarti

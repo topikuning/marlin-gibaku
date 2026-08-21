@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * KEBIJAKAN SERVICE WORKER — apa yang boleh dijawab dari simpanan (DECISIONS 392).
+ * KEBIJAKAN SERVICE WORKER — apa yang boleh dijawab dari simpanan (DECISIONS 397).
  *
  * Service worker satu-satunya bagian MARLIN yang bisa menjawab permintaan tanpa
  * bertanya ke server. Kekeliruan di sini tidak muncul sebagai galat: ia muncul

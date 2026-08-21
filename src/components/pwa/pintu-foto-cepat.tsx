@@ -7,7 +7,7 @@ import { tanyaSimpanan } from "./tanya-sw";
 
 /**
  * Pintu ke Foto Cepat di halaman luring – beserta kejujuran soal siap atau
- * tidaknya (DECISIONS 393).
+ * tidaknya (DECISIONS 398).
  *
  * Tombol yang selalu tampak "siap" adalah janji yang tidak bisa ditepati:
  * kalau halamannya belum pernah tersimpan, menekannya cuma kembali ke halaman
