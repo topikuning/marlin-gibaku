@@ -82,6 +82,8 @@ src/
 │                        # hari-ini/, foto-cepat/, foto/, progress/, keuangan/,
 │                        # dokumen/, laporan/, pengguna/, sistem/
 ├── app/cetak/           # print A4 tanpa shell
+├── app/offline/         # halaman luring (statis, di luar (app)) — disajikan
+│                        # service worker saat navigasi gagal (DECISIONS 398)
 ├── app/api/health, ready, documents/[id]
 ├── lib/                 # db, env (validasi+normalisasi R2), authz (capability),
 │   ├── auth/            # session (DB, revocable), password, actions, page-guard
@@ -95,6 +97,7 @@ src/
 │   ├── milestones/      # template 45 item KKP + actions
 │   ├── progress.ts      # SATU calculation layer progress
 │   └── lifecycle.ts     # mesin transisi status + label + tone
+├── components/pwa/      # pemasang service worker + banner "dari simpanan"
 ├── components/ui/       # primitives (token-based, tanpa hex)
 ├── components/shell/    # AppShell, nav (filter by capability)
 ├── components/grid/     # MarlinGrid (AG Grid Community wrapper)

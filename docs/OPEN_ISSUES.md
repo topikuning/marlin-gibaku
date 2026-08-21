@@ -71,11 +71,18 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
 
 ## Fitur ditunda sadar (lihat docs/rebuild/REBUILD_PLAN.md)
 
-- 🟡 **PWA offline penuh** — sekarang: draft lokal (localStorage) + submit idempotent,
-  DAN antrean foto di IndexedDB yang bertahan melewati muat ulang (DECISIONS 257).
-  Yang masih kurang: tanpa service worker, halaman TIDAK bisa DIBUKA dari nol saat
-  benar-benar offline — foto yang sudah dijepret selamat, tapi aplikasinya sendiri
-  perlu sekali terbuka lebih dulu. Belum ada manifest installable/background sync.
+- 🟡 **Offline di luar `/foto-cepat`** — sekarang: draft lokal (localStorage) + submit
+  idempotent, antrean foto di IndexedDB yang bertahan melewati muat ulang
+  (DECISIONS 257), manifest installable, DAN service worker yang membuat
+  `/foto-cepat` bisa DIBUKA dari nol tanpa sinyal (dengan banner "dari simpanan")
+  sementara halaman lain jatuh ke `/offline` (DECISIONS 398). Halamannya
+  disiapkan otomatis tiap aplikasi dibuka, jadi mode pesawat tidak menuntut
+  Foto Cepat pernah dibuka lebih dulu (DECISIONS 399).
+  Yang masih kurang: menu lain belum bisa dibuka luring (sadar — HTML ber-sesi yang
+  menetap di HP adalah risiko, dan halaman lain tidak bisa ditindaklanjuti tanpa
+  jaringan), background sync/unggah setelah aplikasi ditutup, dan push notification.
+  Dua yang terakhir menuntut cangkang native (Capacitor/TWA), bukan peramban —
+  lihat DECISIONS 398 untuk kenapa aplikasi Android penuh ditolak.
 - 🟢 PR/PO/receiving granular (kini direpresentasikan Commitment+Expense).
 - 🟢 Intake WA-text mandor (model lama SuggestionSource tidak dibawa).
 - 🟢 Cash forecast otomatis dari baseline (fungsi `cashRequirement` ada; UI input
