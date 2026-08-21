@@ -248,6 +248,15 @@ berganti dan saat `/masuk` dibuka. `/offline` WAJIB ada di `PUBLIC_PATHS`
 menyimpan halaman masuk di bawah kunci `/offline`. Tidak aktif di `pnpm dev`.
 DECISIONS 398/399.
 
+### Pasang PWA dari dalam aplikasi
+
+`beforeinstallprompt` ditahan skrip inline di root layout (event bisa lewat
+sebelum React siap, dan tidak bisa diminta ulang), lalu ditawarkan lewat DUA
+permukaan: banner yang bisa ditutup 14 hari, dan tombol ringkas di topbar yang
+TIDAK ikut diredam — supaya menutup banner tidak mengembalikan orang ke menu ⋮
+peramban. iOS tidak punya event ini, jadi di sana yang tampil petunjuk Bagikan →
+Tambahkan ke Layar Utama. DECISIONS 405.
+
 ### Penanda tangan dokumen KKP
 
 Harian & mingguan diteken **Pelaksana Lapangan**; bulanan, MC, dan CCO diteken
