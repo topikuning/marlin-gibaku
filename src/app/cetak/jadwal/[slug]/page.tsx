@@ -25,7 +25,7 @@ export default async function CetakJadwalPage({
   const location = await db.location.findUnique({ where: { slug }, select: { id: true } });
   if (!location) notFound();
   await requireLocationAccess(user, location.id);
-  const ttd = await muatTtdLaporan(location.id);
+  const ttd = await muatTtdLaporan(location.id, "jadwal");
 
   // Jadwal tetap tersedia sebelum SPMK: bila startDate belum ada, asumsikan mulai
   // HARI INI (saat jadwal diminta) dari durasi kontrak. Realisasi 0 (belum jalan).
@@ -47,6 +47,7 @@ export default async function CetakJadwalPage({
             </p>
           ) : null}
           <ScurveKkpSheet
+            jenis="jadwal"
             ttd={ttd}
             r={report}
             titleOverride="TIME SCHEDULE (KURVA S) – RENCANA & REALISASI"

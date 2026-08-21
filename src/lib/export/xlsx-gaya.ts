@@ -1,4 +1,5 @@
 import type ExcelJS from "exceljs";
+import { penyediaLaporan, type JenisDokumen } from "@/lib/laporan/penandatangan";
 import type { PeriodHeader } from "@/lib/periodic-report";
 import type { LogoGambar, LogoLaporan } from "@/lib/export/logo-laporan";
 import { formatTanggal } from "@/lib/format";
@@ -207,8 +208,12 @@ export function logoPasanganKanan(
  */
 export function blokTandaTangan(
   ws: ExcelJS.Worksheet,
-  o: { lastCol: number; h: PeriodHeader; tanggal?: Date },
+  o: { lastCol: number; h: PeriodHeader; tanggal?: Date; jenis: JenisDokumen },
 ): void {
+  // Siapa yang meneken bergantung dokumennya (DECISIONS 402) — dan jawabannya
+  // hanya boleh datang dari satu tempat, supaya PDF dan Excel dari laporan yang
+  // sama tidak pernah menyebut dua orang berbeda.
+  const penyedia = penyediaLaporan(o.jenis, o.h);
   const L = Math.max(3, o.lastCol);
   const lebar = Math.floor(L / 3);
   const blok: [number, number][] = [
@@ -270,7 +275,7 @@ export function blokTandaTangan(
     [
       o.h.ppkName?.trim() ? `( ${o.h.ppkName.trim()} )` : garisTtd,
       o.h.supervisorName?.trim() ? `( ${o.h.supervisorName.trim()} )` : garisTtd,
-      o.h.contractorSignerName?.trim() ? `( ${o.h.contractorSignerName.trim()} )` : garisTtd,
+      penyedia.nama ? `( ${penyedia.nama} )` : garisTtd,
     ],
     { bold: true, size: 9, garisAtas: true },
   );

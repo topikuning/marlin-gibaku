@@ -20428,3 +20428,254 @@ integrasi yang sungguhan hidup, lalu merekam nilainya berubah atau tidak.
   langsungnya berupa pengukuran manual yang direkam di tabel di atas.
 - Penjaga statisnya memindai teks, bukan AST. Ia bisa MELEWATKAN bentuk
   penulisan yang tidak lazim; ia tidak menuduh yang benar.
+
+---
+
+## 402 — Pelaksana Lapangan meneken laporan harian & mingguan (2026-08-21)
+
+### Ketetapan user
+
+> Harian : Pelaksana Lapangan
+> Mingguan : Pelaksana Lapangan
+> Bulanan: Direktur
+> MC dan CCO: direktur
+>
+> jadi perlu ada inputan inputan Pelaksana Penanggung jawab per paket, di lokasi
+> juga perlu tapi jika tidak diisi ambil dari data nama pelaksana di paket
+
+### Keadaan sebelumnya, dan kenapa itu bukan cacat kecil
+
+SEMUA dokumen memakai satu nama yang sama: `Contract.contractorSignerName`,
+yaitu direkturnya. Diperiksa di aplikasi berjalan — laporan harian Batah Timur
+tercetak *"Dibuat Oleh : Kontraktor Pelaksana … ( Hendra Gunawan ) Direktur
+Utama"*.
+
+Artinya dokumen resmi yang diisi, difoto, dan ditandatangani orang lapangan
+menyatakan **direktur** sebagai pembuatnya. Bukan salah tampilan: itu pernyataan
+yang tidak benar pada kertas yang diserahkan ke KKP.
+
+### Yang dibangun
+
+**Skema.** `pelaksanaName`, `pelaksanaTitle`, `pelaksanaTtdKey`,
+`pelaksanaStempelKey` di **Package** dan di **Location**. Di paket, bukan di
+kontrak: orangnya melekat pada pelaksanaan pekerjaan dan bertahan saat kontrak
+diganti.
+
+**Aturan, satu tempat.** `src/lib/laporan/penandatangan.ts` — modul murni:
+
+| Dokumen | Penyedia yang meneken |
+|---|---|
+| harian, mingguan | Pelaksana Lapangan |
+| bulanan, MC, CCO | Direktur |
+| jadwal, rencana | Direktur — **belum ditetapkan user**, dipertahankan apa adanya |
+
+Ditulis sebagai `Record<JenisDokumen, …>` lengkap, jadi menambah jenis dokumen
+memerahkan kompiler sampai penulisnya MEMUTUSKAN siapa yang meneken. Cacat ini
+lahir justru karena tidak ada satu pun tempat yang pernah menanyakannya.
+
+**`jenis` wajib.** `muatTtdLaporan()` dan `muatTtdPdf()` sekarang menuntut jenis
+dokumennya. Kompiler yang menanyakan, bukan ingatan — sepuluh pemanggil
+disebutkan satu per satu oleh `tsc`, dan tiap satunya harus menyatakan dokumen
+apa yang sedang ia cetak.
+
+### Keputusan yang paling penting: blok, bukan medan
+
+Penimpaan lokasi diambil sebagai **SATU BLOK**, dan penentunya NAMA.
+
+Godaannya jelas: kalau lokasi mengisi nama tapi belum mengunggah tanda tangan,
+"pinjam saja gambar milik paket biar lengkap". Hasilnya adalah **coretan tanda
+tangan seseorang tercetak di bawah nama orang lain**. Pada berkas yang
+diserahkan ke KKP, itu bukan cacat tampilan.
+
+Karena itu begitu sebuah lokasi menyebut nama pelaksananya sendiri, seluruh
+bloknya milik lokasi itu — termasuk ketiadaan tanda tangannya. Formulirnya
+mengatakan hal ini terang-terangan saat keadaan itu terjadi.
+
+Stempel diperlakukan berbeda dan itu disengaja: stempel benda milik PERUSAHAAN,
+bukan milik orang, jadi cadangan ke `Vendor.stempelKey` tetap sah.
+
+### Yang kosong TIDAK jatuh ke Direktur
+
+Pilihan user: baris nama kosong + peringatan di layar. Yang ditolak adalah
+"biar dokumennya lengkap" — dokumen yang selalu tampak lengkap sambil menyebut
+orang yang salah lebih berbahaya daripada baris kosong yang jelas-jelas menunggu
+tanda tangan. Peringatannya muncul di tab **Laporan**, layar tempat orang
+menekan cetak/kirim, bukan hanya di halaman pengaturan yang mungkin tak pernah
+dibuka.
+
+### Diverifikasi di aplikasi berjalan, bukan hanya di uji
+
+Build produksi, basis data e2e, tiga keadaan berturut-turut:
+
+| Keadaan | Harian | Mingguan | Bulanan |
+|---|---|---|---|
+| Pelaksana kosong | `( …………… )` Pelaksana Lapangan | `( …………… )` | Hendra Gunawan, Direktur Utama |
+| Paket diisi Joko Susilo | Joko Susilo | Joko Susilo | Hendra Gunawan |
+| Lokasi menimpa Sari Handayani | Sari Handayani, Site Manager | Sari Handayani | Hendra Gunawan |
+
+**PDF-nya juga dibaca ulang** dengan `pdftotext` — bukan cuma layarnya, karena
+PDF yang dikirim ke Drive KKP dan WhatsApp: harian & mingguan `( Sari Handayani
+) Site Manager`, bulanan `( Hendra Gunawan ) Direktur Utama`.
+
+### Uji
+
+- `tests/unit/penandatangan.test.ts` — 13 uji aturan murni.
+- `tests/integration/pelaksana-penandatangan.test.ts` — 8 uji lewat DB
+  sungguhan: nama SAMPAI ke kop, penimpaan menang, mingguan/bulanan berbeda dari
+  satu baris yang sama, tanda tangan tidak dipinjam.
+- `tests/unit/xlsx-kkp-sheet.test.ts` ditulis ulang. Versi lamanya menuntut nama
+  DIREKTUR pada laporan MINGGUAN — ia mengunci keadaan yang justru diperbaiki.
+
+Uji gigi tiga arah, semuanya memerah: mengembalikan harian ke `contractorSignerName`
+(3 merah), mencampur blok per-medan sehingga tanda tangan dipinjam (2 merah),
+mengembalikan mingguan ke direktur (3 merah).
+
+### Yang BELUM beres — perlu keputusan user
+
+Halaman cetak `/cetak/periodik/…/mingguan/…` memuat **dua** blok tanda tangan:
+lembar **Kurva-S / Time Schedule** (diteken Direktur) di atas, lalu laporan
+mingguannya (kini Pelaksana) di bawah. Satu berkas cetak, dua penanda tangan
+berbeda. PDF-nya tidak kena — hanya versi layar.
+
+Time Schedule dan Rencana Mingguan tidak disebut dalam ketetapan user, jadi
+keduanya SENGAJA dibiarkan memakai Direktur. Rencana mingguan khususnya bisa
+jadi memang milik pelaksana. Itu pertanyaan untuk user, bukan tebakan untuk
+saya — dan ditulis di sini supaya "belum diputuskan" tidak menyamar sebagai
+"sudah diputuskan".
+
+---
+
+## 403 — Kurva-S di DALAM laporan mingguan adalah laporan mingguan (2026-08-21)
+
+### Koreksi user
+
+> kurva s yang menyatu dalam laporan mingguan adalah laporan mingguan, jangan
+> campuradukkan dengan kurva s sebagai jadwal. intinya laporan mingguan ttd
+> pelaksana
+
+Saya menutup DECISIONS 402 dengan menyebut ini "perlu keputusan user", dan pada
+satu sisi itu benar — Time Schedule memang tidak ada di daftar. Tapi saya
+menariknya terlalu jauh: lembar kurva-S yang tercetak DI DALAM laporan mingguan
+bukan dokumen jadwal, ia halaman pertama laporannya. Yang saya sebut "dua
+penanda tangan pada satu berkas" bukan pertanyaan terbuka melainkan cacat yang
+sudah punya jawaban di ketetapan sebelumnya.
+
+### Perbedaan yang menentukan
+
+Satu komponen lembar kurva-S dipakai DUA dokumen berbeda:
+
+| Dokumen | Lembar kurva-S di dalamnya | Penanda tangan |
+|---|---|---|
+| Laporan periodik (`/cetak/periodik/…`, sheet "Kurva S" di workbook laporan) | halaman pertama laporan | **ikut jenis laporannya** |
+| Time Schedule berdiri sendiri (`/cetak/jadwal/…`, `buildJadwalXlsx`) | dokumen itu sendiri | Direktur |
+
+Jadi lembar yang sama berpindah penanda tangan menurut dokumen tempat ia berada.
+Itu tidak bisa disimpulkan dari isi lembarnya — hanya pemanggilnya yang tahu.
+
+### Yang berubah
+
+`ScurveKkpSheet` dan `addKurvaSheet` sekarang menuntut `jenis`. Wajib, bukan
+opsional dengan bawaan: bawaan apa pun akan salah untuk separuh pemanggil, dan
+salahnya diam — lembar tercetak rapi dengan nama orang yang tidak membuatnya.
+Empat pemanggil disebutkan `tsc` satu per satu dan masing-masing menyatakan
+dokumen apa yang sedang ia susun.
+
+### Diverifikasi di aplikasi berjalan
+
+Build produksi, lokasi Batah Timur dengan penimpaan pelaksana lokasi aktif:
+
+| Halaman cetak | Blok kurva-S | Blok rincian |
+|---|---|---|
+| periodik/mingguan | Sari Handayani, Site Manager | Sari Handayani, Site Manager |
+| periodik/bulanan | Hendra Gunawan, Direktur Utama | Hendra Gunawan, Direktur Utama |
+| jadwal (Time Schedule) | Hendra Gunawan, Direktur Utama | – |
+
+### Uji
+
+`tests/unit/xlsx-kkp-sheet.test.ts` diperluas: sheet "Kurva S" ikut diperiksa
+pada laporan mingguan DAN bulanan, ditambah uji `buildJadwalXlsx` yang menuntut
+Time Schedule berdiri sendiri tetap Direktur. Sisi terakhir itu yang membuat
+ujinya berarti — tanpa ia, "ikut laporan" bisa hijau hanya karena semuanya ikut
+pelaksana.
+
+Uji gigi: mengembalikan sheet "Kurva S" laporan ke `jenis: "jadwal"` memerahkan
+uji mingguan.
+
+### Yang masih terbuka
+
+Rencana Mingguan (`/cetak/rencana/…`) tetap diteken Direktur. Ia dokumen
+RENCANA, bukan laporan, dan tidak disebut dalam ketetapan mana pun — dibiarkan
+apa adanya sampai ada yang menyatakannya.
+
+---
+
+## 404 — Pelaksana Lapangan bukan warga istimewa: satu formulir dengan penanda tangan lain (2026-08-21)
+
+### Keberatan user
+
+> kamu terlalu mengistimewakan pelaksana di paket, jadikan saja satu form dengan
+> penginputan ppk pengawas dsb. lalu ttd juga jadikan satu form dengan inputan
+> logo dan ttd yg lain
+
+Benar. Saya memberinya kartu sendiri, formulir sendiri, dan server action
+sendiri — padahal ia satu pihak lagi yang namanya tercetak di blok tanda tangan,
+sama seperti PPK dan pengawas. Yang mengisi tidak memikirkan "urusan pelaksana";
+ia memikirkan satu hal: siapa saja yang meneken.
+
+### Yang berubah
+
+- **Nama & jabatan** masuk `SignatoryFields` bersama PPK, pengawas, dan Direktur.
+  Dipakai DUA formulir yang sama: konversi paket→kontrak dan edit penanda tangan.
+- **Tanda tangan & stempel** jadi kolom keempat di `TtdStempelForm`, sederet
+  dengan tiga pihak lain. Aturan ukuran, format, dan penamaan berkasnya sama
+  persis — dipakai bersama lewat satu penolong `olah()`.
+- **Kartu "Pelaksana Lapangan" berdiri sendiri di halaman paket DIBUANG.**
+- `lib/laporan/pelaksana-actions.ts` disempitkan jadi **lokasi saja**. Jalur
+  paketnya dibuang, tidak dibiarkan menganggur: cabang yang tak dipakai siapa
+  pun tetap dipelihara, tetap ikut dibaca, dan suatu saat dipanggil lagi oleh
+  orang yang mengira itu jalur resmi.
+
+Tempat simpannya TIDAK berubah — tetap `packages.pelaksana*` (DECISIONS 402).
+Yang disatukan formulirnya, bukan tabelnya. Karena itu keduanya ditulis dalam
+SATU transaksi: satu formulir yang menulis separuh lalu gagal meninggalkan blok
+tanda tangan setengah diperbarui, dan ketidakcocokannya baru terlihat pada
+kertas yang sudah dicetak.
+
+### Logo TIDAK ikut, dan alasannya
+
+User menyebut "inputan logo". Logo, kop surat, dan stempel perusahaan tinggal di
+**master perusahaan** (`Vendor.logoKey/kopKey/stempelKey`) — satu perusahaan,
+berlaku untuk SEMUA kontraknya. Memindahkannya ke formulir kontrak berarti
+mengunggah berkas yang sama berulang kali per paket, dan yang pertama terlewat
+adalah yang paling sering dicetak. Disebut di sini supaya keputusan ini terbaca
+sebagai pilihan, bukan kelupaan.
+
+### Cacat yang terjadi saat mengerjakannya — dan bagaimana ia ketahuan
+
+Sisipan `pelaksanaName` ke `safeParse` **tidak pernah masuk**: `.replace(…, 1)`
+saya mendarat di `convertToContract`, fungsi lain yang kebetulan punya baris
+identik, dan skripnya tidak memakai `assert`.
+
+Akibatnya aksinya melapor **"Penanda tangan kontrak diperbarui"** sambil menulis
+`null`. Bukan sekadar gagal menyimpan yang baru: ia **MENGHAPUS nama pelaksana
+yang sudah ada** setiap kali seseorang mengedit nama PPK.
+
+`pnpm typecheck`, `pnpm lint`, dan 1987 uji unit semuanya HIJAU. Yang
+membongkarnya cuma satu hal: mengisi formulirnya di peramban lalu membaca
+barisnya di basis data. Sukses palsu tidak bisa dibedakan dari sukses sungguhan
+dari mana pun kecuali dari hasilnya.
+
+Sisi baiknya, salah alamat itu menyingkap yang lain: formulir konversi
+paket→kontrak memakai `SignatoryFields` yang SAMA, jadi ia ikut mengirim medan
+pelaksana — dan zod membuangnya diam-diam karena `convertSchema` tidak
+mengenalnya. Sekarang ikut disimpan.
+
+### Uji
+
+`tests/integration/pelaksana-penandatangan.test.ts` bertambah tiga: nilai yang
+dikirim benar-benar mendarat; mengedit PPK tidak menghapus pelaksana yang ada;
+mengosongkan medan memang mengosongkan. Uji gigi: mencabut kembali sisipan
+`safeParse` memerahkan dua di antaranya.
+
+Diverifikasi ulang di peramban terhadap build produksi — formulir diisi lewat
+UI, nilainya bertahan sesudah simpan, dan barisnya ada di basis data.

@@ -1,4 +1,10 @@
 import "server-only";
+import {
+  pihakPenyedia,
+  pilihPelaksana,
+  type JenisDokumen,
+  type SumberPelaksana,
+} from "@/lib/laporan/penandatangan";
 import { ukuranTtd } from "@/lib/export/ttd-ukuran";
 import type { PdfDoc } from "./document";
 
@@ -41,7 +47,7 @@ export const TANPA_TTD_PDF: TtdPdf = {
  * terbit tidak berguna sama sekali. Cacat yang sama pernah menghilangkan logo
  * diam-diam di semua keluaran PDF, jadi kegagalannya DICATAT.
  */
-export async function muatTtdPdf(locationId: string): Promise<TtdPdf> {
+export async function muatTtdPdf(locationId: string, jenis: JenisDokumen): Promise<TtdPdf> {
   try {
     const [{ db }, { pilihKunciTtd }, { isR2Configured, r2GetBuffer }] = await Promise.all([
       import("@/lib/db"),
@@ -53,8 +59,16 @@ export async function muatTtdPdf(locationId: string): Promise<TtdPdf> {
     const lokasi = await db.location.findUnique({
       where: { id: locationId },
       select: {
+        pelaksanaName: true,
+        pelaksanaTitle: true,
+        pelaksanaTtdKey: true,
+        pelaksanaStempelKey: true,
         package: {
           select: {
+            pelaksanaName: true,
+            pelaksanaTitle: true,
+            pelaksanaTtdKey: true,
+            pelaksanaStempelKey: true,
             contract: {
               select: {
                 ppkTtdKey: true,
@@ -73,7 +87,17 @@ export async function muatTtdPdf(locationId: string): Promise<TtdPdf> {
     const k = lokasi?.package.contract;
     if (!k) return TANPA_TTD_PDF;
 
-    const kunci = pilihKunciTtd({ ...k, vendorStempelKey: k.vendor.stempelKey });
+    const pelaksana = pilihPelaksana(
+      lokasi as SumberPelaksana,
+      lokasi.package as SumberPelaksana,
+    );
+    const kunci = pilihKunciTtd({
+      ...k,
+      penyedia: pihakPenyedia(jenis),
+      pelaksanaTtdKey: pelaksana.ttdKey,
+      pelaksanaStempelKey: pelaksana.stempelKey,
+      vendorStempelKey: k.vendor.stempelKey,
+    });
     const sharp = (await import("sharp")).default;
     const png = async (key: string | null): Promise<Buffer | null> => {
       if (!key) return null;

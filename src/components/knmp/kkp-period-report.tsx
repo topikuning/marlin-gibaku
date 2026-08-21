@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { penyediaLaporan } from "@/lib/laporan/penandatangan";
 import type { PeriodCategory, PeriodReport } from "@/lib/periodic-report";
 import { RuangTtd, gambarPihak, type TtdLaporan } from "./blok-ttd";
 
@@ -43,6 +44,9 @@ export function KkpPeriodReport({ r, ttd }: { r: PeriodReport; ttd?: TtdLaporan 
   const periodeLabel = r.kind === "mingguan" ? "Minggu" : "Bulan";
   const dev = r.deviationPct;
   const h = r.header;
+  // Mingguan diteken Pelaksana Lapangan, bulanan diteken Direktur
+  // (DECISIONS 402). Jawabannya datang dari satu tempat, bukan dari `if` di sini.
+  const penyedia = penyediaLaporan(r.kind, h);
 
   return (
     <div className="mx-auto min-w-[900px] max-w-[1050px] bg-white p-2 text-[11px] text-slate-900">
@@ -171,7 +175,7 @@ export function KkpPeriodReport({ r, ttd }: { r: PeriodReport; ttd?: TtdLaporan 
       <div className="mt-8 grid grid-cols-3 gap-4 text-center text-[10px]">
         <Sign title="Mengetahui" role="Pejabat Pembuat Komitmen" name={h.ppkName} sub={h.ppkNip ? `NIP. ${h.ppkNip}` : null} {...gambarPihak(ttd, "ppk")} />
         <Sign title="Diperiksa" role="Konsultan Pengawas" name={h.supervisorName} sub={h.supervisorFirm} {...gambarPihak(ttd, "pengawas")} />
-        <Sign title="Dibuat Oleh" role={`Penyedia Jasa – ${h.vendorName}`} name={h.contractorSignerName} sub={h.contractorSignerTitle} {...gambarPihak(ttd, "penyedia")} />
+        <Sign title="Dibuat Oleh" role={`Penyedia Jasa – ${h.vendorName}`} name={penyedia.nama} sub={penyedia.sub} {...gambarPihak(ttd, "penyedia")} />
       </div>
     </div>
   );

@@ -121,6 +121,8 @@ export default async function KontrakPage({
     contract.contractorTtdKey,
     contract.contractorStempelKey,
     contract.vendor.stempelKey,
+    pkg.pelaksanaTtdKey,
+    pkg.pelaksanaStempelKey,
   ].filter((k): k is string => !!k);
   const urlsTtd = kunciTtd.length > 0 ? await presignKeys(kunciTtd) : new Map<string, string>();
   const urlTtd = (k: string | null) => (k ? (urlsTtd.get(k) ?? null) : null);
@@ -273,14 +275,14 @@ export default async function KontrakPage({
           judul="Penanda tangan dokumen KKP"
           penjelasan={
             canContract
-              ? "Nama PPK, Konsultan Pengawas, dan Penyedia yang tercetak pada blok tanda tangan laporan."
+              ? "Nama PPK, Konsultan Pengawas, Penyedia (Direktur), dan Pelaksana Lapangan yang tercetak pada blok tanda tangan laporan."
               : "Nama yang tercetak pada blok tanda tangan laporan. Hanya pengelola kontrak yang boleh mengubahnya."
           }
           aksi={
             <Drawer
               trigger={canContract ? "Kelola nama" : "Lihat nama"}
               title="Penanda tangan dokumen KKP"
-              subtitle="Nama tercetak di blok tanda tangan laporan – bisa diganti bila ada pergantian personel."
+              subtitle="Nama tercetak di blok tanda tangan laporan – bisa diganti bila ada pergantian personel. Direktur meneken bulanan/MC/CCO, Pelaksana Lapangan meneken harian/mingguan."
             >
               {canContract ? (
                 <SignatoriesForm
@@ -292,6 +294,8 @@ export default async function KontrakPage({
                     supervisorFirm: contract.supervisorFirm,
                     contractorSignerName: contract.contractorSignerName,
                     contractorSignerTitle: contract.contractorSignerTitle,
+                    pelaksanaName: pkg.pelaksanaName,
+                    pelaksanaTitle: pkg.pelaksanaTitle,
                   }}
                 />
               ) : (
@@ -311,13 +315,24 @@ export default async function KontrakPage({
                     ) : null}
                   </div>
                   <div>
-                    <dt className="text-ink-muted">Penyedia / Pelaksana</dt>
+                    {/* "Penyedia / Pelaksana" dipecah: sejak DECISIONS 402
+                        keduanya orang yang BERBEDA dan meneken dokumen yang
+                        berbeda; satu label untuk dua peran justru menyamarkan
+                        perbedaan yang baru saja dibuat. */}
+                    <dt className="text-ink-muted">Penyedia (Direktur) – bulanan, MC, CCO</dt>
                     <dd className="font-medium text-ink">
                       {contract.contractorSignerName || "–"}
                     </dd>
                     {contract.contractorSignerTitle ? (
                       <dd className="text-xs text-ink-muted">{contract.contractorSignerTitle}</dd>
                     ) : null}
+                  </div>
+                  <div>
+                    <dt className="text-ink-muted">Pelaksana Lapangan – harian, mingguan</dt>
+                    <dd className="font-medium text-ink">{pkg.pelaksanaName || "–"}</dd>
+                    <dd className="text-xs text-ink-muted">
+                      {pkg.pelaksanaTitle || "Pelaksana Lapangan"}
+                    </dd>
                   </div>
                 </dl>
               )}
@@ -328,7 +343,7 @@ export default async function KontrakPage({
         {canContract ? (
           <AksiTile
             judul="Tanda tangan & stempel"
-            penjelasan="Gambar OPSIONAL yang ditempel pada laporan cetak. Kosongkan bila laporan tetap ditandatangani dengan pena."
+            penjelasan="Gambar OPSIONAL empat pihak – PPK, pengawas, Direktur, dan Pelaksana Lapangan – yang ditempel pada laporan cetak. Kosongkan bila laporan tetap ditandatangani dengan pena."
             aksi={
               <Drawer
                 trigger="Kelola gambar"
@@ -344,6 +359,8 @@ export default async function KontrakPage({
                     supervisorStempelUrl: urlTtd(contract.supervisorStempelKey),
                     contractorTtdUrl: urlTtd(contract.contractorTtdKey),
                     contractorStempelUrl: urlTtd(contract.contractorStempelKey),
+                    pelaksanaTtdUrl: urlTtd(pkg.pelaksanaTtdKey),
+                    pelaksanaStempelUrl: urlTtd(pkg.pelaksanaStempelKey),
                     vendorStempelUrl: urlTtd(contract.vendor.stempelKey),
                     vendorName: contract.vendor.name,
                   }}
@@ -352,6 +369,7 @@ export default async function KontrakPage({
             }
           />
         ) : null}
+
       </div>
 
       <Card>

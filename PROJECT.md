@@ -248,6 +248,28 @@ berganti dan saat `/masuk` dibuka. `/offline` WAJIB ada di `PUBLIC_PATHS`
 menyimpan halaman masuk di bawah kunci `/offline`. Tidak aktif di `pnpm dev`.
 DECISIONS 398/399.
 
+### Penanda tangan dokumen KKP
+
+Harian & mingguan diteken **Pelaksana Lapangan**; bulanan, MC, dan CCO diteken
+**Direktur** (`Contract.contractorSigner*`). Aturannya HANYA di
+`src/lib/laporan/penandatangan.ts`; `muatTtdLaporan`/`muatTtdPdf` menuntut jenis
+dokumen supaya tiap pemanggil menyatakan yang ia cetak. Pelaksana disimpan di
+`Package.pelaksana*` dan boleh ditimpa `Location.pelaksana*` — diambil sebagai
+SATU BLOK (nama menentukan), jadi tanda tangan tidak pernah dipinjam antar
+orang. Yang kosong dicetak sebagai baris kosong + peringatan di layar, TIDAK
+jatuh ke Direktur.
+
+Lembar **kurva-S** ikut dokumen tempat ia berada, bukan isinya: di dalam laporan
+periodik ia halaman pertama LAPORAN (ikut jenis laporannya), sebagai Time
+Schedule berdiri sendiri ia dokumen JADWAL (Direktur). `ScurveKkpSheet` dan
+`addKurvaSheet` menuntut `jenis`. Rencana Mingguan belum diputuskan, tetap
+Direktur.
+
+Pelaksana tingkat paket diisi di formulir penanda tangan kontrak yang SAMA
+dengan PPK/pengawas/Direktur (nama + gambar TTD); penimpaan per lokasi punya
+formulir sendiri di halaman lokasi karena PPK & pengawas memang urusan paket.
+Logo/kop/stempel perusahaan tetap di master vendor. DECISIONS 402/403/404.
+
 ## 10. Scope yang sengaja ditunda
 
 Peta Leaflet, offline di luar `/foto-cepat` + background sync + push (butuh

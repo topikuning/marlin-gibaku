@@ -624,6 +624,11 @@ const convertSchema = z
     supervisorFirm: z.string().trim().max(200).optional(),
     contractorSignerName: z.string().trim().max(150).optional(),
     contractorSignerTitle: z.string().trim().max(120).optional(),
+    // Form konversi memakai `SignatoryFields` YANG SAMA, jadi ia ikut membawa
+    // Pelaksana Lapangan. Tanpa baris ini zod membuangnya diam-diam dan yang
+    // sudah diketik hilang tanpa satu pun pesan (DECISIONS 404).
+    pelaksanaName: z.string().trim().max(150).optional(),
+    pelaksanaTitle: z.string().trim().max(120).optional(),
   })
   .refine((d) => d.vendorId || d.vendorName, {
     message: "Pilih vendor atau isi nama vendor baru.",
@@ -652,6 +657,8 @@ export async function convertToContract(
     supervisorFirm: optionalText(formData.get("supervisorFirm"), 200) ?? undefined,
     contractorSignerName: optionalText(formData.get("contractorSignerName"), 150) ?? undefined,
     contractorSignerTitle: optionalText(formData.get("contractorSignerTitle"), 120) ?? undefined,
+    pelaksanaName: optionalText(formData.get("pelaksanaName"), 150) ?? undefined,
+    pelaksanaTitle: optionalText(formData.get("pelaksanaTitle"), 120) ?? undefined,
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
@@ -740,6 +747,18 @@ export async function convertToContract(
       },
       select: { id: true },
     });
+
+    // Pelaksana Lapangan tersimpan di PAKET, bukan kontrak (DECISIONS 402) —
+    // tapi diketik di formulir yang sama, jadi ditulis di transaksi yang sama.
+    if (d.pelaksanaName !== undefined || d.pelaksanaTitle !== undefined) {
+      await tx.package.update({
+        where: { id: d.packageId },
+        data: {
+          pelaksanaName: d.pelaksanaName ?? null,
+          pelaksanaTitle: d.pelaksanaTitle ?? null,
+        },
+      });
+    }
 
     // Semua lokasi paket jadi aktif; tulis history persiapan bila belum ada.
     await tx.location.updateMany({
@@ -1166,6 +1185,10 @@ const signatoriesSchema = z.object({
   supervisorFirm: z.string().trim().max(200).optional(),
   contractorSignerName: z.string().trim().max(150).optional(),
   contractorSignerTitle: z.string().trim().max(120).optional(),
+  // Pelaksana Lapangan ikut formulir ini (DECISIONS 404) walau tersimpan di
+  // PAKET, bukan kontrak: yang disatukan formulirnya, bukan tempat simpannya.
+  pelaksanaName: z.string().trim().max(150).optional(),
+  pelaksanaTitle: z.string().trim().max(120).optional(),
 });
 
 /** Perbarui nama penanda tangan dokumen KKP (PPK / pengawas / penyedia). */
@@ -1182,6 +1205,8 @@ export async function updateContractSignatories(
     supervisorFirm: optionalText(formData.get("supervisorFirm"), 200) ?? undefined,
     contractorSignerName: optionalText(formData.get("contractorSignerName"), 150) ?? undefined,
     contractorSignerTitle: optionalText(formData.get("contractorSignerTitle"), 120) ?? undefined,
+    pelaksanaName: optionalText(formData.get("pelaksanaName"), 150) ?? undefined,
+    pelaksanaTitle: optionalText(formData.get("pelaksanaTitle"), 120) ?? undefined,
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
@@ -1192,23 +1217,39 @@ export async function updateContractSignatories(
   });
   if (!contract) return { error: "Kontrak tidak ditemukan." };
 
-  await db.contract.update({
-    where: { id: d.contractId },
-    data: {
-      ppkName: d.ppkName ?? null,
-      ppkNip: d.ppkNip ?? null,
-      supervisorName: d.supervisorName ?? null,
-      supervisorFirm: d.supervisorFirm ?? null,
-      contractorSignerName: d.contractorSignerName ?? null,
-      contractorSignerTitle: d.contractorSignerTitle ?? null,
-    },
-  });
+  /*
+   * Satu transaksi untuk DUA tabel: nama penanda tangan kontrak di `contracts`,
+   * Pelaksana Lapangan di `packages`. Satu formulir yang menulis separuh lalu
+   * gagal akan meninggalkan blok tanda tangan yang setengah diperbarui — dan
+   * ketidakcocokannya baru terlihat pada kertas yang sudah dicetak.
+   */
+  await db.$transaction([
+    db.contract.update({
+      where: { id: d.contractId },
+      data: {
+        ppkName: d.ppkName ?? null,
+        ppkNip: d.ppkNip ?? null,
+        supervisorName: d.supervisorName ?? null,
+        supervisorFirm: d.supervisorFirm ?? null,
+        contractorSignerName: d.contractorSignerName ?? null,
+        contractorSignerTitle: d.contractorSignerTitle ?? null,
+      },
+    }),
+    db.package.update({
+      where: { id: contract.packageId },
+      data: {
+        pelaksanaName: d.pelaksanaName ?? null,
+        pelaksanaTitle: d.pelaksanaTitle ?? null,
+      },
+    }),
+  ]);
 
   await audit(actor.id, "contract.signatories", "package", contract.packageId, {
     contractId: contract.id,
     ppkName: d.ppkName ?? null,
     supervisorName: d.supervisorName ?? null,
     contractorSignerName: d.contractorSignerName ?? null,
+    pelaksanaName: d.pelaksanaName ?? null,
   });
   revalidatePath(`/paket/${contract.packageId}`, "layout");
   return { success: "Penanda tangan kontrak diperbarui." };
@@ -1650,7 +1691,13 @@ export async function correctAddLocationAction(
 
 const BERKAS_TTD_MAKS = 2 * 1024 * 1024;
 
-/** Enam medan kontrak yang bisa diisi gambar; nama medan = nama field form. */
+/**
+ * Medan gambar pada KONTRAK; nama medan = nama field form.
+ *
+ * Pelaksana Lapangan TIDAK di sini karena tersimpan di paket — lihat
+ * {@link MEDAN_TTD_PAKET}. Formulirnya satu, tempat simpannya dua
+ * (DECISIONS 404).
+ */
 const MEDAN_TTD = [
   "ppkTtdKey",
   "ppkStempelKey",
@@ -1659,6 +1706,10 @@ const MEDAN_TTD = [
   "contractorTtdKey",
   "contractorStempelKey",
 ] as const;
+
+/** Medan gambar Pelaksana Lapangan — tersimpan di `packages`. */
+const MEDAN_TTD_PAKET = ["pelaksanaTtdKey", "pelaksanaStempelKey"] as const;
+type MedanTtdPaket = (typeof MEDAN_TTD_PAKET)[number];
 
 type MedanTtd = (typeof MEDAN_TTD)[number];
 
@@ -1669,6 +1720,11 @@ const LABEL_TTD: Record<MedanTtd, string> = {
   supervisorStempelKey: "stempel konsultan pengawas",
   contractorTtdKey: "tanda tangan penyedia",
   contractorStempelKey: "stempel penyedia",
+};
+
+const LABEL_TTD_PAKET: Record<MedanTtdPaket, string> = {
+  pelaksanaTtdKey: "tanda tangan pelaksana lapangan",
+  pelaksanaStempelKey: "stempel pelaksana lapangan",
 };
 
 /** Unggah/hapus gambar tanda tangan & stempel pada kontrak. */
@@ -1691,13 +1747,33 @@ export async function updateContractSignatureImages(
       supervisorStempelKey: true,
       contractorTtdKey: true,
       contractorStempelKey: true,
+      package: { select: { id: true, pelaksanaTtdKey: true, pelaksanaStempelKey: true } },
     },
   });
   if (!contract) return { error: "Kontrak tidak ditemukan." };
 
   const { isR2Configured, r2Put } = await import("@/lib/r2");
   const data: Partial<Record<MedanTtd, string | null>> = {};
+  const dataPaket: Partial<Record<MedanTtdPaket, string | null>> = {};
   const berubah: string[] = [];
+
+  /** Olah satu berkas gambar jadi WebP 800px – aturan yang sama untuk semua pihak. */
+  const olah = async (berkas: File, label: string, key: string): Promise<string | { error: string }> => {
+    if (berkas.size > BERKAS_TTD_MAKS) return { error: `Berkas ${label} terlalu besar (maks 2 MB).` };
+    if (!/^image\/(png|jpe?g|webp)$/i.test(berkas.type)) {
+      return { error: `Format ${label} harus PNG/JPG/WebP.` };
+    }
+    if (!isR2Configured()) {
+      return { error: "Penyimpanan berkas (R2) belum dikonfigurasi – gambar tidak dapat diunggah." };
+    }
+    const sharp = (await import("sharp")).default;
+    const buf = await sharp(Buffer.from(await berkas.arrayBuffer()), { failOn: "none" })
+      .resize(800, 800, { fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 92 })
+      .toBuffer();
+    await r2Put(key, buf, "image/webp");
+    return key;
+  };
 
   for (const medan of MEDAN_TTD) {
     if (formData.get(`hapus_${medan}`) === "1") {
@@ -1733,11 +1809,40 @@ export async function updateContractSignatureImages(
     berubah.push(`${LABEL_TTD[medan]} diperbarui`);
   }
 
+  /*
+   * Pelaksana Lapangan diproses di gelanggang yang sama walau tersimpan di
+   * PAKET (DECISIONS 402/404). Aturan ukuran, format, dan penamaan berkasnya
+   * persis sama; yang berbeda cuma tabel tujuannya.
+   */
+  for (const medan of MEDAN_TTD_PAKET) {
+    if (formData.get(`hapus_${medan}`) === "1") {
+      if (contract.package[medan] !== null) {
+        dataPaket[medan] = null;
+        berubah.push(`${LABEL_TTD_PAKET[medan]} dilepas`);
+      }
+      continue;
+    }
+    const berkas = formData.get(medan);
+    if (!(berkas instanceof File) || berkas.size === 0) continue;
+    const hasil = await olah(
+      berkas,
+      LABEL_TTD_PAKET[medan],
+      `paket/${contract.package.id}/${medan}.webp`,
+    );
+    if (typeof hasil !== "string") return hasil;
+    dataPaket[medan] = hasil;
+    berubah.push(`${LABEL_TTD_PAKET[medan]} diperbarui`);
+  }
+
   if (berubah.length === 0) {
     return { error: "Tidak ada berkas yang dipilih – pilih gambar atau centang “lepas”." };
   }
 
-  await db.contract.update({ where: { id: contract.id }, data });
+  // Satu transaksi: formulirnya satu, jadi hasilnya tidak boleh setengah jadi.
+  await db.$transaction([
+    db.contract.update({ where: { id: contract.id }, data }),
+    db.package.update({ where: { id: contract.package.id }, data: dataPaket }),
+  ]);
   await audit(actor.id, "contract.ttd", "package", contract.packageId, {
     contractId: contract.id,
     berubah,

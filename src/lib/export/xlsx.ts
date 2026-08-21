@@ -1,4 +1,5 @@
 import "server-only";
+import type { JenisDokumen } from "@/lib/laporan/penandatangan";
 import ExcelJS from "exceljs";
 import type { PeriodReport } from "@/lib/periodic-report";
 import { buildKurvaSheet } from "@/lib/scurve/kkp-sheet";
@@ -99,7 +100,12 @@ type KurvaSheetResult = {
 async function addKurvaSheet(
   wb: ExcelJS.Workbook,
   r: PeriodReport,
-  opts?: { sheetName?: string; logo?: LogoLaporan },
+  /**
+   * `jenis` WAJIB: lembar kurva-S yang sama dipakai dua dokumen berbeda —
+   * sebagai bagian laporan periodik (ikut jenis laporannya) dan sebagai Time
+   * Schedule berdiri sendiri (dokumen jadwal). DECISIONS 403.
+   */
+  opts: { jenis: JenisDokumen; sheetName?: string; logo?: LogoLaporan },
 ): Promise<KurvaSheetResult> {
   const sheet = buildKurvaSheet({
     categories: r.kurvaSchedule,
@@ -415,7 +421,7 @@ async function addKurvaSheet(
   // Blok tanda tangan (permintaan user 2026-08-06): kurva-S ikut ditandatangani
   // seperti blanko KKP. Diletakkan di bawah baris helper tersembunyi supaya
   // tidak mengganggu rentang data grafik.
-  blokTandaTangan(ws, { lastCol: lastTableCol, h: r.header });
+  blokTandaTangan(ws, { lastCol: lastTableCol, h: r.header, jenis: opts.jenis });
 
   return {
     chart,
@@ -739,7 +745,7 @@ function addRekapSheet(wb: ExcelJS.Workbook, r: PeriodReport, logo?: LogoLaporan
   catatan.getCell(1).alignment = { wrapText: true, vertical: "top" };
   catatan.height = 24;
 
-  blokTandaTangan(ws, { lastCol: LAST, h });
+  blokTandaTangan(ws, { lastCol: LAST, h, jenis: r.kind });
 }
 
 /**
@@ -751,7 +757,7 @@ export async function buildJadwalXlsx(r: PeriodReport, opts?: { logo?: LogoLapor
   const wb = new ExcelJS.Workbook();
   wb.creator = "MARLIN";
   wb.created = new Date();
-  const { chart } = await addKurvaSheet(wb, r, { sheetName: "Time Schedule", logo: opts?.logo });
+  const { chart } = await addKurvaSheet(wb, r, { jenis: "jadwal", sheetName: "Time Schedule", logo: opts?.logo });
   const buf = Buffer.from(await wb.xlsx.writeBuffer());
   try {
     return await addLineChartToXlsx(buf, chart);
@@ -771,7 +777,9 @@ export async function buildPeriodReportXlsx(
   // Urutan sheet mengikuti dokumen cetak KKP: sampul → rekap → kurva-S → rincian.
   addCoverSheet(wb, r, logo);
   addRekapSheet(wb, r, logo);
-  const kurva = await addKurvaSheet(wb, r, { logo });
+  // Sheet "Kurva S" di dalam workbook LAPORAN adalah bagian laporannya,
+  // bukan dokumen jadwal (DECISIONS 403).
+  const kurva = await addKurvaSheet(wb, r, { jenis: r.kind, logo });
   const ws = wb.addWorksheet("Laporan", {
     pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   });
@@ -1062,7 +1070,7 @@ export async function buildPeriodReportXlsx(
     for (const k of r.kendala) kv(formatTanggal(k.createdAt), `${k.title} (${k.severity}, ${k.status})`);
   }
 
-  blokTandaTangan(ws, { lastCol: COL_COUNT, h });
+  blokTandaTangan(ws, { lastCol: COL_COUNT, h, jenis: r.kind });
 
   const buf = Buffer.from(await wb.xlsx.writeBuffer());
   // Sisipkan grafik kurva-S NATIVE ke sheet "Kurva S" (exceljs tak bisa; kita

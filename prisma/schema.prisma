@@ -486,6 +486,13 @@ model Package {
   // paket bisa menunjuk grup yang sama dan paket mana yang menjawab ditentukan
   // urutan baris — data paket A terkirim ke grup paket B. NULL boleh banyak:
   // PostgreSQL menganggap tiap NULL berbeda, dan paket tanpa grup itu wajar.
+  /// PELAKSANA LAPANGAN — penanda tangan laporan HARIAN & MINGGUAN (DECISIONS 402).
+  /// Bukan penanda tangan kontrak: yang meneken laporan harian di lapangan
+  /// bukan direktur. Bisa ditimpa per lokasi (Location.pelaksana*).
+  pelaksanaName       String?      @map("pelaksana_name")
+  pelaksanaTitle      String?      @map("pelaksana_title")
+  pelaksanaTtdKey     String?      @map("pelaksana_ttd_key")
+  pelaksanaStempelKey String?      @map("pelaksana_stempel_key")
   waGroupId           String?      @unique @map("wa_group_id")
   waGroupName         String?      @map("wa_group_name")
   // Folder Google Drive paket (pemberian KKP) — tujuan upload PDF/Excel laporan.
@@ -866,6 +873,15 @@ model Location {
   gpsLng    Decimal?       @map("gps_lng") @db.Decimal(10, 7)
   status    LocationStatus @default(persiapan)
   isActive  Boolean        @default(false) @map("is_active")
+
+  /// Penimpaan Pelaksana Lapangan untuk lokasi ini (DECISIONS 402).
+  /// Kosong = pakai milik paket. Diambil sebagai SATU BLOK: nama, jabatan, dan
+  /// gambar tanda tangannya tidak pernah dicampur antar orang.
+  pelaksanaName       String? @map("pelaksana_name")
+  pelaksanaTitle      String? @map("pelaksana_title")
+  pelaksanaTtdKey     String? @map("pelaksana_ttd_key")
+  pelaksanaStempelKey String? @map("pelaksana_stempel_key")
+
   createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime       @updatedAt @map("updated_at") @db.Timestamptz
 

@@ -80,6 +80,8 @@ function fixture(over?: Partial<PeriodReport>): PeriodReport {
       supervisorFirm: "PT Konsultan Pengawas Nusantara",
       contractorSignerName: "Andi Prasetyo",
       contractorSignerTitle: "Direktur",
+  pelaksanaName: "Joko Susilo",
+  pelaksanaTitle: "Pelaksana Lapangan",
     },
     categories: [
       {
@@ -318,6 +320,21 @@ describe("sheet Laporan – kolom harga", () => {
 });
 
 describe("blok tanda tangan", () => {
+  it("Time Schedule BERDIRI SENDIRI tetap diteken Direktur", async () => {
+    /*
+     * Sisi lain dari ketetapan yang sama, dan yang membuatnya berarti: lembar
+     * kurva-S yang SAMA berpindah penanda tangan menurut dokumen tempat ia
+     * berada. Tanpa uji ini, "ikut laporan" bisa hijau hanya karena semuanya
+     * ikut pelaksana.
+     */
+    const { buildJadwalXlsx } = await import("@/lib/export/xlsx");
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load((await buildJadwalXlsx(fixture({ kind: "mingguan" }))) as unknown as ArrayBuffer);
+    const t = semuaTeks(wb.getWorksheet("Time Schedule")!);
+    expect(t).toContain("( Andi Prasetyo )");
+    expect(t).not.toContain("( Joko Susilo )");
+  });
+
   it("ada di Laporan, Kurva S, dan REKAP – dengan tiga pihak", async () => {
     const wb = await book();
     for (const nama of ["Laporan", "Kurva S", "REKAP"]) {
@@ -328,8 +345,36 @@ describe("blok tanda tangan", () => {
       expect(t, `${nama}: ppk`).toContain("( Budi Santoso )");
       expect(t, `${nama}: nip`).toContain("NIP. 19800101 200501 1 001");
       expect(t, `${nama}: pengawas`).toContain("( Rina Wijaya )");
-      expect(t, `${nama}: pelaksana`).toContain("( Andi Prasetyo )");
       expect(t, `${nama}: tempat & tanggal`).toContain("Rembang, 4 Agustus 2026");
+    }
+  });
+
+  /*
+   * SIAPA yang mengisi slot "Dibuat Oleh" bergantung jenis laporannya
+   * (DECISIONS 402). Uji ini sebelumnya menuntut nama DIREKTUR pada laporan
+   * MINGGUAN — yaitu keadaan yang justru diperbaiki: laporan yang dibuat dan
+   * diteken orang lapangan menyatakan direktur sebagai pembuatnya.
+   *
+   * Sheet "Kurva S" IKUT DIPERIKSA. Ketetapan user 2026-08-21: *"kurva s yang
+   * menyatu dalam laporan mingguan adalah laporan mingguan, jangan
+   * campuradukkan dengan kurva s sebagai jadwal."* Yang tetap memakai direktur
+   * adalah Time Schedule berdiri sendiri (`buildJadwalXlsx`), diuji terpisah.
+   */
+  it("MINGGUAN dibuat oleh Pelaksana Lapangan, bukan Direktur", async () => {
+    const wb = await book({ kind: "mingguan" });
+    for (const nama of ["Laporan", "REKAP", "Kurva S"]) {
+      const t = semuaTeks(wb.getWorksheet(nama)!);
+      expect(t, `${nama}: pelaksana`).toContain("( Joko Susilo )");
+      expect(t, `${nama}: bukan direktur`).not.toContain("( Andi Prasetyo )");
+    }
+  });
+
+  it("BULANAN tetap dibuat oleh Direktur", async () => {
+    const wb = await book({ kind: "bulanan" });
+    for (const nama of ["Laporan", "REKAP", "Kurva S"]) {
+      const t = semuaTeks(wb.getWorksheet(nama)!);
+      expect(t, `${nama}: direktur`).toContain("( Andi Prasetyo )");
+      expect(t, `${nama}: bukan pelaksana`).not.toContain("( Joko Susilo )");
     }
   });
 
