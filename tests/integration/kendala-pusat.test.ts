@@ -48,7 +48,9 @@ vi.mock("@/lib/waha/kirim", () => ({
 
 const { db } = await import("@/lib/db");
 const { naikkanKendalaKegiatan } = await import("@/lib/kendala/naikkan");
-const { kirimPengingatKendalaTerjadwal } = await import("@/lib/kendala/penjadwal-tenggat");
+const { kirimPengingatKendalaTerjadwal, JEDA_HARI } = await import(
+  "@/lib/kendala/penjadwal-tenggat"
+);
 const { gabungkanKendala, updateIssueStatus, hapusKendala } = await import("@/lib/issues");
 const { papanKendala } = await import("@/lib/kendala/queries");
 
@@ -328,10 +330,55 @@ describe("pengingat kendala lewat tenggat ke grup paket", () => {
   });
 
   it("sesudah jeda, daftar yang sama boleh ditagih lagi", async () => {
+    /*
+     * Waktu kedua diambil dari CATATAN yang baru saja ditulis, bukan dari
+     * tanggal yang diketik di sini.
+     *
+     * Peredamnya membandingkan `now` yang disuntik dengan `createdAt` baris
+     * audit — dan `createdAt` itu jam DINDING sungguhan, bukan jam uji. Versi
+     * sebelumnya menuliskan `2026-08-24` mati: hijau selama uji ini dijalankan
+     * pada atau sebelum 2026-08-21, lalu merah dengan sendirinya begitu
+     * kalender maju, tanpa satu baris kode pun berubah. Persis itu yang
+     * terjadi — CI memerah di sini pada penggabungan yang tidak menyentuh
+     * kendala sama sekali.
+     *
+     * Sidiknya sengaja TIDAK memuat `lewatHari` (lihat `sidikTenggat`), jadi
+     * memajukan `now` tidak mengubah sidik: yang diuji tetap jedanya, bukan
+     * daftar yang kebetulan berbeda.
+     */
     await kendalaLewatTenggat("Lahan belum bisa clear");
     await kirimPengingatKendalaTerjadwal(HARI_INI);
-    const empatHari = new Date("2026-08-24T09:00:00.000Z");
-    expect((await kirimPengingatKendalaTerjadwal(empatHari)).terkirim).toBe(1);
+
+    const catatan = await db.auditLog.findFirstOrThrow({
+      where: { action: "kendala.pengingat_tenggat" },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
+    });
+    // Sehari lewat ambang, supaya uji ini tidak bergantung pada presisi jam.
+    const sesudahJeda = new Date(catatan.createdAt.getTime() + (JEDA_HARI + 1) * 86_400_000);
+
+    expect((await kirimPengingatKendalaTerjadwal(sesudahJeda)).terkirim).toBe(1);
+  });
+
+  it("TEPAT sebelum jeda habis masih diredam", async () => {
+    /*
+     * Sisi sebaliknya, dan ia yang membuat uji di atas berarti: tanpa ini,
+     * "boleh ditagih lagi" bisa hijau hanya karena peredamnya tidak pernah
+     * bekerja sama sekali.
+     */
+    await kendalaLewatTenggat("Lahan belum bisa clear");
+    await kirimPengingatKendalaTerjadwal(HARI_INI);
+
+    const catatan = await db.auditLog.findFirstOrThrow({
+      where: { action: "kendala.pengingat_tenggat" },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
+    });
+    const belumJeda = new Date(catatan.createdAt.getTime() + JEDA_HARI * 86_400_000 - 60_000);
+
+    const kedua = await kirimPengingatKendalaTerjadwal(belumJeda);
+    expect(kedua.terkirim).toBe(0);
+    expect(kedua.diredam).toBe(1);
   });
 });
 

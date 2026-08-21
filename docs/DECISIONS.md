@@ -20058,6 +20058,38 @@ dijalankan di container ini — spec-nya meng-override `launchOptions` sehingga
 ada. Bukan regresi dari perubahan ini (gagal di peluncuran peramban, sebelum
 halaman apa pun dimuat), tapi ditulis di sini supaya tidak dibaca sebagai hijau.
 
+### Uji yang meledak sendiri karena kalender maju (2026-08-21)
+
+Penggabungan ini memerahkan CI di tempat yang tidak disentuhnya sama sekali:
+`tests/integration/kendala-pusat.test.ts` → *"sesudah jeda, daftar yang sama
+boleh ditagih lagi"*.
+
+Sebabnya bukan PWA. Peredam pengingat kendala membandingkan `now` yang DISUNTIK
+dengan `createdAt` baris audit — dan `createdAt` itu jam dinding sungguhan.
+Ujinya menuliskan tanggal kedua secara mati (`2026-08-24`), jadi selisihnya
+menyusut sehari tiap hari: hijau saat ditulis (2026-08-20, selisih ~4 hari),
+merah dengan sendirinya pada 2026-08-21 (selisih ~2,97 hari < `JEDA_HARI` 3),
+tanpa satu baris kode pun berubah.
+
+Bukan cacat produksi: di produksi `now` memang jam dinding, jadi kedua sisi
+perbandingan memakai jam yang sama. Yang salah ujinya — ia mencampur jam beku
+dengan baris ber-jam nyata.
+
+Perbaikannya mengambil `createdAt` baris audit yang baru saja ditulis, lalu
+menghitung `now` kedua dari situ (`+ JEDA_HARI + 1` hari). Ditambah sisi
+sebaliknya, *"TEPAT sebelum jeda habis masih diredam"*, supaya "boleh ditagih
+lagi" tidak bisa hijau hanya karena peredamnya tidak pernah bekerja. Uji gigi
+dua arah, dua-duanya memerah: mematikan peredam, dan membuat jedanya tidak
+pernah lepas.
+
+Aman dilakukan karena `sidikTenggat` sengaja TIDAK memuat `lewatHari` —
+memajukan `now` tidak mengubah sidik, jadi yang diuji tetap jedanya, bukan
+daftar yang kebetulan berbeda.
+
+Pelajarannya: tanggal mati di dalam uji yang dibandingkan dengan `now()` basis
+data bukan "uji yang deterministik" melainkan **bom waktu**. Ia lulus di hari ia
+ditulis dan menuduh perubahan orang lain berhari-hari kemudian.
+
 ### Lubang yang ketahuan saat digabungkan ke `dev` (2026-08-21)
 
 `src/app/offline/page.tsx` menulis tentang dirinya: *"Di luar (app) supaya tidak
