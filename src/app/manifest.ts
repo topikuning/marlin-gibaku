@@ -18,7 +18,12 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     name: `${brand.appName} – ${brand.tagline}`,
     short_name: brand.appName,
     description: brand.projectContext,
+    // `id` + `scope` eksplisit: tanpa keduanya, identitas aplikasi terpasang
+    // ikut berubah bila start_url berubah, dan Android memperlakukannya sebagai
+    // aplikasi lain (ikon kedua di layar depan). DECISIONS 392.
+    id: "/",
     start_url: "/",
+    scope: "/",
     display: "standalone",
     background_color: "#08152E",
     theme_color: "#1E3A8A",

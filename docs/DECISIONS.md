@@ -19396,3 +19396,141 @@ mekanisme yang saling menutupi — saringan `planFrac > 0` dan rumus
 regresinya; yang terbukti load-bearing sendirian baru rumusnya. Ditulis di
 berkas ujinya supaya pembaca berikutnya tidak menyimpulkan lebih dari yang
 dibuktikan.
+
+---
+
+## 392 — Aplikasinya sendiri bisa dibuka tanpa sinyal: service worker, bukan aplikasi Android (2026-08-21)
+
+### Pertanyaan user
+
+*"apakah kamu bisa membuat aplikasi native android untuk marlin?"*
+
+Bisa, tapi jawaban itu menyelesaikan masalah yang salah. MARLIN hari ini tidak
+punya lapisan API: seluruh mutasi lewat server action Next (36 modul), sesinya
+cookie ber-database, dan seluruh formula angka dijaga hidup di satu tempat
+(PROJECT.md §3). Aplikasi Kotlin tidak bisa memanggil server action; ia menuntut
+REST/tRPC lengkap dengan `requireCapability()` + `audit()` yang ditulis ulang,
+lalu tiap layar lapangan dibangun kedua kalinya di bahasa kedua. Yang benar-benar
+tidak bisa dilakukan peramban dari daftar keinginan "native" cuma tiga: membuka
+aplikasi dari nol tanpa sinyal, unggah latar belakang yang selamat walau
+aplikasinya ditutup, dan push notification.
+
+Yang pertama itulah keluhan nyata di lapangan, dan itu tidak butuh Android sama
+sekali. Jadi yang dikerjakan sekarang yang pertama; cangkang native (Capacitor/
+TWA) untuk yang kedua & ketiga tetap terbuka dan tidak menuntut lapisan API,
+karena logikanya tetap satu.
+
+### Batas yang ditutup
+
+DECISIONS 257 menyelamatkan foto yang SUDAH dijepret — ia bertahan melewati muat
+ulang, tab tertutup, dan HP dimatikan. Batasnya ditulis apa adanya waktu itu:
+tanpa service worker, `/foto-cepat` tidak bisa DIBUKA dari nol saat benar-benar
+offline. Artinya mandor yang HP-nya baru menyala di luar jangkauan tidak bisa
+memotret sama sekali; buktinya hilang bukan karena sistemnya gagal, melainkan
+karena halamannya tak pernah muncul.
+
+### Yang disimpan — dan yang sengaja tidak
+
+`public/sw.js` + `public/sw-kebijakan.js` (kebijakannya dipisah supaya bisa
+diuji vitest, lihat "Uji"):
+
+| Permintaan | Perlakuan |
+|---|---|
+| `/_next/static/**`, `/brand/**` | simpanan dulu — nama berkas ber-hash isi, "lama" tidak pernah berarti "salah" |
+| navigasi `/foto-cepat` (tanpa query) | jaringan dulu; berhasil = HTML disimpan, gagal = HTML kunjungan terakhir |
+| navigasi lain | jaringan dulu; gagal = halaman `/offline` |
+| non-GET, lintas asal, `/api/**`, muatan RSC | **tidak disentuh sama sekali** |
+
+Empat penolakan terakhir bukan kehati-hatian umum, masing-masing punya sebab:
+
+- **Non-GET**: antrean foto memutuskan "dicoba lagi selamanya" vs "berhenti"
+  dari jawaban server yang apa adanya (DECISIONS 257). Service worker yang ikut
+  campur di situ mengarang jawaban itu.
+- **Muatan RSC**: navigasi sisi-klien Next bukan dokumen. Menjawabnya dengan
+  HTML tersimpan membuat router menelan sampah, bukan menampilkan halaman lama.
+- **Navigasi ber-query**: query berarti halaman yang berbeda isinya (saringan,
+  tanggal, tab). Satu kunci untuk semuanya = menyajikan halaman yang salah
+  dengan yakin; satu kunci per query = simpanan tak berbatas.
+- **`/api/**`**: data hidup dan berkas besar. Tidak satu pun benar bila dijawab
+  dari simpanan.
+
+**Jaringan selalu dicoba lebih dulu.** Urutan sebaliknya membuat halaman terasa
+lebih cepat sambil menampilkan data kemarin kepada orang yang sedang online —
+persis kebohongan diam-diam yang paling mahal di sistem pengendalian proyek.
+
+**Hanya `/foto-cepat` yang HTML-nya disimpan**, dan daftar putih itu dikunci uji.
+Halaman ini satu-satunya yang MASIH BISA DIPAKAI tanpa jaringan; halaman lain
+kalau disimpan cuma jadi gambar data basi yang tidak bisa ditindaklanjuti,
+sambil menambah HTML ber-sesi yang menetap di HP.
+
+### Halaman simpanan WAJIB mengaku dirinya simpanan
+
+Begitu sebuah halaman bisa disajikan dari simpanan, ia harus bisa mengatakannya.
+Service worker mencatat navigasi yang dijawab dari simpanan, halaman menanyakannya
+lewat MessageChannel, dan banner muncul: *"Ditampilkan dari simpanan HP ini"*
+beserta tanggal-jam kunjungan terakhir dan kalimat bahwa foto yang dijepret
+sekarang tetap masuk antrean.
+
+Penandanya bukan `navigator.onLine`: nilai itu `true` juga saat HP menempel ke
+menara tanpa data sama sekali — keadaan paling umum di kampung nelayan
+(DECISIONS 257), jadi tebakannya akan meleset persis di saat yang paling penting.
+
+Halaman `/offline` sendiri statis dan di luar `(app)`: ia dijemput sekali saat
+pemasangan lalu hidup di HP, dan orang yang sedang di luar jangkauan tidak boleh
+dialihkan ke halaman masuk. Berkas gaya yang dirujuknya ikut dijemput dengan
+membaca HTML-nya (nama ber-hash tidak bisa ditebak dari `sw.js`) — halaman luring
+yang tampil tanpa gaya terbaca "aplikasinya rusak", persis kesan yang sedang
+dihindari.
+
+### HP dipakai bergantian
+
+HTML ber-sesi yang menetap di perangkat adalah risiko baru, dan dijaga dua lapis:
+
+1. **Halaman masuk membersihkannya.** `logout()` selalu mengalihkan ke `/masuk`,
+   dan sesi kedaluwarsa juga berakhir di sana — jadi pembersihnya ditempel ke
+   halaman itu, bukan ke tombol Keluar. Tombol bisa tidak ditekan; halaman itu
+   tidak bisa dilewati.
+2. **Ganti pemilik = buang simpanan.** Tiap kali aplikasi terbuka, klien menyapa
+   service worker dengan id pemakainya. Berbeda dari yang tercatat ⇒ simpanan
+   halaman dihapus sebelum apa pun disajikan.
+
+### Yang TIDAK dijanjikan
+
+- **Bukan aplikasi Android.** Tidak ada unggah latar belakang setelah aplikasi
+  ditutup, tidak ada push notification, tidak ada kamera native.
+- **Bukan data segar.** Yang tampil luring adalah rekaman kunjungan terakhir,
+  dan halamannya mengatakan itu.
+- **Tidak ada pemeriksaan sesi saat luring.** Service worker tidak bisa
+  memvalidasi cookie tanpa server. Yang dijaga adalah pergantian pemilik yang
+  DIKETAHUI (dua lapis di atas); HP yang berpindah tangan tanpa pernah membuka
+  `/masuk` dan tanpa pernah online lagi tetap menyimpan halaman terakhir. Itu
+  sebabnya daftar putihnya satu rute, bukan seluruh aplikasi.
+- **Hanya `/foto-cepat`.** Menu lain luring = halaman "Tidak ada jaringan".
+- **Tidak aktif di `pnpm dev`** — di dev, service worker menyimpan berkas build
+  yang berganti tiap ketikan dan membuat HMR tampak rusak.
+- **Tanpa Workbox/next-pwa.** Stack di-pin ketat (TECHNOLOGY_AUDIT) dan seluruh
+  kebijakannya muat di satu berkas yang bisa dibaca dan diuji; menambah
+  dependensi build hanya untuk itu tidak sepadan. Service worker sengaja skrip
+  KLASIK (`importScripts`), bukan modul ESM: SW bertipe modul baru ada di Chrome
+  91+, sedangkan ponsel lapangan justru yang paling tua.
+
+### Uji
+
+- `tests/unit/sw-kebijakan.test.ts` — 13 uji kebijakan. Berkasnya skrip klasik
+  sehingga tidak bisa di-`import`; ujinya membaca berkas itu lalu menjalankannya
+  di `self` palsu, jadi yang diuji persis kode yang dikirim ke peramban. Termasuk
+  penguncian daftar putih: menambah rute = memerahkan uji = keputusan sadar.
+- `tests/e2e/pwa-luring.spec.ts` — login, buka `/foto-cepat`, tunggu service
+  worker MENGENDALIKAN halaman, `context.setOffline(true)`, lalu **muat ulang**:
+  halamannya harus muncul (bukan layar galat peramban) DAN mengaku dari simpanan.
+  Uji kedua: halaman lain saat offline menjawab "Tidak ada jaringan" dengan jujur.
+
+Dibuktikan bergigi dua kali: menyingkirkan `public/sw.js` memerahkan keduanya,
+dan mengosongkan daftar putih `RUTE_LURING` memerahkan uji pertama saja —
+persis pemisahan yang seharusnya (halaman lain memang tetap jatuh ke `/offline`).
+
+Catatan verifikasi: `tests/e2e/foto-cepat-*.spec.ts` (kamera palsu) tidak bisa
+dijalankan di container ini — spec-nya meng-override `launchOptions` sehingga
+`executablePath` dari playwright.config ikut hilang dan Chromium bundelnya tidak
+ada. Bukan regresi dari perubahan ini (gagal di peluncuran peramban, sebelum
+halaman apa pun dimuat), tapi ditulis di sini supaya tidak dibaca sebagai hijau.
