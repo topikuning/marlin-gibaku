@@ -19849,3 +19849,73 @@ nyaris tak terlihat.
   yang saling menyangkal membuat laporan mengatakan dua hal sekaligus.
 - **Bukan** mem-backfill laporan lama tanpa item jadi "nihil". Itu mengarang
   pernyataan yang tidak pernah dibuat siapa pun — persis kebalikan dari gunanya.
+
+---
+
+## 397 — Lampiran foto PDF: barisnya mengalir, bukan satu baris per lembar (2026-08-21)
+
+Keluhan user: *"saat ini untuk cetak laporan apakah kamu atau aku memang
+mendesain lampiran foto 1 kegiatan 1 halaman baru. ternyata, itu sangat
+membuang-buang kertas saat dicetak"*.
+
+### Siapa yang memutuskan — dari rekaman, bukan ingatan
+
+| Bagian | Asal |
+|---|---|
+| Tata letak kartu dua kolom, maks 3 foto/kartu | **User**, dari contoh KKP: *"kamu ikuti layoutnya, tapi buat lebih rapi dan profesional"* (DECISIONS 301) |
+| Material & alat mulai di halaman sendiri | **User** 2026-08-08 (DECISIONS 304) |
+| **Tiap PASANG kartu dipaksa halaman baru** | **Saya.** Tidak pernah diminta, tidak pernah dicatat sebagai keputusan. |
+
+Jadi jawaban jujurnya: pemborosan kertasnya kelalaian saya, bukan rancangan
+user.
+
+### Lebih buruk lagi: perbaikannya baru separuh
+
+Cacat yang SAMA sudah diperbaiki di jalur HTML (`/cetak/harian`) pada DECISIONS
+395 sehari sebelumnya — tapi **jalur PDF tidak ikut diperbaiki**. Padahal
+PDF-lah yang dikirim ke Drive KKP dan WhatsApp, jadi yang paling sering
+benar-benar dicetak orang justru jalur yang tertinggal.
+
+Pelajarannya: "diperbaiki di layar" bukan "diperbaiki". Dua jalur render yang
+menghasilkan dokumen yang sama harus diperiksa dua-duanya.
+
+### Yang berubah
+
+`mulaiHalamanBaru()` keluar dari perulangan. Halaman baru sekarang terjadi hanya
+untuk baris PERTAMA (supaya material/alat tetap mulai di halaman sendiri seperti
+diminta user) atau ketika baris berikutnya **tidak muat**.
+
+Taksiran tinggi baris memakai angka yang SAMA dengan yang digambar
+(`TINGGI_KEPALA_KARTU`, `TINGGI_JUDUL_FOTO`) — satu tempat, supaya taksiran
+pemenggalan tidak menyimpang dari hasil gambarnya.
+
+### Penghematan, DIUKUR dari byte PDF-nya
+
+| Foto | Lama | Sekarang |
+|---|---|---|
+| 4 | 2 lembar | **1** |
+| 6 | 3 lembar | **1** |
+| 8 | 4 lembar | **2** |
+| 12 | 6 lembar | **2** |
+| 20 | 10 lembar | **4** |
+
+Separuh sampai dua pertiga kertas.
+
+### Uji
+
+`tests/unit/pdf-lampiran-hemat-kertas.test.ts` menegaskan **pertumbuhannya**,
+bukan angka halaman tertentu: menegaskan "8 foto = 2 lembar" akan mengunci hasil
+pada tinggi foto yang kebetulan berlaku sekarang, padahal yang salah dulu adalah
+pertumbuhan satu-lawan-satu.
+
+Uji gigi: memulihkan pemenggalan lama memerahkan 3 uji (pekerjaan) dan 1 uji
+(material); melepas "material mulai halaman sendiri" memerahkan 2. Yang TIDAK
+memerah: membuang penjaga `if (kartu.length === 0) return` — perulangan atas
+daftar kosong memang tidak pernah memanggil `mulaiHalamanBaru`, jadi yang
+menegakkan perilaku itu bentuk perulangannya, bukan penjaga tersebut. Dicatat
+di berkas ujinya apa adanya.
+
+Ujinya sendiri sempat SALAH HITUNG: `createFormA4Doc` membuka satu halaman
+sebelum lampiran digambar, sehingga 4 kartu terbaca 2 lembar padahal semuanya
+muat di satu. Ketahuan karena angkanya tidak cocok dengan hitungan geometri yang
+saya ukur terpisah.
