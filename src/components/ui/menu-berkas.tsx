@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, Loader2 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { GalatUnduh, klikBiasa, useUnduhBerkas } from "./unduh";
 
 /**
  * SATU tombol berkas, isinya pilihan cara mengeluarkannya (DECISIONS 334).
@@ -125,52 +126,6 @@ export type PilihanAksi = Dasar & {
 
 export type PilihanBerkas = PilihanUnduh | PilihanTautan | PilihanAksi;
 
-/**
- * Nama berkas dari `Content-Disposition`, kalau servernya menyebutkan.
- *
- * Tanda kutip ditulis sebagai `\x22`/`\x27`, bukan harfiah, DENGAN SENGAJA:
- * penjaga en-dash (`tests/unit/tanda-pisah-ui.test.ts`) memindai berkas dengan
- * tokenizer buatan sendiri yang tidak mengenal literal regex. Satu regex berisi
- * tanda kutip ganjil membalik parity-nya dan membuat SISA berkas terbaca sebagai
- * isi string — komentar biasa pun lalu dilaporkan sebagai pelanggaran. Dicatat
- * di `docs/OPEN_ISSUES.md`; sementara belum diperbaiki, ini cara menghindarinya
- * tanpa melemahkan penjaganya.
- */
-function namaDariHeader(cd: string | null): string | null {
-  if (!cd) return null;
-  // Bentuk `filename*=UTF-8''…` didahulukan: ia yang membawa huruf non-ASCII
-  // dengan benar.
-  const bintang = /filename\*=UTF-8\x27\x27([^;]+)/i.exec(cd);
-  if (bintang) {
-    try {
-      return decodeURIComponent(bintang[1].trim());
-    } catch {
-      /* jatuh ke bentuk polos di bawah */
-    }
-  }
-  const polos = /filename=\x22?([^\x22;]+)\x22?/i.exec(cd);
-  return polos ? polos[1].trim() : null;
-}
-
-/**
- * Kalimat galat dari jawaban yang gagal.
- *
- * Sebelumnya jawaban 403/500 mendarat di TAB BARU sebagai JSON mentah — dan
- * karena tabnya terbuka di belakang, yang dilihat orang cuma "tidak terjadi
- * apa-apa". Sekarang alasannya dibawa kembali ke layar tempat ia menekan.
- */
-async function galatDariJawaban(r: Response): Promise<string> {
-  try {
-    const j = (await r.clone().json()) as { error?: unknown };
-    if (typeof j.error === "string" && j.error) return j.error;
-  } catch {
-    /* bukan JSON */
-  }
-  if (r.status === 401) return "Sesi berakhir – masuk lagi lalu ulangi.";
-  if (r.status === 403) return "Tidak punya izin untuk berkas ini.";
-  return `Gagal menyiapkan berkas (${r.status}). Coba lagi sebentar.`;
-}
-
 export function MenuBerkas({
   label,
   icon,
@@ -240,46 +195,17 @@ export function MenuBerkas({
    * setiap pemanggil membuat state sendiri berarti mengulang cacat lamanya —
    * yang lupa, lupa diam-diam.
    */
-  const [unduhan, setUnduhan] = useState<PilihanUnduh | null>(null);
-  const [galat, setGalat] = useState<string | null>(null);
-  // Klik yang sudah tidak relevan (komponen dilepas) tidak boleh menyentuh state.
-  const hidup = useRef(true);
-  useEffect(() => {
-    hidup.current = true;
-    return () => {
-      hidup.current = false;
-    };
-  }, []);
+  /*
+   * Mesin unduhannya BERSAMA dengan `ButtonLink unduhan` (DECISIONS 401).
+   * Disatukan supaya tidak ada dua perilaku unduhan yang bisa menyimpang —
+   * dua kali keluhan yang sama lahir dari penanda yang dipasang per tempat.
+   */
+  const { sibuk: sedangUnduh, galat, bersihkanGalat, unduh } = useUnduhBerkas();
+  const [labelUnduh, setLabelUnduh] = useState<string | null>(null);
 
-  async function jemputBerkas(p: PilihanUnduh) {
-    setUnduhan(p);
-    setGalat(null);
-    try {
-      const r = await fetch(p.href, { credentials: "same-origin" });
-      if (!r.ok) throw new Error(await galatDariJawaban(r));
-      const blob = await r.blob();
-      const nama = namaDariHeader(r.headers.get("content-disposition")) ?? p.namaBerkas ?? "berkas";
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = nama;
-      a.rel = "noopener";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      // Jeda sebelum dilepas: peramban masih membaca blob-nya saat unduhan mulai.
-      setTimeout(() => URL.revokeObjectURL(url), 30_000);
-    } catch (e) {
-      if (hidup.current) {
-        setGalat(
-          e instanceof Error && e.message
-            ? e.message
-            : "Berkas gagal disiapkan – periksa jaringan lalu coba lagi.",
-        );
-      }
-    } finally {
-      if (hidup.current) setUnduhan(null);
-    }
+  function jemputBerkas(p: PilihanUnduh) {
+    setLabelUnduh(p.labelSibuk);
+    void unduh(p.href, p.namaBerkas);
   }
 
   /*
@@ -292,7 +218,9 @@ export function MenuBerkas({
    * kali karena layarnya diam berarti server membangun PDF yang sama tiga kali.
    */
   const sibuk: { labelSibuk: string } | null =
-    unduhan ?? ([utama, ...pilihan].find((p) => p?.loading) as PilihanAksi | undefined) ?? null;
+    (sedangUnduh && labelUnduh ? { labelSibuk: labelUnduh } : null) ??
+    ([utama, ...pilihan].find((p) => p?.loading) as PilihanAksi | undefined) ??
+    null;
 
   const kelasTombol = cn(
     "inline-flex h-9 items-center gap-1.5 border px-3 text-[13px] font-medium transition-colors",
@@ -330,21 +258,7 @@ export function MenuBerkas({
         mendarat sebagai JSON di tab baru yang terbuka di belakang – dari kursi
         pemakai itu sama saja dengan "tidak terjadi apa-apa".
       */}
-      {galat ? (
-        <span
-          role="alert"
-          className="absolute top-full left-0 z-30 mt-1 max-w-[min(22rem,calc(100vw-1.5rem))] rounded-md border border-danger bg-surface px-2.5 py-1.5 text-[12px] text-danger shadow-lg"
-        >
-          {galat}{" "}
-          <button
-            type="button"
-            onClick={() => setGalat(null)}
-            className="font-medium underline underline-offset-2"
-          >
-            tutup
-          </button>
-        </span>
-      ) : null}
+      {galat ? <GalatUnduh galat={galat} onTutup={bersihkanGalat} /> : null}
 
       {utama ? (
         <TombolUtama
@@ -456,7 +370,7 @@ function TombolUtama({
         onClick={
           berkas
             ? (e) => {
-                if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+                if (!klikBiasa(e)) return;
                 e.preventDefault();
                 onUnduh(utama);
               }
@@ -520,7 +434,7 @@ function ItemMenu({
         target={berkas ? undefined : "_blank"}
         rel="noopener"
         onClick={(e) => {
-          if (berkas && !e.metaKey && !e.ctrlKey && !e.shiftKey && e.button === 0) {
+          if (berkas && klikBiasa(e)) {
             e.preventDefault();
             onUnduh(p);
           }

@@ -188,7 +188,13 @@ export default async function RaplPage({ params }: { params: Promise<{ slug: str
                 Cetak A4
               </ButtonLink>
               {canExport ? (
-                <ButtonLink href={`/lokasi/${slug}/rapl/kebutuhan`} variant="secondary" size="sm" unduhan>
+                <ButtonLink
+                  href={`/lokasi/${slug}/rapl/kebutuhan`}
+                  variant="secondary"
+                  size="sm"
+                  unduhan
+                  labelSibuk="Menyiapkan Excel…"
+                >
                   <Download aria-hidden className="size-3.5" />
                   Unduh Excel
                 </ButtonLink>

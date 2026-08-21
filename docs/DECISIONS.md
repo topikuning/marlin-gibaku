@@ -20326,3 +20326,105 @@ Pagar kompiler hanya menjaga apa yang tipenya izinkan ada. `?: never` bukan
 sekadar "belum dipakai" — ia larangan, dan larangan yang salah tidak akan pernah
 ketahuan dari dalam berkasnya sendiri. Yang membongkarnya bukan pembacaan ulang
 kode melainkan menjalankan aplikasinya dan menghitung detik.
+
+---
+
+## 401 — `pending` yang tidak pernah menyala: sebab sesungguhnya di balik tiga keluhan yang sama (2026-08-21)
+
+### Keluhan user
+
+*"AKU KLIK UPLOAD KE DRIVE, TETAP TIDAK ADA PENANDA SEDANG PROSES, DAN TETAP AKU
+BISA KLIK BERKALI-KALI!"* — dan sesudahnya: *"ya semua yang diklik berpotensi
+butuh waktu (tidak instant) gunakan penanda sibuk! common sense kan!"*
+
+Ini keluhan yang SAMA untuk ketiga kalinya: DECISIONS 360, lalu 400, lalu ini.
+Dua perbaikan sebelumnya tidak menyentuh sebabnya sama sekali.
+
+### Sebabnya
+
+`isPending` dari `useActionState` **bukan** "aksi sedang berjalan". Ia berarti
+"ada Transition yang tertunda". React memasang Transition itu sendiri ketika
+aksinya diserahkan sebagai `<form action={aksi}>` atau `formAction`. Kalau
+dispatch-nya DIPANGGIL LANGSUNG dari `onClick`, tidak ada Transition — aksinya
+tetap berjalan sampai selesai, tapi `isPending` **tetap `false` selamanya**.
+
+Itu sebabnya kodenya tampak benar dari mana pun dibaca: `useActionState` dipakai,
+`loading: drivePending` diteruskan, `MenuBerkas` mengganti seluruh kendali dengan
+kepingan sibuk, uji unitnya hijau, pagar kompilernya berdiri. Semua benar kecuali
+satu hal yang tak terlihat: nilainya tidak pernah berubah.
+
+### Diukur, bukan disimpulkan
+
+Nilai `pending` ditulis ke atribut DOM, lalu setiap perubahannya direkam
+`MutationObserver`, pada build produksi dengan Google Drive benar-benar aktif:
+
+| Cara memanggil | Rekaman perubahan |
+|---|---|
+| `onClick={() => kirimDrive(fd)}` | **kosong** – nol perubahan sepanjang ~5 detik aksi berjalan |
+| `onClick={() => mulai(() => kirimDrive(fd))}` | `true` pada **39 ms**, `false` lagi pada **3779 ms** |
+
+Pada keadaan pertama: `aria-busy` 0, spinner 0, keempat menu tetap bisa diklik.
+Persis yang dilaporkan user.
+
+Catatan jujur tentang cara mengukurnya: percobaan pertama saya memindai TEKS
+layar untuk kata "Mengunggah", dan hasilnya `true` — tapi itu palsu, yang
+terbaca adalah teks petunjuk *"Mengunggah PDF + Excel sekaligus"* di dalam menu.
+Ukuran yang salah nyaris menutup kasus ini sebagai "sudah benar".
+
+### Yang berubah
+
+**1. `useAksiKlik`** (`src/components/ui/aksi.ts`) — satu pintu untuk server
+action yang dijalankan dari klik. Membungkus dispatch dalam `startTransition`
+dan mengembalikan `pending` milik `useTransition` (yang terbukti menyala).
+Klik kedua selagi yang pertama berjalan DIABAIKAN, bukan diantrekan.
+
+**2. `TombolKirim` / `FormSaring` + `TombolSaring`** (`tombol-kirim.tsx`) — dua
+bentuk formulir, dua sumber penanda: `useFormStatus` untuk `<form action={…}>`,
+dan `router.push` di dalam Transition untuk penyaring `method="GET"`. Penulis
+layar berikutnya memilih berdasarkan bentuk formulirnya, bukan berdasarkan
+pengetahuan tentang isi perut React.
+
+**3. `useUnduhBerkas`** (`unduh.tsx`) — mesin unduhan bersama, dipakai
+`ButtonLink unduhan`, `MenuBerkas`, dan `TautanUnduh`. Sebelumnya jalur
+`ButtonLink unduhan` justru memasang `data-unduhan` untuk MEMATIKAN bar progres
+navigasi; alasannya benar (unduhan tidak mengganti pathname, jadi barnya menyala
+lalu menggantung) tapi akibatnya unduhan menjadi satu-satunya aksi di aplikasi
+ini yang dirancang tanpa penanda apa pun.
+
+**4. Sapuan seluruh `src/`:** 7 tautan berkas telanjang, 5 tombol submit tanpa
+penanda, 2 penyaring `method="GET"`, dan 9 dispatch-dari-klik.
+
+### Penjaga
+
+`tests/unit/penanda-sibuk.test.ts` memindai SELURUH `src/**/*.tsx` untuk tiga
+aturan: dispatch-dari-klik wajib lewat `useAksiKlik`; tautan pembangkit berkas
+wajib punya penanda (atau `target="_blank"`, karena tab barunya sendiri yang
+menandai); `<Button type="submit">` wajib menyatakan `loading`/`disabled`.
+Pengecualian ditulis BESERTA alasannya, supaya "tidak terjaga" tidak menyamar
+sebagai "aman". Uji gigi: ketiga aturan memerah saat dilanggar.
+
+`tests/e2e/penanda-sibuk-sapuan.spec.ts` + `laporan-penanda-sibuk.spec.ts` —
+12 uji di peramban (desktop + mobile), dengan jaringan sengaja diperlambat
+supaya tidak selalu lulus di CI yang cepat.
+
+### Pelajaran, dan ini yang mahal
+
+Uji yang merender `loading: true` lalu memeriksa markup membuktikan **bentuk**
+penandanya, bukan bahwa ia pernah **menyala**. Tiga kali keluhan yang sama lahir
+dari jarak antara dua hal itu. Pagar kompiler pun tidak menolong: ia menuntut
+`loading` DIISI, bukan bahwa isinya pernah `true`.
+
+Yang membongkarnya bukan pembacaan ulang kode — kodenya sudah dibaca berkali-kali
+dan tampak benar setiap kali — melainkan menjalankan aplikasinya dengan
+integrasi yang sungguhan hidup, lalu merekam nilainya berubah atau tidak.
+
+### Yang MASIH belum terjaga, disebut apa adanya
+
+- Jalur `useAksiKlik` belum punya bukti E2E langsung: kedua pemanggilnya
+  (WhatsApp/Drive, impor rekap) terkunci di belakang integrasi luar yang sengaja
+  tidak dikonfigurasi di basis data e2e. Yang dijaga di peramban adalah
+  MEKANISME-nya (`pending` milik `useTransition`, lewat penyaring), ditambah
+  penjaga statis yang memastikan tiap pemanggil memakai jalur itu. Bukti
+  langsungnya berupa pengukuran manual yang direkam di tabel di atas.
+- Penjaga statisnya memindai teks, bukan AST. Ia bisa MELEWATKAN bentuk
+  penulisan yang tidak lazim; ia tidak menuduh yang benar.

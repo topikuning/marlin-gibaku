@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/cn";
+import { GalatUnduh, klikBiasa, useUnduhBerkas } from "./unduh";
 
 export type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
 export type ButtonSize = "sm" | "md";
@@ -92,11 +93,30 @@ export interface ButtonLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement>
   /**
    * Unduhan / rute non-Next (mis. route handler yang mengalirkan berkas).
    * `next/link` mem-prefetch dan menangani navigasi di klien — keduanya salah
-   * untuk unduhan, jadi jalur itu memakai `<a>` biasa.
+   * untuk unduhan, jadi jalur itu tidak lewat `Link`.
    */
   unduhan?: boolean;
+  /**
+   * Kata KERJA selagi berkasnya disiapkan: "Menyiapkan Excel…".
+   * Wajib bila `unduhan` — lihat catatan di bawah.
+   */
+  labelSibuk?: string;
 }
 
+/**
+ * Tombol berbentuk tautan.
+ *
+ * ### `unduhan` WAJIB membawa `labelSibuk` (DECISIONS 401)
+ *
+ * Sebelumnya jalur `unduhan` justru memasang `data-unduhan` untuk **mematikan**
+ * bar progres navigasi — benar alasannya (mengunduh tidak mengganti pathname,
+ * jadi barnya menyala lalu menggantung selamanya), tapi akibatnya unduhan jadi
+ * satu-satunya aksi di aplikasi ini yang sengaja tidak punya penanda apa pun.
+ * Padahal justru unduhan yang paling lama: berkas laporan dibangun di server.
+ *
+ * Sekarang berkasnya dijemput lewat `useUnduhBerkas`, jadi tombolnya sendiri
+ * yang mengaku sedang bekerja — dan mengaku ketika gagal.
+ */
 export function ButtonLink({
   href,
   variant = "secondary",
@@ -104,17 +124,41 @@ export function ButtonLink({
   className,
   children,
   unduhan = false,
+  labelSibuk,
   ...rest
 }: ButtonLinkProps) {
   const kelas = buttonClass(variant, size, className);
+  const { sibuk, galat, bersihkanGalat, unduh } = useUnduhBerkas();
+
   if (unduhan) {
-    // `data-unduhan` dibaca bar progres navigasi (shell/nav-progress.tsx).
-    // Mengunduh TIDAK mengganti halaman, jadi tanpa penanda ini barnya menyala
-    // lalu menggantung — tidak ada pergantian pathname yang mematikannya.
     return (
-      <a href={href} data-unduhan="" className={kelas} {...rest}>
-        {children}
-      </a>
+      <span className="relative inline-flex">
+        {galat ? <GalatUnduh galat={galat} onTutup={bersihkanGalat} /> : null}
+        <a
+          href={href}
+          // `data-unduhan` tetap ada: bar progres navigasi harus tahu bahwa
+          // tautan ini tidak akan mengganti pathname.
+          data-unduhan=""
+          aria-busy={sibuk || undefined}
+          role={sibuk ? "status" : undefined}
+          className={cn(kelas, sibuk && "pointer-events-none opacity-70")}
+          onClick={(e) => {
+            if (!klikBiasa(e)) return;
+            e.preventDefault();
+            if (!sibuk) void unduh(href);
+          }}
+          {...rest}
+        >
+          {sibuk ? (
+            <>
+              <Loader2 aria-hidden className="size-4 animate-spin" />
+              {labelSibuk ?? "Menyiapkan berkas…"}
+            </>
+          ) : (
+            children
+          )}
+        </a>
+      </span>
     );
   }
   return (

@@ -143,19 +143,25 @@ export default async function ProgressLokasiPage({
                 >
                   <CalendarClock aria-hidden className="size-4" /> Cetak Jadwal
                 </Link>
-                <a
+                <ButtonLink
                   href={`/lokasi/${slug}/jadwal/export`}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink transition-colors hover:border-border-strong hover:bg-surface-muted"
+                  unduhan
+                  labelSibuk="Menyiapkan Excel…"
+                  size="md"
+                  className="gap-1.5"
                 >
                   <Sheet aria-hidden className="size-4" /> Unduh Excel
-                </a>
-                <a
+                </ButtonLink>
+                <ButtonLink
                   href={`/lokasi/${slug}/jadwal/rincian`}
+                  unduhan
+                  labelSibuk="Menyiapkan rincian…"
+                  size="md"
                   title="Rincian sampai uraian item: volume, harga satuan, jumlah, dan bobot tiap baris. Kolom jadwalnya adalah jadwal KATEGORI induk – sistem tidak menyimpan jadwal per item."
-                  className="inline-flex h-9 items-center gap-1.5 rounded-md border border-border bg-surface px-3 text-sm font-medium text-ink transition-colors hover:border-border-strong hover:bg-surface-muted"
+                  className="gap-1.5"
                 >
                   <ListTree aria-hidden className="size-4" /> Rincian Item
-                </a>
+                </ButtonLink>
               </div>
             ) : null
           }

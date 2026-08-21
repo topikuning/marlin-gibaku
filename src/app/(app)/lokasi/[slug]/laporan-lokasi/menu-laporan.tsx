@@ -1,8 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
 import { Download, FileSpreadsheet, FileText, Files, HardDriveUpload, MessageCircle, Printer } from "lucide-react";
-import { Banner, MenuBerkas, type PilihanBerkas } from "@/components/ui";
+import { Banner, MenuBerkas, useAksiKlik, type PilihanBerkas } from "@/components/ui";
 import {
   sendDailyReportPdfToWaAction,
   sendPeriodReportToWaAction,
@@ -54,11 +53,11 @@ export function MenuLaporanPeriodik({
   wahaOn: boolean;
   driveOn: boolean;
 }) {
-  const [waPdf, kirimWaPdf, waPdfPending] = useActionState<WaActionState, FormData>(sendPeriodReportPdfToWaAction, undefined);
-  const [waXls, kirimWaXls, waXlsPending] = useActionState<WaActionState, FormData>(sendPeriodReportToWaAction, undefined);
-  const [drive, kirimDrive, drivePending] = useActionState<GDriveActionState, FormData>(uploadPeriodReportToDriveAction, undefined);
-  const [waBundel, kirimWaBundel, waBundelPending] = useActionState<WaActionState, FormData>(sendWeeklyBundleToWaAction, undefined);
-  const [driveBundel, kirimDriveBundel, driveBundelPending] = useActionState<GDriveActionState, FormData>(uploadWeeklyBundleToDriveAction, undefined);
+  const [waPdf, kirimWaPdf, waPdfPending] = useAksiKlik<WaActionState>(sendPeriodReportPdfToWaAction, undefined);
+  const [waXls, kirimWaXls, waXlsPending] = useAksiKlik<WaActionState>(sendPeriodReportToWaAction, undefined);
+  const [drive, kirimDrive, drivePending] = useAksiKlik<GDriveActionState>(uploadPeriodReportToDriveAction, undefined);
+  const [waBundel, kirimWaBundel, waBundelPending] = useAksiKlik<WaActionState>(sendWeeklyBundleToWaAction, undefined);
+  const [driveBundel, kirimDriveBundel, driveBundelPending] = useAksiKlik<GDriveActionState>(uploadWeeklyBundleToDriveAction, undefined);
 
   const fdBundel = () => {
     const f = new FormData();
@@ -224,8 +223,8 @@ export function MenuLaporanHarian({
   sentAt?: string | null;
   uploadedAt?: string | null;
 }) {
-  const [wa, kirimWa, waPending] = useActionState<WaActionState, FormData>(sendDailyReportPdfToWaAction, undefined);
-  const [drive, kirimDrive, drivePending] = useActionState<GDriveActionState, FormData>(uploadDailyReportToDriveAction, undefined);
+  const [wa, kirimWa, waPending] = useAksiKlik<WaActionState>(sendDailyReportPdfToWaAction, undefined);
+  const [drive, kirimDrive, drivePending] = useAksiKlik<GDriveActionState>(uploadDailyReportToDriveAction, undefined);
 
   const fd = () => {
     const f = new FormData();
