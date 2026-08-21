@@ -5,7 +5,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { audit, auditIn } from "@/lib/audit";
 import { requireCapability, requireLocationAccess, ForbiddenError, type SessionUser } from "@/lib/auth/session";
-import { cariDuplikat } from "@/lib/kendala/duplikat";
+import { kendalaSerupaTerbuka } from "@/lib/kendala/serupa";
 import { alasanTidakBisaDigabung, catatanGabung } from "@/lib/kendala/gabung";
 import { alasanTidakBisaDihapus } from "@/lib/kendala/hapus";
 
@@ -81,19 +81,7 @@ export async function createIssue(_prev: IssueActionState, formData: FormData): 
     const { user, slug } = await guard(d.locationId);
 
     if (!d.paksa) {
-      const terbuka = await db.issue.findMany({
-        where: {
-          locationId: d.locationId,
-          status: { in: ["terbuka", "ditangani"] },
-          // Kendala yang sudah digabungkan tidak boleh ditawarkan sebagai
-          // induk — menggabungkan ke sana akan membentuk rantai.
-          mergedIntoId: null,
-        },
-        select: { id: true, title: true, createdAt: true },
-        orderBy: { createdAt: "desc" },
-        take: 100,
-      });
-      const mirip = cariDuplikat(d.title, terbuka);
+      const mirip = await kendalaSerupaTerbuka(d.locationId, d.title);
       if (mirip.length) {
         return {
           duplikat: mirip.map((m) => ({

@@ -20771,3 +20771,143 @@ gigi yang setengah juga bisa berbohong.
 Yang TIDAK dibuktikan: bahwa Chrome sungguhan menembakkan event itu di HP
 Android. Itu keputusan peramban atas syarat pasang dan tidak bisa dipicu dari
 uji — hanya bisa dicoba di perangkat sungguhan.
+
+---
+
+## 406 — Tab Laporan lokasi: yang ditanyakan orang adalah "sudah sampai ke Drive/WA belum" (2026-08-21)
+
+### Permintaan user
+
+> rombak lokasi -> laporan dengan konsep ini
+> pada laporan harian informasi yang diutamakan adalah apakah sudah diupload ke
+> drive atau ke whatsap.
+> tombol-tombolnya boleh muncul langsung, tapi jika window kecil makan
+> menyesuaikan
+
+### Cacat yang sebenarnya diperbaiki
+
+Keterangan "sudah dikirim WA 21 Agu 10.12" dan "sudah diupload Drive" SUDAH ADA
+sebelum ini – tapi disimpan sebagai `hint` **di dalam menu**, pada pilihan
+"Kirim ke WhatsApp" dan "Upload ke Drive". Untuk menjawab satu pertanyaan
+("hari mana yang belum sampai ke Drive?") orang harus membuka tiga puluh menu
+satu per satu, lalu mengingat hasilnya sendiri.
+
+Data yang benar di tempat yang tidak bisa dibaca sama saja dengan tidak ada.
+Sekarang keadaan Drive & WhatsApp berdiri sebagai lencana di barisnya masing-
+masing, dan diringkas jadi empat angka di kepala kartu.
+
+### Angka ringkas dihitung dari SEMUA, daftarnya 30 terbaru
+
+"Belum dikirim: 4" yang diam-diam berarti "4 dari 30 terakhir" akan dibaca
+sebagai "4 dari semuanya", dan orang berhenti mencari sesudah membereskan empat.
+Karena itu ringkasannya menyapu seluruh laporan final lokasi itu, sementara
+rincian per baris (log Drive bisa belasan baris per hari) hanya ditarik untuk
+yang tampil. Yang tidak muat DISEBUT jumlahnya.
+
+### Yang dicatat sistem, dan yang SENGAJA tidak diadakan
+
+| Kejadian         | Sumber                                |
+|------------------|---------------------------------------|
+| Kirim WhatsApp   | `DailyReport.waSentAt` + `waSentById` |
+| Upload Drive     | `GDriveUpload` (log append-only)      |
+| Unduh PDF        | `audit_logs` aksi `report.pdf_unduh` (BARU) |
+| Dibuka / dilihat | **tidak dicatat**                     |
+| Dicetak          | **tidak dicatat, dan tidak bisa**     |
+
+Rancangan yang diminta memuat kepingan "Sudah dibuka 2x" dan "Terakhir dicetak
+21 Agu 2026". Keduanya tidak dibuat, dan itu keputusan, bukan kelalaian:
+
+- **"Dibuka Nx"** butuh pencatatan pada setiap render halaman, sementara halaman
+  cetak dijangkau lewat `<Link>` yang di-*prefetch* peramban. Angkanya akan naik
+  untuk kunjungan yang tidak pernah terjadi.
+- **"Terakhir dicetak"** hanya bisa berarti "halaman cetak dibuka". Tidak ada
+  satu pun cara memastikan kertasnya keluar, dan menamainya "dicetak" adalah
+  klaim yang tidak dipegang apa pun.
+
+Unduhan PDF sebaliknya adalah kejadian yang sungguh terjadi di server, satu per
+klik, dan tidak pernah di-prefetch – jadi ia dicatat, di route-nya (bukan di
+tombolnya, karena alamat itu bisa dibuka langsung). Kepingan riwayat hanya
+muncul kalau ADA catatannya: tidak ada "0x" untuk yang tidak pernah dihitung.
+
+### Tombol langsung, meringkas sendiri – lewat CSS, bukan pengukuran
+
+Dua tampilan, SATU keadaan sibuk. Pergantiannya `xl:` murni CSS: mengukur lebar
+di JavaScript berarti render pertama menebak lalu berkedip mengganti bentuk, dan
+di daftar tiga puluh baris kedipan itu terjadi tiga puluh kali sekaligus.
+
+Yang TIDAK ikut dibagi: penanda sibuk unduhan PDF, karena `MenuBerkas` dan
+`ButtonLink unduhan` masing-masing memegang mesin unduhannya sendiri. Hanya satu
+yang terlihat pada satu waktu, jadi akibatnya sebatas: mengubah lebar jendela
+DI TENGAH unduhan membuat penandanya tidak ikut pindah.
+
+### Uji gigi
+
+`ringkasDrive` sengaja dirusak dua cara – menghitung baris log alih-alih berkas
+berbeda, dan melaporkan kegagalan yang sudah disusul keberhasilan. Dua-duanya
+merah, lalu dikembalikan.
+
+---
+
+## 407 — Kendala hari nihil dan kendala lembar kirim: double entry, bukan satu (2026-08-21)
+
+### Keberatan user
+
+> masalah lain, saat laporan nihil/kosong, kamu membuat desain masukkan ke
+> kendala. tapi saat kirim laporan ada pilihan lagi ada kendala atau tidak, ini
+> terlalu rancu dan beresiko input kendala ganda, apakah kendalanya itu sudah
+> menjadi satu, atau double entry
+
+### Jawabannya: double entry – dan lebih buruk daripada dugaannya
+
+Ada EMPAT pintu yang bisa melahirkan kendala untuk hari yang sama, dan penjaga
+duplikat (DECISIONS 392) hanya terpasang di dua:
+
+| Pintu                                     | Penjaga duplikat |
+|-------------------------------------------|------------------|
+| Papan kendala lokasi (`createIssue`)      | ada              |
+| Kegiatan lapangan (`naikkanKendalaKegiatan`) | ada           |
+| Lembar kirim laporan harian               | **tidak ada**    |
+| Formulir kendala saat verifikasi          | **tidak ada**    |
+
+Jadi pada hari nihil karena "menunggu material": panel hari-nihil menawarkan
+"Catat sebagai kendala" (lewat `createIssue`, terjaga), lalu beberapa detik
+kemudian lembar kirim menanyakan **hal yang sama** dan mencatatnya lewat
+`addIssueFromReport` – tanpa memeriksa apa pun. Dua baris untuk satu hambatan,
+dan tidak ada satu kalimat pun yang memberi tahu bahwa keduanya menuju papan
+yang sama.
+
+### Dua perubahan
+
+**1. Satu pertanyaan, di satu tempat.** Tawaran kendala di panel hari-nihil
+dihapus. Sebab hari nihil DIBAWA ke lembar kirim sebagai isian yang sudah
+terisi (`judulKendalaDariNihil`), dengan "Ada kendala" terpilih. Hambatannya
+tetap tidak hilang – yang hilang cuma pintu keduanya. "Ada kendala" hanya
+dipilihkan, tidak dikunci: yang menunggu hal yang kendalanya sudah terbuka sejak
+kemarin tetap boleh menjawab "Tidak ada".
+
+**2. Penjaganya di dalam fungsi, bukan di layar.** Pencarian kendala serupa
+dipindah ke `src/lib/kendala/serupa.ts` dan dipanggil KEEMPAT pintu, termasuk
+yang belum ditulis. Penjaga yang dipasang per layar sudah dua kali tertinggal di
+layar berikutnya (DECISIONS 360, 400/401); tidak ada alasan mengulanginya untuk
+yang ketiga.
+
+### Yang TIDAK dilakukan
+
+- **Menggagalkan pengiriman laporan** karena kendalanya kembar. Itu menukar
+  kerugian kecil (satu baris kembar) dengan kerugian besar (laporan hari itu
+  tidak terkirim sama sekali). Laporan tetap terkirim; hasilnya dikatakan:
+  *"Kendala serupa sudah terbuka ("…"), jadi tidak dicatat dua kali."*
+- **Menolak tanpa jalan keluar.** `paksa` tetap ada untuk masalah kedua yang
+  kalimatnya memang mirip – dan pemakaiannya tercatat di audit
+  (`duplikatDiabaikan`). Menolak mentah hanya melatih orang menulis judul yang
+  sengaja dibedakan supaya lolos, dan duplikat yang menyamar lebih sulit
+  dikenali daripada duplikat terang-terangan.
+- **Menahan kendala yang sudah DITUTUP.** Masalah bisa kambuh; kalau yang
+  tertutup ikut menahan, kekambuhannya tidak akan pernah tercatat.
+
+### Uji gigi
+
+Penjaga di `addIssueFromReport` dibuang, lalu
+`tests/integration/kendala-satu-pintu.test.ts` dijalankan: 4 dari 7 merah,
+termasuk yang memanggil fungsinya LANGSUNG tanpa lewat action mana pun.
+Dikembalikan, tujuh hijau.

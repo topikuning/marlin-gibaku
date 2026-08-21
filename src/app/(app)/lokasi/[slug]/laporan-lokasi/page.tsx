@@ -1,20 +1,20 @@
-import Link from "next/link";
 import { peringatanPelaksana, pilihPelaksana } from "@/lib/laporan/penandatangan";
 import { notFound } from "next/navigation";
 import { CalendarClock, FileText, ListTree, Printer, Sheet } from "lucide-react";
-import { Banner, Card, CardBody, CardHeader, EmptyState } from "@/components/ui";
+import { Banner, Card, CardBody, CardHeader, EmptyState, KpiCard } from "@/components/ui";
 import { KkpPeriodReport } from "@/components/knmp/kkp-period-report";
 import { ScurveKkpSheet } from "@/components/knmp/scurve-kkp-sheet";
 import { PeriodFilter } from "./period-filter";
 import { MenuBerkas } from "@/components/ui";
-import { MenuLaporanHarian, MenuLaporanPeriodik } from "./menu-laporan";
+import { MenuLaporanPeriodik } from "./menu-laporan";
+import { BarisLaporanHarian } from "./baris-harian";
 import { requireUser, requireLocationAccess } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
 import { getPeriodBounds, getPeriodReport, type PeriodKind } from "@/lib/periodic-report";
 import { isWahaConfigured } from "@/lib/waha/client";
 import { getGDriveConfigDisplay } from "@/lib/gdrive/config";
-import { jakartaDateKey, formatTanggal, formatTanggalWaktu } from "@/lib/format";
+import { ambilRiwayatHarian } from "@/lib/laporan/riwayat-queries";
 import { withBackTo } from "@/lib/print-back";
 
 export const dynamic = "force-dynamic";
@@ -84,26 +84,22 @@ export default async function LaporanLokasiPage({
   // Generate eksplisit (audit UX #7): laporan hanya dihitung setelah "Tampilkan".
   const shown = sp.show === "1" && !!bounds;
 
-  const [report, finalReports, driveLogs] = await Promise.all([
+  const [report, riwayat] = await Promise.all([
     shown ? getPeriodReport(location.id, kind, n) : Promise.resolve(null),
-    db.dailyReport.findMany({
-      where: { locationId: location.id, status: "final" },
-      orderBy: { reportDate: "desc" },
-      take: 30,
-      select: { id: true, reportDate: true, waSentAt: true, _count: { select: { items: true } } },
-    }),
-    // Upload Drive sukses terakhir per laporan harian (log append-only).
-    hasDrive
-      ? db.gDriveUpload.findMany({
-          where: { locationId: location.id, kind: "laporan_harian", status: "sukses" },
-          orderBy: { createdAt: "desc" },
-          take: 60,
-          select: { refKey: true, createdAt: true },
-        })
-      : Promise.resolve([]),
+    ambilRiwayatHarian({ locationId: location.id, slug }),
   ]);
-  const driveUploadedAt = new Map<string, Date>();
-  for (const l of driveLogs) if (!driveUploadedAt.has(l.refKey)) driveUploadedAt.set(l.refKey, l.createdAt);
+  const { baris, ringkas, tersembunyi } = riwayat;
+
+  /*
+   * Syarat yang belum terpenuhi dikatakan SEKALI di kepala kartu, bukan
+   * diulang pada tiga puluh baris. Faktanya milik PAKET (grup WA / folder Drive
+   * belum diatur), jadi mengulangnya per hari hanya menutupi daftar dengan
+   * kalimat yang sama persis.
+   */
+  const alasanMati = [
+    !wahaOn ? "WhatsApp belum dikonfigurasi" : !hasGroup ? "Paket ini belum punya grup WhatsApp" : null,
+    !driveOn ? "Google Drive belum terhubung" : !hasDrive ? "Paket ini belum punya folder Drive" : null,
+  ].filter((v): v is string => !!v);
 
   return (
     <div className="space-y-6">
@@ -197,43 +193,70 @@ export default async function LaporanLokasiPage({
       </Card>
 
       <Card>
-        <CardHeader title="Laporan harian final" subtitle="Snapshot beku – siap cetak KKP" />
-        <CardBody>
-          {finalReports.length === 0 ? (
+        <CardHeader
+          title="Laporan harian final"
+          subtitle="Snapshot beku – siap cetak KKP. Yang diutamakan di sini: sudah sampai ke Drive dan grup WhatsApp atau belum."
+        />
+        <CardBody className="space-y-4">
+          {ringkas.total === 0 ? (
             <EmptyState icon={FileText} title="Belum ada laporan final" description="Finalisasi dilakukan dari workspace harian setelah disetujui." />
           ) : (
-            <ul className="divide-y divide-border text-sm">
-              {finalReports.map((r) => {
-                const key = jakartaDateKey(r.reportDate);
-                return (
-                  <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                    <span>
-                      {formatTanggal(r.reportDate, "EEEE, d MMM yyyy")}
-                      <span className="ml-2 text-ink-muted">{r._count.items} item</span>
-                    </span>
-                    <span className="flex flex-wrap items-center gap-3">
-                      <MenuLaporanHarian
-                        slug={slug}
-                        dateKey={key}
-                        hasGroup={hasGroup}
-                        hasDrive={hasDrive}
-                        wahaOn={wahaOn}
-                        driveOn={driveOn}
-                        sentAt={r.waSentAt ? formatTanggalWaktu(r.waSentAt) : null}
-                        uploadedAt={
-                          driveUploadedAt.has(`${slug}:${key}`)
-                            ? formatTanggalWaktu(driveUploadedAt.get(`${slug}:${key}`)!)
-                            : null
-                        }
-                      />
-                      <Link href={withBackTo(`/cetak/harian/${slug}/${key}`, `/lokasi/${slug}/laporan-lokasi`)} className="font-medium text-primary hover:underline">
-                        Cetak
-                      </Link>
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
+            <>
+              {/* Dihitung dari SELURUH laporan final lokasi ini, bukan dari yang
+                  kebetulan tampil di daftar – lihat riwayat-queries.ts. */}
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                <KpiCard label="Laporan final" value={ringkas.total} sub="Seluruh masa kontrak" />
+                <KpiCard
+                  label="Sudah ke Drive"
+                  value={`${ringkas.drive}/${ringkas.total}`}
+                  tone={ringkas.drive === ringkas.total ? "success" : "default"}
+                  sub="Arsip yang diperiksa KKP"
+                />
+                <KpiCard
+                  label="Sudah ke WhatsApp"
+                  value={`${ringkas.wa}/${ringkas.total}`}
+                  tone={ringkas.wa === ringkas.total ? "success" : "default"}
+                  sub="Kabar ke grup paket"
+                />
+                <KpiCard
+                  label="Belum dikirim"
+                  value={ringkas.belum}
+                  tone={ringkas.belum > 0 ? "warning" : "success"}
+                  sub="Belum ke Drive maupun WhatsApp"
+                />
+              </div>
+
+              {alasanMati.length > 0 ? (
+                <Banner
+                  tone="info"
+                  title="Sebagian tombol kiriman dimatikan"
+                  description={`${alasanMati.join(". ")}. Unduh dan cetak tetap bisa dipakai.`}
+                />
+              ) : null}
+
+              <ul className="divide-y divide-border">
+                {baris.map((r) => (
+                  <BarisLaporanHarian
+                    key={r.id}
+                    r={r}
+                    slug={slug}
+                    hasGroup={hasGroup}
+                    hasDrive={hasDrive}
+                    wahaOn={wahaOn}
+                    driveOn={driveOn}
+                  />
+                ))}
+              </ul>
+
+              {/* Yang tidak ditampilkan DISEBUT jumlahnya: daftar yang diam-diam
+                  dipotong terbaca sebagai "cuma segini laporannya". */}
+              {tersembunyi > 0 ? (
+                <p className="text-[12px] text-ink-muted">
+                  {tersembunyi} laporan final lebih lama tidak ditampilkan di daftar ini. Angka
+                  ringkas di atas tetap menghitung semuanya.
+                </p>
+              ) : null}
+            </>
           )}
         </CardBody>
       </Card>

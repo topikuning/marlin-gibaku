@@ -2,7 +2,6 @@
 
 import { useActionState, useState } from "react";
 import { Banner, Button, Combobox, Input, Label } from "@/components/ui";
-import { createIssue, type IssueActionState } from "@/lib/issues";
 import { setHariNihilAction, type DailyActionState } from "@/lib/daily-report/actions";
 import { ALASAN_NIHIL, LABEL_ALASAN_NIHIL } from "@/lib/daily-report/nihil";
 import { CalendarOff } from "lucide-react";
@@ -52,9 +51,20 @@ export function HariNihilPanel({
           {alasan ? LABEL_ALASAN_NIHIL[alasan] : "–"}
           {catatan ? ` – ${catatan}` : ""}
         </p>
-        {state?.usulKendala ? (
-          <UsulKendala judul={state.usulKendala} locationId={state.usulLokasiId ?? locationId} />
-        ) : null}
+        {/*
+          TIDAK ADA formulir kendala di sini lagi (DECISIONS 407).
+
+          Keberatan user 2026-08-21: *"saat laporan nihil/kosong, kamu membuat
+          desain masukkan ke kendala. tapi saat kirim laporan ada pilihan lagi
+          ada kendala atau tidak, ini terlalu rancu dan beresiko input kendala
+          ganda."* Tepat: hambatan hari ini ditanyakan dua kali dalam satu layar
+          – di sini, lalu lagi di lembar kirim – dan tidak ada satu pun yang
+          memberi tahu bahwa keduanya menuju papan yang sama.
+
+          Sekarang pertanyaannya cuma ada di lembar kirim, dan sebab hari nihil
+          ("menunggu material") DIBAWA ke sana sebagai isian yang sudah terisi.
+          Hambatannya tetap tidak hilang; yang hilang cuma pintu keduanya.
+        */}
         <form action={action}>
           <input type="hidden" name="locationId" value={locationId} />
           <input type="hidden" name="dateKey" value={dateKey} />
@@ -154,41 +164,3 @@ export function HariNihilPanel({
   );
 }
 
-/**
- * Tawaran mencatat hambatan sebagai kendala – MENAWARKAN, tidak memaksa.
- *
- * Memaksa akan memenuhi papan dengan baris dari hari-hari yang sebenarnya satu
- * masalah berlarut; tidak menawarkan sama sekali mengulang cacat yang baru saja
- * diperbaiki (DECISIONS 392): hambatan tercatat lalu tidak ditagih siapa pun.
- */
-function UsulKendala({ judul, locationId }: { judul: string; locationId: string }) {
-  const [state, action, pending] = useActionState<IssueActionState, FormData>(
-    createIssue,
-    undefined,
-  );
-  if (state?.success) return <Banner tone="success" title={state.success} />;
-  if (state?.duplikat?.length) {
-    // Penjaga duplikat sudah menahannya – hari kedua menunggu hal yang sama
-    // tidak melahirkan kendala kembar.
-    return (
-      <Banner
-        tone="info"
-        title={`Sudah ada kendala serupa yang terbuka: "${state.duplikat[0].title}" – tidak dicatat dua kali.`}
-      />
-    );
-  }
-  return (
-    <form action={action} className="rounded-md border border-border bg-surface p-2">
-      <p className="text-[13px] text-ink">
-        Pekerjaan tertahan menunggu. Catat sebagai kendala supaya ada yang menagihnya?
-      </p>
-      <input type="hidden" name="locationId" value={locationId} />
-      <input type="hidden" name="title" value={judul} />
-      <input type="hidden" name="severity" value="sedang" />
-      {state?.error ? <Banner tone="error" title={state.error} /> : null}
-      <Button size="sm" variant="secondary" type="submit" loading={pending} className="mt-2">
-        Catat sebagai kendala
-      </Button>
-    </form>
-  );
-}

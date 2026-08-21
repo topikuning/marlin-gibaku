@@ -16,6 +16,7 @@ import { HariNihilPanel } from "@/components/knmp/hari-nihil-panel";
 import type { NoActivityReason } from "@/generated/prisma/enums";
 import type { LeafNodeOption, WorkspaceItem } from "@/lib/daily-report/queries";
 import { ISSUE_SEVERITY_LABEL } from "@/lib/daily-report/constants";
+import { judulKendalaDariNihil } from "@/lib/daily-report/nihil";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import type { PhotoView } from "@/lib/photos";
 import { removeReportPhotoAction, returnPhotoToKantongAction } from "@/lib/daily-report/actions";
@@ -173,6 +174,8 @@ export function ReportEditor({
           jumlahItem={items.length}
           jumlahFoto={items.reduce((n, it) => n + it.photos.length, 0)}
           nihil={nihil.aktif}
+          nihilAlasan={nihil.alasan}
+          nihilCatatan={nihil.catatan}
         />
       ) : null}
     </div>
@@ -920,6 +923,8 @@ function SubmitPanel({
   dateKey,
   jumlahItem,
   nihil,
+  nihilAlasan,
+  nihilCatatan,
   jumlahFoto,
 }: {
   reportId: string;
@@ -928,11 +933,24 @@ function SubmitPanel({
   jumlahItem: number;
   /** Hari dinyatakan tanpa kegiatan — ringkasannya berbeda. */
   nihil?: boolean;
+  nihilAlasan?: NoActivityReason | null;
+  nihilCatatan?: string | null;
   jumlahFoto: number;
 }) {
   const [state, formAction, pending] = useActionState<DailyActionState, FormData>(kirimLaporan, undefined);
   const [buka, setBuka] = useState(false);
-  const [pilihan, setPilihan] = useState<"" | "tidak_ada" | "ada">("");
+  /*
+   * Hari nihil karena MENUNGGU sudah menyatakan hambatannya (DECISIONS 407).
+   * Jawabannya dibawa ke sini sebagai isian yang sudah terisi, bukan ditanyakan
+   * ulang lewat formulir kedua di panel hari-nihil – dua pertanyaan untuk satu
+   * hambatan itulah yang melahirkan kendala kembar.
+   *
+   * "Ada kendala" hanya DIPILIHKAN, bukan dikunci: yang menyatakan hari nihil
+   * tetap boleh menjawab "Tidak ada" – mis. menunggu yang sudah ada kendalanya
+   * di papan sejak kemarin.
+   */
+  const usulKendala = nihil ? judulKendalaDariNihil(nihilAlasan, nihilCatatan) : null;
+  const [pilihan, setPilihan] = useState<"" | "tidak_ada" | "ada">(usulKendala ? "ada" : "");
   const [siap, setSiap] = useState(false);
 
   useEffect(() => {
@@ -1028,6 +1046,12 @@ function SubmitPanel({
 
               {pilihan === "ada" ? (
                 <div className="space-y-2 rounded-md border border-border bg-surface-muted p-3">
+                  {usulKendala ? (
+                    <p className="text-[12px] text-ink-muted">
+                      Diisikan dari sebab hari nihil. Boleh diubah – yang tersimpan yang tertulis di
+                      sini. Kalau kendala serupa masih terbuka di papan, tidak dicatat dua kali.
+                    </p>
+                  ) : null}
                   <div>
                     <Label htmlFor="kk-title" required>
                       Kendala
@@ -1038,6 +1062,7 @@ function SubmitPanel({
                       required
                       minLength={3}
                       maxLength={200}
+                      defaultValue={usulKendala ?? ""}
                       placeholder="mis. hujan deras sejak siang, cor ditunda"
                     />
                   </div>

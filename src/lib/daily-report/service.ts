@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { audit, auditIn } from "@/lib/audit";
 import { requestIp } from "@/lib/auth/session";
 import { canTransitionReport } from "@/lib/lifecycle";
+import { kendalaSerupaTerbuka } from "@/lib/kendala/serupa";
 import { cumulativeVolumeByLineage, getLocationProgress, COUNTED_REPORT_STATUSES } from "@/lib/progress";
 import { valueDone as calcValueDone } from "@/lib/money";
 import { prestasiPct } from "@/lib/progress-calc";
@@ -923,8 +924,33 @@ export type IssueInput = {
   severity: IssueSeverity;
 };
 
-/** Catat kendala lapangan yang menempel ke laporan harian. */
-export async function addIssueFromReport(reportId: string, input: IssueInput, userId: string) {
+export type HasilKendalaLaporan =
+  | { jadi: "dibuat"; issueId: string; title: string }
+  | { jadi: "duplikat"; issueId: string; title: string };
+
+/**
+ * Catat kendala lapangan yang menempel ke laporan harian.
+ *
+ * ### Penjaga duplikat ada DI SINI, bukan di layarnya (DECISIONS 407)
+ *
+ * User 2026-08-21: *"saat kirim laporan ada pilihan lagi ada kendala atau tidak,
+ * ini terlalu rancu dan beresiko input kendala ganda."* Betul: fungsi ini
+ * dipanggil dari DUA layar (lembar kirim dan formulir kendala saat verifikasi)
+ * dan dua-duanya dulu membuat baris baru tanpa memeriksa apa pun — sementara
+ * papan kendala lokasi dan kegiatan lapangan sudah punya penjaganya sejak
+ * DECISIONS 392. Satu masalah yang sama karena itu bisa muncul empat kali.
+ *
+ * `paksa` disediakan untuk orang yang MEMANG bermaksud mencatat masalah kedua
+ * yang kalimatnya mirip. Menolak tanpa jalan keluar hanya melatih orang menulis
+ * judul yang sengaja dibedakan supaya lolos, dan duplikat yang menyamar lebih
+ * sulit dikenali daripada duplikat terang-terangan.
+ */
+export async function addIssueFromReport(
+  reportId: string,
+  input: IssueInput,
+  userId: string,
+  opts: { paksa?: boolean } = {},
+): Promise<HasilKendalaLaporan> {
   const report = await getReportOrThrow(reportId);
   // Laporan final beku — kendala baru dicatat lewat menu Kendala lokasi, bukan
   // menempel diam-diam ke dokumen yang sudah final (audit 2026-07-27, B16c).
@@ -933,6 +959,18 @@ export async function addIssueFromReport(reportId: string, input: IssueInput, us
   }
   if (!input.title || input.title.trim().length === 0) {
     throw new DailyReportError("Judul kendala wajib diisi");
+  }
+  if (!opts.paksa) {
+    const mirip = await kendalaSerupaTerbuka(report.locationId, input.title.trim());
+    if (mirip.length) {
+      await audit(userId, "issue.duplikat_dilewati", "issue", mirip[0].id, {
+        locationId: report.locationId,
+        reportId,
+        judulBaru: input.title.trim(),
+        skor: Number(mirip[0].skor.toFixed(3)),
+      });
+      return { jadi: "duplikat", issueId: mirip[0].id, title: mirip[0].title };
+    }
   }
   const issue = await db.issue.create({
     data: {
@@ -949,8 +987,12 @@ export async function addIssueFromReport(reportId: string, input: IssueInput, us
       source: "laporan_harian",
     },
   });
-  await audit(userId, "issue.create", "issue", issue.id, { reportId, severity: input.severity });
-  return issue;
+  await audit(userId, "issue.create", "issue", issue.id, {
+    reportId,
+    severity: input.severity,
+    ...(opts.paksa ? { duplikatDiabaikan: true } : {}),
+  });
+  return { jadi: "dibuat", issueId: issue.id, title: issue.title };
 }
 
 /**
