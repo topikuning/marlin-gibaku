@@ -6,38 +6,39 @@ import { JABATAN_PELAKSANA_BAWAAN } from "@/lib/laporan/penandatangan";
 import { simpanPelaksana, type PelaksanaActionState } from "@/lib/laporan/pelaksana-actions";
 
 /**
- * PELAKSANA LAPANGAN — formulir yang SAMA untuk paket dan lokasi (DECISIONS 402).
+ * PENIMPAAN PELAKSANA LAPANGAN UNTUK SATU LOKASI (DECISIONS 402/404).
  *
- * Dipakai di dua tempat karena aturannya satu: laporan harian & mingguan diteken
- * Pelaksana Lapangan; lokasi boleh menimpa milik paket kalau pelaksananya
- * berbeda. Dua formulir kembar akan cepat berbeda kata-katanya, dan orang yang
- * membaca dua penjelasan berbeda untuk satu aturan akan menyimpulkan salah satu
- * di antaranya salah.
+ * Hanya untuk LOKASI. Pelaksana tingkat paket diisi bersama PPK, pengawas, dan
+ * Direktur di formulir penanda tangan kontrak — keberatan user 2026-08-21:
+ * *"kamu terlalu mengistimewakan pelaksana di paket, jadikan saja satu form
+ * dengan penginputan ppk pengawas dsb."*
+ *
+ * Yang tersisa di sini justru yang tidak punya rumah lain: halaman lokasi tidak
+ * punya formulir penanda tangan kontrak, karena PPK dan pengawas memang urusan
+ * paket. Formulir ini menjawab satu pertanyaan saja — lokasi ini dikerjakan
+ * pelaksana yang berbeda atau tidak.
  */
 export function PelaksanaForm({
-  sasaran,
-  id,
+  locationId,
   nama,
   jabatan,
   ttdUrl,
   stempelUrl,
   warisan,
 }: {
-  sasaran: "paket" | "lokasi";
-  id: string;
+  locationId: string;
   nama: string | null;
   jabatan: string | null;
   ttdUrl: string | null;
   stempelUrl: string | null;
-  /** Untuk sasaran lokasi: pelaksana paket yang berlaku bila ini dikosongkan. */
+  /** Pelaksana paket yang berlaku bila lokasi ini dikosongkan. */
   warisan?: { nama: string | null; jabatan: string | null } | null;
 }) {
   const [state, kirim, sibuk] = useAksiKlik<PelaksanaActionState>(simpanPelaksana, undefined);
 
-  const lokasi = sasaran === "lokasi";
-  const memakaiWarisan = lokasi && !nama;
+  const memakaiWarisan = !nama;
   // Belum ada pelaksana di mana pun – dokumen akan terbit tanpa nama.
-  const kosongTotal = !nama && !(warisan?.nama ?? null) && lokasi;
+  const kosongTotal = !nama && !(warisan?.nama ?? null);
 
   return (
     <form
@@ -47,14 +48,13 @@ export function PelaksanaForm({
     >
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
-      <input type="hidden" name="sasaran" value={sasaran} />
-      <input type="hidden" name="id" value={id} />
+      <input type="hidden" name="locationId" value={locationId} />
 
       {kosongTotal ? (
         <Banner
           tone="warning"
           title="Pelaksana Lapangan belum diisi di paket maupun lokasi ini"
-          description="Blok tanda tangan laporan harian dan mingguan akan tercetak tanpa nama, untuk ditandatangani tangan. Nama Direktur TIDAK dipakai sebagai pengganti – dokumen resmi tidak boleh menyebut orang yang tidak membuatnya."
+          description="Isi di Paket › Kontrak › Penanda tangan dokumen KKP. Sampai itu diisi, blok tanda tangan laporan harian dan mingguan tercetak tanpa nama untuk ditandatangani tangan – nama Direktur TIDAK dipakai sebagai pengganti."
         />
       ) : null}
 
@@ -68,19 +68,19 @@ export function PelaksanaForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <Label htmlFor={`pl-nama-${sasaran}`}>Nama Pelaksana Lapangan</Label>
+          <Label htmlFor="pl-nama-lokasi">Nama Pelaksana Lapangan</Label>
           <Input
-            id={`pl-nama-${sasaran}`}
+            id="pl-nama-lokasi"
             name="nama"
             defaultValue={nama ?? ""}
             maxLength={150}
-            placeholder={lokasi ? "kosongkan = ikut paket" : "mis. Joko Susilo"}
+            placeholder="kosongkan = ikut paket"
           />
         </div>
         <div>
-          <Label htmlFor={`pl-jabatan-${sasaran}`}>Jabatan</Label>
+          <Label htmlFor="pl-jabatan-lokasi">Jabatan</Label>
           <Input
-            id={`pl-jabatan-${sasaran}`}
+            id="pl-jabatan-lokasi"
             name="jabatan"
             defaultValue={jabatan ?? ""}
             maxLength={120}
@@ -91,14 +91,14 @@ export function PelaksanaForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <BerkasTtd
-          id={`pl-ttd-${sasaran}`}
+          id="pl-ttd-lokasi"
           medan="pelaksanaTtdKey"
           label="Tanda tangan"
           url={ttdUrl}
           kelasPratinjau="h-12 w-full"
         />
         <BerkasTtd
-          id={`pl-stempel-${sasaran}`}
+          id="pl-stempel-lokasi"
           medan="pelaksanaStempelKey"
           label="Stempel (opsional)"
           url={stempelUrl}
@@ -113,7 +113,7 @@ export function PelaksanaForm({
         tanda tangan akan tercetak tanpa coretan – BUKAN memakai coretan milik
         pelaksana paket. Itu disengaja, dan orang perlu tahu sebelum mencetak.
       */}
-      {lokasi && nama && !ttdUrl ? (
+      {nama && !ttdUrl ? (
         <HelpText>
           Lokasi ini memakai pelaksananya sendiri tetapi belum mengunggah tanda tangan, jadi
           blok TTD-nya tercetak kosong. Tanda tangan milik pelaksana paket sengaja tidak
@@ -127,7 +127,7 @@ export function PelaksanaForm({
       </HelpText>
 
       <Button type="submit" loading={sibuk}>
-        Simpan Pelaksana Lapangan
+        Simpan pelaksana lokasi ini
       </Button>
     </form>
   );

@@ -270,12 +270,11 @@ export default async function LokasiRingkasanPage({
           <Card>
             <CardHeader
               title="Pelaksana Lapangan"
-              subtitle="Meneken laporan HARIAN dan MINGGUAN lokasi ini. Kosongkan bila mengikuti pelaksana paket; laporan bulanan, MC, dan CCO tetap diteken Direktur."
+              subtitle="Isi HANYA bila lokasi ini dikerjakan pelaksana yang berbeda dari paketnya. Pelaksana paket diatur di Paket › Kontrak › Penanda tangan dokumen KKP."
             />
             <CardBody>
               <PelaksanaForm
-                sasaran="lokasi"
-                id={location.id}
+                locationId={location.id}
                 nama={location.pelaksanaName}
                 jabatan={location.pelaksanaTitle}
                 ttdUrl={urlTtdPelaksana(location.pelaksanaTtdKey)}

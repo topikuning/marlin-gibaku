@@ -140,6 +140,22 @@ export type Signatories = {
   supervisorFirm: string | null;
   contractorSignerName: string | null;
   contractorSignerTitle: string | null;
+  /**
+   * Pelaksana Lapangan — penanda tangan laporan harian & mingguan
+   * (DECISIONS 402/404).
+   *
+   * Ikut di formulir ini, bukan di kartunya sendiri. Keberatan user
+   * 2026-08-21: *"kamu terlalu mengistimewakan pelaksana di paket, jadikan
+   * saja satu form dengan penginputan ppk pengawas dsb."* Benar — ia satu
+   * pihak lagi yang namanya tercetak di blok tanda tangan, sama seperti PPK
+   * dan pengawas. Kartu sendiri membuatnya tampak sebagai urusan terpisah,
+   * padahal yang mengisi memikirkan satu hal: siapa saja yang meneken.
+   *
+   * Disimpan di PAKET (bukan kontrak) — lihat DECISIONS 402. Yang disatukan
+   * formulirnya, bukan tempat simpannya.
+   */
+  pelaksanaName: string | null;
+  pelaksanaTitle: string | null;
 };
 
 /** Field penanda tangan KKP (dipakai form konversi & form edit). Semua opsional. */
@@ -170,6 +186,19 @@ function SignatoryFields({ v }: { v?: Signatories }) {
         <Label htmlFor="sg-ctr-title">Jabatan Penyedia</Label>
         <Input id="sg-ctr-title" name="contractorSignerTitle" defaultValue={v?.contractorSignerTitle ?? ""} placeholder="mis. Direktur" />
       </div>
+      <div>
+        <Label htmlFor="sg-pl">Nama Pelaksana Lapangan</Label>
+        <Input id="sg-pl" name="pelaksanaName" defaultValue={v?.pelaksanaName ?? ""} placeholder="mis. Joko Susilo" />
+      </div>
+      <div>
+        <Label htmlFor="sg-pl-title">Jabatan Pelaksana</Label>
+        <Input id="sg-pl-title" name="pelaksanaTitle" defaultValue={v?.pelaksanaTitle ?? ""} placeholder="Pelaksana Lapangan" />
+      </div>
+      <p className="text-xs text-ink-muted sm:col-span-2">
+        Penyedia (Direktur) meneken laporan <b>bulanan</b>, MC, dan CCO. Pelaksana Lapangan
+        meneken laporan <b>harian</b> dan <b>mingguan</b>. Lokasi boleh memakai pelaksana
+        sendiri – diatur di halaman lokasinya.
+      </p>
     </div>
   );
 }
@@ -433,6 +462,9 @@ export type GambarTtdKontrak = {
   supervisorStempelUrl: string | null;
   contractorTtdUrl: string | null;
   contractorStempelUrl: string | null;
+  /** Pelaksana Lapangan — tersimpan di paket, ditampilkan di form yang sama. */
+  pelaksanaTtdUrl: string | null;
+  pelaksanaStempelUrl: string | null;
   /** Stempel dari master perusahaan — cadangan bila kontrak tidak punya sendiri. */
   vendorStempelUrl: string | null;
   vendorName: string;
@@ -464,7 +496,7 @@ export function TtdStempelForm({
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
       <input type="hidden" name="contractId" value={contractId} />
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <PihakTtdFields
           judul="Pejabat Pembuat Komitmen"
           medanTtd="ppkTtdKey"
@@ -485,6 +517,19 @@ export function TtdStempelForm({
           medanStempel="contractorStempelKey"
           ttdUrl={gambar.contractorTtdUrl}
           stempelUrl={gambar.contractorStempelUrl}
+          stempelCadanganUrl={gambar.vendorStempelUrl}
+        />
+        {/*
+          Pelaksana Lapangan = pihak keempat, di gelanggang yang SAMA
+          (DECISIONS 404). Tersimpan di paket, bukan kontrak – tapi yang
+          mengunggah tidak perlu tahu itu; ia cuma memikirkan siapa yang meneken.
+        */}
+        <PihakTtdFields
+          judul="Pelaksana Lapangan"
+          medanTtd="pelaksanaTtdKey"
+          medanStempel="pelaksanaStempelKey"
+          ttdUrl={gambar.pelaksanaTtdUrl}
+          stempelUrl={gambar.pelaksanaStempelUrl}
           stempelCadanganUrl={gambar.vendorStempelUrl}
         />
       </div>

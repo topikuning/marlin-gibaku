@@ -7,26 +7,27 @@ import { audit } from "@/lib/audit";
 import { requireCapability, requireLocationAccess } from "@/lib/auth/session";
 
 /**
- * MENGISI PELAKSANA LAPANGAN — paket dan lokasi lewat SATU pintu (DECISIONS 402).
+ * PENIMPAAN PELAKSANA LAPANGAN DI SATU LOKASI (DECISIONS 402/404).
  *
- * Satu aksi untuk dua sasaran dengan sengaja. Dua aksi kembar yang menulis medan
- * yang sama adalah cara paling mudah membuat aturan validasi, batas ukuran
- * berkas, dan jejak auditnya menyimpang diam-diam — dan yang menyimpang di sini
- * berakhir sebagai nama atau coretan tanda tangan yang salah pada dokumen resmi.
+ * **Hanya lokasi.** Pelaksana tingkat PAKET tidak lagi lewat sini: ia ikut
+ * formulir penanda tangan kontrak bersama PPK, pengawas, dan Direktur —
+ * keberatan user 2026-08-21 *"kamu terlalu mengistimewakan pelaksana di paket,
+ * jadikan saja satu form dengan penginputan ppk pengawas dsb."*
  *
- * Yang membedakan hanya izinnya: paket butuh `contract.manage`, lokasi butuh
- * `location.manage` PLUS akses ke lokasi itu.
+ * Jalur paket di berkas ini DIBUANG, tidak dibiarkan menganggur. Cabang yang
+ * tidak dipakai siapa pun tetap dipelihara, tetap ikut dibaca, dan suatu saat
+ * dipanggil lagi oleh orang yang mengira itu jalur resmi — sementara aturan
+ * sebenarnya sudah pindah ke tempat lain.
+ *
+ * Yang tinggal di sini justru yang tidak punya rumah lain: halaman lokasi tidak
+ * punya formulir penanda tangan kontrak, karena PPK dan pengawas memang urusan
+ * paket.
  */
 
 export type PelaksanaActionState = { error?: string; success?: string } | undefined;
 
-/** Sasaran penyimpanan: paket (bawaan) atau lokasi (penimpaan). */
-const SASARAN = ["paket", "lokasi"] as const;
-type Sasaran = (typeof SASARAN)[number];
-
 const skema = z.object({
-  sasaran: z.enum(SASARAN),
-  id: z.uuid("ID tidak valid"),
+  locationId: z.uuid("ID lokasi tidak valid"),
   nama: z.string().trim().max(150).optional(),
   jabatan: z.string().trim().max(120).optional(),
 });
@@ -52,49 +53,29 @@ export async function simpanPelaksana(
   formData: FormData,
 ): Promise<PelaksanaActionState> {
   const parsed = skema.safeParse({
-    sasaran: formData.get("sasaran"),
-    id: formData.get("id"),
+    locationId: formData.get("locationId"),
     nama: teks(formData.get("nama"), 150),
     jabatan: teks(formData.get("jabatan"), 120),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
-  const sasaran: Sasaran = d.sasaran;
 
-  /*
-   * Gerbang izin BERBEDA per sasaran, dan itu bukan formalitas: pelaksana
-   * paket berlaku untuk SEMUA lokasi di bawahnya, jadi ia setara mengubah
-   * penanda tangan kontrak. Penimpaan lokasi hanya menyentuh satu lokasi dan
-   * cukup dipegang yang mengelola lokasi itu.
-   */
-  const actor =
-    sasaran === "paket"
-      ? await requireCapability("contract.manage")
-      : await requireCapability("location.manage");
-  if (sasaran === "lokasi") await requireLocationAccess(actor, d.id);
+  // Penimpaan lokasi hanya menyentuh satu lokasi, jadi cukup dipegang yang
+  // mengelola lokasi itu — bukan pengelola kontrak.
+  const actor = await requireCapability("location.manage");
+  await requireLocationAccess(actor, d.locationId);
 
-  const paket =
-    sasaran === "paket"
-      ? await db.package.findFirst({
-          where: { id: d.id, orgId: actor.orgId },
-          select: { id: true, pelaksanaTtdKey: true, pelaksanaStempelKey: true },
-        })
-      : null;
-  const lokasi =
-    sasaran === "lokasi"
-      ? await db.location.findFirst({
-          where: { id: d.id, package: { orgId: actor.orgId } },
-          select: {
-            id: true,
-            packageId: true,
-            slug: true,
-            pelaksanaTtdKey: true,
-            pelaksanaStempelKey: true,
-          },
-        })
-      : null;
-  const sekarang = paket ?? lokasi;
-  if (!sekarang) return { error: "Data tidak ditemukan." };
+  const lokasi = await db.location.findFirst({
+    where: { id: d.locationId, package: { orgId: actor.orgId } },
+    select: {
+      id: true,
+      packageId: true,
+      slug: true,
+      pelaksanaTtdKey: true,
+      pelaksanaStempelKey: true,
+    },
+  });
+  if (!lokasi) return { error: "Lokasi tidak ditemukan." };
 
   const { isR2Configured, r2Put } = await import("@/lib/r2");
   const data: Record<string, string | null> = {
@@ -107,7 +88,7 @@ export async function simpanPelaksana(
     if (formData.get(`hapus_${medan}`) === "1") {
       // Berkas lama TIDAK dihapus dari R2: dokumen yang sudah tercetak memakai
       // gambar itu. Yang dilepas cuma kaitannya.
-      if (sekarang[medan] !== null) {
+      if (lokasi[medan] !== null) {
         data[medan] = null;
         berubah.push(`${LABEL[medan]} dilepas`);
       }
@@ -129,35 +110,25 @@ export async function simpanPelaksana(
       .resize(800, 800, { fit: "inside", withoutEnlargement: true })
       .webp({ quality: 92 })
       .toBuffer();
-    const key = `pelaksana/${sasaran}/${sekarang.id}/${medan}.webp`;
+    const key = `pelaksana/lokasi/${lokasi.id}/${medan}.webp`;
     await r2Put(key, buf, "image/webp");
     data[medan] = key;
     berubah.push(`${LABEL[medan]} diperbarui`);
   }
 
-  if (paket) {
-    await db.package.update({ where: { id: paket.id }, data });
-    await audit(actor.id, "paket.pelaksana", "package", paket.id, {
-      nama: d.nama ?? null,
-      jabatan: d.jabatan ?? null,
-      berkas: berubah,
-    });
-    revalidatePath(`/paket/${paket.id}`, "layout");
-  } else if (lokasi) {
-    await db.location.update({ where: { id: lokasi.id }, data });
-    await audit(actor.id, "lokasi.pelaksana", "location", lokasi.id, {
-      nama: d.nama ?? null,
-      jabatan: d.jabatan ?? null,
-      berkas: berubah,
-    });
-    revalidatePath(`/lokasi/${lokasi.slug}`, "layout");
-    revalidatePath(`/paket/${lokasi.packageId}`, "layout");
-  }
+  await db.location.update({ where: { id: lokasi.id }, data });
+  await audit(actor.id, "lokasi.pelaksana", "location", lokasi.id, {
+    nama: d.nama ?? null,
+    jabatan: d.jabatan ?? null,
+    berkas: berubah,
+  });
+  revalidatePath(`/lokasi/${lokasi.slug}`, "layout");
+  revalidatePath(`/paket/${lokasi.packageId}`, "layout");
 
   const ekor = berubah.length > 0 ? ` (${berubah.join(", ")})` : "";
   return {
     success: d.nama
-      ? `Pelaksana Lapangan disimpan: ${d.nama}${ekor}.`
-      : `Pelaksana Lapangan dikosongkan${ekor} – blok tanda tangan akan tercetak tanpa nama.`,
+      ? `Pelaksana Lapangan lokasi ini: ${d.nama}${ekor}.`
+      : `Penimpaan dilepas${ekor} – lokasi ini kembali mengikuti pelaksana paket.`,
   };
 }

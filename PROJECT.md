@@ -263,7 +263,12 @@ Lembar **kurva-S** ikut dokumen tempat ia berada, bukan isinya: di dalam laporan
 periodik ia halaman pertama LAPORAN (ikut jenis laporannya), sebagai Time
 Schedule berdiri sendiri ia dokumen JADWAL (Direktur). `ScurveKkpSheet` dan
 `addKurvaSheet` menuntut `jenis`. Rencana Mingguan belum diputuskan, tetap
-Direktur. DECISIONS 402/403.
+Direktur.
+
+Pelaksana tingkat paket diisi di formulir penanda tangan kontrak yang SAMA
+dengan PPK/pengawas/Direktur (nama + gambar TTD); penimpaan per lokasi punya
+formulir sendiri di halaman lokasi karena PPK & pengawas memang urusan paket.
+Logo/kop/stempel perusahaan tetap di master vendor. DECISIONS 402/403/404.
 
 ## 10. Scope yang sengaja ditunda
 

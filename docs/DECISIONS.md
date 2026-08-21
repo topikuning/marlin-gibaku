@@ -20606,3 +20606,76 @@ uji mingguan.
 Rencana Mingguan (`/cetak/rencana/…`) tetap diteken Direktur. Ia dokumen
 RENCANA, bukan laporan, dan tidak disebut dalam ketetapan mana pun — dibiarkan
 apa adanya sampai ada yang menyatakannya.
+
+---
+
+## 404 — Pelaksana Lapangan bukan warga istimewa: satu formulir dengan penanda tangan lain (2026-08-21)
+
+### Keberatan user
+
+> kamu terlalu mengistimewakan pelaksana di paket, jadikan saja satu form dengan
+> penginputan ppk pengawas dsb. lalu ttd juga jadikan satu form dengan inputan
+> logo dan ttd yg lain
+
+Benar. Saya memberinya kartu sendiri, formulir sendiri, dan server action
+sendiri — padahal ia satu pihak lagi yang namanya tercetak di blok tanda tangan,
+sama seperti PPK dan pengawas. Yang mengisi tidak memikirkan "urusan pelaksana";
+ia memikirkan satu hal: siapa saja yang meneken.
+
+### Yang berubah
+
+- **Nama & jabatan** masuk `SignatoryFields` bersama PPK, pengawas, dan Direktur.
+  Dipakai DUA formulir yang sama: konversi paket→kontrak dan edit penanda tangan.
+- **Tanda tangan & stempel** jadi kolom keempat di `TtdStempelForm`, sederet
+  dengan tiga pihak lain. Aturan ukuran, format, dan penamaan berkasnya sama
+  persis — dipakai bersama lewat satu penolong `olah()`.
+- **Kartu "Pelaksana Lapangan" berdiri sendiri di halaman paket DIBUANG.**
+- `lib/laporan/pelaksana-actions.ts` disempitkan jadi **lokasi saja**. Jalur
+  paketnya dibuang, tidak dibiarkan menganggur: cabang yang tak dipakai siapa
+  pun tetap dipelihara, tetap ikut dibaca, dan suatu saat dipanggil lagi oleh
+  orang yang mengira itu jalur resmi.
+
+Tempat simpannya TIDAK berubah — tetap `packages.pelaksana*` (DECISIONS 402).
+Yang disatukan formulirnya, bukan tabelnya. Karena itu keduanya ditulis dalam
+SATU transaksi: satu formulir yang menulis separuh lalu gagal meninggalkan blok
+tanda tangan setengah diperbarui, dan ketidakcocokannya baru terlihat pada
+kertas yang sudah dicetak.
+
+### Logo TIDAK ikut, dan alasannya
+
+User menyebut "inputan logo". Logo, kop surat, dan stempel perusahaan tinggal di
+**master perusahaan** (`Vendor.logoKey/kopKey/stempelKey`) — satu perusahaan,
+berlaku untuk SEMUA kontraknya. Memindahkannya ke formulir kontrak berarti
+mengunggah berkas yang sama berulang kali per paket, dan yang pertama terlewat
+adalah yang paling sering dicetak. Disebut di sini supaya keputusan ini terbaca
+sebagai pilihan, bukan kelupaan.
+
+### Cacat yang terjadi saat mengerjakannya — dan bagaimana ia ketahuan
+
+Sisipan `pelaksanaName` ke `safeParse` **tidak pernah masuk**: `.replace(…, 1)`
+saya mendarat di `convertToContract`, fungsi lain yang kebetulan punya baris
+identik, dan skripnya tidak memakai `assert`.
+
+Akibatnya aksinya melapor **"Penanda tangan kontrak diperbarui"** sambil menulis
+`null`. Bukan sekadar gagal menyimpan yang baru: ia **MENGHAPUS nama pelaksana
+yang sudah ada** setiap kali seseorang mengedit nama PPK.
+
+`pnpm typecheck`, `pnpm lint`, dan 1987 uji unit semuanya HIJAU. Yang
+membongkarnya cuma satu hal: mengisi formulirnya di peramban lalu membaca
+barisnya di basis data. Sukses palsu tidak bisa dibedakan dari sukses sungguhan
+dari mana pun kecuali dari hasilnya.
+
+Sisi baiknya, salah alamat itu menyingkap yang lain: formulir konversi
+paket→kontrak memakai `SignatoryFields` yang SAMA, jadi ia ikut mengirim medan
+pelaksana — dan zod membuangnya diam-diam karena `convertSchema` tidak
+mengenalnya. Sekarang ikut disimpan.
+
+### Uji
+
+`tests/integration/pelaksana-penandatangan.test.ts` bertambah tiga: nilai yang
+dikirim benar-benar mendarat; mengedit PPK tidak menghapus pelaksana yang ada;
+mengosongkan medan memang mengosongkan. Uji gigi: mencabut kembali sisipan
+`safeParse` memerahkan dua di antaranya.
+
+Diverifikasi ulang di peramban terhadap build produksi — formulir diisi lewat
+UI, nilainya bertahan sesudah simpan, dan barisnya ada di basis data.

@@ -22,6 +22,27 @@ vi.mock("next/headers", () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
+vi.mock("@/lib/auth/session", async (importAsli) => {
+  const asli = await importAsli<typeof import("@/lib/auth/session")>();
+  return {
+    ...asli,
+    requireUser: async () => penggunaUji(),
+    requireCapability: async () => penggunaUji(),
+    requireLocationAccess: async () => {},
+    requestIp: async () => null,
+  };
+});
+
+async function penggunaUji() {
+  return db.user.findUniqueOrThrow({
+    where: { id: userId },
+    select: {
+      id: true, orgId: true, username: true, email: true,
+      fullName: true, role: true, mustChangePassword: true,
+    },
+  });
+}
+
 const { db } = await import("@/lib/db");
 const { getKkpDailyData } = await import("@/lib/daily-report/queries");
 const { buildPeriodHeader, HEADER_LOCATION_SELECT } = await import("@/lib/periodic-report");
@@ -31,6 +52,7 @@ const suffix = `pl${Date.now().toString(36)}`;
 const slugPaket = `lok-paket-${suffix}`;
 const slugSendiri = `lok-sendiri-${suffix}`;
 let pkgId = "";
+let userId = "";
 
 const DIREKTUR = "Andi Prasetyo";
 const PELAKSANA_PAKET = "Joko Susilo";
@@ -50,6 +72,16 @@ beforeAll(async () => {
     },
   });
   pkgId = pkg.id;
+  const u = await db.user.create({
+    data: {
+      orgId: org.id,
+      username: `pm-${suffix}`,
+      fullName: "PM Uji",
+      role: "project_manager",
+      passwordHash: "x",
+    },
+  });
+  userId = u.id;
   await db.contract.create({
     data: {
       packageId: pkg.id,
@@ -216,5 +248,96 @@ describe("tanda tangan tidak dipinjam antar orang", () => {
     });
     const blok = pilihPelaksana(null, paket);
     expect(blok.ttdKey).toBe("ttd/paket.webp");
+  });
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * SATU FORMULIR, DUA TABEL (DECISIONS 404)
+ *
+ * Keberatan user: *"kamu terlalu mengistimewakan pelaksana di paket, jadikan
+ * saja satu form dengan penginputan ppk pengawas dsb."* Pelaksana lalu ikut
+ * `updateContractSignatories`, yang menulis `contracts` DAN `packages`.
+ *
+ * Uji ini ada karena cacatnya sudah terjadi sekali: sisipan ke `safeParse`
+ * tidak pernah masuk, jadi aksinya melapor **"Penanda tangan kontrak
+ * diperbarui"** sambil menulis `null` — sukses palsu yang MENGHAPUS nama yang
+ * sudah ada. Ketahuan hanya karena formulirnya benar-benar diisi lewat
+ * peramban; typecheck, lint, dan 1987 uji unit semuanya hijau.
+ * ──────────────────────────────────────────────────────────────────────────── */
+describe("formulir penanda tangan menulis pelaksana ke paket", () => {
+  it("menyimpan nama & jabatan Pelaksana bersama PPK/pengawas/direktur", async () => {
+    const { updateContractSignatories } = await import("@/lib/package/actions");
+    const kontrak = await db.contract.findFirstOrThrow({
+      where: { packageId: pkgId },
+      select: { id: true },
+    });
+
+    const f = new FormData();
+    f.set("contractId", kontrak.id);
+    f.set("ppkName", "Budi PPK");
+    f.set("supervisorName", "Rina Pengawas");
+    f.set("contractorSignerName", DIREKTUR);
+    f.set("contractorSignerTitle", "Direktur");
+    f.set("pelaksanaName", "Pelaksana Baru");
+    f.set("pelaksanaTitle", "Site Engineer");
+
+    const r = await updateContractSignatories(undefined, f);
+    expect(r?.error).toBeUndefined();
+
+    const p = await db.package.findUniqueOrThrow({
+      where: { id: pkgId },
+      select: { pelaksanaName: true, pelaksanaTitle: true },
+    });
+    expect(p.pelaksanaName).toBe("Pelaksana Baru");
+    expect(p.pelaksanaTitle).toBe("Site Engineer");
+  });
+
+  it("REGRESI: tidak melapor berhasil sambil menghapus nama yang ada", async () => {
+    /*
+     * Bentuk cacat aslinya. Medan pelaksana tetap DIKIRIM formulir, tapi tidak
+     * dibaca — hasilnya null tersimpan dan pesannya tetap "diperbarui". Yang
+     * dijaga di sini: nilai yang dikirim benar-benar mendarat.
+     */
+    const { updateContractSignatories } = await import("@/lib/package/actions");
+    const kontrak = await db.contract.findFirstOrThrow({
+      where: { packageId: pkgId },
+      select: { id: true },
+    });
+
+    await db.package.update({
+      where: { id: pkgId },
+      data: { pelaksanaName: "Sudah Ada", pelaksanaTitle: "Pelaksana Lapangan" },
+    });
+
+    const f = new FormData();
+    f.set("contractId", kontrak.id);
+    f.set("ppkName", "PPK diganti");
+    f.set("pelaksanaName", "Sudah Ada");
+    f.set("pelaksanaTitle", "Pelaksana Lapangan");
+    await updateContractSignatories(undefined, f);
+
+    const p = await db.package.findUniqueOrThrow({
+      where: { id: pkgId },
+      select: { pelaksanaName: true },
+    });
+    expect(p.pelaksanaName).toBe("Sudah Ada");
+  });
+
+  it("mengosongkan medan memang mengosongkan – bukan diam-diam", async () => {
+    const { updateContractSignatories } = await import("@/lib/package/actions");
+    const kontrak = await db.contract.findFirstOrThrow({
+      where: { packageId: pkgId },
+      select: { id: true },
+    });
+    const f = new FormData();
+    f.set("contractId", kontrak.id);
+    f.set("pelaksanaName", "");
+    await updateContractSignatories(undefined, f);
+
+    const p = await db.package.findUniqueOrThrow({
+      where: { id: pkgId },
+      select: { pelaksanaName: true },
+    });
+    expect(p.pelaksanaName).toBeNull();
   });
 });
