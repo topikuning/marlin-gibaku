@@ -20542,3 +20542,67 @@ keduanya SENGAJA dibiarkan memakai Direktur. Rencana mingguan khususnya bisa
 jadi memang milik pelaksana. Itu pertanyaan untuk user, bukan tebakan untuk
 saya — dan ditulis di sini supaya "belum diputuskan" tidak menyamar sebagai
 "sudah diputuskan".
+
+---
+
+## 403 — Kurva-S di DALAM laporan mingguan adalah laporan mingguan (2026-08-21)
+
+### Koreksi user
+
+> kurva s yang menyatu dalam laporan mingguan adalah laporan mingguan, jangan
+> campuradukkan dengan kurva s sebagai jadwal. intinya laporan mingguan ttd
+> pelaksana
+
+Saya menutup DECISIONS 402 dengan menyebut ini "perlu keputusan user", dan pada
+satu sisi itu benar — Time Schedule memang tidak ada di daftar. Tapi saya
+menariknya terlalu jauh: lembar kurva-S yang tercetak DI DALAM laporan mingguan
+bukan dokumen jadwal, ia halaman pertama laporannya. Yang saya sebut "dua
+penanda tangan pada satu berkas" bukan pertanyaan terbuka melainkan cacat yang
+sudah punya jawaban di ketetapan sebelumnya.
+
+### Perbedaan yang menentukan
+
+Satu komponen lembar kurva-S dipakai DUA dokumen berbeda:
+
+| Dokumen | Lembar kurva-S di dalamnya | Penanda tangan |
+|---|---|---|
+| Laporan periodik (`/cetak/periodik/…`, sheet "Kurva S" di workbook laporan) | halaman pertama laporan | **ikut jenis laporannya** |
+| Time Schedule berdiri sendiri (`/cetak/jadwal/…`, `buildJadwalXlsx`) | dokumen itu sendiri | Direktur |
+
+Jadi lembar yang sama berpindah penanda tangan menurut dokumen tempat ia berada.
+Itu tidak bisa disimpulkan dari isi lembarnya — hanya pemanggilnya yang tahu.
+
+### Yang berubah
+
+`ScurveKkpSheet` dan `addKurvaSheet` sekarang menuntut `jenis`. Wajib, bukan
+opsional dengan bawaan: bawaan apa pun akan salah untuk separuh pemanggil, dan
+salahnya diam — lembar tercetak rapi dengan nama orang yang tidak membuatnya.
+Empat pemanggil disebutkan `tsc` satu per satu dan masing-masing menyatakan
+dokumen apa yang sedang ia susun.
+
+### Diverifikasi di aplikasi berjalan
+
+Build produksi, lokasi Batah Timur dengan penimpaan pelaksana lokasi aktif:
+
+| Halaman cetak | Blok kurva-S | Blok rincian |
+|---|---|---|
+| periodik/mingguan | Sari Handayani, Site Manager | Sari Handayani, Site Manager |
+| periodik/bulanan | Hendra Gunawan, Direktur Utama | Hendra Gunawan, Direktur Utama |
+| jadwal (Time Schedule) | Hendra Gunawan, Direktur Utama | – |
+
+### Uji
+
+`tests/unit/xlsx-kkp-sheet.test.ts` diperluas: sheet "Kurva S" ikut diperiksa
+pada laporan mingguan DAN bulanan, ditambah uji `buildJadwalXlsx` yang menuntut
+Time Schedule berdiri sendiri tetap Direktur. Sisi terakhir itu yang membuat
+ujinya berarti — tanpa ia, "ikut laporan" bisa hijau hanya karena semuanya ikut
+pelaksana.
+
+Uji gigi: mengembalikan sheet "Kurva S" laporan ke `jenis: "jadwal"` memerahkan
+uji mingguan.
+
+### Yang masih terbuka
+
+Rencana Mingguan (`/cetak/rencana/…`) tetap diteken Direktur. Ia dokumen
+RENCANA, bukan laporan, dan tidak disebut dalam ketetapan mana pun — dibiarkan
+apa adanya sampai ada yang menyatakannya.

@@ -257,8 +257,13 @@ dokumen supaya tiap pemanggil menyatakan yang ia cetak. Pelaksana disimpan di
 `Package.pelaksana*` dan boleh ditimpa `Location.pelaksana*` — diambil sebagai
 SATU BLOK (nama menentukan), jadi tanda tangan tidak pernah dipinjam antar
 orang. Yang kosong dicetak sebagai baris kosong + peringatan di layar, TIDAK
-jatuh ke Direktur. Time Schedule & Rencana Mingguan belum diputuskan, tetap
-Direktur. DECISIONS 402.
+jatuh ke Direktur.
+
+Lembar **kurva-S** ikut dokumen tempat ia berada, bukan isinya: di dalam laporan
+periodik ia halaman pertama LAPORAN (ikut jenis laporannya), sebagai Time
+Schedule berdiri sendiri ia dokumen JADWAL (Direktur). `ScurveKkpSheet` dan
+`addKurvaSheet` menuntut `jenis`. Rencana Mingguan belum diputuskan, tetap
+Direktur. DECISIONS 402/403.
 
 ## 10. Scope yang sengaja ditunda
 

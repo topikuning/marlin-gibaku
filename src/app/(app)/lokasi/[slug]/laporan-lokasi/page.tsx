@@ -181,7 +181,7 @@ export default async function LaporanLokasiPage({
                   />
                   {/* Hal-1: KURVA S (grafik) */}
                   <div className="overflow-x-auto rounded-md border border-border bg-white p-4">
-                    <ScurveKkpSheet r={report} />
+                    <ScurveKkpSheet r={report} jenis={report.kind} />
                   </div>
                   {/* Hal-2+: tabel detail item */}
                   <div className="overflow-x-auto rounded-md border border-border bg-white p-4">

@@ -1,4 +1,5 @@
 import { buildKurvaSheet } from "@/lib/scurve/kkp-sheet";
+import { penyediaLaporan, type JenisDokumen } from "@/lib/laporan/penandatangan";
 import { formatRupiah, formatTanggal } from "@/lib/format";
 import type { PeriodReport } from "@/lib/periodic-report";
 import { RuangTtd, gambarPihak, type TtdLaporan } from "./blok-ttd";
@@ -26,8 +27,23 @@ export function ScurveKkpSheet({
   titleOverride,
   periodeOverride,
   ttd,
+  jenis,
 }: {
   r: PeriodReport;
+  /**
+   * Dokumen apa lembar ini bagian darinya (DECISIONS 402/403).
+   *
+   * WAJIB, karena lembar kurva-S yang sama muncul di dua dokumen berbeda:
+   * sebagai **bagian laporan periodik** (ikut jenis laporannya – mingguan
+   * diteken Pelaksana) dan sebagai **Time Schedule berdiri sendiri** (dokumen
+   * jadwal, diteken Direktur). Ketetapan user 2026-08-21: *"kurva s yang
+   * menyatu dalam laporan mingguan adalah laporan mingguan, jangan
+   * campuradukkan dengan kurva s sebagai jadwal."*
+   *
+   * Kompiler yang menagih, supaya tidak ada pemanggil yang diam-diam memakai
+   * bawaan yang salah.
+   */
+  jenis: JenisDokumen;
   /** Judul dokumen (default: "KURVA S MINGGU/BULAN KE-N"). Utk dokumen jadwal berdiri sendiri. */
   titleOverride?: string;
   /** Rentang periode di subjudul (default: periode laporan). Utk jadwal = seluruh masa kontrak. */
@@ -35,6 +51,7 @@ export function ScurveKkpSheet({
   /** Gambar tanda tangan & stempel; null = ruang kosong utk tanda tangan pena. */
   ttd?: TtdLaporan | null;
 }) {
+  const penyedia = penyediaLaporan(jenis, r.header);
   const sheet = buildKurvaSheet({
     categories: r.kurvaSchedule,
     totalWeeks: r.totalWeeks,
@@ -255,8 +272,8 @@ export function ScurveKkpSheet({
         <SignBlock
           title="DIBUAT OLEH :"
           role={`PENYEDIA JASA – ${hdr.vendorName}`}
-          name={hdr.contractorSignerName}
-          sub={hdr.contractorSignerTitle}
+          name={penyedia.nama}
+          sub={penyedia.sub}
           {...gambarPihak(ttd, "penyedia")}
         />
       </div>

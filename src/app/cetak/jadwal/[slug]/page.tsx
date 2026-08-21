@@ -47,6 +47,7 @@ export default async function CetakJadwalPage({
             </p>
           ) : null}
           <ScurveKkpSheet
+            jenis="jadwal"
             ttd={ttd}
             r={report}
             titleOverride="TIME SCHEDULE (KURVA S) – RENCANA & REALISASI"
