@@ -19824,6 +19824,23 @@ Keduanya cacat PENYAMBUNGAN, bukan cacat aturan — dan uji unit maupun uji
 service tidak menyentuh dari mana komponen mengambil datanya. Yang menangkapnya
 cuma menjalankan aplikasinya.
 
+### Pintu masuknya KARTU, bukan tombol sekunder
+
+Keluhan lanjutan user: *"tombol hari ini tidak ada kegiatan kurang
+standout/menonjol"*. Versi pertamanya tombol abu-abu seukuran "Tambah material"
+dan "Tambah alat" — jadi jalan keluar SATU-SATUNYA untuk hari kosong tampak
+setara dengan pelengkap opsional.
+
+Yang bahaya bukan estetikanya: orang lapangan yang tidak menemukannya akan
+memilih jalan yang sudah ia tahu, yaitu **tidak melapor sama sekali** — dan
+seluruh gunanya fitur ini hilang.
+
+Sekarang kartu bergaris putus-putus dengan ikon, judul tebal, satu kalimat
+sebab, dan tombol utama. Garis putus-putus disengaja: ia menandai JALUR
+ALTERNATIF. Formulir item tetap yang menonjol karena hari berkegiatan memang
+jauh lebih sering — yang salah bukan urutannya, melainkan bahwa pilihan keduanya
+nyaris tak terlihat.
+
 ### Yang TIDAK dilakukan
 
 - **Bukan** status baru di mesin transisi. Alurnya tetap draft → dikirim →

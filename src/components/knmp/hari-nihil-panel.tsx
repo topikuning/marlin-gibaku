@@ -5,6 +5,7 @@ import { Banner, Button, Combobox, Input, Label } from "@/components/ui";
 import { createIssue, type IssueActionState } from "@/lib/issues";
 import { setHariNihilAction, type DailyActionState } from "@/lib/daily-report/actions";
 import { ALASAN_NIHIL, LABEL_ALASAN_NIHIL } from "@/lib/daily-report/nihil";
+import { CalendarOff } from "lucide-react";
 import type { NoActivityReason } from "@/generated/prisma/enums";
 
 /**
@@ -68,10 +69,37 @@ export function HariNihilPanel({
   }
 
   if (!buka) {
+    /*
+     * KARTU, bukan tombol sekunder kecil.
+     *
+     * Keluhan user 2026-08-20: *"tombol hari ini tidak ada kegiatan kurang
+     * standout/menonjol"*. Versi pertamanya adalah tombol abu-abu seukuran
+     * "Tambah material" dan "Tambah alat" — jadi jalan keluar SATU-SATUNYA
+     * untuk hari kosong tampak setara dengan pelengkap opsional, dan orang
+     * lapangan yang tidak menemukannya akan memilih jalan yang sudah ia tahu:
+     * tidak melapor sama sekali.
+     *
+     * Garis putus-putus dipilih dengan sengaja: ia menandai JALUR ALTERNATIF,
+     * bukan tindakan utama. Formulir item tetap yang menonjol karena hari
+     * berkegiatan memang jauh lebih sering — yang salah bukan urutannya,
+     * melainkan bahwa pilihan keduanya nyaris tak terlihat.
+     */
     return (
-      <Button size="sm" variant="secondary" onClick={() => setBuka(true)}>
-        Hari ini tidak ada kegiatan
-      </Button>
+      <div className="rounded-lg border-2 border-dashed border-border bg-surface-muted p-4">
+        <div className="flex items-start gap-3">
+          <CalendarOff aria-hidden className="mt-0.5 size-5 shrink-0 text-ink-muted" />
+          <div className="min-w-0 flex-1">
+            <p className="text-[15px] font-semibold text-ink">Hari ini tidak ada kegiatan?</p>
+            <p className="mt-0.5 text-[13px] leading-snug text-ink-muted">
+              Hujan, libur, atau menunggu material/lahan – tetap harus dilaporkan. Sebabnya dicatat
+              supaya hari hujan bisa dihitung untuk klaim perpanjangan waktu.
+            </p>
+            <Button className="mt-3 w-full sm:w-auto" onClick={() => setBuka(true)}>
+              Nyatakan tidak ada kegiatan
+            </Button>
+          </div>
+        </div>
+      </div>
     );
   }
 
