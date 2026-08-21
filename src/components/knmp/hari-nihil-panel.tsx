@@ -21,14 +21,14 @@ import type { NoActivityReason } from "@/generated/prisma/enums";
  * yang saling menyangkal – dan penjaganya di server memang akan menolak.
  */
 export function HariNihilPanel({
-  reportId,
   locationId,
+  dateKey,
   nihil,
   alasan,
   catatan,
 }: {
-  reportId: string;
   locationId: string;
+  dateKey: string;
   nihil: boolean;
   alasan: NoActivityReason | null;
   catatan: string | null;
@@ -55,7 +55,8 @@ export function HariNihilPanel({
           <UsulKendala judul={state.usulKendala} locationId={state.usulLokasiId ?? locationId} />
         ) : null}
         <form action={action}>
-          <input type="hidden" name="reportId" value={reportId} />
+          <input type="hidden" name="locationId" value={locationId} />
+          <input type="hidden" name="dateKey" value={dateKey} />
           <input type="hidden" name="nihil" value="0" />
           <Button size="sm" variant="secondary" type="submit" loading={pending}>
             Batalkan – ternyata ada kegiatan
@@ -77,7 +78,8 @@ export function HariNihilPanel({
   return (
     <form action={action} className="space-y-2 rounded-md border border-border bg-surface-muted p-3">
       {state?.error ? <Banner tone="error" title={state.error} /> : null}
-      <input type="hidden" name="reportId" value={reportId} />
+      <input type="hidden" name="locationId" value={locationId} />
+      <input type="hidden" name="dateKey" value={dateKey} />
       <input type="hidden" name="nihil" value="1" />
       <p className="text-sm font-medium text-ink">Hari ini tidak ada kegiatan</p>
       <div>

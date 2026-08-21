@@ -19804,6 +19804,26 @@ apa pun, karena seluruh fixture memang sudah berstatus `dikirim`. Ditambah uji
 yang benar-benar memuat hari draft di tengah. Ini kali keempat dalam sesi ini
 sebuah uji terlihat kuat padahal tidak; dicatat apa adanya.
 
+### DUA cacat yang hanya ketahuan dengan menjajal aplikasinya
+
+Pertanyaan user *"cara buat laporan kosong bagaimana?"* membuat saya menjalankan
+alurnya sendiri lewat Chromium, bukan membaca kode. Keduanya melumpuhkan fitur
+ini sepenuhnya, dan **tidak satu pun uji menangkapnya**:
+
+1. **Panelnya tidak pernah muncul.** Draft laporan baru lahir ketika item
+   pertama disimpan — jadi hari yang benar-benar tanpa kegiatan TIDAK punya
+   draft, `reportId` null, dan panel yang saya gantungkan padanya tidak
+   dirender. Fiturnya mustahil dipakai justru di hari yang membutuhkannya.
+   Aksinya sekarang memakai lokasi + tanggal dan MEMBUAT draftnya sendiri.
+
+2. **Tidak ada tombol Kirim.** `SubmitPanel` digantung pada `items.length > 0`,
+   dan hari nihil memang tidak punya item. Seluruh fitur berhenti di draft dan
+   tidak pernah sampai ke pemeriksa.
+
+Keduanya cacat PENYAMBUNGAN, bukan cacat aturan — dan uji unit maupun uji
+service tidak menyentuh dari mana komponen mengambil datanya. Yang menangkapnya
+cuma menjalankan aplikasinya.
+
 ### Yang TIDAK dilakukan
 
 - **Bukan** status baru di mesin transisi. Alurnya tetap draft → dikirim →

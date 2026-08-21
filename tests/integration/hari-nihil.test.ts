@@ -21,6 +21,27 @@ vi.mock("next/headers", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("next/server", () => ({ after: (fn: () => void) => fn() }));
 
+vi.mock("@/lib/auth/session", async (importAsli) => {
+  const asli = await importAsli<typeof import("@/lib/auth/session")>();
+  return {
+    ...asli,
+    requireUser: async () => penggunaUji(),
+    requireCapability: async () => penggunaUji(),
+    requireLocationAccess: async () => {},
+    requestIp: async () => null,
+  };
+});
+
+async function penggunaUji() {
+  return db.user.findUniqueOrThrow({
+    where: { id: userId },
+    select: {
+      id: true, orgId: true, username: true, email: true,
+      fullName: true, role: true, mustChangePassword: true,
+    },
+  });
+}
+
 const terkirim: { chatId: string; teks: string }[] = [];
 vi.mock("@/lib/waha/kirim", () => ({
   sendText: async (chatId: string, teks: string) => {
@@ -32,6 +53,7 @@ vi.mock("@/lib/waha/kirim", () => ({
 const { db } = await import("@/lib/db");
 const { getOrCreateDraft, submitReport, setHariNihil } = await import("@/lib/daily-report/service");
 const { kirimPengingatNihilTerjadwal } = await import("@/lib/daily-report/penjadwal-nihil");
+const { setHariNihilAction } = await import("@/lib/daily-report/actions");
 
 const suffix = `hn${Date.now().toString(36)}`;
 let locationId = "";
@@ -157,6 +179,39 @@ describe("mengirim laporan hari nihil", () => {
     expect(t.noActivity).toBe(false);
     expect(t.noActivityReason).toBeNull();
     expect(t.noActivityNote).toBeNull();
+  });
+});
+
+describe("REGRESI: hari kosong belum punya draft sama sekali", () => {
+  it("menyatakan nihil MEMBUAT draftnya sendiri", async () => {
+    /*
+     * Ketahuan 2026-08-20 saat menjajal alurnya di aplikasi yang berjalan:
+     * draft laporan baru lahir ketika item pertama disimpan, jadi hari yang
+     * benar-benar tanpa kegiatan TIDAK punya draft — dan aksi yang menuntut
+     * `reportId` membuat fiturnya mustahil dipakai justru di hari yang
+     * membutuhkannya.
+     *
+     * Uji unit tidak akan pernah menangkap ini: yang salah bukan aturannya,
+     * melainkan dari mana aksinya mengambil laporannya.
+     */
+    const tanggal = "2026-08-09";
+    expect(
+      await db.dailyReport.findFirst({ where: { locationId, reportDate: new Date(tanggal) } }),
+    ).toBeNull();
+
+    const fd = new FormData();
+    fd.set("locationId", locationId);
+    fd.set("dateKey", tanggal);
+    fd.set("nihil", "1");
+    fd.set("alasan", "hujan");
+    const r = await setHariNihilAction(undefined, fd);
+    expect(r?.error).toBeUndefined();
+
+    const dibuat = await db.dailyReport.findFirstOrThrow({
+      where: { locationId, reportDate: new Date(tanggal) },
+    });
+    expect(dibuat.noActivity).toBe(true);
+    expect(dibuat.noActivityReason).toBe("hujan");
   });
 });
 

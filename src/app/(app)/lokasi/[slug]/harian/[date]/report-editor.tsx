@@ -106,10 +106,10 @@ export function ReportEditor({
         samping pekerjaan yang sudah tercatat cuma mengundang orang mencentang
         dua pernyataan yang saling menyangkal. DECISIONS 396.
       */}
-      {reportId && (nihil.aktif || items.length === 0) ? (
+      {nihil.aktif || items.length === 0 ? (
         <HariNihilPanel
-          reportId={reportId}
           locationId={locationId}
+          dateKey={dateKey}
           nihil={nihil.aktif}
           alasan={nihil.alasan}
           catatan={nihil.catatan}
@@ -158,13 +158,21 @@ export function ReportEditor({
           </div>
         </section>
       ) : null}
-      {reportId && items.length > 0 ? (
+      {/*
+        Hari yang DINYATAKAN nihil juga harus bisa dikirim — kalau tidak, seluruh
+        fitur hari-nihil berhenti di draft dan tidak pernah sampai ke pemeriksa.
+        Ketahuan 2026-08-20 saat menjajal alurnya di aplikasi yang berjalan:
+        tombol Kirim digantung pada `items.length > 0`, dan hari nihil memang
+        tidak punya item. DECISIONS 396.
+      */}
+      {reportId && (items.length > 0 || nihil.aktif) ? (
         <SubmitPanel
           reportId={reportId}
           slug={slug}
           dateKey={dateKey}
           jumlahItem={items.length}
           jumlahFoto={items.reduce((n, it) => n + it.photos.length, 0)}
+          nihil={nihil.aktif}
         />
       ) : null}
     </div>
@@ -911,12 +919,15 @@ function SubmitPanel({
   slug,
   dateKey,
   jumlahItem,
+  nihil,
   jumlahFoto,
 }: {
   reportId: string;
   slug: string;
   dateKey: string;
   jumlahItem: number;
+  /** Hari dinyatakan tanpa kegiatan — ringkasannya berbeda. */
+  nihil?: boolean;
   jumlahFoto: number;
 }) {
   const [state, formAction, pending] = useActionState<DailyActionState, FormData>(kirimLaporan, undefined);
@@ -978,7 +989,9 @@ function SubmitPanel({
                   {/* Ringkasan sebelum berpisah dari laporan: angka yang paling
                       sering baru disadari salah SESUDAH terkirim. */}
                   <p className="mt-0.5 text-xs text-ink-muted">
-                    {jumlahItem} item pekerjaan · {jumlahFoto} foto
+                    {nihil
+                      ? "Hari ini dinyatakan TIDAK ADA KEGIATAN"
+                      : `${jumlahItem} item pekerjaan · ${jumlahFoto} foto`}
                   </p>
                 </div>
                 <button

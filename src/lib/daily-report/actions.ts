@@ -1232,7 +1232,15 @@ export async function addIssueAction(_prev: DailyActionState, formData: FormData
 }
 
 const hariNihilSchema = z.object({
-  reportId: z.uuid(),
+  /*
+   * Lokasi + tanggal, BUKAN reportId.
+   *
+   * Hari yang benar-benar tanpa kegiatan belum punya draft sama sekali — draft
+   * baru lahir saat item pertama disimpan. Menuntut `reportId` membuat fitur
+   * ini mustahil dipakai justru di hari yang membutuhkannya. DECISIONS 396.
+   */
+  locationId: z.uuid(),
+  dateKey: z.iso.date("Tanggal tidak valid"),
   nihil: z.boolean(),
   alasan: z.enum(ALASAN_NIHIL).optional(),
   catatan: z.string().trim().max(500).optional(),
@@ -1254,15 +1262,19 @@ export async function setHariNihilAction(
   try {
     const user = await requireCapability("daily_report.create");
     const parsed = hariNihilSchema.safeParse({
-      reportId: formData.get("reportId"),
+      locationId: formData.get("locationId"),
+      dateKey: formData.get("dateKey"),
       nihil: String(formData.get("nihil") ?? "") === "1",
       alasan: String(formData.get("alasan") ?? "").trim() || undefined,
       catatan: String(formData.get("catatan") ?? "").trim() || undefined,
     });
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const d = parsed.data;
-    const ctx = await loadReportContext(d.reportId);
-    await requireLocationAccess(user, ctx.locationId);
+    await requireLocationAccess(user, d.locationId);
+    // Draft dibuat kalau belum ada — inilah jalur yang membuat hari kosong
+    // bisa dilaporkan sama sekali.
+    const report = await getOrCreateDraft(d.locationId, d.dateKey, user.id);
+    const ctx = await loadReportContext(report.id);
 
     await setHariNihil(
       ctx.id,
