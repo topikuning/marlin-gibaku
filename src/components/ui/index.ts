@@ -51,3 +51,6 @@ export {
   type DeviationTone,
 } from "./stat-delta";
 export { MenuBerkas, type PilihanBerkas } from "./menu-berkas";
+export { TautanUnduh, useUnduhBerkas } from "./unduh";
+export { useAksiKlik } from "./aksi";
+export { FormSaring, TombolKirim, TombolSaring } from "./tombol-kirim";

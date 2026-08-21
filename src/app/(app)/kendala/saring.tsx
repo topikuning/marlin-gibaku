@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Button, Combobox, Input, Label } from "@/components/ui";
 
 /**
@@ -20,12 +20,19 @@ export function SaringKendala({
   const router = useRouter();
   const sp = useSearchParams();
   const [cari, setCari] = useState(nilai.cari ?? "");
+  /*
+   * Perpindahannya di dalam Transition supaya ada yang bisa DITANDAI
+   * (DECISIONS 401). Papan kendala membaca seluruh lokasi yang boleh dilihat
+   * pemakai; tanpa penanda, menyaring terasa seperti klik yang tidak diterima
+   * dan orang menekan berkali-kali.
+   */
+  const [menyaring, mulai] = useTransition();
 
   const ubah = (kunci: string, v: string) => {
     const q = new URLSearchParams(sp.toString());
     if (v) q.set(kunci, v);
     else q.delete(kunci);
-    router.push(`/kendala?${q.toString()}`);
+    mulai(() => router.push(`/kendala?${q.toString()}`));
   };
 
   return (
@@ -97,8 +104,8 @@ export function SaringKendala({
             className="w-44"
           />
         </div>
-        <Button type="submit" size="sm" variant="secondary">
-          Cari
+        <Button type="submit" size="sm" variant="secondary" loading={menyaring}>
+          {menyaring ? "Menyaring…" : "Cari"}
         </Button>
       </form>
     </div>

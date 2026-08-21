@@ -288,7 +288,13 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
           title="Isi draft dari file Excel"
           subtitle="Ganti seluruh isi draft dengan file adendum. RAB aktif, progres, kurva-S, dan keuangan tidak tersentuh."
           action={
-            <ButtonLink href={`/lokasi/${slug}/rab/adendum/template`} variant="secondary" size="sm" unduhan>
+            <ButtonLink
+              href={`/lokasi/${slug}/rab/adendum/template`}
+              variant="secondary"
+              size="sm"
+              unduhan
+              labelSibuk="Menyiapkan template…"
+            >
               <Download aria-hidden className="size-3.5" />
               Unduh template adendum
             </ButtonLink>
@@ -328,7 +334,13 @@ export default async function AdendumPage({ params }: { params: Promise<{ slug: 
               {/* Dokumen pengajuan CCO format KKP (DECISIONS 236). Butuh RAB
                   aktif DAN draft sekaligus — MC-0 vs CCO-01 — jadi tombolnya
                   hanya masuk akal di kartu draft ini. */}
-              <ButtonLink href={`/lokasi/${slug}/rab/adendum/cco`} variant="secondary" size="sm" unduhan>
+              <ButtonLink
+                href={`/lokasi/${slug}/rab/adendum/cco`}
+                variant="secondary"
+                size="sm"
+                unduhan
+                labelSibuk="Menyiapkan CCO…"
+              >
                 <FileSpreadsheet aria-hidden className="size-3.5" />
                 Unduh CCO (format KKP)
               </ButtonLink>

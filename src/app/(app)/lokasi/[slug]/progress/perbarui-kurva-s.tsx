@@ -148,6 +148,7 @@ export function PerbaruiKurvaS({
             <ButtonLink
               href={`/lokasi/${slug}/jadwal/export`}
               unduhan
+              labelSibuk="Menyiapkan template…"
               size="sm"
               onClick={() => setSudahUnduh(true)}
             >

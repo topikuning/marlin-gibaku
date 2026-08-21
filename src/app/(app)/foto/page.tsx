@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Camera, ChevronLeft, ChevronRight, ImageOff } from "lucide-react";
-import { PageHeader, KpiCard, Card, EmptyState, Combobox, Button } from "@/components/ui";
+import { PageHeader, KpiCard, Card, EmptyState, Combobox, FormSaring, TombolSaring } from "@/components/ui";
 import { requireUser, accessibleLocationIds } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { can } from "@/lib/authz";
@@ -94,7 +94,7 @@ export default async function FotoLapanganPage({ searchParams }: { searchParams:
       </div>
 
       {/* Filter */}
-      <form method="get" action="/foto" className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-surface p-2.5 shadow-sm">
+      <FormSaring className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-surface p-2.5 shadow-sm">
         <div className="w-52">
           <Combobox name="lokasi" defaultValue={filters.locationId ?? ""} placeholder="Semua Lokasi">
             <option value="">Semua Lokasi</option>
@@ -119,8 +119,8 @@ export default async function FotoLapanganPage({ searchParams }: { searchParams:
           </Combobox>
         </div>
         <input name="q" defaultValue={filters.q ?? ""} placeholder="Cari caption / lokasi / pelapor…" className={`${SELECT} min-w-52 flex-1`} />
-        <Button type="submit">Terapkan</Button>
-      </form>
+        <TombolSaring>Terapkan</TombolSaring>
+      </FormSaring>
 
       {/* Chip cepat */}
       <div className="flex flex-wrap gap-2">

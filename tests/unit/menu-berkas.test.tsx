@@ -18,7 +18,12 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MenuBerkas, type PilihanBerkas } from "@/components/ui/menu-berkas";
 
-const UNDUH: PilihanBerkas = { label: "Unduh PDF", href: "/api/x.pdf" };
+const UNDUH: PilihanBerkas = {
+  label: "Unduh PDF",
+  href: "/api/x.pdf",
+  jenis: "berkas",
+  labelSibuk: "Menyiapkan PDF…",
+};
 
 function kirim(loading: boolean): PilihanBerkas {
   return {
@@ -117,5 +122,49 @@ describe("MenuBerkas – penjaga tipe", () => {
     // @ts-expect-error — aksi tanpa `loading`/`labelSibuk` harus ditolak.
     const tanpaSibuk: PilihanBerkas = { label: "Kirim ke WhatsApp", onSelect: () => {} };
     expect(tanpaSibuk.label).toBe("Kirim ke WhatsApp");
+  });
+
+  it("TAUTAN pun tidak bisa ditulis tanpa menyatakan jenisnya", () => {
+    /*
+     * Ini pagar yang HILANG pada DECISIONS 360, dan karena itu keluhan yang
+     * sama datang lagi 2026-08-21 (DECISIONS 400). Tipe lama membolehkan
+     * `{ label, href }` polos — dan menuliskan `labelSibuk?: never`, yaitu
+     * MELARANG tautan punya penanda sibuk. Yang diukur kemudian: unduh PDF
+     * mingguan 4,1 detik dengan layar diam sepenuhnya.
+     */
+    // @ts-expect-error — tautan tanpa `jenis` harus ditolak.
+    const tanpaJenis: PilihanBerkas = { label: "Unduh", href: "/api/x.pdf" };
+    expect(tanpaJenis.label).toBe("Unduh");
+  });
+
+  it("tautan berkas tidak bisa ditulis tanpa `labelSibuk`", () => {
+    // @ts-expect-error — `jenis: "berkas"` mewajibkan kata kerja selagi sibuk.
+    const tanpaLabel: PilihanBerkas = { label: "Unduh", href: "/api/x.pdf", jenis: "berkas" };
+    expect(tanpaLabel.label).toBe("Unduh");
+  });
+});
+
+describe("MenuBerkas – tautan berkas vs tautan halaman", () => {
+  const BUKA: PilihanBerkas = {
+    label: "Buka untuk dicetak",
+    href: "/cetak/x",
+    jenis: "tab",
+  };
+
+  it("tautan BERKAS tidak dibuka di tab baru – klik-nya diambil alih", () => {
+    /*
+     * `target="_blank"` pada berkas adalah sumber "tidak terjadi apa-apa":
+     * tab kosong terbuka di belakang, server bekerja empat detik, dan halaman
+     * tempat orang menekan tetap diam. Berkasnya sekarang dijemput di halaman
+     * ini juga, jadi penanda sibuknya punya tempat untuk terlihat.
+     */
+    const m = render(<MenuBerkas label="Laporan" pilihan={[UNDUH]} />);
+    expect(m).toContain('href="/api/x.pdf"');
+    expect(m).not.toContain('target="_blank"');
+  });
+
+  it("tautan HALAMAN tetap dibuka di tab baru", () => {
+    const m = render(<MenuBerkas label="Laporan" pilihan={[BUKA]} />);
+    expect(m).toContain('target="_blank"');
   });
 });

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useState } from "react";
-import { Badge, Banner, Button, Card, CardBody, CardHeader, Combobox } from "@/components/ui";
+import { Badge, Banner, Button, Card, CardBody, CardHeader, Combobox, TautanUnduh } from "@/components/ui";
 import {
   distributeArtifactAction,
   editArtifactAction,
@@ -176,9 +176,13 @@ function ArtifactCard({
           <Link href={`/cetak/ai/${a.id}`} target="_blank" className="text-xs text-primary hover:underline">
             Pratinjau / Cetak (PDF) →
           </Link>
-          <a href={`/api/ai-artifact/${a.id}/excel`} className="text-xs text-primary hover:underline">
+          <TautanUnduh
+            href={`/api/ai-artifact/${a.id}/excel`}
+            labelSibuk="Menyiapkan Excel…"
+            className="text-xs text-primary hover:underline"
+          >
             Unduh Excel →
-          </a>
+          </TautanUnduh>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

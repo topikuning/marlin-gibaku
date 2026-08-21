@@ -71,11 +71,18 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
 
 ## Fitur ditunda sadar (lihat docs/rebuild/REBUILD_PLAN.md)
 
-- 🟡 **PWA offline penuh** — sekarang: draft lokal (localStorage) + submit idempotent,
-  DAN antrean foto di IndexedDB yang bertahan melewati muat ulang (DECISIONS 257).
-  Yang masih kurang: tanpa service worker, halaman TIDAK bisa DIBUKA dari nol saat
-  benar-benar offline — foto yang sudah dijepret selamat, tapi aplikasinya sendiri
-  perlu sekali terbuka lebih dulu. Belum ada manifest installable/background sync.
+- 🟡 **Offline di luar `/foto-cepat`** — sekarang: draft lokal (localStorage) + submit
+  idempotent, antrean foto di IndexedDB yang bertahan melewati muat ulang
+  (DECISIONS 257), manifest installable, DAN service worker yang membuat
+  `/foto-cepat` bisa DIBUKA dari nol tanpa sinyal (dengan banner "dari simpanan")
+  sementara halaman lain jatuh ke `/offline` (DECISIONS 398). Halamannya
+  disiapkan otomatis tiap aplikasi dibuka, jadi mode pesawat tidak menuntut
+  Foto Cepat pernah dibuka lebih dulu (DECISIONS 399).
+  Yang masih kurang: menu lain belum bisa dibuka luring (sadar — HTML ber-sesi yang
+  menetap di HP adalah risiko, dan halaman lain tidak bisa ditindaklanjuti tanpa
+  jaringan), background sync/unggah setelah aplikasi ditutup, dan push notification.
+  Dua yang terakhir menuntut cangkang native (Capacitor/TWA), bukan peramban —
+  lihat DECISIONS 398 untuk kenapa aplikasi Android penuh ditolak.
 - 🟢 PR/PO/receiving granular (kini direpresentasikan Commitment+Expense).
 - 🟢 Intake WA-text mandor (model lama SuggestionSource tidak dibawa).
 - 🟢 Cash forecast otomatis dari baseline (fungsi `cashRequirement` ada; UI input
@@ -99,6 +106,18 @@ anti-double-input jadi constraint DB, keuangan transaksional, zod di boundary ba
   (pengecualian terdokumentasi di OPEN_SOURCE_LICENSE_AUDIT.md).
 - 🟢 Foto stamp memakai font DejaVu bundel; verifikasi otomatis foto (flag GPS/waktu)
   belum dievaluasi rutin (dedup sha256 jalan).
+- 🟡 **UI-05 · Penjaga en-dash buta terhadap literal regex.**
+  `tests/unit/tanda-pisah-ui.test.ts` memindai dengan tokenizer buatan sendiri
+  yang hanya mengenal `//`, `/* */`, dan tiga jenis tanda kutip — literal regex
+  tidak dikenali. Satu regex berisi tanda kutip **ganjil** (mis.
+  `/filename="?([^";]+)"?/`) membalik parity-nya, dan SISA berkas terbaca sebagai
+  isi string: komentar biasa pun dilaporkan sebagai pelanggaran em-dash.
+  Ditemukan 2026-08-21 saat `menu-berkas.tsx` mendadak melanggar pada baris
+  komentar yang sudah ada berbulan-bulan.
+  Dampak: **false positive**, bukan lubang — jadi tidak ada em-dash yang lolos.
+  Akalannya sekarang: tulis tanda kutip di dalam regex sebagai `\x22`/`\x27`.
+  Perbaikan sesungguhnya butuh tokenizer yang bisa membedakan pembagian dari
+  literal regex; belum dikerjakan karena harganya tidak sepadan dengan dampaknya.
 
 ## FUTURE · Serah terima parsial (PHO parsial per pekerjaan) — DECISIONS 078
 Kontrak KNMP membolehkan PHO PARSIAL atas pekerjaan yang sudah 100% (mis. revetmen)

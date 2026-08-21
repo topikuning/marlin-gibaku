@@ -231,7 +231,25 @@ import, siklus laporan, keuangan) diverifikasi via integration + uji browser
 manual terdokumentasi di DECISIONS — penambahan E2E dicatat sebagai defer.
 Definition of Done = prompt rebuild §38 + traceability matrix terisi.
 
+## 9a. Luring (PWA)
+
+Service worker `public/sw.js` (kebijakan terpisah + diuji di
+`public/sw-kebijakan.js`): aset build ber-hash disimpan; **hanya `/foto-cepat`**
+yang HTML-nya disimpan sehingga bisa dibuka dari nol tanpa sinyal, dengan banner
+"ditampilkan dari simpanan" + tanggal rekamannya; navigasi lain yang gagal
+jatuh ke `/offline` (halaman itu menyatakan Foto Cepat siap/belum, apa adanya).
+Jaringan SELALU dicoba lebih dulu. Tidak menyentuh non-GET, `/api/**`, muatan RSC,
+dan lintas asal. Jawaban yang beralamat akhir lain (mis. alihan ke `/masuk` karena
+sesi habis) tidak pernah disimpan. Halaman lapangan DISIAPKAN otomatis tiap
+aplikasi dibuka (jeda 15 menit; hanya role ber-`photo.quick`) — mode pesawat tak
+lagi menuntut halamannya pernah dibuka. Simpanan halaman dibuang saat pemilik HP
+berganti dan saat `/masuk` dibuka. `/offline` WAJIB ada di `PUBLIC_PATHS`
+(`src/middleware.ts`) — kalau ia dialihkan ke `/masuk`, prapasang service worker
+menyimpan halaman masuk di bawah kunci `/offline`. Tidak aktif di `pnpm dev`.
+DECISIONS 398/399.
+
 ## 10. Scope yang sengaja ditunda
 
-Peta Leaflet, PWA offline penuh, PR/PO/receiving granular, intake WA-text —
+Peta Leaflet, offline di luar `/foto-cepat` + background sync + push (butuh
+cangkang native — DECISIONS 398), PR/PO/receiving granular, intake WA-text —
 tercatat di OPEN_ISSUES + REBUILD_PLAN dgn alasan.

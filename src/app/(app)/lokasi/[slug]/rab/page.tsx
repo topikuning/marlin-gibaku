@@ -277,7 +277,13 @@ export default async function RabPage({
             // yang bisa ditekan. DECISIONS 232.
             <span className="flex flex-wrap items-center gap-2">
               {active ? (
-                <ButtonLink href={`/lokasi/${slug}/rab/export`} unduhan variant="secondary" size="sm">
+                <ButtonLink
+                  href={`/lokasi/${slug}/rab/export`}
+                  unduhan
+                  labelSibuk="Menyiapkan Excel…"
+                  variant="secondary"
+                  size="sm"
+                >
                   <Download aria-hidden className="size-4" />
                   Unduh Excel
                 </ButtonLink>

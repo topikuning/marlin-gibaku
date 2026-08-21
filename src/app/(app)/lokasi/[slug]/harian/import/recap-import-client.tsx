@@ -1,9 +1,9 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, FileUp, Upload } from "lucide-react";
-import { Banner, Button, Card, CardBody, CardHeader, StatusPill } from "@/components/ui";
+import { Banner, Button, Card, CardBody, CardHeader, StatusPill, useAksiKlik } from "@/components/ui";
 import type { BadgeTone } from "@/components/ui/badge";
 import { formatNumber } from "@/lib/format";
 import {
@@ -27,8 +27,15 @@ const rupiah = new Intl.NumberFormat("id-ID");
 export function RecapImportClient({ locationId, slug, hasRab }: { locationId: string; slug: string; hasRab: boolean }) {
   const [file, setFile] = useState<File | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [preview, previewAction, previewing] = useActionState<RecapImportState, FormData>(previewRecapAction, undefined);
-  const [commit, commitAction, committing] = useActionState<RecapImportState, FormData>(commitRecapAction, undefined);
+  /*
+   * `useAksiKlik`, BUKAN `useActionState` telanjang: kedua aksi ini dijalankan
+   * dari `onClick`, dan di situ `isPending` milik `useActionState` tidak pernah
+   * menyala (DECISIONS 401). Impor rekap membaca berkas Excel dan menulis
+   * puluhan laporan harian – justru yang paling lama, dan paling mahal kalau
+   * ditekan dua kali.
+   */
+  const [preview, previewAction, previewing] = useAksiKlik<RecapImportState>(previewRecapAction, undefined);
+  const [commit, commitAction, committing] = useAksiKlik<RecapImportState>(commitRecapAction, undefined);
 
   const buildForm = () => {
     const fd = new FormData();

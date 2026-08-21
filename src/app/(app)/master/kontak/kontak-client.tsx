@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Pencil, Plus, UserRoundSearch } from "lucide-react";
 import { useActionState, useMemo, useState } from "react";
-import { Badge, Banner, Button, EmptyState, Input, KpiCard, Label } from "@/components/ui";
+import { Badge, Banner, Button, EmptyState, Input, KpiCard, Label, TombolKirim } from "@/components/ui";
 import { BilahSaring } from "@/components/master/bilah-saring";
 import { Laci } from "@/components/master/laci";
 import { PerluPerhatian, type TemuanMaster } from "@/components/master/perlu-perhatian";
@@ -299,9 +299,9 @@ function BarisKontak({
           </Button>
           <form action={delAction}>
             <input type="hidden" name="id" value={c.id} />
-            <Button type="submit" size="sm" variant="ghost">
+            <TombolKirim size="sm" variant="ghost" labelSibuk="Menghapus…">
               Hapus
-            </Button>
+            </TombolKirim>
           </form>
         </>
       }
@@ -502,9 +502,9 @@ function BarisAlias({
           </Button>
           <form action={delAction}>
             <input type="hidden" name="id" value={a.id} />
-            <Button type="submit" size="sm" variant="ghost">
+            <TombolKirim size="sm" variant="ghost" labelSibuk="Melepas…">
               Lepas nama
-            </Button>
+            </TombolKirim>
           </form>
         </>
       }

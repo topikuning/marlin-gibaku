@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getBranding } from "@/lib/branding";
 import { BrandWordmark } from "@/components/ui/brand-mark";
+import { PembersihSimpanan } from "@/components/pwa/pembersih-simpanan";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = { title: "Masuk" };
@@ -13,6 +14,8 @@ export default async function MasukPage() {
   const brand = await getBranding();
   return (
     <main className="flex min-h-dvh items-center justify-center bg-slate-100 px-4">
+      {/* Sesi berakhir = simpanan halaman ber-sesi dibuang (DECISIONS 398). */}
+      <PembersihSimpanan />
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
           <BrandWordmark tinggi={44} className="mx-auto mb-3" />
