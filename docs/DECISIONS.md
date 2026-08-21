@@ -20679,3 +20679,95 @@ mengosongkan medan memang mengosongkan. Uji gigi: mencabut kembali sisipan
 
 Diverifikasi ulang di peramban terhadap build produksi — formulir diisi lewat
 UI, nilainya bertahan sesudah simpan, dan barisnya ada di basis data.
+
+---
+
+## 405 — Tombol "Pasang aplikasi" di dalam MARLIN, bukan di menu ⋮ Chrome (2026-08-21)
+
+### Pertanyaan user
+
+> untuk pwa pada android, di chrome ada pilihan install. apakah kamu bisa force
+> memberi pilihan install tanpa harus masuk menu chrome untuk install
+
+Bisa, dan hanya dengan satu cara: `beforeinstallprompt`. Chrome menembakkan
+event itu saat aplikasinya memenuhi syarat pasang; kita menahannya, menyimpannya,
+lalu memunculkan tombol sendiri. Menekannya membuka dialog pasang Android
+langsung.
+
+Alasannya bukan kerapian. Mandor lapangan tidak akan menemukan "Tambahkan ke
+layar utama" di dalam menu peramban — dan tanpa terpasang ia kehilangan ikon di
+layar depan, mode layar penuh, dan pintasan Foto Cepat (DECISIONS 399), yaitu
+justru yang paling berguna di lapangan.
+
+### Yang TIDAK bisa — disebut supaya tidak dijanjikan
+
+1. **Memasang tanpa ketukan.** `prompt()` hanya sah dari gestur pemakai.
+2. **Memaksa Chrome menganggap aplikasinya bisa dipasang.** Syaratnya
+   (manifest, ikon 192+512, `start_url`, `display`, HTTPS, service worker
+   ber-`fetch`) sudah dipenuhi sejak DECISIONS 398/399 — tapi kalau suatu saat
+   salah satunya rusak, event-nya tidak datang dan tidak ada tombol yang bisa
+   dipaksa muncul.
+3. **iOS.** Safari tidak punya `beforeinstallprompt`. Di sana yang ditampilkan
+   PETUNJUK (Bagikan → Tambahkan ke Layar Utama), bukan tombol yang pura-pura
+   bekerja.
+
+### Dua permukaan, dan alasannya
+
+| Permukaan | Tempat | Diredam penolakan? |
+|---|---|---|
+| Banner | atas isi halaman | **ya**, 14 hari |
+| Tombol ringkas | topbar, sebelah tombol Keluar | **tidak** |
+
+Peredam menahan yang MENGGANGGU, bukan yang tersedia. Tanpa tombol ringkas ada
+lubang yang saya buat sendiri: menutup banner sekali = dua minggu tanpa satu pun
+jalan pasang di dalam MARLIN, persis kembali ke menu ⋮ yang dikeluhkan.
+
+Cap waktu penolakan dari MASA DEPAN (jam HP mundur, penyimpanan rusak)
+diperlakukan sebagai "belum pernah menolak". Kalau tidak, HP itu tidak akan
+pernah ditawari lagi dan tak seorang pun tahu kenapa.
+
+"Sudah terpasang" dibaca dari `display-mode: standalone`, bukan dari catatan
+sendiri: aplikasi bisa dicopot dari luar MARLIN kapan saja, dan catatan apa pun
+akan berbohong sesudah itu.
+
+### Skrip penangkap paling awal
+
+Chrome bisa menembakkan `beforeinstallprompt` SEBELUM React memasang
+pendengarnya. Event yang lewat tidak bisa diminta ulang — ia tidak datang lagi
+sampai halaman dimuat berikutnya. Karena itu ada skrip inline di root layout
+yang menahan event-nya lebih dulu dan menyimpannya di `window`; komponen React
+mengambilnya dari situ.
+
+Ditulis inline dan bukan modul terpisah dengan sengaja: berkas terpisah dimuat
+sesudah HTML diurai, yaitu justru sesudah jendela yang mau ditangkap.
+
+### Dua cacat yang HANYA ketahuan di peramban
+
+1. **Tanpa skrip penangkap awal**, tombolnya tidak pernah terbit. Dibuktikan
+   dengan mencabutnya: 2 uji e2e memerah.
+2. **Varian ringkas sempat membaca `window` langsung saat render.** Nilainya
+   benar, tapi React tidak melacaknya — dan karena `hitung()` menyetel state ke
+   nilai yang SAMA ("tidak" → "tidak"), React membatalkan render ulangnya.
+   Tombolnya tidak pernah muncul. Sekarang "peramban menawarkan" dipegang
+   sebagai state.
+
+Tidak ada uji unit yang bisa melihat keduanya: yang salah bukan nilainya
+melainkan KAPAN React melihatnya.
+
+Catatan jujur tentang uji giginya sendiri: percobaan pertama untuk cacat kedua
+TIDAK memerah, karena saya cuma membalik satu baris dan meninggalkan
+`setPunyaTawaran` — render ulangnya tetap terjadi lewat jalur lain. Baru sesudah
+bentuk cacatnya dipulihkan utuh (tanpa state sama sekali) ujinya memerah. Uji
+gigi yang setengah juga bisa berbohong.
+
+### Uji
+
+- `tests/unit/pwa-pasang.test.ts` — 13 uji aturan murni: kapan tawarannya pantas
+  muncul, peredam penolakan, pengenalan iOS (termasuk iPadOS yang menyamar jadi
+  Macintosh).
+- `tests/e2e/pasang-aplikasi.spec.ts` — 3 uji × 2 proyek. Event-nya DITIRU;
+  yang dijaga rangkaian skrip→React→`prompt()`, bukan keputusan Chrome-nya.
+
+Yang TIDAK dibuktikan: bahwa Chrome sungguhan menembakkan event itu di HP
+Android. Itu keputusan peramban atas syarat pasang dan tidak bisa dipicu dari
+uji — hanya bisa dicoba di perangkat sungguhan.
