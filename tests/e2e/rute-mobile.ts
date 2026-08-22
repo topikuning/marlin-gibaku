@@ -36,7 +36,6 @@ export const RUTE_STATIS: { pola: string; nama: string }[] = [
   { pola: "/foto-cepat", nama: "Foto Cepat" },
   { pola: "/hari-ini", nama: "Hari Ini (mandor)" },
   { pola: "/kendala", nama: "Papan kendala terpusat" },
-  { pola: "/keuangan", nama: "Keuangan" },
   { pola: "/kontak-wa", nama: "Kontak WhatsApp" },
   { pola: "/laporan", nama: "Laporan" },
   { pola: "/laporan-wa", nama: "Laporan WhatsApp" },
@@ -129,7 +128,6 @@ export const RUTE_DINAMIS: {
   },
   { pola: "/lokasi/[slug]/dokumen", nama: "Dokumen lokasi", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/dokumen`] : null) },
   { pola: "/lokasi/[slug]/kegiatan", nama: "Kegiatan lokasi", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/kegiatan`] : null) },
-  { pola: "/lokasi/[slug]/keuangan", nama: "Keuangan lokasi", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/keuangan`] : null) },
   { pola: "/lokasi/[slug]/progress", nama: "Progress lokasi", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/progress`] : null) },
   { pola: "/lokasi/[slug]/rab", nama: "RAB lokasi", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/rab`] : null) },
   { pola: "/lokasi/[slug]/rab/adendum", nama: "Adendum RAB", isi: (k) => (k.slug ? [`/lokasi/${k.slug}/rab/adendum`] : null) },
@@ -154,7 +152,21 @@ export const RUTE_DINAMIS: {
  * Aturannya: alasan harus menyebut kenapa halaman ini tidak bisa diuji lebar,
  * bukan sekadar "belum sempat".
  */
-export const DIKECUALIKAN: Record<string, string> = {};
+export const DIKECUALIKAN: Record<string, string> = {
+  /*
+   * Keuangan DITAHAN untuk semua peran selain super_admin (DECISIONS 411,
+   * "menu keuangan saat ini belum siap"). Akun sapuan ini `hery` (Program
+   * Director), jadi kedua rutenya menjawab 404 — bukan halaman sempit yang
+   * bisa diukur lebarnya.
+   *
+   * DIKECUALIKAN, bukan dihapus dari daftar: begitu Keuangan dibuka lagi,
+   * kedua baris ini yang harus dipindahkan kembali ke daftar sapuan. Dihapus
+   * berarti halamannya diam-diam berhenti disapu selamanya.
+   */
+  "/keuangan": "Keuangan ditahan untuk non-super_admin (DECISIONS 411) – akun sapuan Program Director",
+  "/lokasi/[slug]/keuangan":
+    "Keuangan ditahan untuk non-super_admin (DECISIONS 411) – akun sapuan Program Director",
+};
 
 /** Semua pola yang dianggap tercakup — dipakai `rute-terjaga.test.ts`. */
 export function polaTercakup(): Set<string> {

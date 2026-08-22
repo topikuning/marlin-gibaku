@@ -78,11 +78,17 @@ test.describe("mobile: ketukan menu harus terlihat direspons", () => {
     const laci = page.getByRole("dialog", { name: "Semua menu" });
     await expect(laci).toBeVisible();
 
-    await laci.getByRole("link", { name: /Keuangan/ }).click();
+    /*
+     * Dulu memakai menu "Keuangan". Menu itu DITAHAN untuk non-super_admin
+     * (DECISIONS 411) dan akun uji ini Program Director, jadi tautannya tidak
+     * ada lagi di laci. Diganti "Dokumen" – yang diuji perilaku LACI-nya, bukan
+     * halaman tujuannya, jadi menu mana pun yang cukup berat sama sahnya.
+     */
+    await laci.getByRole("link", { name: /Dokumen/ }).first().click();
 
     // Tepat sesudah ketukan, selagi halaman masih dimuat: laci WAJIB masih ada.
     await expect(laci, "laci menutup sebelum halaman berganti – layar jadi kosong tanpa tanda").toBeVisible();
-    await expect(page).toHaveURL(/\/keuangan/, { timeout: 30_000 });
+    await expect(page).toHaveURL(/\/dokumen/, { timeout: 30_000 });
     // Dan ketika halamannya benar-benar tiba, laci menutup sendiri.
     await expect(laci).toBeHidden({ timeout: 10_000 });
   });
