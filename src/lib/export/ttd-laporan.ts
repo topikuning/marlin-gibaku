@@ -5,6 +5,7 @@ import { isR2Configured, r2PresignGet } from "@/lib/r2";
 import {
   pihakPenyedia,
   pilihPelaksana,
+  pilihPengawas,
   type JenisDokumen,
   type SumberPelaksana,
 } from "@/lib/laporan/penandatangan";
@@ -80,6 +81,7 @@ export type SumberKunciTtd = {
   pelaksanaTtdKey: string | null;
   ppkTtdKey: string | null;
   ppkStempelKey: string | null;
+  /** Blok pengawas yang SUDAH dipilih (lokasi menimpa kontrak) – DECISIONS 409. */
   supervisorTtdKey: string | null;
   supervisorStempelKey: string | null;
   contractorTtdKey: string | null;
@@ -164,6 +166,9 @@ export async function muatTtdLaporan(
       pelaksanaName: true,
       pelaksanaTitle: true,
       pelaksanaTtdKey: true,
+      supervisorName: true,
+      supervisorFirm: true,
+      supervisorTtdKey: true,
       package: {
         select: {
           pelaksanaName: true,
@@ -200,10 +205,14 @@ export async function muatTtdLaporan(
     lokasi as SumberPelaksana,
     lokasi.package as SumberPelaksana,
   );
+  // Pengawas lokasi menimpa pengawas kontrak – SATU BLOK (DECISIONS 409).
+  const pengawas = pilihPengawas(lokasi, k);
   const kunci = pilihKunciTtd({
     ...k,
     penyedia,
     pelaksanaTtdKey: pelaksana.ttdKey,
+    supervisorTtdKey: pengawas.ttdKey,
+    supervisorStempelKey: pengawas.stempelKey,
     vendorStempelKey: k.vendor.stempelKey,
   });
   const [ppkTtd, ppkStempel, pgwTtd, pgwStempel, pnyTtd, pnyStempel] = await Promise.all([
@@ -223,8 +232,8 @@ export async function muatTtdLaporan(
       stempel: ppkStempel,
     },
     pengawas: {
-      nama: k.supervisorName,
-      sub: k.supervisorFirm,
+      nama: pengawas.nama,
+      sub: pengawas.firma,
       ttd: pgwTtd,
       stempel: pgwStempel,
     },

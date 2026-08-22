@@ -21046,3 +21046,88 @@ bukan pertanyaan yang sedang ditanyakan.
 
 `pilihKunciTtd` dikembalikan ke bentuk lamanya (stempel bergantung siapa yang
 meneken): uji "SATU perusahaan, SATU stempel" merah, sisanya hijau. Dikembalikan.
+
+
+---
+
+## 409 — Konsultan Pengawas per LOKASI, bukan per paket (2026-08-22)
+
+### Kebutuhan user
+
+> untuk tanda tangan laporan, ternyata pengawas per lokasi beda orang
+
+Sebelum ini pengawas hanya ada di `contracts` — satu untuk seluruh paket.
+Padahal satu paket berisi beberapa lokasi, dan tiap lokasi diperiksa orang yang
+berbeda. Akibatnya bukan sekadar nama yang keliru: SEMUA laporan lokasi mana pun
+di paket itu menyebut satu nama pengawas yang sama.
+
+### Bentuknya PERSIS Pelaksana Lapangan (DECISIONS 402)
+
+Kontrak menyediakan yang berlaku umum, lokasi boleh menimpanya, dan
+penimpaannya diambil sebagai **SATU BLOK dengan NAMA sebagai penentu**. Begitu
+sebuah lokasi menyebut nama pengawasnya sendiri, seluruh bloknya milik lokasi
+itu — termasuk **ketiadaan** tanda tangannya.
+
+Alasannya di sini bahkan lebih berat daripada pada pelaksana. Pengawas adalah
+pihak KETIGA yang memeriksa pekerjaan kita. Coretan tanda tangan pengawas
+kontrak di bawah nama pengawas lokasi bukan gambar yang kebetulan keliru — itu
+**memalsukan pemeriksaan** pada dokumen yang diserahkan ke KKP.
+
+Sengaja memakai bentuk yang sama, bukan bentuk baru: aturan yang identik dengan
+tampilan yang berbeda adalah cara tercepat membuat salah satunya menyimpang.
+Formulirnya pun satu (halaman lokasi › Penanda tangan lokasi ini), bukan dua
+kartu bersebelahan — pelajaran DECISIONS 404.
+
+### "Ambil dari pengawas di paket" — sudah, dan tanpa sumber kedua
+
+Penegasan user pada hari yang sama: *"konsepnya samakan dengan pelaksana, jika
+di lokasi tidak diisi, ambil data dari pengawas di paket."*
+
+Itulah yang berlaku. Yang perlu dicatat supaya tidak dikira melenceng: pengawas
+tersimpan di `contracts`, bukan `packages` seperti pelaksana — tapi keduanya
+BUKAN tempat yang berbeda. `Contract.packageId` UNIQUE, jadi satu paket tepat
+satu kontrak, dan formulir pengisiannya memang Paket › Kontrak › Penanda tangan
+dokumen KKP. Menyalinnya lagi ke `packages` hanya melahirkan sumber kedua yang
+bisa menyimpang dari yang pertama — persis cacat stempel ganda di DECISIONS 408.
+
+Yang diseragamkan justru KATA-KATANYA di layar: "Mengikuti paket: …",
+"kosongkan = ikut paket", sama persis dengan kartu Pelaksana. Istilah yang
+berbeda untuk aturan yang sama membuat orang mengira aturannya juga berbeda.
+
+### Stempel: TIDAK ada kolomnya, dan dikosongkan bila firmanya berbeda
+
+Mengikuti DECISIONS 408: stempel milik FIRMA, bukan orang. Jadi lokasi hanya
+mengunggah CORETAN tanda tangan; stempelnya diambil dari
+`Contract.supervisorStempelKey`.
+
+Satu aturan tambahan yang tidak kentara: kalau lokasi menyebut **firma yang
+berbeda** dari kontrak, stempel kontrak adalah stempel firma LAIN — jadi blok
+stempelnya dikosongkan untuk dibubuhi stempel basah. Menempelkan stempel PT A di
+bawah nama CV B adalah pernyataan yang tidak benar, bukan sekadar gambar keliru.
+Firma yang tidak disebut (atau disebut sama persis) tetap memakai stempel
+kontrak — kalau tidak, orang yang mengetik ulang nama firma yang sama kehilangan
+stempelnya tanpa sebab yang bisa ia lihat.
+
+### Yang ikut berubah
+
+Nama pengawas dipakai di banyak dokumen, dan semuanya dulu membaca
+`contract.supervisorName` langsung. Yang dialihkan ke `pilihPengawas`:
+
+- kop laporan harian (`daily-report/queries.ts`)
+- kop laporan periodik (`periodic-report.ts`)
+- blok tanda tangan cetak & PDF (`export/ttd-laporan.ts`, `pdf/ttd-gambar.ts`)
+- lembar CCO (`rab/adendum/cco/route.ts`)
+
+### Uji gigi
+
+Dua kali. (1) `pilihPengawas` dikembalikan ke bentuk yang meminjam coretan
+kontrak dan mengabaikan beda firma: dua uji unit merah. (2) kop laporan harian
+dikembalikan membaca `contract.supervisorName` langsung: uji integrasi merah.
+Dua-duanya dikembalikan.
+
+Satu catatan tentang uji integrasinya sendiri: versi pertamanya menaruh nilai
+harapan sebagai teks harfiah dan merah — bukan karena kodenya salah, melainkan
+karena `describe` sebelumnya mengganti isi kontrak lewat
+`updateContractSignatories`. Uji yang bergantung pada sisa uji lain akan
+menuduh kode yang benar setiap kali urutannya berubah, jadi keadaannya kini
+disetel di `beforeAll` miliknya sendiri.

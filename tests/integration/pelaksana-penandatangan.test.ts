@@ -338,3 +338,79 @@ describe("formulir penanda tangan menulis pelaksana ke paket", () => {
     expect(p.pelaksanaName).toBeNull();
   });
 });
+
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * KONSULTAN PENGAWAS PER LOKASI (DECISIONS 409)
+ *
+ * User 2026-08-22: *"untuk tanda tangan laporan, ternyata pengawas per lokasi
+ * beda orang."*
+ *
+ * Aturan murninya diuji di `tests/unit/penandatangan.test.ts`. Yang dibuktikan
+ * DI SINI: namanya benar-benar SAMPAI ke kop laporan harian dan kop laporan
+ * periodik dari satu baris basis data yang sungguhan — bukan sekadar fungsinya
+ * mengembalikan nilai yang benar bila dipanggil.
+ * ──────────────────────────────────────────────────────────────────────────── */
+describe("pengawas lokasi sampai ke kop dokumen", () => {
+  const PENGAWAS_KONTRAK = "Rina Wijaya";
+  const FIRMA_KONTRAK = "CV Pengawas";
+  const PENGAWAS_LOKASI = "Bagus Setiawan";
+
+  /*
+   * Keadaan kontraknya DISETEL DI SINI, bukan diwarisi dari describe di atas.
+   *
+   * Versi pertama uji ini menaruh nilai harapan sebagai teks harfiah ("Rina
+   * Wijaya") dan merah — bukan karena kodenya salah, melainkan karena describe
+   * sebelumnya memanggil `updateContractSignatories` dan mengganti isi
+   * kontraknya. Uji yang bergantung pada sisa uji lain akan menuduh kode yang
+   * benar setiap kali urutannya berubah.
+   */
+  beforeAll(async () => {
+    await db.contract.updateMany({
+      where: { packageId: pkgId },
+      data: { supervisorName: PENGAWAS_KONTRAK, supervisorFirm: FIRMA_KONTRAK },
+    });
+    await db.location.update({
+      where: { slug: slugSendiri },
+      data: { supervisorName: null, supervisorFirm: null, supervisorTtdKey: null },
+    });
+  });
+
+  it("lokasi TANPA penimpaan memakai pengawas kontrak", async () => {
+    const d = await getKkpDailyData(slugPaket, "2026-02-10");
+    expect(d?.supervisorName).toBe(PENGAWAS_KONTRAK);
+    expect(d?.supervisorFirm).toBe(FIRMA_KONTRAK);
+  });
+
+  it("lokasi DENGAN penimpaan memakai pengawasnya sendiri – harian & periodik", async () => {
+    await db.location.update({
+      where: { slug: slugSendiri },
+      data: { supervisorName: PENGAWAS_LOKASI, supervisorFirm: null },
+    });
+
+    const harian = await getKkpDailyData(slugSendiri, "2026-02-10");
+    expect(harian?.supervisorName).toBe(PENGAWAS_LOKASI);
+    // Firma tidak ditimpa → tetap firma kontrak.
+    expect(harian?.supervisorFirm).toBe(FIRMA_KONTRAK);
+
+    const lok = await db.location.findUniqueOrThrow({
+      where: { slug: slugSendiri },
+      select: HEADER_LOCATION_SELECT,
+    });
+    const kop = buildPeriodHeader(lok, {
+      grandTotal: 1_000_000,
+      startDate: new Date("2026-02-01T00:00:00.000Z"),
+      periodeStart: new Date("2026-02-01T00:00:00.000Z"),
+      periodeEnd: new Date("2026-02-07T00:00:00.000Z"),
+    });
+    expect(kop?.supervisorName).toBe(PENGAWAS_LOKASI);
+
+    /*
+     * Inti kebutuhannya: lokasi TETANGGA di paket yang SAMA tidak ikut berubah.
+     * Tanpa ini, "pengawas per lokasi" cuma berarti mengganti pengawas seluruh
+     * paket dari halaman lokasi.
+     */
+    const tetangga = await getKkpDailyData(slugPaket, "2026-02-10");
+    expect(tetangga?.supervisorName).toBe(PENGAWAS_KONTRAK);
+  });
+});

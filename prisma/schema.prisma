@@ -896,6 +896,21 @@ model Location {
   /// jejak; tidak ada satu pun kode yang membacanya lagi.
   pelaksanaStempelKey String? @map("pelaksana_stempel_key")
 
+  /// Penimpaan KONSULTAN PENGAWAS untuk lokasi ini (DECISIONS 409).
+  ///
+  /// User 2026-08-22: *"ternyata pengawas per lokasi beda orang."* Kosong =
+  /// pakai milik kontrak. Aturannya sama dengan Pelaksana: diambil SATU BLOK
+  /// dengan nama sebagai penentu — pengawas adalah pihak KETIGA yang memeriksa,
+  /// jadi coretan pengawas kontrak di bawah nama pengawas lokasi memalsukan
+  /// pemeriksaan, bukan sekadar salah gambar.
+  ///
+  /// TANPA stempel: stempel milik FIRMA (DECISIONS 408), diambil dari
+  /// `Contract.supervisorStempelKey` — dan sengaja DIKOSONGKAN kalau lokasi
+  /// menyebut firma yang berbeda.
+  supervisorName      String? @map("supervisor_name")
+  supervisorFirm      String? @map("supervisor_firm")
+  supervisorTtdKey    String? @map("supervisor_ttd_key")
+
   createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime       @updatedAt @map("updated_at") @db.Timestamptz
 

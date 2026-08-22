@@ -6,7 +6,7 @@ import { JABATAN_PELAKSANA_BAWAAN } from "@/lib/laporan/penandatangan";
 import { simpanPelaksana, type PelaksanaActionState } from "@/lib/laporan/pelaksana-actions";
 
 /**
- * PENIMPAAN PELAKSANA LAPANGAN UNTUK SATU LOKASI (DECISIONS 402/404).
+ * PENIMPAAN PENANDA TANGAN UNTUK SATU LOKASI (DECISIONS 402/404/409).
  *
  * Hanya untuk LOKASI. Pelaksana tingkat paket diisi bersama PPK, pengawas, dan
  * Direktur di formulir penanda tangan kontrak — keberatan user 2026-08-21:
@@ -25,6 +25,10 @@ export function PelaksanaForm({
   ttdUrl,
   stempelUsang,
   warisan,
+  pengawasNama,
+  pengawasFirma,
+  pengawasTtdUrl,
+  warisanPengawas,
 }: {
   locationId: string;
   nama: string | null;
@@ -34,6 +38,11 @@ export function PelaksanaForm({
   stempelUsang?: string | null;
   /** Pelaksana paket yang berlaku bila lokasi ini dikosongkan. */
   warisan?: { nama: string | null; jabatan: string | null } | null;
+  pengawasNama: string | null;
+  pengawasFirma: string | null;
+  pengawasTtdUrl: string | null;
+  /** Pengawas kontrak yang berlaku bila lokasi ini dikosongkan. */
+  warisanPengawas?: { nama: string | null; firma: string | null } | null;
 }) {
   const [state, kirim, sibuk] = useAksiKlik<PelaksanaActionState>(simpanPelaksana, undefined);
 
@@ -124,13 +133,86 @@ export function PelaksanaForm({
         </HelpText>
       ) : null}
 
+      <div className="border-t border-border pt-4">
+        <p className="text-sm font-medium text-ink">Konsultan Pengawas</p>
+        <p className="mt-0.5 text-[13px] text-ink-muted">
+          Isi HANYA bila lokasi ini diperiksa pengawas yang berbeda dari paketnya.
+        </p>
+
+        {!pengawasNama && warisanPengawas?.nama ? (
+          <Banner
+            className="mt-3"
+            tone="info"
+            title={`Mengikuti paket: ${warisanPengawas.nama}${warisanPengawas.firma ? ` – ${warisanPengawas.firma}` : ""}`}
+            description="Kosongkan kolom di bawah supaya tetap mengikuti paket."
+          />
+        ) : null}
+
+        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="pw-nama-lokasi">Nama Konsultan Pengawas</Label>
+            <Input
+              id="pw-nama-lokasi"
+              name="pengawasNama"
+              defaultValue={pengawasNama ?? ""}
+              maxLength={150}
+              placeholder="kosongkan = ikut paket"
+            />
+          </div>
+          <div>
+            <Label htmlFor="pw-firma-lokasi">Firma pengawas</Label>
+            <Input
+              id="pw-firma-lokasi"
+              name="pengawasFirma"
+              defaultValue={pengawasFirma ?? ""}
+              maxLength={150}
+              placeholder={warisanPengawas?.firma ?? "kosongkan = ikut paket"}
+            />
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <BerkasTtd
+            id="pw-ttd-lokasi"
+            medan="supervisorTtdKey"
+            label="Tanda tangan"
+            url={pengawasTtdUrl}
+            kelasPratinjau="h-12 w-full"
+          />
+        </div>
+
+        {/*
+          Stempel pengawas TIDAK diunggah di sini: ia milik FIRMA, diambil dari
+          kontrak (DECISIONS 408). Kalau lokasi ini menyebut firma yang BERBEDA,
+          stempel kontrak adalah stempel firma lain — jadi blok stempelnya
+          sengaja dikosongkan untuk dibubuhi stempel basah, bukan diisi stempel
+          yang salah.
+        */}
+        {pengawasNama && pengawasFirma && warisanPengawas?.firma &&
+        pengawasFirma.trim() !== warisanPengawas.firma.trim() ? (
+          <HelpText>
+            Firma pengawas lokasi ini berbeda dari paketnya, jadi stempel firma pada laporan
+            cetak DIKOSONGKAN – stempel yang tersimpan milik firma yang lain. Bubuhkan stempel
+            basah pada berkas yang tercetak.
+          </HelpText>
+        ) : null}
+
+        {pengawasNama && !pengawasTtdUrl ? (
+          <HelpText>
+            Lokasi ini memakai pengawasnya sendiri tetapi belum mengunggah tanda tangan, jadi
+            blok TTD pengawas tercetak kosong. Coretan pengawas paket sengaja tidak dipinjam –
+            pengawas adalah pihak yang memeriksa pekerjaan ini.
+          </HelpText>
+        ) : null}
+      </div>
+
       <HelpText>
         Pindai di kertas PUTIH POLOS, tanpa garis. PNG/JPG/WebP maks 2 MB; gambar dikecilkan
         otomatis ke 800px. Jabatan kosong tercetak sebagai &quot;{JABATAN_PELAKSANA_BAWAAN}&quot;.
       </HelpText>
 
       <Button type="submit" loading={sibuk}>
-        Simpan pelaksana lokasi ini
+        Simpan penanda tangan lokasi ini
       </Button>
     </form>
   );

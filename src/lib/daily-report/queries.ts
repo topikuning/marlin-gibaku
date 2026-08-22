@@ -1,5 +1,5 @@
 import "server-only";
-import { pilihPelaksana } from "@/lib/laporan/penandatangan";
+import { pilihPelaksana, pilihPengawas } from "@/lib/laporan/penandatangan";
 import { db } from "@/lib/db";
 import { bobotPct, prestasiPct } from "@/lib/progress-calc";
 import { COUNTED_REPORT_STATUSES, cumulativeVolumeByLineage, getLocationProgress } from "@/lib/progress";
@@ -591,6 +591,9 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
       pelaksanaTitle: true,
       pelaksanaTtdKey: true,
       pelaksanaStempelKey: true,
+      supervisorName: true,
+      supervisorFirm: true,
+      supervisorTtdKey: true,
       package: {
         select: {
           pelaksanaName: true,
@@ -605,6 +608,8 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
               signedDate: true,
               supervisorName: true,
               supervisorFirm: true,
+              supervisorTtdKey: true,
+              supervisorStempelKey: true,
               contractorSignerName: true,
               contractorSignerTitle: true,
               vendor: { select: { name: true, logoKey: true, address: true } },
@@ -626,13 +631,15 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
    * ditandatangani tangan, TIDAK jatuh ke nama direktur.
    */
   const pelaksana = pilihPelaksana(location, location.package);
+  // Pengawas lokasi menimpa pengawas kontrak – SATU BLOK (DECISIONS 409).
+  const pengawas = pilihPengawas(location, contract);
   const signatories = {
-    supervisorName: contract?.supervisorName ?? null,
-    supervisorSub: contract?.supervisorFirm ?? null,
+    supervisorName: pengawas.nama,
+    supervisorSub: pengawas.firma,
     contractorName: pelaksana.nama,
     contractorSub: pelaksana.jabatan,
     // Nama perusahaan untuk kop blanko (posisi "logo perusahaan" di contoh KKP).
-    supervisorFirm: contract?.supervisorFirm ?? null,
+    supervisorFirm: pengawas.firma,
     contractorFirm: contract?.vendor?.name ?? null,
   };
 

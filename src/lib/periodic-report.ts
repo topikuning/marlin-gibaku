@@ -1,5 +1,5 @@
 import "server-only";
-import { pilihPelaksana } from "@/lib/laporan/penandatangan";
+import { pilihPelaksana, pilihPengawas } from "@/lib/laporan/penandatangan";
 import { db } from "@/lib/db";
 import { autoCategoryWindowFrac, scheduleFromItems } from "@/lib/scurve/sequencing";
 import { orderCategoriesByRab } from "@/lib/scurve/kkp-sheet";
@@ -220,6 +220,10 @@ export const HEADER_LOCATION_SELECT = {
   pelaksanaTitle: true,
   pelaksanaTtdKey: true,
   pelaksanaStempelKey: true,
+  // Penimpaan Konsultan Pengawas per lokasi (DECISIONS 409) — `pilihPengawas`.
+  supervisorName: true,
+  supervisorFirm: true,
+  supervisorTtdKey: true,
   package: {
     select: {
       name: true,
@@ -238,6 +242,8 @@ export const HEADER_LOCATION_SELECT = {
           ppkNip: true,
           supervisorName: true,
           supervisorFirm: true,
+          supervisorTtdKey: true,
+          supervisorStempelKey: true,
           contractorSignerName: true,
           contractorSignerTitle: true,
           vendor: { select: { name: true } },
@@ -267,6 +273,8 @@ export function buildPeriodHeader(
     },
     location.package,
   );
+  // Pengawas lokasi menimpa pengawas kontrak – SATU BLOK (DECISIONS 409).
+  const pengawas = pilihPengawas(location, contract);
   return {
     locationName: location.name,
     village: location.village,
@@ -288,8 +296,8 @@ export function buildPeriodHeader(
     periodeEnd: o.periodeEnd,
     ppkName: contract.ppkName,
     ppkNip: contract.ppkNip,
-    supervisorName: contract.supervisorName,
-    supervisorFirm: contract.supervisorFirm,
+    supervisorName: pengawas.nama,
+    supervisorFirm: pengawas.firma,
     contractorSignerName: contract.contractorSignerName,
     contractorSignerTitle: contract.contractorSignerTitle,
     pelaksanaName: pelaksana.nama,
