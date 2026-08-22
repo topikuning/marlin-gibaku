@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import { SKRIP_PRA_LUKIS } from "@/lib/shell/sidebar-ringkas";
 
 const inter = localFont({
   src: "./fonts/inter-var-latin.woff2",
@@ -57,6 +58,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="id" className={inter.variable}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: TANGKAP_PASANG }} />
+        {/* Keadaan sidebar dipasang SEBELUM halaman dilukis (DECISIONS 413).
+            Tanpa ini sidebar selalu terbentang dulu lalu melompat menyempit
+            begitu React hidup – kedipan di SETIAP perpindahan halaman, dan
+            paling terasa justru bagi orang yang memilih meringkasnya. */}
+        <script dangerouslySetInnerHTML={{ __html: SKRIP_PRA_LUKIS }} />
       </head>
       <body>{children}</body>
     </html>
