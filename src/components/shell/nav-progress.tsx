@@ -275,10 +275,27 @@ export function NavProgressBar() {
          * ditawarkan tombol "coba lagi" — mengulang saat yang pertama belum
          * selesai justru menambah antrean di jaringan yang sudah sesak.
          */
+        /*
+         * KUNING SOFT, bukan putih (permintaan user 2026-08-22: *"notifikasi
+         * jaringan lambat ini sebaiknya bukan warna putih, jadi bisa lebih
+         * aware"*). Pil putih di atas halaman putih hanya terbaca sebagai
+         * bagian dari halaman: ia lewat tanpa dilihat, padahal justru muncul
+         * saat orang sudah menunggu enam detik dan perlu diberi tahu.
+         *
+         * Kuning peringatan, BUKAN merah: permintaannya masih berjalan dan
+         * sering tetap berhasil. Merah akan mengatakan "gagal" — dan di
+         * lapangan itu membuat orang membatalkan navigasi yang sebentar lagi
+         * selesai, lalu mengulanginya di jaringan yang sudah sesak.
+         *
+         * Teksnya tetap `text-ink`, bukan `text-warning`: amber di atas krem
+         * pucat tidak lolos kontras untuk huruf sekecil ini. Warnanya dibawa
+         * latar, tepi, dan titik – bukan oleh huruf yang harus terbaca.
+         */
         <div
           role="status"
-          className="no-print fixed inset-x-0 top-2 z-50 mx-auto w-fit max-w-[92vw] rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-medium text-ink-muted shadow-lg"
+          className="no-print fixed inset-x-0 top-2 z-50 mx-auto flex w-fit max-w-[92vw] items-center gap-2 rounded-full border border-warning-border bg-warning-soft px-3 py-1.5 text-xs font-medium text-ink shadow-lg"
         >
+          <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-warning" />
           Masih memuat – jaringan sepertinya lambat.
         </div>
       ) : null}

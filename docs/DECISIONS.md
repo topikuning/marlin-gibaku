@@ -21426,3 +21426,114 @@ Barisnya dibuat lebih pendek daripada butir menu (tombol 32px, baris 41px, vs
 36px untuk butir menu). Ia kendali, bukan tujuan: memberinya tinggi yang sama
 dengan menu membuatnya terbaca sebagai menu ke-sekian, dan memakan ruang di
 dasar layar yang justru paling sering terpotong.
+
+---
+
+## 415 — Pindah tanggal laporan harian (super admin), 2026-08-22
+
+> ini salah satu kesalahan, bisa jadi jarang, tapi ini terlalu ribet untuk edit,
+> padahal bisa sekali klik, ganti tanggal saja. kalau ada fitur khusus di
+> superadmin bisa pindah tanggal, akan sangat efektif. atau lebih mudah hapus di
+> tanggal yang salah, lalu upload ulang foto di tanggal yang benar dan input
+> ulang?
+
+Kejadiannya nyata: laporan Banjarejo dikembalikan dengan alasan *"salah
+penginputan tanggal pelaksanaan sondir saya input di tanggal 21 Juli 2026 yang
+benar tanggal 22 Juli 2026"* — dan satu-satunya jalan memperbaikinya adalah
+mengetik ulang seluruh laporan di tanggal yang benar.
+
+### Pindah, BUKAN hapus-lalu-input-ulang
+
+Dua alasan, dan yang pertama menentukan:
+
+1. **`report_date` adalah satu-satunya kolom di seluruh basis data yang membawa
+   tanggal laporan.** Item, foto, tenaga kerja, material, alat, kendala, dan
+   riwayat status semuanya menggantung pada `report_id`. Memindahkan laporan
+   karena itu satu UPDATE — tidak ada yang perlu diunggah atau diketik ulang.
+2. **Penghapusan laporan harian tidak ada, dan sebaiknya tetap tidak ada.**
+   Menghapus membuang riwayat status, jejak audit, dan identitas foto (photo ID
+   yang sudah tercetak di berkas yang beredar) demi memperbaiki satu kolom.
+
+### Hak akses & laporan final — dua keputusan user
+
+- **Super admin saja.** Menggeser tanggal berarti menggeser volume ke hari lain:
+  kurva-S, deviasi, dan angka kumulatif laporan di antaranya ikut berubah. Setara
+  membuka laporan final, bukan setara mengedit isi. Capability baru
+  `daily_report.move_date`.
+- **Laporan final BOLEH dipindah**, lewat buka-final → pindah → finalkan ulang
+  yang dijalankan otomatis. Snapshot cetaknya karena itu dibangun ulang di
+  tanggal yang baru — termasuk nomor minggu dan angka "s/d", yang dua-duanya ikut
+  berubah.
+
+### Yang TIDAK ikut benar sendiri
+
+Tanggalnya berpindah; tiga hal yang menempel padanya tidak:
+
+- **Cuaca dibuang.** `weatherHourly` adalah bacaan mesin UNTUK TANGGAL ITU, dan
+  dipakai menghitung "berapa hari hujan" — dasar klaim perpanjangan waktu.
+  Menyeretnya ke hari lain berarti menyimpan bacaan tentang hari yang salah lalu
+  memakainya sebagai bukti. Dibuang, dan **dikatakan**, supaya diambil ulang.
+- **Penanda WA dilepas.** `waSentAt` berarti "laporan ini sudah diserahkan". Yang
+  terlanjur terkirim bertanggal LAMA. Dibiarkan, laporan ini hilang dari hitungan
+  "belum dikirim" dan tidak akan pernah dikirim ulang siapa pun. Nilai lamanya
+  disimpan di jejak audit — yang dilepas hanya klaimnya, bukan faktanya.
+- **Cap foto TIDAK dicap ulang otomatis** — hanya dihitung dan dilaporkan. Cap
+  dibakar ke gambar: itu menulis bukti, dan sudah punya layarnya sendiri dengan
+  alasan + riwayat revisi (DECISIONS 198). Menjalankannya diam-diam sebagai efek
+  samping berarti bukti berubah tanpa ada yang memutuskan. Yang perlu dicap ulang
+  hanya foto **tanpa** `exifTakenAt` (capnya meminjam tanggal laporan); foto yang
+  punya waktu jepret sendiri justru jadi cocok sesudah pindah.
+
+### Snapshot laporan LAIN yang ikut basi
+
+Bagian yang paling mudah luput. `finalSnapshot` membekukan angka kumulatif "s/d
+tanggal laporan", jadi memindahkan satu laporan dari A ke B membuat setiap
+laporan final bertanggal `min(A,B) ≤ d < max(A,B)` salah angkanya. Rentangnya
+**setengah terbuka**: pada pindah 21→22, laporan tanggal 22 sudah menghitungnya
+sebelum maupun sesudah, jadi tidak berubah.
+
+Yang terdampak dibangun ulang dengan `buildFinalSnapshot` — fungsi yang sama yang
+dipakai perbaikan snapshot di menu Sistem (DECISIONS 148), bukan jalur baru.
+Dibiarkan basi berarti MARLIN sengaja mencetak angka kumulatif yang ia tahu salah,
+dan angka beku tidak pernah mengeluh.
+
+### Pemisahan tugas diperiksa DI DEPAN
+
+`finalizeReport` menolak orang yang menyetujui laporan itu sendiri. Kalau
+penolakan itu baru datang saat memfinalkan ULANG, laporannya sudah terbuka DAN
+sudah pindah — tertinggal separuh jadi di tanggal baru, dengan pesan yang
+seolah-olah cuma soal finalisasi. Karena itu `alasanTakBolehFinalkan()` (bentuk
+yang tidak melempar) diperiksa sebelum kunci dibuka; pemindahannya batal utuh.
+
+### `COUNTED_REPORT_STATUSES` pindah ke `lifecycle.ts`
+
+`progress.ts` menyentuh basis data, jadi modul aturan murni yang butuh daftar itu
+akan ikut menyeret koneksi DB hanya untuk membaca tiga kata — dan uji unitnya
+gagal menuntut `DATABASE_URL`. Konstantanya kini di `lifecycle.ts` (murni), dan
+`progress.ts` mengekspornya ulang supaya tidak ada pemanggil lama yang berubah.
+
+### Dua hal yang hanya ketahuan dari peramban sungguhan
+
+- **`<input type="date">` menampilkan urutan angka menurut bahasa PERAMBAN.**
+  08/09/2026 berarti 8 September di peramban Inggris dan 9 Agustus di peramban
+  Indonesia — angka yang sama, dua hari berbeda, pada formulir yang justru ada
+  karena tanggalnya pernah salah. Tanggalnya karena itu DIEJA di bawah kotaknya
+  ("Jumat, 3 Juli 2026") dan ikut berubah saat pilihannya diganti.
+- **React mengosongkan medan tak terkendali setiap kali aksi server selesai —
+  termasuk saat DITOLAK.** Penolakan "tanggal tujuan sudah punya laporan" karena
+  itu menghapus alasan yang barusan diketik, dan orang harus mengetiknya ulang
+  hanya untuk mencoba tanggal lain. Ketahuan saat menjalankannya, bukan saat
+  membacanya; alasannya kini dipegang state.
+
+### Susulan — notifikasi "jaringan lambat" berwarna
+
+> notifikasi jaringan lambat ini sebaiknya bukan warna putih, jadi bisa lebih
+> aware, mungkin kuning soft, atau merah sangat ringan
+
+Pil putih di atas halaman putih terbaca sebagai bagian dari halaman: ia lewat
+tanpa dilihat, padahal justru muncul saat orang sudah menunggu enam detik. Kini
+`bg-warning-soft` + tepi `warning-border` + titik amber. **Kuning, bukan merah:**
+permintaannya masih berjalan dan sering tetap berhasil — merah akan mengatakan
+"gagal", dan di lapangan itu membuat orang membatalkan navigasi yang sebentar
+lagi selesai lalu mengulanginya di jaringan yang sudah sesak. Teksnya tetap
+`text-ink`: amber di atas krem pucat tidak lolos kontras untuk huruf sekecil itu.

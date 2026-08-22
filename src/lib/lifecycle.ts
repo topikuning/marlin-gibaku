@@ -73,6 +73,18 @@ const REPORT_TRANSITIONS: Record<DailyReportStatus, DailyReportStatus[]> = {
   final: ["disetujui"],
 };
 
+/**
+ * Status laporan harian yang IKUT DIHITUNG di angka resmi — progres, kurva-S,
+ * deviasi, keuangan, KKP. Draft & perlu koreksi sengaja di luar: laporan yang
+ * masih bisa diedit tidak boleh menggerakkan angka yang dipakai orang lain.
+ *
+ * Tinggal DI SINI, bukan di `progress.ts` (DECISIONS 415): `progress.ts`
+ * menyentuh basis data, jadi modul aturan murni yang butuh daftar ini akan ikut
+ * menyeret koneksi DB hanya untuk membaca tiga kata. `progress.ts` mengekspornya
+ * ulang, jadi pemanggil lama tidak berubah.
+ */
+export const COUNTED_REPORT_STATUSES = ["dikirim", "disetujui", "final"] as const;
+
 export function canTransitionPackage(from: PackageStage, to: PackageStage): boolean {
   return PACKAGE_TRANSITIONS[from].includes(to);
 }

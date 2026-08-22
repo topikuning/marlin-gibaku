@@ -15,7 +15,18 @@ import { pct } from "@/lib/money";
  * untuk alasan lengkapnya.
  */
 
-export const COUNTED_REPORT_STATUSES = ["dikirim", "disetujui", "final"] as const;
+/**
+ * Rumahnya PINDAH ke `lifecycle.ts` (DECISIONS 415) dan di-ekspor ulang di sini
+ * supaya tidak ada satu pun pemanggil lama yang perlu diubah.
+ *
+ * Sebabnya: file ini menyentuh basis data, jadi apa pun yang mengimpornya ikut
+ * menyeret koneksi DB. Daftar status yang TERHITUNG adalah pengetahuan murni —
+ * modul aturan (mis. pindah tanggal) harus bisa memakainya tanpa DB, dan
+ * menyalinnya ke sana adalah cara paling mudah membuat dua daftar yang perlahan
+ * berbeda.
+ */
+export { COUNTED_REPORT_STATUSES } from "./lifecycle";
+import { COUNTED_REPORT_STATUSES } from "./lifecycle";
 
 const WEEK_MS = 7 * 24 * 3600 * 1000;
 

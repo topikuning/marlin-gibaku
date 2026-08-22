@@ -623,35 +623,57 @@ export async function returnReport(reportId: string, reason: string, userId: str
  * ada satu orang aktif per lokasi (permintaan user). Yang penting: keadaannya
  * TERBACA, bukan jadi asumsi diam-diam.
  */
+/**
+ * Alasan pemisahan tugas yang MENGHALANGI finalisasi, atau null bila bebas —
+ * bentuk yang tidak melempar.
+ *
+ * Dipakai jalur yang perlu TAHU LEBIH DULU, bukan sekadar dihentikan di tengah:
+ * pindah tanggal laporan final (DECISIONS 415) membuka kunci lalu memfinalkan
+ * ulang, dan gagal di langkah terakhir akan meninggalkan laporan terbuka di
+ * tanggal baru — separuh jadi, tanpa ada yang memintanya begitu.
+ */
+export async function alasanTakBolehFinalkan(
+  reportId: string,
+  userId: string,
+): Promise<string | null> {
+  const { getPolicy } = await import("@/lib/policy");
+  const policy = await getPolicy();
+  if (!policy.finalizerMustDiffer) return null;
+  const rep = await db.dailyReport.findUniqueOrThrow({
+    where: { id: reportId },
+    select: { verifiedById: true },
+  });
+  if (rep.verifiedById !== userId) return null;
+  return (
+    "Laporan ini kamu sendiri yang menyetujui – pemfinalnya harus orang lain. " +
+    "Setelan ini bisa diubah di menu Sistem → Kebijakan pengendalian."
+  );
+}
+
 async function assertPemisahanTugas(
   reportId: string,
   userId: string,
   langkah: "approve" | "finalize",
 ) {
+  if (langkah === "finalize") {
+    const alasan = await alasanTakBolehFinalkan(reportId, userId);
+    if (alasan) throw new DailyReportError(alasan);
+    return;
+  }
   const { getPolicy } = await import("@/lib/policy");
   const policy = await getPolicy();
-  const aktif = langkah === "approve" ? policy.approverMustDiffer : policy.finalizerMustDiffer;
-  if (!aktif) return;
+  if (!policy.approverMustDiffer) return;
 
   const rep = await db.dailyReport.findUniqueOrThrow({
     where: { id: reportId },
     select: { submittedById: true, verifiedById: true, createdById: true },
   });
-  if (langkah === "approve") {
-    // Pembanding utama = PENGIRIM. `createdById` ikut diperiksa untuk laporan
-    // yang dikirim orang lain tapi seluruh isinya diketik penyetuju sendiri.
-    const sendiri = rep.submittedById === userId || (rep.submittedById == null && rep.createdById === userId);
-    if (sendiri) {
-      throw new DailyReportError(
-        "Laporan ini kamu sendiri yang mengirim – penyetujunya harus orang lain. " +
-          "Setelan ini bisa diubah di menu Sistem → Kebijakan pengendalian.",
-      );
-    }
-    return;
-  }
-  if (rep.verifiedById === userId) {
+  // Pembanding utama = PENGIRIM. `createdById` ikut diperiksa untuk laporan
+  // yang dikirim orang lain tapi seluruh isinya diketik penyetuju sendiri.
+  const sendiri = rep.submittedById === userId || (rep.submittedById == null && rep.createdById === userId);
+  if (sendiri) {
     throw new DailyReportError(
-      "Laporan ini kamu sendiri yang menyetujui – pemfinalnya harus orang lain. " +
+      "Laporan ini kamu sendiri yang mengirim – penyetujunya harus orang lain. " +
         "Setelan ini bisa diubah di menu Sistem → Kebijakan pengendalian.",
     );
   }

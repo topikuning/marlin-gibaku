@@ -43,6 +43,10 @@ describe("authz capability matrix", () => {
       "contract.edit", // koreksi kontrak
       "wa.configure", // set grup WA (sementara)
       "daily_report.unfinalize", // buka kunci laporan final (DECISIONS 149)
+      // Pindahkan laporan ke tanggal lain (DECISIONS 415). Menggeser tanggal
+      // menggeser volume ke hari lain — kurva-S, deviasi, dan angka kumulatif
+      // laporan di antaranya ikut berubah. Setara membuka laporan final.
+      "daily_report.move_date",
       "contact.view_all", // lihat kontak akun lain (DECISIONS 150)
       "document.delete", // hapus permanen dokumen (DECISIONS 183) — batalkan cukup
       "location.correct", // koreksi susunan lokasi paket berkontrak (DECISIONS 187)

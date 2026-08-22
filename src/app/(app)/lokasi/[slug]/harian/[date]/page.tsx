@@ -15,6 +15,7 @@ import { ISSUE_SEVERITY_LABEL, WEATHER_LABEL, WORKER_ROLE_LABEL } from "@/lib/da
 import { ReportEditor } from "./report-editor";
 import { EnrichmentForm } from "./enrichment-form";
 import { FinalizePanel, PanelKendala, ReviewActions } from "./review-actions";
+import { PindahTanggalForm } from "./pindah-tanggal-form";
 import { withBackTo } from "@/lib/print-back";
 
 export const metadata: Metadata = { title: "Laporan Harian" };
@@ -48,6 +49,7 @@ export default async function HarianWorkspacePage({
   const canReview = can(user.role, "daily_report.review");
   const canFinalize = can(user.role, "daily_report.finalize");
   const canUnfinalize = can(user.role, "daily_report.unfinalize");
+  const canMoveDate = can(user.role, "daily_report.move_date");
 
   const editable = canCreate && !isFuture && (!report || status === "draft" || status === "perlu_koreksi");
   // Pelengkap KKP (cuaca, jam kerja, tenaga kerja, material, alat). Dulu hanya
@@ -248,6 +250,18 @@ export default async function HarianWorkspacePage({
             Pratinjau format KKP
           </ButtonLink>
         </p>
+      ) : null}
+
+      {/*
+        Pindah tanggal (DECISIONS 415) — super admin saja, berlaku di SEMUA
+        status. Salah tanggal paling sering ketahuan saat verifikasi (laporan
+        dikembalikan dengan alasan "salah penginputan tanggal"), tapi bisa juga
+        baru ketahuan setelah final; yang final dibuka & difinalkan ulang
+        otomatis. Ditaruh di dasar halaman, di balik pengungkap: ini koreksi,
+        bukan langkah dalam alur normal.
+      */}
+      {report && canMoveDate ? (
+        <PindahTanggalForm reportId={report.id} tanggalSekarang={date} hariIni={todayKey} />
       ) : null}
 
       {/* Foto */}
