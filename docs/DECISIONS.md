@@ -21289,3 +21289,63 @@ dinas yang bentuknya cincin (bagian tengahnya putih) ini tidak jadi soal, dan
 itulah bentuk yang dipakai di lapangan. Kalau suatu saat ada stempel blok pekat,
 obatnya bukan urutan lagi melainkan ukuran/posisinya — dan itu keputusan
 tersendiri.
+
+
+---
+
+## 413 — Sidebar bisa diringkas (2026-08-22)
+
+### Permintaan user
+
+> sidebar yang bisa di collapsible, jadi bisa memperlebar pandangan di desktop
+
+lalu, sesudah saya menawarkan lebih daripada yang ditanya:
+
+> tidak perlu ramping, collapsible saja
+
+Jadi lebar sidebar yang TERBENTANG tidak disentuh sama sekali (tetap 15rem,
+wordmark, label penuh). Yang ditambah cuma kemampuan melipatnya jadi 4rem.
+
+### Keadaannya di ATRIBUT `<html>`, bukan state React
+
+Dua benda harus menyempit BERSAMA: sidebar dan bantalan kiri konten
+(`AppShell`). Keduanya di cabang pohon yang berbeda. Lewat state React,
+keduanya butuh context yang dipasang mengelilingi seluruh shell hanya demi satu
+boolean — dan kalau salah satu lupa dipasang, hasilnya bukan layar yang lebih
+lega melainkan **pita kosong selebar 15rem** di kiri konten.
+
+Lewat `data-nav="ringkas"` di `<html>` + CSS, keduanya membaca sumber yang sama
+dan mustahil berselisih.
+
+### Skrip pra-lukis: bukan kemewahan
+
+Tanpa skrip di `<head>` yang memasang atributnya SEBELUM halaman dilukis,
+sidebar selalu terbentang dulu lalu melompat menyempit begitu React hidup —
+kedipan di SETIAP perpindahan halaman, dan paling terasa justru bagi orang yang
+memilih meringkasnya. Uji e2e-nya karena itu mengukur lebar **tepat sesudah
+`domcontentloaded`**, bukan sesudah menunggu React: kalau lebarnya baru benar
+belakangan, angkanya masih 240 dan ujinya merah.
+
+Skripnya dibungkus `try/catch`. Lemparan di `<head>` tidak merusak sidebar
+melainkan menghentikan penguraian dokumen — SELURUH halaman jadi kosong. Mode
+privat sebagian peramban melempar pada `localStorage.getItem`.
+
+### `localStorage`, dan kenapa justru ini yang pantas di sana
+
+Kenyamanan per orang per peramban, tidak perlu dibaca ulang server, dan tidak
+apa-apa kalau hilang. Tanpa diingat, tombolnya jadi mainan: tiap muat ulang
+sidebarnya mengembang lagi. Nilai yang tidak dikenali mendarat pada TERBENTANG
+— kalau kebalikannya, orang membuka MARLIN dan menunya sudah menyempit tanpa ia
+pernah menekan apa pun.
+
+### Nama menu tidak boleh ikut hilang
+
+Label disembunyikan CSS, jadi `aria-label` + `title` dipasang SELALU — bukan
+hanya saat diringkas. Kalau hanya saat ringkas, nama menu jadi bergantung pada
+CSS yang sedang berlaku, dan pembaca layar bisa mendapat "link" berkali-kali
+tanpa ada yang sadar. Dijaga uji e2e.
+
+### Yang TIDAK dikerjakan
+
+Komposisi menu tidak disentuh — saya sempat membahasnya padahal user cuma
+bertanya soal sidebar, dan itu ditegur. Lebar terbentang juga tidak diubah.

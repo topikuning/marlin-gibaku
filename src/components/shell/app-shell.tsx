@@ -44,7 +44,10 @@ export function AppShell({
           kalau muncul, semua pengiriman dari halaman ini akan ditolak. */}
       <PengawasVersi />
       <Sidebar brand={brand} nav={nav} />
-      <div className="lg:pl-60">
+      {/* `marlin-konten`: bantalan kirinya ikut menyempit saat sidebar
+          diringkas (DECISIONS 413). Kelasnya, bukan prop — sumber keadaannya
+          atribut `data-nav` di <html>, dibaca CSS. */}
+      <div className="marlin-konten lg:pl-60">
         <Topbar brand={brand} user={user} logoutAction={logoutAction}>
           {topbarContent}
         </Topbar>
