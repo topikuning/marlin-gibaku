@@ -590,7 +590,6 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
       pelaksanaName: true,
       pelaksanaTitle: true,
       pelaksanaTtdKey: true,
-      pelaksanaStempelKey: true,
       supervisorName: true,
       supervisorFirm: true,
       supervisorTtdKey: true,
@@ -599,7 +598,6 @@ export async function getKkpDailyData(slug: string, dateKey: string): Promise<Kk
           pelaksanaName: true,
           pelaksanaTitle: true,
           pelaksanaTtdKey: true,
-          pelaksanaStempelKey: true,
           contract: {
             select: {
               startDate: true,

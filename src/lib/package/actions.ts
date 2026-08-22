@@ -1709,10 +1709,10 @@ const MEDAN_TTD = [
 
 /** Medan gambar Pelaksana Lapangan — tersimpan di `packages`. */
 /*
- * HANYA tanda tangan (DECISIONS 408). Stempel milik PERUSAHAAN, bukan orang,
- * jadi Pelaksana Lapangan memakai stempel penyedia yang sama – kolomnya
- * `pelaksana_stempel_key` masih ada di basis data tapi tidak lagi ditulis
- * maupun dibaca; datanya sengaja tidak dihapus.
+ * HANYA tanda tangan (DECISIONS 408/410). Stempel milik PERUSAHAAN, bukan
+ * orang, jadi Pelaksana Lapangan memakai stempel penyedia yang sama. Kolom
+ * `pelaksana_stempel_key` sudah DIHAPUS dari basis data sesudah dipastikan
+ * tidak ada berkas yang terlanjur diunggah ke sana.
  */
 const MEDAN_TTD_PAKET = ["pelaksanaTtdKey"] as const;
 type MedanTtdPaket = (typeof MEDAN_TTD_PAKET)[number];
@@ -1752,7 +1752,7 @@ export async function updateContractSignatureImages(
       supervisorStempelKey: true,
       contractorTtdKey: true,
       contractorStempelKey: true,
-      package: { select: { id: true, pelaksanaTtdKey: true, pelaksanaStempelKey: true } },
+      package: { select: { id: true, pelaksanaTtdKey: true } },
     },
   });
   if (!contract) return { error: "Kontrak tidak ditemukan." };

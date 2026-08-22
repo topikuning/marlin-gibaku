@@ -464,7 +464,6 @@ export type GambarTtdKontrak = {
   contractorStempelUrl: string | null;
   /** Pelaksana Lapangan — tersimpan di paket, ditampilkan di form yang sama. */
   pelaksanaTtdUrl: string | null;
-  pelaksanaStempelUrl: string | null;
   /** Stempel dari master perusahaan — cadangan bila kontrak tidak punya sendiri. */
   vendorStempelUrl: string | null;
   vendorName: string;
@@ -540,7 +539,6 @@ export function TtdStempelForm({
           medanTtd="pelaksanaTtdKey"
           ttdUrl={gambar.pelaksanaTtdUrl}
           catatanStempel={`Memakai stempel ${gambar.vendorName} di kolom sebelah – satu perusahaan, satu stempel.`}
-          stempelUsang={gambar.pelaksanaStempelUrl}
         />
         </div>
       </div>
@@ -565,7 +563,6 @@ function PihakTtdFields({
   stempelUrl,
   stempelCadanganUrl,
   catatanStempel,
-  stempelUsang,
 }: {
   judul: string;
   medanTtd: string;
@@ -576,8 +573,6 @@ function PihakTtdFields({
   stempelCadanganUrl?: string | null;
   /** Kalimat pengganti kotak stempel bila pihak ini menumpang stempel lain. */
   catatanStempel?: string;
-  /** Stempel yang PERNAH diunggah di kotak yang kini dihapus – disebut, tidak didiamkan. */
-  stempelUsang?: string | null;
 }) {
   return (
     <div className="space-y-3 rounded-md border border-border p-3">
@@ -607,21 +602,7 @@ function PihakTtdFields({
           urlCadangan={!stempelUrl ? stempelCadanganUrl : null}
         />
       ) : (
-        <>
-          {catatanStempel ? <p className="text-xs text-ink-muted">{catatanStempel}</p> : null}
-          {/*
-            Stempel yang TERLANJUR diunggah di kotak lama DISEBUT, bukan
-            dibiarkan hilang diam-diam: berkasnya masih ada di penyimpanan, tapi
-            tidak lagi dipakai mencetak. Orang berhak tahu kenapa stempel yang ia
-            unggah kemarin tidak muncul lagi.
-          */}
-          {stempelUsang ? (
-            <p className="text-xs text-warning">
-              Stempel yang pernah diunggah di sini tidak dipakai lagi. Kalau itu satu-satunya
-              stempel yang Anda punya, unggah ulang di kolom Penyedia Jasa.
-            </p>
-          ) : null}
-        </>
+        catatanStempel ? <p className="text-xs text-ink-muted">{catatanStempel}</p> : null
       )}
     </div>
   );

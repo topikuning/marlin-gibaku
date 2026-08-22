@@ -162,7 +162,6 @@ export const getPackageWorkspace = cache(async (id: string) => {
       pelaksanaName: true,
       pelaksanaTitle: true,
       pelaksanaTtdKey: true,
-      pelaksanaStempelKey: true,
       waGroupId: true,
       waGroupName: true,
       driveFolderId: true,

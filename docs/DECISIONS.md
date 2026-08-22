@@ -21131,3 +21131,40 @@ karena `describe` sebelumnya mengganti isi kontrak lewat
 `updateContractSignatories`. Uji yang bergantung pada sisa uji lain akan
 menuduh kode yang benar setiap kali urutannya berubah, jadi keadaannya kini
 disetel di `beforeAll` miliknya sendiri.
+
+
+---
+
+## 410 — Kolom stempel pelaksana dihapus, sesudah dipastikan kosong (2026-08-22)
+
+### Lanjutan DECISIONS 408
+
+Waktu stempel pelaksana dibuang dari kode, kolomnya SENGAJA dibiarkan hidup dan
+ditandai USANG. Alasannya bukan kemalasan: kalau ada yang terlanjur mengunggah
+berkas ke kotak itu, menghapus kolomnya berarti menghapus satu-satunya jejak
+yang menghubungkan berkas di penyimpanan dengan pemiliknya — tanpa
+sepengetahuan orangnya.
+
+Kepastiannya diminta, lalu diberikan user 2026-08-22:
+
+> tidak ada stempel yang terlanjur diunggah
+
+Baru sesudah itu kolom `pelaksana_stempel_key` dihapus dari `packages` dan
+`locations`, berikut seluruh sisa kodenya: `select` Prisma, prop
+`pelaksanaStempelUrl`/`stempelUsang`, dan peringatan "stempel yang pernah
+diunggah di sini tidak dipakai lagi" yang sekarang tidak punya apa pun untuk
+dibaca.
+
+### Catatan user yang benar, dan layak dicatat
+
+> kamu hal seperti ini kan bisa tau dari merge ke main, kalau ternyata belum di
+> merge kan tidak ada data production yg perlu dikhawatirkan
+
+Benar, dan itu pemeriksaan yang bisa dilakukan sendiri: **kolom yang belum
+pernah sampai ke `main` tidak mungkin punya data produksi.** Dalam hal ini
+kolomnya SUDAH ter-merge (PR #182, sehari sebelumnya), jadi jendela unggahnya
+nyata dan pertanyaannya memang perlu — tapi urutan berpikirnya harus itu dulu:
+cek riwayat merge, baru bertanya kalau memang ada jendelanya.
+
+Aturan yang dipakai seterusnya: **kolom yang HILANG butuh kepastian; kolom yang
+belum pernah dirilis tidak.**
