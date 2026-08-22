@@ -278,7 +278,7 @@ export default async function LokasiRingkasanPage({
                 nama={location.pelaksanaName}
                 jabatan={location.pelaksanaTitle}
                 ttdUrl={urlTtdPelaksana(location.pelaksanaTtdKey)}
-                stempelUrl={urlTtdPelaksana(location.pelaksanaStempelKey)}
+                stempelUsang={urlTtdPelaksana(location.pelaksanaStempelKey)}
                 warisan={{
                   nama: location.package.pelaksanaName,
                   jabatan: location.package.pelaksanaTitle,

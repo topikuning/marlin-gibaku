@@ -22,21 +22,18 @@ const PAKET: SumberPelaksana = {
   pelaksanaName: "Budi Santoso",
   pelaksanaTitle: null,
   pelaksanaTtdKey: "ttd/paket.png",
-  pelaksanaStempelKey: "stempel/paket.png",
 };
 
 const LOKASI: SumberPelaksana = {
   pelaksanaName: "Sari Handayani",
   pelaksanaTitle: "Site Manager",
   pelaksanaTtdKey: "ttd/lokasi.png",
-  pelaksanaStempelKey: null,
 };
 
 const KOSONG: SumberPelaksana = {
   pelaksanaName: null,
   pelaksanaTitle: null,
   pelaksanaTtdKey: null,
-  pelaksanaStempelKey: null,
 };
 
 describe("dokumen mana diteken siapa", () => {
@@ -85,7 +82,6 @@ describe("pelaksana lokasi menimpa pelaksana paket", () => {
     const b = pilihPelaksana({ ...LOKASI, pelaksanaTtdKey: null }, PAKET);
     expect(b.nama).toBe("Sari Handayani");
     expect(b.ttdKey).toBeNull();
-    expect(b.stempelKey).toBeNull();
   });
 
   it("keduanya kosong → tanpa nama, jabatan tetap terbaca", () => {

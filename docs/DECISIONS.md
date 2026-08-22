@@ -20977,3 +20977,72 @@ Penjaga di `addIssueFromReport` dibuang, lalu
 `tests/integration/kendala-satu-pintu.test.ts` dijalankan: 4 dari 7 merah,
 termasuk yang memanggil fungsinya LANGSUNG tanpa lewat action mana pun.
 Dikembalikan, tujuh hijau.
+
+
+---
+
+## 408 — Satu perusahaan, satu stempel; dan grid yang mengukur jendela padahal hidup di dalam laci (2026-08-22)
+
+### Keberatan user
+
+> layoutmu berantakan, lalu kenapa pelaksana dan direktur yang jelas 1
+> perusahaan stempelnya muncul 2x?
+
+Dua hal, dan yang kedua cacat model — bukan cacat tampilan.
+
+### 1. Stempel bukan tanda tangan
+
+Saya memperlakukan stempel persis seperti tanda tangan: satu kotak unggah per
+PIHAK. Salah, karena keduanya beda jenis benda:
+
+- **coretan tanda tangan milik ORANG** — tidak boleh dipinjam antar orang, dan
+  itu sudah dijaga sejak DECISIONS 402;
+- **stempel milik PERUSAHAAN** — benda fisik yang sama, dibubuhkan siapa pun
+  yang meneken atas nama perusahaan itu.
+
+Pelaksana Lapangan dan Direktur bekerja di perusahaan yang SAMA. Jadi kotak
+"Stempel" di kolom Pelaksana Lapangan adalah salinan kedua dari benda yang sama
+— dan salinan kedua bisa menyimpang: yang satu diperbarui, yang lain tertinggal,
+lalu laporan harian dan laporan bulanan dari lokasi yang sama membawa stempel
+yang berbeda. Itu bukan kerapian, itu dokumen yang saling menyangkal.
+
+**Sekarang:** stempel penyedia = `Contract.contractorStempelKey`, cadangan
+`Vendor.stempelKey` — SAMA untuk Pelaksana maupun Direktur, tidak lagi
+bergantung pada jenis dokumen. Kotak stempel di kolom Pelaksana Lapangan
+dihapus, diganti kalimat yang menyebut stempel siapa yang dipakai. Coretan
+tanda tangannya TETAP terpisah per orang.
+
+`BlokPelaksana` kehilangan `stempelKey` supaya kompilernya yang menagih, bukan
+ingatan: tidak ada lagi tempat untuk menuliskan "stempel milik pelaksana".
+
+**Data lama tidak dihapus.** Kolom `pelaksana_stempel_key` (di `packages` dan
+`locations`) tetap ada dan ditandai USANG di skema; tidak ada kode yang
+membacanya lagi. Kalau seseorang terlanjur mengunggah ke kotak itu, layarnya
+MENGATAKAN bahwa berkas itu tidak dipakai lagi dan menyuruh mengunggah ulang di
+kolom Penyedia Jasa — bukan menghilang diam-diam. Menghapus kolomnya menunggu
+kepastian tidak ada data terpakai.
+
+### 2. `xl:grid-cols-4` mengukur JENDELA, formulirnya hidup di dalam LACI
+
+Formulir tanda tangan dibuka di dalam `Drawer` selebar `max-w-lg` (512 px). Media
+query `xl:` menanyakan lebar **jendela**. Di layar 1440 px syaratnya terpenuhi,
+lalu empat kolom dijejalkan ke ruang 480 px: masing-masing ±110 px, tombol
+"Pilih berkas" melimpah ke kolom sebelah, dan setiap kata turun satu baris.
+
+Diganti `@container` + `@md:grid-cols-2` — menanyakan lebar yang benar-benar
+tersedia. Terukur sesudahnya:
+
+| Lebar jendela | Kolom | Lebar kartu | Melimpah keluar kartu |
+|---------------|-------|-------------|-----------------------|
+| 1600          | 2     | 232 px      | 0                     |
+| 1280          | 2     | 232 px      | 0                     |
+| 390           | 1     | 357 px      | 0                     |
+
+Pelajaran yang berlaku di luar layar ini: **komponen yang bisa dipasang di dalam
+panel sempit tidak boleh memakai media query lebar layar.** Yang dijawabnya
+bukan pertanyaan yang sedang ditanyakan.
+
+### Uji gigi
+
+`pilihKunciTtd` dikembalikan ke bentuk lamanya (stempel bergantung siapa yang
+meneken): uji "SATU perusahaan, SATU stempel" merah, sisanya hijau. Dikembalikan.

@@ -264,7 +264,6 @@ export function buildPeriodHeader(
       pelaksanaName: location.pelaksanaName,
       pelaksanaTitle: location.pelaksanaTitle,
       pelaksanaTtdKey: location.pelaksanaTtdKey,
-      pelaksanaStempelKey: location.pelaksanaStempelKey,
     },
     location.package,
   );

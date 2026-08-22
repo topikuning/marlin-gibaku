@@ -75,19 +75,27 @@ export function pihakPenyedia(jenis: JenisDokumen): PihakPenyedia {
   return PENEKEN[jenis];
 }
 
-/** Satu blok penanda tangan: nama, jabatan, dan gambar-gambarnya. */
+/**
+ * Satu blok penanda tangan: nama, jabatan, dan CORETAN TANDA TANGANNYA.
+ *
+ * TANPA stempel, dan itu keputusan (DECISIONS 408). Keberatan user 2026-08-22:
+ * *"kenapa pelaksana dan direktur yang jelas 1 perusahaan stempelnya muncul
+ * 2x?"* Karena saya memperlakukan stempel seperti tanda tangan. Keduanya
+ * berbeda jenis benda: **coretan tanda tangan milik ORANG, stempel milik
+ * PERUSAHAAN.** Pelaksana Lapangan dan Direktur bekerja di perusahaan yang
+ * sama, jadi stempelnya satu — diambil dari sisi penyedia (kontrak, lalu
+ * master vendor), bukan dari blok orangnya.
+ */
 export type BlokPelaksana = {
   nama: string | null;
   jabatan: string | null;
   ttdKey: string | null;
-  stempelKey: string | null;
 };
 
 export type SumberPelaksana = {
   pelaksanaName: string | null;
   pelaksanaTitle: string | null;
   pelaksanaTtdKey: string | null;
-  pelaksanaStempelKey: string | null;
 };
 
 function kosong(v: string | null | undefined): boolean {
@@ -113,7 +121,7 @@ export function pilihPelaksana(
 ): BlokPelaksana {
   const sumber = lokasi && !kosong(lokasi.pelaksanaName) ? lokasi : paket;
   if (!sumber || kosong(sumber.pelaksanaName)) {
-    return { nama: null, jabatan: JABATAN_PELAKSANA_BAWAAN, ttdKey: null, stempelKey: null };
+    return { nama: null, jabatan: JABATAN_PELAKSANA_BAWAAN, ttdKey: null };
   }
   return {
     nama: sumber.pelaksanaName!.trim(),
@@ -121,7 +129,6 @@ export function pilihPelaksana(
       ? JABATAN_PELAKSANA_BAWAAN
       : sumber.pelaksanaTitle!.trim(),
     ttdKey: sumber.pelaksanaTtdKey ?? null,
-    stempelKey: sumber.pelaksanaStempelKey ?? null,
   };
 }
 

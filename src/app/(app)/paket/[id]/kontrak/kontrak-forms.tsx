@@ -496,7 +496,18 @@ export function TtdStempelForm({
       {state?.success ? <Banner tone="success" title={state.success} /> : null}
       <input type="hidden" name="contractId" value={contractId} />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {/*
+        Kolomnya mengikuti lebar WADAH, bukan lebar jendela (DECISIONS 408).
+
+        Keluhan user 2026-08-22: *"layoutmu berantakan"*. Sebabnya `xl:grid-cols-4`
+        — media query itu mengukur JENDELA, sementara formulir ini hidup di dalam
+        Drawer selebar `max-w-lg` (512px). Di layar 1440px syaratnya terpenuhi,
+        lalu empat kolom dijejalkan ke ruang 480px: tiap kolom ±110px, tombol
+        "Pilih berkas" melimpah ke kolom sebelah, dan tiap kata turun satu baris.
+        `@container` menanyakan lebar yang benar-benar tersedia.
+      */}
+      <div className="@container">
+        <div className="grid gap-4 @md:grid-cols-2">
         <PihakTtdFields
           judul="Pejabat Pembuat Komitmen"
           medanTtd="ppkTtdKey"
@@ -527,11 +538,11 @@ export function TtdStempelForm({
         <PihakTtdFields
           judul="Pelaksana Lapangan"
           medanTtd="pelaksanaTtdKey"
-          medanStempel="pelaksanaStempelKey"
           ttdUrl={gambar.pelaksanaTtdUrl}
-          stempelUrl={gambar.pelaksanaStempelUrl}
-          stempelCadanganUrl={gambar.vendorStempelUrl}
+          catatanStempel={`Memakai stempel ${gambar.vendorName} di kolom sebelah – satu perusahaan, satu stempel.`}
+          stempelUsang={gambar.pelaksanaStempelUrl}
         />
+        </div>
       </div>
 
       <HelpText>
@@ -553,13 +564,20 @@ function PihakTtdFields({
   ttdUrl,
   stempelUrl,
   stempelCadanganUrl,
+  catatanStempel,
+  stempelUsang,
 }: {
   judul: string;
   medanTtd: string;
-  medanStempel: string;
+  /** Kosongkan untuk pihak yang TIDAK punya stempel sendiri (Pelaksana). */
+  medanStempel?: string;
   ttdUrl: string | null;
-  stempelUrl: string | null;
+  stempelUrl?: string | null;
   stempelCadanganUrl?: string | null;
+  /** Kalimat pengganti kotak stempel bila pihak ini menumpang stempel lain. */
+  catatanStempel?: string;
+  /** Stempel yang PERNAH diunggah di kotak yang kini dihapus – disebut, tidak didiamkan. */
+  stempelUsang?: string | null;
 }) {
   return (
     <div className="space-y-3 rounded-md border border-border p-3">
@@ -574,19 +592,37 @@ function PihakTtdFields({
         // mengikuti bentuk itu, bukan bujur sangkar.
         kelasPratinjau="h-12 w-full"
       />
-      <BerkasTtd
-        id={`f-${medanStempel}`}
-        medan={medanStempel}
-        label="Stempel"
-        url={stempelUrl}
-        kelasPratinjau="size-16"
-        catatan={
-          !stempelUrl && stempelCadanganUrl
-            ? "Kosong – memakai stempel dari master perusahaan."
-            : null
-        }
-        urlCadangan={!stempelUrl ? stempelCadanganUrl : null}
-      />
+      {medanStempel ? (
+        <BerkasTtd
+          id={`f-${medanStempel}`}
+          medan={medanStempel}
+          label="Stempel"
+          url={stempelUrl ?? null}
+          kelasPratinjau="size-16"
+          catatan={
+            !stempelUrl && stempelCadanganUrl
+              ? "Kosong – memakai stempel dari master perusahaan."
+              : null
+          }
+          urlCadangan={!stempelUrl ? stempelCadanganUrl : null}
+        />
+      ) : (
+        <>
+          {catatanStempel ? <p className="text-xs text-ink-muted">{catatanStempel}</p> : null}
+          {/*
+            Stempel yang TERLANJUR diunggah di kotak lama DISEBUT, bukan
+            dibiarkan hilang diam-diam: berkasnya masih ada di penyimpanan, tapi
+            tidak lagi dipakai mencetak. Orang berhak tahu kenapa stempel yang ia
+            unggah kemarin tidak muncul lagi.
+          */}
+          {stempelUsang ? (
+            <p className="text-xs text-warning">
+              Stempel yang pernah diunggah di sini tidak dipakai lagi. Kalau itu satu-satunya
+              stempel yang Anda punya, unggah ulang di kolom Penyedia Jasa.
+            </p>
+          ) : null}
+        </>
+      )}
     </div>
   );
 }

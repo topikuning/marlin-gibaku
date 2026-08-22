@@ -35,12 +35,12 @@ const skema = z.object({
 const BERKAS_MAKS = 2 * 1024 * 1024;
 
 /** Medan gambar; nama medan = nama field form, sama untuk kedua sasaran. */
-const MEDAN = ["pelaksanaTtdKey", "pelaksanaStempelKey"] as const;
+// Stempel TIDAK ada di sini lagi – lihat DECISIONS 408.
+const MEDAN = ["pelaksanaTtdKey"] as const;
 type Medan = (typeof MEDAN)[number];
 
 const LABEL: Record<Medan, string> = {
   pelaksanaTtdKey: "tanda tangan pelaksana",
-  pelaksanaStempelKey: "stempel pelaksana",
 };
 
 function teks(v: FormDataEntryValue | null, maks: number): string | undefined {

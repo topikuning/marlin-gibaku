@@ -62,13 +62,11 @@ export async function muatTtdPdf(locationId: string, jenis: JenisDokumen): Promi
         pelaksanaName: true,
         pelaksanaTitle: true,
         pelaksanaTtdKey: true,
-        pelaksanaStempelKey: true,
         package: {
           select: {
             pelaksanaName: true,
             pelaksanaTitle: true,
             pelaksanaTtdKey: true,
-            pelaksanaStempelKey: true,
             contract: {
               select: {
                 ppkTtdKey: true,
@@ -95,7 +93,6 @@ export async function muatTtdPdf(locationId: string, jenis: JenisDokumen): Promi
       ...k,
       penyedia: pihakPenyedia(jenis),
       pelaksanaTtdKey: pelaksana.ttdKey,
-      pelaksanaStempelKey: pelaksana.stempelKey,
       vendorStempelKey: k.vendor.stempelKey,
     });
     const sharp = (await import("sharp")).default;

@@ -23,14 +23,15 @@ export function PelaksanaForm({
   nama,
   jabatan,
   ttdUrl,
-  stempelUrl,
+  stempelUsang,
   warisan,
 }: {
   locationId: string;
   nama: string | null;
   jabatan: string | null;
   ttdUrl: string | null;
-  stempelUrl: string | null;
+  /** Stempel lama di kotak yang sudah dihapus – hanya untuk diberitahukan. */
+  stempelUsang?: string | null;
   /** Pelaksana paket yang berlaku bila lokasi ini dikosongkan. */
   warisan?: { nama: string | null; jabatan: string | null } | null;
 }) {
@@ -89,23 +90,25 @@ export function PelaksanaForm({
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <BerkasTtd
-          id="pl-ttd-lokasi"
-          medan="pelaksanaTtdKey"
-          label="Tanda tangan"
-          url={ttdUrl}
-          kelasPratinjau="h-12 w-full"
-        />
-        <BerkasTtd
-          id="pl-stempel-lokasi"
-          medan="pelaksanaStempelKey"
-          label="Stempel (opsional)"
-          url={stempelUrl}
-          kelasPratinjau="size-16"
-          catatan="Kosong – memakai stempel perusahaan dari master vendor."
-        />
-      </div>
+      {/*
+        HANYA tanda tangan – tidak ada kotak stempel (DECISIONS 408). Stempel
+        milik PERUSAHAAN, dan pelaksana lokasi ini bekerja di perusahaan yang
+        sama dengan Direktur yang meneken laporan bulanan. Satu perusahaan, satu
+        stempel: diambil dari kontrak, lalu master vendor.
+      */}
+      <BerkasTtd
+        id="pl-ttd-lokasi"
+        medan="pelaksanaTtdKey"
+        label="Tanda tangan"
+        url={ttdUrl}
+        kelasPratinjau="h-12 w-full"
+      />
+      {stempelUsang ? (
+        <p className="text-xs text-warning">
+          Stempel yang pernah diunggah di sini tidak dipakai lagi – stempel perusahaan diambil
+          dari kontrak paket. Berkasnya tidak dihapus.
+        </p>
+      ) : null}
 
       {/*
         Peringatan ini penting justru ketika lokasi MENIMPA paket: nama diambil

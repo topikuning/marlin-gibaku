@@ -76,9 +76,8 @@ const UMUR_TAUTAN = 600;
 export type SumberKunciTtd = {
   /** Pihak penyedia mana yang meneken dokumen ini. */
   penyedia: "pelaksana" | "direktur";
-  /** Blok pelaksana yang SUDAH dipilih (lokasi menimpa paket). */
+  /** Coretan pelaksana yang SUDAH dipilih (lokasi menimpa paket). */
   pelaksanaTtdKey: string | null;
-  pelaksanaStempelKey: string | null;
   ppkTtdKey: string | null;
   ppkStempelKey: string | null;
   supervisorTtdKey: string | null;
@@ -104,6 +103,18 @@ export type KunciTtd = {
  * berkas yang identik, dan yang pertama terlewat adalah yang paling sering
  * dicetak. Cadangan ini TIDAK berlaku untuk tanda tangan: coretan tanda tangan
  * milik ORANG, dan orangnya ditunjuk per kontrak.
+ *
+ * ### SATU perusahaan, SATU stempel (DECISIONS 408)
+ *
+ * Stempel penyedia TIDAK bergantung pada siapa yang meneken. Versi sebelumnya
+ * memilih stempel milik pelaksana untuk laporan harian/mingguan dan stempel
+ * kontrak untuk bulanan/MC/CCO — dua kotak unggah untuk satu benda yang sama,
+ * persis yang dikeluhkan user 2026-08-22: *"kenapa pelaksana dan direktur yang
+ * jelas 1 perusahaan stempelnya muncul 2x?"*
+ *
+ * Akibatnya bukan cuma layar yang penuh: dua salinan stempel yang sama bisa
+ * menyimpang (yang satu diperbarui, yang lain tidak), dan dokumen dari lokasi
+ * yang SAMA akan membawa stempel berbeda menurut jenis laporannya.
  */
 export function pilihKunciTtd(s: SumberKunciTtd): KunciTtd {
   const pelaksana = s.penyedia === "pelaksana";
@@ -115,10 +126,10 @@ export function pilihKunciTtd(s: SumberKunciTtd): KunciTtd {
       // ditandatangani pelaksana tetapi memakai coretan direktur adalah
       // pernyataan yang tidak benar, bukan sekadar gambar yang keliru.
       ttd: pelaksana ? s.pelaksanaTtdKey : s.contractorTtdKey,
-      // Stempel beda urusan — ia benda milik PERUSAHAAN, bukan milik orang,
-      // jadi cadangan ke stempel vendor tetap sah untuk kedua pihak.
-      stempel:
-        (pelaksana ? s.pelaksanaStempelKey : s.contractorStempelKey) ?? s.vendorStempelKey,
+      // Stempel beda urusan — ia benda milik PERUSAHAAN, bukan milik orang.
+      // Karena itu SAMA untuk Pelaksana maupun Direktur: kontrak dulu, lalu
+      // master vendor. Tidak ada stempel "milik pelaksana".
+      stempel: s.contractorStempelKey ?? s.vendorStempelKey,
     },
   };
 }
@@ -153,13 +164,11 @@ export async function muatTtdLaporan(
       pelaksanaName: true,
       pelaksanaTitle: true,
       pelaksanaTtdKey: true,
-      pelaksanaStempelKey: true,
       package: {
         select: {
           pelaksanaName: true,
           pelaksanaTitle: true,
           pelaksanaTtdKey: true,
-          pelaksanaStempelKey: true,
           contract: {
             select: {
               ppkName: true,
@@ -195,7 +204,6 @@ export async function muatTtdLaporan(
     ...k,
     penyedia,
     pelaksanaTtdKey: pelaksana.ttdKey,
-    pelaksanaStempelKey: pelaksana.stempelKey,
     vendorStempelKey: k.vendor.stempelKey,
   });
   const [ppkTtd, ppkStempel, pgwTtd, pgwStempel, pnyTtd, pnyStempel] = await Promise.all([

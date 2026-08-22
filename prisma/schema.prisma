@@ -492,6 +492,13 @@ model Package {
   pelaksanaName       String?      @map("pelaksana_name")
   pelaksanaTitle      String?      @map("pelaksana_title")
   pelaksanaTtdKey     String?      @map("pelaksana_ttd_key")
+  /// USANG (DECISIONS 408) — JANGAN dibaca, JANGAN diisi.
+  ///
+  /// Stempel milik PERUSAHAAN, bukan orang: Pelaksana Lapangan dan Direktur
+  /// bekerja di perusahaan yang sama, jadi stempelnya satu — diambil dari
+  /// `Contract.contractorStempelKey`, lalu `Vendor.stempelKey`. Kolom ini
+  /// dipertahankan supaya berkas yang terlanjur diunggah tidak hilang dari
+  /// jejak; tidak ada satu pun kode yang membacanya lagi.
   pelaksanaStempelKey String?      @map("pelaksana_stempel_key")
   waGroupId           String?      @unique @map("wa_group_id")
   waGroupName         String?      @map("wa_group_name")
@@ -880,6 +887,13 @@ model Location {
   pelaksanaName       String? @map("pelaksana_name")
   pelaksanaTitle      String? @map("pelaksana_title")
   pelaksanaTtdKey     String? @map("pelaksana_ttd_key")
+  /// USANG (DECISIONS 408) — JANGAN dibaca, JANGAN diisi.
+  ///
+  /// Stempel milik PERUSAHAAN, bukan orang: Pelaksana Lapangan dan Direktur
+  /// bekerja di perusahaan yang sama, jadi stempelnya satu — diambil dari
+  /// `Contract.contractorStempelKey`, lalu `Vendor.stempelKey`. Kolom ini
+  /// dipertahankan supaya berkas yang terlanjur diunggah tidak hilang dari
+  /// jejak; tidak ada satu pun kode yang membacanya lagi.
   pelaksanaStempelKey String? @map("pelaksana_stempel_key")
 
   createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz

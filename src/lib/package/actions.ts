@@ -1708,7 +1708,13 @@ const MEDAN_TTD = [
 ] as const;
 
 /** Medan gambar Pelaksana Lapangan — tersimpan di `packages`. */
-const MEDAN_TTD_PAKET = ["pelaksanaTtdKey", "pelaksanaStempelKey"] as const;
+/*
+ * HANYA tanda tangan (DECISIONS 408). Stempel milik PERUSAHAAN, bukan orang,
+ * jadi Pelaksana Lapangan memakai stempel penyedia yang sama – kolomnya
+ * `pelaksana_stempel_key` masih ada di basis data tapi tidak lagi ditulis
+ * maupun dibaca; datanya sengaja tidak dihapus.
+ */
+const MEDAN_TTD_PAKET = ["pelaksanaTtdKey"] as const;
 type MedanTtdPaket = (typeof MEDAN_TTD_PAKET)[number];
 
 type MedanTtd = (typeof MEDAN_TTD)[number];
@@ -1724,7 +1730,6 @@ const LABEL_TTD: Record<MedanTtd, string> = {
 
 const LABEL_TTD_PAKET: Record<MedanTtdPaket, string> = {
   pelaksanaTtdKey: "tanda tangan pelaksana lapangan",
-  pelaksanaStempelKey: "stempel pelaksana lapangan",
 };
 
 /** Unggah/hapus gambar tanda tangan & stempel pada kontrak. */

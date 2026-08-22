@@ -219,14 +219,12 @@ describe("tanda tangan tidak dipinjam antar orang", () => {
         pelaksanaName: true,
         pelaksanaTitle: true,
         pelaksanaTtdKey: true,
-        pelaksanaStempelKey: true,
         package: {
           select: {
             pelaksanaName: true,
             pelaksanaTitle: true,
             pelaksanaTtdKey: true,
-            pelaksanaStempelKey: true,
-          },
+              },
         },
       },
     });
@@ -243,7 +241,6 @@ describe("tanda tangan tidak dipinjam antar orang", () => {
         pelaksanaName: true,
         pelaksanaTitle: true,
         pelaksanaTtdKey: true,
-        pelaksanaStempelKey: true,
       },
     });
     const blok = pilihPelaksana(null, paket);
