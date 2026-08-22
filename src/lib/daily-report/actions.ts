@@ -51,12 +51,16 @@ export type DailyActionState =
       success?: string;
       warning?: string;
       /**
-       * Usulan judul kendala sesudah hari dinyatakan nihil karena MENUNGGU
-       * (DECISIONS 396). Layar menawarkannya; tidak ada yang dibuat sampai
-       * orangnya menekan tombolnya.
+       * Kendala TERBUKA yang mirip – tawaran, bukan kegagalan (DECISIONS 407).
+       *
+       * Menggantikan `usulKendala` lama (DECISIONS 396), yang justru menjadi
+       * PINTU KEDUA untuk mencatat kendala hari yang sama: satu di panel hari
+       * nihil, satu lagi di lembar kirim. Sekarang pertanyaannya cuma ada di
+       * lembar kirim, dan sisa pekerjaan di sini adalah menahan kembarnya.
        */
-      usulKendala?: string;
-      usulLokasiId?: string;
+      kendalaDuplikat?: { id: string; title: string };
+      /** Isian yang sudah diketik – dikembalikan supaya tidak perlu diketik ulang. */
+      kendalaNilai?: { title: string; description: string; severity: string };
     }
   | undefined;
 
@@ -1059,24 +1063,34 @@ export async function submitReportAction(_prev: DailyActionState, formData: Form
       description: formData.get("kendalaDescription"),
     });
     if (!kendala.ok) return { error: kendala.error };
-    if (kendala.kendala) {
-      await addIssueFromReport(
-        ctx.id,
-        {
-          title: kendala.kendala.title,
-          description: kendala.kendala.description,
-          severity: kendala.kendala.severity,
-        },
-        user.id,
-      );
-    }
+    /*
+     * Kendala yang mirip dengan yang MASIH TERBUKA tidak dicatat dua kali
+     * (DECISIONS 407) – dan itu TIDAK menggagalkan pengiriman laporan. Menahan
+     * laporan harian karena urusan papan kendala berarti menukar kerugian kecil
+     * (satu baris kembar) dengan kerugian besar (laporan hari itu tidak terkirim
+     * sama sekali).
+     */
+    const hasil = kendala.kendala
+      ? await addIssueFromReport(
+          ctx.id,
+          {
+            title: kendala.kendala.title,
+            description: kendala.kendala.description,
+            severity: kendala.kendala.severity,
+          },
+          user.id,
+        )
+      : null;
 
     await submitReport(reportId, user.id);
     revalidateReport(ctx.slug, ctx.dateKey);
     return {
-      success: kendala.kendala
-        ? "Laporan terkirim beserta 1 kendala – menunggu verifikasi."
-        : "Laporan terkirim – menunggu verifikasi.",
+      success:
+        hasil?.jadi === "dibuat"
+          ? "Laporan terkirim beserta 1 kendala – menunggu verifikasi."
+          : hasil?.jadi === "duplikat"
+            ? `Laporan terkirim – menunggu verifikasi. Kendala serupa sudah terbuka ("${hasil.title}"), jadi tidak dicatat dua kali.`
+            : "Laporan terkirim – menunggu verifikasi.",
     };
   } catch (err) {
     return errState(err);
@@ -1198,6 +1212,8 @@ const issueSchema = z.object({
   title: z.string().trim().min(3, "Judul kendala wajib diisi (min 3 karakter)").max(200),
   description: z.string().trim().max(2000).optional(),
   severity: z.enum(["rendah", "sedang", "tinggi", "kritis"]),
+  /** Dikirim hanya oleh tombol "Tetap buat baru" sesudah tawaran duplikat. */
+  paksa: z.boolean().optional(),
 });
 
 export async function addIssueAction(_prev: DailyActionState, formData: FormData): Promise<DailyActionState> {
@@ -1211,11 +1227,12 @@ export async function addIssueAction(_prev: DailyActionState, formData: FormData
       title: formData.get("title"),
       description: formData.get("description") ?? undefined,
       severity: formData.get("severity"),
+      paksa: String(formData.get("paksa") ?? "") === "1" || undefined,
     });
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const ctx = await loadReportContext(parsed.data.reportId);
     await requireLocationAccess(user, ctx.locationId);
-    await addIssueFromReport(
+    const hasil = await addIssueFromReport(
       ctx.id,
       {
         title: parsed.data.title,
@@ -1223,8 +1240,23 @@ export async function addIssueAction(_prev: DailyActionState, formData: FormData
         severity: parsed.data.severity,
       },
       user.id,
+      { paksa: parsed.data.paksa },
     );
     revalidateReport(ctx.slug, ctx.dateKey);
+    if (hasil.jadi === "duplikat") {
+      /*
+       * Bukan galat – tawaran (DECISIONS 407). Yang sudah diketik dikembalikan
+       * bersama tawarannya supaya "Tetap buat baru" tidak berarti mengetik ulang.
+       */
+      return {
+        kendalaDuplikat: { id: hasil.issueId, title: hasil.title },
+        kendalaNilai: {
+          title: parsed.data.title,
+          description: parsed.data.description ?? "",
+          severity: parsed.data.severity,
+        },
+      };
+    }
     return { success: "Kendala tercatat." };
   } catch (err) {
     return errState(err);
@@ -1284,11 +1316,17 @@ export async function setHariNihilAction(
     revalidateReport(ctx.slug, ctx.dateKey);
 
     if (!d.nihil) return { success: "Pernyataan tidak ada kegiatan dibatalkan." };
-    const usul = judulKendalaDariNihil(d.alasan, d.catatan);
-    return {
-      success: "Hari ini dinyatakan tidak ada kegiatan.",
-      ...(usul ? { usulKendala: usul, usulLokasiId: ctx.locationId } : {}),
-    };
+    /*
+     * TIDAK ada tawaran kendala di sini lagi (DECISIONS 407).
+     *
+     * Dulu jawabannya membawa `usulKendala` dan panel hari-nihil memasang
+     * formulir "Catat sebagai kendala" – lalu lembar kirim menanyakan hal yang
+     * sama sekali lagi beberapa detik kemudian. Dua pertanyaan untuk satu
+     * hambatan: rancu, dan kembarnya lahir dari sana. Usulannya sekarang
+     * DIBAWA ke lembar kirim (`judulKendalaDariNihil` dipanggil di layar), jadi
+     * hambatan yang sama tetap tidak hilang – hanya ditanyakan satu kali.
+     */
+    return { success: "Hari ini dinyatakan tidak ada kegiatan." };
   } catch (err) {
     return errState(err);
   }

@@ -3,14 +3,12 @@
 import { Download, FileSpreadsheet, FileText, Files, HardDriveUpload, MessageCircle, Printer } from "lucide-react";
 import { Banner, MenuBerkas, useAksiKlik, type PilihanBerkas } from "@/components/ui";
 import {
-  sendDailyReportPdfToWaAction,
   sendPeriodReportToWaAction,
   sendPeriodReportPdfToWaAction,
   sendWeeklyBundleToWaAction,
   type WaActionState,
 } from "@/lib/waha/actions";
 import {
-  uploadDailyReportToDriveAction,
   uploadPeriodReportToDriveAction,
   uploadWeeklyBundleToDriveAction,
   type GDriveActionState,
@@ -203,100 +201,12 @@ export function MenuLaporanPeriodik({
   );
 }
 
-/** Menu satu laporan HARIAN pada daftar laporan final. */
-export function MenuLaporanHarian({
-  slug,
-  dateKey,
-  hasGroup,
-  hasDrive,
-  wahaOn,
-  driveOn,
-  sentAt,
-  uploadedAt,
-}: {
-  slug: string;
-  dateKey: string;
-  hasGroup: boolean;
-  hasDrive: boolean;
-  wahaOn: boolean;
-  driveOn: boolean;
-  sentAt?: string | null;
-  uploadedAt?: string | null;
-}) {
-  const [wa, kirimWa, waPending] = useAksiKlik<WaActionState>(sendDailyReportPdfToWaAction, undefined);
-  const [drive, kirimDrive, drivePending] = useAksiKlik<GDriveActionState>(uploadDailyReportToDriveAction, undefined);
-
-  const fd = () => {
-    const f = new FormData();
-    f.set("slug", slug);
-    f.set("dateKey", dateKey);
-    return f;
-  };
-
-  const pesan = wa ?? drive;
-
-  // Yang dilakukan setiap hari cukup SATU klik: badan tombol langsung mengunduh
-  // PDF-nya, panah di kanan menyimpan sisanya (DECISIONS 360).
-  const unduhPdf: PilihanBerkas = {
-    label: "Unduh PDF",
-    icon: <Download aria-hidden className="size-3.5" />,
-    href: `/api/laporan/harian/${slug}/${dateKey}/pdf`,
-    jenis: "berkas",
-    labelSibuk: "Menyiapkan PDF…",
-  };
-
-  return (
-    <span className="inline-flex flex-col gap-1">
-      <MenuBerkas
-        label="Laporan Harian"
-        icon={<FileText aria-hidden className="size-4" />}
-        utama={unduhPdf}
-        pilihan={[
-          unduhPdf,
-          {
-            label: "Unduh PDF tanpa sampul",
-            icon: <Download aria-hidden className="size-3.5" />,
-            href: `/api/laporan/harian/${slug}/${dateKey}/pdf?sampul=0`,
-            jenis: "berkas",
-            labelSibuk: "Menyiapkan PDF…",
-            hint: "Untuk yang sudah memegang berkas mingguannya",
-          },
-          {
-            label: "Buka untuk dicetak",
-            icon: <Printer aria-hidden className="size-3.5" />,
-            href: `/cetak/harian/${slug}/${dateKey}`,
-            jenis: "tab",
-          },
-          {
-            label: "Kirim ke WhatsApp",
-            icon: <MessageCircle aria-hidden className="size-3.5" />,
-            onSelect: () => kirimWa(fd()),
-            disabledReason: !wahaOn
-              ? "WhatsApp belum dikonfigurasi"
-              : !hasGroup
-                ? "Paket belum punya grup WA"
-                : null,
-            hint: sentAt ? `Sudah dikirim ${sentAt}` : undefined,
-            loading: waPending,
-            labelSibuk: "Mengirim ke WhatsApp…",
-          },
-          {
-            label: "Upload ke Drive",
-            icon: <HardDriveUpload aria-hidden className="size-3.5" />,
-            onSelect: () => kirimDrive(fd()),
-            disabledReason: !driveOn
-              ? "Google Drive belum terhubung"
-              : !hasDrive
-                ? "Paket belum punya folder Drive"
-                : null,
-            hint: uploadedAt ? `Sudah diupload ${uploadedAt}` : undefined,
-            loading: drivePending,
-            labelSibuk: "Mengunggah ke Drive…",
-          },
-        ]}
-      />
-      {pesan?.error ? <span className="text-[12px] text-danger">{pesan.error}</span> : null}
-      {pesan?.success ? <span className="text-[12px] text-success">{pesan.success}</span> : null}
-    </span>
-  );
-}
+/*
+ * `MenuLaporanHarian` sudah TIDAK ADA lagi (DECISIONS 406).
+ *
+ * Menu itu menyimpan keterangan terpenting baris harian – "sudah dikirim WA
+ * kapan", "sudah diupload Drive kapan" – sebagai `hint` DI DALAM menu. Untuk
+ * menjawab satu pertanyaan ("hari mana yang belum sampai ke Drive?") orang harus
+ * membuka tiga puluh menu satu per satu. Sekarang keterangannya berdiri di
+ * barisnya sendiri (`baris-harian.tsx`) dan tombolnya di `aksi-harian.tsx`.
+ */

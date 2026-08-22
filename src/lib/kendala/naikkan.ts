@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { audit } from "@/lib/audit";
-import { cariDuplikat } from "@/lib/kendala/duplikat";
+import { kendalaSerupaTerbuka } from "@/lib/kendala/serupa";
 import { isiKendalaDariKegiatan, layakJadiKendala } from "@/lib/kendala/dari-kegiatan";
 
 /**
@@ -62,17 +62,7 @@ export async function naikkanKendalaKegiatan(input: {
     // "gabungkan atau buat baru?", jadi yang dipilih: TIDAK membuat baris
     // kedua. Kendala yang mirip dan masih terbuka di lokasi yang sama sudah
     // menagih orang yang sama; baris keduanya cuma mengencerkan hitungan.
-    const terbuka = await db.issue.findMany({
-      where: {
-        locationId: input.locationId,
-        status: { in: ["terbuka", "ditangani"] },
-        mergedIntoId: null,
-      },
-      select: { id: true, title: true, createdAt: true },
-      orderBy: { createdAt: "desc" },
-      take: 100,
-    });
-    const mirip = cariDuplikat(isi.title, terbuka);
+    const mirip = await kendalaSerupaTerbuka(input.locationId, isi.title);
     if (mirip.length) {
       await audit(input.userId, "issue.duplikat_dilewati", "issue", mirip[0].id, {
         locationId: input.locationId,

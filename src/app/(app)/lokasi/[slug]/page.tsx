@@ -39,9 +39,11 @@ export default async function LokasiRingkasanPage({
 
   // Pratinjau tanda tangan/stempel pelaksana lokasi ini. Satu presign untuk
   // keduanya; yang belum diunggah tidak ikut diminta.
-  const kunciPelaksana = [location.pelaksanaTtdKey, location.pelaksanaStempelKey].filter(
-    (k): k is string => !!k,
-  );
+  const kunciPelaksana = [
+    location.pelaksanaTtdKey,
+    location.pelaksanaStempelKey,
+    location.supervisorTtdKey,
+  ].filter((k): k is string => !!k);
   const urlsPelaksana =
     kunciPelaksana.length > 0 ? await presignKeys(kunciPelaksana) : new Map<string, string>();
   const urlTtdPelaksana = (k: string | null) => (k ? (urlsPelaksana.get(k) ?? null) : null);
@@ -269,8 +271,8 @@ export default async function LokasiRingkasanPage({
         {canManageLocation ? (
           <Card>
             <CardHeader
-              title="Pelaksana Lapangan"
-              subtitle="Isi HANYA bila lokasi ini dikerjakan pelaksana yang berbeda dari paketnya. Pelaksana paket diatur di Paket › Kontrak › Penanda tangan dokumen KKP."
+              title="Penanda tangan lokasi ini"
+              subtitle="Isi HANYA bila lokasi ini dikerjakan pelaksana atau diperiksa pengawas yang berbeda dari paketnya. Yang berlaku umum diatur di Paket › Kontrak › Penanda tangan dokumen KKP."
             />
             <CardBody>
               <PelaksanaForm
@@ -278,10 +280,17 @@ export default async function LokasiRingkasanPage({
                 nama={location.pelaksanaName}
                 jabatan={location.pelaksanaTitle}
                 ttdUrl={urlTtdPelaksana(location.pelaksanaTtdKey)}
-                stempelUrl={urlTtdPelaksana(location.pelaksanaStempelKey)}
+                stempelUsang={urlTtdPelaksana(location.pelaksanaStempelKey)}
                 warisan={{
                   nama: location.package.pelaksanaName,
                   jabatan: location.package.pelaksanaTitle,
+                }}
+                pengawasNama={location.supervisorName}
+                pengawasFirma={location.supervisorFirm}
+                pengawasTtdUrl={urlTtdPelaksana(location.supervisorTtdKey)}
+                warisanPengawas={{
+                  nama: contract?.supervisorName ?? null,
+                  firma: contract?.supervisorFirm ?? null,
                 }}
               />
             </CardBody>

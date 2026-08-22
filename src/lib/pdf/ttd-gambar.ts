@@ -2,6 +2,7 @@ import "server-only";
 import {
   pihakPenyedia,
   pilihPelaksana,
+  pilihPengawas,
   type JenisDokumen,
   type SumberPelaksana,
 } from "@/lib/laporan/penandatangan";
@@ -62,17 +63,20 @@ export async function muatTtdPdf(locationId: string, jenis: JenisDokumen): Promi
         pelaksanaName: true,
         pelaksanaTitle: true,
         pelaksanaTtdKey: true,
-        pelaksanaStempelKey: true,
+        supervisorName: true,
+        supervisorFirm: true,
+        supervisorTtdKey: true,
         package: {
           select: {
             pelaksanaName: true,
             pelaksanaTitle: true,
             pelaksanaTtdKey: true,
-            pelaksanaStempelKey: true,
             contract: {
               select: {
                 ppkTtdKey: true,
                 ppkStempelKey: true,
+                supervisorName: true,
+                supervisorFirm: true,
                 supervisorTtdKey: true,
                 supervisorStempelKey: true,
                 contractorTtdKey: true,
@@ -91,11 +95,13 @@ export async function muatTtdPdf(locationId: string, jenis: JenisDokumen): Promi
       lokasi as SumberPelaksana,
       lokasi.package as SumberPelaksana,
     );
+    const pengawas = pilihPengawas(lokasi, k);
     const kunci = pilihKunciTtd({
       ...k,
       penyedia: pihakPenyedia(jenis),
       pelaksanaTtdKey: pelaksana.ttdKey,
-      pelaksanaStempelKey: pelaksana.stempelKey,
+      supervisorTtdKey: pengawas.ttdKey,
+      supervisorStempelKey: pengawas.stempelKey,
       vendorStempelKey: k.vendor.stempelKey,
     });
     const sharp = (await import("sharp")).default;

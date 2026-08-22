@@ -42,6 +42,13 @@ export const CAPABILITIES = [
   // itu TIDAK bisa diperbaiki lagi — karena itu terpisah dari photo.restamp.
   "photo.archive_purge",
   "wa.configure", // atur grup WhatsApp per paket + tes koneksi WAHA (sementara super_admin saja)
+  // Tautan KELUAR ke folder Google Drive vendor ("Lihat di Drive") — super_admin
+  // SAJA (permintaan user 2026-08-22). Di seberang tautan itu tidak ada lagi
+  // pembatasan lokasi yang berlaku di MARLIN, dan bagi orang lapangan ia tidak
+  // menambah apa pun: keadaan "sudah ke Drive" sudah terbaca dari lencananya.
+  // Ini kemampuan MELIHAT TAUTAN, bukan mengunggah — unggahannya tetap
+  // `report.export`.
+  "gdrive.open_folder",
   "progress.view",
   "issue.manage",
   "finance.view",
@@ -216,6 +223,7 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
     // daily_report.unfinalize = membuka laporan yang sudah final, super_admin saja.
     // contact.view_all = melihat kontak milik akun lain, super_admin saja.
     // document.delete = hapus permanen dokumen, super_admin saja (batalkan cukup).
+    // gdrive.open_folder = tautan keluar ke folder Drive vendor, super_admin saja.
     CAPABILITIES.filter(
       (c) =>
         c !== "system.manage" &&
@@ -224,6 +232,7 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
         c !== "daily_report.unfinalize" &&
         c !== "contact.view_all" &&
         c !== "document.delete" &&
+        c !== "gdrive.open_folder" &&
         c !== "location.correct",
     ),
   ),

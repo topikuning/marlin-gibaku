@@ -46,6 +46,9 @@ describe("authz capability matrix", () => {
       "contact.view_all", // lihat kontak akun lain (DECISIONS 150)
       "document.delete", // hapus permanen dokumen (DECISIONS 183) — batalkan cukup
       "location.correct", // koreksi susunan lokasi paket berkontrak (DECISIONS 187)
+      // Tautan KELUAR ke folder Drive vendor ("Lihat di Drive", DECISIONS 406).
+      // Di seberang tautan itu tidak ada lagi pembatasan lokasi milik MARLIN.
+      "gdrive.open_folder",
     ] as const;
     for (const cap of HANYA_SUPER_ADMIN) expect(can("program_director", cap), cap).toBe(false);
     for (const cap of CAPABILITIES) {

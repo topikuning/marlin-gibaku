@@ -15,28 +15,29 @@ import {
   peringatanPelaksana,
   pihakPenyedia,
   pilihPelaksana,
+  pilihPengawas,
+  asalPengawas,
   type SumberPelaksana,
+  type SumberPengawas,
+  type SumberPengawasKontrak,
 } from "@/lib/laporan/penandatangan";
 
 const PAKET: SumberPelaksana = {
   pelaksanaName: "Budi Santoso",
   pelaksanaTitle: null,
   pelaksanaTtdKey: "ttd/paket.png",
-  pelaksanaStempelKey: "stempel/paket.png",
 };
 
 const LOKASI: SumberPelaksana = {
   pelaksanaName: "Sari Handayani",
   pelaksanaTitle: "Site Manager",
   pelaksanaTtdKey: "ttd/lokasi.png",
-  pelaksanaStempelKey: null,
 };
 
 const KOSONG: SumberPelaksana = {
   pelaksanaName: null,
   pelaksanaTitle: null,
   pelaksanaTtdKey: null,
-  pelaksanaStempelKey: null,
 };
 
 describe("dokumen mana diteken siapa", () => {
@@ -85,7 +86,6 @@ describe("pelaksana lokasi menimpa pelaksana paket", () => {
     const b = pilihPelaksana({ ...LOKASI, pelaksanaTtdKey: null }, PAKET);
     expect(b.nama).toBe("Sari Handayani");
     expect(b.ttdKey).toBeNull();
-    expect(b.stempelKey).toBeNull();
   });
 
   it("keduanya kosong → tanpa nama, jabatan tetap terbaca", () => {
@@ -123,5 +123,102 @@ describe("asal pelaksana disebut apa adanya", () => {
 
   it("peringatan hilang begitu namanya ada", () => {
     expect(peringatanPelaksana(pilihPelaksana(KOSONG, PAKET))).toBeNull();
+  });
+});
+
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * KONSULTAN PENGAWAS PER LOKASI (DECISIONS 409)
+ *
+ * User 2026-08-22: *"untuk tanda tangan laporan, ternyata pengawas per lokasi
+ * beda orang."*
+ *
+ * Aturannya sama dengan Pelaksana, tapi taruhannya lebih tinggi: pengawas
+ * adalah pihak KETIGA yang memeriksa pekerjaan kita. Coretan tanda tangan
+ * pengawas paket di bawah nama pengawas lokasi memalsukan pemeriksaan.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+const KONTRAK: SumberPengawasKontrak = {
+  supervisorName: "Dedi Kurniawan",
+  supervisorFirm: "PT Pengawas Nusantara",
+  supervisorTtdKey: "ttd/kontrak-pengawas.webp",
+  supervisorStempelKey: "stempel/pengawas.webp",
+};
+
+const PENGAWAS_LOKASI: SumberPengawas = {
+  supervisorName: "Rina Wijaya",
+  supervisorFirm: null,
+  supervisorTtdKey: "ttd/lokasi-pengawas.webp",
+};
+
+describe("pengawas per lokasi", () => {
+  it("lokasi kosong → ikut kontrak, lengkap dengan stempelnya", () => {
+    const b = pilihPengawas({ supervisorName: null, supervisorFirm: null, supervisorTtdKey: null }, KONTRAK);
+    expect(b.nama).toBe("Dedi Kurniawan");
+    expect(b.firma).toBe("PT Pengawas Nusantara");
+    expect(b.ttdKey).toBe("ttd/kontrak-pengawas.webp");
+    expect(b.stempelKey).toBe("stempel/pengawas.webp");
+  });
+
+  it("lokasi menyebut nama sendiri → SELURUH bloknya milik lokasi", () => {
+    const b = pilihPengawas(PENGAWAS_LOKASI, KONTRAK);
+    expect(b.nama).toBe("Rina Wijaya");
+    expect(b.ttdKey).toBe("ttd/lokasi-pengawas.webp");
+    // Firma tidak disebut lokasi → tetap firma kontrak, dan stempelnya sah.
+    expect(b.firma).toBe("PT Pengawas Nusantara");
+    expect(b.stempelKey).toBe("stempel/pengawas.webp");
+  });
+
+  it("lokasi berpengawas sendiri TANPA tanda tangan tetap tanpa tanda tangan", () => {
+    /*
+     * Inti aturannya. Kalau nama diambil dari lokasi sementara coretannya jatuh
+     * ke milik kontrak, yang tercetak adalah tanda tangan Dedi di bawah nama
+     * Rina — pada dokumen yang menyatakan pekerjaan ini SUDAH DIPERIKSA.
+     */
+    const b = pilihPengawas({ ...PENGAWAS_LOKASI, supervisorTtdKey: null }, KONTRAK);
+    expect(b.nama).toBe("Rina Wijaya");
+    expect(b.ttdKey).toBeNull();
+  });
+
+  it("FIRMA berbeda → stempel kontrak TIDAK dipakai", () => {
+    /*
+     * Stempel milik FIRMA (DECISIONS 408). Stempel PT Pengawas Nusantara di
+     * bawah nama CV Pengawas Mandiri adalah pernyataan yang tidak benar, bukan
+     * gambar yang kebetulan keliru — jadi bloknya dikosongkan untuk dibubuhi
+     * stempel basah.
+     */
+    const b = pilihPengawas(
+      { ...PENGAWAS_LOKASI, supervisorFirm: "CV Pengawas Mandiri" },
+      KONTRAK,
+    );
+    expect(b.firma).toBe("CV Pengawas Mandiri");
+    expect(b.stempelKey).toBeNull();
+  });
+
+  it("firma DISEBUT SAMA persis → stempel kontrak tetap sah", () => {
+    // Kalau tidak, orang yang mengetik ulang nama firma yang sama kehilangan
+    // stempelnya tanpa sebab yang bisa ia lihat.
+    const b = pilihPengawas(
+      { ...PENGAWAS_LOKASI, supervisorFirm: "PT Pengawas Nusantara" },
+      KONTRAK,
+    );
+    expect(b.stempelKey).toBe("stempel/pengawas.webp");
+  });
+
+  it("keduanya kosong → tanpa nama, bukan nama orang lain", () => {
+    const b = pilihPengawas(null, {
+      supervisorName: null,
+      supervisorFirm: null,
+      supervisorTtdKey: null,
+      supervisorStempelKey: null,
+    });
+    expect(b.nama).toBeNull();
+    expect(b.ttdKey).toBeNull();
+  });
+
+  it("asalPengawas menyebut sumbernya", () => {
+    expect(asalPengawas(PENGAWAS_LOKASI, KONTRAK)).toBe("lokasi");
+    expect(asalPengawas(null, KONTRAK)).toBe("kontrak");
+    expect(asalPengawas(null, null)).toBe("belum diisi");
   });
 });

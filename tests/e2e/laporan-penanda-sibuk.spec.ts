@@ -101,7 +101,13 @@ test.describe("penanda sibuk tab Laporan", () => {
     // Tombol "Laporan Mingguan (PDF)" beserta panahnya HILANG selagi berjalan,
     // bukan sekadar diredupkan — tidak ada yang tersisa untuk ditekan lagi.
     await expect(page.getByRole("link", { name: "Laporan Mingguan (PDF)" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /Pilihan lain untuk Laporan Mingguan/ })).toHaveCount(0);
+    /*
+     * CSS, bukan `getByRole("button")`: `<summary>` tidak dipetakan ke peran
+     * button oleh Playwright, jadi baris ini dulu HIJAU tanpa memeriksa apa pun
+     * – ia akan lulus walau panahnya tetap ada. Ketahuan saat uji DECISIONS 406
+     * memakai pemilih yang sama untuk `toBeVisible()` dan memerah.
+     */
+    await expect(page.locator('summary[aria-label="Pilihan lain untuk Laporan Mingguan (PDF)"]')).toHaveCount(0);
   });
 
   test("TAMPILKAN: tombolnya mengaku sedang menyiapkan", async ({ page }) => {

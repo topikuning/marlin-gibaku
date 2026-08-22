@@ -30,17 +30,22 @@ const skema = z.object({
   locationId: z.uuid("ID lokasi tidak valid"),
   nama: z.string().trim().max(150).optional(),
   jabatan: z.string().trim().max(120).optional(),
+  // Konsultan Pengawas lokasi ini (DECISIONS 409) – satu formulir, dua pihak.
+  pengawasNama: z.string().trim().max(150).optional(),
+  pengawasFirma: z.string().trim().max(150).optional(),
 });
 
 const BERKAS_MAKS = 2 * 1024 * 1024;
 
 /** Medan gambar; nama medan = nama field form, sama untuk kedua sasaran. */
-const MEDAN = ["pelaksanaTtdKey", "pelaksanaStempelKey"] as const;
+// Stempel TIDAK ada di sini lagi – lihat DECISIONS 408 (milik perusahaan/firma,
+// bukan orang). Yang diunggah per lokasi hanya CORETAN tanda tangan.
+const MEDAN = ["pelaksanaTtdKey", "supervisorTtdKey"] as const;
 type Medan = (typeof MEDAN)[number];
 
 const LABEL: Record<Medan, string> = {
   pelaksanaTtdKey: "tanda tangan pelaksana",
-  pelaksanaStempelKey: "stempel pelaksana",
+  supervisorTtdKey: "tanda tangan pengawas",
 };
 
 function teks(v: FormDataEntryValue | null, maks: number): string | undefined {
@@ -56,6 +61,8 @@ export async function simpanPelaksana(
     locationId: formData.get("locationId"),
     nama: teks(formData.get("nama"), 150),
     jabatan: teks(formData.get("jabatan"), 120),
+    pengawasNama: teks(formData.get("pengawasNama"), 150),
+    pengawasFirma: teks(formData.get("pengawasFirma"), 150),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
@@ -72,7 +79,7 @@ export async function simpanPelaksana(
       packageId: true,
       slug: true,
       pelaksanaTtdKey: true,
-      pelaksanaStempelKey: true,
+      supervisorTtdKey: true,
     },
   });
   if (!lokasi) return { error: "Lokasi tidak ditemukan." };
@@ -81,6 +88,8 @@ export async function simpanPelaksana(
   const data: Record<string, string | null> = {
     pelaksanaName: d.nama ?? null,
     pelaksanaTitle: d.jabatan ?? null,
+    supervisorName: d.pengawasNama ?? null,
+    supervisorFirm: d.pengawasFirma ?? null,
   };
   const berubah: string[] = [];
 
@@ -110,25 +119,37 @@ export async function simpanPelaksana(
       .resize(800, 800, { fit: "inside", withoutEnlargement: true })
       .webp({ quality: 92 })
       .toBuffer();
-    const key = `pelaksana/lokasi/${lokasi.id}/${medan}.webp`;
+    const key = `penandatangan/lokasi/${lokasi.id}/${medan}.webp`;
     await r2Put(key, buf, "image/webp");
     data[medan] = key;
     berubah.push(`${LABEL[medan]} diperbarui`);
   }
 
   await db.location.update({ where: { id: lokasi.id }, data });
-  await audit(actor.id, "lokasi.pelaksana", "location", lokasi.id, {
+  await audit(actor.id, "lokasi.penandatangan", "location", lokasi.id, {
     nama: d.nama ?? null,
     jabatan: d.jabatan ?? null,
+    pengawas: d.pengawasNama ?? null,
+    pengawasFirma: d.pengawasFirma ?? null,
     berkas: berubah,
   });
   revalidatePath(`/lokasi/${lokasi.slug}`, "layout");
   revalidatePath(`/paket/${lokasi.packageId}`, "layout");
 
+  /*
+   * Kabarnya menyebut KEDUANYA apa adanya, termasuk yang dikosongkan. Kalimat
+   * "tersimpan" yang tidak menyebut apa yang tersimpan membuat orang tidak
+   * pernah tahu kalau ia baru saja MENGHAPUS penimpaan – dan penimpaan yang
+   * hilang diam-diam berarti dokumen berikutnya menyebut orang lain.
+   */
+  const bagian = [
+    d.nama
+      ? `Pelaksana Lapangan: ${d.nama}`
+      : "Pelaksana Lapangan mengikuti paket",
+    d.pengawasNama
+      ? `Pengawas: ${d.pengawasNama}`
+      : "Pengawas mengikuti paket",
+  ];
   const ekor = berubah.length > 0 ? ` (${berubah.join(", ")})` : "";
-  return {
-    success: d.nama
-      ? `Pelaksana Lapangan lokasi ini: ${d.nama}${ekor}.`
-      : `Penimpaan dilepas${ekor} – lokasi ini kembali mengikuti pelaksana paket.`,
-  };
+  return { success: `${bagian.join(" · ")}${ekor}.` };
 }

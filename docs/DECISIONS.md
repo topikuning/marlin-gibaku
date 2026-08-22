@@ -20771,3 +20771,363 @@ gigi yang setengah juga bisa berbohong.
 Yang TIDAK dibuktikan: bahwa Chrome sungguhan menembakkan event itu di HP
 Android. Itu keputusan peramban atas syarat pasang dan tidak bisa dipicu dari
 uji — hanya bisa dicoba di perangkat sungguhan.
+
+---
+
+## 406 — Tab Laporan lokasi: yang ditanyakan orang adalah "sudah sampai ke Drive/WA belum" (2026-08-21)
+
+### Permintaan user
+
+> rombak lokasi -> laporan dengan konsep ini
+> pada laporan harian informasi yang diutamakan adalah apakah sudah diupload ke
+> drive atau ke whatsap.
+> tombol-tombolnya boleh muncul langsung, tapi jika window kecil makan
+> menyesuaikan
+
+### Cacat yang sebenarnya diperbaiki
+
+Keterangan "sudah dikirim WA 21 Agu 10.12" dan "sudah diupload Drive" SUDAH ADA
+sebelum ini – tapi disimpan sebagai `hint` **di dalam menu**, pada pilihan
+"Kirim ke WhatsApp" dan "Upload ke Drive". Untuk menjawab satu pertanyaan
+("hari mana yang belum sampai ke Drive?") orang harus membuka tiga puluh menu
+satu per satu, lalu mengingat hasilnya sendiri.
+
+Data yang benar di tempat yang tidak bisa dibaca sama saja dengan tidak ada.
+Sekarang keadaan Drive & WhatsApp berdiri sebagai lencana di barisnya masing-
+masing, dan diringkas jadi empat angka di kepala kartu.
+
+### Angka ringkas dihitung dari SEMUA, daftarnya 30 terbaru
+
+"Belum dikirim: 4" yang diam-diam berarti "4 dari 30 terakhir" akan dibaca
+sebagai "4 dari semuanya", dan orang berhenti mencari sesudah membereskan empat.
+Karena itu ringkasannya menyapu seluruh laporan final lokasi itu, sementara
+rincian per baris (log Drive bisa belasan baris per hari) hanya ditarik untuk
+yang tampil. Yang tidak muat DISEBUT jumlahnya.
+
+### Yang dicatat sistem, dan yang SENGAJA tidak diadakan
+
+| Kejadian         | Sumber                                |
+|------------------|---------------------------------------|
+| Kirim WhatsApp   | `DailyReport.waSentAt` + `waSentById` |
+| Upload Drive     | `GDriveUpload` (log append-only)      |
+| Unduh PDF        | `audit_logs` aksi `report.pdf_unduh` (BARU) |
+| Dibuka / dilihat | **tidak dicatat**                     |
+| Dicetak          | **tidak dicatat, dan tidak bisa**     |
+
+Rancangan yang diminta memuat kepingan "Sudah dibuka 2x" dan "Terakhir dicetak
+21 Agu 2026". Keduanya tidak dibuat, dan itu keputusan, bukan kelalaian:
+
+- **"Dibuka Nx"** butuh pencatatan pada setiap render halaman, sementara halaman
+  cetak dijangkau lewat `<Link>` yang di-*prefetch* peramban. Angkanya akan naik
+  untuk kunjungan yang tidak pernah terjadi.
+- **"Terakhir dicetak"** hanya bisa berarti "halaman cetak dibuka". Tidak ada
+  satu pun cara memastikan kertasnya keluar, dan menamainya "dicetak" adalah
+  klaim yang tidak dipegang apa pun.
+
+Unduhan PDF sebaliknya adalah kejadian yang sungguh terjadi di server, satu per
+klik, dan tidak pernah di-prefetch – jadi ia dicatat, di route-nya (bukan di
+tombolnya, karena alamat itu bisa dibuka langsung). Kepingan riwayat hanya
+muncul kalau ADA catatannya: tidak ada "0x" untuk yang tidak pernah dihitung.
+
+### Tombol langsung, meringkas sendiri – lewat CSS, bukan pengukuran
+
+Dua tampilan, SATU keadaan sibuk. Pergantiannya `xl:` murni CSS: mengukur lebar
+di JavaScript berarti render pertama menebak lalu berkedip mengganti bentuk, dan
+di daftar tiga puluh baris kedipan itu terjadi tiga puluh kali sekaligus.
+
+Yang TIDAK ikut dibagi: penanda sibuk unduhan PDF, karena `MenuBerkas` dan
+`ButtonLink unduhan` masing-masing memegang mesin unduhannya sendiri. Hanya satu
+yang terlihat pada satu waktu, jadi akibatnya sebatas: mengubah lebar jendela
+DI TENGAH unduhan membuat penandanya tidak ikut pindah.
+
+### Label tombol: yang mengalah kata depannya, bukan tombolnya
+
+Versi pertama saya pendekkan sendiri jadi "PDF / Drive / WA" demi muat. Salah:
+yang membaca layar ini mandor lapangan, dan "Drive" sebagai satu kata tidak
+mengatakan apakah ia mengunggah ke sana atau membuka yang sudah ada.
+
+Tapi label penuh di SEMUA lebar juga salah, dan itu DIUKUR — tinggi satu baris
+daftar, lokasi Kedungmutih, satu laporan final:
+
+| Lebar jendela | Tombol                 | Tinggi baris |
+|---------------|------------------------|--------------|
+| 1600          | label penuh, satu baris| 70 px        |
+| 1440          | label penuh, MELIPAT   | 116 px       |
+| 1280          | label penuh, MELIPAT   | 206 px       |
+
+206 px × tiga puluh baris = enam ribu piksel gulungan untuk daftar yang sama.
+Jadi bertingkat: ≥1536 px label penuh, 1280–1535 px kata bendanya saja (ikon +
+"PDF"/"Drive"/"WA"), <1280 px baru melipat jadi menu. Sesudah dibetulkan:
+70 px di 1600 dan 1440, 134 px di 1280 — dan nol *overflow* mendatar di kelima
+lebar yang diukur (1600/1440/1280/1024/390).
+
+### Lencana "Sumber data": angka yang HAMPIR saja salah
+
+Rancangannya memuat lencana hijau *"Sumber data: laporan harian final • 14 hari
+terakhir sinkron"*. Bagian "14 hari terakhir sinkron" tidak dibuat — tidak ada
+apa pun di sistem yang bisa membuktikannya, dan lencana hijau yang mengaku
+"sinkron" tanpa dasar adalah cara tercepat membuat orang berhenti memeriksa.
+
+Bagian "laporan harian final" saya buat dengan angka — lalu ketahuan salah
+sebelum terkirim: laporan periodik menghitung `dikirim`, `disetujui`, DAN
+`final` (`COUNTED_REPORT_STATUSES`), bukan hanya final. Angka final akan jauh
+lebih kecil daripada bahan yang sebenarnya dipakai, dan pembacanya akan mengira
+laporannya kurang lengkap lalu mengejar hari yang tidak perlu dikejar. Yang
+tampil sekarang jumlah yang benar-benar terhitung.
+
+### Kolom yang bergoyang antarbaris — dan tautan Drive yang dibatasi
+
+Keluhan user 2026-08-22: *"tata letak teksmu amburadul di desktop, di mobile
+sudah lumayan rapi."*
+
+Sebabnya bukan gaya, melainkan struktur: tiap `<li>` adalah **grid-nya
+sendiri**, dan kolom pertamanya `minmax(11rem,auto)`. `auto` berarti tiap baris
+memilih lebarnya masing-masing — "Minggu, 26 Jul 2026" lebih pendek daripada
+"Kamis, 20 Agt 2026", jadi kolom berikutnya mulai di titik yang berbeda pada
+tiap baris. Diukur sebelum diperbaiki: kepingan status mulai di x=570, x=490,
+dan x=485 untuk tiga baris berturut-turut.
+
+Dibetulkan dengan lebar TETAP (`11rem`) untuk kolom tanggal dan `gap-x-6` yang
+sama antara judul kolom dan barisnya. Kolom aksi tetap `auto` tapi rata kanan,
+jadi ujung kanannya sama untuk semua baris. Sesudahnya: 281 / 481 pada SEMUA
+baris di 1600, 1440, dan 1280 px, dan judul kolomnya juga 281 / 481.
+
+Sekalian mengikuti rancangan yang benar: keterangan "N item · final … · nama"
+pindah ke kolom **Ringkasan**, bukan menggantung di bawah tanggal. Kolom tanggal
+karena itu bisa sempit dan tetap, dan kolom ringkasan mendapat lebar yang cukup
+untuk kepingan status yang panjang.
+
+**"Lihat di Drive" hanya super admin** (permintaan user pada hari yang sama).
+Ditulis sebagai capability `gdrive.open_folder` di `authz.ts`, BUKAN
+`role === "super_admin"` di dalam komponen: perbandingan peran yang berserakan
+di layar persis yang membuat matriks izin berhenti bisa dipercaya sebagai
+jawaban tunggal "siapa boleh apa". Yang lain tetap melihat lencana "Drive · N
+berkas" — keadaannya tidak disembunyikan, hanya pintu keluarnya. Diverifikasi
+di peramban dengan tiga akun: `admin` 1 tautan, `hery` (Program Director) 0,
+`sm-01` 0, dan ketiganya tetap melihat lencananya.
+
+### Uji gigi
+
+`ringkasDrive` sengaja dirusak dua cara – menghitung baris log alih-alih berkas
+berbeda, dan melaporkan kegagalan yang sudah disusul keberhasilan. Dua-duanya
+merah, lalu dikembalikan.
+
+---
+
+## 407 — Kendala hari nihil dan kendala lembar kirim: double entry, bukan satu (2026-08-21)
+
+### Keberatan user
+
+> masalah lain, saat laporan nihil/kosong, kamu membuat desain masukkan ke
+> kendala. tapi saat kirim laporan ada pilihan lagi ada kendala atau tidak, ini
+> terlalu rancu dan beresiko input kendala ganda, apakah kendalanya itu sudah
+> menjadi satu, atau double entry
+
+### Jawabannya: double entry – dan lebih buruk daripada dugaannya
+
+Ada EMPAT pintu yang bisa melahirkan kendala untuk hari yang sama, dan penjaga
+duplikat (DECISIONS 392) hanya terpasang di dua:
+
+| Pintu                                     | Penjaga duplikat |
+|-------------------------------------------|------------------|
+| Papan kendala lokasi (`createIssue`)      | ada              |
+| Kegiatan lapangan (`naikkanKendalaKegiatan`) | ada           |
+| Lembar kirim laporan harian               | **tidak ada**    |
+| Formulir kendala saat verifikasi          | **tidak ada**    |
+
+Jadi pada hari nihil karena "menunggu material": panel hari-nihil menawarkan
+"Catat sebagai kendala" (lewat `createIssue`, terjaga), lalu beberapa detik
+kemudian lembar kirim menanyakan **hal yang sama** dan mencatatnya lewat
+`addIssueFromReport` – tanpa memeriksa apa pun. Dua baris untuk satu hambatan,
+dan tidak ada satu kalimat pun yang memberi tahu bahwa keduanya menuju papan
+yang sama.
+
+### Dua perubahan
+
+**1. Satu pertanyaan, di satu tempat.** Tawaran kendala di panel hari-nihil
+dihapus. Sebab hari nihil DIBAWA ke lembar kirim sebagai isian yang sudah
+terisi (`judulKendalaDariNihil`), dengan "Ada kendala" terpilih. Hambatannya
+tetap tidak hilang – yang hilang cuma pintu keduanya. "Ada kendala" hanya
+dipilihkan, tidak dikunci: yang menunggu hal yang kendalanya sudah terbuka sejak
+kemarin tetap boleh menjawab "Tidak ada".
+
+**2. Penjaganya di dalam fungsi, bukan di layar.** Pencarian kendala serupa
+dipindah ke `src/lib/kendala/serupa.ts` dan dipanggil KEEMPAT pintu, termasuk
+yang belum ditulis. Penjaga yang dipasang per layar sudah dua kali tertinggal di
+layar berikutnya (DECISIONS 360, 400/401); tidak ada alasan mengulanginya untuk
+yang ketiga.
+
+### Yang TIDAK dilakukan
+
+- **Menggagalkan pengiriman laporan** karena kendalanya kembar. Itu menukar
+  kerugian kecil (satu baris kembar) dengan kerugian besar (laporan hari itu
+  tidak terkirim sama sekali). Laporan tetap terkirim; hasilnya dikatakan:
+  *"Kendala serupa sudah terbuka ("…"), jadi tidak dicatat dua kali."*
+- **Menolak tanpa jalan keluar.** `paksa` tetap ada untuk masalah kedua yang
+  kalimatnya memang mirip – dan pemakaiannya tercatat di audit
+  (`duplikatDiabaikan`). Menolak mentah hanya melatih orang menulis judul yang
+  sengaja dibedakan supaya lolos, dan duplikat yang menyamar lebih sulit
+  dikenali daripada duplikat terang-terangan.
+- **Menahan kendala yang sudah DITUTUP.** Masalah bisa kambuh; kalau yang
+  tertutup ikut menahan, kekambuhannya tidak akan pernah tercatat.
+
+### Uji gigi
+
+Penjaga di `addIssueFromReport` dibuang, lalu
+`tests/integration/kendala-satu-pintu.test.ts` dijalankan: 4 dari 7 merah,
+termasuk yang memanggil fungsinya LANGSUNG tanpa lewat action mana pun.
+Dikembalikan, tujuh hijau.
+
+
+---
+
+## 408 — Satu perusahaan, satu stempel; dan grid yang mengukur jendela padahal hidup di dalam laci (2026-08-22)
+
+### Keberatan user
+
+> layoutmu berantakan, lalu kenapa pelaksana dan direktur yang jelas 1
+> perusahaan stempelnya muncul 2x?
+
+Dua hal, dan yang kedua cacat model — bukan cacat tampilan.
+
+### 1. Stempel bukan tanda tangan
+
+Saya memperlakukan stempel persis seperti tanda tangan: satu kotak unggah per
+PIHAK. Salah, karena keduanya beda jenis benda:
+
+- **coretan tanda tangan milik ORANG** — tidak boleh dipinjam antar orang, dan
+  itu sudah dijaga sejak DECISIONS 402;
+- **stempel milik PERUSAHAAN** — benda fisik yang sama, dibubuhkan siapa pun
+  yang meneken atas nama perusahaan itu.
+
+Pelaksana Lapangan dan Direktur bekerja di perusahaan yang SAMA. Jadi kotak
+"Stempel" di kolom Pelaksana Lapangan adalah salinan kedua dari benda yang sama
+— dan salinan kedua bisa menyimpang: yang satu diperbarui, yang lain tertinggal,
+lalu laporan harian dan laporan bulanan dari lokasi yang sama membawa stempel
+yang berbeda. Itu bukan kerapian, itu dokumen yang saling menyangkal.
+
+**Sekarang:** stempel penyedia = `Contract.contractorStempelKey`, cadangan
+`Vendor.stempelKey` — SAMA untuk Pelaksana maupun Direktur, tidak lagi
+bergantung pada jenis dokumen. Kotak stempel di kolom Pelaksana Lapangan
+dihapus, diganti kalimat yang menyebut stempel siapa yang dipakai. Coretan
+tanda tangannya TETAP terpisah per orang.
+
+`BlokPelaksana` kehilangan `stempelKey` supaya kompilernya yang menagih, bukan
+ingatan: tidak ada lagi tempat untuk menuliskan "stempel milik pelaksana".
+
+**Data lama tidak dihapus.** Kolom `pelaksana_stempel_key` (di `packages` dan
+`locations`) tetap ada dan ditandai USANG di skema; tidak ada kode yang
+membacanya lagi. Kalau seseorang terlanjur mengunggah ke kotak itu, layarnya
+MENGATAKAN bahwa berkas itu tidak dipakai lagi dan menyuruh mengunggah ulang di
+kolom Penyedia Jasa — bukan menghilang diam-diam. Menghapus kolomnya menunggu
+kepastian tidak ada data terpakai.
+
+### 2. `xl:grid-cols-4` mengukur JENDELA, formulirnya hidup di dalam LACI
+
+Formulir tanda tangan dibuka di dalam `Drawer` selebar `max-w-lg` (512 px). Media
+query `xl:` menanyakan lebar **jendela**. Di layar 1440 px syaratnya terpenuhi,
+lalu empat kolom dijejalkan ke ruang 480 px: masing-masing ±110 px, tombol
+"Pilih berkas" melimpah ke kolom sebelah, dan setiap kata turun satu baris.
+
+Diganti `@container` + `@md:grid-cols-2` — menanyakan lebar yang benar-benar
+tersedia. Terukur sesudahnya:
+
+| Lebar jendela | Kolom | Lebar kartu | Melimpah keluar kartu |
+|---------------|-------|-------------|-----------------------|
+| 1600          | 2     | 232 px      | 0                     |
+| 1280          | 2     | 232 px      | 0                     |
+| 390           | 1     | 357 px      | 0                     |
+
+Pelajaran yang berlaku di luar layar ini: **komponen yang bisa dipasang di dalam
+panel sempit tidak boleh memakai media query lebar layar.** Yang dijawabnya
+bukan pertanyaan yang sedang ditanyakan.
+
+### Uji gigi
+
+`pilihKunciTtd` dikembalikan ke bentuk lamanya (stempel bergantung siapa yang
+meneken): uji "SATU perusahaan, SATU stempel" merah, sisanya hijau. Dikembalikan.
+
+
+---
+
+## 409 — Konsultan Pengawas per LOKASI, bukan per paket (2026-08-22)
+
+### Kebutuhan user
+
+> untuk tanda tangan laporan, ternyata pengawas per lokasi beda orang
+
+Sebelum ini pengawas hanya ada di `contracts` — satu untuk seluruh paket.
+Padahal satu paket berisi beberapa lokasi, dan tiap lokasi diperiksa orang yang
+berbeda. Akibatnya bukan sekadar nama yang keliru: SEMUA laporan lokasi mana pun
+di paket itu menyebut satu nama pengawas yang sama.
+
+### Bentuknya PERSIS Pelaksana Lapangan (DECISIONS 402)
+
+Kontrak menyediakan yang berlaku umum, lokasi boleh menimpanya, dan
+penimpaannya diambil sebagai **SATU BLOK dengan NAMA sebagai penentu**. Begitu
+sebuah lokasi menyebut nama pengawasnya sendiri, seluruh bloknya milik lokasi
+itu — termasuk **ketiadaan** tanda tangannya.
+
+Alasannya di sini bahkan lebih berat daripada pada pelaksana. Pengawas adalah
+pihak KETIGA yang memeriksa pekerjaan kita. Coretan tanda tangan pengawas
+kontrak di bawah nama pengawas lokasi bukan gambar yang kebetulan keliru — itu
+**memalsukan pemeriksaan** pada dokumen yang diserahkan ke KKP.
+
+Sengaja memakai bentuk yang sama, bukan bentuk baru: aturan yang identik dengan
+tampilan yang berbeda adalah cara tercepat membuat salah satunya menyimpang.
+Formulirnya pun satu (halaman lokasi › Penanda tangan lokasi ini), bukan dua
+kartu bersebelahan — pelajaran DECISIONS 404.
+
+### "Ambil dari pengawas di paket" — sudah, dan tanpa sumber kedua
+
+Penegasan user pada hari yang sama: *"konsepnya samakan dengan pelaksana, jika
+di lokasi tidak diisi, ambil data dari pengawas di paket."*
+
+Itulah yang berlaku. Yang perlu dicatat supaya tidak dikira melenceng: pengawas
+tersimpan di `contracts`, bukan `packages` seperti pelaksana — tapi keduanya
+BUKAN tempat yang berbeda. `Contract.packageId` UNIQUE, jadi satu paket tepat
+satu kontrak, dan formulir pengisiannya memang Paket › Kontrak › Penanda tangan
+dokumen KKP. Menyalinnya lagi ke `packages` hanya melahirkan sumber kedua yang
+bisa menyimpang dari yang pertama — persis cacat stempel ganda di DECISIONS 408.
+
+Yang diseragamkan justru KATA-KATANYA di layar: "Mengikuti paket: …",
+"kosongkan = ikut paket", sama persis dengan kartu Pelaksana. Istilah yang
+berbeda untuk aturan yang sama membuat orang mengira aturannya juga berbeda.
+
+### Stempel: TIDAK ada kolomnya, dan dikosongkan bila firmanya berbeda
+
+Mengikuti DECISIONS 408: stempel milik FIRMA, bukan orang. Jadi lokasi hanya
+mengunggah CORETAN tanda tangan; stempelnya diambil dari
+`Contract.supervisorStempelKey`.
+
+Satu aturan tambahan yang tidak kentara: kalau lokasi menyebut **firma yang
+berbeda** dari kontrak, stempel kontrak adalah stempel firma LAIN — jadi blok
+stempelnya dikosongkan untuk dibubuhi stempel basah. Menempelkan stempel PT A di
+bawah nama CV B adalah pernyataan yang tidak benar, bukan sekadar gambar keliru.
+Firma yang tidak disebut (atau disebut sama persis) tetap memakai stempel
+kontrak — kalau tidak, orang yang mengetik ulang nama firma yang sama kehilangan
+stempelnya tanpa sebab yang bisa ia lihat.
+
+### Yang ikut berubah
+
+Nama pengawas dipakai di banyak dokumen, dan semuanya dulu membaca
+`contract.supervisorName` langsung. Yang dialihkan ke `pilihPengawas`:
+
+- kop laporan harian (`daily-report/queries.ts`)
+- kop laporan periodik (`periodic-report.ts`)
+- blok tanda tangan cetak & PDF (`export/ttd-laporan.ts`, `pdf/ttd-gambar.ts`)
+- lembar CCO (`rab/adendum/cco/route.ts`)
+
+### Uji gigi
+
+Dua kali. (1) `pilihPengawas` dikembalikan ke bentuk yang meminjam coretan
+kontrak dan mengabaikan beda firma: dua uji unit merah. (2) kop laporan harian
+dikembalikan membaca `contract.supervisorName` langsung: uji integrasi merah.
+Dua-duanya dikembalikan.
+
+Satu catatan tentang uji integrasinya sendiri: versi pertamanya menaruh nilai
+harapan sebagai teks harfiah dan merah — bukan karena kodenya salah, melainkan
+karena `describe` sebelumnya mengganti isi kontrak lewat
+`updateContractSignatories`. Uji yang bergantung pada sisa uji lain akan
+menuduh kode yang benar setiap kali urutannya berubah, jadi keadaannya kini
+disetel di `beforeAll` miliknya sendiri.

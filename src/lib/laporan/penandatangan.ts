@@ -75,19 +75,27 @@ export function pihakPenyedia(jenis: JenisDokumen): PihakPenyedia {
   return PENEKEN[jenis];
 }
 
-/** Satu blok penanda tangan: nama, jabatan, dan gambar-gambarnya. */
+/**
+ * Satu blok penanda tangan: nama, jabatan, dan CORETAN TANDA TANGANNYA.
+ *
+ * TANPA stempel, dan itu keputusan (DECISIONS 408). Keberatan user 2026-08-22:
+ * *"kenapa pelaksana dan direktur yang jelas 1 perusahaan stempelnya muncul
+ * 2x?"* Karena saya memperlakukan stempel seperti tanda tangan. Keduanya
+ * berbeda jenis benda: **coretan tanda tangan milik ORANG, stempel milik
+ * PERUSAHAAN.** Pelaksana Lapangan dan Direktur bekerja di perusahaan yang
+ * sama, jadi stempelnya satu — diambil dari sisi penyedia (kontrak, lalu
+ * master vendor), bukan dari blok orangnya.
+ */
 export type BlokPelaksana = {
   nama: string | null;
   jabatan: string | null;
   ttdKey: string | null;
-  stempelKey: string | null;
 };
 
 export type SumberPelaksana = {
   pelaksanaName: string | null;
   pelaksanaTitle: string | null;
   pelaksanaTtdKey: string | null;
-  pelaksanaStempelKey: string | null;
 };
 
 function kosong(v: string | null | undefined): boolean {
@@ -113,7 +121,7 @@ export function pilihPelaksana(
 ): BlokPelaksana {
   const sumber = lokasi && !kosong(lokasi.pelaksanaName) ? lokasi : paket;
   if (!sumber || kosong(sumber.pelaksanaName)) {
-    return { nama: null, jabatan: JABATAN_PELAKSANA_BAWAAN, ttdKey: null, stempelKey: null };
+    return { nama: null, jabatan: JABATAN_PELAKSANA_BAWAAN, ttdKey: null };
   }
   return {
     nama: sumber.pelaksanaName!.trim(),
@@ -121,8 +129,98 @@ export function pilihPelaksana(
       ? JABATAN_PELAKSANA_BAWAAN
       : sumber.pelaksanaTitle!.trim(),
     ttdKey: sumber.pelaksanaTtdKey ?? null,
-    stempelKey: sumber.pelaksanaStempelKey ?? null,
   };
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * KONSULTAN PENGAWAS PER LOKASI (DECISIONS 409)
+ *
+ * User 2026-08-22: *"untuk tanda tangan laporan, ternyata pengawas per lokasi
+ * beda orang."*
+ *
+ * Aturannya PERSIS sama dengan Pelaksana Lapangan: paket menyediakan yang
+ * berlaku umum, lokasi boleh menimpanya, dan penimpaannya diambil sebagai SATU
+ * BLOK dengan NAMA sebagai penentu.
+ *
+ * Tersimpannya di `contracts`, bukan `packages` seperti pelaksana — dan itu
+ * BUKAN dua tempat yang berbeda: `Contract.packageId` UNIQUE, jadi satu paket
+ * tepat satu kontrak. Diisi di formulir yang sama dengan PPK dan Direktur
+ * (Paket › Kontrak › Penanda tangan dokumen KKP), jadi di layar ia memang
+ * "pengawas paket". Menyalinnya ke `packages` hanya akan melahirkan sumber
+ * kedua yang bisa menyimpang — persis cacat stempel ganda di DECISIONS 408. Alasannya juga sama, dan di sini bahkan
+ * lebih berat: pengawas adalah pihak KETIGA yang memeriksa pekerjaan kita.
+ * Coretan tanda tangan pengawas paket di bawah nama pengawas lokasi bukan
+ * sekadar gambar keliru — itu memalsukan pemeriksaan.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+export type BlokPengawas = {
+  nama: string | null;
+  /** Nama firma pengawas – baris di bawah nama pada blok tanda tangan. */
+  firma: string | null;
+  ttdKey: string | null;
+  /**
+   * Stempel firma pengawas, atau null bila TIDAK boleh dipakai.
+   *
+   * Stempel milik FIRMA (DECISIONS 408). Kalau lokasi menyebut firma yang
+   * BERBEDA dari kontrak, stempel kontrak adalah stempel firma lain — dan
+   * membubuhkannya di bawah nama firma ini adalah pernyataan yang tidak benar.
+   * Dalam keadaan itu blok stempelnya dikosongkan, untuk dibubuhi stempel basah.
+   */
+  stempelKey: string | null;
+};
+
+export type SumberPengawas = {
+  supervisorName: string | null;
+  supervisorFirm: string | null;
+  supervisorTtdKey: string | null;
+};
+
+export type SumberPengawasKontrak = SumberPengawas & {
+  supervisorStempelKey: string | null;
+};
+
+/**
+ * Pengawas untuk satu lokasi: penimpaan lokasi kalau ada, kalau tidak kontrak.
+ *
+ * Penentunya NAMA — sama seperti {@link pilihPelaksana}. Begitu sebuah lokasi
+ * menyebut nama pengawasnya sendiri, seluruh bloknya milik lokasi itu, termasuk
+ * ketiadaan tanda tangannya.
+ */
+export function pilihPengawas(
+  lokasi: SumberPengawas | null | undefined,
+  kontrak: SumberPengawasKontrak | null | undefined,
+): BlokPengawas {
+  const firmaKontrak = kontrak?.supervisorFirm?.trim() || null;
+  if (lokasi && !kosong(lokasi.supervisorName)) {
+    const firma = kosong(lokasi.supervisorFirm) ? firmaKontrak : lokasi.supervisorFirm!.trim();
+    // Firma sama (atau lokasi tidak menyebut firma) => stempel kontrak sah.
+    const firmaSama = !firma || !firmaKontrak || firma === firmaKontrak;
+    return {
+      nama: lokasi.supervisorName!.trim(),
+      firma,
+      ttdKey: lokasi.supervisorTtdKey ?? null,
+      stempelKey: firmaSama ? (kontrak?.supervisorStempelKey ?? null) : null,
+    };
+  }
+  if (!kontrak || kosong(kontrak.supervisorName)) {
+    return { nama: null, firma: firmaKontrak, ttdKey: null, stempelKey: kontrak?.supervisorStempelKey ?? null };
+  }
+  return {
+    nama: kontrak.supervisorName!.trim(),
+    firma: firmaKontrak,
+    ttdKey: kontrak.supervisorTtdKey ?? null,
+    stempelKey: kontrak.supervisorStempelKey ?? null,
+  };
+}
+
+/** Lokasi ini memakai pengawasnya sendiri, atau ikut kontrak? */
+export function asalPengawas(
+  lokasi: SumberPengawas | null | undefined,
+  kontrak: SumberPengawasKontrak | null | undefined,
+): "lokasi" | "kontrak" | "belum diisi" {
+  if (lokasi && !kosong(lokasi.supervisorName)) return "lokasi";
+  if (kontrak && !kosong(kontrak.supervisorName)) return "kontrak";
+  return "belum diisi";
 }
 
 /** Lokasi ini memakai pelaksananya sendiri, atau ikut paket? */

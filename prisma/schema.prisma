@@ -492,6 +492,13 @@ model Package {
   pelaksanaName       String?      @map("pelaksana_name")
   pelaksanaTitle      String?      @map("pelaksana_title")
   pelaksanaTtdKey     String?      @map("pelaksana_ttd_key")
+  /// USANG (DECISIONS 408) — JANGAN dibaca, JANGAN diisi.
+  ///
+  /// Stempel milik PERUSAHAAN, bukan orang: Pelaksana Lapangan dan Direktur
+  /// bekerja di perusahaan yang sama, jadi stempelnya satu — diambil dari
+  /// `Contract.contractorStempelKey`, lalu `Vendor.stempelKey`. Kolom ini
+  /// dipertahankan supaya berkas yang terlanjur diunggah tidak hilang dari
+  /// jejak; tidak ada satu pun kode yang membacanya lagi.
   pelaksanaStempelKey String?      @map("pelaksana_stempel_key")
   waGroupId           String?      @unique @map("wa_group_id")
   waGroupName         String?      @map("wa_group_name")
@@ -880,7 +887,29 @@ model Location {
   pelaksanaName       String? @map("pelaksana_name")
   pelaksanaTitle      String? @map("pelaksana_title")
   pelaksanaTtdKey     String? @map("pelaksana_ttd_key")
+  /// USANG (DECISIONS 408) — JANGAN dibaca, JANGAN diisi.
+  ///
+  /// Stempel milik PERUSAHAAN, bukan orang: Pelaksana Lapangan dan Direktur
+  /// bekerja di perusahaan yang sama, jadi stempelnya satu — diambil dari
+  /// `Contract.contractorStempelKey`, lalu `Vendor.stempelKey`. Kolom ini
+  /// dipertahankan supaya berkas yang terlanjur diunggah tidak hilang dari
+  /// jejak; tidak ada satu pun kode yang membacanya lagi.
   pelaksanaStempelKey String? @map("pelaksana_stempel_key")
+
+  /// Penimpaan KONSULTAN PENGAWAS untuk lokasi ini (DECISIONS 409).
+  ///
+  /// User 2026-08-22: *"ternyata pengawas per lokasi beda orang."* Kosong =
+  /// pakai milik kontrak. Aturannya sama dengan Pelaksana: diambil SATU BLOK
+  /// dengan nama sebagai penentu — pengawas adalah pihak KETIGA yang memeriksa,
+  /// jadi coretan pengawas kontrak di bawah nama pengawas lokasi memalsukan
+  /// pemeriksaan, bukan sekadar salah gambar.
+  ///
+  /// TANPA stempel: stempel milik FIRMA (DECISIONS 408), diambil dari
+  /// `Contract.supervisorStempelKey` — dan sengaja DIKOSONGKAN kalau lokasi
+  /// menyebut firma yang berbeda.
+  supervisorName      String? @map("supervisor_name")
+  supervisorFirm      String? @map("supervisor_firm")
+  supervisorTtdKey    String? @map("supervisor_ttd_key")
 
   createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime       @updatedAt @map("updated_at") @db.Timestamptz
