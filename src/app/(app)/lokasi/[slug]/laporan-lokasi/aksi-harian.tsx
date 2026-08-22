@@ -2,6 +2,7 @@
 
 import {
   Download,
+  Eye,
   FileText,
   HardDriveUpload,
   MessageCircle,
@@ -89,7 +90,19 @@ export function AksiHarian({
   // Sudah pernah terkirim → tombolnya berkata "ulang". Label yang sama untuk
   // kiriman pertama dan kiriman kedua membuat orang mengirim dobel tanpa sadar.
   const labelWa = sudahWa ? "Kirim ulang WA" : "Kirim WA";
-  const labelDrive = sudahDrive ? "Upload ulang" : "Upload ke Drive";
+  const labelDrive = sudahDrive ? "Upload ulang ke Drive" : "Upload ke Drive";
+  /*
+   * Label pendek untuk lebar 1280–1535 – DIUKUR, bukan ditebak.
+   *
+   * Dengan label penuh di lebar 1280 deret tombolnya melipat jadi TIGA baris
+   * dan tinggi tiap baris melonjak 70px → 206px; tiga puluh baris berarti enam
+   * ribu piksel gulungan untuk daftar yang sama. Jadi yang mengalah dulu
+   * KATA DEPANNYA ("Upload ke" / "Kirim" / "Unduh"), bukan seluruh tombolnya
+   * yang langsung disembunyikan ke dalam menu – ikon + kata bendanya tetap
+   * memberi tahu ini apa.
+   */
+  const pendekWa = sudahWa ? "WA ulang" : "WA";
+  const pendekDrive = sudahDrive ? "Drive ulang" : "Drive";
 
   const unduhPdf: PilihanBerkas = {
     label: "Unduh PDF",
@@ -143,9 +156,18 @@ export function AksiHarian({
         />
       </div>
 
-      {/* LEBAR: tombolnya langsung terlihat, tanpa perlu dibuka dulu. */}
+      {/*
+        LEBAR: tombolnya langsung terlihat, tanpa perlu dibuka dulu.
+
+        Labelnya PENUH ("Upload ke Drive", bukan "Drive"). Versi pertama saya
+        pendekkan sendiri demi muat – padahal yang membaca layar ini mandor
+        lapangan, dan "Drive" sebagai satu kata tidak mengatakan apakah ia
+        mengunggah ke sana atau membuka yang sudah ada. Kalau tidak muat, yang
+        mengalah barisnya (`flex-wrap`), bukan kejelasannya.
+      */}
       <div className="hidden flex-wrap items-center justify-end gap-1.5 xl:flex">
-        <ButtonLink href={hrefBuka} variant="secondary" size="sm">
+        <ButtonLink href={hrefBuka} variant="primary" size="sm">
+          <Eye aria-hidden className="size-3.5" />
           Buka
         </ButtonLink>
         <a
@@ -160,7 +182,8 @@ export function AksiHarian({
         </a>
         <ButtonLink href={hrefPdf} unduhan labelSibuk="Menyiapkan PDF…" variant="secondary" size="sm">
           <Download aria-hidden className="size-3.5" />
-          PDF
+          <span className="2xl:hidden">PDF</span>
+          <span className="hidden 2xl:inline">Unduh PDF</span>
         </ButtonLink>
         <Button
           size="sm"
@@ -175,7 +198,8 @@ export function AksiHarian({
           ) : (
             <>
               <HardDriveUpload aria-hidden className="size-3.5" />
-              {sudahDrive ? "Drive ulang" : "Drive"}
+              <span className="2xl:hidden">{pendekDrive}</span>
+              <span className="hidden 2xl:inline">{labelDrive}</span>
             </>
           )}
         </Button>
@@ -192,12 +216,13 @@ export function AksiHarian({
           ) : (
             <>
               <MessageCircle aria-hidden className="size-3.5" />
-              {sudahWa ? "WA ulang" : "WA"}
+              <span className="2xl:hidden">{pendekWa}</span>
+              <span className="hidden 2xl:inline">{labelWa}</span>
             </>
           )}
         </Button>
         <MenuBerkas
-          label="Lainnya"
+          label="Pilihan lain"
           icon={<MoreHorizontal aria-hidden className="size-4" />}
           pilihan={[tanpaSampul]}
         />

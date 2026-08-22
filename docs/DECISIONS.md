@@ -20840,6 +20840,41 @@ Yang TIDAK ikut dibagi: penanda sibuk unduhan PDF, karena `MenuBerkas` dan
 yang terlihat pada satu waktu, jadi akibatnya sebatas: mengubah lebar jendela
 DI TENGAH unduhan membuat penandanya tidak ikut pindah.
 
+### Label tombol: yang mengalah kata depannya, bukan tombolnya
+
+Versi pertama saya pendekkan sendiri jadi "PDF / Drive / WA" demi muat. Salah:
+yang membaca layar ini mandor lapangan, dan "Drive" sebagai satu kata tidak
+mengatakan apakah ia mengunggah ke sana atau membuka yang sudah ada.
+
+Tapi label penuh di SEMUA lebar juga salah, dan itu DIUKUR — tinggi satu baris
+daftar, lokasi Kedungmutih, satu laporan final:
+
+| Lebar jendela | Tombol                 | Tinggi baris |
+|---------------|------------------------|--------------|
+| 1600          | label penuh, satu baris| 70 px        |
+| 1440          | label penuh, MELIPAT   | 116 px       |
+| 1280          | label penuh, MELIPAT   | 206 px       |
+
+206 px × tiga puluh baris = enam ribu piksel gulungan untuk daftar yang sama.
+Jadi bertingkat: ≥1536 px label penuh, 1280–1535 px kata bendanya saja (ikon +
+"PDF"/"Drive"/"WA"), <1280 px baru melipat jadi menu. Sesudah dibetulkan:
+70 px di 1600 dan 1440, 134 px di 1280 — dan nol *overflow* mendatar di kelima
+lebar yang diukur (1600/1440/1280/1024/390).
+
+### Lencana "Sumber data": angka yang HAMPIR saja salah
+
+Rancangannya memuat lencana hijau *"Sumber data: laporan harian final • 14 hari
+terakhir sinkron"*. Bagian "14 hari terakhir sinkron" tidak dibuat — tidak ada
+apa pun di sistem yang bisa membuktikannya, dan lencana hijau yang mengaku
+"sinkron" tanpa dasar adalah cara tercepat membuat orang berhenti memeriksa.
+
+Bagian "laporan harian final" saya buat dengan angka — lalu ketahuan salah
+sebelum terkirim: laporan periodik menghitung `dikirim`, `disetujui`, DAN
+`final` (`COUNTED_REPORT_STATUSES`), bukan hanya final. Angka final akan jauh
+lebih kecil daripada bahan yang sebenarnya dipakai, dan pembacanya akan mengira
+laporannya kurang lengkap lalu mengejar hari yang tidak perlu dikejar. Yang
+tampil sekarang jumlah yang benar-benar terhitung.
+
 ### Uji gigi
 
 `ringkasDrive` sengaja dirusak dua cara – menghitung baris log alih-alih berkas

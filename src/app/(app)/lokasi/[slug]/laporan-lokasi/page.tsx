@@ -1,7 +1,7 @@
 import { peringatanPelaksana, pilihPelaksana } from "@/lib/laporan/penandatangan";
 import { notFound } from "next/navigation";
-import { CalendarClock, FileText, ListTree, Printer, Sheet } from "lucide-react";
-import { Banner, Card, CardBody, CardHeader, EmptyState, KpiCard } from "@/components/ui";
+import { CalendarClock, CircleCheck, FileText, ListTree, Printer, Sheet } from "lucide-react";
+import { Badge, Banner, Card, CardBody, CardHeader, EmptyState, KpiCard } from "@/components/ui";
 import { KkpPeriodReport } from "@/components/knmp/kkp-period-report";
 import { ScurveKkpSheet } from "@/components/knmp/scurve-kkp-sheet";
 import { PeriodFilter } from "./period-filter";
@@ -12,6 +12,7 @@ import { requireUser, requireLocationAccess } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
 import { db } from "@/lib/db";
 import { getPeriodBounds, getPeriodReport, type PeriodKind } from "@/lib/periodic-report";
+import { COUNTED_REPORT_STATUSES } from "@/lib/progress";
 import { isWahaConfigured } from "@/lib/waha/client";
 import { getGDriveConfigDisplay } from "@/lib/gdrive/config";
 import { ambilRiwayatHarian } from "@/lib/laporan/riwayat-queries";
@@ -84,9 +85,13 @@ export default async function LaporanLokasiPage({
   // Generate eksplisit (audit UX #7): laporan hanya dihitung setelah "Tampilkan".
   const shown = sp.show === "1" && !!bounds;
 
-  const [report, riwayat] = await Promise.all([
+  const [report, riwayat, terhitung] = await Promise.all([
     shown ? getPeriodReport(location.id, kind, n) : Promise.resolve(null),
     ambilRiwayatHarian({ locationId: location.id, slug }),
+    // Bahan laporan periodik = status yang DIHITUNG progres, bukan hanya final.
+    db.dailyReport.count({
+      where: { locationId: location.id, status: { in: [...COUNTED_REPORT_STATUSES] } },
+    }),
   ]);
   const { baris, ringkas, tersembunyi } = riwayat;
 
@@ -155,7 +160,28 @@ export default async function LaporanLokasiPage({
             <EmptyState icon={FileText} title="Kontrak belum ada" description="Laporan periodik butuh periode kontrak." />
           ) : (
             <>
-              <PeriodFilter slug={slug} kind={kind} n={n} maxN={maxN} />
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <PeriodFilter slug={slug} kind={kind} n={n} maxN={maxN} />
+                {/*
+                  Yang disebut hanya SUMBERNYA, bukan "14 hari terakhir sinkron"
+                  seperti di rancangan: tidak ada apa pun di sistem yang bisa
+                  membuktikan kalimat itu, dan lencana hijau yang mengaku
+                  "sinkron" tanpa dasar adalah cara tercepat membuat orang
+                  berhenti memeriksa.
+
+                  Angkanya `terhitung`, BUKAN jumlah laporan final. Versi
+                  pertama lencana ini memakai jumlah final – salah, dan salah
+                  dengan cara yang paling merugikan: laporan periodik menghitung
+                  `dikirim`, `disetujui`, DAN `final` (COUNTED_REPORT_STATUSES),
+                  jadi angkanya akan JAUH lebih kecil daripada bahan yang
+                  sebenarnya dipakai, dan orang akan mengira laporannya kurang
+                  lengkap lalu mengejar hari yang tidak perlu dikejar.
+                */}
+                <Badge tone="success" className="gap-1.5">
+                  <CircleCheck aria-hidden className="size-3.5" />
+                  Sumber data: {terhitung} laporan harian terkirim
+                </Badge>
+              </div>
               {!shown ? (
                 <EmptyState
                   icon={FileText}
@@ -233,6 +259,30 @@ export default async function LaporanLokasiPage({
                   description={`${alasanMati.join(". ")}. Unduh dan cetak tetap bisa dipakai.`}
                 />
               ) : null}
+
+              {/*
+                Judul kolom hanya di layar lebar – di situ saja barisnya benar-
+                benar berbentuk tabel. Di layar sempit tiap baris menumpuk
+                menjadi kartu, dan judul kolom yang menggantung di atas tumpukan
+                justru menunjuk ke tempat yang salah.
+
+                Catatan "tombol diringkas otomatis" ditulis di sebelahnya supaya
+                yang memakai laptop kecil tahu tombolnya TIDAK hilang, cuma
+                terlipat – tanpa itu, layar yang sama terbaca seperti dua versi
+                aplikasi yang berbeda.
+              */}
+              <div className="hidden items-end justify-between gap-4 border-b border-border pb-1.5 xl:flex">
+                <div className="grid flex-1 grid-cols-[minmax(11rem,auto)_1fr] gap-2 text-[11px] font-medium tracking-wide text-ink-muted uppercase">
+                  <span>Tanggal</span>
+                  <span>Ringkasan &amp; riwayat</span>
+                </div>
+                <span className="text-[11px] font-medium tracking-wide text-ink-muted uppercase">
+                  Aksi
+                </span>
+              </div>
+              <p className="text-[12px] text-ink-muted xl:hidden">
+                Tombolnya diringkas jadi satu menu karena lebar layar tidak cukup – isinya sama.
+              </p>
 
               <ul className="divide-y divide-border">
                 {baris.map((r) => (

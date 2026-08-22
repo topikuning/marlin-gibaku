@@ -36,6 +36,16 @@ async function login(page: Page) {
   await page.waitForURL((u) => !u.pathname.startsWith("/masuk"), { timeout: 15_000 });
 }
 
+/*
+ * Judul kartunya, BUKAN `getByText("Laporan harian final")`.
+ *
+ * Pencocokan teks bebas Playwright itu SUBSTRING. Begitu kartu di atasnya
+ * memuat kalimat "…laporan harian final…", pemilih lama cocok ke dua tempat
+ * sekaligus dan gagal sebagai strict-mode violation – ujinya merah untuk
+ * halaman yang benar. `exact: true` mengunci ke judul kartunya saja.
+ */
+const judulKartu = (page: Page) => page.getByText("Laporan harian final", { exact: true });
+
 /** Baris laporan harian final pertama. */
 const barisPertama = (page: Page) => page.locator("li").filter({ hasText: /item/ }).first();
 
@@ -45,7 +55,7 @@ test.describe("keadaan kiriman laporan harian", () => {
     await login(page);
     await page.goto(URL);
 
-    await expect(page.getByText("Laporan harian final")).toBeVisible({ timeout: 30_000 });
+    await expect(judulKartu(page)).toBeVisible({ timeout: 30_000 });
 
     /*
      * Uji ini tidak berarti apa-apa tanpa laporan final. Kalau seednya berubah
@@ -72,7 +82,7 @@ test.describe("keadaan kiriman laporan harian", () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await login(page);
     await page.goto(URL);
-    await expect(page.getByText("Laporan harian final")).toBeVisible({ timeout: 30_000 });
+    await expect(judulKartu(page)).toBeVisible({ timeout: 30_000 });
 
     const baris = barisPertama(page);
     // "boleh muncul langsung" – tanpa satu ketukan pun untuk membukanya.
@@ -87,7 +97,7 @@ test.describe("keadaan kiriman laporan harian", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await login(page);
     await page.goto(URL);
-    await expect(page.getByText("Laporan harian final")).toBeVisible({ timeout: 30_000 });
+    await expect(judulKartu(page)).toBeVisible({ timeout: 30_000 });
 
     const baris = barisPertama(page);
     /*
