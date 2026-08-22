@@ -23,6 +23,7 @@ const BAGIAN: { key: keyof NarasiTeks; label: string }[] = [
   { key: "sintesisKendala", label: "Kendala" },
   { key: "rencanaNaratif", label: "Rencana minggu depan" },
   { key: "dukunganDibutuhkan", label: "Dukungan yang dibutuhkan" },
+  { key: "actionPlan", label: "Action Plan (saran minggu depan, maks 6 butir)" },
 ];
 
 type NarasiTeks = {
@@ -32,6 +33,7 @@ type NarasiTeks = {
   sintesisKendala: string;
   rencanaNaratif: string;
   dukunganDibutuhkan: string;
+  actionPlan: string;
 };
 
 export function PaparanReviewClient({
@@ -54,6 +56,7 @@ export function PaparanReviewClient({
     sintesisKendala: teksAwal(e?.sintesisKendala, n.sintesisKendala),
     rencanaNaratif: teksAwal(e?.rencanaNaratif, n.rencanaNaratif),
     dukunganDibutuhkan: teksAwal(e?.dukunganDibutuhkan, n.dukunganDibutuhkan),
+    actionPlan: teksAwal(e?.actionPlan, n.actionPlan ?? []),
   };
 
   const [narasiState, narasiAction, narasiPending] = useActionState<PaparanState, FormData>(

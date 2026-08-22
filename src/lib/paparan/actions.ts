@@ -111,6 +111,7 @@ const BAGIAN_NARASI = [
   "sintesisKendala",
   "rencanaNaratif",
   "dukunganDibutuhkan",
+  "actionPlan",
 ] as const;
 
 const editSchema = z.object({
@@ -123,6 +124,7 @@ const editSchema = z.object({
   sintesisKendala: z.string().max(4000),
   rencanaNaratif: z.string().max(4000),
   dukunganDibutuhkan: z.string().max(4000),
+  actionPlan: z.string().max(4000),
 });
 
 const EDITABLE_STATUS: AiArtifactStatus[] = ["draft", "direview", "disetujui"];
@@ -142,6 +144,7 @@ export async function suntingNarasiPaparanAction(
       sintesisKendala: String(formData.get("sintesisKendala") ?? ""),
       rencanaNaratif: String(formData.get("rencanaNaratif") ?? ""),
       dukunganDibutuhkan: String(formData.get("dukunganDibutuhkan") ?? ""),
+      actionPlan: String(formData.get("actionPlan") ?? ""),
     });
     if (!parsed.success) return { error: "Isian narasi tidak valid." };
     const artifact = await muatArtefakPaparan(user, parsed.data.artifactId);

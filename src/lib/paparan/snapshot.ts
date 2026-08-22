@@ -1,7 +1,9 @@
 import "server-only";
 import { db } from "@/lib/db";
 import { COUNTED_REPORT_STATUSES } from "@/lib/lifecycle";
-import { getLocationsProgress, type LocationProgress } from "@/lib/progress";
+import { cumulativeVolumeByLineage, getLocationsProgress, type LocationProgress } from "@/lib/progress";
+import { prestasiPct, weightedPct } from "@/lib/progress-calc";
+import { getScurveSeries } from "@/lib/baseline";
 import { asOfMinggu, mingguKontrak, rekapPaket, rentangMingguKontrak } from "@/lib/mingguan/kirim";
 import { jakartaDateKey, jakartaToday } from "@/lib/format";
 import { getActivityKindLabelMap } from "@/lib/field-activity/kinds";
@@ -9,7 +11,9 @@ import type { SourceRef } from "@/lib/ai-hub/types";
 import type { PaketPaparan } from "./akses";
 import type {
   FotoKandidatPaparan,
+  KategoriLokasiPaparan,
   KendalaPaparan,
+  KurvaPaparan,
   PaparanSnapshot,
   ProgresLokasiPaparan,
 } from "./jenis";
@@ -66,11 +70,16 @@ export async function buatSnapshotPaparan(
 
   /* ── Progres (calculation layer, asOf akhir minggu) ─────────────────── */
 
-  const [kini, sebelum] = await Promise.all([
+  const kosong = () => Promise.resolve(new Map<string, LocationProgress>());
+  const [kini, sebelum, sebelum2] = await Promise.all([
     getLocationsProgress(ids, { asOf }),
     weekNumber > 1
       ? getLocationsProgress(ids, { asOf: rentangMingguKontrak(start, weekNumber - 1).akhir })
-      : Promise.resolve(new Map<string, LocationProgress>()),
+      : kosong(),
+    // Minggu N−2 — titik ketiga jendela realisasi kurva-S (pola contoh Mataram).
+    weekNumber > 2
+      ? getLocationsProgress(ids, { asOf: rentangMingguKontrak(start, weekNumber - 2).akhir })
+      : kosong(),
   ]);
 
   const barisLokasi: ProgresLokasiPaparan[] = [];
@@ -137,6 +146,128 @@ export async function buatSnapshotPaparan(
       : "kurva-S belum ada",
     href: `/paket/${pkg.id}`,
   });
+
+  /* ── Kurva-S paket (contoh Mataram): rencana penuh + jendela realisasi ─ */
+
+  /*
+   * Rencana per minggu = gabungan TERTIMBANG deret kanonik tiap lokasi
+   * (`getScurveSeries`, formula DECISIONS 151/052), bukan deret baru. Minggu
+   * melewati akhir kurva sebuah lokasi memakai titik terakhirnya (kurva wajib
+   * berakhir 100%, jadi ekornya rata — sama seperti `planPctAtWeek`).
+   */
+  const seriPerLokasi = await Promise.all(ids.map((id) => getScurveSeries(id)));
+  const seriBerkurva = seriPerLokasi.filter((s) => s.totalWeeks > 0 && s.grandTotal > 0n);
+  let kurva: KurvaPaparan | null = null;
+  if (seriBerkurva.length > 0) {
+    const totalMingguKurva = Math.max(...seriBerkurva.map((s) => s.totalWeeks));
+    const planPct: number[] = [];
+    for (let w = 1; w <= totalMingguKurva; w++) {
+      planPct.push(
+        weightedPct(
+          seriBerkurva.map((s) => ({
+            grandTotal: s.grandTotal,
+            pct: s.planPct[Math.min(w, s.totalWeeks) - 1] ?? 0,
+          })),
+        ),
+      );
+    }
+    // Jendela realisasi: minggu N−2, N−1, N — dari rekap tertimbang asOf
+    // masing-masing akhir minggu (formula yang sama dengan angka utama).
+    const titik = (m: Map<string, LocationProgress>): number | null => {
+      const rows = [...m.values()].filter((p) => p.totalWeeks > 0);
+      if (rows.length === 0) return null;
+      const r = rekapPaket(rows, 0);
+      return r ? r.realisasiPct : null;
+    };
+    const jendela: KurvaPaparan["jendela"] = [];
+    const nilaiMinggu: { minggu: number; nilai: number | null }[] = [
+      { minggu: weekNumber - 2, nilai: weekNumber - 2 >= 1 ? titik(sebelum2) : null },
+      { minggu: weekNumber - 1, nilai: weekNumber - 1 >= 1 ? titik(sebelum) : null },
+      { minggu: weekNumber, nilai: titik(kini) },
+    ];
+    // Kenaikan tiap titik = selisih dari titik SEBELUM-nya; titik pertama
+    // jendela hanya tahu kenaikannya bila ia minggu 1 (basisnya 0) — angka
+    // yang tidak diketahui ditulis null, tidak dikarang.
+    let dasar: number | null = null;
+    for (let i = 0; i < nilaiMinggu.length; i++) {
+      const k = nilaiMinggu[i];
+      if (k.minggu < 1 || k.nilai == null) continue;
+      const basis = jendela.length > 0 ? dasar : k.minggu === 1 ? 0 : null;
+      jendela.push({
+        minggu: k.minggu,
+        realisasiPct: k.nilai,
+        kenaikanPp: basis == null ? null : k.nilai - basis,
+      });
+      dasar = k.nilai;
+    }
+    kurva = { totalMinggu: totalMingguKurva, planPct, jendela };
+  }
+
+  /* ── Durasi pelaksanaan ─────────────────────────────────────────────── */
+
+  const totalHari = pkg.contract.durationDays;
+  const hariKontrakBerjalan = Math.max(
+    0,
+    Math.min(totalHari, Math.floor((jakartaToday().getTime() - start.getTime()) / HARI_MS) + 1),
+  );
+  const durasi = {
+    totalHari,
+    hariBerjalan: hariKontrakBerjalan,
+    sisaHari: Math.max(0, totalHari - hariKontrakBerjalan),
+    pctWaktu: totalHari > 0 ? (hariKontrakBerjalan / totalHari) * 100 : 0,
+  };
+
+  /* ── Status pekerjaan per KATEGORI RAB (bar berwarna per lokasi) ────── */
+
+  /*
+   * Realisasi kategori = Σ (prestasi item × amount item) / amount kategori —
+   * disusun dari `prestasiPct` + `cumulativeVolumeByLineage` yang kanonik
+   * (basis sama dengan kurva-S & blanko KKP, DECISIONS 151). asOf minggu
+   * paparan: minggu lampau menunjukkan posisi minggu itu, bukan hari ini.
+   */
+  const kategori: KategoriLokasiPaparan[] = [];
+  for (const l of lokasi) {
+    const rev = await db.rabRevision.findFirst({
+      where: { locationId: l.id, status: "aktif" },
+      select: { id: true },
+    });
+    if (!rev) continue;
+    const nodes = await db.rabNode.findMany({
+      where: { revisionId: rev.id, kind: { in: ["kategori", "item"] } },
+      orderBy: { sortOrder: "asc" },
+      select: {
+        kind: true,
+        code: true,
+        name: true,
+        lineageKey: true,
+        volume: true,
+        amount: true,
+      },
+    });
+    const volCum = await cumulativeVolumeByLineage(l.id, asOf);
+    const kelompok: KategoriLokasiPaparan["kelompok"] = [];
+    for (const kat of nodes.filter((n) => n.kind === "kategori")) {
+      const akar = kat.lineageKey;
+      const items = nodes.filter(
+        (n) => n.kind === "item" && (n.lineageKey === akar || n.lineageKey.startsWith(`${akar}#`)),
+      );
+      let nilaiRealisasi = 0;
+      for (const it of items) {
+        const volK = it.volume ? Number(it.volume.toString()) : 0;
+        const volSd = volCum.get(it.lineageKey) ?? 0;
+        nilaiRealisasi += (prestasiPct(volSd, volK) / 100) * Number(it.amount);
+      }
+      const amountKat = Number(kat.amount);
+      kelompok.push({
+        lineageKey: akar,
+        nama: kat.name,
+        realisasiPct: amountKat > 0 ? Math.min(100, (nilaiRealisasi / amountKat) * 100) : 0,
+      });
+    }
+    if (kelompok.length > 0) {
+      kategori.push({ locationId: l.id, lokasiNama: l.name, kelompok });
+    }
+  }
 
   /* ── Kelengkapan laporan harian dalam minggu ────────────────────────── */
 
@@ -376,7 +507,7 @@ export async function buatSnapshotPaparan(
       exifTakenAt: true,
       report: { select: { reportDate: true } },
       activity: { select: { title: true, activityDate: true } },
-      reportItem: { select: { rabNode: { select: { name: true } } } },
+      reportItem: { select: { lineageKey: true, rabNode: { select: { name: true } } } },
     },
   })
     : [];
@@ -388,6 +519,9 @@ export async function buatSnapshotPaparan(
       lokasiNama: p.locationId ? (namaLokasi.get(p.locationId) ?? "") : "",
       tanggalKey: tanggal ? dateKey(tanggal) : null,
       keterangan: p.reportItem?.rabNode.name ?? p.activity?.title ?? null,
+      // Akar lineage = kategori RAB — kunci pengelompokan slide foto per
+      // pekerjaan dan sumber persentase di kepala slidenya.
+      lineageKey: p.reportItem?.lineageKey ?? null,
       r2Key: p.r2Key,
       thumbnailKey: p.thumbnailKey,
     };
@@ -510,6 +644,9 @@ export async function buatSnapshotPaparan(
     pemulihan,
     fotoKandidat,
     rencanaMingguDepan,
+    kurva,
+    durasi,
+    kategori,
     limitations,
     sourceRefs,
   };

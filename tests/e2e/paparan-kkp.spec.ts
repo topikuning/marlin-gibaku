@@ -42,9 +42,12 @@ test.describe("paparan mingguan KKP", () => {
     const artifactUrl = new URL(page.url());
     const artifactId = artifactUrl.pathname.split("/").pop()!;
 
-    // Draft v1 + slide inti + kejujuran fallback.
+    // Draft + slide inti + kejujuran fallback. Versinya TIDAK dipatok v1:
+    // uji ini harus bisa diulang pada DB yang sama (regenerate = versi baru).
     await expect(page.getByText("Draft AI")).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText(/· v1/)).toBeVisible();
+    const teksVersi = await page.getByText(/· v\d+$/).first().innerText();
+    const versiAwal = Number(teksVersi.match(/v(\d+)$/)?.[1] ?? "0");
+    expect(versiAwal).toBeGreaterThanOrEqual(1);
     await expect(page.getByRole("heading", { name: "Ringkasan Eksekutif" })).toBeVisible();
     await expect(page.getByText("Narasi disusun deterministik", { exact: false })).toBeVisible();
     await expect(
@@ -91,7 +94,7 @@ test.describe("paparan mingguan KKP", () => {
     await page.waitForURL(/\/ai\/paparan\/[0-9a-f-]{36}/, { timeout: 60_000 });
     expect(new URL(page.url()).pathname.split("/").pop()).toBe(artifactId);
     await page.goto("/ai/paparan");
-    await expect(page.getByText(/· v1 ·/).first()).toBeVisible();
+    await expect(page.getByText(new RegExp(`· v${versiAwal} ·`)).first()).toBeVisible();
   });
 
   test("tanpa ai.view: halaman tidak ada, PDF ditolak", async ({ page }) => {

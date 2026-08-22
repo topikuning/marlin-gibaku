@@ -131,6 +131,9 @@ function narasiValid(): PaparanNarasi {
     sintesisKendala: [{ text: "Tidak ada kendala berarti.", locationId: null, sourceRefIds: ["paket:rekap"] }],
     rencanaNaratif: [],
     dukunganDibutuhkan: [],
+    actionPlan: [
+      { text: "Menyelesaikan pasangan batu di Lokasi A.", sourceRefIds: ["paket:rekap"] },
+    ],
     limitations: [],
   };
 }
@@ -261,17 +264,17 @@ function content(s: PaparanSnapshot, narasi: PaparanNarasi): PaparanContent {
 }
 
 describe("perakitan slide", () => {
-  it("urutan inti lengkap: sampul → ringkasan → progres → … → lampiran", () => {
+  it("urutan inti pola Mataram: sampul → … → action_plan → lampiran → penutup", () => {
     const slides = susunSlides(content(snapshot(), narasiDeterministik(snapshot())), { draf: true });
     const jenis = slides.map((s) => s.jenis);
     expect(jenis[0]).toBe("sampul");
-    expect(jenis[1]).toBe("ringkasan");
-    expect(jenis[2]).toBe("progres_paket");
-    expect(jenis).toContain("progres_lokasi");
-    expect(jenis[jenis.length - 1]).toBe("lampiran");
-    // 10–12 slide utama untuk paket kecil (spec §4).
-    expect(slides.length).toBeGreaterThanOrEqual(8);
-    expect(slides.length).toBeLessThanOrEqual(13);
+    expect(jenis).toContain("ringkasan");
+    expect(jenis).toContain("progres_lokasi"); // paket 2 lokasi
+    expect(jenis).toContain("action_plan");
+    expect(jenis[jenis.length - 2]).toBe("lampiran");
+    expect(jenis[jenis.length - 1]).toBe("penutup");
+    // Slide action_plan datang SETELAH kendala (posisi akhir seperti contoh).
+    expect(jenis.indexOf("action_plan")).toBeGreaterThan(jenis.indexOf("kendala"));
   });
 
   it("lokasi lebih dari 10 → tabel pecah ke slide lanjutan, bukan mengecil", () => {
@@ -306,11 +309,29 @@ describe("perakitan slide", () => {
     expect(ringkasan.angka.realisasi).toBe(18);
   });
 
-  it("rencana belum diisi → slide menyatakan itu, bukan mengarang", () => {
-    const slides = susunSlides(content(snapshot(), narasiDeterministik(snapshot())), { draf: true });
-    const rencana = slides.find((x) => x.jenis === "rencana");
-    if (rencana?.jenis !== "rencana") throw new Error("slide tidak ada");
-    expect(rencana.adaRencana).toBe(false);
+  it("Action Plan TIDAK pernah kosong – narasi tanpa saran jatuh ke saran deterministik", () => {
+    /*
+     * Permintaan user 2026-08-22: Action Plan = saran NYATA minggu depan dari
+     * minggu terakhir. Snapshot fixture punya deviasi −2 pp, jadi minimal
+     * saran "mengejar ketertinggalan" harus muncul walau narasi tak membawa
+     * actionPlan sama sekali.
+     */
+    const n = narasiDeterministik(snapshot());
+    n.actionPlan = [];
+    const slides = susunSlides(content(snapshot(), n), { draf: true });
+    const ap = slides.find((x) => x.jenis === "action_plan");
+    if (ap?.jenis !== "action_plan") throw new Error("slide tidak ada");
+    expect(ap.butir.length).toBeGreaterThan(0);
+    expect(ap.butir.join(" ")).toContain("ketertinggalan");
+  });
+
+  it("suntingan manusia pada Action Plan menggantikan saran narasi", () => {
+    const c = content(snapshot(), narasiDeterministik(snapshot()));
+    c.humanEdits = { actionPlan: ["Prioritaskan pengecoran balai nelayan."] };
+    const slides = susunSlides(c, { draf: true });
+    const ap = slides.find((x) => x.jenis === "action_plan");
+    if (ap?.jenis !== "action_plan") throw new Error("slide tidak ada");
+    expect(ap.butir).toEqual(["Prioritaskan pengecoran balai nelayan."]);
   });
 
   it("minggu lampau: slide kendala membawa penanda status terkini", () => {
@@ -348,5 +369,78 @@ describe("parsePaparanContent", () => {
   it("menerima konten kanonik", () => {
     const c = content(snapshot(), narasiDeterministik(snapshot()));
     expect(parsePaparanContent(JSON.parse(JSON.stringify(c))).weekNumber).toBe(6);
+  });
+});
+
+describe("slide gaya Mataram (kurva, durasi, status kategori, penutup)", () => {
+  const sMataram = (): PaparanSnapshot => ({
+    ...snapshot(),
+    kurva: {
+      totalMinggu: 22,
+      planPct: Array.from({ length: 22 }, (_, i) => ((i + 1) / 22) * 100),
+      jendela: [
+        { minggu: 4, realisasiPct: 10, kenaikanPp: null },
+        { minggu: 5, realisasiPct: 15, kenaikanPp: 5 },
+        { minggu: 6, realisasiPct: 18, kenaikanPp: 3 },
+      ],
+    },
+    durasi: { totalHari: 150, hariBerjalan: 42, sisaHari: 108, pctWaktu: 28 },
+    kategori: [
+      {
+        locationId: "loc-a",
+        lokasiNama: "Lokasi A",
+        kelompok: [
+          { lineageKey: "I", nama: "Pekerjaan Persiapan", realisasiPct: 88 },
+          { lineageKey: "II", nama: "Jalan Lingkungan & Saluran", realisasiPct: 5.4 },
+          { lineageKey: "III", nama: "Balai Pertemuan Nelayan", realisasiPct: 41 },
+        ],
+      },
+    ],
+  });
+
+  it("kurva, durasi, dan status kategori masuk deck; penutup selalu terakhir", () => {
+    const slides = susunSlides(content(sMataram(), narasiDeterministik(sMataram())), { draf: true });
+    const jenis = slides.map((x) => x.jenis);
+    expect(jenis).toContain("kurva");
+    expect(jenis).toContain("durasi");
+    expect(jenis).toContain("status_kategori");
+    expect(jenis[jenis.length - 1]).toBe("penutup");
+    // Urutan pembuka mengikuti contoh: sampul → kurva → durasi.
+    expect(jenis.slice(0, 3)).toEqual(["sampul", "kurva", "durasi"]);
+  });
+
+  it("snapshot v1 (tanpa kurva/durasi/kategori) tetap terakit tanpa slide itu", () => {
+    const slides = susunSlides(content(snapshot(), narasiDeterministik(snapshot())), { draf: true });
+    const jenis = slides.map((x) => x.jenis);
+    expect(jenis).not.toContain("kurva");
+    expect(jenis).not.toContain("durasi");
+    expect(jenis[0]).toBe("sampul");
+    expect(jenis[jenis.length - 1]).toBe("penutup");
+  });
+
+  it("Action Plan deterministik menyebut PEKERJAAN NYATA, bukan kalimat umum", () => {
+    const n = narasiDeterministik(sMataram());
+    const teks = n.actionPlan.map((b) => b.text).join(" ");
+    // Hampir tuntas → didorong selesai; terendah → ditambah atensi.
+    expect(teks).toContain("Pekerjaan Persiapan");
+    expect(teks).toContain("Jalan Lingkungan & Saluran");
+  });
+
+  it("foto per pekerjaan: dikelompokkan per kategori dgn persen kategorinya", () => {
+    const s = sMataram();
+    s.fotoKandidat = [
+      { id: "11111111-1111-4111-8111-111111111111", locationId: "loc-a", lokasiNama: "Lokasi A", tanggalKey: "2026-07-08", keterangan: "Galian saluran", lineageKey: "II#1", r2Key: "a.webp", thumbnailKey: null },
+      { id: "22222222-2222-4222-8222-222222222222", locationId: "loc-a", lokasiNama: "Lokasi A", tanggalKey: "2026-07-09", keterangan: "Pasang batu saluran", lineageKey: "II#2", r2Key: "b.webp", thumbnailKey: null },
+      { id: "33333333-3333-4333-8333-333333333333", locationId: "loc-a", lokasiNama: "Lokasi A", tanggalKey: "2026-07-09", keterangan: "Kolom balai", lineageKey: "III#1", r2Key: "c.webp", thumbnailKey: null },
+    ];
+    const c = content(s, narasiDeterministik(s));
+    c.selectedPhotoIds = s.fotoKandidat.map((f) => f.id);
+    const slides = susunSlides(c, { draf: true });
+    const fp = slides.filter((x) => x.jenis === "foto_pekerjaan");
+    expect(fp).toHaveLength(2); // dua kategori → dua slide
+    const saluran = fp.find((x) => x.jenis === "foto_pekerjaan" && x.judul === "Jalan Lingkungan & Saluran");
+    if (saluran?.jenis !== "foto_pekerjaan") throw new Error("slide saluran tidak ada");
+    expect(saluran.foto).toHaveLength(2);
+    expect(saluran.pct).toBeCloseTo(5.4, 5);
   });
 });

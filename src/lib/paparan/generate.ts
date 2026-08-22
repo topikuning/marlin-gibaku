@@ -48,7 +48,8 @@ Aturan mutlak:
 - Setiap butir wajib menyebut sourceRefIds dari daftar sumber yang diberikan.
 - locationId hanya boleh dari daftar lokasi paket.
 - Rencana minggu depan yang tidak ada di DATA jangan dikarang.
-- Jangan menyinggung keuangan internal pelaksana.`;
+- Jangan menyinggung keuangan internal pelaksana.
+- actionPlan (maks 6 butir): saran NYATA dan SPESIFIK untuk satu minggu ke depan yang DITURUNKAN dari data minggu ini – sebut nama pekerjaan/kendalanya: pekerjaan hampir tuntas yang layak diselesaikan, pekerjaan berbobot besar yang masih rendah, recovery lewat target yang harus dituntaskan, kebutuhan bahan/tenaga yang tersirat dari kendala, dan rencana minggu depan yang sudah tercatat. Bukan kalimat umum seperti "tingkatkan koordinasi".`;
 
 const FOKUS: Record<string, string> = {
   lengkap: "",
@@ -84,6 +85,12 @@ function payloadSnapshot(s: PaparanSnapshot): string {
     kendalaAktif: s.kendala.terbukaSaatIni,
     pemulihan: s.pemulihan,
     rencanaMingguDepan: s.rencanaMingguDepan,
+    // Status per kategori RAB — bahan utama actionPlan (pekerjaan hampir
+    // tuntas / masih rendah disebut BERDASARKAN angka ini, bukan tebakan).
+    statusKategori: (s.kategori ?? []).map((k) => ({
+      lokasi: k.lokasiNama,
+      pekerjaan: k.kelompok.map((g) => ({ nama: g.nama, realisasiPct: Math.round(g.realisasiPct * 10) / 10 })),
+    })),
     sumber: s.sourceRefs.map((r) => ({ id: r.id, label: r.label })),
   };
   return JSON.stringify(bag, null, 1);
@@ -185,7 +192,7 @@ export async function generatePaparan(
           "Kamu penyusun narasi paparan proyek. Angka bukan wewenangmu – salin persis dari data atau jangan sebut.",
         prompt,
         schemaHint:
-          "Objek: title, ringkasanEksekutif[{text,sourceRefIds}] maks 4, capaianNaratif/kegiatanNaratif/sintesisKendala/rencanaNaratif[{text,locationId,sourceRefIds}], dukunganDibutuhkan[{text,sourceRefIds}], limitations[string].",
+          "Objek: title, ringkasanEksekutif[{text,sourceRefIds}] maks 4, capaianNaratif/kegiatanNaratif/sintesisKendala/rencanaNaratif[{text,locationId,sourceRefIds}], dukunganDibutuhkan[{text,sourceRefIds}], actionPlan[{text,sourceRefIds}] maks 6, limitations[string].",
         maxTokens: guardCfg.maxOutputTokens,
         timeoutMs: guardCfg.timeoutMs,
       });

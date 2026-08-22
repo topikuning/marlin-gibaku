@@ -385,3 +385,39 @@ describe("generate artefak", () => {
     vi.setSystemTime(NOW);
   });
 });
+
+describe("snapshot gaya Mataram (kurva, durasi, kategori)", () => {
+  it("kurva paket: rencana tertimbang dari deret kanonik lokasi + jendela realisasi", async () => {
+    const pkg = await muatPaketPaparan(admin(), packageId);
+    const s = await buatSnapshotPaparan(pkg, 2, NOW);
+    expect(s.kurva).not.toBeNull();
+    // Kedua lokasi berkurva linier 5%/minggu → gabungan tertimbangnya juga
+    // 5%/minggu; minggu ke-2 = 10%.
+    expect(s.kurva!.planPct[1]).toBeCloseTo(10, 5);
+    // Kurva wajib berakhir 100% (properti DECISIONS 052 tetap terjaga di gabungan).
+    expect(s.kurva!.planPct[s.kurva!.planPct.length - 1]).toBeCloseTo(100, 5);
+    // Jendela realisasi berakhir di minggu paparan dengan angka rekap yang sama.
+    const akhir = s.kurva!.jendela[s.kurva!.jendela.length - 1];
+    expect(akhir.minggu).toBe(2);
+    expect(akhir.realisasiPct).toBeCloseTo(s.progres.paket.realisasiPct, 5);
+    expect(akhir.kenaikanPp).toBeCloseTo(10.8, 5);
+  });
+
+  it("durasi pelaksanaan dari kontrak", async () => {
+    const pkg = await muatPaketPaparan(admin(), packageId);
+    const s = await buatSnapshotPaparan(pkg, 2, NOW);
+    expect(s.durasi?.totalHari).toBe(140);
+    expect((s.durasi?.hariBerjalan ?? 0) + (s.durasi?.sisaHari ?? 0)).toBe(140);
+  });
+
+  it("status kategori: realisasi per kategori RAB pada asOf minggu paparan", async () => {
+    const pkg = await muatPaketPaparan(admin(), packageId);
+    const s = await buatSnapshotPaparan(pkg, 2, NOW);
+    const katA = s.kategori?.find((k) => k.locationId === locA);
+    // Lokasi A: satu kategori berisi satu item 100 m³; s.d. minggu 2 tercatat
+    // 10 m³ → 10%. Laporan minggu ke-3 (+50) TIDAK boleh ikut.
+    expect(katA?.kelompok[0]?.realisasiPct).toBeCloseTo(10, 5);
+    // Lokasi C tanpa RAB aktif → tidak menyumbang baris kategori.
+    expect(s.kategori?.some((k) => k.locationId === locC)).toBe(false);
+  });
+});

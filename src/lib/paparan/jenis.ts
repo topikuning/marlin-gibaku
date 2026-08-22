@@ -15,7 +15,13 @@ import type { SourceRef } from "@/lib/ai-hub/types";
  */
 
 export const PAPARAN_TEMPLATE_KEY = "paparan_mingguan_kkp";
-export const PAPARAN_TEMPLATE_VERSION = 1;
+/**
+ * v2 (2026-08-22): rombak desain mengikuti contoh paparan Mataram dari user –
+ * sampul gelap ber-meta-strip, kurva-S, durasi pelaksanaan, status pekerjaan
+ * per kategori, foto per pekerjaan, Action Plan yang digenerate, penutup.
+ * Artefak v1 tetap terbaca: kolom snapshot barunya opsional.
+ */
+export const PAPARAN_TEMPLATE_VERSION = 2;
 
 /* ── Snapshot deterministik ─────────────────────────────────────────────── */
 
@@ -85,6 +91,8 @@ export type FotoKandidatPaparan = {
   tanggalKey: string | null;
   /** Keterangan faktual dari sumber (nama pekerjaan / judul kegiatan). */
   keterangan: string | null;
+  /** lineageKey item RAB foto laporan — pengelompok slide foto per pekerjaan. */
+  lineageKey?: string | null;
   r2Key: string;
   thumbnailKey: string | null;
 };
@@ -94,6 +102,36 @@ export type RencanaLokasiPaparan = {
   lokasiNama: string;
   catatan: string | null;
   item: { nama: string; unit: string | null; targetVolume: number }[];
+};
+
+/**
+ * Kurva-S paket untuk slide diagram (contoh Mataram): rencana kumulatif SATU
+ * deret penuh (gabungan tertimbang deret kanonik tiap lokasi), realisasi hanya
+ * pada JENDELA tiga minggu terakhir s.d. minggu paparan – persis pola contoh:
+ * garis rencana putus-putus sepanjang kontrak, garis realisasi pendek yang
+ * menegaskan posisi sekarang.
+ */
+export type KurvaPaparan = {
+  totalMinggu: number;
+  /** Rencana kumulatif % per minggu (index 0 = minggu 1). */
+  planPct: number[];
+  /** Realisasi kumulatif pada minggu (mingguKe−2..mingguKe yang valid). */
+  jendela: { minggu: number; realisasiPct: number; kenaikanPp: number | null }[];
+};
+
+export type DurasiPaparan = {
+  totalHari: number;
+  hariBerjalan: number;
+  sisaHari: number;
+  /** % waktu kontrak yang telah berjalan (0..100). */
+  pctWaktu: number;
+};
+
+/** Status pekerjaan per KATEGORI RAB satu lokasi – bahan bar berwarna. */
+export type KategoriLokasiPaparan = {
+  locationId: string;
+  lokasiNama: string;
+  kelompok: { lineageKey: string; nama: string; realisasiPct: number }[];
 };
 
 export type PaparanSnapshot = {
@@ -167,6 +205,12 @@ export type PaparanSnapshot = {
   fotoKandidat: FotoKandidatPaparan[];
   /** null = modul rencana mingguan belum diisi utk minggu berikutnya. */
   rencanaMingguDepan: RencanaLokasiPaparan[] | null;
+  /** Deret kurva-S paket; tidak ada bila belum satu pun lokasi berkurva. Opsional: snapshot v1 belum memilikinya. */
+  kurva?: KurvaPaparan | null;
+  /** Durasi pelaksanaan kontrak. Opsional: snapshot v1 belum memilikinya. */
+  durasi?: DurasiPaparan;
+  /** Status pekerjaan per kategori RAB per lokasi. Opsional: snapshot v1 belum memilikinya. */
+  kategori?: KategoriLokasiPaparan[];
   limitations: string[];
   sourceRefs: SourceRef[];
 };
@@ -187,6 +231,12 @@ export const paparanNarasiSchema = z.object({
   sintesisKendala: z.array(butirLokasi).max(8),
   rencanaNaratif: z.array(butirLokasi).max(6),
   dukunganDibutuhkan: z.array(butir).max(5),
+  /**
+   * ACTION PLAN – saran NYATA kegiatan satu minggu ke depan berdasarkan data
+   * minggu terakhir (permintaan user 2026-08-22, mengikuti contoh Mataram).
+   * `.default([])` supaya narasi v1 yang tersimpan tetap lolos parse.
+   */
+  actionPlan: z.array(butir).max(6).default([]),
   limitations: z.array(z.string().max(300)).max(15),
 });
 export type PaparanNarasi = z.infer<typeof paparanNarasiSchema>;
@@ -206,6 +256,7 @@ export type PaparanHumanEdits = {
   sintesisKendala?: string[];
   rencanaNaratif?: string[];
   dukunganDibutuhkan?: string[];
+  actionPlan?: string[];
   /** photoId → caption pengganti. */
   captionFoto?: Record<string, string>;
 };

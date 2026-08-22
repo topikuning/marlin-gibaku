@@ -21613,3 +21613,58 @@ final; peran tanpa `ai.view` → 404/403; deep link paket). Uji gigi: rata-rata
 sederhana, asOf dibuang, dan pagar cakupan lokasi dilepas — masing-masing
 memerahkan uji yang tepat. Empat penjaga repo (en-dash, migrasi idempoten,
 penanda sibuk, sapuan mobile) sempat merah dan dipenuhi, bukan dilemahkan.
+
+---
+
+## 417 — Paparan KKP dirombak mengikuti contoh Mataram + Action Plan digenerate, 2026-08-22
+
+> aku menginginkan presentasi dengan format dan kualitas seperti ini, yang kamu
+> buat itu murahan. action plan di akhir adalah perencanaan yang digenerate dan
+> saran nyata atas kegiatan satu minggu ke depan berdasarkan satu minggu
+> terakhir.
+
+Contohnya PDF paparan KNMP Tahap 2 Kel. Bintaro (Mataram): deck gelap navy
+ber-aksen cyan berselang slide terang, dan susunannya kini diikuti:
+
+- **Sampul gelap** dengan eyebrow "PAPARAN MINGGUAN · MINGGU KE-N" + meta strip
+  Periode | Realisasi | Rencana | chip Deviasi.
+- **Diagram Progres S-Curve**: garis rencana putus-putus sepanjang kontrak,
+  garis realisasi cyan hanya pada JENDELA tiga minggu terakhir, penanda "Minggu
+  Ini", dan baris statistik per minggu dengan chip kenaikan.
+- **Durasi Pelaksanaan** (gelap): tiga kartu Total Hari / Hari Berjalan / Sisa
+  Waktu + bar % waktu berjalan.
+- **Status Pekerjaan per kategori RAB**: bar dua kolom berwarna per band
+  (≥70 teal, ≥40 biru, ≥20 oranye, <20 merah), per lokasi.
+- **Foto per pekerjaan**: satu slide per kategori, kepala gelap nama + persen
+  cyan, maksimal dua foto di pita putih tengah.
+- **Action Plan bernomor** (kartu bergaris kiri cyan) — lihat di bawah.
+- **Penutup** "Terima Kasih / Tetap Semangat".
+
+### Sumber angka slide baru — tetap calculation layer
+
+- Deret rencana paket = gabungan TERTIMBANG `getScurveSeries` per lokasi
+  (formula kanonik DECISIONS 151/052) via `weightedPct`; realisasi jendela dari
+  `rekapPaket` asOf akhir minggu N−2/N−1/N. Tidak ada deret baru.
+- Realisasi kategori = Σ(prestasi item × amount)/amount kategori, dari
+  `prestasiPct` + `cumulativeVolumeByLineage` asOf minggu paparan — minggu
+  lampau menunjukkan posisi minggu itu, bukan hari ini.
+- Snapshot v2 menambah kolom OPSIONAL (`kurva`, `durasi`, `kategori`,
+  `actionPlan`) — artefak v1 tetap terbaca dan terakit tanpa slide barunya.
+
+### Action Plan: digenerate, dan TIDAK pernah kosong
+
+Saran nyata satu minggu ke depan dari data minggu terakhir. AI diminta
+menyebut nama pekerjaan/kendala (bukan "tingkatkan koordinasi"), disaring
+grounding dengan kolam angka kategori seluruh paket; bila AI mati/gugur, saran
+DETERMINISTIK disusun dari data yang sama: pekerjaan ≥70% didorong selesai,
+<30% ditambah atensi, recovery lewat target ditagih, rencana mingguan tercatat
+dieksekusi, lokasi tanpa laporan ditertibkan, deviasi negatif dikejar. Bisa
+disunting reviewer seperti bagian narasi lain.
+
+### Dua pelajaran teknis
+
+- `ellipsis` pdfkit tidak bisa diandalkan tanpa batas tinggi — nama kategori
+  panjang tetap turun baris dan tertindih bar, KETAHUAN dari PNG hasil render,
+  bukan dari membaca kode. Pemotongan kini manual berbasis `widthOfString`.
+- Uji e2e yang mematok "v1" gagal pada pengulangan di DB yang sama — versi
+  artefak memang harus naik. Asersinya kini relatif (versi awal + 1).
