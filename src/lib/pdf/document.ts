@@ -148,6 +148,33 @@ export function createLandscapeA4Doc(meta?: { title?: string; author?: string })
   return doc;
 }
 
+/** Ukuran halaman deck paparan 16:9 (pt) — DECISIONS 416. */
+export const DECK_169 = { width: 960, height: 540 } as const;
+
+/**
+ * Dokumen DECK 16:9 (lanskap 960×540 pt) untuk Paparan Mingguan KKP.
+ * Margin dikelola renderer slide sendiri (tiap slide = satu halaman penuh),
+ * jadi margin dokumen 0. Font & metadata sama dengan createA4Doc.
+ */
+export function createDeck169Doc(meta?: { title?: string; author?: string }): PdfDoc {
+  const doc = new PDFDocument({
+    size: [DECK_169.width, DECK_169.height],
+    margin: 0,
+    autoFirstPage: true,
+    bufferPages: true,
+    info: {
+      Title: meta?.title ?? "Paparan MARLIN",
+      Author: meta?.author ?? "MARLIN",
+      Producer: "MARLIN",
+    },
+  });
+  const fonts = loadFonts();
+  doc.registerFont(PDF_FONT.regular, fonts.regular);
+  doc.registerFont(PDF_FONT.bold, fonts.bold);
+  doc.font(PDF_FONT.regular);
+  return doc;
+}
+
 /** Selesaikan dokumen → Buffer PDF. Selalu memanggil doc.end() sekali. */
 export function docToBuffer(doc: PdfDoc): Promise<Buffer> {
   return new Promise((resolve, reject) => {

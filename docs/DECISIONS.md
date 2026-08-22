@@ -21537,3 +21537,79 @@ permintaannya masih berjalan dan sering tetap berhasil — merah akan mengatakan
 "gagal", dan di lapangan itu membuat orang membatalkan navigasi yang sebentar
 lagi selesai lalu mengulanginya di jaringan yang sudah sesak. Teksnya tetap
 `text-ink`: amber di atas krem pucat tidak lolos kontras untuk huruf sekecil itu.
+
+---
+
+## 416 — Paparan Mingguan Kontrak KKP (deck PDF 16:9), 2026-08-22
+
+Permintaan user (prompt terstruktur): fitur paparan mingguan per KONTRAK untuk
+dipresentasikan ke KKP — satu paket + satu minggu kontrak + satu versi, PDF
+lanskap 16:9, angka deterministik, narasi AI ber-grounding dengan fallback,
+lifecycle review sebelum final. Jalur web dulu; pemicu WhatsApp menyusul.
+
+### Yang dipakai ulang, bukan dibangun kedua
+
+- **Lifecycle**: `AiRun`/`AiArtifact` + `canTransitionAiArtifact` yang sama
+  dengan Report Studio. Enum bertambah `paparan`; `AiArtifact` bertambah kolom
+  `packageId` (FK nyata + index — daftar per paket tidak menggantung di JSON
+  path; artefak laporan/saran lama tidak berubah arti).
+- **Angka**: `getLocationsProgress({asOf})` + `rekapPaket` (tertimbang nilai
+  RAB) + helper minggu kontrak `mingguan/kirim` — TIDAK ada formula baru di
+  modul paparan. Kenaikan mingguan = selisih dua angka kanonik (pola yang sama
+  dengan deviasi di `rekapPaket`).
+- **PDF**: pdfkit vendored (DECISIONS 128) + `createDeck169Doc` (960×540 pt)
+  di `pdf/document.ts`. Tanpa Chromium runtime.
+- **Grounding**: `numericClaimsValid` per lokasi — angka lokasi A tidak lolos
+  hanya karena sama dengan angka resmi lokasi B (pola DECISIONS 378).
+
+### Keputusan yang menentukan bentuknya
+
+- **Akses = SELURUH lokasi aktif paket.** Pembuat/pembaca yang hanya memegang
+  sebagian lokasi DITOLAK dengan pesan generik — paparan kontrak parsial yang
+  tampil lengkap adalah paparan yang berbohong tanpa terlihat. Super Admin/PD
+  lintas lokasi selalu tercakup. Satu pintu: `muatPaketPaparan`.
+- **AI mati ≠ fitur mati.** Kill switch/provider kosong/timeout/gagal skema/
+  gugur grounding → narasi deterministik dari snapshot, deck tetap terbentuk,
+  dan slide lampiran MENGATAKANNYA ("Narasi AI tidak tersedia…"). Kuota AI
+  tetap ditegakkan `checkAiGuard` saat AI aktif.
+- **Kendala: jangan mengarang sejarah.** `Issue` tidak menyimpan histori
+  status, jadi minggu lampau memisahkan "kendala baru minggu itu" (createdAt)
+  dari "kendala aktif SAAT PAPARAN DIBUAT" + limitation eksplisit.
+  `IssueStatusHistory` sengaja TIDAK ditambahkan sekarang — kejujuran
+  limitation lebih baik daripada angka historis palsu, dan MVP tidak boleh
+  tersandera migrasi besar.
+- **Lokasi tanpa kurva-S**: target null (bukan 0), keluar dari penyebut
+  agregat, tetap tampil berlabel, terhitung di limitations — konsisten dengan
+  laporan mingguan WA.
+- **Regenerate = versi baru** (packageId+weekNumber → count+1); dalam jendela
+  90 detik double-click mengembalikan artefak yang sama (pola inputHash).
+- **Freeze**: validasi ulang konten + keanggotaan foto, `contentHash`,
+  `frozenAt`; sesudahnya immutable — PDF final tanpa watermark hanya dari
+  artefak beku. Draft SELALU ber-watermark "DRAF – BELUM DISETUJUI" di tiap
+  slide.
+- **Suntingan manusia terbatas**: judul, butir narasi per bagian, caption foto.
+  Angka/tabel/periode selalu dari snapshot — tidak ada jalur menyuntingnya.
+- **Foto**: kandidat hanya dari laporan terhitung + kegiatan final minggu itu;
+  pemilihan awal round-robin antar lokasi; ID dari form divalidasi terhadap
+  snapshot (yang asing DITOLAK bersuara). Foto gagal dimuat → placeholder,
+  PDF tetap jadi. Tanpa vision AI.
+- **URL Indonesia**: `/ai/paparan` (+ deep link dari Ringkasan Paket), bukan
+  `/ai/presentations` seperti draft prompt — aturan repo URL kebab Indonesia.
+
+### Pemicu WhatsApp DITUNDA (disengaja)
+
+Spec-nya sendiri menempatkan WA sebagai tahap lanjutan setelah web stabil.
+Ditunda supaya tidak menumpuk risiko di satu perubahan; service `generatePaparan`
+sudah berbentuk fungsi murni-sesi yang bisa dipanggil jalur WA tanpa duplikasi.
+Dicatat di OPEN_ISSUES.
+
+### Uji
+
+20 unit (grounding/fallback/foto/slide) + 4 unit PDF (16:9 konsisten, halaman =
+slide, foto gagal → placeholder) + 16 integrasi (tertimbang vs rata-rata, asOf,
+kenaikan mingguan, minggu 1/berjalan/depan, tanpa-baseline, tanpa-SPMK, akses
+parsial/organisasi lain, v1→v2, double-click) + 3 e2e (alur penuh sampai PDF
+final; peran tanpa `ai.view` → 404/403; deep link paket). Uji gigi: rata-rata
+sederhana, asOf dibuang, dan pagar cakupan lokasi dilepas — masing-masing
+memerahkan uji yang tepat. Empat penjaga repo (en-dash, migrasi idempoten,
+penanda sibuk, sapuan mobile) sempat merah dan dipenuhi, bukan dilemahkan.

@@ -511,6 +511,7 @@ model Package {
   gdriveUploads   GDriveUpload[]
   gdriveJobs      GDriveJob[]
   weeklyWaLogs    WeeklyWaLog[]
+  aiArtifacts     AiArtifact[]
 
   @@index([orgId, stage])
   @@map("packages")
@@ -2104,6 +2105,7 @@ enum AiRunKind {
   kualitas_data // Audit Kualitas Data — penjelasan temuan rule
   laporan // Report Studio — draf laporan terstruktur
   tanya // Ask MARLIN — jawaban grounded
+  paparan // Paparan Mingguan KKP — deck PDF 16:9 per paket per minggu (DECISIONS 416)
 }
 
 enum AiRunStatus {
@@ -2115,6 +2117,7 @@ enum AiRunStatus {
 enum AiArtifactKind {
   laporan // draf laporan (Report Studio)
   saran // draft action/recovery usulan AI — TIDAK menulis domain
+  paparan // deck Paparan Mingguan KKP per paket (DECISIONS 416)
 }
 
 /// Lifecycle artefak laporan AI — terpisah dari DailyReport.
@@ -2185,6 +2188,10 @@ model AiArtifact {
   id                String           @id @default(uuid()) @db.Uuid
   // Nullable: artefak "saran" bisa dibuat dari temuan deterministik TANPA run AI.
   runId             String?          @map("run_id") @db.Uuid
+  /// Paket pemilik artefak PAPARAN (DECISIONS 416). Kolom nyata, bukan JSON
+  /// path: daftar paparan per paket dicari lewat index ini. Null untuk kind
+  /// lain — arti artefak laporan/saran lama tidak berubah.
+  packageId         String?          @map("package_id") @db.Uuid
   kind              AiArtifactKind
   templateKey       String?          @map("template_key")
   templateVersion   Int              @default(1) @map("template_version")
@@ -2205,11 +2212,15 @@ model AiArtifact {
   createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz
   updatedAt         DateTime         @updatedAt @map("updated_at") @db.Timestamptz
 
-  run AiRun? @relation(fields: [runId], references: [id], onDelete: Cascade)
+  run     AiRun?   @relation(fields: [runId], references: [id], onDelete: Cascade)
+  /// Restrict, bukan cascade: paket berkontrak tidak pernah dihapus, dan bila
+  /// suatu saat dihapus, artefak paparan resmi tidak boleh ikut lenyap diam-diam.
+  package Package? @relation(fields: [packageId], references: [id], onDelete: Restrict)
 
   @@index([runId])
   @@index([kind, status])
   @@index([status, updatedAt])
+  @@index([packageId, updatedAt])
   @@map("ai_artifacts")
 }
 

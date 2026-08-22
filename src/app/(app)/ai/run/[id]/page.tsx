@@ -42,6 +42,7 @@ const KIND_LABEL: Record<string, string> = {
   kualitas_data: "Audit Kualitas Data",
   laporan: "Report Studio",
   tanya: "Ask MARLIN",
+  paparan: "Paparan KKP",
 };
 
 type NarrativeReportView = {
