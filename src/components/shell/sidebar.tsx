@@ -146,19 +146,24 @@ export function Sidebar({ nav, brand }: { nav: NavItem[]; brand: Branding }) {
         dari navigasi dan tidak boleh ikut terbaca sebagai menu. Di dasar ia
         juga tetap di tempat yang sama entah menunya lima atau lima belas.
       */}
-      <div className="border-t border-border p-2">
+      {/* Barisnya sengaja LEBIH PENDEK daripada butir menu (permintaan user
+          2026-08-22: *"ringkas menumu terlalu tinggi"*). Ia kendali, bukan
+          tujuan — memberinya tinggi yang sama dengan menu membuatnya terbaca
+          sebagai menu ke-sekian, dan memakan ruang di dasar layar yang justru
+          paling sering terpotong. */}
+      <div className="border-t border-border px-2 py-1">
         <button
           type="button"
           onClick={ubah}
           aria-expanded={!ringkas}
           aria-label={ringkas ? "Bentangkan menu samping" : "Ringkas menu samping"}
           title={ringkas ? "Bentangkan menu samping" : "Ringkas menu samping"}
-          className="marlin-nav-tautan flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink"
+          className="marlin-nav-tautan flex w-full items-center gap-2.5 rounded-md px-3 py-1.5 text-[13px] font-medium text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink"
         >
           {ringkas ? (
-            <PanelLeftOpen aria-hidden className="size-4 shrink-0" />
+            <PanelLeftOpen aria-hidden className="size-3.5 shrink-0" />
           ) : (
-            <PanelLeftClose aria-hidden className="size-4 shrink-0" />
+            <PanelLeftClose aria-hidden className="size-3.5 shrink-0" />
           )}
           <span className="marlin-nav-teks">Ringkas menu</span>
         </button>

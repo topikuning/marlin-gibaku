@@ -59,7 +59,7 @@ export type KalenderProps = {
   /** Sel yang lolos saringan; sisanya diredupkan. */
   disorot: (s: SelKalender) => boolean;
   /** Pembentuk URL — mempertahankan saringan & mode tampilan. */
-  taut: (ubah: { bulan?: BulanKey; tgl?: string }) => string;
+  taut: (ubah: { bulan?: BulanKey; tgl?: string; panel?: boolean }) => string;
   /** URL FORMULIR harian satu tanggal — tujuan sel yang masih kosong. */
   tautIsi: (dateKey: string) => string;
 };
@@ -113,7 +113,14 @@ export function Kalender({ bulan, batas, sel, terpilih, disorot, taut, tautIsi }
               sel={s}
               terpilih={s.dateKey === terpilih}
               redup={!disorot(s)}
-              href={bukaLangsung(s) ? tautIsi(s.dateKey) : taut({ tgl: s.dateKey })}
+              /*
+                `panel: true` HANYA di petak tanggal (DECISIONS 414): di layar
+                sempit panel ringkasan jatuh ke bawah kalender, jadi mengetuk
+                tanggal terlihat seperti tidak terjadi apa-apa. Nav bulan dan
+                chip saringan sengaja tidak membawanya — mereka tidak sedang
+                menanyakan satu tanggal.
+              */
+              href={bukaLangsung(s) ? tautIsi(s.dateKey) : taut({ tgl: s.dateKey, panel: true })}
             />
           ),
         )}

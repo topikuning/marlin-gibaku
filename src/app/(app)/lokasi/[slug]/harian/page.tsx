@@ -29,6 +29,7 @@ import {
   type SelKalender,
 } from "@/lib/daily-report/kalender-harian";
 import { Kalender } from "./kalender";
+import { PanelHari } from "./panel-hari";
 import { DaftarHarian, type BarisHarian } from "./daftar-harian";
 
 export const dynamic = "force-dynamic";
@@ -67,7 +68,14 @@ export default async function HarianIndexPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ bulan?: string; tgl?: string; saring?: string; tampilan?: string }>;
+  searchParams: Promise<{
+    bulan?: string;
+    tgl?: string;
+    saring?: string;
+    tampilan?: string;
+    /** "1" = buka ringkasan tanggal sebagai pop-up (DECISIONS 414). */
+    panel?: string;
+  }>;
 }) {
   const { slug } = await params;
   const sp = await searchParams;
@@ -114,12 +122,17 @@ export default async function HarianIndexPage({
     sel.find((s) => s.bulanIni && s.dateKey === hariIniKey) ??
     sel.find((s) => s.bulanIni)!;
   const detail = await getDetailHari(location.id, terpilih.dateKey);
+  // Pop-up ringkasan tanggal hanya terbuka kalau petak tanggal yang memintanya
+  // — bukan setiap kali halaman dibuka (DECISIONS 414).
+  const bukaPanel = sp.panel === "1" && !!diminta;
 
   const taut = (ubah: {
     bulan?: string;
     tgl?: string;
     saring?: SaringHarian;
     tampilan?: "kalender" | "daftar";
+    /** Minta ringkasan tanggal terbuka sebagai pop-up di layar sempit. */
+    panel?: boolean;
   }) => {
     const q = new URLSearchParams();
     const b = ubah.bulan ?? bulan;
@@ -132,6 +145,12 @@ export default async function HarianIndexPage({
     if (s !== "semua") q.set("saring", s);
     const tp = ubah.tampilan ?? (daftarMode ? "daftar" : "kalender");
     if (tp === "daftar") q.set("tampilan", "daftar");
+    /*
+     * `panel` SENGAJA tidak diwariskan dari URL sekarang (DECISIONS 414):
+     * hanya petak tanggal yang memintanya. Kalau ia menempel, mengganti bulan
+     * atau saringan akan ikut membuka pop-up yang tidak diminta siapa pun.
+     */
+    if (ubah.panel) q.set("panel", "1");
     const qs = q.toString();
     return qs ? `/lokasi/${slug}/harian?${qs}` : `/lokasi/${slug}/harian`;
   };
@@ -292,7 +311,12 @@ export default async function HarianIndexPage({
               </p>
             </section>
 
-            <PanelTanggal detail={detail} sel={terpilih} slug={slug} />
+            <PanelHari
+              bukaPanel={bukaPanel}
+              judul={formatTanggal(new Date(`${terpilih.dateKey}T00:00:00Z`), "EEEE, d MMMM yyyy")}
+            >
+              <PanelTanggal detail={detail} sel={terpilih} slug={slug} />
+            </PanelHari>
           </div>
         )}
       </CardBody>

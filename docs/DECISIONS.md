@@ -21349,3 +21349,80 @@ tanpa ada yang sadar. Dijaga uji e2e.
 
 Komposisi menu tidak disentuh — saya sempat membahasnya padahal user cuma
 bertanya soal sidebar, dan itu ditegur. Lebar terbentang juga tidak diubah.
+
+
+---
+
+## 414 — Ketukan tanggal harus TERLIHAT hasilnya: pop-up, bukan panel di luar layar (2026-08-22)
+
+### Keluhan user
+
+> kekurangan utama dari tampilan kalender ini adalah, ketika tampilan pas lebar
+> kalender saja, sidebarmu akan berada di bawah, mengakibatkan saat tanggal
+> diklik seakan-akan tidak terjadi apa-apa. sepertinya kamu perlu mengubah
+> alurnya, jadi saat kalender diklik muncul panel pop, menampilkan data persis
+> yang sekarang ada di samping/bawah kalender yang sekarang. lalu kalau buka
+> laporan tinggal klik, itu lebih rapi menurutku
+
+### Sebabnya tata letak, bukan ketukannya
+
+Panel ringkasan tanggal dipasang `lg:grid-cols-[minmax(0,1fr)_320px]`. Di bawah
+`lg` kolom keduanya jatuh KE BAWAH kalender — di luar layar. Ketukannya bekerja:
+URL berubah, panelnya terisi data yang benar. Yang tidak ada cuma satu hal, dan
+itu yang menentukan segalanya: **orangnya tidak melihat apa pun berubah.**
+
+Dari kursi pemakai, "bekerja tapi tak terlihat" tidak bisa dibedakan dari
+"rusak" — dan yang dilakukan orang berikutnya adalah mengetuk lagi.
+
+### Pop-up HANYA pada lebar yang memang rusak
+
+Di ≥lg panelnya duduk bersebelahan dengan kalender dan ikut terlihat setiap kali
+tanggal diketuk; tidak ada yang perlu diperbaiki di sana. Menggantinya dengan
+pop-up justru menutupi kalender yang barusan dibaca dan menambah satu ketukan
+untuk menutupnya. Jadi yang berubah hanya <lg.
+
+### Dibuka lewat URL (`?panel=1`), bukan state klik
+
+Isi panel — jumlah item, foto, kendala terbuka, tenaga kerja, cap waktu simpan —
+dirender SERVER untuk tanggal terpilih. Membuka dari state klik berarti panel
+terbuka lebih dulu lalu isinya menyusul, atau seluruh tanggal harus diambil
+datanya di muka. Lewat URL, panel terbuka bersama isi yang sudah benar, dan
+tautannya bisa dibagikan apa adanya.
+
+`panel` SENGAJA tidak diwariskan oleh `taut()`: hanya petak tanggal yang
+memintanya. Kalau ia menempel, mengganti bulan atau saringan akan ikut membuka
+pop-up yang tidak diminta siapa pun.
+
+### `PanelGeser`: cangkang laci yang TERKENDALI
+
+`Drawer` (DECISIONS 386) memicu dirinya sendiri lewat tombol. Di sini pemicunya
+petak tanggal, dan keadaannya dari URL. Cangkangnya karena itu dipisah jadi
+`PanelGeser` (buka/tutup ditentukan pemanggil) dan `Drawer` jadi pembungkus
+tipis di atasnya — daripada menyalin jebakan fokus, Escape, dan kunci gulir ke
+tempat kedua yang lambat laun berbeda aturannya.
+
+### Cacat yang NYARIS saya buat, dan cara ketahuannya
+
+Versi pertama menyembunyikan pop-up di layar lebar dengan `lg:hidden`. Itu
+membuat React tetap merender dan tetap MENJALANKAN efeknya — termasuk
+`body.overflow = "hidden"`. Hasilnya: halaman desktop tidak bisa digulir
+sementara tidak ada panel yang terlihat. Cacat yang tidak bersuara sama sekali.
+
+Obatnya `matchMedia`: pop-upnya tidak dirender sama sekali pada lebar yang tidak
+memakainya.
+
+**Dan ini yang layak dicatat:** uji gigi pertama saya untuk cacat itu HIJAU
+padahal bentuknya salah — karena ujinya membuka `?panel=1` tanpa `tgl`, sedangkan
+`bukaPanel` menuntut keduanya. Ujinya tidak pernah menyentuh keadaan yang mau
+dijaga. Sesudah alamatnya diambil dari petak sungguhan, bentuk yang salah
+memerahkan DUA uji. Uji gigi yang setengah jalan berbohong dengan cara yang
+paling meyakinkan: ia hijau.
+
+### Susulan DECISIONS 413 — tinggi baris "Ringkas menu"
+
+> ringkas menumu terlalu tinggi
+
+Barisnya dibuat lebih pendek daripada butir menu (tombol 32px, baris 41px, vs
+36px untuk butir menu). Ia kendali, bukan tujuan: memberinya tinggi yang sama
+dengan menu membuatnya terbaca sebagai menu ke-sekian, dan memakan ruang di
+dasar layar yang justru paling sering terpotong.
