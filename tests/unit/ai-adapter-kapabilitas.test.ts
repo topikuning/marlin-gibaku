@@ -29,9 +29,20 @@ describe("premis pagar: bertanya ke AI ≠ boleh melihat uang", () => {
     expect(can("wakil_ppk", "finance.view")).toBe(false);
   });
 
-  it("peran yang berhak tetap menerimanya", () => {
-    expect(can("project_manager", "finance.view")).toBe(true);
-    expect(can("exec_viewer", "finance.view")).toBe(true);
+  it("selagi Keuangan DITAHAN, hanya super_admin yang menerimanya", () => {
+    /*
+     * Dulu berbunyi "peran yang berhak tetap menerimanya" dengan
+     * project_manager & exec_viewer bernilai true. `finance.*` kini ditahan
+     * sementara untuk semua peran selain super_admin (DECISIONS 411).
+     *
+     * Yang dijaga premisnya tetap sama dan JUSTRU makin ketat: pintu AI tidak
+     * boleh jadi jalur kedua ke angka uang bagi peran yang di layar MARLIN
+     * sendiri tidak boleh melihatnya. Saat Keuangan dibuka lagi, uji inilah yang
+     * harus dikembalikan bersama capability-nya.
+     */
+    expect(can("super_admin", "finance.view")).toBe(true);
+    expect(can("project_manager", "finance.view")).toBe(false);
+    expect(can("exec_viewer", "finance.view")).toBe(false);
   });
 });
 

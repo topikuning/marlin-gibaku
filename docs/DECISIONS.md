@@ -21168,3 +21168,57 @@ cek riwayat merge, baru bertanya kalau memang ada jendelanya.
 
 Aturan yang dipakai seterusnya: **kolom yang HILANG butuh kepastian; kolom yang
 belum pernah dirilis tidak.**
+
+
+---
+
+## 411 — Menu Keuangan ditahan: SEMENTARA super_admin saja (2026-08-22)
+
+### Permintaan user
+
+> menu keuangan saat ini belum siap, jadi selain superadmin, tidak usah
+> ditampilkan dulu
+
+### Ditahan di CAPABILITY, bukan disembunyikan dari menu
+
+Yang diminta "tidak usah ditampilkan", tapi menyembunyikan menu saja
+meninggalkan **alamatnya terbuka**: siapa pun yang pernah membuka `/keuangan`,
+menyimpan tautannya, atau mengetiknya langsung tetap masuk. Fitur yang belum
+siap akan tetap ditemukan orang, dan yang menemukannya justru dalam keadaan
+paling buruk — tanpa menu, tanpa konteks, tanpa yang bisa ia tanyai.
+
+Jadi `finance.view`, `finance.input`, dan `finance.approve` dicabut dari SEMUA
+peran kecuali `super_admin`. Menunya hilang dengan sendirinya karena nav memang
+menyaring dengan capability, dan halamannya ikut tertutup karena dijaga
+`requireCapabilityPage`. Tab "Keuangan" di halaman lokasi juga disembunyikan —
+tab yang tetap tampil hanya menuntun orang ke layar "tidak punya izin".
+
+### SEMENTARA, dan cara membukanya ditulis
+
+Ini penahanan, bukan kebijakan. Yang paling mudah terjadi pada penahanan
+sementara adalah ia jadi permanen karena tidak ada yang ingat cara
+mengembalikannya. Karena itu langkah pemulihannya ditulis di `authz.ts` tepat di
+atas ketiga capability-nya — empat tempat, disebut satu per satu:
+
+1. hapus `!c.startsWith("finance.")` pada penyaring `program_director`;
+2. kembalikan `finance.input` ke `SITE_MANAGER`;
+3. kembalikan `finance.view` ke `PROJECT_MANAGER` dan `exec_viewer`;
+4. kembalikan `finance.approve` ke `AREA_MANAGER`.
+
+### Tiga uji yang SENGAJA merah kalau lupa
+
+Penahanan ini mengubah aturan yang sudah dijaga uji lain, dan uji-uji itu
+DIPERBARUI dengan catatan — bukan dihapus:
+
+- `authz.test.ts` — `finance.*` masuk daftar `HANYA_SUPER_ADMIN`, plus satu uji
+  baru yang menyapu SEMUA peran untuk ketiga capability.
+- `ai-adapter-kapabilitas.test.ts` — "peran yang berhak tetap menerimanya"
+  dibalik jadi "selagi Keuangan ditahan, hanya super_admin". Premis pagarnya
+  tidak berubah, malah makin ketat: pintu AI tidak boleh jadi jalur kedua ke
+  angka uang.
+- `authz-jenjang.test.ts` — contoh "hak khas atasan" diganti dari
+  `finance.approve` ke `amendment.manage`, karena `finance.*` sudah tidak bisa
+  membuktikan apa pun tentang jenjang selagi ditahan.
+
+Dengan begitu, mengembalikan capability tanpa mengembalikan ujinya akan MERAH —
+dan sebaliknya.

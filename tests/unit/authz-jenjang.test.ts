@@ -44,8 +44,15 @@ describe("KASUS INTI: atasan memiliki semua kapabilitas bawahannya", () => {
   });
 
   it("atasan tetap punya yang khas dirinya – jenjang bukan sekadar salinan", () => {
-    expect(ROLE_CAPABILITIES.regional_manager.has("finance.approve")).toBe(true);
-    expect(ROLE_CAPABILITIES.project_manager.has("finance.approve")).toBe(false);
+    /*
+     * Contoh `finance.approve` (AM punya, PM tidak) DIGANTI `amendment.manage`.
+     * Bukan karena aturannya berubah, melainkan karena seluruh `finance.*`
+     * sedang DITAHAN untuk semua peran selain super_admin (DECISIONS 411) — jadi
+     * ia tidak bisa lagi membuktikan apa pun tentang jenjang. Yang diuji di sini
+     * premisnya: hak khas atasan tidak menetes ke bawah.
+     */
+    expect(ROLE_CAPABILITIES.program_director.has("amendment.manage")).toBe(true);
+    expect(ROLE_CAPABILITIES.project_manager.has("amendment.manage")).toBe(false);
     expect(ROLE_CAPABILITIES.project_manager.has("location.manage")).toBe(true);
     expect(ROLE_CAPABILITIES.site_manager.has("location.manage")).toBe(false);
   });

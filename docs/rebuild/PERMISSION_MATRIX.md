@@ -45,9 +45,9 @@ Jumlah capability: **51**.
 | `gdrive.open_folder` | ✓ | – | – | – | – | – | – | – |
 | `progress.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `issue.manage` | ✓ | ✓ | ✓ | ✓ | ✓ | – | – | – |
-| `finance.view` | ✓ | ✓ | ✓ | ✓ | – | – | ✓ | – |
-| `finance.input` | ✓ | ✓ | ✓ | ✓ | ✓ | – | – | – |
-| `finance.approve` | ✓ | ✓ | ✓ | – | – | – | – | – |
+| `finance.view` | ✓ | – | – | – | – | – | – | – |
+| `finance.input` | ✓ | – | – | – | – | – | – | – |
+| `finance.approve` | ✓ | – | – | – | – | – | – | – |
 | `document.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `document.upload` | ✓ | ✓ | ✓ | ✓ | ✓ | – | – | – |
 | `document.verify` | ✓ | ✓ | ✓ | ✓ | – | – | – | – |
@@ -76,6 +76,9 @@ Jumlah capability: **51**.
 - `daily_report.unfinalize`
 - `wa.configure`
 - `gdrive.open_folder`
+- `finance.view`
+- `finance.input`
+- `finance.approve`
 - `document.delete`
 - `contact.view_all`
 - `system.manage`

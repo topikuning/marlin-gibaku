@@ -20,7 +20,7 @@ function remainingDaysUntil(endDate: Date): number {
   return Math.ceil((endDate.getTime() - Date.now()) / DAY_MS);
 }
 
-function tabItems(slug: string): LinkTabItem[] {
+function tabItems(slug: string, bolehKeuangan: boolean): LinkTabItem[] {
   const base = `/lokasi/${slug}`;
   return [
     { label: "Ringkasan", href: base, exact: true },
@@ -33,7 +33,10 @@ function tabItems(slug: string): LinkTabItem[] {
     { label: "Pelaksanaan Harian", href: `${base}/harian` },
     { label: "Kegiatan Lapangan", href: `${base}/kegiatan` },
     { label: "RAPL", href: `${base}/rapl` },
-    { label: "Keuangan", href: `${base}/keuangan` },
+    // Keuangan DITAHAN sementara (DECISIONS 411): halamannya sendiri sudah
+    // dijaga `finance.view`, jadi tab yang tetap tampil hanya akan menuntun
+    // orang ke layar "tidak punya izin".
+    ...(bolehKeuangan ? [{ label: "Keuangan", href: `${base}/keuangan` }] : []),
     { label: "Dokumen & Kepatuhan", href: `${base}/dokumen` },
     { label: "Laporan", href: `${base}/laporan-lokasi` },
   ];
@@ -188,7 +191,7 @@ export default async function LokasiLayout({
         </span>
       </div>
 
-      <LinkTabs items={tabItems(location.slug)} />
+      <LinkTabs items={tabItems(location.slug, can(user.role, "finance.view"))} />
 
       {children}
     </div>
