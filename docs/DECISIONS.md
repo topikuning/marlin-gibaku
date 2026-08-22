@@ -21222,3 +21222,70 @@ DIPERBARUI dengan catatan — bukan dihapus:
 
 Dengan begitu, mengembalikan capability tanpa mengembalikan ujinya akan MERAH —
 dan sebaliknya.
+
+
+---
+
+## 412 — Stempel menutupi teks di PDF: urutan menggambar, bukan ukuran (2026-08-22)
+
+### Laporan user
+
+Tangkapan layar blok tanda tangan laporan harian: stempel perusahaan menimpa
+tulisan "Dibuat Oleh : / Kontraktor Pelaksana / CV. Alkomber Karya" sampai tidak
+terbaca. Dua usulan solusi:
+
+> 1. gambar stempel ditaruh paling belakang, di atas logo/stempel adalah ttd, di
+>    atas ttd baru teks, jadi teks tidak mungkin tertutup
+> 2. permainan opacity/transparansi, tapi ini akan memakan resource besar
+
+### Yang dipakai: nomor 1 — dan alasannya bukan ongkos
+
+Nomor 1 benar, dan nomor 2 sebenarnya TIDAK mahal (di CSS `mix-blend-multiply`
+gratis; di PDF `ExtGState` juga murah). Yang membuat nomor 2 salah untuk kertas
+adalah lain: **pdfkit tidak menyediakan blend mode untuk gambar sama sekali**.
+Yang bisa dilakukannya hanya `fillOpacity` — dan stempel separuh transparan di
+atas teks tetap menurunkan kontras pada dokumen yang akan difotokopi dan
+dipindai berkali-kali sebelum sampai ke KKP.
+
+Menariknya, penyaji HTML SUDAH memakai cara nomor 2 (`mix-blend-multiply` di
+`components/knmp/blok-ttd.tsx`), dan justru itulah sebabnya cacat ini tidak
+pernah terlihat di layar — hanya di PDF, yaitu berkas yang benar-benar beredar.
+
+### Sebab sesungguhnya
+
+**PDF tidak punya z-index.** Yang digambar belakangan menimpa yang lebih dulu,
+titik. Blok teksnya digambar dulu (`gridRow`), lalu gambar stempel ditempel di
+atasnya — dan stempel hasil pindaian membawa latar putih yang tidak tembus
+pandang, jadi ia benar-benar MENGHAPUS teks di bawahnya.
+
+Jadi ini bukan soal stempelnya kebesaran atau posisinya meleset; sebesar dan
+seposisi apa pun, ia akan selalu menang atas apa yang digambar sebelumnya.
+
+### Penjaganya di dalam fungsi, bukan di ingatan
+
+Urutannya tidak diperbaiki dengan memindahkan tiga blok kode lalu berharap
+penulis berikutnya ingat. Dibuat pembungkus `blokTandaTanganPdf(doc, gambar[],
+teks)` yang menggambar SEMUA gambar dulu, lalu memanggil closure teksnya.
+Teksnya diserahkan sebagai closure supaya pemanggil **tidak bisa** menaruhnya
+lebih dulu tanpa sengaja — persis kesalahan yang sedang diperbaiki. Ketiga
+penyaji (harian, periodik, rencana) memakainya.
+
+Lapisan di dalam blok tetap seperti orang membubuhkannya: **stempel paling
+belakang, coretan tanda tangan di atasnya, teks paling atas.**
+
+### Bukti
+
+Diuji dua cara. (1) `tests/unit/ttd-urutan-gambar.test.ts` dengan `doc` tiruan
+yang mencatat urutan panggilan — itu bukan tiruan mekanisme, urutan panggilan
+PERSIS itulah yang jadi lapisan di berkas jadinya. Uji gigi: urutan dibalik →
+dua uji merah. (2) Render PDF sungguhan berisi dua blok dengan "stempel" kotak
+berlatar putih, lalu dilihat sebagai gambar: pada urutan lama tiga baris
+teratas hilang tertutup; pada urutan baru seluruh teks terbaca.
+
+### Yang TIDAK diselesaikan, dan disebut apa adanya
+
+Teks hitam di atas bagian stempel yang GELAP tetap kurang kontras. Untuk stempel
+dinas yang bentuknya cincin (bagian tengahnya putih) ini tidak jadi soal, dan
+itulah bentuk yang dipakai di lapangan. Kalau suatu saat ada stempel blok pekat,
+obatnya bukan urutan lagi melainkan ukuran/posisinya — dan itu keputusan
+tersendiri.

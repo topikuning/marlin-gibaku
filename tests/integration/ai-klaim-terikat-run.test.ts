@@ -121,12 +121,24 @@ beforeAll(async () => {
   const u = await db.user.create({
     data: {
       orgId,
-      username: `pd-${suffix}`,
-      email: `pd-${suffix}@contoh.id`,
-      fullName: "PD KLM",
-      // Peran lintas lokasi supaya scope tidak perlu penugasan terpisah —
-      // yang diuji berkas ini validasi klaim, bukan aturan scope.
-      role: "program_director",
+      username: `sa-${suffix}`,
+      email: `sa-${suffix}@contoh.id`,
+      fullName: "SA KLM",
+      /*
+       * Peran lintas lokasi supaya scope tidak perlu penugasan terpisah — yang
+       * diuji berkas ini validasi klaim, bukan aturan scope.
+       *
+       * `super_admin`, bukan `program_director`: sejak DECISIONS 411 seluruh
+       * `finance.*` DITAHAN untuk semua peran selain super_admin, dan sebagian
+       * uji di sini justru harus membuktikan bahwa peran yang BERHAK tetap
+       * menerima fakta keuangan. Dengan program_director, uji itu berhenti
+       * membuktikan apa pun — ia cuma ikut merah bersama penahanannya.
+       *
+       * Saat Keuangan dibuka lagi, baris ini boleh kembali ke
+       * `program_director`; yang penting perannya memang memegang
+       * `finance.view`.
+       */
+      role: "super_admin",
       passwordHash: "x",
     },
     select: { id: true, orgId: true, fullName: true, username: true, email: true, role: true },
