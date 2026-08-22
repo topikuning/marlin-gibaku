@@ -142,6 +142,14 @@ perhitungan retensi & opsi jaminan pemeliharaan. Milestone pembayaran sudah scop
 - Estimasi biaya: pricing per-provider (sekarang satu set harga global aktif).
 - Rotasi AI_SECRET_ENCRYPTION_KEY: prosedur = set kunci baru + simpan ulang API
   key dari Sistem → AI (re-encrypt); belum ada tooling re-encrypt massal.
+- Pemicu WhatsApp Paparan KKP ("@MARLIN buat paparan …", DECISIONS 416):
+  DITUNDA sadar sampai jalur web stabil di produksi. Wajib memanggil
+  `generatePaparan` yang sama (jangan service kedua), hanya membuat DRAFT,
+  balasan berupa tautan review ber-autentikasi — bukan PDF ke grup.
+- Distribusi artefak paparan (beku → terkirim) belum dibuka — unduh PDF final
+  manual dulu; transisi `terkirim` sengaja ditolak di `transisiPaparanAction`.
+- Kurva-S PAKET pada slide progres masih visual rencana-vs-realisasi sederhana;
+  seri kurva-S agregat paket butuh builder calculation-layer sendiri.
 
 ## FUTURE · Chat grup & kop surat — lanjutan (DECISIONS 135)
 - Penjadwalan OTOMATIS ringkasan harian chat grup (tiap pagi utk H-1) — butuh

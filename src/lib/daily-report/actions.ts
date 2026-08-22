@@ -61,6 +61,22 @@ export type DailyActionState =
       kendalaDuplikat?: { id: string; title: string };
       /** Isian yang sudah diketik – dikembalikan supaya tidak perlu diketik ulang. */
       kendalaNilai?: { title: string; description: string; severity: string };
+      /**
+       * Hasil pindah tanggal (DECISIONS 415) — dipakai layarnya untuk menyebut
+       * AKIBAT yang tidak ikut pindah sendiri, dan menautkan ke tanggal baru.
+       * Halaman yang sedang dibuka bertanggal LAMA, jadi tanpa tautan itu orang
+       * ditinggal menatap "Belum ada laporan" tanpa tahu isinya pindah ke mana.
+       */
+      pindah?: {
+        slug: string;
+        ke: string;
+        lewatFinal: boolean;
+        cuacaDibuang: boolean;
+        waDilepas: boolean;
+        fotoPerluCapUlang: number;
+        fotoTakBisaDiperbaiki: number;
+        snapshotDibangunUlang: number;
+      };
     }
   | undefined;
 
@@ -1197,6 +1213,71 @@ export async function unfinalizeReportAction(
       success:
         "Laporan dibuka kembali (status: Disetujui) dan bisa dikoreksi. " +
         "Finalkan ulang setelah selesai supaya cetakannya diperbarui.",
+    };
+  } catch (err) {
+    return errState(err);
+  }
+}
+
+/**
+ * PINDAHKAN LAPORAN KE TANGGAL LAIN (DECISIONS 415).
+ *
+ * User 2026-08-22, atas laporan yang dikembalikan karena salah tanggal: *"ini
+ * terlalu ribet untuk edit, padahal bisa sekali klik, ganti tanggal saja."*
+ *
+ * Super admin SAJA (pilihan user) — menggeser tanggal berarti menggeser volume
+ * ke hari lain, dan itu menggerakkan kurva-S serta deviasi.
+ */
+export async function pindahTanggalAction(
+  _prev: DailyActionState,
+  formData: FormData,
+): Promise<DailyActionState> {
+  try {
+    const user = await requireCapability("daily_report.move_date");
+    const parsed = z
+      .object({
+        reportId: z.uuid(),
+        tanggalBaru: z
+          .string()
+          .trim()
+          .regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal tujuan wajib diisi"),
+        alasan: z.string().trim().min(10, "Alasan pemindahan wajib diisi (minimal 10 karakter)"),
+      })
+      .safeParse({
+        reportId: formData.get("reportId"),
+        tanggalBaru: formData.get("tanggalBaru"),
+        alasan: formData.get("alasan"),
+      });
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+    const ctx = await loadReportContext(parsed.data.reportId);
+    await requireLocationAccess(user, ctx.locationId);
+
+    const { pindahTanggalLaporan } = await import("./pindah-tanggal-service");
+    const hasil = await pindahTanggalLaporan({
+      reportId: parsed.data.reportId,
+      tanggalBaru: parsed.data.tanggalBaru,
+      alasan: parsed.data.alasan,
+      userId: user.id,
+    });
+
+    // DUA tanggal disegarkan: yang ditinggalkan sekarang kosong, dan yang
+    // dituju sekarang berisi. Menyegarkan salah satunya saja meninggalkan
+    // kalender yang menampilkan laporan di dua tempat sekaligus.
+    revalidateReport(ctx.slug, hasil.dari);
+    revalidateReport(ctx.slug, hasil.ke);
+    return {
+      success: `Laporan dipindah ke ${hasil.ke}.`,
+      pindah: {
+        slug: ctx.slug,
+        ke: hasil.ke,
+        lewatFinal: hasil.lewatFinal,
+        cuacaDibuang: hasil.cuacaDibuang,
+        waDilepas: hasil.waDilepas,
+        fotoPerluCapUlang: hasil.foto.perluCapUlang,
+        fotoTakBisaDiperbaiki: hasil.foto.takBisaDiperbaiki,
+        snapshotDibangunUlang: hasil.snapshotDibangunUlang,
+      },
     };
   } catch (err) {
     return errState(err);

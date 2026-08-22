@@ -22,6 +22,7 @@ export default async function AiHubLayout({ children }: { children: React.ReactN
           { label: "Portfolio Pulse", href: "/ai", exact: true },
           { label: "Perlu Tindakan", href: "/ai/actions" },
           { label: "Report Studio", href: "/ai/reports" },
+          { label: "Paparan KKP", href: "/ai/paparan" },
           { label: "Ask MARLIN", href: "/ai/ask" },
           { label: "Riwayat & Audit", href: "/ai/history" },
         ]}

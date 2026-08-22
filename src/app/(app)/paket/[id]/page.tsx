@@ -125,6 +125,7 @@ export default async function RingkasanPaketPage({
   const canContract = can(user.role, "contract.manage");
   const canWaConfigure = can(user.role, "wa.configure");
   const canKirimLaporan = can(user.role, "ai.report_send");
+  const canGeneratePaparan = can(user.role, "ai.generate");
   const canDocument = can(user.role, "document.view");
 
   const [progressMap, history, kepatuhan] = await Promise.all([
@@ -270,7 +271,8 @@ export default async function RingkasanPaketPage({
   // Tahap sebelumnya yang aman untuk dimundurkan (koreksi salah-klik), bila ada.
   const revertTo = revertTargetFor(pkg.stage);
   const lokasiAktif = pkg.locations.filter((l) => l.isActive).length;
-  const adaKomunikasi = canWaConfigure || (canKirimLaporan && pkg.stage === "pelaksanaan");
+  const adaKomunikasi =
+    canWaConfigure || ((canKirimLaporan || canGeneratePaparan) && pkg.stage === "pelaksanaan");
 
   return (
     <div className="space-y-4">
@@ -593,6 +595,18 @@ export default async function RingkasanPaketPage({
                           wahaConfigured={await isWahaConfigured()}
                         />
                       </Drawer>
+                    }
+                  />
+                ) : null}
+
+                {canGeneratePaparan && pkg.stage === "pelaksanaan" && contract?.startDate ? (
+                  <BarisIntegrasi
+                    nama="Paparan Mingguan KKP"
+                    keterangan="Deck PDF 16:9 satu minggu kontrak – angka resmi MARLIN, direview dulu sebelum final."
+                    aksi={
+                      <ButtonLink href={`/ai/paparan?paket=${pkg.id}`} size="sm">
+                        Buat Paparan Mingguan KKP
+                      </ButtonLink>
                     }
                   />
                 ) : null}

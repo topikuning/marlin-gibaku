@@ -21349,3 +21349,348 @@ tanpa ada yang sadar. Dijaga uji e2e.
 
 Komposisi menu tidak disentuh — saya sempat membahasnya padahal user cuma
 bertanya soal sidebar, dan itu ditegur. Lebar terbentang juga tidak diubah.
+
+
+---
+
+## 414 — Ketukan tanggal harus TERLIHAT hasilnya: pop-up, bukan panel di luar layar (2026-08-22)
+
+### Keluhan user
+
+> kekurangan utama dari tampilan kalender ini adalah, ketika tampilan pas lebar
+> kalender saja, sidebarmu akan berada di bawah, mengakibatkan saat tanggal
+> diklik seakan-akan tidak terjadi apa-apa. sepertinya kamu perlu mengubah
+> alurnya, jadi saat kalender diklik muncul panel pop, menampilkan data persis
+> yang sekarang ada di samping/bawah kalender yang sekarang. lalu kalau buka
+> laporan tinggal klik, itu lebih rapi menurutku
+
+### Sebabnya tata letak, bukan ketukannya
+
+Panel ringkasan tanggal dipasang `lg:grid-cols-[minmax(0,1fr)_320px]`. Di bawah
+`lg` kolom keduanya jatuh KE BAWAH kalender — di luar layar. Ketukannya bekerja:
+URL berubah, panelnya terisi data yang benar. Yang tidak ada cuma satu hal, dan
+itu yang menentukan segalanya: **orangnya tidak melihat apa pun berubah.**
+
+Dari kursi pemakai, "bekerja tapi tak terlihat" tidak bisa dibedakan dari
+"rusak" — dan yang dilakukan orang berikutnya adalah mengetuk lagi.
+
+### Pop-up HANYA pada lebar yang memang rusak
+
+Di ≥lg panelnya duduk bersebelahan dengan kalender dan ikut terlihat setiap kali
+tanggal diketuk; tidak ada yang perlu diperbaiki di sana. Menggantinya dengan
+pop-up justru menutupi kalender yang barusan dibaca dan menambah satu ketukan
+untuk menutupnya. Jadi yang berubah hanya <lg.
+
+### Dibuka lewat URL (`?panel=1`), bukan state klik
+
+Isi panel — jumlah item, foto, kendala terbuka, tenaga kerja, cap waktu simpan —
+dirender SERVER untuk tanggal terpilih. Membuka dari state klik berarti panel
+terbuka lebih dulu lalu isinya menyusul, atau seluruh tanggal harus diambil
+datanya di muka. Lewat URL, panel terbuka bersama isi yang sudah benar, dan
+tautannya bisa dibagikan apa adanya.
+
+`panel` SENGAJA tidak diwariskan oleh `taut()`: hanya petak tanggal yang
+memintanya. Kalau ia menempel, mengganti bulan atau saringan akan ikut membuka
+pop-up yang tidak diminta siapa pun.
+
+### `PanelGeser`: cangkang laci yang TERKENDALI
+
+`Drawer` (DECISIONS 386) memicu dirinya sendiri lewat tombol. Di sini pemicunya
+petak tanggal, dan keadaannya dari URL. Cangkangnya karena itu dipisah jadi
+`PanelGeser` (buka/tutup ditentukan pemanggil) dan `Drawer` jadi pembungkus
+tipis di atasnya — daripada menyalin jebakan fokus, Escape, dan kunci gulir ke
+tempat kedua yang lambat laun berbeda aturannya.
+
+### Cacat yang NYARIS saya buat, dan cara ketahuannya
+
+Versi pertama menyembunyikan pop-up di layar lebar dengan `lg:hidden`. Itu
+membuat React tetap merender dan tetap MENJALANKAN efeknya — termasuk
+`body.overflow = "hidden"`. Hasilnya: halaman desktop tidak bisa digulir
+sementara tidak ada panel yang terlihat. Cacat yang tidak bersuara sama sekali.
+
+Obatnya `matchMedia`: pop-upnya tidak dirender sama sekali pada lebar yang tidak
+memakainya.
+
+**Dan ini yang layak dicatat:** uji gigi pertama saya untuk cacat itu HIJAU
+padahal bentuknya salah — karena ujinya membuka `?panel=1` tanpa `tgl`, sedangkan
+`bukaPanel` menuntut keduanya. Ujinya tidak pernah menyentuh keadaan yang mau
+dijaga. Sesudah alamatnya diambil dari petak sungguhan, bentuk yang salah
+memerahkan DUA uji. Uji gigi yang setengah jalan berbohong dengan cara yang
+paling meyakinkan: ia hijau.
+
+### Susulan DECISIONS 413 — tinggi baris "Ringkas menu"
+
+> ringkas menumu terlalu tinggi
+
+Barisnya dibuat lebih pendek daripada butir menu (tombol 32px, baris 41px, vs
+36px untuk butir menu). Ia kendali, bukan tujuan: memberinya tinggi yang sama
+dengan menu membuatnya terbaca sebagai menu ke-sekian, dan memakan ruang di
+dasar layar yang justru paling sering terpotong.
+
+---
+
+## 415 — Pindah tanggal laporan harian (super admin), 2026-08-22
+
+> ini salah satu kesalahan, bisa jadi jarang, tapi ini terlalu ribet untuk edit,
+> padahal bisa sekali klik, ganti tanggal saja. kalau ada fitur khusus di
+> superadmin bisa pindah tanggal, akan sangat efektif. atau lebih mudah hapus di
+> tanggal yang salah, lalu upload ulang foto di tanggal yang benar dan input
+> ulang?
+
+Kejadiannya nyata: laporan Banjarejo dikembalikan dengan alasan *"salah
+penginputan tanggal pelaksanaan sondir saya input di tanggal 21 Juli 2026 yang
+benar tanggal 22 Juli 2026"* — dan satu-satunya jalan memperbaikinya adalah
+mengetik ulang seluruh laporan di tanggal yang benar.
+
+### Pindah, BUKAN hapus-lalu-input-ulang
+
+Dua alasan, dan yang pertama menentukan:
+
+1. **`report_date` adalah satu-satunya kolom di seluruh basis data yang membawa
+   tanggal laporan.** Item, foto, tenaga kerja, material, alat, kendala, dan
+   riwayat status semuanya menggantung pada `report_id`. Memindahkan laporan
+   karena itu satu UPDATE — tidak ada yang perlu diunggah atau diketik ulang.
+2. **Penghapusan laporan harian tidak ada, dan sebaiknya tetap tidak ada.**
+   Menghapus membuang riwayat status, jejak audit, dan identitas foto (photo ID
+   yang sudah tercetak di berkas yang beredar) demi memperbaiki satu kolom.
+
+### Hak akses & laporan final — dua keputusan user
+
+- **Super admin saja.** Menggeser tanggal berarti menggeser volume ke hari lain:
+  kurva-S, deviasi, dan angka kumulatif laporan di antaranya ikut berubah. Setara
+  membuka laporan final, bukan setara mengedit isi. Capability baru
+  `daily_report.move_date`.
+- **Laporan final BOLEH dipindah**, lewat buka-final → pindah → finalkan ulang
+  yang dijalankan otomatis. Snapshot cetaknya karena itu dibangun ulang di
+  tanggal yang baru — termasuk nomor minggu dan angka "s/d", yang dua-duanya ikut
+  berubah.
+
+### Yang TIDAK ikut benar sendiri
+
+Tanggalnya berpindah; tiga hal yang menempel padanya tidak:
+
+- **Cuaca dibuang.** `weatherHourly` adalah bacaan mesin UNTUK TANGGAL ITU, dan
+  dipakai menghitung "berapa hari hujan" — dasar klaim perpanjangan waktu.
+  Menyeretnya ke hari lain berarti menyimpan bacaan tentang hari yang salah lalu
+  memakainya sebagai bukti. Dibuang, dan **dikatakan**, supaya diambil ulang.
+- **Penanda WA dilepas.** `waSentAt` berarti "laporan ini sudah diserahkan". Yang
+  terlanjur terkirim bertanggal LAMA. Dibiarkan, laporan ini hilang dari hitungan
+  "belum dikirim" dan tidak akan pernah dikirim ulang siapa pun. Nilai lamanya
+  disimpan di jejak audit — yang dilepas hanya klaimnya, bukan faktanya.
+- **Cap foto TIDAK dicap ulang otomatis** — hanya dihitung dan dilaporkan. Cap
+  dibakar ke gambar: itu menulis bukti, dan sudah punya layarnya sendiri dengan
+  alasan + riwayat revisi (DECISIONS 198). Menjalankannya diam-diam sebagai efek
+  samping berarti bukti berubah tanpa ada yang memutuskan. Yang perlu dicap ulang
+  hanya foto **tanpa** `exifTakenAt` (capnya meminjam tanggal laporan); foto yang
+  punya waktu jepret sendiri justru jadi cocok sesudah pindah.
+
+### Snapshot laporan LAIN yang ikut basi
+
+Bagian yang paling mudah luput. `finalSnapshot` membekukan angka kumulatif "s/d
+tanggal laporan", jadi memindahkan satu laporan dari A ke B membuat setiap
+laporan final bertanggal `min(A,B) ≤ d < max(A,B)` salah angkanya. Rentangnya
+**setengah terbuka**: pada pindah 21→22, laporan tanggal 22 sudah menghitungnya
+sebelum maupun sesudah, jadi tidak berubah.
+
+Yang terdampak dibangun ulang dengan `buildFinalSnapshot` — fungsi yang sama yang
+dipakai perbaikan snapshot di menu Sistem (DECISIONS 148), bukan jalur baru.
+Dibiarkan basi berarti MARLIN sengaja mencetak angka kumulatif yang ia tahu salah,
+dan angka beku tidak pernah mengeluh.
+
+### Pemisahan tugas diperiksa DI DEPAN
+
+`finalizeReport` menolak orang yang menyetujui laporan itu sendiri. Kalau
+penolakan itu baru datang saat memfinalkan ULANG, laporannya sudah terbuka DAN
+sudah pindah — tertinggal separuh jadi di tanggal baru, dengan pesan yang
+seolah-olah cuma soal finalisasi. Karena itu `alasanTakBolehFinalkan()` (bentuk
+yang tidak melempar) diperiksa sebelum kunci dibuka; pemindahannya batal utuh.
+
+### `COUNTED_REPORT_STATUSES` pindah ke `lifecycle.ts`
+
+`progress.ts` menyentuh basis data, jadi modul aturan murni yang butuh daftar itu
+akan ikut menyeret koneksi DB hanya untuk membaca tiga kata — dan uji unitnya
+gagal menuntut `DATABASE_URL`. Konstantanya kini di `lifecycle.ts` (murni), dan
+`progress.ts` mengekspornya ulang supaya tidak ada pemanggil lama yang berubah.
+
+### Dua hal yang hanya ketahuan dari peramban sungguhan
+
+- **`<input type="date">` menampilkan urutan angka menurut bahasa PERAMBAN.**
+  08/09/2026 berarti 8 September di peramban Inggris dan 9 Agustus di peramban
+  Indonesia — angka yang sama, dua hari berbeda, pada formulir yang justru ada
+  karena tanggalnya pernah salah. Tanggalnya karena itu DIEJA di bawah kotaknya
+  ("Jumat, 3 Juli 2026") dan ikut berubah saat pilihannya diganti.
+- **React mengosongkan medan tak terkendali setiap kali aksi server selesai —
+  termasuk saat DITOLAK.** Penolakan "tanggal tujuan sudah punya laporan" karena
+  itu menghapus alasan yang barusan diketik, dan orang harus mengetiknya ulang
+  hanya untuk mencoba tanggal lain. Ketahuan saat menjalankannya, bukan saat
+  membacanya; alasannya kini dipegang state.
+
+### Susulan — notifikasi "jaringan lambat" berwarna
+
+> notifikasi jaringan lambat ini sebaiknya bukan warna putih, jadi bisa lebih
+> aware, mungkin kuning soft, atau merah sangat ringan
+
+Pil putih di atas halaman putih terbaca sebagai bagian dari halaman: ia lewat
+tanpa dilihat, padahal justru muncul saat orang sudah menunggu enam detik. Kini
+`bg-warning-soft` + tepi `warning-border` + titik amber. **Kuning, bukan merah:**
+permintaannya masih berjalan dan sering tetap berhasil — merah akan mengatakan
+"gagal", dan di lapangan itu membuat orang membatalkan navigasi yang sebentar
+lagi selesai lalu mengulanginya di jaringan yang sudah sesak. Teksnya tetap
+`text-ink`: amber di atas krem pucat tidak lolos kontras untuk huruf sekecil itu.
+
+---
+
+## 416 — Paparan Mingguan Kontrak KKP (deck PDF 16:9), 2026-08-22
+
+Permintaan user (prompt terstruktur): fitur paparan mingguan per KONTRAK untuk
+dipresentasikan ke KKP — satu paket + satu minggu kontrak + satu versi, PDF
+lanskap 16:9, angka deterministik, narasi AI ber-grounding dengan fallback,
+lifecycle review sebelum final. Jalur web dulu; pemicu WhatsApp menyusul.
+
+### Yang dipakai ulang, bukan dibangun kedua
+
+- **Lifecycle**: `AiRun`/`AiArtifact` + `canTransitionAiArtifact` yang sama
+  dengan Report Studio. Enum bertambah `paparan`; `AiArtifact` bertambah kolom
+  `packageId` (FK nyata + index — daftar per paket tidak menggantung di JSON
+  path; artefak laporan/saran lama tidak berubah arti).
+- **Angka**: `getLocationsProgress({asOf})` + `rekapPaket` (tertimbang nilai
+  RAB) + helper minggu kontrak `mingguan/kirim` — TIDAK ada formula baru di
+  modul paparan. Kenaikan mingguan = selisih dua angka kanonik (pola yang sama
+  dengan deviasi di `rekapPaket`).
+- **PDF**: pdfkit vendored (DECISIONS 128) + `createDeck169Doc` (960×540 pt)
+  di `pdf/document.ts`. Tanpa Chromium runtime.
+- **Grounding**: `numericClaimsValid` per lokasi — angka lokasi A tidak lolos
+  hanya karena sama dengan angka resmi lokasi B (pola DECISIONS 378).
+
+### Keputusan yang menentukan bentuknya
+
+- **Akses = SELURUH lokasi aktif paket.** Pembuat/pembaca yang hanya memegang
+  sebagian lokasi DITOLAK dengan pesan generik — paparan kontrak parsial yang
+  tampil lengkap adalah paparan yang berbohong tanpa terlihat. Super Admin/PD
+  lintas lokasi selalu tercakup. Satu pintu: `muatPaketPaparan`.
+- **AI mati ≠ fitur mati.** Kill switch/provider kosong/timeout/gagal skema/
+  gugur grounding → narasi deterministik dari snapshot, deck tetap terbentuk,
+  dan slide lampiran MENGATAKANNYA ("Narasi AI tidak tersedia…"). Kuota AI
+  tetap ditegakkan `checkAiGuard` saat AI aktif.
+- **Kendala: jangan mengarang sejarah.** `Issue` tidak menyimpan histori
+  status, jadi minggu lampau memisahkan "kendala baru minggu itu" (createdAt)
+  dari "kendala aktif SAAT PAPARAN DIBUAT" + limitation eksplisit.
+  `IssueStatusHistory` sengaja TIDAK ditambahkan sekarang — kejujuran
+  limitation lebih baik daripada angka historis palsu, dan MVP tidak boleh
+  tersandera migrasi besar.
+- **Lokasi tanpa kurva-S**: target null (bukan 0), keluar dari penyebut
+  agregat, tetap tampil berlabel, terhitung di limitations — konsisten dengan
+  laporan mingguan WA.
+- **Regenerate = versi baru** (packageId+weekNumber → count+1); dalam jendela
+  90 detik double-click mengembalikan artefak yang sama (pola inputHash).
+- **Freeze**: validasi ulang konten + keanggotaan foto, `contentHash`,
+  `frozenAt`; sesudahnya immutable — PDF final tanpa watermark hanya dari
+  artefak beku. Draft SELALU ber-watermark "DRAF – BELUM DISETUJUI" di tiap
+  slide.
+- **Suntingan manusia terbatas**: judul, butir narasi per bagian, caption foto.
+  Angka/tabel/periode selalu dari snapshot — tidak ada jalur menyuntingnya.
+- **Foto**: kandidat hanya dari laporan terhitung + kegiatan final minggu itu;
+  pemilihan awal round-robin antar lokasi; ID dari form divalidasi terhadap
+  snapshot (yang asing DITOLAK bersuara). Foto gagal dimuat → placeholder,
+  PDF tetap jadi. Tanpa vision AI.
+- **URL Indonesia**: `/ai/paparan` (+ deep link dari Ringkasan Paket), bukan
+  `/ai/presentations` seperti draft prompt — aturan repo URL kebab Indonesia.
+
+### Pemicu WhatsApp DITUNDA (disengaja)
+
+Spec-nya sendiri menempatkan WA sebagai tahap lanjutan setelah web stabil.
+Ditunda supaya tidak menumpuk risiko di satu perubahan; service `generatePaparan`
+sudah berbentuk fungsi murni-sesi yang bisa dipanggil jalur WA tanpa duplikasi.
+Dicatat di OPEN_ISSUES.
+
+### Uji
+
+20 unit (grounding/fallback/foto/slide) + 4 unit PDF (16:9 konsisten, halaman =
+slide, foto gagal → placeholder) + 16 integrasi (tertimbang vs rata-rata, asOf,
+kenaikan mingguan, minggu 1/berjalan/depan, tanpa-baseline, tanpa-SPMK, akses
+parsial/organisasi lain, v1→v2, double-click) + 3 e2e (alur penuh sampai PDF
+final; peran tanpa `ai.view` → 404/403; deep link paket). Uji gigi: rata-rata
+sederhana, asOf dibuang, dan pagar cakupan lokasi dilepas — masing-masing
+memerahkan uji yang tepat. Empat penjaga repo (en-dash, migrasi idempoten,
+penanda sibuk, sapuan mobile) sempat merah dan dipenuhi, bukan dilemahkan.
+
+---
+
+## 417 — Paparan KKP dirombak mengikuti contoh Mataram + Action Plan digenerate, 2026-08-22
+
+> aku menginginkan presentasi dengan format dan kualitas seperti ini, yang kamu
+> buat itu murahan. action plan di akhir adalah perencanaan yang digenerate dan
+> saran nyata atas kegiatan satu minggu ke depan berdasarkan satu minggu
+> terakhir.
+
+Contohnya PDF paparan KNMP Tahap 2 Kel. Bintaro (Mataram): deck gelap navy
+ber-aksen cyan berselang slide terang, dan susunannya kini diikuti:
+
+- **Sampul gelap** dengan eyebrow "PAPARAN MINGGUAN · MINGGU KE-N" + meta strip
+  Periode | Realisasi | Rencana | chip Deviasi.
+- **Diagram Progres S-Curve**: garis rencana putus-putus sepanjang kontrak,
+  garis realisasi cyan hanya pada JENDELA tiga minggu terakhir, penanda "Minggu
+  Ini", dan baris statistik per minggu dengan chip kenaikan.
+- **Durasi Pelaksanaan** (gelap): tiga kartu Total Hari / Hari Berjalan / Sisa
+  Waktu + bar % waktu berjalan.
+- **Status Pekerjaan per kategori RAB**: bar dua kolom berwarna per band
+  (≥70 teal, ≥40 biru, ≥20 oranye, <20 merah), per lokasi.
+- **Foto per pekerjaan**: satu slide per kategori, kepala gelap nama + persen
+  cyan, maksimal dua foto di pita putih tengah.
+- **Action Plan bernomor** (kartu bergaris kiri cyan) — lihat di bawah.
+- **Penutup** "Terima Kasih / Tetap Semangat".
+
+### Sumber angka slide baru — tetap calculation layer
+
+- Deret rencana paket = gabungan TERTIMBANG `getScurveSeries` per lokasi
+  (formula kanonik DECISIONS 151/052) via `weightedPct`; realisasi jendela dari
+  `rekapPaket` asOf akhir minggu N−2/N−1/N. Tidak ada deret baru.
+- Realisasi kategori = Σ(prestasi item × amount)/amount kategori, dari
+  `prestasiPct` + `cumulativeVolumeByLineage` asOf minggu paparan — minggu
+  lampau menunjukkan posisi minggu itu, bukan hari ini.
+- Snapshot v2 menambah kolom OPSIONAL (`kurva`, `durasi`, `kategori`,
+  `actionPlan`) — artefak v1 tetap terbaca dan terakit tanpa slide barunya.
+
+### Action Plan: digenerate, dan TIDAK pernah kosong
+
+Saran nyata satu minggu ke depan dari data minggu terakhir. AI diminta
+menyebut nama pekerjaan/kendala (bukan "tingkatkan koordinasi"), disaring
+grounding dengan kolam angka kategori seluruh paket; bila AI mati/gugur, saran
+DETERMINISTIK disusun dari data yang sama: pekerjaan ≥70% didorong selesai,
+<30% ditambah atensi, recovery lewat target ditagih, rencana mingguan tercatat
+dieksekusi, lokasi tanpa laporan ditertibkan, deviasi negatif dikejar. Bisa
+disunting reviewer seperti bagian narasi lain.
+
+### Dua pelajaran teknis
+
+- `ellipsis` pdfkit tidak bisa diandalkan tanpa batas tinggi — nama kategori
+  panjang tetap turun baris dan tertindih bar, KETAHUAN dari PNG hasil render,
+  bukan dari membaca kode. Pemotongan kini manual berbasis `widthOfString`.
+- Uji e2e yang mematok "v1" gagal pada pengulangan di DB yang sama — versi
+  artefak memang harus naik. Asersinya kini relatif (versi awal + 1).
+
+### Susulan DECISIONS 417 — Action Plan: rencana mingguan dulu, kosong → rekomendasi kejar bobot
+
+> untuk action plan, selain itu juga ambil rencana mingguan, jika masih kosong
+> sajikan rekomendasi mu, rencana pekerjaan untuk mengejar bobot minggu
+> selanjutnya atau menutup deviasi
+
+Urutan Action Plan kini: (1) rencana mingguan minggu N+1 yang SUDAH tercatat di
+MARLIN dieksekusi apa adanya — itu rencana orang lapangan, jangan ditimpa
+rekomendasi; (2) bila KOSONG, MARLIN menyodorkan rekomendasinya sendiri dan
+MENGATAKAN bahwa rencananya belum diisi: kejar rencana kumulatif minggu N+1
+(dari deret kurva) dengan kebutuhan kenaikan dihitung dari POSISI REALISASI —
+satu angka yang menutup deviasi sekaligus memenuhi kenaikan mingguan — dan
+prioritas pekerjaan diurutkan SISA BOBOT terbesar (bobot kategori terhadap
+total RAB paket × sisa realisasi), bukan persentase terendah semata: kategori
+Rp 3 M yang 10% lebih menggerakkan angka paket daripada kategori kecil yang 0%.
+Snapshot kategori karena itu bertambah `bobotPct` (opsional; artefak lama tetap
+terbaca). Angka rencana-minggu-depan, kebutuhan kenaikan, bobot, dan sisa bobot
+masuk kolam grounding Action Plan AI.
+
+Tumpangan perbaikan batas tengah malam WIB yang ketahuan saat verifikasi
+(keduanya nyata, bukan flake semata): `pekanDari` menganggap pekan tuntas TEPAT
+di hari Minggu — catatan "Pekan berjalan" hilang padahal laporan hari Minggu
+belum masuk (kini `hariIniKey <= minggu`); dan uji pindah-tanggal menghitung
+"besok" memakai UTC padahal pagarnya hari kerja Asia/Jakarta — antara 17.00–
+24.00 UTC ujinya menolak kode yang benar.
