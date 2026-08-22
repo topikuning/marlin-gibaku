@@ -10,6 +10,7 @@ import { MenuLaporanPeriodik } from "./menu-laporan";
 import { BarisLaporanHarian } from "./baris-harian";
 import { requireUser, requireLocationAccess } from "@/lib/auth/session";
 import { requireCapabilityPage } from "@/lib/auth/page-guard";
+import { can } from "@/lib/authz";
 import { db } from "@/lib/db";
 import { getPeriodBounds, getPeriodReport, type PeriodKind } from "@/lib/periodic-report";
 import { COUNTED_REPORT_STATUSES } from "@/lib/progress";
@@ -271,14 +272,13 @@ export default async function LaporanLokasiPage({
                 terlipat – tanpa itu, layar yang sama terbaca seperti dua versi
                 aplikasi yang berbeda.
               */}
-              <div className="hidden items-end justify-between gap-4 border-b border-border pb-1.5 xl:flex">
-                <div className="grid flex-1 grid-cols-[minmax(11rem,auto)_1fr] gap-2 text-[11px] font-medium tracking-wide text-ink-muted uppercase">
-                  <span>Tanggal</span>
-                  <span>Ringkasan &amp; riwayat</span>
-                </div>
-                <span className="text-[11px] font-medium tracking-wide text-ink-muted uppercase">
-                  Aksi
-                </span>
+              {/* Lebar kolomnya PERSIS sama dengan barisnya (`11rem` tetap +
+                  `gap-x-6`), supaya judul benar-benar berdiri di atas kolomnya
+                  dan bukan sekadar dekat. */}
+              <div className="hidden gap-x-6 border-b border-border pb-1.5 text-[11px] font-medium tracking-wide text-ink-muted uppercase xl:grid xl:grid-cols-[11rem_minmax(0,1fr)_auto]">
+                <span>Tanggal</span>
+                <span>Ringkasan &amp; riwayat</span>
+                <span className="justify-self-end">Aksi</span>
               </div>
               <p className="text-[12px] text-ink-muted xl:hidden">
                 Tombolnya diringkas jadi satu menu karena lebar layar tidak cukup – isinya sama.
@@ -294,6 +294,7 @@ export default async function LaporanLokasiPage({
                     hasDrive={hasDrive}
                     wahaOn={wahaOn}
                     driveOn={driveOn}
+                    bolehBukaDrive={can(user.role, "gdrive.open_folder")}
                   />
                 ))}
               </ul>

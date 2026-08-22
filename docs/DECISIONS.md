@@ -20875,6 +20875,37 @@ lebih kecil daripada bahan yang sebenarnya dipakai, dan pembacanya akan mengira
 laporannya kurang lengkap lalu mengejar hari yang tidak perlu dikejar. Yang
 tampil sekarang jumlah yang benar-benar terhitung.
 
+### Kolom yang bergoyang antarbaris — dan tautan Drive yang dibatasi
+
+Keluhan user 2026-08-22: *"tata letak teksmu amburadul di desktop, di mobile
+sudah lumayan rapi."*
+
+Sebabnya bukan gaya, melainkan struktur: tiap `<li>` adalah **grid-nya
+sendiri**, dan kolom pertamanya `minmax(11rem,auto)`. `auto` berarti tiap baris
+memilih lebarnya masing-masing — "Minggu, 26 Jul 2026" lebih pendek daripada
+"Kamis, 20 Agt 2026", jadi kolom berikutnya mulai di titik yang berbeda pada
+tiap baris. Diukur sebelum diperbaiki: kepingan status mulai di x=570, x=490,
+dan x=485 untuk tiga baris berturut-turut.
+
+Dibetulkan dengan lebar TETAP (`11rem`) untuk kolom tanggal dan `gap-x-6` yang
+sama antara judul kolom dan barisnya. Kolom aksi tetap `auto` tapi rata kanan,
+jadi ujung kanannya sama untuk semua baris. Sesudahnya: 281 / 481 pada SEMUA
+baris di 1600, 1440, dan 1280 px, dan judul kolomnya juga 281 / 481.
+
+Sekalian mengikuti rancangan yang benar: keterangan "N item · final … · nama"
+pindah ke kolom **Ringkasan**, bukan menggantung di bawah tanggal. Kolom tanggal
+karena itu bisa sempit dan tetap, dan kolom ringkasan mendapat lebar yang cukup
+untuk kepingan status yang panjang.
+
+**"Lihat di Drive" hanya super admin** (permintaan user pada hari yang sama).
+Ditulis sebagai capability `gdrive.open_folder` di `authz.ts`, BUKAN
+`role === "super_admin"` di dalam komponen: perbandingan peran yang berserakan
+di layar persis yang membuat matriks izin berhenti bisa dipercaya sebagai
+jawaban tunggal "siapa boleh apa". Yang lain tetap melihat lencana "Drive · N
+berkas" — keadaannya tidak disembunyikan, hanya pintu keluarnya. Diverifikasi
+di peramban dengan tiga akun: `admin` 1 tautan, `hery` (Program Director) 0,
+`sm-01` 0, dan ketiganya tetap melihat lencananya.
+
 ### Uji gigi
 
 `ringkasDrive` sengaja dirusak dua cara – menghitung baris log alih-alih berkas

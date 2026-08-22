@@ -43,6 +43,7 @@ export function BarisLaporanHarian({
   hasDrive,
   wahaOn,
   driveOn,
+  bolehBukaDrive,
 }: {
   r: BarisHarian;
   slug: string;
@@ -50,12 +51,32 @@ export function BarisLaporanHarian({
   hasDrive: boolean;
   wahaOn: boolean;
   driveOn: boolean;
+  /** `gdrive.open_folder` – hanya super admin (lihat authz.ts). */
+  bolehBukaDrive: boolean;
 }) {
   return (
-    <li className="grid gap-2 py-3 md:grid-cols-[minmax(11rem,auto)_1fr] xl:grid-cols-[minmax(11rem,auto)_1fr_auto] xl:items-start">
-      <div className="min-w-0">
-        <p className="text-sm font-medium text-ink">{formatTanggal(r.reportDate, "EEEE, d MMM yyyy")}</p>
-        <p className="mt-0.5 text-[12px] text-ink-muted">
+    /*
+     * Lebar kolom TETAP, bukan `auto` (DECISIONS 406).
+     *
+     * Tiap baris adalah grid-nya SENDIRI, jadi kolom `minmax(11rem,auto)`
+     * membuat tiap baris memilih lebarnya masing-masing: "Minggu, 26 Jul 2026"
+     * lebih pendek daripada "Kamis, 20 Agt 2026", jadi kepingan status baris
+     * kedua mulai di titik yang berbeda dari baris pertama. Dari kursi pembaca
+     * itu terlihat seperti kolom yang bergoyang – keluhan user 2026-08-22:
+     * *"tata letak teksmu amburadul di desktop"*.
+     *
+     * Kolom aksi dibiarkan `auto` DAN rata kanan: ujung kanannya sama untuk
+     * semua baris, jadi yang terlihat tetap lurus meski isinya berbeda lebar.
+     */
+    <li className="grid gap-x-6 gap-y-2 py-3 xl:grid-cols-[11rem_minmax(0,1fr)_auto] xl:items-start">
+      <p className="text-sm font-medium text-ink xl:pt-px">
+        {formatTanggal(r.reportDate, "EEEE, d MMM yyyy")}
+      </p>
+
+      <div className="min-w-0 space-y-1.5">
+        {/* Ringkasan dan riwayat SATU kolom (mengikuti rancangan): keterangan
+            "N item · final …" milik laporannya, bukan milik tanggalnya. */}
+        <p className="text-[12px] text-ink-muted">
           {r.jumlahItem} item
           {r.difinalkan ? (
             <>
@@ -65,55 +86,67 @@ export function BarisLaporanHarian({
             </>
           ) : null}
         </p>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+          {r.drive ? (
+            <Keping tone="success" icon={<CircleCheck aria-hidden className="size-3.5" />}>
+              Drive · {r.drive.berkas} berkas · {formatTanggalWaktu(r.drive.pada)}
+            </Keping>
+          ) : (
+            <Keping tone="warning" icon={<CircleDashed aria-hidden className="size-3.5" />}>
+              Belum ke Drive
+            </Keping>
+          )}
+          {r.driveGagal ? (
+            <Keping tone="danger" icon={<CircleAlert aria-hidden className="size-3.5" />}>
+              Upload terakhir gagal {formatTanggalWaktu(r.driveGagal.pada)}
+            </Keping>
+          ) : null}
+          {r.wa ? (
+            <Keping tone="success" icon={<CircleCheck aria-hidden className="size-3.5" />}>
+              WhatsApp · {formatTanggalWaktu(r.wa.pada)}
+              {r.wa.oleh ? ` · ${r.wa.oleh}` : ""}
+            </Keping>
+          ) : (
+            <Keping tone="warning" icon={<CircleDashed aria-hidden className="size-3.5" />}>
+              Belum ke WhatsApp
+            </Keping>
+          )}
+          {/* Hanya muncul kalau ADA catatannya – lihat catatan di riwayat-harian.ts:
+              "0x" untuk yang tidak pernah dihitung adalah kebohongan yang rapi. */}
+          {r.unduh ? (
+            <span className="inline-flex items-center gap-1 text-[12px] text-ink-muted">
+              <Download aria-hidden className="size-3.5" />
+              PDF diunduh {r.unduh.jumlah}x · terakhir {formatTanggalWaktu(r.unduh.pada)}
+            </span>
+          ) : null}
+          {/*
+            "Lihat di Drive" HANYA untuk super admin (permintaan user 2026-08-22).
+
+            Aturannya di `authz.ts` sebagai capability `gdrive.open_folder`, BUKAN
+            `role === "super_admin"` yang diketik di komponen: perbandingan peran
+            yang berserakan di layar persis yang membuat matriks izin tidak lagi
+            bisa dipercaya sebagai jawaban tunggal "siapa boleh apa".
+
+            Alasannya: tautan itu membuka folder Drive milik vendor, di luar
+            MARLIN – di seberangnya tidak ada lagi pembatasan lokasi yang berlaku
+            di aplikasi ini. Untuk orang lapangan ia juga tidak menambah apa pun:
+            keadaan "sudah ke Drive" sudah terbaca dari lencana di sebelahnya.
+          */}
+          {bolehBukaDrive && r.drive?.tautan ? (
+            <a
+              href={r.drive.tautan}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-[12px] font-medium text-primary hover:underline"
+            >
+              <ExternalLink aria-hidden className="size-3.5" />
+              Lihat di Drive
+            </a>
+          ) : null}
+        </div>
       </div>
 
-      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-        {r.drive ? (
-          <Keping tone="success" icon={<CircleCheck aria-hidden className="size-3.5" />}>
-            Drive · {r.drive.berkas} berkas · {formatTanggalWaktu(r.drive.pada)}
-          </Keping>
-        ) : (
-          <Keping tone="warning" icon={<CircleDashed aria-hidden className="size-3.5" />}>
-            Belum ke Drive
-          </Keping>
-        )}
-        {r.driveGagal ? (
-          <Keping tone="danger" icon={<CircleAlert aria-hidden className="size-3.5" />}>
-            Upload terakhir gagal {formatTanggalWaktu(r.driveGagal.pada)}
-          </Keping>
-        ) : null}
-        {r.wa ? (
-          <Keping tone="success" icon={<CircleCheck aria-hidden className="size-3.5" />}>
-            WhatsApp · {formatTanggalWaktu(r.wa.pada)}
-            {r.wa.oleh ? ` · ${r.wa.oleh}` : ""}
-          </Keping>
-        ) : (
-          <Keping tone="warning" icon={<CircleDashed aria-hidden className="size-3.5" />}>
-            Belum ke WhatsApp
-          </Keping>
-        )}
-        {/* Hanya muncul kalau ADA catatannya – lihat catatan di riwayat-harian.ts:
-            "0x" untuk yang tidak pernah dihitung adalah kebohongan yang rapi. */}
-        {r.unduh ? (
-          <span className="inline-flex items-center gap-1 text-[12px] text-ink-muted">
-            <Download aria-hidden className="size-3.5" />
-            PDF diunduh {r.unduh.jumlah}x · terakhir {formatTanggalWaktu(r.unduh.pada)}
-          </span>
-        ) : null}
-        {r.drive?.tautan ? (
-          <a
-            href={r.drive.tautan}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-[12px] font-medium text-primary hover:underline"
-          >
-            <ExternalLink aria-hidden className="size-3.5" />
-            Lihat di Drive
-          </a>
-        ) : null}
-      </div>
-
-      <div className="md:col-span-2 xl:col-span-1">
+      <div className="xl:justify-self-end">
         <AksiHarian
           slug={slug}
           dateKey={r.dateKey}
