@@ -390,9 +390,9 @@ describe("slide gaya Mataram (kurva, durasi, status kategori, penutup)", () => {
         locationId: "loc-a",
         lokasiNama: "Lokasi A",
         kelompok: [
-          { lineageKey: "I", nama: "Pekerjaan Persiapan", realisasiPct: 88 },
-          { lineageKey: "II", nama: "Jalan Lingkungan & Saluran", realisasiPct: 5.4 },
-          { lineageKey: "III", nama: "Balai Pertemuan Nelayan", realisasiPct: 41 },
+          { lineageKey: "I", nama: "Pekerjaan Persiapan", realisasiPct: 88, bobotPct: 10 },
+          { lineageKey: "II", nama: "Jalan Lingkungan & Saluran", realisasiPct: 5.4, bobotPct: 30 },
+          { lineageKey: "III", nama: "Balai Pertemuan Nelayan", realisasiPct: 41, bobotPct: 20 },
         ],
       },
     ],
@@ -442,5 +442,78 @@ describe("slide gaya Mataram (kurva, durasi, status kategori, penutup)", () => {
     if (saluran?.jenis !== "foto_pekerjaan") throw new Error("slide saluran tidak ada");
     expect(saluran.foto).toHaveLength(2);
     expect(saluran.pct).toBeCloseTo(5.4, 5);
+  });
+});
+
+describe("Action Plan: rencana mingguan didahulukan, kosong → rekomendasi kejar bobot", () => {
+  const dasarMataram = (): PaparanSnapshot => ({
+    ...snapshot(),
+    kurva: {
+      totalMinggu: 22,
+      planPct: Array.from({ length: 22 }, (_, i) => ((i + 1) / 22) * 100),
+      jendela: [{ minggu: 6, realisasiPct: 18, kenaikanPp: 3 }],
+    },
+    kategori: [
+      {
+        locationId: "loc-a",
+        lokasiNama: "Lokasi A",
+        kelompok: [
+          { lineageKey: "I", nama: "Pekerjaan Persiapan", realisasiPct: 88, bobotPct: 10 },
+          { lineageKey: "II", nama: "Jalan Lingkungan & Saluran", realisasiPct: 5.4, bobotPct: 30 },
+          { lineageKey: "III", nama: "Balai Pertemuan Nelayan", realisasiPct: 41, bobotPct: 20 },
+        ],
+      },
+    ],
+  });
+
+  it("rencana mingguan TERISI → butir PERTAMA mengeksekusi rencananya", () => {
+    const s = dasarMataram();
+    s.rencanaMingguDepan = [
+      {
+        locationId: "loc-a",
+        lokasiNama: "Lokasi A",
+        catatan: null,
+        item: [{ nama: "Pengecoran balai", unit: "m3", targetVolume: 12 }],
+      },
+    ];
+    const n = narasiDeterministik(s);
+    expect(n.actionPlan[0].text).toContain("Melaksanakan rencana minggu ke-7");
+    expect(n.actionPlan[0].text).toContain("Pengecoran balai");
+    // Rekomendasi kejar TIDAK ikut — rencananya sudah ada, jangan menimpanya.
+    expect(n.actionPlan.map((b) => b.text).join(" ")).not.toContain("belum diisi");
+  });
+
+  it("rencana KOSONG → butir pertama rekomendasi kejar rencana minggu depan, prioritas SISA BOBOT terbesar", () => {
+    const s = dasarMataram(); // rencanaMingguDepan: null
+    const n = narasiDeterministik(s);
+    const pertama = n.actionPlan[0].text;
+    expect(pertama).toContain("belum diisi");
+    // Rencana kumulatif minggu ke-7 kurva linier /22 = 31,8%.
+    expect(pertama).toContain("31,8%");
+    // Kebutuhan kenaikan dari realisasi 18% = 13,8 pp — menutup deviasi
+    // SEKALIGUS kenaikan minggu depan.
+    expect(pertama).toContain("13,8 pp");
+    /*
+     * Prioritas = sisa bobot, BUKAN persentase terendah semata:
+     * Jalan 30×94,6% = 28,4 > Balai 20×59% = 11,8 > Persiapan 10×12% = 1,2.
+     */
+    const posJalan = pertama.indexOf("Jalan Lingkungan & Saluran");
+    const posBalai = pertama.indexOf("Balai Pertemuan Nelayan");
+    expect(posJalan).toBeGreaterThan(-1);
+    expect(posBalai).toBeGreaterThan(posJalan);
+    expect(pertama).toContain("sisa bobot 28,4%");
+  });
+
+  it("grounding: Action Plan AI yang menyebut angka kejar minggu depan LOLOS", () => {
+    const s = dasarMataram();
+    const n = narasiValid();
+    n.actionPlan = [
+      {
+        text: "Kejar rencana kumulatif 31,8% minggu depan dengan menuntaskan Jalan Lingkungan & Saluran (sisa bobot 28,4%).",
+        sourceRefIds: ["paket:rekap"],
+      },
+    ];
+    const hasil = saringNarasiPaparan(n, s);
+    expect(hasil.narasi.actionPlan.some((b) => b.text.includes("31,8%"))).toBe(true);
   });
 });

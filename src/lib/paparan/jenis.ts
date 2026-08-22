@@ -131,7 +131,17 @@ export type DurasiPaparan = {
 export type KategoriLokasiPaparan = {
   locationId: string;
   lokasiNama: string;
-  kelompok: { lineageKey: string; nama: string; realisasiPct: number }[];
+  kelompok: {
+    lineageKey: string;
+    nama: string;
+    realisasiPct: number;
+    /**
+     * Bobot kategori terhadap TOTAL RAB PAKET (%) – dasar rekomendasi Action
+     * Plan: sisa bobot = bobotPct × (1 − realisasi). Opsional: artefak lama
+     * belum memilikinya, dan rekomendasi berbasis bobot dilewati tanpa itu.
+     */
+    bobotPct?: number;
+  }[];
 };
 
 export type PaparanSnapshot = {

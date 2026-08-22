@@ -16,8 +16,7 @@ import {
   type PaparanNarasi,
   type PaparanSnapshot,
 } from "./jenis";
-import { narasiDeterministik, saringNarasiPaparan } from "./susun";
-import { pilihFotoAwal } from "./susun";
+import { narasiDeterministik, pilihFotoAwal, rencanaMingguBerikut, saringNarasiPaparan } from "./susun";
 
 /**
  * GENERATE PAPARAN MINGGUAN KKP (DECISIONS 416).
@@ -49,7 +48,7 @@ Aturan mutlak:
 - locationId hanya boleh dari daftar lokasi paket.
 - Rencana minggu depan yang tidak ada di DATA jangan dikarang.
 - Jangan menyinggung keuangan internal pelaksana.
-- actionPlan (maks 6 butir): saran NYATA dan SPESIFIK untuk satu minggu ke depan yang DITURUNKAN dari data minggu ini – sebut nama pekerjaan/kendalanya: pekerjaan hampir tuntas yang layak diselesaikan, pekerjaan berbobot besar yang masih rendah, recovery lewat target yang harus dituntaskan, kebutuhan bahan/tenaga yang tersirat dari kendala, dan rencana minggu depan yang sudah tercatat. Bukan kalimat umum seperti "tingkatkan koordinasi".`;
+- actionPlan (maks 6 butir): saran NYATA dan SPESIFIK untuk satu minggu ke depan yang DITURUNKAN dari data minggu ini – sebut nama pekerjaan/kendalanya. Urutannya: (a) bila rencanaMingguDepan TERISI, butir pertama = melaksanakan rencana itu (sebut itemnya); (b) bila KOSONG, butir pertama = rekomendasi mengejar rencanaKumulatifMingguDepanPct / menutup deviasi, dengan memprioritaskan pekerjaan ber-sisaBobotPct terbesar di statusKategori; lalu pekerjaan hampir tuntas yang layak diselesaikan, recovery lewat target yang harus dituntaskan, dan kebutuhan bahan/tenaga yang tersirat dari kendala. Bukan kalimat umum seperti "tingkatkan koordinasi".`;
 
 const FOKUS: Record<string, string> = {
   lengkap: "",
@@ -86,11 +85,22 @@ function payloadSnapshot(s: PaparanSnapshot): string {
     pemulihan: s.pemulihan,
     rencanaMingguDepan: s.rencanaMingguDepan,
     // Status per kategori RAB — bahan utama actionPlan (pekerjaan hampir
-    // tuntas / masih rendah disebut BERDASARKAN angka ini, bukan tebakan).
+    // tuntas / masih rendah / sisa bobot terbesar disebut BERDASARKAN angka
+    // ini, bukan tebakan).
     statusKategori: (s.kategori ?? []).map((k) => ({
       lokasi: k.lokasiNama,
-      pekerjaan: k.kelompok.map((g) => ({ nama: g.nama, realisasiPct: Math.round(g.realisasiPct * 10) / 10 })),
+      pekerjaan: k.kelompok.map((g) => ({
+        nama: g.nama,
+        realisasiPct: Math.round(g.realisasiPct * 10) / 10,
+        bobotPct: Math.round((g.bobotPct ?? 0) * 10) / 10,
+        sisaBobotPct: Math.round((g.bobotPct ?? 0) * (1 - g.realisasiPct / 100) * 10) / 10,
+      })),
     })),
+    // Target kejar minggu depan: rencana kumulatif minggu N+1 dari kurva.
+    rencanaKumulatifMingguDepanPct: (() => {
+      const berikut = rencanaMingguBerikut(s);
+      return berikut == null ? null : Math.round(berikut * 10) / 10;
+    })(),
     sumber: s.sourceRefs.map((r) => ({ id: r.id, label: r.label })),
   };
   return JSON.stringify(bag, null, 1);

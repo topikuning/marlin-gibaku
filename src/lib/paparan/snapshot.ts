@@ -226,6 +226,14 @@ export async function buatSnapshotPaparan(
    * paparan: minggu lampau menunjukkan posisi minggu itu, bukan hari ini.
    */
   const kategori: KategoriLokasiPaparan[] = [];
+  /*
+   * Total RAB paket = Σ grandTotal lokasi (revisi aktif, dari calculation
+   * layer). Penyebut bobot kategori — dipakai Action Plan mengurutkan sisa
+   * bobot: kategori Rp 3 M yang baru 10% lebih layak dikejar daripada kategori
+   * Rp 100 juta yang 0%.
+   */
+  let totalRabPaket = 0;
+  for (const p of kini.values()) totalRabPaket += Number(p.grandTotal);
   for (const l of lokasi) {
     const rev = await db.rabRevision.findFirst({
       where: { locationId: l.id, status: "aktif" },
@@ -262,6 +270,7 @@ export async function buatSnapshotPaparan(
         lineageKey: akar,
         nama: kat.name,
         realisasiPct: amountKat > 0 ? Math.min(100, (nilaiRealisasi / amountKat) * 100) : 0,
+        bobotPct: totalRabPaket > 0 ? (amountKat / totalRabPaket) * 100 : 0,
       });
     }
     if (kelompok.length > 0) {

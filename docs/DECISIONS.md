@@ -21668,3 +21668,29 @@ disunting reviewer seperti bagian narasi lain.
   bukan dari membaca kode. Pemotongan kini manual berbasis `widthOfString`.
 - Uji e2e yang mematok "v1" gagal pada pengulangan di DB yang sama — versi
   artefak memang harus naik. Asersinya kini relatif (versi awal + 1).
+
+### Susulan DECISIONS 417 — Action Plan: rencana mingguan dulu, kosong → rekomendasi kejar bobot
+
+> untuk action plan, selain itu juga ambil rencana mingguan, jika masih kosong
+> sajikan rekomendasi mu, rencana pekerjaan untuk mengejar bobot minggu
+> selanjutnya atau menutup deviasi
+
+Urutan Action Plan kini: (1) rencana mingguan minggu N+1 yang SUDAH tercatat di
+MARLIN dieksekusi apa adanya — itu rencana orang lapangan, jangan ditimpa
+rekomendasi; (2) bila KOSONG, MARLIN menyodorkan rekomendasinya sendiri dan
+MENGATAKAN bahwa rencananya belum diisi: kejar rencana kumulatif minggu N+1
+(dari deret kurva) dengan kebutuhan kenaikan dihitung dari POSISI REALISASI —
+satu angka yang menutup deviasi sekaligus memenuhi kenaikan mingguan — dan
+prioritas pekerjaan diurutkan SISA BOBOT terbesar (bobot kategori terhadap
+total RAB paket × sisa realisasi), bukan persentase terendah semata: kategori
+Rp 3 M yang 10% lebih menggerakkan angka paket daripada kategori kecil yang 0%.
+Snapshot kategori karena itu bertambah `bobotPct` (opsional; artefak lama tetap
+terbaca). Angka rencana-minggu-depan, kebutuhan kenaikan, bobot, dan sisa bobot
+masuk kolam grounding Action Plan AI.
+
+Tumpangan perbaikan batas tengah malam WIB yang ketahuan saat verifikasi
+(keduanya nyata, bukan flake semata): `pekanDari` menganggap pekan tuntas TEPAT
+di hari Minggu — catatan "Pekan berjalan" hilang padahal laporan hari Minggu
+belum masuk (kini `hariIniKey <= minggu`); dan uji pindah-tanggal menghitung
+"besok" memakai UTC padahal pagarnya hari kerja Asia/Jakarta — antara 17.00–
+24.00 UTC ujinya menolak kode yang benar.

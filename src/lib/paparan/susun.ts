@@ -88,8 +88,28 @@ export function saringNarasiPaparan(raw: unknown, snapshot: PaparanSnapshot): Ha
     angkaLokasi.set(k.locationId, pool);
   }
   const angkaSemuaKategori = (snapshot.kategori ?? []).flatMap((k) =>
-    k.kelompok.map((g) => Math.round(g.realisasiPct * 10) / 10),
+    k.kelompok.flatMap((g) => {
+      const bobot = g.bobotPct ?? 0;
+      return [
+        Math.round(g.realisasiPct * 10) / 10,
+        // Bobot & sisa bobot ikut jadi angka sah — Action Plan wajar menyebut
+        // "sisa bobot 4,2%", dan itu turunan dua angka resmi.
+        Math.round(bobot * 10) / 10,
+        Math.round(bobot * (1 - g.realisasiPct / 100) * 10) / 10,
+      ];
+    }),
   );
+  // Rencana kumulatif minggu depan + kebutuhan kenaikannya — angka resmi dari
+  // deret kurva yang boleh disebut Action Plan (kejar bobot minggu berikutnya).
+  {
+    const berikut = rencanaMingguBerikut(snapshot);
+    if (berikut != null) {
+      angkaSemuaKategori.push(
+        Math.round(berikut * 10) / 10,
+        Math.round((berikut - snapshot.progres.paket.realisasiPct) * 10) / 10,
+      );
+    }
+  }
 
   const dibuang: string[] = [];
   const saring = <T extends { text: string; sourceRefIds: string[]; locationId?: string | null }>(
@@ -162,11 +182,34 @@ function refPaket(s: PaparanSnapshot): string[] {
   return [rekap?.id ?? s.sourceRefs[0]?.id ?? "paket:rekap"];
 }
 
+/** Bulatkan 1 desimal — bentuk angka yang sama dengan yang tercetak di slide. */
+function b1(v: number): number {
+  return Math.round(v * 10) / 10;
+}
+
+/**
+ * Rencana kumulatif paket pada minggu N+1 dari deret kurva (null bila kurva
+ * tidak ada). Minggu melewati akhir kurva memakai titik terakhirnya (100%).
+ */
+export function rencanaMingguBerikut(s: PaparanSnapshot): number | null {
+  const kurva = s.kurva;
+  if (!kurva || kurva.planPct.length === 0) return null;
+  const idx = Math.min(s.periode.mingguKe, kurva.planPct.length - 1);
+  return kurva.planPct[idx];
+}
+
 /**
  * ACTION PLAN DETERMINISTIK — saran NYATA minggu depan dari data minggu
  * terakhir (permintaan user 2026-08-22, pola contoh Mataram). Bukan kalimat
  * pajangan: setiap butir menunjuk pekerjaan/kendala yang benar-benar ada di
  * snapshot, dan dipakai juga sebagai jaring bila Action Plan AI gugur.
+ *
+ * URUTANNYA keputusan user 2026-08-22 (susulan): rencana mingguan yang SUDAH
+ * dicatat didahulukan; bila belum ada, MARLIN menyodorkan rekomendasinya
+ * sendiri — rencana kerja untuk MENGEJAR bobot rencana minggu berikutnya
+ * sekaligus menutup deviasi, dengan prioritas pekerjaan bersisa bobot
+ * terbesar (bukan sekadar yang persentasenya terendah: kategori Rp 3 M yang
+ * 10% lebih menggerakkan angka paket daripada kategori kecil yang 0%).
  */
 export function actionPlanDeterministik(s: PaparanSnapshot): { text: string; sourceRefIds: string[] }[] {
   const ref = refPaket(s);
@@ -175,7 +218,58 @@ export function actionPlanDeterministik(s: PaparanSnapshot): { text: string; sou
     k.kelompok.map((g) => ({ ...g, lokasiNama: k.lokasiNama, banyakLokasi: (s.kategori ?? []).length > 1 })),
   );
 
-  // 1. Pekerjaan yang hampir tuntas → dorong diselesaikan (quick win nyata).
+  // 1. Rencana mingguan yang SUDAH dicatat di MARLIN → eksekusi apa adanya.
+  const adaRencana = s.rencanaMingguDepan != null && s.rencanaMingguDepan.length > 0;
+  if (adaRencana) {
+    const contoh = s.rencanaMingguDepan!
+      .flatMap((r) => r.item.map((i) => i.nama))
+      .slice(0, 3)
+      .join(", ");
+    out.push({
+      text: `Melaksanakan rencana minggu ke-${s.periode.mingguKe + 1} yang tercatat: ${contoh}.`,
+      sourceRefIds: ref,
+    });
+  } else {
+    /*
+     * 2. Rencana mingguan KOSONG → rekomendasi MARLIN: kejar bobot rencana
+     * minggu berikutnya / tutup deviasi. Kebutuhan kenaikan dihitung dari
+     * POSISI REALISASI ke rencana minggu depan — satu angka yang sekaligus
+     * menutup deviasi dan memenuhi kenaikan mingguan.
+     */
+    const rencanaBerikut = rencanaMingguBerikut(s);
+    const realisasi = s.progres.paket.realisasiPct;
+    if (rencanaBerikut != null) {
+      const kejar = b1(rencanaBerikut - realisasi);
+      const prioritas = kelompok
+        .filter((g) => g.realisasiPct < 100 && (g.bobotPct ?? 0) > 0)
+        .map((g) => ({ ...g, sisaBobot: b1((g.bobotPct ?? 0) * (1 - g.realisasiPct / 100)) }))
+        .sort((a, b) => b.sisaBobot - a.sisaBobot)
+        .slice(0, 3);
+      const daftar = prioritas
+        .map(
+          (g) =>
+            `${g.nama} (sisa bobot ${pctID(g.sisaBobot)}${g.banyakLokasi ? `, ${g.lokasiNama}` : ""})`,
+        )
+        .join(", ");
+      out.push({
+        text:
+          kejar > 0
+            ? `Rencana mingguan minggu ke-${s.periode.mingguKe + 1} belum diisi – rekomendasi: kejar rencana kumulatif ${pctID(b1(rencanaBerikut))} (butuh kenaikan ${pctID(kejar).replace("%", " pp")} dari realisasi ${pctID(b1(realisasi))})${daftar ? ` dengan memprioritaskan ${daftar}` : ""}.`
+            : `Rencana mingguan minggu ke-${s.periode.mingguKe + 1} belum diisi – posisi sudah di atas rencana; rekomendasi: pertahankan laju${daftar ? ` dan lanjutkan ${daftar}` : ""}.`,
+        sourceRefIds: ref,
+      });
+    } else {
+      const dev = s.progres.paket.deviasiPp;
+      if (dev != null && dev < -1) {
+        out.push({
+          text: `Mengejar ketertinggalan ${ppID(dev).replace("+", "")} terhadap rencana dengan menambah jam kerja pada pekerjaan bernilai besar.`,
+          sourceRefIds: ref,
+        });
+      }
+    }
+  }
+
+  // 3. Pekerjaan yang hampir tuntas → dorong diselesaikan (quick win nyata).
   const hampir = kelompok
     .filter((g) => g.realisasiPct >= 70 && g.realisasiPct < 100)
     .sort((a, b) => b.realisasiPct - a.realisasiPct)
@@ -189,7 +283,7 @@ export function actionPlanDeterministik(s: PaparanSnapshot): { text: string; sou
     });
   }
 
-  // 2. Pekerjaan bobot besar yang masih rendah → tambah atensi/tenaga.
+  // 4. Pekerjaan yang masih rendah → tambah atensi/tenaga.
   const tertinggal = kelompok
     .filter((g) => g.realisasiPct < 30)
     .sort((a, b) => a.realisasiPct - b.realisasiPct)
@@ -203,7 +297,7 @@ export function actionPlanDeterministik(s: PaparanSnapshot): { text: string; sou
     });
   }
 
-  // 3. Recovery lewat target → tagih tuntas, sebut kendalanya.
+  // 5. Recovery lewat target → tagih tuntas, sebut kendalanya.
   const lewat = s.pemulihan.filter((p) => p.overdue).slice(0, 3);
   if (lewat.length > 0) {
     out.push({
@@ -212,31 +306,10 @@ export function actionPlanDeterministik(s: PaparanSnapshot): { text: string; sou
     });
   }
 
-  // 4. Rencana mingguan yang SUDAH dicatat di MARLIN → eksekusi.
-  if (s.rencanaMingguDepan && s.rencanaMingguDepan.length > 0) {
-    const contoh = s.rencanaMingguDepan
-      .flatMap((r) => r.item.map((i) => i.nama))
-      .slice(0, 3)
-      .join(", ");
-    out.push({
-      text: `Melaksanakan rencana minggu ke-${s.periode.mingguKe + 1} yang tercatat: ${contoh}.`,
-      sourceRefIds: ref,
-    });
-  }
-
-  // 5. Disiplin pelaporan bila ada lokasi bolong.
+  // 6. Disiplin pelaporan bila ada lokasi bolong.
   if (s.kelengkapan.lokasiTanpaLaporan.length > 0) {
     out.push({
       text: `Menertibkan laporan harian di ${s.kelengkapan.lokasiTanpaLaporan.join(", ")} – tanpa laporan, progresnya tidak terhitung resmi.`,
-      sourceRefIds: ref,
-    });
-  }
-
-  // 6. Deviasi negatif → kejar selisih.
-  const dev = s.progres.paket.deviasiPp;
-  if (dev != null && dev < -1) {
-    out.push({
-      text: `Mengejar ketertinggalan ${ppID(dev).replace("+", "")} terhadap rencana dengan menambah jam kerja pada pekerjaan bernilai besar.`,
       sourceRefIds: ref,
     });
   }

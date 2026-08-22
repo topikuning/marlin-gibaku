@@ -402,11 +402,20 @@ describe("pemindahan yang ditolak", () => {
   });
 
   it("tanggal yang belum terjadi ditolak", async () => {
-    const besok = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    /*
+     * "Besok" dihitung dari HARI KERJA Asia/Jakarta — sama dengan pagarnya.
+     * Versi lama memakai UTC: antara pukul 17.00–24.00 UTC, "besok UTC" masih
+     * "hari ini WIB", jadi pemindahannya SAH dan ujinya merah bukan karena
+     * kode salah melainkan karena ujinya memakai zona waktu yang lain.
+     */
+    const { jakartaDateKey } = await import("@/lib/format");
+    const besok = new Date(`${jakartaDateKey(new Date())}T00:00:00+07:00`);
+    besok.setUTCDate(besok.getUTCDate() + 1);
+    const besokKey = `${jakartaDateKey(besok)}`;
     await expect(
       pindahTanggalLaporan({
         reportId: laporanB,
-        tanggalBaru: besok,
+        tanggalBaru: besokKey,
         alasan: "mencoba membuat laporan bertanggal besok",
         userId: adminId,
       }),
