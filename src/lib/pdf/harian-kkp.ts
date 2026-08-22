@@ -22,7 +22,7 @@ import {
   type FotoPelengkapDok,
 } from "./harian-kkp-lampiran";
 import { signPhotoToken } from "./photo-token";
-import { gambarTtdPdf, muatTtdPdf, TANPA_TTD_PDF, type TtdPdf } from "./ttd-gambar";
+import { blokTandaTanganPdf, muatTtdPdf, TANPA_TTD_PDF, type TtdPdf } from "./ttd-gambar";
 
 /**
  * Laporan Harian format KKP — BLANKO RESMI, urutan blok PERSIS contoh KKP:
@@ -378,47 +378,59 @@ export function tulisBadanHarian(
   const ttd: GridOptions = { x, width, cols: colWidths(width, [1, 1]), fontSize: 7, minRowHeight: 94 };
   const blokTtd = (judul: string, peran: string, firm: string | null | undefined, nama: string | null | undefined, sub: string) =>
     `${judul}\n${peran}${firm ? `\n${firm}` : ""}\n\n\n\n\n( ${nama ?? "……………………"} )\n${sub}`;
+  /* Gambar tanda tangan & stempel digambar LEBIH DULU, teksnya menyusul di
+     atasnya (DECISIONS 412) — PDF tidak punya z-index, jadi urutan menggambar
+     itulah lapisannya. Kolomnya dua sama lebar: pengawas kiri, penyedia kanan —
+     urutan yang sama dengan teksnya. Baris nama "( … )" ada di baris ke-6 blok;
+     coretan berpijak tepat di atasnya. */
   const yTtd = y;
-  y = gridRow(
-    doc,
-    y,
-    [
-      {
-        text: blokTtd("Disetujui Oleh;", "Konsultan Pengawas", d.supervisorFirm ?? d.supervisorSub, d.supervisorName, "Inspector"),
-        align: "center",
-      },
-      {
-        text: blokTtd("Dibuat Oleh :", "Kontraktor Pelaksana", d.contractorFirm, d.contractorName, d.contractorSub || "Pelaksana"),
-        align: "center",
-      },
-    ],
-    ttd,
-  );
-
-  /* Tempel gambar tanda tangan & stempel DI ATAS blok yang baru digambar
-     (DECISIONS 328). Baris nama "( … )" berada di baris ke-6 blok; coretan
-     berpijak tepat di atasnya. Kolomnya dua sama lebar: pengawas kiri,
-     penyedia kanan — urutan yang sama dengan teksnya. */
   const gbr = lampiran?.ttd;
-  if (gbr) {
-    const [kolomKiri, kolomKanan] = colWidths(width, [1, 1]);
-    // Ruang dari tepi ATAS blok sampai garis nama; stempel dibatasi tepat
-    // sebesar ini supaya tidak melimpah keluar blok (DECISIONS 333).
-    const RUANG_TTD_PDF = 70;
-    const yDasar = yTtd + RUANG_TTD_PDF;
-    gambarTtdPdf(doc, gbr.pengawas, {
-      xTengah: x + kolomKiri / 2,
-      yDasar,
-      lebarKolom: kolomKiri,
-      ruangDiAtasNama: RUANG_TTD_PDF,
-    });
-    gambarTtdPdf(doc, gbr.penyedia, {
-      xTengah: x + kolomKiri + kolomKanan / 2,
-      yDasar,
-      lebarKolom: kolomKanan,
-      ruangDiAtasNama: RUANG_TTD_PDF,
-    });
-  }
+  const [kolomKiri, kolomKanan] = colWidths(width, [1, 1]);
+  // Ruang dari tepi ATAS blok sampai garis nama; stempel dibatasi tepat
+  // sebesar ini supaya tidak melimpah keluar blok (DECISIONS 333).
+  const RUANG_TTD_PDF = 70;
+  const yDasarTtd = yTtd + RUANG_TTD_PDF;
+  y = blokTandaTanganPdf(
+    doc,
+    gbr
+      ? [
+          {
+            berkas: gbr.pengawas,
+            opsi: {
+              xTengah: x + kolomKiri / 2,
+              yDasar: yDasarTtd,
+              lebarKolom: kolomKiri,
+              ruangDiAtasNama: RUANG_TTD_PDF,
+            },
+          },
+          {
+            berkas: gbr.penyedia,
+            opsi: {
+              xTengah: x + kolomKiri + kolomKanan / 2,
+              yDasar: yDasarTtd,
+              lebarKolom: kolomKanan,
+              ruangDiAtasNama: RUANG_TTD_PDF,
+            },
+          },
+        ]
+      : [],
+    () =>
+      gridRow(
+        doc,
+        yTtd,
+        [
+          {
+            text: blokTtd("Disetujui Oleh;", "Konsultan Pengawas", d.supervisorFirm ?? d.supervisorSub, d.supervisorName, "Inspector"),
+            align: "center",
+          },
+          {
+            text: blokTtd("Dibuat Oleh :", "Kontraktor Pelaksana", d.contractorFirm, d.contractorName, d.contractorSub || "Pelaksana"),
+            align: "center",
+          },
+        ],
+        ttd,
+      ),
+  );
 
   /* ── Halaman 3+: DOKUMENTASI PEKERJAAN ────────────────────────────── */
   const halamanBaru = () => {

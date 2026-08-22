@@ -6,7 +6,7 @@ import { buildKurvaSheet } from "@/lib/scurve/kkp-sheet";
 import { formatTanggal } from "@/lib/format";
 import { PDF_COLORS, PDF_FONT, docToBuffer, createLandscapeA4Doc, LANDSCAPE_MARGIN, type PdfDoc } from "./document";
 import { colWidths, gridRow, gridRowHeight, type GridCell, type GridOptions } from "./grid";
-import { gambarTtdPdf, muatTtdPdf, TANPA_TTD_PDF, type TtdPdf } from "./ttd-gambar";
+import { blokTandaTanganPdf, muatTtdPdf, TANPA_TTD_PDF, type TtdPdf } from "./ttd-gambar";
 
 /**
  * Laporan Mingguan/Bulanan format KKP — BLANKO RESMI, bukan ringkasan naratif.
@@ -504,45 +504,50 @@ function signatureBlock(
     `\n\n\n\n\n( ${n ?? "……………………………"} )${sub ? `\n${sub}` : ""}`;
   const penyedia = penyediaLaporan(o.jenis, o.h);
   o.fit(90);
-  const y = gridRow(
+  /* Gambar tanda tangan & stempel digambar LEBIH DULU, teksnya menyusul di
+     atasnya (DECISIONS 412) — PDF tidak punya z-index, jadi urutan menggambar
+     itulah lapisannya. Urutan kolomnya tetap: PPK · pengawas · penyedia — sama
+     dengan teks. Baris nama "( … )" ada di baris ke-5 blok; coretan berpijak
+     tepat di atasnya. */
+  const lebarKolomTtd = o.width / 3;
+  // Ruang dari tepi ATAS blok sampai garis nama. Stempel dibatasi tepat
+  // sebesar ini supaya tidak menembus tabel di atasnya (DECISIONS 333).
+  const RUANG_TTD = 68;
+  const URUT_TTD = ["ppk", "pengawas", "penyedia"] as const;
+  const y = blokTandaTanganPdf(
     doc,
-    o.y,
-    [
-      {
-        text: `MENGETAHUI :\nPEJABAT PEMBUAT KOMITMEN${nameOf(o.h.ppkName, o.h.ppkNip ? `NIP. ${o.h.ppkNip}` : null)}`,
-        align: "center",
-      },
-      {
-        text: `DIPERIKSA :\nKONSULTAN PENGAWAS${nameOf(o.h.supervisorName, o.h.supervisorFirm)}`,
-        align: "center",
-      },
-      {
-        text: `DIBUAT OLEH :\nPENYEDIA JASA – ${o.h.vendorName}${nameOf(penyedia.nama, penyedia.sub)}`,
-        align: "center",
-      },
-    ],
-    opt,
+    o.gambarTtd
+      ? URUT_TTD.map((pihak, i) => ({
+          berkas: o.gambarTtd![pihak],
+          opsi: {
+            xTengah: o.x + i * lebarKolomTtd + lebarKolomTtd / 2,
+            yDasar: o.y + RUANG_TTD,
+            lebarKolom: lebarKolomTtd,
+            ruangDiAtasNama: RUANG_TTD,
+          },
+        }))
+      : [],
+    () =>
+      gridRow(
+        doc,
+        o.y,
+        [
+          {
+            text: `MENGETAHUI :\nPEJABAT PEMBUAT KOMITMEN${nameOf(o.h.ppkName, o.h.ppkNip ? `NIP. ${o.h.ppkNip}` : null)}`,
+            align: "center",
+          },
+          {
+            text: `DIPERIKSA :\nKONSULTAN PENGAWAS${nameOf(o.h.supervisorName, o.h.supervisorFirm)}`,
+            align: "center",
+          },
+          {
+            text: `DIBUAT OLEH :\nPENYEDIA JASA – ${o.h.vendorName}${nameOf(penyedia.nama, penyedia.sub)}`,
+            align: "center",
+          },
+        ],
+        opt,
+      ),
   );
-
-  /* Tempel gambar tanda tangan & stempel (DECISIONS 328). Urutan kolomnya
-     tetap: PPK · pengawas · penyedia — sama dengan teks di atas. Baris nama
-     "( … )" ada di baris ke-5 blok; coretan berpijak tepat di atasnya. */
-  if (o.gambarTtd) {
-    const lebarKolom = o.width / 3;
-    // Ruang dari tepi ATAS blok sampai garis nama. Stempel dibatasi tepat
-    // sebesar ini supaya tidak menembus tabel di atasnya (DECISIONS 333).
-    const RUANG = 68;
-    const yDasar = o.y + RUANG;
-    const urut = ["ppk", "pengawas", "penyedia"] as const;
-    urut.forEach((pihak, i) => {
-      gambarTtdPdf(doc, o.gambarTtd![pihak], {
-        xTengah: o.x + i * lebarKolom + lebarKolom / 2,
-        yDasar,
-        lebarKolom,
-        ruangDiAtasNama: RUANG,
-      });
-    });
-  }
 
   o.setY(y);
 }

@@ -63,6 +63,30 @@ test.describe("otorisasi per peran", () => {
     await expect(page.getByText(/404|not found/i).first()).toBeVisible();
   });
 
+  test("Keuangan DITAHAN: hanya super admin, dan pintunya ikut tertutup", async ({ page }) => {
+    /*
+     * Permintaan user 2026-08-22: *"menu keuangan saat ini belum siap, jadi
+     * selain superadmin, tidak usah ditampilkan dulu"* (DECISIONS 411).
+     *
+     * Yang diuji BUKAN cuma menunya hilang, tapi alamatnya ikut tertutup.
+     * Menu yang disembunyikan sementara alamatnya terbuka adalah keadaan
+     * paling buruk: yang menemukannya masuk tanpa menu, tanpa konteks, ke
+     * fitur yang memang belum siap.
+     */
+    await login(page, "hery");
+    await expect(page.locator("nav").getByRole("link", { name: "Keuangan" })).toHaveCount(0);
+    await page.goto("/keuangan");
+    await expect(page.getByText(/404|not found/i).first()).toBeVisible();
+  });
+
+  test("super admin TETAP bisa membuka Keuangan – penahanan bukan penghapusan", async ({ page }) => {
+    // Sisi ini yang membuat uji di atas berarti. Kalau Keuangan hilang untuk
+    // SEMUA orang, yang terjadi bukan penahanan melainkan fitur yang mati.
+    await login(page, "admin");
+    await page.goto("/keuangan");
+    await expect(page.getByText(/404|not found/i)).toHaveCount(0);
+  });
+
   test("exec viewer bisa lihat progress tapi tidak ada menu Sistem", async ({ page }) => {
     await login(page, "kkp-viewer");
     await page.goto("/progress");

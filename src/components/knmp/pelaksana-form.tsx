@@ -23,7 +23,6 @@ export function PelaksanaForm({
   nama,
   jabatan,
   ttdUrl,
-  stempelUsang,
   warisan,
   pengawasNama,
   pengawasFirma,
@@ -34,8 +33,6 @@ export function PelaksanaForm({
   nama: string | null;
   jabatan: string | null;
   ttdUrl: string | null;
-  /** Stempel lama di kotak yang sudah dihapus – hanya untuk diberitahukan. */
-  stempelUsang?: string | null;
   /** Pelaksana paket yang berlaku bila lokasi ini dikosongkan. */
   warisan?: { nama: string | null; jabatan: string | null } | null;
   pengawasNama: string | null;
@@ -112,12 +109,7 @@ export function PelaksanaForm({
         url={ttdUrl}
         kelasPratinjau="h-12 w-full"
       />
-      {stempelUsang ? (
-        <p className="text-xs text-warning">
-          Stempel yang pernah diunggah di sini tidak dipakai lagi – stempel perusahaan diambil
-          dari kontrak paket. Berkasnya tidak dihapus.
-        </p>
-      ) : null}
+
 
       {/*
         Peringatan ini penting justru ketika lokasi MENIMPA paket: nama diambil

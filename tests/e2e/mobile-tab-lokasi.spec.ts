@@ -24,7 +24,10 @@ import { test, expect, type Page } from "@playwright/test";
 const LOKASI = process.env.E2E_SLUG ?? "kedungmutih";
 
 /** Semua sub-halaman lokasi — tab aktifnya bergeser makin ke kanan. */
-const SUB = ["", "/rab", "/rapl", "/harian", "/kegiatan", "/progress", "/keuangan", "/dokumen", "/laporan-lokasi"];
+// "/keuangan" tidak ikut: tabnya DITAHAN untuk non-super_admin (DECISIONS 411)
+// dan akun uji ini Program Director, jadi rutenya 404 – bukan tab yang bisa
+// diperiksa geometrinya. Kembalikan bersama capability-nya.
+const SUB = ["", "/rab", "/rapl", "/harian", "/kegiatan", "/progress", "/dokumen", "/laporan-lokasi"];
 
 async function geometri(page: Page) {
   return page.evaluate(() => {

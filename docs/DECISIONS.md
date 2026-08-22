@@ -21131,3 +21131,161 @@ karena `describe` sebelumnya mengganti isi kontrak lewat
 `updateContractSignatories`. Uji yang bergantung pada sisa uji lain akan
 menuduh kode yang benar setiap kali urutannya berubah, jadi keadaannya kini
 disetel di `beforeAll` miliknya sendiri.
+
+
+---
+
+## 410 — Kolom stempel pelaksana dihapus, sesudah dipastikan kosong (2026-08-22)
+
+### Lanjutan DECISIONS 408
+
+Waktu stempel pelaksana dibuang dari kode, kolomnya SENGAJA dibiarkan hidup dan
+ditandai USANG. Alasannya bukan kemalasan: kalau ada yang terlanjur mengunggah
+berkas ke kotak itu, menghapus kolomnya berarti menghapus satu-satunya jejak
+yang menghubungkan berkas di penyimpanan dengan pemiliknya — tanpa
+sepengetahuan orangnya.
+
+Kepastiannya diminta, lalu diberikan user 2026-08-22:
+
+> tidak ada stempel yang terlanjur diunggah
+
+Baru sesudah itu kolom `pelaksana_stempel_key` dihapus dari `packages` dan
+`locations`, berikut seluruh sisa kodenya: `select` Prisma, prop
+`pelaksanaStempelUrl`/`stempelUsang`, dan peringatan "stempel yang pernah
+diunggah di sini tidak dipakai lagi" yang sekarang tidak punya apa pun untuk
+dibaca.
+
+### Catatan user yang benar, dan layak dicatat
+
+> kamu hal seperti ini kan bisa tau dari merge ke main, kalau ternyata belum di
+> merge kan tidak ada data production yg perlu dikhawatirkan
+
+Benar, dan itu pemeriksaan yang bisa dilakukan sendiri: **kolom yang belum
+pernah sampai ke `main` tidak mungkin punya data produksi.** Dalam hal ini
+kolomnya SUDAH ter-merge (PR #182, sehari sebelumnya), jadi jendela unggahnya
+nyata dan pertanyaannya memang perlu — tapi urutan berpikirnya harus itu dulu:
+cek riwayat merge, baru bertanya kalau memang ada jendelanya.
+
+Aturan yang dipakai seterusnya: **kolom yang HILANG butuh kepastian; kolom yang
+belum pernah dirilis tidak.**
+
+
+---
+
+## 411 — Menu Keuangan ditahan: SEMENTARA super_admin saja (2026-08-22)
+
+### Permintaan user
+
+> menu keuangan saat ini belum siap, jadi selain superadmin, tidak usah
+> ditampilkan dulu
+
+### Ditahan di CAPABILITY, bukan disembunyikan dari menu
+
+Yang diminta "tidak usah ditampilkan", tapi menyembunyikan menu saja
+meninggalkan **alamatnya terbuka**: siapa pun yang pernah membuka `/keuangan`,
+menyimpan tautannya, atau mengetiknya langsung tetap masuk. Fitur yang belum
+siap akan tetap ditemukan orang, dan yang menemukannya justru dalam keadaan
+paling buruk — tanpa menu, tanpa konteks, tanpa yang bisa ia tanyai.
+
+Jadi `finance.view`, `finance.input`, dan `finance.approve` dicabut dari SEMUA
+peran kecuali `super_admin`. Menunya hilang dengan sendirinya karena nav memang
+menyaring dengan capability, dan halamannya ikut tertutup karena dijaga
+`requireCapabilityPage`. Tab "Keuangan" di halaman lokasi juga disembunyikan —
+tab yang tetap tampil hanya menuntun orang ke layar "tidak punya izin".
+
+### SEMENTARA, dan cara membukanya ditulis
+
+Ini penahanan, bukan kebijakan. Yang paling mudah terjadi pada penahanan
+sementara adalah ia jadi permanen karena tidak ada yang ingat cara
+mengembalikannya. Karena itu langkah pemulihannya ditulis di `authz.ts` tepat di
+atas ketiga capability-nya — empat tempat, disebut satu per satu:
+
+1. hapus `!c.startsWith("finance.")` pada penyaring `program_director`;
+2. kembalikan `finance.input` ke `SITE_MANAGER`;
+3. kembalikan `finance.view` ke `PROJECT_MANAGER` dan `exec_viewer`;
+4. kembalikan `finance.approve` ke `AREA_MANAGER`.
+
+### Tiga uji yang SENGAJA merah kalau lupa
+
+Penahanan ini mengubah aturan yang sudah dijaga uji lain, dan uji-uji itu
+DIPERBARUI dengan catatan — bukan dihapus:
+
+- `authz.test.ts` — `finance.*` masuk daftar `HANYA_SUPER_ADMIN`, plus satu uji
+  baru yang menyapu SEMUA peran untuk ketiga capability.
+- `ai-adapter-kapabilitas.test.ts` — "peran yang berhak tetap menerimanya"
+  dibalik jadi "selagi Keuangan ditahan, hanya super_admin". Premis pagarnya
+  tidak berubah, malah makin ketat: pintu AI tidak boleh jadi jalur kedua ke
+  angka uang.
+- `authz-jenjang.test.ts` — contoh "hak khas atasan" diganti dari
+  `finance.approve` ke `amendment.manage`, karena `finance.*` sudah tidak bisa
+  membuktikan apa pun tentang jenjang selagi ditahan.
+
+Dengan begitu, mengembalikan capability tanpa mengembalikan ujinya akan MERAH —
+dan sebaliknya.
+
+
+---
+
+## 412 — Stempel menutupi teks di PDF: urutan menggambar, bukan ukuran (2026-08-22)
+
+### Laporan user
+
+Tangkapan layar blok tanda tangan laporan harian: stempel perusahaan menimpa
+tulisan "Dibuat Oleh : / Kontraktor Pelaksana / CV. Alkomber Karya" sampai tidak
+terbaca. Dua usulan solusi:
+
+> 1. gambar stempel ditaruh paling belakang, di atas logo/stempel adalah ttd, di
+>    atas ttd baru teks, jadi teks tidak mungkin tertutup
+> 2. permainan opacity/transparansi, tapi ini akan memakan resource besar
+
+### Yang dipakai: nomor 1 — dan alasannya bukan ongkos
+
+Nomor 1 benar, dan nomor 2 sebenarnya TIDAK mahal (di CSS `mix-blend-multiply`
+gratis; di PDF `ExtGState` juga murah). Yang membuat nomor 2 salah untuk kertas
+adalah lain: **pdfkit tidak menyediakan blend mode untuk gambar sama sekali**.
+Yang bisa dilakukannya hanya `fillOpacity` — dan stempel separuh transparan di
+atas teks tetap menurunkan kontras pada dokumen yang akan difotokopi dan
+dipindai berkali-kali sebelum sampai ke KKP.
+
+Menariknya, penyaji HTML SUDAH memakai cara nomor 2 (`mix-blend-multiply` di
+`components/knmp/blok-ttd.tsx`), dan justru itulah sebabnya cacat ini tidak
+pernah terlihat di layar — hanya di PDF, yaitu berkas yang benar-benar beredar.
+
+### Sebab sesungguhnya
+
+**PDF tidak punya z-index.** Yang digambar belakangan menimpa yang lebih dulu,
+titik. Blok teksnya digambar dulu (`gridRow`), lalu gambar stempel ditempel di
+atasnya — dan stempel hasil pindaian membawa latar putih yang tidak tembus
+pandang, jadi ia benar-benar MENGHAPUS teks di bawahnya.
+
+Jadi ini bukan soal stempelnya kebesaran atau posisinya meleset; sebesar dan
+seposisi apa pun, ia akan selalu menang atas apa yang digambar sebelumnya.
+
+### Penjaganya di dalam fungsi, bukan di ingatan
+
+Urutannya tidak diperbaiki dengan memindahkan tiga blok kode lalu berharap
+penulis berikutnya ingat. Dibuat pembungkus `blokTandaTanganPdf(doc, gambar[],
+teks)` yang menggambar SEMUA gambar dulu, lalu memanggil closure teksnya.
+Teksnya diserahkan sebagai closure supaya pemanggil **tidak bisa** menaruhnya
+lebih dulu tanpa sengaja — persis kesalahan yang sedang diperbaiki. Ketiga
+penyaji (harian, periodik, rencana) memakainya.
+
+Lapisan di dalam blok tetap seperti orang membubuhkannya: **stempel paling
+belakang, coretan tanda tangan di atasnya, teks paling atas.**
+
+### Bukti
+
+Diuji dua cara. (1) `tests/unit/ttd-urutan-gambar.test.ts` dengan `doc` tiruan
+yang mencatat urutan panggilan — itu bukan tiruan mekanisme, urutan panggilan
+PERSIS itulah yang jadi lapisan di berkas jadinya. Uji gigi: urutan dibalik →
+dua uji merah. (2) Render PDF sungguhan berisi dua blok dengan "stempel" kotak
+berlatar putih, lalu dilihat sebagai gambar: pada urutan lama tiga baris
+teratas hilang tertutup; pada urutan baru seluruh teks terbaca.
+
+### Yang TIDAK diselesaikan, dan disebut apa adanya
+
+Teks hitam di atas bagian stempel yang GELAP tetap kurang kontras. Untuk stempel
+dinas yang bentuknya cincin (bagian tengahnya putih) ini tidak jadi soal, dan
+itulah bentuk yang dipakai di lapangan. Kalau suatu saat ada stempel blok pekat,
+obatnya bukan urutan lagi melainkan ukuran/posisinya — dan itu keputusan
+tersendiri.

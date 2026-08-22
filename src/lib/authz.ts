@@ -51,6 +51,24 @@ export const CAPABILITIES = [
   "gdrive.open_folder",
   "progress.view",
   "issue.manage",
+  /*
+   * KEUANGAN DITAHAN: SEMENTARA super_admin saja (permintaan user 2026-08-22).
+   *
+   * *"menu keuangan saat ini belum siap, jadi selain superadmin, tidak usah
+   * ditampilkan dulu."*
+   *
+   * Ditahan di CAPABILITY, bukan sekadar disembunyikan dari menu. Menyembunyikan
+   * menu saja meninggalkan alamatnya terbuka — siapa pun yang pernah membuka
+   * /keuangan atau menyimpan tautannya tetap masuk, dan fitur yang "belum siap"
+   * akan tetap ditemukan orang. Di sini pintunya yang ditutup; menunya hilang
+   * dengan sendirinya karena nav memang menyaring dengan capability.
+   *
+   * CARA MEMBUKANYA KEMBALI: hapus `!c.startsWith("finance.")` pada penyaring
+   * program_director di bawah, lalu kembalikan `finance.input` ke SITE_MANAGER,
+   * `finance.view` ke PROJECT_MANAGER + exec_viewer, dan `finance.approve` ke
+   * AREA_MANAGER. Empat tempat, sengaja ditulis di sini supaya pemulihannya
+   * tidak jadi pekerjaan menebak.
+   */
   "finance.view",
   "finance.input",
   "finance.approve",
@@ -176,7 +194,6 @@ const SITE_MANAGER: Capability[] = [
   "daily_report.review",
   "daily_report.finalize",
   "issue.manage",
-  "finance.input",
   "document.upload",
   "report.export",
   "wa.chat",
@@ -199,7 +216,6 @@ const PROJECT_MANAGER: Capability[] = [
   // keduanya hak yang DIWARISI, bukan hak khas Project Manager yang kebetulan
   // sama namanya. Mendaftarnya dua kali membuat pencabutan di SM kelak tidak
   // terlihat efeknya di PM, dan itu cara matriks izin diam-diam jadi bohong.
-  "finance.view",
   "document.verify",
   "document.edit",
   "document.void",
@@ -211,7 +227,6 @@ const AREA_MANAGER: Capability[] = [
   ...PROJECT_MANAGER,
   // Yang KHAS Area Manager: mengesahkan, bukan menyusun. Dua ini sengaja tidak
   // dimiliki PM supaya penyusun dan pengesah tetap terpisah jenjang.
-  "finance.approve",
   "ai.report_approve",
 ];
 
@@ -224,8 +239,10 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
     // contact.view_all = melihat kontak milik akun lain, super_admin saja.
     // document.delete = hapus permanen dokumen, super_admin saja (batalkan cukup).
     // gdrive.open_folder = tautan keluar ke folder Drive vendor, super_admin saja.
+    // finance.* = SEMENTARA super_admin saja — lihat catatan di bawah.
     CAPABILITIES.filter(
       (c) =>
+        !c.startsWith("finance.") &&
         c !== "system.manage" &&
         c !== "contract.edit" &&
         c !== "wa.configure" &&
@@ -244,7 +261,6 @@ export const ROLE_CAPABILITIES: Record<UserRole, ReadonlySet<Capability>> = {
     ...VIEW_ALL,
     "portfolio.view",
     "package.view",
-    "finance.view",
     "report.export",
     "ai.view",
     "ai.generate",

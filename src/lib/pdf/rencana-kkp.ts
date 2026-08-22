@@ -5,7 +5,7 @@ import { getRencanaMingguan, type RencanaMingguan } from "@/lib/plan/rencana-min
 import { jejakPenyusun, pihakTandaTanganRencana } from "@/lib/plan/rencana-ttd";
 import { PDF_COLORS, PDF_FONT, docToBuffer, createFormA4Doc, FORM_MARGIN } from "./document";
 import { colWidths, gridRow, gridRowHeight, type GridCell, type GridOptions } from "./grid";
-import { gambarTtdPdf, muatTtdPdf, TANPA_TTD_PDF, type TtdPdf } from "./ttd-gambar";
+import { blokTandaTanganPdf, muatTtdPdf, TANPA_TTD_PDF, type TtdPdf } from "./ttd-gambar";
 
 /**
  * FORMULIR RENCANA KERJA MINGGUAN — PDF A4 potret (DECISIONS 258).
@@ -315,45 +315,55 @@ export async function buildRencanaKkpPdf(
   fit(120);
   const kolom = width / 3;
   const atasTtd = y;
+  /*
+   * Gambar tanda tangan & stempel digambar LEBIH DULU, seluruh teksnya menyusul
+   * (DECISIONS 412) — PDF tidak punya z-index, jadi urutan menggambar itulah
+   * lapisannya. Sebelum ini judul & peran digambar duluan lalu ketiban stempel.
+   */
+  const RUANG = 72;
   ttd.forEach((t, i) => {
     const cx = x + i * kolom;
-    let cy = atasTtd;
-    doc.font(PDF_FONT.regular).fontSize(7.5).fillColor(PDF_COLORS.inkMuted);
-    doc.text(t.title, cx, cy, { width: kolom, align: "center" });
-    cy += 11;
-    doc.font(PDF_FONT.bold).fillColor(PDF_COLORS.ink);
-    doc.text(t.role, cx, cy, { width: kolom, align: "center" });
-    // Ruang tanda tangan basah, sekaligus batas tinggi stempel: ia tidak boleh
-    // melimpah keluar blok dan menembus tabel di atasnya (DECISIONS 333).
-    const RUANG = 72;
-    cy += RUANG;
-    // Tempel gambar tanda tangan & stempel di ruang itu (DECISIONS 328).
     // Pihaknya dibaca dari `t.pihak`, BUKAN dari indeks `i`: kalau urutan blok
     // diubah, mencocokkan lewat indeks akan menempelkan stempel PPK di kolom
     // penyedia — dan itu baru ketahuan setelah dokumennya beredar.
-    if (gambarTtd) {
-      // 40 poin ≈ 1,4 cm; muat di ruang 48 poin di atas garisnya.
-      gambarTtdPdf(doc, gambarTtd[t.pihak], {
-        xTengah: cx + kolom / 2,
-        yDasar: cy,
-        lebarKolom: kolom,
-        ruangDiAtasNama: RUANG,
-      });
-    }
-    doc
-      .moveTo(cx + kolom * 0.12, cy)
-      .lineTo(cx + kolom * 0.88, cy)
-      .lineWidth(0.5)
-      .strokeColor(PDF_COLORS.inkMuted)
-      .stroke();
-    cy += 3;
-    doc.font(PDF_FONT.bold).fontSize(7.5).fillColor(PDF_COLORS.ink);
-    doc.text(t.name ?? "(………………………)", cx, cy, { width: kolom, align: "center" });
-    cy += 10;
-    if (t.sub) {
-      doc.font(PDF_FONT.regular).fontSize(6.5).fillColor(PDF_COLORS.inkMuted);
-      doc.text(t.sub, cx, cy, { width: kolom, align: "center" });
-    }
+    const yDasar = atasTtd + 11 + RUANG;
+    blokTandaTanganPdf(
+      doc,
+      gambarTtd
+        ? [
+            {
+              berkas: gambarTtd[t.pihak],
+              opsi: { xTengah: cx + kolom / 2, yDasar, lebarKolom: kolom, ruangDiAtasNama: RUANG },
+            },
+          ]
+        : [],
+      () => {
+        let cy = atasTtd;
+        doc.font(PDF_FONT.regular).fontSize(7.5).fillColor(PDF_COLORS.inkMuted);
+        doc.text(t.title, cx, cy, { width: kolom, align: "center" });
+        cy += 11;
+        doc.font(PDF_FONT.bold).fillColor(PDF_COLORS.ink);
+        doc.text(t.role, cx, cy, { width: kolom, align: "center" });
+        // Ruang tanda tangan basah, sekaligus batas tinggi stempel: ia tidak
+        // boleh melimpah keluar blok dan menembus tabel di atasnya
+        // (DECISIONS 333).
+        cy += RUANG;
+        doc
+          .moveTo(cx + kolom * 0.12, cy)
+          .lineTo(cx + kolom * 0.88, cy)
+          .lineWidth(0.5)
+          .strokeColor(PDF_COLORS.inkMuted)
+          .stroke();
+        cy += 3;
+        doc.font(PDF_FONT.bold).fontSize(7.5).fillColor(PDF_COLORS.ink);
+        doc.text(t.name ?? "(………………………)", cx, cy, { width: kolom, align: "center" });
+        cy += 10;
+        if (t.sub) {
+          doc.font(PDF_FONT.regular).fontSize(6.5).fillColor(PDF_COLORS.inkMuted);
+          doc.text(t.sub, cx, cy, { width: kolom, align: "center" });
+        }
+      },
+    );
   });
 
   /* ── Footer tiap halaman ── */

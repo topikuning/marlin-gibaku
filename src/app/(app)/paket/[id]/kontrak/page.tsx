@@ -122,7 +122,6 @@ export default async function KontrakPage({
     contract.contractorStempelKey,
     contract.vendor.stempelKey,
     pkg.pelaksanaTtdKey,
-    pkg.pelaksanaStempelKey,
   ].filter((k): k is string => !!k);
   const urlsTtd = kunciTtd.length > 0 ? await presignKeys(kunciTtd) : new Map<string, string>();
   const urlTtd = (k: string | null) => (k ? (urlsTtd.get(k) ?? null) : null);
@@ -360,7 +359,6 @@ export default async function KontrakPage({
                     contractorTtdUrl: urlTtd(contract.contractorTtdKey),
                     contractorStempelUrl: urlTtd(contract.contractorStempelKey),
                     pelaksanaTtdUrl: urlTtd(pkg.pelaksanaTtdKey),
-                    pelaksanaStempelUrl: urlTtd(pkg.pelaksanaStempelKey),
                     vendorStempelUrl: urlTtd(contract.vendor.stempelKey),
                     vendorName: contract.vendor.name,
                   }}

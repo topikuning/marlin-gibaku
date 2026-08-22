@@ -37,7 +37,6 @@ function findLocation(slug: string) {
       pelaksanaName: true,
       pelaksanaTitle: true,
       pelaksanaTtdKey: true,
-      pelaksanaStempelKey: true,
       // Konsultan Pengawas lokasi ini (penimpaan) + milik kontrak sebagai
       // cadangan — dibaca `pilihPengawas` (DECISIONS 409).
       supervisorName: true,

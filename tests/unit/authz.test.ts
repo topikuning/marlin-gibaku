@@ -49,6 +49,13 @@ describe("authz capability matrix", () => {
       // Tautan KELUAR ke folder Drive vendor ("Lihat di Drive", DECISIONS 406).
       // Di seberang tautan itu tidak ada lagi pembatasan lokasi milik MARLIN.
       "gdrive.open_folder",
+      // SEMENTARA (DECISIONS 411): menu Keuangan belum siap dipakai siapa pun
+      // selain super_admin. Baris-baris ini yang HARUS dihapus saat dibuka lagi
+      // — kalau uji ini tetap hijau padahal capability-nya sudah dikembalikan,
+      // berarti pengembaliannya tidak pernah sampai ke peran mana pun.
+      "finance.view",
+      "finance.input",
+      "finance.approve",
     ] as const;
     for (const cap of HANYA_SUPER_ADMIN) expect(can("program_director", cap), cap).toBe(false);
     for (const cap of CAPABILITIES) {
@@ -71,10 +78,34 @@ describe("authz capability matrix", () => {
     }
   });
 
-  it("exec_viewer tidak bisa finance.input (hanya lihat)", () => {
+  it("exec_viewer: baca saja, dan Keuangan sedang ditahan", () => {
+    /*
+     * Baris `finance.view` di sini dulu berbunyi `true` — itu aturan LAMA.
+     * Keuangan ditahan sementara untuk semua peran selain super_admin
+     * (DECISIONS 411, "menu keuangan saat ini belum siap"). Saat dibuka lagi,
+     * baris inilah yang harus dikembalikan ke `true`.
+     */
     expect(can("exec_viewer", "finance.input")).toBe(false);
-    expect(can("exec_viewer", "finance.view")).toBe(true);
+    expect(can("exec_viewer", "finance.view")).toBe(false);
     expect(can("exec_viewer", "daily_report.create")).toBe(false);
+  });
+
+  it("Keuangan SEMENTARA super_admin saja – dan pintunya, bukan cuma menunya", () => {
+    /*
+     * Permintaan user 2026-08-22: *"menu keuangan saat ini belum siap, jadi
+     * selain superadmin, tidak usah ditampilkan dulu."*
+     *
+     * Diuji sebagai CAPABILITY, bukan sebagai "menu tidak tampil". Menyembunyikan
+     * menu saja meninggalkan alamat /keuangan terbuka bagi siapa pun yang pernah
+     * membukanya atau menyimpan tautannya — dan fitur yang belum siap akan tetap
+     * ditemukan orang.
+     */
+    for (const cap of ["finance.view", "finance.input", "finance.approve"] as const) {
+      expect(can("super_admin", cap), cap).toBe(true);
+      for (const role of ALL_ROLES.filter((r) => r !== "super_admin")) {
+        expect(can(role, cap), `${role}/${cap}`).toBe(false);
+      }
+    }
   });
 
   /**

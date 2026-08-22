@@ -219,7 +219,6 @@ export const HEADER_LOCATION_SELECT = {
   pelaksanaName: true,
   pelaksanaTitle: true,
   pelaksanaTtdKey: true,
-  pelaksanaStempelKey: true,
   // Penimpaan Konsultan Pengawas per lokasi (DECISIONS 409) — `pilihPengawas`.
   supervisorName: true,
   supervisorFirm: true,
@@ -231,7 +230,6 @@ export const HEADER_LOCATION_SELECT = {
       pelaksanaName: true,
       pelaksanaTitle: true,
       pelaksanaTtdKey: true,
-      pelaksanaStempelKey: true,
       contract: {
         select: {
           contractNumber: true,

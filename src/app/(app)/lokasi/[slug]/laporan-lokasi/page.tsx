@@ -41,7 +41,6 @@ export default async function LaporanLokasiPage({
       pelaksanaName: true,
       pelaksanaTitle: true,
       pelaksanaTtdKey: true,
-      pelaksanaStempelKey: true,
       package: {
         select: {
           id: true,
@@ -50,7 +49,6 @@ export default async function LaporanLokasiPage({
           pelaksanaName: true,
           pelaksanaTitle: true,
           pelaksanaTtdKey: true,
-          pelaksanaStempelKey: true,
         },
       },
     },
