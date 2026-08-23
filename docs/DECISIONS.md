@@ -22046,3 +22046,47 @@ dengan `.slice(0, 6)` TANPA memberi tahu siapa pun. Layarnya tetap berbunyi
 "Progres tersimpan" sementara sebagian bukti tidak pernah ada. Ketiga jalur
 unggah laporan harian (item, foto menyusul, baris material/alat) kini
 mengembalikan jumlah yang tidak tersimpan dan menyebutkannya di peringatan.
+
+---
+
+## 426 — Pengendalian Terpadu: temuan, inspeksi, verifikasi eksternal; Wakil PPK jadi VERIFIKATOR, 2026-08-24
+
+**Konteks.** Prompt user "MARLIN — Integrated Project Control & Assurance":
+kembangkan MARLIN dari monitoring sisi kontraktor menjadi platform
+pengendalian terpadu — workspace Wakil PPK (inspeksi, verifikasi laporan &
+evidence, temuan, klarifikasi), model temuan formal, evidence yang bisa
+dirujuk silang, kesiapan termin/PHO/FHO, EWS rule-based — SEMUA di dalam
+MARLIN, bukan sistem terpisah. Audit + arsitektur: `docs/integrated-control/`.
+
+**Keputusan.**
+
+1. **Temuan (`Finding`) ≠ kendala (`Issue`)** — entitas baru dengan siklus
+   `baru → menunggu_klarifikasi → ditindaklanjuti → menunggu_verifikasi →
+   selesai → dibuka_kembali` (mesin di `lifecycle.ts`), histori status
+   append-only (trigger DB), klarifikasi Q/A, catatan tindak lanjut, dan
+   `reopenCount`. Kendala tetap ada dan tidak berubah.
+2. **Wakil PPK berubah dari BACA SAJA menjadi VERIFIKATOR** — menggantikan
+   sebagian DECISIONS 199. Capability tulisnya whitelist tegas:
+   `finding.create`, `finding.verify`, `inspection.manage`,
+   `report.verify_external`. Yang dipertahankan dari 199: tanpa `ai.*`, tanpa
+   `finance.*`, tanpa capability apa pun yang mengubah data pelaksana, dan
+   tetap sesuai penugasan lokasi. Tes penjaga ditulis ulang jadi whitelist.
+3. **Pemisahan tugas berbasis PERAN**: pihak pelaksana (SM/PM/AM) tidak punya
+   `finding.verify` — yang menutup temuan bukan yang ditindak; pemeriksa tidak
+   punya `finding.respond` — tidak menindaklanjuti temuannya sendiri. SA/PD
+   break-glass ter-audit.
+4. **Verifikasi eksternal laporan harian** = `ReportVerification` append-only
+   (baris terakhir = keadaan; "belum diperiksa" = tidak ada baris). SENGAJA
+   tidak menyentuh `DailyReport.status` maupun `COUNTED_REPORT_STATUSES` —
+   angka resmi tidak berubah karena wakil menekan tombol; memindahkan basis
+   angka ke level terverifikasi tetap KEPUTUSAN terpisah di OPEN_ISSUES.
+5. **Evidence = tautan, bukan salinan**: `EvidenceLink` menunjuk `Photo` ATAU
+   `Document` (CHECK constraint XOR) dan menempel ke temuan/inspeksi/
+   klarifikasi (CHECK minimal satu induk), dengan status verifikasi per-tautan.
+6. **Tidak dibuat**: model DocumentRequirement (matrix dokumen = AdminMilestone
+   45 item yang sudah ada), penghidupan model `Alert` (EWS derived on-the-fly),
+   formula progress baru, sistem kedua di samping MARLIN.
+
+**Verifikasi**: migrasi `20260823183241_pengendalian_terpadu_temuan` (tabel
+baru saja, + trigger append-only + CHECK), matriks izin regen (59 capability),
+uji `wakil-ppk`/`authz`/`lifecycle` hijau.

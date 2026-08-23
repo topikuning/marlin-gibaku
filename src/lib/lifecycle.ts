@@ -2,8 +2,12 @@ import type {
   AiArtifactStatus,
   AiRunStatus,
   DailyReportStatus,
+  EvidenceVerifStatus,
+  FindingStatus,
+  InspectionStatus,
   LocationStatus,
   PackageStage,
+  ReportVerifStatus,
 } from "@/generated/prisma/enums";
 
 /**
@@ -186,6 +190,106 @@ export const AI_ARTIFACT_STATUS_TONE: Record<AiArtifactStatus, "neutral" | "info
   disetujui: "info",
   beku: "success",
   terkirim: "success",
+};
+
+/* ── Temuan / inspeksi / verifikasi eksternal (DECISIONS 426) ───────────── */
+
+/**
+ * Siklus temuan. "Ditindaklanjuti" BELUM selesai — hanya verifikator yang
+ * menutup (siapa boleh transisi apa ditegakkan di actions lewat capability
+ * `finding.respond` vs `finding.verify`; mesin ini hanya menjawab boleh/tidak
+ * dari sisi bentuk siklusnya).
+ */
+const FINDING_TRANSITIONS: Record<FindingStatus, FindingStatus[]> = {
+  baru: ["menunggu_klarifikasi", "ditindaklanjuti", "menunggu_verifikasi", "selesai"],
+  menunggu_klarifikasi: ["ditindaklanjuti", "menunggu_verifikasi", "selesai"],
+  ditindaklanjuti: ["menunggu_klarifikasi", "menunggu_verifikasi", "selesai"],
+  // Verifikator menolak → kembali ditindaklanjuti (dengan alasan).
+  menunggu_verifikasi: ["selesai", "ditindaklanjuti"],
+  selesai: ["dibuka_kembali"],
+  dibuka_kembali: ["menunggu_klarifikasi", "ditindaklanjuti", "menunggu_verifikasi", "selesai"],
+};
+
+export function canTransitionFinding(from: FindingStatus, to: FindingStatus): boolean {
+  return FINDING_TRANSITIONS[from]?.includes(to) ?? false;
+}
+
+export const FINDING_STATUS_LABEL: Record<FindingStatus, string> = {
+  baru: "Baru",
+  menunggu_klarifikasi: "Menunggu Klarifikasi",
+  ditindaklanjuti: "Ditindaklanjuti",
+  menunggu_verifikasi: "Menunggu Verifikasi",
+  selesai: "Selesai",
+  dibuka_kembali: "Dibuka Kembali",
+};
+
+export const FINDING_STATUS_TONE: Record<
+  FindingStatus,
+  "neutral" | "info" | "warning" | "success" | "danger"
+> = {
+  baru: "danger",
+  menunggu_klarifikasi: "warning",
+  ditindaklanjuti: "info",
+  menunggu_verifikasi: "warning",
+  selesai: "success",
+  dibuka_kembali: "danger",
+};
+
+/** Status temuan yang dihitung TERBUKA (papan, EWS, kesiapan). */
+export const OPEN_FINDING_STATUSES = [
+  "baru",
+  "menunggu_klarifikasi",
+  "ditindaklanjuti",
+  "menunggu_verifikasi",
+  "dibuka_kembali",
+] as const;
+
+const INSPECTION_TRANSITIONS: Record<InspectionStatus, InspectionStatus[]> = {
+  draft: ["final"],
+  final: [],
+};
+
+export function canTransitionInspection(from: InspectionStatus, to: InspectionStatus): boolean {
+  return INSPECTION_TRANSITIONS[from]?.includes(to) ?? false;
+}
+
+export const INSPECTION_STATUS_LABEL: Record<InspectionStatus, string> = {
+  draft: "Draft",
+  final: "Final",
+};
+
+export const INSPECTION_STATUS_TONE: Record<InspectionStatus, "neutral" | "success"> = {
+  draft: "neutral",
+  final: "success",
+};
+
+/**
+ * Verifikasi eksternal laporan harian: BUKAN state machine tersimpan — tiap
+ * aksi menambah baris `ReportVerification`; label & tone-nya saja yang kanonik
+ * di sini. "Belum diperiksa" = tidak ada baris.
+ */
+export const REPORT_VERIF_STATUS_LABEL: Record<ReportVerifStatus, string> = {
+  diverifikasi: "Diverifikasi Wakil PPK",
+  perlu_klarifikasi: "Perlu Klarifikasi",
+  ditolak: "Ditolak – Perlu Koreksi",
+};
+
+export const REPORT_VERIF_STATUS_TONE: Record<ReportVerifStatus, "info" | "warning" | "success" | "danger"> = {
+  diverifikasi: "success",
+  perlu_klarifikasi: "warning",
+  ditolak: "danger",
+};
+
+export const EVIDENCE_VERIF_STATUS_LABEL: Record<EvidenceVerifStatus, string> = {
+  belum: "Belum diperiksa",
+  diterima: "Diterima",
+  ditolak: "Ditolak",
+};
+
+export const EVIDENCE_VERIF_STATUS_TONE: Record<EvidenceVerifStatus, "neutral" | "success" | "danger"> = {
+  belum: "neutral",
+  diterima: "success",
+  ditolak: "danger",
 };
 
 export const AI_RUN_STATUS_LABEL: Record<AiRunStatus, string> = {
