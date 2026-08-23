@@ -144,6 +144,28 @@ describe("authz capability matrix", () => {
     expect(can("project_manager", "contract.manage")).toBe(false);
   });
 
+  it("penanda tangan lokasi: SM ke atas boleh, pelaksana tidak (DECISIONS 419)", () => {
+    for (const role of ["site_manager", "project_manager", "regional_manager", "program_director", "super_admin"] as const) {
+      expect(can(role, "location.signer"), role).toBe(true);
+    }
+    expect(can("field_supervisor", "location.signer")).toBe(false);
+    expect(can("exec_viewer", "location.signer")).toBe(false);
+    expect(can("wakil_ppk", "location.signer")).toBe(false);
+  });
+
+  it("location.signer TIDAK menyeret hak master lokasi & kontrak ikut terbuka", () => {
+    /*
+     * Batas keputusan 419. Yang diminta user adalah mengisi NAMA penanda
+     * tangan. Kalau salah satu baris ini ikut hijau untuk SM, pelonggarannya
+     * merembet: ganti nama lokasi, geser koordinat master (dipakai cap foto
+     * sebagai bukti titik), atau ubah penanda tangan tingkat paket yang
+     * berlaku untuk SELURUH lokasi.
+     */
+    expect(can("site_manager", "location.manage")).toBe(false);
+    expect(can("site_manager", "location.correct")).toBe(false);
+    expect(can("site_manager", "contract.manage")).toBe(false);
+  });
+
   it("baseline.manage DIWARISI dari Site Manager, tidak didaftar dua kali", () => {
     /*
      * Peran atasan membangun kapabilitasnya dengan menyebar SITE_MANAGER.

@@ -140,11 +140,28 @@ function chip(
 
 /* ── Foto ───────────────────────────────────────────────────────────────── */
 
-async function ambilFoto(r2Key: string): Promise<Buffer | null> {
+/**
+ * Ambil + normalisasi foto sebagai DATA URI base64, bukan Buffer.
+ *
+ * PENTING: bundle pdfkit self-contained yang di-vendor MENSTUB `fs`, jadi
+ * `doc.image(Buffer)` gagal di standalone produksi dengan "fs.readFileSync is
+ * not a function" — persis jebakan DECISIONS 129 yang sudah dihadapi renderer
+ * kegiatan. Data URI di-decode inline tanpa menyentuh fs.
+ *
+ * Ukuran 1400×900: sisi foto pada slide dua-kolom ±417pt, jadi ini ≈3,4×
+ * ukuran cetak — cukup tajam saat deck diproyeksikan maupun dicetak. Yang
+ * sebelumnya 760px tampak pecah di layar besar.
+ */
+async function ambilFoto(r2Key: string): Promise<string | null> {
   if (!isR2Configured()) return null;
   try {
     const raw = await r2GetBuffer(r2Key);
-    return await sharp(raw).rotate().resize(760, 480, { fit: "cover" }).jpeg({ quality: 74 }).toBuffer();
+    const jpeg = await sharp(raw)
+      .rotate()
+      .resize(1400, 900, { fit: "cover", withoutEnlargement: true })
+      .jpeg({ quality: 82 })
+      .toBuffer();
+    return `data:image/jpeg;base64,${jpeg.toString("base64")}`;
   } catch {
     return null;
   }
@@ -402,7 +419,7 @@ function renderStatusKategori(doc: PdfDoc, sl: Extract<Slide, { jenis: "status_k
 async function renderFotoPekerjaan(
   doc: PdfDoc,
   sl: Extract<Slide, { jenis: "foto_pekerjaan" }>,
-  gambar: Map<string, Buffer | null>,
+  gambar: Map<string, string | null>,
 ): Promise<void> {
   latarGelap(doc);
   // Kepala: nama pekerjaan kiri, persen cyan besar kanan (pola contoh).
@@ -444,11 +461,15 @@ async function renderFotoPekerjaan(
         align: "center",
       });
     }
-    doc.font(PDF_FONT.regular).fontSize(8.5).fillColor(C.inkMuted).text(s(f.caption), x, y + fh + 8, {
-      width: fw,
-      height: 22,
-      ellipsis: true,
-    } as never);
+    /*
+     * Keterangan foto dibaca dari layar proyektor, bukan dari layar laptop:
+     * abu-abu tipis 8.5pt hilang di ruangan terang. Tebal + tinta gelap, plus
+     * garis aksen cyan pendek supaya matanya tahu di mana mulai membaca.
+     */
+    const cy = y + fh + 9;
+    doc.rect(x, cy + 2, 3, 11).fillColor(C.cyan).fill();
+    doc.font(PDF_FONT.bold).fontSize(9.5).fillColor(C.ink);
+    doc.text(potong(doc, s(f.caption), fw - 10), x + 8, cy, { width: fw - 8, lineBreak: false });
   });
 }
 
@@ -786,7 +807,7 @@ export async function renderPaparanPdf(content: PaparanContent, opts: { draf: bo
   const judul = judulPaparan(content);
 
   const fotoIds = slides.flatMap((sl) => (sl.jenis === "foto_pekerjaan" ? sl.foto : []));
-  const gambar = new Map<string, Buffer | null>();
+  const gambar = new Map<string, string | null>();
   for (const f of fotoIds) gambar.set(f.id, await ambilFoto(f.r2Key));
 
   const doc = createDeck169Doc({ title: judul });

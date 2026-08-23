@@ -21,6 +21,11 @@ export const CAPABILITIES = [
   // Koreksi susunan lokasi paket BERKONTRAK (lokasi ketinggalan saat input) —
   // super_admin SAJA, bukan adendum. DECISIONS 187.
   "location.correct",
+  // Isi nama & unggah coretan tanda tangan PENANDA TANGAN LOKASI (pelaksana +
+  // pengawas lokasi itu) — Site Manager ke atas. SENGAJA dipisah dari
+  // `location.manage`, yang ikut membawa ganti nama lokasi & ubah koordinat
+  // master (dipakai cap foto). DECISIONS 419.
+  "location.signer",
   "rab.view",
   "rab.manage",
   "baseline.manage",
@@ -199,6 +204,21 @@ const SITE_MANAGER: Capability[] = [
   "baseline.manage",
   "daily_report.review",
   "daily_report.finalize",
+  /**
+   * PENANDA TANGAN LOKASI: Site Manager boleh mengisinya (DECISIONS 419).
+   *
+   * Permintaan user 2026-08-23 *"untuk pengisian nama penandatangan site
+   * manager dijinkan"*. Yang dibuka HANYA penimpaan per-lokasi — nama+jabatan
+   * Pelaksana Lapangan dan nama+firma Konsultan Pengawas lokasi itu, berikut
+   * coretan tanda tangannya. Penanda tangan tingkat PAKET (PPK, Direktur,
+   * pengawas kontrak) tetap `contract.manage`: satu orang mengubahnya di sana,
+   * seluruh lokasi paket ikut berubah.
+   *
+   * Kapabilitas sendiri, bukan `location.manage`, karena yang diminta adalah
+   * mengisi nama — bukan mengganti nama lokasi dan bukan menggeser koordinat
+   * master yang dipakai cap foto sebagai bukti titik.
+   */
+  "location.signer",
   "issue.manage",
   "document.upload",
   "report.export",
