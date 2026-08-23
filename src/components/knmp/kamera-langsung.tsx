@@ -8,6 +8,13 @@ import { posisiJepret, type PosisiJepret } from "@/lib/foto-cepat/gps-segar";
 
 export type { PosisiJepret };
 
+/** Sudut layar dari peramban; `null` bila API-nya tidak ada. */
+function bacaSudutLayar(): number | null {
+  if (typeof screen === "undefined") return null;
+  const a = screen.orientation?.angle;
+  return typeof a === "number" ? a : null;
+}
+
 /**
  * Berapa derajat bingkai video harus diputar agar tegak seperti yang dilihat
  * pemotret. 0 = tidak perlu (DECISIONS 424).
@@ -22,8 +29,15 @@ export type { PosisiJepret };
 export function putaranBingkai(
   lebar: number,
   tinggi: number,
-  sudutLayar: number = typeof screen !== "undefined" ? (screen.orientation?.angle ?? 0) : 0,
+  /**
+   * `null` = sudut layar TIDAK diketahui (peramban tanpa `screen.orientation`).
+   * Itu berbeda dari 0°, dan bedanya penting: memperlakukan "tidak tahu" sebagai
+   * "potret" akan MEMUTAR foto lanskap yang sengaja diambil lanskap. Tidak tahu
+   * → jangan sentuh.
+   */
+  sudutLayar: number | null = bacaSudutLayar(),
 ): 0 | 90 | 270 {
+  if (sudutLayar == null) return 0;
   const bingkaiLanskap = lebar > tinggi;
   const layarPotret = sudutLayar === 0 || sudutLayar === 180;
   // Sepakat → jangan disentuh. Peramban yang sudah memutar bingkainya sendiri

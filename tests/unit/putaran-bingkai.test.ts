@@ -45,4 +45,14 @@ describe("putaranBingkai", () => {
       expect(putaranBingkai(1000, 1000, sudut), `sudut ${sudut}`).toBe(0);
     }
   });
+
+  it("sudut layar TIDAK diketahui → jangan sentuh", () => {
+    /*
+     * Peramban tanpa `screen.orientation` (WebView lama). Memperlakukan "tidak
+     * tahu" sebagai "potret" akan memutar foto LANSKAP yang sengaja diambil
+     * lanskap – merusak yang tadinya benar, demi menebak yang tidak diketahui.
+     */
+    expect(putaranBingkai(1920, 1080, null)).toBe(0);
+    expect(putaranBingkai(1080, 1920, null)).toBe(0);
+  });
 });

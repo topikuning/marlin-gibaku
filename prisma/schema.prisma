@@ -1386,6 +1386,14 @@ model Photo {
   stampPhotoId       String?             @map("stamp_photo_id")
   /// Berapa kali cap foto ini diperbaiki. 0 = cap asli dari unggahan.
   stampRevision      Int                 @default(0) @map("stamp_revision")
+  /// Putaran KUMULATIF terhadap berkas ASLI, dalam derajat (0/90/180/270).
+  ///
+  /// Harus disimpan, bukan disimpulkan: setiap penekanan tombol Putar merender
+  /// ulang dari arsip asli (cap dibakar ke gambar, jadi memutar hasil ber-cap
+  /// akan memiringkan capnya juga). Tanpa angka ini, putaran kedua mulai dari
+  /// nol lagi — tekan "kanan" dua kali tetap 90°, dan "kiri" sesudah "kanan"
+  /// jadi 270° alih-alih kembali. DECISIONS 424c.
+  rotationDeg        Int                 @default(0) @map("rotation_deg")
   /// Arsip asli DIHAPUS sengaja (bukan "tidak pernah ada"). Setelah ini cap
   /// foto tsb tidak bisa diperbaiki lagi. DECISIONS 198.
   originalPurgedAt   DateTime?           @map("original_purged_at") @db.Timestamptz

@@ -21984,3 +21984,33 @@ terlalu kecil stamp logo perusahaannya"*. Dua sebab, keduanya nyata:
 Diperiksa dengan merender cap sungguhan lalu melihat hasilnya: logo ber-margin
 tampil sebagai bilah kecil, logo yang sudah di-trim tampil sepadan dengan
 wordmark MARLIN.
+
+### Tumpangan 424b/424c — hasil simulasi tombol putar
+
+Permintaan user: *"coba simulasikan rotasimu, sepertinya bermasalah"*.
+Disimulasikan tiga lapis, dan dua cacat nyata ketahuan — keduanya TIDAK terlihat
+dari membaca kodenya.
+
+Yang TERBUKTI benar dan tidak diubah: matematika canvas-nya. Dijalankan di
+Chromium sungguhan lalu dibandingkan piksel demi piksel dengan `sharp.rotate()`
+untuk 0°/90°/270° — cocok semuanya. Komposisi `.rotate().rotate(n)` di sharp
+juga diperiksa: hasilnya sama dengan `.rotate(n)`, tidak berputar dua kali.
+
+**424b — tombol putar absen justru di tempat masalahnya lahir.** Tombolnya cuma
+dipasang di galeri laporan harian. Foto miring paling sering lahir di **Foto
+Cepat** (kamera dalam aplikasi, tanpa EXIF), dan di sana tidak ada jalan
+memperbaikinya sama sekali. Kini ada di kantong Foto Cepat, galeri kegiatan,
+dan baris foto pelengkap.
+
+Ikut diperbaiki: `putaranBingkai` memperlakukan sudut layar yang TIDAK diketahui
+(peramban tanpa `screen.orientation`) sebagai potret, sehingga foto lanskap yang
+sengaja diambil lanskap ikut diputar. "Tidak tahu" kini berarti jangan sentuh.
+
+**424c — memutar tidak menumpuk.** Setiap penekanan merender ulang dari ARSIP
+ASLI (cap dibakar ke gambar, jadi memutar hasil ber-cap akan memiringkan capnya
+juga). Akibatnya putaran kedua mulai dari nol: tekan "kanan" dua kali tetap 90°,
+dan "kiri" sesudah "kanan" jadi 270° alih-alih kembali. Tombol yang tampak macet.
+
+`Photo.rotationDeg` ditambahkan — putaran KUMULATIF terhadap berkas asli. Harus
+disimpan, bukan disimpulkan: dari dimensi saja 0° dan 180° tidak bisa dibedakan.
+Migrasinya idempoten (`ADD COLUMN IF NOT EXISTS`).

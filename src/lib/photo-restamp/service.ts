@@ -121,6 +121,8 @@ export type KonteksFoto = {
   r2Key: string;
   thumbnailKey: string | null;
   stampRevision: number;
+  /** Putaran kumulatif terhadap berkas asli, derajat (DECISIONS 424c). */
+  rotationDeg: number;
   saatIni: NilaiCap;
 };
 
@@ -145,6 +147,7 @@ export async function konteksFoto(id: string): Promise<KonteksFoto | null> {
       metadataSource: true,
       stampPhotoId: true,
       stampRevision: true,
+      rotationDeg: true,
       locationId: true,
       uploadedById: true,
       // lineageKey ikut dibaca: badge cap = BANGUNAN/kategori RAB, dan
@@ -223,6 +226,7 @@ export async function konteksFoto(id: string): Promise<KonteksFoto | null> {
     r2Key: p.r2Key,
     thumbnailKey: p.thumbnailKey,
     stampRevision: p.stampRevision,
+    rotationDeg: p.rotationDeg,
     saatIni: {
       takenAt: p.exifTakenAt ?? workDate ?? new Date(),
       jamDiketahui,

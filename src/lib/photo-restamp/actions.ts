@@ -409,13 +409,21 @@ export async function putarFotoAction(_prev: RestampState, formData: FormData): 
      * Putar dulu, cap belakangan. Urutan sebaliknya (cap dulu lalu putar)
      * memiringkan capnya ikut serta — dan cap yang miring lebih buruk daripada
      * foto yang miring, karena ia yang dibaca sebagai bukti.
+     *
+     * Yang dirender selalu ARSIP ASLI, jadi putarannya harus KUMULATIF
+     * (DECISIONS 424c). Tanpa itu penekanan kedua mulai dari nol lagi: "kanan"
+     * dua kali tetap 90°, dan "kiri" sesudah "kanan" jadi 270° alih-alih
+     * kembali ke tegak. Ketahuan saat menyimulasikan tombolnya, bukan saat
+     * membacanya.
      */
+    const totalDerajat = (((k.rotationDeg + derajat) % 360) + 360) % 360;
     const sharpMod = await import("sharp");
     const sharp = sharpMod.default ?? (sharpMod as unknown as typeof import("sharp").default);
     const asli = await r2GetBuffer(k.originalKey);
     // `.rotate(n)` DI ATAS `.rotate()` tanpa argumen: yang pertama menegakkan
     // menurut EXIF (bila ada), yang kedua memutar atas permintaan orang.
-    const diputar = await sharp(asli, { failOn: "none" }).rotate().rotate(derajat).toBuffer();
+    const pipa = sharp(asli, { failOn: "none" }).rotate();
+    const diputar = await (totalDerajat === 0 ? pipa : pipa.rotate(totalDerajat)).toBuffer();
 
     const processed = await processWithSharpOrOriginal(diputar, await stampDariNilai(k.saatIni), {
       name: k.originalKey,
@@ -448,13 +456,14 @@ export async function putarFotoAction(_prev: RestampState, formData: FormData): 
             widthPx: processed.width,
             heightPx: processed.height,
             stampRevision: revisi,
+            rotationDeg: totalDerajat,
           },
         });
         await tx.photoStampRevision.create({
           data: {
             photoId,
             revision: revisi,
-            reason: `Putar ${derajat}° (orientasi)`,
+            reason: `Putar ${derajat}° (orientasi, total ${totalDerajat}°)`,
             before: ringkasNilai(k.saatIni) as object,
             after: ringkasNilai(k.saatIni) as object,
             // Tidak ada nilai cap yang diketik manusia — yang berubah pikselnya.
@@ -464,6 +473,7 @@ export async function putarFotoAction(_prev: RestampState, formData: FormData): 
         });
         await auditIn(tx, actor.id, "photo.rotate", "photo", photoId, {
           derajat,
+          totalDerajat,
           revisi,
           locationId: k.locationId,
         });
@@ -479,7 +489,7 @@ export async function putarFotoAction(_prev: RestampState, formData: FormData): 
 
     revalidatePath("/foto");
     if (k.locationSlug) revalidatePath(`/lokasi/${k.locationSlug}`);
-    return { ok: `Foto diputar ${derajat}°.` };
+    return { ok: `Foto diputar ${derajat}° (total ${totalDerajat}° dari aslinya).` };
   } catch (err) {
     if (err instanceof ForbiddenError) return { error: err.message };
     return { error: err instanceof Error ? err.message : "Memutar foto gagal." };
