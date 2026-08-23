@@ -13,7 +13,7 @@ Scope lokasi: `super_admin`, `program_director` = lintas lokasi
 `exec_viewer` sejak DECISIONS 190 — dibatasi `LocationAssignment` (dan paket yang
 memuat lokasi tersebut); tanpa penugasan berarti NOL lokasi, bukan semuanya.
 
-Jumlah capability: **51**.
+Jumlah capability: **52**.
 
 | Capability | super_admin | program_director | regional_manager | project_manager | site_manager | field_supervisor | exec_viewer | wakil_ppk |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
@@ -37,6 +37,7 @@ Jumlah capability: **51**.
 | `daily_report.review` | ✓ | ✓ | ✓ | ✓ | ✓ | – | – | – |
 | `daily_report.finalize` | ✓ | ✓ | ✓ | ✓ | ✓ | – | – | – |
 | `daily_report.unfinalize` | ✓ | – | – | – | – | – | – | – |
+| `daily_report.move_date` | ✓ | – | – | – | – | – | – | – |
 | `field_activity.manage` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | – | – |
 | `photo.quick` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | – | – |
 | `photo.restamp` | ✓ | ✓ | – | – | – | – | – | – |
@@ -74,6 +75,7 @@ Jumlah capability: **51**.
 - `contract.edit`
 - `location.correct`
 - `daily_report.unfinalize`
+- `daily_report.move_date`
 - `wa.configure`
 - `gdrive.open_folder`
 - `finance.view`

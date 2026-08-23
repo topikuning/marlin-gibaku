@@ -224,7 +224,14 @@ export function pekanDari(p: PeriodeTerbaca, hariIniKey: TanggalKey): PeriodeTer
   const senin = geser(acuan, -offsetSenin(acuan));
   const minggu = geser(senin, 6);
   const akhir = minggu > hariIniKey ? hariIniKey : minggu;
-  const berjalan = akhir !== minggu;
+  /*
+   * Pekan masih BERJALAN sampai hari Minggu-nya LEWAT — termasuk pada hari
+   * Minggu itu sendiri. Perbandingan lama (`akhir !== minggu`) membuat catatan
+   * "Pekan berjalan" hilang tepat di hari Minggu, padahal laporan hari itu
+   * belum masuk dan angkanya masih akan bergerak. Ketahuan dari uji integrasi
+   * yang kebetulan berjalan lewat tengah malam WIB hari Minggu.
+   */
+  const berjalan = hariIniKey <= minggu;
   return {
     mulai: senin,
     akhir,

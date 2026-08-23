@@ -27,6 +27,7 @@ export const RUTE_STATIS: { pola: string; nama: string }[] = [
   { pola: "/ai/ask", nama: "AI – tanya" },
   { pola: "/ai/history", nama: "AI – riwayat run" },
   { pola: "/ai/reports", nama: "AI – laporan" },
+  { pola: "/ai/paparan", nama: "AI – Paparan KKP" },
   { pola: "/chat-grup", nama: "Chat grup" },
   { pola: "/chat-grup/global", nama: "Chat grup global" },
   { pola: "/dokumen", nama: "Dokumen" },
@@ -72,6 +73,8 @@ export type KonteksRute = {
   dokumenId: string | null;
   fotoId: string | null;
   aiRunId: string | null;
+  /** Artefak paparan KKP yang benar-benar ada (bisa null bila belum ada yang dibuat). */
+  paparanId: string | null;
   antrean: string | null;
 };
 
@@ -143,6 +146,11 @@ export const RUTE_DINAMIS: {
   { pola: "/dokumen/[id]", nama: "Detail dokumen", isi: (k) => (k.dokumenId ? [`/dokumen/${k.dokumenId}`] : null) },
   { pola: "/foto/[id]/cap", nama: "Cap foto", isi: (k) => (k.fotoId ? [`/foto/${k.fotoId}/cap`] : null) },
   { pola: "/ai/run/[id]", nama: "Detail run AI", isi: (k) => (k.aiRunId ? [`/ai/run/${k.aiRunId}`] : null) },
+  {
+    pola: "/ai/paparan/[id]",
+    nama: "Detail paparan KKP",
+    isi: (k) => (k.paparanId ? [`/ai/paparan/${k.paparanId}`] : null),
+  },
 ];
 
 /**

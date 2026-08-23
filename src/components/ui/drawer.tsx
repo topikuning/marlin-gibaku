@@ -51,9 +51,7 @@ export function Drawer({
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const panelRef = useRef<HTMLDivElement>(null);
   const restoreRef = useRef<HTMLElement | null>(null);
-  const titleId = useId();
 
   const buka = useCallback(() => {
     restoreRef.current =
@@ -66,8 +64,53 @@ export function Drawer({
     restoreRef.current?.focus();
   }, []);
 
+  return (
+    <>
+      <Button type="button" size={triggerSize} variant={triggerVariant} onClick={buka}>
+        {trigger}
+      </Button>
+      <PanelGeser terbuka={open} onTutup={tutup} title={title} subtitle={subtitle} className={className}>
+        {children}
+      </PanelGeser>
+    </>
+  );
+}
+
+/**
+ * Cangkang panel geser TERKENDALI — buka/tutupnya ditentukan pemanggil
+ * (DECISIONS 414).
+ *
+ * Dipisah dari {@link Drawer} karena ada pemakaian yang pemicunya BUKAN tombol:
+ * di kalender harian, yang membuka panel adalah petak tanggal yang diketuk, dan
+ * keadaannya dibawa URL (`?panel=1`) supaya tetap benar sesudah navigasi server.
+ * Menyalin jebakan fokus, Escape, dan kunci gulir ke sana berarti dua salinan
+ * aturan aksesibilitas yang lambat laun berbeda.
+ *
+ * Tidak merender apa pun saat tertutup — termasuk TIDAK mengunci gulir. Itu
+ * penting: pemanggil yang menyembunyikannya lewat CSS (`lg:hidden`) tetap akan
+ * menjalankan efeknya, jadi pemanggil WAJIB tidak merender komponen ini sama
+ * sekali pada lebar yang panelnya memang tidak dipakai.
+ */
+export function PanelGeser({
+  terbuka,
+  onTutup,
+  title,
+  subtitle,
+  children,
+  className,
+}: {
+  terbuka: boolean;
+  onTutup: () => void;
+  title: string;
+  subtitle?: ReactNode;
+  children: ReactNode;
+  className?: string;
+}) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+
   useEffect(() => {
-    if (!open) return;
+    if (!terbuka) return;
     const panel = panelRef.current;
     if (!panel) return;
 
@@ -83,7 +126,7 @@ export function Drawer({
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.stopPropagation();
-        tutup();
+        onTutup();
         return;
       }
       if (e.key !== "Tab") return;
@@ -108,61 +151,53 @@ export function Drawer({
       panel.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = semula;
     };
-  }, [open, tutup]);
+  }, [terbuka, onTutup]);
+
+  if (!terbuka) return null;
 
   return (
-    <>
-      <Button type="button" size={triggerSize} variant={triggerVariant} onClick={buka}>
-        {trigger}
-      </Button>
-      {open ? (
-        <div className="fixed inset-0 z-[1200]">
-          {/*
-            Latar gelap SENGAJA di luar pohon aksesibilitas.
+    <div className="fixed inset-0 z-[1200]">
+      {/*
+        Latar gelap SENGAJA di luar pohon aksesibilitas.
 
-            Versi pertama membuatnya `<button aria-label="Tutup panel">` –
-            nama yang sama persis dengan tombol ✕ di dalam panel. Akibatnya dua
-            elemen berbagi satu nama, dan di ponsel (panel selebar layar penuh)
-            latar itu justru MENUTUPI tombol tutup yang sesungguhnya. Ketahuan
-            dari uji Playwright yang merah di proyek mobile, bukan dari
-            pemeriksaan mata.
+        Versi pertama membuatnya `<button aria-label="Tutup panel">` – nama yang
+        sama persis dengan tombol ✕ di dalam panel. Akibatnya dua elemen berbagi
+        satu nama, dan di ponsel (panel selebar layar penuh) latar itu justru
+        MENUTUPI tombol tutup yang sesungguhnya. Ketahuan dari uji Playwright
+        yang merah di proyek mobile, bukan dari pemeriksaan mata.
 
-            Menutup lewat klik latar tetap ada untuk tetikus; jalur papan tik
-            sudah dijamin Escape dan tombol ✕.
-          */}
-          <div aria-hidden className="absolute inset-0 bg-ink/40" onClick={tutup} />
-          <div
-            ref={panelRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={titleId}
-            className={cn(
-              "absolute inset-y-0 right-0 flex w-full max-w-lg flex-col border-l border-border bg-surface shadow-lg",
-              className,
-            )}
-          >
-            <header className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
-              <div className="min-w-0">
-                <h2 id={titleId} className="text-sm font-semibold text-ink">
-                  {title}
-                </h2>
-                {subtitle ? (
-                  <p className="mt-0.5 text-[13px] text-ink-muted">{subtitle}</p>
-                ) : null}
-              </div>
-              <button
-                type="button"
-                onClick={tutup}
-                aria-label="Tutup panel"
-                className="-mt-1 -mr-1 rounded-md p-1.5 text-ink-muted hover:bg-surface-inset hover:text-ink"
-              >
-                <X aria-hidden className="size-4" />
-              </button>
-            </header>
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">{children}</div>
+        Menutup lewat klik latar tetap ada untuk tetikus; jalur papan tik sudah
+        dijamin Escape dan tombol ✕.
+      */}
+      <div aria-hidden className="absolute inset-0 bg-ink/40" onClick={onTutup} />
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className={cn(
+          "absolute inset-y-0 right-0 flex w-full max-w-lg flex-col border-l border-border bg-surface shadow-lg",
+          className,
+        )}
+      >
+        <header className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
+          <div className="min-w-0">
+            <h2 id={titleId} className="text-sm font-semibold text-ink">
+              {title}
+            </h2>
+            {subtitle ? <p className="mt-0.5 text-[13px] text-ink-muted">{subtitle}</p> : null}
           </div>
-        </div>
-      ) : null}
-    </>
+          <button
+            type="button"
+            onClick={onTutup}
+            aria-label="Tutup panel"
+            className="-mt-1 -mr-1 rounded-md p-1.5 text-ink-muted hover:bg-surface-inset hover:text-ink"
+          >
+            <X aria-hidden className="size-4" />
+          </button>
+        </header>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">{children}</div>
+      </div>
+    </div>
   );
 }
