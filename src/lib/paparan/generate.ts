@@ -239,17 +239,35 @@ export async function generatePaparan(
     aiError = guardCfg.enabled ? "no_provider" : "ai_disabled";
   }
 
-  // 7. Artefak draft — regenerate = VERSI BARU, tidak menimpa (spec §5).
+  /*
+   * 7. Artefak draft — regenerate = VERSI BARU, tidak menimpa (spec §5).
+   *
+   * scopeHash memuat LINGKUP (DECISIONS 420/421). Tanpa itu deck lokasi dan
+   * deck paket minggu yang sama berbagi satu hash DAN satu deret versi: deck
+   * lokasi Batah Timur minggu 6 terbit sebagai "v8" hanya karena sudah ada
+   * tujuh deck paket — nomor versi yang tidak menghitung apa pun. Ketahuan saat
+   * memeriksa basis data hasil e2e.
+   *
+   * Bentuk hash lama DIPERTAHANKAN untuk lingkup paket (tanpa ruas tambahan)
+   * supaya penomoran deck paket yang sudah terbit tidak melompat mundur.
+   */
   const scopeHash = createHash("sha256")
-    .update(`${PAPARAN_TEMPLATE_KEY}|${pkg.id}|${input.weekNumber}`)
+    .update(
+      pkg.lingkup.jenis === "lokasi"
+        ? `${PAPARAN_TEMPLATE_KEY}|${pkg.id}|${input.weekNumber}|${pkg.lingkup.locationId}`
+        : `${PAPARAN_TEMPLATE_KEY}|${pkg.id}|${input.weekNumber}`,
+    )
     .digest("hex")
     .slice(0, 16);
+  // Dihitung per scopeHash, bukan per (paket, minggu): satu deret versi untuk
+  // satu lingkup. Artefak lama tetap terhitung karena scopeHash paket tidak
+  // berubah bentuknya.
   const versi =
     (await db.aiArtifact.count({
       where: {
         kind: "paparan",
         packageId: pkg.id,
-        structuredContent: { path: ["weekNumber"], equals: input.weekNumber },
+        structuredContent: { path: ["scopeHash"], equals: scopeHash },
       },
     })) + 1;
   const content: PaparanContent = {

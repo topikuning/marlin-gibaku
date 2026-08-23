@@ -21822,3 +21822,18 @@ kontrak tetap tertutup" kini menguji batas SM/PM, bukan PM/PD.
 Diperiksa di server standalone: pm-01 dan am-jateng melihat "Kelola nama",
 formulir tanda tangan & stempel, dan `/master/perusahaan` (200); sm-01 hanya
 "Lihat nama" dan `/master/perusahaan` 404.
+
+### Tumpangan 421a — versi & scopeHash tidak menghitung lingkup
+
+Ketahuan saat user bertanya apa yang terjadi bila tombol "Buat Paparan" ditekan
+lagi untuk paket & minggu yang sama. Jawabannya benar (di luar 90 detik selalu
+lahir DRAF BARU, yang lama tidak disentuh), tapi memeriksanya membuka cacat yang
+ikut masuk bersama lingkup lokasi: `scopeHash` dan penghitung versi hanya
+memakai (paket, minggu). Akibatnya deck lokasi Batah Timur minggu 6 terbit
+sebagai "v8" semata-mata karena sudah ada tujuh deck PAKET — nomor versi yang
+tidak menghitung apa pun.
+
+`scopeHash` kini memuat locationId untuk lingkup lokasi, dan versi dihitung per
+scopeHash. Bentuk hash lingkup paket sengaja TIDAK diubah supaya penomoran deck
+paket yang sudah terbit tidak melompat mundur. Diperiksa di basis data e2e: deck
+lokasi berikutnya terbit v1 dengan hash sendiri, deck paket lanjut ke v9.
