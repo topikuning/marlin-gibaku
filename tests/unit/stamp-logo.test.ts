@@ -165,3 +165,47 @@ describe("ikon lepas (dipakai UI web)", () => {
     expect(WORDMARK_W / WORDMARK_H).toBeCloseTo(3.983, 2);
   });
 });
+
+/*
+ * LOGO PERUSAHAAN MENGGANTIKAN WORDMARK (DECISIONS 424).
+ *
+ * Permintaan user 2026-08-23: logo perusahaan bila diisi, MARLIN bila tidak.
+ * Yang paling mudah salah adalah menggambar KEDUANYA – cap yang memuat dua logo
+ * di sudut yang sama lebih buruk daripada cap yang memuat logo yang salah,
+ * karena keduanya saling menimpa dan tidak ada yang terbaca.
+ */
+describe("logo perusahaan di cap", () => {
+  const LOGO = "data:image/png;base64,iVBORw0KGgo=";
+
+  it("logo perusahaan diisi → wordmark MARLIN TIDAK ikut digambar", () => {
+    const out = svg(1600, 1200, { ...data, companyLogo: LOGO });
+    expect(out).toContain(`href="${LOGO}"`);
+    /*
+     * Wordmark dikenali dari GAMBARNYA, bukan dari `<defs>`: defs selalu ikut
+     * ditulis. Yang harus hilang adalah goresan huruf vektornya.
+     */
+    const gambarWordmark = wordmarkSvgInner(0, 0, 100, { halo: "#FFFFFF" });
+    const potongan = gambarWordmark.slice(gambarWordmark.indexOf("<path"), gambarWordmark.indexOf("<path") + 60);
+    expect(potongan.length).toBeGreaterThan(20);
+    expect(out).not.toContain(potongan);
+  });
+
+  it("logo kosong → tetap wordmark MARLIN, tidak ada <image> nyasar", () => {
+    const out = svg(1600, 1200, { ...data, companyLogo: null });
+    expect(out).toContain(WORDMARK_DEFS);
+    expect(out).not.toContain("<image");
+    // Dan wordmark-nya memang DIGAMBAR, bukan cuma didefinisikan.
+    expect(out).toContain("<path");
+  });
+
+  it("logo dibatasi lebarnya supaya tidak menabrak nama perusahaan", () => {
+    const out = svg(1600, 1200, { ...data, companyLogo: LOGO });
+    const m = /<image x="(\d+)" y="\d+" width="(\d+)"/.exec(out);
+    expect(m, "elemen <image> logo tidak ditemukan").not.toBeNull();
+    const x = Number(m![1]);
+    const lebar = Number(m![2]);
+    // Rata kanan di dalam marjin aman, dan tidak melebar sampai separuh foto.
+    expect(x + lebar).toBeLessThanOrEqual(1600);
+    expect(lebar).toBeLessThan(1600 / 2);
+  });
+});

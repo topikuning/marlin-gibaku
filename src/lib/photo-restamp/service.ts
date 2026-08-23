@@ -1,4 +1,5 @@
 import "server-only";
+import { logoPerusahaanDataUri } from "@/lib/photo-stamp/logo-perusahaan";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { DEFAULT_STAMP_ACCENT, getPhotoStampConfig, type StampSize } from "@/lib/photo-stamp/config";
@@ -24,6 +25,8 @@ export type NilaiCap = {
   timeSource: PhotoMetadataSource;
   locationLabel: string | null;
   companyName: string | null;
+  /** Kunci R2 logo perusahaan — dipakai cap ulang juga (DECISIONS 424). */
+  companyLogoKey?: string | null;
   reporterName: string | null;
   categoryName: string | null;
   workName: string | null;
@@ -64,6 +67,7 @@ export async function stampDariNilai(v: NilaiCap): Promise<PhotoStamp> {
     lng: v.lng,
     locationLabel: v.locationLabel,
     companyName: v.companyName,
+    companyLogo: await logoPerusahaanDataUri(v.companyLogoKey),
     reporterName: v.reporterName,
     categoryName: v.categoryName,
     workName: v.workName,
@@ -104,6 +108,8 @@ export type KonteksFoto = {
   locationName: string | null;
   locationSlug: string | null;
   companyName: string | null;
+  /** Kunci R2 logo perusahaan — dipakai cap ulang juga (DECISIONS 424). */
+  companyLogoKey?: string | null;
   reporterName: string | null;
   categoryName: string | null;
   workName: string | null;
@@ -156,7 +162,7 @@ export async function konteksFoto(id: string): Promise<KonteksFoto | null> {
           package: {
             select: {
               organization: { select: { name: true } },
-              contract: { select: { vendor: { select: { name: true } } } },
+              contract: { select: { vendor: { select: { name: true, logoKey: true } } } },
             },
           },
         },
@@ -205,6 +211,7 @@ export async function konteksFoto(id: string): Promise<KonteksFoto | null> {
     locationSlug: p.location?.slug ?? null,
     companyName:
       p.location?.package.contract?.vendor?.name ?? p.location?.package.organization.name ?? null,
+    companyLogoKey: p.location?.package.contract?.vendor?.logoKey ?? null,
     reporterName: pelapor?.fullName ?? null,
     categoryName: bangunanCap ?? p.activity?.title ?? null,
     workName: p.reportItem?.rabNode.name ?? null,
@@ -226,6 +233,7 @@ export async function konteksFoto(id: string): Promise<KonteksFoto | null> {
       locationLabel: p.location?.name ?? null,
       companyName:
         p.location?.package.contract?.vendor?.name ?? p.location?.package.organization.name ?? null,
+      companyLogoKey: p.location?.package.contract?.vendor?.logoKey ?? null,
       reporterName: pelapor?.fullName ?? null,
       categoryName: bangunanCap ?? p.activity?.title ?? null,
     workName: p.reportItem?.rabNode.name ?? null,

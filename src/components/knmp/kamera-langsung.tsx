@@ -9,6 +9,32 @@ import { posisiJepret, type PosisiJepret } from "@/lib/foto-cepat/gps-segar";
 export type { PosisiJepret };
 
 /**
+ * Berapa derajat bingkai video harus diputar agar tegak seperti yang dilihat
+ * pemotret. 0 = tidak perlu (DECISIONS 424).
+ *
+ * MURNI + diekspor supaya bisa diuji tanpa kamera: aturan yang hanya hidup di
+ * dalam handler rana adalah aturan yang tidak pernah diuji.
+ *
+ * `screen.orientation.angle` = berapa derajat LAYAR diputar dari orientasi
+ * alami perangkat. Untuk HP (alaminya potret): 0 = dipegang tegak,
+ * 90/270 = dimiringkan.
+ */
+export function putaranBingkai(
+  lebar: number,
+  tinggi: number,
+  sudutLayar: number = typeof screen !== "undefined" ? (screen.orientation?.angle ?? 0) : 0,
+): 0 | 90 | 270 {
+  const bingkaiLanskap = lebar > tinggi;
+  const layarPotret = sudutLayar === 0 || sudutLayar === 180;
+  // Sepakat → jangan disentuh. Peramban yang sudah memutar bingkainya sendiri
+  // akan rusak kalau diputar lagi.
+  if (bingkaiLanskap !== layarPotret) return 0;
+  if (!bingkaiLanskap) return 0; // layar miring tapi bingkai sudah tegak
+  // Layar potret, bingkai lanskap → putar mengikuti arah miringnya sensor.
+  return sudutLayar === 180 ? 270 : 90;
+}
+
+/**
  * KAMERA DI DALAM APLIKASI — jepret, masuk, jepret lagi (DECISIONS 256).
  *
  * Keluhan user: *"ada konfirmasi use this photo, bukan jepret langsung simpan.
@@ -215,12 +241,37 @@ export function KameraLangsung({
     const v = videoRef.current;
     if (!v || !v.videoWidth || !v.videoHeight) return;
 
+    /*
+     * ORIENTASI: diputar DI SINI, bukan di server (DECISIONS 424).
+     *
+     * Canvas tidak menghasilkan EXIF sama sekali, jadi `sharp().rotate()` di
+     * pipeline foto tidak punya apa pun untuk dibaca — bukan gagal mendeteksi,
+     * memang tidak ada datanya. Sensor HP hampir selalu mengirim bingkai
+     * LANDSCAPE berapa pun cara orang memegangnya, sehingga foto yang dijepret
+     * sambil berdiri tersimpan miring 90°. Dilaporkan user 2026-08-23.
+     *
+     * Satu-satunya tempat informasinya masih ada adalah detik rana ditekan, di
+     * HP itu sendiri: `screen.orientation.angle`. Yang dipakai hanya bila ada
+     * PERTENTANGAN nyata — layar potret tapi bingkai lanskap (atau sebaliknya).
+     * Tanpa syarat itu, peramban yang sudah memutar bingkainya sendiri akan
+     * diputar dua kali.
+     */
+    const sudut = putaranBingkai(v.videoWidth, v.videoHeight);
+    const tegak = sudut === 90 || sudut === 270;
+
     const canvas = document.createElement("canvas");
-    canvas.width = v.videoWidth;
-    canvas.height = v.videoHeight;
+    canvas.width = tegak ? v.videoHeight : v.videoWidth;
+    canvas.height = tegak ? v.videoWidth : v.videoHeight;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+    if (sudut === 0) {
+      ctx.drawImage(v, 0, 0, v.videoWidth, v.videoHeight);
+    } else {
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((sudut * Math.PI) / 180);
+      ctx.drawImage(v, -v.videoWidth / 2, -v.videoHeight / 2, v.videoWidth, v.videoHeight);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+    }
 
     // Umur bacaan GPS diperiksa DI SINI, bukan saat diterima: yang menentukan
     // adalah seberapa baru koordinatnya pada detik foto diambil.

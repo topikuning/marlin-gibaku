@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, useTransition } from "react";
-import { MapPin, Trash2, Undo2 } from "lucide-react";
+import { MapPin, RotateCcw, RotateCw, Trash2, Undo2 } from "lucide-react";
 import type { PhotoView } from "@/lib/photos";
 
 type PhotoDeleteAction = (prev: undefined, fd: FormData) => Promise<{ error?: string } | undefined>;
@@ -23,6 +23,7 @@ export function PhotoGallery({
   canDelete = false,
   deleteAction,
   reuse,
+  rotateAction,
 }: {
   photos: PhotoView[];
   thumbClass?: string;
@@ -38,6 +39,14 @@ export function PhotoGallery({
    * = menyuruh membuat bukti yang lebih buruk.
    */
   reuse?: { label: string; run: PhotoDeleteAction; confirm?: string };
+  /**
+   * Tombol PUTAR di lightbox (DECISIONS 424) — jaring pengaman untuk foto yang
+   * terlanjur miring. Kamera dalam aplikasi memotret lewat canvas yang tidak
+   * punya EXIF, dan sebagian HP melaporkan sudut layarnya keliru sehingga
+   * penegakan otomatis meleset. Cap dibakar ulang dari berkas ASLI; tidak ada
+   * satu pun nilai cap yang berubah.
+   */
+  rotateAction?: PhotoDeleteAction;
 }) {
   const [open, setOpen] = useState<number | null>(null);
   const [pending, startTransition] = useTransition();
@@ -49,6 +58,19 @@ export function PhotoGallery({
     fd.set("photoId", photoId);
     startTransition(async () => {
       await deleteAction?.(undefined, fd);
+      setOpen(null);
+    });
+  };
+
+  const putar = (photoId: string, arah: "kiri" | "kanan") => {
+    const fd = new FormData();
+    fd.set("photoId", photoId);
+    fd.set("arah", arah);
+    startTransition(async () => {
+      await rotateAction?.(undefined, fd);
+      // Lightbox ditutup: URL foto berganti (objek R2 baru), jadi gambar di
+      // layar sudah bukan yang tersimpan. Menahannya terbuka menampilkan
+      // gambar lama yang sudah dihapus.
       setOpen(null);
     });
   };
@@ -172,6 +194,32 @@ export function PhotoGallery({
                 {open! + 1} / {shown.length}
               </span>
             </div>
+
+            {rotateAction ? (
+              <div className="mt-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => putar(active.id, "kiri")}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-white/95 px-3 py-1.5 text-xs font-medium text-slate-700 shadow disabled:opacity-60"
+                >
+                  <RotateCcw aria-hidden className="size-3.5" />
+                  Putar kiri
+                </button>
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => putar(active.id, "kanan")}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-white/95 px-3 py-1.5 text-xs font-medium text-slate-700 shadow disabled:opacity-60"
+                >
+                  <RotateCw aria-hidden className="size-3.5" />
+                  Putar kanan
+                </button>
+                <span className="text-[11px] text-white/70">
+                  Cap dibakar ulang dari berkas asli – angkanya tidak berubah.
+                </span>
+              </div>
+            ) : null}
 
             <button
               type="button"

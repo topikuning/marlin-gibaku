@@ -21917,3 +21917,48 @@ sebagai rencana N+1: rencana minggu ini bukan rencana minggu depan.
 Ikut diperbaiki: rencana yang tercatat tanpa satu pun item tidak lagi dihitung
 sebagai "ada rencana" (`items: { some: {} }`) — baris kosong menghasilkan slide
 Action Plan yang mengaku punya rencana tapi tidak menyebut satu pekerjaan pun.
+
+## 424 — Foto Cepat: orientasi & logo perusahaan di cap, 2026-08-23
+
+Dua laporan user 2026-08-23 atas satu foto yang sama.
+
+**1. Foto tersimpan miring 90°.** Bukan "gagal mendeteksi orientasi" — memang
+tidak ada yang bisa dideteksi. Kamera dalam aplikasi (DECISIONS 256) memotret
+lewat `canvas`, dan canvas TIDAK menghasilkan EXIF; sensor HP hampir selalu
+mengirim bingkai LANDSCAPE berapa pun cara orang memegangnya. Jadi
+`sharp().rotate()` di server tidak punya apa pun untuk dibaca. Foto dari galeri
+tidak kena: EXIF-nya utuh.
+
+Satu-satunya tempat informasinya masih ada adalah detik rana ditekan, di HP:
+`screen.orientation.angle`. Penegakannya dilakukan di canvas SEBELUM diunggah,
+dan HANYA bila ada pertentangan nyata (layar potret tapi bingkai lanskap).
+Tanpa syarat itu, peramban yang sudah menegakkan bingkainya sendiri akan
+diputar dua kali — kesalahan yang lebih buruk daripada yang diperbaiki.
+Aturannya diekspor sebagai `putaranBingkai()` dan diuji terpisah; aturan yang
+hanya hidup di dalam handler rana adalah aturan yang tidak pernah diuji.
+
+Jaring pengaman untuk HP yang sudut layarnya keliru: tombol **Putar kiri/kanan**
+di lightbox foto. Capnya dibakar ulang dari berkas ASLI yang diarsipkan
+(DECISIONS 197) — memutar hasil ber-cap akan memiringkan capnya juga, dan cap
+miring lebih buruk daripada foto miring karena ia yang dibaca sebagai bukti.
+
+Pagarnya SENGAJA berbeda dari `restampPhotoAction`: memutar tidak mengubah satu
+pun nilai cap (koordinat, jam, nama, Photo ID tetap persis sama), jadi ia tidak
+menuntut `photo.restamp` (super admin & PD) maupun alasan yang diketik. Yang
+tetap dijaga: akses ke lokasi foto itu, audit `photo.rotate`, dan revisi cap
+bertambah + masuk riwayat append-only.
+
+**2. Logo MARLIN diganti logo perusahaan.** `StampRenderData` bertambah
+`companyLogo` (data URI PNG — librsvg hanya membaca gambar yang DIBENAMKAN,
+berkas R2 tidak bisa dirujuk lewat URL dari dalam SVG). Sumbernya `Vendor.logoKey`
+yang sudah ada di Master › Perusahaan, mengikuti nama perusahaan yang tercetak
+di panel kiri: yang tampil harus milik perusahaan yang sama. Kosong → wordmark
+MARLIN seperti semula.
+
+Logo diambil sekali lalu di-cache per proses: satu vendor mengunggah puluhan
+foto sehari dengan logo yang sama. Kunci R2 berubah setiap logonya diganti, jadi
+tidak perlu invalidasi. Gagal memuat → kembali ke wordmark MARLIN, TIDAK
+menggagalkan penyimpanan foto: logo hiasan, koordinat dan jam buktinya.
+
+Lebar logo dibatasi 2,2× tinggi wordmark dan rata kanan. Rasio logo vendor tidak
+diketahui; tanpa batas itu logo memanjang menabrak panel nama perusahaan.

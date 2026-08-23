@@ -232,7 +232,7 @@ async function muatLokasiCap(locationId: string) {
       package: {
         select: {
           organization: { select: { name: true } },
-          contract: { select: { vendor: { select: { name: true } } } },
+          contract: { select: { vendor: { select: { name: true, logoKey: true } } } },
         },
       },
     },
@@ -242,6 +242,10 @@ async function muatLokasiCap(locationId: string) {
     location,
     companyName:
       location.package?.contract?.vendor?.name ?? location.package?.organization?.name ?? null,
+    // Logo ikut nama: yang tercetak di cap harus milik perusahaan yang sama
+    // dengan yang namanya tertulis (DECISIONS 424). Organisasi tidak punya
+    // logo cap sendiri, jadi tanpa vendor → wordmark MARLIN.
+    companyLogoKey: location.package?.contract?.vendor?.logoKey ?? null,
   };
 }
 
@@ -270,6 +274,7 @@ async function unggahFotoPelengkap(p: {
   user: SessionUser;
   location: Awaited<ReturnType<typeof muatLokasiCap>>["location"];
   companyName: string | null;
+  companyLogoKey?: string | null;
   reportId: string;
   jenis: "material" | "alat";
   barisId: string;
@@ -324,6 +329,7 @@ async function unggahFotoPelengkap(p: {
           workDate,
           locationLabel: location.name,
           companyName: p.companyName,
+          companyLogoKey: p.companyLogoKey ?? null,
           reporterName: user.fullName,
           categoryName: badge,
           workName: p.namaBaris,
@@ -354,6 +360,7 @@ async function unggahFotoItem(p: {
   user: SessionUser;
   location: Awaited<ReturnType<typeof muatLokasiCap>>["location"];
   companyName: string | null;
+  companyLogoKey?: string | null;
   reportId: string;
   itemId: string;
   rabNodeId: string;
@@ -435,6 +442,7 @@ async function unggahFotoItem(p: {
           workDate,
           locationLabel: location.name,
           companyName: p.companyName,
+          companyLogoKey: p.companyLogoKey ?? null,
           reporterName: user.fullName,
           categoryName: buildingName ?? workName,
           workName: buildingName ? workName : null,

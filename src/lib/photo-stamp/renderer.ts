@@ -21,6 +21,14 @@ const LOGO_FONT_FACE =
 
 export type StampRenderData = {
   companyName: string | null;
+  /**
+   * Logo perusahaan sebagai DATA URI (PNG). Bila ada, ia menggantikan wordmark
+   * MARLIN di pojok kanan — permintaan user 2026-08-23, DECISIONS 424. Kosong →
+   * wordmark MARLIN seperti semula.
+   *
+   * Data URI, bukan URL: librsvg hanya membaca gambar yang dibenamkan.
+   */
+  companyLogo?: string | null;
   locationName: string;
   /**
    * Badge besar = BANGUNAN/KATEGORI RAB (mis. "V. PEKERJAAN SHELTER"). Untuk
@@ -248,8 +256,25 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
     );
   }
 
-  // ── Wordmark resmi MARLIN (kanan, segaris dengan panel) ──
-  parts.push(marlinLogo(logoKiri, Math.round(kepalaTengah - wordmarkH / 2), wordmarkW));
+  /*
+   * ── Logo kanan: milik PERUSAHAAN bila ada, kalau tidak wordmark MARLIN ──
+   *
+   * Rasio logo vendor tidak diketahui (bisa bujur sangkar, bisa memanjang).
+   * Kotak muatnya dipatok pada TINGGI wordmark dan lebar maksimum 2,2× tinggi
+   * itu, lalu `preserveAspectRatio` menempatkannya rata kanan. Tanpa batas
+   * lebar, logo memanjang akan menabrak panel nama perusahaan – dan cap sudah
+   * terbakar ke gambar, jadi tidak ada kesempatan kedua. DECISIONS 424.
+   */
+  const logoY = Math.round(kepalaTengah - wordmarkH / 2);
+  if (d.companyLogo) {
+    const kotakW = Math.round(wordmarkH * 2.2);
+    parts.push(
+      `<image x="${w - safeX - kotakW}" y="${logoY}" width="${kotakW}" height="${wordmarkH}" ` +
+        `preserveAspectRatio="xMaxYMid meet" href="${d.companyLogo}"/>`,
+    );
+  } else {
+    parts.push(marlinLogo(logoKiri, logoY, wordmarkW));
+  }
 
   // ── Blok info (kiri-bawah) ──
   const maxW = portrait ? w - 2 * safeX : Math.round(w * 0.6);

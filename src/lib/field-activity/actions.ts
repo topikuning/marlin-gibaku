@@ -46,7 +46,7 @@ async function locationForStamp(locationId: string) {
       package: {
         select: {
           organization: { select: { name: true } },
-          contract: { select: { vendor: { select: { name: true } } } },
+          contract: { select: { vendor: { select: { name: true, logoKey: true } } } },
         },
       },
     },
@@ -61,6 +61,7 @@ async function uploadPhotos(opts: {
   reporterName: string;
   location: { id: string; slug: string; name: string; gpsLat: unknown; gpsLng: unknown };
   companyName: string | null;
+  companyLogoKey?: string | null;
   dateKey: string;
   source: "camera" | "gallery";
   fallbackMode: "project" | "none";
@@ -95,6 +96,7 @@ async function uploadPhotos(opts: {
           workDate: opts.workDate,
           locationLabel: opts.location.name,
           companyName: opts.companyName,
+          companyLogoKey: opts.companyLogoKey ?? null,
           reporterName: opts.reporterName,
           categoryName: opts.categoryName,
         },
@@ -216,6 +218,8 @@ export async function createActivityAction(
       location,
       companyName:
         location.package?.contract?.vendor?.name ?? location.package?.organization?.name ?? null,
+      // Logo mengikuti nama perusahaan yang sama (DECISIONS 424).
+      companyLogoKey: location.package?.contract?.vendor?.logoKey ?? null,
       dateKey: d.activityDate,
       source,
       fallbackMode,
@@ -356,7 +360,7 @@ async function activityCtx(activityId: string) {
           package: {
             select: {
               organization: { select: { name: true } },
-              contract: { select: { vendor: { select: { name: true } } } },
+              contract: { select: { vendor: { select: { name: true, logoKey: true } } } },
             },
           },
         },
@@ -400,6 +404,7 @@ export async function addActivityPhotosAction(
       location: ctx.location,
       companyName:
         ctx.location.package?.contract?.vendor?.name ?? ctx.location.package?.organization?.name ?? null,
+      companyLogoKey: ctx.location.package?.contract?.vendor?.logoKey ?? null,
       dateKey,
       source,
       fallbackMode,
