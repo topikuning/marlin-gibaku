@@ -21789,3 +21789,36 @@ jadi.
 Tombol "Buat Presentasi" ditambahkan di kepala halaman Lokasi, membawa
 `?paket=&lokasi=` sehingga formulirnya terbuka dengan lingkup lokasi itu sudah
 terpilih.
+
+## 421 — Project Manager & Area Manager memegang pekerjaan KONTRAK NORMAL, 2026-08-23
+
+Permintaan user: *"poinnya project manager dan area manager bisa melakukan
+semua hal yang berhubungan dengan kontrak normal, isi penanda tangan, ajukan
+adendum, isi logo, dsb"*.
+
+`contract.manage` + `amendment.manage` ditambahkan ke `PROJECT_MANAGER`; Area
+Manager mewarisinya karena disusun dari PM (jenjang = superset, DECISIONS 218).
+
+Yang ikut terbuka, disebut apa adanya: input data kontrak
+(`convertToContract`), nama penanda tangan dokumen KKP
+(`updateContractSignatories`), gambar tanda tangan & stempel
+(`updateContractSignatureImages`), memulai pelaksanaan (`startPelaksanaan`),
+membuat vendor (`createVendor`), master **Perusahaan** termasuk logo/kop/stempel
+vendor (`src/lib/vendor/actions.ts`), dan pencatatan adendum sisi kontrak
+(`addAmendment`).
+
+Yang TETAP super_admin, dan sengaja: `contract.edit` — KOREKSI kontrak yang
+sudah berjalan (nomor, nilai, PPN, tanggal). Itu bukan pekerjaan kontrak normal
+melainkan pembetulan data yang menggeser kisi mingguan kurva-S dan karenanya
+seluruh angka deviasi; sama alasannya dengan `location.correct`. Jadi pagarnya
+tidak hilang, ia pindah: dari batas PM/PD ke batas "mengerjakan" vs
+"membetulkan".
+
+Dua uji lama harus diubah karena premisnya memang berubah, bukan karena rusak:
+`authz-jenjang` memakai `amendment.manage` sebagai contoh "hak khas atasan tidak
+menetes ke bawah" (kini contohnya `contract.edit`), dan uji "adendum sisi
+kontrak tetap tertutup" kini menguji batas SM/PM, bukan PM/PD.
+
+Diperiksa di server standalone: pm-01 dan am-jateng melihat "Kelola nama",
+formulir tanda tangan & stempel, dan `/master/perusahaan` (200); sm-01 hanya
+"Lihat nama" dan `/master/perusahaan` 404.

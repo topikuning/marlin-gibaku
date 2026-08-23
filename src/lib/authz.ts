@@ -237,6 +237,26 @@ const PROJECT_MANAGER: Capability[] = [
   ...SITE_MANAGER,
   "portfolio.view",
   "location.manage",
+  /**
+   * KONTRAK NORMAL: Project Manager (dan karenanya Area Manager) mengurus
+   * kontraknya sendiri (DECISIONS 421).
+   *
+   * Permintaan user 2026-08-23: *"project manager dan area manager bisa
+   * melakukan semua hal yang berhubungan dengan kontrak normal, isi penanda
+   * tangan, ajukan adendum, isi logo, dsb"*.
+   *
+   * Yang ikut terbuka bersama `contract.manage` — disebut apa adanya, bukan
+   * diam-diam: input data kontrak (convertToContract), nama penanda tangan,
+   * gambar tanda tangan & stempel, memulai pelaksanaan, membuat vendor, serta
+   * master Perusahaan termasuk logo/kop/stempel vendor.
+   *
+   * Yang TETAP super_admin, dan sengaja: `contract.edit` — KOREKSI kontrak yang
+   * sudah berjalan (nomor, nilai, PPN, tanggal). Itu bukan pekerjaan kontrak
+   * normal melainkan pembetulan data yang menggeser kisi mingguan kurva-S dan
+   * dasar semua angka deviasi; sama alasannya dengan `location.correct`.
+   */
+  "contract.manage",
+  "amendment.manage",
   // `rab.manage` (DECISIONS 302) dan `baseline.manage` (DECISIONS 353) kini
   // datang dari SITE_MANAGER — tidak didaftar ulang di sini supaya jelas
   // keduanya hak yang DIWARISI, bukan hak khas Project Manager yang kebetulan

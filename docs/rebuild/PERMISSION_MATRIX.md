@@ -23,9 +23,9 @@ Jumlah capability: **53**.
 | `package.edit` | ✓ | ✓ | – | – | – | – | – | – |
 | `package.bypass` | ✓ | ✓ | – | – | – | – | – | – |
 | `prospect.manage` | ✓ | ✓ | – | – | – | – | – | – |
-| `contract.manage` | ✓ | ✓ | – | – | – | – | – | – |
+| `contract.manage` | ✓ | ✓ | ✓ | ✓ | – | – | – | – |
 | `contract.edit` | ✓ | – | – | – | – | – | – | – |
-| `amendment.manage` | ✓ | ✓ | – | – | – | – | – | – |
+| `amendment.manage` | ✓ | ✓ | ✓ | ✓ | – | – | – | – |
 | `location.view` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `location.manage` | ✓ | ✓ | ✓ | ✓ | – | – | – | – |
 | `location.correct` | ✓ | – | – | – | – | – | – | – |
