@@ -108,6 +108,20 @@ export default async function PaketWorkspaceLayout({
               {pkg.locations.length} Lokasi
             </ButtonLink>
             <ButtonLink href={`${base}/dokumen`}>Dokumen</ButtonLink>
+            {/*
+              Presentasi mingguan duduk di baris aksi kepala, sejajar Lokasi /
+              Dokumen / Chat Grup. Sebelumnya ia diselipkan di kartu "Status
+              paket" – keberatan user 2026-08-23: "sudah jelas di atas situ ada
+              tombol yang lebih kelihatan, kenapa kamu taruh di bawah situ dan
+              bercampur aduk, tidak ternotice". Ini pekerjaan MINGGUAN, jadi
+              tempatnya di baris yang sama dengan tujuan tersering, bukan
+              disisipkan di antara teks status.
+            */}
+            {can(user.role, "ai.generate") &&
+            pkg.stage === "pelaksanaan" &&
+            contract?.startDate ? (
+              <ButtonLink href={`/ai/paparan?paket=${pkg.id}`}>Buat Presentasi</ButtonLink>
+            ) : null}
             {pkg.waGroupId && can(user.role, "wa.chat") ? (
               <ButtonLink href={`/chat-grup?p=${pkg.id}`} variant="primary">
                 Chat Grup MARLIN

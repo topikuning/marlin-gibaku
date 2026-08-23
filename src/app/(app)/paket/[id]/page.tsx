@@ -125,7 +125,6 @@ export default async function RingkasanPaketPage({
   const canContract = can(user.role, "contract.manage");
   const canWaConfigure = can(user.role, "wa.configure");
   const canKirimLaporan = can(user.role, "ai.report_send");
-  const canGeneratePaparan = can(user.role, "ai.generate");
   const canDocument = can(user.role, "document.view");
 
   const [progressMap, history, kepatuhan] = await Promise.all([
@@ -347,23 +346,6 @@ export default async function RingkasanPaketPage({
                 {nextAction.action ? <div className="min-w-0">{nextAction.action}</div> : null}
               </div>
 
-              {/*
-                Pintu paparan mingguan DI DEPAN, bukan cuma di baris Integrasi
-                kolom kanan: itu tempat pengaturan yang jarang disentuh,
-                sedangkan membuat paparan adalah pekerjaan mingguan. Permintaan
-                user 2026-08-23.
-              */}
-              {canGeneratePaparan && pkg.stage === "pelaksanaan" && contract?.startDate ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <ButtonLink href={`/ai/paparan?paket=${pkg.id}`} variant="primary">
-                    Buat presentasi mingguan
-                  </ButtonLink>
-                  <span className="text-[13px] text-ink-muted">
-                    Deck PDF 16:9 satu minggu kontrak – angka resmi MARLIN, direview dulu sebelum
-                    final.
-                  </span>
-                </div>
-              ) : null}
 
               {contract ? (
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
