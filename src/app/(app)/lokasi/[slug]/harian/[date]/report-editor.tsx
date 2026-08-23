@@ -17,6 +17,7 @@ import type { NoActivityReason } from "@/generated/prisma/enums";
 import type { LeafNodeOption, WorkspaceItem } from "@/lib/daily-report/queries";
 import { ISSUE_SEVERITY_LABEL } from "@/lib/daily-report/constants";
 import { judulKendalaDariNihil } from "@/lib/daily-report/nihil";
+import { putarFotoAction } from "@/lib/photo-restamp/actions";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
 import type { PhotoView } from "@/lib/photos";
 import { removeReportPhotoAction, returnPhotoToKantongAction } from "@/lib/daily-report/actions";
@@ -147,6 +148,7 @@ export function ReportEditor({
               thumbClass="h-14 w-14"
               canDelete={bolehHapusFoto}
               deleteAction={removeReportPhotoAction}
+              rotateAction={bolehHapusFoto ? putarFotoAction : undefined}
               reuse={
                 bolehHapusFoto
                   ? {
@@ -794,6 +796,7 @@ function ItemRow({
           thumbClass="h-14 w-14"
           canDelete={bolehHapusFoto}
           deleteAction={removeReportPhotoAction}
+          rotateAction={bolehHapusFoto ? putarFotoAction : undefined}
         />
       ) : null}
       {/* Foto ketinggalan itu keadaan yang wajar — jalan memperbaikinya harus

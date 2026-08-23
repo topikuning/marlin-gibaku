@@ -354,3 +354,144 @@ export async function purgeOneOriginalAction(_prev: RestampState, formData: Form
     return { error: err instanceof Error ? err.message : "Penghapusan arsip gagal." };
   }
 }
+
+/* ── Putar foto (orientasi) ──────────────────────────────────────────────── */
+
+/**
+ * PUTAR FOTO 90° — dari berkas ASLI, cap dibakar ulang (DECISIONS 424).
+ *
+ * Jaring pengaman untuk foto yang terlanjur miring: kamera dalam aplikasi
+ * memotret lewat canvas yang TIDAK menghasilkan EXIF, dan sebagian HP
+ * melaporkan sudut layarnya dengan keliru sehingga penegakan otomatis di sisi
+ * peramban meleset.
+ *
+ * Bedanya dengan `restampPhotoAction`, dan kenapa pagarnya berbeda:
+ *
+ *  - Tidak ada SATU pun nilai cap yang berubah — koordinat, jam, nama, Photo ID
+ *    tetap persis sama. Yang berputar pikselnya. Jadi ini bukan mengubah klaim,
+ *    dan tidak menuntut `photo.restamp` (super admin & Program Director) serta
+ *    tidak menuntut alasan diketik.
+ *  - Yang dijaga tetap sama: hanya orang yang punya akses ke LOKASI foto itu,
+ *    tercatat di audit, dan revisi capnya bertambah + masuk riwayat append-only.
+ *
+ * Tetap butuh arsip berkas asli: cap dibakar ke gambar, jadi memutar hasil
+ * ber-cap akan memiringkan capnya juga.
+ */
+export async function putarFotoAction(_prev: RestampState, formData: FormData): Promise<RestampState> {
+  const parsed = z
+    .object({
+      photoId: z.uuid(),
+      // Dua arah: HP yang salah menebak bisa meleset ke kiri ATAU ke kanan.
+      arah: z.enum(["kiri", "kanan"]).default("kanan"),
+    })
+    .safeParse({ photoId: formData.get("photoId"), arah: String(formData.get("arah") ?? "kanan") });
+  if (!parsed.success) return { error: "Permintaan putar foto tidak valid." };
+  const { photoId, arah } = parsed.data;
+  const derajat = arah === "kanan" ? 90 : 270;
+
+  try {
+    const actor = await requireCapability("daily_report.create");
+    if (!isR2Configured()) return { error: "Penyimpanan foto belum dikonfigurasi." };
+
+    const k = await konteksFoto(photoId);
+    if (!k) return { error: "Foto tidak ditemukan." };
+    if (!k.locationId) return { error: "Foto ini tidak terhubung ke lokasi mana pun." };
+    await requireLocationAccess(actor, k.locationId);
+    if (!k.originalKey) {
+      return {
+        error: k.originalPurgedAt
+          ? "Arsip berkas asli foto ini sudah dihapus – orientasinya tidak bisa diperbaiki lagi."
+          : "Foto ini diunggah sebelum arsip berkas asli aktif, jadi orientasinya tidak bisa diperbaiki.",
+      };
+    }
+
+    /*
+     * Putar dulu, cap belakangan. Urutan sebaliknya (cap dulu lalu putar)
+     * memiringkan capnya ikut serta — dan cap yang miring lebih buruk daripada
+     * foto yang miring, karena ia yang dibaca sebagai bukti.
+     *
+     * Yang dirender selalu ARSIP ASLI, jadi putarannya harus KUMULATIF
+     * (DECISIONS 424c). Tanpa itu penekanan kedua mulai dari nol lagi: "kanan"
+     * dua kali tetap 90°, dan "kiri" sesudah "kanan" jadi 270° alih-alih
+     * kembali ke tegak. Ketahuan saat menyimulasikan tombolnya, bukan saat
+     * membacanya.
+     */
+    const totalDerajat = (((k.rotationDeg + derajat) % 360) + 360) % 360;
+    const sharpMod = await import("sharp");
+    const sharp = sharpMod.default ?? (sharpMod as unknown as typeof import("sharp").default);
+    const asli = await r2GetBuffer(k.originalKey);
+    // `.rotate(n)` DI ATAS `.rotate()` tanpa argumen: yang pertama menegakkan
+    // menurut EXIF (bila ada), yang kedua memutar atas permintaan orang.
+    const pipa = sharp(asli, { failOn: "none" }).rotate();
+    const diputar = await (totalDerajat === 0 ? pipa : pipa.rotate(totalDerajat)).toBuffer();
+
+    const processed = await processWithSharpOrOriginal(diputar, await stampDariNilai(k.saatIni), {
+      name: k.originalKey,
+      type: "",
+    });
+
+    const uuid = randomUUID();
+    const dasar = k.r2Key.replace(/[^/]+$/, "");
+    const revisi = k.stampRevision + 1;
+    const keyBaru = `${dasar}${uuid}.r${revisi}.${processed.ext}`;
+    await r2Put(keyBaru, processed.main, processed.contentType);
+    let thumbBaru: string | null = null;
+    if (processed.thumb) {
+      thumbBaru = `${dasar}${uuid}.r${revisi}.thumb.webp`;
+      try {
+        await r2Put(thumbBaru, processed.thumb, "image/webp");
+      } catch {
+        thumbBaru = null;
+      }
+    }
+
+    try {
+      await db.$transaction(async (tx) => {
+        await tx.photo.update({
+          where: { id: photoId },
+          data: {
+            r2Key: keyBaru,
+            thumbnailKey: thumbBaru,
+            bytes: processed.main.length,
+            widthPx: processed.width,
+            heightPx: processed.height,
+            stampRevision: revisi,
+            rotationDeg: totalDerajat,
+          },
+        });
+        await tx.photoStampRevision.create({
+          data: {
+            photoId,
+            revision: revisi,
+            reason: `Putar ${derajat}° (orientasi, total ${totalDerajat}°)`,
+            before: ringkasNilai(k.saatIni) as object,
+            after: ringkasNilai(k.saatIni) as object,
+            // Tidak ada nilai cap yang diketik manusia — yang berubah pikselnya.
+            manualFields: [],
+            changedById: actor.id,
+          },
+        });
+        await auditIn(tx, actor.id, "photo.rotate", "photo", photoId, {
+          derajat,
+          totalDerajat,
+          revisi,
+          locationId: k.locationId,
+        });
+      });
+    } catch (err) {
+      await r2Delete(keyBaru).catch(() => {});
+      if (thumbBaru) await r2Delete(thumbBaru).catch(() => {});
+      throw err;
+    }
+
+    await r2Delete(k.r2Key).catch(() => {});
+    if (k.thumbnailKey) await r2Delete(k.thumbnailKey).catch(() => {});
+
+    revalidatePath("/foto");
+    if (k.locationSlug) revalidatePath(`/lokasi/${k.locationSlug}`);
+    return { ok: `Foto diputar ${derajat}° (total ${totalDerajat}° dari aslinya).` };
+  } catch (err) {
+    if (err instanceof ForbiddenError) return { error: err.message };
+    return { error: err instanceof Error ? err.message : "Memutar foto gagal." };
+  }
+}

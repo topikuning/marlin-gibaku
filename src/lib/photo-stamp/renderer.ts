@@ -21,6 +21,14 @@ const LOGO_FONT_FACE =
 
 export type StampRenderData = {
   companyName: string | null;
+  /**
+   * Logo perusahaan sebagai DATA URI (PNG). Bila ada, ia menggantikan wordmark
+   * MARLIN di pojok kanan — permintaan user 2026-08-23, DECISIONS 424. Kosong →
+   * wordmark MARLIN seperti semula.
+   *
+   * Data URI, bukan URL: librsvg hanya membaca gambar yang dibenamkan.
+   */
+  companyLogo?: string | null;
   locationName: string;
   /**
    * Badge besar = BANGUNAN/KATEGORI RAB (mis. "V. PEKERJAAN SHELTER"). Untuk
@@ -248,8 +256,40 @@ export function buildStampSvg(w: number, h: number, d: StampRenderData, opts: Re
     );
   }
 
-  // ── Wordmark resmi MARLIN (kanan, segaris dengan panel) ──
-  parts.push(marlinLogo(logoKiri, Math.round(kepalaTengah - wordmarkH / 2), wordmarkW));
+  /*
+   * ── Logo kanan: milik PERUSAHAAN bila ada, kalau tidak wordmark MARLIN ──
+   *
+   * Rasio logo vendor tidak diketahui (bisa bujur sangkar, bisa memanjang).
+   * Kotak muatnya dipatok pada TINGGI wordmark dan lebar maksimum 2,2× tinggi
+   * itu, lalu `preserveAspectRatio` menempatkannya rata kanan. Tanpa batas
+   * lebar, logo memanjang akan menabrak panel nama perusahaan – dan cap sudah
+   * terbakar ke gambar, jadi tidak ada kesempatan kedua. DECISIONS 424.
+   */
+  const logoY = Math.round(kepalaTengah - wordmarkH / 2);
+  if (d.companyLogo) {
+    /*
+     * Kotaknya SELEBAR wordmark MARLIN, bukan lebih sempit (DECISIONS 424a).
+     *
+     * Versi pertama memakai 2,2× tinggi wordmark. Wordmark MARLIN sendiri
+     * hampir 4:1, jadi logo perusahaan yang juga memanjang dipaskan pada lebar
+     * yang jauh lebih sempit dan menyusut tinggal seperempatnya – persis yang
+     * dikeluhkan user. Memakai lebar yang sama tidak menambah risiko tabrakan:
+     * `logoKiri` (yang membatasi panel nama perusahaan) memang dihitung dari
+     * lebar itu.
+     *
+     * Tingginya dilonggarkan 1,25× supaya logo BUJUR SANGKAR juga terbaca, dan
+     * sisi atasnya dijepit ke marjin aman supaya kelonggaran itu tumbuh ke
+     * bawah, tidak keluar dari tepi foto.
+     */
+    const kotakH = Math.round(wordmarkH * 1.25);
+    const kotakY = Math.max(safeY, Math.round(kepalaTengah - kotakH / 2));
+    parts.push(
+      `<image x="${logoKiri}" y="${kotakY}" width="${wordmarkW}" height="${kotakH}" ` +
+        `preserveAspectRatio="xMaxYMid meet" href="${d.companyLogo}"/>`,
+    );
+  } else {
+    parts.push(marlinLogo(logoKiri, logoY, wordmarkW));
+  }
 
   // ── Blok info (kiri-bawah) ──
   const maxW = portrait ? w - 2 * safeX : Math.round(w * 0.6);

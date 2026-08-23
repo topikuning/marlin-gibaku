@@ -193,11 +193,13 @@ function photoFieldsFrom(formData: FormData) {
  * diam-diam.
  */
 function fotoBarisDariForm(formData: FormData, awalan: string) {
+  const semua = formData
+    .getAll(`${awalan}photos`)
+    .filter((f): f is File => f instanceof File && f.size > 0);
   return {
-    files: formData
-      .getAll(`${awalan}photos`)
-      .filter((f): f is File => f instanceof File && f.size > 0)
-      .slice(0, MAX_PHOTOS_PER_UPLOAD),
+    files: semua.slice(0, MAX_PHOTOS_PER_UPLOAD),
+    /** Yang TIDAK ikut tersimpan — wajib disebut, bukan dibuang diam-diam. */
+    dibuang: Math.max(0, semua.length - MAX_PHOTOS_PER_UPLOAD),
     kantong: formData.getAll(`${awalan}kantongPhotoIds`).map(String).filter(Boolean),
     foto: {
       photoLat: formData.get(`${awalan}photoLat`) || undefined,
@@ -210,12 +212,23 @@ function fotoBarisDariForm(formData: FormData, awalan: string) {
   };
 }
 
-/** Berkas foto dari FormData (maks 6/unggah, yang kosong dibuang). */
-const fotoDariForm = (formData: FormData) =>
-  formData
+/**
+ * Berkas foto dari FormData; yang kosong dibuang.
+ *
+ * Kelebihan di atas batas TIDAK dipotong diam-diam (DECISIONS 425): jumlahnya
+ * dikembalikan supaya penjawabnya bisa mengatakan berapa yang belum tersimpan.
+ * Pemotongan senyap adalah cara paling mudah kehilangan bukti tanpa ada yang
+ * tahu — pengunggahnya melihat "tersimpan" dan mengira semuanya masuk.
+ */
+function fotoDariForm(formData: FormData): { files: File[]; dibuang: number } {
+  const semua = formData
     .getAll("photos")
-    .filter((f): f is File => f instanceof File && f.size > 0)
-    .slice(0, MAX_PHOTOS_PER_UPLOAD);
+    .filter((f): f is File => f instanceof File && f.size > 0);
+  return {
+    files: semua.slice(0, MAX_PHOTOS_PER_UPLOAD),
+    dibuang: Math.max(0, semua.length - MAX_PHOTOS_PER_UPLOAD),
+  };
+}
 
 /** Lokasi + nama perusahaan untuk cap foto (pelaksana sesuai KONTRAK). */
 async function muatLokasiCap(locationId: string) {
@@ -232,7 +245,7 @@ async function muatLokasiCap(locationId: string) {
       package: {
         select: {
           organization: { select: { name: true } },
-          contract: { select: { vendor: { select: { name: true } } } },
+          contract: { select: { vendor: { select: { name: true, logoKey: true } } } },
         },
       },
     },
@@ -242,6 +255,10 @@ async function muatLokasiCap(locationId: string) {
     location,
     companyName:
       location.package?.contract?.vendor?.name ?? location.package?.organization?.name ?? null,
+    // Logo ikut nama: yang tercetak di cap harus milik perusahaan yang sama
+    // dengan yang namanya tertulis (DECISIONS 424). Organisasi tidak punya
+    // logo cap sendiri, jadi tanpa vendor → wordmark MARLIN.
+    companyLogoKey: location.package?.contract?.vendor?.logoKey ?? null,
   };
 }
 
@@ -270,6 +287,7 @@ async function unggahFotoPelengkap(p: {
   user: SessionUser;
   location: Awaited<ReturnType<typeof muatLokasiCap>>["location"];
   companyName: string | null;
+  companyLogoKey?: string | null;
   reportId: string;
   jenis: "material" | "alat";
   barisId: string;
@@ -324,6 +342,7 @@ async function unggahFotoPelengkap(p: {
           workDate,
           locationLabel: location.name,
           companyName: p.companyName,
+          companyLogoKey: p.companyLogoKey ?? null,
           reporterName: user.fullName,
           categoryName: badge,
           workName: p.namaBaris,
@@ -354,6 +373,7 @@ async function unggahFotoItem(p: {
   user: SessionUser;
   location: Awaited<ReturnType<typeof muatLokasiCap>>["location"];
   companyName: string | null;
+  companyLogoKey?: string | null;
   reportId: string;
   itemId: string;
   rabNodeId: string;
@@ -435,6 +455,7 @@ async function unggahFotoItem(p: {
           workDate,
           locationLabel: location.name,
           companyName: p.companyName,
+          companyLogoKey: p.companyLogoKey ?? null,
           reporterName: user.fullName,
           categoryName: buildingName ?? workName,
           workName: buildingName ? workName : null,
@@ -513,7 +534,8 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
       user.id,
     );
 
-    // Foto bukti (opsional, maks 6/unggah). Gagal satu foto ≠ gagal item.
+    // Foto bukti (opsional). Gagal satu foto ≠ gagal item.
+    const fotoItem = fotoDariForm(formData);
     const photoErrors = await unggahFotoItem({
       user,
       location,
@@ -522,7 +544,7 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
       itemId: item.id,
       rabNodeId: d.rabNodeId,
       dateKey: d.dateKey,
-      files: fotoDariForm(formData),
+      files: fotoItem.files,
       foto: d,
     });
 
@@ -552,6 +574,11 @@ export async function saveItemAction(_prev: DailyActionState, formData: FormData
     revalidateReport(location.slug, d.dateKey);
     const peringatan = [
       photoErrors.length ? `Sebagian foto gagal: ${[...new Set(photoErrors)].join("; ")}` : null,
+      // Kelebihan foto DISEBUT. Diam-diam dipotong = bukti hilang tanpa ada
+      // yang tahu, karena layarnya tetap berbunyi "tersimpan" (DECISIONS 425).
+      fotoItem.dibuang > 0
+        ? `${fotoItem.dibuang} foto belum tersimpan – maksimal ${MAX_PHOTOS_PER_UPLOAD} foto sekali kirim. Tambahkan lagi dari daftar pekerjaan.`
+        : null,
       kantongGagal ?? null,
     ].filter(Boolean);
     return {
@@ -610,7 +637,7 @@ export async function addItemPhotosAction(
     });
     if (!item) return { error: "Item tidak ditemukan di laporan ini." };
 
-    const files = fotoDariForm(formData);
+    const { files, dibuang } = fotoDariForm(formData);
     if (files.length === 0) return { error: "Belum ada foto yang dipilih." };
 
     const { location, companyName } = await muatLokasiCap(ctx.locationId);
@@ -634,9 +661,15 @@ export async function addItemPhotosAction(
     }
     return {
       success: `${berhasil} foto ditambahkan.`,
-      warning: photoErrors.length
-        ? `Sebagian foto gagal: ${[...new Set(photoErrors)].join("; ")}`
-        : undefined,
+      warning:
+        [
+          photoErrors.length ? `Sebagian foto gagal: ${[...new Set(photoErrors)].join("; ")}` : null,
+          dibuang > 0
+            ? `${dibuang} foto belum tersimpan – maksimal ${MAX_PHOTOS_PER_UPLOAD} foto sekali kirim.`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" · ") || undefined,
     };
   } catch (err) {
     return errState(err);
@@ -998,6 +1031,12 @@ export async function saveEnrichmentAction(_prev: DailyActionState, formData: Fo
         for (const [i, barisId] of j.ids.entries()) {
           const b = fotoBarisDariForm(formData, `${j.awalan}${i}_`);
           if (b.files.length === 0 && b.kantong.length === 0) continue;
+          // Kelebihan foto pada baris ini DISEBUT, bukan hilang diam-diam.
+          if (b.dibuang > 0) {
+            galatFoto.push(
+              `${b.dibuang} foto belum tersimpan (maks ${MAX_PHOTOS_PER_UPLOAD} foto sekali kirim)`,
+            );
+          }
           if (!barisId) {
             // Baris tanpa nama dibuang penyimpanan — fotonya tidak punya induk.
             galatFoto.push("ada foto pada baris yang namanya belum diisi");

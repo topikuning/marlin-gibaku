@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import ExifReader from "exifreader";
+import { logoPerusahaanDataUri } from "@/lib/photo-stamp/logo-perusahaan";
 import { db } from "@/lib/db";
 import { isR2Configured, r2Delete, r2Put, r2PresignGet } from "@/lib/r2";
 import { STAMP_FONT_REGULAR_B64, STAMP_FONT_BOLD_B64 } from "@/lib/stamp-font";
@@ -156,6 +157,8 @@ export type PhotoStamp = {
   lng: number | null;
   locationLabel: string | null;
   companyName?: string | null;
+  /** Logo perusahaan sebagai data URI PNG — menggantikan wordmark MARLIN. */
+  companyLogo?: string | null;
   reporterName?: string | null;
   /** Badge besar: BANGUNAN/KATEGORI RAB (laporan harian) / jenis kegiatan. */
   categoryName?: string | null;
@@ -185,6 +188,7 @@ function stampSvg(w: number, h: number, s: PhotoStamp): string {
   const tz = s.timezone ?? DEFAULT_STAMP_TZ;
   const data: StampRenderData = {
     companyName: s.companyName?.trim() || null,
+    companyLogo: s.companyLogo ?? null,
     locationName: s.locationLabel?.trim() || "–",
     categoryName: s.categoryName?.trim() || null,
     workName: s.workName?.trim() || null,
@@ -272,6 +276,11 @@ export type SavePhotoInput = {
     workDate?: Date | null;
     locationLabel?: string | null;
     companyName?: string | null;
+    /**
+     * Kunci R2 logo perusahaan (vendor). Diisi → logo itu yang tercetak di
+     * pojok kanan cap; kosong → wordmark MARLIN. DECISIONS 424.
+     */
+    companyLogoKey?: string | null;
     reporterName?: string | null;
     /** Badge besar: bangunan/kategori RAB (laporan harian) / jenis kegiatan. */
     categoryName?: string | null;
@@ -458,6 +467,7 @@ export async function savePhotoForItem(input: SavePhotoInput) {
       lng,
       locationLabel: input.stamp?.locationLabel ?? null,
       companyName: input.stamp?.companyName ?? null,
+      companyLogo: await logoPerusahaanDataUri(input.stamp?.companyLogoKey),
       reporterName: input.stamp?.reporterName ?? null,
       categoryName: input.stamp?.categoryName ?? null,
       workName: input.stamp?.workName ?? null,

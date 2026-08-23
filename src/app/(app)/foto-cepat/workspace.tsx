@@ -3,7 +3,7 @@
 import { useActionState, useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { tahanGagalKirim } from "@/lib/aksi-klien";
 import { useRouter } from "next/navigation";
-import { Camera, Check, Images, MapPin, MapPinOff, Trash2, X } from "lucide-react";
+import { Camera, Check, Images, MapPin, MapPinOff, RotateCw, Trash2, X } from "lucide-react";
 import { Banner, Button, Card, Combobox, EmptyState, HelpText, Label } from "@/components/ui";
 import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
 import { KameraLangsung, type PosisiJepret } from "@/components/knmp/kamera-langsung";
@@ -28,6 +28,7 @@ import {
   tetapkanLokasiAction,
   type FotoCepatState,
 } from "@/lib/foto-cepat/actions";
+import { putarFotoAction } from "@/lib/photo-restamp/actions";
 
 /**
  * Workspace Foto Cepat: jepret → kantong → pakai (DECISIONS 253).
@@ -633,6 +634,7 @@ function FotoPetak({
   onToggle: (id: string) => void;
 }) {
   const [state, action, pending] = useActionState(hapusFotoCepat, KOSONG);
+  const [putarState, putarAction, putarPending] = useActionState(putarFotoAction, undefined);
   return (
     <li className="relative">
       <button
@@ -673,18 +675,39 @@ function FotoPetak({
           <span className="truncate">{foto.waktuLabel}</span>
         </span>
       </button>
-      <form action={action} className="absolute right-1 top-1">
-        <input type="hidden" name="photoId" value={foto.id} />
-        <button
-          type="submit"
-          disabled={pending}
-          aria-label="Buang foto ini dari kantong"
-          title={state.error ?? "Buang dari kantong"}
-          className="rounded-full bg-surface/90 p-1 text-ink-muted shadow hover:text-danger"
-        >
-          <Trash2 aria-hidden className="size-3.5" />
-        </button>
-      </form>
+      <div className="absolute right-1 top-1 flex flex-col gap-1">
+        <form action={action}>
+          <input type="hidden" name="photoId" value={foto.id} />
+          <button
+            type="submit"
+            disabled={pending}
+            aria-label="Buang foto ini dari kantong"
+            title={state.error ?? "Buang dari kantong"}
+            className="rounded-full bg-surface/90 p-1 text-ink-muted shadow hover:text-danger"
+          >
+            <Trash2 aria-hidden className="size-3.5" />
+          </button>
+        </form>
+        {/*
+          PUTAR di kantong Foto Cepat (DECISIONS 424b).
+          Foto miring paling sering LAHIR di sini – kamera dalam aplikasi tanpa
+          EXIF. Sebelumnya tombol putar hanya ada di galeri laporan/kegiatan,
+          jadi jalan memperbaikinya justru absen di tempat masalahnya muncul.
+        */}
+        <form action={putarAction}>
+          <input type="hidden" name="photoId" value={foto.id} />
+          <input type="hidden" name="arah" value="kanan" />
+          <button
+            type="submit"
+            disabled={putarPending}
+            aria-label="Putar foto ini 90 derajat"
+            title={putarState?.error ?? "Putar 90°"}
+            className="rounded-full bg-surface/90 p-1 text-ink-muted shadow hover:text-primary"
+          >
+            <RotateCw aria-hidden className="size-3.5" />
+          </button>
+        </form>
+      </div>
     </li>
   );
 }

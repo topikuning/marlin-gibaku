@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { PhotoGallery } from "@/components/knmp/photo-gallery";
+import { putarFotoAction } from "@/lib/photo-restamp/actions";
 import { PhotoSourceInput } from "@/components/knmp/photo-source-input";
 import { PemilihKantong, UbinAmbilDariKantong } from "@/components/knmp/ambil-dari-kantong";
 import { removeReportPhotoAction } from "@/lib/daily-report/actions";
@@ -78,6 +79,7 @@ export function FotoBarisPelengkap({
           thumbClass="h-12 w-12"
           canDelete={bolehHapus}
           deleteAction={removeReportPhotoAction}
+          rotateAction={bolehHapus ? putarFotoAction : undefined}
         />
       ) : null}
 

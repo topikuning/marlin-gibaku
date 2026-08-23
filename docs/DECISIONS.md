@@ -21917,3 +21917,132 @@ sebagai rencana N+1: rencana minggu ini bukan rencana minggu depan.
 Ikut diperbaiki: rencana yang tercatat tanpa satu pun item tidak lagi dihitung
 sebagai "ada rencana" (`items: { some: {} }`) — baris kosong menghasilkan slide
 Action Plan yang mengaku punya rencana tapi tidak menyebut satu pekerjaan pun.
+
+## 424 — Foto Cepat: orientasi & logo perusahaan di cap, 2026-08-23
+
+Dua laporan user 2026-08-23 atas satu foto yang sama.
+
+**1. Foto tersimpan miring 90°.** Bukan "gagal mendeteksi orientasi" — memang
+tidak ada yang bisa dideteksi. Kamera dalam aplikasi (DECISIONS 256) memotret
+lewat `canvas`, dan canvas TIDAK menghasilkan EXIF; sensor HP hampir selalu
+mengirim bingkai LANDSCAPE berapa pun cara orang memegangnya. Jadi
+`sharp().rotate()` di server tidak punya apa pun untuk dibaca. Foto dari galeri
+tidak kena: EXIF-nya utuh.
+
+Satu-satunya tempat informasinya masih ada adalah detik rana ditekan, di HP:
+`screen.orientation.angle`. Penegakannya dilakukan di canvas SEBELUM diunggah,
+dan HANYA bila ada pertentangan nyata (layar potret tapi bingkai lanskap).
+Tanpa syarat itu, peramban yang sudah menegakkan bingkainya sendiri akan
+diputar dua kali — kesalahan yang lebih buruk daripada yang diperbaiki.
+Aturannya diekspor sebagai `putaranBingkai()` dan diuji terpisah; aturan yang
+hanya hidup di dalam handler rana adalah aturan yang tidak pernah diuji.
+
+Jaring pengaman untuk HP yang sudut layarnya keliru: tombol **Putar kiri/kanan**
+di lightbox foto. Capnya dibakar ulang dari berkas ASLI yang diarsipkan
+(DECISIONS 197) — memutar hasil ber-cap akan memiringkan capnya juga, dan cap
+miring lebih buruk daripada foto miring karena ia yang dibaca sebagai bukti.
+
+Pagarnya SENGAJA berbeda dari `restampPhotoAction`: memutar tidak mengubah satu
+pun nilai cap (koordinat, jam, nama, Photo ID tetap persis sama), jadi ia tidak
+menuntut `photo.restamp` (super admin & PD) maupun alasan yang diketik. Yang
+tetap dijaga: akses ke lokasi foto itu, audit `photo.rotate`, dan revisi cap
+bertambah + masuk riwayat append-only.
+
+**2. Logo MARLIN diganti logo perusahaan.** `StampRenderData` bertambah
+`companyLogo` (data URI PNG — librsvg hanya membaca gambar yang DIBENAMKAN,
+berkas R2 tidak bisa dirujuk lewat URL dari dalam SVG). Sumbernya `Vendor.logoKey`
+yang sudah ada di Master › Perusahaan, mengikuti nama perusahaan yang tercetak
+di panel kiri: yang tampil harus milik perusahaan yang sama. Kosong → wordmark
+MARLIN seperti semula.
+
+Logo diambil sekali lalu di-cache per proses: satu vendor mengunggah puluhan
+foto sehari dengan logo yang sama. Kunci R2 berubah setiap logonya diganti, jadi
+tidak perlu invalidasi. Gagal memuat → kembali ke wordmark MARLIN, TIDAK
+menggagalkan penyimpanan foto: logo hiasan, koordinat dan jam buktinya.
+
+Lebar logo dibatasi 2,2× tinggi wordmark dan rata kanan. Rasio logo vendor tidak
+diketahui; tanpa batas itu logo memanjang menabrak panel nama perusahaan.
+
+### Tumpangan 424a — logo perusahaan tercetak terlalu kecil
+
+Keluhan user langsung setelah 424 dipasang: *"entah dimana masalahnya, tapi ini
+terlalu kecil stamp logo perusahaannya"*. Dua sebab, keduanya nyata:
+
+1. **Bingkai kosong di berkas logo.** Berkas yang diunggah orang hampir selalu
+   punya margin transparan – logo memanjang di tengah kanvas persegi, atau sisa
+   ekspor. Ruang kosong itu ikut dihitung saat gambar dipaskan ke kotaknya,
+   jadi yang tampak jauh lebih kecil daripada kotak yang disediakan. Logo kini
+   di-`trim()` sebelum diperkecil.
+2. **Kotaknya lebih sempit daripada wordmark MARLIN.** Versi pertama memakai
+   2,2× tinggi wordmark, padahal wordmark MARLIN sendiri hampir 4:1. Logo
+   perusahaan yang juga memanjang karena itu dipaskan pada lebar yang jauh
+   lebih sempit. Kotaknya kini SELEBAR wordmark – tidak menambah risiko
+   tabrakan, karena `logoKiri` yang membatasi panel nama perusahaan memang
+   dihitung dari lebar itu – dan tingginya dilonggarkan 1,25× dengan sisi atas
+   dijepit ke marjin aman supaya kelonggarannya tumbuh ke bawah.
+
+Diperiksa dengan merender cap sungguhan lalu melihat hasilnya: logo ber-margin
+tampil sebagai bilah kecil, logo yang sudah di-trim tampil sepadan dengan
+wordmark MARLIN.
+
+### Tumpangan 424b/424c — hasil simulasi tombol putar
+
+Permintaan user: *"coba simulasikan rotasimu, sepertinya bermasalah"*.
+Disimulasikan tiga lapis, dan dua cacat nyata ketahuan — keduanya TIDAK terlihat
+dari membaca kodenya.
+
+Yang TERBUKTI benar dan tidak diubah: matematika canvas-nya. Dijalankan di
+Chromium sungguhan lalu dibandingkan piksel demi piksel dengan `sharp.rotate()`
+untuk 0°/90°/270° — cocok semuanya. Komposisi `.rotate().rotate(n)` di sharp
+juga diperiksa: hasilnya sama dengan `.rotate(n)`, tidak berputar dua kali.
+
+**424b — tombol putar absen justru di tempat masalahnya lahir.** Tombolnya cuma
+dipasang di galeri laporan harian. Foto miring paling sering lahir di **Foto
+Cepat** (kamera dalam aplikasi, tanpa EXIF), dan di sana tidak ada jalan
+memperbaikinya sama sekali. Kini ada di kantong Foto Cepat, galeri kegiatan,
+dan baris foto pelengkap.
+
+Ikut diperbaiki: `putaranBingkai` memperlakukan sudut layar yang TIDAK diketahui
+(peramban tanpa `screen.orientation`) sebagai potret, sehingga foto lanskap yang
+sengaja diambil lanskap ikut diputar. "Tidak tahu" kini berarti jangan sentuh.
+
+**424c — memutar tidak menumpuk.** Setiap penekanan merender ulang dari ARSIP
+ASLI (cap dibakar ke gambar, jadi memutar hasil ber-cap akan memiringkan capnya
+juga). Akibatnya putaran kedua mulai dari nol: tekan "kanan" dua kali tetap 90°,
+dan "kiri" sesudah "kanan" jadi 270° alih-alih kembali. Tombol yang tampak macet.
+
+`Photo.rotationDeg` ditambahkan — putaran KUMULATIF terhadap berkas asli. Harus
+disimpan, bukan disimpulkan: dari dimensi saja 0° dan 180° tidak bisa dibedakan.
+Migrasinya idempoten (`ADD COLUMN IF NOT EXISTS`).
+
+## 425 — Batas foto sekali unggah: 6 → 20, dan yang tidak muat DISEBUT, 2026-08-23
+
+Keberatan user: *"laporan harian, sekali upload pilih foto dari galeri kenapa
+cuma dibatasi 6? sementara bisa menambahkan lagi."*
+
+Tepat. Batas 6 tidak melindungi apa pun — mengunggah lagi sesudahnya SELALU
+boleh, tidak ada batas total per item. Yang ia lakukan cuma memaksa memilih
+berulang kali dari galeri, pekerjaan yang paling merepotkan justru di HP dan
+justru bagi mandor.
+
+Yang benar-benar mengikat bukan JUMLAHNYA melainkan **ukuran permintaan**:
+server action dibatasi 30 MB (`next.config.ts`). Enam foto kamera modern sudah
+bisa melewatinya, jadi angka 6 pun tidak menjamin apa-apa. Maka:
+
+- `MAX_PHOTOS_PER_UPLOAD` 6 → **20**;
+- pagar barunya `MAX_UPLOAD_BYTES_TOTAL` = **28 MB** (di bawah 30 MB, sisanya
+  untuk overhead multipart), ditegakkan di KLIEN sebelum satu byte pun dikirim.
+  Tanpa ini, melonggarkan jumlah hanya memindahkan kegagalan ke tempat yang
+  lebih buruk: permintaan ditolak server dengan pesan teknis, setelah
+  pengunggahan berjalan lama di sinyal lapangan.
+
+Aturannya dipusatkan di `muatSekaliUnggah()` (murni, teruji): ia mengembalikan
+berapa yang muat, berapa sisanya, dan pesan yang menyebut **pagar mana** yang
+kena — "maksimal 20 foto" pada pilihan 8 foto besar adalah pesan yang salah
+sekaligus membingungkan.
+
+**Yang lebih penting daripada angkanya**: sisi server dulu memotong kelebihan
+dengan `.slice(0, 6)` TANPA memberi tahu siapa pun. Layarnya tetap berbunyi
+"Progres tersimpan" sementara sebagian bukti tidak pernah ada. Ketiga jalur
+unggah laporan harian (item, foto menyusul, baris material/alat) kini
+mengembalikan jumlah yang tidak tersimpan dan menyebutkannya di peringatan.
