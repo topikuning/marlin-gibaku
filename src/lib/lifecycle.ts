@@ -89,6 +89,17 @@ const REPORT_TRANSITIONS: Record<DailyReportStatus, DailyReportStatus[]> = {
  */
 export const COUNTED_REPORT_STATUSES = ["dikirim", "disetujui", "final"] as const;
 
+/**
+ * Level TERVERIFIKASI (internal): disetujui + final — laporan yang sudah
+ * melewati verifikasi Site Manager. DIPAKAI HANYA sebagai angka PENDAMPING
+ * (mesin kesiapan termin/PHO, label "Progress Terverifikasi") — angka RESMI
+ * tetap `COUNTED_REPORT_STATUSES`; memindahkan basis resmi adalah keputusan
+ * user yang masih terbuka di OPEN_ISSUES ("Level status progress").
+ * Catatan: ini BUKAN verifikasi Wakil PPK (`ReportVerification`) — jejak itu
+ * tidak menggerakkan angka mana pun. DECISIONS 426.
+ */
+export const VERIFIED_REPORT_STATUSES = ["disetujui", "final"] as const;
+
 export function canTransitionPackage(from: PackageStage, to: PackageStage): boolean {
   return PACKAGE_TRANSITIONS[from].includes(to);
 }

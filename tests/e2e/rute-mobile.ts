@@ -61,6 +61,7 @@ export const RUTE_STATIS: { pola: string; nama: string }[] = [
   { pola: "/temuan/baru", nama: "Catat temuan" },
   { pola: "/verifikasi", nama: "Workspace verifikasi Wakil PPK" },
   { pola: "/verifikasi/inspeksi/baru", nama: "Catat inspeksi" },
+  { pola: "/kesiapan", nama: "Kesiapan termin/PHO/FHO" },
   { pola: "/sistem", nama: "Sistem" },
   { pola: "/sistem/arsip-foto", nama: "Sistem – arsip foto" },
 ];
