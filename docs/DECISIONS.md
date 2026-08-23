@@ -21754,3 +21754,166 @@ SM hanya menyentuh lokasi penugasannya.
 
 Diverifikasi di server standalone: sm-01 melihat kartunya, menyimpan nama, dan
 tersimpan + teraudit (`lokasi.penandatangan`); mandor-01 tidak melihat kartunya.
+
+## 420 — Paparan juga bisa dibuat PER LOKASI, 2026-08-23
+
+Permintaan user: *"selain paket, presentasi juga bisa dibuat per lokasi."*
+
+Satu pintu, dua lingkup. `muatPaketPaparan(user, packageId, locationId?)`
+menyempitkan `locations` jadi satu, dan SELURUH pembangun snapshot bekerja dari
+daftar itu — tidak ada cabang kedua yang bisa menyimpang dari yang pertama.
+Snapshot menyimpan `lingkup` (opsional; artefak lama tanpa itu dibaca sebagai
+paket, sebagaimana satu-satunya lingkup yang pernah ada).
+
+**Akses.** Deck PAKET tetap menuntut akses ke SEMUA lokasi aktif (DECISIONS
+416): paparan kontrak parsial tidak boleh menyamar sebagai paparan lengkap.
+Deck LOKASI hanya menuntut akses ke lokasi itu. Ini bukan pelonggaran aturan
+lama melainkan dokumen yang berbeda — ia tidak pernah mengaku mewakili seluruh
+kontrak. Site Manager yang memegang dua dari sebelas lokasi karena itu bisa
+membuat deck lokasinya dan tetap ditolak deck paketnya. Formulir menyebutkan
+alasannya, bukan menghilangkan pilihan "Seluruh paket" tanpa sebab.
+
+**Supaya tidak terbaca sebagai deck kontrak.** Sampul deck lokasi menaruh nama
+LOKASI sebagai judul besar dan judul kerja kontrak di bawahnya; kebalikannya
+membuat deck satu lokasi terbaca sebagai deck seluruh kontrak. Nama berkas
+unduhan memuat nama lokasi — tanpa itu sebelas deck lokasi satu paket turun
+dengan nama yang sama dan saling tertimpa. Daftar "Paparan terbaru" menulis
+lingkup tiap baris. `run.scopeType` jadi `location`, `scopeIds` tetap daftar
+lokasi yang benar-benar masuk deck sehingga `scopeCoveredBy` di jalur baca
+bekerja sama persis untuk keduanya.
+
+`locationId` ikut di-hash anti-double-click: tanpa itu deck paket dan deck
+lokasi yang dibuat berdekatan saling dikira klik ganda dan yang kedua tidak
+jadi.
+
+Tombol "Buat Presentasi" ditambahkan di kepala halaman Lokasi, membawa
+`?paket=&lokasi=` sehingga formulirnya terbuka dengan lingkup lokasi itu sudah
+terpilih.
+
+## 421 — Project Manager & Area Manager memegang pekerjaan KONTRAK NORMAL, 2026-08-23
+
+Permintaan user: *"poinnya project manager dan area manager bisa melakukan
+semua hal yang berhubungan dengan kontrak normal, isi penanda tangan, ajukan
+adendum, isi logo, dsb"*.
+
+`contract.manage` + `amendment.manage` ditambahkan ke `PROJECT_MANAGER`; Area
+Manager mewarisinya karena disusun dari PM (jenjang = superset, DECISIONS 218).
+
+Yang ikut terbuka, disebut apa adanya: input data kontrak
+(`convertToContract`), nama penanda tangan dokumen KKP
+(`updateContractSignatories`), gambar tanda tangan & stempel
+(`updateContractSignatureImages`), memulai pelaksanaan (`startPelaksanaan`),
+membuat vendor (`createVendor`), master **Perusahaan** termasuk logo/kop/stempel
+vendor (`src/lib/vendor/actions.ts`), dan pencatatan adendum sisi kontrak
+(`addAmendment`).
+
+Yang TETAP super_admin, dan sengaja: `contract.edit` — KOREKSI kontrak yang
+sudah berjalan (nomor, nilai, PPN, tanggal). Itu bukan pekerjaan kontrak normal
+melainkan pembetulan data yang menggeser kisi mingguan kurva-S dan karenanya
+seluruh angka deviasi; sama alasannya dengan `location.correct`. Jadi pagarnya
+tidak hilang, ia pindah: dari batas PM/PD ke batas "mengerjakan" vs
+"membetulkan".
+
+Dua uji lama harus diubah karena premisnya memang berubah, bukan karena rusak:
+`authz-jenjang` memakai `amendment.manage` sebagai contoh "hak khas atasan tidak
+menetes ke bawah" (kini contohnya `contract.edit`), dan uji "adendum sisi
+kontrak tetap tertutup" kini menguji batas SM/PM, bukan PM/PD.
+
+Diperiksa di server standalone: pm-01 dan am-jateng melihat "Kelola nama",
+formulir tanda tangan & stempel, dan `/master/perusahaan` (200); sm-01 hanya
+"Lihat nama" dan `/master/perusahaan` 404.
+
+### Tumpangan 421a — versi & scopeHash tidak menghitung lingkup
+
+Ketahuan saat user bertanya apa yang terjadi bila tombol "Buat Paparan" ditekan
+lagi untuk paket & minggu yang sama. Jawabannya benar (di luar 90 detik selalu
+lahir DRAF BARU, yang lama tidak disentuh), tapi memeriksanya membuka cacat yang
+ikut masuk bersama lingkup lokasi: `scopeHash` dan penghitung versi hanya
+memakai (paket, minggu). Akibatnya deck lokasi Batah Timur minggu 6 terbit
+sebagai "v8" semata-mata karena sudah ada tujuh deck PAKET — nomor versi yang
+tidak menghitung apa pun.
+
+`scopeHash` kini memuat locationId untuk lingkup lokasi, dan versi dihitung per
+scopeHash. Bentuk hash lingkup paket sengaja TIDAK diubah supaya penomoran deck
+paket yang sudah terbit tidak melompat mundur. Diperiksa di basis data e2e: deck
+lokasi berikutnya terbit v1 dengan hash sendiri, deck paket lanjut ke v9.
+
+## 422 — Paparan: ingatkan + minta konfirmasi bila lingkup & minggu itu sudah punya deck, 2026-08-23
+
+Permintaan user: *"lebih baik beri opsi untuk buka draft lama atau generate
+baru. harus ada pengingat dan konfirmasi"*.
+
+Sebelum ini menekan "Buat Paparan" untuk lingkup+minggu yang sudah punya deck
+diam-diam melahirkan draf kedua. Orang yang mengira klik pertamanya gagal
+berakhir punya dua draf minggu yang sama tanpa tahu mana yang sedang direview.
+
+Formulir kini menampilkan paparan TERBARU untuk lingkup+minggu terpilih (versi,
+status, kapan diperbarui), satu tautan "Buka paparan vN", dan tombol buatnya
+berganti jadi "Buat versi baru (vN+1)" yang meminta konfirmasi sekali. Yang
+dijanjikan konfirmasi itu disebut: draf lama TETAP tersimpan, versi baru
+dihitung ulang dari data terkini dan dimulai tanpa suntingan manusia.
+
+Dua hal teknis yang ikut lahir dari ini:
+
+- Daftar "sudah ada" diambil lewat SQL mentah `DISTINCT ON` yang hanya menarik
+  tiga ruas kecil dari `structured_content`. Menarik seluruh kolom JSON (berisi
+  snapshot penuh) untuk setiap artefak demi nomor minggu adalah pemborosan yang
+  tumbuh bersama jumlah paparan.
+- Tombol konfirmasi TIDAK menggantikan tombol pemicu di titik yang sama. Menukar
+  dua tombol di posisi identik membuat satu klik beruntun mengenai keduanya —
+  ketahuan dari uji e2e yang menggantung karena tombol kedua sudah `pending`
+  sebelum sempat diklik. Tombol keduanya hidup di panel pengingat, memakai
+  atribut `form`.
+
+## 423 — Adendum: derau pembulatan & letak item, 2026-08-23
+
+Laporan user: menambah SATU item baru mendadak memunculkan ratusan baris
+"berubah" yang volumenya sama persis dan nilainya bergeser puluhan rupiah;
+lalu, tidak ada cara mencari item selain menggulir, dan daftar perubahan tidak
+menyebut item itu ada di kategori mana.
+
+**1. Derau pembulatan.** `recomputeTotals` menghitung ulang `amount` SETIAP item
+sebagai `round(volume × harga)` pada setiap mutasi draft. Nilai tersimpan
+berasal dari berkas RAB/HPS yang diunggah user, yang punya pembulatannya
+sendiri: pada basis uji **2.197 dari 11.540 item** berbeda dari hasil hitung
+ulang, dengan selisih TENGAH **4 rupiah**. `diffRevisions` menandai perubahan
+lewat `o.amount !== n.amount`, jadi seluruhnya muncul sebagai "perubahan" dan
+peninjau adendum diminta memeriksa daftar yang seluruhnya derau. Ini juga
+melanggar DECISIONS 203 — angka yang diunggah user dipakai apa adanya.
+
+`amount` item kini hanya dihitung ulang bila item itu memang baru saja
+diubah/ditambah. Agregat kategori tetap selalu diturunkan dari anaknya (aturan
+"angka agregat selalu derived"); itu aman karena kategori memang sudah sama
+dengan Σ anaknya — diperiksa: 0 dari 122 kategori menyimpang — sehingga total
+revisi tidak bergeser oleh perubahan ini.
+
+**2. Mencari item.** Grid editor adendum kini punya kotak Cari (quickFilter),
+dan pencariannya ikut mencocokkan JALUR induk, supaya "galian di bangunan B"
+bisa dijawab dengan mengetik nama bangunannya — baris kategori sendiri tersaring
+keluar saat mencari.
+
+**3. Letak item.** `DiffItem` bertambah `jalur` ("II. STRUKTUR › Lantai 1") dan
+daftar perubahan mencetaknya di atas nama item. Satu RAB bisa punya belasan
+bangunan dengan nama pekerjaan yang berulang persis; tanpa jalur, peninjau tahu
+APA yang berubah tapi tidak tahu DI MANA.
+
+### Tumpangan 422a — "Rencana minggu berikutnya belum tersedia" padahal rencananya ada
+
+Pertanyaan user 2026-08-23: *"padahal rencana mingguan sudah dibuat, apa
+maksudnya? coba kamu pastikan simulasikan"*.
+
+Disimulasikan sebagai uji integrasi, bukan dijawab dengan tebakan. Hasilnya:
+deck minggu N HANYA membaca rencana minggu **N+1** — itu memang isi Action
+Plan, dan perilakunya benar. Yang salah kalimatnya. Lapangan umumnya mengisi
+rencana untuk minggu yang SEDANG dipaparkan, bukan minggu sesudahnya, sehingga
+"Rencana minggu berikutnya belum tersedia di MARLIN" terbaca sebagai "tidak ada
+rencana sama sekali" — padahal rencananya ada, hanya untuk minggu lain.
+
+Kalimatnya kini menyebut minggunya, dan mengakui rencana yang memang ada:
+*"Rencana minggu ke-4 belum diisi – yang ada baru rencana minggu ke-3 (2
+lokasi), yaitu minggu yang sedang dipaparkan."* Rencana minggu N TIDAK dipakai
+sebagai rencana N+1: rencana minggu ini bukan rencana minggu depan.
+
+Ikut diperbaiki: rencana yang tercatat tanpa satu pun item tidak lagi dihitung
+sebagai "ada rencana" (`items: { some: {} }`) — baris kosong menghasilkan slide
+Action Plan yang mengaku punya rencana tapi tidak menyebut satu pekerjaan pun.

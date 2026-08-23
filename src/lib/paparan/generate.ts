@@ -31,13 +31,19 @@ export class PaparanGenerateError extends Error {}
 
 export type GeneratePaparanInput = {
   packageId: string;
+  /** Deck SATU lokasi paket ini bila diisi (DECISIONS 420). */
+  locationId?: string | null;
   weekNumber: number;
   focus?: "lengkap" | "progres" | "kendala";
 };
 
 function hashInput(userId: string, i: GeneratePaparanInput): string {
   return createHash("sha256")
-    .update(["paparan", userId, i.packageId, i.weekNumber, i.focus ?? "lengkap"].join("|"))
+    // locationId ikut di-hash: tanpa itu deck paket dan deck lokasi yang dibuat
+    // berdekatan akan saling dikira klik ganda dan yang kedua tidak jadi.
+    .update(
+      ["paparan", userId, i.packageId, i.locationId ?? "-", i.weekNumber, i.focus ?? "lengkap"].join("|"),
+    )
     .digest("hex");
 }
 
@@ -119,7 +125,7 @@ export async function generatePaparan(
   now = new Date(),
 ): Promise<HasilGeneratePaparan> {
   // 1. Akses paket = SATU pintu (org + kontrak + SPMK + seluruh lokasi aktif).
-  const pkg: PaketPaparan = await muatPaketPaparan(user, input.packageId);
+  const pkg: PaketPaparan = await muatPaketPaparan(user, input.packageId, input.locationId ?? null);
   const locationIds = pkg.locations.map((l) => l.id);
 
   /*
@@ -165,7 +171,10 @@ export async function generatePaparan(
       orgId: user.orgId,
       runKind: "paparan",
       status: "berjalan",
-      scopeType: "package",
+      // Lingkup lokasi → scopeType "location"; scopeIds tetap daftar lokasi
+      // yang benar-benar masuk deck, jadi `scopeCoveredBy` di jalur baca bekerja
+      // sama persis untuk keduanya tanpa cabang baru.
+      scopeType: pkg.lingkup.jenis === "lokasi" ? "location" : "package",
       scopeIds: locationIds,
       periodStart: new Date(`${snapshot.periode.mulaiKey}T00:00:00.000Z`),
       periodEnd: new Date(`${snapshot.periode.akhirKey}T00:00:00.000Z`),
@@ -179,6 +188,8 @@ export async function generatePaparan(
   await audit(user.id, "ai.run.buat", "ai_run", run.id, {
     kind: "paparan",
     packageId: pkg.id,
+    lingkup: pkg.lingkup.jenis,
+    locationId: pkg.lingkup.jenis === "lokasi" ? pkg.lingkup.locationId : null,
     weekNumber: input.weekNumber,
     locations: locationIds.length,
   });
@@ -228,17 +239,35 @@ export async function generatePaparan(
     aiError = guardCfg.enabled ? "no_provider" : "ai_disabled";
   }
 
-  // 7. Artefak draft — regenerate = VERSI BARU, tidak menimpa (spec §5).
+  /*
+   * 7. Artefak draft — regenerate = VERSI BARU, tidak menimpa (spec §5).
+   *
+   * scopeHash memuat LINGKUP (DECISIONS 420/421). Tanpa itu deck lokasi dan
+   * deck paket minggu yang sama berbagi satu hash DAN satu deret versi: deck
+   * lokasi Batah Timur minggu 6 terbit sebagai "v8" hanya karena sudah ada
+   * tujuh deck paket — nomor versi yang tidak menghitung apa pun. Ketahuan saat
+   * memeriksa basis data hasil e2e.
+   *
+   * Bentuk hash lama DIPERTAHANKAN untuk lingkup paket (tanpa ruas tambahan)
+   * supaya penomoran deck paket yang sudah terbit tidak melompat mundur.
+   */
   const scopeHash = createHash("sha256")
-    .update(`${PAPARAN_TEMPLATE_KEY}|${pkg.id}|${input.weekNumber}`)
+    .update(
+      pkg.lingkup.jenis === "lokasi"
+        ? `${PAPARAN_TEMPLATE_KEY}|${pkg.id}|${input.weekNumber}|${pkg.lingkup.locationId}`
+        : `${PAPARAN_TEMPLATE_KEY}|${pkg.id}|${input.weekNumber}`,
+    )
     .digest("hex")
     .slice(0, 16);
+  // Dihitung per scopeHash, bukan per (paket, minggu): satu deret versi untuk
+  // satu lingkup. Artefak lama tetap terhitung karena scopeHash paket tidak
+  // berubah bentuknya.
   const versi =
     (await db.aiArtifact.count({
       where: {
         kind: "paparan",
         packageId: pkg.id,
-        structuredContent: { path: ["weekNumber"], equals: input.weekNumber },
+        structuredContent: { path: ["scopeHash"], equals: scopeHash },
       },
     })) + 1;
   const content: PaparanContent = {

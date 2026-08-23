@@ -45,14 +45,17 @@ describe("KASUS INTI: atasan memiliki semua kapabilitas bawahannya", () => {
 
   it("atasan tetap punya yang khas dirinya – jenjang bukan sekadar salinan", () => {
     /*
-     * Contoh `finance.approve` (AM punya, PM tidak) DIGANTI `amendment.manage`.
-     * Bukan karena aturannya berubah, melainkan karena seluruh `finance.*`
-     * sedang DITAHAN untuk semua peran selain super_admin (DECISIONS 411) — jadi
-     * ia tidak bisa lagi membuktikan apa pun tentang jenjang. Yang diuji di sini
-     * premisnya: hak khas atasan tidak menetes ke bawah.
+     * Contohnya sudah dua kali berpindah, dan itu wajar: yang diuji premisnya —
+     * hak khas atasan tidak menetes ke bawah — bukan capability tertentu.
+     * `finance.approve` gugur karena seluruh `finance.*` ditahan (DECISIONS
+     * 411); `amendment.manage` gugur karena kini dimiliki PM & AM juga
+     * (DECISIONS 421, "kontrak normal" adalah pekerjaan mereka).
+     *
+     * Yang tersisa sebagai contoh sah: `contract.edit` — KOREKSI kontrak
+     * berjalan, super_admin saja — dan `location.manage`, yang berhenti di PM.
      */
-    expect(ROLE_CAPABILITIES.program_director.has("amendment.manage")).toBe(true);
-    expect(ROLE_CAPABILITIES.project_manager.has("amendment.manage")).toBe(false);
+    expect(ROLE_CAPABILITIES.super_admin.has("contract.edit")).toBe(true);
+    expect(ROLE_CAPABILITIES.program_director.has("contract.edit")).toBe(false);
     expect(ROLE_CAPABILITIES.project_manager.has("location.manage")).toBe(true);
     expect(ROLE_CAPABILITIES.site_manager.has("location.manage")).toBe(false);
   });
@@ -92,10 +95,18 @@ describe("penyetuju adendum vs pintu halamannya", () => {
     expect(ROLE_CAPABILITIES.wakil_ppk.has("rab.manage")).toBe(false);
   });
 
-  it("adendum SISI KONTRAK tetap tertutup – SM & PM bukan penandatangan", () => {
-    // `amendment.manage` (nomor CCO, perubahan waktu di halaman Kontrak) TIDAK
-    // ikut terbuka. Menyusun draft RAB berbeda dari mengesahkan kontraknya.
-    for (const r of ["site_manager", "project_manager", "regional_manager"] as const) {
+  it("adendum SISI KONTRAK: terbuka mulai PM, tertutup di bawahnya (DECISIONS 421)", () => {
+    /*
+     * Batas ini PINDAH, bukan hilang. Dulu `amendment.manage` (nomor CCO,
+     * perubahan waktu di halaman Kontrak) tertutup sampai Program Director,
+     * dengan alasan "menyusun draft RAB berbeda dari mengesahkan kontraknya".
+     * Permintaan user 2026-08-23 menempatkan pengesahan kontrak normal pada PM
+     * & AM — jadi yang menjaga sekarang batas SM/PM, bukan PM/PD.
+     */
+    for (const r of ["project_manager", "regional_manager"] as const) {
+      expect(ROLE_CAPABILITIES[r].has("amendment.manage"), r).toBe(true);
+    }
+    for (const r of ["site_manager", "field_supervisor", "exec_viewer", "wakil_ppk"] as const) {
       expect(ROLE_CAPABILITIES[r].has("amendment.manage"), r).toBe(false);
     }
   });

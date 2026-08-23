@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { LinkTabs, StatusPill, type LinkTabItem } from "@/components/ui";
+import { ButtonLink, LinkTabs, StatusPill, type LinkTabItem } from "@/components/ui";
 import { DeltaBadge } from "@/components/ui/stat-delta";
 import { cn } from "@/lib/cn";
 import { LOCATION_STATUS_LABEL, LOCATION_STATUS_TONE } from "@/lib/lifecycle";
@@ -111,11 +111,24 @@ export default async function LokasiLayout({
               {location.village}, {location.regency} – {location.province}
             </p>
           </div>
-          <div className="text-right text-[13px]">
+          <div className="flex flex-col items-end gap-1.5 text-right text-[13px]">
             <Link href={`/paket/${location.package.id}`} className="font-medium text-primary hover:underline">
               {location.package.name}
             </Link>
             {contract ? <p className="text-ink-muted">{contract.vendor.name}</p> : null}
+            {/*
+              Presentasi SATU lokasi (DECISIONS 420). Tautannya membawa
+              ?lokasi= sehingga formulirnya terbuka dengan lingkup lokasi ini
+              sudah terpilih — bukan lingkup paket yang harus diganti sendiri.
+            */}
+            {can(user.role, "ai.generate") && contract?.startDate && location.isActive ? (
+              <ButtonLink
+                href={`/ai/paparan?paket=${location.package.id}&lokasi=${location.id}`}
+                size="sm"
+              >
+                Buat Presentasi
+              </ButtonLink>
+            ) : null}
           </div>
         </div>
 

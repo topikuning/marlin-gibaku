@@ -20,5 +20,15 @@ export default defineConfig({
     // TRUNCATE global di afterAll. Jalankan file secara serial supaya cleanup
     // satu file tidak menghapus data file lain yang sedang berjalan.
     fileParallelism: false,
+    /*
+     * `afterAll` tes integrasi menjalankan TRUNCATE ... CASCADE lintas puluhan
+     * tabel. Batas bawaan 10 detik cukup di mesin pengembang tapi TIDAK di
+     * runner CI yang jauh lebih lambat: run 2026-08-23 gagal dengan "Hook timed
+     * out in 10000ms" pada dua berkas WAHA — padahal SELURUH 840 uji lulus.
+     * Yang gagal pembersihannya, bukan yang diuji. Menaikkan batasnya tidak
+     * menutupi apa pun: uji yang benar-benar menggantung tetap gagal, hanya
+     * lebih lambat.
+     */
+    hookTimeout: 60_000,
   },
 });

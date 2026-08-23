@@ -546,14 +546,33 @@ export async function buatSnapshotPaparan(
 
   /* ── Rencana minggu depan (bila modulnya diisi) ─────────────────────── */
 
-  const plans = await db.weeklyPlan.findMany({
-    where: { locationId: { in: ids }, weekNumber: weekNumber + 1 },
-    select: {
-      locationId: true,
-      note: true,
-      items: { select: { targetVolume: true, rabNode: { select: { name: true, unit: true } } } },
-    },
-  });
+  /*
+   * Deck minggu N memaparkan rencana minggu N+1 — itu memang isi Action Plan.
+   *
+   * Tapi kalimat "belum tersedia" saja terbaca seperti "tidak ada rencana sama
+   * sekali", dan itu menyesatkan justru pada keadaan yang paling sering:
+   * lapangan MENGISI rencana untuk minggu yang sedang dipaparkan, bukan untuk
+   * minggu sesudahnya. User melaporkannya 2026-08-23 — *"padahal rencana
+   * mingguan sudah dibuat, apa maksudnya?"*. Maka minggu N ikut dicek, semata
+   * untuk MENYEBUTKAN keadaannya; angkanya tidak dipakai sebagai rencana N+1,
+   * karena rencana minggu ini bukan rencana minggu depan.
+   */
+  const pilihRencana = {
+    locationId: true,
+    weekNumber: true,
+    note: true,
+    items: { select: { targetVolume: true, rabNode: { select: { name: true, unit: true } } } },
+  } as const;
+  const [plans, plansMingguIni] = await Promise.all([
+    db.weeklyPlan.findMany({
+      where: { locationId: { in: ids }, weekNumber: weekNumber + 1, items: { some: {} } },
+      select: pilihRencana,
+    }),
+    db.weeklyPlan.findMany({
+      where: { locationId: { in: ids }, weekNumber, items: { some: {} } },
+      select: { locationId: true },
+    }),
+  ]);
   const rencanaMingguDepan =
     plans.length > 0
       ? plans.map((p) => ({
@@ -568,7 +587,13 @@ export async function buatSnapshotPaparan(
         }))
       : null;
   if (!rencanaMingguDepan) {
-    limitations.push("Rencana minggu berikutnya belum tersedia di MARLIN.");
+    // Sebut minggunya. "Minggu berikutnya" memaksa pembaca menghitung sendiri,
+    // dan itu persis titik salah pahamnya.
+    limitations.push(
+      plansMingguIni.length > 0
+        ? `Rencana minggu ke-${weekNumber + 1} belum diisi – yang ada baru rencana minggu ke-${weekNumber} (${plansMingguIni.length} lokasi), yaitu minggu yang sedang dipaparkan.`
+        : `Rencana minggu ke-${weekNumber + 1} belum diisi di MARLIN.`,
+    );
   } else {
     for (const p of plans) {
       const slug = lokasi.find((l) => l.id === p.locationId)?.slug ?? "";
@@ -597,6 +622,9 @@ export async function buatSnapshotPaparan(
 
   return {
     version: 1,
+    // Lingkup ikut disimpan: deck lokasi yang tidak mengaku lokasi akan dibaca
+    // sebagai deck kontrak (DECISIONS 420).
+    lingkup: pkg.lingkup,
     paket: {
       id: pkg.id,
       name: pkg.name,

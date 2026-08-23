@@ -146,6 +146,16 @@ export type KategoriLokasiPaparan = {
 
 export type PaparanSnapshot = {
   version: 1;
+  /**
+   * LINGKUP deck ini (DECISIONS 420). Opsional supaya artefak lama tetap
+   * terbaca — tidak ada = lingkup paket, sebagaimana satu-satunya lingkup yang
+   * pernah ada sebelum ini.
+   *
+   * Ini bukan hiasan judul: satu deck lokasi memuat angka SATU lokasi, dan
+   * kalau lingkupnya tidak tercetak di sampul, deck lokasi akan dibaca KKP
+   * sebagai deck seluruh kontrak.
+   */
+  lingkup?: { jenis: "paket" } | { jenis: "lokasi"; locationId: string; nama: string };
   paket: {
     id: string;
     name: string;

@@ -140,8 +140,30 @@ describe("authz capability matrix", () => {
     expect(can("site_manager", "contract.manage")).toBe(false);
     expect(can("site_manager", "contract.edit")).toBe(false);
     expect(can("site_manager", "amendment.manage")).toBe(false);
-    // Kisi mingguan kurva berasal dari tanggal kontrak — tetap terkunci.
-    expect(can("project_manager", "contract.manage")).toBe(false);
+    /*
+     * Project Manager KINI memegang contract.manage (DECISIONS 421) — batas itu
+     * pindah, bukan hilang. Yang menjaga kisi mingguan kurva sekarang
+     * `contract.edit`: KOREKSI nomor/nilai/PPN/tanggal kontrak yang sudah
+     * berjalan tetap super_admin saja.
+     */
+    expect(can("project_manager", "contract.edit")).toBe(false);
+    expect(can("regional_manager", "contract.edit")).toBe(false);
+    expect(can("program_director", "contract.edit")).toBe(false);
+  });
+
+  it("kontrak normal terbuka untuk PM & AM, koreksi kontrak tidak (DECISIONS 421)", () => {
+    for (const role of ["project_manager", "regional_manager", "program_director", "super_admin"] as const) {
+      // Nama penanda tangan, gambar TTD & stempel, input kontrak, vendor+logo.
+      expect(can(role, "contract.manage"), role).toBe(true);
+      expect(can(role, "amendment.manage"), role).toBe(true);
+    }
+    // Di bawah PM tetap tertutup — ini hak kontrak, bukan hak lapangan.
+    expect(can("site_manager", "contract.manage")).toBe(false);
+    expect(can("field_supervisor", "contract.manage")).toBe(false);
+    expect(can("wakil_ppk", "contract.manage")).toBe(false);
+    expect(can("exec_viewer", "contract.manage")).toBe(false);
+    // Koreksi lokasi paket berkontrak juga tetap super_admin.
+    expect(can("project_manager", "location.correct")).toBe(false);
   });
 
   it("penanda tangan lokasi: SM ke atas boleh, pelaksana tidak (DECISIONS 419)", () => {

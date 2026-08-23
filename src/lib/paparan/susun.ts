@@ -173,8 +173,19 @@ export function saringNarasiPaparan(raw: unknown, snapshot: PaparanSnapshot): Ha
 
 /* ── Fallback deterministik ─────────────────────────────────────────────── */
 
+/**
+ * Nama lokasi bila deck ini berlingkup lokasi (DECISIONS 420); null utk paket.
+ * Artefak lama tidak punya `lingkup` → dibaca sebagai paket, sebagaimana dulu.
+ */
+export function namaLingkupLokasi(s: PaparanSnapshot): string | null {
+  return s.lingkup?.jenis === "lokasi" ? s.lingkup.nama : null;
+}
+
 function judulDeterministik(s: PaparanSnapshot): string {
-  return `Progres Pekerjaan ${s.paket.name}`;
+  const lok = namaLingkupLokasi(s);
+  return lok
+    ? `Progres Pekerjaan ${lok} – ${s.paket.name}`
+    : `Progres Pekerjaan ${s.paket.name}`;
 }
 
 function refPaket(s: PaparanSnapshot): string[] {
@@ -511,11 +522,22 @@ export function susunSlides(content: PaparanContent, opts: { draf: boolean }): S
   const e: PaparanHumanEdits = content.humanEdits ?? {};
   const slides: Slide[] = [];
   const periodeLabel = `${s.periode.mulaiKey} s.d. ${s.periode.akhirKey}`;
+  const lokasiLingkup = namaLingkupLokasi(s);
 
   slides.push({
     jenis: "sampul",
-    judulKerja: s.kontrak.workTitle ?? s.paket.name,
-    subJudul: s.kontrak.workTitle ? s.paket.name : null,
+    /*
+     * Deck LOKASI menaruh nama lokasi sebagai judul besar dan judul kerja
+     * kontrak di bawahnya. Kebalikannya (judul kontrak besar, lokasi kecil)
+     * membuat deck satu lokasi terbaca sebagai deck seluruh kontrak — persis
+     * yang harus dicegah lingkup ini. DECISIONS 420.
+     */
+    judulKerja: lokasiLingkup ?? s.kontrak.workTitle ?? s.paket.name,
+    subJudul: lokasiLingkup
+      ? [s.kontrak.workTitle, s.paket.name].filter(Boolean).join(" – ")
+      : s.kontrak.workTitle
+        ? s.paket.name
+        : null,
     nomorKontrak: s.kontrak.contractNumber,
     pelaksana: s.kontrak.vendorName,
     mingguKe: s.periode.mingguKe,

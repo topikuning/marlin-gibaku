@@ -18,6 +18,22 @@ async function masuk(page: Page, user: string) {
   await page.waitForURL((u) => !u.pathname.startsWith("/masuk"), { timeout: 15_000 });
 }
 
+/**
+ * Tekan tombol buat, melewati konfirmasi bila lingkup+minggu ini SUDAH punya
+ * paparan (DECISIONS 422). Dipakai semua alur supaya uji tidak bergantung pada
+ * basis data kosong — persis keadaan yang bikin dua uji ini merah saat
+ * pengingatnya ditambahkan.
+ */
+async function klikBuat(page: Page) {
+  const langsung = page.getByRole("button", { name: "Buat Paparan", exact: true });
+  if (await langsung.count()) {
+    await langsung.click();
+    return;
+  }
+  await page.getByRole("button", { name: /^Buat versi baru \(v\d+\)$/ }).click();
+  await page.getByRole("button", { name: /^Ya, buat v\d+$/ }).click();
+}
+
 test.describe("paparan mingguan KKP", () => {
   test("generate → preview → lifecycle → PDF final", async ({ page }, testInfo) => {
     test.setTimeout(180_000);
@@ -37,7 +53,7 @@ test.describe("paparan mingguan KKP", () => {
     // AI mati di lingkungan uji → banner fallback harus MENGATAKANNYA di muka.
     await expect(page.getByText("Provider AI belum aktif – paparan tetap bisa dibuat")).toBeVisible();
 
-    await page.getByRole("button", { name: "Buat Paparan" }).click();
+    await klikBuat(page);
     await page.waitForURL(/\/ai\/paparan\/[0-9a-f-]{36}/, { timeout: 60_000 });
     const artifactUrl = new URL(page.url());
     const artifactId = artifactUrl.pathname.split("/").pop()!;
@@ -90,7 +106,7 @@ test.describe("paparan mingguan KKP", () => {
      * untuk ditunggu e2e.)
      */
     await page.goto("/ai/paparan");
-    await page.getByRole("button", { name: "Buat Paparan" }).click();
+    await klikBuat(page);
     await page.waitForURL(/\/ai\/paparan\/[0-9a-f-]{36}/, { timeout: 60_000 });
     expect(new URL(page.url()).pathname.split("/").pop()).toBe(artifactId);
     await page.goto("/ai/paparan");
@@ -108,6 +124,87 @@ test.describe("paparan mingguan KKP", () => {
     const punya = await page.request.get(`/api/paparan/00000000-0000-4000-8000-000000000000/pdf`);
     expect([403, 404]).toContain(punya.status());
     expect(punya.status()).not.toBe(200);
+  });
+
+  test("deck LOKASI: tombol di halaman lokasi → lingkup lokasi terpilih → deck satu lokasi", async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(180_000);
+    test.skip(testInfo.project.name !== "desktop", "cukup satu profil");
+    await masuk(page, "hery");
+
+    // Tombol ada DI HALAMAN LOKASI, dan membawa lingkupnya sendiri.
+    await page.goto("/lokasi");
+    const lokasiHref = await page.locator('a[href^="/lokasi/"]').first().getAttribute("href");
+    await page.goto(lokasiHref!);
+    const tombol = page.getByRole("link", { name: "Buat Presentasi" });
+    await expect(tombol).toBeVisible({ timeout: 30_000 });
+    await tombol.click();
+    await page.waitForURL(/\/ai\/paparan\?paket=[0-9a-f-]{36}&lokasi=[0-9a-f-]{36}/, {
+      timeout: 30_000,
+    });
+    const lokasiId = new URL(page.url()).searchParams.get("lokasi")!;
+    // Lingkup yang terpilih = lokasi dari tautan, bukan "Seluruh paket".
+    await expect(page.locator('input[name="locationId"]')).toHaveValue(lokasiId, {
+      timeout: 30_000,
+    });
+
+    await klikBuat(page);
+    await page.waitForURL(/\/ai\/paparan\/[0-9a-f-]{36}/, { timeout: 60_000 });
+    /*
+     * Yang membuktikan ini deck LOKASI dan bukan deck paket berjudul lokasi:
+     * slide lampiran hanya memuat satu lokasi. Judul saja bisa benar sementara
+     * angkanya tetap agregat paket.
+     */
+    await expect(page.getByText("Progres Pekerjaan", { exact: false }).first()).toBeVisible({
+      timeout: 30_000,
+    });
+    const teks = await page.locator("body").innerText();
+    expect(teks).toContain("Minggu ke-");
+  });
+
+  test("lingkup+minggu yang sudah punya paparan: diingatkan, dan versi baru minta konfirmasi", async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(120_000);
+    test.skip(testInfo.project.name !== "desktop", "cukup satu profil");
+    await masuk(page, "hery");
+    await page.goto("/ai/paparan");
+    await expect(page.getByRole("heading", { name: "Buat Paparan Mingguan KKP" })).toBeVisible({
+      timeout: 30_000,
+    });
+
+    /*
+     * Uji ini bergantung pada adanya paparan lebih dulu untuk lingkup bawaan
+     * formulir. Kalau basisnya masih kosong, buat satu — dan setelah itu
+     * pengingatnya WAJIB muncul. Tanpa langkah ini uji akan "lulus" di basis
+     * kosong justru karena tidak ada yang diingatkan.
+     */
+    const adaPengingat = await page.getByText("Sudah ada paparan untuk lingkup & minggu ini").count();
+    if (adaPengingat === 0) {
+      await klikBuat(page);
+      await page.waitForURL(/\/ai\/paparan\/[0-9a-f-]{36}/, { timeout: 60_000 });
+      await page.goto("/ai/paparan");
+    }
+
+    // 1. Pengingat muncul, dan tombol langsung-buat DIGANTI tombol berkonfirmasi.
+    await expect(page.getByText("Sudah ada paparan untuk lingkup & minggu ini")).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.getByRole("button", { name: /^Buat versi baru \(v\d+\)$/ })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Buat Paparan", exact: true })).toHaveCount(0);
+    // Tombol konfirmasi belum ada sebelum pemicunya ditekan.
+    await expect(page.getByRole("button", { name: /^Ya, buat v\d+$/ })).toHaveCount(0);
+    // 2. Jalan keluar "buka yang lama" tersedia, bukan cuma peringatan buntu.
+    await expect(page.getByRole("link", { name: /^Buka paparan v\d+$/ })).toBeVisible();
+
+    // 3. Konfirmasi: satu klik belum membuat apa pun, masih bisa dibatalkan.
+    await page.getByRole("button", { name: /^Buat versi baru \(v\d+\)$/ }).click();
+    await expect(page.getByText(/Buat versi baru\? Paparan v\d+ tetap tersimpan\./)).toBeVisible();
+    expect(page.url()).toContain("/ai/paparan");
+    await page.getByRole("button", { name: "Batal" }).click();
+    await expect(page.getByRole("button", { name: /^Ya, buat v\d+$/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^Buat versi baru \(v\d+\)$/ })).toBeEnabled();
   });
 
   test("deep link dari halaman paket membuka form dengan paketnya terpilih", async ({ page }) => {

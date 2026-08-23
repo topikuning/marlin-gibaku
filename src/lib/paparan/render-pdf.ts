@@ -11,7 +11,15 @@ import {
 } from "@/lib/pdf/document";
 import { formatRupiah } from "@/lib/format";
 import type { PaparanContent } from "./jenis";
-import { bandStatus, judulPaparan, pctID, ppID, susunSlides, type Slide } from "./susun";
+import {
+  bandStatus,
+  judulPaparan,
+  namaLingkupLokasi,
+  pctID,
+  ppID,
+  susunSlides,
+  type Slide,
+} from "./susun";
 
 /**
  * RENDERER PDF PAPARAN 16:9 (DECISIONS 416/417) — mengikuti contoh paparan
@@ -871,11 +879,14 @@ export async function renderPaparanPdf(content: PaparanContent, opts: { draf: bo
 }
 
 export function namaBerkasPaparan(content: PaparanContent, versi: number): string {
-  const paket = content.snapshot.paket.name
-    .replace(/[^\p{L}\p{N}]+/gu, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 60);
-  return `Paparan_KKP_${paket}_Minggu_${content.weekNumber}_v${versi}.pdf`;
+  const bersih = (v: string) =>
+    v.replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_+|_+$/g, "").slice(0, 60);
+  const paket = bersih(content.snapshot.paket.name);
+  // Deck lokasi memakai nama lokasi: berkas yang seluruhnya bernama paket akan
+  // saling tertimpa di folder unduhan orang yang membuat sebelas deck lokasi.
+  const lok = namaLingkupLokasi(content.snapshot);
+  const inti = lok ? `${paket}_${bersih(lok)}` : paket;
+  return `Paparan_KKP_${inti}_Minggu_${content.weekNumber}_v${versi}.pdf`;
 }
 
 export function rupiahDariString(v: string): string {
