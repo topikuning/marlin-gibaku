@@ -272,7 +272,7 @@ export default async function RingkasanPaketPage({
   const revertTo = revertTargetFor(pkg.stage);
   const lokasiAktif = pkg.locations.filter((l) => l.isActive).length;
   const adaKomunikasi =
-    canWaConfigure || ((canKirimLaporan || canGeneratePaparan) && pkg.stage === "pelaksanaan");
+    canWaConfigure || (canKirimLaporan && pkg.stage === "pelaksanaan");
 
   return (
     <div className="space-y-4">
@@ -346,6 +346,24 @@ export default async function RingkasanPaketPage({
                 </div>
                 {nextAction.action ? <div className="min-w-0">{nextAction.action}</div> : null}
               </div>
+
+              {/*
+                Pintu paparan mingguan DI DEPAN, bukan cuma di baris Integrasi
+                kolom kanan: itu tempat pengaturan yang jarang disentuh,
+                sedangkan membuat paparan adalah pekerjaan mingguan. Permintaan
+                user 2026-08-23.
+              */}
+              {canGeneratePaparan && pkg.stage === "pelaksanaan" && contract?.startDate ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <ButtonLink href={`/ai/paparan?paket=${pkg.id}`} variant="primary">
+                    Buat presentasi mingguan
+                  </ButtonLink>
+                  <span className="text-[13px] text-ink-muted">
+                    Deck PDF 16:9 satu minggu kontrak – angka resmi MARLIN, direview dulu sebelum
+                    final.
+                  </span>
+                </div>
+              ) : null}
 
               {contract ? (
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -595,18 +613,6 @@ export default async function RingkasanPaketPage({
                           wahaConfigured={await isWahaConfigured()}
                         />
                       </Drawer>
-                    }
-                  />
-                ) : null}
-
-                {canGeneratePaparan && pkg.stage === "pelaksanaan" && contract?.startDate ? (
-                  <BarisIntegrasi
-                    nama="Paparan Mingguan KKP"
-                    keterangan="Deck PDF 16:9 satu minggu kontrak – angka resmi MARLIN, direview dulu sebelum final."
-                    aksi={
-                      <ButtonLink href={`/ai/paparan?paket=${pkg.id}`} size="sm">
-                        Buat Paparan Mingguan KKP
-                      </ButtonLink>
                     }
                   />
                 ) : null}
