@@ -1,7 +1,9 @@
 import {
   Activity,
   AlertTriangle,
+  ClipboardCheck,
   Database,
+  Gauge,
   MessagesSquare,
   Camera,
   FileText,
@@ -13,6 +15,8 @@ import {
   Package,
   Send,
   Settings,
+  ShieldCheck,
+  Siren,
   Sparkles,
   Sun,
   TrendingUp,
@@ -48,6 +52,10 @@ export const ICONS = {
   sparkles: Sparkles,
   users: Users,
   settings: Settings,
+  clipboardCheck: ClipboardCheck,
+  shieldCheck: ShieldCheck,
+  siren: Siren,
+  gauge: Gauge,
 } as const;
 
 export type NavItem = {
@@ -76,6 +84,12 @@ export const MAIN_NAV: NavItem[] = [
   // `issue.manage`: yang tidak boleh mengubah tetap perlu MELIHAT apa yang
   // sedang menghambat lokasinya.
   { label: "Kendala", href: "/kendala", icon: "alertTriangle", capability: "location.view" },
+  // Pengendalian terpadu (DECISIONS 426): temuan pemeriksa, workspace
+  // verifikasi Wakil PPK, EWS, dan kesiapan termin/PHO/FHO.
+  { label: "Temuan", href: "/temuan", icon: "clipboardCheck", capability: "finding.view" },
+  { label: "Verifikasi", href: "/verifikasi", icon: "shieldCheck", capability: "report.verify_external" },
+  { label: "Perlu Tindakan", href: "/perlu-tindakan", icon: "siren", capability: "portfolio.view" },
+  { label: "Kesiapan", href: "/kesiapan", icon: "gauge", capability: "package.view" },
   { label: "Keuangan", href: "/keuangan", icon: "wallet", capability: "finance.view" },
   { label: "Dokumen", href: "/dokumen", icon: "folderOpen", capability: "document.view" },
   { label: "Laporan", href: "/laporan", icon: "fileText", capability: "report.export" },
@@ -110,6 +124,17 @@ const FIELD_ROLES: ReadonlySet<UserRole> = new Set([
  * tombol "Menu" (drawer nav lengkap) sehingga menu lain tetap terjangkau.
  */
 export function MOBILE_NAV(role: UserRole): NavItem[] {
+  // Wakil PPK: pekerjaan lapangannya adalah MEMERIKSA — verifikasi & temuan
+  // harus satu ketukan, sama alasannya dengan Foto Cepat bagi mandor.
+  if (role === "wakil_ppk") {
+    const wakil: NavItem[] = [
+      { label: "Beranda", href: "/", icon: "home" },
+      { label: "Verifikasi", href: "/verifikasi", icon: "shieldCheck", capability: "report.verify_external" },
+      { label: "Temuan", href: "/temuan", icon: "clipboardCheck", capability: "finding.view" },
+      { label: "Lokasi", href: "/lokasi", icon: "mapPin", capability: "location.view" },
+    ];
+    return wakil.filter((item) => allowed(role, item)).slice(0, 4);
+  }
   const items: NavItem[] = FIELD_ROLES.has(role)
     ? [
         { label: "Hari Ini", href: "/hari-ini", icon: "sun", capability: "daily_report.create" },

@@ -56,6 +56,9 @@ export const RUTE_STATIS: { pola: string; nama: string }[] = [
   { pola: "/pengguna", nama: "Pengguna" },
   { pola: "/peta", nama: "Peta" },
   { pola: "/progress", nama: "Progress portofolio" },
+  // Pengendalian terpadu (DECISIONS 426).
+  { pola: "/temuan", nama: "Papan temuan" },
+  { pola: "/temuan/baru", nama: "Catat temuan" },
   { pola: "/sistem", nama: "Sistem" },
   { pola: "/sistem/arsip-foto", nama: "Sistem – arsip foto" },
 ];
@@ -76,6 +79,10 @@ export type KonteksRute = {
   /** Artefak paparan KKP yang benar-benar ada (bisa null bila belum ada yang dibuat). */
   paparanId: string | null;
   antrean: string | null;
+  /** Temuan yang benar-benar ada (bisa null bila belum ada). DECISIONS 426. */
+  temuanId: string | null;
+  /** Inspeksi Wakil PPK yang benar-benar ada (bisa null). DECISIONS 426. */
+  inspeksiId: string | null;
 };
 
 export const RUTE_DINAMIS: {
@@ -151,6 +158,7 @@ export const RUTE_DINAMIS: {
     nama: "Detail paparan KKP",
     isi: (k) => (k.paparanId ? [`/ai/paparan/${k.paparanId}`] : null),
   },
+  { pola: "/temuan/[id]", nama: "Detail temuan", isi: (k) => (k.temuanId ? [`/temuan/${k.temuanId}`] : null) },
 ];
 
 /**
