@@ -370,7 +370,10 @@ function Isi({ slide, thumbUrl }: { slide: Slide; thumbUrl: Record<string, strin
                     Foto tidak dapat dimuat
                   </div>
                 )}
-                <figcaption className="truncate pt-1 text-[10px] text-ink-muted">{f.caption}</figcaption>
+                <figcaption className="mt-1.5 flex items-center gap-1.5 truncate text-[11px] font-semibold text-ink">
+                  <span aria-hidden className="h-3 w-[3px] shrink-0 rounded-full bg-cyan-500" />
+                  <span className="truncate">{f.caption}</span>
+                </figcaption>
               </figure>
             ))}
           </div>

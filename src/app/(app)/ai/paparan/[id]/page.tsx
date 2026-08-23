@@ -57,14 +57,22 @@ export default async function PaparanDetailPage({ params }: { params: Promise<{ 
   const bolehApprove = can(user.role, "ai.report_approve");
   const bisaDiedit = draf && !artifact.frozenAt && artifact.status !== "beku" && artifact.status !== "terkirim";
 
-  // Thumbnail foto: presigned R2 sementara, hanya untuk kandidat snapshot.
+  /*
+   * DUA ukuran, sengaja. `thumbnailKey` hanya 256px (photos.ts THUMB_MAX) —
+   * memang cukup untuk petak pemilih ±64px, tapi dipaksa selebar ±400px di
+   * pratinjau slide ia tampak pecah. Slide memakai berkas utama (1920px),
+   * pemilih tetap memakai thumbnail supaya grid tidak menarik belasan foto
+   * penuh sekaligus.
+   */
+  const fotoUrl = new Map<string, string>();
   const thumbUrl = new Map<string, string>();
   if (isR2Configured()) {
     for (const f of content.snapshot.fotoKandidat) {
       try {
+        fotoUrl.set(f.id, await r2PresignGet(f.r2Key, 300));
         thumbUrl.set(f.id, await r2PresignGet(f.thumbnailKey ?? f.r2Key, 300));
       } catch {
-        /* thumbnail gagal → kartu tanpa gambar; PDF tetap jalan sendiri */
+        /* presign gagal → kartu tanpa gambar; PDF tetap jalan sendiri */
       }
     }
   }
@@ -107,7 +115,7 @@ export default async function PaparanDetailPage({ params }: { params: Promise<{ 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-4">
           {slides.map((sl, i) => (
-            <SlidePreview key={i} slide={sl} nomor={i + 1} total={slides.length} thumbUrl={Object.fromEntries(thumbUrl)} />
+            <SlidePreview key={i} slide={sl} nomor={i + 1} total={slides.length} thumbUrl={Object.fromEntries(fotoUrl)} />
           ))}
         </div>
         <div className="space-y-4 self-start">

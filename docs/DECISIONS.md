@@ -21694,3 +21694,38 @@ di hari Minggu — catatan "Pekan berjalan" hilang padahal laporan hari Minggu
 belum masuk (kini `hariIniKey <= minggu`); dan uji pindah-tanggal menghitung
 "besok" memakai UTC padahal pagarnya hari kerja Asia/Jakarta — antara 17.00–
 24.00 UTC ujinya menolak kode yang benar.
+
+## 418 — Foto paparan: PDF gagal di produksi, pratinjau pecah, keterangan tak terbaca, 2026-08-23
+
+Laporan user: tombol "Unduh PDF" pada Paparan KKP menjawab
+`{"error":"fs.readFileSync is not a function"}` di produksi, foto di pratinjau
+"sangat kecil/pecah", dan keterangan di bawah foto "kurang standout".
+
+**1. PDF gagal di produksi.** `ambilFoto()` mengoper `Buffer` ke `doc.image()`.
+Bundle pdfkit yang di-vendor (`assets/pdfkit-standalone.cjs`) MENSTUB `fs`, jadi
+jalur Buffer memanggil `fs.readFileSync` yang tidak ada — jebakan yang sudah
+tercatat di DECISIONS 129 dan sudah dihindari renderer kegiatan/harian, tapi
+terulang di renderer paparan. Foto kini dioper sebagai DATA URI base64.
+
+Kenapa lolos sampai produksi: `tests/unit/paparan-pdf.test.ts` mematikan R2 di
+level modul, jadi satu-satunya jalur foto yang pernah dijalani uji adalah jalur
+GAGAL (placeholder). Ujinya hijau justru karena tidak pernah menyentuh yang
+rusak. Ditambal `tests/unit/paparan-pdf-foto.test.ts`: R2 menyala, buffer gambar
+nyata, dan PDF diperiksa benar-benar memuat XObject gambar. Uji gigi: kembalikan
+`ambilFoto` ke Buffer → dua uji merah dengan pesan
+"fs.readFileSync is not a function" yang sama persis dengan laporan user.
+
+**2. Pratinjau pecah.** Halaman rincian mem-presign `thumbnailKey ?? r2Key`
+untuk SEMUA pemakai. `thumbnailKey` hanya 256px (`photos.ts` THUMB_MAX, memang
+dirancang untuk petak ±64px) tapi dipaksa selebar ±400px di pratinjau slide.
+Kini dua peta: slide memakai berkas utama (1920px), petak pemilih tetap
+thumbnail supaya grid tidak menarik belasan foto penuh.
+
+**3. Keterangan foto.** Abu-abu 8.5pt di PDF dan `text-[10px] text-ink-muted` di
+web hilang saat diproyeksikan. Jadi tebal, tinta gelap, plus tanda aksen cyan
+pendek di kiri sebagai titik mulai baca. Di PDF dipotong manual lewat
+`widthOfString` (bukan `ellipsis`, yang tidak bisa diandalkan).
+
+Ukuran unduhan foto dinaikkan 760 → 1400×900 q82: sisi foto pada slide dua
+kolom ±417pt, jadi ini ±3,4× ukuran cetak — tajam saat diproyeksikan maupun
+dicetak.
