@@ -122,7 +122,7 @@ test.describe("paparan mingguan KKP", () => {
 
     // Dari Ringkasan Paket: tombolnya ada dan menuju form dengan ?paket= terisi.
     await page.goto(`/paket/${paketId}`);
-    const tombol = page.getByRole("link", { name: "Buat presentasi mingguan" });
+    const tombol = page.getByRole("link", { name: "Buat Presentasi" });
     await expect(tombol).toBeVisible({ timeout: 30_000 });
     await tombol.click();
     await page.waitForURL(`**/ai/paparan?paket=${paketId}`, { timeout: 30_000 });

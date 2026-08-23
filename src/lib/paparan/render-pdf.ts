@@ -466,10 +466,14 @@ async function renderFotoPekerjaan(
      * abu-abu tipis 8.5pt hilang di ruangan terang. Tebal + tinta gelap, plus
      * garis aksen cyan pendek supaya matanya tahu di mana mulai membaca.
      */
-    const cy = y + fh + 9;
+    const cy = y + fh + 8;
     doc.rect(x, cy + 2, 3, 11).fillColor(C.cyan).fill();
-    doc.font(PDF_FONT.bold).fontSize(9.5).fillColor(C.ink);
-    doc.text(potong(doc, s(f.caption), fw - 10), x + 8, cy, { width: fw - 8, lineBreak: false });
+    doc.font(PDF_FONT.bold).fontSize(9).fillColor(C.ink);
+    // DUA baris, bukan satu: keterangan lengkap sering lebih panjang dari
+    // separuh slide ("Pekerjaan Sondir termasuk Pelaporan termasuk mobilisasi
+    // Alat dan Personil"), dan dipotong satu baris ia kehilangan justru bagian
+    // yang membedakan satu foto dari foto sebelahnya.
+    doc.text(s(f.caption), x + 8, cy, { width: fw - 8, height: 23, ellipsis: true } as never);
   });
 }
 
