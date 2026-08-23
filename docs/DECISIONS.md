@@ -21896,3 +21896,24 @@ keluar saat mencari.
 daftar perubahan mencetaknya di atas nama item. Satu RAB bisa punya belasan
 bangunan dengan nama pekerjaan yang berulang persis; tanpa jalur, peninjau tahu
 APA yang berubah tapi tidak tahu DI MANA.
+
+### Tumpangan 422a — "Rencana minggu berikutnya belum tersedia" padahal rencananya ada
+
+Pertanyaan user 2026-08-23: *"padahal rencana mingguan sudah dibuat, apa
+maksudnya? coba kamu pastikan simulasikan"*.
+
+Disimulasikan sebagai uji integrasi, bukan dijawab dengan tebakan. Hasilnya:
+deck minggu N HANYA membaca rencana minggu **N+1** — itu memang isi Action
+Plan, dan perilakunya benar. Yang salah kalimatnya. Lapangan umumnya mengisi
+rencana untuk minggu yang SEDANG dipaparkan, bukan minggu sesudahnya, sehingga
+"Rencana minggu berikutnya belum tersedia di MARLIN" terbaca sebagai "tidak ada
+rencana sama sekali" — padahal rencananya ada, hanya untuk minggu lain.
+
+Kalimatnya kini menyebut minggunya, dan mengakui rencana yang memang ada:
+*"Rencana minggu ke-4 belum diisi – yang ada baru rencana minggu ke-3 (2
+lokasi), yaitu minggu yang sedang dipaparkan."* Rencana minggu N TIDAK dipakai
+sebagai rencana N+1: rencana minggu ini bukan rencana minggu depan.
+
+Ikut diperbaiki: rencana yang tercatat tanpa satu pun item tidak lagi dihitung
+sebagai "ada rencana" (`items: { some: {} }`) — baris kosong menghasilkan slide
+Action Plan yang mengaku punya rencana tapi tidak menyebut satu pekerjaan pun.

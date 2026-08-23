@@ -260,6 +260,68 @@ describe("akses paket", () => {
  * lokasi yang diam-diam membawa agregat paket adalah kebohongan yang paling
  * mudah lolos karena bentuknya normal.
  */
+/**
+ * SIMULASI yang diminta user 2026-08-23: *"padahal rencana mingguan sudah
+ * dibuat, apa maksudnya?"* — deck menulis "Rencana minggu berikutnya belum
+ * tersedia di MARLIN" walau rencananya ada.
+ *
+ * Uji ini membuktikan MINGGU MANA yang sebenarnya dicari deck, supaya
+ * jawabannya bukan tebakan.
+ */
+describe("rencana mingguan: minggu mana yang dibaca deck", () => {
+  it("rencana minggu N+1 TERBACA oleh deck minggu N", async () => {
+    const node = await db.rabNode.findFirstOrThrow({
+      where: { revision: { locationId: locA, status: "aktif" }, kind: "item" },
+      select: { id: true },
+    });
+    const plan = await db.weeklyPlan.create({
+      data: {
+        locationId: locA,
+        weekNumber: 3,
+        weekStart: new Date("2026-06-15"),
+        weekEnd: new Date("2026-06-21"),
+        createdById: mandorId,
+      },
+      select: { id: true },
+    });
+    await db.weeklyPlanItem.create({
+      data: { weeklyPlanId: plan.id, rabNodeId: node.id, targetVolume: 5 },
+    });
+
+    const pkg = await muatPaketPaparan(admin(), packageId);
+    const deckM2 = await buatSnapshotPaparan(pkg, 2, NOW);
+    expect(deckM2.rencanaMingguDepan, "deck minggu 2 harus membaca rencana minggu 3").not.toBeNull();
+    expect(deckM2.limitations.some((l) => l.includes("Rencana minggu"))).toBe(false);
+  });
+
+  it("rencana minggu N SAJA: deck minggu N mengaku tidak punya rencana", async () => {
+    /*
+     * Inilah keadaan yang dilaporkan user. Rencana ADA — untuk minggu yang
+     * sedang dipaparkan — tetapi deck hanya mencari minggu BERIKUTNYA, lalu
+     * menulis kalimat yang terbaca seperti "tidak ada rencana sama sekali".
+     */
+    const pkg = await muatPaketPaparan(admin(), packageId);
+    const deckM3 = await buatSnapshotPaparan(pkg, 3, NOW);
+    expect(deckM3.rencanaMingguDepan).toBeNull();
+    /*
+     * Kalimatnya WAJIB menyebut minggu mana yang kosong DAN mengakui rencana
+     * minggu yang dipaparkan memang ada. "Rencana minggu berikutnya belum
+     * tersedia" saja terbaca sebagai "tidak ada rencana sama sekali", dan itu
+     * keluhan yang memicu perbaikan ini.
+     */
+    const baris = deckM3.limitations.find((l) => l.includes("Rencana minggu"));
+    expect(baris).toContain("minggu ke-4 belum diisi");
+    expect(baris).toContain("rencana minggu ke-3");
+  });
+
+  it("tidak ada rencana sama sekali: kalimatnya tidak mengarang rencana minggu ini", async () => {
+    const pkg = await muatPaketPaparan(admin(), packageId);
+    const deckM1 = await buatSnapshotPaparan(pkg, 1, NOW);
+    const baris = deckM1.limitations.find((l) => l.includes("Rencana minggu"));
+    expect(baris).toBe("Rencana minggu ke-2 belum diisi di MARLIN.");
+  });
+});
+
 describe("lingkup lokasi", () => {
   it("hanya lokasi itu yang termuat, dan lingkupnya tercatat", async () => {
     const pkg = await muatPaketPaparan(admin(), packageId, locA);
