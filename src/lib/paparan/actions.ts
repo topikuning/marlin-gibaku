@@ -80,6 +80,14 @@ async function muatArtefakPaparan(user: SessionUser, artifactId: string) {
 
 const generateSchema = z.object({
   packageId: z.uuid(),
+  // "" = seluruh paket. Combobox mengirim string kosong, bukan menghilangkan
+  // medannya, jadi kosong harus jadi null di sini — bukan gagal validasi.
+  locationId: z
+    .string()
+    .trim()
+    .transform((v) => (v === "" ? null : v))
+    .nullable()
+    .refine((v) => v === null || /^[0-9a-f-]{36}$/i.test(v), "Lokasi tidak valid"),
   weekNumber: z.coerce.number().int().min(1).max(520),
   focus: z.enum(["lengkap", "progres", "kendala"]).default("lengkap"),
 });
@@ -90,10 +98,11 @@ export async function buatPaparanAction(_prev: PaparanState, formData: FormData)
     const user = await requireCapability("ai.generate");
     const parsed = generateSchema.safeParse({
       packageId: formData.get("packageId"),
+      locationId: String(formData.get("locationId") ?? ""),
       weekNumber: formData.get("weekNumber"),
       focus: String(formData.get("focus") ?? "lengkap"),
     });
-    if (!parsed.success) return { error: "Pilihan paket/minggu tidak valid." };
+    if (!parsed.success) return { error: "Pilihan paket/lokasi/minggu tidak valid." };
     const hasil = await generatePaparan(user, parsed.data);
     artifactId = hasil.artifactId;
   } catch (err) {

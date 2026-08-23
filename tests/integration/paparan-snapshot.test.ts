@@ -254,6 +254,57 @@ describe("akses paket", () => {
   });
 });
 
+/**
+ * LINGKUP LOKASI (DECISIONS 420). Yang diuji bukan cuma "berhasil", melainkan
+ * bahwa deck lokasi memuat SATU lokasi dan angkanya angka lokasi itu — deck
+ * lokasi yang diam-diam membawa agregat paket adalah kebohongan yang paling
+ * mudah lolos karena bentuknya normal.
+ */
+describe("lingkup lokasi", () => {
+  it("hanya lokasi itu yang termuat, dan lingkupnya tercatat", async () => {
+    const pkg = await muatPaketPaparan(admin(), packageId, locA);
+    expect(pkg.locations).toHaveLength(1);
+    expect(pkg.locations[0].id).toBe(locA);
+    expect(pkg.lingkup).toEqual({ jenis: "lokasi", locationId: locA, nama: pkg.locations[0].name });
+    const s = await buatSnapshotPaparan(pkg, 2, NOW);
+    expect(s.lingkup).toEqual(pkg.lingkup);
+    expect(s.progres.lokasi).toHaveLength(1);
+    // Lokasi A sendirian = 10%, BUKAN 18% (agregat paket tertimbang).
+    expect(s.progres.paket.realisasiPct).toBeCloseTo(10, 5);
+  });
+
+  it("lingkup paket tetap menandai dirinya paket", async () => {
+    const pkg = await muatPaketPaparan(admin(), packageId);
+    expect(pkg.lingkup).toEqual({ jenis: "paket" });
+    expect((await buatSnapshotPaparan(pkg, 2, NOW)).lingkup).toEqual({ jenis: "paket" });
+  });
+
+  it("user ber-akses SEBAGIAN boleh deck LOKASI penugasannya, tetap ditolak deck PAKET", async () => {
+    const sm: SessionUser = { ...admin(), id: mandorId, role: "site_manager" };
+    // Penugasan locA sudah dibuat di uji akses di atas; idempotenkan.
+    await db.locationAssignment
+      .create({ data: { userId: mandorId, locationId: locA } })
+      .catch(() => undefined);
+    const pkg = await muatPaketPaparan(sm, packageId, locA);
+    expect(pkg.locations.map((l) => l.id)).toEqual([locA]);
+    await expect(muatPaketPaparan(sm, packageId)).rejects.toThrow(PaparanAksesError);
+  });
+
+  it("lokasi di luar penugasan ditolak dengan pesan generik yang sama", async () => {
+    const sm: SessionUser = { ...admin(), id: mandorId, role: "site_manager" };
+    await expect(muatPaketPaparan(sm, packageId, locB)).rejects.toThrow(/tidak ditemukan/i);
+  });
+
+  it("lokasi milik paket LAIN ditolak, bukan diam-diam ikut dimuat", async () => {
+    const lain = await db.location.findFirst({
+      where: { packageId: { not: packageId } },
+      select: { id: true },
+    });
+    if (!lain) return;
+    await expect(muatPaketPaparan(admin(), packageId, lain.id)).rejects.toThrow(/tidak ditemukan/i);
+  });
+});
+
 describe("snapshot minggu lampau (minggu ke-2: 8–14 Juni)", () => {
   it("agregat paket TERTIMBANG nilai RAB, bukan rata-rata sederhana", async () => {
     const pkg = await muatPaketPaparan(admin(), packageId);

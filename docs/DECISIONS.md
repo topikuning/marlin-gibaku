@@ -21754,3 +21754,38 @@ SM hanya menyentuh lokasi penugasannya.
 
 Diverifikasi di server standalone: sm-01 melihat kartunya, menyimpan nama, dan
 tersimpan + teraudit (`lokasi.penandatangan`); mandor-01 tidak melihat kartunya.
+
+## 420 — Paparan juga bisa dibuat PER LOKASI, 2026-08-23
+
+Permintaan user: *"selain paket, presentasi juga bisa dibuat per lokasi."*
+
+Satu pintu, dua lingkup. `muatPaketPaparan(user, packageId, locationId?)`
+menyempitkan `locations` jadi satu, dan SELURUH pembangun snapshot bekerja dari
+daftar itu — tidak ada cabang kedua yang bisa menyimpang dari yang pertama.
+Snapshot menyimpan `lingkup` (opsional; artefak lama tanpa itu dibaca sebagai
+paket, sebagaimana satu-satunya lingkup yang pernah ada).
+
+**Akses.** Deck PAKET tetap menuntut akses ke SEMUA lokasi aktif (DECISIONS
+416): paparan kontrak parsial tidak boleh menyamar sebagai paparan lengkap.
+Deck LOKASI hanya menuntut akses ke lokasi itu. Ini bukan pelonggaran aturan
+lama melainkan dokumen yang berbeda — ia tidak pernah mengaku mewakili seluruh
+kontrak. Site Manager yang memegang dua dari sebelas lokasi karena itu bisa
+membuat deck lokasinya dan tetap ditolak deck paketnya. Formulir menyebutkan
+alasannya, bukan menghilangkan pilihan "Seluruh paket" tanpa sebab.
+
+**Supaya tidak terbaca sebagai deck kontrak.** Sampul deck lokasi menaruh nama
+LOKASI sebagai judul besar dan judul kerja kontrak di bawahnya; kebalikannya
+membuat deck satu lokasi terbaca sebagai deck seluruh kontrak. Nama berkas
+unduhan memuat nama lokasi — tanpa itu sebelas deck lokasi satu paket turun
+dengan nama yang sama dan saling tertimpa. Daftar "Paparan terbaru" menulis
+lingkup tiap baris. `run.scopeType` jadi `location`, `scopeIds` tetap daftar
+lokasi yang benar-benar masuk deck sehingga `scopeCoveredBy` di jalur baca
+bekerja sama persis untuk keduanya.
+
+`locationId` ikut di-hash anti-double-click: tanpa itu deck paket dan deck
+lokasi yang dibuat berdekatan saling dikira klik ganda dan yang kedua tidak
+jadi.
+
+Tombol "Buat Presentasi" ditambahkan di kepala halaman Lokasi, membawa
+`?paket=&lokasi=` sehingga formulirnya terbuka dengan lingkup lokasi itu sudah
+terpilih.

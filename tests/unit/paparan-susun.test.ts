@@ -264,6 +264,26 @@ function content(s: PaparanSnapshot, narasi: PaparanNarasi): PaparanContent {
 }
 
 describe("perakitan slide", () => {
+  it("sampul deck LOKASI menaruh nama lokasi sebagai judul besar (DECISIONS 420)", () => {
+    const c = content(snapshot({ lingkup: { jenis: "lokasi", locationId: "loc-1", nama: "Kemantren" } }), narasiValid());
+    const sampul = susunSlides(c, { draf: true })[0];
+    if (sampul.jenis !== "sampul") throw new Error("slide pertama bukan sampul");
+    /*
+     * Kebalikannya – judul kontrak besar, lokasi kecil – membuat deck satu
+     * lokasi terbaca sebagai deck seluruh kontrak. Itu yang harus dicegah.
+     */
+    expect(sampul.judulKerja).toBe("Kemantren");
+    expect(sampul.subJudul).toContain(c.snapshot.paket.name);
+  });
+
+  it("tanpa lingkup (artefak lama) sampul tetap seperti dulu: lingkup paket", () => {
+    const c = content(snapshot(), narasiValid());
+    delete c.snapshot.lingkup;
+    const sampul = susunSlides(c, { draf: true })[0];
+    if (sampul.jenis !== "sampul") throw new Error("slide pertama bukan sampul");
+    expect(sampul.judulKerja).toBe(c.snapshot.kontrak.workTitle ?? c.snapshot.paket.name);
+  });
+
   it("urutan inti pola Mataram: sampul → … → action_plan → lampiran → penutup", () => {
     const slides = susunSlides(content(snapshot(), narasiDeterministik(snapshot())), { draf: true });
     const jenis = slides.map((s) => s.jenis);

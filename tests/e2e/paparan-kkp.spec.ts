@@ -110,6 +110,43 @@ test.describe("paparan mingguan KKP", () => {
     expect(punya.status()).not.toBe(200);
   });
 
+  test("deck LOKASI: tombol di halaman lokasi → lingkup lokasi terpilih → deck satu lokasi", async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(180_000);
+    test.skip(testInfo.project.name !== "desktop", "cukup satu profil");
+    await masuk(page, "hery");
+
+    // Tombol ada DI HALAMAN LOKASI, dan membawa lingkupnya sendiri.
+    await page.goto("/lokasi");
+    const lokasiHref = await page.locator('a[href^="/lokasi/"]').first().getAttribute("href");
+    await page.goto(lokasiHref!);
+    const tombol = page.getByRole("link", { name: "Buat Presentasi" });
+    await expect(tombol).toBeVisible({ timeout: 30_000 });
+    await tombol.click();
+    await page.waitForURL(/\/ai\/paparan\?paket=[0-9a-f-]{36}&lokasi=[0-9a-f-]{36}/, {
+      timeout: 30_000,
+    });
+    const lokasiId = new URL(page.url()).searchParams.get("lokasi")!;
+    // Lingkup yang terpilih = lokasi dari tautan, bukan "Seluruh paket".
+    await expect(page.locator('input[name="locationId"]')).toHaveValue(lokasiId, {
+      timeout: 30_000,
+    });
+
+    await page.getByRole("button", { name: "Buat Paparan" }).click();
+    await page.waitForURL(/\/ai\/paparan\/[0-9a-f-]{36}/, { timeout: 60_000 });
+    /*
+     * Yang membuktikan ini deck LOKASI dan bukan deck paket berjudul lokasi:
+     * slide lampiran hanya memuat satu lokasi. Judul saja bisa benar sementara
+     * angkanya tetap agregat paket.
+     */
+    await expect(page.getByText("Progres Pekerjaan", { exact: false }).first()).toBeVisible({
+      timeout: 30_000,
+    });
+    const teks = await page.locator("body").innerText();
+    expect(teks).toContain("Minggu ke-");
+  });
+
   test("deep link dari halaman paket membuka form dengan paketnya terpilih", async ({ page }) => {
     await masuk(page, "hery");
     // Ambil id paket sah dari nilai bawaan form (input hidden milik Combobox).

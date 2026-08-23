@@ -214,4 +214,14 @@ describe("renderPaparanPdf", () => {
     c.snapshot.paket.name = 'Paket "Natuna"/<KKP>';
     expect(namaBerkasPaparan(c, 2)).toBe("Paparan_KKP_Paket_Natuna_KKP_Minggu_6_v2.pdf");
   });
+
+  it("deck LOKASI: nama berkas memuat lokasinya (DECISIONS 420)", () => {
+    const c = content();
+    c.snapshot.lingkup = { jenis: "lokasi", locationId: "loc-1", nama: "Lokasi 2" };
+    /*
+     * Tanpa nama lokasi, sebelas deck lokasi satu paket akan turun dengan nama
+     * berkas yang SAMA dan saling tertimpa di folder unduhan.
+     */
+    expect(namaBerkasPaparan(c, 2)).toBe("Paparan_KKP_Paket_Natuna_Lokasi_2_Minggu_6_v2.pdf");
+  });
 });

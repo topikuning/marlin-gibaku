@@ -597,6 +597,9 @@ export async function buatSnapshotPaparan(
 
   return {
     version: 1,
+    // Lingkup ikut disimpan: deck lokasi yang tidak mengaku lokasi akan dibaca
+    // sebagai deck kontrak (DECISIONS 420).
+    lingkup: pkg.lingkup,
     paket: {
       id: pkg.id,
       name: pkg.name,

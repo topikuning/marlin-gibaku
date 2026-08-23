@@ -4,22 +4,49 @@ import { useActionState, useMemo, useState } from "react";
 import { Banner, Button, Card, CardBody, CardHeader, Combobox } from "@/components/ui";
 import { buatPaparanAction, type PaparanState } from "@/lib/paparan/actions";
 
+type PaketOpsi = {
+  id: string;
+  name: string;
+  lokasi: number;
+  bolehPaket: boolean;
+  lokasiPilihan: { id: string; name: string }[];
+  mingguBerjalan: number;
+  mingguSelesai: number;
+};
+
 /**
- * Form generate Paparan Mingguan KKP (DECISIONS 416).
+ * Form generate Paparan Mingguan KKP (DECISIONS 416 + 420).
  *
  * Default minggu = minggu kontrak TERAKHIR YANG SELESAI — itu yang dipaparkan
  * ke KKP. Minggu berjalan boleh dipilih tetapi selalu berlabel "belum genap".
+ *
+ * Lingkup: seluruh paket atau satu lokasi. "Seluruh paket" hanya muncul bila
+ * user memegang SEMUA lokasi aktif paket itu; kalau tidak, lingkupnya terkunci
+ * ke lokasi dan alasannya ditulis, bukan dibiarkan terbaca sebagai pilihan yang
+ * hilang tanpa sebab.
  */
 export function PaparanGenerateClient({
   paket,
   initialPackageId,
+  initialLocationId,
 }: {
-  paket: { id: string; name: string; lokasi: number; mingguBerjalan: number; mingguSelesai: number }[];
+  paket: PaketOpsi[];
   initialPackageId?: string;
+  initialLocationId?: string;
 }) {
   const awal = paket.some((p) => p.id === initialPackageId) ? initialPackageId! : (paket[0]?.id ?? "");
   const [paketId, setPaketId] = useState(awal);
   const dipilih = useMemo(() => paket.find((p) => p.id === paketId) ?? null, [paket, paketId]);
+  const [lokasiId, setLokasiId] = useState(() => {
+    const p = paket.find((x) => x.id === awal);
+    if (initialLocationId && p?.lokasiPilihan.some((l) => l.id === initialLocationId)) {
+      return initialLocationId;
+    }
+    return p && !p.bolehPaket ? (p.lokasiPilihan[0]?.id ?? "") : "";
+  });
+  // Ganti paket → lingkup lama bisa jadi bukan milik paket baru.
+  const lokasiSah = dipilih?.lokasiPilihan.some((l) => l.id === lokasiId) ?? false;
+  const lokasiTerpakai = lokasiSah ? lokasiId : dipilih?.bolehPaket ? "" : (dipilih?.lokasiPilihan[0]?.id ?? "");
   const [state, formAction, pending] = useActionState<PaparanState, FormData>(buatPaparanAction, undefined);
 
   const opsiMinggu = useMemo(() => {
@@ -69,6 +96,25 @@ export function PaparanGenerateClient({
               ))}
             </Combobox>
           </div>
+          <div className="min-w-56 flex-1">
+            <label htmlFor="pp-lingkup" className="mb-1 block text-sm font-medium text-ink">
+              Lingkup
+            </label>
+            <Combobox
+              id="pp-lingkup"
+              name="locationId"
+              key={`${paketId}-${lokasiTerpakai}`}
+              value={lokasiTerpakai}
+              onChange={setLokasiId}
+            >
+              {dipilih?.bolehPaket ? <option value="">Seluruh paket ({dipilih.lokasi} lokasi)</option> : null}
+              {(dipilih?.lokasiPilihan ?? []).map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </Combobox>
+          </div>
           <div className="w-64">
             <label htmlFor="pp-minggu" className="mb-1 block text-sm font-medium text-ink">
               Minggu kontrak
@@ -98,6 +144,9 @@ export function PaparanGenerateClient({
         </form>
         <p className="mt-2 text-xs text-ink-muted">
           Hasilnya selalu DRAF ber-watermark – melewati review dan persetujuan dulu sebelum jadi PDF final.
+          {dipilih && !dipilih.bolehPaket
+            ? " Paket ini hanya bisa dipaparkan per lokasi: sebagian lokasi aktifnya di luar penugasan Anda."
+            : ""}
         </p>
       </CardBody>
     </Card>
